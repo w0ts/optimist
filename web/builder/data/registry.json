@@ -2176,9 +2176,7 @@
     "head": false,
     "choices": [],
     "provenance": null,
-    "children": [
-     "CHO_EXACT"
-    ],
+    "children": [],
     "hidden": false,
     "shown_under": null,
     "tested": "emulator-tested only",
@@ -2454,32 +2452,6 @@
     "hidden": false,
     "shown_under": null,
     "tested": "emulator-tested only",
-    "provenance_line": ""
-   },
-   {
-    "key": "CHO_EXACT",
-    "flag": "FELUCCA_CHO_EXACT",
-    "label": "chorus: exact modulation ramp (less grit)",
-    "group": "FX: limited instances (once, or a set count)",
-    "bit": 425,
-    "default": 0,
-    "parent": "FX_CHORUS",
-    "desc": "The chorus send moves its two read points by exactly 1/32 of the block's change each sample, as the CHRS insert does, instead of a step rounded down once a block. The old way left the read point up to 0.12 sample behind by each block's end and snapped it back 1378 times a second: a faint grit around every note, heard on headphones. Measured: 12-15 dB less of it from 220 Hz to 1 kHz, about 5 dB at 3 kHz. A few bytes of flash, no RAM, two shifts a sample.",
-    "experimental": true,
-    "notice": "",
-    "off_warning": "",
-    "env": "",
-    "target_only": false,
-    "symbols": [],
-    "no_image": false,
-    "fixed": false,
-    "head": false,
-    "choices": [],
-    "provenance": null,
-    "children": [],
-    "hidden": false,
-    "shown_under": null,
-    "tested": "host-measured only (a sine through the firmware's own code, 2026-10-26); not yet heard on an FM-1",
     "provenance_line": ""
    },
    {
