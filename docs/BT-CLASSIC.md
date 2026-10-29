@@ -4,7 +4,7 @@
 The builder item `BT_AUDIO` (EXPERIMENTAL, off by default; on in the shipped profiles) is our own GPL-3.0 BR/EDR stack,
 no JieLi library: inquiry, paging, Secure Simple Pairing (Just Works, P-192), E0, L2CAP, AVDTP and an SBC encoder
 (`firmware/src/bt/`), an A2DP source to headphones and speakers; its page is SYSTEM > BT AUDIO (`ui/optimist/op_bt.c`).
-`BT_AFH` (on with it) skips the channels the headset fails on: measured with a WH-1000XM4 on 2026-10-23 (its registry
+AFH (always on with it; the builder's `BT_AFH`, retired 2026-10-29) skips the channels the headset fails on: measured with a WH-1000XM4 on 2026-10-23 (its registry
 text). This page holds the hardware as it was read and measured; `BT_INQ_PROBE` (bit 280, dropped 2026-10-20) was the
 console probe the stack grew from.
 
