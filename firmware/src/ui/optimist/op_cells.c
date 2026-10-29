@@ -656,7 +656,8 @@ static void cell_lim_note(cell_t *c, uint32_t o, uint32_t t, uint32_t s, uint32_
     const char *v = 0;
     if (a == 0xFFu || cap == FXI_ANY || st == FXI_NA)  /* (a type not built: NA; built, cap 0: no room now, FULL) */
         return;
-    c->hlp = t == FXT_CHRS ? "CHRS" : t == FXT_JUNO ? "JUNO" : t == FXT_FLNG ? "FLNG" : "ECHO";
+    c->hlp = t == FXT_CHRS ? "CHRS" : t == FXT_JUNO ? "JUNO" : t == FXT_FLNG ? "FLNG" : t == FXT_ROOM ? "ROOM" :
+             t == FXT_TDLY ? "TDLY" : "ECHO";
     if (st == FXI_OK) {
         char nm[sizeof c->val];                         /* (the count before the name: "2/4 CHRS") */
         str_cpy(nm, c->val, sizeof nm);
@@ -670,7 +671,8 @@ static void cell_lim_note(cell_t *c, uint32_t o, uint32_t t, uint32_t s, uint32_
         v = c->hlp;                                     /* (the effect's name, struck through like a muted track's text) */
         c->dim = 1;
         c->strike = 1;
-        c->hlp = t == FXT_CHRS ? "FULL CHRS" : t == FXT_JUNO ? "FULL JUNO" : t == FXT_FLNG ? "FULL FLNG" : "FULL ECHO";
+        c->hlp = t == FXT_CHRS ? "FULL CHRS" : t == FXT_JUNO ? "FULL JUNO" : t == FXT_FLNG ? "FULL FLNG" :
+                 t == FXT_ROOM ? "FULL ROOM" : t == FXT_TDLY ? "FULL TDLY" : "FULL ECHO";
     }
     str_cpy(lab[s & 1u], s ? "S2 " : "S1 ", sizeof lab[0]);
     str_cpy(lab[s & 1u] + 3, TP[a].label, sizeof lab[0] - 3u);

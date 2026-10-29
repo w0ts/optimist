@@ -204,25 +204,18 @@ class Item:
         return bool(self.choices)
 
 
-# The FX in two groups (2026-10-13): those every track (and slot) can run at once, their state small and sized for every
-# track (CPU the only limit), and those that run once (the master, the chorus, delay and reverb) or as many times as the build gives
-# them instances (the insert copies of the chorus and a short delay: a pool line each; fx/insfx/fxi.c hands them out).
-# The items are declared with group "FX" and sorted into the two by key (fx_group), the backports' too.
-FX_ANY = "FX: any number (each track its own)"
-FX_ONCE = "FX: limited instances (once, or a set count)"
-FX_ONCE_KEYS = {"FX_CHORUS", "FX_DELAY", "FX_REVERB", "FX_PUNCH", "FX_DUCK",
-                "INS_CHORUS", "INS_DELAY", "INS_JCHORUS", "INS_FLANGER", "INS_XDLY"}
-
-
-def fx_group(key, parent=None):
-    """the group of an FX item ("FX" when declared): by its own key, a child by its parent's"""
-    return FX_ONCE if (parent or key) in FX_ONCE_KEYS else FX_ANY
-
+# The FX in one group (the user, 2026-10-29: "one FX group, no any number / limited instances split"; two since
+# 2026-10-13). Each effect's label starts with where it goes: [send+insert] the chorus, the delay and the reverb (a send
+# on the master's returns, and as a track's or the master's insert: CHRS, TDLY, ROOM), [master] what runs on the whole
+# mix only (PUNCH, DUCK, the returns' feedback sends), [insert] every other effect (a track's or the master's insert
+# slots). A sub-item is an option of the item above it; the mix's resolution options are no effect: no tag.
+FX = "FX"
 
 MEM = "Memory management"
-GROUPS = [MEM, "Reserve", "Synth engines", "Drums", "Sample sets", FX_ANY, FX_ONCE, "Sequencer", "Connectivity", "UI", "System"]
+GROUPS = [MEM, "Reserve", "Synth engines", "Drums", "Sample sets", FX, "Sequencer", "Connectivity", "UI", "System"]
 
-LEGACY_GROUPS = ("USB & BT & MIDI",)     # (a group renamed: the old .config files still carry its "# header")
+LEGACY_GROUPS = ("USB & BT & MIDI",   # (a group renamed: the old .config files still carry its "# header")
+                 "FX: any number (each track its own)", "FX: limited instances (once, or a set count)")   # (FX, 2026-10-29)
 
 _ITEMS = []
 
@@ -603,20 +596,20 @@ for i, (k, n) in enumerate((("PIANO", "PIANO (Steinway, 44 KB)"), ("BASS", "BASS
 
 # ---- FX
 F = "FX"
-_add("FX_DIST", "FELUCCA_FX_DIST", "DIST (per-track drive)", F, 35,
+_add("FX_DIST", "FELUCCA_FX_DIST", "[insert] DIST (per-track drive)", F, 35,
      desc="A distortion on each synth track: low cut, drive from 1x to 8x into an asymmetric soft clip, and a tone "
           "filter that closes as the drive rises. About 0.4 KB of flash; off: the DIST controls disappear.")
-_add("FX_CHORUS", "FELUCCA_FX_CHORUS", "chorus", F, 36,
+_add("FX_CHORUS", "FELUCCA_FX_CHORUS", "[send+insert] chorus", F, 36,
      desc="The chorus effect, fed by each track's CHO send. About 0.4 KB of flash and 4 KB of pool; off: the CHO "
           "sends and the chorus settings disappear.")
-_add("FX_DELAY", "FELUCCA_FX_DELAY", "delay", F, 37,
+_add("FX_DELAY", "FELUCCA_FX_DELAY", "[send+insert] delay", F, 37,
      desc="The tempo-synced delay (echo), fed by each track's DLY send. Costs 128 KB of the pool at the full "
           "length: shorten it with the length option, or leave it out.")
 _add("DLY_LEN", "FELUCCA_DLY_LEN", "delay length (how long an echo can be)", F, 38, default=65536, parent="FX_DELAY",
      choices=((65536, "1.49 s (128 KB pool)"), (32768, "0.74 s (64 KB)"), (16384, "0.37 s (32 KB)")),
      desc="The longest delay time, which sets the pool memory the delay takes. A time longer than the line is "
           "halved until it fits, so it stays on the beat; shorter lines suit fast tempos only.")
-_add("FX_REVERB", "FELUCCA_FX_REVERB", "reverb", F, 39,
+_add("FX_REVERB", "FELUCCA_FX_REVERB", "[send+insert] reverb", F, 39,
      desc="The reverb, fed by each track's REV send and the drums' reverb, with its algorithms below (tick at least "
           "one). Each one ticked is on the device's FX > REVERB > TYPE and in the web editor's Reverb popup, switched "
           "while it plays; with one ticked there is no TYPE. They share one line buffer, sized to the largest. The "
@@ -693,14 +686,14 @@ _add("TFLT_FINE", "FELUCCA_TFLT_FINE", "track FILTER: full resolution (quiet hig
 # (bit 430, REV_HB_LONG, retired 2026-10-29: the steep 63-tap filter of the half-rate reverbs was dropped, the 15-tap half-band
 #  stays; RETIRED above; never reuse the bit)
 REV_ALGOS =("REV_ROOM", "REV_PLATE", "REV_FDN8", "SPRING", "REV_AIRWIN")   # at least one with FX_REVERB (configure.py validate)
-_add("FX_SLICER", "FELUCCA_FX_SLICER", "SLICER (stutter / gate insert)", F, 40,
+_add("FX_SLICER", "FELUCCA_FX_SLICER", "[insert] SLICER (stutter / gate on each track)", F, 40,
      desc="A tempo-synced 16-step gate or stutter on each track (not the sample slicer engine): chops the sound "
           "to a pattern. About 1.2 KB of flash and 32 KB of pool at the full capture length.")
 _add("SL_LEN", "FELUCCA_SL_LEN", "SLICER capture length (stutter memory)", F, 41, default=4096, parent="FX_SLICER",
      choices=((4096, "186 ms (32 KB pool)"), (2048, "93 ms (16 KB)")),
      desc="How much sound each track's stutter records to repeat: the shorter capture saves 16 KB of pool and "
           "limits how long a repeated chunk can be (the gate mode is unaffected).")
-_add("FX_PUNCH", "FELUCCA_FX_PUNCH", "PUNCH (16 punch-in FX)", F, 42,
+_add("FX_PUNCH", "FELUCCA_FX_PUNCH", "[master] PUNCH (16 punch-in FX)", F, 42,
      desc="Hold FX and press a white key to put the whole mix through one of 16 effects while it is held (loops, "
           "reverse, tape stop, half speed, wobble, echo, filters, crush, gate), beat-synced. About 2.3 KB of "
           "flash and 64 KB of pool at the full ring.")
@@ -708,22 +701,22 @@ _add("PUNCH_N", "FELUCCA_PUNCH_N", "PUNCH memory length (how much mix it can loo
      choices=((32768, "0.74 s (64 KB pool)"), (16384, "0.37 s (32 KB)")),
      desc="How much of the mix the loop, reverse, tape-stop and echo effects can capture; the shorter ring "
           "saves 32 KB of pool and cuts the longest loop in half.")
-_add("FX_DJF", "FELUCCA_FX_DJF", "DJ filter (MASTER FILT)", F, 44,
+_add("FX_DJF", "FELUCCA_FX_DJF", "[insert] DJ filter (MASTER FILT)", F, 44,
      desc="One knob on the master (MASTER > FILT): turn left for a low-pass closing, right for a high-pass opening, "
           "centre is off. About 0.7 KB of flash.")
-_add("FX_DUST", "FELUCCA_FX_DUST", "DUST (vinyl / lo-fi master)", F, 45,
+_add("FX_DUST", "FELUCCA_FX_DUST", "[insert] DUST (vinyl / lo-fi)", F, 45,
      desc="One knob on the master (MASTER > DUST) that runs the mix through an old sampler and a record: drive, "
           "lower sample rate, fewer bits, a darker tone, hiss and crackle while playing. About 0.7 KB of flash.")
-_add("FX_DUCK", "FELUCCA_FX_DUCK", "DUCK (kick ducks the parts)", F, 46,
+_add("FX_DUCK", "FELUCCA_FX_DUCK", "[master] DUCK (kick ducks the parts)", F, 46,
      desc="Pumping sidechain effect (MASTER > DUCK): every kick from the drum track dips the synth parts, which "
           "swell back over an eighth note. About 0.1 KB of flash; has no effect without a drum kick.")
-_add("MASTER_COMP", "FELUCCA_MASTER_COMP", "COMP + LIMIT (master compressor, brickwall limiter)", F, 155,
+_add("MASTER_COMP", "FELUCCA_MASTER_COMP", "[insert] COMP + LIMIT (DYN: compressor, brickwall limiter)", F, 155,
      desc="A compressor and a brickwall limiter on the master (GLO > COMP: THRS, RATIO, ATK, REL; GLO > LIMIT: "
           "GAIN, CEIL and a GR readout) to glue the mix and keep its peaks under a ceiling; a Comp button and a GR "
           "meter in the web mixer. A new project limits at CEIL -3.0 dB (a look-ahead limiter in place of the old "
           "one); saved projects keep their own CEIL (OFF: as before). About 2 KB of flash and 2.5 KB of RAM.",
      symbols=("mc", "mlim"))
-_add("TRK_FILT", "FELUCCA_TRK_FILT", "track FILTER (LP <- off -> HP on each track)", F, 205, default=0, provenance=SLOOP_24,
+_add("TRK_FILT", "FELUCCA_TRK_FILT", "[insert] track FILTER (LP <- off -> HP on each track)", F, 205, default=0, provenance=SLOOP_24,
      desc="A DJ-style filter on each track: FX > FILTER (one knob, FILT: left low-pass, right high-pass, centre off) and "
           "FX held + KNOB 4 for the selected track. On the drum track it filters the summed drums and all their sends. "
           "Saved with the project, kept when the sound changes, recordable with motion. Costs nothing at the centre; "
@@ -743,50 +736,50 @@ _add("TFLT_RESO", "FELUCCA_TFLT_RESO", "track FILTER: resonance setting (HOME > 
           "bytes. The master's DJ filter stays clean.",
      notice="From SLOOP 2.8's FILTER RESO by isod89 (isod89/sloop-fm1 b77bf55, GPL-3.0). Tested in the host tests only, "
             "not on a device.")
-_add("INS_FOLD", "FELUCCA_INS_FOLD", "FOLD insert (wavefolder)", F, 256, default=0, provenance=FELUCCA_156,
+_add("INS_FOLD", "FELUCCA_INS_FOLD", "[insert] FOLD (wavefolder)", F, 256, default=0, provenance=FELUCCA_156,
      desc="A wavefolder type for the tracks' insert slots (INSERTS > S1 / S2: FOLD): the sound driven past full scale "
           "folds back, more folds and harmonics as FOLD rises; the drive follows the track's level as DIST's does, the "
           "bass stays dry. 0 is off.", symbols=("ifx_fold",),
      notice="From Felucca 1.5.6's track INSERT FOLD by Leo Kuroshita (GPL-3.0)." + _INS_NOTE)
-_add("INS_FUZZ", "FELUCCA_INS_FUZZ", "FUZZ insert", F, 257, default=0, provenance=FELUCCA_156,
+_add("INS_FUZZ", "FELUCCA_INS_FUZZ", "[insert] FUZZ", F, 257, default=0, provenance=FELUCCA_156,
      desc="A fuzz type for the tracks' insert slots (INSERTS > S1 / S2: FUZZ): a hard-clipped top and a soft, halved "
           "bottom (lopsided, buzzy), the drive with FUZZ. 0 is off.", symbols=("ifx_fuzz",),
      notice="From Felucca 1.5.6's track INSERT FUZZ by Leo Kuroshita (GPL-3.0)." + _INS_NOTE)
-_add("INS_PHASER", "FELUCCA_INS_PHASER", "PHSR insert (phaser)", F, 258, default=0, provenance=FELUCCA_156,
+_add("INS_PHASER", "FELUCCA_INS_PHASER", "[insert] PHSR (phaser)", F, 258, default=0, provenance=FELUCCA_156,
      desc="A phaser type for the tracks' insert slots (INSERTS > S1 / S2: PHSR): four all-pass stages swept slowly "
           "(~0.5 Hz); PHSR up to the middle mixes it in, past the middle adds feedback. 0 is off.",
      symbols=("ifx_phsr",), notice="From Felucca 1.5.6's track INSERT PHASR by Leo Kuroshita (GPL-3.0)." + _INS_NOTE)
 
-_add("INS_FORMANT", "FELUCCA_INS_FORMANT", "FRMT insert (vowel filter)", F, 260, default=0, provenance=MELODEE_131,
+_add("INS_FORMANT", "FELUCCA_INS_FORMANT", "[insert] FRMT (vowel filter)", F, 260, default=0, provenance=MELODEE_131,
      desc="A vowel filter type for the tracks' insert slots (INSERTS > S1 / S2: FRMT): three formant peaks over the "
           "sound; FRMT moves the vowel from A (low) through E, I, O to U (high). 0 is off.", symbols=("ifx_frmt",),
      notice="From Melodee 1.3.1's FORMANT insert by Kerem Kilic (GPL-3.0); its vowel table, fixed point here."
             + _INS_NOTE)
-_add("INS_WIDTH", "FELUCCA_INS_WIDTH", "WIDE insert (stereo width)", F, 261, default=0, provenance=MELODEE_131,
+_add("INS_WIDTH", "FELUCCA_INS_WIDTH", "[insert] WIDE (stereo width)", F, 261, default=0, provenance=MELODEE_131,
      desc="A stereo width type for the tracks' insert slots (INSERTS > S1 / S2: WIDE): one side through slowly swept "
           "all-pass filters, the other dry, so a centred mono track spreads out; WIDE sets how much. 0 is off.",
      symbols=("ifx_wide",), notice="From Melodee 1.3.1's WIDTH insert by Kerem Kilic (GPL-3.0)." + _INS_NOTE)
 # the shapers (2026-10-18, fx/insfx/insfx.c ifx_drive ifx_mod): FOLD's state (24 B an instance, 15 instances), any slot
 _SH_NOTE = " On any insert slot (tracks, drum sounds but SUB, drum bus, master, returns). Tested in the host tests only, not on a device."
-_add("INS_SFOLD", "FELUCCA_INS_SFOLD", "SFLD insert (sine wavefolder)", F, 343, default=0,
+_add("INS_SFOLD", "FELUCCA_INS_SFOLD", "[insert] SFLD (sine wavefolder)", F, 343, default=0,
      desc="A sine wavefolder type (SFLD): like FOLD but the folds are round (a sine of the drive), so it sings and "
           "aliases less; soft saturation at first, then more and more folds as SFLD rises. 0 is off.",
      symbols=("ifx_sfld",), notice="The shape of Felucca 1.5.5's PHASE FOLD by Leo Kuroshita (GPL-3.0)." + _SH_NOTE)
-_add("INS_RECT", "FELUCCA_INS_RECT", "RECT insert (rectifier, octave up)", F, 345, default=0,
+_add("INS_RECT", "FELUCCA_INS_RECT", "[insert] RECT (rectifier, octave up)", F, 345, default=0,
      desc="A rectifier type (RECT): up to the middle the wave's lower half is folded up (half-wave, then full-wave: the "
           "octave up of an Octavia), past the middle it is driven into a soft clip. 0 is off.",
      symbols=("ifx_rect",), notice=_SH_NOTE.strip())
-_add("INS_HARM", "FELUCCA_INS_HARM", "HARM insert (harmonic exciter)", F, 346, default=0,
+_add("INS_HARM", "FELUCCA_INS_HARM", "[insert] HARM (harmonic exciter)", F, 346, default=0,
      desc="A harmonic exciter type (HARM): adds the octave and the twelfth over each note, warm rather than buzzy, "
           "more as HARM rises. 0 is off.", symbols=("ifx_harm",), notice=_SH_NOTE.strip())
-_add("INS_RING", "FELUCCA_INS_RING", "RING insert (ring modulator)", F, 347, default=0,
+_add("INS_RING", "FELUCCA_INS_RING", "[insert] RING (ring modulator)", F, 347, default=0,
      desc="A ring modulator type (RING): the sound times a sine from 26 Hz (a rough tremolo) to 2.6 kHz (bells, "
           "metal), RING picks its pitch. 0 is off.", symbols=("ifx_ring",), notice=_SH_NOTE.strip())
-_add("INS_SUBOCT", "FELUCCA_INS_SUBOCT", "SUB insert (octave down)", F, 348, default=0,
+_add("INS_SUBOCT", "FELUCCA_INS_SUBOCT", "[insert] SUB (octave down)", F, 348, default=0,
      desc="An octave-down type (SUB): a square an octave under the note, following its level, added as SUB rises. "
           "For single-note lines (bass, leads): chords give a rough sub. Not on drum sounds. 0 is off.",
      symbols=("ifx_subo",), notice=_SH_NOTE.replace("drum sounds but SUB, ", "").strip())
-_add("INS_SLEW", "FELUCCA_INS_SLEW", "SLEW insert (slew-rate crunch)", F, 349, default=0,
+_add("INS_SLEW", "FELUCCA_INS_SLEW", "[insert] SLEW (slew-rate crunch)", F, 349, default=0,
      desc="A slew limiter type (SLEW): the wave can only move so fast, so edges round into ramps, a slow op-amp's "
           "dull crunch; light at 1, heavy (muffled, gritty) at 127. 0 is off.", symbols=("ifx_slew",),
      notice=_SH_NOTE.strip())
@@ -794,20 +787,20 @@ _add("INS_SLEW", "FELUCCA_INS_SLEW", "SLEW insert (slew-rate crunch)", F, 349, d
 MELODEE_144 = Provenance("Melodee 1.4.4 (keremimo/melodee)", "Kerem Kilic", "GPL-3.0-only", "v1.4.4 4f5fb6d", MELODEE_URL)
 _TS_NOTE = (" On the tracks' slots, the drum bus, master, returns and USB input; not on drum sounds (their list is full)."
             " Tested in the host tests only, not on a device.")
-_add("INS_TAPE", "FELUCCA_INS_TAPE", "TAPE insert (tape tone)", F, 356, default=0, provenance=MELODEE_144,
+_add("INS_TAPE", "FELUCCA_INS_TAPE", "[insert] TAPE (tape tone)", F, 356, default=0, provenance=MELODEE_144,
      desc="A tape tone type (TAPE): the highs rolled off (from 6.5 kHz at 1 to 1.7 kHz at 127) and the mids moved "
           "around at random every couple of seconds, at times inverted against the lows and highs, as a worn tape "
           "plays. TAPE sets how far it wanders and how dark it gets. 0 is off.", symbols=("ifx_tape",),
      notice="From Melodee 1.3.0's TAPE insert by Kerem Kilic (GPL-3.0); fixed point here, its RATE and MIX fixed."
             + _TS_NOTE)
-_add("INS_SPIT", "FELUCCA_INS_SPIT", "SPIT insert (random resonant band, driven)", F, 357, default=0,
+_add("INS_SPIT", "FELUCCA_INS_SPIT", "[insert] SPIT (random resonant band, driven)", F, 357, default=0,
      provenance=MELODEE_144,
      desc="A spitting band type (SPIT): one resonant band jumping at random between 180 Hz and 5.9 kHz a few times a "
           "second, driven into a soft clip at the sound's own level and mixed over it. SPIT sharpens the band and "
           "the drive. 0 is off.", symbols=("ifx_spit",),
      notice="From Melodee 1.3.0's SPIT insert by Kerem Kilic (GPL-3.0); fixed point here, the clip follows the "
             "input's level (Melodee's has a fixed ceiling)." + _TS_NOTE)
-_add("EX_GAIN", "FELUCCA_EX_GAIN", "EXGN insert: the example effect (a gain in dB)", F, 421, default=0,
+_add("EX_GAIN", "FELUCCA_EX_GAIN", "[insert] EXGN: the example effect (a gain in dB)", F, 421, default=0,
      experimental=True, tested=_EX_TESTED, notice=_EX_NOTE, symbols=("ifx_exgn",),
      desc="The worked example of CONTRIBUTING.md for a new insert effect (fx/insfx/exgain.c, FX type 29): EXGN on the "
           "tracks' insert slots (INSERTS > S1 / S2) and the drum bus's, one amount, its GAIN: OFF (bypassed), then "
@@ -821,26 +814,26 @@ _INS_LIM = (" Its line is in the effects memory, sized by the builder: the delay
             "there is no room left stays dry until some is free (the INSERTS list shows how many more fit). A saved "
             "project keeps the type, not the room: on load the slots get it in order T1 T2 T3 DR, the master, the USB "
             "input, the returns.")
-_add("INS_CHORUS", "FELUCCA_INS_CHORUS", "CHRS insert (chorus copies for the tracks)", F, 270, default=0,
+_add("INS_CHORUS", "FELUCCA_INS_CHORUS", "[insert] CHRS (chorus copies for the tracks)", F, 270, default=0,
      desc="A chorus type for the tracks' insert slots (INSERTS > S1 / S2: CHRS), beside the chorus send: two taps "
           "around 7 ms swept apart at ~0.8 Hz; CHRS up to the middle mixes it in, past the middle widens the sweep. "
           "On the drum track it turns the drums' mid into a stereo chorus. 2 KB of the effects memory an instance."
           + _INS_LIM,
      symbols=("ifx_chrs",), notice="Tested in the host tests only, not on a device.")
-_add("INS_DELAY", "FELUCCA_INS_DELAY", "ECHO insert (short delay copies for the tracks)", F, 271, default=0,
+_add("INS_DELAY", "FELUCCA_INS_DELAY", "[insert] ECHO (short delay copies for the tracks)", F, 271, default=0,
      desc="A slapback type for the tracks' insert slots (INSERTS > S1 / S2: ECHO), beside the delay send: one repeat "
           "75 ms after the sound; ECHO up to the middle sets its level, past the middle adds repeats (feedback up to "
           "60 %). Up to 93 ms of line an instance (the long, tempo-synced delay stays the send's): 8 KB of the effects "
           "memory." + _INS_LIM, symbols=("ifx_echo",), notice="Tested in the host tests only, not on a device.")
 FM106 = Provenance("fm-106 (PatttF/fm-106)", "PatttF", "GPL-3.0-only", "be74757", "https://github.com/PatttF/fm-106")
-_add("INS_JCHORUS", "FELUCCA_INS_JCHORUS", "JUNO CHORUS insert (the Juno-106 chorus)", F, 142, default=0, provenance=FM106,
+_add("INS_JCHORUS", "FELUCCA_INS_JCHORUS", "[insert] JUNO CHORUS (the Juno-106 chorus)", F, 142, default=0, provenance=FM106,
      desc="The Juno-106's chorus as an insert type (INSERTS > S1 / S2, and the master's insert slots: JUNO): the "
           "MN3009 BBD model of fm-106, MODE I, II or I+II, JUNO its mix (127: the Juno's chorus on). A mono track "
           "comes out stereo. About 130 host instructions a sample an instance; 2 KB of the effects memory." + _INS_LIM,
      symbols=("ifx_jcho",), notice="From fm-106 by PatttF (GPL-3.0), after Ultramaster KR-106 (GPL-3.0). Tested in the "
                                    "host tests only, not on a device.")
 # the returns' feedback sends (2026-10-16): B -> A, C -> A, C -> B, a block late (fx.c rs_fbv). Bit 167 (reserved 2026-10-16: the next free one after the web editor v14's 158, 159, 165, 166)
-_add("RET_FB", "FELUCCA_RET_FB", "return feedback sends (B to A, C to A, C to B)", F, 167, default=1,
+_add("RET_FB", "FELUCCA_RET_FB", "[master] return feedback sends (B to A, C to A, C to B)", F, 167, default=1,
      desc="The master's returns send to the returns on their left too (MASTER > A SENDS, B SENDS, C SENDS: each "
           "return to the other two), for feedback between the effects: a delay into a reverb and back. Each such "
           "send takes its return's output of the block before (a loop of 32 samples, 0.73 ms), DC-blocked, limited "
@@ -850,14 +843,14 @@ _add("RET_FB", "FELUCCA_RET_FB", "return feedback sends (B to A, C to A, C to B)
      symbols=("rs_fbv",), notice="Tested in the host tests only, not on a device.")
 # FLNG (2026-10-15, fx-pool): its lines in the effects memory as the copies above (was one line a track, 5.3 KB in every
 # build of it)
-_add("INS_FLANGER", "FELUCCA_INS_FLANGER", "FLNG insert (flanger)", F, 259, default=0, provenance=FELUCCA_156,
+_add("INS_FLANGER", "FELUCCA_INS_FLANGER", "[insert] FLNG (flanger)", F, 259, default=0, provenance=FELUCCA_156,
      desc="A flanger type for any insert slot (a track's, the master's, the USB input's) and the returns (FLNG): a short "
           "delay swept 0.25 .. 5 ms (~0.25 Hz); FLNG up to the middle mixes it in, past the middle adds feedback. 1 KB "
           "of the effects memory an instance." + _INS_LIM, symbols=("ifx_flng",),
      notice="From Felucca 1.5.6's track INSERT FLANG by Leo Kuroshita (GPL-3.0)." + _INS_NOTE)
 # XDLY (fx/insfx/xdly.c, 2026-10-22): the LYRA-8 style cross-modulated dual delay, its lines in the effects memory as the
 # copies above
-_add("INS_XDLY", "FELUCCA_INS_XDLY", "XDLY insert (LYRA-8 style cross-modulated dual delay)", F, 376, default=0,
+_add("INS_XDLY", "FELUCCA_INS_XDLY", "[insert] XDLY (LYRA-8 style cross-modulated dual delay)", F, 376, default=0,
      desc="Two delay lines whose outputs move each other's time at the audio rate, as the SOMA LYRA-8's modulated delay "
           "does (its idea, no code): an insert type for the tracks' slots and the master's (XDLY). Its page has TIME 1 "
           "and TIME 2 (each line, 1 ms up to the line's length; turning one bends the repeats), MOD (how far each "
@@ -872,10 +865,26 @@ _add("XDLY_LEN", "FELUCCA_XDLY_LEN", "XDLY line length (its longest TIME)", F, 3
      choices=((16384, "0.37 s (64 KB pool an instance)"), (8192, "0.19 s (32 KB)")),
      desc="How long each of XDLY's two lines is: TIME's top end. The shorter line halves every TIME and takes 32 KB "
           "less of the effects memory an instance.")
+# the sends as inserts (2026-10-29, fx/insfx/fxi_send.c; bits 440 441: the first free ones after MIX_EXACT's 439): the
+# reverb send's ROOM and the delay send's delay as limited insert types (FX type ids 30 ROOM, 31 TDLY)
+_add("INS_REVERB", "FELUCCA_INS_REVERB", "reverb as an insert too (ROOM, dry/wet)", F, 440, default=0, parent="FX_REVERB",
+     desc="The reverb send's ROOM as an insert type for the tracks' slots and the master's (INSERTS > S1 / S2: ROOM): "
+          "the same tank and code as the send, its SIZE and DAMP the reverb's (FX > REV/CHO), the amount its dry/wet "
+          "MIX (0 dry, 127 all wet: the send's return at unity). A mono track comes out stereo, its tail goes on after "
+          "its notes end. Needs reverb: ROOM ticked (PLATE, FDN8 and VTINY stay the send's: FDN8's ring alone is 32 KB). "
+          "About 240 host instructions a sample an instance, as the send's; 19 KB of the effects memory an instance."
+          + _INS_LIM, symbols=("ifx_room",), notice="Tested in the host tests only, not on a device.")
+_add("INS_TDELAY", "FELUCCA_INS_TDELAY", "delay as an insert too (TDLY, dry/wet)", F, 441, default=0, parent="FX_DELAY",
+     desc="The delay send's delay as an insert type for the tracks' slots and the master's (INSERTS > S1 / S2: TDLY): "
+          "the same code as the send, its TIME (synced to the tempo), FDBK and filter the delay's (FX > DLY, DLY F), "
+          "the amount its dry/wet MIX (0 dry, 127 all wet). Its repeats go on after a track's notes end. About 190 "
+          "host instructions a sample an instance; a line as long as the delay's (the length above: 128 KB at 1.49 s) "
+          "of the effects memory an instance." + _INS_LIM, symbols=("ifx_tdly",),
+     notice="Tested in the host tests only, not on a device.")
 # (bit 378, DLY_ARENA, retired 2026-10-29: the effects memory (fx/insfx/fxi_mem.h, fxi.c) is always sized automatically,
 #  configure.py fx_memory / dly_arena; RETIRED above; never reuse the bit)
 # GATER (fx/insfx/gater.c, 2026-10-14): a further insert type, any number (a few bytes a track)
-_add("INS_GATER", "FELUCCA_INS_GATER", "GATER insert (tempo-synced trance gate)", F, 330, default=0,
+_add("INS_GATER", "FELUCCA_INS_GATER", "[insert] GATER (tempo-synced trance gate)", F, 330, default=0,
      desc="A rhythmic volume gate type for the tracks' insert slots (INSERTS > S1 / S2: GATER), locked to the tempo "
           "and the sequencer's steps (it restarts with PLAY, follows the swing): one of 16 built-in 16-step patterns "
           "(trance gates, 1/8 and 1/16 chops, offbeats, dotted, clave), a RATE of 1/8, 1/16, 1/32 or their triplets, "
@@ -1403,10 +1412,6 @@ _add("USB_HOST", "FELUCCA_USB_HOST", "USB MIDI host: a USB-MIDI keyboard, contro
           "simulator's USB device, felucca-bsp's model of the USB controller): USB host input ran on Melodee, output "
           "is not validated on a device yet.")
 
-for _it in _ITEMS:
-    if _it.group == "FX":
-        _it.group = fx_group(_it.key, _it.parent)
-
 # Where each engine's hot code runs (the user, 2026-10-29): the engine's item is a choice, off / on (its render path
 # from the XIP flash, through the flash cache) / on, code in RAM (RAM code: out of the cache's way, its bytes taken from
 # the free RAM, about two thirds of them in flash: the boot stream codes RAM code). The firmware's switch per engine
@@ -1503,8 +1508,6 @@ def add_item(item):
     assert item.bit not in {it.bit for it in _ITEMS}, f"{item.key}: bit {item.bit} taken"
     if item.provenance and "fm1-x0x" in item.provenance.project + item.provenance.url:
         assert item.notice, f"{item.key}: an X0X item needs its notice"
-    if item.group in ("FX", FX_ANY, FX_ONCE):
-        item.group = fx_group(item.key, item.parent)
     _eng_fast(item)
     _ITEMS.append(item)
     ITEMS[item.key] = item
