@@ -1302,14 +1302,6 @@
     "ramtext": 12
    }
   },
-  "VOICE_OWN": {
-   "0": {
-    "flash": -48,
-    "ram": 0,
-    "pool": 0,
-    "ramtext": 0
-   }
-  },
   "CACHE_RAM": {
    "2": {
     "flash": 376,

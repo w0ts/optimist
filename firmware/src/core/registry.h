@@ -532,10 +532,6 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #ifndef FELUCCA_PHASE_FOLD
 #define FELUCCA_PHASE_FOLD 1               /* PHASE's E7 FOLD: a sine wavefolder (Felucca-Engines 04ffe90, MIT; engines/phase/eng_phase.c) */
 #endif
-#ifndef FELUCCA_VOICE_OWN
-#define FELUCCA_VOICE_OWN 1                /* voices: at the shared budget, a part restarts its own released voice before
-                                            * fading another part's (JIANT 0.9.9 cpu3; core/voice.c voice_alloc) */
-#endif
 #ifndef FELUCCA_REC_PLAIN
 #define FELUCCA_REC_PLAIN 0                /* seq.c rec_poly: recording keeps every note played whatever the voice mode (MONO, LEGATO,
                                             * UNISON no longer cut a step to one note); an ACID part records as before (0: as before) */
