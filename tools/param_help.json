@@ -470,14 +470,13 @@
       "GUARD": {"text": "What the CPU guard eases now", "if": "FELUCCA_CPU_GUARD"},
       "CLOCK": "CPU clock", "LOAD": "Audio load of the CPU", "CPU0": "Audio load of the first core",
       "CPU1": {"text": "2nd core's load, or why off", "if": "DUAL_LOAD"}}},
-    {"kind": "op", "ctx": "DEBUG", "if": "defined(PLAT_STATS_APP)", "params": {
-      "DEBUG STATS": "Load, stacks to flash, 5 min"}},
     {"kind": "op", "ctx": "INTERNALS", "params": {"INTERNALS": "Last reset, flash, 2nd core"}},
     {"kind": "op", "ctx": "USB STATS", "if": "FELUCCA_USB_AUDIO", "params": {"USB STATS": "USB audio glitch counters"}},
     {"kind": "op", "ctx": "GENERAL", "params": {
       "KNOB COLORS": "Knob numbers in cap colours",
       "SPK LOWCUT": "Speaker's low cut, jack empty",
-      "HPHN BASS": "Bass boost, headphones in"}},
+      "HPHN BASS": "Bass boost, headphones in",
+      "DEBUG STATS": {"text": "Load, stacks to flash, 5 min", "if": "defined(PLAT_STATS_APP)"}}},
     {"kind": "op", "ctx": "FILTER", "params": {"FILT RESO": "Track filter resonance"}},
     {"kind": "op", "ctx": "METERS", "params": {"VU FLOOR": "Level at the meters' bottom"}},
     {"kind": "op", "ctx": "USB", "if": "FELUCCA_USB_HOST", "params": {
@@ -502,7 +501,7 @@
     {"kind": "op", "ctx": "ABOUT", "params": {
       "VERSION": "Firmware version and commit", "BUILD": "When this firmware was built",
       " ": "Source code on GitHub"}},
-    {"kind": "op", "ctx": "CREDITS", "params": {"CREDITS": "Whose work Optimist uses"}},
+    {"kind": "op", "ctx": "CREDITS", "params": {"CREDITS": "K1 scrolls"}},
     {"kind": "op", "ctx": "PROJECT", "params": {
       "ACTION": "Load or save, then a key", "ITEM": "Slot: turn or key (dim: free)",
       "NEW": "Blank project (slots kept)"}},

@@ -316,12 +316,18 @@ def release_sims(folder):
     return [(latest["tag"], latest["sha"], f["id"]) for f in rs[0]["flavours"]] if latest else []
 
 
+# the identities a site's package may have: Optimist's own (FM-1_7NN), Felucca's (FM-1_9NN), and the release on fm1-base's
+# (FM-1_79NN, FM-1_79NNNNNN: tools/flash.py OPTIMIST_ID; 2026-10-29 the 3-digit check refused the user's FM-1_7900 build)
+SITE_ID = re.compile(r"FM-1_[79]\d\d|FM-1_79\d{2}(\d{4})?")
+
+
 def package_entry(path, name, flavour, release="", date=""):
     """one package of the site: checked (an Optimist / Felucca identity, the update loader in it) -> its site.json entry"""
     raw = Path(path).read_bytes()
     product = package_identity(raw)
-    if not re.fullmatch(r"FM-1_[79]\d\d", product):
-        raise SystemExit(f"{path}: identity {product!r} is not an Optimist (FM-1_7xx) or Felucca (FM-1_9xx) package")
+    if not SITE_ID.fullmatch(product):
+        raise SystemExit(f"{path}: identity {product!r} is not an Optimist (FM-1_7xx, FM-1_79..) or Felucca (FM-1_9xx) "
+                         "package")
     if raw.find(b"FELUCCA-LOADER-1") < 0:              # the update loader (firmware/loader) carries this tag
         raise SystemExit(f"{path}: no Felucca update loader in it")
     return {"id": flavour["id"], "title": flavour["title"], "description": flavour.get("description", ""),

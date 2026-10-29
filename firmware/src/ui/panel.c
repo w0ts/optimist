@@ -88,7 +88,7 @@ struct { uint32_t magic, palette, lowcut, zoom, view; } settings __attribute__((
 #include "../core/hold.h"          /* HOLD: the layer buttons' tap / hold threshold, a setting (HOME menu > SYSTEM) */
 #include "../core/knobcol.h"       /* KNOB COLORS: the coloured knob caps, a setting (HOME menu > SYSTEM) */
 #include "../core/vufloor.h"      /* VU FLOOR: the dB at the meters' bottom, a setting (SYSTEM > METERS) */
-#include "../core/dbgstats.h"     /* DEBUG STATS: the platform's stats in flash, a setting (SYSTEM > DEBUG) */
+#include "../core/dbgstats.h"     /* DEBUG STATS: the platform's stats in flash, a setting (SYSTEM > General) */
 
 static void settings_save(void);              /* project.c: flash copy (FELUCCA_FLASH) */
 static uint8_t settings_later;                 /* changed while playing: saved once stopped (project.c) */

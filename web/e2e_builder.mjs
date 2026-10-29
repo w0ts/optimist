@@ -154,6 +154,7 @@ ok(PYDIR || (pyUrls.length && pyUrls.every((u) => u.startsWith(`https://cdn.jsde
 /* ---- the page's Python against the CLI */
 const prof0 = JSON.parse(readFileSync(join(SITE, "webapp", "builder", "data", "profiles.json"), "utf8"));
 const DFLT = (prof0.flavours.find((f) => f.default === true) || prof0.flavours[0]).profile;   // (the page opens on the default flavour's profile: Synth since 2026-10-16)
+const DFLT_NAME = ((prof0.profiles.find((p) => p.name === DFLT) || { text: "" }).text.match(/^# name: (.+)$/m) || [null, DFLT])[1].trim();   // (the name the page shows is the profile's "# name:" line: synths-USB-BTA-BTM for the file synths_USBaudio_BTaudio_BTmidi)
 const reg = JSON.parse(readFileSync(join(SITE, "webapp", "builder", "data", "registry.json"), "utf8"));
 const items = reg.registry.items;
 const pageReg = await run(`${U} return await B.call("registry_view");`);
@@ -216,12 +217,12 @@ for (const [i, q] of views.entries()) {
 ok(!keyBad.length, `tools/optimist.py cloud-key --json on the page's .config: the same key, budget, fits, issues${keyBad.length ? ": " + keyBad.join(", ") : ""}`);
 
 /* ---- the page */
-const ui = await run(`${U} await B.choosePreset("flavour:default"); await until(() => B.state.view && B.state.name.toLowerCase() === "${DFLT}".toLowerCase());
+const ui = await run(`${U} await B.choosePreset("flavour:default"); await until(() => B.state.view && B.state.name.toLowerCase() === ${JSON.stringify(DFLT_NAME.toLowerCase())});
   const ev = B.state.view.eval;
   return { key: $("#key").textContent, keyIs: ev.key, bars: [...document.querySelectorAll("#gauges .o-gauge")].map((b) => b.dataset.region), build: $("#build").disabled,
     note: $("#buildmsg").textContent, dl: $("#download").disabled, hash: $("#hash").textContent, msgs: $("#msgs").textContent.slice(0, 200) };`);
-ok(ui.key === ui.keyIs && /^[0-9a-f]{64}$/.test(ui.key) && same(ui.bars, ["flash", "ram", "pool", "ramtext"]) && !ui.build && /no GitHub account/.test(ui.note) && !ui.dl,
-  "page: the key shown, four gauges (FLASH RAM POOL RAMTEXT), Build in the cloud on with its note, Download on");
+ok(ui.key === ui.keyIs && /^[0-9a-f]{64}$/.test(ui.key) && same(ui.bars, ["flash", "sram"]) && !ui.build && /no GitHub account/.test(ui.note) && !ui.dl,
+  "page: the key shown, two gauges (FLASH SRAM: one packed region since 7da2794c), Build in the cloud on with its note, Download on");
 /* Build: the same configuration built before is ready at once (the cloud-builds branch, stubbed); else the relay (Turnstile
    and the relay stubbed): sent, then followed (its ?status=), its issue linked; the relay down: said in the Build card,
    nothing opened (never the GitHub issue form, the user 2026-10-25). Here no site.json: main, so the site's own commit */
@@ -258,10 +259,10 @@ ok(/^Not sent: the build service did not answer/.test(cb.downMsg) && cb.opened =
   "Build: the relay down: said in the Build card, nothing opened (no issue form); built from main = the site's commit");
 ok(cb.ready.flash && cb.ready.sim && cb.ready.mine && cb.ready.mine.id === cb.key.slice(0, 16),
   "Build: the same configuration built before: Flash it and Try it in the simulator at once, kept as your build for Flash");
-const tg = await run(`${U} const before = B.state.view.eval.budget.total.flash; const c = $("#it-ENG_FM6"); const was = c.checked; c.click();
-  await until(() => B.state.values.ENG_FM6 === (was ? 0 : 1) && B.state.view.eval.config.ENG_FM6 === (was ? 0 : 1));
+const tg = await run(`${U} const before = B.state.view.eval.budget.total.flash; const c = $("#it-ENG_FM6"); const was = +c.value, to = was ? 0 : 2; c.value = String(to); c.dispatchEvent(new Event("change", { bubbles: true }));   /* (a list since 2b7e3126: off / on / on, code in RAM) */
+  await until(() => B.state.values.ENG_FM6 === to && B.state.view.eval.config.ENG_FM6 === to, 20000);
   const after = B.state.view.eval.budget.total.flash; const shown = $(".o-gauge[data-region=flash]").title;
-  $("#it-ENG_FM6").click(); await until(() => B.state.view.eval.config.ENG_FM6 === (was ? 1 : 0));
+  const c2 = $("#it-ENG_FM6"); c2.value = String(was); c2.dispatchEvent(new Event("change", { bubbles: true })); await until(() => B.state.view.eval.config.ENG_FM6 === was, 20000);
   return { before, after, shown, back: B.state.view.eval.budget.total.flash };`);
 ok(tg.before !== tg.after && tg.shown.includes(tg.after.toLocaleString("en-US")) && tg.back === tg.before, `page: ticking FM6 moves the flash estimate (${tg.before} -> ${tg.after}) and back`);
 const er = await run(`${U} for (const k of B.state.reg.top["Synth engines"]) B.state.values[k] = 0; await B.setItem("ENG_ANALOG", 0);
@@ -304,7 +305,7 @@ ok(reparsed.error === null && same(sortObj(reparsed.values), sortObj(parsed[prof
 const imp = await run(`${U} $("#import").open = true; $("#paste").value = "# name: pasted\\nENG_FM6=0\\nNOT_A_KEY=1\\n"; $("#pasteload").click();
   await until(() => B.state.name === "pasted" && $("#importmsg").textContent); return { msg: $("#importmsg").textContent, fm6: B.state.values.ENG_FM6, name: $("#name").value };`);
 ok(imp.fm6 === 0 && imp.name === "pasted" && /NOT_A_KEY is not an item/.test(imp.msg), "page: a pasted .config loads, an unknown key warned as the CLI does");
-const inf = await run(`${U} $("#import").open = false; await B.choosePreset("flavour:default"); await until(() => B.state.name.toLowerCase() === "${DFLT}".toLowerCase()); const was = B.state.values.FX_REVERB;
+const inf = await run(`${U} $("#import").open = false; await B.choosePreset("flavour:default"); await until(() => B.state.name.toLowerCase() === ${JSON.stringify(DFLT_NAME.toLowerCase())}); const was = B.state.values.FX_REVERB;
   document.querySelector('.row[data-key="FX_REVERB"] .lab').click(); await until(() => $("#info h3") && $("#info table"), 10000);
   return { h: $("#info h3").textContent, rows: document.querySelectorAll("#info tbody tr").length, same: B.state.values.FX_REVERB === was, preset: $("#bpreset").value };`);
 ok(inf.h === (reg.registry.items || reg.registry).find((it) => it.key === "FX_REVERB").label && inf.rows >= 2 && inf.same && inf.preset === "flavour:default", `page: a click on an item's text shows its details and costs (${inf.rows} rows), without toggling it`);
@@ -315,7 +316,7 @@ const kb = await run(`${U} const s = $("#sort").value; document.body.focus(); do
 ok(kb.s === "" && kb.v === "flash" && kb.back === "", "page: o cycles the sort as in the menu (default, flash, ram, pool, ramtext)");
 
 /* ---- the notices policy: on the page only what must be acted on; the NOTICE texts in the (i) and the closed notes */
-const np = await run(`${U} await B.choosePreset("flavour:default"); await until(() => B.state.name.toLowerCase() === "${DFLT}".toLowerCase()); await sleep(100);
+const np = await run(`${U} await B.choosePreset("flavour:default"); await until(() => B.state.name.toLowerCase() === ${JSON.stringify(DFLT_NAME.toLowerCase())}); await sleep(100);
   const v = B.state.view, ms = [...document.querySelectorAll("#msgs .o-msg")];
   const lab = (n) => { const k = (n.keys || [])[0], it = k && B.state.reg.byKey[k]; return it && n.text.startsWith(it.label + ": ") ? n.text.slice(it.label.length + 2) : n.text; };
   return { kinds: ms.map((p) => p.dataset.kind), text: $("#msgs").textContent, open: $("#notes").open, hidden: $("#notes").hidden, sum: $("#notessum").textContent,
@@ -337,7 +338,7 @@ ok(pop.open && pop.text.includes(pop.notice) && pop.inView, `notices: an item's 
 const ble = await run(`${U} const was = B.state.values.BLE; await B.setItem("BLE", was ? 0 : 1); await sleep(100);
   const note = B.state.room && B.state.room.note, line = $('.row[data-key="BLE"] .bleline');
   const r = { note, line: line ? line.textContent : null, inMsgs: !!note && $("#msgs").textContent.includes(note) };
-  await B.choosePreset("flavour:default"); await until(() => B.state.name.toLowerCase() === "${DFLT}".toLowerCase() && !B.state.room); return r;`);
+  await B.choosePreset("flavour:default"); await until(() => B.state.name.toLowerCase() === ${JSON.stringify(DFLT_NAME.toLowerCase())} && !B.state.room); return r;`);
 ok(ble.note ? ble.line === ble.note && !ble.inMsgs : ble.line === null, `BLE: its room note on the Bluetooth row only${ble.note ? ` ("${ble.note.slice(0, 50)}...")` : " (none: it fits)"}`);
 
 
@@ -376,8 +377,8 @@ const fp = await run(`${U} const before = JSON.stringify(B.state.values);
   const r = $("#result").getBoundingClientRect(), g = $("#proposals").getBoundingClientRect();
   return { before, over0, shown, startVals, info, gaugesBefore, prev, back, rid, afterReject, n: cards.length, vals: JSON.stringify(B.state.values), rejGone: !document.querySelector('.prop[data-id="' + rid + '"]') };`);
 ok(fp.over0 > 0 && fp.shown, "Make it fit: Synth + PHYS + GRAIN + reverb + sampled kit does not fit: the button is there");
-ok(fp.n >= 1 && fp.n <= 4 && fp.info.every((c) => c.title && c.changes >= 1 && c.res === 4 && same(c.btns, ["accept", "preview", "reject"])) && fp.info.some((c) => c.fits === "true"),
-  `Make it fit: ${fp.n} proposals (${fp.info.map((c) => c.id).join(", ")}), each with a title, its changes, the four results and Accept / Preview / Reject`);
+ok(fp.n >= 1 && fp.n <= 4 && fp.info.every((c) => c.title && c.changes >= 1 && c.res === 2 && same(c.btns, ["accept", "preview", "reject"])) && fp.info.some((c) => c.fits === "true"),
+  `Make it fit: ${fp.n} proposals (${fp.info.map((c) => c.id).join(", ")}), each with a title, its changes, the two results (FLASH, SRAM) and Accept / Preview / Reject`);
 ok(fp.prev.tag && !/over/.test(fp.prev.states) && /over/.test(fp.gaugesBefore) && fp.back === fp.gaugesBefore && fp.vals === fp.startVals, "Make it fit: the preview shows the result on the gauges (none over) and back, without applying");
 ok(fp.rid ? fp.rejGone && fp.afterReject === fp.n - 1 : true, "Make it fit: Reject removes that card");
 await looks("proposals");
@@ -390,7 +391,7 @@ const acc = await run(`${U} const c = [...document.querySelectorAll("#proposals 
   return out;`);
 ok(acc.over === 0 && acc.fitHidden && acc.propsHidden && acc.undo, "Make it fit: Accept applies the changes, the gauges fit, the button and the panel are gone");
 ok(acc.restored && acc.overAgain && acc.fitAgain, "Make it fit: Undo (on the toast) restores the configuration and the button");
-await run(`${U} await B.choosePreset("flavour:default"); await until(() => B.state.name.toLowerCase() === "${DFLT}".toLowerCase() && !B.state.room); return true;`);
+await run(`${U} await B.choosePreset("flavour:default"); await until(() => B.state.name.toLowerCase() === ${JSON.stringify(DFLT_NAME.toLowerCase())} && !B.state.room); return true;`);
 
 /* ---- the item tree: a section opens and closes by its head (no fold button), kept by this browser */
 const fold = await run(`${U} const g = document.querySelector('.group[data-group="Synth engines"]'); const h = g.querySelector(".o-panel-h"); const ul = () => g.querySelector(":scope > ul");
@@ -415,7 +416,7 @@ const sticky = (what, test, maxH) => run(`${U} window.scrollTo(0, 2500); await s
   const hit = document.elementFromPoint(Math.min(g.left + 40, innerWidth - 1), g.top + 8);
   return { y: scrollY, top: g.top, h: g.height, inside: !!(hit && hit.closest("#gauges")), n: document.querySelectorAll("#gauges .o-gauge").length,
     fit: $("#fit").getBoundingClientRect().bottom <= g.bottom, key: $("#keychip").getBoundingClientRect().bottom <= g.bottom };`).then((s) => {
-  ok(s.y > 1000 && test(s.top) && s.inside && s.n === 4 && s.fit && s.key && s.h < maxH, `${what}: the gauges card, Make it fit and the key stay in view while scrolling (${Math.round(s.h)} px high, at ${Math.round(s.top)})`);
+  ok(s.y > 1000 && test(s.top) && s.inside && s.n === 2 && s.fit && s.key && s.h < maxH, `${what}: the gauges card, Make it fit and the key stay in view while scrolling (${Math.round(s.h)} px high, at ${Math.round(s.top)})`);
 });
 const boxes = () => run(`const r = (s) => { const b = document.querySelector(s).getBoundingClientRect(); return { l: b.left, r: b.right, t: b.top, b: b.bottom }; };
   window.scrollTo(0, 0); await new Promise((q) => setTimeout(q, 150));
@@ -450,7 +451,7 @@ ok(ov.red === 1 + ov.rules, `page: the red lines are the overflow and the broken
 
 /* ---- the looks: dark and light, desktop (1440) and a 390 px phone, over budget and fitting */
 await looks("over");
-await run(`${U} await B.choosePreset("flavour:default"); await until(() => B.state.name.toLowerCase() === "${DFLT}".toLowerCase()); document.querySelector('.row[data-key="FX_REVERB"] .lab').click(); await sleep(300); return true;`);
+await run(`${U} await B.choosePreset("flavour:default"); await until(() => B.state.name.toLowerCase() === ${JSON.stringify(DFLT_NAME.toLowerCase())}); document.querySelector('.row[data-key="FX_REVERB"] .lab').click(); await sleep(300); return true;`);
 await looks("fits");
 await top0();
 const dark = await colors();

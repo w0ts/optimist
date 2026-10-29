@@ -1298,7 +1298,8 @@ _add("COMPILER", "FELUCCA_COMPILER", "compiler: pi32v2-llvm or JieLi's clang", Y
      desc="The C compiler the firmware is built with. pi32v2-llvm (Julius Vitkauskas's LLVM with a pi32v2 target) makes "
           "the same firmware 14 to 30 KB smaller than JieLi's own clang 4 (measured on the default profile and a full "
           "release configuration), the audio's CPU the same. JieLi's is the compiler the stock firmware and every "
-          "earlier Optimist were built with. The builder's sizes are measured with JieLi's: an LLVM build has more room.")
+          "earlier Optimist were built with. costs-all measures with the default (pi32v2-llvm); this item's cost at JieLi is "
+          "how much bigger JieLi's makes the same firmware.")
 # (bit 57, SIMD, withdrawn 2026-10-12: the packed 16-bit forms compute something else on the real FM-1 than the emulator
 #  assumes, a build with them crackles; the code stays (hal/fm1_simd.h, FELUCCA_SIMD default 0, the boot probe
 #  FELUCCA_SIMD_PROBE through tools/build.py); RETIRED below; never reuse the bit)

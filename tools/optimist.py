@@ -277,6 +277,19 @@ def web_urls(port):
     return f"{base}/installer/", f"{base}/editor/"
 
 
+def web_port_taken(port):
+    """the first of 127.0.0.1 / ::1 where something already answers on port, else None: the browser opens
+    localhost, which may be either (2026-10-29: another project's server on *:8766 took localhost's IPv6 one)"""
+    import socket
+    for host in ("127.0.0.1", "::1"):
+        try:
+            with socket.create_connection((host, port), timeout=0.3):
+                return host
+        except OSError:
+            pass
+    return None
+
+
 def web_open(url):
     """Open url in the default browser: macOS `open`, Linux `xdg-open`, Windows startfile. True if it was tried."""
     try:
@@ -383,6 +396,11 @@ def cmd_web(a):
     import http.server
     sys.path.insert(0, str(ROOT / "web"))
     import make_site
+    taken = web_port_taken(a.port)                      # (before the site is built: never rewrite a running one's files)
+    if taken:
+        print(f"optimist: something already serves port {a.port} on {taken} (another site, or this one running "
+              f"already): stop it, or use another port (--port N or make web PORT=N)", file=sys.stderr)
+        return 1
     site = Path(a.site) if a.site else WEB_SITE
     sims = web_sim(a)
     try:

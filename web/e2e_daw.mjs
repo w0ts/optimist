@@ -193,8 +193,8 @@ if (process.argv.includes("--readme-shots")) {
 await send("Page.navigate", { url: `http://127.0.0.1:${port}/editor.html?mock=1&auto=0&store=1&connect=0#mixer` });
 await sleep(1200);
 ok(await run(`${U} return shown($("#connectcard")) && shown($("#connect")) && document.querySelectorAll("#mixer .strip").length === 0
-  && [...document.querySelectorAll(".panel")].every((p) => !shown(p)) && [...document.querySelectorAll("#tabs button[data-tab]")].filter(shown).map((b) => b.dataset.tab).join() === "build,install,mixer" && !document.querySelector("#tp, #play") && !shown($("#disconnect"))
-  && /installer/i.test($("#connectcard").textContent);`), "e2e: not connected: the connect card only (no mixer; the Build, Install and Editor tabs; no transport)");
+  && [...document.querySelectorAll(".panel")].every((p) => !shown(p)) && [...document.querySelectorAll("#tabs button[data-tab]")].filter(shown).map((b) => b.dataset.tab).join() === "install,sim,mixer" && !document.querySelector("#tp, #play") && !shown($("#disconnect"))
+  && /installer/i.test($("#connectcard").textContent);`), "e2e: not connected: the connect card only (no mixer; the Install, Simulator and Editor tabs; no transport)");
 await shot("editor-disconnected");
 /* the colours follow the system, live, with no switch anywhere: dark and light under an emulated prefers-color-scheme, restyled while open */
 const scheme = (v) => send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: v }] });
@@ -331,8 +331,8 @@ await press("5"); lk.push(await popNow() === "lane", await lsel());   /* (in its
 await press("Escape"); await popNow();
 const focused = await run(`${U} const e = document.activeElement; return e ? e.tagName + "." + e.className + (e.id ? "#" + e.id : "") : "none";`);
 await press("Enter"); lk.push(await popNow() === "lane"); await press("Escape"); lk.push(await popNow() === "");
-ok(lk[0] === true && /^2:SNARE/.test(lk[1]) && lk[2] === true && /SNARE/.test(lk[3]) && lk[4] === true && /^4:/.test(lk[5]) && lk[6] === true && lk[7] === true,
-  `e2e: keys: 3 selects the snare (no popup, its sends on the strip), 3 again opens it, 5 goes to sound 5 in it, Enter opens the selected one (${lk.join(" | ")}; focus before Enter: ${focused})`);
+ok(lk[0] === true && /^2:CLAP/.test(lk[1]) && lk[2] === true && /CLAP/.test(lk[3]) && lk[4] === true && /^4:/.test(lk[5]) && lk[6] === true && lk[7] === true,
+  `e2e: keys: 3 selects the clap (the third of the 10 lanes; no popup, its sends on the strip), 3 again opens it, 5 goes to sound 5 in it, Enter opens the selected one (${lk.join(" | ")}; focus before Enter: ${focused})`);
 const misc = [];
 for (const [k, pid] of [["d", "fxdelay"], ["r", "fxreverb"], ["c", "fxchorus"], ["o", "fxcomp"], ["h", "help"]]) { await press(k); misc.push(await popNow() === pid); if (k === "h") { await run(`const h = document.querySelector(".keyhelp"); if (h) h.scrollIntoView({ block: "center" });`); await shot("keys-help"); } await press(k); misc.push(await popNow() === ""); }
 await press(","); misc.push(await run(`${U} await sleep(400); return !$("#p-settings").hidden;`));
@@ -349,7 +349,7 @@ ok(await run(`${U} const t = (q) => (document.querySelector(q) || {}).title || "
   const lay = ["0", "1", "2"].every((n) => { const s = $('#mixer .strip[data-track="' + n + '"]'); const g = s.querySelector(".pops"), q = s.querySelector("[data-pop=sequence]");
     return g.querySelectorAll("button").length === 3 && q.getBoundingClientRect().top >= g.getBoundingClientRect().bottom && q.getBoundingClientRect().height >= 32; });
   const d = $('#mixer .strip[data-track="3"]'); const dg = d.querySelector(".pops");
-  const lay2 = dg.querySelectorAll("button").length === 2 && d.querySelector("[data-pop=sequence]").getBoundingClientRect().top >= dg.getBoundingClientRect().bottom && d.querySelectorAll(".lanes .ln").length === 16;
+  const lay2 = dg.querySelectorAll("button").length === 2 && d.querySelector("[data-pop=sequence]").getBoundingClientRect().top >= dg.getBoundingClientRect().bottom && d.querySelectorAll(".lanes .ln").length === 10;
   return JSON.stringify({ bad, lay, lay2 });`) === '{"bad":[],"lay":true,"lay2":true}', "e2e: tooltips end with their key; strip layout: group row (3 buttons; the drum group: Kit, User kits, fold, one-or-all), Sequence below");
 await shot("strips");
 /* every button (tabs, transport, popups, screens) has a tooltip and an accessible name, scanned on every screen and popup */
@@ -485,7 +485,7 @@ const lookRes = await run(`${U} const $$ = (q) => [...document.querySelectorAll(
   head(0).click(); await until(() => head(0).getAttribute("aria-pressed") === "true", 8000);
   } catch (e) { r.err = String(e); }
   return r;`);
-ok(lookRes && lookRes.groups === ":3" && lookRes.font && lookRes.tabs === "false:0" && lookRes.tracks === 4 && lookRes.sel === 2 && lookRes.trk === "#287cff"
+ok(lookRes && lookRes.groups === ":1" && lookRes.font && lookRes.tabs === "false:0" && lookRes.tracks === 4 && lookRes.sel === 2 && lookRes.trk === "#287cff"
   && lookRes.pop === "sound:true" && lookRes.tiles === 16,
   `e2e: the look: Terminus, the side bar holds only what is not in the mixer, no track tab row (a strip's head selects; one colour, the blue, whatever the track), the Sound editor opens from the instrument widget, 16 step tiles (${JSON.stringify(lookRes)})`);
 /* the Samples page (SLOOP 2.4's three steps): choose a slot, make the sound (files, the key map drawn), send, play it on a track */
@@ -547,7 +547,7 @@ const masterRes = await run(`${U} const m = document.querySelector("#mixer .stri
   const shape = groups.length === 4 && groups.every((g) => g.querySelectorAll("button.ib").length === 1 && g.querySelectorAll(".knob").length === ({ fxdelay: 4, fxreverb: 2, fxchorus: 2 }[g.dataset.fx] || 3)
     && g.querySelector("button.ib").getBoundingClientRect().width >= 32 && g.querySelector("button.ib").getBoundingClientRect().height >= 32 && g.querySelector("button.ib").title && [...g.querySelectorAll(".knob")].every((k) => k.title))
     && [...m.querySelectorAll('.fxg[data-fx="fxcomp"] .knob .kl')].map((e) => e.textContent.trim()).join(" ") === "THRS RATIO GAIN";
-  const want = { fxdelay: "TIME FDBK COLR MIX", fxreverb: "SIZE DAMP", fxchorus: "CRT CDP", fxcomp: "THRS RATIO ATK REL GAIN CEIL" }, got = {};
+  const want = { fxdelay: "TIME FDBK FREQ MIX", fxreverb: "SIZE DAMP", fxchorus: "CRT CDP", fxcomp: "THRS RATIO ATK REL GAIN CEIL" }, got = {};
   for (const [id, labels] of Object.entries(want)) {
     m.querySelector("[data-pop=" + id + "]").click(); await until(() => $("#pop").open && $("#pop").dataset.pop === id, 5000); await sleep(300);
     got[id] = [...document.querySelectorAll("#popbody .group[data-fx=" + id + "] .kl")].map((e) => e.textContent.trim()).join(" ") === labels
@@ -556,7 +556,7 @@ const masterRes = await run(`${U} const m = document.querySelector("#mixer .stri
   }
   document.querySelector("[data-tab=settings]").click(); await sleep(300);
   const labels = [...document.querySelectorAll("#p-settings .knob .kl, #p-settings .pk .kl, #p-settings .row > span:first-child")].filter(shown).map((e) => e.textContent.trim());
-  const moved = ["DUST", "DUCK", "FILT", "TIME", "FDBK", "COLR", "MIX", "SIZE", "DAMP", "CRT", "CDP", "LVL", "REV", "THRS", "RATIO", "GAIN", "CEIL"];
+  const moved = ["DUST", "DUCK", "FILT", "TIME", "FDBK", "FREQ", "MIX", "SIZE", "DAMP", "CRT", "CDP", "LVL", "REV", "THRS", "RATIO", "GAIN", "CEIL"];
   const left = moved.filter((l) => labels.includes(l));
   document.querySelector("[data-tab=mixer]").click(); await sleep(300);
   return JSON.stringify({ noSet, shape, knobs: knobs.join(), got, left, hasRoll: labels.includes("ROLL") });`);
@@ -931,15 +931,15 @@ const appRes = await run(`${U} try {
   const A = window.fm1E2E.app(), real = A.install.handle; A.install.handle = { busy: true, activate() {}, deactivate() {} };   /* (writing the firmware) */
   tab("mixer").click(); await sleep(400); r.stayed = location.hash === "#install" && !document.getElementById("p-install").hidden;
   A.install.handle = real;
-  tab("build").click(); await sleep(1500); r.build = location.hash + ":" + (document.getElementById("build-host").children.length > 0 || /not available|module/.test(document.getElementById("build-note").textContent));
+  location.hash = "#build"; await sleep(1500); r.build = location.hash + ":" + (document.getElementById("build-host").children.length > 0 || /not available|module/.test(document.getElementById("build-note").textContent));
   { const bs = document.querySelector("#build-host #bside");   /* (the right column stays in view while the list scrolls, inside the editor too) */
     if (bs) { window.scrollTo(0, 2500); await sleep(300); r.sticky = Math.round(bs.getBoundingClientRect().top) + ":" + Math.round(window.scrollY); window.scrollTo(0, 0); } else r.sticky = "no #bside"; }
   tab("install").click(); await sleep(500);
   tab("mixer").click(); await until(() => !!D() && !!D().dump && document.querySelectorAll("#mixer > .strip").length >= 9, 30000); r.back = location.hash + ":" + !!D();
   return r; } catch (e) { return { err: String(e.stack) }; }`);
-ok(appRes && /^build,install,mixer/.test(appRes.order) && appRes.lazy && appRes.hash === "#install" && appRes.app === "install" && appRes.released && appRes.shown && appRes.mod && appRes.stayed && /^#build:true$/.test(appRes.build) && appRes.back === "#mixer:true"
+ok(appRes && /^install,sim,mixer/.test(appRes.order) && appRes.lazy && appRes.hash === "#install" && appRes.app === "install" && appRes.released && appRes.shown && appRes.mod && appRes.stayed && /^#build:true$/.test(appRes.build) && appRes.back === "#mixer:true"
   && /^\d+:[1-9]\d*$/.test(appRes.sticky) && +appRes.sticky.split(":")[0] <= 120,
-  `e2e one-page app: Build and Install tabs first, lazy modules, #install / #build routing, the device released while Install is shown and restored, no leaving while the installer writes (${JSON.stringify(appRes)})`);
+  `e2e one-page app: Install and Simulator tabs first (Build is the Install tab's own page, reached by #build), lazy modules, #install / #build routing, the device released while Install is shown and restored, no leaving while the installer writes (${JSON.stringify(appRes)})`);
 /* the send knobs are as big as the pan knob (no shrinking); the drum head: [chip + name ..... 1|ALL ▶] with the toggle right beside the arrow */
 const sizeRes = await run(`${U} try {
   const r = {}, st = (n) => document.querySelector('#mixer .strip[data-track="' + n + '"]');
@@ -1093,6 +1093,7 @@ const scrRes = await run(`${U} try {
   if (!await until(() => document.querySelectorAll("#devscr .sl").length > 20, 60000)) return { err: "no lines" };
   const mock = window.fm1Test.mock, r = {};
   const row = (s, i) => document.querySelector('#devscr .sl[data-s="' + s + '"][data-i="' + i + '"]');
+  const lab = (s, n) => [...document.querySelectorAll('#devscr .sl[data-s="' + s + '"]')].find((x) => x.querySelector(".sln").textContent === n);   /* (a line by its label: the tables gain and lose lines) */
   r.groups = [...document.querySelectorAll("#devscr .devpage h3")].map((h) => h.textContent).slice(0, 4).join("|");
   r.bpm0 = row(0, 0).querySelector(".slv").textContent;
   const sl = row(0, 0).querySelector("input[type=range]"); sl.value = String(+sl.value + 10); sl.dispatchEvent(new Event("input", { bubbles: true }));
@@ -1105,12 +1106,12 @@ const scrRes = await run(`${U} try {
   dn.click(); await sleep(500); dn.click(); await sleep(500); const v4 = row(0, 5).querySelector(".slv").textContent;
   r.steps = [v0, v1, v2, v3, v4].join("|");
   /* a switch: its button names the entry (no blank box) and toggles it; a channel stepper; a slider with a device step of its own (a device-stepped range) */
-  const sw = row(0, 10).querySelector("button.sw"), s0 = sw.textContent; sw.click(); await until(() => sw.textContent !== s0, 4000); r.sw = s0 + ">" + sw.textContent + ":" + sw.getAttribute("aria-pressed");
+  const sw = lab(1, "KNOB COLORS").querySelector("button.sw"), s0 = sw.textContent; sw.click(); await until(() => sw.textContent !== s0, 4000); r.sw = s0 + ">" + sw.textContent + ":" + sw.getAttribute("aria-pressed");
   sw.click(); await sleep(400);
-  const ch = row(0, 12), c0 = ch.querySelector(".slv").textContent; ch.querySelector("button[aria-label$='+']").click(); await sleep(500); r.chan = c0 + ">" + ch.querySelector(".slv").textContent;
-  const br = row(1, 3).querySelector("input[type=range]"); br.value = "3"; br.dispatchEvent(new Event("input", { bubbles: true })); await sleep(1500); r.bright = row(1, 3).querySelector(".slv").textContent;
+  const ch = lab(0, "TRK 1"), c0 = ch.querySelector(".slv").textContent; ch.querySelector("button[aria-label$='+']").click(); await sleep(500); r.chan = c0 + ">" + ch.querySelector(".slv").textContent;
+  const br = lab(0, "CLK OFS").querySelector("input[type=range]"); br.value = "3"; br.dispatchEvent(new Event("input", { bubbles: true })); await sleep(1500); r.bright = lab(0, "CLK OFS").querySelector(".slv").textContent;
   r.blank = [...document.querySelectorAll("#devscr .sl")].filter((x) => !(x.querySelector(".slv") && x.querySelector(".slv").textContent.trim()) && !(x.querySelector("button") && x.querySelector("button").textContent.trim())).length;
-  window.confirm = () => true; const act = row(1, 9).querySelector("button"); act.click(); await sleep(500); r.act = !!act && act.textContent;
+  window.confirm = () => true; const act = lab(1, "PANEL").querySelector("button"); act.click(); await sleep(500); r.act = !!act && act.textContent;
   r.stepper = !!up && row(0, 5).dataset.kind === "1";
   r.kinds = [1, 2, 3].map((k) => document.querySelectorAll('#devscr .sl[data-kind="' + k + '"]').length).join();
   r.help = !!row(0, 0).querySelector(".sln").title;
@@ -1118,7 +1119,7 @@ const scrRes = await run(`${U} try {
   r.wide = document.documentElement.scrollWidth <= window.innerWidth + 1;
   return r; } catch (e) { return { err: String(e.stack) }; }`);
 ok(scrRes && /^GLOBAL \u00b7 Tempo/.test(scrRes.groups) && scrRes.bpm1 !== scrRes.bpm0 && /^1[0-9][0-9] BPM$/.test(scrRes.bpm1) && /^[0-9]+,[0-9]+,[0-9]+$/.test(scrRes.kinds) && scrRes.help && scrRes.wide
-  && scrRes.steps === "1 bar|2 bar|4 bar|4 bar|1 bar" && /^OFF>ON:true$/.test(scrRes.sw) && /^5>6$/.test(scrRes.chan) && scrRes.bright === "3" && scrRes.blank === 0 && scrRes.act === "CALIBRATE",
+  && scrRes.steps === "1 bar|2 bar|4 bar|4 bar|1 bar" && /^OFF>ON:true$/.test(scrRes.sw) && /^1>2$/.test(scrRes.chan) && scrRes.bright === "3 ms" && scrRes.blank === 0 && scrRes.act === "CALIBRATE",
   `e2e v13 SCRN (mock ?fxp=1): Settings lists GLOBAL and SYSTEM as the device's lines; a slider turns BPM, steppers and switches, help from the device's texts (${JSON.stringify(scrRes)})`);
 await shot("settings-device-lines");
 /* v13 SCRS (the mock with ?fxp=1): the Device screens page lists the device's screens; SOUND shows the pages in the device's order grouped by family, a card turns, a drum lane
@@ -1198,7 +1199,8 @@ const v13Probe = async (off) => {
     const have = (id) => !!document.querySelector('[data-pop="' + id + '"]');
     r.ins = have("fxslot"); r.mst = !!document.getElementById("strip-master-slot1-type"); r.note = !!document.getElementById("strip-1-noslots") && vis("#strip-1-noslots"); r.song = vis('#songbtn'); r.tools = have("tools");
     r.dlan = !!document.querySelector("[data-dlan]") || !!document.querySelector("#mixer .sq");
-    r.deviceTab = vis('#tabs [data-tab="device"]');
+    document.querySelector('#tabs [data-tab="device"]').click(); await sleep(600);   /* (the Device screens are out of the tab bar, 39882921: the page answers or says it has none) */
+    r.deviceTab = !document.getElementById("p-device").hidden;
     document.querySelector('#tabs [data-tab="settings"]').click(); await sleep(1200);
     r.lines = document.querySelectorAll("#devscr .sl").length > 0;
     document.querySelector('#tabs [data-tab="mixer"]').click(); await sleep(300);
@@ -1249,7 +1251,7 @@ for (const v9 of [1, 0]) {
 await send("Page.navigate", { url: `http://127.0.0.1:${port}/editor.html?mock=1&auto=0&store=1&snap=0#mixer` });
 await sleep(1500);
 ok(await run(`${U} return (await until(() => document.querySelectorAll("#mixer .strip").length === 5, 120000))
-  && !shown(document.querySelector("[data-tab=snapshots]")) && shown(document.querySelector("[data-tab=projects]"));`),
+  && !shown(document.querySelector("[data-tab=snapshots]")) && shown(document.querySelector("[data-tab=samples]"));`),
   "e2e: a firmware without snapshots: no Snapshots tab");
 /* the Reverb popup's TYPE (INFO tag 52, mock ?rev=mask): the four algorithms built: a selector of the four, a change reaches
    the device; one built (?rev=1): no selector */

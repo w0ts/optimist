@@ -148,7 +148,7 @@ t_ble_emu() { python3 tests/ble_emu_test.py; }
 t_ble_central() { python3 tests/ble_emu_central_test.py; }
 t_ble_boot() { python3 tests/ble_emu_boot_test.py; }
 t_builder() { python3 tests/builder_test.py; r=$?; python3 tests/builder_core_test.py || r=1; return $r; }
-t_web() { node web/test_web.mjs; r=$?; node web/test_builder.mjs || r=1; python3 tests/cloud_build_test.py || r=1; return $r; }
+t_web() { node web/test_web.mjs; r=$?; node web/test_builder.mjs || r=1; python3 tests/cloud_build_test.py || r=1; python3 tests/outside_hosts_test.py || r=1; return $r; }
 # the simulator (docs/WEB.md): the default configuration's firmware as WebAssembly, run under node
 t_sim() {
     local py; py="$(python3 -c 'import sys; sys.path.insert(0, "tools"); import deps; print(deps.venv_python())')" || return 1
@@ -923,6 +923,12 @@ job; ( jobin
     run "Optimist UI without the SYSTEM debug pages (SYS_DEBUG=0): no INTERNALS / USB STATS, INFO = CPU LOAD, UNDERRUNS (drops in), BATTERY, large values" "$OUT/ui_optimist_nodbg_test" "$OUT/optimist-nodbg"
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DFELUCCA_PARAM_HELP=1 -DFELUCCA_USB_AUDIO=1 -DFELUCCA_SYS_DEBUG=0 -DDUAL_LOAD=1 $SEC4 -o "$OUT/ui_optimist_nodbg_dual_test" tests/ui_optimist_test.c -lm
     run "Optimist UI without the SYSTEM debug pages, DUAL (SYS_DEBUG=0, DUAL_LOAD): INFO = CPU0, CPU1, UNDERRUNS, BATTERY; KNOB 1 the measure of both" "$OUT/ui_optimist_nodbg_dual_test" "$OUT/optimist-nodbg-dual"
+) >"$U.out" 2>&1 & jobbg
+# the release's DEBUG STATS (PLAT_STATS_APP; tests/dbgstats_stub.h stands in for fm1-base's plat_stats_enable): the last line of SYSTEM > General, no DEBUG page
+job; ( jobin
+    mkdir -p "$OUT/optimist-dbgstats"
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DFELUCCA_PARAM_HELP=1 -DFELUCCA_CDC=1 -DPLAT_STATS_APP=1 -include tests/dbgstats_stub.h $SEC4 -o "$OUT/ui_optimist_dbgstats_test" tests/ui_optimist_test.c -lm
+    run "Optimist UI with DEBUG STATS (PLAT_STATS_APP): General's last line, no DEBUG page, USB SERIAL on its own page" "$OUT/ui_optimist_dbgstats_test" "$OUT/optimist-dbgstats"
 ) >"$U.out" 2>&1 & jobbg
 # the limited insert types on the Optimist UI (tests/ui_optimist_fxi.h): the free count, WAIT, IN USE, FULL (dim), hidden
 # when not built, the help lines; CHO ECHO in effects memories (DLY_ARENA, beside the delay send's 128 KB) that hold 8 / 4

@@ -96,8 +96,18 @@ struct Fm1BaseSite {
             let links = pages.map { "<li><a href=\"\($0.path)\">\($0.title)</a></li>" }.joined()
             return (Data("<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>\(Self.safe(info.name))</title><h1>\(Self.safe(info.name))</h1><ul>\(links)</ul>".utf8), html)
         default:
-            return nil
+            return font(path)
         }
+    }
+
+    /// "/fonts/fonts.css" and the font files beside it (Resources/Fm1Base/fonts: Barlow, SIL OFL), which the pages link as ../fonts/:
+    /// they come from the bundle, so no page asks an outside host for a font
+    func font(_ path: String) -> (Data, String)? {
+        let name = String(path.dropFirst("/fonts/".count))
+        guard path.hasPrefix("/fonts/"), name.range(of: #"^[A-Za-z0-9._-]+\.(css|woff2|txt)$"#, options: .regularExpression) != nil,
+              let data = try? Data(contentsOf: root.appendingPathComponent("fonts/\(name)")) else { return nil }
+        let type = name.hasSuffix(".css") ? "text/css; charset=utf-8" : name.hasSuffix(".woff2") ? "font/woff2" : "text/plain; charset=utf-8"
+        return (data, type)
     }
 
     private func installer() -> String? {

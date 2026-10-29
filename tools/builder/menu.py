@@ -192,7 +192,7 @@ class Builder(App):
         self.exact = None                                # (cfg_hash, sizes) of the last build, measurement builds too
         self.conflicts = {}
         self.room = RM.NONE                              # what BLE removed to make room (room.py)
-        self.sort_by = None                              # o cycles: None (registry order), flash, ram, pool, ramtext (per session)
+        self.sort_by = None                              # o cycles: None (registry order), flash, ram (the SRAM total) (per session)
         self.update_budget()
 
     # ---- layout
@@ -237,7 +237,7 @@ class Builder(App):
         for r, n in deltas:
             hot = self.over.get(r, 0) > 0 and n > 0     # it holds part of an overflowing region
             t.append(f"  {r} {n / 1024:+.1f}K",
-                     style="bold red" if hot else ("bold reverse cyan" if r == self.sort_by else "cyan"))
+                     style="bold red" if hot else ("bold reverse cyan" if r in self.SORT_PARTS.get(self.sort_by, ()) else "cyan"))
         if key.startswith("SET_") and C.card_sets(self.cfg):   # (SD card mode: 0 B of flash, the SD card zip holds it)
             t.append("  on the card" if v else "  not on the card", style="cyan" if v else "dim")
         took = dict(deltas)
@@ -307,8 +307,16 @@ class Builder(App):
         keys = list(keys)
         if not self.sort_by:
             return keys
-        cost = lambda k: (self.savings or {}).get(k, {}).get(self.sort_by)
+        cost = self.sort_cost
         return sorted(keys, key=lambda k: (cost(k) is None, -(cost(k) or 0)))     # (sorted() is stable)
+
+    SORT_PARTS = {"flash": ("flash",), "ram": ("ram", "pool", "ramtext")}   # (ram: the SRAM budget's parts, one sum)
+
+    def sort_cost(self, k):
+        """what item k costs in the sort's budget (flash; or ram: its ram + pool + ramtext), None when unmeasured"""
+        s = (self.savings or {}).get(k) or {}
+        parts = [s[r] for r in self.SORT_PARTS.get(self.sort_by, ()) if s.get(r) is not None]
+        return sum(parts) if parts else None
 
     def rebuild(self):
         tree = self.query_one("#tree")
@@ -493,8 +501,9 @@ class Builder(App):
 
 
     def action_sort(self):
-        """o: default order -> flash -> ram -> pool -> ramtext, within each group (children stay under their parent)"""
-        order = [None, *C.REGIONS]
+        """o: default order -> flash -> ram (the SRAM: ram + pool + ramtext), within each group (children stay under
+        their parent)"""
+        order = [None, *self.SORT_PARTS]
         self.sort_by = order[(order.index(self.sort_by) + 1) % len(order)]
         self.rebuild()
         self.refresh_all()
@@ -748,8 +757,12 @@ class Builder(App):
         go = lambda measure: C.build(cfg, name, measure=measure, on_line=self.build_line, cancel=self.cancel_build)
         ok, sizes, out = go(not fit)
         if not ok and fit and not self.cancel_build.is_set():    # (the estimate fitted, the exact build did not)
+            rok, rout = ok, out
             ok, sizes, out = go(True)
             fit = False
+            if ok and sizes and self.sizes_fit(sizes, cfg):      # (the measurement fits: the real build's own failure,
+                ok, out = rok, rout                              #  e.g. a check after the link, is the answer, not
+                                                                 #  "does not fit"; the measurement's sizes stay for the bars)
         elif ok and not fit and sizes and self.sizes_fit(sizes, cfg):   # (the estimate overflowed, the build fits)
             msizes = sizes
             ok, sizes, out = go(False)

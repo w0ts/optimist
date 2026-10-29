@@ -3882,6 +3882,7 @@ static void preset_engine_tests(void)
 #include "ui_optimist_edscrn.h"                     /* the editor's SCRN (cmd 96): GLOBAL and SYSTEM as the UI's lines */
 #include "ui_optimist_edscrs.h"                     /* the editor's SCRS (cmd 99): the other screens as rows of cards */
 #include "ui_optimist_edv14.h"                      /* the editor's STEPLANE (cmd 105): a step in a lane's context, the device's lockable list */
+#include "ui_optimist_credits.h"                  /* 2026-10-29: SYSTEM > CREDITS as end titles: the crawl, KNOB 1, the loop, the cost */
 #include "ui_optimist_glstyle.h"                    /* 2026-10-14: the look of the lists (title, full-width bars, toggles, joined pages, INFO, About) */
 #include "ui_optimist_curline.h"                    /* 2026-10-14: the cursor row: the line's colour at full strength, white text */
 #include "ui_optimist_help.h"                       /* 2026-10-13: the help line on the screen's foot (PARAM_HELP) */
