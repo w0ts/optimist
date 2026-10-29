@@ -1272,18 +1272,18 @@ static void draw_overlay(uint32_t ov)
  * black on rows 0-1), again only when its pixel width or colour changes, or the header or the whole screen was redrawn */
 #define MEM_RED 80u                                     /* the percent from which the line is red */
 #define MEM_H 2
-static uint32_t ml_sig;
+static uint32_t memline_sig;
 static uint32_t memline_px(uint32_t pct) { return pct * 12u / 5u; }   /* (240 px = 100 %) */
 static uint16_t memline_col(uint32_t pct) { return pct >= MEM_RED ? C_ERR : C_DIM; }
 static void memline_draw(void)
 {
     uint32_t pct = info_ram_pct(), px = memline_px(pct), sig;
     if (ui.force)
-        ml_sig = 0;                                     /* (the screen was blacked) */
+        memline_sig = 0;                                     /* (the screen was blacked) */
     sig = hu(hu(hu(1u, px), pct >= MEM_RED), ui.sig[0]);   /* (ui.sig[0]: the header drew again, over rows 0-1) */
-    if (sig == ml_sig)
+    if (sig == memline_sig)
         return;
-    ml_sig = sig;
+    memline_sig = sig;
     if (px)
         lcd_fill(0, 0, (int32_t)px, MEM_H, memline_col(pct));
     if (px < 240u)
