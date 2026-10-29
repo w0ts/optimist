@@ -47,7 +47,7 @@ SWIFT_ALLOW = [
     ("Flash/FlashCatalog.swift", "https://raw.githubusercontent.com/", "Flash tab: package download"),
     ("Flash/FlashCatalog.swift", "https://api.github.com/", "Flash tab: one's own cloud build"),
     ("Flash/BuilderWebView.swift", "https://github.com/", "builder: only the link kinds the app will open (a check, not a load)"),
-    ("Web/WebTabView.swift", "https://w0ts.github.io/optimist/webapp/editor/", "Web tab: the editor page, loaded from the site (not bundled)"),
+    ("Web/WebTabView.swift", "https://w0ts.github.io/optimist/webapp/editor/", "Simulator (home screen): the site's editor, whose Simulator tab loads the firmware builds (not bundled); offline: 'needs the internet'. The Web tabs use the bundled editor (optimistedit:)"),
     ("Companion/Fm1BaseSite.swift", "http", "string handling of the repo link (not a request)"),
 ]
 
@@ -140,10 +140,35 @@ def fonts_present():
     return bad
 
 
+def bundled_editor():
+    """the app's bundled editor (tools/sync_ios_editor.py: web/editor.html + what it loads): every file it copies exists, is one
+    this test scans (web/ or the logo), and every local file the page's own tags load is among them"""
+    sys.path.insert(0, str(ROOT / "tools"))
+    import sync_ios_editor as s
+    bad = []
+    names = {dst for _, dst in s.FILES}
+    for src, dst in s.FILES:
+        if not (ROOT / src).is_file():
+            bad.append(f"tools/sync_ios_editor.py: {src} does not exist")
+        elif not src.startswith(("web/", "assets/logo/")):
+            bad.append(f"tools/sync_ios_editor.py: {src} is not under web/ or assets/logo/ (not scanned for outside hosts)")
+        elif src.startswith("assets/logo/") and page_loads(ROOT / src, (ROOT / src).read_text(encoding="utf-8", errors="replace")):
+            bad.append(f"{src}: loads an outside host")
+    page = (ROOT / "web" / "editor.html").read_text(encoding="utf-8")
+    for tag in LOADING_TAG.finditer(page):
+        for a in re.finditer(r"\b(?:src|href)\s*=\s*[\"']([^\"'#]+)", tag.group(0)):
+            ref = a.group(1)
+            if re.match(r"(?:[a-z]+:|//|data:)", ref) or tag.group(1).lower() == "a" or "{" in ref or "icon" in tag.group(0).split("href")[0]:
+                continue                              # (outside hosts are scan()'s; links and the browser-tab icons are not loads)
+            if re.sub(r"^(?:\.\./)+", "", ref.removeprefix("./")) not in names:
+                bad.append(f"web/editor.html loads {ref}, which the app's bundled editor does not hold (tools/sync_ios_editor.py)")
+    return bad
+
+
 def main():
     selftest()
     n, bad = scan()
-    bad += fonts_present()
+    bad += fonts_present() + bundled_editor()
     if bad:
         print("\n".join(bad))
         print(f"FAIL: {len(bad)} outside-host use(s) not in the allow-list (tests/outside_hosts_test.py)")
