@@ -2,8 +2,8 @@
 /* The audio overload monitor (the user, 2026-10-15: "we should have actually a MAX of the last few seconds and a DROP-OUT
  * DETECTOR", "the second encoder should switch between CURRENT, MAX OVER A FEW SECONDS, MAX FOR EVER. And we should also monitor
  * UNDERRUNS"; 2026-10-28: "progress bars with 1-minute and 10-second peaks"): SYSTEM > INFO's CPU lines (a bar of the load
- * now, a bright tick at the longest audio half of the last ~10 s, a dim one at the last ~1 min's; the number by KNOB 1: NOW,
- * MAX 10S, MAX 1M, MAX since boot; % of a half, over 100 % it ran late), DROPS (late halves since boot: the DMA moved on while the half rendered, a gap in the sound),
+ * now, a bright tick at the longest audio half of the last ~10 s, a dim one at the longest since boot; the number by KNOB 1: NOW,
+ * MAX 10S, MAX since boot; % of a half, over 100 % it ran late), DROPS (late halves since boot: the DMA moved on while the half rendered, a gap in the sound),
  * UNDERRUNS (what else was lost: USB audio's under / overruns and missed frames, MIDI in that found its ring full), and the
  * header's mark for ~1 s after one (op_draw.c), on every page: red for a drop, amber for another underrun.
  *
@@ -14,14 +14,13 @@
  * themselves. */
 #ifndef OVERLOAD_H
 #define OVERLOAD_H
-#define OVL_SLOTS 64u                    /* a ring's per-slot maxima (a power of 2, more than the longest window) */
+#define OVL_SLOTS 16u                    /* a ring's per-slot maxima (a power of 2, more than the longest window: 10 s; was 64 for the 1 min one) */
 #define OVL_WIN 5u                       /* the reset-kept record's ~5 s (audio.c felucca_dbg.pk_5s): the slot being filled, 4 before */
 #define OVL_W10 10u                      /* MAX 10S, the bright tick: the slot being filled and the 9 before it (~10 s) */
-#define OVL_W60 60u                      /* MAX 1M, the dim tick: and the 59 before it (~1 min) */
 #define OVL_MARK_MS 1000u                /* the header's mark: this long after a drop / an underrun */
 #define OVL_HALF_US (HALF_FRAMES * 1000000u / FS)   /* one audio half, us (= audio.c's) */
 enum { OVL_CPU0, OVL_CPU1, OVL_NRING };
-enum { OVL_NOW, OVL_MAX10, OVL_MAX60, OVL_MAXALL, OVL_NMODE };   /* the CPU lines' number (INFO's KNOB 1) */
+enum { OVL_NOW, OVL_MAX10, OVL_MAXALL, OVL_NMODE };   /* the CPU lines' number (INFO's KNOB 1) */
 enum { OVL_MIDI_USB, OVL_MIDI_TRS, OVL_MIDI_BLE, OVL_NMIDI };
 typedef struct {
     uint16_t smax[OVL_SLOTS];            /* the longest half in each slot, us (65535 at most) */

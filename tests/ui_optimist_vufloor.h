@@ -36,6 +36,63 @@ static void vufloor_master_view(uint32_t fl, double amp, const char *shot)   /* 
     ppm(shot);
 }
 #ifndef VUF_BASELINE
+/* the audio meters' peak-hold marker (op_mixdraw.c mx_peak; the user, 2026-10-29: "VU meters just get normal audio peaks"): it jumps to a
+ * new peak, holds MX_PH_HOLD frames, falls 20 dB/s, catches up with a louder one, is red at 0 dBFS, and is never drawn under the VU FLOOR.
+ * Screens opt-peakhold-master.ppm (the marker stands over the fallen bar). */
+static void peak_ring(double amp)                       /* a sine of the given amplitude in the scope's ring: MASTER reads its peak there */
+{
+    uint32_t i;
+    for (i = 0; i < VIS_RING; i++)
+        vis_pcm[0][i] = vis_pcm[1][i] = (int32_t)(sin((double)i * 2.0 * 3.14159265 / 100.0) * amp);
+}
+#define PEAK_Y ((uint32_t)(OP_PY + MXM_VY + 5))   /* (OP_PY moves with the page: read when used) */
+static uint32_t peak_x(uint32_t ph) { return (uint32_t)MXM_X + ph * (uint32_t)MXM_W / MX_LV; }   /* the marker's right end */
+static void peakhold_tests(void)
+{
+    uint32_t ph0, q0, i, ok;
+    VUF_SET(VUF_DEF);
+    reset_ui();
+    VUF_SET(VUF_DEF);
+    ui.row[SCR_HOME] = MXR_MASTER;
+    peak_ring(8000.0);                                  /* (about -12 dBFS) */
+    ui.force = 1;
+    frames(3);
+    ph0 = MX_PHL(MXR_MASTER);
+    check(ph0 > 100u && ph0 >= mxd.pk[MXR_MASTER], "peak hold: the marker jumps to the peak (it stands at or over where the bar ends)");
+    peak_ring(0.0);                                     /* (silence) */
+    frames(MX_PH_HOLD / 2u);
+    q0 = mxd.ph[MXR_MASTER];
+    check(mxd.pk[MXR_MASTER] < ph0 && MX_PHL(MXR_MASTER) == ph0 && px_in(peak_x(ph0) - 2u, PEAK_Y, 2, 1, mx_vu_colat((int32_t)peak_x(ph0) - (int32_t)MXM_X - 1, (int32_t)(mx_vu_lv(MX_KNEE_PK) * (uint32_t)MXM_W / MX_LV), (int32_t)MXM_W, C_OK)),
+          "peak hold: the bar has fallen, the marker is held where it was, drawn there in the meter's own colour");
+    ppm("opt-peakhold-master");
+    for (i = MX_PH_HOLD / 2u; i < MX_PH_HOLD + 10u && mxd.ph[MXR_MASTER] == q0; i++)
+        frames(1);                                      /* (the loud frames' own hold ran a frame or two down: it ends at 89 .. 91 quiet frames) */
+    check(i >= MX_PH_HOLD - 2u && i <= MX_PH_HOLD + 1u && mxd.ph[MXR_MASTER] < q0, "peak hold: held MX_PH_HOLD (~1.5 s) frames, then it starts to fall");
+    q0 = mxd.ph[MXR_MASTER];
+    frames(20);                                         /* (20 frames: a build with a sounding master may stop it at that level sooner) */
+    ok = q0 - mxd.ph[MXR_MASTER] == 20u * MX_PH_FALL[VUF_DEF];
+    check(ok && MX_PHL(MXR_MASTER) < ph0, "peak hold: then it falls steadily, 330/256 of a unit a frame (20 dB/s on the -60 scale)");
+    peak_ring(8000.0);
+    frames(1);
+    check(MX_PHL(MXR_MASTER) >= ph0 - 15u && MX_PHL(MXR_MASTER) <= ph0 + 15u && mxd.phd[MXR_MASTER] == MX_PH_HOLD, "peak hold: a level at or over the marker takes it back up and holds again");
+    peak_ring(400000.0);                                 /* (over 0 dBFS: the full scale) */
+    frames(3);
+    check(MX_PHL(MXR_MASTER) >= MX_LV - 2u && px_in((uint32_t)MXM_X + MXM_W - 2u, PEAK_Y, 2, 1, C_ERR), "peak hold: at 0 dBFS the marker is red");
+    peak_ring(0.0);
+    frames(MX_PH_HOLD + 2u);
+    VUF_SET(VUF_N - 1u);                                /* (the floor at -20: -30 dBFS is under it) */
+    reset_ui();
+    VUF_SET(VUF_N - 1u);
+    ui.row[SCR_HOME] = MXR_MASTER;
+    peak_ring(1036.0);
+    ui.force = 1;
+    frames(5);
+    check(mxd.ph[MXR_MASTER] == 0u && !px_in((uint32_t)MXM_X, PEAK_Y, MXM_W, 1, C_OK) && !px_in((uint32_t)MXM_X, PEAK_Y, MXM_W, 1, C_ERR),
+          "peak hold: a peak under the VU FLOOR gets no marker, the bar none either");
+    VUF_SET(VUF_DEF);
+    peak_ring(0.0);
+    reset_ui();
+}
 static void vufloor_tests(void)
 {
     uint32_t i, fl, ok = 1, mono = 1, k;
@@ -84,6 +141,7 @@ static void vufloor_tests(void)
         turn(LINE_KNOB(k), 1);
     check(vu_floor_i == VUF_N - 1u && vuf_db(vu_floor_i) == -20, "VU FLOOR: the knob up to the other end: -20");
     VUF_SET(VUF_DEF);
+    peakhold_tests();                                   /* (its frames move the master compressor: SCRS golden GR -5 -> -4) */
     vufloor_master_view(0, 1036.0, "opt-vufloor-master-80");
     vufloor_master_view(VUF_DEF, 1036.0, "opt-vufloor-master-60");
     vufloor_master_view(VUF_N - 1u, 8000.0, "opt-vufloor-master-20");

@@ -181,7 +181,7 @@ static void gl_cred_draw(int32_t y0)
 #define GL_INFO_BGAP 4                                  /* a CPU line: its text, this gap, its bar (GL_BH) */
 #define GL_INFO_TK 2                                    /* ... the peak ticks: this wide, standing this far over and under the bar */
 /* a CPU line's bar under its text (op_project.c info_bar; the user, 2026-10-28): the screen's width as the settings' bars,
- * filled to the load now in the load's colours, the dim tick at the 1 min peak, the bright one at the 10 s peak over it; the
+ * filled to the load now in the load's colours, the dim tick at the peak since boot, the bright one at the 10 s peak over it; the
  * text never on it */
 static void gl_info_bar(int32_t by, const cell_t *c)
 {
