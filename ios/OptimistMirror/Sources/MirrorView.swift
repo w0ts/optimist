@@ -462,9 +462,7 @@ struct MirrorView: View {
             if roll {
                 ClipView(clip: clip)
             } else if let image {
-                Image(decorative: image, scale: 1)
-                    .resizable()
-                    .interpolation(.none)
+                PixelScreen(image: image)          // (whole device pixels, nearest neighbour: PixelScreen.swift)
                     .aspectRatio(1, contentMode: .fit)
                     .overlay {
                         if buttons {
