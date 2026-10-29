@@ -254,8 +254,8 @@ static void t_reload(void)
 static void t_mem(void)
 {
     uint32_t k, e;
-    check("the units: 1 KB (512 samples); CHRS 2, ECHO 8, JUNO CHORUS 2, FLNG 1; the delay send's line its first units, "
-          "the chorus send's its last", FXA_U == 512u && FXA_Z0 == 2u && FXA_Z1 == 8u && FXA_Z2 == 2u && FXA_Z3 == 1u &&
+    check("the units: 1 KB (512 samples); CHRS 2, ECHO 8, JUNO CHORUS 4, FLNG 1; the delay send's line its first units, "
+          "the chorus send's its last", FXA_U == 512u && FXA_Z0 == 2u && FXA_Z1 == 8u && FXA_Z2 == 4u && FXA_Z3 == 1u &&
           FXA_S == FELUCCA_DLY_LEN / 512u && FXC_S == CHO_LEN / 512u && fxa_line(0) == dly_buf &&
           fxa_line(FXA_N) == cho_buf && fxa_line(FXA_S) == fxa_ins);
     reset();
