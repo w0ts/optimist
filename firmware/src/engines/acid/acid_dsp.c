@@ -8,6 +8,28 @@
 #define FELUCCA_CPU_GUARD 0                        /* (the target builds this unit alone: tools/build.py passes it) */
 #endif
 #define BASS303_LITE FELUCCA_CPU_GUARD             /* the overload guard's lite mode: the CPU guard's (cpuguard.c) */
+/* ACID "on, code in RAM" (the builder, FAST_RAM_acid; core.h FAST): its render path is RAM code, this unit's part of it
+ * in the RAM code's section (.ram_hot; the release's opt_fpu_acid.c: .app_ram, FAST_SECTION), the float helpers too */
+#ifndef FAST
+#if defined(__PI32V2__) && defined(FAST_RAM_acid) && FAST_RAM_acid
+#ifndef FAST_SECTION
+#define FAST_SECTION ".ram_hot"
+#endif
+#define FAST(n) __attribute__((section(FAST_SECTION)))
+#else
+#define FAST(n)
+#endif
+#endif
+#ifndef FASTI
+#if defined(__PI32V2__) && defined(FAST_RAM_acid) && FAST_RAM_acid
+#define FASTI(n) __attribute__((always_inline))
+#else
+#define FASTI(n)
+#endif
+#endif
+#ifndef DSPF_FAST
+#define DSPF_FAST FAST(acid)
+#endif
 #include "bass303.c"
 
 #include "acid_mem.h"
@@ -27,7 +49,7 @@ void acid_forget(int k)                            /* (engines.c part_mem_claim:
 static const uint8_t ACID_POT[8] = {BASS303_CUTOFF, BASS303_RESO, BASS303_ENVMOD, BASS303_DECAY, BASS303_ACCENT,
                                     BASS303_WAVE, BASS303_DRIVE, BASS303_SLIDE};
 
-static bass303_t *acid_part(int k)
+static FASTI(acid) bass303_t *acid_part(int k)
 {
     if (k < 0 || k >= ACID_PARTS)
         return 0;
@@ -38,7 +60,7 @@ static bass303_t *acid_part(int k)
     return (bass303_t *)acid_mem(k);
 }
 
-FM_SETUP void acid_pots(int k, const int16_t *e)
+FAST(acid) FM_SETUP void acid_pots(int k, const int16_t *e)
 {
     bass303_t *b = acid_part(k);
     int i;
@@ -55,7 +77,7 @@ FM_SETUP void acid_pots(int k, const int16_t *e)
         bass303_set(b, BASS303_DRVTYPE, drv);
 }
 
-FM_SETUP void acid_note(int k, int note, int accent, int slide)
+FAST(acid) FM_SETUP void acid_note(int k, int note, int accent, int slide)
 {
     bass303_t *b = acid_part(k);
     if (!b)
@@ -65,7 +87,7 @@ FM_SETUP void acid_note(int k, int note, int accent, int slide)
 }
 
 #if FELUCCA_CPU_GUARD
-void acid_lite(int k, int on)                      /* the CPU guard: 1 = no oversampling from the next block */
+FAST(acid) void acid_lite(int k, int on)                      /* the CPU guard: 1 = no oversampling from the next block */
 {
     bass303_t *b = acid_part(k);
     if (b)
@@ -73,7 +95,7 @@ void acid_lite(int k, int on)                      /* the CPU guard: 1 = no over
 }
 #endif
 
-FM_SETUP void acid_off(int k)
+FAST(acid) FM_SETUP void acid_off(int k)
 {
     bass303_t *b = acid_part(k);
     if (b && acid_gate[k]) {
@@ -83,7 +105,7 @@ FM_SETUP void acid_off(int k)
 }
 
 /* n (<= 64) samples of part k added to out at gain (Q15 full scale = gain) */
-void acid_render(int k, int32_t *out, int n, int32_t gain)
+FAST(acid) void acid_render(int k, int32_t *out, int n, int32_t gain)
 {
     bass303_t *b = acid_part(k);
     float y[64], g = (float)gain;

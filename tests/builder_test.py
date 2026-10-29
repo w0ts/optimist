@@ -120,6 +120,18 @@ check("LFO2: no item, retired (its bit 91 not reused), counted ON in the configu
       "LFO2" not in R.ITEMS and "LFO2" in R.RETIRED and R.HASH_AS.get("LFO2") == 1 and all(it.bit != 91 for it in R.ITEMS.values()) and
       not [p.name for d in (C.PROFILES, ROOT / "tests" / "profiles") for p in d.glob("*.config")
            if any(ln.startswith("LFO2=") for ln in p.read_text().splitlines())])
+# SLOOP's project import / export (2026-10-29): SL24_IMPORT, SL24_EXPORT, SL24_EDIMPORT are gone; SL24_SAFE (SLOOP's data kept
+# safe) stays, on by default; an old .config naming the three loads, each said dropped, nothing offered
+_w = io.StringIO()
+with contextlib.redirect_stderr(_w):
+    _cfg, _ = C.parse("# name: old\nSL24_IMPORT=0\nSL24_EXPORT=1\nSL24_EDIMPORT=1\nMISSING_WARN=0\n")
+check("SL24_IMPORT, SL24_EXPORT, SL24_EDIMPORT: no item, retired (bits 163, 164, 181 not reused); SL24_SAFE (bit 161) an item, on by default, an old SL24_SAFE=0 kept, an old .config naming them loads, "
+      "each said dropped, its other keys kept",
+      all(k not in R.ITEMS and k in R.RETIRED for k in ("SL24_IMPORT", "SL24_EXPORT", "SL24_EDIMPORT")) and
+      R.ITEMS["SL24_SAFE"].default == 1 and R.ITEMS["SL24_SAFE"].bit == 161 and "SL24_SAFE" not in R.RETIRED and
+      all(it.bit not in (163, 164, 181) for it in R.ITEMS.values()) and _cfg["MISSING_WARN"] == 0 and
+      all(f"{k} was dropped" in _w.getvalue() for k in ("SL24_IMPORT", "SL24_EXPORT", "SL24_EDIMPORT")) and
+      "FELUCCA_SL24_IMPORT" not in C.header(_cfg))
 # BLE_CENTRAL became a choice of levels (2026-10-24; firmware/src/ble/ble_cfg.h): a .config from before says
 # BLE_CENTRAL=1 and loads as level 1 (FULL), unchanged, its header FELUCCA_BLE_CENTRAL 1 as before; 3 (MINIMAL) is taken; 2 (a Just Works
 # level, removed again) and 4 are refused
@@ -520,9 +532,10 @@ check("reverb: one checkbox per algorithm (ROOM, PLATE, FDN8, SPRING) under the 
 check("reverb: the one-tank choice REVERB is gone, its bit 150 not reused; ROOM 151, PLATE 152, FDN8 153",
       "REVERB" not in items and 150 not in {it.bit for it in items.values()} and
       [items[k].bit for k in revs[:3]] == [151, 152, 153])
-check("reverb: REV_POOL and REV_HALF relabelled",
+check("reverb: REV_POOL relabelled; the half-rate reverb (REV_HALF, bit 123) and its steep filter (REV_HB_LONG, bit 430) are dropped, an old .config loads",
       items["REV_POOL"].label == "reverb buffers in the pool (saves ~17 KB RAM)" and
-      items["REV_HALF"].label == "half-rate reverb (half the RAM, no top octave)")
+      all(k not in items and k in R.RETIRED for k in ("REV_HALF", "REV_HB_LONG")) and
+      C.parse("REV_HALF=1\nREV_HB_LONG=1\n", warn=lambda m: None)[0]["REV_POOL"] == C.defaults()["REV_POOL"])
 none = dict(C.defaults(), REV_ROOM=0)
 e = C.validate(none)[0]
 check("reverb: the bus with no algorithm ticked: an error naming the bus and the four",
@@ -586,9 +599,9 @@ def _da(**kv):
 def _fm(**kv):
     return C.fx_memory(dict(C.defaults(), **kv))
 _four = dict(INS_CHORUS=1, INS_DELAY=1, INS_JCHORUS=1, INS_FLANGER=1, DLY_LEN=32768)
-check("the effects memory: auto is the delay's line and one line of each insert built (CHRS 2, ECHO 8, JUNO 2, FLNG 1, "
+check("the effects memory: auto is the delay's line and one line of each insert built (CHRS 2, ECHO 8, JUNO 4, FLNG 1, "
       "XDLY 2 lines: 64 or 32 KB); DLY_ARENA is the delay's line plus what it names; nothing without an insert built",
-      _da(INS_DELAY=1)["units"] == 8 and _da(**_four)["units"] == 13 and _da(INS_XDLY=1)["units"] == 64
+      _da(INS_DELAY=1)["units"] == 8 and _da(**_four)["units"] == 15 and _da(INS_XDLY=1)["units"] == 64
       and _da(INS_XDLY=1, XDLY_LEN=8192)["units"] == 32 and _da(INS_DELAY=1, DLY_LEN=32768, DLY_ARENA=96)["units"] == 32
       and _da(DLY_ARENA=96)["pool"] == 0 and _da(INS_CHORUS=1, DLY_ARENA=160)["units"] == 32)
 check("... its pool: the own room, the instance tables (an owner each at most, no more than the memory holds) and the "
@@ -597,14 +610,14 @@ check("... its pool: the own room, the instance tables (an owner each at most, n
       _da(INS_XDLY=1, DLY_LEN=32768, DLY_ARENA=64)["pool"] == 64 * 1024 + 2 * C.XD_STATE + 20
       and _da(INS_XDLY=1, DLY_LEN=32768, DLY_ARENA=64)["tables"] == {"ifx_xdly": 2 * C.XD_STATE}
       and _da(**_four)["tables"]["ifx_chrs"] == 9 * C.FXM_STATE["INS_CHORUS"][1]
-      and _da(**_four)["pool"] == 13 * 1024 + sum(9 * C.FXM_STATE[k][1] for k in _four if k in C.FXM_STATE)
-      + 4 * ((64 + 13 + 4 + 31) // 32))
+      and _da(**_four)["pool"] == 15 * 1024 + sum(9 * C.FXM_STATE[k][1] for k in _four if k in C.FXM_STATE)
+      + 4 * ((64 + 15 + 4 + 31) // 32))
 _m = _fm(**_four)
 check("... up to N at once in the memory chosen (each type alone, the sends in their master slots: the own room), plus "
       "what the delay's and the chorus's lines lend while out of the slots, capped at the 9 owners",
-      _m["types"]["INS_CHORUS"] == {"kb": 2, "max": 9, "own": 6, "dly": 32, "cho": 2}
+      _m["types"]["INS_CHORUS"] == {"kb": 2, "max": 9, "own": 7, "dly": 32, "cho": 2}
       and _m["types"]["INS_DELAY"]["own"] == 1 and _m["types"]["INS_DELAY"]["dly"] == 8
-      and _m["types"]["INS_FLANGER"]["own"] == 9 and "CHRS up to 6 (+3 while the delay" in C.fx_memory_text(_m)
+      and _m["types"]["INS_FLANGER"]["own"] == 9 and "CHRS up to 7 (+2 while the delay" in C.fx_memory_text(_m)
       and "ECHO up to 1 (+8 while the delay is in no master slot)" in C.fx_memory_text(_m))
 _e, _w, _n = C.validate(dict(C.defaults(), **_four))
 check("... the builder says so: a notice on the effects memory (DLY_ARENA), no error",
@@ -652,6 +665,44 @@ _cfg, _ = C.parse("INS_CHORUS=2\nINS_DELAY=4\nINS_JCHORUS=3\nINS_FLANGER=1\nINS_
 check("an old .config's instance counts (INS_CHORUS=2 ...) load as built: no setting lost, no error",
       all(_cfg[k] == 1 for k in C.FXM_TYPES) and not [e for e in C.validate(_cfg)[0] if set(e.keys) & set(C.FXM_TYPES)]
       and all(not R.ITEMS[k].is_choice for k in C.FXM_TYPES))
+# where each engine's hot code runs (registry.py FAST_NAMES, 2026-10-29): its item off / on / on, code in RAM (0 / 2 / 3);
+# an old .config's 1 reads as its place by default; the header's FAST_RAM_<name>; the hash of a default place unchanged
+_d = C.defaults()
+check("engines: each FAST_NAMES item a choice off / on / on code in RAM, its default its place (RAM: ANALOG 2 PHASE "
+      "DIGITAL TRIO FORMANT DRAWBAR LOFI SAMPLE; the rest on, from the flash) or off",
+      all([c[0] for c in R.ITEMS[k].choices] == [R.ENG_OFF, R.ENG_ON, R.ENG_RAM] and
+          R.ITEMS[k].default in (R.ENG_OFF, R.eng_place(k)) for k in R.FAST_NAMES)
+      and {k for k in R.FAST_NAMES if R.eng_place(k) == R.ENG_RAM} == set(R.FAST_RAM)
+      and _d["ENG_ANALOG"] == R.ENG_RAM and _d["ENG_FM6"] == R.ENG_ON)
+for _k in R.FAST_NAMES:
+    _vals = {}
+    for _v in (R.ENG_OFF, R.ENG_ON, R.ENG_RAM):
+        _f = C.flags(dict(_d, **{_k: _v}))[0]
+        _vals[_v] = (_f[R.ITEMS[_k].flag], tuple(_f[f"FAST_RAM_{n}"] for n in R.FAST_NAMES[_k]))
+    check(f"engines: {_k} off / on / code in RAM -> its switch 0 / 1 / 1, FAST_RAM 0 / 0 / 1",
+          _vals[R.ENG_OFF][0] == 0 and _vals[R.ENG_ON] == (1, (0,) * len(R.FAST_NAMES[_k]))
+          and _vals[R.ENG_RAM] == (1, (1,) * len(R.FAST_NAMES[_k])))
+_old, _ = C.parse("ENG_ANALOG=1\nENG_FM6=1\nENG_ACID=1\nENG_PHASE=0\n", warn=lambda m: None)
+check("engines: an old .config's 1 reads as the engine's place (ANALOG in RAM, FM6 and ACID on), 0 stays off",
+      (_old["ENG_ANALOG"], _old["ENG_FM6"], _old["ENG_ACID"], _old["ENG_PHASE"]) == (R.ENG_RAM, R.ENG_ON, R.ENG_ON, 0))
+check("engines: an old .config's hash (and so its image) as before the choice: the defaults' place hashes as 1",
+      C.cfg_hash(_old) == C.cfg_hash(dict(_old, ENG_ANALOG=1, ENG_FM6=1, ENG_ACID=1))
+      and C.cfg_hash(dict(_old, ENG_ANALOG=R.ENG_ON)) != C.cfg_hash(_old))
+_rt, _ = C.parse(C.dump(dict(_d, ENG_ANALOG=R.ENG_ON, ENG_FM6=R.ENG_RAM)), warn=lambda m: None)
+check("engines: a dump round-trips the places (ANALOG on from the flash, FM6 in RAM: 2 and 3 written)",
+      (_rt["ENG_ANALOG"], _rt["ENG_FM6"]) == (R.ENG_ON, R.ENG_RAM))
+_env = C.apply_env(_d, {"FELUCCA_ENG_ANALOG": "1", "FELUCCA_ENG_FM6": "3"})
+check("engines: the old switch FELUCCA_ENG_X=1 in the environment is the place by default, 3 code in RAM",
+      (_env["ENG_ANALOG"], _env["ENG_FM6"]) == (R.ENG_RAM, R.ENG_RAM))
+_co = C.load_costs()
+_a2, _f3 = K.item_delta(_co, "ENG_ANALOG", R.ENG_ON), K.item_delta(_co, "ENG_FM6", R.ENG_RAM)
+_s = R.FAST_BYTES
+check("engines: the estimate of a place costs.json has not measured: ANALOG on from the flash takes its render path "
+      "out of the RAM code and adds what it saved to the flash (measured, else a third), FM6 in RAM the other way",
+      _a2["ramtext"] == -_s["ENG_ANALOG"] and _a2["flash"] == R.fast_flash_saved("ENG_ANALOG") > 0
+      and _f3["ramtext"] == _s["ENG_FM6"] and _f3["flash"] == -R.fast_flash_saved("ENG_FM6")
+      and R.fast_flash_saved("ENG_TRIO") == round(_s["ENG_TRIO"] * (1 - R.FAST_FLASH_RAM))
+      and K.item_delta(_co, "ENG_ANALOG", R.ENG_RAM) == {r: 0 for r in C.REGIONS})
 _old = {"flash": 1000, "ram": 200, "pool": 50, "ramtext": 400}
 with redirect_stdout(io.StringIO()):
     _moved = MC.refreshed_base(_old, dict(_old, ramtext=488))       # (88 B: under the 256 B fit margin, was kept)
@@ -688,7 +739,7 @@ if shared:
 # item and made BLE on show more free flash than off). `--ble-drop ITEM` is the explicit headless choice: it removes that
 # one item (make_room: the named one, or the smallest single item that frees enough); the checks below hold it to the
 # same figures as before. Nothing here is pinned: every figure comes from costs.json as it is (BLE's measured cost, with
-# and without BLE_DIAG), and the expected item is computed per profile from the budget alone, not from room.py.
+# and without its option BLE_BOND), and the expected item is computed per profile from the budget alone, not from room.py.
 dflt_real, _ = C.load_profile(C.REFERENCE_PROFILE)
 check("BLE, measured cost (costs.json): the reference profile (synths_USBaudio_BTaudio_BTmidi, BLE on) with BLE fits as it is",
       not C.over_any(dict(dflt_real, BLE=1), costs))
@@ -708,14 +759,14 @@ def refused(profile, sets, drop):
     return False
 
 
-def room_scenarios(prof, diag):
-    tag = f"BLE room, {prof}{' + BLE_DIAG' if diag else ''}"
+def room_scenarios(prof, opt):
+    tag = f"BLE room, {prof}{' + BLE_BOND' if opt else ''}"
     base, _ = C.load_profile(prof)
     if base["BLE"]:                                     # (the rule is BLE ticked on a profile without it)
         print(f"{tag}: the profile has BLE on already, not a case")
         return
-    sets = ["BLE=1"] + (["BLE_DIAG=1"] if diag else [])
-    withble = with_ble(base, diag)
+    sets = ["BLE=1"] + (["BLE_BOND=1"] if opt else [])
+    withble = with_ble(base, opt)
     over, order, chosen = expected_room(withble, costs)
     cfg0, rm0 = RM.after_toggle(base, withble, "BLE", RM.NONE, costs)
     check(f"{tag}: BLE ticked in a menu: nothing is removed, no message, whether it fits or not (like any other tick)",
@@ -767,12 +818,12 @@ def room_scenarios(prof, diag):
 
 PROFILES_BLE = tuple(C.profile_names())     # (the ones with BLE on already are no case: synths and synths-2 are)
 for _prof in PROFILES_BLE:
-    for _diag in (0, 1):
-        room_scenarios(_prof, _diag)
+    for _opt in (0, 1):
+        room_scenarios(_prof, _opt)
 _removing = [(p, d) for p in PROFILES_BLE for d in (0, 1)
              if expected_room(with_ble(C.load_profile(p)[0], d), costs)[2]]
 check("BLE room: at least one profile has BLE overflow and a single item that frees enough (the rule is exercised): "
-      + ", ".join(f"{p}{'+diag' if d else ''}" for p, d in _removing), bool(_removing))
+      + ", ".join(f"{p}{'+bond' if d else ''}" for p, d in _removing), bool(_removing))
 try:
     with contextlib.redirect_stdout(io.StringIO()):
         C.resolve_cli(argparse.Namespace(config=None, profile="synths", set=[], name=None, ble_drop="FLUTE"))
@@ -783,7 +834,7 @@ check("--ble-drop with BLE off: refused with a ConfigError", _off)
 check("tools/optimist.py: build and package take --ble-drop, and the BLE test package is made with it",
       O.parser().parse_args(["build", "--set", "BLE=1", "--ble-drop", "FLUTE"]).ble_drop == "FLUTE" and
       'ble_drop="FLUTE"' in (ROOT / "tools" / "optimist.py").read_text() and
-      '"BLE_DIAG=1"' in (ROOT / "tools" / "optimist.py").read_text() and "SET_FLUTE=0" not in
+      '"BLE_CENTRAL=1"' in (ROOT / "tools" / "optimist.py").read_text() and "SET_FLUTE=0" not in
       (ROOT / "tools" / "optimist.py").read_text())
 # the estimate against real builds (docs/BUILDER.md, Budget). configure.py budget: the real build of the nearest
 # configuration whose build is known (an anchor: the defaults, costs.json "checks", a real build from this source)
@@ -870,7 +921,7 @@ if not _have:
 #    cover, and the pairs measured with the Optimist UI against a UI cost that had since grown 10 KB (each "UI=1,ED_X=0"
 #    pair then carried the difference: switching an ED_* item off read 5-7 KB more)
 #    Allowed by name (the user, 2026-10-19, "named allowances"), each measured: the items that move memory between
-#    regions (off, REV_POOL's reverb line and TAB_IN_POOL's tables go back to main RAM; SECTIONS 0 keeps motion in the
+#    regions (off, REV_POOL's reverb line goes back to main RAM; SECTIONS 0 keeps motion in the
 #    project slots, in the pool), DIV_ORDER (its build is 284 B smaller in flash on than off) and FX_DJF (beside
 #    TRK_FILT the FILTER insert's code stays: off saves nothing, +124 B). RAM moves by 16-32 B of alignment as flash does.
 #    With DLY_ARENA set (a fixed effects memory), FX_DELAY off and the shorter XDLY_LEN leave more of it to the limited
@@ -878,7 +929,7 @@ if not _have:
 #    (DLY_ARENA 64), FX_DELAY off pool +4 B, XDLY_LEN 8192 pool +40 B, as the estimate says. DRUMS off makes track 4 a
 #    4th synth part (bit 424), whose engine state is in the pool: measured 2026-10-27 on synths_USBaudio_BTaudio_BTmidi
 #    (gpufarm, d9a3d172), pool +5,120 B (the estimate +4,168: the part's +12,888 less the X0X machines' states)
-_MONO_MOVES = ("REV_POOL", "TAB_IN_POOL", "SECTIONS")
+_MONO_MOVES = ("REV_POOL", "SECTIONS")
 _MONO_ALLOW = {"DIV_ORDER": "flash", "FX_DJF": "flash", "FX_DELAY": "pool", "XDLY_LEN": "pool", "DRUMS": "pool"}
 _MONO_NOISE = {"flash": K.ALIGN_NOISE, "ram": 32, "pool": 0}
 _mono_bad = []

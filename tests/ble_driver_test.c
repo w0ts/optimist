@@ -30,16 +30,6 @@
 #include <string.h>
 #define RING_PUBLISH() __asm__ volatile("" ::: "memory")
 #include "../firmware/src/ble/ble_stack.c"
-#include "../firmware/src/ble/ble_diag.c"
-/* the diagnostics' counters (ble_dg) exist unless the stack is built with -DBLE_DIAG=0, which this test also runs:
- * DG(expr) is the check on a counter, true without them; DGV(expr) is a counter to print, 0 without them */
-#if BLE_DIAG
-#define DG(x) (x)
-#define DGV(x) (x)
-#else
-#define DG(x) 1
-#define DGV(x) 0u
-#endif
 
 static int fails;
 static void check(const char *what, int ok)
@@ -51,6 +41,10 @@ static void check(const char *what, int ok)
 static struct {
     int on;                             /* the app has a MIDI event for us */
     uint32_t popped, midi_in;
+    /* the link's closes as the host reports them (ble_host_disconnected -> ble_app_state, the link layer off), and
+     * the link layer's state at the last one */
+    int up, closes, close_lproc, close_rproc, close_term_rx, close_established;
+    uint32_t close_us, close_since_start_us, close_since_rx_us, close_since_lproc_us, close_since_rproc_us;
 } app;
 
 static int ble_app_midi_peek(uint32_t *pkt, uint32_t *t)
@@ -72,7 +66,28 @@ static void ble_app_midi_in(uint32_t pkt, uint16_t ts, uint16_t last)
     (void)ts;
     (void)last;
 }
-static void ble_app_state(void) {}
+static void ble_app_state(void)
+{
+    uint32_t now;
+    if (ble_ll_connected()) {
+        app.up = 1;
+        return;
+    }
+    if (!app.up || bll.state != LL_OFF)
+        return;
+    now = ble_hw_time_us();             /* ll_close: the link stopped, the link layer off, the host told */
+    app.up = 0;
+    app.closes++;
+    app.close_us = now;
+    app.close_since_start_us = now - bll.t_start;
+    app.close_since_rx_us = now - bll.t_rx;
+    app.close_lproc = bll.lproc;
+    app.close_rproc = bll.rproc;
+    app.close_since_lproc_us = now - bll.lproc_t;
+    app.close_since_rproc_us = now - bll.rproc_t;
+    app.close_term_rx = bll.term_rx;
+    app.close_established = bll.established;
+}
 #if BLE_SMP_LEGACY
 static int bond_n;
 static void ble_app_bond(const uint8_t rand[8], uint16_t ediv, const uint8_t ltk[16])
@@ -106,7 +121,7 @@ static struct {
     uint8_t cur[32], cur_len, cur_llid; /* the PDU in flight (until acknowledged) */
     int cur_ok, sn, nesn;
     int ver_rx, feat_req_rx, feat_rsp_rx, len_rsp_rx, len_req_rx, mtu_rsp_rx, group_rsp_rx, write_rsp_rx, notif_rx;
-    int data_rx, empties, dups, order_bad;
+    int data_rx, empties, dups, order_bad, ctl_rx;
     uint32_t e, len_req_evt, notif_evt, mtu_req_evt;
     int len_req_out, terminated;
     /* the Mac's GATT client (mac_att): where it is, what it found */
@@ -133,6 +148,14 @@ static struct {                         /* the fake engine's TX state */
     uint16_t tog, dhdr[2];
     uint8_t pay[2][32];
     uint32_t sw_set1, sw_tog, sw_bit2, sw_touch, evt_load, old_writes;
+    /* the driver's TX as the engine sees it at each RX interrupt: a buffer of ours (drv.tx_rec) the engine finished
+     * is acknowledged there, a buffer it emptied is loaded; bit0 0 with nothing of ours: the engine's own */
+    uint8_t rec[2];                     /* drv.tx_rec as the engine last saw it */
+    uint32_t load_e[2];                 /* the event buffer b was loaded in */
+    uint32_t loads, acks, ack_evt_max, held_foreign;
+    int first;                          /* the first TX step seen: 1 a load, 2 an acknowledgement */
+    /* the connection RX: each packet the engine stored, taken by the RX interrupt with rx_next on to the next */
+    uint32_t rx_taken, rx_missed;
 } eng;
 
 static void cen_pdu(uint8_t llid, const uint8_t *p, int n)
@@ -169,7 +192,7 @@ static void cen_req7(uint8_t op, uint16_t s, uint16_t e, uint16_t uuid)   /* Rea
 }
 static void cen_ctrl(const uint8_t *p, int n) { cen_pdu(3, p, n); }
 
-static void cind(void)                  /* the CONNECT_IND, as the FM-1 stored it */
+static uint32_t cind(void)              /* the CONNECT_IND, as the FM-1 stored it -> the buffer it is in */
 {
     uint32_t b = CB->rxtog & 1u;
     uint8_t *p = bb.rx[b].buf + HW_SWHDR;
@@ -191,6 +214,7 @@ static void cind(void)                  /* the CONNECT_IND, as the FM-1 stored i
     CB->rxtog ^= 1u;                                                    /* moved past; RXBUFnCNTL stays 0 */
     CB->txtog = 1u;                                                     /* advertising left TXTOG on buffer 1 (blell4) */
     ble_wl82_rx_irq();
+    return b;
 }
 
 /* the central takes a new PDU of ours (header h, payload q) */
@@ -464,6 +488,7 @@ static void cen_rx(uint16_t h, const uint8_t *q)
     }
 #endif
     if ((h & 3u) == 3u) {
+        cen.ctl_rx++;
 #if BLE_SMP_LEGACY
         mac_enc_ctrl(q);
 #endif
@@ -528,8 +553,37 @@ static void eng_save(void)
         eng.cntl[b] = CB->txbufcntl[b];
         eng.dhdr[b] = CB->txdhdr[b];
         memcpy(eng.pay[b], bb.tx[b].buf + HW_SWHDR, sizeof eng.pay[b]);
+        eng.rec[b] = drv.tx_rec[b];
     }
     eng.tog = CB->txtog;
+}
+
+/* the RX interrupt's TX service, from the engine's side (HW §8.2): our PDU in a buffer the engine finished (bit0 back
+ * to 1) is acknowledged, an empty buffer cleared to 0 with a PDU recorded is a load, bit0 0 with nothing of ours is
+ * the engine's own (the first-event quirk) */
+static void eng_watch_tx(void)
+{
+    uint32_t b;
+    for (b = 0; b < 2u; b++) {
+        int acked = eng.rec[b] && (eng.cntl[b] & 1u);
+        int loaded = (eng.cntl[b] & 1u) && !(CB->txbufcntl[b] & 1u) && drv.tx_rec[b];
+        if (!(eng.cntl[b] & 1u) && !eng.rec[b])
+            eng.held_foreign++;
+        if (acked) {
+            uint32_t age = cen.e - eng.load_e[b];
+            eng.acks++;
+            if (age > eng.ack_evt_max)
+                eng.ack_evt_max = age;
+            if (!eng.first)
+                eng.first = 2;
+        }
+        if (loaded) {
+            eng.loads++;
+            eng.load_e[b] = cen.e;
+            if (!eng.first)
+                eng.first = 1;
+        }
+    }
 }
 
 /* what the driver did since eng_save (evt: in the event interrupt) */
@@ -538,6 +592,8 @@ static void eng_watch(int evt)
     uint32_t b;
     if (drv.state != HW_CONN)
         return;                                                         /* (closed: advertising rewrites the buffers) */
+    if (!evt)
+        eng_watch_tx();
     if (CB->txtog != eng.tog)
         eng.sw_tog++;
     for (b = 0; b < 2u; b++) {
@@ -653,6 +709,7 @@ static void event(uint32_t e)
 {
     uint32_t b = CB->rxtog & 1u;
     int loss = (cen.opt & O_LOSS) != 0;
+    uint32_t filled, next;
     cen.e = e;
     if (cen.kind == C_MAC && cen.len_req_out == 1 && !cen.len_rsp_rx && !cen.terminated) {
         if (!cen.len_req_evt)
@@ -667,8 +724,16 @@ static void event(uint32_t e)
         app.on = 1;
     cen_next();
     eng_event(b, loss && e % 7u == 3u, loss && e % 11u == 5u);
+    filled = CB->rxbufcntl[b] & 1u;                                     /* a new packet stored, RXTOG moved past it */
+    next = drv.rx_next;
     eng_save();
     ble_wl82_rx_irq();
+    if (filled && drv.state == HW_CONN) {
+        if (next == b && !(CB->rxbufcntl[b] & 1u) && drv.rx_next == (b ^ 1u))
+            eng.rx_taken++;
+        else
+            eng.rx_missed++;
+    }
     eng_watch(0);
     if (cen.opt & O_OLDPOL)
         old_polarity();
@@ -688,7 +753,7 @@ static void run(int kind, int opt, uint32_t ticks0, uint32_t events, const char 
     static const uint8_t ver[6] = {LL_VERSION_IND, 0x0C, 0x0F, 0x00, 0x00, 0x01};
     static const uint8_t feat[9] = {LL_FEATURE_REQ, 0x3F};              /* the Mac's: DLE among them */
     struct ble_rf_trims tr;
-    uint32_t e, t_conn;
+    uint32_t e, t_conn, cb;
     int loss = (opt & O_LOSS) != 0;
     char what[220];
     memset(&cen, 0, sizeof cen);
@@ -699,9 +764,7 @@ static void run(int kind, int opt, uint32_t ticks0, uint32_t events, const char 
 #endif
     memset(&fk, 0, sizeof fk);
     memset(&tr, 0, sizeof tr);
-#if BLE_DIAG
-    ble_diag_clear();
-#endif
+    memset(&ble_hw_stat, 0, sizeof ble_hw_stat);
     fk.ticks = ticks0;
     fk.tick_per_read = FM1_TICKS_PER_US;
     cen.kind = kind;
@@ -710,9 +773,11 @@ static void run(int kind, int opt, uint32_t ticks0, uint32_t events, const char 
     ble_init(addr, 1);
     ble_enable(1);
     fk.ticks += 50000u * FM1_TICKS_PER_US;
-    cind();
-    snprintf(what, sizeof what, "%s: CONNECT_IND taken, found in the buffer RXTOG moved past (CNTL 0)", name);
-    check(what, ble_ll_connected() && DG(ble_dg.cind_ok == 1 && ble_dg.rxf_tog_prev == 1 && ble_dg.rxf_cntl == 0));
+    cb = cind();
+    snprintf(what, sizeof what, "%s: CONNECT_IND taken once, from the buffer RXTOG moved past (%u: its header and "
+             "status cleared, both CNTL 0)", name, (unsigned)cb);
+    check(what, ble_ll_connected() && ble_hw_stat.connects == 1u && !CB->rxahdr[cb] && !CB->rxdhdr[cb] &&
+                    !CB->rxstat[cb] && !(CB->rxbufcntl[0] & 1u) && !(CB->rxbufcntl[1] & 1u));
     snprintf(what, sizeof what, "%s: set-up: both TXBUFnCNTL bit0 = 1, TXDHDR %04X / %04X (TXTOG's bit2 0), none "
              "recorded", name, CB->txdhdr[0], CB->txdhdr[1]);
     check(what, (CB->txbufcntl[0] & 1u) && (CB->txbufcntl[1] & 1u) && CB->txdhdr[1] == 0x0001u && CB->txdhdr[0] == 0x0005u &&
@@ -735,25 +800,27 @@ static void run(int kind, int opt, uint32_t ticks0, uint32_t events, const char 
         ble_enable(0);
         return;
     }
-    snprintf(what, sizeof what, "%s: our VERSION_IND once; queued %u, acked %u, ack within %u events", name,
-             (unsigned)DGV(ble_dg.tx_queued), (unsigned)DGV(ble_dg.tx_acked), (unsigned)DGV(ble_dg.tx_ack_evt_max));
-    check(what, cen.ver_rx == 1 && DG(ble_dg.tx_acked + 1u >= ble_dg.tx_queued && ble_dg.tx_acked <= ble_dg.tx_queued &&
-                    ble_dg.tx_ack_evt_max <= (loss ? 8u : 4u)));
+    snprintf(what, sizeof what, "%s: our VERSION_IND once; queued %u, acked %u (the engine saw %u / %u), ack within "
+             "%u events", name, (unsigned)ble_hw_stat.tx, (unsigned)ble_hw_stat.acked, (unsigned)eng.loads,
+             (unsigned)eng.acks, (unsigned)eng.ack_evt_max);
+    check(what, cen.ver_rx == 1 && ble_hw_stat.acked + 1u >= ble_hw_stat.tx && ble_hw_stat.acked <= ble_hw_stat.tx &&
+                    eng.loads == ble_hw_stat.tx && eng.acks == ble_hw_stat.acked &&
+                    eng.ack_evt_max <= (loss ? 8u : 4u));
     snprintf(what, sizeof what, "%s: the driver kept the contract (bit0=1 %u, TXTOG %u, bit2 %u, held touched %u, "
              "event IRQ loads %u)", name, (unsigned)eng.sw_set1, (unsigned)eng.sw_tog, (unsigned)eng.sw_bit2,
              (unsigned)eng.sw_touch, (unsigned)eng.evt_load);
     check(what, !eng.sw_set1 && !eng.sw_tog && !eng.sw_bit2 && !eng.sw_touch && !eng.evt_load);
-    snprintf(what, sizeof what, "%s: txsnaps: first a load (b %u, snap %u), the TXTOG / bit0 values kept; held %u",
-             name, DGV(ble_dg.txs_first.b), DGV(ble_dg.txs_first.snap), (unsigned)DGV(ble_dg.tx_eng_held));
-    check(what, DG(ble_dg.txs_n >= 2u && ble_dg.txs_first.what == BTX_LOAD &&
-                    ((opt & O_QUIRK) ? ble_dg.tx_eng_held >= 1u : ble_dg.tx_eng_held == 0u)));
+    snprintf(what, sizeof what, "%s: TX: the first step a load (%d), then acknowledgements; buffers the engine held "
+             "with nothing of ours %u", name, eng.first, (unsigned)eng.held_foreign);
+    check(what, eng.first == 1 && eng.loads >= 1u && eng.acks >= 1u &&
+                    ((opt & O_QUIRK) ? eng.held_foreign >= 1u : eng.held_foreign == 0u));
     if (kind == C_MAC) {
         snprintf(what, sizeof what, "%s: FEATURE_RSP %d, LENGTH_RSP %d (Mac's LENGTH_REQ in event %u), MTU / group / "
                  "write responses %d / %d / %d", name, cen.feat_rsp_rx, cen.len_rsp_rx, (unsigned)cen.len_req_evt,
                  cen.mtu_rsp_rx, cen.group_rsp_rx, cen.write_rsp_rx);
         check(what, cen.feat_rsp_rx == 1 && cen.len_rsp_rx == 1 && cen.mtu_rsp_rx == 1 && cen.group_rsp_rx == 2 &&
-                        cen.write_rsp_rx == 1 && cen.order_bad == 0 && DG(ble_dg.tx_queued >= 7 &&
-                        ble_dg.tx_acked >= 7));
+                        cen.write_rsp_rx == 1 && cen.order_bad == 0 && ble_hw_stat.tx >= 7u &&
+                        ble_hw_stat.acked >= 7u);
         snprintf(what, sizeof what, "%s: the Mac's discovery: services %d (MIDI %u-%u), Service Changed at %u (CCCD %u), "
                  "Database Hash: error %02X", name, cen.nsvc, cen.midi_s, cen.midi_e, cen.sc_val, cen.sc_ccc,
                  cen.hash_err);
@@ -773,7 +840,7 @@ static void run(int kind, int opt, uint32_t ticks0, uint32_t events, const char 
 #if BLE_SMP_LEGACY
         snprintf(what, sizeof what, "%s: paired (legacy Just Works) on Insufficient Authentication %d, encrypted "
                  "%d, keys %d, bond kept %d, LL encryption on %u", name, cen.auth_err, cen.enc_on, cen.keys_rx,
-                 bond_n, (unsigned)DGV(ble_dg.enc_on_n));
+                 bond_n, ble_ll_encrypted());
         check(what, (!BLE_MIDI_NEED_ENC || cen.auth_err == 1) && cen.paired == BLE_MIDI_NEED_ENC &&
                         cen.enc_on == BLE_MIDI_NEED_ENC && cen.keys_rx == 2 * BLE_MIDI_NEED_ENC &&
                         bond_n == BLE_MIDI_NEED_ENC && ble_ll_encrypted() == BLE_MIDI_NEED_ENC);
@@ -785,28 +852,37 @@ static void run(int kind, int opt, uint32_t ticks0, uint32_t events, const char 
                  (unsigned)(cen.mtu_req_evt - cen.len_req_evt));
         check(what, cen.mtu_req_evt >= cen.len_req_evt && cen.mtu_req_evt - cen.len_req_evt <= (loss ? 8u : 4u));
     } else if (kind == C_WAITS) {
-        snprintf(what, sizeof what, "%s: our PERIPHERAL_FEATURE_REQ out (%d)", name, cen.feat_req_rx);
-        check(what, cen.feat_req_rx == 1 && DG(ble_dg.tx_queued >= 2 && ble_dg.tx_acked >= 2 && ble_dg.ctl_tx_n >= 2));
+        snprintf(what, sizeof what, "%s: our PERIPHERAL_FEATURE_REQ out (%d); queued %u, acked %u, control PDUs the "
+                 "central got %d", name, cen.feat_req_rx, (unsigned)ble_hw_stat.tx, (unsigned)ble_hw_stat.acked,
+                 cen.ctl_rx);
+        check(what, cen.feat_req_rx == 1 && ble_hw_stat.tx >= 2u && ble_hw_stat.acked >= 2u && cen.ctl_rx >= 2);
     }
     snprintf(what, sizeof what, "%s: no column 0 / 14 (slot clock) read from the ISRs over %u events", name,
              (unsigned)e);
     check(what, fk.col_reads[0] == 0 && fk.col_reads[14] == 0);
     if (!loss) {
-        snprintf(what, sizeof what, "%s: RX in a connection: CNTL bit0, RXTOG past it (%u / %u)", name,
-                 (unsigned)DGV(ble_dg.rxc_tog_past), (unsigned)DGV(ble_dg.rxc_tog_at));
-        check(what, DG(ble_dg.rx_desync == 0 && ble_dg.rxc_tog_past >= e - 1u && ble_dg.rxc_tog_at == 0));
+        snprintf(what, sizeof what, "%s: RX in a connection: CNTL bit0, RXTOG past it: taken in order %u, missed %u, "
+                 "delivered %u", name, (unsigned)eng.rx_taken, (unsigned)eng.rx_missed, (unsigned)ble_hw_stat.rx);
+        check(what, eng.rx_missed == 0u && eng.rx_taken >= e - 1u && ble_hw_stat.rx == eng.rx_taken &&
+                        !ble_hw_stat.rx_repeat && !ble_hw_stat.rx_error);
     }
     if (kind != C_SILENT) {
         snprintf(what, sizeof what, "%s: the link still up after %u s (procedure timeout 40 s, supervision 720 ms)",
                  name, (unsigned)((fk.ticks - t_conn) / 24000000u));
-        check(what, ble_ll_connected() && DG(ble_dg.closes == 0) && e == events && !cen.terminated &&
+        check(what, ble_ll_connected() && app.closes == 0 && ble_hw_stat.connects == 1u && e == events && !cen.terminated &&
                         (fk.ticks - t_conn) / 24000000u >= 60u);
     } else {
         uint32_t s = (fk.ticks - t_conn) / 24000u;
-        snprintf(what, sizeof what, "%s: no FEATURE_RSP: LL response timeout 0x22 at 40 s (%u ms after connect)", name,
-                 (unsigned)s);
-        check(what, !ble_ll_connected() && DG(ble_dg.closes == 1 && ble_dg.close_reason == BLE_ERR_LL_RSP_TIMEOUT &&
-                        ble_dg.close_since_start_us >= 40000000u && ble_dg.close_since_start_us <= 40400000u) &&
+        int proc = (app.close_lproc != P_NONE && app.close_lproc != P_TERM && app.close_since_lproc_us > LL_PROC_US) ||
+                   (app.close_rproc != P_NONE && app.close_since_rproc_us > LL_PROC_US);
+        snprintf(what, sizeof what, "%s: no FEATURE_RSP: closed once, by the LL response timeout (0x22: procedure %d "
+                 "open %u ms, the central heard %u ms before, no TERMINATE) at 40 s (%u ms after connect, %u ms by the "
+                 "link layer)", name, app.close_lproc, (unsigned)(app.close_since_lproc_us / 1000u),
+                 (unsigned)(app.close_since_rx_us / 1000u), (unsigned)s, (unsigned)(app.close_since_start_us / 1000u));
+        check(what, !ble_ll_connected() && app.closes == 1 && ble_hw_stat.connects == 1u && proc &&
+                        app.close_established && !app.close_term_rx && !cen.terminated &&
+                        app.close_since_rx_us <= (uint32_t)bll.timeout * 10000u &&
+                        app.close_since_start_us >= 40000000u && app.close_since_start_us <= 40400000u &&
                         s >= 40000u && s <= 40400u);
     }
     ble_enable(0);

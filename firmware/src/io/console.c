@@ -964,72 +964,19 @@ static void con_bletrim(void)                       /* what the radio uses, Opti
 #endif
 
 #if FELUCCA_BT_AUDIO
-#if !FELUCCA_BT_DIAG                   /* the Classic stack silent: its log lines and printers left out (BT_DIAG puts
-                                        * them back, with btinq / btpage / btrx / bttrace) */
+/* the Classic stack silent: its log lines and printers compile to nothing (the diagnostics' console commands, btinq /
+ * btpage / btrx / bttrace, and the BT_DIAG item that put the lines back went 2026-10-29) */
 #define con_puts(s) ((void)sizeof(s))           /* (sizeof: the argument named, never run) */
 #define con_putc(c) ((void)sizeof(c))
 #define con_dec(v) ((void)sizeof(v))
 #define con_hex(v, d) ((void)sizeof(v), (void)sizeof(d))
-#endif
-#include "../bt/bt_inq.c"              /* EXPERIMENTAL: the Bluetooth Classic stack (BT_AUDIO; btinq, btpage) */
-#if !FELUCCA_BT_DIAG
+#include "../bt/bt_inq.c"              /* EXPERIMENTAL: the Bluetooth Classic stack (BT_AUDIO) */
 #undef con_puts
 #undef con_putc
 #undef con_dec
 #undef con_hex
 #endif
-#endif
 
-#if FELUCCA_BLE && BLE_DIAG       /* FELUCCA_BLE_DIAG (builder item BLE_DIAG): without it no blell, no counters, no rings */
-#include "../ble/ble_diag.c"           /* blell: the link layer's counters (ble/ble_diag.h) */
-
-/* blell: link-layer diagnostics, RAM only (docs/BLE-STACK.md §11); 'blell clear' zeroes the counters; 'blell regs'
- * adds the engine's registers and columns (op 2 reads: on request only, never from the start path or an interrupt) */
-static void con_blell(const char *p)
-{
-    struct ble_diag_regs r;
-    int regs;
-    r.valid = 0;
-    if (con_word(&p, "clear")) {
-        if (ble_up)
-            fm1_ble_irqs_hold(1);
-        ble_diag_clear();
-        memset(&ble_mdg, 0, sizeof ble_mdg);       /* (TIMER5's fields: a count in flight may survive the clear) */
-        if (ble_up)
-            fm1_ble_irqs_hold(0);
-        con_puts("cleared\r\n");
-        return;
-    }
-    regs = con_word(&p, "regs");
-    (void)regs;                                     /* (a build without the WL82 driver: no registers) */
-    if (!ble_up)
-        con_puts("radio not started (counters only)\r\n");
-#if BLE_HW_WL82
-    if (ble_up && regs) {                                   /* the engine's registers, the BLE interrupts held a moment */
-        fm1_ble_irqs_hold(1);
-        ble_hw_diag_regs(&r);
-        fm1_ble_irqs_hold(0);
-    }
-#endif
-    ble_diag_print(con_puts, &r);
-    con_kv("mi_bluetooth_on", ble_on);              /* the app's side of BLE-MIDI in (midi_ble.c ble_mdg) */
-    con_kv("mi_route", ble_midi_route);
-    con_kv("mi_off_dropped", ble_mdg.off);
-    con_kv("mi_not_channel", ble_mdg.not_chan);
-    con_kv("mi_pushed", ble_mdg.pushed);
-    con_kv("mi_ring_overflow", ble_mdg.overflow);
-    con_kv("mi_drained", ble_mdg.drained);
-    con_kv("mi_drain_full", ble_mdg.drain_full);
-    con_kv("mi_drained_on", ble_mdg.drained_on);
-    con_kv("mi_ring_w", bmi_w);
-    con_kv("mi_ring_r", bmi_r);
-#if FELUCCA_MIDI_INCLK
-    con_kv("mi_in_clock", bp_set[BPS_MIN]);         /* MIDI IN = CLOCK: the router drops note ons (seq_midi.c) */
-#endif
-    con_kv("mi_in_q_w", mi_w);                      /* midi_in_q, all sources: w - r = waiting for events_block */
-    con_kv("mi_in_q_r", mi_r);
-}
-#endif
 
 /* the clock registers as the SPL left them (hal/fm1_clock.h): sys_div clk_con0..3, pll pll_con0/1 pll2_con0/1 */
 static void con_clock_regs(void)
@@ -1656,7 +1603,7 @@ static void con_params(void)
     }
 }
 
-/* tabbench: the read speed of main RAM against the pool on the FM-1 (TAB_IN_POOL, docs/MEMORY-MAP.md section 2; the
+/* tabbench: the read speed of main RAM against the pool on the FM-1 (where the tables went, docs/MEMORY-MAP.md section 2; the
  * emulator has no memory timing). The same loop (a sine lookup's stride, 2 KiB, int16 reads) over SINE where this
  * build put it, a main RAM range (trk, read only) and a pool range (st_buf, read only); the best of 8 runs of 4,096
  * reads each, in tenths of a ns a read (timer 4, 24 MHz: ~4 ns steps over the run). Interrupts stay on (the audio
@@ -1800,15 +1747,8 @@ static void con_exec(const char *p)
 #if BLE_HW_WL82 && FELUCCA_WIFI && FELUCCA_WIFI_CON
                  "  wifiup  wifiscan  wifijoin  wifidata  wifilink  wifibig [N]  wifipow [N]  wifiwcid [N]  wifiswc [N]  wifikey  wifidma  wifinets  wifigo [N]  wififorget N  wifimode [off|man|auto]  wifiman [scan on|off | join N [pw] | drop]"
 #endif
-#if BLE_DIAG
-                 "  blell [clear|regs]"
-#endif
 #endif
 #if FELUCCA_BT_AUDIO
-#if FELUCCA_BT_DIAG
-                 "  btclk [run]  btinq|btscan [SECONDS] [even|odd|all agc=N win=N frq=N pll=N sweep|nosweep pwr=N prio=N]|stop"
-                 "  btpage ADDR [SECONDS] [OPTIONS]|pll=N|agc=N|follow=0|1|stop  bttrace [N]  btrx [N]"
-#endif
 #if FELUCCA_DUAL >= 2
                  "  cpu1park"
 #endif
@@ -1918,29 +1858,11 @@ static void con_exec(const char *p)
         con_wifiap(p);
 #endif
 #endif
-#if BLE_DIAG
-    else if (con_word(&p, "blell"))
-        con_blell(p);
-#endif
 #endif
 #if FELUCCA_BT_AUDIO
 #if FELUCCA_DUAL >= 2
     else if (con_word(&p, "cpu1park"))
         con_cpu1park();
-#endif
-#if FELUCCA_BT_DIAG
-    else if (con_word(&p, "btclk"))
-        con_btclk(p);
-    else if (con_word(&p, "btinq"))
-        con_btrun(p, BTI_M_INQ);
-    else if (con_word(&p, "btscan"))
-        con_btrun(p, BTI_M_SCAN);
-    else if (con_word(&p, "bttrace"))
-        con_bttrace(p);
-    else if (con_word(&p, "btrx"))
-        con_btrx(p);
-    else if (con_word(&p, "btpage"))
-        con_btpage(p);
 #endif
 #endif
     else if (con_word(&p, "uboot")) {

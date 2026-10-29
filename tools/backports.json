@@ -15,7 +15,7 @@
       "source": {
         "repo": "https://github.com/hugelton/Felucca",
         "commit": "727f272 (Felucca 1.0 source)",
-        "author": "Leo Kuroshita (@kurogedelic), H\u00fcgelton Instruments",
+        "author": "Leo Kuroshita (@kurogedelic), Hügelton Instruments",
         "licence": "GPL-3.0-only",
         "files": "firmware/src/core.h step_chance / step_set_chance, seq.c seq_step"
       },
@@ -45,7 +45,7 @@
       "source": {
         "repo": "https://github.com/hugelton/Felucca",
         "commit": "20c275e (Felucca 1.0.1, #37)",
-        "author": "Leo Kuroshita (@kurogedelic), H\u00fcgelton Instruments",
+        "author": "Leo Kuroshita (@kurogedelic), Hügelton Instruments",
         "licence": "GPL-3.0-only",
         "files": "firmware/src/seq.c seq_step (qseq), kb_map (QN_SEQ as SNAP)"
       },
@@ -74,7 +74,7 @@
       "source": {
         "repo": "https://github.com/hugelton/Felucca",
         "commit": "727f272 (Felucca 1.0 source)",
-        "author": "Leo Kuroshita (@kurogedelic), H\u00fcgelton Instruments",
+        "author": "Leo Kuroshita (@kurogedelic), Hügelton Instruments",
         "licence": "GPL-3.0-only",
         "files": "firmware/src/fx.c rev_spring, rev_clear, the model change in fx_buses; design after Valimaki, Parker and Abel (stretched allpass chirp), as Felucca credits it"
       },
@@ -105,7 +105,7 @@
       "source": {
         "repo": "https://github.com/hugelton/Felucca",
         "commit": "727f272 (Felucca 1.0 source)",
-        "author": "Leo Kuroshita (@kurogedelic), H\u00fcgelton Instruments",
+        "author": "Leo Kuroshita (@kurogedelic), Hügelton Instruments",
         "licence": "GPL-3.0-only",
         "files": "firmware/src/fx.c spk_bass, master_out (fx_lowcut 2), ui_menu.c SPEAKER"
       },
@@ -129,7 +129,7 @@
       "fixed": {
         "repo": "https://github.com/hugelton/Felucca",
         "commit": "db70550 (Felucca 1.0.2, #42)",
-        "author": "Leo Kuroshita (@kurogedelic), H\u00fcgelton Instruments",
+        "author": "Leo Kuroshita (@kurogedelic), Hügelton Instruments",
         "licence": "GPL-3.0-only",
         "what": "the trapezoid built from a 4-pole low-pass (sb_lp3, sb_lp4): the mix's 300..600 Hz no longer cancelled (440 Hz: -5.7 -> -2.2 dB, tests/backports_test.c t_bassplus_response); ours also drops the band-pass residue once the envelope is 0 (the floored steps left -21 of DC)",
         "cost": "user-default with BASSPLUS=1: RAM +64 B (the HOT2 code runs from RAM), flash -4 B; CPU ~2 multiply-adds a sample more with BASS+ on (est.), none once silent"
@@ -143,7 +143,7 @@
       "source": {
         "repo": "https://github.com/hugelton/Felucca",
         "commit": "727f272 (Felucca 1.0 source)",
-        "author": "Leo Kuroshita (@kurogedelic), H\u00fcgelton Instruments",
+        "author": "Leo Kuroshita (@kurogedelic), Hügelton Instruments",
         "licence": "GPL-3.0-only",
         "files": "firmware/src/motion.c (the 64-event store, base / active, motion_capture, motion_step), hooks in seq.c, ui_input.c, project.c"
       },
@@ -175,7 +175,7 @@
       "source": {
         "repo": "https://github.com/hugelton/Felucca",
         "commit": "727f272 (Felucca 1.0 source)",
-        "author": "Leo Kuroshita (@kurogedelic), H\u00fcgelton Instruments",
+        "author": "Leo Kuroshita (@kurogedelic), Hügelton Instruments",
         "licence": "GPL-3.0-only (eng_phys.c); MIT (phys_dsp.c: DaisySP by Electrosmith, Corp and Emilie Gillet; phys_symp.c: Rings by Emilie Gillet)",
         "files": "firmware/src/eng_phys.c, phys_dsp.c, phys_symp.c"
       },
@@ -243,7 +243,7 @@
       "source": {
         "repo": "https://github.com/hugelton/Felucca-Engines",
         "commit": "c46e008 (src/eng_noise.c)",
-        "author": "Leo Kuroshita (@kurogedelic), H\u00fcgelton Instruments",
+        "author": "Leo Kuroshita (@kurogedelic), Hügelton Instruments",
         "licence": "MIT (the repository's LICENSE; eng_noise.c carries SPDX MIT and the copyright)",
         "files": "src/eng_noise.c (ported with changes to the engine_t glue only: PITCH_INC, voice amplitude written out, .macro, the retrigger state in voice.c); the DSP and the four presets are unchanged"
       },
@@ -264,7 +264,7 @@
       },
       "storage": "engine byte 15; the 8 EDIT values (MODE, COLR, FREQ, RES, TRK, DENS / LEN, DRFT, CRSH / CLK) in P_E0..P_E7: no project format change",
       "limits": "polyphony the part's 8 voices; the sound is judged on the host only (no hardware or emulator listening); the original's pattern hints are dropped; no m->fine (bend below 1/16 semitone) in the LFSR / META clock",
-      "notice": "NOISE engine from Felucca-Engines by Leo Kuroshita (@kurogedelic), H\u00fcgelton Instruments (MIT). The file stays under the MIT licence.",
+      "notice": "NOISE engine from Felucca-Engines by Leo Kuroshita (@kurogedelic), Hügelton Instruments (MIT). The file stays under the MIT licence.",
       "warning": false
     },
     {
@@ -373,7 +373,7 @@
       "source": {
         "repo": "https://github.com/hugelton/Felucca",
         "commit": "db70550 (Felucca 1.0.2, #48)",
-        "author": "Leo Kuroshita (@kurogedelic), H\u00fcgelton Instruments",
+        "author": "Leo Kuroshita (@kurogedelic), Hügelton Instruments",
         "licence": "GPL-3.0-only",
         "files": "firmware/src/params.c DIV_ORDER, enum_rank, param_turn"
       },
@@ -404,7 +404,7 @@
       "source": {
         "repo": "https://github.com/hugelton/Felucca",
         "commit": "db70550 (Felucca 1.0.2, #40)",
-        "author": "Leo Kuroshita (@kurogedelic), H\u00fcgelton Instruments",
+        "author": "Leo Kuroshita (@kurogedelic), Hügelton Instruments",
         "licence": "GPL-3.0-only",
         "files": "firmware/src/perform.c perf_latched, ui_layer.c (FX LATCH), ui_menu.c"
       },
@@ -435,7 +435,7 @@
       "source": {
         "repo": "https://github.com/hugelton/Felucca",
         "commit": "b22a24b (Felucca 1.0.3, idea only)",
-        "author": "Leo Kuroshita (@kurogedelic), H\u00fcgelton Instruments",
+        "author": "Leo Kuroshita (@kurogedelic), Hügelton Instruments",
         "licence": "GPL-3.0-only",
         "files": "firmware/src/up_fm6.c (the idea: a user preset keeps its FM6 patch); our code is for Melodee's FM6"
       },
@@ -554,67 +554,6 @@
       "storage": "P_SDIV values 6..8 appended (old values unchanged); a build without the switch plays 6..8 as 1/4 (% 6)",
       "limits": "whole-beat steps are never swung (as 2.4)",
       "notice": "Long steps from SLOOP 2.4 by isod89 (GPL-3.0).",
-      "warning": false
-    },
-    {
-      "switch": "FELUCCA_DLY_DOT",
-      "title": "Delay TIME 1/8D and 1/16D (dotted)",
-      "default": 1,
-      "group": "fx",
-      "source": {
-        "repo": "https://github.com/isod89/sloop-fm1",
-        "commit": "8d3823f (SLOOP 2.4)",
-        "author": "isod89 (SLOOP), on Felucca by Leo Kuroshita",
-        "licence": "GPL-3.0-only",
-        "files": "firmware/src/core.h dly_units, fx.c delay_samples, params.c N_DLY"
-      },
-      "files": [
-        "firmware/src/core/core.h dly_units",
-        "firmware/src/fx/fx.c delay_samples",
-        "firmware/src/core/params.c N_DLY, DLY_ORDER"
-      ],
-      "cost": {
-        "flash": 28,
-        "ram": 0,
-        "pool": 0,
-        "ramtext": -16,
-        "cpu": "none",
-        "project_bytes": 0
-      },
-      "storage": "G_DTIME values 6, 7 appended; a build without the switch plays them as 1/4, 1/8",
-      "limits": "with the 32768-sample line (user-default) 1/8D fits from 61 BPM up; below, DLY_HALVE halves it to 1/16D (2.4 clamps at the line instead)",
-      "notice": "Dotted delay times from SLOOP 2.4 by isod89 (GPL-3.0).",
-      "warning": false
-    },
-    {
-      "switch": "FELUCCA_SL24_IMPORT",
-      "title": "Import a SLOOP 2.4 project (FUN5) kept in an old slot: LOAD twice, never automatic",
-      "default": 1,
-      "group": "system",
-      "source": {
-        "repo": "https://github.com/isod89/sloop-fm1",
-        "commit": "8d3823f (SLOOP 2.4)",
-        "author": "isod89 (the format: project.c, core.h, eng_fm6.c, drums.c; the importer is ours)",
-        "licence": "GPL-3.0-only",
-        "files": "firmware/src/project.c project_t / proj_trk_t, core.h P_* / G_*, eng_fm6.c (PTCH, fm6_sync: the macros), fm6_bank.c (the bank object), drums.c (kits, USR kits), tools/gen_fm6_patches.py (F1..F8: Leo Kuroshita, Felucca 1.0)"
-      },
-      "files": [
-        "firmware/src/storage/sl24/sl24_import.c sl24_is, proj_from_sl24",
-        "firmware/src/storage/sl24/sl24_guard.c sl24_load, sl24_import_buf, sl24_bank_at, sl24_auto_import",
-        "firmware/src/storage/sl24/sl24_fm6.c, sl24_fm6.h (tools/gen_sl24_fm6.py: 2.4's FM6 patches F1..F8)",
-        "tests/sl24_import_test.c, tests/sl24_fun5.bin (tests/sl24_fun5_gen.c: built with 2.4's own types)"
-      ],
-      "cost": {
-        "flash": 3032,
-        "ram": 0,
-        "pool": 0,
-        "ramtext": 24,
-        "cpu": "none (a LOAD)",
-        "project_bytes": 0
-      },
-      "storage": "none (nothing written: the import is the working project; SAVE puts it in a section)",
-      "limits": "an FM6 part's patch becomes its voice (F1..F8: 2.4's own, tools/gen_sl24_fm6.py; B1..B27: from 2.4's bank in flash, read only; an empty slot: 2.4's INIT) with ALG FB MRAT MEG VMOD put into it, MLVL -> MOD; a USR1..USR3 kit -> the drum lanes on that user slot's zones (FELUCCA_DRUM_USR). Lost: TFLT / STRUM / VLEAD without their switches, FM6's DTUN, a USR4 kit and USR3+4's USR4 half (the default kit), a lock on a USR kit; the step extras need FELUCCA_SL24_XSTEP. 2.4's autosave: PROJECT > A24 (twice)",
-      "notice": "",
       "warning": false
     },
     {
@@ -737,68 +676,6 @@
       "warning": false
     },
     {
-      "switch": "FELUCCA_SL24_EXPORT",
-      "title": "Export the working project for SLOOP 2.4 (a 2.4 backup file, from the web editor), lossy",
-      "default": 0,
-      "group": "system",
-      "source": {
-        "repo": "https://github.com/isod89/sloop-fm1",
-        "commit": "8d3823f (SLOOP 2.4)",
-        "author": "isod89 (the formats: project.c project_t / persist_t, core.h, panel.c, arranger.h, editor.html's backup file; the exporter is ours)",
-        "licence": "GPL-3.0-only",
-        "files": "firmware/src/project.c project_t / proj_trk_t / persist_t, core.h P_* / G_*, panel.c panel_t lights_word, arranger.h, web/editor.html backupObjects"
-      },
-      "files": [
-        "firmware/src/storage/sl24/sl24_export.c proj_to_sl24, sl24_persist, sl24_word",
-        "firmware/src/io/editor/ed_sl24.c (editor command 78 SL24_GET)",
-        "web/editor.html Projects > Export for SLOOP 2.4 (sl24ReadPart, sl24BackupFile)",
-        "tests/sl24_export_test.c, tests/sl24_export_check24.c (2.4's own types read the export)"
-      ],
-      "cost": {
-        "flash": 2020,
-        "ram": 0,
-        "pool": 0,
-        "ramtext": 0,
-        "cpu": "none (an editor request)",
-        "project_bytes": 0
-      },
-      "storage": "none (nothing written: the editor saves the file)",
-      "limits": "the working project only (not the sections, the song, motion, samples, user presets or kits). FM6: a voice that is one of 2.4's F1..F8 exactly -> that PTCH; with the bank (parts 2 / 3) the others into 2.4's FM6 bank (2.4's own kept in flash, the voices added; a full bank: the closest patch); MOD -> MLVL. Lost: FX OFF, ANALOG 2, PHYS / ACID / CZ parts (their fallback at its defaults), an FM6 voice without the bank (the closest 2.4 factory patch F1..F8), M.TIM C.TIM, an ENGINE other than MARK I, operators switched off, X0X and user kits (808), the drum lanes' record (a USR kit's lanes too), the reverb type and COMP / LIMIT, MIDI channels, locks on what 2.4 has not (FM6's EDIT locks too); TFLT STRUM VLEAD only with their switches. The settings object carries ours (palette, low cut, zoom, panel table, lights word) and 2.4's default song order",
-      "notice": "",
-      "warning": false
-    },
-    {
-      "switch": "FELUCCA_SL24_EDIMPORT",
-      "title": "Import a project of a SLOOP 2.4 backup file (web editor), its FM6 bank patches with it",
-      "default": 0,
-      "group": "system",
-      "source": {
-        "repo": "https://github.com/isod89/sloop-fm1",
-        "commit": "8d3823f (SLOOP 2.4)",
-        "author": "isod89 (the formats: project.c project_t, fm6_bank.c fm6_bank_t, editor.html's backup file; the import is ours)",
-        "licence": "GPL-3.0-only",
-        "files": "firmware/src/project.c project_t, fm6_bank.c fm6_bank_t, web/editor.html backupObjects"
-      },
-      "files": [
-        "firmware/src/io/editor/ed_sl24.c (editor commands 90 SL24_PUT, 91 SL24_BANK)",
-        "firmware/src/storage/sl24/sl24_guard.c sl24_import_buf, sl24_bank_at",
-        "web/editor.html Projects > Import a SLOOP 2.4 backup (sl24ImportDo), FM6 > 2.4's patches into the user bank",
-        "tests/sl24_edimport_test.c"
-      ],
-      "cost": {
-        "flash": 1204,
-        "ram": 16,
-        "pool": 388,
-        "ramtext": 0,
-        "cpu": "none (an editor request)",
-        "project_bytes": 0
-      },
-      "storage": "none (the import is the working project; SAVE puts it in a section). The editor's FM6 user bank write (2.4's patches into free slots) is the bank's usual write",
-      "limits": "needs FELUCCA_SL24_IMPORT (and SL24_SAFE): built without them it is off. One project at a time (the file's working project or A..D); as LOAD twice: what the importer loses (sl24_import.c)",
-      "notice": "",
-      "warning": false
-    },
-    {
       "switch": "FELUCCA_COND",
       "title": "Step conditions 1:2 .. 4:4 (a step plays on loop a of every b)",
       "default": 0,
@@ -806,7 +683,7 @@
       "source": {
         "repo": "https://github.com/hugelton/Felucca",
         "commit": "9f6a885 (Felucca 1.5.6)",
-        "author": "Leo Kuroshita (@kurogedelic), H\u00fcgelton Instruments",
+        "author": "Leo Kuroshita (@kurogedelic), Hügelton Instruments",
         "licence": "GPL-3.0-only",
         "files": "firmware/src/core.h step_cond (COND_FIRST, NCOND), seq.c seq_cond_miss / seq_enter (1.5.5, #209)"
       },
@@ -837,7 +714,7 @@
       "source": {
         "repo": "https://github.com/hugelton/Felucca",
         "commit": "9f6a885 (Felucca 1.5.6)",
-        "author": "Leo Kuroshita (@kurogedelic), H\u00fcgelton Instruments",
+        "author": "Leo Kuroshita (@kurogedelic), Hügelton Instruments",
         "licence": "GPL-3.0-only",
         "files": "firmware/src/ui_tools.c (1.2 .. 1.5.5: tl_reverse, tl_random_notes, tl_lane_rnd, tl_cook_*, EUCLID, tl_double / tl_half)"
       },

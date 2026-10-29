@@ -352,9 +352,6 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #ifndef FELUCCA_REV_POOL
 #define FELUCCA_REV_POOL 0                 /* the reverb's four lines (17 KB) in the pool instead of main RAM */
 #endif
-#ifndef FELUCCA_REV_HALF
-#define FELUCCA_REV_HALF 0                 /* the reverb's tank at 22.05 kHz: half its lines' RAM (fx.c) */
-#endif
 /* the reverb's algorithms (fx.c, reverb_alt.c; SPRING: backports.h): each one built is on FX > REVERB > TYPE (rev_type.c),
  * picked at run time; one built: no TYPE. At least one with the bus (rev_type.c says so). They share one line buffer */
 #ifdef FELUCCA_REVERB                      /* (the old one-tank choice, 0 ROOM, 1 PLATE, 2 FDN8, 3 AIRWIN: that tank alone) */
@@ -532,10 +529,6 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #ifndef FELUCCA_PHASE_FOLD
 #define FELUCCA_PHASE_FOLD 1               /* PHASE's E7 FOLD: a sine wavefolder (Felucca-Engines 04ffe90, MIT; engines/phase/eng_phase.c) */
 #endif
-#ifndef FELUCCA_VOICE_OWN
-#define FELUCCA_VOICE_OWN 1                /* voices: at the shared budget, a part restarts its own released voice before
-                                            * fading another part's (JIANT 0.9.9 cpu3; core/voice.c voice_alloc) */
-#endif
 #ifndef FELUCCA_REC_PLAIN
 #define FELUCCA_REC_PLAIN 0                /* seq.c rec_poly: recording keeps every note played whatever the voice mode (MONO, LEGATO,
                                             * UNISON no longer cut a step to one note); an ACID part records as before (0: as before) */
@@ -674,9 +667,6 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #endif
 /* the effects' finer arithmetic (2026-10-26, a Reddit report of grainy FX; each measured on the host, none heard yet): the
  * old arithmetic stays the default, each its own builder item */
-#ifndef FELUCCA_CHO_EXACT
-#define FELUCCA_CHO_EXACT 0                /* the chorus send's read points ramped exactly over a block (fx.c CHO_RAMP) */
-#endif
 #ifndef FELUCCA_MIX_FINE
 #define FELUCCA_MIX_FINE 0                 /* a part into the mix 3 bits down, not 4 (fx.c MIX_PAN) */
 #endif
@@ -689,12 +679,6 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #endif
 #ifndef FELUCCA_TFLT_FINE
 #define FELUCCA_TFLT_FINE 0                /* the track FILTER at the samples' scale, 64-bit products (fx.c tflt_tick_w) */
-#endif
-#ifndef FELUCCA_JUNO_FINE
-#define FELUCCA_JUNO_FINE 0                /* JUNO CHORUS's line at 32 bits: 4 KB of the effects memory (juno_cho.h) */
-#endif
-#ifndef FELUCCA_REV_HB_LONG
-#define FELUCCA_REV_HB_LONG 0              /* the half-rate reverbs behind a 63-tap low-pass (fx.c rhl_dec, rhl_int) */
 #endif
 #ifndef FELUCCA_LIVE_SAVE
 #define FELUCCA_LIVE_SAVE 0                /* saves while playing: no STOP BEFORE SAVE, the waiting writes (sections, song,

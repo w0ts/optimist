@@ -4,8 +4,9 @@
  * TIMER5 tick (ble_midi_poll) -> midi_in_q -> seq.c's events_block -> the synth's voices. The packets are shaped as
  * CoreMIDI's: a header, a timestamp before every status, several messages per packet, running status with and
  * without its own timestamp, the low timestamp wrapping into the header's high part, clock (F8) and active sensing
- * (FE) mixed in, a SysEx over two packets, note offs as 9x velocity 0. It also checks blell's counters (ble_dg.mi_*,
- * ble_mdg), a flood the size of the FM-1's run (5050 writes) without a ring overflow, clock and transport queued for
+ * (FE) mixed in, a SysEx over two packets, note offs as 9x velocity 0. It also checks what each stage passed on (the
+ * decoder's messages, midi_ble.c's ring indexes bmi_w / bmi_r, what reached midi_in_q, the overload monitor's BLE
+ * losses), a flood the size of the FM-1's run (5050 writes) without a ring overflow, clock and transport queued for
  * clock_sync.c (MSRC_BLE) with the sender's times on ours (ble_in_time), and CLOCK OUT's F8s out at their time.
  * Exit status: the number of failed checks. */
 #define FELUCCA_BLE 1
@@ -33,10 +34,73 @@ static void blocks(uint32_t n)
     }
 }
 
+/* The test's own counts. The decoder's view: the same packets written to the MIDI I/O value go through a second
+ * ble_midi_dec (the stack's decoder, its own state, reset with the stack's) into kind counts, as the stack's decoder
+ * hands them to ble_app_midi_in. The router's view: each tick, what ble_midi_poll put into midi_in_q (before the
+ * audio block drains it), by kind and source. */
+static struct {
+    uint32_t pkts, bad_hdr;                      /* the decoder: packets with a header / without */
+    uint32_t on, off, cc, clock, sense, other;   /* the decoder's messages by kind (9x vel 0 an off) */
+    uint32_t last_msg;                           /* the decoder's last message */
+} tdec_n;
+static struct ble_midi_dec tdec;
+static struct {
+    uint32_t seen;                               /* midi_in_q's write index looked at up to */
+    uint32_t n, on, off, rt, not_ble;            /* entries; note ons, offs; clock / transport / F2; another source */
+    uint32_t last;                               /* the last entry */
+    uint32_t rt_seq[8];                          /* the first clock / transport statuses, in order */
+} rq;
+
+static uint32_t msg_kind(uint32_t pkt, uint32_t *on, uint32_t *off, uint32_t *cc, uint32_t *clock, uint32_t *sense)
+{
+    uint32_t st = (pkt >> 8) & 0xFFu;
+    if ((st & 0xF0u) == 0x90u && ((pkt >> 24) & 0x7Fu))
+        return ++*on, 1u;
+    if ((st & 0xF0u) == 0x80u || (st & 0xF0u) == 0x90u)
+        return ++*off, 1u;
+    if ((st & 0xF0u) == 0xB0u)
+        return ++*cc, 1u;
+    if (st == 0xF8u)
+        return ++*clock, 1u;
+    if (st == 0xFEu)
+        return ++*sense, 1u;
+    return 0u;
+}
+static void tdec_sink(void *ctx, uint32_t pkt, uint16_t ts)
+{
+    (void)ctx, (void)ts;
+    if (!msg_kind(pkt, &tdec_n.on, &tdec_n.off, &tdec_n.cc, &tdec_n.clock, &tdec_n.sense))
+        tdec_n.other++;
+    tdec_n.last_msg = pkt;
+}
+
+static void rq_look(void)                       /* what ble_midi_poll queued into midi_in_q since the last look */
+{
+    uint32_t dummy = 0;
+    for (; rq.seen != mi_w; rq.seen++) {
+        uint32_t pkt = midi_in_q[rq.seen % MQ];
+        rq.n++;
+        rq.not_ble += midi_in_src[rq.seen % MQ] != MSRC_BLE;
+        rq.last = pkt;
+        if (ble_clock_msg(pkt)) {
+            if (rq.rt < 8u)
+                rq.rt_seq[rq.rt] = (pkt >> 8) & 0xFFu;
+            rq.rt++;
+        } else
+            (void)msg_kind(pkt, &rq.on, &rq.off, &dummy, &dummy, &dummy);
+    }
+}
+
 /* one Write Command (opcode 0x52, the handle, the BLE-MIDI packet) as the L2CAP layer hands it to the ATT server */
 static void wcmd(uint16_t h, const uint8_t *p, uint32_t n)
 {
     uint8_t f[260];
+    if (h == 0x000E) {
+        if (ble_midi_dec(&tdec, p, (uint16_t)n, tdec_sink, 0))
+            tdec_n.pkts++;
+        else
+            tdec_n.bad_hdr++;
+    }
     f[0] = 0x52;
     f[1] = (uint8_t)h;
     f[2] = (uint8_t)(h >> 8);
@@ -52,6 +116,7 @@ static void wcmd(uint16_t h, const uint8_t *p, uint32_t n)
 static void tick(void)                          /* the TIMER5 tick's BLE part, then an audio block (events_block) */
 {
     ble_midi_poll();
+    rq_look();
     blocks(1);
 }
 
@@ -72,7 +137,6 @@ static uint32_t ngated(void)
     return n;
 }
 
-static void ble_diag_clear_midi(void);
 static void reset(void)
 {
     uint32_t i;
@@ -96,17 +160,12 @@ static void reset(void)
     }
     song.g[G_BPM] = 120;
     ble_att_reset();
-    memset(&ble_mdg, 0, sizeof ble_mdg);
-    ble_diag_clear_midi();
+    ble_midi_dec_reset(&tdec);                  /* (the test's decoder starts with the stack's) */
+    memset(&tdec_n, 0, sizeof tdec_n);
+    memset(&rq, 0, sizeof rq);
+    ovl.midi_lost[OVL_MIDI_BLE] = 0;
     ble_on = 1;
     ble_midi_route = BLE_ROUTE_IN | BLE_ROUTE_OUT;
-}
-
-static void ble_diag_clear_midi(void)
-{
-    ble_dg.mi_wcmd = ble_dg.mi_wreq = ble_dg.mi_w_other = ble_dg.mi_pkts = ble_dg.mi_bad_hdr = 0;
-    ble_dg.mi_on = ble_dg.mi_off = ble_dg.mi_cc = ble_dg.mi_clock = ble_dg.mi_sense = ble_dg.mi_other = 0;
-    ble_dg.mi_raw_n = ble_dg.mi_msg_n = 0;
 }
 
 static void t_apple_packets(void)
@@ -132,17 +191,17 @@ static void t_apple_packets(void)
     WCMD(0xA9, 0x86, 0x80, 0x4A, 0x00);
     tick();
     check(ngated() == 0u, "everything ended");
-    check(ble_dg.mi_wcmd == 7u && ble_dg.mi_pkts == 7u && ble_dg.mi_bad_hdr == 0u && ble_dg.mi_w_other == 0u,
-          "blell: 7 Write Commands on 0x000E, 7 packets decoded");
-    check(ble_dg.mi_on == 5u && ble_dg.mi_off == 5u && ble_dg.mi_clock == 1u && ble_dg.mi_sense == 1u &&
-              ble_dg.mi_other == 3u,
-          "blell: 5 note ons, 5 offs, 1 clock, 1 active sensing, 3 SysEx event packets");
-    check(ble_mdg.pushed == 11u && ble_mdg.drained == 11u && ble_mdg.drained_on == 5u && ble_mdg.not_chan == 4u &&
-              ble_mdg.overflow == 0u && ble_mdg.off == 0u,
-          "blell: 10 channel messages and the clock queued and drained into midi_in_q, the 4 others left out");
-    check(ble_dg.mi_raw_len[(ble_dg.mi_raw_n - 1u) & 3u] == 5u && ble_dg.mi_raw[(ble_dg.mi_raw_n - 1u) & 3u][2] == 0x80 &&
-              ble_dg.mi_msg[(ble_dg.mi_msg_n - 1u) & 3u] == (0x08u | 0x80u << 8 | 0x4Au << 16),
-          "blell: the last raw packet and the last decoded message");
+    check(tdec_n.pkts == 7u && tdec_n.bad_hdr == 0u,
+          "the decoder: the 7 Write Commands' packets on 0x000E, every header valid");
+    check(tdec_n.on == 5u && tdec_n.off == 5u && tdec_n.clock == 1u && tdec_n.sense == 1u && tdec_n.other == 3u,
+          "the decoder: 5 note ons, 5 offs, 1 clock, 1 active sensing, 3 SysEx event packets");
+    check(bmi_w == 11u && bmi_r == 11u && rq.n == 11u && rq.on == 5u && rq.off == 5u && rq.rt == 1u &&
+              rq.not_ble == 0u && ovl.midi_lost[OVL_MIDI_BLE] == 0u,
+          "10 channel messages and the clock queued (bmi_w) and drained into midi_in_q as BLE's, nothing lost");
+    check(tdec_n.on + tdec_n.off + tdec_n.cc + tdec_n.clock + tdec_n.sense + tdec_n.other - bmi_w == 4u,
+          "... the decoder's 4 others (active sensing, the SysEx) left out of the ring");
+    check(tdec_n.last_msg == (0x08u | 0x80u << 8 | 0x4Au << 16) && rq.last == tdec_n.last_msg,
+          "the last decoded message (80 4A 00) is midi_in_q's last");
 }
 
 static void t_channels(void)
@@ -169,38 +228,41 @@ static void t_wrong_handle_and_off(void)
         wcmd(0x0010, p, sizeof p);                                   /* a handle that is not ours */
     }
     tick();
-    check(gated(&trk[0], 60) && !gated(&trk[0], 62) && ble_dg.mi_w_other == 1u && ble_dg.mi_w_other_h == 0x10u,
-          "a Write Command on another handle is counted, not played");
+    check(gated(&trk[0], 60) && !gated(&trk[0], 62) && bmi_w == 1u && rq.n == 1u,
+          "a Write Command on another handle is not decoded, not queued (only 0x000E's note in the ring), not played");
     ble_on = 0;
     WCMD(0x80, 0x81, 0x90, 0x40, 0x64);
     tick();
-    check(!gated(&trk[0], 64) && ble_mdg.off == 1u, "BLUETOOTH OFF: nothing queued (counted)");
+    check(!gated(&trk[0], 64) && tdec_n.on == 2u && bmi_w == 1u && rq.n == 1u && ovl.midi_lost[OVL_MIDI_BLE] == 0u,
+          "BLUETOOTH OFF: the note decoded, nothing queued (bmi_w, midi_in_q unchanged), not counted as lost");
 }
 
 static void t_flood(void)
 {
-    uint32_t i, ons = 0;
+    uint32_t i, ons = 0, msgs = 0;
     reset();
     for (i = 0; i < 5050u; i++) {                                    /* the FM-1's run: 5050 writes, clock heavy */
         uint8_t lo = (uint8_t)(0x80u | (i & 0x7Fu));
         if (i % 8u == 3u) {
             uint8_t p[] = {0xA0, lo, 0xF8, lo, 0x90, (uint8_t)(48u + (i / 8u) % 24u), 0x64};
             wcmd(0x000E, p, sizeof p);
-            ons++;
+            ons++, msgs += 2u;
         } else if (i % 8u == 6u) {
             uint8_t p[] = {0xA0, lo, 0x80, (uint8_t)(48u + (i / 8u) % 24u), 0x00};
             wcmd(0x000E, p, sizeof p);
+            msgs++;
         } else {
             uint8_t p[] = {0xA0, lo, 0xF8};
             wcmd(0x000E, p, sizeof p);
+            msgs++;
         }
         if (i % 4u == 3u)                                            /* (7.5 ms connection events, a 0.5 ms tick) */
             tick();
     }
     tick();
-    check(ble_dg.mi_wcmd == 5050u && ble_dg.mi_on == ons && ble_mdg.overflow == 0u && ble_mdg.drained_on == ons &&
-              ble_mdg.drained == ble_mdg.pushed,
-          "5050 writes, clock between the notes: every note on reaches midi_in_q, no overflow");
+    check(tdec_n.pkts == 5050u && tdec_n.on == ons && bmi_w == msgs && ovl.midi_lost[OVL_MIDI_BLE] == 0u &&
+              rq.on == ons && bmi_r == bmi_w && rq.n == bmi_w,
+          "5050 writes, clock between the notes: every message queued, every note on reaches midi_in_q, no overflow");
     check(ngated() == 0u, "... and every note ended");
 }
 
@@ -245,7 +307,9 @@ static void t_clock_in(void)
     reset();
     WCMD(0x80, 0x80, 0xFA, 0x81, 0xF8, 0x82, 0xFC, 0x83, 0xF2, 0x08, 0x01, 0x84, 0xFB);
     tick();
-    check(ble_mdg.pushed == 5u && ble_mdg.not_chan == 0u, "FA F8 FC F2 FB from BLE: queued for the clock (clock_sync.c)");
+    check(bmi_w == 5u && rq.rt == 5u && rq.n == 5u && rq.not_ble == 0u && rq.rt_seq[0] == 0xFAu &&
+              rq.rt_seq[1] == 0xF8u && rq.rt_seq[2] == 0xFCu && rq.rt_seq[3] == 0xF2u && rq.rt_seq[4] == 0xFBu,
+          "FA F8 FC F2 FB from BLE: all 5 queued, in order, into midi_in_q as BLE's for the clock (clock_sync.c)");
 }
 
 /* the same F8s over 30 ms connection events (a Mac's while Bluetooth audio streams, ble_host.c ble_sig_audio), about 4 in

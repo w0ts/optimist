@@ -46,8 +46,10 @@ src/engines/formant/eng_formant.c:formant_render:((tp>>16)|1u) | "| 1"
 src/engines/formant/eng_formant.c:formant_render:f | guarded: "f > 0" in the same condition
 src/engines/grain/eng_grain.c:gr_run:(int32_t)m | guarded: "m ? ... : 0"
 src/engines/grain/eng_grain.c:gr_spawn:(iv?iv:1u) | "iv ? iv : 1"
-src/engines/grain/eng_grain.c:gr_spawn:(step>>8) | step is clamped to >= 256 just before
-src/engines/grain/eng_grain.c:gr_spawn:len | returns when len < 16 before this divide
+src/engines/grain/eng_grain.c:gr_geom:(step>>8) | step is clamped to >= 256 just before (both fits: a short zone, the card's cap)
+src/engines/grain/eng_grain.c:gr_spawn:o.len | gr_geom returns 0 (no grain) when len < 16
+src/engines/grain/grain_card.c:gr_card_run:(int32_t)m | guarded: "m ? ... : 0" (as gr_run)
+src/engines/grain/grain_card.c:gr_plan:nact | guarded: "nact > 1 ?" (as grain_render)
 src/engines/grain/eng_grain.c:grain_render:nact | guarded: "nact > 1 ?"
 src/engines/phase/eng_phase.c:pd_slope:(len?len:1u) | "len ? len : 1"
 src/engines/sample/eng_sample.c:pow2_q16:(pitch_inc(1600)>>16) | constant table entry (pitch_inc(1600) >> 16 = 102)
@@ -58,7 +60,7 @@ src/engines/trio/eng_trio.c:trio_frac:d | returns 0 before the divide when d is 
 src/engines/trio/eng_trio.c:trio_render:(int32_t)(base>>12) | guarded: "(base >> 12) ? ... : 0"
 src/engines/trio/eng_trio.c:trio_render:(uint32_t)(4096+((g*(g+k))>>12)) | k = 8192 - reso * 7168 / 127 >= 1024 (PARAM), g >= 0: >= 4096
 src/fx/fx.c:duck_block:(len>>5) | len = BEAT_U / 2, a constant
-src/fx/fx.c:master_out:(uint32_t)lim_env | inside "if (lim_env > LIM_T)", LIM_T > 0
+src/fx/fx.c:master_lim:(uint32_t)e | inside "if (e > LIM_T)" (e: the state's lim_env), LIM_T > 0
 src/fx/fx.c:mix_part:((xmax>r?xmax:r)|1) | "| 1"
 src/fx/fx.c:__attribute__:(mx|1) | "| 1" (ut_mix: the USB input's largest send over the block)
 src/display/gfx.c:cv_begin:w | only when w * h > CV_MAX, which needs w != 0
@@ -110,7 +112,7 @@ src/ui/optimist/op_graph.c:eg_seg:n | only in its loop (i = 1..n: never run for 
 src/ui/optimist/op_graph.c:page_frac:(c.gmax-c.gmin) | guarded "c.gmax <= c.gmin ? 0 :"
 src/ui/optimist/op_bt.c:bt_pg_paint:(int32_t)n | only under "if (n > BT_PG_ROWS)" (BT_PG_ROWS 4): n >= 5 (built where BLE_CENTRAL is, the reference profile since 2026-10-24)
 src/ui/optimist/op_bt.c:bt_pg_paint:(int32_t)(n-BT_PG_ROWS) | the same guard: n - BT_PG_ROWS >= 1
-src/ui/optimist/op_gldraw.c:gl_info_draw:(int32_t)n | n = info_lines(pg) >= 1: INFO_N >= 3 (6 with SYS_DEBUG), INFO_DIAG >= 1 (FLASH IRQS OFF in every build), INFO_UA 9; gl_info() != 0 on that path (gl_paint)
+src/ui/optimist/op_gldraw.c:gl_info_pitch:(int32_t)n | n = info_lines(pg) >= 1: INFO_N >= 3 (6 with SYS_DEBUG), INFO_DIAG >= 1 (FLASH IRQS OFF in every build), INFO_UA 9; gl_info() != 0 on that path (gl_paint, gl_info_draw)
 src/ui/optimist/op_mixdraw.c:mx_steps:len | TLEN: "clamp(t->p[P_SLEN], 1, NSTEP)"
 src/ui/optimist/op_mixdraw.c:mx_steps_paint:len | TLEN: "clamp(t->p[P_SLEN], 1, NSTEP)"
 src/ui/optimist/op_mixdraw.c:mx_steps_paint:np | guarded "if (np > 1u)"
@@ -137,7 +139,6 @@ src/ui/optimist/op_graph.c:graph_arp:len | len = cnt * oct with cnt >= 1 (as abo
 src/ui/optimist/op_graph.c:graph_steps:rows | rows = len > 32 ? 2 : 1
 src/ui/optimist/op_step.c:step_note_len:len | TLEN
 src/ui/optimist/op_step.c:step_note_resize:len | TLEN
-src/ui/optimist/op_step.c:step_note_len10:trk_len(t) | TLEN
 src/ui/optimist/op_step.c:step_tick:trk_len(t) | TLEN
 src/ui/optimist/op_stepdraw.c:draw_step_panel:len | TLEN
 src/ui/optimist/op_stepdraw.c:sg_notches:(int32_t)(rat+1u) | rat is a 2-bit ratchet, so rat + 1 is 1..4
@@ -242,7 +243,6 @@ src/seq/auto_slot.c:sa_knob:trk_len(t) | trk_len (seq.c) returns P_SLEN when abo
 src/storage/project.c:dly_map:(a[i+1u]-a[i]) | a is DLYC_X or DLYC_Y (dly_freq_in / dly_freq_out), both strictly rising: neighbouring entries differ
 src/drums/lane_play.c:denv_fix:c->atk | guarded on the same line (c->atk ? 32768u / c->atk : 0u)
 src/drums/lane_play.c:denv_fix:c->dec | guarded on the same line (c->dec ? 32768u / c->dec : 0u)
-src/bt/bt_inq_con.c:bti_clk_print:ms | guarded on the same line (ms ? ... : 0): a 1a run that has not lasted a millisecond prints 0
 src/fx/insfx/tapespit.c:__attribute__:(20+3*a) | ifx_ts_block: a is the amount, 0 .. 127 (uint8_t s->a): 20 .. 401
 src/fx/insfx/tapespit.c:__attribute__:(uint32_t)(s->env>256?s->env:256) | ifx_ts_block: at least 256 by the ternary on the same line
 src/ui/optimist/op_tools.c:tl_quantize:(int32_t)(div==2u||div==4u?div:1u) | 2, 4, or 1 by the ternary on the same line
@@ -268,7 +268,6 @@ src/engines/clipper/eng_wave.c:wt_build_frame:(H+1u-h0) | H = 128 >> l >= 2, h0 
 src/engines/clipper/eng_wave.c:wt_ifft:len | starts at 2 and doubles: >= 2
 src/engines/clipper/eng_wave.c:wt_level:inc | guarded: inc ? .. : 1000
 # 2026-10-23: the durations table (DUR_48), the ANALOG 2 filter models, the effects memory, BT diagnostics
-src/bt/bt_page.c:bp_print_sec:n | guarded: each of the three divides is inside "if (n)" (the RSSI and the rxbit averages, n read with the IRQs held)
 src/core/voice.c:lfo_wave:(DUR_U48*(d)) | the LSYNC_KE macro (LSYNC_KT's const initializer; the scanner names the function after it): d is a DUR_LIST entry (768 .. 3) and DUR_U48 = BEAT_U / 48 a constant: a compile-time constant >= 3 x BEAT_U / 48
 src/engines/analog/a2_models.c:__attribute__:(27.f+9.f*x2) | a2m_tanh (float): x2 = x * x >= 0, so >= 27
 src/engines/analog/a2_models.c:__attribute__:(1.f+g) | a2m_ladder (float): g = a2m_g() = tan(pi fc / FS) with fc = 30 x 2^(cut ...) > 0 and at most 0.45 FS (cut clamped 0 .. 127 << 8 by analog_render): g > 0, so > 1

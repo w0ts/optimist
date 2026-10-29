@@ -58,7 +58,7 @@ typedef struct {
 } px_symp_t;
 
 /* the coefficients, when an input changed. f[k]: the sympathetic strings' frequencies (cycles Q32, 0 = off); brightness, damping, amount Q16 0..1 */
-static __attribute__((noinline)) void px_symp_block(px_symp_t *Y, const uint32_t *f, int32_t brightness, int32_t damping,
+static FAST(phys) __attribute__((noinline)) void px_symp_block(px_symp_t *Y, const uint32_t *f, int32_t brightness, int32_t damping,
                                                     int32_t amount)
 {
     px_symp_cf_t *B = &Y->cf;
@@ -107,7 +107,7 @@ static __attribute__((noinline)) void px_symp_block(px_symp_t *Y, const uint32_t
 #if PX_ASM && FELUCCA_ASM_CHECK
 struct { uint32_t calls, bad; } px_asm_check;           /* read by the emulator (play_check peek:px_asm_check:2) */
 /* the C comb below, for the check */
-static void px_symp_comb_c(int16_t *l, uint32_t wp, uint32_t d, int32_t h0, int32_t h1, int32_t h2, const int32_t *x,
+static FAST(phys) void px_symp_comb_c(int16_t *l, uint32_t wp, uint32_t d, int32_t h0, int32_t h1, int32_t h2, const int32_t *x,
                            int32_t *acc, uint32_t m)
 {
     uint32_t i;
@@ -128,7 +128,7 @@ static void px_symp_comb_c(int16_t *l, uint32_t wp, uint32_t d, int32_t h0, int3
  * block (its line is read at least a step back: the order is kept). The loop truncates towards 0: rounding
  * leaves a dead band in which a small value never decays (a limit cycle), a floor a bias that rings at DC
  * (a comb resonates there too) */
-static __attribute__((noinline)) void px_symp_run(px_symp_t *Y, const int32_t *in, int32_t *out, uint32_t n)
+static FAST(phys) __attribute__((noinline)) void px_symp_run(px_symp_t *Y, const int32_t *in, int32_t *out, uint32_t n)
 {
     const px_symp_cf_t *B = &Y->cf;
     uint32_t i, k, m;

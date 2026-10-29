@@ -38,7 +38,7 @@ from core import (
     fx_memory as fx_memory, fx_memory_text as fx_memory_text, FXM_STATE as FXM_STATE, FXM_SYMBOLS as FXM_SYMBOLS,
     FXM_TYPES as FXM_TYPES, arena_need as arena_need, dly_kb as dly_kb,
     PART_MEM as PART_MEM, PART_MEM_NONE as PART_MEM_NONE, REGIONS as REGIONS, REV_ROOM_LEN as REV_ROOM_LEN,
-    SL24_XS as SL24_XS, SPARE as SPARE, ConfigError as ConfigError, Issue as Issue, additive as additive,
+    SPARE as SPARE, ConfigError as ConfigError, Issue as Issue, additive as additive,
     anchor_cfg as anchor_cfg, anchor_record as anchor_record, auto_built as auto_built, auto_store as auto_store,
     built as built, built_parent as built_parent, canonical as canonical, card_sets as card_sets, cfg_bits as cfg_bits, cfg_diff as cfg_diff,
     cfg_hash as cfg_hash, cloud_key as cloud_key, conflicts as conflicts, counted as counted, defaults as defaults,
@@ -215,6 +215,8 @@ def apply_env(cfg, env):
     for k, it in R.ITEMS.items():
         if it.flag and it.flag in env and re.fullmatch(r"-?\d+u?", env[it.flag]):
             cfg[k] = int(env[it.flag].rstrip("u"))
+            if k in R.FAST_NAMES and cfg[k] == R.ENG_LEGACY_ON:   # (an engine's switch 1: on at its place by default)
+                cfg[k] = R.eng_place(k)
     if env.get("FELUCCA_LCD_BAUD", "") in ("0", "1", "2", "3", "4"):
         cfg["LCD_BAUD"] = int(env["FELUCCA_LCD_BAUD"])
     if env.get("FELUCCA_SLICE") in ("0", "1"):

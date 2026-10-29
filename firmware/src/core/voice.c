@@ -629,8 +629,7 @@ static voice_t *voice_alloc(track_t *t, uint32_t note)
     if (nfree && voices_busy() >= CG_VBUDGET) {
         track_t *vp = 0;
         uint32_t k;
-#if FELUCCA_VOICE_OWN
-        /* (JIANT 0.9.9 cpu3 da61bc62, GPL-3.0; builder item VOICE_OWN) the budget is full and this part has a released
+        /* (JIANT 0.9.9 cpu3 da61bc62, GPL-3.0; the builder's VOICE_OWN, always on since 2026-10-29) the budget is full and this part has a released
          * voice of its own: restart its oldest in place, not another part's tail faded out (that fade rendered
          * beside the new note, a voice over the budget, and cut a tail the other part still had) */
         for (i = 0, k = np; i < np; i++)
@@ -638,7 +637,6 @@ static voice_t *voice_alloc(track_t *t, uint32_t note)
                 k = i;
         if (k < np)
             return &t->v[k];
-#endif
         k = voice_victim(t, 0, &vp);
         if (k < np && vp == t)
             return &t->v[k];                            /* our own: restart it in place (no click) */
@@ -958,6 +956,30 @@ static void trk_note_on(track_t *t, uint32_t note, uint32_t vel)
         else                                            /* LEGATO / UNISON: glide only between held notes */
             mono_play(t, want, vel, !sounding, sounding && (t->p[P_GLIDE] != 0 || t->slide_glide));
     }
+}
+/* a sequencer SLIDE on a POLY track (seq.c seq_slide_poly; the user, 2026-10-29: the step's GLIDE): the voice that plays
+ * from goes on to note to, its envelope going on, gliding there as MONO's legato does (GLIDE's time, 0: SLIDE_T). An
+ * engine that allocates its own voices (FM6), a track not ready to play: not here (-> 0, the note starts as ever) */
+static __attribute__((noinline)) int trk_note_glide(track_t *t, uint32_t from, uint32_t to, uint32_t vel)
+{
+    uint32_t i;
+    const engine_t *e = ENGINES[t->engine];
+    if (e->alloc || t->xf_on || t->eng_req != t->engine)   /* (a voice gated: the track plays; an engine switch: after it) */
+        return 0;
+    for (i = 0; i < NVOICE; i++) {                      /* (past the voice count: none gated) */
+        voice_t *v = &t->v[i];
+        if (!v->active || !v->gate || v->note != from)
+            continue;
+        v->note = (uint8_t)to;
+        v->pitch16 = (int32_t)to * 16;
+        if (vel > v->vel || e->legato)
+            v->vel = (uint8_t)vel;
+        glide_set(t, v, 1);
+        if (e->legato)
+            e->legato(t, v);
+        return 1;
+    }
+    return 0;
 }
 
 #if FELUCCA_CHORDPLUS

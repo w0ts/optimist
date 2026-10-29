@@ -230,6 +230,48 @@ static void smp_bank_on(track_t *t, voice_t *v)
     smp_card_go(t, v, si, 1);
 }
 
+/* a part's card set as zones for GRAIN and STRETCH (eng_grain.c, eng_stretch.c: read as a flash set's, through the
+ * part's cache, sd_stream_rc.h): zone k is source sst_bank_src[part] + k, its frames, rate, root, keys and loop (the
+ * card's loop is ls - 1 .. le - 1: gen_samples.py card_wav), off unused. Made again when the plan's sources change
+ * (sst_bank_gen); smp_cz_stamp + 1 each time it holds zones (a gate leaves the last ones: their grains fade). Audio */
+static smp_zone_t smp_cz[SST_NPART][SST_BANK_Z];
+static uint8_t smp_cz_n[SST_NPART];
+static uint32_t smp_cz_gen[SST_NPART], smp_cz_stamp[SST_NPART];
+static uint32_t smp_cz_sync(uint32_t part)          /* the part's card zones now: their count */
+{
+    uint32_t k, n, g = sst_bank_gen + 1u;
+    if (part >= SST_NPART)
+        return 0;
+    if (smp_cz_gen[part] == g)
+        return smp_cz_n[part];
+    n = sst_bank_n[part] < SST_BANK_Z ? sst_bank_n[part] : SST_BANK_Z;
+    for (k = 0; k < n; k++) {
+        const sst_src_t *s = &sst_src[(sst_bank_src[part] + k) % SST_NSRC];
+        smp_zone_t *z = &smp_cz[part][k];
+        if (!s->ready || !s->frames)
+            break;                                   /* (a zone not loaded: the set's keys up to it) */
+        z->off = 0;
+        z->n = s->frames;
+        z->rate = s->rate;
+        z->root16 = (int16_t)((s->root + 60) * 16);
+        z->lo = s->lo;
+        z->hi = s->hi;
+        z->looped = s->lpe != 0;
+        z->ls = s->lpe ? s->lps + 1u : 0u;
+        z->le = s->lpe ? s->lpe + 1u : 0u;
+        z->pred = 0;
+        z->idx = 0;
+    }
+    smp_cz_n[part] = (uint8_t)k;
+    smp_cz_gen[part] = g;
+    if (k)
+        smp_cz_stamp[part]++;
+    return k;
+}
+/* SRC s of part `part` a card set (SD card mode): its zones are the card's */
+AINL int smp_cz_on(uint32_t s) { return s < SMP_NSETS && SMP_CARD_SET(s); }
+AINL uint32_t smp_cz_src(uint32_t part, uint32_t zl) { return (sst_bank_src[part % SST_NPART] + zl) % SST_NSRC; }
+
 static OVL(sample) void smp_card_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
 {
     const int16_t *p = t->p;

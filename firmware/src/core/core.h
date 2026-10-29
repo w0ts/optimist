@@ -87,7 +87,7 @@ enum { Q_OFF, Q_SNAP, Q_WHITE, Q_ALL, Q_SEQ };   /* P_QUANT (SCL › KEYS): seq.
  * .ram_hot2; same rules: it calls HOT / HOT2 code directly, XIP code through a pointer): mostly the effects
  * (fx.c, the inserts, the master comp, the spring); FM6's code and GRAIN run from XIP (docs/MEMORY-MAP.md
  * section 2 and 3). TAB_RAM
- * (felucca_tables.h) puts a constant table that the sample loops read into .data: copied to RAM at
+ * (felucca_tables.h) puts a constant table that the sample loops read into the pool: copied to RAM at
  * boot, so the UI's font reads cannot evict it from the data cache either (no extra flash). */
 #if defined(__PI32V2__) && !(defined(FELUCCA_ASM_CHECK) && FELUCCA_ASM_CHECK)
 /* (an ASM_CHECK verification build runs every asm kernel next to its C: too big for RAMTEXT, so it
@@ -113,10 +113,111 @@ enum { Q_OFF, Q_SNAP, Q_WHITE, Q_ALL, Q_SEQ };   /* P_QUANT (SCL › KEYS): seq.
 #if FELUCCA_OVERLAY && defined(__PI32V2__) && !defined(RTO_TARGET)
 #error "FELUCCA_OVERLAY needs the RAM code sections (no ASM_CHECK build)"
 #endif
+/* Where an engine's hot code runs (2026-10-29, the builder's engine items: off / on / on, code in RAM): FAST_RAM_<name>
+ * 1 its render path is RAM code (HOT), 0 it runs from XIP. The builder writes every engine's into felucca_config.h
+ * (configure.py, registry.py FAST_NAMES); a build without them (the host tests, a hand-made header) gets where each
+ * ran until then: ANALOG 2 and SUPER, PHASE, DIGITAL, TRIO, FORMANT, DRAWBAR, LOFI, SAMPLE in RAM, the rest in XIP.
+ * OVL(name) / OVLX(name) (the overlay engines' marks) and FAST(name) (the others': FM6, ACID, PLAITS, PHYS, PROPHET,
+ * JUNO, CZ) pick HOT or nothing by it. RAM code calls only RAM code (or through a pointer, FAR), XIP code calls RAM
+ * code only through a pointer: an engine's choice moves its marked functions together, and what they call directly
+ * is marked with it or always_inline (the release's tools/ramcode.py and the linker refuse the rest). With the
+ * overlays (FELUCCA_OVERLAY) the overlay link decides instead and FAST(name) is XIP, as before */
+#ifndef FAST_RAM_analog
+#define FAST_RAM_analog 1
+#endif
+#ifndef FAST_RAM_super
+#define FAST_RAM_super FAST_RAM_analog                  /* (SUPER is ANALOG 2's swarm: one item) */
+#endif
+#ifndef FAST_RAM_phase
+#define FAST_RAM_phase 1
+#endif
+#ifndef FAST_RAM_digital
+#define FAST_RAM_digital 1
+#endif
+#ifndef FAST_RAM_trio
+#define FAST_RAM_trio 1
+#endif
+#ifndef FAST_RAM_formant
+#define FAST_RAM_formant 1
+#endif
+#ifndef FAST_RAM_drawbar
+#define FAST_RAM_drawbar 1
+#endif
+#ifndef FAST_RAM_lofi
+#define FAST_RAM_lofi 1
+#endif
+#ifndef FAST_RAM_sample
+#define FAST_RAM_sample 1
+#endif
+#ifndef FAST_RAM_fm6
+#define FAST_RAM_fm6 0
+#endif
+#ifndef FAST_RAM_acid
+#define FAST_RAM_acid 0
+#endif
+#ifndef FAST_RAM_plaits
+#define FAST_RAM_plaits 0
+#endif
+#ifndef FAST_RAM_phys
+#define FAST_RAM_phys 0
+#endif
+#ifndef FAST_RAM_prophet
+#define FAST_RAM_prophet 0
+#endif
+#ifndef FAST_RAM_juno
+#define FAST_RAM_juno 0
+#endif
+#ifndef FAST_RAM_cz
+#define FAST_RAM_cz 0
+#endif
+#ifndef FAST_RAM_strings
+#define FAST_RAM_strings 0
+#endif
+/* FASTI(name): a small helper of an engine's render path that the engine's XIP code (its note hooks, the UI) calls too:
+ * always inlined while the engine's code is RAM code (each side its own copy), as it was otherwise. FAST_CALL(name, f):
+ * a call to f, one of the engine's render path's functions, from its code that stays in XIP: through a pointer while
+ * the engine's code is RAM code (FAR: out of a direct call's reach), a plain call otherwise */
+#define FASTI(n) FAST_INL_(FAST_RAM_##n)
+#define FAST_INL_(x) FAST_INL__(x)
+#define FAST_INL__(x) FAST_INL_##x
+#define FAST_INL_1 __attribute__((always_inline))
+#define FAST_INL_0
+#define FAST_CALL(n, f) FAST_CALL_(FAST_RAM_##n, f)
+#define FAST_CALL_(x, f) FAST_CALL__(x, f)
+#define FAST_CALL__(x, f) FAST_CALL_##x(f)
+#define FAST_CALL_1(f) FAR(f)
+#define FAST_CALL_0(f) f
+/* FAST_ZERO(name, p, n): memset(p, 0, n) in an engine's render path: word by word while the engine's code is RAM code
+ * (libc.c's memset is XIP code; a plain loop the compiler turns back into the call: a barrier in it) */
+#define FAST_ZERO(n, p, sz) FAST_ZERO_(FAST_RAM_##n, p, sz)
+#define FAST_ZERO_(x, p, sz) FAST_ZERO__(x, p, sz)
+#define FAST_ZERO__(x, p, sz) FAST_ZERO_##x(p, sz)
+#define FAST_ZERO_1(p, sz) fast_zero(p, sz)
+#define FAST_ZERO_0(p, sz) memset(p, 0, sz)
+static inline __attribute__((always_inline)) void fast_zero(void *p, uint32_t n)
+{
+    uint32_t *w = (uint32_t *)p, i;                    /* (p 4-aligned: an engine's state) */
+    uint8_t *b;
+    for (i = 0; i < n / 4u; i++) {
+        w[i] = 0;
+        __asm__ volatile("" ::: "memory");           /* (a barrier: the loop stays a loop, not a call to memset) */
+    }
+    for (b = (uint8_t *)(w + i), i *= 4u; i < n; i++) {
+        *b++ = 0;
+        __asm__ volatile("" ::: "memory");
+    }
+}
+#define FAST_PLACE(x) FAST_PLACE_(x)
+#define FAST_PLACE_(x) FAST_PLACE_##x
+#define FAST_PLACE_1 HOT
+#define FAST_PLACE_0
 #ifndef RTO_TARGET
 #define RTO_TARGET 0
-#define OVL(n) HOT
-#define OVLX(n)
+#define OVL(n) FAST_PLACE(FAST_RAM_##n)
+#define OVLX(n) FAST_PLACE(FAST_RAM_##n)
+#define FAST(n) FAST_PLACE(FAST_RAM_##n)
+#else
+#define FAST(n)
 #endif
 /* This compiler inlines a function into a caller in another section only when it is always_inline:
  * AINL marks the small helpers that the HOT code and the rest both use (inlined everywhere). */
@@ -127,10 +228,10 @@ enum { Q_OFF, Q_SNAP, Q_WHITE, Q_ALL, Q_SEQ };   /* P_QUANT (SCL › KEYS): seq.
 #else
 #define IN_POOL
 #endif
-/* IN_POOL_AUDIO: a zeroed buffer the audio path reads (per sample or per block): in the pool only with the builder's
- * EXPERIMENTAL TAB_IN_POOL (as the TAB_RAM tables), else main RAM as before; unverified on the FM-1 (the console's
- * tabbench measures the two) */
-#if defined(__PI32V2__) && defined(FELUCCA_TAB_IN_POOL) && FELUCCA_TAB_IN_POOL
+/* IN_POOL_AUDIO: a zeroed buffer the audio path reads (per sample or per block): in the pool too (the RAM is one packed
+ * region, docs/MEMORY-MAP.md: main RAM and pool are the same SRAM; the builder's TAB_IN_POOL, retired 2026-10-29, is
+ * always on; the console's tabbench measures the two) */
+#ifdef __PI32V2__
 #define IN_POOL_AUDIO __attribute__((section(".pool")))
 #else
 #define IN_POOL_AUDIO
@@ -398,25 +499,9 @@ AINL int32_t pit_mul(int32_t v, int32_t a) { return (v * (pit_depth(a) >> 4)) >>
 #define P_LEG_AMP P_L1AB
 #define P_ENG_END (P_E7 + 1)    /* the values a track stores in a project or a user preset: P_LEVEL .. P_E7 */
 /* RATE below 0 (voice.c lfo_inc): one cycle per note value of the tempo, longest first, as SLOOP 2.6's LFO 2 SYNC
- * (after Felucca 1.4 by Leo Kuroshita): its P_LSYNC n (0 OFF, 1..10) is our RATE -n; with SYNC on its RATE is not
- * heard. LRATE_OF_SLOOP: its SYNC and RATE -> our RATE; SLOOP_LSYNC_OF: our RATE -> its SYNC (its RATE: ours, 0..127) */
+ * (after Felucca 1.4 by Leo Kuroshita): RATE -n is the DUR index n - 1; with SYNC on the free RATE is not heard */
 #define DUR_N 22                /* the note values of the tempo (DUR_48 below): RATE -1 .. -22 */
 #define LSYNC_N DUR_N
-/* (2026-10-22: RATE -n is DUR index n - 1, not SLOOP's n: SLOOP 2.6's 10 values are DUR indices SLOOP_LSYNC_DUR[n - 1]) */
-static const uint8_t SLOOP_LSYNC_DUR[10] = {0, 2, 4, 7, 10, 13, 15, 16, 18, 19};   /* 4BAR 2BAR 1BAR 1/2 1/4 1/8 8T 1/16 16T 1/32 */
-#define LRATE_OF_SLOOP(lsync, rate) ((lsync) > 0 && (lsync) <= 10 ? -(int32_t)SLOOP_LSYNC_DUR[(lsync) - 1] - 1 : (int32_t)(rate))
-static int32_t sloop_lsync_of(int32_t rate)    /* our RATE -> SLOOP's SYNC 0..10: a value it has not, the nearest it has */
-{
-    int32_t d = -rate - 1, i, best = 1;
-    if (rate >= 0)
-        return 0;
-    for (i = 2; i <= 10; i++)
-        if ((SLOOP_LSYNC_DUR[i - 1] > d ? SLOOP_LSYNC_DUR[i - 1] - d : d - SLOOP_LSYNC_DUR[i - 1]) <
-            (SLOOP_LSYNC_DUR[best - 1] > d ? SLOOP_LSYNC_DUR[best - 1] - d : d - SLOOP_LSYNC_DUR[best - 1]))
-            best = i;
-    return best;
-}
-#define SLOOP_LSYNC_OF(rate) sloop_lsync_of(rate)
 #define P_TAIL 1                /* a track has values after P_E7 (P_ENG_END .. P_COUNT - 1): none stored with it, none part
                                  * of a sound but the envelopes' slots (param_kept) */
 
@@ -463,8 +548,6 @@ enum {                          /* global parameters */
 };
 enum { DLYF_LP, DLYF_HP, DLYF_BP, DLYF_PEAK };
 #define PJ_NG ((uint32_t)G_CTHR)   /* the globals a project's g[] holds (its format: 32 since format 1's 27 grew) */
-#define SL24_AUTO (FELUCCA_SL24_SAFE && FELUCCA_SL24_IMPORT)   /* PROJECT > A24 (sl24_guard.c) */
-#define G_A24 (G_COUNT + 2)     /* PROJECT > A24: import SLOOP 2.4's autosave (GO, twice); no stored value */
 #define G_CGR (G_COUNT + 1)     /* LIMIT > GR: the master's gain reduction now, whole dB (master_comp.c); no stored value */
 #if FELUCCA_MASTER_COMP
 static int16_t mc_gr_view;      /* (its value: meters.c, the main loop) */
@@ -799,6 +882,7 @@ typedef struct {
     uint32_t cpu_q8;             /* audio ISR load, 1/256 */
     uint32_t master_q12;
     int32_t batt_raw;            /* smoothed ADC ch3 (battery divider), 0 = not read yet */
+    uint8_t batt_chg;            /* the supply (op_project.c sys_batt_chg): 0 on the cell, 1 5 V present, 2 charging; 0 = not read yet */
 } song_t;
 
 static track_t trk[NTRK];        /* the instrument: three parts and the drum track */

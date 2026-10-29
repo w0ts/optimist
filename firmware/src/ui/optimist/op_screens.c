@@ -5,7 +5,7 @@
  *   HOME (MIX)  the mixer: op_mixer.c (the rows are the tracks, the knobs the selected row's values)
  *   SOUND       the selected track's sound: the SOUND row (preset, engine, INIT, SAVE AS), then its pages
  *   FX          the global effects and the master: the FX and GLO pages
- *   PROJECT     the project slots, snapshots, user presets, TOOLS, SLOOP 2.4's autosave
+ *   PROJECT     the project slots, snapshots, user presets, TOOLS, MEMORY
  *   SYSTEM      the settings of the FM-1 (SLOOP's HOME-held menu), the calibration, ABOUT */
 typedef struct {
     uint32_t (*rows)(void);

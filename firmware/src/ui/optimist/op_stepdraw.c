@@ -220,7 +220,7 @@ static void roll_range(const track_t *t)
     rg.hi = b;
     ex = held_note();                                   /* the note being edited (a step held, or picked): always inside the rows, whatever OCT and the pattern say */
     if (ex < 0 && !st.held && pk_ok() && step_on(&t->step[st.pk]))
-        ex = t->step[st.pk].note[t->step[st.pk].n > 1u ? (st.nsel < t->step[st.pk].n ? st.nsel : t->step[st.pk].n - 1u) : 0u];
+        ex = t->step[st.pk].note[sel_one(t, st.pk)];
     if (ex >= 0 && ex < rg.lo)
         rg.hi -= rg.lo - ex, rg.lo = ex;
     else if (ex > rg.hi)
@@ -260,9 +260,18 @@ static int roll_sel(const track_t *t, uint32_t *at, int32_t *nt, uint32_t *ext)
     s = &t->step[i];
     if (!step_on(s))
         return 0;
-    k = s->n > 1u ? (st.nsel < s->n ? st.nsel : s->n - 1u) : 0u;
+    k = sel_one(t, (uint32_t)i);                        /* (a chord all selected: its lowest here, every one drawn: roll_selx) */
     *at = (uint32_t)i, *nt = s->note[k], *ext = (note_span(t, (uint32_t)i, k) + 127u) / 128u;
     return 1;
+}
+static int roll_selx(const track_t *t, uint32_t at, int32_t nt, uint32_t idx)   /* note nt drawn at step idx: one of the selected */
+{
+    const step_t *s = &t->step[at % NSTEP];
+    uint32_t m = sel_mask(t, at), k;
+    for (k = 0; k < s->n && k < 4u; k++)
+        if (((m >> k) & 1u) && s->note[k] == nt && idx >= at && idx < at + (note_span(t, at, k) + 127u) / 128u)
+            return 1;
+    return 0;
 }
 static int32_t roll_ny(int32_t nt) { return SG_TOP + sg_dy + (rg.n - 1 - rg.row[nt & 127]) * rg.rh; }   /* note nt's row's y (sg_dy: the
                                                          * roll moved so the edited note clears the cards) */
@@ -393,7 +402,7 @@ static void sg_roll(const track_t *t)
             if (!gn && step_muted(t, roll_org(t, idx), 0))
                 nc = col_shade(c, 2u);                  /* (a muted note: kept, dim; its ties too) */
 #endif
-            if (sel && nt == snt && idx >= sat && idx < sat + sext && (int32_t)w != sg_ph)
+            if (sel && roll_selx(t, sat, nt, idx) && (int32_t)w != sg_ph)
                 nc = C_NOTE;                            /* (the selected note, its whole length: its own colour) */
             if (!RV(nt))
                 continue;

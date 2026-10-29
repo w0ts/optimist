@@ -35,7 +35,7 @@ static void prophet_note_on(track_t *t, voice_t *v)
     v->s[6] = P5_NOCUT;
 }
 
-static void prophet_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
+static FAST(prophet) void prophet_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
 {
     const int16_t *p = t->p;
     uint32_t a = (uint32_t)clamp(p[P_E0], 0, 5), bw = P5_BWAVE[(uint32_t)clamp(p[P_E1], 0, 6)];

@@ -15,9 +15,6 @@ static void project_load(uint32_t slot);
 static int project_used(uint32_t slot);
 #if FELUCCA_SL24_SAFE
 static uint32_t project_state(uint32_t s);   /* project.c sl24_guard.c */
-#if SL24_AUTO
-static void sl24_auto_import(void);
-#endif
 #endif
 #define FAV_SAVE_LATER() (settings_later = 1)       /* (panel.c: written once the audio is quiet, project.c sections_flush) */
 #include "favorites.c"                      /* FELUCCA_FAVORITES: the marked sounds (fav, fav_list) */

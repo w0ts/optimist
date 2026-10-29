@@ -45,7 +45,5 @@ uint32_t btl_detach(uint8_t *out, uint32_t reason);
 /* the answer to the slave's PDU in p (len bytes), name our device's name (0-terminated) -> the answer's length in out
  * (0: none due). The answer carries the request's TID. Unknown or unsupported requests are not accepted. */
 uint32_t btl_answer(const uint8_t *p, uint32_t len, const char *name, uint8_t *out);
-/* a short name for an opcode (console), "?" for others */
-const char *btl_name(uint32_t opcode);
 
 #endif

@@ -25,7 +25,6 @@
 #include "ble_ll.h"
 #include "ble_hw.h"
 #include "ble_util.h"
-#include "ble_diag.h"
 #if BLE_SMP_LEGACY
 #include "ble_aes.h"
 #endif

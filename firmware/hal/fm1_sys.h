@@ -76,6 +76,17 @@ static void fm1_p33_write(uint32_t a, uint8_t d) { fm1__p33_op(0, a, d); }
 static void fm1_p33_or(uint32_t a, uint8_t d) { fm1__p33_op(1, a, d); }
 static void fm1_p33_and(uint32_t a, uint8_t d) { fm1__p33_op(2, a, d); }
 
+/* the supply, from the chip's power block (JieLi AC79 SDK include_lib/driver/cpu/wl82/asm/p33.h): P3_LDO5V_CON (0xA1) bit 5
+ * LDO5V_DET_GET (5 V on the supply pin), P3_CHG_CON0 (0x1A) bit 0 IS_CHARGE_EN (the chip's charger on), P3_CHG_READ (0x19)
+ * bit 0 CHARGE_FULL_FLAG_GET. 0: no 5 V (on the cell); 1: 5 V present, the chip's charger not running or full (or an external
+ * charger); 2: 5 V present, the charger on and not full = charging. Three P33 reads: interrupts off (the caller). The registers
+ * are the SDK's, not yet measured on an FM-1 */
+static uint32_t fm1_charge_state(void)
+{
+    uint8_t ldo = fm1_p33_read(0xA1u), con = fm1_p33_read(0x1Au), rd = fm1_p33_read(0x19u);
+    return !(ldo & 0x20u) ? 0u : (con & 1u) && !(rd & 1u) ? 2u : 1u;
+}
+
 /* ------------------------------------------------------------ watchdog --- */
 #define FM1_P3_WDT_CON 0x80u
 #define FM1_P3_VLD_KEEP 0x17u

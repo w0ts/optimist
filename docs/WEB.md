@@ -325,7 +325,7 @@ includes by a relative path, `fm1_usb.h`, `fm1_uart.h`, `fm1_xip.h`, through a c
 - **Panel**: `fm1_in` as the matrix scan leaves it, fed by the page (one change per key per scan frame, ~1.1 ms); knob steps
   added at once; the MASTER pot from the page; the battery reads full.
 
-Switched off whatever the configuration says (`tools/sim.py` `SIM_FORCE` and `SIM_FLAGS`): the second core (`DUAL`),
+Switched off whatever the configuration says (`tools/sim.py` `SIM_FORCE` and `SIM_FLAGS`): the second core (host builds have one),
 Bluetooth (`BLE`, `BT_AUDIO`), the cache RAM, USB audio and the serial console (`USB_CONSOLE=0`), SIMD, the asm kernels
 (their C runs), the stock supply start-up and the bench. No TRS MIDI IN, no CPU clock measured, no watchdog, no crash report
 from a CPU exception (a wasm trap is thrown to the page).

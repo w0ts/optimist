@@ -37,8 +37,8 @@ SIZE_FILES = ["ui/colors.c", "ui/splash.c", "storage/storage.c", "storage/uprese
               "ui/ph_blob.c", "ui/panel.c", "ui/lights.c", "storage/settings_word.c",
               "storage/miss.c", "seq/undo.c", "storage/drum_store.c", "storage/auto_proj.c",
               "storage/sections/stepx_log.c", "storage/sections/pat.c", "storage/snapshots/snapshots.c",
-              "storage/snapshots/snap_store.c", "storage/sl24/sl24_guard.c", "storage/sl24/sl24_import.c", "storage/sl24/sl24_fm6.c",
-              "io/editor/ed_sync9.c", "io/editor/ed_stepx.c", "io/editor/ed_pat.c", "io/editor/ed_sl24.c", "io/editor/ed_fxs.c", "storage/sl24/sl24_export.c",
+              "storage/snapshots/snap_store.c", "storage/sl24/sl24_guard.c", "storage/sl24/sl24_is.c",
+              "io/editor/ed_sync9.c", "io/editor/ed_stepx.c", "io/editor/ed_pat.c", "io/editor/ed_fxs.c",
               "io/editor/ed_fxp.c", "io/editor/ed_dlan.c", "io/editor/ed_scrn.c", "io/editor/ed_song.c", "io/editor/ed_tools.c", "io/editor/ed_scrs.c",
               "io/editor/ed_fav.c", "io/editor/ed_scope.c", "io/editor/ed_mirror.c", "io/editor/ed_undo.c", "io/editor/ed_note.c", "io/editor/ed_solo.c", "io/editor/ed_steplane.c", "io/editor/ed_proj.c", "io/editor/ed_clip.c", "io/editor/ed_comp.c",
               "fx/fx_slots.c", "fx/insfx/fxi.c", "fx/fx_arena.c", "core/arena_bufs.c",
@@ -66,7 +66,7 @@ OS_FILES = ["system/main.c", "system/supply.c", "io/usb/usb.c", "io/midi/midi_ri
             "engines/phys/phys_symp.c", "fx/reverb/rev_math.c", "fx/reverb/reverb_airwin.c",
             # BLE (FELUCCA_BLE): runs in the BLE interrupts, at -Os
             "ble/ble_prim.c", "ble/ble_aes.c", "ble/ble_ll.c",
-            "ble/ble_stack.c", "ble/ble_hw_stub.c", "ble/ble_diag.c", "ble/ble_smp.c",
+            "ble/ble_stack.c", "ble/ble_hw_stub.c", "ble/ble_smp.c",
             # the DEVICES list (FELUCCA_BLE): the main loop's (the scan table, the one-device store, the menu's glue)
             "ble/ble_scan.c", "ble/ble_store.c", "io/midi/ble_none.c",
             # connecting out (BLE_CENTRAL): the BLE interrupts' (the central LL, driver, GATT client, SMP initiator) and the
@@ -94,7 +94,7 @@ SIZE_FILES += ["bt/bt_afh.c", "bt/bta_mem.c", "ble/ble_hw_wl82.c", "bt/bt_inq.c"
 SIZE_FILES += ["storage/sd/sdcard.c", "storage/sd/sd_mmc.c", "storage/sd/pff.c", "io/console_sd.c",
                "storage/sd/sd_diskio.c", "storage/sd/fatfs/ff.c", "storage/sd/fatfs/ffunicode.c",
                "storage/sd/sd_layout.c", "storage/sd/sd_hash.c", "storage/sd/sd_alloc.c", "storage/sd/sd_index.c",
-               "storage/sd/sd_stream.c", "storage/sd/sd_slice.c", "storage/sd/sd_stream_plan.c",
+               "storage/sd/sd_stream.c", "storage/sd/sd_stream_rc.c", "storage/sd/sd_slice.c", "storage/sd/sd_stream_plan.c",
                "storage/sd/sd_browse.c", "storage/sd/sd_save.c", "storage/sd/sd_rec.c", "storage/sd/sd_mode.c",
                "system/far_probe.c"]
 # Wi-Fi + Link (WIFI_LINK, WIFI_AP)
@@ -109,7 +109,7 @@ AUDIO_FILES = [  # (the A2DP stream's SBC encoder runs in the audio interrupt: b
                "engines/engines.c", "core/arena.c", "core/overlay.c", "dsp/dsp.c", "engines/analog/eng_analog.c", "engines/analog/eng_analog2.c",
                "engines/digital/eng_digital.c", "engines/phase/eng_phase.c", "engines/lofi/eng_lofi.c",
                "engines/sample/eng_sample.c", "engines/formant/eng_formant.c", "engines/trio/eng_trio.c",
-               "engines/drawbar/eng_drawbar.c", "engines/grain/eng_grain.c", "engines/super/eng_super.c",
+               "engines/drawbar/eng_drawbar.c", "engines/grain/eng_grain.c", "engines/grain/grain_card.c", "engines/super/eng_super.c",
                "engines/fm6/eng_fm6.c", "engines/slice/eng_slice.c", "drums/drums.c", "drums/lane_card.c", "drums/synth/drum_synth.c", "drums/synth/drum_plaits.c",
                "drums/drum_edit.c", "drums/x0x/drum_x0x.c", "core/params.c", "core/voice.c", "fx/slicer/slicer.c", "fx/insfx/insfx.c", "fx/insfx/fxi_kern.c", "fx/insfx/gater.c", "fx/insfx/eq3.c", "fx/insfx/tapespit.c", "fx/insfx/xdly.c",
                "engines/juno/eng_juno.c", "engines/noise/eng_noise.c", "engines/drone/eng_drone.c", "engines/plaits/eng_plaits.c", "engines/clipper/eng_strings.c", "engines/clipper/eng_vps.c",
