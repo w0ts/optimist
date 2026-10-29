@@ -622,8 +622,8 @@ check("... 64 KB (the two big lines, no room for the chorus'): still the error; 
       and not [e for e in C.validate(dict(C.defaults(), ARENA=96, **_sd))[0] if "sends' lines" in e]
       and any("sends' lines together" in e for e in C.validate(dict(C.defaults(), ARENA=32, **dict(_sd, LAYOUT=0)))[0]))
 # one memory setting (the user, 2026-10-29: their profile had DLY_ARENA 64 inside ARENA 32): with ARENA the delay's line
-# and every insert line are blocks of the arena (fxi_mem.h FXA_LINES), DLY_ARENA ignored: its flag at the default, the
-# image the same as without it, a notice naming both; the effects memory has no own room, its counts the arena's
+# and the inserts' room are blocks of the arena (fxi_mem.h FXA_ROOM), DLY_ARENA ignored: its flag at the default, the
+# image the same as without it, a notice naming both; the effects memory has no static room, its counts the arena's
 _one = dict(C.defaults(), ARENA=96, **_four, INS_XDLY=1, XDLY_LEN=8192)
 _e, _w, _n = C.validate(dict(_one, DLY_ARENA=64))
 check("ARENA: DLY_ARENA 64 ignored (its flag 0, the same image as DLY_ARENA auto), said in a notice naming both",
