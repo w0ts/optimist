@@ -65,8 +65,8 @@ PAIRS = [{"MOTION": 1, "SECTIONS": 4},
          # its arrays are computed: configure.py auto_store)
          {"MICRO": 1, "FILLS": 1}, {"MICRO": 1, "PLOCK": 1}, {"FILLS": 1, "PLOCK": 1},
          {"MICRO": 1, "FILLS": 1, "PLOCK": 1},
-         # BLE with the CDC console (USB_CONSOLE): the console's blevm / bletrim commands; with BLE_DIAG blell's printing
-         {"BLE": 1, "USB_CONSOLE": 1}, {"BLE": 1, "BLE_DIAG": 1, "USB_CONSOLE": 1},
+         # BLE with the CDC console (USB_CONSOLE): the console's blevm / bletrim commands
+         {"BLE": 1, "USB_CONSOLE": 1},
          # USB audio + MIDI (with its resampler since 2026-10-15; MIDI only by default since 2026-10-12)
          {"USB_AUDIO": 1},
          # found 2026-10-12 (the "mots" check 4.7 KB under its real build; ~/costs bisection, each pair 0.3-1.6 KB of
@@ -76,17 +76,12 @@ PAIRS = [{"MOTION": 1, "SECTIONS": 4},
          {"CPU_GUARD": 1, "ENG_ACID": 1}, {"CPU_GUARD": 1, "DRUM_X0X909": 1}, {"CPU_GUARD": 1, "DRUM_X0X808": 1},
          {"CPU_GUARD": 1, "DRUM_X0X909": 1, "DRUM_X0X808": 1},
          {"MACROS": 1},
-         # BLE's bond and central together share code each one's delta pays (-3.5 KB flash, -0.35 KB RAM); the central
-         # with the diagnostics has more (+1.9 KB, +0.4 KB RAM); and each with the CDC console (the BLE test builds,
-         # tools/optimist.py BLE_FULL_SET: 7 KB under without these)
-         {"BLE": 1, "BLE_BOND": 1, "BLE_CENTRAL": 1}, {"BLE": 1, "BLE_CENTRAL": 1, "BLE_DIAG": 1},
-         {"BLE": 1, "BLE_BOND": 1, "BLE_CENTRAL": 1, "BLE_DIAG": 1},
-         {"BLE": 1, "BLE_BOND": 1, "BLE_CENTRAL": 1, "USB_CONSOLE": 1}, {"BLE": 1, "BLE_CENTRAL": 1, "BLE_DIAG": 1, "USB_CONSOLE": 1},
-         {"BLE": 1, "BLE_BOND": 1, "BLE_CENTRAL": 1, "BLE_DIAG": 1, "USB_CONSOLE": 1},
-         # the central's other levels other level (BLE_CENTRAL 3 no pairing, 2026-10-24): it shares none of SMP, its central block of the
-         # diagnostics is the same as 1's
-         {"BLE": 1, "BLE_BOND": 1, "BLE_CENTRAL": 3}, {"BLE": 1, "BLE_CENTRAL": 3, "BLE_DIAG": 1},
-         {"BLE": 1, "BLE_BOND": 1, "BLE_CENTRAL": 3, "BLE_DIAG": 1},
+         # BLE's bond and central together share code each one's delta pays (-3.5 KB flash, -0.35 KB RAM); and with
+         # the CDC console (the BLE test builds, tools/optimist.py BLE_FULL_SET)
+         {"BLE": 1, "BLE_BOND": 1, "BLE_CENTRAL": 1},
+         {"BLE": 1, "BLE_BOND": 1, "BLE_CENTRAL": 1, "USB_CONSOLE": 1},
+         # the central's other level (BLE_CENTRAL 3 no pairing, 2026-10-24): it shares none of SMP
+         {"BLE": 1, "BLE_BOND": 1, "BLE_CENTRAL": 3},
          # BLE and Bluetooth Classic Audio share the Bluetooth stack (HCI, the controller, L2CAP): with BT_AUDIO on, BLE costs
          # ~11 KB less than its delta from the defaults (2026-10-21, real builds of mots-2: BLE off 582,596, on 600,352 B,
          # the estimate said 611,664; with them both off the delta is 28.8 KB, with BT_AUDIO already built 17.8 KB)
@@ -95,9 +90,8 @@ PAIRS = [{"MOTION": 1, "SECTIONS": 4},
          # the same at the central's MINIMAL level (2026-10-24, synths_USBaudio_BTaudio_BTmidi: BLE_CENTRAL 3 -> 0 freed 10,648 B
          # of flash, the estimate said 12,460)
          {"BLE": 1, "BLE_CENTRAL": 3, "BT_AUDIO": 1},
-         # Bluetooth audio's diagnostics are built with BT_AUDIO only, and their log lines with the CDC console (the
-         # console otherwise leaves the stack silent: 14 KB of flash, mots 2026-10-21)
-         {"BT_AUDIO": 1, "BT_DIAG": 1}, {"BT_AUDIO": 1, "USB_CONSOLE": 1}, {"BT_AUDIO": 1, "BT_DIAG": 1, "USB_CONSOLE": 1},
+         # Bluetooth audio with the CDC console (the console leaves the stack's log lines silent)
+         {"BT_AUDIO": 1, "USB_CONSOLE": 1},
          # PLOCK's lock base is motion.c's (pool 292 B with PLOCK alone, none beyond MOTION's 900 with both: measured
          # 2026-10-15, user-default 292 B of pool over)
          {"MOTION": 1, "PLOCK": 1},

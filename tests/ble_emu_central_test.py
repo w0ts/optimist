@@ -125,7 +125,7 @@ def store_read(out, syms):
 
 def pick_and_reboot(diag, fwsc, tmp, on, spec, name, label):
     want = 0x8F if ":rpa" in spec else 0x87        # (used, role C, bonded, random; with the IRK when it has one)
-    syms = E.elf_symbols(fwsc, ("ble_store", "ble_dgc"))
+    syms = E.elf_symbols(fwsc, ("ble_store",))
     dumps = ",".join(f"{a:x}:{n}" for a, n in syms.values())
     pr, end = pick_presses()
     flash = Path(tmp) / f"{label}.flash"

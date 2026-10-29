@@ -37,7 +37,6 @@
  * run on TIMER4 (ble_hw_time_us). TX follows the vendor's contract, HW §8.2 (bit0 = 1 empty; see hw_tx_service). */
 #include "ble_hw.h"
 #include "ble_vm.h"                     /* the stored trims rf_init takes (ble_vm.c) */
-#include "ble_diag.h"                   /* console blell: counters only, no behaviour */
 #include "fm1_ble.h"
 #include "rf_share.h"                   /* the radio started once, shared with Bluetooth audio (bt/bt_inq.c) */
 
@@ -123,6 +122,12 @@ static struct ble_bb bb __attribute__((aligned(4)));
 #define CB (&bb.cb)
 
 enum { HW_OFF, HW_ADV, HW_CONN, HW_SCAN, HW_INIT };
+/* a link stop's path (hw_stop: the breadcrumb's stop word, hal/fm1_ble_rf.h): advertising, scanning, initiating, a
+ * connection, the stop before a link is opened */
+enum { HWS_ADV, HWS_SCAN, HWS_INIT, HWS_CONN, HWS_OPEN };
+/* how an advertising-state RX was found (hw_adv_find; 0: nothing): RXBUFnCNTL bit0 on rx_next, on the other buffer,
+ * the content alone in the buffer RXTOG moved past / still points at (those two wait for the packet's end) */
+enum { HWF_NONE, HWF_CNTL, HWF_CNTL_OTHER, HWF_TOG_PREV, HWF_TOG_CUR };
 enum { UPD_CONN = 1, UPD_CHM = 2 };
 
 static struct {
@@ -133,11 +138,8 @@ static struct {
     struct ble_hw_conn_upd u;
     uint8_t chm[5];
     struct ble_hw_adv adv;             /* the advertising set (the link layer's PDUs stay where they are) */
-    uint8_t t_conn;                    /* t_us was taken in a connection (clk_step_max) */
     uint8_t tx_rec[2];                 /* a PDU of ours recorded in TX buffer b (handed over, not yet finished) */
     uint8_t tx_md[2];                  /* its MD bit */
-    uint16_t tx_at[2];                 /* the event it was loaded in (tx_ack_evt_max) */
-    uint32_t t_us;                     /* the last ble_hw_time_us */
 #if BLE_CENTRAL
     uint8_t scan_ch, scan_active;      /* scanning: the channel the next event programs (HW §21.2), SCAN_REQ on */
     uint8_t bo_count, bo_sent, bo_succ, bo_fail;   /* the active-scan backoff (Core Vol 6 Part B 4.4.3.2) */
@@ -147,7 +149,7 @@ static struct {
     uint8_t master;                    /* the connection is ours (state 6) */
     uint8_t init_hit, init_own_rand, init_peer_rand;   /* the target's ADV_IND seen: switch at the next event IRQ */
     uint8_t init_own[6], init_peer[6];
-    uint32_t init_t_hit;               /* (diagnostics: its RX IRQ, ticks) */
+    uint32_t init_t_hit;               /* its RX IRQ (ticks): how late the master's set-up is */
     uint32_t init_t0;                  /* the engine listening for the target from here (ticks): ble_hw_init_start */
     struct ble_hw_conn ic;             /* our CONNECT_IND's LLData */
 #endif
@@ -159,17 +161,15 @@ struct ble_hw_stats {
 };
 static struct ble_hw_stats ble_hw_stat;
 
-/* ------------------------------------------------------------------------------- diagnostics (blell) --- */
+/* -------------------------------------------------------------------------------------------- clock --- */
 
 static struct {
     uint32_t base, us;                  /* TIMER4 ticks already counted, microseconds since the radio first started */
-    uint32_t isr_t0, conn_t0;           /* this ISR's entry, state 7 written (ticks) */
-    uint8_t first_rx, c3_seen;          /* per connection: first RX IRQ / first zero column 3 recorded */
 } hwd;
 
 /* microseconds since the first BLUETOOTH ON (ble_hw_wl82_start), from TIMER4 (24 MHz, wraps in 179 s: called at every
  * BLE interrupt, at least every advertising interval while the radio runs) */
-BLE_API uint32_t ble_hw_diag_now(void)
+static uint32_t hw_now_us(void)
 {
     uint32_t d = (fm1_ticks() - hwd.base) / FM1_TICKS_PER_US;
     hwd.base += d * FM1_TICKS_PER_US;
@@ -182,7 +182,7 @@ BLE_API uint32_t ble_hw_diag_now(void)
  * polls (~0.75 ms) after every stop of a scanning link: the scan window that was open goes on to its end [I], so the
  * stops the main loop makes (advertising, scanning, initiating: ble_ll_scan, ble_ll_connect, ble_ll_enable) wait up to
  * a whole scanning window; a connection's stop (its end, in the BLE interrupts) up to one event; a link opened right
- * after a stop of ours finds it idle. Measured per path for `blell` (stop_*, busy_max in us, busy_timeouts). */
+ * after a stop of ours finds it idle (the breadcrumb's stop word names the path and the wait). */
 #define HW_STOP_WAIT_US ((uint32_t)BLE_SCAN_WINDOW * 625u + 2500u)   /* 40 ms: a scanning / initiating window */
 #define HW_STOP_CONN_US 3000u           /* a connection event (the master's ended with its last packet) */
 #define HW_STOP_OPEN_US 200u            /* hw_link_open: the stop before it waited already */
@@ -193,21 +193,6 @@ static void hw_stop(uint8_t path, uint32_t max_us)
     fm1_ble_bc.stop = 0x5D000000u | (uint32_t)path << 16;  /* the breadcrumb: waiting (a watchdog reset keeps it) */
     us = fm1_ble_link_stop(HW_LINK, max_us);
     fm1_ble_bc.stop = 0x5E000000u | (uint32_t)path << 16 | (us > 0xFFFFu ? 0xFFFFu : us);
-#if BLE_DIAG
-    uint16_t u16 = (uint16_t)(us > 0xFFFFu ? 0xFFFFu : us);
-    ble_dg.stop_n[path]++;
-    ble_dg.stop_last = path;
-    if (us)
-        ble_dg.stop_busy[path]++;
-    if (u16 > ble_dg.stop_us_max[path])
-        ble_dg.stop_us_max[path] = u16;
-    if (u16 > ble_dg.busy_max)
-        ble_dg.busy_max = u16;
-#endif
-    if (us >= max_us)
-        BLE_DG(ble_dg.busy_timeouts++);
-    if (us >= 50u || us >= max_us)                         /* "busy <path> <us>" in the ring */
-        ble_diag_ev(BDE_BUSY, (uint32_t)path << 13 | (us >> 3 > 0x1FFFu ? 0x1FFFu : us >> 3));
 }
 
 static void hw_cpy(uint8_t *d, const uint8_t *s, uint32_t n)
@@ -219,24 +204,15 @@ static void hw_cpy(uint8_t *d, const uint8_t *s, uint32_t n)
 /* ------------------------------------------------------------------------------------------- time base --- */
 
 /* The link layer's timers (supervision, the 40 s procedure timeout, the establishment rule): TIMER4 microseconds,
- * monotonic (ble_hw_diag_now), not the engine's slot clock. On the FM-1 (blell3, 9a90c7d, 2026-10-08) the slot clock
+ * monotonic (hw_now_us), not the engine's slot clock. On the FM-1 (blell3, 9a90c7d, 2026-10-08) the slot clock
  * read through columns 0 / 14 (op 2) stepped BACKWARDS inside a connection: clk_step_max 16777215, and
  * close_since_start_us 1,895,854,158 = (2^24 - k) x 625 mod 2^32 + the real time, i.e. a step back of k ~ 267 slots
  * read as a jump of ~10,486 s forward, so the LL response timeout (0x22, 40 s) fired 0.2-2.1 s into every connection
  * with a feature exchange pending. TIMER4 is read with a plain load (no column op), so the ISRs also issue three
- * column reads fewer per call. The engine keeps its anchors on its own clock. clk_step_max now holds the largest step
- * of this clock between two calls in a connection (us; a sanity check: about one interval). */
+ * column reads fewer per call. The engine keeps its anchors on its own clock. */
 BLE_API uint32_t ble_hw_time_us(void)
 {
-    uint32_t t = ble_hw_diag_now();
-#if BLE_DIAG
-    uint32_t step = t - drv.t_us;
-    if (drv.state == HW_CONN && drv.t_conn && step > ble_dg.clk_step_max)
-        ble_dg.clk_step_max = step;
-#endif
-    drv.t_us = t;
-    drv.t_conn = drv.state == HW_CONN;
-    return t;
+    return hw_now_us();
 }
 
 BLE_API void ble_hw_rand(uint8_t *out, uint8_t n)
@@ -346,7 +322,7 @@ static void hw_link_open(void)
     uint32_t c;
     uint8_t *p = (uint8_t *)&bb.sw;
     fm1_ble_step(FM1_BLE_STEP_LINK_STOP);
-    hw_stop(BDS_OPEN, HW_STOP_OPEN_US);
+    hw_stop(HWS_OPEN, HW_STOP_OPEN_US);
     fm1_ble_step(FM1_BLE_STEP_LINK_OPEN);
     for (c = 0; c <= 16u; c++)
         fm1_ble_col_wr(HW_LINK, c, 0);
@@ -462,13 +438,11 @@ static void hw_adv_program(void)
     drv.state = HW_ADV;
     drv.gen++;
     fm1_ble_step(FM1_BLE_STEP_ADV_STARTED);
-    BLE_DG(ble_dg.adv_starts++);                                   /* (no column read here: see below) */
-    ble_diag_ev(BDE_ADV_START, a->interval);
     /* 1f0ab85 read columns 2, 14, 15 (op 2) right here, the command port's next command straight after the start
      * (column 14 = 0x8000): the first BLUETOOTH ON from the menu then hung the FM-1 until its watchdog reset it
      * (2026-10-08, prev_stage 9, prev_rst 0x04), where 1cc6e04 without the reads advertised. Op 2 is known from
      * static analysis only (HW §2.1, never traced), so the start path and the interrupts issue no column read that
-     * 1cc6e04 did not; `blell regs` reads them on request. */
+     * 1cc6e04 did not. */
 }
 
 BLE_API void ble_hw_adv_start(const struct ble_hw_adv *a)
@@ -479,8 +453,7 @@ BLE_API void ble_hw_adv_start(const struct ble_hw_adv *a)
 
 BLE_API void ble_hw_adv_stop(void)
 {
-    hw_stop(drv.state == HW_CONN ? BDS_CONN : BDS_ADV, drv.state == HW_CONN ? HW_STOP_CONN_US : HW_STOP_WAIT_US);
-    ble_diag_ev(BDE_ADV_STOP, drv.state);
+    hw_stop(drv.state == HW_CONN ? HWS_CONN : HWS_ADV, drv.state == HW_CONN ? HW_STOP_CONN_US : HW_STOP_WAIT_US);
     drv.state = HW_OFF;
     drv.gen++;
 }
@@ -547,12 +520,6 @@ BLE_API void ble_hw_conn_start(const struct ble_hw_conn *c)
     drv.sca = c->sca;
     drv.last_evt = 0xFFFFu;
     ble_hw_stat.connects++;
-    hwd.conn_t0 = fm1_ticks();                             /* (diagnostics: after the engine has state 7) */
-    hwd.first_rx = hwd.c3_seen = 0;
-    BLE_DG(ble_dg.cind_isr_us = (hwd.conn_t0 - hwd.isr_t0) / FM1_TICKS_PER_US);
-    BLE_DG(ble_dg.first_rx_us = 0);
-    BLE_DG(ble_dg.first_rx_evt = ble_dg.first_evt = 0xFFFFu);
-    BLE_DG(ble_diag_ev(BDE_CONN_SET, ble_dg.cind_isr_us));
 }
 
 BLE_API void ble_hw_conn_stop(void)
@@ -601,32 +568,7 @@ BLE_API void ble_hw_tx_kick(void) {}
  * on a buffer we loaded. The service runs at the end of every connection RX interrupt, after the RX buffers (never
  * from the event interrupt): a consistent snapshot of TXTOG bit0 and both bit0s, then the TXTOG buffer, then the other.
  * Earlier drivers (5008663 .. 51792b7) had the polarity backwards (1 = loaded), hence blell4-9's stalls (§8.2 point 6).
- * RAM only (blell txs_*). */
-#if BLE_DIAG
-static void hw_tx_snap(uint8_t what, uint32_t b, uint32_t s)
-{
-    struct ble_diag_txs *x = &ble_dg.txs[ble_dg.txs_n++ & (BLE_DIAG_TXS - 1u)];
-    x->t_us = ble_hw_diag_now();
-    x->evt = drv.last_evt;
-    x->txtog = CB->txtog;
-    x->txdhdr[0] = CB->txdhdr[0];
-    x->txdhdr[1] = CB->txdhdr[1];
-    x->intframe = CB->intframe;
-    x->txptr[0] = CB->txptr[0];
-    x->txptr[1] = CB->txptr[1];
-    x->rxdhdr = CB->rxdhdr[(CB->rxtog & 1u) ^ 1u];      /* the central's last header: its NESN (bit2) / SN (bit3) */
-    x->cntl[0] = CB->txbufcntl[0];
-    x->cntl[1] = CB->txbufcntl[1];
-    x->what = what;
-    x->b = (uint8_t)b;
-    x->n = (uint8_t)(drv.tx_rec[0] | drv.tx_rec[1] << 1);
-    x->snap = (uint8_t)s;
-    if (what == BTX_LOAD && !ble_dg.txs_first.what)
-        ble_dg.txs_first = *x;
-}
-#else
-#define hw_tx_snap(what, b, s) ((void)(s))
-#endif
+ * RAM only. */
 
 /* bit0 TXTOG bit0, bit1 TXBUF0CNTL bit0, bit2 TXBUF1CNTL bit0 */
 static uint32_t hw_tx_read(void)
@@ -636,19 +578,12 @@ static uint32_t hw_tx_read(void)
 
 /* buffer b reads empty: our PDU in it is acknowledged; then the next PDU (control first: ble_ll_hw_tx) goes in.
  * 0: the link went with the acknowledgement (our LL_TERMINATE_IND) */
-static int hw_tx_empty(uint32_t b, uint32_t s)
+static int hw_tx_empty(uint32_t b)
 {
     uint8_t g = drv.gen, n, md, *pdu;
     if (drv.tx_rec[b]) {
         drv.tx_rec[b] = 0;
-#if BLE_DIAG
-        uint16_t age = (uint16_t)(drv.last_evt - drv.tx_at[b]);
-        if (age != 0xFFFFu && age > ble_dg.tx_ack_evt_max)
-            ble_dg.tx_ack_evt_max = age;
-#endif
-        hw_tx_snap(BTX_ACK, b, s);
         ble_hw_stat.acked++;
-        BLE_DG(ble_dg.tx_acked++);
         ble_ll_hw_tx_acked();
         if (drv.gen != g || drv.state != HW_CONN)
             return 0;
@@ -657,7 +592,6 @@ static int hw_tx_empty(uint32_t b, uint32_t s)
     n = ble_ll_hw_tx(pdu);
     if (!n) {
         CB->intframe &= (uint16_t)~0x40u;                  /* nothing queued: bit0 stays 1, the engine sends empty */
-        BLE_DG(ble_dg.tx_none++);
         return 1;
     }
     md = (uint8_t)(pdu[0] >> 4 & 1u);                      /* the link layer's MD: another PDU still queued */
@@ -669,20 +603,15 @@ static int hw_tx_empty(uint32_t b, uint32_t s)
     CB->txbufcntl[b] &= (uint8_t)~1u;                      /* the last write: the engine's now */
     drv.tx_rec[b] = 1;
     drv.tx_md[b] = md;
-    drv.tx_at[b] = drv.last_evt;
     ble_hw_stat.tx++;
-    BLE_DG(ble_dg.tx_queued++);
-    hw_tx_snap(BTX_LOAD, b, s);
     return 1;
 }
 
 /* buffer b is the engine's: untouched, except MD on our own PDU in it when more has been queued since */
 static void hw_tx_held(uint32_t b)
 {
-    if (!drv.tx_rec[b]) {
-        BLE_DG(ble_dg.tx_eng_held++);                              /* bit0 0 with nothing of ours (seen at the first event) */
+    if (!drv.tx_rec[b])
         return;
-    }
     if (!drv.tx_md[b] && ble_ll_hw_tx_pending()) {
         drv.tx_md[b] = 1;
         CB->txdhdr[b] = (uint16_t)(CB->txdhdr[b] | 8u);   /* (bit2 and the rest as they are) */
@@ -701,7 +630,7 @@ static void hw_tx_service(void)
     for (k = 0; k < 2u; k++) {
         uint32_t b = t ^ k;
         if (s >> (1u + b) & 1u) {
-            if (!hw_tx_empty(b, s))
+            if (!hw_tx_empty(b))
                 return;
         } else
             hw_tx_held(b);
@@ -711,9 +640,9 @@ static void hw_tx_service(void)
 /* ---- RX while advertising. On the FM-1 (510e616, 2026-10-08) every RX IRQ while a Mac scanned and connected found
  * RXBUFnCNTL bit0 = 0 on rx_next and on the other buffer (rx_irqs 14, rx_nothing 14): the engine's RX semantics are
  * not the model's. HW §3 marks RXTOG and the CNTL direction [I] (U7), and where an advertising PDU's header and length
- * go is not in the sheet. So the driver looks for the packet by several rules, in this order, and counts the one that
- * found it (blell rxf_*): CNTL bit0 = 1 on rx_next (the model), on the other buffer, then the content alone: a
- * SCAN_REQ / CONNECT_IND carries our AdvA at payload offset 6 (Core Vol 6 Part B 2.3.2), so a buffer holding our
+ * go is not in the sheet. So the driver looks for the packet by several rules, in this order: CNTL bit0 = 1 on
+ * rx_next (the model), on the other buffer, then the content alone: a SCAN_REQ / CONNECT_IND carries our AdvA at
+ * payload offset 6 (Core Vol 6 Part B 2.3.2), so a buffer holding our
  * AdvA there (payload at RXPTR, the sheet's layout) or at offset 8 (the 2 header bytes at RXPTR) holds a packet to us.
  * To tell a new packet from an old one without CNTL, every RX buffer's first 40 bytes and its RXAHDR / RXDHDR /
  * RXSTAT are zeroed when armed. RAM only: no column read (op 2) on this path (see hw_adv_program's note). */
@@ -765,35 +694,7 @@ static int hw_adv_parse(uint32_t b, struct hw_adv_pdu *o)
     return 0;
 }
 
-#if BLE_DIAG
-static void hw_rx_snap(uint8_t where, uint8_t found, uint8_t layout, uint32_t wait_us)
-{
-    struct ble_diag_rxs *s = &ble_dg.rxs[ble_dg.rxs_n++ & (BLE_DIAG_RXS - 1u)];
-    uint32_t b, i;
-    s->t_us = ble_hw_diag_now();
-    s->rxtog = CB->rxtog;
-    s->ifscnt = CB->ifscnt;
-    for (b = 0; b < 2u; b++) {
-        s->stat[b] = CB->rxstat[b];
-        s->ahdr[b] = CB->rxahdr[b];
-        s->dhdr[b] = CB->rxdhdr[b];
-        s->cntl[b] = CB->rxbufcntl[b];
-        for (i = 0; i < 4u; i++)
-            s->b[b][i] = bb.rx[b].buf[HW_SWHDR + i];
-    }
-    s->where = where;
-    s->found = found;
-    s->rx_next = drv.rx_next;
-    s->layout = layout;
-    s->wait_us = (uint16_t)(wait_us > 0xFFFFu ? 0xFFFFu : wait_us);
-    if (found && !ble_dg.rxs_first.found)
-        ble_dg.rxs_first = *s;
-}
-#else
-#define hw_rx_snap(where, found, layout, wait_us) ((void)(layout))   /* (layout: hw_adv_parse runs as before) */
-#endif
-
-/* the buffer holding a new advertising-channel PDU, by the rules in this order (*found: BDF_*), else -1. Measured on
+/* the buffer holding a new advertising-channel PDU, by the rules in this order (*found: HWF_*), else -1. Measured on
  * the FM-1 (blell3, 9a90c7d: 54 of 54 finds, rxf_tog_prev 50 + rxf_late 5 by the event ISR's look, cntl 0, layout 0 =
  * payload at RXPTR, header in RXAHDR / RXDHDR): the packet is in the buffer RXTOG has moved PAST, and RXBUFnCNTL stays
  * 00 while advertising. So that rule goes first; CNTL on rx_next, CNTL on the other buffer and the content of RXTOG's
@@ -803,62 +704,34 @@ static int hw_adv_find(uint8_t *found)
     struct hw_adv_pdu o;
     uint32_t n = drv.rx_next & 1u, prev = (CB->rxtog & 1u) ^ 1u;
     if (hw_adv_parse(prev, &o)) {
-        *found = BDF_TOG_PREV;
+        *found = HWF_TOG_PREV;
         return (int)prev;
     }
     if (CB->rxbufcntl[n] & 1u) {
-        *found = BDF_CNTL;
+        *found = HWF_CNTL;
         return (int)n;
     }
     if (CB->rxbufcntl[n ^ 1u] & 1u) {
-        *found = BDF_CNTL_OTHER;
+        *found = HWF_CNTL_OTHER;
         return (int)(n ^ 1u);
     }
     if (hw_adv_parse(prev ^ 1u, &o)) {
-        *found = BDF_TOG_CUR;
+        *found = HWF_TOG_CUR;
         return (int)(prev ^ 1u);
     }
-    *found = BDF_NONE;
+    *found = HWF_NONE;
     return -1;
 }
 
 /* a CONNECT_IND (or a stored SCAN_REQ) while advertising, in buffer b (HW §7) */
-static void hw_rx_adv(uint32_t b, uint8_t found)
+static void hw_rx_adv(uint32_t b)
 {
     struct hw_adv_pdu o;
-    uint16_t ah = CB->rxahdr[b], st = CB->rxstat[b];
-    uint8_t s = (uint8_t)(st & 0xFu);
+    uint8_t s = (uint8_t)(CB->rxstat[b] & 0xFu);
     int ok = hw_adv_parse(b, &o);
-    switch (found) {
-    case BDF_CNTL: BLE_DG(ble_dg.rxf_cntl++); break;
-    case BDF_CNTL_OTHER: BLE_DG(ble_dg.rxf_cntl_other++); break;
-    case BDF_TOG_PREV: BLE_DG(ble_dg.rxf_tog_prev++); break;
-    default: BLE_DG(ble_dg.rxf_tog_cur++); break;
-    }
-    if (ok && o.layout == 2u)
-        BLE_DG(ble_dg.rxl_buf++);
-    else if (ok)
-        BLE_DG(ble_dg.rxl_cb++);
-    else
-        BLE_DG(ble_dg.rxl_none++);
-    if (ok && o.layout == 1u && (ah & 0x0Fu) != 3u && (ah & 0x0Fu) != 5u)
-        BLE_DG(ble_dg.rxh_synth++);
     CB->rxbufcntl[b] &= (uint8_t)~1u;                      /* re-armed: conn_start below does not read RX */
     drv.rx_next = (uint8_t)(b ^ 1u);
-    BLE_DG(ble_dg.adv_rx++);
-    if (ok && s == 0u)
-        BLE_DG(ble_dg.rx_stat_zero++);                             /* RXSTAT never written: the content decides */
-    else if (ok && s != 1u)
-        BLE_DG(ble_dg.rx_stat_bad_valid++);
     if (!ok || (s != 0u && s != 1u) || o.type != 0x5u) {
-        if (ok && o.type == 0x3u && (s == 0u || s == 1u))
-            BLE_DG(ble_dg.scan_req++);                             /* a stored SCAN_REQ: the engine answered it */
-        else {
-            BLE_DG(ble_dg.adv_drop++);                             /* not passed on, and advertising not restarted */
-            BLE_DG(ble_dg.adv_drop_stat = st);
-            BLE_DG(ble_dg.adv_drop_hdr = ah);
-            ble_diag_ev(BDE_ADV_DROP, (uint32_t)(st & 0xFFu) | (uint32_t)(ah & 0xFFu) << 8);
-        }
         hw_rx_wipe(b);
         return;
     }
@@ -874,29 +747,14 @@ static void hw_rx_adv_isr(uint32_t t0)
     uint8_t g = drv.gen, f;
     uint32_t k, w = 0;
     int b = hw_adv_find(&f);
-    hw_rx_snap(0, f, 0, 0);
-    if (!(CB->rxbufcntl[drv.rx_next & 1u] & 1u))
-        BLE_DG(ble_dg.rx_nothing++);                               /* (the old rule's verdict, kept for comparison) */
     while (b < 0 && (w = (fm1_ticks() - t0) / FM1_TICKS_PER_US) < HW_RX_POLL_US)
         b = hw_adv_find(&f);
-    if (b < 0) {
-        BLE_DG(ble_dg.rxf_none++);
-        hw_rx_snap(1, BDF_NONE, 0, w);
+    if (b < 0)
         return;
-    }
-    while (f >= BDF_TOG_PREV && !(CB->rxbufcntl[b] & 1u) && (fm1_ticks() - t0) / FM1_TICKS_PER_US < HW_RX_SETTLE_US)
+    while (f >= HWF_TOG_PREV && !(CB->rxbufcntl[b] & 1u) && (fm1_ticks() - t0) / FM1_TICKS_PER_US < HW_RX_SETTLE_US)
         ;                                                  /* content only: let the engine finish the packet */
-    if (w) {
-        struct hw_adv_pdu o;
-        BLE_DG(ble_dg.rxf_wait++);
-#if BLE_DIAG
-        if (w > ble_dg.rx_wait_us_max)
-            ble_dg.rx_wait_us_max = w;
-#endif
-        hw_rx_snap(1, f, (uint8_t)(hw_adv_parse((uint32_t)b, &o) ? o.layout : 0u), w);
-    }
     for (k = 0; k < 2u && b >= 0 && drv.state == HW_ADV && drv.gen == g; k++) {
-        hw_rx_adv((uint32_t)b, f);
+        hw_rx_adv((uint32_t)b);
         if (drv.gen != g || drv.state != HW_ADV)
             return;
         b = hw_adv_find(&f);
@@ -906,16 +764,13 @@ static void hw_rx_adv_isr(uint32_t t0)
 /* event ISR, advertising: a packet the RX ISR did not see (an IRQ missed, or filled after its poll) */
 static void hw_rx_adv_late(void)
 {
-    struct hw_adv_pdu o;
     uint8_t g = drv.gen, f;
     uint32_t k;
     int b = hw_adv_find(&f);
     if (b < 0)
         return;
-    hw_rx_snap(2, f, (uint8_t)(hw_adv_parse((uint32_t)b, &o) ? o.layout : 0u), 0);
     for (k = 0; k < 2u && b >= 0 && drv.state == HW_ADV && drv.gen == g; k++) {
-        BLE_DG(ble_dg.rxf_late++);
-        hw_rx_adv((uint32_t)b, f);
+        hw_rx_adv((uint32_t)b);
         if (drv.gen != g || drv.state != HW_ADV)
             return;
         b = hw_adv_find(&f);
@@ -937,39 +792,16 @@ static void hw_rx_service(void)
         RING_PUBLISH();
         dh = CB->rxdhdr[b];
         st = CB->rxstat[b];
-        if ((CB->rxtog & 1u) != b)
-            BLE_DG(ble_dg.rxc_tog_past++);                         /* (diagnostics) RXTOG moved past the filled buffer */
-        else
-            BLE_DG(ble_dg.rxc_tog_at++);
         drv.rx_next ^= 1u;
         drv.rx_seen = drv.rx_any = 1;
-        if (!hwd.first_rx) {                               /* (diagnostics) the first packet of this connection */
-            hwd.first_rx = 1;
-            BLE_DG(ble_dg.first_rx_us = (fm1_ticks() - hwd.conn_t0) / FM1_TICKS_PER_US);
-            BLE_DG(ble_dg.first_rx_evt = CB->evtcount);
-#if BLE_CENTRAL && BLE_DIAG
-            if (drv.master) {                              /* C5: the master's first anchor reached the peripheral */
-                ble_dgc.m_first_rx_us = ble_dg.first_rx_us;
-                ble_dgc.m_first_rx_evt = CB->evtcount;
-            }
-#endif
-            ble_diag_ev(BDE_FIRST_RX, st);
-        }
         if ((st & 0xFu) != 1u) {
             ble_hw_stat.rx_error++;                        /* HW §8 step 4: errored, length 0 */
-            BLE_DG(ble_dg.rx_crc_bad++);
-            BLE_DG(ble_dg.rx_bad_stat = st);
-            BLE_DG(if (ble_dg.rx_crc_bad <= 4u) ble_diag_ev(BDE_RX_BAD, st));
         } else if ((dh >> 3 & 1u) != drv.rx_sn) {
             ble_hw_stat.rx_repeat++;                       /* the central's retransmission: already delivered */
-            BLE_DG(ble_dg.rx_repeat++);
         } else {
             uint8_t *pdu = &bb.rx[b].buf[HW_SWHDR - 2u];
             drv.rx_sn ^= 1u;
             ble_hw_stat.rx++;
-            BLE_DG(ble_dg.rx_good++);
-            if (!(dh >> 8) && (dh & 3u) == 1u)
-                BLE_DG(ble_dg.rx_empty++);
             pdu[0] = (uint8_t)(dh & 0x1Fu);
             pdu[1] = (uint8_t)(dh >> 8);
             if (pdu[1] || (pdu[0] & 3u) != 1u)            /* empty PDUs are not passed on */
@@ -989,7 +821,6 @@ static void hw_instants(uint16_t counter)
             ble_hw_stat.late_instant++;
         cb_channels(drv.chm);
         drv.upd &= (uint8_t)~UPD_CHM;
-        ble_diag_ev(BDE_INSTANT, drv.chm_instant);
     }
     if ((drv.upd & UPD_CONN) && (int16_t)(drv.upd_instant - counter) <= 1) {
         const struct ble_hw_conn_upd *u = &drv.u;
@@ -1008,7 +839,6 @@ static void hw_instants(uint16_t counter)
             drv.win_wide = 1;
             drv.wide_from = (uint16_t)(drv.upd_instant + 2u);
             drv.upd &= (uint8_t)~UPD_CONN;
-            ble_diag_ev(BDE_INSTANT, drv.upd_instant);
             return;
         }
 #endif
@@ -1023,7 +853,6 @@ static void hw_instants(uint16_t counter)
         drv.win_wide = 1;
         drv.wide_from = drv.upd_instant;
         drv.upd &= (uint8_t)~UPD_CONN;
-        ble_diag_ev(BDE_INSTANT, drv.upd_instant);
     }
 }
 
@@ -1034,40 +863,20 @@ static void hw_event_service(void)
     if (drv.state != HW_CONN)
         return;                                            /* advertising: the engine does it all (HW §8 IRQ 45 step 2) */
     c3 = (uint16_t)fm1_ble_col_rd(HW_LINK, 3);
-    if (!c3) {
-        BLE_DG(ble_dg.c3_zero++);
-        if (!hwd.c3_seen) {
-            hwd.c3_seen = 1;
-            ble_diag_ev(BDE_C3_ZERO, 0);
-        }
+    if (!c3)
         return;                                            /* no connection event opened yet (the advertising event
                                                             * the CONNECT_IND ended) */
-    }
     counter = (uint16_t)(c3 - 1u);                         /* HW §2.3 column 3: minus 1 [M:s] */
-    if (counter == drv.last_evt) {
-        BLE_DG(ble_dg.evt_same++);
+    if (counter == drv.last_evt)
         return;
-    }
-    if (drv.last_evt == 0xFFFFu) {
-        BLE_DG(ble_dg.first_evt = counter);
-        ble_diag_ev(BDE_FIRST_EVT, counter);
-    }
     drv.last_evt = counter;
     ble_hw_stat.events++;
-    BLE_DG(ble_dg.conn_events++);
-    BLE_DG(ble_dg.last_evt = counter);
     /* a reception in this event: an RX interrupt, or EVTCOUNT (also moved by a repeat the engine dropped) */
     rx_ok = (uint8_t)(drv.rx_seen || (drv.rx_any && CB->evtcount == counter));
     drv.rx_seen = 0;
     hw_instants(counter);
 #if BLE_CENTRAL
     if (drv.master) {
-#if BLE_DIAG
-        ble_dgc.m_events++;
-        ble_dgc.m_events_rx += rx_ok;
-        if (ble_dgc.m_first_evt == 0xFFFFu)
-            ble_dgc.m_first_evt = counter;
-#endif
         if (drv.win_wide && rx_ok && (int16_t)(counter - drv.wide_from) >= 0 && !drv.upd) {
             cb_window(0);                                  /* HW §21.3 step 4 / §21.4: 0, and 30 us after our TX */
             CB->wincntl2 = 30u;
@@ -1093,23 +902,16 @@ static void hw_isr_end(uint32_t t0)
     uint32_t d = fm1_ticks() - t0;
     if (d > ble_hw_stat.isr_max_ticks)
         ble_hw_stat.isr_max_ticks = d;
-#if BLE_DIAG                                           /* (blell: with enc_on, what the software AES-CCM costs) */
-    if (d / FM1_TICKS_PER_US > ble_dg.isr_max_us)
-        ble_dg.isr_max_us = d / FM1_TICKS_PER_US;
-#endif
 }
 
 void ble_wl82_rx_irq(void)              /* IRQ 29, via isr_ble_rx (hal/fm1_ble.h) */
 {
     uint32_t t0 = fm1_ticks();
     uint8_t conn = drv.state == HW_CONN;  /* a connection RX interrupt: the TX service at its end (HW §8.2 point 3) */
-    hwd.isr_t0 = t0;
     fm1_ble_crumb_irqs++;
     fm1_ble_rx_ack(HW_LINK);
-    BLE_DG(ble_dg.rx_irqs++);
 #if BLE_CENTRAL
     if (drv.state == HW_SCAN) {
-        BLE_DG(ble_dgs.rx_irqs++);
         RING_PUBLISH();
         hw_rx_scan();
         hw_isr_end(t0);
@@ -1128,13 +930,6 @@ void ble_wl82_rx_irq(void)              /* IRQ 29, via isr_ble_rx (hal/fm1_ble.h
         hw_isr_end(t0);
         return;
     }
-    if (drv.state != HW_OFF && !(CB->rxbufcntl[drv.rx_next] & 1u)) {
-        if (CB->rxbufcntl[drv.rx_next ^ 1u] & 1u) {        /* the engine filled the other buffer: we wait on this one */
-            BLE_DG(ble_dg.rx_desync++);
-            BLE_DG(if (ble_dg.rx_desync <= 4u) ble_diag_ev(BDE_RX_DESYNC, (uint32_t)CB->rxtog | (uint32_t)drv.rx_next << 4 | (uint32_t)drv.state << 8));
-        } else
-            BLE_DG(ble_dg.rx_nothing++);
-    }
     hw_rx_service();
     if (conn)
         hw_tx_service();                                   /* after both RX buffers; never from the event IRQ */
@@ -1144,12 +939,8 @@ void ble_wl82_rx_irq(void)              /* IRQ 29, via isr_ble_rx (hal/fm1_ble.h
 void ble_wl82_event_irq(void)           /* IRQ 45, via isr_ble_event */
 {
     uint32_t t0 = fm1_ticks();
-    hwd.isr_t0 = t0;
     fm1_ble_crumb_irqs++;
     fm1_ble_event_ack(HW_LINK);
-    BLE_DG(ble_dg.evt_irqs++);
-    if (drv.state == HW_ADV)
-        BLE_DG(ble_dg.adv_events++);
 #if BLE_CENTRAL
     if (drv.state == HW_SCAN) {
         if (fm1_ble_rx_pending(HW_LINK)) {                 /* this window's last report first */
@@ -1205,7 +996,7 @@ static void ble_hw_wl82_start(const struct ble_rf_trims *t)
 {
     uint8_t *p = (uint8_t *)&bb.sw;
     uint32_t i;
-    hwd.base = fm1_ticks();                                /* (blell's clock: 0 at the first BLUETOOTH ON) */
+    hwd.base = fm1_ticks();                                /* (the clock: 0 at the first BLUETOOTH ON) */
     hwd.us = 0;
     fm1_ble_step(FM1_BLE_STEP_RF_INIT);
     (void)rfs_rf_up(t->x106, t->x107, t->x108, t->x187);   /* (Bluetooth audio started the radio first: up already,

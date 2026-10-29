@@ -19,9 +19,10 @@
  *   rules        no column read (op 2) on the initiating path; the peripheral silent -> 0x3E, advertising again
  *   late set-up  the event interrupt 0.2 / 1.9 / 4.8 / 20 ms after the hit (the FM-1, blell-dev3 / dev4: 0x3E after
  *                1.9 and 4.8 ms): the anchor counter shortened by the slots it came late, so the first master packet
- *                stays 0.6..1.4 ms into the 2.5 ms transmit window; too late for the window: counted, the minimum
+ *                stays 0.6..1.4 ms into the 2.5 ms transmit window; too late for the window: the minimum
  *   stops        the engine busy after a stop (0x28038 bit1, as the FM-1 after a scan): the main loop's stops wait
- *                for it (up to a scanning window), a connection's up to an event; counted per path */
+ *                for it (up to a scanning window), a connection's up to an event; the breadcrumb names the path and
+ *                the wait */
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
@@ -30,12 +31,6 @@
 #define BLE_CENTRAL 1
 #endif
 #include "../firmware/src/ble/ble_stack.c"
-#include "../firmware/src/ble/ble_diag.c"
-#if BLE_DIAG
-#define DG(x) (x)
-#else
-#define DG(x) 1
-#endif
 
 static int fails;
 static void check(const char *what, int ok)
@@ -47,7 +42,16 @@ static void check(const char *what, int ok)
 static int ble_app_midi_peek(uint32_t *pkt, uint32_t *t) { (void)pkt, (void)t; return 0; }
 static void ble_app_midi_pop(void) {}
 static void ble_app_midi_in(uint32_t pkt, uint16_t ts, uint16_t last) { (void)pkt, (void)ts, (void)last; }
-static void ble_app_state(void) {}
+/* the host told of a close (ble_host_disconnected, the link layer off): the link-stop breadcrumb then names the
+ * close's own stop (the link stopped in ll_close, before advertising opens the link again) */
+static uint32_t close_bc, closes;
+static void ble_app_state(void)
+{
+    if (bll.state == LL_OFF) {
+        close_bc = fm1_ble_bc.stop;
+        closes++;
+    }
+}
 static void ble_app_bond(const uint8_t rand[8], uint16_t ediv, const uint8_t ltk[16]) { (void)rand, (void)ediv, (void)ltk; }
 static void ble_app_peer_id(const uint8_t irk[16], const uint8_t a[6], uint8_t r) { (void)irk, (void)a, (void)r; }
 static void ble_app_central_keys(const struct ble_keys *k) { (void)k; }
@@ -56,7 +60,7 @@ static const uint8_t OWN[6] = {0x11, 0x22, 0x33, 0x44, 0x55, 0xC6};
 static const uint8_t PEER[6] = {0x37, 0x37, 0x4B, 0x65, 0x79, 0xC4};
 
 /* the engine stores an advertising PDU from AdvA a (header hdr), RXTOG moves past it; cntl: RXBUFnCNTL bit0 too */
-static void eng_adv(uint8_t hdr, const uint8_t a[6], const uint8_t *target, int cntl)
+static uint32_t eng_adv(uint8_t hdr, const uint8_t a[6], const uint8_t *target, int cntl)   /* -> its buffer */
 {
     uint32_t b = CB->rxtog & 1u;
     uint8_t *p = bb.rx[b].buf + HW_SWHDR, n = target ? 12u : 9u;
@@ -73,6 +77,13 @@ static void eng_adv(uint8_t hdr, const uint8_t a[6], const uint8_t *target, int 
         CB->rxbufcntl[b] |= 1u;
     CB->rxtog ^= 1u;
     ble_wl82_rx_irq();
+    return b;
+}
+
+/* buffer b taken by the driver in state 3: its header and status cleared (hw_init_take), RXBUFnCNTL bit0 0 */
+static int taken(uint32_t b)
+{
+    return !CB->rxahdr[b] && !CB->rxdhdr[b] && !CB->rxstat[b] && !(CB->rxbufcntl[b] & 1u);
 }
 
 static uint32_t col_writes(uint32_t col, uint32_t *v, uint32_t max)   /* the logged writes to a column, oldest first */
@@ -166,7 +177,7 @@ static void t_central(void)
 {
     struct ble_rf_trims tr;
     struct ble_peer pr;
-    uint32_t v[16], k, e, wo;
+    uint32_t v[16], k, e, wo, b;
     static const uint8_t other[6] = {9, 9, 9, 9, 9, 0xC9};
     memset(&fk, 0, sizeof fk);
     memset(&tr, 0, sizeof tr);
@@ -200,8 +211,9 @@ static void t_central(void)
     }
     {   /* the stopped scan's packet, in the air when initiating started: its report ends before its own airtime
          * since the start (the "mac" pick of ble_emu_central_test.py): no hit */
-        uint32_t b = CB->rxtog & 1u;
-        uint8_t *p = bb.rx[b].buf + HW_SWHDR;
+        uint8_t *p;
+        b = CB->rxtog & 1u;
+        p = bb.rx[b].buf + HW_SWHDR;
         memcpy(p, PEER, 6);
         p[6] = 2, p[7] = 1, p[8] = 6;
         CB->rxahdr[b] = 0x40;
@@ -210,8 +222,8 @@ static void t_central(void)
         CB->rxbufcntl[b] |= 1u;
         CB->rxtog ^= 1u;
         ble_wl82_rx_irq();
-        check("initiating: the target's ADV_IND already in the air at the start (stale): no hit, still initiating",
-              !drv.init_hit && drv.state == HW_INIT && DG(ble_dgc.init_rx_stale == 1u && ble_dgc.init_rx_target == 0u));
+        check("initiating: the target's ADV_IND already in the air at the start (stale): taken (buffer cleared), no "
+              "hit, still initiating", taken(b) && !drv.init_hit && drv.state == HW_INIT);
     }
     wo = llc.c.win_offset;
     fk.log_n = 0;
@@ -220,18 +232,18 @@ static void t_central(void)
     k = col_writes(6, v, 16);
     check("initiating: each window's event interrupt moves the channel (37 again, 38, 39, 37 ...), RFPRIO 30 on the 6th",
           k == 6u && v[0] == 0x2125u && v[1] == 0x2126u && v[2] == 0x2127u && v[3] == 0x2125u && CB->rfpriocntl == 30u &&
-              DG(ble_dgc.init_events == 6u));
-    eng_adv(0x40, other, 0, 1);
+              drv.scan_evts == 6u);
+    b = eng_adv(0x40, other, 0, 1);
     ble_wl82_event_irq();
-    check("RX: another advertiser's ADV_IND: no hit, still initiating", drv.state == HW_INIT && !drv.init_hit &&
-          DG(ble_dgc.init_rx_other == 1u));
-    eng_adv(0xC1, PEER, OWN, 0);                    /* (an ADV_DIRECT_IND: TxAdd and RxAdd random, TargetA ours) */
-    check("RX: the target's ADV_DIRECT_IND to us (found by RXTOG alone) is a hit", drv.init_hit &&
-          DG(ble_dgc.init_rx_target == 1u && ble_dgc.init_rxf_tog == 1u));
+    check("RX: another advertiser's ADV_IND: taken (buffer cleared), no hit, still initiating", taken(b) &&
+          drv.state == HW_INIT && !drv.init_hit);
+    b = eng_adv(0xC1, PEER, OWN, 0);                /* (an ADV_DIRECT_IND: TxAdd and RxAdd random, TargetA ours) */
+    check("RX: the target's ADV_DIRECT_IND to us (found by RXTOG alone: no RXBUFnCNTL bit0, buffer cleared) is a hit",
+          drv.init_hit && taken(b));
     drv.init_hit = 0;
-    eng_adv(0x40, PEER, 0, 1);
-    check("RX: the target's ADV_IND (RXBUFnCNTL bit0) is a hit; nothing switched before the event interrupt",
-          drv.init_hit && drv.state == HW_INIT && DG(ble_dgc.init_rxf_cntl >= 1u));
+    b = eng_adv(0x40, PEER, 0, 1);
+    check("RX: the target's ADV_IND (RXBUFnCNTL bit0, cleared after) is a hit; nothing switched before the event "
+          "interrupt", drv.init_hit && drv.state == HW_INIT && taken(b));
     fk.log_n = 0;
     ble_wl82_event_irq();
     k = col_writes(0, v, 16);
@@ -247,7 +259,7 @@ static void t_central(void)
               CB->txdhdr[CB->txtog & 1u] == 1u && CB->txdhdr[(CB->txtog & 1u) ^ 1u] == 5u && CB->wincntl[0] == 3750u &&
               CB->rfpriocntl == 28u);
     check("master: the link layer connected as master (state conn, central)", drv.state == HW_CONN && drv.master &&
-          ble_ll_central() && DG(ble_dgc.master_starts == 1u));
+          ble_ll_central() && ble_hw_stat.connects == 1u);
     check("rules: no column read (op 2) on the initiating path and the switch",
           fk.col_reads[0] + fk.col_reads[1] + fk.col_reads[2] + fk.col_reads[3] + fk.col_reads[6] + fk.col_reads[14] == 0u);
     for (e = 0; e < 40u; e++)
@@ -255,7 +267,7 @@ static void t_central(void)
     check("events: our VERSION_IND, FEATURE_REQ, LENGTH_REQ and the ATT MTU request out by the TX rule, answered",
           m.ver == 1 && m.feat == 1 && m.len == 1 && m.mtu == 1 && bll.feat_known && batt.mtu == 185);
     check("events: after the first packet WINCNTL = 0, WINCNTL2 = 30 (HW §21.3 step 4)", CB->wincntl[0] == 0u &&
-          CB->wincntl[1] == 0u && CB->wincntl2 == 30u && !drv.win_wide && DG(ble_dgc.m_events_rx >= 30u));
+          CB->wincntl[1] == 0u && CB->wincntl2 == 30u && !drv.win_wide && m.events_rx >= 30 && ble_hw_stat.rx >= 30u);
     ble_ll_conn_update(12, 12, 300);
     for (; e < 60u; e++) {
         master_event(e);
@@ -288,7 +300,7 @@ static void t_late(void)
 {
     static const uint32_t LATE[4] = {200u, 1897u, 4785u, 20000u};   /* (the FM-1's: c4_rx_to_evt_*) */
     struct ble_peer pr;
-    uint32_t i, wo, v[16], k, adj_old;
+    uint32_t i, wo, v[16], k, t0;
     memset(&pr, 0, sizeof pr);
     memcpy(pr.addr, PEER, 6);
     pr.addr_rand = 1;
@@ -299,16 +311,20 @@ static void t_late(void)
         memset(&m, 0, sizeof m);
         fkb.busy_us = i == 1u ? 900u : 0u;      /* (the engine still busy when advertising stops: waited for) */
         fkb.stops = 0;
+        fkb.busy_max_us = 0;
+        k = drv.state;
+        t0 = fk.ticks;
         ble_central_connect(&pr);
         if (i == 1u)
-            check("stops: the engine busy 900 us after advertising stopped (main loop): waited for, up to a scanning "
-                  "window (40 ms), counted (stop_adv), no timeout", fkb.stops >= 1u && DG(ble_dg.stop_us_max[BDS_ADV] >=
-                  900u && ble_dg.stop_busy[BDS_ADV] >= 1u && ble_dg.busy_timeouts == 0u && ble_dg.busy_max >= 900u));
+            check("stops: the engine busy 900 us after advertising stopped (main loop): waited for (900 us went by), "
+                  "up to a scanning window (40 ms: no timeout), the open after it found the engine idle (breadcrumb)",
+                  k == HW_ADV && fkb.stops >= 2u && fkb.busy_max_us == HW_STOP_WAIT_US &&
+                  (fk.ticks - t0) / FM1_TICKS_PER_US >= 900u &&
+                  fm1_ble_bc.stop == (0x5E000000u | (uint32_t)HWS_OPEN << 16));
         wo = llc.c.win_offset;
         eng_adv(0x40, PEER, 0, 1);
         fk.ticks += LATE[i] * FM1_TICKS_PER_US;
         fk.log_n = 0;
-        adj_old = DG(ble_dgc.m_anchor_late);
         ble_wl82_event_irq();
         k = col_writes(0, v, 16);
         at = k == 3u ? anchor_in_window(LATE[i], v[1], wo) : -99999;
@@ -319,11 +335,11 @@ static void t_late(void)
                   i == 1u ? "late set-up: 1.9 ms (0x3E on the FM-1): the counter shortened, the packet inside the window" :
                             "late set-up: 4.8 ms (0x3E on the FM-1, blell-dev4): shortened by 7 slots, inside the window",
                   k == 3u && v[1] == v[2] && at >= 600 && at <= 1400 && drv.master && (i || v[1] == 2u * wo + 3u) &&
-                      DG(ble_dgc.m_anchor_late == adj_old));
+                      v[1] >= HW_ANCHOR_MIN_SLOTS);
         else
-            check("late set-up: 20 ms (the window gone): the counter at its minimum, counted (m_anchor_late); the link "
-                  "fails to be established and the host tries again", k == 3u && v[1] == 2u && drv.master &&
-                  DG(ble_dgc.m_anchor_late == adj_old + 1u));
+            check("late set-up: 20 ms (the window gone): the counter at its minimum, the packet after the 2.5 ms window; "
+                  "the link fails to be established and the host tries again", k == 3u &&
+                  v[1] == HW_ANCHOR_MIN_SLOTS - 1u && v[1] == 2u && at > 2500 && drv.master);
         m.silent = 1;
         for (k = 0; k < 8u; k++)
             master_event(k);
@@ -336,12 +352,15 @@ static void t_late(void)
     fkb.busy_us = 2500u;                        /* (the next stop: the connection's end) */
     fkb.busy_max_us = 0;
     m.silent = 1;
+    closes = 0;
+    close_bc = 0;
     for (k = 0; k < 8u && ble_connected(); k++)
         master_event(k);
-    check("stops: a connection's end (in the BLE interrupts) waits at most 3 ms for the engine (stop_conn)",
-          !ble_connected() && fkb.busy_max_us == 3000u && DG(ble_dg.stop_us_max[BDS_CONN] == 2500u));
+    check("stops: a connection's end (in the BLE interrupts) waits at most 3 ms for the engine: the close's stop "
+          "waited 2,500 us (breadcrumb 5E, path conn)", !ble_connected() && fkb.busy_max_us == 3000u && closes == 1u &&
+          close_bc == (0x5E000000u | (uint32_t)HWS_CONN << 16 | 2500u));
     check("stops: the link-stop breadcrumb (fm1_ble_bc.stop) names the last stop, done: 5E, its path, the wait",
-          fm1_ble_bc.stop >> 24 == 0x5Eu && (fm1_ble_bc.stop >> 16 & 0xFFu) < BDS_COUNT);
+          fm1_ble_bc.stop >> 24 == 0x5Eu && (fm1_ble_bc.stop >> 16 & 0xFFu) <= HWS_OPEN);
 }
 
 int main(void)
