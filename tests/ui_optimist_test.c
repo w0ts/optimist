@@ -36,6 +36,7 @@ static uint16_t screen[240 * 240];
 static void lcd_sync(void) {}
 static uint32_t band_y = 240u, band_hits;               /* the help band's first row (op_graph.c OP_FOOT_Y, set in main), and
                                                          * the blits that reached it besides the line's own (ui_optimist_geometry.h) */
+static uint32_t gl_info_wide(void);                     /* op_gldraw.c: SYSTEM > INFO's first page has no help band: its rows run to the foot */
 static uint32_t probe_hits;                             /* the blits that cover the probe pixel (120, 180): inside PRESETS' popup, a flash when more than one a frame */
 static uint32_t blit_px;                                /* the pixels sent (ui_optimist_slowframe.h: a step press sends its column) */
 #ifdef MIRROR_CHECK
@@ -111,7 +112,7 @@ static void lcd_blit(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint1
     if (x <= 120u && 120u < x + w && y <= 180u && 180u < y + h)
         probe_hits++;
     assert(x + w <= 240 && y + h <= 240);
-    if (y + h > band_y && !(x == 0u && y == band_y && w == 240u && h == 240u - band_y))
+    if (y + h > band_y && !gl_info_wide() && !(x == 0u && y == band_y && w == 240u && h == 240u - band_y))
         band_hits++;
     for (j = 0; j < h; j++)
         for (i = 0; i < w; i++)
