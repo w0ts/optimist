@@ -141,11 +141,11 @@ static void vufloor_tests(void)
         turn(LINE_KNOB(k), 1);
     check(vu_floor_i == VUF_N - 1u && vuf_db(vu_floor_i) == -20, "VU FLOOR: the knob up to the other end: -20");
     VUF_SET(VUF_DEF);
+    peakhold_tests();                                   /* (its frames move the master compressor: SCRS golden GR -5 -> -4) */
     vufloor_master_view(0, 1036.0, "opt-vufloor-master-80");
     vufloor_master_view(VUF_DEF, 1036.0, "opt-vufloor-master-60");
     vufloor_master_view(VUF_N - 1u, 8000.0, "opt-vufloor-master-20");
     VUF_SET(VUF_DEF);
     reset_ui();
-    peakhold_tests();
 }
 #endif
