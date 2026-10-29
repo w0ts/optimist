@@ -66,7 +66,7 @@ OS_FILES = ["system/main.c", "system/supply.c", "io/usb/usb.c", "io/midi/midi_ri
             "engines/phys/phys_symp.c", "fx/reverb/rev_math.c", "fx/reverb/reverb_airwin.c",
             # BLE (FELUCCA_BLE): runs in the BLE interrupts, at -Os
             "ble/ble_prim.c", "ble/ble_aes.c", "ble/ble_ll.c",
-            "ble/ble_stack.c", "ble/ble_hw_stub.c", "ble/ble_diag.c", "ble/ble_smp.c",
+            "ble/ble_stack.c", "ble/ble_hw_stub.c", "ble/ble_smp.c",
             # the DEVICES list (FELUCCA_BLE): the main loop's (the scan table, the one-device store, the menu's glue)
             "ble/ble_scan.c", "ble/ble_store.c", "io/midi/ble_none.c",
             # connecting out (BLE_CENTRAL): the BLE interrupts' (the central LL, driver, GATT client, SMP initiator) and the

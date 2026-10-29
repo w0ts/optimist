@@ -98,7 +98,7 @@ struct fm1_ble_rf_stat {                  /* what the start-up did, for the cons
  * is 0; in a burst group, FM1_RF_BURST_GROUPS: op is the group's first op, gop the write, 1..rf_burst); addr: the last access begun, so a hang names it: a register's address, 0xBB0000 | BBP register << 8 | data
  * for a BBP transaction (port 0x3101C), 0x5B0000 | command << 8 | address for an RF-die SPI command (port 0x14028).
  * stop: the last link stop (hal/fm1_ble.h fm1_ble_link_stop through ble_hw_wl82.c hw_stop): 0x5D000000 | path << 16
- * (BDS_*) while it waits for the engine, 0x5E000000 | path << 16 | the microseconds it waited (at most 0xFFFF) once
+ * (ble_hw_wl82.c HWS_*) while it waits for the engine, 0x5E000000 | path << 16 | the microseconds it waited (at most 0xFFFF) once
  * done: a hang in that wait names it.
  * (New words go last: a reflash moves none of the older ones.) */
 enum {

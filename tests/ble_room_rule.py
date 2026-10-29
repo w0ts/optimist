@@ -28,5 +28,7 @@ def expected_room(cfg, costs):
     return over, order, chosen
 
 
-def with_ble(base, diag):
-    return dict(base, BLE=1, **({"BLE_DIAG": 1} if diag else {}))
+def with_ble(base, opt):
+    """the profile with BLE ticked; opt: with one of BLE's own options too (BLE_BOND; BLE_DIAG until it was retired,
+    2026-10-29)"""
+    return dict(base, BLE=1, **({"BLE_BOND": 1} if opt else {}))

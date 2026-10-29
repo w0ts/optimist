@@ -22,12 +22,6 @@
 #define BLE_CENTRAL 1
 #endif
 #include "../firmware/src/ble/ble_stack.c"
-#include "../firmware/src/ble/ble_diag.c"
-#if BLE_DIAG
-#define DG(x) (x)
-#else
-#define DG(x) 1
-#endif
 
 static int fails;
 static void check(const char *what, int ok)
@@ -54,8 +48,8 @@ static const uint8_t MIDI_UUID[16] = {0x00, 0xC7, 0xC4, 0x4E, 0xE3, 0x6C, 0x51, 
 
 /* the engine stores an advertising-channel PDU: payload at RXPTRn, header in RXAHDR / RXDHDR, RXSTAT, RSSI2, LASTCHMAP;
  * cntl: also RXBUFnCNTL bit0 = 1 (the vendor's rule) or not (the FM-1's advertising one); RXTOG moves past it */
-static void eng_rx(uint8_t hdr, uint8_t a0, const uint8_t *ad, uint8_t n, uint16_t stat, uint16_t rssi, uint8_t ch,
-                   int cntl)
+static uint32_t eng_rx(uint8_t hdr, uint8_t a0, const uint8_t *ad, uint8_t n, uint16_t stat, uint16_t rssi,
+                       uint8_t ch, int cntl)   /* -> the buffer it is in */
 {
     uint32_t b = CB->rxtog & 1u;
     uint8_t *p = bb.rx[b].buf + HW_SWHDR;
@@ -70,6 +64,16 @@ static void eng_rx(uint8_t hdr, uint8_t a0, const uint8_t *ad, uint8_t n, uint16
         CB->rxbufcntl[b] |= 1u;
     CB->rxtog ^= 1u;
     ble_wl82_rx_irq();
+    return b;
+}
+
+/* the reports waiting in the link layer's ring (ble_ll_scan_take's) */
+static uint32_t ring_n(void) { return (uint32_t)(bscan.w - bscan.r); }
+
+/* buffer b taken by the driver: its header and status cleared (hw_scan_take), RXBUFnCNTL bit0 0 */
+static int taken(uint32_t b)
+{
+    return !CB->rxahdr[b] && !CB->rxdhdr[b] && !CB->rxstat[b] && !(CB->rxbufcntl[b] & 1u);
 }
 
 static uint32_t col6_writes(uint32_t *v, uint32_t max)   /* the column 6 writes logged, oldest first */
@@ -87,7 +91,7 @@ static void t_scan(void)
     struct ble_rf_trims tr;
     uint8_t ad[31], q[40], n;
     uint16_t rssi;
-    uint32_t v[16], k;
+    uint32_t v[16], k, b, w0, st0;
     memset(&fk, 0, sizeof fk);
     memset(&tr, 0, sizeof tr);
     fk.tick_per_read = FM1_TICKS_PER_US;
@@ -133,9 +137,9 @@ static void t_scan(void)
     /* RX: a BLE-MIDI controller's ADV_IND (the UUID), then its SCAN_RSP (the name) */
     ad[0] = 2, ad[1] = 0x01, ad[2] = 0x06, ad[3] = 17, ad[4] = 0x07;
     memcpy(ad + 5, MIDI_UUID, 16);
-    eng_rx(0x40, 0x01, ad, 21, 1, 0x0A12, 37, 1);
-    check("RX: the ADV_IND found by RXBUFnCNTL bit0 (the vendor's rule), bit0 cleared after",
-          DG(ble_dgs.rxf_cntl == 1u && ble_dgs.rxf_tog == 0u) && !(CB->rxbufcntl[0] & 1u) && !(CB->rxbufcntl[1] & 1u));
+    b = eng_rx(0x40, 0x01, ad, 21, 1, 0x0A12, 37, 1);
+    check("RX: the ADV_IND found by RXBUFnCNTL bit0 (the vendor's rule), bit0 cleared after, one report (not taken "
+          "again by RXTOG)", taken(b) && !(CB->rxbufcntl[b ^ 1u] & 1u) && ring_n() == 1u);
     n = ble_ll_scan_take(q, &rssi);
     check("RX: handed over whole: header 0x40, length 27, AdvA, the AD; RSSI2 0x0A12",
           n == 29u && q[0] == 0x40u && q[1] == 27u && q[2] == 0x01u && q[7] == 0xC5u && !memcmp(q + 13, MIDI_UUID, 16) &&
@@ -144,9 +148,10 @@ static void t_scan(void)
     ble_scan_add(&tab, q, n, rssi, 100);
     ad[0] = 11, ad[1] = 0x09;
     memcpy(ad + 2, "KeyStep 37", 10);
-    eng_rx(0x44, 0x01, ad, 12, 1, 0x0A13, 38, 0);
-    check("RX: the SCAN_RSP found by RXTOG having moved past it (no RXBUFnCNTL bit0: the FM-1's advertising rule)",
-          DG(ble_dgs.rxf_tog == 1u) && DG(ble_dgs.rsp_ok == 1u));
+    b = eng_rx(0x44, 0x01, ad, 12, 1, 0x0A13, 38, 0);
+    check("RX: the SCAN_RSP found by RXTOG having moved past it (no RXBUFnCNTL bit0: the FM-1's advertising rule), "
+          "one report, the backoff's success (the SCAN_REQ answered)", taken(b) && ring_n() == 1u && !drv.bo_sent &&
+          drv.bo_succ == 1u && !drv.bo_fail);
     n = ble_ll_scan_take(q, &rssi);
     ble_scan_add(&tab, q, n, rssi, 110);
     {
@@ -154,16 +159,20 @@ static void t_scan(void)
         check("RX -> the DEVICES table: KeyStep 37 listed", ble_scan_list(&tab, idx) == 1u &&
               !strcmp(tab.e[idx[0]].name, "KeyStep 37") && tab.e[idx[0]].rssi == 0x0A13u);
     }
+    w0 = bscan.w;
+    st0 = (uint32_t)drv.bo_succ << 8 | drv.bo_count;
     ble_wl82_rx_irq();
-    check("RX: an interrupt with nothing new: nothing taken twice (counted)", DG(ble_dgs.rxf_none == 1u) &&
+    check("RX: an interrupt with nothing new: nothing taken twice (no report, the backoff untouched)", bscan.w == w0 &&
+          ((uint32_t)drv.bo_succ << 8 | drv.bo_count) == st0 && ble_ll_scan_take(q, &rssi) == 0u);
+    b = eng_rx(0x40, 0x02, ad, 4, 0x9805, 0, 39, 1);
+    check("RX: RXSTAT [3:0] != 1: taken and dropped (buffer cleared, no report)", taken(b) && bscan.w == w0 &&
           ble_ll_scan_take(q, &rssi) == 0u);
-    eng_rx(0x40, 0x02, ad, 4, 0x9805, 0, 39, 1);
-    check("RX: RXSTAT [3:0] != 1: dropped (counted)", DG(ble_dgs.rx_bad_stat == 1u) && ble_ll_scan_take(q, &rssi) == 0u);
     eng_rx(0x43, 0x02, ad, 6, 1, 0, 39, 1);
     check("RX: a SCAN_REQ (type 3) heard: dropped in state 1", ble_ll_scan_take(q, &rssi) == 0u);
     eng_rx(0x40, 0x02, ad, 0, 1, 0, 39, 1);
+    w0 = bscan.w;
+    b = CB->rxtog & 1u;                            /* a length past an advertising PDU */
     {
-        uint32_t b = CB->rxtog & 1u;               /* a length past an advertising PDU */
         CB->rxahdr[b] = 0x40;
         CB->rxdhdr[b] = (uint16_t)(40u << 8);
         CB->rxstat[b] = 1;
@@ -172,8 +181,8 @@ static void t_scan(void)
         ble_wl82_rx_irq();
     }
     n = ble_ll_scan_take(q, &rssi);
-    check("RX: an ADV_IND with no AD taken; a length of 40 dropped (counted)", n == 8u && DG(ble_dgs.rx_bad_len == 1u) &&
-          ble_ll_scan_take(q, &rssi) == 0u);
+    check("RX: an ADV_IND with no AD taken; a length of 40 taken and dropped (buffer cleared, no report)", n == 8u &&
+          taken(b) && bscan.w == w0 && ble_ll_scan_take(q, &rssi) == 0u);
     check("scan: no column read (op 2) anywhere on the scan path (start, events, RX)",
           (fk.col_reads[0] + fk.col_reads[1] + fk.col_reads[2] + fk.col_reads[3] + fk.col_reads[6] +
                    fk.col_reads[14] + fk.col_reads[15]) == 0u);
@@ -184,8 +193,8 @@ static void t_scan(void)
         eng_rx(0x40, (uint8_t)(0x10 + k), ad, 0, 1, 0, 37, 1);   /* ADV_INDs, never a SCAN_RSP */
     while (ble_ll_scan_take(q, &rssi))
         ;
-    check("backoff: SCAN_REQs with no SCAN_RSP: upperLimit doubles after two failures in a row",
-          drv.bo_upper >= 2u && DG(ble_dgs.req_fail >= 2u) && DG(ble_dgs.upper_max >= 2u));
+    check("backoff: SCAN_REQs with no SCAN_RSP: upperLimit doubles (from 1) after two failures in a row, no success",
+          drv.bo_upper >= 2u && !drv.bo_succ);
     check("backoff: FORMAT bit8 is 0 exactly when the count is 1 (the next ADV_IND gets a SCAN_REQ)",
           ((CB->format & 0x100u) != 0) == (drv.bo_count != 1u));
     {
@@ -204,9 +213,11 @@ static void t_scan(void)
     }
     /* stop: advertising again */
     fk.log_n = 0;
+    k = fkb.stops;
     ble_ll_scan(0);
-    check("stop: the link stopped, then advertising set up again (state 2, column 14 = 0x8000)",
-          drv.state == HW_ADV && fk.col[2] == 0x2000u && fk.col[14] == 0x8000u && DG(ble_dgs.stops == 1u));
+    check("stop: the link stopped (the scan's stop, then advertising's open: 2 stops), advertising set up again (state "
+          "2, column 14 = 0x8000)", drv.state == HW_ADV && fk.col[2] == 0x2000u && fk.col[14] == 0x8000u &&
+          fkb.stops - k == 2u);
     eng_rx(0x40, 0x30, ad, 0, 1, 0, 37, 1);
     check("stop: a report after it is not a scan report", ble_ll_scan_take(q, &rssi) == 0u);
     ble_enable(0);
@@ -217,6 +228,7 @@ static void t_passive(void)
     struct ble_hw_scan s;
     uint8_t ad[4] = {0};
     uint32_t k;
+    int armed = 0;
     s.interval = 6;                                /* the vendor's adjustment: window 4 > interval - 4 -> 2 */
     s.window = 4;
     s.active = 0;
@@ -225,9 +237,11 @@ static void t_passive(void)
     ble_hw_scan_start(&s);
     check("passive: FORMAT bit8 1 (no SCAN_REQ); window cut to interval - 4 (2 x 625 us)", (CB->format & 0x100u) &&
           CB->wincntl[0] == 1250u && fk.col[1] == 6u);
-    for (k = 0; k < 4u; k++)
+    for (k = 0; k < 4u; k++) {
         eng_rx(0x40, 0x01, ad, 0, 1, 0, 37, 1);
-    check("passive: ADV_INDs never arm a SCAN_REQ", (CB->format & 0x100u) && DG(ble_dgs.req_armed == 0u));
+        armed += !(CB->format & 0x100u) || drv.bo_sent;
+    }
+    check("passive: ADV_INDs never arm a SCAN_REQ (FORMAT bit8 1 after each, no backoff step)", !armed);
     ble_hw_scan_stop();
     s.interval = 4;
     s.window = 4;
@@ -240,9 +254,6 @@ static void t_passive(void)
 int main(void)
 {
     t_scan();
-#if BLE_DIAG
-    ble_diag_clear();
-#endif
     t_passive();
     printf("%s\n", fails ? "BLE scan driver: FAILED" : "BLE scan driver: all passed");
     return fails != 0;

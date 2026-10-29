@@ -103,7 +103,7 @@ static uint32_t fm1_ble_clock(uint32_t link)
 /* stop link n: column 14 = 0 (HW §2.3), its interrupts off (HW §5.5 end), then wait until the engine is idle (HW §2.1
  * 0x28038 bit1 [M:s]) for at most max_us, and acknowledge what was raised meanwhile (the window that was open when the
  * link stopped ends with its event interrupt: none is left pending for the next link) -> the microseconds it waited
- * (>= max_us: still busy when the wait gave up; console 'blell' busy_*, stop_*). The FM-1 (blell-dev3 / dev4,
+ * (>= max_us: still busy when the wait gave up). The FM-1 (blell-dev3 / dev4,
  * 2026-10-09): bit1 still set 2,000 polls (~0.75 ms) after a scanning link stopped, every time.
  * The wait is bounded twice: by TIMER4 (max_us), and by a count of reads that no CPU clock gets through in max_us
  * (FM1_BLE_STOP_POLLS_PER_US: one read of 0x28038 and of TIMER4 per pass, each a bus access), so a TIMER4 that does

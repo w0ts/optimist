@@ -25,7 +25,6 @@
 #include "ble_ll.h"
 #include "ble_aes.h"
 #include "ble_util.h"
-#include "ble_diag.h"
 
 static struct {
     uint8_t st, fail, code;                    /* BLE_CS_*; BLE_CF_* and its code (the last attempt) */
@@ -147,8 +146,6 @@ static int bcen_secure(uint8_t code)
         return 1;
     if (bcen.encrypted) {
         if (code == 0x05u && !bcen.auth && !bcen.mitm && !bcen.repair) {
-            BLE_DG(ble_dgc.cen_need_mitm++);
-            BLE_DG(ble_dgc.si_repair++);
             bcen.mitm = 1;
             bcen.repair = 1;
             bcen_pair();
@@ -176,7 +173,6 @@ BLE_API int ble_central_mitm(void) { return bcen.mitm; }
  * the firmware until the user acts) */
 BLE_API void ble_central_no_pairing(uint8_t code)
 {
-    BLE_DG(ble_dgc.si_sec_req_rx += code == 0u);
     bcen_fail(BLE_CF_NEED_PAIR, code);
 }
 
@@ -196,8 +192,6 @@ static void ble_central_gattc_ready(void)
 
 static void ble_central_gattc_fail(uint8_t why, uint8_t code)
 {
-    if (why == BLE_CF_NO_MIDI)
-        BLE_DG(ble_dgc.gc_no_midi++);
     bcen_fail(why, code);
 }
 
@@ -230,7 +224,6 @@ static void ble_central_paired(int ok, uint8_t reason, uint8_t auth)
     bcen.pairing = 0;
     if (!ok) {                                 /* (Authentication Requirements, either way: AUTH) */
         if (bcen.repair == 1 && !auth && reason != 0x03u) {
-            BLE_DG(ble_dgc.si_repair_fallback++);   /* (refused on this link before any passkey: a new link) */
             bcen_fail(BLE_CF_NEED_MITM, reason);
             return;
         }
@@ -296,7 +289,6 @@ BLE_API void ble_central_event(void)
     }
     if (bcen.repair == 1 && smp_init_rsp_late(now)) {   /* no answer to the pairing on this link: a new link */
         bcen.pairing = 0;
-        BLE_DG(ble_dgc.si_repair_fallback++);
         bcen_fail(BLE_CF_NEED_MITM, 0xFF);
     } else if (smp_init_timed_out(now)) {
         bcen.pairing = 0;
@@ -310,7 +302,6 @@ BLE_API void ble_central_event(void)
 BLE_API uint8_t ble_central_sig(const uint8_t *d, uint16_t n)
 {
     uint16_t imin, imax, lat, to;
-    BLE_DG(ble_dgc.m_l2_upd_rx++);
     if (n < 8u)
         return 1;
     imin = ble_rd16(d), imax = ble_rd16(d + 2), lat = ble_rd16(d + 4), to = ble_rd16(d + 6);

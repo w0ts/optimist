@@ -49,7 +49,7 @@ struct ble_scan_tab {
     struct ble_found e[BLE_SCAN_N];
     uint32_t next_order;
     uint32_t gen;                        /* moves whenever what the list shows changes (the menu redraws) */
-    uint32_t reports, kept, dropped_full, ignored_type, bad_ad;   /* counters (blell) */
+    uint32_t reports, kept, dropped_full, ignored_type, bad_ad;   /* counters (tests/ble_scan_test.c, the emulator check) */
 };
 
 BLE_API void ble_ad_parse(const uint8_t *ad, uint32_t n, struct ble_ad *out);
