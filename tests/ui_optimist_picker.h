@@ -132,8 +132,10 @@ static void picker_drum_tests(void)
     check(!dstep_has(&t->dstep[3], 3) && !step_muted(t, 3, 3) && dstep_has(&t->dstep[4], 0), "picker, drums: HOME held: the hit and its mute gone, the other lane's hit kept");
 #endif
 }
-/* KNOB 1 walks note by note (the user, 2026-10-19: "most left note first and in case of equality, the lowest one"):
+/* KNOB 1 walks note by note (the user, 2026-10-19: "most left note first and in case of equality, the lowest one"; 2026-10-29:
+ * "if there are few notes that start at the same time, we first select them all, and the lowest one, the one above, etc."):
  * step 2 holds 67 and 60 (stored in that order), step 5 holds 64; a carried note (SF_CARRY) is not one of its own */
+#define PK_GOT(t) (st.pk * 128u + (st.nsel == NSEL_ALL ? 0u : (t)->step[st.pk].note[st.nsel]))   /* (all of the step: 0) */
 static void picker_chord_tests(void)
 {
     track_t *t;
@@ -149,17 +151,23 @@ static void picker_chord_tests(void)
     fm1_irq_on();
     tap(B_SEQ);
     pk_cards_down();
-    for (i = 0; i < 4u; i++) {
+    for (i = 0; i < 5u; i++) {
         turn(EN_K1, 1);
-        got[i] = st.pk * 128u + t->step[st.pk].note[st.nsel];
+        got[i] = PK_GOT(t);
     }
-    check(got[0] == 2u * 128u + 60u && got[1] == 2u * 128u + 67u && got[2] == 5u * 128u + 64u && got[3] == got[2],
-          "picker, chord: KNOB 1 note by note, left first, the lowest first: step 3's 60, its 67, step 6's 64, then stays");
+    check(got[0] == 2u * 128u && got[1] == 2u * 128u + 60u && got[2] == 2u * 128u + 67u && got[3] == 5u * 128u + 64u &&
+              got[4] == got[3],
+          "picker, chord: KNOB 1: step 3's two notes together, then its 60 alone, its 67, step 6's 64, then stays");
     turn(EN_K1, -1);
-    ok = st.pk == 2u && t->step[2].note[st.nsel] == 67u;
+    ok = st.pk == 2u && PK_GOT(t) == 2u * 128u + 67u;
     turn(EN_K1, -1);
-    check(ok && st.pk == 2u && t->step[2].note[st.nsel] == 60u, "picker, chord: back: step 3's 67, then its 60");
-    turn(EN_K1, 1);
+    ok &= PK_GOT(t) == 2u * 128u + 60u;
+    turn(EN_K1, -1);
+    check(ok && PK_GOT(t) == 2u * 128u, "picker, chord: back: step 3's 67, its 60, then both");
+    turn(EN_K3, 1);
+    check(t->step[2].note[1] == 61u && t->step[2].note[0] == 68u, "picker, chord: KNOB 3 with both picked: both up");
+    turn(EN_K3, -1);
+    turn(EN_K1, 2);
     turn(EN_K3, 1);
     check(t->step[2].note[1] == 60u && t->step[2].note[0] != 67u, "picker, chord: KNOB 3 moves the picked note only (67), the 60 kept");
     tap(B_SAVE);
@@ -174,9 +182,9 @@ static void picker_chord_tests(void)
     pk_cards_down();
     for (i = 0; i < 6u; i++) {
         turn(EN_K1, 1);
-        got[i] = st.pk * 128u + t->step[st.pk].note[st.nsel];
+        got[i] = PK_GOT(t);
     }
-    check(got[2] == 3u * 128u + 62u && got[3] == 5u * 128u + 64u, "picker, chord: a carried note passed, the one that starts there picked");
+    check(got[3] == 3u * 128u + 62u && got[4] == 5u * 128u + 64u, "picker, chord: a carried note passed, the one that starts there picked");
     fm1_irq_off();
     t->step[3].flags = 0;
     fm1_irq_on();
