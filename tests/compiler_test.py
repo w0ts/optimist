@@ -91,6 +91,35 @@ try:
         (td / "b.config").write_text(C.dump(cfg, "b"))
         check("fm1base.compiler_of: the .config's item (default pi32v2-llvm, COMPILER=0 JieLi)",
               fm1base.compiler_of(td / "a.config") == "llvm" and fm1base.compiler_of(td / "b.config") == "jieli")
+    # the measurement shim, made by many builds at once (costs-all: 288 jobs as threads, 2026-10-29 FileNotFoundError)
+    import threading  # noqa: E402
+    with tempfile.TemporaryDirectory() as td:
+        td = Path(td)
+        real = fake_dropin(td / "real")
+        (real / "pi32v2" / "bin" / "ld").write_text("ld\n")
+        (real / "common").mkdir()
+        keep_env, keep_root = fm1base.toolchain_env, fm1base.ROOT
+        fm1base.toolchain_env = lambda compiler="jieli": {"JIELI_TOOLCHAIN": str(real)}
+        fm1base.ROOT = td
+        errs, shims = [], []
+
+        def make():
+            try:
+                shims.append(fm1base.measure_toolchain("llvm"))
+            except Exception as e:      # (any error is the failure this checks)
+                errs.append(e)
+        try:
+            ts = [threading.Thread(target=make) for _ in range(32)]
+            [t.start() for t in ts]
+            [t.join() for t in ts]
+        finally:
+            fm1base.toolchain_env, fm1base.ROOT = keep_env, keep_root
+        shim = td / "build" / "measure-toolchain-llvm"
+        check("measurement shim: 32 builds at once, no error, one shim with its wrapper and links",
+              not errs and len(shims) == 32 and (shim / "pi32v2" / "bin" / "ld").is_file()
+              and (shim / "common").resolve() == (real / "common").resolve()
+              and (shim / "real").resolve() == real.resolve() and not list((td / "build").glob("*.[0-9]*")))
+
     import web_api  # noqa: E402
     web_api.init(C.load_costs(), C.NEEDS_AUTO)
     item = [i for i in web_api.registry_view()["registry"]["items"] if i["key"] == "COMPILER"][0]
