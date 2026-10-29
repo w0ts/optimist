@@ -540,7 +540,7 @@ static const struct { const char *name; uint8_t it[4]; } SYS[] = {
 #endif
     {"CALIBRATE", {SI_CALIB, SI_HOLD, SI_NONE, SI_NONE}},   /* (SI_HOLD: a button's hold, 250 / 350 / 500 ms) */
     {"ABOUT", {SI_ABOUT, SI_BUILD, SI_REPO, SI_NONE}},
-    {"CREDITS", {SI_CREDITS, SI_NONE, SI_NONE, SI_NONE}},   /* after ABOUT: one text page (op_gldraw.c gl_cred_draw: CRED) */
+    {"CREDITS", {SI_CREDITS, SI_NONE, SI_NONE, SI_NONE}},   /* after ABOUT: one text page, the end titles (op_credits.c) */
     /* the global rows, last: GLOBAL's (GLO tapped, op_global.c), not SYSTEM's (the user, 2026-10-12: GLO "the page
      * where we have bpm, nudge, midi track settings etc"); defined here once, SYSTEM shows the rows above them */
     {"FILTER", {SI_IF(FELUCCA_TFLT_RESO && FELUCCA_TRK_FILT, SI_FRESO), SI_NONE, SI_NONE, SI_NONE}},   /* (FILT RESO: SLOOP 2.8's FILTER RESO, every track's
@@ -967,7 +967,7 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
     case SI_UAINFO:                                     /* the USB STATS page's one line */
         sys_ro(c, "USB STATS");
         break;
-    case SI_CREDITS:                                    /* the credits page's one line (op_gldraw.c gl_cred_draw draws the page) */
+    case SI_CREDITS:                                    /* the credits page's one line (op_credits.c gl_cred_draw draws the page) */
         sys_ro(c, "CREDITS");
         break;
     case SI_BUILD:                                      /* the build's date and time (the compiler's) */

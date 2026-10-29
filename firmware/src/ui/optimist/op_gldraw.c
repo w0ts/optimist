@@ -144,40 +144,9 @@ static uint32_t gl_info(void)                           /* 1 + the read-out page
     uint32_t it = gl_sys_item();
     return it == SI_INFO ? 1u + INFO_PG_INFO : it == SI_DIAG ? 1u + INFO_PG_DIAG : it == SI_UAINFO ? 1u + INFO_PG_USB : 0u;
 }
-/* SYSTEM > CREDITS, after ABOUT: who made what Optimist is built from, as text lines in INFO's style (the name left in
- * grey, the who right, no bars, no knob does anything); the rest, with licences and commits: LICENSING.md.
- * Names only, nominative: JUNO models the Roland Juno-106, Optimist is not affiliated */
-static const char *const CRED[][2] = {
-    {"VERSION", FELUCCA_VERSION},                       /* ("OPTIMIST 0.1"; a release: its own string) */
-    {"FELUCCA", "Leo Kuroshita"},                       /* (the platform: Hugelton Instruments) */
-    {"SLOOP", "isod89"},
-    {"MELODEE", "Kerem Kilic"},
-    {"X0X", "Charles Vestal"},
-    {"FLOWSTATE", "Z. Chowdhury"},
-    {"JANGADA", "zednaked"},
-#if FELUCCA_ENG_DRONE
-    {"CARAVEL", "bonszaimusic"},                        /* (DRONE's network, eng_drone.c) */
-#endif
-    {"JUNO", "fm-106, KR-106"},                         /* (PatttF; Kayrock Screenprinting) */
-    {"ACID", "Open303, TB-3PO"},                        /* (Robin Schmidt, Logarhythm: MIT) */
-    {"SAMPLES", "VSCO, VCSL, Sonic Pi"},
-    {"FONT", "Terminus"},
-    {"THE REST", "LICENSING.md"},
-};
-#define CRED_N (sizeof CRED / sizeof CRED[0])
+/* SYSTEM > CREDITS, the last page: film end titles (op_credits.c: the credits, the crawl, KNOB 1; no cursor, no line) */
 static uint32_t gl_cred(void) { return gl_sys_item() == SI_CREDITS; }
 static uint32_t gl_textpage(void) { return gl_info() || gl_cred(); }   /* (a page drawn whole: no lines, no cursor) */
-static void gl_cred_draw(int32_t y0)
-{
-    uint32_t i;
-    int32_t ph = (GL_END - y0) / (int32_t)CRED_N, ty;
-    char b[16];
-    for (i = 0; i < CRED_N; i++) {
-        ty = y0 + (int32_t)i * ph + (ph - (int32_t)FONT_S.h) / 2;
-        cv_texts(6, ty, nm_card(CRED[i][0], 0, b, sizeof b), C_GRAY);
-        cv_texts(236 - text_ws(CRED[i][1]), ty, CRED[i][1], i ? C_HI : C_WHITE);
-    }
-}
 #define GL_BAND_W (240 - OH_HEAD)                       /* INFO's first page has no help band (the user, 2026-10-29): its room runs to the screen's foot */
 #define GL_END_W (GL_BAND_W - 2)
 static uint32_t gl_info_wide(void)                      /* the page with no foot line (op_help.c hl_pre): from the cursor, not from the last draw (hl_pre runs before gl_draw) */
@@ -264,7 +233,7 @@ static void gl_paint(void)
         return;
     }
     if (gl_cred()) {
-        gl_cred_draw(y);
+        gl_cred_draw();
         return;
     }
 #if FELUCCA_BT_UI
@@ -326,6 +295,14 @@ static void gl_draw(void)
             info_cell(gl_info() - 1u, i, &c);
             sig = hu(hc(sig, &c), (uint32_t)(uint16_t)c.hold[0] << 16 ^ (uint16_t)c.hold[1] ^ (uint32_t)c.pkbar << 15);
         }
+    if (gl_cred()) {                                    /* (the credits: the crawl's offset; any other page: it starts at the top next time) */
+        cred_tick();
+        cr.px = (int16_t)cred_px();
+        sig = hu(sig, (uint32_t)(uint16_t)cr.px);
+        if (sig != ui.sig[2])
+            cr.draws++;                                 /* (a paint: the tests count them) */
+    } else
+        cred_off();
     if (sig == ui.sig[2])
         return;
     ui.sig[2] = sig;
