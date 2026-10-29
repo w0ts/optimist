@@ -91,6 +91,17 @@ try:
         (td / "b.config").write_text(C.dump(cfg, "b"))
         check("fm1base.compiler_of: the .config's item (default pi32v2-llvm, COMPILER=0 JieLi)",
               fm1base.compiler_of(td / "a.config") == "llvm" and fm1base.compiler_of(td / "b.config") == "jieli")
+        shim = td / "shim"
+        shim.mkdir()
+        (shim / "real").symlink_to(d)
+        check("the release log's compiler line: the .config's compiler and the real toolchain (a shim's too)",
+              fm1base.compiler_line(td / "a.config", {"JIELI_TOOLCHAIN": str(d)}) == f"compiler pi32v2-llvm ({d.resolve()})"
+              and fm1base.compiler_line(td / "b.config", {"JIELI_TOOLCHAIN": str(shim)}) == f"compiler JieLi ({d.resolve()})")
+        import subprocess  # noqa: E402
+        r = subprocess.run([sys.executable, "-c", fm1base.ANNOUNCE, "compiler X (y)", sys.executable, "-c",
+                            "import sys; print('build'); sys.exit(3)"], capture_output=True, text=True)
+        check("... printed first, then the build runs in its place, its exit status kept",
+              r.stdout.splitlines() == ["compiler X (y)", "build"] and r.returncode == 3)
     # the measurement shim, made by many builds at once (costs-all: 288 jobs as threads, 2026-10-29 FileNotFoundError)
     import threading  # noqa: E402
     with tempfile.TemporaryDirectory() as td:
