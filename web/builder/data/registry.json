@@ -5359,38 +5359,6 @@
     "provenance_line": "hugelton/Felucca @ 727f272 (Felucca 1.0 source) by Leo Kuroshita (@kurogedelic), Hügelton Instruments (GPL-3.0-only)"
    },
    {
-    "key": "BASSPLUS",
-    "flag": "FELUCCA_BASSPLUS",
-    "label": "BASS+ speaker mode",
-    "group": "FX: limited instances (once, or a set count)",
-    "bit": 73,
-    "default": 0,
-    "parent": null,
-    "desc": "A third MENU > LOWCUT setting (OFF / LOWCUT / BASS+) for the FM-1's small speaker: it adds harmonics of the bass below ~150 Hz, which the speaker can play, and raises the low cut to ~220 Hz. About 0.5 KB of flash and 0.35 KB of RAM; CPU only while BASS+ is on.",
-    "experimental": false,
-    "notice": "",
-    "off_warning": "",
-    "env": "",
-    "target_only": false,
-    "symbols": [],
-    "no_image": false,
-    "fixed": false,
-    "head": false,
-    "choices": [],
-    "provenance": {
-     "project": "hugelton/Felucca",
-     "author": "Leo Kuroshita (@kurogedelic), Hügelton Instruments",
-     "licence": "GPL-3.0-only",
-     "commit": "727f272 (Felucca 1.0 source)",
-     "url": "https://github.com/hugelton/Felucca"
-    },
-    "children": [],
-    "hidden": false,
-    "shown_under": null,
-    "tested": "emulator-tested only",
-    "provenance_line": "hugelton/Felucca @ 727f272 (Felucca 1.0 source) by Leo Kuroshita (@kurogedelic), Hügelton Instruments (GPL-3.0-only)"
-   },
-   {
     "key": "MOTION",
     "flag": "FELUCCA_MOTION",
     "label": "motion recording (knobs per step)",
@@ -6356,8 +6324,7 @@
    "INS_JCHORUS",
    "INS_FLANGER",
    "INS_XDLY",
-   "DLY_ARENA",
-   "BASSPLUS"
+   "DLY_ARENA"
   ],
   "Sequencer": [
    "CHORDPLUS",

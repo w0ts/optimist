@@ -1398,14 +1398,6 @@
     "ramtext": -212
    }
   },
-  "BASSPLUS": {
-   "1": {
-    "flash": 232,
-    "ram": 256,
-    "pool": 0,
-    "ramtext": 12
-   }
-  },
   "MOTION": {
    "1": {
     "flash": 16504,

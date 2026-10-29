@@ -1445,14 +1445,6 @@
     "ramtext": 1024
    }
   },
-  "BASSPLUS": {
-   "1": {
-    "flash": 480,
-    "ram": 48,
-    "pool": 0,
-    "ramtext": 436
-   }
-  },
   "BRIGHT": {
    "0": {
     "flash": -152,

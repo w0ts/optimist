@@ -231,9 +231,7 @@ static int32_t lce[4];
 #define KNEE 16384
 AINL int32_t knee(int32_t x) { return soft_knee(x, KNEE); }   /* (dsp.c) */
 
-#if FELUCCA_BASSPLUS
 #include "bassplus/bassplus.c"          /* the menu's LOWCUT: BASS+ for the small speaker (from Felucca 1.0) */
-#endif
 AINL void master_dc(mout_t *s, int32_t *l, int32_t *r)   /* the DC blocker (master_pre; USB's MASTER: ua_mst_out) */
 {
     *l = dc_block(*l, &s->dc_l, &s->dce_l);
@@ -243,11 +241,9 @@ AINL void master_pre(int32_t *l, int32_t *r)   /* the DC blocker and the low cut
 {
     master_dc(&mo, l, r);
     if (fx_lowcut) {                  /* two one-pole high-passes, error feedback as dc_block (the */
-#if FELUCCA_BASSPLUS
         if (fx_lowcut == 2u)
             bassplus_out(l, r);                     /* BASS+: an octave up, the bass' harmonics added */
         else
-#endif
         {
         *l = lowcut1(*l, &lc_l1, &lce[0]);          /* rounded step stopped at |x - lc| < 32: an offset) */
         *l = lowcut1(*l, &lc_l2, &lce[1]);

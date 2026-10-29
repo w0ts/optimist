@@ -2,14 +2,13 @@
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments (Felucca 1.0: BASS+, the small speaker
  * mode, hugelton/Felucca 727f272, fx.c spk_bass / master_out, ui_menu.c SPEAKER; the 4-pole low-pass from
  * Felucca 1.0.2, db70550, #42) */
-/* BASS+ (FELUCCA_BASSPLUS, backports.h): the menu's LOWCUT gets a third value, OFF / LOWCUT / BASS+
+/* BASS+ (always built since 2026-10-29; it was FELUCCA_BASSPLUS): the menu's LOWCUT has a third value, OFF / LOWCUT / BASS+
  * (settings.lowcut 0 / 1 / 2; fx_lowcut). BASS+ is for the FM-1's own small speaker: what it cannot play is
  * heard through its harmonics. The bass below ~150 Hz is clipped at its own envelope (a level-following
  * trapezoid: odd harmonics), band-passed ~220 Hz .. 1 kHz and added, while the low cut moves up to ~220 Hz
  * (12 dB/oct). The low-pass has 4 poles (Felucca 1.0.2 #42: with 2, the trapezoid rebuilt the mix's own
  * 300 .. 600 Hz, late, and cancelled up to 6 dB of it; tests/backports_test.c measured -5.7 dB at 440 Hz with 2
- * poles here, see t_bassplus_response). A build without the switch reads the 2 as LOWCUT (any non-zero value
- * is ON there). Included by fx.c (master_out); runs from RAM (HOT2: RAMTEXT is full), per sample, only while
+ * poles here, see t_bassplus_response). Included by fx.c (master_out); runs from RAM (HOT2: RAMTEXT is full), per sample, only while
  * BASS+ is on. */
 static int32_t sb_lp1, sb_lp2, sb_lp3, sb_lp4, sb_env, sb_h1, sb_h2, sb_hl;
 static inline void spk_bass_reset(void)   /* (the host tests: a cleared state) */
