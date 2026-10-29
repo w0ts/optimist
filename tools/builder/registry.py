@@ -110,6 +110,8 @@ RETIRED = {
     "DLY_DOT": "the delay TIME's 1/8D and 1/16D (SLOOP 2.4, appended values, stored numbers unchanged) are always built (retired 2026-10-29, backport bit 176; any old DLY_DOT value is ignored)",
     "CHO_EXACT": "the chorus send's read points are always ramped exactly over a block (fx.c CHO_RAMP; retired 2026-10-29, bit 425; the user: \"by default, remove the option\"; any old CHO_EXACT value is ignored)",
     "JUNO_FINE": "JUNO CHORUS's line is always 32 bits, 4 KB of the effects memory an instance (retired 2026-10-29, bit 429; the user: \"always on\"; any old JUNO_FINE value is ignored)",
+    "DUAL": "the second CPU core renders parts 2-3 in every build for the FM-1 (retired 2026-10-29, bit 58; the user: \"remove, always on\"; any old DUAL value is ignored, a DUAL=0 line builds the same as DUAL=2; the sim and the host tests keep one core)",
+    "STOCK_SUPPLY": "the core rails are raised to the FM-1's stock values at start-up in every build for the FM-1 (retired 2026-10-29, bit 62; any old STOCK_SUPPLY value is ignored)",
     "KNOB_ONEREST": "the knobs are always read with Felucca 1.6's decoder (one rest state a detent, fast turns counted; "
                     "retired 2026-10-14, released in Felucca 1.1.5 #126 and unchanged since)",
 }
@@ -122,7 +124,8 @@ RETIRED = {
 WAS_COUNT = frozenset({"INS_CHORUS", "INS_DELAY", "INS_JCHORUS", "INS_FLANGER", "INS_XDLY",
                        "ARENA"})   # (ARENA: its KB until 2026-10-29, the free RAM since: on)
 
-HASH_AS = {"KEYLIT": 1, "LIGHTS": 1, "BRIGHT": 0, "SIMD": 0, "KNOB_ONEREST": 1, "MONO_RELEASE": 1, "ST_STRICT": 1, "USB_FLOW": 1, "SHED_FADE": 1, "KEYS_FAST": 1, "TRS_NOISE": 1, "BK_CHECK": 1, "LAYER_QUIET": 1, "DLY_HALVE": 1, "LFO2": 1, "GLIDE": 1, "UI": 1, "ICONS": 0, "OVERVIEW": 0, "OV_ARP": 1, "DRUM_STEP": 1, "CHORD_NAMES": 1, "BPM_LOCK": 0, "MOTION_MARK": 1, "SEL_PAGES": 0, "BIGVALS": 0, "DRUM_ACCENT": 1, "PAGE_LINES": 1, "TAB_IN_POOL": 1, "VOICE_OWN": 1, "DLY_DOT": 1, "CHO_EXACT": 1, "JUNO_FINE": 1}   # (each was its default in every profile)
+ALWAYS_ON_TARGET = {"FELUCCA_DUAL": 2, "FELUCCA_STOCK_SUPPLY": 1}   # (target builds only, no item: system/dual.c, system/supply.c; 2026-10-29)
+HASH_AS = {"KEYLIT": 1, "LIGHTS": 1, "BRIGHT": 0, "SIMD": 0, "KNOB_ONEREST": 1, "MONO_RELEASE": 1, "ST_STRICT": 1, "USB_FLOW": 1, "SHED_FADE": 1, "KEYS_FAST": 1, "TRS_NOISE": 1, "BK_CHECK": 1, "LAYER_QUIET": 1, "DLY_HALVE": 1, "LFO2": 1, "GLIDE": 1, "UI": 1, "ICONS": 0, "OVERVIEW": 0, "OV_ARP": 1, "DRUM_STEP": 1, "CHORD_NAMES": 1, "BPM_LOCK": 0, "MOTION_MARK": 1, "SEL_PAGES": 0, "BIGVALS": 0, "DRUM_ACCENT": 1, "PAGE_LINES": 1, "TAB_IN_POOL": 1, "VOICE_OWN": 1, "DLY_DOT": 1, "CHO_EXACT": 1, "JUNO_FINE": 1, "DUAL": 2, "STOCK_SUPPLY": 1}   # (each was its default in every profile)
 
 # Never offered: used by X0X only by permission of its author, no licence
 FORBIDDEN = {
@@ -151,8 +154,6 @@ MELODEE_FM6 = Provenance("Melodee (keremimo/melodee)", "Kerem Kilic", "GPL-3.0-o
 MELODEE_MIDI = Provenance("Melodee (keremimo/melodee)", "ChanceTheMaker, Kerem Kilic", "GPL-3.0-only", "670193c",
                           MELODEE_URL)
 MELODEE_USB = Provenance("Melodee (keremimo/melodee)", "Kerem Kilic", "GPL-3.0-only", "", MELODEE_URL)
-MELODEE_SUPPLY = Provenance("Melodee (keremimo/melodee)", "Kerem Kilic", "GPL-3.0-only", "7a51700",
-                            MELODEE_URL)   # (its port of the stock V15 supply start-up, hal/fm1_power.h, 1.3.6)
 FELUCCA = Provenance("Felucca (hugelton/Felucca)", "Leo Kuroshita (Hügelton)", "GPL-3.0-only", "", FELUCCA_URL)
 PR45 = Provenance("SLOOP 8-track PR (isod89/sloop-fm1 #45)", "Erick Buendia Barrientos (Erbubar23)", "GPL-3.0-only",
                   "8d9623f", "https://github.com/isod89/sloop-fm1/pull/45")
@@ -1317,31 +1318,10 @@ _add("ASM", "FELUCCA_ASM", "hand-written assembly speed-ups (FM6, ANALOG 2)", Y,
 X = Y
 JANGADA = Provenance("Jangada (zednaked/jangada)", "zednaked", "GPL-3.0-only", "07cce38",
                      "https://github.com/zednaked/jangada")
-_add("DUAL", "FELUCCA_DUAL", "second CPU core renders parts 2-3", X, 58, default=2,
-     choices=((0, "off"), (2, "on")), target_only=True, provenance=x0x("47f8e4c"),
-     notice="Its guard against misread RAM is ported from X0X by Charles Vestal (GPL-3.0): the second core runs only "
-            "the next job, with a matching check word, and is held at the first one it refuses.",
-     desc="The FM-1's second CPU core renders synth parts 2 and 3 while the first renders the rest, "
-          "cutting the first core's load by 40 to 44 % in the emulator, with the same sound. It costs about 3.3 KB of "
-          "flash, 3.7 KB of RAM and 6 KB of pool. On some FM-1s the second core misreads RAM at the boot loader's "
-          "supply: it then runs nothing it misread, is held for the session and the FM-1 goes on with one core "
-          "(the message CPU1 OFF MISREAD); a boot after one that crashed in its first 30 s stays on one core.",
-     tested="on the FM-1: the default since 2026-10-16")
-_add("STOCK_SUPPLY", "FELUCCA_STOCK_SUPPLY", "raise the core rails to the FM-1's stock values at start-up (for the second core)",
-     X, 62, default=1, parent="DUAL", target_only=True, provenance=MELODEE_SUPPLY,
-     notice="At your own risk: the FM-1's own firmware raises its rails this way, every custom firmware "
-            "leaves them at the boot loader's lower levels. 1.38 V core and 1.60 V on the 1.4 V rail are above the "
-            "AC79 datasheet's table (the chip's absolute limits are not public); chips vary from unit to unit; the "
-            "effect on heat and battery life has not been measured.",
-     desc="At start-up, before the second core, the audio and Bluetooth, the FM-1's rails are set as its own M-VAVE "
-          "firmware sets them: the 1.4 V rail moved from its LDO to the DC-DC, then raised to 1.60 V (VDC14 7), "
-          "then the core rail to 1.38 V (SYSVDD 15), a step at a time, never lowered (the boot loader leaves 1.40 V "
-          "and 1.26 V). Read back after: if a value is wrong, the second core stays off (2ND CORE OFF SUPPLY) and "
-          "the FM-1 runs on one core. SYSTEM > INTERNALS shows the rails (SUPPLY). Second-core builds only; it "
-          "replaces the earlier DUAL_BOOST (1.50 V / 1.38 V on the LDO). On the second core's test unit both cores "
-          "crashed within seconds at the boot loader's rails and ran 3 x 3 minutes with 1.50 V / 1.38 V; the stock "
-          "sequence itself is still being measured.",
-     tested="the sequence emulator- and host-tested; 1.50 V / 1.38 V measured on one FM-1 (2026-10-16)")
+# (bit 58, DUAL, and bit 62, STOCK_SUPPLY, retired 2026-10-29: the second core renders parts 2-3 and the rails are raised to
+#  the FM-1's stock values at start-up in every target build, ALWAYS_ON_TARGET below; RETIRED above; never reuse the bits.
+#  Attribution kept: the second core's guard against misread RAM is ported from X0X by Charles Vestal (GPL-3.0, 47f8e4c), the
+#  supply start-up from Melodee by Kerem Kilic (GPL-3.0, 7a51700), LICENSING.md and system/dual.c, system/supply.c)
 _add("BLE", "FELUCCA_BLE", "Bluetooth LE MIDI, our own stack", M, 252, default=0,
      target_only=True,
      desc="BLE MIDI as the stock firmware offers it (named Optimist XXXX, the BLE-MIDI service), from a stack written "

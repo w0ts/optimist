@@ -47,9 +47,6 @@ PAIRS = [{"MOTION": 1, "SECTIONS": 4},
          # without live editing the librarian brings the sections and the patterns too, and BACKUP the sample slots and the
          # snapshots (ed_lite.c: the base is the frames, INFO, BUILD, PING)
          {"ED_LIVE": 0, "LIBRARIAN": 0}, {"ED_LIVE": 0, "BACKUP": 0}, {"ED_LIVE": 0, "BACKUP": 0, "LIBRARIAN": 0},
-         # one core with the CDC console (the BLE test builds' set): the second core's code that DUAL=0 leaves out is not
-         # the same with the console's (2026-10-19: user-default+ble-full estimated 840 B of RAMTEXT over from ble-test)
-         {"DUAL": 0, "USB_CONSOLE": 1},   # (motion beside the four project slots vs inside the section records)
          # the reverb's algorithms share their line buffer, the half-rate filters and the code that switches them
          # (the buffer itself is computed: configure.py rev_lines; the automation store: auto_store)
          {"REV_PLATE": 1, "REV_FDN8": 1, "SPRING": 0}, {"REV_PLATE": 1, "REV_FDN8": 1, "SPRING": 1},
@@ -112,11 +109,7 @@ PAIRS = [{"MOTION": 1, "SECTIONS": 4},
          # the FILTER insert's code and state (core.h TFLT_ON) are built with the track FILTER or the master DJ filter
          # (on by default): TRK_FILT's delta is ~0, without FX_DJF it pays them (2026-10-19: drum-machine + TRK_FILT
          # 1,104 B of RAM and 2.4 KB of flash, its delta 96 B of flash)
-         {"FX_DJF": 0, "TRK_FILT": 1},
-         # one core with the FDN8 reverb: DUAL=0 frees 1,008 B less RAM and 1,264 B more RAMTEXT than in the defaults
-         # (2026-10-19, each item of user-default+ble-test beside DUAL on / off: only REV_FDN8 moved it over 100 B;
-         # user-default+ble-full estimated 856 B of RAM under)
-         {"REV_FDN8": 1, "DUAL": 0}]
+         {"FX_DJF": 0, "TRK_FILT": 1},]
 # items off by default that share code and state built with any of them: each one's delta pays it, so the group's
 # shared part is measured (all of them on: (sum of their deltas - what that build adds) / (n - 1)) and counted once
 # (configure.py group_delta). Found 2026-10-14: each insert beyond the first was 0.76 KB of RAM over

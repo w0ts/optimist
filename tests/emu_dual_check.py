@@ -9,8 +9,8 @@ Each package (its ELF next to it) boots fresh and plays, every key pressed and l
 (play_check align): T2 a chord three times (RHODES: a part CPU1 renders in a DUAL=2 build), then T1 one note
 (808 BOOM: CPU0) once with its LFO's sample & hold on the pitch (t1s) and three times without. Checks:
   - T1's takes b and c are the same samples (each follows a take of the same note);
-  - every take of a REFERENCE is FIRMWARE's, sample for sample (24 bit): the same .config built with DUAL=0, or
-    DUAL=2 with DUAL_PARTS=0 (CPU1 up, rendering nothing) or DUAL_PARTS=3 (T1 and T2 on CPU1: CPU0 renders T3 first);
+  - every take of a REFERENCE is FIRMWARE's, sample for sample (24 bit): the same .config built with OPTIMIST_DUAL_PARK=1 (CPU1 never started: one core renders), or
+    a normal build with DUAL_PARTS=0 (CPU1 up, rendering nothing) or DUAL_PARTS=3 (T1 and T2 on CPU1: CPU0 renders T3 first);
   - a DUAL build's CPU1 did the jobs; no autosave before the takes end; every package rendered as many halves.
 FM1_EMU: the emulator checkout (as tests/emu_boot_check.py); EMU_DUAL_KEEP=DIR keeps the takes. Exit 1 on a failure.
 At a clock where a build runs over the CPU guard's ceiling (the mots .config at 48 MHz) the guard sheds voices on

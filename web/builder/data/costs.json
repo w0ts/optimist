@@ -1391,22 +1391,6 @@
     "ramtext": -628
    }
   },
-  "DUAL": {
-   "0": {
-    "flash": -1844,
-    "ram": -2480,
-    "pool": 0,
-    "ramtext": -1420
-   }
-  },
-  "STOCK_SUPPLY": {
-   "0": {
-    "flash": 0,
-    "ram": 0,
-    "pool": 0,
-    "ramtext": 0
-   }
-  },
   "BLE": {
    "1": {
     "flash": 40676,
@@ -3675,7 +3659,6 @@
     "LIVE_SAVE": 1,
     "CPU_GUARD": 1,
     "CACHE_RAM": 2,
-    "DUAL": 0,
     "BT_AUDIO": 1,
     "CHANCE": 1,
     "KEYLIT": 0,
@@ -3951,12 +3934,6 @@
    "pool": 0,
    "ramtext": 44
   },
-  "DUAL=0,USB_CONSOLE=1": {
-   "flash": -1888,
-   "ram": 16,
-   "pool": 0,
-   "ramtext": -208
-  },
   "REV_PLATE=1,REV_FDN8=1,SPRING=0": {
    "flash": -1216,
    "ram": -304,
@@ -4202,12 +4179,6 @@
    "ram": 464,
    "pool": 0,
    "ramtext": 1176
-  },
-  "REV_FDN8=1,DUAL=0": {
-   "flash": -3432,
-   "ram": 32,
-   "pool": 0,
-   "ramtext": -272
   },
   "SEQTOOLS=1,ED_SEQ=0": {
    "flash": 0,
