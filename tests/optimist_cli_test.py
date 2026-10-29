@@ -234,6 +234,22 @@ check("web: --port, --no-open, --site", a.port == 9000 and a.no_open and a.site 
 fa, fb = optimist.sim_fingerprint(optimist.C.profile_path("synths_USBaudio_BTaudio_BTmidi")), optimist.sim_fingerprint(optimist.C.profile_path("drum-machines"))
 check("web: the simulator's fingerprint: the same sources the same, another configuration another (outdated: asked again)",
       fa == optimist.sim_fingerprint(optimist.C.profile_path("synths_USBaudio_BTaudio_BTmidi")) and fa != fb and len(fa) == 64)
+import socket
+_s4 = socket.socket(socket.AF_INET)
+_s4.bind(("127.0.0.1", 0))
+_p4 = _s4.getsockname()[1]
+check("web: a free port is not taken", optimist.web_port_taken(_p4) is None)
+_s4.listen(1)
+check("web: a server already on 127.0.0.1 is found (make web stops)", optimist.web_port_taken(_p4) == "127.0.0.1")
+_s4.close()
+try:
+    _s6 = socket.socket(socket.AF_INET6)
+    _s6.bind(("::1", 0))
+    _s6.listen(1)
+    check("web: a server only on ::1 (where localhost may go) is found too", optimist.web_port_taken(_s6.getsockname()[1]) == "::1")
+    _s6.close()
+except OSError:
+    print("web: no IPv6 loopback here: the ::1 case not run")
 check("web: the installer and editor URLs", optimist.web_urls(9000) ==
       ("http://localhost:9000/webapp/installer/", "http://localhost:9000/webapp/editor/"))
 with tempfile.TemporaryDirectory() as wd:
