@@ -252,12 +252,11 @@ static inline HOT void master_out(int32_t *l, int32_t *r)
     *l = knee(*l);
     *r = knee(*r);
 }
-/* the mix bus (Q15) times MASTER (Q12, 4096 at most): 2 bits dropped before the product, so the bus' last 2 bits never
- * reach the output, and a low MASTER leaves the DAC's 24 bits 16 (a quarter turn: 11 used). MIX_EXACT: a 64-bit product,
- * none dropped, and the 7 bits under each Q15 out sample kept for audio.c audio_block (the DAC's 24; USB, Bluetooth and
- * the card take the Q15 as before). The master's DC blocker, low cut and limiter after it leave the 7 bits off by under
- * a Q15 step: never further than the step dropped before (mix_finish, master_comp.c mlim_block) */
-#if FELUCCA_MIX_EXACT
+/* the mix bus (Q15) times MASTER (Q12, 4096 at most) as a 64-bit product, and the 7 bits under each Q15 out sample kept
+ * for audio.c audio_block (the DAC's 24; USB, Bluetooth and the card take the Q15). The master's DC blocker, low cut and
+ * limiter after it leave the 7 bits off by under a Q15 step. Before (issue 107, 2026-10-28): 2 bits dropped before the
+ * product and the out rounded to Q15, a low MASTER leaving 11 of the DAC's 24 bits at a quarter turn (mix_finish,
+ * master_comp.c mlim_block) */
 static uint8_t mst_frac[2u * CTL];
 AINL int32_t master_vol(int32_t x, int32_t m, uint8_t *f)
 {
@@ -266,9 +265,6 @@ AINL int32_t master_vol(int32_t x, int32_t m, uint8_t *f)
     return (int32_t)(p >> 12);
 }
 #define MASTER_VOL(x, m, k) master_vol((x), (m), &mst_frac[k])
-#else
-#define MASTER_VOL(x, m, k) ((((x) >> 2) * (m)) >> 10)
-#endif
 #if FELUCCA_MASTER_COMP
 #include "master_comp/master_comp.c"       /* GLO > COMP / LIMIT: the bus compressor, the brickwall limiter (mix_finish) */
 #endif
@@ -2029,22 +2025,12 @@ static HOT2 __attribute__((noinline)) void dust_run(dust_t *s, int32_t d, int32_
     }
 }
 
-/* a part's sample x (|x| < 2^21) times its pan gain g (Q12, 4096 at most) into the mix (mix_part, insfx.c ifx_side_mix):
- * MIX_FINE drops 3 bits before the product (at most 2^18 x 2^12), not 4: the dry's steps half as coarse, the floor 5.3 dB
- * lower on every part (host, 2026-10-26). MIX_EXACT (issue 107, 2026-10-28): 64-bit products, no bit dropped, here and in
- * MIX_GAIN, the part's mute x duck gain g (Q15): its 4 bits down were taken on every block, the gain at rest being
- * 32766 (mulq15(32767, 32767)): every part reached the bus in steps of 16, a long tail's last bits a bitcrusher */
-#if FELUCCA_MIX_EXACT
+/* a part's sample x (|x| < 2^21) times its pan gain g (Q12, 4096 at most) into the mix (mix_part, insfx.c ifx_side_mix),
+ * and times its mute x duck gain g (Q15): 64-bit products, no bit dropped. Before (issue 107, 2026-10-28): 4 bits down in
+ * each (MIX_FINE: 3 in the pan's), the mute x duck one taken on every block, its gain at rest being 32766
+ * (mulq15(32767, 32767)): every part reached the bus in steps of 16, a long tail's last bits a bitcrusher */
 #define MIX_PAN(x, g) ((int32_t)(((int64_t)(x) * (g)) >> 12))
 #define MIX_GAIN(x, g) ((int32_t)(((int64_t)(x) * (g)) >> 15))
-#elif FELUCCA_MIX_FINE
-#define MIX_PAN(x, g) ((((x) >> 3) * (g)) >> 9)
-#else
-#define MIX_PAN(x, g) ((((x) >> 4) * (g)) >> 8)
-#endif
-#if !FELUCCA_MIX_EXACT
-#define MIX_GAIN(x, g) (((x) >> 4) * ((g) >> 3) >> 8)  /* (Q15 in two halves: no 32-bit overflow) */
-#endif
 #include "insfx/insfx.c"            /* the further insert types FOLD FUZZ PHSR FLNG FRMT WIDE CHRS ECHO (ins_one, dbus_ins) */
 #include "insfx/fxi.c"              /* the limited types' instances (CHRS ECHO): the main loop hands them out, fxi_poll */
 /* the second-core test image can switch the inserts off (outside the DINS block: the track strips use it too) */

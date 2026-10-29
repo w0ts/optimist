@@ -156,9 +156,7 @@ static HOT2 __attribute__((noinline)) void mc_run(mc_t *c, const mc_set_t *s, co
 
 /* ---- the limiter */
 static mlim_t mlim;
-#if FELUCCA_MIX_EXACT
 static uint8_t mlim_fr[2][MLIM_N];                      /* the 7 bits under the delayed samples (fx.c MASTER_VOL) */
-#endif
 
 AINL void mlim_reset(mlim_t *m)                             /* (inlined: called from RAM code) */
 {
@@ -334,14 +332,12 @@ static HOT2 __attribute__((noinline)) void mlim_block(const int32_t *ml, const i
         int32_t l = MASTER_VOL(ml[i], m, 2u * i);       /* (fx.c) */
         int32_t r = MASTER_VOL(mr[i], m, 2u * i + 1u);
         master_pre(&l, &r);
-#if FELUCCA_MIX_EXACT
         {                                               /* the 7 bits under it through the lookahead with it */
             uint32_t p = mlim.pos;
             uint8_t fl = mlim_fr[0][p], fr = mlim_fr[1][p];
             mlim_fr[0][p] = mst_frac[2u * i], mlim_fr[1][p] = mst_frac[2u * i + 1u];
             mst_frac[2u * i] = fl, mst_frac[2u * i + 1u] = fr;
         }
-#endif
         mlim_step(&l, &r);
         out[2u * i] = l;
         out[2u * i + 1u] = r;
