@@ -8,13 +8,13 @@ A keyboard or a DAW on USB or the TRS MIDI IN jack plays the FM-1. Each track ha
 
 - MIDI notes go through the track's **SCL** settings like the FM-1's own keys (KEYS WHITE, ALL, SNAP; CHORD on: one key plays the chord of its degree). TRANSPOSE applies, the FM-1's OCT buttons do not.
 - **Pitch bend** +-2 semitones (RPN 0 sets another range), **mod wheel** (a vibrato of its own), **sustain pedal** (CC64), and the panic messages CC120, CC121 and CC123. Drums ignore bend, wheel and sustain. A drum note plays the lane whose instrument it is ([drums](drums.md)).
-- **MIDI OUT** (USB): KEYS sends what you play, SEQ also the sequencer, the arp and the rolls, each on its track's channel.
+- **MIDI OUT** (USB): OFF sends no note (the clock is CLK OUT's, unaffected), KEYS sends what you play, SEQ also the sequencer, the arp and the rolls, each on its track's channel.
 
 ## MIDI clock
 
-**CLK IN** (saved with the project): **AUTO** follows an external clock when one comes in (TRS first, then USB, then Bluetooth MIDI), else the FM-1's tempo; **INT** ignores clocks; **USB**, **TRS** or **BLE** follows only that input. Start begins at step 1 on the first pulse after it, Continue resumes at the song position sent, Stop stops. The tempo shown, the delay, the arp, the rolls and the slicer follow the measured tempo. The source changes only while stopped. **CLK OFS** plays the steps that much earlier while following a clock (USB, TRS or Ableton Link; it is also the NUDGE card of the PLAY-held tempo page while one is followed, saved with the settings), **BT OFS** the same while the audio goes to Bluetooth.
+**CLK IN** (saved with the project): **AUTO** follows an external clock when one comes in (Ableton Link first where it is built, then TRS, USB, Bluetooth MIDI), else the FM-1's tempo; **INT** ignores clocks; **USB**, **TRS**, **BLE** or **LINK** follows only that input. The list reads AUTO, LINK, TRS, USB, BLE, INT: AUTO first, then the sources in the order AUTO prefers them, the internal clock last. Start begins at step 1 on the first pulse after it, Continue resumes at the song position sent, Stop stops. The tempo shown, the delay, the arp, the rolls and the slicer follow the measured tempo. The source changes only while stopped. **CLK OFS** plays the steps that much earlier while following a clock (USB or TRS; it is also the NUDGE card of the PLAY-held tempo page while one is followed, saved with the settings), **BT OFS** the same for a Bluetooth clock and **LINK OFS** for an Ableton Link session.
 
-**CLK OUT** (off by default) sends MIDI clock on USB and to a Bluetooth MIDI device that listens (the TRS jack is input only): 24 pulses a beat, also while stopped, Start and Stop with the transport, Song Position and Continue when it continues a song. The pulses never swing. Nothing is sent back to the input being followed.
+**CLK OUT** (off by default; **USB**, **BLE** or **BOTH**, without Bluetooth MIDI only USB) sends MIDI clock on USB and / or to a Bluetooth MIDI device that listens (the TRS jack is input only): 24 pulses a beat, also while stopped, Start and Stop with the transport, Song Position and Continue when it continues a song. The pulses never swing. Nothing is sent back to the input being followed.
 
 ## Bluetooth MIDI and Bluetooth audio
 

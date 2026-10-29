@@ -335,12 +335,89 @@ static void t_flash(void)
     check("nothing is written outside the settings object's two sectors", 1);
 }
 
+/* CLK OUT's mode, LINK, LINK OFS and CLK IN = LINK beside the settings word (project.c persist_ext_*; 2026-10-29): a record from before has ext_ver 0 and
+ * reads CLK OUT BOTH (USB without BLE), LINK ON+S/S, LINK OFS = CLK OFS; a newer one reads what was saved */
+static void t_syncext(void)
+{
+    persist_t r;
+    int ok = 1;
+    memset(&r, 0, sizeof r);
+    r.clk_ofs[0] = 17;
+#if FELUCCA_MIDI_CLKOUT
+    clko_on = CLKO_BOTH;                            /* (the word's bit 26 of a record from before) */
+    persist_ext_load(&r);
+#if FELUCCA_BLE
+    ok &= clko_on == CLKO_BOTH;
+#else
+    ok &= clko_on == CLKO_USB;
+#endif
+#endif
+#if FELUCCA_LINK
+    link_mode = LINK_OFF;
+    song.g[G_SYNC] = SYNC_AUTO;
+    persist_ext_load(&r);
+    ok &= link_mode == LINK_ONSS && song.g[G_SYNC] == SYNC_AUTO;   /* (before the setting: Link shared play / stop) */
+#endif
+#if FELUCCA_MIDI_CLOCK
+    sync_ofs[2] = 0;
+    persist_ofs_load(&r);
+    ok &= sync_ofs[2] == 17;                        /* (Link used CLK OFS) */
+    r.ext_ver = 1;
+    r.link_ofs = -42;
+    persist_ofs_load(&r);
+    ok &= sync_ofs[2] == -42 && sync_ofs[0] == 0;
+    sync_ofs[0] = sync_ofs[2] = 0;
+#endif
+    check("settings record ext: an older record reads CLK OUT BOTH, LINK ON+S/S, LINK OFS = CLK OFS; a newer one its own LINK OFS", ok);
+#if FELUCCA_MIDI_CLKOUT && FELUCCA_BLE
+    {
+        static const uint8_t M[] = {CLKO_USB, CLKO_BLE, CLKO_BOTH};
+        unsigned i;
+        ok = 1;
+        for (i = 0; i < sizeof M; i++) {
+            persist_t q;
+            memset(&q, 0, sizeof q);
+            clko_on = M[i];
+            persist_ext_save(&q);
+            clko_on = CLKO_BOTH;                    /* (the word brings ON back; the record says which) */
+            persist_ext_load(&q);
+            ok &= clko_on == M[i];
+        }
+        check("settings record ext: CLK OUT USB / BLE / BOTH each read back as saved", ok);
+    }
+#endif
+#if FELUCCA_LINK
+    {
+        unsigned i;
+        ok = 1;
+        for (i = 0; i <= LINK_ONSS; i++) {
+            persist_t q;
+            memset(&q, 0, sizeof q);
+            link_mode = (uint8_t)i;
+            song.g[G_SYNC] = SYNC_LINK;
+            persist_ext_save(&q);
+            link_mode = LINK_ONSS;
+            song.g[G_SYNC] = SYNC_AUTO;             /* (the word read AUTO for a LINK) */
+            persist_ext_load(&q);
+            ok &= link_mode == i && song.g[G_SYNC] == SYNC_LINK;
+        }
+        song.g[G_SYNC] = SYNC_BLE;
+        ok &= (song.g[G_SYNC] == SYNC_BLE);
+        check("settings record ext: LINK OFF / ON / ON+S/S and CLK IN LINK each read back as saved", ok);
+        link_mode = LINK_ONSS;
+        song.g[G_SYNC] = SYNC_AUTO;
+    }
+#endif
+    clko_on = 0;
+}
+
 int main(void)
 {
     t_store();
     t_layout();
     t_record();
     t_vufloor();
+    t_syncext();
 #if FELUCCA_USB_AUDIO
     t_ua();
 #endif

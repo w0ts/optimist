@@ -204,8 +204,8 @@ typedef struct {
                                                     * the WPA2 key, never the password; MODE AP's name, channel and key at its end);
                                                     * a record from before (268 octets, or none): none, zeros after; a build
                                                     * without Wi-Fi keeps it as read */
-    uint8_t ext_ver, clko_sel, link_sel, ext_pad;  /* 2026-10-29: 0 in a record from before (then CLK OUT is the settings word's ON / OFF = BOTH / OFF,
-                                                    * LINK is ON+S/S, LINK OFS is CLK OFS's); 1: CLK OUT's mode (clock_out.c CLKO_*), LINK (clock_sync.c LINK_*) */
+    uint8_t ext_ver, clko_sel, link_sel, sync_sel;  /* 2026-10-29: 0 in a record from before (then CLK OUT is the settings word's ON / OFF = BOTH / OFF,
+                                                    * LINK is ON+S/S, LINK OFS is CLK OFS's); 1: CLK OUT's mode (clock_out.c CLKO_*), LINK (clock_sync.c LINK_*), sync_sel = 1: CLK IN is LINK (the settings word holds AUTO then) */
     int16_t link_ofs;                              /* LINK OFS, ms (clock_sync.c sync_ofs[2]); read only with ext_ver */
 #if FELUCCA_DUAL && FELUCCA_DUALCFG
     dualcfg_t dualcfg;                             /* (the second-core test image only: after everything) */
