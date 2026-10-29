@@ -147,10 +147,10 @@ static uint32_t fxa_fits(uint32_t lo, uint32_t hi, uint32_t n)   /* how many lin
 AINL uint32_t fxl_open(uint32_t s) { return fxl_st[s] == FXL_LENT && !fxl_send_on(s); }
 #if FXA_ROOM
 /* The own room in the arena (fxi_mem.h): the arena's units free outside the room (a bit each: a copy of the arena
- * taken with the interrupts off, read with them on), under the send lines' places (fx_arena.c fxm_lim) */
+ * taken with the interrupts off, read with them on) */
 #define FXR_BMW ((FXA_I + 31u) / 32u)
 #ifndef FXR_LIM
-#define FXR_LIM ARN_LIM                                 /* (the room under the send lines' places) */
+#define FXR_LIM ARN_BYTES                               /* (the room anywhere in the arena) */
 #endif
 static uint32_t fxr_map(uint32_t *m)                    /* -> the units under the places; m: those free */
 {
@@ -206,7 +206,7 @@ static uint32_t fxr_run(const uint32_t *m, uint32_t u, uint32_t lim, uint32_t do
 }
 /* a line of n units in the own room: in its free units (XDLY from the bottom, the smaller from the top), else the room
  * grown at an edge by the fewest units (its free units there counted; of two alike the top), no room yet: n units at
- * the highest place under the send lines' places; its block resized. None: the arena's parts moved when the free room
+ * the highest place in the arena; its block resized. None: the arena's parts moved when the free room
  * holds it (core/arena.c arn_pack: tried again after), else refused (fxr_no: FULL, MEM FULL INSERTS once). FXA_NO: none
  * now. (Measured, tests/arena_frag_test.c: against one fixed block of one line of each type the owners without their
  * line 24 % against 66 % in 96 KB) */
@@ -348,6 +348,17 @@ static void fxi_clear(uint32_t j, uint32_t i)           /* instance i zeroed, at
     (void)i;
 }
 #if FXA_ROOM
+/* (core/arena.c, fx_arena.c arn_can) none of the room's lines is heard: every instance in it at rest (its wet 0) */
+static int fxr_quiet(void)
+{
+    uint32_t j, i;
+    for (j = 0; j < FXI_NL; j++)
+        for (i = 0; i < FXI_TN[j]; i++)
+            if (fxi_own[j][i] != FXI_NONE && fxa_reg(fxa_u[j][i]) == FXL_NS &&
+                ifx_lim_w(FXI_TY(j), fxi_aix(fxi_own[j][i])))
+                return 0;
+    return 1;
+}
 /* (core/arena.c, the interrupts off, the room's block copied to p: engines.c ARN_MV_MOVED) its units, its instances'
  * units and lines, the units in use: where they are now; nothing else changes (the kernels skipped it meanwhile) */
 static void fxr_moved(void *p)
