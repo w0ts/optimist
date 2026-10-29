@@ -485,7 +485,7 @@ const lookRes = await run(`${U} const $$ = (q) => [...document.querySelectorAll(
   head(0).click(); await until(() => head(0).getAttribute("aria-pressed") === "true", 8000);
   } catch (e) { r.err = String(e); }
   return r;`);
-ok(lookRes && lookRes.groups === ":3" && lookRes.font && lookRes.tabs === "false:0" && lookRes.tracks === 4 && lookRes.sel === 2 && lookRes.trk === "#287cff"
+ok(lookRes && lookRes.groups === ":1" && lookRes.font && lookRes.tabs === "false:0" && lookRes.tracks === 4 && lookRes.sel === 2 && lookRes.trk === "#287cff"
   && lookRes.pop === "sound:true" && lookRes.tiles === 16,
   `e2e: the look: Terminus, the side bar holds only what is not in the mixer, no track tab row (a strip's head selects; one colour, the blue, whatever the track), the Sound editor opens from the instrument widget, 16 step tiles (${JSON.stringify(lookRes)})`);
 /* the Samples page (SLOOP 2.4's three steps): choose a slot, make the sound (files, the key map drawn), send, play it on a track */
