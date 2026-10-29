@@ -2559,32 +2559,6 @@
     "provenance_line": ""
    },
    {
-    "key": "JUNO_FINE",
-    "flag": "FELUCCA_JUNO_FINE",
-    "label": "JUNO CHORUS: 32-bit line (less grit, twice the memory)",
-    "group": "FX: limited instances (once, or a set count)",
-    "bit": 429,
-    "default": 0,
-    "parent": "INS_JCHORUS",
-    "desc": "JUNO CHORUS keeps its line at 32 bits at the owner's own scale instead of 16 bits 3 bits down (a bus: 2): its wet no longer moves in steps of 8, and its side, different in each ear, no longer carries that rounding. Measured with the shift gone: 6-12 dB less noise. Each instance takes 4 KB of the effects memory instead of 2 (fewer instances fit); more headroom than before (+-3 M, was +-0.26 M on a part).",
-    "experimental": true,
-    "notice": "",
-    "off_warning": "",
-    "env": "",
-    "target_only": false,
-    "symbols": [],
-    "no_image": false,
-    "fixed": false,
-    "head": false,
-    "choices": [],
-    "provenance": null,
-    "children": [],
-    "hidden": false,
-    "shown_under": null,
-    "tested": "host-measured only (a sine through the firmware's own code, 2026-10-26); not yet heard on an FM-1",
-    "provenance_line": ""
-   },
-   {
     "key": "REV_HB_LONG",
     "flag": "FELUCCA_REV_HB_LONG",
     "label": "half-rate reverbs: steep 63-tap filter (no aliasing)",
@@ -3433,9 +3407,7 @@
      "commit": "be74757",
      "url": "https://github.com/PatttF/fm-106"
     },
-    "children": [
-     "JUNO_FINE"
-    ],
+    "children": [],
     "hidden": false,
     "shown_under": null,
     "tested": "emulator-tested only",
@@ -3576,7 +3548,7 @@
     "bit": 378,
     "default": 0,
     "parent": null,
-    "desc": "One pool memory, in 1 KB units, for the delay send's line (its length above) and the line of every insert that has one: CHRS 2 KB, ECHO 8 KB, JUNO CHORUS 2 KB, FLNG 1 KB, XDLY 2 lines of its length. An insert takes its room when a slot picks it and gives it back when the slot lets go; with no room left the slot shows FULL and stays dry. How many of each play at once is what this memory holds: the builder's notice says, for each type built, up to how many at once (alone) in the size chosen, and how many more while the delay or the chorus is in no master slot: a send in none lends its line to the inserts (as many as fit; taken back, faded out, when the send is put back). Auto: the delay's line plus one line of each insert built, so every insert built can play at least once at the same time. Larger: more at once. A size smaller than the delay's line and one line of the largest insert built is raised to that (a notice says so).",
+    "desc": "One pool memory, in 1 KB units, for the delay send's line (its length above) and the line of every insert that has one: CHRS 2 KB, ECHO 8 KB, JUNO CHORUS 4 KB, FLNG 1 KB, XDLY 2 lines of its length. An insert takes its room when a slot picks it and gives it back when the slot lets go; with no room left the slot shows FULL and stays dry. How many of each play at once is what this memory holds: the builder's notice says, for each type built, up to how many at once (alone) in the size chosen, and how many more while the delay or the chorus is in no master slot: a send in none lends its line to the inserts (as many as fit; taken back, faded out, when the send is put back). Auto: the delay's line plus one line of each insert built, so every insert built can play at least once at the same time. Larger: more at once. A size smaller than the delay's line and one line of the largest insert built is raised to that (a notice says so).",
     "experimental": false,
     "notice": "",
     "off_warning": "",

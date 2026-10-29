@@ -173,15 +173,13 @@ static HOT2 __attribute__((noinline)) void ifx_echo_run(ifx_ec_t *s, int32_t a, 
 }
 #endif
 
-/* ---- JUNO CHORUS (fx/junocho/juno_cho.h): a 1024-sample line (2 KB of the effects memory an instance) and its state; MIX fades in and out
+/* ---- JUNO CHORUS (fx/junocho/juno_cho.h): a 1024-sample line (4 KB of the effects memory an instance) and its state; MIX fades in and out
  * over ~11 ms (its step a block: 2048 of 127 << 8), MODE the owner's (a track's P_TJMODE, the master's mst_jmode). A part
  * (mono) gets the mid, its side into ifx_jside (mixed after its level as WIDE's: fx.c mix_part); the drum bus and the
  * master their L and R, the line fed the mid. From rest the line is zeroed (a word loop, once). Runs from flash (XIP).
  * Its evict flag (fxi.c: its line goes back to a send) fades it out as at MIX 0 */
 #if FELUCCA_INS_JCHORUS
-#if FELUCCA_JUNO_FINE
-#define JUNO_CHO_WIDE 1                                 /* (its line at 32 bits: 4 KB of the effects memory, fxi_mem.h FXA_Z2) */
-#endif
+#define JUNO_CHO_WIDE 1                                 /* (its line at 32 bits: 4 KB of the effects memory, fxi_mem.h FXA_Z2; the builder's JUNO_FINE, always on since 2026-10-29) */
 #include "../junocho/juno_cho.h"
 #if FELUCCA_USB_AUDIO
 #define FXI_UT_JMODE(k) ((k) == IFX_UT ? ut.v[UTV_JMODE] : mst_jmode)   /* (the USB input: its own, fx_slots.c ut) */
@@ -219,9 +217,7 @@ static __attribute__((noinline)) void ifx_jchorus(ifx_jc_t *s, uint32_t k, int32
     }
     w += clamp(to - w, -IFX_JC_STEP, IFX_JC_STEP);
     s->w = w;
-#if FELUCCA_JUNO_FINE
     sh = 0;                                             /* (the 32-bit line keeps the owner's scale) */
-#endif
     if (r)
         juno_cho_st(&s->c, mode, (uint32_t)w >> 8, l, r, n, sh);
     else {

@@ -649,14 +649,6 @@
     "ramtext": 8
    }
   },
-  "JUNO_FINE": {
-   "1": {
-    "flash": 6968,
-    "ram": 512,
-    "pool": 140,
-    "ramtext": 992
-   }
-  },
   "REV_HB_LONG": {
    "1": {
     "flash": 0,

@@ -683,9 +683,6 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #ifndef FELUCCA_TFLT_FINE
 #define FELUCCA_TFLT_FINE 0                /* the track FILTER at the samples' scale, 64-bit products (fx.c tflt_tick_w) */
 #endif
-#ifndef FELUCCA_JUNO_FINE
-#define FELUCCA_JUNO_FINE 0                /* JUNO CHORUS's line at 32 bits: 4 KB of the effects memory (juno_cho.h) */
-#endif
 #ifndef FELUCCA_REV_HB_LONG
 #define FELUCCA_REV_HB_LONG 0              /* the half-rate reverbs behind a 63-tap low-pass (fx.c rhl_dec, rhl_int) */
 #endif

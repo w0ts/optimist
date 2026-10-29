@@ -598,9 +598,9 @@ def _da(**kv):
 def _fm(**kv):
     return C.fx_memory(dict(C.defaults(), **kv))
 _four = dict(INS_CHORUS=1, INS_DELAY=1, INS_JCHORUS=1, INS_FLANGER=1, DLY_LEN=32768)
-check("the effects memory: auto is the delay's line and one line of each insert built (CHRS 2, ECHO 8, JUNO 2, FLNG 1, "
+check("the effects memory: auto is the delay's line and one line of each insert built (CHRS 2, ECHO 8, JUNO 4, FLNG 1, "
       "XDLY 2 lines: 64 or 32 KB); DLY_ARENA is the delay's line plus what it names; nothing without an insert built",
-      _da(INS_DELAY=1)["units"] == 8 and _da(**_four)["units"] == 13 and _da(INS_XDLY=1)["units"] == 64
+      _da(INS_DELAY=1)["units"] == 8 and _da(**_four)["units"] == 15 and _da(INS_XDLY=1)["units"] == 64
       and _da(INS_XDLY=1, XDLY_LEN=8192)["units"] == 32 and _da(INS_DELAY=1, DLY_LEN=32768, DLY_ARENA=96)["units"] == 32
       and _da(DLY_ARENA=96)["pool"] == 0 and _da(INS_CHORUS=1, DLY_ARENA=160)["units"] == 32)
 check("... its pool: the own room, the instance tables (an owner each at most, no more than the memory holds) and the "
@@ -609,14 +609,14 @@ check("... its pool: the own room, the instance tables (an owner each at most, n
       _da(INS_XDLY=1, DLY_LEN=32768, DLY_ARENA=64)["pool"] == 64 * 1024 + 2 * C.XD_STATE + 20
       and _da(INS_XDLY=1, DLY_LEN=32768, DLY_ARENA=64)["tables"] == {"ifx_xdly": 2 * C.XD_STATE}
       and _da(**_four)["tables"]["ifx_chrs"] == 9 * C.FXM_STATE["INS_CHORUS"][1]
-      and _da(**_four)["pool"] == 13 * 1024 + sum(9 * C.FXM_STATE[k][1] for k in _four if k in C.FXM_STATE)
-      + 4 * ((64 + 13 + 4 + 31) // 32))
+      and _da(**_four)["pool"] == 15 * 1024 + sum(9 * C.FXM_STATE[k][1] for k in _four if k in C.FXM_STATE)
+      + 4 * ((64 + 15 + 4 + 31) // 32))
 _m = _fm(**_four)
 check("... up to N at once in the memory chosen (each type alone, the sends in their master slots: the own room), plus "
       "what the delay's and the chorus's lines lend while out of the slots, capped at the 9 owners",
-      _m["types"]["INS_CHORUS"] == {"kb": 2, "max": 9, "own": 6, "dly": 32, "cho": 2}
+      _m["types"]["INS_CHORUS"] == {"kb": 2, "max": 9, "own": 7, "dly": 32, "cho": 2}
       and _m["types"]["INS_DELAY"]["own"] == 1 and _m["types"]["INS_DELAY"]["dly"] == 8
-      and _m["types"]["INS_FLANGER"]["own"] == 9 and "CHRS up to 6 (+3 while the delay" in C.fx_memory_text(_m)
+      and _m["types"]["INS_FLANGER"]["own"] == 9 and "CHRS up to 7 (+2 while the delay" in C.fx_memory_text(_m)
       and "ECHO up to 1 (+8 while the delay is in no master slot)" in C.fx_memory_text(_m))
 _e, _w, _n = C.validate(dict(C.defaults(), **_four))
 check("... the builder says so: a notice on the effects memory (DLY_ARENA), no error",
