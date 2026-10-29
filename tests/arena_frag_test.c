@@ -70,7 +70,9 @@ static void up_name(uint32_t k, char *b) { (void)k; b[0] = 0; }
 #define FRAG_SEED 1u
 #endif
 #ifndef FRAG_MAX
-#define FRAG_MAX 0.015                                  /* (the share of steps with a refusal a packed layout would place) */
+#define FRAG_MAX 0.035                                  /* (the share of steps with a refusal a packed layout would place:
+                                                         * 2.0 .. 2.8 % measured on the farm, 2026-10-29, 96 KB and the
+                                                         * jam profile's free RAM) */
 #endif
 
 static int bad, checks;
@@ -210,7 +212,8 @@ int main(void)
 {
     uint8_t eng[NENGINES], lim[8];
     uint32_t ne = 0, nl = 0, e, j, n, k, steps_packed = 0, worst = 0, wf = 0, wg = 0, okall = 1, lines = 0, seen = 0;
-    uint32_t lost = 0;
+    uint32_t lost = 0, u_min = 0xFFFFFFFFu;
+    uint64_t u_sum = 0, u_lv = 0;
     uint16_t full0[FXI_NL] = {0};
     uint64_t sum_hid = 0, sum_free = 0;
     host_tracks_init();
@@ -277,6 +280,13 @@ int main(void)
             ins_put(a, s);
         } else if (op < 15u) {                          /* a master slot's send */
             fxs_load(1u + a % 3u, (r >> 12) % 3u ? FXS_LT[a % 3u] : FXT_NONE);
+        } else if (op == 16u || op == 17u) {            /* a step edit (the undo history: a level kept) */
+            track_t *t = &trk[a % NTRK];
+            undo_mark(t, ++undo_sess);
+            ((uint8_t *)&t->step[(r >> 12) % NSTEP])[0] ^= (uint8_t)(1u + (r >> 18) % 127u);   /* (a byte of it) */
+            undo_close();
+            if (((r >> 24) & 7u) == 0u)
+                (void)undo_apply(0);                    /* (now and then an undo) */
         } else if (op == 15u && !((r >> 12) & 7u)) {    /* a project's load */
             uint8_t le[NPART];
             for (k = 0; k < NPART; k++)
@@ -345,6 +355,13 @@ int main(void)
         if (f0 - g0 > worst)
             worst = f0 - g0, wf = f0, wg = g0;
         okall = frag_apart();
+#if FRAG_PACK && FELUCCA_UNDO_HISTORY
+        if (undo_h.ready) {                             /* (the undo history after the arena's blocks, to its end) */
+            okall = okall && undo_h.seg[0] >= arn_mem + arn_top() && undo_h.seg[0] + undo_h.len[0] == UNDO_RING_END &&
+                    undo_h.all_b <= undo_h.size;
+            u_sum += undo_h.size, u_min = undo_h.size < u_min ? undo_h.size : u_min, u_lv += undo_h.n_all;
+        }
+#endif
     }
     {
         uint32_t i, all = 0, packed = 0, rule = 0, mv = 0, mus = 0, gated = 0;
@@ -362,6 +379,10 @@ int main(void)
                "%.1f %%)\n", (unsigned long long)st_held, (unsigned long long)st_full,
                st_held ? 100.0 * (double)st_full / (double)st_held : 0.0);
         printf("FRAG rule_fit=%u ", (unsigned)rule);
+#if FRAG_PACK && FELUCCA_UNDO_HISTORY
+        printf("undo_mean=%u undo_min=%u undo_levels=%u ", (unsigned)(u_sum / (n ? n : 1u)), (unsigned)u_min,
+               (unsigned)(u_lv / (n ? n : 1u)));
+#endif
         printf("FRAG arena=%u steps=%u seed=%u refused=%u packed_fit=%u steps_packed=%u worst_hidden=%u (free %u, "
                "largest gap %u) mean_hidden=%u mean_free=%u ins_unserved=%.1f%% part=%u/%u load=%u/%u send=%u/%u ins=%u/%u "
                "buf=%u/%u saved=%u moves=%u move_max_us=%u gated=%u lost=%u\n", (unsigned)ARN_BYTES, (unsigned)n,

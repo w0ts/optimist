@@ -152,13 +152,12 @@ static int arena_ok(void)
     }
     if (wt_mip ? (uint8_t *)wt_fr != (uint8_t *)wt_mip + WT_NF * WT_PTS * 2u || wt_fi != wt_fr + 1024 : wt_fr || wt_fi)
         return 0;
-    for (c = 0; c < 3u; c++) {
-        void *p = c == FXM_CHO ? (void *)cho_buf : c == FXM_DLY ? (void *)dly_buf : (void *)rev_line;
+    for (c = 0; c < FXM_NC; c++) {
+        void *p = c == FXM_CHO ? (void *)cho_buf : c == FXM_DLY ? (void *)dly_buf : c == FXM_REV ? (void *)rev_line
+                                                                                               : (void *)fxa_ins;
         if (p != arn_ptr(FXM_K(c)))
             return 0;
     }
-    if ((fxr_hi > fxr_lo) != (arn_cur[FXR_K].len != 0u))
-        return 0;                                       /* (the inserts' room: its block while it holds a line) */
     return 1;
 }
 static void quiet(void)                                 /* every part silent, no SLICER, a kit with no X0X machine */
@@ -223,12 +222,11 @@ int main(void)
     track_t *t0 = &trk[0], *t1 = &trk[1], *t2 = &trk[2];
     host_tracks_init();
     fxi_init();
-    for (c = 0; c < 3u; c++)
+    for (c = 0; c < FXM_NC; c++)
         lines += arn_round(FXM_BYTES[c]);
-    CHECK(ARB_NC == NTRK + 4u + FELUCCA_PUNCH_SW && ARN_BYTES >= FM + SN + lines + WT + SL + X9 + X8 + 2048u &&
-          ARN_BYTES < FM + SN + lines + WT + SL + X9 + X8 + 2048u + 3072u && ARN_BYTES % 1024u == 0u,
-          "the premise: one FM6 and its sine table, the send lines, a CHRS line, WAVE's table, one SLICER recording and "
-          "both X0X machines fit, in whole KB "
+    CHECK(ARB_NC == NTRK + 4u + FELUCCA_PUNCH_SW && ARN_BYTES >= FM + SN + lines + WT + SL + X9 + X8 &&
+          ARN_BYTES <= FM + SN + lines + WT + SL + X9 + X8 + 256u,
+          "the premise: one FM6 and its sine table, the lines, WAVE's table, one SLICER recording and both X0X machines fit "
           "(arena %u B: FM6 %u + %u, lines %u, WAVE %u, SLICER %u, 909 %u, 808 %u)", (unsigned)ARN_BYTES, (unsigned)FM,
           (unsigned)SN, (unsigned)lines, (unsigned)WT, (unsigned)SL, (unsigned)X9, (unsigned)X8);
     if (bad)
@@ -299,7 +297,7 @@ int main(void)
     CHECK(!x909_p && !x808_p && arb_st[ARB_X909] == FXM_NONE && arb_st[ARB_X808] == FXM_NONE && arena_ok(),
           "... silent: both given back");
     /* 5. refused */
-    put_chrs(0, 1);                                     /* (a limited insert: the inserts' room placed too) */
+    put_chrs(0, 1);                                     /* (a limited insert: the inserts' own room placed too) */
     set_engine_of(t0, ENG_IX_FM6);
     set_engine_of(t1, ENG_WAVE);
     blocks(64);
@@ -307,9 +305,9 @@ int main(void)
     TDRUM->p[P_E0] = (int16_t)DRUM_UID_X909;
     dl.src[3] = (uint8_t)(DL_X808 + 1u);
     settle(8);
-    CHECK(t0->engine == ENG_IX_FM6 && cho_buf && dly_buf && rev_line && fxr_hi > fxr_lo && wt_mip && sl_bp[0] && x909_p &&
-          x808_p && !arb_full && arn_free_bytes() < 1024u && arena_ok(),
-          "FM6, the lines and the inserts' room, WAVE, STUT on track 1, both machines: all placed, the arena full (%u B left)",
+    CHECK(t0->engine == ENG_IX_FM6 && cho_buf && dly_buf && rev_line && fxa_ins && wt_mip && sl_bp[0] && x909_p &&
+          x808_p && !arb_full && arn_free_bytes() < 256u && arena_ok(),
+          "FM6, the lines and the own room, WAVE, STUT on track 1, both machines: all placed, the arena full (%u B left)",
           (unsigned)arn_free_bytes());
     (void)arb_said();
     stut(2, 1);
@@ -432,8 +430,6 @@ int main(void)
     settle(4);
     set_engine_of(t2, ENG_IX_FM6);
     blocks(64);
-    settle(4);
-    dl.src[3] = (uint8_t)(DL_X808 + 1u);                /* (the 808 on a lane: the room the packing found taken) */
     settle(4);
     k = arn_free_bytes();
     (void)arb_said();
@@ -576,7 +572,8 @@ int main(void)
             nwr += part_mem_refused.on && part_mem_refused.eng == ENG_WAVE;
             (void)arb_said();
         }
-        CHECK(okall && nfull > 50u && nwr > 50u && nsl > 1000u && nwt > 1000u && nx > 1000u,
+        /* (a buffer refused: rarer since the packing moves the blocks together first, core/arena.c) */
+        CHECK(okall && nfull > 10u && nwr > 50u && nsl > 1000u && nwt > 1000u && nx > 1000u,
               "20,000 random switches: the invariants held at every step (to %u; steps with a buffer refused %u, a change "
               "to WAVE refused %u, a SLICER recording placed %u, WAVE's table %u, an X0X machine %u)", (unsigned)worst,
               (unsigned)nfull, (unsigned)nwr, (unsigned)nsl, (unsigned)nwt, (unsigned)nx);

@@ -36,7 +36,7 @@ from core import (
     FIT_MARGIN as FIT_MARGIN, FIT_ORDER as FIT_ORDER, FXM_UNIT as FXM_UNIT, XD_STATE as XD_STATE,
     GRAIN_SETS as GRAIN_SETS, LIMITS as LIMITS, NEEDS as NEEDS, dly_arena as dly_arena, dly_send_kb as dly_send_kb,
     fx_memory as fx_memory, fx_memory_text as fx_memory_text, FXM_STATE as FXM_STATE, FXM_SYMBOLS as FXM_SYMBOLS,
-    FXM_TYPES as FXM_TYPES, ARENA_AUTO as ARENA_AUTO, arena_kb as arena_kb, arena_need as arena_need, dly_kb as dly_kb,
+    FXM_TYPES as FXM_TYPES, arena_kb as arena_kb, arena_need as arena_need, dly_kb as dly_kb,
     PART_MEM as PART_MEM, PART_MEM_NONE as PART_MEM_NONE, REGIONS as REGIONS, REV_ROOM_LEN as REV_ROOM_LEN,
     SL24_XS as SL24_XS, SPARE as SPARE, ConfigError as ConfigError, Issue as Issue, additive as additive,
     anchor_cfg as anchor_cfg, anchor_record as anchor_record, auto_built as auto_built, auto_store as auto_store,
