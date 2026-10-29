@@ -647,6 +647,13 @@ _add("MIX_FINE", "FELUCCA_MIX_FINE", "mix: finer part level steps (lower noise f
           "before its pan gain instead of 4: the steps half as coarse, the noise floor 5.3 dB lower on every part "
           "(about -65 dB under the signal; a quiet part gains the most). Same headroom (the product stays under "
           "2^31). No flash or RAM to speak of; every sound changes a little, so it is off by default.")
+_add("MIX_EXACT", "FELUCCA_MIX_EXACT", "mix: full resolution into the mix and the master (quiet tails)", F, 439,
+     default=0, experimental=True, tested="host-measured only (issue 107, 2026-10-28); not yet heard on an FM-1",
+     desc="Every synth part reaches the mix as 64-bit products, no bit dropped: its mute x duck gain (at rest 32766, "
+          "so the 4 bits down were taken on every block) and its pan gain (4 bits down; MIX_FINE: 3). The master "
+          "volume too (2 bits down before). Before, each part reached the mix in steps of 16: a long release or a "
+          "reverb tail went through its last few bits, a bitcrusher on headphones. Supersedes MIX_FINE. A few "
+          "multiplies a sample more, no RAM; every sound changes a little, so it is off by default.")
 _add("WIDE_FINE", "FELUCCA_WIDE_FINE", "WIDE: all-pass at full resolution", F, 427, default=0, parent="INS_WIDTH",
      experimental=True, tested=_FINE_TESTED,
      desc="WIDE's all-pass runs at the part's own scale with 64-bit products instead of 4 bits down (the drum bus's "
