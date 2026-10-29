@@ -99,6 +99,9 @@ struct bti_tr {
     uint16_t rxstat[2], rxphdr[2], linkcntl[2], rssi[4], rx_clkn_lo, rxbit;
     uint8_t rxtog, txtog, txfreq, rxfreq, txbufcntl[2], rxbufcntl[2];
 };
+#if FELUCCA_BT_DIAG
+static struct bti_tr bti_trace[BTI_TRACE] IN_POOL;
+#endif
 static volatile uint32_t bti_tn;
 
 enum { BTI_M_INQ, BTI_M_SCAN, BTI_M_PAGE, BTI_M_CONN };
@@ -111,6 +114,9 @@ struct bti_rxl {
     int16_t pll;
     uint8_t mode, sub, idx, rxfreq;
 };
+#if FELUCCA_BT_DIAG
+static struct bti_rxl bti_rxlog_buf[BTI_RXLOG] IN_POOL;
+#endif
 static volatile uint32_t bti_rxn;
 static struct {
     uint32_t end_clkn, next_slot0, train_clkn, last_rx_clkn, inq_slots, sec_ms, sec_clk, alarm_at, sweep_clkn;
@@ -148,6 +154,25 @@ static void bti_alarm_arm(uint32_t slots)          /* BR §6.4 (its slot kept: n
 {
     bti.alarm_at = (bti_clkn() + slots) & BTI_CLK;
     fm1_br_alarm_at(bti.alarm_at);
+}
+
+static void bti_count(uint32_t *key, uint32_t *n, uint32_t *other, uint32_t v)   /* (BT_DIAG: the status histograms) */
+{
+    uint32_t i;
+    if (!FELUCCA_BT_DIAG)
+        return;
+    for (i = 0; i < BTI_NH; i++) {
+        if (n[i] && key[i] == v) {
+            n[i]++;
+            return;
+        }
+        if (!n[i]) {
+            key[i] = v;
+            n[i] = 1;
+            return;
+        }
+    }
+    (*other)++;
 }
 
 /* ---- the radio and the BR/EDR block */
@@ -220,7 +245,34 @@ static void bti_frq_table(void)                    /* frq_table[0] (BR §7.1), m
 /* ---- interrupts */
 static void bti_trace_add(uint32_t pend)
 {
+#if FELUCCA_BT_DIAG
+    struct fm1_br_frame *f = fm1_br_frame(bti_tab, 0);
+    struct bti_tr *t;
+    uint32_t i;
+    if (bti_tn >= BTI_TRACE)
+        return;
+    t = &bti_trace[bti_tn];
+    t->t = fm1_ticks();
+    t->pend = pend;
+    for (i = 0; i < 2u; i++) {
+        t->rxstat[i] = f->rxstat[i];
+        t->rxphdr[i] = f->rxphdr[i];
+        t->linkcntl[i] = f->linkcntl[i];
+        t->txbufcntl[i] = f->txbufcntl[i];
+        t->rxbufcntl[i] = f->rxbufcntl[i];
+    }
+    for (i = 0; i < 4u; i++)
+        t->rssi[i] = f->rssi[i];
+    t->rx_clkn_lo = f->rx_clkn_lo;
+    t->rxbit = f->rxbit;
+    t->rxtog = f->rxtog;
+    t->txtog = f->txtog;
+    t->txfreq = f->txfreq;
+    t->rxfreq = f->rxfreq;
+    bti_tn++;
+#else
     (void)pend;
+#endif
 }
 
 static void bti_push(uint32_t kind, uint32_t idx, uint32_t stat, uint32_t clkn, const uint8_t *src, uint32_t len)
@@ -265,6 +317,29 @@ static void bti_agc_follow(struct fm1_br_frame *f)   /* BR §4 RSSI1: step up be
     f->rxgain0 = bti.agc;
 }
 
+static void bti_rxlog(uint32_t idx, uint32_t stat)   /* one reception into btrx's log (BT_DIAG) */
+{
+#if FELUCCA_BT_DIAG
+    struct fm1_br_frame *f = fm1_br_frame(bti_tab, 0);
+    struct bti_rxl *l;
+    if (bti_rxn >= BTI_RXLOG)
+        return;
+    l = &bti_rxlog_buf[bti_rxn++];
+    l->t = fm1_ticks();
+    l->stat = (uint16_t)stat;
+    l->hdr = f->rxphdr[idx];
+    l->rxbit = f->rxbit;
+    l->clkn = f->rx_clkn_lo;
+    l->pll = bti.pll_now;
+    l->mode = bti.mode;
+    l->sub = 0;
+    l->idx = (uint8_t)idx;
+    l->rxfreq = f->rxfreq;
+#else
+    (void)idx, (void)stat;
+#endif
+}
+
 static void bp_rx(void);
 static int bp_alarm(uint32_t now);
 
@@ -276,6 +351,8 @@ static void bti_rx_frame(void)                     /* BR §8.1 "On IRQ 40 RX": t
     if (clkn == bti.last_rx_clkn)
         return;                                    /* (this frame has nothing new: BR §6.2) */
     bti.last_rx_clkn = clkn;
+    bti_count(bti_st.rs_key, bti_st.rs_n, &bti_st.rs_other, stat);
+    bti_rxlog(idx, stat);
     if ((stat >> 8) == 0x8Fu)
         bti_agc_follow(f);
     if (bti.mode == BTI_M_SCAN) {                  /* an inquiry scan hears IDs (BR §8.2); the engine answers */
@@ -365,6 +442,7 @@ void bti_bt_irq(void)                              /* IRQ 40 (BR §6.2), via isr
     uint32_t p = fm1_br_ipnd();
     bti_st.irq40++;
     if (bti_st.phase == BTI_INQ_RUN) {
+        bti_count(bti_st.pd_key, bti_st.pd_n, &bti_st.pd_other, p);
         if (p != (1u << 9))
             bti_trace_add(p);
     }
@@ -627,8 +705,14 @@ static void bta_named(const uint8_t a[6], const char *nm);
 
 static void bti_poll(void)                         /* the main loop */
 {
+#if FELUCCA_CDC && FELUCCA_BT_DIAG
+    static uint8_t done_printed;
+#endif
     if (bti_st.phase == BTI_CLK_RUN && fm1_ms - bti_st.ms0 >= 3000u) {
         bti_clk_end();
+#if FELUCCA_CDC && FELUCCA_BT_DIAG
+        bti_clk_print();                           /* (shown only with a terminal open: `btclk` again) */
+#endif
     }
     while (bti_rr != bti_rw) {
         RING_PUBLISH();
@@ -640,7 +724,34 @@ static void bti_poll(void)                         /* the main loop */
         bp_poll();
     if (bti_st.phase == BTI_INQ_RUN && fm1_ms - bti.sec_ms >= 1000u) {   /* once a second */
         bti.sec_ms += 1000u;
+#if FELUCCA_CDC && FELUCCA_BT_DIAG               /* (the console's lines: with no console they print nothing) */
+        if (bti.mode >= BTI_M_PAGE)
+            bp_print_sec();
+        else
+            bti_print_sec();
+#endif
         if (bti.mode >= BTI_M_PAGE)
             bp_sec_tick();                         /* (the link's channel assessment, bt_afh.c; its channel line) */
     }
+#if FELUCCA_CDC && FELUCCA_BT_DIAG
+    if (bti_st.phase == BTI_INQ_RUN) {
+        done_printed = 0;
+    } else if (bti_st.phase == BTI_INQ_DONE && !done_printed) {
+        done_printed = 1;
+        if (bti.mode >= BTI_M_PAGE) {
+            bp_print_sec();
+            con_puts(bti.mode == BTI_M_CONN ? "btpage: the link is closed" : "btpage: page timeout, no answer");
+            con_puts(" ('btrx' for every reception)\r\n");
+            return;
+        }
+        bti_print_sec();
+        con_puts(bti_tag());
+        bti_kv("done ", bti.inq_slots * 5u / 8u);
+        if (bti.mode == BTI_M_INQ)
+            bti_kv(" ms, devices=", bti.nseen);
+        else
+            bti_kv(" ms, IDs heard=", bti_st.ids);
+        con_puts(" ('bttrace' for the first interrupts, 'btrx' for every reception)\r\n");
+    }
+#endif
 }
