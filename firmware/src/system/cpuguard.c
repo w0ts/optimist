@@ -58,6 +58,11 @@
 #ifndef CG_VSTEP
 #define CG_VSTEP 345u                    /* halves (2 s) with no late one before the cap rises a voice */
 #endif
+/* a late half holds a level's release back only where the reactive path counts it: at a
+ * mean of CG_RFLOOR or more. Under it a late half is not the music's (USB, Bluetooth, a flash write) and steps nothing,
+ * so it holds nothing up either (2026-10-29, the user: "the FDN8 reverb stops working randomly": before, one late half
+ * every second or two at any load kept a reaction's REVERB level, the reverb off, for good: tests/cpuguard_test.c 11) */
+#define CG_LATE_HOLDS(late) ((late) && cg.avg >= CG_RFLOOR)
 #define CG_VMIN 2u                       /* the cap's floor */
 
 /* a part the guard never sheds: MONO / LEGATO / UNISON (the bass and the lead), and a monophonic engine */
@@ -647,7 +652,7 @@ static CG_FAR void cg_post(uint32_t us)
     } else {
         uint32_t back = load + cg.gain[cg.level];   /* (the load with the level's saving back) */
         cg.over = 0;
-        if (cg.level && !late && !cg.vcap && back < CG_REL && (!cg.rcap[cg.level] || back < cg.rcap[cg.level])) {
+        if (cg.level && !CG_LATE_HOLDS(late) && !cg.vcap && back < CG_REL && (!cg.rcap[cg.level] || back < cg.rcap[cg.level])) {
             if (++cg.under >= CG_RELEASE) {   /* one level off, and the ones under it with nothing to ease now; the
                                           * reverb's level only if the reverb is off already (on the way down it
                                           * would turn it off, though it was not what had to go). A level a reaction

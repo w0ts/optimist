@@ -2193,6 +2193,7 @@ static HOT2 __attribute__((noinline)) void dust_run(dust_t *s, int32_t d, int32_
 #include "insfx/fxi.c"              /* the limited types' instances (CHRS ECHO): the main loop hands them out, fxi_poll */
 #include "fx_arena.c"               /* FELUCCA_FX_ARENA: the effects' lines in the arena while used (fxm_poll) */
 #include "../core/arena_bufs.c"     /* ... and the other buffers only some projects use (arb_poll) */
+#include "rev_diag.c"               /* why the reverb's return is silent now (rev_why: the console, the LG readout, the stats) */
 /* the second-core test image can switch the inserts off (outside the DINS block: the track strips use it too) */
 #if defined(FELUCCA_DUALCFG) && FELUCCA_DUALCFG && FELUCCA_DUAL
 #define FX_INS_BYPASS fm1_ins_bypass                    /* (the second-core test image: dualcfg ins off, hal/fm1_dual.h) */
