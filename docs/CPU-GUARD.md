@@ -39,9 +39,10 @@ steals), the cap a voice higher after 2 s with no late half. A level a reaction 
 drop-outs came at less 1/16 of a half, and not while voices are capped. A late half holds a release back
 only at a mean of 50 % or more, where the reactive path counts it: under it a late half is not the music's (2026-10-29,
 the user: "the FDN8 reverb stops working randomly"; before, a lone late half every second or two at any load kept a
-reaction's REVERB level, the reverb off, for good: `tests/cpuguard_test.c` 11). Why the reverb is silent, read over USB:
-the console's `status` `rev_why` / `rev_sheds`, fm1-base's `tools/fm1_remote.py log` ("reverb why .. shed ..",
-"reverb guard .. gain ..") and the debug stats' `rev` byte (`fx/rev_diag.c`). In the host stress model of the log's signature the
+reaction's REVERB level, the reverb off, for good: `tests/cpuguard_test.c` 11). Why the reverb is silent: the classic
+build's console `status` `rev_why` (`fx/rev_diag.c`'s bits) beside `cpu_guard`, `cpu_guard_steps` and `cpu_guard_rev_gain_pct`;
+the release's debug stats keep only the guard's steps (its `rev` byte waits on branch fm1base `fm1-next-fb-fdn8`: no room
+in the app slot). In the host stress model of the log's signature the
 late halves fall from 8.2 % to 1 %.
 
 Under the ceiling the guard does nothing: the host never steps; `regress` built with it renders every golden unchanged.
