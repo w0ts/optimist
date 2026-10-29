@@ -751,10 +751,12 @@ class Builder(App):
             ok, sizes, out = go(True)
             fit = False
         elif ok and not fit and sizes and self.sizes_fit(sizes, cfg):   # (the estimate overflowed, the build fits)
+            msizes = sizes
             ok, sizes, out = go(False)
             fit = ok
-            if not ok and not self.cancel_build.is_set():    # (the real link refused what the measurement fitted)
-                ok, sizes, out = go(True)
+            if not ok:                                   # (the real link refused what the measurement fitted: its own
+                sizes = sizes or msizes                  #  failure is the answer, e.g. a check after the link, not "does
+                                                         #  not fit"; the measurement's sizes stay for the bars)
         lines = []
         if sizes:
             for r, (used, cap, over) in C.fits({k: sizes[k] for k in C.REGIONS}, cfg).items():
