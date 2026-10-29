@@ -401,8 +401,6 @@ static uint32_t wa_status(void)
         return WAS_UP;
     if (wa.st == WA_FAIL)
         return WAS_NOCAL;
-    if (wa.st == WA_OFF && !wn_st.ap.set)
-        return WAS_NOKEY;
     if (wa.st == WA_OFF && !wa_wanted())
         return WAS_STOPPED;
     return WAS_STARTING;
@@ -412,8 +410,6 @@ static int wa_run(int on)
 {
     if (wn_st.mode != WN_MODE_AP_MAN)
         return -1;
-    if (on && !wn_st.ap.set)
-        return -2;
     wa.user_on = (uint8_t)(on != 0);
     return 0;
 }
@@ -424,9 +420,22 @@ static void wa_begin_mode(void)                         /* the stored network: n
     wa.mc = 0;
     wa.ssid_len = (uint8_t)wa_name(wa.ssid);
     wa.ch = (uint8_t)wa_channel();
-    memcpy(wa.pmk, wn_st.ap.pmk, 32);
     wa.t_start = fm1_ms;
-    wa.st = WA_RADIO;
+    if (wn_st.ap.set) {                                 /* a typed password: its key is kept */
+        memcpy(wa.pmk, wn_st.ap.pmk, 32);
+        wa.st = WA_RADIO;
+        return;
+    }
+    wifi_ap_default_key(wa.ssid, wa.ssid_len, wa.pass); /* none typed: the default one, a function of the name (not kept) */
+    wc_pmk_begin(&wa.job, wa.pass, wa.ssid, wa.ssid_len);
+    wa.st = WA_PMK;
+}
+/* the default password of the current name; 1: it is the one in use (none typed) */
+static int wa_default_key(char *out)
+{
+    uint8_t raw[WIFI_STA_SSID_MAX];
+    wifi_ap_default_key(raw, wa_name(raw), out);
+    return !wn_st.ap.set;
 }
 /* a new password for MODE AP (the page's entry, the web editor): the name (len 0: the automatic one), the passphrase (8..63
  * characters; copied, wiped when the key job has it). The AP in the air is stopped, the key derived a slice a pass, kept in
@@ -524,7 +533,7 @@ static void wa_poll(void)                               /* once a main-loop pass
     }
     switch (wa.st) {
     case WA_OFF:
-        if (wa_wanted() && wn_st.ap.set)
+        if (wa_wanted())
             wa_begin_mode();
         break;
     case WA_PMK:

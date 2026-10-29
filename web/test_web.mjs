@@ -56,7 +56,7 @@ const E = vm.runInNewContext(`${proto}
    openMidi, findPorts, wantsReconnect, syncState, ROLL, rollRest, rollNotes, noteSpan, rollAdd, rollRemove, rollToggle, rollSetLength, rollSetNote, rollSetStep, rollChanged, rollGrid, rollLen, DRUM_PAGE, drumPages, drumPageRange, COLORS, engineColor, kindColor, contrast, textOn, MASTER_FX, MASTER_BUS, fxInline, FX_INLINE_MAX, NAV, SCREENS, navOpen, navClose, navKey, navScreen, navDepth, KEYS, KEY_FIXED, LANE_KEYS, keyFor, keyLabel, keyPlan, stepxBuilt, PAT, patSlotView, patUsers,
    PATREC, patRecParse, patRecBuild, patRawEmpty, patStepFrom, patStepRaw, patDrumFrom, patDrumRaw, patReadAll, patWriteAll,
    FXT, FXT_NAMES, fxsLoad, fxType, fxSlotAmt, readFx, keptIds, AUTO, autoLane, SetGate,
-   FXP, FXP_TABLE, SCRN_TABLE, SCRS_TABLE, EQ_FL_HZ, EQ_FH_HZ, fxpClass, fxpName, fxpTypeName, fxpAllows, fxpFmt, readFxpOwner, readFxpSlot, panelKey, panelKeyName, navParse, navTracksParse, navKnobs, navKnobAt, MNAV, WIFI, wifiCheck, wifiApCheck, wifiBusy, wifiText, pack7, unpack7 })`,
+   FXP, FXP_TABLE, SCRN_TABLE, SCRS_TABLE, EQ_FL_HZ, EQ_FH_HZ, fxpClass, fxpName, fxpTypeName, fxpAllows, fxpFmt, readFxpOwner, readFxpSlot, panelKey, panelKeyName, navParse, navTracksParse, navKnobs, navKnobAt, MNAV, WIFI, wifiCheck, wifiApCheck, wifiApDefaultKey, wifiBusy, wifiText, pack7, unpack7 })`,
 { setTimeout, clearTimeout, setInterval, clearInterval, console, TextEncoder, TextDecoder });
 
 const editorMock = async () => {
@@ -1651,7 +1651,8 @@ async function editorWifi() {
   r = await W3(E.req.wifiMode(3));
   ok(r.rc === 0 && r.v === 3, "wifi AP: MODE 3 accepted with cap 1");
   s = await W3(E.req.wifiState());
-  ok(s.mode === 3 && s.ap.status === 1 && !E.wifiBusy(s), "wifi AP: MODE AP without a key: status NO PASSWORD");
+  ok(s.mode === 3 && s.ap.status === 2 && s.ap.key === 0 && E.wifiBusy(s), "wifi AP: MODE AP without a typed key starts on the default one (STARTING)");
+  ok(E.wifiApDefaultKey(enc("FM1-0000")) === "rxrm2jd2" && E.wifiApDefaultKey(enc("FM1-A1B2")) === "9kd4ctcd" && E.wifiApDefaultKey(enc("")) === "7jc84apt", "wifi AP: the default password of a name (the firmware's vectors)");
   const pwa = "apSecret#9";
   const raw2 = await q(E.req.wifiApKey(enc("Studio AP"), pwa));
   ok(raw2.length === 2 && raw2[0] === 5 && raw2[1] === 0, "wifi AP: op 5's reply is a status only (op, rc)");
@@ -1671,16 +1672,17 @@ async function editorWifi() {
   ok(s.ap.key === 1 && s.ap.name.text === "FM1-0042", "wifi AP: an empty name is the automatic one again");
   r = await W3(E.req.wifiApClear());
   s = await W3(E.req.wifiState());
-  ok(r.op === 7 && r.rc === 0 && s.ap.key === 0 && s.ap.status === 1, "wifi AP: op 7 clears the key: status NO PASSWORD");
+  ok(r.op === 7 && r.rc === 0 && s.ap.key === 0 && s.ap.status === 2, "wifi AP: op 7 clears the typed key: the default one again (STARTING)");
 
   /* AP MAN (mode 4): off until started; op 8 starts / stops; refused outside AP MAN and with no key */
   r = await W3(E.req.wifiApRun(true));
   ok(r.op === 8 && r.rc === 2, "wifi AP: op 8 outside AP MAN: rc 2");
   r = await W3(E.req.wifiMode(4));
   s = await W3(E.req.wifiState());
-  ok(r.rc === 0 && s.mode === 4 && s.ap.status === 1, "wifi AP: mode 4 (AP MAN) accepted; no key: NO PASSWORD");
+  ok(r.rc === 0 && s.mode === 4 && s.ap.status === 5, "wifi AP: mode 4 (AP MAN) accepted; stopped until started");
   r = await W3(E.req.wifiApRun(true));
-  ok(r.op === 8 && r.rc === 3, "wifi AP: op 8 start with no key: rc 3");
+  ok(r.op === 8 && r.rc === 0, "wifi AP: op 8 start with no typed key: done (the default password)");
+  r = await W3(E.req.wifiApRun(false));
   await W3(E.req.wifiApKey(enc(""), "12345678"));
   s = await W3(E.req.wifiState());
   ok(s.ap.key === 1 && s.ap.status === 2, "wifi AP: a password typed in AP MAN starts it (STARTING)");
