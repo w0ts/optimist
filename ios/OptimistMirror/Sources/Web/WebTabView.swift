@@ -6,12 +6,47 @@
 import SwiftUI
 import WebKit
 
+/// What an online-only page (the editor and the builder are loaded from the site, not bundled) shows when the site cannot be
+/// reached: a plain message in the system's colours, not a blank view.
+enum OfflinePage {
+    static func html(_ feature: String) -> String {
+        """
+        <!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+        <style>:root { color-scheme: light dark; } body { font: 17px -apple-system, system-ui, sans-serif; padding: 2em 1.5em; text-align: center; }
+        p { color: gray; }</style>
+        <h2>\(feature) needs the internet</h2><p>The site could not be reached. Everything else in the app works without it: connect again when the network is back, then pick this tab again.</p>
+        """
+    }
+
+    /// a failed load that is a real failure (not the page's own cancel) shows the message in the view
+    static func show(_ view: WKWebView, feature: String, error: Error) {
+        let e = error as NSError
+        // (a URL error, or WebKit's "cannot show URL" (103: a blocked or unreachable address); not a cancel, and not WebKit's 102,
+        // a navigation the app itself turned away)
+        guard (e.domain == NSURLErrorDomain && e.code != NSURLErrorCancelled) || (e.domain == "WebKitErrorDomain" && e.code == 103) else { return }
+        view.loadHTMLString(html(feature), baseURL: nil)
+    }
+}
+
+/// Shows OfflinePage when the first load of a remote page fails; `failed` lets the owner load it again next time.
+final class OfflineNotice: NSObject, WKNavigationDelegate {
+    let feature: String
+    var failed: () -> Void = {}
+    init(feature: String) { self.feature = feature }
+
+    func webView(_ view: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+        OfflinePage.show(view, feature: feature, error: error)
+        failed()
+    }
+}
+
 @MainActor
 final class WebEditor: ObservableObject {
     static let site = URL(string: "https://w0ts.github.io/optimist/webapp/editor/")!
     let view: WKWebView
     private let bridge = WebMIDIBridge()
     private var loaded = false
+    private let notice = OfflineNotice(feature: "The editor")
 
     /// the app's look over the editor: no menu bar of its own (the app's tab bar is it), the system's theme
     private static let css = """
@@ -33,6 +68,8 @@ final class WebEditor: ObservableObject {
         config.userContentController.add(bridge, name: WebMIDIBridge.handler)
         view = WKWebView(frame: .zero, configuration: config)
         bridge.webView = view
+        view.navigationDelegate = notice
+        notice.failed = { [weak self] in Task { @MainActor in self?.loaded = false } }       // (the next tab pick tries the site again)
         scripts()
         view.isInspectable = true                       // (Safari's Develop menu: the page's console)
     }
