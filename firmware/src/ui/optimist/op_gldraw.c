@@ -113,7 +113,7 @@ static void gl_line_draw(uint32_t k, int32_t y, const cell_t *c, uint32_t on)
     const char *b;
     gl_lrow(c, y, &r);
     uw = r.uw, ty = r.ty, by = r.by, b = r.v;
-    x = text_st(6, r.nf == &FONT_S ? ty : r.fy, r.nf, r.nm, on ? lc : C_WHITE, c->strike);   /* (a muted track's volume: struck, PAGE_LINES) */
+    x = text_st(6, r.nf == &FONT_S ? ty : r.fy, r.nf, r.nm, on ? lc : knob_col_dim(k, C_WHITE), c->strike);   /* (a muted track's volume: struck, PAGE_LINES) */
     if (c->dr)
         cv_texts(x + 8, ty, "DR", C_GRAY);              /* (the drum track's own value, a lane picked: as the cards tag it) */
     x = (tog ? 236 - GL_CK - 6 : 236) - uw - text_w(r.f, b);   /* (a unit right after the number: "90BPM", style guide 5) */
