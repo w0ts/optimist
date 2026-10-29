@@ -1158,7 +1158,7 @@ static void ui_input(void)
     op_pass.gap = fm1_ms - op_pass.ms;                  /* (this pass's edges came since the last: op_btn_ms) */
     op_pass.ms = fm1_ms;
     op_pass.t = fm1_ticks();
-    hp_poll();                                          /* the headphone jack: SPK LOWCUT or HP BASS (system/hpjack.h) */
+    hp_poll();                                          /* the headphone jack: SPK LOWCUT or HPHN BASS (system/hpjack.h) */
 #if FELUCCA_BT_UI
     bt_poll();                                          /* SYSTEM > Bluetooth: AUTO at boot, a connect given up (op_bt.c) */
 #endif

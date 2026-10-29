@@ -85,7 +85,7 @@ static void audio_block(int32_t *out, uint32_t n)       /* mix (fx.c), then Q15 
 #else
     const uint32_t rec = 0;
 #endif
-    oc_begin(bt_streamed, rec, n);                       /* SPK LOWCUT / HP BASS: the codec's output only (fx/outcorr.c) */
+    oc_begin(bt_streamed, rec, n);                       /* SPK LOWCUT / HPHN BASS: the codec's output only (fx/outcorr.c) */
 #if FELUCCA_USB_AUDIO
     track_capture_on = ua.cap_alt != 0;                 /* (the stems this block: fx.c capture_clear) */
 #endif
