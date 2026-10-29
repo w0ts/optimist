@@ -315,6 +315,7 @@ static int gls_info_header(void)
     reset_ui();
     op_enter(SCR_SYSTEM);
     ui.row[SCR_SYSTEM] = 0;
+    stk_host_free = 220u * 1024u;                       /* (the host's stand-in for the free SRAM: a realistic RAM line in the shots, not 455/455 full) */
     song.batt_raw = gls_raw_for(80);
     song.batt_chg = 2;
     ui.force = 1;
@@ -334,6 +335,7 @@ static int gls_info_header(void)
     ok &= px_in((uint32_t)ix + 3, OY_HEAD + 8, 3, 4, C_ERR) && !px_in((uint32_t)ix + 3, OY_HEAD + 8, 8, 4, C_OK);   /* (red under 20 %) */
     ok &= !px_in((uint32_t)ix - 3 - HEAD_BOLT_W, OY_HEAD + 6, HEAD_BOLT_W, 12, C_OK);   /* (no bolt on the cell) */
     ppm("opt-info-battery-15");
+    stk_host_free = 0;
     song.batt_raw = gls_raw_for(30);
     ui.force = 1;
     frame();

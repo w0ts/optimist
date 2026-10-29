@@ -492,7 +492,7 @@ static int32_t head_draw_title(const head_t *h, char *c)
 }
 /* INFO's battery, right-aligned: the icon (an outline, its tip, the fill to the percentage in green, amber under 40 %, red under
  * 20 %; no text on it), the bolt left of it while charging, the percentage, and the supply in words where the title leaves room
- * (CHARGING in green, POWER in grey: 5 V is there and the charger is not known to run). tend: where the title ends */
+ * (CHARGING in green where it fits, else the bolt alone; POWER in grey: 5 V is there and the charger is not known to run). tend: where the title ends */
 static void head_bolt(int32_t x, int32_t y, uint16_t c)
 {
     static const uint8_t R[12][2] = {{4, 3}, {4, 3}, {3, 3}, {3, 3}, {2, 3}, {1, 6}, {4, 3}, {3, 3}, {3, 2}, {2, 2}, {2, 1}, {1, 1}};
@@ -528,7 +528,7 @@ static void head_info_draw(const head_t *h, int32_t tend)
         cv_texts(x, 4, b, C_HI);
     }
     if (h->ichg == 2u)
-        word = x - 6 - text_ws("CHARGING") >= tend + 6 ? "CHARGING" : x - 6 - text_ws("CHG") >= tend + 6 ? "CHG" : 0;
+        word = x - 6 - text_ws("CHARGING") >= tend + 6 ? "CHARGING" : 0;
     else if (h->ichg)
         word = x - 6 - text_ws("POWER") >= tend + 6 ? "POWER" : 0;
     if (word)
