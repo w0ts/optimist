@@ -79,7 +79,7 @@ static struct plat_wifi_quality wfq;
 static uint8_t wfq_ok;
 static void wf_q_text(char *b, uint32_t which, uint16_t *col)   /* which 0 the signal, 1 RETRY, 2 LOST: b (20 bytes) */
 {
-    uint32_t n = which == 1u ? wfq.retried : wfq.lost, pct = wfq.tx ? (n * 100u + wfq.tx / 2u) / wfq.tx : 0u;
+    uint32_t n = which == 1u ? wfq.retried : wfq.lost, pct;
     b[0] = 0;
     *col = 0;
     if (which == 0u) {
@@ -100,6 +100,7 @@ static void wf_q_text(char *b, uint32_t which, uint16_t *col)   /* which 0 the s
         str_app(b, "--", 20);                   /* (nothing sent yet in the window) */
         return;
     }
+    pct = (n * 100u + wfq.tx / 2u) / wfq.tx;      /* (rounded; wfq.tx > 0 here) */
     fmt_app(b, (int32_t)pct);
     str_app(b, "%", 20);
     *col = pct >= (which == 1u ? 30u : 10u) ? C_ERR : pct >= (which == 1u ? 10u : 2u) ? C_WARN : C_OK;
