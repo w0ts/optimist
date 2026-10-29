@@ -25,7 +25,7 @@ static uint8_t live_save_off;            /* an erase held the audio (no suspend)
 #include "fm1_irq.h"
 #include "fm1_guard.h"
 #include "fm1_cache.h"               /* EXPERIMENTAL cache RAM (FELUCCA_CACHE_RAM): 7 data-cache ways as 28 KiB of RAM */
-#include "core/backports.h"          /* (before the HAL: FELUCCA_LIGHTS, hal/fm1_input.h) */
+#include "core/backports.h"          /* (before the HAL) */
 #include "fm1_input.h"
 #include "fm1_timer.h"
 #include "fm1_audio.h"

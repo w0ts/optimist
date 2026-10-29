@@ -526,6 +526,23 @@ static void pages_keys_tests(void)
     frames(2);
     lanes_lit("D10: the drum track's SOUND: the lanes' black keys (and the last upper key, ACCENT) lit, the selected one full");
     reset_ui();
+    song.sel = 0;                                       /* the keys light the notes the track sounds (always built since 2026-10-29) */
+    op_enter(SCR_STEP);
+    frames(2);
+    press(B_SEQ);
+    frames(HOLD_FRAMES);
+    {
+        uint32_t f = 0, d = 0, h = 0, k = 6, was;
+        keys_lit(&f, &d, &h);
+        was = (f >> k) & 1u;
+        trk[0].seq_n = 1;
+        trk[0].seq_notes[0] = (uint8_t)kb_map(&trk[0], k);
+        keys_lit(&f, &d, &h);
+        check(!was && ((f >> k) & 1u), "STEP, a synth track, SEQ held: the key of the note the track sounds (its step's) lights, dark before");
+        trk[0].seq_n = 0;
+    }
+    release(B_SEQ);
+    reset_ui();
     song.sel = TRK_DRUM;
     op_enter(SCR_STEP);
     lane_select(4);
@@ -555,7 +572,6 @@ static void pages_keys_tests(void)
     frames(2);
     keys_are(kw(3), kws(0, 15), "D10: FX layer: the latched effect full");
     punch.req = -1;
-#if FELUCCA_LIGHTS
     {   /* LIGHTS / KEYS ALL: the backlight off while a mode lights its keys */
         uint8_t kl = lights_keys, ll = lights_lvl, q = led_pos[14u];
         uint32_t on_lay, on_mix;
@@ -570,9 +586,6 @@ static void pages_keys_tests(void)
         lights_keys = kl;
         lights_lvl = ll;
     }
-#else
-    let_go(B_FX);
-#endif
     for (k = 0; k < 4u; k++)
         fxoff[k] = trk[k].p[P_FXOFF], trk[k].p[P_FXOFF] = 0;
     smute_set_trk(1, 1);

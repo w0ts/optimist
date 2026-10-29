@@ -91,9 +91,9 @@ GLOBAL and SYSTEM are settings lists: one setting on a line, the name left and t
 
 **SYSTEM**
 - **INFO:** the read-out below. Always the first page.
-- **SCREEN:** BRIGHT (the screen backlight, in builds with it), KNOB COLORS (ON / OFF).
+- **SCREEN:** KNOB COLORS (ON / OFF). The backlight is always full.
 - **AUDIO:** LOWCUT (OFF, LOWCUT, or BASS+ in builds with it); FILT RESO, the resonance of every track's FILTER, 0 (clean) to 10, saved with the project (`TFLT_RESO`).
-- **KEYS:** BUTTONS (OFF, LOW, MID, HIGH) and KEYS (OFF, C, WHITE, ALL), the backlight of the buttons and keys, in builds with LIGHTS.
+- **KEYS:** BUTTONS (OFF, LOW, MID, HIGH) and KEYS (OFF, C, WHITE, ALL), the backlight of the buttons and keys.
 - **USB:** SERIAL, ON or OFF; amber until a restart applies it (builds with the USB console).
 - **BT MIDI** (builds with `BLE`): MODE, DEVICE, ACTIVITY, STATE. **BT AUDIO** (builds with `BT_AUDIO`): MODE, DEVICE, FORMAT, STATE. Both can be on at once; MODE, the devices list and SAVE: [midi-usb.md](midi-usb.md#bluetooth-midi-and-bluetooth-audio). A connect not up in 30 s says NO ANSWER.
 - **CALIBRATE:** PANEL (teaches the panel's buttons and knobs, asked first) and HOLD (a button's hold time: 250, 350 or 500 ms).

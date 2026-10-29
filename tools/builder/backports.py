@@ -14,15 +14,14 @@ SRC = Path(__file__).resolve().parents[2] / "tools" / "backports.json"
 GROUP = {"sequencer": "Sequencer", "ui": "UI", "fx": R.FX_ANY, "drums": "Drums", "midi": "USB & BT & MIDI",
          "system": "System", "engines": "Synth engines", "engine": "Synth engines", "experimental": "System"}
 LABEL = {  # short menu labels (the title stays in the details)
-    "FELUCCA_CHANCE": "per-step chance (STEP 2 PROB)", "FELUCCA_KEYLIT": "keys light the notes played",
+    "FELUCCA_CHANCE": "per-step chance (STEP 2 PROB)",
     "FELUCCA_QNT_SEQ": "SCL > QNT SEQ (sequenced notes snap)", "FELUCCA_SPRING": "reverb: SPRING",
-    "FELUCCA_BASSPLUS": "BASS+ speaker mode", "FELUCCA_BRIGHT": "screen brightness (MENU > BRIGHT)",
+    "FELUCCA_BASSPLUS": "BASS+ speaker mode",
     "FELUCCA_MOTION": "motion recording (knobs per step)",
     "FELUCCA_ENG_NOISE": "NOISE (colours, crackle, shift-register noise)",
     "FELUCCA_ENG_PHYS": "PHYS (physical models)", "FELUCCA_ENG_ACID": "ACID (TB-303 bass + line generator)",
     "FELUCCA_ENG_CZ": "CZ (CZ-1 style tones)",
     "FELUCCA_ENG_JUNO": "JUNO (Juno-106 voice)",
-    "FELUCCA_LIGHTS": "menu LIGHTS / KEYS / NOTES (play in the dark)",
     "FELUCCA_REC_MODES": "REC screen dials: mode, length, count-in",
     "FELUCCA_DIV_ORDER": "divisions in length order (1/8 8T 1/16 ...)",
     "FELUCCA_PUNCH_LATCH": "punch LATCH: FX + key latches its effect",
@@ -44,9 +43,6 @@ DESC = {  # what each switch does for the user (plain words; sizes from tools/bu
                       "that fails plays as a rest. About 0.5 KB of flash; nothing changes until a step's chance is turned "
                       "down. Synth tracks only; the web editor does not show it yet. Off: every step plays (chances "
                       "stay saved).",
-    "FELUCCA_KEYLIT": "Lights the keys of the notes the selected track plays (its steps, the arpeggiator, held notes), "
-                      "so you see the pattern on the keyboard. About 0.2 KB of flash, LEDs only; with LIGHTS, MENU > "
-                      "NOTES turns it on and off at run time.",
     "FELUCCA_QNT_SEQ": "SCL > QNT SEQ: the keys and the sequenced notes snap to the scale as they play, so a pattern "
                        "follows a change of ROOT or SCALE; the steps keep their notes as written. About 0.3 KB of "
                        "flash; not on GM KIT or SLICE parts. A build without it plays a project's QNT SEQ as ALL.",
@@ -57,10 +53,6 @@ DESC = {  # what each switch does for the user (plain words; sizes from tools/bu
     "FELUCCA_BASSPLUS": "A third MENU > LOWCUT setting (OFF / LOWCUT / BASS+) for the FM-1's small speaker: it adds "
                         "harmonics of the bass below ~150 Hz, which the speaker can play, and raises the low cut to "
                         "~220 Hz. About 0.5 KB of flash and 0.35 KB of RAM; CPU only while BASS+ is on.",
-    "FELUCCA_BRIGHT": "MENU > BRIGHT: the screen backlight in 8 levels, 4/16 at the lowest (software PWM). The level "
-                      "lasts until power-off: every boot starts at full and a dim level is never saved. About 36 B "
-                      "of flash; X0X reports it working on a real FM-1. Off: "
-                      "always full brightness.",
     "FELUCCA_MOTION": "Motion recording: while recording, knob turns are stored per step and replayed on every pass "
                       "(SEQ > MOTION: play on / off per track, clear). The events are the automation store's (up "
                       "to 128 a track with its locks, nudges and fills); undone with the recording pass, editable "
@@ -87,9 +79,6 @@ DESC = {  # what each switch does for the user (plain words; sizes from tools/bu
     "FELUCCA_REC_MODES": "REC screen dials: MODE (free / tempo), LENGTH (1 / 2 / 4 bars) and START (note / 4-3-2-1 "
                          "count-in). The count-in runs on the internal clock only and in 4/4. About 1.2 KB of flash; "
                          "off: free recording started by a note.",
-    "FELUCCA_LIGHTS": "Lights for playing in the dark: MENU LIGHTS (every button glows OFF / LOW / MID / HIGH), KEYS (C "
-                      "or white keys glow) and NOTES (the note lights of KEYLIT on / off at run time). About 1.2 KB of "
-                      "flash.",
     "FELUCCA_DIV_ORDER": "Lists note divisions in length order (1/4 1/8 8T 1/16 16T 1/32) on ARP RATE, SEQ DIV, DELAY "
                          "TIME and SLICER RATE; stored values are unchanged. About 0.2 KB of flash.",
     "FELUCCA_PUNCH_LATCH": "PUNCH: FX + a key latches its effect so you can let go; the same key or FX + OCT- turns it "
@@ -210,15 +199,15 @@ PARENT = {"FELUCCA_SPRING": "FX_REVERB", "FELUCCA_DLY_DOT": "FX_DELAY", "FELUCCA
           "FELUCCA_GRIDS_LFO": "GEN_GRIDS", "FELUCCA_GRIDS_VEL": "GEN_GRIDS"}   # options of a registry item
 AFTER = {"FELUCCA_SPRING": "REV_FDN8"}   # an option's place among its parent's (SPRING beside the other reverb algorithms)
 BITS = {  # switch -> stable BUILD bit (append only)
-    "FELUCCA_CHANCE": 64, "FELUCCA_KEYLIT": 65, "FELUCCA_QNT_SEQ": 66, "FELUCCA_KNOB_ACCEL": 67,
+    "FELUCCA_CHANCE": 64, "FELUCCA_QNT_SEQ": 66, "FELUCCA_KNOB_ACCEL": 67,
     "FELUCCA_LCD_DIRTY": 68, "FELUCCA_UNDO_HISTORY": 69, "FELUCCA_SIZE": 70,   # (71: FELUCCA_UA_RESAMPLE, retired 2026-10-15: USB audio always resamples; never reuse the bit)
-    "FELUCCA_SPRING": 72, "FELUCCA_BASSPLUS": 73, "FELUCCA_BRIGHT": 74,   # (75: FELUCCA_DLY_HALVE, retired 2026-10-14: always built; never reuse)
+    "FELUCCA_SPRING": 72, "FELUCCA_BASSPLUS": 73,    # (65: FELUCCA_KEYLIT and 106: FELUCCA_LIGHTS, retired 2026-10-29: always built; 74: FELUCCA_BRIGHT, retired 2026-10-29: the screen is always full; never reuse the bits)
+                                                                                       # (75: FELUCCA_DLY_HALVE, retired 2026-10-14: always built; never reuse)
     "FELUCCA_MOTION": 76, "FELUCCA_ENG_PHYS": 77, "FELUCCA_ENG_ACID": 78,
     # (110: FELUCCA_BK_CHECK, retired 2026-10-14: always built; never reuse the bit)
     # (109: FELUCCA_TRS_NOISE, retired 2026-10-14: always built; never reuse the bit)
     # (108: FELUCCA_KNOB_ONEREST, retired 2026-10-14: Felucca 1.6's knob decoder is always built; never reuse the bit)
     # (107: FELUCCA_GLIDE, retired 2026-10-19: the mixer glides are always built; never reuse the bit)
-    "FELUCCA_LIGHTS": 106,
     "FELUCCA_REC_MODES": 105,
     # (104: FELUCCA_KEYS_FAST, retired 2026-10-14: always built; never reuse the bit)
     # (103: FELUCCA_SHED_FADE, retired 2026-10-14: always built; never reuse the bit)
