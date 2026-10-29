@@ -23,6 +23,9 @@ import core as K
 import registry as R
 
 COSTS = None
+# items the web builder holds at a value of its own and does not list (2026-10-29, the user: the console builder offers the
+# compiler, the web builder switches to the one kept): its .config then says COMPILER=0, so a cloud build uses JieLi's
+WEB_FIXED = {"COMPILER": 0}
 
 
 def _configure_shim():
@@ -60,7 +63,8 @@ def registry_view():
     """-> core.describe() plus what the menu lists: per group its top-level items in order, each item's children in
     order (backports.py AFTER), what an EXPERIMENTAL item was tested on, its provenance as one line"""
     d = K.describe()
-    extra = {k: {"children": list(it.menu_children), "hidden": it.hidden, "shown_under": it.shown_under, "tested": it.tested,
+    extra = {k: {"children": list(it.menu_children), "hidden": it.hidden or k in WEB_FIXED, "shown_under": it.shown_under,
+                 "tested": it.tested,
                  "provenance_line": it.provenance.line() if it.provenance else ""} for k, it in R.ITEMS.items()}
     for item in d["registry"]["items"]:
         item.update(extra[item["key"]])
@@ -76,6 +80,7 @@ def _cfg(values):
     for k, v in (values or {}).items():
         if k in cfg and isinstance(v, int) and not isinstance(v, bool):
             cfg[k] = v
+    cfg.update(WEB_FIXED)
     return K.sync_memory(cfg)
 
 

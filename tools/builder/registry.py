@@ -1302,6 +1302,18 @@ _add("ASM", "FELUCCA_ASM", "hand-written assembly speed-ups (FM6, ANALOG 2)", Y,
      desc="The hottest loops of FM6 and ANALOG 2 written in the processor's assembly: the same sound, about 8 to 19 % "
           "less audio CPU (emulator), for about 0.6 KB of flash and 0.7 KB of fast RAM code. Keep on; off only to "
           "compare with the plain C.")
+# bit 442 (2026-10-29): the compiler (tools/toolchain.py: COMPILERS, LLVM_URL; the release build through tools/fm1base.py)
+PI32V2_LLVM = Provenance("pi32v2-llvm (jvitkauskas/pi32v2-llvm, pi32v2-isa)", "Julius Vitkauskas",
+                         "Apache-2.0 WITH LLVM-exception, MIT-0", "4f631b31b",
+                         "https://github.com/jvitkauskas/pi32v2-llvm")
+_add("COMPILER", "FELUCCA_COMPILER", "compiler: pi32v2-llvm or JieLi's clang", Y, 442, default=1, target_only=True,
+     choices=((1, "pi32v2-llvm (smaller)"), (0, "JieLi clang 4")), provenance=PI32V2_LLVM,
+     tested="on the FM-1 (2026-10-29): Optimist's own and the release build with pi32v2-llvm 4f631b31b, the user's "
+            "project played and saved, no drop, no crash; the same sound as JieLi's in an A/B",
+     desc="The C compiler the firmware is built with. pi32v2-llvm (Julius Vitkauskas's LLVM with a pi32v2 target) makes "
+          "the same firmware 14 to 30 KB smaller than JieLi's own clang 4 (measured on the default profile and a full "
+          "release configuration), the audio's CPU the same. JieLi's is the compiler the stock firmware and every "
+          "earlier Optimist were built with. The builder's sizes are measured with JieLi's: an LLVM build has more room.")
 # (bit 57, SIMD, withdrawn 2026-10-12: the packed 16-bit forms compute something else on the real FM-1 than the emulator
 #  assumes, a build with them crackles; the code stays (hal/fm1_simd.h, FELUCCA_SIMD default 0, the boot probe
 #  FELUCCA_SIMD_PROBE through tools/build.py); RETIRED below; never reuse the bit)

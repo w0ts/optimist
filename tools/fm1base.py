@@ -52,20 +52,38 @@ def install_tool():
     return DIR / "tools" / "fm1_install.py"
 
 
-def toolchain_env():
-    """JIELI_TOOLCHAIN (fm1-base's build wants the Linux toolchain's directory) and AC79_SDK (Optimist's SDK files)"""
+def toolchain_env(compiler="jieli"):
+    """JIELI_TOOLCHAIN (fm1-base's build wants the Linux toolchain's directory) and AC79_SDK (Optimist's SDK files).
+    compiler "llvm": pi32v2-llvm's drop-in (tools/toolchain.py llvm_dir, JieLi's layout) instead; where fm1-base runs the
+    tools in a container, the toolchain image (JIELI_DOCKER_IMAGE: the drop-in's wrapper needs its python3)"""
     import toolchain as TC
     env = {}
-    tc = os.environ.get("JIELI_TOOLCHAIN") or str(Path.home() / ".jieli" / "toolchain")
-    if not (Path(tc) / "pi32v2" / "bin" / "clang").exists():
-        raise FM1BaseError(f"JIELI_TOOLCHAIN {tc}: no pi32v2/bin/clang (the JieLi Linux toolchain: fm1base/tools/get_toolchain.sh)")
+    if compiler == "llvm":
+        tc = str(TC.llvm_dir())
+        if not TC.has_clang(tc):
+            raise FM1BaseError(f"no pi32v2-llvm in {tc}: python tools/optimist.py setup (or the builder's COMPILER item: JieLi)")
+        if not TC.is_native_host() or os.environ.get("JIELI_DOCKER") == "1":
+            env["JIELI_DOCKER_IMAGE"] = TC.image_name()
+    else:
+        tc = os.environ.get("JIELI_TOOLCHAIN") or str(Path.home() / ".jieli" / "toolchain")
+        if not (Path(tc) / "pi32v2" / "bin" / "clang").exists():
+            raise FM1BaseError(f"JIELI_TOOLCHAIN {tc}: no pi32v2/bin/clang (the JieLi Linux toolchain: fm1base/tools/get_toolchain.sh)")
     env["JIELI_TOOLCHAIN"] = tc
     env["AC79_SDK"] = str(TC.sdk_dir())
     return env
 
 
+def compiler_of(cfgfile):
+    """the .config's compiler (its COMPILER item): "jieli" or "llvm" (tools/toolchain.py compiler_of)"""
+    import configure
+    import toolchain as TC
+    cfg, _ = configure.parse(Path(cfgfile).read_text())
+    return TC.compiler_of(configure.flags(cfg)[0])
+
+
 def command(python, release=None, app=None):
-    return [python, str(ready()), str(app or APP), "--sdk", toolchain_env()["AC79_SDK"],
+    import toolchain as TC
+    return [python, str(ready()), str(app or APP), "--sdk", str(TC.sdk_dir()),
             *(["--release", release] if release else [])]
 
 
@@ -80,12 +98,12 @@ def slot_app(bdir):
     return app, app / "build"
 
 
-def measure_toolchain():
+def measure_toolchain(compiler="jieli"):
     """-> the directory to give fm1-base's build as JIELI_TOOLCHAIN for a measurement build: the real toolchain's entries
     linked, its pi32v2/bin/ld the wrapper tools/fm1base_ld.py (room for any build: fm1-base has no measurement mode).
-    Made once (ROOT/build/measure-toolchain), shared by parallel builds"""
-    real = Path(toolchain_env()["JIELI_TOOLCHAIN"]).resolve()
-    shim = ROOT / "build" / "measure-toolchain"
+    Made once per compiler (ROOT/build/measure-toolchain, -llvm), shared by parallel builds"""
+    real = Path(toolchain_env(compiler)["JIELI_TOOLCHAIN"]).resolve()
+    shim = ROOT / "build" / ("measure-toolchain" + ("-llvm" if compiler == "llvm" else ""))
     ld = shim / "pi32v2" / "bin" / "ld"
     if ld.is_file() and (shim / "real").resolve() == real:
         return shim
@@ -109,10 +127,10 @@ def measure_toolchain():
 
 def env_for(cfgfile, slot=None, measure=False):
     env = {k: v for k, v in os.environ.items() if not k.startswith("FELUCCA_")}
-    env.update(toolchain_env())
+    env.update(toolchain_env(compiler_of(cfgfile)))
     env.update(OPTIMIST=str(ROOT), OPT_CONFIG=str(Path(cfgfile).resolve()), OPT_TREE_COPY="1")
     if measure:
-        env["JIELI_TOOLCHAIN"] = str(measure_toolchain())
+        env["JIELI_TOOLCHAIN"] = str(measure_toolchain(compiler_of(cfgfile)))
     if slot:
         env["FM1B_JOBS"] = "2"       # (builds side by side: each one's compile pool small)
     env.pop("OPT_PROFILE", None)

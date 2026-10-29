@@ -5042,6 +5042,47 @@
     "provenance_line": ""
    },
    {
+    "key": "COMPILER",
+    "flag": "FELUCCA_COMPILER",
+    "label": "compiler: pi32v2-llvm or JieLi's clang",
+    "group": "System",
+    "bit": 442,
+    "default": 1,
+    "parent": null,
+    "desc": "The C compiler the firmware is built with. pi32v2-llvm (Julius Vitkauskas's LLVM with a pi32v2 target) makes the same firmware 14 to 30 KB smaller than JieLi's own clang 4 (measured on the default profile and a full release configuration), the audio's CPU the same. JieLi's is the compiler the stock firmware and every earlier Optimist were built with. The builder's sizes are measured with JieLi's: an LLVM build has more room.",
+    "experimental": false,
+    "notice": "",
+    "off_warning": "",
+    "env": "",
+    "target_only": true,
+    "symbols": [],
+    "no_image": false,
+    "fixed": false,
+    "head": false,
+    "choices": [
+     [
+      1,
+      "pi32v2-llvm (smaller)"
+     ],
+     [
+      0,
+      "JieLi clang 4"
+     ]
+    ],
+    "provenance": {
+     "project": "pi32v2-llvm (jvitkauskas/pi32v2-llvm, pi32v2-isa)",
+     "author": "Julius Vitkauskas",
+     "licence": "Apache-2.0 WITH LLVM-exception, MIT-0",
+     "commit": "4f631b31b",
+     "url": "https://github.com/jvitkauskas/pi32v2-llvm"
+    },
+    "children": [],
+    "hidden": true,
+    "shown_under": null,
+    "tested": "on the FM-1 (2026-10-29): Optimist's own and the release build with pi32v2-llvm 4f631b31b, the user's project played and saved, no drop, no crash; the same sound as JieLi's in an A/B",
+    "provenance_line": "pi32v2-llvm (jvitkauskas/pi32v2-llvm, pi32v2-isa) @ 4f631b31b by Julius Vitkauskas (Apache-2.0 WITH LLVM-exception, MIT-0)"
+   },
+   {
     "key": "BLE",
     "flag": "FELUCCA_BLE",
     "label": "Bluetooth LE MIDI, our own stack",
@@ -6366,6 +6407,7 @@
    "CPU_GUARD",
    "CACHE_RAM",
    "ASM",
+   "COMPILER",
    "SL24_SAFE"
   ]
  },

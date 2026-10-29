@@ -107,6 +107,20 @@ def check_toolchain(rep, fetch, yes):
     rep.add("toolchain", True, b.describe())
 
 
+def check_llvm(rep, fetch, yes):
+    """pi32v2-llvm (the builder's COMPILER item, its default): its drop-in in ~/.jieli on every host (macOS too: mounted
+    into the toolchain image)"""
+    d = TC.llvm_dir()
+    if not TC.has_clang(d) and fetch and confirm("download pi32v2-llvm (72 MB) into ~/.jieli?", yes):
+        try:
+            deps.fetch_llvm()
+        except deps.FetchError as e:
+            print(f"setup: {e}")
+    ok = TC.has_clang(d)
+    rep.add("pi32v2-llvm", ok, f"{d.resolve() if ok else d}",
+            "python tools/optimist.py setup --yes (downloads it into ~/.jieli), or the builder's COMPILER item: JieLi")
+
+
 def toolchain_fix():
     if TC.is_native_host():
         return "python tools/optimist.py setup --yes (downloads the toolchain into ~/.jieli)"
@@ -152,6 +166,7 @@ def run(fetch=True, yes=False, emulator=True):
     check_venv(rep, fetch, yes)
     check_sdk(rep, fetch, yes)
     check_toolchain(rep, fetch, yes)
+    check_llvm(rep, fetch, yes)
     if emulator:
         check_emulator(rep)
     check_host_tests(rep)

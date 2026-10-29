@@ -34,6 +34,15 @@ TOOLCHAIN_VERSION = "20250324.1"
 TOOLCHAIN_URL = f"https://jl-update.oss-cn-shenzhen.aliyuncs.com/jieli-linux-toolchains-{TOOLCHAIN_VERSION}.tar.xz"
 TOOLCHAIN_SHA256 = "f686586bcfb45e0f0bb27fd2b39c7a7f313cb4f0e88a66a14da621ffa8225958"
 IMAGE_DEFAULT = f"optimist-toolchain:{TOOLCHAIN_VERSION}"
+# the other compiler (builder item COMPILER): Julius Vitkauskas's pi32v2-llvm (LLVM with a pi32v2 target) as his drop-in
+# for JieLi's toolchain (pi32v2-isa tools/dropin/make_dropin.sh --copy: the same layout, pi32v2/bin/clang, ld,
+# common/bin/objdump, ..., a Python 3.11 wrapper), built from pinned commits (BUILDING.md "The compiler") and kept as
+# a release asset of this repository (Apache-2.0 with LLVM exceptions, MIT-0: its licences inside)
+LLVM_VERSION = "4f631b31b-e575321"             # pi32v2-llvm 4f631b31b, pi32v2-isa e575321
+LLVM_URL = ("https://github.com/w0ts/optimist/releases/download/toolchain-pi32v2-llvm-"
+            f"{LLVM_VERSION}/pi32v2-llvm-dropin-{LLVM_VERSION}.tar.xz")
+LLVM_SHA256 = "72519811be85041a3b1ba4ec4b71068897903955d73a2d1beb77559e3a6d8f12"
+COMPILERS = ("jieli", "llvm")                  # FELUCCA_COMPILER 0, 1 (tools/builder/registry.py COMPILER)
 DOCKERFILE_DIR = ROOT / "tools" / "docker"
 SDK_TAG = "AC79NN_SDK_V1.2.1_2023-12-13"
 SDK_URL = f"https://gitee.com/Jieli-Tech/fw-AC79_AIoT_SDK/raw/{SDK_TAG}/cpu/wl82/tools"
@@ -258,9 +267,42 @@ def _from_dir(path, env):
     return Backend("docker", str(Path(path).resolve()), env.get("JIELI_DOCKER_IMAGE", "debian:bookworm-slim"))
 
 
-def resolve(env=None):
-    """-> the Backend to build with; ToolchainError says what is missing and how to get it"""
+def compiler_of(values):
+    """the configuration's compiler ("jieli" / "llvm") from its C switches (FELUCCA_COMPILER, default jieli)"""
+    return COMPILERS[1] if str(values.get("FELUCCA_COMPILER", "0")) == "1" else COMPILERS[0]
+
+
+def llvm_dir(env=None):
+    """pi32v2-llvm's drop-in directory: PI32V2_LLVM_TOOLCHAIN, else ~/.jieli/pi32v2-llvm (setup downloads it)"""
     env = os.environ if env is None else env
+    return Path(env.get("PI32V2_LLVM_TOOLCHAIN") or JIELI_HOME / "pi32v2-llvm")
+
+
+def resolve_llvm(env):
+    """the Backend for pi32v2-llvm: natively on Linux x86-64 (Python 3.11 for its wrapper), else its directory mounted in
+    the toolchain image (its python3; plain debian has none). WSL: not yet"""
+    d = llvm_dir(env)
+    if not has_clang(d):
+        raise ToolchainError(f"no pi32v2-llvm in {d}: python tools/optimist.py setup downloads it "
+                             "(or the builder's COMPILER item: JieLi)")
+    forced = env.get("JIELI_BACKEND", "")
+    if forced == "wsl":
+        raise ToolchainError("pi32v2-llvm in WSL is not set up yet: the builder's COMPILER item JieLi, or Docker")
+    if forced in ("", "native") and is_native_host() and env.get("JIELI_DOCKER", "0") != "1":
+        return Backend("native", str(d.resolve()))
+    if forced == "native":
+        raise ToolchainError("the native toolchain runs on Linux x86-64 only (use docker)")
+    if not docker_running() or not image_present(image_name(env)):
+        raise ToolchainError(f"pi32v2-llvm runs in the toolchain image {image_name(env)} here (its python3): "
+                             "start Docker, then python tools/optimist.py setup")
+    return Backend("docker", str(d.resolve()), image_name(env))
+
+
+def resolve(env=None, compiler=COMPILERS[0]):
+    """-> the Backend to build with (compiler: COMPILERS); ToolchainError says what is missing and how to get it"""
+    env = os.environ if env is None else env
+    if compiler == "llvm":
+        return resolve_llvm(env)
     forced = env.get("JIELI_BACKEND", "")
     if forced and forced not in BACKENDS:
         raise ToolchainError(f"JIELI_BACKEND={forced}: use one of {', '.join(BACKENDS)}")
@@ -355,14 +397,14 @@ def have_module(name):
         return False
 
 
-def preflight(env=None):
+def preflight(env=None, compiler=COMPILERS[0]):
     """the checks build.py runs before it starts -> (Backend, SDK dir); SystemExit with what to do"""
     env = os.environ if env is None else env
     if not have_module("PIL.Image"):
         raise SystemExit("build: this Python has no Pillow: python tools/optimist.py setup "
                          "(or pip install -r tools/requirements.txt)")
     try:
-        backend = resolve(env)
+        backend = resolve(env, compiler)
     except ToolchainError as e:
         raise SystemExit(f"build: {e}")
     sdk = sdk_dir(env)
