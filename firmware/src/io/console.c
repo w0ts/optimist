@@ -1418,11 +1418,6 @@ static void con_boot(void)
     con_kx("dcache_way", fm1_cache.dway);
     con_kx("icache_way", fm1_cache.iway);
     con_kx("cache_ram_bad_at", fm1_cache.bad_at);
-    con_kv("cache_ram_free", (int32_t)fm1_cache_ram_free());   /* (the undo history's second part, 0: none) */
-#if PART_DROPS
-    con_kv("undo_keep", (int32_t)ARN_UNDO_KEEP);       /* (its least in the SRAM: 16 KB less the cache RAM's; engines.c) */
-    con_kv("arena_bytes", (int32_t)ARN_BYTES);
-#endif
 #endif
 #if FELUCCA_DUAL
     con_kv("cpu1_why", dual.why);
