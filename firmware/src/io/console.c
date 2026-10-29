@@ -1052,7 +1052,6 @@ static void con_status(void)
     con_kv("cpu_guard_rev_gain_pct", (int32_t)(cg.gain[CG_L_REVERB] * 100u / 256u));
 #endif
     con_kv("rev_why", (int32_t)rev_why());             /* why the reverb's return is silent now: fx/rev_diag.c's bits */
-    con_kv("rev_sheds", (int32_t)rev_shed_count());    /* the guard turned a running reverb off, since the start */
     con_kv("audio_late", (int32_t)felucca_dbg.late);
     con_kx("audio_halves", felucca_dbg.halves);        /* (hex, wraps: the logger takes the differences) */
     con_kx("audio_us_sum", felucca_dbg.us_sum);         /* the halves' render us summed: d(sum) / d(halves) = the mean */

@@ -1208,7 +1208,6 @@ static struct {
     uint32_t clr;                /* the line cleared up to here (RG_CLEAR) */
 } rgd;
 static volatile uint8_t rev_live;
-static volatile uint16_t rev_sheds;                    /* the guard turned a running reverb off, since the start (rev_diag.c) */
 static __attribute__((noinline)) void rev_gclear(void)  /* (XIP: a block while RG_CLEAR) */
 {
     uint32_t i = rgd.clr, e = i + REV_GCHUNK, len = REV_LINE_N;
@@ -1244,7 +1243,6 @@ AINL uint32_t rev_guard(int run)
     if (CG_LEVEL >= CG_L_REVERB || z) {
         if (rgd.st == RG_ON) {                          /* (an idle tank: every cell 0 already, nothing to clear) */
             rgd.st = !run ? RG_OFF : z ? RG_CLEAR : RG_FADE;
-            rev_sheds += (uint16_t)(rgd.st == RG_FADE && rev_sheds < 0xFFFFu);   /* (the guard's, sounding: counted) */
             rgd.fade = REV_GFADE;
             rgd.clr = 0;
         }
