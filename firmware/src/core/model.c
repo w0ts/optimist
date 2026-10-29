@@ -272,6 +272,17 @@ static int mem_retry(void)
         part_mem_refused.waiting |= MEM_W_FX;           /* for it, then try again: fx/fx_arena.c) */
         return 0;
     }
+    if (part_mem_refused.on && arn_busy()) {            /* (the arena's blocks moving: then try again) */
+        part_mem_refused.waiting |= MEM_W_FX;
+        return 0;
+    }
+    if (part_mem_refused.on && !part_mem_refused.waiting && !part_mem_refused.packed) {
+        part_mem_refused.packed = 1;                    /* (once: the parts' blocks moved together when the free room */
+        if (part_mem_pack(p, e)) {                      /* holds it, before any drop is proposed: core/arena.c) */
+            part_mem_refused.waiting |= MEM_W_FX;
+            return 0;
+        }
+    }
     if (!part_mem_refused.on || !part_mem_refused.waiting)
         return 0;
     for (k = 0; k < NPART; k++)
@@ -316,8 +327,8 @@ static int mem_load_settle(void)
     uint32_t k;
     if (!part_mem_refused.lmask)
         return 1;
-    if (fxm_pending())
-        return 0;                                     /* (an effect's line on its way back: its room after) */
+    if (fxm_pending() || arn_busy())
+        return 0;                                     /* (an effect's line on its way back, the arena packing: after) */
     for (k = 0; k < NPART; k++)
         if (trk[k].engine != trk[k].eng_req || trk[k].xf_on)
             return 0;                                 /* (a part still switching: its old block not free yet) */
@@ -329,6 +340,12 @@ static int mem_load_settle(void)
             trk[k].silent = 0;
         }
     fm1_irq_on();
+    for (k = 0; k < NPART && !part_mem_refused.packed; k++)   /* (the first still refused: the parts' blocks moved */
+        if (part_mem_refused.lmask >> k & 1u) {               /* together when the free room holds it, once a load) */
+            part_mem_refused.packed = 1;
+            if (part_mem_pack(k, part_mem_refused.leng[k]))
+                return 0;
+        }
     return part_mem_refused.lmask ? -1 : 1;
 }
 static uint32_t mem_load_part(uint32_t k)             /* part k can be dropped: it plays an engine that holds memory */

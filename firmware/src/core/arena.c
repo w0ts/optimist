@@ -1,7 +1,9 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* The arena (docs/SD-MODE-DESIGN.md 6b): one pool region the parts' engine memories are placed in by need, instead of
- * a fixed memory per part sized for the largest engine. At most one block per part, first fit in address order;
- * blocks never move (the audio and the second core read them while the main loop plans).
+ * a fixed memory per part sized for the largest engine; in every build with one (2026-10-29, the user: one memory
+ * setting) the effects' lines and the other buffers too (fx/fx_arena.c, core/arena_bufs.c). At most one block per
+ * client, first fit in address order (the parts), best fit from the top (ARN_TOPS: the buffers, the inserts' room),
+ * or at a fixed place (arn_reserve_at: the send lines, at the arena's top).
  *
  * The main loop reserves before a part's engine changes (arn_reserve, the interrupts off); the audio takes the
  * reservation at the switch (arn_take, engines.c part_mem_claim, every voice of the part over) and the part's old
@@ -10,26 +12,78 @@
  * room. What still does not fit is refused (the user, 2026-10-25: refuse, and propose what to drop): arn_fits with
  * the blocks it would give back says which part's memory would make room (engines.c part_mem_frees, model.c mem_offer).
  *
- *   arn_reserve(k, n)       0: part k's next block (n bytes; 0: none) is set aside; -1: no room
- *   arn_take(k)             (the audio, at the switch) the reservation becomes the part's block: its pointer
+ *   arn_reserve(k, n)       0: client k's next block (n bytes; 0: none) is set aside; -1: no room
+ *   arn_reserve_at(k, o, n) 0: .. at offset o (its fixed place); -1: something there (an idle block there reclaimed)
+ *   arn_take(k)             (the audio, at the switch) the reservation becomes the client's block: its pointer
  *   arn_rest(k)             (the audio, at a switch to an engine that keeps nothing here) the block is idle
- *   arn_ptr(k)              the part's block, 0 none
- *   arn_give(k)             (the main loop) the block given back, none reserved: an effect's line no longer used
- *                           (fx/fx_arena.c; the audio no longer reads it)
- *   arn_fits(k, n, skip)    1: arn_reserve(k, n) would succeed now with the blocks of skip (a bit mask of parts)
+ *   arn_ptr(k)              the client's block, 0 none
+ *   arn_give(k)             (the main loop) the block given back, none reserved (the audio no longer reads it)
+ *   arn_resize(k, o, n)     0: client k's block now o .. o + n (a block in use growing or shrinking at its edges:
+ *                           fx/insfx/fxi.c's room); -1: something in the way, nothing changed
+ *   arn_fits(k, n, skip)    1: arn_reserve(k, n) would succeed now with the blocks of skip (a bit mask of clients)
  *                           given back too (the UI's counts, what to propose to drop; nothing changed)
+ *   arn_room()              the room left, every gap (the idle blocks free: the load's gauge, the inserts' counts)
  *   arn_free_bytes()        the room left (the largest gap, for the MEM message)
- * ARN_PARTS and ARN_BYTES are set by the includer; ARN_TOPS (default none)
- * the parts placed best fit from the arena's top instead of first fit from its bottom (the effects' lines: apart from
- * the engines' blocks, and the gaps they leave filled by size, so the arena cuts up less). A change that does not fit is refused.
- * A part's own block is free for its own reservation: the new block is written only at the switch, when the old
- * engine is done (as the one fixed memory per part was reused); the other parts' blocks and reservations are not. */
+ * ARN_PARTS and ARN_BYTES are set by the includer; ARN_TOPS (default none) the clients placed best fit from the top
+ * below ARN_LIM (default the arena's end: the send lines' places above it); ARN_ALIGN the unit every size and place is
+ * a whole number of. A part's own block is free for its own reservation: the new block is written only at the switch,
+ * when the old engine is done (as the one fixed memory per part was reused); the other blocks and reservations are not.
+ *
+ * Packing (the user, 2026-10-29: "how do we avoid fragmentation?"). The clients of ARN_MOVES (the parts) may be moved;
+ * nothing else ever is. A refusal the free bytes would hold (arn_pack: a part's change, a load's part, a send line's
+ * fixed place, the inserts' room growing) plans moves on a copy of the arena: the movable blocks in address order, each
+ * to the lowest place below it that holds it, until the refused block fits (the fewest moves in that order); no plan,
+ * the refusal stands. A project's load packs every block once its parts have switched (arn_pack_all). The main loop
+ * runs the plan (arn_poll, every pass): one block at a time, its client gated while it moves (arn_moving: the audio
+ * neither renders nor starts its voices, a switch waits; engines.c, voice.c), the contents copied (no state lost) in
+ * windows of at most ARN_MV_CHUNK bytes with the interrupts off and at most ARN_MV_US microseconds (the window stops at
+ * the first 256 bytes past it; the block period is CTL / FS = 726 us, so the audio's interrupt waits 1/18 of it at
+ * most), started just after an audio block (arn_mv_sync: the copy is usually done before the next one, the client
+ * not skipped at all), then its place and pointer swapped with the interrupts off (ARN_MV_MOVED). Before each move
+ * its target is checked again (a reservation in the audio's section apply may have taken it): taken, the plan stops.
+ * The probe (arn_probe: SYSTEM > INTERNALS ARENA MOVES): the moves, the longest (us, its start to its swap), the
+ * longest window with the interrupts off (us), the audio blocks a client was skipped in */
+#ifndef AINL
+#define AINL static inline __attribute__((always_inline))
+#endif
 #ifndef ARN_ALIGN
 #define ARN_ALIGN 8u
 #endif
 #ifndef ARN_TOPS
-#define ARN_TOPS 0u                                      /* (the parts placed best fit from the top: none) */
+#define ARN_TOPS 0u                                     /* (the clients placed best fit from the top: none) */
 #endif
+#ifndef ARN_HIGH
+#define ARN_HIGH 0                                      /* the ARN_TOPS clients: best fit (0, measured as good as the
+                                                         * highest place, 1: tests/arena_frag_test.c) */
+#endif
+#ifndef ARN_LIM
+#define ARN_LIM ARN_BYTES                               /* (the top end for ARN_TOPS: the arena's end) */
+#endif
+#ifndef ARN_MOVES
+#define ARN_MOVES 0u                                    /* (the clients that may be moved: none) */
+#endif
+#ifndef ARN_UPS
+#define ARN_UPS 0u                                      /* (of those, the ones moved up, to the highest place under
+                                                         * ARN_LIM, a unit of ARN_UP_ALIGN: the inserts' room) */
+#endif
+#ifndef ARN_UP_ALIGN
+#define ARN_UP_ALIGN ARN_ALIGN
+#endif
+#ifndef ARN_MV_CHUNK
+#define ARN_MV_CHUNK 2048u                              /* bytes at most in one interrupts-off window of a move */
+#endif
+#ifndef ARN_MV_US
+#define ARN_MV_US 40u                                   /* .. and microseconds (the first 256 B past it end it) */
+#endif
+#ifndef ARN_US
+#define ARN_US() 0u                                     /* (the clock for the probe: engines.c fm1_micros) */
+#endif
+#ifndef ARN_MV_MOVED
+#define ARN_MV_MOVED(k, p) ((void)(k), (void)(p))       /* (client k's block now at p: the includer's pointers) */
+#endif
+#define ARN_NO 0xFFu
+_Static_assert(ARN_PARTS <= 32u, "the arena's clients: a bit each in a mask (skip, ARN_TOPS, ARN_MOVES)");
+_Static_assert(ARN_BYTES % ARN_ALIGN == 0u, "the arena: whole units");
 
 typedef struct {
     uint32_t off, len;                                  /* len 0: none */
@@ -37,11 +91,13 @@ typedef struct {
 } arn_blk_t;
 
 typedef struct {
-    arn_blk_t b[2][ARN_PARTS];                          /* the parts' blocks, then their reservations */
+    arn_blk_t b[2][ARN_PARTS];                          /* the clients' blocks, then their reservations */
     uint8_t hn[ARN_PARTS];                              /* a reservation made (its len 0: none needed) */
+    uint8_t mk;                                         /* the client whose block is moving (ARN_NO none) .. */
+    uint32_t mo;                                        /* .. to here: taken (nothing else is placed there) */
 } arn_st_t;
-static arn_st_t arn;                                    /* (one struct: a trial copies it and puts it back, fx_arena.c
-                                                         * fxm_plan, model.c mem_load_fits) */
+static arn_st_t arn = {.mk = ARN_NO};                   /* (one struct: a trial copies it and puts it back, fx_arena.c,
+                                                         * model.c mem_load_fits, arn_pack's plan) */
 #define arn_cur arn.b[0]
 #define arn_next arn.b[1]
 #define arn_has_next arn.hn
@@ -49,86 +105,129 @@ static uint8_t arn_mem[ARN_BYTES] __attribute__((aligned(8))) IN_POOL;
 
 static uint32_t arn_round(uint32_t n) { return (n + ARN_ALIGN - 1u) & ~(ARN_ALIGN - 1u); }
 
-/* block j of the 2 x ARN_PARTS (the parts' blocks, then the reservations), but the parts' blocks in skip (a bit mask of
- * parts whose current block is not counted): its end, 0 none; its start in *o */
-static uint32_t arn_end(uint32_t j, uint32_t skip, uint32_t *o)
+/* block j of A (the clients' blocks, then the reservations, then the moving block's target) but the clients' blocks
+ * in skip (a bit mask of clients whose current block is not counted): its end, 0 none; its start in *o */
+static uint32_t arn_end(const arn_st_t *A, uint32_t j, uint32_t skip, uint32_t *o)
 {
-    const arn_blk_t *b = &arn.b[0][0] + j;
-    if (j < ARN_PARTS ? skip >> j & 1u : !arn_has_next[j - ARN_PARTS])
+    const arn_blk_t *b;
+    if (j == 2u * ARN_PARTS) {
+        if (A->mk >= ARN_PARTS)
+            return 0;
+        *o = A->mo;
+        return A->mo + A->b[0][A->mk].len;
+    }
+    b = &A->b[0][0] + j;
+    if (j < ARN_PARTS ? skip >> j & 1u : !A->hn[j - ARN_PARTS])
         return 0;                                       /* (a reservation overlapping its own block counts: it may be longer) */
     *o = b->off;
     return b->len ? b->off + b->len : 0u;
 }
-/* the counted blocks -> a gap of n bytes, ARN_BYTES when none: the lowest that fits (first fit), or with top the
- * smallest that fits (best fit; of two alike the higher), n bytes at its top end. The places tried: the arena's start
- * and each block's end (first fit), each block's start and the arena's end, less n (best fit); no sort, no copy */
-static uint32_t arn_scan(uint32_t n, uint32_t skip, uint32_t top)
+#define ARN_NB (2u * ARN_PARTS + 1u)                    /* (arn_end's blocks) */
+/* 1: at .. at + n overlaps none of A's counted blocks */
+static int arn_clear(const arn_st_t *A, uint32_t at, uint32_t n, uint32_t skip)
+{
+    uint32_t i, o = 0, e;
+    for (i = 0; i < ARN_NB; i++)
+        if ((e = arn_end(A, i, skip, &o)) && o < at + n && e > at)
+            return 0;
+    return 1;
+}
+/* the counted blocks -> a gap of n bytes below lim, ARN_BYTES when none: the lowest that fits (first fit), or with top
+ * (the place's unit) the highest place (ARN_HIGH) or the smallest gap that fits (best fit; of two alike the higher), n
+ * bytes at its top end. The places tried: the arena's start and each block's end (first fit), each block's start and
+ * lim, less n (from the top); no sort, no copy */
+static uint32_t arn_scan(const arn_st_t *A, uint32_t n, uint32_t skip, uint32_t top, uint32_t lim)
 {
     uint32_t j, i, best = ARN_BYTES, room = 0xFFFFFFFFu;
-    for (j = 0; j <= 2u * ARN_PARTS; j++) {
-        uint32_t o = ARN_BYTES, e = 0, at, lo = 0, bo = 0, be;
-        if (j < 2u * ARN_PARTS && !(e = arn_end(j, skip, &o)))
+    for (j = 0; j <= ARN_NB; j++) {
+        uint32_t o = lim, e = 0, at, lo = 0, bo = 0, be;
+        if (j < ARN_NB && !(e = arn_end(A, j, skip, &o)))
             continue;
-        if (top && o < n)
+        if (top && (o < n || o > lim))
             continue;
-        at = top ? (o - n) & ~(ARN_ALIGN - 1u) : e;     /* (the last place: the arena's end, or its start) */
-        if (at + n > ARN_BYTES)
+        at = top ? (o - n) & ~(top - 1u) : e;           /* (the last place: lim, or the arena's start; top: the unit) */
+        if (at + n > lim)
             continue;
-        for (i = 0; i < 2u * ARN_PARTS; i++) {
-            if (!(be = arn_end(i, skip, &bo)))
+        for (i = 0; i < ARN_NB; i++) {
+            if (!(be = arn_end(A, i, skip, &bo)))
                 continue;
             if (bo < at + n && be > at)
                 break;                                  /* (in the way) */
             if (be <= at && be > lo)
                 lo = be;                                /* (the gap's start) */
         }
-        if (i < 2u * ARN_PARTS)
+        if (i < ARN_NB)
             continue;
-        if (!top ? at < best : o - lo < room || (o - lo == room && at > best))
+        if (!top ? at < best : ARN_HIGH ? best == ARN_BYTES || at > best : o - lo < room || (o - lo == room && at > best))
             room = o - lo, best = at;
     }
     return best;
 }
-static uint32_t arn_gap(uint32_t n, uint32_t skip) { return arn_scan(n, skip, 0); }
+static uint32_t arn_place(const arn_st_t *A, uint32_t k, uint32_t n, uint32_t skip)   /* client k's place for n */
+{
+    uint32_t top = ARN_TOPS >> k & 1u;
+    return arn_scan(A, n, skip, top ? ARN_ALIGN : 0u, top ? ARN_LIM : ARN_BYTES);
+}
+static uint32_t arn_gap(uint32_t n, uint32_t skip) { return arn_scan(&arn, n, skip, 0, ARN_BYTES); }
 
-static uint32_t arn_idle(void)                          /* the idle blocks (a bit mask): free, nothing reads them */
+static uint32_t arn_idle_of(const arn_st_t *A)          /* the idle blocks (a bit mask): free, nothing reads them */
 {
     uint32_t i, m = 0;
     for (i = 0; i < ARN_PARTS; i++)
-        m |= (uint32_t)(arn_cur[i].len && arn_cur[i].idle) << i;
+        m |= (uint32_t)(A->b[0][i].len && A->b[0][i].idle) << i;
     return m;
 }
+#define arn_idle() arn_idle_of(&arn)
 
-static int arn_reserve(uint32_t k, uint32_t n)
+static int arn_reserve_in(arn_st_t *A, uint32_t k, uint32_t n)
 {
     uint32_t at, i, idle;
     if (k >= ARN_PARTS)
         return -1;
     n = arn_round(n);
-    arn_has_next[k] = 1;
+    A->hn[k] = 1;
     if (!n) {
-        arn_next[k].len = 0;
+        A->b[1][k].len = 0;
         return 0;
     }
-    if (arn_cur[k].len >= n) {                          /* its own block holds it: reused at the switch */
-        arn_next[k] = arn_cur[k];
+    if (A->b[0][k].len >= n && A->mk != k) {            /* its own block holds it: reused at the switch */
+        A->b[1][k] = A->b[0][k];
         return 0;
     }
-    arn_has_next[k] = 0;                                /* (its old reservation is not in the way of its new one) */
-    at = arn_scan(n, 1u << k, ARN_TOPS >> k & 1u);      /* (its own block: free for it) */
+    A->hn[k] = 0;                                       /* (its old reservation is not in the way of its new one) */
+    at = arn_place(A, k, n, A->mk == k ? 0u : 1u << k); /* (its own block: free for it, but while it moves) */
     if (at == ARN_BYTES) {                              /* the idle blocks back (nothing reads them), then again */
-        idle = arn_idle();
-        at = arn_scan(n, idle | 1u << k, ARN_TOPS >> k & 1u);
+        idle = arn_idle_of(A);
+        at = arn_place(A, k, n, idle | (A->mk == k ? 0u : 1u << k));
         if (at == ARN_BYTES)
             return -1;
         for (i = 0; i < ARN_PARTS; i++)
             if ((idle >> i) & 1u)
-                arn_cur[i].len = 0;                     /* (k's own idle block too: it is not in use) */
+                A->b[0][i].len = 0;                     /* (k's own idle block too: it is not in use) */
     }
-    arn_next[k].off = at, arn_next[k].len = n, arn_next[k].idle = 0;
-    arn_has_next[k] = 1;
+    A->b[1][k].off = at, A->b[1][k].len = n, A->b[1][k].idle = 0;
+    A->hn[k] = 1;
     return 0;
 }
+static int arn_reserve(uint32_t k, uint32_t n) { return arn_reserve_in(&arn, k, n); }
+
+/* client k's next block at its fixed place o (n bytes): the idle blocks there reclaimed; -1 something else there */
+static int arn_reserve_at_in(arn_st_t *A, uint32_t k, uint32_t o, uint32_t n)
+{
+    uint32_t i, idle = arn_idle_of(A), e, bo = 0;
+    if (k >= ARN_PARTS || o % ARN_ALIGN)
+        return -1;
+    n = arn_round(n);
+    if (o + n > ARN_BYTES || !arn_clear(A, o, n, idle | 1u << k))
+        return -1;
+    for (i = 0; i < ARN_PARTS; i++)
+        if ((idle >> i & 1u) && (e = arn_end(A, i, 0, &bo)) && bo < o + n && e > o)
+            A->b[0][i].len = 0;                         /* (an idle block over it: nothing reads it) */
+    A->b[1][k].off = o, A->b[1][k].len = n, A->b[1][k].idle = 0;
+    A->hn[k] = 1;
+    return 0;
+}
+static int arn_reserve_at(uint32_t k, uint32_t o, uint32_t n) { return arn_reserve_at_in(&arn, k, o, n); }
 
 static void *arn_take(uint32_t k)
 {
@@ -152,8 +251,17 @@ static void arn_rest(uint32_t k)
 
 static void arn_give(uint32_t k)
 {
-    if (k < ARN_PARTS)
+    if (k < ARN_PARTS && arn.mk != k)
         arn_cur[k].len = 0, arn_has_next[k] = 0;
+}
+
+static int arn_resize(uint32_t k, uint32_t o, uint32_t n)
+{
+    n = arn_round(n);
+    if (k >= ARN_PARTS || o % ARN_ALIGN || o + n > ARN_BYTES || arn.mk == k || !arn_clear(&arn, o, n, 1u << k))
+        return -1;
+    arn_cur[k].off = o, arn_cur[k].len = n, arn_cur[k].idle = 0;
+    return 0;
 }
 
 /* 1: arn_reserve(k, n) would place it now, the blocks of skip given back too (nothing changed) */
@@ -162,24 +270,228 @@ static int arn_fits(uint32_t k, uint32_t n, uint32_t skip)
     n = arn_round(n);
     if (k >= ARN_PARTS)
         return 0;
-    if (!n || arn_cur[k].len >= n)
+    if (!n || (arn_cur[k].len >= n && arn.mk != k))
         return 1;
-    return arn_gap(n, arn_idle() | skip | 1u << k) != ARN_BYTES;
+    return arn_place(&arn, k, n, arn_idle() | skip | 1u << k) != ARN_BYTES;
 }
 
 static void *arn_ptr(uint32_t k) { return k < ARN_PARTS && arn_cur[k].len ? arn_mem + arn_cur[k].off : 0; }
 
-static uint32_t arn_free_bytes(void)
+static uint32_t arn_room(void)                          /* the room left, every gap (the idle blocks free) */
+{
+    uint32_t k, used = 0;
+    for (k = 0; k < ARN_PARTS; k++) {
+        uint32_t c = arn_cur[k].idle ? 0u : arn_cur[k].len, x = arn_has_next[k] ? arn_next[k].len : 0u;
+        used += arn_has_next[k] && arn_next[k].off == arn_cur[k].off ? (c > x ? c : x) : c + x;
+    }
+    if (arn.mk < ARN_PARTS)
+        used += arn_cur[arn.mk].len;                    /* (a move's target: both places taken until the swap) */
+    return used < ARN_BYTES ? ARN_BYTES - used : 0u;
+}
+
+static uint32_t arn_big(const arn_st_t *A)              /* A's largest gap (the largest n that fits, in ARN_ALIGN steps) */
 {
     uint32_t lo = 0, hi = ARN_BYTES, n;
-    while (lo < hi) {                                   /* the largest n that fits, in ARN_ALIGN steps */
+    while (lo < hi) {
         n = arn_round((lo + hi + 1u) / 2u);
         if (n > hi)
             n = hi;
-        if (arn_gap(n, 0) != ARN_BYTES)
+        if (arn_scan(A, n, 0, 0, ARN_BYTES) != ARN_BYTES)
             lo = n;
         else
             hi = n - ARN_ALIGN;
     }
     return lo;
+}
+static uint32_t arn_free_bytes(void) { return arn_big(&arn); }
+
+/* ---- Packing (above) */
+static struct {
+    uint32_t moves, max_us, off_us, gated, stops;       /* the probe: moves done, the longest (us), the longest
+                                                         * interrupts-off window (us), audio blocks a client was
+                                                         * skipped in (the includer counts), plans stopped */
+} arn_probe;
+static struct {
+    uint8_t n, i;                                       /* the plan's moves, the next */
+    uint8_t k[2u * ARN_PARTS];                          /* .. each: the client, */
+    uint32_t from[2u * ARN_PARTS], to[2u * ARN_PARTS];  /* its place now and its new one */
+    uint32_t done;                                      /* the moving block's bytes copied */
+    uint32_t t0;                                        /* (ARN_US at its start) */
+    uint8_t all;                                        /* arn_pack_all asked (a load): when nothing is pending */
+} arn_pk;
+/* the goal of a plan: client k's n bytes, at its fixed place at (ARN_BYTES: where arn_reserve puts it) */
+typedef struct { uint32_t k, n, at; } arn_goal_t;
+static int arn_goal_fits(const arn_st_t *A, const arn_goal_t *g)
+{
+    arn_st_t T = *A;
+    T.hn[g->k] = 0;                                     /* (arn_plan's stand-in for its place: not in its way) */
+    if (g->at != ARN_BYTES)
+        return arn_clear(&T, g->at, arn_round(g->n), arn_idle_of(&T) | 1u << g->k);
+    return !arn_reserve_in(&T, g->k, g->n);
+}
+static int arn_movable(const arn_st_t *A, uint32_t k)   /* client k's block may be moved now */
+{
+    return (ARN_MOVES >> k & 1u) && A->b[0][k].len && !A->b[0][k].idle && !A->hn[k];
+}
+/* the plan on T (a copy), until g fits (g 0: every move): first the movable blocks over g's fixed place, each to the
+ * lowest place anywhere else that holds it (another line's free place too); then the ARN_UPS, the highest first, each
+ * to the highest place under ARN_LIM; then the others by address, each to the lowest place below it. The moves; -1 g
+ * does not fit even so */
+static int arn_plan(arn_st_t *T, const arn_goal_t *g)
+{
+    uint32_t i, j, k, m = 0, at, o[ARN_PARTS], fx = g && g->at != ARN_BYTES;
+    uint8_t id[ARN_PARTS];
+    for (k = 0; k < ARN_PARTS; k++)
+        if (arn_movable(T, k)) {
+            for (j = m; j > 0 && o[j - 1u] > T->b[0][k].off; j--)
+                o[j] = o[j - 1u], id[j] = id[j - 1u];
+            o[j] = T->b[0][k].off, id[j] = (uint8_t)k, m++;
+        }
+    arn_pk.n = 0;
+    if (fx)                                             /* (a fixed place: kept free while the others move) */
+        T->hn[g->k] = 1, T->b[1][g->k].off = g->at, T->b[1][g->k].len = arn_round(g->n);
+    if (g && arn_goal_fits(T, g))
+        return 0;
+    for (i = 0; i < 3u * m; i++) {
+        uint32_t pass = i / m, up, over;
+        k = id[pass == 1u ? m - 1u - i % m : i % m];
+        up = ARN_UPS >> k & 1u;
+        over = fx && T->b[0][k].off < g->at + arn_round(g->n) && T->b[0][k].off + T->b[0][k].len > g->at;
+        if (pass ? over || up != (pass == 1u) : !over)
+            continue;
+        at = arn_scan(T, T->b[0][k].len, 1u << k, up ? ARN_UP_ALIGN : 0u, up ? ARN_LIM : ARN_BYTES);
+        if (at == ARN_BYTES && !pass)
+            return -1;
+        if (at == ARN_BYTES || (pass && (up ? at <= T->b[0][k].off : at >= T->b[0][k].off)))
+            continue;                                   /* (nothing higher, or lower, holds it) */
+        if (pass == 1u) {                               /* (moved up only when that leaves a larger gap: a place a
+                                                         * unit short of the block above would cut the room in two) */
+            uint32_t was = T->b[0][k].off, big = arn_big(T), more;
+            T->b[0][k].off = at;
+            more = arn_big(T) > big;
+            T->b[0][k].off = was;
+            if (!more)
+                continue;
+        }
+        arn_pk.k[arn_pk.n] = (uint8_t)k, arn_pk.from[arn_pk.n] = T->b[0][k].off, arn_pk.to[arn_pk.n] = at;
+        arn_pk.n++;
+        T->b[0][k].off = at;
+        if (g && arn_goal_fits(T, g))
+            return arn_pk.n;
+    }
+    return g ? -1 : arn_pk.n;
+}
+/* a refusal: the moves that make g fit planned (the idle blocks given back first: the reservation would take them);
+ * 1 planned (arn_poll runs it: arn_busy until done, then the caller tries again), 0 no plan (the refusal stands) */
+static int arn_pack(uint32_t k, uint32_t n, uint32_t at)
+{
+    arn_st_t T;
+    arn_goal_t g;
+    uint32_t i, idle;
+    if (arn_pk.i < arn_pk.n || arn.mk != ARN_NO)
+        return 0;
+    g.k = k, g.n = n, g.at = at;
+    fm1_irq_off();
+    T = arn;
+    fm1_irq_on();
+    idle = arn_idle_of(&T);
+    for (i = 0; i < ARN_PARTS; i++)
+        if (idle >> i & 1u)
+            T.b[0][i].len = 0;
+    if (arn_plan(&T, &g) <= 0) {
+        arn_pk.n = arn_pk.i = 0;
+        return 0;
+    }
+    arn_pk.i = 0;
+    fm1_irq_off();
+    for (i = 0; i < ARN_PARTS; i++)
+        if ((idle >> i & 1u) && arn_cur[i].len && arn_cur[i].idle)
+            arn_cur[i].len = 0;                         /* (still idle: given back, as arn_reserve would) */
+    fm1_irq_on();
+    return 1;
+}
+static int arn_busy(void) { return arn_pk.i < arn_pk.n || arn.mk != ARN_NO; }   /* (a load's pack_all: not waited for) */
+AINL int arn_moving(uint32_t k) { return arn.mk == k; }   /* (the audio, CPU1: client k's block is being moved) */
+static void arn_pack_all(void) { arn_pk.all = 1; }      /* (a load: every block packed once nothing is pending) */
+
+#ifndef ARN_MV_SYNC
+#define ARN_MV_SYNC() ((void)0)                         /* (wait for the end of an audio block: the includer's) */
+#endif
+/* one window: the next bytes of the moving block (at most ARN_MV_CHUNK and about ARN_MV_US), the interrupts off */
+static void arn_mv_window(void)
+{
+    uint32_t k = arn.mk, len = arn_cur[k].len, src = arn_cur[k].off, dst = arn.mo, t0, us, c = 0;
+    fm1_irq_off();
+    t0 = ARN_US();
+    while (arn_pk.done < len && c < ARN_MV_CHUNK && (!c || (uint32_t)(ARN_US() - t0) < ARN_MV_US)) {
+        uint32_t s = len - arn_pk.done < 256u ? len - arn_pk.done : 256u, at;
+        at = dst < src ? arn_pk.done : len - arn_pk.done - s;   /* (overlapping: up from the start, down from the end) */
+        memmove(arn_mem + dst + at, arn_mem + src + at, s);
+        arn_pk.done += s, c += s;
+    }
+    us = (uint32_t)(ARN_US() - t0);
+    fm1_irq_on();
+    if (us > arn_probe.off_us)
+        arn_probe.off_us = us;
+}
+/* the main loop, every pass: a plan's next move (its target checked again; taken: the plan stops), copied, swapped */
+static void arn_poll(void)
+{
+    uint32_t k, i, ok;
+    arn_st_t T;
+    if (arn.mk == ARN_NO && arn_pk.i >= arn_pk.n) {
+        if (!arn_pk.all)
+            return;
+        for (k = 0; k < ARN_PARTS; k++)
+            if (arn_has_next[k] && (ARN_MOVES >> k & 1u))
+                return;                                 /* (a load's switches first: arn_pack_all waits) */
+        arn_pk.all = 0;
+        fm1_irq_off();
+        T = arn;
+        fm1_irq_on();
+        if (arn_plan(&T, 0) <= 0)
+            return;
+        arn_pk.i = 0;
+    }
+    if (arn.mk == ARN_NO) {
+        i = arn_pk.i;
+        k = arn_pk.k[i];
+        fm1_irq_off();
+        ok = arn_movable(&arn, k) && arn_cur[k].off == arn_pk.from[i] &&
+             arn_clear(&arn, arn_pk.to[i], arn_cur[k].len, 1u << k);
+        if (ok)
+            arn.mk = (uint8_t)k, arn.mo = arn_pk.to[i];
+        fm1_irq_on();
+        if (!ok) {
+            arn_pk.n = arn_pk.i = 0;                    /* (something took its place meanwhile: the plan stops) */
+            arn_probe.stops++;
+            return;
+        }
+        arn_pk.done = 0;
+        ARN_MV_SYNC();
+        arn_pk.t0 = ARN_US();
+    }
+#ifdef ARN_MV_STEP                                      /* (the host tests: a window a pass, the audio in between) */
+    arn_mv_window();
+#else
+    while (arn_pk.done < arn_cur[arn.mk].len)
+        arn_mv_window();                                /* (the interrupts on between two windows) */
+#endif
+    if (arn_pk.done < arn_cur[arn.mk].len)
+        return;
+    k = arn.mk;
+    fm1_irq_off();
+    if (arn_has_next[k] && arn_next[k].off == arn_cur[k].off)
+        arn_next[k].off = arn.mo;                       /* (its own block reserved meanwhile: where it is now) */
+    arn_cur[k].off = arn.mo;
+    arn.mk = ARN_NO;
+    ARN_MV_MOVED(k, arn_mem + arn_cur[k].off);
+    fm1_irq_on();
+    {
+        uint32_t us = (uint32_t)(ARN_US() - arn_pk.t0);
+        if (us > arn_probe.max_us)
+            arn_probe.max_us = us;
+    }
+    arn_probe.moves++;
+    arn_pk.i++;
 }

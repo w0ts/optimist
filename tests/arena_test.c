@@ -11,6 +11,8 @@
 #include <string.h>
 
 #define IN_POOL
+static void fm1_irq_off(void) {}                        /* (the host: one thread) */
+static void fm1_irq_on(void) {}
 #define ARN_PARTS 4u
 #define ARN_BYTES 4032u                                 /* 4 x 1008: four engines of 1008 B, as engines.c sizes it */
 #include "core/arena.c"
@@ -107,10 +109,95 @@ static void fixed_cases(void)
 #endif
 }
 
+#if ARN_MOVES                             /* (arena_pack_test: every part movable, a window a pass, ARN_MV_STEP) */
+static void fill(uint32_t k, uint8_t v)
+{
+    memset(arn_ptr(k), v, arn_cur[k].len);
+}
+static int holds(uint32_t k, uint8_t v)
+{
+    uint32_t i;
+    const uint8_t *p = arn_ptr(k);
+    for (i = 0; p && i < arn_cur[k].len; i++)
+        if (p[i] != v)
+            return 0;
+    return p != 0;
+}
+static uint32_t run_plan(uint32_t *seen)                 /* arn_poll until done; the passes; *seen: passes a block moved */
+{
+    uint32_t n = 0;
+    *seen = 0;
+    while ((arn_busy() || arn_pk.all) && n < 1000u) {
+        arn_poll();
+        *seen += arn.mk != ARN_NO;
+        n++;
+    }
+    return n;
+}
+static void pack_cases(void)
+{
+    uint32_t seen, before;
+    reset();
+    arn.mk = ARN_NO;
+    CHECK(sw(0, 1000) == 0 && sw(1, 1000) == 0 && sw(2, 1000) == 0 && sw(3, 1000) == 0, "four placed");
+    fill(0, 0xA0), fill(1, 0xA1), fill(2, 0xA2), fill(3, 0xA3);
+    arn_give(0);
+    arn_give(2);
+    CHECK(arn_reserve(0, 2000) == -1 && arn_room() >= 2000, "2000 B refused, though 2032 B are free (cut in two)");
+    CHECK(arn_pack(0, 2000, ARN_BYTES) == 1 && arn_busy(), "arn_pack: a plan (the free room holds it)");
+    before = arn_probe.moves;
+    arn_poll();
+    CHECK(arn_moving(1) && !arn_moving(3) && arn_cur[1].off == 1000 && arn.mo == 0,
+          "a window: part 1 moving (the audio skips it), still at its place, its target 0 taken");
+    CHECK(arn_reserve(2, 900) == 0 && arn_next[2].off >= 2000 && sound(),
+          "a reservation meanwhile: never over the moving block's place nor its target");
+    arn_has_next[2] = 0;
+    CHECK(run_plan(&seen) > 1u && arn_probe.moves == before + 1u && !arn_moving(1) && !arn_moving(3),
+          "the plan done in windows of 256 B: one move (the fewest in address order)");
+    CHECK(off_of(1) == 0 && off_of(3) == 3000 && holds(1, 0xA1) && holds(3, 0xA3) && sound(),
+          "part 1 moved down to 0, its contents as they were; part 3 not moved");
+    CHECK(arn_reserve(0, 2000) == 0 && arn_next[0].off == 1000, "and the 2000 B fit now (1000 .. 3000)");
+    arn_take(0);
+    /* a fixed place (a send line): a part's block there moved out of it */
+    reset();
+    arn.mk = ARN_NO;
+    CHECK(sw(0, 1000) == 0 && sw(1, 1000) == 0 && sw(2, 1000) == 0, "three placed");
+    fill(2, 0xC2);
+    arn_give(1);
+    CHECK(arn_reserve_at(3, 2000, 1000) == -1, "part 2 at the fixed place 2000: refused");
+    CHECK(arn_pack(3, 1000, 2000) == 1 && run_plan(&seen) && off_of(2) == 1000 && holds(2, 0xC2),
+          "packed: part 2 moved to the free 1000, its contents kept");
+    CHECK(arn_reserve_at(3, 2000, 1000) == 0 && sound(), "the fixed place free: placed");
+    arn_take(3);
+    /* the room's kind: moved up (ARN_UPS) */
+    reset();
+    arn.mk = ARN_NO;
+    CHECK(sw(0, 1000) == 0 && sw(1, 1000) == 0 && arn_pack(2, 3000, ARN_BYTES) == 0, "nothing to move for 3000 B");
+    CHECK(arn_pack(2, 4000, ARN_BYTES) == 0 && !arn_busy(), "4000 B: more than the room: no plan");
+    /* a load: every block packed once nothing is pending */
+    reset();
+    arn.mk = ARN_NO;
+    CHECK(sw(0, 1000) == 0 && sw(1, 1000) == 0 && sw(2, 1000) == 0, "three placed");
+    fill(2, 0xD2);
+    arn_give(0);
+    arn_give(1);
+    CHECK(arn_reserve(0, 500) == 0 && arn_next[0].off == 0, "a load's reservation, pending");
+    arn_pack_all();
+    arn_poll();
+    CHECK(arn_pk.all && !arn_moving(2), "arn_pack_all waits while a part's switch is pending");
+    arn_take(0);
+    run_plan(&seen);
+    CHECK(off_of(0) == 0 && off_of(2) == 504 && holds(2, 0xD2) && !arn_busy(), "then packed: part 2 down to 504");
+}
+#endif
+
 int main(void)
 {
     uint32_t i, round, moved = 0, refused = 0, dropped = 0;
     fixed_cases();
+#if ARN_MOVES
+    pack_cases();
+#endif
     srand(5);
     reset();
     for (round = 0; round < 300000u && !moved; round++) {

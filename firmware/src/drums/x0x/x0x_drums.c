@@ -86,6 +86,10 @@ static struct {
     float bus[X0X_BLK], pair[X0X_BLK];   /* this block's metal bank */
 #endif
 } xd;
+#if !defined(FELUCCA_FX_ARENA) && defined(FELUCCA_ARENA_KB) && FELUCCA_ARENA_KB
+#define FELUCCA_FX_ARENA 1                   /* (a unit of its own: registry.h's rule, every build with an arena since
+                                              * 2026-10-29; fm1-base's opt_fpu_x0x.c still sets it for LAYOUT 1 only) */
+#endif
 #ifndef FELUCCA_FX_ARENA
 #define FELUCCA_FX_ARENA 0
 #endif

@@ -1,10 +1,10 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* The effects' lines in the arena (firmware/src/fx/fx_arena.c; docs/SD-MODE-DESIGN.md 6b, phase 3b): built with
- * FELUCCA_FX_ARENA and an arena of one FM6 part's memory plus every effect line (the reverb's with the ROOM's diffusers
- * after it) and 40 B (run_tests.sh), CHRS and ECHO
- * built, the delay's line 16384 samples:
- *   1. placed by need: the sends in the master slots get their lines at the first pass, zeroed, the gate open; nothing
- *      for the inserts' own room while no limited type is held
+ * FELUCCA_FX_ARENA and an arena of one FM6 part's memory, its sine table, every send line (the reverb's with the ROOM's
+ * diffusers after it) at its fixed place and one CHRS line, in whole KB (run_tests.sh), CHRS and ECHO built, the delay's
+ * line 16384 samples:
+ *   1. placed by need: the sends in the master slots get their lines at the first pass, at their places at the top,
+ *      zeroed, the gate open; no inserts' room while no limited type is held
  *   2. the lines sound (the wet written into the arena)
  *   3. a send out of the slots: gated, given back two blocks later, the audio runs on with its pointer 0
  *   4. back in a slot: placed again, zeroed, heard
@@ -12,9 +12,10 @@
  *      proposal names parts only
  *   6. refused: the send stays in its slot (the project keeps it), bypassed, FULL, said once; never placed while a
  *      part's refused change waits; restored by itself once a part is dropped (its block idle, taken back)
- *   7. the inserts' own room: placed while a limited type is held, given back after the last fade-out; refused, the
- *      chorus send's line (in no slot) placed and lent instead; the drop proposal: the parts, then the effects' lines
- *      (the largest first), a dropped effect bypassed as when refused, the part's change made, the effect back later
+ *   7. the inserts' room: grown by a line while a limited type is held, given back after the last fade-out; full, the
+ *      chorus send's line (in no slot) placed at its place and lent instead; the drop proposal: the parts, then the
+ *      effects' lines (the largest first), a dropped effect bypassed as when refused, the part's change made, the effect
+ *      back later (its place: a part's block there reclaimed)
  *   8. random switches (sends in and out of the slots, inserts, parts' engines, drops, blocks between): the blocks never
  *      overlap, every pointer is its block, a gate open only on a placed line; at the end everything given back
  *   fx_arena_test */
@@ -44,7 +45,7 @@ static uint32_t up_nth(uint32_t n) { return n; }
 static uint32_t up_rank(uint32_t s) { return s; }
 static void up_name(uint32_t k, char *b) { (void)k; b[0] = 0; }
 #include "../firmware/src/core/model.c"
-#if !FXM_NEED || !FELUCCA_INS_CHORUS || !FELUCCA_INS_DELAY || !FELUCCA_ENG_FM6 || !FXA_I
+#if !FXM_NEED || !FELUCCA_INS_CHORUS || !FELUCCA_INS_DELAY || !FELUCCA_ENG_FM6 || !FXA_ROOM
 #error "fx_arena_test: built with FELUCCA_FX_ARENA, FELUCCA_ARENA_BYTES, FM6, CHRS and ECHO (run_tests.sh)"
 #endif
 
@@ -88,8 +89,9 @@ static void load_like(uint32_t want)
 }
 static void *fx_ptr(uint32_t c)
 {
-    return c == FXM_CHO ? (void *)cho_buf : c == FXM_DLY ? (void *)dly_buf : c == FXM_REV ? (void *)rev_line : (void *)fxa_ins;
+    return c == FXM_CHO ? (void *)cho_buf : c == FXM_DLY ? (void *)dly_buf : (void *)rev_line;
 }
+#define ROOM (fxr_hi > fxr_lo)                          /* (the inserts' room placed: fxi.c) */
 static int zeros(const void *p, uint32_t n)
 {
     const uint8_t *b = p;
@@ -105,8 +107,8 @@ static int any16(const int16_t *p, uint32_t n)
             return 1;
     return 0;
 }
-/* the invariants: blocks inside the arena and apart, each line's pointer its block, a gate open only on a placed line,
- * the own room's units taken while it is not placed, every instance's line where its units are */
+/* the invariants: blocks inside the arena and apart, each line's pointer its block at its fixed place, a gate open only
+ * on a placed line, the room's block its units, every instance's line where its units are */
 static int arena_ok(void)
 {
     uint32_t i, j, c;
@@ -120,28 +122,27 @@ static int arena_ok(void)
                 arn_cur[j].off < arn_cur[i].off + arn_cur[i].len)
                 return 0;
     }
-    for (c = 0; c < FXM_NC; c++) {
+    for (c = 0; c < 3u; c++) {
         void *p = fx_ptr(c);
-        if (p != arn_ptr(FXM_K(c)) || (p && arn_cur[FXM_K(c)].idle))
+        if (p != arn_ptr(FXM_K(c)) || (p && (arn_cur[FXM_K(c)].idle || arn_cur[FXM_K(c)].off != FXM_AT[c])))
             return 0;
-        if (c < 3u && ((fxm_st[c] == FXM_NONE) != !p || (fxm_st[c] == FXM_ON) != !(fxm_off >> c & 1u)))
+        if ((fxm_st[c] == FXM_NONE) != !p || (fxm_st[c] == FXM_ON) != !(fxm_off >> c & 1u))
             return 0;
     }
+    if (ROOM ? arn_cur[FXR_K].off != fxr_lo * FXR_UB || arn_cur[FXR_K].len != (uint32_t)(fxr_hi - fxr_lo) * FXR_UB ||
+               fxr_hi * FXR_UB > fxm_lim() : arn_cur[FXR_K].len != 0u)
+        return 0;                                       /* (the room: its units, under the send lines' places) */
 #if FELUCCA_REV_ROOM
     if (rev_ap != (rev_line ? rev_line + REV_LINE_N : 0))
         return 0;                                       /* (the ROOM's diffusers: in the reverb's block, after its line) */
 #endif
-    if (!fxa_ins)
-        for (i = FXA_S; i < FXA_N; i++)
-            if (!fxa_busy(i))
-                return 0;
     for (j = 0; j < FXI_NL; j++)
         for (i = 0; i < FXI_TN[j]; i++) {
             uint32_t u = fxa_u[j][i], r;
             if (fxi_own[j][i] == FXI_NONE)
                 continue;
             r = fxa_reg(u);
-            if ((r == FXL_NS && !fxa_ins) || (r < FXL_NS && fxm_st[r ? FXM_DLY : FXM_CHO] != FXM_ON))
+            if ((r == FXL_NS && (!ROOM || u < FXA_S + fxr_lo || u + FXA_SZ(j) > FXA_S + fxr_hi)) || (r < FXL_NS && fxm_st[r ? FXM_DLY : FXM_CHO] != FXM_ON))
                 return 0;
         }
     return 1;
@@ -169,20 +170,21 @@ int main(void)
     track_t *t0 = &trk[0], *t1 = &trk[1], *t2 = &trk[2];
     host_tracks_init();
     fxi_init();
-    for (c = 0; c < FXM_NC; c++)
-        sum += FXM_BYTES[c];
-    CHECK(ARN_BYTES >= FM + SN + sum && ARN_BYTES < FM + SN + sum + 40u + 1u &&
-          ARN_BYTES < 3u * FM + SN + sum - FXM_BYTES[FXM_CHO],
-          "the premise: one FM6 (and its sine table) and every line fit, not 3 FM6 and the lines but CHO's (arena %u B: FM6 "
-          "%u + %u, lines %u %u %u %u)", (unsigned)ARN_BYTES, (unsigned)FM, (unsigned)SN, FXM_BYTES[0], FXM_BYTES[1],
-          FXM_BYTES[2], FXM_BYTES[3]);
+    for (c = 0; c < 3u; c++)
+        sum += arn_round(FXM_BYTES[c]);
+    CHECK(fxm_lim() == ARN_BYTES - sum && ARN_BYTES % 1024u == 0u && ARN_BYTES >= FM + SN + sum + 2048u &&
+          ARN_BYTES < FM + SN + sum + 2048u + 1024u && ARN_BYTES < 2u * FM + SN + sum && ARN_BYTES < 3u * FM + SN + sum -
+          FXM_BYTES[FXM_CHO],
+          "the premise: one FM6, its sine table, every send line and one CHRS line fit, not two FM6 (arena %u B: FM6 %u + "
+          "%u, lines %u %u %u at the top from %u)", (unsigned)ARN_BYTES, (unsigned)FM, (unsigned)SN, FXM_BYTES[0],
+          FXM_BYTES[1], FXM_BYTES[2], (unsigned)fxm_lim());
     if (bad)
         return 1;                                       /* (the checks below are laid out for it) */
-    CHECK(fxm_off == 7u && !cho_buf && !dly_buf && !rev_line && !fxa_ins, "at boot: no line placed, every send gated");
+    CHECK(fxm_off == 7u && !cho_buf && !dly_buf && !rev_line && !ROOM, "at boot: no line placed, every send gated");
     quiet();
     /* 1. placed by need */
-    CHECK(fxm_st[FXM_CHO] == FXM_ON && fxm_st[FXM_DLY] == FXM_ON && fxm_st[FXM_REV] == FXM_ON && !fxm_off && !fxa_ins &&
-          arena_ok(), "the sends in the master slots: their lines placed, the gates open; no own room (no limited type held)");
+    CHECK(fxm_st[FXM_CHO] == FXM_ON && fxm_st[FXM_DLY] == FXM_ON && fxm_st[FXM_REV] == FXM_ON && !fxm_off && !ROOM &&
+          arena_ok(), "the sends in the master slots: their lines placed at their places, the gates open; no inserts' room");
     CHECK(zeros(cho_buf, FXM_BYTES[FXM_CHO]) && zeros(dly_buf, FXM_BYTES[FXM_DLY]) && zeros(rev_line, FXM_BYTES[FXM_REV]),
           "... zeroed");
     /* 2. heard */
@@ -224,8 +226,8 @@ int main(void)
         trk[k].p[P_TCHRS] = trk[k].p[P_TECHO] = 100;   /* (heard: a let go fades out) */
     put_chrs(0, 1);
     settle(2);
-    CHECK(t0->engine == ENG_IX_FM6 && fxa_ins && fxi_state(0, 0) == FXI_OK && arena_ok(),
-          "FM6 on part 1, CHRS on track 1: the own room placed, its instance in it: the arena full");
+    CHECK(t0->engine == ENG_IX_FM6 && ROOM && fxr_hi - fxr_lo == 2u && fxi_state(0, 0) == FXI_OK && arena_ok(),
+          "FM6 on part 1, CHRS on track 1: the room placed (2 KB), its instance in it: the arena full");
     set_engine_of(t1, ENG_IX_FM6);
     CHECK(part_mem_refused.on && part_mem_refused.part == 1u && t1->eng_req != ENG_IX_FM6 && part_mem_frees(0),
           "FM6 on part 2: refused; part 1's memory would make room (proposed first: parts before effects)");
@@ -266,28 +268,28 @@ int main(void)
     /* 7. the inserts' own room */
     put_chrs(0, 0);
     pass();
-    CHECK(fxa_ins, "CHRS let go: the own room kept while its instance fades out");
+    CHECK(ROOM, "CHRS let go: the room kept while its instance fades out");
     settle(40);
-    CHECK(!fxa_ins && !arn_cur[FXM_K(FXM_INS)].len && fxi_free(FXT_CHRS) > 0u && fxi_can(0, FXT_CHRS) && arena_ok(),
+    CHECK(!ROOM && !arn_cur[FXR_K].len && fxi_free(FXT_CHRS) > 0u && fxi_can(0, FXT_CHRS) && arena_ok(),
           "... faded: the room given back; the UI still counts it (the arena would take it)");
     fxs_load(1, FXT_NONE);                              /* (CHO in no slot: its line given back, then lendable) */
     settle(4);
-    set_engine_of(t1, ENG_IX_FM6);                      /* (three FM6: no room left for the own room) */
-    set_engine_of(t2, ENG_IX_FM6);
-    blocks(64);
-    settle(2);
-    CHECK(t1->engine == ENG_IX_FM6 && t2->engine == ENG_IX_FM6 && !cho_buf && !arn_fits(FXM_K(FXM_INS), FXM_INS_BYTES, 0) &&
-          arn_fits(FXM_K(FXM_CHO), FXM_BYTES[FXM_CHO], 0), "three FM6, CHO in no slot: no room for the own room, room for CHO's line");
+    put_chrs(0, 1);
+    settle(8);
+    CHECK(!cho_buf && ROOM && fxi_state(0, 0) == FXI_OK && arena_ok(), "CHO in no slot, CHRS on track 1: in the room");
     fxm_news = 0;
     put_chrs(2, 1);
     settle(8);
     k = fxi_at[2][0];
-    CHECK(!fxa_ins && (fxm_full >> FXM_INS & 1u) && (fxm_news >> FXM_INS & 1u) && cho_buf && k != FXI_NONE &&
+    CHECK(fxr_hi - fxr_lo == 2u && (fxm_news >> FXM_INS & 1u) && !fxm_full && cho_buf && k != FXI_NONE &&
           ifx_chrs[k].line == cho_buf && fxi_state(2, 0) == FXI_OK && fxl_st[0] == FXL_LENT && arena_ok(),
-          "CHRS on track 3: the own room refused; the chorus send's line placed and lent, the instance on it");
+          "CHRS on track 3: the room cannot grow (FM6 under it, the sine table over it); the chorus send's line placed at "
+          "its place and lent, the instance on it (MEM FULL INSERTS said, none left without)");
     put_chrs(2, 0);
+    put_chrs(0, 0);
     settle(40);
-    CHECK(fxl_st[0] == FXL_SEND && !cho_buf && arena_ok(), "... let go: the line back to its send, then given back (CHO in no slot)");
+    CHECK(fxl_st[0] == FXL_SEND && !cho_buf && !ROOM && arena_ok(),
+          "... let go: the line back to its send, then given back (CHO in no slot); the room given back");
     /* 7b. the drop proposal: the parts, then the effects' lines (the user, 2026-10-25) */
     quiet();
     fxs_set(FXS_DEF);
@@ -295,8 +297,8 @@ int main(void)
     blocks(64);
     put_chrs(0, 1);
     settle(4);
-    CHECK(t0->engine == ENG_IX_FM6 && cho_buf && dly_buf && rev_line && fxa_ins && arena_ok(),
-          "drop: FM6 on part 1, CHO DLY REV and the own room: the arena full");
+    CHECK(t0->engine == ENG_IX_FM6 && cho_buf && dly_buf && rev_line && ROOM && arena_ok(),
+          "drop: FM6 on part 1, CHO DLY REV and the room: the arena full");
     set_engine_of(t1, ENG_IX_FM6);
     {
         uint32_t o[5], n = 0;
@@ -328,7 +330,7 @@ int main(void)
     blocks(64);
     settle(2);
     CHECK(dly_buf && fxm_st[FXM_DLY] == FXM_ON && !fxm_refused(FXT_DLY) && arena_ok(),
-          "drop: part 2 off FM6 (its block idle): DLY placed again by itself");
+          "drop: part 2 off FM6 (its block idle, at DLY's place): DLY placed again by itself, the idle block reclaimed");
     put_chrs(0, 0);
     settle(40);
     /* 7c. a load's list (ui/optimist/op_memlist.c): the parts first, then the effects' lines placed (REV DLY CHO); HOME
@@ -386,7 +388,7 @@ int main(void)
     settle(40);
     /* 8. random switches */
     {
-        uint32_t n, okall = 1, worst = 0, nfull = 0, nref = 0, nlent = 0, nown = 0, nmv = 0, ndrop = 0;
+        uint32_t n, okall = 1, worst = 0, nfull = 0, nref = 0, nlent = 0, nown = 0, nmv = 0, ndrop = 0, mv0 = arn_probe.moves;
         uint32_t nlist = 0, nfit = 0, nlied = 0;   /* (a load's list: shown, FITS committed, FITS that did not) */
         srand(7);
         for (n = 0; n < 30000u && okall; n++) {     /* (30,000: FM6's sine table in the arena too, 2026-10-26, makes the
@@ -443,21 +445,22 @@ int main(void)
             okall = arena_ok();
             worst = n;
             nfull += fxm_full != 0, nref += part_mem_refused.on, nlent += fxl_st[0] != FXL_SEND || fxl_st[1] != FXL_SEND;
-            nown += fxa_ins != 0, nmv += fxm_mv != 0;
+            nown += ROOM;
         }
         CHECK(!nlied && nlist > 20u && nfit > 5u, "... a load's list (a project's load now and then, or a switch that found no room): shown %u times, FITS committed %u times, the "
               "commit always placed what FITS said (%u short)", (unsigned)nlist, (unsigned)nfit, (unsigned)nlied);
         mem_load_cancel();
+        nmv = arn_probe.moves - mv0;
         CHECK(okall && nfull > 1000u && nref > 100u && nlent > 1000u && nown > 1000u && nmv > 10u && ndrop > 5u,
               "20,000 random switches: the invariants held at every step (to %u; steps with an effect refused %u, a part's "
-              "change refused %u, a send's line lent %u, the own room placed %u, silent lines moved %u, effects dropped %u)",
+              "change refused %u, a send's line lent %u, the room placed %u, parts' blocks moved %u, effects dropped %u)",
               (unsigned)worst, (unsigned)nfull, (unsigned)nref, (unsigned)nlent, (unsigned)nown, (unsigned)nmv, (unsigned)ndrop);
         part_mem_refused.on = 0;
         for (k = 1; k < FX_NSLOT; k++)
             fxs_load(k, FXT_NONE);
         quiet();
         settle(60);
-        CHECK(!cho_buf && !dly_buf && !rev_line && !fxa_ins && fxm_off == 7u && arena_ok(),
+        CHECK(!cho_buf && !dly_buf && !rev_line && !ROOM && fxm_off == 7u && arena_ok(),
               "... everything let go: every effect's line given back, every send gated");
         fxs_set(FXS_DEF);
         settle(4);

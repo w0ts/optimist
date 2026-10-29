@@ -425,6 +425,7 @@ enum { SI_NONE, SI_BRIGHT, SI_LIGHTS, SI_KEYS, SI_LOWCUT, SI_OUT, SI_SYNC, SI_CH
        SI_WFMODE, SI_WFNET, SI_WFSIG, SI_WFST,           /* SYSTEM > WI-FI (op_wifi.c): MODE, NETWORK, SIGNAL, STATE */
        SI_RAM,                                          /* INFO: the SRAM free at link, the stacks' least room left (stackmark.h) */
        SI_UHMODE, SI_UHDEV,                             /* SYSTEM > USB (USB_HOST, the release): MODE DEVICE / HOST, DEVICE */
+       SI_ARN,                                          /* INFO: the arena's longest move and interrupts-off window (us) */
        SI_UAS0 };                                       /* SI_UAS0 + s: USB AUDIO's line of source s (ua_tap.h UAS_*), last */
 /* a core's load number (% of the audio budget) in its colour: green under 60, amber 60..85, red over 85 (the predictive guard's
  * ceiling, system/cpuguard.c CG_CEIL = 85 %: above it the guard sheds quality / voices); INFO's bars and ticks the same. */
@@ -819,6 +820,19 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
         info_bar(c, OVL_CPU0, now);
         break;
     }
+#if PART_DROPS
+    case SI_ARN: {                                      /* the arena's moves (core/arena.c arn_probe): the longest, start to
+                                                         * swap, and the longest interrupts-off window of one (us; 0/0: none) */
+        uint32_t n;
+        sys_ro(c, "ARENA MOVE");
+        fmt_int(c->val, (int32_t)(arn_probe.max_us > 99999u ? 99999u : arn_probe.max_us));
+        n = str_len(c->val);
+        c->val[n] = '/';
+        fmt_int(c->val + n + 1u, (int32_t)(arn_probe.off_us > 9999u ? 9999u : arn_probe.off_us));
+        c->unit = "us";
+        break;
+    }
+#endif
     case SI_RAM:
         info_ram(c);
         break;
@@ -1247,9 +1261,10 @@ static void sys_rst_cell(cell_t *c)
  *   INTERNALS (page 1): LAST RESET, the longest flash interrupts-off time, the second core's internals (DUAL builds)
  *   USB STATS (page 2, USB audio builds): the USB audio counters */
 #if FELUCCA_SYS_DEBUG
-#define INFO_BASE (7u + (uint32_t)FELUCCA_CPU_GUARD)
+#define INFO_BASE (7u + (uint32_t)FELUCCA_CPU_GUARD + (uint32_t)PART_DROPS)
 #else
-#define INFO_BASE (4u + (uint32_t)DUAL_LOAD)             /* (without the debug pages: CPU LOAD (CPU0, CPU1), RAM, UNDERRUNS, BATTERY) */
+#define INFO_BASE (4u + (uint32_t)DUAL_LOAD + (uint32_t)PART_DROPS)   /* (without the debug pages: CPU LOAD (CPU0, CPU1),
+                                                         * RAM, ARENA MOVE with an arena, UNDERRUNS, BATTERY) */
 #endif
 #define INFO_N INFO_BASE                                /* INFO's lines */
 #ifndef FELUCCA_STOCK_SUPPLY
@@ -1260,7 +1275,11 @@ static void sys_rst_cell(cell_t *c)
 static void sys_info_cell(uint32_t i, cell_t *c)        /* INFO's line i */
 {
 #if FELUCCA_SYS_DEBUG
-    static const uint8_t INFO[INFO_BASE] = {SI_MHZ, SI_CPU, SI_CPU1, SI_RAM, SI_DROPS, SI_XRUN,
+    static const uint8_t INFO[INFO_BASE] = {SI_MHZ, SI_CPU, SI_CPU1, SI_RAM,
+#if PART_DROPS
+                                            SI_ARN,
+#endif
+                                            SI_DROPS, SI_XRUN,
 #if FELUCCA_CPU_GUARD
                                             SI_GUARD,
 #endif
@@ -1271,6 +1290,9 @@ static void sys_info_cell(uint32_t i, cell_t *c)        /* INFO's line i */
                                             SI_CPU1,    /* (both cores' load: the user, 2026-10-18) */
 #endif
                                             SI_RAM,     /* (the user, 2026-10-28) */
+#if PART_DROPS
+                                            SI_ARN,     /* (the arena's moves: the FM-1's copy speed, 2026-10-29) */
+#endif
                                             SI_XRUN, SI_BATT};   /* (what a player wants, the user 2026-10-17) */
 #endif
     sys_it_cell(INFO[i % INFO_N], c);
