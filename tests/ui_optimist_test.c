@@ -3983,7 +3983,7 @@ static void led_tests(void)
 #ifndef UIO_NO_MAIN                                     /* (tests/audio_hang_stress.c: its own main) */
 #include "ui_optimist_lockaudit.h"
 
-/* where the keyboard octave first leaves 0 between clkout_tests and algo_tests (the SHIFT2 test needs 0): a diagnostic line per change */
+/* where the keyboard octave leaves 0 between clkout_tests and algo_tests (the SHIFT2 test needs 0): a diagnostic line per change */
 static void octave_watch(const char *after)
 {
     static int last;
@@ -4228,3 +4228,92 @@ int main(int argc, char **argv)
 #endif
     algo_tests();
     octave_watch("algo_tests");
+    mute_tests();
+    solo_tests();
+    retmute_tests();
+    across_tests();
+    strike_tests();
+    smute_tests();
+    pagemem_tests();
+#if FELUCCA_ED_MIRROR
+    nav_tests();
+#endif
+    favorites_tests();
+    algotrack_tests();
+    uniform_tests();
+    lforate_tests();
+    step_hold_tests();
+    step_move_tests();
+    step_pitch_tests();
+    led_tests();
+    btnled_tests();
+    lamp_tests();
+    pages_nav_tests();
+    pages_master_tests();
+    pages_keys_tests();
+    keys_global_tests();
+    pages_head_tests();
+    pages_select_tests();
+    pages_hit_tests();
+    lane_ui_tests();
+    lane_src_tests();
+    effval_tests();
+    inslots_tests();
+    noswap_tests();
+    fxi_ui_tests();
+#if FELUCCA_INS_GATER
+    gater_ui_tests();
+#endif
+    lfo2ui_tests();
+#if FELUCCA_PLOCK
+    plock_audit_tests();
+#endif
+#if FELUCCA_SEQTOOLS || FELUCCA_GENS
+    seqtools_tests();
+#endif
+#if FELUCCA_COND && FELUCCA_CHANCE
+    cond_card_tests();
+#endif
+    accent_ui_tests();
+    lanevals_tests();
+    screens_tests();
+#if FELUCCA_BLE
+    ble_tests();
+#endif
+#if WIFI_UI
+    wf_ui_tests();
+    wf_pw_tests();
+#if FELUCCA_WIFI_AP
+    wf_ap_tests();
+#endif
+#endif
+    premiss_tests();
+    missline_tests();
+    notename_tests();                                   /* (late: the note it plays moves the master's meters, SCRS's golden) */
+    fuzz(20000, 12345);
+    check(1, "20000 frames of random use: every draw on the screen");
+    if (band_hits)
+        printf("  geometry: %u blits reached the help band\n", band_hits);
+    check(!band_hits, "#6 the whole run (every test, the random frames): no blit in the help band but the help line's");
+#ifdef MIRROR_CHECK
+    {
+        uint32_t i, diff = 0;
+        mc_meter_now = 1;                               /* (the meters' last change: a window) */
+        frame();
+        mc_meter_now = 0;
+        for (i = 0; i < 240u * 240u; i++)
+            diff += md_fb[i] != swap16(screen[i]);
+        printf("  mirror: %u frames, %u bytes, the screen drawn %u px; %u bad frames, %u px differ\n", mc_frames, mc_bytes, blit_px, mc_bad, diff);
+        printf("  mirror: %u bytes without the %u catch-ups (%u bytes); %u segments not sent again\n", mc_bytes - mc_resync_sum, mc_resyncs, mc_resync_sum, (unsigned)me_skipped);
+        printf("  mirror catch-up (black to the client, op_repaint): %u, %u not the panel after; %u bytes each on average, %u at most\n",
+               mc_resyncs, mc_resync_bad, mc_resyncs ? mc_resync_sum / mc_resyncs : 0u, mc_resync_max);
+        check(!mc_bad && !diff, "the screen mirrored: every write decoded, the same pixels");
+        printf("  mirror meters: %u windows of 100 ms\n", mc_meter_sends);
+        check(mc_meter_sends > 100u, "the screen mirrored: the mixer's meters sent in their windows");
+        check(mc_resyncs > 100u && !mc_resync_bad, "the screen mirrored: every catch-up (black to the client, every band again in place) is the panel");
+    }
+#endif
+    printf(fails ? "optimist ui test FAILED (%d)\n" : "optimist ui test passed\n", fails);
+    return fails != 0;
+}
+#endif
