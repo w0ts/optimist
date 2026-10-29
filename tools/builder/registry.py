@@ -106,7 +106,8 @@ RETIRED = {
 # counted ON (the image every build is now; a build that had it off is a different image).
 # items that were a count before the effects memory (2026-10-23) and are built or not since: a .config's count reads as
 # built (core.py parse: any non-zero is 1)
-WAS_COUNT = frozenset({"INS_CHORUS", "INS_DELAY", "INS_JCHORUS", "INS_FLANGER", "INS_XDLY"})
+WAS_COUNT = frozenset({"INS_CHORUS", "INS_DELAY", "INS_JCHORUS", "INS_FLANGER", "INS_XDLY",
+                       "ARENA"})   # (ARENA: its KB until 2026-10-29, the free RAM since: on)
 
 HASH_AS = {"SIMD": 0, "KNOB_ONEREST": 1, "MONO_RELEASE": 1, "ST_STRICT": 1, "USB_FLOW": 1, "SHED_FADE": 1, "KEYS_FAST": 1, "TRS_NOISE": 1, "BK_CHECK": 1, "LAYER_QUIET": 1, "DLY_HALVE": 1, "LFO2": 1, "GLIDE": 1, "UI": 1, "ICONS": 0, "OVERVIEW": 0, "OV_ARP": 1, "DRUM_STEP": 1, "CHORD_NAMES": 1, "BPM_LOCK": 0, "MOTION_MARK": 1, "SEL_PAGES": 0, "BIGVALS": 0, "DRUM_ACCENT": 1, "PAGE_LINES": 1}   # (each was its default in every profile)
 
@@ -1187,32 +1188,26 @@ _add("LAYOUT", "FELUCCA_LAYOUT", "flash layout: fake SD mode (more room for code
 # the edit's one confirm for what to drop, a load's refusals on it one by one; the extras only in the SD card mode
 # (registry.h FELUCCA_SD_MODE: LAYOUT 1 until its own flag): the effects' lines, the other buffers, the load's list page
 # (FELUCCA_FX_ARENA, FELUCCA_MEM_LIST). The pool estimate: core.py arena_mem (sd_mode)
-_add("ARENA", "FELUCCA_ARENA_KB", "memory per project (an arena for the engines; in the SD card mode the effects' lines too)",
+_add("ARENA", "FELUCCA_ARENA_KB", "memory per project (the free RAM: one arena for the engines and the effects' lines)",
      MEM, 411, default=0,
-     choices=((0, "off: every memory reserved, as before"), (24, "24 KB"), (32, "32 KB"), (40, "40 KB"), (48, "48 KB"),
-              (64, "64 KB"), (96, "96 KB"), (128, "128 KB"), (160, "160 KB"), (192, "192 KB"), (256, "256 KB")),
-     experimental=True, tested="host-tested only (tests/fx_arena_test.c, arena_bufs_test.c, arena_test.c, placeholder_test.c); not on an FM-1",
-     desc="Instead of reserving every engine's memory whether a project uses it or not, one pool memory of this size "
-          "holds what the project uses: each synth part's engine state (FM6, PHYS, GRAIN, ACID, PLAITS, JUNO, DRAWBAR, "
-          "CZ, SLICE), placed when "
-          "an engine is picked, its room free for the others once the part plays an engine that keeps nothing there. "
-          "What the arena does not need goes to the undo history. A change that does not fit is refused and the "
-          "device proposes a part to drop (DROP T2 FM6); a dropped part plays nothing (NONE) until an engine is picked "
-          "for it; a project load that does not fit offers its refused parts the same way, one at a time, the "
-          "project's sound kept. In the SD card mode (the fake SD mode's layout for now, LAYOUT) the arena also holds "
-          "the effects' lines (the delay, chorus and reverb sends' lines, the limited inserts' own room) and the other "
-          "buffers only some projects use (each track's SLICER recording while it is on STUT, WAVE's table while a "
-          "part plays WAVE, the X0X 909's and 808's states while the kit or a lane plays them, the PUNCH ring while "
-          "the project's PUNCH switch is on: GLOBAL > Rec, off in a new or an older project, FM6's sine table while "
-          "a part plays FM6), and a load that does "
-          "not fit opens a list of what to drop; then the parts are proposed first, then the effects' lines (DROP REV "
-          "32 KB); a dropped or refused effect is bypassed and dimmed (FULL), kept in the project, and comes back by "
-          "itself once there is room (a refused SLICER plays the live sound, its card FULL; an X0X kit plays its "
-          "stand-in kit; each with a MEM FULL message once; a change to WAVE without room for its table is refused "
-          "as an engine change; FX + a key with PUNCH off plays nothing: PUNCH OFF). Off: every memory reserved as before, nothing ever refused. The engines alone: about "
-          "400 B of flash (the default profile and sd-card-mots, measured 2026-10-26); with the SD card mode's extras about "
-          "6.7 KB of flash and 350 B of RAM; the room is the size chosen, against the fixed memories it "
-          "replaces.")
+     experimental=True, tested="host-tested only (tests/fx_arena_test.c, arena_bufs_test.c, arena_test.c, arena_frag_test.c, placeholder_test.c); not on an FM-1",
+     desc="Instead of reserving every engine's memory whether a project uses it or not, the RAM the firmware leaves free "
+          "is one arena that holds what the project uses (the user, 2026-10-29: arena first, undo gets the rest): each "
+          "synth part's engine state (FM6, PHYS, GRAIN, ACID, PLAITS, JUNO, DRAWBAR, CZ, SLICE), placed when an engine "
+          "is picked, its room free for the others once the part plays an engine that keeps nothing there; the "
+          "effects' lines (the delay, chorus and reverb sends' lines, the limited inserts' own room: the effects memory, "
+          "DLY_ARENA, less the delay's line) and the other buffers only some projects use (each track's SLICER "
+          "recording while it is on STUT, WAVE's table while a part plays WAVE, the X0X 909's and 808's states while the "
+          "kit or a lane plays them, the PUNCH ring while the project's PUNCH switch is on: GLOBAL > Rec, FM6's sine "
+          "table while a part plays FM6). The undo history keeps 16 KB and borrows what the arena does not use, giving "
+          "it back, its oldest levels first, as soon as the arena needs it. A change that does not fit is refused and "
+          "the device proposes what to drop (DROP T2 FM6, then the effects' lines: DROP REV 32 KB); a project load that "
+          "does not fit opens a list of what to drop. Before anything is refused the memories are moved together when "
+          "the free room would hold it, and a project load packs them all; nothing that sounds is moved (a part only "
+          "while it plays nothing, a send line while its tail is silent), what sounds is packed once it is quiet "
+          "(SYSTEM > INFO's RAM bar shows the arena in use and the undo history's share). A dropped or refused effect "
+          "is bypassed and dimmed (FULL), kept in the project, and comes back by itself once there is room. Off: every "
+          "memory reserved as before, nothing ever refused. An older configuration's size (ARENA=96) reads as on.")
 # bit 414 (2026-10-26): the next free one after FAR_OK's 413; the fm-1 session's handover (projects off the device)
 _add("BT_PROJ", "FELUCCA_BT_PROJ", "projects to and from the phone over Bluetooth", Y, 414, default=0,
      parent="EDITOR", experimental=True, tested="host-tested only (tests/mirror_test.c); no client sends it yet",
