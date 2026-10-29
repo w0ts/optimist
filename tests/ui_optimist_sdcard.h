@@ -447,6 +447,29 @@ static void sdcard_tests(void)
         check(!op_armed(), "... said once");
         sstp.state = SSTP_IDLE;
         sdu_frames(1);
+        {   /* a GRAIN part's cache missing its reads (sd_stream_rc.h, the card too slow): "T3 CARD SLOW" once */
+            static uint8_t rcm[SST_RC_BYTES(16)] __attribute__((aligned(4)));
+            sst_rc_place(2, rcm, 16);
+            fm1_ms += SDM_SLOW_MS + 1u;
+            sdu_frames(1);
+            sst_rc[2].hit = 30;
+            sst_rc[2].miss = 2;
+            fm1_ms += SDM_SLOW_MS + 1u;
+            sdu_frames(1);
+            check(!sdu_msg("CARD SLOW"), "a few misses: nothing said");
+            sst_rc[2].hit = 40;
+            sst_rc[2].miss = 8;
+            fm1_ms += SDM_SLOW_MS + 1u;
+            sdu_frames(1);
+            check(sdu_msg("T3 CARD SLOW"), "misses an eighth of the reads: T3 CARD SLOW");
+            ui.msg[0] = 0;
+            sst_rc[2].miss = 20;
+            fm1_ms += SDM_SLOW_MS + 1u;
+            sdu_frames(1);
+            check(!sdu_msg("CARD SLOW"), "... said once");
+            sst_rc_place(2, 0, 0);
+            sdu_frames(1);
+        }
 #endif
     }
     /* ---- a full card: the save kept in flash, finished at the next mount */

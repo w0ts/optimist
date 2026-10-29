@@ -106,6 +106,10 @@ static uint8_t sst_part_src[SST_NSLOT] = {[0 ... SST_NSLOT - 1u] = 0xFF};   /* t
 /* a part on a card set (SD card mode's built-in sets: gen_samples.py SMP_CARD_SETS, sd_stream_plan.c SST_PART_BANK):
  * its zones, sources sst_bank_src[part] .. + sst_bank_n[part] - 1 (one a Z<k>.WAV, in key order), 0 none */
 static uint8_t sst_bank_src[SST_NPART], sst_bank_n[SST_NPART];
+static volatile uint32_t sst_bank_gen;               /* + 1 when the card sets' sources change (GRAIN's, STRETCH's zones) */
+#ifndef SST_BANK_Z
+#define SST_BANK_Z 8u                                /* a card set's zones at most (gen_samples.py CARD_ZONES) */
+#endif
 static sst_t sst[SST_N] IN_POOL_AUDIO;
 static volatile uint32_t sst_dry;                    /* streams that ran dry (the console's sd stream) */
 static volatile uint32_t sst_nostream;               /* notes on a card sample with no ring free (silent) */
@@ -237,4 +241,5 @@ AINL uint32_t sst_rate(const sst_src_t *s, uint32_t stepq)
 {
     return (((stepq >> 4) * 441u / 40960u) << s->fsh) + 1u;   /* (32 bits: stepq < 2^23, 4 x 44.1 kHz 8 x up) */
 }
+#include "sd_stream_rc.h"                            /* the sources read in any order: GRAIN's, STRETCH's caches */
 #endif

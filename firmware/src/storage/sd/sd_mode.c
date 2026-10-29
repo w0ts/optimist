@@ -97,6 +97,7 @@ static FRESULT sdm_was(FRESULT r) { return sd_was(r); }
 #if FELUCCA_SD_STREAM
 static void sdm_mem_tick(void);
 static void sdm_bank_tick(void);
+static void sdm_slow_tick(void);
 #endif
 
 /* ---- the device record */
@@ -286,6 +287,7 @@ static void sdm_poll(void)
 #if FELUCCA_SD_STREAM
     sdm_mem_tick();
     sdm_bank_tick();
+    sdm_slow_tick();
 #endif
     if (sdm_st >= SDM_MOUNTED && sd_state != SD_READY) {
         sdm_st = SDM_NONE;
@@ -1287,6 +1289,42 @@ static void sdm_bank_tick(void)
             ui_message(a);
             return;
         }
+}
+/* a GRAIN or STRETCH part whose cache's reads go missing (sd_stream_rc.h: grains given up or cut, windows frozen):
+ * "P1 CARD SLOW" once, when a window of SDM_SLOW_MS has SDM_SLOW_N misses or more and they are an eighth of its reads
+ * or more; said again only after the part's cache went away (another set, engine, project) */
+#define SDM_SLOW_MS 2000u
+#define SDM_SLOW_N 4u
+static uint8_t sdm_slow_said;
+static uint32_t sdm_slow_t0, sdm_slow_rd[SST_NPART], sdm_slow_ms[SST_NPART];
+static void sdm_slow_tick(void)
+{
+    char a[30];
+    uint32_t k, rd, ms, dr, dm;
+    if (fm1_ms - sdm_slow_t0 < SDM_SLOW_MS)
+        return;
+    sdm_slow_t0 = fm1_ms;
+    for (k = 0; k < SST_NPART && k < NPART; k++) {
+        const sst_rc_t *c = &sst_rc[k];
+        if (!sst_rc_live(c)) {
+            sdm_slow_said &= (uint8_t)~(1u << k);
+            sdm_slow_rd[k] = sdm_slow_ms[k] = 0;
+            continue;
+        }
+        rd = c->hit + c->late + c->miss;
+        ms = c->miss;
+        dr = rd - sdm_slow_rd[k];
+        dm = ms - sdm_slow_ms[k];
+        sdm_slow_rd[k] = rd;
+        sdm_slow_ms[k] = ms;
+        if (dm >= SDM_SLOW_N && dm * 8u >= dr && !(sdm_slow_said >> k & 1u) && !op_armed()) {
+            sdm_slow_said |= (uint8_t)(1u << k);
+            str_cpy(a, trk_tag(k), sizeof a);
+            str_app(a, " CARD SLOW", sizeof a);
+            ui_message(a);
+            return;
+        }
+    }
 }
 #else
 static uint32_t sdm_pre_ms(void) { return 0; }
