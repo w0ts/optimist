@@ -2201,6 +2201,30 @@
     "provenance_line": ""
    },
    {
+    "key": "MIX_EXACT",
+    "flag": "FELUCCA_MIX_EXACT",
+    "label": "mix: full resolution into the mix and the master (quiet tails)",
+    "group": "FX: any number (each track its own)",
+    "bit": 439,
+    "default": 0,
+    "parent": null,
+    "desc": "Every synth part reaches the mix as 64-bit products, no bit dropped: its mute x duck gain (at rest 32766, so the 4 bits down were taken on every block) and its pan gain (4 bits down; MIX_FINE: 3). The master volume too (2 bits down before). Before, each part reached the mix in steps of 16: a long release or a reverb tail went through its last few bits, a bitcrusher on headphones. Supersedes MIX_FINE. A few multiplies a sample more, no RAM; every sound changes a little, so it is off by default.",
+    "experimental": true,
+    "notice": "",
+    "off_warning": "",
+    "env": "",
+    "target_only": false,
+    "symbols": [],
+    "no_image": false,
+    "fixed": false,
+    "head": false,
+    "choices": [],
+    "provenance": null,
+    "children": [],
+    "tested": "host-measured only (issue 107, 2026-10-28); not yet heard on an FM-1",
+    "provenance_line": ""
+   },
+   {
     "key": "WIDE_FINE",
     "flag": "FELUCCA_WIDE_FINE",
     "label": "WIDE: all-pass at full resolution",
@@ -5924,6 +5948,7 @@
   "FX: any number (each track its own)": [
    "FX_DIST",
    "MIX_FINE",
+   "MIX_EXACT",
    "TFLT_FINE",
    "FX_SLICER",
    "FX_DJF",
