@@ -5052,7 +5052,7 @@
     "bit": 442,
     "default": 1,
     "parent": null,
-    "desc": "The C compiler the firmware is built with. pi32v2-llvm (Julius Vitkauskas's LLVM with a pi32v2 target) makes the same firmware 14 to 30 KB smaller than JieLi's own clang 4 (measured on the default profile and a full release configuration), the audio's CPU the same. JieLi's is the compiler the stock firmware and every earlier Optimist were built with. The builder's sizes are measured with JieLi's: an LLVM build has more room.",
+    "desc": "The C compiler the firmware is built with. pi32v2-llvm (Julius Vitkauskas's LLVM with a pi32v2 target) makes the same firmware 14 to 30 KB smaller than JieLi's own clang 4 (measured on the default profile and a full release configuration), the audio's CPU the same. JieLi's is the compiler the stock firmware and every earlier Optimist were built with. costs-all measures with the default (pi32v2-llvm); this item's cost at JieLi is how much bigger JieLi's makes the same firmware.",
     "experimental": false,
     "notice": "",
     "off_warning": "",

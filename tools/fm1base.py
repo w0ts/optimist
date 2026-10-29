@@ -101,13 +101,27 @@ def slot_app(bdir):
 def measure_toolchain(compiler="jieli"):
     """-> the directory to give fm1-base's build as JIELI_TOOLCHAIN for a measurement build: the real toolchain's entries
     linked, its pi32v2/bin/ld the wrapper tools/fm1base_ld.py (room for any build: fm1-base has no measurement mode).
-    Made once per compiler (ROOT/build/measure-toolchain, -llvm), shared by parallel builds"""
+    Made once per compiler (ROOT/build/measure-toolchain, -llvm), shared by parallel builds: under SHIM_LOCK (measure_costs
+    runs them as threads), built in a directory of its own and renamed into place (2026-10-29: costs-all's 288 jobs at
+    once removed each other's half-made shim, FileNotFoundError on its links)"""
     real = Path(toolchain_env(compiler)["JIELI_TOOLCHAIN"]).resolve()
     shim = ROOT / "build" / ("measure-toolchain" + ("-llvm" if compiler == "llvm" else ""))
-    ld = shim / "pi32v2" / "bin" / "ld"
-    if ld.is_file() and (shim / "real").resolve() == real:
-        return shim
-    shutil.rmtree(shim, ignore_errors=True)
+    with SHIM_LOCK:
+        if (shim / "pi32v2" / "bin" / "ld").is_file() and (shim / "real").resolve() == real:
+            return shim
+        tmp = shim.with_name(f"{shim.name}.{os.getpid()}")
+        shutil.rmtree(tmp, ignore_errors=True)
+        _make_shim(tmp, real)
+        shutil.rmtree(shim, ignore_errors=True)
+        os.rename(tmp, shim)
+    return shim
+
+
+SHIM_LOCK = threading.Lock()
+
+
+def _make_shim(shim, real):
+    """measure_toolchain's directory at shim: real's entries linked, its ld the wrapper"""
     for src in real.iterdir():
         if src.name != "pi32v2":
             (shim / src.name).parent.mkdir(parents=True, exist_ok=True)
@@ -119,10 +133,10 @@ def measure_toolchain(compiler="jieli"):
     for tool in (real / "pi32v2" / "bin").iterdir():
         if tool.name != "ld":
             (shim / "pi32v2" / "bin" / tool.name).symlink_to(tool)
+    ld = shim / "pi32v2" / "bin" / "ld"
     ld.write_text(f"#!/bin/sh\nFM1B_REAL_LD={real / 'pi32v2' / 'bin' / 'ld'} exec {sys.executable} {HERE / 'fm1base_ld.py'} \"$@\"\n")
     ld.chmod(0o755)
     (shim / "real").symlink_to(real)
-    return shim
 
 
 def env_for(cfgfile, slot=None, measure=False):
