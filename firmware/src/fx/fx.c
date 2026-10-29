@@ -331,7 +331,8 @@ static HOT2 __attribute__((noinline)) void ua_mst_out(const int32_t *ml, const i
 {
     uint32_t i;
     if (!ua_mo_on) {
-        ua_mo = mo_rest();
+        ua_mo.lim_env = LIM_T;                          /* (at rest; field by field: a struct copy is a memcpy, XIP) */
+        ua_mo.dc_l = ua_mo.dc_r = ua_mo.dce_l = ua_mo.dce_r = 0;
 #if FELUCCA_MASTER_COMP
         ua_mlim.on = 0;
 #endif
@@ -345,16 +346,16 @@ static HOT2 __attribute__((noinline)) void ua_mst_out(const int32_t *ml, const i
         ua_mlim.clin = mlim.clin;
     }
     ua_mlim.on = mlim.on;
+    if (ua_mlim.on) {                                   /* (the output's brickwall code, on this state: before the
+                                                         * output's block, whose bits under it are written after) */
+        mlim_block(&ua_mlim, &ua_mo, ml, mr, ua_mst, n, 4096, 4096, 0u);
+        return;
+    }
 #endif
     for (i = 0; i < n; i++) {
         int32_t l = MASTER_UNITY(ml[i]), r = MASTER_UNITY(mr[i]);
         master_dc(&ua_mo, &l, &r);
-#if FELUCCA_MASTER_COMP
-        if (ua_mlim.on)
-            mlim_step(&ua_mlim, &l, &r);
-        else
-#endif
-            master_lim(&ua_mo, &l, &r);
+        master_lim(&ua_mo, &l, &r);
         ua_mst[2u * i] = l;
         ua_mst[2u * i + 1u] = r;
     }
@@ -3049,7 +3050,7 @@ static inline __attribute__((always_inline)) void mix_finish(int32_t *out, uint3
     master_cur = m1;
 #if FELUCCA_MASTER_COMP
     if (mlim.on) {                                      /* LIMIT > CEIL: the volume, master_pre, the lookahead brickwall */
-        mlim_block(mix_l, mix_r, out, n, m0, m1);       /* instead of the limiter and the knee (master_comp.c) */
+        mlim_block(&mlim, &mo, mix_l, mix_r, out, n, m0, m1, 1u);   /* instead of the limiter and the knee (master_comp.c) */
         return;
     }
 #endif

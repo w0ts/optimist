@@ -324,25 +324,30 @@ _Static_assert(MLIM_N == 64u, "mlim_step: the box's mean is >> 6");
 static void mlim_sample(int32_t *l, int32_t *r) { mlim_step(&mlim, l, r); }   /* (one sample: tests/master_comp_test.c) */
 
 /* LIMIT on: the output stage of a block (fx.c mix_finish's loop with the brickwall in place of the limiter and the knee):
- * the master volume ramped over the block exactly as there, master_pre (the DC blocker, the low cut), the limiter */
-static HOT2 __attribute__((noinline)) void mlim_block(const int32_t *ml, const int32_t *mr, int32_t *out, uint32_t n,
-                                                     int32_t m0, int32_t m1)
+ * the master volume ramped over the block exactly as there, master_pre (the DC blocker, the low cut), the limiter.
+ * own: the FM-1's own output (lim = &mlim, s = &mo); 0: USB's MASTER (fx.c ua_mst_out: its own limiter and state, at
+ * 4096, the DC blocker alone, no bits under it: the output's, written after it, are mst_frac's) */
+static HOT2 __attribute__((noinline)) void mlim_block(mlim_t *lim, mout_t *s, const int32_t *ml, const int32_t *mr,
+                                                     int32_t *out, uint32_t n, int32_t m0, int32_t m1, uint32_t own)
 {
     uint32_t i;
     for (i = 0; i < n; i++) {
         int32_t m = m0 + (((m1 - m0) * (int32_t)i) >> CTL_LOG2);
         int32_t l = MASTER_VOL(ml[i], m, 2u * i);       /* (fx.c) */
         int32_t r = MASTER_VOL(mr[i], m, 2u * i + 1u);
-        master_pre(&l, &r);
+        if (own)
+            master_pre(&l, &r);
+        else
+            master_dc(s, &l, &r);
 #if FELUCCA_MIX_EXACT
-        {                                               /* the 7 bits under it through the lookahead with it */
+        if (own) {                                      /* the 7 bits under it through the lookahead with it */
             uint32_t p = mlim.pos;
             uint8_t fl = mlim_fr[0][p], fr = mlim_fr[1][p];
             mlim_fr[0][p] = mst_frac[2u * i], mlim_fr[1][p] = mst_frac[2u * i + 1u];
             mst_frac[2u * i] = fl, mst_frac[2u * i + 1u] = fr;
         }
 #endif
-        mlim_step(&mlim, &l, &r);
+        mlim_step(lim, &l, &r);
         out[2u * i] = l;
         out[2u * i + 1u] = r;
     }
