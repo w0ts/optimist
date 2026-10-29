@@ -547,7 +547,7 @@ const masterRes = await run(`${U} const m = document.querySelector("#mixer .stri
   const shape = groups.length === 4 && groups.every((g) => g.querySelectorAll("button.ib").length === 1 && g.querySelectorAll(".knob").length === ({ fxdelay: 4, fxreverb: 2, fxchorus: 2 }[g.dataset.fx] || 3)
     && g.querySelector("button.ib").getBoundingClientRect().width >= 32 && g.querySelector("button.ib").getBoundingClientRect().height >= 32 && g.querySelector("button.ib").title && [...g.querySelectorAll(".knob")].every((k) => k.title))
     && [...m.querySelectorAll('.fxg[data-fx="fxcomp"] .knob .kl')].map((e) => e.textContent.trim()).join(" ") === "THRS RATIO GAIN";
-  const want = { fxdelay: "TIME FDBK COLR MIX", fxreverb: "SIZE DAMP", fxchorus: "CRT CDP", fxcomp: "THRS RATIO ATK REL GAIN CEIL" }, got = {};
+  const want = { fxdelay: "TIME FDBK FREQ MIX", fxreverb: "SIZE DAMP", fxchorus: "CRT CDP", fxcomp: "THRS RATIO ATK REL GAIN CEIL" }, got = {};
   for (const [id, labels] of Object.entries(want)) {
     m.querySelector("[data-pop=" + id + "]").click(); await until(() => $("#pop").open && $("#pop").dataset.pop === id, 5000); await sleep(300);
     got[id] = [...document.querySelectorAll("#popbody .group[data-fx=" + id + "] .kl")].map((e) => e.textContent.trim()).join(" ") === labels
@@ -556,7 +556,7 @@ const masterRes = await run(`${U} const m = document.querySelector("#mixer .stri
   }
   document.querySelector("[data-tab=settings]").click(); await sleep(300);
   const labels = [...document.querySelectorAll("#p-settings .knob .kl, #p-settings .pk .kl, #p-settings .row > span:first-child")].filter(shown).map((e) => e.textContent.trim());
-  const moved = ["DUST", "DUCK", "FILT", "TIME", "FDBK", "COLR", "MIX", "SIZE", "DAMP", "CRT", "CDP", "LVL", "REV", "THRS", "RATIO", "GAIN", "CEIL"];
+  const moved = ["DUST", "DUCK", "FILT", "TIME", "FDBK", "FREQ", "MIX", "SIZE", "DAMP", "CRT", "CDP", "LVL", "REV", "THRS", "RATIO", "GAIN", "CEIL"];
   const left = moved.filter((l) => labels.includes(l));
   document.querySelector("[data-tab=mixer]").click(); await sleep(300);
   return JSON.stringify({ noSet, shape, knobs: knobs.join(), got, left, hasRoll: labels.includes("ROLL") });`);
