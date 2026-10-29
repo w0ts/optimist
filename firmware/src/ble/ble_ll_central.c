@@ -50,17 +50,11 @@ BLE_API void ble_ll_hw_adv_report(const uint8_t *pdu, uint8_t len, uint16_t rssi
     if (bll.state != LL_SCAN || len < 8u || len > LL_REP_MAX)
         return;
     if (t != 0x0u && t != 0x4u) {
-        BLE_DG(ble_dgs.rep_other++);
         return;
     }
     if (bscan.w - bscan.r >= BLE_SCAN_RING) {
-        BLE_DG(ble_dgs.ring_full++);
         return;
     }
-    if (t == 0x0u)
-        BLE_DG(ble_dgs.rep_adv_ind++);
-    else
-        BLE_DG(ble_dgs.rep_scan_rsp++);
     i = bscan.w & (BLE_SCAN_RING - 1u);
     ble_cpy(bscan.pdu[i], pdu, len);
     bscan.len[i] = len;
@@ -182,8 +176,6 @@ BLE_API int ble_ll_connect(const uint8_t peer[6], uint8_t peer_rand)
     in.cind = llc.cind;
     in.conn = llc.c;
     bll.state = LL_INIT;
-    BLE_DG(ble_dgc.connects++);
-    ble_diag_ev(BDE_INIT_START, llc.c.win_offset);
     ble_hw_init_start(&in);
     return 1;
 }
@@ -195,7 +187,6 @@ BLE_API void ble_ll_connect_cancel(void)
         return;
     ble_hw_init_stop();
     bll.state = LL_OFF;
-    BLE_DG(ble_dgc.cancels++);
     ll_idle();
 }
 
@@ -209,7 +200,6 @@ BLE_API void ble_ll_hw_master_start(void)
 #if BLE_CEN_PAIR
     llc.enc_want = llc.pausing = llc.held_n = 0;
 #endif
-    ble_diag_ev(BDE_MASTER, llc.c.interval);
     ble_host_connected();
 }
 
@@ -241,7 +231,6 @@ static int llc_update(uint16_t interval, uint16_t timeout, uint32_t now)
     bll.lproc = P_UPD;                             /* (done at the instant: ble_ll_hw_event_end) */
     bll.lproc_t = now;
     ble_hw_conn_update(&bll.upd);
-    BLE_DG(ble_dgc.m_upd_tx++);
     return 1;
 }
 
@@ -281,7 +270,6 @@ BLE_API int ble_ll_chmap_update(const uint8_t chm[5])
     bll.lproc = P_UPD;
     bll.lproc_t = ble_hw_time_us();
     ble_hw_chmap_update(bll.new_chm, instant);
-    BLE_DG(ble_dgc.m_chm_tx++);
     return 1;
 }
 
@@ -317,7 +305,6 @@ static int llc_enc_req(uint32_t now)
     bll.tx_paused = 1;                             /* no data until the encryption runs (5.1.3.1) */
     bll.lproc = P_ENC;
     bll.lproc_t = now;
-    BLE_DG(ble_dgc.m_enc_req_tx++);
     return 1;
 }
 
@@ -333,7 +320,6 @@ static int llc_pause_req(uint32_t now)
     bll.tx_paused = 1;
     bll.lproc = P_ENC;
     bll.lproc_t = now;
-    BLE_DG(ble_dgc.m_pause_tx++);
     return 1;
 }
 
@@ -343,7 +329,6 @@ static void llc_pause_rsp(void)
 {
     uint8_t d[1];
     llc.pausing = 0;
-    BLE_DG(ble_dgc.m_pause_rsp_rx++);
     bll.enc_rx = bll.enc_tx = 0;                   /* (ours goes unencrypted, and all after it) */
     if (!ll_ctrl(LL_PAUSE_ENC_RSP, d, 0) || !llc_enc_req(ble_hw_time_us()))
         llc_enc_failed(BLE_ERR_UNSPECIFIED);
@@ -367,7 +352,6 @@ static void llc_enc_rsp(const uint8_t *p)
     bll.ccm_rx = bll.ccm_tx;
     bll.ccm_tx.dir = 1;
     bll.ccm_rx.dir = 0;
-    BLE_DG(ble_dgc.m_enc_rsp_rx++);
 }
 
 static void llc_enc_failed(uint8_t err)
@@ -378,8 +362,6 @@ static void llc_enc_failed(uint8_t err)
         llc.pausing = 0;                           /* (the pause refused: still encrypted with the old key) */
     else
         bll.enc_rx = bll.enc_tx = 0;
-    BLE_DG(ble_dgc.m_enc_rej++);
-    BLE_DG(ble_dgc.m_enc_rej_err = err);
     ble_host_enc_failed(err);
 }
 #endif
@@ -447,7 +429,6 @@ static int llc_rx_ctrl(uint8_t op, const uint8_t *p, uint8_t n)
         op != LL_TERMINATE_IND && n <= sizeof llc.held) {
         ble_cpy(llc.held, p, n);
         llc.held_n = n;
-        BLE_DG(ble_dgc.m_held++);
         return 1;
     }
 #else
@@ -462,24 +443,17 @@ static int llc_rx_ctrl(uint8_t op, const uint8_t *p, uint8_t n)
         ll_unknown(op);
         return 1;
     case LL_VERSION_IND:
-        BLE_DG(ble_dgc.m_ver_rx++);
-        return 0;
     case LL_FEATURE_RSP:
-        BLE_DG(ble_dgc.m_feat_rsp++);
-        return 0;
     case LL_LENGTH_RSP:
-        BLE_DG(ble_dgc.m_len_done++);
         return 0;
     case LL_PERIPHERAL_FEATURE_REQ:                /* the peripheral starts the feature exchange */
         ll_features(LL_FEATURE_RSP, p[1]);
         return 1;
     case LL_PHY_REQ:                               /* 1M only: LL_PHY_UPDATE_IND with no change (5.1.10) */
-        BLE_DG(ble_dgc.m_phy_req_rx++);
         ble_zero(d, 4);
         ll_ctrl(LL_PHY_UPDATE_IND, d, 4);
         return 1;
     case LL_CONNECTION_PARAM_REQ:                  /* answered with our LL_CONNECTION_UPDATE_IND (5.1.7.2) */
-        BLE_DG(ble_dgc.m_param_req_rx++);
         if (!ll_params_ok(ble_rd16(p + 3), ble_rd16(p + 5), ble_rd16(p + 7)) || ble_rd16(p + 1) > ble_rd16(p + 3) ||
             ble_rd16(p + 1) < 6u) {
             ll_reject(op, BLE_ERR_INVALID_LL_PARAMS);
@@ -501,7 +475,6 @@ static int llc_rx_ctrl(uint8_t op, const uint8_t *p, uint8_t n)
     case LL_START_ENC_REQ:                         /* (sent plain; our answer and everything after: encrypted) */
         if (bll.lproc != P_ENC)
             return 1;
-        BLE_DG(ble_dgc.m_start_enc_rx++);
         bll.enc_rx = bll.enc_tx = 1;
         ll_ctrl(LL_START_ENC_RSP, d, 0);
         return 1;
@@ -510,8 +483,6 @@ static int llc_rx_ctrl(uint8_t op, const uint8_t *p, uint8_t n)
             return 1;
         bll.lproc = P_NONE;
         bll.tx_paused = 0;
-        BLE_DG(ble_dg.enc_on_n++);
-        BLE_DG(ble_dgc.m_enc_on++);
         ble_host_encrypted();
         return 1;
     case LL_REJECT_IND:

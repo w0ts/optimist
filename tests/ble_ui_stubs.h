@@ -48,7 +48,6 @@ static uint8_t ble_ll_scan_take(uint8_t *pdu, uint16_t *rssi)
 #if BLE_CENTRAL
 /* a stand-in for the stack's central role (ble/ble_central.c): the test moves its state */
 #include "../firmware/src/ble/ble.h"
-#include "../firmware/src/ble/ble_diag.h"
 static struct {
     int connects, cancels;
     struct ble_peer p;

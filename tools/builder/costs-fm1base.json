@@ -1383,14 +1383,6 @@
     "ramtext": 328
    }
   },
-  "BLE_DIAG": {
-   "1": {
-    "flash": 4100,
-    "ram": 2400,
-    "pool": 0,
-    "ramtext": 0
-   }
-  },
   "BLE_BOND": {
    "1": {
     "flash": 2888,
@@ -1419,14 +1411,6 @@
     "ram": 28820,
     "pool": 9600,
     "ramtext": 420
-   }
-  },
-  "BT_DIAG": {
-   "1": {
-    "flash": 5752,
-    "ram": 32,
-    "pool": 0,
-    "ramtext": 0
    }
   },
   "CHANCE": {
@@ -1862,11 +1846,9 @@
     "CPU_GUARD": 1,
     "CACHE_RAM": 2,
     "BLE": 1,
-    "BLE_DIAG": 1,
     "BLE_BOND": 1,
     "BLE_CENTRAL": 1,
     "BT_AUDIO": 1,
-    "BT_DIAG": 1,
     "CHANCE": 1,
     "QNT_SEQ": 1,
     "BRIGHT": 0,
@@ -2911,11 +2893,9 @@
     "CPU_GUARD": 1,
     "CACHE_RAM": 2,
     "BLE": 1,
-    "BLE_DIAG": 1,
     "BLE_BOND": 1,
     "BLE_CENTRAL": 1,
     "BT_AUDIO": 1,
-    "BT_DIAG": 1,
     "CHANCE": 1,
     "QNT_SEQ": 1,
     "BRIGHT": 0,
@@ -3991,12 +3971,6 @@
    "pool": 0,
    "ramtext": 32
   },
-  "BLE=1,BLE_DIAG=1,USB_CONSOLE=1": {
-   "flash": -28,
-   "ram": 16,
-   "pool": 0,
-   "ramtext": 0
-  },
   "USB_AUDIO=1": {
    "flash": 0,
    "ram": 0,
@@ -4039,51 +4013,15 @@
    "pool": 0,
    "ramtext": 0
   },
-  "BLE=1,BLE_CENTRAL=1,BLE_DIAG=1": {
-   "flash": 132,
-   "ram": 464,
-   "pool": 0,
-   "ramtext": -16
-  },
-  "BLE=1,BLE_BOND=1,BLE_CENTRAL=1,BLE_DIAG=1": {
-   "flash": 16,
-   "ram": 0,
-   "pool": 0,
-   "ramtext": 0
-  },
   "BLE=1,BLE_BOND=1,BLE_CENTRAL=1,USB_CONSOLE=1": {
    "flash": -440,
    "ram": 64,
    "pool": 0,
    "ramtext": -60
   },
-  "BLE=1,BLE_CENTRAL=1,BLE_DIAG=1,USB_CONSOLE=1": {
-   "flash": 152,
-   "ram": 32,
-   "pool": 0,
-   "ramtext": -64
-  },
-  "BLE=1,BLE_BOND=1,BLE_CENTRAL=1,BLE_DIAG=1,USB_CONSOLE=1": {
-   "flash": 440,
-   "ram": -64,
-   "pool": 0,
-   "ramtext": 60
-  },
   "BLE=1,BLE_BOND=1,BLE_CENTRAL=3": {
    "flash": 636,
    "ram": -16,
-   "pool": 0,
-   "ramtext": 0
-  },
-  "BLE=1,BLE_CENTRAL=3,BLE_DIAG=1": {
-   "flash": 1196,
-   "ram": 448,
-   "pool": 0,
-   "ramtext": 4
-  },
-  "BLE=1,BLE_BOND=1,BLE_CENTRAL=3,BLE_DIAG=1": {
-   "flash": -276,
-   "ram": 0,
    "pool": 0,
    "ramtext": 0
   },
@@ -4111,23 +4049,11 @@
    "pool": 0,
    "ramtext": 0
   },
-  "BT_AUDIO=1,BT_DIAG=1": {
-   "flash": 0,
-   "ram": 0,
-   "pool": 0,
-   "ramtext": 0
-  },
   "BT_AUDIO=1,USB_CONSOLE=1": {
    "flash": 892,
    "ram": 0,
    "pool": 0,
    "ramtext": 44
-  },
-  "BT_AUDIO=1,BT_DIAG=1,USB_CONSOLE=1": {
-   "flash": 116,
-   "ram": 0,
-   "pool": 0,
-   "ramtext": 0
   },
   "MOTION=1,PLOCK=1": {
    "flash": -2557,

@@ -115,6 +115,8 @@ RETIRED = {
     "REV_HALF": "the half-rate reverb (the ROOM at 22.05 kHz, a half-size ring for PLATE / FDN8 / VTINY) was dropped (2026-10-29, bit 123; the user: \"drop those\"): an old .config with REV_HALF=1 builds the full-rate reverb",
     "REV_HB_LONG": "the steep 63-tap filter of the half-rate reverbs was dropped (2026-10-29, bit 430; the user: \"drop those\"): the reverbs keep the 15-tap half-band",
     "BT_AFH": "Bluetooth audio always hops adaptively, the channels the headset fails on skipped (bt/bt_afh.c; retired 2026-10-29, bit 395; the user: \"always on\"; any old BT_AFH value is ignored)",
+    "BLE_DIAG": "the BLE diagnostics (the console's blell, the link layer's counters and rings) were removed (retired 2026-10-29, bit 253; the user: \"we can remove the diagnostics\"): BLE works the same without them; any old BLE_DIAG value is ignored",
+    "BT_DIAG": "the Bluetooth audio diagnostics (the console's btinq / btscan / btpage / btclk / btrx / bttrace, the status histograms, receive logs and per-second counters) were removed (retired 2026-10-29, bit 363; the user: \"we can remove the diagnostics\"): the audio works the same without them; any old BT_DIAG value is ignored",
     "KNOB_ONEREST": "the knobs are always read with Felucca 1.6's decoder (one rest state a detent, fast turns counted; "
                     "retired 2026-10-14, released in Felucca 1.1.5 #126 and unchanged since)",
 }
@@ -128,7 +130,7 @@ WAS_COUNT = frozenset({"INS_CHORUS", "INS_DELAY", "INS_JCHORUS", "INS_FLANGER", 
                        "ARENA"})   # (ARENA: its KB until 2026-10-29, the free RAM since: on)
 
 ALWAYS_ON_TARGET = {"FELUCCA_DUAL": 2, "FELUCCA_STOCK_SUPPLY": 1}   # (target builds only, no item: system/dual.c, system/supply.c; 2026-10-29)
-HASH_AS = {"KEYLIT": 1, "LIGHTS": 1, "BRIGHT": 0, "SIMD": 0, "KNOB_ONEREST": 1, "MONO_RELEASE": 1, "ST_STRICT": 1, "USB_FLOW": 1, "SHED_FADE": 1, "KEYS_FAST": 1, "TRS_NOISE": 1, "BK_CHECK": 1, "LAYER_QUIET": 1, "DLY_HALVE": 1, "LFO2": 1, "GLIDE": 1, "UI": 1, "ICONS": 0, "OVERVIEW": 0, "OV_ARP": 1, "DRUM_STEP": 1, "CHORD_NAMES": 1, "BPM_LOCK": 0, "MOTION_MARK": 1, "SEL_PAGES": 0, "BIGVALS": 0, "DRUM_ACCENT": 1, "PAGE_LINES": 1, "TAB_IN_POOL": 1, "VOICE_OWN": 1, "DLY_DOT": 1, "CHO_EXACT": 1, "JUNO_FINE": 1, "DUAL": 2, "STOCK_SUPPLY": 1, "REV_HALF": 0, "REV_HB_LONG": 0, "BT_AFH": 1}   # (each was its default in every profile)
+HASH_AS = {"KEYLIT": 1, "LIGHTS": 1, "BRIGHT": 0, "SIMD": 0, "KNOB_ONEREST": 1, "MONO_RELEASE": 1, "ST_STRICT": 1, "USB_FLOW": 1, "SHED_FADE": 1, "KEYS_FAST": 1, "TRS_NOISE": 1, "BK_CHECK": 1, "LAYER_QUIET": 1, "DLY_HALVE": 1, "LFO2": 1, "GLIDE": 1, "UI": 1, "ICONS": 0, "OVERVIEW": 0, "OV_ARP": 1, "DRUM_STEP": 1, "CHORD_NAMES": 1, "BPM_LOCK": 0, "MOTION_MARK": 1, "SEL_PAGES": 0, "BIGVALS": 0, "DRUM_ACCENT": 1, "PAGE_LINES": 1, "TAB_IN_POOL": 1, "VOICE_OWN": 1, "DLY_DOT": 1, "CHO_EXACT": 1, "JUNO_FINE": 1, "DUAL": 2, "STOCK_SUPPLY": 1, "REV_HALF": 0, "REV_HB_LONG": 0, "BT_AFH": 1, "BLE_DIAG": 0, "BT_DIAG": 0}   # (each was its default in every profile)
 
 # Never offered: used by X0X only by permission of its author, no licence
 FORBIDDEN = {
@@ -1324,18 +1326,11 @@ _add("BLE", "FELUCCA_BLE", "Bluetooth LE MIDI, our own stack", M, 252, default=0
           "The radio's start-up tables, captured from the stock V15 firmware, are included: no V15 file is needed "
           "(FM1_STOCK_FWSC makes a fresh capture instead, with the same result). "
           "Bluetooth starts OFF: switch it on in SYSTEM > Bluetooth. About 32 KB of flash and 6.5 KB of RAM (the menu "
-          "shows the measured figures; BLE_DIAG below adds more); where "
+          "shows the measured figures); where "
           "the build then overflows, ticking it removes the smallest single item that frees enough (sample sets "
           "first, then other items), or the one you pick instead.", symbols=("ble_in_q",),
      tested="tested on an FM-1 with macOS Audio MIDI Setup, not yet with iOS or Windows")
-_add("BLE_DIAG", "FELUCCA_BLE_DIAG", "BLE diagnostics: the console's blell, counters and rings", M, 253, default=0,
-     parent="BLE", target_only=True,
-     desc="For finding BLE faults: the console's blell command (needs the serial console, USB_CONSOLE) "
-          "and the counters and rings behind it (link-layer events, the radio's receive and transmit state, the "
-          "protocol packets, BLE-MIDI in). About 6 KB of flash and 2.3 KB of RAM, and 6 KB of flash more with the "
-          "console (USB_CONSOLE) for blell itself. Leave it off for normal use: BLE works the same without it; "
-          "bletrim and blevm stay, and so does the boot breadcrumb.",
-     symbols=("con_blell",))
+# (bit 253, BLE_DIAG, retired 2026-10-29: the BLE diagnostics removed; RETIRED above; never reuse the bit)
 _add("BLE_BOND", "FELUCCA_BLE_BOND", "BLE pairing when a Mac or phone connects to the FM-1 (Just Works, encrypted, remembered)", M, 254, default=0,
      parent="BLE", target_only=True,
      desc="LE legacy pairing with Just Works (no passkey, as the FM-1 has no screen keypad for it) and "
@@ -1371,14 +1366,7 @@ _add("BT_AUDIO", "FELUCCA_BT_AUDIO", "Bluetooth Classic Audio (A2DP Source, SBC)
      symbols=("ba_sbc", "bt_sbc_encode"))
 # (bit 395, BT_AFH, retired 2026-10-29: Bluetooth audio always skips the channels the headset fails on, bt/bt_afh.c; RETIRED above;
 #  never reuse the bit)
-_add("BT_DIAG", "FELUCCA_BT_DIAG", "Bluetooth audio diagnostics: the console's btrx / bttrace, counters and logs", M,
-     363, default=0, parent="BT_AUDIO", target_only=True,
-     desc="For finding Bluetooth audio faults on a console build (USB_CONSOLE): the btrx and bttrace logs, the "
-          "status histograms and the per-second counters (receive status bits, signal level, gain), and the live "
-          "btpage pll= / agc= / follow= commands, and every line the Bluetooth stack writes to the console (btinq, "
-          "btpage). About 14 KB of flash and 6.4 KB of RAM with the console. Leave it off for normal use: the audio "
-          "works the same without it.",
-     symbols=("con_btrx",))
+# (bit 363, BT_DIAG, retired 2026-10-29: the Bluetooth audio diagnostics removed; RETIRED above; never reuse the bit)
 # Wi-Fi (2026-10-28; docs/WIFI-UI-DESIGN.md, docs/WIFI-LINK-HANDOVER.md). Needs BLE (the Wi-Fi driver is the BLE
 # driver's radio, BLE_HW_WL82); on the classic firmware the USB console build too (the manager and the web editor's
 # Wi-Fi command run through the CDC console; the release has them on fm1-base's own stack): core.validate says so. FELUCCA_LINK follows FELUCCA_WIFI (core.flags). The console's Wi-Fi test

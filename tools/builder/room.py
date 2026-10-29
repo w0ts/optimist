@@ -69,8 +69,8 @@ def _need(cfg, costs):
 
 def candidates(cfg, costs, over):
     """-> [(key, {region: freed})] items built in cfg whose removal alone covers the overflow `over`, sample sets
-    first (smallest first), then the other items, smallest first; BLE itself, its own options (BLE_DIAG, BLE_BOND,
-    BLE_CENTRAL: what was asked for with it, 2026-10-19: x0x-drums + BLE_DIAG had BLE_DIAG removed to make room for BLE)
+    first (smallest first), then the other items, smallest first; BLE itself, its own options (BLE_BOND, BLE_CENTRAL:
+    what was asked for with it, 2026-10-19: x0x-drums + a BLE option had that option removed to make room for BLE)
     and anything that would make the configuration invalid are left out"""
     sav = C.savings_of(cfg, costs)
     out = []

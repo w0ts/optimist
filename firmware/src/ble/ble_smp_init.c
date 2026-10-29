@@ -45,9 +45,6 @@ static void smp_init_fail(uint8_t why, int send)
         smp_fail(why);
     bsmp.st = S_IDLE;
     smp_passkey = BLE_NO_PASSKEY;
-    BLE_DG(ble_dgc.si_last_fail = why);
-    if (send)
-        BLE_DG(ble_dgc.si_fail_tx++);
     ble_central_paired(0, why, bsmp.auth);     /* (auth: a passkey was shown) */
 }
 
@@ -70,9 +67,6 @@ static void ble_smp_pair(int mitm)
     r[6] = SMP_KD_ENC | SMP_KD_ID;              /* theirs to us (responder key distribution) */
     smp_init_send(r, 7);
     bsmp.st = I_RSP;
-    BLE_DG(ble_dgc.si_pair_req++);
-    if (mitm)
-        BLE_DG(ble_dgc.si_mitm_req++);
 }
 
 /* the method (2.3.5.1, Table 2.8 with us DisplayOnly and MITM asked): passkey entry when the responder can type */
@@ -85,13 +79,10 @@ static void smp_init_rsp(const uint8_t *p)
 {
     uint8_t c[17], k[4];
     int pk = smp_init_passkey_method(p);
-    BLE_DG(ble_dgc.si_rsp_io = p[1]);
-    BLE_DG(ble_dgc.si_rsp_auth = p[3]);
     if (p[4] < 7u || p[4] > 16u) {
         smp_init_fail(SMP_E_KEY_SIZE, 1);
         return;
     }
-    BLE_DG(ble_dgc.si_pair_rsp++);
     if (bsmp.mitm && !pk) {
         smp_init_fail(SMP_E_AUTH_REQ, 1);       /* (Just Works would not satisfy it: refused at once) */
         return;
@@ -106,7 +97,6 @@ static void smp_init_rsp(const uint8_t *p)
         smp_passkey = ((uint32_t)k[0] | (uint32_t)k[1] << 8 | (uint32_t)k[2] << 16 | (uint32_t)k[3] << 24) % 1000000u;
         ble_smp_passkey_tk(smp_passkey, bsmp.tk);
         bsmp.auth = 1;
-        BLE_DG(ble_dgc.si_passkey++);
     }
     ble_hw_rand(bsmp.mrand, 16);
     c[0] = SMP_CONFIRM;
@@ -135,11 +125,9 @@ static void smp_init_random(const uint8_t *p)
         return;
     }
     smp_passkey = BLE_NO_PASSKEY;
-    BLE_DG(ble_dgc.si_confirm_ok++);
     ble_smp_s1(bsmp.tk, p + 1, bsmp.mrand, bsmp.stk);   /* STK = s1(TK, Srand, Mrand) */
     smp_cut(bsmp.stk);
     bsmp.st = I_ENC;
-    BLE_DG(ble_dgc.si_stk_enc++);
     ble_ll_start_enc(bsmp.stk, zero, 0);
 }
 
@@ -156,7 +144,6 @@ static void smp_init_our_keys(void)
         ble_hw_rand(m + 1, 10);
         smp_send(e, 17);
         smp_send(m, 11);
-        BLE_DG(ble_dgc.si_keys_tx += 2);
     }
     if (bsmp.ours & SMP_KD_ID) {
         uint8_t own[6], peer[6], t = ble_ll_addrs(own, peer);
@@ -167,13 +154,9 @@ static void smp_init_our_keys(void)
         ble_cpy(m + 2, own, 6);
         smp_send(e, 17);
         smp_send(m, 8);
-        BLE_DG(ble_dgc.si_keys_tx += 2);
     }
     bsmp.ours = 0;
     bsmp.st = S_IDLE;
-    BLE_DG(ble_dgc.si_done++);
-    if (bsmp.auth)
-        BLE_DG(ble_dgc.si_auth_done++);
     if (bsmp.bond && bsmp.keys.has) {
         if (bsmp.auth)
             bsmp.keys.has |= BLE_KEYS_AUTH;
@@ -197,14 +180,12 @@ static void smp_init_encrypted(void)
         smp_init_keys_if_done();
         return;
     }
-    BLE_DG(ble_dgc.si_ltk_enc++);
     ble_central_encrypted();
 }
 
 static void smp_init_their_key(const uint8_t *p)
 {
     uint8_t op = p[0];
-    BLE_DG(ble_dgc.si_keys_rx++);
     switch (op) {
     case SMP_ENC_INFO:
         ble_cpy(bsmp.keys.ltk, p + 1, 16);
@@ -247,16 +228,12 @@ static void smp_init_rx(const uint8_t *p, uint16_t n)
     }
     switch (op) {
     case SMP_SEC_REQ:                           /* the peripheral asks for security: encrypt with the bond, or pair */
-        BLE_DG(ble_dgc.si_sec_req_rx++);
         if (!smp_init_busy())
             ble_central_sec_req(p[1]);
         return;
     case SMP_FAILED:
-        BLE_DG(ble_dgc.si_fail_rx++);
-        BLE_DG(ble_dgc.si_last_fail = p[1]);
-        if (ble_central_late_fail(p[1], !smp_init_busy() ? 0 : bsmp.st == I_RSP ? 1 : 2))
-            BLE_DG(ble_dgc.si_fail_late++);    /* (after the pairing: iOS did so after a Just Works one, §13.9) */
-        else if (smp_init_busy())
+        /* (a late one, after the pairing, is the central's: iOS sent one after a Just Works pairing, §13.9) */
+        if (!ble_central_late_fail(p[1], !smp_init_busy() ? 0 : bsmp.st == I_RSP ? 1 : 2) && smp_init_busy())
             smp_init_fail(p[1], 0);
         return;
     case SMP_PAIR_RSP:
