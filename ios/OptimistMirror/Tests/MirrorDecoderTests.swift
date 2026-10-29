@@ -109,3 +109,51 @@ final class FeatureTests: XCTestCase {
         XCTAssertFalse(try DeviceInfo.parse(Array("X".utf8) + [0, 0, 0, 0, 0, 0, 64, 0, 0, 0, 7, 0x66, 13] + Array("opti_backup_9".utf8)).has(.backup))
     }
 }
+
+/// The Bluetooth sheet and the port it connects (BluetoothPicker.done / newPort, MirrorLink.startFeatures). The sheet closes
+/// once the link has taken the port connected in it, whatever that port's name and before the FM-1 answers: it waited for the
+/// mirrored screen, so it stayed open when the FM-1 did not answer, or when the port's name was not one the app knew (the
+/// user, 2026-10-24 and 2026-10-29: "the BT connection window should CLOSE on successful connect").
+final class BluetoothConnectTests: XCTestCase {
+    /// FM1-XXXX (2026-10-29), the older Optimist / Felucca names, a name a system kept from older firmware, any other
+    private let names = ["FM1-1A2B", "FM1-1A2B Bluetooth", "fm1-e040", "Optimist E040", "Optimist 112D Bluetooth", "Felucca",
+                         "FM-1 1A2B", "FM-1_BLE", "Some Synth"]
+
+    func testSheetClosesOnceThePortConnectedInItIsTaken() {
+        let before = ["IAC Driver Bus 1", "FM1-9999"]
+        for n in names {
+            let p = BluetoothPicker.newPort(old: before, now: before + [n])
+            XCTAssertEqual(p, n, n)
+            for s in [MirrorLink.State.asking, .noMirror, .mirroring] {
+                XCTAssertTrue(BluetoothPicker.done(picked: n, port: n, bluetooth: true, state: s), "\(n) \(s)")
+            }
+            XCTAssertFalse(BluetoothPicker.done(picked: n, port: n, bluetooth: true, state: .searching), n)   // (gone again)
+            XCTAssertFalse(BluetoothPicker.done(picked: n, port: "", bluetooth: true, state: .asking), n)
+        }
+        XCTAssertNil(BluetoothPicker.newPort(old: before, now: before))                       // (nothing connected)
+        XCTAssertNil(BluetoothPicker.newPort(old: before, now: ["FM1-9999"]))                  // (one gone)
+    }
+
+    func testSheetStaysUntilThePortIsTaken() {
+        XCTAssertFalse(BluetoothPicker.done(picked: "", port: "FM1-1A2B", bluetooth: false, state: .asking))   // (USB, nothing picked)
+        XCTAssertFalse(BluetoothPicker.done(picked: "FM1-1A2B Bluetooth", port: "FM1-1A2B", bluetooth: false, state: .mirroring))
+        XCTAssertTrue(BluetoothPicker.done(picked: "", port: "FM1-1A2B", bluetooth: true, state: .mirroring))   // (mirrors anyway)
+    }
+
+    /// A Bluetooth port starts at the mirror when it is known (its name, a hand pick, the sheet's); else INFO first, as USB.
+    /// Never "nothing offered": that was "No mirror in this firmware" at once, nothing asked
+    func testBluetoothPortsAreAskedNotRefused() {
+        let mirror = [Feature.mirror.name: Feature.mirror.version]
+        for n in ["FM1-1A2B", "FM1-1A2B Bluetooth", "Optimist E040", "Optimist 112D Bluetooth", "Felucca"] {
+            XCTAssertEqual(MirrorLink.startFeatures(bluetooth: true, name: n, trusted: false), mirror, n)
+        }
+        for n in names {
+            XCTAssertEqual(MirrorLink.startFeatures(bluetooth: true, name: n, trusted: true), mirror, n)
+            XCTAssertNil(MirrorLink.startFeatures(bluetooth: false, name: n, trusted: true), n)    // (USB: INFO first)
+            XCTAssertNotEqual(MirrorLink.startFeatures(bluetooth: true, name: n, trusted: false), [:], n)
+        }
+        for n in ["FM-1 1A2B", "FM-1_BLE", "Some Synth"] {
+            XCTAssertNil(MirrorLink.startFeatures(bluetooth: true, name: n, trusted: false), n)
+        }
+    }
+}
