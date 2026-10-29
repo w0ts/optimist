@@ -674,6 +674,75 @@ static void test_react(void)
     CHECK(cg.level < lv, "then, at 40 %%, the level comes off (%u)", cg.level);
 }
 
+/* 11. the reverb back after a reaction, with late halves at a light load (2026-10-29, the user on the FM-1: "the FDN8
+ * reverb stops working randomly"). Late halves at 66 % step the guard to REVERB (a reaction: nothing else to ease);
+ * then the music is lighter (25 %, the reverb still sent) and a lone late half comes now and then, as a busy FM-1 has
+ * them at any load (USB, Bluetooth, a flash write: the reactive path ignores them under CG_RFLOOR). Before, any late half
+ * started the 2 s of the release again, so one every second or two kept the reverb off for good, the music stopped or
+ * not; now a late half at a light load does not hold a level up, as it does not step one: the reverb is heard again
+ * within 3 s. A late half at a load the reactive path counts still holds the release back (below, 60 %) */
+static uint32_t rl_seed = 3;
+#define RL_REV 10u                                      /* the reverb's own load while it runs, % of a half */
+static uint32_t rl_load(uint32_t music)                 /* the half's load: the music, and the reverb while it runs */
+{
+    return music + (rgd.st == RG_ON || rgd.st == RG_FADE ? RL_REV : 0u);
+}
+static void test_reverb_late_light(void)
+{
+    uint32_t i, k, back = 0, sheds;
+    int32_t pk = 0;
+    reset();
+    song.g[G_RSIZE] = 90, song.g[G_RDAMP] = 60;
+    rv_run(RV_BLOCKS(40), 1, 0);
+    for (i = 0; i < 40u; i++) {
+        half(US(rl_load(56)));
+        rv_run(RV_BLOCKS(1), 1, 0);
+    }
+    for (k = 0; k < 3u; k++) {                        /* three late halves 11 apart at 66 %: a reaction */
+        for (i = 0; i < 10u; i++) {
+            half(US(rl_load(56)));
+            rv_run(RV_BLOCKS(1), 1, 0);
+        }
+        late_half(rl_load(56));
+        rv_run(RV_BLOCKS(1), 1, 0);
+    }
+    CHECK(cg.level == CG_L_REVERB && cg.reacts == 1u, "late halves at 66 %% with only the reverb to ease: a reaction, the "
+          "reverb off (level %u, reacts %u)", cg.level, cg.reacts);
+    for (i = 0; i < 2u * 172u; i++) {                 /* the same music 2 s more, the reverb off (its saving measured) */
+        half(US(rl_load(56)));
+        rv_run(RV_BLOCKS(1), 1, 0);
+    }
+    CHECK(cg.level == CG_L_REVERB, "... and kept off while the music the drop-outs came in plays on (level %u)", cg.level);
+    sheds = cg.steps;
+    for (i = 0; i < 60u * 172u && !back; i++) {      /* a minute lighter (25 %), a lone late half every ~100 halves */
+        rl_seed = rl_seed * 1664525u + 1013904223u;
+        if ((rl_seed >> 8) % 100u == 0u)
+            late_half(rl_load(25));
+        else
+            half(US(rl_load(25)));
+        pk = rv_run(RV_BLOCKS(1), 1, 0);
+        if (cg.level < CG_L_REVERB && pk > 1000)
+            back = i + 1u;
+    }
+    CHECK(back && back <= 3u * 172u, "at 25 %% with a lone late half now and then (USB, a flash write): the reverb heard "
+          "again within 3 s (after %u halves, level %u, wet %d)", back, cg.level, pk);
+    CHECK(cg.steps == sheds, "... and not shed again meanwhile (%u steps, %u before)", cg.steps, sheds);
+    /* a late half at a load the reactive path counts (60 %, over CG_RFLOOR) still holds the release back: the drop-outs
+     * may be the music's there */
+    reset();
+    song.g[G_RSIZE] = 90, song.g[G_RDAMP] = 60;
+    cg.level = CG_L_REVERB;
+    cg.avg = 154;                                     /* (60 %: the reactive path's mean) */
+    for (i = 0; i < 4u * CG_RELEASE; i++) {
+        if (i % 200u == 100u)
+            late_half(60);
+        else
+            half(US(60));
+        rv_run(RV_BLOCKS(1), 1, 0);
+    }
+    CHECK(cg.level == CG_L_REVERB, "at 60 %% with a late half every 200 halves: the reverb stays off (level %u)", cg.level);
+}
+
 int main(void)
 {
 #if FELUCCA_USB_AUDIO
@@ -689,6 +758,7 @@ int main(void)
     test_reverb();
     test_reverb_recover();
     test_react();
+    test_reverb_late_light();
     printf("cpuguard_test: %s (%d failures)\n", fails ? "FAIL" : "ok", fails);
     return fails != 0;
 }
