@@ -22,12 +22,20 @@ too: one bar of 16ths arranged from Felucca's own generated drums, stored after 
 and not one of the SAMPLE sets. Its slice table (decoder states on a 128-point grid, the hits as AUTO
 slices) is written with it: SLC_BREAK_INIT.
 
+SD card mode (FELUCCA_SAMPLES_CARD=1, the builder's core.card_sets; the user, 2026-10-29: a set ticked there never
+grows the flash): every melodic set (CARD_SETS) is an empty set in the image, its number and its presets kept, its
+bit in SMP_CARD_SETS: SAMPLE plays it from the card's OPTIMIST/SAMPLES/<SET>/Z<k>.WAV through the streams
+(eng_sample.c smp_bank_on). Those files: `gen_samples.py --card DIR [SET,...]` (tools/sd_zip.py), each zone the very
+ADPCM the flash would hold, decoded to 16-bit PCM at 22.05 kHz, its root and loop in "smpl", its keys in "inst": a
+card set plays what the built-in one would, sample for sample.
+
 The header is cached in build/gen_samples.cache under a hash of every input.
 """
 import hashlib
 import math
 import os
 import re
+import struct
 import subprocess
 import sys
 from pathlib import Path
@@ -49,6 +57,8 @@ TR = 22050                                   # stored sample rate
 CC0_SETS = [("PIANO", "piano"), ("BASS", "oneshot"), ("VIBES", "oneshot"), ("HORNS", "oneshot"),
             ("STRGS", "oneshot"), ("FLUTE", "sus"), ("SCRCH", "oneshot"), ("KIT", "kit")]
 MEASURED_TUNING = ()                         # sets recorded off A440 (measured near the named note)
+CARD_SETS = tuple(n for n, k in CC0_SETS if k != "kit")   # the builder's SET_* items: on the card in SD card mode
+CARD_ZONES = 8                               # a card set's zones at most (Z0..Z7: sd_stream_plan.c SST_BANK_Z)
 
 # the preset of each set: name, {SET (filled in), TUNE, BITS, LOOP (filled in), CUT, -, DRV, -}, env, mono,
 # sends (DIST, CHORUS, DELAY, REVERB), more (track parameter, value) pairs (preset_t.x)
@@ -295,6 +305,7 @@ class Builder:
     def __init__(self):
         self.zones, self.sets, self.blob, self.kinds = [], [], bytearray(), {}
         self.brk = None
+        self.card = set()                           # the sets on the card (SD card mode): empty here, presets kept
 
     def slice_break(self):
         """SLICE's BREAK, after every set; its slice table: decoder states at k * len / SLC_GRID, the hits"""
@@ -390,8 +401,8 @@ class Builder:
         full = []                                   # each preset's index in the full build (preset_trim.h)
         for i, (name, _, nz) in enumerate(named):
             k = self.kinds.get(name, "wave")
-            if not nz and sets:                     # a set left out of this build: no preset
-                continue
+            if not nz and sets and name not in self.card:   # a set left out of this build: no preset (one on the
+                continue                            # card keeps its presets: they play it from there)
             full.append(i)
             if name in SET_PRESETS:
                 L.append(preset(i, k, *SET_PRESETS[name]))
@@ -399,7 +410,7 @@ class Builder:
                 a, d, s_, r = ENV[k]
                 L.append(f'    {{"{name}", {{{i}, 0, 0, {0 if k == "kit" else 1}, 127, 0, 0, 0}}, {{{a}, {d}, {s_}, {r}}}, 0, 0}},')
         for j, (setname, *rest) in enumerate(EXTRA_PRESETS):
-            i = next((j for j, (n, _, z) in enumerate(named) if n == setname and z), None)
+            i = next((j for j, (n, _, z) in enumerate(named) if n == setname and (z or n in self.card)), None)
             if i is not None:
                 full.append(len(named) + j)
                 L.append(preset(i, self.kinds.get(setname, "wave"), *rest))
@@ -415,6 +426,9 @@ class Builder:
         mask = sum(1 << i for i, (_, _, z) in enumerate(named) if z)
         first = next((i for i, (n, _, z) in enumerate(named) if z and self.kinds.get(n) != "kit"), usr1)
         L.append(f"#define SMP_SET_MASK 0x{mask:x}u")
+        # SD card mode: the sets on the card (empty here, their presets kept; eng_sample.c smp_bank_on streams them)
+        card = sum(1 << i for i, (n, _, _) in enumerate(named) if n in self.card)
+        L.append(f"#define SMP_CARD_SETS 0x{card:x}u")
         L.append(f"#define SMP_FIRST_SET {first}")
         names = ", ".join(f'"{n}"' for n, _, _ in named)
         L.append("#define SMP_SET_NAMES_INIT " + names)
@@ -459,13 +473,18 @@ def skipped_sets():
     return names
 
 
+def card_mode():
+    """FELUCCA_SAMPLES_CARD=1: SD card mode, the melodic sets on the card (CARD_SETS), whatever SKIP says"""
+    return os.environ.get("FELUCCA_SAMPLES_CARD") == "1"
+
+
 def input_key(have_cc0):
     """hash of everything the header depends on"""
     h = hashlib.sha256()
     here = Path(__file__).resolve().parent
     for p in (here / "gen_samples.py", here / "sampleio.py"):
         h.update(p.read_bytes())
-    h.update(repr((sys.version_info[:2], have_cc0, os.environ.get("FELUCCA_SLICE") == "1", sorted(skipped_sets()))).encode())   # sum() differs across versions
+    h.update(repr((sys.version_info[:2], have_cc0, os.environ.get("FELUCCA_SLICE") == "1", sorted(skipped_sets()), card_mode())).encode())   # sum() differs across versions
     files = sorted(GENDIR.glob("*.wav"))
     if have_cc0:
         files += sorted(CC0.glob("*/*.wav"))
@@ -491,12 +510,16 @@ def main(out):
         pass
     b = Builder()
     if have_cc0:
-        skip = skipped_sets()
+        card = set(CARD_SETS) if card_mode() else set()
+        skip = skipped_sets() | card
         for name, kind in CC0_SETS:
             if kind != "kit" and name not in skip:  # the CC0 KIT feeds the GM kit
                 b.cc0_set(name, kind)
             elif kind != "kit":
                 b.sets.append((name, 0, 0))         # left out: its number stays (an empty set)
+                if name in card:
+                    b.card.add(name)
+                    b.kinds[name] = kind
     if "PERC" in skipped_sets():
         b.sets.append(("PERC", 0, 0))
     else:
@@ -510,5 +533,76 @@ def main(out):
     print(b.summary())
 
 
+def ima_decode(data, n):
+    """n samples of IMA ADPCM from predictor 0 / index 0, as the firmware decodes them (dsp.c ima_nibble)"""
+    pred, idx, out = 0, 0, []
+    for k in range(n):
+        code = (data[k >> 1] >> (4 * (k & 1))) & 15
+        step = sio.IMA_STEP[idx]
+        vd = step >> 3
+        if code & 4:
+            vd += step
+        if code & 2:
+            vd += step >> 1
+        if code & 1:
+            vd += step >> 2
+        pred = max(-32768, min(32767, pred - vd if code & 8 else pred + vd))
+        idx = max(0, min(88, idx + sio.IMA_IDX[code & 7]))
+        out.append(pred)
+    return out
+
+
+def card_wav(z, pcm):
+    """a card set's zone as a WAV (16-bit mono PCM at its rate): "smpl" its root (the unity note) and its loop,
+    "inst" its keys (lo, hi). The flash zone's loop restarts from the state at ls, so after le it plays sample ls - 1
+    (the stored predictor) and goes on from ls: the card's loop, the end inclusive (sd_stream.c sst_wav), is
+    ls - 1 .. le - 1, and the sample at le is never played"""
+    root, frac = divmod(z["root16"], 16)
+    if frac:                                        # (sst_wav reads whole notes: a measured root would play off)
+        raise SystemExit(f"gen_samples --card: a root of {z['root16'] / 16} semitones the card cannot hold")
+    smpl = struct.pack("<9I", 0, 0, round(1e9 / z["sr"]), root, frac << 28, 0, 0, 1 if z["looped"] else 0, 0)
+    if z["looped"]:
+        if z["ls"] < 1 or z["le"] >= z["n"]:
+            raise SystemExit(f"gen_samples --card: a loop {z['ls']}..{z['le']} the card cannot hold")
+        smpl += struct.pack("<6I", 0, 0, z["ls"] - 1, z["le"] - 1, 0, 0)
+    inst = struct.pack("<7B", root, 0, 0, z["lo"], z["hi"], 1, 127)
+    data = struct.pack(f"<{len(pcm)}h", *pcm)
+    fmt = struct.pack("<HHIIHH", 1, 1, z["sr"], z["sr"] * 2, 2, 16)
+    body = b"WAVE" + b"".join(t + struct.pack("<I", len(c)) + c + b"\0" * (len(c) & 1) for t, c in
+                                ((b"fmt ", fmt), (b"smpl", smpl), (b"inst", inst), (b"data", data)))
+    return b"RIFF" + struct.pack("<I", len(body)) + body
+
+
+def card_files(out, names=None):
+    """SD card mode's sets as card files (tools/sd_zip.py): out/OPTIMIST/SAMPLES/<SET>/Z<k>.WAV, the zones in key
+    order, each the zone's ADPCM as the flash build holds it, decoded. names: the sets (CARD_SETS when None)
+    -> {set: [file names]}"""
+    names = [n.strip().upper() for n in (names if names is not None else CARD_SETS) if n.strip()]
+    bad = set(names) - set(CARD_SETS)
+    if bad:
+        raise SystemExit(f"gen_samples --card: unknown set(s) {sorted(bad)}; sets: {list(CARD_SETS)}")
+    if not (CC0.exists() and any(CC0.glob("*/*.wav"))):
+        raise SystemExit("gen_samples --card: no CC0 samples in assets/samples-cc0")
+    kinds, made = dict(CC0_SETS), {}
+    for name in names:
+        b = Builder()
+        b.cc0_set(name, kinds[name])
+        _, z0, nz = b.sets[0]
+        if nz > CARD_ZONES:
+            raise SystemExit(f"gen_samples --card: {name} has {nz} zones, a card set {CARD_ZONES} at most")
+        d = Path(out) / "OPTIMIST" / "SAMPLES" / name
+        d.mkdir(parents=True, exist_ok=True)
+        made[name] = []
+        for k, z in enumerate(b.zones[z0:z0 + nz]):
+            pcm = ima_decode(b.blob[z["off"]:z["off"] + (z["n"] + 1) // 2], z["n"])
+            (d / f"Z{k}.WAV").write_bytes(card_wav(z, pcm))
+            made[name].append(f"Z{k}.WAV")
+    return made
+
+
 if __name__ == "__main__":
-    main(sys.argv[1])
+    if len(sys.argv) >= 3 and sys.argv[1] == "--card":   # gen_samples.py --card DIR [SET,SET]: SD card mode's set files
+        for k, v in card_files(sys.argv[2], sys.argv[3].split(",") if len(sys.argv) > 3 else None).items():
+            print(f"card set {k}: {len(v)} zones")
+    else:
+        main(sys.argv[1])

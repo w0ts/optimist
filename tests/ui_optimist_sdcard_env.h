@@ -21,6 +21,9 @@
 #include "storage/sd/sd_rec.c"                    /* (UI_SDCARD with SD_REC: the card recorder on REC) */
 #endif
 #if FELUCCA_SD_STREAM                                   /* (UI_SDCARD with SAMPLE, ARENA and SD_RING: the streams' plan) */
+#define SST_PART_BANK(p) (trk[p].engine == (uint8_t)ENG_SLOT_SAMPLE && (uint32_t)trk[p].p[P_E0] < SMP_NSETS && \
+                          SMP_CARD_SET((uint32_t)trk[p].p[P_E0]) ? (uint32_t)trk[p].p[P_E0] + 1u : 0u)   /* (sdcard.c's) */
+#define SST_BANK_NAME(b) SMP_SET_NAMES[(b) % SMP_NSETS]
 #include "storage/sd/sd_stream.c"
 #include "storage/sd/sd_slice.c"                       /* (with SLICE: a SLICE part's card sample whole) */
 #include "storage/sd/sd_stream_plan.c"

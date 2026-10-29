@@ -172,7 +172,7 @@ def cmd_package(a):
         # (tools/sd_zip.py; docs/SD-CARD-DESIGN.md 9), unzipped at the card's root
         sys.path.insert(0, str(ROOT / "tools"))
         import sd_zip
-        sd_zip.make(Path(a.out).expanduser() / "optimist-sd-card.zip")
+        sd_zip.make(Path(a.out).expanduser() / "optimist-sd-card.zip", C.card_set_names(cfg))   # (the ticked sets)
     return rc
 
 
