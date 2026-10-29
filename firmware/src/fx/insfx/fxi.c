@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* The instances of the limited insert types (2026-10-13; fxi_kern.c: CHRS ECHO JUNO CHORUS FLNG XDLY, each built or not,
- * registry.h FELUCCA_INS_*) and their lines in the effects memory (fxi_mem.h, 2026-10-23: one memory for the delay send's
+/* The instances of the limited insert types (2026-10-13; fxi_kern.c: ECHO JUNO CHORUS FLNG XDLY, each built or not,
+ * registry.h FELUCCA_INS_*; CHO DLY REV in an insert slot, fxi_send.c, built with their effect) and their lines in the effects memory (fxi_mem.h, 2026-10-23: one memory for the delay send's
  * line and every insert's; how many of a type play at once is what it holds). An owner is a track, the master (FXI_MST:
  * its insert slots), the USB input (FXI_UT) or a return (FXI_RT0 + j). Included by fx.c after insfx.c. The main loop's
  * side: no instance is placed, handed out or cleared in the audio ISR.
@@ -9,7 +9,8 @@
  *     pass of the main loop): an owner that no longer holds the type gives its instance back once its wet share has
  *     faded to 0 (no click; until then it fades as any insert in no slot), its line's units free again; an owner holding
  *     the type and none yet takes a free instance and units for its line (fxa_place: the memory's own room first, then
- *     a send's line while lent), the types in order CHRS ECHO JUNO FLNG XDLY, the owners in order T1 T2 T3 DR, the
+ *     a send's line while lent; a CHO DLY REV copy with an arena: a block of its own, fx_arena.c fxm_cp_place), the types in
+ *     order CHO ECHO JUNO FLNG XDLY REV DLY, the owners in order T1 T2 T3 DR, the
  *     master, the USB input, A B C. The instance and its line are zeroed here, then published with the interrupts off.
  *   - A project load (fx_rec.c fxr_decode: FXI_ASK(2)): every instance is given back at once, then handed out again in
  *     that order while the memory has room: the same project always plays the same way, whatever came before.
@@ -22,7 +23,7 @@
  * cut each other's room; a lent line: from its start).
  *
  * Lending (2026-10-13). A send whose type is in no master slot (FX > SLOTS: CHO or DLY) is not heard, and its line
- * idles: it lends it to the inserts (any type whose line fits: CHO's 2048 samples hold CHRS JUNO FLNG, DLY's every
+ * idles: it lends it to the inserts (any type whose line fits: CHO's 2048 samples hold CHO JUNO FLNG, DLY's every
  * type). Only on demand: when an owner holding a type that fits has none left.
  * Each line has one owner at a time, the send's bus or the inserts, and the owner changes only here:
  *   SEND -> LENT  the send in no master slot and its bus idle (a full line of zeros written, no clear pending: fx.c
@@ -58,6 +59,7 @@ enum { FXL_SEND, FXL_LENT, FXL_BACK };
 #define FXL_NS 2u                                       /* the send lines: 0 the chorus's, 1 the delay's */
 #define FXL_LO(s) ((s) ? 0u : FXA_N)                    /* (send line s's units: FXL_LO .. FXL_HI - 1) */
 #define FXL_HI(s) ((s) ? FXA_S : FXA_T)
+#define FXL_CP (FXL_NS + 1u)                            /* (fxa_reg: a CHO DLY REV copy's block of the arena, units FXA_T + c) */
 #define FXA_NO 0xFFFFu
 #define FXA_BMW ((FXA_T + 31u) / 32u)
 /* the main loop's only, in the pool (main RAM is scarcer): each instance's owner (FXI_NONE: free) and its line's first
@@ -78,6 +80,11 @@ static int fxm_ins_could(void);
 #define fxm_ins_post() ((void)0)
 #define fxm_ins_init() ((void)0)
 #endif
+#if FXI_CPN                                              /* the CHO DLY REV copies' blocks (fx/fx_arena.c, after this file) */
+static uint32_t fxm_cp_place(uint32_t j);
+static void fxm_cp_give(uint32_t c);
+static uint32_t fxm_cp_room(uint32_t j);
+#endif
 _Static_assert(FXI_TN0 <= FXI_IMAX && FXI_TN1 <= FXI_IMAX && FXI_TN2 <= FXI_IMAX && FXI_TN3 <= FXI_IMAX &&
                FXI_TN4 <= FXI_IMAX && FXI_TN5 <= FXI_IMAX && FXI_TN6 <= FXI_IMAX && FXI_NK <= 16u, "fxi_own: FXI_IMAX instances; fxi_full: an owner a bit");
 
@@ -96,7 +103,7 @@ AINL uint32_t fxi_holds(uint32_t k, uint32_t ty)        /* owner k holds type ty
 /* send line s in a master slot */
 AINL uint32_t fxl_send_on(uint32_t s) { return FXS_HAS(s ? FXT_DLY : FXT_CHO); }
 /* the region of unit u: a send line s (0, 1), or the own room (FXL_NS) */
-AINL uint32_t fxa_reg(uint32_t u) { return u < FXA_S ? 1u : u >= FXA_N ? 0u : FXL_NS; }
+AINL uint32_t fxa_reg(uint32_t u) { return u < FXA_S ? 1u : u >= FXA_T ? FXL_CP : u >= FXA_N ? 0u : FXL_NS; }
 /* instance i of type j is on a send's line */
 AINL uint32_t fxi_onl(uint32_t j, uint32_t i) { return fxa_reg(fxa_u[j][i]) < FXL_NS; }
 /* send line s holds a line of type j (built, and its line no longer than the send's) */
@@ -112,6 +119,8 @@ static uint32_t fxl_lends(uint32_t s)                   /* send line s can lend 
 AINL uint32_t fxa_busy(uint32_t u) { return fxa_bm[u >> 5] >> (u & 31u) & 1u; }
 static void fxa_mark(uint32_t u, uint32_t n, uint32_t v)   /* units u .. u + n - 1 in use (v 1) or free (v 0) */
 {
+    if (u >= FXA_T)
+        return;                                         /* (an arena copy's block: no units) */
     for (; n; n--, u++) {
         if (v)
             fxa_bm[u >> 5] |= 1u << (u & 31u);
@@ -156,6 +165,10 @@ static uint32_t fxa_place(uint32_t j)
     for (s = 0; s < FXL_NS && p == FXA_NO; s++)
         if (fxl_open(s) && fxl_fits(s, j))
             p = fxa_fit(FXL_LO(s), FXL_HI(s), n, 1);
+#if FXI_CPN
+    if (p == FXA_NO && FXI_IS_CP(j))
+        p = fxm_cp_place(j);                            /* (a block of the arena of its own: FXA_T + its client) */
+#endif
     return p;
 }
 
@@ -170,13 +183,17 @@ static void fxi_give(uint32_t j, uint32_t i)            /* instance i of type FX
     fxi_publish(fxi_own[j][i], j, FXI_NONE);
     fxi_own[j][i] = FXI_NONE;
     fxa_mark(fxa_u[j][i], FXA_SZ(j), 0);                /* (its units free: no core reads them now) */
+#if FXI_CPN
+    if (fxa_u[j][i] >= FXA_T)
+        fxm_cp_give(fxa_u[j][i] - FXA_T);               /* (an arena copy's block back) */
+#endif
 }
 /* instance i's state (not published: no core uses it): the evict flag */
 static void fxi_evict(uint32_t j, uint32_t i, uint32_t v)
 {
-#if FELUCCA_INS_CHORUS
+#if INS_CHO
     if (j == 0u)
-        ifx_chrs[i].evict = (uint8_t)v;
+        ifx_choi[i].evict = (uint8_t)v;
 #endif
 #if FELUCCA_INS_DELAY
     if (j == 1u)
@@ -194,11 +211,11 @@ static void fxi_evict(uint32_t j, uint32_t i, uint32_t v)
     if (j == 4u)
         ifx_xdly[i].evict = (uint8_t)v;
 #endif
-#if INS_ROOM
+#if INS_REV
     if (j == 5u)
         ifx_room[i].evict = (uint8_t)v;
 #endif
-#if INS_TDLY
+#if INS_DLY
     if (j == 6u)
         ifx_tdly[i].evict = (uint8_t)v;
 #endif
@@ -208,9 +225,9 @@ static void fxi_clear(uint32_t j, uint32_t i)           /* instance i zeroed, at
 {
     int16_t *ln = fxa_line(fxa_u[j][i]);
     memset(ln, 0, FXA_SZ(j) * FXA_U * sizeof *ln);
-#if FELUCCA_INS_CHORUS
+#if INS_CHO
     if (j == 0u)
-        memset(&ifx_chrs[i], 0, sizeof ifx_chrs[i]), ifx_chrs[i].line = ln;
+        memset(&ifx_choi[i], 0, sizeof ifx_choi[i]), ifx_choi[i].line = ln, ifx_choi[i].q = FX_Q_MAX;
 #endif
 #if FELUCCA_INS_DELAY
     if (j == 1u)
@@ -228,12 +245,12 @@ static void fxi_clear(uint32_t j, uint32_t i)           /* instance i zeroed, at
     if (j == 4u)
         memset(&ifx_xdly[i], 0, sizeof ifx_xdly[i]), ifx_xdly[i].line = ln;
 #endif
-#if INS_ROOM
+#if INS_REV
     if (j == 5u)                                        /* (its lines zeroed above: clean) */
         memset(&ifx_room[i], 0, sizeof ifx_room[i]), ifx_room[i].line = ln, ifx_room[i].q = FX_Q_MAX,
         ifx_room[i].rq = 0x9E3779B9u * (i + 1u);        /* (each instance its own rounding sequence) */
 #endif
-#if INS_TDLY
+#if INS_DLY
     if (j == 6u)
         memset(&ifx_tdly[i], 0, sizeof ifx_tdly[i]), ifx_tdly[i].line = ln, ifx_tdly[i].q = FX_Q_MAX;
 #endif
@@ -251,9 +268,9 @@ static void fxi_relink(void)
             if (fxi_own[j][i] == FXI_NONE || fxa_reg(fxa_u[j][i]) != FXL_NS)
                 continue;
             ln = fxa_line(fxa_u[j][i]);
-#if FELUCCA_INS_CHORUS
+#if INS_CHO
             if (j == 0u)
-                ifx_chrs[i].line = ln;
+                ifx_choi[i].line = ln;
 #endif
 #if FELUCCA_INS_DELAY
             if (j == 1u)
@@ -271,11 +288,11 @@ static void fxi_relink(void)
             if (j == 4u)
                 ifx_xdly[i].line = ln;
 #endif
-#if INS_ROOM
+#if INS_REV
             if (j == 5u)
                 ifx_room[i].line = ln;
 #endif
-#if INS_TDLY
+#if INS_DLY
             if (j == 6u)
                 ifx_tdly[i].line = ln;
 #endif
@@ -462,6 +479,11 @@ static void fxi_poll(void)
 static void fxi_init(void)
 {
     uint32_t j, k;
+#if FXI_CPN
+    for (k = 0; k < FXI_CPN; k++)
+        if (fxm_cp_p[k])
+            fxm_cp_give(k);                             /* (the copies' arena blocks back) */
+#endif
     for (j = 0; j < FXI_NL; j++) {
         for (k = 0; k < FXI_IMAX; k++)
             fxi_own[j][k] = FXI_NONE;
@@ -495,6 +517,10 @@ static uint32_t fxa_room(uint32_t j)
 #if FXM_NEED && FXA_I
     if (!fxa_ins && fxm_ins_could())
         r = FXA_I / n;                                  /* (the own room not in the arena yet: what it would hold) */
+#endif
+#if FXI_CPN
+    if (FXI_IS_CP(j))
+        r += fxm_cp_room(j);                            /* (the arena's blocks: as many as it holds) */
 #endif
     for (s = 0; s < FXL_NS; s++)
         if (fxl_fits(s, j) && !fxl_send_on(s) && fxl_st[s] != FXL_BACK)

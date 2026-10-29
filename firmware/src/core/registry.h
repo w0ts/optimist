@@ -457,9 +457,8 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
  * 2026-10-23, any count reads as built) or not. Their lines are in the effects memory (fx/insfx/fxi_mem.h, the size
  * FELUCCA_DLY_ARENA; with an arena, FELUCCA_ARENA_KB, each line a block of it instead): fxi.c places one when an owner
  * picks the type (the main loop), an owner left without room is bypassed */
-#ifndef FELUCCA_INS_CHORUS
-#define FELUCCA_INS_CHORUS 0               /* CHRS: a two-tap chorus, 2 KB of the effects memory an instance */
-#endif
+/* (CHRS, FELUCCA_INS_CHORUS, and ROOM / TDLY, FELUCCA_INS_REVERB / FELUCCA_INS_TDELAY: retired 2026-10-29, the CHO REV DLY
+ * inserts are built with their effect, core.h INS_CHO INS_REV INS_DLY) */
 #ifndef FELUCCA_INS_DELAY
 #define FELUCCA_INS_DELAY 0                /* ECHO: a 75 ms slapback with feedback, 8 KB of the effects memory an instance */
 #endif
@@ -472,16 +471,6 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #endif
 #ifndef FELUCCA_XDLY_LEN
 #define FELUCCA_XDLY_LEN 16384             /* XDLY's line, samples (a power of two): 16384 0.37 s (64 KB an instance), 8192 */
-#endif
-#ifndef FELUCCA_INS_REVERB
-#define FELUCCA_INS_REVERB 0               /* ROOM: the reverb send's ROOM tank as an insert (its SIZE DAMP the send's), its
-                                            * lines 19 KB of the effects memory an instance (fx/insfx/fxi_send.c; needs
-                                            * FELUCCA_FX_REVERB and FELUCCA_REV_ROOM) */
-#endif
-#ifndef FELUCCA_INS_TDELAY
-#define FELUCCA_INS_TDELAY 0               /* TDLY: the delay send's delay as an insert (its TIME, sync, FDBK, filter the send's),
-                                            * a line of FELUCCA_DLY_LEN samples of the effects memory an instance
-                                            * (fx/insfx/fxi_send.c; needs FELUCCA_FX_DELAY) */
 #endif
 #ifndef FELUCCA_DLY_ARENA
 #define FELUCCA_DLY_ARENA 0                /* the effects memory (fx/insfx/fxi_mem.h; the builder leaves it 0 (auto), a fixed size is for the host tests): KB of pool for the delay send's line

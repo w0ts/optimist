@@ -4089,7 +4089,7 @@ int main(int argc, char **argv)
 #if FELUCCA_INS_PHASER
     fxpool_tests();
 #endif
-#if FELUCCA_USB_AUDIO && FELUCCA_INS_GATER && FELUCCA_INS_CHORUS
+#if FELUCCA_USB_AUDIO && FELUCCA_INS_GATER && INS_CHO
     usbfx_tests();
 #endif
     key_tests();

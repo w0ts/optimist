@@ -35,7 +35,10 @@ static int16_t cho_buf[CHO_BUF_N] __attribute__((section(".pool"), aligned(4)));
 #else
 #define REV_SECTION              /* (.bss) */
 #endif
-#if FELUCCA_REV_ROOM
+/* the ROOM's tank code (room_core, its gains rm) is built with the send's ROOM, and with the reverb for the REV insert
+ * (2026-10-29, fx/insfx/fxi_send.c: the ROOM whatever the send's TYPE), the send's own state and buffers only with ROOM */
+#define REV_ROOM_CODE (FELUCCA_REV_ROOM || INS_REV)
+#if REV_ROOM_CODE
 #define REV_MOD 12               /* samples the modulated line moves (+-) */
 #define REV_N0 1559u             /* 35..63 ms, coprime */
 #define REV_N1 1931u
@@ -45,15 +48,21 @@ static int16_t cho_buf[CHO_BUF_N] __attribute__((section(".pool"), aligned(4)));
 #define REV_A1 441u
 static const uint16_t REV_LINE[4] = {REV_N0, REV_N1, REV_N2, REV_N3};
 static const uint16_t REV_AP[2] = {REV_A0, REV_A1};
-#define REV_ROOM_LEN (REV_N0 + REV_N1 + REV_N2 + REV_N3 + REV_MOD + 2u)
+#define REV_TANK_LEN (REV_N0 + REV_N1 + REV_N2 + REV_N3 + REV_MOD + 2u)   /* (the tank's lines: the send's, a REV insert's) */
 #define REV_AP_N (FELUCCA_FX_REVERB ? REV_A0 + REV_A1 : 1u)   /* (the diffusers' samples) */
+#define REV_Q_TANK (REV_N3 > REV_N0 + REV_MOD + 2u ? REV_N3 : REV_N0 + REV_MOD + 2u)   /* (its longest line) */
+#endif
+#if FELUCCA_REV_ROOM
+#define REV_ROOM_LEN REV_TANK_LEN
 #if FXM_NEED
 static int16_t *rev_ap;                                /* (in the arena, after the reverb's line: fx/fx_arena.c) */
 #else
 static int16_t rev_ap[REV_AP_N] __attribute__((section(".pool")));
 #endif
 #else
+#if !REV_ROOM_CODE
 #define REV_MOD 6                /* (fx_buses' line-0 LFO: unused by the other tanks) */
+#endif
 #define REV_ROOM_LEN 0u
 #endif
 /* the shared line buffer without PLATE / FDN8 (with them: reverb_alt.c, at least RV_N): the ROOM's, SPRING's loop */
@@ -418,17 +427,30 @@ AINL int32_t half_ap(int32_t x) { return x == -1 ? 0 : x >> 1; }   /* x / 2, flo
 #define FX_STEP static inline __attribute__((always_inline))
 /* chorus: two modulated short delays, 5..15 ms, the LFO half a turn apart: left and right move apart.
  * r0, r1: the two read points, Q8 samples back */
-FX_STEP int32_t cho_step(int32_t in, int32_t r0, int32_t r1, int32_t *yr, int32_t *wr)
+/* (2026-10-29) the state the caller's: the send's (cho_buf, fx.cho_w) and each CHO insert's (fxi_send.c): its line b
+ * (CHO_LEN samples) and write count *w; the send's cho_step is this on its own, inlined as before */
+FX_STEP int32_t cho_core(int16_t *b, uint32_t *w, int32_t in, int32_t r0, int32_t r1, int32_t *yr, int32_t *wr)
 {
     int32_t v = clamp(in >> 1, -32768, 32767), c0, c1, d0, d1;
-    uint32_t i0 = (uint32_t)r0 >> 8, i1 = (uint32_t)r1 >> 8;
-    cho_buf[fx.cho_w & (CHO_LEN - 1u)] = (int16_t)v;
+    uint32_t i0 = (uint32_t)r0 >> 8, i1 = (uint32_t)r1 >> 8, p = *w;
+    b[p & (CHO_LEN - 1u)] = (int16_t)v;
     *wr |= v;
-    c0 = cho_buf[(fx.cho_w - i0) & (CHO_LEN - 1u)], c1 = cho_buf[(fx.cho_w - i0 - 1u) & (CHO_LEN - 1u)];
-    d0 = cho_buf[(fx.cho_w - i1) & (CHO_LEN - 1u)], d1 = cho_buf[(fx.cho_w - i1 - 1u) & (CHO_LEN - 1u)];
-    fx.cho_w++;
+    c0 = b[(p - i0) & (CHO_LEN - 1u)], c1 = b[(p - i0 - 1u) & (CHO_LEN - 1u)];
+    d0 = b[(p - i1) & (CHO_LEN - 1u)], d1 = b[(p - i1 - 1u) & (CHO_LEN - 1u)];
+    *w = p + 1u;
     *yr = (d0 + (((d1 - d0) * (r1 & 255)) >> 8)) << 1;
     return (c0 + (((c1 - c0) * (r0 & 255)) >> 8)) << 1;
+}
+FX_STEP int32_t cho_step(int32_t in, int32_t r0, int32_t r1, int32_t *yr, int32_t *wr)
+{
+    return cho_core(cho_buf, &fx.cho_w, in, r0, r1, yr, wr);
+}
+/* the chorus' two read points (Q8 samples back) at phase ph, the depth's sweep cd (FX > REV/CHO DEPTH x 6): fx_buses'
+ * ca / cb, for each CHO insert (fxi_send.c: it sweeps as the send) */
+AINL void cho_points(uint32_t ph, int32_t cd, int32_t *ca, int32_t *cb)
+{
+    int32_t s = osc_sine(ph);
+    *ca = (400 << 8) + ((s + 32768) * cd >> 8), *cb = (400 << 8) + ((32767 - s) * cd >> 8);
 }
 
 /* FDBK (0..120, shown 0..100 %) -> the delay's loop gain, Q15. Up to 85 % (102) the line it always had, 230 a step
@@ -610,7 +632,7 @@ FX_STEP int32_t dly_step(int32_t in, uint32_t dl, const dlyf_t *f, int32_t fb, i
     return dly_core(dly_buf, &fx.dly_w, &fx.dly_ec, fx.dly_f, 1, in, dl, f, fb, dmix, wr);
 }
 
-#if FELUCCA_REV_ROOM || REV_ALT
+#if REV_ROOM_CODE || REV_ALT
 #include "reverb/rev_math.c"          /* 2^-x (XIP: when SIZE / DAMP change) */
 #endif
 #if REV_ALT
@@ -628,7 +650,7 @@ FX_STEP int32_t dly_step(int32_t in, uint32_t dl, const dlyf_t *f, int32_t fb, i
 #define REV_LP_BUSY() REV_LP_ROOM()
 #endif
 
-#if FELUCCA_REV_ROOM
+#if REV_ROOM_CODE
 /* reverb: two diffusers, then the four lines; r: line 0's read offset (Q8); returns left, *yr right */
 #define REV_L0 (REV_N0 + REV_MOD + 2u)
 #define REV_B1 REV_L0
@@ -705,12 +727,14 @@ FX_STEP int32_t room_core(const room_st_t *t, int32_t in, int32_t r, int32_t g, 
     *yr = o1 - o3;
     return o0 + o2;
 }
+#if FELUCCA_REV_ROOM
 #define ROOM_SEND {rev_ap, rev_line, fx.ap_i, fx.line_i, fx.line_lp}   /* (the send's tank) */
 FX_STEP int32_t rev_step(int32_t in, int32_t r, int32_t g, int32_t lpk, int32_t *yr, int32_t *wr)
 {
     const room_st_t t = ROOM_SEND;
     return room_core(&t, in, r, g, lpk, yr, wr);
 }
+#endif
 /* The ROOM above SIZE 90 (room_long, below, sets its gains): rev_step with every rounding in the loop unbiased. The
  * one-poles' steps and the loop gains' products round at random while the value is RM_RT or more (floor of the
  * product plus a uniform 0 .. 2^14 - 1 / 2^15 - 1), toward 0 below, as FDN8's (reverb_alt.c rv_rnd); the Hadamard's
@@ -788,22 +812,30 @@ AINL int32_t room_long_core(const room_st_t *t, int32_t gin, uint32_t *rq, int32
     *yr = o1 - o3;
     return o0 + o2;
 }
-static HOT __attribute__((noinline)) int32_t room_step_long(int32_t in, int32_t r, int32_t g, int32_t lpk, int32_t *yr,
-                                                            int32_t *wr)
+/* one sample of a tank above the knee, its state t (the send's, a REV insert's: one copy of the code for both, 2026-10-29) */
+static HOT __attribute__((noinline)) int32_t room_long_step(const room_st_t *t, uint32_t *rq, int32_t in, int32_t r,
+                                                            int32_t g, int32_t lpk, int32_t *yr, int32_t *wr)
+{
+    return room_long_core(t, rm.in, rq, in, r, g, lpk, yr, wr);
+}
+#if FELUCCA_REV_ROOM
+AINL int32_t room_step_long(int32_t in, int32_t r, int32_t g, int32_t lpk, int32_t *yr, int32_t *wr)
 {
     const room_st_t t = ROOM_SEND;
-    return room_long_core(&t, rm.in, &rm.rq, in, r, g, lpk, yr, wr);
+    return room_long_step(&t, &rm.rq, in, r, g, lpk, yr, wr);
 }
 static HOT __attribute__((noinline)) void room_run_long(const int32_t *in, int32_t *wl, int32_t *wr, uint32_t n,
                                                         int32_t ma, int32_t mb, int32_t g, int32_t lpk, int32_t *wv)
 {                                                       /* (a block at the full rate: out of fx_buses, whose ROOM */
     uint32_t i;                                         /*  loop keeps its code and registers) */
+    const room_st_t t = ROOM_SEND;
     for (i = 0; i < n; i++) {
         int32_t rr;
-        wl[i] += room_step_long(in[i], ma + (((mb - ma) * (int32_t)i) >> CTL_LOG2), g, lpk, &rr, wv);
+        wl[i] += room_long_step(&t, &rm.rq, in[i], ma + (((mb - ma) * (int32_t)i) >> CTL_LOG2), g, lpk, &rr, wv);
         wr[i] += rr;
     }
 }
+#endif
 /* SIZE up to RM_KNEE (90, the default): the loop gain 17000 + 104 SIZE (RT60 0.5 .. 1.44 s at DAMP 60), as ever. Above
  * it, as FDN8 (reverb_alt.c): the decay time doubles every RM_STEPS / 10 steps (exponential in RT60, even to the ear)
  * and 127 adds RM_FRZ8 / 8 doublings, a near-freeze; the loop runs room_step_long (unbiased rounding: above). The
@@ -1623,15 +1655,21 @@ static __attribute__((noinline)) void rs_done(void)   /* (XIP: a call a block, F
 /* the chorus' block into wl / wr (its read points ab: ca0 dca cb0 dcb), its CHO RET (cg); -> the block's largest |right|
  * (the mixer's return meter). The delay's into wl / wr added (its divide in dly_block, flash); -> its largest |sample|.
  * From main RAM (HOT2: RAMTEXT is full; fx_buses calls each once a block) */
+/* n samples of a chorus line, its state the caller's (the send's, each CHO insert's, fxi_send.c: one copy of the code for
+ * both, 2026-10-29): its line b and write count *w, the read points ab -> yl / yr */
+static HOT2 __attribute__((noinline)) void cho_blk(int16_t *b, uint32_t *w, const int32_t *in, int32_t *yl, int32_t *yr,
+                                                   uint32_t n, const int32_t *ab, int32_t *wc)
+{
+    uint32_t i;
+    for (i = 0; i < n; i++)
+        yl[i] = cho_core(b, w, in[i], ab[0] + CHO_RAMP(ab[1], i), ab[2] + CHO_RAMP(ab[3], i), &yr[i], wc);
+}
 static HOT2 __attribute__((noinline)) int32_t cho_run(const int32_t *in, int32_t *wl, int32_t *wr, uint32_t n,
                                                       const int32_t *ab, int32_t *wc, uint32_t cg)
 {
     uint32_t i;
-    int32_t yr = 0, pk = 0;
-    for (i = 0; i < n; i++) {
-        wl[i] = cho_step(in[i], ab[0] + CHO_RAMP(ab[1], i), ab[2] + CHO_RAMP(ab[3], i), &yr, wc);
-        wr[i] = yr;
-    }
+    int32_t pk = 0;
+    cho_blk(cho_buf, &fx.cho_w, in, wl, wr, n, ab, wc);   /* (as cho_step) */
     if (cg)                                             /* (CHO RET below unity: the chorus' wet alone so far) */
         (void)cho_gain(wl, wr, n);
     for (i = 0; i < n; i++) {
@@ -1640,14 +1678,26 @@ static HOT2 __attribute__((noinline)) int32_t cho_run(const int32_t *in, int32_t
     }
     return pk;
 }
+/* n samples of a delay line, its state the caller's (the send's, each DLY insert's, fxi_send.c: one copy of the code for
+ * both, 2026-10-29): in -> y; fill: the samples written since it started (DLY_LEN: all, the send's), a read before
+ * the time's first sample is 0 */
+static HOT2 __attribute__((noinline)) void dly_blk(int16_t *buf, uint32_t *wp, int32_t *ec, int32_t *st, uint32_t fill,
+                                                   const int32_t *in, int32_t *y, uint32_t n, uint32_t dl, const dlyf_t *f,
+                                                   int32_t fb, int32_t dmix, int32_t *wd)
+{
+    uint32_t i;
+    for (i = 0; i < n; i++)
+        y[i] = dly_core(buf, wp, ec, st, fill + i >= dl, in[i], dl, f, fb, dmix, wd);
+}
 static HOT2 __attribute__((noinline)) int32_t dly_run(const int32_t *in, int32_t *wl, int32_t *wr, uint32_t n, int32_t *wd)
 {
     uint32_t i, dl;
-    int32_t fb, dmix, x, pk = 0;
+    int32_t fb, dmix, x, pk = 0, y[CTL];
     dlyf_t f;
     dl = FAR(dly_block)(&fb, &f, &dmix);                /* (its divide: only for a running delay) */
+    dly_blk(dly_buf, &fx.dly_w, &fx.dly_ec, fx.dly_f, DLY_LEN, in, y, n, dl, &f, fb, dmix, wd);   /* (as dly_step) */
     for (i = 0; i < n; i++) {
-        x = dly_step(in[i], dl, &f, fb, dmix, wd);
+        x = y[i];
         wl[i] += x;
         wr[i] += x;
         pk = (x < 0 ? -x : x) > pk ? (x < 0 ? -x : x) : pk;
@@ -1691,6 +1741,10 @@ static HOT int fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int3
     }
 #if FELUCCA_REV_ROOM
     room_gains(&g, &lpk);
+#elif REV_ROOM_CODE
+    room_gains(&g, &lpk);                               /* (the REV inserts' gains, rm, once a block as with the ROOM's:
+                                                         * fxi_send.c) */
+    g = lpk = 0;                                        /* (only the ROOM's) */
 #else
     g = lpk = 0;                                        /* (only the ROOM's) */
 #endif
@@ -2380,7 +2434,7 @@ static int32_t dins_gr16(uint32_t k)
 #else
 #define INS_IDLE(k) 0u
 #endif
-#define INS_OUT(k, s0, s1) (FXT_BUILT & FXT_INSERT & ((FXT_BIT(FXT_DIST) | FXT_BIT(FXT_FILT) | FXT_BIT(FXT_COMP) | FXT_BIT(FXT_DUST)) | \
+#define INS_OUT(k, s0, s1) (FXT_BUILT & FXT_INSLOT & ((FXT_BIT(FXT_DIST) | FXT_BIT(FXT_FILT) | FXT_BIT(FXT_COMP) | FXT_BIT(FXT_DUST)) | \
                                                      INS_IDLE(k)) & ~(FXT_BIT(s0) | FXT_BIT(s1)))
 
 /* ---- the drum bus (FX slots, design phase 4; the track insert slots, 2026-10-12): the drum track's own amounts, kept in
@@ -2570,8 +2624,8 @@ static __attribute__((noinline)) void gl_part(track_t *t, int32_t *g)
     t->gl_on = 1;
 }
 
-#if FELUCCA_INS_XDLY || INS_ROOM || INS_TDLY
-#define IFX_RINGING(t) ifx_ringing((uint32_t)((t) - trk))   /* (XDLY's, TDLY's repeats, ROOM's tail outlast the voices:
+#if FELUCCA_INS_XDLY || INS_REV || INS_DLY
+#define IFX_RINGING(t) ifx_ringing((uint32_t)((t) - trk))   /* (XDLY's, DLY's repeats, REV's tail outlast the voices:
                                                          * fxi_kern.c) */
 #else
 #define IFX_RINGING(t) 0
@@ -2605,8 +2659,11 @@ static HOT void mix_part(track_t *t, uint32_t n MIXACC_PARAM)
         int32_t gl, gr;
         int32_t on = fx_on(t), pk = t->peak;          /* FX bypass: no sends (the buses' tails ring out) */
         pan_gains(pan, &gl, &gr);                     /* (dsp.c) */
-        int32_t c = on && FXS_IN(FXT_CHO) ? t->p[P_CHOR] * 258 : 0, d = on && FXS_IN(FXT_DLY) ? t->p[P_DLY] * 258 : 0;   /* (a send in no FX slot: */
-        int32_t r = on && FXS_IN(FXT_REV) ? t->p[P_REV] * 258 : 0;                                  /* none, fx_slots.c) */
+        uint32_t ik = (uint32_t)(t - trk);              /* (a type the part holds as an insert: its amount is that insert's
+                                                         * MIX, no send to its bus, 2026-10-29: core.h INS_REV) */
+        int32_t c = on && FXS_IN(FXT_CHO) && !INS_ON(ik, FXT_CHO) ? t->p[P_CHOR] * 258 : 0;   /* (a send in no FX slot: */
+        int32_t d = on && FXS_IN(FXT_DLY) && !INS_ON(ik, FXT_DLY) ? t->p[P_DLY] * 258 : 0;    /* none, fx_slots.c) */
+        int32_t r = on && FXS_IN(FXT_REV) && !INS_ON(ik, FXT_REV) ? t->p[P_REV] * 258 : 0;
         int32_t ga = mulq15(g0, duck.g0), gb = mulq15(g1, duck.g1);   /* mute x duck, ramped over the block */
         slicer_track(t, b, n);                          /* slicer.c: first (D2), before the inserts, level, pan, sends */
         if ((FELUCCA_FX_DIST || TFLT_ON || FELUCCA_MASTER_COMP || INS_FX || FELUCCA_FX_DUST) && !FX_INS_BYPASS)
@@ -2656,9 +2713,13 @@ static HOT void mix_part(track_t *t, uint32_t n MIXACC_PARAM)
         if (ifx_jsd[(uint32_t)(t - trk) % NPART])       /* JUNO CHORUS's side (fxi_kern.c): as WIDE's */
             ifx_side_mix(ifx_jside[(uint32_t)(t - trk) % NPART], lvl0, dl, ga, gb, MX(mix_l), MX(mix_r), n);
 #endif
-#if INS_ROOM
-        if (ifx_rsd[(uint32_t)(t - trk) % NPART])       /* ROOM's side (fxi_send.c): as WIDE's */
+#if INS_REV
+        if (ifx_rsd[(uint32_t)(t - trk) % NPART])       /* the REV insert's side (fxi_send.c): as WIDE's */
             ifx_side_mix(ifx_rside[(uint32_t)(t - trk) % NPART], lvl0, dl, ga, gb, MX(mix_l), MX(mix_r), n);
+#endif
+#if INS_CHO
+        if (ifx_csd[(uint32_t)(t - trk) % NPART])       /* the CHO insert's side (fxi_send.c): as WIDE's */
+            ifx_side_mix(ifx_cside[(uint32_t)(t - trk) % NPART], lvl0, dl, ga, gb, MX(mix_l), MX(mix_r), n);
 #endif
 #if FELUCCA_ENG_DRONE
         if (ENG_IS(ENGINES[t->engine % NENGINES], DRONE) && drone_sd[(uint32_t)(t - trk) % NPART])   /* DRONE's BEAT: */

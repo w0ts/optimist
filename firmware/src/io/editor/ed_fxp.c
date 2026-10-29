@@ -60,7 +60,7 @@ static uint32_t fxp_type(uint32_t ow, uint32_t sl)
 static uint32_t fxp_ok(uint32_t ow)
 {
     if (ow < NTRK)
-        return FXT_BUILT & FXT_INSERT;
+        return FXT_BUILT & FXT_INSLOT;
     if (ow == FXP_MST)
         return MST_OK;
     if (ow == FXP_USB) {

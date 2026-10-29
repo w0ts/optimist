@@ -193,7 +193,7 @@ static uint32_t mx_adds(mitem_t *it, uint32_t n, const mitem_t *a, uint32_t m)  
 static const mitem_t MX_INS[4] = {{0, MI_INST, 0, MG_INS}, {0, MI_INSA, 0, MG_INS}, {0, MI_INST, 1, MG_INS}, {0, MI_INSA, 1, MG_INS}};
 static uint32_t mx_items_ins(mitem_t *it, uint32_t n)
 {
-    if (!(FXT_BUILT & FXT_INSERT))
+    if (!(FXT_BUILT & FXT_INSLOT))
         return n;
     return mx_adds(it, n, MX_INS, 4);
 }

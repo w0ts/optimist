@@ -1,15 +1,15 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* The limited insert types on the Optimist UI (2026-10-13, feat/fx-instances-ui; fxi.c: CHRS ECHO, as many at once as the
+/* The limited insert types on the Optimist UI (2026-10-13, feat/fx-instances-ui; fxi.c: CHO ECHO (CHRS until 2026-10-29), as many at once as the
  * effects memory holds, 2026-10-23): on SOUND's INSERTS row and the mixer's insert set, a slot's TYPE cell shows
- *   the free count   "CHRS" with 2/4 beside it (free of available), a type on every track nothing
+ *   the free count   "CHO" with 2/4 beside it (free of available), a type on every track nothing
  *   WAIT             the type picked, the main loop has not handed an instance out yet (fxi_poll)
  *   IN USE           the same pass with none free (fxi_can 0): the name struck through, dim
- *   FULL             none free after the pass: bypassed, the name struck through, dim, "S1 CHRS" as the label
+ *   FULL             none free after the pass: bypassed, the name struck through, dim, "S1 CHO" as the label
  *   hidden           a type not built is not in the list
  * and, with the help line, a line of its own (kind op, INSERTS). Built with memories that hold 0, 1 and 4 of each
  * (run_tests.sh: FXU_NC FXU_NE).
  * Included by ui_optimist_test.c. */
-/* how many CHRS, ECHO the effects memory's own room holds alone, the sends in their master slots (fxi_mem.h; run_tests.sh
+/* how many CHO, ECHO the effects memory's own room holds alone, the sends in their master slots (fxi_mem.h; run_tests.sh
  * sets it, the builder's auto); 0: not built */
 #if INS_LIM
 #define FXU_NC (FXI_B0 ? FXL_MIN(FXI_NK, FXA_I / FXA_Z0) : 0u)
@@ -80,7 +80,7 @@ static void fxu_count(uint32_t t, uint32_t n, const char *nm)
         snprintf(why, sizeof why, "%s: none free after the pass: name struck, dim, 'S2 %s' (was '%s' '%s' dim %u)", nm, nm, c.label, c.val, c.dim);
         snprintf(want, sizeof want, "S2 %s", nm);
         check(fxi_state(n, 1) == FXI_FULL && !strcmp(c.val, nm) && c.strike && c.dim && !strcmp(c.label, want), why);
-        if (t == FXT_CHRS || t == FXT_ECHO) {                   /* (the struck name, on the screen: opt-fxi-full-<name>.ppm) */
+        if (t == FXT_CHO || t == FXT_ECHO) {                   /* (the struck name, on the screen: opt-fxi-full-<name>.ppm) */
             char shot[32];
             fxu_cell(n, 1, &c);
             ui.force = 1, frame();
@@ -146,13 +146,13 @@ static void fxi_ui_tests(void)
     (void)ut_desc(UT_ID_TY, &v);
     check(fxu_sorted(ut_names, (uint32_t)ut_td[0].max + 1u), "the USB input's TYPE list: ----, then A to Z");
 #endif
-    check(fxu_listed(FXT_CHRS) == (FXU_NC > 0), "CHRS is in the picker's list when built (count > 0) and hidden at 0");
+    check(fxu_listed(FXT_CHO) == (INS_CHO != 0), "CHO is in the picker's list when built (the chorus), whatever the memory holds");
     check(fxu_listed(FXT_ECHO) == (FXU_NE > 0), "ECHO is in the picker's list when built (count > 0) and hidden at 0");
     fxu_cell(0, 0, &c);
     check(!c.dim && !c.hlp && c.label && !strcmp(c.label, "S1"), "a type that is not limited (the default S1): no note, no dim");
 #if INS_LIM
     if (FXU_NC > 0)
-        fxu_count(FXT_CHRS, FXU_NC, "CHRS");
+        fxu_count(FXT_CHO, FXU_NC, "CHO");
     if (FXU_NE > 0)
         fxu_count(FXT_ECHO, FXU_NE, "ECHO");
 #if FELUCCA_PARAM_HELP
@@ -160,25 +160,25 @@ static void fxi_ui_tests(void)
         uint32_t r;
         char pb[PH_LINE];
         fxu_fresh();
-        ins_load(0, 0, FXT_CHRS);
+        ins_load(0, 0, FXT_CHO);
         fxi_poll();
         fxu_cell(0, 0, &c);
         r = ui.row[SCR_SOUND];
-        check(hl_find(SCR_SOUND, r, &c) && !strcmp(ph_text(hl_find(SCR_SOUND, r, &c), pb), "Chorus, shared: free/avail"), "help: CHRS held: \"Chorus, shared: free/avail\"");
+        check(hl_find(SCR_SOUND, r, &c) && !strcmp(ph_text(hl_find(SCR_SOUND, r, &c), pb), "Chorus, shared: free/avail"), "help: CHO held: \"Chorus, shared: free/avail\"");
     }
     if (FXU_NC > 0 && FXU_NC < NTRK) {
         uint32_t k, r;
         char pb[PH_LINE];
         fxu_fresh();
         for (k = 0; k <= FXU_NC; k++) {
-            ins_load(k, 0, FXT_CHRS);
+            ins_load(k, 0, FXT_CHO);
             fxi_poll();
         }
         fxu_cell(FXU_NC, 0, &c);
         r = ui.row[SCR_SOUND];
         check(fxi_state(FXU_NC, 0) == FXI_FULL && hl_find(SCR_SOUND, r, &c) &&
                   !strcmp(ph_text(hl_find(SCR_SOUND, r, &c), pb), "No free chorus: bypassed"),
-              "help: a FULL CHRS slot: \"No free chorus: bypassed\"");
+              "help: a FULL CHO slot: \"No free chorus: bypassed\"");
     }
     if (FXU_NE > 0 && FXU_NE < NTRK) {
         uint32_t k, r;

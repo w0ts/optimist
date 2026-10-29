@@ -226,7 +226,7 @@ static const param_desc_t TP[P_COUNT] = {
     [P_TFLNG] = PD("FLNG", F_PCT, 0, 127, 0),      /* the flanger: its mix to 64, then its feedback */
     [P_TFRMT] = PD("FRMT", F_PCT, 0, 127, 0),      /* the vowel: A E I O U from 1 to 127 */
     [P_TWIDE] = PD("WIDE", F_PCT, 0, 127, 0),      /* the width: the swept side's share */
-    [P_TCHRS] = PD("CHRS", F_PCT, 0, 127, 0),      /* the chorus insert (fxi.c): its mix to 64, then its depth */
+    [P_TCHRS] = PD("CHRS", F_PCT, 0, 127, 0),      /* (unused since 2026-10-29: CHRS is the CHO insert, its MIX P_CHOR) */
     [P_TECHO] = PD("ECHO", F_PCT, 0, 127, 0),      /* the slapback insert (fxi.c): its level to 64, then its feedback */
     [P_TGATE] = PD("GATER", F_PCT, 0, 127, 0),     /* GATER (insfx/gater.c): its DEPTH, 127 a closed step silent */
     [P_TGPAT] = PE("PAT", N_TGPAT, 8),             /*   its pattern (gater.c IGT_PAT), TRNC1 */
@@ -242,12 +242,6 @@ static const param_desc_t TP[P_COUNT] = {
     [P_TTAPE] = PD("TAPE", F_PCT, 0, 127, 0),      /* the tape's character: how far its tone wanders, how dark */
     [P_TSPIT] = PD("SPIT", F_PCT, 0, 127, 0),      /* the band's sharpness and the drive into the clip */
     [P_TXDLY] = PD("XDLY", F_PCT, 0, 127, 0),      /* the cross-modulated dual delay (xdly.c): its MIX, dry to all wet */
-#endif
-#if INS_ROOM
-    [P_TROOM] = PD("ROOM", F_PCT, 0, 127, 0),      /* the reverb send's ROOM as an insert (fxi_send.c): its MIX, dry to all wet */
-#endif
-#if INS_TDLY
-    [P_TTDLY] = PD("TDLY", F_PCT, 0, 127, 0),      /* the delay send's delay as an insert (fxi_send.c): its MIX, dry to all wet */
 #endif
 #if FELUCCA_EX_GAIN
     [P_TEXGN] = PD("EXGN", F_DB, 0, 127, 0),       /* EXGN, the example insert (exgain.c): OFF, then LEVEL's dB (112: 0 dB) */
@@ -1042,11 +1036,11 @@ static int page_shown(const page_t *pg)
     if (!FELUCCA_DRUMS && (pg->scope == SC_DRUM || (pg->scope == SC_GLOBAL && pg->id[0] == G_DRLVL)))
         return 0;                                     /* (no drums: GLO > DRUMS, the drum track's pages) */
     if ((pg->graph == GR_SLCR && !FELUCCA_FX_SLICER) ||
-        ((pg->id[0] == G_DTIME || pg->id[0] == G_DFTYPE) && pg->scope == SC_GLOBAL && !FXS_HAS(FXT_DLY) && !ins_any(FXT_TDLY)) ||   /* (TDLY:
+        ((pg->id[0] == G_DTIME || pg->id[0] == G_DFTYPE) && pg->scope == SC_GLOBAL && !FXS_HAS(FXT_DLY) && !ins_any(FXT_DLY)) ||   /* (the DLY insert:
                                                        * the delay's settings, fxi_send.c) */
         ((pg->id[0] == G_CTHR || pg->id[0] == G_CGAIN) && pg->scope == SC_GLOBAL && !MST_ON(FXT_DYN)) ||   /* (COMP LIMIT:
                                                        * the master's DYN, while one of its slots holds it) */
-        (pg->id[0] == G_RSIZE && pg->scope == SC_GLOBAL && !FXS_HAS(FXT_REV) && !FXS_HAS(FXT_CHO) && !ins_any(FXT_ROOM)))
+        (pg->id[0] == G_RSIZE && pg->scope == SC_GLOBAL && !FXS_HAS(FXT_REV) && !FXS_HAS(FXT_CHO) && !ins_any(FXT_REV) && !ins_any(FXT_CHO)))
         return 0;                                     /* the pages of an FX this build leaves out (registry.h), or in no
                                                        * FX slot (fx_slots.c) */
 #if REV_MULTI
@@ -1084,7 +1078,7 @@ static int page_shown(const page_t *pg)
         return INS_ON(song.sel, FXT_JUNO);            /* JUNO CHO: while one of the track's slots holds it */
 #endif
     if (pg->graph == GR_INS)
-        return (FXT_BUILT & FXT_INSERT) != 0u;        /* INSERTS: any insert built */
+        return (FXT_BUILT & FXT_INSLOT) != 0u;        /* INSERTS: any insert built */
 #if FELUCCA_ENG_ACID
     if (pg->scope == SC_BPSET && pg->id[0] == BPS_GDENS)
         return !is_drum(TSEL) && ENG_IS(ENGINES[TSEL->eng_req % NENGINES], ACID);   /* ACID GEN: ACID tracks only */
@@ -1129,8 +1123,9 @@ static int cell_built(const page_t *pg, uint32_t id)
     if (pg->scope == SC_GLOBAL)
         return id == G_DUST ? FELUCCA_FX_DUST : id == G_DUCK ? FELUCCA_FX_DUCK : id == G_FILT ? FELUCCA_FX_DJF :
                (id >= G_CTHR && id <= G_CCEIL) || id == G_CGR ? FELUCCA_MASTER_COMP :
-               id == G_RSIZE || id == G_RDAMP ? FXS_HAS(FXT_REV) :   /* (in a slot: fx_slots.c) */
-               id == G_CRATE || id == G_CDEPTH ? FXS_HAS(FXT_CHO) : id == G_SYNC ? FELUCCA_MIDI_CLOCK : id == G_VIEW ? 0 : 1;
+               id == G_RSIZE || id == G_RDAMP ? FXS_HAS(FXT_REV) || ins_any(FXT_REV) :   /* (in a slot: fx_slots.c; an
+                                                       * insert's settings are the send's, fxi_send.c) */
+               id == G_CRATE || id == G_CDEPTH ? FXS_HAS(FXT_CHO) || ins_any(FXT_CHO) : id == G_SYNC ? FELUCCA_MIDI_CLOCK : id == G_VIEW ? 0 : 1;
     return 1;
 }
 #if FELUCCA_MISSING_WARN
