@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* SYSTEM > USB AUDIO (io/usb/ua_tap.h, usb_audio_route.c): where each source goes among the four capture channels, through
- * the real mixer. A source (MASTER the master output, T1..T3 and DRUMS the stems, DRUM BUS the drum bus, DRn a lane's share
+ * the real mixer. A source (MASTER the master bus before the volume: the knob never reaches USB, T1..T3 and DRUMS the stems, DRUM BUS the drum bus, DRn a lane's share
  * of DRUMS, RET A B C the FX returns as they enter the master) goes to NONE, 1, 2, 1+2, 3, 4 or 3+4: a stereo source on
  * a pair L then R, on one channel the mono sum (L + R) / 2 (a floor); a mono source on a pair on both; sources on one channel add up; the default routing (T1 T2 T3 DRUMS on 1 2 3 4)
  * is no routing (the stems' own buffer); a tapped lane leaves the mix as it was. The settings record: favorites_test.c. */
@@ -72,7 +72,7 @@ static void test_sources(void)
         const int32_t *f = block(out);
         assert(f != track_capture);
         for (uint32_t i = 0; i < CTL; i++) {
-            const int32_t *x = f + i * UA_CAP_CHANNELS, *s = track_capture + i * NTRK, l = out[2 * i], r = out[2 * i + 1];
+            const int32_t *x = f + i * UA_CAP_CHANNELS, *s = track_capture + i * NTRK, l = ua_mst[2 * i], r = ua_mst[2 * i + 1];
             assert(x[0] == l && x[1] == r && x[2] == s[0] + s[1] && x[3] == 0);
             e[0] += (int64_t)l * l, e[1] += (int64_t)s[1] * s[1];
         }
@@ -81,7 +81,7 @@ static void test_sources(void)
     {   /* the mapper on its own (another consumer: four mono buffers): the same samples as the capture's frames */
         int32_t m[UA_ROUTE_N][CTL], *const ch[UA_ROUTE_N] = {m[0], m[1], m[2], m[3]};
         const int32_t *f = block(out);
-        ua_route_block(ch, out, CTL);
+        ua_route_block(ch, CTL);
         for (uint32_t i = 0; i < CTL; i++)
             for (uint32_t c = 0; c < UA_ROUTE_N; c++)
                 assert(m[c][i] == f[i * UA_CAP_CHANNELS + c]);
@@ -91,7 +91,7 @@ static void test_sources(void)
         const int32_t *f = block(out);
         for (uint32_t i = 0; i < CTL; i++) {
             const int32_t *x = f + i * UA_CAP_CHANNELS, *s = track_capture + i * NTRK;
-            assert(x[0] == s[2] && x[1] == s[2] && x[2] == (out[2 * i] + out[2 * i + 1]) >> 1 && x[3] == s[TRK_DRUM]);
+            assert(x[0] == s[2] && x[1] == s[2] && x[2] == (ua_mst[2 * i] + ua_mst[2 * i + 1]) >> 1 && x[3] == s[TRK_DRUM]);
             e[2] += (int64_t)s[2] * s[2];
         }
     }
@@ -101,7 +101,7 @@ static void test_sources(void)
         const int32_t *f = block(out);
         for (uint32_t i = 0; i < CTL; i++) {
             const int32_t *x = f + i * UA_CAP_CHANNELS;
-            assert(x[0] == 0 && x[1] == track_capture[i * NTRK + TRK_DRUM] && x[2] == out[2 * i] && x[3] == out[2 * i + 1]);
+            assert(x[0] == 0 && x[1] == track_capture[i * NTRK + TRK_DRUM] && x[2] == ua_mst[2 * i] && x[3] == ua_mst[2 * i + 1]);
         }
     }
 }
@@ -191,7 +191,7 @@ static void test_lanes(uint32_t kit, int x0x, int ins)
         for (uint32_t i = 0; i < CTL; i++) {
             const int32_t *x = f + i * UA_CAP_CHANNELS;
             assert(x[0] == ua_dbus[0][i] && x[1] == ua_dbus[1][i]);
-            assert(x[2] == (out[2 * i] + out[2 * i + 1]) >> 1 && x[3] == 0);
+            assert(x[2] == (ua_mst[2 * i] + ua_mst[2 * i + 1]) >> 1 && x[3] == 0);
             ea += (int64_t)x[0] * x[0], eb += (int64_t)x[1] * x[1];
         }
     }
@@ -362,6 +362,69 @@ static void test_returns_mix(void)
     munmap(refs, 256u * sizeof *refs);
 }
 
+/* the volume knob never reaches USB (the user, 2026-10-29: "the main volume knob should NOT control the volume of the USB
+ * audio", "USB audio out has no volume control"): the same song from the same state, a child at each MASTER (the top,
+ * 4096 = unity; the bottom, 0; between, moved in the middle of the run): MASTER on 1+2, T1 on 3, DRUMS on 4, and the
+ * default routing (the stems as they are) after. Every capture frame the same, bit for bit, at each volume; the FM-1's own
+ * output follows the knob (silent at 0). MASTER's capture is the bus before the volume (ua_mst, not out) */
+static void test_master_knob(void)
+{
+    static const uint32_t VOL[3] = {4096u, 0u, 1500u};
+    enum { NB = 192 };
+    int32_t (*refs)[CTL * UA_CAP_CHANNELS] = mmap(0, 2u * NB * sizeof *refs, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANON, -1, 0);
+    int64_t *eo = mmap(0, 3u * sizeof *eo, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANON, -1, 0);
+    assert(refs != MAP_FAILED && eo != MAP_FAILED);
+    for (uint32_t pass = 0; pass < 3u; pass++) {
+        int status;
+        pid_t child = fork();
+        assert(child >= 0);
+        if (child) {
+            assert(waitpid(child, &status, 0) == child && WIFEXITED(status) && WEXITSTATUS(status) == 0);
+            continue;
+        }
+        int32_t out[CTL * 2];
+        int64_t em = 0, es = 0;
+        setup();
+        track_capture_on = 1;
+        song.master_q12 = VOL[pass];
+        master_cur = -1;                                  /* (from the knob at once: no glide from another test's, */
+        dc_l = dc_r = dce_l = dce_r = 0;                  /*  no DC blocker's state either) */
+        ROUTE({UAS_MAIN, UAD_12}, {UAS_T1, UAD_3}, {UAS_DRUMS, UAD_4});
+        assert(ua_mst_on && !ua_ident);
+        for (uint32_t b = 0; b < 2u * NB; b++) {
+            if (b == NB)
+                ua_route_default();                       /* (the second half: the stems as they are, MASTER not tapped) */
+            if (b == NB / 2u && pass == 2u)
+                song.master_q12 = 3500u;                  /* (the knob turned while it plays) */
+            if (b % 48u == 0) {
+                for (uint32_t k = 0; k < NPART; k++) trk_note_on(&trk[k], 48 + 7 * k, 110);
+                drum_on(36, 110);
+            }
+            if (b % 48u == 30)
+                for (uint32_t k = 0; k < NPART; k++) trk_note_off(&trk[k], 48 + 7 * k);
+            const int32_t *f = block(out);
+            assert(b < NB || (f == track_capture && !ua_mst_live));
+            for (uint32_t i = 0; i < CTL * UA_CAP_CHANNELS; i++) {
+                if (!pass)
+                    refs[b][i] = f[i];
+                else
+                    assert(refs[b][i] == f[i]);           /* the capture: the knob's position nowhere in it */
+                if (b < NB && i % UA_CAP_CHANNELS < 2u)
+                    em += (int64_t)f[i] * f[i];
+                else
+                    es += (int64_t)f[i] * f[i];
+            }
+            for (uint32_t i = 0; i < CTL * 2 && b >= 2u; i++)   /* (after LIMIT's lookahead: 64 samples of before) */
+                eo[pass] += (int64_t)out[i] * out[i];
+        }
+        assert(em && es);
+        _exit(0);
+    }
+    assert(eo[0] > 0 && eo[1] == 0 && eo[2] > 0 && eo[2] < eo[0]);   /* the FM-1's own output: the knob's (0: silence) */
+    munmap(refs, 2u * NB * sizeof *refs);
+    munmap(eo, 3u * sizeof *eo);
+}
+
 /* the choice and its names */
 static void test_setting(void)
 {
@@ -376,9 +439,9 @@ static void test_setting(void)
     assert(ua_dst[UAS_T1] == UAD_1 && ua_ident);
     ua_dst[UAS_MAIN] = UAD_34;
     ua_dst_step(UAS_MAIN, 1);
-    assert(ua_dst[UAS_MAIN] == UAD_34);
+    assert(ua_dst[UAS_MAIN] == UAD_34 && ua_mst_on);        /* (MASTER routed: the bus tapped before the volume) */
     ua_dst_step(UAS_MAIN, 0);
-    assert(ua_dst[UAS_MAIN] == UAD_NONE && ua_ident);      /* YES goes round */
+    assert(ua_dst[UAS_MAIN] == UAD_NONE && ua_ident && !ua_mst_on);   /* YES goes round */
     ua_dst[UAS_T3] = 200;
     ua_route_apply();
     assert(ua_dst[UAS_T3] == UAD_3);                       /* out of range: the default */
@@ -408,6 +471,7 @@ int main(void)
     test_returns();                                       /* (first: the buses' lines still clear, no tail of another test's) */
     test_sources();
     test_returns_mix();
+    test_master_knob();
     test_lanes(0, 0, 0);                                  /* the sampled kit */
     test_lanes(DRUM_SAMPLED, 0, 0);                       /* a synthesised one */
 #if DINS
