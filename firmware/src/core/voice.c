@@ -964,15 +964,14 @@ static void trk_note_on(track_t *t, uint32_t note, uint32_t vel)
  * engine that allocates its own voices (FM6), a track not ready to play: not here (-> 0, the note starts as ever) */
 static __attribute__((noinline)) int trk_note_glide(track_t *t, uint32_t from, uint32_t to, uint32_t vel)
 {
-    uint32_t i, np = trk_nvoice(t);
+    uint32_t i;
     const engine_t *e = ENGINES[t->engine];
-    if (T_SILENT(t) || trk_silent(t) || e->alloc || t->xf_on || t->eng_req != t->engine || t->pold || PART_MOVING(t))
+    if (e->alloc || t->xf_on || t->eng_req != t->engine)   /* (a voice gated: the track plays; an engine switch: after it) */
         return 0;
-    for (i = 0; i < np; i++) {
+    for (i = 0; i < NVOICE; i++) {                      /* (past the voice count: none gated) */
         voice_t *v = &t->v[i];
         if (!v->active || !v->gate || v->note != from)
             continue;
-        trk_hits |= (uint8_t)(1u << (uint32_t)(t - trk));
         v->note = (uint8_t)to;
         v->pitch16 = (int32_t)to * 16;
         if (vel > v->vel || e->legato)
