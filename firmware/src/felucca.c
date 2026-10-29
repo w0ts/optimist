@@ -116,10 +116,6 @@ static uint8_t live_save_off;            /* an erase held the audio (no suspend)
 #ifndef FELUCCA_BT_AUDIO
 #define FELUCCA_BT_AUDIO 0
 #endif
-#ifndef FELUCCA_BT_DIAG
-#define FELUCCA_BT_DIAG 0        /* with BT_AUDIO: the Classic stack's counters, trace and logs, btrx / bttrace, the live
-                                  * btpage pll= / agc= / follow= (bt/bt_inq.c, bt_page.c): a console debug build's */
-#endif
 #define FELUCCA_BT_UI (FELUCCA_BLE || FELUCCA_BT_AUDIO)   /* SYSTEM > Bluetooth: with either; it shows what is built (op_bt.c) */
 #define MIR_BLE (FELUCCA_ED_MIRROR && FELUCCA_BLE && FELUCCA_OTA && FELUCCA_EDITOR)   /* the screen mirrored over Bluetooth too (io/editor/ed_mirror.c) */
 #define MBR_PROJ (MIR_BLE && FELUCCA_BT_PROJ && FELUCCA_FLASH && FELUCCA_BACKUP && FELUCCA_PATTERNS)   /* the projects' moves

@@ -45,17 +45,6 @@ static struct {
     uint32_t mq_hi, mq_busy;                       /* the queue's deepest this second; audio waiting with both TX
                                                     * buffers still held by the engine (its retransmissions) */
     uint8_t name_done;                             /* the device's name read whole (or refused): the pairing may start */
-    uint16_t st_v[6];                              /* this second's rxstat values (TYPE masked off) and their counts: */
-    uint32_t st_n[6], st_more, flow0;              /* which of the unknown bits (§5.4, U6) move while the stream backs
-                                                    * up (the XM4 crackles, 2026-10-21); flow0: ACL payloads FLOW 0 */
-    uint32_t rs_sum, rs_n, rs_min, rs_max;         /* this second's RSSI1 (BR §4) at each reception: the gain set at the
-                                                    * page stays for the link (bti_agc_follow runs in bti_page_rx only) */
-    uint8_t agc_follow;                            /* `btpage follow=1`: bti_agc_follow at each reception of the link */
-    uint32_t rb_sum, rb_n, rb_min, rb_max;         /* this second's rxbit (BR §4) of the good receptions: where in our
-                                                    * window the device's answers land (timing drift? the XM4, 2026-10-21) */
-    uint32_t g10, g50, g200, gmax;                 /* this second's gaps between good receptions over 10 / 50 / 200 ms and
-                                                    * the longest, ms: the XM4 silent in bursts, or losing packets at
-                                                    * random? (logs/drop-2026-10-21.log: last_good_ms 50-250 while bad) */
     uint16_t ch_good[80], ch_sec;                  /* good receptions per RF channel (rxfreq & 0x7F; [79] out of range)
                                                     * since the last assessment (every BP_CH_SEC s, bp_sec_tick): the
                                                     * channels the device fails on leave the hopping (bt_afh.c); the
@@ -221,8 +210,6 @@ static void bp_page_rx(void)                       /* BR §8.3 "On IRQ 40 RX" (t
     if (clkn == bti.last_rx_clkn)
         return;
     bti.last_rx_clkn = clkn;
-    bti_count(bti_st.rs_key, bti_st.rs_n, &bti_st.rs_other, stat);
-    bti_rxlog(idx, stat);
     if ((stat >> 8) == 0x8Fu)
         bti_agc_follow(f);
     if ((stat & 15u) != 0)
@@ -263,43 +250,13 @@ static void bp_page_rx(void)                       /* BR §8.3 "On IRQ 40 RX" (t
 }
 
 static void bp_tx_media(struct fm1_br_frame *f);
-static void bp_stat_note(uint32_t stat)            /* IRQ 40: one rxstat into this second's table (bp_status) */
-{
-    uint32_t v = stat & 0xFFF0u, k;
-    if (!FELUCCA_BT_DIAG)
-        return;
-    for (k = 0; k < 6u; k++) {
-        if (bp.st_n[k] && bp.st_v[k] == v) {
-            bp.st_n[k]++;
-            return;
-        }
-        if (!bp.st_n[k]) {
-            bp.st_v[k] = (uint16_t)v;
-            bp.st_n[k] = 1;
-            return;
-        }
-    }
-    bp.st_more++;
-}
-
-static void bp_good_note(const struct fm1_br_frame *f)   /* IRQ 40: a good reception's RF channel (and, BT_DIAG, its gap) */
+static void bp_good_note(const struct fm1_br_frame *f)   /* IRQ 40: a good reception's RF channel */
 {
     uint32_t c = f->rxfreq & 0x7Fu;
     if (c > 78u)
         c = 79u;
     if (bp.ch_good[c] < 0xFFFFu)
         bp.ch_good[c]++;
-    if (FELUCCA_BT_DIAG) {
-        uint32_t d = fm1_ms - bp.last_good_ms;
-        if (d > 10u)
-            bp.g10++;
-        if (d > 50u)
-            bp.g50++;
-        if (d > 200u)
-            bp.g200++;
-        if (d > bp.gmax)
-            bp.gmax = d;
-    }
 }
 static void bp_conn_rx(void)                       /* a packet in the connection: both buffers, the filled first */
 {
@@ -315,24 +272,11 @@ static void bp_conn_rx(void)                       /* a packet in the connection
 #if FELUCCA_BT_AUDIO
         bp_noise = bp_noise * 0x9E3779B1u + (stat ^ (uint32_t)f->rx_clkn_lo << 8 ^ f->rxbit);   /* (the randomness: bp_rng) */
 #endif
-        bti_rxlog(i, stat);
-        bp_stat_note(stat);
-        if (FELUCCA_BT_DIAG && llid && !(hdr & 4u))
-            bp.flow0++;
         bp.type_n[type]++;
         if ((stat >> 8) == 0x8Fu) {
             bp.good++;
             bp_good_note(f);
             bp.last_good_ms = fm1_ms;
-            if (FELUCCA_BT_DIAG) {
-                uint32_t b = f->rxbit & 0x3FFu;
-                bp.rb_sum += b;
-                bp.rb_n++;
-                if (b < bp.rb_min)
-                    bp.rb_min = b;
-                if (b > bp.rb_max)
-                    bp.rb_max = b;
-            }
             if (llid == 3u && len >= 1u && len <= BTL_MAX)
                 bp_event(BTI_K_LMP, i, stat, bti_tab + (i ? BP_OFF_RX1 : BP_OFF_RX0), len);
             else if (len && llid) {
@@ -349,24 +293,12 @@ static void bp_conn_rx(void)                       /* a packet in the connection
     if (!any) {                                    /* (a NULL / POLL may fill no buffer: its status still counts) */
         uint32_t stat = f->rxstat[(f->rxtog & 1u) ^ 1u];
         bp.nobuf++;
-        bp_stat_note(stat);
         bp.type_n[stat & 15u]++;
         if ((stat >> 8) == 0x8Fu) {
             bp.good++;
             bp_good_note(f);
             bp.last_good_ms = fm1_ms;
         }
-    }
-    if (FELUCCA_BT_DIAG) {
-        uint32_t r = f->rssi[1];
-        bp.rs_sum += r;
-        bp.rs_n++;
-        if (r < bp.rs_min)
-            bp.rs_min = r;
-        if (r > bp.rs_max)
-            bp.rs_max = r;
-        if (bp.agc_follow)
-            bti_agc_follow(f);
     }
     bp_tx_media(f);                                /* (the stream's next packets at once, not at the main loop's pace) */
 }
@@ -647,119 +579,6 @@ static void bp_print_rx(const struct bti_rx *r)   /* bti_print_rx's page / conne
     }
 }
 
-#if FELUCCA_CDC && FELUCCA_BT_DIAG
-static void bp_print_sec(void)
-{
-    uint32_t i;
-    con_puts("btpage: 1s ");
-    if (bti.mode == BTI_M_PAGE) {
-        bti_kv("paging sub=", bp.sub);
-        bti_kv(" ids=", bp.page_ids);
-        bti_kv(" fhs_acked=", bp.fhs_acked);
-        bti_kv(" rx=", bti_st.rx_irqs);
-        con_puts(" pll=");
-        con_dec(bti.pll_now);
-        con_puts(" train=");
-        con_putc(bti.train ? 'B' : 'A');
-    } else {
-        bti_kv("connected ", (fm1_ms - bp.conn_ms) / 1000u);
-        bti_kv(" s good=", bp.good);
-        bti_kv(" bad=", bp.bad);
-        bti_kv(" nobuf=", bp.nobuf);
-        bti_kv(" acl=", bp.acl);
-        bti_kv(" lmp in=", bp.lmp_in);
-        bti_kv(" out=", bp.lmp_out);
-        bti_kv(" q=", bp.txw - bp.txr);
-        bti_kv(" ring_drop=", bti_st.dropped);     /* (received, acknowledged, lost before the main loop read them) */
-        bti_kv(" last_good_ms=", fm1_ms - bp.last_good_ms);
-        if (bp.mq_sent || bp.mq_drop) {
-            bti_kv(" audio_sent=", bp.mq_sent);                /* (DH5 packets of the stream; dropped whole: the queue full) */
-            bti_kv(" audio_drop=", bp.mq_drop);
-            bti_kv(" mq_hi=", bp.mq_hi);                       /* (this second's deepest queue, of BP_MQ) */
-            bti_kv(" mq_busy=", bp.mq_busy);
-            bp.mq_hi = 0;
-        }
-#if FELUCCA_BT_DIAG
-        bti_kv(" flow0=", bp.flow0);
-        {
-            uint32_t used = 0;
-            for (i = 0; i < 79u; i++)
-                used += bt_afh_used(bp.afh_map, i);
-            bti_kv(" afh=", used);                 /* (the hop set's channels of 79; switches so far; a switch due) */
-            bti_kv("/", bp.afh_switches);
-            con_puts(bp.afh_pending ? "p" : "");
-        }
-        con_puts(" pll=");
-        con_dec(bti.pll_now);
-        {
-            uint32_t sum, n, lo, hi;
-            fm1_br_irqs_hold(1);
-            sum = bp.rs_sum, n = bp.rs_n, lo = bp.rs_min, hi = bp.rs_max;
-            bp.rs_sum = bp.rs_n = bp.rs_max = 0;
-            bp.rs_min = 0xFFFFFFFFu;
-            fm1_br_irqs_hold(0);
-            bti_kv(" agc=", bti.agc);
-            con_puts(bp.agc_follow ? "f" : "");
-            if (n) {
-                bti_kv(" rssi=", lo);
-                bti_kv("/", sum / n);
-                bti_kv("/", hi);
-            }
-            fm1_br_irqs_hold(1);
-            sum = bp.rb_sum, n = bp.rb_n, lo = bp.rb_min, hi = bp.rb_max;
-            bp.rb_sum = bp.rb_n = bp.rb_max = 0;
-            bp.rb_min = 0xFFFFFFFFu;
-            fm1_br_irqs_hold(0);
-            if (n) {
-                bti_kv(" rxbit=", lo);
-                bti_kv("/", (sum * 10u / n) / 10u);
-                bti_kv(".", (sum * 10u / n) % 10u);
-                bti_kv("/", hi);
-            }
-            fm1_br_irqs_hold(1);
-            sum = bp.g10, n = bp.g50, lo = bp.g200, hi = bp.gmax;
-            bp.g10 = bp.g50 = bp.g200 = bp.gmax = 0;
-            fm1_br_irqs_hold(0);
-            bti_kv(" gaps>10/50/200=", sum);   /* (this second's gaps between good receptions; gmax the longest, ms) */
-            bti_kv("/", n);
-            bti_kv("/", lo);
-            bti_kv(" gmax=", hi);
-        }
-        {
-            uint16_t sv[6];
-            uint32_t sn[6], more;
-            fm1_br_irqs_hold(1);                   /* (a copy, then cleared: IRQ 40 is held only for that) */
-            for (i = 0; i < 6u; i++) {
-                sv[i] = bp.st_v[i], sn[i] = bp.st_n[i];
-                bp.st_n[i] = 0;
-            }
-            more = bp.st_more;
-            bp.st_more = 0;
-            fm1_br_irqs_hold(0);
-            con_puts(" st{");                      /* (this second: rxstat & 0xFFF0 : count) */
-            for (i = 0; i < 6u && sn[i]; i++) {
-                con_hex(sv[i], 4);
-                bti_kv(":", sn[i]);
-                con_putc(' ');
-            }
-            if (more)
-                bti_kv("more:", more);
-            con_puts("}");
-        }
-#endif
-        con_puts(" types{");
-        for (i = 0; i < 16u; i++)
-            if (bp.type_n[i]) {
-                con_puts(bp_type_name[i]);
-                bti_kv(":", bp.type_n[i]);
-                con_putc(' ');
-            }
-        con_puts("}");
-    }
-    con_puts("\r\n");
-}
-
-#endif
 static void bp_afh_send(uint32_t on)               /* the hop set to the engine's AFH table and map, LMP_set_AFH to the
                                                     * device with the switch's instant (bp_alarm switches there) */
 {
@@ -805,15 +624,6 @@ static void bp_sec_tick(void)                      /* the main loop, once a seco
     ch[79] = bp.ch_good[79];
     bp.ch_good[79] = 0;
     fm1_br_irqs_hold(0);
-#if FELUCCA_CDC && FELUCCA_BT_DIAG
-    con_puts("btpage: ch{");                       /* the answers per RF channel 0..78, then the out-of-range */
-    for (i = 0; i < 79u; i++) {
-        con_dec(ch[i]);
-        con_putc(' ');
-    }
-    bti_kv("| ", ch[79]);
-    con_puts("}\r\n");
-#endif
     bp_afh_assess(ch);
 }
 static void bp_poll(void)                          /* the main loop, page / connection modes */
@@ -836,35 +646,70 @@ static void bp_poll(void)                          /* the main loop, page / conn
     }
 }
 
-#if FELUCCA_CDC && FELUCCA_BT_DIAG
-static int bp_parse_addr(const char **p, uint8_t a[6])   /* "AA:BB:CC:DD:EE:FF" (NAP:UAP:LAP, as printed) */
+static int bp_start(const uint8_t addr[6], uint32_t slots)
 {
-    const char *s = *p;
-    uint32_t i, k, v;
-    while (*s == ' ')
-        s++;
-    for (i = 0; i < 6u; i++) {
-        v = 0;
-        for (k = 0; k < 2u; k++, s++) {
-            char c = *s;
-            if (c >= '0' && c <= '9')
-                v = v << 4 | (uint32_t)(c - '0');
-            else if (c >= 'a' && c <= 'f')
-                v = v << 4 | (uint32_t)(c - 'a' + 10);
-            else if (c >= 'A' && c <= 'F')
-                v = v << 4 | (uint32_t)(c - 'A' + 10);
-            else
-                return 0;
-        }
-        a[5u - i] = (uint8_t)v;
-        if (i < 5u && *s++ != ':')
-            return 0;
+    struct fm1_br_frame *f = fm1_br_frame(bti_tab, 0);
+    struct bti_fhs fh;
+    uint32_t i, lap;
+    int32_t est;
+    if (!bti_prepare(BTI_M_PAGE))
+        return 0;
+    for (i = 0; i < 6u; i++)
+        bp.remote[i] = addr[i];
+    lap = addr[0] | (uint32_t)addr[1] << 8 | (uint32_t)addr[2] << 16;
+    bti_parity(lap, bp.rbch);
+    bti_own_addr();
+    bti_parity(bti.own[0] | (uint32_t)bti.own[1] << 8 | (uint32_t)bti.own[2] << 16, bp.obch);
+    bp.have_est = (uint8_t)(!bti.o_noclk && bti_seen_clk(addr, &est));
+    /* the estimate + 1 (padj=N adds more): the inquiry hears the FHS in our odd RX slot and the FHS clock lacks CLK1,
+     * so remote CLK - our CLKN comes out one short (probe 4g: +1 connected at once; +0, +2, -2, +4 got the FHS through
+     * but never the POLL answered); the exchange entries follow its parity (bp_xchg) */
+    bp.est = bp.have_est ? est + 1 + bti.o_padj : bti.o_padj;                /* the exact estimate; the exchange entries follow its parity (bp_xchg) */
+    for (i = 0; i < 6u; i++)
+        fh.addr[i] = bti.own[i];
+    fh.eir = 0, fh.sr = 1, fh.cod = BP_COD, fh.lt_addr = BP_LT_ADDR, fh.clk = 0, fh.psm = 0;
+    bti_fhs_build(&fh, bti_tab + BP_OFF_FHS);
+    f->lmprxptr[0] = FM1_BR_OFF_FHS;
+    f->lmprxptr[1] = FM1_BR_OFF_FHS;
+    f->rxptr[0] = FM1_BR_OFF_FHS;
+    f->rxptr[1] = FM1_BR_OFF_FHS;
+    bp.page_ids = bp.fhs_acked = bp.good = bp.bad = bp.nobuf = bp.acl = bp.lmp_in = bp.lmp_out = 0;
+    bp.setup_out = bp.setup_in = bp.stopping = 0;
+    bp.slots5 = 0;
+    bp.name_done = 0;
+    bp.mq_drop = bp.mq_sent = bp.mq_hi = bp.mq_busy = 0;
+    bp.ch_sec = 0;
+    fm1_br_irqs_hold(1);
+    for (i = 0; i < 79u; i++) {                    /* by RF channel: rxfreq is the hop index (0-39 the even channels,
+                                                    * 40-78 the odd; frq_table[0], BR §7) */
+        ch[i < 40u ? 2u * i : 2u * (i - 40u) + 1u] = bp.ch_good[i];
+        bp.ch_good[i] = 0;
     }
-    *p = s;
-    return 1;
+    ch[79] = bp.ch_good[79];
+    bp.ch_good[79] = 0;
+    fm1_br_irqs_hold(0);
+    bp_afh_assess(ch);
+}
+static void bp_poll(void)                          /* the main loop, page / connection modes */
+{
+    bp_tx_service();
+    ba_poll();
+    if (bti.mode == BTI_M_CONN && bti_st.phase == BTI_INQ_RUN) {
+        if ((int32_t)(fm1_ms - bp.last_good_ms) > (int32_t)BP_SUPERVISION_MS) {   /* signed: IRQ 40 can store a
+            * last_good_ms newer than the fm1_ms read here (unsigned, that was 0xFFFFFFFF: a healthy link cut, the user
+            * 2026-10-21 "sometimes the BT disconnects", logs/drop-2026-10-21.log: lost at 150 s, last_good_ms=1) */
+            con_puts("btpage: no good packet for 4 s: the link is lost\r\n");
+            fm1_br_irqs_hold(1);
+            bti_run_stop();
+            fm1_br_irqs_hold(0);
+        } else if (bp.stopping && fm1_ms - bp.stop_ms > 300u) {
+            fm1_br_irqs_hold(1);
+            bti_run_stop();
+            fm1_br_irqs_hold(0);
+        }
+    }
 }
 
-#endif
 static int bp_start(const uint8_t addr[6], uint32_t slots)
 {
     struct fm1_br_frame *f = fm1_br_frame(bti_tab, 0);
@@ -909,7 +754,7 @@ static int bp_start(const uint8_t addr[6], uint32_t slots)
     for (i = 0; i < 9u; i++)
         bp.afh_map[i] = 0xFFu;                     /* (a new link hops over all 79: the device's holes measured again) */
     bp.afh_map[9] = 0x7Fu;
-    bp.afh_on = !FELUCCA_BT_DIAG;   /* (a diagnostics build switches only when told: btpage afh=) */
+    bp.afh_on = 1;
     bp.afh_pending = 0;
     bp.afh_switches = 0;
     bp_mq.r = bp_mq.w;                            /* (a new link: no audio queued) */
@@ -944,103 +789,3 @@ static void bp_leave(void)
     }
 }
 
-#if FELUCCA_CDC && FELUCCA_BT_DIAG
-static void con_btpage(const char *p)
-{
-    uint8_t a[6];
-    uint32_t s = 10u;
-#if FELUCCA_BT_DIAG
-    int32_t v;
-    uint32_t i;
-#endif
-    if (con_word(&p, "stop")) {
-        bp_leave();
-        return;
-    }
-#if FELUCCA_BT_DIAG
-    if (bti_opt_num(&p, "pll", &v)) {             /* the carrier offset now, in a running link (the sweep's pick stays
-                                                    * for the whole link, bti_page_rx: does it drift? the XM4, 2026-10-21) */
-        con_puts("btpage: pll ");
-        con_dec(bti.pll_now);
-        bti_pll(v < -1000 ? -1000 : v > 1000 ? 1000 : v);
-        con_puts(" -> ");
-        con_dec(bti.pll_now);
-        con_puts("\r\n");
-        return;
-    }
-    if (bti_opt_num(&p, "agc", &v)) {             /* the receive gain now, fixed (0..15), in a running link */
-        struct fm1_br_frame *f = fm1_br_frame(bti_tab, 0);
-        bti_kv("btpage: agc ", bti.agc);
-        bti.agc = (uint8_t)(v < 0 ? 0 : v > 15 ? 15 : v);
-        bp.agc_follow = 0;
-        f->rxgain0 = bti.agc;
-        bti_kv(" -> ", bti.agc);
-        con_puts("\r\n");
-        return;
-    }
-    if (bti_opt_num(&p, "follow", &v)) {          /* the gain following RSSI1 at each reception of the link (as paging) */
-        bp.agc_follow = v != 0;
-        con_puts(bp.agc_follow ? "btpage: agc follows\r\n" : "btpage: agc fixed\r\n");
-        return;
-    }
-    if (bti_opt_num(&p, "afh", &v)) {             /* AFH in the running link (a diagnostics build switches only when
-                                                    * told, bp_start): 0 off (all 79 again), 1 on (the map as assessed,
-                                                    * the switch at once), 3 the map reset to all 79 then on (the
-                                                    * mechanics alone: the hopping stays the basic one), 6 hop table 1
-                                                    * selected alone with all 79 (no LMP: the same test without the device) */
-        if (bti.mode != BTI_M_CONN || bp.afh_pending) {
-            con_puts("btpage: afh: no link, or a switch under way\r\n");
-            return;
-        }
-        if (v == 3) {
-            for (i = 0; i < 9u; i++)
-                bp.afh_map[i] = 0xFFu;
-            bp.afh_map[9] = 0x7Fu;
-        }
-        if (v == 6) {
-            uint8_t all[10];
-            uint32_t words[3];
-            struct fm1_br_frame *fr = fm1_br_frame(bti_tab, 0);
-            for (i = 0; i < 9u; i++)
-                all[i] = 0xFFu;
-            all[9] = 0x7Fu;
-            (void)bt_afh_table(all, bti_tab + FM1_BR_OFF_FRQ + 80u, words);
-            fm1_br_afh_map(0, words);
-            fr->miscntl = (uint8_t)((fr->miscntl & 0x3Fu) | 1u << 6);
-            fr->format = (uint8_t)(fr->format | 0x40u);
-        } else if (v == 0)
-            bp_afh_send(0);
-        else {
-            bp.afh_on = 1;
-            bp_afh_send(1);
-        }
-        bti_kv("btpage: afh ", (uint32_t)v);
-        bti_kv(" at slot ", bp.afh_at);
-        con_puts("\r\n");
-        return;
-    }
-#endif
-    if (!bp_parse_addr(&p, a)) {
-        con_puts("btpage AA:BB:CC:DD:EE:FF [SECONDS] [OPTIONS] | stop\r\n");
-        return;
-    }
-    bti_opts(p, &s);
-    if (!bp_start(a, s * 1600u)) {
-        con_puts("btpage: not started (busy, or no RF trims: 'btclk')\r\n");
-        return;
-    }
-    con_puts("btpage: paging ");
-    bti_addr(a);
-    bti_kv(" for ", s * 1000u);
-    con_puts(" ms (the link then stays up until 'btpage stop' or lost) as ");
-    bti_addr(bti.own);
-    if (bp.have_est) {
-        con_puts(", clock offset from the last inquiry ");
-        con_dec(bp.est);
-    } else {
-        con_puts(", no clock estimate (not in the last inquiry): both trains");
-    }
-    bti_opts_print();
-    con_puts("\r\n");
-}
-#endif
