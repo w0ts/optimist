@@ -56,10 +56,15 @@ static int32_t ua_ret[3][2][CTL] __attribute__((section(".pool")));   /* a line'
 AINL void ua_ret_block(uint32_t on, const uint8_t *ln, uint32_t lnl, uint32_t n)
 {
     uint32_t k, j, i, live = 0;
+    if (!on || !ua_ret_on) {                            /* (none routed, or not taken: no tap, nothing to look at) */
+        ua_ret_live = 0;
+        ua_ret_ln[0] = ua_ret_ln[1] = ua_ret_ln[2] = 0xFF;
+        return;
+    }
     for (k = 0; k < 3u; k++) {
         j = ln[k];
         ua_ret_ln[k] = 0xFF;
-        if (on && (ua_ret_on >> k & 1u) && j < 3u && (lnl >> j & 1u)) {
+        if ((ua_ret_on >> k & 1u) && j < 3u && (lnl >> j & 1u)) {
             ua_ret_ln[k] = (uint8_t)j, live |= 1u << j;
             for (i = 0; i < n; i++)
                 ua_ret[j][0][i] = ua_ret[j][1][i] = 0;
@@ -68,21 +73,21 @@ AINL void ua_ret_block(uint32_t on, const uint8_t *ln, uint32_t lnl, uint32_t n)
     ua_ret_live = (uint8_t)live;
 }
 /* a stage of line j (fx.c): what it adds to l / r is its output. ua_ret_sub before it, ua_ret_add after it (or add alone
- * for a stage that writes l / r whole: the chorus) */
-AINL void ua_ret_sub(uint32_t j, const int32_t *l, const int32_t *r, uint32_t n)
+ * for a stage that writes l / r whole: the chorus). The test inline, the loop a call (HOT2: from the audio's RAM code),
+ * so the stages' own code is as it was while no return is routed */
+static HOT2 __attribute__((noinline)) void ua_ret_acc(uint32_t j, const int32_t *l, const int32_t *r, uint32_t n, int32_t sg)
 {
+    int32_t *a = ua_ret[j % 3u][0], *b = ua_ret[j % 3u][1];
     uint32_t i;
-    if (ua_ret_live >> j & 1u)
+    if (sg < 0)
         for (i = 0; i < n; i++)
-            ua_ret[j][0][i] -= l[i], ua_ret[j][1][i] -= r[i];
-}
-AINL void ua_ret_add(uint32_t j, const int32_t *l, const int32_t *r, uint32_t n)
-{
-    uint32_t i;
-    if (ua_ret_live >> j & 1u)
+            a[i] -= l[i], b[i] -= r[i];
+    else
         for (i = 0; i < n; i++)
-            ua_ret[j][0][i] += l[i], ua_ret[j][1][i] += r[i];
+            a[i] += l[i], b[i] += r[i];
 }
+#define ua_ret_sub(j, l, r, n) do { if (ua_ret_live >> (j) & 1u) ua_ret_acc(j, l, r, n, -1); } while (0)
+#define ua_ret_add(j, l, r, n) do { if (ua_ret_live >> (j) & 1u) ua_ret_acc(j, l, r, n, 1); } while (0)
 
 /* lane ln's samples i0..i1 of b (its voice's, drum_sends.c dsend_buf) added to its channels, when it is routed */
 AINL void dlt_add(uint32_t ln, const int32_t *b, uint32_t i0, uint32_t i1)
