@@ -646,10 +646,10 @@ static void test_gatt(void)
     check("characteristics: MIDI I/O (read, write w/o rsp, notify) at 14; CCCDs at 11 and 15",
           ok && midi_val == 14 && midi_ccc == 15 && sc_ccc == 11);
     r = c_att((const uint8_t[]){0x0A, 3, 0}, 3, &n);
-    check("Read Device Name: Optimist 2211, the advertised name", r && r[0] == 0x0B && n == 14 && !memcmp(r + 1, "Optimist 2211", 13));
+    check("Read Device Name: FM1-2211, the advertised name", r && r[0] == 0x0B && n == 9 && !memcmp(r + 1, "FM1-2211", 8));
+    r = c_att((const uint8_t[]){0x0C, 3, 0, 4, 0}, 5, &n);
+    check("Read Blob at 4: 2211", r && r[0] == 0x0D && n == 5 && !memcmp(r + 1, "2211", 4));
     r = c_att((const uint8_t[]){0x0C, 3, 0, 9, 0}, 5, &n);
-    check("Read Blob at 9: 2211", r && r[0] == 0x0D && n == 5 && !memcmp(r + 1, "2211", 4));
-    r = c_att((const uint8_t[]){0x0C, 3, 0, 14, 0}, 5, &n);
     check("Read Blob past the end: Invalid Offset", r && r[0] == 0x01 && r[4] == 0x07);
     r = c_att((const uint8_t[]){0x0A, 14, 0}, 3, &n);
     check("Read MIDI I/O: empty", r && r[0] == 0x0B && n == 1);
@@ -658,7 +658,7 @@ static void test_gatt(void)
     r = c_att((const uint8_t[]){0x0A, 16, 0}, 3, &n);
     check("Read handle 16: Invalid Handle", r && r[0] == 0x01 && r[2] == 16 && r[4] == 0x01);
     r = c_att((const uint8_t[]){0x08, 1, 0, 0xFF, 0xFF, 0x00, 0x2A}, 7, &n);
-    check("Read By Type 0x2A00 (name by UUID)", r && r[0] == 0x09 && r[1] == 15 && r[2] == 3 && !memcmp(r + 4, "Optimist 2211", 13));
+    check("Read By Type 0x2A00 (name by UUID)", r && r[0] == 0x09 && r[1] == 10 && r[2] == 3 && !memcmp(r + 4, "FM1-2211", 8));
     r = c_att((const uint8_t[]){0x08, 1, 0, 0xFF, 0xFF, 0xFB, 0x34, 0x9B, 0x5F, 0x80, 0, 0, 0x80, 0, 0x10, 0, 0, 0x04,
                               0x2A, 0, 0}, 21, &n);
     check("Read By Type with a 128-bit base UUID (PPCP): 6, 9, 0, 100",
