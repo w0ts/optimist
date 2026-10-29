@@ -1352,22 +1352,6 @@
     "ramtext": -84
    }
   },
-  "DUAL": {
-   "0": {
-    "flash": -3988,
-    "ram": -3868,
-    "pool": -6144,
-    "ramtext": -932
-   }
-  },
-  "STOCK_SUPPLY": {
-   "0": {
-    "flash": -516,
-    "ram": -16,
-    "pool": 0,
-    "ramtext": 0
-   }
-  },
   "BLE": {
    "1": {
     "flash": 30920,
@@ -2472,7 +2456,6 @@
     "LIVE_SAVE": 1,
     "CPU_GUARD": 1,
     "CACHE_RAM": 2,
-    "DUAL": 0,
     "BLE": 1,
     "BLE_DIAG": 1,
     "BLE_BOND": 1,
@@ -2857,7 +2840,6 @@
     "LIVE_SAVE": 1,
     "CPU_GUARD": 1,
     "CACHE_RAM": 2,
-    "DUAL": 0,
     "BT_AUDIO": 1,
     "CHANCE": 1,
     "KEYLIT": 0,
@@ -3280,7 +3262,6 @@
     "LIVE_SAVE": 1,
     "CPU_GUARD": 1,
     "CACHE_RAM": 2,
-    "DUAL": 0,
     "BLE": 1,
     "BLE_DIAG": 1,
     "BLE_BOND": 1,
@@ -3340,12 +3321,6 @@
    "ram": 0,
    "pool": 0,
    "ramtext": -20
-  },
-  "DUAL=0,USB_CONSOLE=1": {
-   "flash": -2452,
-   "ram": -104,
-   "pool": 0,
-   "ramtext": 0
   },
   "REV_PLATE=1,REV_FDN8=1,SPRING=0": {
    "flash": -864,
@@ -3592,12 +3567,6 @@
    "ram": 1136,
    "pool": 24,
    "ramtext": 636
-  },
-  "REV_FDN8=1,DUAL=0": {
-   "flash": -120,
-   "ram": 1008,
-   "pool": 0,
-   "ramtext": -1008
   },
   "SEQTOOLS=1,ED_SEQ=0": {
    "flash": -352,

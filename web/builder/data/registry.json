@@ -5108,81 +5108,6 @@
     "provenance_line": ""
    },
    {
-    "key": "DUAL",
-    "flag": "FELUCCA_DUAL",
-    "label": "second CPU core renders parts 2-3",
-    "group": "System",
-    "bit": 58,
-    "default": 2,
-    "parent": null,
-    "desc": "The FM-1's second CPU core renders synth parts 2 and 3 while the first renders the rest, cutting the first core's load by 40 to 44 % in the emulator, with the same sound. It costs about 3.3 KB of flash, 3.7 KB of RAM and 6 KB of pool. On some FM-1s the second core misreads RAM at the boot loader's supply: it then runs nothing it misread, is held for the session and the FM-1 goes on with one core (the message CPU1 OFF MISREAD); a boot after one that crashed in its first 30 s stays on one core.",
-    "experimental": false,
-    "notice": "Its guard against misread RAM is ported from X0X by Charles Vestal (GPL-3.0): the second core runs only the next job, with a matching check word, and is held at the first one it refuses.",
-    "off_warning": "",
-    "env": "",
-    "target_only": true,
-    "symbols": [],
-    "no_image": false,
-    "fixed": false,
-    "head": false,
-    "choices": [
-     [
-      0,
-      "off"
-     ],
-     [
-      2,
-      "on"
-     ]
-    ],
-    "provenance": {
-     "project": "X0X (charlesvestal/fm1-x0x)",
-     "author": "Charles Vestal",
-     "licence": "GPL-3.0-only",
-     "commit": "47f8e4c",
-     "url": "https://github.com/charlesvestal/fm1-x0x"
-    },
-    "children": [
-     "STOCK_SUPPLY"
-    ],
-    "hidden": false,
-    "shown_under": null,
-    "tested": "on the FM-1: the default since 2026-10-16",
-    "provenance_line": "X0X (charlesvestal/fm1-x0x) @ 47f8e4c by Charles Vestal (GPL-3.0-only)"
-   },
-   {
-    "key": "STOCK_SUPPLY",
-    "flag": "FELUCCA_STOCK_SUPPLY",
-    "label": "raise the core rails to the FM-1's stock values at start-up (for the second core)",
-    "group": "System",
-    "bit": 62,
-    "default": 1,
-    "parent": "DUAL",
-    "desc": "At start-up, before the second core, the audio and Bluetooth, the FM-1's rails are set as its own M-VAVE firmware sets them: the 1.4 V rail moved from its LDO to the DC-DC, then raised to 1.60 V (VDC14 7), then the core rail to 1.38 V (SYSVDD 15), a step at a time, never lowered (the boot loader leaves 1.40 V and 1.26 V). Read back after: if a value is wrong, the second core stays off (2ND CORE OFF SUPPLY) and the FM-1 runs on one core. SYSTEM > INTERNALS shows the rails (SUPPLY). Second-core builds only; it replaces the earlier DUAL_BOOST (1.50 V / 1.38 V on the LDO). On the second core's test unit both cores crashed within seconds at the boot loader's rails and ran 3 x 3 minutes with 1.50 V / 1.38 V; the stock sequence itself is still being measured.",
-    "experimental": false,
-    "notice": "At your own risk: the FM-1's own firmware raises its rails this way, every custom firmware leaves them at the boot loader's lower levels. 1.38 V core and 1.60 V on the 1.4 V rail are above the AC79 datasheet's table (the chip's absolute limits are not public); chips vary from unit to unit; the effect on heat and battery life has not been measured.",
-    "off_warning": "",
-    "env": "",
-    "target_only": true,
-    "symbols": [],
-    "no_image": false,
-    "fixed": false,
-    "head": false,
-    "choices": [],
-    "provenance": {
-     "project": "Melodee (keremimo/melodee)",
-     "author": "Kerem Kilic",
-     "licence": "GPL-3.0-only",
-     "commit": "7a51700",
-     "url": "https://github.com/keremimo/melodee"
-    },
-    "children": [],
-    "hidden": false,
-    "shown_under": null,
-    "tested": "the sequence emulator- and host-tested; 1.50 V / 1.38 V measured on one FM-1 (2026-10-16)",
-    "provenance_line": "Melodee (keremimo/melodee) @ 7a51700 by Kerem Kilic (GPL-3.0-only)"
-   },
-   {
     "key": "BLE",
     "flag": "FELUCCA_BLE",
     "label": "Bluetooth LE MIDI, our own stack",
@@ -6631,7 +6556,6 @@
    "CPU_GUARD",
    "CACHE_RAM",
    "ASM",
-   "DUAL",
    "SL24_SAFE"
   ]
  },
