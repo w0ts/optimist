@@ -31,7 +31,9 @@ static int midi_out_open(void);                 /* the outputs take events (usb.
 #define SYNC_NOW() fm1_ticks()
 #endif
 #define SYNC_PEEK_HALF (50u * 24u)                      /* half the 10 kHz TIMER5 tick, in TIMER4 ticks */
-enum { MSRC_USB = 1, MSRC_TRS = 2, MSRC_BLE = 3, MSRC_LINK = 4 };      /* = G_SYNC USB / TRS; BLE: io/midi/midi_ble.c (SYNC_BLE); LINK: wifi/wifi_link.c (SYNC_LINK) */
+enum { MSRC_USB = 1, MSRC_TRS = 2, MSRC_BLE = 3, MSRC_LINK = 4, MSRC_USBH = 5 };   /* = G_SYNC USB / TRS; BLE: io/midi/midi_ble.c (SYNC_BLE); LINK:
+                                                * wifi/wifi_link.c (SYNC_LINK); USBH: a device on the port while it is a USB host (USB_HOST,
+                                                * the release: fm1-base's; clock_sync.c follows it as the port's, SYNC USB) */
 #ifndef OVL_LOST
 #define OVL_LOST(k) ((void)0)            /* (a unit without the overload monitor, system/overload.h: the driver tests) */
 #endif

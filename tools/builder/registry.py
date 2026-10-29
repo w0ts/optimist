@@ -1444,6 +1444,24 @@ _add("WIFI_AP", "FELUCCA_WIFI_AP", "Wi-Fi AP: the FM-1 as an access point (MODE 
           "tab gets the same. Needs Wi-Fi + Link. Not tested on the device yet (host-tested only): the radio side may need "
           "changes. Off by default. Measured 2026-10-28 on the bt-debug configuration, with and without it (Wi-Fi + Link "
           "on in both): 8.1 KB of flash, no RAM and 1.8 KB of the pool.")
+# USB MIDI host (2026-10-28): fm1-base's (fm1.toml usb_host = true, felucca-bsp's chip/usb_host.c, ported from Melodee
+# with its authors' permission); the release only: Optimist's own firmware has no USB host (core.validate says so).
+# Bit 438 (436 / 437: MEMORY / RAM_PACKED).
+_add("USB_HOST", "FELUCCA_USB_HOST", "USB MIDI host: a USB-MIDI keyboard, controller or synth plugged into the FM-1", M, 438,
+     default=0, experimental=True,
+     tested="host-tested only; USB host IN ran on Melodee, OUT not validated on a device",
+     off_warning="no USB-MIDI keyboard or synth on the FM-1's own USB port (a computer's USB MIDI works as always)",
+     desc="The FM-1's USB port as a MIDI host: a class-compliant USB-MIDI keyboard, controller or synth plugged into "
+          "the FM-1, directly or behind one powered hub. The FM-1 gives the port no power: a powered hub or a powered "
+          "USB adapter is needed. SYSTEM > USB: MODE DEVICE or HOST, and DEVICE, the device's name as it gives it (else "
+          "CONNECTED, NONE, NO MIDI). Its notes play the tracks on their channels as any MIDI input, its clock can be "
+          "followed (CLK IN USB or AUTO), and the FM-1's notes and CLOCK OUT go to it. HOST is the port's only use "
+          "meanwhile: no computer (no USB MIDI to a Mac, no USB audio, no web editor or installer over USB) until MODE "
+          "is DEVICE again or the FM-1 is switched off. HOST is never remembered: the FM-1 always starts as a device, "
+          "so it is never locked out of its computer. The release only (Optimist as an fm1-base app: fm1-base's USB "
+          "host, from Melodee); Optimist's own firmware has none. Off by default. Host-tested only (the host "
+          "simulator's USB device, felucca-bsp's model of the USB controller): USB host input ran on Melodee, output "
+          "is not validated on a device yet.")
 
 for _it in _ITEMS:
     if _it.group == "FX":

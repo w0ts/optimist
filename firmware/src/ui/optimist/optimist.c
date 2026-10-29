@@ -44,6 +44,12 @@
 #else
 #define WIFI_UI 0
 #endif
+#if defined(FELUCCA_USB_HOST) && FELUCCA_USB_HOST && defined(OPT_HAS_USBH)   /* (the release: fm1-base's USB host, the trial's
+                                         * ui/opt_usbh.h defines OPT_HAS_USBH; Optimist's own firmware has none) */
+#define USBH_UI 1                       /* SYSTEM > USB: MODE DEVICE / HOST, the DEVICE line (op_project.c, usbh_*) */
+#else
+#define USBH_UI 0
+#endif
 #include "../colors.c"                  /* the colour language (engine, kit kind; the web editor's too) */
 #if FELUCCA_BRIGHT
 #include "../bright.c"                  /* the backlight level (main.c reads BL_DUTY, project.c bright_boot) */
