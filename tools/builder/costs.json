@@ -1574,14 +1574,6 @@
     "ramtext": 16
    }
   },
-  "SL24_SAFE": {
-   "0": {
-    "flash": -6880,
-    "ram": -80,
-    "pool": 0,
-    "ramtext": 0
-   }
-  },
   "SL24_XSTEP": {
    "1": {
     "flash": 10852,
@@ -1606,34 +1598,10 @@
     "ramtext": 0
    }
   },
-  "SL24_IMPORT": {
-   "0": {
-    "flash": -5140,
-    "ram": -16,
-    "pool": 0,
-    "ramtext": 0
-   }
-  },
   "QCHAIN": {
    "0": {
     "flash": -368,
     "ram": -16,
-    "pool": 0,
-    "ramtext": 0
-   }
-  },
-  "SL24_EXPORT": {
-   "1": {
-    "flash": 4588,
-    "ram": 0,
-    "pool": 0,
-    "ramtext": 0
-   }
-  },
-  "SL24_EDIMPORT": {
-   "1": {
-    "flash": 536,
-    "ram": 16,
     "pool": 0,
     "ramtext": 0
    }
@@ -1723,6 +1691,14 @@
     "flash": 12384,
     "ram": 656,
     "pool": 1200,
+    "ramtext": 0
+   }
+  },
+  "SL24_SAFE": {
+   "0": {
+    "flash": -1736,
+    "ram": -80,
+    "pool": 0,
     "ramtext": 0
    }
   }
@@ -3653,12 +3629,6 @@
    "flash": 13776,
    "ram": 16,
    "pool": 6400,
-   "ramtext": 0
-  },
-  "SL24_SAFE=0,SL24_IMPORT=0": {
-   "flash": 5136,
-   "ram": 16,
-   "pool": 0,
    "ramtext": 0
   },
   "MOTION=1,PLOCK=1": {

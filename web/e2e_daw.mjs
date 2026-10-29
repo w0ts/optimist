@@ -1140,7 +1140,7 @@ const scsRes = await run(`${U} window.confirm = () => true; try {
   r.lane = await until(() => names().includes("ENV") && names().includes("TONE"), 8000);
   r.laneEnv = [...document.querySelectorAll("#scrows .scrow")].find((x) => x.querySelector(".scn").textContent === "ENV").querySelector(".sccards").textContent.replace(/\\s+/g, " ").slice(0, 60);
   seg(0).find((b) => b.textContent === "PROJECT").click();
-  r.project = await until(() => names().join() === "PROJECT,SNAPSHOT,USER,TOOLS,SLOOP", 8000) && names().join();
+  r.project = await until(() => names().join() === "PROJECT,SNAPSHOT,USER,TOOLS", 8000) && names().join();
   r.yes = document.querySelectorAll("#scrows .scyes").length;
   document.querySelector("#scrows .scyes").click();
   r.asked = await until(() => !!window.fm1Test.mock.state && true, 100);
@@ -1163,7 +1163,7 @@ const scsRes = await run(`${U} window.confirm = () => true; try {
   r.wide = document.documentElement.scrollWidth <= window.innerWidth + 1;
   return r; } catch (e) { return { err: String(e.stack) }; }`);
 ok(scsRes && scsRes.screens === "MIX|SOUND|MASTER|PROJECT|STEPS|SONG|TEMPO|SCOPE" && /ENV/.test(scsRes.fams) && /LFO/.test(scsRes.fams) && scsRes.turned && scsRes.drumLanes && scsRes.lane && /CLICK/.test(scsRes.laneEnv)
-  && scsRes.project === "PROJECT,SNAPSHOT,USER,TOOLS,SLOOP" && scsRes.yes === 3 && /LEVEL.*RATCHET/.test(scsRes.held) && scsRes.song && /BPM/.test(scsRes.tempo) && scsRes.scope && scsRes.ink && scsRes.wide,
+  && scsRes.project === "PROJECT,SNAPSHOT,USER,TOOLS" && scsRes.yes === 3 && /LEVEL.*RATCHET/.test(scsRes.held) && scsRes.song && /BPM/.test(scsRes.tempo) && scsRes.scope && scsRes.ink && scsRes.wide,
   `e2e v13 SCRS (mock ?fxp=1): the Device screens page: the device's screens, SOUND's pages by family, a card turns, a drum lane's pages, PROJECT's stores with YES, SONG, TEMPO (${JSON.stringify(scsRes)})`);
 await shot("device-sound");
 /* v13 FAVS (the mock with ?fxp=1): Load preset has a star beside each sound; a click marks it on the device; "favorites only" hides the rest (and is the device's PRESETS list) */

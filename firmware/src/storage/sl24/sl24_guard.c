@@ -9,8 +9,8 @@
  *
  * Now: at each start (sl24_boot_scan, before the log starts) every project slot and the autosave whose current copy
  * is a valid object Optimist cannot read is kept (storage.c st_keep: never erased; the log works around it, the
- * autosave writes its other copy) and shown as not ours: PROJECT and the editor say 2.4 (a FUN5 of 3840 B with its
- * sum: SLOOP 2.4's) or OTHER, never EMPTY. Its stale copy (2.4's previous save of that slot) is not kept: 2.4 itself
+ * autosave writes its other copy) and shown as not ours: PROJECT and the editor say SLOOP (a FUN5 of 3840 B or a FUN6 of
+ * 3816 B with its sum) or OTHER, never EMPTY. Its stale copy (2.4's previous save of that slot) is not kept: 2.4 itself
  * writes over it next. A user sample longer than ours (2.4's USR3, USR4) keeps its sectors (st_keep_sample). */
 
 static uint8_t pj_alien[5];                            /* the old slots 0..3, the autosave (4): PJ_SL24 / PJ_ALIEN / 0 */
@@ -53,8 +53,8 @@ static void sl24_boot_scan(void)
         pj_alien[i] = (uint8_t)(sl24_any(st_buf, (int)h.len) ? PJ_SL24 : PJ_ALIEN);
         st_keep(st_sector(obj, (uint32_t)cur));
     }
-    {   /* the autosave: a 2.4 copy that is not the current one (Optimist wrote its other copy since) is kept too, and
-         * offered (PROJECT > A24); it stays until 2.4 writes it */
+    {   /* the autosave: a 2.4 copy that is not the current one (Optimist wrote its other copy since) is kept too; it stays
+         * until SLOOP writes it */
         st_hdr_t h;
         int c = sl24_find(OBJ_AUTOSAVE, &h);
         if (c >= 0)
@@ -148,103 +148,10 @@ static uint32_t sl_word_out(uint32_t ours, uint32_t kept)
     return s <= SYNC_TRS ? (w & ~(3u << 12)) | s << 12 : w;
 }
 
-/* LOAD of an empty slot: another firmware's project kept there is said so, nothing is loaded */
-#if FELUCCA_SL24_IMPORT && FELUCCA_FLASH
-/* FELUCCA_SL24_IMPORT: n bytes at b, a SLOOP 2.4 / 2.5 project (sl24_is; not in proj_tmp), or a 2.6 one (sl26_is: made
- * a 2.5 one first, in place: b holds SL24_SIZE bytes) -> the working project
- * (sl24_import.c), its step extras with it as step-only events of the automation store (FELUCCA_AUTO; a lock's value
- * past a signed byte clamped, said so; else dropped, said so), its USR kit as lanes. (An FM6 part's PTCH B1..B27, 2.4's
- * FM6 patch bank, is no longer imported: that part starts from INIT VOICE, 2026-10-18; F1..F8 are.) Nothing is written: SAVE puts the import in a section. -> 1 imported */
-static int sl24_import_buf(uint8_t *b, uint32_t n)
-{
-#if SEC_LOGGED
-    dlrec_t *d = &sec_tmp_dl;                          /* (2.4 has no drum record: the kit as it is, or its USR lanes) */
-#else
-    static dlrec_t dd;
-    dlrec_t *d = &dd;
-#endif
-    stepx_t *x = 0;
-    sl27_dt_t dt;
-    uint32_t lost, k, r = 0, ft = 0, ld, dc;
-    sl27_dt_in(b, &dt);                                /* (2.7's drum TUNE / DECAY: before a conversion) */
-    if (sl26_is(b, (int)n)) {                          /* (2.6 / 2.7: as 2.5's, its parts' filter TYPE aside) */
-        ft = sl26_to_sl24(b);
-        n = SL24_SIZE;
-    }
-#if FELUCCA_AUTO
-    x = sl24_xs;
-#endif
-    lost = !x && sl24_has_extras(b);
-    sl27_arp_cut = 0;
-    if (!proj_from_sl24(&proj_tmp.cur, b, (int)n, x))
-        return 0;
-    memset(d, 0, sizeof *d);
-    dc = (uint32_t)sl27_lanes_in(&proj_tmp.cur, &dt, d);   /* (SLOOP's 16 sounds onto our lanes: before the USR lanes) */
-    for (k = 0, ld = 0; k < NPART; k++) {             /* (a part with three or four LFO depths: two kept, params.c lfo1_load) */
-        int16_t sl[4];
-        int32_t sp;
-        ld += lfo1_load(&proj_tmp.cur.t[k].p[P_LEG_PIT], sl, &sp);
-    }
-    if (ft)
-        sl26_ftype_in(&proj_tmp.cur, ft);
-    (void)sl24_usr_lanes(b, d);                        /* (its USR kit: the lanes' sources) */
-    (void)sl25_drdly_in(b, d);                         /* (2.5's drums' delay send: the lanes' DLY) */
-    proj_tmp.cur.dl_hash = dlrec_hash(d);              /* (the lanes' instruments: always a record) */
-    proj_tmp.cur.sum = proj_sum(&proj_tmp.cur);
-#if FELUCCA_AUTO
-    {                                                  /* (after the lanes: the store follows the final sum) */
-        auto_store_t *m = auto_fresh(&proj_tmp.cur);
-        if (m)
-            r = sl24_auto_in(m, sl24_xs);
-    }
-#endif
-    project_apply(&proj_tmp.cur, d);
-    ui_message(dc ? "SLOOP IMPORTED, DRUMS CUT" : lost ? "SLOOP IMPORTED, NO LOCKS" : r ? "SLOOP IMPORTED, LOCK CLAMPED" :
-               ld ? "SLOOP IMPORTED, LFO CUT" : sl27_arp_cut ? "SLOOP IMPORTED, ARP CUT" : "SLOOP IMPORTED: SAVE IT");
-    return 1;
-}
-/* the 2.4 project kept in storage object obj (an old slot, the autosave) -> the working project (sl24_import_buf);
- * the original stays where 2.4 left it. -> 1 imported */
-static int sl24_import_obj(uint32_t obj)
-{
-    st_hdr_t h;
-    if (sl24_find(obj, &h) < 0)                        /* (its payload in st_buf) */
-        return 0;
-    return sl24_import_buf(st_buf, h.len);
-}
-static int8_t sl24_armed = -1;                         /* the slot a first LOAD armed */
-static uint32_t sl24_armed_ms;
-#endif
-/* LOAD of an empty slot: another firmware's project kept there is said so; a SLOOP 2.4 one: LOAD again within 4 s
- * imports it (offered, never automatic) */
+/* LOAD of an empty slot: another firmware's project kept there is said so; nothing is loaded (Optimist does not read
+ * SLOOP's projects) */
 static void sl24_load(uint32_t slot)
 {
     uint32_t st = project_state(slot);
-#if FELUCCA_SL24_IMPORT && FELUCCA_FLASH
-    if (st == PJ_SL24) {
-        if (sl24_armed == (int8_t)slot && fm1_ms - sl24_armed_ms < 4000u) {
-            sl24_armed = -1;
-            if (sl24_import_obj(OBJ_PROJECT0 + slot))
-                return;
-        } else {
-            sl24_armed = (int8_t)slot;
-            sl24_armed_ms = fm1_ms;
-            ui_message("SLOOP: LOAD = IMPORT");
-            return;
-        }
-    }
-#endif
     ui_message(st == PJ_SL24 ? "SLOOP PROJECT" : st == PJ_ALIEN ? "NOT OURS: KEPT" : "EMPTY SLOT");
-}
-
-/* PROJECT > A24 (twice): SLOOP 2.4's autosave -> the working project, as a slot's (sl24_import_obj) */
-static void sl24_auto_import(void)
-{
-#if FELUCCA_SL24_IMPORT && FELUCCA_FLASH
-    if (song.playing || transport_req) { ui_message("STOP BEFORE LOAD"); return; }
-    if (!sl24_import_obj(OBJ_AUTOSAVE))
-        ui_message("EMPTY SLOT");
-#else
-    ui_message("EMPTY SLOT");
-#endif
 }

@@ -15,7 +15,6 @@
  *              newer version refused (every LFO off); a longer entry (a newer build's) read, a shorter one with the rest at
  *              the defaults; a bad length refused; out-of-range values brought back. Through a project buffer, a section
  *              (the log), the autosave; a section of an older firmware (no record): every LFO off
- *   2.4        the export says SX24_DLFO (lost2 bit 3; a v11 request: bit 13)
  *   cost       instructions per hit, and per block, on the host
  *   old        built with -DDLFO_ON=0: kept through the record, never heard, the render as without them, MISS: LANE LFO
  * Exit status: the number of failed checks. Run by tests/run_tests.sh (both builds). */
@@ -382,27 +381,12 @@ static void t_record(void)
     }
 }
 
-/* ---- 2.4, MISS */
-static uint32_t get78(uint32_t flag, int withflag, uint32_t *w2)
+/* ---- MISS */
+static void t_miss(void)
 {
-    uint8_t a[5] = {0, 0, 0, 0, (uint8_t)flag};
-    ed_n = 0;
-    (void)ed_sl24(78, a, withflag ? 5u : 4u);
-    *w2 = withflag && ed_n >= 17u ? ed_g7(ed_out + ed_n - 2u, 2) : 0u;
-    return ed_n >= 15u ? ed_g7(ed_out + 10, 2) : 0xFFFFu;
-}
-static void t_sl24_miss(void)
-{
-    uint32_t w1, w2, i, n, has = 0;
+    uint32_t i, n, has = 0;
     reset();
-    set_lfo(3, 50, 0, 0, 0, DE_LEVEL + 1u, 0, 0, 0);    /* (not live) */
-    w1 = get78(1, 1, &w2);
-    check("2.4 export, no LFO acting: no SX24_DLFO", !(w2 & 8u));
     set_lfo(3, 50, 0, 0, 0, DE_LEVEL + 1u, 10, 0, 0);
-    w1 = get78(1, 1, &w2);
-    check("... a lane LFO acting: lost2 bit 3 (SX24_DLFO), bit 13 clear", (w2 & 8u) && !(w1 & SX24_MOTION));
-    w1 = get78(0, 0, &w2);
-    check("... a v11 request: on bit 13 (its motion)", (w1 & SX24_MOTION) != 0u);
     n = miss_scan();
     for (i = 0; i < n; i++)
         has |= miss_m[i] == MS_ITEM(MS_FX, TRK_DRUM, MF_LLFO);
@@ -544,7 +528,7 @@ int main(void)
 #if DLFO_ON
     t_mod2();
 #endif
-    t_sl24_miss();
+    t_miss();
 #if DLFO_ON
     t_cost();
 #endif

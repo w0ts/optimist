@@ -5,7 +5,7 @@
  * slots of the current bank: key n selects item n AND runs the operation on it, through the confirm; YES runs it on the
  * ITEM the knob is on. A free slot has nothing to load or clear: a toast, no question. The operation goes back to LOAD
  * after each action, when the row or the screen changes: a stray key never saves. Under the cards: the bank's 16 slots as
- * a strip, and the item's info (read from what is stored, nothing scanned). Then TOOLS, SLOOP and MEMORY, as they were. */
+ * a strip, and the item's info (read from what is stored, nothing scanned). Then TOOLS and MEMORY. */
 
 static void name_user(uint32_t k);                      /* op_name.c: NAME, then the save */
 static void name_project(uint32_t k);
@@ -18,9 +18,9 @@ static int sec_scene_clear(uint32_t s);                 /* sections.c: a section
 #endif
 
 #if FELUCCA_SD_UI
-enum { PR_PROJECT, PR_SNAP, PR_USER, PR_TOOLS, PR_A24, PR_MEM, PR_CPRE, PR_CKIT, PR_CSMP };   /* (the card's lists: op_sdcard.c) */
+enum { PR_PROJECT, PR_SNAP, PR_USER, PR_TOOLS, PR_MEM, PR_CPRE, PR_CKIT, PR_CSMP };   /* (the card's lists: op_sdcard.c) */
 #else
-enum { PR_PROJECT, PR_SNAP, PR_USER, PR_TOOLS, PR_A24, PR_MEM };
+enum { PR_PROJECT, PR_SNAP, PR_USER, PR_TOOLS, PR_MEM };
 #endif
 static const uint8_t PRJ[] = {PR_PROJECT,
 #if FELUCCA_SD_UI
@@ -34,18 +34,15 @@ static const uint8_t PRJ[] = {PR_PROJECT,
                               PR_SNAP,
 #endif
                               PR_USER, PR_TOOLS,
-#if SL24_AUTO
-                              PR_A24,
-#endif
 #if SEC_LOGGED
                               PR_MEM,
 #endif
 };
 #define NPRJ (sizeof PRJ / sizeof PRJ[0])
 #if FELUCCA_SD_UI
-static const char *const PRJ_NAME[] = {"PROJECT", "SNAPSHOT", "USER", "TOOLS", "SLOOP", "MEMORY", "PRESETS", "KITS", "SAMPLES"};
+static const char *const PRJ_NAME[] = {"PROJECT", "SNAPSHOT", "USER", "TOOLS", "MEMORY", "PRESETS", "KITS", "SAMPLES"};
 #else
-static const char *const PRJ_NAME[] = {"PROJECT", "SNAPSHOT", "USER", "TOOLS", "SLOOP", "MEMORY"};
+static const char *const PRJ_NAME[] = {"PROJECT", "SNAPSHOT", "USER", "TOOLS", "MEMORY"};
 #endif
 enum { PO_LOAD, PO_SAVE, PO_DELETE,                      /* the operations, in the knob's order */
        PO_SAVE_LOAD };                                  /* (FELUCCA_PATTERNS: a LOAD while the work changed asks "SAVE <the open project>?":
@@ -208,11 +205,6 @@ static void prj_cell(uint32_t r, uint32_t k, cell_t *c)
         return;
     }
 #endif
-    if (kind == PR_A24) {
-        if (!k)
-            cell_act(c, "SLOOP", "IMPORT", 0, 1);       /* (it replaces the work: red, as its modal) */
-        return;
-    }
     op = prj_op();
     s = prj_slot_cur(kind);
     if (k == 0u && prj_banks(kind) > 1u) {              /* BANK: only a store of more than 16 slots */
@@ -268,7 +260,7 @@ static void prj_turn(uint32_t r, uint32_t k, int32_t s, int fine)
         return;
     }
     if (kind > PR_USER)
-        return;                                         /* (SLOOP, MEMORY: nothing to turn) */
+        return;                                         /* (MEMORY: nothing to turn) */
 #if FELUCCA_FAVORITES
     if (kind == PR_USER && k == 2u && s != OP_RESET && btn_held(B_OCTUP)) {   /* SHIFT2 + ITEM: the slot a favorite (right) or not (left) */
         uint32_t slot = prj_slot_cur(kind);
@@ -413,17 +405,6 @@ static int prj_yes(uint32_t r, uint32_t k, uint32_t ok)
         return page_yes(SCR_PROJECT, r, tools_page(), k, ok);
     if (kind == PR_MEM)
         return 0;
-#if SL24_AUTO
-    if (kind == PR_A24) {
-        if (k)
-            return 0;
-        if (!ok)
-            op_arm(SCR_PROJECT, r, k, "IMPORT", "SLOOP", 1);
-        else
-            sl24_auto_import();                         /* SLOOP 2.4 .. 2.6's autosave into the work (sl24_guard.c) */
-        return 1;
-    }
-#endif
     if (kind == PR_PROJECT && k == 3u) {                /* NEW: the work blank, no slot touched; asks first */
         if (!ok)
             op_arm(SCR_PROJECT, r, k, "NEW", "PROJECT", 1);

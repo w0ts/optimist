@@ -245,7 +245,7 @@ Entered by SAVE held on PROJECT, SEQ held off STEP or SHIFT2 + SEQ (section 1.3)
 
 ### 4.6 PROJECT
 
-Rows: PROJECT, SNAPSHOT, USER, TOOLS (CLEAR SEQ, INIT SOUND, MISSING, NEW), SLOOP (import of SLOOP's slots and autosave, `storage/sl24/`), MEMORY (USED, FREE). In SD card mode the card's lists come first (PROJECT on the card, PRESETS, KITS, SAMPLES: section 4.14). A storage row is four cards (`op_prjflow.c`):
+Rows: PROJECT, SNAPSHOT, USER, TOOLS (CLEAR SEQ, INIT SOUND, MISSING, NEW), MEMORY (USED, FREE). In SD card mode the card's lists come first (PROJECT on the card, PRESETS, KITS, SAMPLES: section 4.14). A storage row is four cards (`op_prjflow.c`):
 
 | Card | |
 |---|---|
