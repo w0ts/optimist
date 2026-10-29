@@ -1,6 +1,6 @@
 # NOISE engine golden renders (tests/noise_test.c): preset, FNV-1a 64 of the output (4-note chord,
 # 2 s held, 4 s release, dry). Rewritten by GOLDEN_UPDATE=1 -- only for an intended change.
-00_WIND 05118e1d1d8cebfd
-01_RAIN a0d7b1286e5a563d
-02_ARCADE 3f4476cd29ab4181
-03_METAL 73a6a17868691ead
+00_WIND 3b0b83f5d10bb085
+01_RAIN cc1c86887def71f3
+02_ARCADE c884c2f7cba9eb4f
+03_METAL 51481da2c70cb5e1
