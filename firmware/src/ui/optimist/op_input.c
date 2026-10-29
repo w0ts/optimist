@@ -1056,6 +1056,10 @@ static void op_knobs(uint32_t shift)
         gl_pick(row, k);                                /* (GLOBAL, SYSTEM: its line the cursor) */
         ui.hot_lit = 1;
         HL_NOTE(k);                                     /* (the help line: what it changes, op_help.c) */
+        if (c.kind == CK_RO && k == 0u && cred_page()) {   /* SYSTEM > CREDITS: KNOB 1 scrolls the end titles (a read-out, no value) */
+            cred_turn(s);
+            continue;
+        }
         if (c.kind == CK_VAL && rec_knob(row, k, &c))
             continue;                                   /* REC held: its motion and locks cleared, the value stays */
         if (c.kind == CK_VAL)

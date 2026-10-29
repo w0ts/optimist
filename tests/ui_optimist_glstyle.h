@@ -268,18 +268,18 @@ static int gls_about_info(void)
         printf("  glstyle: About '%s' '%s' '%s'\n", b.val, b.unit, rp.unit);
     return (int)ok;
 }
-static int gls_credits(void)                            /* the last page: CREDITS, text lines that fit, LICENSING.md the last */
+static int gls_credits(void)                            /* the last page: CREDITS, the end titles; every name and line fits, LICENSING.md the last */
 {
-    uint32_t ok = 1, i, f = gl_pfirst(1, gl_npg(1) - 1u);
+    uint32_t ok = 1, i, k, f = gl_pfirst(1, gl_npg(1) - 1u);
     char nm[24];
     gl_ptitle(1, f, nm, sizeof nm);
     ok &= !strcmp(nm, "Credits") && gl_end(1, f) - f == 1u && sys_item(gl_ent(1, f) >> 2, gl_ent(1, f) & 3u) == SI_CREDITS;
-    ok &= CRED_N >= 10u && !strcmp(CRED[CRED_N - 1u][1], "LICENSING.md") && !strcmp(CRED[0][1], FELUCCA_VERSION);
-    for (i = 0; i < CRED_N; i++) {                      /* (the name, a gap, the who: inside 6 .. 236) */
-        char b[16];
-        ok &= 6 + text_w(&FONT_S, nm_card(CRED[i][0], 0, b, sizeof b)) + 8 + text_w(&FONT_S, CRED[i][1]) <= 236;
+    ok &= CRED_N >= 10u && !strcmp(CRED[CRED_N - 1u].who[0], "LICENSING.md") && !strcmp(CRED[0].who[0], FELUCCA_VERSION);
+    for (i = 0; i < CRED_N; i++) {                      /* (centred: the name in the small face, each line in the large or the small, inside 8 .. 232) */
+        ok &= text_w(&FONT_S, CRED[i].name) <= 232;
+        for (k = 0; k < cr_lines(i); k++)
+            ok &= CRED[i].who[k][0] && text_w(&FONT_S, CRED[i].who[k]) <= 232;
     }
-    ok &= (GL_END - gl_y0()) / (int32_t)CRED_N >= (int32_t)FONT_S.h;   /* (a line's pitch holds the font) */
     op_enter(SCR_SYSTEM);
     ui.row[SCR_SYSTEM] = (uint8_t)f;
     ui.force = 1;
@@ -436,5 +436,6 @@ static void glstyle_tests(void)
 #endif
     check(gls_about_info(), "SYSTEM: About: version, build date and time, the chip, the repo link, on one page and fitting");
     check(gls_credits(), "SYSTEM: Credits, after About: the version, the upstreams by name, LICENSING.md for the rest, each line fitting");
+    cred_checks();                                      /* ui_optimist_credits.h: the end titles' crawl, KNOB 1, the loop, the cost */
     reset_ui();
 }
