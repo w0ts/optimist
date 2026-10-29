@@ -126,4 +126,31 @@ static int32_t stk_least(uint32_t *which)
             m = l, *which = k;
     return m;
 }
+/* the least left of every stack ever, -1 none; *which: that stack. The release: fm1-base's plat_stack_least_ever (its
+ * own paint, kept across restarts, power-offs and crashes: its device/stacks.c, dbgstats.c), the room since boot when
+ * it knows none; Optimist's own build: since boot (stk_least) */
+static int32_t stk_least_ever(uint32_t *which)
+{
+#ifdef PLAT_STATS_APP
+    _Static_assert(STK_MAIN == PLAT_STK_MAIN && STK_IRQ == PLAT_STK_IRQ && STK_C1 == PLAT_STK_C1,
+                   "stackmark.h: the stacks in plat.h's order");
+    uint32_t k;
+    int32_t m = -1, l;
+    *which = STK_MAIN;
+    for (k = 0; k < STK_N; k++)
+        if ((l = plat_stack_least_ever((int)k)) >= 0 && (m < 0 || l < m))
+            m = l, *which = k;
+    if (m >= 0)
+        return m;
+#endif
+    return stk_least(which);
+}
+/* STACK LOW: a stack has been within STK_LOW bytes of its bottom (ever, as stk_least_ever counts): INFO's RAM line
+ * amber, and what a RAM bar may show */
+static int stk_low(void)
+{
+    uint32_t w;
+    int32_t l = stk_least_ever(&w);
+    return l >= 0 && (uint32_t)l < STK_LOW;
+}
 #endif

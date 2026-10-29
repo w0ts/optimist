@@ -50,6 +50,15 @@ static void up_name(uint32_t k, char *b) { (void)k; b[0] = 0; }
 static int bad, checks;
 #define CHECK(c, ...) do { checks++; if (!(c)) { bad++; printf("FAIL line %d: ", __LINE__); printf(__VA_ARGS__); printf("\n"); } else printf("ok   " __VA_ARGS__), printf("\n"); } while (0)
 
+/* the random switches' own generator (xorshift32, 31 bits as rand()): the C library's rand() is not the same sequence
+ * on macOS and glibc, and section 7's counts (refusals, placements) are of the one sequence: the same on every host */
+static uint32_t sw_seed = 11u;
+static uint32_t sw_rng(void)
+{
+    sw_seed ^= sw_seed << 13, sw_seed ^= sw_seed >> 17, sw_seed ^= sw_seed << 5;
+    return sw_seed >> 1;
+}
+
 #define ENG_WAVE ((uint32_t)ENG_SLOT_WAVE)
 static int32_t out_l[CTL * 4096];
 static uint32_t out_n;
@@ -526,9 +535,9 @@ int main(void)
     quiet();
     {
         uint32_t n, okall = 1, worst = 0, nfull = 0, nsl = 0, nwt = 0, nx = 0, nwr = 0;
-        srand(11);
+        sw_seed = 11u;
         for (n = 0; n < 20000u && okall; n++) {
-            uint32_t r = (uint32_t)rand(), op = r % 8u, a = (r >> 8) % 4u;
+            uint32_t r = sw_rng(), op = r % 8u, a = (r >> 8) % 4u;
             if (op == 0u)
                 stut(a, (r >> 12) & 1u);
             else if (op == 1u)
@@ -547,6 +556,10 @@ int main(void)
                 trk_note_on(&trk[a % NPART], 60u + a, 100), trk_note_off(&trk[(a + 1u) % NPART], 60u + (a + 1u));
             if (part_mem_refused.on && (r >> 20) & 1u)
                 part_mem_refused.on = 0;                /* (given up, as MEM FULL) */
+            if (part_mem_refused.lmask && (r >> 21) & 1u)
+                mem_load_cancel();                      /* (a switch that found no room, engines.c part_mem_unplaced:
+                                                         * the list page, HOME; else nothing is placed again while it
+                                                         * shows, PART_MEM_SHORT, and the counts below stop) */
             pass();
             wt_service();
             blocks(1u + (r >> 16) % 3u);
