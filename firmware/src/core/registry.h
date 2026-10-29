@@ -734,12 +734,9 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #ifndef FELUCCA_BT_PROJ
 #define FELUCCA_BT_PROJ 0                  /* the projects' moves over Bluetooth too (io/editor/ed_mirror.c MBR_PROJ) */
 #endif
-#ifndef FELUCCA_FAR_OK
-#define FELUCCA_FAR_OK 0                   /* the far probe passed: the code may use the fake SD mode's whole slot (tools/build.py,
-                                            * tools/flash_layout.py code_limit; in C only FELUCCA_SD_FATFS below) */
-#endif
+/* (no FELUCCA_FAR_OK since 2026-10-29: the fake SD mode layout always has the whole slot, tools/flash_layout.py code_limit) */
 #ifndef FELUCCA_SD_FATFS
-#define FELUCCA_SD_FATFS (FELUCCA_SDCARD && FELUCCA_LAYOUT == 1 && FELUCCA_FAR_OK)   /* the card under full FatFs (its
+#define FELUCCA_SD_FATFS (FELUCCA_SDCARD && FELUCCA_LAYOUT == 1)   /* the card under full FatFs (its
                                             * ~15 KB fit the big slot: storage/sd/fatfs/, tools/build.py), else Petit FatFs
                                             * (the bring-up's: no files created, 8.3 names) */
 #endif
@@ -747,7 +744,7 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #define FELUCCA_SD_UI (FELUCCA_SD_MODE && FELUCCA_SD_FATFS)   /* the SD card mode's card side (docs/SD-CARD-DESIGN.md 9): the
                                             * user's data on the card by name, every list as banks of 16 on the keys
                                             * (storage/sd/sd_mode.c, ui/optimist/op_sdcard.c), the working project the one-
-                                            * project flash store's; the card under full FatFs (SDCARD + FAR_OK). Once the
+                                            * project flash store's; the card under full FatFs (SDCARD + LAYOUT 1). Once the
                                             * mode's one flag builds the card in: FELUCCA_SD_MODE alone */
 #endif
 #if FELUCCA_SD_UI && !(FELUCCA_PATTERNS && SEC_LOGGED && FELUCCA_LAYOUT == 1)

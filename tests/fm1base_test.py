@@ -32,7 +32,7 @@ with tempfile.TemporaryDirectory(dir=ROOT / "build" if (ROOT / "build").is_dir()
     d = Path(d)
     normal, sd = d / "normal.config", d / "sd.config"
     normal.write_text(C.dump(cfg, name))
-    sd_cfg = dict(cfg, SDCARD=1, LAYOUT=1, FAR_OK=1)
+    sd_cfg = dict(cfg, SDCARD=1, LAYOUT=1)
     sd.write_text(C.dump(sd_cfg, "sd"))
     check("release is the default flavour, classic() false", not C.classic())
     check("a normal layout builds on fm1-base's normal slot (no FM1B_APP_END)", fm1base.app_end(normal) is None)
@@ -90,10 +90,10 @@ check("flash accepts the release's identity FM-1_7900 and FM-1_79010203, not FM-
 import core as K  # noqa: E402
 import fm1base_ld  # noqa: E402
 total = {"flash": 700000, "ram": 100000, "pool": 100000, "ramtext": 30000}
-check("the classic slots: a LAYOUT 1 build counts the big flash only with FAR_OK",
-      K.fits(total, {"LAYOUT": 1})["flash"][1] == 581564 and K.fits(total, {"LAYOUT": 1, "FAR_OK": 1})["flash"][1] == 765696)
+check("the classic slots: a LAYOUT 1 build counts the big flash (FAR_OK is retired: an old key changes nothing)",
+      K.fits(total, {"LAYOUT": 1})["flash"][1] == 765696 and K.fits(total, {})["flash"][1] == 581564)
 K.setup(limits={"flash": 581564, "sram": 475136, "flash_by_layout": {"1": 823228}})
-check("the release's slots (costs-fm1base.json limits): LAYOUT 1 is the SD card mode's app area, FAR_OK or not; SRAM is app.ld's",
+check("the release's slots (costs-fm1base.json limits): LAYOUT 1 is the SD card mode's app area; SRAM is app.ld's",
       K.fits(total, {"LAYOUT": 1})["flash"][1] == 823228 and K.fits(total, {})["flash"][1] == 581564
       and K.fits(total, {})["sram"][1] == 475136 - K.SPARE["sram"] and K.describe()["limits"]["sram"] == 475136)
 K.setup(limits=None)

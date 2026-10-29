@@ -45,6 +45,7 @@ MERGED = {
 
 # Dropped items: a .config naming one still loads; the setting is ignored with a warning (configure.py parse)
 RETIRED = {
+    "FAR_OK": "the fake SD mode layout (LAYOUT 1) always has its whole slot; the far probe's answer is no longer asked for (retired 2026-10-29, bit 413; the user: \"drop the far probe, we don't need it\")",
     "RESERVE_UNDO_KB": "the builder's reserve entries were useless and not working (retired 2026-10-21, bit 59: the user: \"remove the reserve entry from console and web builder\"); the budget shows the undo ring as information",
     "RESERVE_FLASH_KB": "the builder's reserve entries were useless and not working (retired 2026-10-21, bit 60)",
     "PAGE_LINES": "the screens of rows with no picture are always GLOBAL's four lines, not 2x2 cards over a row list (retired 2026-10-21, bit 342; the user: \"remove the entry of the builder and turn it on by default\")",
@@ -172,7 +173,11 @@ class Item:
     head: bool = False               # the head of its group (DRUMS): the group's items are its options, two levels
     no_image: bool = False           # a build setting, not firmware: nothing in the image (not in the hash or the BUILD
                                      # bits), its costs.json deltas are 0 (written, never built)
+    hidden: bool = False             # a real item the menu and the web builder do not list (a front sets it; configs and
+                                     # profiles keep loading and dumping it, the checks still name it)
+    shown_under: Optional[str] = None   # listed under this item instead of its parent (display only: core.built goes by parent)
     children: list = field(default_factory=list)
+    menu_children: list = field(default_factory=list)   # what the menu lists under it: children + shown_under, less hidden
 
     @property
     def is_choice(self):
@@ -1136,27 +1141,28 @@ _add("LIVE_SAVE", "FELUCCA_LIVE_SAVE", "save while playing (flash writes in shor
           "for the stop again until the next start. Snapshots, backup restores, sample uploads, the web editor's writes "
           "and the working project's autosave still wait for the stop. About 240 B of flash, 1 byte of RAM.",
      off_warning="saves refused (STOP BEFORE SAVE) or held until the transport stops, as before")
-# ---- Memory management (the user, 2026-10-28): the first group. MEMORY is a front for three real items (LAYOUT, SDCARD,
-# FAR_OK), no firmware switch and no image of its own (no_image): core.sync_memory reads it from them (an older .config
+# ---- Memory management (the user, 2026-10-28): the first group. MEMORY is a front for two real items (LAYOUT, SDCARD;
+# FAR_OK went 2026-10-29), no firmware switch and no image of its own (no_image): core.sync_memory reads it from them (an older .config
 # and every profile keep loading as they did), core.set_memory writes them when it is picked (room.after_toggle), and
-# dump() leaves it out. Bits 436 and 437 are the next free after Wi-Fi's 434 / 435.
-MEMORY_CHOICES = ((0, "normal: the user data keeps its flash"),
-                  (1, "reduced user flash: more code space, one project in flash"),
-                  (2, "SD card mode: the user data on the SD card"))
+# dump() leaves it out. Bits 436 and 437 are the next free after Wi-Fi's 434 / 435. LAYOUT and SDCARD are hidden
+# (the user, 2026-10-29: "these options do basically the same thing"): the menu shows MEMORY alone, SD_RING and SD_REC under it.
+MEMORY_CHOICES = ((0, "normal"),
+                  (1, "more flash: one project in flash"),
+                  (2, "SD card mode"))
 _add("MEMORY", "", "memory: where the user data lives", MEM, 436, default=0, choices=MEMORY_CHOICES, no_image=True,
-     experimental=True, target_only=True, tested="host-tested only; the layouts need the far probe on the FM-1 (docs/SD-MODE-DESIGN.md)",
-     desc="One choice for the three items below it. Normal: the flash layout as before. Reduced user flash (LAYOUT): "
+     experimental=True, target_only=True, tested="host-tested only (docs/SD-MODE-DESIGN.md)",
+     desc="One choice for the two items LAYOUT and SDCARD. Normal: the flash layout as before. Reduced user flash (LAYOUT): "
           "the code grows from 568 KiB to 816 KiB over the sample slots, the snapshots and most of the projects' room; "
-          "one project stays in flash (the web or iOS app keeps the others), no SD card. SD card mode (LAYOUT + SDCARD "
-          "+ FAR_OK): the same flash layout with the user data on the SD card (a hardware mod, docs/SD-CARD-DESIGN.md). "
-          "Picking one sets those items; setting them by hand reads back here. FAR_OK is ticked only once the console's "
-          "far probe passed on the FM-1.")
-_add("RAM_PACKED", "", "RAM: one packed region, always", MEM, 437, default=1, no_image=True, fixed=True,
+          "one project stays in flash (the web or iOS app keeps the others), no SD card. SD card mode (LAYOUT + SDCARD): the same flash layout with the user data on the SD card (a hardware mod, docs/SD-CARD-DESIGN.md). "
+          "Picking one sets those items; setting them by hand reads back here. The menu and the web builder list this row alone (with SD_RING and SD_REC under it in SD card mode); LAYOUT, SDCARD and the retired RAM_PACKED are real but not listed, and an old `.config` still loads them.")
+# RAM_PACKED (bit 437, retired from the menu 2026-10-29, never reused): hidden, not removed, so a .config or profile that
+# names it keeps loading and dumping as before.
+_add("RAM_PACKED", "", "RAM: one packed region, always", MEM, 437, default=1, no_image=True, fixed=True, hidden=True,
      desc="The RAM is one packed region in every build (the code RAM, the data and the pool share it: docs/MEMORY-MAP.md), "
           "so there is no switch for it. Shown for the record, it cannot be switched off.")
 
 # bit 409 (2026-10-25): the first free one after the reverted font items' 399..408 (never reused)
-_add("SDCARD", "FELUCCA_SDCARD", "SD card on the LCD bus (a hardware mod)", MEM, 409, default=0,
+_add("SDCARD", "FELUCCA_SDCARD", "SD card on the LCD bus (a hardware mod)", MEM, 409, default=0, hidden=True,
      experimental=True, target_only=True, tested="host-tested only (a card model on real FAT16 / FAT32 images); no FM-1 "
      "has the mod yet",
      desc="Reads and writes a microSD card wired to the LCD's SPI bus: the card's clock and data in on the LCD's, its data "
@@ -1164,7 +1170,7 @@ _add("SDCARD", "FELUCCA_SDCARD", "SD card on the LCD bus (a hardware mod)", MEM,
           "card is selected whenever the screen is not (docs/SD-CARD-DESIGN.md has the wiring and the parts). FAT16 or "
           "FAT32 (cards up to 32 GB as sold; larger ones reformatted FAT32). In the normal layout 8.3 names, files made "
           "on a computer that the FM-1 reads and writes inside (Petit FatFs: no new files, no growing); with LAYOUT "
-          "and FAR_OK full FatFs: long names, files created and grown, the card's own OPTIMIST folder (about 1 KB of "
+          "1 full FatFs: long names, files created and grown, the card's own OPTIMIST folder (about 1 KB of "
           "flash more while only the console uses it, about 20 KB once the card's pages use all of it). For now the "
           "serial console's sd commands only (USB_CONSOLE): mount, list, dump, speed test, write test. Without the mod "
           "it finds no card and changes nothing. 5,032 B of flash, 20 B of RAM and 556 B of pool with the console "
@@ -1172,17 +1178,17 @@ _add("SDCARD", "FELUCCA_SDCARD", "SD card on the LCD bus (a hardware mod)", MEM,
      off_warning="no SD card")
 # bit 410 (2026-10-25): the next free one after SDCARD's 409
 _add("LAYOUT", "FELUCCA_LAYOUT", "flash layout: fake SD mode (more room for code, little user data)", MEM, 410, default=0,
+     hidden=True,
      choices=((0, "normal"), (1, "fake SD mode: 816 KiB app")),
-     experimental=True, target_only=True, tested="host-tested only; the first install on an FM-1 is the far probe "
-     "(docs/SD-MODE-DESIGN.md)",
+     experimental=True, target_only=True, tested="host-tested only; on an FM-1 whose flash runs the release image's 820 KB (docs/SD-MODE-DESIGN.md)",
      desc="Grows the firmware's flash from 568 KiB to 816 KiB over the user data: the user sample slots, the "
           "snapshots and most of the projects' room become code space (code runs in place from flash: no RAM). What "
           "is left: one project (a 28 KiB project log; the web app or the iOS app keeps the others over USB), the user presets, the user kits, the settings. Builds "
           "without SAMPLE, user drum samples, SNAPSHOTS and the CZ collection, with PATTERNS. Installing it ERASES the "
           "user data the normal layout keeps there, and going back erases this layout's (the update loader clears "
           "the other layout's sectors first): back up with the web editor before. The first install needs a normal "
-          "build of this version first (an older updater refuses the larger package). The console's far command "
-          "checks the flash past the old end (the far probe).")
+          "build of this version first (an older updater refuses the larger package). The code may use the slot up to "
+          "about 765 KB (the console's far probe, a diagnostic, and the overlays' table keep its last 64 KB).")
 # bit 411 (2026-10-25): the next free one after LAYOUT's 410; the arena (core/arena.c, fx/fx_arena.c, docs/SD-MODE-DESIGN.md
 # 6b): KB, 0 the fixed memories as before. The core (every build it is set in): the parts' engine states placed by need,
 # the edit's one confirm for what to drop, a load's refusals on it one by one; the extras only in the SD card mode
@@ -1208,7 +1214,7 @@ _add("ARENA", "FELUCCA_ARENA_KB", "memory per project (the free RAM: one arena f
           "(SYSTEM > INFO's RAM bar shows the arena in use and the undo history's share). A dropped or refused effect "
           "is bypassed and dimmed (FULL), kept in the project, and comes back by itself once there is room. Off: every "
           "memory reserved as before, nothing ever refused. An older configuration's size (ARENA=96) reads as on.")
-# bit 414 (2026-10-26): the next free one after FAR_OK's 413; the fm-1 session's handover (projects off the device)
+# bit 414 (2026-10-26): the next free one after the retired FAR_OK's 413; the fm-1 session's handover (projects off the device)
 _add("BT_PROJ", "FELUCCA_BT_PROJ", "projects to and from the phone over Bluetooth", Y, 414, default=0,
      parent="EDITOR", experimental=True, tested="host-tested only (tests/mirror_test.c); no client sends it yet",
      desc="The web editor's and the phone's project moves (a project read from the FM-1, or one written into it: the "
@@ -1217,20 +1223,13 @@ _add("BT_PROJ", "FELUCCA_BT_PROJ", "projects to and from the phone over Bluetoot
           "the link's few KB a second (a dense project in a few seconds). About 640 B of the pool (a request's room for "
           "the stream's chunks).",
      off_warning="projects move over the USB cable only")
-# bit 413 (2026-10-25): the next free one after OVERLAY's 412; the big slot only once the far probe answered on the FM-1
-_add("FAR_OK", "FELUCCA_FAR_OK", "the far probe passed on this FM-1: use the fake SD mode's whole flash", MEM, 413, default=0,
-     experimental=True, target_only=True, tested="needs the far probe's ok on the FM-1 it is installed on",
-     desc="The fake SD mode layout (LAYOUT) frees the flash past the old end, but a build keeps its code below that end "
-          "until the console's far command (on the probe build) has said the FM-1 runs code and reads data past it. "
-          "Tick this only after that: the code may then use the slot up to about 765 KB (the far probe and the "
-          "overlays' table keep its last 64 KB). On an FM-1 whose far probe failed such a build does not start: the "
-          "rescue (OCT- at power-on, UBOOT) puts a normal build back.",
-     off_warning="the code stays below the old end (568 KiB): a probe build")
+# bit 413 (FAR_OK, retired 2026-10-29, never reused): the big slot waited for the far probe's answer on an FM-1; the user:
+# "drop the far probe, we don't need it", the fake SD mode layout always has the whole slot (RETIRED below)
 # bit 415 (2026-10-26): the next free one after BT_PROJ's 414; samples streamed from the SD card (storage/sd/sd_stream.c,
 # sd_stream_plan.c, docs/SD-CARD-DESIGN.md 7): the ring's KB a voice, 0 off (registry.h FELUCCA_SD_RING_KB -> SD_STREAM:
 # full FatFs, SAMPLE and the arena too, else it builds nothing)
 _add("SD_RING", "FELUCCA_SD_RING_KB", "samples streamed from the SD card (SAMPLE's CARD set): each voice's lookahead", MEM,
-     415, default=0, parent="SDCARD",
+     415, default=0, parent="SDCARD", shown_under="MEMORY",
      choices=((0, "off"), (4, "4 KB a voice (46 ms of 44.1 kHz 16-bit mono)"), (8, "8 KB a voice (93 ms)"),
               (12, "12 KB a voice (139 ms)"), (16, "16 KB a voice (186 ms)")),
      experimental=True, target_only=True, tested="host-tested only (tests/sd_stream_test.c, sd_stream_plan_test.c: "
@@ -1244,12 +1243,12 @@ _add("SD_RING", "FELUCCA_SD_RING_KB", "samples streamed from the SD card (SAMPLE
           "click; the console's sd stream counts it). 8 voices take 8 x this of the arena while the project plays "
           "card samples, with the heads; a project whose samples do not fit is refused and the device proposes what "
           "to drop (a part's engine, or a shorter pre-buffer). A card sample plays at most an octave up (each octave "
-          "doubles what it reads). Needs LAYOUT and FAR_OK (full FatFs), SAMPLE and ARENA.",
+          "doubles what it reads). Needs LAYOUT (full FatFs) and SDCARD, SAMPLE and ARENA.",
      off_warning="no samples from the card")
 # bit 416 (2026-10-26): the next free one after SD_RING's 415; the master recorded to the SD card (storage/sd/sd_rec.c,
 # docs/SD-CARD-DESIGN.md 7): the ring's KB, 0 off (registry.h FELUCCA_SD_REC_KB -> SD_REC with full FatFs)
 _add("SD_REC", "FELUCCA_SD_REC_KB", "record the master output to the SD card: the buffer for the card's stalls", MEM,
-     416, default=0, parent="SDCARD",
+     416, default=0, parent="SDCARD", shown_under="MEMORY",
      choices=((0, "off"), (16, "16 KB (93 ms of 44.1 kHz 16-bit stereo)"), (32, "32 KB (186 ms)"), (64, "64 KB (372 ms)")),
      experimental=True, target_only=True, tested="host-tested only (tests/sd_wr_test.c, sd_rec_test.c: a card model with "
      "stalls, an interrupt-driven audio clock); no FM-1 has the card yet; for now started from the console (sd rec)",
@@ -1259,7 +1258,7 @@ _add("SD_REC", "FELUCCA_SD_REC_KB", "record the master output to the SD card: th
           "buffer holds loses frames (counted), never writes noise. The file is one contiguous run sized for the "
           "length asked (a minute when none): a take that reaches its end stops there. While it records, the card "
           "does nothing else: samples from the card wait, the card's lists and saves say the card is busy. "
-          "Needs LAYOUT and FAR_OK (full FatFs). The buffer is RAM of the pool for as long as the build has it.",
+          "Needs LAYOUT (full FatFs) and SDCARD. The buffer is RAM of the pool for as long as the build has it.",
      off_warning="no recording to the card")
 # bit 412 (2026-10-25): reserved for the RAMTEXT overlays (411: the effects' arena)
 _add("OVERLAY", "FELUCCA_OVERLAY", "engines' fast code loaded per part (RAMTEXT overlays)", MEM, 412, default=0,
@@ -1441,7 +1440,7 @@ _add("WIFI_AP", "FELUCCA_WIFI_AP", "Wi-Fi AP: the FM-1 as an access point (MODE 
           "on in both): 8.1 KB of flash, no RAM and 1.8 KB of the pool.")
 # USB MIDI host (2026-10-28): fm1-base's (fm1.toml usb_host = true, felucca-bsp's chip/usb_host.c, ported from Melodee
 # with its authors' permission); the release only: Optimist's own firmware has no USB host (core.validate says so).
-# Bit 438 (436 / 437: MEMORY / RAM_PACKED).
+# Bit 438 (436 / 437: MEMORY / RAM_PACKED, retired).
 _add("USB_HOST", "FELUCCA_USB_HOST", "USB MIDI host: a USB-MIDI keyboard, controller or synth plugged into the FM-1", M, 438,
      default=0, experimental=True,
      tested="host-tested only; USB host IN ran on Melodee, OUT not validated on a device",
@@ -1474,6 +1473,11 @@ for _it in _ITEMS:
     if _it.parent:
         assert _level_ok(_it), f"{_it.key}: one level only (two under a group's head)"
         ITEMS[_it.parent].children.append(_it.key)
+for _it in _ITEMS:                                   # the menu's tree: shown_under over parent, hidden items left out
+    _up = _it.shown_under or _it.parent
+    if _up and not _it.hidden:
+        assert _it.shown_under is None or _it.shown_under in ITEMS, f"{_it.key}: shown_under names no item"
+        ITEMS[_up].menu_children.append(_it.key)
 assert len({it.bit for it in _ITEMS}) == len(_ITEMS), "registry: duplicate bit"
 assert all(k not in ITEMS for k in FORBIDDEN), "registry: a forbidden item is registered"
 for _it in _ITEMS:
@@ -1496,7 +1500,7 @@ def ancestors(key):
 
 
 def top_level(group=None):
-    return [it for it in _ITEMS if not it.parent and (group is None or it.group == group)]
+    return [it for it in _ITEMS if not it.parent and not it.hidden and (group is None or it.group == group)]
 
 
 def add_item(item):

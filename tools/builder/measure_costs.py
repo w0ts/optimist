@@ -176,18 +176,17 @@ for _k in C.NEEDS_AUTO:
             WITH.setdefault((_k, _v), {"MOTION": 1})
 # the SD card mode's items: none is valid on the defaults (2026-10-27: --missing skipped all eleven, so builder_test
 # found them unmeasured): each measured with what configure.validate asks of it, less those items' own deltas. The big
-# layout (LAYOUT 1) wants the sample engine, the user drums and the snapshots out and the patterns in; FAR_OK, OVERLAY
+# layout (LAYOUT 1) wants the sample engine, the user drums and the snapshots out and the patterns in; OVERLAY
 # and the card's recorder and rings want LAYOUT 1 (measured first: they subtract it); the rings want SAMPLE and an
 # arena that holds the delay's 128 KB line beside them (192 KB: every SD_RING value validates there)
 _LAYOUT = {"ENG_SAMPLE": 0, "DRUM_USR": 0, "SNAPSHOTS": 0, "PATTERNS": 1}
 WITH[("LAYOUT", 1)] = dict(_LAYOUT)
-WITH[("FAR_OK", 1)] = dict(_LAYOUT, LAYOUT=1)
 WITH[("OVERLAY", 1)] = dict(_LAYOUT, LAYOUT=1)
 WITH[("BT_PROJ", 1)] = {"BLE": 1, "ED_MIRROR": 1, "PATTERNS": 1}
 for _v in (16, 32, 64):
-    WITH[("SD_REC", _v)] = dict(_LAYOUT, LAYOUT=1, FAR_OK=1)
+    WITH[("SD_REC", _v)] = dict(_LAYOUT, LAYOUT=1)
 for _v in (4, 8, 12, 16):
-    WITH[("SD_RING", _v)] = dict(_LAYOUT, LAYOUT=1, FAR_OK=1, ENG_SAMPLE=1, ARENA=192)
+    WITH[("SD_RING", _v)] = dict(_LAYOUT, LAYOUT=1, ENG_SAMPLE=1, ARENA=192)
 
 
 def with_depth(k):
@@ -331,7 +330,7 @@ LAST_ERROR = [""]       # (why the last optional measurement did not build)
 # what the release needs beside an item that does not build alone (the items measured first: their deltas are subtracted):
 # Bluetooth audio and its options want BLE (op_bt.c), the central wants the bond too, the SD card its layout (opt_sd_mmc.c)
 LADDER = ({"BLE": 1}, {"BLE": 1, "BLE_BOND": 1},
-          {"LAYOUT": 1, "FAR_OK": 1, "ENG_SAMPLE": 0, "DRUM_USR": 0, "SNAPSHOTS": 0, "PATTERNS": 1})
+          {"LAYOUT": 1, "ENG_SAMPLE": 0, "DRUM_USR": 0, "SNAPSHOTS": 0, "PATTERNS": 1})
 UNBUILDABLE = {}        # (a run's: "KEY=value" -> why the release does not build it, costs-fm1base.json "unbuildable")
 
 
@@ -438,7 +437,7 @@ for _n in (3, 4):
 # the SD card in the big layout is full FatFs, not Petit FatFs (registry.h FELUCCA_SD_FATFS, 2026-10-26): its pair
 # the difference; the console's sd commands reach more of FatFs (open, read, write, seek, list, the link map). Until
 # measured here: costs.json holds local measurement builds on sd-card-mots + SDCARD=1, FatFs against Petit
-_SDM = {"SDCARD": 1, "LAYOUT": 1, "FAR_OK": 1, "ENG_SAMPLE": 0, "DRUM_USR": 0, "SNAPSHOTS": 0, "PATTERNS": 1}   # (what
+_SDM = {"SDCARD": 1, "LAYOUT": 1, "ENG_SAMPLE": 0, "DRUM_USR": 0, "SNAPSHOTS": 0, "PATTERNS": 1}   # (what
                                                  # the big layout's rule needs from the defaults: a valid configuration)
 PAIRS.append(dict(_SDM))                         # (with the console too it is ~25 KB over SRAM on the defaults: not
                                                  # measurable as a pair, left out)

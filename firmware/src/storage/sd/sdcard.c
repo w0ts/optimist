@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* The SD card (builder item SDCARD, off by default; the hardware mod: docs/SD-CARD-DESIGN.md). ChaN's SPI-mode card
  * driver (sd_mmc.c) on the LCD's SPI1 (hal/fm1_sd_bus.h) under one of two filesystems:
- *   - full FatFs R0.16 (FELUCCA_SD_FATFS: LAYOUT 1 + FAR_OK, the room for its ~15 KB; fatfs/, its own units:
+ *   - full FatFs R0.16 (FELUCCA_SD_FATFS: LAYOUT 1, the room for its ~15 KB; fatfs/, its own units:
  *     tools/build.py; the disk layer sd_diskio.c): long names, files created, grown, renamed, several open, fast seek,
  *     contiguous runs (f_expand); the card's own layout on top (sd_layout.c, sd_index.c, sd_browse.c, sd_save.c);
  *   - Petit FatFs R0.03a (every other build: the bring-up, pff.c its own unit): FAT16 and FAT32, 8.3 names, no files

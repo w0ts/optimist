@@ -216,11 +216,6 @@ def layout():
     return int(CFG_VALUES.get("FELUCCA_LAYOUT", os.environ.get("FELUCCA_LAYOUT", "0")))
 
 
-def far_ok():
-    """the far probe passed on the FM-1 (the FAR_OK builder item): the code may use the fake SD mode's whole slot"""
-    return int(CFG_VALUES.get("FELUCCA_FAR_OK", os.environ.get("FELUCCA_FAR_OK", "0"))) == 1
-
-
 def overlay():
     """the RAMTEXT overlays (the OVERLAY builder item: FELUCCA_OVERLAY, core/overlay.c)"""
     return int(CFG_VALUES.get("FELUCCA_OVERLAY", os.environ.get("FELUCCA_OVERLAY", "0"))) == 1
@@ -543,9 +538,9 @@ def build_app():
     if CFG_VALUES.get("FELUCCA_SDCARD", 0) == 1 or os.environ.get("FELUCCA_SDCARD") == "1":
         # the card's filesystem, ChaN's, vendored, its own units at the firmware's flags; the card driver it calls
         # (disk_*) is in felucca.c (storage/sd/sdcard.c): full FatFs (fatfs/ff.c + the code page's tables, ffunicode.c)
-        # in the big layout (LAYOUT 1 + FAR_OK: registry.h FELUCCA_SD_FATFS), else Petit FatFs (pff.c)
+        # in the big layout (LAYOUT 1: registry.h FELUCCA_SD_FATFS), else Petit FatFs (pff.c)
         sd = FW / "src" / "storage" / "sd"
-        if layout() == 1 and far_ok():
+        if layout() == 1:
             units += [("cc", *flags, "-Os", "-c", sd / "fatfs" / "ff.c", "-o", OUT / "ff.o"),
                       ("cc", *flags, "-Os", "-c", sd / "fatfs" / "ffunicode.c", "-o", OUT / "ffuni.o")]
             objs += [OUT / "ff.o", OUT / "ffuni.o"]
@@ -565,8 +560,8 @@ def build_app():
     ld = FW / "app.ld"
     slot = flash_layout.app_slot(layout())
     LIMITS["flash"] = slot          # (the whole image, the far probe included; the code's own limit: the far probe's guard
-                                    # below, flash_layout.code_limit: a probe build the normal slot, FAR_OK the big one)
-    FAR_OFF = flash_layout.far_off(far_ok())
+                                    # below, flash_layout.code_limit: the big slot in the fake SD mode layout)
+    FAR_OFF = flash_layout.far_off()
     ld_text = (FW / "app.ld").read_text()
     if layout():                    # another flash layout: its XIP length, and the far probe's section past 0x93000
         ld_text = (ld_text.replace("LENGTH = 0x8DFBC", f"LENGTH = 0x{slot:X}")
@@ -641,11 +636,9 @@ def build_app():
     if far and MEASURE:             # (a measurement build: its bytes after the image, not at an address: sizes only)
         img += far
     elif far:                       # the far probe: after everything the boot needs, at its own offset past 0x93000
-        if len(img) > FAR_OFF or (not far_ok() and len(img) > flash_layout.app_slot(0)):
-            raise SystemExit(f"build: the image ({len(img)} B) is past {'the far probe' if far_ok() else 'the normal layout' + chr(39) + 's slot'} "
-                             f"({min(FAR_OFF, LIMITS['flash'])} B): " + ("the far probe and the overlays' table keep the "
-                             "slot's last 64 KB" if far_ok() else "until the far probe passed (FAR_OK) everything the boot "
-                             "reads stays below 0x93000"))
+        if len(img) > FAR_OFF:
+            raise SystemExit(f"build: the image ({len(img)} B) is past the far probe ({min(FAR_OFF, LIMITS['flash'])} B): "
+                             "the far probe and the overlays' table keep the slot's last 64 KB")
         img += b"\xff" * (FAR_OFF - len(img)) + far
         print(f"far      probe {len(far)} B at app offset {FAR_OFF:#x} (flash {0x4120 + FAR_OFF:#x})")
     if OVL:                         # the overlay table and the slots' code, after the far probe (_ovl_rom: the big layout)

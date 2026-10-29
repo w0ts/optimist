@@ -60,7 +60,7 @@ def registry_view():
     """-> core.describe() plus what the menu lists: per group its top-level items in order, each item's children in
     order (backports.py AFTER), what an EXPERIMENTAL item was tested on, its provenance as one line"""
     d = K.describe()
-    extra = {k: {"children": list(it.children), "tested": it.tested,
+    extra = {k: {"children": list(it.menu_children), "hidden": it.hidden, "shown_under": it.shown_under, "tested": it.tested,
                  "provenance_line": it.provenance.line() if it.provenance else ""} for k, it in R.ITEMS.items()}
     for item in d["registry"]["items"]:
         item.update(extra[item["key"]])
