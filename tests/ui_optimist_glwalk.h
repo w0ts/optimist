@@ -144,7 +144,8 @@ static const struct { const char *label, *val; } GLW_FACTORY[] = {
     {"KNOB COLORS", "OFF"}, {"VU FLOOR", "-60"}, {"BUTTONS", "OFF"}, {"KEYS", "OFF"}, {"LOWCUT", "OFF"}, {"SERIAL", "OFF"}, {"HOLD", "350"},
     {"MASTER", "NONE"}, {"T1", "1"}, {"T2", "2"}, {"T3", "3"}, {"DRUMS", "4"}, {"DRUM BUS", "NONE"}, {"DR1", "NONE"},
     {"DR2", "NONE"}, {"DR3", "NONE"}, {"DR4", "NONE"}, {"DR5", "NONE"}, {"DR6", "NONE"}, {"DR7", "NONE"}, {"DR8", "NONE"},
-    {"DR9", "NONE"}, {"DR10", "NONE"}};                 /* (SYSTEM > USB AUDIO: the routing before the setting) */
+    {"DR9", "NONE"}, {"DR10", "NONE"}, {"RET A", "NONE"}, {"RET B", "NONE"},
+    {"RET C", "NONE"}};                                 /* (SYSTEM > USB AUDIO: the routing before the setting) */
 static const char *glw_factory(const char *label)      /* its factory text, 0: none in the table */
 {
     uint32_t i;
