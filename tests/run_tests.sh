@@ -920,6 +920,12 @@ job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DFELUCCA_PARAM_HELP=1 -DFELUCCA_USB_AUDIO=1 -DFELUCCA_SYS_DEBUG=0 -DDUAL_LOAD=1 $SEC4 -o "$OUT/ui_optimist_nodbg_dual_test" tests/ui_optimist_test.c -lm
     run "Optimist UI without the SYSTEM debug pages, DUAL (SYS_DEBUG=0, DUAL_LOAD): INFO = CPU0, CPU1, UNDERRUNS, BATTERY; KNOB 1 the measure of both" "$OUT/ui_optimist_nodbg_dual_test" "$OUT/optimist-nodbg-dual"
 ) >"$U.out" 2>&1 & jobbg
+# the release's DEBUG STATS (PLAT_STATS_APP; tests/dbgstats_stub.h stands in for fm1-base's plat_stats_enable): the last line of SYSTEM > General, no DEBUG page
+job; ( jobin
+    mkdir -p "$OUT/optimist-dbgstats"
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DFELUCCA_PARAM_HELP=1 -DFELUCCA_CDC=1 -DPLAT_STATS_APP=1 -include tests/dbgstats_stub.h $SEC4 -o "$OUT/ui_optimist_dbgstats_test" tests/ui_optimist_test.c -lm
+    run "Optimist UI with DEBUG STATS (PLAT_STATS_APP): General's last line, no DEBUG page, USB SERIAL on its own page" "$OUT/ui_optimist_dbgstats_test" "$OUT/optimist-dbgstats"
+) >"$U.out" 2>&1 & jobbg
 # the limited insert types on the Optimist UI (tests/ui_optimist_fxi.h): the free count, WAIT, IN USE, FULL (dim), hidden
 # when not built, the help lines; CHRS ECHO in effects memories (DLY_ARENA, beside the delay send's 128 KB) that hold 0 / 4
 # (32 KB), 1 / 0 (2 KB) and 4 / 1 (8 KB) of them (the last two with the help line)

@@ -21,6 +21,7 @@ static uint32_t glw_state(void)                        /* every setting a GLOBAL
     h = glw_mix(h, &settings.palette, sizeof settings.palette);
     h = glw_mix(h, &settings.lowcut, sizeof settings.lowcut);
     h = glw_mix(h, &knob_colors, 1);
+    h = glw_mix(h, &dbg_stats, 1);                      /* (SYSTEM > General > DEBUG STATS: core/dbgstats.h) */
     h = glw_mix(h, &hold_sel, 1);
     h = glw_mix(h, &TSEL->p[P_SLEN], sizeof TSEL->p[P_SLEN]);
     h = glw_mix(h, sync_ofs, sizeof sync_ofs);      /* (CLK OFS, BT OFS: clock_sync.c) */
@@ -149,7 +150,7 @@ static int glw_walk_line(uint32_t scr, uint32_t i)
  * (the user, 2026-10-13; panel.c settings_init, settings_word.c read as 0); BLE is never reset */
 static const struct { const char *label, *val; } GLW_FACTORY[] = {
     {"MODE", "FREE"}, {"NUDGE", "0"}, {"LENGTH", "1"}, {"START", "NOTE"}, {"CLK OUT", "OFF"}, {"LINK", "ON+S/S"},
-    {"KNOB COLORS", "OFF"}, {"VU FLOOR", "-60"}, {"SPK LOWCUT", "ON"}, {"HPHN BASS", "OFF"}, {"SERIAL", "OFF"}, {"HOLD", "350"},
+    {"KNOB COLORS", "OFF"}, {"VU FLOOR", "-60"}, {"SPK LOWCUT", "ON"}, {"HPHN BASS", "OFF"}, {"DEBUG STATS", "OFF"}, {"SERIAL", "OFF"}, {"HOLD", "350"},
     {"MASTER", "NONE"}, {"T1", "1"}, {"T2", "2"}, {"T3", "3"}, {"DRUMS", "4"}, {"DRUM BUS", "NONE"}, {"DR1", "NONE"},
     {"DR2", "NONE"}, {"DR3", "NONE"}, {"DR4", "NONE"}, {"DR5", "NONE"}, {"DR6", "NONE"}, {"DR7", "NONE"}, {"DR8", "NONE"},
     {"DR9", "NONE"}, {"DR10", "NONE"}, {"RET A", "NONE"}, {"RET B", "NONE"},
@@ -499,6 +500,7 @@ static void glwalk_tests(void)
     settings.palette = pal;
     palette_set(pal);
     settings.lowcut = oc_set_word(low);                 /* (SPK LOWCUT, HPHN BASS back: fx/outcorr.c) */
+    dbg_stats_set(0);                                   /* (DEBUG STATS back OFF) */
     t0->p[P_SLEN] = len;
     reset_ui();
 }
