@@ -438,12 +438,7 @@ _SDM = {"SDCARD": 1, "LAYOUT": 1, "ENG_SAMPLE": 0, "DRUM_USR": 0, "SNAPSHOTS": 0
                                                  # the big layout's rule needs from the defaults: a valid configuration)
 PAIRS.append(dict(_SDM))                         # (with the console too it is ~25 KB over SRAM on the defaults: not
                                                  # measurable as a pair, left out)
-# FM6 off where its tables are in the pool (TAB_IN_POOL): its delta from the defaults frees them from main RAM
-# (2026-10-24, synths_USBaudio_BTaudio_BTmidi: FM6 off freed 16 B of RAM and 608 B of the pool, the estimate said
-# 4,896 B of RAM and 4,260 B more pool; with FM6_SYSEX off too the pair and the triple measured 0: not kept)
-PAIRS.append({"ENG_FM6": 0, "TAB_IN_POOL": 1})
-# (TAB_IN_POOL in the SD card mode: a computed term, core.tab_pool. A pair LAYOUT=1,SDCARD=1,TAB_IN_POOL=1 tried
-# 2026-10-27 measured 6,340 B of flash beyond that had nothing to do with the tables and fixed 448 B of the 2,464)
+# (the tables are always in the pool since 2026-10-29: core.tab_pool, a computed term; no pair)
 # the mirror over BLE (ed_mirror.c mbr_q, mbr_cb, mbr_rx, mbr_big: in the pool) is built only with both: 2026-10-27,
 # synths_USBaudio_BTaudio_BTmidi's BLE off freed 8,280 B of pool, the estimate said +4 (BLE's own delta, from the
 # defaults: no mirror there)

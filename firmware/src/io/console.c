@@ -1656,7 +1656,7 @@ static void con_params(void)
     }
 }
 
-/* tabbench: the read speed of main RAM against the pool on the FM-1 (TAB_IN_POOL, docs/MEMORY-MAP.md section 2; the
+/* tabbench: the read speed of main RAM against the pool on the FM-1 (where the tables went, docs/MEMORY-MAP.md section 2; the
  * emulator has no memory timing). The same loop (a sine lookup's stride, 2 KiB, int16 reads) over SINE where this
  * build put it, a main RAM range (trk, read only) and a pool range (st_buf, read only); the best of 8 runs of 4,096
  * reads each, in tenths of a ns a read (timer 4, 24 MHz: ~4 ns steps over the run). Interrupts stay on (the audio

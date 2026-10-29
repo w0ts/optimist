@@ -85,8 +85,8 @@ asserts it stays below 0x95000), the loader's `LDR_APP_HI` and the rescue tool's
 RAM and POOL are one contiguous SRAM range (0x01C08000-0x01C74000) split by `app.ld` [the stock firmware places data
 across the boundary; no datasheet]. Main RAM is the scarcer. A buffer only the main loop uses can go to the pool with
 `IN_POOL` (`core.h`); moving one changes neither flash nor the undo total. RAMTEXT, RAM and the pool run code and data
-at the same speed on the FM-1 (measured 2026-10-25, section 2.3); the audio loops' tables (`TAB_RAM`) stay in main RAM
-unless the EXPERIMENTAL `TAB_IN_POOL` moves them, and the console's `tabbench` times SINE in main RAM against the pool.
+at the same speed on the FM-1 (measured 2026-10-25, section 2.3); the audio loops' tables (`TAB_RAM`) and buffers (`IN_POOL_AUDIO`) are in
+the pool (the builder's `TAB_IN_POOL`, retired 2026-10-29, is always on), and the console's `tabbench` times SINE in main RAM against the pool.
 
 | Region (app.ld) | Size | What |
 |---|---|---|
@@ -94,7 +94,7 @@ unless the EXPERIMENTAL `TAB_IN_POOL` moves them, and the console's `tabbench` t
 | SRAM 0x01C00100 | 474,880 B, one packed region (since 2026-10-25; section 2.4), in this order: | |
 | - RAM code | | `.ram_text` (flash driver, CPU1 spin loop), `.ram_hot` (`HOT`: the mix, drums, most engines), `.ram_hot2` (`HOT2`: mostly FX), one run (one guard window). Everything the boot copies (`.data`, `.pool_init`, the delta-coded tables' blobs (`gen_tables.py` TAB_STREAM: decoded onto the boot stack and expanded from there, `tab_expand`), the three RAM code sections) is one LZB stream in the image after `.text` (`tools/lzb.py`: an LZ parse whose bytes an adaptive range coder codes, decoded by `system/lzb.h lzb_expand` from `fm1_cstart` with a 6.5 KB model on the boot stack): 58 KB of copies take 38 KB of flash |
 | - data | | `.data`, `.bss` |
-| - pool | | `.pool_init` (with `TAB_IN_POOL`: the TAB_RAM tables, copied at boot), then `.pool`: the effects memory (the delay line and the inserts' lines, `fx/insfx/fxi_mem.h`), reverbs, engine memory shared per part (`core/arena.c`; EXPERIMENTAL `FELUCCA_FX_ARENA`: the sends' lines and the inserts' own room in that arena while used, `fx/fx_arena.c`, and the SLICER's recordings, WAVE's table and the X0X machines' states, `core/arena_bufs.c`, docs/SD-MODE-DESIGN.md 6b), USB audio rings, slicer and punch buffers, the screen canvas, the main loop's `IN_POOL` buffers |
+| - pool | | `.pool_init` (the TAB_RAM tables, copied at boot), then `.pool`: the effects memory (the delay line and the inserts' lines, `fx/insfx/fxi_mem.h`), reverbs, engine memory shared per part (`core/arena.c`; EXPERIMENTAL `FELUCCA_FX_ARENA`: the sends' lines and the inserts' own room in that arena while used, `fx/fx_arena.c`, and the SLICER's recordings, WAVE's table and the X0X machines' states, `core/arena_bufs.c`, docs/SD-MODE-DESIGN.md 6b), USB audio rings, slicer and punch buffers, the screen canvas, the main loop's `IN_POOL` buffers |
 | - the rest | | the undo history (section 2.1), then 8 KiB kept spare below the stacks |
 | stacks 0x01C74000 | 32 KiB | user 0x01C74100-0x01C7A000 and system 0x01C7A100-0x01C7C000, each after a guard band; CPU1's stack is in the pool |
 | NOINIT 0x01C7C000 | 15,696 B | survives a reset: the pending arena (sections saved while playing, written when the transport stops), panel table and settings, boot guard, crash record, with SECTIONS=4 the project slots |
@@ -142,8 +142,8 @@ dropped. Code in the pool is not tried: `fm1_guard.h`'s PC windows allow XIP and
 ### 2.4 One packed region (built 2026-10-25, branch `memory-map`; not yet run on the FM-1)
 
 Today three fixed budgets fill up one by one (RAMTEXT 32,512 B, RAM 96 KiB, POOL 336 KiB less an 8 KiB spare), and the
-builder works around them: `HOT2` (RAM code because RAMTEXT is full), `IN_POOL`, `IN_POOL_AUDIO`, `TAB_IN_POOL` (data
-moved because RAM is full). With section 2.3 those moves buy nothing. What changed:
+builder works around them: `HOT2` (RAM code because RAMTEXT is full), `IN_POOL`, `IN_POOL_AUDIO` (data
+moved because RAM is full; `TAB_IN_POOL` was this, retired 2026-10-29: always on). With section 2.3 those moves buy nothing. What changed:
 
 - `app.ld`: one region `SRAM`, 0x01C00100 up to the stacks (`_guard0`, 0x01C74000; an ASSERT keeps them together), the
   sections packed in order: RAM code (`.ram_text`, `.ram_hot`, `.ram_hot2`), `.data`, `.bss`, `.pool_init`, `.pool`; the
@@ -155,7 +155,7 @@ moved because RAM is full). With section 2.3 those moves buy nothing. What chang
   and sram; `fits`, `over_any`, `FIT_MARGIN` sram 704 = the old RAM 448 + RAM code 256). costs.json keeps its four
   columns as sizes (`ram` = `.ram_hot2` + `.data` + `.bss`, `pool`, `ramtext` = `.ram_text` + `.ram_hot`, as before);
   their sum is what the SRAM budget counts (`core.used`). The web builder shows two gauges, FLASH and SRAM;
-- not done yet: `HOT2` folded into `HOT`, and `IN_POOL`, `IN_POOL_AUDIO`, `TAB_IN_POOL` retired. They are harmless now
+- not done yet: `HOT2` folded into `HOT`, and `IN_POOL`, `IN_POOL_AUDIO` retired (`TAB_IN_POOL` is, 2026-10-29). They are harmless now
   (plain placement inside one region) and touch many files.
 
 Default profile (synths_USBaudio_BTaudio_BTmidi, 2ab989d5): SRAM 449,776 of 466,688 B; the undo ring 16,912 B (13,200

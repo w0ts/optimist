@@ -28,7 +28,7 @@
 #define HOT                                          /* (core.h: the audio's code in RAM; a host test: none) */
 #endif
 #ifndef IN_POOL_AUDIO
-#define IN_POOL_AUDIO                                /* (core.h: the audio reads it, in the pool with TAB_IN_POOL) */
+#define IN_POOL_AUDIO                                /* (core.h: the audio reads it, in the pool) */
 #endif
 #ifndef SST_N
 #define SST_N 8u                                     /* streams (rings): one a sounding voice (core.h NVOICE) */
