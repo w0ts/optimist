@@ -255,6 +255,10 @@ def load(path=SRC):
             ch = R.ITEMS[parent].children
             ch.remove(key)
             ch.insert(ch.index(AFTER[sw]) + 1, key)
+            mc = R.ITEMS[parent].menu_children
+            if AFTER[sw] in mc and key in mc:
+                mc.remove(key)
+                mc.insert(mc.index(AFTER[sw]) + 1, key)
         items.append(it)
     return items
 

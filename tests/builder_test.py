@@ -52,6 +52,9 @@ check("... the menu lists MEMORY alone in the group's top level, SD_RING / SD_RE
       and R.ITEMS["MEMORY"].menu_children == ["SD_RING", "SD_REC"] and R.ITEMS["SDCARD"].menu_children == []
       and all(R.ITEMS[k].hidden for k in ("RAM_PACKED", "SDCARD", "LAYOUT")) and "FAR_OK" not in R.ITEMS and "FAR_OK" in R.RETIRED and R.ITEMS["RAM_PACKED"].bit == 437
       and R.ITEMS["SD_RING"].parent == "SDCARD" and R.ITEMS["SD_RING"].shown_under == "MEMORY")
+check("backported items (SPRING, PUNCH_LATCH, UP_FM6, GRIDS_*) are in their parent's menu_children, like any option, in the children's order",
+      all(k in R.ITEMS[R.ITEMS[k].parent].menu_children for k in ("SPRING", "PUNCH_LATCH", "UP_FM6", "GRIDS_EUCLID", "GRIDS_LFO", "GRIDS_VEL"))
+      and [c for c in R.ITEMS["FX_REVERB"].children if c in R.ITEMS["FX_REVERB"].menu_children] == R.ITEMS["FX_REVERB"].menu_children)
 _nd = dict(C.defaults(), DRUMS=0, LANE_FX=1, DRUM_X0X909=1)
 _nf = C.flags(_nd)[0]
 check("DRUMS off: every drum switch 0 (its options' options too), the drum-only items elsewhere left out, no drum source "
