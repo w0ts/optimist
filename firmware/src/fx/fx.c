@@ -1267,8 +1267,23 @@ static HOT2 __attribute__((noinline)) int32_t cho_gain(int32_t *wl, int32_t *wr,
  * RAMTEXT (HOT2: main RAM): fx_buses pays a call a block. 32767 = 0 dBFS, as a track's peak */
 static volatile int32_t fx_ret_pk[3];
 #if FELUCCA_USB_AUDIO
-#define UA_RET_SUB(j, l, r, n) ua_ret_sub(j, l, r, n)   /* a return's stage for SYSTEM > USB AUDIO's RET A B C (ua_tap.h: a */
-#define UA_RET_ADD(j, l, r, n) ua_ret_add(j, l, r, n)   /* test a line a block while none is routed) */
+/* SYSTEM > USB AUDIO's RET A B C (io/usb/ua_tap.h ua_ret): a stage of line j: what it adds to l / r is its output.
+ * UA_RET_SUB before it, UA_RET_ADD after it (or ADD alone for a stage that writes l / r whole: the chorus). The test
+ * inline, a test a line a block while none is routed; the loop a call, here (HOT2: with the stages, a sound-side file's,
+ * so the release keeps it beside them in RAM) */
+static HOT2 __attribute__((noinline)) void ua_ret_acc(uint32_t j, const int32_t *l, const int32_t *r, uint32_t n, int32_t sg)
+{
+    int32_t *a = ua_ret[j % 3u][0], *b = ua_ret[j % 3u][1];
+    uint32_t i;
+    if (sg < 0)
+        for (i = 0; i < n; i++)
+            a[i] -= l[i], b[i] -= r[i];
+    else
+        for (i = 0; i < n; i++)
+            a[i] += l[i], b[i] += r[i];
+}
+#define UA_RET_SUB(j, l, r, n) do { if (ua_ret_live >> (j) & 1u) ua_ret_acc(j, l, r, n, -1); } while (0)
+#define UA_RET_ADD(j, l, r, n) do { if (ua_ret_live >> (j) & 1u) ua_ret_acc(j, l, r, n, 1); } while (0)
 #else
 #define UA_RET_SUB(j, l, r, n) ((void)0)
 #define UA_RET_ADD(j, l, r, n) ((void)0)
