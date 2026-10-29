@@ -386,6 +386,57 @@ PROPHET, NOISE, PLAITS, PHYS, GRAIN, ACID, FM6, WAVE) keep their state in the vo
 - Tests: the engines' goldens and health (`tests/cz_test.c`, `juno_test.c`, the regressions with every engine built),
   `tests/nbank_test.c` (the CZ collection: the part's tone through `cz_tone(p)`).
 
+**Built (one memory setting, packing, 2026-10-29; the user: "one project/FX memory setting with packing against
+fragmentation"):**
+- `ARENA` is the one setting: every build with it holds the effects' lines (registry.h `FELUCCA_FX_ARENA`, no longer
+  the SD card mode's only); `DLY_ARENA` is ignored with it (the builder passes its default and says so). Builds with
+  `ARENA` off keep the fixed memories and `DLY_ARENA` as before.
+- The send lines at fixed places at the arena's top (`fx_arena.c FXM_AT`: REV the highest, then DLY, then CHO). A place
+  not in use takes a part's block (the engines are placed first fit from the bottom: only a full arena reaches it),
+  never a buffer or the inserts' room (`ARN_LIM`, under the places); the line wanted again, that block is moved away.
+  The builder refuses an arena that cannot hold the three together (every `ARENA` build).
+- The limited inserts share one room (fxi.c `fxa_own`; the unit sub-allocator kept, a stress test measured a block
+  per insert line at about three times the bytes hidden in gaps): one block that grows and shrinks a 1 KB unit at a
+  time at its edges as lines are placed and given back, its units the arena's own (a line keeps its address while the
+  room grows). Measured against one fixed block of one line of each type (`FXR_GROW 0`): the owners left without their
+  line 24 % against 66 % (96 KB), so the room grows. Lending the send lines to the inserts stays as it was.
+- Packing (`core/arena.c arn_pack`, `arn_poll`): a refusal that the free bytes would hold (a part's change, a load's
+  part, a send line's place, the room growing, another buffer) plans moves on a copy of the arena: a block over a fixed
+  place asked for to the lowest place anywhere else, the room to the highest place under the send lines' places, the
+  parts' blocks in address order each to the lowest place below it, until the refused block fits (the fewest moves in
+  that order); no plan, the refusal stands (once until the free room changes). A project load packs every block once
+  its parts have switched (`arn_pack_all`). Only the parts' blocks and the room move (nothing in them points into them:
+  a copy and their pointer, `part_mem_p`, `fxr_moved`); the send lines and the other buffers never.
+- A move (`arn_poll`, the main loop): its target checked again (taken by a reservation meanwhile: the plan stops), the
+  client gated (voice.c `PART_MOVING`: the part neither rendered nor its notes started, they wait in its queue, its
+  switch waits; the room: the limited inserts bypassed for the block, fxi_kern.c `FXR_MOVING`), started just after an
+  audio block (`fxm_sync`), the contents copied in windows of at most 2 KB and 40 us with the interrupts off (the block
+  period is 726 us: 1/18 of it), then the place and pointer swapped with the interrupts off. The probe:
+  SYSTEM > INFO's ARENA MOVE (the longest move, its start to its swap / the longest interrupts-off window, us): the
+  FM-1's copy speed is not measured yet.
+- The unit: every size and place a whole 256 B (`ARN_ALIGN`; measured against 64 and 1024 B: the same within the
+  seeds' spread, 256 the fewest refusals a packed layout would place by the rules). The buffers best fit from the top
+  (`ARN_HIGH` 0; the highest place measured the same).
+- The stress test (`tests/arena_frag_test.c`, run_tests.sh: the jam profile's engines, sends and inserts; 20,000 random
+  steps, 3 seeds; host time is not FM-1 time): see the table below. What a packed layout would place counts every
+  refusal no larger than the free bytes; "by the rules" those the design's own layout could (the room, the buffers and
+  the tables under the send lines' places, the buffers never moved). The fixed places cost free bytes to the room and
+  the buffers (an unused send's place is free only to the parts): hidden bytes grow at 96 KB, fall at 128 KB.
+
+| arena | tree | refusals (3 seeds) | a packed layout would place | .. by the design's rules | parts' / loads' / sends' refusals | insert owner-steps unserved | mean free / hidden B | worst hidden B | moves | longest move (host us) |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 128 | base | 868 | 235 | - | 186 / 19 / 663 | 18.2 % | 26754 / 11292 | 52648 | 0 | 0 |
+| 128 | final | 2288 | 961 | 491 | 512 / 45 / 313 | 18.9 % | 26616 / 9064 | 65536 | 1503 | 5713 |
+| 64 (DLY_LEN 8192) | base | 2617 | 368 | - | 1612 / 125 / 878 | 51.1 % | 8477 / 2041 | 23176 | 0 | 0 |
+| 64 (DLY_LEN 8192) | final | 3721 | 1861 | 373 | 2293 / 156 / 663 | 36.7 % | 11825 / 3666 | 26368 | 621 | 2408 |
+| 96 | base | 2695 | 1006 | - | 1676 / 111 / 906 | 18.9 % | 11741 / 3261 | 32440 | 0 | 0 |
+| 96 | final | 3354 | 1274 | 545 | 1502 / 104 / 620 | 26.1 % | 17428 / 6065 | 44032 | 1308 | 5 |
+
+(Refusals count every MEM FULL said; fm1-next said the inserts' room's once while it stayed refused (2 in all), this
+build each insert line refused (1,171 at 96 KB): compare the parts', loads' and sends' columns and the owners unserved.
+64 KB with the jam profile's sends (70 KB together) is refused by the builder: that row has the delay's line at 8192
+samples in both trees. The longest move in host microseconds: the host was loaded by other builds then; no FM-1 time.)
+
 ## 7. Phases
 
 | Phase | What | Device risk |
