@@ -32,7 +32,8 @@ OPTIMIST_ID = re.compile(r"FM-1_7(00|[2-6]\d)|FM-1_79\d{2}(\d{4})?")   # (Optimi
                                                         # BUILDING.md; FM-1_79: the release on fm1-base, fm1.toml id_prefix)
 RELEASE = [os.environ.get("OPTIMIST_CLASSIC") != "1"]                                        # (the release's packages: fm1-base's update tool when the FM-1 is not
                                                         # running Optimist; set_flavour)
-FM1B_PORT = "Optimist"                                  # (the USB-MIDI port name fm1-base's tool is given)
+FM1B_PORTS = ("FM1-", "Optimist")                       # (the USB-MIDI port names fm1-base's tool is given, in turn: "FM1-XXXX" since
+                                                        # 2026-10-29; "Optimist", an FM-1 on older firmware)
 NEED = "needs mido and python-rtmidi in the builder venv: run `make setup` (python tools/optimist.py setup)"
 RECOVER = ("If the install is cut off the FM-1 stays in update mode: run flash again to finish. If it no longer "
            "starts: hold OCT- alone while switching on (USB rescue) and flash again, or go back to the official "
@@ -177,9 +178,11 @@ def preflight(package, port=None, notes=None):
     if rc == 3 and RELEASE[0] and not port:             # (no Optimist FM-1: an fm1-base one, its tool, its port name)
         fm1b = fm1base_tool()
         if fm1b:
-            rc2, text2 = run_tool(["--info", "--port", FM1B_PORT], tool=fm1b)
-            if rc2 == 0:
-                rc, text, tool, port = 0, text2, fm1b, FM1B_PORT
+            for name in FM1B_PORTS:
+                rc2, text2 = run_tool(["--info", "--port", name], tool=fm1b)
+                if rc2 == 0:
+                    rc, text, tool, port = 0, text2, fm1b, name
+                    break
     if rc:
         raise FlashError(("no FM-1 found over USB-MIDI (data cable? another app using it?): " if rc == 3
                           else f"cannot read the FM-1's identity (exit {rc}): ") + text, rc)

@@ -59,7 +59,7 @@ retransmission), `_tx` (a TX buffer is free: the LL writes the final, already en
 ## 4. Link layer (peripheral)
 
 - **Advertising:** ADV_IND = AdvA + flags (`02 01 06`) + the BLE-MIDI 128-bit UUID, ChSel 0; SCAN_RSP = the complete local name
-  `Optimist XXXX` (`BLE_DEVICE_NAME`; stock's was `FM-1_BLE`). 100 ms, 37 / 38 / 39.
+  `FM1-XXXX` (`BLE_DEVICE_NAME` `FM1-` and `BLE_NAME_SEP`; before 2026-10-29 `Optimist XXXX`; stock's was `FM-1_BLE`). 100 ms, 37 / 38 / 39.
 - **CONNECT_IND checks:** our AdvA and RxAdd; Interval 6..3200; Timeout 10..3200 and > (1 + Latency) x Interval x 2; WinSize
   1..min(8, Interval - 1); WinOffset <= Interval; Hop 5..16; >= 2 channels; not the advertising AA. Anything else is ignored and
   advertising goes on (`cind_rej_why` says which).
@@ -72,7 +72,7 @@ retransmission), `_tx` (a TX buffer is free: the LL writes the final, already en
 
 ## 5. Host and GATT
 
-Handles: 1 GAP 0x1800; 2-3 Device Name (`Optimist XXXX`); 4-5 Appearance (0); 6-7 Peripheral Preferred Connection Parameters
+Handles: 1 GAP 0x1800; 2-3 Device Name (`FM1-XXXX`); 4-5 Appearance (0); 6-7 Peripheral Preferred Connection Parameters
 (6, 9, 0, 100); 8 GATT 0x1801; 9-11 Service Changed + CCCD; 12 BLE-MIDI service `03B80E5A-EDE8-4B33-A751-6CE34EC4C700`; 13-15 MIDI
 I/O `7772E5DB-3868-4112-A1A9-F2669D106BF3` (read: empty; write without response; notify; Write Request accepted too) + CCCD.
 

@@ -4992,7 +4992,7 @@
     "bit": 252,
     "default": 0,
     "parent": null,
-    "desc": "BLE MIDI as the stock firmware offers it (named Optimist XXXX, the BLE-MIDI service), from a stack written for Optimist (docs/BLE-STACK.md): BLE in plays the synth, the FM-1's own notes go out with real timestamps. Tested on an FM-1 with macOS Audio MIDI Setup (not yet with iOS or Windows). The radio's start-up tables, captured from the stock V15 firmware, are included: no V15 file is needed (FM1_STOCK_FWSC makes a fresh capture instead, with the same result). Bluetooth starts OFF: switch it on in SYSTEM > Bluetooth. About 32 KB of flash and 6.5 KB of RAM (the menu shows the measured figures); where the build then overflows, ticking it removes the smallest single item that frees enough (sample sets first, then other items), or the one you pick instead.",
+    "desc": "BLE MIDI as the stock firmware offers it (named FM1-XXXX, the BLE-MIDI service), from a stack written for Optimist (docs/BLE-STACK.md): BLE in plays the synth, the FM-1's own notes go out with real timestamps. Tested on an FM-1 with macOS Audio MIDI Setup (not yet with iOS or Windows). The radio's start-up tables, captured from the stock V15 firmware, are included: no V15 file is needed (FM1_STOCK_FWSC makes a fresh capture instead, with the same result). Bluetooth starts OFF: switch it on in SYSTEM > Bluetooth. About 32 KB of flash and 6.5 KB of RAM (the menu shows the measured figures); where the build then overflows, ticking it removes the smallest single item that frees enough (sample sets first, then other items), or the one you pick instead.",
     "experimental": false,
     "notice": "",
     "off_warning": "",

@@ -1780,6 +1780,7 @@ static void persist_boot(void)                    /* before settings_init / pane
     irq_restore(f);
     if (!flash_ok)
         return;
+    dev_uid_read();                                /* the part's ID: the name "FM1-XXXX" (devname.c; before USB starts) */
     fl_plain_window_init();                        /* flash above 0x93000 reads as plaintext through XIP
                                                     * (user sample sets are played from there) */
     {

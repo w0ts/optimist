@@ -60,6 +60,22 @@ final class FlashTests: XCTestCase {
 
     // MARK: - lists
 
+    /// The FM-1 is found by its port's name (ruling 2026-10-29): "FM1-XXXX", still "Optimist" / "Felucca" (older firmware); never other gear.
+    func testFM1PortNames() {
+        for n in ["FM1-1A2B", "fm1-1a2b", "FM1-1A2B Bluetooth", "Optimist", "Optimist 112D Bluetooth", "Felucca"] {
+            XCTAssertTrue(MirrorLink.isFM1Name(n), n)
+        }
+        for n in ["Launchkey Mini MK3", "IAC Driver Bus 1", "FM1-12", "FM1-ZZZZ", "FM-1 Synth", ""] {
+            XCTAssertFalse(MirrorLink.isFM1Name(n), n)
+        }
+        for n in ["FM1-1A2B", "Optimist", "FM-1", "Melodee", "SLOOP 2.4", "ota-FM-1"] {
+            XCTAssertTrue(CoreMIDIFlashPorts.mayBeFM1(n), n)
+        }
+        for n in ["Launchkey Mini MK3", "IAC Driver Bus 1", "FM1-1A2B Bluetooth", "Optimist 112D Bluetooth"] {
+            XCTAssertFalse(CoreMIDIFlashPorts.mayBeFM1(n), n)
+        }
+    }
+
     func testSiteList() {
         let json = """
         {"version": "0.1", "packages": [

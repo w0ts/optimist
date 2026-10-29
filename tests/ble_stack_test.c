@@ -457,8 +457,8 @@ static void test_advertising(void)
     check("ADV_IND: header (type 0, TxAdd random, ChSel 0), AdvA, flags + MIDI UUID",
           hw.adv[0] == 0x40 && hw.adv[1] == 6 + sizeof ad && !memcmp(hw.adv + 2, ADDR, 6) &&
               !memcmp(hw.adv + 8, ad, sizeof ad));
-    check("SCAN_RSP: 0E 09 \"Optimist 2211\" (the last four hex digits of ..:22:11)",
-          hw.sr[0] == 0x44 && hw.sr[1] == 6 + 15 && hw.sr[8] == 14 && hw.sr[9] == 9 && !memcmp(hw.sr + 10, "Optimist 2211", 13));
+    check("SCAN_RSP: 09 09 \"FM1-2211\" (the last four hex digits of ..:22:11)",
+          hw.sr[0] == 0x44 && hw.sr[1] == 6 + 10 && hw.sr[8] == 9 && hw.sr[9] == 9 && !memcmp(hw.sr + 10, "FM1-2211", 8));
     connect_ind(pdu, 0x50654A6B, 2, 3, 24, 0, 72, ALL, 7);
     pdu[8] ^= 1;
     ok &= !ble_ll_hw_connect_ind(pdu, 36);

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// The FM-1 over CoreMIDI: its USB port ("Felucca" / "Optimist") when it is plugged in, else its Bluetooth MIDI port (connected with
+// The FM-1 over CoreMIDI: its USB port ("FM1-XXXX"; "Optimist" / "Felucca" on older firmware) when it is plugged in, else its Bluetooth MIDI port (connected with
 // iOS's pairing sheet, BluetoothPicker.swift; the FM-1 answers only the mirror's request there). Asks for the mirror (cmd 106)
 // every second, takes the panel writes it pushes into a MirrorDecoder. The same ports carry the editor's requests (Editor/):
 // exchange(...) sends one and waits for its reply; the mirror's request waits for a free moment between them (one request at a
@@ -112,7 +112,7 @@ final class MirrorLink: ObservableObject, Transport, CompanionTransport {
             let px = stride(from: 0, to: d.count, by: 2).map { UInt16(d[$0]) | UInt16(d[$0 + 1]) << 8 }
             lock.withLock { $0.decoder.show(px); $0.generation = 1; $0.features = [Feature.nav.name: Feature.nav.version, Feature.clip.name: Feature.clip.version] }
             demo = NavDemo()
-            portName = "Optimist"
+            portName = "FM1-0000"
             state = .mirroring
             return
         }
@@ -175,10 +175,13 @@ final class MirrorLink: ObservableObject, Transport, CompanionTransport {
         return (s?.takeRetainedValue() as String?) ?? ""
     }
 
-    private static func isFM1(_ e: MIDIEndpointRef) -> Bool {
-        let n = name(e).lowercased()
-        return n.contains("felucca") || n.contains("optimist")
+    /// The FM-1 by a port's name: "FM1-XXXX" (four hex digits, its name since 2026-10-29; a computer may put more round it),
+    /// or "Optimist" / "Felucca" (a device on older firmware); never other gear.
+    static func isFM1Name(_ name: String) -> Bool {
+        name.range(of: "fm1-[0-9a-f]{4}|felucca|optimist", options: [.regularExpression, .caseInsensitive]) != nil
     }
+
+    private static func isFM1(_ e: MIDIEndpointRef) -> Bool { isFM1Name(name(e)) }
 
     /// A Bluetooth MIDI port: its device's driver is Apple's Bluetooth MIDI driver, or its name says so (as on a Mac).
     static func isBluetooth(_ e: MIDIEndpointRef) -> Bool {
@@ -219,8 +222,8 @@ final class MirrorLink: ObservableObject, Transport, CompanionTransport {
         source = src ?? 0
         destination = dst ?? 0
         let bt = src.map(Self.isBluetooth) ?? false
-        let named = src.map { !chosen.isEmpty || Self.name($0).lowercased().contains("optimist") } ?? false   // (picked by hand: trusted)
-        lock.withLock {                 // (over Bluetooth only 106 is answered: our firmware is known by its name, "Optimist ...")
+        let named = src.map { !chosen.isEmpty || Self.isFM1Name(Self.name($0)) } ?? false   // (picked by hand: trusted)
+        lock.withLock {                 // (over Bluetooth only 106 is answered: our firmware is known by its name, "FM1-XXXX" or the older "Optimist ...")
             $0.assembler = SysExAssembler()
             $0.features = bt ? (named ? [Feature.mirror.name: Feature.mirror.version] : [:]) : nil
             $0.btInfo = 0
