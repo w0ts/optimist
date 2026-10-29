@@ -1120,6 +1120,15 @@ job; ( jobin   # the effects' lines in the arena (fx/fx_arena.c, docs/SD-MODE-DE
     run "a load that does not fit (ui/optimist/op_memlist.c): the refused parts listed, then the parts and the effects' lines on the keys, the gauge and FITS the arena's trial, SAVE drops and places, HOME leaves placeholders, an edit's one confirm" "$OUT/ui_optimist_memlist_test" "$OUT/optimist"
     $CC -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $FXA -DFELUCCA_FX_SLICER=0 "-DFELUCCA_ARENA_BYTES=73984u" -o "$OUT/fx_arena_nobufs_test" tests/fx_arena_test.c -lm
     run "the same without the SLICER (no other buffer in the arena: core/arena_bufs.c's stubs)" "$OUT/fx_arena_nobufs_test"
+    # (the FM-1's crash 2026-10-29: a limited insert's line placed in the own room while it was in no block; ASan / UBSan
+    #  where the compiler has them: the write at fxa_ins 0 a fault)
+    FXB_SAN="-fsanitize=address,null,pointer-overflow,bounds -fno-sanitize-recover=all"   # (UBSan's pointer checks: the firmware shifts negative values on purpose, -fwrapv)
+    echo 'int main(void) { return 0; }' > "$OUT/fxi_boot_san_probe.c"
+    $CC $FXB_SAN -o "$OUT/fxi_boot_san_probe" "$OUT/fxi_boot_san_probe.c" 2>/dev/null || FXB_SAN=""
+    $CC -g $FXB_SAN -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $FXA "-DFELUCCA_ARENA_BYTES=73984u" -o "$OUT/fxi_boot_test" tests/fxi_boot_test.c -lm
+    run "the limited inserts at power-on (no fxi_init, the pool zeroed) with the own room in no block: REV and FLNG FULL or in a block, never at fxa_ins 0; a FULL REV insert's track still sends to the reverb; fxi_init at boot marks the room's units taken" "$OUT/fxi_boot_test"
+    $CC -g $FXB_SAN -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $FXA -DFELUCCA_REV_FDN8=1 -DFELUCCA_REV_POOL=1 -DFELUCCA_SPRING=1 "-DFELUCCA_ARENA_BYTES=89344u" -o "$OUT/fxi_boot_rev_test" tests/fxi_boot_test.c -lm
+    run "the same with FDN8, REV_POOL and SPRING (the user's reverb build)" "$OUT/fxi_boot_rev_test"
     # (the arenas in whole KB, every block in 256 B units (core/arena.c ARN_ALIGN): one FM6 4096 and its sine table 4352,
     #  the send lines 56320 (ROOM; with FDN8 and SPRING 71680), the inserts' own room 9216 (ECHO FLNG: one line each; a CHO DLY REV copy a block of its own);
     #  arena_bufs: WAVE's table 73216, one SLICER recording 8192, the 909 5376 and the 808 3584 on the host too)
