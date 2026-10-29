@@ -18,7 +18,7 @@
  * not in a 2.4 export), bits 27..28 2ND CORE (FELUCCA_DUAL, system/dual_mode.h: 0 AUTO, 1 OFF; a record without them
  * reads AUTO, the default), bit 29 MIDI OUT's keys not sent (MOUT_SEQ, with bit 14; 0 with bit 14 = BOTH, 2.4's SEQ; not in a
  * 2.4 export), bit 30 SYNC BLE (SYNC_BLE, past bits 11..12's four: those then read AUTO, so a build before it follows AUTO;
- * not in a 2.4 export), bit 31 free; a build without a switch keeps its bit as read */
+ * not in a 2.4 export), bit 31 SYNC LINK (SYNC_LINK, FELUCCA_LINK: 11..12 then read AUTO, so a build without Link or from before follows AUTO); a build without a switch keeps its bit as read */
 #ifndef SETTINGS_BLE_ON_BIT
 #define SETTINGS_BLE_ON_BIT 24u                    /* BLUETOOTH ON (FELUCCA_BLE): the one place to change it */
 #endif
@@ -41,7 +41,7 @@ static uint32_t bp23_word(void)
 #if FELUCCA_CDC
     w = (w & ~(1u << 16)) | (uint32_t)(usb_serial != 0u) << 16;
 #endif
-    w = (w & ~(3u << 11 | 1u << 30)) | (song.g[G_SYNC] == SYNC_BLE ? 1u << 30 : (((uint32_t)song.g[G_SYNC] & 3u) ^ SYNC_AUTO) << 11);
+    w = (w & ~(3u << 11 | 1u << 30 | 1u << 31)) | (song.g[G_SYNC] == SYNC_LINK ? 1u << 31 : song.g[G_SYNC] == SYNC_BLE ? 1u << 30 : (((uint32_t)song.g[G_SYNC] & 3u) ^ SYNC_AUTO) << 11);   /* (LINK: bit 31 alone, 11..12 read AUTO) */
     w = (w & ~(3u << 21)) | (uint32_t)(hold_sel % HOLD_N) << 21;
     /* bit 23: reserved, kept as read (bp23_kept): the Optimist UI's CARDS 1x4 / 2x2 until 2026-10-12, no longer read */
 #if FELUCCA_BLE
@@ -84,7 +84,7 @@ static void bp23_from_word(uint32_t w)
 #if FELUCCA_DUAL
     dual_mode = DUALM_AUTO;                           /* (the Optimist UI has no 2ND CORE line: always on, a stored OFF from before is dropped) */
 #endif
-    sync_boot = (uint8_t)((w >> 30) & 1u && GP[G_SYNC].max >= SYNC_BLE ? SYNC_BLE : ((w >> 11) & 3u) ^ SYNC_AUTO);   /* (no BLE: AUTO) */
+    sync_boot = (uint8_t)((w >> 31) & 1u && GP[G_SYNC].max >= SYNC_LINK ? SYNC_LINK : (w >> 30) & 1u && GP[G_SYNC].max >= SYNC_BLE ? SYNC_BLE : ((w >> 11) & 3u) ^ SYNC_AUTO);   /* (no BLE / Link: AUTO) */
     song.g[G_SYNC] = sync_boot;
 }
 #endif

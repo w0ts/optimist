@@ -38,15 +38,13 @@ static void syncorder_tests(void)
           "SYNC: the stored values are unchanged (INT 0, USB 1, TRS 2, AUTO 3, BLE 4, LINK 5)");
     for (i = 0; i < n; i++) {                           /* the settings record (the HOME menu's SYNC is device-wide) keeps every value as it was */
         uint32_t w;
-        if (WANT[i] == SYNC_LINK)
-            continue;                                   /* (the settings word has no place for LINK: settings_word.c, not this change) */
         song.g[G_SYNC] = WANT[i];
         w = bp23_word();
         song.g[G_SYNC] = SYNC_INT;
         bp23_from_word(w);
         sets &= song.g[G_SYNC] == WANT[i];
     }
-    check(sets, "SYNC: saved with each value, the settings record loads the same value (the stored numbers are unchanged)");
+    check(sets, "SYNC: saved with each value, the settings record loads the same value (LINK too: bit 31; the stored numbers are unchanged)");
     song.g[G_SYNC] = save;
 }
 #endif
