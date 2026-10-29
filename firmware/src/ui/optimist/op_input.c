@@ -23,6 +23,7 @@ static void op_rows_fix(void)                          /* the cursor inside the 
     if (ui.scr == SCR_SOUND && snd_fam != SND_ALL)
         snd_family(snd_fam);                            /* (another track: the family may have no rows there) */
     n = SCR->rows();
+    op_keep(n);                                         /* (rows came or went: the cursor on its page still, op_keep.c) */
     if (ui.row[ui.scr] >= n)
         ui.row[ui.scr] = (uint8_t)(n ? n - 1u : 0u);
 }
