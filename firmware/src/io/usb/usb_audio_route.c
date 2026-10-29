@@ -58,8 +58,11 @@ static void ua_route_ch(uint32_t c, int32_t *o, uint32_t os, const int32_t *mast
     for (s = 0; s < UAS_N; s++) {
         uint32_t m, sa = 1u, sb = 1u, how = 1u, j;
         const int32_t *a, *b = 0;
-        if (s == UAS_DR1)
-            s = UAS_RA;                                 /* (the lanes: in dlt_buf, above) */
+        if (s == UAS_DR1) {                             /* (the lanes: in dlt_buf, above) */
+            if (!ua_ret_live)
+                break;                                  /* (no return taken this block) */
+            s = UAS_RA;
+        }
         if (!(m = UAD_MASK[ua_dst[s] % UAD_N]) || !(m & bit))
             continue;
         if (s == UAS_MAIN || s == UAS_DBUS || s >= UAS_RA) {   /* stereo: L / R on a pair, else the sum */
