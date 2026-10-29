@@ -429,6 +429,18 @@ static uint32_t part_tab_bytes(uint32_t e)               /* engine e's table: it
 #endif
 /* the arena's bytes engine e needs for a part: its own memory, and its table when nothing holds it (the UI's counts) */
 static uint32_t part_mem_need(uint32_t e) { return part_mem_bytes(e) + part_tab_bytes(e); }
+/* (the interrupts off) part k switching back to the engine whose state its idle (parked) block still holds: that block
+ * set aside for the switch as its own reservation, so no other reservation takes it back meanwhile (core/arena.c
+ * arn_idle_of: an idle block with a reservation is not free; the user, 2026-10-29: "keep a part's parked block for
+ * it": an other buffer, an effect's line or the packing is refused instead) */
+static void part_mem_park(uint32_t k)
+{
+    if (arn_cur[k].len && arn_cur[k].idle) {
+        arn_next[k] = arn_cur[k];
+        arn_next[k].idle = 0;
+        arn_has_next[k] = 1;
+    }
+}
 /* (the interrupts off) part k's memory for engine e, and its table, set aside as they are: 0 ok, -1 no room (neither) */
 static int part_mem_aside(uint32_t k, uint32_t e)
 {
@@ -437,7 +449,9 @@ static int part_mem_aside(uint32_t k, uint32_t e)
         return arn_reserve(k, n);
     if (arn_reserve(c, t))
         return -1;
-    if (n && !(part_mem_owner[k] == e % NENGINES + 1u && arn_ptr(k)) && arn_reserve(k, n))
+    if (n && part_mem_owner[k] == e % NENGINES + 1u && arn_ptr(k))
+        part_mem_park(k);                                /* (its own state: kept for the switch back) */
+    else if (n && arn_reserve(k, n))
         return arn_has_next[c] = 0, -1;                  /* (the table's let go with it; its own state kept: as is) */
     return 0;
 }
@@ -457,10 +471,14 @@ static int part_mem_try(uint32_t k, uint32_t e)
         return r;
     }
 #endif
-    if (k >= NPART || !n || (part_mem_owner[k] == e % NENGINES + 1u && arn_ptr(k)))
-        return 0;                                        /* (none needed, or its own state still there; an idle one
-                                                          * another reservation takes back first: the switch finds no
-                                                          * room, part_mem_unplaced) */
+    if (k < NPART && n && part_mem_owner[k] == e % NENGINES + 1u && arn_ptr(k)) {
+        IRQ_SAVE(ie);
+        part_mem_park(k);                                /* (its own state still there: kept for the switch back) */
+        IRQ_RESTORE(ie);
+        return 0;
+    }
+    if (k >= NPART || !n)
+        return 0;                                        /* (none needed) */
     {
         IRQ_SAVE(ie);
         r = arn_reserve(k, n);
@@ -580,8 +598,9 @@ static int part_mem_claim(uint32_t k, uint32_t e)
         arn_rest(k);
         return 0;
     }
-    if (part_mem_owner[k] == e + 1u && arn_ptr(k) && !arn_has_next[k]) {
-        (void)arn_take(k);                               /* (its own state, as it was) */
+    if (part_mem_owner[k] == e + 1u && arn_ptr(k) &&
+        (!arn_has_next[k] || (arn_next[k].off == arn_cur[k].off && arn_next[k].len == arn_cur[k].len))) {
+        (void)arn_take(k);                               /* (its own state, as it was: parked or not) */
         return 0;
     }
     if (!arn_has_next[k] && arn_reserve(k, n))           /* (a switch nobody reserved for: here; the default arena */

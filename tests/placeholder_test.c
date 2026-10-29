@@ -130,6 +130,32 @@ int main(void)
     blocks(64);
 #endif
 #if !PH_PLAIN && !FELUCCA_FX_ARENA                   /* (built with an arena of one part's memory: the drop flow) */
+    {   /* a part's parked block kept for its switch back (the user, 2026-10-29: "keep a part's parked block for it"; the
+         * ovlfix agent's arena_bufs seed 16 step 345): part 1 on FM6, then on an engine that keeps nothing (its block idle),
+         * then back to FM6 while another reservation asks for the arena: refused, part 1 back on FM6 with its own block */
+        track_t *u = &trk[1];
+        uint32_t off;
+        set_engine_of(t, ENG_IX_FM6);
+        blocks(64);
+        off = (uint32_t)((uint8_t *)arn_ptr(0) - arn_mem);
+        ((uint8_t *)arn_ptr(0))[8] = 0x5A;              /* (a byte of its state, to find it again) */
+        set_engine_of(t, eng_silent_slot());
+        blocks(64);
+        CHECK(arn_cur[0].idle && arn_ptr(0), "parked: part 1 on an engine that keeps nothing: its FM6 block idle");
+        set_engine_of(t, ENG_IX_FM6);                   /* (back: its own state, the switch to come) */
+        CHECK(arn_has_next[0] && arn_next[0].off == off && !(arn_idle() & 1u),
+              "parked: part 1 back to FM6: its idle block set aside for the switch, not free for another");
+        set_engine_of(u, ENG_IX_FM6);                   /* (another reservation before the switch: an other buffer's case) */
+        CHECK(part_mem_refused.on && part_mem_refused.part == 1u && u->eng_req != ENG_IX_FM6 && arn_cur[0].len,
+              "parked: another part's FM6 meanwhile: refused (MEM FULL, the drop proposal), the parked block kept");
+        part_mem_refused.on = 0;
+        blocks(64);
+        CHECK(t->engine == ENG_IX_FM6 && !t->silent && (uint32_t)((uint8_t *)arn_ptr(0) - arn_mem) == off &&
+              ((uint8_t *)arn_ptr(0))[8] == 0x5A && !arn_cur[0].idle,
+              "parked: the switch: part 1 on FM6 in its own block, its state as it was");
+        set_engine_of(t, eng_silent_slot());
+        blocks(64);
+    }
     {
         track_t *u = &trk[1];
         uint32_t k = 0, f;
