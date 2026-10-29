@@ -572,7 +572,9 @@ for i, (k, n) in enumerate((("PIANO", "PIANO (Steinway, 44 KB)"), ("BASS", "BASS
                             ("SCRCH", "SCRATCH (23 KB)"))):
     _add(f"SET_{k}", "", n, S, 28 + i, env=k,
          desc=_SET_DESC[k] + " Played by the SAMPLE and GRAIN engines (and their presets); leaving it out frees its "
-              "flash, and it can still be uploaded to a USR slot.")
+              "flash, and it can still be uploaded to a USR slot. In SD card mode no set is in the flash (0 B, ticked or not): a ticked "
+              "set goes on the card in the SD card zip (OPTIMIST/SAMPLES/<SET>/) and SAMPLE streams it from there; GRAIN "
+              "cannot (its grains jump through the set): GRAIN on a set is silent there, said MISSING.")
 
 # ---- FX
 F = "FX"
