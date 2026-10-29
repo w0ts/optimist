@@ -115,8 +115,11 @@ static void stackmark_tests(void)
         ui.force = 1;
         frame();
         ppm("opt-info-bars");
-        check(gl_info_wide() && ph >= (GL_END - gl_y0()) / (int32_t)n && ph * (int32_t)n <= GL_END_W - gl_y0(),
-              "INFO page: no foot band, its rows share the room to the screen's foot (a pitch at least the band's, none past the foot)");
+        {   /* (the page's room runs to the screen's foot: its pitch from that room, capped as before) */
+            int32_t room = (GL_END_W - gl_y0()) / (int32_t)n, cap = room >= GL_INFO_BIG ? gl_pitch() : GL_INFO_PH_MAIN;
+            check(gl_info_wide() && ph == (room < cap ? room : cap) && ph * (int32_t)n <= GL_END_W - gl_y0(),
+                  "INFO page: no foot band, its rows share the room to the screen's foot (the pitch from the whole screen, none past the foot)");
+        }
         y0 = OH_HEAD + gl_y0() + (int32_t)ci * ph;
         for (y = y0; y < y0 + ph && by < 0; y++)
             if (px_in(GL_BX, (uint32_t)y, 1, 1, C_OK) && px_in(GL_BX + 80, (uint32_t)y, 1, 1, C_OK))

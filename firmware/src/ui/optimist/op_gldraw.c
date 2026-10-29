@@ -180,7 +180,14 @@ static void gl_cred_draw(int32_t y0)
 }
 #define GL_BAND_W (240 - OH_HEAD)                       /* INFO's first page has no help band (the user, 2026-10-29): its room runs to the screen's foot */
 #define GL_END_W (GL_BAND_W - 2)
-static uint32_t gl_info_wide(void) { return gl_info() == 1u + INFO_PG_INFO; }   /* the page with no foot line (op_help.c hl_pre) */
+static uint32_t gl_info_wide(void)                      /* the page with no foot line (op_help.c hl_pre): from the cursor, not from the last draw (hl_pre runs before gl_draw) */
+{
+    uint32_t e;
+    if (ui.scr != SCR_SYSTEM)
+        return 0u;
+    e = gl_ent(1, gl_first(1, ui.row[SCR_SYSTEM]));
+    return sys_item(e >> 2, e & 3u) == SI_INFO;
+}
 #define GL_INFO_BIG 40                                  /* a read-out page's pitch from which its values take the large face */
 #define GL_INFO_BGAP 4                                  /* a CPU line: its text, this gap, its bar (GL_BH) */
 #define GL_INFO_TK 2                                    /* ... the peak ticks: this wide, standing this far over and under the bar */
