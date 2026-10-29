@@ -9,8 +9,8 @@
  *                         to the inserts while not (fxi.c "Lending")
  *   FXA_S .. FXA_N - 1    the inserts' own (fxa_ins)
  *   FXA_N .. FXA_T - 1    the chorus send's line (fx.c cho_buf), lent as the delay's
- * The size: the builder's DLY_ARENA (KB, the delay send's line included); 0 (auto): the send's line and one line of
- * each type built, so every built type can play at least once at the same time. Included by insfx.c (before FLNG's
+ * The size: FELUCCA_DLY_ARENA (KB, the delay send's line included); 0 (auto; the builder always leaves it 0, DLY_ARENA
+ * retired 2026-10-29): the send's line and one line of each type built, so every built type can play at least once at the same time. Included by insfx.c (before FLNG's
  * kernel: its table is sized here) with the limited types built (INS_LIM) */
 #define FXI_NK (NTRK + 5u)                              /* the owners (fxi_kern.c FXI_O*): T1 T2 T3 DR, the master, the
                                                          * USB input, the returns A B C */

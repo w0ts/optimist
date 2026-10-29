@@ -117,6 +117,7 @@ RETIRED = {
     "BT_AFH": "Bluetooth audio always hops adaptively, the channels the headset fails on skipped (bt/bt_afh.c; retired 2026-10-29, bit 395; the user: \"always on\"; any old BT_AFH value is ignored)",
     "BLE_DIAG": "the BLE diagnostics (the console's blell, the link layer's counters and rings) were removed (retired 2026-10-29, bit 253; the user: \"we can remove the diagnostics\"): BLE works the same without them; any old BLE_DIAG value is ignored",
     "BT_DIAG": "the Bluetooth audio diagnostics (the console's btinq / btscan / btpage / btclk / btrx / bttrace, the status histograms, receive logs and per-second counters) were removed (retired 2026-10-29, bit 363; the user: \"we can remove the diagnostics\"): the audio works the same without them; any old BT_DIAG value is ignored",
+    "DLY_ARENA": "the effects memory (the delay send's line and the limited inserts' lines) is always sized automatically: the delay's line and one line of each limited insert type built, in the arena (ARENA on) and as the fixed memory (off) alike (retired 2026-10-29, bit 378; the user: \"remove the item, always auto\"): the number of an old DLY_ARENA setting is ignored",
     "KNOB_ONEREST": "the knobs are always read with Felucca 1.6's decoder (one rest state a detent, fast turns counted; "
                     "retired 2026-10-14, released in Felucca 1.1.5 #126 and unchanged since)",
 }
@@ -209,7 +210,7 @@ class Item:
 FX_ANY = "FX: any number (each track its own)"
 FX_ONCE = "FX: limited instances (once, or a set count)"
 FX_ONCE_KEYS = {"FX_CHORUS", "FX_DELAY", "FX_REVERB", "FX_PUNCH", "FX_DUCK", "BASSPLUS",
-                "INS_CHORUS", "INS_DELAY", "INS_JCHORUS", "INS_FLANGER", "INS_XDLY", "DLY_ARENA"}
+                "INS_CHORUS", "INS_DELAY", "INS_JCHORUS", "INS_FLANGER", "INS_XDLY"}
 
 
 def fx_group(key, parent=None):
@@ -812,9 +813,10 @@ _add("EX_GAIN", "FELUCCA_EX_GAIN", "EXGN insert: the example effect (a gain in d
           "-55.5 dB to +7.5 dB (112 is 0 dB), LEVEL's curve, gliding without a click. Not on the master, the returns, "
           "the USB input or a drum sound. Off in every profile: a build without it is the build from before.")
 # the insert copies of the "once" effects (fx/insfx/fxi_kern.c, fxi.c, 2026-10-13): built or not; how many play at once
-# is what the effects memory holds (DLY_ARENA, fxi_mem.h, 2026-10-23: they were a count each until then, WAS_COUNT); a
+# is what the effects memory holds (fxi_mem.h, 2026-10-23: they were a count each until then, WAS_COUNT); a
 # slot picking one with no room left is bypassed (the INSERTS list says FULL)
-_INS_LIM = (" Its line is in the effects memory (below): as many play at once as it holds; a slot that picks it when "
+_INS_LIM = (" Its line is in the effects memory, sized by the builder: the delay's line and one line of each limited insert type built, "
+            "so each type built plays once at the same time (more while the delay or the chorus is in no master slot: a send in none lends its line); a slot that picks it when "
             "there is no room left stays dry until some is free (the INSERTS list shows how many more fit). A saved "
             "project keeps the type, not the room: on load the slots get it in order T1 T2 T3 DR, the master, the USB "
             "input, the returns.")
@@ -869,22 +871,8 @@ _add("XDLY_LEN", "FELUCCA_XDLY_LEN", "XDLY line length (its longest TIME)", F, 3
      choices=((16384, "0.37 s (64 KB pool an instance)"), (8192, "0.19 s (32 KB)")),
      desc="How long each of XDLY's two lines is: TIME's top end. The shorter line halves every TIME and takes 32 KB "
           "less of the effects memory an instance.")
-# the effects memory (fx/insfx/fxi_mem.h, fxi.c; the delay arena of 2026-10-22, the user: "a delay line is just a delay
-# line"; every line-owning insert since 2026-10-23): one pool memory for the delay send's line and every insert line; its
-# size computed by the estimate (configure.py dly_arena), how many of each type it holds by configure.py fx_memory
-_add("DLY_ARENA", "FELUCCA_DLY_ARENA", "effects memory (shared by the delay and every insert with a line)", F, 378,
-     default=0,
-     choices=((0, "auto: the delay's line and one line of each insert"), (32, "32 KB"), (48, "48 KB"), (64, "64 KB"),
-              (96, "96 KB"), (128, "128 KB"), (160, "160 KB"), (192, "192 KB"), (256, "256 KB"), (320, "320 KB")),
-     desc="One pool memory, in 1 KB units, for the delay send's line (its length above) and the line of every insert "
-          "that has one: CHRS 2 KB, ECHO 8 KB, JUNO CHORUS 4 KB, FLNG 1 KB, XDLY 2 lines of its length. An insert takes "
-          "its room when a slot picks it and gives it back when the slot lets go; with no room left the slot shows FULL "
-          "and stays dry. How many of each play at once is what this memory holds: the builder's notice says, for each "
-          "type built, up to how many at once (alone) in the size chosen, and how many more while the delay or the "
-          "chorus is in no master slot: a send in none lends its line to the inserts (as many as fit; taken back, "
-          "faded out, when the send is put back). Auto: the delay's line plus one line of each insert built, so every "
-          "insert built can play at least once at the same time. Larger: more at once. A size smaller than the delay's "
-          "line and one line of the largest insert built is raised to that (a notice says so).")
+# (bit 378, DLY_ARENA, retired 2026-10-29: the effects memory (fx/insfx/fxi_mem.h, fxi.c) is always sized automatically,
+#  configure.py fx_memory / dly_arena; RETIRED above; never reuse the bit)
 # GATER (fx/insfx/gater.c, 2026-10-14): a further insert type, any number (a few bytes a track)
 _add("INS_GATER", "FELUCCA_INS_GATER", "GATER insert (tempo-synced trance gate)", F, 330, default=0,
      desc="A rhythmic volume gate type for the tracks' insert slots (INSERTS > S1 / S2: GATER), locked to the tempo "
@@ -1209,8 +1197,7 @@ _add("ARENA", "FELUCCA_ARENA_KB", "memory per project (the free RAM: one arena f
           "is one arena that holds what the project uses (the user, 2026-10-29: arena first, undo gets the rest): each "
           "synth part's engine state (FM6, PHYS, GRAIN, ACID, PLAITS, JUNO, DRAWBAR, CZ, SLICE), placed when an engine "
           "is picked, its room free for the others once the part plays an engine that keeps nothing there; the "
-          "effects' lines (the delay, chorus and reverb sends' lines, the limited inserts' own room: the effects memory, "
-          "DLY_ARENA, less the delay's line) and the other buffers only some projects use (each track's SLICER "
+          "effects' lines (the delay, chorus and reverb sends' lines, the limited inserts' own room: one line of each type built) and the other buffers only some projects use (each track's SLICER "
           "recording while it is on STUT, WAVE's table while a part plays WAVE, the X0X 909's and 808's states while the "
           "kit or a lane plays them, the PUNCH ring while the project's PUNCH switch is on: GLOBAL > Rec, FM6's sine "
           "table while a part plays FM6). The undo history keeps 16 KB and borrows what the arena does not use, giving "

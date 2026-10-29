@@ -3275,7 +3275,7 @@
     "bit": 270,
     "default": 0,
     "parent": null,
-    "desc": "A chorus type for the tracks' insert slots (INSERTS > S1 / S2: CHRS), beside the chorus send: two taps around 7 ms swept apart at ~0.8 Hz; CHRS up to the middle mixes it in, past the middle widens the sweep. On the drum track it turns the drums' mid into a stereo chorus. 2 KB of the effects memory an instance. Its line is in the effects memory (below): as many play at once as it holds; a slot that picks it when there is no room left stays dry until some is free (the INSERTS list shows how many more fit). A saved project keeps the type, not the room: on load the slots get it in order T1 T2 T3 DR, the master, the USB input, the returns.",
+    "desc": "A chorus type for the tracks' insert slots (INSERTS > S1 / S2: CHRS), beside the chorus send: two taps around 7 ms swept apart at ~0.8 Hz; CHRS up to the middle mixes it in, past the middle widens the sweep. On the drum track it turns the drums' mid into a stereo chorus. 2 KB of the effects memory an instance. Its line is in the effects memory, sized by the builder: the delay's line and one line of each limited insert type built, so each type built plays once at the same time (more while the delay or the chorus is in no master slot: a send in none lends its line); a slot that picks it when there is no room left stays dry until some is free (the INSERTS list shows how many more fit). A saved project keeps the type, not the room: on load the slots get it in order T1 T2 T3 DR, the master, the USB input, the returns.",
     "experimental": false,
     "notice": "Tested in the host tests only, not on a device.",
     "off_warning": "",
@@ -3303,7 +3303,7 @@
     "bit": 271,
     "default": 0,
     "parent": null,
-    "desc": "A slapback type for the tracks' insert slots (INSERTS > S1 / S2: ECHO), beside the delay send: one repeat 75 ms after the sound; ECHO up to the middle sets its level, past the middle adds repeats (feedback up to 60 %). Up to 93 ms of line an instance (the long, tempo-synced delay stays the send's): 8 KB of the effects memory. Its line is in the effects memory (below): as many play at once as it holds; a slot that picks it when there is no room left stays dry until some is free (the INSERTS list shows how many more fit). A saved project keeps the type, not the room: on load the slots get it in order T1 T2 T3 DR, the master, the USB input, the returns.",
+    "desc": "A slapback type for the tracks' insert slots (INSERTS > S1 / S2: ECHO), beside the delay send: one repeat 75 ms after the sound; ECHO up to the middle sets its level, past the middle adds repeats (feedback up to 60 %). Up to 93 ms of line an instance (the long, tempo-synced delay stays the send's): 8 KB of the effects memory. Its line is in the effects memory, sized by the builder: the delay's line and one line of each limited insert type built, so each type built plays once at the same time (more while the delay or the chorus is in no master slot: a send in none lends its line); a slot that picks it when there is no room left stays dry until some is free (the INSERTS list shows how many more fit). A saved project keeps the type, not the room: on load the slots get it in order T1 T2 T3 DR, the master, the USB input, the returns.",
     "experimental": false,
     "notice": "Tested in the host tests only, not on a device.",
     "off_warning": "",
@@ -3331,7 +3331,7 @@
     "bit": 142,
     "default": 0,
     "parent": null,
-    "desc": "The Juno-106's chorus as an insert type (INSERTS > S1 / S2, and the master's insert slots: JUNO): the MN3009 BBD model of fm-106, MODE I, II or I+II, JUNO its mix (127: the Juno's chorus on). A mono track comes out stereo. About 130 host instructions a sample an instance; 2 KB of the effects memory. Its line is in the effects memory (below): as many play at once as it holds; a slot that picks it when there is no room left stays dry until some is free (the INSERTS list shows how many more fit). A saved project keeps the type, not the room: on load the slots get it in order T1 T2 T3 DR, the master, the USB input, the returns.",
+    "desc": "The Juno-106's chorus as an insert type (INSERTS > S1 / S2, and the master's insert slots: JUNO): the MN3009 BBD model of fm-106, MODE I, II or I+II, JUNO its mix (127: the Juno's chorus on). A mono track comes out stereo. About 130 host instructions a sample an instance; 2 KB of the effects memory. Its line is in the effects memory, sized by the builder: the delay's line and one line of each limited insert type built, so each type built plays once at the same time (more while the delay or the chorus is in no master slot: a send in none lends its line); a slot that picks it when there is no room left stays dry until some is free (the INSERTS list shows how many more fit). A saved project keeps the type, not the room: on load the slots get it in order T1 T2 T3 DR, the master, the USB input, the returns.",
     "experimental": false,
     "notice": "From fm-106 by PatttF (GPL-3.0), after Ultramaster KR-106 (GPL-3.0). Tested in the host tests only, not on a device.",
     "off_warning": "",
@@ -3393,7 +3393,7 @@
     "bit": 259,
     "default": 0,
     "parent": null,
-    "desc": "A flanger type for any insert slot (a track's, the master's, the USB input's) and the returns (FLNG): a short delay swept 0.25 .. 5 ms (~0.25 Hz); FLNG up to the middle mixes it in, past the middle adds feedback. 1 KB of the effects memory an instance. Its line is in the effects memory (below): as many play at once as it holds; a slot that picks it when there is no room left stays dry until some is free (the INSERTS list shows how many more fit). A saved project keeps the type, not the room: on load the slots get it in order T1 T2 T3 DR, the master, the USB input, the returns.",
+    "desc": "A flanger type for any insert slot (a track's, the master's, the USB input's) and the returns (FLNG): a short delay swept 0.25 .. 5 ms (~0.25 Hz); FLNG up to the middle mixes it in, past the middle adds feedback. 1 KB of the effects memory an instance. Its line is in the effects memory, sized by the builder: the delay's line and one line of each limited insert type built, so each type built plays once at the same time (more while the delay or the chorus is in no master slot: a send in none lends its line); a slot that picks it when there is no room left stays dry until some is free (the INSERTS list shows how many more fit). A saved project keeps the type, not the room: on load the slots get it in order T1 T2 T3 DR, the master, the USB input, the returns.",
     "experimental": false,
     "notice": "From Felucca 1.5.6's track INSERT FLANG by Leo Kuroshita (GPL-3.0). Tested in the host tests and the emulator only, not on a device.",
     "off_warning": "",
@@ -3475,73 +3475,6 @@
      [
       8192,
       "0.19 s (32 KB)"
-     ]
-    ],
-    "provenance": null,
-    "children": [],
-    "hidden": false,
-    "shown_under": null,
-    "tested": "emulator-tested only",
-    "provenance_line": ""
-   },
-   {
-    "key": "DLY_ARENA",
-    "flag": "FELUCCA_DLY_ARENA",
-    "label": "effects memory (shared by the delay and every insert with a line)",
-    "group": "FX: limited instances (once, or a set count)",
-    "bit": 378,
-    "default": 0,
-    "parent": null,
-    "desc": "One pool memory, in 1 KB units, for the delay send's line (its length above) and the line of every insert that has one: CHRS 2 KB, ECHO 8 KB, JUNO CHORUS 4 KB, FLNG 1 KB, XDLY 2 lines of its length. An insert takes its room when a slot picks it and gives it back when the slot lets go; with no room left the slot shows FULL and stays dry. How many of each play at once is what this memory holds: the builder's notice says, for each type built, up to how many at once (alone) in the size chosen, and how many more while the delay or the chorus is in no master slot: a send in none lends its line to the inserts (as many as fit; taken back, faded out, when the send is put back). Auto: the delay's line plus one line of each insert built, so every insert built can play at least once at the same time. Larger: more at once. A size smaller than the delay's line and one line of the largest insert built is raised to that (a notice says so).",
-    "experimental": false,
-    "notice": "",
-    "off_warning": "",
-    "env": "",
-    "target_only": false,
-    "symbols": [],
-    "no_image": false,
-    "fixed": false,
-    "head": false,
-    "choices": [
-     [
-      0,
-      "auto: the delay's line and one line of each insert"
-     ],
-     [
-      32,
-      "32 KB"
-     ],
-     [
-      48,
-      "48 KB"
-     ],
-     [
-      64,
-      "64 KB"
-     ],
-     [
-      96,
-      "96 KB"
-     ],
-     [
-      128,
-      "128 KB"
-     ],
-     [
-      160,
-      "160 KB"
-     ],
-     [
-      192,
-      "192 KB"
-     ],
-     [
-      256,
-      "256 KB"
-     ],
-     [
-      320,
-      "320 KB"
      ]
     ],
     "provenance": null,
@@ -4786,7 +4719,7 @@
     "bit": 411,
     "default": 0,
     "parent": null,
-    "desc": "Instead of reserving every engine's memory whether a project uses it or not, the RAM the firmware leaves free is one arena that holds what the project uses (the user, 2026-10-29: arena first, undo gets the rest): each synth part's engine state (FM6, PHYS, GRAIN, ACID, PLAITS, JUNO, DRAWBAR, CZ, SLICE), placed when an engine is picked, its room free for the others once the part plays an engine that keeps nothing there; the effects' lines (the delay, chorus and reverb sends' lines, the limited inserts' own room: the effects memory, DLY_ARENA, less the delay's line) and the other buffers only some projects use (each track's SLICER recording while it is on STUT, WAVE's table while a part plays WAVE, the X0X 909's and 808's states while the kit or a lane plays them, the PUNCH ring while the project's PUNCH switch is on: GLOBAL > Rec, FM6's sine table while a part plays FM6). The undo history keeps 16 KB and borrows what the arena does not use, giving it back, its oldest levels first, as soon as the arena needs it. A change that does not fit is refused and the device proposes what to drop (DROP T2 FM6, then the effects' lines: DROP REV 32 KB); a project load that does not fit opens a list of what to drop. Before anything is refused the memories are moved together when the free room would hold it, and a project load packs them all; nothing that sounds is moved (a part only while it plays nothing, a send line while its tail is silent), what sounds is packed once it is quiet (SYSTEM > INFO's RAM bar shows the arena in use and the undo history's share). A dropped or refused effect is bypassed and dimmed (FULL), kept in the project, and comes back by itself once there is room. Off: every memory reserved as before, nothing ever refused. An older configuration's size (ARENA=96) reads as on.",
+    "desc": "Instead of reserving every engine's memory whether a project uses it or not, the RAM the firmware leaves free is one arena that holds what the project uses (the user, 2026-10-29: arena first, undo gets the rest): each synth part's engine state (FM6, PHYS, GRAIN, ACID, PLAITS, JUNO, DRAWBAR, CZ, SLICE), placed when an engine is picked, its room free for the others once the part plays an engine that keeps nothing there; the effects' lines (the delay, chorus and reverb sends' lines, the limited inserts' own room: one line of each type built) and the other buffers only some projects use (each track's SLICER recording while it is on STUT, WAVE's table while a part plays WAVE, the X0X 909's and 808's states while the kit or a lane plays them, the PUNCH ring while the project's PUNCH switch is on: GLOBAL > Rec, FM6's sine table while a part plays FM6). The undo history keeps 16 KB and borrows what the arena does not use, giving it back, its oldest levels first, as soon as the arena needs it. A change that does not fit is refused and the device proposes what to drop (DROP T2 FM6, then the effects' lines: DROP REV 32 KB); a project load that does not fit opens a list of what to drop. Before anything is refused the memories are moved together when the free room would hold it, and a project load packs them all; nothing that sounds is moved (a part only while it plays nothing, a send line while its tail is silent), what sounds is packed once it is quiet (SYSTEM > INFO's RAM bar shows the arena in use and the undo history's share). A dropped or refused effect is bypassed and dimmed (FULL), kept in the project, and comes back by itself once there is room. Off: every memory reserved as before, nothing ever refused. An older configuration's size (ARENA=96) reads as on.",
     "experimental": true,
     "notice": "",
     "off_warning": "",
@@ -6356,7 +6289,6 @@
    "INS_JCHORUS",
    "INS_FLANGER",
    "INS_XDLY",
-   "DLY_ARENA",
    "BASSPLUS"
   ],
   "Sequencer": [
