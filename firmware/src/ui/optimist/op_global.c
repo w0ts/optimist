@@ -92,7 +92,7 @@ static int glo_yes(uint32_t r, uint32_t k, uint32_t ok)
 #else
 #define GL_DEV 0
 #endif
-#define GL_MAXP 16u                                     /* the pages of a screen, at most (gll.cont's bits; USB AUDIO's four) */
+#define GL_MAXP 16u                                     /* the pages of a screen, at most (gll.cont's bits; USB AUDIO's five) */
 static struct {
     uint8_t ok, n[2], np[2];
     uint16_t cont[2];                                   /* bit p: page p goes on with the section page p - 1 ended with */
@@ -124,7 +124,7 @@ static void gl_secname(uint32_t s, uint32_t e, char *b) /* the section of entry 
  * between its rows (REC: MODE LENGTH START CLICK, then QUANT: "REC 1/2" over each page). The pages are made from the lines
  * this build has (gl_build): a section the build lacks moves the rest up, no page number is fixed */
 static uint32_t gl_sid(uint32_t s, uint32_t e)          /* entry e's section: one number each (REC 2's lines are REC's; a SYS row
-                                                         * named as the one before it is that one's: USB AUDIO's four) */
+                                                         * named as the one before it is that one's: USB AUDIO's five) */
 {
     uint32_t u = e >> 2, r;
     if (!s && u < GL_SYS0)

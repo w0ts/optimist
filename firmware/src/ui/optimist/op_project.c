@@ -491,8 +491,9 @@ static const char *const CG_NAME[CG_TOP + 1] = {"OFF", "QUALITY", "UNISON", "REV
 #endif
 #define SI_IF(c, i) ((c) ? (uint8_t)(i) : (uint8_t)SI_NONE)
 #if FELUCCA_USB_AUDIO
-#define UA_IT(s) SI_IF((s) < UAS_N, SI_UAS0 + (s))      /* USB AUDIO's line of source s, none past the last */
-_Static_assert(UAS_N <= 16u, "USB AUDIO: four rows of four sources");
+#define UA_IT(s) SI_IF((s) < UAS_RA, SI_UAS0 + (s))     /* USB AUDIO's line of source s, none past the last lane */
+#define UA_RT(k) ((uint8_t)(SI_UAS0 + UAS_RA + (k)))   /* .. of RET A B C (k 0..2) */
+_Static_assert(UAS_N <= 19u && UAS_RA <= 16u, "USB AUDIO: four rows of four sources, then the returns' row");
 static int si_ua(uint32_t it) { return it >= SI_UAS0 && it < SI_UAS0 + UAS_N; }
 #else
 #define si_ua(it) 0
@@ -546,12 +547,14 @@ static const struct { const char *name; uint8_t it[4]; } SYS[] = {
 #endif
 #if FELUCCA_USB_AUDIO
     /* where each source goes (the user, 2026-10-17: "each track, including master, can be assigned to none, 1, 2, 1+2, 3, 4,
-     * 3+4", and the drum lanes; ua_tap.h): a line a source, MASTER T1 T2 T3 | DRUMS, DRUM BUS, DR1 DR2 | DR3..DR6 | DR7..DR10;
-     * the rows one section over their pages (op_global.c gl_sid: a row named as the one before it goes on with it) */
+     * 3+4", and the drum lanes; ua_tap.h): a line a source, MASTER T1 T2 T3 | DRUMS, DRUM BUS, DR1 DR2 | DR3..DR6 | DR7..DR10
+     * | RET A B C (the FX returns, 2026-10-29: a row of their own, last, so the rows before keep their places); the rows one
+     * section over their pages (op_global.c gl_sid: a row named as the one before it goes on with it) */
     {"USB AUDIO", {UA_IT(0), UA_IT(1), UA_IT(2), UA_IT(3)}},
     {"USB AUDIO", {UA_IT(4), UA_IT(5), UA_IT(6), UA_IT(7)}},
     {"USB AUDIO", {UA_IT(8), UA_IT(9), UA_IT(10), UA_IT(11)}},
     {"USB AUDIO", {UA_IT(12), UA_IT(13), UA_IT(14), UA_IT(15)}},
+    {"USB AUDIO", {UA_RT(0), UA_RT(1), UA_RT(2), SI_NONE}},
 #endif
     {"CALIBRATE", {SI_CALIB, SI_HOLD, SI_NONE, SI_NONE}},   /* (SI_HOLD: a button's hold, 250 / 350 / 500 ms) */
     {"ABOUT", {SI_ABOUT, SI_BUILD, SI_REPO, SI_NONE}},
