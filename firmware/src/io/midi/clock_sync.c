@@ -97,6 +97,8 @@ static int16_t sync_ofs[3];                                /* [0] CLK OFS, [1] B
  * what Link did before the setting; stored as 0 in the record's ext bytes: persist_rec.c link_sel). The list reads OFF, ON, ON+S/S */
 enum { LINK_OFF, LINK_ON, LINK_ONSS };
 static uint8_t link_mode = LINK_ONSS;
+static uint8_t link_jam;                                   /* MODE JAM (the Wi-Fi page) is on: Link runs whatever LINK says (set by ui/opt_wifi.h every pass; never stored) */
+#define link_eff() ((uint8_t)(link_jam && link_mode == LINK_OFF ? LINK_ON : link_mode))   /* the LINK in force: OFF is ON while JAM; the stored link_mode is untouched */
 #endif
 static int32_t sy_lead;                                    /* this block's offset, TIMER4 ticks (sync_follow) */
 #if FELUCCA_BT_AUDIO
