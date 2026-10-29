@@ -243,18 +243,34 @@ static void t_ua(void)
     r = persist_upgrade(&p, (int)offsetof(persist_v3_t, ua_dst));
     persist_from_v3(&c, &p), persist_ua_load(&c);
     check("USB AUDIO: a UAR2 record reads whole: MAIN L + R on 1, 2 -> MASTER on 1+2, DR10 on 3, DRUMS on 4, T1..T3 none",
-          r == (int)sizeof p && ua_dst[UAS_MAIN] == UAD_12 && ua_dst[UAS_N - 1u] == UAD_3 && ua_dst[UAS_DRUMS] == UAD_4 &&
+          r == (int)sizeof p && ua_dst[UAS_MAIN] == UAD_12 && ua_dst[UAS_RA - 1u] == UAD_3 && ua_dst[UAS_DRUMS] == UAD_4 &&
           ua_dst[UAS_T1] == UAD_NONE && ua_dst[UAS_T3] == UAD_NONE && dlt_mask == 1u << (DRUM_LANES - 1u));
     p.ua_mark = PERSIST_UA_MARK1;
     p.ua_src[0] = 4, p.ua_src[1] = 11, p.ua_src[2] = 13 + 9, p.ua_src[3] = 13 + 10;   /* (M-6, B-3, DR10, out of range: 10 lanes) */
     persist_from_v3(&c, &p), persist_ua_load(&c);
     check("USB AUDIO: a UAR1 record: the -6 dB master on 1 (its sum), the bus on 2, a lane kept, out of range none",
-          ua_dst[UAS_MAIN] == UAD_1 && ua_dst[UAS_DBUS] == UAD_2 && ua_dst[UAS_N - 1u] == UAD_3 && ua_dst[UAS_DRUMS] == UAD_NONE);
+          ua_dst[UAS_MAIN] == UAD_1 && ua_dst[UAS_DBUS] == UAD_2 && ua_dst[UAS_RA - 1u] == UAD_3 && ua_dst[UAS_DRUMS] == UAD_NONE);
     persist_ua_save(&c);
     ua_route_default();
     persist_ua_load(&c);
     check("USB AUDIO: saved as UAR3 (UAR2's mark cleared) and read back", c.ua_mark3 == PERSIST_UA_MARK3 && !c.ua_mark &&
-          ua_dst[UAS_MAIN] == UAD_1 && ua_dst[UAS_N - 1u] == UAD_3 && !ua_ident);
+          ua_dst[UAS_MAIN] == UAD_1 && ua_dst[UAS_RA - 1u] == UAD_3 && !ua_ident);
+    /* a UAR3 record of before RET A B C (2026-10-29: 16 sources, the record's other bytes 0, as persist_ua_save writes
+     * them): read as it was, the returns NONE; one of today's keeps them */
+    memset(c.ua_dst, 0, sizeof c.ua_dst);
+    c.ua_dst[UAS_MAIN] = UAD_12, c.ua_dst[UAS_T1] = UAD_3, c.ua_dst[UAS_DR1 + 9] = UAD_4, c.ua_mark3 = PERSIST_UA_MARK3;
+    ua_dst[UAS_RA] = ua_dst[UAS_RA + 2] = UAD_34;
+    persist_ua_load(&c);
+    check("USB AUDIO: a UAR3 record of 16 sources: as saved, RET A B C NONE (no return tapped)",
+          ua_dst[UAS_MAIN] == UAD_12 && ua_dst[UAS_T1] == UAD_3 && ua_dst[UAS_RA - 1u] == UAD_4 && ua_dst[UAS_RA] == UAD_NONE &&
+          ua_dst[UAS_RA + 1] == UAD_NONE && ua_dst[UAS_RA + 2] == UAD_NONE && !ua_ret_on);
+    ua_dst[UAS_RA + 1] = UAD_12;
+    ua_route_apply();
+    persist_ua_save(&c);
+    ua_route_default();
+    persist_ua_load(&c);
+    check("USB AUDIO: RET B on 1+2 saved and read back", c.ua_dst[UAS_RA + 1] == UAD_12 && ua_dst[UAS_RA + 1] == UAD_12 &&
+          ua_ret_on == 2u && ua_dst[UAS_MAIN] == UAD_12);
     ua_route_default();
 }
 #endif

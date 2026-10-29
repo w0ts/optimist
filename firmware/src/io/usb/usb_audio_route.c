@@ -14,7 +14,8 @@ static const char *ua_src_name(uint32_t v)             /* (flash only: no RAM a 
     static const char *const N[UAS_DR1 + 16] = {"MASTER", "T1", "T2", "T3", TRK4_NAME, "DRUM BUS", "DR1", "DR2", "DR3", "DR4",
                                                 "DR5", "DR6", "DR7", "DR8", "DR9", "DR10", "DR11", "DR12", "DR13", "DR14",
                                                 "DR15", "DR16"};
-    return N[v < UAS_N ? v : 0u];
+    static const char *const R[3] = {"RET A", "RET B", "RET C"};   /* (the returns by their slot: ua_tap.h) */
+    return v >= UAS_RA && v < UAS_N ? R[v - UAS_RA] : N[v < UAS_RA ? v : 0u];
 }
 static const char *ua_dst_name(uint32_t d)
 {
@@ -43,7 +44,8 @@ static void ua_add(int32_t *o, uint32_t os, const int32_t *a, uint32_t sa, const
  * sound card can be another): channel c (0..UA_ROUTE_N-1) of this mix block, n samples (Q15 scale, int32, not clipped)
  * into o with stride os: the lanes routed to it (dlt_buf, summed as they rendered), then every other source on it. master
  * = the master output of the block (stereo interleaved, Q15, before the codec shift); the stems in track_capture, the
- * drum bus in ua_dbus (live only while dlt_block was told the channels are taken). In the audio interrupt, after mix_block */
+ * drum bus in ua_dbus, the returns in ua_ret (live only while dlt_block / ua_ret_block were told the channels are
+ * taken). In the audio interrupt, after mix_block */
 static void ua_route_ch(uint32_t c, int32_t *o, uint32_t os, const int32_t *master, uint32_t n)
 {
     uint32_t s, i, bit = 1u << c;
@@ -53,17 +55,23 @@ static void ua_route_ch(uint32_t c, int32_t *o, uint32_t os, const int32_t *mast
     else
         for (i = 0; i < n; i++)
             o[i * os] = 0;
-    for (s = 0; s < UAS_DR1; s++) {
-        uint32_t m = UAD_MASK[ua_dst[s] % UAD_N], sa = 1u, sb = 1u, how = 1u;
+    for (s = 0; s < UAS_N; s++) {
+        uint32_t m, sa = 1u, sb = 1u, how = 1u, j;
         const int32_t *a, *b = 0;
-        if (!(m & bit))
+        if (s == UAS_DR1) {                             /* (the lanes: in dlt_buf, above) */
+            if (!ua_ret_live)
+                break;                                  /* (no return taken this block) */
+            s = UAS_RA;
+        }
+        if (!(m = UAD_MASK[ua_dst[s] % UAD_N]) || !(m & bit))
             continue;
-        if (s == UAS_MAIN || s == UAS_DBUS) {           /* stereo: L / R on a pair, else the sum */
-            a = s == UAS_MAIN ? master : ua_dbus[0];
-            b = s == UAS_MAIN ? master + 1 : ua_dbus[1];
+        if (s == UAS_MAIN || s == UAS_DBUS || s >= UAS_RA) {   /* stereo: L / R on a pair, else the sum */
+            j = s >= UAS_RA ? ua_ret_ln[(s - UAS_RA) % 3u] : 0u;
+            if ((s == UAS_DBUS && !ua_dbus_live) || j >= 3u)
+                continue;                               /* (the bus or the return not taken this block: nothing in it) */
+            a = s == UAS_MAIN ? master : s == UAS_DBUS ? ua_dbus[0] : ua_ret[j][0];
+            b = s == UAS_MAIN ? master + 1 : s == UAS_DBUS ? ua_dbus[1] : ua_ret[j][1];
             sa = sb = s == UAS_MAIN ? 2u : 1u;
-            if (s == UAS_DBUS && !ua_dbus_live)
-                continue;                               /* (the bus not taken this block: nothing in it) */
             if (m == 3u || m == 12u) {
                 if (bit & 10u)                          /* (the pair's second channel: the right side) */
                     a = b;
