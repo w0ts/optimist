@@ -869,10 +869,7 @@ _add("DLY_ARENA", "FELUCCA_DLY_ARENA", "effects memory (shared by the delay and 
           "chorus is in no master slot: a send in none lends its line to the inserts (as many as fit; taken back, "
           "faded out, when the send is put back). Auto: the delay's line plus one line of each insert built, so every "
           "insert built can play at least once at the same time. Larger: more at once. A size smaller than the delay's "
-          "line and one line of the largest insert built is raised to that (a notice says so). Ignored with ARENA "
-          "(memory per project, one memory setting): the delay's line is then a block of the arena and the inserts' "
-          "lines share one room in it that grows and shrinks as slots pick and let go, as many as the arena holds "
-          "beside the project's engines.")
+          "line and one line of the largest insert built is raised to that (a notice says so).")
 # GATER (fx/insfx/gater.c, 2026-10-14): a further insert type, any number (a few bytes a track)
 _add("INS_GATER", "FELUCCA_INS_GATER", "GATER insert (tempo-synced trance gate)", F, 330, default=0,
      desc="A rhythmic volume gate type for the tracks' insert slots (INSERTS > S1 / S2: GATER), locked to the tempo "
@@ -1186,14 +1183,14 @@ _add("LAYOUT", "FELUCCA_LAYOUT", "flash layout: fake SD mode (more room for code
           "build of this version first (an older updater refuses the larger package). The console's far command "
           "checks the flash past the old end (the far probe).")
 # bit 411 (2026-10-25): the next free one after LAYOUT's 410; the arena (core/arena.c, fx/fx_arena.c, docs/SD-MODE-DESIGN.md
-# 6b): KB, 0 the fixed memories as before. Every build it is set in (2026-10-29, the user: one memory setting; the SD
-# card mode's only before): the parts' engine states placed by need, the effects' lines (the sends' and each limited
-# insert's: DLY_ARENA ignored, core.py ARENA_FOLDS), the other buffers, the load's list page (FELUCCA_FX_ARENA,
-# FELUCCA_MEM_LIST). The pool estimate: core.py arena_mem
-_add("ARENA", "FELUCCA_ARENA_KB", "memory per project (one arena for the engines and the effects' lines)",
+# 6b): KB, 0 the fixed memories as before. The core (every build it is set in): the parts' engine states placed by need,
+# the edit's one confirm for what to drop, a load's refusals on it one by one; the extras only in the SD card mode
+# (registry.h FELUCCA_SD_MODE: LAYOUT 1 until its own flag): the effects' lines, the other buffers, the load's list page
+# (FELUCCA_FX_ARENA, FELUCCA_MEM_LIST). The pool estimate: core.py arena_mem (sd_mode)
+_add("ARENA", "FELUCCA_ARENA_KB", "memory per project (an arena for the engines; in the SD card mode the effects' lines too)",
      MEM, 411, default=0,
-     choices=((0, "off: every memory reserved, as before"), (1, "auto: what the build needs together"), (24, "24 KB"),
-              (32, "32 KB"), (40, "40 KB"), (48, "48 KB"), (64, "64 KB"), (96, "96 KB"), (128, "128 KB"), (160, "160 KB"), (192, "192 KB"), (256, "256 KB")),
+     choices=((0, "off: every memory reserved, as before"), (24, "24 KB"), (32, "32 KB"), (40, "40 KB"), (48, "48 KB"),
+              (64, "64 KB"), (96, "96 KB"), (128, "128 KB"), (160, "160 KB"), (192, "192 KB"), (256, "256 KB")),
      experimental=True, tested="host-tested only (tests/fx_arena_test.c, arena_bufs_test.c, arena_test.c, placeholder_test.c); not on an FM-1",
      desc="Instead of reserving every engine's memory whether a project uses it or not, one pool memory of this size "
           "holds what the project uses: each synth part's engine state (FM6, PHYS, GRAIN, ACID, PLAITS, JUNO, DRAWBAR, "
@@ -1202,10 +1199,8 @@ _add("ARENA", "FELUCCA_ARENA_KB", "memory per project (one arena for the engines
           "What the arena does not need goes to the undo history. A change that does not fit is refused and the "
           "device proposes a part to drop (DROP T2 FM6); a dropped part plays nothing (NONE) until an engine is picked "
           "for it; a project load that does not fit offers its refused parts the same way, one at a time, the "
-          "project's sound kept. The arena also holds "
-          "the effects' lines (the delay, chorus and reverb sends' lines; the limited inserts' lines, CHRS, ECHO, "
-          "JUNO CHORUS, FLNG, XDLY, in one room that grows and shrinks as slots pick and let go: the effects memory, "
-          "DLY_ARENA, is not set apart, ignored with ARENA) and the other "
+          "project's sound kept. In the SD card mode (the fake SD mode's layout for now, LAYOUT) the arena also holds "
+          "the effects' lines (the delay, chorus and reverb sends' lines, the limited inserts' own room) and the other "
           "buffers only some projects use (each track's SLICER recording while it is on STUT, WAVE's table while a "
           "part plays WAVE, the X0X 909's and 808's states while the kit or a lane plays them, the PUNCH ring while "
           "the project's PUNCH switch is on: GLOBAL > Rec, off in a new or an older project, FM6's sine table while "
@@ -1214,16 +1209,10 @@ _add("ARENA", "FELUCCA_ARENA_KB", "memory per project (one arena for the engines
           "32 KB); a dropped or refused effect is bypassed and dimmed (FULL), kept in the project, and comes back by "
           "itself once there is room (a refused SLICER plays the live sound, its card FULL; an X0X kit plays its "
           "stand-in kit; each with a MEM FULL message once; a change to WAVE without room for its table is refused "
-          "as an engine change; FX + a key with PUNCH off plays nothing: PUNCH OFF). Before anything is refused the "
-          "memories are moved together when the free room would hold it, and a project load packs them all; nothing "
-          "that sounds is moved (a part only while it plays nothing, a send line while its tail is silent): what sounds "
-          "is packed once it is quiet (SYSTEM > INFO's ARENA MOVE says the longest move, in microseconds). "
-          "Off: every memory reserved as before, nothing ever refused. The engines alone: about "
-          "400 B of flash (the default profile and sd-card-mots, measured 2026-10-26); with the effects' lines and the "
-          "other buffers (every build with ARENA since 2026-10-29) about 6.7 KB of flash and 350 B of RAM; the room is "
-          "the size chosen, against the fixed memories it replaces. AUTO sizes it to what the build needs together (a "
-          "new project's three send lines, the largest engine's memory, one line of the largest insert); a size chosen "
-          "smaller is kept, with a notice saying what auto would take.")
+          "as an engine change; FX + a key with PUNCH off plays nothing: PUNCH OFF). Off: every memory reserved as before, nothing ever refused. The engines alone: about "
+          "400 B of flash (the default profile and sd-card-mots, measured 2026-10-26); with the SD card mode's extras about "
+          "6.7 KB of flash and 350 B of RAM; the room is the size chosen, against the fixed memories it "
+          "replaces.")
 # bit 414 (2026-10-26): the next free one after FAR_OK's 413; the fm-1 session's handover (projects off the device)
 _add("BT_PROJ", "FELUCCA_BT_PROJ", "projects to and from the phone over Bluetooth", Y, 414, default=0,
      parent="EDITOR", experimental=True, tested="host-tested only (tests/mirror_test.c); no client sends it yet",

@@ -484,14 +484,16 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
                                             * one memory setting) */
 #endif
 #ifndef FELUCCA_ARENA_KB
-#define FELUCCA_ARENA_KB 0                 /* the builder's ARENA (bit 411): KB of pool the parts' engine states are placed
-                                            * in by need (core/arena.c), the effects' lines and the other buffers too
-                                            * (the extras: FELUCCA_FX_ARENA below; every build with an arena since
-                                            * 2026-10-29, the SD card mode's only before); 0: the fixed memories as
-                                            * before */
+#define FELUCCA_ARENA_KB 0                 /* the builder's ARENA (bit 411): on (non-zero), the parts' engine states, the
+                                            * effects' lines and the other buffers placed by need (core/arena.c; the
+                                            * extras: FELUCCA_FX_ARENA below) in the SRAM the link leaves free, taken at
+                                            * boot (the user, 2026-10-29: "arena first, undo gets the rest": the undo
+                                            * history borrows what it does not use, seq/undo.c); 0: the fixed memories
+                                            * as before. An older builder's KB (24 .. 256) reads as on */
 #endif
 #if FELUCCA_ARENA_KB && !defined(FELUCCA_ARENA_BYTES)
-#define FELUCCA_ARENA_BYTES (FELUCCA_ARENA_KB * 1024u)
+#define FELUCCA_ARENA_BYTES (FELUCCA_ARENA_KB > 1 ? FELUCCA_ARENA_KB * 1024u : 96u * 1024u)   /* (the host's stand-in for
+                                            * the free SRAM: the device takes what there is, engines.c ARN_FREE) */
 #endif
 #ifdef FELUCCA_ARENA_BYTES
 #define PART_DROPS 1                       /* (an arena placed by need: a change can be refused, a part dropped, a silent

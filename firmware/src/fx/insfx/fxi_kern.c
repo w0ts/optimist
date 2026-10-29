@@ -338,7 +338,7 @@ static HOT2 __attribute__((noinline)) void ifx_lim_run(uint32_t ty, uint32_t k, 
 {
     uint32_t i = ifx_lim_at(ty, k);
     if (i == FXI_NONE || FXR_MOVING())
-        return;                                         /* (none; or the own room moving, fxi.c fxr_moved: this block
+        return;                                         /* (none; or the own room moving, core/arena.c: this block
                                                          * bypassed, its lines untouched) */
 #if FELUCCA_INS_CHORUS
     if (ty == FXT_CHRS && i < FXI_TN0)

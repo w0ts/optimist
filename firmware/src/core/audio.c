@@ -214,6 +214,9 @@ void fm1_alnk0_irq(void)                       /* via isr_alnk0 (hal/fm1_isr.S) 
         if (us > audio_max_us)
             audio_max_us = us;
         ovl_half(us + w, late, fm1_ms);                    /* PEAK (its wait too), DROPS, the header's mark (system/overload.h) */
+#if PART_DROPS
+        ovl_ring_put(&ovl.r[OVL_RAM], (ARN_BYTES - arn_room()) / 1024u, fm1_ms);   /* (the arena in use: INFO's RAM bar) */
+#endif
         felucca_dbg.pk_all = ovl_maxall_pct(OVL_CPU0);     /* (the same measures into the reset-kept record) */
         felucca_dbg.pk_5s = ovl_max5_pct(OVL_CPU0, fm1_ms);
         felucca_dbg.pk1_5s = ovl_max5_pct(OVL_CPU1, fm1_ms);

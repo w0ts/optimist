@@ -648,40 +648,52 @@ static void sys_ro(cell_t *c, const char *label)    /* a read-out line */
     c->label = label;
     c->kind = CK_RO;
 }
-static void info_kb(char *b, uint32_t n)                /* n bytes as INFO writes them: "41K"; under 10 KB one decimal, "1.9K" */
-{
-    uint32_t t = n * 10u / 1024u;
-    fmt_int(b, (int32_t)(n < 10240u ? t / 10u : n / 1024u));
-    if (n < 10240u) {
-        uint32_t k = str_len(b);
-        b[k] = '.', b[k + 1u] = (char)('0' + t % 10u), b[k + 2u] = 0;
-    }
-    str_app(b, "K", 8);
-}
-/* INFO's RAM line (the user, 2026-10-28): the name with the SRAM nothing is linked into (fixed at link; the undo history's room
- * in an UNDO_HISTORY build), the value the least room any stack has had left since boot (system/stackmark.h: CPU0's main and
- * interrupt stacks, CPU1's jobs'), amber under STK_LOW; "?" when no stack was measured */
+/* INFO's RAM bar (the user, 2026-10-29: one memory bar, drawn as the CPU bars, its peaks as theirs): RAM, its used / total KB.
+ * With an arena (core/arena.c: the SRAM the link leaves free, its whole room) the arena's blocks in use the fill, the undo
+ * history's share (seq/undo.c: its least and what it borrows) a dimmer segment after it, the rest free; the bright tick the
+ * last ~10 s's most in use, the dim one the most since boot (system/overload.h's RAM ring, sampled with the CPU's).
+ * Without: the SRAM in use at link of the SRAM (stk_sram_free: what is left), no ticks. The stacks: no bar, the label
+ * amber and STACK LOW when one has had under STK_LOW left (system/stackmark.h stk_low: ever, the release's own record) */
+#ifdef PLAT_TICKS_PER_US
+#define INFO_SRAM 475136u                               /* (the release's SRAM to the stacks: fm1-base device/app.ld) */
+#else
+#define INFO_SRAM 466688u                               /* (Optimist's own: firmware/app.ld) */
+#endif
 static void info_ram(cell_t *c)
 {
-    static char lb[20];
-    uint32_t k, free = stk_sram_free();
-    int32_t l = stk_least_ever(&k);                     /* (the least ever where the platform keeps it: the release) */
-    (void)k;
-    str_cpy(lb, "RAM", sizeof lb);
-    if (free) {
-        str_app(lb, " ", sizeof lb);
-        info_kb(lb + str_len(lb), free);
-        str_app(lb, " FREE", sizeof lb);
+    uint32_t used, total, pct, n;
+#if PART_DROPS
+    total = ARN_BYTES + ARN_UNDO_KEEP;
+    used = ARN_BYTES - arn_room();
+#if FELUCCA_UNDO_HISTORY
+    n = undo_h.ready ? undo_h.len[0] : ARN_UNDO_KEEP;   /* (its part in the free SRAM: the cache RAM's not counted) */
+#else
+    n = 0;
+#endif
+#else
+    total = INFO_SRAM;
+    used = total > stk_sram_free() ? total - stk_sram_free() : 0u;
+    n = 0;
+#endif
+    sys_ro(c, "RAM");
+    pct = total ? used * 100u / total : 0u;
+    cell_gauge(c, 0, 0, 100, (int32_t)(pct < 100u ? pct : 100u));
+    c->pkbar = 1;
+    c->av = (int16_t)(total ? (used + n) * 100u / total < 100u ? (used + n) * 100u / total : 100u : 0u);
+#if PART_DROPS
+    c->hold[0] = (int16_t)(total ? ovl_win_max(OVL_RAM, fm1_ms, OVL_W10) * 102400u / total : 0u);
+    c->hold[1] = (int16_t)(total ? ovl.r[OVL_RAM].amax * 102400u / total : 0u);
+#endif
+    fmt_int(c->val, (int32_t)(used / 1024u));
+    n = str_len(c->val);
+    c->val[n] = '/';
+    fmt_int(c->val + n + 1u, (int32_t)(total / 1024u));
+    c->unit = "KB";
+    if (stk_low()) {                                    /* (a stack within STK_LOW of its bottom, ever: stackmark.h) */
+        c->col = C_WARN;
+        c->danger = 1;                                  /* (its label amber too: op_gldraw.c gl_info_draw) */
+        c->unit = "KB STACK LOW";
     }
-    sys_ro(c, lb);
-    if (l < 0) {
-        cell_val(c, "?");
-        c->col = C_DIM;
-    } else {
-        info_kb(c->val, (uint32_t)l);
-        c->col = stk_low() ? C_WARN : C_OK;             /* (STACK LOW: stackmark.h) */
-    }
-    c->unit = " STACK LEFT";
 }
 static void sys_onoff(cell_t *c, const char *label, uint32_t on)   /* an ON / OFF line */
 {

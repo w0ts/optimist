@@ -44,6 +44,10 @@
  * (arn_mv_sync: the copy is usually done before the next one, the client not skipped at all), then its place and
  * pointer swapped with the interrupts off (ARN_MV_MOVED). Before each move its target is checked again (a reservation
  * in the audio's section apply may have taken it) and the client too (it may sound again): the plan stops.
+ * The memory (the user, 2026-10-29: "arena first, undo gets the rest"): on the device the arena is the SRAM the link
+ * leaves free (ARN_FREE, arn_boot: the pool's end to the stacks' guard band less the build's spare), less ARN_UNDO_KEEP
+ * kept after it for the undo history (seq/undo.c), which also borrows whatever the arena leaves unused at its top and
+ * gives it back when a block is placed there (ARN_GREW: its oldest levels dropped). The host: a stand-in of ARN_BYTES.
  * The probe (arn_probe: SYSTEM > INFO ARENA MOVE): the moves, the longest (us, its start to its swap), the
  * longest window with the interrupts off (us), the audio blocks a client was skipped in */
 #ifndef AINL
@@ -89,7 +93,19 @@
 #endif
 #define ARN_NO 0xFFu
 _Static_assert(ARN_PARTS <= 32u, "the arena's clients: a bit each in a mask (skip, ARN_TOPS, ARN_MOVES)");
-_Static_assert(ARN_BYTES % ARN_ALIGN == 0u, "the arena: whole units");
+#ifndef ARN_UNDO_KEEP
+#define ARN_UNDO_KEEP 0u                                /* (after the arena, the undo history's least: the includer's) */
+#endif
+#ifndef ARN_TOPS_HW
+#define ARN_TOPS_HW 0                                   /* the ARN_TOPS from the top of what is in use (1: the undo history
+                                                         * after it borrows the rest) or from the arena's end (0: measured
+                                                         * 2026-10-29, tests/arena_frag_test.c on the farm: a half to a third
+                                                         * of the bytes hidden in gaps and fewer refusals at the real sizes;
+                                                         * 1 gave the undo history 3 to 27 KB more on average) */
+#endif
+#ifndef ARN_GREW
+#define ARN_GREW(end) ((void)(end))                     /* (a block now ends at end: the undo history makes way) */
+#endif
 
 typedef struct {
     uint32_t off, len;                                  /* len 0: none */
@@ -107,7 +123,22 @@ static arn_st_t arn = {.mk = ARN_NO};                   /* (one struct: a trial 
 #define arn_cur arn.b[0]
 #define arn_next arn.b[1]
 #define arn_has_next arn.hn
-static uint8_t arn_mem[ARN_BYTES] __attribute__((aligned(8))) IN_POOL;
+#ifdef ARN_FREE                                         /* the device: the free SRAM, taken at boot (arn_boot) */
+static uint8_t *arn_mem;
+static uint32_t arn_size;                               /* (ARN_BYTES: the includer's name for it) */
+/* (at power-on, before anything is placed) the arena from lo, what lo .. hi holds less ARN_UNDO_KEEP after it, in units */
+static void arn_boot(uint8_t *lo, uint8_t *hi)
+{
+    uintptr_t a = ((uintptr_t)lo + ARN_ALIGN - 1u) & ~(uintptr_t)(ARN_ALIGN - 1u);
+    uint32_t room = (uint8_t *)a < hi ? (uint32_t)(hi - (uint8_t *)a) : 0u;
+    arn_mem = (uint8_t *)a;
+    arn_size = room > ARN_UNDO_KEEP ? (room - ARN_UNDO_KEEP) & ~(ARN_ALIGN - 1u) : 0u;
+}
+#else                                                   /* (the host: a stand-in of ARN_BYTES, the undo's least after it) */
+_Static_assert(ARN_BYTES % ARN_ALIGN == 0u, "the arena: whole units");
+static uint8_t arn_mem[ARN_BYTES + ARN_UNDO_KEEP] __attribute__((aligned(8))) IN_POOL;
+#define arn_boot(lo, hi) ((void)(lo), (void)(hi))
+#endif
 
 static uint32_t arn_round(uint32_t n) { return (n + ARN_ALIGN - 1u) & ~(ARN_ALIGN - 1u); }
 
@@ -142,6 +173,7 @@ static int arn_clear(const arn_st_t *A, uint32_t at, uint32_t n, uint32_t skip)
  * (the place's unit) the highest place (ARN_HIGH) or the smallest gap that fits (best fit; of two alike the higher), n
  * bytes at its top end. The places tried: the arena's start and each block's end (first fit), each block's start and
  * lim, less n (from the top); no sort, no copy */
+static uint8_t arn_high;                                /* (arn_plan's moves up: the highest place, not best fit) */
 static uint32_t arn_scan(const arn_st_t *A, uint32_t n, uint32_t skip, uint32_t top, uint32_t lim)
 {
     uint32_t j, i, best = ARN_BYTES, room = 0xFFFFFFFFu;
@@ -164,15 +196,32 @@ static uint32_t arn_scan(const arn_st_t *A, uint32_t n, uint32_t skip, uint32_t 
         }
         if (i < ARN_NB)
             continue;
-        if (!top ? at < best : ARN_HIGH ? best == ARN_BYTES || at > best : o - lo < room || (o - lo == room && at > best))
+        if (!top ? at < best : (ARN_HIGH || arn_high) ? best == ARN_BYTES || at > best : o - lo < room || (o - lo == room && at > best))
             room = o - lo, best = at;
     }
     return best;
 }
-static uint32_t arn_place(const arn_st_t *A, uint32_t k, uint32_t n, uint32_t skip)   /* client k's place for n */
+/* A's highest block's end but those of skip (ARN_UNDO_KEEP: what the undo history after it borrows starts there) */
+static uint32_t arn_hw(const arn_st_t *A, uint32_t skip)
 {
-    uint32_t top = ARN_TOPS >> k & 1u;
-    return arn_scan(A, n, skip, top ? ARN_ALIGN : 0u, top ? ARN_BYTES : ARN_BYTES);
+    uint32_t j, o = 0, e, t = 0;
+    for (j = 0; j < ARN_NB; j++)
+        if ((e = arn_end(A, j, skip, &o)) > t)
+            t = e;
+    return t;
+}
+/* client k's place for n: the ARN_TOPS best fit from the top of what is in use (the undo history keeps the rest), else
+ * (and the others) first fit from the bottom */
+static uint32_t arn_place(const arn_st_t *A, uint32_t k, uint32_t n, uint32_t skip)
+{
+    uint32_t at = ARN_BYTES, hw;
+    if (ARN_TOPS >> k & 1u) {
+        hw = ARN_UNDO_KEEP && ARN_TOPS_HW ? arn_hw(A, skip) : ARN_BYTES;
+        at = arn_scan(A, n, skip, ARN_ALIGN, hw);
+        if (at == ARN_BYTES && hw < ARN_BYTES)          /* (none under it: just over what is in use) */
+            at = arn_scan(A, n, skip, ARN_ALIGN, hw + n < ARN_BYTES ? hw + n : ARN_BYTES);
+    }
+    return at != ARN_BYTES ? at : arn_scan(A, n, skip, 0u, ARN_BYTES);
 }
 static uint32_t arn_gap(uint32_t n, uint32_t skip) { return arn_scan(&arn, n, skip, 0, ARN_BYTES); }
 
@@ -213,6 +262,8 @@ static int arn_reserve_in(arn_st_t *A, uint32_t k, uint32_t n)
     }
     A->b[1][k].off = at, A->b[1][k].len = n, A->b[1][k].idle = 0;
     A->hn[k] = 1;
+    if (A == &arn)
+        ARN_GREW(at + n);
     return 0;
 }
 static int arn_reserve(uint32_t k, uint32_t n) { return arn_reserve_in(&arn, k, n); }
@@ -249,6 +300,7 @@ static int arn_resize(uint32_t k, uint32_t o, uint32_t n)
     if (k >= ARN_PARTS || o % ARN_ALIGN || o + n > ARN_BYTES || arn.mk == k || !arn_clear(&arn, o, n, 1u << k))
         return -1;
     arn_cur[k].off = o, arn_cur[k].len = n, arn_cur[k].idle = 0;
+    ARN_GREW(o + n);
     return 0;
 }
 
@@ -265,6 +317,7 @@ static int arn_fits(uint32_t k, uint32_t n, uint32_t skip)
 
 static void *arn_ptr(uint32_t k) { return k < ARN_PARTS && arn_cur[k].len ? arn_mem + arn_cur[k].off : 0; }
 
+static uint32_t arn_top(void) { return arn_hw(&arn, 0); }   /* the highest block's end (a reservation, a move's target) */
 static uint32_t arn_room(void)                          /* the room left, every gap (the idle blocks free) */
 {
     uint32_t k, used = 0;
@@ -355,7 +408,11 @@ static int arn_plan(arn_st_t *T, const arn_goal_t *g)
         over = fx && T->b[0][k].off < g->at + arn_round(g->n) && T->b[0][k].off + T->b[0][k].len > g->at;
         if (pass ? over || up != (pass == 1u) : !over)
             continue;
-        at = arn_scan(T, T->b[0][k].len, 1u << k, up ? ARN_UP_ALIGN : 0u, up ? ARN_BYTES : ARN_BYTES);
+        arn_high = (uint8_t)up;
+        at = arn_scan(T, T->b[0][k].len, 1u << k, up ? ARN_UP_ALIGN : 0u,
+                      up && ARN_UNDO_KEEP && ARN_TOPS_HW ? arn_hw(T, 1u << k) : ARN_BYTES);   /* (up: no higher
+                                                         * than what is in use) */
+        arn_high = 0;
         if (at == ARN_BYTES && !pass)
             return -1;
         if (at == ARN_BYTES || (pass && (up ? at <= T->b[0][k].off : at >= T->b[0][k].off)))
@@ -434,7 +491,7 @@ static void arn_mv_window(void)
 /* the main loop, every pass: a plan's next move (its target checked again; taken: the plan stops), copied, swapped */
 static void arn_poll(void)
 {
-    uint32_t k, i, ok;
+    uint32_t k, i, ok, idle;
     arn_st_t T;
     if (arn.mk == ARN_NO && arn_pk.i >= arn_pk.n) {
         if (!arn_pk.all && (!arn_pk.want || ++arn_pk.tick & 31u))
@@ -445,6 +502,10 @@ static void arn_poll(void)
         fm1_irq_off();
         T = arn;
         fm1_irq_on();
+        idle = arn_idle_of(&T);
+        for (i = 0; i < ARN_PARTS; i++)
+            if (idle >> i & 1u)
+                T.b[0][i].len = 0;                      /* (the idle blocks: given back, as a reservation would) */
         arn_pk.load = arn_pk.all, arn_pk.all = 0;      /* (a load's pack: its blocks move, sounding or not) */
         if (arn_plan(&T, 0) <= 0) {
             arn_pk.load = 0;
@@ -453,6 +514,11 @@ static void arn_poll(void)
             return;
         }
         arn_pk.i = 0;
+        fm1_irq_off();
+        for (i = 0; i < ARN_PARTS; i++)
+            if ((idle >> i & 1u) && arn_cur[i].len && arn_cur[i].idle)
+                arn_cur[i].len = 0;
+        fm1_irq_on();
     }
     if (arn.mk == ARN_NO) {
         i = arn_pk.i;
@@ -460,8 +526,10 @@ static void arn_poll(void)
         fm1_irq_off();
         ok = arn_movable(&arn, k) && arn_cur[k].off == arn_pk.from[i] &&
              arn_clear(&arn, arn_pk.to[i], arn_cur[k].len, 1u << k);
-        if (ok)
+        if (ok) {
             arn.mk = (uint8_t)k, arn.mo = arn_pk.to[i];
+            ARN_GREW(arn.mo + arn_cur[k].len);
+        }
         fm1_irq_on();
         if (!ok) {
             arn_pk.n = arn_pk.i = 0, arn_pk.load = 0;   /* (something took its place, or it sounds again: the plan

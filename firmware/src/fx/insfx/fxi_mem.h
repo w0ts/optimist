@@ -30,24 +30,7 @@
 #define FXI_B3 (FELUCCA_INS_FLANGER != 0)
 #define FXI_B4 (FELUCCA_INS_XDLY != 0)
 #define FXA_AUTO (FXI_B0 * FXA_Z0 + FXI_B1 * FXA_Z1 + FXI_B2 * FXA_Z2 + FXI_B3 * FXA_Z3 + FXI_B4 * FXA_Z4)
-/* With an arena (FXM_NEED: every build with FELUCCA_ARENA_KB, the user, 2026-10-29: one memory setting) there is no
- * DLY_ARENA: the own room is one block of the arena (fx/fx_arena.c FXM_INS) that grows and shrinks a unit at a time at
- * its edges as lines are placed and given back (fxi.c fxa_own, fxr_trim); its
- * units are the arena's own 1 KB units from its start (unit FXA_S + u: arena bytes u KB .. u + 1 KB), so a line keeps
- * its address while the room grows. The send lines are the arena's blocks too, lent as before. How many lines play at
- * once is then what the arena holds beside the project's engines and the other lines */
-#if FXM_NEED
-#define FXA_ROOM 1
-#define FXA_I (ARN_BYTES / (FXA_U * 2u))
-#define FXA_SIZE "FELUCCA_ARENA_KB"                     /* (the size that holds the lines: the asserts' text) */
-#define FXR_MOVING() arn_moving(NPART + 3u)             /* (the room moving, core/arena.c: the kernels let it be) */
-_Static_assert((FXA_U * 2u) % ARN_ALIGN == 0u, "the arena's unit divides the inserts' 1 KB unit");
-#else
-#define FXA_ROOM 0
 #define FXA_I (FELUCCA_DLY_ARENA ? FELUCCA_DLY_ARENA - FXA_S : FXA_AUTO)
-#define FXA_SIZE "FELUCCA_DLY_ARENA"
-#define FXR_MOVING() 0
-#endif
 #define FXA_N (FXA_S + FXA_I)
 #define FXA_T (FXA_N + FXC_S)
 /* the most lines of z units the memory holds at once (each region on its own: a line never spans two) and the instance
@@ -62,16 +45,20 @@ _Static_assert((FXA_U * 2u) % ARN_ALIGN == 0u, "the arena's unit divides the ins
 _Static_assert(!FELUCCA_DLY_ARENA || FELUCCA_DLY_ARENA >= FXA_S,
                "FELUCCA_DLY_ARENA: KB, at least the delay send's line (0: auto)");
 _Static_assert(FXA_T <= 1024u, "the effects memory: 1 MB at most (fxi.c fxa_bm)");
-_Static_assert(!FXI_B0 || FXI_MX(FXA_Z0) >= 1u, FXA_SIZE ": no room for one CHRS line (2 KB)");
-_Static_assert(!FXI_B1 || FXI_MX(FXA_Z1) >= 1u, FXA_SIZE ": no room for one ECHO line (8 KB)");
-_Static_assert(!FXI_B2 || FXI_MX(FXA_Z2) >= 1u, FXA_SIZE ": no room for one JUNO CHORUS line (2 KB, 4 with JUNO_FINE)");
-_Static_assert(!FXI_B3 || FXI_MX(FXA_Z3) >= 1u, FXA_SIZE ": no room for one FLNG line (1 KB)");
-_Static_assert(!FXI_B4 || FXI_MX(FXA_Z4) >= 1u, FXA_SIZE ": no room for one XDLY (2 lines of FELUCCA_XDLY_LEN)");
+_Static_assert(!FXI_B0 || FXI_MX(FXA_Z0) >= 1u, "FELUCCA_DLY_ARENA: no room for one CHRS line (2 KB)");
+_Static_assert(!FXI_B1 || FXI_MX(FXA_Z1) >= 1u, "FELUCCA_DLY_ARENA: no room for one ECHO line (8 KB)");
+_Static_assert(!FXI_B2 || FXI_MX(FXA_Z2) >= 1u, "FELUCCA_DLY_ARENA: no room for one JUNO CHORUS line (2 KB, 4 with JUNO_FINE)");
+_Static_assert(!FXI_B3 || FXI_MX(FXA_Z3) >= 1u, "FELUCCA_DLY_ARENA: no room for one FLNG line (1 KB)");
+_Static_assert(!FXI_B4 || FXI_MX(FXA_Z4) >= 1u, "FELUCCA_DLY_ARENA: no room for one XDLY (2 lines of FELUCCA_XDLY_LEN)");
 _Static_assert(FELUCCA_XDLY_LEN % 256 == 0 && CHO_LEN % FXA_U == 0, "the lines: whole units");
-#if FXA_ROOM
-#define fxa_ins ((int16_t *)(void *)arn_mem)            /* (the arena itself: the own units are its units) */
+#if FXA_I && FXM_NEED
+static int16_t *fxa_ins;                                /* (in the arena while a limited type is held: fx/fx_arena.c) */
+#define FXR_MOVING() arn_moving(NPART + 3u)             /* (the own room moving, core/arena.c: the kernels let it be) */
 #elif FXA_I
 static int16_t fxa_ins[FXA_I * FXA_U] __attribute__((section(".pool"), aligned(4)));
+#endif
+#ifndef FXR_MOVING
+#define FXR_MOVING() 0
 #endif
 /* unit u's samples (fxi.c: an instance's line; 4-byte aligned: the kernels zero a line a word at a time) */
 AINL int16_t *fxa_line(uint32_t u)

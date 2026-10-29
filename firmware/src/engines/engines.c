@@ -161,8 +161,11 @@ typedef union {
 /* a part's largest block (the tests' arenas): its memory in whole units (the fixed memories: 8 B) */
 #define ARN_SLOT_U (PART_DROPS ? ARN_ALIGN : 8u)
 #define ARN_SLOT (PART_MEM_ANY ? (sizeof(part_mem_t) + ARN_SLOT_U - 1u) & ~(ARN_SLOT_U - 1u) : ARN_SLOT_U)
-#if PART_DROPS
-#define ARN_BYTES FELUCCA_ARENA_BYTES
+#if PART_DROPS && defined(__PI32V2__)
+#define ARN_FREE 1                                       /* (the device: the arena is the free SRAM, core/arena.c arn_boot) */
+#define ARN_BYTES arn_size
+#elif PART_DROPS
+#define ARN_BYTES FELUCCA_ARENA_BYTES                    /* (the host: a stand-in) */
 #endif
 /* FELUCCA_FX_ARENA with an arena placed by need: the effects' lines (the chorus, delay and reverb sends', the inserts'
  * own room) are blocks of it too, after the parts' (fx/fx_arena.c: a line placed while its effect is used); proposed
@@ -229,7 +232,21 @@ static void fxm_sync(void);
 #ifdef FM1_TICKS_PER_US
 #define ARN_US() (fm1_ticks() / FM1_TICKS_PER_US)
 #endif
+/* the undo history (seq/undo.c) after the arena: its least (ARN_UNDO_KEEP: a dozen levels at the largest record, 1,353 B,
+ * far more of the usual step edits), and whatever the arena does not use; a block placed past the history's start
+ * makes it give way, its oldest levels first (undo_yield): the arena is never refused for it */
+#define ARN_UNDO_KEEP (16u * 1024u)
+#define ARN_SPARE 8192u                                  /* (the build's spare SRAM under the stacks: tools/build.py) */
+static void undo_yield(uint8_t *lo);
+#define ARN_GREW(end) undo_yield(arn_mem + (end))
 #include "../core/arena.c"
+#ifdef ARN_FREE
+#include "../../hal/fm1_stack.h"                   /* (the linker scripts' _pool_end and _guard0) */
+/* the arena taken from the free SRAM before its first use (the power-on's first engine, main.c felucca_init) */
+#define ARN_BOOT() (arn_mem ? (void)0 : arn_boot(fm1_stk_pool_end, fm1_stk_guard0 - ARN_SPARE))
+#else
+#define ARN_BOOT() ((void)0)
+#endif
 #define PART_MOVING(t) ((uint32_t)((t) - trk) < NPART && arn_moving((uint32_t)((t) - trk)))
 #else
 static part_mem_t part_mem[PART_MEM_ANY ? NPART : 1] __attribute__((section(".pool"), aligned(8)));
@@ -431,6 +448,7 @@ static int part_mem_try(uint32_t k, uint32_t e)
 {
     uint32_t n = part_mem_bytes(e);
     int r;
+    ARN_BOOT();
 #if PART_TAB
     if (k < NPART && part_tab_bytes(e)) {                /* (its table, and its own memory) */
         IRQ_SAVE(ie);
@@ -541,6 +559,7 @@ static void part_mem_unplaced(track_t *t, uint32_t e)
 static void part_mem_boot(void)
 {
     uint32_t k;
+    ARN_BOOT();
     for (k = 0; k < NPART; k++)
         if (part_mem_bytes(trk[k].engine))
             (void)part_mem_claim(k, trk[k].engine);
@@ -552,6 +571,7 @@ static void part_mem_boot(void)
 static int part_mem_claim(uint32_t k, uint32_t e)
 {
     uint32_t n, i, *w;
+    ARN_BOOT();
     e %= NENGINES;
     n = part_mem_bytes(e);
     if (k >= NPART)
