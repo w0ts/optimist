@@ -3,7 +3,7 @@
 /* The headphone jack's switch (measured on an FM-1 2026-10-29 with the GPIO probe, fm1-next-gpioprobe fe2f1ee9): PB5,
  * port B's input bit 5, 0 with headphones in, 1 with nothing plugged. Read only: its direction, pull and function are
  * left as the boot found them (input, enabled; no driver claims it). The speaker mutes itself in hardware on a plug;
- * here the reading picks the output's correction (fx/outcorr.c: SPK LOWCUT without, HP BASS with).
+ * here the reading picks the output's correction (fx/outcorr.c: SPK LOWCUT without, HPHN BASS with).
  * The contact bounces ~150 ms a plug (several flips within 50..150 ms): a new state counts once the pin has held it
  * HPJ_MS (hpj_step: one change a plug). Polled every main loop pass (ui/optimist/op_input.c ui_input: hp_poll).
  * fm1-base (the release): its plat_headphones, debounced there the same way (HPJ_PLAT, optimist/ui/opt_ui.c). */

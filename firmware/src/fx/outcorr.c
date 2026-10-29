@@ -1,13 +1,13 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 Henri David */
 /* The output's correction by the headphone jack (the user, 2026-10-29): SYSTEM > GENERAL's SPK LOWCUT on the FM-1's own
- * speaker, HP BASS on headphones, each only on its side of the jack (PB5, system/hpjack.h), and only on the FM-1's own
+ * speaker, HPHN BASS on headphones, each only on its side of the jack (PB5, system/hpjack.h), and only on the FM-1's own
  * codec output: never on Bluetooth, USB or the card's recording.
  *
  *   SPK LOWCUT  OFF / ON / BASS+   only while nothing is in the jack. ON: the ~110 Hz 12 dB/oct low cut (lowcut1 x 2);
  *               BASS+: Felucca 1.0's small-speaker mode (bassplus/bassplus.c: the low cut an octave up, the bass'
  *               harmonics added). Default ON.
- *   HP BASS     OFF / +3 dB / +6 dB  only while headphones are in: a low shelf, x + g * LP(x), LP the one-pole ~110 Hz
+ *   HPHN BASS     OFF / +3 dB / +6 dB  only while headphones are in: a low shelf, x + g * LP(x), LP the one-pole ~110 Hz
  *               of the low cut (lowcut_ef, shift 6), g 0.414 (+3 dB) or 1 (+6 dB) at DC. Default OFF.
  *
  * Where: before the limiter, where the low cut always was (fx.c master_pre, in the output stage of mix_finish: the
@@ -20,15 +20,15 @@
  *     (fx.c sd_mst_out: the volume, the DC blocker, the limiter and the knee or LIMIT's brickwall, on its own state,
  *     taken over from the output's when it starts: oc_rec_frames); one stage more a sample, only then.
  *   - USB never reads the output (its MASTER is ua_mst, its own output stage; the stems are taps before the master).
- * CPU: today's low cut, behind the choice (none while the setting of the jack's side is OFF); HP BASS one one-pole a
+ * CPU: today's low cut, behind the choice (none while the setting of the jack's side is OFF); HPHN BASS one one-pole a
  * side and a multiply. fx_lowcut (fx.c) is the block's correction before the limiter (OC_*; the tests set it). */
 enum { OC_NONE, OC_LC, OC_BP, OC_HP3, OC_HP6 };
 static volatile uint8_t spk_lc = 1;     /* SYSTEM > SPK LOWCUT: 0 OFF, 1 ON, 2 BASS+ (settings, panel.c) */
-static volatile uint8_t hp_bass;        /* SYSTEM > HP BASS: 0 OFF, 1 +3 dB, 2 +6 dB (settings) */
+static volatile uint8_t hp_bass;        /* SYSTEM > HPHN BASS: 0 OFF, 1 +3 dB, 2 +6 dB (settings) */
 static volatile uint8_t hp_in;          /* the jack: 1 headphones in (debounced by the main loop: system/hpjack.h) */
 static uint8_t oc_last, oc_rec;         /* (the audio interrupt's: the correction of the last block; the recorder takes
                                          * its own plain stage this block, sd_mst) */
-static int32_t hb_l, hb_r, hbe[2];      /* HP BASS's low-passes and their remainders */
+static int32_t hb_l, hb_r, hbe[2];      /* HPHN BASS's low-passes and their remainders */
 
 AINL uint32_t oc_want(void)             /* the correction the jack's side asks for */
 {
@@ -43,9 +43,9 @@ static void oc_reset(void)              /* the filters from rest (a correction t
     spk_bass_reset();
     hb_l = hb_r = hbe[0] = hbe[1] = 0;
 }
-/* the settings word (settings.lowcut, the settings record's lowcut slot): bits 0..1 SPK LOWCUT, 4..5 HP BASS. A record
- * written before has 0 / 1 / 2 there, the old LOWCUT's OFF / LOWCUT / BASS+: SPK LOWCUT's same three, HP BASS OFF
- * (a firmware from before reads a word with HP BASS set as LOWCUT, its value over 2) */
+/* the settings word (settings.lowcut, the settings record's lowcut slot): bits 0..1 SPK LOWCUT, 4..5 HPHN BASS. A record
+ * written before has 0 / 1 / 2 there, the old LOWCUT's OFF / LOWCUT / BASS+: SPK LOWCUT's same three, HPHN BASS OFF
+ * (a firmware from before reads a word with HPHN BASS set as LOWCUT, its value over 2) */
 AINL uint32_t oc_word(uint32_t spk, uint32_t hp) { return (spk & 3u) | (hp & 3u) << 4; }
 static uint32_t oc_set_word(uint32_t w)   /* the word into the settings -> the word as kept (out of range: the default) */
 {
@@ -79,7 +79,7 @@ static void oc_begin(uint32_t bt, uint32_t rec, uint32_t n)
     oc_left = w ? OC_LA : oc_left > n ? oc_left - n : 0u;
     oc_rec = (uint8_t)(rec && oc_dirty);
 }
-/* HP BASS: the low shelf, both sides (HOT2 as bassplus_out: one copy for mout_block and mlim_block) */
+/* HPHN BASS: the low shelf, both sides (HOT2 as bassplus_out: one copy for mout_block and mlim_block) */
 static HOT2 __attribute__((noinline)) void hp_shelf(int32_t *l, int32_t *r, uint32_t m)
 {
     int32_t a = *l - lowcut_ef(*l, &hb_l, &hbe[0], 6), b = *r - lowcut_ef(*r, &hb_r, &hbe[1], 6);

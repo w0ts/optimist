@@ -517,7 +517,7 @@ static const struct { const char *name; uint8_t it[4]; } SYS[] = {
 #endif
     /* the screen and the sound in one section (the user, 2026-10-25: KNOB COLORS was on a page read as "audio", "group and
      * make it logical"): KNOB COLORS (the knob caps' colours; COLOR gone 2026-10-18: the palette is MONO, panel.c),
-     * SPK LOWCUT and HP BASS (the output's correction by the headphone jack: fx/outcorr.c), FILT RESO (SLOOP 2.8's FILTER
+     * SPK LOWCUT and HPHN BASS (the output's correction by the headphone jack: fx/outcorr.c), FILT RESO (SLOOP 2.8's FILTER
      * RESO, a project's: core.h G_TFRES) */
     {"GENERAL", {SI_KCOL, SI_LOWCUT, SI_HPBASS, SI_IF(FELUCCA_TFLT_RESO && FELUCCA_TRK_FILT, SI_FRESO)}},
 #if USBH_UI
@@ -784,7 +784,7 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
         cell_list(c, "SPK LOWCUT", LC[spk_lc % 3u], 2, (int32_t)(spk_lc % 3u));   /* (the speaker: nothing in the jack) */
         break;
     case SI_HPBASS:
-        cell_list(c, "HP BASS", HB[hp_bass % 3u], 2, (int32_t)(hp_bass % 3u));     /* (headphones in the jack) */
+        cell_list(c, "HPHN BASS", HB[hp_bass % 3u], 2, (int32_t)(hp_bass % 3u));     /* (headphones in the jack) */
         break;
 #if FELUCCA_CDC
     case SI_USB:
@@ -1504,7 +1504,7 @@ static void sys_set(uint32_t it, int32_t s)
     sys_dirty = 1;
 }
 /* SHIFT held + PRESETS (or the knob) on a setting with no descriptor: its FACTORY value, what a blank FM-1 or an empty
- * settings record gives (the user, 2026-10-13): panel.c settings_init (SPK LOWCUT ON, HP BASS OFF), the settings word read as 0 (settings_word.c: HOLD 350 ms, KNOB COLORS, CLK OUT, SERIAL, LIGHTS,
+ * settings record gives (the user, 2026-10-13): panel.c settings_init (SPK LOWCUT ON, HPHN BASS OFF), the settings word read as 0 (settings_word.c: HOLD 350 ms, KNOB COLORS, CLK OUT, SERIAL, LIGHTS,
  * KEYS OFF; 2ND CORE AUTO). BLE is never reset: a reset must not drop a live connection. 1: it had one */
 static int sys_factory(uint32_t it)
 {

@@ -197,7 +197,7 @@ static HOT void dist_run(dist_t *s, int32_t d, int32_t *b, uint32_t n)
  * get quieter instead of crushed. */
 #define LIM_T 18000
 static volatile uint8_t fx_lowcut;     /* this block's output correction before the limiter (outcorr.c OC_*: SPK LOWCUT
-                                        * ~110 Hz 12 dB/oct or BASS+ on the speaker, HP BASS on headphones; 0 none) */
+                                        * ~110 Hz 12 dB/oct or BASS+ on the speaker, HPHN BASS on headphones; 0 none) */
 static int32_t lc_l1, lc_l2, lc_r1, lc_r2;
 /* the output stage's state, the DC blocker's and the limiter's: the FM-1's own output's (mo), and USB's MASTER's own
  * (ua_mo: the same stage at full volume, ua_mst_out) */
@@ -233,14 +233,14 @@ static int32_t lce[4];
 AINL int32_t knee(int32_t x) { return soft_knee(x, KNEE); }   /* (dsp.c) */
 
 #include "bassplus/bassplus.c"          /* the menu's LOWCUT: BASS+ for the small speaker (from Felucca 1.0) */
-#include "outcorr.c"                    /* SPK LOWCUT / HP BASS by the headphone jack, the codec output only */
+#include "outcorr.c"                    /* SPK LOWCUT / HPHN BASS by the headphone jack, the codec output only */
 AINL void master_dc(mout_t *s, int32_t *l, int32_t *r)   /* the DC blocker (master_pre; USB's MASTER: ua_mst_out) */
 {
     *l = dc_block(*l, &s->dc_l, &s->dce_l);
     *r = dc_block(*r, &s->dc_r, &s->dce_r);
 }
 AINL void master_pre(int32_t *l, int32_t *r)   /* the DC blocker and the output's correction (master_out; LIMIT:
-                                                * master_comp.c): SPK LOWCUT / HP BASS, the block's (outcorr.c) */
+                                                * master_comp.c): SPK LOWCUT / HPHN BASS, the block's (outcorr.c) */
 {
     master_dc(&mo, l, r);
     if (fx_lowcut)
