@@ -21,7 +21,8 @@
 #define AUTO_CPU_STEP 6000u                    /* (a 1/32 step at 300 BPM on four tracks: 160 steps a second, ~1 M
                                                 * instructions a second at most: 0.4 % of 240 MHz) */
 
-#define AUTO_RENDER_HASH 0x509C7B0Cu           /* (2907501's render of this program, 2026-10-08; again 2026-10-16: lanes 1..8 are other instruments;
+#define AUTO_RENDER_HASH 0xB31B644Au           /* (2026-10-29 this branch's always-on items (CHO_EXACT, JUNO_FINE, VOICE_OWN, DLY_DOT; 0x509C7B0C before), the cause not isolated per item;
+                                                * 2907501's render of this program, 2026-10-08; again 2026-10-16: lanes 1..8 are other instruments;
                                                 * 2026-10-18 the delay's filter (FREQ 107, LP 12 dB; 0xB556F1CE before): with the delay
                                                 * left out both render 0xB29A415B, the delay alone moved; 2026-10-18 again the delay's
                                                 * 16-bit float line (fx.c DLY_Q; 0xF5F6203F before), the delay alone; 2026-10-19 the
