@@ -1133,7 +1133,7 @@ _ar_nb = K.budget(_ar_n, costs, extra_anchors=[("stand-in", _ar_cfg, _ar_real)])
 check(f"... a neighbour one item away: within {K.ARENA_ESTIMATE_KB} KB of the anchor's arena",
       abs(K.arena_size(_ar_n, _ar_nb["total"])["kb"] - _ar_a["kb"]) <= K.ARENA_ESTIMATE_KB)
 _ar_f = {n: (b, c) for n, b, c, _ in K.arena_fits(_ar_cfg)["rows"]}
-_ar_bl = K._raw(K.arena_blocks, dict(_ar_cfg, DLY_ARENA=K.dly_kb(_ar_cfg)))
+_ar_bl = K.arena_blocks(_ar_cfg)                    # (as arena_fits takes them: the effects memory always auto, 58568ef9)
 check("arena fits: the three sends together = the builder's send lines; a part's engine state x the parts; the PUNCH ring",
       _ar_f["the 3 sends' lines"] == (sum(K.arena_sends(_ar_bl).values()), 1)
       and any(n.startswith("a part's") and c == K.nparts(_ar_cfg) and b == _ar_bl["a part's engine state"] for n, (b, c) in _ar_f.items())
