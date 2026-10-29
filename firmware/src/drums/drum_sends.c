@@ -73,6 +73,19 @@ static void dsend_dry(void)
     for (l = 0; l < DRUM_LANES; l++)
         dsend[l] = dsend_word(0, 0, 0);
 }
+/* a lane's sound as its kit has it (RESET): the kit's source, no offsets, and DRY (2026-10-29, the user: the drum presets
+ * have no reverb or FX by default): every send 0, the inserts at their default slots with amounts 0. The audio ISR must
+ * not run meanwhile */
+static void lin_reset(uint32_t l);                          /* fx_slots.c */
+static void dsnd_reset(uint32_t l)
+{
+    l %= DRUM_LANES;
+    memset(dl.ofs[l], 0, sizeof dl.ofs[l]);
+    dl.src[l] = DL_KIT;
+    memset(dl.ref[l], 0, sizeof dl.ref[l]);
+    dsend[l] = dsend_word(0, 0, 0);
+    lin_reset(l);
+}
 /* level 0..31 -> a send in a track's steps (0..127): 4v + v / 8 (31: 127) */
 AINL int32_t dsend_lvl(uint32_t v) { return (int32_t)(4u * v + (v >> 3)); }
 /* a track's send level 0..127 -> the nearest lane level (ties: the lower) */
@@ -221,7 +234,7 @@ static uint32_t dlrec_hash(const dlrec_t *d)
  * the page shows them in the FX slots' order (fx_slots.c fxs_lane_id) */
 #define DSEND_NID 7u                           /* value ids: 0 REV, 1 DLY, 2 CHO, 3 S1's amount, 4 S2's, 5 S1 TYPE, 6 S2 TYPE */
 static const param_desc_t DSEND_DESC[DSEND_NID] = {
-    PU("REV", F_INT, 0, (int16_t)DSEND_MAX, (int16_t)DSEND_DEF, 0),
+    PU("REV", F_INT, 0, (int16_t)DSEND_MAX, 0, 0),   /* (a built-in sound is dry, 2026-10-29: the word 0 of a stored lane stays REV 4) */
     PU("DLY", F_INT, 0, (int16_t)DSEND_MAX, 0, 0),
     PU("CHO", F_INT, 0, (int16_t)DSEND_MAX, 0, 0),
     PU("DST", F_PCT, 0, 127, 0, 0),

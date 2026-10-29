@@ -1067,8 +1067,8 @@ async function editorMixSends() {
   /* the drum strip's send row: the selected sound's sends, DRUM_LANE v2 (the drum track has no REV of its own) */
   const dl0 = E.parse[C.DRUM_LANES](await rq(E.req.drumLanes(null, true)));
   const dr = E.parse[C.DRUM_LANE](await rq(E.req.drumLane(2, { ...dl0.lanes[2], snd: { rev: 20, dly: 3, cho: 0 } }, true)));
-  ok(dr.lane === 2 && dr.snd.rev === 20 && dr.snd.dly === 3 && m.state.dl[204 + 6] === 20 && m.state.dl[204 + 7] === 3 && m.state.dl[204] === 4,
-    "mix: a drum sound's sends from the strip (DRUM_LANE v2: that lane only; the others as they are, REV 4)");
+  ok(dr.lane === 2 && dr.snd.rev === 20 && dr.snd.dly === 3 && m.state.dl[204 + 6] === 20 && m.state.dl[204 + 7] === 3 && m.state.dl[204] === 0,
+    "mix: a drum sound's sends from the strip (DRUM_LANE v2: that lane only; the others as they are, dry)");
   teardown();
   /* firmware 0.8 (v3): no TRACK_PARAM: a send of another track by selecting it for a moment */
   const o = attachMock({ v3: true });   /* the v3 mock: no TRACK_PARAM */
@@ -1991,7 +1991,7 @@ async function editorDrums() {
   const rb = E.refBytes({ hit: 9, start: 1000, len: 1023 }), rf = E.refFrom(...rb);
   ok(rf.hit === 9 && rf.start === 1000 && rf.len === 1023 && E.refFrom(...E.refBytes({ hit: 2, start: 0, len: 1024 })).len === 1024
     && js(E.refBytes({ hit: 2, start: 0, len: 1024 })) === js([0x20, 0, 0]), "drums: a hit / start / length in 3 bytes (1024 = 0)");
-  const TRK = { rev: 4, dly: 0, cho: 0 };           /* (a lane's sends read from version 1 bytes: as it is, REV 4) */
+  const TRK = { rev: 0, dly: 0, cho: 0 };           /* (a lane's sends read from version 1 bytes: as it is, dry since 2026-10-29) */
   const lanes = Array.from({ length: 16 }, (_, l) => ({ ofs: [l - 8, 63, -64, 5, -24, 0, 1, 6], src: [0, 1, 2, 3, 16, 52][l % 6], hit: l, start: l * 60,
     len: 1024 - l, snd: TRK }));
   const blk = { lanes, ukit: 7, name: "MY KIT" };
@@ -2010,10 +2010,10 @@ async function editorDrums() {
   ok(lb2.length === 252 && js(E.lanesFrom(Uint8Array.from(lb2))) === js({ ...blk, lanes: lanes2 }) && lb2[204] === 4 && lb2[204 + 3] === 1 &&
     kb2.length === 244 && js(E.kitFrom(Uint8Array.from(kb2))) === js({ ...kit, lanes: lanes2 }) && js(lb2.slice(0, 204)) === js(lb),
     "drums v2: lanes (252) / kit (244): + 48 bytes of sends round trip, the first 204 as version 1");
-  ok(js(E.sndFrom(E.sndBytes({ rev: 99, dly: -4, cho: 40 }), 0)) === js({ rev: 31, dly: 0, cho: 31 }) && js(E.sndBytes(E.emptySnd())) === js([4, 0, 0])
+  ok(js(E.sndFrom(E.sndBytes({ rev: 99, dly: -4, cho: 40 }), 0)) === js({ rev: 31, dly: 0, cho: 31 }) && js(E.sndBytes(E.emptySnd())) === js([0, 0, 0])
     && js(E.sndFrom([0xFF, 3, 0], 0)) === js({ rev: 4, dly: 3, cho: 0 }) && js(E.sndBytes({ rev: -1 })) === js([4, 0, 0])
-    && !E.laneEdited(E.emptyLane()) && E.laneEdited({ ...E.emptyLane(), snd: { rev: 0, dly: 0, cho: 0 } }),
-    "drums v2: sends clamped (0..31); as it is REV 4; an older REV -1 (TRK, 0xFF) reads 4; REV 0 is an edit");
+    && !E.laneEdited(E.emptyLane()) && E.laneEdited({ ...E.emptyLane(), snd: { rev: 4, dly: 0, cho: 0 } }),
+    "drums v2: sends clamped (0..31); as it is REV 0 (dry); an older REV -1 (TRK, 0xFF) reads 4; REV 4 is an edit");
   ok(E.req.drumLanes(null, true)[1].length === 1 && E.req.drumLanes({ ...blk, lanes: lanes2 }, true)[1].length === 289 &&
     E.req.drumLanes({ ...blk, lanes: lanes2 })[1].length === 234 && E.req.drumLane(3, null, true)[1][0] === 0x43 && E.req.ukitGet(4, true)[1][0] === 0x44,
     "drums v2: requests (36: 2 / 2 + 288 bytes; 37 / 39 / 40: 0x40 + lane / slot)");
@@ -2061,13 +2061,13 @@ async function editorDrums() {
   ok(js([...sr.data]) === js([1, 2, 3, 4, 5]) && sr.offset === 600 && se.data.length === 10, "drums: SMP_READ (not past USR3's end)");
   /* version 2: the sends */
   let L2 = E.parse[C.DRUM_LANES](await rq(E.req.drumLanes(null, true)));
-  ok(L2.v2 && L2.lanes.length === 16 && L2.lanes.every((l) => l.snd.rev === 4 && !l.snd.dly && !l.snd.cho), "drums v2: DRUM_LANES 2: every lane as it is (REV 4)");
+  ok(L2.v2 && L2.lanes.length === 16 && L2.lanes.every((l) => l.snd.rev === 0 && !l.snd.dly && !l.snd.cho), "drums v2: DRUM_LANES 2: every lane as it is (dry: REV 0)");
   const r2 = E.parse[C.DRUM_LANE](await rq(E.req.drumLane(2, { ...L2.lanes[2], snd: { rev: 31, dly: 0, cho: 0 } }, true)));
   ok(r2.lane === 2 && r2.snd.rev === 31 && r2.src === L2.lanes[2].src, "drums v2: DRUM_LANE 0x40 + 2: reverb on the snare only");
   L2 = E.parse[C.DRUM_LANES](await rq(E.req.drumLanes()));
   L2 = E.parse[C.DRUM_LANES](await rq(E.req.drumLanes(L2)));     /* a version 1 set keeps the sends */
   L2 = E.parse[C.DRUM_LANES](await rq(E.req.drumLanes(null, true)));
-  ok(L2.lanes[2].snd.rev === 31 && L2.lanes[3].snd.rev === 4, "drums v2: a version 1 set leaves the sends");
+  ok(L2.lanes[2].snd.rev === 31 && L2.lanes[3].snd.rev === 0, "drums v2: a version 1 set leaves the sends");
   o = E.parse[C.UKIT_OP](await rq(E.req.ukitOp(6, 2, "SENDS")));
   const g6 = E.parse[C.UKIT_GET](await rq(E.req.ukitGet(6, true)));
   ok(o.rc === 0 && g6.slot === 6 && g6.kit.lanes[2].snd.rev === 31, "drums v2: a kit stored with its sends, UKIT_GET 0x40 + slot");
@@ -2087,7 +2087,7 @@ async function editorDrums() {
   const v1f = JSON.parse(E.kitFile(kit, {}));
   v1f.version = 1;
   v1f.kit.lanes.forEach((l) => { delete l.snd; });
-  ok(E.readKitFile(JSON.stringify(v1f)).kit.lanes.every((l) => l.snd.rev === 4 && !l.snd.dly), "drums: a version 1 kit file: every lane's sends as it is");
+  ok(E.readKitFile(JSON.stringify(v1f)).kit.lanes.every((l) => l.snd.rev === 0 && !l.snd.dly), "drums: a version 1 kit file: every lane's sends as it is");
   let bad = false;
   try { E.readKitFile(JSON.stringify({ format: "other" })); } catch (e) { bad = true; }
   ok(bad, "drums: another file refused");

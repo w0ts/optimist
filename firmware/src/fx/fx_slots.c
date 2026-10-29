@@ -1008,6 +1008,13 @@ static void lin_defaults(void)
     for (l = 0; l < DRUM_LANES; l++)
         lin_put(l, D);
 }
+/* lane l's inserts as a built-in sound has them: the default slots, both amounts 0 (RESET) */
+static void lin_reset(uint32_t l)
+{
+    static const uint8_t D[INS_N] = {LIN_DEF0, LIN_DEF1};
+    lin_put(l, D);
+    dins_amt[0][l % DRUM_LANES] = dins_amt[1][l % DRUM_LANES] = 0u;
+}
 static int lin_has(uint32_t t)                         /* a lane's slot holds type t */
 {
     uint32_t l;

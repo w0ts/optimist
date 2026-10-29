@@ -1874,7 +1874,7 @@ const emptyDrum = () => ({ on: 0, lvl: new Array(17).fill(0), rat: new Array(17)
    ed_dsend.c) adds each lane's sends: REV (-1 = TRK, the drum track's REV; 0..31), DLY, CHO (0..31), 3 bytes a
    lane after the lanes / the kit; a firmware without them does not answer 36 v2 (the editor asks it first) */
 const DL = { LANE: 12, BLOCK: 204, KIT: 196, KIT1: 204, NKIT: 16, NAME: 8, USR: 1, KIT0: 16, X909: 64, X808: 80, XKIT0: 96,
-  LANE2: 15, BLOCK2: 252, KIT2: 244, V2: 0x40, LV_MAX: 31, REV_DEF: 4,
+  LANE2: 15, BLOCK2: 252, KIT2: 244, V2: 0x40, LV_MAX: 31, REV_DEF: 4, REV_NEW: 0,
   DE: ["TUNE", "DECAY", "SNAP", "CLICK", "BEND", "CUT", "DRIVE", "LEVEL"],
   MIN: [-24, -64, -64, -64, -24, -64, -64, -24], MAX: [24, 63, 63, 63, 24, 63, 63, 6],
   SAMPLED: [true, true, false, false, false, true, false, true],   /* what a sampled sound uses */
@@ -1891,10 +1891,10 @@ function refBytes(x) {
   const st = Math.max(0, Math.min(1023, x.start | 0)), ln = (x.len | 0) >= 1024 || (x.len | 0) <= 0 ? 0 : x.len | 0;
   return [((x.hit & 15) << 4) | (st >> 6), ((st & 63) << 2) | (ln >> 8), ln & 0xFF];
 }
-/* a lane's sends (v2): REV, DLY, CHO 0..31, 3 bytes; a lane as its kit has it: REV 4 (DL.REV_DEF), no DLY / CHO. REV is a
+/* a lane's sends (v2): REV, DLY, CHO 0..31, 3 bytes; a lane as its kit has it: dry, REV 0 (DL.REV_NEW; 2026-10-29), no DLY / CHO. REV is a
    signed byte: -1 was TRK (the drum track's REV, gone since 2026-10, drum_sends.c): an older firmware, file or backup's
    -1 reads as 4, as the device reads it */
-const emptySnd = () => ({ rev: DL.REV_DEF, dly: 0, cho: 0 });
+const emptySnd = () => ({ rev: DL.REV_NEW, dly: 0, cho: 0 });
 const clampSnd = (v, lo = 0) => Math.max(lo, Math.min(DL.LV_MAX, Math.round(+v) || 0));
 const sndRev = (v) => (v == null || +v < 0 ? DL.REV_DEF : clampSnd(v));
 const sndFrom = (b, o) => ({ rev: sndRev(s8(b[o])), dly: clampSnd(b[o + 1]), cho: clampSnd(b[o + 2]) });
@@ -4614,8 +4614,8 @@ async function readDrumShow(rq, l) {
   const r = await rq(req.drumShow(l), { timeout: 300, retries: 0, quiet: true }).catch((e) => { if (e.message === "closed") throw e; return null; });
   return r ? parse[CMD.DRUM_SHOW](r) : null;
 }
-/* a lane away from the kit's sound: another source, an offset, a send not as it is (REV 4, no DLY / CHO) */
-const laneEdited = (l) => !!l.src || l.ofs.some((v) => v) || (!!l.snd && (l.snd.rev !== DL.REV_DEF || !!l.snd.dly || !!l.snd.cho));
+/* a lane away from the kit's sound: another source, an offset, a send (every built-in lane is dry) */
+const laneEdited = (l) => !!l.src || l.ofs.some((v) => v) || (!!l.snd && (l.snd.rev !== DL.REV_NEW || !!l.snd.dly || !!l.snd.cho));
 /* audition: the MIDI channel of the drums (-1: none), the note on / off of lane l */
 const auditionChannel = (drch, drumSelected) => (drch > 0 ? drch - 1 : drumSelected ? 15 : -1);
 const auditionMsgs = (l, ch, vel = 100) => [[0x90 | ch, DRUM_LANE(l & 15)[0], vel], [0x80 | ch, DRUM_LANE(l & 15)[0], 0]];
@@ -7228,7 +7228,7 @@ const TEXT = {                                      /* the page's words, by key 
   macRow: "macro",
   fxSends: "FX sends", fxOn: "FX on", fxDry: "Dry",
   fxSndMode: "The selected sound's FX (its sends and inserts)", fxBusMode: "The drum track's FX: its inserts on the drum bus, and its send levels (every sound's sends scaled)", fxKitHelp: "The drum track's send level: every drum sound's send to this effect, scaled (100 %: as the sounds' own knobs say). The drum bus sends nothing itself", fxSlotsHelp: "The effect on each FX knob (one of each: loading one held elsewhere swaps the two)", fxCmpHelp: "The compressor inserts' settings (every track's, the drum bus's and the drum sounds')", fxEmpty: "Empty FX slot", drumSendsNote: "The selected sound's sends (click a sound to select it, double-click to open it); its distortion: DRIVE, in its popup", laneSelHelp: "Click: select (its sends on the strip) · double-click: open", openKit: "Edit the drum kit",
-  dlSound: "Sound", dlSends: "The sound's sends (REV 4: as its kit has it)", dlReset: "Reset", dlHits: "Hits into", dlFrom: "→ first lane", dlHitsGo: "Upload and assign", dlHitsDone: "Hits assigned ",
+  dlSound: "Sound", dlSends: "The sound's sends (all 0: as its kit has it)", dlReset: "Reset", dlHits: "Hits into", dlFrom: "→ first lane", dlHitsGo: "Upload and assign", dlHitsDone: "Hits assigned ",
   dlLoad: "Load", dlStore: "Store", dlExport: "Export", dlImport: "Import a kit file",
   dlConfirmErase: "Erase user kit {n}?", dlConfirmStore: "Overwrite user kit {n}?",
   dlConfirmImport: "Overwrite {n} with this kit's samples?", dlFail: "Drums: error ", dlDone: "User kit ",
@@ -10086,7 +10086,7 @@ function kitLane(pane) {
     get: (x) => x.ofs[i], set: set((x, v) => { x.ofs[i] = v; }) }) : null)).filter(Boolean);
   const snd = (x) => x.snd || (x.snd = emptySnd());
   const sends = dev.dlV2 ? sendOrder([
-    kn({ label: "REV", aria: `${laneName(l)} REV`, help: phText("page", "SOUND 3", "REV"), min: 0, max: DL.LV_MAX, def: DL.REV_DEF, value: snd(ln).rev, title: t("dlSends"),
+    kn({ label: "REV", aria: `${laneName(l)} REV`, help: phText("page", "SOUND 3", "REV"), min: 0, max: DL.LV_MAX, def: DL.REV_NEW, value: snd(ln).rev, title: t("dlSends"),
       get: (x) => snd(x).rev, set: set((x, v) => { snd(x).rev = v; }) }),
     kn({ label: "DLY", aria: `${laneName(l)} DLY`, help: phText("page", "SOUND 3", "DLY"), min: 0, max: DL.LV_MAX, def: 0, value: snd(ln).dly, get: (x) => snd(x).dly, set: set((x, v) => { snd(x).dly = v; }) }),
     kn({ label: "CHO", aria: `${laneName(l)} CHO`, help: phText("page", "SOUND 3", "CHO"), min: 0, max: DL.LV_MAX, def: 0, value: snd(ln).cho, get: (x) => snd(x).cho, set: set((x, v) => { snd(x).cho = v; }) }),
@@ -13250,7 +13250,7 @@ function buildLaneStrip(l) {
     }
     if (dev.dlV2) {
       const sk = ["rev", "dly", "cho"].map((f) => {
-        const k = knob({ tip: true, label: f.toUpperCase(), aria: `${nm} ${f.toUpperCase()}`, help: phText("page", "SOUND 3", f.toUpperCase()), min: 0, max: DL.LV_MAX, def: f === "rev" ? DL.REV_DEF : 0,
+        const k = knob({ tip: true, label: f.toUpperCase(), aria: `${nm} ${f.toUpperCase()}`, help: phText("page", "SOUND 3", f.toUpperCase()), min: 0, max: DL.LV_MAX, def: f === "rev" ? DL.REV_NEW : 0,
           value: 0, set: (v, final) => setLaneSend(l, f, v, final) });
         c.snd.push([f, k]);
         return k.el;
@@ -13770,7 +13770,7 @@ function fxBlock(i, c) {
     c.fxl = el("span", { class: "note lsel", "aria-live": "polite" });
     c.fxk = FX_LABELS.map((l, j) => {
       if (j) return knob({ label: l, aria: `${t("track")} ${i + 1} ${l}`, help: phText("page", "SOUND 3", l), title: `${l} · ${t("drumSendsNote")}`, min: 0, max: DL.LV_MAX,
-        def: j === 3 ? DL.REV_DEF : 0, value: laneSnd(kl.sel)[id[j]],
+        def: j === 3 ? DL.REV_NEW : 0, value: laneSnd(kl.sel)[id[j]],
         set: (v, final) => setLaneSend(kl.sel, id[j], v, final) });
       const k = knob({ label: l, aria: `${t("track")} ${i + 1} ${l}`, help: t("drumSendsNote"), title: `${l} · ${t("drumSendsNote")}`, min: 0, max: 127, def: 0, value: 0, fmt: () => "--", set: () => {} });
       k.el.classList.add("na", "dst");
@@ -13829,7 +13829,7 @@ function drumFxBlock(i, c, box) {
     const send = f === "rev" || f === "dly" || f === "cho";
     if (!f || ids[j] == null || (send && !dev.dlV2) || (!send && fxType(dev.info, ty).lane == null)) return hard(naKnob(l, `${laneName(kl.sel)} ${l}`));
     return knob({ label: l, aria: `${laneName(kl.sel)} ${l}`, help: phText("page", "SOUND 3", l), title: `${l} · ${t("fxSndMode")}`, min: 0, max: send ? DL.LV_MAX : 127,
-      def: f === "rev" ? DL.REV_DEF : 0, value: laneFxVal(kl.sel, f),
+      def: f === "rev" ? DL.REV_NEW : 0, value: laneFxVal(kl.sel, f),
       set: (v, final) => (send ? setLaneSend(kl.sel, f, v, final) : setLaneIns(kl.sel, f, v)) });
   });
   const mode = (m, txt, help) => el("button", { type: "button", class: "tog fxm", "data-fxmode": m, title: t(help), "aria-pressed": drumFxMode === m ? "true" : "false",
