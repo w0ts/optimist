@@ -368,16 +368,7 @@ static void cards_up(void) { if (ui.scr == SCR_STEP && !ui.cards_t && !st.held) 
 static int fails;
 static uint32_t key_led(uint32_t k);                     /* ui_optimist_pages.h */
 static int px_in(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint16_t col);
-static void check(int ok, const char *what)
-{
-    static int oct_seen;
-    printf("optimist ui: %-72s %s\n", what, ok ? "ok" : "FAIL");
-    fails += !ok;
-    if (song.octave != oct_seen) {                      /* (a diagnostic: the check after which the keyboard octave changed) */
-        printf("  octave watch: %d at the check above\n", (int)song.octave);
-        oct_seen = song.octave;
-    }
-}
+static void check(int ok, const char *what) { printf("optimist ui: %-72s %s\n", what, ok ? "ok" : "FAIL"); fails += !ok; }
 #define RING_FRAMES ((RH_CLEAR_MS + 40u) / 16u + 2u)    /* (a delete's ring held to its end: frames of 16 ms) */
 static void reset_ui(void)
 {
@@ -3992,16 +3983,6 @@ static void led_tests(void)
 #ifndef UIO_NO_MAIN                                     /* (tests/audio_hang_stress.c: its own main) */
 #include "ui_optimist_lockaudit.h"
 
-/* where the keyboard octave leaves 0 between clkout_tests and algo_tests (the SHIFT2 test needs 0): a diagnostic line per change */
-static void octave_watch(const char *after)
-{
-    static int last;
-    if (song.octave != last) {
-        printf("  octave watch: %d after %s\n", (int)song.octave, after);
-        last = song.octave;
-    }
-}
-
 int main(int argc, char **argv)
 {
     outdir = argc > 1 ? argv[1] : "build/host";
@@ -4161,82 +4142,47 @@ int main(int argc, char **argv)
     knobcol_tests();
     vufloor_tests();
     clkout_tests();
-    octave_watch("clkout_tests");
     syncnudge_tests();
-    octave_watch("syncnudge_tests");
 #if FELUCCA_MIDI_CLOCK
     syncorder_tests();
-    octave_watch("syncorder_tests");
     midi_lists_tests();
-    octave_watch("midi_lists_tests");
 #endif
     uasel_tests();
-    octave_watch("uasel_tests");
     newproj_tests();
-    octave_watch("newproj_tests");
 #if FELUCCA_SYS_DEBUG
     core_row_tests();                                   /* (INFO's every line, INTERNALS, USB STATS: the debug pages) */
-    octave_watch("core_row_tests");
     overload_tests();
-    octave_watch("overload_tests");
 #else
     sysdbg_off_tests();
-    octave_watch("sysdbg_off_tests");
 #endif
     ovl_window_tests();                                 /* (the rings' 10 s and 1 min windows, their wrap) */
-    octave_watch("ovl_window_tests");
     stackmark_tests();                                  /* (the stacks' paint and read-back, INFO's RAM line) */
-    octave_watch("stackmark_tests");
     hold_tests();
-    octave_watch("hold_tests");
     lane_preview_tests();
-    octave_watch("lane_preview_tests");
     step_pages_tests();
-    octave_watch("step_pages_tests");
     rec_hold_tests();
-    octave_watch("rec_hold_tests");
     drum_env_tests();
-    octave_watch("drum_env_tests");
     mix35_tests();
-    octave_watch("mix35_tests");
     c2_master_tests();
-    octave_watch("c2_master_tests");
     c2_roll_tests();
-    octave_watch("c2_roll_tests");
     glo_tests();
-    octave_watch("glo_tests");
     glwalk_tests();
-    octave_watch("glwalk_tests");
     glpages_tests();
-    octave_watch("glpages_tests");
     edscrn_tests();
-    octave_watch("edscrn_tests");
     edscrs_tests();
-    octave_watch("edscrs_tests");
     edv14_tests();
-    octave_watch("edv14_tests");
     glstyle_tests();
-    octave_watch("glstyle_tests");
     curline_tests();
-    octave_watch("curline_tests");
     help_tests();
-    octave_watch("help_tests");
     risk_tests();
-    octave_watch("risk_tests");
     risk_edits_tests();
-    octave_watch("risk_edits_tests");
     actcards_tests();
-    octave_watch("actcards_tests");
     prjflow_tests();
-    octave_watch("prjflow_tests");
     colours_tests();
-    octave_watch("colours_tests");
 #if FELUCCA_AUTO
     step_auto_tests();
-    octave_watch("step_auto_tests");
 #endif
     algo_tests();
-    octave_watch("algo_tests");
     mute_tests();
     solo_tests();
     retmute_tests();
