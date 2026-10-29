@@ -761,7 +761,7 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
         cell_list(c, "KEYS", KY[lights_keys & 3u], KEYS_N - 1, lights_keys);
         break;
     case SI_LOWCUT:
-        cell_list(c, "LOWCUT", LC[FELUCCA_BASSPLUS ? settings.lowcut % 3u : settings.lowcut ? 1u : 0u], FELUCCA_BASSPLUS ? 2 : 1, FELUCCA_BASSPLUS ? (int32_t)(settings.lowcut % 3u) : settings.lowcut != 0u);
+        cell_list(c, "LOWCUT", LC[settings.lowcut % 3u], 2, (int32_t)(settings.lowcut % 3u));
         break;
 #if FELUCCA_CDC
     case SI_USB:
@@ -1425,13 +1425,8 @@ static void sys_set(uint32_t it, int32_t s)
         break;
 #endif
     case SI_LOWCUT:
-#if FELUCCA_BASSPLUS
         settings.lowcut = (uint32_t)sys_step((int32_t)(settings.lowcut % 3u), s, 2);   /* OFF / LOWCUT / BASS+ */
         fx_lowcut = (uint8_t)settings.lowcut;
-#else
-        settings.lowcut = s > 0 ? 1u : s < 0 ? 0u : !settings.lowcut;
-        fx_lowcut = (uint8_t)(settings.lowcut != 0);
-#endif
         break;
 #if FELUCCA_CDC
     case SI_USB:

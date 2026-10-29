@@ -8,7 +8,6 @@
  *                                                                      Leo Kuroshita, GPL-3.0-only)
  *   FELUCCA_QNT_SEQ   SCL > QNT SEQ: sequenced notes snap to the scale Felucca 1.0.1 (20c275e, #37)
  *   FELUCCA_SPRING    REV/CHO > TYPE: a spring reverb                  Felucca 1.0 (727f272)
- *   FELUCCA_BASSPLUS  MASTER > BASS+: small-speaker bass               Felucca 1.0 (727f272)
  *   FELUCCA_MOTION    knob moves recorded per step                     Felucca 1.0 (727f272)
  *   FELUCCA_ENG_PHYS  the PHYS engine (modal / string / membrane)      Felucca 1.0 (727f272; DaisySP + Rings
  *                                                                      parts MIT)
@@ -41,8 +40,10 @@
 #ifndef FELUCCA_SPRING
 #define FELUCCA_SPRING 0         /* the SPRING reverb, one of FX > REVERB > TYPE's algorithms (rev_type.c) */
 #endif
-#ifndef FELUCCA_BASSPLUS
-#define FELUCCA_BASSPLUS 0       /* MENU > LOWCUT: OFF / LOWCUT / BASS+ (the small speaker) */
+/* Retired 2026-10-29: BASS+ (Felucca 1.0 727f272, Leo Kuroshita; fx/bassplus/bassplus.c) is always built, SYSTEM's LOWCUT
+ * always has it (the user: "remove the entry from the builder config now") */
+#if defined(FELUCCA_BASSPLUS) && !FELUCCA_BASSPLUS
+#error "FELUCCA_BASSPLUS was retired: BASS+ is always built"
 #endif
 #ifndef FELUCCA_MOTION
 #define FELUCCA_MOTION 0         /* knob moves recorded per step (SEQ > MOTION) */

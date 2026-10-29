@@ -16,7 +16,6 @@ GROUP = {"sequencer": "Sequencer", "ui": "UI", "fx": R.FX_ANY, "drums": "Drums",
 LABEL = {  # short menu labels (the title stays in the details)
     "FELUCCA_CHANCE": "per-step chance (STEP 2 PROB)",
     "FELUCCA_QNT_SEQ": "SCL > QNT SEQ (sequenced notes snap)", "FELUCCA_SPRING": "reverb: SPRING",
-    "FELUCCA_BASSPLUS": "BASS+ speaker mode",
     "FELUCCA_MOTION": "motion recording (knobs per step)",
     "FELUCCA_ENG_NOISE": "NOISE (colours, crackle, shift-register noise)",
     "FELUCCA_ENG_PHYS": "PHYS (physical models)", "FELUCCA_ENG_ACID": "ACID (TB-303 bass + line generator)",
@@ -47,9 +46,6 @@ DESC = {  # what each switch does for the user (plain words; sizes from tools/bu
                       "spring (SPRNG on FX > REVERB > TYPE when two or more are ticked). Its output is mono, and it "
                       "is a little lighter on CPU than ROOM (emulator). Beside ROOM: about 1.9 KB of flash and "
                       "2.3 KB of RAM; ticked alone it is the only reverb.",
-    "FELUCCA_BASSPLUS": "A third MENU > LOWCUT setting (OFF / LOWCUT / BASS+) for the FM-1's small speaker: it adds "
-                        "harmonics of the bass below ~150 Hz, which the speaker can play, and raises the low cut to "
-                        "~220 Hz. About 0.5 KB of flash and 0.35 KB of RAM; CPU only while BASS+ is on.",
     "FELUCCA_MOTION": "Motion recording: while recording, knob turns are stored per step and replayed on every pass "
                       "(SEQ > MOTION: play on / off per track, clear). The events are the automation store's (up "
                       "to 128 a track with its locks, nudges and fills); undone with the recording pass, editable "
@@ -175,7 +171,7 @@ AFTER = {"FELUCCA_SPRING": "REV_FDN8"}   # an option's place among its parent's 
 BITS = {  # switch -> stable BUILD bit (append only)
     "FELUCCA_CHANCE": 64, "FELUCCA_QNT_SEQ": 66, "FELUCCA_KNOB_ACCEL": 67,
     "FELUCCA_LCD_DIRTY": 68, "FELUCCA_UNDO_HISTORY": 69, "FELUCCA_SIZE": 70,   # (71: FELUCCA_UA_RESAMPLE, retired 2026-10-15: USB audio always resamples; never reuse the bit)
-    "FELUCCA_SPRING": 72, "FELUCCA_BASSPLUS": 73,    # (65: FELUCCA_KEYLIT and 106: FELUCCA_LIGHTS, retired 2026-10-29: always built; 74: FELUCCA_BRIGHT, retired 2026-10-29: the screen is always full; never reuse the bits)
+    "FELUCCA_SPRING": 72,    # (73: FELUCCA_BASSPLUS, retired 2026-10-29: BASS+ always built; 65: FELUCCA_KEYLIT and 106: FELUCCA_LIGHTS, retired 2026-10-29: always built; 74: FELUCCA_BRIGHT, retired 2026-10-29: the screen is always full; never reuse the bits)
                                                                                        # (75: FELUCCA_DLY_HALVE, retired 2026-10-14: always built; never reuse)
     "FELUCCA_MOTION": 76, "FELUCCA_ENG_PHYS": 77, "FELUCCA_ENG_ACID": 78,
     # (110: FELUCCA_BK_CHECK, retired 2026-10-14: always built; never reuse the bit)

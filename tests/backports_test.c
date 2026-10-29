@@ -336,8 +336,7 @@ static void t_spring(void)
 }
 #endif
 
-#if FELUCCA_BASSPLUS
-/* the master stage alone on a sine (freq Hz, amplitude a) for secs, then silence for secs: the RMS of each half
+/* (BASS+: always built since 2026-10-29) the master stage alone on a sine (freq Hz, amplitude a) for secs, then silence for secs: the RMS of each half
  * and whether the output is exactly 0 at the end */
 static double master_render(uint32_t lowcut, uint32_t freq, int32_t a, double secs, double *rms_tail, int *zero_end)
 {
@@ -437,7 +436,6 @@ static void t_bassplus(void)
         check(pk < 32000.0, "bass+: a full-scale kick's harmonics stay under the kick (Felucca #180: x1.5, not x3)");
     }
 }
-#endif
 static void t_dly_halve(void)
 {
     reset(120);
@@ -777,9 +775,7 @@ int main(void)
 #if FELUCCA_SPRING
     t_spring();
 #endif
-#if FELUCCA_BASSPLUS
     t_bassplus();
-#endif
     t_dly_halve();
 #if FELUCCA_MOTION
     t_motion();
