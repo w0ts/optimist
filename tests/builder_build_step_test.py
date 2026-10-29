@@ -127,6 +127,26 @@ async def case_overflow():
         check("2 failure: nothing to flash", app.built is None)
 
 
+async def case_postlink():
+    """the estimate fits, the real build fails a check after the link, the measurement build fits: the panel says
+    the check's failure, not "measurement build: does not fit" (2026-10-29: drums_mix, pi32v2-llvm)"""
+    real = C.build
+    fail = "  FAIL  RAM code calls through a pointer: drums_mix at 0x1c06f84\nbuild: checks failed\n"
+    C.build = lambda cfg, name, measure=False, **k: ((True, {r: 0 for r in C.REGIONS}, "measured\n") if measure
+                                                     else (False, None, fail))
+    try:
+        app = await make()
+        async with app.run_test(size=(200, 60)) as pilot:
+            await pilot.pause()
+            text, _, built = app.build_steps(app.cfg, "default", False)
+    finally:
+        C.build = real
+    check("4 post-link check: the panel says BUILD FAILED", text.startswith("BUILD FAILED"))
+    check("4 post-link check: ... with the check's own line", "drums_mix" in text)
+    check("4 post-link check: ... not the measurement's 'does not fit'", "measurement build: does not fit" not in text)
+    check("4 post-link check: nothing to flash", built is None)
+
+
 async def case_hang():
     fm1base.build = fake(HANG)
     PIDFILE.unlink(missing_ok=True)
@@ -171,6 +191,7 @@ async def main():
         stream_tests()
         await case_ok()
         await case_overflow()
+        await case_postlink()
         await case_hang()
     finally:
         shutil.rmtree(SCRATCH, ignore_errors=True)
