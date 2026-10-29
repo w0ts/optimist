@@ -868,8 +868,8 @@ _add("DLY_ARENA", "FELUCCA_DLY_ARENA", "effects memory (shared by the delay and 
           "type built, up to how many at once (alone) in the size chosen, and how many more while the delay or the "
           "chorus is in no master slot: a send in none lends its line to the inserts (as many as fit; taken back, "
           "faded out, when the send is put back). Auto: the delay's line plus one line of each insert built, so every "
-          "insert built can play at least once at the same time. Larger: more at once. At least the delay's line, and "
-          "room for one line of each insert built (an error names the one that does not fit).")
+          "insert built can play at least once at the same time. Larger: more at once. A size smaller than the delay's "
+          "line and one line of the largest insert built is raised to that (a notice says so).")
 # GATER (fx/insfx/gater.c, 2026-10-14): a further insert type, any number (a few bytes a track)
 _add("INS_GATER", "FELUCCA_INS_GATER", "GATER insert (tempo-synced trance gate)", F, 330, default=0,
      desc="A rhythmic volume gate type for the tracks' insert slots (INSERTS > S1 / S2: GATER), locked to the tempo "

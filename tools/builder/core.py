@@ -297,40 +297,43 @@ def validate(cfg):
     if built(cfg, "FX_DUCK") and not any(built(cfg, k) for k in DRUM_SYNTHS + ("DRUM_SAMPLED",)):
         warn.append(Issue("DUCK follows the kick", ("FX_DUCK", "DRUM_SYNTH", "DRUM_SAMPLED")))
     mem = fx_memory(cfg)
-    if mem["types"] and cfg.get("DLY_ARENA", 0) and cfg["DLY_ARENA"] < mem["send"]:
-        err.append(Issue(f"the effects memory holds the delay's line: at least {mem['send']} KB (or auto, or a shorter "
-                         "delay)", ["DLY_ARENA", "DLY_LEN"]))
-    else:
+    if mem["types"]:                                    # (the user, 2026-10-29: no red error for a memory too small:
+        if cfg.get("DLY_ARENA", 0) and dly_kb(cfg) != cfg["DLY_ARENA"]:   # the build takes the size it must hold)
+            note.append(Issue(f"{R.ITEMS['DLY_ARENA'].label}: {cfg['DLY_ARENA']} KB raised to {dly_kb(cfg)} KB, "
+                              + (f"the delay's {mem['send']} KB line and " if mem["send"] else "")
+                              + "one line of the largest insert built (the build takes it)", ["DLY_ARENA", "DLY_LEN"]))
         for k, t in mem["types"].items():
             if not t["own"]:                            # (borrowing a send's line only: silent while the sends are on
                                                         # the master, as by default; the FM-1, 2026-10-25: XDLY did
                                                         # nothing, "it should be addressed at the builder stage")
-                err.append(Issue(f"{FXM_NAMES[k]} cannot play while the delay is on the master: its line is "
-                                 f"{t['kb']} KB and the effects memory has {mem['own']} KB beside the delay's "
-                                 f"{mem['send']} KB: DLY_ARENA at least {mem['send'] + t['kb']} KB (or auto), a shorter "
-                                 "DLY_LEN" + (" or XDLY_LEN" if k == "INS_XDLY" else ""),
-                                 ["DLY_ARENA", k] + (["XDLY_LEN"] if k == "INS_XDLY" else []) + ["DLY_LEN"]))
-        if mem["types"]:
-            note.append(Issue(f"{R.ITEMS['DLY_ARENA'].label}: {fx_memory_text(mem)}", ["DLY_ARENA"]))
+                note.append(Issue(f"{FXM_NAMES[k]} plays only while the delay is in no master slot: its line is "
+                                  f"{t['kb']} KB and the effects memory has {mem['own']} KB beside the delay's "
+                                  f"{mem['send']} KB", ["DLY_ARENA", k]))
+        if cfg.get("ARENA", 0) and sd_mode(cfg):
+            note.append(Issue(f"{R.ITEMS['DLY_ARENA'].label}: in the SD card mode with ARENA the delay's line is a block "
+                              "of the arena, and this memory less the delay's line is the inserts' own room, one more "
+                              "block of it", ["DLY_ARENA", "ARENA"]))
+        note.append(Issue(f"{R.ITEMS['DLY_ARENA'].label}: {fx_memory_text(mem)}", ["DLY_ARENA"]))
     if cfg.get("ARENA", 0):
-        blocks, room = arena_blocks(cfg), cfg["ARENA"] * 1024
-        big = [n for n, b in blocks.items() if b > room]
-        sends = arena_sends(blocks)
-        if big:
-            err.append(Issue(f"the arena ({cfg['ARENA']} KB) cannot hold {', '.join(big)} "
-                             f"({max(blocks.values()) // 1024} KB): a larger ARENA, or off", ["ARENA"]))
-        elif sum(sends.values()) > room:
-            need = -(-sum(sends.values()) // 1024)
-            err.append(Issue(f"the arena ({cfg['ARENA']} KB) cannot hold the sends' lines together ("
-                             + ", ".join(f"{k} {v // 1024} KB" for k, v in sends.items())
-                             + f": {need} KB): a new project's sends would stay silent (MEM FULL): ARENA at least "
-                             f"{need} KB, a shorter DLY_LEN, or ARENA off", ["ARENA", "DLY_LEN"]))
+        kb, need = arena_kb(cfg), arena_need(cfg)
+        what = ", ".join(f"{k} {-(-v // 1024)} KB" for k, v in need["what"].items())
+        if need["kb"] > ARENA_MAX_KB:                   # (more than the SRAM can give the arena: the one error left)
+            err.append(Issue(f"the arena would need {need['kb']} KB, more than the {ARENA_MAX_KB} KB the SRAM can give "
+                             f"it ({what}): a shorter DLY_LEN or XDLY_LEN, a smaller reverb, fewer engines, or ARENA off",
+                             ["ARENA", "DLY_LEN"]))
         else:
-            fixed = room - arena_mem(cfg)["pool"]
-            what = ("the parts' engine states, the effects' lines, the SLICER's recordings, WAVE's table, the X0X "
-                    "machines" if sd_mode(cfg) else "the parts' engine states")
-            note.append(Issue(f"{R.ITEMS['ARENA'].label}: {cfg['ARENA']} KB in place of {fixed // 1024} KB of fixed "
-                              f"memories ({what}); a project using more is refused and offered what to drop", ["ARENA"]))
+            if kb != cfg["ARENA"]:
+                note.append(Issue(f"{R.ITEMS['ARENA'].label}: {cfg['ARENA']} KB raised to {kb} KB, what it must hold "
+                                  + ("(the send lines together, a new project's three, and its largest block)"
+                                     if sd_mode(cfg) else "(its largest block)") + ": the build takes it", ["ARENA"]))
+            if kb < need["kb"]:
+                note.append(Issue(f"{R.ITEMS['ARENA'].label}: a new project needs {need['kb']} KB together ({what}); "
+                                  f"with {kb} KB a project using more is refused and offered what to drop", ["ARENA"]))
+        fixed = kb * 1024 - arena_mem(cfg)["pool"]
+        held = ("the parts' engine states, the effects' lines, the SLICER's recordings, WAVE's table, the X0X "
+                "machines" if sd_mode(cfg) else "the parts' engine states")
+        note.append(Issue(f"{R.ITEMS['ARENA'].label}: {kb} KB in place of {fixed // 1024} KB of fixed memories "
+                          f"({held}); a project using more is refused and offered what to drop", ["ARENA"]))
     for k, it in R.ITEMS.items():
         if it.off_warning and not cfg[k] and (not it.parent or built(cfg, it.parent)):
             warn.append(Issue(f"{it.label} off: {it.off_warning}", [k]))
@@ -382,6 +385,10 @@ def flags(cfg):
         if any(R.ITEMS[a].head and not cfg[a] for a in R.ancestors(k)) or (k in R.DRUMS_ONLY and not cfg["DRUMS"]):
             v = 0                                       # (a group's head off: none of its code, registry.h checks it)
         out[it.flag] = v
+    if _FIX[0] and cfg.get("ARENA", 0):                 # (the sizes the build takes: validate says so)
+        out[R.ITEMS["ARENA"].flag] = arena_kb(cfg)
+    if _FIX[0] and cfg.get("DLY_ARENA", 0):
+        out[R.ITEMS["DLY_ARENA"].flag] = dly_kb(cfg)
     out["FELUCCA_USB_AUDIO"] = cfg["USB_AUDIO"]
     out["FELUCCA_CDC"] = cfg["USB_CONSOLE"]
     out["FELUCCA_LINK"] = out["FELUCCA_WIFI"]       # (Ableton Link comes with Wi-Fi: SYNC LINK, wifi/wifi_link.c)
@@ -393,6 +400,65 @@ def flags(cfg):
         skip.append("PERC")
     env = {"FELUCCA_SAMPLES_SKIP": ",".join(skip), "FELUCCA_SLICE": str(cfg["ENG_SLICE"])}
     return out, env
+
+
+# the memory sizes the build fixes itself (the user, 2026-10-29: no "this memory must hold that line" errors, a notice
+# with the value taken): an ARENA smaller than what it must hold raised to that; DLY_ARENA smaller than the delay's line and one line of the largest insert raised to
+# that. flags passes the sizes taken (_FIX: not while computing them, their own terms read the flags)
+ARENA_MAX_KB = 320     # (more than this in the arena leaves no SRAM for the rest: the one error left, validate)
+_FIX = [True]
+
+
+def _raw(fn, cfg):
+    """fn(cfg) with the flags as the configuration sets them (no size fixed)"""
+    was, _FIX[0] = _FIX[0], False
+    try:
+        return fn(cfg)
+    finally:
+        _FIX[0] = was
+
+
+def dly_kb(cfg):
+    """the effects memory's KB the build takes: 0 auto; a fixed size no less than the delay's line and one line of the
+    largest insert built (fx/insfx/fxi_mem.h FELUCCA_DLY_ARENA)"""
+    v = cfg.get("DLY_ARENA", 0)
+    mem = _raw(fx_memory, cfg) if v else None
+    if not v or not mem["types"]:
+        return v
+    return max(v, mem["send"] + max(t["kb"] for t in mem["types"].values()))
+
+
+def arena_need(cfg):
+    """-> {"kb": the arena this build needs together, "must": what it must hold at least (KB), "what": {name: bytes}}.
+    What fm1-next's firmware puts in it (registry.h FELUCCA_FX_ARENA: the SD card mode's only): the largest part's
+    engine state; in the SD card mode also the three send lines (a new project has them all in its master slots), the
+    inserts' own room and the largest other buffer. It must hold its largest block, and in the SD card mode the send
+    lines together"""
+    c = dict(cfg, DLY_ARENA=dly_kb(cfg))
+    blocks = _raw(arena_blocks, c)
+    what = {"a part's engine state": blocks.get("a part's engine state", 0)}
+    must = max(blocks.values(), default=0)
+    if sd_mode(cfg):
+        sends = arena_sends(blocks)
+        what.update(sends)
+        if blocks.get("the inserts' own room"):
+            what["the inserts' own room"] = blocks["the inserts' own room"]
+        other = {k: v for k, v in blocks.items() if k not in what}
+        if other:
+            k = max(other, key=other.get)
+            what[k] = other[k]
+        must = max(must, sum(sends.values()))
+    what = {k: v for k, v in what.items() if v}
+    return {"kb": -(-sum(what.values()) // 1024), "must": -(-must // 1024), "what": what}
+
+
+def arena_kb(cfg):
+    """the arena's KB the build takes: 0 off; the size set, no less than what it must hold"""
+    v = cfg.get("ARENA", 0)
+    if not v:
+        return 0
+    need = arena_need(cfg)
+    return max(v, need["must"])
 
 
 def fnv32(text):
