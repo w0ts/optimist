@@ -893,8 +893,8 @@ def arena_fits(cfg):
     """-> {"rows": [(name, bytes each, count, note)], "all": bytes of everything at once, "typical": ...} what a project can put in
     the arena, from the builder's own model (arena_blocks: the parts' engine states, the sends, the inserts' room, the other buffers;
     the SD card mode's streams). "all" = every row at its count: a project using all of it at once"""
-    c = dict(cfg, DLY_ARENA=dly_kb(cfg))
-    blocks = _raw(arena_blocks, c)
+    c = cfg                                         # (the effects memory is always auto: fx_memory's rule)
+    blocks = arena_blocks(c)
     rows = []
     sends = arena_sends(blocks)
     if sends:
