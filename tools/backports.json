@@ -15,7 +15,7 @@
       "source": {
         "repo": "https://github.com/hugelton/Felucca",
         "commit": "727f272 (Felucca 1.0 source)",
-        "author": "Leo Kuroshita (@kurogedelic), H\u00fcgelton Instruments",
+        "author": "Leo Kuroshita (@kurogedelic), Hügelton Instruments",
         "licence": "GPL-3.0-only",
         "files": "firmware/src/core.h step_chance / step_set_chance, seq.c seq_step"
       },
@@ -45,7 +45,7 @@
       "source": {
         "repo": "https://github.com/hugelton/Felucca",
         "commit": "20c275e (Felucca 1.0.1, #37)",
-        "author": "Leo Kuroshita (@kurogedelic), H\u00fcgelton Instruments",
+        "author": "Leo Kuroshita (@kurogedelic), Hügelton Instruments",
         "licence": "GPL-3.0-only",
         "files": "firmware/src/seq.c seq_step (qseq), kb_map (QN_SEQ as SNAP)"
       },
@@ -74,7 +74,7 @@
       "source": {
         "repo": "https://github.com/hugelton/Felucca",
         "commit": "727f272 (Felucca 1.0 source)",
-        "author": "Leo Kuroshita (@kurogedelic), H\u00fcgelton Instruments",
+        "author": "Leo Kuroshita (@kurogedelic), Hügelton Instruments",
         "licence": "GPL-3.0-only",
         "files": "firmware/src/fx.c rev_spring, rev_clear, the model change in fx_buses; design after Valimaki, Parker and Abel (stretched allpass chirp), as Felucca credits it"
       },
@@ -105,7 +105,7 @@
       "source": {
         "repo": "https://github.com/hugelton/Felucca",
         "commit": "727f272 (Felucca 1.0 source)",
-        "author": "Leo Kuroshita (@kurogedelic), H\u00fcgelton Instruments",
+        "author": "Leo Kuroshita (@kurogedelic), Hügelton Instruments",
         "licence": "GPL-3.0-only",
         "files": "firmware/src/fx.c spk_bass, master_out (fx_lowcut 2), ui_menu.c SPEAKER"
       },
@@ -129,7 +129,7 @@
       "fixed": {
         "repo": "https://github.com/hugelton/Felucca",
         "commit": "db70550 (Felucca 1.0.2, #42)",
-        "author": "Leo Kuroshita (@kurogedelic), H\u00fcgelton Instruments",
+        "author": "Leo Kuroshita (@kurogedelic), Hügelton Instruments",
         "licence": "GPL-3.0-only",
         "what": "the trapezoid built from a 4-pole low-pass (sb_lp3, sb_lp4): the mix's 300..600 Hz no longer cancelled (440 Hz: -5.7 -> -2.2 dB, tests/backports_test.c t_bassplus_response); ours also drops the band-pass residue once the envelope is 0 (the floored steps left -21 of DC)",
         "cost": "user-default with BASSPLUS=1: RAM +64 B (the HOT2 code runs from RAM), flash -4 B; CPU ~2 multiply-adds a sample more with BASS+ on (est.), none once silent"
@@ -143,7 +143,7 @@
       "source": {
         "repo": "https://github.com/hugelton/Felucca",
         "commit": "727f272 (Felucca 1.0 source)",
-        "author": "Leo Kuroshita (@kurogedelic), H\u00fcgelton Instruments",
+        "author": "Leo Kuroshita (@kurogedelic), Hügelton Instruments",
         "licence": "GPL-3.0-only",
         "files": "firmware/src/motion.c (the 64-event store, base / active, motion_capture, motion_step), hooks in seq.c, ui_input.c, project.c"
       },
@@ -175,7 +175,7 @@
       "source": {
         "repo": "https://github.com/hugelton/Felucca",
         "commit": "727f272 (Felucca 1.0 source)",
-        "author": "Leo Kuroshita (@kurogedelic), H\u00fcgelton Instruments",
+        "author": "Leo Kuroshita (@kurogedelic), Hügelton Instruments",
         "licence": "GPL-3.0-only (eng_phys.c); MIT (phys_dsp.c: DaisySP by Electrosmith, Corp and Emilie Gillet; phys_symp.c: Rings by Emilie Gillet)",
         "files": "firmware/src/eng_phys.c, phys_dsp.c, phys_symp.c"
       },
@@ -243,7 +243,7 @@
       "source": {
         "repo": "https://github.com/hugelton/Felucca-Engines",
         "commit": "c46e008 (src/eng_noise.c)",
-        "author": "Leo Kuroshita (@kurogedelic), H\u00fcgelton Instruments",
+        "author": "Leo Kuroshita (@kurogedelic), Hügelton Instruments",
         "licence": "MIT (the repository's LICENSE; eng_noise.c carries SPDX MIT and the copyright)",
         "files": "src/eng_noise.c (ported with changes to the engine_t glue only: PITCH_INC, voice amplitude written out, .macro, the retrigger state in voice.c); the DSP and the four presets are unchanged"
       },
@@ -264,7 +264,7 @@
       },
       "storage": "engine byte 15; the 8 EDIT values (MODE, COLR, FREQ, RES, TRK, DENS / LEN, DRFT, CRSH / CLK) in P_E0..P_E7: no project format change",
       "limits": "polyphony the part's 8 voices; the sound is judged on the host only (no hardware or emulator listening); the original's pattern hints are dropped; no m->fine (bend below 1/16 semitone) in the LFSR / META clock",
-      "notice": "NOISE engine from Felucca-Engines by Leo Kuroshita (@kurogedelic), H\u00fcgelton Instruments (MIT). The file stays under the MIT licence.",
+      "notice": "NOISE engine from Felucca-Engines by Leo Kuroshita (@kurogedelic), Hügelton Instruments (MIT). The file stays under the MIT licence.",
       "warning": false
     },
     {
@@ -373,7 +373,7 @@
       "source": {
         "repo": "https://github.com/hugelton/Felucca",
         "commit": "db70550 (Felucca 1.0.2, #48)",
-        "author": "Leo Kuroshita (@kurogedelic), H\u00fcgelton Instruments",
+        "author": "Leo Kuroshita (@kurogedelic), Hügelton Instruments",
         "licence": "GPL-3.0-only",
         "files": "firmware/src/params.c DIV_ORDER, enum_rank, param_turn"
       },
@@ -404,7 +404,7 @@
       "source": {
         "repo": "https://github.com/hugelton/Felucca",
         "commit": "db70550 (Felucca 1.0.2, #40)",
-        "author": "Leo Kuroshita (@kurogedelic), H\u00fcgelton Instruments",
+        "author": "Leo Kuroshita (@kurogedelic), Hügelton Instruments",
         "licence": "GPL-3.0-only",
         "files": "firmware/src/perform.c perf_latched, ui_layer.c (FX LATCH), ui_menu.c"
       },
@@ -435,7 +435,7 @@
       "source": {
         "repo": "https://github.com/hugelton/Felucca",
         "commit": "b22a24b (Felucca 1.0.3, idea only)",
-        "author": "Leo Kuroshita (@kurogedelic), H\u00fcgelton Instruments",
+        "author": "Leo Kuroshita (@kurogedelic), Hügelton Instruments",
         "licence": "GPL-3.0-only",
         "files": "firmware/src/up_fm6.c (the idea: a user preset keeps its FM6 patch); our code is for Melodee's FM6"
       },
@@ -554,36 +554,6 @@
       "storage": "P_SDIV values 6..8 appended (old values unchanged); a build without the switch plays 6..8 as 1/4 (% 6)",
       "limits": "whole-beat steps are never swung (as 2.4)",
       "notice": "Long steps from SLOOP 2.4 by isod89 (GPL-3.0).",
-      "warning": false
-    },
-    {
-      "switch": "FELUCCA_DLY_DOT",
-      "title": "Delay TIME 1/8D and 1/16D (dotted)",
-      "default": 1,
-      "group": "fx",
-      "source": {
-        "repo": "https://github.com/isod89/sloop-fm1",
-        "commit": "8d3823f (SLOOP 2.4)",
-        "author": "isod89 (SLOOP), on Felucca by Leo Kuroshita",
-        "licence": "GPL-3.0-only",
-        "files": "firmware/src/core.h dly_units, fx.c delay_samples, params.c N_DLY"
-      },
-      "files": [
-        "firmware/src/core/core.h dly_units",
-        "firmware/src/fx/fx.c delay_samples",
-        "firmware/src/core/params.c N_DLY, DLY_ORDER"
-      ],
-      "cost": {
-        "flash": 28,
-        "ram": 0,
-        "pool": 0,
-        "ramtext": -16,
-        "cpu": "none",
-        "project_bytes": 0
-      },
-      "storage": "G_DTIME values 6, 7 appended; a build without the switch plays them as 1/4, 1/8",
-      "limits": "with the 32768-sample line (user-default) 1/8D fits from 61 BPM up; below, DLY_HALVE halves it to 1/16D (2.4 clamps at the line instead)",
-      "notice": "Dotted delay times from SLOOP 2.4 by isod89 (GPL-3.0).",
       "warning": false
     },
     {
@@ -713,7 +683,7 @@
       "source": {
         "repo": "https://github.com/hugelton/Felucca",
         "commit": "9f6a885 (Felucca 1.5.6)",
-        "author": "Leo Kuroshita (@kurogedelic), H\u00fcgelton Instruments",
+        "author": "Leo Kuroshita (@kurogedelic), Hügelton Instruments",
         "licence": "GPL-3.0-only",
         "files": "firmware/src/core.h step_cond (COND_FIRST, NCOND), seq.c seq_cond_miss / seq_enter (1.5.5, #209)"
       },
@@ -744,7 +714,7 @@
       "source": {
         "repo": "https://github.com/hugelton/Felucca",
         "commit": "9f6a885 (Felucca 1.5.6)",
-        "author": "Leo Kuroshita (@kurogedelic), H\u00fcgelton Instruments",
+        "author": "Leo Kuroshita (@kurogedelic), Hügelton Instruments",
         "licence": "GPL-3.0-only",
         "files": "firmware/src/ui_tools.c (1.2 .. 1.5.5: tl_reverse, tl_random_notes, tl_lane_rnd, tl_cook_*, EUCLID, tl_double / tl_half)"
       },

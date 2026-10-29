@@ -28,7 +28,7 @@ LABEL = {  # short menu labels (the title stays in the details)
     "FELUCCA_UP_FM6": "FM6 user presets keep their voice",
     "FELUCCA_SL24_SAFE": "SLOOP's data kept safe (never erased)",
     "FELUCCA_SL24_XSTEP": "step extras storage (nudge, locks, fills; 2.4)",
-    "FELUCCA_DIV_LONG": "SEQ DIV 1/2, 1BAR, 2BAR (SLOOP 2.4)", "FELUCCA_DLY_DOT": "delay TIME 1/8D, 1/16D (SLOOP 2.4)",
+    "FELUCCA_DIV_LONG": "SEQ DIV 1/2, 1BAR, 2BAR (SLOOP 2.4)",
     "FELUCCA_MICRO": "micro timing: nudge a step (SLOOP 2.4)", "FELUCCA_FILLS": "fills: GLO + 9 / 10, step conditions (SLOOP 2.4)",
     "FELUCCA_PLOCK": "parameter locks per step (SLOOP 2.4)", "FELUCCA_QCHAIN": "quick chain: SAVE + section taps (SLOOP 2.4)",
     "FELUCCA_COND": "step conditions 1:2 .. 4:4 (Felucca 1.5.6)",
@@ -87,8 +87,6 @@ DESC = {  # what each switch does for the user (plain words; sizes from tools/bu
     "FELUCCA_DIV_LONG": "SEQ > DIV (and the SEQ layer's KNOB 2) go on past 1/4 to 1/2, 1BAR and 2BAR: a step of 2, 4 or 8 "
                         "beats, for slow chords and pads; such steps are never swung. Stored values unchanged (appended), so "
                         "SLOOP 2.4 projects load as they play there. Costs 172 B of flash.",
-    "FELUCCA_DLY_DOT": "FX > DLY > TIME gains 1/8D and 1/16D (dotted: 3/4 and 3/8 of a beat), as SLOOP 2.4. With the "
-                       "0.74 s delay line a 1/8D below 61 BPM halves to 1/16D. Costs 28 B of flash.",
 }
 DESC["FELUCCA_SL24_SAFE"] = (
     "On by default. Coming from SLOOP (2.7): Optimist never erases or writes over what SLOOP left that it cannot read: "
@@ -170,7 +168,7 @@ DESC["FELUCCA_GRIDS_VEL"] = (
     "project. DRUMS mode only (EUCL has no levels). About 0.2 KB of flash.")
 LABEL["FELUCCA_GRIDS_VEL"] = "GRIDS: velocity (VEL on DENSITY)"
 LABEL["FELUCCA_GRIDS_LFO"] = "GRIDS: two LFOs on DR (the kit GRIDS)"
-PARENT = {"FELUCCA_SPRING": "FX_REVERB", "FELUCCA_DLY_DOT": "FX_DELAY", "FELUCCA_PUNCH_LATCH": "FX_PUNCH",
+PARENT = {"FELUCCA_SPRING": "FX_REVERB", "FELUCCA_PUNCH_LATCH": "FX_PUNCH",
           "FELUCCA_UP_FM6": "ENG_FM6", "FELUCCA_GRIDS_EUCLID": "GEN_GRIDS",
           "FELUCCA_GRIDS_LFO": "GEN_GRIDS", "FELUCCA_GRIDS_VEL": "GEN_GRIDS"}   # options of a registry item
 AFTER = {"FELUCCA_SPRING": "REV_FDN8"}   # an option's place among its parent's (SPRING beside the other reverb algorithms)
@@ -201,7 +199,8 @@ BITS = {  # switch -> stable BUILD bit (append only)
     "FELUCCA_SL24_XSTEP": 162,
     # (163: FELUCCA_SL24_IMPORT, 164: FELUCCA_SL24_EXPORT, 181: FELUCCA_SL24_EDIMPORT, removed 2026-10-29: never reuse the bits)
     # SLOOP 2.4 sequencer (Phase 2 of the 2.4 backport: bits 175..194)
-    "FELUCCA_DIV_LONG": 175, "FELUCCA_DLY_DOT": 176, "FELUCCA_MICRO": 177, "FELUCCA_FILLS": 178,
+    # (176: FELUCCA_DLY_DOT, retired 2026-10-29: the delay TIME's dotted values are always built; never reuse the bit)
+    "FELUCCA_DIV_LONG": 175, "FELUCCA_MICRO": 177, "FELUCCA_FILLS": 178,
     "FELUCCA_PLOCK": 179, "FELUCCA_QCHAIN": 180,
     "FELUCCA_COND": 240,                                # (Felucca 1.5.6: 240..244)
     "FELUCCA_SEQTOOLS": 241,

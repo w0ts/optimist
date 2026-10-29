@@ -486,7 +486,7 @@ job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src $BP23_ON -o "$OUT/bp23_test" tests/bp23_test.c -lm
     run "SLOOP 2.3 / X0X 0.10.1 backports (each switch on): no stuck note after a VOICE change, overload fades, REC modes and count-in, glides" "$OUT/bp23_test"
 ) >"$U.out" 2>&1 & jobbg
-SL24_ON="-DFELUCCA_DIV_LONG=1 -DFELUCCA_DLY_DOT=1 -DFELUCCA_MICRO=1 -DFELUCCA_FILLS=1 -DFELUCCA_PLOCK=1 -DFELUCCA_MOTION=1 -DFELUCCA_QCHAIN=1"
+SL24_ON="-DFELUCCA_DIV_LONG=1 -DFELUCCA_MICRO=1 -DFELUCCA_FILLS=1 -DFELUCCA_PLOCK=1 -DFELUCCA_MOTION=1 -DFELUCCA_QCHAIN=1"
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src $SL24_ON $SEC4 -o "$OUT/sl24_seq_test" tests/sl24_seq_test.c -lm
     run "SLOOP 2.4 sequencer backports (each switch on): DIV 1/2..2BAR, delay 1/8D 1/16D, micro timing, fills, parameter locks (beside motion)" "$OUT/sl24_seq_test"

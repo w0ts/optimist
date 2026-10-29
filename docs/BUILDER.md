@@ -303,7 +303,6 @@ These run once (on the master, or as the one effect each: chorus, delay, reverb,
 | (sub-item) reverb: SPRING | `SPRING` | A spring-tank reverb, one of the reverb's algorithms: the chirp and drip of a guitar amp's spring (SPRNG on FX > REVERB > TYPE when two or more are ticked). Its output is mono, and it is a little lighter on CPU than ROOM (emulator). Beside ROOM: about 1.9 KB of flash and 2.3 KB of RAM; ticked alone it is the only reverb. |
 | BASS+ speaker mode | `BASSPLUS` | A third MENU > LOWCUT setting (OFF / LOWCUT / BASS+) for the FM-1's small speaker: it adds harmonics of the bass below ~150 Hz, which the speaker can play, and raises the low cut to ~220 Hz. About 0.5 KB of flash and 0.35 KB of RAM; CPU only while BASS+ is on. |
 | (sub-item) punch LATCH: FX + key latches its effect | `PUNCH_LATCH` | PUNCH: FX + a key latches its effect so you can let go; the same key or FX + OCT- turns it off, another key switches to its effect, and FX stays lit while one plays. About 80 B of flash. |
-| (sub-item) delay TIME 1/8D, 1/16D (SLOOP 2.4) | `DLY_DOT` | FX > DLY > TIME gains 1/8D and 1/16D (dotted: 3/4 and 3/8 of a beat), as SLOOP 2.4. With the 0.74 s delay line a 1/8D below 61 BPM halves to 1/16D. Costs 28 B of flash. |
 
 #### Sequencer
 
