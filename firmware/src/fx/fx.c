@@ -387,11 +387,11 @@ static __attribute__((noinline)) void sd_mst_out(const int32_t *ml, const int32_
     }
     sd_mlim.on = mlim.on;
     if (sd_mlim.on) {
-        mlim_block(&sd_mlim, &sd_mo, ml, mr, sd_mst, n, m0, m1, 0u);
+        FAR(mlim_block)(&sd_mlim, &sd_mo, ml, mr, sd_mst, n, m0, m1, 0u);   /* (RAM code: from the XIP, far) */
         return;
     }
 #endif
-    mout_block(&sd_mo, ml, mr, sd_mst, n, m0, m1, 0u);
+    FAR(mout_block)(&sd_mo, ml, mr, sd_mst, n, m0, m1, 0u);   /* (as above) */
 }
 #endif
 
