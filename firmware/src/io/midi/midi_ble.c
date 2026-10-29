@@ -270,7 +270,7 @@ static void ble_midi_poll(void)                 /* the TIMER5 ISR, 2 kHz: BLE in
 /* The device address: VM id 104 (a provisioned public address) when the driver finds one, else a random static
  * address made once and kept with the settings (project.c persist_t), so a central sees the same device after every
  * power-on. [6] = BLE_ADDR_KEPT marks a kept one. */
-#define BLE_ADDR_KEPT 0xA5u
+#define BLE_ADDR_KEPT DEV_ADDR_KEPT              /* (0xA5: devname.h) */
 static uint8_t ble_addr_kept[8];
 static uint8_t settings_later;                  /* (ui/panel.c: saved with the settings once quiet, project.c) */
 static uint8_t ble_up;                          /* the radio and the stack started (once per boot: ble_radio_start) */
@@ -281,12 +281,17 @@ static uint8_t ble_midi_addr(uint8_t a[6])
 {
     uint32_t i;
     uint8_t rnd = ble_hw_addr(a);
+    int id = dev_uid_id();
     if (!rnd)
         return 0;
     if (ble_addr_kept[6] == BLE_ADDR_KEPT && (ble_addr_kept[5] >> 6) == 3u) {
         for (i = 0; i < 6u; i++)
             a[i] = ble_addr_kept[i];
     } else {
+        if (id >= 0) {                          /* the name "FM1-XXXX" (devname.h): a new address ends in the flash ID's four digits, as the */
+            a[0] = (uint8_t)id;                 /* USB name has them already, so Bluetooth names the FM-1 as USB did */
+            a[1] = (uint8_t)(id >> 8);
+        }
         for (i = 0; i < 6u; i++)
             ble_addr_kept[i] = a[i];
         ble_addr_kept[6] = BLE_ADDR_KEPT;

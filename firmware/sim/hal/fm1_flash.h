@@ -29,6 +29,14 @@ typedef struct { uint32_t sfc_con, spi_con; } fl_saved_t;
 RAMINL void fl_inval(uint32_t off, uint32_t len) { (void)off; (void)len; }
 
 static RAMFN uint32_t fl_jedec_ram(void) { return 0x856014u; }   /* P25Q80H, as the FM-1's */
+static RAMFN int fl_uid_ram(uint8_t *dst)       /* a part's ID of its own: "FM1-host" and the sequence 1..8 */
+{
+    static const uint8_t U[16] = {'F', 'M', '1', '-', 's', 'i', 'm', 0, 1, 2, 3, 4, 5, 6, 7, 8};
+    uint32_t i;
+    for (i = 0; i < 16u; i++)
+        dst[i] = U[i];
+    return 0;
+}
 static RAMFN uint32_t fl_status_ram(void) { return 0; }
 
 static void sim_fl_erase(uint32_t off)

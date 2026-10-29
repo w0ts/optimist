@@ -1166,6 +1166,12 @@ job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src $SEC4 -DFELUCCA_CDC=1 -o "$OUT/smute_test" tests/smute_test.c -lm
     run "sequencer mutes (SHIFT held + a key on the mixer): the key map, a muted track / lane plays nothing (sound, MIDI), the tails end, the FX record TLV" "$OUT/smute_test"
 ) >"$U.out" 2>&1 & jobbg
+job; ( jobin
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_CDC=1 -o "$OUT/devname_test" tests/devname_test.c -lm
+    run "the FM-1's name FM1-XXXX (system/devname.h): the digits' sources (kept BLE address, flash ID, none), the USB product string read each time, the manufacturer fixed" "$OUT/devname_test"
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_CDC=0 -DFELUCCA_USB_AUDIO=1 -o "$OUT/devname_ua_test" tests/devname_test.c -lm
+    run "the FM-1's name FM1-XXXX with USB audio: the functions are FM1-XXXX Out and FM1-XXXX In, the capture channels CH1..CH4" "$OUT/devname_ua_test"
+) >"$U.out" 2>&1 & jobbg
 
 # BLE MIDI, route C (our own stack, firmware/src/ble/, docs/BLE-STACK.md): built with ASan / UBSan where the compiler has them
 BLE_SAN="-fsanitize=address,undefined -fno-sanitize-recover=all"
@@ -1716,6 +1722,7 @@ job; ( jobin
 
 job; ( jobin
     run "installer CLI (fm1_install.py) against a simulated FM-1" python3 tests/install_test.py
+    run "tools that find the FM-1 by its USB-MIDI port name: FM1-XXXX, the old Optimist, not other gear" python3 tests/port_names_test.py
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     run "firmware builder: registry rules, X0X notices, items never offered, profiles, header, fit" early_out t_builder

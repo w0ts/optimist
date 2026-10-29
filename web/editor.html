@@ -5097,8 +5097,12 @@ async function openMidi(nav) {
   try { return { st: "ok", access: await nav.requestMIDIAccess({ sysex: true }) }; }
   catch (e) { return { st: "denied", access: null }; }
 }
-const isFM1Port = (p) => !!p && /felucca|optimist/i.test(p.name || "") && p.state !== "disconnected";
-/* an FM-1 shows as two ports when its Bluetooth MIDI is paired too ("Optimist 112D Bluetooth", listed first on a Mac): the
+/* the FM-1 by its USB port name: "FM1-XXXX" (four hex digits: its name since 2026-10-29), or "Optimist" / "Felucca" (a device on older
+   firmware); never other gear. Windows and Linux put more round the name ("MIDIIN2 (FM1-1A2B)"): the name is found inside */
+const FM1_NAME_RE = /fm1-[0-9a-f]{4}|felucca|optimist/i;
+const isFM1Name = (name) => FM1_NAME_RE.test(name || "");
+const isFM1Port = (p) => !!p && isFM1Name(p.name) && p.state !== "disconnected";
+/* an FM-1 shows as two ports when its Bluetooth MIDI is paired too ("FM1-112D Bluetooth", listed first on a Mac): the
    USB one, else the Bluetooth one (the USB port answered INFO in 1 ms, the Bluetooth one not at all, 2026-10-18) */
 const isBtPort = (p) => /bluetooth/i.test((p && p.name) || "");
 const pickFM1 = (ports, bt = false) => { const c = [...ports].filter(isFM1Port); return bt ? c.find(isBtPort) : c.find((p) => !isBtPort(p)) || c[0]; };
@@ -5109,7 +5113,7 @@ function findPorts(access, bt = false) {
   return input && output ? { input, output } : null;
 }
 /* a port event worth a reconnect: an FM-1 output appeared while we want to be connected and are not */
-const wantsReconnect = (e, connected, want) => !connected && !!want && !!e && !!e.port && /felucca|optimist/i.test(e.port.name || "")
+const wantsReconnect = (e, connected, want) => !connected && !!want && !!e && !!e.port && isFM1Name(e.port.name)
   && e.port.state === "connected" && e.port.type === "output";
 
 /* the transport bar's MIDI clock pill from the SYNC and CLK names: {text, st ("ok" green, "warn" amber, "" neutral)} */
@@ -7768,7 +7772,7 @@ let dev = null;        /* the open device: {link, input, output, info, pdesc[], 
 let busy = 0;          /* count of running multi-request operations (polling waits) */
 let dragging = null;   /* key of the slider under the pointer */
 let keepConnected = false;
-/* the device the editor talks to: the FM-1 over USB, or the simulator (web/sim/sim.js simAccess: its "Optimist (sim)" port
+/* the device the editor talks to: the FM-1 over USB, or the simulator (web/sim/sim.js simAccess: its "FM1-0000 (sim)" port
    pair, there while the Simulator tab runs one); a choice of the user's, remembered here */
 const DEVSRC_KEY = "optimist-editor-device";
 let devSrc = (() => { try { const v = localStorage.getItem(DEVSRC_KEY); return ["sim", "bt", "emu"].includes(v) ? v : "usb"; } catch (e) { return "usb"; } })();
@@ -7951,7 +7955,7 @@ function hangUp(reasonKey = "disconnected") {
 /* MIDIAccess statechange: our port went away (lost), or an FM-1 appeared while the user wants one (connect, after 800 ms) */
 function onPortState(e) {
   const port = e.port;
-  if (!port || !/felucca|optimist/i.test(port.name || "")) return;
+  if (!port || !isFM1Name(port.name)) return;
   const ours = !!dev && [dev.input.id, dev.output.id].includes(port.id);
   if (ours && port.state === "disconnected") { hangUp("lost"); return; }
   if (!wantsReconnect(e, !!dev, keepConnected)) return;

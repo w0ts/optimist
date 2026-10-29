@@ -53,7 +53,7 @@ const E = vm.runInNewContext(`${proto}
    DRUM_KIT_NAMES, SRC_KIND, KIND_TAG, srcFallback, readDrumSources, srcGroups, laneKind, laneShowGuess, readDrumShow, laneEdited,
    auditionChannel, auditionMsgs, kitStartFactory, knobValue, readDevicePages, soundLayout, FAM, X0X_VOICES, REV_ALGOS, revTypes, revName, readReverbType, readMidiSettings,
    WATCH, watchCaps, PARAMS_GLOBAL,
-   openMidi, findPorts, wantsReconnect, syncState, ROLL, rollRest, rollNotes, noteSpan, rollAdd, rollRemove, rollToggle, rollSetLength, rollSetNote, rollSetStep, rollChanged, rollGrid, rollLen, DRUM_PAGE, drumPages, drumPageRange, COLORS, engineColor, kindColor, contrast, textOn, MASTER_FX, MASTER_BUS, fxInline, FX_INLINE_MAX, NAV, SCREENS, navOpen, navClose, navKey, navScreen, navDepth, KEYS, KEY_FIXED, LANE_KEYS, keyFor, keyLabel, keyPlan, stepxBuilt, PAT, patSlotView, patUsers,
+   openMidi, findPorts, wantsReconnect, isFM1Name, syncState, ROLL, rollRest, rollNotes, noteSpan, rollAdd, rollRemove, rollToggle, rollSetLength, rollSetNote, rollSetStep, rollChanged, rollGrid, rollLen, DRUM_PAGE, drumPages, drumPageRange, COLORS, engineColor, kindColor, contrast, textOn, MASTER_FX, MASTER_BUS, fxInline, FX_INLINE_MAX, NAV, SCREENS, navOpen, navClose, navKey, navScreen, navDepth, KEYS, KEY_FIXED, LANE_KEYS, keyFor, keyLabel, keyPlan, stepxBuilt, PAT, patSlotView, patUsers,
    PATREC, patRecParse, patRecBuild, patRawEmpty, patStepFrom, patStepRaw, patDrumFrom, patDrumRaw, patReadAll, patWriteAll,
    FXT, FXT_NAMES, fxsLoad, fxType, fxSlotAmt, readFx, keptIds, AUTO, autoLane, SetGate,
    FXP, FXP_TABLE, SCRN_TABLE, SCRS_TABLE, EQ_FL_HZ, EQ_FH_HZ, fxpClass, fxpName, fxpTypeName, fxpAllows, fxpFmt, readFxpOwner, readFxpSlot, panelKey, panelKeyName, navParse, navTracksParse, navKnobs, navKnobAt, MNAV, WIFI, wifiCheck, wifiApCheck, wifiBusy, wifiText, pack7, unpack7 })`,
@@ -2576,6 +2576,23 @@ async function editorUiPass() {
       && E.findPorts(btOnly).input.name === "Optimist 112D Bluetooth" && E.findPorts({ inputs: P("Optimist"), outputs: P("Optimist") }, true) === null
       && /bt: devSrc !== "sim" && isBtPort\(input\)/.test(html) && /if \(d\.bt\) return loadBt\(d\);/.test(html) && /<option value="bt"/.test(html),
       "ui: Bluetooth: the USB port first, the Bluetooth one when asked or alone; a Bluetooth port opens the Mirror page alone (loadBt)");
+  }
+  {   /* the FM-1 by its port name (ruling 2026-10-29): "FM1-XXXX" (four hex digits); "Optimist" / "Felucca" (a device on older firmware);
+         other gear and a name that only starts like it are not an FM-1 */
+    const P = (...names) => new Map(names.map((n, i) => [String(i), { name: n, state: "connected" }]));
+    const pair = (...names) => ({ inputs: P(...names), outputs: P(...names) });
+    ok(["FM1-1A2B", "fm1-1a2b", "MIDIIN2 (FM1-1A2B)", "FM1-1A2B MIDI 1", "Optimist", "Optimist (Felucca)", "Felucca"].every((n) => E.isFM1Name(n))
+      && ["Launchkey Mini MK3", "IAC Driver Bus 1", "FM1-12", "FM1-ZZZZ", "FM-1 Synth", "", null, undefined].every((n) => !E.isFM1Name(n)),
+      "ui: the FM-1 is found by FM1-XXXX, still by Optimist / Felucca, not by other gear");
+    const f = E.findPorts(pair("Launchkey Mini MK3", "FM1-1A2B"));
+    const g = E.findPorts(pair("Launchkey Mini MK3", "Optimist"));
+    ok(f && f.input.name === "FM1-1A2B" && f.output.name === "FM1-1A2B" && g && g.input.name === "Optimist" && E.findPorts(pair("Launchkey Mini MK3")) === null
+      && E.findPorts(pair("FM1-112D Bluetooth", "FM1-112D")).input.name === "FM1-112D"
+      && E.findPorts(pair("FM1-112D Bluetooth", "FM1-112D"), true).output.name === "FM1-112D Bluetooth",
+      "ui: findPorts: the new name, the old name, other gear alone is not found; the Bluetooth port FM1-XXXX Bluetooth after the USB one");
+    const ev2 = (name, state, type) => ({ port: { name, state, type } });
+    ok(E.wantsReconnect(ev2("FM1-1A2B", "connected", "output"), false, true) && E.wantsReconnect(ev2("Optimist", "connected", "output"), false, true)
+      && !E.wantsReconnect(ev2("Launchkey Mini MK3", "connected", "output"), false, true), "ui: reconnects when FM1-XXXX or Optimist appears, not other gear");
   }
   const ev = (name, state, type) => ({ port: { name, state, type } });
   ok(E.wantsReconnect(ev("Optimist FM-1", "connected", "output"), false, true) && !E.wantsReconnect(ev("Optimist FM-1", "connected", "output"), true, true)

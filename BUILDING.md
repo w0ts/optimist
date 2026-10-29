@@ -98,7 +98,7 @@ the file the budget uses `costs.json` (Optimist's classic measurements) and says
 Optimist's own simulator) and `fm1base/tests/run_tests.sh`, with the builder venv's Python first on `PATH`.
 
 `flash`: Optimist's update tool when the FM-1 runs Optimist; otherwise (none answers) fm1-base's
-`fm1base/tools/fm1_install.py PACKAGE --port Optimist`. It shows both identities and asks; never run it unattended.
+`fm1base/tools/fm1_install.py PACKAGE --port FM1-` (`--port Optimist` for an FM-1 on firmware from before 2026-10-29). It shows both identities and asks; never run it unattended.
 
 Cloud builds (`.github/workflows/cloud-build.yml`) build the release: the checkout fetches the submodules, which needs a
 repository secret `FM1BASE_TOKEN` (read access to the fork and its bsp) while the fork is private, and pushed commits for the
@@ -320,7 +320,7 @@ loader answers `ota-FM-1_700`. `optimist flash` takes only these identities.
 - The update loader is Felucca's, with the same protocol: the installers resume a device left in update mode when its
   loader is `ota-FM-1_7XX` or `ota-FM-1_9XX`, and refuse any other (`foreign`). The web installer, `fm1_install.py` and
   `make_site.py` accept both ranges.
-- The USB product string is what the editor and installers look for in port names: `felucca`, `optimist` and `FM-1`.
+- The USB product string is what the editor and installers look for in port names: `FM1-XXXX` (the name since 2026-10-29: four upper-case hex digits, the same four as the Bluetooth name "FM1-XXXX", from the BLE address kept in the settings or else the flash part's unique ID; `firmware/src/system/devname.h`; the manufacturer string stays "Hügelton Instruments"), and for an FM-1 on older firmware `optimist`, `felucca` and `FM-1`.
 
 Not verified on hardware: that the stock V15 updater installs a `FM-1_7XX` package, and that M-VAVE's own updater app
 goes back to V15 from one (the same holds for every `9XX` package).

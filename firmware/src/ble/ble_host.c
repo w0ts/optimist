@@ -23,8 +23,8 @@ static struct {
     uint32_t ask_us;
 } bhs;
 
-/* the advertised name and the GAP Device Name: BLE_DEVICE_NAME, then " XXXX" = the last four hex digits of the device
- * address (its two least significant octets, as an address is written: "Optimist A1B2" for ..:A1:B2; docs/
+/* the advertised name and the GAP Device Name: BLE_DEVICE_NAME BLE_NAME_SEP, then XXXX = the last four hex digits of the
+ * device address (its two least significant octets, as an address is written: "FM1-A1B2" for ..:A1:B2; docs/
  * BLE-DEVICES-DESIGN.md §1) */
 #define BLE_GAP_NAME_MAX 29u
 static struct {
@@ -34,13 +34,12 @@ static struct {
 
 static void gap_name(const uint8_t addr[6])
 {
-    static const char base[] = BLE_DEVICE_NAME, HEX[] = "0123456789ABCDEF";
+    static const char base[] = BLE_DEVICE_NAME BLE_NAME_SEP, HEX[] = "0123456789ABCDEF";
     uint32_t n = sizeof base - 1u;
-    if (n > BLE_GAP_NAME_MAX - (BLE_NAME_HEX ? 5u : 0u))
-        n = BLE_GAP_NAME_MAX - (BLE_NAME_HEX ? 5u : 0u);
+    if (n > BLE_GAP_NAME_MAX - (BLE_NAME_HEX ? 4u : 0u))
+        n = BLE_GAP_NAME_MAX - (BLE_NAME_HEX ? 4u : 0u);
     ble_cpy((uint8_t *)bgap.s, (const uint8_t *)base, n);
 #if BLE_NAME_HEX
-    bgap.s[n++] = ' ';
     bgap.s[n++] = HEX[addr[1] >> 4];
     bgap.s[n++] = HEX[addr[1] & 15u];
     bgap.s[n++] = HEX[addr[0] >> 4];
