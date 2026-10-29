@@ -221,8 +221,8 @@ const ui = await run(`${U} await B.choosePreset("flavour:default"); await until(
   const ev = B.state.view.eval;
   return { key: $("#key").textContent, keyIs: ev.key, bars: [...document.querySelectorAll("#gauges .o-gauge")].map((b) => b.dataset.region), build: $("#build").disabled,
     note: $("#buildmsg").textContent, dl: $("#download").disabled, hash: $("#hash").textContent, msgs: $("#msgs").textContent.slice(0, 200) };`);
-ok(ui.key === ui.keyIs && /^[0-9a-f]{64}$/.test(ui.key) && same(ui.bars, ["flash", "ram", "pool", "ramtext"]) && !ui.build && /no GitHub account/.test(ui.note) && !ui.dl,
-  "page: the key shown, four gauges (FLASH RAM POOL RAMTEXT), Build in the cloud on with its note, Download on");
+ok(ui.key === ui.keyIs && /^[0-9a-f]{64}$/.test(ui.key) && same(ui.bars, ["flash", "sram"]) && !ui.build && /no GitHub account/.test(ui.note) && !ui.dl,
+  "page: the key shown, two gauges (FLASH SRAM: one packed region since 7da2794c), Build in the cloud on with its note, Download on");
 /* Build: the same configuration built before is ready at once (the cloud-builds branch, stubbed); else the relay (Turnstile
    and the relay stubbed): sent, then followed (its ?status=), its issue linked; the relay down: said in the Build card,
    nothing opened (never the GitHub issue form, the user 2026-10-25). Here no site.json: main, so the site's own commit */
@@ -377,8 +377,8 @@ const fp = await run(`${U} const before = JSON.stringify(B.state.values);
   const r = $("#result").getBoundingClientRect(), g = $("#proposals").getBoundingClientRect();
   return { before, over0, shown, startVals, info, gaugesBefore, prev, back, rid, afterReject, n: cards.length, vals: JSON.stringify(B.state.values), rejGone: !document.querySelector('.prop[data-id="' + rid + '"]') };`);
 ok(fp.over0 > 0 && fp.shown, "Make it fit: Synth + PHYS + GRAIN + reverb + sampled kit does not fit: the button is there");
-ok(fp.n >= 1 && fp.n <= 4 && fp.info.every((c) => c.title && c.changes >= 1 && c.res === 4 && same(c.btns, ["accept", "preview", "reject"])) && fp.info.some((c) => c.fits === "true"),
-  `Make it fit: ${fp.n} proposals (${fp.info.map((c) => c.id).join(", ")}), each with a title, its changes, the four results and Accept / Preview / Reject`);
+ok(fp.n >= 1 && fp.n <= 4 && fp.info.every((c) => c.title && c.changes >= 1 && c.res === 2 && same(c.btns, ["accept", "preview", "reject"])) && fp.info.some((c) => c.fits === "true"),
+  `Make it fit: ${fp.n} proposals (${fp.info.map((c) => c.id).join(", ")}), each with a title, its changes, the two results (FLASH, SRAM) and Accept / Preview / Reject`);
 ok(fp.prev.tag && !/over/.test(fp.prev.states) && /over/.test(fp.gaugesBefore) && fp.back === fp.gaugesBefore && fp.vals === fp.startVals, "Make it fit: the preview shows the result on the gauges (none over) and back, without applying");
 ok(fp.rid ? fp.rejGone && fp.afterReject === fp.n - 1 : true, "Make it fit: Reject removes that card");
 await looks("proposals");
@@ -416,7 +416,7 @@ const sticky = (what, test, maxH) => run(`${U} window.scrollTo(0, 2500); await s
   const hit = document.elementFromPoint(Math.min(g.left + 40, innerWidth - 1), g.top + 8);
   return { y: scrollY, top: g.top, h: g.height, inside: !!(hit && hit.closest("#gauges")), n: document.querySelectorAll("#gauges .o-gauge").length,
     fit: $("#fit").getBoundingClientRect().bottom <= g.bottom, key: $("#keychip").getBoundingClientRect().bottom <= g.bottom };`).then((s) => {
-  ok(s.y > 1000 && test(s.top) && s.inside && s.n === 4 && s.fit && s.key && s.h < maxH, `${what}: the gauges card, Make it fit and the key stay in view while scrolling (${Math.round(s.h)} px high, at ${Math.round(s.top)})`);
+  ok(s.y > 1000 && test(s.top) && s.inside && s.n === 2 && s.fit && s.key && s.h < maxH, `${what}: the gauges card, Make it fit and the key stay in view while scrolling (${Math.round(s.h)} px high, at ${Math.round(s.top)})`);
 });
 const boxes = () => run(`const r = (s) => { const b = document.querySelector(s).getBoundingClientRect(); return { l: b.left, r: b.right, t: b.top, b: b.bottom }; };
   window.scrollTo(0, 0); await new Promise((q) => setTimeout(q, 150));
