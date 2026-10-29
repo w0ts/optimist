@@ -1520,17 +1520,6 @@ static void ui_leds(void)
     led_keys(nl, kf);
     led_keys(hl, kh);
     led_keys(dl, kd);
-    {   /* menu LIGHTS / KEYS: the backlight layer under what is lit; off while a mode lights its keys (D10) */
-        uint8_t bl[FM1_NCOL] = {0};
-        uint32_t back = kf | kd | kh ? 0u : lights_keys_mask(), k;
-        led_keys(bl, back);
-        if (lights_lvl)
-            for (k = 0; k < NB; k++)
-                led_btn(bl, k, 1);
-        for (c = 0; c < FM1_NCOL; c++)
-            fm1_led_bg[c] = (uint8_t)(bl[c] & ~nl[c]);
-        fm1_led_bg_ns = LIGHTS_NS[lights_lvl % LIGHTS_N];
-    }
     for (c = 0; c < FM1_NCOL; c++) {                    /* (written on a change only) */
         if (fm1_led[c] != nl[c])
             fm1_led[c] = nl[c];

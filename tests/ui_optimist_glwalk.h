@@ -30,8 +30,6 @@ static uint32_t glw_state(void)                        /* every setting a GLOBAL
     h = glw_mix(h, &rec_count, 1);
 #endif
     h = glw_mix(h, &vu_floor_i, 1);                     /* (SYSTEM > METERS > VU FLOOR) */
-    h = glw_mix(h, &lights_lvl, 1);
-    h = glw_mix(h, &lights_keys, 1);
 #if FELUCCA_CDC
     h = glw_mix(h, &usb_serial, 1);
 #endif
@@ -151,7 +149,7 @@ static int glw_walk_line(uint32_t scr, uint32_t i)
  * (the user, 2026-10-13; panel.c settings_init, settings_word.c read as 0); BLE is never reset */
 static const struct { const char *label, *val; } GLW_FACTORY[] = {
     {"MODE", "FREE"}, {"NUDGE", "0"}, {"LENGTH", "1"}, {"START", "NOTE"}, {"CLK OUT", "OFF"}, {"LINK", "ON+S/S"},
-    {"KNOB COLORS", "OFF"}, {"VU FLOOR", "-60"}, {"BUTTONS", "OFF"}, {"KEYS", "OFF"}, {"SPK LOWCUT", "ON"}, {"HPHN BASS", "OFF"}, {"SERIAL", "OFF"}, {"HOLD", "350"},
+    {"KNOB COLORS", "OFF"}, {"VU FLOOR", "-60"}, {"SPK LOWCUT", "ON"}, {"HPHN BASS", "OFF"}, {"SERIAL", "OFF"}, {"HOLD", "350"},
     {"MASTER", "NONE"}, {"T1", "1"}, {"T2", "2"}, {"T3", "3"}, {"DRUMS", "4"}, {"DRUM BUS", "NONE"}, {"DR1", "NONE"},
     {"DR2", "NONE"}, {"DR3", "NONE"}, {"DR4", "NONE"}, {"DR5", "NONE"}, {"DR6", "NONE"}, {"DR7", "NONE"}, {"DR8", "NONE"},
     {"DR9", "NONE"}, {"DR10", "NONE"}, {"RET A", "NONE"}, {"RET B", "NONE"},
