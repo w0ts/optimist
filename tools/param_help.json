@@ -470,7 +470,6 @@
       "TRK 1": "MIDI channel of track 1", "TRK 2": "MIDI channel of track 2", "TRK 3": "MIDI channel of track 3",
       "DRUMS": "MIDI channel of the drums"}},
     {"kind": "op", "ctx": "INFO", "params": {
-      "INFO": "K1: now, max 10s, max",
       "DROPS": "Late audio halves (gaps)", "UNDERRUNS": "USB audio, MIDI in lost",
       "GUARD": {"text": "What the CPU guard eases now", "if": "FELUCCA_CPU_GUARD"},
       "CLOCK": "CPU clock", "LOAD": "Audio load of the CPU", "CPU0": "Audio load of the first core",
@@ -485,8 +484,6 @@
       "HPHN BASS": "Bass boost, headphones in"}},
     {"kind": "op", "ctx": "FILTER", "params": {"FILT RESO": "Track filter resonance"}},
     {"kind": "op", "ctx": "METERS", "params": {"VU FLOOR": "Level at the meters' bottom"}},
-    {"kind": "op", "ctx": "KEYS", "params": {
-      "BUTTONS": "Buttons glow in the dark", "KEYS": "Which keys glow"}},
     {"kind": "op", "ctx": "USB", "if": "FELUCCA_USB_HOST", "params": {
       "MODE": "HOST until power-off: no PC", "DEVICE": "The USB-MIDI device on it"}},
     {"kind": "op", "ctx": "USB", "if": "FELUCCA_CDC", "params": {"SERIAL": "USB serial console (restart)"}},

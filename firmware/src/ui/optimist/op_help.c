@@ -358,12 +358,22 @@ static uint32_t hl_src(char *b)
 static uint8_t hl_nn_only;                              /* shown only for the note played (hl_post: no help text) */
 static void hl_pre(uint32_t ov)
 {
-    int vis = (hl_menu() || lay_hint_t || (hl.t && hl.scr == ui.scr && lay.shown == LY_PLAY && !page_owned())) && ov != 1u && ov != 3u && ov != 4u;
+    static uint8_t was_wide;
+    uint32_t wide = gl_info_wide();
+    int vis;
+    if (wide != was_wide) {                             /* (SYSTEM > INFO's first page has no band: its rows run to the foot; leaving it, the band is black again) */
+        was_wide = (uint8_t)wide;
+        hl.on = 0;
+        ui.sig[5] = 0;
+        cv_begin(240, HL_H, C_BLACK);
+        cv_blit(0, HL_Y);
+    }
+    vis = !wide && (hl_menu() || lay_hint_t || (hl.t && hl.scr == ui.scr && lay.shown == LY_PLAY && !page_owned())) && ov != 1u && ov != 3u && ov != 4u;
     if (vis && !hl_menu() && !lay_hint_t && !hl_text()) {
         char w[64];
         vis = hl_src(w) != 0;                           /* (no line: shown still when the value is automated, its sources) */
     }                                        /* (a value with no line: nothing; a menu keeps its empty line) */
-    hl_nn_only = !vis && nn_vis && ov != 1u && ov != 3u && ov != 4u;   /* (the note played on the keys alone: the line shows */
+    hl_nn_only = !wide && !vis && nn_vis && ov != 1u && ov != 3u && ov != 4u;   /* (the note played on the keys alone: the line shows */
     vis |= hl_nn_only;                                                  /* it and nothing else, op_draw.c nn_tick) */
     if (vis == hl.on)
         return;

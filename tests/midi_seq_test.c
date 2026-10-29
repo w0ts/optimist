@@ -248,6 +248,9 @@ static void t_ble_word(void)
 {
     uint32_t w, w0;
     reset();
+    bp23_from_word(0x0FFu | 1u << 8);           /* an old record with LIGHTS 15 and KEYS 15: read and ignored, written as 0; NOTES OFF (bit 8) kept */
+    check((bp23_word() & 0xFFu) == 0u && ((bp23_word() >> 8) & 1u) == 1u, "settings word: bits 0..7 (LIGHTS, KEYS) are gone: written 0, NOTES OFF in bit 8 kept");
+    bp23_from_word(0);
 #if FELUCCA_BLE
     ble_on = 1;
     bp23_from_word(0x1C6FFu);                   /* an older record: every other bit, none of ours */

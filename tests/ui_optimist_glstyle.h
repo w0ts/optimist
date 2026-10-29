@@ -375,7 +375,6 @@ static int gls_info_page(void)
     ok &= sys_item(gl_ent(1, 0) >> 2, gl_ent(1, 0) & 3u) == SI_INFO && gl_end(1, 0) == 1u;   /* (page 1 is INFO, alone) */
     ok &= ph >= (int32_t)FONT_S.h + 6;                  /* (every read-out fits the page) */
     ok &= gls_info_header();                            /* (the battery is the header's, not a line: 2026-10-29) */
-    info_mode = OVL_NOW;                                /* (the CPU line's measure: NOW; a fuzz run's KNOB 2 may have left another) */
     {   /* the CPU0 load number's colour: green under 60 %, amber 60..85, red over 85 (the guard's ceiling), text only */
         static const int32_t pc[7] = {0, 59, 60, 85, 86, 100, 150};
         static const uint16_t want[7] = {C_OK, C_OK, C_WARN, C_WARN, C_ERR, C_ERR, C_ERR};

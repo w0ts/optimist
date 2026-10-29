@@ -96,7 +96,6 @@ GLOBAL and SYSTEM are settings lists: one setting on a line, the name left and t
 - **INFO:** the read-out below. Always the first page.
 - **SCREEN:** KNOB COLORS (ON / OFF). The backlight is always full.
 - **AUDIO:** the output's correction, chosen by the headphone jack and applied to the FM-1's own output only (never to Bluetooth, USB or a recording on the card): SPK LOWCUT (OFF, ON or BASS+; ON at first) while nothing is plugged in, the speaker's ~110 Hz low cut, or BASS+ (the bass heard through its harmonics); HPHN BASS (OFF, +3 dB or +6 dB; OFF at first) while headphones are in, a bass shelf below ~110 Hz.
-- **KEYS:** BUTTONS (OFF, LOW, MID, HIGH) and KEYS (OFF, C, WHITE, ALL), the backlight of the buttons and keys.
 - **USB:** SERIAL, ON or OFF; amber until a restart applies it (builds with the USB console).
 - **BT MIDI** (builds with `BLE`): MODE, DEVICE, ACTIVITY, STATE. **BT AUDIO** (builds with `BT_AUDIO`): MODE, DEVICE, FORMAT, STATE. Both can be on at once; MODE, the devices list and SAVE: [midi-usb.md](midi-usb.md#bluetooth-midi-and-bluetooth-audio). A connect not up in 30 s says NO ANSWER.
 - **CALIBRATE:** PANEL (teaches the panel's buttons and knobs, asked first) and HOLD (a button's hold time: 250, 350 or 500 ms).
@@ -105,11 +104,11 @@ GLOBAL and SYSTEM are settings lists: one setting on a line, the name left and t
 
 ## SYSTEM > INFO
 
-INFO is a text page, no knob edits it except KNOB 1. What a musician reads:
+INFO is a text page, no knob edits it. What a musician reads:
 
 | Line | Meaning |
 |---|---|
-| CPU0 (CPU LOAD without a second core) | The audio render load in percent; with a second core it includes CPU0's wait for CPU1. KNOB 1 chooses what it shows: NOW, the maximum of the last 5 seconds, or the maximum since boot. Over 100 means a late audio half (a gap in the sound) |
+| CPU0 (CPU LOAD without a second core) | The audio render load in percent; with a second core it includes CPU0's wait for CPU1. The bar's bright tick marks the maximum of the last 10 seconds, the dim one the maximum since boot. Over 100 means a late audio half (a gap in the sound) |
 | CPU1 | The share of each audio half the second core takes. Instead: 2ND CORE OFF and the reason (NO START, TIMEOUT, FAULT, FLASH, MISREAD, CANARY, AFTER CRASH, SETTING, PARKED, BLUETOOTH, OVERLOAD, SUPPLY). |
 | UNDERRUNS | Losses: late audio halves, USB audio's and MIDI in's, and where |
 
