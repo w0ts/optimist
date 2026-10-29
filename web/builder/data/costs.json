@@ -4365,7 +4365,7 @@
    "pool": 0,
    "ramtext": 0
   },
-  "SDCARD=1,LAYOUT=1,FAR_OK=1,ENG_SAMPLE=0,DRUM_USR=0,SNAPSHOTS=0,PATTERNS=1": {
+  "SDCARD=1,LAYOUT=1,ENG_SAMPLE=0,DRUM_USR=0,SNAPSHOTS=0,PATTERNS=1": {
    "flash": 30748,
    "ram": 804,
    "pool": 6512,
