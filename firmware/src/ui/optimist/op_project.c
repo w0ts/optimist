@@ -414,7 +414,7 @@ static uint32_t pw_leds(uint32_t *d);
 #include "../../system/stackmark.h"                     /* INFO's RAM line: how deep the stacks went (painted at boot: stk_boot) */
 /* ---- SYSTEM: SLOOP's HOME-held menu as rows (ui/sloop/ui_menu.c) */
 enum { SI_NONE, SI_BRIGHT, SI_LIGHTS, SI_KEYS, SI_LOWCUT, SI_OUT, SI_SYNC, SI_CH1, SI_CH2,
-       SI_CH3, SI_CHD, SI_USB, SI_CPU, SI_MHZ, SI_CALIB, SI_ABOUT, SI_HOLD, SI_BLE, SI_KCOL, SI_CLKOUT, SI_CPU1, SI_INFO, SI_BATT, SI_BUILD, SI_REPO,
+       SI_CH3, SI_CHD, SI_USB, SI_CPU, SI_MHZ, SI_CALIB, SI_ABOUT, SI_HOLD, SI_BLE, SI_KCOL, SI_DBGST, SI_CLKOUT, SI_CPU1, SI_INFO, SI_BATT, SI_BUILD, SI_REPO,
        SI_DROPS, SI_GUARD, SI_UAINFO, SI_XRUN, SI_DIAG, SI_CREDITS, SI_BLEST, SI_BLEPEER, SI_BLEMIDI, SI_BLELIST, SI_BLEAUTO,
        SI_BLEFGT, SI_FRESO, SI_VUFLOOR, SI_BTA, SI_BTAPEER, SI_BTAFMT, SI_BTAST, SI_CLKOFS, SI_BTOFS,
 #if FELUCCA_SD_UI
@@ -502,7 +502,11 @@ static const struct { const char *name; uint8_t it[4]; } SYS[] = {
     {"INFO", {SI_INFO, SI_NONE, SI_NONE, SI_NONE}},      /* first: one dense read-only page, not 4 lines (op_gldraw.c gl_info_draw): the clock, the
                                                          * load of each core, the memory (the user, 2026-10-14). The second core is always on:
                                                          * no 2ND CORE line; dual.c's guard still parks it and the page says why */
-#if FELUCCA_SYS_DEBUG                                   /* (the debug pages: builder item SYS_DEBUG, the user 2026-10-17) */
+#if DBG_STATS
+    {"DEBUG", {SI_DBGST, SI_NONE, SI_NONE, SI_NONE}},    /* (DEBUG STATS: the platform's stats in flash, core/dbgstats.h; a section
+                                                         * of its own after INFO: INFO's page is read-outs, no line a cursor) */
+#endif
+#if FELUCCA_SYS_DEBUG                                  /* (the debug pages: builder item SYS_DEBUG, the user 2026-10-17) */
     {"INTERNALS", {SI_DIAG, SI_NONE, SI_NONE, SI_NONE}},   /* INFO split in two (the user, 2026-10-15): what a musician reads on INFO,
                                                          * the internals here (the last reset, flash, the second core) */
 #if FELUCCA_USB_AUDIO
@@ -975,6 +979,9 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
     case SI_KCOL:                                       /* the knob caps' colours on dials, labels, cards (core/knobcol.h) */
         sys_onoff(c, "KNOB COLORS", knob_colors);       /* (the settings list has the room: op_gldraw.c) */
         break;
+    case SI_DBGST:                                      /* the platform's stats in flash every 5 minutes (core/dbgstats.h) */
+        sys_onoff(c, "DEBUG STATS", dbg_stats);
+        break;
     case SI_VUFLOOR:                                    /* the dB at the meters' bottom (core/vufloor.h; op_draw.c meter_h) */
         c->label = "VU FLOOR";
         fmt_int(c->val, vuf_db(vu_floor_i));
@@ -1384,6 +1391,9 @@ static void sys_set(uint32_t it, int32_t s)
         knob_colors = (uint8_t)sys_step(knob_colors, s, 1);
         ui.force = 1;                                   /* (every band's colours move) */
         break;
+    case SI_DBGST:                                      /* (kept in the settings record: persist_rec.c rsv_pj[1]) */
+        dbg_stats_set((uint32_t)sys_step(dbg_stats, s, 1));
+        break;
     case SI_VUFLOOR:                                    /* (kept in the settings record: persist_rec.c rsv_pj[0]) */
         vu_floor_i = (uint8_t)sys_step(vu_floor_i, s, (int32_t)VUF_N - 1);
         ui.force = 1;                                   /* (the MASTER scale and every meter's height move) */
@@ -1484,6 +1494,9 @@ static int sys_factory(uint32_t it)
     case SI_KCOL:
         knob_colors = 0;
         ui.force = 1;
+        break;
+    case SI_DBGST:
+        dbg_stats_set(0);
         break;
     case SI_VUFLOOR:
         vu_floor_i = VUF_DEF;
