@@ -259,10 +259,10 @@ ok(/^Not sent: the build service did not answer/.test(cb.downMsg) && cb.opened =
   "Build: the relay down: said in the Build card, nothing opened (no issue form); built from main = the site's commit");
 ok(cb.ready.flash && cb.ready.sim && cb.ready.mine && cb.ready.mine.id === cb.key.slice(0, 16),
   "Build: the same configuration built before: Flash it and Try it in the simulator at once, kept as your build for Flash");
-const tg = await run(`${U} const before = B.state.view.eval.budget.total.flash; const c = $("#it-ENG_FM6"); const was = c.checked; c.click();
-  await until(() => B.state.values.ENG_FM6 === (was ? 0 : 1) && B.state.view.eval.config.ENG_FM6 === (was ? 0 : 1));
+const tg = await run(`${U} const before = B.state.view.eval.budget.total.flash; const c = $("#it-ENG_FM6"); const was = +c.value, to = was ? 0 : 2; c.value = String(to); c.dispatchEvent(new Event("change", { bubbles: true }));   /* (a list since 2b7e3126: off / on / on, code in RAM) */
+  await until(() => B.state.values.ENG_FM6 === to && B.state.view.eval.config.ENG_FM6 === to, 20000);
   const after = B.state.view.eval.budget.total.flash; const shown = $(".o-gauge[data-region=flash]").title;
-  $("#it-ENG_FM6").click(); await until(() => B.state.view.eval.config.ENG_FM6 === (was ? 1 : 0));
+  const c2 = $("#it-ENG_FM6"); c2.value = String(was); c2.dispatchEvent(new Event("change", { bubbles: true })); await until(() => B.state.view.eval.config.ENG_FM6 === was, 20000);
   return { before, after, shown, back: B.state.view.eval.budget.total.flash };`);
 ok(tg.before !== tg.after && tg.shown.includes(tg.after.toLocaleString("en-US")) && tg.back === tg.before, `page: ticking FM6 moves the flash estimate (${tg.before} -> ${tg.after}) and back`);
 const er = await run(`${U} for (const k of B.state.reg.top["Synth engines"]) B.state.values[k] = 0; await B.setItem("ENG_ANALOG", 0);
