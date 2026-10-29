@@ -15,6 +15,7 @@
 #define WL_AHEAD_US 25000                              /* ticks are queued this far before their time */
 
 static struct {
+    uint8_t lk_on;                                     /* the Link session is joined (link_mode not OFF: clock_sync.c) */
     uint8_t joined, on, feed, started;                 /* wifijoin done; the service runs; ticks flow; FA sent */
     uint8_t gtk_seen;
     uint8_t ap;                                        /* MODE AP: the service runs as the access point (wifi_apd.c), no station */
@@ -108,7 +109,7 @@ static void wl_midi_poll(void)                         /* the TIMER5 tick: a que
 
 static void wl_clock(int64_t now)                      /* Link's session as MIDI clock (see the top of the file) */
 {
-    int on = wl.ip.ip && lk_peers(&wl_lk) > 0;
+    int on = wl.ip.ip && wl.lk_on && lk_peers(&wl_lk) > 0;
     if (!on) {
         if (wl.started)
             wl_q_push(0xFCu, wl_ticks_of(now));
@@ -127,7 +128,7 @@ static void wl_clock(int64_t now)                      /* Link's session as MIDI
     for (;;) {
         uint32_t m = wl.k / 3u, r = wl.k - m * 3u, t_ticks;
         int64_t ub = (int64_t)m * 125000 + (r == 0u ? 0 : r == 1u ? 41667 : 83333), t = lk_time_at(&wl_lk, ub);
-        int play = lk_playing(&wl_lk);
+        int play = link_mode == LINK_ONSS && lk_playing(&wl_lk);   /* (ON: tempo and beat, not the session's play / stop) */
         if (t > now + WL_AHEAD_US)
             break;
         if (t < now - 200000) {                        /* late: the main loop stalled, or the session moved */
@@ -160,7 +161,7 @@ static void wl_clock(int64_t now)                      /* Link's session as MIDI
 static void wl_push_own(int64_t now)                   /* the FM-1's own PLAY/STOP and tempo, to the Link session */
 {
     int32_t mpb;
-    if (!wl.ip.ip || lk_peers(&wl_lk) == 0 || sy.src == MSRC_LINK)
+    if (!wl.ip.ip || !wl.lk_on || lk_peers(&wl_lk) == 0 || sy.src == MSRC_LINK)
         return;                                        /* (no session to tell yet, or Link itself drives us: no echo) */
     mpb = 60000000 / (song.g[G_BPM] > 20 ? song.g[G_BPM] : 20);
     if (mpb != wl.own_mpb) {
@@ -168,7 +169,8 @@ static void wl_push_own(int64_t now)                   /* the FM-1's own PLAY/ST
         wl.own_mpb = mpb;
     }
     if (song.playing != wl.own_playing) {
-        lk_set_playing(&wl_lk, song.playing, lk_beat_at(&wl_lk, now), now);
+        if (link_mode == LINK_ONSS)                    /* (ON: our play / stop is not published) */
+            lk_set_playing(&wl_lk, song.playing, lk_beat_at(&wl_lk, now), now);
         wl.own_playing = song.playing;
     }
 }
@@ -234,12 +236,17 @@ static void wl_poll(void)                              /* once a main-loop pass 
     tx_len = wifi_ip_poll(&wl.ip, now, (uint8_t *)wl_txb + FM1_WIFI_TX_HDR);
     if (tx_len)
         wl_send(tx_len);
+    if ((link_mode != LINK_OFF) != (wl.lk_on != 0)) {   /* LINK changed on the MIDI page: join the session / say goodbye */
+        wl.lk_on = link_mode != LINK_OFF;
+        lk_enable(&wl_lk, wl.lk_on, now);
+        wl.own_playing = song.playing;
+    }
     lk_poll(&wl_lk, now);
     wl_clock(now);
     wl_push_own(now);
 }
 
-static uint32_t wl_peers(void) { return wl.on ? lk_peers(&wl_lk) : 0u; }   /* the Link peers heard (the page, the web tab) */
+static uint32_t wl_peers(void) { return wl.on && wl.lk_on ? lk_peers(&wl_lk) : 0u; }   /* the Link peers heard (the page, the web tab) */
 static void wl_attach(const struct wifi_sta *s)        /* wifijoin ended connected: keep the station for the service */
 {
     wl.on = 0;
@@ -288,7 +295,8 @@ static void wl_start(void)                             /* the station is joined:
     mpb = 60000000 / (song.g[G_BPM] > 20 ? song.g[G_BPM] : 20);
     lk_init(&wl_lk, &c, seed, mpb);
     wifi_ip_set_link(&wl.ip, &wl_lk, 0);
-    lk_enable(&wl_lk, 1, now);
+    wl.lk_on = link_mode != LINK_OFF;                /* (OFF: the service runs, no session: peers 0) */
+    lk_enable(&wl_lk, wl.lk_on, now);
     wl.n_rx = wl.n_data = wl.n_uc = wl.n_uc_snap = wl.n_prot = wl.n_kept = wl.n_eapol = 0;
     wl.n_tx = wl.n_tx_err = wl.n_ticks = wl.n_restart = wl.n_catchup = 0;
     wl.feed = wl.started = 0;
@@ -324,7 +332,8 @@ static void wl_start_ap(const uint8_t mac[6], uint32_t ip)   /* MODE AP: Link at
     mpb = 60000000 / (song.g[G_BPM] > 20 ? song.g[G_BPM] : 20);
     lk_init(&wl_lk, &c, seed, mpb);
     wifi_ip_set_link(&wl.ip, &wl_lk, 0);
-    lk_enable(&wl_lk, 1, now);
+    wl.lk_on = link_mode != LINK_OFF;                /* (OFF: the service runs, no session: peers 0) */
+    lk_enable(&wl_lk, wl.lk_on, now);
     wl.n_rx = wl.n_data = wl.n_uc = wl.n_uc_snap = wl.n_prot = wl.n_kept = wl.n_eapol = 0;
     wl.n_tx = wl.n_tx_err = wl.n_ticks = wl.n_restart = wl.n_catchup = 0;
     wl.feed = wl.started = 0;
@@ -339,6 +348,7 @@ static void wl_stop(void)                              /* Link and the service o
 {
     if (wl.on) {
         lk_enable(&wl_lk, 0, wl_now());
+        wl.lk_on = 0;
         wl.on = wl.feed = wl.started = 0;
     }
 }

@@ -27,7 +27,10 @@
 #define CO_F8 (0x0Fu | 0xF8u << 8)                        /* USB-MIDI packets: CIN F, one byte */
 #define CO_RT(b) (0x0Fu | (uint32_t)(b) << 8)
 #define CO_16TH (6u * SY_TICK_U)                          /* a song-position step: 6 ticks */
-static uint8_t clko_on;                                   /* HOME menu CLOCK OUT: 0 OFF (the default), 1 ON */
+/* CLK OUT: CLKO_OFF (the default), CLKO_BOTH (USB and BLE; the old ON, stored 1), CLKO_USB, CLKO_BLE (2026-10-29: the list reads OFF USB BLE
+ * BOTH; without BLE: OFF USB) */
+enum { CLKO_OFF, CLKO_BOTH, CLKO_USB, CLKO_BLE };
+static uint8_t clko_on;
 static struct {
     uint32_t ph;           /* units into the current tick at the last block's end (stopped: the free-running clock) */
     uint32_t skip;         /* units from the block's start before an F8 may go (a continue: to its 16th) */
@@ -35,20 +38,20 @@ static struct {
     uint8_t live;          /* sending last block */
 } co;
 
-/* the ports this goes to now: USB unless USB is the clock followed; BLE (a central listening) unless BLE is */
+/* the ports this goes to now: USB (CLK OUT USB or BOTH) unless USB is the clock followed; BLE (BLE or BOTH; a central listening) unless BLE is */
 static int clko_usb(void)
 {
-    return !(FELUCCA_MIDI_CLOCK && SY_USB(sy.src));     /* (a USB host's device is the port too: MSRC_USBH) */
+    return (clko_on == CLKO_BOTH || clko_on == CLKO_USB) && !(FELUCCA_MIDI_CLOCK && SY_USB(sy.src));   /* (a USB host's device is the port too: MSRC_USBH) */
 }
 #if FELUCCA_BLE
 static int ble_rt_on(void);                               /* (io/midi/midi_ble.c: a central listens) */
 static void ble_rt_push(uint32_t due, uint32_t pkt);
 static void ble_rt_drop_after(uint32_t t, uint32_t pkt);
-static int clko_ble(void) { return ble_rt_on() && !(FELUCCA_MIDI_CLOCK && sy.src == MSRC_BLE); }
+static int clko_ble(void) { return (clko_on == CLKO_BOTH || clko_on == CLKO_BLE) && ble_rt_on() && !(FELUCCA_MIDI_CLOCK && sy.src == MSRC_BLE); }
 #else
 static int clko_ble(void) { return 0; }
 #endif
-/* ON but sending nowhere (following USB, no BLE central listening): the menu shows it amber */
+/* on but sending nowhere (the port chosen is the clock followed, or no BLE central listens): the menu shows it amber */
 static int clko_blocked(void) { return clko_on && !clko_usb() && !clko_ble(); }
 
 static void clko_emit(uint32_t due, uint32_t pkt)

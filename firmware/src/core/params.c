@@ -523,6 +523,14 @@ static int32_t lrate_step(const param_desc_t *d, int32_t v, int32_t steps)
     return v > 0 ? 0 : clamp(v + (steps < 0 ? -1 : 1), d->min, d->max);
 }
 
+#if BP_SET_ANY
+static const char *const N_MOUT[] = {"KEYS", "BOTH", "SEQ", "OFF"};           /* MIDI OUT: what goes out: the keys, the keys and
+                                                                               * the sequencer (SLOOP 2.4's SEQ, value 1), the
+                                                                               * sequencer alone (the user, 2026-10-17), nothing
+                                                                               * (OFF, 2026-10-29: value 3, a record from before has none) */
+enum { MOUT_KEYS, MOUT_BOTH, MOUT_SEQ, MOUT_OFF };
+#endif
+
 /* The order a list shows and a knob steps through, apart from the stored values (G_SYNC's are in projects, settings and the
  * editor protocol): o[place] = the value at that place (- min); 0 = the stored order. #48 (after Felucca 1.0.2, hugelton/
  * Felucca db70550, params.c DIV_ORDER / enum_rank / param_turn, by Leo Kuroshita, GPL-3.0-only) did it for the note
@@ -534,8 +542,15 @@ static const uint8_t SYNC_ORDER[] = {SYNC_AUTO, SYNC_TRS, SYNC_USB, SYNC_BLE, SY
 #else
 static const uint8_t SYNC_ORDER[] = {SYNC_AUTO, SYNC_TRS, SYNC_USB, SYNC_INT};
 #endif
+#if BP_SET_ANY && FELUCCA_MIDI_OUT
+static const uint8_t MOUT_ORDER[] = {MOUT_OFF, MOUT_KEYS, MOUT_SEQ, MOUT_BOTH};   /* MIDI OUT as listed: nothing, the keys, the sequencer, both */
+#endif
 static const uint8_t *enum_order(const param_desc_t *d)
 {
+#if BP_SET_ANY && FELUCCA_MIDI_OUT
+    if (pd_names(d) == N_MOUT)
+        return MOUT_ORDER;
+#endif
     return d == &GP[G_SYNC] ? SYNC_ORDER : 0;
 }
 static int32_t enum_rank(const param_desc_t *d, int32_t v)   /* v's place in the order shown (+ min): the gauges, the popup */

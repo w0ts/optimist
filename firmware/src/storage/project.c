@@ -1734,17 +1734,47 @@ _Static_assert(sizeof ble_addr_kept == 8u && sizeof ble_rf_kept == BLE_RF_COPY_S
 #if FELUCCA_FLASH
 static persist_t persist_saved IN_POOL;            /* the record as last read or written (persist_boot, settings_save: the
                                                     * main loop only): in the pool, not main RAM (868 B, 2026-10-24) */
+/* CLK OUT's mode and LINK's, beside the settings word (whose bit 26 stays ON / OFF): a record from before has ext_ver 0, bit 26 = BOTH / OFF,
+ * LINK = ON+S/S. Without BLE a BOTH is USB (the list has no BOTH) */
+static void persist_ext_load(const persist_t *p)
+{
+#if FELUCCA_MIDI_CLKOUT
+    if (p->ext_ver && clko_on && p->clko_sel >= CLKO_BOTH && p->clko_sel <= CLKO_BLE)
+        clko_on = p->clko_sel;
+    if (!FELUCCA_BLE && clko_on == CLKO_BOTH)
+        clko_on = CLKO_USB;
+    if (!FELUCCA_BLE && clko_on == CLKO_BLE)
+        clko_on = CLKO_USB;
+#endif
+#if FELUCCA_LINK
+    link_mode = (uint8_t)(p->ext_ver && p->link_sel <= LINK_ONSS ? p->link_sel : LINK_ONSS);
+#endif
+    (void)p;
+}
+static void persist_ext_save(persist_t *p)
+{
+    p->ext_ver = 1;
+#if FELUCCA_MIDI_CLKOUT
+    p->clko_sel = clko_on;
+#endif
+#if FELUCCA_LINK
+    p->link_sel = link_mode;
+#endif
+}
 #if FELUCCA_MIDI_CLOCK
-static void persist_ofs_load(const persist_t *p)  /* CLK OFS, BT OFS (clock_sync.c): out of range read as 0 */
+static void persist_ofs_load(const persist_t *p)  /* CLK OFS, BT OFS, LINK OFS (clock_sync.c): out of range read as 0 */
 {
     uint32_t i;
+    int16_t l = p->ext_ver ? p->link_ofs : p->clk_ofs[0];   /* (a record from before: Link used CLK OFS) */
     for (i = 0; i < 2u; i++)
         sync_ofs[i] = (int16_t)(p->clk_ofs[i] >= SY_OFS_MIN && p->clk_ofs[i] <= SY_OFS_MAX ? p->clk_ofs[i] : 0);
+    sync_ofs[2] = (int16_t)(l >= SY_OFS_MIN && l <= SY_OFS_MAX ? l : 0);
 }
 static void persist_ofs_save(persist_t *p)
 {
     p->clk_ofs[0] = sync_ofs[0];
     p->clk_ofs[1] = sync_ofs[1];
+    p->link_ofs = sync_ofs[2];
 }
 #else
 #define persist_ofs_load(p) ((void)0)              /* (no clock: the bytes kept as read) */
@@ -1886,6 +1916,7 @@ static void persist_boot(void)                    /* before settings_init / pane
             open_proj = (uint8_t)(p.open_proj < PROJ_SLOTS ? p.open_proj : 0u);   /* (the open project: sections.c) */
 #endif
             persist_ofs_load(&p);
+            persist_ext_load(&p);
             vu_floor_i = vuf_dec(p.rsv_pj[0]);       /* (VU FLOOR, core/vufloor.h: a record from before reads 0 = -60) */
             persist_saved = p;
         } else if (n == (int)(8u + sizeof(panel_t)) && p3.magic == 0x50455231u) {   /* "PER1": palette, panel */
@@ -1975,6 +2006,7 @@ static void settings_save(void)
     p.open_proj = open_proj;                       /* (the open project: sections.c; the chain above is a copy, the log's is read) */
 #endif
     persist_ofs_save(&p);
+    persist_ext_save(&p);
     p.rsv_pj[0] = vuf_enc(vu_floor_i);             /* (VU FLOOR) */
 #if FELUCCA_FAVORITES
     persist_fav_save(&p);
