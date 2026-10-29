@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """The firmware builder's interactive menu (Textual). Start it with tools/menuconfig.
 
-Keys: space / enter toggle (a choice: next value) | / search | p profiles | s save (mine or stock)
+Keys: space / enter toggle (a choice: next value; shift+space or backspace: the previous) | / search | p profiles | s save (mine or stock)
       | u publish this profile or not (CI builds the published ones; one of mine is shared first)
       | d delete a profile (asks first; never the default profile, synths_USBaudio_BTaudio_BTmidi)
       | w write a .config file | l load | b build | e build and run it in the emulator
@@ -151,7 +151,11 @@ class Builder(App):
     Pick, Ask { align: center middle; }
     """
     BINDINGS = [
-        Binding("space", "toggle", "toggle", priority=True), Binding("slash", "search", "search"),
+        Binding("space", "toggle", "toggle", priority=True),
+        # (shift+space: a choice's previous value; a terminal without the kitty keyboard protocol sends it as a space,
+        # backspace does the same there; shift+space before the tree's own, expand all: priority, as space)
+        Binding("shift+space", "toggle_back", "previous value", show=False, priority=True),
+        Binding("backspace", "toggle_back", "previous value", show=False), Binding("slash", "search", "search"),
         Binding("p", "profiles", "profiles"), Binding("s", "save", "save profile"),
         Binding("u", "publish", "publish"), Binding("d", "delete", "delete profile"), Binding("w", "write", "write .config", show=False),
         Binding("l", "load", "load"),
@@ -394,7 +398,7 @@ class Builder(App):
         tree = self.query_one("#tree")
         key = tree.cursor_node.data if tree.cursor_node else None
         if not isinstance(key, str):
-            self.query_one("#info_t").update(Text("space: toggle, /: search, b: build", style="dim"))
+            self.query_one("#info_t").update(Text("space: toggle (shift+space: back), /: search, b: build", style="dim"))
             return
         it = R.ITEMS[key]
         t = Text(it.label + "\n", style="bold")
@@ -438,7 +442,12 @@ class Builder(App):
             self.action_toggle()
 
     # ---- actions
-    def action_toggle(self):
+    def action_toggle_back(self):
+        """shift+space (backspace): a choice one value back, an on/off item toggled as space does"""
+        if not isinstance(self.focused, Input):
+            self.action_toggle(-1)
+
+    def action_toggle(self, step=1):
         if isinstance(self.focused, Input):              # (a space typed in the search box)
             self.focused.insert_text_at_cursor(" ")
             return
@@ -453,7 +462,7 @@ class Builder(App):
         before = dict(self.cfg)
         if it.is_choice:
             vals = [c[0] for c in it.choices]
-            self.cfg[key] = vals[(vals.index(self.cfg[key]) + 1) % len(vals)] if self.cfg[key] in vals else vals[0]
+            self.cfg[key] = vals[(vals.index(self.cfg[key]) + step) % len(vals)] if self.cfg[key] in vals else vals[0]
         else:
             self.cfg[key] = 0 if self.cfg[key] else 1
         if it.notice and self.cfg[key]:
