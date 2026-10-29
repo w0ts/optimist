@@ -1,20 +1,20 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* tests/ui_optimist_test.c, builder item SYS_DEBUG off (the user, 2026-10-17: "remove all the debugging stuff and replace by
- * what people want: CPU load, underruns and battery"): SYSTEM has no INTERNALS or USB STATS page; INFO is three read-outs,
- * CPU LOAD, UNDERRUNS (the drop-outs counted in: red just after one) and BATTERY, in the large face; KNOB 1 walks
+ * what people want: CPU load, underruns and battery"): SYSTEM has no INTERNALS or USB STATS page; INFO is read-outs,
+ * CPU LOAD, RAM and UNDERRUNS (the drop-outs counted in: red just after one; the battery is the header's, 2026-10-29), in the large face; KNOB 1 walks
  * the CPU line's NOW / MAX 10S / MAX 1M / MAX (2026-10-18: KNOB 1, not 2). DUAL builds (DUAL_LOAD): CPU0 and CPU1 for CPU LOAD (the user,
  * 2026-10-18: "shows the load of only one cpu out of 2"). Screen opt-info-lean.ppm. Built by tests/run_tests.sh with -DFELUCCA_SYS_DEBUG=0. */
 static void sysdbg_off_tests(void)
 {
 #if !FELUCCA_SYS_DEBUG
 #if DUAL_LOAD
-    static const char *const L[5] = {"CPU0", "CPU1", "RAM", "UNDERRUNS", "BATTERY"};
+    static const char *const L[4] = {"CPU0", "CPU1", "RAM", "UNDERRUNS"};
     const char *mx = "CPU0 MAX 10S";
 #else
-    static const char *const L[4] = {"CPU LOAD", "RAM", "UNDERRUNS", "BATTERY"};
+    static const char *const L[3] = {"CPU LOAD", "RAM", "UNDERRUNS"};
     const char *mx = "CPU LOAD MAX 10S";
 #endif
-    const uint32_t nl = sizeof L / sizeof L[0], xr = nl - 2u;
+    const uint32_t nl = sizeof L / sizeof L[0], xr = nl - 1u;
     uint32_t i, ok = 1, half = OVL_HALF_US;
     cell_t c;
     reset_ui();
@@ -30,7 +30,7 @@ static void sysdbg_off_tests(void)
         sys_info_cell(i, &c);
         ok &= c.kind == CK_RO && !strcmp(c.label, L[i]);
     }
-    check(ok, DUAL_LOAD ? "SYS_DEBUG off, DUAL: INFO is CPU0, CPU1, UNDERRUNS, BATTERY" : "SYS_DEBUG off: INFO is CPU LOAD, UNDERRUNS, BATTERY");
+    check(ok, DUAL_LOAD ? "SYS_DEBUG off, DUAL: INFO is CPU0, CPU1, RAM, UNDERRUNS (the battery is the header's)" : "SYS_DEBUG off: INFO is CPU LOAD, RAM, UNDERRUNS (the battery is the header's)");
     song.cpu_q8 = 50u * 256u / 100u + 1u;
     ui.row[SCR_SYSTEM] = 0;                             /* (INFO shown: KNOB 1 is its measure) */
     frame();

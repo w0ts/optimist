@@ -798,6 +798,7 @@ typedef struct {
     uint32_t cpu_q8;             /* audio ISR load, 1/256 */
     uint32_t master_q12;
     int32_t batt_raw;            /* smoothed ADC ch3 (battery divider), 0 = not read yet */
+    uint8_t batt_chg;            /* the supply (op_project.c sys_batt_chg): 0 on the cell, 1 5 V present, 2 charging; 0 = not read yet */
 } song_t;
 
 static track_t trk[NTRK];        /* the instrument: three parts and the drum track */

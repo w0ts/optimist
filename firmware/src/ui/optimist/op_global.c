@@ -188,15 +188,19 @@ static uint32_t gl_pg(uint32_t s, uint32_t i) { return gll.pg[s & 1u][i % GL_MAX
 static uint32_t gl_first(uint32_t s, uint32_t i) { return gll.pf[s & 1u][gl_pg(s, i)]; }   /* the first line of line i's page */
 static uint32_t gl_end(uint32_t s, uint32_t i) { return gll.pf[s & 1u][gl_pg(s, i) + 1u]; }   /* one past its last */
 static int gl_scr(uint32_t scr) { return (scr == SCR_GLOBAL || scr == SCR_SYSTEM) && !(scr == SCR_SYSTEM && GL_DEV); }
+static uint32_t info_shown(void)                        /* SYSTEM's INFO page is the one on the screen (its header: the battery, op_draw.c head_make) */
+{
+    uint32_t e;
+    if (ui.scr != SCR_SYSTEM || !gl_scr(SCR_SYSTEM) || ui.row[SCR_SYSTEM] >= gl_n(1))
+        return 0;
+    e = gl_ent(1, ui.row[SCR_SYSTEM]);
+    return sys_item(e >> 2, e & 3u) == SI_INFO;
+}
 /* SHIFT (OCT- held) + YES on SYSTEM's INFO page: DROPS, UNDERRUNS, the CPU lines' MAX and the guard's voices shed from 0 again
  * (the display's baselines; the counters go on). On that page it takes the place of the redo chord (op_combos.c shift_combo). 1: taken */
 static int info_clear(void)
 {
-    uint32_t e;
-    if (ui.scr != SCR_SYSTEM || !gl_scr(SCR_SYSTEM) || op_armed() || ui.row[SCR_SYSTEM] >= gl_n(1))
-        return 0;
-    e = gl_ent(1, ui.row[SCR_SYSTEM]);
-    if (sys_item(e >> 2, e & 3u) != SI_INFO)
+    if (op_armed() || !info_shown())
         return 0;
     info_clear_counts();
     ui_message("COUNTERS CLEARED");

@@ -449,6 +449,17 @@ static BOOT_ORDER void fm1_main(void)
             if (b > 0)
                 song.batt_raw = song.batt_raw ? song.batt_raw + (b - song.batt_raw) / 32 : b;
         }
+        {   /* the supply, twice a second (INFO's header: charging; fm1_sys.h fm1_charge_state) */
+            static uint32_t chg_t;
+            if (m - chg_t >= 500u) {
+                uint32_t ie = fm1_icfg() & 0x200u;
+                chg_t = m;
+                fm1_irq_off();
+                song.batt_chg = (uint8_t)fm1_charge_state();
+                if (ie)
+                    fm1_irq_on();
+            }
+        }
         master_pot(&knob, 1);                           /* MASTER */
         {   /* OCT- + OCT+ held 5 s, stopped: enter UBOOT with RAM intact (debug / update); a countdown
              * shows from 2 s, letting go cancels it. Not while playing: on the drum track these are the

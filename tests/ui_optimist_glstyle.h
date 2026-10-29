@@ -53,7 +53,7 @@ static int gls_header(void)
                 printf("  glstyle: header '%s' + '%s' (name '%s'), %d of %d px, bar.beat '%s'\n", h.t, h.pos, nm, (int)strlen(full) * 8, h.room, h.r);
             ok &= !strcmp(h.eng, s ? "SYSTEM" : "GLOBAL") && h.t[0] >= 'A' && h.t[0] <= 'Z' && !h.cut;
             ok &= np < 2u ? !h.pos[0] : !strcmp(h.pos, pos);
-            ok &= (int32_t)strlen(full) * 8 <= h.room && h.r[0] && h.bpm[0];   /* (whole in its room, bar.beat and the tempo kept) */
+            ok &= (int32_t)strlen(full) * 8 <= h.room && (h.ib ? !h.r[0] && !h.bpm[0] : h.r[0] && h.bpm[0]);   /* (whole in its room, bar.beat and the tempo kept; INFO's header has the battery in their place) */
             ok &= !strncmp(h.t, nm, strlen(nm)) || nm_find(NM_SHORT, nm, 0, full, sizeof full);   /* (the name, or its table's short form) */
             ok &= !strstr(h.t, "Global") && !strstr(h.t, "System");
             if (!hashes++)
@@ -288,22 +288,91 @@ static int gls_credits(void)                            /* the last page: CREDIT
     ppm("opt-system-credits");
     return (int)ok;
 }
+/* SYSTEM > INFO's header (the user, 2026-10-29): no tempo and no loop position, a big battery (the fill to the percentage,
+ * green / amber under 40 % / red under 20 %, no text on it) and the supply: a bolt and CHARGING while the chip says it
+ * charges, POWER for 5 V without a charge; the other pages keep their tempo; no BATTERY line on INFO. Screens
+ * opt-info-battery-80c.ppm (80 %, charging), opt-info-battery-15.ppm (15 %, on the cell) */
+static int32_t gls_raw_for(uint32_t pct)                /* the ADC count whose percentage is pct (the curve's first) */
+{
+    int32_t r;
+    for (r = 500; r < 700; r++) {
+        song.batt_raw = r;
+        if (sys_batt_pct() >= pct)
+            return r;
+    }
+    return 0;
+}
+static int gls_info_header(void)
+{
+    uint32_t ok = 1, i;
+    head_t h;
+    cell_t c;
+    int32_t ix = 236 - HEAD_IC_W;
+    for (i = 0; i < INFO_N; i++) {
+        sys_info_cell(i, &c);
+        ok &= strcmp(c.label, "BATTERY") != 0;
+    }
+    reset_ui();
+    op_enter(SCR_SYSTEM);
+    ui.row[SCR_SYSTEM] = 0;
+    song.batt_raw = gls_raw_for(80);
+    song.batt_chg = 2;
+    ui.force = 1;
+    frame();
+    head_make(&h);
+    ok &= h.ib == 2u && h.ipct >= 80u && h.ipct <= 82u && h.ichg == 2u && !h.bpm[0] && !h.r[0];   /* (INFO: the battery, no tempo) */
+    ok &= px_in((uint32_t)ix + 3, OY_HEAD + 8, 8, 4, C_OK);                       /* (the fill, green) */
+    ok &= px_in((uint32_t)ix - 3 - HEAD_BOLT_W, OY_HEAD + 6, HEAD_BOLT_W, 12, C_OK);   /* (the bolt: charging) */
+    ok &= !px_in((uint32_t)ix + 3 + (HEAD_IC_W - 6) * 80 / 100 + 3, OY_HEAD + 8, 3, 4, C_OK);   /* (not filled past 80 %) */
+    ppm("opt-info-battery-80c");
+    song.batt_raw = gls_raw_for(15);
+    song.batt_chg = 0;
+    ui.force = 1;
+    frame();
+    head_make(&h);
+    ok &= h.ib == 2u && h.ipct >= 15u && h.ipct <= 17u && h.ichg == 0u;
+    ok &= px_in((uint32_t)ix + 3, OY_HEAD + 8, 3, 4, C_ERR) && !px_in((uint32_t)ix + 3, OY_HEAD + 8, 8, 4, C_OK);   /* (red under 20 %) */
+    ok &= !px_in((uint32_t)ix - 3 - HEAD_BOLT_W, OY_HEAD + 6, HEAD_BOLT_W, 12, C_OK);   /* (no bolt on the cell) */
+    ppm("opt-info-battery-15");
+    song.batt_raw = gls_raw_for(30);
+    ui.force = 1;
+    frame();
+    ok &= px_in((uint32_t)ix + 3, OY_HEAD + 8, 3, 4, C_WARN);                     /* (amber under 40 %) */
+    song.batt_raw = 0;                                  /* (no reading: the outline only, nothing charging) */
+    song.batt_chg = 0;
+    ui.force = 1;
+    frame();
+    head_make(&h);
+    ok &= h.ib == 1u && !h.bpm[0];
+    song.batt_raw = gls_raw_for(80);
+    song.batt_chg = 1;                                  /* (5 V without a charge: POWER, no bolt) */
+    ui.force = 1;
+    frame();
+    ok &= !px_in((uint32_t)ix - 3 - HEAD_BOLT_W, OY_HEAD + 6, HEAD_BOLT_W, 12, C_OK);
+    ui.row[SCR_SYSTEM] = (uint8_t)line_named(SCR_SYSTEM, "KNOB COLORS");
+    ui.force = 1;
+    frame();
+    head_make(&h);
+    ok &= h.ib == 0u && h.bpm[0];                       /* (another SYSTEM page: the tempo stays) */
+    ui.row[SCR_SYSTEM] = 0;
+    op_enter(SCR_HOME);
+    frame();
+    head_make(&h);
+    ok &= h.ib == 0u && h.bpm[0];
+    song.batt_raw = 0;
+    song.batt_chg = 0;
+    if (!ok)
+        printf("  glstyle: INFO's header wrong\n");
+    return (int)ok;
+}
 static int gls_info_page(void)
 {
     uint32_t i, ok = 1;
     cell_t c;
-    int32_t ph = (GL_END - gl_y0()) / (int32_t)INFO_N < GL_INFO_PH ? (GL_END - gl_y0()) / (int32_t)INFO_N : GL_INFO_PH;
+    int32_t ph = gl_info_pitch(INFO_PG_INFO, INFO_N, gl_y0());
     ok &= sys_item(gl_ent(1, 0) >> 2, gl_ent(1, 0) & 3u) == SI_INFO && gl_end(1, 0) == 1u;   /* (page 1 is INFO, alone) */
     ok &= ph >= (int32_t)FONT_S.h + 6;                  /* (every read-out fits the page) */
-    song.batt_raw = 0;                                  /* the battery line: no reading says so, a reading the estimated volts and percentage */
-    sys_info_cell(INFO_BASE - 1u, &c);
-    ok &= c.kind == CK_RO && !strcmp(c.label, "BATTERY") && !strcmp(c.val, "NO READING");
-    song.batt_raw = 612;
-    sys_info_cell(INFO_BASE - 1u, &c);
-    ok &= !strcmp(c.val, "~3.94V 81%");
-    song.batt_raw = 540;
-    sys_info_cell(INFO_BASE - 1u, &c);
-    ok &= !strcmp(c.val, "~3.48V 7%");
+    ok &= gls_info_header();                            /* (the battery is the header's, not a line: 2026-10-29) */
     info_mode = OVL_NOW;                                /* (the CPU line's measure: NOW; a fuzz run's KNOB 2 may have left another) */
     {   /* the CPU0 load number's colour: green under 60 %, amber 60..85, red over 85 (the guard's ceiling), text only */
         static const int32_t pc[7] = {0, 59, 60, 85, 86, 100, 150};
