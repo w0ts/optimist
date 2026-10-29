@@ -90,7 +90,7 @@ static void cell_gauge(cell_t *c, uint32_t list, int32_t min, int32_t max, int32
 static void cell_gauge_d(cell_t *c, const param_desc_t *d, int32_t v)
 {
     if (!is_lrate(d) && d != &DLFO_DESC[DLF_RATE])   /* (a drum lane's LFO RATE: the same range, lane_play.c) */
-        cell_gauge(c, d->fmt == F_ENUM || d->fmt == F_ONOFF, d->min, d->max, v);
+        cell_gauge(c, d->fmt == F_ENUM || d->fmt == F_ONOFF, d->min, d->max, enum_rank(d, v));   /* (a listed order: the place) */
     else if (v < 0)
         cell_gauge(c, 1, 0, LSYNC_N - 1, -v - 1);
     else

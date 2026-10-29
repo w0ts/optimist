@@ -416,7 +416,7 @@ static uint32_t pw_leds(uint32_t *d);
 enum { SI_NONE, SI_LIGHTS, SI_KEYS, SI_LOWCUT, SI_OUT, SI_SYNC, SI_CH1, SI_CH2,
        SI_CH3, SI_CHD, SI_USB, SI_CPU, SI_MHZ, SI_CALIB, SI_ABOUT, SI_HOLD, SI_BLE, SI_KCOL, SI_DBGST, SI_CLKOUT, SI_CPU1, SI_INFO, SI_BUILD, SI_REPO,
        SI_DROPS, SI_GUARD, SI_UAINFO, SI_XRUN, SI_DIAG, SI_CREDITS, SI_BLEST, SI_BLEPEER, SI_BLEMIDI, SI_BLELIST, SI_BLEAUTO,
-       SI_BLEFGT, SI_FRESO, SI_VUFLOOR, SI_BTA, SI_BTAPEER, SI_BTAFMT, SI_BTAST, SI_CLKOFS, SI_BTOFS,
+       SI_BLEFGT, SI_FRESO, SI_VUFLOOR, SI_BTA, SI_BTAPEER, SI_BTAFMT, SI_BTAST, SI_CLKOFS, SI_BTOFS, SI_LINK, SI_LINKOFS,
 #if FELUCCA_SD_UI
        SI_SDCARD, SI_SDVERS, SI_SDSLACK, SI_SDINDEX,    /* SD CARD: the card, VERSIONS, SLACK, the sample index (sd_mode.c) */
        SI_SDPRE,                                        /* (SD_STREAM: the card samples' pre-buffer) */
@@ -561,11 +561,11 @@ static const struct { const char *name; uint8_t it[4]; } SYS[] = {
     {"CREDITS", {SI_CREDITS, SI_NONE, SI_NONE, SI_NONE}},   /* after ABOUT: one text page (op_gldraw.c gl_cred_draw: CRED) */
     /* the global rows, last: GLOBAL's (GLO tapped, op_global.c), not SYSTEM's (the user, 2026-10-12: GLO "the page
      * where we have bpm, nudge, midi track settings etc"); defined here once, SYSTEM shows the rows above them */
-    {"MIDI", {SI_IF(FELUCCA_MIDI_CLOCK, SI_SYNC), SI_IF(FELUCCA_MIDI_CLKOUT, SI_CLKOUT), SI_IF(FELUCCA_MIDI_OUT, SI_OUT),
-              SI_NONE}},   /* (CLK IN, CLK OUT, MIDI OUT: no MIDI IN since 2026-10-14, the user: notes come in through the track channels,
+    {"MIDI", {SI_IF(FELUCCA_MIDI_CLOCK, SI_SYNC), SI_IF(FELUCCA_MIDI_CLKOUT, SI_CLKOUT),
+              FELUCCA_LINK ? (uint8_t)SI_LINK : SI_IF(FELUCCA_MIDI_OUT, SI_OUT), FELUCCA_LINK ? SI_IF(FELUCCA_MIDI_OUT, SI_OUT) : (uint8_t)SI_NONE}},   /* (LINK, Link builds, between CLK OUT and MIDI OUT) */   /* (CLK IN, CLK OUT, MIDI OUT: no MIDI IN since 2026-10-14, the user: notes come in through the track channels,
                             * the clock through CLK IN; settings word bit 15 is free; CLKOUT: the clock sent, io/midi/clock_out.c) */
 #if FELUCCA_MIDI_CLOCK
-    {"MIDI", {SI_CLKOFS, SI_IF(SY_BT_OFS, SI_BTOFS), SI_NONE, SI_NONE}},   /* (following a clock: the steps that much earlier,
+    {"MIDI", {SI_CLKOFS, SI_IF(SY_BT_OFS, SI_BTOFS), SI_IF(FELUCCA_LINK, SI_LINKOFS), SI_NONE}},   /* (following a clock: the steps that much earlier,
                             * a wired clock's / a Bluetooth (BLE) clock's: clock_sync.c sync_lead_t; the settings record) */
 #endif
     {"CHANNELS", {SI_CH1, SI_CH2, SI_CH3, SI_CHD}},
@@ -606,9 +606,10 @@ static const param_desc_t *sys_desc(uint32_t it, int16_t **vp)
     if (it >= SI_OUT && it <= SI_CHD)
         return bps_desc(BPS[it - SI_OUT], vp);
 #if FELUCCA_MIDI_CLOCK
-    if (it == SI_CLKOFS || it == SI_BTOFS) {           /* (clock_sync.c sync_ofs, ms) */
-        *vp = &sync_ofs[it == SI_BTOFS];
-        return &SY_OFS_D[it == SI_BTOFS];
+    if (it == SI_CLKOFS || it == SI_BTOFS || it == SI_LINKOFS) {   /* (clock_sync.c sync_ofs, ms) */
+        uint32_t x = it == SI_BTOFS ? 1u : it == SI_LINKOFS ? 2u : 0u;
+        *vp = &sync_ofs[x];
+        return &SY_OFS_D[x];
     }
 #endif
     return 0;
@@ -728,6 +729,23 @@ static void sys_onoff(cell_t *c, const char *label, uint32_t on)   /* an ON / OF
 {
     cell_list(c, label, on ? "ON" : "OFF", 1, on != 0u);
 }
+#if FELUCCA_MIDI_CLKOUT
+/* CLK OUT's list, in the order shown: OFF USB BLE BOTH (without BLE: OFF USB); the values are clock_out.c CLKO_* */
+#if FELUCCA_BLE
+static const uint8_t CKO_ORD[] = {CLKO_OFF, CLKO_USB, CLKO_BLE, CLKO_BOTH};
+#else
+static const uint8_t CKO_ORD[] = {CLKO_OFF, CLKO_USB};
+#endif
+#define CKO_N ((int32_t)(sizeof CKO_ORD / sizeof CKO_ORD[0]))
+static int32_t cko_pos(void)
+{
+    int32_t i;
+    for (i = 0; i < CKO_N; i++)
+        if (CKO_ORD[i] == clko_on)
+            return i;
+    return clko_on ? 1 : 0;                              /* (BOTH without BLE: USB) */
+}
+#endif
 static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
 {
     static const char *const LV[4] = {"OFF", "LOW", "MID", "HIGH"};
@@ -1009,9 +1027,19 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
         break;
 #if FELUCCA_MIDI_CLKOUT
     case SI_CLKOUT:                                     /* MIDI clock out (io/midi/clock_out.c) */
-        sys_onoff(c, "CLK OUT", clko_on);
-        c->col = clko_blocked() ? C_WARN : 0;            /* (amber: ON, but USB is the clock followed: nothing sent) */
+        {
+            static const char *const CKN[4] = {"OFF", "BOTH", "USB", "BLE"};   /* (by CLKO_*) */
+            cell_list(c, "CLK OUT", CKN[clko_on & 3u], CKO_N - 1, cko_pos());
+        }
+        c->col = clko_blocked() ? C_WARN : 0;            /* (amber: on, but the port chosen is the clock followed, or no BLE central listens: nothing sent) */
         break;
+#endif
+#if FELUCCA_LINK
+    case SI_LINK: {
+        static const char *const LKN[3] = {"OFF", "ON", "ON+S/S"};   /* (by LINK_*) */
+        cell_list(c, "LINK", LKN[link_mode % 3u], LINK_ONSS, link_mode);
+        break;
+    }
 #endif
     case SI_CALIB:
         cell_act(c, 0, "PANEL", "CALIBRATE", 0);    /* (the action's word, the user 2026-10-13; the list's small face) */
@@ -1421,7 +1449,12 @@ static void sys_set(uint32_t it, int32_t s)
         break;
 #if FELUCCA_MIDI_CLKOUT
     case SI_CLKOUT:                                     /* (kept in the settings word: settings_word.c) */
-        clko_on = (uint8_t)sys_step(clko_on, s, 1);
+        clko_on = CKO_ORD[sys_step(cko_pos(), s, CKO_N - 1)];
+        break;
+#endif
+#if FELUCCA_LINK
+    case SI_LINK:                                       /* Ableton Link: OFF, ON (tempo and beat), ON+S/S (also play / stop) (clock_sync.c) */
+        link_mode = (uint8_t)sys_step(link_mode, s, LINK_ONSS);
         break;
 #endif
     case SI_LOWCUT:
@@ -1517,7 +1550,12 @@ static int sys_factory(uint32_t it)
         break;
 #if FELUCCA_MIDI_CLKOUT
     case SI_CLKOUT:
-        clko_on = 0;
+        clko_on = CLKO_OFF;
+        break;
+#endif
+#if FELUCCA_LINK
+    case SI_LINK:
+        link_mode = LINK_ONSS;
         break;
 #endif
     default:

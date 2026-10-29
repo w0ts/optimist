@@ -3852,6 +3852,7 @@ static void preset_engine_tests(void)
 #include "ui_optimist_master.h"                    /* PRESETS = the sound only; ALGORITHM to MASTER */
 #include "ui_optimist_knobcol.h"                   /* SYSTEM > SCREEN > KNOB COLORS */
 #include "ui_optimist_vufloor.h"                   /* SYSTEM > METERS > VU FLOOR: meter_h at each floor, the MASTER scale */
+#include "ui_optimist_syncorder.h"                 /* CLK IN / SYNC: AUTO first, the sources in its order, INT last */
 #include "ui_optimist_syncnudge.h"                /* PLAY held > NUDGE: the sync offset while following a clock */
 #include "ui_optimist_clkout.h"                    /* SYSTEM > CLOCK OUT */
 #include "ui_optimist_uasel.h"                     /* SYSTEM > USB AUDIO */
@@ -4142,6 +4143,10 @@ int main(int argc, char **argv)
     vufloor_tests();
     clkout_tests();
     syncnudge_tests();
+#if FELUCCA_MIDI_CLOCK
+    syncorder_tests();
+    midi_lists_tests();
+#endif
     uasel_tests();
     newproj_tests();
 #if FELUCCA_SYS_DEBUG

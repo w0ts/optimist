@@ -284,7 +284,7 @@ static void tempo_draw(int32_t h)
         cv_box(bx + (int32_t)i * (bs + 6), 8 + dy, bs, bs, i == beat ? (i ? C_WHITE : C_OK) : C_BLACK);
     if (sy.src) {                                       /* following a clock: the offset OCT- / + move (op_tempo.c) */
         int32_t o = sync_ofs[sync_ofs_ix()];
-        x = cv_texts(bx, (short_ ? 25 : 32) + dy + bs - 16, sync_ofs_ix() ? "BT ofs " : "Ofs ", o ? C_WARN : C_GRAY);
+        x = cv_texts(bx, (short_ ? 25 : 32) + dy + bs - 16, sync_ofs_ix() == 1u ? "BT ofs " : sync_ofs_ix() == 2u ? "Link ofs " : "Ofs ", o ? C_WARN : C_GRAY);
         b[0] = o > 0 ? '+' : 0;
         b[1] = 0;
         fmt_int(b + (o > 0), o);

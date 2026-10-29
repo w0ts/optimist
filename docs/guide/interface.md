@@ -86,7 +86,7 @@ GLOBAL and SYSTEM are settings lists: one setting on a line, the name left and t
 **GLOBAL**
 - **Tempo:** BPM, NUDGE (as on the tempo page: the clock's offset while a clock is followed), SWING, TUNE (the master tuning, -50 to 50 cents).
 - **Rec:** MODE, LENGTH, START, CLICK, QUANT.
-- **MIDI:** CLK IN (the clock to follow: INT, USB, TRS, BLE, AUTO), CLK OUT (ON or OFF; amber when ON but there is nowhere to send it), MIDI OUT; CLK OFS and BT OFS ([midi-usb.md](midi-usb.md#midi-clock)). There is no MIDI IN line: notes come in through the track channels.
+- **MIDI:** CLK IN (the clock to follow: AUTO, LINK, TRS, USB, BLE, INT), CLK OUT (OFF, USB, BLE or BOTH; amber when the chosen port cannot send), LINK (Link builds: OFF, ON, ON+S/S), MIDI OUT (OFF, KEYS, SEQ, BOTH); CLK OFS, BT OFS and LINK OFS ([midi-usb.md](midi-usb.md#midi-clock)). There is no MIDI IN line: notes come in through the track channels.
 - **Channels:** T1, T2, T3, DR (the MIDI channel of each track).
 
 **SYSTEM**

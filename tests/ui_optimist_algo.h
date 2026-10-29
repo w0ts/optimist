@@ -150,6 +150,7 @@ static void algo_every_tests(void)
     /* SHIFT2 + a lane's key: that lane straight away, from any track, on any page (the shifts' language: pick) */
     reset_ui();
     song.sel = 0;
+    song.octave = 0;                                    /* (reset_ui keeps the octave: an earlier random-use test may leave one) */
     op_enter(SCR_SOUND);
     frame();
     fm1_in.buttons |= BT(B_OCTUP);
@@ -166,6 +167,8 @@ static void algo_every_tests(void)
     kup(WK(1));
     fm1_in.buttons &= ~BT(B_OCTUP);
     frame();
+    if (!(song.sel == 1u && song.octave == 0 && !smute_trk))
+        printf("  algo: SHIFT2 + white key 2: sel %d, octave %d, smute_trk %d, playing %d, scr %d\n", (int)song.sel, (int)song.octave, (int)smute_trk, (int)song.playing, (int)ui.scr);
     check(song.sel == 1u && song.octave == 0 && !smute_trk, "SHIFT2 + white key 2: T2 selected, nothing muted, no octave");
     /* the drum track: SHIFT2 + a lane key is the key alone inverted, and STEP is inverted from the others (the user,
      * 2026-10-17): off STEP the key alone plays, SHIFT2 + it selects (silent); on STEP the key alone selects, SHIFT2 + it

@@ -67,11 +67,11 @@ never moving back, a relock beyond a beat. The tempo shown is `lk_mpb`.
 (4 beats by default). A start takes S = the next quantum boundary at or after the session's start beat
 (`lk_play_beat`); joining a session that is already playing takes the boundary before now, so the bar lines up at once.
 
-**Start / stop sync** (on, as Live's default). Session playing -> arm at S; stopped -> stop. PLAY on the FM-1
+**Start / stop sync** (LINK on the MIDI page: OFF no session, ON tempo and beat only, ON+S/S this, as Live's default). Session playing -> arm at S; stopped -> stop. PLAY on the FM-1
 -> `lk_set_playing(1, next bar)`, STOP -> `lk_set_playing(0)`. TEMPO turned while following -> `lk_set_tempo`
 (Link has no leader: any peer can change the tempo).
 
-**Offset.** A third offset beside CLK OFS / BT OFS, `LINK OFS` (ms), for the network and the device on the
+**Offset.** A third offset beside CLK OFS / BT OFS, `LINK OFS` (ms; GLOBAL > MIDI's second page, kept in the settings record, a record from before reads CLK OFS's value), for the network and the device on the
 other end; BT audio's own delay is added on top as for the others.
 
 **MIDI clock out.** `clock_out.c` already sends F8 at the tempo it follows, so with Link the FM-1 also bridges
