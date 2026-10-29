@@ -1150,6 +1150,7 @@ static void save_clear_tick(uint32_t held)
     scene_clear_ask(a);
     op_arm_hold();                                      /* (SAVE is held: the ring) */
 }
+#include "../../system/hpjack.h"                      /* the headphone jack (PB5), debounced: hp_poll */
 static void ui_input(void)
 {
     uint32_t pressed = fm1_input_edges(0), notes = fm1_input_note_edges(), held = fm1_in.buttons, id, taps, keys, n;
@@ -1157,6 +1158,7 @@ static void ui_input(void)
     op_pass.gap = fm1_ms - op_pass.ms;                  /* (this pass's edges came since the last: op_btn_ms) */
     op_pass.ms = fm1_ms;
     op_pass.t = fm1_ticks();
+    hp_poll();                                          /* the headphone jack: SPK LOWCUT or HP BASS (system/hpjack.h) */
 #if FELUCCA_BT_UI
     bt_poll();                                          /* SYSTEM > Bluetooth: AUTO at boot, a connect given up (op_bt.c) */
 #endif
