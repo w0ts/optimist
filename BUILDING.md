@@ -75,8 +75,8 @@ so (`fm1base/ is empty: run git submodule update --init --recursive`); `--classi
 How a build goes: the builder's chosen profile or `.config` (`--profile`, `--config`, `--set`: the same items and
 profiles) is written as `build/builder.config`, and `tools/fm1base.py` runs `fm1base/tools/build.py optimist` with
 `OPTIMIST` = this checkout and `OPT_CONFIG` = that file (the app's `gen_optimist.py` makes the configuration header and the
-generated tables from it through the builder's own `configure.py`; Bluetooth, Bluetooth audio and CACHE_RAM are off for lack
-of support on fm1-base). An SD card mode profile (`LAYOUT=1`) builds with `FM1B_APP_END=0xCE000`, fm1-base's bigger app slot,
+generated tables from it through the builder's own `configure.py`; Bluetooth, Bluetooth audio and CACHE_RAM are the
+configuration's own, on fm1-base's: `fm1.toml`'s `ble`, `bt_audio` and `cache_ram_ways` follow it). An SD card mode profile (`LAYOUT=1`) builds with `FM1B_APP_END=0xCE000`, fm1-base's bigger app slot,
 by design with fewer flash projects. The toolchain is `JIELI_TOOLCHAIN` (default `~/.jieli/toolchain`), the SDK files
 `AC79_SDK` (`make sdk`). The package lands where Optimist's does (`build/felucca.fwsc`, `build/optimist-<version>.fwsc`,
 `firmwares/` for `package`); `build/sizes.json` comes from fm1-base's `build/sizes.json` (flash against the same 581,564 B

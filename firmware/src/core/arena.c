@@ -96,6 +96,10 @@ _Static_assert(ARN_PARTS <= 32u, "the arena's clients: a bit each in a mask (ski
 #ifndef ARN_UNDO_KEEP
 #define ARN_UNDO_KEEP 0u                                /* (after the arena, the undo history's least: the includer's) */
 #endif
+#ifndef ARN_UNDO_ROOM
+#define ARN_UNDO_ROOM ARN_UNDO_KEEP                     /* (the most ARN_UNDO_KEEP can be: the includer's when it is not a
+                                                         * constant; the host's array) */
+#endif
 #ifndef ARN_TOPS_HW
 #define ARN_TOPS_HW 0                                   /* the ARN_TOPS from the top of what is in use (1: the undo history
                                                          * after it borrows the rest) or from the arena's end (0: measured
@@ -136,7 +140,7 @@ static void arn_boot(uint8_t *lo, uint8_t *hi)
 }
 #else                                                   /* (the host: a stand-in of ARN_BYTES, the undo's least after it) */
 _Static_assert(ARN_BYTES % ARN_ALIGN == 0u, "the arena: whole units");
-static uint8_t arn_mem[ARN_BYTES + ARN_UNDO_KEEP] __attribute__((aligned(8))) IN_POOL;
+static uint8_t arn_mem[ARN_BYTES + ARN_UNDO_ROOM] __attribute__((aligned(8))) IN_POOL;
 #define arn_boot(lo, hi) ((void)(lo), (void)(hi))
 #endif
 
@@ -216,7 +220,7 @@ static uint32_t arn_place(const arn_st_t *A, uint32_t k, uint32_t n, uint32_t sk
 {
     uint32_t at = ARN_BYTES, hw;
     if (ARN_TOPS >> k & 1u) {
-        hw = ARN_UNDO_KEEP && ARN_TOPS_HW ? arn_hw(A, skip) : ARN_BYTES;
+        hw = ARN_TOPS_HW && ARN_UNDO_KEEP ? arn_hw(A, skip) : ARN_BYTES;
         at = arn_scan(A, n, skip, ARN_ALIGN, hw);
         if (at == ARN_BYTES && hw < ARN_BYTES)          /* (none under it: just over what is in use) */
             at = arn_scan(A, n, skip, ARN_ALIGN, hw + n < ARN_BYTES ? hw + n : ARN_BYTES);
@@ -413,7 +417,7 @@ static int arn_plan(arn_st_t *T, const arn_goal_t *g)
             continue;
         arn_high = (uint8_t)up;
         at = arn_scan(T, T->b[0][k].len, 1u << k, up ? ARN_UP_ALIGN : 0u,
-                      up && ARN_UNDO_KEEP && ARN_TOPS_HW ? arn_hw(T, 1u << k) : ARN_BYTES);   /* (up: no higher
+                      up && ARN_TOPS_HW && ARN_UNDO_KEEP ? arn_hw(T, 1u << k) : ARN_BYTES);   /* (up: no higher
                                                          * than what is in use) */
         arn_high = 0;
         if (at == ARN_BYTES && !pass)
