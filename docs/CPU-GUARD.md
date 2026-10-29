@@ -36,7 +36,7 @@ if the reverb is already off.
 count that loses 1 a half; at 160 (about 3 within ~30 halves) with a mean load of 50 % or more the guard reacts: one
 level up, or at the top one voice cut and the voices capped one under what sounded (`CG_VBUDGET`, voice.c; a new note
 steals), the cap a voice higher after 2 s with no late half. A level a reaction set comes off only under the load the
-drop-outs came at less 1/16 of a half, and not while voices are capped. A late half holds a release (and the cap's rise) back
+drop-outs came at less 1/16 of a half, and not while voices are capped. A late half holds a release back
 only at a mean of 50 % or more, where the reactive path counts it: under it a late half is not the music's (2026-10-29,
 the user: "the FDN8 reverb stops working randomly"; before, a lone late half every second or two at any load kept a
 reaction's REVERB level, the reverb off, for good: `tests/cpuguard_test.c` 11). Why the reverb is silent, read over USB:
