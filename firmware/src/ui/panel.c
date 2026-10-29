@@ -99,7 +99,7 @@ static void settings_init(void)
     if (settings.magic != SETTINGS_MAGIC || settings.palette >= NPALETTES) {
         settings.magic = SETTINGS_MAGIC;
         settings.palette = 4;                  /* MONO (default) */
-        settings.lowcut = 0;
+        settings.lowcut = oc_word(1u, 0u);     /* SPK LOWCUT ON, HP BASS OFF (fx/outcorr.c) */
         settings.zoom = 0;                     /* large readout of the touched value: off */
         settings.view = 1;                     /* the overview pages (ALL) */
     }
@@ -108,7 +108,6 @@ static void settings_init(void)
     settings.palette = 4;                      /* the Optimist UI: MONO, no COLOR setting (the user, 2026-10-18: "white / mono
                                                 * is fine"); SLOOP's UI keeps its HOME-hold COLOR menu */
     palette_set(settings.palette);
-    if (settings.lowcut > 2u)
-        settings.lowcut = 1;
-    fx_lowcut = (uint8_t)settings.lowcut;      /* 0 OFF, 1 LOWCUT, 2 BASS+ (bassplus.c) */
+    settings.lowcut = oc_set_word(settings.lowcut);   /* SPK LOWCUT, HP BASS (fx/outcorr.c: an older record's LOWCUT is SPK
+                                                         * LOWCUT's: OFF, ON, BASS+; HP BASS OFF) */
 }

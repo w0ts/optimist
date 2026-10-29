@@ -1019,6 +1019,14 @@ job; ( jobin
     run "USB AUDIO (SYSTEM) with the X0X kits: a tapped lane of the shared sum, the mix untouched" "$OUT/usb_audio_route_x0x"
     run "USB AUDIO (SYSTEM) with MIX_EXACT: MASTER the output at full volume, sample for sample" "$OUT/usb_audio_route_exact"
 ) >"$U.out" 2>&1 & jobbg
+# the output's correction by the headphone jack (fx/outcorr.c, system/hpjack.h): SPK LOWCUT / HP BASS on their side of
+# the jack, the codec's output only (Bluetooth, USB, the card's recorder plain, bit for bit), the jack's debounce
+job; ( jobin
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DOC_REC=1 -o "$OUT/outcorr_test" tests/outcorr_test.c -lm &&
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DOC_REC=1 -DFELUCCA_MIX_EXACT=1 -o "$OUT/outcorr_exact_test" tests/outcorr_test.c -lm
+    run "SPK LOWCUT / HP BASS: each on its side of the jack, OFF never; Bluetooth, USB and the card plain bit for bit; the jack's debounce" "$OUT/outcorr_test"
+    run "SPK LOWCUT / HP BASS with MIX_EXACT (the 7 bits under the output)" "$OUT/outcorr_exact_test"
+) >"$U.out" 2>&1 & jobbg
 # the audio path's skips (FELUCCA_SKIP, core.h): built with them and without, the same samples after every
 # neutral -> working -> neutral flip; also with the X0X kits, USB audio and the glides built (its files: the unit's
 # number $nu in their names, as the four run at once)

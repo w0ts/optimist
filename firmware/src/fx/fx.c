@@ -196,7 +196,8 @@ static HOT void dist_run(dist_t *s, int32_t d, int32_t *b, uint32_t n)
  * ~150 ms release, threshold where tanh is still nearly linear, so chords
  * get quieter instead of crushed. */
 #define LIM_T 18000
-static volatile uint8_t fx_lowcut;     /* settings: 12 dB/oct ~110 Hz for the small speaker */
+static volatile uint8_t fx_lowcut;     /* this block's output correction before the limiter (outcorr.c OC_*: SPK LOWCUT
+                                        * ~110 Hz 12 dB/oct or BASS+ on the speaker, HP BASS on headphones; 0 none) */
 static int32_t lc_l1, lc_l2, lc_r1, lc_r2;
 /* the output stage's state, the DC blocker's and the limiter's: the FM-1's own output's (mo), and USB's MASTER's own
  * (ua_mo: the same stage at full volume, ua_mst_out) */
@@ -232,25 +233,18 @@ static int32_t lce[4];
 AINL int32_t knee(int32_t x) { return soft_knee(x, KNEE); }   /* (dsp.c) */
 
 #include "bassplus/bassplus.c"          /* the menu's LOWCUT: BASS+ for the small speaker (from Felucca 1.0) */
+#include "outcorr.c"                    /* SPK LOWCUT / HP BASS by the headphone jack, the codec output only */
 AINL void master_dc(mout_t *s, int32_t *l, int32_t *r)   /* the DC blocker (master_pre; USB's MASTER: ua_mst_out) */
 {
     *l = dc_block(*l, &s->dc_l, &s->dce_l);
     *r = dc_block(*r, &s->dc_r, &s->dce_r);
 }
-AINL void master_pre(int32_t *l, int32_t *r)   /* the DC blocker and the low cut (master_out; LIMIT: master_comp.c) */
+AINL void master_pre(int32_t *l, int32_t *r)   /* the DC blocker and the output's correction (master_out; LIMIT:
+                                                * master_comp.c): SPK LOWCUT / HP BASS, the block's (outcorr.c) */
 {
     master_dc(&mo, l, r);
-    if (fx_lowcut) {                  /* two one-pole high-passes, error feedback as dc_block (the */
-        if (fx_lowcut == 2u)
-            bassplus_out(l, r);                     /* BASS+: an octave up, the bass' harmonics added */
-        else
-        {
-        *l = lowcut1(*l, &lc_l1, &lce[0]);          /* rounded step stopped at |x - lc| < 32: an offset) */
-        *l = lowcut1(*l, &lc_l2, &lce[1]);
-        *r = lowcut1(*r, &lc_r1, &lce[2]);
-        *r = lowcut1(*r, &lc_r2, &lce[3]);
-        }
-    }
+    if (fx_lowcut)
+        oc_apply(fx_lowcut, l, r);
 }
 AINL void master_lim(mout_t *s, int32_t *l, int32_t *r)   /* the limiter and the knee (master_out, ua_mst_out) */
 {
@@ -316,6 +310,7 @@ static HOT2 __attribute__((noinline)) void mout_block(mout_t *s, const int32_t *
 }
 #if FELUCCA_MASTER_COMP
 #include "master_comp/master_comp.c"       /* GLO > COMP / LIMIT: the bus compressor, the brickwall limiter (mix_finish) */
+_Static_assert(OC_LA == MLIM_N, "outcorr.c OC_LA: LIMIT's lookahead");
 #endif
 #if FELUCCA_USB_AUDIO
 /* USB's MASTER (io/usb/ua_tap.h ua_mst): the master bus through the output stage of its own, as the FM-1's own output
@@ -352,6 +347,42 @@ static HOT2 __attribute__((noinline)) void ua_mst_out(const int32_t *ml, const i
     }
 #endif
     mout_block(&ua_mo, ml, mr, ua_mst, n, 4096, 4096, 0u);
+}
+#endif
+#if OC_REC
+#if FELUCCA_MASTER_COMP
+static mlim_t sd_mlim __attribute__((section(".pool")));   /* (LIMIT's brickwall for the recorder's stage) */
+#endif
+/* the card's recorder while the codec's output is corrected (outcorr.c oc_rec): the output stage of its own on the plain
+ * bus, as the output's without the correction (the knob's volume, the DC blocker, the limiter and the knee, or LIMIT's
+ * brickwall), its state taken over from the output's when it starts; before the output's
+ * block (MIX_EXACT: the bits under it are the output's, written after). XIP (FAR): it runs only while the card records */
+static __attribute__((noinline)) void sd_mst_out(const int32_t *ml, const int32_t *mr, uint32_t n, int32_t m0, int32_t m1)
+{
+    if (!sd_mo_on) {                                    /* (the output's state: no step in the recording. Its lookahead */
+        sd_mo = mo;                                     /* only when it holds no corrected sample: else from empty) */
+#if FELUCCA_MASTER_COMP
+        if (oc_clean)
+            sd_mlim = mlim;
+        else
+            sd_mlim.on = 0;
+#endif
+        sd_mo_on = 1;
+    }
+#if FELUCCA_MASTER_COMP
+    if (mlim.on && (!sd_mlim.on || sd_mlim.c8 != mlim.c8)) {   /* LIMIT's CEIL, as the output's (from OFF: empty) */
+        if (!sd_mlim.on)
+            mlim_reset(&sd_mlim);
+        sd_mlim.c8 = mlim.c8;
+        sd_mlim.clin = mlim.clin;
+    }
+    sd_mlim.on = mlim.on;
+    if (sd_mlim.on) {
+        mlim_block(&sd_mlim, &sd_mo, ml, mr, sd_mst, n, m0, m1, 0u);
+        return;
+    }
+#endif
+    mout_block(&sd_mo, ml, mr, sd_mst, n, m0, m1, 0u);
 }
 #endif
 
@@ -2941,6 +2972,12 @@ static inline __attribute__((always_inline)) void mix_finish(int32_t *out, uint3
     m0 = master_cur < 0 ? (int32_t)song.master_q12 : master_cur;   /* MASTER glides (~10 ms; X0X 0.10.1) */
     m1 = glide_next(m0, (int32_t)song.master_q12);
     master_cur = m1;
+#if OC_REC
+    if (oc_rec)                                         /* the card records while the codec's output is corrected: its */
+        FAR(sd_mst_out)(mix_l, mix_r, n, m0, m1);       /* own plain stage (above, outcorr.c) */
+    else
+        sd_mo_on = 0;
+#endif
 #if FELUCCA_MASTER_COMP
     if (mlim.on) {                                      /* LIMIT > CEIL: the volume, master_pre, the lookahead brickwall */
         mlim_block(&mlim, &mo, mix_l, mix_r, out, n, m0, m1, 1u);   /* instead of the limiter and the knee (master_comp.c) */

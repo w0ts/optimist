@@ -60,7 +60,7 @@ OS_FILES = ["system/main.c", "system/supply.c", "io/usb/usb.c", "io/midi/midi_ri
             "io/usb/usb_audio.c", "storage/motion_flash.c", "display/lcd.c", "display/lcd_dirty.c",
             "display/gfx.c", "system/libc.c", "system/bench.c", "system/simd_probe.c", "system/cpuguard.c",
             "ui/meters.c", "seq/motion.c", "core/macro.c", "fx/master_comp/master_comp.c",
-            "seq/seq_midi.c", "drums/drum_sends.c", "drums/drum_mix.c", "seq/chance.c", "seq/qnt_seq.c", "fx/bassplus/bassplus.c",
+            "seq/seq_midi.c", "drums/drum_sends.c", "drums/drum_mix.c", "seq/chance.c", "seq/qnt_seq.c", "fx/bassplus/bassplus.c", "fx/outcorr.c",
             "fx/spring/spring.c", "fx/reverb/reverb_alt.c", "fx/reverb/rev_type.c", "engines/acid/eng_acid.c",
             "engines/cz/eng_cz.c", "engines/cz/cz_native.c", "engines/phys/eng_phys.c", "engines/phys/phys_dsp.c",
             "engines/phys/phys_symp.c", "fx/reverb/rev_math.c", "fx/reverb/reverb_airwin.c",

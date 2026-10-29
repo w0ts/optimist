@@ -555,6 +555,8 @@ SIM_EXPORT(sim_enc) void sim_enc(uint32_t i, int32_t delta)
     fm1_in.enc_steps[e] = (int16_t)(fm1_in.enc_steps[e] + delta * (panel.dir[i] < 0 ? -1 : 1));
 }
 SIM_EXPORT(sim_master) void sim_master(uint32_t v) { sim_master_pot = (int32_t)(v > 1023u ? 1023u : v); }
+/* the headphone jack: 1 headphones in, 0 nothing plugged (system/hpjack.h: debounced as the pin, HPJ_MS) */
+SIM_EXPORT(sim_jack) void sim_jack(uint32_t in) { hpj_host_in = (uint8_t)(in != 0u); }
 
 /* [0..13] the buttons by label (as sim_button), [14..40] the note keys: 0 off, 1 dim, 2 lit */
 SIM_EXPORT(sim_leds) uint8_t *sim_leds(void)

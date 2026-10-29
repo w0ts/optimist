@@ -62,6 +62,7 @@ class OptimistSim extends AudioWorkletProcessor {
       case "button": c.sim_button(m.i >>> 0, m.down ? 1 : 0); break;
       case "enc": c.sim_enc(m.i >>> 0, m.delta | 0); break;
       case "master": c.sim_master(Math.max(0, Math.min(1023, m.value | 0))); break;
+      case "jack": c.sim_jack(m.value ? 1 : 0); break;
       case "midi":     // (queued: fed one message per block, see feedMidi)
         this.midiQ.push(m.data instanceof Uint8Array ? m.data : new Uint8Array(m.data));
         break;
