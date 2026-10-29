@@ -2970,6 +2970,9 @@ static inline __attribute__((always_inline)) void mix_finish(int32_t *out, uint3
     mst_run(mix_l, mix_r, n);                           /* the master's insert slots (above) */
     if (!scope_src)                                     /* the SCOPE on the master, the mixer's master column */
         FAR(vis_tap_block)(mix_l, mix_r, n);
+#if FELUCCA_USB_AUDIO
+    ua_mst_tap(mix_l, mix_r, n);                        /* USB's MASTER: before the volume, never scaled by it (ua_tap.h) */
+#endif
     m0 = master_cur < 0 ? (int32_t)song.master_q12 : master_cur;   /* MASTER glides (~10 ms; X0X 0.10.1) */
     m1 = glide_next(m0, (int32_t)song.master_q12);
     master_cur = m1;
