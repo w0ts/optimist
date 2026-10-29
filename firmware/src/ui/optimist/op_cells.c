@@ -885,10 +885,7 @@ static int page_yes(uint32_t scr, uint32_t row, const page_t *pg, uint32_t k, ui
         uint32_t l = lane_selected();
         if (id == 15u) {                                /* RESET: the sound as the kit has it */
             fm1_irq_off();
-            memset(dl.ofs[l], 0, sizeof dl.ofs[l]);
-            dl.src[l] = DL_KIT;
-            memset(dl.ref[l], 0, sizeof dl.ref[l]);
-            dsend[l] = 0;
+            dsnd_reset(l);
             fm1_irq_on();
             ui_say("RESET ", LANE_NAME_OF(l));
         } else {
