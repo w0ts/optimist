@@ -1093,6 +1093,7 @@ const scrRes = await run(`${U} try {
   if (!await until(() => document.querySelectorAll("#devscr .sl").length > 20, 60000)) return { err: "no lines" };
   const mock = window.fm1Test.mock, r = {};
   const row = (s, i) => document.querySelector('#devscr .sl[data-s="' + s + '"][data-i="' + i + '"]');
+  const lab = (s, n) => [...document.querySelectorAll('#devscr .sl[data-s="' + s + '"]')].find((x) => x.querySelector(".sln").textContent === n);   /* (a line by its label: the tables gain and lose lines) */
   r.groups = [...document.querySelectorAll("#devscr .devpage h3")].map((h) => h.textContent).slice(0, 4).join("|");
   r.bpm0 = row(0, 0).querySelector(".slv").textContent;
   const sl = row(0, 0).querySelector("input[type=range]"); sl.value = String(+sl.value + 10); sl.dispatchEvent(new Event("input", { bubbles: true }));
@@ -1105,12 +1106,12 @@ const scrRes = await run(`${U} try {
   dn.click(); await sleep(500); dn.click(); await sleep(500); const v4 = row(0, 5).querySelector(".slv").textContent;
   r.steps = [v0, v1, v2, v3, v4].join("|");
   /* a switch: its button names the entry (no blank box) and toggles it; a channel stepper; a slider with a device step of its own (a device-stepped range) */
-  const sw = row(0, 10).querySelector("button.sw"), s0 = sw.textContent; sw.click(); await until(() => sw.textContent !== s0, 4000); r.sw = s0 + ">" + sw.textContent + ":" + sw.getAttribute("aria-pressed");
+  const sw = lab(1, "KNOB COLORS").querySelector("button.sw"), s0 = sw.textContent; sw.click(); await until(() => sw.textContent !== s0, 4000); r.sw = s0 + ">" + sw.textContent + ":" + sw.getAttribute("aria-pressed");
   sw.click(); await sleep(400);
-  const ch = row(0, 12), c0 = ch.querySelector(".slv").textContent; ch.querySelector("button[aria-label$='+']").click(); await sleep(500); r.chan = c0 + ">" + ch.querySelector(".slv").textContent;
-  const br = row(1, 3).querySelector("input[type=range]"); br.value = "3"; br.dispatchEvent(new Event("input", { bubbles: true })); await sleep(1500); r.bright = row(1, 3).querySelector(".slv").textContent;
+  const ch = lab(0, "TRK 1"), c0 = ch.querySelector(".slv").textContent; ch.querySelector("button[aria-label$='+']").click(); await sleep(500); r.chan = c0 + ">" + ch.querySelector(".slv").textContent;
+  const br = lab(0, "CLK OFS").querySelector("input[type=range]"); br.value = "3"; br.dispatchEvent(new Event("input", { bubbles: true })); await sleep(1500); r.bright = lab(0, "CLK OFS").querySelector(".slv").textContent;
   r.blank = [...document.querySelectorAll("#devscr .sl")].filter((x) => !(x.querySelector(".slv") && x.querySelector(".slv").textContent.trim()) && !(x.querySelector("button") && x.querySelector("button").textContent.trim())).length;
-  window.confirm = () => true; const act = row(1, 9).querySelector("button"); act.click(); await sleep(500); r.act = !!act && act.textContent;
+  window.confirm = () => true; const act = lab(1, "PANEL").querySelector("button"); act.click(); await sleep(500); r.act = !!act && act.textContent;
   r.stepper = !!up && row(0, 5).dataset.kind === "1";
   r.kinds = [1, 2, 3].map((k) => document.querySelectorAll('#devscr .sl[data-kind="' + k + '"]').length).join();
   r.help = !!row(0, 0).querySelector(".sln").title;
@@ -1118,7 +1119,7 @@ const scrRes = await run(`${U} try {
   r.wide = document.documentElement.scrollWidth <= window.innerWidth + 1;
   return r; } catch (e) { return { err: String(e.stack) }; }`);
 ok(scrRes && /^GLOBAL \u00b7 Tempo/.test(scrRes.groups) && scrRes.bpm1 !== scrRes.bpm0 && /^1[0-9][0-9] BPM$/.test(scrRes.bpm1) && /^[0-9]+,[0-9]+,[0-9]+$/.test(scrRes.kinds) && scrRes.help && scrRes.wide
-  && scrRes.steps === "1 bar|2 bar|4 bar|4 bar|1 bar" && /^OFF>ON:true$/.test(scrRes.sw) && /^5>6$/.test(scrRes.chan) && scrRes.bright === "3" && scrRes.blank === 0 && scrRes.act === "CALIBRATE",
+  && scrRes.steps === "1 bar|2 bar|4 bar|4 bar|1 bar" && /^OFF>ON:true$/.test(scrRes.sw) && /^1>2$/.test(scrRes.chan) && scrRes.bright === "3 ms" && scrRes.blank === 0 && scrRes.act === "CALIBRATE",
   `e2e v13 SCRN (mock ?fxp=1): Settings lists GLOBAL and SYSTEM as the device's lines; a slider turns BPM, steppers and switches, help from the device's texts (${JSON.stringify(scrRes)})`);
 await shot("settings-device-lines");
 /* v13 SCRS (the mock with ?fxp=1): the Device screens page lists the device's screens; SOUND shows the pages in the device's order grouped by family, a card turns, a drum lane
