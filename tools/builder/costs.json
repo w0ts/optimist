@@ -1470,14 +1470,6 @@
     "ramtext": 0
    }
   },
-  "KEYLIT": {
-   "0": {
-    "flash": -220,
-    "ram": 0,
-    "pool": 0,
-    "ramtext": 0
-   }
-  },
   "QNT_SEQ": {
    "1": {
     "flash": 36,
@@ -1500,14 +1492,6 @@
     "ram": 256,
     "pool": 0,
     "ramtext": 12
-   }
-  },
-  "BRIGHT": {
-   "0": {
-    "flash": -224,
-    "ram": -16,
-    "pool": 0,
-    "ramtext": 0
    }
   },
   "MOTION": {
@@ -1562,14 +1546,6 @@
    "1": {
     "flash": 440,
     "ram": 0,
-    "pool": 0,
-    "ramtext": 0
-   }
-  },
-  "LIGHTS": {
-   "1": {
-    "flash": 776,
-    "ram": 64,
     "pool": 0,
     "ramtext": 0
    }

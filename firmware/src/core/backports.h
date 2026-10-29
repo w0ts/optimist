@@ -6,12 +6,9 @@
  *
  *   FELUCCA_CHANCE    per-step chance on the synth tracks              Felucca 1.0 (hugelton/Felucca 727f272,
  *                                                                      Leo Kuroshita, GPL-3.0-only)
- *   FELUCCA_KEYLIT    the keys light the notes the sequencer / arp     Felucca 1.0.1 (20c275e, #38) and
- *                     of the selected track play                       renebohne/sloop-fm1 e2e5099 (GPL-3.0)
  *   FELUCCA_QNT_SEQ   SCL > QNT SEQ: sequenced notes snap to the scale Felucca 1.0.1 (20c275e, #37)
  *   FELUCCA_SPRING    REV/CHO > TYPE: a spring reverb                  Felucca 1.0 (727f272)
  *   FELUCCA_BASSPLUS  MASTER > BASS+: small-speaker bass               Felucca 1.0 (727f272)
- *   FELUCCA_BRIGHT    SYSTEM menu: the screen's backlight level         X0X (charlesvestal/fm1-x0x 61654ba)
  *   FELUCCA_MOTION    knob moves recorded per step                     Felucca 1.0 (727f272)
  *   FELUCCA_ENG_PHYS  the PHYS engine (modal / string / membrane)      Felucca 1.0 (727f272; DaisySP + Rings
  *                                                                      parts MIT)
@@ -31,8 +28,12 @@
 #ifndef FELUCCA_CHANCE
 #define FELUCCA_CHANCE 0         /* +832 B flash; nothing changes until a step's chance is turned down */
 #endif
-#ifndef FELUCCA_KEYLIT
-#define FELUCCA_KEYLIT 1         /* on: +224 B flash, LEDs only (Felucca 1.0.1 has it always on) */
+/* Retired 2026-10-29: the keys always light the notes played (Felucca 1.0.1 20c275e #38, renebohne/sloop-fm1 e2e5099) and the screen's backlight is always full (X0X's BRIGHT is gone) */
+#if defined(FELUCCA_KEYLIT) && !FELUCCA_KEYLIT
+#error "FELUCCA_KEYLIT was retired: the keys always light the notes played"
+#endif
+#if defined(FELUCCA_BRIGHT) && FELUCCA_BRIGHT
+#error "FELUCCA_BRIGHT was retired: the backlight is always full"
 #endif
 #ifndef FELUCCA_QNT_SEQ
 #define FELUCCA_QNT_SEQ 0        /* SCL > QNT SEQ: the sequenced notes snap to the scale as they play */
@@ -42,9 +43,6 @@
 #endif
 #ifndef FELUCCA_BASSPLUS
 #define FELUCCA_BASSPLUS 0       /* MENU > LOWCUT: OFF / LOWCUT / BASS+ (the small speaker) */
-#endif
-#ifndef FELUCCA_BRIGHT
-#define FELUCCA_BRIGHT 1         /* MENU > BRIGHT: the backlight, 1..8. Froze an FM-1 on X0X before the PA2 fix (bright.c); boots full */
 #endif
 #ifndef FELUCCA_MOTION
 #define FELUCCA_MOTION 0         /* knob moves recorded per step (SEQ > MOTION) */

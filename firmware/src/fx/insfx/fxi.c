@@ -149,6 +149,10 @@ AINL uint32_t fxl_open(uint32_t s) { return fxl_st[s] == FXL_LENT && !fxl_send_o
 static uint32_t fxa_place(uint32_t j)
 {
     uint32_t n = FXA_SZ(j), p = fxa_fit(FXA_S, FXA_N, n, n > FXA_Z1), s;
+    if (FXR_MOVING()) {
+        fxi_pend = 1;                                   /* (the own room moving: nothing placed meanwhile) */
+        return FXA_NO;
+    }
     for (s = 0; s < FXL_NS && p == FXA_NO; s++)
         if (fxl_open(s) && fxl_fits(s, j))
             p = fxa_fit(FXL_LO(s), FXL_HI(s), n, 1);
@@ -218,6 +222,53 @@ static void fxi_clear(uint32_t j, uint32_t i)           /* instance i zeroed, at
 #endif
     (void)i;
 }
+#if FXM_NEED && FXA_I
+/* (fx/fx_arena.c, the interrupts off) the own room's block moved (fxa_ins already the new one): its instances' lines
+ * where they are now (their units the same) */
+static void fxi_relink(void)
+{
+    uint32_t j, i;
+    for (j = 0; j < FXI_NL; j++)
+        for (i = 0; i < FXI_TN[j]; i++) {
+            int16_t *ln;
+            if (fxi_own[j][i] == FXI_NONE || fxa_reg(fxa_u[j][i]) != FXL_NS)
+                continue;
+            ln = fxa_line(fxa_u[j][i]);
+#if FELUCCA_INS_CHORUS
+            if (j == 0u)
+                ifx_chrs[i].line = ln;
+#endif
+#if FELUCCA_INS_DELAY
+            if (j == 1u)
+                ifx_echo[i].line = ln;
+#endif
+#if FELUCCA_INS_JCHORUS
+            if (j == 2u)
+                ifx_jcho[i].c.ln = (juno_cho_s *)(void *)ln;
+#endif
+#if FELUCCA_INS_FLANGER
+            if (j == 3u)
+                ifx_flng[i].line = ln;
+#endif
+#if FELUCCA_INS_XDLY
+            if (j == 4u)
+                ifx_xdly[i].line = ln;
+#endif
+            (void)ln;
+        }
+}
+/* (fx_arena.c arn_can) none of the own room's lines is heard: every instance in it at rest (its wet 0) */
+static int fxi_room_quiet(void)
+{
+    uint32_t j, i;
+    for (j = 0; j < FXI_NL; j++)
+        for (i = 0; i < FXI_TN[j]; i++)
+            if (fxi_own[j][i] != FXI_NONE && fxa_reg(fxa_u[j][i]) == FXL_NS &&
+                ifx_lim_w(FXI_TY(j), fxi_aix(fxi_own[j][i])))
+                return 0;
+    return 1;
+}
+#endif
 /* a free instance of type FXI_TY(j) and its line placed (fxa_place), its units taken; FXI_NONE: none, or no room */
 static uint32_t fxi_find(uint32_t j)
 {

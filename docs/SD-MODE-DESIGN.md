@@ -125,10 +125,10 @@ emulator, not on an FM-1.
   larger S). Deviation from the sketch: no "two adjacent slots" (a part's slot is its own; a big engine stays
   resident), because slots shared between parts would need a placement that can refuse a project (open question in
   the report). `OPTIMIST_OVL_SLOT=N` forces S for a test build.
-- **The table** (`_ovl_rom`, after the far probe's `.text_far` past 0x93000: the big layout only): each engine's
+- **The table** (`_ovl_rom`, after the far probe's `.text_far` in the slot's last 64 KB: the big layout only): each engine's
   place (RAMTEXT, XIP, or the slots: its code once per slot). `core/overlay.c` checks it at boot (magic, the slots'
   address and span, each table's tag); refused, the overlay engines play nothing (the console's `ovl`: `ovl_bad 1`).
-  If the chip does not map the flash past 0x93000 (the far probe's question), this is what happens.
+  If the chip does not map the flash past 0x93000 (the far probe's question, no longer asked before a build: FAR_OK retired 2026-10-29), this is what happens.
 - **Protocol** (`core/overlay.c`): the audio (`track_render`, either core) calls a part's hooks only while
   `rto_eng[k]` names the part's engine, else the part plays nothing that block (its voices wait) and asks
   (`rto_want`). The main loop (`rto_poll`, every pass and in the wait loop) loads: `rto_eng[k]` = none, the copy,
@@ -385,6 +385,68 @@ PROPHET, NOISE, PLAITS, PHYS, GRAIN, ACID, FM6, WAVE) keep their state in the vo
   sizes; their items' measured RAM in costs.json still counts the arrays until a gpufarm re-measure.
 - Tests: the engines' goldens and health (`tests/cz_test.c`, `juno_test.c`, the regressions with every engine built),
   `tests/nbank_test.c` (the CZ collection: the part's tone through `cz_tone(p)`).
+
+**Built (the arena in the free RAM, packing, 2026-10-29; the user: "one project/FX memory setting with packing against
+fragmentation", "arena first, undo gets the rest", "never a drop-out while it plays"):**
+- **One switch.** `ARENA` is on or off (an older configuration's KB reads as on: registry.py WAS_COUNT). On, the arena is
+  the SRAM the link leaves free (engines.c `ARN_FREE`, core/arena.c `arn_boot`: the pool's end to the stacks' guard
+  band less the build's 8 KiB spare), taken at power-on; it holds the parts' engine states, the effects' lines and the
+  other buffers in every ARENA build (registry.h `FELUCCA_FX_ARENA`, the SD card mode's only before). The builder's one
+  memory question is whether it links; its notice says what a new project needs of the arena together. Off: the fixed
+  memories as before. The host tests: a stand-in of `FELUCCA_ARENA_BYTES` (96 KB by default).
+- **The undo history.** It keeps 16 KB after the arena (`ARN_UNDO_KEEP`: a dozen levels at the largest record, 1,353 B,
+  far more step edits) and borrows what the arena leaves free at its top (seq/undo.c `undo_yield`, `undo_regrow`): a
+  block placed there makes it give way, its oldest levels first (all of them when the ring wraps over the newest); the
+  arena is never refused for it.
+- **The send lines** are placed best fit from the arena's top as before (no fixed places), the parts first fit from its
+  bottom. **The limited inserts' own room** is fm1-next's: one block of the effects memory (`DLY_ARENA`) less the delay's
+  line while a limited type is held.
+- **Packing** (core/arena.c `arn_pack`, `arn_poll`): a refusal that the free bytes would hold (a part's change, a load's
+  part, a send line, the inserts' room, another buffer) plans moves on a copy of the arena, the fewest in this order: the
+  send lines and the room up to the highest place when that leaves a larger gap, then the parts' blocks down in address
+  order. Only what is quiet moves (`ARN_CAN`, fx_arena.c `arn_can`): a part while it plays nothing (no voice, no note
+  queued, no switch), a send line while its bus is silent (gated two blocks first: CPU1's late reverb block has run), the
+  room while none of its lines is heard; at a project load every part and the room. A refusal whose plan a sounding
+  block blocks stays a refusal (MEM FULL and the drop proposal as before) and the arena is packed once that block is
+  quiet (`arn_pk.want`, tried every 32 passes). A move copies the contents (no tail or state lost) in windows of at most
+  2 KB and 40 us with the interrupts off (the block period is 726 us), started just after an audio block, then swaps its
+  place and pointer with the interrupts off; its target and its client are checked again first.
+- **Sizes** in whole 256 B (`ARN_ALIGN`; measured against 64 and 1024 B in the first round).
+- **SYSTEM > INFO's RAM bar** (op_project.c `info_ram`): drawn as the CPU bars, RAM with the used / total KB; the arena's
+  blocks in use the fill, the undo history's share a dimmer segment after it, the rest free; the bright tick the last
+  ~10 s's most in use, the dim one the most since boot (system/overload.h's RAM ring, sampled with the CPU's). Without an
+  arena the SRAM in use at link. The stacks: the label amber and STACK LOW when one has had under 1 KB left. Its line
+  ARENA MOVE: the longest move / the longest interrupts-off window (us).
+- **The stress test** (`tests/arena_frag_test.c` on gpufarm: the jam profile's engines, sends and inserts, `DLY_ARENA` 64;
+  20,000 random steps with step edits and undos, 3 seeds summed; fm1-next 1451bf56 against this; at 64 KB the delay's
+  line 8192 samples in both). 103,680 B and 104,704 B are the arena the jam profile (crashhist) and sd-card-mots get on
+  this firmware (the free SRAM of their builds less the spare and the undo's 16 KB), 179,968 B the dev profile with
+  ARENA. fm1-next at those sizes is its arena of that many bytes (its undo ring: what its link leaves free, apart).
+
+| arena | tree | parts + loads + sends refused | of them a packed layout would place | insert lines refused | insert owner-steps unserved | mean free / hidden B | worst hidden B | moves | undo ring mean / least B |
+|---|---|---|---|---|---|---|---|---|---|
+| 64 KB | fm1-next | 2615 (1612 / 125 / 878) | 368 | 8795 | 51.1 % | 8477 / 2041 | 23176 | 0 | - |
+| 64 KB | final, the buffers just over what is in use (ARN_TOPS_HW 1) | 3029 (2011 / 149 / 869) | 647 | 8802 | 51.1 % | 12196 / 3744 | 27392 | 930 | 21080 / 16384 |
+| 64 KB | final | 2995 (1992 / 155 / 848) | 315 | 8795 | 51.1 % | 9563 / 1059 | 21504 | 980 | 16409 / 16384 |
+| 96 KB | fm1-next | 2693 (1676 / 111 / 906) | 1005 | 2774 | 18.9 % | 11741 / 3261 | 32440 | 0 | - |
+| 96 KB | final, the buffers just over what is in use (ARN_TOPS_HW 1) | 2654 (1694 / 133 / 827) | 1291 | 2787 | 18.7 % | 12207 / 4046 | 33280 | 790 | 20563 / 16384 |
+| 96 KB | final | 2491 (1516 / 126 / 849) | 572 | 2771 | 18.6 % | 8974 / 1426 | 28416 | 878 | 16414 / 16384 |
+| 103680 B (101.2 KB) | fm1-next | 2343 (1376 / 89 / 878) | 1213 | 2732 | 18.4 % | 13583 / 4853 | 35104 | 0 | - |
+| 103680 B (101.2 KB) | final, the buffers just over what is in use (ARN_TOPS_HW 1) | 2275 (1300 / 104 / 871) | 1060 | 2729 | 18.4 % | 12892 / 4303 | 33792 | 822 | 19876 / 16384 |
+| 103680 B (101.2 KB) | final | 1930 (1025 / 85 / 820) | 426 | 2728 | 18.3 % | 10571 / 1860 | 33024 | 853 | 16627 / 16384 |
+| 104704 B (102.2 KB) | fm1-next | 2001 (1129 / 80 / 792) | 772 | 2710 | 18.3 % | 12784 / 3832 | 32064 | 0 | - |
+| 104704 B (102.2 KB) | final, the buffers just over what is in use (ARN_TOPS_HW 1) | 1883 (1014 / 83 / 786) | 680 | 2731 | 18.4 % | 12214 / 3859 | 35840 | 640 | 19382 / 16384 |
+| 104704 B (102.2 KB) | final | 1910 (1014 / 89 / 807) | 453 | 2729 | 18.3 % | 10978 / 1906 | 33024 | 889 | 16692 / 16384 |
+| 128 KB | fm1-next | 868 (186 / 19 / 663) | 235 | 2719 | 18.2 % | 26754 / 11292 | 52648 | 0 | - |
+| 128 KB | final, the buffers just over what is in use (ARN_TOPS_HW 1) | 846 (150 / 10 / 686) | 268 | 2712 | 18.3 % | 28698 / 9627 | 48896 | 585 | 31495 / 16384 |
+| 128 KB | final | 1592 (1035 / 82 / 475) | 325 | 2713 | 17.6 % | 21508 / 3523 | 47104 | 1108 | 16613 / 16384 |
+| 179968 B (175.8 KB) | fm1-next | 0 (0 / 0 / 0) | 0 | 2648 | 17.3 % | 55429 / 17491 | 91344 | 0 | - |
+| 179968 B (175.8 KB) | final, the buffers just over what is in use (ARN_TOPS_HW 1) | 11 (0 / 0 / 11) | 11 | 2652 | 17.3 % | 55908 / 17617 | 78848 | 231 | 45259 / 16896 |
+| 179968 B (175.8 KB) | final | 0 (0 / 0 / 0) | 0 | 2648 | 17.3 % | 55886 / 10659 | 79104 | 260 | 17892 / 16384 |
+
+(An insert line refused: an owner newly left without one, counted alike in both trees. The undo ring's mean and least
+over the steps: the least is its 16 KB. ARN_TOPS_HW 1, the buffers placed just over what is in use so the undo history
+borrows more, measured as the third row of each size and left off: more bytes hidden in gaps at every size.)
 
 ## 7. Phases
 

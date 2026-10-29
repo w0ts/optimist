@@ -569,8 +569,8 @@ static HOT2 __attribute__((noinline)) void ifx_side_mix(const int32_t *sd, int32
         int32_t x = ((clamp(sd[i], -884000, 884000) >> 2) * (lvl0 + dl * (int32_t)i)) >> 10;
         int32_t g = ga + (((gb - ga) * (int32_t)i) >> CTL_LOG2);
         if (g < 32767)
-            x = (x >> 4) * (g >> 3) >> 8;
-        x = MIX_PAN(x, 4096);                           /* (the centre's gain, as the dry's: fx.c) */
+            x = MIX_GAIN(x, g);                         /* (fx.c) */
+        x = MIX_PAN(x, 4096);                          /* (the centre's gain, as the dry's: fx.c) */
         ml[i] += x, mr[i] -= x;
     }
 }

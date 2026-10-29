@@ -31,6 +31,7 @@ static void check(int ok, const char *what)
 }
 
 static dlrec_t tdl;
+#include "../firmware/src/ui/lights.c"             /* (the settings word carries its bits) */
 #include "../firmware/src/storage/settings_word.c"
 static uint32_t out_pk[8192], out_n;
 static int8_t bal[16][128];                     /* note ons - offs per (channel, note) since the last clear */

@@ -413,7 +413,7 @@ static uint32_t pw_leds(uint32_t *d);
 #include "../../system/dual_mode.h"                     /* 2ND CORE: DUALM_*, dual_why_name, and the INFO text helpers dual_cat / dual_cnum / dual_chex (LAST RESET: every UI=1 build; pure, no state) */
 #include "../../system/stackmark.h"                     /* INFO's RAM line: how deep the stacks went (painted at boot: stk_boot) */
 /* ---- SYSTEM: SLOOP's HOME-held menu as rows (ui/sloop/ui_menu.c) */
-enum { SI_NONE, SI_BRIGHT, SI_LIGHTS, SI_KEYS, SI_LOWCUT, SI_OUT, SI_SYNC, SI_CH1, SI_CH2,
+enum { SI_NONE, SI_LIGHTS, SI_KEYS, SI_LOWCUT, SI_OUT, SI_SYNC, SI_CH1, SI_CH2,
        SI_CH3, SI_CHD, SI_USB, SI_CPU, SI_MHZ, SI_CALIB, SI_ABOUT, SI_HOLD, SI_BLE, SI_KCOL, SI_DBGST, SI_CLKOUT, SI_CPU1, SI_INFO, SI_BATT, SI_BUILD, SI_REPO,
        SI_DROPS, SI_GUARD, SI_UAINFO, SI_XRUN, SI_DIAG, SI_CREDITS, SI_BLEST, SI_BLEPEER, SI_BLEMIDI, SI_BLELIST, SI_BLEAUTO,
        SI_BLEFGT, SI_FRESO, SI_VUFLOOR, SI_BTA, SI_BTAPEER, SI_BTAFMT, SI_BTAST, SI_CLKOFS, SI_BTOFS, SI_LINK, SI_LINKOFS,
@@ -425,6 +425,7 @@ enum { SI_NONE, SI_BRIGHT, SI_LIGHTS, SI_KEYS, SI_LOWCUT, SI_OUT, SI_SYNC, SI_CH
        SI_WFMODE, SI_WFNET, SI_WFSIG, SI_WFST,           /* SYSTEM > WI-FI (op_wifi.c): MODE, NETWORK, SIGNAL, STATE */
        SI_RAM,                                          /* INFO: the SRAM free at link, the stacks' least room left (stackmark.h) */
        SI_UHMODE, SI_UHDEV,                             /* SYSTEM > USB (USB_HOST, the release): MODE DEVICE / HOST, DEVICE */
+       SI_ARN,                                          /* INFO: the arena's longest move and interrupts-off window (us) */
        SI_UAS0 };                                       /* SI_UAS0 + s: USB AUDIO's line of source s (ua_tap.h UAS_*), last */
 /* a core's load number (% of the audio budget) in its colour: green under 60, amber 60..85, red over 85 (the predictive guard's
  * ceiling, system/cpuguard.c CG_CEIL = 85 %: above it the guard sheds quality / voices); INFO's bars and ticks the same. */
@@ -478,10 +479,11 @@ static void info_bar(cell_t *c, uint32_t ring, int32_t now)
     c->hold[1] = (int16_t)(pall < 100u ? pall : 100u);
 }
 static const char *const INFO_MODE_SFX[OVL_NMODE] = {"", " MAX 10S", " MAX"};
-static void info_label(cell_t *c, const char *base)     /* "CPU0" + the measure's suffix ("CPU0 MAX 10S"), in a buffer of its own */
+static void info_label(cell_t *c, const char *base)     /* "CPU0" + the measure's suffix ("CPU0 MAX 10S"), in a buffer of its own
+                                                         * (CPU0 / LOAD, CPU1, RAM) */
 {
-    static char b[2][20];
-    char *t = b[base[3] == '1'];
+    static char b[3][20];
+    char *t = b[base[0] == 'R' ? 2 : base[3] == '1'];
     str_cpy(t, base, sizeof b[0]);
     str_app(t, INFO_MODE_SFX[info_mode % OVL_NMODE], sizeof b[0]);
     c->label = t;
@@ -491,8 +493,9 @@ static const char *const CG_NAME[CG_TOP + 1] = {"OFF", "QUALITY", "UNISON", "REV
 #endif
 #define SI_IF(c, i) ((c) ? (uint8_t)(i) : (uint8_t)SI_NONE)
 #if FELUCCA_USB_AUDIO
-#define UA_IT(s) SI_IF((s) < UAS_N, SI_UAS0 + (s))      /* USB AUDIO's line of source s, none past the last */
-_Static_assert(UAS_N <= 16u, "USB AUDIO: four rows of four sources");
+#define UA_IT(s) SI_IF((s) < UAS_RA, SI_UAS0 + (s))     /* USB AUDIO's line of source s, none past the last lane */
+#define UA_RT(k) ((uint8_t)(SI_UAS0 + UAS_RA + (k)))   /* .. of RET A B C (k 0..2) */
+_Static_assert(UAS_N <= 19u && UAS_RA <= 16u, "USB AUDIO: four rows of four sources, then the returns' row");
 static int si_ua(uint32_t it) { return it >= SI_UAS0 && it < SI_UAS0 + UAS_N; }
 #else
 #define si_ua(it) 0
@@ -513,9 +516,9 @@ static const struct { const char *name; uint8_t it[4]; } SYS[] = {
 #endif
 #endif
     /* the screen and the sound in one section (the user, 2026-10-25: KNOB COLORS was on a page read as "audio", "group and
-     * make it logical"): BRIGHT, KNOB COLORS (the knob caps' colours; COLOR gone 2026-10-18: the palette is MONO, panel.c),
+     * make it logical"): KNOB COLORS (the knob caps' colours; COLOR gone 2026-10-18: the palette is MONO, panel.c),
      * LOWCUT, FILT RESO (SLOOP 2.8's FILTER RESO, a project's: core.h G_TFRES) */
-    {"GENERAL", {SI_IF(FELUCCA_BRIGHT, SI_BRIGHT), SI_KCOL, SI_LOWCUT, SI_IF(FELUCCA_TFLT_RESO && FELUCCA_TRK_FILT, SI_FRESO)}},
+    {"GENERAL", {SI_KCOL, SI_LOWCUT, SI_IF(FELUCCA_TFLT_RESO && FELUCCA_TRK_FILT, SI_FRESO), SI_NONE}},
 #if USBH_UI
     {"USB", {SI_UHMODE, SI_UHDEV, SI_NONE, SI_NONE}},   /* the port as a MIDI host or the computer's device (USB_HOST: the trial's
                                                          * ui/opt_usbh.h on fm1-base's; USB SERIAL below it, one section) */
@@ -532,9 +535,7 @@ static const struct { const char *name; uint8_t it[4]; } SYS[] = {
 #endif
     {"SETTINGS", {SI_SDBACK, SI_SDREST, SI_NONE, SI_NONE}},   /* (the device's settings to the card and back) */
 #endif
-#if FELUCCA_LIGHTS
     {"KEYS", {SI_LIGHTS, SI_KEYS, SI_NONE, SI_NONE}},
-#endif
 #if FELUCCA_BLE                                         /* (Bluetooth, a page a side, each with its item: op_bt.c) */
     {"BT MIDI", {SI_BLE, SI_BLEPEER, SI_BLEMIDI, SI_BLEST}},   /* MODE, DEVICE, ACTIVITY, STATE */
 #endif
@@ -546,12 +547,14 @@ static const struct { const char *name; uint8_t it[4]; } SYS[] = {
 #endif
 #if FELUCCA_USB_AUDIO
     /* where each source goes (the user, 2026-10-17: "each track, including master, can be assigned to none, 1, 2, 1+2, 3, 4,
-     * 3+4", and the drum lanes; ua_tap.h): a line a source, MASTER T1 T2 T3 | DRUMS, DRUM BUS, DR1 DR2 | DR3..DR6 | DR7..DR10;
-     * the rows one section over their pages (op_global.c gl_sid: a row named as the one before it goes on with it) */
+     * 3+4", and the drum lanes; ua_tap.h): a line a source, MASTER T1 T2 T3 | DRUMS, DRUM BUS, DR1 DR2 | DR3..DR6 | DR7..DR10
+     * | RET A B C (the FX returns, 2026-10-29: a row of their own, last, so the rows before keep their places); the rows one
+     * section over their pages (op_global.c gl_sid: a row named as the one before it goes on with it) */
     {"USB AUDIO", {UA_IT(0), UA_IT(1), UA_IT(2), UA_IT(3)}},
     {"USB AUDIO", {UA_IT(4), UA_IT(5), UA_IT(6), UA_IT(7)}},
     {"USB AUDIO", {UA_IT(8), UA_IT(9), UA_IT(10), UA_IT(11)}},
     {"USB AUDIO", {UA_IT(12), UA_IT(13), UA_IT(14), UA_IT(15)}},
+    {"USB AUDIO", {UA_RT(0), UA_RT(1), UA_RT(2), SI_NONE}},
 #endif
     {"CALIBRATE", {SI_CALIB, SI_HOLD, SI_NONE, SI_NONE}},   /* (SI_HOLD: a button's hold, 250 / 350 / 500 ms) */
     {"ABOUT", {SI_ABOUT, SI_BUILD, SI_REPO, SI_NONE}},
@@ -648,40 +651,67 @@ static void sys_ro(cell_t *c, const char *label)    /* a read-out line */
     c->label = label;
     c->kind = CK_RO;
 }
-static void info_kb(char *b, uint32_t n)                /* n bytes as INFO writes them: "41K"; under 10 KB one decimal, "1.9K" */
-{
-    uint32_t t = n * 10u / 1024u;
-    fmt_int(b, (int32_t)(n < 10240u ? t / 10u : n / 1024u));
-    if (n < 10240u) {
-        uint32_t k = str_len(b);
-        b[k] = '.', b[k + 1u] = (char)('0' + t % 10u), b[k + 2u] = 0;
-    }
-    str_app(b, "K", 8);
-}
-/* INFO's RAM line (the user, 2026-10-28): the name with the SRAM nothing is linked into (fixed at link; the undo history's room
- * in an UNDO_HISTORY build), the value the least room any stack has had left since boot (system/stackmark.h: CPU0's main and
- * interrupt stacks, CPU1's jobs'), amber under STK_LOW; "?" when no stack was measured */
+/* INFO's RAM bar (the user, 2026-10-29: one memory bar, drawn as the CPU bars, its peaks as theirs): RAM, its used / total KB.
+ * With an arena (core/arena.c: the SRAM the link leaves free, its whole room, and the cache RAM's: CACHE_RAM) the arena's
+ * blocks in use the fill, the undo history's share (seq/undo.c: its least and what it borrows) a dimmer segment after
+ * it, the rest free; the bright tick the last ~10 s's most in use, the dim one the most since boot (system/overload.h's
+ * RAM ring, sampled with the CPU's).
+ * The number by KNOB 1 as the CPU lines': NOW, MAX 10S, MAX (KB; the label's suffix).
+ * Without: the SRAM in use at link of the SRAM (stk_sram_free: what is left), no ticks. The stacks: no bar, the label
+ * amber and STACK LOW when one has had under STK_LOW left (system/stackmark.h stk_low: ever, the release's own record) */
+#ifdef PLAT_TICKS_PER_US
+#define INFO_SRAM 475136u                               /* (the release's SRAM to the stacks: fm1-base device/app.ld) */
+#else
+#define INFO_SRAM 466688u                               /* (Optimist's own: firmware/app.ld) */
+#endif
+#if PART_DROPS && FELUCCA_CACHE_RAM
+#define INFO_CR fm1_cache_ram_free()                    /* (the cache RAM, its test passed: the undo history's second
+                                                         * part, counted in the total and in its share; hal/fm1_cache.h) */
+#else
+#define INFO_CR 0u
+#endif
 static void info_ram(cell_t *c)
 {
-    static char lb[20];
-    uint32_t k, free = stk_sram_free();
-    int32_t l = stk_least_ever(&k);                     /* (the least ever where the platform keeps it: the release) */
-    (void)k;
-    str_cpy(lb, "RAM", sizeof lb);
-    if (free) {
-        str_app(lb, " ", sizeof lb);
-        info_kb(lb + str_len(lb), free);
-        str_app(lb, " FREE", sizeof lb);
+    uint32_t used, total, pct, n, shown;
+#if PART_DROPS
+    total = ARN_BYTES + ARN_UNDO_KEEP + INFO_CR;
+    used = ARN_BYTES - arn_room();
+#if FELUCCA_UNDO_HISTORY
+    n = undo_h.ready ? undo_h.size : ARN_UNDO_KEEP + INFO_CR;   /* (both its parts: the free SRAM's, the cache RAM's) */
+#else
+    n = 0;
+#endif
+#else
+    total = INFO_SRAM;
+    used = total > stk_sram_free() ? total - stk_sram_free() : 0u;
+    n = 0;
+#endif
+    sys_ro(c, "RAM");
+    pct = total ? used * 100u / total : 0u;
+    cell_gauge(c, 0, 0, 100, (int32_t)(pct < 100u ? pct : 100u));
+    c->pkbar = 1;
+    c->av = (int16_t)(total ? (used + n) * 100u / total < 100u ? (used + n) * 100u / total : 100u : 0u);
+    shown = used / 1024u;
+#if PART_DROPS
+    {
+        uint32_t k10 = ovl_win_max(OVL_RAM, fm1_ms, OVL_W10), kall = ovl.r[OVL_RAM].amax;
+        c->hold[0] = (int16_t)(total ? k10 * 102400u / total : 0u);
+        c->hold[1] = (int16_t)(total ? kall * 102400u / total : 0u);
+        shown = info_mode == OVL_MAX10 ? k10 : info_mode == OVL_MAXALL ? kall : shown;   /* (KNOB 1 as the CPU lines':
+                                                         * NOW, MAX 10S, MAX, its suffix on the label) */
+        info_label(c, "RAM");
     }
-    sys_ro(c, lb);
-    if (l < 0) {
-        cell_val(c, "?");
-        c->col = C_DIM;
-    } else {
-        info_kb(c->val, (uint32_t)l);
-        c->col = stk_low() ? C_WARN : C_OK;             /* (STACK LOW: stackmark.h) */
+#endif
+    fmt_int(c->val, (int32_t)shown);
+    n = str_len(c->val);
+    c->val[n] = '/';
+    fmt_int(c->val + n + 1u, (int32_t)(total / 1024u));
+    c->unit = "KB";
+    if (stk_low()) {                                    /* (a stack within STK_LOW of its bottom, ever: stackmark.h) */
+        c->col = C_WARN;
+        c->danger = 1;                                  /* (its label amber too: op_gldraw.c gl_info_draw) */
+        c->unit = "KB STACK LOW";
     }
-    c->unit = " STACK LEFT";
 }
 static void sys_onoff(cell_t *c, const char *label, uint32_t on)   /* an ON / OFF line */
 {
@@ -730,21 +760,12 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
     }
 #endif
     switch (it) {
-#if FELUCCA_BRIGHT
-    case SI_BRIGHT:
-        c->label = "BRIGHT";
-        fmt_int(c->val, (int32_t)bright_level());
-        cell_gauge(c, 0, 1, 8, (int32_t)bright_level());
-        break;
-#endif
-#if FELUCCA_LIGHTS
     case SI_LIGHTS:
         cell_list(c, "BUTTONS", LV[lights_lvl & 3u], LIGHTS_N - 1, lights_lvl);
         break;
     case SI_KEYS:
         cell_list(c, "KEYS", KY[lights_keys & 3u], KEYS_N - 1, lights_keys);
         break;
-#endif
     case SI_LOWCUT:
         cell_list(c, "LOWCUT", LC[FELUCCA_BASSPLUS ? settings.lowcut % 3u : settings.lowcut ? 1u : 0u], FELUCCA_BASSPLUS ? 2 : 1, FELUCCA_BASSPLUS ? (int32_t)(settings.lowcut % 3u) : settings.lowcut != 0u);
         break;
@@ -837,6 +858,19 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
         info_bar(c, OVL_CPU0, now);
         break;
     }
+#if PART_DROPS
+    case SI_ARN: {                                      /* the arena's moves (core/arena.c arn_probe): the longest, start to
+                                                         * swap, and the longest interrupts-off window of one (us; 0/0: none) */
+        uint32_t n;
+        sys_ro(c, "ARENA MOVE");
+        fmt_int(c->val, (int32_t)(arn_probe.max_us > 99999u ? 99999u : arn_probe.max_us));
+        n = str_len(c->val);
+        c->val[n] = '/';
+        fmt_int(c->val + n + 1u, (int32_t)(arn_probe.off_us > 9999u ? 9999u : arn_probe.off_us));
+        c->unit = "us";
+        break;
+    }
+#endif
     case SI_RAM:
         info_ram(c);
         break;
@@ -1275,9 +1309,10 @@ static void sys_rst_cell(cell_t *c)
  *   INTERNALS (page 1): LAST RESET, the longest flash interrupts-off time, the second core's internals (DUAL builds)
  *   USB STATS (page 2, USB audio builds): the USB audio counters */
 #if FELUCCA_SYS_DEBUG
-#define INFO_BASE (7u + (uint32_t)FELUCCA_CPU_GUARD)
+#define INFO_BASE (7u + (uint32_t)FELUCCA_CPU_GUARD + (uint32_t)PART_DROPS)
 #else
-#define INFO_BASE (4u + (uint32_t)DUAL_LOAD)             /* (without the debug pages: CPU LOAD (CPU0, CPU1), RAM, UNDERRUNS, BATTERY) */
+#define INFO_BASE (4u + (uint32_t)DUAL_LOAD + (uint32_t)PART_DROPS)   /* (without the debug pages: CPU LOAD (CPU0, CPU1),
+                                                         * RAM, ARENA MOVE with an arena, UNDERRUNS, BATTERY) */
 #endif
 #define INFO_N INFO_BASE                                /* INFO's lines */
 #ifndef FELUCCA_STOCK_SUPPLY
@@ -1288,7 +1323,11 @@ static void sys_rst_cell(cell_t *c)
 static void sys_info_cell(uint32_t i, cell_t *c)        /* INFO's line i */
 {
 #if FELUCCA_SYS_DEBUG
-    static const uint8_t INFO[INFO_BASE] = {SI_MHZ, SI_CPU, SI_CPU1, SI_RAM, SI_DROPS, SI_XRUN,
+    static const uint8_t INFO[INFO_BASE] = {SI_MHZ, SI_CPU, SI_CPU1, SI_RAM,
+#if PART_DROPS
+                                            SI_ARN,
+#endif
+                                            SI_DROPS, SI_XRUN,
 #if FELUCCA_CPU_GUARD
                                             SI_GUARD,
 #endif
@@ -1299,6 +1338,9 @@ static void sys_info_cell(uint32_t i, cell_t *c)        /* INFO's line i */
                                             SI_CPU1,    /* (both cores' load: the user, 2026-10-18) */
 #endif
                                             SI_RAM,     /* (the user, 2026-10-28) */
+#if PART_DROPS
+                                            SI_ARN,     /* (the arena's moves: the FM-1's copy speed, 2026-10-29) */
+#endif
                                             SI_XRUN, SI_BATT};   /* (what a player wants, the user 2026-10-17) */
 #endif
     sys_it_cell(INFO[i % INFO_N], c);
@@ -1396,12 +1438,6 @@ static void sys_set(uint32_t it, int32_t s)
         sdm_set(it - SI_SDVERS - (it == SI_SDPRE), s ? s : 1);
         break;
 #endif
-#if FELUCCA_BRIGHT
-    case SI_BRIGHT:
-        bright_set(s ? (uint32_t)ui_clamp((int32_t)bright_level() + (s > 0 ? 1 : -1), 1, 8) : bright_level() % 8u + 1u);
-        break;
-#endif
-#if FELUCCA_LIGHTS
     case SI_LIGHTS:
     case SI_KEYS: {
         uint8_t *v = it == SI_LIGHTS ? &lights_lvl : &lights_keys;
@@ -1410,7 +1446,6 @@ static void sys_set(uint32_t it, int32_t s)
             lights_lvl = LIGHTS_LOW;                    /* keys lit need a level: the lowest */
         break;
     }
-#endif
     case SI_HOLD:                                       /* (kept in the settings word: settings_word.c) */
         hold_sel = OP_HOLD_SEL[sys_step(OP_HOLD_POS[hold_sel % HOLD_N], s, HOLD_N - 1)];
         break;
@@ -1480,8 +1515,7 @@ static void sys_set(uint32_t it, int32_t s)
     sys_dirty = 1;
 }
 /* SHIFT held + PRESETS (or the knob) on a setting with no descriptor: its FACTORY value, what a blank FM-1 or an empty
- * settings record gives (the user, 2026-10-13): panel.c settings_init (LOWCUT OFF), bright.c bright_boot
- * (BRIGHT 8, full), the settings word read as 0 (settings_word.c: HOLD 350 ms, KNOB COLORS, CLK OUT, SERIAL, LIGHTS,
+ * settings record gives (the user, 2026-10-13): panel.c settings_init (LOWCUT OFF), the settings word read as 0 (settings_word.c: HOLD 350 ms, KNOB COLORS, CLK OUT, SERIAL, LIGHTS,
  * KEYS OFF; 2ND CORE AUTO). BLE is never reset: a reset must not drop a live connection. 1: it had one */
 static int sys_factory(uint32_t it)
 {
@@ -1498,19 +1532,12 @@ static int sys_factory(uint32_t it)
         sdm_set(it - SI_SDVERS - (it == SI_SDPRE), 0);   /* (8 versions, 100 %, 50 ms) */
         return 1;
 #endif
-#if FELUCCA_BRIGHT
-    case SI_BRIGHT:
-        bright_set(8u);
-        break;
-#endif
-#if FELUCCA_LIGHTS
     case SI_LIGHTS:
         lights_lvl = LIGHTS_OFF;
         break;
     case SI_KEYS:
         lights_keys = KEYS_OFF;
         break;
-#endif
     case SI_LOWCUT:
         settings.lowcut = 0;
         fx_lowcut = 0;

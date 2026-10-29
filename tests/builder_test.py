@@ -41,6 +41,16 @@ items = R.ITEMS
 check("registry: unique stable bits, one level of options (two under a group's head: DRUMS)",
       len({it.bit for it in items.values()}) == len(items) and
       all(not it.parent or not items[it.parent].parent or items[items[it.parent].parent].head for it in items.values()))
+_om, _ = C.parse("# name: old\nLAYOUT=1\nSDCARD=1\nFAR_OK=0\nRAM_PACKED=1\nMISSING_WARN=0\n")
+_od = C.dump(_om)
+check("memory menu: an old .config with LAYOUT SDCARD RAM_PACKED and a retired FAR_OK=0 loads, MEMORY reads SD card mode, the dump names the two, not MEMORY or FAR_OK",
+      _om["MEMORY"] == 2 and (_om["LAYOUT"], _om["SDCARD"], _om["RAM_PACKED"]) == (1, 1, 1) and "FAR_OK" not in _om
+      and all(f"{k}=1" in _od.splitlines() for k in ("LAYOUT", "SDCARD")) and "MEMORY" not in _od and "FAR_OK" not in _od)
+check("... the menu lists MEMORY alone in the group's top level, SD_RING / SD_REC under it; the five others are hidden but real items",
+      [it.key for it in R.top_level("Memory management") if it.key in ("MEMORY", "RAM_PACKED", "SDCARD", "LAYOUT")] == ["MEMORY"]
+      and R.ITEMS["MEMORY"].menu_children == ["SD_RING", "SD_REC"] and R.ITEMS["SDCARD"].menu_children == []
+      and all(R.ITEMS[k].hidden for k in ("RAM_PACKED", "SDCARD", "LAYOUT")) and "FAR_OK" not in R.ITEMS and "FAR_OK" in R.RETIRED and R.ITEMS["RAM_PACKED"].bit == 437
+      and R.ITEMS["SD_RING"].parent == "SDCARD" and R.ITEMS["SD_RING"].shown_under == "MEMORY")
 _nd = dict(C.defaults(), DRUMS=0, LANE_FX=1, DRUM_X0X909=1)
 _nf = C.flags(_nd)[0]
 check("DRUMS off: every drum switch 0 (its options' options too), the drum-only items elsewhere left out, no drum source "
@@ -618,24 +628,26 @@ check("... under the delay's line (the user's screenshot: DLY_LEN 65536, the del
 # slots: a 32 KB delay line and a 32 KB reverb line never fit in 32 KB together, the refused ones bypassed (MEM FULL)
 _sd = dict(LAYOUT=1, ENG_SAMPLE=0, DRUM_USR=0, SNAPSHOTS=0, PATTERNS=1, FX_PUNCH=0, DLY_LEN=16384, REV_FDN8=1, REV_POOL=1,
            REV_ROOM=0)   # (the user's profile's sends; the fake SD mode's needs, no PUNCH ring: its 64 KB block alone)
-# (the user, 2026-10-29: no red error for a memory too small) an SD card mode arena that cannot hold the sends' lines
-# together is raised to them (68 KB: the delay's 32, the chorus' 4, the reverb's 32), said in a notice, no error
-_e, _w, _n = C.validate(dict(C.defaults(), ARENA=32, **_sd))
-check("an SD card mode arena that cannot hold the sends' lines together (ARENA 32): raised to 68 KB (the flag the "
-      "build gets), a notice naming ARENA, no error",
-      not _e and C.flags(dict(C.defaults(), ARENA=32, **_sd))[0]["FELUCCA_ARENA_KB"] == 68
-      and any("ARENA" in n.keys and "raised to 68 KB" in n for n in _n))
-check("... 64 KB: raised to 68 KB too; 96 KB: as set; outside the SD card mode the arena holds no lines: 32 KB as set; "
-      "a notice says what a new project needs together, never an error",
-      C.flags(dict(C.defaults(), ARENA=64, **_sd))[0]["FELUCCA_ARENA_KB"] == 68
-      and C.flags(dict(C.defaults(), ARENA=96, **_sd))[0]["FELUCCA_ARENA_KB"] == 96
-      and C.flags(dict(C.defaults(), ARENA=32, **dict(_sd, LAYOUT=0)))[0]["FELUCCA_ARENA_KB"] == 32
-      and not C.validate(dict(C.defaults(), ARENA=64, **_sd))[0]
-      and any("needs" in n and "together" in n for n in C.validate(dict(C.defaults(), ARENA=64, **_sd))[2]))
+# (the user, 2026-10-29: "arena first, undo gets the rest") ARENA is an on/off switch: the arena is the SRAM the link
+# leaves free (engines.c ARN_FREE); its flag 1, an older configuration's size reads as on; no memory error, a notice with
+# what a new project needs of it together (the send lines, the inserts' own room, a part's block, the largest buffer)
+_a = C.arena_need(dict(C.defaults(), ARENA=1, **_sd))
+_e, _w, _n = C.validate(dict(C.defaults(), ARENA=1, **_sd))
+_old, _ = C.parse("ARENA=96\n", warn=lambda m: None)
+check("ARENA on: the free RAM (its flag 1), no error; a notice with what a new project needs of it together (the send "
+      "lines 68 KB and more); an older .config's ARENA=96 loads as on",
+      not _e and C.flags(dict(C.defaults(), ARENA=1, **_sd))[0]["FELUCCA_ARENA_KB"] == 1 and _a["kb"] >= 68
+      and any("ARENA" in n.keys and "needs about %d KB" % _a["kb"] in n for n in _n) and _old["ARENA"] == 1
+      and not R.ITEMS["ARENA"].is_choice)
+check("... outside the SD card mode too (the extras in every ARENA build): the same notice, the send lines in its need",
+      not C.validate(dict(C.defaults(), ARENA=1, **dict(_sd, LAYOUT=0)))[0]
+      and "the delay's line" in C.arena_need(dict(C.defaults(), ARENA=1, **dict(_sd, LAYOUT=0)))["what"])
+check("... its pool: the fixed memories it replaces given back (none of its own: the free SRAM)",
+      K.arena_mem(dict(C.defaults(), ARENA=1, **_sd))["pool"] < 0)
 check("... an arena needing more than the SRAM can give it: the one error left, naming the biggest consumers",
       any("ARENA" in e.keys and "would need" in e and "the delay's line" in e
-          for e in C.validate(dict(C.defaults(), ARENA=96, **dict(_sd, DLY_LEN=65536, INS_XDLY=1, XDLY_LEN=16384,
-                                                                       DLY_ARENA=320)))[0]))
+          for e in C.validate(dict(C.defaults(), ARENA=1, **dict(_sd, DLY_LEN=65536, INS_XDLY=1, XDLY_LEN=16384,
+                                                                      DLY_ARENA=320)))[0]))
 _cfg, _ = C.parse("INS_CHORUS=2\nINS_DELAY=4\nINS_JCHORUS=3\nINS_FLANGER=1\nINS_XDLY=2\n", warn=lambda m: None)
 check("an old .config's instance counts (INS_CHORUS=2 ...) load as built: no setting lost, no error",
       all(_cfg[k] == 1 for k in C.FXM_TYPES) and not [e for e in C.validate(_cfg)[0] if set(e.keys) & set(C.FXM_TYPES)]

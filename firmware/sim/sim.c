@@ -436,9 +436,7 @@ static uint32_t sim_led_of(uint32_t id)           /* 0 off, 1 dim, 2 lit, 3 half
         for (r = 1; r < 5u; r++)
             if (FM1_KEYMAP[r][p] == (int8_t)id) {
                 uint32_t bit = 1u << r, dim = fm1_led_dim[p];
-#if FELUCCA_LIGHTS
                 dim |= fm1_led_bg[p];
-#endif
                 return (fm1_led[p] & bit) ? 2u : (fm1_led_half[p] & bit) ? 3u : (dim & bit) ? 1u : 0u;
             }
     return 0;

@@ -118,7 +118,7 @@ static void cards_tests(void)
               "cards 2x2: KNOB 4 hot, its value white at the bottom right, KNOB 1's not");
     }
     reset_ui();
-    {   /* no CARDS setting: SYSTEM > SCREEN's cells are BRIGHT, -, -, KNOB COLORS (no COLOR since 2026-10-18); bit 23 ignored */
+    {   /* no CARDS setting: SYSTEM > SCREEN's cells are KNOB COLORS first (no COLOR since 2026-10-18); bit 23 ignored */
         uint32_t k, none = 1, w, n;
         cell_t c;
         char nm[12];
@@ -137,7 +137,7 @@ static void cards_tests(void)
         SCR->cell(k, gl_kn(SCR_SYSTEM, k), &c);
         SCR->name(k, nm);
         check(none && c.label && !strcmp(c.label, "KNOB COLORS") && !strcmp(nm, "GENERAL") && settings.palette == 4u,
-              "SYSTEM GENERAL: no CARDS line, no COLOR line (MONO always, 2026-10-18): BRIGHT, then KNOB COLORS");
+              "SYSTEM GENERAL: no CARDS line, no COLOR line (MONO always, 2026-10-18): KNOB COLORS first (no BRIGHT since 2026-10-29)");
         w = bp23_word();
         bp23_from_word(w | 1u << 23);                   /* an old record that chose 1x4 */
         op_enter(SCR_SOUND);

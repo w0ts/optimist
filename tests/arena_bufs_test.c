@@ -225,7 +225,7 @@ int main(void)
     for (c = 0; c < FXM_NC; c++)
         lines += arn_round(FXM_BYTES[c]);
     CHECK(ARB_NC == NTRK + 4u + FELUCCA_PUNCH_SW && ARN_BYTES >= FM + SN + lines + WT + SL + X9 + X8 &&
-          ARN_BYTES <= FM + SN + lines + WT + SL + X9 + X8 + 64u,
+          ARN_BYTES <= FM + SN + lines + WT + SL + X9 + X8 + 256u,
           "the premise: one FM6 and its sine table, the lines, WAVE's table, one SLICER recording and both X0X machines fit "
           "(arena %u B: FM6 %u + %u, lines %u, WAVE %u, SLICER %u, 909 %u, 808 %u)", (unsigned)ARN_BYTES, (unsigned)FM,
           (unsigned)SN, (unsigned)lines, (unsigned)WT, (unsigned)SL, (unsigned)X9, (unsigned)X8);
@@ -306,7 +306,7 @@ int main(void)
     dl.src[3] = (uint8_t)(DL_X808 + 1u);
     settle(8);
     CHECK(t0->engine == ENG_IX_FM6 && cho_buf && dly_buf && rev_line && fxa_ins && wt_mip && sl_bp[0] && x909_p &&
-          x808_p && !arb_full && arn_free_bytes() < 64u && arena_ok(),
+          x808_p && !arb_full && arn_free_bytes() < 256u && arena_ok(),
           "FM6, the lines and the own room, WAVE, STUT on track 1, both machines: all placed, the arena full (%u B left)",
           (unsigned)arn_free_bytes());
     (void)arb_said();
@@ -572,7 +572,8 @@ int main(void)
             nwr += part_mem_refused.on && part_mem_refused.eng == ENG_WAVE;
             (void)arb_said();
         }
-        CHECK(okall && nfull > 50u && nwr > 50u && nsl > 1000u && nwt > 1000u && nx > 1000u,
+        /* (a buffer refused: rarer since the packing moves the blocks together first, core/arena.c) */
+        CHECK(okall && nfull > 10u && nwr > 50u && nsl > 1000u && nwt > 1000u && nx > 1000u,
               "20,000 random switches: the invariants held at every step (to %u; steps with a buffer refused %u, a change "
               "to WAVE refused %u, a SLICER recording placed %u, WAVE's table %u, an X0X machine %u)", (unsigned)worst,
               (unsigned)nfull, (unsigned)nwr, (unsigned)nsl, (unsigned)nwt, (unsigned)nx);

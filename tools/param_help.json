@@ -470,11 +470,10 @@
     {"kind": "op", "ctx": "INTERNALS", "params": {"INTERNALS": "Last reset, flash, 2nd core"}},
     {"kind": "op", "ctx": "USB STATS", "if": "FELUCCA_USB_AUDIO", "params": {"USB STATS": "USB audio glitch counters"}},
     {"kind": "op", "ctx": "GENERAL", "params": {
-      "BRIGHT": {"text": "Backlight (8: full)", "if": "FELUCCA_BRIGHT"},
       "KNOB COLORS": "Knob numbers in cap colours",
       "LOWCUT": "Output low cut or bass boost", "FILT RESO": "Track filter resonance"}},
     {"kind": "op", "ctx": "METERS", "params": {"VU FLOOR": "Level at the meters' bottom"}},
-    {"kind": "op", "ctx": "KEYS", "if": "FELUCCA_LIGHTS", "params": {
+    {"kind": "op", "ctx": "KEYS", "params": {
       "BUTTONS": "Buttons glow in the dark", "KEYS": "Which keys glow"}},
     {"kind": "op", "ctx": "USB", "if": "FELUCCA_USB_HOST", "params": {
       "MODE": "HOST until power-off: no PC", "DEVICE": "The USB-MIDI device on it"}},
@@ -491,7 +490,8 @@
       "DR1": "Drum lane 1 to USB inputs", "DR2": "Drum lane 2 to USB inputs", "DR3": "Drum lane 3 to USB inputs",
       "DR4": "Drum lane 4 to USB inputs", "DR5": "Drum lane 5 to USB inputs", "DR6": "Drum lane 6 to USB inputs",
       "DR7": "Drum lane 7 to USB inputs", "DR8": "Drum lane 8 to USB inputs", "DR9": "Drum lane 9 to USB inputs",
-      "DR10": "Drum lane 10 to USB inputs"}},
+      "DR10": "Drum lane 10 to USB inputs", "RET A": "FX return A to USB inputs",
+      "RET B": "FX return B to USB inputs", "RET C": "FX return C to USB inputs"}},
     {"kind": "op", "ctx": "CALIBRATE", "params": {
       "PANEL": "Teach buttons, knobs -> SAVE", "HOLD": "Time a press becomes a hold"}},
     {"kind": "op", "ctx": "ABOUT", "params": {

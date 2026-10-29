@@ -96,6 +96,7 @@ static struct {
 static FRESULT sdm_was(FRESULT r) { return sd_was(r); }
 #if FELUCCA_SD_STREAM
 static void sdm_mem_tick(void);
+static void sdm_bank_tick(void);
 #endif
 
 /* ---- the device record */
@@ -284,6 +285,7 @@ static void sdm_poll(void)
 #endif
 #if FELUCCA_SD_STREAM
     sdm_mem_tick();
+    sdm_bank_tick();
 #endif
     if (sdm_st >= SDM_MOUNTED && sd_state != SD_READY) {
         sdm_st = SDM_NONE;
@@ -1268,6 +1270,23 @@ static void sdm_mem_tick(void)
     } else {
         ui_message("MEM FULL CARD");
     }
+}
+/* a part on a card set the card does not hold (sd_stream_plan.c sstp.bmiss): "PIANO NOT ON CARD" once, said again
+ * only after it was there (or the part left it); the part silent. Only with the card mounted (none: NO SD CARD) */
+static uint8_t sdm_bank_said;
+static void sdm_bank_tick(void)
+{
+    char a[30];
+    uint32_t k, m = sd_state == SD_READY && sstp.state != SSTP_GATED ? sstp.bmiss : 0u;
+    sdm_bank_said &= (uint8_t)m;
+    for (k = 0; k < SST_NPART && k < NPART; k++)
+        if ((m >> k & 1u) && !(sdm_bank_said >> k & 1u) && !op_armed()) {
+            sdm_bank_said |= (uint8_t)(1u << k);
+            str_cpy(a, SMP_SET_NAMES[(sst_part_bank[k] - 1u) % SMP_NSETS], sizeof a);
+            str_app(a, " NOT ON CARD", sizeof a);
+            ui_message(a);
+            return;
+        }
 }
 #else
 static uint32_t sdm_pre_ms(void) { return 0; }

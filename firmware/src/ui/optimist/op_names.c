@@ -24,12 +24,13 @@ static const char NM_TITLE[] =
     "OP# CURVES\0OP# curve\0"    "PIT RATES\0Pit rate\0"      "PIT LVLS\0Pit level\0"
     "\0";
 /* a title's short form, where a header is short of room (op_draw.c head_short, after "Voice 2" -> "Voice2"): bar.beat
- * always stays (the user, 2026-10-14), so the title gives way, by a form chosen here, never a cut */
+ * always stays (the user, 2026-10-14), so the title gives way, by a form chosen here, never a cut; a short form's own
+ * short form when that is still too long (USB AUDIO's pages from 10 of 10 and more: "Audio 10/13") */
 static const char NM_SHORT[] =
     "Pattern\0Pat\0"           "Scale2\0Scl2\0"            "Voice2\0Vox2\0"            "Kit sends\0Kit snd\0"
     "LFO2 to\0L2 to\0"           "ENV2 to\0E2 to\0"           "ENV mod\0E1 mod\0"           "Slicer\0Slcr\0"
     "Insert\0Ins\0"            "Internals\0Intern\0"
-    "Calibrate\0Calib\0"         "USB audio\0USB aud\0"       "Credits\0Credit\0"          "Devices\0Devs\0"
+    "Calibrate\0Calib\0"         "USB audio\0USB aud\0"       "USB aud\0Audio\0"           "Credits\0Credit\0"          "Devices\0Devs\0"
     "USB stats\0Stats\0"        "BT audio\0BT aud\0"
     "\0";
 static const char NM_CARD[] =

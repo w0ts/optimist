@@ -1379,10 +1379,8 @@ static uint32_t step_leds(uint32_t blink)
         m = fm1_in.notes;
         if (is_drum(t))
             m |= 1u << key_of_lane(lane_selected());
-#if FELUCCA_KEYLIT
         else
             m |= op_keys_sounding(t);
-#endif
         return m;
     }
     return keys_of(step_win(blink, &in) | st.held);   /* (the playhead's key blinking, the steps held lit) */
@@ -1522,7 +1520,6 @@ static void ui_leds(void)
     led_keys(nl, kf);
     led_keys(hl, kh);
     led_keys(dl, kd);
-#if FELUCCA_LIGHTS
     {   /* menu LIGHTS / KEYS: the backlight layer under what is lit; off while a mode lights its keys (D10) */
         uint8_t bl[FM1_NCOL] = {0};
         uint32_t back = kf | kd | kh ? 0u : lights_keys_mask(), k;
@@ -1534,7 +1531,6 @@ static void ui_leds(void)
             fm1_led_bg[c] = (uint8_t)(bl[c] & ~nl[c]);
         fm1_led_bg_ns = LIGHTS_NS[lights_lvl % LIGHTS_N];
     }
-#endif
     for (c = 0; c < FM1_NCOL; c++) {                    /* (written on a change only) */
         if (fm1_led[c] != nl[c])
             fm1_led[c] = nl[c];

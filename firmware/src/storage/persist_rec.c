@@ -20,11 +20,8 @@ typedef struct {
     arr_rec_t arrangement;                         /* (16 parts; a longer song: the log, paired by its tag) */
 #endif
     uint32_t view;                                 /* (appended: a shorter record, saved before it, reads as ALL) */
-#if FELUCCA_BRIGHT || BP23_SET
-    uint32_t bright;                               /* appended (bright.c): 0 = full, now always written 0 and never
-                                                    * applied (a saved dim level froze an FM-1 at every boot: bright.c). A
-                                                    * build with BP23_SET and no BRIGHT keeps it as read (its place) */
-#endif
+    uint32_t spare;                                /* appended: was the backlight level (BRIGHT, removed 2026-10-29: the screen is always
+                                                    * full); written 0, never read (an old record's value is dropped) */
 #if BP23_SET
     uint32_t bp23;                                 /* appended: the SLOOP 2.3 settings of the FM-1 (bp23_word) */
 #endif
@@ -74,9 +71,7 @@ typedef struct {
 _Static_assert(PERSIST3_BLE(ble_rf) == PERSIST3_BLE(ble_addr) + 8 && PERSIST3_BLE(ble_bond) == PERSIST3_BLE(ble_rf) + BLE_RF_COPY_SIZE &&
                PERSIST3_BLE(ble_dev) == PERSIST3_BLE(ble_bond) + BLE_BOND_SIZE, "the settings record's BLE fields in a row");
 #endif
-#if FELUCCA_BRIGHT || BP23_SET
-#define PERSIST_NO_BRIGHT ((int)__builtin_offsetof(persist_v3_t, bright))   /* .. before bright (a build without it) */
-#endif
+#define PERSIST_NO_SPARE ((int)__builtin_offsetof(persist_v3_t, spare))   /* .. before the spare slot (a record without it) */
 #if FELUCCA_ARRANGER
 #define PERSIST_MAGIC 0x50455233u                  /* "PER3": includes the song order */
 #else
@@ -132,8 +127,8 @@ static int persist_upgrade(persist_v3_t *pp, int n)
     if (n < (int)sizeof *pp) {                   /* a shorter record (an older build, one with fewer switches) */
         if (n < PERSIST_NO_VIEW + 4)
             pp->view = 1;                        /* saved before VIEW (or PER2): the overview, as a fresh device */
-        if (n < PERSIST_NO_BRIGHT + 4)
-            pp->bright = 0;                      /* saved without BRIGHT: full */
+        if (n < PERSIST_NO_SPARE + 4)
+            pp->spare = 0;                       /* saved without the slot */
         pp->bp23 = 0;                            /* without the SLOOP 2.3 settings: as before */
 #if FELUCCA_SL24_SAFE
         if (n == PERSIST_NO_VIEW + 4 && pp->magic == PERSIST_MAGIC && pp->view > 1u)
@@ -143,18 +138,16 @@ static int persist_upgrade(persist_v3_t *pp, int n)
             n = (int)sizeof *pp;                 /* (the rest as ours) */
     }
 #if FELUCCA_SL24_SAFE
-    else if (pp->bright == SL25_DSU_MAGIC && pp->magic == PERSIST_MAGIC) {   /* written back by a build that took SLOOP */
-        pp->bright = 0;                          /* 2.5's kits as ours: their header as BRIGHT and the settings */
+    else if (pp->spare == SL25_DSU_MAGIC && pp->magic == PERSIST_MAGIC) {   /* written back by a build that took SLOOP */
+        pp->spare = 0;                           /* 2.5's kits as ours: their header as the spare slot and the settings */
         pp->bp23 = pp->view > 1u ? sl_word_in(pp->view) : 0u;   /* word; the word as 2.4's record gives it */
     }
 #endif
 #else
-#if FELUCCA_BRIGHT
     if (n < (int)sizeof *pp)
-        pp->bright = 0;                          /* saved without BRIGHT: full */
-    if (n == PERSIST_NO_BRIGHT)
-        n = (int)sizeof *pp;                     /* (a build without it: the rest as ours) */
-#endif
+        pp->spare = 0;                           /* saved without the slot */
+    if (n == PERSIST_NO_SPARE)
+        n = (int)sizeof *pp;                     /* (a record without it: the rest as ours) */
     if (n < (int)sizeof *pp)
         pp->view = 1;                            /* saved before VIEW (or PER2): the overview, as a fresh device */
 #endif
@@ -182,7 +175,7 @@ typedef struct {
 #if FELUCCA_ARRANGER
     arr_rec_t arrangement;
 #endif
-    uint32_t view, bright, bp23;                   /* (bright: always 0; bp23: the settings word, bp23_word) */
+    uint32_t view, spare, bp23;                    /* (spare: always 0; bp23: the settings word, bp23_word) */
     uint8_t ble_addr[8], ble_rf[PERSIST4_BLE_RF], ble_bond[PERSIST4_BLE_BOND], ble_dev[PERSIST4_BLE_DEV];   /* (in a row) */
     uint8_t fav[PERSIST4_FAV];                     /* (a fav_t when FAVORITES is built: persist_fav_load / _save) */
     uint8_t ua_src[PERSIST4_UA_ROUTE];
@@ -241,9 +234,7 @@ static void persist_from_v3(persist_t *d, const persist_v3_t *s)
     d->arrangement = s->arrangement;
 #endif
     d->view = s->view;
-#if FELUCCA_BRIGHT || BP23_SET
-    d->bright = s->bright;
-#endif
+    d->spare = s->spare;
 #if BP23_SET
     d->bp23 = s->bp23;
 #endif
