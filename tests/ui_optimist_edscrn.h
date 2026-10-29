@@ -340,6 +340,7 @@ static void edscrn_tests(void)
         char *a = malloc(1u << 20), *b = malloc(1u << 20);
         long na, nb = -1;
         int first = 1;
+        settings.lowcut = oc_set_word(oc_word(1u, 0u));         /* (SPK LOWCUT ON, HPHN BASS OFF, the first start's: a random run before leaves them as its path went, and the mock's value list follows the value) */
         fprintf(f, "{\"lines\": [\n");
         for (s = 0; s < 2u; s++)
             for (i = 0; i < gl_n(s); i++) {

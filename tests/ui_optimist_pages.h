@@ -40,7 +40,7 @@ static void pages_nav_tests(void)
         check(ui.scr == SCR_SYSTEM && ui.row[SCR_SYSTEM] == gl_pfirst(1, ps - 1u), "D1: GLO: SYSTEM again, on its line");
         tap(B_ENV);
         tap(B_GLO);
-        check(ui.scr == SCR_GLOBAL, "D1: GLO from another screen: GLOBAL");
+        check(ui.scr == SCR_SYSTEM, "D1: GLO from another screen: the one open last (SYSTEM was left for SOUND), not GLOBAL (2026-10-29)");
         check(glo_find(SCR_GLOBAL, "SYSTEM") == ng, "D1: GLOBAL has no SYSTEM line (GLO reaches SYSTEM)");
 #if BT_OVL
         bt.boot = 1;

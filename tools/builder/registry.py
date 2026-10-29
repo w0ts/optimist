@@ -729,9 +729,9 @@ FELUCCA_156 = Provenance("Felucca 1.5.6 (hugelton/Felucca)", "Leo Kuroshita (Hü
                          FELUCCA_URL)
 MELODEE_131 = Provenance("Melodee 1.3.1 (keremimo/melodee)", "Kerem Kilic", "GPL-3.0-only", "next 757b65b", MELODEE_URL)
 _INS_NOTE = " Tested in the host tests and the emulator only, not on a device."
-_add("TFLT_RESO", "FELUCCA_TFLT_RESO", "track FILTER: resonance setting (HOME > AUDIO > FILT RESO)", F, 367, parent="TRK_FILT",
+_add("TFLT_RESO", "FELUCCA_TFLT_RESO", "track FILTER: resonance setting (GLOBAL > FILTER > FILT RESO)", F, 367, parent="TRK_FILT",
      provenance=SLOOP_28,
-     desc="One setting for every track's FILTER (and the drum track's and the drum lanes'): HOME > AUDIO > FILT RESO, 0 (clean, "
+     desc="One setting for every track's FILTER (and the drum track's and the drum lanes'): GLOBAL > FILTER > FILT RESO, 0 (clean, "
           "as before) to 10 (a resonant peak at the cutoff, never self-oscillating). Saved with the project. A few hundred "
           "bytes. The master's DJ filter stays clean.",
      notice="From SLOOP 2.8's FILTER RESO by isod89 (isod89/sloop-fm1 b77bf55, GPL-3.0). Tested in the host tests only, "
