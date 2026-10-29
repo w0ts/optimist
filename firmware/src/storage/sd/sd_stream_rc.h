@@ -77,11 +77,14 @@ AINL int sst_rc_live(const sst_rc_t *c) { return c->on && c->mem; }
 static int32_t sst_rc_find(sst_rc_t *c, uint32_t t)
 {
     uint32_t h = c->hint, k, nk = c->nk;
-    if (c->tag[h % nk] == t)
-        return (int32_t)(h % nk);
-    if (c->tag[(h + 1u) % nk] == t) {
-        c->hint = (uint8_t)((h + 1u) % nk);
-        return (int32_t)c->hint;
+    if (h >= nk)
+        h = 0;                                       /* (no divide: the audio's) */
+    if (c->tag[h] == t)
+        return (int32_t)h;
+    h = h + 1u < nk ? h + 1u : 0u;
+    if (c->tag[h] == t) {
+        c->hint = (uint8_t)h;
+        return (int32_t)h;
     }
     for (k = 0; k < nk; k++)
         if (c->tag[k] == t) {
