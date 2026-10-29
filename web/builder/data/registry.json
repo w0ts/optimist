@@ -6134,38 +6134,6 @@
     "provenance_line": "isod89/sloop-fm1 @ 8d3823f (SLOOP 2.4) by isod89 (SLOOP), on Felucca by Leo Kuroshita (GPL-3.0-only)"
    },
    {
-    "key": "DLY_DOT",
-    "flag": "FELUCCA_DLY_DOT",
-    "label": "delay TIME 1/8D, 1/16D (SLOOP 2.4)",
-    "group": "FX: limited instances (once, or a set count)",
-    "bit": 176,
-    "default": 1,
-    "parent": "FX_DELAY",
-    "desc": "FX > DLY > TIME gains 1/8D and 1/16D (dotted: 3/4 and 3/8 of a beat), as SLOOP 2.4. With the 0.74 s delay line a 1/8D below 61 BPM halves to 1/16D. Costs 28 B of flash.",
-    "experimental": false,
-    "notice": "",
-    "off_warning": "",
-    "env": "",
-    "target_only": false,
-    "symbols": [],
-    "no_image": false,
-    "fixed": false,
-    "head": false,
-    "choices": [],
-    "provenance": {
-     "project": "isod89/sloop-fm1",
-     "author": "isod89 (SLOOP), on Felucca by Leo Kuroshita",
-     "licence": "GPL-3.0-only",
-     "commit": "8d3823f (SLOOP 2.4)",
-     "url": "https://github.com/isod89/sloop-fm1"
-    },
-    "children": [],
-    "hidden": false,
-    "shown_under": null,
-    "tested": "emulator-tested only",
-    "provenance_line": "isod89/sloop-fm1 @ 8d3823f (SLOOP 2.4) by isod89 (SLOOP), on Felucca by Leo Kuroshita (GPL-3.0-only)"
-   },
-   {
     "key": "MICRO",
     "flag": "FELUCCA_MICRO",
     "label": "micro timing: nudge a step (SLOOP 2.4)",
