@@ -64,21 +64,15 @@ static uint32_t stk_unused(const uint32_t *lo, const uint32_t *top)
 #endif
 
 #ifdef __PI32V2__
-/* the linker scripts' symbols under names of their own (main.c, hal/fm1_guard.h, the release's opt_core.c declare some of
- * them with other types) */
-extern uint32_t stk_ulo[] __asm__("_ustack_lo"), stk_utop[] __asm__("_ustack_top");
-extern uint32_t stk_slo[] __asm__("_sstack_lo"), stk_stop[] __asm__("_sstack_top");
-extern uint8_t stk_pool_end[] __asm__("_pool_end"), stk_guard0[] __asm__("_guard0");
+#include "../../hal/fm1_stack.h"                    /* (the linker scripts' stack symbols, the stack pointer) */
 static void stk_boot(void)
 {
-    uint32_t sp;
     IRQ_SAVE(ie);
-    __asm__ volatile("%0 = sp" : "=r"(sp));
-    stk_paint(stk_ulo, stk_utop, stk_slo, stk_stop, sp);
+    stk_paint(fm1_stk_ulo, fm1_stk_utop, fm1_stk_slo, fm1_stk_stop, fm1_sp());
     IRQ_RESTORE(ie);
 }
 /* the SRAM nothing is linked into: the pool's end to the stacks' guard band (the undo history's room, UNDO_HISTORY) */
-static uint32_t stk_sram_free(void) { return (uint32_t)(stk_guard0 - stk_pool_end); }
+static uint32_t stk_sram_free(void) { return (uint32_t)(fm1_stk_guard0 - fm1_stk_pool_end); }
 #else
 /* the host (tests, the simulator): stand-ins of the device's sizes, nothing live in them; the tests write into them */
 #define STK_HOST_MAIN (24320u / 4u)
