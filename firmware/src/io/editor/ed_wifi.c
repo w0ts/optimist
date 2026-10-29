@@ -25,6 +25,11 @@
  * rc: 0 done, 1 arguments (or no MODE AP in this build), 2 MODE OFF (5: MODE is not AP), 3 no password and not a saved network, 4 the radio
  * is not up yet (the mode was just set: ask again in a few seconds). The key bytes (PMK) never leave the device. The password is copied once, handed to wc_request and
  * wiped, here and in the receive buffer; it is not echoed, logged or kept (the manager wipes its own copy once the key is derived). */
+#ifdef WIFI_ON_FM1B
+#define EDWF_JAM 1                                         /* (the trial's Wi-Fi stack: MODE JAM, op 1 value 5) */
+#else
+#define EDWF_JAM 0
+#endif
 #ifndef FELUCCA_WIFI_AP
 #define FELUCCA_WIFI_AP 0                                  /* (the builder's configuration always says; a host test may not) */
 #endif
@@ -167,12 +172,12 @@ static int ed_wifi(uint32_t cmd, const uint8_t *a, uint32_t na)
         return 0;
     switch (op) {
     case 1:
-        if (a[1] > (FELUCCA_WIFI_AP ? WN_MODE_AP_MAN : WN_MODE_MAN)) {
+        if (a[1] > (FELUCCA_WIFI_AP ? WN_MODE_AP_MAN : WN_MODE_MAN) && !(a[1] == WN_MODE_JAM && EDWF_JAM)) {
             ed_b3(1, 1, wn_st.mode);
             break;
         }
         wn_st.mode = a[1];
-        if (a[1] == WN_MODE_OFF || a[1] >= WN_MODE_AP)
+        if (a[1] == WN_MODE_OFF || a[1] == WN_MODE_AP || a[1] == WN_MODE_AP_MAN)
             wc_enable(0);
         settings_later = 1;
         ed_b3(1, 0, wn_st.mode);

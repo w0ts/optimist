@@ -299,6 +299,9 @@ def validate(cfg):
     elif built(cfg, "ENG_GRAIN") and not any(cfg[k] for k in GRAIN_SETS):
         warn.append(Issue("GRAIN's presets play PIANO, VIBES or FLUTE: without them it has GRAIN PAD on the first "
                           "melodic set built (none: INIT, its defaults)", ["ENG_GRAIN"] + list(GRAIN_SETS)))
+    if built(cfg, "INS_REVERB") and not built(cfg, "REV_ROOM"):
+        warn.append(Issue("the ROOM insert runs the reverb's ROOM: without reverb: ROOM ticked it is not built",
+                          ["INS_REVERB", "REV_ROOM"]))
     if built(cfg, "FX_DUCK") and not any(built(cfg, k) for k in DRUM_SYNTHS + ("DRUM_SAMPLED",)):
         warn.append(Issue("DUCK follows the kick", ("FX_DUCK", "DRUM_SYNTH", "DRUM_SAMPLED")))
     mem = fx_memory(cfg)
@@ -657,11 +660,14 @@ NTRK = 4
 # instance's state on the target (bytes: measure_costs.py holds the tables against the firmware's symbols)
 FXM_UNIT = 1024        # fxi_mem.h FXA_U: 512 samples, bytes
 FXM_OWNERS = 9         # fxi_mem.h FXI_NK: T1 T2 T3 DR, the master, the USB input, the returns A B C
-FXM_TYPES = ("INS_CHORUS", "INS_DELAY", "INS_JCHORUS", "INS_FLANGER", "INS_XDLY")   # (fxi_kern.c's order, j)
+FXM_TYPES = ("INS_CHORUS", "INS_DELAY", "INS_JCHORUS", "INS_FLANGER", "INS_XDLY", "INS_REVERB", "INS_TDELAY")   # (fxi_kern.c's
+                                                                                                         # order, j)
 FXM_NAMES = {"INS_CHORUS": "CHRS", "INS_DELAY": "ECHO", "INS_JCHORUS": "JUNO CHORUS", "INS_FLANGER": "FLNG",
-             "INS_XDLY": "XDLY"}
+             "INS_XDLY": "XDLY", "INS_REVERB": "ROOM", "INS_TDELAY": "TDLY"}
 FXM_STATE = {"INS_CHORUS": ("ifx_chrs", 24), "INS_DELAY": ("ifx_echo", 20), "INS_JCHORUS": ("ifx_jcho", 36),
-             "INS_FLANGER": ("ifx_flng", 24), "INS_XDLY": ("ifx_xdly", 40)}
+             "INS_FLANGER": ("ifx_flng", 24), "INS_XDLY": ("ifx_xdly", 40), "INS_REVERB": ("ifx_room", 48),
+             "INS_TDELAY": ("ifx_tdly", 60)}   # (ROOM TDLY: fxi_send.c, their structs on the 32-bit target)
+FXM_ROOM_KB = 19       # fxi_send.c IFX_RM_N: the ROOM's four lines and its diffusers, 9681 samples in 19 units
 FXM_SYMBOLS = ("fxa_ins", "fxa_bm") + tuple(v[0] for v in FXM_STATE.values())   # (tools/build.py SIZED_SYMBOLS)
 FXM_CHO_KB = 4         # fx.c CHO_LEN: the chorus send's line, 2048 samples
 XD_STATE = FXM_STATE["INS_XDLY"][1]
@@ -684,8 +690,9 @@ def fx_memory(cfg):
         return int(f.get(R.ITEMS[key].flag, 0) or 0)
     send, cho = dly_send_kb(cfg, f), FXM_CHO_KB if on("FX_CHORUS") else 0
     kb = {"INS_CHORUS": 2, "INS_DELAY": 8, "INS_JCHORUS": 4, "INS_FLANGER": 1,   # (JUNO CHORUS: its line 32-bit)
-          "INS_XDLY": on("XDLY_LEN") // 256}
-    types = [k for k in FXM_TYPES if on(k)]
+          "INS_XDLY": on("XDLY_LEN") // 256, "INS_REVERB": FXM_ROOM_KB, "INS_TDELAY": send}   # (TDLY: the delay's line)
+    room = on("FX_REVERB") and on("REV_ROOM")                # (core.h INS_ROOM, INS_TDLY: built with what they run)
+    types = [k for k in FXM_TYPES if on(k) and (k != "INS_REVERB" or room) and (k != "INS_TDELAY" or send)]
     own = sum(kb[k] for k in types)                      # (auto, always: one line of each type built, fxi_mem.h FXA_AUTO)
     out = {}
     for k in types:

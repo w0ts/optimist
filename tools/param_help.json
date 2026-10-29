@@ -54,6 +54,8 @@
       "TAPE": {"text": "Tape tone: dark, wandering", "if": "FELUCCA_INS_TAPE"},
       "SPIT": {"text": "Spit: random band, driven", "if": "FELUCCA_INS_SPIT"},
       "XDLY": {"text": "Lyra dual delay: its mix", "if": "FELUCCA_INS_XDLY"},
+      "ROOM": {"text": "Reverb room insert: dry/wet", "if": "FELUCCA_INS_REVERB && FELUCCA_FX_REVERB && FELUCCA_REV_ROOM"},
+      "TDLY": {"text": "Tempo delay insert: dry/wet", "if": "FELUCCA_INS_TDELAY && FELUCCA_FX_DELAY"},
       "EXGN": {"text": "Example gain insert (dB)", "if": "FELUCCA_EX_GAIN"},
       "WIDE": {"text": "Stereo width insert", "if": "FELUCCA_INS_WIDTH"},
       "CHRS": {"text": "Chorus: mix, then depth", "if": "FELUCCA_INS_CHORUS"},
@@ -82,6 +84,8 @@
       "TAPE": {"text": "Tape tone: dark, wandering", "if": "FELUCCA_INS_TAPE"},
       "SPIT": {"text": "Spit: random band, driven", "if": "FELUCCA_INS_SPIT"},
       "XDLY": {"text": "Lyra dual delay: its mix", "if": "FELUCCA_INS_XDLY"},
+      "ROOM": {"text": "Reverb room insert: dry/wet", "if": "FELUCCA_INS_REVERB && FELUCCA_FX_REVERB && FELUCCA_REV_ROOM"},
+      "TDLY": {"text": "Tempo delay insert: dry/wet", "if": "FELUCCA_INS_TDELAY && FELUCCA_FX_DELAY"},
       "EXGN": {"text": "Example gain insert (dB)", "if": "FELUCCA_EX_GAIN"},
       "WIDE": {"text": "Stereo width insert", "if": "FELUCCA_INS_WIDTH"},
       "CHRS": {"text": "Chorus: mix, then depth", "if": "FELUCCA_INS_CHORUS"},
@@ -141,6 +145,8 @@
       "TAPE": {"text": "Tape tone: dark, wandering", "if": "FELUCCA_INS_TAPE"},
       "SPIT": {"text": "Spit: random band, driven", "if": "FELUCCA_INS_SPIT"},
       "XDLY": {"text": "Lyra dual delay: its mix", "if": "FELUCCA_INS_XDLY"},
+      "ROOM": {"text": "Reverb room insert: dry/wet", "if": "FELUCCA_INS_REVERB && FELUCCA_FX_REVERB && FELUCCA_REV_ROOM"},
+      "TDLY": {"text": "Tempo delay insert: dry/wet", "if": "FELUCCA_INS_TDELAY && FELUCCA_FX_DELAY"},
       "WIDE": {"text": "Stereo width insert", "if": "FELUCCA_INS_WIDTH"},
       "CHRS": {"text": "Chorus: mix, then depth", "if": "FELUCCA_INS_CHORUS"},
       "ECHO": {"text": "Slapback: level, then repeats", "if": "FELUCCA_INS_DELAY"},
@@ -428,7 +434,11 @@
       "porta": "Portamento mode", "time": "Portamento time", "gliss": "Glissando", "dxvel": "DX7 velocity range"}},
 
 
-    {"kind": "op", "ctx": "INSERTS", "if": "FELUCCA_INS_CHORUS || FELUCCA_INS_DELAY || FELUCCA_INS_JCHORUS || FELUCCA_INS_FLANGER || FELUCCA_INS_XDLY", "params": {
+    {"kind": "op", "ctx": "INSERTS", "if": "FELUCCA_INS_CHORUS || FELUCCA_INS_DELAY || FELUCCA_INS_JCHORUS || FELUCCA_INS_FLANGER || FELUCCA_INS_XDLY || FELUCCA_INS_REVERB || FELUCCA_INS_TDELAY", "params": {
+      "ROOM": {"text": "Reverb, shared: free/avail", "if": "FELUCCA_INS_REVERB && FELUCCA_FX_REVERB && FELUCCA_REV_ROOM"},
+      "FULL ROOM": {"text": "No free reverb: bypassed", "if": "FELUCCA_INS_REVERB && FELUCCA_FX_REVERB && FELUCCA_REV_ROOM"},
+      "TDLY": {"text": "Delay, shared: free/avail", "if": "FELUCCA_INS_TDELAY && FELUCCA_FX_DELAY"},
+      "FULL TDLY": {"text": "No free delay: bypassed", "if": "FELUCCA_INS_TDELAY && FELUCCA_FX_DELAY"},
       "XDLY": {"text": "Dual delay shared: free/avail", "if": "FELUCCA_INS_XDLY"},
       "FULL XDLY": {"text": "No free dual delay: bypassed", "if": "FELUCCA_INS_XDLY"},
       "FLNG": {"text": "Flanger, shared: free/avail", "if": "FELUCCA_INS_FLANGER"},
@@ -631,6 +641,8 @@
       "TAPE": {"text": "Tape tone: dark, wandering", "if": "FELUCCA_INS_TAPE"},
       "SPIT": {"text": "Spit: random band, driven", "if": "FELUCCA_INS_SPIT"},
       "XDLY": {"text": "Lyra dual delay: its mix", "if": "FELUCCA_INS_XDLY"},
+      "ROOM": {"text": "Reverb room insert: dry/wet", "if": "FELUCCA_INS_REVERB && FELUCCA_FX_REVERB && FELUCCA_REV_ROOM"},
+      "TDLY": {"text": "Tempo delay insert: dry/wet", "if": "FELUCCA_INS_TDELAY && FELUCCA_FX_DELAY"},
       "EXGN": {"text": "Example gain insert (dB)", "if": "FELUCCA_EX_GAIN"},
       "WIDE": {"text": "Stereo width insert", "if": "FELUCCA_INS_WIDTH"},
       "CHRS": {"text": "Chorus: mix, then depth", "if": "FELUCCA_INS_CHORUS"},
