@@ -104,6 +104,8 @@ RETIRED = {
     "FM6_ALL": "FM6's operator editor in VIEW ALL is gone (retired 2026-10-18, bit 80)",
     "FM6_ALGO": "FM6's algorithm full screen is gone (retired 2026-10-18, bit 81)",
     "VIS": "the SLOOP 2.4 visualiser was dropped from the builder for now (2026-10-10); HOME on TRACKS flips the mixer dial page",
+    "TAB_IN_POOL": "the sound tables, FM6's buffers and the card's stream tables are always in the pool, the RAM being one packed "
+                   "region (retired 2026-10-29, bit 300; the user: \"always on\"; any old TAB_IN_POOL value is ignored)",
     "KNOB_ONEREST": "the knobs are always read with Felucca 1.6's decoder (one rest state a detent, fast turns counted; "
                     "retired 2026-10-14, released in Felucca 1.1.5 #126 and unchanged since)",
 }
@@ -116,7 +118,7 @@ RETIRED = {
 WAS_COUNT = frozenset({"INS_CHORUS", "INS_DELAY", "INS_JCHORUS", "INS_FLANGER", "INS_XDLY",
                        "ARENA"})   # (ARENA: its KB until 2026-10-29, the free RAM since: on)
 
-HASH_AS = {"KEYLIT": 1, "LIGHTS": 1, "BRIGHT": 0, "SIMD": 0, "KNOB_ONEREST": 1, "MONO_RELEASE": 1, "ST_STRICT": 1, "USB_FLOW": 1, "SHED_FADE": 1, "KEYS_FAST": 1, "TRS_NOISE": 1, "BK_CHECK": 1, "LAYER_QUIET": 1, "DLY_HALVE": 1, "LFO2": 1, "GLIDE": 1, "UI": 1, "ICONS": 0, "OVERVIEW": 0, "OV_ARP": 1, "DRUM_STEP": 1, "CHORD_NAMES": 1, "BPM_LOCK": 0, "MOTION_MARK": 1, "SEL_PAGES": 0, "BIGVALS": 0, "DRUM_ACCENT": 1, "PAGE_LINES": 1}   # (each was its default in every profile)
+HASH_AS = {"KEYLIT": 1, "LIGHTS": 1, "BRIGHT": 0, "SIMD": 0, "KNOB_ONEREST": 1, "MONO_RELEASE": 1, "ST_STRICT": 1, "USB_FLOW": 1, "SHED_FADE": 1, "KEYS_FAST": 1, "TRS_NOISE": 1, "BK_CHECK": 1, "LAYER_QUIET": 1, "DLY_HALVE": 1, "LFO2": 1, "GLIDE": 1, "UI": 1, "ICONS": 0, "OVERVIEW": 0, "OV_ARP": 1, "DRUM_STEP": 1, "CHORD_NAMES": 1, "BPM_LOCK": 0, "MOTION_MARK": 1, "SEL_PAGES": 0, "BIGVALS": 0, "DRUM_ACCENT": 1, "PAGE_LINES": 1, "TAB_IN_POOL": 1}   # (each was its default in every profile)
 
 # Never offered: used by X0X only by permission of its author, no licence
 FORBIDDEN = {
@@ -1136,14 +1138,13 @@ _add("ED_MIRROR", "FELUCCA_ED_MIRROR", "web editor: the screen mirrored (the Mir
           "live editing (ED_LIVE) or without.")
 # (bit 70, SIZE, retired 2026-10: the UI, storage and editor code is always built minsize, tools/size_fns.py keeps the
 #  audio path out of it; never reuse the bit)
-_add("TAB_IN_POOL", "FELUCCA_TAB_IN_POOL", "sound tables and FM6 buffers in the pool, not main RAM", Y, 300, default=0,
-     tested="on the FM-1: in daily use for days, all good (the user, 2026-10-25); emulator-tested",
-     desc="Moves what the sound loops read from main RAM to the pool: the sine, soft-clip and GRAIN window tables (about 2.5 KB, copied there from flash at start-up) and FM6's sine table, operator buses and voices (about 5.9 KB), so builder items get that much more main RAM. Unverified on hardware: both are the same SRAM as far as is known and the emulator cannot tell a speed difference, so on the FM-1 it may be slower; compare the console's TABBENCH figures and the CPU meter with it off and on. The sound is the same.")
+# (bit 300, TAB_IN_POOL, retired 2026-10-29: the sound tables and FM6's buffers are always in the pool, the RAM being one
+#  packed region; RETIRED above; never reuse the bit)
 _add("TAB_CODED_ALL", "FELUCCA_TAB_CODED_ALL", "tables unpacked into RAM (flash for pool)", F, 386, default=0,
      choices=((0, "off"), (1, "the small tables and the small font; PLAITS' waveshapers, JUNO's tables, the compressor's and XDLY's curves when built (5.8 KB of pool, up to 11.4 with every one)"),
               (2, "every table, FM6's five too (3 KB of pool more)")),
      experimental=True, tested="host-tested only (tests/tab_coded_test.c: every table decoded byte for byte), not on a device",
-     desc="Trades flash for pool: smooth lookup tables the sound and the UI read are kept in flash as the differences between neighbours and unpacked at start-up into the pool, always the pool whether or not TAB_IN_POOL is on (main RAM pays nothing); the undo history ring, which takes what the pool has left, is that much shorter. The same values: the sound and the screens are unchanged; the tables read a little faster from RAM than from flash. The eleven small tables (pitch, envelope and LFO rates, cutoff, levels, decay): 4.3 KB of pool for about 2.2 KB of flash; every table adds FM6's five (fine, detune, LFO and portamento): 7.3 KB of pool for about 3.1 KB of flash (measured on the synth profile and the user's). With PLAITS built, either choice also unpacks its five waveshapers: 2.5 KB more of pool for about 1.9 KB more of flash. Either choice also moves the small font's bitmaps to the pool as they are (1.5 KB of pool for 1.0 KB of flash: they travel in the start-up stream like the rest) and, when built, JUNO's eleven small tables, the master compressor's 2^x curve and XDLY's TIME curve, delta-coded like the small tables (together 2.0 KB of pool for 1.3 KB of flash on the user's configuration, 2026-10-24).")
+     desc="Trades flash for pool: smooth lookup tables the sound and the UI read are kept in flash as the differences between neighbours and unpacked at start-up into the pool, always the pool (main RAM pays nothing); the undo history ring, which takes what the pool has left, is that much shorter. The same values: the sound and the screens are unchanged; the tables read a little faster from RAM than from flash. The eleven small tables (pitch, envelope and LFO rates, cutoff, levels, decay): 4.3 KB of pool for about 2.2 KB of flash; every table adds FM6's five (fine, detune, LFO and portamento): 7.3 KB of pool for about 3.1 KB of flash (measured on the synth profile and the user's). With PLAITS built, either choice also unpacks its five waveshapers: 2.5 KB more of pool for about 1.9 KB more of flash. Either choice also moves the small font's bitmaps to the pool as they are (1.5 KB of pool for 1.0 KB of flash: they travel in the start-up stream like the rest) and, when built, JUNO's eleven small tables, the master compressor's 2^x curve and XDLY's TIME curve, delta-coded like the small tables (together 2.0 KB of pool for 1.3 KB of flash on the user's configuration, 2026-10-24).")
 _add("LIVE_SAVE", "FELUCCA_LIVE_SAVE", "save while playing (flash writes in short windows)", Y, 380, default=0,
      tested="on the FM-1: saving while playing works (the user, 2026-10-25); host-tested",
      desc="Saving no longer stops or waits for the transport: SAVE on a user preset, a kit, a project, a name or the song "

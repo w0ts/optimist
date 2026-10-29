@@ -518,7 +518,7 @@ def item_delta(costs, key, value):
     off or down (a value under its default) never adds: a region it measured as growing counts 0 (the user, 2026-10-19,
     "clamp at 0": FX_DIST, MIDI_NOTEOUT, MISSING_WARN off made the default build 300-700 B larger in flash, the RAM code
     placed again, and the figure grew as a feature went). Not the other way: an item on that saves a region is often
-    real (TAB_IN_POOL's RAM to the pool, X909_CYM=2's smaller cymbals)"""
+    real (X909_CYM=2's smaller cymbals)"""
     if key in R.FAST_NAMES and value != R.ENG_OFF:   # (an engine on: at its place or the other, _eng_delta)
         return _eng_delta(costs, key, value)
     d = costs.get("deltas", {}).get(key, {}).get(str(value))
@@ -790,18 +790,16 @@ def arena_bufs(cfg):
     return {k: v for k, v in out.items() if v}
 
 
-# TAB_IN_POOL's set (core.h IN_POOL_AUDIO) beyond the defaults' one, where its delta is measured: with the arena's
-# extras (FELUCCA_FX_ARENA: the SD card mode with an arena) FM6's sine table is an arena block, not moved; the card's
+# the tables in the pool (core.h IN_POOL_AUDIO, always since TAB_IN_POOL was retired, 2026-10-29): a layout, not an item.
+# With the arena's extras (FELUCCA_FX_ARENA: the SD card mode with an arena) FM6's sine table is an arena block, not moved; the card's
 # stream tables (sd_stream.h sst[8] and sst_src[16], with FELUCCA_SD_STREAM) move as well. Their sizes from the
 # sd-card-mots build's symbols, 2026-10-27 (sst 800 B, sst_src 832 B; FM6_SIN[1025] int32 4,100 B): that build moved
-# 6,528 B of RAM to the pool where TAB_IN_POOL's delta says 8,992
+# 6,528 B of RAM to the pool where the old TAB_IN_POOL delta said 8,992
 FM6_SIN_RAM, SST_TABLES = 4100, 800 + 832
 
 
 def tab_pool(cfg):
-    """-> {region: bytes} what TAB_IN_POOL moves from RAM to the pool beyond the defaults' set (model_terms)"""
-    if not built(cfg, "TAB_IN_POOL"):
-        return {}
+    """-> {region: bytes} what the always-pooled tables move from RAM to the pool beyond the defaults' set (model_terms)"""
     fx_arena = cfg.get("ARENA", 0) > 0              # (every ARENA build: the extras)
     stream = (fx_arena and built(cfg, "SDCARD") and cfg.get("LAYOUT", 0) == 1 and cfg.get("SD_RING", 0) > 0
               and built(cfg, "ENG_SAMPLE"))
@@ -891,7 +889,7 @@ def arena_sends(blocks):
 def model_terms(cfg):
     """-> {region: bytes} the computed part of the estimate, against the default build: what is not a sum of
     per-item deltas (the reverb's line buffer, rev_lines; the automation store, auto_store; the engines' part
-    states, part_mem; the delay arena, dly_arena; the arena for both, arena_mem; TAB_IN_POOL's set, tab_pool)"""
+    states, part_mem; the delay arena, dly_arena; the arena for both, arena_mem; the pooled tables' set, tab_pool)"""
     d = defaults()
     arena = ({"pool": dly_arena(cfg)["pool"]}, {"pool": dly_arena(d)["pool"]})
     terms = [(rev_lines(cfg), rev_lines(d)), (auto_store(cfg), auto_store(d)), (part_mem(cfg), part_mem(d)), arena,

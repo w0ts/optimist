@@ -920,7 +920,7 @@ if not _have:
 #    cover, and the pairs measured with the Optimist UI against a UI cost that had since grown 10 KB (each "UI=1,ED_X=0"
 #    pair then carried the difference: switching an ED_* item off read 5-7 KB more)
 #    Allowed by name (the user, 2026-10-19, "named allowances"), each measured: the items that move memory between
-#    regions (off, REV_POOL's reverb line and TAB_IN_POOL's tables go back to main RAM; SECTIONS 0 keeps motion in the
+#    regions (off, REV_POOL's reverb line goes back to main RAM; SECTIONS 0 keeps motion in the
 #    project slots, in the pool), DIV_ORDER (its build is 284 B smaller in flash on than off) and FX_DJF (beside
 #    TRK_FILT the FILTER insert's code stays: off saves nothing, +124 B). RAM moves by 16-32 B of alignment as flash does.
 #    With DLY_ARENA set (a fixed effects memory), FX_DELAY off and the shorter XDLY_LEN leave more of it to the limited
@@ -928,7 +928,7 @@ if not _have:
 #    (DLY_ARENA 64), FX_DELAY off pool +4 B, XDLY_LEN 8192 pool +40 B, as the estimate says. DRUMS off makes track 4 a
 #    4th synth part (bit 424), whose engine state is in the pool: measured 2026-10-27 on synths_USBaudio_BTaudio_BTmidi
 #    (gpufarm, d9a3d172), pool +5,120 B (the estimate +4,168: the part's +12,888 less the X0X machines' states)
-_MONO_MOVES = ("REV_POOL", "TAB_IN_POOL", "SECTIONS")
+_MONO_MOVES = ("REV_POOL", "SECTIONS")
 _MONO_ALLOW = {"DIV_ORDER": "flash", "FX_DJF": "flash", "FX_DELAY": "pool", "XDLY_LEN": "pool", "DRUMS": "pool"}
 _MONO_NOISE = {"flash": K.ALIGN_NOISE, "ram": 32, "pool": 0}
 _mono_bad = []

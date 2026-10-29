@@ -87,7 +87,7 @@ enum { Q_OFF, Q_SNAP, Q_WHITE, Q_ALL, Q_SEQ };   /* P_QUANT (SCL › KEYS): seq.
  * .ram_hot2; same rules: it calls HOT / HOT2 code directly, XIP code through a pointer): mostly the effects
  * (fx.c, the inserts, the master comp, the spring); FM6's code and GRAIN run from XIP (docs/MEMORY-MAP.md
  * section 2 and 3). TAB_RAM
- * (felucca_tables.h) puts a constant table that the sample loops read into .data: copied to RAM at
+ * (felucca_tables.h) puts a constant table that the sample loops read into the pool: copied to RAM at
  * boot, so the UI's font reads cannot evict it from the data cache either (no extra flash). */
 #if defined(__PI32V2__) && !(defined(FELUCCA_ASM_CHECK) && FELUCCA_ASM_CHECK)
 /* (an ASM_CHECK verification build runs every asm kernel next to its C: too big for RAMTEXT, so it
@@ -228,10 +228,10 @@ static inline __attribute__((always_inline)) void fast_zero(void *p, uint32_t n)
 #else
 #define IN_POOL
 #endif
-/* IN_POOL_AUDIO: a zeroed buffer the audio path reads (per sample or per block): in the pool only with the builder's
- * EXPERIMENTAL TAB_IN_POOL (as the TAB_RAM tables), else main RAM as before; unverified on the FM-1 (the console's
- * tabbench measures the two) */
-#if defined(__PI32V2__) && defined(FELUCCA_TAB_IN_POOL) && FELUCCA_TAB_IN_POOL
+/* IN_POOL_AUDIO: a zeroed buffer the audio path reads (per sample or per block): in the pool too (the RAM is one packed
+ * region, docs/MEMORY-MAP.md: main RAM and pool are the same SRAM; the builder's TAB_IN_POOL, retired 2026-10-29, is
+ * always on; the console's tabbench measures the two) */
+#ifdef __PI32V2__
 #define IN_POOL_AUDIO __attribute__((section(".pool")))
 #else
 #define IN_POOL_AUDIO
