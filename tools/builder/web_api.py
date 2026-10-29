@@ -89,7 +89,12 @@ def view(values, name="", commit=None):
     undo = None
     if b and K.built(cfg, "UNDO_HISTORY"):
         undo = {"ring": K.undo_ring(b["total"])}
-    return {"eval": ev,
+    arena = None
+    if b:                                               # (ARENA on: the free SRAM less the undo's keep, what fits in it)
+        a = K.arena_size(cfg, b["total"], b.get("exact"))
+        arena = dict(a, lines=K.arena_text(cfg, b["total"], b.get("exact")),
+                     rows=[[n, by, c, note] for n, by, c, note in K.arena_fits(cfg)["rows"]]) if a else None
+    return {"eval": ev, "arena": arena,
             "savings": K.savings_of(cfg, COSTS) if COSTS else {},
             "conflicts": {k: [str(e) for e in v] for k, v in K.conflicts(cfg).items()},
             "over": over, "undo": undo,

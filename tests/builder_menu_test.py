@@ -7,6 +7,7 @@ it until the next b. No build here. Needs Textual: run with the builder's venv (
 tests/run_tests.sh uses it when it is there)."""
 import asyncio
 import os
+import re
 os.environ.setdefault("OPTIMIST_CLASSIC", "1")   # (Optimist's own firmware's tests: not the release on fm1-base)
 import shutil
 import subprocess
@@ -298,6 +299,18 @@ async def main():
         await pilot.pause()
         bars = lambda: str(app.query_one("#bars").content)
         check("the bars show the undo ring", "UNDO" in bars() and "ring" in bars())
+        arena_off = app.cfg.get("ARENA", 0) == 0
+        check("ARENA off (the default): no arena line in the bars, none on the item", arena_off and "ARENA" not in bars()
+              and "arena ~" not in label(app, "ARENA"))
+        await toggle(app, pilot, "ARENA")
+        tree = app.query_one("#tree")
+        tree.move_cursor(app.nodes["ARENA"])
+        await pilot.pause()
+        info = str(app.query_one("#info_t").content)
+        check("ARENA on: the item's line, the bars and the info panel give the size marked as an estimate (~N KB), and what fits",
+              app.cfg["ARENA"] == 1 and re.search(r"arena ~\d+ KB", label(app, "ARENA")) and re.search(r"ARENA\s+~\d+ KB \(estimate\)", bars())
+              and re.search(r"arena ~\d+ KB \(estimate: free SRAM", info) and "all at once" in info and "sends" in info)
+        await toggle(app, pilot, "ARENA")
         check("no Reserve group in the menu", "RESERVE_UNDO_KB" not in [n.data for g in app.query_one("#tree").root.children for n in g.children])
     app = M.Builder(C.defaults(), "default")             # q and ctrl+c are refused while the FM-1 is written, work again after
     async with app.run_test(size=(200, 60)) as pilot:

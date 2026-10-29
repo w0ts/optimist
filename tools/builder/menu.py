@@ -249,6 +249,10 @@ class Builder(App):
             t.append(f"  shares PERC samples{size} with the other sampled kits", style="dim")
             if C.is_last_kit(self.cfg, key):
                 t.append("  last kit: off drops the samples", style="bold")
+        if key == "ARENA" and v:                          # (what the arena will get, an estimate unless a build backs it)
+            ar = self.arena()
+            if ar:
+                t.append(f"  arena {'' if ar['exact'] else '~'}{ar['kb']} KB", style="bold green")
         errs = self.conflicts.get(key)
         if errs:                                         # an error of validate() names this item: live, in red
             t.append(f"  ✗ {errs[0]}" + (f" (+{len(errs) - 1})" if len(errs) > 1 else ""), style="bold red")
@@ -276,6 +280,11 @@ class Builder(App):
         if b and self.exact and self.exact[0] == C.cfg_hash(cfg):
             b = dict(b, total=dict(self.exact[1]), exact=True)
         return b
+
+    def arena(self):
+        """-> core.arena_size of the selection (None with ARENA off): exact when the last build was of this selection"""
+        b = self.budget()
+        return C.arena_size(self.cfg, b["total"], b.get("exact")) if b else None
 
     def update_budget(self):
         """the estimate, the overflow per region, every item's savings and the items validate() errors name, once
@@ -361,6 +370,10 @@ class Builder(App):
         if C.built(self.cfg, "UNDO_HISTORY"):               # (what RAM and pool leave: the undo history's ring)
             lines.append(Text(f"{'UNDO':8s} ring {C.undo_ring(b['total']):,} B"))
             lines.append("\n")
+        ar = self.arena()
+        if ar:                                           # (the arena: the free SRAM less the undo's keep)
+            lines.append(Text(f"{'ARENA':8s} {'' if ar['exact'] else '~'}{ar['kb']} KB" + ("" if ar["exact"] else " (estimate)")))
+            lines.append("\n")
         w.update(lines)
 
     def refresh_msgs(self):
@@ -413,6 +426,9 @@ class Builder(App):
             mem = C.fx_memory(self.cfg)
             if mem["types"]:
                 t.append(C.fx_memory_text(mem) + "\n", style="cyan")
+        if key == "ARENA" and self.cfg.get("ARENA") and self.costs:   # (its size and what fits in it)
+            b = self.budget()
+            t.append("\n".join(C.arena_text(self.cfg, b["total"], b.get("exact"))) + "\n", style="cyan")
         for e in self.conflicts.get(key, []):
             t.append(f"ERROR  {e}\n", style="bold red")
         if self.costs:

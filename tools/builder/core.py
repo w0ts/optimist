@@ -19,6 +19,7 @@ import functools
 import hashlib
 import re
 import sys
+import textwrap
 
 import registry as R
 
@@ -883,6 +884,100 @@ def arena_sends(blocks):
     or the ones that do not fit are refused and their returns stay silent (the FM-1, 2026-10-28: ARENA 32 with a
     32 KB delay line and a 32 KB reverb line, no reverb and no chorus at all)"""
     return {k: blocks[k] for k in SEND_LINES if blocks.get(k)}
+
+
+# ---- what the arena will get, and what fits in it (the user, 2026-10-29: the builder shows the arena's size and gives a
+# feel for what fits). On the device the arena is the SRAM the link leaves free (engines.c ARN_BOOT: _pool_end .. _guard0
+# less the 8 KiB spare = undo_ring) less the undo history's least in the SRAM (ARN_UNDO_KEEP)
+ARN_UNDO_LEAST = 16 * 1024      # engines.c ARN_UNDO_LEAST: the undo's least in the SRAM without the cache RAM
+ARN_UNDO_SRAM = 1024            # engines.c ARN_UNDO_SRAM: its SRAM part with the cache RAM, at least
+CACHE_RAM_BYTES = {2: 8192, 4: 16384, 7: 28672}   # hal/fm1_cache.h: the ways as RAM (4 KB each); the tested free part is a little less
+SD_GRAIN_CACHE, SD_STRETCH_CACHE = 33280, 16640   # a part's card cache, with its tags (docs/SD-CARD-DESIGN.md, sd_grain_test)
+SD_PRE_MS = 50                  # sd_stream_plan.c SST_PRE_MS default: the pre-buffer of a card sample
+SD_HEAD_B = SD_PRE_MS * 441 // 10 * 2   # (frames at 44.1 kHz, 16 bit mono: 2 B a frame; the sample's own rate and width decide)
+SD_RINGS_TYPICAL, SD_HEADS_TYPICAL = 4, 8   # a part's rings at most (SST_PART_RINGS); the card samples of a typical project
+ARENA_ESTIMATE_KB = 4           # the estimate's stated tolerance (KB) against a real build of a configuration the anchors know
+
+
+def arena_undo_keep(cfg):
+    """-> bytes the undo history keeps in the SRAM behind the arena (engines.c ARN_UNDO_KEEP): 16 KB, or with the cache
+    RAM (CACHE_RAM, its test passed) 1 KB at least: the arena gets the SRAM the cache RAM frees"""
+    ways = cfg.get("CACHE_RAM", 0)
+    free = CACHE_RAM_BYTES.get(ways, ways * 4096)
+    if not ways:
+        return ARN_UNDO_LEAST
+    return ARN_UNDO_LEAST - free if free + ARN_UNDO_SRAM < ARN_UNDO_LEAST else ARN_UNDO_SRAM
+
+
+def arena_size(cfg, total, exact=False):
+    """-> {"bytes", "kb", "free", "keep", "exact"} the arena a build gets: the free SRAM (undo_ring of the total) less the
+    undo's keep; exact: the total is a real build's sizes (else the estimate); None with ARENA off"""
+    if not cfg.get("ARENA", 0) or not total:
+        return None
+    free, keep = undo_ring(total), arena_undo_keep(cfg)
+    n = max(0, free - keep) & ~7
+    return {"bytes": n, "kb": n // 1024, "free": free, "keep": keep, "exact": bool(exact)}
+
+
+def _kb1(n):
+    return f"{n / 1024:.1f}"
+
+
+def arena_fits(cfg):
+    """-> {"rows": [(name, bytes each, count, note)], "all": bytes of everything at once, "typical": ...} what a project can put in
+    the arena, from the builder's own model (arena_blocks: the parts' engine states, the sends, the inserts' room, the other buffers;
+    the SD card mode's streams). "all" = every row at its count: a project using all of it at once"""
+    c = dict(cfg, DLY_ARENA=dly_kb(cfg))
+    blocks = _raw(arena_blocks, c)
+    rows = []
+    sends = arena_sends(blocks)
+    if sends:
+        rows.append(("the 3 sends' lines" if len(sends) == 3 else "the sends' lines (" + ", ".join(
+            k.split("'")[0].replace("the ", "") for k in sends) + ")", sum(sends.values()), 1,
+            "always placed while the sends are used"))
+    eng = max((k for k in PART_MEM if built(cfg, k)), key=PART_MEM.get, default=None)
+    if blocks.get("a part's engine state"):
+        rows.append(("a part's " + (R.ITEMS[eng].label.split(" (")[0] if eng else "engine") + " state",
+                     blocks["a part's engine state"], nparts(cfg), "the largest engine built, a part each"))
+    if blocks.get("the inserts' own room"):
+        rows.append(("the inserts' room", blocks["the inserts' own room"], 1, "the limited inserts' lines"))
+    for k, v in arena_bufs(cfg).items():
+        if k == "FM6's sine table":
+            continue                                    # (held with FM6's engine state: a few KB, in the table's note)
+        rows.append((k, v, 1, "a track each" if k.startswith("a track's") else "while the project uses it"))
+    if sd_mode(cfg) and built(cfg, "SDCARD") and cfg.get("SD_RING", 0) > 0 and built(cfg, "ENG_SAMPLE"):
+        rows.append(("a card sample's head", SD_HEAD_B, SD_HEADS_TYPICAL, f"pre-buffer {SD_PRE_MS} ms, typical {SD_HEADS_TYPICAL} samples"))
+        rows.append(("a card stream's ring", cfg["SD_RING"] * 1024, SD_RINGS_TYPICAL, "SD_RING a voice, typical one part"))
+    if sd_mode(cfg) and built(cfg, "SDCARD") and cfg.get("SD_RING", 0) > 0:
+        if built(cfg, "ENG_GRAIN"):
+            rows.append(("GRAIN's card cache", SD_GRAIN_CACHE, nparts(cfg), "a part on GRAIN with a card set"))
+        if built(cfg, "ENG_STRETCH"):
+            rows.append(("STRETCH's card cache", SD_STRETCH_CACHE, nparts(cfg), "a part on STRETCH with a card set"))
+    total = sum(b * n for _, b, n, _ in rows)
+    return {"rows": rows, "all": total}
+
+
+HINT = ("a typical project uses the sends and its parts' engines; WAVE, SLICER, PUNCH, the X0X states and the card caches only when it plays them",)
+
+
+def arena_text(cfg, total, exact=False):
+    """-> [str] (<= 78 columns) the arena panel: its size, what fits, whether all of it at once does; [] with ARENA off"""
+    a = arena_size(cfg, total, exact)
+    if not a:
+        return []
+    f = arena_fits(cfg)
+    how = "from the last real build" if a["exact"] else "estimate"
+    out = [f"arena {'' if a['exact'] else '~'}{a['kb']} KB ({how}: free SRAM {_kb1(a['free'])} KB - undo keep {_kb1(a['keep'])} KB)"]
+    for name, b, n, note in f["rows"]:
+        out.append(f"  {name:30.30s} {(str(n) + ' x ' if n > 1 else '').rjust(4)}{_kb1(b):>6s} KB = {_kb1(b * n):>6s} KB")
+    tot = f["all"] / 1024
+    out.append(f"  {'all at once':30s}{'':4s}{'':>6s}    = {tot:6.1f} KB of {a['kb']} KB")
+    if f["all"] > a["bytes"]:
+        out.append(f"  a project using all of it at once is refused something (MEM FULL) by {(f['all'] - a['bytes']) / 1024:.1f} KB")
+    else:
+        out.append("  all of it at once fits")
+    out.extend(textwrap.wrap(HINT[0], 76, initial_indent="  ", subsequent_indent="  "))
+    return out
 
 
 def model_terms(cfg):

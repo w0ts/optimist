@@ -50,6 +50,7 @@ const TEMPLATE = `
           <div class="side">
             <button type="button" id="fit" class="primary" hidden>Make it fit</button>
             <span id="undo" class="o-chip"></span>
+            <span id="arena" class="o-chip"></span>
             <button type="button" id="keychip" class="o-chip tip-end" data-tip="The cloud key of this configuration" aria-label="Copy the configuration's key">key -</button>
           </div>
         </div>
@@ -303,6 +304,10 @@ function renderBars() {
   ud.className = "o-chip";
   ud.textContent = u ? `undo ${fmtKB(u.ring)}` : "";
   ud.title = u ? `UNDO ring ${fmt(u.ring)} B` : "";
+  const a = v.arena, ar = $("arena");
+  ar.className = "o-chip";
+  ar.textContent = a ? `arena ${a.exact ? "" : "~"}${a.kb}K` : "";
+  ar.title = a ? `ARENA ${a.exact ? "" : "estimate "}${a.kb} KB: the free SRAM (${fmt(a.free)} B) less the undo keep (${fmt(a.keep)} B)` : "";
   const key = ev.key || ev.cfg_hash || "";
   $("keychip").textContent = key ? `${ev.key ? "key" : "hash"} ${key.slice(0, 10)}` : "key -";
   $("keychip").dataset.tip = ev.key ? `Cloud key ${key} (click: copy)` : key ? `Configuration hash ${key} (the cloud key is computed at build time; click: copy)` : "No key yet";
@@ -469,6 +474,7 @@ async function renderInfo(key) {
   info.append(el("h3", { text: it.label }),
     el("p", { class: "meta", text: `${key}` + (it.flag ? `  (${it.flag})` : "") + `  bit ${it.bit}` + (it.parent || it.shown_under ? ` · option of ${S.reg.byKey[it.shown_under || it.parent].label}` : "") }));
   if (it.desc) info.append(el("p", { text: it.desc }));
+  if (key === "ARENA" && S.view && S.view.arena) info.append(el("pre", { class: "arenafit", text: S.view.arena.lines.join("\n") }));
   for (const e of (S.view && S.view.conflicts[key]) || []) info.append(line("err", "Error", e));
   if (d) {
     const rows = d.values.map(([lab, , dd]) => dd && el("tr", {}, el("td", { text: lab }), REGIONS.map((r) => el("td", { text: (dd[r] >= 0 ? "+" : "") + fmt(dd[r]) }))));

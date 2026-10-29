@@ -128,6 +128,7 @@
 
   /* the result */
   .ob-root #result code, .ob-root #result pre { font: var(--fs-2)/1.45 var(--font-mono); overflow-wrap: anywhere; }
+  .ob-root #info pre.arenafit { font: var(--fs-2)/1.45 var(--font-mono); white-space: pre-wrap; overflow-x: auto; background: var(--surface-0); border: 1px solid var(--line); padding: var(--sp-2); margin: var(--sp-2) 0 0; border-radius: var(--r); }
   .ob-root #result pre { white-space: pre-wrap; max-height: 260px; overflow: auto; background: var(--surface-0); border: 1px solid var(--line); padding: var(--sp-2); margin: var(--sp-2) 0 0; border-radius: var(--r); }
   .ob-root #key { word-break: break-all; }
   .ob-root #result .o-field { margin-bottom: var(--sp-2); }
