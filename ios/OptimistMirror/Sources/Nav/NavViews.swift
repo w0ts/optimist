@@ -106,9 +106,9 @@ struct NavPages: View {
 
     @ViewBuilder private func menu(_ r: Int) -> some View {
         Button { nav.addFavorite(row: r, withTrack: false) } label: { Label("Add to Favorites", systemImage: "star") }
-        if let s = nav.state, s.track != Nav.none, let t = nav.trackName(s.track) {
-            Button { nav.addFavorite(row: r, withTrack: true) } label: { Label("Add to Favorites on \(t)", systemImage: "star.square") }
-        }
+        let t = nav.state.flatMap { $0.track != Nav.none ? nav.trackName($0.track) : nil }
+        Button { nav.addFavorite(row: r, withTrack: true) } label: { Label(t.map { "Add to Favorites on \($0)" } ?? "Add to Favorites on a track", systemImage: "star.square") }
+            .disabled(t == nil)
     }
 }
 
@@ -173,11 +173,11 @@ struct NavSide: View {
         Menu {
             if let s = nav.state, s.row < s.rows.count {
                 Button { nav.addFavorite(row: s.row, withTrack: false) } label: { Label("Add \(s.rows[s.row])", systemImage: "star") }
-                if s.track != Nav.none, let t = nav.trackName(s.track) {
-                    Button { nav.addFavorite(row: s.row, withTrack: true) } label: {
-                        Label("Add \(s.rows[s.row]) on \(t)", systemImage: "star.square")
-                    }
+                let t = s.track != Nav.none ? nav.trackName(s.track) : nil
+                Button { nav.addFavorite(row: s.row, withTrack: true) } label: {
+                    Label(t.map { "Add \(s.rows[s.row]) on \($0)" } ?? "Add \(s.rows[s.row]) on a track", systemImage: "star.square")
                 }
+                .disabled(t == nil)
             }
         } label: {
             Image(systemName: "star.badge.plus")
@@ -198,14 +198,20 @@ struct NavTracks: View {
     /// Always room for the lanes' line (the user, 2026-10-24: the screen must not change size between T1..T3 and DR)
     static let height = NavMetrics.button * 2 + NavMetrics.gap
 
+    /// The lanes' buttons: always drawn (the kit's names, else the default lanes'), available only while the drum track or a lane
+    /// is the selection (the user, 2026-10-29: "the buttons that are not available should be greyed out")
+    static func lanes(tracks: [String], current: Int) -> (names: [String], available: Bool) {
+        let kit = tracks.count > Nav.drumRow + 1
+        return (kit ? Array(tracks[(Nav.drumRow + 1)...]) : Nav.defaultLanes, kit && current != Nav.none && current >= Nav.drumRow)
+    }
+
     var body: some View {
         let cur = nav.state?.track ?? Nav.none, dim = cur == Nav.none, n = nav.tracks.count
+        let lanes = Self.lanes(tracks: nav.tracks, current: cur)
         VStack(spacing: NavMetrics.gap) {
             HStack(spacing: 4) {
-                if !dim, cur >= Nav.drumRow, n > Nav.drumRow + 1 {
-                    ForEach(Nav.drumRow + 1..<n, id: \.self) { p in
-                        NavButton(title: nav.tracks[p], lit: p == cur) { nav.pick(track: p) }
-                    }
+                ForEach(Array(lanes.names.enumerated()), id: \.offset) { k, name in
+                    NavButton(title: name, lit: lanes.available && Nav.drumRow + 1 + k == cur, dim: !lanes.available) { nav.pick(track: Nav.drumRow + 1 + k) }
                 }
             }
             .frame(height: NavMetrics.button)

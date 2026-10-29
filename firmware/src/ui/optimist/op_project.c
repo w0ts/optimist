@@ -685,25 +685,37 @@ static void sys_ro(cell_t *c, const char *label)    /* a read-out line */
 #else
 #define INFO_CR 0u
 #endif
+/* the arena's fill, the one quantity of INFO's RAM bar and of the memory line over every page (op_draw.c ml_draw): the bytes in use,
+ * the whole room, the undo history's share after the fill (the bar's dimmer segment) */
+static void ram_fill(uint32_t *used, uint32_t *total, uint32_t *n)
+{
+#if PART_DROPS
+    *total = ARN_BYTES + ARN_UNDO_KEEP + INFO_CR;
+    *used = ARN_BYTES - arn_room();
+#if FELUCCA_UNDO_HISTORY
+    *n = undo_h.ready ? undo_h.size : ARN_UNDO_KEEP + INFO_CR;   /* (both its parts: the free SRAM's, the cache RAM's) */
+#else
+    *n = 0;
+#endif
+#else
+    *total = INFO_SRAM;
+    *used = *total > stk_sram_free() ? *total - stk_sram_free() : 0u;
+    *n = 0;
+#endif
+}
+static uint32_t info_ram_pct(void)                      /* the fill in percent, 0..100 (the memory line's) */
+{
+    uint32_t used, total, n;
+    ram_fill(&used, &total, &n);
+    return total ? (used * 100u / total < 100u ? used * 100u / total : 100u) : 0u;
+}
 static void info_ram(cell_t *c)
 {
     uint32_t used, total, pct, n, shown;
-#if PART_DROPS
-    total = ARN_BYTES + ARN_UNDO_KEEP + INFO_CR;
-    used = ARN_BYTES - arn_room();
-#if FELUCCA_UNDO_HISTORY
-    n = undo_h.ready ? undo_h.size : ARN_UNDO_KEEP + INFO_CR;   /* (both its parts: the free SRAM's, the cache RAM's) */
-#else
-    n = 0;
-#endif
-#else
-    total = INFO_SRAM;
-    used = total > stk_sram_free() ? total - stk_sram_free() : 0u;
-    n = 0;
-#endif
+    ram_fill(&used, &total, &n);
     sys_ro(c, "RAM");
-    pct = total ? used * 100u / total : 0u;
-    cell_gauge(c, 0, 0, 100, (int32_t)(pct < 100u ? pct : 100u));
+    pct = info_ram_pct();
+    cell_gauge(c, 0, 0, 100, (int32_t)pct);
     c->pkbar = 1;
     c->av = (int16_t)(total ? (used + n) * 100u / total < 100u ? (used + n) * 100u / total : 100u : 0u);
     shown = used / 1024u;
@@ -1044,7 +1056,7 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
 #if FELUCCA_LINK
     case SI_LINK: {
         static const char *const LKN[3] = {"OFF", "ON", "ON+S/S"};   /* (by LINK_*) */
-        cell_list(c, "LINK", LKN[link_mode % 3u], LINK_ONSS, link_mode);
+        cell_list(c, "LINK", link_eff() != link_mode ? "ON (JAM)" : LKN[link_mode % 3u], LINK_ONSS, link_mode);   /* (MODE JAM forces ON: said, the stored value kept) */
         break;
     }
 #endif

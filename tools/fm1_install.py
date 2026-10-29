@@ -23,6 +23,7 @@ Optimist's ota-FM-1_7XX or SLOOP / Felucca's ota-FM-1_9XX, is resumed).
 """
 import argparse
 import contextlib
+import hashlib
 import queue
 import re
 import signal
@@ -35,6 +36,11 @@ FINISH_CHECK, FINISH_WRITE = 0xE0000000, 0xF0000000
 MAXDATA = 512
 BLOCKS, BLK, KEEP = 20, 0x30, 0x2F
 LOADER_MARK = b"FELUCCA-LOADER-1"
+# M-VAVE's V15 (web/stock/FM-1_015.fwsc), known by its whole hash: its USR entry fails the per-file CRC as
+# package_damage computes it (fm1_rescue.py the same)
+STOCK_SHA256 = "db1642b2b6fa5c2cccb11ffd13878068bb28601678d3644049f99dc40e7edb8a"
+# the app slots Optimist's own updater takes (firmware/src/system/ota.c: FL_APP_HI_NORMAL, FL_APP_HI_BIG)
+OWN_SLOTS = (0x93000, 0xD0000)
 PORT_RE = re.compile(r"fm-1|felucca|optimist|ota|composite|sinco|usb-midi", re.I)   # never probe other gear
 
 # seconds; the tests shorten them
@@ -377,11 +383,12 @@ def load_package(path, force):
     product = product_of(raw)
     if not re.fullmatch(r"[^_]+_\d+", product):
         raise InstallError("badpkg", f"{path}: not an FM-1 package (identity {product!r})")
-    if LOADER_MARK not in raw and not force:
+    stock = hashlib.sha256(raw).hexdigest() == STOCK_SHA256
+    if LOADER_MARK not in raw and not force and not stock:
         raise InstallError("badpkg", f"{path}: no Felucca update loader in this package; "
                                      "only Felucca's own packages are installed (--force overrides)")
     image = logical_image(raw)
-    bad = package_damage(image)
+    bad = None if stock else package_damage(image)
     if bad:
         raise InstallError("badpkg", f"{path}: damaged package ({bad}); nothing was written. "
                                      "Download it again.")
@@ -431,6 +438,34 @@ def package_damage(image):
         if _crc16(image[off:off + size]) != dcrc:
             return f"{name}: CRC"
     return None
+
+
+def flash_size(image):
+    """the size of the package's flash.bin (its file list), None without one"""
+    hdr = _dec(image[0:0x40])
+    for i in range(int.from_bytes(hdr[8:10], "little")):
+        e = _dec(image[0x40 + 0x50 * i:0x40 + 0x50 * (i + 1)])
+        if e[0x40:0x50].split(b"\0")[0] == b"flash.bin":
+            return int.from_bytes(e[12:16], "little")
+    return None
+
+
+def platform_warning(running, product, image):
+    """why the running firmware may refuse this package, said before anything is sent, or None. Optimist's own
+    updater (a running FM-1_7NN) takes its own layouts only and refuses fm1-base's packages (FM-1_79..., the
+    release identities): 2026-10-29, an fm1-base SD card mode package (flash.bin 0xCE000) over an Optimist build
+    stopped at the device's loader check (-16), nothing written"""
+    if running.loader or not re.fullmatch(r"FM-1_7\d\d", running.text):
+        return None
+    size = flash_size(image)
+    if re.fullmatch(r"FM-1_79\d\d+", product):
+        why = f"{product} is an fm1-base package"
+    elif size is not None and size not in OWN_SLOTS:
+        why = f"its flash.bin is {size:#x} B, Optimist's layouts {', '.join(f'{s:#x}' for s in OWN_SLOTS)}"
+    else:
+        return None
+    return (f"the FM-1 runs Optimist's own firmware ({running.text}), which may refuse this package ({why}). "
+            "The way over: M-VAVE's V15 first (fm1base/tools/fm1_install.py web/stock/FM-1_015.fwsc), then this package")
 
 
 def not_found(up):
@@ -505,7 +540,14 @@ def run(a, backend, out, ask):
         raise not_found(up)
     print(f"device:  {dev.id.text}  ({dev.name})" + ("  in update mode: the write will be finished" if dev.id.loader else ""),
           file=out)
-    if not a.yes and not ask("Install? Do not unplug the FM-1 while writing. [y/N] "):
+    warn = platform_warning(dev.id, product, image)
+    if warn:
+        print(f"warning: {warn}", file=out)
+        if a.yes and not a.force:
+            dev.link.close()
+            raise InstallError("foreign", f"{warn}; nothing was sent (--force installs it anyway)")
+    if not a.yes and not ask(("Install anyway? " if warn else "Install? ") +
+                             "Do not unplug the FM-1 while writing. [y/N] "):
         dev.link.close()
         print("cancelled", file=out)
         return 1
