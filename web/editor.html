@@ -8590,11 +8590,15 @@ function shownDesc(s, id) {
 /* the formats chosen from a list rather than turned */
 const listFmt = (d) => [F.ENUM, F.NOTE, F.ONOFF].includes(d.fmt);
 /* an enum, a note or ON / OFF as a dropdown (WAVE / WAVE2 with their icons where the browser draws rich options) */
+const SYNC_PLACE = ["AUTO", "LINK", "TRS", "USB", "BLE", "INT"];
 function paramSelect(s, id, d) {
   const wave = RICH_SELECT && /^WAVE2?$/.test(d.label) && d.fmt === F.ENUM;
   const box = el("select", { class: wave ? "wave" : null });
   if (wave) box.append(el("button", {}, el("selectedcontent")));   /* (closed, it shows the chosen option itself, its icon too) */
-  for (let v = d.min; v <= d.max; v += 1) {
+  const vals = Array.from({ length: d.max - d.min + 1 }, (_, i) => d.min + i);
+  if (d.label === "SYNC" && d.names.includes("AUTO"))   /* the clock to follow: AUTO, then its priority (firmware SYNC_ORDER), INT last; the values stay */
+    vals.sort((a, b) => SYNC_PLACE.indexOf(d.names[a - d.min]) - SYNC_PLACE.indexOf(d.names[b - d.min]));
+  for (const v of vals) {
       if (d.fmt === F.ENUM && d.names[v - d.min] === "") continue;   /* a value this build leaves out (FM6's ENGINE modes) */
     const label = d.fmt === F.ENUM && d.names[v - d.min] == null ? String(v) : formatValue(d, v)[0];
     box.append(el("option", { value: v, ic: wave && WAVE_IC[label] }, label));

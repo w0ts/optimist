@@ -523,16 +523,22 @@ static int32_t lrate_step(const param_desc_t *d, int32_t v, int32_t steps)
     return v > 0 ? 0 : clamp(v + (steps < 0 ? -1 : 1), d->min, d->max);
 }
 
-#if FELUCCA_DIV_ORDER
-/* #48 (after Felucca 1.0.2, hugelton/Felucca db70550, params.c DIV_ORDER / enum_rank / param_turn, by Leo
- * Kuroshita, GPL-3.0-only): the note divisions in the order of their length on the knobs and the gauges. Since 2026-10-22 N_DUR is in
- * that order already (core.h DUR_48), so there is no order table: the value is the place */
+/* The order a list shows and a knob steps through, apart from the stored values (G_SYNC's are in projects, settings and the
+ * editor protocol): o[place] = the value at that place (- min); 0 = the stored order. #48 (after Felucca 1.0.2, hugelton/
+ * Felucca db70550, params.c DIV_ORDER / enum_rank / param_turn, by Leo Kuroshita, GPL-3.0-only) did it for the note
+ * divisions; since 2026-10-22 N_DUR is in length order already (core.h DUR_48), so those need no table */
+#if defined(FELUCCA_BLE) && FELUCCA_BLE && FELUCCA_LINK
+static const uint8_t SYNC_ORDER[] = {SYNC_AUTO, SYNC_LINK, SYNC_TRS, SYNC_USB, SYNC_BLE, SYNC_INT};   /* = clock_sync.c sy_rank, INT last */
+#elif defined(FELUCCA_BLE) && FELUCCA_BLE
+static const uint8_t SYNC_ORDER[] = {SYNC_AUTO, SYNC_TRS, SYNC_USB, SYNC_BLE, SYNC_INT};
+#else
+static const uint8_t SYNC_ORDER[] = {SYNC_AUTO, SYNC_TRS, SYNC_USB, SYNC_INT};
+#endif
 static const uint8_t *enum_order(const param_desc_t *d)
 {
-    (void)d;
-    return 0;
+    return d == &GP[G_SYNC] ? SYNC_ORDER : 0;
 }
-static int32_t enum_rank(const param_desc_t *d, int32_t v)   /* v's place in the order shown (+ min): the gauges */
+static int32_t enum_rank(const param_desc_t *d, int32_t v)   /* v's place in the order shown (+ min): the gauges, the popup */
 {
     const uint8_t *o = enum_order(d);
     int32_t r;
@@ -546,18 +552,13 @@ static int32_t enum_at(const param_desc_t *d, int32_t p)     /* the value shown 
     const uint8_t *o = enum_order(d);
     return o ? o[clamp(p - d->min, 0, d->max - d->min)] + d->min : p;
 }
-static int32_t param_step(const param_desc_t *d, int32_t v, int32_t steps)   /* (a division: over the order) */
+static int32_t param_step(const param_desc_t *d, int32_t v, int32_t steps)   /* (a listed order: over its places) */
 {
     const uint8_t *o = enum_order(d);
     if (o)
         return o[clamp(enum_rank(d, v) - d->min + steps, 0, d->max - d->min)] + d->min;
     return is_lrate(d) ? lrate_step(d, v, steps) : param_step0(d, v, steps);
 }
-#else
-#define enum_rank(d, v) (v)
-#define enum_at(d, p) (p)
-#define param_step(d, v, steps) (is_lrate(d) ? lrate_step(d, v, steps) : param_step0(d, v, steps))
-#endif
 
 static uint32_t ins_amt(uint32_t k, uint32_t s);     /* (fx_slots.c, included below) */
 /* a slot's DEST v (LT_E1 ..: not a plain name) as val (<= 6 chars): INS1 INS2 the type the selected track's slot S1 / S2

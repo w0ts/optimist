@@ -860,6 +860,10 @@ job; ( jobin
     run "Optimist UI with BLE built in: SYSTEM > BT MIDI (OFF / MAN / AUTO, the radio told once; no BT AUDIO page), the settings word bits HOLD 21..22, CARDS 23, BLUETOOTH 24, KNOB COLORS 25 do not collide; YES on the BLE row opens the devices list: NONE / LAST pinned, nearby with bars, no wrap, SAVE picks / connects, HOME back, SHIFT + a button FORGET LAST (the modal), Connecting / Pairing / the code / Connected / Failed" "$OUT/ui_optimist_ble_test" "$OUT/optimist"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DFELUCCA_BLE=1 -DFELUCCA_CDC=1 -DFELUCCA_WIFI=1 -DFELUCCA_LINK=1 -DBLE_HW_WL82=1 $SEC4 -o "$OUT/ui_optimist_synclink_test" tests/ui_optimist_test.c -lm
+    run "Optimist UI with BLE and Link built in: CLK IN / SYNC steps AUTO, LINK, TRS, USB, BLE, INT (without them AUTO, TRS, USB, INT: the default build)" "$OUT/ui_optimist_synclink_test" "$OUT/optimist"
+) >"$U.out" 2>&1 & jobbg
+job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DFELUCCA_BLE=1 -DBLE_CENTRAL=0 $SEC4 -o "$OUT/ui_optimist_blenc_test" tests/ui_optimist_test.c -lm
     run "Optimist UI with BLE and no scanner built in: the devices list is NONE alone" "$OUT/ui_optimist_blenc_test" "$OUT/optimist"
 ) >"$U.out" 2>&1 & jobbg

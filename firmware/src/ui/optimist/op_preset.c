@@ -305,7 +305,7 @@ static void pop_paint(void)                             /* the box in its own co
             } else {
                 cv_rect(16, ry + POP_RH / 2 - 4, 6, 8, ec);     /* the engine's chip */
             }
-            if (pop_kind == 3u && !pen_avail(pen.d->min + (int32_t)idx))   /* (a type the slot cannot take now: struck, dim) */
+            if (pop_kind == 3u && !pen_avail(enum_at(pen.d, pen.d->min + (int32_t)idx)))   /* (a type the slot cannot take now: struck, dim) */
                 text_st(28, ry + (POP_RH - (int32_t)f->h) / 2, f, nm, col_shade(C_GRAY, 3u), 1);
             else
                 cv_text(28, ry + (POP_RH - (int32_t)f->h) / 2, f, nm, off == 0 ? C_WHITE : C_GRAY);
