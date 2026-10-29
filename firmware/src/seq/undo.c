@@ -205,9 +205,13 @@ static uint32_t undo_arena_set(uint8_t *plo, uint8_t *phi, uint8_t *rlo, uint8_t
  * oldest levels dropped, all of them when the newest are in the way) and takes the room back when the arena lets it
  * go (undo_regrow, before a record is kept) */
 #define UNDO_RING_END (arn_mem + ARN_BYTES + ARN_UNDO_KEEP)
-#if defined(__PI32V2__) && FELUCCA_CACHE_RAM            /* (the cache RAM's ways after it, its test passed: hal/fm1_cache.h) */
-extern uint8_t _undo_cache_lo[];
-#define UNDO_ARENA() undo_arena_set(arn_mem + ((arn_top() + 3u) & ~3u), UNDO_RING_END,                                                                  fm1_cache_ram_ok() ? _undo_cache_lo : 0, fm1_cache_ram_ok() ? (uint8_t *)FM1_CR_HI : 0, 0u)
+#if FELUCCA_CACHE_RAM
+/* the cache RAM's ways after it when their test passed (hal/fm1_cache.h fm1_cache_ram_lo / _free; the trial's on
+ * fm1-base's plat_cache_ram): its second segment, which only the main loop reads (the arena's blocks stay in the SRAM:
+ * whether the second core and DMA read the ways has not been measured). Its least in the SRAM is that much less
+ * (engines.c ARN_UNDO_KEEP), the arena that much more; a failed test: none, the least all in the SRAM as without */
+#define UNDO_ARENA() undo_arena_set(arn_mem + ((arn_top() + 3u) & ~3u), UNDO_RING_END, fm1_cache_ram_lo(), \
+                                    fm1_cache_ram_lo() + fm1_cache_ram_free(), 0u)
 #else
 #define UNDO_ARENA() undo_arena_set(arn_mem + ((arn_top() + 3u) & ~3u), UNDO_RING_END, 0, 0, 0u)
 #endif
@@ -255,11 +259,12 @@ static void undo_regrow(void)                           /* the room the arena no
 #elif defined(__PI32V2__)
 extern uint8_t _undo_pool_lo[], _undo_pool_hi[], _undo_ram_lo[], _undo_ram_hi[];   /* app.ld */
 #if FELUCCA_CACHE_RAM
-/* EXPERIMENTAL cache RAM (hal/fm1_cache.h): when its boot test passed, its n x 4 KiB (after .cache_ram) are the second
- * segment instead of main RAM's leftover; else main RAM's as without it */
-extern uint8_t _undo_cache_lo[];                 /* (its end: FM1_CR_HI, the ways the build frees) */
-#define UNDO_ARENA() (fm1_cache_ram_ok()                                                                  \
-    ? undo_arena_set(_undo_pool_lo, _undo_pool_hi, _undo_cache_lo, (uint8_t *)FM1_CR_HI, FELUCCA_UNDO_CAP) \
+/* EXPERIMENTAL cache RAM (hal/fm1_cache.h fm1_cache_ram_lo / _free; the trial's on fm1-base's plat_cache_ram): when its
+ * boot test passed, its n x 4 KiB (after .cache_ram) are the second segment instead of main RAM's leftover; else main
+ * RAM's as without it */
+#define UNDO_ARENA() (fm1_cache_ram_ok()                                                                              \
+    ? undo_arena_set(_undo_pool_lo, _undo_pool_hi, fm1_cache_ram_lo(), fm1_cache_ram_lo() + fm1_cache_ram_free(),  \
+                     FELUCCA_UNDO_CAP)                                                                             \
     : undo_arena_set(_undo_pool_lo, _undo_pool_hi, _undo_ram_lo, _undo_ram_hi, FELUCCA_UNDO_CAP))
 #else
 #define UNDO_ARENA() undo_arena_set(_undo_pool_lo, _undo_pool_hi, _undo_ram_lo, _undo_ram_hi, FELUCCA_UNDO_CAP)

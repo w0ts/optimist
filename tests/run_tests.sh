@@ -571,6 +571,12 @@ job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_UNDO_HISTORY=0 -o "$OUT/undo_test1" tests/undo_test.c -lm
     run "undo: the single level (FELUCCA_UNDO_HISTORY=0)" "$OUT/undo_test1"
 ) >"$U.out" 2>&1 & jobbg
+job; ( jobin   # the undo history after the arena with the cache RAM (CACHE_RAM, hal/fm1_cache.h: its ways a buffer here)
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src "-DFELUCCA_ARENA_BYTES=8192u" -o "$OUT/undo_cache_test" tests/undo_cache_test.c -lm
+    run "the arena, the undo history after it, the cache RAM its second part (8 KB): its least in the SRAM 8 KB less (the arena's), the arena over its start, every level kept bit-exact; the test failed: all in the SRAM, the ways unwritten" "$OUT/undo_cache_test"
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src "-DFELUCCA_ARENA_BYTES=8192u" -DFELUCCA_CACHE_RAM=4 -o "$OUT/undo_cache4_test" tests/undo_cache_test.c -lm
+    run "the same with 16 KB of cache RAM: the SRAM part its 1 KB least" "$OUT/undo_cache4_test"
+) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/clock_sync_test" tests/clock_sync_test.c -lm
     run "MIDI clock: follow USB / TRS (SYNC AUTO, jitter, ramps, start / stop / continue / SPP), on-time steps" "$OUT/clock_sync_test"

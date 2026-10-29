@@ -653,9 +653,10 @@ static void sys_ro(cell_t *c, const char *label)    /* a read-out line */
     c->kind = CK_RO;
 }
 /* INFO's RAM bar (the user, 2026-10-29: one memory bar, drawn as the CPU bars, its peaks as theirs): RAM, its used / total KB.
- * With an arena (core/arena.c: the SRAM the link leaves free, its whole room) the arena's blocks in use the fill, the undo
- * history's share (seq/undo.c: its least and what it borrows) a dimmer segment after it, the rest free; the bright tick the
- * last ~10 s's most in use, the dim one the most since boot (system/overload.h's RAM ring, sampled with the CPU's).
+ * With an arena (core/arena.c: the SRAM the link leaves free, its whole room, and the cache RAM's: CACHE_RAM) the arena's
+ * blocks in use the fill, the undo history's share (seq/undo.c: its least and what it borrows) a dimmer segment after
+ * it, the rest free; the bright tick the last ~10 s's most in use, the dim one the most since boot (system/overload.h's
+ * RAM ring, sampled with the CPU's).
  * The number by KNOB 1 as the CPU lines': NOW, MAX 10S, MAX (KB; the label's suffix).
  * Without: the SRAM in use at link of the SRAM (stk_sram_free: what is left), no ticks. The stacks: no bar, the label
  * amber and STACK LOW when one has had under STK_LOW left (system/stackmark.h stk_low: ever, the release's own record) */
@@ -664,14 +665,20 @@ static void sys_ro(cell_t *c, const char *label)    /* a read-out line */
 #else
 #define INFO_SRAM 466688u                               /* (Optimist's own: firmware/app.ld) */
 #endif
+#if PART_DROPS && FELUCCA_CACHE_RAM
+#define INFO_CR fm1_cache_ram_free()                    /* (the cache RAM, its test passed: the undo history's second
+                                                         * part, counted in the total and in its share; hal/fm1_cache.h) */
+#else
+#define INFO_CR 0u
+#endif
 static void info_ram(cell_t *c)
 {
     uint32_t used, total, pct, n, shown;
 #if PART_DROPS
-    total = ARN_BYTES + ARN_UNDO_KEEP;
+    total = ARN_BYTES + ARN_UNDO_KEEP + INFO_CR;
     used = ARN_BYTES - arn_room();
 #if FELUCCA_UNDO_HISTORY
-    n = undo_h.ready ? undo_h.len[0] : ARN_UNDO_KEEP;   /* (its part in the free SRAM: the cache RAM's not counted) */
+    n = undo_h.ready ? undo_h.size : ARN_UNDO_KEEP + INFO_CR;   /* (both its parts: the free SRAM's, the cache RAM's) */
 #else
     n = 0;
 #endif
