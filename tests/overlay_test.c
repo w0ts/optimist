@@ -62,8 +62,9 @@ static uint32_t ovl_engines(uint32_t *e)
 static void test_not_loaded(void)
 {
     track_t *t = &trk[0];
-    rto_hdr_t *slot = (rto_hdr_t *)(void *)rto_slot0;
+    rto_hdr_t *slot;
     reset(0);
+    slot = (rto_hdr_t *)(void *)rto_slot0;             /* (after reset: rto_init sets rto_slot0, 0 before it) */
     host_preset_req(t, ENG_SLOT_PHASE, 0);
     t->engine = (uint8_t)ENG_SLOT_PHASE;               /* (an engine set without the main loop: a project's load) */
     slot->tag = RTO_TAG(ENG_SLOT_PHASE), slot->render = trap_render, slot->block = trap_block, slot->amp = 0,
