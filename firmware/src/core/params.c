@@ -242,7 +242,11 @@ static const param_desc_t TP[P_COUNT] = {
     [P_TTAPE] = PD("TAPE", F_PCT, 0, 127, 0),      /* the tape's character: how far its tone wanders, how dark */
     [P_TSPIT] = PD("SPIT", F_PCT, 0, 127, 0),      /* the band's sharpness and the drive into the clip */
     [P_TXDLY] = PD("XDLY", F_PCT, 0, 127, 0),      /* the cross-modulated dual delay (xdly.c): its MIX, dry to all wet */
+#endif
+#if INS_ROOM
     [P_TROOM] = PD("ROOM", F_PCT, 0, 127, 0),      /* the reverb send's ROOM as an insert (fxi_send.c): its MIX, dry to all wet */
+#endif
+#if INS_TDLY
     [P_TTDLY] = PD("TDLY", F_PCT, 0, 127, 0),      /* the delay send's delay as an insert (fxi_send.c): its MIX, dry to all wet */
 #endif
 #if FELUCCA_EX_GAIN

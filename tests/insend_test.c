@@ -37,7 +37,10 @@ static void reset(void)
     for (k = 0; k < NTRK; k++) {
         ins_put(k, E);
         trk[k].p[P_FXOFF] = 0;
-        trk[k].p[P_TROOM] = trk[k].p[P_TTDLY] = 0;
+        if (FXT_AMT[FXT_ROOM] != 0xFFu)
+            trk[k].p[FXT_AMT[FXT_ROOM]] = 0;
+        if (FXT_AMT[FXT_TDLY] != 0xFFu)
+            trk[k].p[FXT_AMT[FXT_TDLY]] = 0;
     }
     mst_put(E);
     mst_amt[FXT_ROOM] = mst_amt[FXT_TDLY] = 0;
@@ -56,7 +59,7 @@ static void slot(uint32_t k, uint32_t t)
     ins_put(k, s);
     fxi_poll();
 }
-static void amt(uint32_t k, uint32_t t, int32_t a) { trk[k].p[t == FXT_ROOM ? P_TROOM : P_TTDLY] = (int16_t)a; }
+static void amt(uint32_t k, uint32_t t, int32_t a) { trk[k].p[FXT_AMT[t]] = (int16_t)a; }
 /* type t on part 0 (S1, fx.c ins_part) over x -> y, at a0 before sample switch_at, a1 from there */
 static void run_part(uint32_t t, int32_t a0, int32_t a1, uint32_t switch_at)
 {
@@ -116,14 +119,26 @@ static uint32_t first_after(const int32_t *v, uint32_t from, int32_t thr)
             return i;
     return N;
 }
-static const uint8_t TY[2] = {FXT_ROOM, FXT_TDLY};
-static const char *const NM[2] = {"ROOM", "TDLY"};
+/* the types this build has (one of the two a build: a track's 127 values, core.h P_COUNT; run_tests.sh builds each) */
+#if INS_ROOM && INS_TDLY
+#define NTY 2u
+static const uint8_t TY[NTY] = {FXT_ROOM, FXT_TDLY};
+static const char *const NM[NTY] = {"ROOM", "TDLY"};
+#elif INS_ROOM
+#define NTY 1u
+static const uint8_t TY[NTY] = {FXT_ROOM};
+static const char *const NM[NTY] = {"ROOM"};
+#else
+#define NTY 1u
+static const uint8_t TY[NTY] = {FXT_TDLY};
+static const char *const NM[NTY] = {"TDLY"};
+#endif
 
 static void t_dry(void)
 {
     uint32_t j, k;
     char w[120];
-    for (j = 0; j < 2u; j++) {
+    for (j = 0; j < NTY; j++) {
         int ok;
         reset();
         sine(60000, 220);
@@ -156,7 +171,7 @@ static void t_silence(void)
 {
     uint32_t j, b, i;
     char w[120];
-    for (j = 0; j < 2u; j++) {
+    for (j = 0; j < NTY; j++) {
         int ok;
         reset();
         memset(x, 0, sizeof x);
@@ -186,7 +201,10 @@ static void t_silence(void)
         for (i = 0, ok = 1; i < N; i++)
             ok &= y[i] == 0;
         snprintf(w, sizeof w, "%s: a loud burst then silence: back to exact 0 (the tail ends), the part's side too", NM[j]);
-        check(w, ok && (TY[j] != FXT_ROOM || !ifx_rsd[0]));
+#if INS_ROOM
+        ok &= TY[j] != FXT_ROOM || !ifx_rsd[0];
+#endif
+        check(w, ok);
     }
 }
 
@@ -212,6 +230,7 @@ static uint32_t room_tail(int32_t size, int32_t thr)
     }
     return last;
 }
+#if INS_ROOM
 static void t_room(void)
 {
     uint32_t i, t30, t90, t120;
@@ -234,6 +253,8 @@ static void t_room(void)
     check(w, t30 < t90 && t90 < t120);
 }
 
+#endif
+#if INS_TDLY
 static void t_tdly(void)
 {
     uint32_t dl, at, b2, c0 = 256u;                     /* (the click after the MIX's fade-in: all wet) */
@@ -260,17 +281,17 @@ static void t_tdly(void)
     song.g[G_DFDBK] = 60, song.g[G_BPM] = GP[G_BPM].def;
 }
 
+#endif
 static void t_instances(void)
 {
     uint32_t j;
     char w[160];
-    for (j = 0; j < 2u; j++) {
+    for (j = 0; j < NTY; j++) {
         reset();
-        slot(2, TY[j ^ 1u]);                            /* (the other type's line first: the room left holds one) */
         slot(0, TY[j]), slot(1, TY[j]);
         snprintf(w, sizeof w, "%s: the memory full (%u units, %u each): T1 has it, T2 bypassed (FULL), T4 can't take it",
                  NM[j], FXA_I, FXA_SZ(FXI_J(TY[j])));
-        check(w, fxi_state(2, 0) == FXI_OK && fxi_state(0, 0) == FXI_OK && fxi_state(1, 0) == FXI_FULL &&
+        check(w, FXA_I == FXA_SZ(FXI_J(TY[j])) && fxi_state(0, 0) == FXI_OK && fxi_state(1, 0) == FXI_FULL &&
                      ifx_lim_at(TY[j], 1) == FXI_NONE && !fxi_can(TRK_DRUM, TY[j]) && fxi_free(TY[j]) == 0u);
         slot(0, FXT_NONE);
         fxi_poll();
@@ -287,9 +308,6 @@ static void t_instances(void)
         check(w, (MST_OK >> TY[j] & 1u) && ifx_lim_at(TY[j], IFX_MST) != FXI_NONE && !(RT_OK >> TY[j] & 1u));
 #endif
     }
-    reset();
-    slot(0, FXT_ROOM), slot(1, FXT_TDLY);
-    check("one ROOM and one TDLY at once (the own room's 1 + 1)", fxi_state(0, 0) == FXI_OK && fxi_state(1, 0) == FXI_OK);
 }
 
 static void t_store(void)
@@ -297,8 +315,8 @@ static void t_store(void)
     uint8_t o[FXT_TLV_SNDI + 4], rec[FXR_MAX];
     uint32_t n, j, k, ok, sid;
     char w[140];
-    for (j = 0; j < 2u; j++) {
-        uint32_t p = TY[j] == FXT_ROOM ? P_TROOM : P_TTDLY;
+    for (j = 0; j < NTY; j++) {
+        uint32_t p = FXT_AMT[TY[j]], mo = TY[j] == FXT_ROOM ? 9u : 10u;
         reset();
         ok = fxs_tlv(TY[j], o) == 0u;
         trk[2].p[p] = 90, mst_amt[TY[j]] = 33;
@@ -320,8 +338,8 @@ static void t_store(void)
         check(w, n > 0u && ins_slot[1][0] == TY[j] && mst_slot[1] == TY[j] && trk[1].p[p] == 77 && mst_amt[TY[j]] == 55 &&
                      fxi_state(1, 0) == FXI_OK);
         sid = mot_sid(p);
-        snprintf(w, sizeof w, "%s: the motion's stored id of the MIX: the second tail's + %u, both ways", NM[j], 9u + j);
-        check(w, sid == AUTO_TAIL2 + 9u + j && mot_id(sid) == p);
+        snprintf(w, sizeof w, "%s: the motion's stored id of the MIX: the second tail's + %u, both ways", NM[j], mo);
+        check(w, sid == AUTO_TAIL2 + mo && mot_id(sid) == p);
         for (k = 0, ok = 0; k <= FXT_NALPHA; k++)
             ok |= FXT_LISTED(k) == TY[j];
         {
@@ -341,6 +359,7 @@ static void t_store(void)
     check("the type ids: ROOM 30, TDLY 31 (EXGN's 29 kept)", FXT_ROOM == 30 && FXT_TDLY == 31 && FXT_N == 32);
 }
 
+#if INS_ROOM
 static void t_tail(void)
 {
     int32_t out[CTL * 2];
@@ -350,7 +369,7 @@ static void t_tail(void)
     trk[0].p[P_DIST] = trk[0].p[P_CHOR] = trk[0].p[P_DLY] = trk[0].p[P_REV] = 0;
     trk[0].p[P_ATK] = 0, trk[0].p[P_DEC] = 10, trk[0].p[P_SUS] = 0, trk[0].p[P_REL] = 0;
     slot(0, FXT_ROOM);
-    trk[0].p[P_TROOM] = 100;
+    trk[0].p[FXT_AMT[FXT_ROOM]] = 100;
     trk_note_on(&trk[0], 60, 120);
     for (b = 0; b < FS / CTL; b++) {
         uint32_t act = 0, k;
@@ -364,7 +383,7 @@ static void t_tail(void)
         for (i = 0; freed && b > freed + 40u && b < freed + 200u && i < 2u * CTL; i++)
             late |= abs(out[i]) > 300;
     }
-    trk[0].p[P_TROOM] = 0;
+    trk[0].p[FXT_AMT[FXT_ROOM]] = 0;
     for (b = 0; b < FS / CTL; b++) {
         mix_block(out, CTL);
         for (i = 0; b > FS / CTL / 2u && i < 2u * CTL; i++)
@@ -372,6 +391,7 @@ static void t_tail(void)
     }
     check("a played note: ROOM's tail heard after its voice ended, silence after MIX 0", freed && late && end);
 }
+#endif
 
 /* the sends' kernels on a burst (ROOM at SIZE 90 and 120: rev_step, room_step_long; the delay at FDBK 90: dly_step):
  * the hashes of before the refactor (fm1-next 2261f580, the probe's numbers), the sends as they were */
@@ -427,6 +447,16 @@ static uint64_t instr(void)
 #else
 static uint64_t instr(void) { return 0; }
 #endif
+#if INS_ROOM
+#define CG_COST_ROOM_T CG_COST_ROOM
+#else
+#define CG_COST_ROOM_T 0u
+#endif
+#if INS_TDLY
+#define CG_COST_TDLY_T CG_COST_TDLY
+#else
+#define CG_COST_TDLY_T 0u
+#endif
 static double cost_part(uint32_t t)
 {
     uint64_t a, b;
@@ -471,16 +501,24 @@ static double cost_send(int rev)                       /* fx_buses with only the
 }
 static void t_cost(void)
 {
-    double cp = cost_copy(), rm_ = cost_part(FXT_ROOM), td = cost_part(FXT_TDLY), sr = cost_send(1), sd = cost_send(0);
-    printf("insend: host instructions a sample: ROOM insert %.1f, TDLY insert %.1f (each less the copy's %.1f); the sends "
-           "(fx_buses, one bus fed): reverb ROOM %.1f, delay %.1f\n", rm_ - cp, td - cp, cp, sr, sd);
-    printf("insend: memory an instance: ROOM %u B of the effects memory (%u units) + %u B state; TDLY %u B (%u units) + "
-           "%u B state\n", FXA_Z5 * FXA_U * 2u, FXA_Z5, (unsigned)sizeof(ifx_rm_t), FXA_Z6 * FXA_U * 2u, FXA_Z6,
-           (unsigned)sizeof(ifx_td_t));
-    if (rm_ > 0.0) {
-        check("ROOM's cost within the CPU guard's CG_COST_ROOM", rm_ - cp <= CG_COST_ROOM);
-        check("TDLY's cost within the CPU guard's CG_COST_TDLY", td - cp <= CG_COST_TDLY);
+    double cp = cost_copy(), sr = cost_send(1), sd = cost_send(0), c[NTY];
+    uint32_t j;
+    for (j = 0; j < NTY; j++) {
+        c[j] = cost_part(TY[j]) - cp;
+        printf("insend: host instructions a sample: %s insert %.1f (less the copy's %.1f)\n", NM[j], c[j], cp);
     }
+    printf("insend: the sends (fx_buses, one bus fed): reverb ROOM %.1f, delay %.1f host instructions a sample\n", sr, sd);
+#if INS_ROOM
+    printf("insend: ROOM an instance: %u B of the effects memory (%u units) + %u B state\n", FXA_Z5 * FXA_U * 2u, FXA_Z5,
+           (unsigned)sizeof(ifx_rm_t));
+#endif
+#if INS_TDLY
+    printf("insend: TDLY an instance: %u B of the effects memory (%u units) + %u B state\n", FXA_Z6 * FXA_U * 2u, FXA_Z6,
+           (unsigned)sizeof(ifx_td_t));
+#endif
+    for (j = 0; cp > 0.0 && j < NTY; j++)
+        check(TY[j] == FXT_ROOM ? "ROOM's cost within the CPU guard's CG_COST_ROOM" : "TDLY's cost within the CPU guard's CG_COST_TDLY",
+              c[j] <= (TY[j] == FXT_ROOM ? CG_COST_ROOM_T : CG_COST_TDLY_T));
 }
 
 int main(void)
@@ -489,11 +527,15 @@ int main(void)
     t_send_same();
     t_dry();
     t_silence();
+#if INS_ROOM
     t_room();
+    t_tail();
+#endif
+#if INS_TDLY
     t_tdly();
+#endif
     t_instances();
     t_store();
-    t_tail();
     t_cost();
     printf("insend: %s\n", fails ? "FAILED" : "all ok");
     return fails != 0;
