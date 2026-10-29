@@ -18,7 +18,7 @@ Every gesture in one list: [shortcuts.md](shortcuts.md). This page says what the
 | LFO held | The patterns and scenes layer. With a knob: the value in fine steps |
 | PLAY | Tapped: start / stop. Held: the tempo page |
 | REC | Record the selected track. Held: the ring that clears recorded material |
-| GLO | Tapped: GLOBAL; on GLOBAL, SYSTEM; on SYSTEM, GLOBAL. Each keeps its line |
+| GLO | Tapped: from any other page, the one of GLOBAL / SYSTEM that was open last (GLOBAL after power-on; not kept over a restart); on GLOBAL, SYSTEM; on SYSTEM, GLOBAL. Each keeps its line |
 | SEQ | Tapped: STEP. Held (not on STEP): SONG |
 
 SAVE then HOME is undo, HOME then SAVE is redo. SHIFT and SHIFT2 are not buttons of their own: [shortcuts.md](shortcuts.md) lists what each does with a key, a knob or a button.
@@ -86,13 +86,14 @@ GLOBAL and SYSTEM are settings lists: one setting on a line, the name left and t
 **GLOBAL**
 - **Tempo:** BPM, NUDGE (as on the tempo page: the clock's offset while a clock is followed), SWING, TUNE (the master tuning, -50 to 50 cents).
 - **Rec:** MODE, LENGTH, START, CLICK, QUANT.
+- **Filter:** FILT RESO, the resonance of every track's FILTER, 0 (clean) to 10, saved with the project (builds with the track FILTER; `TFLT_RESO`).
 - **MIDI:** CLK IN (the clock to follow: AUTO, LINK, TRS, USB, BLE, INT), CLK OUT (OFF, USB, BLE or BOTH; amber when the chosen port cannot send), LINK (Link builds: OFF, ON, ON+S/S), MIDI OUT (OFF, KEYS, SEQ, BOTH); CLK OFS, BT OFS and LINK OFS ([midi-usb.md](midi-usb.md#midi-clock)). There is no MIDI IN line: notes come in through the track channels.
 - **Channels:** T1, T2, T3, DR (the MIDI channel of each track).
 
 **SYSTEM**
 - **INFO:** the read-out below. Always the first page.
 - **SCREEN:** KNOB COLORS (ON / OFF). The backlight is always full.
-- **AUDIO:** the output's correction, chosen by the headphone jack and applied to the FM-1's own output only (never to Bluetooth, USB or a recording on the card): SPK LOWCUT (OFF, ON or BASS+; ON at first) while nothing is plugged in, the speaker's ~110 Hz low cut, or BASS+ (the bass heard through its harmonics); HPHN BASS (OFF, +3 dB or +6 dB; OFF at first) while headphones are in, a bass shelf below ~110 Hz. FILT RESO, the resonance of every track's FILTER, 0 (clean) to 10, saved with the project (`TFLT_RESO`).
+- **AUDIO:** the output's correction, chosen by the headphone jack and applied to the FM-1's own output only (never to Bluetooth, USB or a recording on the card): SPK LOWCUT (OFF, ON or BASS+; ON at first) while nothing is plugged in, the speaker's ~110 Hz low cut, or BASS+ (the bass heard through its harmonics); HPHN BASS (OFF, +3 dB or +6 dB; OFF at first) while headphones are in, a bass shelf below ~110 Hz.
 - **KEYS:** BUTTONS (OFF, LOW, MID, HIGH) and KEYS (OFF, C, WHITE, ALL), the backlight of the buttons and keys.
 - **USB:** SERIAL, ON or OFF; amber until a restart applies it (builds with the USB console).
 - **BT MIDI** (builds with `BLE`): MODE, DEVICE, ACTIVITY, STATE. **BT AUDIO** (builds with `BT_AUDIO`): MODE, DEVICE, FORMAT, STATE. Both can be on at once; MODE, the devices list and SAVE: [midi-usb.md](midi-usb.md#bluetooth-midi-and-bluetooth-audio). A connect not up in 30 s says NO ANSWER.

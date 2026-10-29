@@ -517,9 +517,9 @@ static const struct { const char *name; uint8_t it[4]; } SYS[] = {
 #endif
     /* the screen and the sound in one section (the user, 2026-10-25: KNOB COLORS was on a page read as "audio", "group and
      * make it logical"): KNOB COLORS (the knob caps' colours; COLOR gone 2026-10-18: the palette is MONO, panel.c),
-     * SPK LOWCUT and HPHN BASS (the output's correction by the headphone jack: fx/outcorr.c), FILT RESO (SLOOP 2.8's FILTER
-     * RESO, a project's: core.h G_TFRES) */
-    {"GENERAL", {SI_KCOL, SI_LOWCUT, SI_HPBASS, SI_IF(FELUCCA_TFLT_RESO && FELUCCA_TRK_FILT, SI_FRESO)}},
+     * SPK LOWCUT and HPHN BASS (the output's correction by the headphone jack: fx/outcorr.c); FILT RESO went to GLOBAL's FILTER
+     * (the user, 2026-10-29: it is a project's, not the device's), so USB SERIAL joins this page (GL_JOIN) */
+    {"GENERAL", {SI_KCOL, SI_LOWCUT, SI_HPBASS, SI_NONE}},
 #if USBH_UI
     {"USB", {SI_UHMODE, SI_UHDEV, SI_NONE, SI_NONE}},   /* the port as a MIDI host or the computer's device (USB_HOST: the trial's
                                                          * ui/opt_usbh.h on fm1-base's; USB SERIAL below it, one section) */
@@ -562,6 +562,8 @@ static const struct { const char *name; uint8_t it[4]; } SYS[] = {
     {"CREDITS", {SI_CREDITS, SI_NONE, SI_NONE, SI_NONE}},   /* after ABOUT: one text page (op_gldraw.c gl_cred_draw: CRED) */
     /* the global rows, last: GLOBAL's (GLO tapped, op_global.c), not SYSTEM's (the user, 2026-10-12: GLO "the page
      * where we have bpm, nudge, midi track settings etc"); defined here once, SYSTEM shows the rows above them */
+    {"FILTER", {SI_IF(FELUCCA_TFLT_RESO && FELUCCA_TRK_FILT, SI_FRESO), SI_NONE, SI_NONE, SI_NONE}},   /* (FILT RESO: SLOOP 2.8's FILTER RESO, every track's
+                            * FILTER resonance, saved with the PROJECT: core.h G_TFRES; its own page, the project's sound beside its clock) */
     {"MIDI", {SI_IF(FELUCCA_MIDI_CLOCK, SI_SYNC), SI_IF(FELUCCA_MIDI_CLKOUT, SI_CLKOUT),
               FELUCCA_LINK ? (uint8_t)SI_LINK : SI_IF(FELUCCA_MIDI_OUT, SI_OUT), FELUCCA_LINK ? SI_IF(FELUCCA_MIDI_OUT, SI_OUT) : (uint8_t)SI_NONE}},   /* (LINK, Link builds, between CLK OUT and MIDI OUT) */   /* (CLK IN, CLK OUT, MIDI OUT: no MIDI IN since 2026-10-14, the user: notes come in through the track channels,
                             * the clock through CLK IN; settings word bit 15 is free; CLKOUT: the clock sent, io/midi/clock_out.c) */
@@ -572,7 +574,7 @@ static const struct { const char *name; uint8_t it[4]; } SYS[] = {
     {"CHANNELS", {SI_CH1, SI_CH2, SI_CH3, SI_CHD}},
 };
 #define NSYS (sizeof SYS / sizeof SYS[0])
-#define NSYS_GLO (2u + FELUCCA_MIDI_CLOCK)              /* the global rows at SYS's end: MIDI (and its offsets), CHANNELS */
+#define NSYS_GLO (3u + FELUCCA_MIDI_CLOCK)              /* the global rows at SYS's end: FILTER, MIDI (and its offsets), CHANNELS */
 #define NSYS_SETUP (NSYS - NSYS_GLO)                    /* SYSTEM's rows: the setup (SCREEN, AUDIO, BLUETOOTH ...) */
 static uint8_t sys_dirty;                               /* a setting changed: saved when SYSTEM or GLOBAL is left */
 static uint32_t sys_rows(void)

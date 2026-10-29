@@ -830,7 +830,7 @@ static void op_tap(uint32_t b, uint32_t id)
     else if (b == B_SEQ)
         step_seq_tap(hold);   /* STEP; on it the next page; long: the keys */
     else if (b == B_GLO)
-        glo_tap();                                      /* GLOBAL, again SYSTEM, again GLOBAL (op_global.c) */
+        glo_tap();                                      /* the one open last, then the other, and so on (op_global.c) */
     else if (b == B_FX && ui.scr == SCR_FX)
         op_row_pick(ui.row[SCR_FX] + 1u < SCR->rows() ? ui.row[SCR_FX] + 1u : 0u);   /* the global FX: its next page, round */
     else if (b < NB && JUMP_FAM[b] != 0xFF)
