@@ -456,12 +456,12 @@ static void wf_ap_tests(void)
     fm1_ms = 0;
     check(!strcmp(wf_state0(), "3 CLIENTS"), "... clients and a Link peer heard: the line alternates, the clients first");
     fm1_ms = 2048;
-    check(!strcmp(wf_state0(), "1 LINK PEER"), "... then the Link peer (2 s later)");
+    check(!strcmp(wf_val("STATE"), "1 LINK PEER"), "... then the Link peer (2 s later)");
     fm1_ms = 4096;
-    check(!strcmp(wf_state0(), "3 CLIENTS"), "... and the clients again");
+    check(!strcmp(wf_val("STATE"), "3 CLIENTS"), "... and the clients again");
     test_peers = 3;
     fm1_ms = 2048;
-    check(!strcmp(wf_state0(), "3 LINK PEERS"), "... three peers: 3 LINK PEERS");
+    check(!strcmp(wf_val("STATE"), "3 LINK PEERS"), "... three peers: 3 LINK PEERS");
     wafk.clients = 0;
     check(!strcmp(wf_state0(), "3 LINK PEERS"), "... no client keyed but peers heard: 3 LINK PEERS");
     wafk.clients = 3;
