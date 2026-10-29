@@ -87,6 +87,17 @@ static uint32_t fm1_ticks(void) { return 0; }   /* (usb.c SYNC_NOW: MIDI timesta
 static int32_t track_capture[CTL * NTRK];
 #include "../firmware/src/io/usb/ua_tap.h"
 #define __attribute__(x)                /* the host: no .pool section (Mach-O), as hostsim.c */
+static const char *dev_name(void) { return "FM1-0000"; }   /* (system/devname.c: the product string, usb.c) */
+static int str16_is(const uint8_t *d, uint32_t len, const char *s)   /* a string descriptor of the ASCII string s (UTF-16LE) */
+{
+    uint32_t i, n = (uint32_t)strlen(s);
+    if (len != 2u + 2u * n || d[0] != len || d[1] != 3)
+        return 0;
+    for (i = 0; i < n; i++)
+        if (d[2 + 2 * i] != (uint8_t)s[i] || d[3 + 2 * i] != 0)
+            return 0;
+    return 1;
+}
 #include "../firmware/src/io/usb/usb.c"
 
 static void frame(uint16_t n)
@@ -156,9 +167,9 @@ static void controls(void)
     assert(ep0_command == 0x60);
     /* Device names of the two functions (iFunction / iInterface 3 and 4). */
     setup(0x80, 6, 0x0303, 0x0409, 255);
-    assert(ep_cnt[0] == 26 && ep0buf[1] == 3 && !memcmp(ep0buf + 2, "O\0p\0t\0i\0m\0i\0s\0t\0 \0O\0u\0t\0", 24));
+    assert(str16_is(ep0buf, ep_cnt[0], "FM1-0000 Out"));   /* (dev_name above) */
     setup(0x80, 6, 0x0304, 0x0409, 255);
-    assert(ep_cnt[0] == 24 && ep0buf[1] == 3 && !memcmp(ep0buf + 2, "O\0p\0t\0i\0m\0i\0s\0t\0 \0I\0n\0", 22));
+    assert(str16_is(ep0buf, ep_cnt[0], "FM1-0000 In"));
     for (int ch = 0; ch < 4; ch++) {   /* the capture channels' names, strings 5..8 (SYSTEM > USB AUDIO: what each carries) */
         setup(0x80, 6, (uint16_t)(0x0305 + ch), 0x0409, 255);
         assert(ep_cnt[0] == 8 && ep0buf[1] == 3 && !memcmp(ep0buf + 2, "C\0H\0", 4) && ep0buf[6] == '1' + ch);

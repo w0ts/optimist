@@ -98,6 +98,8 @@ static BOOT_ORDER void recovery_main(void)
     recovery_fraction = fm1_ms = 0;
     /* No persist_boot or OTA cleanup: no flash write just for entering rescue. */
     flash_ok = FL_FAR(fl_jedec_ram)() == 0x856014u;
+    if (flash_ok)
+        dev_uid_read();                      /* (the name "FM1-XXXX" from the part's ID: no settings are read here) */
     lcd_init();
     lcd_fill(0, 0, 240, 240, C_BLACK);
     draw_text_box(0, 64, 240, &FONT_S, "OPTIMIST USB RESCUE", C_WHITE, 1);

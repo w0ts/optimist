@@ -71,6 +71,16 @@ static uint32_t ua_take(int32_t *l, int32_t *r, uint32_t n)
 static void fm1_delay_ms(uint32_t ms) { (void)ms; }
 static uint32_t host_now;               /* TIMER4 ticks (24 MHz) for the MIDI clock: the tests set it */
 #define SYNC_NOW() host_now
+#include "../firmware/src/system/devname.h"   /* "FM1-XXXX" (usb.c): a flash ID's digits of the host's own; tests/devname_test.c sets others */
+static int hostsim_dev_id = 0x1A2B;
+static int dev_uid_id(void) { return hostsim_dev_id; }
+static const char *dev_name(void)
+{
+    static char n[DEV_NAME_LEN + 1u];
+    dev_name_fmt(n, hostsim_dev_id);
+    return n;
+}
+static void dev_uid_read(void) {}                /* (project.c persist_boot) */
 #include "../firmware/src/io/usb/usb.c"
 #include "../firmware/src/io/midi/midi_uart.c"                /* TRS MIDI IN: its parser (um_byte) feeds midi_in_q */
 #if FELUCCA_ARRANGER

@@ -58,7 +58,7 @@ import toolchain as TC
 DEFAULT_PROFILE = C.DEFAULT_PROFILE            # synths-USB-BTA-BTM: what build, builder and make use without a profile
 REFERENCE_PROFILE = C.REFERENCE_PROFILE        # synths_USBaudio_BTaudio_BTmidi: the profile the host tests, the gate and the emulator checks build
 PY_TESTS = ("tests/builder_test.py", "tests/builder_core_test.py", "tests/builder_flash_guard_test.py",
-            "tests/builder_progress_test.py", "tests/optimist_cli_test.py", "tests/fm1base_test.py", "tests/install_test.py",
+            "tests/builder_progress_test.py", "tests/optimist_cli_test.py", "tests/fm1base_test.py", "tests/install_test.py", "tests/port_names_test.py",
             "tests/rescue_test.py", "tests/rescue_any_test.py",
             "tests/icons_test.py", "tests/fm1_cpu_test.py", "tests/ble_rf_capture_test.py",
             "tests/emu_driver_once_test.py", "tools/doc_coverage.py")

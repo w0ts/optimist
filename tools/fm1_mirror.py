@@ -18,7 +18,7 @@ import zlib
 from collections import deque
 from pathlib import Path
 
-PORT_RE = re.compile(r"optimist|felucca", re.I)
+PORT_RE = re.compile(r"FM1-[0-9A-F]{4}|optimist|felucca", re.I)   # the USB name: "FM1-XXXX" (since 2026-10-29); "Optimist" (older firmware)
 HDR = [0x7D, 0x46, 0x4C]
 MIRROR = 106
 W = H = 240
@@ -194,7 +194,7 @@ def shot(out: Path, want_state: bool, off: bool = True) -> None:
     pi = [k for k, n in enumerate(mi.get_ports()) if PORT_RE.search(n)]
     po = [k for k, n in enumerate(mo.get_ports()) if PORT_RE.search(n)]
     if not pi or not po:
-        sys.exit("no MIDI port named Optimist: connect the FM-1 by USB")
+        sys.exit("no MIDI port named FM1-XXXX (Optimist on older firmware): connect the FM-1 by USB")
     dec = Decoder()
     got: deque = deque()                           # (filled by rtmidi's thread as messages come: polled, its queue overflows
                                                    # under a catch-up and a lost MORE frame puts pixels in the wrong place)

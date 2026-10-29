@@ -173,11 +173,25 @@ BLE_API void ble_scan_add(struct ble_scan_tab *t, const uint8_t *pdu, uint32_t l
         }
         e->name_type = ad.name_type;
     }
-    e->kind = (uint8_t)(BLE_KIND_MIDI | (ble_eq((const uint8_t *)e->name, (const uint8_t *)"Optimist ", 9) ||
-                                                 ble_eq((const uint8_t *)e->name, (const uint8_t *)"FM-1 ", 5) ?
-                                         BLE_KIND_FM1 : 0u));   /* (our name; "FM-1 " is that of the builds before 2026-10-16) */
+    e->kind = (uint8_t)(BLE_KIND_MIDI | (ble_name_is_fm1(e->name) ? BLE_KIND_FM1 : 0u));
     if (ad.midi && !e->midi)
         sc_listed(t, e);
+}
+
+/* another FM-1 by its name: "FM1-" and four hex digits (ours since 2026-10-29); "Optimist " (the builds before it) and "FM-1 "
+ * (those before 2026-10-16) too, so an FM-1 on older firmware still shows up as one */
+BLE_API uint8_t ble_name_is_fm1(const char *name)
+{
+    const uint8_t *n = (const uint8_t *)name;
+    uint32_t i;
+    if (ble_eq(n, (const uint8_t *)"Optimist ", 9) || ble_eq(n, (const uint8_t *)"FM-1 ", 5))
+        return 1;
+    if (!ble_eq(n, (const uint8_t *)"FM1-", 4))
+        return 0;
+    for (i = 4; i < 8u; i++)
+        if (!((n[i] >= '0' && n[i] <= '9') || (n[i] >= 'A' && n[i] <= 'F') || (n[i] >= 'a' && n[i] <= 'f')))
+            return 0;
+    return 1;
 }
 
 BLE_API void ble_scan_age(struct ble_scan_tab *t, uint32_t now_ms)

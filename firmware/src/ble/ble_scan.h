@@ -57,6 +57,7 @@ BLE_API void ble_scan_clear(struct ble_scan_tab *t);
 /* one advertising-channel PDU (header 2 + AdvA 6 + AdvData), its RSSI word (0: none), heard at now_ms */
 BLE_API void ble_scan_add(struct ble_scan_tab *t, const uint8_t *pdu, uint32_t len, uint16_t rssi, uint32_t now_ms);
 /* drop what was not heard for long; halve the hit counts (call every second or so) */
+BLE_API uint8_t ble_name_is_fm1(const char *name);       /* "FM1-" + 4 hex digits, "Optimist ", "FM-1 ": an FM-1 */
 BLE_API void ble_scan_age(struct ble_scan_tab *t, uint32_t now_ms);
 /* the listed devices (BLE-MIDI ones) in the list's order: their indexes into t->e -> how many */
 BLE_API uint32_t ble_scan_list(const struct ble_scan_tab *t, uint8_t idx[BLE_SCAN_N]);
