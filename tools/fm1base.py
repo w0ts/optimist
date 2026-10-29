@@ -235,6 +235,22 @@ def ui_sidecar(pkg, cfgfile):
     return out
 
 
+# the release build's first output line names the compiler (2026-10-29: a log that did not say, an ELF read to tell): printed,
+# then this process becomes the build (the same process: a cancel still ends it; Windows has no exec, a child there)
+ANNOUNCE = ("import os, subprocess, sys; print(sys.argv[1], flush=True)\n"
+            "if os.name == 'nt': sys.exit(subprocess.call(sys.argv[2:]))\n"
+            "os.execv(sys.argv[2], sys.argv[2:])")
+
+
+def compiler_line(cfgfile, env):
+    """'compiler pi32v2-llvm (<its directory>)' / 'compiler JieLi (<directory>)': the .config's COMPILER and the toolchain
+    the build gets (a measurement shim's real one)"""
+    tc = Path(env["JIELI_TOOLCHAIN"])
+    tc = (tc / "real") if (tc / "real").exists() else tc
+    name = "pi32v2-llvm" if compiler_of(cfgfile) == "llvm" else "JieLi"
+    return f"compiler {name} ({tc.resolve()})"
+
+
 def build(cfgfile, bdir, python, run, release=None, name_stem="optimist", parallel=False, measure=False):
     """one release build of the .config at cfgfile -> (returncode, output); run(cmd, env) -> (rc, output) streams it.
     A build that is over the slot still leaves its sizes.json (a measurement), and no package. measure: with the linker wrapper (measure_toolchain: the link succeeds whatever the size).
@@ -246,6 +262,7 @@ def build(cfgfile, bdir, python, run, release=None, name_stem="optimist", parall
     with lock:
         app, out_dir = slot_app(bdir) if parallel else (APP, OUT)
         cmd, env = command(python, release, app), env_for(cfgfile, parallel, measure)
+        cmd = [python, "-c", ANNOUNCE, compiler_line(cfgfile, env), *cmd]    # (its first output line: the compiler)
         for stale in (out_dir / "sizes.json", out_dir / "optimist.fwsc"):
             stale.unlink(missing_ok=True)
         rc, out = run(cmd, env)
