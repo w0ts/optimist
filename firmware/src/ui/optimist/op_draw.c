@@ -329,14 +329,27 @@ typedef struct {
     uint16_t tc, mc;                    /* the badge's colour, the title's */
     uint8_t badge, cut, muted;               /* a badge drawn; the title cut to its room (never, on a track page) */
     uint8_t batt;                       /* the battery icon at the right (head_batt), 0 none */
+    uint8_t ib, ipct, ichg;             /* INFO's header (head_info): 0 not INFO, 1 no reading, 2 the battery; its percentage; the supply (sys_batt_chg) */
     int32_t bw, tx, room;               /* the badge's width, the title's x and room (px) */
 } head_t;
 /* the battery in the header of GLOBAL and SYSTEM (the user, 2026-10-17: "battery icon in title bar in glo and system"):
  * SLOOP's 3 bars (op_project.c sys_batt_bars), right of the tempo. 0: none here, 1: no reading yet, 2 + the bars */
 #define HEAD_BATT_W 16                  /* the icon (13) and its gap to the tempo */
+/* SYSTEM > INFO's header (the user, 2026-10-29): no tempo and no loop position, a bigger battery instead and whether the FM-1 is
+ * charging (head_info_draw); the other pages keep theirs. 0: not INFO; 1: no battery reading yet; 2: the battery */
+#define HEAD_IC_W 28                    /* the big icon: its body (26) and its tip (2) */
+#define HEAD_IC_H 14
+#define HEAD_BOLT_W 8                   /* the charging bolt, left of the icon */
+#define HEAD_IB_W (HEAD_IC_W + 3 + HEAD_BOLT_W + 4 + 32)   /* what INFO's header keeps for the battery: icon, bolt, "100%" */
+static uint32_t head_info(void)
+{
+    if (ui.msg_t || lay.shown != LY_PLAY || page_owned() || !info_shown())
+        return 0;
+    return song.batt_raw ? 2u : 1u;
+}
 static uint32_t head_batt(void)
 {
-    if (ui.msg_t || lay.shown != LY_PLAY || page_owned() || (ui.scr != SCR_GLOBAL && ui.scr != SCR_SYSTEM))
+    if (ui.msg_t || lay.shown != LY_PLAY || page_owned() || (ui.scr != SCR_GLOBAL && ui.scr != SCR_SYSTEM) || info_shown())
         return 0;
     return song.batt_raw ? 2u + sys_batt_bars() : 1u;
 }
@@ -449,8 +462,15 @@ static void head_make(head_t *h)
     loop_pos(TSEL, h->r);                               /* (STEP too: bar.beat on every screen, style guide 1) */
     fmt_int(h->bpm, song.g[G_BPM]);
     h->batt = (uint8_t)head_batt();
+    h->ib = (uint8_t)head_info();
+    if (h->ib) {                                        /* INFO: the battery in place of the tempo and the loop position */
+        h->bpm[0] = 0;
+        h->r[0] = 0;
+        h->ipct = (uint8_t)(h->ib == 2u ? sys_batt_pct() : 0u);
+        h->ichg = (uint8_t)sys_batt_chg();
+    }
     h->tx = 2 + h->bw + HEAD_GAP;                       /* the title's room, left of the position and the tempo */
-    h->room = head_room(h->tx, h->bpm, h->r) - (h->batt ? HEAD_BATT_W : 0);
+    h->room = head_room(h->tx, h->bpm, h->r) - (h->batt ? HEAD_BATT_W : 0) - (h->ib ? HEAD_IB_W : 0);
     if ((int32_t)(str_len(h->t) + str_len(h->pos)) * 8 > h->room)
         head_short(h->t, sizeof h->t, h->room > 8 * (int32_t)str_len(h->pos) ? (uint32_t)(h->room / 8 - (int32_t)str_len(h->pos)) : 0u);                  /* (short of room: the title's short form; bar.beat always stays, the
                                                          * user, 2026-10-14) */
@@ -470,6 +490,50 @@ static int32_t head_draw_title(const head_t *h, char *c)
     x = cv_texts(h->tx, 4, c, h->mc);
     return cv_texts(x, 4, h->pos, C_GRAY);
 }
+/* INFO's battery, right-aligned: the icon (an outline, its tip, the fill to the percentage in green, amber under 40 %, red under
+ * 20 %; no text on it), the bolt left of it while charging, the percentage, and the supply in words where the title leaves room
+ * (CHARGING in green where it fits, else the bolt alone; POWER in grey: 5 V is there and the charger is not known to run). tend: where the title ends */
+static void head_bolt(int32_t x, int32_t y, uint16_t c)
+{
+    static const uint8_t R[12][2] = {{4, 3}, {4, 3}, {3, 3}, {3, 3}, {2, 3}, {1, 6}, {4, 3}, {3, 3}, {3, 2}, {2, 2}, {2, 1}, {1, 1}};
+    uint32_t r;
+    for (r = 0; r < 12u; r++)
+        cv_rect(x + R[r][0], y + (int32_t)r, R[r][1], 1, c);
+}
+static void head_info_draw(const head_t *h, int32_t tend)
+{
+    int32_t x = 236 - HEAD_IC_W, y = 5, w;
+    char b[8];
+    const char *word = 0;
+    uint16_t wc = h->ichg == 2u ? C_OK : C_GRAY;
+    b[0] = 0;
+    cv_frame(x, y, HEAD_IC_W - 2, HEAD_IC_H, h->ib == 2u ? C_GRAY : C_DIM);
+    cv_rect(x + HEAD_IC_W - 2, y + 4, 2, HEAD_IC_H - 8, h->ib == 2u ? C_GRAY : C_DIM);
+    if (h->ib == 2u) {
+        w = ((HEAD_IC_W - 6) * (int32_t)h->ipct + 50) / 100;
+        if (w < 1 && h->ipct)
+            w = 1;
+        cv_rect(x + 2, y + 2, w, HEAD_IC_H - 4, sys_batt_col(h->ipct));
+        fmt_int(b, (int32_t)h->ipct);
+        str_app(b, "%", sizeof b);
+    }
+    x -= 3;
+    if (h->ichg == 2u) {
+        x -= HEAD_BOLT_W;
+        head_bolt(x, y + 1, C_OK);
+    }
+    x -= 4;
+    if (h->ib == 2u) {
+        x -= text_ws(b);
+        cv_texts(x, 4, b, C_HI);
+    }
+    if (h->ichg == 2u)
+        word = x - 6 - text_ws("CHARGING") >= tend + 6 ? "CHARGING" : 0;
+    else if (h->ichg)
+        word = x - 6 - text_ws("POWER") >= tend + 6 ? "POWER" : 0;
+    if (word)
+        cv_texts(x - 6 - text_ws(word), 4, word, wc);
+}
 /* (noinline: a call from op_frame_draw, which is smaller without it inlined) */
 static __attribute__((noinline)) void draw_head(void)
 {
@@ -487,6 +551,7 @@ static __attribute__((noinline)) void draw_head(void)
     sig = hs(hs(hs(hs(hu(hu(hu(1u, h.tc), h.mc), rec * 2u + song.playing), ui.msg_t ? ui.msg : h.t), h.r), h.bpm), h.eng);
     sig = hs(sig, h.pr);
     sig = hu(hu(sig, h.muted), h.batt);
+    sig = hu(sig, (uint32_t)h.ib | (uint32_t)h.ipct << 8 | (uint32_t)h.ichg << 16);
     sig = hu(sig, (uint32_t)(ui.msg_t != 0) + settings.palette * 8u + drop * 2u);
     tflash_tick();
     fl = tf.t && !ui.msg_t && !page_owned() && !master_sel();   /* (MASTER: its own badge, no track flash: #8) */
@@ -512,11 +577,16 @@ static __attribute__((noinline)) void draw_head(void)
         tw = head_draw_title(&h, c);
         if (h.pr[0] && tw + 8 + text_ws(h.pr) <= h.tx + h.room)   /* (the preset, if it fits whole) */
             cv_texts(tw + 8, 4, h.pr, h.tc);
-        cv_texts(bx, 4, h.bpm, C_HI);
-        if (h.batt)
-            head_batt_draw(238 - 13, h.batt);
-        bx -= 8 + text_ws(h.r);                 /* (the loop position's x, "" none) */
-        cv_texts(bx, 4, h.r, song.playing ? C_OK : C_DIM);
+        if (h.ib) {
+            head_info_draw(&h, tw);
+            bx = 236 - HEAD_IB_W;               /* (INFO: the mark left of the battery's room) */
+        } else {
+            cv_texts(bx, 4, h.bpm, C_HI);
+            if (h.batt)
+                head_batt_draw(238 - 13, h.batt);
+            bx -= 8 + text_ws(h.r);             /* (the loop position's x, "" none) */
+            cv_texts(bx, 4, h.r, song.playing ? C_OK : C_DIM);
+        }
         if (rec)
             cv_rect(bx - 8, 9, 6, 6, rec_col(song.rec || ft_on, rec_wait));   /* recording: green; armed: amber */
     }

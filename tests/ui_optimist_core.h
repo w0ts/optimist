@@ -53,7 +53,7 @@ static void core_row_tests(void)
 #else
     sys_info_cell(2, &c);
     check(!strcmp(c.label, "2ND CORE") && !strcmp(c.val, "NOT IN BUILD") && !strcmp(c.unit, "") && c.gk != GK_NONE, "a single-core build: 2ND CORE, NOT IN BUILD");
-    check(INFO_N == 7u + FELUCCA_CPU_GUARD, "the INFO page: clock, CPU, 2ND CORE, RAM, DROPS, UNDERRUNS, [GUARD,] battery in every build (the internals: DIAGNOSTICS)");
+    check(INFO_N == 6u + FELUCCA_CPU_GUARD, "the INFO page: clock, CPU, 2ND CORE, RAM, DROPS, UNDERRUNS, [GUARD] in every build (no battery line: the header's) (the internals: DIAGNOSTICS)");
 #endif
     reset_ui();
 }
