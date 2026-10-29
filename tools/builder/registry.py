@@ -109,6 +109,7 @@ RETIRED = {
     "VOICE_OWN": "at the voice budget a part always restarts its own released voice before fading another part's (retired 2026-10-29, bit 369; the user: \"default on: remove it\"; any old VOICE_OWN value is ignored)",
     "DLY_DOT": "the delay TIME's 1/8D and 1/16D (SLOOP 2.4, appended values, stored numbers unchanged) are always built (retired 2026-10-29, backport bit 176; any old DLY_DOT value is ignored)",
     "CHO_EXACT": "the chorus send's read points are always ramped exactly over a block (fx.c CHO_RAMP; retired 2026-10-29, bit 425; the user: \"by default, remove the option\"; any old CHO_EXACT value is ignored)",
+    "JUNO_FINE": "JUNO CHORUS's line is always 32 bits, 4 KB of the effects memory an instance (retired 2026-10-29, bit 429; the user: \"always on\"; any old JUNO_FINE value is ignored)",
     "KNOB_ONEREST": "the knobs are always read with Felucca 1.6's decoder (one rest state a detent, fast turns counted; "
                     "retired 2026-10-14, released in Felucca 1.1.5 #126 and unchanged since)",
 }
@@ -121,7 +122,7 @@ RETIRED = {
 WAS_COUNT = frozenset({"INS_CHORUS", "INS_DELAY", "INS_JCHORUS", "INS_FLANGER", "INS_XDLY",
                        "ARENA"})   # (ARENA: its KB until 2026-10-29, the free RAM since: on)
 
-HASH_AS = {"KEYLIT": 1, "LIGHTS": 1, "BRIGHT": 0, "SIMD": 0, "KNOB_ONEREST": 1, "MONO_RELEASE": 1, "ST_STRICT": 1, "USB_FLOW": 1, "SHED_FADE": 1, "KEYS_FAST": 1, "TRS_NOISE": 1, "BK_CHECK": 1, "LAYER_QUIET": 1, "DLY_HALVE": 1, "LFO2": 1, "GLIDE": 1, "UI": 1, "ICONS": 0, "OVERVIEW": 0, "OV_ARP": 1, "DRUM_STEP": 1, "CHORD_NAMES": 1, "BPM_LOCK": 0, "MOTION_MARK": 1, "SEL_PAGES": 0, "BIGVALS": 0, "DRUM_ACCENT": 1, "PAGE_LINES": 1, "TAB_IN_POOL": 1, "VOICE_OWN": 1, "DLY_DOT": 1, "CHO_EXACT": 1}   # (each was its default in every profile)
+HASH_AS = {"KEYLIT": 1, "LIGHTS": 1, "BRIGHT": 0, "SIMD": 0, "KNOB_ONEREST": 1, "MONO_RELEASE": 1, "ST_STRICT": 1, "USB_FLOW": 1, "SHED_FADE": 1, "KEYS_FAST": 1, "TRS_NOISE": 1, "BK_CHECK": 1, "LAYER_QUIET": 1, "DLY_HALVE": 1, "LFO2": 1, "GLIDE": 1, "UI": 1, "ICONS": 0, "OVERVIEW": 0, "OV_ARP": 1, "DRUM_STEP": 1, "CHORD_NAMES": 1, "BPM_LOCK": 0, "MOTION_MARK": 1, "SEL_PAGES": 0, "BIGVALS": 0, "DRUM_ACCENT": 1, "PAGE_LINES": 1, "TAB_IN_POOL": 1, "VOICE_OWN": 1, "DLY_DOT": 1, "CHO_EXACT": 1, "JUNO_FINE": 1}   # (each was its default in every profile)
 
 # Never offered: used by X0X only by permission of its author, no licence
 FORBIDDEN = {
@@ -683,12 +684,8 @@ _add("TFLT_FINE", "FELUCCA_TFLT_FINE", "track FILTER: full resolution (quiet hig
           "down (the drum bus: 2), with the same headroom. As a high-pass at a low cutoff the old rounding came out of "
           "x - y as loud as a quiet part (FILT +10: -18 dB); measured: 18-20 dB lower. A few dozen bytes of flash; "
           "the filter's multiplies become 64-bit ones.")
-_add("JUNO_FINE", "FELUCCA_JUNO_FINE", "JUNO CHORUS: 32-bit line (less grit, twice the memory)", F, 429, default=0,
-     parent="INS_JCHORUS", experimental=True, tested=_FINE_TESTED,
-     desc="JUNO CHORUS keeps its line at 32 bits at the owner's own scale instead of 16 bits 3 bits down (a bus: 2): "
-          "its wet no longer moves in steps of 8, and its side, different in each ear, no longer carries that "
-          "rounding. Measured with the shift gone: 6-12 dB less noise. Each instance takes 4 KB of the effects memory "
-          "instead of 2 (fewer instances fit); more headroom than before (+-3 M, was +-0.26 M on a part).")
+# (bit 429, JUNO_FINE, retired 2026-10-29: JUNO CHORUS's line is always 32 bits, 4 KB of the effects memory an
+#  instance (fxi_mem.h FXA_Z2); RETIRED above; never reuse the bit)
 _add("REV_HB_LONG", "FELUCCA_REV_HB_LONG", "half-rate reverbs: steep 63-tap filter (no aliasing)", F, 430, default=0,
      parent="FX_REVERB", experimental=True, tested=_FINE_TESTED,
      desc="The reverbs that run at 22.05 kHz (FDN8, PLATE, VTINY, ROOM with REV_HALF) sit behind a 63-tap low-pass "
@@ -883,7 +880,7 @@ _add("DLY_ARENA", "FELUCCA_DLY_ARENA", "effects memory (shared by the delay and 
      choices=((0, "auto: the delay's line and one line of each insert"), (32, "32 KB"), (48, "48 KB"), (64, "64 KB"),
               (96, "96 KB"), (128, "128 KB"), (160, "160 KB"), (192, "192 KB"), (256, "256 KB"), (320, "320 KB")),
      desc="One pool memory, in 1 KB units, for the delay send's line (its length above) and the line of every insert "
-          "that has one: CHRS 2 KB, ECHO 8 KB, JUNO CHORUS 2 KB, FLNG 1 KB, XDLY 2 lines of its length. An insert takes "
+          "that has one: CHRS 2 KB, ECHO 8 KB, JUNO CHORUS 4 KB, FLNG 1 KB, XDLY 2 lines of its length. An insert takes "
           "its room when a slot picks it and gives it back when the slot lets go; with no room left the slot shows FULL "
           "and stays dry. How many of each play at once is what this memory holds: the builder's notice says, for each "
           "type built, up to how many at once (alone) in the size chosen, and how many more while the delay or the "
