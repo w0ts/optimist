@@ -38,18 +38,20 @@ static void syncorder_tests(void)
           "SYNC: the stored values are unchanged (INT 0, USB 1, TRS 2, AUTO 3, BLE 4, LINK 5)");
     for (i = 0; i < n; i++) {                           /* the settings record (the HOME menu's SYNC is device-wide) keeps every value as it was */
         uint32_t w;
+        if (WANT[i] == SYNC_LINK)
+            continue;                                   /* (LINK: the settings record's sync_sel, tests/favorites_test.c) */
         song.g[G_SYNC] = WANT[i];
         w = bp23_word();
         song.g[G_SYNC] = SYNC_INT;
         bp23_from_word(w);
         sets &= song.g[G_SYNC] == WANT[i];
     }
-    check(sets, "SYNC: saved with each value, the settings record loads the same value (LINK too: bit 31; the stored numbers are unchanged)");
+    check(sets, "SYNC: saved with each value, the settings record loads the same value (LINK: favorites_test.c; the stored numbers are unchanged)");
     song.g[G_SYNC] = save;
 }
 
-/* MIDI OUT's list (OFF KEYS SEQ BOTH over the stored KEYS 0, BOTH 1, SEQ 2, OFF 3), LINK's (OFF ON ON+S/S), and the record's extension (CLK OUT's
- * mode, LINK, LINK OFS; a record from before reads BOTH / ON+S/S / CLK OFS) */
+/* MIDI OUT's list (OFF KEYS SEQ BOTH over the stored KEYS 0, BOTH 1, SEQ 2, OFF 3) and LINK's (OFF ON ON+S/S); the settings record's extension
+ * (CLK OUT's mode, LINK, LINK OFS): tests/favorites_test.c */
 static void midi_lists_tests(void)
 {
 #if FELUCCA_MIDI_OUT
@@ -115,69 +117,6 @@ static void midi_lists_tests(void)
         check(ok, "GLOBAL MIDI OUT: its knob left from KEYS is OFF, then right KEYS, SEQ, BOTH");
         bp_set[BPS_MOUT] = MOUT_KEYS;
         reset_ui();
-    }
-#endif
-#if FELUCCA_FLASH
-    {
-        persist_t r;
-        uint32_t ok = 1;
-        memset(&r, 0, sizeof r);
-        r.clk_ofs[0] = 17;
-#if FELUCCA_MIDI_CLKOUT
-        clko_on = CLKO_BOTH;                            /* (the word's bit 26 of a record from before) */
-        persist_ext_load(&r);
-        ok &= clko_on == (FELUCCA_BLE ? CLKO_BOTH : CLKO_USB);
-#endif
-#if FELUCCA_LINK
-        link_mode = LINK_OFF;
-        persist_ext_load(&r);
-        ok &= link_mode == LINK_ONSS;                   /* (before the setting: Link shared play / stop) */
-#endif
-#if FELUCCA_MIDI_CLOCK
-        sync_ofs[2] = 0;
-        persist_ofs_load(&r);
-        ok &= sync_ofs[2] == 17;                        /* (Link used CLK OFS) */
-        r.ext_ver = 1;
-        r.link_ofs = -42;
-        persist_ofs_load(&r);
-        ok &= sync_ofs[2] == -42 && sync_ofs[0] == 0;
-        sync_ofs[0] = sync_ofs[2] = 0;
-#endif
-        check(ok, "the settings record: an older one reads CLK OUT BOTH, LINK ON+S/S, LINK OFS = CLK OFS; a newer one its own LINK OFS");
-#if FELUCCA_MIDI_CLKOUT
-        {
-            static const uint8_t M[] = {CLKO_USB, CLKO_BLE, CLKO_BOTH};
-            uint32_t i;
-            ok = 1;
-            for (i = 0; i < sizeof M && FELUCCA_BLE; i++) {
-                persist_t q;
-                memset(&q, 0, sizeof q);
-                clko_on = M[i];
-                persist_ext_save(&q);
-                clko_on = CLKO_BOTH;                    /* (the word brings ON back; the record says which) */
-                persist_ext_load(&q);
-                ok &= clko_on == M[i];
-            }
-            check(ok, "the settings record: CLK OUT USB / BLE / BOTH each read back as saved");
-        }
-        clko_on = CLKO_OFF;
-#endif
-#if FELUCCA_LINK
-        {
-            uint32_t i, ok2 = 1;
-            for (i = 0; i <= LINK_ONSS; i++) {
-                persist_t q;
-                memset(&q, 0, sizeof q);
-                link_mode = (uint8_t)i;
-                persist_ext_save(&q);
-                link_mode = LINK_ONSS;
-                persist_ext_load(&q);
-                ok2 &= link_mode == i;
-            }
-            check(ok2, "the settings record: LINK OFF / ON / ON+S/S each read back as saved");
-            link_mode = LINK_ONSS;
-        }
-#endif
     }
 #endif
 }

@@ -1742,13 +1742,15 @@ static void persist_ext_load(const persist_t *p)
 #if FELUCCA_MIDI_CLKOUT
     if (p->ext_ver && clko_on && p->clko_sel >= CLKO_BOTH && p->clko_sel <= CLKO_BLE)
         clko_on = p->clko_sel;
-    if (!FELUCCA_BLE && clko_on == CLKO_BOTH)
-        clko_on = CLKO_USB;
-    if (!FELUCCA_BLE && clko_on == CLKO_BLE)
-        clko_on = CLKO_USB;
+#if !FELUCCA_BLE
+    if (clko_on == CLKO_BOTH || clko_on == CLKO_BLE)
+        clko_on = CLKO_USB;                        /* (no BLE: the list is OFF, USB) */
+#endif
 #endif
 #if FELUCCA_LINK
     link_mode = (uint8_t)(p->ext_ver && p->link_sel <= LINK_ONSS ? p->link_sel : LINK_ONSS);
+    if (p->ext_ver && p->sync_sel == 1u && GP[G_SYNC].max >= SYNC_LINK)
+        sync_boot = (uint8_t)(song.g[G_SYNC] = SYNC_LINK);   /* CLK IN LINK (the word read AUTO) */
 #endif
     (void)p;
 }
@@ -1760,6 +1762,7 @@ static void persist_ext_save(persist_t *p)
 #endif
 #if FELUCCA_LINK
     p->link_sel = link_mode;
+    p->sync_sel = song.g[G_SYNC] == SYNC_LINK;
 #endif
 }
 #if FELUCCA_MIDI_CLOCK
