@@ -665,7 +665,7 @@ static void info_ram(cell_t *c)
 {
     static char lb[20];
     uint32_t k, free = stk_sram_free();
-    int32_t l = stk_least(&k);
+    int32_t l = stk_least_ever(&k);                     /* (the least ever where the platform keeps it: the release) */
     (void)k;
     str_cpy(lb, "RAM", sizeof lb);
     if (free) {
@@ -679,7 +679,7 @@ static void info_ram(cell_t *c)
         c->col = C_DIM;
     } else {
         info_kb(c->val, (uint32_t)l);
-        c->col = (uint32_t)l < STK_LOW ? C_WARN : C_OK;
+        c->col = stk_low() ? C_WARN : C_OK;             /* (STACK LOW: stackmark.h) */
     }
     c->unit = " STACK LEFT";
 }
