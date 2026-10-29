@@ -187,6 +187,39 @@ pass the toolchain on: this repository never contains it, the Docker image is bu
 downloads it from JieLi's public server on each runner (kept only in the runner's cache), as any user does. If JieLi
 publishes terms, they decide. The AC79 SDK is Apache-2.0; its three files are fetched, not stored here.
 
+### The compiler
+
+The builder's item **COMPILER** (bit 442; the console builder lists it, the web builder holds JieLi for now) picks the C
+compiler for both builds, Optimist's own (`tools/build.py`) and the release (`tools/fm1base.py`):
+
+- **pi32v2-llvm** (default): Julius Vitkauskas's LLVM with a pi32v2 target
+  ([pi32v2-llvm](https://github.com/jvitkauskas/pi32v2-llvm), [pi32v2-isa](https://github.com/jvitkauskas/pi32v2-isa)),
+  used as his *drop-in* for JieLi's toolchain: a directory with the same layout and tool names (`pi32v2/bin/clang`, `ld`,
+  `common/bin/objdump`, ...) whose wrapper needs Python 3.11. Measured 2026-10-29: the same firmware 14 KB (Optimist's
+  own, default profile) to 30 KB (a full release configuration) smaller, the audio's CPU the same; played on an FM-1.
+- **JieLi's clang 4** (`COMPILER=0`): the toolchain above.
+
+`setup` downloads the drop-in into `~/.jieli/pi32v2-llvm` (`PI32V2_LLVM_TOOLCHAIN=<dir>` for another): the archive
+`pi32v2-llvm-dropin-<llvm>-<isa>.tar.xz`, a release asset of this repository, its SHA-256 pinned in `tools/toolchain.py`
+(`LLVM_URL`, `LLVM_SHA256`). On Linux x86-64 it runs natively; elsewhere each tool runs in the toolchain image with the
+drop-in mounted at `/opt/jieli` (the image's Python; plain `debian:bookworm-slim` has none), the release build's container
+too (`JIELI_DOCKER_IMAGE`). WSL: not yet (use JieLi there).
+
+The archive is made from pinned commits on Linux x86-64 (about an hour on 8 cores):
+
+```
+git clone --branch pi32v2 https://github.com/jvitkauskas/pi32v2-llvm LLVM && git -C LLVM checkout 4f631b31b
+git clone https://github.com/jvitkauskas/pi32v2-isa ISA && git -C ISA checkout e575321
+sh ISA/tools/llvm/package.sh LLVM build prefix/pi32v2-llvm            # clang, ld.lld, the tools; build/runtime
+sh ISA/tools/dropin/make_dropin.sh --copy prefix/pi32v2-llvm/bin build/runtime pi32v2-llvm-dropin-4f631b31b-e575321
+```
+
+then its licences (`LLVM/LICENSE.TXT`, `ISA/LICENSE`, `ISA/LICENSES/*`) into `licenses/`, a `VERSION` file with the two
+commits, and `tar -cJf` of the directory. Licences: Apache-2.0 WITH LLVM-exception (LLVM), MIT-0 (pi32v2-isa's tools), so
+unlike JieLi's it may be passed on. The build's checks read the disassembly with `-mcpu=r3` (`tools/build.py`
+`OBJDUMP_CPU`: without it the FPU's instructions are not decoded, with either compiler), and the ROM check flags a
+constant only where it is used as an address (`tools/romref.py`).
+
 ## Windows
 
 `tools/optimist.py` is written to run on Windows (pathlib paths, no shell, `.gitattributes` keeps scripts LF), but

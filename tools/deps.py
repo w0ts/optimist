@@ -177,6 +177,30 @@ def fetch_toolchain(home=None):
     return link
 
 
+def fetch_llvm(home=None):
+    """pi32v2-llvm's drop-in (the pinned archive, tools/toolchain.py LLVM_URL) into home (~/.jieli), linked as
+    home/pi32v2-llvm -> the directory"""
+    home = Path(home or TC.JIELI_HOME)
+    name = f"pi32v2-llvm-dropin-{TC.LLVM_VERSION}"
+    if not TC.has_clang(home / name):
+        home.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=home) as tmp:
+            archive = Path(tmp) / f"{name}.tar.xz"
+            print(f"setup: downloading pi32v2-llvm {TC.LLVM_VERSION} (72 MB)")
+            download(TC.LLVM_URL, archive)
+            if sha256(archive) != TC.LLVM_SHA256:
+                raise FetchError("the pi32v2-llvm archive does not match its SHA-256")
+            try:
+                extract(archive, home)
+            except tarfile.TarError as e:
+                raise FetchError(f"the pi32v2-llvm archive: {e}")
+    link = home / "pi32v2-llvm"
+    if link.is_symlink() or not link.exists():
+        link.unlink(missing_ok=True)
+        link.symlink_to(name)
+    return link
+
+
 def extract(archive, dest, data_filter=None):
     """untar inside dest only: tarfile's data filter, or (Pythons without it; data_filter=False) a check of
     every member path first"""

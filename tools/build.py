@@ -66,6 +66,10 @@ CFLAGS = ["-Os", "-ffunction-sections", "-fno-builtin", "-Wall", "-Wno-unused-fu
 # each other, 111 and up 2-3 KB worse). Measured 2026-10-22: synth 563,608 -> 558,888 B of flash (RAM +112 B),
 # drum-machine 573,832 -> 569,944 (RAM -64 B); the same code, the globals laid out in blocks
 IR_FLAGS = ["-mllvm", "-global-merge-ignore-single-use=false", "-mllvm", "-pi32v2-merge-max-offset=63"]
+# the disassembly the checks read (the CPU1 stack, RAM code's calls, the ROM): the AC79's core with its FPU. Without
+# it the float instructions (3f e5 ..) are not decoded and their halves read as other ones (2026-10-29: 5,208
+# instructions of a JieLi build undecoded; with pi32v2-llvm's, phantom 'sp += -412' frames in the CPU1 stack estimate)
+OBJDUMP_CPU = "-mcpu=r3"
 LINE =re.compile(r"^\s*([0-9a-f]+):\s+((?:[0-9a-f]{2} )+)\s*\t(.*)$")
 
 SDK_SHA256 = TC.SDK_SHA256          # SDK files of AC79NN_SDK_V1.2.1_2023-12-13 (the tested version)
@@ -90,7 +94,7 @@ def backend():
     global BACKEND
     if BACKEND is None:
         try:
-            BACKEND = TC.resolve()
+            BACKEND = TC.resolve(compiler=TC.compiler_of(CFG_VALUES))
         except TC.ToolchainError as e:
             raise SystemExit(f"build: {e}")
     return BACKEND
@@ -333,7 +337,7 @@ def build_loader():
     tc("pi32v2/bin/ld", "--gc-sections", "-e", "_start", "-T", src / "loader.ld",
        LDR / "crt0_ldr.o", LDR / "loader.o", "-o", elf)
     _, dis, hdr, syms = tc_all(("common/bin/objcopy", "-O", "binary", "-j", ".text", elf, LDR / "loader.bin"),
-                               ("common/bin/objdump", "-d", elf),
+                               ("common/bin/objdump", "-d", OBJDUMP_CPU, elf),
                                ("common/bin/objdump", "-h", elf),
                                ("common/bin/objdump", "-t", elf))
     (LDR / "loader.dis").write_text(dis)
@@ -607,8 +611,8 @@ def build_app():
                                ("common/bin/objcopy", "-O", "binary", "-j", ".ram_hot2", elf, OUT / "ramhot2.bin"),
                                ("common/bin/objcopy", "-O", "binary", "-j", ".pool_init", elf, OUT / "poolinit.bin"),
                                ("common/bin/objdump", "-t", elf),
-                               ("common/bin/objdump", "-d", elf),
-                               ("common/bin/objdump", "-d", "-j", ".ram_text", elf),
+                               ("common/bin/objdump", "-d", OBJDUMP_CPU, elf),
+                               ("common/bin/objdump", "-d", OBJDUMP_CPU, "-j", ".ram_text", elf),
                                ("common/bin/objdump", "-h", elf))
     (OUT / "felucca.dis").write_text(dis)
 
@@ -784,6 +788,8 @@ def cpu1_stack(dis):
             for part in m.group(1).split(","):
                 r = re.match(r"r(\d+)-r(\d+)", part.strip())
                 frames[fn] += 4 * (abs(int(r.group(1)) - int(r.group(2))) + 1 if r else 1)
+        elif re.search(r"\[--sp\] = rets\b", ln):     # (the one-register form, no braces: 4 B)
+            frames[fn] += 4
         m = re.search(r"\tsp \+= -(\d+)", ln)
         if m:
             frames[fn] += int(m.group(1))
@@ -883,14 +889,13 @@ def check(img, syms, dis, rt):
     else:
         notes.append(f".ram_text: {len([ln for ln in rt.splitlines() if LINE.match(ln)])} insns, no calls")
     far = []
-    for ln in dis.splitlines():     # nothing may call or load an address in the chip ROM
+    import romref                   # nothing may call the chip ROM or use its addresses (tools/romref.py: a constant
+    for val in romref.rom_refs(dis):                            # kept as a number, e.g. pi32v2-llvm's, passes)
+        errors.append(f"reference to ROM address {val:#010x}")
+    for ln in dis.splitlines():
         mm = LINE.match(ln)
         if not mm:
             continue
-        for v in re.findall(r"= (-?\d+) <|call -?\d+ <[^:>]*: ([0-9a-f]+) >", mm.group(3)):
-            val = (int(v[0]) & 0xFFFFFFFF) if v[0] else int(v[1], 16) & 0xFFFFFFFF
-            if 0xFFC00000 <= val < 0xFFD00000:
-                errors.append(f"reference to ROM address {val:#010x}")
         # a direct call between RAM code and XIP is out of reach (core.h HOT, FAR): the linker should
         # refuse it; this catches one that wrapped instead. Target = pc + offset + 4 (also for the
         # conditional form "if (..) { call N }", whose label is printed on the next line)
@@ -1096,9 +1101,10 @@ def main():
 
     mark(1)
     env = dict(os.environ, AC79_SDK=str(a.sdk)) if a.sdk else os.environ
-    BACKEND, sdk = TC.preflight(env)     # Pillow, the toolchain, the SDK files: what is missing and how to get it
-    print(f"toolchain {BACKEND.describe()}")
-    setup_config(a.config)
+    setup_config(a.config)               # (first: its COMPILER item picks the toolchain)
+    compiler = TC.compiler_of(CFG_VALUES)
+    BACKEND, sdk = TC.preflight(env, compiler)     # Pillow, the toolchain, the SDK files: what is missing, how to get it
+    print(f"toolchain {BACKEND.describe()}" + (" (pi32v2-llvm)" if compiler == "llvm" else ""))
     VERSION = f"OPTIMIST {OPTIMIST_VERSION}"     # (the screen's version: ui.c's default says the same)
     name = "felucca.fwsc"                       # (the internal name tests and tools read; see release_name)
     if a.release:
