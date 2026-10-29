@@ -117,6 +117,10 @@ object placed there must check `fm1_cache_ram_ok()`). On a failed test the way m
 (8, 16, 28 KB). **Measured on one FM-1 (2026-10-18, `registry.py` `CACHE_RAM`):** the boot test passes and cache RAM is as
 fast as main RAM, but flash data reads over 16 KB are 57 times slower (1.7 us against 32 ns), because flash data goes
 through the data cache and only 4 KB is left; so it stays off. Not known: whether DMA or CPU1 can use the memory.
+With the arena (fm1-next) the cache RAM is still the undo ring's second part only (the main loop alone reads it), and the
+ring's least in the SRAM (`engines.c` `ARN_UNDO_KEEP`, 16 KB) is that much less, 1 KB at least: the arena gets the SRAM
+it frees (8 KB with 2 ways). The arena's own blocks stay in the SRAM because CPU1 and the audio read them. fm1-base has
+the same (felucca-bsp `chip/fm1_cache_ram.h`, `plat_cache_ram`, `fm1.toml` `cache_ram_ways`), so the release has it too.
 
 ### 2.3 One speed (measured 2026-10-25)
 

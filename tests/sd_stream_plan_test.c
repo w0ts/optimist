@@ -10,7 +10,9 @@
  *     samples silent; placed by itself once the part's memory is given back;
  *   - a hash not on the card: that part MISSING, the others play;
  *   - a placed sample streams: its frames through the rings as the file holds them;
- *   - a part on SLICE CARD: its sample whole in the block (sd_slice.c), no ring and no head for it; off it, streamed.
+ *   - a part on SLICE CARD: its sample whole in the block (sd_slice.c), no ring and no head for it; off it, streamed;
+ *   - a part on a card set (SST_PART_BANK): SAMPLES/<SET>/Z0.WAV .. its zones by path, one source each with its keys
+ *     ("inst"), beside a part's CARD sample; a set not on the card: that part MISSING (bmiss), the others play.
  *   sd_stream_plan_test FAT16.img FAT32.img */
 #define FELUCCA_SD_FATFS 1
 #define FELUCCA_SD_RING_KB 4
@@ -26,6 +28,8 @@
 #define ARN_PARTS 4u                                 /* three parts, then the streams' block */
 #define ARN_BYTES (72u * 1024u)
 #define ARN_TOPS 8u
+static void fm1_irq_off(void);                       /* (below: core/arena.c calls them) */
+static void fm1_irq_on(void);
 #include "core/arena.c"
 #define SST_ARN_K 3u
 static uint32_t part_voices[3] = {8, 8, 8};
@@ -57,6 +61,11 @@ static const void *ssl_load(const char *path, uint8_t *mem, uint32_t n, uint32_t
     return mem;
 }
 static void ssl_set(uint32_t p, const void *t) { slc_tab[p] = t; }
+/* the parts' card sets (SD card mode: SAMPLE on a set the flash does not hold): set + 1, 0 none; their folders */
+static uint32_t part_bank[3];
+#define SST_PART_BANK(p) part_bank[p]
+static const char *const BANK_NAMES[2] = {"PIANO", "BASS"};
+#define SST_BANK_NAME(b) BANK_NAMES[(b) % 2u]
 #include "storage/sd/sd_stream_plan.c"
 
 static FATFS fs __attribute__((aligned(4)));
@@ -89,6 +98,17 @@ static int put_wav(const char *path, uint32_t frames, uint32_t seed)   /* 44.1 k
         at += n;
     }
     return f_close(&f) == FR_OK;
+}
+
+static int put_inst(const char *path, uint32_t lo, uint32_t hi)   /* a zone's keys, a chunk after the data */
+{
+    uint8_t c[16] = {'i', 'n', 's', 't', 7, 0, 0, 0, 60, 0, 0, 0, 0, 1, 127, 0};
+    FIL f;
+    UINT k;
+    c[11] = (uint8_t)lo;
+    c[12] = (uint8_t)hi;
+    return f_open(&f, path, FA_OPEN_APPEND | FA_WRITE) == FR_OK && f_write(&f, c, 16, &k) == FR_OK && k == 16u &&
+           f_close(&f) == FR_OK;
 }
 
 static void settle(void)                             /* the gate's wait, then the plan */
@@ -259,6 +279,36 @@ static void run_card(const char *img_path)
     sst_plan_poll();
     settle();
     CHECK(sstp.state == SSTP_IDLE && !arn_ptr(SST_ARN_K), "%s: no card samples: nothing held", what);
+
+    /* a card set: its zones by path, their keys; beside part 0's CARD sample */
+    CHECK(f_mkdir("OPTIMIST/SAMPLES/PIANO") == FR_OK && put_wav("OPTIMIST/SAMPLES/PIANO/Z0.WAV", 22050, 3) &&
+          put_inst("OPTIMIST/SAMPLES/PIANO/Z0.WAV", 0, 59) && put_wav("OPTIMIST/SAMPLES/PIANO/Z1.WAV", 22050, 4) &&
+          put_inst("OPTIMIST/SAMPLES/PIANO/Z1.WAV", 60, 127), "%s: a card set's two zones", what);
+    sst_pre_set(50);
+    sst_part_set(0, h0);
+    part_bank[1] = 1u;
+    sst_plan_poll();
+    CHECK(sstp.state == SSTP_GATED, "%s: a part on a card set: placed again", what);
+    settle();
+    k = sst_bank_src[1];
+    CHECK(sstp.state == SSTP_PLACED && sstp.nsrc == 3 && !sstp.missing && !sstp.bmiss && sst_bank_n[1] == 2u &&
+          sst_part_src[0] == 0 && k == 1u, "%s: placed: part 0's sample, the set's two zones (%u sources, zones %u at %u, "
+          "missing %x)", what, sstp.nsrc, sst_bank_n[1], k, sstp.missing);
+    CHECK(k + 1u < SST_NSRC && sst_src[k].lo == 0 && sst_src[k].hi == 59 && sst_src[k + 1u].lo == 60 &&
+          sst_src[k + 1u].hi == 127 && head_ok(k, 3) && head_ok(k + 1u, 4), "%s: the zones' keys and heads", what);
+    CHECK(sstp.nring == (SST_PART_RINGS * 2u < SST_N ? SST_PART_RINGS * 2u : SST_N), "%s: its rings as a CARD part's (%u)",
+          what, sstp.nring);
+    part_bank[2] = 2u;                               /* (BASS: not on this card) */
+    sst_plan_poll();
+    settle();
+    CHECK(sstp.state == SSTP_PLACED && sstp.bmiss == 4u && (sstp.missing & 4u) && !sst_bank_n[2] &&
+          sst_bank_n[1] == 2u && sst_part_src[0] == 0, "%s: a set not on the card: part 2 missing (%x), the others play",
+          what, sstp.bmiss);
+    part_bank[1] = part_bank[2] = 0;
+    sst_part_set(0, 0);
+    sst_plan_poll();
+    settle();
+    CHECK(sstp.state == SSTP_IDLE && !sst_bank_n[1] && !sstp.bmiss, "%s: off the card set: nothing held", what);
     free(img);
 }
 

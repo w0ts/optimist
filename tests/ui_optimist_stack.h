@@ -63,18 +63,51 @@ static void stackmark_tests(void)
     check(stk_t_main[0] != STK_MARK && stk_t_irq[0] != STK_MARK && stk_least(&k) < 0, "stacks: sp in neither: nothing painted, none measured");
     check(stk_left(STK_C1, &size) < 0 || DUAL_LOAD, "stacks: CPU1's: not measured on the host");
     reset_ui();
-    info_ram(&c);
-    check(c.kind == CK_RO && !strcmp(c.label, "RAM") && !strcmp(c.val, "?") && !strcmp(c.unit, " STACK LEFT"), "RAM line: no stack measured: ?");
     stk_boot();                                         /* (the host's stand-ins, the device's sizes) */
+#if PART_DROPS
+    info_ram(&c);
+    check(c.kind == CK_RO && !strcmp(c.label, "RAM") && c.pkbar && c.gmax == 100 && !strcmp(c.unit, "KB") &&
+              c.gv == (int16_t)((ARN_BYTES - arn_room()) * 100u / (ARN_BYTES + ARN_UNDO_KEEP)) && c.av >= c.gv,
+          "RAM bar (an arena): RAM, used / total KB, the arena in use the fill, the undo history's share after it");
+#else
     stk_host_free = 41u * 1024u + 300u;
     info_ram(&c);
-    check(!strcmp(c.label, "RAM 41K FREE") && !strcmp(c.val, "7.5K") && c.col == C_OK,
-          "RAM line: the SRAM free at link in its name, the least stack room left (the interrupts' 7.5K), green");
+    check(c.kind == CK_RO && !strcmp(c.label, "RAM") && c.pkbar && c.gv == (int16_t)((INFO_SRAM - stk_host_free) * 100u /
+                                                                                        INFO_SRAM) && c.col != C_WARN,
+          "RAM bar (no arena): the SRAM in use at link of the SRAM, no stack low");
+#endif
     stk_host_irq[200] = 0;                              /* (an interrupt nested 1.7 KB from the bottom: 800 B left) */
     info_ram(&c);
-    check(!strcmp(c.val, "0.7K") && c.col == C_WARN, "RAM line: under 1 KB of stack left: 0.7K, amber");
+    check(c.col == C_WARN && c.danger && strstr(c.unit, "STACK LOW"), "RAM bar: under 1 KB of stack left: amber, STACK LOW");
     stk_host_irq[200] = STK_MARK;
-    check(info_line("RAM 41K FREE") < INFO_N, "RAM line: on INFO");
+    check(info_line("RAM") < INFO_N, "RAM bar: on INFO");
+#if PART_DROPS
+    {   /* the arena half in use, the undo history after it: the page as drawn (opt-info-ram.ppm) */
+        uint32_t i;
+        memset((void *)&ovl, 0, sizeof ovl);
+        for (i = 0; i < 3u; i++)
+            ovl_ring_put(&ovl.r[OVL_RAM], (ARN_BYTES / 2u + i * 4096u) / 1024u, fm1_ms - (2u - i) * 30u * 1024u);
+        ovl_ring_put(&ovl.r[OVL_RAM], ARN_BYTES / 3u / 1024u, fm1_ms);
+        op_enter(SCR_SYSTEM);
+        ui.row[SCR_SYSTEM] = 0;
+        ui.force = 1;
+        frame();
+        ppm("opt-info-ram");
+        memset((void *)&ovl, 0, sizeof ovl);            /* KNOB 1 as the CPU lines': half the arena 30 s ago, a quarter now */
+        ovl_ring_put(&ovl.r[OVL_RAM], ARN_BYTES / 2u / 1024u, fm1_ms - 30u * 1024u);
+        ovl_ring_put(&ovl.r[OVL_RAM], ARN_BYTES / 4u / 1024u, fm1_ms);
+        info_mode = OVL_MAX10;
+        info_ram(&c);
+        check(!strcmp(c.label, "RAM MAX 10S") && atoi(c.val) == (int)(ARN_BYTES / 4u / 1024u),
+              "RAM line: KNOB 1 MAX 10S: the last ~10 s's most in use (30 s ago not in it), the label's suffix");
+        info_mode = OVL_MAXALL;
+        info_ram(&c);
+        check(!strcmp(c.label, "RAM MAX") && atoi(c.val) == (int)(ARN_BYTES / 2u / 1024u),
+              "RAM line: KNOB 1 MAX: the most in use since boot");
+        info_mode = OVL_NOW;
+        memset((void *)&ovl, 0, sizeof ovl);
+    }
+#endif
     stk_host_free = 0;
     {   /* the page: the CPU line's bar under its text (never under it, never text on it), its fill to the load now, the ticks */
         uint32_t ci = info_line(DUAL_LOAD ? "CPU0" : FELUCCA_SYS_DEBUG ? "LOAD" : "CPU LOAD"), n = info_lines(INFO_PG_INFO);

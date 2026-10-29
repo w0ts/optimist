@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* The SD card (builder item SDCARD, off by default; the hardware mod: docs/SD-CARD-DESIGN.md). ChaN's SPI-mode card
  * driver (sd_mmc.c) on the LCD's SPI1 (hal/fm1_sd_bus.h) under one of two filesystems:
- *   - full FatFs R0.16 (FELUCCA_SD_FATFS: LAYOUT 1 + FAR_OK, the room for its ~15 KB; fatfs/, its own units:
+ *   - full FatFs R0.16 (FELUCCA_SD_FATFS: LAYOUT 1, the room for its ~15 KB; fatfs/, its own units:
  *     tools/build.py; the disk layer sd_diskio.c): long names, files created, grown, renamed, several open, fast seek,
  *     contiguous runs (f_expand); the card's own layout on top (sd_layout.c, sd_index.c, sd_browse.c, sd_save.c);
  *   - Petit FatFs R0.03a (every other build: the bring-up, pff.c its own unit): FAT16 and FAT32, 8.3 names, no files
@@ -92,6 +92,10 @@ static void sd_end(void)
 #define SST_PART_VOICES(p) (trk[p].p[P_VOICE] == V_MONO || trk[p].p[P_VOICE] == V_LEGATO ? 2u : \
                             ENGINES[trk[p].engine % NENGINES]->poly ? (uint32_t)ENGINES[trk[p].engine % NENGINES]->poly \
                                                                     : (uint32_t)NVOICE)   /* (mono: the note before's tail) */
+/* a part on SAMPLE with a set on the card (SD card mode, eng_sample.c SMP_CARD_SET): that set + 1, else 0; its folder */
+#define SST_PART_BANK(p) (trk[p].engine == (uint8_t)ENG_SLOT_SAMPLE && (uint32_t)trk[p].p[P_E0] < SMP_NSETS && \
+                          SMP_CARD_SET((uint32_t)trk[p].p[P_E0]) ? (uint32_t)trk[p].p[P_E0] + 1u : 0u)
+#define SST_BANK_NAME(b) SMP_SET_NAMES[(b) % SMP_NSETS]
 #include "storage/sd/sd_stream.c"                 /* samples streamed from the card: the main loop's runs */
 #include "storage/sd/sd_slice.c"                  /* SLICE on a card sample: read whole, as ADPCM */
 #include "storage/sd/sd_stream_plan.c"            /* their heads and rings in the arena, per project */

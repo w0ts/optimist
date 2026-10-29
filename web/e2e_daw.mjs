@@ -1104,7 +1104,7 @@ const scrRes = await run(`${U} try {
   up.click(); await sleep(500); const v2 = row(0, 5).querySelector(".slv").textContent; up.click(); await sleep(500); const v3 = row(0, 5).querySelector(".slv").textContent;
   dn.click(); await sleep(500); dn.click(); await sleep(500); const v4 = row(0, 5).querySelector(".slv").textContent;
   r.steps = [v0, v1, v2, v3, v4].join("|");
-  /* a switch: its button names the entry (no blank box) and toggles it; a channel stepper; a slider with a device step of its own (BRIGHT 1..8) */
+  /* a switch: its button names the entry (no blank box) and toggles it; a channel stepper; a slider with a device step of its own (a device-stepped range) */
   const sw = row(0, 10).querySelector("button.sw"), s0 = sw.textContent; sw.click(); await until(() => sw.textContent !== s0, 4000); r.sw = s0 + ">" + sw.textContent + ":" + sw.getAttribute("aria-pressed");
   sw.click(); await sleep(400);
   const ch = row(0, 12), c0 = ch.querySelector(".slv").textContent; ch.querySelector("button[aria-label$='+']").click(); await sleep(500); r.chan = c0 + ">" + ch.querySelector(".slv").textContent;

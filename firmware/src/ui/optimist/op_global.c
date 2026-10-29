@@ -58,41 +58,32 @@ static int glo_yes(uint32_t r, uint32_t k, uint32_t ok)
 /* ---- the list: line i of screen s (0 GLOBAL, 1 SYSTEM) is cell k of row u, kept as u << 2 | k (built once: what a row
  * shows depends on the build only) */
 #define GL_PAGE 4u                                      /* the lines on screen, the knobs' */
-/* the lines of a screen, at most: SYSTEM's in this build (12 always, DEBUG STATS 1, BRIGHT 1, USB audio 5, LIGHTS 2, CDC 1, BLE 5 + 2 with
+/* the lines of a screen, at most: SYSTEM's in this build (12 always, DEBUG STATS 1, USB audio 5, LIGHTS 2, CDC 1, BLE 5 + 2 with
  * BLE_CENTRAL, WI-FI 4), never under 24 (GLOBAL's 19 at most); sized from the build so no RAM goes to lines it cannot have */
 #if FELUCCA_BT_UI
 #define GL_NBLE (5u + 2u * (BLE_CENTRAL != 0))
 #else
 #define GL_NBLE 0u
 #endif
-#if FELUCCA_BRIGHT
-#define GL_NBRI 1u
-#else
-#define GL_NBRI 0u
-#endif
 #if FELUCCA_USB_AUDIO
 #define GL_NUA (1u + (uint32_t)UAS_N)                   /* (USB STATS, a line a source) */
 #else
 #define GL_NUA 0u
 #endif
-#if FELUCCA_LIGHTS
 #define GL_NLIT 2u
-#else
-#define GL_NLIT 0u
-#endif
 #if FELUCCA_CDC
 #define GL_NCDC 1u
 #else
 #define GL_NCDC 0u
 #endif
-#define GL_NSYSL (12u + DBG_STATS + GL_NBRI + GL_NUA + GL_NLIT + GL_NCDC + GL_NBLE + 4u * WIFI_UI + 2u * USBH_UI)   /* (WI-FI: MODE NETWORK SIGNAL STATE; USB: MODE DEVICE) */
+#define GL_NSYSL (12u + DBG_STATS + GL_NUA + GL_NLIT + GL_NCDC + GL_NBLE + 4u * WIFI_UI + 2u * USBH_UI)   /* (WI-FI: MODE NETWORK SIGNAL STATE; USB: MODE DEVICE) */
 #define GL_MAXL (GL_NSYSL > 24u ? GL_NSYSL : 24u)
 #if FELUCCA_BT_UI
 #define GL_DEV BDV_OPEN                         /* SYSTEM shows the BLE devices list (op_project.c) */
 #else
 #define GL_DEV 0
 #endif
-#define GL_MAXP 16u                                     /* the pages of a screen, at most (gll.cont's bits; USB AUDIO's four) */
+#define GL_MAXP 16u                                     /* the pages of a screen, at most (gll.cont's bits; USB AUDIO's five) */
 static struct {
     uint8_t ok, n[2], np[2];
     uint16_t cont[2];                                   /* bit p: page p goes on with the section page p - 1 ended with */
@@ -124,7 +115,7 @@ static void gl_secname(uint32_t s, uint32_t e, char *b) /* the section of entry 
  * between its rows (REC: MODE LENGTH START CLICK, then QUANT: "REC 1/2" over each page). The pages are made from the lines
  * this build has (gl_build): a section the build lacks moves the rest up, no page number is fixed */
 static uint32_t gl_sid(uint32_t s, uint32_t e)          /* entry e's section: one number each (REC 2's lines are REC's; a SYS row
-                                                         * named as the one before it is that one's: USB AUDIO's four) */
+                                                         * named as the one before it is that one's: USB AUDIO's five) */
 {
     uint32_t u = e >> 2, r;
     if (!s && u < GL_SYS0)

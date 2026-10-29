@@ -24,8 +24,8 @@
  * in the project (STUT plays the live sound, as OFF; WAVE's voices are silent, as while a table is built; the X0X kit's
  * hits play its stand-in kit, as the notes the machine lacks), MEM FULL said once (op_input.c mem_tick, arb_said), and
  * it is placed by itself as soon as there is room: tried every pass, except while a part's refused change waits (a
- * part's sound first) or the effects' lines are being moved (fx_arena.c fxm_mv). The largest first. A part's change
- * refused while one of these is on its way back waits for it (fxm_pending). They are never proposed to drop.
+ * part's sound first) or the parts' blocks are being moved (core/arena.c arn_busy; a refusal the free room holds moves
+ * them first, once until the room changes). The largest first. A part's change refused while one of these is on its way back waits for it (fxm_pending). They are never proposed to drop.
  * WAVE's table is first a part's: a change to WAVE sets its room aside (engines.c part_mem_aside) or is refused like any
  * engine change (the drop proposal; on a load the list page), so its refusal here is only the fallback. A refused
  * SLICER's card reads FULL, dim, struck through (op_cells.c, arb_sl_refused), as a refused master FX slot
@@ -203,6 +203,7 @@ static void arb_ord(uint8_t *o)                         /* the clients, the larg
 /* the main loop, every pass (main.c, after fxm_poll): the buffers after a change. Those no longer used: their pointer 0
  * now, given back two blocks later; those wanted placed, the largest first; one that finds no room refused (bypassed,
  * said once, tried again every pass) */
+static uint32_t arb_pk;                                 /* arn_room() + 1 when a pack was last planned (0 never) */
 static void arb_poll(void)
 {
     uint8_t o[ARB_NC];
@@ -236,8 +237,8 @@ static void arb_poll(void)
     if (punch_asked())
         arb_poff |= (uint8_t)!punch_used();             /* (refused: its MEM FULL PUNCH was said) */
 #endif
-    if (PART_MEM_SHORT() || fxm_mv)
-        return;                                         /* (a part's refused change first; the lines being moved) */
+    if (PART_MEM_SHORT() || arn_busy())
+        return;                                         /* (a part's refused change first; the parts' blocks moving) */
     arb_ord(o);
     for (i = 0; i < ARB_NC; i++) {
         void *p = 0;
@@ -252,6 +253,8 @@ static void arb_poll(void)
         fm1_irq_on();
         if (!r && p) {
             arb_open(c, p);
+        } else if (arb_pk != arn_room() + 1u && (arb_pk = arn_room() + 1u, arn_pack(ARB_K(c), arb_bytes(c), ARN_BYTES))) {
+            return;                                     /* (the parts' blocks moved together first: again after) */
         } else {
             arb_news |= arb_full >> c & 1u ? 0u : 1u << c;
             arb_full |= 1u << c;

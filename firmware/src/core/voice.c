@@ -800,6 +800,9 @@ static void voice_start(track_t *t, voice_t *v, uint32_t note, uint32_t vel, int
 static void mono_play(track_t *t, uint32_t note, uint32_t vel, int retrig, int glide)
 {
     uint32_t mode = (uint32_t)t->p[P_VOICE], nv = mode == V_UNISON ? CG_UNI(trk_nvoice(t)) : 1u, i;   /* (CPU guard) */
+    if (PART_MOVING(t))
+        return;                                         /* (a key let go while its memory moves, core/arena.c: the
+                                                         * held note it falls back to is not started) */
     for (i = 0; i < nv; i++) {
         voice_t *v = &t->v[i];
         int32_t k = 2 * (int32_t)i - (int32_t)(nv - 1u);   /* -7 .. 7 */
@@ -856,12 +859,10 @@ static void mono_remove(track_t *t, uint32_t note)
     t->nmono = (uint8_t)k;
 }
 
-#if FELUCCA_LIGHTS && FELUCCA_KEYLIT
 /* the notes each synth part started since the UI last looked (menu NOTES: a short note lights its key for a few
  * frames, as a drum hit does; ui_studio.c pads_tick). SLOOP 2.4 (isod89/sloop-fm1 8d3823f voice.c note_hits).
  * Set here (mostly the audio ISR), taken by the UI with the IRQ off */
 static volatile uint32_t note_hits[NPART][4];
-#endif
 
 #if FELUCCA_ENG_DRONE
 /* DRONE's HOLD (eng_drone.c): a key latches its note (trk_note_off keeps it: drone_latch_off marks its voices); the
@@ -909,11 +910,10 @@ static void trk_note_on(track_t *t, uint32_t note, uint32_t vel)
         return;
     }
     trk_hits |= (uint8_t)(1u << (uint32_t)(t - trk));
-#if FELUCCA_LIGHTS && FELUCCA_KEYLIT
     if ((uint32_t)(t - trk) < NPART && note < 128u)
         note_hits[t - trk][note >> 5] |= 1u << (note & 31u);
-#endif
-    if (t->xf_on || t->eng_req != t->engine || t->pold) {   /* engine switch / sound load under way: after the fade */
+    if (t->xf_on || t->eng_req != t->engine || t->pold || PART_MOVING(t)) {   /* engine switch / sound load under way
+                                                         * (or its memory moving, core/arena.c): after it */
         for (i = 0; i < t->xp_n && t->xp_note[i] != note; i++)
             ;
         if (i == t->xp_n && t->xp_n < 4u)
@@ -1162,6 +1162,8 @@ static __attribute__((noinline)) void pold_out(uint32_t m)
 static void engine_block(track_t *t)
 {
     uint32_t i, any = 0;
+    if (PART_MOVING(t))
+        return;                                         /* (its memory moving, core/arena.c: the switch after it) */
 #if PART_DROPS                                          /* (an arena placed by need: the engine a part starts with, or
                                                          * one a load put there without a switch, gets its memory) */
     if ((uint32_t)(t - trk) < NPART && !part_mem_p[t - trk] && part_mem_bytes(t->engine))
@@ -1197,12 +1199,13 @@ static void engine_block(track_t *t)
         t->pold = 0;
         t->nmono = 0;
         t->mono_note = 0;
-        {
-            uint32_t n = t->xp_n;
-            t->xp_n = 0;
-            for (i = 0; i < n; i++)
-                trk_note_on(t, t->xp_note[i], t->xp_vel[i]);
-        }
+    }
+    if (t->xp_n && t->eng_req == t->engine) {           /* the notes that came during the switch (or while its memory
+                                                         * moved): now */
+        uint32_t n = t->xp_n;
+        t->xp_n = 0;
+        for (i = 0; i < n; i++)
+            trk_note_on(t, t->xp_note[i], t->xp_vel[i]);
     }
     for (i = 0; i < 8u; i++)                            /* the engine's own values, for a later fade */
         t->pe_old[i] = t->p[P_E0 + i];
@@ -1510,6 +1513,13 @@ static HOT uint32_t track_render(track_t *t, int32_t *out, uint32_t n)
     env_plan_t pl;                                      /* the envelopes' slots this block (env_plan) */
     for (i = 0; i < n; i++)
         out[i] = 0;
+#if PART_DROPS
+    if (PART_MOVING(t)) {                               /* (its memory moving, core/arena.c: this block skipped, the
+                                                         * voices wait; the probe counts it) */
+        arn_probe.gated++;
+        return 0;
+    }
+#endif
 #if FELUCCA_OVERLAY
     plays = rto_hooks(t, e, &hk);
     if (!plays)                                         /* (nothing of the engine runs: its voices wait) */

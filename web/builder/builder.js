@@ -345,7 +345,7 @@ function renderMsgs() {
 
 function itemRow(key, hasKids) {
   const it = S.reg.byKey[key], v = S.view, val = S.values[key] ?? it.default;
-  const live = (!it.parent || built(S.reg, S.values, it.parent)) && (!S.reg.drumsOnly.includes(key) || built(S.reg, S.values, "DRUMS"));
+  const live = (!it.parent || built(S.reg, S.values, it.parent)) && (!it.shown_under || built(S.reg, S.values, it.shown_under)) && (!S.reg.drumsOnly.includes(key) || built(S.reg, S.values, "DRUMS"));
   const id = `it-${key}`;
   let ctl;
   if (it.choices.length) {
@@ -467,7 +467,7 @@ async function renderInfo(key) {
   const d = S.info[key];
   info.textContent = "";
   info.append(el("h3", { text: it.label }),
-    el("p", { class: "meta", text: `${key}` + (it.flag ? `  (${it.flag})` : "") + `  bit ${it.bit}` + (it.parent ? ` · option of ${S.reg.byKey[it.parent].label}` : "") }));
+    el("p", { class: "meta", text: `${key}` + (it.flag ? `  (${it.flag})` : "") + `  bit ${it.bit}` + (it.parent || it.shown_under ? ` · option of ${S.reg.byKey[it.shown_under || it.parent].label}` : "") }));
   if (it.desc) info.append(el("p", { text: it.desc }));
   for (const e of (S.view && S.view.conflicts[key]) || []) info.append(line("err", "Error", e));
   if (d) {

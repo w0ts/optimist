@@ -95,16 +95,25 @@ static void audio_block(int32_t *out, uint32_t n)       /* mix (fx.c), then Q15 
         int bt_audio_feed(const int32_t *q15_pcm, uint32_t n);
         if (bt_audio_feed(out, n))                      /* (streaming to Bluetooth: the FM-1's own output silent, the user
                                                          * 2026-10-19; back as soon as the link stops streaming) */
-            for (i = 0; i < 2u * n; i++)
+            for (i = 0; i < 2u * n; i++) {
                 out[i] = 0;
+#if FELUCCA_MIX_EXACT
+                mst_frac[i] = 0;                        /* (nothing under the silence) */
+#endif
+            }
     }
 #endif
 #if FELUCCA_SD_REC
     sdr_feed(out, n);                                   /* the master into the card's ring (storage/sd/sd_rec.c) */
 #endif
     for (i = 0; i < n; i++) {                           /* (no scope tap: SLOOP's HOME scope is gone) */
+#if FELUCCA_MIX_EXACT
+        out[2u * i] = (out[2u * i] << OUT_SHIFT) | mst_frac[2u * i];               /* (fx.c MASTER_VOL) */
+        out[2u * i + 1u] = (out[2u * i + 1u] << OUT_SHIFT) | mst_frac[2u * i + 1u];
+#else
         out[2u * i] <<= OUT_SHIFT;
         out[2u * i + 1u] <<= OUT_SHIFT;
+#endif
     }
 }
 
@@ -214,6 +223,9 @@ void fm1_alnk0_irq(void)                       /* via isr_alnk0 (hal/fm1_isr.S) 
         if (us > audio_max_us)
             audio_max_us = us;
         ovl_half(us + w, late, fm1_ms);                    /* PEAK (its wait too), DROPS, the header's mark (system/overload.h) */
+#if PART_DROPS
+        ovl_ring_put(&ovl.r[OVL_RAM], (ARN_BYTES - arn_room()) / 1024u, fm1_ms);   /* (the arena in use: INFO's RAM bar) */
+#endif
         felucca_dbg.pk_all = ovl_maxall_pct(OVL_CPU0);     /* (the same measures into the reset-kept record) */
         felucca_dbg.pk_5s = ovl_max5_pct(OVL_CPU0, fm1_ms);
         felucca_dbg.pk1_5s = ovl_max5_pct(OVL_CPU1, fm1_ms);

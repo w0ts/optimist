@@ -188,6 +188,9 @@ static void gl_info_bar(int32_t by, const cell_t *c)
     int32_t span = c->gmax - c->gmin, k;
     cell_t g = *c;
     draw_gauge(GL_BX, by, GL_BW, GL_BH, &g, load_col(c->gv), C_LINE);
+    if (c->av > c->gv && span > 0)                      /* (the RAM bar: the undo history's borrowed share after the fill,
+                                                         * dimmer: op_project.c info_ram) */
+        cv_rect(GL_BX + (c->gv - c->gmin) * GL_BW / span, by, (c->av - c->gv) * GL_BW / span, GL_BH, col_shade(C_GRAY, 2u));
     for (k = 1; k >= 0; k--) {
         int32_t v = c->hold[k], x;
         if (v <= 0 || span <= 0)
@@ -222,13 +225,13 @@ static void gl_info_draw(int32_t y0)
             ty = fy + (int32_t)font_big()->h / 2 - 4;
         }
         if (f != &FONT_S && gl_big_nm(nm, lv, uw, 0)) {     /* (the name large too where both fit: one size on a row) */
-            cv_text(6, fy, f, nm, C_WHITE);
+            cv_text(6, fy, f, nm, c.danger ? C_WARN : C_WHITE);
         } else if (f != &FONT_S) {                      /* (else the whole row small, never a large value by a small name) */
             f = &FONT_S;
             fy = ty = y + (tp - (int32_t)FONT_S.h) / 2;
-            cv_texts(6, ty, nm, C_GRAY);
+            cv_texts(6, ty, nm, c.danger ? C_WARN : C_GRAY);
         } else
-            cv_texts(6, ty, nm, C_GRAY);
+            cv_texts(6, ty, nm, c.danger ? C_WARN : C_GRAY);
         x = 236 - uw - text_w(f, lv);
         cv_text(x, fy, f, lv, vc);
         if (uw)

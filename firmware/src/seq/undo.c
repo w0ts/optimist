@@ -139,6 +139,9 @@ static void undo_status(uint32_t *n, uint32_t *m, uint32_t *tk)
     *tk = undo.trk;
 }
 
+#if PART_DROPS
+static void undo_yield(uint8_t *lo) { (void)lo; }       /* (one level: no ring to give way) */
+#endif
 #else
 /* ------------------------------------------------------------ history --- */
 #define UREC_LINK 0x80u                  /* header byte 0: undone / redone with the record before it */
@@ -195,14 +198,73 @@ static uint32_t undo_arena_set(uint8_t *plo, uint8_t *phi, uint8_t *rlo, uint8_t
     undo.valid = 0;
     return undo_h.size;
 }
-#ifdef __PI32V2__
+#if PART_DROPS
+/* With the arena (the user, 2026-10-29: "arena first, undo gets the rest"; engines.c ARN_FREE): the ring is the SRAM
+ * after the arena's highest block up to the arena's end and ARN_UNDO_KEEP past it (on the device the free SRAM's end,
+ * the build's spare left). It gives way when a block is placed past its start (undo_yield, from core/arena.c: its
+ * oldest levels dropped, all of them when the newest are in the way) and takes the room back when the arena lets it
+ * go (undo_regrow, before a record is kept) */
+#define UNDO_RING_END (arn_mem + ARN_BYTES + ARN_UNDO_KEEP)
+#if FELUCCA_CACHE_RAM
+/* the cache RAM's ways after it when their test passed (hal/fm1_cache.h fm1_cache_ram_lo / _free; the trial's on
+ * fm1-base's plat_cache_ram): its second segment, which only the main loop reads (the arena's blocks stay in the SRAM:
+ * whether the second core and DMA read the ways has not been measured). Its least in the SRAM is that much less
+ * (engines.c ARN_UNDO_KEEP), the arena that much more; a failed test: none, the least all in the SRAM as without */
+#define UNDO_ARENA() undo_arena_set(arn_mem + ((arn_top() + 3u) & ~3u), UNDO_RING_END, fm1_cache_ram_lo(), \
+                                    fm1_cache_ram_lo() + fm1_cache_ram_free(), 0u)
+#else
+#define UNDO_ARENA() undo_arena_set(arn_mem + ((arn_top() + 3u) & ~3u), UNDO_RING_END, 0, 0, 0u)
+#endif
+static void undo_drop_oldest(void);
+static void undo_forget(void);
+static void undo_yield(uint8_t *lo)
+{
+    uint32_t d;
+    if (!undo_h.ready || lo <= undo_h.seg[0])
+        return;
+    d = (uint32_t)(lo - undo_h.seg[0]);
+    d = (d + 3u) & ~3u;
+    if (d >= undo_h.len[0]) {
+        undo_forget();
+        d = undo_h.len[0];
+    } else {
+        while (undo_h.all_b && undo_h.head < d && undo_h.head + undo_h.all_b <= undo_h.size && undo_h.n_done &&
+               undo_h.done_b)
+            undo_drop_oldest();                         /* (the oldest first, while they are in the way) */
+        if (undo_h.all_b && (undo_h.head < d || undo_h.head + undo_h.all_b > undo_h.size))
+            undo_forget();                              /* (the ring wraps: the newest in the way too, every level) */
+    }
+    if (undo_h.all_b) {
+        undo_h.head -= d, undo_h.cur -= d, undo_h.tail -= d;
+    } else {
+        undo_h.head = undo_h.cur = undo_h.tail = 0;     /* (the open session is not in the ring: kept) */
+    }
+    undo_h.seg[0] += d;
+    undo_h.size -= d;
+    undo_h.len[0] -= d;                                 /* (the cache RAM's part, seg 1, as it was) */
+}
+static void undo_regrow(void)                           /* the room the arena no longer uses: the ring's again */
+{
+    uint8_t *lo = arn_mem + ((arn_top() + 3u) & ~3u);
+    uint32_t d;
+    if (!undo_h.ready || lo >= undo_h.seg[0] || undo_h.head + undo_h.all_b > undo_h.size)
+        return;                                         /* (a wrapped ring keeps its size until it is empty) */
+    d = (uint32_t)(undo_h.seg[0] - lo);
+    if (undo_h.all_b)
+        undo_h.head += d, undo_h.cur += d, undo_h.tail += d;
+    undo_h.seg[0] = lo;
+    undo_h.size += d;
+    undo_h.len[0] += d;
+}
+#elif defined(__PI32V2__)
 extern uint8_t _undo_pool_lo[], _undo_pool_hi[], _undo_ram_lo[], _undo_ram_hi[];   /* app.ld */
 #if FELUCCA_CACHE_RAM
-/* EXPERIMENTAL cache RAM (hal/fm1_cache.h): when its boot test passed, its n x 4 KiB (after .cache_ram) are the second
- * segment instead of main RAM's leftover; else main RAM's as without it */
-extern uint8_t _undo_cache_lo[];                 /* (its end: FM1_CR_HI, the ways the build frees) */
-#define UNDO_ARENA() (fm1_cache_ram_ok()                                                                  \
-    ? undo_arena_set(_undo_pool_lo, _undo_pool_hi, _undo_cache_lo, (uint8_t *)FM1_CR_HI, FELUCCA_UNDO_CAP) \
+/* EXPERIMENTAL cache RAM (hal/fm1_cache.h fm1_cache_ram_lo / _free; the trial's on fm1-base's plat_cache_ram): when its
+ * boot test passed, its n x 4 KiB (after .cache_ram) are the second segment instead of main RAM's leftover; else main
+ * RAM's as without it */
+#define UNDO_ARENA() (fm1_cache_ram_ok()                                                                              \
+    ? undo_arena_set(_undo_pool_lo, _undo_pool_hi, fm1_cache_ram_lo(), fm1_cache_ram_lo() + fm1_cache_ram_free(),  \
+                     FELUCCA_UNDO_CAP)                                                                             \
     : undo_arena_set(_undo_pool_lo, _undo_pool_hi, _undo_ram_lo, _undo_ram_hi, FELUCCA_UNDO_CAP))
 #else
 #define UNDO_ARENA() undo_arena_set(_undo_pool_lo, _undo_pool_hi, _undo_ram_lo, _undo_ram_hi, FELUCCA_UNDO_CAP)
@@ -301,6 +363,9 @@ static void undo_commit(void)
 #endif
     if (!n && !pm)
         return;                                         /* nothing changed: no level (redo stays) */
+#if PART_DROPS
+    undo_regrow();                                      /* (the arena's room it no longer uses) */
+#endif
     sz = UREC_HEAD + n * UREC_STEP + popc2(pm) * 2u + REC_SX(pm << 2) + UREC_TAIL;
     link = undo_h.run_ok && undo_h.run_sess == undo.sess && undo_h.run_pushed && undo_h.cur == undo_h.tail &&
            undo_h.n_all;                                /* (another track of the session just before) */

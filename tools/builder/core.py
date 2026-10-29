@@ -51,12 +51,12 @@ def setup(needs_auto=None, limits=_UNSET):
 
 
 def limits_in_use():
-    """-> {"flash", "sram", "flash_by_layout": {layout: bytes}, "far": whether a layout's bigger slot needs FAR_OK}: the
+    """-> {"flash", "sram", "flash_by_layout": {layout: bytes}, }: the
     release's (setup) or the classic firmware's"""
     if RELEASE_LIMITS:
-        return {"flash": RELEASE_LIMITS["flash"], "sram": RELEASE_LIMITS["sram"], "far": False,
+        return {"flash": RELEASE_LIMITS["flash"], "sram": RELEASE_LIMITS["sram"],
                 "flash_by_layout": {int(k): v for k, v in RELEASE_LIMITS.get("flash_by_layout", {}).items()}}
-    return dict(LIMITS, flash_by_layout=dict(FLASH_BY_LAYOUT), far=True)
+    return dict(LIMITS, flash_by_layout=dict(FLASH_BY_LAYOUT))
 
 
 def _stderr(msg):
@@ -67,9 +67,9 @@ def _stderr(msg):
 # 2026-10-25, docs/MEMORY-MAP.md 2.3-2.4); build.py keeps 8 KiB of SRAM spare below the stacks
 LIMITS = {"flash": 581564, "sram": 474880}
 SPARE = {"flash": 0, "sram": 8192}
-FLASH_BY_LAYOUT = {1: 765696}    # the code's room in the other flash layouts once the far probe passed (LAYOUT + FAR_OK):
-                                 # tools/flash_layout.py code_limit, which the web builder does not ship; a probe build
-                                 # (LAYOUT without FAR_OK) keeps the normal slot; tests/flash_layout_test.py checks they agree
+FLASH_BY_LAYOUT = {1: 765696}    # the code's room in the other flash layouts (LAYOUT 1):
+                                 # tools/flash_layout.py code_limit, which the web builder does not ship;
+                                 # tests/flash_layout_test.py checks they agree
 BUDGETS = ("flash", "sram")
 # the measured parts (costs.json, the deltas): "ram" = .ram_hot2 + .data + .bss, "pool", "ramtext" = .ram_text +
 # .ram_hot; the three together fill the SRAM budget
@@ -92,13 +92,13 @@ def defaults():
     return {k: it.default for k, it in R.ITEMS.items()}
 
 
-# ---- the memory front (registry.py MEMORY): a view of LAYOUT, SDCARD and FAR_OK, never stored in a .config
+# ---- the memory front (registry.py MEMORY): a view of LAYOUT and SDCARD, never stored in a .config
 def derive_memory(cfg):
-    """-> MEMORY's value for these LAYOUT / SDCARD / FAR_OK: 2 SD card mode (the card on, the big slot), 1 reduced user
-    flash (LAYOUT 1 otherwise), 0 normal"""
+    """-> MEMORY's value for these LAYOUT / SDCARD: 2 SD card mode (the card on, the big slot), 1 more flash (LAYOUT 1
+    otherwise), 0 normal"""
     if cfg.get("LAYOUT", 0) != 1:
         return 0
-    return 2 if cfg.get("SDCARD", 0) and cfg.get("FAR_OK", 0) else 1
+    return 2 if cfg.get("SDCARD", 0) else 1
 
 
 def sync_memory(cfg):
@@ -107,18 +107,18 @@ def sync_memory(cfg):
 
 
 def set_memory(cfg, mode):
-    """-> cfg with MEMORY = mode and the items it fronts set to match (a copy): 0 normal (LAYOUT, FAR_OK, SDCARD and the
-    card's streams off); 1 reduced user flash (LAYOUT 1, no card: SDCARD and the card's streams off, FAR_OK as it was);
-    2 SD card mode (LAYOUT, SDCARD and FAR_OK on)"""
+    """-> cfg with MEMORY = mode and the items it fronts set to match (a copy): 0 normal (LAYOUT, SDCARD and the
+    card's streams off); 1 more flash (LAYOUT 1, no card: SDCARD and the card's streams off); 2 SD card mode (LAYOUT
+    and SDCARD on)"""
     if mode not in (0, 1, 2):
         raise ConfigError(f"MEMORY={mode}: 0, 1 or 2")
     out = dict(cfg)
     if mode == 2:
-        out.update(LAYOUT=1, SDCARD=1, FAR_OK=1)
+        out.update(LAYOUT=1, SDCARD=1)
     else:
         out.update(LAYOUT=mode, SDCARD=0, SD_RING=0, SD_REC=0)
         if mode == 0:
-            out.update(FAR_OK=0, OVERLAY=0)
+            out.update(OVERLAY=0)
     return sync_memory(out)
 
 
@@ -143,7 +143,7 @@ def parse(text, base=None, strict=True, warn=None, reject_unknown=False):
         if not m:
             raise ConfigError(f"line {n}: expected KEY=number, got {s!r}")
         k, v = m.group(1), int(m.group(2))
-        if k == "MEMORY":                               # (the front: sets LAYOUT, SDCARD, FAR_OK; the lines after it refine)
+        if k == "MEMORY":                               # (the front: sets LAYOUT, SDCARD; the lines after it refine)
             cfg = set_memory(cfg, v)
             continue
         if k in R.FORBIDDEN:
@@ -172,7 +172,7 @@ def parse(text, base=None, strict=True, warn=None, reject_unknown=False):
     for k, it in R.ITEMS.items():                      # (a fixed item: what every build has, whatever the text says)
         if it.fixed:
             cfg[k] = it.default
-    cfg = sync_memory(cfg)                              # (MEMORY: read from LAYOUT, SDCARD and FAR_OK, whatever the text says)
+    cfg = sync_memory(cfg)                              # (MEMORY: read from LAYOUT and SDCARD, whatever the text says)
     for into, on in merged_on.items():                  # (a survivor the text does not set: what its old items were, so
         cfg[into] = cfg[into] | on if into in named else on   # an older .config with all of them off keeps it off)
     return cfg, name
@@ -257,17 +257,14 @@ def validate(cfg):
     if cfg.get("BT_PROJ") and not (cfg.get("BLE") and cfg.get("ED_MIRROR") and cfg.get("PATTERNS") and cfg.get("BACKUP")):
         err.append(Issue("projects over Bluetooth need Bluetooth MIDI (BLE), the Mirror (ED_MIRROR, its Bluetooth link), the "
                          "projects (PATTERNS) and the backup (BACKUP)", ["BT_PROJ", "BLE", "ED_MIRROR", "PATTERNS", "BACKUP"]))
-    if cfg.get("SD_RING") and not (cfg.get("SDCARD") and cfg.get("LAYOUT") == 1 and cfg.get("FAR_OK") and
+    if cfg.get("SD_RING") and not (cfg.get("SDCARD") and cfg.get("LAYOUT") == 1 and
                                    cfg.get("ARENA") and built(cfg, "ENG_SAMPLE")):
-        err.append(Issue("samples from the card (SD_RING) need the card under full FatFs (SDCARD, LAYOUT 1, FAR_OK), "
+        err.append(Issue("samples from the card (SD_RING) need the card under full FatFs (SDCARD, LAYOUT 1), "
                          "SAMPLE (its CARD set) and the arena (ARENA: the heads and the rings)",
-                         ["SD_RING", "SDCARD", "LAYOUT", "FAR_OK", "ENG_SAMPLE", "ARENA"]))
-    if cfg.get("SD_REC") and not (cfg.get("SDCARD") and cfg.get("LAYOUT") == 1 and cfg.get("FAR_OK")):
-        err.append(Issue("recording to the card (SD_REC) needs the card under full FatFs (SDCARD, LAYOUT 1, FAR_OK)",
-                         ["SD_REC", "SDCARD", "LAYOUT", "FAR_OK"]))
-    if cfg.get("FAR_OK") and not cfg.get("LAYOUT"):    # the big slot exists only in the fake SD mode layout
-        err.append(Issue("the far probe's answer (FAR_OK) opens the fake SD mode's whole slot: it needs that layout "
-                         "(LAYOUT 1)", ["FAR_OK", "LAYOUT"]))
+                         ["SD_RING", "SDCARD", "LAYOUT", "ENG_SAMPLE", "ARENA"]))
+    if cfg.get("SD_REC") and not (cfg.get("SDCARD") and cfg.get("LAYOUT") == 1):
+        err.append(Issue("recording to the card (SD_REC) needs the card under full FatFs (SDCARD, LAYOUT 1)",
+                         ["SD_REC", "SDCARD", "LAYOUT"]))
     if cfg.get("OVERLAY") and not cfg.get("LAYOUT"):   # each slot engine's code linked once per slot: the big flash
         err.append(Issue("the RAMTEXT overlays put each engine's fast code in flash once per part: they need the fake "
                          "SD mode layout (LAYOUT 1)", ["OVERLAY", "LAYOUT"]))
@@ -283,7 +280,12 @@ def validate(cfg):
                          "X0X 909, X0X 808) or a sampled kit", synths + ["DRUM_SAMPLED"] + kits))
     if built(cfg, "ENG_STRETCH") and not built(cfg, "ENG_SAMPLE"):
         err.append(Issue("STRETCH stretches SAMPLE's material: it needs SAMPLE", ["ENG_STRETCH", "ENG_SAMPLE"]))
-    sets = [k for k in R.ITEMS if k.startswith("SET_")]
+    sets = set_keys()
+    if card_sets(cfg) and any(cfg[k] for k in sets) and not (cfg.get("SD_RING", 0) and built(cfg, "ENG_SAMPLE") and
+                                                          cfg.get("ARENA", 0)):
+        warn.append(Issue("SD card mode: the sample sets go on the card (the SD card zip), and only SAMPLE streaming "
+                          "from it (SD_RING, ARENA) plays them: without it they are silent",
+                          ["SD_RING", "ENG_SAMPLE", "ARENA"] + [k for k in sets if cfg[k]]))
     if any(cfg[k] for k in sets) and not built(cfg, "ENG_SAMPLE") and not built(cfg, "ENG_GRAIN"):
         warn.append(Issue("sample sets without SAMPLE or GRAIN: nothing plays them (only the drums use PERC)",
                           ["ENG_SAMPLE", "ENG_GRAIN"] + [k for k in sets if cfg[k]]))
@@ -309,31 +311,23 @@ def validate(cfg):
                 note.append(Issue(f"{FXM_NAMES[k]} plays only while the delay is in no master slot: its line is "
                                   f"{t['kb']} KB and the effects memory has {mem['own']} KB beside the delay's "
                                   f"{mem['send']} KB", ["DLY_ARENA", k]))
-        if cfg.get("ARENA", 0) and sd_mode(cfg):
-            note.append(Issue(f"{R.ITEMS['DLY_ARENA'].label}: in the SD card mode with ARENA the delay's line is a block "
-                              "of the arena, and this memory less the delay's line is the inserts' own room, one more "
-                              "block of it", ["DLY_ARENA", "ARENA"]))
+        if cfg.get("ARENA", 0):
+            note.append(Issue(f"{R.ITEMS['DLY_ARENA'].label}: with ARENA the delay's line is a block of the arena, and "
+                              "this memory less the delay's line is the inserts' own room, one more block of it",
+                              ["DLY_ARENA", "ARENA"]))
         note.append(Issue(f"{R.ITEMS['DLY_ARENA'].label}: {fx_memory_text(mem)}", ["DLY_ARENA"]))
-    if cfg.get("ARENA", 0):
-        kb, need = arena_kb(cfg), arena_need(cfg)
+    if cfg.get("ARENA", 0):                             # (the free SRAM: what the link leaves, the estimate's free)
+        need = arena_need(cfg)
         what = ", ".join(f"{k} {-(-v // 1024)} KB" for k, v in need["what"].items())
         if need["kb"] > ARENA_MAX_KB:                   # (more than the SRAM can give the arena: the one error left)
             err.append(Issue(f"the arena would need {need['kb']} KB, more than the {ARENA_MAX_KB} KB the SRAM can give "
                              f"it ({what}): a shorter DLY_LEN or XDLY_LEN, a smaller reverb, fewer engines, or ARENA off",
                              ["ARENA", "DLY_LEN"]))
-        else:
-            if kb != cfg["ARENA"]:
-                note.append(Issue(f"{R.ITEMS['ARENA'].label}: {cfg['ARENA']} KB raised to {kb} KB, what it must hold "
-                                  + ("(the send lines together, a new project's three, and its largest block)"
-                                     if sd_mode(cfg) else "(its largest block)") + ": the build takes it", ["ARENA"]))
-            if kb < need["kb"]:
-                note.append(Issue(f"{R.ITEMS['ARENA'].label}: a new project needs {need['kb']} KB together ({what}); "
-                                  f"with {kb} KB a project using more is refused and offered what to drop", ["ARENA"]))
-        fixed = kb * 1024 - arena_mem(cfg)["pool"]
-        held = ("the parts' engine states, the effects' lines, the SLICER's recordings, WAVE's table, the X0X "
-                "machines" if sd_mode(cfg) else "the parts' engine states")
-        note.append(Issue(f"{R.ITEMS['ARENA'].label}: {kb} KB in place of {fixed // 1024} KB of fixed memories "
-                          f"({held}); a project using more is refused and offered what to drop", ["ARENA"]))
+        held = "the parts' engine states, the effects' lines, the SLICER's recordings, WAVE's table, the X0X machines"
+        note.append(Issue(f"{R.ITEMS['ARENA'].label}: the SRAM the link leaves free (the estimate's free, less the undo "
+                          f"history's 16 KB) holds {held} instead of {-arena_mem(cfg)['pool'] // 1024} KB of fixed "
+                          f"memories; a new project needs about {need['kb']} KB of it together ({what}); a project "
+                          "using more than there is is refused and offered what to drop", ["ARENA"]))
     for k, it in R.ITEMS.items():
         if it.off_warning and not cfg[k] and (not it.parent or built(cfg, it.parent)):
             warn.append(Issue(f"{it.label} off: {it.off_warning}", [k]))
@@ -385,8 +379,8 @@ def flags(cfg):
         if any(R.ITEMS[a].head and not cfg[a] for a in R.ancestors(k)) or (k in R.DRUMS_ONLY and not cfg["DRUMS"]):
             v = 0                                       # (a group's head off: none of its code, registry.h checks it)
         out[it.flag] = v
-    if _FIX[0] and cfg.get("ARENA", 0):                 # (the sizes the build takes: validate says so)
-        out[R.ITEMS["ARENA"].flag] = arena_kb(cfg)
+    if cfg.get("ARENA", 0):
+        out[R.ITEMS["ARENA"].flag] = 1                  # (on: the free SRAM, engines.c ARN_FREE; a KB of before too)
     if _FIX[0] and cfg.get("DLY_ARENA", 0):
         out[R.ITEMS["DLY_ARENA"].flag] = dly_kb(cfg)
     out["FELUCCA_USB_AUDIO"] = cfg["USB_AUDIO"]
@@ -395,15 +389,17 @@ def flags(cfg):
     out["FELUCCA_SLICE"] = cfg["ENG_SLICE"]
     if not built(cfg, "DRUM_SAMPLED") or not any(cfg[k] for k in R.ITEMS if k.startswith("KIT_")):
         out["FELUCCA_DRUM_SAMPLED"] = 0
-    skip = [R.ITEMS[k].env for k in R.ITEMS if k.startswith("SET_") and not cfg[k]]
+    card = card_sets(cfg)                           # (SD card mode: every set on the card, none in the image)
+    skip = [R.ITEMS[k].env for k in set_keys() if not cfg[k] and not card]
     if not out.get("FELUCCA_DRUM_SAMPLED", 1):
         skip.append("PERC")
-    env = {"FELUCCA_SAMPLES_SKIP": ",".join(skip), "FELUCCA_SLICE": str(cfg["ENG_SLICE"])}
+    env = {"FELUCCA_SAMPLES_SKIP": ",".join(skip), "FELUCCA_SLICE": str(cfg["ENG_SLICE"]),
+           "FELUCCA_SAMPLES_CARD": "1" if card else "0"}
     return out, env
 
 
 # the memory sizes the build fixes itself (the user, 2026-10-29: no "this memory must hold that line" errors, a notice
-# with the value taken): an ARENA smaller than what it must hold raised to that; DLY_ARENA smaller than the delay's line and one line of the largest insert raised to
+# with the value taken): DLY_ARENA smaller than the delay's line and one line of the largest insert raised to
 # that. flags passes the sizes taken (_FIX: not while computing them, their own terms read the flags)
 ARENA_MAX_KB = 320     # (more than this in the arena leaves no SRAM for the rest: the one error left, validate)
 _FIX = [True]
@@ -430,16 +426,15 @@ def dly_kb(cfg):
 
 def arena_need(cfg):
     """-> {"kb": the arena this build needs together, "must": what it must hold at least (KB), "what": {name: bytes}}.
-    What fm1-next's firmware puts in it (registry.h FELUCCA_FX_ARENA: the SD card mode's only): the largest part's
-    engine state; in the SD card mode also the three send lines (a new project has them all in its master slots), the
-    inserts' own room and the largest other buffer. It must hold its largest block, and in the SD card mode the send
-    lines together"""
+    What the firmware puts in it (every ARENA build: registry.h FELUCCA_FX_ARENA): the largest part's engine state, the
+    three send lines (a new project has them all in its master slots), the inserts' own room and the largest other
+    buffer. It must hold its largest block and the send lines together"""
     c = dict(cfg, DLY_ARENA=dly_kb(cfg))
     blocks = _raw(arena_blocks, c)
     what = {"a part's engine state": blocks.get("a part's engine state", 0)}
     must = max(blocks.values(), default=0)
-    if sd_mode(cfg):
-        sends = arena_sends(blocks)
+    sends = arena_sends(blocks)                         # (every ARENA build: the extras, registry.h FELUCCA_FX_ARENA)
+    if sends:
         what.update(sends)
         if blocks.get("the inserts' own room"):
             what["the inserts' own room"] = blocks["the inserts' own room"]
@@ -450,15 +445,6 @@ def arena_need(cfg):
         must = max(must, sum(sends.values()))
     what = {k: v for k, v in what.items() if v}
     return {"kb": -(-sum(what.values()) // 1024), "must": -(-must // 1024), "what": what}
-
-
-def arena_kb(cfg):
-    """the arena's KB the build takes: 0 off; the size set, no less than what it must hold"""
-    v = cfg.get("ARENA", 0)
-    if not v:
-        return 0
-    need = arena_need(cfg)
-    return max(v, need["must"])
 
 
 def fnv32(text):
@@ -790,11 +776,37 @@ def tab_pool(cfg):
     """-> {region: bytes} what TAB_IN_POOL moves from RAM to the pool beyond the defaults' set (model_terms)"""
     if not built(cfg, "TAB_IN_POOL"):
         return {}
-    fx_arena = sd_mode(cfg) and cfg.get("ARENA", 0) > 0
-    stream = (fx_arena and built(cfg, "SDCARD") and cfg.get("FAR_OK", 0) and cfg.get("SD_RING", 0) > 0
+    fx_arena = cfg.get("ARENA", 0) > 0              # (every ARENA build: the extras)
+    stream = (fx_arena and built(cfg, "SDCARD") and cfg.get("LAYOUT", 0) == 1 and cfg.get("SD_RING", 0) > 0
               and built(cfg, "ENG_SAMPLE"))
     moved = (SST_TABLES if stream else 0) - (FM6_SIN_RAM if fx_arena and built(cfg, "ENG_FM6") else 0)
     return {"ram": -moved, "pool": moved}
+
+
+def card_sets(cfg):
+    """SD card mode (the fake SD mode's layout with the card, MEMORY 2): the sample sets go on the card, never in the
+    flash (the user, 2026-10-29: ticking a set there must not grow the flash). The image holds no set whatever is
+    ticked (gen_samples.py FELUCCA_SAMPLES_CARD: each set empty, its number and presets kept); the ticks choose the sets
+    the SD card zip carries (tools/sd_zip.py, OPTIMIST/SAMPLES/<SET>/), which SAMPLE streams (eng_sample.c
+    smp_bank_on)"""
+    return sd_mode(cfg) and built(cfg, "SDCARD")
+
+
+def set_keys():
+    """the builder's sample sets (registry.py SET_*): the generator's set names by item"""
+    return [k for k in R.ITEMS if k.startswith("SET_")]
+
+
+def image_cfg(cfg):
+    """-> cfg as the image is built: in SD card mode every set off (card_sets: they are on the card), else cfg itself"""
+    if not card_sets(cfg):
+        return cfg
+    return dict(cfg, **{k: 0 for k in set_keys()})
+
+
+def card_set_names(cfg):
+    """-> the generator's names of the sets ticked for the SD card zip (SD card mode), [] otherwise"""
+    return [R.ITEMS[k].env for k in set_keys() if cfg.get(k)] if card_sets(cfg) else []
 
 
 def sd_mode(cfg):
@@ -804,22 +816,18 @@ def sd_mode(cfg):
 
 
 def arena_mem(cfg):
-    """-> {region: bytes} of the arena (ARENA, KB: core/arena.c; in the SD card mode fx/fx_arena.c, core/arena_bufs.c
-    too) against the fixed memories it replaces: its own pool less the parts' engine states (part_mem); in the SD card
-    mode (sd_mode) less the delay and chorus sends' lines, the reverb's line (rev_lines: in main RAM without REV_POOL)
-    and the ROOM's diffusers after it, the inserts' own room (fx_memory), the SLICER's recordings (a track each), WAVE's
-    table and the X0X machines' states (arena_bufs); {} with ARENA off. The code and bookkeeping it adds is its measured
-    delta (costs.json)"""
-    f, _ = flags(cfg)
-    kb = int(f.get(R.ITEMS["ARENA"].flag, 0) or 0)
-    if not kb:
+    """-> {region: bytes} of the arena (ARENA: core/arena.c, fx/fx_arena.c, core/arena_bufs.c) against the fixed
+    memories it replaces: none of its own (the free SRAM, taken at boot: engines.c ARN_FREE, the estimate's free shows
+    it), less the parts' engine states (part_mem), the delay and chorus sends' lines, the reverb's line (rev_lines: in
+    main RAM without REV_POOL) and the ROOM's diffusers after it, the inserts' own room (fx_memory), the SLICER's
+    recordings (a track each), WAVE's table and the X0X machines' states (arena_bufs); {} with ARENA off. The code and
+    bookkeeping it adds is its measured delta (costs.json)"""
+    if not cfg.get("ARENA", 0):
         return {}
-    if not sd_mode(cfg):
-        return {"pool": kb * 1024 - part_mem(cfg)["pool"]}
     rev, mem, bufs = rev_lines(cfg), fx_memory(cfg), arena_bufs(cfg)
     lines = (mem["send"] + mem["cho"] + mem["own"]) * 1024 + rev.get("pool", 0) + rev_ap(cfg)
     other = sum(v * (NTRK if k.startswith("a track's") else 1) for k, v in bufs.items())
-    return {"pool": kb * 1024 - part_mem(cfg)["pool"] - lines - other, "ram": -rev.get("ram", 0)}
+    return {"pool": -part_mem(cfg)["pool"] - lines - other, "ram": -rev.get("ram", 0)}
 
 
 def rev_ap(cfg):
@@ -835,8 +843,6 @@ def rev_ap(cfg):
 def arena_blocks(cfg):
     """-> {name: bytes} the blocks the arena places (a part's engine state, each effect's line, the other buffers;
     validate: each must fit)"""
-    if not sd_mode(cfg):
-        return {"a part's engine state": part_mem(cfg)["pool"] // nparts(cfg)}
     rev, mem = rev_lines(cfg), fx_memory(cfg)
     out = {"a part's engine state": part_mem(cfg)["pool"] // nparts(cfg), "the delay's line": mem["send"] * 1024,
            "the chorus send's line": mem["cho"] * 1024,
@@ -892,7 +898,7 @@ def anchor_cfg(rec):
 def effective(cfg):
     """-> {key: value} what the image is built with: every image item, an option of an item left out at its default
     (the build ignores it), so two configurations that build the same image compare equal"""
-    full = dict(defaults(), **cfg)
+    full = image_cfg(dict(defaults(), **cfg))           # (SD card mode: the sets' ticks build the same image)
     return {k: full[k] if not it.parent or built(full, it.parent) else it.default
             for k, it in R.ITEMS.items() if not it.no_image}
 
@@ -940,6 +946,7 @@ def additive(cfg, costs):
     computed terms. Its error grows with the distance from the defaults (budget anchors it nearer)"""
     total = dict(costs["base"])
     items, missing = {}, []
+    cfg = image_cfg(cfg)                                # (SD card mode: the sets on the card, 0 B of flash each)
     for k, it in R.ITEMS.items():
         if it.parent and not built(cfg, it.parent):
             continue                                    # (the parent's own delta covers its options)
@@ -1028,7 +1035,7 @@ def fits(total, cfg=None):
     out, lim = {}, limits_in_use()
     for b in BUDGETS:
         u, cap = used(total, b), lim[b] - SPARE[b]
-        if b == "flash" and cfg and cfg.get("LAYOUT") in lim["flash_by_layout"] and (cfg.get("FAR_OK") or not lim["far"]):
+        if b == "flash" and cfg and cfg.get("LAYOUT") in lim["flash_by_layout"]:
             cap = lim["flash_by_layout"][cfg["LAYOUT"]] - SPARE["flash"]
         out[b] = (u, cap, u - cap)
     return out

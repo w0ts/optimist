@@ -154,9 +154,18 @@ typedef union {
  * docs/ARENA.md, docs/SD-MODE-DESIGN.md 6b): placed by need in the arena (core/arena.c), a change that does not fit
  * refused (part_mem_reserve) */
 #define ENG_UID_SILENT 0xFEu                             /* a project's engine byte for a silent placeholder (project.c) */
-#define ARN_SLOT (PART_MEM_ANY ? (sizeof(part_mem_t) + 7u) & ~7u : 8u)
-#if PART_DROPS
-#define ARN_BYTES FELUCCA_ARENA_BYTES
+#ifndef ARN_ALIGN
+#define ARN_ALIGN 256u                                   /* the unit of every size and place (tests/arena_frag_test.c:
+                                                          * 256 B against 8, 64 and 1024, docs/SD-MODE-DESIGN.md 6b) */
+#endif
+/* a part's largest block (the tests' arenas): its memory in whole units (the fixed memories: 8 B) */
+#define ARN_SLOT_U (PART_DROPS ? ARN_ALIGN : 8u)
+#define ARN_SLOT (PART_MEM_ANY ? (sizeof(part_mem_t) + ARN_SLOT_U - 1u) & ~(ARN_SLOT_U - 1u) : ARN_SLOT_U)
+#if PART_DROPS && defined(__PI32V2__)
+#define ARN_FREE 1                                       /* (the device: the arena is the free SRAM, core/arena.c arn_boot) */
+#define ARN_BYTES arn_size
+#elif PART_DROPS
+#define ARN_BYTES FELUCCA_ARENA_BYTES                    /* (the host: a stand-in) */
 #endif
 /* FELUCCA_FX_ARENA with an arena placed by need: the effects' lines (the chorus, delay and reverb sends', the inserts'
  * own room) are blocks of it too, after the parts' (fx/fx_arena.c: a line placed while its effect is used); proposed
@@ -197,12 +206,65 @@ enum {
 #define ARN_PARTS NPART
 #endif
 #if PART_DROPS
-#include "../core/arena.c"
 static void *part_mem_p[NPART];                          /* placed by need: where its switch took it (0 before) */
 #define PART_MEM_AT(p) part_mem_p[p]
+/* the arena's packing (core/arena.c arn_pack): what moves (nothing in it points into it: a copy and its pointer), gated
+ * while it does; only while it is quiet, or at a project load (arn_can, fx/fx_arena.c; the user, 2026-10-29: never a
+ * drop-out while it plays): the parts' blocks (part_mem_p; voice.c PART_MOVING), the send lines (their buses gated
+ * two blocks before, fx_arena.c fxm_mv_ready; moved up, to the top) and the inserts' room (fx/insfx/fxi.c fxr_moved;
+ * moved up) */
+static int arn_can(uint32_t k);                           /* (fx/fx_arena.c: client k's block may move now) */
+#define ARN_CAN(k) arn_can(k)
+#if FXM_NEED
+static void fxm_moved(uint32_t k, void *p);
+static int fxm_mv_ready(uint32_t k);
+static void fxm_sync(void);
+#define ARN_MOVES (((1u << NPART) - 1u) | 0xFu << NPART)   /* (the parts, CHO DLY REV, the inserts' room) */
+#define ARN_UPS (0xFu << NPART)
+#define ARN_UP_ALIGN 1024u                               /* (the room's units: the arena's 1 KB, fxi_mem.h) */
+#define ARN_MV_MOVED(k, p) ((k) < NPART ? (void)(part_mem_p[k] = (p)) : fxm_moved(k, p))
+#define ARN_MV_READY(k) ((k) < NPART || fxm_mv_ready(k))
+#define ARN_MV_SYNC() fxm_sync()
+#else
+#define ARN_MOVES ((1u << NPART) - 1u)
+#define ARN_MV_MOVED(k, p) ((k) < NPART ? (void)(part_mem_p[k] = (p)) : (void)0)
+#endif
+#ifdef FM1_TICKS_PER_US
+#define ARN_US() (fm1_ticks() / FM1_TICKS_PER_US)
+#endif
+/* the undo history (seq/undo.c) after the arena: its least (ARN_UNDO_LEAST: a dozen levels at the largest record, 1,353 B,
+ * far more of the usual step edits), and whatever the arena does not use; a block placed past the history's start
+ * makes it give way, its oldest levels first (undo_yield): the arena is never refused for it. With the cache RAM
+ * (CACHE_RAM, its test passed at the start: hal/fm1_cache.h; the user, 2026-10-29: "more memory from the data cache"
+ * for the arena) the history's second segment is the cache RAM, and its least in the SRAM (ARN_UNDO_KEEP) is that much
+ * less, ARN_UNDO_SRAM at least: the arena gets the SRAM it frees (8 KB with 2 ways; 15 KB with 4 or 7, the rest the
+ * history's). The arena's blocks stay in the SRAM (the second core and the audio read them; whether the second core
+ * and DMA read the cache's ways has not been measured) */
+#define ARN_UNDO_LEAST (16u * 1024u)
+#if FELUCCA_CACHE_RAM
+#define ARN_UNDO_SRAM 1024u                              /* (a SRAM part always: undo_regrow's room comes back to it) */
+#define ARN_UNDO_KEEP (fm1_cache_ram_free() + ARN_UNDO_SRAM < ARN_UNDO_LEAST ? ARN_UNDO_LEAST - fm1_cache_ram_free() \
+                                                                             : ARN_UNDO_SRAM)
+#define ARN_UNDO_ROOM ARN_UNDO_LEAST                     /* (the host's arena array: the most it can be) */
+#else
+#define ARN_UNDO_KEEP ARN_UNDO_LEAST
+#endif
+#define ARN_SPARE 8192u                                  /* (the build's spare SRAM under the stacks: tools/build.py) */
+static void undo_yield(uint8_t *lo);
+#define ARN_GREW(end) undo_yield(arn_mem + (end))
+#include "../core/arena.c"
+#ifdef ARN_FREE
+#include "../../hal/fm1_stack.h"                   /* (the linker scripts' _pool_end and _guard0) */
+/* the arena taken from the free SRAM before its first use (the power-on's first engine, main.c felucca_init) */
+#define ARN_BOOT() (arn_mem ? (void)0 : arn_boot(fm1_stk_pool_end, fm1_stk_guard0 - ARN_SPARE))
+#else
+#define ARN_BOOT() ((void)0)
+#endif
+#define PART_MOVING(t) ((uint32_t)((t) - trk) < NPART && arn_moving((uint32_t)((t) - trk)))
 #else
 static part_mem_t part_mem[PART_MEM_ANY ? NPART : 1] __attribute__((section(".pool"), aligned(8)));
 #define PART_MEM_AT(p) ((void *)&part_mem[p])
+#define PART_MOVING(t) ((void)(t), 0)
 #endif
 static uint8_t part_mem_owner[NPART];                    /* the engine slot + 1 whose state it holds, 0 = none */
 AINL fm6_mem_t *fm6_mem(uint32_t p)
@@ -340,6 +402,7 @@ static struct {
     uint8_t leng[NPART];                                 /* .. the engine slot each wants */
     uint8_t keep;                                        /* the edit's refusal is a load's (model.c mem_load_next): the
                                                           * project's sound kept once placed */
+    uint8_t packed;                                      /* the arena packed for it once (model.c mem_retry, arn_pack) */
 } part_mem_refused;
 #define PART_MEM_SHORT() (part_mem_refused.on || part_mem_refused.lmask)   /* (the effects wait: a part's sound first) */
 
@@ -379,6 +442,18 @@ static uint32_t part_tab_bytes(uint32_t e)               /* engine e's table: it
 #endif
 /* the arena's bytes engine e needs for a part: its own memory, and its table when nothing holds it (the UI's counts) */
 static uint32_t part_mem_need(uint32_t e) { return part_mem_bytes(e) + part_tab_bytes(e); }
+/* (the interrupts off) part k switching back to the engine whose state its idle (parked) block still holds: that block
+ * set aside for the switch as its own reservation, so no other reservation takes it back meanwhile (core/arena.c
+ * arn_idle_of: an idle block with a reservation is not free; the user, 2026-10-29: "keep a part's parked block for
+ * it": an other buffer, an effect's line or the packing is refused instead) */
+static void part_mem_park(uint32_t k)
+{
+    if (arn_cur[k].len && arn_cur[k].idle) {
+        arn_next[k] = arn_cur[k];
+        arn_next[k].idle = 0;
+        arn_has_next[k] = 1;
+    }
+}
 /* (the interrupts off) part k's memory for engine e, and its table, set aside as they are: 0 ok, -1 no room (neither) */
 static int part_mem_aside(uint32_t k, uint32_t e)
 {
@@ -387,7 +462,9 @@ static int part_mem_aside(uint32_t k, uint32_t e)
         return arn_reserve(k, n);
     if (arn_reserve(c, t))
         return -1;
-    if (n && !(part_mem_owner[k] == e % NENGINES + 1u && arn_ptr(k)) && arn_reserve(k, n))
+    if (n && part_mem_owner[k] == e % NENGINES + 1u && arn_ptr(k))
+        part_mem_park(k);                                /* (its own state: kept for the switch back) */
+    else if (n && arn_reserve(k, n))
         return arn_has_next[c] = 0, -1;                  /* (the table's let go with it; its own state kept: as is) */
     return 0;
 }
@@ -398,6 +475,7 @@ static int part_mem_try(uint32_t k, uint32_t e)
 {
     uint32_t n = part_mem_bytes(e);
     int r;
+    ARN_BOOT();
 #if PART_TAB
     if (k < NPART && part_tab_bytes(e)) {                /* (its table, and its own memory) */
         IRQ_SAVE(ie);
@@ -406,10 +484,14 @@ static int part_mem_try(uint32_t k, uint32_t e)
         return r;
     }
 #endif
-    if (k >= NPART || !n || (part_mem_owner[k] == e % NENGINES + 1u && arn_ptr(k)))
-        return 0;                                        /* (none needed, or its own state still there; an idle one
-                                                          * another reservation takes back first: the switch finds no
-                                                          * room, part_mem_unplaced) */
+    if (k < NPART && n && part_mem_owner[k] == e % NENGINES + 1u && arn_ptr(k)) {
+        IRQ_SAVE(ie);
+        part_mem_park(k);                                /* (its own state still there: kept for the switch back) */
+        IRQ_RESTORE(ie);
+        return 0;
+    }
+    if (k >= NPART || !n)
+        return 0;                                        /* (none needed) */
     {
         IRQ_SAVE(ie);
         r = arn_reserve(k, n);
@@ -425,7 +507,7 @@ static int part_mem_reserve(uint32_t k, uint32_t e)
     int r = part_mem_try(k, e);
     if (r) {
         if (!part_mem_refused.on || part_mem_refused.part != k)   /* (a new refusal: nothing asked yet) */
-            part_mem_refused.asked = part_mem_refused.waiting = part_mem_refused.keep = 0;
+            part_mem_refused.asked = part_mem_refused.waiting = part_mem_refused.keep = part_mem_refused.packed = 0;
         part_mem_refused.on = 1, part_mem_refused.part = (uint8_t)k, part_mem_refused.eng = (uint8_t)(e % NENGINES);
     }
     return r;
@@ -444,12 +526,25 @@ static int part_mem_frees(uint32_t j)
     return arn_fits(part_mem_refused.part, part_mem_bytes(e), 1u << j);
 }
 
+/* part k's change to engine e refused, the free room enough: the parts' blocks moved so it fits (core/arena.c arn_pack;
+ * its table first when that is what does not fit). 1 planned (model.c mem_retry waits for arn_busy, then tries again) */
+static int part_mem_pack(uint32_t k, uint32_t e)
+{
+    uint32_t t = part_tab_bytes(e), c = part_tab_k(e), n = part_mem_bytes(e);
+    if (t && !arn_fits(c, t, 0))
+        return arn_pack(c, t, ARN_BYTES);
+    return n && !arn_fits(k, n, 0) && arn_pack(k, n, ARN_BYTES);
+}
+
 /* a project's load (storage/project.c, before its tracks): the refusals of before forgotten (an edit's change waiting
  * included: the load replaces the parts) */
 static void part_mem_load_begin(void)
 {
     part_mem_refused.on = part_mem_refused.asked = part_mem_refused.waiting = part_mem_refused.keep = 0;
+    part_mem_refused.packed = 0;
     part_mem_refused.lmask = 0;
+    arn_pack_all();                                      /* (every block packed once its parts have switched: the audio
+                                                          * released, core/arena.c) */
     part_mem_refused.lseq++;
 }
 /* .. part k's engine e on that load: 0 placed (or none needed); -1 refused, recorded with the others (the caller makes
@@ -495,6 +590,7 @@ static void part_mem_unplaced(track_t *t, uint32_t e)
 static void part_mem_boot(void)
 {
     uint32_t k;
+    ARN_BOOT();
     for (k = 0; k < NPART; k++)
         if (part_mem_bytes(trk[k].engine))
             (void)part_mem_claim(k, trk[k].engine);
@@ -506,6 +602,7 @@ static void part_mem_boot(void)
 static int part_mem_claim(uint32_t k, uint32_t e)
 {
     uint32_t n, i, *w;
+    ARN_BOOT();
     e %= NENGINES;
     n = part_mem_bytes(e);
     if (k >= NPART)
@@ -514,8 +611,9 @@ static int part_mem_claim(uint32_t k, uint32_t e)
         arn_rest(k);
         return 0;
     }
-    if (part_mem_owner[k] == e + 1u && arn_ptr(k) && !arn_has_next[k]) {
-        (void)arn_take(k);                               /* (its own state, as it was) */
+    if (part_mem_owner[k] == e + 1u && arn_ptr(k) &&
+        (!arn_has_next[k] || (arn_next[k].off == arn_cur[k].off && arn_next[k].len == arn_cur[k].len))) {
+        (void)arn_take(k);                               /* (its own state, as it was: parked or not) */
         return 0;
     }
     if (!arn_has_next[k] && arn_reserve(k, n))           /* (a switch nobody reserved for: here; the default arena */

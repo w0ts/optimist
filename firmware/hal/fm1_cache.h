@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 */
 /* Cache RAM (FELUCCA_CACHE_RAM, the builder's CACHE_RAM, EXPERIMENTAL, default 0): 7 of the 8 data-cache ways used as
  * 28 KiB of RAM at 0x01F28000..0x01F2F000, the configuration M-VAVE's FM-1 firmware (V15) runs with and the AC79 SDK's
  * default for a flash-only build (cpu/wl82/sdk_ld_sfc.c FREE_DACHE_WAY = 7 unless SDRAM can be switched on). All 8
@@ -17,9 +17,11 @@
  *
  * Then the 28 KiB are tested (address patterns and their complements, two passes) before anything uses them; on a
  * mismatch the old way masks are written back and nothing is placed there (status FM1_CR_BAD). Users check
- * fm1_cache_ram_ok(): the undo history's second segment (seq/undo.c) is the only one. Measured in the emulator only
- * (it maps the 64 KiB at 0x01F20000 as plain RAM and has no cache timing); on an FM-1 unverified: the console's
- * `boot` prints what was found and `tabbench` the read speed. */
+ * fm1_cache_ram_ok() (fm1_cache_ram_lo / _free below): the undo history's second segment (seq/undo.c) is the only one;
+ * with the arena its least in the SRAM is that much less, so the arena gets that much more (engines.c ARN_UNDO_KEEP).
+ * First run in the emulator (it maps the 64 KiB at 0x01F20000 as plain RAM and has no cache timing), then on an FM-1
+ * (tools/builder/registry.py CACHE_RAM's tested): the console's `boot` prints what was found, `tabbench` the read
+ * speed. fm1-base has its own copy (felucca-bsp chip/fm1_cache_ram.h, plat_cache_ram: the trial's fm1_compat.h). */
 #pragma once
 #include <stdint.h>
 #include "fm1_cc.h"
@@ -126,4 +128,21 @@ static void fm1_cache_ram_init(void)
 }
 #else
 static inline void fm1_cache_ram_init(void) {}
+#endif
+
+/* the part of the ways no .cache_ram object takes (app.ld _undo_cache_lo .. FM1_CR_HI), for the undo history's second
+ * part (seq/undo.c; engines.c ARN_UNDO_KEEP: the arena gets as much more of the SRAM): its start and bytes, 0 without
+ * the test passed. The host (FELUCCA_CACHE_RAM set by a test: tests/undo_cache_test.c): a buffer of the ways' size,
+ * RAM once the test sets fm1_cache.status to FM1_CR_OK */
+#if FELUCCA_CACHE_RAM && defined(__PI32V2__)
+extern uint8_t _undo_cache_lo[];
+FM1_INLINE uint8_t *fm1_cache_ram_lo(void) { return fm1_cache_ram_ok() ? _undo_cache_lo : (uint8_t *)0; }
+FM1_INLINE uint32_t fm1_cache_ram_free(void)
+{
+    return fm1_cache_ram_ok() ? (uint32_t)((uint8_t *)FM1_CR_HI - _undo_cache_lo) : 0u;
+}
+#elif FELUCCA_CACHE_RAM
+static uint8_t fm1_cr_host[FELUCCA_CACHE_RAM * 4096u] __attribute__((aligned(4)));
+FM1_INLINE uint8_t *fm1_cache_ram_lo(void) { return fm1_cache_ram_ok() ? fm1_cr_host : (uint8_t *)0; }
+FM1_INLINE uint32_t fm1_cache_ram_free(void) { return fm1_cache_ram_ok() ? (uint32_t)sizeof fm1_cr_host : 0u; }
 #endif

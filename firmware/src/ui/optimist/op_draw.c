@@ -401,17 +401,17 @@ static int head_other(head_t *h)
 }
 /* a title's deliberate short form, for a header short of room (the user's ruling, 2026-10-14: bar.beat always stays, the
  * title shortens, never a cut mid-word, the n/N whole): a continuation's number joins its word ("Voice 2" -> "Voice2"),
- * then the names table's short title (op_names.c NM_SHORT) */
+ * then the names table's short title (op_names.c NM_SHORT), and its own short one when that is still too long */
 static void head_short(char *t, uint32_t n, uint32_t room)   /* room: the title's characters (its n/N's taken off) */
 {
-    uint32_t l = str_len(t);
+    uint32_t l = str_len(t), k;
     char b[16];
     if (l >= 3u && t[l - 1u] >= '0' && t[l - 1u] <= '9' && t[l - 2u] == ' ') {
         t[l - 2u] = t[l - 1u];
         t[l - 1u] = 0;
     }
-    if (str_len(t) > room && nm_find(NM_SHORT, t, 0, b, sizeof b))
-        str_cpy(t, b, n);
+    for (k = 0; k < 2u && str_len(t) > room && nm_find(NM_SHORT, t, 0, b, sizeof b); k++)
+        str_cpy(t, b, n);                               /* (a short form may have a shorter one: USB aud -> Audio) */
 }
 static void head_make(head_t *h)
 {

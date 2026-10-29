@@ -272,6 +272,23 @@ static inline HOT void master_out(int32_t *l, int32_t *r)
     *l = knee(*l);
     *r = knee(*r);
 }
+/* the mix bus (Q15) times MASTER (Q12, 4096 at most): 2 bits dropped before the product, so the bus' last 2 bits never
+ * reach the output, and a low MASTER leaves the DAC's 24 bits 16 (a quarter turn: 11 used). MIX_EXACT: a 64-bit product,
+ * none dropped, and the 7 bits under each Q15 out sample kept for audio.c audio_block (the DAC's 24; USB, Bluetooth and
+ * the card take the Q15 as before). The master's DC blocker, low cut and limiter after it leave the 7 bits off by under
+ * a Q15 step: never further than the step dropped before (mix_finish, master_comp.c mlim_block) */
+#if FELUCCA_MIX_EXACT
+static uint8_t mst_frac[2u * CTL];
+AINL int32_t master_vol(int32_t x, int32_t m, uint8_t *f)
+{
+    int64_t p = (int64_t)x * m;
+    *f = (uint8_t)((uint32_t)(p >> 5) & 127u);
+    return (int32_t)(p >> 12);
+}
+#define MASTER_VOL(x, m, k) master_vol((x), (m), &mst_frac[k])
+#else
+#define MASTER_VOL(x, m, k) ((((x) >> 2) * (m)) >> 10)
+#endif
 #if FELUCCA_MASTER_COMP
 #include "master_comp/master_comp.c"       /* GLO > COMP / LIMIT: the bus compressor, the brickwall limiter (mix_finish) */
 #endif
@@ -1266,6 +1283,28 @@ static HOT2 __attribute__((noinline)) int32_t cho_gain(int32_t *wl, int32_t *wr,
  * lowered here: the main loop empties it (ui/meters.c meter_tap), as trk.peak. Out of the per-sample loops and out of
  * RAMTEXT (HOT2: main RAM): fx_buses pays a call a block. 32767 = 0 dBFS, as a track's peak */
 static volatile int32_t fx_ret_pk[3];
+#if FELUCCA_USB_AUDIO
+/* SYSTEM > USB AUDIO's RET A B C (io/usb/ua_tap.h ua_ret): a stage of line j: what it adds to l / r is its output.
+ * UA_RET_SUB before it, UA_RET_ADD after it (or ADD alone for a stage that writes l / r whole: the chorus). The test
+ * inline, a test a line a block while none is routed; the loop a call, here (HOT2: with the stages, a sound-side file's,
+ * so the release keeps it beside them in RAM) */
+static HOT2 __attribute__((noinline)) void ua_ret_acc(uint32_t j, const int32_t *l, const int32_t *r, uint32_t n, int32_t sg)
+{
+    int32_t *a = ua_ret[j % 3u][0], *b = ua_ret[j % 3u][1];
+    uint32_t i;
+    if (sg < 0)
+        for (i = 0; i < n; i++)
+            a[i] -= l[i], b[i] -= r[i];
+    else
+        for (i = 0; i < n; i++)
+            a[i] += l[i], b[i] += r[i];
+}
+#define UA_RET_SUB(j, l, r, n) do { if (ua_ret_live >> (j) & 1u) ua_ret_acc(j, l, r, n, -1); } while (0)
+#define UA_RET_ADD(j, l, r, n) do { if (ua_ret_live >> (j) & 1u) ua_ret_acc(j, l, r, n, 1); } while (0)
+#else
+#define UA_RET_SUB(j, l, r, n) ((void)0)
+#define UA_RET_ADD(j, l, r, n) ((void)0)
+#endif
 static int32_t ret_cd[CTL];                             /* the wet (right) before the reverb: the chorus and the delay's, to tell the reverb's own */
 /* the tap: each return's largest |sample| of the block, as a track's peak (fx_mix_part: the block's largest, post level) */
 static HOT2 __attribute__((noinline)) int32_t fx_rev_pk(const int32_t *wr, uint32_t n)
@@ -1659,6 +1698,7 @@ static HOT int fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int3
                 if (rs)
                     rs_cho0(n);                         /* (a chain: the wet so far kept, the chorus' alone below) */
                 pk = cho_run(cho_in, wet_l, wet_r, n, ab, &wc, plan & FXB_CG);
+                UA_RET_ADD(0u, wet_l, wet_r, n);        /* (the chorus alone in the wet here, a chain's too: USB RET, ua_tap.h) */
                 cpk = pk;
                 (void)pk;
                 if (rs)
@@ -1671,16 +1711,21 @@ static HOT int fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int3
             }
         } else if (j == 1u) {
             if (run_d) {
-                int32_t pk = dly_run(dly_in, wet_l, wet_r, n, &wd);
+                int32_t pk;
+                UA_RET_SUB(1u, wet_l, wet_r, n);        /* (what the delay adds: USB RET) */
+                pk = dly_run(dly_in, wet_l, wet_r, n, &wd);
+                UA_RET_ADD(1u, wet_l, wet_r, n);
                 dpk = pk;
                 (void)pk;
             } else {
                 fx.dly_w += n;
             }
         } else {
-            if (!FX_ALL_IDLE)
+            if (!FX_ALL_IDLE) {
                 for (i = 0; i < n; i++)
                     ret_cd[i] = wet_r[i];               /* (the wet before the reverb: to tell its own, fx_rev_pk) */
+                UA_RET_SUB(2u, wet_l, wet_r, n);        /* (what the reverb adds, a kept block's too: USB RET) */
+            }
 #if REV_LATE
             if (rev_late) {                             /* kept for the next block (rev_job); the last one heard */
                 for (i = 0; i < n; i++)
@@ -1713,8 +1758,10 @@ static HOT int fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int3
 #else
             rev_bus(rev_in, wet_l, wet_r, n, ma, mb, g, lpk, run_r, &wv);   /* (the tank TYPE picks) */
 #endif
-            if (!FX_ALL_IDLE)
+            if (!FX_ALL_IDLE) {
                 rpk = fx_rev_pk(wet_r, n);
+                UA_RET_ADD(2u, wet_l, wet_r, n);
+            }
         }
         if (rs)
             rs_post(j, n);                              /* (its output into the lines to its right, before they run) */
@@ -2045,11 +2092,19 @@ static HOT2 __attribute__((noinline)) void dust_run(dust_t *s, int32_t d, int32_
 
 /* a part's sample x (|x| < 2^21) times its pan gain g (Q12, 4096 at most) into the mix (mix_part, insfx.c ifx_side_mix):
  * MIX_FINE drops 3 bits before the product (at most 2^18 x 2^12), not 4: the dry's steps half as coarse, the floor 5.3 dB
- * lower on every part (host, 2026-10-26) */
-#if FELUCCA_MIX_FINE
+ * lower on every part (host, 2026-10-26). MIX_EXACT (issue 107, 2026-10-28): 64-bit products, no bit dropped, here and in
+ * MIX_GAIN, the part's mute x duck gain g (Q15): its 4 bits down were taken on every block, the gain at rest being
+ * 32766 (mulq15(32767, 32767)): every part reached the bus in steps of 16, a long tail's last bits a bitcrusher */
+#if FELUCCA_MIX_EXACT
+#define MIX_PAN(x, g) ((int32_t)(((int64_t)(x) * (g)) >> 12))
+#define MIX_GAIN(x, g) ((int32_t)(((int64_t)(x) * (g)) >> 15))
+#elif FELUCCA_MIX_FINE
 #define MIX_PAN(x, g) ((((x) >> 3) * (g)) >> 9)
 #else
 #define MIX_PAN(x, g) ((((x) >> 4) * (g)) >> 8)
+#endif
+#if !FELUCCA_MIX_EXACT
+#define MIX_GAIN(x, g) (((x) >> 4) * ((g) >> 3) >> 8)  /* (Q15 in two halves: no 32-bit overflow) */
 #endif
 #include "insfx/insfx.c"            /* the further insert types FOLD FUZZ PHSR FLNG FRMT WIDE CHRS ECHO (ins_one, dbus_ins) */
 #include "insfx/fxi.c"              /* the limited types' instances (CHRS ECHO): the main loop hands them out, fxi_poll */
@@ -2545,7 +2600,7 @@ static HOT void mix_part(track_t *t, uint32_t n MIXACC_PARAM)
             int32_t x = ((clamp(b[i], -884000, 884000) >> 2) * (lvl0 + dl * (int32_t)i)) >> 10, a;
             int32_t xs, g = ga + (((gb - ga) * (int32_t)i) >> CTL_LOG2);
             if (g < 32767)
-                x = (x >> 4) * (g >> 3) >> 8;           /* (Q15 in two halves: no 32-bit overflow) */
+                x = MIX_GAIN(x, g);                     /* (mute x duck: above) */
             a = x < 0 ? -x : x;
             xs = clamp(x, -xmax, xmax);                 /* sends: mulq15 would overflow */
 #if FELUCCA_USB_AUDIO
@@ -2729,11 +2784,13 @@ static HOT2 __attribute__((noinline)) void rt_line(uint32_t j, uint32_t n)   /* 
     if (!g)
         return;
     int32_t pk = 0;
+    UA_RET_SUB(j, mix_l, mix_r, n);                     /* (what the return adds to the mix: USB RET, ua_tap.h) */
     for (i = 0; i < n; i++) {
         int32_t a = g >= 32768 ? l[i] : (l[i] >> 4) * (g >> 3) >> 8, b = g >= 32768 ? r[i] : (r[i] >> 4) * (g >> 3) >> 8;
         mix_l[i] += a, mix_r[i] += b;
         pk = (b < 0 ? -b : b) > pk ? (b < 0 ? -b : b) : pk;
     }
+    UA_RET_ADD(j, mix_l, mix_r, n);
     if (pk > fx_ret_pk[j])
         fx_ret_pk[j] = pk;                              /* (the mixer's return meter: this line's block peak, after its return level) */
 }
@@ -2913,6 +2970,9 @@ static inline __attribute__((always_inline)) void mix_finish(int32_t *out, uint3
     mst_run(mix_l, mix_r, n);                           /* the master's insert slots (above) */
     if (!scope_src)                                     /* the SCOPE on the master, the mixer's master column */
         FAR(vis_tap_block)(mix_l, mix_r, n);
+#if FELUCCA_USB_AUDIO
+    ua_mst_tap(mix_l, mix_r, n);                        /* USB's MASTER: before the volume, never scaled by it (ua_tap.h) */
+#endif
     m0 = master_cur < 0 ? (int32_t)song.master_q12 : master_cur;   /* MASTER glides (~10 ms; X0X 0.10.1) */
     m1 = glide_next(m0, (int32_t)song.master_q12);
     master_cur = m1;
@@ -2924,8 +2984,8 @@ static inline __attribute__((always_inline)) void mix_finish(int32_t *out, uint3
 #endif
     for (i = 0; i < n; i++) {
         int32_t m = m0 + (((m1 - m0) * (int32_t)i) >> CTL_LOG2);
-        int32_t l = ((mix_l[i] >> 2) * m) >> 10;
-        int32_t r = ((mix_r[i] >> 2) * m) >> 10;
+        int32_t l = MASTER_VOL(mix_l[i], m, 2u * i);
+        int32_t r = MASTER_VOL(mix_r[i], m, 2u * i + 1u);
         master_out(&l, &r);
         out[2u * i] = l;
         out[2u * i + 1u] = r;
@@ -2949,6 +3009,7 @@ AINL void capture_clear(uint32_t n)
         for (i = 0; i < n * NTRK; i++)
             track_capture[i] = 0;
     dlt_block(track_capture_on, n);                     /* the lane / drum bus taps a channel takes (ua_tap.h) */
+    ua_ret_block(track_capture_on, fxs_line + 1, fxs_lnl, n);   /* the returns' (RET A B C: their lines) */
 }
 #endif
 #if !DUAL_RENDER                                       /* (dual.c: mix_block_dual) */

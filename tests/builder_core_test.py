@@ -262,43 +262,61 @@ def once(M):
          "kits": M.kit_shared(costs), "defaults": M.defaults(), "needs_auto": list(M.NEEDS_AUTO)}))
 
 
-# ---- the memory management group (the user, 2026-10-28): first, MEMORY a front for LAYOUT / SDCARD / FAR_OK
+# ---- the memory management group (the user, 2026-10-28): first, MEMORY a front for LAYOUT / SDCARD (FAR_OK went 2026-10-29)
 import room as RM  # noqa: E402
 
 check("groups: Memory management first, Connectivity (not USB & BT & MIDI) holds Wi-Fi and Link",
       R.GROUPS[0] == "Memory management" and "USB & BT & MIDI" not in R.GROUPS
       and R.ITEMS["WIFI_LINK"].group == R.ITEMS["WIFI_AP"].group == "Connectivity")
-check("groups: LAYOUT SDCARD FAR_OK ARENA SD_RING SD_REC OVERLAY are in Memory management, MEMORY first",
-      all(R.ITEMS[k].group == "Memory management" for k in ("LAYOUT", "SDCARD", "FAR_OK", "ARENA", "SD_RING", "SD_REC", "OVERLAY"))
+check("groups: LAYOUT SDCARD ARENA SD_RING SD_REC OVERLAY are in Memory management, MEMORY first",
+      all(R.ITEMS[k].group == "Memory management" for k in ("LAYOUT", "SDCARD", "ARENA", "SD_RING", "SD_REC", "OVERLAY"))
       and R.top_level("Memory management")[0].key == "MEMORY")
-check("RAM_PACKED: an info line in the group, fixed on, nothing in the image",
+check("RAM_PACKED: hidden, fixed on, nothing in the image",
       R.ITEMS["RAM_PACKED"].fixed and R.ITEMS["RAM_PACKED"].no_image and R.ITEMS["RAM_PACKED"].group == "Memory management")
 _d = K.defaults()
 check("MEMORY: the defaults read normal", _d["MEMORY"] == 0 == K.derive_memory(_d))
-_red, _sd = K.parse("LAYOUT=1\n")[0], K.parse("LAYOUT=1\nSDCARD=1\nFAR_OK=1\n")[0]
-check("MEMORY: an old config with LAYOUT=1 and no card reads reduced user flash; with SDCARD and FAR_OK, SD card mode",
+_red, _sd = K.parse("LAYOUT=1\n")[0], K.parse("LAYOUT=1\nSDCARD=1\n")[0]
+check("MEMORY: an old config with LAYOUT=1 and no card reads reduced user flash; with SDCARD, SD card mode",
       _red["MEMORY"] == 1 and _sd["MEMORY"] == 2)
-check("MEMORY: LAYOUT=1 with the card but no FAR_OK still reads reduced; the card on the normal layout reads normal",
-      K.parse("LAYOUT=1\nSDCARD=1\n")[0]["MEMORY"] == 1 and K.parse("SDCARD=1\n")[0]["MEMORY"] == 0)
+check("MEMORY: an old FAR_OK=0 or 1 is ignored (warned, not stored); the card on the normal layout reads normal",
+      K.parse("LAYOUT=1\nSDCARD=1\nFAR_OK=0\n")[0]["MEMORY"] == 2 and "FAR_OK" not in K.parse("LAYOUT=1\nFAR_OK=1\n")[0] and K.parse("SDCARD=1\n")[0]["MEMORY"] == 0)
 _p = RM.after_toggle(_d, dict(_d, MEMORY=2), "MEMORY", RM.NONE)[0]
-check("MEMORY: picking SD card mode sets LAYOUT 1, SDCARD 1, FAR_OK 1",
-      (_p["LAYOUT"], _p["SDCARD"], _p["FAR_OK"], _p["MEMORY"]) == (1, 1, 1, 2))
+check("MEMORY: picking SD card mode sets LAYOUT 1, SDCARD 1",
+      (_p["LAYOUT"], _p["SDCARD"], _p["MEMORY"]) == (1, 1, 2))
 _q = RM.after_toggle(_p, dict(_p, MEMORY=1), "MEMORY", RM.NONE)[0]
 check("MEMORY: reduced user flash from SD card mode: the card and its streams off, LAYOUT 1 kept",
       (_q["LAYOUT"], _q["SDCARD"], _q["SD_RING"], _q["SD_REC"], _q["MEMORY"]) == (1, 0, 0, 0, 1))
 _n = RM.after_toggle(_p, dict(_p, MEMORY=0), "MEMORY", RM.NONE)[0]
 check("MEMORY: normal from SD card mode is the default memory layout again",
-      all(_n[k] == _d[k] for k in ("LAYOUT", "SDCARD", "FAR_OK", "OVERLAY", "SD_RING", "SD_REC")) and _n["MEMORY"] == 0)
+      all(_n[k] == _d[k] for k in ("LAYOUT", "SDCARD", "OVERLAY", "SD_RING", "SD_REC")) and _n["MEMORY"] == 0)
 check("MEMORY: setting LAYOUT by hand reads back through the toggle",
       RM.after_toggle(_d, dict(_d, LAYOUT=1), "LAYOUT", RM.NONE)[0]["MEMORY"] == 1)
 check("MEMORY: --set MEMORY=2 and a .config line MEMORY=2 do what the pick does",
-      K.parse("MEMORY=2\n")[0]["SDCARD"] == 1 and K.parse("MEMORY=2\n")[0]["FAR_OK"] == 1)
+      K.parse("MEMORY=2\n")[0]["SDCARD"] == 1)
 check("MEMORY: never written to a .config (the items it fronts are), and a written config reads back the same",
       "MEMORY" not in K.dump(_p, full=True) and K.parse(K.dump(_p))[0] == _p)
 check("MEMORY: no image: the header and the hash are the same for a configuration with it set or not",
       K.cfg_hash(dict(_p, MEMORY=0)) == K.cfg_hash(_p) and K.flags(dict(_p, MEMORY=0)) == K.flags(_p))
 check("MEMORY: a .config written under the old group names still loads (legacy header kept)",
       K.parse("# USB & BT & MIDI\nUSB_CONSOLE=1\n")[0]["USB_CONSOLE"] == 1 and "USB & BT & MIDI" in R.LEGACY_GROUPS)
+
+# SD card mode's sample sets (the user, 2026-10-29: a ticked set never grows the flash; they go on the card)
+_sets = K.set_keys()
+_sd = K.set_memory(dict(K.defaults(), SD_RING=4, ENG_SAMPLE=1, ARENA=96), 2)
+_on, _off = dict(_sd, **{k: 1 for k in _sets}), dict(_sd, **{k: 0 for k in _sets})
+check("card sets: SD card mode builds no set, ticked or not (the generator's env: SAMPLES_CARD, no set skipped by "
+      "its tick), the same image either way",
+      K.card_sets(_on) and K.flags(_on)[1]["FELUCCA_SAMPLES_CARD"] == "1" and K.flags(_on) == K.flags(_off) and
+      not any(R.ITEMS[k].env in K.flags(_off)[1]["FELUCCA_SAMPLES_SKIP"].split(",") for k in _sets) and
+      K.distance(_on, _off) == 0)
+check("card sets: the estimate the same with every set ticked or none (0 B of flash each), the ticks the zip's sets",
+      K.additive(_on, costs)[0] == K.additive(_off, costs)[0] and
+      K.card_set_names(_on) == [R.ITEMS[k].env for k in _sets] and K.card_set_names(_off) == [])
+_cl = dict(K.defaults(), **{k: 0 for k in _sets})
+check("card sets: outside SD card mode a set's tick is its flash, as before (SKIP names it, SAMPLES_CARD 0)",
+      not K.card_sets(K.defaults()) and K.flags(K.defaults())[1]["FELUCCA_SAMPLES_CARD"] == "0" and
+      K.additive(_cl, costs)[0]["flash"] < K.additive(K.defaults(), costs)[0]["flash"] and
+      "PIANO" in K.flags(_cl)[1]["FELUCCA_SAMPLES_SKIP"].split(",") and K.card_set_names(K.defaults()) == [])
 
 
 if __name__ == "__main__":
