@@ -43,6 +43,8 @@ PLAY has a second LED, green, which together with PLAY's red one is the transpor
 
 REC's own LED is red: lit while a take records, blinking while armed and waiting for the first note. The count-in pulses the green on each beat.
 
+**The memory line.** The topmost 2 pixel rows of every page are a thin bar filled from the left in proportion to how full the memory is (the same quantity as SYSTEM > INFO's RAM bar: the project's parts and the effects' lines in the arena; a build without an arena shows the fixed memory's use). It is dim below 80 % and red from 80 %. The splash and the other full-screen screens do not show it.
+
 ## The mixer
 
 The mixer is the first screen. The rows are tracks: MASTER above T1, then T1, T2, T3, DR, the drum track's 10 lanes plus the ACCENT lane, and, in a USB audio build, a USB IN row after them. ALGORITHM walks the rows; the panel shows the selected row's group. Each row has its meter and its sequence. SELECT pages the knob sets of the row, in the same order on every row:

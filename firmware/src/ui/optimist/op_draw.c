@@ -1266,6 +1266,30 @@ static void draw_overlay(uint32_t ov)
         draw_toast();
 }
 
+/* ---- the memory line (the user, 2026-10-29): the topmost 2 rows of every page, filled left to right by the arena's fill, the
+ * quantity of SYSTEM > INFO's RAM bar (op_project.c info_ram_pct; without an arena the fixed SRAM's use at link). Dim below
+ * MEM_RED percent, red from it, the rest dark; no text. Painted after the header (whose canvas covers rows 0..24 and is
+ * black on rows 0-1), again only when its pixel width or colour changes, or the header or the whole screen was redrawn */
+#define MEM_RED 80u                                     /* the percent from which the line is red */
+#define MEM_H 2
+static uint32_t ml_sig;
+static uint32_t memline_px(uint32_t pct) { return pct * 12u / 5u; }   /* (240 px = 100 %) */
+static uint16_t memline_col(uint32_t pct) { return pct >= MEM_RED ? C_ERR : C_DIM; }
+static void memline_draw(void)
+{
+    uint32_t pct = info_ram_pct(), px = memline_px(pct), sig;
+    if (ui.force)
+        ml_sig = 0;                                     /* (the screen was blacked) */
+    sig = hu(hu(hu(1u, px), pct >= MEM_RED), ui.sig[0]);   /* (ui.sig[0]: the header drew again, over rows 0-1) */
+    if (sig == ml_sig)
+        return;
+    ml_sig = sig;
+    if (px)
+        lcd_fill(0, 0, (int32_t)px, MEM_H, memline_col(pct));
+    if (px < 240u)
+        lcd_fill((int32_t)px, 0, (int32_t)(240u - px), MEM_H, C_LINE);
+}
+
 static void pl_draw(void);                              /* op_gldraw.c */
 static void op_frame_draw(void)
 {
@@ -1300,6 +1324,7 @@ static void op_frame_draw(void)
     nn_tick();                                          /* (the note played: before the help line, which shows it) */
     hl_pre(ov);                                         /* (the help line: its rows kept from the bands, op_help.c) */
     draw_head();
+    memline_draw();                                     /* (last on the header's rows 0-1: every page, the early returns below too) */
     if (ml_on() && ov != 4u) {                          /* the load's memory list: the gauge, the rows, SAVE / HOME */
         ml_draw();
         ui.force = 0;
