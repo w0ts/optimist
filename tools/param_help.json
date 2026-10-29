@@ -482,7 +482,8 @@
     {"kind": "op", "ctx": "GENERAL", "params": {
       "KNOB COLORS": "Knob numbers in cap colours",
       "SPK LOWCUT": "Speaker's low cut, jack empty",
-      "HPHN BASS": "Bass boost, headphones in", "FILT RESO": "Track filter resonance"}},
+      "HPHN BASS": "Bass boost, headphones in"}},
+    {"kind": "op", "ctx": "FILTER", "params": {"FILT RESO": "Track filter resonance"}},
     {"kind": "op", "ctx": "METERS", "params": {"VU FLOOR": "Level at the meters' bottom"}},
     {"kind": "op", "ctx": "KEYS", "params": {
       "BUTTONS": "Buttons glow in the dark", "KEYS": "Which keys glow"}},

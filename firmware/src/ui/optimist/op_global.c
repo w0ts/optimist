@@ -14,7 +14,8 @@
  *   SELECT     a page a detent within the screen, stopping at its ends; the cursor on the page's first line
  *   KNOB k     line k of the page: edits it and makes it the cursor (the help line shows it)
  *   ALGORITHM  the cursor, a line a detent across the pages (glo_walk; the user, 2026-10-14: the one exception to ALGORITHM being the track)
- *   GLO        tapped: GLOBAL from any other screen; on GLOBAL, SYSTEM; on SYSTEM, GLOBAL. Each keeps its cursor line
+ *   GLO        tapped: from any other screen the one of GLOBAL / SYSTEM open last (GLOBAL at power-on); on GLOBAL, SYSTEM; on SYSTEM, GLOBAL.
+ *              Each keeps its cursor line
  *   PRESETS    the cursor line's value (HOME held: back to its default); an action line (PANEL, drawn RUN): runs it, as
  *              YES; a read-out: nothing. Never the track or its sound here
  *   SAVE       YES on the cursor line: an action (Calibrate PANEL asks first, About VERSION says it, Bluetooth BLE: the
@@ -355,8 +356,15 @@ static int gl_on_tempo(void)                            /* GLOBAL's page shows T
 {                                                       /* (Tempo is GLOBAL's first section: its lines are on page 0) */
     return ui.scr == SCR_GLOBAL && gl_n(0) && gl_pg(0, ui.row[SCR_GLOBAL]) == 0u;
 }
-/* GLO tapped: GLOBAL; on GLOBAL, SYSTEM; on SYSTEM (its BLE devices list too: closed), GLOBAL. Each keeps its line */
-static void glo_tap(void) { op_enter(ui.scr == SCR_GLOBAL ? SCR_SYSTEM : SCR_GLOBAL); }
+/* GLO tapped: on GLOBAL, SYSTEM; on SYSTEM (its BLE devices list too: closed), GLOBAL; from any other screen the one of the two
+ * that was open last (the user, 2026-10-29; GLOBAL at power-on: RAM only, the settings record keeps nothing of it). Each keeps its line */
+static uint8_t glo_last = SCR_GLOBAL;
+static void glo_tap(void)
+{
+    uint32_t to = ui.scr == SCR_GLOBAL ? SCR_SYSTEM : ui.scr == SCR_SYSTEM ? SCR_GLOBAL : glo_last;
+    glo_last = (uint8_t)to;
+    op_enter(to);
+}
 #if FELUCCA_BT_UI
 /* SYSTEM's Bluetooth page, whatever line the cursor is on, and its devices list (the user, 2026-10-19): SAVE tapped
  * connects / lets go (op_bt.c bt_save; on the list, the row: sys_yes), SAVE held forgets the last device. HOME is HOME's,

@@ -452,6 +452,15 @@ static void glwalk_tests(void)
     memcpy(b0, bp_set, sizeof b0);
     reset_ui();
     song.sel = 0;
+#if FELUCCA_BLE
+    bt_enter(BT_MIDI, 0);                               /* (the radios off, as a power-on has them: a random run before leaves them where its path went, */
+#if FELUCCA_BT_AUDIO                                    /*  and DEVICE / NETWORK move only from the MODE the walk turns on itself) */
+    bt_enter(BT_AUD, 0);
+#endif
+#endif
+#if WIFI_UI
+    wn_st.mode = WN_MODE_OFF;
+#endif
     for (s = 0; s < 2u; s++) {
         uint32_t scr = s ? SCR_SYSTEM : SCR_GLOBAL;
         op_enter(scr);
