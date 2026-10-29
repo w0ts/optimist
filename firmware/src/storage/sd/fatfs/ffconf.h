@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------/
-/  Optimist (2026-10-26): the SD card's full FatFs (builder item SDCARD with LAYOUT 1 + FAR_OK; docs/SD-CARD-DESIGN.md 5):
+/  Optimist (2026-10-26): the SD card's full FatFs (builder item SDCARD with LAYOUT 1; docs/SD-CARD-DESIGN.md 5):
 /  long names in UTF-8 (FF_USE_LFN 1: one static buffer, the main loop only; FF_LFN_UNICODE 2), code page 437 for the
 /  8.3 aliases, fast seek (a file's cluster-link map) and f_expand (a file as one contiguous run), FF_FS_TINY (the files
 /  share the volume's sector buffer: 512 B less a file), exFAT off (cards over 32 GB reformatted FAT32), the timestamps
