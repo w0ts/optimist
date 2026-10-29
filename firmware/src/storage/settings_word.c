@@ -5,7 +5,7 @@
 #include "../core/knobcol.h"
 #if BP23_SET
 /* the settings SLOOP 2.3 made settings of the FM-1 (not of a project), one word: bit 9 the REC screen's MODE
- * TEMPO, bit 10 its START COUNT (FELUCCA_REC_MODES); bits 0..3 LIGHTS, 4..7 KEYS, 8 NOTES OFF (FELUCCA_LIGHTS).
+ * TEMPO, bit 10 its START COUNT (FELUCCA_REC_MODES); bits 0..3 LIGHTS, 4..7 KEYS, 8 NOTES OFF.
  * 0 = as before (a record without the word reads as 0). A build without a switch keeps its bits as read.
  * Bits 11..12 SYNC (G_SYNC xor SYNC_AUTO: a word with none reads AUTO, the default; the HOME menu's, device-wide, no
  * longer a project's), bit 14 MIDI OUT = SEQ, bit 15 MIDI IN = CLOCK (SLOOP 2.4's bits: FELUCCA_MIDI_OUT,
@@ -30,9 +30,7 @@ static uint32_t bp23_word(void)
 #if FELUCCA_REC_MODES
     w = (w & ~(3u << 9)) | (uint32_t)(rec_tempo != 0u) << 9 | (uint32_t)(rec_count != 0u) << 10;
 #endif
-#if FELUCCA_LIGHTS
     w = (w & ~0x1FFu) | lights_word();
-#endif
 #if FELUCCA_MIDI_OUT
     w = (w & ~(1u << 14)) | (uint32_t)(bp_set[BPS_MOUT] != MOUT_KEYS) << 14;   /* (SLOOP 2.4: the same bits: the sequencer out) */
     w = (w & ~(1u << 29)) | (uint32_t)(bp_set[BPS_MOUT] == MOUT_SEQ) << 29;   /* (ours: the keys not) */
@@ -63,9 +61,7 @@ static void bp23_from_word(uint32_t w)
     rec_tempo = (uint8_t)((w >> 9) & 1u);
     rec_count = (uint8_t)((w >> 10) & 1u);
 #endif
-#if FELUCCA_LIGHTS
     lights_from_word(w);
-#endif
 #if FELUCCA_MIDI_OUT
     bp_set[BPS_MOUT] = (int16_t)(!((w >> 14) & 1u) ? MOUT_KEYS : ((w >> 29) & 1u) ? MOUT_SEQ : MOUT_BOTH);   /* (2.4's SEQ: BOTH) */
 #endif

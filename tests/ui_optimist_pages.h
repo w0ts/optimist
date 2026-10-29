@@ -555,7 +555,6 @@ static void pages_keys_tests(void)
     frames(2);
     keys_are(kw(3), kws(0, 15), "D10: FX layer: the latched effect full");
     punch.req = -1;
-#if FELUCCA_LIGHTS
     {   /* LIGHTS / KEYS ALL: the backlight off while a mode lights its keys */
         uint8_t kl = lights_keys, ll = lights_lvl, q = led_pos[14u];
         uint32_t on_lay, on_mix;
@@ -570,9 +569,6 @@ static void pages_keys_tests(void)
         lights_keys = kl;
         lights_lvl = ll;
     }
-#else
-    let_go(B_FX);
-#endif
     for (k = 0; k < 4u; k++)
         fxoff[k] = trk[k].p[P_FXOFF], trk[k].p[P_FXOFF] = 0;
     smute_set_trk(1, 1);

@@ -1842,9 +1842,6 @@ static void persist_boot(void)                    /* before settings_init / pane
 #else
             settings.view = p.view > 1u ? 1u : p.view;
 #endif
-#if FELUCCA_BRIGHT
-            bright_boot();                         /* full at every boot, never the saved level (bright.c) */
-#endif
 #if BP23_SET
             bp23_from_word(p.bp23);
 #endif
@@ -1961,11 +1958,7 @@ static void settings_save(void)
 #else
     p.view = settings.view;
 #endif
-#if FELUCCA_BRIGHT
-    p.bright = 0;                                  /* full: a dim level is never stored (bright.c) */
-#elif BP23_SET
-    p.bright = persist_saved.bright;               /* (no BRIGHT here: kept as read) */
-#endif
+    p.spare = 0;                                   /* (the old backlight level's slot: never stored) */
 #if BP23_SET
     p.bp23 = bp23_word();
 #endif

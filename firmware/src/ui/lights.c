@@ -1,13 +1,13 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 isod89 (SLOOP 2.3, github.com/isod89/sloop-fm1 d691ba7: menu LIGHTS / KEYS / NOTES, after
  * Felucca 1.0.1 #35 by Leo Kuroshita; NOTES by renebohne, PR #11) */
-/* Lights for playing in the dark (FELUCCA_LIGHTS, backports23.h; included by panel.c). HOME held, the menu:
+/* Lights for playing in the dark (always built; included by panel.c). HOME held, the menu:
  *   LIGHTS  OFF / LOW / MID / HIGH: every button glows at that level (hal/fm1_input.h fm1_led_bg: a pulse a scan
  *           frame), so the labels read on a black FM-1. What is active (the page, PLAY, REC, the octave) stays at
  *           full light and still blinks as before.
  *   KEYS    OFF / C KEYS / WHITE KEYS / ALL KEYS (SLOOP 2.4): the C keys, every white key or every key glow too
  *           (at the LIGHTS level).
- *   NOTES   ON / OFF (with FELUCCA_KEYLIT): the keys of what the selected track sounds (keylit.c: its steps, its
+ *   NOTES   ON / OFF : the keys of what the selected track sounds (keylit.c: its steps, its
  *           ARP, its held voices; the drum hits) light, and glow under the layers whose keys are tiles. Here it
  *           is KEYLIT's switch at run time (on: as KEYLIT always was), not a second way of lighting the notes.
  * Settings of the FM-1, not of a project: the settings record's SLOOP 2.3 word (project.c bp23_word): bits 0..3
