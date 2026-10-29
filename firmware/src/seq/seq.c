@@ -2794,7 +2794,7 @@ static uint32_t seq_carry(track_t *t, const step_t *s, uint32_t skip)
 /* a slide into step s on a POLY track (MONO / LEGATO glide in voice.c mono_play): note i of s, not sounding yet, takes the
  * voice of the nearest note still sounding from the step before that s does not hold on (used: those taken already) and
  * glides there; -> 1 done (voice.c trk_note_glide; no such voice: 0, the note starts as ever) */
-static int seq_slide_poly(track_t *t, const step_t *s, uint32_t i, uint32_t *used)
+static __attribute__((noinline)) int seq_slide_poly(track_t *t, const step_t *s, uint32_t i, uint32_t *used)   /* (rare: kept out of seq_step) */
 {
     uint32_t j, k, best = 4u, bd = 128u, x = s->note[i];
     if (t->p[P_VOICE] != V_POLY)

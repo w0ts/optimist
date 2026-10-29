@@ -962,7 +962,7 @@ static void trk_note_on(track_t *t, uint32_t note, uint32_t vel)
 /* a sequencer SLIDE on a POLY track (seq.c seq_slide_poly; the user, 2026-10-29: the step's GLIDE): the voice that plays
  * from goes on to note to, its envelope going on, gliding there as MONO's legato does (GLIDE's time, 0: SLIDE_T). An
  * engine that allocates its own voices (FM6), a track not ready to play: not here (-> 0, the note starts as ever) */
-static int trk_note_glide(track_t *t, uint32_t from, uint32_t to, uint32_t vel)
+static __attribute__((noinline)) int trk_note_glide(track_t *t, uint32_t from, uint32_t to, uint32_t vel)
 {
     uint32_t i, np = trk_nvoice(t);
     const engine_t *e = ENGINES[t->engine];
