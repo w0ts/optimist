@@ -70,13 +70,14 @@ static uint16_t fxa_hi[FXL_NS] IN_POOL;
 static uint16_t fxi_full[FXI_NL];                       /* the owners (a bit each) holding the type with none left */
 static uint8_t fxi_pend;                                /* a pass is due: a fade-out, a tail, a starved owner */
 static uint8_t fxl_st[FXL_NS];                          /* each send line's owner (FXL_*: above); the main loop's only */
-#if FXM_NEED && FXA_I                                    /* the own room in the arena (fx/fx_arena.c, after this file) */
-static void fxm_ins_post(void);
-static void fxm_ins_init(void);
-static int fxm_ins_could(void);
-#else
-#define fxm_ins_post() ((void)0)
-#define fxm_ins_init() ((void)0)
+#if FXA_ROOM                                             /* the own room in the arena (fxi_mem.h; fx/fx_arena.c after) */
+static void fxm_ins_refused(void);
+static void fxm_ins_ok(void);
+#define FXR_K (NPART + 3u)                              /* (its arena client: fx_arena.c FXM_K(FXM_INS)) */
+#define FXR_UB (FXA_U * 2u)                             /* (a unit's bytes) */
+static uint16_t fxr_lo, fxr_hi;                         /* the room: the arena's units fxr_lo .. fxr_hi - 1 (none: equal) */
+static uint32_t fxr_pk;                                 /* arn_room() + 1 when a pack was last planned for it (0 never) */
+static uint8_t fxr_no;                                  /* fxa_own's last: refused (no room, nothing to move) */
 #endif
 _Static_assert(FXI_TN0 <= FXI_IMAX && FXI_TN1 <= FXI_IMAX && FXI_TN2 <= FXI_IMAX && FXI_TN3 <= FXI_IMAX &&
                FXI_TN4 <= FXI_IMAX && FXI_NK <= 16u, "fxi_own: FXI_IMAX instances; fxi_full: an owner a bit");
@@ -144,14 +145,138 @@ static uint32_t fxa_fits(uint32_t lo, uint32_t hi, uint32_t n)   /* how many lin
 }
 /* send line s takes lines now (lent, not on its way back) */
 AINL uint32_t fxl_open(uint32_t s) { return fxl_st[s] == FXL_LENT && !fxl_send_on(s); }
+#if FXA_ROOM
+/* The own room in the arena (fxi_mem.h): the arena's units free outside the room (a bit each: a copy of the arena
+ * taken with the interrupts off, read with them on), under the send lines' places (fx_arena.c fxm_lim) */
+#define FXR_BMW ((FXA_I + 31u) / 32u)
+#ifndef FXR_LIM
+#define FXR_LIM ARN_LIM                                 /* (the room under the send lines' places) */
+#endif
+static uint32_t fxr_map(uint32_t *m)                    /* -> the units under the places; m: those free */
+{
+    arn_st_t T;
+    uint32_t u, lim = FXR_LIM / FXR_UB;
+    fm1_irq_off();
+    T = arn;
+    fm1_irq_on();
+    memset(m, 0, FXR_BMW * 4u);
+    for (u = 0; u < lim; u++)
+        if ((u >= fxr_lo && u < fxr_hi) || arn_clear(&T, u * FXR_UB, FXR_UB, 1u << FXR_K))
+            m[u >> 5] |= 1u << (u & 31u);
+    return lim;
+}
+/* unit u free for a line: in the room, not in use; outside it, nothing of the arena there (m: fxr_map) */
+AINL uint32_t fxr_free(const uint32_t *m, uint32_t u)
+{
+    if (u >= fxr_lo && u < fxr_hi)
+        return !fxa_busy(FXA_S + u);
+    return m[u >> 5] >> (u & 31u) & 1u;
+}
+static uint8_t fxr_again;                               /* a trim due once the room has moved (fxr_moved) */
+/* the room after a line given back: its free units at either edge back to the arena (none left: the block back) */
+static void fxr_trim(void)
+{
+    if (FXR_MOVING()) {
+        fxr_again = 1;                                  /* (its place changes: after the move, fxi_poll) */
+        return;
+    }
+    fxr_again = 0;
+    while (fxr_lo < fxr_hi && !fxa_busy(FXA_S + fxr_lo))
+        fxr_lo++;
+    while (fxr_hi > fxr_lo && !fxa_busy(FXA_S + fxr_hi - 1u))
+        fxr_hi--;
+    fm1_irq_off();
+    if (fxr_hi > fxr_lo)
+        (void)arn_resize(FXR_K, fxr_lo * FXR_UB, (uint32_t)(fxr_hi - fxr_lo) * FXR_UB);   /* (smaller: always fits) */
+    else
+        arn_give(FXR_K), fxr_lo = fxr_hi = 0;
+    fm1_irq_on();
+}
+/* the arena's free units in a row next to unit u: those under it (down), or from it up to lim (m: fxr_map) */
+static uint32_t fxr_run(const uint32_t *m, uint32_t u, uint32_t lim, uint32_t down)
+{
+    uint32_t r = 0, v;
+    for (;; r++) {
+        if (down ? r >= u : u + r >= lim)
+            return r;
+        v = down ? u - r - 1u : u + r;
+        if (!(m[v >> 5] >> (v & 31u) & 1u))
+            return r;
+    }
+}
+/* a line of n units in the own room: in its free units (XDLY from the bottom, the smaller from the top), else the room
+ * grown at an edge by the fewest units (its free units there counted; of two alike the top), no room yet: n units at
+ * the highest place under the send lines' places; its block resized. None: the arena's parts moved when the free room
+ * holds it (core/arena.c arn_pack: tried again after), else refused (fxr_no: FULL, MEM FULL INSERTS once). FXA_NO: none
+ * now. (Measured, tests/arena_frag_test.c: against one fixed block of one line of each type the owners without their
+ * line 24 % against 66 % in 96 KB) */
+static uint32_t fxa_own(uint32_t n)
+{
+    uint32_t m[FXR_BMW ? FXR_BMW : 1u], lim, p = FXA_NO, a = 0, b = 0, eb = 0, et = 0, room, ok;
+    uint32_t has = fxr_hi > fxr_lo;
+    fxr_no = 0;
+    if (FXR_MOVING() || PART_MEM_SHORT() || arn_busy()) {
+        fxi_pend = 1;                                   /* (the room moving, a part's refused change first, a move) */
+        return FXA_NO;
+    }
+    if (has && (p = fxa_fit(FXA_S + fxr_lo, FXA_S + fxr_hi, n, n > FXA_Z1)) != FXA_NO)
+        return p;
+    lim = fxr_map(m);
+    if (has) {
+        while (eb < n && fxr_lo + eb < fxr_hi && !fxa_busy(FXA_S + fxr_lo + eb))
+            eb++;                                       /* (its free units at the bottom, then at the top) */
+        while (et < n && fxr_hi - et > fxr_lo && !fxa_busy(FXA_S + fxr_hi - 1u - et))
+            et++;
+        if (fxr_run(m, fxr_hi, lim, 0) >= n - et && (et >= eb || fxr_run(m, fxr_lo, lim, 1) < n - eb))
+            a = fxr_lo, b = fxr_hi + n - et, p = fxr_hi - et;
+        else if (fxr_run(m, fxr_lo, lim, 1) >= n - eb)
+            a = fxr_lo - (n - eb), b = fxr_hi, p = a;
+    } else {
+        for (b = lim; b >= n && fxr_run(m, b, lim, 1) < n; b--)
+            ;
+        a = b - n, p = a;
+        if (b < n)
+            p = FXA_NO;
+    }
+    if (p != FXA_NO) {
+        fm1_irq_off();
+        ok = !arn_resize(FXR_K, a * FXR_UB, (b - a) * FXR_UB);   /* (checked again: the audio may have reserved) */
+        fm1_irq_on();
+        if (ok) {
+            fxr_lo = (uint16_t)a, fxr_hi = (uint16_t)b, fxr_pk = 0;
+            return FXA_S + p;
+        }
+        fxi_pend = 1;
+        return FXA_NO;
+    }
+    room = arn_room() + 1u;
+    if (fxr_pk != room) {
+        fxr_pk = room;
+        if (has ? fxr_lo >= n - eb && arn_pack(FXR_K, (n - eb) * FXR_UB, (fxr_lo - (n - eb)) * FXR_UB)
+                : arn_pack(FXR_K, (n + 1u) * FXR_UB, ARN_BYTES)) {
+            fxi_pend = 1;                               /* (the parts' blocks moved: again after) */
+            return FXA_NO;
+        }
+    }
+    fxr_no = 1;
+    return FXA_NO;
+}
+#else
+#define fxa_own(n) fxa_fit(FXA_S, FXA_N, (n), (n) > FXA_Z1)
+#define fxr_no 0
+#endif
 /* a place for a line of type j: the own room (XDLY from the bottom, the smaller lines from the top), else a send's line
  * while lent (the chorus's first: the smaller); FXA_NO: no room */
 static uint32_t fxa_place(uint32_t j)
 {
-    uint32_t n = FXA_SZ(j), p = fxa_fit(FXA_S, FXA_N, n, n > FXA_Z1), s;
+    uint32_t n = FXA_SZ(j), p = fxa_own(n), s;
     for (s = 0; s < FXL_NS && p == FXA_NO; s++)
         if (fxl_open(s) && fxl_fits(s, j))
             p = fxa_fit(FXL_LO(s), FXL_HI(s), n, 1);
+#if FXA_ROOM
+    if (p == FXA_NO && fxr_no)
+        fxm_ins_refused();                              /* (no room, nothing to move, no lent line: MEM FULL once) */
+#endif
     return p;
 }
 
@@ -166,6 +291,10 @@ static void fxi_give(uint32_t j, uint32_t i)            /* instance i of type FX
     fxi_publish(fxi_own[j][i], j, FXI_NONE);
     fxi_own[j][i] = FXI_NONE;
     fxa_mark(fxa_u[j][i], FXA_SZ(j), 0);                /* (its units free: no core reads them now) */
+#if FXA_ROOM
+    if (fxa_reg(fxa_u[j][i]) == FXL_NS)
+        fxr_trim();                                     /* (the room's free edges back to the arena) */
+#endif
 }
 /* instance i's state (not published: no core uses it): the evict flag */
 static void fxi_evict(uint32_t j, uint32_t i, uint32_t v)
@@ -218,6 +347,51 @@ static void fxi_clear(uint32_t j, uint32_t i)           /* instance i zeroed, at
 #endif
     (void)i;
 }
+#if FXA_ROOM
+/* (core/arena.c, the interrupts off, the room's block copied to p: engines.c ARN_MV_MOVED) its units, its instances'
+ * units and lines, the units in use: where they are now; nothing else changes (the kernels skipped it meanwhile) */
+static void fxr_moved(void *p)
+{
+    uint32_t j, i, u, z = (uint32_t)((uint8_t *)p - arn_mem) / FXR_UB, lo = fxr_lo, hi = fxr_hi, d = z - lo;
+    for (u = lo; u < hi; u++)
+        fxa_mark(FXA_S + u, 1u, 0);
+    for (j = 0; j < FXI_NL; j++)
+        for (i = 0; i < FXI_TN[j]; i++) {
+            int16_t *ln;
+            if (fxi_own[j][i] == FXI_NONE || fxa_reg(fxa_u[j][i]) != FXL_NS)
+                continue;
+            fxa_u[j][i] = (uint16_t)(fxa_u[j][i] + d);  /* (unsigned: a move down wraps back) */
+            ln = fxa_line(fxa_u[j][i]);
+#if FELUCCA_INS_CHORUS
+            if (j == 0u)
+                ifx_chrs[i].line = ln;
+#endif
+#if FELUCCA_INS_DELAY
+            if (j == 1u)
+                ifx_echo[i].line = ln;
+#endif
+#if FELUCCA_INS_JCHORUS
+            if (j == 2u)
+                ifx_jcho[i].c.ln = (juno_cho_s *)(void *)ln;
+#endif
+#if FELUCCA_INS_FLANGER
+            if (j == 3u)
+                ifx_flng[i].line = ln;
+#endif
+#if FELUCCA_INS_XDLY
+            if (j == 4u)
+                ifx_xdly[i].line = ln;
+#endif
+            (void)ln;
+        }
+    fxr_lo = (uint16_t)z, fxr_hi = (uint16_t)(z + hi - lo);
+    for (j = 0; j < FXI_NL; j++)
+        for (i = 0; i < FXI_TN[j]; i++)
+            if (fxi_own[j][i] != FXI_NONE && fxa_reg(fxa_u[j][i]) == FXL_NS)
+                fxa_mark(fxa_u[j][i], FXA_SZ(j), 1);
+    fxi_pend = 1;                                       /* (a pass: a trim asked meanwhile, the owners waiting) */
+}
+#endif
 /* a free instance of type FXI_TY(j) and its line placed (fxa_place), its units taken; FXI_NONE: none, or no room */
 static uint32_t fxi_find(uint32_t j)
 {
@@ -380,7 +554,14 @@ static void fxi_poll(void)
     for (s = 0; s < FXL_NS; s++)
         if (fxl_st[s] != FXL_SEND)
             fxi_pend = 1;                               /* (a lent line is watched: its send back in a slot, none using it) */
-    fxm_ins_post();                                     /* (the own room in the arena: given back when no type is held) */
+#if FXA_ROOM
+    if (fxr_again)
+        fxr_trim();                                     /* (a line given back while the room moved) */
+    for (j = 0; j < FXI_NL && !fxi_full[j]; j++)
+        ;
+    if (j == FXI_NL)
+        fxm_ins_ok();                                   /* (none left without a line: a refusal said again later) */
+#endif
 }
 /* boot, the host tests: every instance free, every line the send's, the memory empty */
 static void fxi_init(void)
@@ -397,7 +578,11 @@ static void fxi_init(void)
         if (fxl_st[j] != FXL_SEND)
             fxl_return(j);
     memset(fxa_bm, 0, sizeof fxa_bm);
-    fxm_ins_init();                                     /* (the own room not in the arena: its units marked taken) */
+#if FXA_ROOM
+    if (fxr_hi > fxr_lo)
+        arn_give(FXR_K);                                /* (the own room empty: back to the arena) */
+    fxr_lo = fxr_hi = 0, fxr_pk = 0;
+#endif
     fxi_pend = 0;
     fxi_dirty = 2;
 }
@@ -415,10 +600,17 @@ static uint32_t fxl_wait(uint32_t j)
  * lent once its tail ends) */
 static uint32_t fxa_room(uint32_t j)
 {
-    uint32_t n = FXA_SZ(j), r = fxa_fits(FXA_S, FXA_N, n), s;
-#if FXM_NEED && FXA_I
-    if (!fxa_ins && fxm_ins_could())
-        r = FXA_I / n;                                  /* (the own room not in the arena yet: what it would hold) */
+    uint32_t n = FXA_SZ(j), r, s;
+#if FXA_ROOM
+    {   /* (the room's free units and the arena's free ones under the places: what it would hold grown, its parts
+         * moved) */
+        uint32_t m[FXR_BMW ? FXR_BMW : 1u], lim = fxr_map(m), u, run = 0;
+        for (u = 0, r = 0; u < lim; u++)
+            if ((run = fxr_free(m, u) ? run + 1u : 0u) == n)
+                r++, run = 0;
+    }
+#else
+    r = fxa_fits(FXA_S, FXA_N, n);
 #endif
     for (s = 0; s < FXL_NS; s++)
         if (fxl_fits(s, j) && !fxl_send_on(s) && fxl_st[s] != FXL_BACK)

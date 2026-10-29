@@ -26,6 +26,8 @@
 #define ARN_PARTS 4u                                 /* three parts, then the streams' block */
 #define ARN_BYTES (72u * 1024u)
 #define ARN_TOPS 8u
+static void fm1_irq_off(void);                       /* (below: core/arena.c calls them) */
+static void fm1_irq_on(void);
 #include "core/arena.c"
 #define SST_ARN_K 3u
 static uint32_t part_voices[3] = {8, 8, 8};

@@ -154,7 +154,13 @@ typedef union {
  * docs/ARENA.md, docs/SD-MODE-DESIGN.md 6b): placed by need in the arena (core/arena.c), a change that does not fit
  * refused (part_mem_reserve) */
 #define ENG_UID_SILENT 0xFEu                             /* a project's engine byte for a silent placeholder (project.c) */
-#define ARN_SLOT (PART_MEM_ANY ? (sizeof(part_mem_t) + 7u) & ~7u : 8u)
+#ifndef ARN_ALIGN
+#define ARN_ALIGN 256u                                   /* the unit of every size and place (tests/arena_frag_test.c:
+                                                          * 256 B against 8, 64 and 1024, docs/SD-MODE-DESIGN.md 6b) */
+#endif
+/* a part's largest block (the tests' arenas): its memory in whole units (the fixed memories: 8 B) */
+#define ARN_SLOT_U (PART_DROPS ? ARN_ALIGN : 8u)
+#define ARN_SLOT (PART_MEM_ANY ? (sizeof(part_mem_t) + ARN_SLOT_U - 1u) & ~(ARN_SLOT_U - 1u) : ARN_SLOT_U)
 #if PART_DROPS
 #define ARN_BYTES FELUCCA_ARENA_BYTES
 #endif
@@ -197,12 +203,37 @@ enum {
 #define ARN_PARTS NPART
 #endif
 #if PART_DROPS
-#include "../core/arena.c"
 static void *part_mem_p[NPART];                          /* placed by need: where its switch took it (0 before) */
 #define PART_MEM_AT(p) part_mem_p[p]
+/* the arena's packing (core/arena.c arn_pack): the parts' blocks are the ones that move (nothing in them points into
+ * them: a copy and part_mem_p), gated while they do (voice.c PART_MOVING); the send lines' places at the top, the
+ * buffers and the inserts' room under them (FXM_NEED: fx/fx_arena.c fxm_lim) */
+#if FXM_NEED && INS_LIM                                  /* (and the inserts' room, NPART + 3, fx/insfx/fxi.c: moved up,
+                                                          * to the top's buffers, its lines repointed, fxr_moved) */
+static void fxr_moved(void *p);
+#define ARN_MOVES (((1u << NPART) - 1u) | 1u << (NPART + 3u))
+#define ARN_UPS (1u << (NPART + 3u))
+#define ARN_UP_ALIGN 1024u                               /* (its units: the arena's 1 KB, fxi_mem.h) */
+#define ARN_MV_MOVED(k, p) ((k) < NPART ? (void)(part_mem_p[k] = (p)) : fxr_moved(p))
+#else
+#define ARN_MOVES ((1u << NPART) - 1u)
+#define ARN_MV_MOVED(k, p) ((k) < NPART ? (void)(part_mem_p[k] = (p)) : (void)0)
+#endif
+#ifdef FM1_TICKS_PER_US
+#define ARN_US() (fm1_ticks() / FM1_TICKS_PER_US)
+#endif
+#if FXM_NEED
+static uint32_t fxm_lim(void);                           /* (fx/fx_arena.c: the send lines' places start there) */
+static void fxm_sync(void);
+#define ARN_LIM fxm_lim()
+#define ARN_MV_SYNC() fxm_sync()
+#endif
+#include "../core/arena.c"
+#define PART_MOVING(t) ((uint32_t)((t) - trk) < NPART && arn_moving((uint32_t)((t) - trk)))
 #else
 static part_mem_t part_mem[PART_MEM_ANY ? NPART : 1] __attribute__((section(".pool"), aligned(8)));
 #define PART_MEM_AT(p) ((void *)&part_mem[p])
+#define PART_MOVING(t) ((void)(t), 0)
 #endif
 static uint8_t part_mem_owner[NPART];                    /* the engine slot + 1 whose state it holds, 0 = none */
 AINL fm6_mem_t *fm6_mem(uint32_t p)
@@ -340,6 +371,7 @@ static struct {
     uint8_t leng[NPART];                                 /* .. the engine slot each wants */
     uint8_t keep;                                        /* the edit's refusal is a load's (model.c mem_load_next): the
                                                           * project's sound kept once placed */
+    uint8_t packed;                                      /* the arena packed for it once (model.c mem_retry, arn_pack) */
 } part_mem_refused;
 #define PART_MEM_SHORT() (part_mem_refused.on || part_mem_refused.lmask)   /* (the effects wait: a part's sound first) */
 
@@ -425,7 +457,7 @@ static int part_mem_reserve(uint32_t k, uint32_t e)
     int r = part_mem_try(k, e);
     if (r) {
         if (!part_mem_refused.on || part_mem_refused.part != k)   /* (a new refusal: nothing asked yet) */
-            part_mem_refused.asked = part_mem_refused.waiting = part_mem_refused.keep = 0;
+            part_mem_refused.asked = part_mem_refused.waiting = part_mem_refused.keep = part_mem_refused.packed = 0;
         part_mem_refused.on = 1, part_mem_refused.part = (uint8_t)k, part_mem_refused.eng = (uint8_t)(e % NENGINES);
     }
     return r;
@@ -444,12 +476,25 @@ static int part_mem_frees(uint32_t j)
     return arn_fits(part_mem_refused.part, part_mem_bytes(e), 1u << j);
 }
 
+/* part k's change to engine e refused, the free room enough: the parts' blocks moved so it fits (core/arena.c arn_pack;
+ * its table first when that is what does not fit). 1 planned (model.c mem_retry waits for arn_busy, then tries again) */
+static int part_mem_pack(uint32_t k, uint32_t e)
+{
+    uint32_t t = part_tab_bytes(e), c = part_tab_k(e), n = part_mem_bytes(e);
+    if (t && !arn_fits(c, t, 0))
+        return arn_pack(c, t, ARN_BYTES);
+    return n && !arn_fits(k, n, 0) && arn_pack(k, n, ARN_BYTES);
+}
+
 /* a project's load (storage/project.c, before its tracks): the refusals of before forgotten (an edit's change waiting
  * included: the load replaces the parts) */
 static void part_mem_load_begin(void)
 {
     part_mem_refused.on = part_mem_refused.asked = part_mem_refused.waiting = part_mem_refused.keep = 0;
+    part_mem_refused.packed = 0;
     part_mem_refused.lmask = 0;
+    arn_pack_all();                                      /* (every block packed once its parts have switched: the audio
+                                                          * released, core/arena.c) */
     part_mem_refused.lseq++;
 }
 /* .. part k's engine e on that load: 0 placed (or none needed); -1 refused, recorded with the others (the caller makes

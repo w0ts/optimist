@@ -458,8 +458,8 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #endif
 /* the insert copies of the "once" effects (fx/insfx/insfx.c, fxi.c: 2026-10-13), each built (non-zero; a count until
  * 2026-10-23, any count reads as built) or not. Their lines are in the effects memory (fx/insfx/fxi_mem.h, the size
- * FELUCCA_DLY_ARENA): fxi.c places one when an owner picks the type (the main loop), an owner left without room is
- * bypassed */
+ * FELUCCA_DLY_ARENA; with an arena, FELUCCA_ARENA_KB, each line a block of it instead): fxi.c places one when an owner
+ * picks the type (the main loop), an owner left without room is bypassed */
 #ifndef FELUCCA_INS_CHORUS
 #define FELUCCA_INS_CHORUS 0               /* CHRS: a two-tap chorus, 2 KB of the effects memory an instance */
 #endif
@@ -479,13 +479,16 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #ifndef FELUCCA_DLY_ARENA
 #define FELUCCA_DLY_ARENA 0                /* the effects memory (fx/insfx/fxi_mem.h): KB of pool for the delay send's line
                                             * and every insert line (1 KB units); 0: the send's line and one line of each
-                                            * limited insert type built */
+                                            * limited insert type built. Ignored with an arena (FELUCCA_ARENA_KB: the
+                                            * delay's line and each insert line a block of it, the user, 2026-10-29:
+                                            * one memory setting) */
 #endif
 #ifndef FELUCCA_ARENA_KB
 #define FELUCCA_ARENA_KB 0                 /* the builder's ARENA (bit 411): KB of pool the parts' engine states are placed
-                                            * in by need (core/arena.c, the core: every build it is on in), and in the SD
-                                            * card mode the effects' lines and the other buffers too (the extras:
-                                            * FELUCCA_FX_ARENA below); 0: the fixed memories as before */
+                                            * in by need (core/arena.c), the effects' lines and the other buffers too
+                                            * (the extras: FELUCCA_FX_ARENA below; every build with an arena since
+                                            * 2026-10-29, the SD card mode's only before); 0: the fixed memories as
+                                            * before */
 #endif
 #if FELUCCA_ARENA_KB && !defined(FELUCCA_ARENA_BYTES)
 #define FELUCCA_ARENA_BYTES (FELUCCA_ARENA_KB * 1024u)
@@ -704,15 +707,16 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #ifndef FELUCCA_SD_MODE
 #define FELUCCA_SD_MODE (FELUCCA_LAYOUT == 1)   /* the SD card mode (one builder flag later: the bigger flash, the card,
                                             * projects by name, banks of 16; the fake SD mode's layout until then): what
-                                            * only it builds keys on this one macro (the arena's extras below) */
+                                            * only it builds keys on this one macro */
 #endif
 #if FELUCCA_ARENA_KB && !defined(FELUCCA_FX_ARENA)
-#define FELUCCA_FX_ARENA FELUCCA_SD_MODE   /* (the arena's extras: the SD card mode's builds) */
+#define FELUCCA_FX_ARENA 1                 /* (the arena's extras: every build with an arena, 2026-10-29, the user: one
+                                            * memory setting; the SD card mode's builds only before) */
 #endif
 #ifndef FELUCCA_FX_ARENA
 #define FELUCCA_FX_ARENA 0                 /* 1: with an arena placed by need (FELUCCA_ARENA_BYTES, engines.c), the arena's
                                             * extras: the effects' big lines (the sends' delay, chorus and reverb lines,
-                                            * the inserts' own room) placed in it while a project uses them
+                                            * each limited insert's line) placed in it while a project uses them
                                             * (fx/fx_arena.c), the other buffers (core/arena_bufs.c) and the load's list
                                             * page (FELUCCA_MEM_LIST); 0: static, as before, a load's refusals offered one
                                             * by one on the edit's confirm */
