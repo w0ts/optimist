@@ -582,9 +582,10 @@ check("the effects memory: auto is the delay's line and one line of each insert 
       and _da(INS_XDLY=1, XDLY_LEN=8192)["units"] == 32 and _da(INS_DELAY=1, DLY_LEN=32768, DLY_ARENA=96)["units"] == 32
       and _da(DLY_ARENA=96)["pool"] == 0 and _da(INS_CHORUS=1, DLY_ARENA=160)["units"] == 32)
 check("... its pool: the own room, the instance tables (an owner each at most, no more than the memory holds) and the "
-      "bitmap: one XDLY on the delay's 64 KB line alone is its state and 12 B of bitmap",
-      _da(INS_XDLY=1, DLY_LEN=32768, DLY_ARENA=64)["pool"] == C.XD_STATE + 12
-      and _da(INS_XDLY=1, DLY_LEN=32768, DLY_ARENA=64)["tables"] == {"ifx_xdly": C.XD_STATE}
+      "bitmap: DLY_ARENA 64 beside the delay's 64 KB line raised to hold one XDLY (128 KB): 64 KB of its own, two XDLY "
+      "states (its own, the delay's line lent), 20 B of bitmap",
+      _da(INS_XDLY=1, DLY_LEN=32768, DLY_ARENA=64)["pool"] == 64 * 1024 + 2 * C.XD_STATE + 20
+      and _da(INS_XDLY=1, DLY_LEN=32768, DLY_ARENA=64)["tables"] == {"ifx_xdly": 2 * C.XD_STATE}
       and _da(**_four)["tables"]["ifx_chrs"] == 9 * C.FXM_STATE["INS_CHORUS"][1]
       and _da(**_four)["pool"] == 13 * 1024 + sum(9 * C.FXM_STATE[k][1] for k in _four if k in C.FXM_STATE)
       + 4 * ((64 + 13 + 4 + 31) // 32))
@@ -598,28 +599,43 @@ check("... up to N at once in the memory chosen (each type alone, the sends in t
 _e, _w, _n = C.validate(dict(C.defaults(), **_four))
 check("... the builder says so: a notice on the effects memory (DLY_ARENA), no error",
       not _e and any("DLY_ARENA" in n.keys and "up to" in n for n in _n))
-_e = C.validate(dict(C.defaults(), INS_XDLY=1, FX_DELAY=0, DLY_ARENA=32))[0]
-check("... an effects memory too small for one line of a type built: an error naming the type (XDLY's 64 KB in 32 KB "
-      "with no delay line to lend)", any("XDLY" in e and "INS_XDLY" in e.keys for e in _e))
-check("... under the delay's line: an error; the delay's line alone holds one XDLY (lent): fine",
-      bool(C.validate(dict(C.defaults(), INS_XDLY=1, DLY_ARENA=64))[0])
-      and any("XDLY cannot play while the delay is on the master" in e and "at least 128 KB" in e
-              for e in C.validate(dict(C.defaults(), INS_XDLY=1, DLY_LEN=32768, DLY_ARENA=64))[0])
+# (the user, 2026-10-29: no red "the effects memory holds the delay's line: at least 128 KB" any more) an effects memory
+# too small is raised by the builder to what it must hold, said in a notice, never an error that stops the build
+_e, _w, _n = C.validate(dict(C.defaults(), INS_XDLY=1, FX_DELAY=0, DLY_ARENA=32))
+check("... an effects memory too small for one line of a type built (XDLY's 64 KB in 32 KB, no delay): raised to 64 KB "
+      "(the flag the build gets), a notice naming DLY_ARENA, no error",
+      not _e and C.flags(dict(C.defaults(), INS_XDLY=1, FX_DELAY=0, DLY_ARENA=32))[0]["FELUCCA_DLY_ARENA"] == 64
+      and any("raised to 64 KB" in n and "DLY_ARENA" in n.keys for n in _n))
+_e, _w, _n = C.validate(dict(C.defaults(), INS_XDLY=1, DLY_LEN=65536, DLY_ARENA=64))
+check("... under the delay's line (the user's screenshot: DLY_LEN 65536, the delay's line 128 KB, DLY_ARENA 64): raised "
+      "to the line and one XDLY (192 KB), a notice, no error on DLY_LEN or DLY_ARENA; one that holds them: as set",
+      not _e and C.flags(dict(C.defaults(), INS_XDLY=1, DLY_LEN=65536, DLY_ARENA=64))[0]["FELUCCA_DLY_ARENA"] == 192
+      and any("raised to 192 KB" in n for n in _n)
+      and C.flags(dict(C.defaults(), INS_XDLY=1, XDLY_LEN=8192, DLY_LEN=16384, DLY_ARENA=64))[0]["FELUCCA_DLY_ARENA"] == 64
       and not C.validate(dict(C.defaults(), INS_XDLY=1, XDLY_LEN=8192, DLY_LEN=16384, DLY_ARENA=64))[0])
 # the FM-1, 2026-10-28 (the fm1-next release, ARENA 32 in the SD card mode): no reverb, no chorus at all. The arena
 # holds the sends' lines while a project uses them (fx/fx_arena.c), and a new project has all three in its master
 # slots: a 32 KB delay line and a 32 KB reverb line never fit in 32 KB together, the refused ones bypassed (MEM FULL)
 _sd = dict(LAYOUT=1, ENG_SAMPLE=0, DRUM_USR=0, SNAPSHOTS=0, PATTERNS=1, FX_PUNCH=0, DLY_LEN=16384, REV_FDN8=1, REV_POOL=1,
            REV_ROOM=0)   # (the user's profile's sends; the fake SD mode's needs, no PUNCH ring: its 64 KB block alone)
-_e = C.validate(dict(C.defaults(), ARENA=32, **_sd))[0]
-check("an SD card mode arena that cannot hold the sends' lines together (32 KB for the delay's 32, the chorus' 4 and "
-      "the reverb's 32 KB): an error naming ARENA and the room they need",
-      any("ARENA" in e.keys and "sends' lines together" in e and "68 KB" in e for e in _e))
-check("... 64 KB (the two big lines, no room for the chorus'): still the error; 96 KB: none (the sends all placed, "
-      "measured on the release's host simulator); outside the SD card mode the arena holds no lines: none",
-      any("sends' lines together" in e for e in C.validate(dict(C.defaults(), ARENA=64, **_sd))[0])
-      and not [e for e in C.validate(dict(C.defaults(), ARENA=96, **_sd))[0] if "sends' lines" in e]
-      and not [e for e in C.validate(dict(C.defaults(), ARENA=32, **dict(_sd, LAYOUT=0)))[0] if "sends' lines" in e])
+# (the user, 2026-10-29: no red error for a memory too small) an SD card mode arena that cannot hold the sends' lines
+# together is raised to them (68 KB: the delay's 32, the chorus' 4, the reverb's 32), said in a notice, no error
+_e, _w, _n = C.validate(dict(C.defaults(), ARENA=32, **_sd))
+check("an SD card mode arena that cannot hold the sends' lines together (ARENA 32): raised to 68 KB (the flag the "
+      "build gets), a notice naming ARENA, no error",
+      not _e and C.flags(dict(C.defaults(), ARENA=32, **_sd))[0]["FELUCCA_ARENA_KB"] == 68
+      and any("ARENA" in n.keys and "raised to 68 KB" in n for n in _n))
+check("... 64 KB: raised to 68 KB too; 96 KB: as set; outside the SD card mode the arena holds no lines: 32 KB as set; "
+      "a notice says what a new project needs together, never an error",
+      C.flags(dict(C.defaults(), ARENA=64, **_sd))[0]["FELUCCA_ARENA_KB"] == 68
+      and C.flags(dict(C.defaults(), ARENA=96, **_sd))[0]["FELUCCA_ARENA_KB"] == 96
+      and C.flags(dict(C.defaults(), ARENA=32, **dict(_sd, LAYOUT=0)))[0]["FELUCCA_ARENA_KB"] == 32
+      and not C.validate(dict(C.defaults(), ARENA=64, **_sd))[0]
+      and any("needs" in n and "together" in n for n in C.validate(dict(C.defaults(), ARENA=64, **_sd))[2]))
+check("... an arena needing more than the SRAM can give it: the one error left, naming the biggest consumers",
+      any("ARENA" in e.keys and "would need" in e and "the delay's line" in e
+          for e in C.validate(dict(C.defaults(), ARENA=96, **dict(_sd, DLY_LEN=65536, INS_XDLY=1, XDLY_LEN=16384,
+                                                                       DLY_ARENA=320)))[0]))
 _cfg, _ = C.parse("INS_CHORUS=2\nINS_DELAY=4\nINS_JCHORUS=3\nINS_FLANGER=1\nINS_XDLY=2\n", warn=lambda m: None)
 check("an old .config's instance counts (INS_CHORUS=2 ...) load as built: no setting lost, no error",
       all(_cfg[k] == 1 for k in C.FXM_TYPES) and not [e for e in C.validate(_cfg)[0] if set(e.keys) & set(C.FXM_TYPES)]
