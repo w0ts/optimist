@@ -1706,6 +1706,13 @@ job; ( jobin
     $CC -O1 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_CPU_GUARD=1 -DFELUCCA_ENG_ACID=1 -DFELUCCA_REV_ROOM=0 -DFELUCCA_REV_FDN8=1 -DFELUCCA_REV_POOL=1 -o "$OUT/cpuguard_fdn8_test" tests/cpuguard_test.c -lm
     run "CPU guard with FDN8 alone in the pool (the mots profile): the REVERB level fades the tail out and clears its 32 KB line" "$OUT/cpuguard_fdn8_test"
 ) >"$U.out" 2>&1 & jobbg
+job; ( jobin   # the reverb fuzzed (tests/reverb_fuzz_test.c, 2026-10-29: "the FDN8 reverb stops working randomly"): ROOM and FDN8 in the pool, the CPU guard
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_CPU_GUARD=1 -DFELUCCA_REV_FDN8=1 -DFELUCCA_REV_POOL=1 -o "$OUT/reverb_fuzz_test" tests/reverb_fuzz_test.c -lm
+    run "reverb fuzz, 4 min of the bus (every SIZE / DAMP, full scale, DC, +-2^21, TYPE / RET / mute / guard switches mid-tail) and 1 min of the mix: its state bounded, heard whenever it is sent and on, rings out to exactly 0" "$OUT/reverb_fuzz_test" 240 1
+    FRV="-DFELUCCA_ENG_FM6=1 -DFELUCCA_ENG_PHYS=1 -DFELUCCA_ENG_ACID=1 -DFELUCCA_ENG_PLAITS=1 -DFELUCCA_ENG_CZ=1 -DFELUCCA_ENG_JUNO=1 -DFELUCCA_FX_ARENA=1 -DFELUCCA_INS_DELAY=1 -DFELUCCA_INS_JCHORUS=1 -DFELUCCA_INS_FLANGER=1 -DFELUCCA_INS_XDLY=1 -DFELUCCA_XDLY_LEN=8192 -DFELUCCA_DLY_LEN=16384u -DFELUCCA_REV_FDN8=1 -DFELUCCA_REV_POOL=1 -DFELUCCA_FX_SLICER=0"
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $FRV "-DFELUCCA_ARENA_BYTES=(96u * 1024u)" -o "$OUT/reverb_arena_test" tests/reverb_arena_test.c -lm
+    run "the reverb in the arena while it plays (the jam profile's engines, inserts and sends, 96 KB): its line placed all along, a gate short and only while silent, heard whenever it is on" "$OUT/reverb_arena_test" 8000 1
+) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     run "CPU guard: its cost model is the one tests/cpu_baseline.txt and costs.json give" python3 tools/builder/cpu_costs.py --check
 ) >"$U.out" 2>&1 & jobbg
