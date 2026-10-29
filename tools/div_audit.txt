@@ -58,7 +58,7 @@ src/engines/trio/eng_trio.c:trio_frac:d | returns 0 before the divide when d is 
 src/engines/trio/eng_trio.c:trio_render:(int32_t)(base>>12) | guarded: "(base >> 12) ? ... : 0"
 src/engines/trio/eng_trio.c:trio_render:(uint32_t)(4096+((g*(g+k))>>12)) | k = 8192 - reso * 7168 / 127 >= 1024 (PARAM), g >= 0: >= 4096
 src/fx/fx.c:duck_block:(len>>5) | len = BEAT_U / 2, a constant
-src/fx/fx.c:master_out:(uint32_t)lim_env | inside "if (lim_env > LIM_T)", LIM_T > 0
+src/fx/fx.c:master_lim:(uint32_t)e | inside "if (e > LIM_T)" (e: the state's lim_env), LIM_T > 0
 src/fx/fx.c:mix_part:((xmax>r?xmax:r)|1) | "| 1"
 src/fx/fx.c:__attribute__:(mx|1) | "| 1" (ut_mix: the USB input's largest send over the block)
 src/display/gfx.c:cv_begin:w | only when w * h > CV_MAX, which needs w != 0
