@@ -24,7 +24,6 @@ static int knobcol_labels(uint32_t scr, uint32_t on)
         ok &= knobcol_line_ok(j, gld.first + j == gld.cur, on);
     return ok && seen >= 2u;
 }
-#if FELUCCA_PAGE_LINES
 /* the PAGE_LINES build (engine and FX pages as lines): KNOB COLORS on, KNOB 1 turned (line 1 the cursor): its label full colour, lines 2..4 dimmed,
  * none white; OFF the labels are white. Shots opt-knobcol-<page>-on.ppm (the engine page, the FX page) */
 static void knobcol_page_lines(uint32_t scr, const char *name)
@@ -51,7 +50,6 @@ static void knobcol_page_lines(uint32_t scr, const char *name)
     }
     knob_colors = 0;
 }
-#endif
 static void knobcol_label_tests(void)
 {
     uint32_t s;
