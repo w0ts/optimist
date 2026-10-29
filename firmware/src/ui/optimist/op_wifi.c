@@ -20,8 +20,10 @@
  *   SAVE held the row's saved network forgotten (a new one: NOT REMEMBERED); joined, the network joined is let go and forgotten.
  * MODE AP (FELUCCA_WIFI_AP; the user, 2026-10-27: "maybe we add mode AP"): the FM-1 is the access point (wifi/wifi_apd.c). The page's four
  * lines become NAME (the network's name: FM1- and four digits of the radio's address, or the one set by the web editor), CHANNEL (KNOB 3
- * turns it, 1..13; the AP restarts when the knob has rested), STATE (NO PASSWORD, STARTING, ACTIVE, n CLIENTS, NO CAL). SAVE opens the
- * password entry for the AP's key (8..63 characters, as a network's), SAVE held asks CLEAR KEY. No access point runs without a key.
+ * turns it, 1..13; the AP restarts when the knob has rested), STATE (STARTING, ACTIVE, n CLIENTS, NO CAL). SAVE opens the
+ * password entry for the AP's key (8..63 characters, as a network's), SAVE held asks CLEAR KEY (the default password again; with none typed, in AP MAN, SAVE held opens the entry).
+ * The password: the one typed, else the default one, a function of the name alone (wifi_ap_default_key: another Optimist that hears
+ * the name knows it), which STATE shows as KEY xxxxxxxx every fourth 2 s (KEY TYPED when one typed replaces it).
  * The password entry (pw_*): KNOB 1 the character in its family, KNOB 2 the family, KNOB 3 the cursor; SAVE tapped adds the
  * character, SAVE held joins (DONE), HOME tapped erases, HOME held cancels (the user, 2026-10-27). The text is shown as
  * typed (the panel is small), case-sensitive, 8..63 characters; the buffer (op_pwbuf.h) is wiped when the entry closes and
@@ -298,10 +300,6 @@ static void wf_mode_set(int32_t s)                      /* a detent a mode, stop
         wc_enable(0);                                   /* (a network joined is told; the radio, once started, stays up) */
         memset(&wc_req, 0, sizeof wc_req);
     }
-#if FELUCCA_WIFI_AP
-    if (W[n] >= WN_MODE_AP && !wn_st.ap.set)
-        ui_message("SAVE: PASSWORD");                   /* (no access point runs without a key: the page says how to give one) */
-#endif
 }
 static void wf_net_cell(cell_t *c)
 {
@@ -395,8 +393,8 @@ static void wf_ap_state_cell(cell_t *c)
     uint16_t col = 0;
     b[0] = 0;
     if (st == WAS_NOKEY) {
-        v = "NO PASSWORD";
-        col = C_ERR;                                    /* (red: no access point runs until a password is typed) */
+        v = "NO PASSWORD";                              /* (not reached: the default password is always there) */
+        col = C_ERR;
     } else if (st == WAS_NOCAL) {
         v = "NO CAL";
         col = C_WARN;
@@ -414,6 +412,18 @@ static void wf_ap_state_cell(cell_t *c)
             v = b;
         } else {
             v = "ACTIVE";
+        }
+        col = C_OK;
+    }
+    if (st != WAS_NOCAL && ((fm1_ms >> 11) & 3u) == 3u) {   /* the password, one phase in four (the user reads it to join a phone) */
+        char k[16];
+        if (wa_default_key(k + 4)) {
+            k[0] = 'K', k[1] = 'E', k[2] = 'Y', k[3] = ' ';
+            b[0] = 0;
+            str_app(b, k, sizeof b);
+            v = b;
+        } else {
+            v = "KEY TYPED";
         }
         col = C_OK;
     }
@@ -527,7 +537,7 @@ static void wf_save(void)                               /* SAVE tapped on the pa
             ui_message("NO RADIO CAL");
             return;
         }
-        if (wn_st.mode == WN_MODE_AP_MAN && wn_st.ap.set) {   /* AP MAN with a key: SAVE starts it, or stops it */
+        if (wn_st.mode == WN_MODE_AP_MAN) {                 /* AP MAN: SAVE starts it, or stops it */
             if (wa_status() == WAS_STOPPED) {
                 (void)wa_run(1);
                 ui_message("AP STARTING");
@@ -589,8 +599,9 @@ static void wf_forget(void)
 #if FELUCCA_WIFI_AP
     if (WF_AP_ON) {                                     /* MODE AP: the key goes (ask first, as a network's forget) */
         uint8_t raw[WN_SSID_MAX];
-        if (!wn_st.ap.set) {
-            ui_message("NO PASSWORD");
+        if (!wn_st.ap.set) {                            /* none typed (the default one is in use): SAVE held opens the entry (in AP AUTO SAVE does) */
+            pw_open(raw, wa_name(raw));
+            pws.ap = 1;
             return;
         }
         wf_txt(nm, raw, wa_name(raw));

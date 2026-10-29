@@ -6188,13 +6188,13 @@ function makeMockDevice(opt = {}) {                /* (opt: see above) */
           w.nets.forEach((n, i) => { b(i); b(n.length); pack7(n).forEach(b); });
           const cur = w.req ? w.req.ssid : w.st === WIFI.UP ? w.nets[0] : new Uint8Array(0);
           b(cur.length); pack7(cur).forEach(b);
-          const mockPeers = () => (w.mode >= 3 && opt.wifiap && w.ap.key && w.ap.run !== 0 && w.ap.apPolls >= 2) || w.st === WIFI.UP ? 1 : 0;   /* a Link peer once the network is up */
+          const mockPeers = () => (w.mode >= 3 && opt.wifiap && w.ap.run !== 0 && w.ap.apPolls >= 2) || w.st === WIFI.UP ? 1 : 0;   /* a Link peer once the network is up */
           if (!opt.wifiap) { b(0); b(mockPeers()); }   /* MODE AP's block: cap 0, nothing follows; then the Link peers */
           else {
             const ap = w.ap, nm = ap.name || new TextEncoder().encode("FM1-0042");
             const stopped = w.mode === 4 && !ap.run;                      /* AP MAN: off until Start */
-            if (ap.key && w.mode >= 3 && !stopped) ap.apPolls++;
-            const stt = w.mode < 3 ? 0 : !ap.key ? 1 : stopped ? 5 : ap.apPolls < 2 ? 2 : 3;   /* a password set: STARTING on the first read, ACTIVE on the second */
+            if (w.mode >= 3 && !stopped) ap.apPolls++;
+            const stt = w.mode < 3 ? 0 : stopped ? 5 : ap.apPolls < 2 ? 2 : 3;   /* a password set: STARTING on the first read, ACTIVE on the second */
             b(1); b(ap.key); b(stt); b(stt === 3 ? 1 : 0); b(ap.ch); b(nm.length); pack7(nm).forEach(b);
             b(mockPeers());
           }
@@ -6212,7 +6212,7 @@ function makeMockDevice(opt = {}) {                /* (opt: see above) */
             b(ap.ch);
           } else if (a[0] === 8) {
             if (a.length < 2) return null;
-            if (w.mode !== 4) rc(2); else if (a[1] && !ap.key) rc(3); else { ap.run = a[1] ? 1 : 0; ap.apPolls = 0; rc(0); }
+            if (w.mode !== 4) rc(2); else { ap.run = a[1] ? 1 : 0; ap.apPolls = 0; rc(0); }
           } else { ap.key = 0; ap.apPolls = 0; rc(0); }
         } else if (a[0] === 1) {
           if (a.length < 2) return null;
@@ -7428,8 +7428,8 @@ const TEXT = {                                      /* the page's words, by key 
   wifiPeers1: "· 1 Link peer", wifiPeersN: "· {n} Link peers",
   wifiApOff: "The access point is off.", wifiApNoPass: "No password yet.", wifiApStarting: "Starting the access point…", wifiApOn: "Active, {n} clients.", wifiApOn1: "Active, 1 client.",
   wifiApNoCal: "No radio calibration: the access point cannot start.",
-  wifiApKeyOn: "A key is kept.", wifiApKeyOff: "No key is kept.",
-  wifiApHelp: "The password goes to the FM-1 once, becomes a key there and is not kept anywhere. A laptop or phone joins the FM-1's network with that password; the FM-1 gives out the addresses 192.168.4.2 to 192.168.4.5. Without a key no access point runs. Setting the password also sets the name (empty: the automatic one).",
+  wifiApKeyOn: "Your own password is kept.", wifiApKeyDefault: "Password: {k}",
+  wifiApHelp: "Until you set a password the network uses the one shown, made from its name (another Optimist that hears the name knows it). A password you set goes to the FM-1 once, becomes a key there and is not kept anywhere; Clear key gives the shown one back. A laptop or phone joins the FM-1's network with that password; the FM-1 gives out the addresses 192.168.4.2 to 192.168.4.5. Setting the password also sets the name (empty: the automatic one).",
   wifiApRc1: "The FM-1 refused the name, the password or the channel.", wifiApRc2: "Choose the access point mode first.", wifiBadPass: "The password must be 8 to 63 characters, letters, digits and symbols (no accents).",
   wifiRc1: "The FM-1 refused the name or the password.", wifiRc2: "Wi-Fi is off: choose Manual or Auto first.",
   wifiRc3: "That network is not saved: type its password.", wifiRc4: "The radio is still starting: try again in a few seconds.",
@@ -10929,6 +10929,18 @@ async function cpRestoreZip(file) {                 /* each entry named as a wri
 const wf = { d: null, s: null, msg: "", timer: 0, until: 0, stop: 0, forget: -1, forgetT: 0, top: null, list: null, add: null, apf: null, apClear: 0 };
 const wifiIp = (n) => [24, 16, 8, 0].map((sh) => Math.floor(n / 2 ** sh) % 256).join(".");
 const wifiSame = (a, b) => a.length === b.length && a.every((x, i) => x === b[i]);
+/* The default password of an Optimist access point: a function of its name alone (the FM-1's wifi_ap_default_key, wifi/wifi_ap.c: two
+ * FNV-1a runs over the salts "OPTIMIST-AP-KEY/1:" and "/2:" and the name, five bits a character, 23 letters without i l o and 8 digits
+ * without 0 1, the table's last place repeating w). The FM-1 never sends it: this page works it out from the name. */
+function wifiApDefaultKey(name) {
+  const T = "abcdefghjkmnpqrstuvwxyz23456789w", enc = new TextEncoder();
+  const fnv = (salt) => { let h = 0x811C9DC5; for (const c of [...enc.encode(salt), ...name]) h = Math.imul(h ^ c, 0x01000193) >>> 0; return h; };
+  const a = fnv("OPTIMIST-AP-KEY/1:"), b = fnv("OPTIMIST-AP-KEY/2:");
+  let k = "";
+  for (let i = 0; i < 6; i++) k += T[(a >>> (27 - 5 * i)) & 31];
+  for (let i = 0; i < 2; i++) k += T[(b >>> (27 - 5 * i)) & 31];
+  return k;
+}
 function wifiApStatus(ap) {   /* MODE AP's status as [words, status colour] */
   if (ap.status === WIFI.AP.NOPASS) return [t("wifiApNoPass"), "warn"];
   if (ap.status === WIFI.AP.STARTING) return [t("wifiApStarting"), "warn"];
@@ -11043,12 +11055,12 @@ function wifiApForm() {   /* the Access point panel (MODE AP): built once, so wh
     status.textContent = txt;
     status.dataset.st = st;
     nameNow.textContent = s.ap.name.text;
-    keyNow.textContent = s.ap.key ? t("wifiApKeyOn") : t("wifiApKeyOff");
+    keyNow.textContent = s.ap.key ? t("wifiApKeyOn") : t("wifiApKeyDefault").replace("{k}", wifiApDefaultKey(new TextEncoder().encode(s.ap.name.text)));
     if (document.activeElement !== chan) chan.value = String(s.ap.ch);
     clear.lastChild.textContent = wf.apClear && performance.now() - wf.apClear < 4000 ? t("wifiApClearSure") : t("wifiApClear");
     clear.disabled = !s.ap.key;
     run.hidden = s.mode !== 4;                              /* AP MAN only: start / stop */
-    run.disabled = !s.ap.key;
+    run.disabled = false;
     run.textContent = s.ap.status === WIFI.AP.STOPPED ? t("wifiApStart") : t("wifiApStop");
   };
   return { root, update };
