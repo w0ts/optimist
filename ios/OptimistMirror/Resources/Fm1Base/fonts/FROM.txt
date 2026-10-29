@@ -1,0 +1,11 @@
+Barlow and Barlow Semi Condensed (The Barlow Project Authors, https://github.com/jpt/barlow), SIL Open Font License 1.1 (OFL.txt).
+Latin subset, woff2, the weights the pages use (Barlow 400, 600; Barlow Semi Condensed 600, 700): the files Google Fonts serves
+(css2?family=Barlow:wght@400;600&family=Barlow+Semi+Condensed:wght@600;700), fetched 2026-10-29; OFL.txt from
+https://raw.githubusercontent.com/google/fonts/main/ofl/barlow/OFL.txt. Unmodified.
+
+sha256
+7a686e76312866b7d506c103e51a829d4c96a0b4576835128d3b7b53801c095a  Barlow-400.woff2          https://fonts.gstatic.com/s/barlow/v13/7cHpv4kjgoGqM7E_DMs5ynghnQ.woff2
+488b58098126c00b8fa77f4d58b0a4bc982e81e4c83323c1a73d9f1a67c15971  Barlow-600.woff2          https://fonts.gstatic.com/s/barlow/v13/7cHqv4kjgoGqM7E30-8s51ostz0rdg.woff2
+6850e108c9e552f6f6e5fbce8aabee3eea301936a9198fb470626beda8c203c0  BarlowSemiCondensed-600.woff2  https://fonts.gstatic.com/s/barlowsemicondensed/v16/wlpigxjLBV1hqnzfr-F8sEYMB0Yybp0mudRfp66_B2slqZ6GfQ.woff2
+bc8aadf92982fed8deaee6118c0c301fe3c0cf2890d168c6881de95bf80abcf7  BarlowSemiCondensed-700.woff2  https://fonts.gstatic.com/s/barlowsemicondensed/v16/wlpigxjLBV1hqnzfr-F8sEYMB0Yybp0mudRfw6-_B2slqZ6GfQ.woff2
+186d750eb496a4c17a76385f82be6aea2ac1cf2de074a811d63786cf374ea73f  OFL.txt

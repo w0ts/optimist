@@ -177,6 +177,71 @@ final class CompanionTests: XCTestCase {
         XCTAssertNil(s.response("/nothing"))
     }
 
+    /// the pages' fonts come from the bundle (Resources/Fm1Base/fonts), not from Google Fonts: each page links ../fonts/fonts.css,
+    /// which the site serves with the four woff2 files it names
+    func testPagesTakeTheirFontsFromTheBundle() throws {
+        let s = site(services: 1831 | 16)
+        let css = try text(s, "/fonts/fonts.css")
+        let files = css.components(separatedBy: "url(").dropFirst().map { String($0.prefix { $0 != ")" }) }
+        XCTAssertEqual(files.count, 4)
+        for f in files {
+            let (data, type) = try XCTUnwrap(s.response("/fonts/\(f)"), f)
+            XCTAssertEqual(type, "font/woff2")
+            XCTAssertEqual(Array(data.prefix(4)), Array("wOF2".utf8), f)
+        }
+        XCTAssertNotNil(s.response("/fonts/OFL.txt"))
+        XCTAssertNil(s.response("/fonts/../mirror/index.html"))
+        XCTAssertNil(s.response("/fonts/nothing.woff2"))
+        for path in ["/mirror/", "/companion/"] {
+            let t = try text(s, path)
+            XCTAssertTrue(t.contains("href=\"../fonts/fonts.css\""), path)
+            XCTAssertFalse(t.contains("googleapis") || t.contains("gstatic"), path)
+        }
+    }
+
+    /// in a real web view: Barlow loads from the bundle (the font faces report "loaded") and its linked style sheets are the app's own (fm1base:)
+    @MainActor
+    func testMirrorPageRendersItsFontFromTheBundle() async throws {
+        let web = Fm1BaseWeb()
+        web.use(site().info, package: nil)
+        web.show(.mirror)
+        var result = ""
+        for _ in 0..<40 {
+            try await Task.sleep(nanoseconds: 300_000_000)
+            let js = """
+            await Promise.all([document.fonts.load("400 16px Barlow"), document.fonts.load("600 16px Barlow"),
+                               document.fonts.load("600 16px 'Barlow Semi Condensed'"), document.fonts.load("700 16px 'Barlow Semi Condensed'")]);
+            const faces = [...document.fonts].filter(f => f.status === "loaded").map(f => f.family.replace(/"/g, "") + " " + f.weight);
+            const hosts = [...document.styleSheets].filter(s => s.href).map(s => new URL(s.href).protocol);   // (the page's linked style sheets: only the app's scheme)
+            return faces.sort().join(",") + "|" + [...new Set(hosts)].join(",");
+            """
+            if let r = try? await web.view.callAsyncJavaScript(js, contentWorld: .page) as? String, r.contains("|") { result = r; if r.hasPrefix("Barlow 400") { break } }
+        }
+        let parts = result.split(separator: "|", omittingEmptySubsequences: false)
+        XCTAssertEqual(parts.first.map(String.init), "Barlow 400,Barlow 600,Barlow Semi Condensed 600,Barlow Semi Condensed 700", "faces loaded: \(result)")
+        XCTAssertEqual(parts.last.map(String.init), "\(Fm1BaseSchemeHandler.scheme):", "the page links only the app's own sheet: \(result)")
+    }
+
+    /// the online-only pages (the editor, the builder: loaded from the site) say so when the site cannot be reached
+    @MainActor
+    func testOnlinePagesSayTheyNeedTheInternet() async throws {
+        let view = WKWebView(frame: .zero)
+        let notice = OfflineNotice(feature: "The editor")
+        var failed = 0
+        notice.failed = { failed += 1 }
+        view.navigationDelegate = notice                   // (weak in the web view: kept alive here)
+        defer { withExtendedLifetime(notice) {} }
+        view.load(URLRequest(url: URL(string: "http://127.0.0.1:9/")!))         // (nothing listens on the discard port)
+        var title = ""
+        for _ in 0..<40 {
+            try await Task.sleep(nanoseconds: 250_000_000)
+            title = (try? await view.evaluateJavaScript("(document.querySelector('h2') || {}).textContent || ''") as? String) ?? ""
+            if !title.isEmpty { break }
+        }
+        XCTAssertEqual(title, "The editor needs the internet")
+        XCTAssertEqual(failed, 1)
+    }
+
     func testBackupPageTakesTheFormatFromTheCapabilityAnswer() throws {
         XCTAssertNil(site(services: 1831 | 8, version: 2).response("/backup/"))               // protocol 2 without a format: no page
         XCTAssertFalse(site(services: 1831 | 8, version: 2).pages.contains(.backup))
