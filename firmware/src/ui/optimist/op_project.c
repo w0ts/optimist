@@ -1083,7 +1083,6 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
         c->kind = CK_NONE;
         break;
     }
-    (void)LV, (void)KY;
 }
 static void sys_cell(uint32_t r, uint32_t k, cell_t *c)
 {
