@@ -18,18 +18,28 @@
 #define FXA_U 512u                                      /* samples a unit (1 KB) */
 #define FXA_S (FELUCCA_FX_DELAY ? FELUCCA_DLY_LEN / FXA_U : 0u)   /* (preprocessor arithmetic: FELUCCA_DLY_LEN) */
 #define FXC_S (FELUCCA_FX_CHORUS ? CHO_LEN / FXA_U : 0u)
-/* each type's line in units, by its index j (fxi_kern.c FXI_J: 0 CHRS, 1 ECHO, 2 JUNO CHORUS, 3 FLNG, 4 XDLY) */
+/* each type's line in units, by its index j (fxi_kern.c FXI_J: 0 CHRS, 1 ECHO, 2 JUNO CHORUS, 3 FLNG, 4 XDLY, 5 ROOM,
+ * 6 TDLY) */
 #define FXA_Z0 2u
 #define FXA_Z1 8u
 #define FXA_Z2 4u                                        /* (JUNO CHORUS: its line at 32 bits) */
 #define FXA_Z3 1u
 #define FXA_Z4 (2u * FELUCCA_XDLY_LEN / FXA_U)
+#if INS_ROOM                                             /* ROOM (fxi_send.c): the send's four lines and its diffusers */
+#define FXA_Z5 ((REV_ROOM_LEN + REV_AP_N + FXA_U - 1u) / FXA_U)
+#else
+#define FXA_Z5 1u
+#endif
+#define FXA_Z6 (INS_TDLY ? FELUCCA_DLY_LEN / FXA_U : 1u)  /* TDLY (fxi_send.c): a line as long as the delay send's */
 #define FXI_B0 (FELUCCA_INS_CHORUS != 0)
 #define FXI_B1 (FELUCCA_INS_DELAY != 0)
 #define FXI_B2 (FELUCCA_INS_JCHORUS != 0)
 #define FXI_B3 (FELUCCA_INS_FLANGER != 0)
 #define FXI_B4 (FELUCCA_INS_XDLY != 0)
-#define FXA_AUTO (FXI_B0 * FXA_Z0 + FXI_B1 * FXA_Z1 + FXI_B2 * FXA_Z2 + FXI_B3 * FXA_Z3 + FXI_B4 * FXA_Z4)
+#define FXI_B5 (INS_ROOM != 0)
+#define FXI_B6 (INS_TDLY != 0)
+#define FXA_AUTO (FXI_B0 * FXA_Z0 + FXI_B1 * FXA_Z1 + FXI_B2 * FXA_Z2 + FXI_B3 * FXA_Z3 + FXI_B4 * FXA_Z4 + FXI_B5 * FXA_Z5 + \
+                  FXI_B6 * FXA_Z6)
 #define FXA_I (FELUCCA_DLY_ARENA ? FELUCCA_DLY_ARENA - FXA_S : FXA_AUTO)
 #define FXA_N (FXA_S + FXA_I)
 #define FXA_T (FXA_N + FXC_S)
@@ -42,6 +52,8 @@
 #define FXI_TN2 FXI_TNX(FXI_B2, FXA_Z2)
 #define FXI_TN3 FXI_TNX(FXI_B3, FXA_Z3)
 #define FXI_TN4 FXI_TNX(FXI_B4, FXA_Z4)
+#define FXI_TN5 FXI_TNX(FXI_B5, FXA_Z5)
+#define FXI_TN6 FXI_TNX(FXI_B6, FXA_Z6)
 _Static_assert(!FELUCCA_DLY_ARENA || FELUCCA_DLY_ARENA >= FXA_S,
                "FELUCCA_DLY_ARENA: KB, at least the delay send's line (0: auto)");
 _Static_assert(FXA_T <= 1024u, "the effects memory: 1 MB at most (fxi.c fxa_bm)");
@@ -50,6 +62,9 @@ _Static_assert(!FXI_B1 || FXI_MX(FXA_Z1) >= 1u, "FELUCCA_DLY_ARENA: no room for 
 _Static_assert(!FXI_B2 || FXI_MX(FXA_Z2) >= 1u, "FELUCCA_DLY_ARENA: no room for one JUNO CHORUS line (4 KB)");
 _Static_assert(!FXI_B3 || FXI_MX(FXA_Z3) >= 1u, "FELUCCA_DLY_ARENA: no room for one FLNG line (1 KB)");
 _Static_assert(!FXI_B4 || FXI_MX(FXA_Z4) >= 1u, "FELUCCA_DLY_ARENA: no room for one XDLY (2 lines of FELUCCA_XDLY_LEN)");
+_Static_assert(!FXI_B5 || FXI_MX(FXA_Z5) >= 1u, "the effects memory: no room for one ROOM (19 KB)");
+_Static_assert(!FXI_B6 || FXI_MX(FXA_Z6) >= 1u, "the effects memory: no room for one TDLY (the delay's line)");
+_Static_assert(FXA_Z5 <= 255u && FXA_Z6 <= 255u, "fxi_kern.c FXA_SZS: a byte");
 _Static_assert(FELUCCA_XDLY_LEN % 256 == 0 && CHO_LEN % FXA_U == 0, "the lines: whole units");
 #if FXA_I && FXM_NEED
 static int16_t *fxa_ins;                                /* (in the arena while a limited type is held: fx/fx_arena.c) */

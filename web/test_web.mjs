@@ -56,7 +56,7 @@ const E = vm.runInNewContext(`${proto}
    openMidi, findPorts, wantsReconnect, isFM1Name, syncState, ROLL, rollRest, rollNotes, noteSpan, rollAdd, rollRemove, rollToggle, rollSetLength, rollSetNote, rollSetStep, rollChanged, rollGrid, rollLen, DRUM_PAGE, drumPages, drumPageRange, COLORS, engineColor, kindColor, contrast, textOn, MASTER_FX, MASTER_BUS, fxInline, FX_INLINE_MAX, NAV, SCREENS, navOpen, navClose, navKey, navScreen, navDepth, KEYS, KEY_FIXED, LANE_KEYS, keyFor, keyLabel, keyPlan, stepxBuilt, PAT, patSlotView, patUsers,
    PATREC, patRecParse, patRecBuild, patRawEmpty, patStepFrom, patStepRaw, patDrumFrom, patDrumRaw, patReadAll, patWriteAll,
    FXT, FXT_NAMES, fxsLoad, fxType, fxSlotAmt, readFx, keptIds, AUTO, autoLane, SetGate,
-   FXP, FXP_TABLE, SCRN_TABLE, SCRS_TABLE, EQ_FL_HZ, EQ_FH_HZ, fxpClass, fxpName, fxpTypeName, fxpAllows, fxpFmt, readFxpOwner, readFxpSlot, panelKey, panelKeyName, navParse, navTracksParse, navKnobs, navKnobAt, MNAV, WIFI, wifiCheck, wifiApCheck, wifiBusy, wifiText, pack7, unpack7 })`,
+   FXP, FXP_TABLE, SCRN_TABLE, SCRS_TABLE, EQ_FL_HZ, EQ_FH_HZ, fxpClass, fxpName, fxpTypeName, fxpAllows, fxpFmt, readFxpOwner, readFxpSlot, panelKey, panelKeyName, navParse, navTracksParse, navKnobs, navKnobAt, MNAV, WIFI, wifiCheck, wifiApCheck, wifiApDefaultKey, wifiIsAp, wifiBusy, wifiText, pack7, unpack7 })`,
 { setTimeout, clearTimeout, setInterval, clearInterval, console, TextEncoder, TextDecoder });
 
 const editorMock = async () => {
@@ -1085,12 +1085,12 @@ async function editorFxSlots() {
   const C = E.CMD, T = E.FXT;
   const ef = readFileSync(join(HERE, "../firmware/src/io/editor/ed_fxs.c"), "utf8"), fs = readFileSync(join(HERE, "../firmware/src/fx/fx_slots.c"), "utf8");
   ok(/ED_FX = 86, ED_FX_PUSH = 87/.test(ef) && C.FX === 86 && C.FX_PUSH === 87 && /ed_b\(0x56\)/.test(ef)
-    && /enum \{ FXT_NONE, FXT_DIST, FXT_CHO, FXT_DLY, FXT_REV, FXT_COMP, FXT_FILT,\s+FXT_FOLD, FXT_FUZZ, FXT_PHSR, FXT_FLNG, FXT_FRMT, FXT_WIDE,[^\n]*\n\s+FXT_CHRS, FXT_ECHO,[^\n]*\n\s+FXT_GATE,[^\n]*\n\s+FXT_DUST,[^\n]*\n\s+FXT_JUNO,[^\n]*\n\s+FXT_EQ3,[^\n]*\n\s+FXT_SFLD, FXT_WRAP, FXT_RECT, FXT_HARM, FXT_RING, FXT_SUBO, FXT_SLEW,[^\n]*\n[^\n]*\n[^\n]*\n\s+FXT_TAPE, FXT_SPIT,[^\n]*\n\s+FXT_XDLY,[^\n]*\n[^\n]*\n(#if FELUCCA_EX_GAIN\n\s+FXT_EXGN,[^\n]*\n#endif\n)?\s+FXT_N \}/.test(fs)
+    && /enum \{ FXT_NONE, FXT_DIST, FXT_CHO, FXT_DLY, FXT_REV, FXT_COMP, FXT_FILT,\s+FXT_FOLD, FXT_FUZZ, FXT_PHSR, FXT_FLNG, FXT_FRMT, FXT_WIDE,[^\n]*\n\s+FXT_CHRS, FXT_ECHO,[^\n]*\n\s+FXT_GATE,[^\n]*\n\s+FXT_DUST,[^\n]*\n\s+FXT_JUNO,[^\n]*\n\s+FXT_EQ3,[^\n]*\n\s+FXT_SFLD, FXT_WRAP, FXT_RECT, FXT_HARM, FXT_RING, FXT_SUBO, FXT_SLEW,[^\n]*\n[^\n]*\n[^\n]*\n\s+FXT_TAPE, FXT_SPIT,[^\n]*\n\s+FXT_XDLY,[^\n]*\n[^\n]*\n\s+FXT_EXGN_ID,[^\n]*\n[^\n]*\n\s+FXT_ROOM,[^\n]*\n\s+FXT_TDLY,[^\n]*\n\s+FXT_N \}/.test(fs)
     && T.NONE === 0 && T.DIST === 1 && T.CHO === 2 && T.DLY === 3 && T.REV === 4 && T.COMP === 5 && T.FILT === 6
     && T.FOLD === 7 && T.FUZZ === 8 && T.PHSR === 9 && T.FLNG === 10 && T.FRMT === 11 && T.WIDE === 12
     && T.CHRS === 13 && T.ECHO === 14 && T.GATE === 15 && T.DUST === 16 && T.JUNO === 17 && T.EQ3 === 18
     && T.SFLD === 19 && T.WRAP === 20 && T.RECT === 21 && T.HARM === 22 && T.RING === 23 && T.SUBO === 24 && T.SLEW === 25
-    && T.TAPE === 26 && T.SPIT === 27 && T.XDLY === 28 && E.FXT_NAMES.length === 29,
+    && T.TAPE === 26 && T.SPIT === 27 && T.XDLY === 28 && T.EXGN === 29 && T.ROOM === 30 && T.TDLY === 31 && E.FXT_NAMES.length === 32,
     "fx slots: commands 86 / 87 and tag 0x56 == ed_fxs.c, the type ids == fx_slots.c FXT_*");
   ok(js(E.fxsLoad([1, 2, 3, 4], 1, 4)) === js([1, 4, 3, 2]) && js(E.fxsLoad([1, 2, 3, 4], 0, 5)) === js([5, 2, 3, 4])
     && js(E.fxsLoad([1, 2, 0, 4], 2, 0)) === js([1, 2, 0, 4]) && js(E.fxsLoad([1, 0, 3, 4], 1, 0)) === js([1, 0, 3, 4])
@@ -1651,7 +1651,8 @@ async function editorWifi() {
   r = await W3(E.req.wifiMode(3));
   ok(r.rc === 0 && r.v === 3, "wifi AP: MODE 3 accepted with cap 1");
   s = await W3(E.req.wifiState());
-  ok(s.mode === 3 && s.ap.status === 1 && !E.wifiBusy(s), "wifi AP: MODE AP without a key: status NO PASSWORD");
+  ok(s.mode === 3 && s.ap.status === 2 && s.ap.key === 0 && E.wifiBusy(s), "wifi AP: MODE AP without a typed key starts on the default one (STARTING)");
+  ok(E.wifiApDefaultKey(enc("FM1-0000")) === "rxrm2jd2" && E.wifiApDefaultKey(enc("FM1-A1B2")) === "9kd4ctcd" && E.wifiApDefaultKey(enc("")) === "7jc84apt", "wifi AP: the default password of a name (the firmware's vectors)");
   const pwa = "apSecret#9";
   const raw2 = await q(E.req.wifiApKey(enc("Studio AP"), pwa));
   ok(raw2.length === 2 && raw2[0] === 5 && raw2[1] === 0, "wifi AP: op 5's reply is a status only (op, rc)");
@@ -1671,16 +1672,17 @@ async function editorWifi() {
   ok(s.ap.key === 1 && s.ap.name.text === "FM1-0042", "wifi AP: an empty name is the automatic one again");
   r = await W3(E.req.wifiApClear());
   s = await W3(E.req.wifiState());
-  ok(r.op === 7 && r.rc === 0 && s.ap.key === 0 && s.ap.status === 1, "wifi AP: op 7 clears the key: status NO PASSWORD");
+  ok(r.op === 7 && r.rc === 0 && s.ap.key === 0 && s.ap.status === 2, "wifi AP: op 7 clears the typed key: the default one again (STARTING)");
 
   /* AP MAN (mode 4): off until started; op 8 starts / stops; refused outside AP MAN and with no key */
   r = await W3(E.req.wifiApRun(true));
   ok(r.op === 8 && r.rc === 2, "wifi AP: op 8 outside AP MAN: rc 2");
   r = await W3(E.req.wifiMode(4));
   s = await W3(E.req.wifiState());
-  ok(r.rc === 0 && s.mode === 4 && s.ap.status === 1, "wifi AP: mode 4 (AP MAN) accepted; no key: NO PASSWORD");
+  ok(r.rc === 0 && s.mode === 4 && s.ap.status === 5, "wifi AP: mode 4 (AP MAN) accepted; stopped until started");
   r = await W3(E.req.wifiApRun(true));
-  ok(r.op === 8 && r.rc === 3, "wifi AP: op 8 start with no key: rc 3");
+  ok(r.op === 8 && r.rc === 0, "wifi AP: op 8 start with no typed key: done (the default password)");
+  r = await W3(E.req.wifiApRun(false));
   await W3(E.req.wifiApKey(enc(""), "12345678"));
   s = await W3(E.req.wifiState());
   ok(s.ap.key === 1 && s.ap.status === 2, "wifi AP: a password typed in AP MAN starts it (STARTING)");
@@ -3534,6 +3536,15 @@ async function editorMirror() {
     "mirror: the tab named Mirror (an old #screen opens it), PANEL and NAV replies matched, STEPS' piano roll over the mirrored screen");
   ok(/retries: seq \? 2 : 0/.test(html) && /if \(opti\("panelx"\) && mnav\.held\.size\) mirPress\(\[4, 0, 0\]\)/.test(html) && /panelx: 1 \}/.test(html),
     "mirror: with opti_panelx_1 a press carries a seq and is sent again when its answer is lost (done once); letting go is one request");
+  /* the greyed-out buttons and the one screen size (the user, 2026-10-29): the lanes' buttons are always built (the kit's names, else the
+     default lanes'), disabled off the drum track; the screen is sized as if their rows were there, with or without them */
+  const mr = /function mirRender\(force = false\) \{[\s\S]*?\n\}\n/.exec(html)[0];
+  ok(/dim: !lanes/.test(mr) && /laneNames = n > MNAV\.DRUM_ROW \+ 1 \? mnav\.tracks\.slice\(MNAV\.DRUM_ROW \+ 1\) : DRUM_LANES\.map/.test(mr) && !/\.\.\.\(lanes \?/.test(mr)
+    && /disabled: dim/.test(/function mirButton[\s\S]*?\n\}/.exec(html)[0]) && /\.mirb:disabled \{ opacity/.test(html) && /disabled: !onTrack/.test(mr) && /dim: dimT/.test(mr),
+    "mirror: the lanes' buttons always built (the kit's names, else the default lanes'), disabled and dimmed off the drum track; the tracks too with no track; the favourite on a track");
+  ok(!/classList\.toggle\("lanes"/.test(html) && !/\.mirwrap\.lanes/.test(html) && /\.mirlanes \{ min-height: 68px; \}/.test(html) && !/\.mirlanes[^{]*\{[^}]*display: none/.test(html)
+    && /\.mirwrap \{ --ms: calc\(100vh - var\(--menubar-h, 48px\) - 210px\)/.test(html) && /#p-mirror:fullscreen \.mirwrap \{ --ms: calc\(100vh - 220px\)/.test(html),
+    "mirror: the screen one size with or without the lanes (their rows always reserved, no .lanes class)");
 }
 
 /* every check in order; the synchronous ones too (awaiting undefined is harmless) */

@@ -884,7 +884,8 @@ class Builder(App):
         self.build_out = "flash: waiting for your answer"
         self.refresh_msgs()
         title = "Flash to FM-1\n\n" + "\n".join(plan.lines())
-        self.push_screen(Pick(title, ["Cancel", "Flash to FM-1 (writes the firmware)"],
+        self.push_screen(Pick(title, ["Cancel", "Flash anyway (the FM-1 may refuse it)" if plan.warn
+                                          else "Flash to FM-1 (writes the firmware)"],
                               lambda choice: self.flash_answer(plan, choice.startswith("Flash"))))
 
     def flash_answer(self, plan, yes):

@@ -223,7 +223,8 @@ def build_for_flash(a):
 
 def cmd_flash(a):
     """install a build on the connected FM-1 (tools/flash.py -> tools/fm1_install.py): shows the running identity and
-    the package's, asks (unless --yes), never --force. With no PACKAGE it builds the chosen configuration first
+    the package's, asks (unless --yes; a platform warning, flash.platform_note, needs the question answered: --yes then
+    stops), --force only after that answer. With no PACKAGE it builds the chosen configuration first
     (a build of the tree as it is now, not whatever is newest in build/); --no-build uses the newest file instead"""
     import flash
     flash.set_flavour(C.classic())
@@ -238,9 +239,12 @@ def cmd_flash(a):
     try:
         plan = flash.preflight(pkg, a.port)
         print("\n".join(plan.lines()))
+        if plan.warn and a.yes:
+            print("not flashed: --yes does not accept the warning above (flash without --yes to answer it)")
+            return 1
         if not a.yes:
             try:
-                go = input("Flash it? [y/N] ").strip().lower() in ("y", "yes")
+                go = input("Flash it anyway? [y/N] " if plan.warn else "Flash it? [y/N] ").strip().lower() in ("y", "yes")
             except EOFError:
                 go = False
             if not go:

@@ -47,6 +47,8 @@ The amount is one value per type, kept for the track whatever the slot, so prese
 | TAPE | a worn tape's tone: the highs rolled off (6.5 kHz down to 1.7 kHz along the amount), the mids wandering at random every couple of seconds | how far it wanders, how dark | none |
 | SPIT | a resonant band jumping at random (180 Hz .. 5.9 kHz, about 2.6 times a second), driven into a soft clip at the sound's own level | the band's sharpness and the drive | none |
 | XDLY | two delay lines modulating each other's time, after the LYRA-8's delay (below) | MIX, 0 dry .. 127 all wet | `XDLY` |
+| ROOM | the reverb send's ROOM as an insert (below) | MIX, 0 dry .. 127 all wet | the reverb's `REV/CHO` |
+| TDLY | the delay send's delay as an insert (below) | MIX, 0 dry .. 127 all wet | the delay's `DLY`, `DLY F` |
 
 A drum lane can hold DIST, DYN (its compressor, with the drum track's RATIO ATK REL and no CEIL), FILT, DUST, FOLD, FUZZ, PHSR, FRMT, EQ3 and the shapers SFLD, RECT, HARM, RING and SLEW. Its amount belongs to the slot, not to the type: changing the type resets the amount to 0.
 
@@ -71,9 +73,9 @@ On the master DYN is the master compressor and the brickwall limiter: THRS (-30.
 
 GATER chops the track's volume in time with the tempo. Page `GATER`: DEPTH (the slot's amount), PAT, RATE and SHAPE. PAT is one of 16 patterns: 16TH, 8TH, 4TH, HALF, OFF8, OFF16, DOT8, DOT4, TRNC1 to TRNC4, GALOP, RVGAL, CLAVE, TRESL (default TRNC1). RATE is the length of a step: 1/8, 1/16, 1/32, 8T, 16T, 32T (default 1/16). SHAPE goes from hard to smooth. The phase follows the transport clock, so the gate starts on step 0 with PLAY at any tempo, nudge or external clock. On the drum track it gates the drum bus. GATER is off by default (`INS_GATER`) and not available on the master.
 
-### CHRS, ECHO, JUNO, FLNG and XDLY: types that share the effects memory
+### CHRS, ECHO, JUNO, FLNG, XDLY, ROOM and TDLY: types that share the effects memory
 
-These keep a line of memory each (CHRS 2 KB, ECHO 8 KB, JUNO 2 KB, FLNG 1 KB, XDLY 64 or 32 KB), taken from one effects memory that also holds the delay's own line. The builder builds each type or not and sizes the memory itself (the delay's line and one line of each type built); the builder says up to how many of each play at once. A slot that picks one when there is no room left stays dry until some is given back; the INSERTS list shows how many more fit.
+These keep a line of memory each (CHRS 2 KB, ECHO 8 KB, JUNO 2 KB, FLNG 1 KB, XDLY 64 or 32 KB, ROOM 19 KB, TDLY as long as the delay's line: 128 KB at 1.49 s), taken from one effects memory that also holds the delay's own line. The builder builds each type or not and sizes the memory itself (the delay's line and one line of each type built); the builder says up to how many of each play at once. A slot that picks one when there is no room left stays dry until some is given back; the INSERTS list shows how many more fit.
 
 **JUNO** is the Juno-106's chorus (from fm-106, the MN3009 model): page `JUNO CHO` with MIX (127 = fully on) and MODE (I, II, I+II). A mono track comes out in stereo. On the master it is the page `MST JUNO`, shown as `INS JUNO`.
 
@@ -86,7 +88,9 @@ These keep a line of memory each (CHRS 2 KB, ECHO 8 KB, JUNO 2 KB, FLNG 1 KB, XD
 
 A mono track hears the mean of the two lines; the drum bus and the master get line 1 on the left and line 2 on the right. A track keeps playing its repeats after its notes end, until the lines are silent (with FDBK high that is never: turn the MIX down to stop it).
 
-While the delay (DLY) is in none of the master's slots, its line is free and holds inserts beyond the memory's own room (any of the five), and the chorus's line likewise while CHO is in none (CHRS, JUNO, FLNG); put the send back in a slot and they fade out and give it back. A slot whose effect finds no room shows FULL and stays dry until room is given back.
+**ROOM** and **TDLY** are the reverb and the delay as inserts, with a dry/wet amount like any other insert: the same code as the sends, each slot its own tank or line. ROOM is the reverb's ROOM (its SIZE and DAMP are the reverb's, page `REV/CHO`; the other algorithms stay the send's TYPE: they run at half rate behind the send's filters and FDN8's ring alone is 32 KB). TDLY is the delay (its TIME synced to the tempo, FDBK and the filter are the delay's, pages `DLY` and `DLY F`; the delay's own MIX and DLY RET stay the send's). Their pages show while a slot holds them, even with the send in no master slot. The amount is the MIX: 0 dry (the track as it is), 127 all wet, which is what the send would return at REV 127 or DLY 127 with the dry muted. A mono track gets ROOM's left and right as its centre and a side, so it comes out stereo; the drum bus and the master get left and right. A track keeps its tail or repeats after its notes end. Builder items `INS_REVERB` (with reverb: ROOM) and `INS_TDELAY`, both off by default. On a track's slots and the master's; not on a return (it already holds the send), the USB input nor a drum lane. The sends are unchanged: CHRS is the chorus's insert.
+
+While the delay (DLY) is in none of the master's slots, its line is free and holds inserts beyond the memory's own room (any of them), and the chorus's line likewise while CHO is in none (CHRS, JUNO, FLNG); put the send back in a slot and they fade out and give it back. A slot whose effect finds no room shows FULL and stays dry until room is given back.
 
 ### EQ3: a three-band DJ equaliser
 
@@ -144,7 +148,7 @@ A synth track's sends are on `SENDS`: REV, DLY, CHO (blank where no return carri
 
 ## What is not there
 
-- GATER cannot go in a master slot. XDLY cannot go in a return or the USB input's slots.
-- FLNG, WIDE, CHRS, ECHO, GATER, JUNO, SUB, TAPE, SPIT and XDLY cannot go in a drum lane's slots; they run on the track or the drum bus.
+- GATER cannot go in a master slot. XDLY, ROOM and TDLY cannot go in a return or the USB input's slots.
+- FLNG, WIDE, CHRS, ECHO, GATER, JUNO, SUB, TAPE, SPIT, XDLY, ROOM and TDLY cannot go in a drum lane's slots; they run on the track or the drum bus.
 - There are three returns and no fourth send bus.
 - No effect has a tap tempo or its own clock: GATER follows the transport, the delay time is a note value.

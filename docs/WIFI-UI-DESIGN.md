@@ -33,12 +33,15 @@ The web editor can send a network (SSID + password); the FM-1 derives the key an
 
 ## MODE AP (the user, 2026-10-27: "maybe we add mode AP"; built 2026-10-28, host-tested, NOT yet tried on the radio)
 The FM-1 as the access point, so a phone, a laptop or Live joins it directly, with no router (a gig). Two more MODE values on the
-SYSTEM > WI-FI page: OFF, MAN, AUTO, **AP MAN** (`wn_st.mode` 4), **AP AUTO** (3). AP AUTO starts at power-on once a key is kept and stays up; AP MAN is off at power-on and SAVE on the page starts / stops it (STATE says SAVE: START; with no key SAVE opens the password entry, and a typed password starts it); the web editor has a Start / Stop button (op 8); the switch is never kept. Builder item `WIFI_AP` (bit 435, `FELUCCA_WIFI_AP`).
+SYSTEM > WI-FI page: OFF, MAN, AUTO, **AP MAN** (`wn_st.mode` 4), **AP AUTO** (3). AP AUTO starts at power-on and stays up (with the default password, a function of the name, until one is typed); AP MAN is off at power-on and SAVE on the page starts / stops it (STATE says SAVE: START; with no key SAVE opens the password entry, and a typed password starts it); the web editor has a Start / Stop button (op 8); the switch is never kept. Builder item `WIFI_AP` (bit 435, `FELUCCA_WIFI_AP`).
 - The page, in AP: NAME (the network's name: the automatic `FM1-` and the last four digits of the radio's address, e.g.
   `FM1-55B0`, or the one the web editor set), CHANNEL (its knob, 1..13, default 6; the AP restarts 1.2 s after the knob rests),
   STATE (NO PASSWORD, STARTING, ACTIVE, n CLIENTS, NO CAL). SAVE opens the password entry for the AP's key (the same entry,
-  8..63 characters); SAVE held asks CLEAR KEY first. **No access point runs without a key**: a network that anyone can join
-  is never offered. Switching to AP with no key kept says "SAVE: PASSWORD".
+  8..63 characters); SAVE held asks CLEAR KEY first (the default password again). **The network is never open**: without a typed password it uses
+  `wifi_ap_default_key(name)` (8 characters of 23 letters without i l o and 8 digits without 0 1, from two FNV-1a runs over a fixed salt and the
+  name), shown on STATE one phase in four as KEY xxxxxxxx, so another Optimist that hears the name knows it. **MODE JAM** (OFF, MAN, AUTO, JAM, AP MAN, AP AUTO):
+  AUTO that also joins an FM-1 access point (FM1-xxxx, WPA2-PSK, not its own, the strongest) with that key when no saved network is heard, and
+  keeps Link on while it is the mode (SYNC > LINK reads ON (JAM); the stored value is untouched).
 - Stored (`wn_store` version 2, 336 octets: the 268 of version 1 and `wn_apcfg`, 68): the name (length 0 = automatic), the
   channel, the WPA2 key of that name (PBKDF2 of password and name; never the password). A version 1 record reads as before
   (the settings record grows; a shorter old one is zero-extended); a build without MODE AP reads a stored AP mode as OFF.

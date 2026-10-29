@@ -3859,6 +3859,7 @@ static void preset_engine_tests(void)
 #include "ui_optimist_core.h"                       /* SYSTEM > CPU > 2ND CORE (DUAL builds), the CPU1 cell's reason */
 #include "ui_optimist_sysdbg.h"                     /* builder item SYS_DEBUG off: INFO is CPU LOAD, UNDERRUNS, BATTERY */
 #include "ui_optimist_stack.h"                      /* SYSTEM > INFO: the CPU bars and their peaks, the RAM line, the stacks' marks */
+#include "ui_optimist_memline.h"                    /* the memory line: the top 2 rows of every page, the arena's fill, red from 80 % */
 #include "ui_optimist_hold.h"                      /* SYSTEM HOLD: a click is a tap, a hold the layer */
 #include "ui_optimist_lane.h"                      /* the lane: preview when stopped, the pick silent playing */
 #include "ui_optimist_step35.h"                     /* STEP: entry follows OCT, a held step transposed */
@@ -4157,6 +4158,7 @@ int main(int argc, char **argv)
 #endif
     ovl_window_tests();                                 /* (the rings' 10 s and 1 min windows, their wrap) */
     stackmark_tests();                                  /* (the stacks' paint and read-back, INFO's RAM line) */
+    memline_tests();                                    /* (the memory line over every page) */
     hold_tests();
     lane_preview_tests();
     step_pages_tests();

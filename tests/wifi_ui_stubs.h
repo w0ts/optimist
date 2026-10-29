@@ -66,19 +66,20 @@ static uint32_t wa_status(void)
         return WAS_OFF;
     if (wafk.status)
         return wafk.status;
-    if (!wn_st.ap.set)
-        return WAS_NOKEY;
     return wn_st.mode == WN_MODE_AP_MAN && !wafk.on ? WAS_STOPPED : WAS_UP;
 }
 static int wa_run(int on)
 {
     if (wn_st.mode != WN_MODE_AP_MAN)
         return -1;
-    if (on && !wn_st.ap.set)
-        return -2;
     wafk.runs++;
     wafk.on = on != 0;
     return 0;
+}
+static int wa_default_key(char *out)               /* (the daemon's wa_default_key: a fixed stand-in text) */
+{
+    memcpy(out, "abcd2345", 9);
+    return !wn_st.ap.set;
 }
 static uint32_t wa_clients(void) { return wafk.clients; }
 static uint32_t wa_channel(void) { return wn_st.ap.ch ? wn_st.ap.ch : WA_CH_DEFAULT; }

@@ -21,6 +21,21 @@ final class NavTests: XCTestCase {
         XCTAssertEqual(try NavState.parseTracks(FakeFM1.nav([4])), ["MASTER", "T1", "T2", "T3", "DR", "KICK", "SNARE"])
     }
 
+    func testLaneButtonsAlwaysThereGreyedOffTheDrumTrack() {
+        let kit = ["MASTER", "T1", "T2", "T3", "DR", "KICK", "SNARE"]
+        let on = NavTracks.lanes(tracks: kit, current: Nav.drumRow + 1)
+        XCTAssertEqual(on.names, ["KICK", "SNARE"])
+        XCTAssertTrue(on.available)
+        XCTAssertTrue(NavTracks.lanes(tracks: kit, current: Nav.drumRow).available)
+        let off = NavTracks.lanes(tracks: kit, current: 2)           // (T2: the lanes stay, greyed)
+        XCTAssertEqual(off.names, ["KICK", "SNARE"])
+        XCTAssertFalse(off.available)
+        XCTAssertFalse(NavTracks.lanes(tracks: kit, current: Nav.none).available)
+        let bare = NavTracks.lanes(tracks: [], current: Nav.none)    // (no names yet: the default lanes)
+        XCTAssertEqual(bare.names, Nav.defaultLanes)
+        XCTAssertFalse(bare.available)
+    }
+
     func testShortReplyThrows() {
         XCTAssertThrowsError(try NavState.parse([0, 0, 1, 3, 1, 3, 0x4C, 0]))
     }

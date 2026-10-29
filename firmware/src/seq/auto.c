@@ -110,7 +110,8 @@ static const uint8_t MOT_TAIL[MOT_NTAIL] = {
 #endif
 };
 /* the stored tail's second range (2026-10-18: the first was full at AUTO_MUTE0), auto.h AUTO_TAIL2 .. (0xCC ..): the
- * track's DYN settings RATIO ATK REL GAIN CEIL (fx_slots.c: track values since), XDLY's MIX (2026-10-22: +5) */
+ * track's DYN settings RATIO ATK REL GAIN CEIL (fx_slots.c: track values since), XDLY's MIX (2026-10-22: +5), ROOM's and
+ * TDLY's (2026-10-29: +9, +10) */
 static const uint8_t MOT_TAIL2[] = {
 #if FELUCCA_MASTER_COMP
     P_TDRAT, P_TDATK, P_TDREL, P_TDGAIN, P_TDCEIL,
@@ -127,8 +128,18 @@ static const uint8_t MOT_TAIL2[] = {
 #else
     P_COUNT, P_COUNT, P_COUNT,
 #endif
+#if INS_ROOM
+    P_TROOM,                                                 /* (ROOM's MIX, 2026-10-29: +9; P_COUNT where not built) */
+#else
+    P_COUNT,
+#endif
+#if INS_TDLY
+    P_TTDLY,                                                 /* (TDLY's MIX, 2026-10-29: +10) */
+#else
+    P_COUNT,
+#endif
 #if FELUCCA_EX_GAIN
-    P_TEXGN,                                                 /* (EXGN's GAIN, the example insert: +9, only in its builds; a
+    P_TEXGN,                                                 /* (EXGN's GAIN, the example insert: +11, only in its builds; a
                                                               * value added for good goes before it, as P_COUNT where not built) */
 #endif
 };

@@ -582,25 +582,32 @@ FX_STEP int32_t dly_filt(const dlyf_t *f, int32_t s, int32_t *st)
 }
 
 /* the delay: what goes into the line (the input and the feedback) through the filter, so the first echo is filtered
- * once and each repeat once more */
-FX_STEP int32_t dly_step(int32_t in, uint32_t dl, const dlyf_t *f, int32_t fb, int32_t dmix, int32_t *wr)
-{
-    int32_t x = dly_dec(dly_buf[(fx.dly_w - dl) & (DLY_LEN - 1u)]), v;     /* (DLY_Q: x << 1 of the bus, 8x finer) */
+ * once and each repeat once more. The state is the caller's (2026-10-29: the send's, fx.dly_*, and each TDLY insert's,
+ * fxi_send.c): its line buf (DLY_LEN samples), the write count *wp, the carried rounding *ec, the filter's states st[8];
+ * the send's dly_step is this on its own, inlined as before */
+FX_STEP int32_t dly_core(int16_t *buf, uint32_t *wp, int32_t *ec, int32_t *st, int rd, int32_t in, uint32_t dl,
+                         const dlyf_t *f, int32_t fb, int32_t dmix, int32_t *wr)
+{                                                       /* (rd 0: the line not read, as 0: an insert from rest) */
+    int32_t x = rd ? dly_dec(buf[(*wp - dl) & (DLY_LEN - 1u)]) : 0, v;     /* (DLY_Q: x << 1 of the bus, 8x finer) */
     int64_t p = (int64_t)x * fb;
-    v = dly_filt(f, (in << (DLY_Q - 1)) + (int32_t)((p < 0 ? p + 0x7FFF : p) >> 15), fx.dly_f);   /* (mul_tz, 64-bit) */
+    v = dly_filt(f, (in << (DLY_Q - 1)) + (int32_t)((p < 0 ? p + 0x7FFF : p) >> 15), st);   /* (mul_tz, 64-bit) */
     if (f->two)
-        v = dly_filt(f, v, fx.dly_f + 4);
+        v = dly_filt(f, v, st + 4);
     v = dly_sat(v);
     {                                                   /* (the rounding error carried on: the stored stream keeps the exact sum,
                                                          * a held loop loses nothing; below 4096 a sample is exact, the carry 0) */
-        int32_t w = v + fx.dly_ec;
+        int32_t w = v + *ec;
         int16_t c = dly_enc(w);
-        fx.dly_ec = w - dly_dec(c);
-        dly_buf[fx.dly_w & (DLY_LEN - 1u)] = c;
+        *ec = w - dly_dec(c);
+        buf[*wp & (DLY_LEN - 1u)] = c;
     }
     *wr |= v;
-    fx.dly_w++;
+    (*wp)++;
     return mulq15(x >> (DLY_Q - 1), dmix);
+}
+FX_STEP int32_t dly_step(int32_t in, uint32_t dl, const dlyf_t *f, int32_t fb, int32_t dmix, int32_t *wr)
+{
+    return dly_core(dly_buf, &fx.dly_w, &fx.dly_ec, fx.dly_f, 1, in, dl, f, fb, dmix, wr);
 }
 
 #if FELUCCA_REV_ROOM || REV_ALT
@@ -639,54 +646,70 @@ AINL int32_t rev_lp_step(int32_t a, int32_t b)
     int32_t p = (a * (b >> 1) + ((a >> 1) & -(b & 1))) >> 14, m = a < 1 ? a : 1;
     return p > m ? p : m;
 }
-FX_STEP int32_t rev_step(int32_t in, int32_t r, int32_t g, int32_t lpk, int32_t *yr, int32_t *wr)
+/* the ROOM's tank, its state the caller's (2026-10-29: the send's, rev_ap rev_line fx.ap_i fx.line_i fx.line_lp, and each
+ * ROOM insert's, fxi_send.c): the diffusers' cells ap (REV_AP_N), the lines ln (REV_ROOM_LEN), their indices ai li, the
+ * lines' one-poles lp. The send's rev_step is this on its own, inlined as before */
+typedef struct {
+    int16_t *ap, *ln;
+    uint16_t *ai, *li;
+    int32_t *lp;
+} room_st_t;
+FX_STEP int32_t room_core(const room_st_t *t, int32_t in, int32_t r, int32_t g, int32_t lpk, int32_t *yr, int32_t *wr)
 {
     int32_t a = mulq15(in, 13000), o0, o1, o2, o3;
     uint32_t k;
+    uint16_t *ai = t->ai, *li = t->li;
+    int32_t *lp = t->lp;
     {
-        int16_t *c = rev_ap;
+        int16_t *c = t->ap;
         for (k = 0; k < 2u; k++) {
-            int32_t b = c[fx.ap_i[k]], v = a + half_ap(b), w = clamp(v, -32768, 32767);
-            c[fx.ap_i[k]] = (int16_t)w;
+            int32_t b = c[ai[k]], v = a + half_ap(b), w = clamp(v, -32768, 32767);
+            c[ai[k]] = (int16_t)w;
             *wr |= w;
             a = b - (v >> 1);
-            if (++fx.ap_i[k] >= REV_AP[k])
-                fx.ap_i[k] = 0;
+            if (++ai[k] >= REV_AP[k])
+                ai[k] = 0;
             c += REV_AP[k];
         }
     }
     {
-        int16_t *c = rev_line;
+        int16_t *c = t->ln;
         int32_t s0, s1, d0, d1, w0, w1, w2, w3;
-        uint32_t ri = fx.line_i[0] + ((uint32_t)r >> 8), rj;
+        uint32_t ri = li[0] + ((uint32_t)r >> 8), rj;
         if (ri >= REV_L0)                               /* (the oldest sample is at line_i: reading */
             ri -= REV_L0;                               /* past it shortens line 0 by 0..2 REV_MOD) */
         rj = ri + 1u >= REV_L0 ? 0u : ri + 1u;
         o0 = c[ri] + (((c[rj] - c[ri]) * (r & 255)) >> 8);
-        o1 = c[REV_B1 + fx.line_i[1]];
-        o2 = c[REV_B2 + fx.line_i[2]];
-        o3 = c[REV_B3 + fx.line_i[3]];
+        o1 = c[REV_B1 + li[1]];
+        o2 = c[REV_B2 + li[2]];
+        o3 = c[REV_B3 + li[3]];
         s0 = o0 + o1, d0 = o0 - o1, s1 = o2 + o3, d1 = o2 - o3;   /* Hadamard / 2: each feeds all four */
-        fx.line_lp[0] += rev_lp_step(((s0 + s1) >> 1) - fx.line_lp[0], lpk);
-        fx.line_lp[1] += rev_lp_step(((d0 + d1) >> 1) - fx.line_lp[1], lpk);
-        fx.line_lp[2] += rev_lp_step(((s0 - s1) >> 1) - fx.line_lp[2], lpk);
-        fx.line_lp[3] += rev_lp_step(((d0 - d1) >> 1) - fx.line_lp[3], lpk);
-        w0 = clamp(mul_tz(fx.line_lp[0], g) + a, -32768, 32767);
-        w1 = clamp(mul_tz(fx.line_lp[1], g) - a, -32768, 32767);
-        w2 = clamp(mul_tz(fx.line_lp[2], g) + a, -32768, 32767);
-        w3 = clamp(mul_tz(fx.line_lp[3], g) - a, -32768, 32767);
-        c[fx.line_i[0]] = (int16_t)w0;
-        c[REV_B1 + fx.line_i[1]] = (int16_t)w1;
-        c[REV_B2 + fx.line_i[2]] = (int16_t)w2;
-        c[REV_B3 + fx.line_i[3]] = (int16_t)w3;
+        lp[0] += rev_lp_step(((s0 + s1) >> 1) - lp[0], lpk);
+        lp[1] += rev_lp_step(((d0 + d1) >> 1) - lp[1], lpk);
+        lp[2] += rev_lp_step(((s0 - s1) >> 1) - lp[2], lpk);
+        lp[3] += rev_lp_step(((d0 - d1) >> 1) - lp[3], lpk);
+        w0 = clamp(mul_tz(lp[0], g) + a, -32768, 32767);
+        w1 = clamp(mul_tz(lp[1], g) - a, -32768, 32767);
+        w2 = clamp(mul_tz(lp[2], g) + a, -32768, 32767);
+        w3 = clamp(mul_tz(lp[3], g) - a, -32768, 32767);
+        c[li[0]] = (int16_t)w0;
+        c[REV_B1 + li[1]] = (int16_t)w1;
+        c[REV_B2 + li[2]] = (int16_t)w2;
+        c[REV_B3 + li[3]] = (int16_t)w3;
         *wr |= w0 | w1 | w2 | w3;
-        if (++fx.line_i[0] >= REV_L0) fx.line_i[0] = 0;
-        if (++fx.line_i[1] >= REV_LINE[1]) fx.line_i[1] = 0;
-        if (++fx.line_i[2] >= REV_LINE[2]) fx.line_i[2] = 0;
-        if (++fx.line_i[3] >= REV_LINE[3]) fx.line_i[3] = 0;
+        if (++li[0] >= REV_L0) li[0] = 0;
+        if (++li[1] >= REV_LINE[1]) li[1] = 0;
+        if (++li[2] >= REV_LINE[2]) li[2] = 0;
+        if (++li[3] >= REV_LINE[3]) li[3] = 0;
     }
     *yr = o1 - o3;
     return o0 + o2;
+}
+#define ROOM_SEND {rev_ap, rev_line, fx.ap_i, fx.line_i, fx.line_lp}   /* (the send's tank) */
+FX_STEP int32_t rev_step(int32_t in, int32_t r, int32_t g, int32_t lpk, int32_t *yr, int32_t *wr)
+{
+    const room_st_t t = ROOM_SEND;
+    return room_core(&t, in, r, g, lpk, yr, wr);
 }
 /* The ROOM above SIZE 90 (room_long, below, sets its gains): rev_step with every rounding in the loop unbiased. The
  * one-poles' steps and the loop gains' products round at random while the value is RM_RT or more (floor of the
@@ -717,48 +740,59 @@ AINL int32_t rev_mul_rnd(int32_t a, int32_t g, int32_t u)  /* mul_tz, at random 
     int32_t p = a * g;
     return (p + (RM_BIG(a) ? u : p < 0 ? 0x7FFF : 0)) >> 15;
 }
-static HOT __attribute__((noinline)) int32_t room_step_long(int32_t in, int32_t r, int32_t g, int32_t lpk, int32_t *yr,
-                                                            int32_t *wr)
+/* (its state the caller's, as room_core's; gin the send's gain, *rq the random rounding's generator: the send's rm.in,
+ * rm.rq, each ROOM insert's own generator) */
+AINL int32_t room_long_core(const room_st_t *t, int32_t gin, uint32_t *rq, int32_t in, int32_t r, int32_t g, int32_t lpk,
+                            int32_t *yr, int32_t *wr)
 {
-    int32_t a = mulq15(in, rm.in), o0, o1, o2, o3, w, any = 0;
-    uint32_t k, q = rm.rq, ri, rj;
+    int32_t a = mulq15(in, gin), o0, o1, o2, o3, w, any = 0;
+    uint32_t k, q = *rq, ri, rj;
+    int16_t *const ln = t->ln;
+    uint16_t *ai = t->ai, *li = t->li;
+    int32_t *lp = t->lp;
     for (k = 0; k < 2u; k++) {                          /* (the diffusers: rev_step's) */
-        int16_t *c = rev_ap + (k ? REV_A0 : 0u);
-        int32_t b = c[fx.ap_i[k]], x = a + half_ap(b);
+        int16_t *c = t->ap + (k ? REV_A0 : 0u);
+        int32_t b = c[ai[k]], x = a + half_ap(b);
         w = clamp(x, -32768, 32767);
-        c[fx.ap_i[k]] = (int16_t)w;
+        c[ai[k]] = (int16_t)w;
         any |= w;
         a = b - (x >> 1);
-        if (++fx.ap_i[k] >= REV_AP[k])
-            fx.ap_i[k] = 0;
+        if (++ai[k] >= REV_AP[k])
+            ai[k] = 0;
     }
-    ri = fx.line_i[0] + ((uint32_t)r >> 8);
+    ri = li[0] + ((uint32_t)r >> 8);
     if (ri >= REV_L0)
         ri -= REV_L0;
     rj = ri + 1u >= REV_L0 ? 0u : ri + 1u;
-    o0 = rev_line[ri] + (((rev_line[rj] - rev_line[ri]) * (r & 255) + 128) >> 8);   /* (to the nearest) */
-    o1 = rev_line[REV_B1 + fx.line_i[1]];
-    o2 = rev_line[REV_B2 + fx.line_i[2]];
-    o3 = rev_line[REV_B3 + fx.line_i[3]];
-    /* a line k (a constant: fx.line_i / line_lp stay apart, rev_step's code at the default as before): its one-pole
+    o0 = ln[ri] + (((ln[rj] - ln[ri]) * (r & 255) + 128) >> 8);   /* (to the nearest) */
+    o1 = ln[REV_B1 + li[1]];
+    o2 = ln[REV_B2 + li[2]];
+    o3 = ln[REV_B3 + li[3]];
+    /* a line k (a constant: li / lp stay apart, rev_step's code at the default as before): its one-pole
      * toward v / 2 (the Hadamard x 2), the gain, the send (+-a), written; its index on */
 #define RM_LN(k, v, sa, base, len)                                                                              \
     q = q * 1664525u + 1013904223u;                                                                             \
-    fx.line_lp[k] += rev_lp_rnd((((v) + (int32_t)((q >> 17) & 1u)) >> 1) - fx.line_lp[k], lpk, (int32_t)(q >> 18)); \
-    w = clamp(rev_mul_rnd(fx.line_lp[k], g, (int32_t)((q >> 2) & 0x7FFFu)) + (sa), -32768, 32767);              \
-    rev_line[(base) + fx.line_i[k]] = (int16_t)w;                                                               \
+    lp[k] += rev_lp_rnd((((v) + (int32_t)((q >> 17) & 1u)) >> 1) - lp[k], lpk, (int32_t)(q >> 18));            \
+    w = clamp(rev_mul_rnd(lp[k], g, (int32_t)((q >> 2) & 0x7FFFu)) + (sa), -32768, 32767);                      \
+    ln[(base) + li[k]] = (int16_t)w;                                                                            \
     any |= w;                                                                                                   \
-    if (++fx.line_i[k] >= (len))                                                                                \
-        fx.line_i[k] = 0
+    if (++li[k] >= (len))                                                                                       \
+        li[k] = 0
     RM_LN(0, o0 + o1 + o2 + o3, a, 0u, REV_L0);
     RM_LN(1, o0 - o1 + o2 - o3, -a, REV_B1, REV_N1);
     RM_LN(2, o0 + o1 - o2 - o3, a, REV_B2, REV_N2);
     RM_LN(3, o0 - o1 - o2 + o3, -a, REV_B3, REV_N3);
 #undef RM_LN
-    rm.rq = q;
+    *rq = q;
     *wr |= any;
     *yr = o1 - o3;
     return o0 + o2;
+}
+static HOT __attribute__((noinline)) int32_t room_step_long(int32_t in, int32_t r, int32_t g, int32_t lpk, int32_t *yr,
+                                                            int32_t *wr)
+{
+    const room_st_t t = ROOM_SEND;
+    return room_long_core(&t, rm.in, &rm.rq, in, r, g, lpk, yr, wr);
 }
 static HOT __attribute__((noinline)) void room_run_long(const int32_t *in, int32_t *wl, int32_t *wr, uint32_t n,
                                                         int32_t ma, int32_t mb, int32_t g, int32_t lpk, int32_t *wv)
@@ -820,15 +854,16 @@ AINL void room_gains(int32_t *g, int32_t *lpk)          /* this block's loop gai
         FAR(room_long)();
     *g = rm.g, *lpk = rm.lpk;
 }
-AINL void room_skip(uint32_t n)                          /* idle: the indices move on n tank samples (n <= CTL: */
-{                                                        /* shorter than every line) */
-    fx.ap_i[0] = fx_wrap(fx.ap_i[0], n, REV_AP[0]);
-    fx.ap_i[1] = fx_wrap(fx.ap_i[1], n, REV_AP[1]);
-    fx.line_i[0] = fx_wrap(fx.line_i[0], n, REV_L0);
-    fx.line_i[1] = fx_wrap(fx.line_i[1], n, REV_LINE[1]);
-    fx.line_i[2] = fx_wrap(fx.line_i[2], n, REV_LINE[2]);
-    fx.line_i[3] = fx_wrap(fx.line_i[3], n, REV_LINE[3]);
+AINL void room_skip_ix(uint16_t *ai, uint16_t *li, uint32_t n)   /* idle: the indices move on n tank samples (n <= CTL: */
+{                                                                /* shorter than every line) */
+    ai[0] = fx_wrap(ai[0], n, REV_AP[0]);
+    ai[1] = fx_wrap(ai[1], n, REV_AP[1]);
+    li[0] = fx_wrap(li[0], n, REV_L0);
+    li[1] = fx_wrap(li[1], n, REV_LINE[1]);
+    li[2] = fx_wrap(li[2], n, REV_LINE[2]);
+    li[3] = fx_wrap(li[3], n, REV_LINE[3]);
 }
+AINL void room_skip(uint32_t n) { room_skip_ix(fx.ap_i, fx.line_i, n); }
 #endif
 /* every built tank's cells and filters but the shared line to 0: the ROOM's diffusers and low-passes, PLATE / FDN8's
  * low-passes and allpasses, AIRWIN's */
@@ -2535,8 +2570,9 @@ static __attribute__((noinline)) void gl_part(track_t *t, int32_t *g)
     t->gl_on = 1;
 }
 
-#if FELUCCA_INS_XDLY
-#define IFX_RINGING(t) ifx_ringing((uint32_t)((t) - trk))   /* (XDLY's repeats outlast the voices: fxi_kern.c) */
+#if FELUCCA_INS_XDLY || INS_ROOM || INS_TDLY
+#define IFX_RINGING(t) ifx_ringing((uint32_t)((t) - trk))   /* (XDLY's, TDLY's repeats, ROOM's tail outlast the voices:
+                                                         * fxi_kern.c) */
 #else
 #define IFX_RINGING(t) 0
 #endif
@@ -2619,6 +2655,10 @@ static HOT void mix_part(track_t *t, uint32_t n MIXACC_PARAM)
 #if FELUCCA_INS_JCHORUS
         if (ifx_jsd[(uint32_t)(t - trk) % NPART])       /* JUNO CHORUS's side (fxi_kern.c): as WIDE's */
             ifx_side_mix(ifx_jside[(uint32_t)(t - trk) % NPART], lvl0, dl, ga, gb, MX(mix_l), MX(mix_r), n);
+#endif
+#if INS_ROOM
+        if (ifx_rsd[(uint32_t)(t - trk) % NPART])       /* ROOM's side (fxi_send.c): as WIDE's */
+            ifx_side_mix(ifx_rside[(uint32_t)(t - trk) % NPART], lvl0, dl, ga, gb, MX(mix_l), MX(mix_r), n);
 #endif
 #if FELUCCA_ENG_DRONE
         if (ENG_IS(ENGINES[t->engine % NENGINES], DRONE) && drone_sd[(uint32_t)(t - trk) % NPART])   /* DRONE's BEAT: */
