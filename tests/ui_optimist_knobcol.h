@@ -12,7 +12,7 @@ static int knobcol_line_ok(uint32_t j, uint32_t cur, uint32_t on)   /* line j's 
         return !px_in(6, y, 34, n, full) && (cur || px_in(6, y, 34, n, C_WHITE));
     if (cur)
         return px_in(6, y, 34, n, full) && !px_in(6, y, 34, n, C_WHITE);
-    return px_in(6, y, 34, n, dim) && !px_in(6, y, 34, n, C_WHITE) && !px_in(6, y, 34, n, full);
+    return px_in(6, y, 34, n, dim) && !px_in(6, y, 34, n, C_WHITE);   /* (the bar under the line is in full colour: only the label's dim is asked) */
 }
 static int knobcol_labels(uint32_t scr, uint32_t on)
 {
@@ -20,8 +20,14 @@ static int knobcol_labels(uint32_t scr, uint32_t on)
     knob_colors = on;
     op_enter(scr);
     ui.force = 1; frame(); frame();
-    for (j = 0; j < 4u && gld.first + j < gld.end; j++, seen++)
+    for (j = 0; j < 4u && gld.first + j < gld.end; j++) {
+        cell_t c;
+        gl_cell(gld.s, gld.first + j, &c);
+        if (!c.label)
+            continue;
+        seen++;
         ok &= knobcol_line_ok(j, gld.first + j == gld.cur, on);
+    }
     return ok && seen >= 2u;
 }
 /* the PAGE_LINES build (engine and FX pages as lines): KNOB COLORS on, KNOB 1 turned (line 1 the cursor): its label full colour, lines 2..4 dimmed,
