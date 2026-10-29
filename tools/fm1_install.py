@@ -41,7 +41,8 @@ LOADER_MARK = b"FELUCCA-LOADER-1"
 STOCK_SHA256 = "db1642b2b6fa5c2cccb11ffd13878068bb28601678d3644049f99dc40e7edb8a"
 # the app slots Optimist's own updater takes (firmware/src/system/ota.c: FL_APP_HI_NORMAL, FL_APP_HI_BIG)
 OWN_SLOTS = (0x93000, 0xD0000)
-PORT_RE = re.compile(r"fm-1|felucca|optimist|ota|composite|sinco|usb-midi", re.I)   # never probe other gear
+PORT_RE = re.compile(r"fm-?1|felucca|optimist|ota|composite|sinco|usb-midi", re.I)   # never probe other gear (fm-?1: "FM-1", and "FM1-XXXX",
+                                                                                      # Optimist's name since 2026-10-29; "optimist": older firmware)
 
 # seconds; the tests shorten them
 DELAY = {"open": 0.3, "start": 2.0, "reply": 0.01, "loader": 3.0, "reboot": 3.0, "retry": 1.0,

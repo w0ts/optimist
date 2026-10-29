@@ -3622,6 +3622,18 @@ function wifiCheck(name, pass, saved) {
   return { ssid, pass };
 }
 
+/* The default password of an Optimist access point: a function of its name alone (the FM-1's wifi_ap_default_key, wifi/wifi_ap.c: two
+ * FNV-1a runs over the salts "OPTIMIST-AP-KEY/1:" and "/2:" and the name, five bits a character, 23 letters without i l o and 8 digits
+ * without 0 1, the table's last place repeating w). The FM-1 never sends it: this page works it out from the name. */
+function wifiApDefaultKey(name) {
+  const T = "abcdefghjkmnpqrstuvwxyz23456789w", enc = new TextEncoder();
+  const fnv = (salt) => { let h = 0x811C9DC5; for (const c of [...enc.encode(salt), ...name]) h = Math.imul(h ^ c, 0x01000193) >>> 0; return h; };
+  const a = fnv("OPTIMIST-AP-KEY/1:"), b = fnv("OPTIMIST-AP-KEY/2:");
+  let k = "";
+  for (let i = 0; i < 6; i++) k += T[(a >>> (27 - 5 * i)) & 31];
+  for (let i = 0; i < 2; i++) k += T[(b >>> (27 - 5 * i)) & 31];
+  return k;
+}
 /* MODE AP's password (and name) check before anything is sent: {name bytes, pass} or {err: a TEXT key}; an empty name is the automatic one */
 function wifiApCheck(name, pass) {
   const nm = typeof name === "string" ? new TextEncoder().encode(name) : name;
@@ -5097,8 +5109,12 @@ async function openMidi(nav) {
   try { return { st: "ok", access: await nav.requestMIDIAccess({ sysex: true }) }; }
   catch (e) { return { st: "denied", access: null }; }
 }
-const isFM1Port = (p) => !!p && /felucca|optimist/i.test(p.name || "") && p.state !== "disconnected";
-/* an FM-1 shows as two ports when its Bluetooth MIDI is paired too ("Optimist 112D Bluetooth", listed first on a Mac): the
+/* the FM-1 by its USB port name: "FM1-XXXX" (four hex digits: its name since 2026-10-29), or "Optimist" / "Felucca" (a device on older
+   firmware); never other gear. Windows and Linux put more round the name ("MIDIIN2 (FM1-1A2B)"): the name is found inside */
+const FM1_NAME_RE = /fm1-[0-9a-f]{4}|felucca|optimist/i;
+const isFM1Name = (name) => FM1_NAME_RE.test(name || "");
+const isFM1Port = (p) => !!p && isFM1Name(p.name) && p.state !== "disconnected";
+/* an FM-1 shows as two ports when its Bluetooth MIDI is paired too ("FM1-112D Bluetooth", listed first on a Mac): the
    USB one, else the Bluetooth one (the USB port answered INFO in 1 ms, the Bluetooth one not at all, 2026-10-18) */
 const isBtPort = (p) => /bluetooth/i.test((p && p.name) || "");
 const pickFM1 = (ports, bt = false) => { const c = [...ports].filter(isFM1Port); return bt ? c.find(isBtPort) : c.find((p) => !isBtPort(p)) || c[0]; };
@@ -5109,7 +5125,7 @@ function findPorts(access, bt = false) {
   return input && output ? { input, output } : null;
 }
 /* a port event worth a reconnect: an FM-1 output appeared while we want to be connected and are not */
-const wantsReconnect = (e, connected, want) => !connected && !!want && !!e && !!e.port && /felucca|optimist/i.test(e.port.name || "")
+const wantsReconnect = (e, connected, want) => !connected && !!want && !!e && !!e.port && isFM1Name(e.port.name)
   && e.port.state === "connected" && e.port.type === "output";
 
 /* the transport bar's MIDI clock pill from the SYNC and CLK names: {text, st ("ok" green, "warn" amber, "" neutral)} */
@@ -7768,7 +7784,7 @@ let dev = null;        /* the open device: {link, input, output, info, pdesc[], 
 let busy = 0;          /* count of running multi-request operations (polling waits) */
 let dragging = null;   /* key of the slider under the pointer */
 let keepConnected = false;
-/* the device the editor talks to: the FM-1 over USB, or the simulator (web/sim/sim.js simAccess: its "Optimist (sim)" port
+/* the device the editor talks to: the FM-1 over USB, or the simulator (web/sim/sim.js simAccess: its "FM1-0000 (sim)" port
    pair, there while the Simulator tab runs one); a choice of the user's, remembered here */
 const DEVSRC_KEY = "optimist-editor-device";
 let devSrc = (() => { try { const v = localStorage.getItem(DEVSRC_KEY); return ["sim", "bt", "emu"].includes(v) ? v : "usb"; } catch (e) { return "usb"; } })();
@@ -7951,7 +7967,7 @@ function hangUp(reasonKey = "disconnected") {
 /* MIDIAccess statechange: our port went away (lost), or an FM-1 appeared while the user wants one (connect, after 800 ms) */
 function onPortState(e) {
   const port = e.port;
-  if (!port || !/felucca|optimist/i.test(port.name || "")) return;
+  if (!port || !isFM1Name(port.name)) return;
   const ours = !!dev && [dev.input.id, dev.output.id].includes(port.id);
   if (ours && port.state === "disconnected") { hangUp("lost"); return; }
   if (!wantsReconnect(e, !!dev, keepConnected)) return;
@@ -10929,18 +10945,6 @@ async function cpRestoreZip(file) {                 /* each entry named as a wri
 const wf = { d: null, s: null, msg: "", timer: 0, until: 0, stop: 0, forget: -1, forgetT: 0, top: null, list: null, add: null, apf: null, apClear: 0 };
 const wifiIp = (n) => [24, 16, 8, 0].map((sh) => Math.floor(n / 2 ** sh) % 256).join(".");
 const wifiSame = (a, b) => a.length === b.length && a.every((x, i) => x === b[i]);
-/* The default password of an Optimist access point: a function of its name alone (the FM-1's wifi_ap_default_key, wifi/wifi_ap.c: two
- * FNV-1a runs over the salts "OPTIMIST-AP-KEY/1:" and "/2:" and the name, five bits a character, 23 letters without i l o and 8 digits
- * without 0 1, the table's last place repeating w). The FM-1 never sends it: this page works it out from the name. */
-function wifiApDefaultKey(name) {
-  const T = "abcdefghjkmnpqrstuvwxyz23456789w", enc = new TextEncoder();
-  const fnv = (salt) => { let h = 0x811C9DC5; for (const c of [...enc.encode(salt), ...name]) h = Math.imul(h ^ c, 0x01000193) >>> 0; return h; };
-  const a = fnv("OPTIMIST-AP-KEY/1:"), b = fnv("OPTIMIST-AP-KEY/2:");
-  let k = "";
-  for (let i = 0; i < 6; i++) k += T[(a >>> (27 - 5 * i)) & 31];
-  for (let i = 0; i < 2; i++) k += T[(b >>> (27 - 5 * i)) & 31];
-  return k;
-}
 function wifiApStatus(ap) {   /* MODE AP's status as [words, status colour] */
   if (ap.status === WIFI.AP.NOPASS) return [t("wifiApNoPass"), "warn"];
   if (ap.status === WIFI.AP.STARTING) return [t("wifiApStarting"), "warn"];

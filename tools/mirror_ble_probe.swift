@@ -42,7 +42,7 @@ final class Probe: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
     }
     func centralManager(_ c: CBCentralManager, didDiscover per: CBPeripheral, advertisementData: [String: Any], rssi: NSNumber) {
         let name = per.name ?? (advertisementData[CBAdvertisementDataLocalNameKey] as? String) ?? ""
-        guard name.hasPrefix("Optimist") else { return }
+        guard name.hasPrefix("FM1-") || name.hasPrefix("Optimist") else { return }   // (FM1-XXXX since 2026-10-29; Optimist: older firmware)
         print("found \(name), rssi \(rssi)")
         c.stopScan()
         p = per

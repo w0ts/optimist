@@ -179,14 +179,30 @@ static const uint8_t STR1[] = {42, 3, 'H', 0, 0xFC, 0, 'g', 0, 'e', 0, 'l', 0, '
                                'n', 0, 's', 0, 't', 0, 'r', 0, 'u', 0, 'm', 0, 'e', 0, 'n', 0, 't', 0, 's', 0};
 #ifdef FELUCCA_LOADER
 static const uint8_t STR2[] = {32, 3, 'O', 0, 'p', 0, 't', 0, 'i', 0, 'm', 0, 'i', 0, 's', 0, 't', 0, ' ', 0, 'U', 0, 'p', 0, 'd', 0, 'a', 0, 't', 0, 'e', 0};   /* (installers match /optimist|felucca|ota/) */
-#else
-/* "Optimist": the product name, which macOS shows for the MIDI device and its ports (the embedded jacks name it too); editors and tools
- * match /optimist|felucca/i (stock-era "Felucca" and the builds before 2026-10-16 "Optimist (Felucca)" still match too) */
-static const uint8_t STR2[] = {18, 3, 'O', 0, 'p', 0, 't', 0, 'i', 0, 'm', 0, 'i', 0, 's', 0, 't', 0};
+#endif
+/* "FM1-XXXX": the product name (devname.h: the same four hex digits as the Bluetooth name), which macOS shows for the MIDI
+ * device and its ports (the embedded jacks name it too), and with USB audio "FM1-XXXX Out" and "FM1-XXXX In". The strings are
+ * built when a host reads them (EP0 sends one descriptor at a time, so one buffer serves all). The manufacturer (string 1)
+ * stays "Hügelton Instruments". Editors and tools match /^FM1-|optimist|felucca/i (the builds before 2026-10-29 named it
+ * "Optimist", before 2026-10-16 "Optimist (Felucca)"; both still match) */
+#ifndef FELUCCA_LOADER
+static uint8_t usb_str_buf[2 + 2 * 31];
+static int usb_name_str(const char *tail, const uint8_t **d, uint16_t *l)
+{
+    const char *s = dev_name();
+    uint32_t n = 0, k;
+    for (k = 0; s[k] && n < 31u; k++, n++)
+        usb_str_buf[2 + 2 * n] = (uint8_t)s[k], usb_str_buf[3 + 2 * n] = 0;
+    for (k = 0; tail[k] && n < 31u; k++, n++)
+        usb_str_buf[2 + 2 * n] = (uint8_t)tail[k], usb_str_buf[3 + 2 * n] = 0;
+    usb_str_buf[0] = (uint8_t)(2 + 2 * n);
+    usb_str_buf[1] = 3;
+    *d = usb_str_buf;
+    *l = (uint16_t)(2 + 2 * n);
+    return 1;
+}
 #endif
 #if FELUCCA_USB_AUDIO                                   /* the audio functions: host device names */
-static const uint8_t STR3[] = {26, 3, 'O', 0, 'p', 0, 't', 0, 'i', 0, 'm', 0, 'i', 0, 's', 0, 't', 0, ' ', 0, 'O', 0, 'u', 0, 't', 0};
-static const uint8_t STR4[] = {24, 3, 'O', 0, 'p', 0, 't', 0, 'i', 0, 'm', 0, 'i', 0, 's', 0, 't', 0, ' ', 0, 'I', 0, 'n', 0};
 /* the capture channels' names (the recording input terminal's iChannelNames: 5..8), "CH1".."CH4": what each carries is
  * the SYSTEM > USB AUDIO setting, which a host never re-reads */
 static const uint8_t STR_CH[4][8] = {{8, 3, 'C', 0, 'H', 0, '1', 0}, {8, 3, 'C', 0, 'H', 0, '2', 0},
@@ -225,18 +241,18 @@ static int get_desc(uint32_t wvalue, const uint8_t **d, uint16_t *l)
             *l = sizeof STR1;
             return 1;
         case 2:
+#ifdef FELUCCA_LOADER
             *d = STR2;
             *l = sizeof STR2;
             return 1;
+#else
+            return usb_name_str("", d, l);
+#endif
 #if FELUCCA_USB_AUDIO
         case 3:
-            *d = STR3;
-            *l = sizeof STR3;
-            return 1;
+            return usb_name_str(" Out", d, l);
         case 4:
-            *d = STR4;
-            *l = sizeof STR4;
-            return 1;
+            return usb_name_str(" In", d, l);
         case 5: case 6: case 7: case 8:
             *d = STR_CH[(wvalue & 0xFFu) - 5u];
             *l = sizeof STR_CH[0];

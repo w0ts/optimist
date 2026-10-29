@@ -14,6 +14,7 @@ static void fm1_delay_ms(uint32_t ms) { (void)ms; }
 static uint32_t host_now;                        /* TIMER4 ticks */
 #define SYNC_NOW() host_now
 #pragma GCC diagnostic ignored "-Wint-to-pointer-cast"   /* SIE register macros (never touched here) */
+static const char *dev_name(void) { return "FM1-0000"; }   /* (system/devname.c: the product string, usb.c) */
 #include "../firmware/src/io/usb/usb.c"
 #include "../firmware/src/io/midi/midi_uart.c"
 

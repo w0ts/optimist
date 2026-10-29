@@ -92,6 +92,9 @@ static uint8_t live_save_off;            /* an erase held the audio (no suspend)
 #error "USB audio uses the CDC endpoints; build with FELUCCA_CDC=0"
 #endif
 #include "io/midi/midi_rings.c"        /* the MIDI rings: the sequencer's in / out, the clock out (usb.c is a producer and consumer) */
+#include "system/devname.h"           /* "FM1-XXXX": the name USB (usb.c) and Bluetooth (midi_ble.c) show; the code: system/devname.c, before project.c */
+static int dev_uid_id(void);
+static const char *dev_name(void);
 #include "io/usb/usb.c"
 #ifndef FELUCCA_UART
 #define FELUCCA_UART 1           /* TRS MIDI IN on UART1 (notes, clock); 0 = none (SYNC TRS then hears nothing) */
@@ -215,6 +218,7 @@ static int st_prog(uint32_t off, const void *src, uint32_t n)
 #if FELUCCA_WIFI
 #include "wifi/wifi_saved.c"          /* the saved Wi-Fi networks (wn_st), before the settings record that keeps them */
 #endif
+#include "system/devname.c"          /* the flash ID read at boot, the name (needs the flash driver and, with BLE, its kept address) */
 #include "storage/project.c"
 #if FELUCCA_DRUM_KITS
 #if !FELUCCA_FLASH
