@@ -601,7 +601,8 @@
      "FM6_PK_BASS",
      "FM6_PK_BELLS",
      "FM6_PK_PADS",
-     "FM6_PK_80S"
+     "FM6_PK_80S",
+     "UP_FM6"
     ],
     "hidden": false,
     "shown_under": null,
@@ -2278,6 +2279,7 @@
      "REV_ROOM",
      "REV_PLATE",
      "REV_FDN8",
+     "SPRING",
      "REV_AIRWIN",
      "REV_POOL",
      "INS_REVERB"
@@ -2617,7 +2619,8 @@
     "choices": [],
     "provenance": null,
     "children": [
-     "PUNCH_N"
+     "PUNCH_N",
+     "PUNCH_LATCH"
     ],
     "hidden": false,
     "shown_under": null,
@@ -6034,7 +6037,11 @@
      "commit": "master (grids/, 2011-2013)",
      "url": "https://github.com/pichenettes/eurorack"
     },
-    "children": [],
+    "children": [
+     "GRIDS_EUCLID",
+     "GRIDS_LFO",
+     "GRIDS_VEL"
+    ],
     "hidden": false,
     "shown_under": null,
     "tested": "emulator-tested only",

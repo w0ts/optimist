@@ -1514,6 +1514,9 @@ def add_item(item):
     if item.parent:
         assert _level_ok(item), f"{item.key}: one level only (two under a group's head)"
         ITEMS[item.parent].children.append(item.key)
+    _up = item.shown_under or item.parent
+    if _up and not item.hidden:
+        ITEMS[_up].menu_children.append(item.key)   # (the menu's tree, as the loop above makes it for the registry's own items)
 
 
 def to_json():
