@@ -175,7 +175,7 @@ static void quiet(void)                                 /* every part silent, no
 }
 static void put_chrs(uint32_t k, uint32_t on)
 {
-    uint8_t s[2] = {(uint8_t)(on ? FXT_CHRS : FXT_NONE), FXT_NONE};
+    uint8_t s[2] = {(uint8_t)(on ? FXT_FLNG : FXT_NONE), FXT_NONE};
     ins_put(k, s);
 }
 static void stut(uint32_t k, uint32_t on)

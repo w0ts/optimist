@@ -419,7 +419,7 @@ Each track (T1 T2 T3, DR) has **two insert slots** S1 and S2, run after the SLIC
 
 SOUND > FX pages (`op_screens.c`): **Inserts** (S1 TYPE, amount, S2 TYPE, amount; a TYPE card lists ---- (empty) then the types built, A to Z: `fx_slots.c` FXT_ALPHA, fixed at compile time; no lock or reset on a TYPE card), **Comp** (RATIO ATK REL) only while a slot holds COMP, **Gater** (DEPTH PAT RATE SHAPE; 16 patterns) only while a slot holds it, **Sends** (card k is the send of return A, B or C; REV DLY CHO by default), **Bus sends** (drum track). FX + KNOB 4 is the track FILTER amount (*FILT: NO SLOT* when no slot holds it).
 
-CHRS and ECHO are insert types of which the build holds 0..4 instances (`fx/insfx/fxi.c`). The TYPE cell is the picker and says what it holds: *CHRS 2/4* (free of available), *FULL* dim (bypassed on this track), *IN USE* for a frame, *WAIT* for one pass. Types with 0 instances built are not listed. `fxi_cap fxi_free fxi_state fxi_can`.
+ECHO (and since 2026-10-29 the CHO DLY REV inserts; CHRS until then) are insert types of which the build holds 0..4 instances (`fx/insfx/fxi.c`). The TYPE cell is the picker and says what it holds: *CHRS 2/4* (free of available), *FULL* dim (bypassed on this track), *IN USE* for a frame, *WAIT* for one pass. Types with 0 instances built are not listed. `fxi_cap fxi_free fxi_state fxi_can`.
 
 ## 10. Effective values: one number, two bars
 

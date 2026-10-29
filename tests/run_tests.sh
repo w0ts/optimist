@@ -37,9 +37,9 @@ SEC4="-DFELUCCA_SECTIONS=4"   # (the tests of the four project slots in RAM; the
 fail=0
 # the backported features' test (tests/backports_test.c) builds with every switch on (firmware/src/core/backports.h)
 BACKPORTS_ON="-DFELUCCA_CHANCE=1 -DFELUCCA_QNT_SEQ=1 -DFELUCCA_SPRING=1 -DFELUCCA_MOTION=1 -DFELUCCA_ENG_PHYS=1 -DFELUCCA_ENG_ACID=1 -DFELUCCA_ENG_CZ=1 -DFELUCCA_ENG_JUNO=1"
-# the further insert types (fx/insfx/insfx.c), every one of them (GATER: gater.c); the limited ones CHRS ECHO FLNG in an
-# effects memory of 8 KB beside the delay send's 128 KB (fxi_mem.h: 4 CHRS, or 1 ECHO, or 8 FLNG at once)
-INSFX_ON="-DFELUCCA_INS_FOLD=1 -DFELUCCA_INS_FUZZ=1 -DFELUCCA_INS_PHASER=1 -DFELUCCA_INS_FLANGER=1 -DFELUCCA_INS_FORMANT=1 -DFELUCCA_INS_WIDTH=1 -DFELUCCA_INS_CHORUS=1 -DFELUCCA_INS_DELAY=1 -DFELUCCA_DLY_ARENA=136 -DFELUCCA_INS_GATER=1 -DFELUCCA_INS_SFOLD=1 -DFELUCCA_INS_RECT=1 -DFELUCCA_INS_HARM=1 -DFELUCCA_INS_RING=1 -DFELUCCA_INS_SUBOCT=1 -DFELUCCA_INS_SLEW=1 -DFELUCCA_INS_TAPE=1 -DFELUCCA_INS_SPIT=1"
+# the further insert types (fx/insfx/insfx.c), every one of them (GATER: gater.c); the limited ones CHO ECHO FLNG in an
+# effects memory of 8 KB beside the delay send's 128 KB (fxi_mem.h: 2 CHO, or 1 ECHO, or 8 FLNG at once)
+INSFX_ON="-DFELUCCA_INS_FOLD=1 -DFELUCCA_INS_FUZZ=1 -DFELUCCA_INS_PHASER=1 -DFELUCCA_INS_FLANGER=1 -DFELUCCA_INS_FORMANT=1 -DFELUCCA_INS_WIDTH=1 -DFELUCCA_INS_DELAY=1 -DFELUCCA_DLY_ARENA=136 -DFELUCCA_INS_GATER=1 -DFELUCCA_INS_SFOLD=1 -DFELUCCA_INS_RECT=1 -DFELUCCA_INS_HARM=1 -DFELUCCA_INS_RING=1 -DFELUCCA_INS_SUBOCT=1 -DFELUCCA_INS_SLEW=1 -DFELUCCA_INS_TAPE=1 -DFELUCCA_INS_SPIT=1"
 # NOISE (FELUCCA_ENG_NOISE) joins the backports test; its own line, not BACKPORTS_ON (engine number 15, beside JUNO's 14)
 BACKPORTS_ON="$BACKPORTS_ON -DFELUCCA_ENG_NOISE=1"
 # the scene's engines, each a builder item: Clipper's six (engines/clipper/), Mini-Tone's SID (engines/sid/), PROPHET (engines/prophet/); tests/scene_engines_test.c
@@ -368,26 +368,30 @@ job; ( jobin
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src $INSFX_ON -DFELUCCA_MOTION=1 -o "$OUT/insfx_test" tests/insfx_test.c -lm
-    run "further inserts FOLD FUZZ PHSR FLNG FRMT WIDE CHRS ECHO GATER (insfx.c, fxi_kern.c, gater.c): at 0 / in no slot / bypassed bit for bit, silence in silence out, bounded, heard; FOLD FUZZ harmonics, FRMT's vowels, WIDE's side; their TLV, motion ids, the type list" "$OUT/insfx_test"
+    run "further inserts FOLD FUZZ PHSR FLNG FRMT WIDE ECHO GATER (insfx.c, fxi_kern.c, gater.c): at 0 / in no slot / bypassed bit for bit, silence in silence out, bounded, heard; FOLD FUZZ harmonics, FRMT's vowels, WIDE's side; their TLV, motion ids, the type list" "$OUT/insfx_test"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_INS_XDLY=1 -DFELUCCA_MOTION=1 -o "$OUT/xdly_test" tests/xdly_test.c -lm
     run "XDLY (xdly.c, fxi.c: the cross-modulated dual delay, one instance): bypassed bit for bit, silence in silence out, the tail ends, bounded at FDBK 127; TIME 1 / TIME 2 repeats, MOD acts, FDBK 127 sustains; the drum bus's L != R; one instance (FULL), the master's slot; TLV, motion id, list, pages, ms; a note's repeats outlast it; its CPU guard cost" "$OUT/xdly_test"
-    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_INS_REVERB=1 -DFELUCCA_MOTION=1 -DFELUCCA_DLY_ARENA=147 -o "$OUT/insend_room_test" tests/insend_test.c -lm
-    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_INS_TDELAY=1 -DFELUCCA_MOTION=1 -DFELUCCA_DLY_ARENA=256 -o "$OUT/insend_tdly_test" tests/insend_test.c -lm
-    run "ROOM (fxi_send.c, fxi.c: the reverb send's ROOM as an insert, a memory of the delay's line + one ROOM): the sends' kernels hash as before; MIX 0 bit for bit, silence in silence out, the tail ends at 0; side, stereo, SIZE; FULL when full, the master's slot; TLV, FX record, motion id, the picker's lists; a note's tail; CPU guard cost" "$OUT/insend_room_test"
-    run "TDLY (fxi_send.c, fxi.c: the delay send's delay as an insert, a memory of the delay's line + one TDLY): the sends' kernels hash as before; MIX 0 bit for bit (from rest, bypassed, in no slot, after a fade), silence in silence out, the tails end at 0; ROOM's side, stereo, SIZE; TDLY's TIME and FDBK; FULL when the memory is full, the master's slot; TLV, FX record, motion ids, the picker's lists; a note's tail; CPU guard costs" "$OUT/insend_tdly_test"
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DINSEND_MODE=0 -DFELUCCA_MOTION=1 -DFELUCCA_DLY_LEN=32768u -DFELUCCA_DLY_ARENA=151 -o "$OUT/insend_test" tests/insend_test.c -lm
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DINSEND_MODE=1 -DFELUCCA_MOTION=1 -o "$OUT/insend_auto_test" tests/insend_test.c -lm
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DINSEND_MODE=2 -DFELUCCA_MOTION=1 -DFELUCCA_ARENA_KB=1 -DFELUCCA_DLY_LEN=16384u -o "$OUT/insend_arena_test" tests/insend_test.c -lm
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DINSEND_MODE=3 -DFELUCCA_MOTION=1 -DFELUCCA_REV_ROOM=0 -DFELUCCA_REV_FDN8=1 -DFELUCCA_DLY_LEN=32768u -DFELUCCA_DLY_ARENA=151 -o "$OUT/insend_noroom_test" tests/insend_test.c -lm
+    run "CHO DLY REV as inserts (fxi_send.c, fxi.c, fx_slots.c: one type each, a send in a return, an insert in a slot): the sends bit for bit as before (fm1-next 47da1b37's hashes); MIX 0 bit for bit, silence in silence out, the tails end at 0; CHO the send's own output, sides, stereo, SIZE, TIME, FDBK; no send from a track holding the insert; as many as the memory holds then FULL, given back; the lists; the FX record and fm1-next's CHRS ROOM TDLY records; a note's tail; the cost a copy" "$OUT/insend_test"
+    run "... the builder's memory (auto): CHO DLY REV none of their own, FULL while every send is in a return; on the delay's or the chorus's lent line when it is not" "$OUT/insend_auto_test"
+    run "... an arena: each CHO DLY REV copy a block of the arena, as many as it holds, then FULL; given back" "$OUT/insend_arena_test"
+    run "... no send ROOM (FDN8): the REV insert's ROOM built all the same, the sends as before" "$OUT/insend_noroom_test"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_INS_GATER=1 -DFELUCCA_MOTION=1 -o "$OUT/gater_test" tests/gater_test.c -lm
     run "GATER (gater.c, built alone): bypassed bit for bit, silence in silence out; every pattern and RATE in phase with the transport from PLAY, the swing, PLAY again; no click (a bounded step) through depth, pattern, rate and a jump; SHAPE's ramps; the drum bus's L = R; stopped it runs on; its TLV, motion id" "$OUT/gater_test"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
-    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_INS_CHORUS=1 -DFELUCCA_INS_DELAY=1 -o "$OUT/fxi_test" tests/fxi_test.c -lm
-    run "the effects memory (fxi.c, fxi_mem.h: CHRS ECHO, auto 10 KB): placed in the main loop, zeroed; a swap keeps one; no room: FULL and bypassed; FULL while the free units are in no one run; given back after the fade-out; a load in owner order, the same every time; never two lines on a unit; the send lines lent" "$OUT/fxi_test"
-    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_INS_CHORUS=1 -DFELUCCA_INS_DELAY=1 -DFELUCCA_INS_JCHORUS=1 -DFELUCCA_INS_FLANGER=1 -o "$OUT/fxi_jc_test" tests/fxi_test.c -lm
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_INS_DELAY=1 -o "$OUT/fxi_test" tests/fxi_test.c -lm
+    run "the effects memory (fxi.c, fxi_mem.h: CHO ECHO, auto 8 KB: ECHO's): placed in the main loop, zeroed; a swap keeps one; no room: FULL and bypassed; FULL while the free units are in no one run; given back after the fade-out; a load in owner order, the same every time; never two lines on a unit; the send lines lent" "$OUT/fxi_test"
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_INS_DELAY=1 -DFELUCCA_INS_JCHORUS=1 -DFELUCCA_INS_FLANGER=1 -o "$OUT/fxi_jc_test" tests/fxi_test.c -lm
     run "the effects memory with JUNO CHORUS and FLNG: a track and the master each, FULL, given back after the fade, the side, its TLV; both on the chorus send's lent line, evicted with a fade" "$OUT/fxi_jc_test"
-    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_INS_CHORUS=1 -DFELUCCA_INS_DELAY=1 -DFELUCCA_INS_XDLY=1 -DFELUCCA_DLY_LEN=32768u -DFELUCCA_DLY_ARENA=72 -o "$OUT/fxi_xd_test" tests/fxi_test.c -lm
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_INS_DELAY=1 -DFELUCCA_INS_XDLY=1 -DFELUCCA_DLY_LEN=32768u -DFELUCCA_DLY_ARENA=72 -o "$OUT/fxi_xd_test" tests/fxi_test.c -lm
     run "the effects memory, 72 KB fixed (the delay send's 64 KB line and one ECHO line): XDLY only on the send's line while it is free, FULL while it is in a slot or holds an ECHO, never both; taken back after the fade, zeroed; clean when it comes back" "$OUT/fxi_xd_test"
 ) >"$U.out" 2>&1 & jobbg
 # the reverb tanks (builder items REV_ROOM / REV_PLATE / REV_FDN8: fx.c ROOM, reverb_alt.c PLATE and FDN8), each alone
@@ -731,7 +735,7 @@ job; ( jobin
     run "editor protocol v9: every track pushed, coalesced, never before a reply; the stream; the meter tap" "$OUT/editor_sync_test"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
-    $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 -DFELUCCA_INS_JCHORUS=1 -DFELUCCA_INS_GATER=1 -DFELUCCA_INS_FOLD=1 -DFELUCCA_INS_FUZZ=1 -DFELUCCA_INS_PHASER=1 -DFELUCCA_INS_FLANGER=1 -DFELUCCA_INS_FORMANT=1 -DFELUCCA_INS_WIDTH=1 -DFELUCCA_INS_CHORUS=1 -DFELUCCA_INS_DELAY=1 -DFELUCCA_USB_AUDIO=1 -o "$OUT/editor_fxp_test" tests/editor_sync_test.c -lm
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 -DFELUCCA_INS_JCHORUS=1 -DFELUCCA_INS_GATER=1 -DFELUCCA_INS_FOLD=1 -DFELUCCA_INS_FUZZ=1 -DFELUCCA_INS_PHASER=1 -DFELUCCA_INS_FLANGER=1 -DFELUCCA_INS_FORMANT=1 -DFELUCCA_INS_WIDTH=1 -DFELUCCA_INS_DELAY=1 -DFELUCCA_USB_AUDIO=1 -o "$OUT/editor_fxp_test" tests/editor_sync_test.c -lm
     run "editor protocol v13: every FX owner, slot, type and parameter (every insert type built: EQ3, DYN, GATER, JUNO, the lanes, the returns, the USB input)" "$OUT/editor_fxp_test"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
@@ -921,9 +925,9 @@ job; ( jobin
     run "Optimist UI without the SYSTEM debug pages, DUAL (SYS_DEBUG=0, DUAL_LOAD): INFO = CPU0, CPU1, UNDERRUNS, BATTERY; KNOB 1 the measure of both" "$OUT/ui_optimist_nodbg_dual_test" "$OUT/optimist-nodbg-dual"
 ) >"$U.out" 2>&1 & jobbg
 # the limited insert types on the Optimist UI (tests/ui_optimist_fxi.h): the free count, WAIT, IN USE, FULL (dim), hidden
-# when not built, the help lines; CHRS ECHO in effects memories (DLY_ARENA, beside the delay send's 128 KB) that hold 0 / 4
-# (32 KB), 1 / 0 (2 KB) and 4 / 1 (8 KB) of them (the last two with the help line)
-for m in "-DFELUCCA_INS_CHORUS=0 -DFELUCCA_INS_DELAY=1 -DFELUCCA_DLY_ARENA=160" "-DFELUCCA_INS_CHORUS=1 -DFELUCCA_INS_DELAY=0 -DFELUCCA_DLY_ARENA=130 -DFELUCCA_PARAM_HELP=1" "-DFELUCCA_INS_CHORUS=1 -DFELUCCA_INS_DELAY=1 -DFELUCCA_DLY_ARENA=136 -DFELUCCA_PARAM_HELP=1"; do
+# when not built, the help lines; CHO ECHO in effects memories (DLY_ARENA, beside the delay send's 128 KB) that hold 8 / 4
+# (32 KB), 1 / not built (4 KB) and 3 / 1 (12 KB) of them (the last two with the help line)
+for m in "-DFELUCCA_INS_DELAY=1 -DFELUCCA_DLY_ARENA=160" "-DFELUCCA_INS_DELAY=0 -DFELUCCA_DLY_ARENA=132 -DFELUCCA_PARAM_HELP=1" "-DFELUCCA_INS_DELAY=1 -DFELUCCA_DLY_ARENA=140 -DFELUCCA_PARAM_HELP=1"; do
     job; ( jobin
         mkdir -p "$OUT/optimist-fxi$nu"
         $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $m -o "$OUT/ui_optimist_fxi_test$nu" tests/ui_optimist_test.c -lm
@@ -1094,26 +1098,26 @@ job; ( jobin   # the arena (core/arena.c, docs/SD-MODE-DESIGN.md 6b): first fit 
     run "arena packing (core/arena.c arn_pack, the user 2026-10-29): a refusal the free room holds moves the parts' blocks together (the fewest moves, in windows of 256 B, the moving block gated, its contents kept, a reservation meanwhile never over it), a fixed place cleared, a load's pack after its switches" "$OUT/arena_pack_test"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin   # the arena's fragmentation (tests/arena_frag_test.c): the jam profile's engines, sends and inserts in 96 KB
-    FRG="-DFELUCCA_ENG_FM6=1 -DFELUCCA_ENG_PHYS=1 -DFELUCCA_ENG_ACID=1 -DFELUCCA_ENG_PLAITS=1 -DFELUCCA_ENG_CZ=1 -DFELUCCA_ENG_JUNO=1 -DFELUCCA_FX_ARENA=1 -DFELUCCA_INS_CHORUS=1 -DFELUCCA_INS_DELAY=1 -DFELUCCA_INS_JCHORUS=1 -DFELUCCA_INS_FLANGER=1 -DFELUCCA_INS_XDLY=1 -DFELUCCA_XDLY_LEN=8192 -DFELUCCA_DLY_LEN=16384u -DFELUCCA_REV_FDN8=1 -DFELUCCA_REV_POOL=1 -DFELUCCA_FX_SLICER=0"
+    FRG="-DFELUCCA_ENG_FM6=1 -DFELUCCA_ENG_PHYS=1 -DFELUCCA_ENG_ACID=1 -DFELUCCA_ENG_PLAITS=1 -DFELUCCA_ENG_CZ=1 -DFELUCCA_ENG_JUNO=1 -DFELUCCA_FX_ARENA=1 -DFELUCCA_INS_DELAY=1 -DFELUCCA_INS_JCHORUS=1 -DFELUCCA_INS_FLANGER=1 -DFELUCCA_INS_XDLY=1 -DFELUCCA_XDLY_LEN=8192 -DFELUCCA_DLY_LEN=16384u -DFELUCCA_REV_FDN8=1 -DFELUCCA_REV_POOL=1 -DFELUCCA_FX_SLICER=0"
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $FRG "-DFELUCCA_ARENA_BYTES=(96u * 1024u)" -o "$OUT/arena_frag_test" tests/arena_frag_test.c -lm
     run "arena fragmentation, 20000 random steps (engines, inserts, sends, loads; nothing dropped): no overlap, nothing a move copies lost, few refusals a packed layout would place" "$OUT/arena_frag_test"
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $FRG -DARN_MV_STEP -DFRAG_STEPS=4000u "-DFELUCCA_ARENA_BYTES=(96u * 1024u)" -o "$OUT/arena_frag_step_test" tests/arena_frag_test.c -lm
     run "the same, a move's window a pass (the audio between two): the moving part skipped, no overlap" "$OUT/arena_frag_step_test"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin   # the effects' lines in the arena (fx/fx_arena.c, docs/SD-MODE-DESIGN.md 6b phase 3b; FELUCCA_FX_ARENA)
-    FXA="-DFELUCCA_ENG_FM6=1 -DFELUCCA_FX_ARENA=1 -DFELUCCA_INS_CHORUS=1 -DFELUCCA_INS_DELAY=1 -DFELUCCA_DLY_LEN=16384u"
-    $CC -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $FXA "-DFELUCCA_ARENA_BYTES=75008u" -o "$OUT/fx_arena_test" tests/fx_arena_test.c -lm
+    FXA="-DFELUCCA_ENG_FM6=1 -DFELUCCA_FX_ARENA=1 -DFELUCCA_INS_DELAY=1 -DFELUCCA_INS_FLANGER=1 -DFELUCCA_DLY_LEN=16384u"   # (FLNG: the own room's other type since CHRS became the CHO insert, its copies arena blocks of their own, 2026-10-29)
+    $CC -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $FXA "-DFELUCCA_ARENA_BYTES=73984u" -o "$OUT/fx_arena_test" tests/fx_arena_test.c -lm
     run "effects' lines in the arena (ROOM): at their fixed places while used, zeroed, gated and given back, refused (bypassed, kept, said once) and restored (a part's block there reclaimed), a part's change waits for a line going back, the inserts' room grown and given back, lent instead; random switches" "$OUT/fx_arena_test"
-    $CC -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $FXA -DFELUCCA_REV_FDN8=1 -DFELUCCA_REV_POOL=1 -DFELUCCA_SPRING=1 "-DFELUCCA_ARENA_BYTES=90368u" -o "$OUT/fx_arena_rev_test" tests/fx_arena_test.c -lm
+    $CC -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $FXA -DFELUCCA_REV_FDN8=1 -DFELUCCA_REV_POOL=1 -DFELUCCA_SPRING=1 "-DFELUCCA_ARENA_BYTES=89344u" -o "$OUT/fx_arena_rev_test" tests/fx_arena_test.c -lm
     run "the same with ROOM, FDN8 and SPRING (the reverb's TYPE switched, its line 32 KB)" "$OUT/fx_arena_rev_test"
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $FXA -DUI_MEMLIST=1 "-DFELUCCA_ARENA_BYTES=65536u" -o "$OUT/ui_optimist_memlist_test" tests/ui_optimist_test.c -lm
     run "a load that does not fit (ui/optimist/op_memlist.c): the refused parts listed, then the parts and the effects' lines on the keys, the gauge and FITS the arena's trial, SAVE drops and places, HOME leaves placeholders, an edit's one confirm" "$OUT/ui_optimist_memlist_test" "$OUT/optimist"
-    $CC -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $FXA -DFELUCCA_FX_SLICER=0 "-DFELUCCA_ARENA_BYTES=75008u" -o "$OUT/fx_arena_nobufs_test" tests/fx_arena_test.c -lm
+    $CC -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $FXA -DFELUCCA_FX_SLICER=0 "-DFELUCCA_ARENA_BYTES=73984u" -o "$OUT/fx_arena_nobufs_test" tests/fx_arena_test.c -lm
     run "the same without the SLICER (no other buffer in the arena: core/arena_bufs.c's stubs)" "$OUT/fx_arena_nobufs_test"
     # (the arenas in whole KB, every block in 256 B units (core/arena.c ARN_ALIGN): one FM6 4096 and its sine table 4352,
-    #  the send lines 56320 (ROOM; with FDN8 and SPRING 71680), the inserts' own room 10240 (CHRS and ECHO: one line each);
+    #  the send lines 56320 (ROOM; with FDN8 and SPRING 71680), the inserts' own room 9216 (ECHO FLNG: one line each; a CHO DLY REV copy a block of its own);
     #  arena_bufs: WAVE's table 73216, one SLICER recording 8192, the 909 5376 and the 808 3584 on the host too)
-    $CC -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $FXA -DFELUCCA_ENG_WAVE=1 -DFELUCCA_DRUM_X909=1 -DFELUCCA_DRUM_X808=1 "-DFELUCCA_ARENA_BYTES=165376u" -o "$OUT/arena_bufs_test" tests/arena_bufs_test.c -lm
+    $CC -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $FXA -DFELUCCA_ENG_WAVE=1 -DFELUCCA_DRUM_X909=1 -DFELUCCA_DRUM_X808=1 "-DFELUCCA_ARENA_BYTES=164352u" -o "$OUT/arena_bufs_test" tests/arena_bufs_test.c -lm
     run "other buffers in the arena (SLICER recordings, WAVE's table, the X0X machines, the PUNCH ring while its switch is on): placed while used, given back, refused (bypassed, FULL, said once) and placed by themselves; a change to WAVE refused as an engine change, on a load the list page; a part's change waits; random switches" "$OUT/arena_bufs_test"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin   # the RAMTEXT overlays (core/overlay.c, docs/SD-MODE-DESIGN.md 6): the slots' protocol on the host
@@ -1682,7 +1686,7 @@ job; ( jobin
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     $CC -O1 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_CPU_GUARD=1 -DFELUCCA_ENG_ACID=1 $INSFX_ON -o "$OUT/cpuguard_ifx_test" tests/cpuguard_test.c -lm
-    run "CPU guard with the further inserts built (INS_*; CHRS ECHO counted only with an instance)" "$OUT/cpuguard_ifx_test"
+    run "CPU guard with the further inserts built (INS_*; CHO ECHO counted only with an instance)" "$OUT/cpuguard_ifx_test"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     $CC -O1 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_CPU_GUARD=1 -DFELUCCA_ENG_ACID=1 $INSFX_ON -DFELUCCA_INS_JCHORUS=1 -DFELUCCA_USB_AUDIO=1 -o "$OUT/cpuguard_usb_test" tests/cpuguard_test.c -lm
