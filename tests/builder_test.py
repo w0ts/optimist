@@ -1167,5 +1167,7 @@ check("web builder: the view carries the arena (kb, free, keep, the panel's line
 _ar_x = subprocess.run([sys.executable, str(ROOT / "tools" / "export_builder_web.py"), "--check"], capture_output=True, text=True)
 check("web builder data export: web/builder/data is what the builder has now (export_builder_web.py --check)",
       _ar_x.returncode == 0)
+if _ar_x.returncode:
+    print("  " + (_ar_x.stdout + _ar_x.stderr).strip()[-600:])
 print("builder test " + ("FAILED" if fails else "passed"))
 sys.exit(1 if fails else 0)
