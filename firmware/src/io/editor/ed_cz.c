@@ -16,7 +16,7 @@ static int ed_cz(uint32_t cmd, const uint8_t *a, uint32_t na)
     if (cmd != ED_CZ_BANK)
         return 0;
     ed_b2(op, k);
-    t = k < CZ_NUSER ? czb_tone(CZT_N + k) : 0;
+    t = k < CZ_NUSER ? FAST_CALL(cz, czb_tone)(CZT_N + k) : 0;
     if (op > 1u || k >= CZ_NUSER || na != 2u + (op ? na > 2u : 0u) * 288u)
         rc = 1;
     else if (!op)

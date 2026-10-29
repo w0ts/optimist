@@ -58,7 +58,7 @@ static const uint8_t *nb_raw(uint32_t kind, uint32_t k, uint32_t *name_at)
 #endif
     *name_at = 128u;
 #if CZ_NUSER
-    return czb_tone(CZT_N + k);
+    return FAST_CALL(cz, czb_tone)(CZT_N + k);
 #else
     return 0;
 #endif
@@ -165,7 +165,7 @@ static void nb_load(uint32_t k)
             fm6_cur[song.sel % NPART] = 0;              /* the pack's voice afresh */
         } else {                                        /* a voice of the received bank: into the buffer, VOICE INIT */
             uint32_t o;
-            fm6_unpack(fm6_ed[song.sel % NPART], nb_raw(kind, k, &o));
+            FAST_CALL(fm6, fm6_unpack)(fm6_ed[song.sel % NPART], nb_raw(kind, k, &o));
             t->p[P_E0] = 0;
             fm6_cur[song.sel % NPART] = 1;
             fm6_pt[song.sel % NPART].panic = 1;

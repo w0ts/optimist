@@ -42,11 +42,13 @@ def sources(d):
 
 
 def strip(text):
-    """comments, string / char literals and the OVL / OVLX markers blanked, lines kept"""
+    """comments, string / char literals and the OVL / OVLX / FAST / FASTI markers blanked, lines kept"""
     def blank(m):
         return re.sub(r"[^\n]", " ", m.group(0))
     text = re.sub(r"/\*.*?\*/|//[^\n]*|\"(?:\\.|[^\"\\\n])*\"|'(?:\\.|[^'\\\n])*'", blank, text, flags=re.S)
-    return re.sub(r"\bOVLX?\(\w+\)", blank, text)   # (core.h's OVL(name) / OVLX(name) where HOT stood: not a function)
+    text = re.sub(r"\bOVLX?\(\w+\)", blank, text)   # (core.h's OVL(name) / OVLX(name) where HOT stood: not a function)
+    return re.sub(r"\bFASTI?\(\w+\)[ \t]*", "", text)   # (FAST(name) / FASTI(name): taken out, so a definition it
+                                                        # starts still starts its line; the lines kept)
 
 
 def operand(text, i):

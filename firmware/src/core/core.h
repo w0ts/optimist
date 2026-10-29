@@ -113,10 +113,111 @@ enum { Q_OFF, Q_SNAP, Q_WHITE, Q_ALL, Q_SEQ };   /* P_QUANT (SCL › KEYS): seq.
 #if FELUCCA_OVERLAY && defined(__PI32V2__) && !defined(RTO_TARGET)
 #error "FELUCCA_OVERLAY needs the RAM code sections (no ASM_CHECK build)"
 #endif
+/* Where an engine's hot code runs (2026-10-29, the builder's engine items: off / on / on, code in RAM): FAST_RAM_<name>
+ * 1 its render path is RAM code (HOT), 0 it runs from XIP. The builder writes every engine's into felucca_config.h
+ * (configure.py, registry.py FAST_NAMES); a build without them (the host tests, a hand-made header) gets where each
+ * ran until then: ANALOG 2 and SUPER, PHASE, DIGITAL, TRIO, FORMANT, DRAWBAR, LOFI, SAMPLE in RAM, the rest in XIP.
+ * OVL(name) / OVLX(name) (the overlay engines' marks) and FAST(name) (the others': FM6, ACID, PLAITS, PHYS, PROPHET,
+ * JUNO, CZ) pick HOT or nothing by it. RAM code calls only RAM code (or through a pointer, FAR), XIP code calls RAM
+ * code only through a pointer: an engine's choice moves its marked functions together, and what they call directly
+ * is marked with it or always_inline (the release's tools/ramcode.py and the linker refuse the rest). With the
+ * overlays (FELUCCA_OVERLAY) the overlay link decides instead and FAST(name) is XIP, as before */
+#ifndef FAST_RAM_analog
+#define FAST_RAM_analog 1
+#endif
+#ifndef FAST_RAM_super
+#define FAST_RAM_super FAST_RAM_analog                  /* (SUPER is ANALOG 2's swarm: one item) */
+#endif
+#ifndef FAST_RAM_phase
+#define FAST_RAM_phase 1
+#endif
+#ifndef FAST_RAM_digital
+#define FAST_RAM_digital 1
+#endif
+#ifndef FAST_RAM_trio
+#define FAST_RAM_trio 1
+#endif
+#ifndef FAST_RAM_formant
+#define FAST_RAM_formant 1
+#endif
+#ifndef FAST_RAM_drawbar
+#define FAST_RAM_drawbar 1
+#endif
+#ifndef FAST_RAM_lofi
+#define FAST_RAM_lofi 1
+#endif
+#ifndef FAST_RAM_sample
+#define FAST_RAM_sample 1
+#endif
+#ifndef FAST_RAM_fm6
+#define FAST_RAM_fm6 0
+#endif
+#ifndef FAST_RAM_acid
+#define FAST_RAM_acid 0
+#endif
+#ifndef FAST_RAM_plaits
+#define FAST_RAM_plaits 0
+#endif
+#ifndef FAST_RAM_phys
+#define FAST_RAM_phys 0
+#endif
+#ifndef FAST_RAM_prophet
+#define FAST_RAM_prophet 0
+#endif
+#ifndef FAST_RAM_juno
+#define FAST_RAM_juno 0
+#endif
+#ifndef FAST_RAM_cz
+#define FAST_RAM_cz 0
+#endif
+#ifndef FAST_RAM_strings
+#define FAST_RAM_strings 0
+#endif
+/* FASTI(name): a small helper of an engine's render path that the engine's XIP code (its note hooks, the UI) calls too:
+ * always inlined while the engine's code is RAM code (each side its own copy), as it was otherwise. FAST_CALL(name, f):
+ * a call to f, one of the engine's render path's functions, from its code that stays in XIP: through a pointer while
+ * the engine's code is RAM code (FAR: out of a direct call's reach), a plain call otherwise */
+#define FASTI(n) FAST_INL_(FAST_RAM_##n)
+#define FAST_INL_(x) FAST_INL__(x)
+#define FAST_INL__(x) FAST_INL_##x
+#define FAST_INL_1 __attribute__((always_inline))
+#define FAST_INL_0
+#define FAST_CALL(n, f) FAST_CALL_(FAST_RAM_##n, f)
+#define FAST_CALL_(x, f) FAST_CALL__(x, f)
+#define FAST_CALL__(x, f) FAST_CALL_##x(f)
+#define FAST_CALL_1(f) FAR(f)
+#define FAST_CALL_0(f) f
+/* FAST_ZERO(name, p, n): memset(p, 0, n) in an engine's render path: word by word while the engine's code is RAM code
+ * (libc.c's memset is XIP code; a plain loop the compiler turns back into the call: a barrier in it) */
+#define FAST_ZERO(n, p, sz) FAST_ZERO_(FAST_RAM_##n, p, sz)
+#define FAST_ZERO_(x, p, sz) FAST_ZERO__(x, p, sz)
+#define FAST_ZERO__(x, p, sz) FAST_ZERO_##x(p, sz)
+#define FAST_ZERO_1(p, sz) fast_zero(p, sz)
+#define FAST_ZERO_0(p, sz) memset(p, 0, sz)
+static inline __attribute__((always_inline)) void fast_zero(void *p, uint32_t n)
+{
+    uint32_t *w = (uint32_t *)p, i;                    /* (p 4-aligned: an engine's state) */
+    uint8_t *b;
+    for (i = 0; i < n / 4u; i++) {
+        w[i] = 0;
+        __asm__ volatile("" ::: "memory");           /* (a barrier: the loop stays a loop, not a call to memset) */
+    }
+    for (b = (uint8_t *)(w + i), i *= 4u; i < n; i++) {
+        *b++ = 0;
+        __asm__ volatile("" ::: "memory");
+    }
+}
+#define FAST_PLACE(x) FAST_PLACE_(x)
+#define FAST_PLACE_(x) FAST_PLACE_##x
+#define FAST_PLACE_1 HOT
+#define FAST_PLACE_0
 #ifndef RTO_TARGET
 #define RTO_TARGET 0
-#define OVL(n) HOT
-#define OVLX(n)
+#define OVL(n) FAST_PLACE(FAST_RAM_##n)
+#define OVLX(n) FAST_PLACE(FAST_RAM_##n)
+#define FAST(n) FAST_PLACE(FAST_RAM_##n)
+#else
+#define FAST(n)
 #endif
 /* This compiler inlines a function into a caller in another section only when it is always_inline:
  * AINL marks the small helpers that the HOT code and the rest both use (inlined everywhere). */
