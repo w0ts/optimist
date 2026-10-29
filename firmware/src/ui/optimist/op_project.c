@@ -413,7 +413,7 @@ static uint32_t pw_leds(uint32_t *d);
 #include "../../system/dual_mode.h"                     /* 2ND CORE: DUALM_*, dual_why_name, and the INFO text helpers dual_cat / dual_cnum / dual_chex (LAST RESET: every UI=1 build; pure, no state) */
 #include "../../system/stackmark.h"                     /* INFO's RAM line: how deep the stacks went (painted at boot: stk_boot) */
 /* ---- SYSTEM: SLOOP's HOME-held menu as rows (ui/sloop/ui_menu.c) */
-enum { SI_NONE, SI_LIGHTS, SI_KEYS, SI_LOWCUT, SI_OUT, SI_SYNC, SI_CH1, SI_CH2,
+enum { SI_NONE, SI_LOWCUT, SI_OUT, SI_SYNC, SI_CH1, SI_CH2,
        SI_CH3, SI_CHD, SI_USB, SI_CPU, SI_MHZ, SI_CALIB, SI_ABOUT, SI_HOLD, SI_BLE, SI_KCOL, SI_DBGST, SI_CLKOUT, SI_CPU1, SI_INFO, SI_BUILD, SI_REPO,
        SI_DROPS, SI_GUARD, SI_UAINFO, SI_XRUN, SI_DIAG, SI_CREDITS, SI_BLEST, SI_BLEPEER, SI_BLEMIDI, SI_BLELIST, SI_BLEAUTO,
        SI_BLEFGT, SI_FRESO, SI_VUFLOOR, SI_HPBASS, SI_BTA, SI_BTAPEER, SI_BTAFMT, SI_BTAST, SI_CLKOFS, SI_BTOFS, SI_LINK, SI_LINKOFS,
@@ -518,7 +518,6 @@ static const struct { const char *name; uint8_t it[4]; } SYS[] = {
 #endif
     {"SETTINGS", {SI_SDBACK, SI_SDREST, SI_NONE, SI_NONE}},   /* (the device's settings to the card and back) */
 #endif
-    {"KEYS", {SI_LIGHTS, SI_KEYS, SI_NONE, SI_NONE}},
 #if FELUCCA_BLE                                         /* (Bluetooth, a page a side, each with its item: op_bt.c) */
     {"BT MIDI", {SI_BLE, SI_BLEPEER, SI_BLEMIDI, SI_BLEST}},   /* MODE, DEVICE, ACTIVITY, STATE */
 #endif
@@ -741,8 +740,6 @@ static int32_t cko_pos(void)
 #endif
 static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
 {
-    static const char *const LV[4] = {"OFF", "LOW", "MID", "HIGH"};
-    static const char *const KY[4] = {"OFF", "C", "WHITE", "ALL"};
     static const char *const LC[3] = {"OFF", "ON", "BASS+"};
     static const char *const HB[3] = {"OFF", "+3 dB", "+6 dB"};
     int16_t *vp;
@@ -766,12 +763,6 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
     }
 #endif
     switch (it) {
-    case SI_LIGHTS:
-        cell_list(c, "BUTTONS", LV[lights_lvl & 3u], LIGHTS_N - 1, lights_lvl);
-        break;
-    case SI_KEYS:
-        cell_list(c, "KEYS", KY[lights_keys & 3u], KEYS_N - 1, lights_keys);
-        break;
     case SI_LOWCUT:
         cell_list(c, "SPK LOWCUT", LC[spk_lc % 3u], 2, (int32_t)(spk_lc % 3u));   /* (the speaker: nothing in the jack) */
         break;
@@ -1415,14 +1406,6 @@ static void sys_set(uint32_t it, int32_t s)
         sdm_set(it - SI_SDVERS - (it == SI_SDPRE), s ? s : 1);
         break;
 #endif
-    case SI_LIGHTS:
-    case SI_KEYS: {
-        uint8_t *v = it == SI_LIGHTS ? &lights_lvl : &lights_keys;
-        *v = (uint8_t)sys_step(*v, s, (int32_t)(it == SI_LIGHTS ? LIGHTS_N : KEYS_N) - 1);
-        if (it == SI_KEYS && lights_keys && !lights_lvl)
-            lights_lvl = LIGHTS_LOW;                    /* keys lit need a level: the lowest */
-        break;
-    }
     case SI_HOLD:                                       /* (kept in the settings word: settings_word.c) */
         hold_sel = OP_HOLD_SEL[sys_step(OP_HOLD_POS[hold_sel % HOLD_N], s, HOLD_N - 1)];
         break;
@@ -1506,12 +1489,6 @@ static int sys_factory(uint32_t it)
         sdm_set(it - SI_SDVERS - (it == SI_SDPRE), 0);   /* (8 versions, 100 %, 50 ms) */
         return 1;
 #endif
-    case SI_LIGHTS:
-        lights_lvl = LIGHTS_OFF;
-        break;
-    case SI_KEYS:
-        lights_keys = KEYS_OFF;
-        break;
     case SI_LOWCUT:
         settings.lowcut = oc_set_word(oc_word(1u, hp_bass));   /* (ON: outcorr.c) */
         break;
