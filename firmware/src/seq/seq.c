@@ -2791,6 +2791,28 @@ static uint32_t seq_carry(track_t *t, const step_t *s, uint32_t skip)
     return keep;
 }
 
+/* a slide into step s on a POLY track (MONO / LEGATO glide in voice.c mono_play): note i of s, not sounding yet, takes the
+ * voice of the nearest note still sounding from the step before that s does not hold on (used: those taken already) and
+ * glides there; -> 1 done (voice.c trk_note_glide; no such voice: 0, the note starts as ever) */
+static __attribute__((noinline)) int seq_slide_poly(track_t *t, const step_t *s, uint32_t i, uint32_t *used)   /* (rare: kept out of seq_step) */
+{
+    uint32_t j, k, best = 4u, bd = 128u, x = s->note[i];
+    if (t->p[P_VOICE] != V_POLY)
+        return 0;
+    for (j = 0; j < t->seq_n && j < 4u; j++) {
+        uint32_t o = t->seq_notes[j], dd = o > x ? o - x : x - o;
+        for (k = 0; k < s->n && s->note[k] != o; k++)
+            ;
+        if (o == x)
+            return 0;                                   /* (it sounds already: as ever) */
+        if (k == s->n && !((*used >> j) & 1u) && dd < bd)
+            best = j, bd = dd;
+    }
+    if (best == 4u || !trk_note_glide(t, t->seq_notes[best], x, step_vel(s, i)))
+        return 0;
+    *used |= 1u << best;
+    return 1;
+}
 /* play one synth step: TIE extends, REST releases, NOTE (re)triggers; a SLIDE on the previous
  * step makes this one legato with a glide (acid style). skip: bit k = note k already sounds
  * from live recording (not triggered, not released here). len: the step's length (units). */
@@ -2803,7 +2825,7 @@ static void seq_step(track_t *t, const step_t *s, uint32_t slen, uint32_t skip)
         s = &qs;
     }
 #endif
-    uint32_t i, j, gate = slen * (uint32_t)t->p[P_SGATE] / 128u, keep = 0;
+    uint32_t i, j, gate = slen * (uint32_t)t->p[P_SGATE] / 128u, keep = 0, slid = 0;
     uint32_t slide_in = t->seq_hold && t->seq_n;
 #if GEN_ON
     step_t nxs;                                     /* (the generator's merged step: GEN_NEXT's out without one unused) */
@@ -2851,12 +2873,14 @@ static void seq_step(track_t *t, const step_t *s, uint32_t slen, uint32_t skip)
                 arp_seq_on(t, s->note[i]);
                 continue;
             }
+            if (slide_in && seq_slide_poly(t, s, i, &slid))
+                ;                                   /* (POLY: a voice of the step before glides there) */
 #if FELUCCA_CHORDPLUS
-            if (!slide_in)                          /* (STRUM: a chord step's notes one after the other) */
+            else if (!slide_in)                     /* (STRUM: a chord step's notes one after the other) */
                 trk_note_chord(t, s->note, s->n, i, step_vel(s, i));
-            else
 #endif
-            trk_note_on(t, s->note[i], step_vel(s, i));
+            else
+                trk_note_on(t, s->note[i], step_vel(s, i));
             if (!slide_in || !seq_out_held(t, s->note[i]))
                 seq_out_on(t, s->note[i], step_vel(s, i));   /* (a slide into the same note: one MIDI note) */
         }

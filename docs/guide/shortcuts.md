@@ -108,7 +108,7 @@ On STEP the white keys stay steps under the shifts: SHIFT and SHIFT2 with a step
 | SAVE, a note picked | STEP, the cards down | the note's cards, as if its step were held; HOME: they go |
 | SAVE held alone, let go | STEP, a note picked | the note muted / on again: kept, dim, played as a rest (not the ACCENT lane) |
 | HOME held alone, let go | STEP, a note picked | the note deleted (HOME tapped: back, as ever) |
-| a step key held | STEP | the cards are the step's: synth NOTE, LEVEL, RATCHET, LENGTH; drums LEVEL, RATCHET, TUNE, DECAY. Several held steps edit together |
+| a step key held | STEP | the cards are the step's: synth NOTE, LEVEL, RATCHET, GLIDE (the note slides into the next step); drums LEVEL, RATCHET, TUNE, DECAY. Several held steps edit together |
 | step held + a knob | STEP | that value; SHIFT + the knob: back to NORMAL, x1, one step (on a p-lock card: that lock cleared) |
 | step held + PRESETS | STEP | move the step in time (its locks and motion go with it) |
 | step held + ALGORITHM | synth | the selected note a semitone up / down; folded: to the next row shown |
