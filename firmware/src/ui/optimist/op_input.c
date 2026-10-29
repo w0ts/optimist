@@ -1042,8 +1042,6 @@ static void op_knobs(uint32_t shift)
         if (ui.shift && !lpk.on)
             lpk.fine = 1;                               /* (LFO + a knob before the patterns show: SHIFT, they stay away) */
 #endif
-        if (ui.scr == SCR_SYSTEM && info_knob(row, k, s))
-            continue;                                   /* (INFO's KNOB 1: the CPU lines' measure, op_global.c) */
         if (step_cards_down() && (!fm1_in.buttons || fm1_in.buttons == (1u << panel.btn[B_OCTDN]))) {
             pk_knob(k, s, fm1_in.buttons != 0u);       /* (STEP: the knobs edit only while the cards are up, SELECT or SEQ
                                                          * brings them, or with a button held: LFO + KNOB 1 LEN by one;
@@ -1522,17 +1520,6 @@ static void ui_leds(void)
     led_keys(nl, kf);
     led_keys(hl, kh);
     led_keys(dl, kd);
-    {   /* menu LIGHTS / KEYS: the backlight layer under what is lit; off while a mode lights its keys (D10) */
-        uint8_t bl[FM1_NCOL] = {0};
-        uint32_t back = kf | kd | kh ? 0u : lights_keys_mask(), k;
-        led_keys(bl, back);
-        if (lights_lvl)
-            for (k = 0; k < NB; k++)
-                led_btn(bl, k, 1);
-        for (c = 0; c < FM1_NCOL; c++)
-            fm1_led_bg[c] = (uint8_t)(bl[c] & ~nl[c]);
-        fm1_led_bg_ns = LIGHTS_NS[lights_lvl % LIGHTS_N];
-    }
     for (c = 0; c < FM1_NCOL; c++) {                    /* (written on a change only) */
         if (fm1_led[c] != nl[c])
             fm1_led[c] = nl[c];

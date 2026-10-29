@@ -18,7 +18,6 @@ static void core_row_tests(void)
         check(dual_mode == DUALM_AUTO, "2ND CORE: a misread's self-disable is not kept in the setting (the next boot starts CPU1 again)");
         dual_c1_q8 = 128u;
         dual.why = DUAL_UP;
-        info_mode = 0;                                  /* (the NOW measure: an earlier test may have turned INFO's KNOB 1) */
         sys_info_cell(2, &c);
         check(!strcmp(c.label, "2ND CORE ON") && !strcmp(c.val, "50") && !strcmp(c.unit, "%") && c.col == C_OK, "2ND CORE ON: the CPU1 load, 50 %, green (under 60)");
         dual_c1_q8 = DUAL_C1_OFF;
@@ -80,13 +79,11 @@ static void overload_tests(void)
     cell_t c;
     uint32_t dr, xr, t, i, half = OVL_HALF_US;
     const char *cpu = DUAL_LOAD ? "CPU0" : "LOAD";
-    char lb[24];
     reset_ui();
     memset((void *)&ovl, 0, sizeof ovl);
-    info_mode = OVL_NOW;
     dr = info_line("DROPS");
     xr = info_line("UNDERRUNS");
-    check(dr < INFO_N && xr < INFO_N && info_line("PEAK 5S") == INFO_N, "INFO: DROPS and UNDERRUNS lines (the maxima: the CPU line's KNOB 1)");
+    check(dr < INFO_N && xr < INFO_N && info_line("PEAK 5S") == INFO_N, "INFO: DROPS and UNDERRUNS lines");
     t = fm1_ms;
     ovl_half(half * 40u / 100u, 0, t);
     ovl_half(half * 70u / 100u, 0, t + 6u);
@@ -98,30 +95,32 @@ static void overload_tests(void)
     check(!strcmp(c.label, cpu) && !strcmp(c.val, "50") && c.col == C_OK, "the CPU line: NOW, the load (50 %, green)");
     check(c.pkbar && c.gk == GK_BAR && c.gv == 50 && c.hold[0] == 70 && c.hold[1] == 70,
           "the CPU line's bar: filled to the load now (50), both peak ticks at the longest half (70)");
-    turn(EN_K1, 1);
-    sys_info_cell(1, &c);
-    snprintf(lb, sizeof lb, "%s MAX 10S", cpu);
-    check(info_mode == OVL_MAX10 && !strcmp(c.label, lb) && !strcmp(c.val, "70") && !strcmp(c.unit, "%") && c.col == C_WARN &&
-          c.gv == 50 && ui.scr == SCR_SYSTEM, "KNOB 1 on INFO: MAX 10S, the longest half (70 %, amber); the bar still the load now");
+    {   /* the numbers are the load now; the ticks hold the maxima; KNOB 1 does nothing on INFO */
+        cell_t c0;
+        uint8_t before[sizeof screen];
+        ui.force = 1;
+        frame();
+        memcpy(before, screen, sizeof before);
+        sys_info_cell(1, &c0);
+        turn(EN_K1, 1);
+        turn(EN_K1, -1);
+        ui.force = 1;
+        frame();
+        sys_info_cell(1, &c);
+        check(!memcmp(before, screen, sizeof before) && !strcmp(c.label, c0.label) && !strcmp(c.val, c0.val) && c.hold[0] == c0.hold[0] &&
+              c.hold[1] == c0.hold[1] && ui.scr == SCR_SYSTEM, "KNOB 1 on INFO changes nothing: the screen, the CPU line's label and number, the ticks");
+    }
     ovl_half(half * 133u / 100u, 1, t + 1500u);         /* (the user's log: 7,693 us, 133 % of a half) */
     fm1_ms = t + 1600u;
     sys_info_cell(1, &c);
-    check(!strcmp(c.val, "133") && c.col == C_ERR && c.hold[0] == 100 && c.hold[1] == 100,
-          "MAX 10S over 100 %: 133, red (a late half); the ticks at the bar's end");
+    check(!strcmp(c.val, "50") && c.hold[0] == 100 && c.hold[1] == 100,
+          "a late half: the number stays the load now (50), the ticks at the bar's end");
     for (i = 1; i <= 11u; i++)
         ovl_half(half / 2u, 0, t + 1500u + i * 1024u);  /* (11 s of light halves: the 133 % ages out of the 10 s window) */
     fm1_ms = t + 1500u + 11u * 1024u;
     sys_info_cell(1, &c);
     check(!strcmp(c.val, "50") && c.col == C_OK && c.hold[0] == 50 && c.hold[1] == 100,
-          "MAX 10S: ~10 s later the window forgets it (50 %, green); the bright tick follows, the since-boot tick holds 100");
-    turn(EN_K1, 1);
-    sys_info_cell(1, &c);
-    snprintf(lb, sizeof lb, "%s MAX", cpu);
-    check(info_mode == OVL_MAXALL && !strcmp(c.label, lb) && !strcmp(c.val, "133") && c.col == C_ERR, "KNOB 1 again: MAX since boot, 133 % kept (MAX 10S, then MAX: no 1 min step)");
-    turn(EN_K1, 1);
-    check(info_mode == OVL_NOW, "KNOB 1 again: NOW (round)");
-    turn(EN_K1, -1);
-    check(info_mode == OVL_MAXALL, "KNOB 1 back: MAX");
+          "~10 s later the 10 s window forgets it: the bright tick follows (50), the since-boot tick holds 100");
     sys_info_cell(dr, &c);
     check(!strcmp(c.val, "1") && c.col == C_WARN, "DROPS: 1 since boot, amber (none in the last 5 s)");
     ovl_half(half * 101u / 100u, 1, fm1_ms);
@@ -155,7 +154,7 @@ static void overload_tests(void)
     sys_info_cell(xr, &c);
     check(!strcmp(c.val, "0") && ovl_midi_lost() == 2u, "... UNDERRUNS from 0");
     sys_info_cell(1, &c);
-    check(!strcmp(c.val, "0"), "... the CPU line's MAX from 0");
+    check(c.hold[1] == 0, "... the CPU line's since-boot tick from 0");
     check(c.hold[1] == 0, "... and the since-boot tick (the 10 s tick is the window's: it ages out by itself)");
     check(ui.scr == SCR_SYSTEM && !lay.chord, "... and no redo, no PROJECT");
     {   /* INFO split in two (the user, 2026-10-15): DIAGNOSTICS next, a page of its own, then USB DIAGNOSTICS (USB audio builds) */
@@ -205,7 +204,6 @@ static void overload_tests(void)
         cg.level = 0, cg.vcap = 0;
     }
 #endif
-    info_mode = OVL_NOW;
     song.cpu_q8 = 0;
     memset((void *)&ovl, 0, sizeof ovl);
     reset_ui();

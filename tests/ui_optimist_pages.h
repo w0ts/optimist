@@ -69,7 +69,6 @@ static void pages_nav_tests(void)
 #if FELUCCA_SYS_DEBUG                                   /* (D2: the debug INFO page; SYS_DEBUG off: ui_optimist_sysdbg.h) */
     /* D2 (2026-10-14: SYSTEM's first page is INFO, read-outs: the clock, each core's load, the memory) */
     SCREENS[SCR_SYSTEM].name(0, nm);
-    info_mode = OVL_NOW;                                /* (the CPU line's measure: NOW, INFO's KNOB 2) */
     sys_info_cell(0, &c);
     sys_info_cell(1, &c2);
     check(!strcmp(nm, "INFO") && c.kind == CK_RO && !strcmp(c.label, "CLOCK") && !strcmp(c.unit, "MHz") &&
@@ -572,20 +571,7 @@ static void pages_keys_tests(void)
     frames(2);
     keys_are(kw(3), kws(0, 15), "D10: FX layer: the latched effect full");
     punch.req = -1;
-    {   /* LIGHTS / KEYS ALL: the backlight off while a mode lights its keys */
-        uint8_t kl = lights_keys, ll = lights_lvl, q = led_pos[14u];
-        uint32_t on_lay, on_mix;
-        lights_keys = 3;
-        lights_lvl = LIGHTS_LOW;
-        frames(2);
-        on_lay = (fm1_led_bg[q >> 3] >> (q & 7u)) & 1u;
-        let_go(B_FX);
-        frames(2);
-        on_mix = (fm1_led_bg[q >> 3] >> (q & 7u)) & 1u;
-        check(!on_lay && on_mix, "D10: the KEYS backlight is off while a layer lights its keys, on again on the mixer");
-        lights_keys = kl;
-        lights_lvl = ll;
-    }
+    let_go(B_FX);
     for (k = 0; k < 4u; k++)
         fxoff[k] = trk[k].p[P_FXOFF], trk[k].p[P_FXOFF] = 0;
     smute_set_trk(1, 1);

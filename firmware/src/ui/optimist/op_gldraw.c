@@ -130,8 +130,8 @@ static void gl_line_draw(uint32_t k, int32_t y, const cell_t *c, uint32_t on)
     }
 }
 /* SYSTEM's first page, INFO: not 4 lines but every read-out at once, compact: the name left, the value right, text
- * only but the CPU lines' bars (gl_info_bar: the load now and its peaks; the clock, the load of each core, RAM, the battery). KNOB 1 sets
- * the CPU lines' number (op_global.c info_knob); no line is the cursor */
+ * only but the CPU lines' bars (gl_info_bar: the load now and its peaks; the clock, the load of each core, RAM, the battery). No line is the cursor,
+ * no knob does anything */
 #define GL_INFO_PH 26                                   /* a read-out page's line pitch at most */
 #define GL_INFO_PH_MAIN 34                              /* INFO's: five or six lines (the battery is the header's, 2026-10-29) spread over the band */
 static uint32_t gl_sys_item(void)                       /* SYSTEM's page shown is the one whose first line is this item (SI_NONE: not SYSTEM) */
@@ -178,6 +178,16 @@ static void gl_cred_draw(int32_t y0)
         cv_texts(236 - text_ws(CRED[i][1]), ty, CRED[i][1], i ? C_HI : C_WHITE);
     }
 }
+#define GL_BAND_W (240 - OH_HEAD)                       /* INFO's first page has no help band (the user, 2026-10-29): its room runs to the screen's foot */
+#define GL_END_W (GL_BAND_W - 2)
+static uint32_t gl_info_wide(void)                      /* the page with no foot line (op_help.c hl_pre): from the cursor, not from the last draw (hl_pre runs before gl_draw) */
+{
+    uint32_t e;
+    if (ui.scr != SCR_SYSTEM)
+        return 0u;
+    e = gl_ent(1, gl_first(1, ui.row[SCR_SYSTEM]));
+    return sys_item(e >> 2, e & 3u) == SI_INFO;
+}
 #define GL_INFO_BIG 40                                  /* a read-out page's pitch from which its values take the large face */
 #define GL_INFO_BGAP 4                                  /* a CPU line: its text, this gap, its bar (GL_BH) */
 #define GL_INFO_TK 2                                    /* ... the peak ticks: this wide, standing this far over and under the bar */
@@ -202,7 +212,7 @@ static void gl_info_bar(int32_t by, const cell_t *c)
 }
 static int32_t gl_info_pitch(uint32_t pg, uint32_t n, int32_t y0)   /* a read-out page's line pitch: the band shared by its n lines */
 {
-    int32_t ph = (GL_END - y0) / (int32_t)n, cap = ph >= GL_INFO_BIG ? gl_pitch() : pg == INFO_PG_INFO ? GL_INFO_PH_MAIN : GL_INFO_PH;
+    int32_t ph = ((pg == INFO_PG_INFO ? GL_END_W : GL_END) - y0) / (int32_t)n, cap = ph >= GL_INFO_BIG ? gl_pitch() : pg == INFO_PG_INFO ? GL_INFO_PH_MAIN : GL_INFO_PH;
     return ph > cap ? cap : ph;                         /* (a short page: a list's pitch, from the top) */
 }
 static void gl_info_draw(int32_t y0)
@@ -230,7 +240,7 @@ static void gl_info_draw(int32_t y0)
         }
         if (f != &FONT_S && gl_big_nm(nm, lv, uw, 0)) {     /* (the name large too where both fit: one size on a row) */
             cv_text(6, fy, f, nm, c.danger ? C_WARN : C_WHITE);
-        } else if (f != &FONT_S) {                      /* (else the whole row small, never a large value by a small name) */
+        } else if (f != &FONT_S && pg != INFO_PG_INFO) {   /* (else the whole row small, never a large value by a small name; INFO's first page keeps the large value: a small name beside it) */
             f = &FONT_S;
             fy = ty = y + (tp - (int32_t)FONT_S.h) / 2;
             cv_texts(6, ty, nm, c.danger ? C_WARN : C_GRAY);
@@ -297,7 +307,7 @@ static void gl_draw(void)
     gld.first = gl_first(gld.s, gld.cur);
     gld.end = gl_end(gld.s, gld.cur);
     gld.bar = trk_col(song.sel);
-    sig = hu(hu(hu(hu(0x6C15u, gld.s), gld.cur), gld.bar + settings.palette * 65536u), knob_colors);
+    sig = hu(hu(hu(hu(hu(0x6C15u, gld.s), gld.cur), gld.bar + settings.palette * 65536u), knob_colors), gl_info_wide());
     for (i = gld.first; i < gld.end; i++) {
         gl_sect(gld.s, i, nm);
         gl_cell(gld.s, i, &c);
@@ -319,7 +329,7 @@ static void gl_draw(void)
     if (sig == ui.sig[2])
         return;
     ui.sig[2] = sig;
-    cv_tall(GL_TOP, GL_BAND, C_BLACK, gl_paint);
+    cv_tall(GL_TOP, gl_info_wide() ? GL_BAND_W : GL_BAND, C_BLACK, gl_paint);
 }
 
 /* PAGE_LINES (op_draw.c pl_on): a screen's cursor row as GLOBAL's lines, value k on line k (its knob), the hot one in the

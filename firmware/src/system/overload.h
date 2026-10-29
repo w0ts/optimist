@@ -21,7 +21,6 @@
 #define OVL_HALF_US (HALF_FRAMES * 1000000u / FS)   /* one audio half, us (= audio.c's) */
 enum { OVL_CPU0, OVL_CPU1, OVL_RAM, OVL_NRING };     /* (OVL_RAM: the arena's blocks in use, KB, sampled with the CPU's:
                                                          * audio.c; SYSTEM > INFO's RAM bar) */
-enum { OVL_NOW, OVL_MAX10, OVL_MAXALL, OVL_NMODE };   /* the CPU lines' number (INFO's KNOB 1) */
 enum { OVL_MIDI_USB, OVL_MIDI_TRS, OVL_MIDI_BLE, OVL_NMIDI };
 typedef struct {
     uint16_t smax[OVL_SLOTS];            /* the longest half in each slot, us (65535 at most) */
