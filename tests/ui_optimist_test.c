@@ -1484,37 +1484,37 @@ static void step_synth_tests(void)
     {
         cell_t c;
         step_cell(0, 3, &c);
-        check(c.label && !strcmp(c.label, "LENGTH") && !strcmp(c.val, "2"), "synth: a step held: NOTE LEVEL RATCHET LENGTH cards");
+        check(c.label && !strcmp(c.label, "GLIDE") && !strcmp(c.val, "ON"), "synth: a step held: NOTE LEVEL RATCHET GLIDE cards (GLIDE on)");
         ui.force = 1;
         frame();
         ppm("opt-step-synth-held");
     }
     kup(WK(3));
-    check(t->step[3].note[0] == vlast + 2 && (t->step[3].rat & 3u) == 1u && t->step[4].time == ST_TIE &&
-          t->step[5].n == 3 && step_on(&t->step[3]), "synth: held + KNOB 1 / 3 / 4: the note, the ratchet, ties (to the next note)");
+    check(t->step[3].note[0] == vlast + 2 && (t->step[3].rat & 3u) == 1u && (t->step[3].flags & SF_SLIDE) &&
+          t->step[4].time != ST_TIE && step_on(&t->step[3]), "synth: held + KNOB 1 / 3 / 4: the note, the ratchet, its GLIDE (no LENGTH there)");
+    kdown(WK(3));
+    turn(EN_K4, -1);
+    kup(WK(3));
+    check(!(t->step[3].flags & SF_SLIDE), "synth: KNOB 4 back: GLIDE off");
+    frames(OP_CARDS_FRAMES + 5u);                       /* (the cards down: the note picker; the held step is the picked note) */
+    check(st.pk == 3u && pk_ok(), "synth: the step held and let go: its note the picked one");
+    turn(EN_K4, 2);
+    check(t->step[4].time == ST_TIE && t->step[5].n == 3, "synth: LENGTH (the picker's KNOB 4): ties, to the next note");
     t->step[5].n = 0;
     t->step[5].time = ST_REST;
-    kdown(WK(3));
     turn(EN_K4, 2);
-    kup(WK(3));
     check(t->step[4].time == ST_TIE && t->step[5].time == ST_TIE, "synth: LENGTH through empty steps");
     ui.force = 1;
     frame();
     ppm("opt-step-roll");
 #if FELUCCA_PLOCK
-    {   /* a live-recorded length (seq.c rec_len_end: a GATE lock on the last step): LENGTH shows it; KNOB 4 whole steps */
-        cell_t c;
+    {   /* a live-recorded length (seq.c rec_len_end: a GATE lock on the last step): KNOB 4 whole steps */
         int32_t v;
         (void)lock_set(t, 6, P_SGATE, 39);           /* 3 NOTE, 4 .. 6 TIE: 6 ends 0.5 + 39 / 128 in, 3.8 steps */
-        kdown(WK(3));
-        step_cell(0, 3, &c);
-        check(!strcmp(c.val, "3.8"), "synth: LENGTH of a recorded note: the fraction (3.8)");
         turn(EN_K4, -1);
-        step_cell(0, 3, &c);
-        check(!strcmp(c.val, "3") && !lock_get(t, 6, P_SGATE, &v) && t->step[6].time != ST_TIE,
+        check(step_note_len(t, 3) == 3u && !lock_get(t, 6, P_SGATE, &v) && t->step[6].time != ST_TIE,
               "synth: KNOB 4 on it: whole steps, the fraction goes");
         turn(EN_K4, 1);
-        kup(WK(3));
     }
 #endif
     kdown(WK(8));
@@ -3870,6 +3870,7 @@ static void preset_engine_tests(void)
 #include "ui_optimist_wifi.h"                       /* with FELUCCA_WIFI: SYSTEM > WI-FI and the password entry */
 #include "ui_optimist_stepmove.h"                  /* a held step moved: PRESETS in time, ALGORITHM in pitch / lane; REC held on a lane */
 #include "ui_optimist_overlap.h"                   /* a synth note past another: the picked note seen, moved past (snap), LENGTH over */
+#include "ui_optimist_seqglide.h"                  /* 2026-10-29 (#104): GLIDE on the held step, a held note picked, a chord all first, a note moved alone */
 #include "ui_optimist_stephold.h"                  /* STEP: a tap toggles the step, a hold opens its cards only */
 #include "ui_optimist_lforate.h"                  /* LFO RATE: the free bar from 0, a synced value as a division */
 #include "ui_optimist_mix35.h"                      /* batch 35: the mixer's three views, its knob sets, the title flash */
@@ -4131,6 +4132,7 @@ int main(int argc, char **argv)
     slowframe_tests();
     picker_tests();
     overlap_tests();
+    seqglide_tests();
     step_cards_leak_tests();
     s35_entry_tests();
     s35_transpose_tests();
