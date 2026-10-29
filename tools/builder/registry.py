@@ -108,6 +108,7 @@ RETIRED = {
                    "region (retired 2026-10-29, bit 300; the user: \"always on\"; any old TAB_IN_POOL value is ignored)",
     "VOICE_OWN": "at the voice budget a part always restarts its own released voice before fading another part's (retired 2026-10-29, bit 369; the user: \"default on: remove it\"; any old VOICE_OWN value is ignored)",
     "DLY_DOT": "the delay TIME's 1/8D and 1/16D (SLOOP 2.4, appended values, stored numbers unchanged) are always built (retired 2026-10-29, backport bit 176; any old DLY_DOT value is ignored)",
+    "CHO_EXACT": "the chorus send's read points are always ramped exactly over a block (fx.c CHO_RAMP; retired 2026-10-29, bit 425; the user: \"by default, remove the option\"; any old CHO_EXACT value is ignored)",
     "KNOB_ONEREST": "the knobs are always read with Felucca 1.6's decoder (one rest state a detent, fast turns counted; "
                     "retired 2026-10-14, released in Felucca 1.1.5 #126 and unchanged since)",
 }
@@ -120,7 +121,7 @@ RETIRED = {
 WAS_COUNT = frozenset({"INS_CHORUS", "INS_DELAY", "INS_JCHORUS", "INS_FLANGER", "INS_XDLY",
                        "ARENA"})   # (ARENA: its KB until 2026-10-29, the free RAM since: on)
 
-HASH_AS = {"KEYLIT": 1, "LIGHTS": 1, "BRIGHT": 0, "SIMD": 0, "KNOB_ONEREST": 1, "MONO_RELEASE": 1, "ST_STRICT": 1, "USB_FLOW": 1, "SHED_FADE": 1, "KEYS_FAST": 1, "TRS_NOISE": 1, "BK_CHECK": 1, "LAYER_QUIET": 1, "DLY_HALVE": 1, "LFO2": 1, "GLIDE": 1, "UI": 1, "ICONS": 0, "OVERVIEW": 0, "OV_ARP": 1, "DRUM_STEP": 1, "CHORD_NAMES": 1, "BPM_LOCK": 0, "MOTION_MARK": 1, "SEL_PAGES": 0, "BIGVALS": 0, "DRUM_ACCENT": 1, "PAGE_LINES": 1, "TAB_IN_POOL": 1, "VOICE_OWN": 1, "DLY_DOT": 1}   # (each was its default in every profile)
+HASH_AS = {"KEYLIT": 1, "LIGHTS": 1, "BRIGHT": 0, "SIMD": 0, "KNOB_ONEREST": 1, "MONO_RELEASE": 1, "ST_STRICT": 1, "USB_FLOW": 1, "SHED_FADE": 1, "KEYS_FAST": 1, "TRS_NOISE": 1, "BK_CHECK": 1, "LAYER_QUIET": 1, "DLY_HALVE": 1, "LFO2": 1, "GLIDE": 1, "UI": 1, "ICONS": 0, "OVERVIEW": 0, "OV_ARP": 1, "DRUM_STEP": 1, "CHORD_NAMES": 1, "BPM_LOCK": 0, "MOTION_MARK": 1, "SEL_PAGES": 0, "BIGVALS": 0, "DRUM_ACCENT": 1, "PAGE_LINES": 1, "TAB_IN_POOL": 1, "VOICE_OWN": 1, "DLY_DOT": 1, "CHO_EXACT": 1}   # (each was its default in every profile)
 
 # Never offered: used by X0X only by permission of its author, no licence
 FORBIDDEN = {
@@ -655,13 +656,8 @@ _add("REV_HALF", "FELUCCA_REV_HALF", "half-rate reverb (half the RAM, no top oct
 # the effects' finer arithmetic (2026-10-26, a Reddit report: the send chorus, JUNO CHORUS, WIDE and the reverbs grainy on
 # in-ear headphones, smooth on Felucca): each measured on the host against the old arithmetic, which stays the default
 _FINE_TESTED = "host-measured only (a sine through the firmware's own code, 2026-10-26); not yet heard on an FM-1"
-_add("CHO_EXACT", "FELUCCA_CHO_EXACT", "chorus: exact modulation ramp (less grit)", F, 425, default=0,
-     parent="FX_CHORUS", experimental=True, tested=_FINE_TESTED,
-     desc="The chorus send moves its two read points by exactly 1/32 of the block's change each sample, as the CHRS "
-          "insert does, instead of a step rounded down once a block. The old way left the read point up to 0.12 sample "
-          "behind by each block's end and snapped it back 1378 times a second: a faint grit around every note, heard "
-          "on headphones. Measured: 12-15 dB less of it from 220 Hz to 1 kHz, about 5 dB at 3 kHz. A few bytes of "
-          "flash, no RAM, two shifts a sample.")
+# (bit 425, CHO_EXACT, retired 2026-10-29: the chorus send's read points are always ramped exactly over the block
+#  (fx.c CHO_RAMP); RETIRED above; never reuse the bit)
 _add("MIX_FINE", "FELUCCA_MIX_FINE", "mix: finer part level steps (lower noise floor)", F, 426, default=0,
      experimental=True, tested=_FINE_TESTED,
      desc="Each synth part (and the side of WIDE, JUNO CHORUS and DRONE's BEAT) goes into the mix with 3 bits dropped "

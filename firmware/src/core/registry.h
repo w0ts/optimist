@@ -670,9 +670,6 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #endif
 /* the effects' finer arithmetic (2026-10-26, a Reddit report of grainy FX; each measured on the host, none heard yet): the
  * old arithmetic stays the default, each its own builder item */
-#ifndef FELUCCA_CHO_EXACT
-#define FELUCCA_CHO_EXACT 0                /* the chorus send's read points ramped exactly over a block (fx.c CHO_RAMP) */
-#endif
 #ifndef FELUCCA_MIX_FINE
 #define FELUCCA_MIX_FINE 0                 /* a part into the mix 3 bits down, not 4 (fx.c MIX_PAN) */
 #endif

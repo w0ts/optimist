@@ -1580,17 +1580,12 @@ static __attribute__((noinline)) void rs_done(void)   /* (XIP: a call a block, F
         rs_cur[k] = rs_to[k];
 }
 
-/* the read points' ramp over the block (dca, dcb): CHO_EXACT, the whole block's change, i/CTL of it each sample (as the CHRS
- * insert, fxi_kern.c); else a step a sample cut short once a block (up to ~0.12 sample behind by the block's end, back at
- * the next: a 1378 Hz jitter of the read point, grit around every partial, 12-15 dB over the exact ramp at 220 Hz-1 kHz,
- * measured on the host 2026-10-26) */
-#if FELUCCA_CHO_EXACT
+/* the read points' ramp over the block (dca, dcb): the whole block's change, i/CTL of it each sample (as the CHRS insert,
+ * fxi_kern.c; the builder's CHO_EXACT, always on since 2026-10-29). The old step a sample cut short once a block left the
+ * read point up to ~0.12 sample behind by the block's end, back at the next: a 1378 Hz jitter, grit around every partial,
+ * 12-15 dB over the exact ramp at 220 Hz-1 kHz (measured on the host 2026-10-26) */
 #define CHO_RAMP(d, i) (((d) * (int32_t)(i)) >> CTL_LOG2)
 #define CHO_SLOPE(a0, a1) ((a1) - (a0))
-#else
-#define CHO_RAMP(d, i) ((d) * (int32_t)(i))
-#define CHO_SLOPE(a0, a1) (((a1) - (a0)) >> CTL_LOG2)
-#endif
 /* the chorus' block into wl / wr (its read points ab: ca0 dca cb0 dcb), its CHO RET (cg); -> the block's largest |right|
  * (the mixer's return meter). The delay's into wl / wr added (its divide in dly_block, flash); -> its largest |sample|.
  * From main RAM (HOT2: RAMTEXT is full; fx_buses calls each once a block) */
