@@ -65,8 +65,8 @@ Your projects, presets, kits and samples live above the firmware: an install wri
 Optimist cannot read may not be kept, except SLOOP's: SLOOP 2.7 data is kept (below).
 
 **Coming from SLOOP 2.7:** Optimist erases nothing of SLOOP's. Its sections stay in flash and show as *SLOOP* on the
-PROJECT page; LOAD twice imports one (SLOOP IMPORT takes its autosave), SAVE keeps the import. The editor can export the
-working project as a SLOOP 2.7 song file to go the other way.
+PROJECT page and in the editor; Optimist does not read them (LOAD says *SLOOP PROJECT*) and does not export to SLOOP.
+Its own projects live in the sections beside them.
 
 ## Getting back
 

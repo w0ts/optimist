@@ -120,6 +120,18 @@ check("LFO2: no item, retired (its bit 91 not reused), counted ON in the configu
       "LFO2" not in R.ITEMS and "LFO2" in R.RETIRED and R.HASH_AS.get("LFO2") == 1 and all(it.bit != 91 for it in R.ITEMS.values()) and
       not [p.name for d in (C.PROFILES, ROOT / "tests" / "profiles") for p in d.glob("*.config")
            if any(ln.startswith("LFO2=") for ln in p.read_text().splitlines())])
+# SLOOP's project import / export (2026-10-29): SL24_IMPORT, SL24_EXPORT, SL24_EDIMPORT are gone; SL24_SAFE (SLOOP's data kept
+# safe) stays, on by default; an old .config naming the three loads, each said dropped, nothing offered
+_w = io.StringIO()
+with contextlib.redirect_stderr(_w):
+    _cfg, _ = C.parse("# name: old\nSL24_IMPORT=0\nSL24_EXPORT=1\nSL24_EDIMPORT=1\nMISSING_WARN=0\n")
+check("SL24_IMPORT, SL24_EXPORT, SL24_EDIMPORT: no item, retired (bits 163, 164, 181 not reused); SL24_SAFE (bit 161) an item, on by default, an old SL24_SAFE=0 kept, an old .config naming them loads, "
+      "each said dropped, its other keys kept",
+      all(k not in R.ITEMS and k in R.RETIRED for k in ("SL24_IMPORT", "SL24_EXPORT", "SL24_EDIMPORT")) and
+      R.ITEMS["SL24_SAFE"].default == 1 and R.ITEMS["SL24_SAFE"].bit == 161 and "SL24_SAFE" not in R.RETIRED and
+      all(it.bit not in (163, 164, 181) for it in R.ITEMS.values()) and _cfg["MISSING_WARN"] == 0 and
+      all(f"{k} was dropped" in _w.getvalue() for k in ("SL24_IMPORT", "SL24_EXPORT", "SL24_EDIMPORT")) and
+      "FELUCCA_SL24_IMPORT" not in C.header(_cfg))
 # BLE_CENTRAL became a choice of levels (2026-10-24; firmware/src/ble/ble_cfg.h): a .config from before says
 # BLE_CENTRAL=1 and loads as level 1 (FULL), unchanged, its header FELUCCA_BLE_CENTRAL 1 as before; 3 (MINIMAL) is taken; 2 (a Just Works
 # level, removed again) and 4 are refused

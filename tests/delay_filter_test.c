@@ -254,8 +254,6 @@ static void t_project(void)
         }
         check("every COLOR 0..127: the FREQ of its old cutoff within 2.5 steps", ok);
     }
-    check("SLOOP 2.4's COLOR (sl24_export.c sl24_g_out): our FREQ 107 -> 70; an older project's COLOR 50 -> 50; FREQ under 54 -> 0",
-          dly_color_out(128 + 107) == 70 && dly_color_out(50) == 50 && dly_color_out(128 + 20) == 0);
 }
 
 static void t_stores(void)
