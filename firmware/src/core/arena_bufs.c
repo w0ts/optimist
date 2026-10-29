@@ -183,7 +183,7 @@ static void arb_open(uint32_t c, void *p)               /* client c placed at p:
     memset(p, 0, arb_bytes(c));
 #if FELUCCA_ENG_FM6
     if (c == (uint32_t)ARB_FM6SIN)
-        fm6_sin_fill((int32_t *)p);                     /* (the main loop, the interrupts on: about 1,000 steps) */
+        FAST_CALL(fm6, fm6_sin_fill)((int32_t *)p);                     /* (the main loop, the interrupts on: about 1,000 steps) */
 #endif
     arb_set(c, p);
     arb_st[c] = FXM_ON;

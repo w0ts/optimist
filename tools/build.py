@@ -501,6 +501,7 @@ def build_app():
         # the ACID engine's float DSP (firmware/src/engines/acid/, from X0X): its own unit, with X0X's FPU flags (the rest
         # of the firmware stays integer-only), -O2 as X0X builds it
         units.append(("cc", *ACID_CFLAGS, *(["-DFELUCCA_CPU_GUARD=1"] if CFG_VALUES.get("FELUCCA_CPU_GUARD") == 1 else []),
+                      f"-DFAST_RAM_acid={CFG_VALUES.get('FAST_RAM_acid', 0)}",   # (ACID "on, code in RAM": .ram_hot, core.h)
                       "-c", FW / "src" / "engines" / "acid" / "acid_dsp.c", "-o", OUT / "acid.o"))
         objs.append(OUT / "acid.o")
     (OUT / "a2m.o").unlink(missing_ok=True)
@@ -514,7 +515,8 @@ def build_app():
     (OUT / "p5.o").unlink(missing_ok=True)
     if CFG_VALUES.get("FELUCCA_ENG_PROPHET", 0) == 1 or os.environ.get("FELUCCA_ENG_PROPHET") == "1":
         # the PROPHET engine's voice (firmware/src/engines/prophet/p5_dsp.c, Melodee's): float, its own unit with the FPU flags
-        units.append(("cc", *ACID_CFLAGS, "-c", FW / "src" / "engines" / "prophet" / "p5_dsp.c", "-o", OUT / "p5.o"))
+        units.append(("cc", *ACID_CFLAGS, f"-DFAST_RAM_prophet={CFG_VALUES.get('FAST_RAM_prophet', 0)}", "-c",
+                      FW / "src" / "engines" / "prophet" / "p5_dsp.c", "-o", OUT / "p5.o"))
         objs.append(OUT / "p5.o")
     (OUT / "x0x.o").unlink(missing_ok=True)
     x0x = {f: CFG_VALUES.get(f, int(os.environ.get(f, d))) for f, d in

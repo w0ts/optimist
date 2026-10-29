@@ -434,7 +434,7 @@ static void sdm_dx7_load(uint32_t k)                 /* voice k of the page into
             return;                                  /* (refused: memory short, the drop is proposed: model.c) */
     }
     fm1_irq_off();
-    fm6_unpack(fm6_ed[p], v);
+    FAST_CALL(fm6, fm6_unpack)(fm6_ed[p], v);
     fm6_cur[p] = (int16_t)(t->p[P_E0] + 1);          /* (its VOICE's, no reload over it) */
     fm1_irq_on();
     snd_mark(p);

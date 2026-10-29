@@ -194,7 +194,7 @@ def random_config(rng):
         else:
             cfg[k] = 1 if rng.random() < 0.7 else 0
     if not any(C.built(cfg, k) for k in R.ITEMS if k.startswith("ENG_") and not R.ITEMS[k].parent):
-        cfg["ENG_ANALOG"] = 1
+        cfg["ENG_ANALOG"] = R.ITEMS["ENG_ANALOG"].default or R.ENG_RAM
     if not cfg["DRUM_SYNTH"] and not C.built(cfg, "DRUM_SAMPLED"):
         cfg["DRUM_SYNTH"] = 1
     return cfg
