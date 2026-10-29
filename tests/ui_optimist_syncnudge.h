@@ -12,6 +12,7 @@ static void syncnudge_tests(void)
         cell_t c;
         int16_t o0;
         reset_ui();
+        hold_sel = 0;                                   /* (350 ms: the walk of SYSTEM before may leave CALIBRATE > HOLD where its detents ended, PLAY is held 30 frames here) */
         sync_ofs[0] = sync_ofs[1] = sync_ofs[2] = 0;
         sy.mode = (uint8_t)song.g[G_SYNC];
         sy.src = SRC[i];                                /* (following: a running transport keeps the source, clock_sync.c sync_select) */
@@ -36,6 +37,7 @@ static void syncnudge_tests(void)
         song.playing = 0;
     }
     reset_ui();
+    hold_sel = 0;
     sync_ofs[0] = sync_ofs[1] = sync_ofs[2] = 0;
     sy.src = 0;
     settings_later = 0;
