@@ -4732,7 +4732,7 @@ async function readReverbType(rq, info) {
   }
 }
 /* the MIDI settings (INFO tag 0x54, firmware seq_midi.c, SLOOP 2.4): ids first + 0..3 the channels of tracks 1..3 and the
-   drums (OFF, 1..16; the project's), + 4 MIDI OUT (KEYS / BOTH / SEQ), + 5 MIDI IN (NOTES / CLOCK; both settings of the FM-1);
+   drums (OFF, 1..16; the project's), + 4 MIDI OUT (KEYS / BOTH / SEQ / OFF, stored in that order; listed OFF KEYS SEQ BOTH), + 5 MIDI IN (NOTES / CLOCK; both settings of the FM-1);
    [{id, label, names, value}] for those the build has (DESC / GET), null for none or an older firmware. SYNC and VIEW
    keep their own rows (the globals) */
 const MIDI_SET_LABELS = ["TRACK 1", "TRACK 2", "TRACK 3", "DRUMS", "MIDI OUT", "MIDI IN"];
