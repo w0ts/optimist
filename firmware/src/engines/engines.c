@@ -232,10 +232,23 @@ static void fxm_sync(void);
 #ifdef FM1_TICKS_PER_US
 #define ARN_US() (fm1_ticks() / FM1_TICKS_PER_US)
 #endif
-/* the undo history (seq/undo.c) after the arena: its least (ARN_UNDO_KEEP: a dozen levels at the largest record, 1,353 B,
+/* the undo history (seq/undo.c) after the arena: its least (ARN_UNDO_LEAST: a dozen levels at the largest record, 1,353 B,
  * far more of the usual step edits), and whatever the arena does not use; a block placed past the history's start
- * makes it give way, its oldest levels first (undo_yield): the arena is never refused for it */
-#define ARN_UNDO_KEEP (16u * 1024u)
+ * makes it give way, its oldest levels first (undo_yield): the arena is never refused for it. With the cache RAM
+ * (CACHE_RAM, its test passed at the start: hal/fm1_cache.h; the user, 2026-10-29: "more memory from the data cache"
+ * for the arena) the history's second segment is the cache RAM, and its least in the SRAM (ARN_UNDO_KEEP) is that much
+ * less, ARN_UNDO_SRAM at least: the arena gets the SRAM it frees (8 KB with 2 ways; 15 KB with 4 or 7, the rest the
+ * history's). The arena's blocks stay in the SRAM (the second core and the audio read them; whether the second core
+ * and DMA read the cache's ways has not been measured) */
+#define ARN_UNDO_LEAST (16u * 1024u)
+#if FELUCCA_CACHE_RAM
+#define ARN_UNDO_SRAM 1024u                              /* (a SRAM part always: undo_regrow's room comes back to it) */
+#define ARN_UNDO_KEEP (fm1_cache_ram_free() + ARN_UNDO_SRAM < ARN_UNDO_LEAST ? ARN_UNDO_LEAST - fm1_cache_ram_free() \
+                                                                             : ARN_UNDO_SRAM)
+#define ARN_UNDO_ROOM ARN_UNDO_LEAST                     /* (the host's arena array: the most it can be) */
+#else
+#define ARN_UNDO_KEEP ARN_UNDO_LEAST
+#endif
 #define ARN_SPARE 8192u                                  /* (the build's spare SRAM under the stacks: tools/build.py) */
 static void undo_yield(uint8_t *lo);
 #define ARN_GREW(end) undo_yield(arn_mem + (end))

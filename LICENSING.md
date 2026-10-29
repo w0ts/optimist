@@ -102,6 +102,15 @@ suspend, 75h / 7Ah, exists in none of Felucca, SLOOP, felucca-bsp, fm1-base, Mel
 2026-10-26). Not included: the rest of `fm1_flash.h` (SLOOP 2.0's import, GPL-3.0-only here; felucca-bsp has its own
 MPL-2.0 copy of those functions), which stays GPL-3.0-only.
 
+## The cache RAM (GPL-3.0-only OR MPL-2.0)
+
+The data-cache ways used as RAM (the way masks set from RAM code, the tags invalidated, the memory tested at start-up and
+put back on a failure) are offered the same way, at the recipient's choice: `firmware/hal/fm1_cache.h`, written for
+Optimist by hdavid (commits f16f6683 and 9a1360ab, 2026-10-18; git blame gives every line to him). Its register addresses
+and the order of the steps are the AC79 SDK's facts (`cache_way_config`, `asm/csfr.h`; Apache-2.0, as M-VAVE's V15 runs
+them). felucca-bsp takes it under MPL-2.0 (`chip/fm1_cache_ram.h`). Not included: its users in Optimist (`seq/undo.c`,
+`engines/engines.c`, the console), which stay GPL-3.0-only.
+
 Neither the Bluetooth stack nor the Wi-Fi code below is a clean-room implementation. The Bluetooth stack was written from
 the specifications and from fact sheets, with no vendor code copied, but those facts were read from JieLi's libraries and
 captured from M-VAVE's stock V15 firmware, and its radio start-up values are that vendor data, kept under its Apache-2.0.
