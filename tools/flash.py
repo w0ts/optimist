@@ -47,16 +47,18 @@ class FlashError(Exception):
 
 
 class Plan:
-    def __init__(self, package, product, running, port, notes=(), tool=None):
+    def __init__(self, package, product, running, port, notes=(), tool=None, warn=None):
         self.package, self.product, self.running, self.port = Path(package), product, running, port
         self.tool = tool                                 # (None: Optimist's own update tool; else fm1-base's)
         self.notes = list(notes)                         # where the package comes from, and what to know about it
+        self.warn = warn                                 # why the running firmware may refuse it (platform_note)
 
     def lines(self):
         return [f"package:  {self.package.name}  ({self.product})",
                 f"          {self.package}",
                 *self.notes,
                 f"running:  {self.running}",
+                *([f"WARNING   {self.warn}"] if self.warn else []),
                 "",
                 "This replaces the firmware on the FM-1 now. Do not unplug it while it writes (about a minute).",
                 RECOVER]
@@ -186,11 +188,22 @@ def preflight(package, port=None, notes=None):
     if rc:
         raise FlashError(("no FM-1 found over USB-MIDI (data cable? another app using it?): " if rc == 3
                           else f"cannot read the FM-1's identity (exit {rc}): ") + text, rc)
-    return Plan(package, product, text, port, notes, tool)
+    return Plan(package, product, text, port, notes, tool, platform_note(package, product, text))
+
+
+def platform_note(package, product, running):
+    """fm1_install.platform_warning for this package on the FM-1 that --info described (running: its line,
+    "FM-1_700  [running]  port: ..."), or None"""
+    m = re.match(r"(([^_\s]+)_(\d+))\s", running)
+    if not m:
+        return None
+    return FI.platform_warning(FI.Identity(m[1], m[2], int(m[3])), product, FI.load_package(str(package), False)[1])
 
 
 def install(plan, capture=True, on_line=None):
-    """write the plan's package (the caller has asked) -> (exit code, output). Never --force. on_line: see run_tool"""
-    args = [str(plan.package), "--yes", *(["--port", plan.port] if plan.port else [])]
+    """write the plan's package (the caller has asked, the plan's warning shown) -> (exit code, output). --force
+    only for a plan with a warning the caller accepted (the package passed load_package's own checks already:
+    --force then lifts the installer's platform warning alone). on_line: see run_tool"""
+    args = [str(plan.package), "--yes", *(["--force"] if plan.warn else []), *(["--port", plan.port] if plan.port else [])]
     extra = {"tool": plan.tool} if plan.tool else {}      # (Optimist's own tool: as it was called before the release)
     return run_tool(args, capture, on_line, **extra) if on_line else run_tool(args, capture, **extra)

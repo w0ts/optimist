@@ -30,7 +30,7 @@ int wn_load(struct wn_store *s, const uint8_t raw[WN_STORE_SIZE])
     memcpy(&t, raw, sizeof t);
     if (t.mark != WN_MARK || t.ver < 1u || t.ver > WN_VER)
         return 0;
-    s->mode = t.mode <= WN_MODE_MAN || ((t.mode == WN_MODE_AP || t.mode == WN_MODE_AP_MAN) && t.ver >= 2u) ? t.mode : WN_MODE_OFF;
+    s->mode = t.mode <= WN_MODE_MAN || ((t.mode == WN_MODE_AP || t.mode == WN_MODE_AP_MAN || t.mode == WN_MODE_JAM) && t.ver >= 2u) ? t.mode : WN_MODE_OFF;
     for (i = 0; i < WN_SLOTS; i++)
         if (wn_entry_ok(&t.n[i]))
             s->n[j++] = t.n[i];                         /* (damaged ones dropped, the rest closed up in order) */

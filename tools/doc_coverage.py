@@ -98,7 +98,7 @@ FX_NAMES = {"FXT_DIST": "DIST", "FXT_COMP": "DYN", "FXT_FILT": "FILT", "FXT_FOLD
             "FXT_ECHO": "ECHO", "FXT_GATE": "GATER", "FXT_DUST": "DUST", "FXT_JUNO": "JUNO",
             "FXT_SFLD": "SFLD", "FXT_RECT": "RECT", "FXT_HARM": "HARM", "FXT_RING": "RING",
             "FXT_SUBO": "SUB", "FXT_SLEW": "SLEW", "FXT_TAPE": "TAPE", "FXT_SPIT": "SPIT", "FXT_XDLY": "XDLY",
-            "FXT_EXGN": "EXGN"}   # (no FXT_WRAP: retired the day it came, registry.py RETIRED INS_WRAP; its id stays)
+            "FXT_EXGN_ID": "EXGN", "FXT_ROOM": "ROOM", "FXT_TDLY": "TDLY"}   # (no FXT_WRAP: retired the day it came, registry.py RETIRED INS_WRAP; its id stays)
 
 
 def read(rel):

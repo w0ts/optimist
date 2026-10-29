@@ -637,16 +637,16 @@ or the Mirror app does not know the name and sends nothing; the command, its tag
 - `mode` is the store's number: 0 OFF (the manager stops), 1 AUTO (joins the best saved network heard, at start-up and whenever none is joined),
   2 MAN (joins when told), 3 AP (MODE AP, only when the state's `cap` is 1; the FM-1 is the network, see below). It is saved with the settings (written once the transport stops).
 - MODE AP's block ends the state, after the network in hand's SSID: `cap` 0 means this build has no MODE AP and nothing follows (a reply from an older
-  firmware has no block at all: read it as cap 0); with `cap` 1: `key` (1: a password is kept), `status` (0 OFF, 1 NO PASSWORD, 2 STARTING, 3 ACTIVE,
+  firmware has no block at all: read it as cap 0); with `cap` 1: `key` (1: a password typed by the user is kept; 0: the default password, a function of the name, is in use: `wifi_ap_default_key`, two FNV-1a runs over the salts `OPTIMIST-AP-KEY/1:` and `/2:` and the name, five bits a character from `abcdefghjkmnpqrstuvwxyz23456789w`, 8 characters; the page works it out from the name, the FM-1 never sends it), `status` (0 OFF, 1 unused since 2026-10-29 (was NO PASSWORD), 2 STARTING, 3 ACTIVE,
   4 NO CAL, 5 STOPPED: AP MAN, not started), `clients`, `channel` (the one shown: the store's, else 6), `len` and the `name` as pack7 (the stored one, else FM1- and four digits).
   Then, in every build, one more byte: `peers`, the Link peers heard (0 when Link is not running; a reply from an older firmware ends before it: read it as 0).
-- MODE (op 1) takes 0 OFF, 1 AUTO, 2 MAN and, with `cap` 1, 3 AP AUTO (the access point starts at power-on and stays up) and 4 AP MAN (off at power-on; started by AP RUN or SAVE on the FM-1's page; the switch is never kept). AP RUN (op 8, `on`): start (1) or stop (0) in AP MAN; rc 2 MODE is not AP MAN, 3 no key kept. A password typed in AP MAN starts it.
+- MODE (op 1) takes 0 OFF, 1 AUTO, 2 MAN, 5 JAM (the trial's Wi-Fi stack: AUTO that also joins an FM-1 access point FM1-xxxx with its default password when no saved network is heard, and keeps Link on; a station mode: not an access point) and, with `cap` 1, 3 AP AUTO (the access point starts at power-on and stays up) and 4 AP MAN (off at power-on; started by AP RUN or SAVE on the FM-1's page; the switch is never kept). AP RUN (op 8, `on`): start (1) or stop (0) in AP MAN; rc 2 MODE is not AP MAN (3 is no longer returned: the default password is always there). A password typed in AP MAN starts it.
 - AP KEY (op 5): MODE AP's password (and name): the access point stops, the key is derived (a slice a pass), kept and the access point starts again; the
   state says how it goes. The password is 8..63 printable ASCII characters (32..126, one byte each, after the pack7 name); `slen` 0 is the automatic name,
   else 1..32 bytes. The password goes to the FM-1 once, becomes a key there and is not kept; the firmware wipes it and the received frame's bytes, and never
   echoes, logs or stores it. The FM-1 gives out the addresses 192.168.4.2 to 192.168.4.5.
 - AP CHANNEL (op 6): MODE AP's channel 1..13 (the access point restarts when it has rested); the reply carries the channel shown.
-- AP CLEAR (op 7): MODE AP's key cleared (no access point runs without one).
+- AP CLEAR (op 7): MODE AP's typed key cleared: the default password of the name again (the access point starts again on it).
 - `st` is the manager's state: 0 OFF, 1 RADIO (starting), 2 IDLE, 3 SCAN, 4 PMK (the key from the password), 5 AUTH, 6 ASSOC, 7 HS (the 4-way
   handshake), 8 UP, 9 FAIL, 10 LINK (joined, before DHCP), 11 PRE. `fail` says why the last join failed (read with FAIL, 0 otherwise): 1 no radio
   calibration, 2 no access point of that SSID heard, 3 authentication, 4 association, 5 handshake timed out, 6 wrong password (the key frames

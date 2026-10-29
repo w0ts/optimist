@@ -57,7 +57,7 @@ import fm1_install
 import fm1pkg_make
 
 VID, PID = 0x4C4A, 0x8057
-STOCK_SHA256 = "db1642b2b6fa5c2cccb11ffd13878068bb28601678d3644049f99dc40e7edb8a"
+STOCK_SHA256 = fm1_install.STOCK_SHA256
 # M-VAVE's V15 as this tree keeps it (Apache-2.0: M-VAVE's FM1 Open kit, sdk/firmware/FM-1_015.fwsc, sha256 STOCK_SHA256)
 STOCK_IN_TREE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "web", "stock", "FM-1_015.fwsc")
 LOADER_URL = ("https://raw.githubusercontent.com/kagaimiq/jl-uboot-tool/"
