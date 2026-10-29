@@ -868,8 +868,8 @@ _add("DLY_ARENA", "FELUCCA_DLY_ARENA", "effects memory (shared by the delay and 
           "type built, up to how many at once (alone) in the size chosen, and how many more while the delay or the "
           "chorus is in no master slot: a send in none lends its line to the inserts (as many as fit; taken back, "
           "faded out, when the send is put back). Auto: the delay's line plus one line of each insert built, so every "
-          "insert built can play at least once at the same time. Larger: more at once. At least the delay's line, and "
-          "room for one line of each insert built (an error names the one that does not fit). Ignored with ARENA "
+          "insert built can play at least once at the same time. Larger: more at once. A size smaller than the delay's "
+          "line and one line of the largest insert built is raised to that (a notice says so). Ignored with ARENA "
           "(memory per project, one memory setting): the delay's line is then a block of the arena and the inserts' "
           "lines share one room in it that grows and shrinks as slots pick and let go, as many as the arena holds "
           "beside the project's engines.")
@@ -1192,8 +1192,8 @@ _add("LAYOUT", "FELUCCA_LAYOUT", "flash layout: fake SD mode (more room for code
 # FELUCCA_MEM_LIST). The pool estimate: core.py arena_mem
 _add("ARENA", "FELUCCA_ARENA_KB", "memory per project (one arena for the engines and the effects' lines)",
      MEM, 411, default=0,
-     choices=((0, "off: every memory reserved, as before"), (24, "24 KB"), (32, "32 KB"), (40, "40 KB"), (48, "48 KB"),
-              (64, "64 KB"), (96, "96 KB"), (128, "128 KB"), (160, "160 KB"), (192, "192 KB"), (256, "256 KB")),
+     choices=((0, "off: every memory reserved, as before"), (1, "auto: what the build needs together"), (24, "24 KB"),
+              (32, "32 KB"), (40, "40 KB"), (48, "48 KB"), (64, "64 KB"), (96, "96 KB"), (128, "128 KB"), (160, "160 KB"), (192, "192 KB"), (256, "256 KB")),
      experimental=True, tested="host-tested only (tests/fx_arena_test.c, arena_bufs_test.c, arena_test.c, placeholder_test.c); not on an FM-1",
      desc="Instead of reserving every engine's memory whether a project uses it or not, one pool memory of this size "
           "holds what the project uses: each synth part's engine state (FM6, PHYS, GRAIN, ACID, PLAITS, JUNO, DRAWBAR, "
@@ -1203,9 +1203,9 @@ _add("ARENA", "FELUCCA_ARENA_KB", "memory per project (one arena for the engines
           "device proposes a part to drop (DROP T2 FM6); a dropped part plays nothing (NONE) until an engine is picked "
           "for it; a project load that does not fit offers its refused parts the same way, one at a time, the "
           "project's sound kept. The arena also holds "
-          "the effects' lines (the delay, chorus and reverb sends' lines at fixed places at its top; the limited "
-          "inserts' lines, CHRS, ECHO, JUNO CHORUS, FLNG, XDLY, in one room under them that grows and shrinks as slots "
-          "pick and let go: the effects memory, DLY_ARENA, is not set apart, ignored with ARENA) and the other "
+          "the effects' lines (the delay, chorus and reverb sends' lines; the limited inserts' lines, CHRS, ECHO, "
+          "JUNO CHORUS, FLNG, XDLY, in one room that grows and shrinks as slots pick and let go: the effects memory, "
+          "DLY_ARENA, is not set apart, ignored with ARENA) and the other "
           "buffers only some projects use (each track's SLICER recording while it is on STUT, WAVE's table while a "
           "part plays WAVE, the X0X 909's and 808's states while the kit or a lane plays them, the PUNCH ring while "
           "the project's PUNCH switch is on: GLOBAL > Rec, off in a new or an older project, FM6's sine table while "
@@ -1215,14 +1215,15 @@ _add("ARENA", "FELUCCA_ARENA_KB", "memory per project (one arena for the engines
           "itself once there is room (a refused SLICER plays the live sound, its card FULL; an X0X kit plays its "
           "stand-in kit; each with a MEM FULL message once; a change to WAVE without room for its table is refused "
           "as an engine change; FX + a key with PUNCH off plays nothing: PUNCH OFF). Before anything is refused the "
-          "parts' memories (and the inserts' room) are moved together when the free room would hold it, and a project "
-          "load packs them all: a moving part is silent for the move (usually less than an audio block; SYSTEM > INFO's "
-          "ARENA MOVE says the longest, in microseconds). "
+          "memories are moved together when the free room would hold it, and a project load packs them all; nothing "
+          "that sounds is moved (a part only while it plays nothing, a send line while its tail is silent): what sounds "
+          "is packed once it is quiet (SYSTEM > INFO's ARENA MOVE says the longest move, in microseconds). "
           "Off: every memory reserved as before, nothing ever refused. The engines alone: about "
           "400 B of flash (the default profile and sd-card-mots, measured 2026-10-26); with the effects' lines and the "
           "other buffers (every build with ARENA since 2026-10-29) about 6.7 KB of flash and 350 B of RAM; the room is "
-          "the size chosen, against the fixed memories it replaces. The arena must hold the three send lines together "
-          "(a new project has CHO, DLY and REV in its master slots): the builder refuses a smaller one.")
+          "the size chosen, against the fixed memories it replaces. AUTO sizes it to what the build needs together (a "
+          "new project's three send lines, the largest engine's memory, one line of the largest insert); a size chosen "
+          "smaller is kept, with a notice saying what auto would take.")
 # bit 414 (2026-10-26): the next free one after FAR_OK's 413; the fm-1 session's handover (projects off the device)
 _add("BT_PROJ", "FELUCCA_BT_PROJ", "projects to and from the phone over Bluetooth", Y, 414, default=0,
      parent="EDITOR", experimental=True, tested="host-tested only (tests/mirror_test.c); no client sends it yet",
