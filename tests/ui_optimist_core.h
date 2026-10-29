@@ -113,20 +113,11 @@ static void overload_tests(void)
     fm1_ms = t + 1500u + 11u * 1024u;
     sys_info_cell(1, &c);
     check(!strcmp(c.val, "50") && c.col == C_OK && c.hold[0] == 50 && c.hold[1] == 100,
-          "MAX 10S: ~10 s later the window forgets it (50 %, green); the bright tick follows, the 1 min tick holds 100");
-    turn(EN_K1, 1);
-    sys_info_cell(1, &c);
-    snprintf(lb, sizeof lb, "%s MAX 1M", cpu);
-    check(info_mode == OVL_MAX60 && !strcmp(c.label, lb) && !strcmp(c.val, "133") && c.col == C_ERR, "KNOB 1 again: MAX 1M, 133 % within the minute");
-    for (i = 12u; i <= 62u; i++)
-        ovl_half(half / 2u, 0, t + 1500u + i * 1024u);  /* (a minute more: the 1 min window forgets it too) */
-    fm1_ms = t + 1500u + 62u * 1024u;
-    sys_info_cell(1, &c);
-    check(!strcmp(c.val, "50") && c.hold[1] == 50, "MAX 1M: ~1 min later it forgets it (50 %), the dim tick too");
+          "MAX 10S: ~10 s later the window forgets it (50 %, green); the bright tick follows, the since-boot tick holds 100");
     turn(EN_K1, 1);
     sys_info_cell(1, &c);
     snprintf(lb, sizeof lb, "%s MAX", cpu);
-    check(info_mode == OVL_MAXALL && !strcmp(c.label, lb) && !strcmp(c.val, "133") && c.col == C_ERR, "KNOB 1 again: MAX since boot, 133 % kept");
+    check(info_mode == OVL_MAXALL && !strcmp(c.label, lb) && !strcmp(c.val, "133") && c.col == C_ERR, "KNOB 1 again: MAX since boot, 133 % kept (MAX 10S, then MAX: no 1 min step)");
     turn(EN_K1, 1);
     check(info_mode == OVL_NOW, "KNOB 1 again: NOW (round)");
     turn(EN_K1, -1);
@@ -165,6 +156,7 @@ static void overload_tests(void)
     check(!strcmp(c.val, "0") && ovl_midi_lost() == 2u, "... UNDERRUNS from 0");
     sys_info_cell(1, &c);
     check(!strcmp(c.val, "0"), "... the CPU line's MAX from 0");
+    check(c.hold[1] == 0, "... and the since-boot tick (the 10 s tick is the window's: it ages out by itself)");
     check(ui.scr == SCR_SYSTEM && !lay.chord, "... and no redo, no PROJECT");
     {   /* INFO split in two (the user, 2026-10-15): DIAGNOSTICS next, a page of its own, then USB DIAGNOSTICS (USB audio builds) */
         uint32_t e = gl_ent(1, 1), k, ok = 1;
