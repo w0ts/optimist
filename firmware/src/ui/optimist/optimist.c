@@ -81,6 +81,7 @@
 #include "op_name.c"
 #include "op_memlist.c"            /* a load that does not fit: the list of what to drop (docs/SD-MODE-DESIGN.md 6b) */
 #include "op_draw.c"
+#include "op_credits.c"            /* SYSTEM > CREDITS: the end titles, their crawl and KNOB 1 (drawn by op_gldraw.c) */
 #include "op_gldraw.c"
 #include "op_help.c"
 #include "op_mixdraw.c"

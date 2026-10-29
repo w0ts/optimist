@@ -50,7 +50,7 @@ SIZE_FILES = ["ui/colors.c", "ui/splash.c", "storage/storage.c", "storage/uprese
               "ui/optimist/op_mixer.c", "ui/optimist/op_mixdraw.c", "ui/optimist/op_scope.c",
               "ui/optimist/op_fm6.c", "ui/optimist/op_fm6draw.c", "ui/optimist/op_name.c", "ui/optimist/op_memlist.c", "ui/optimist/op_preset.c",
               "ui/optimist/op_global.c", "ui/optimist/op_walk.c", "ui/optimist/op_keys.c",
-              "ui/optimist/op_effval.c", "ui/optimist/op_gldraw.c", "ui/optimist/op_tools.c",
+              "ui/optimist/op_effval.c", "ui/optimist/op_gldraw.c", "ui/optimist/op_credits.c", "ui/optimist/op_tools.c",
               "ui/optimist/op_help.c", "ui/optimist/op_edits.c", "ui/optimist/op_names.c", "ui/optimist/op_songtbl.c"]
 # kept at -Os on purpose: boot and main loop, flash / OTA / USB, drawing primitives, libc, sound-side helpers,
 # optional engines and effects (a new main-loop-only file goes in SIZE_FILES: --check, docs SLIM-CODE.md)

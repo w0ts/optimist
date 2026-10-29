@@ -14,7 +14,12 @@ Origin: the fm1-base integration checkout (`worktrees/fm1b-integ`), commit `9915
 | `mirror/index.html` | `web/mirror/index.html` | 2bb8570 |
 | `companion/index.html`, `companion/companion.js` | `web/companion/` | 4a410dc |
 
-To check they are still unchanged: `diff -r Resources/Fm1Base/backup <fm1-base>/web/backup` and so on.
+**One change from fm1-base, as fm1-base's `web/fonts` + the `<link>` in `mirror`, `backup`, `companion`:** the pages take
+Barlow from `fonts/fonts.css` (woff2 files and `OFL.txt` beside it, SIL OFL 1.1, sources and sha256 in `fonts/FROM.txt`), not
+from fonts.googleapis.com: the app works offline and asks no outside host (macOS's firewall asked). `Fm1BaseSite.font` serves
+`/fonts/`. fm1-base: `feat/local-fonts` (upstream main) / `230e423` on `fm1-next-fb`. `tests/outside_hosts_test.py` keeps it so.
+
+To check they are still unchanged (apart from that `<link>`): `diff -r Resources/Fm1Base/backup <fm1-base>/web/backup` and so on.
 
 ## How the app uses them
 

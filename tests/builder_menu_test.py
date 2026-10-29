@@ -63,14 +63,14 @@ def tree_keys(app):
 
 
 async def sort_test():
-    """o cycles default -> flash -> ram -> pool -> ramtext: items sorted largest first inside each group, children
+    """o cycles default -> flash -> ram (the SRAM: ram + pool + ramtext, one budget since the RAM was unified): items sorted largest first inside each group, children
     under their parent, unmeasured last, the sorted column marked, the choice only per session"""
     app = M.Builder(C.defaults(), "default")
     async with app.run_test(size=(200, 60)) as pilot:
         await pilot.pause()
         default = tree_keys(app)
         check("sort: starts in the default order", app.sort_by is None and "default order" in str(app.query_one("#bars").content))
-        for want in ("flash", "ram", "pool", "ramtext", None):
+        for want in ("flash", "ram", None):
             await pilot.press("o")
             await pilot.pause()
             check(f"sort: o selects {want or 'default order'}", app.sort_by == want)
@@ -78,7 +78,9 @@ async def sort_test():
                 check("sort: back to the default order", tree_keys(app) == default)
                 break
             check(f"sort {want}: the bar names it", f"sort (o): {want}" in str(app.query_one("#bars").content))
-            cost = lambda k: (app.savings.get(k) or {}).get(want)
+            parts = {"flash": ("flash",), "ram": ("ram", "pool", "ramtext")}[want]
+            cost = lambda k: (lambda s: sum(s[r] for r in parts if s.get(r) is not None)
+                              if any(s.get(r) is not None for r in parts) else None)(app.savings.get(k) or {})
             ok_order = ok_unmeasured = ok_kids = True
             for grp in app.query_one("#tree").root.children:
                 tops = [n.data for n in grp.children]

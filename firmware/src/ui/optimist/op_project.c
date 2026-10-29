@@ -486,10 +486,6 @@ static const struct { const char *name; uint8_t it[4]; } SYS[] = {
     {"INFO", {SI_INFO, SI_NONE, SI_NONE, SI_NONE}},      /* first: one dense read-only page, not 4 lines (op_gldraw.c gl_info_draw): the clock, the
                                                          * load of each core, the memory (the user, 2026-10-14). The second core is always on:
                                                          * no 2ND CORE line; dual.c's guard still parks it and the page says why */
-#if DBG_STATS
-    {"DEBUG", {SI_DBGST, SI_NONE, SI_NONE, SI_NONE}},    /* (DEBUG STATS: the platform's stats in flash, core/dbgstats.h; a section
-                                                         * of its own after INFO: INFO's page is read-outs, no line a cursor) */
-#endif
 #if FELUCCA_SYS_DEBUG                                  /* (the debug pages: builder item SYS_DEBUG, the user 2026-10-17) */
     {"INTERNALS", {SI_DIAG, SI_NONE, SI_NONE, SI_NONE}},   /* INFO split in two (the user, 2026-10-15): what a musician reads on INFO,
                                                          * the internals here (the last reset, flash, the second core) */
@@ -500,8 +496,10 @@ static const struct { const char *name; uint8_t it[4]; } SYS[] = {
     /* the screen and the sound in one section (the user, 2026-10-25: KNOB COLORS was on a page read as "audio", "group and
      * make it logical"): KNOB COLORS (the knob caps' colours; COLOR gone 2026-10-18: the palette is MONO, panel.c),
      * SPK LOWCUT and HPHN BASS (the output's correction by the headphone jack: fx/outcorr.c); FILT RESO went to GLOBAL's FILTER
-     * (the user, 2026-10-29: it is a project's, not the device's), so USB SERIAL joins this page (GL_JOIN) */
-    {"GENERAL", {SI_KCOL, SI_LOWCUT, SI_HPBASS, SI_NONE}},
+     * (the user, 2026-10-29: it is a project's, not the device's), so USB SERIAL joins this page (GL_JOIN) when it fits. DEBUG STATS is the last row, after HPHN BASS, where the platform keeps them
+     * (DBG_STATS: the release; it had a page alone, SYSTEM > DEBUG, until 2026-10-29): General is then 4 lines, full, and USB SERIAL
+     * keeps its own page (the join holds 4 lines at most) */
+    {"GENERAL", {SI_KCOL, SI_LOWCUT, SI_HPBASS, DBG_STATS ? SI_DBGST : SI_NONE}},
 #if USBH_UI
     {"USB", {SI_UHMODE, SI_UHDEV, SI_NONE, SI_NONE}},   /* the port as a MIDI host or the computer's device (USB_HOST: the trial's
                                                          * ui/opt_usbh.h on fm1-base's; USB SERIAL below it, one section) */
@@ -540,7 +538,7 @@ static const struct { const char *name; uint8_t it[4]; } SYS[] = {
 #endif
     {"CALIBRATE", {SI_CALIB, SI_HOLD, SI_NONE, SI_NONE}},   /* (SI_HOLD: a button's hold, 250 / 350 / 500 ms) */
     {"ABOUT", {SI_ABOUT, SI_BUILD, SI_REPO, SI_NONE}},
-    {"CREDITS", {SI_CREDITS, SI_NONE, SI_NONE, SI_NONE}},   /* after ABOUT: one text page (op_gldraw.c gl_cred_draw: CRED) */
+    {"CREDITS", {SI_CREDITS, SI_NONE, SI_NONE, SI_NONE}},   /* after ABOUT: one text page, the end titles (op_credits.c) */
     /* the global rows, last: GLOBAL's (GLO tapped, op_global.c), not SYSTEM's (the user, 2026-10-12: GLO "the page
      * where we have bpm, nudge, midi track settings etc"); defined here once, SYSTEM shows the rows above them */
     {"FILTER", {SI_IF(FELUCCA_TFLT_RESO && FELUCCA_TRK_FILT, SI_FRESO), SI_NONE, SI_NONE, SI_NONE}},   /* (FILT RESO: SLOOP 2.8's FILTER RESO, every track's
@@ -967,7 +965,7 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
     case SI_UAINFO:                                     /* the USB STATS page's one line */
         sys_ro(c, "USB STATS");
         break;
-    case SI_CREDITS:                                    /* the credits page's one line (op_gldraw.c gl_cred_draw draws the page) */
+    case SI_CREDITS:                                    /* the credits page's one line (op_credits.c gl_cred_draw draws the page) */
         sys_ro(c, "CREDITS");
         break;
     case SI_BUILD:                                      /* the build's date and time (the compiler's) */

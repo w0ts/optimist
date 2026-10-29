@@ -234,6 +234,22 @@ check("web: --port, --no-open, --site", a.port == 9000 and a.no_open and a.site 
 fa, fb = optimist.sim_fingerprint(optimist.C.profile_path("synths_USBaudio_BTaudio_BTmidi")), optimist.sim_fingerprint(optimist.C.profile_path("drum-machines"))
 check("web: the simulator's fingerprint: the same sources the same, another configuration another (outdated: asked again)",
       fa == optimist.sim_fingerprint(optimist.C.profile_path("synths_USBaudio_BTaudio_BTmidi")) and fa != fb and len(fa) == 64)
+import socket
+_s4 = socket.socket(socket.AF_INET)
+_s4.bind(("127.0.0.1", 0))
+_p4 = _s4.getsockname()[1]
+check("web: a free port is not taken", optimist.web_port_taken(_p4) is None)
+_s4.listen(1)
+check("web: a server already on 127.0.0.1 is found (make web stops)", optimist.web_port_taken(_p4) == "127.0.0.1")
+_s4.close()
+try:
+    _s6 = socket.socket(socket.AF_INET6)
+    _s6.bind(("::1", 0))
+    _s6.listen(1)
+    check("web: a server only on ::1 (where localhost may go) is found too", optimist.web_port_taken(_s6.getsockname()[1]) == "::1")
+    _s6.close()
+except OSError:
+    print("web: no IPv6 loopback here: the ::1 case not run")
 check("web: the installer and editor URLs", optimist.web_urls(9000) ==
       ("http://localhost:9000/webapp/installer/", "http://localhost:9000/webapp/editor/"))
 with tempfile.TemporaryDirectory() as wd:
@@ -386,6 +402,10 @@ with tempfile.TemporaryDirectory() as d:
     check("notices: the -ui.zip carries LICENSE, LICENSING.md and every LICENSES/ text", all(n in names for n in NOTICES))
     import importlib
     ms = importlib.import_module("make_site")
+    check("site: the identities it takes: Optimist's (FM-1_7NN), the release's (FM-1_79NN, FM-1_79NNNNNN), Felucca's; "
+          "not stock's or a malformed one",
+          all(ms.SITE_ID.fullmatch(p) for p in ("FM-1_700", "FM-1_721", "FM-1_7900", "FM-1_79010203", "FM-1_905"))
+          and not any(ms.SITE_ID.fullmatch(p) for p in ("FM-1_015", "FM-1_79012", "FM-1_7", "FM-1_8900")))
     fwsc = next((c for c in (ROOT / "build" / "felucca.fwsc", *sorted((ROOT / "build").glob("optimist-*.fwsc"))) if c.exists()), None)
     if fwsc is None:
         print("notices: no package in build/: the site check is skipped")
