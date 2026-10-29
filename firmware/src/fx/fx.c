@@ -26,26 +26,16 @@ static int16_t cho_buf[CHO_BUF_N] __attribute__((section(".pool"), aligned(4)));
  * loop, one line slowly modulated (no metallic tone on long tails); left and right take different lines.
  * That is the ROOM. The algorithms built (rev_type.c: ROOM, PLATE and FDN8 in reverb_alt.c at 22.05 kHz, AIRWIN in
  * reverb_airwin.c, SPRING in spring.c) are FX > REVERB > TYPE, switched at run time (rev_bus, below); only one runs,
- * so they share one line buffer, rev_line, the size of the largest built (ROOM 8684 samples, REV_HALF 4346; PLATE /
+ * so they share one line buffer, rev_line, the size of the largest built (ROOM 8684 samples; PLATE /
  * FDN8 / AIRWIN RV_N; SPRING 4096). */
 #define REV_ALT (FELUCCA_REV_PLATE || FELUCCA_REV_FDN8 || FELUCCA_REV_AIRWIN)   /* (AIRWIN: reverb_airwin.c) */
-#define REV_ROOM_HALF (FELUCCA_REV_ROOM && FELUCCA_REV_HALF)
-#define REV_TANK_HALF (REV_ROOM_HALF || REV_ALT)   /* a tank behind the half-band filters */
+#define REV_TANK_HALF REV_ALT   /* a tank behind the half-band filters */
 #if FELUCCA_REV_POOL             /* REV_POOL: the lines in the pool (main RAM is the scarcer); the same code */
 #define REV_SECTION __attribute__((section(".pool")))
 #else
 #define REV_SECTION              /* (.bss) */
 #endif
 #if FELUCCA_REV_ROOM
-#if FELUCCA_REV_HALF             /* REV_HALF: the tank at 22.05 kHz (rev_half_run below), every length halved */
-#define REV_MOD 6                /* (the same times in seconds: 35..63 ms, the modulation +-0.27 ms) */
-#define REV_N0 779u              /* (coprime: 19 x 41 and three primes; their mean 2169 / 2 samples: the */
-#define REV_N1 967u              /*  full rate's 2167.5 / 2, the same room and, at the same loop gain, the */
-#define REV_N2 1193u             /*  same decay time) */
-#define REV_N3 1399u
-#define REV_A0 278u
-#define REV_A1 221u
-#else
 #define REV_MOD 12               /* samples the modulated line moves (+-) */
 #define REV_N0 1559u             /* 35..63 ms, coprime */
 #define REV_N1 1931u
@@ -53,7 +43,6 @@ static int16_t cho_buf[CHO_BUF_N] __attribute__((section(".pool"), aligned(4)));
 #define REV_N3 2791u
 #define REV_A0 556u
 #define REV_A1 441u
-#endif
 static const uint16_t REV_LINE[4] = {REV_N0, REV_N1, REV_N2, REV_N3};
 static const uint16_t REV_AP[2] = {REV_A0, REV_A1};
 #define REV_ROOM_LEN (REV_N0 + REV_N1 + REV_N2 + REV_N3 + REV_MOD + 2u)
@@ -97,7 +86,7 @@ static struct {
  * input reaches exactly 0: mul_tz, fx_step, half_ap below; the delay's low-pass keeps its remainder, dly_step.) */
 #if FELUCCA_REV_ROOM
 #define REV_LONGEST (REV_N3 > REV_N0 + REV_MOD + 2u ? REV_N3 : REV_N0 + REV_MOD + 2u)
-#define REV_Q_ROOM (REV_LONGEST * (FELUCCA_REV_HALF ? 2u : 1u))   /* the longest line, in output samples */
+#define REV_Q_ROOM REV_LONGEST   /* the longest line, in output samples */
 #define REV_LP_ROOM() (fx.line_lp[0] | fx.line_lp[1] | fx.line_lp[2] | fx.line_lp[3])
 #else
 #define REV_Q_ROOM 1u
@@ -667,7 +656,6 @@ static HOT __attribute__((noinline)) int32_t room_step_long(int32_t in, int32_t 
     *yr = o1 - o3;
     return o0 + o2;
 }
-#if !FELUCCA_REV_HALF
 static HOT __attribute__((noinline)) void room_run_long(const int32_t *in, int32_t *wl, int32_t *wr, uint32_t n,
                                                         int32_t ma, int32_t mb, int32_t g, int32_t lpk, int32_t *wv)
 {                                                       /* (a block at the full rate: out of fx_buses, whose ROOM */
@@ -678,7 +666,6 @@ static HOT __attribute__((noinline)) void room_run_long(const int32_t *in, int32
         wr[i] += rr;
     }
 }
-#endif
 /* SIZE up to RM_KNEE (90, the default): the loop gain 17000 + 104 SIZE (RT60 0.5 .. 1.44 s at DAMP 60), as ever. Above
  * it, as FDN8 (reverb_alt.c): the decay time doubles every RM_STEPS / 10 steps (exponential in RT60, even to the ear)
  * and 127 adds RM_FRZ8 / 8 doublings, a near-freeze; the loop runs room_step_long (unbiased rounding: above). The
@@ -694,11 +681,6 @@ static HOT __attribute__((noinline)) void room_run_long(const int32_t *in, int32
 #define RM_FRZ8 10               /* SIZE 127: this many eighths of a doubling more */
 #define RM_L90 (5266993u >> 8)   /* -log2(26360 / 32768), the knee's loop gain, Q16 */
 #define RM_INSH 3                /* the send above the knee: x 2^(-doublings / 2^RM_INSH), as FDN8 (RV_INSH) */
-AINL int32_t room_half_k(int32_t lpk)                  /* REV_HALF: the damping at half the rate (rev_half_run) */
-{
-    int32_t k = ((lpk * (58847 - ((26198 * lpk) >> 15))) >> 15) + 519;   /* -0.7995 lpk^2 + 1.7959 lpk + 0.0158 */
-    return k > 32767 ? 32767 : k;
-}
 static uint32_t room_isqrt(uint32_t x)
 {
     uint32_t r = 0, b = 1u << 30;
@@ -720,11 +702,7 @@ static __attribute__((noinline)) void room_long(void)   /* the gains (XIP: rare;
     }
     rho = (uint32_t)rv_exp2n(e);                        /* 2^(-e / 2^24), Q15 */
     rm.g = rv_exp2n((RM_L90 * rho) >> 7);               /* (Q16 x Q15 >> 7: Q24; < 2^31) */
-#if REV_ROOM_HALF                                       /* (the half rate's fitted damping: the mapping of the full */
-    c = 32768u - (uint32_t)room_half_k(32767 - 200 * d);   /* rate's stretched one clamps above lpk ~31500) */
-#else
     c = 1u + 200u * (uint32_t)d;                        /* DAMP's pole (32768 - lpk), Q15: 1 .. 25401 */
-#endif
     r = 32768u - c;                                     /* (>= 7367: r r >> 15 >= 1656) */
     q = (((c << 15) / ((r * r) >> 15)) * (rho >> 3)) >> 12;   /* q rho, Q15 (q <= 15.4 x 2^15, x rho / 8: < 2^31) */
     c = ((2u * q) << 7) / ((2u * q + 32768u + (room_isqrt((4u * q + 32768u) << 9) << 3)) >> 8);   /* 2q / (2q + 1 + */
@@ -775,8 +753,7 @@ static void rev_tank_clear(void)
 }
 
 #if REV_TANK_HALF
-/* REV_HALF: rev_step once per two output samples, on lines half as long (above): half the RAM, about half the
- * work. Only the reverb's send and return change; the dry mix and the other buses stay at 44.1 kHz.
+/* The half-rate tanks (PLATE, FDN8, AIRWIN): a tank step once per two output samples, on lines half as long as at 44.1 kHz. Only the reverb's send and return change; the dry mix and the other buses stay at 44.1 kHz.
  *   in:  a half-band low-pass, 15 taps (-14, 0, 39, 0, -90, 0, 321, 512, 321, 0, -90, 0, 39, 0, -14) / 1024
  *        (least squares: +-0.12 dB to 8 kHz, -0.8 dB at 9 kHz, -6 dB at 11 kHz, -37 dB or less from 14.5 kHz),
  *        then every second sample;
@@ -788,44 +765,7 @@ static void rev_tank_clear(void)
  * 9 kHz (least squares in dB, fitted as a quadratic in lpk; tests/reverb_test.c checks the RT60). Every value
  * is an FIR of the send or the tank: at 0 in, 0 out (the idle skip, above, also waits for rev_half_any() to be
  * 0). Blocks are CTL long: an even number of samples. */
-_Static_assert((CTL & 1) == 0, "REV_HALF: the reverb takes the block in pairs");
-#if FELUCCA_REV_HB_LONG
-/* REV_HB_LONG: the same pairs behind a 63-tap low-pass (Kaiser-windowed sinc, fc 9.8 kHz, beta 6; Q15, symmetric: its first
- * 32 taps, worktrees/fxn-hb-table.py 2026-10-26) instead of the half-band: -0.6 dB at 9 kHz, -8.8 at 10, -45 at 11.025 (the
- * fold), -74 at 12 kHz, against the half-band's -6 and -11, whose images of 9-11 kHz came back 6-20 dB down (the "lower
- * bitrate" grit of the half-rate reverbs, measured on the host). In: one output a pair (32 multiplies, the taps paired);
- * out: each tank sample into two outputs, the even taps and the odd (16 each, paired), x 2. Both phases sum to 16384: DC
- * passes at exactly 1. Latency 31 samples (0.7 ms). About 48 multiplies a sample more than the half-band; 1 KB of pool */
-static const int16_t RHL_H[32] = {-3, -7, 5, 19, 0, -36, -16, 53, 50, -62, -104, 50, 174, 0, -249, -102, 306, 266, -312, -492,
-                                  227, 767, 0, -1067, -443, 1358, 1248, -1601, -2935, 1764, 10244, 14564};
-static struct {
-    int32_t x[128];              /* the send, newest first, each value twice (rings of 64, no shifting) */
-    int32_t l[64], r[64];        /* the tank's out, newest first, twice (rings of 32) */
-    uint32_t j, k;
-} rhl __attribute__((section(".pool"), aligned(4)));
-AINL int32_t rhl_dec(const int32_t *h)                  /* h[0 .. 62], newest first -> the low-pass's output */
-{
-    int64_t a = (int64_t)RHL_H[31] * h[31];
-    uint32_t i;
-    for (i = 0; i < 31u; i++)
-        a += (int64_t)RHL_H[i] * (h[i] + h[62u - i]);
-    return (int32_t)(a >> 15);
-}
-AINL void rhl_int(const int32_t *p, int32_t *o)         /* p[0 .. 31] newest first -> o[0] (even taps), o[1] (odd), x 2 */
-{
-    int64_t e = 0, d = (int64_t)RHL_H[31] * p[15];
-    uint32_t i;
-    for (i = 0; i < 16u; i++)
-        e += (int64_t)RHL_H[2u * i] * (p[i] + p[31u - i]);
-    for (i = 0; i < 15u; i++)
-        d += (int64_t)RHL_H[2u * i + 1u] * (p[i] + p[30u - i]);
-    o[0] = (int32_t)(e >> 14), o[1] = (int32_t)(d >> 14);
-}
-AINL int32_t rev_half_any(void)                         /* any filter cell non-zero */
-{
-    return fx_any(rhl.x, 128) | fx_any(rhl.l, 64) | fx_any(rhl.r, 64);
-}
-#else
+_Static_assert((CTL & 1) == 0, "the half-rate reverbs take the block in pairs");
 static struct {
     int32_t e[16], l[16], r[16]; /* rings of 8, each value twice: h[j .. j + 7] newest first, no shifting. e: the */
     int32_t o[8];                /* send's newer sample of each pair, o (4): its older one; l, r: the tank's out */
@@ -839,15 +779,9 @@ AINL int32_t rev_hb(const int32_t *h)                   /* the half-band's eight
 {
     return -14 * (h[0] + h[7]) + 39 * (h[1] + h[6]) - 90 * (h[2] + h[5]) + 321 * (h[3] + h[4]);
 }
-#endif
 /* one sample of tank t at 22.05 kHz (t is a constant at every call: this folds to that tank's step) */
-FX_STEP int32_t rev_tank_step(uint32_t t, int32_t y, int32_t r, int32_t g, int32_t lpk, int32_t *yr, int32_t *wv,
-                              const int lng)
+FX_STEP int32_t rev_tank_step(uint32_t t, int32_t y, int32_t r, int32_t g, int32_t lpk, int32_t *yr, int32_t *wv)
 {
-#if REV_ROOM_HALF
-    if (t == RT_ROOM)
-        return lng ? room_step_long(y, r, g, lpk, yr, wv) : rev_step(y, r, g, lpk, yr, wv);
-#endif
 #if FELUCCA_REV_PLATE
     if (t == RT_PLATE)
         return rvp_step(y, yr, wv);
@@ -866,47 +800,26 @@ FX_STEP int32_t rev_tank_step(uint32_t t, int32_t y, int32_t r, int32_t g, int32
 }
 /* one pair: in[0], in[1] -> tank t -> w*[0], w*[1] (added) */
 FX_STEP void rev_half_pair(uint32_t t, const int32_t *in, int32_t *wl, int32_t *wr, int32_t r, int32_t g, int32_t lpk,
-                           int32_t *wv, const int lng)
+                           int32_t *wv)
 {
-#if FELUCCA_REV_HB_LONG
-    uint32_t j = rhl.j = (rhl.j - 2u) & 63u, k = rhl.k = (rhl.k - 1u) & 31u;
-    int32_t y, ol, orr, o[2];
-    rhl.x[j] = rhl.x[j + 64u] = in[1];                  /* (the pair's newer sample first: newest first) */
-    rhl.x[j + 1u] = rhl.x[j + 65u] = in[0];
-    y = rhl_dec(rhl.x + j);
-    ol = rev_tank_step(t, y, r, g, lpk, &orr, wv, lng);
-    rhl.l[k] = rhl.l[k + 32u] = ol;
-    rhl.r[k] = rhl.r[k + 32u] = orr;
-    rhl_int(rhl.l + k, o);
-    wl[0] += o[0], wl[1] += o[1];
-    rhl_int(rhl.r + k, o);
-    wr[0] += o[0], wr[1] += o[1];
-#else
     uint32_t j = rev_half.j = (rev_half.j - 1u) & 7u, q = j & 3u;
     int32_t y, ol, orr, *e = rev_half.e + j, *l = rev_half.l + j, *rr = rev_half.r + j;
     e[0] = e[8] = in[1];
     rev_half.o[q] = rev_half.o[q + 4u] = in[0];
     y = (rev_hb(e) + (rev_half.o[q + 3u] << 9)) >> 10;
-    ol = rev_tank_step(t, y, r, g, lpk, &orr, wv, lng);
+    ol = rev_tank_step(t, y, r, g, lpk, &orr, wv);
     l[0] = l[8] = ol;
     rr[0] = rr[8] = orr;
     wl[0] += rev_hb(l) >> 9;
     wr[0] += rev_hb(rr) >> 9;
     wl[1] += l[3];
     wr[1] += rr[3];
-#endif
 }
 /* a block of tank t (fx_buses' run_r); ma, mb: line 0's modulation at both ends */
 FX_STEP void rev_half_run(uint32_t t, const int32_t *rev_in, int32_t *wl, int32_t *wr, uint32_t n, int32_t ma,
                           int32_t mb, int32_t g, int32_t lpk, int32_t *wv)
 {
     uint32_t i;
-    int32_t k = lpk;
-#if REV_ROOM_HALF
-    if (t == RT_ROOM) {
-        k = RM_LONG() ? lpk : room_half_k(lpk);         /* (above the knee room_long made it for this rate) */
-    }
-#endif
 #if FELUCCA_REV_PLATE
     if (t == RT_PLATE) {
         if (song.g[G_RSIZE] != rv.size || song.g[G_RDAMP] != rv.damp)
@@ -925,25 +838,12 @@ FX_STEP void rev_half_run(uint32_t t, const int32_t *rev_in, int32_t *wl, int32_
     if (t == RT_AIRWIN && (song.g[G_RSIZE] != rv.size || song.g[G_RDAMP] != rv.damp))
         FAR(rva_params)();
 #endif
-#if REV_ROOM_HALF
-    if (t == RT_ROOM && RM_LONG()) {                    /* (above the knee: unbiased rounding, room_step_long) */
-        for (i = 0; i < n; i += 2u)
-            rev_half_pair(t, rev_in + i, wl + i, wr + i, ma + (((mb - ma) * (int32_t)i) >> CTL_LOG2), g, k, wv, 1);
-        return;
-    }
-#endif
     for (i = 0; i < n; i += 2u)
-        rev_half_pair(t, rev_in + i, wl + i, wr + i, ma + (((mb - ma) * (int32_t)i) >> CTL_LOG2), g, k, wv, 0);
+        rev_half_pair(t, rev_in + i, wl + i, wr + i, ma + (((mb - ma) * (int32_t)i) >> CTL_LOG2), g, lpk, wv);
 }
 FX_STEP void rev_half_skip(uint32_t t, uint32_t n)      /* idle: n output samples, n / 2 in the tank */
 {
     n >>= 1;
-#if REV_ROOM_HALF
-    if (t == RT_ROOM) {
-        room_skip(n);
-        return;
-    }
-#endif
 #if REV_ALT
     rv.p -= n;
 #endif
@@ -952,13 +852,8 @@ FX_STEP void rev_half_skip(uint32_t t, uint32_t n)      /* idle: n output sample
 static void rev_half_clear(void)                        /* its cells to 0 */
 {
     uint32_t i;
-#if FELUCCA_REV_HB_LONG
-    for (i = 0; i < 128u; i++)
-        rhl.x[i] = rhl.l[i & 63u] = rhl.r[i & 63u] = 0;
-#else
     for (i = 0; i < 16u; i++)
         rev_half.e[i] = rev_half.l[i] = rev_half.r[i] = rev_half.o[i & 7u] = 0;
-#endif
 }
 #define REV_HALF_BUSY() rev_half_any()
 #else
@@ -980,7 +875,7 @@ FX_STEP void rev_tank_run(uint32_t t, const int32_t *rev_in, int32_t *wl, int32_
         return;
     }
 #endif
-#if FELUCCA_REV_ROOM && !FELUCCA_REV_HALF
+#if FELUCCA_REV_ROOM
     if (t == RT_ROOM) {
         uint32_t i;
         if (run && RM_LONG()) {                         /* (above the knee: unbiased rounding, room_step_long) */
@@ -1672,7 +1567,7 @@ static HOT int fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int3
     run_c = FELUCCA_FX_CHORUS && (fx.cho_q < CHO_LEN || (!(gen & 1u) && fx_any(cho_in, n)));   /* (registry.h: an FX not built) */
     run_d = FELUCCA_FX_DELAY && (fx.dly_q < DLY_LEN || DLY_FST() || (!(gen & 2u) && fx_any(dly_in, n)));
     run_r = FELUCCA_FX_REVERB && (fx.rev_q < REV_Q || REV_LP_BUSY() ||
-                                  REV_HALF_BUSY() || (!(gen & 4u) && fx_any(rev_in, n)));   /* (REV_HALF: its filters too) */
+                                  REV_HALF_BUSY() || (!(gen & 4u) && fx_any(rev_in, n)));   /* (the half-rate tanks: their filters too) */
     plan = (uint32_t)run_c | (uint32_t)run_d << 1 | (uint32_t)run_r << 2;
     if (rs)
         plan |= FAR(rs_wake)(plan | (uint32_t)had << 2 | gen) & ~gen & FXB_BUILT;
