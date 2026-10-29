@@ -308,6 +308,27 @@ AINL int32_t master_vol(int32_t x, int32_t m, uint8_t *f)
 #else
 #define MASTER_VOL(x, m, k) ((((x) >> 2) * (m)) >> 10)
 #endif
+/* the output stage of a block without LIMIT (mix_finish): the master volume ramped over the block, master_pre (the DC
+ * blocker, the low cut), the limiter and the knee. own: the FM-1's own output (s = &mo); 0: USB's MASTER (ua_mst_out: at
+ * 4096, the DC blocker alone, on its own state; under MIX_EXACT its bits under it, 0 at 4096, rewritten by the output's
+ * block after it) */
+static HOT2 __attribute__((noinline)) void mout_block(mout_t *s, const int32_t *ml, const int32_t *mr, int32_t *out,
+                                                     uint32_t n, int32_t m0, int32_t m1, uint32_t own)
+{
+    uint32_t i;
+    for (i = 0; i < n; i++) {
+        int32_t m = m0 + (((m1 - m0) * (int32_t)i) >> CTL_LOG2);
+        int32_t l = MASTER_VOL(ml[i], m, 2u * i);
+        int32_t r = MASTER_VOL(mr[i], m, 2u * i + 1u);
+        if (own)
+            master_pre(&l, &r);
+        else
+            master_dc(s, &l, &r);
+        master_lim(s, &l, &r);
+        out[2u * i] = l;
+        out[2u * i + 1u] = r;
+    }
+}
 #if FELUCCA_MASTER_COMP
 #include "master_comp/master_comp.c"       /* GLO > COMP / LIMIT: the bus compressor, the brickwall limiter (mix_finish) */
 #endif
@@ -317,11 +338,6 @@ AINL int32_t master_vol(int32_t x, int32_t m, uint8_t *f)
  * 4096, the DC blocker, then the limiter and the knee, or LIMIT's brickwall (its CEIL, its lookahead) when it is on.
  * Not the menu's LOWCUT / BASS+ (the small speaker's). Its own state (ua_mo, ua_mlim), started from rest each time the
  * host starts taking MASTER (ua_mo_on). Only while MASTER is routed and the host records (mix_finish: ua_mst_live) */
-#if FELUCCA_MIX_EXACT
-#define MASTER_UNITY(x) (x)                             /* (master_vol at 4096: the sample, nothing under it) */
-#else
-#define MASTER_UNITY(x) MASTER_VOL((x), 4096, 0)        /* (its 2 bits dropped, as the output at full volume) */
-#endif
 static mout_t ua_mo;
 static uint8_t ua_mo_on;                                /* ua_mo, ua_mlim in use (0: started from rest at the next) */
 #if FELUCCA_MASTER_COMP
@@ -329,7 +345,6 @@ static mlim_t ua_mlim __attribute__((section(".pool")));   /* (the pool: main RA
 #endif
 static HOT2 __attribute__((noinline)) void ua_mst_out(const int32_t *ml, const int32_t *mr, uint32_t n)
 {
-    uint32_t i;
     if (!ua_mo_on) {
         ua_mo.lim_env = LIM_T;                          /* (at rest; field by field: a struct copy is a memcpy, XIP) */
         ua_mo.dc_l = ua_mo.dc_r = ua_mo.dce_l = ua_mo.dce_r = 0;
@@ -346,19 +361,12 @@ static HOT2 __attribute__((noinline)) void ua_mst_out(const int32_t *ml, const i
         ua_mlim.clin = mlim.clin;
     }
     ua_mlim.on = mlim.on;
-    if (ua_mlim.on) {                                   /* (the output's brickwall code, on this state: before the
-                                                         * output's block, whose bits under it are written after) */
-        mlim_block(&ua_mlim, &ua_mo, ml, mr, ua_mst, n, 4096, 4096, 0u);
-        return;
+    if (ua_mlim.on) {                                   /* (the output's code on this state, as the output's block */
+        mlim_block(&ua_mlim, &ua_mo, ml, mr, ua_mst, n, 4096, 4096, 0u);   /* below: before it, which writes the */
+        return;                                         /* bits under it after) */
     }
 #endif
-    for (i = 0; i < n; i++) {
-        int32_t l = MASTER_UNITY(ml[i]), r = MASTER_UNITY(mr[i]);
-        master_dc(&ua_mo, &l, &r);
-        master_lim(&ua_mo, &l, &r);
-        ua_mst[2u * i] = l;
-        ua_mst[2u * i + 1u] = r;
-    }
+    mout_block(&ua_mo, ml, mr, ua_mst, n, 4096, 4096, 0u);
 }
 #endif
 
@@ -3026,7 +3034,6 @@ static HOT void click_mix(uint32_t n)
 #endif
 static inline __attribute__((always_inline)) void mix_finish(int32_t *out, uint32_t n)
 {
-    uint32_t i;
     int32_t m0, m1;
     BENCH_SIG(4, mix_l, n);
     BENCH_SIG(5, send_r, n);
@@ -3054,14 +3061,7 @@ static inline __attribute__((always_inline)) void mix_finish(int32_t *out, uint3
         return;
     }
 #endif
-    for (i = 0; i < n; i++) {
-        int32_t m = m0 + (((m1 - m0) * (int32_t)i) >> CTL_LOG2);
-        int32_t l = MASTER_VOL(mix_l[i], m, 2u * i);
-        int32_t r = MASTER_VOL(mix_r[i], m, 2u * i + 1u);
-        master_out(&l, &r);
-        out[2u * i] = l;
-        out[2u * i + 1u] = r;
-    }
+    mout_block(&mo, mix_l, mix_r, out, n, m0, m1, 1u);  /* the volume, the limiter and the knee (above) */
 }
 
 #if FELUCCA_BENCH
