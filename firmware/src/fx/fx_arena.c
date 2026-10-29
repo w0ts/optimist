@@ -261,6 +261,56 @@ static int fxm_ins_could(void)
 #define fxm_ins_want() 0u
 #define FXM_INS_NEEDS() 0u
 #endif
+#if FXI_CPN
+/* the CHO DLY REV inserts' copies (2026-10-29, the user: "each copy in an insert slot takes its memory from the arena, as
+ * many as it holds. When it's full the slot shows FULL"): a block each (clients FXM_CP_K0 .., engines.c), placed by
+ * fxi.c fxa_place when an owner takes the type and none of the effects memory's room is free (the own room, a send's
+ * line lent), given back with the instance (fxi_give: faded out first). The main loop only, the interrupts off around
+ * the arena. Never moved (as the other buffers: arn_can), never proposed to drop (their owners hold the types). No
+ * block: FULL (fxi.c), tried again every pass while the owner holds the type (fxi_full) */
+#define FXM_CP_K(c) (FXM_CP_K0 + (uint32_t)(c))
+#define FXM_CP_BYTES(j) (FXA_SZ(j) * FXA_U * 2u)
+static uint32_t fxm_cp_place(uint32_t j)               /* -> FXA_T + the block's client, FXA_NO: none */
+{
+    uint32_t c;
+    void *p = 0;
+    int r;
+    if (PART_MEM_SHORT())
+        return FXA_NO;                                  /* (a part's refused change first, a load's too: a later pass) */
+    for (c = 0; c < FXI_CPN && fxm_cp_p[c]; c++)
+        ;
+    if (c >= FXI_CPN)
+        return FXA_NO;
+    fm1_irq_off();
+    r = arn_reserve(FXM_CP_K(c), FXM_CP_BYTES(j));
+    if (!r)
+        p = arn_take(FXM_CP_K(c));
+    fm1_irq_on();
+    if (r || !p)
+        return FXA_NO;
+    fxm_cp_p[c] = (int16_t *)p;
+    return FXA_T + c;
+}
+static void fxm_cp_give(uint32_t c)                    /* (its instance given back: no core reads it) */
+{
+    fm1_irq_off();
+    arn_give(FXM_CP_K(c % FXI_CPN));
+    fm1_irq_on();
+    fxm_cp_p[c % FXI_CPN] = 0;
+}
+static uint32_t fxm_cp_room(uint32_t j)                /* the UI's count: how many more blocks of type j the arena takes */
+{
+    uint32_t c, f = 0, k = FXI_CPN, n, b = FXM_CP_BYTES(j);
+    for (c = 0; c < FXI_CPN; c++)
+        if (!fxm_cp_p[c])
+            f++, k = k < FXI_CPN ? k : c;
+    if (!f || !arn_fits(FXM_CP_K(k), b, 0))
+        return 0;
+    n = arn_room() / b;
+    n = n ? n : 1u;
+    return n < f ? n : f;
+}
+#endif
 /* client c wants a block it has not: a send line not placed and used, the own room not placed and a type held */
 static uint32_t fxm_needs(uint32_t c)
 {

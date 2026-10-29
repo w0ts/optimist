@@ -72,6 +72,66 @@ static uint32_t cg_vcost(const track_t *t)   /* a voice of this part: target ins
     return CG_VCOST[u < CG_NVCOST ? u : 0u];
 }
 
+#define INS_SNDI (INS_CHO || INS_REV || INS_DLY)
+#if INS_SNDI
+/* the CHO DLY REV inserts (fxi_send.c, 2026-10-29): a copy's cost, 0 not built */
+static uint32_t cg_sndi_c(uint32_t t)
+{
+#if INS_CHO
+    if (t == FXT_CHO)
+        return CG_COST_CHOI;
+#endif
+#if INS_REV
+    if (t == FXT_REV)
+        return CG_COST_REVI;
+#endif
+#if INS_DLY
+    if (t == FXT_DLY)
+        return CG_COST_DLYI;
+#endif
+    (void)t;
+    return 0;
+}
+/* a CHO DLY REV insert's wet share now on the audio's index i (limited types: their instance's) */
+static __attribute__((noinline)) int32_t cg_sndi_w(uint32_t t, uint32_t i)
+{
+    uint32_t n = ifx_lim_at(t, i);
+    if (n == FXI_NONE)
+        return 0;
+#if INS_CHO
+    if (t == FXT_CHO)
+        return ifx_choi[n % FXI_TN0].w;
+#endif
+#if INS_REV
+    if (t == FXT_REV)
+        return ifx_room[n % FXI_TN5].w;
+#endif
+#if INS_DLY
+    if (t == FXT_DLY)
+        return ifx_tdly[n % FXI_TN6].w;
+#endif
+    return 0;
+}
+/* track k's (the audio's index i: a part's, the drum bus's) CHO DLY REV inserts that run now: set (in a slot, FX on, its
+ * amount: the track's P_CHOR P_REV P_DLY, the insert's MIX, with an instance) or fading */
+static __attribute__((noinline)) uint32_t cg_sndi(uint32_t k, uint32_t i, int32_t on)
+{
+    uint32_t n = 0;
+#if INS_CHO
+    if ((on && INS_ON(k, FXT_CHO) && trk[k].p[P_CHOR] && ifx_has(FXT_CHO, k)) || cg_sndi_w(FXT_CHO, i))
+        n += CG_COST_CHOI;
+#endif
+#if INS_REV
+    if ((on && INS_ON(k, FXT_REV) && trk[k].p[P_REV] && ifx_has(FXT_REV, k)) || cg_sndi_w(FXT_REV, i))
+        n += CG_COST_REVI;
+#endif
+#if INS_DLY
+    if ((on && INS_ON(k, FXT_DLY) && trk[k].p[P_DLY] && ifx_has(FXT_DLY, k)) || cg_sndi_w(FXT_DLY, i))
+        n += CG_COST_DLYI;
+#endif
+    return n;
+}
+#endif
 /* the insert slots (fx_slots.c ins_slot, fx.c ins_part, dbus_run; D9: every slot modelled, none ever switched off):
  * part p's that run now (a sounding part): DIST while its amount is set (in a slot, FX on), the FILTER while it is
  * not at rest (set, or gliding open: fx.c tflt_block), COMP while set or letting go. The QUALITY level runs the drum
@@ -112,13 +172,8 @@ static uint32_t cg_ins_part(uint32_t p)
     if ((on && INS_ON(p, FXT_XDLY) && trk[p].p[P_TXDLY] && ifx_has(FXT_XDLY, p)) || ifx_w(FXT_XDLY, p))
         n += CG_COST_XDLY;                            /* (set, fading or ringing on: xdly.c) */
 #endif
-#if INS_ROOM
-    if ((on && INS_ON(p, FXT_ROOM) && trk[p].p[P_TROOM] && ifx_has(FXT_ROOM, p)) || ifx_w(FXT_ROOM, p))
-        n += CG_COST_ROOM;                            /* (set, fading or ringing on: fxi_send.c) */
-#endif
-#if INS_TDLY
-    if ((on && INS_ON(p, FXT_TDLY) && trk[p].p[P_TTDLY] && ifx_has(FXT_TDLY, p)) || ifx_w(FXT_TDLY, p))
-        n += CG_COST_TDLY;
+#if INS_SNDI
+    n += cg_sndi(p, p, on);                           /* (the CHO REV DLY inserts: fxi_send.c) */
 #endif
     return n;
 }
@@ -162,13 +217,8 @@ static uint32_t cg_ins_bus(void)
     if ((fx_on(TDRUM) && INS_ON(TRK_DRUM, FXT_XDLY) && TDRUM->p[P_TXDLY] && ifx_has(FXT_XDLY, TRK_DRUM)) || ifx_w(FXT_XDLY, TRK_DRUM))
         n += CG_COST_XDLY;                            /* (its one instance on the bus's mid) */
 #endif
-#if INS_ROOM
-    if ((fx_on(TDRUM) && INS_ON(TRK_DRUM, FXT_ROOM) && TDRUM->p[P_TROOM] && ifx_has(FXT_ROOM, TRK_DRUM)) || ifx_w(FXT_ROOM, TRK_DRUM))
-        n += CG_COST_ROOM;                            /* (its one instance on the bus's mid) */
-#endif
-#if INS_TDLY
-    if ((fx_on(TDRUM) && INS_ON(TRK_DRUM, FXT_TDLY) && TDRUM->p[P_TTDLY] && ifx_has(FXT_TDLY, TRK_DRUM)) || ifx_w(FXT_TDLY, TRK_DRUM))
-        n += CG_COST_TDLY;
+#if INS_SNDI
+    n += cg_sndi(TRK_DRUM, TRK_DRUM, fx_on(TDRUM));   /* (one stereo instance each, on the bus's mid) */
 #endif
     return n;
 }
@@ -229,13 +279,9 @@ static uint32_t cg_ins_mst(void)
         if (t == FXT_XDLY && (mst_amt[FXT_XDLY] || ifx_w(FXT_XDLY, IFX_MST)))
             n += CG_COST_XDLY;
 #endif
-#if INS_ROOM
-        if (t == FXT_ROOM && (mst_amt[FXT_ROOM] || ifx_w(FXT_ROOM, IFX_MST)))
-            n += CG_COST_ROOM;
-#endif
-#if INS_TDLY
-        if (t == FXT_TDLY && (mst_amt[FXT_TDLY] || ifx_w(FXT_TDLY, IFX_MST)))
-            n += CG_COST_TDLY;
+#if INS_SNDI
+        if (FXT_SENDS >> t & 1u && (mst_amt[t] || cg_sndi_w(t, IFX_MST)))
+            n += cg_sndi_c(t);
 #endif
     }
     return n;
@@ -301,7 +347,7 @@ static uint32_t cg_ins_ut(void)
         if (t == FXT_DUST && FELUCCA_FX_DUST && a)
             n += CG_COST_DBDUST;
 #if INS_FX
-        if (IFX_FUR(t) && (a || ifx_w(t, IFX_UT)))   /* (CHRS ECHO FLNG: only with an instance, ifx_w 0
+        if (IFX_FUR(t) && (a || ifx_w(t, IFX_UT)))   /* (ECHO FLNG: only with an instance, ifx_w 0
                                                         * without; GATER: one gain, the bus's cost) */
             n += CG_COST_DBINS[IFX_FIX(t)];
 #endif
@@ -311,6 +357,10 @@ static uint32_t cg_ins_ut(void)
 #endif
         if (t == FXT_EQ3 && (ifx_w(FXT_EQ3, IFX_UT) || (a && !eq3_flat(EQ3_V(NTRK + 1u)))))
             n += CG_COST_EQ3S;
+#if INS_SNDI
+        if (FXT_SENDS >> t & 1u && (a || cg_sndi_w(t, IFX_UT)))
+            n += cg_sndi_c(t);                        /* (the CHO DLY REV inserts: fxi_send.c) */
+#endif
     }
     return n;
 }
