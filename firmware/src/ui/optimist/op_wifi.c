@@ -20,8 +20,10 @@
  *   SAVE held the row's saved network forgotten (a new one: NOT REMEMBERED); joined, the network joined is let go and forgotten.
  * MODE AP (FELUCCA_WIFI_AP; the user, 2026-10-27: "maybe we add mode AP"): the FM-1 is the access point (wifi/wifi_apd.c). The page's four
  * lines become NAME (the network's name: FM1- and four digits of the radio's address, or the one set by the web editor), CHANNEL (KNOB 3
- * turns it, 1..13; the AP restarts when the knob has rested), STATE (NO PASSWORD, STARTING, ACTIVE, n CLIENTS, NO CAL). SAVE opens the
- * password entry for the AP's key (8..63 characters, as a network's), SAVE held asks CLEAR KEY. No access point runs without a key.
+ * turns it, 1..13; the AP restarts when the knob has rested), STATE (STARTING, ACTIVE, n CLIENTS, NO CAL). SAVE opens the
+ * password entry for the AP's key (8..63 characters, as a network's), SAVE held asks CLEAR KEY (the default password again; with none typed, in AP MAN, SAVE held opens the entry).
+ * The password: the one typed, else the default one, a function of the name alone (wifi_ap_default_key: another Optimist that hears
+ * the name knows it), which STATE shows as KEY xxxxxxxx every fourth 2 s (KEY TYPED when one typed replaces it).
  * The password entry (pw_*): KNOB 1 the character in its family, KNOB 2 the family, KNOB 3 the cursor; SAVE tapped adds the
  * character, SAVE held joins (DONE), HOME tapped erases, HOME held cancels (the user, 2026-10-27). The text is shown as
  * typed (the panel is small), case-sensitive, 8..63 characters; the buffer (op_pwbuf.h) is wiped when the entry closes and
@@ -61,18 +63,43 @@ static int wf_joined(void) { return wc.st == WC_UP || wc.st == WC_LINK; }
 static int wf_joining(void) { return wc_req.on || (wc.st >= WC_PMK && wc.st <= WC_HS) || wc.st == WC_PRE; }
 static int wf_nocal(void) { return wc.st == WC_FAIL && wc.fail == WCF_NOCAL; }
 static int wf_radio_ok(void) { return wc.st != WC_OFF && wc.st != WC_RADIO && !wf_nocal(); }
+#ifdef WIFI_ON_FM1B
+#define WF_JAM 1                                        /* MODE JAM (the trial's Wi-Fi stack): AUTO that also joins an FM-1 access point */
+#else
+#define WF_JAM 0
+#endif
+static const uint8_t WF_W[] = {WN_MODE_OFF, WN_MODE_MAN, WN_MODE_AUTO,   /* the modes in the knob's order, and their words */
+#if WF_JAM
+                               WN_MODE_JAM,
+#endif
 #if FELUCCA_WIFI_AP
-#define WF_MODE_LAST 4                                  /* the modes: OFF, MAN, AUTO, AP MAN, AP AUTO */
+                               WN_MODE_AP_MAN, WN_MODE_AP,
+#endif
+};
+static const char *const WF_M[] = {"OFF", "MAN", "AUTO",
+#if WF_JAM
+                                   "JAM",
+#endif
+#if FELUCCA_WIFI_AP
+                                   "AP MAN", "AP AUTO",
+#endif
+};
+#define WF_MODE_LAST ((int32_t)(sizeof WF_W / sizeof WF_W[0]) - 1)
+static int wf_is_ap_mode(uint8_t m) { return m == WN_MODE_AP || m == WN_MODE_AP_MAN; }
+#if FELUCCA_WIFI_AP
 #define WF_AP_ON (wn_st.mode == WN_MODE_AP || wn_st.mode == WN_MODE_AP_MAN)
 #define WF_AP_NOCAL (WF_AP_ON && wa_status() == WAS_NOCAL)
 #else
-#define WF_MODE_LAST 2
 #define WF_AP_ON 0
 #define WF_AP_NOCAL 0
 #endif
 static uint32_t wf_mode_idx(void)
 {
-    return wn_st.mode == WN_MODE_OFF ? 0u : wn_st.mode == WN_MODE_MAN ? 1u : wn_st.mode == WN_MODE_AUTO ? 2u : wn_st.mode == WN_MODE_AP_MAN ? 3u : 4u;
+    uint32_t i;
+    for (i = 0; i < sizeof WF_W / sizeof WF_W[0]; i++)
+        if (WF_W[i] == wn_st.mode)
+            return i;
+    return 0u;
 }
 static int wf_pg_on(void)                               /* the list is what the page shows: a mode on, nothing joined, nothing joining */
 {
@@ -276,32 +303,26 @@ static int wf_ch_turn(int32_t s) { (void)s; return 0; }
 #endif
 static void wf_mode_cell(cell_t *c)
 {
-    static const char *const M[5] = {"OFF", "MAN", "AUTO", "AP MAN", "AP AUTO"};
     uint32_t m = wf_mode_idx();
     int bad = (wf_nocal() && m) || WF_AP_NOCAL;
     c->kind = CK_VAL;
     c->label = "MODE";
     c->big = 1;
-    cell_val(c, bad ? "NO CAL" : M[m]);
+    cell_val(c, bad ? "NO CAL" : WF_M[m]);
     c->col = bad ? C_WARN : 0;
 }
 static void wf_mode_set(int32_t s)                      /* a detent a mode, stopping at the ends; YES round (bt_mode_set's) */
 {
-    static const uint8_t W[5] = {WN_MODE_OFF, WN_MODE_MAN, WN_MODE_AUTO, WN_MODE_AP_MAN, WN_MODE_AP};
     uint32_t m = wf_mode_idx(), n = (uint32_t)sys_step((int32_t)m, s, WF_MODE_LAST);
-    if (W[n] == wn_st.mode)
+    if (WF_W[n] == wn_st.mode)
         return;
-    wn_st.mode = W[n];
+    wn_st.mode = WF_W[n];
     settings_later = 1;
     wfs.asked = 0;
-    if (n == 0u || W[n] >= WN_MODE_AP) {
+    if (n == 0u || wf_is_ap_mode(WF_W[n])) {
         wc_enable(0);                                   /* (a network joined is told; the radio, once started, stays up) */
         memset(&wc_req, 0, sizeof wc_req);
     }
-#if FELUCCA_WIFI_AP
-    if (W[n] >= WN_MODE_AP && !wn_st.ap.set)
-        ui_message("SAVE: PASSWORD");                   /* (no access point runs without a key: the page says how to give one) */
-#endif
 }
 static void wf_net_cell(cell_t *c)
 {
@@ -395,8 +416,8 @@ static void wf_ap_state_cell(cell_t *c)
     uint16_t col = 0;
     b[0] = 0;
     if (st == WAS_NOKEY) {
-        v = "NO PASSWORD";
-        col = C_ERR;                                    /* (red: no access point runs until a password is typed) */
+        v = "NO PASSWORD";                              /* (not reached: the default password is always there) */
+        col = C_ERR;
     } else if (st == WAS_NOCAL) {
         v = "NO CAL";
         col = C_WARN;
@@ -414,6 +435,18 @@ static void wf_ap_state_cell(cell_t *c)
             v = b;
         } else {
             v = "ACTIVE";
+        }
+        col = C_OK;
+    }
+    if (st != WAS_NOCAL && ((fm1_ms >> 11) & 3u) == 3u) {   /* the password, one phase in four (the user reads it to join a phone) */
+        char k[16];
+        if (wa_default_key(k + 4)) {
+            k[0] = 'K', k[1] = 'E', k[2] = 'Y', k[3] = ' ';
+            b[0] = 0;
+            str_app(b, k, sizeof b);
+            v = b;
+        } else {
+            v = "KEY TYPED";
         }
         col = C_OK;
     }
@@ -467,6 +500,23 @@ static void wf_state_cell(cell_t *c)
             v = "CONNECTING";
             break;
         }
+#if WF_JAM
+    if (wn_st.mode == WN_MODE_JAM) {                    /* MODE JAM: joined to an FM-1 access point (the line alternates with the Link peers), or one refused */
+        int j = plat_wifi_jam();
+        if (j == 1 && wc.st == WC_UP && ((fm1_ms >> 11) & 1u)) {
+            uint32_t i;
+            b[0] = 'J', b[1] = 'A', b[2] = 'M', b[3] = ' ';
+            for (i = 0; i < wc.ap.ssid_len && i < 8u; i++)
+                b[4u + i] = (char)wc.ap.ssid[i];
+            b[4u + i] = 0;
+            v = b;
+            col = C_OK;
+        } else if (j == 2 && wc.st != WC_UP && wc.st != WC_SCAN && !wf_joining()) {
+            v = "JAM: LOCKED";                          /* (its owner typed a password: not tried again for two minutes) */
+            col = C_WARN;
+        }
+    }
+#endif
     c->kind = CK_RO;
     c->label = "STATE";
     c->big = 1;
@@ -527,7 +577,7 @@ static void wf_save(void)                               /* SAVE tapped on the pa
             ui_message("NO RADIO CAL");
             return;
         }
-        if (wn_st.mode == WN_MODE_AP_MAN && wn_st.ap.set) {   /* AP MAN with a key: SAVE starts it, or stops it */
+        if (wn_st.mode == WN_MODE_AP_MAN) {                 /* AP MAN: SAVE starts it, or stops it */
             if (wa_status() == WAS_STOPPED) {
                 (void)wa_run(1);
                 ui_message("AP STARTING");
@@ -589,8 +639,9 @@ static void wf_forget(void)
 #if FELUCCA_WIFI_AP
     if (WF_AP_ON) {                                     /* MODE AP: the key goes (ask first, as a network's forget) */
         uint8_t raw[WN_SSID_MAX];
-        if (!wn_st.ap.set) {
-            ui_message("NO PASSWORD");
+        if (!wn_st.ap.set) {                            /* none typed (the default one is in use): SAVE held opens the entry (in AP AUTO SAVE does) */
+            pw_open(raw, wa_name(raw));
+            pws.ap = 1;
             return;
         }
         wf_txt(nm, raw, wa_name(raw));

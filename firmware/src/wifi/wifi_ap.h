@@ -72,4 +72,9 @@ uint32_t wifi_ap_build_deauth(struct wifi_ap *ap, const uint8_t da[6], uint16_t 
 /* an EAPOL packet to a station, as a FromDS data frame with LLC/SNAP: returns the frame length */
 uint32_t wifi_ap_encap_eapol(struct wifi_ap *ap, const uint8_t da[6], const uint8_t *eapol, uint32_t eapol_len, uint8_t *tx_buf);
 
+/* the default password of an Optimist access point of that name (WIFI_AP_KEY_LEN lower-case letters and digits, no
+ * i l o 0 1; a pure function of the name: the station side computes the same). out holds WIFI_AP_KEY_LEN + 1 */
+#define WIFI_AP_KEY_LEN 8u
+void wifi_ap_default_key(const uint8_t *ssid, uint32_t len, char out[WIFI_AP_KEY_LEN + 1u]);
+
 #endif

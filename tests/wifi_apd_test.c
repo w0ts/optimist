@@ -205,11 +205,33 @@ int main(void)
     wc_pmk("not-the-one", NAME, sizeof NAME, pmk_other);
     wn_reset(&wn_st);
 
-    /* 1. MODE AP with no key: nothing runs, the page is told */
+    /* 0. the default password: a function of the name (fixed vectors; the same name, the same key; another name, another) */
+    {
+        char k1[16], k2[16], k3[16];
+        wifi_ap_default_key((const uint8_t *)"FM1-0000", 8, k1);
+        wifi_ap_default_key((const uint8_t *)"FM1-A1B2", 8, k2);
+        wifi_ap_default_key((const uint8_t *)"FM1-A1B3", 8, k3);
+        check(!strcmp(k1, "rxrm2jd2") && !strcmp(k2, "9kd4ctcd") && !strcmp(k3, "9fd3wpch"), "default key: the fixed vectors FM1-0000 / A1B2 / A1B3");
+        check(strcmp(k2, k3) != 0 && strlen(k1) == 8u, "two names, two keys; 8 characters");
+        wifi_ap_default_key((const uint8_t *)"FM1-A1B2", 8, k3);
+        check(!strcmp(k2, k3), "the same name, the same key");
+        wifi_ap_default_key((const uint8_t *)"", 0, k1);
+        check(!strcmp(k1, "7jc84apt") && strpbrk(k1, "01oli") == 0, "an empty name has one too; no 0 1 o l i");
+    }
+
+    /* 1. MODE AP with no typed key: the default one (a function of the name) is made, nothing is kept */
     wn_st.mode = WN_MODE_AP;
     fm1_ms = 5000u;
     wa_poll();
-    check(wa.st == WA_OFF && wa_status() == WAS_NOKEY && ntx == 0 && radio_calls == 0, "no key: nothing started, status NOKEY");
+    check(wa.st == WA_PMK && wa_status() == WAS_STARTING && ntx == 0 && radio_calls == 0 && wn_st.ap.set == 0u, "no typed key: the default key job starts, nothing kept");
+    run_until_up();
+    {
+        char k[16];
+        uint8_t p[32];
+        wifi_ap_default_key(wa.ssid, wa.ssid_len, k);
+        wc_pmk(k, wa.ssid, wa.ssid_len, p);
+        check(wa.st == WA_UP && memcmp(p, wa.pmk, 32) == 0 && wn_st.ap.set == 0u && wa_default_key(k) == 1, "... up on the key made from the name's default password, none stored");
+    }
     wn_st.mode = WN_MODE_OFF;
     check(wa_status() == WAS_OFF, "MODE not AP: status OFF");
     wn_st.mode = WN_MODE_AP;
@@ -473,12 +495,13 @@ int main(void)
     run_until_up();
     check(wa.st == WA_UP && wa.ch == 11u, "MODE AP again: the stored network comes up with no key job");
 
-    /* 13. the key forgotten: the AP stops, no AP runs without a key */
+    /* 13. the typed key forgotten: the AP starts again on the default one */
+    check(wa_default_key((char[16]){0}) == 0, "a typed key is kept: it replaces the default one");
     wa_forget_key();
     wa_poll();
-    check(wn_st.ap.set == 0u && wa.st == WA_OFF && wa_status() == WAS_NOKEY && wn_st.ap.ch == 11u, "forget: off, status NOKEY, the channel kept");
-    tick(200);
-    check(wa.st == WA_OFF, "and it stays off");
+    check(wn_st.ap.set == 0u && wn_st.ap.ch == 11u && wa_default_key((char[16]){0}) == 1, "forget: no typed key, the channel kept");
+    run_until_up();
+    check(wa.st == WA_UP, "and it is up again on the default password");
     check(wa_set_pass(0, 0, PW) == 0, "a new password with the automatic name");
     run_until_up();
     check(wa.st == WA_UP && wa.ssid_len == 8u && memcmp(wa.ssid, "FM1-4455", 8) == 0 && wn_st.ap.ssid_len == 0u, "the automatic name: FM1- and the last four digits of the address");
@@ -531,7 +554,7 @@ int main(void)
     wa_poll();
     check(wa.st == WA_OFF && wa_status() == WAS_STOPPED, "back in AP MAN: still stopped (never kept across a mode change)");
     wn_ap_forget(&wn_st);
-    check(wa_run(1) == -2 && wa_status() == WAS_NOKEY, "no key kept: wa_run(1) refused (-2), status NOKEY");
+    check(wa_run(1) == 0 && wa_status() == WAS_STARTING, "no typed key: wa_run(1) starts it on the default one");
     check(wa_set_pass(0, 0, PW) == 0 && wa.user_on == 1, "a typed password in AP MAN starts it");
     run_until_up();
     check(wa.st == WA_UP && wn_st.ap.set == 1u, "... the key derived and kept, the AP up");

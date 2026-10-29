@@ -1054,7 +1054,7 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
 #if FELUCCA_LINK
     case SI_LINK: {
         static const char *const LKN[3] = {"OFF", "ON", "ON+S/S"};   /* (by LINK_*) */
-        cell_list(c, "LINK", LKN[link_mode % 3u], LINK_ONSS, link_mode);
+        cell_list(c, "LINK", link_eff() != link_mode ? "ON (JAM)" : LKN[link_mode % 3u], LINK_ONSS, link_mode);   /* (MODE JAM forces ON: said, the stored value kept) */
         break;
     }
 #endif
