@@ -80,7 +80,7 @@ OS_FILES = ["system/main.c", "system/supply.c", "io/usb/usb.c", "io/midi/midi_ri
 SIZE_FILES += ["bt/bt_safer.c", "bt/bt_sha256.c", "bt/uECC.c", "bt/bt_ssp.c"]
 # the firmware update session and the USB rescue (ota.c, recovery.c): a transfer's bytes and the rescue's loop, never the
 # sound or the boot's timing (2026-10-23, -272 B on mots.config; usb.c measured too: -48 B, left at -Os)
-SIZE_FILES += ["system/ota.c", "system/recovery.c"]   # (cpuguard.c measured too: 0 B, the sound side reaches all of it)
+SIZE_FILES += ["system/ota.c", "system/recovery.c", "system/devname.c"]   # (cpuguard.c measured too: 0 B, the sound side reaches all of it)
 # the main-loop side of the BLE and Bluetooth Classic files (the DEVICES list, the scan, bond and connect glue, the
 # radio's start-up, the A2DP stream's main-loop half: bti_poll, bp_print_rx, ble_midi_init, mir_blit ...): minsize;
 # what their interrupts reach (the *_irq roots: the LL, the LMP, the baseband drivers) stays at -Os by the guard below

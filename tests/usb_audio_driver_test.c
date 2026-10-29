@@ -87,6 +87,7 @@ static uint32_t fm1_ticks(void) { return 0; }   /* (usb.c SYNC_NOW: MIDI timesta
 static int32_t track_capture[CTL * NTRK];
 #include "../firmware/src/io/usb/ua_tap.h"
 #define __attribute__(x)                /* the host: no .pool section (Mach-O), as hostsim.c */
+static const char *dev_name(void) { return "FM1-0000"; }   /* (system/devname.c: the product string, usb.c) */
 #include "../firmware/src/io/usb/usb.c"
 
 static void frame(uint16_t n)
