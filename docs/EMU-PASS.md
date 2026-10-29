@@ -39,5 +39,5 @@ Traps:
 - `tools/optimist.py build` writes `build/builder.config`, so one tree builds one configuration at a time:
   `farm_build.sh` gives each its own copy.
 - RAM is the limit when engines are added; `MASTER_COMP=0` frees enough (the `a`, `b` and `e` sets use it). WAVE needs
-  `DLY_LEN=16384` with `DLY_ARENA=32`.
+  `DLY_LEN=16384` (the effects memory is automatic).
 - A fault on the PRESETS detent itself repeats on the replay after the reboot; `sweep.py` records it and stops.

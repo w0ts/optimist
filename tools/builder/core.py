@@ -303,22 +303,15 @@ def validate(cfg):
         warn.append(Issue("DUCK follows the kick", ("FX_DUCK", "DRUM_SYNTH", "DRUM_SAMPLED")))
     mem = fx_memory(cfg)
     if mem["types"]:                                    # (the user, 2026-10-29: no red error for a memory too small:
-        if cfg.get("DLY_ARENA", 0) and dly_kb(cfg) != cfg["DLY_ARENA"]:   # the build takes the size it must hold)
-            note.append(Issue(f"{R.ITEMS['DLY_ARENA'].label}: {cfg['DLY_ARENA']} KB raised to {dly_kb(cfg)} KB, "
-                              + (f"the delay's {mem['send']} KB line and " if mem["send"] else "")
-                              + "one line of the largest insert built (the build takes it)", ["DLY_ARENA", "DLY_LEN"]))
         for k, t in mem["types"].items():
             if not t["own"]:                            # (borrowing a send's line only: silent while the sends are on
                                                         # the master, as by default; the FM-1, 2026-10-25: XDLY did
                                                         # nothing, "it should be addressed at the builder stage")
                 note.append(Issue(f"{FXM_NAMES[k]} plays only while the delay is in no master slot: its line is "
                                   f"{t['kb']} KB and the effects memory has {mem['own']} KB beside the delay's "
-                                  f"{mem['send']} KB", ["DLY_ARENA", k]))
-        if cfg.get("ARENA", 0):
-            note.append(Issue(f"{R.ITEMS['DLY_ARENA'].label}: with ARENA the delay's line is a block of the arena, and "
-                              "this memory less the delay's line is the inserts' own room, one more block of it",
-                              ["DLY_ARENA", "ARENA"]))
-        note.append(Issue(f"{R.ITEMS['DLY_ARENA'].label}: {fx_memory_text(mem)}", ["DLY_ARENA"]))
+                                  f"{mem['send']} KB", ["INS_DELAY", k]))
+        note.append(Issue(f"effects memory (the delay's line and one line of each insert built): {fx_memory_text(mem)}",
+                          [k for k in FXM_TYPES if cfg.get(k)]))
     if cfg.get("ARENA", 0):                             # (the free SRAM: what the link leaves, the estimate's free)
         need = arena_need(cfg)
         what = ", ".join(f"{k} {-(-v // 1024)} KB" for k, v in need["what"].items())
@@ -390,8 +383,6 @@ def flags(cfg):
         out[it.flag] = v
     if cfg.get("ARENA", 0):
         out[R.ITEMS["ARENA"].flag] = 1                  # (on: the free SRAM, engines.c ARN_FREE; a KB of before too)
-    if _FIX[0] and cfg.get("DLY_ARENA", 0):
-        out[R.ITEMS["DLY_ARENA"].flag] = dly_kb(cfg)
     out.update(R.ALWAYS_ON_TARGET)                  # (the second core and the stock supply: every target build, no item)
     out["FELUCCA_USB_AUDIO"] = cfg["USB_AUDIO"]
     out["FELUCCA_CDC"] = cfg["USB_CONSOLE"]
@@ -408,39 +399,14 @@ def flags(cfg):
     return out, env
 
 
-# the memory sizes the build fixes itself (the user, 2026-10-29: no "this memory must hold that line" errors, a notice
-# with the value taken): DLY_ARENA smaller than the delay's line and one line of the largest insert raised to
-# that. flags passes the sizes taken (_FIX: not while computing them, their own terms read the flags)
+# the arena the build can hold at most
 ARENA_MAX_KB = 320     # (more than this in the arena leaves no SRAM for the rest: the one error left, validate)
-_FIX = [True]
-
-
-def _raw(fn, cfg):
-    """fn(cfg) with the flags as the configuration sets them (no size fixed)"""
-    was, _FIX[0] = _FIX[0], False
-    try:
-        return fn(cfg)
-    finally:
-        _FIX[0] = was
-
-
-def dly_kb(cfg):
-    """the effects memory's KB the build takes: 0 auto; a fixed size no less than the delay's line and one line of the
-    largest insert built (fx/insfx/fxi_mem.h FELUCCA_DLY_ARENA)"""
-    v = cfg.get("DLY_ARENA", 0)
-    mem = _raw(fx_memory, cfg) if v else None
-    if not v or not mem["types"]:
-        return v
-    return max(v, mem["send"] + max(t["kb"] for t in mem["types"].values()))
-
-
 def arena_need(cfg):
     """-> {"kb": the arena this build needs together, "must": what it must hold at least (KB), "what": {name: bytes}}.
     What the firmware puts in it (every ARENA build: registry.h FELUCCA_FX_ARENA): the largest part's engine state, the
     three send lines (a new project has them all in its master slots), the inserts' own room and the largest other
     buffer. It must hold its largest block and the send lines together"""
-    c = dict(cfg, DLY_ARENA=dly_kb(cfg))
-    blocks = _raw(arena_blocks, c)
+    blocks = arena_blocks(cfg)
     what = {"a part's engine state": blocks.get("a part's engine state", 0)}
     must = max(blocks.values(), default=0)
     sends = arena_sends(blocks)                         # (every ARENA build: the extras, registry.h FELUCCA_FX_ARENA)
@@ -709,7 +675,7 @@ def dly_send_kb(cfg, f=None):
 
 def fx_memory(cfg):
     """-> the effects memory (fx/insfx/fxi_mem.h) of this configuration: {"send", "cho": the send lines' KB, "own": the
-    inserts' own KB (DLY_ARENA less the delay's line; auto: one line of each type built), "types": {item: {"kb": its
+    inserts' own KB (one line of each type built), "types": {item: {"kb": its
     line, "max": the most at once (an owner each at most, fxi_mem.h FXI_TN), "own": in the own room alone, "dly", "cho":
     what each send's line adds while it is in no master slot}}} (types: the ones built)"""
     f, _ = flags(cfg)
@@ -720,7 +686,7 @@ def fx_memory(cfg):
     kb = {"INS_CHORUS": 2, "INS_DELAY": 8, "INS_JCHORUS": 4, "INS_FLANGER": 1,   # (JUNO CHORUS: its line 32-bit)
           "INS_XDLY": on("XDLY_LEN") // 256}
     types = [k for k in FXM_TYPES if on(k)]
-    own = (max(0, on("DLY_ARENA") - send) if on("DLY_ARENA") else sum(kb[k] for k in types)) if types else 0
+    own = sum(kb[k] for k in types)                      # (auto, always: one line of each type built, fxi_mem.h FXA_AUTO)
     out = {}
     for k in types:
         z = kb[k]
@@ -730,7 +696,7 @@ def fx_memory(cfg):
 
 
 def fx_memory_text(mem):
-    """the "up to N at once" line of the effects memory (validate's notice on DLY_ARENA, the menu's info)"""
+    """the "up to N at once" line of the effects memory (validate's notice)"""
     parts = []
     for k, t in mem["types"].items():
         more = [f"+{min(t['dly'], FXM_OWNERS - t['own'])} while the delay is in no master slot" if t["dly"] and
@@ -746,7 +712,7 @@ def fx_memory_text(mem):
 def dly_arena(cfg):
     """-> {"units": the own room's KB (fxa_ins), "pool": bytes} of the effects memory (fx/insfx/fxi_mem.h, fxi.c): the
     own room, the instance tables (ifx_chrs .. ifx_xdly: an owner each at most, no more than the memory holds) and the
-    units' bitmap (fxi.c fxa_bm). Set by the five types, XDLY_LEN, DLY_LEN, FX_DELAY, FX_CHORUS and DLY_ARENA together:
+    units' bitmap (fxi.c fxa_bm). Set by the five types, XDLY_LEN, DLY_LEN, FX_DELAY and FX_CHORUS together:
     no per-item delta adds up to it, so the estimate computes it (model_terms) and the measured deltas leave it out
     (measure_costs.py)"""
     mem = fx_memory(cfg)
@@ -1190,7 +1156,7 @@ SMALLEST = {"X909_HAT": 2, "X0X_TANH": 2}
 def off_value(key):
     """what switching the item off means: 0 for a switch; for a choice its "off" choice where it has one (BLE_CENTRAL,
     X909_CYM, SNAPSHOTS, CACHE_RAM, ...), else its smallest setting: SMALLEST, else the smallest non-zero value
-    (the sizes, DLY_LEN .. SECTIONS; a 0 that is no "off" is not taken: DLY_ARENA's auto, LCD_BAUD's 60 MHz).
+    (the sizes, DLY_LEN .. SECTIONS; a 0 that is no "off" is not taken: LCD_BAUD's 60 MHz).
     Until 2026-10-24 every choice took the smallest non-zero value: BLE_CENTRAL MINIMAL (3) went to FULL (1), the
     6-bit hats to the 8-bit ones, both bigger"""
     it = R.ITEMS[key]

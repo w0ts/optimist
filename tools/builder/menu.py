@@ -422,7 +422,7 @@ class Builder(App):
             t.append(f"option of {R.ITEMS[it.shown_under or it.parent].label}\n", style="dim")
         if it.desc:
             t.append(it.desc + "\n")
-        if key == "DLY_ARENA":                           # (the effects memory: up to how many of each insert at once)
+        if key in C.FXM_TYPES:                           # (the effects memory: up to how many of each insert at once)
             mem = C.fx_memory(self.cfg)
             if mem["types"]:
                 t.append(C.fx_memory_text(mem) + "\n", style="cyan")

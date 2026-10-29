@@ -601,15 +601,15 @@ def _fm(**kv):
     return C.fx_memory(dict(C.defaults(), **kv))
 _four = dict(INS_CHORUS=1, INS_DELAY=1, INS_JCHORUS=1, INS_FLANGER=1, DLY_LEN=32768)
 check("the effects memory: auto is the delay's line and one line of each insert built (CHRS 2, ECHO 8, JUNO 4, FLNG 1, "
-      "XDLY 2 lines: 64 or 32 KB); DLY_ARENA is the delay's line plus what it names; nothing without an insert built",
+      "XDLY 2 lines: 64 or 32 KB), always (DLY_ARENA is retired); nothing without an insert built",
       _da(INS_DELAY=1)["units"] == 8 and _da(**_four)["units"] == 15 and _da(INS_XDLY=1)["units"] == 64
-      and _da(INS_XDLY=1, XDLY_LEN=8192)["units"] == 32 and _da(INS_DELAY=1, DLY_LEN=32768, DLY_ARENA=96)["units"] == 32
-      and _da(DLY_ARENA=96)["pool"] == 0 and _da(INS_CHORUS=1, DLY_ARENA=160)["units"] == 32)
+      and _da(INS_XDLY=1, XDLY_LEN=8192)["units"] == 32 and _da(INS_DELAY=1, DLY_LEN=32768)["units"] == 8
+      and _da()["pool"] == 0 and _da(INS_CHORUS=1)["units"] == 2)
 check("... its pool: the own room, the instance tables (an owner each at most, no more than the memory holds) and the "
-      "bitmap: DLY_ARENA 64 beside the delay's 64 KB line raised to hold one XDLY (128 KB): 64 KB of its own, two XDLY "
+      "bitmap: one XDLY beside the delay's 64 KB line: 64 KB of its own, two XDLY "
       "states (its own, the delay's line lent), 20 B of bitmap",
-      _da(INS_XDLY=1, DLY_LEN=32768, DLY_ARENA=64)["pool"] == 64 * 1024 + 2 * C.XD_STATE + 20
-      and _da(INS_XDLY=1, DLY_LEN=32768, DLY_ARENA=64)["tables"] == {"ifx_xdly": 2 * C.XD_STATE}
+      _da(INS_XDLY=1, DLY_LEN=32768)["pool"] == 64 * 1024 + 2 * C.XD_STATE + 20
+      and _da(INS_XDLY=1, DLY_LEN=32768)["tables"] == {"ifx_xdly": 2 * C.XD_STATE}
       and _da(**_four)["tables"]["ifx_chrs"] == 9 * C.FXM_STATE["INS_CHORUS"][1]
       and _da(**_four)["pool"] == 15 * 1024 + sum(9 * C.FXM_STATE[k][1] for k in _four if k in C.FXM_STATE)
       + 4 * ((64 + 15 + 4 + 31) // 32))
@@ -621,22 +621,19 @@ check("... up to N at once in the memory chosen (each type alone, the sends in t
       and _m["types"]["INS_FLANGER"]["own"] == 9 and "CHRS up to 7 (+2 while the delay" in C.fx_memory_text(_m)
       and "ECHO up to 1 (+8 while the delay is in no master slot)" in C.fx_memory_text(_m))
 _e, _w, _n = C.validate(dict(C.defaults(), **_four))
-check("... the builder says so: a notice on the effects memory (DLY_ARENA), no error",
-      not _e and any("DLY_ARENA" in n.keys and "up to" in n for n in _n))
-# (the user, 2026-10-29: no red "the effects memory holds the delay's line: at least 128 KB" any more) an effects memory
-# too small is raised by the builder to what it must hold, said in a notice, never an error that stops the build
-_e, _w, _n = C.validate(dict(C.defaults(), INS_XDLY=1, FX_DELAY=0, DLY_ARENA=32))
-check("... an effects memory too small for one line of a type built (XDLY's 64 KB in 32 KB, no delay): raised to 64 KB "
-      "(the flag the build gets), a notice naming DLY_ARENA, no error",
-      not _e and C.flags(dict(C.defaults(), INS_XDLY=1, FX_DELAY=0, DLY_ARENA=32))[0]["FELUCCA_DLY_ARENA"] == 64
-      and any("raised to 64 KB" in n and "DLY_ARENA" in n.keys for n in _n))
-_e, _w, _n = C.validate(dict(C.defaults(), INS_XDLY=1, DLY_LEN=65536, DLY_ARENA=64))
-check("... under the delay's line (the user's screenshot: DLY_LEN 65536, the delay's line 128 KB, DLY_ARENA 64): raised "
-      "to the line and one XDLY (192 KB), a notice, no error on DLY_LEN or DLY_ARENA; one that holds them: as set",
-      not _e and C.flags(dict(C.defaults(), INS_XDLY=1, DLY_LEN=65536, DLY_ARENA=64))[0]["FELUCCA_DLY_ARENA"] == 192
-      and any("raised to 192 KB" in n for n in _n)
-      and C.flags(dict(C.defaults(), INS_XDLY=1, XDLY_LEN=8192, DLY_LEN=16384, DLY_ARENA=64))[0]["FELUCCA_DLY_ARENA"] == 64
-      and not C.validate(dict(C.defaults(), INS_XDLY=1, XDLY_LEN=8192, DLY_LEN=16384, DLY_ARENA=64))[0])
+check("... the builder says so: a notice on the effects memory (on the inserts built), no error",
+      not _e and any("INS_XDLY" not in n.keys and "INS_CHORUS" in n.keys and "up to" in n for n in _n))
+# (the user, 2026-10-29: DLY_ARENA removed, the effects memory always auto) an old .config's DLY_ARENA loads, the number is
+# ignored with a notice; the build gets no FELUCCA_DLY_ARENA (0: auto, fxi_mem.h) whatever it said; the memory is the
+# delay's line and one line of each insert built (the user's screenshot: an old DLY_ARENA=64 with DLY_LEN 65536: just auto)
+_notes = []
+_old, _ = C.parse("INS_XDLY=1\nDLY_LEN=65536\nDLY_ARENA=64\n", warn=_notes.append)
+_e, _w, _n = C.validate(_old)
+check("an old .config's DLY_ARENA=64 (with DLY_LEN 65536) loads: ignored with a notice, no item, no flag, no error; the "
+      "memory is auto (the delay's 128 KB line and one XDLY line, 64 KB)",
+      "DLY_ARENA" not in R.ITEMS and "DLY_ARENA" not in _old and any("DLY_ARENA" in m and "ignored" in m for m in _notes)
+      and not _e and "FELUCCA_DLY_ARENA" not in C.flags(_old)[0] and C.fx_memory(_old)["own"] == 64
+      and C.fx_memory(_old)["send"] == 128 and "DLY_ARENA" in R.RETIRED)
 # the FM-1, 2026-10-28 (the fm1-next release, ARENA 32 in the SD card mode): no reverb, no chorus at all. The arena
 # holds the sends' lines while a project uses them (fx/fx_arena.c), and a new project has all three in its master
 # slots: a 32 KB delay line and a 32 KB reverb line never fit in 32 KB together, the refused ones bypassed (MEM FULL)
@@ -661,7 +658,9 @@ check("... its pool: the fixed memories it replaces given back (none of its own:
 check("... an arena needing more than the SRAM can give it: the one error left, naming the biggest consumers",
       any("ARENA" in e.keys and "would need" in e and "the delay's line" in e
           for e in C.validate(dict(C.defaults(), ARENA=1, **dict(_sd, DLY_LEN=65536, INS_XDLY=1, XDLY_LEN=16384,
-                                                                      DLY_ARENA=320)))[0]))
+                                                                      INS_DELAY=1, INS_CHORUS=1, INS_JCHORUS=1,
+                                                                      INS_FLANGER=1, REV_FDN8=1, REV_ROOM=1, REV_PLATE=1, SPRING=1,
+                                                                      REV_AIRWIN=1, ENG_WAVE=1)))[0]))
 _cfg, _ = C.parse("INS_CHORUS=2\nINS_DELAY=4\nINS_JCHORUS=3\nINS_FLANGER=1\nINS_XDLY=2\n", warn=lambda m: None)
 check("an old .config's instance counts (INS_CHORUS=2 ...) load as built: no setting lost, no error",
       all(_cfg[k] == 1 for k in C.FXM_TYPES) and not [e for e in C.validate(_cfg)[0] if set(e.keys) & set(C.FXM_TYPES)]
@@ -925,9 +924,9 @@ if not _have:
 #    regions (off, REV_POOL's reverb line goes back to main RAM; SECTIONS 0 keeps motion in the
 #    project slots, in the pool), DIV_ORDER (its build is 284 B smaller in flash on than off) and FX_DJF (beside
 #    TRK_FILT the FILTER insert's code stays: off saves nothing, +124 B). RAM moves by 16-32 B of alignment as flash does.
-#    With DLY_ARENA set (a fixed effects memory), FX_DELAY off and the shorter XDLY_LEN leave more of it to the limited
-#    inserts, whose instance tables grow (core.dly_arena): measured 2026-10-24 on synths_USBaudio_BTaudio_BTmidi
-#    (DLY_ARENA 64), FX_DELAY off pool +4 B, XDLY_LEN 8192 pool +40 B, as the estimate says. DRUMS off makes track 4 a
+#    FX_DELAY off and the shorter XDLY_LEN change the limited inserts' instance tables (core.dly_arena): measured
+#    2026-10-24 on synths_USBaudio_BTaudio_BTmidi (then a fixed DLY_ARENA 64), FX_DELAY off pool +4 B, XDLY_LEN 8192
+#    pool +40 B, as the estimate says. DRUMS off makes track 4 a
 #    4th synth part (bit 424), whose engine state is in the pool: measured 2026-10-27 on synths_USBaudio_BTaudio_BTmidi
 #    (gpufarm, d9a3d172), pool +5,120 B (the estimate +4,168: the part's +12,888 less the X0X machines' states)
 _MONO_MOVES = ("REV_POOL", "SECTIONS")
