@@ -93,7 +93,7 @@ struct RootView: View {
     @ObservedObject var link: MirrorLink
     @StateObject private var session: EditorSession
     @StateObject private var flash: FlashModel
-    @StateObject private var web = WebEditor()      // (the web editor's own tabs: one page, kept)
+    @StateObject private var web = WebEditor(local: true)      // (the web editor's own tabs: one page, kept; the bundled editor, no network)
     @StateObject private var sim = WebEditor()      // (the Simulator, from the home screen: a page of its own, no FM-1 needed)
     @State private var simSheet = false
     @StateObject private var tilt = Tilt()

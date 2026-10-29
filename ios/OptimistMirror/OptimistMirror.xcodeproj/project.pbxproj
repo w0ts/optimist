@@ -35,6 +35,7 @@
 		4DEE706CD9164E7FB8DAD1B1 /* NavTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A561D6989A7E8999B645A3FF /* NavTests.swift */; };
 		4F744A40E73497D46C97718D /* WebTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 767C19A1A44F5402AAA48323 /* WebTabView.swift */; };
 		501459C245FF3ECF09E0374B /* Fm1BaseModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9EE4088CA653F15CB3D4F12F /* Fm1BaseModel.swift */; };
+		50E3EA210070257BB3669391 /* EditorSite.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2549D82FCF8A657C64070EE5 /* EditorSite.swift */; };
 		53291A7DDFAC8703E3FC99BB /* CompanionWire.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23E14A1675F08527BCC25F0E /* CompanionWire.swift */; };
 		590E774A42EE127044B729DF /* FlashTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3379525767B548F895665DF5 /* FlashTests.swift */; };
 		59385CC6793D8483D7960E66 /* FlashLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FE726FFB0EECCD2974DCD93 /* FlashLink.swift */; };
@@ -59,6 +60,7 @@
 		AD46B38D1534BD51B9093140 /* web_library.json in Resources */ = {isa = PBXBuildFile; fileRef = 4F9FA8878BB640A9C6EF190C /* web_library.json */; };
 		BA6834D7B3A00D8A4007F620 /* MirrorLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = B44F5DDB3FA5A048A53E14BC /* MirrorLink.swift */; };
 		BF19193839D22CA41D55DCA2 /* PanelKeys.swift in Sources */ = {isa = PBXBuildFile; fileRef = 066FF4357CB7BD08B7F4C23A /* PanelKeys.swift */; };
+		CB09E667D6EFAA4B66DD6B17 /* EditorSiteTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A10CC038EE36495604EC9B7 /* EditorSiteTests.swift */; };
 		CEA4069D82BBE09DC7A1FDDC /* ClipTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A59E4FFAD11C10777223B51 /* ClipTests.swift */; };
 		D49D71173482047512F84808 /* PatternFile.swift in Sources */ = {isa = PBXBuildFile; fileRef = F35BAB0C19445FAE914889A1 /* PatternFile.swift */; };
 		D53FDA0428DCB2AA7D257362 /* EditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE24BDBA9F4261637806D42E /* EditorView.swift */; };
@@ -92,6 +94,7 @@
 		1E87507BD339A574142CD20A /* Fm1BaseSite.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Fm1BaseSite.swift; sourceTree = "<group>"; };
 		1FA2AFF3F6BC2B433AF4C735 /* BackupFile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackupFile.swift; sourceTree = "<group>"; };
 		23E14A1675F08527BCC25F0E /* CompanionWire.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompanionWire.swift; sourceTree = "<group>"; };
+		2549D82FCF8A657C64070EE5 /* EditorSite.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorSite.swift; sourceTree = "<group>"; };
 		275CAE91D846510B1BFCCF01 /* Wire.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Wire.swift; sourceTree = "<group>"; };
 		3379525767B548F895665DF5 /* FlashTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlashTests.swift; sourceTree = "<group>"; };
 		3F8D6D1D160BEB2BB72F4DDA /* LibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryView.swift; sourceTree = "<group>"; };
@@ -109,6 +112,7 @@
 		6736D3DEE9260E0180D15469 /* BackupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackupView.swift; sourceTree = "<group>"; };
 		6754F3F289DC97CFA49C1379 /* OptimistMirrorTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = OptimistMirrorTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		69FC05011ED5286C56AEC8F9 /* EditorSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorSession.swift; sourceTree = "<group>"; };
+		6A10CC038EE36495604EC9B7 /* EditorSiteTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorSiteTests.swift; sourceTree = "<group>"; };
 		6D6524E410D116F70AB8B845 /* companion_transcript.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = companion_transcript.txt; sourceTree = "<group>"; };
 		6EB0E61259FE4F0AAF558D5C /* EditorSession+Library.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EditorSession+Library.swift"; sourceTree = "<group>"; };
 		74CA39AA661ECFC0D0F4BA76 /* ClipView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipView.swift; sourceTree = "<group>"; };
@@ -235,6 +239,7 @@
 			children = (
 				0A59E4FFAD11C10777223B51 /* ClipTests.swift */,
 				5553986B930F156D7B258AE6 /* CompanionTests.swift */,
+				6A10CC038EE36495604EC9B7 /* EditorSiteTests.swift */,
 				E6F6C66EBA275D0EEB5E7566 /* EditorTests.swift */,
 				4EC7D08FB654B9DFAB6A218E /* FakeFM1.swift */,
 				3379525767B548F895665DF5 /* FlashTests.swift */,
@@ -278,6 +283,7 @@
 		DE8DFC00B56704C77460C1BB /* Web */ = {
 			isa = PBXGroup;
 			children = (
+				2549D82FCF8A657C64070EE5 /* EditorSite.swift */,
 				B520285C89B9B6694A5AADEE /* WebMIDIBridge.swift */,
 				767C19A1A44F5402AAA48323 /* WebTabView.swift */,
 			);
@@ -338,6 +344,7 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 32B9C3862D62550073532DF4 /* Build configuration list for PBXNativeTarget "OptimistMirror" */;
 			buildPhases = (
+				7C9288E0BB535B9BC4B9F091 /* Bundle the web editor */,
 				8EEB54093BE4F79FF889CC98 /* Sources */,
 				2FAFC281BA477EDA93B79492 /* Resources */,
 			);
@@ -417,6 +424,28 @@
 		};
 /* End PBXResourcesBuildPhase section */
 
+/* Begin PBXShellScriptBuildPhase section */
+		7C9288E0BB535B9BC4B9F091 /* Bundle the web editor */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Bundle the web editor";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "python3 \"$SRCROOT/../../tools/sync_ios_editor.py\" \"$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/OptimistEditor\"";
+		};
+/* End PBXShellScriptBuildPhase section */
+
 /* Begin PBXSourcesBuildPhase section */
 		8EEB54093BE4F79FF889CC98 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
@@ -433,6 +462,7 @@
 				53291A7DDFAC8703E3FC99BB /* CompanionWire.swift in Sources */,
 				4A39CECF46CAAFC6056EDDDD /* EditorSession+Library.swift in Sources */,
 				DB5365102B4235E1D0BBD403 /* EditorSession.swift in Sources */,
+				50E3EA210070257BB3669391 /* EditorSite.swift in Sources */,
 				D53FDA0428DCB2AA7D257362 /* EditorView.swift in Sources */,
 				67E8FF3A5B642D68B66B1EBE /* FlashCatalog.swift in Sources */,
 				59385CC6793D8483D7960E66 /* FlashLink.swift in Sources */,
@@ -472,6 +502,7 @@
 			files = (
 				CEA4069D82BBE09DC7A1FDDC /* ClipTests.swift in Sources */,
 				828D34323595A3890E13137E /* CompanionTests.swift in Sources */,
+				CB09E667D6EFAA4B66DD6B17 /* EditorSiteTests.swift in Sources */,
 				38AA9DD0B60C4B0CB50AA01B /* EditorTests.swift in Sources */,
 				4CDD58F19C56C8CBB7CE57F1 /* FakeFM1.swift in Sources */,
 				590E774A42EE127044B729DF /* FlashTests.swift in Sources */,
@@ -643,6 +674,7 @@
 				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = OptimistMirror.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER = NO;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "Optimist Mirror";
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
@@ -671,6 +703,7 @@
 				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = OptimistMirror.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER = NO;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "Optimist Mirror";
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;

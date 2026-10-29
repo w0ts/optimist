@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // The web editor's own tabs in the app (the user, 2026-10-25: "web + MIDI bridge"): one web view, kept for the app's life
 // (its connection and its pages' state stay), holding the site's editor (webapp/editor/) without its menu bar: the app's tab
-// bar picks the page (#mixer, #samples ...). Web MIDI comes from WebMIDIBridge. While a web page is shown the mirror holds
+// bar picks the page (#mixer, #samples ...). The editor is bundled (EditorSite.swift): the Web tabs need no network; the Simulator
+// (a page of its own, from the home screen) is the site's editor, online. Web MIDI comes from WebMIDIBridge. While a web page is shown the mirror holds
 // its own requests (the page talks to the FM-1 over the same port).
 import SwiftUI
 import WebKit
 
-/// What an online-only page (the editor and the builder are loaded from the site, not bundled) shows when the site cannot be
+/// What an online-only page (the Simulator and the builder are loaded from the site, not bundled) shows when the site cannot be
 /// reached: a plain message in the system's colours, not a blank view.
 enum OfflinePage {
     static func html(_ feature: String) -> String {
@@ -42,15 +43,20 @@ final class OfflineNotice: NSObject, WKNavigationDelegate {
 
 @MainActor
 final class WebEditor: ObservableObject {
+    /// the site's editor: the Simulator loads it (its firmware builds are on the site, not bundled)
     static let site = URL(string: "https://w0ts.github.io/optimist/webapp/editor/")!
     let view: WKWebView
+    let local: Bool
+    let schemeHandler = EditorSchemeHandler()
     private let bridge = WebMIDIBridge()
     private var loaded = false
-    private let notice = OfflineNotice(feature: "The editor")
+    private let notice: OfflineNotice
 
     /// the app's look over the editor: no menu bar of its own (the app's tab bar is it), the system's theme
     private static let css = """
     #side, .menubar { display: none !important; }
+    /* the bundled editor has no Install / Build / Simulator modules: their tabs are the app's (Flash, the Simulator, the builder) */
+    #tabs > button[data-tab=install], #tabs > button[data-tab=build], #tabs > button[data-tab=sim] { display: none !important; }
     /* the device is the app's connection: the connect card keeps its loading progress (#cstatus) and loses what picks or
        connects a device (its "connect" button misled; the user, 2026-10-25) */
     #connectcard p:has(#connect), #connectcard p:has(#devsrc), #connectcard [data-t=connectHint],
@@ -59,8 +65,12 @@ final class WebEditor: ObservableObject {
     body { padding-top: 0 !important; }
     """
 
-    init() {
+    /// local: the bundled editor (the Web tabs); else the site's (the Simulator)
+    init(local: Bool = false) {
+        self.local = local
+        notice = OfflineNotice(feature: local ? "The editor" : "The Simulator")
         let config = WKWebViewConfiguration()
+        if local { config.setURLSchemeHandler(schemeHandler, forURLScheme: EditorSchemeHandler.scheme) }
         config.websiteDataStore = .default()            // (the editor's saved settings and libraries: kept across launches)
         config.defaultWebpagePreferences.allowsContentJavaScript = true
         config.allowsInlineMediaPlayback = true
@@ -106,7 +116,7 @@ final class WebEditor: ObservableObject {
         if !loaded || loadedBuild != simBuild {
             loaded = true
             loadedBuild = simBuild
-            var c = URLComponents(url: Self.site, resolvingAgainstBaseURL: false)!
+            var c = URLComponents(url: local ? EditorSchemeHandler.entry : Self.site, resolvingAgainstBaseURL: false)!
             if let b = simBuild { c.queryItems = [URLQueryItem(name: "sim", value: b)] }
             c.fragment = tab
             view.load(URLRequest(url: c.url!))
