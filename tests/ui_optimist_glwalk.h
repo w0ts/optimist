@@ -71,13 +71,21 @@ static int glw_moves(uint32_t scr, uint32_t i, uint32_t role)
     int32_t s = 1;
     glw_line(scr, i, &c, v0);
     turn(role, s);
-    glw_line(scr, i, &c, v1);
-    if (glw_state() == h0 || !strcmp(v0, v1)) {         /* (nothing moved: a value at its top, LINK's ON+S/S default: the other way) */
+    if (glw_state() == h0) {
         s = -1;
         turn(role, s);
     }
     for (n = 1, glw_line(scr, i, &c, v1); !strcmp(v0, v1) && n < 4u; n++, glw_line(scr, i, &c, v1))
         turn(role, s);
+    if (!strcmp(v0, v1)) {                              /* still the same text: a value at its top end (LINK's default, ON+S/S): back, the other way */
+        while (n--)
+            turn(role, -s);
+        s = -s;
+        for (n = 0; !strcmp(v0, v1) && n < 4u; n++) {
+            turn(role, s);
+            glw_line(scr, i, &c, v1);
+        }
+    }
     h1 = glw_state();
     while (n--)
         turn(role, -s);
@@ -136,7 +144,7 @@ static int glw_walk_line(uint32_t scr, uint32_t i)
 /* SHIFT held + PRESETS on a line with no descriptor: its FACTORY value, what a blank FM-1 / an empty settings record gives
  * (the user, 2026-10-13; panel.c settings_init, settings_word.c read as 0); BLE is never reset */
 static const struct { const char *label, *val; } GLW_FACTORY[] = {
-    {"MODE", "FREE"}, {"NUDGE", "0"}, {"LENGTH", "1"}, {"START", "NOTE"}, {"CLK OUT", "OFF"},
+    {"MODE", "FREE"}, {"NUDGE", "0"}, {"LENGTH", "1"}, {"START", "NOTE"}, {"CLK OUT", "OFF"}, {"LINK", "ON+S/S"},
     {"KNOB COLORS", "OFF"}, {"VU FLOOR", "-60"}, {"BUTTONS", "OFF"}, {"KEYS", "OFF"}, {"LOWCUT", "OFF"}, {"SERIAL", "OFF"}, {"HOLD", "350"},
     {"MASTER", "NONE"}, {"T1", "1"}, {"T2", "2"}, {"T3", "3"}, {"DRUMS", "4"}, {"DRUM BUS", "NONE"}, {"DR1", "NONE"},
     {"DR2", "NONE"}, {"DR3", "NONE"}, {"DR4", "NONE"}, {"DR5", "NONE"}, {"DR6", "NONE"}, {"DR7", "NONE"}, {"DR8", "NONE"},
