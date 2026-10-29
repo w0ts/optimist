@@ -136,7 +136,7 @@ static int glw_walk_line(uint32_t scr, uint32_t i)
  * (the user, 2026-10-13; panel.c settings_init, settings_word.c read as 0); BLE is never reset */
 static const struct { const char *label, *val; } GLW_FACTORY[] = {
     {"MODE", "FREE"}, {"NUDGE", "0"}, {"LENGTH", "1"}, {"START", "NOTE"}, {"CLK OUT", "OFF"},
-    {"KNOB COLORS", "OFF"}, {"VU FLOOR", "-60"}, {"BUTTONS", "OFF"}, {"KEYS", "OFF"}, {"LOWCUT", "OFF"}, {"SERIAL", "OFF"}, {"HOLD", "350"},
+    {"KNOB COLORS", "OFF"}, {"VU FLOOR", "-60"}, {"BUTTONS", "OFF"}, {"KEYS", "OFF"}, {"SPK LOWCUT", "ON"}, {"HP BASS", "OFF"}, {"SERIAL", "OFF"}, {"HOLD", "350"},
     {"MASTER", "NONE"}, {"T1", "1"}, {"T2", "2"}, {"T3", "3"}, {"DRUMS", "4"}, {"DRUM BUS", "NONE"}, {"DR1", "NONE"},
     {"DR2", "NONE"}, {"DR3", "NONE"}, {"DR4", "NONE"}, {"DR5", "NONE"}, {"DR6", "NONE"}, {"DR7", "NONE"}, {"DR8", "NONE"},
     {"DR9", "NONE"}, {"DR10", "NONE"}, {"RET A", "NONE"}, {"RET B", "NONE"},
@@ -476,7 +476,7 @@ static void glwalk_tests(void)
     memcpy(bp_set, b0, sizeof b0);
     settings.palette = pal;
     palette_set(pal);
-    settings.lowcut = low;
+    settings.lowcut = oc_set_word(low);                 /* (SPK LOWCUT, HP BASS back: fx/outcorr.c) */
     t0->p[P_SLEN] = len;
     reset_ui();
 }
