@@ -37,7 +37,9 @@
                                                         * TAPE SPIT, their TLVs 2 x (2 + 4) and the type list's 2 x 2, MST_TLV + 2; 397 -> 398 2026-10-21: DLYF_TLV + FILTER RESO;
                                                         * 398 -> 427 2026-10-22: XDLY, its TLV 2 + 25 and the type list's 2;
                                                         * 427 -> 447 2026-10-29: ROOM TDLY, their TLVs 2 x (2 + 5), the type
-                                                        * list's 3 x 2: EXGN's id 29 kept in every build) */
+                                                        * list's 3 x 2: EXGN's id 29 kept in every build; kept 2026-10-29 when
+                                                        * ROOM TDLY became REV DLY, their TLVs read, no longer written, CHO DLY
+                                                        * REV's + 1 each: a record of that day reads whole) */
 /* The track insert slots (2026-10-12, fx_slots.c ins_slot): the header's slot[4] holds the master SENDS, its insert
  * places filled, as far as they go, with the inserts the tracks' slots hold (an older build then hears them on the
  * tracks with an amount: best effort); flags bit 0 (FXR_F_INS) says the record is of this model (the drum sounds' DST CMP
@@ -343,10 +345,13 @@ static __attribute__((noinline)) void ut_untlv(const uint8_t *a, uint32_t n)    
     for (k = UTV_N0; n >= UT_TLV_N && k < UTV_N; k++)    /* (an UT_TLV of before: their defaults) */
         ut.v[k] = (int16_t)clamp((int8_t)a[UT_TLV_N0 + k - UTV_N0], ut_vd(k)->min, ut_vd(k)->max);
     for (k = 0; k < INS_N; k++) {
-        uint32_t t = a[UTV_N0 + k];
+        uint32_t t = FXT_LEGACY(a[UTV_N0 + k]);        /* (an old CHRS: CHO, its amount up to 64 its MIX: fxr_legacy) */
+        int32_t v = (int8_t)a[UTV_N0 + 2u + k];
         ut.slot[k] = (uint8_t)(t < FXT_N && (UT_OK >> t & 1u) && (!k || t != ut.slot[0] || t == FXT_NONE) ? t : FXT_NONE);
+        if (a[UTV_N0 + k] == FXT_CHRS && v > 64)
+            v = 64;
         ut.amt[k] = ut.slot[k] != FXT_NONE && FXT_AMT[ut.slot[k]] != 0xFFu ?
-                    (int16_t)clamp((int8_t)a[UTV_N0 + 2u + k], TP[FXT_AMT[ut.slot[k]]].min, TP[FXT_AMT[ut.slot[k]]].max) : 0;
+                    (int16_t)clamp(v, TP[FXT_AMT[ut.slot[k]]].min, TP[FXT_AMT[ut.slot[k]]].max) : 0;
     }
 }
 #endif
@@ -443,6 +448,35 @@ static uint32_t fxr_encode(uint8_t *o)
     n = fxr_tlv(o, n, INS_TLV, ins_tlv(map, o + n + 2u));
     return any || n > FXR_HEAD ? n : 0u;
 }
+/* (2026-10-29) an old record's insert copies CHRS ROOM TDLY are CHO REV DLY (fx_slots.c FXT_LEGACY): their amounts
+ * (fx_slots.c leg_amt) to the new type's, a track's P_CHOR P_REV P_DLY (the insert's MIX), the master's mst_amt. A load
+ * (all): each slot the record held a copy in (ia, ma: its stored slots), its amount (0 without the copy's TLV: it was
+ * at 0, not the send's level the track had); a song section (the slots kept): the tracks and the master holding the new
+ * type, when the record has the copy's TLV. CHRS's amount up to 64 was its share of the wet (the MIX's), past 64 its
+ * sweep: 64 */
+static void fxr_legacy(const uint8_t *ia, uint32_t in, const uint8_t *ma, uint32_t mn, int all)
+{
+    uint32_t j, k, s;
+    for (j = 0; j < 3u; j++) {
+        uint32_t lt = LEG_T[j], t = FXT_LEGACY(lt), has = leg_has >> j & 1u, v;
+        for (k = 0; k <= NTRK; k++) {
+            uint32_t held = 0, mc = k == NTRK && lt == FXT_CHRS, h = mc ? mst_amt[FXT_CHRS] != 0 : has;   /* (CHRS's master
+                                                        * amount: MST_TLV's, read above, not its own TLV's) */
+            for (s = 0; s < INS_N; s++)
+                held |= k < NTRK ? (all ? ia && in >= NTRK * INS_N && ia[k * INS_N + s] == lt : h && ins_slot[k][s] == t) :
+                                   (all ? ma && mn >= INS_N && ma[s] == lt : h && mst_slot[s] == t);
+            if (!held)
+                continue;
+            v = mc ? (uint32_t)mst_amt[FXT_CHRS] : has ? leg_amt[j][k] : 0u;
+            v = lt == FXT_CHRS && v > 64u ? 64u : v;
+            if (k < NTRK)
+                trk[k].p[FXT_AMT[t]] = (int16_t)v;
+            else
+                mst_amt[t] = (int16_t)v;
+        }
+    }
+    mst_amt[FXT_CHRS] = 0;                             /* (CHRS's master amount: MST_TLV's, read above) */
+}
 /* n bytes at a (0: none) -> the working FX state; all: the slot layouts too, the master's and the tracks' (a load; a
  * song section keeps them). 0 refused (the defaults) */
 static int fxr_decode(const uint8_t *a, uint32_t n, int all)
@@ -533,6 +567,7 @@ static int fxr_decode(const uint8_t *a, uint32_t n, int all)
         FXI_ASK(2u);                                   /* (a load: every limited instance handed out again in track
                                                         * order, fxi.c: the same project plays the same way) */
     }
+    fxr_legacy(ia, in, ma, mn, all);                   /* (an old record's CHRS ROOM TDLY: their amounts to CHO REV DLY) */
     return ok;
 }
 /* proj_capture, after the sum: the working state into the buffer's store */

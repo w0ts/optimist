@@ -303,13 +303,18 @@ AINL const char *pd_unit(const param_desc_t *d) { return d->nl ? 0 : (const char
 /* slot-relative automation (seq/auto_slot.c; a builder item until 2026-10-18) */
 #define SLOT_AUTO (FELUCCA_AUTO && (FELUCCA_MOTION || FELUCCA_PLOCK))
 /* the send effects as inserts (2026-10-29, the user: "chorus, delay and reverb can go on normal tracks as INSERTS with a
- * dry/wet amount"): ROOM, the reverb send's ROOM tank (needs the reverb and its ROOM built), TDLY, the delay send's
- * delay (needs the delay); fx/insfx/fxi_send.c. (The chorus: CHRS, the chorus send's two-tap kernel already.) */
-#define INS_ROOM (FELUCCA_INS_REVERB && FELUCCA_FX_REVERB && FELUCCA_REV_ROOM)
-#define INS_TDLY (FELUCCA_INS_TDELAY && FELUCCA_FX_DELAY)
-/* the insert types with a limited number of instances (fx/insfx/fxi.c: CHRS ECHO JUNO FLNG XDLY ROOM TDLY, built or not) */
-#define INS_LIM (FELUCCA_INS_CHORUS || FELUCCA_INS_DELAY || FELUCCA_INS_JCHORUS || FELUCCA_INS_FLANGER || FELUCCA_INS_XDLY || \
-                 INS_ROOM || INS_TDLY)
+ * dry/wet amount"; then: "can't they be just one effect like any other? why complexify just for these two?"): CHO DLY
+ * REV are one type each (fx_slots.c FXT_CHO FXT_DLY FXT_REV), a send bus in a master return, an insert in a track's or
+ * the master's slot wherever their effect is built (fx/insfx/fxi_send.c: the send's own code on a state of its own).
+ * The insert's MIX is the owner's amount of the type, as every other insert's: a track's P_CHOR P_DLY P_REV (a track
+ * holding the type as an insert sends nothing to that bus: fx.c mix_part), the master's mst_amt. The REV insert is the
+ * ROOM tank, whatever the send's TYPE (its code built with the reverb: REV_ROOM_CODE) */
+#define INS_CHO FELUCCA_FX_CHORUS
+#define INS_DLY FELUCCA_FX_DELAY
+#define INS_REV FELUCCA_FX_REVERB
+/* the insert types with a limited number of instances (fx/insfx/fxi.c: CHO ECHO JUNO FLNG XDLY REV DLY, built or not) */
+#define INS_LIM (INS_CHO || FELUCCA_INS_DELAY || FELUCCA_INS_JCHORUS || FELUCCA_INS_FLANGER || FELUCCA_INS_XDLY || \
+                 INS_REV || INS_DLY)
 enum {                          /* per-track parameters */
     P_LEVEL,
     P_ATK, P_DEC, P_SUS, P_REL,
@@ -368,7 +373,8 @@ enum {                          /* per-track parameters */
     /* the further insert types' amounts (fx/insfx/insfx.c; fx_slots.c FXT_FOLD ..): 0 off .. 127. All eight exist when
      * any of them is built (the same ids in every such build). Not part of a sound nor of a user preset (as P_TCOMP);
      * the FX record keeps them (fx_slots.c fxs_tlv, a TLV a type). P_TCHRS P_TECHO (2026-10-13): the insert copies of
-     * the chorus and a short delay (fxi.c) */
+     * the chorus and a short delay (fxi.c); P_TCHRS unused since 2026-10-29 (CHRS is the CHO insert, its MIX P_CHOR: an
+     * old project's CHRS amount moves there, fx_rec.c), its id kept */
     P_TFOLD, P_TFUZZ, P_TPHSR, P_TFLNG, P_TFRMT, P_TWIDE, P_TCHRS, P_TECHO,
     /* GATER (2026-10-14, fx/insfx/gater.c): its amount (DEPTH) after ECHO's, then its PATTERN, RATE and SHAPE (a
      * track's own, kept in GATER's TLV after the amounts) */
@@ -397,16 +403,8 @@ enum {                          /* per-track parameters */
     P_TXDLY,                                     /* (XDLY, 2026-10-22: fx/insfx/xdly.c, a limited type: its MIX; its TIME 1 TIME 2
                                                   * MOD FDBK the owner's, fx_slots.c xdl_v) */
 #endif
-    /* ROOM, TDLY (2026-10-29: fx/insfx/fxi_send.c, the reverb send's ROOM and the delay send's delay as limited inserts):
-     * their MIX, dry to all wet (their SIZE DAMP, TIME FDBK filter the sends' own, FX > REV/CHO, DLY). Only in the builds
-     * that have them (as EXGN's): a build without them keeps every id as it was (the default's P_COUNT is 127: the web
-     * editor's STEPLANE lists carry ids under 128). Not part of a sound nor of a user preset; the FX record keeps them */
-#if INS_ROOM
-    P_TROOM,
-#endif
-#if INS_TDLY
-    P_TTDLY,
-#endif
+    /* (ROOM's and TDLY's MIX, P_TROOM P_TTDLY, 2026-10-29, came and went the same day: the REV and DLY inserts' MIX is a
+     * track's P_REV P_DLY, core.h INS_REV above; P_COUNT stays 127, the web editor's STEPLANE lists carry ids under 128) */
 #if FELUCCA_EX_GAIN
     /* EXGN, the example insert (EX_GAIN, fx/insfx/exgain.c, CONTRIBUTING.md): a track's GAIN, its amount (0 off, else
      * -55.5 .. +7.5 dB, 112 = 0 dB: LEVEL's curve). As every insert amount: not part of a sound nor of a user preset; the

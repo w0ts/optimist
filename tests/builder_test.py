@@ -597,35 +597,50 @@ finally:
     MC.run_build = _run_build
 # the effects memory (fx/insfx/fxi_mem.h, fxi.c, 2026-10-23): a computed term (configure.py dly_arena: the own room, the
 # instance tables, the units' bitmap), exact for every type, line length and size; measure_costs.py holds it against the
-# real fxa_ins, fxa_bm and ifx_chrs .. ifx_xdly of every build it makes
+# real fxa_ins, fxa_bm and ifx_choi .. ifx_tdly of every build it makes
 def _da(**kv):
     return C.dly_arena(dict(C.defaults(), **kv))
 def _fm(**kv):
     return C.fx_memory(dict(C.defaults(), **kv))
-_four = dict(INS_CHORUS=1, INS_DELAY=1, INS_JCHORUS=1, INS_FLANGER=1, DLY_LEN=32768)
-check("the effects memory: auto is the delay's line and one line of each insert built (CHRS 2, ECHO 8, JUNO 4, FLNG 1, "
-      "XDLY 2 lines: 64 or 32 KB), always (DLY_ARENA is retired); nothing without an insert built",
-      _da(INS_DELAY=1)["units"] == 8 and _da(**_four)["units"] == 15 and _da(INS_XDLY=1)["units"] == 64
+_four = dict(INS_DELAY=1, INS_JCHORUS=1, INS_FLANGER=1, DLY_LEN=32768)   # (with the chorus, the delay and the reverb: built)
+_none = dict(FX_CHORUS=0, FX_DELAY=0, FX_REVERB=0)
+check("the effects memory: auto is the delay's line and one line of each insert built (ECHO 8, JUNO 4, FLNG 1, XDLY 2 "
+      "lines: 64 or 32 KB; CHO DLY REV none of their own), always (DLY_ARENA is retired); nothing without an insert built",
+      _da(INS_DELAY=1)["units"] == 8 and _da(**_four)["units"] == 13 and _da(INS_XDLY=1)["units"] == 64
       and _da(INS_XDLY=1, XDLY_LEN=8192)["units"] == 32 and _da(INS_DELAY=1, DLY_LEN=32768)["units"] == 8
-      and _da()["pool"] == 0 and _da(INS_CHORUS=1)["units"] == 2)
+      and _da(**_none)["pool"] == 0 and _da()["units"] == 0)
 check("... its pool: the own room, the instance tables (an owner each at most, no more than the memory holds) and the "
-      "bitmap: one XDLY beside the delay's 64 KB line: 64 KB of its own, two XDLY "
-      "states (its own, the delay's line lent), 20 B of bitmap",
-      _da(INS_XDLY=1, DLY_LEN=32768)["pool"] == 64 * 1024 + 2 * C.XD_STATE + 20
-      and _da(INS_XDLY=1, DLY_LEN=32768)["tables"] == {"ifx_xdly": 2 * C.XD_STATE}
-      and _da(**_four)["tables"]["ifx_chrs"] == 9 * C.FXM_STATE["INS_CHORUS"][1]
-      and _da(**_four)["pool"] == 15 * 1024 + sum(9 * C.FXM_STATE[k][1] for k in _four if k in C.FXM_STATE)
-      + 4 * ((64 + 15 + 4 + 31) // 32))
+      "bitmap: one XDLY beside the delay's 64 KB line: 64 KB of its own, two XDLY states (its own, the delay's line "
+      "lent), the CHO REV DLY copies the room and the delay's line hold, 20 B of bitmap",
+      _da(INS_XDLY=1, DLY_LEN=32768)["pool"] == 64 * 1024 + 2 * C.XD_STATE + 9 * C.FXM_STATE["FX_CHORUS"][1]
+      + 6 * C.FXM_STATE["FX_REVERB"][1] + 2 * C.FXM_STATE["FX_DELAY"][1] + 20
+      and _da(**_four)["tables"]["ifx_choi"] == 9 * C.FXM_STATE["FX_CHORUS"][1])
 _m = _fm(**_four)
 check("... up to N at once in the memory chosen (each type alone, the sends in their master slots: the own room), plus "
-      "what the delay's and the chorus's lines lend while out of the slots, capped at the 9 owners",
-      _m["types"]["INS_CHORUS"] == {"kb": 2, "max": 9, "own": 7, "dly": 32, "cho": 2}
+      "what the delay's and the chorus's lines lend while out of the slots, capped at the 9 owners; DLY and REV: on a "
+      "send's line only",
+      _m["types"]["FX_CHORUS"] == {"kb": 4, "max": 9, "own": 3, "dly": 16, "cho": 1, "arena": 0}
       and _m["types"]["INS_DELAY"]["own"] == 1 and _m["types"]["INS_DELAY"]["dly"] == 8
-      and _m["types"]["INS_FLANGER"]["own"] == 9 and "CHRS up to 7 (+2 while the delay" in C.fx_memory_text(_m)
+      and _m["types"]["INS_FLANGER"]["own"] == 9 and _m["types"]["FX_REVERB"]["own"] == 0
+      and _m["types"]["FX_REVERB"]["max"] == 3 and _m["types"]["FX_DELAY"]["max"] == 1
+      and "CHO up to 3 (+6 while the delay" in C.fx_memory_text(_m)
       and "ECHO up to 1 (+8 while the delay is in no master slot)" in C.fx_memory_text(_m))
+_ma = _fm(ARENA=1, **_four)
+check("... with ARENA: each CHO DLY REV copy a block of the arena (8 at most), not in the own room (13 KB: ECHO JUNO FLNG)",
+      _ma["own"] == 13 and all(_ma["types"][k]["arena"] == 8 for k in ("FX_CHORUS", "FX_DELAY", "FX_REVERB"))
+      and _ma["types"]["FX_REVERB"]["max"] == 9 and "more in the arena's free RAM" in C.fx_memory_text(_ma))
+_rn = []
 _e, _w, _n = C.validate(dict(C.defaults(), **_four))
-check("... the builder says so: a notice on the effects memory (on the inserts built), no error",
-      not _e and any("INS_XDLY" not in n.keys and "INS_CHORUS" in n.keys and "up to" in n for n in _n))
+check("... the builder says so: a notice on the effects memory (on the inserts built), no error; DLY and REV: on the delay's "
+      "line only without ARENA, said",
+      not _e and any("INS_XDLY" not in n.keys and "INS_DELAY" in n.keys and "up to" in n for n in _n)
+      and any("REV plays only while the delay is in no master slot" in n for n in _n)
+      and not any("REV plays only" in n for n in C.validate(dict(C.defaults(), ARENA=1, **_four))[2]))
+check("the insert copies' items retired (the CHO DLY REV inserts built with their effect): INS_CHORUS, INS_REVERB, "
+      "INS_TDELAY gone, in RETIRED; an old .config naming them loads, said, no item",
+      all(k not in R.ITEMS and k in R.RETIRED for k in ("INS_CHORUS", "INS_REVERB", "INS_TDELAY"))
+      and (lambda n, c: not [k for k in ("INS_CHORUS", "INS_REVERB", "INS_TDELAY") if k in c] and
+           sum("dropped" in m for m in n) == 3)(_rn, C.parse("INS_CHORUS=1\nINS_REVERB=1\nINS_TDELAY=1\n", warn=_rn.append)[0]))
 # (the user, 2026-10-29: DLY_ARENA removed, the effects memory always auto) an old .config's DLY_ARENA loads, the number is
 # ignored with a notice; the build gets no FELUCCA_DLY_ARENA (0: auto, fxi_mem.h) whatever it said; the memory is the
 # delay's line and one line of each insert built (the user's screenshot: an old DLY_ARENA=64 with DLY_LEN 65536: just auto)
@@ -661,11 +676,11 @@ check("... its pool: the fixed memories it replaces given back (none of its own:
 check("... an arena needing more than the SRAM can give it: the one error left, naming the biggest consumers",
       any("ARENA" in e.keys and "would need" in e and "the delay's line" in e
           for e in C.validate(dict(C.defaults(), ARENA=1, **dict(_sd, DLY_LEN=65536, INS_XDLY=1, XDLY_LEN=16384,
-                                                                      INS_DELAY=1, INS_CHORUS=1, INS_JCHORUS=1,
+                                                                      INS_DELAY=1, INS_JCHORUS=1,
                                                                       INS_FLANGER=1, REV_FDN8=1, REV_ROOM=1, REV_PLATE=1, SPRING=1,
                                                                       REV_AIRWIN=1, ENG_WAVE=1)))[0]))
-_cfg, _ = C.parse("INS_CHORUS=2\nINS_DELAY=4\nINS_JCHORUS=3\nINS_FLANGER=1\nINS_XDLY=2\n", warn=lambda m: None)
-check("an old .config's instance counts (INS_CHORUS=2 ...) load as built: no setting lost, no error",
+_cfg, _ = C.parse("INS_DELAY=4\nINS_JCHORUS=3\nINS_FLANGER=1\nINS_XDLY=2\n", warn=lambda m: None)
+check("an old .config's instance counts (INS_DELAY=4 ...) load as built: no setting lost, no error",
       all(_cfg[k] == 1 for k in C.FXM_TYPES if k in R.WAS_COUNT) and not [e for e in C.validate(_cfg)[0] if set(e.keys) & set(C.FXM_TYPES)]
       and all(not R.ITEMS[k].is_choice for k in C.FXM_TYPES))
 # where each engine's hot code runs (registry.py FAST_NAMES, 2026-10-29): its item off / on / on, code in RAM (0 / 2 / 3);
