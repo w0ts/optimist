@@ -4148,6 +4148,7 @@ int main(int argc, char **argv)
     syncnudge_tests();
 #if FELUCCA_MIDI_CLOCK
     syncorder_tests();
+    midi_lists_tests();
 #endif
     uasel_tests();
     newproj_tests();

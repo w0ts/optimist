@@ -268,12 +268,12 @@ static void glw_sync_long_tests(void)
     check(ok, "SYNC AUTO: the GLOBAL list draws Auto: Int / Auto: USB / Auto: TRS, the cards A:INT ..., a fixed SYNC Int / USB / TRS (the cards INT / USB / TRS)");
     check(fit, "SYNC AUTO: the long form fits the list's value field beside the label");
     {   /* GLOBAL's MIDI page: OUT IN SYNC CLK OUT on one page, in this order (3 lines without CLK OUT); SYNC no longer on Tempo */
-        static const char *const ML[4] = {"CLK IN", "CLK OUT", "", "MIDI OUT"};   /* (no MIDI IN: 2026-10-14) */
+        static const char *const ML[4] = {"CLK IN", "CLK OUT", "LINK", "MIDI OUT"};   /* (LINK: Link builds) */   /* (no MIDI IN: 2026-10-14) */
         uint32_t first = line_named(SCR_GLOBAL, FELUCCA_MIDI_CLOCK ? "CLK IN" : FELUCCA_MIDI_CLKOUT ? "CLK OUT" : "MIDI IN"), n = 0, j, pg_ok = 1;
-        n = (FELUCCA_MIDI_CLOCK ? 1u : 0u) + (FELUCCA_MIDI_CLKOUT ? 1u : 0u) + (0u) + (FELUCCA_MIDI_OUT ? 1u : 0u);
+        n = (FELUCCA_MIDI_CLOCK ? 1u : 0u) + (FELUCCA_MIDI_CLKOUT ? 1u : 0u) + (FELUCCA_LINK ? 1u : 0u) + (FELUCCA_MIDI_OUT ? 1u : 0u);
         for (j = 0, k = 0; j < 4u; j++) {
             char nm[12];
-            if (!(j == 0u ? FELUCCA_MIDI_CLOCK : j == 1u ? FELUCCA_MIDI_CLKOUT : j == 2u ? 0 : FELUCCA_MIDI_OUT))
+            if (!(j == 0u ? FELUCCA_MIDI_CLOCK : j == 1u ? FELUCCA_MIDI_CLKOUT : j == 2u ? FELUCCA_LINK : FELUCCA_MIDI_OUT))
                 continue;
             SCREENS[SCR_GLOBAL].cell(first + k, gl_kn(SCR_GLOBAL, first + k), &c);
             SCREENS[SCR_GLOBAL].name(first + k, nm);

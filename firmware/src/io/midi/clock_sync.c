@@ -88,7 +88,16 @@
 /* G_SYNC: SYNC_INT .. SYNC_BLE (core.h) */
 #define SY_OFS_MIN (-100)                                  /* CLK OFS / BT OFS, ms (op_project.c's lines) */
 #define SY_OFS_MAX 250
-static int16_t sync_ofs[2];                                /* [0] CLK OFS, [1] BT OFS, ms (the settings record) */
+#ifndef FELUCCA_LINK
+#define FELUCCA_LINK 0                                     /* (params.c: LINK offered only in builds with it) */
+#endif
+static int16_t sync_ofs[3];                                /* [0] CLK OFS, [1] BT OFS, [2] LINK OFS (Link builds), ms (the settings record) */
+#if FELUCCA_LINK || (defined(FELUCCA_WIFI) && FELUCCA_WIFI)
+/* Ableton Link over Wi-Fi (wifi/wifi_link.c): LINK_OFF no session, LINK_ON tempo and beat shared, LINK_ONSS also play / stop (the default,
+ * what Link did before the setting; stored as 0 in the record's ext bytes: persist_rec.c link_sel). The list reads OFF, ON, ON+S/S */
+enum { LINK_OFF, LINK_ON, LINK_ONSS };
+static uint8_t link_mode = LINK_ONSS;
+#endif
 static int32_t sy_lead;                                    /* this block's offset, TIMER4 ticks (sync_follow) */
 #if FELUCCA_BT_AUDIO
 static int32_t bta_lat_t(void);
@@ -98,8 +107,9 @@ static int32_t bta_lat_t(void);
 #else
 #define SY_BT_OFS 0
 #endif
-static const param_desc_t SY_OFS_D[2] = {PU("CLK OFS", F_INT, SY_OFS_MIN, SY_OFS_MAX, 0, "ms"),
-                                         PU("BT OFS", F_INT, SY_OFS_MIN, SY_OFS_MAX, 0, "ms")};
+static const param_desc_t SY_OFS_D[3] = {PU("CLK OFS", F_INT, SY_OFS_MIN, SY_OFS_MAX, 0, "ms"),
+                                         PU("BT OFS", F_INT, SY_OFS_MIN, SY_OFS_MAX, 0, "ms"),
+                                         PU("LINK OFS", F_INT, SY_OFS_MIN, SY_OFS_MAX, 0, "ms")};
 
 static volatile uint32_t sync_out_t;   /* TIMER4 time the block being rendered starts to leave the DMA (audio.c) */
 static struct {
@@ -122,8 +132,8 @@ static struct {
     uint8_t src;           /* the source followed: MSRC_USB / MSRC_TRS / MSRC_BLE, 0 = none (internal tempo) */
 } sy;
 /* the offset of the clock followed (the user, 2026-10-25: "one for usb, one for BLE ... like the name implies"): BT OFS
- * for a Bluetooth (BLE) clock, CLK OFS for a wired one (USB, TRS); TEMPO's nudge sets it (op_tempo.c) */
-static uint32_t sync_ofs_ix(void) { return sy.src == MSRC_BLE; }
+ * for a Bluetooth (BLE) clock, LINK OFS for Link, CLK OFS for a wired one (USB, TRS); TEMPO's nudge sets it (op_tempo.c) */
+static uint32_t sync_ofs_ix(void) { return sy.src == MSRC_BLE ? 1u : FELUCCA_LINK && sy.src == MSRC_LINK ? 2u : 0u; }   /* (LINK OFS: its own since 2026-10-29) */
 static int32_t sync_lead_t(void)                           /* the offset now: the source's, and the Bluetooth audio's own
                                                           * delay on top while it streams (bt/bt_acl.c bta_lat_t) */
 {
@@ -136,9 +146,6 @@ static int32_t sync_lead_t(void)                           /* the offset now: th
     return t;
 }
 #define SY_STEADY 4u                                       /* F8s a steady period apart: a source is present */
-#ifndef FELUCCA_LINK
-#define FELUCCA_LINK 0                                     /* (params.c: LINK offered only in builds with it) */
-#endif
 #ifndef FELUCCA_USB_HOST
 #define FELUCCA_USB_HOST 0                                 /* the USB MIDI host (the release: fm1-base's; MSRC_USBH) */
 #endif

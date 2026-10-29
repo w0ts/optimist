@@ -261,7 +261,7 @@ static void t_ua(void)
 
 /* PER4 (2026-10-20): one layout whatever the build's switches; this file is built plain, with USB audio and with BLE
  * (run_tests.sh), and each build checks the same numbers */
-#define PERSIST4_EXPECT ((16u + sizeof(panel_t) + sizeof(arr_rec_t) + 12u + 8u + 100u + 28u + 70u + 136u + 4u + 2u + 4u + 24u + 4u + 64u + 4u + 4u + PERSIST4_BT_KEPT + PERSIST4_BLE_KEPT + PERSIST4_WIFI_NETS + 3u) & ~3u)   /* (+ the saved Wi-Fi networks and MODE AP's network, 336 B; + open_proj and its 3 spare, f6b622a1; + clk_ofs 95609113; + the kept BT audio and BT MIDI devices 1f3bf139 / 7e89ec48, the whole rounded to 4) */
+#define PERSIST4_EXPECT ((16u + sizeof(panel_t) + sizeof(arr_rec_t) + 12u + 8u + 100u + 28u + 70u + 136u + 4u + 2u + 4u + 24u + 4u + 64u + 4u + 4u + PERSIST4_BT_KEPT + PERSIST4_BLE_KEPT + PERSIST4_WIFI_NETS + 6u + 3u) & ~3u)   /* (+ ext_ver, CLK OUT's and LINK's modes, LINK OFS, 6 B, 2026-10-29; + the saved Wi-Fi networks and MODE AP's network, 336 B; + open_proj and its 3 spare, f6b622a1; + clk_ofs 95609113; + the kept BT audio and BT MIDI devices 1f3bf139 / 7e89ec48, the whole rounded to 4) */
 static void t_layout(void)
 {
     char w[160];

@@ -7,12 +7,12 @@ static void syncnudge_tests(void)
     static const uint8_t SRC[3] = {MSRC_USB, MSRC_LINK, MSRC_BLE};
     uint32_t i;
     for (i = 0; i < 3u; i++) {
-        uint32_t ix = SRC[i] == MSRC_BLE;
-        const char *want = ix ? "BT OFS" : "CLK OFS";
+        uint32_t ix = SRC[i] == MSRC_BLE ? 1u : FELUCCA_LINK && SRC[i] == MSRC_LINK ? 2u : 0u;
+        const char *want = ix == 1u ? "BT OFS" : ix == 2u ? "LINK OFS" : "CLK OFS";
         cell_t c;
         int16_t o0;
         reset_ui();
-        sync_ofs[0] = sync_ofs[1] = 0;
+        sync_ofs[0] = sync_ofs[1] = sync_ofs[2] = 0;
         sy.mode = (uint8_t)song.g[G_SYNC];
         sy.src = SRC[i];                                /* (following: a running transport keeps the source, clock_sync.c sync_select) */
         song.playing = 1;
@@ -26,7 +26,7 @@ static void syncnudge_tests(void)
         settings_later = 0;
         tp_turn(TPR_TEMPO, 1, 3, 0);                    /* (the knob's handler: the frame after would take settings_later) */
         o0 = sync_ofs[ix];
-        check(o0 > 0 && sync_ofs[!ix] == 0 && settings_later && clk_jog == 0, "synced: the knob moves the offset in ms, marked for the settings save, no real-time jog");
+        check(o0 > 0 && sync_ofs[ix == 0u ? 1 : 0] == 0 && settings_later && clk_jog == 0, "synced: the knob moves the offset in ms, marked for the settings save, no real-time jog");
         press(B_OCTUP);
         frames(30);
         release(B_OCTUP);
@@ -36,7 +36,7 @@ static void syncnudge_tests(void)
         song.playing = 0;
     }
     reset_ui();
-    sync_ofs[0] = sync_ofs[1] = 0;
+    sync_ofs[0] = sync_ofs[1] = sync_ofs[2] = 0;
     sy.src = 0;
     settings_later = 0;
     clk_jog = 0;
