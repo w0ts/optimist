@@ -402,6 +402,10 @@ with tempfile.TemporaryDirectory() as d:
     check("notices: the -ui.zip carries LICENSE, LICENSING.md and every LICENSES/ text", all(n in names for n in NOTICES))
     import importlib
     ms = importlib.import_module("make_site")
+    check("site: the identities it takes: Optimist's (FM-1_7NN), the release's (FM-1_79NN, FM-1_79NNNNNN), Felucca's; "
+          "not stock's or a malformed one",
+          all(ms.SITE_ID.fullmatch(p) for p in ("FM-1_700", "FM-1_721", "FM-1_7900", "FM-1_79010203", "FM-1_905"))
+          and not any(ms.SITE_ID.fullmatch(p) for p in ("FM-1_015", "FM-1_79012", "FM-1_7", "FM-1_8900")))
     fwsc = next((c for c in (ROOT / "build" / "felucca.fwsc", *sorted((ROOT / "build").glob("optimist-*.fwsc"))) if c.exists()), None)
     if fwsc is None:
         print("notices: no package in build/: the site check is skipped")
