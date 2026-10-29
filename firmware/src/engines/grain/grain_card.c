@@ -24,7 +24,7 @@ AINL void gr_card_range(const smp_zone_t *z, uint32_t pos, uint32_t span, uint32
 #define GR_PIN_SMP (GR_PIN_MS * 441u / 10u)
 AINL uint32_t gr_card_ahead(const sst_src_t *s, uint32_t step)   /* (sectors) */
 {
-    return ((GR_PIN_SMP * (step >> 4)) >> 12) / (512u >> s->fsh) + 2u;
+    return (((GR_PIN_SMP * (step >> 4)) >> 12) >> (9u - s->fsh)) + 2u;   /* (frames / a sector's) */
 }
 
 /* the reader's place in its sectors: the pin slid up behind and ahead of it, the sectors newly pinned looked at
@@ -33,7 +33,7 @@ AINL uint32_t gr_card_ahead(const sst_src_t *s, uint32_t step)   /* (sectors) */
 static void gr_card_slide(gr_part_t *P, sst_rc_t *c, gr_grain_t *g)
 {
     const sst_src_t *s = &sst_src[g->si % SST_NSRC];
-    uint32_t k = (uint32_t)(g - P->g), s0, nh, f;
+    uint32_t k = (uint32_t)(g - P->g), s0, nh, f, sh;
     int32_t d;
     if (g->rev) {
         if (g->cur <= g->end && !sst_rc_scan(c, s, g->si, &g->cur, g->end))
@@ -62,7 +62,9 @@ static void gr_card_slide(gr_part_t *P, sst_rc_t *c, gr_grain_t *g)
     }
     f = (g->cur << 9) > s->dofs ? ((g->cur << 9) - s->dofs) >> s->fsh : 0u;   /* (its first frame) */
     d = (int32_t)(f - g->pos);
-    d = d <= 0 ? 0 : (int32_t)(((uint64_t)(uint32_t)d << 16) / g->step);   /* (output samples until the reader is there) */
+    for (sh = 9u; sh < 18u && g->step >> sh; sh++)  /* (output samples until the reader is there: frames / step, the */
+        ;                                            /* step taken as the power of two above it: never later, no divide) */
+    d = d <= 0 ? 0 : (int32_t)(((uint32_t)d << 16) >> sh);
     c->wlo[k] = 0;
     SST_FENCE();
     c->whi[k] = sst_rc_tag(g->si, g->end);
