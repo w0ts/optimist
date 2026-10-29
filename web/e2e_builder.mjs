@@ -274,13 +274,20 @@ const se = await run(`${U} const s = $("#search"); s.value = "reverb"; s.dispatc
   const shownRows = [...document.querySelectorAll(".row")].map((r) => r.dataset.key);
   s.value = ""; s.dispatchEvent(new Event("input"));
   const so = $("#sort"); so.value = "flash"; so.dispatchEvent(new Event("change")); await sleep(50);
-  const g = document.querySelector('.group[data-group="Sample sets"]'); const keys = [...g.querySelectorAll(":scope > ul > li > .row")].map((r) => r.dataset.key);
+  const groups = document.querySelectorAll(".group").length; const keys = [...document.querySelectorAll(".group .row")].map((r) => r.dataset.key);
   const sav = B.state.view.savings; const fl = keys.map((k) => (sav[k] ? sav[k].flash : null));
-  so.value = ""; so.dispatchEvent(new Event("change"));
-  return { shownRows, fl };`);
+  const nest = document.querySelectorAll(".group li li").length, folds = document.querySelectorAll(".row .fold").length;
+  const costs = [...document.querySelectorAll(".row .cost")].map((c) => c.textContent.split(" ")[0]);
+  so.value = "ram"; so.dispatchEvent(new Event("change")); await sleep(50);
+  const rk = [...document.querySelectorAll(".group .row")].map((r) => r.dataset.key); const rl = rk.map((k) => { const s = sav[k]; return s ? (s.sram !== undefined ? s.sram : s.ram + s.pool + s.ramtext) : null; });
+  so.value = ""; so.dispatchEvent(new Event("change")); await sleep(50);
+  const groupsBack = document.querySelectorAll(".group").length;
+  return { shownRows, fl, groups, nest, folds, costs, rl, groupsBack, n: keys.length };`);
 const desc = (a) => a.filter((x) => x !== null).every((x, i, l) => i === 0 || l[i - 1] >= x);
 ok(se.shownRows.length > 3 && se.shownRows.length < 40 && se.shownRows.includes("FX_REVERB"), `page: the search narrows the list (${se.shownRows.length} rows for "reverb")`);
-ok(se.fl.length > 2 && desc(se.fl), "page: sort by flash, largest first within a group (the menu's o)");
+ok(se.fl.length > 100 && desc(se.fl) && se.groups === 1 && se.nest === 0 && se.folds === 0, `page: sort by flash is ONE list of every item (${se.n} rows), groups and parents ignored, largest first`);
+ok(se.rl.length > 100 && desc(se.rl) && se.groupsBack > 1, "page: sort by ram orders by the SRAM total; default order brings the groups back");
+ok(se.costs.length > 0 && se.costs.every((c) => c === "flash" || c === "ram"), "page: an item shows flash and one ram, never pool or ramtext");
 const mem = await run(`${U} const gs = [...document.querySelectorAll(".group")].map((g) => g.dataset.group);
   const keysOf = (n) => [...document.querySelectorAll('.group[data-group="' + n + '"] .row')].map((r) => r.dataset.key);
   const before = { ...B.state.values };
@@ -310,10 +317,9 @@ const inf = await run(`${U} $("#import").open = false; await B.choosePreset("fla
   return { h: $("#info h3").textContent, rows: document.querySelectorAll("#info tbody tr").length, same: B.state.values.FX_REVERB === was, preset: $("#bpreset").value };`);
 ok(inf.h === (reg.registry.items || reg.registry).find((it) => it.key === "FX_REVERB").label && inf.rows >= 2 && inf.same && inf.preset === "flavour:default", `page: a click on an item's text shows its details and costs (${inf.rows} rows), without toggling it`);
 const kb = await run(`${U} const s = $("#sort").value; document.body.focus(); document.dispatchEvent(new KeyboardEvent("keydown", { key: "o", bubbles: true })); await sleep(50);
-  const v = $("#sort").value; document.dispatchEvent(new KeyboardEvent("keydown", { key: "o", bubbles: true })); document.dispatchEvent(new KeyboardEvent("keydown", { key: "o", bubbles: true }));
-  document.dispatchEvent(new KeyboardEvent("keydown", { key: "o", bubbles: true })); document.dispatchEvent(new KeyboardEvent("keydown", { key: "o", bubbles: true })); await sleep(50);
+  const v = $("#sort").value; document.dispatchEvent(new KeyboardEvent("keydown", { key: "o", bubbles: true })); document.dispatchEvent(new KeyboardEvent("keydown", { key: "o", bubbles: true })); await sleep(50);
   return { s, v, back: $("#sort").value };`);
-ok(kb.s === "" && kb.v === "flash" && kb.back === "", "page: o cycles the sort as in the menu (default, flash, ram, pool, ramtext)");
+ok(kb.s === "" && kb.v === "flash" && kb.back === "", "page: o cycles the sort as in the menu (default, flash, ram)");
 
 /* ---- the notices policy: on the page only what must be acted on; the NOTICE texts in the (i) and the closed notes */
 const np = await run(`${U} await B.choosePreset("flavour:default"); await until(() => B.state.name.toLowerCase() === ${JSON.stringify(DFLT_NAME.toLowerCase())}); await sleep(100);
