@@ -959,6 +959,31 @@ static void trk_note_on(track_t *t, uint32_t note, uint32_t vel)
             mono_play(t, want, vel, !sounding, sounding && (t->p[P_GLIDE] != 0 || t->slide_glide));
     }
 }
+/* a sequencer SLIDE on a POLY track (seq.c seq_slide_poly; the user, 2026-10-29: the step's GLIDE): the voice that plays
+ * from goes on to note to, its envelope going on, gliding there as MONO's legato does (GLIDE's time, 0: SLIDE_T). An
+ * engine that allocates its own voices (FM6), a track not ready to play: not here (-> 0, the note starts as ever) */
+static int trk_note_glide(track_t *t, uint32_t from, uint32_t to, uint32_t vel)
+{
+    uint32_t i, np = trk_nvoice(t);
+    const engine_t *e = ENGINES[t->engine];
+    if (T_SILENT(t) || trk_silent(t) || e->alloc || t->xf_on || t->eng_req != t->engine || t->pold || PART_MOVING(t))
+        return 0;
+    for (i = 0; i < np; i++) {
+        voice_t *v = &t->v[i];
+        if (!v->active || !v->gate || v->note != from)
+            continue;
+        trk_hits |= (uint8_t)(1u << (uint32_t)(t - trk));
+        v->note = (uint8_t)to;
+        v->pitch16 = (int32_t)to * 16;
+        if (vel > v->vel || e->legato)
+            v->vel = (uint8_t)vel;
+        glide_set(t, v, 1);
+        if (e->legato)
+            e->legato(t, v);
+        return 1;
+    }
+    return 0;
+}
 
 #if FELUCCA_CHORDPLUS
 /* STRUM (SLOOP 2.4, isod89/sloop-fm1 v2.4 8d3823f voice.c, GPL-3.0-only; P_STRUM, SCL 2): a chord's notes start one

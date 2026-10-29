@@ -282,6 +282,8 @@ job; ( jobin
     run "track FILTER (SLOOP 2.4): LP / HP on a part, the drum bus and its sends, the project, cost" "$OUT/trk_filt_test"
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_CHORDPLUS=1 -o "$OUT/chordplus_test" tests/chordplus_test.c -lm
     run "CHORD+ (SLOOP 2.4): black-key modifiers, under the finger, recorded as played, STRUM, VLEAD" "$OUT/chordplus_test"
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/seqglide_test" tests/seqglide_test.c -lm
+    run "a step's GLIDE (SF_SLIDE, #104): the next note glides there (POLY, LEGATO, MONO), not without; an old step has none" "$OUT/seqglide_test"
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/trk_filt_test_off" tests/trk_filt_test.c -lm
     run "track FILTER: every FILT at 0, the busy mix sample for sample the build without it" sh -c     "[ \"\$('$OUT/trk_filt_test' hash)\" = \"\$('$OUT/trk_filt_test_off' hash)\" ]"
 ) >"$U.out" 2>&1 & jobbg
