@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* DEBUG STATS (SYSTEM > DEBUG): fm1-base keeps a snapshot of the load, the late halves, the stacks and the radios in
+/* DEBUG STATS (SYSTEM > General): fm1-base keeps a snapshot of the load, the late halves, the stacks and the radios in
  * flash every 5 minutes while it is on (its device/dbgstats.c, plat.h plat_stats_enable; the last 60 read over USB with
  * fm1-base's tools/fm1_remote.py stats), for a unit that misbehaves only after hours of play. OFF by default; kept in
  * the settings record, one byte (storage/persist_rec.c rsv_pj[1]: a record from before reads 0, OFF). Only where the
