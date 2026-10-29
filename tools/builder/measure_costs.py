@@ -51,7 +51,6 @@ PAIRS = [{"MOTION": 1, "SECTIONS": 4},
          # (the buffer itself is computed: configure.py rev_lines; the automation store: auto_store)
          {"REV_PLATE": 1, "REV_FDN8": 1, "SPRING": 0}, {"REV_PLATE": 1, "REV_FDN8": 1, "SPRING": 1},
          {"REV_ROOM": 0, "REV_PLATE": 0, "REV_FDN8": 1},
-         {"REV_ROOM": 0, "REV_HALF": 1},         # (REV_HALF's half-band filters and half-rate tank are the ROOM's)
          {"ENG_CZ": 1, "NATIVE_BANKS": 1},       # (the CZ tone collections share the engine's tone code)
          # the five sampled kits share the PERC samples: each kit's own delta is ~0, all five off together drop them
          {f"KIT_{k}": 0 for k in ("ACOUSTIC", "DEEP", "TIGHT", "BRIGHT", "DUST")},
@@ -146,11 +145,9 @@ GROUPS = {"INS_FX": _any_of("core/core.h", "INS_FX"),   # (the insert slots)
           "FM6_PACKS": _any_of("core/registry.h", "FM6_NPACKS")}
 # a pair whose values are not valid alone: measured with these set too (their cost is in the estimate it is
 # measured against)
-PAIR_WITH = {"REV_ROOM=0,REV_HALF=1": {"REV_PLATE": 1}, "MICRO=1,FILLS=1": {"SL24_XSTEP": 1},
+PAIR_WITH = {"MICRO=1,FILLS=1": {"SL24_XSTEP": 1},
              "MICRO=1,PLOCK=1": {"SL24_XSTEP": 1}, "FILLS=1,PLOCK=1": {"SL24_XSTEP": 1},
-             "MICRO=1,FILLS=1,PLOCK=1": {"SL24_XSTEP": 1}, "MOTION=1,PLOCK=1": {"SL24_XSTEP": 1},
-             "REV_FDN8=1,DUAL=0": {"REV_ROOM": 0}}   # (FDN8 the only reverb, as the BLE builds have it: beside ROOM its
-                                                     # RAMTEXT part, -1,264 B, did not carry over)
+             "MICRO=1,FILLS=1,PLOCK=1": {"SL24_XSTEP": 1}, "MOTION=1,PLOCK=1": {"SL24_XSTEP": 1}}
 # a value that is not valid alone (the last reverb algorithm off): measured with these set too, less their own deltas
 # (so those are measured first)
 WITH = {("REV_ROOM", 0): {"REV_PLATE": 1},

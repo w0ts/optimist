@@ -602,14 +602,6 @@
     "ramtext": 0
    }
   },
-  "REV_HALF": {
-   "1": {
-    "flash": 572,
-    "ram": 868,
-    "pool": -996,
-    "ramtext": 28
-   }
-  },
   "MIX_FINE": {
    "1": {
     "flash": 0,
@@ -632,14 +624,6 @@
     "ram": 0,
     "pool": 0,
     "ramtext": 8
-   }
-  },
-  "REV_HB_LONG": {
-   "1": {
-    "flash": 4,
-    "ram": 0,
-    "pool": 0,
-    "ramtext": 0
    }
   },
   "FX_SLICER": {
@@ -2515,7 +2499,6 @@
     "REV_ROOM": 0,
     "REV_FDN8": 1,
     "REV_POOL": 1,
-    "REV_HB_LONG": 1,
     "FX_SLICER": 0,
     "FX_PUNCH": 0,
     "FX_DJF": 0,
@@ -2904,7 +2887,6 @@
     "REV_ROOM": 0,
     "REV_FDN8": 1,
     "REV_POOL": 1,
-    "REV_HALF": 1,
     "FX_SLICER": 0,
     "FX_PUNCH": 0,
     "FX_DJF": 0,
@@ -3339,12 +3321,6 @@
    "ram": -128,
    "pool": 0,
    "ramtext": 44
-  },
-  "REV_ROOM=0,REV_HALF=1": {
-   "flash": -592,
-   "ram": -868,
-   "pool": 996,
-   "ramtext": -28
   },
   "ENG_CZ=1,NATIVE_BANKS=1": {
    "flash": 836,

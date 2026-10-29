@@ -532,9 +532,10 @@ check("reverb: one checkbox per algorithm (ROOM, PLATE, FDN8, SPRING) under the 
 check("reverb: the one-tank choice REVERB is gone, its bit 150 not reused; ROOM 151, PLATE 152, FDN8 153",
       "REVERB" not in items and 150 not in {it.bit for it in items.values()} and
       [items[k].bit for k in revs[:3]] == [151, 152, 153])
-check("reverb: REV_POOL and REV_HALF relabelled",
+check("reverb: REV_POOL relabelled; the half-rate reverb (REV_HALF, bit 123) and its steep filter (REV_HB_LONG, bit 430) are dropped, an old .config loads",
       items["REV_POOL"].label == "reverb buffers in the pool (saves ~17 KB RAM)" and
-      items["REV_HALF"].label == "half-rate reverb (half the RAM, no top octave)")
+      all(k not in items and k in R.RETIRED for k in ("REV_HALF", "REV_HB_LONG")) and
+      C.parse("REV_HALF=1\nREV_HB_LONG=1\n", warn=lambda m: None)[0]["REV_POOL"] == C.defaults()["REV_POOL"])
 none = dict(C.defaults(), REV_ROOM=0)
 e = C.validate(none)[0]
 check("reverb: the bus with no algorithm ticked: an error naming the bus and the four",

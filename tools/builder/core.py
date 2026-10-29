@@ -601,24 +601,23 @@ def group_delta(cfg, costs):
     return out
 
 
-REV_ROOM_LEN = (1559 + 1931 + 2389 + 2791 + 12 + 2, 779 + 967 + 1193 + 1399 + 6 + 2)   # fx.c REV_ROOM_LEN (full, half rate)
+REV_ROOM_LEN = 1559 + 1931 + 2389 + 2791 + 12 + 2   # fx.c REV_ROOM_LEN (the half-rate reverb, REV_HALF, was dropped 2026-10-29)
 
 
 def rev_lines(cfg):
     """-> {region: bytes} of the reverb's shared line buffer (fx.c and reverb_alt.c rev_line): the size of the
-    largest algorithm built (ROOM 8684 samples, 4346 at half rate; PLATE / FDN8 / VTINY RV_N: 8192, 4096 at half
-    rate, FDN8 twice that in the pool; SPRING 4096), in the pool with REV_POOL, else in main RAM. A maximum over
+    largest algorithm built (ROOM 8684 samples; PLATE / FDN8 / VTINY RV_N: 8192, FDN8 twice that in the pool; SPRING 4096), in the pool with REV_POOL, else in main RAM. A maximum over
     several items and a region that REV_POOL picks: no per-item delta adds up to it, so the estimate computes it
     (model_terms) and the measured deltas and pairs leave it out (measure_costs.py)"""
     f, _ = flags(cfg)
 
     def on(key):                                        # (flags: an option of an item left out has its default)
         return int(f.get(R.ITEMS[key].flag, 0) or 0)
-    half, pool = on("REV_HALF"), on("REV_POOL")
-    own = max(REV_ROOM_LEN[half] if on("REV_ROOM") else 0, 4096 * on("SPRING"))
+    pool = on("REV_POOL")
+    own = max(REV_ROOM_LEN if on("REV_ROOM") else 0, 4096 * on("SPRING"))
     n = own
     if on("REV_PLATE") or on("REV_FDN8") or on("REV_AIRWIN"):
-        n = max((4096 if half else 8192) << (1 if on("REV_FDN8") and pool else 0), own)
+        n = max(8192 << (1 if on("REV_FDN8") and pool else 0), own)
     if not on("FX_REVERB") or not n:
         n = 1                                           # (the C array's 1 when the reverb is not built)
     return {"pool" if pool else "ram": 2 * n}
@@ -764,7 +763,7 @@ def nparts(cfg):
     return NPART if "DRUMS" not in R.ITEMS or built(cfg, "DRUMS") else NPART + 1
 
 
-REV_AP = (556 + 441, 278 + 221)   # fx.c REV_A0 + REV_A1, the ROOM's diffusers rev_ap (full, half rate), samples
+REV_AP = 556 + 441   # fx.c REV_A0 + REV_A1, the ROOM's diffusers rev_ap, samples
 WAVE_MEM = 16 * 2032 * 2 + 2 * 1024 * 4   # eng_wave.c WT_MEM_BYTES: the table's copies and the frame builder's scratch
 # the X0X machines' states on the FM-1 (x0x_drums.c x909 x808; build/sizes.json of the default profile, 2026-10-25): the
 # 909's 5,344 B with its 6-bit samples (X909_CYM or X909_HAT 2: a field more in each of its 4 sample voices), 5,328 without
@@ -859,10 +858,9 @@ def rev_ap(cfg):
     """-> bytes of the ROOM's diffusers (fx.c rev_ap, always in the pool; in the reverb's block with ARENA), as the
     pool holds them: 4-aligned (the default profile with ROOM, the SLICER and WAVE, 2026-10-25: 1,996 B of pool for
     the 1,994 B array)"""
-    f, _ = flags(cfg)
     if not built(cfg, "FX_REVERB") or not built(cfg, "REV_ROOM"):
         return 0
-    return (2 * REV_AP[int(f.get(R.ITEMS["REV_HALF"].flag, 0) or 0)] + 3) & ~3
+    return (2 * REV_AP + 3) & ~3
 
 
 def arena_blocks(cfg):

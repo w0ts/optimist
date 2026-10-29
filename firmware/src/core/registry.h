@@ -352,9 +352,6 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #ifndef FELUCCA_REV_POOL
 #define FELUCCA_REV_POOL 0                 /* the reverb's four lines (17 KB) in the pool instead of main RAM */
 #endif
-#ifndef FELUCCA_REV_HALF
-#define FELUCCA_REV_HALF 0                 /* the reverb's tank at 22.05 kHz: half its lines' RAM (fx.c) */
-#endif
 /* the reverb's algorithms (fx.c, reverb_alt.c; SPRING: backports.h): each one built is on FX > REVERB > TYPE (rev_type.c),
  * picked at run time; one built: no TYPE. At least one with the bus (rev_type.c says so). They share one line buffer */
 #ifdef FELUCCA_REVERB                      /* (the old one-tank choice, 0 ROOM, 1 PLATE, 2 FDN8, 3 AIRWIN: that tank alone) */
@@ -682,9 +679,6 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #endif
 #ifndef FELUCCA_TFLT_FINE
 #define FELUCCA_TFLT_FINE 0                /* the track FILTER at the samples' scale, 64-bit products (fx.c tflt_tick_w) */
-#endif
-#ifndef FELUCCA_REV_HB_LONG
-#define FELUCCA_REV_HB_LONG 0              /* the half-rate reverbs behind a 63-tap low-pass (fx.c rhl_dec, rhl_int) */
 #endif
 #ifndef FELUCCA_LIVE_SAVE
 #define FELUCCA_LIVE_SAVE 0                /* saves while playing: no STOP BEFORE SAVE, the waiting writes (sections, song,

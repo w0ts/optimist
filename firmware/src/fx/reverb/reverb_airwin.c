@@ -14,7 +14,7 @@
  * first, the right's the left's (one loop through both: every echo reaches both sides). The right walks the same
  * sixteen lengths in columns (D H L P, C G K O, B F J N, A E I M) where the left walks rows (A B C D, E F G H, ...).
  * Its lengths (5 .. 116 ms at 44.1 kHz) halved for 22.05 kHz and scaled to the ring: x 0.87 in 16 KB (RV_N 8192,
- * the default and REV_POOL; 46 ms a pass), x 0.43 in 8 KB (REV_HALF; 23 ms), x 1 (VerbTiny's own size) in 32 KB
+ * the default and REV_POOL; 46 ms a pass), x 1 (VerbTiny's own size) in 32 KB
  * (with FDN8 in the pool).
  * What differs from VerbTiny, and why:
  *   - Its "main" network only: VerbTiny's dual-mono second network (Wider) doubles the RAM and is silent at its
@@ -33,10 +33,7 @@
  * outputs' energy never grows: |s| - 1 less); the damping and the loop gain round at random (rv_rnd, as FDN8: no
  * steady hiss, unbiased) above RV_RT and toward 0 below, so a tail with no input reaches exactly 0 and the bus' idle
  * skip (fx.c) works. */
-#if RV_N == 4096u                /* 8 KB (REV_HALF) */
-enum { RVA_A = 29, RVA_B = 11, RVA_C = 12, RVA_D = 271, RVA_E = 45, RVA_F = 102, RVA_G = 118, RVA_H = 6, RVA_I = 20,
-       RVA_J = 245, RVA_K = 303, RVA_L = 214, RVA_M = 283, RVA_N = 41, RVA_O = 272, RVA_P = 22 };
-#elif RV_N == 8192u              /* 16 KB (B and C one sample apart, as VerbTiny's 52 / 53) */
+#if RV_N == 8192u              /* 16 KB (B and C one sample apart, as VerbTiny's 52 / 53) */
 enum { RVA_A = 60, RVA_B = 23, RVA_C = 24, RVA_D = 549, RVA_E = 91, RVA_F = 206, RVA_G = 239, RVA_H = 13, RVA_I = 40,
        RVA_J = 495, RVA_K = 612, RVA_L = 433, RVA_M = 572, RVA_N = 84, RVA_O = 550, RVA_P = 45 };
 #else                            /* 32 KB: VerbTiny's own */

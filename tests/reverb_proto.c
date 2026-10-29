@@ -1,6 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* The reverb tanks side by side: one build per tank and budget (FELUCCA_REVERB 0 ROOM, 1 PLATE, 2 FDN8;
- * FELUCCA_REV_HALF: half the RAM), each run renders and measures the same material:
+/* The reverb tanks side by side: one build per tank and budget (FELUCCA_REVERB 0 ROOM, 1 PLATE, 2 FDN8), each run renders and measures the same material:
  *   build/host/reverb_proto LABEL WAVDIR [TSV]
  * Settings (SIZE / DAMP): small 20 / 40, medium 80 / 50, long 120 / 30, dark 120 / 100, huge 127 / 30.
  * Per setting medium, long, huge: WAVDIR/LABEL-SETTING-mix.wav and -wet.wav: a snare (the kit's 38), an ANALOG
@@ -581,7 +580,7 @@ int main(int argc, char **argv)
         printf("%s: small %.2f s, medium %.2f s: not the ROOM's 0.62 / 1.23 s within 12 %%\n", argv[1], rs[0], rs[1]);
         long_ok = 0;
     }
-    {   /* the ringing at long / huge, per ring: 32 KB (REV_POOL), 16 KB, 8 KB (REV_HALF without the pool) */
+    {   /* the ringing at long / huge, per ring: 32 KB (REV_POOL), 16 KB */
         const double lim_l = RV_N >= 16384u ? 1.5 : RV_N >= 8192u ? 2.0 : 2.6;
         const double lim_h = RV_N >= 16384u ? 1.05 : RV_N >= 8192u ? 1.4 : 2.1;
         if (ring_db[2] < 0 || ring_db[2] > lim_l || ring_db[4] < 0 || ring_db[4] > lim_h) {
