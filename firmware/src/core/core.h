@@ -302,8 +302,14 @@ AINL const char *pd_unit(const param_desc_t *d) { return d->nl ? 0 : (const char
 #define INS_FX 1                       /* the further insert types: EQ3 always built (2026-10-18), the others builder items */
 /* slot-relative automation (seq/auto_slot.c; a builder item until 2026-10-18) */
 #define SLOT_AUTO (FELUCCA_AUTO && (FELUCCA_MOTION || FELUCCA_PLOCK))
-/* the insert types with a limited number of instances (fx/insfx/fxi.c: CHRS ECHO JUNO FLNG, a builder count each) */
-#define INS_LIM (FELUCCA_INS_CHORUS || FELUCCA_INS_DELAY || FELUCCA_INS_JCHORUS || FELUCCA_INS_FLANGER || FELUCCA_INS_XDLY)
+/* the send effects as inserts (2026-10-29, the user: "chorus, delay and reverb can go on normal tracks as INSERTS with a
+ * dry/wet amount"): ROOM, the reverb send's ROOM tank (needs the reverb and its ROOM built), TDLY, the delay send's
+ * delay (needs the delay); fx/insfx/fxi_send.c. (The chorus: CHRS, the chorus send's two-tap kernel already.) */
+#define INS_ROOM (FELUCCA_INS_REVERB && FELUCCA_FX_REVERB && FELUCCA_REV_ROOM)
+#define INS_TDLY (FELUCCA_INS_TDELAY && FELUCCA_FX_DELAY)
+/* the insert types with a limited number of instances (fx/insfx/fxi.c: CHRS ECHO JUNO FLNG XDLY ROOM TDLY, built or not) */
+#define INS_LIM (FELUCCA_INS_CHORUS || FELUCCA_INS_DELAY || FELUCCA_INS_JCHORUS || FELUCCA_INS_FLANGER || FELUCCA_INS_XDLY || \
+                 INS_ROOM || INS_TDLY)
 enum {                          /* per-track parameters */
     P_LEVEL,
     P_ATK, P_DEC, P_SUS, P_REL,
@@ -390,6 +396,9 @@ enum {                          /* per-track parameters */
     P_TTAPE, P_TSPIT,                            /* (TAPE SPIT, 2026-10-19: fx/insfx/tapespit.c, after the shapers' range) */
     P_TXDLY,                                     /* (XDLY, 2026-10-22: fx/insfx/xdly.c, a limited type: its MIX; its TIME 1 TIME 2
                                                   * MOD FDBK the owner's, fx_slots.c xdl_v) */
+    P_TROOM, P_TTDLY,                            /* (ROOM, TDLY, 2026-10-29: fx/insfx/fxi_send.c, the reverb send's ROOM and the
+                                                  * delay send's delay as limited inserts: their MIX, dry to all wet; their
+                                                  * SIZE DAMP, TIME FDBK COLOR the sends' own, FX > REV/CHO, DLY) */
 #endif
 #if FELUCCA_EX_GAIN
     /* EXGN, the example insert (EX_GAIN, fx/insfx/exgain.c, CONTRIBUTING.md): a track's GAIN, its amount (0 off, else

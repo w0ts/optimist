@@ -663,7 +663,7 @@ check("... an arena needing more than the SRAM can give it: the one error left, 
                                                                       REV_AIRWIN=1, ENG_WAVE=1)))[0]))
 _cfg, _ = C.parse("INS_CHORUS=2\nINS_DELAY=4\nINS_JCHORUS=3\nINS_FLANGER=1\nINS_XDLY=2\n", warn=lambda m: None)
 check("an old .config's instance counts (INS_CHORUS=2 ...) load as built: no setting lost, no error",
-      all(_cfg[k] == 1 for k in C.FXM_TYPES) and not [e for e in C.validate(_cfg)[0] if set(e.keys) & set(C.FXM_TYPES)]
+      all(_cfg[k] == 1 for k in C.FXM_TYPES if k in R.WAS_COUNT) and not [e for e in C.validate(_cfg)[0] if set(e.keys) & set(C.FXM_TYPES)]
       and all(not R.ITEMS[k].is_choice for k in C.FXM_TYPES))
 # where each engine's hot code runs (registry.py FAST_NAMES, 2026-10-29): its item off / on / on, code in RAM (0 / 2 / 3);
 # an old .config's 1 reads as its place by default; the header's FAST_RAM_<name>; the hash of a default place unchanged

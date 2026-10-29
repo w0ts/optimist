@@ -373,6 +373,8 @@ job; ( jobin
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_INS_XDLY=1 -DFELUCCA_MOTION=1 -o "$OUT/xdly_test" tests/xdly_test.c -lm
     run "XDLY (xdly.c, fxi.c: the cross-modulated dual delay, one instance): bypassed bit for bit, silence in silence out, the tail ends, bounded at FDBK 127; TIME 1 / TIME 2 repeats, MOD acts, FDBK 127 sustains; the drum bus's L != R; one instance (FULL), the master's slot; TLV, motion id, list, pages, ms; a note's repeats outlast it; its CPU guard cost" "$OUT/xdly_test"
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_INS_REVERB=1 -DFELUCCA_INS_TDELAY=1 -DFELUCCA_MOTION=1 -DFELUCCA_DLY_ARENA=275 -o "$OUT/insend_test" tests/insend_test.c -lm
+    run "ROOM, TDLY (fxi_send.c, fxi.c: the reverb send's ROOM and the delay send's delay as inserts, a memory of the delay's line + one of each): the sends' kernels hash as before; MIX 0 bit for bit (from rest, bypassed, in no slot, after a fade), silence in silence out, the tails end at 0; ROOM's side, stereo, SIZE; TDLY's TIME and FDBK; FULL when the memory is full, the master's slot; TLV, FX record, motion ids, the picker's lists; a note's tail; CPU guard costs" "$OUT/insend_test"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_INS_GATER=1 -DFELUCCA_MOTION=1 -o "$OUT/gater_test" tests/gater_test.c -lm

@@ -558,7 +558,7 @@ static HOT2 __attribute__((noinline)) int ifx_width(ifx_wd_t *s, int32_t a, cons
     return 1;
 }
 #endif
-#if FELUCCA_INS_WIDTH || FELUCCA_INS_JCHORUS || FELUCCA_ENG_DRONE
+#if FELUCCA_INS_WIDTH || FELUCCA_INS_JCHORUS || FELUCCA_ENG_DRONE || INS_ROOM
 /* a part's side (WIDE's, JUNO CHORUS's, DRONE's BEAT: sd) into the mix after its level and gain (fx.c mix_part: the same lvl0 + dl i and ga .. gb ramps as its
  * dry; to the left, from the right: the pan law's centre, 4096 each) */
 static HOT2 __attribute__((noinline)) void ifx_side_mix(const int32_t *sd, int32_t lvl0, int32_t dl, int32_t ga, int32_t gb,
