@@ -7,6 +7,7 @@ import argparse
 import contextlib
 import io
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -1092,5 +1093,62 @@ check("USB host: refused on Optimist's own firmware, valid in the release (where
 check("USB host: on sets FELUCCA_USB_HOST 1 in the header, outside __PI32V2__; off 0",
       K.flags(dict(_ud, USB_HOST=1))[0]["FELUCCA_USB_HOST"] == 1 and K.flags(_ud)[0]["FELUCCA_USB_HOST"] == 0 and
       "#ifdef __PI32V2__\n#ifndef FELUCCA_USB_HOST" not in K.header(dict(_ud, USB_HOST=1)))
+# ---- the arena's size and what fits in it (the user's ruling 2026-10-29: the builder shows how much RAM the arena gets)
+# No real ARENA build is recorded in build/exact-sizes.json yet, so the estimate is held against a stand-in real build: a
+# known configuration with sizes whose free SRAM is known (anchor), and a neighbour a few items away
+_ar_cfg = dict(C.defaults(), ARENA=1, **_sd)
+_ar_real = {"flash": 600000, "ram": 90000, "pool": 150000, "ramtext": 30000}     # (a real build's sizes: 475,136 - 8,192 - 270,000 free)
+_ar_free = K.undo_ring(_ar_real)
+_ar_a = K.arena_size(_ar_cfg, _ar_real, exact=True)
+check("arena: the real build's free SRAM less the undo's 16 KB keep, exact, in whole units (8 B)",
+      _ar_a["free"] == _ar_free == sram - 8192 - 270000 and _ar_a["keep"] == 16384 and _ar_a["bytes"] == (_ar_free - 16384) & ~7
+      and _ar_a["kb"] == _ar_a["bytes"] // 1024 and _ar_a["exact"] and K.arena_size(dict(_ar_cfg, ARENA=0), _ar_real) is None)
+check("arena: nothing when the sizes leave no free SRAM (never negative)", K.arena_size(_ar_cfg, dict(_ar_real, pool=900000))["bytes"] == 0)
+check("arena: the cache RAM gives the SRAM it frees to the arena (2 ways +8 KB, 4 or 7 ways +15 KB: the undo keeps 1 KB)",
+      [K.arena_undo_keep(dict(_ar_cfg, CACHE_RAM=w)) for w in (0, 2, 4, 7)] == [16384, 8192, 1024, 1024]
+      and K.arena_size(dict(_ar_cfg, CACHE_RAM=4), _ar_real)["bytes"] - _ar_a["bytes"] == 15 * 1024)
+_ar_b = K.budget(_ar_cfg, costs, extra_anchors=[("stand-in", _ar_cfg, _ar_real)])
+_ar_e = K.arena_size(_ar_cfg, _ar_b["total"])
+check(f"arena: the estimate of a configuration whose real build is known as an anchor is that build's (within {K.ARENA_ESTIMATE_KB} KB)",
+      abs(_ar_e["kb"] - _ar_a["kb"]) <= K.ARENA_ESTIMATE_KB and not _ar_e["exact"])
+_ar_n = dict(_ar_cfg, FX_PUNCH=1)
+_ar_nb = K.budget(_ar_n, costs, extra_anchors=[("stand-in", _ar_cfg, _ar_real)])
+check(f"... a neighbour one item away: within {K.ARENA_ESTIMATE_KB} KB of the anchor's arena",
+      abs(K.arena_size(_ar_n, _ar_nb["total"])["kb"] - _ar_a["kb"]) <= K.ARENA_ESTIMATE_KB)
+_ar_f = {n: (b, c) for n, b, c, _ in K.arena_fits(_ar_cfg)["rows"]}
+_ar_bl = K._raw(K.arena_blocks, dict(_ar_cfg, DLY_ARENA=K.dly_kb(_ar_cfg)))
+check("arena fits: the three sends together = the builder's send lines; a part's engine state x the parts; the PUNCH ring",
+      _ar_f["the 3 sends' lines"] == (sum(K.arena_sends(_ar_bl).values()), 1)
+      and any(n.startswith("a part's") and c == K.nparts(_ar_cfg) and b == _ar_bl["a part's engine state"] for n, (b, c) in _ar_f.items())
+      and _ar_f.get("the PUNCH ring", (0, 0)) == (2 * _ar_cfg["PUNCH_N"], 1) or "the PUNCH ring" not in _ar_f)
+_ar_w = dict(_ar_cfg, ENG_WAVE=1, DRUM_X0X808=1, FX_SLICER=1)
+_ar_wf = {n: b for n, b, c, _ in K.arena_fits(_ar_w)["rows"]}
+check("arena fits: WAVE's table, the X0X 808 state, a track's SLICER recording are rows",
+      _ar_wf.get("WAVE's table") == K.WAVE_MEM and _ar_wf.get("the X0X 808's state") == K.X808_STATE
+      and _ar_wf.get("a track's SLICER recording") == 2 * K.flags(_ar_w)[0]["FELUCCA_SL_LEN"])
+_ar_sd = dict(_ar_cfg, LAYOUT=1, SDCARD=1, SD_RING=4, ENG_SAMPLE=1, ENG_GRAIN=1, ENG_STRETCH=1)
+_ar_sf = {n: (b, c) for n, b, c, _ in K.arena_fits(_ar_sd)["rows"]}
+check("arena fits, SD card mode: GRAIN 33,280 B and STRETCH 16,640 B a part, the sample heads and the rings; none outside it",
+      _ar_sf["GRAIN's card cache"] == (33280, 3) and _ar_sf["STRETCH's card cache"] == (16640, 3)
+      and "a card sample's head" in _ar_sf and "a card stream's ring" in _ar_sf
+      and not any("card" in n for n in _ar_f))
+_ar_t = K.arena_text(_ar_cfg, _ar_b["total"])
+check("arena text: the size marked as an estimate, a row a line, a verdict, within 78 columns; nothing with ARENA off",
+      _ar_t[0].startswith("arena ~") and "estimate" in _ar_t[0] and all(len(x) <= 78 for x in _ar_t)
+      and any("all at once" in x for x in _ar_t) and any("MEM FULL" in x or "fits" in x for x in _ar_t)
+      and K.arena_text(dict(_ar_cfg, ARENA=0), _ar_real) == [] and K.arena_text(_ar_cfg, _ar_real, True)[0].startswith("arena ")
+      and "~" not in K.arena_text(_ar_cfg, _ar_real, True)[0])
+check("arena: the budget summary (fmt_budget) names it",
+      "arena ~" in C.fmt_budget(_ar_cfg, costs) and "arena" not in C.fmt_budget(dict(_ar_cfg, ARENA=0), costs))
+import web_api as WA  # noqa: E402
+WA.init(costs)
+_ar_v = WA.view(_ar_cfg)["arena"]
+_ar_pb = K.budget(_ar_cfg, costs)
+check("web builder: the view carries the arena (kb, free, keep, the panel's lines and the rows) the same as the menu's",
+      _ar_v and _ar_v["kb"] == K.arena_size(_ar_cfg, _ar_pb["total"])["kb"] and _ar_v["lines"] == K.arena_text(_ar_cfg, _ar_pb["total"])
+      and _ar_v["rows"] and WA.view(dict(_ar_cfg, ARENA=0))["arena"] is None)
+_ar_x = subprocess.run([sys.executable, str(ROOT / "tools" / "export_builder_web.py"), "--check"], capture_output=True, text=True)
+check("web builder data export: web/builder/data is what the builder has now (export_builder_web.py --check)",
+      _ar_x.returncode == 0)
 print("builder test " + ("FAILED" if fails else "passed"))
 sys.exit(1 if fails else 0)
