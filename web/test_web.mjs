@@ -2977,6 +2977,13 @@ async function midiSettings() {
     "MIDI settings: the tag and the first id are the firmware's; the Settings tab gets a MIDI group");
 }
 
+/* the protocol document: the device names (FM1-XXXX) and the Wi-Fi ops of this week agree with the firmware (ed_wifi.c, usb.c, ble_cfg.h) */
+{
+  const doc = readFileSync(join(HERE, "EDITOR_PROTOCOL.md"), "utf8"), wf = readFileSync(join(HERE, "../firmware/src/io/editor/ed_wifi.c"), "utf8");
+  ok(/FM1-XXXX/.test(doc) && !/MIDI port is still named "Felucca"/.test(doc) && /"Felucca"/.test(doc) && /5 JAM/.test(doc) && /EDWF_JAM 1/.test(wf) && /\| 5 AP KEY \|/.test(doc),
+    "protocol doc: the device is FM1-XXXX (older names still found), Wi-Fi MODE takes 5 JAM, AP KEY is op 5");
+}
+
 /* ------------------------------------------------- the mixer's keyboard (KEYS, keyPlan) --- */
 function editorKeys() {
   {   /* the drum strip: a click on a sound selects it (no popup), a double click opens it; the send row: the selected sound's */
