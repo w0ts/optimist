@@ -102,9 +102,6 @@ PAIRS = [{"MOTION": 1, "SECTIONS": 4},
          # Bluetooth audio's diagnostics are built with BT_AUDIO only, and their log lines with the CDC console (the
          # console otherwise leaves the stack silent: 14 KB of flash, mots 2026-10-21)
          {"BT_AUDIO": 1, "BT_DIAG": 1}, {"BT_AUDIO": 1, "USB_CONSOLE": 1}, {"BT_AUDIO": 1, "BT_DIAG": 1, "USB_CONSOLE": 1},
-         # SLOOP 2.4's guard and import: core.h SL24_AUTO (PROJECT > A24) and project.c's shared reader are built
-         # with both / either, so the two off together save 3.9 KB less than their deltas
-         {"SL24_SAFE": 0, "SL24_IMPORT": 0},
          # PLOCK's lock base is motion.c's (pool 292 B with PLOCK alone, none beyond MOTION's 900 with both: measured
          # 2026-10-15, user-default 292 B of pool over)
          {"MOTION": 1, "PLOCK": 1},

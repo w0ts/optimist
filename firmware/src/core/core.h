@@ -499,25 +499,9 @@ AINL int32_t pit_mul(int32_t v, int32_t a) { return (v * (pit_depth(a) >> 4)) >>
 #define P_LEG_AMP P_L1AB
 #define P_ENG_END (P_E7 + 1)    /* the values a track stores in a project or a user preset: P_LEVEL .. P_E7 */
 /* RATE below 0 (voice.c lfo_inc): one cycle per note value of the tempo, longest first, as SLOOP 2.6's LFO 2 SYNC
- * (after Felucca 1.4 by Leo Kuroshita): its P_LSYNC n (0 OFF, 1..10) is our RATE -n; with SYNC on its RATE is not
- * heard. LRATE_OF_SLOOP: its SYNC and RATE -> our RATE; SLOOP_LSYNC_OF: our RATE -> its SYNC (its RATE: ours, 0..127) */
+ * (after Felucca 1.4 by Leo Kuroshita): RATE -n is the DUR index n - 1; with SYNC on the free RATE is not heard */
 #define DUR_N 22                /* the note values of the tempo (DUR_48 below): RATE -1 .. -22 */
 #define LSYNC_N DUR_N
-/* (2026-10-22: RATE -n is DUR index n - 1, not SLOOP's n: SLOOP 2.6's 10 values are DUR indices SLOOP_LSYNC_DUR[n - 1]) */
-static const uint8_t SLOOP_LSYNC_DUR[10] = {0, 2, 4, 7, 10, 13, 15, 16, 18, 19};   /* 4BAR 2BAR 1BAR 1/2 1/4 1/8 8T 1/16 16T 1/32 */
-#define LRATE_OF_SLOOP(lsync, rate) ((lsync) > 0 && (lsync) <= 10 ? -(int32_t)SLOOP_LSYNC_DUR[(lsync) - 1] - 1 : (int32_t)(rate))
-static int32_t sloop_lsync_of(int32_t rate)    /* our RATE -> SLOOP's SYNC 0..10: a value it has not, the nearest it has */
-{
-    int32_t d = -rate - 1, i, best = 1;
-    if (rate >= 0)
-        return 0;
-    for (i = 2; i <= 10; i++)
-        if ((SLOOP_LSYNC_DUR[i - 1] > d ? SLOOP_LSYNC_DUR[i - 1] - d : d - SLOOP_LSYNC_DUR[i - 1]) <
-            (SLOOP_LSYNC_DUR[best - 1] > d ? SLOOP_LSYNC_DUR[best - 1] - d : d - SLOOP_LSYNC_DUR[best - 1]))
-            best = i;
-    return best;
-}
-#define SLOOP_LSYNC_OF(rate) sloop_lsync_of(rate)
 #define P_TAIL 1                /* a track has values after P_E7 (P_ENG_END .. P_COUNT - 1): none stored with it, none part
                                  * of a sound but the envelopes' slots (param_kept) */
 
@@ -564,8 +548,6 @@ enum {                          /* global parameters */
 };
 enum { DLYF_LP, DLYF_HP, DLYF_BP, DLYF_PEAK };
 #define PJ_NG ((uint32_t)G_CTHR)   /* the globals a project's g[] holds (its format: 32 since format 1's 27 grew) */
-#define SL24_AUTO (FELUCCA_SL24_SAFE && FELUCCA_SL24_IMPORT)   /* PROJECT > A24 (sl24_guard.c) */
-#define G_A24 (G_COUNT + 2)     /* PROJECT > A24: import SLOOP 2.4's autosave (GO, twice); no stored value */
 #define G_CGR (G_COUNT + 1)     /* LIMIT > GR: the master's gain reduction now, whole dB (master_comp.c); no stored value */
 #if FELUCCA_MASTER_COMP
 static int16_t mc_gr_view;      /* (its value: meters.c, the main loop) */

@@ -151,4 +151,3 @@ times it): 8T is a triplet eighth, 1/8D a dotted eighth, 1BARD a bar and a half.
 the delay's TIME, a synced LFO's RATE (turned below its slowest free value), the SLICER's and the GATER's RATE and ROLL. Only the
 straight values of a beat or less swing. A delay longer than its line plays at half, or a quarter, of the value, still on the beat.
 Projects, presets and backups saved before 2026-10-22 keep their stored numbers, which now name other values: set the values again.
-SLOOP projects and the web editor's SLOOP import are converted.

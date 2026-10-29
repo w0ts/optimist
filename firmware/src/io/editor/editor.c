@@ -150,11 +150,6 @@ static void ed_mirror_info(void) {}
 #else
 #define ED_PROJ_FN
 #endif
-#if (FELUCCA_SL24_EXPORT || FELUCCA_SL24_EDIMPORT) && FELUCCA_FLASH
-#include "ed_sl24.c"           /* cmd 78: the working project and the settings for SLOOP 2.4 (its backup file); 90, 91 its import */
-#else
-#define ED_SL24_FN
-#endif
 
 /* the engine byte of DUMP / RELOAD / TRACK: NENGINES = the drum track (no engine) */
 static uint32_t ed_eng(const track_t *t) { return is_drum(t) ? NENGINES : t->eng_req % NENGINES; }
@@ -295,10 +290,10 @@ typedef int (*ed_cmd_t)(uint32_t cmd, const uint8_t *a, uint32_t na);
 static const ed_cmd_t ED_FX_CMDS[] = {ED_FXS_FN ED_FXP_FN ED_DLAN_FN ED_SCRN_FN ED_SONGC_FN ED_TOOLS_FN ED_SCRS_FN ED_FAV_FN
                                       ED_SCOPE_FN ED_UNDO_FN ED_NOTE_FN ED_SOLO_FN ED_STEPLANE_FN 0};   /* 86..105 */
 /* 65 the macros' effect on the values; 11..21: samples, user presets; 36..42: drum lanes, kits; 43..48: backup; 50, 51
- * drum sources; 52 pages; 54..57 snapshots; 66 the CZ collection; 78, 90, 91 SLOOP 2.4; 79..84 patterns; 92, 93: the
+ * drum sources; 52 pages; 54..57 snapshots; 66 the CZ collection; 78, 90, 91 were SLOOP 2.4's (removed 2026-10-29, not reused); 79..84 patterns; 92, 93: the
  * automation; 110 the projects; 111 the clip; 112 the Wi-Fi networks */
 static const ed_cmd_t ED_CMDS[] = {ED_MACRO_FN ED_USER_FN ED_DRUMS_FN ED_BACKUP_FN ED_DSRC_FN ED_PAGES_FN ED_SNAP_FN
-                                   ED_CZ_FN ED_SL24_FN ED_PAT_FN ED_STEPX_FN ED_PROJ_FN ED_CLIP_FN ED_WIFI_FN 0};
+                                   ED_CZ_FN ED_PAT_FN ED_STEPX_FN ED_PROJ_FN ED_CLIP_FN ED_WIFI_FN 0};
 static int ed_cmds(const ed_cmd_t *t, uint32_t cmd, const uint8_t *a, uint32_t na)   /* 1: one of t answered */
 {
     for (; *t; t++)

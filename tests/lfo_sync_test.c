@@ -20,6 +20,8 @@ static void check(int ok, const char *what)
     fails += !ok;
 }
 
+/* SLOOP 2.6's 10 SYNC values as DUR indices (4BAR 2BAR 1BAR 1/2 1/4 1/8 8T 1/16 16T 1/32) */
+static const uint8_t SLOOP_LSYNC_DUR[10] = {0, 2, 4, 7, 10, 13, 15, 16, 18, 19};
 /* SLOOP 2.6's voice.c lfo_sync_inc (sl25-safe-src/v2.6), its divides as written there */
 static uint32_t sloop_inc(uint32_t lsync, uint32_t bpm)
 {
@@ -83,11 +85,6 @@ static void t_sloop(void)
             printf("  LSYNC %u: ours %lld exact %.1f SLOOP %lld\n", n, (long long)a, x, (long long)b);
     }
     check(ok, "sloop: each SYNC value's step exact (+-2 of 2^32 a block) and as SLOOP 2.6's at 120 BPM (2e-4)");
-    for (n = 0, ok = 1; n <= 10u; n++)
-        ok &= LRATE_OF_SLOOP(n, 77) == (n ? RATE_OF_SYNC(n) : 77) && SLOOP_LSYNC_OF(LRATE_OF_SLOOP(n, 77)) == (int32_t)n;
-    ok &= SLOOP_LSYNC_OF(0) == 0 && SLOOP_LSYNC_OF(127) == 0 && LRATE_OF_SLOOP(11, 50) == 50;
-    ok &= SLOOP_LSYNC_OF(-2) == 1 && SLOOP_LSYNC_OF(-9) == 4 && SLOOP_LSYNC_OF(-22) == 10;   /* (3BAR -> 4BAR or 2BAR; a value SLOOP has not: the nearest) */
-    check(ok, "sloop: 2.6's SYNC n (RATE r) -> our RATE -(SLOOP_LSYNC_DUR[n-1] + 1) (OFF: r), and back; out of range: OFF");
 }
 
 static int32_t o_[2 * CTL];

@@ -217,8 +217,6 @@ static uint32_t section_bars(uint32_t s) { (void)s; return 1; }
 #endif
 #if FELUCCA_SL24_SAFE
 static uint32_t project_state(uint32_t s) { return (uint32_t)project_used(s); }
-static uint32_t a24_imports;
-static void sl24_auto_import(void) { a24_imports++; }
 #endif
 static void project_save(uint32_t i) { (void)i; saves++; ui_message("SAVED"); }
 static void project_load(uint32_t i) { (void)i; loads++; ui_message("LOADED"); }
@@ -1015,7 +1013,6 @@ static void confirm_tests(void)
     release(B_OCTDN);
     frames(2);
     check(!rh.ring && trk[0].step[0].n == 1, "... let go before it closed: nothing cleared");
-    check(!strcmp(PRJ_NAME[PR_A24], "SLOOP"), "PROJECT: SLOOP 2.4 .. 2.6's autosave row named SLOOP");
     op_enter(SCR_PROJECT);
     ui.row[SCR_PROJECT] = 0;
     frame();

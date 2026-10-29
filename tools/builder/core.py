@@ -629,7 +629,6 @@ AUTO_LIST = 1 + 3 * AUTO_MAX                                                 # a
 AUTO_STORE = 4 + 4 + AUTO_NTRK * AUTO_LIST                                   # auto_store_t (seq/auto.c): psum, on + rsv, 4 lists
 AUTO_AUX = 4                                                                 # storage/auto_proj.c AUTO_AUX
 AUTO_ENC_MAX = 3 + AUTO_NTRK * (1 + 3 * AUTO_MAX)                            # auto.h AUTO_ENC_MAX (> the stepx form's)
-SL24_XS = 4 * 176          # storage/project.c sl24_xs: NTRK stepx_t (seq/stepx.h, 176 B) in the pool, with SL24_IMPORT or SL24_EXPORT
 
 
 # items only another item's code includes (the build is the same without it): counted only with that one. Found
@@ -658,16 +657,14 @@ def auto_store(cfg):
     """-> {region: bytes} of the automation store's storage (seq/auto.h, auto.c, storage/auto_proj.c), built with ANY
     of MOTION, CHANCE, SL24_XSTEP (and so MICRO, FILLS, PLOCK: FELUCCA_AUTO): the working store (auto_w) and the
     undo's copy of a list in main RAM; the project buffers' stores (auto_aux x AUTO_AUX, auto_slot x 4 with
-    SECTIONS 4) and the extras record's read buffer (sx_rbuf) in the pool; with SL24_IMPORT or SL24_EXPORT, 2.4's step
-    extras on their way in or out (project.c sl24_xs, pool: found 2026-10-12, 704 B under the estimate). Shared by those
+    SECTIONS 4) and the extras record's read buffer (sx_rbuf) in the pool. Shared by those
     items: the estimate counts it once (model_terms) and the measured deltas and pairs leave it out (measure_costs.py)"""
     f, _ = flags(cfg)
     if not any(f.get(R.ITEMS[k].flag, 0) for k in AUTO_ITEMS):
         return {"ram": 0, "pool": 0}
     slots = 0 if f.get("FELUCCA_SECTIONS", 16) > 4 else 4           # (SEC_LOGGED: the sections live in the log)
     rbuf = (4 + AUTO_ENC_MAX + 3) // 4 * 4 if not slots else (AUTO_ENC_MAX + 3) // 4 * 4   # (stepx_log.c / snapshots.c)
-    export = SL24_XS if f.get(R.ITEMS["SL24_EXPORT"].flag, 0) or f.get(R.ITEMS["SL24_IMPORT"].flag, 0) else 0
-    return {"ram": AUTO_STORE + AUTO_LIST, "pool": (AUTO_AUX + slots) * AUTO_STORE + rbuf + export}
+    return {"ram": AUTO_STORE + AUTO_LIST, "pool": (AUTO_AUX + slots) * AUTO_STORE + rbuf}
 
 
 # engines.c part_mem: NPART engine states in the pool, a union of the engines built that keep one there; bytes of

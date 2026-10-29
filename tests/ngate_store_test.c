@@ -12,7 +12,6 @@
  *              drum track's pattern never copied to a synth track (nor the other way)
  *   editor     TRACK_STEP bytes: the carry flag (hi bit 2) and the four own ends (v12), a write keeps them; AUTO_GET of a
  *              synth track lists none of them, AUTO_SET refuses their ids; a lane id on the drum track still taken
- *   2.4        the export says the own ends are lost (SX24_NGATE, lost2 bit 5), not with none
  *   full       a list of 127 events: one own end stored, the next one not (it plays the step's GATE after a load)
  * Exit status: the number of failed checks. Run by tests/run_tests.sh. */
 #include "lane_host.h"
@@ -218,26 +217,6 @@ static void t_editor(void)
     i = AUTO_L(TRK_DRUM)->n;
     check("AUTO_SET of a lane id on the drum track: still taken", ed_out[2] == 0u && i == 3u);
 }
-static uint32_t get78(uint32_t *w2)
-{
-    uint8_t a[5] = {0, 0, 0, 0, 1};
-    ed_n = 0;
-    (void)ed_sl24(78, a, 5u);
-    *w2 = ed_n >= 17u ? ed_g7(ed_out + ed_n - 2u, 2) : 0xFFFFu;
-    return ed_n;
-}
-static void t_sl24(void)
-{
-    uint32_t w2;
-    setup();
-    (void)get78(&w2);
-    check("2.4 export: the own ends lost, lost2 bit 5 (SX24_NGATE), the lanes' bit 2 beside it", (w2 & 32u) && (w2 & 4u) &&
-          SX24_NGATE == 1u << (14 + 5));
-    setup();
-    trk[0].step[6].ngate[1] = trk[0].step[7].ngate[0] = trk[1].step[6].ngate[1] = trk[1].step[7].ngate[0] = 0;
-    (void)get78(&w2);
-    check("... none: bit 5 clear", !(w2 & 32u));
-}
 static void t_full(void)
 {
     auto_list_t l;
@@ -260,7 +239,6 @@ int main(void)
     t_saveload();
     t_patterns();
     t_editor();
-    t_sl24();
     t_full();
     printf("ngate store test %s (%d failed)\n", bad ? "FAILED" : "passed", bad);
     return bad;

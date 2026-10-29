@@ -49,6 +49,9 @@ RETIRED = {
     "KEYLIT": "the keys always light the notes the selected track plays (retired 2026-10-29, bit 65; the user: \"this flag just does not make sense: remove\"; the settings record keeps a NOTES-off bit that no menu line sets yet)",
     "LIGHTS": "the button and key glow (SYSTEM > KEYS: BUTTONS, KEYS) is always built (retired 2026-10-29, bit 106; the user: \"this flag just does not make sense: remove\")",
     "BRIGHT": "the screen's backlight is always full: the BRIGHT setting is gone (retired 2026-10-29, bit 74; the user: \"it is at the max, and we leave it like that\")",
+    "SL24_IMPORT": "Optimist no longer imports SLOOP projects (LOAD twice; removed 2026-10-29, bit 163, never reuse it)",
+    "SL24_EXPORT": "Optimist no longer exports a project for SLOOP (web editor; removed 2026-10-29, bit 164, never reuse it)",
+    "SL24_EDIMPORT": "Optimist no longer imports a SLOOP song or backup in the web editor (removed 2026-10-29, bit 181, never reuse it)",
     "RESERVE_UNDO_KB": "the builder's reserve entries were useless and not working (retired 2026-10-21, bit 59: the user: \"remove the reserve entry from console and web builder\"); the budget shows the undo ring as information",
     "RESERVE_FLASH_KB": "the builder's reserve entries were useless and not working (retired 2026-10-21, bit 60)",
     "PAGE_LINES": "the screens of rows with no picture are always GLOBAL's four lines, not 2x2 cards over a row list (retired 2026-10-21, bit 342; the user: \"remove the entry of the builder and turn it on by default\")",
@@ -1547,7 +1550,7 @@ for _it in _ITEMS:
 
 # the items of other groups that only drums use: left out with DRUMS (core.built), their switches 0 (core.flags)
 DRUMS_ONLY = ("FX_DUCK", "ENERGY", "LANE_FX", "GRIDS_EUCLID", "GRIDS_LFO", "GRIDS_VEL",
-              "SL24_SAFE", "SL24_IMPORT", "SL24_EXPORT", "SL24_EDIMPORT")   # (SLOOP's formats: a drum track)
+              "SL24_SAFE")   # (SLOOP's data kept safe: a drum track)
 
 
 def ancestors(key):
