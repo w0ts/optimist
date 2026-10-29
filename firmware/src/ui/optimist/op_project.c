@@ -479,10 +479,11 @@ static void info_bar(cell_t *c, uint32_t ring, int32_t now)
     c->hold[1] = (int16_t)(pall < 100u ? pall : 100u);
 }
 static const char *const INFO_MODE_SFX[OVL_NMODE] = {"", " MAX 10S", " MAX"};
-static void info_label(cell_t *c, const char *base)     /* "CPU0" + the measure's suffix ("CPU0 MAX 10S"), in a buffer of its own */
+static void info_label(cell_t *c, const char *base)     /* "CPU0" + the measure's suffix ("CPU0 MAX 10S"), in a buffer of its own
+                                                         * (CPU0 / LOAD, CPU1, RAM) */
 {
-    static char b[2][20];
-    char *t = b[base[3] == '1'];
+    static char b[3][20];
+    char *t = b[base[0] == 'R' ? 2 : base[3] == '1'];
     str_cpy(t, base, sizeof b[0]);
     str_app(t, INFO_MODE_SFX[info_mode % OVL_NMODE], sizeof b[0]);
     c->label = t;
@@ -652,6 +653,7 @@ static void sys_ro(cell_t *c, const char *label)    /* a read-out line */
  * With an arena (core/arena.c: the SRAM the link leaves free, its whole room) the arena's blocks in use the fill, the undo
  * history's share (seq/undo.c: its least and what it borrows) a dimmer segment after it, the rest free; the bright tick the
  * last ~10 s's most in use, the dim one the most since boot (system/overload.h's RAM ring, sampled with the CPU's).
+ * The number by KNOB 1 as the CPU lines': NOW, MAX 10S, MAX (KB; the label's suffix).
  * Without: the SRAM in use at link of the SRAM (stk_sram_free: what is left), no ticks. The stacks: no bar, the label
  * amber and STACK LOW when one has had under STK_LOW left (system/stackmark.h stk_low: ever, the release's own record) */
 #ifdef PLAT_TICKS_PER_US
@@ -661,7 +663,7 @@ static void sys_ro(cell_t *c, const char *label)    /* a read-out line */
 #endif
 static void info_ram(cell_t *c)
 {
-    uint32_t used, total, pct, n;
+    uint32_t used, total, pct, n, shown;
 #if PART_DROPS
     total = ARN_BYTES + ARN_UNDO_KEEP;
     used = ARN_BYTES - arn_room();
@@ -680,11 +682,18 @@ static void info_ram(cell_t *c)
     cell_gauge(c, 0, 0, 100, (int32_t)(pct < 100u ? pct : 100u));
     c->pkbar = 1;
     c->av = (int16_t)(total ? (used + n) * 100u / total < 100u ? (used + n) * 100u / total : 100u : 0u);
+    shown = used / 1024u;
 #if PART_DROPS
-    c->hold[0] = (int16_t)(total ? ovl_win_max(OVL_RAM, fm1_ms, OVL_W10) * 102400u / total : 0u);
-    c->hold[1] = (int16_t)(total ? ovl.r[OVL_RAM].amax * 102400u / total : 0u);
+    {
+        uint32_t k10 = ovl_win_max(OVL_RAM, fm1_ms, OVL_W10), kall = ovl.r[OVL_RAM].amax;
+        c->hold[0] = (int16_t)(total ? k10 * 102400u / total : 0u);
+        c->hold[1] = (int16_t)(total ? kall * 102400u / total : 0u);
+        shown = info_mode == OVL_MAX10 ? k10 : info_mode == OVL_MAXALL ? kall : shown;   /* (KNOB 1 as the CPU lines':
+                                                         * NOW, MAX 10S, MAX, its suffix on the label) */
+        info_label(c, "RAM");
+    }
 #endif
-    fmt_int(c->val, (int32_t)(used / 1024u));
+    fmt_int(c->val, (int32_t)shown);
     n = str_len(c->val);
     c->val[n] = '/';
     fmt_int(c->val + n + 1u, (int32_t)(total / 1024u));
