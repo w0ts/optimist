@@ -71,7 +71,8 @@ static int glw_moves(uint32_t scr, uint32_t i, uint32_t role)
     int32_t s = 1;
     glw_line(scr, i, &c, v0);
     turn(role, s);
-    if (glw_state() == h0) {
+    glw_line(scr, i, &c, v1);
+    if (glw_state() == h0 || !strcmp(v0, v1)) {         /* (nothing moved: a value at its top, LINK's ON+S/S default: the other way) */
         s = -1;
         turn(role, s);
     }

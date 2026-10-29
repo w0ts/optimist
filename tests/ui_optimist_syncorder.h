@@ -81,6 +81,7 @@ static void midi_lists_tests(void)
         w = line_named(SCR_GLOBAL, "LINK");
         o = line_named(SCR_GLOBAL, "LINK OFS");
         check(w < SCR->rows() && o < SCR->rows(), "GLOBAL: a LINK line on the MIDI page and a LINK OFS line after it (Link builds)");
+        line_at(SCR_GLOBAL, w);                         /* (the cursor on the line: its page) */
         turn(LINE_KNOB(w), 1);
         ok = link_mode == LINK_ONSS;                    /* (the knob stops at ON+S/S) */
         turn(LINE_KNOB(w), -1);
@@ -93,6 +94,7 @@ static void midi_lists_tests(void)
         ok &= link_mode == LINK_ON;
         check(ok, "GLOBAL LINK: its knob steps OFF, ON, ON+S/S, stopping at both ends");
         sync_ofs[2] = 0;
+        line_at(SCR_GLOBAL, o);
         turn(LINE_KNOB(o), 1);
         check(o < SCR->rows() && sync_ofs[2] > 0 && sync_ofs[0] == 0 && sync_ofs[1] == 0, "GLOBAL LINK OFS: its own value, CLK OFS and BT OFS untouched");
         sync_ofs[2] = 0;

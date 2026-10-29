@@ -32,7 +32,7 @@ static uint32_t bp23_word(void)
 #endif
     w = (w & ~0x1FFu) | lights_word();
 #if FELUCCA_MIDI_OUT
-    w = (w & ~(1u << 14)) | (uint32_t)(bp_set[BPS_MOUT] != MOUT_KEYS) << 14;   /* (SLOOP 2.4: the same bits: the sequencer out) */
+    w = (w & ~(1u << 14)) | (uint32_t)(bp_set[BPS_MOUT] == MOUT_BOTH || bp_set[BPS_MOUT] == MOUT_SEQ) << 14;   /* (SLOOP 2.4: the same bits: the sequencer out) */
     w = (w & ~(1u << 29)) | (uint32_t)(bp_set[BPS_MOUT] == MOUT_SEQ || bp_set[BPS_MOUT] == MOUT_OFF) << 29;   /* (ours: the keys not; OFF: bit 14 clear and this set, a build before reads KEYS) */
 #endif
     w &= ~(1u << 15);                               /* (the Optimist UI has no MIDI IN setting any more: the bit is free, notes always play) */
