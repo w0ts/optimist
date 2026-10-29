@@ -350,8 +350,10 @@ static void t_seq_out(void)
 /* MIDI OUT = OFF (2026-10-29): the sequencer's notes and the panel's keys send nothing; what was sent before ends */
 static void t_mout_off(void)
 {
-    uint32_t o;
+    uint32_t o, i;
     reset();
+    for (i = 0; i < 16u; i += 4u)
+        step_note(&trk[0], i, 60 + i);
     bp_set[BPS_MOUT] = MOUT_BOTH;
     clear_out();
     play_bars(1);
