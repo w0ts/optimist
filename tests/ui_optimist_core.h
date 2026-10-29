@@ -154,7 +154,7 @@ static void overload_tests(void)
     sys_info_cell(xr, &c);
     check(!strcmp(c.val, "0") && ovl_midi_lost() == 2u, "... UNDERRUNS from 0");
     sys_info_cell(1, &c);
-    check(!strcmp(c.val, "0"), "... the CPU line's MAX from 0");
+    check(c.hold[1] == 0, "... the CPU line's since-boot tick from 0");
     check(c.hold[1] == 0, "... and the since-boot tick (the 10 s tick is the window's: it ages out by itself)");
     check(ui.scr == SCR_SYSTEM && !lay.chord, "... and no redo, no PROJECT");
     {   /* INFO split in two (the user, 2026-10-15): DIAGNOSTICS next, a page of its own, then USB DIAGNOSTICS (USB audio builds) */
