@@ -75,7 +75,7 @@ PROJECT is where storage lives. A storage row (PROJECT, SNAPSHOT, USER) has up t
 - The 16 white keys are the 16 slots of the current bank: key n selects item n and runs the operation on it, through a confirmation. YES runs it on the item the knob is on. A free slot has nothing to load or clear: a toast, no question. The operation returns to LOAD after each action, when the row changes or the screen is left, so a stray key never saves.
 - **OCT- or OCT+ tapped** on a row with slots: the previous or next **bank**, with the toast "BANK n/N".
 - **USER** (32 user presets: two banks) has an INIT card: the selected track's sound back to its engine's defaults. SHIFT2 + ITEM marks a slot a favorite. A user preset's LOAD over an edited sound is asked in red.
-- The rows after them: TOOLS (CLRSQ, INIT, MISS, NEW), SLOOP (import of a SLOOP autosave, in builds with it) and MEMORY (USED as a percentage and FREE, the sections that still fit).
+- The rows after them: TOOLS (CLRSQ, INIT, MISS, NEW) and MEMORY (USED as a percentage and FREE, the sections that still fit).
 - NAME asks for a name before a save: the keys type, SAVE finishes, HOME deletes a character or cancels.
 - SAVE held on PROJECT opens SONG; see [the sequencer](sequencer.md#sections-and-the-song).
 

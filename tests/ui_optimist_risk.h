@@ -243,9 +243,6 @@ static void risk_tests(void)
     rk_prj("SNAPSHOT", PO_LOAD);
     rk_prj("SNAPSHOT", PO_DELETE);
 #endif
-#if SL24_AUTO
-    rk_cell(SCR_PROJECT, "SLOOP", "IMPORT");
-#endif
     rk_edit();
     rk_cell(SCR_PROJECT, "TOOLS", "CLRSQ");
     rk_cell(SCR_PROJECT, "TOOLS", "INIT");

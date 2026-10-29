@@ -65,8 +65,7 @@ answer its commands; the page hides what needs them and keeps the rest (its mock
 | `ED_MIRROR` (live editing or not; default off) | 106 MIRROR and its pushes, 108 PANEL, 109 NAV, 111 CLIP | 65, 67 |
 | Wi-Fi (`FELUCCA_WIFI` with `FELUCCA_BLE`; no builder item yet) | 112 WIFI | 67 |
 
-Other switches: 36..42 need the drum lanes (kits: `DRUM_KITS`), 65 `MACROS`, 66 the CZ collection, 78 / 90 `SL24_EXPORT` / `SL24_EDIMPORT`
-(default off), 92 / 93 the automation store, 100 `FAVORITES`, 79..84 `PATTERNS`, 54..57 `SNAPSHOTS`.
+Other switches: 36..42 need the drum lanes (kits: `DRUM_KITS`), 65 `MACROS`, 66 the CZ collection, 92 / 93 the automation store, 100 `FAVORITES`, 79..84 `PATTERNS`, 54..57 `SNAPSHOTS`.
 
 **Live editing off** (`ED_LIVE=0`, `ed_lite.c`): `INFO` is a short header with tag `64` (one byte: bit 0 backup only, bit 1 the
 librarian). Without the librarian it has no engine, parameter or track (`NENGINES` 0, `P_COUNT` 0) and the build answers
@@ -79,8 +78,7 @@ sections, patterns, kits, backup) and the Library tab (user presets).
 The web editor used none of these and no build answers them (the page still carries the numbers for older firmware):
 `STATUS` 53 and its stream `STREAM` 58 (transport, playing steps, meters; `WATCH` bit 3 is never granted), `REC` 107 and its tag 63,
 SLOOP 2.4's step extras 72..77 (`LOCK_*`, `MICRO_*`, `FILL_*`: the automation store 92 / 93 has them), the pushes `CHANGED` 23,
-`STEP_CHANGED` 26 and `TRACK_CHANGED` 32 (and `WATCH` bits 1 and 3), the 2.4 settings and FM6 bank parts of 78 (parts 1..3, rc 1) and
-`SL24_BANK` 91, FM6's user-bank commands. Numbers 34, 35, 85, 88 and 89 are unused (reserved).
+`STEP_CHANGED` 26 and `TRACK_CHANGED` 32 (and `WATCH` bits 1 and 3), FM6's user-bank commands. Numbers 34, 35, 85, 88 and 89 are unused (reserved); 78, 90 and 91 were SLOOP 2.4's file import and export (removed 2026-10-29), never reused.
 
 ## fm1-base's companion services
 
@@ -151,7 +149,7 @@ built, 7 a byte). The backup file records it.
 | 6 STEP_GET | index 0..NSTEP-1 | index, then the step (below) |
 | 7 STEP_SET | index, step bytes | as STEP_GET, after the write |
 | 8 PRESET | engine, preset | engine byte, preset. Applies the sound, sends and arp; never the pattern, the mix or the key (`LEVEL PAN MUTE`, `LEN DIV SWG GATE`, `ROOT SCL QNT CHORD` stay) |
-| 9 PROJECT | op (0 load, 1 save, 2 query), slot 0..FELUCCA_SECTIONS-1 (A..P) | op, slot, used (0 empty, 1 used; with `SL24_SAFE` 2 = a SLOOP 2.4 project kept in the slot, 3 = another firmware's; neither is loaded), and a fourth byte 1 when the transport plays and nothing was done (stop first). Save writes flash: allow ~2 s |
+| 9 PROJECT | op (0 load, 1 save, 2 query), slot 0..FELUCCA_SECTIONS-1 (A..P) | op, slot, used (0 empty, 1 used; 2 = a SLOOP project kept in the slot (builds with drums), 3 = another firmware's; neither is loaded), and a fourth byte 1 when the transport plays and nothing was done (stop first). Save writes flash: allow ~2 s |
 | 10 NAMES | engine | engine, count, count preset-name strings (12), the two edit-page titles (8) |
 | 22 WATCH | on (bit 0 on, bit 4 note ends) | the bits granted (below) |
 | 25 PING | - | 0 |
@@ -717,32 +715,6 @@ the page shows the effective value with an M mark. `?mock=1&macros=1` turns the 
 | --- | --- | --- |
 | 66 CZ_BANK | 0 (get), slot 0..25 | 0, slot, rc (0 ok, 1 empty or no such slot), then (rc 0) 288 nibbles |
 | 66 CZ_BANK | 1 (put), slot, 288 nibbles; or 1, slot alone (erase) | 1, slot, rc: 0 written, 1 arguments, 2 flash, 3 the transport plays. Writes flash: allow 1 s |
-
-## SLOOP files (78, 90)
-
-`ed_sl24.c`, `storage/sl24/` (`SL24_EXPORT` / `SL24_EDIMPORT`, default off; no flash is written). The compatibility is SLOOP 2.7's. A firmware without them does not answer: the editor shows no button.
-
-**Export (78 SL24_GET):** request `part, offset (3 x 7 bit) [, flags]`; reply `part, rc (0 ok, 1 arguments, 2 busy: a restore or import holds the buffer), length (3 x 7 bit), CRC-32 of the part (5 x 7 bit), lost (2 x 7 bit), offset, pack7 bytes (<= 256; none at its end) [, lost2 (2 x 7 bit)]`.
-`flags` 1 asks for the second lost word, sent as the reply's last two bytes (any other flags value is rc 1; without the byte the reply ends after the data). **Part 0** (the only part; 1..3 give rc 1) is the working project as a SLOOP FUN5 (3840 bytes, its FNV-1a sum; `sl24_export.c`) which SLOOP 2.7 reads, with the step extras. The editor
-asks for part 0, offset 0 at connect to know the build has the export, and reads a part again when its CRC moved between chunks. The editor saves it as SLOOP 2.7's song file (`{format: "sloop-song", version: 1, name, firmware, date, order: null, objects: [{id: 0, ...}]}`, data base64, CRC-32): in SLOOP's editor, Song & sections > Load a song file.
-The drum lanes go onto SLOOP's 16 sounds by their instruments with 2.7's TUNE / DECAY packing; a synth step's `SF_CARRY` is 2.7's held notes; engines are numbered as SLOOP 2.5 / 2.6 do.
-
-**What was lost** (`SX24_*` in `sl24_export.c`; the page's `S24.LOST`, `S24.LOST2`). Word `lost` (bits 0..13): 0 an engine SLOOP has not (SLICE, ACID, CZ: a fallback), 1 an FM6 voice that is not one of SLOOP's factory patches F1..F8, 2 FX OFF, 3 ANALOG 2, 4 a drum kit past 2.4's 37, 5 locks 2.4 has not, 6 drum lanes beyond SLOOP's,
-7 the reverb type / COMP / LIMIT, (8 retired), 9 an amount of an effect in no slot, 10 COMP, 11 a drum sound's DIST, 12 the drum bus's DST CHO DLY REV, 13 motion (hold events). Word `lost2` (bit n = `SX24_*` bit 14 + n): 0 a step's chance, 1 an LFO RATE synced to the tempo, 2 the drum lanes' motion and locks,
-3 a drum lane's LFO, 4 an FX return below unity, 5 a POLY note's own end, 6 a FILTER before a DIST, 7 a further insert (FOLD .. ECHO, GATER), 8 a step condition, 9 a part's LFO 2 not written as 2.4's LFO, (10 unused), 11 an LFO DEST slot 2.4 has not, 12 the ACCENT lane, 13 the delay filter (not LP 12 dB RES 0).
-A request without the flags byte gets bit 13 of `lost` as "motion or chance".
-
-**Import (90 SL24_PUT):**
-
-| Request | Reply |
-| --- | --- |
-| 0 (begin), length (3 x 7 bit), CRC-32 (5 x 7 bit) | 0, rc |
-| 1 (data), offset (3 x 7 bit), CRC-32 of the chunk (5 x 7 bit), pack7 bytes (<= 256, in order) | 1, offset, rc |
-| 2 (commit) | 2, rc (0: imported, the working project now) |
-
-The object is a SLOOP 2.7 project of a song file (its object 0) or a backup file (object 0, or 2..5 = A..D): a FUN6 (3816 bytes) which the editor makes a FUN5 first (`sl26ToFun5`), or a FUN5 as it is; exactly 3840 bytes. The FM-1 puts SLOOP's 16 drum sounds on our lanes (`sl27_lanes_in`; more than 10 used: the 10 with the most hits, "DRUMS CUT"),
-turns 2.7's held notes into `SF_CARRY`, maps an arp mode we have not to the nearest ("ARP CUT"). The commit imports it as `PROJECT` > LOAD twice does with a 2.4 project in flash (`sl24_import_buf`): the working project; SAVE keeps it.
-rc: 0 ok, 1 arguments / no import begun, 2 CRC, 3 the transport plays, 6 a length other than 3840, 8 not a SLOOP project, 9 busy. A begun import holds the project buffer: 10 s without a command lets it go.
 
 ## FM6 and DX7 SysEx (no command)
 

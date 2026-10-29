@@ -265,7 +265,7 @@
     {"kind": "page", "ctx": "DRUMS", "params": {
       "CH": "Drum MIDI channel (0: off)", "LVL": "Drum level"}},
     {"kind": "page", "ctx": "PROJECT", "params": {
-      "SLOT": "Project slot", "A24": {"text": "2.4 autosave (twice)", "if": "FELUCCA_SL24_SAFE && FELUCCA_SL24_IMPORT"},
+      "SLOT": "Project slot",
       "LOAD": "Load project (twice)", "SAVE": "Save project (twice)"}},
     {"kind": "page", "ctx": "TOOLS", "params": {
       "CLRSQ": "Clear the pattern (twice)", "INIT": "Reset the sound (twice)",
@@ -508,7 +508,6 @@
       "CLRSQ": "Clear the pattern -> SAVE", "INIT": "Reset the sound -> SAVE",
       "MISS": {"text": "What this build is missing", "if": "FELUCCA_MISSING_WARN"},
       "NEW": "New project: clears -> SAVE"}},
-    {"kind": "op", "ctx": "SLOOP", "if": "SL24_AUTO", "params": {"IMPORT": "Import SLOOP autosave -> SAVE"}},
     {"kind": "op", "ctx": "MEMORY", "if": "SEC_LOGGED", "params": {
       "USED": "Project memory used", "FREE": "Sections that still fit"}},
     {"kind": "op", "ctx": "KIT", "if": "DL_ANY", "params": {

@@ -10,7 +10,7 @@
  *
  * One difference, on purpose (docs/SLOOP24-BACKPORT.md 1.3): a lock's param is OUR P_* id. 2.4's ids differ from 50
  * up (its P_TFLT 50, P_STRUM 51, P_VLEAD 52, P_E0 53; ours P_FXOFF 50, ANALOG 2 51.., P_E0 67): the importer and the
- * exporter (sl24_import.c, to come) convert. Everything else is 2.4's value as is.
+ * exporter (removed 2026-10-29) converted. Everything else is 2.4's value as is.
  *
  * Header only: the type, the limits and small pure helpers (no state), so the sequencer (phase 2), the codec, the
  * importer and the host tests share it. The working copy and its storage (the section log, the autosave): stepx.c,

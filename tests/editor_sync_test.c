@@ -76,7 +76,6 @@ static uint32_t ed9_ends_host;                                 /* (WATCH bit 4, 
 static int project_used(uint32_t s) { return s == 1u; }
 #if FELUCCA_SL24_SAFE
 static uint32_t project_state(uint32_t s) { return (uint32_t)project_used(s); }   /* (sl24_guard.c: no slot of 2.4's here) */
-static void sl24_auto_import(void) {}                          /* (sl24_guard.c: no 2.4 autosave here) */
 #endif
 #include "../firmware/src/io/editor/ed_steps.c"
 #include "../firmware/src/io/editor/ed_song.c"

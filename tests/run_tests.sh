@@ -1483,48 +1483,12 @@ job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/stepx_store_test" tests/stepx_store_test.c -lm
     run "SLOOP 2.4 step extras kept with the sections and the autosave (FELUCCA_SL24_XSTEP): save, load, live store, stage, keys" "$OUT/stepx_store_test"
 ) >"$U.out" 2>&1 & jobbg
-for x in "0 0 0" "1 0 0" "1 1 1" "0 1 1" "1 1 0" "1 0 1"; do
-    set -- $x
-    job; ( jobin
-        $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_SL24_XSTEP=$1 -DFELUCCA_TRK_FILT=$2 -DFELUCCA_CHORDPLUS=$3 -o "$OUT/sl24_import_test$1$2$3" tests/sl24_import_test.c -lm
-        run "a SLOOP 2.4 project imported (golden FUN5 from 2.4's own types), XSTEP=$1 TRK_FILT=$2 CHORDPLUS=$3: values, FILT/STRUM/VLEAD, engines, FM6, kits, extras; LOAD twice" "$OUT/sl24_import_test$1$2$3"
-    ) >"$U.out" 2>&1 & jobbg
-done
-for x in "0 0 0" "1 0 0" "1 1 1" "0 1 1" "1 1 0" "1 0 1"; do   # (as the import's: both switches, each alone)
-    set -- $x
-    job; ( jobin
-        $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_SL24_XSTEP=$1 -DFELUCCA_TRK_FILT=$2 -DFELUCCA_CHORDPLUS=$3 -o "$OUT/sl24_export_test$1$2$3" tests/sl24_export_test.c -lm
-        run "ours exported for SLOOP 2.4 (SL24_EXPORT), XSTEP=$1 TRK_FILT=$2 CHORDPLUS=$3: golden FUN5 in and out byte for byte but the losses (FILT's slot); ours -> 2.4 -> ours, each loss listed; FM6 voices by PTCH or 2.4's bank; 2.4's settings; FX slots" "$OUT/sl24_export_test$1$2$3"
-    ) >"$U.out" 2>&1 & jobbg
-done
-job; ( jobin
-    $CC -O2 -w -I"$HGEN" -Ifirmware/src $INSFX_ON -DFELUCCA_TRK_FILT=1 -o "$OUT/sl24_export_ifx_test" tests/sl24_export_test.c -lm
-    run "ours exported for SLOOP 2.4 with the further inserts built (INS_*, TRK_FILT): the same, and a further insert heard lost (INSFX)" "$OUT/sl24_export_ifx_test"
-) >"$U.out" 2>&1 & jobbg
-job; ( jobin
-    $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/sl24_edimport_test" tests/sl24_edimport_test.c -lm
-    run "a SLOOP 2.4 backup file's project through the editor (SL24_EDIMPORT, cmds 90 / 91): chunks and CRCs, the FM6 parts' bank patches, every refusal, 2.4's bank read out, nothing written" "$OUT/sl24_edimport_test"
-) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/sl25_safety_test" tests/sl25_safety_test.c -lm
     run "started on SLOOP 2.5 / 2.6's flash (SL24_SAFE): their settings (88 B + the SYN kits + 2.6's MIDI part) never read as ours, never written over; each firmware reads its own" "$OUT/sl25_safety_test"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
 ) >"$U.out" 2>&1 & jobbg
-for x in "0 0 0" "1 1 1" "1 0 0"; do
-    set -- $x
-    job; ( jobin
-        $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_SL24_XSTEP=$1 -DFELUCCA_TRK_FILT=$2 -DFELUCCA_CHORDPLUS=$3 -o "$OUT/sl26_import_test$1$2$3" tests/sl26_import_test.c -lm
-        run "SLOOP 2.5 / 2.6 projects imported (golden FUN5 / FUN6 from their own types), XSTEP=$1 TRK_FILT=$2 CHORDPLUS=$3: 2.5's PHYS / NOISE, FUN6 -> FUN5, LOAD twice; PHYS exported as 2.5's" "$OUT/sl26_import_test$1$2$3"
-    ) >"$U.out" 2>&1 & jobbg
-done
-for x in "0 0 0" "1 1 1"; do
-    set -- $x
-    job; ( jobin
-        $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_SL24_XSTEP=$1 -DFELUCCA_TRK_FILT=$2 -DFELUCCA_CHORDPLUS=$3 -DFELUCCA_SL24_EXPORT=1 -o "$OUT/sl27_import_test$1$2$3" tests/sl27_import_test.c -lm
-        run "a SLOOP 2.7 project (golden FUN6 from 2.7.1's own types), XSTEP=$1 TRK_FILT=$2 CHORDPLUS=$3: its 16 drum sounds on our lanes with their TUNE / DECAY, held notes as SF_CARRY (never a chance), the arp's modes, LOAD twice; exported and back" "$OUT/sl27_import_test$1$2$3"
-    ) >"$U.out" 2>&1 & jobbg
-done
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/sec_log_test" tests/sec_log_test.c -lm
     run "song sections: the log (restarts, compaction, writes and erases cut, MEM FULL and its reserve; the patterns' ids 24..87 and the MIDI tracks' 142..225 kept, 16 busy codec B sections)" "$OUT/sec_log_test"
