@@ -238,6 +238,8 @@ class Builder(App):
             hot = self.over.get(r, 0) > 0 and n > 0     # it holds part of an overflowing region
             t.append(f"  {r} {n / 1024:+.1f}K",
                      style="bold red" if hot else ("bold reverse cyan" if r == self.sort_by else "cyan"))
+        if key.startswith("SET_") and C.card_sets(self.cfg):   # (SD card mode: 0 B of flash, the SD card zip holds it)
+            t.append("  on the card" if v else "  not on the card", style="cyan" if v else "dim")
         took = dict(deltas)
         if self.over and all(took.get(r, 0) >= o for r, o in self.over.items()):  # alone, it fits all
             t.append("  ◀ off = fits", style="bold red")

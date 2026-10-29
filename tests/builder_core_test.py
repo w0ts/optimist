@@ -300,6 +300,24 @@ check("MEMORY: no image: the header and the hash are the same for a configuratio
 check("MEMORY: a .config written under the old group names still loads (legacy header kept)",
       K.parse("# USB & BT & MIDI\nUSB_CONSOLE=1\n")[0]["USB_CONSOLE"] == 1 and "USB & BT & MIDI" in R.LEGACY_GROUPS)
 
+# SD card mode's sample sets (the user, 2026-10-29: a ticked set never grows the flash; they go on the card)
+_sets = K.set_keys()
+_sd = K.set_memory(dict(K.defaults(), SD_RING=4, ENG_SAMPLE=1, ARENA=96), 2)
+_on, _off = dict(_sd, **{k: 1 for k in _sets}), dict(_sd, **{k: 0 for k in _sets})
+check("card sets: SD card mode builds no set, ticked or not (the generator's env: SAMPLES_CARD, no set skipped by "
+      "its tick), the same image either way",
+      K.card_sets(_on) and K.flags(_on)[1]["FELUCCA_SAMPLES_CARD"] == "1" and K.flags(_on) == K.flags(_off) and
+      not any(R.ITEMS[k].env in K.flags(_off)[1]["FELUCCA_SAMPLES_SKIP"].split(",") for k in _sets) and
+      K.distance(_on, _off) == 0)
+check("card sets: the estimate the same with every set ticked or none (0 B of flash each), the ticks the zip's sets",
+      K.additive(_on, costs)[0] == K.additive(_off, costs)[0] and
+      K.card_set_names(_on) == [R.ITEMS[k].env for k in _sets] and K.card_set_names(_off) == [])
+_cl = dict(K.defaults(), **{k: 0 for k in _sets})
+check("card sets: outside SD card mode a set's tick is its flash, as before (SKIP names it, SAMPLES_CARD 0)",
+      not K.card_sets(K.defaults()) and K.flags(K.defaults())[1]["FELUCCA_SAMPLES_CARD"] == "0" and
+      K.additive(_cl, costs)[0]["flash"] < K.additive(K.defaults(), costs)[0]["flash"] and
+      "PIANO" in K.flags(_cl)[1]["FELUCCA_SAMPLES_SKIP"].split(",") and K.card_set_names(K.defaults()) == [])
+
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
