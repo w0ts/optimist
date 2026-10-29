@@ -519,7 +519,7 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
                                             * the one item MIDI_CLOCK is clock in + out; tests may still set it alone */
 #endif
 #ifndef FELUCCA_TFLT_RESO
-#define FELUCCA_TFLT_RESO 1                /* HOME > AUDIO > FILT RESO (SLOOP 2.8): the track FILTER's resonance, 0 clean .. 10 (fx.c
+#define FELUCCA_TFLT_RESO 1                /* GLOBAL > FILTER > FILT RESO (SLOOP 2.8): the track FILTER's resonance, 0 clean .. 10 (fx.c
                                             * tflt_reso; core.h G_TFRES). Only with the track FILTER (TRK_FILT) */
 #endif
 #ifndef FELUCCA_DS_NTUNE

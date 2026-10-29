@@ -162,9 +162,9 @@ static void pm_lists_tests(void)
     s = ui.row[SCR_SYSTEM];
     tap(B_HOME);
     tap(B_GLO);
-    check(ui.scr == SCR_GLOBAL && ui.row[SCR_GLOBAL] == g && g != 0u, "... left by HOME, GLO: GLOBAL on the line it was left on");
+    check(ui.scr == SCR_SYSTEM && ui.row[SCR_SYSTEM] == s && s != 0u, "... left by HOME, GLO: SYSTEM (the one open last, 2026-10-29) on the line it was left on");
     tap(B_GLO);
-    check(ui.scr == SCR_SYSTEM && ui.row[SCR_SYSTEM] == s && s != 0u, "... GLO again: SYSTEM on the line it was left on");
+    check(ui.scr == SCR_GLOBAL && ui.row[SCR_GLOBAL] == g && g != 0u, "... GLO again: GLOBAL on the line it was left on");
     /* TEMPO, held open by PLAY */
     reset_ui();
     press(B_PLAY);

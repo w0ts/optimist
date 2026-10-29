@@ -329,7 +329,7 @@ Emulator (`stepcards`, A B C D, on T1's PATTERN page; ui.cards_t, cards_long rea
   - emulator: measured, not judged (the 4-note chord's RMS spread per engine in section 2: 0.8 dB WHEEL .. 36 dB SID; above 15 dB: PHYS, NOISE, DRONE, TERRAIN, SID, PROPHET). Loudness by ear and drum VOLUME: hardware only.
 - [ ] One list of note values (4BAR to 1/64, straight, dotted, triplet) on ARP RATE, SEQ DIV, DELAY TIME, synced LFOs, GATER, ROLL; arp GATE up to 198 %. Pass: all list the same values in length order.
   - emulator: not run.
-- [ ] Scene backports (A): track FILTER resonance (HOME > AUDIO > FILT RESO, 0 to 10, never self-oscillating), drum TUNE on the noise sounds (closed hat, shaker, clap), a track reusing its own released voice first. Pass: each as named.
+- [ ] Scene backports (A): track FILTER resonance (GLOBAL > FILTER > FILT RESO, 0 to 10, never self-oscillating), drum TUNE on the noise sounds (closed hat, shaker, clap), a track reusing its own released voice first. Pass: each as named.
   - emulator: not run.
 - [ ] MISSING warning: load a project from A that uses PHYS or the X0X 909 into B (needs a project in one package and a load in another; SAVE as a backup file in the web editor and restore it in B). Pass: the top bar says MISSING and names the engine or kit; PROJECT > TOOLS > MISSING lists it again; the engine's stand-in plays, nothing stalls.
   - emulator: pass (`missing`, the flash carried instead of a backup file: A's project (FM6, X0X 909) in B: "MISSING: FM6 T1 +1", the stand-in (DIGITAL) plays; B's (TRIO) in A: "MISSING: TRIO T1"; A's (DIGITAL, X0X 909) in C: "MISSING: KIT X0X 909"; B's (TRIO) in D; late 0, one boot). PROJECT > TOOLS > MISSING: not looked at. The backup-file route: hardware only (USB).

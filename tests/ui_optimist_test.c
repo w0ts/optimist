@@ -377,6 +377,7 @@ static void reset_ui(void)
 #endif
     fm1_in.buttons = 0;
     fm1_in.notes = 0;
+    glo_last = SCR_GLOBAL;                              /* (a power-on's: GLO opens GLOBAL first, op_global.c) */
     op_disarm();
     ui.msg_t = 0;
     st.pk = PK_NONE;                                    /* (no note picked: its selection colour would show on the next roll) */
