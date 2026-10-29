@@ -119,8 +119,8 @@ ok(same(L.deltaOf("A", sav, { ram: 5 }), [["flash", 100], ["ram", 10]]) && same(
 ok(L.offFits([["flash", 900]], { flash: 800 }) && !L.offFits([["flash", 900]], { flash: 800, ram: 1 }) && !L.offFits([["flash", 1]], {}), "◀ off = fits: alone it covers every overflow");
 const t0 = L.treeOf(reg, "", {}, null);
 const tcount = (ns) => ns.reduce((n, i) => n + 1 + tcount(i.children), 0);   /* (a group's head: two levels, DRUMS) */
-ok(same(t0.map((g) => g.group), reg.groups.filter((g) => (reg.top[g] || []).length)) && t0.reduce((n, g) => n + tcount(g.items), 0) === reg.items.length,
-  "list: every group with items, every item once (top level, then its options, a group's head's options' options)");
+ok(same(t0.map((g) => g.group), reg.groups.filter((g) => (reg.top[g] || []).length)) && t0.reduce((n, g) => n + tcount(g.items), 0) === reg.items.filter((i) => !i.hidden).length,
+  "list: every group with items, every item once but the hidden ones (top level, then its options, a group's head's options' options)");
 const tdr = t0.find((g) => g.group === "Drums");
 ok(tdr && tdr.items.length === 1 && tdr.items[0].key === "DRUMS" && tdr.items[0].children.some((c) => c.key === "DRUM_X0X909" && c.children.some((o) => o.key === "X909_CYM")),
   "list: DRUMS heads the drum group, an X0X kit's options under the kit");

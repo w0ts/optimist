@@ -21,6 +21,13 @@ static void fm1_p33_write(uint32_t a, uint8_t d) { sim_p33[a & 0x3FFu] = d; }
 static void fm1_p33_or(uint32_t a, uint8_t d) { sim_p33[a & 0x3FFu] |= d; }
 static void fm1_p33_and(uint32_t a, uint8_t d) { sim_p33[a & 0x3FFu] &= d; }
 
+/* the supply (firmware/hal/fm1_sys.h fm1_charge_state, the same reads of the P33 copy: nothing written there = no 5 V, on the cell) */
+static uint32_t fm1_charge_state(void)
+{
+    uint8_t ldo = fm1_p33_read(0xA1u), con = fm1_p33_read(0x1Au), rd = fm1_p33_read(0x19u);
+    return !(ldo & 0x20u) ? 0u : (con & 1u) && !(rd & 1u) ? 2u : 1u;
+}
+
 static void fm1_wdt_arm(uint8_t t) { (void)t; }
 static void fm1_wdt_feed(void) { sim_advance(10u * 24u); }
 static void fm1_wdt_stop(void) {}

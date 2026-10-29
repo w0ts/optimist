@@ -2968,13 +2968,20 @@ async function midiSettings() {
   o2.teardown();
   ok(info.midiSet && info.midiSet.mask === 7 && info.midiSet.scope === 9 && info.midiSet.id === 5 && list && list.length === 6 &&
     js(list.map((r) => r.label)) === js(["TRACK 1", "TRACK 2", "TRACK 3", "DRUMS", "MIDI OUT", "MIDI IN"]) &&
-    list[0].value === 1 && list[3].value === 10 && list[0].names.length === 17 && js(list[4].names) === js(["KEYS", "BOTH", "SEQ"]) &&
+    list[0].value === 1 && list[3].value === 10 && list[0].names.length === 17 && js(list[4].names) === js(["KEYS", "BOTH", "SEQ", "OFF"]) &&
     after.v === 7 && after.get === 7 && old === null,
     "MIDI settings: INFO tag 54 (mask, scope 9, id 5), six rows by DESC / GET, a channel SET / GET; older firmware: none");
   const ed = readFileSync(join(HERE, "../firmware/src/io/editor/editor.c"), "utf8");
   ok(/ed_b\(0x54\); ed_b\(3\);/.test(ed) && /ed_b\(BPS_CH0\);/.test(ed) && /function midiSetGroup\(\)/.test(html) &&
     /const mg = midiSetGroup\(\); if \(mg\) groups\.setgroups\.push\(mg\)/.test(html),
     "MIDI settings: the tag and the first id are the firmware's; the Settings tab gets a MIDI group");
+}
+
+/* the protocol document: the device names (FM1-XXXX) and the Wi-Fi ops of this week agree with the firmware (ed_wifi.c, usb.c, ble_cfg.h) */
+{
+  const doc = readFileSync(join(HERE, "EDITOR_PROTOCOL.md"), "utf8"), wf = readFileSync(join(HERE, "../firmware/src/io/editor/ed_wifi.c"), "utf8");
+  ok(/FM1-XXXX/.test(doc) && !/MIDI port is still named "Felucca"/.test(doc) && /"Felucca"/.test(doc) && /5 JAM/.test(doc) && /EDWF_JAM 1/.test(wf) && /\| 5 AP KEY \|/.test(doc),
+    "protocol doc: the device is FM1-XXXX (older names still found), Wi-Fi MODE takes 5 JAM, AP KEY is op 5");
 }
 
 /* ------------------------------------------------- the mixer's keyboard (KEYS, keyPlan) --- */
