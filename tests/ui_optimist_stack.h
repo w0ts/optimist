@@ -111,7 +111,7 @@ static void stackmark_tests(void)
     stk_host_free = 0;
     {   /* the page: the CPU line's bar under its text (never under it, never text on it), its fill to the load now, the ticks */
         uint32_t ci = info_line(DUAL_LOAD ? "CPU0" : FELUCCA_SYS_DEBUG ? "LOAD" : "CPU LOAD"), n = info_lines(INFO_PG_INFO);
-        int32_t ph = (GL_END - gl_y0()) / (int32_t)n, cap = ph >= GL_INFO_BIG ? gl_pitch() : GL_INFO_PH, y0, y, by = -1, x10, x60;
+        int32_t ph = gl_info_pitch(INFO_PG_INFO, n, gl_y0()), y0, y, by = -1, x10, x60;
         memset((void *)&ovl, 0, sizeof ovl);
         info_mode = OVL_NOW;
         ovl_ring_put(&ovl.r[OVL_CPU0], ovw_pct(90u), fm1_ms - 30u * 1024u);   /* (90 % half a minute ago: the dim tick, red) */
@@ -122,7 +122,6 @@ static void stackmark_tests(void)
         ui.force = 1;
         frame();
         ppm("opt-info-bars");
-        ph = ph > cap ? cap : ph;
         y0 = OH_HEAD + gl_y0() + (int32_t)ci * ph;
         for (y = y0; y < y0 + ph && by < 0; y++)
             if (px_in(GL_BX, (uint32_t)y, 1, 1, C_OK) && px_in(GL_BX + 80, (uint32_t)y, 1, 1, C_OK))

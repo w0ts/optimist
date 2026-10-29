@@ -133,6 +133,7 @@ static void gl_line_draw(uint32_t k, int32_t y, const cell_t *c, uint32_t on)
  * only but the CPU lines' bars (gl_info_bar: the load now and its peaks; the clock, the load of each core, RAM, the battery). KNOB 1 sets
  * the CPU lines' number (op_global.c info_knob); no line is the cursor */
 #define GL_INFO_PH 26                                   /* a read-out page's line pitch at most */
+#define GL_INFO_PH_MAIN 34                              /* INFO's: five or six lines (the battery is the header's, 2026-10-29) spread over the band */
 static uint32_t gl_sys_item(void)                       /* SYSTEM's page shown is the one whose first line is this item (SI_NONE: not SYSTEM) */
 {
     uint32_t e = gld.s && gld.first < gl_n(1) ? gl_ent(1, gld.first) : 0u;
@@ -199,15 +200,18 @@ static void gl_info_bar(int32_t by, const cell_t *c)
         cv_rect(x, by - GL_INFO_TK, GL_INFO_TK, GL_BH + 2 * GL_INFO_TK, k ? col_shade(load_col(v), 4u) : load_col(v));
     }
 }
+static int32_t gl_info_pitch(uint32_t pg, uint32_t n, int32_t y0)   /* a read-out page's line pitch: the band shared by its n lines */
+{
+    int32_t ph = (GL_END - y0) / (int32_t)n, cap = ph >= GL_INFO_BIG ? gl_pitch() : pg == INFO_PG_INFO ? GL_INFO_PH_MAIN : GL_INFO_PH;
+    return ph > cap ? cap : ph;                         /* (a short page: a list's pitch, from the top) */
+}
 static void gl_info_draw(int32_t y0)
 {
     uint32_t i, pg = gl_info() - 1u, n = info_lines(pg);
-    int32_t ph = (GL_END - y0) / (int32_t)n, cap = ph >= GL_INFO_BIG ? gl_pitch() : GL_INFO_PH, ty, fy, uw, x;
+    int32_t ph = gl_info_pitch(pg, n, y0), ty, fy, uw, x;
     char b[20], lv[14];
     const char *nm;
     cell_t c;
-    if (ph > cap)
-        ph = cap;                                       /* (a short page: a list's pitch, from the top) */
     for (i = 0; i < n; i++) {
         int32_t y = y0 + (int32_t)i * ph, tp;
         uint16_t vc;
