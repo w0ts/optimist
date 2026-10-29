@@ -34,7 +34,7 @@ static void strings_note_on(track_t *t, voice_t *v)
 }
 
 /* a register: a saw, towards a square with SHP (x Q15: 0 saw .. 32767 square) */
-AINL int32_t str_reg(uint32_t ph, uint32_t inc, int32_t x)
+OVLX(strings) AINL int32_t str_reg(uint32_t ph, uint32_t inc, int32_t x)
 {
     int32_t a = osc_saw(ph, inc);
     return x ? a + mulq15(((a - osc_saw(ph + 0x80000000u, inc)) >> 1) - a, x) : a;

@@ -91,7 +91,7 @@ static const int16_t PHYS_CHORDS[7][PX_NSYMP] = {
 };
 static const int8_t PHYS_DETUNE[PX_NSYMP] = {1, -1, 0};   /* 1/16 semitone (6 cents): the strings beat a little */
 
-static phys_slot_t *phys_slot_of(track_t *t, voice_t *v)
+static FASTI(phys) phys_slot_t *phys_slot_of(track_t *t, voice_t *v)
 {
     uint32_t i;
     if (t < &trk[0] || t >= &trk[NPART])
@@ -101,7 +101,7 @@ static phys_slot_t *phys_slot_of(track_t *t, voice_t *v)
 }
 
 /* a clean state for model md */
-static void phys_reset(phys_slot_t *S, uint32_t md, uint32_t seed)
+static FAST(phys) void phys_reset(phys_slot_t *S, uint32_t md, uint32_t seed)
 {
     uint32_t i, *w = (uint32_t *)&S->u;
     for (i = 0; i < sizeof S->u / 4u; i++)
@@ -141,7 +141,7 @@ static void phys_note_on(track_t *t, voice_t *v)
     if (!S)
         return;
     if ((!v->env && !v->env_out) || S->model != md)     /* a fresh voice (not a retrigger): from rest */
-        phys_reset(S, md, rng());
+        FAST_CALL(phys, phys_reset)(S, md, rng());
     switch (md) {
     case PM_MODAL:
     case PM_MEMB:
@@ -154,7 +154,7 @@ static void phys_note_on(track_t *t, voice_t *v)
 }
 
 /* SYMP: the sympathetic strings' pitches (cycles Q32) by CHRD: a chord above the note, or ROOT */
-static __attribute__((noinline)) void phys_symp_pitches(const track_t *t, const vmod_t *m, uint32_t *f)
+static FAST(phys) __attribute__((noinline)) void phys_symp_pitches(const track_t *t, const vmod_t *m, uint32_t *f)
 {
     uint32_t c = (uint32_t)t->p[P_E1] >> 4, k;          /* 0..7 */
     for (k = 0; k < PX_NSYMP; k++) {
@@ -165,7 +165,7 @@ static __attribute__((noinline)) void phys_symp_pitches(const track_t *t, const 
     }
 }
 
-static void phys_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
+static FAST(phys) void phys_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
 {
     const int16_t *p = t->p;
     phys_slot_t *S = phys_slot_of(t, v);

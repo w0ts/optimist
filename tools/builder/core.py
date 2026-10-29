@@ -167,6 +167,8 @@ def parse(text, base=None, strict=True, warn=None, reject_unknown=False):
             continue
         if k in R.WAS_COUNT and v:                      # (a count of instances before the effects memory: built)
             v = 1
+        if k in R.FAST_NAMES and v == R.ENG_LEGACY_ON:  # (an engine "on" before its place was a choice: its place by
+            v = R.eng_place(k)                          # default, registry.py FAST_NAMES: the image it built)
         cfg[k] = v
         named.add(k)
     for k, it in R.ITEMS.items():                      # (a fixed item: what every build has, whatever the text says)
@@ -373,6 +375,12 @@ def flags(cfg):
             v = it.default                              # (an option of an item left out: its default, ignored)
         if any(R.ITEMS[a].head and not cfg[a] for a in R.ancestors(k)) or (k in R.DRUMS_ONLY and not cfg["DRUMS"]):
             v = 0                                       # (a group's head off: none of its code, registry.h checks it)
+        if k in R.FAST_NAMES:                           # (an engine: built or not, and where its hot code runs: core.h)
+            if v == R.ENG_LEGACY_ON:                    # (a 1 set in code, not parsed: its place by default)
+                v = R.eng_place(k)
+            for nm in R.FAST_NAMES[k]:
+                out[f"FAST_RAM_{nm}"] = int(v == R.ENG_RAM)
+            v = int(v != R.ENG_OFF)
         out[it.flag] = v
     if cfg.get("ARENA", 0):
         out[R.ITEMS["ARENA"].flag] = 1                  # (on: the free SRAM, engines.c ARN_FREE; a KB of before too)
@@ -452,6 +460,9 @@ def cfg_hash(cfg):
     retired item the image is still built as (R.HASH_AS) counts at that value, so the hash of a configuration
     does not move when it is retired (the same image: its check builds in costs.json stay valid)"""
     full = dict(R.HASH_AS, **cfg)
+    for k in R.FAST_NAMES:                              # (an engine at its place by default: 1, as before the choice, so
+        if full.get(k) == R.eng_place(k):               # a configuration's hash, its image's, stays what it was)
+            full[k] = 1
     return fnv32("".join(f"{k}={full[k]}\n" for k in sorted(full)
                          if k in R.HASH_AS or not R.ITEMS[k].no_image)) & 0x7FFFFFFF
 
@@ -479,12 +490,30 @@ def header(cfg, name="custom"):
     return "\n".join(L) + "\n"
 
 
+def _eng_delta(costs, key, value):
+    """an engine at a place (registry.py FAST_NAMES), on: what costs.json measured for it, else (its other place, not
+    measured yet) its measured place moved: the render path's bytes (FAST_BYTES) out of or into the RAM code, and the
+    flash that saves (FAST_FLASH_SAVED: measured; else a third of the bytes, the boot stream coding RAM code)"""
+    it, place = R.ITEMS[key], R.eng_place(key)
+    dd = costs.get("deltas", {}).get(key, {})
+    if str(value) in dd:
+        return dd[str(value)]
+    at = {r: 0 for r in REGIONS} if it.default else dd.get(str(R.ENG_LEGACY_ON), dd.get(str(place)))
+    if value == place or at is None:
+        return at
+    s = R.FAST_BYTES.get(key, 0)
+    sign = 1 if value == R.ENG_RAM else -1
+    return dict(at, ramtext=at.get("ramtext", 0) + sign * s, flash=at.get("flash", 0) - sign * R.fast_flash_saved(key))
+
+
 def item_delta(costs, key, value):
     """bytes this item at this value adds to the default build, per region (None: not measured). An item switched
     off or down (a value under its default) never adds: a region it measured as growing counts 0 (the user, 2026-10-19,
     "clamp at 0": FX_DIST, MIDI_NOTEOUT, MISSING_WARN off made the default build 300-700 B larger in flash, the RAM code
     placed again, and the figure grew as a feature went). Not the other way: an item on that saves a region is often
     real (TAB_IN_POOL's RAM to the pool, X909_CYM=2's smaller cymbals)"""
+    if key in R.FAST_NAMES and value != R.ENG_OFF:   # (an engine on: at its place or the other, _eng_delta)
+        return _eng_delta(costs, key, value)
     d = costs.get("deltas", {}).get(key, {}).get(str(value))
     if d is None and R.ITEMS[key].no_image:             # (a front or a record, MEMORY / RAM_PACKED: nothing in the image)
         return {r: 0 for r in REGIONS}

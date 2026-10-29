@@ -652,6 +652,44 @@ _cfg, _ = C.parse("INS_CHORUS=2\nINS_DELAY=4\nINS_JCHORUS=3\nINS_FLANGER=1\nINS_
 check("an old .config's instance counts (INS_CHORUS=2 ...) load as built: no setting lost, no error",
       all(_cfg[k] == 1 for k in C.FXM_TYPES) and not [e for e in C.validate(_cfg)[0] if set(e.keys) & set(C.FXM_TYPES)]
       and all(not R.ITEMS[k].is_choice for k in C.FXM_TYPES))
+# where each engine's hot code runs (registry.py FAST_NAMES, 2026-10-29): its item off / on / on, code in RAM (0 / 2 / 3);
+# an old .config's 1 reads as its place by default; the header's FAST_RAM_<name>; the hash of a default place unchanged
+_d = C.defaults()
+check("engines: each FAST_NAMES item a choice off / on / on code in RAM, its default its place (RAM: ANALOG 2 PHASE "
+      "DIGITAL TRIO FORMANT DRAWBAR LOFI SAMPLE; the rest on, from the flash) or off",
+      all([c[0] for c in R.ITEMS[k].choices] == [R.ENG_OFF, R.ENG_ON, R.ENG_RAM] and
+          R.ITEMS[k].default in (R.ENG_OFF, R.eng_place(k)) for k in R.FAST_NAMES)
+      and {k for k in R.FAST_NAMES if R.eng_place(k) == R.ENG_RAM} == set(R.FAST_RAM)
+      and _d["ENG_ANALOG"] == R.ENG_RAM and _d["ENG_FM6"] == R.ENG_ON)
+for _k in R.FAST_NAMES:
+    _vals = {}
+    for _v in (R.ENG_OFF, R.ENG_ON, R.ENG_RAM):
+        _f = C.flags(dict(_d, **{_k: _v}))[0]
+        _vals[_v] = (_f[R.ITEMS[_k].flag], tuple(_f[f"FAST_RAM_{n}"] for n in R.FAST_NAMES[_k]))
+    check(f"engines: {_k} off / on / code in RAM -> its switch 0 / 1 / 1, FAST_RAM 0 / 0 / 1",
+          _vals[R.ENG_OFF][0] == 0 and _vals[R.ENG_ON] == (1, (0,) * len(R.FAST_NAMES[_k]))
+          and _vals[R.ENG_RAM] == (1, (1,) * len(R.FAST_NAMES[_k])))
+_old, _ = C.parse("ENG_ANALOG=1\nENG_FM6=1\nENG_ACID=1\nENG_PHASE=0\n", warn=lambda m: None)
+check("engines: an old .config's 1 reads as the engine's place (ANALOG in RAM, FM6 and ACID on), 0 stays off",
+      (_old["ENG_ANALOG"], _old["ENG_FM6"], _old["ENG_ACID"], _old["ENG_PHASE"]) == (R.ENG_RAM, R.ENG_ON, R.ENG_ON, 0))
+check("engines: an old .config's hash (and so its image) as before the choice: the defaults' place hashes as 1",
+      C.cfg_hash(_old) == C.cfg_hash(dict(_old, ENG_ANALOG=1, ENG_FM6=1, ENG_ACID=1))
+      and C.cfg_hash(dict(_old, ENG_ANALOG=R.ENG_ON)) != C.cfg_hash(_old))
+_rt, _ = C.parse(C.dump(dict(_d, ENG_ANALOG=R.ENG_ON, ENG_FM6=R.ENG_RAM)), warn=lambda m: None)
+check("engines: a dump round-trips the places (ANALOG on from the flash, FM6 in RAM: 2 and 3 written)",
+      (_rt["ENG_ANALOG"], _rt["ENG_FM6"]) == (R.ENG_ON, R.ENG_RAM))
+_env = C.apply_env(_d, {"FELUCCA_ENG_ANALOG": "1", "FELUCCA_ENG_FM6": "3"})
+check("engines: the old switch FELUCCA_ENG_X=1 in the environment is the place by default, 3 code in RAM",
+      (_env["ENG_ANALOG"], _env["ENG_FM6"]) == (R.ENG_RAM, R.ENG_RAM))
+_co = C.load_costs()
+_a2, _f3 = K.item_delta(_co, "ENG_ANALOG", R.ENG_ON), K.item_delta(_co, "ENG_FM6", R.ENG_RAM)
+_s = R.FAST_BYTES
+check("engines: the estimate of a place costs.json has not measured: ANALOG on from the flash takes its render path "
+      "out of the RAM code and adds what it saved to the flash (measured, else a third), FM6 in RAM the other way",
+      _a2["ramtext"] == -_s["ENG_ANALOG"] and _a2["flash"] == R.fast_flash_saved("ENG_ANALOG") > 0
+      and _f3["ramtext"] == _s["ENG_FM6"] and _f3["flash"] == -R.fast_flash_saved("ENG_FM6")
+      and R.fast_flash_saved("ENG_TRIO") == round(_s["ENG_TRIO"] * (1 - R.FAST_FLASH_RAM))
+      and K.item_delta(_co, "ENG_ANALOG", R.ENG_RAM) == {r: 0 for r in C.REGIONS})
 _old = {"flash": 1000, "ram": 200, "pool": 50, "ramtext": 400}
 with redirect_stdout(io.StringIO()):
     _moved = MC.refreshed_base(_old, dict(_old, ramtext=488))       # (88 B: under the 256 B fit margin, was kept)

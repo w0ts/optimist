@@ -1467,6 +1467,54 @@ _add("USB_HOST", "FELUCCA_USB_HOST", "USB MIDI host: a USB-MIDI keyboard, contro
 for _it in _ITEMS:
     if _it.group == "FX":
         _it.group = fx_group(_it.key, _it.parent)
+
+# Where each engine's hot code runs (the user, 2026-10-29): the engine's item is a choice, off / on (its render path
+# from the XIP flash, through the flash cache) / on, code in RAM (RAM code: out of the cache's way, its bytes taken from
+# the free RAM, about two thirds of them in flash: the boot stream codes RAM code). The firmware's switch per engine
+# (core.h FAST_RAM_<name>, through OVL / OVLX / FAST): FAST_NAMES. Defaults: where each ran until then (FAST_RAM:
+# ANALOG 2 with SUPER, PHASE, DIGITAL, TRIO, FORMANT, DRAWBAR, LOFI, SAMPLE; the rest from the flash). The values are
+# 0 / 2 / 3: a .config's 1 (an engine "on" before) reads as the engine's place by default (core.parse), so an old
+# profile builds what it built. FAST_BYTES: the render path's code, bytes (the release's ELF, fm1-next 0efe7cd6, jam
+# configuration, each engine moved alone; tools/builder/core.py's estimate for a place costs.json has not measured)
+ENG_OFF, ENG_ON, ENG_RAM = 0, 2, 3
+ENG_LEGACY_ON = 1
+FAST_NAMES = {"ENG_ANALOG": ("analog", "super"), "ENG_PHASE": ("phase",), "ENG_DIGITAL": ("digital",),
+              "ENG_TRIO": ("trio",), "ENG_FORMANT": ("formant",), "ENG_DRAWBAR": ("drawbar",), "ENG_LOFI": ("lofi",),
+              "ENG_SAMPLE": ("sample",), "ENG_FM6": ("fm6",), "ENG_ACID": ("acid",), "ENG_PLAITS": ("plaits",),
+              "ENG_PHYS": ("phys",), "ENG_PROPHET": ("prophet",), "ENG_JUNO": ("juno",), "ENG_CZ": ("cz",),
+              "ENG_STRINGS": ("strings",)}
+FAST_RAM = frozenset({"ENG_ANALOG", "ENG_PHASE", "ENG_DIGITAL", "ENG_TRIO", "ENG_FORMANT", "ENG_DRAWBAR", "ENG_LOFI",
+                      "ENG_SAMPLE"})
+FAST_BYTES = {"ENG_ANALOG": 5132, "ENG_PHASE": 2260, "ENG_DIGITAL": 1314, "ENG_TRIO": 2812, "ENG_FORMANT": 2412,
+              "ENG_DRAWBAR": 1512, "ENG_LOFI": 956, "ENG_SAMPLE": 644, "ENG_FM6": 8000, "ENG_ACID": 12816,
+              "ENG_PLAITS": 6408, "ENG_PHYS": 8904, "ENG_PROPHET": 3344, "ENG_JUNO": 2596, "ENG_CZ": 3832,
+              "ENG_STRINGS": 1552}
+# the flash an engine's render path in RAM saves over the same in XIP, measured where FAST_BYTES was (release builds of
+# the jam configuration, fm1-next 0efe7cd6 + this branch, the engine moved alone); else FAST_FLASH_RAM's model
+FAST_FLASH_SAVED = {"ENG_ANALOG": 1776, "ENG_FM6": 600, "ENG_ACID": 4616, "ENG_PLAITS": 1572, "ENG_PHYS": 2444,
+                    "ENG_PROPHET": 1160, "ENG_JUNO": 664, "ENG_CZ": 876, "ENG_STRINGS": 488}
+FAST_FLASH_RAM = 0.67    # flash a RAM-code byte takes (the boot stream's coding; measured 0.665 and 0.705, probe B, D)
+
+
+def fast_flash_saved(key):
+    """the flash this engine's render path saves in RAM (measured, else the model)"""
+    return FAST_FLASH_SAVED.get(key, round(FAST_BYTES.get(key, 0) * (1 - FAST_FLASH_RAM)))
+
+
+def eng_place(key):
+    """an engine item's place when on by default (ENG_ON / ENG_RAM)"""
+    return ENG_RAM if key in FAST_RAM else ENG_ON
+
+
+def _eng_fast(it):
+    """an engine item of FAST_NAMES as its three-way choice (its default: off, or on at its place)"""
+    if it.key in FAST_NAMES and not it.choices:
+        it.choices = ((ENG_OFF, "off"), (ENG_ON, "on"), (ENG_RAM, "on, code in RAM"))
+        it.default = eng_place(it.key) if it.default else ENG_OFF
+
+
+for _it in _ITEMS:
+    _eng_fast(_it)
 ITEMS = {it.key: it for it in _ITEMS}
 
 
@@ -1518,6 +1566,7 @@ def add_item(item):
         assert item.notice, f"{item.key}: an X0X item needs its notice"
     if item.group in ("FX", FX_ANY, FX_ONCE):
         item.group = fx_group(item.key, item.parent)
+    _eng_fast(item)
     _ITEMS.append(item)
     ITEMS[item.key] = item
     if item.parent:

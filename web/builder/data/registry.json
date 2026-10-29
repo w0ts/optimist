@@ -21,7 +21,7 @@
     "label": "ANALOG 2 (analog-style synth, swarm, 2 filters)",
     "group": "Synth engines",
     "bit": 0,
-    "default": 1,
+    "default": 3,
     "parent": null,
     "desc": "The main subtractive synth: two oscillators with hard sync, a swarm of up to 6 detuned copies (supersaw), two filters. About 6 KB of flash and 4.7 KB of fast RAM code; it is also the stand-in that most other engines fall back to, so keep it unless you need the space.",
     "experimental": false,
@@ -36,7 +36,20 @@
     "no_image": false,
     "fixed": false,
     "head": false,
-    "choices": [],
+    "choices": [
+     [
+      0,
+      "off"
+     ],
+     [
+      2,
+      "on"
+     ],
+     [
+      3,
+      "on, code in RAM"
+     ]
+    ],
     "provenance": null,
     "children": [
      "A2_LADR",
@@ -159,7 +172,7 @@
     "label": "DIGITAL (4-operator FM)",
     "group": "Synth engines",
     "bit": 1,
-    "default": 1,
+    "default": 3,
     "parent": null,
     "desc": "Four-operator FM synth: 8 classic algorithms, feedback on operator 4 and one modulation INDEX with its own envelope. About 2 KB of flash; the stand-in for FM6 when FM6 is left out.",
     "experimental": false,
@@ -174,7 +187,20 @@
     "no_image": false,
     "fixed": false,
     "head": false,
-    "choices": [],
+    "choices": [
+     [
+      0,
+      "off"
+     ],
+     [
+      2,
+      "on"
+     ],
+     [
+      3,
+      "on, code in RAM"
+     ]
+    ],
     "provenance": null,
     "children": [
      "DIG_TONE"
@@ -216,7 +242,7 @@
     "label": "PHASE (phase distortion)",
     "group": "Synth engines",
     "bit": 2,
-    "default": 1,
+    "default": 3,
     "parent": null,
     "desc": "Phase-distortion synth: bends the phase of a cosine wave to get saw, square, pulse and resonant shapes with a second line to mix or ring-modulate. About 1.4 KB of flash; the stand-in for CZ.",
     "experimental": false,
@@ -231,7 +257,20 @@
     "no_image": false,
     "fixed": false,
     "head": false,
-    "choices": [],
+    "choices": [
+     [
+      0,
+      "off"
+     ],
+     [
+      2,
+      "on"
+     ],
+     [
+      3,
+      "on, code in RAM"
+     ]
+    ],
     "provenance": null,
     "children": [
      "PHASE_FOLD"
@@ -279,7 +318,7 @@
     "label": "LOFI (chip sounds, wavetable)",
     "group": "Synth engines",
     "bit": 3,
-    "default": 1,
+    "default": 3,
     "parent": null,
     "desc": "Chip voice: pulse, triangle, saw, noise and a 4-bit wavetable, with a few-bit amplitude, a held (low) sample rate and a pitch sweep. About 2 KB of flash.",
     "experimental": false,
@@ -295,7 +334,20 @@
     "no_image": false,
     "fixed": false,
     "head": false,
-    "choices": [],
+    "choices": [
+     [
+      0,
+      "off"
+     ],
+     [
+      2,
+      "on"
+     ],
+     [
+      3,
+      "on, code in RAM"
+     ]
+    ],
     "provenance": null,
     "children": [],
     "hidden": false,
@@ -309,7 +361,7 @@
     "label": "SAMPLE (sample sets, USR slots)",
     "group": "Synth engines",
     "bit": 4,
-    "default": 1,
+    "default": 3,
     "parent": null,
     "desc": "Plays the built-in sample sets and your own samples (USR1..USR3 slots) across the keyboard, with loops. About 1.4 KB of flash plus the sets you keep (see Sample sets); it is also the stand-in for GRAIN and SLICE.",
     "experimental": false,
@@ -323,7 +375,20 @@
     "no_image": false,
     "fixed": false,
     "head": false,
-    "choices": [],
+    "choices": [
+     [
+      0,
+      "off"
+     ],
+     [
+      2,
+      "on"
+     ],
+     [
+      3,
+      "on, code in RAM"
+     ]
+    ],
     "provenance": null,
     "children": [],
     "hidden": false,
@@ -337,7 +402,7 @@
     "label": "VOICE (formant, sung vowels)",
     "group": "Synth engines",
     "bit": 5,
-    "default": 1,
+    "default": 3,
     "parent": null,
     "desc": "Formant synth that sings vowels from the keyboard (4 voices; BUZZ and BREATH shape the voice). About 2.7 KB of flash; a special sound, leave it out if you need the space.",
     "experimental": false,
@@ -352,7 +417,20 @@
     "no_image": false,
     "fixed": false,
     "head": false,
-    "choices": [],
+    "choices": [
+     [
+      0,
+      "off"
+     ],
+     [
+      2,
+      "on"
+     ],
+     [
+      3,
+      "on, code in RAM"
+     ]
+    ],
     "provenance": null,
     "children": [],
     "hidden": false,
@@ -366,7 +444,7 @@
     "label": "TRIO (3 oscillators)",
     "group": "Synth engines",
     "bit": 6,
-    "default": 1,
+    "default": 3,
     "parent": null,
     "desc": "Three oscillators with ring modulation and hard sync into a multimode filter, in the style of early 8-bit home-computer sound chips. About 3.4 KB of flash.",
     "experimental": false,
@@ -381,7 +459,20 @@
     "no_image": false,
     "fixed": false,
     "head": false,
-    "choices": [],
+    "choices": [
+     [
+      0,
+      "off"
+     ],
+     [
+      2,
+      "on"
+     ],
+     [
+      3,
+      "on, code in RAM"
+     ]
+    ],
     "provenance": null,
     "children": [],
     "hidden": false,
@@ -395,7 +486,7 @@
     "label": "WHEEL (drawbar organ)",
     "group": "Synth engines",
     "bit": 7,
-    "default": 1,
+    "default": 3,
     "parent": null,
     "desc": "Tonewheel-style organ: nine sine drawbars per note, 16 registrations to choose from. About 2.3 KB of flash and 2.5 KB of RAM.",
     "experimental": false,
@@ -410,7 +501,20 @@
     "no_image": false,
     "fixed": false,
     "head": false,
-    "choices": [],
+    "choices": [
+     [
+      0,
+      "off"
+     ],
+     [
+      2,
+      "on"
+     ],
+     [
+      3,
+      "on, code in RAM"
+     ]
+    ],
     "provenance": null,
     "children": [],
     "hidden": false,
@@ -453,7 +557,7 @@
     "label": "FM6 (DX7, bit-exact with Dexed)",
     "group": "Synth engines",
     "bit": 9,
-    "default": 1,
+    "default": 2,
     "parent": null,
     "desc": "Six-operator FM that plays Yamaha DX7 voices the way the Dexed plug-in does (MSFA, bit for bit), with its own operator editor and DX7 SysEx in; INIT VOICE and the voice packs below are its sounds. The biggest engine: about 28 KB of flash and 6 KB of RAM; its options below trim it down.",
     "experimental": false,
@@ -470,7 +574,20 @@
     "no_image": false,
     "fixed": false,
     "head": false,
-    "choices": [],
+    "choices": [
+     [
+      0,
+      "off"
+     ],
+     [
+      2,
+      "on"
+     ],
+     [
+      3,
+      "on, code in RAM"
+     ]
+    ],
     "provenance": {
      "project": "Melodee (keremimo/melodee)",
      "author": "Kerem Kilic",
@@ -811,7 +928,20 @@
     "no_image": false,
     "fixed": false,
     "head": false,
-    "choices": [],
+    "choices": [
+     [
+      0,
+      "off"
+     ],
+     [
+      2,
+      "on"
+     ],
+     [
+      3,
+      "on, code in RAM"
+     ]
+    ],
     "provenance": {
      "project": "Mutable Instruments Plaits (pichenettes/eurorack)",
      "author": "Emilie Gillet",
@@ -846,7 +976,20 @@
     "no_image": false,
     "fixed": false,
     "head": false,
-    "choices": [],
+    "choices": [
+     [
+      0,
+      "off"
+     ],
+     [
+      2,
+      "on"
+     ],
+     [
+      3,
+      "on, code in RAM"
+     ]
+    ],
     "provenance": {
      "project": "Clipper (isod89/clipper-fm1, Clipper 1.1)",
      "author": "3dSam",
@@ -1092,7 +1235,20 @@
     "no_image": false,
     "fixed": false,
     "head": false,
-    "choices": [],
+    "choices": [
+     [
+      0,
+      "off"
+     ],
+     [
+      2,
+      "on"
+     ],
+     [
+      3,
+      "on, code in RAM"
+     ]
+    ],
     "provenance": {
      "project": "Melodee (keremimo/melodee): its PROPHET engine's oscillators, Poly-Mod and Curtis filter",
      "author": "Kerem Kilic",
@@ -5681,7 +5837,20 @@
     "no_image": false,
     "fixed": false,
     "head": false,
-    "choices": [],
+    "choices": [
+     [
+      0,
+      "off"
+     ],
+     [
+      2,
+      "on"
+     ],
+     [
+      3,
+      "on, code in RAM"
+     ]
+    ],
     "provenance": {
      "project": "hugelton/Felucca",
      "author": "Leo Kuroshita (@kurogedelic), Hügelton Instruments",
@@ -5713,7 +5882,20 @@
     "no_image": false,
     "fixed": false,
     "head": false,
-    "choices": [],
+    "choices": [
+     [
+      0,
+      "off"
+     ],
+     [
+      2,
+      "on"
+     ],
+     [
+      3,
+      "on, code in RAM"
+     ]
+    ],
     "provenance": {
      "project": "charlesvestal/fm1-x0x",
      "author": "Charles Vestal",
@@ -5777,7 +5959,20 @@
     "no_image": false,
     "fixed": false,
     "head": false,
-    "choices": [],
+    "choices": [
+     [
+      0,
+      "off"
+     ],
+     [
+      2,
+      "on"
+     ],
+     [
+      3,
+      "on, code in RAM"
+     ]
+    ],
     "provenance": {
      "project": "keremimo/melodee",
      "author": "Kerem Kilic (Ellic Studio); native playback after Devin Acker's uPD933 model (MAME)",
@@ -5809,7 +6004,20 @@
     "no_image": false,
     "fixed": false,
     "head": false,
-    "choices": [],
+    "choices": [
+     [
+      0,
+      "off"
+     ],
+     [
+      2,
+      "on"
+     ],
+     [
+      3,
+      "on, code in RAM"
+     ]
+    ],
     "provenance": {
      "project": "PatttF/fm-106",
      "author": "PatttF (fm-106); a fixed-point port of Ultramaster KR-106 (kayrockscreenprinting/ultramaster_kr106)",

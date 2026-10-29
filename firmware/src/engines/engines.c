@@ -276,7 +276,7 @@ AINL gr_part_t *gr_mem(uint32_t p)
 AINL phys_slot_t *phys_mem(uint32_t p) { return (phys_slot_t *)PART_MEM_AT(p); }
 #endif
 #if FELUCCA_ENG_ACID
-void *acid_mem(int k) { return PART_MEM_AT((uint32_t)k % NPART); }
+FAST(acid) void *acid_mem(int k) { return PART_MEM_AT((uint32_t)k % NPART); }
 #endif
 #if FELUCCA_ENG_PLAITS
 AINL pl_voice_t *pl_mem(uint32_t p) { return (pl_voice_t *)PART_MEM_AT(p); }
