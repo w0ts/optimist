@@ -154,10 +154,15 @@ struct RootView: View {
             sim.follow(port: port, bluetooth: link.bluetooth)
             await session.connect()
         }
-        .onChange(of: link.state == .mirroring && link.bluetooth) { _, on in if on { BluetoothPicker.dismiss() } }   // (connected: the sheet's work is done)
+        .onChange(of: "\(link.state)|\(link.portName)|\(link.bluetooth)") {   // (connected: the sheet's work is done)
+            if BluetoothPicker.isShown, BluetoothPicker.done(picked: BluetoothPicker.picked, port: link.portName,
+                                                             bluetooth: link.bluetooth, state: link.state) {
+                BluetoothPicker.dismiss()
+            }
+        }
         .onChange(of: link.online) { old, now in   // (a device connected in the sheet: taken afresh, whatever the link did before
-            // (paused, or a port held with a black screen); the sheet closes once the screen comes: the user, 2026-10-24)
-            if BluetoothPicker.isShown, let p = now.first(where: { !old.contains($0) }) { link.resume(p) }
+            // (paused, or a port held with a black screen); the sheet closes once the link has taken it: the user, 2026-10-24, 10-29)
+            if let p = BluetoothPicker.connected(old: old, now: now) { link.resume(p) }
         }
         .sheet(item: $session.export) { ExportView(url: $0.url) }
         .onAppear {
