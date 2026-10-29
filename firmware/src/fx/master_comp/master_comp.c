@@ -173,63 +173,63 @@ AINL void mlim_reset(mlim_t *m)                             /* (inlined: called 
 }
 
 /* one sample of the master's limiter: in, its need recorded; out, the sample MLIM_N before with the reduction averaged over the box */
-AINL void mlim_step(int32_t *l, int32_t *r)
+AINL void mlim_step(mlim_t *m, int32_t *l, int32_t *r)   /* (m: the output's mlim; USB's MASTER's, fx.c ua_mst_out) */
 {
     int32_t al = *l < 0 ? -*l : *l, ar = *r < 0 ? -*r : *r, a = al > ar ? al : ar, q = 0, h16, e, s8, ol, orr;
-    uint32_t p = mlim.pos;
-    if (a <= mlim.clin && !(mlim.hold | mlim.env16 | mlim.sum)) {   /* at rest (no need now, none held, released or in
+    uint32_t p = m->pos;
+    if (a <= m->clin && !(m->hold | m->env16 | m->sum)) {   /* at rest (no need now, none held, released or in
                                                                     * the box; m2 is 0 with hold): the delay only, bit
                                                                     * for bit what the steps below give (CEIL is on by
                                                                     * default since 2026-10-11: the idle mix's cost) */
-        ol = mlim.dl[p], orr = mlim.dr[p];
-        mlim.dl[p] = *l, mlim.dr[p] = *r;
-        mlim.pos = (p + 1u) & (MLIM_N - 1u);
-        mlim.cnt = MLIM_HOLD;
+        ol = m->dl[p], orr = m->dr[p];
+        m->dl[p] = *l, m->dr[p] = *r;
+        m->pos = (p + 1u) & (MLIM_N - 1u);
+        m->cnt = MLIM_HOLD;
         *l = clamp(ol, -32767, 32767);
         *r = clamp(orr, -32767, 32767);
         return;
     }
-    if (a > mlim.clin) {
-        q = mc_log2((uint32_t)a) - mlim.c8;
+    if (a > m->clin) {
+        q = mc_log2((uint32_t)a) - m->c8;
         q = q < 0 ? 0 : q;
     }
-    if (q >= mlim.hold) {                               /* the running maximum over MLIM_HOLD samples: */
-        mlim.hold = q;                                  /* a new peak restarts it; else at the end of its time the */
-        mlim.cnt = MLIM_HOLD;                           /* largest since (m2) takes over */
-        mlim.m2 = 0;
+    if (q >= m->hold) {                               /* the running maximum over MLIM_HOLD samples: */
+        m->hold = q;                                  /* a new peak restarts it; else at the end of its time the */
+        m->cnt = MLIM_HOLD;                           /* largest since (m2) takes over */
+        m->m2 = 0;
     } else {
-        if (q > mlim.m2)
-            mlim.m2 = q;
-        if (--mlim.cnt == 0) {
-            mlim.hold = mlim.m2;
-            mlim.cnt = MLIM_HOLD;
-            mlim.m2 = 0;
+        if (q > m->m2)
+            m->m2 = q;
+        if (--m->cnt == 0) {
+            m->hold = m->m2;
+            m->cnt = MLIM_HOLD;
+            m->m2 = 0;
         }
     }
-    h16 = mlim.hold << 8;
-    e = mlim.env16;
+    h16 = m->hold << 8;
+    e = m->env16;
     if (h16 >= e)
         e = h16;                                        /* attack: at once (the box ramps it) */
     else
         e -= (((e - h16) >> 4) * MLIM_K20 >> 16) + 1;   /* release, 80 ms */
     e = e < h16 ? h16 : e;
-    mlim.env16 = e;
+    m->env16 = e;
     e = (e + 255) >> 8;                                 /* (rounded up) */
-    mlim.sum += e - mlim.ring[p];
-    mlim.ring[p] = (uint16_t)e;
-    s8 = (mlim.sum + (int32_t)MLIM_N - 1) >> 6;         /* the box's mean, rounded up (MLIM_N 64) */
-    ol = mlim.dl[p], orr = mlim.dr[p];
-    mlim.dl[p] = *l, mlim.dr[p] = *r;
-    mlim.pos = (p + 1u) & (MLIM_N - 1u);
+    m->sum += e - m->ring[p];
+    m->ring[p] = (uint16_t)e;
+    s8 = (m->sum + (int32_t)MLIM_N - 1) >> 6;         /* the box's mean, rounded up (MLIM_N 64) */
+    ol = m->dl[p], orr = m->dr[p];
+    m->dl[p] = *l, m->dr[p] = *r;
+    m->pos = (p + 1u) & (MLIM_N - 1u);
     if (s8) {
-        if (s8 != mlim.s8) {                            /* (2^-s, only when it moved) */
-            mlim.s8 = s8;
-            mlim.g13 = mc_exp2(-(s8 << 8));
+        if (s8 != m->s8) {                            /* (2^-s, only when it moved) */
+            m->s8 = s8;
+            m->g13 = mc_exp2(-(s8 << 8));
         }
-        ol = mc_mul13(ol, mlim.g13);
-        orr = mc_mul13(orr, mlim.g13);
-        if (s8 > mlim.gr_pk)
-            mlim.gr_pk = s8;
+        ol = mc_mul13(ol, m->g13);
+        orr = mc_mul13(orr, m->g13);
+        if (s8 > m->gr_pk)
+            m->gr_pk = s8;
     }
     *l = clamp(ol, -32767, 32767);                      /* (never reached: the ceiling is lower; a last guard) */
     *r = clamp(orr, -32767, 32767);
@@ -321,7 +321,7 @@ static HOT2 __attribute__((noinline)) void tlim_block(tlim_t *m, int32_t *dr, in
 }
 _Static_assert(TLIM_N == 32u, "tlim_block: the box's mean is >> 5");
 _Static_assert(MLIM_N == 64u, "mlim_step: the box's mean is >> 6");
-static void mlim_sample(int32_t *l, int32_t *r) { mlim_step(l, r); }   /* (one sample: tests/master_comp_test.c) */
+static void mlim_sample(int32_t *l, int32_t *r) { mlim_step(&mlim, l, r); }   /* (one sample: tests/master_comp_test.c) */
 
 /* LIMIT on: the output stage of a block (fx.c mix_finish's loop with the brickwall in place of the limiter and the knee):
  * the master volume ramped over the block exactly as there, master_pre (the DC blocker, the low cut), the limiter */
@@ -342,7 +342,7 @@ static HOT2 __attribute__((noinline)) void mlim_block(const int32_t *ml, const i
             mst_frac[2u * i] = fl, mst_frac[2u * i + 1u] = fr;
         }
 #endif
-        mlim_step(&l, &r);
+        mlim_step(&mlim, &l, &r);
         out[2u * i] = l;
         out[2u * i + 1u] = r;
     }
