@@ -37,6 +37,8 @@ static void plines_tests(void)
               "... KNOB 1 turned: line 1 the cursor, in the line's colour, as GLOBAL's");
         turn(EN_K1, -1);
     }
+    knobcol_page_lines(SCR_SOUND, "opt-knobcol-engine-on");
+    knobcol_page_lines(SCR_FX, "opt-knobcol-fx-on");
     tap(B_FX);                                          /* the FX family: the slots' needles repeat the values, no picture */
     frames(2);
     {
