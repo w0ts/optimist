@@ -316,7 +316,7 @@
   /* v13: the device's screens (SCRS): a row of four cards under its name, the pages of SOUND under their family */
   .scbar { display: flex; flex-wrap: wrap; gap: 8px 14px; margin: 8px 0; }
   #scscope { width: 100%; max-width: 944px; height: 180px; border: 1px solid var(--line); margin: 4px 0 8px; display: block; }
-  #mirror { width: 100%; aspect-ratio: 1; image-rendering: pixelated; background: #000; display: block; margin: 0 auto; touch-action: none; }
+  #mirror { width: 100%; aspect-ratio: 1; image-rendering: crisp-edges; image-rendering: pixelated; background: #000; display: block; margin: 0 auto; touch-action: none; }
   /* the Mirror page: the buttons and favourites left, the screen with the tracks under it, the pages right (the Mirror app's) */
   .mirbar { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; margin: 0 0 8px; }
   .mirbar:empty { display: none; }
@@ -12443,7 +12443,8 @@ function mirrorShow() {
     const now = performance.now();
     if (mir.held && mir.left > 12 && now - mir.last < 120 && now - mir.held < (dev && dev.bt ? 1000 : 250)) { setTimeout(mirrorShow, 60); return; }   /* (USB: a page is in within a few frames) */
     mir.held = 0;
-    const c = $("mirror"); if (c && mir.img) c.getContext("2d").putImageData(mir.img, 0, 0);
+    const c = $("mirror");
+    if (c && mir.img) { mirSrc.getContext("2d").putImageData(mir.img, 0, 0); mirPaint(c); }
   });
 }
 function mirrorStart() {
@@ -12454,7 +12455,7 @@ function mirrorStart() {
   mir.on = true;
   mnav.drawn = "";
   mirRender();
-  if (!mir.img) { mir.img = c.getContext("2d").createImageData(240, 240); for (let i = 3; i < mir.img.data.length; i += 4) mir.img.data[i] = 255; }
+  if (!mir.img) { mir.img = mirSrc.getContext("2d").createImageData(240, 240); for (let i = 3; i < mir.img.data.length; i += 4) mir.img.data[i] = 255; }
   const d = dev;
   let bits = 3;                                    /* (the first ask: on and the whole panel again) */
   (async function loop() {
@@ -12585,6 +12586,30 @@ function mirReleaseAll() {
   mnav.held.clear();
 }
 /* the panel's point (0..240) under a pointer: the canvas letterboxes in full screen */
+/* Sharp, square pixels (the user, 2026-10-29: "can we keep it sharp?"). The panel is put into a 240x240 canvas of its own, and the
+   visible canvas is a whole multiple of it in DEVICE pixels (the largest that fits its box; its CSS size is that many device
+   pixels, so the browser never scales it), drawn with smoothing off: no CSS scaling, whatever the browser does with image-rendering.
+   Where not even one whole multiple fits (a box under 240 device pixels) the CSS scaling is left, nearest neighbour. */
+/* mirror-sharp:begin (web/e2e_mirror_sharp.mjs runs this part in a browser) */
+const mirSrc = document.createElement("canvas");
+mirSrc.width = mirSrc.height = 240;
+function mirFit(c) {
+  const box = c.parentElement, dpr = window.devicePixelRatio || 1, k = Math.min(16, Math.floor(Math.floor(box.clientWidth * dpr + 1e-6) / 240));
+  const px = 240 * Math.max(k, 1);
+  if (c.width !== px) { c.width = px; c.height = px; }
+  c.style.width = k >= 1 ? px / dpr + "px" : "";
+  c.style.marginLeft = c.style.marginRight = k >= 1 ? Math.floor((box.clientWidth * dpr - px) / 2) / dpr + "px" : "";   /* (a whole device pixel from the box's edge) */
+  c.dataset.k = String(k);
+}
+function mirPaint(c) {
+  mirFit(c);
+  const ctx = c.getContext("2d");
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(mirSrc, 0, 0, c.width, c.height);
+}
+/* mirror-sharp:end */
+if (window.ResizeObserver && $("p-mirror")) new ResizeObserver(() => { const c = $("mirror"); if (c && mir.img && c.offsetParent) mirPaint(c); }).observe($("p-mirror"));
+window.addEventListener("resize", () => { const c = $("mirror"); if (c && mir.img && c.offsetParent) mirPaint(c); });
 function mirPoint(c, e) {
   const r = c.getBoundingClientRect(), side = Math.min(r.width, r.height) || 1;
   return { x: (e.clientX - r.left - (r.width - side) / 2) * 240 / side, y: (e.clientY - r.top - (r.height - side) / 2) * 240 / side, side };
