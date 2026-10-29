@@ -7,7 +7,7 @@
 // tools/builder/web_api.py). The cloud build (where from, the request, its progress): cloud.js. opts.app: the Mirror
 // app's page (web/builder/app.html): the Build card first, without the files and the keys. docs/WEB.md.
 import {
-  MAIN_REF, PYODIDE_VERSION, TURNSTILE_SITEKEY, REGIONS, BUDGETS, SORTS, barModel, fmtK, built, cloudConfigUrl, commitOf, latestOf, pickRef, refUrl, repoOf, defaultPreset, defaults, deltaOf, fileName, fmt,
+  MAIN_REF, PYODIDE_VERSION, TURNSTILE_SITEKEY, REGIONS, BUDGETS, budgetsOf, SORTS, barModel, fmtK, built, cloudConfigUrl, commitOf, latestOf, pickRef, refUrl, repoOf, defaultPreset, defaults, deltaOf, fileName, fmt,
   changeText, gaugeModel, hasInfo, indexRegistry, kDelta, messagesOf, offFits, oneLine, overflowLines, presets, pyodideBase, savedOf, treeOf,
 } from "./logic.js";
 import { mountCloud } from "./cloud.js";
@@ -283,7 +283,7 @@ function renderBars() {
   const pv = S.preview && (S.proposals || []).find((p) => p.id === S.preview);
   $("gauges").toggleAttribute("data-preview", !!pv);
   $("previewtag").hidden = !pv;
-  for (const r of BUDGETS) {
+  for (const r of budgetsOf(pv ? pv.after : ev.fits)) {
     const f = pv ? pv.after[r] : ev.fits[r];
     const m = gaugeModel(r, f.used, f.capacity, f.over);
     over = over || m.state === "over";
@@ -583,11 +583,11 @@ function renderProposals() {
 }
 
 function proposalCard(p) {
-  const rows = BUDGETS.map((r) => {
+  const rows = budgetsOf(p.after).map((r) => {
     const f = p.after[r], m = gaugeModel(r, f.used, f.capacity, f.over);
     return el("span", { "data-region": r, "data-state": m.state, title: m.tip }, `${r.toUpperCase()} ${m.text}`, m.overText ? el("span", { class: "go", text: ` ${m.overText}` }) : null);
   });
-  const left = BUDGETS.filter((r) => p.after[r].over > 0).map((r) => `${r.toUpperCase()} +${fmtK(p.after[r].over)}`);
+  const left = budgetsOf(p.after).filter((r) => p.after[r].over > 0).map((r) => `${r.toUpperCase()} +${fmtK(p.after[r].over)}`);
   const card = el("article", { class: "prop", "data-id": p.id, "data-fits": String(p.fits), onmouseenter: () => setPreview(p.id), onmouseleave: () => { if (!card.dataset.pinned) setPreview(null); } },
     el("h3", { text: p.title }),
     el("p", { class: "o-small o-dim", text: p.text }),
