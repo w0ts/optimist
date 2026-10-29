@@ -7,7 +7,7 @@
 // tools/builder/web_api.py). The cloud build (where from, the request, its progress): cloud.js. opts.app: the Mirror
 // app's page (web/builder/app.html): the Build card first, without the files and the keys. docs/WEB.md.
 import {
-  MAIN_REF, PYODIDE_VERSION, TURNSTILE_SITEKEY, REGIONS, BUDGETS, budgetsOf, SORTS, barModel, fmtK, built, cloudConfigUrl, commitOf, latestOf, pickRef, refUrl, repoOf, defaultPreset, defaults, deltaOf, fileName, fmt,
+  MAIN_REF, PYODIDE_VERSION, TURNSTILE_SITEKEY, COSTS, costOf, BUDGETS, budgetsOf, SORTS, barModel, fmtK, built, cloudConfigUrl, commitOf, latestOf, pickRef, refUrl, repoOf, defaultPreset, defaults, deltaOf, fileName, fmt,
   changeText, gaugeModel, hasInfo, indexRegistry, kDelta, messagesOf, offFits, oneLine, overflowLines, presets, pyodideBase, savedOf, treeOf,
 } from "./logic.js";
 import { mountCloud } from "./cloud.js";
@@ -33,7 +33,7 @@ const TEMPLATE = `
       <button type="button" id="save" title="Keep this configuration under its name (in this browser, or the app)">Save</button>
       <button type="button" id="unsave" class="quiet" hidden>Delete</button>
       <label class="o-field grow">Search<input id="search" type="search" placeholder="label, key, group" autocomplete="off"></label>
-      <label class="o-field half">Sort<select id="sort"><option value="">default order</option><option value="flash">flash, largest first</option><option value="ram">ram, largest first</option><option value="pool">pool, largest first</option><option value="ramtext">ramtext, largest first</option></select></label>
+      <label class="o-field half">Sort<select id="sort"><option value="">default order</option><option value="flash">flash, largest first</option><option value="ram">ram, largest first</option></select></label>
       <button type="button" id="expand" class="icon" title="Expand all (x)" aria-label="Expand all">▾▾</button>
       <button type="button" id="collapse" class="icon" title="Collapse all (c)" aria-label="Collapse all">▸▸</button>
       <button type="button" id="reset" disabled>Reset to default</button>
@@ -477,11 +477,11 @@ async function renderInfo(key) {
   if (key === "ARENA" && S.view && S.view.arena) info.append(el("pre", { class: "arenafit", text: S.view.arena.lines.join("\n") }));
   for (const e of (S.view && S.view.conflicts[key]) || []) info.append(line("err", "Error", e));
   if (d) {
-    const rows = d.values.map(([lab, , dd]) => dd && el("tr", {}, el("td", { text: lab }), REGIONS.map((r) => el("td", { text: (dd[r] >= 0 ? "+" : "") + fmt(dd[r]) }))));
-    const pairs = d.pairs.map(([txt, dd]) => el("tr", {}, el("td", { text: `${txt} adds` }), REGIONS.map((r) => el("td", { text: (dd[r] >= 0 ? "+" : "") + fmt(dd[r]) }))));
+    const rows = d.values.map(([lab, , dd]) => dd && el("tr", {}, el("td", { text: lab }), COSTS.map((r) => el("td", { text: (costOf(dd, r) >= 0 ? "+" : "") + fmt(costOf(dd, r)) }))));
+    const pairs = d.pairs.map(([txt, dd]) => el("tr", {}, el("td", { text: `${txt} adds` }), COSTS.map((r) => el("td", { text: (costOf(dd, r) >= 0 ? "+" : "") + fmt(costOf(dd, r)) }))));
     if (rows.some(Boolean) || pairs.length) {
       info.append(el("div", { class: "tablewrap" }, el("table", {}, el("caption", { class: "o-sr", text: "bytes against the default build" }),
-        el("thead", {}, el("tr", {}, el("th", { text: "alone vs the defaults" }), REGIONS.map((r) => el("th", { text: r })))),
+        el("thead", {}, el("tr", {}, el("th", { text: "alone vs the defaults" }), COSTS.map((r) => el("th", { text: r })))),
         el("tbody", {}, rows.filter(Boolean), pairs))));
     }
   }
