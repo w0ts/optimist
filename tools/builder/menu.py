@@ -748,8 +748,12 @@ class Builder(App):
         go = lambda measure: C.build(cfg, name, measure=measure, on_line=self.build_line, cancel=self.cancel_build)
         ok, sizes, out = go(not fit)
         if not ok and fit and not self.cancel_build.is_set():    # (the estimate fitted, the exact build did not)
+            rok, rout = ok, out
             ok, sizes, out = go(True)
             fit = False
+            if ok and sizes and self.sizes_fit(sizes, cfg):      # (the measurement fits: the real build's own failure,
+                ok, out = rok, rout                              #  e.g. a check after the link, is the answer, not
+                                                                 #  "does not fit"; the measurement's sizes stay for the bars)
         elif ok and not fit and sizes and self.sizes_fit(sizes, cfg):   # (the estimate overflowed, the build fits)
             msizes = sizes
             ok, sizes, out = go(False)
