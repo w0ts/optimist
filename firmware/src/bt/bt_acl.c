@@ -361,7 +361,8 @@ static void ba_media_send(const uint8_t *sbc_frame, uint32_t sbc_len, uint32_t f
     (void)bp_media_queue(pkt, 4u + payload_len);   /* (whole, one DH5; full: dropped whole, never cut) */
 }
 
-int bt_audio_feed(const int32_t *q15_pcm, uint32_t n)   /* 1: it streams (audio.c mutes the FM-1's own output) */
+int bt_audio_feed(const int32_t *q15_pcm, uint32_t n)   /* 1: it streams (audio.c mutes the FM-1's own output). q15_pcm
+                                                         * 0: n frames of silence (fx/outcorr.c oc_bt_frames) */
 {
     uint32_t i;
     if (ba.stage != BA_AV_READY || ba.paused || !ba.ch[BA_CH_MEDIA].dcid || bti.mode != BTI_M_CONN ||
@@ -382,8 +383,8 @@ int bt_audio_feed(const int32_t *q15_pcm, uint32_t n)   /* 1: it streams (audio.
         ba_sbc_init_done = 1;
     }
     for (i = 0; i < n; i++) {
-        int32_t l = q15_pcm[2u * i];
-        int32_t r = q15_pcm[2u * i + 1u];
+        int32_t l = q15_pcm ? q15_pcm[2u * i] : 0;
+        int32_t r = q15_pcm ? q15_pcm[2u * i + 1u] : 0;
         if (l < -32768) l = -32768; else if (l > 32767) l = 32767;
         if (r < -32768) r = -32768; else if (r > 32767) r = 32767;
         ba_pcm_acc[2u * ba_pcm_cnt] = (int16_t)l;

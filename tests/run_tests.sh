@@ -36,7 +36,7 @@ CC="${CC:-cc} -O1 -Wall -Wno-unused-function"
 SEC4="-DFELUCCA_SECTIONS=4"   # (the tests of the four project slots in RAM; the log: sec_*_test, sections_test)
 fail=0
 # the backported features' test (tests/backports_test.c) builds with every switch on (firmware/src/core/backports.h)
-BACKPORTS_ON="-DFELUCCA_CHANCE=1 -DFELUCCA_QNT_SEQ=1 -DFELUCCA_SPRING=1 -DFELUCCA_BASSPLUS=1 -DFELUCCA_MOTION=1 -DFELUCCA_ENG_PHYS=1 -DFELUCCA_ENG_ACID=1 -DFELUCCA_ENG_CZ=1 -DFELUCCA_ENG_JUNO=1"
+BACKPORTS_ON="-DFELUCCA_CHANCE=1 -DFELUCCA_QNT_SEQ=1 -DFELUCCA_SPRING=1 -DFELUCCA_MOTION=1 -DFELUCCA_ENG_PHYS=1 -DFELUCCA_ENG_ACID=1 -DFELUCCA_ENG_CZ=1 -DFELUCCA_ENG_JUNO=1"
 # the further insert types (fx/insfx/insfx.c), every one of them (GATER: gater.c); the limited ones CHRS ECHO FLNG in an
 # effects memory of 8 KB beside the delay send's 128 KB (fxi_mem.h: 4 CHRS, or 1 ECHO, or 8 FLNG at once)
 INSFX_ON="-DFELUCCA_INS_FOLD=1 -DFELUCCA_INS_FUZZ=1 -DFELUCCA_INS_PHASER=1 -DFELUCCA_INS_FLANGER=1 -DFELUCCA_INS_FORMANT=1 -DFELUCCA_INS_WIDTH=1 -DFELUCCA_INS_CHORUS=1 -DFELUCCA_INS_DELAY=1 -DFELUCCA_DLY_ARENA=136 -DFELUCCA_INS_GATER=1 -DFELUCCA_INS_SFOLD=1 -DFELUCCA_INS_RECT=1 -DFELUCCA_INS_HARM=1 -DFELUCCA_INS_RING=1 -DFELUCCA_INS_SUBOCT=1 -DFELUCCA_INS_SLEW=1 -DFELUCCA_INS_TAPE=1 -DFELUCCA_INS_SPIT=1"
@@ -1022,6 +1022,14 @@ job; ( jobin
     run "USB AUDIO (SYSTEM): each capture channel's source (MAIN, sums, stems, drum bus, lane taps, RET A B C, OFF), the mix untouched" "$OUT/usb_audio_route_test"
     run "USB AUDIO (SYSTEM) with the X0X kits: a tapped lane of the shared sum, the mix untouched" "$OUT/usb_audio_route_x0x"
     run "USB AUDIO (SYSTEM) with MIX_EXACT: MASTER the output at full volume, sample for sample" "$OUT/usb_audio_route_exact"
+) >"$U.out" 2>&1 & jobbg
+# the output's correction by the headphone jack (fx/outcorr.c, system/hpjack.h): SPK LOWCUT / HP BASS on their side of
+# the jack, the codec's output only (Bluetooth, USB, the card's recorder plain, bit for bit), the jack's debounce
+job; ( jobin
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DOC_REC=1 -o "$OUT/outcorr_test" tests/outcorr_test.c -lm &&
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DOC_REC=1 -DFELUCCA_MIX_EXACT=1 -o "$OUT/outcorr_exact_test" tests/outcorr_test.c -lm
+    run "SPK LOWCUT / HP BASS: each on its side of the jack, OFF never; Bluetooth, USB and the card plain bit for bit; the jack's debounce" "$OUT/outcorr_test"
+    run "SPK LOWCUT / HP BASS with MIX_EXACT (the 7 bits under the output)" "$OUT/outcorr_exact_test"
 ) >"$U.out" 2>&1 & jobbg
 # the audio path's skips (FELUCCA_SKIP, core.h): built with them and without, the same samples after every
 # neutral -> working -> neutral flip; also with the X0X kits, USB audio and the glides built (its files: the unit's

@@ -416,7 +416,7 @@ static uint32_t pw_leds(uint32_t *d);
 enum { SI_NONE, SI_LIGHTS, SI_KEYS, SI_LOWCUT, SI_OUT, SI_SYNC, SI_CH1, SI_CH2,
        SI_CH3, SI_CHD, SI_USB, SI_CPU, SI_MHZ, SI_CALIB, SI_ABOUT, SI_HOLD, SI_BLE, SI_KCOL, SI_DBGST, SI_CLKOUT, SI_CPU1, SI_INFO, SI_BUILD, SI_REPO,
        SI_DROPS, SI_GUARD, SI_UAINFO, SI_XRUN, SI_DIAG, SI_CREDITS, SI_BLEST, SI_BLEPEER, SI_BLEMIDI, SI_BLELIST, SI_BLEAUTO,
-       SI_BLEFGT, SI_FRESO, SI_VUFLOOR, SI_BTA, SI_BTAPEER, SI_BTAFMT, SI_BTAST, SI_CLKOFS, SI_BTOFS, SI_LINK, SI_LINKOFS,
+       SI_BLEFGT, SI_FRESO, SI_VUFLOOR, SI_HPBASS, SI_BTA, SI_BTAPEER, SI_BTAFMT, SI_BTAST, SI_CLKOFS, SI_BTOFS, SI_LINK, SI_LINKOFS,
 #if FELUCCA_SD_UI
        SI_SDCARD, SI_SDVERS, SI_SDSLACK, SI_SDINDEX,    /* SD CARD: the card, VERSIONS, SLACK, the sample index (sd_mode.c) */
        SI_SDPRE,                                        /* (SD_STREAM: the card samples' pre-buffer) */
@@ -517,8 +517,9 @@ static const struct { const char *name; uint8_t it[4]; } SYS[] = {
 #endif
     /* the screen and the sound in one section (the user, 2026-10-25: KNOB COLORS was on a page read as "audio", "group and
      * make it logical"): KNOB COLORS (the knob caps' colours; COLOR gone 2026-10-18: the palette is MONO, panel.c),
-     * LOWCUT, FILT RESO (SLOOP 2.8's FILTER RESO, a project's: core.h G_TFRES) */
-    {"GENERAL", {SI_KCOL, SI_LOWCUT, SI_IF(FELUCCA_TFLT_RESO && FELUCCA_TRK_FILT, SI_FRESO), SI_NONE}},
+     * SPK LOWCUT and HP BASS (the output's correction by the headphone jack: fx/outcorr.c), FILT RESO (SLOOP 2.8's FILTER
+     * RESO, a project's: core.h G_TFRES) */
+    {"GENERAL", {SI_KCOL, SI_LOWCUT, SI_HPBASS, SI_IF(FELUCCA_TFLT_RESO && FELUCCA_TRK_FILT, SI_FRESO)}},
 #if USBH_UI
     {"USB", {SI_UHMODE, SI_UHDEV, SI_NONE, SI_NONE}},   /* the port as a MIDI host or the computer's device (USB_HOST: the trial's
                                                          * ui/opt_usbh.h on fm1-base's; USB SERIAL below it, one section) */
@@ -750,7 +751,8 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
 {
     static const char *const LV[4] = {"OFF", "LOW", "MID", "HIGH"};
     static const char *const KY[4] = {"OFF", "C", "WHITE", "ALL"};
-    static const char *const LC[3] = {"OFF", "LOWCUT", "BASS+"};
+    static const char *const LC[3] = {"OFF", "ON", "BASS+"};
+    static const char *const HB[3] = {"OFF", "+3 dB", "+6 dB"};
     int16_t *vp;
     const param_desc_t *d;
     d = sys_desc(it, &vp);
@@ -779,7 +781,10 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
         cell_list(c, "KEYS", KY[lights_keys & 3u], KEYS_N - 1, lights_keys);
         break;
     case SI_LOWCUT:
-        cell_list(c, "LOWCUT", LC[FELUCCA_BASSPLUS ? settings.lowcut % 3u : settings.lowcut ? 1u : 0u], FELUCCA_BASSPLUS ? 2 : 1, FELUCCA_BASSPLUS ? (int32_t)(settings.lowcut % 3u) : settings.lowcut != 0u);
+        cell_list(c, "SPK LOWCUT", LC[spk_lc % 3u], 2, (int32_t)(spk_lc % 3u));   /* (the speaker: nothing in the jack) */
+        break;
+    case SI_HPBASS:
+        cell_list(c, "HP BASS", HB[hp_bass % 3u], 2, (int32_t)(hp_bass % 3u));     /* (headphones in the jack) */
         break;
 #if FELUCCA_CDC
     case SI_USB:
@@ -1458,13 +1463,10 @@ static void sys_set(uint32_t it, int32_t s)
         break;
 #endif
     case SI_LOWCUT:
-#if FELUCCA_BASSPLUS
-        settings.lowcut = (uint32_t)sys_step((int32_t)(settings.lowcut % 3u), s, 2);   /* OFF / LOWCUT / BASS+ */
-        fx_lowcut = (uint8_t)settings.lowcut;
-#else
-        settings.lowcut = s > 0 ? 1u : s < 0 ? 0u : !settings.lowcut;
-        fx_lowcut = (uint8_t)(settings.lowcut != 0);
-#endif
+        settings.lowcut = oc_set_word(oc_word((uint32_t)sys_step((int32_t)(spk_lc % 3u), s, 2), hp_bass));   /* OFF / ON / BASS+ */
+        break;
+    case SI_HPBASS:
+        settings.lowcut = oc_set_word(oc_word(spk_lc, (uint32_t)sys_step((int32_t)(hp_bass % 3u), s, 2)));   /* OFF / +3 / +6 dB */
         break;
 #if FELUCCA_CDC
     case SI_USB:
@@ -1502,7 +1504,7 @@ static void sys_set(uint32_t it, int32_t s)
     sys_dirty = 1;
 }
 /* SHIFT held + PRESETS (or the knob) on a setting with no descriptor: its FACTORY value, what a blank FM-1 or an empty
- * settings record gives (the user, 2026-10-13): panel.c settings_init (LOWCUT OFF), the settings word read as 0 (settings_word.c: HOLD 350 ms, KNOB COLORS, CLK OUT, SERIAL, LIGHTS,
+ * settings record gives (the user, 2026-10-13): panel.c settings_init (SPK LOWCUT ON, HP BASS OFF), the settings word read as 0 (settings_word.c: HOLD 350 ms, KNOB COLORS, CLK OUT, SERIAL, LIGHTS,
  * KEYS OFF; 2ND CORE AUTO). BLE is never reset: a reset must not drop a live connection. 1: it had one */
 static int sys_factory(uint32_t it)
 {
@@ -1526,8 +1528,10 @@ static int sys_factory(uint32_t it)
         lights_keys = KEYS_OFF;
         break;
     case SI_LOWCUT:
-        settings.lowcut = 0;
-        fx_lowcut = 0;
+        settings.lowcut = oc_set_word(oc_word(1u, hp_bass));   /* (ON: outcorr.c) */
+        break;
+    case SI_HPBASS:
+        settings.lowcut = oc_set_word(oc_word(spk_lc, 0u));
         break;
 #if FELUCCA_CDC
     case SI_USB:

@@ -74,10 +74,18 @@ static __attribute__((noinline)) uint32_t ua_take(int32_t *l, int32_t *r, uint32
 
 #if FELUCCA_SD_REC
 static void sdr_feed(const int32_t *q15, uint32_t n);    /* storage/sd/sd_rec.c */
+static uint32_t sdr_recording(void);
 #endif
+static uint8_t bt_streamed;                             /* the last block went to Bluetooth (its own output muted) */
 static void audio_block(int32_t *out, uint32_t n)       /* mix (fx.c), then Q15 -> 24 bit */
 {
     uint32_t i;
+#if FELUCCA_SD_REC
+    const uint32_t rec = sdr_recording();               /* (this block's: the recorder takes the plain output) */
+#else
+    const uint32_t rec = 0;
+#endif
+    oc_begin(bt_streamed, rec, n);                       /* SPK LOWCUT / HP BASS: the codec's output only (fx/outcorr.c) */
 #if FELUCCA_USB_AUDIO
     track_capture_on = ua.cap_alt != 0;                 /* (the stems this block: fx.c capture_clear) */
 #endif
@@ -93,8 +101,11 @@ static void audio_block(int32_t *out, uint32_t n)       /* mix (fx.c), then Q15 
 #if FELUCCA_BT_AUDIO
     {
         int bt_audio_feed(const int32_t *q15_pcm, uint32_t n);
-        if (bt_audio_feed(out, n))                      /* (streaming to Bluetooth: the FM-1's own output silent, the user
-                                                         * 2026-10-19; back as soon as the link stops streaming) */
+        const uint32_t muted = (uint32_t)bt_audio_feed(oc_bt_frames(out), n);   /* (streaming to Bluetooth: the FM-1's own output silent,
+                                                         * the user 2026-10-19; back as soon as the link stops streaming. A
+                                                         * corrected block goes as silence: oc_bt_frames) */
+        bt_streamed = (uint8_t)muted;
+        if (muted)
             for (i = 0; i < 2u * n; i++) {
                 out[i] = 0;
 #if FELUCCA_MIX_EXACT
@@ -104,7 +115,9 @@ static void audio_block(int32_t *out, uint32_t n)       /* mix (fx.c), then Q15 
     }
 #endif
 #if FELUCCA_SD_REC
-    sdr_feed(out, n);                                   /* the master into the card's ring (storage/sd/sd_rec.c) */
+    if (rec)
+        sdr_feed(oc_rec_frames(out), n);                /* the master into the card's ring (storage/sd/sd_rec.c): the plain
+                                                         * output, or its own stage's while the codec's is corrected */
 #endif
     for (i = 0; i < n; i++) {                           /* (no scope tap: SLOOP's HOME scope is gone) */
 #if FELUCCA_MIX_EXACT

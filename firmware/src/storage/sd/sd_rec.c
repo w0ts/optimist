@@ -96,6 +96,8 @@ static FRESULT sdr_start(const char *path, uint32_t ms)
     return FR_OK;
 }
 
+static uint32_t sdr_recording(void) { return sdr.state == RC_REC; }   /* (the audio interrupt, before the block: the
+                                                         * output's correction then stays off the recorder's block) */
 static void sdr_feed(const int32_t *q15, uint32_t n)
 {
     uint32_t w = sdr.w, i, room;
