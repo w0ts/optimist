@@ -24,7 +24,7 @@ typedef struct {                                      /* a part's JUNO state: it
 } juno_mem_t;
 AINL juno_mem_t *juno_mem(uint32_t p);                /* (engines.c, after every engine) */
 
-AINL juno_vs_t *juno_vs(const track_t *t, const voice_t *v)
+FAST(juno) AINL juno_vs_t *juno_vs(const track_t *t, const voice_t *v)
 {
     return &juno_mem((uint32_t)(t - trk) % NPART)->v[(uint32_t)(v - t->v) % NVOICE];
 }
@@ -44,7 +44,7 @@ static void juno_note_on(track_t *t, voice_t *v)
 }
 
 /* the VCA: the measured 2SA1015 / BA662 curve on the envelope (once a block; the core's ramp is the RC slew) */
-static int32_t juno_amp(track_t *t, voice_t *v, int32_t adsr)
+static FAST(juno) int32_t juno_amp(track_t *t, voice_t *v, int32_t adsr)
 {
     uint32_t i = (uint32_t)adsr >> 7, f = (uint32_t)adsr & 127u;
     int32_t a;
@@ -57,7 +57,7 @@ static int32_t juno_amp(track_t *t, voice_t *v, int32_t adsr)
 
 /* the level: y * amp >> 15 (y < 2^18): ANALOG's, measured below the master's limiter (juno_test; >> 12 was 18-27 dB
  * over, the presets' trims: tools/level_presets.py) */
-static void juno_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
+static FAST(juno) void juno_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
 {
     const int16_t *p = t->p;
     juno_vs_t *s = juno_vs(t, v);
@@ -95,7 +95,7 @@ static void juno_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
     }
 }
 
-static void juno_post(track_t *t, int32_t *out, uint32_t n, uint32_t nr)
+static FAST(juno) void juno_post(track_t *t, int32_t *out, uint32_t n, uint32_t nr)
 {
     juno_hpf_t *h = &juno_mem((uint32_t)(t - trk) % NPART)->h;
     (void)nr;

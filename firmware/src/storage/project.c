@@ -1323,14 +1323,14 @@ static void proj_apply(const project_t *p, const dlrec_t *d, int all)
         if (k < NPART)
             proj_orph_take(k, p, t);
         if (k < NPART) {                                /* FM6: its saved voice, else its VOICE afresh */
-            fm6_fn_reset(fm6_ed[k]);                    /* its functions (older formats: the defaults) */
+            FAST_CALL(fm6, fm6_fn_reset)(fm6_ed[k]);    /* its functions (older formats: the defaults) */
             if (PJ_FM6FN(p, k)[0] >= 0)
                 for (i = 0; i < FM6_NFN; i++)
                     fm6_set(fm6_ed[k], FN_PBUP + i, PJ_FM6FN(p, k)[i]);
             fm6_fnok[k] = 1;
             fm6_cur[k] = 0;
             if (ENG_IS(ENGINES[e], FM6) && ((p->fm6_has >> k) & 1u)) {
-                fm6_unpack(fm6_ed[k], PJ_FM6(p, k));
+                FAST_CALL(fm6, fm6_unpack)(fm6_ed[k], PJ_FM6(p, k));
                 for (i = 0; i < 6u; i++)
                     fm6_ed[k][FV_ON + i] = (int16_t)((PJ_FM6ON(p, k) >> i) & 1u);
                 fm6_bake_old(fm6_ed[k], v[P_E0 + 1u], v[P_E0 + 2u], v[P_E0 + 3u]);   /* (MOD, M.TIM, C.TIM of before: in the voice) */

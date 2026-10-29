@@ -215,6 +215,8 @@ def apply_env(cfg, env):
     for k, it in R.ITEMS.items():
         if it.flag and it.flag in env and re.fullmatch(r"-?\d+u?", env[it.flag]):
             cfg[k] = int(env[it.flag].rstrip("u"))
+            if k in R.FAST_NAMES and cfg[k] == R.ENG_LEGACY_ON:   # (an engine's switch 1: on at its place by default)
+                cfg[k] = R.eng_place(k)
     if env.get("FELUCCA_LCD_BAUD", "") in ("0", "1", "2", "3", "4"):
         cfg["LCD_BAUD"] = int(env["FELUCCA_LCD_BAUD"])
     if env.get("FELUCCA_SLICE") in ("0", "1"):

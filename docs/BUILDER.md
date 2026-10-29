@@ -102,6 +102,34 @@ Every engine a build has keeps at least one entry on the PRESETS list, and every
 with no factory preset this build can play shows one entry, INIT (the engine's defaults, no preset data). GRAIN without
 PIANO, VIBES and FLUTE but with another melodic set gets a real preset, GRAIN PAD, on the first of them.
 
+### Where an engine's code runs (off / on / on, code in RAM)
+
+Sixteen engines' items are a choice of three (`registry.py` `FAST_NAMES`, 2026-10-29): **off**, **on** (the engine's
+render path runs from the flash, through the flash cache) and **on, code in RAM** (its render path is RAM code: out of
+the cache's way, its bytes taken from the free RAM, the arena and the undo history). The default is where each ran
+before the choice existed: ANALOG 2 (with SUPER), PHASE, DIGITAL, TRIO, FORMANT, DRAWBAR, LOFI and SAMPLE in RAM; FM6,
+ACID, PLAITS, PHYS, PROPHET, JUNO, CZ and STRINGS on, from the flash. The mixer is always RAM code; the effects are not
+part of this choice. Other engines are off / on (from the flash).
+
+In a `.config` the values are 0, 2 and 3. A `1` (an engine "on" in a profile written before) reads as the engine's
+place by default, so an old profile builds the image it built, with the same configuration hash. What a place costs:
+RAM code is the render path's bytes in SRAM and less flash than the same code in XIP (the boot stream codes the RAM
+code); from the flash it is the bytes once in flash and no RAM. Measured on release builds of the jam configuration,
+each engine moved alone (`registry.py` `FAST_BYTES`, `FAST_FLASH_SAVED`): ANALOG 2 5,132 B of RAM code, 1,776 B of
+flash saved; FM6 8,000 / 600; ACID 12,816 / 4,616; PLAITS 6,408 / 1,572; PHYS 8,904 / 2,444; PROPHET 3,344 / 1,160;
+JUNO 2,596 / 664; CZ 3,832 / 876; STRINGS 1,552 / 488 (TRIO, FORMANT, DRAWBAR, LOFI, SAMPLE: `costs.json`'s RAM code,
+a third of it in flash, not measured moved). The estimate uses `costs.json`'s measured deltas, and for a place not
+measured yet the measured one moved by those. All eight of FM6 .. STRINGS in RAM at once (104 KB of RAM code with the
+jam configuration) pushes the Wi-Fi frame buffers past main RAM's 0x01C20000 and the release refuses it. The CPU
+difference between the two places is not measured on an FM-1 yet (the HOT PROBE packages, branch `fm1-next-hotprobe`).
+
+The firmware's side: `core.h` `FAST_RAM_<name>` (the builder writes one an engine), read by the engines' marks
+`OVL(name)`, `OVLX(name)` and `FAST(name)` (HOT or nothing); the float units (ACID's `acid_dsp.c`, PROPHET's
+`p5_dsp.c`) place their part with a section of their own (`FAST_SECTION`: `.ram_hot` here, `.app_ram` in the
+release). The release's `ram_code_allow` (the RAM functions that call through a pointer) follows the choices:
+fm1-base's `optimist/gen_optimist.py --conf` (`FAST_ALLOW`). With the RAMTEXT overlays (`OVERLAY`) the overlay link
+places the engines instead.
+
 ### Every item, in plain words
 
 The text of the menu's details panel (`desc` in the registry), one table a group, generated from it:
