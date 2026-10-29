@@ -236,8 +236,9 @@ class Builder(App):
         deltas = self.delta_of(key)
         for r, n in deltas:
             hot = self.over.get(r, 0) > 0 and n > 0     # it holds part of an overflowing region
-            t.append(f"  {r} {n / 1024:+.1f}K",
-                     style="bold red" if hot else ("bold reverse cyan" if r in self.SORT_PARTS.get(self.sort_by, ()) else "cyan"))
+            name = "ram" if r == "sram" else r            # (one RAM, as the bars count it)
+            t.append(f"  {name} {n / 1024:+.1f}K",
+                     style="bold red" if hot else ("bold reverse cyan" if name == self.sort_by else "cyan"))
         if key.startswith("SET_") and C.card_sets(self.cfg):   # (SD card mode: 0 B of flash, the SD card zip holds it)
             t.append("  on the card" if v else "  not on the card", style="cyan" if v else "dim")
         took = dict(deltas)
@@ -266,9 +267,9 @@ class Builder(App):
         s = (self.savings or {}).get(key)
         if not s:
             return []
-        return [(r, s[r]) for r in C.REGIONS
-                if abs(s[r]) >= 64 or (self.over.get(r, 0) > 0 and s[r] > 0)] + \
-            ([("sram", s["sram"])] if self.over.get("sram", 0) > 0 and s.get("sram", 0) > 0 else [])   # (what it frees of the overflowing SRAM)
+        sram = s.get("sram", sum(s.get(r, 0) for r in self.SORT_PARTS["ram"]))   # (the RAM as one: ram + pool + ramtext)
+        return [(r, n) for r, n in (("flash", s.get("flash", 0)), ("sram", sram))
+                if abs(n) >= 64 or (self.over.get(r, 0) > 0 and n > 0)]
 
     def budget(self, cfg=None):
         """the estimate, or the last build's exact sizes when that build was of this very selection (a measurement
@@ -315,6 +316,8 @@ class Builder(App):
     def sort_cost(self, k):
         """what item k costs in the sort's budget (flash; or ram: its ram + pool + ramtext), None when unmeasured"""
         s = (self.savings or {}).get(k) or {}
+        if self.sort_by == "ram" and s.get("sram") is not None:
+            return s["sram"]
         parts = [s[r] for r in self.SORT_PARTS.get(self.sort_by, ()) if s.get(r) is not None]
         return sum(parts) if parts else None
 

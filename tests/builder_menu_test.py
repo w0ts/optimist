@@ -70,6 +70,9 @@ async def sort_test():
         await pilot.pause()
         default = tree_keys(app)
         default_all = list(app.nodes)                   # (every item the default tree shows, at any depth)
+        labels = [str(n.label) for n in app.nodes.values()]
+        check("costs: an item shows flash and one ram, no pool / ramtext parts (the user, 2026-10-29)",
+              not any(re.search(r"\b(pool|ramtext) [+-]\d", s) for s in labels) and any(re.search(r"\bram [+-]\d", s) for s in labels))
         check("sort: starts in the default order", app.sort_by is None and "default order" in str(app.query_one("#bars").content))
         for want in ("flash", "ram", None):
             await pilot.press("o")
@@ -94,7 +97,7 @@ async def sort_test():
                   sorted(flat) == sorted(default_all))
             check(f"sort {want}: the sorted column is highlighted",
                   any(s.style and "reverse" in str(s.style) for k in app.nodes for s in app.nodes[k].label.spans)
-                  or app.over.get(want, 0) > 0)       # (an overflowing region keeps its red marks over the sort mark)
+                  or app.over.get("sram" if want == "ram" else want, 0) > 0)   # (an overflowing region keeps its red marks)
     check("sort: per session, a new builder starts in the default order", M.Builder(C.defaults(), "default").sort_by is None)
 
 
