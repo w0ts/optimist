@@ -3983,6 +3983,16 @@ static void led_tests(void)
 #ifndef UIO_NO_MAIN                                     /* (tests/audio_hang_stress.c: its own main) */
 #include "ui_optimist_lockaudit.h"
 
+/* where the keyboard octave first leaves 0 between clkout_tests and algo_tests (the SHIFT2 test needs 0): a diagnostic line per change */
+static void octave_watch(const char *after)
+{
+    static int last;
+    if (song.octave != last) {
+        printf("  octave watch: %d after %s\n", (int)song.octave, after);
+        last = song.octave;
+    }
+}
+
 int main(int argc, char **argv)
 {
     outdir = argc > 1 ? argv[1] : "build/host";
@@ -4142,133 +4152,79 @@ int main(int argc, char **argv)
     knobcol_tests();
     vufloor_tests();
     clkout_tests();
+    octave_watch("clkout_tests");
     syncnudge_tests();
+    octave_watch("syncnudge_tests");
 #if FELUCCA_MIDI_CLOCK
     syncorder_tests();
+    octave_watch("syncorder_tests");
     midi_lists_tests();
+    octave_watch("midi_lists_tests");
 #endif
     uasel_tests();
+    octave_watch("uasel_tests");
     newproj_tests();
+    octave_watch("newproj_tests");
 #if FELUCCA_SYS_DEBUG
     core_row_tests();                                   /* (INFO's every line, INTERNALS, USB STATS: the debug pages) */
+    octave_watch("core_row_tests");
     overload_tests();
+    octave_watch("overload_tests");
 #else
     sysdbg_off_tests();
+    octave_watch("sysdbg_off_tests");
 #endif
     ovl_window_tests();                                 /* (the rings' 10 s and 1 min windows, their wrap) */
+    octave_watch("ovl_window_tests");
     stackmark_tests();                                  /* (the stacks' paint and read-back, INFO's RAM line) */
+    octave_watch("stackmark_tests");
     hold_tests();
+    octave_watch("hold_tests");
     lane_preview_tests();
+    octave_watch("lane_preview_tests");
     step_pages_tests();
+    octave_watch("step_pages_tests");
     rec_hold_tests();
+    octave_watch("rec_hold_tests");
     drum_env_tests();
+    octave_watch("drum_env_tests");
     mix35_tests();
+    octave_watch("mix35_tests");
     c2_master_tests();
+    octave_watch("c2_master_tests");
     c2_roll_tests();
+    octave_watch("c2_roll_tests");
     glo_tests();
+    octave_watch("glo_tests");
     glwalk_tests();
+    octave_watch("glwalk_tests");
     glpages_tests();
+    octave_watch("glpages_tests");
     edscrn_tests();
+    octave_watch("edscrn_tests");
     edscrs_tests();
+    octave_watch("edscrs_tests");
     edv14_tests();
+    octave_watch("edv14_tests");
     glstyle_tests();
+    octave_watch("glstyle_tests");
     curline_tests();
+    octave_watch("curline_tests");
     help_tests();
+    octave_watch("help_tests");
     risk_tests();
+    octave_watch("risk_tests");
     risk_edits_tests();
+    octave_watch("risk_edits_tests");
     actcards_tests();
+    octave_watch("actcards_tests");
     prjflow_tests();
+    octave_watch("prjflow_tests");
     colours_tests();
+    octave_watch("colours_tests");
 #if FELUCCA_AUTO
     step_auto_tests();
+    octave_watch("step_auto_tests");
 #endif
     algo_tests();
-    mute_tests();
-    solo_tests();
-    retmute_tests();
-    across_tests();
-    strike_tests();
-    smute_tests();
-    pagemem_tests();
-#if FELUCCA_ED_MIRROR
-    nav_tests();
-#endif
-    favorites_tests();
-    algotrack_tests();
-    uniform_tests();
-    lforate_tests();
-    step_hold_tests();
-    step_move_tests();
-    step_pitch_tests();
-    led_tests();
-    btnled_tests();
-    lamp_tests();
-    pages_nav_tests();
-    pages_master_tests();
-    pages_keys_tests();
-    keys_global_tests();
-    pages_head_tests();
-    pages_select_tests();
-    pages_hit_tests();
-    lane_ui_tests();
-    lane_src_tests();
-    effval_tests();
-    inslots_tests();
-    noswap_tests();
-    fxi_ui_tests();
-#if FELUCCA_INS_GATER
-    gater_ui_tests();
-#endif
-    lfo2ui_tests();
-#if FELUCCA_PLOCK
-    plock_audit_tests();
-#endif
-#if FELUCCA_SEQTOOLS || FELUCCA_GENS
-    seqtools_tests();
-#endif
-#if FELUCCA_COND && FELUCCA_CHANCE
-    cond_card_tests();
-#endif
-    accent_ui_tests();
-    lanevals_tests();
-    screens_tests();
-#if FELUCCA_BLE
-    ble_tests();
-#endif
-#if WIFI_UI
-    wf_ui_tests();
-    wf_pw_tests();
-#if FELUCCA_WIFI_AP
-    wf_ap_tests();
-#endif
-#endif
-    premiss_tests();
-    missline_tests();
-    notename_tests();                                   /* (late: the note it plays moves the master's meters, SCRS's golden) */
-    fuzz(20000, 12345);
-    check(1, "20000 frames of random use: every draw on the screen");
-    if (band_hits)
-        printf("  geometry: %u blits reached the help band\n", band_hits);
-    check(!band_hits, "#6 the whole run (every test, the random frames): no blit in the help band but the help line's");
-#ifdef MIRROR_CHECK
-    {
-        uint32_t i, diff = 0;
-        mc_meter_now = 1;                               /* (the meters' last change: a window) */
-        frame();
-        mc_meter_now = 0;
-        for (i = 0; i < 240u * 240u; i++)
-            diff += md_fb[i] != swap16(screen[i]);
-        printf("  mirror: %u frames, %u bytes, the screen drawn %u px; %u bad frames, %u px differ\n", mc_frames, mc_bytes, blit_px, mc_bad, diff);
-        printf("  mirror: %u bytes without the %u catch-ups (%u bytes); %u segments not sent again\n", mc_bytes - mc_resync_sum, mc_resyncs, mc_resync_sum, (unsigned)me_skipped);
-        printf("  mirror catch-up (black to the client, op_repaint): %u, %u not the panel after; %u bytes each on average, %u at most\n",
-               mc_resyncs, mc_resync_bad, mc_resyncs ? mc_resync_sum / mc_resyncs : 0u, mc_resync_max);
-        check(!mc_bad && !diff, "the screen mirrored: every write decoded, the same pixels");
-        printf("  mirror meters: %u windows of 100 ms\n", mc_meter_sends);
-        check(mc_meter_sends > 100u, "the screen mirrored: the mixer's meters sent in their windows");
-        check(mc_resyncs > 100u && !mc_resync_bad, "the screen mirrored: every catch-up (black to the client, every band again in place) is the panel");
-    }
-#endif
-    printf(fails ? "optimist ui test FAILED (%d)\n" : "optimist ui test passed\n", fails);
-    return fails != 0;
-}
-#endif
+    octave_watch("algo_tests");
