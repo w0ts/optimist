@@ -75,10 +75,9 @@ static void dsend_dry(void)
 }
 /* a lane's sound as its kit has it (RESET): the kit's source, no offsets, and DRY (2026-10-29, the user: the drum presets
  * have no reverb or FX by default): every send 0, both insert amounts 0. The audio ISR must
- * not run meanwhile */
+ * not run meanwhile; l < DRUM_LANES (lane_selected) */
 static void dsnd_reset(uint32_t l)
 {
-    l %= DRUM_LANES;
     memset(dl.ofs[l], 0, sizeof dl.ofs[l]);
     dl.src[l] = DL_KIT;
     memset(dl.ref[l], 0, sizeof dl.ref[l]);
