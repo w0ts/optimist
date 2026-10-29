@@ -225,11 +225,14 @@ static uint32_t arn_place(const arn_st_t *A, uint32_t k, uint32_t n, uint32_t sk
 }
 static uint32_t arn_gap(uint32_t n, uint32_t skip) { return arn_scan(&arn, n, skip, 0, ARN_BYTES); }
 
-static uint32_t arn_idle_of(const arn_st_t *A)          /* the idle blocks (a bit mask): free, nothing reads them */
+/* the idle blocks (a bit mask): free, nothing reads them; but one set aside for its client's switch back (a reservation
+ * of its own block: engines.c part_mem_park), kept */
+static uint32_t arn_idle_of(const arn_st_t *A)
 {
     uint32_t i, m = 0;
     for (i = 0; i < ARN_PARTS; i++)
-        m |= (uint32_t)(A->b[0][i].len && A->b[0][i].idle) << i;
+        m |= (uint32_t)(A->b[0][i].len && A->b[0][i].idle &&
+                        !(A->hn[i] && A->b[1][i].off == A->b[0][i].off && A->b[1][i].len)) << i;
     return m;
 }
 #define arn_idle() arn_idle_of(&arn)
