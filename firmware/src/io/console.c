@@ -964,20 +964,15 @@ static void con_bletrim(void)                       /* what the radio uses, Opti
 #endif
 
 #if FELUCCA_BT_AUDIO
-#if !FELUCCA_BT_DIAG                   /* the Classic stack silent: its log lines and printers left out (BT_DIAG puts
-                                        * them back, with btinq / btpage / btrx / bttrace) */
 #define con_puts(s) ((void)sizeof(s))           /* (sizeof: the argument named, never run) */
 #define con_putc(c) ((void)sizeof(c))
 #define con_dec(v) ((void)sizeof(v))
 #define con_hex(v, d) ((void)sizeof(v), (void)sizeof(d))
-#endif
 #include "../bt/bt_inq.c"              /* EXPERIMENTAL: the Bluetooth Classic stack (BT_AUDIO; btinq, btpage) */
-#if !FELUCCA_BT_DIAG
 #undef con_puts
 #undef con_putc
 #undef con_dec
 #undef con_hex
-#endif
 #endif
 
 #if FELUCCA_BLE && BLE_DIAG       /* FELUCCA_BLE_DIAG (builder item BLE_DIAG): without it no blell, no counters, no rings */
@@ -1805,10 +1800,6 @@ static void con_exec(const char *p)
 #endif
 #endif
 #if FELUCCA_BT_AUDIO
-#if FELUCCA_BT_DIAG
-                 "  btclk [run]  btinq|btscan [SECONDS] [even|odd|all agc=N win=N frq=N pll=N sweep|nosweep pwr=N prio=N]|stop"
-                 "  btpage ADDR [SECONDS] [OPTIONS]|pll=N|agc=N|follow=0|1|stop  bttrace [N]  btrx [N]"
-#endif
 #if FELUCCA_DUAL >= 2
                  "  cpu1park"
 #endif
@@ -1927,20 +1918,6 @@ static void con_exec(const char *p)
 #if FELUCCA_DUAL >= 2
     else if (con_word(&p, "cpu1park"))
         con_cpu1park();
-#endif
-#if FELUCCA_BT_DIAG
-    else if (con_word(&p, "btclk"))
-        con_btclk(p);
-    else if (con_word(&p, "btinq"))
-        con_btrun(p, BTI_M_INQ);
-    else if (con_word(&p, "btscan"))
-        con_btrun(p, BTI_M_SCAN);
-    else if (con_word(&p, "bttrace"))
-        con_bttrace(p);
-    else if (con_word(&p, "btrx"))
-        con_btrx(p);
-    else if (con_word(&p, "btpage"))
-        con_btpage(p);
 #endif
 #endif
     else if (con_word(&p, "uboot")) {
