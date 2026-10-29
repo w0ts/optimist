@@ -86,7 +86,7 @@ async def sort_test():
                 ok_order &= known == sorted(known, reverse=True)
                 ok_unmeasured &= vals == known + [None] * (len(vals) - len(known))
                 for n in grp.children:
-                    ok_kids &= all(R.ITEMS[c.data].parent == n.data for c in n.children)
+                    ok_kids &= all((R.ITEMS[c.data].shown_under or R.ITEMS[c.data].parent) == n.data for c in n.children)
                     kv = [cost(c.data) for c in n.children]
                     kk = [v for v in kv if v is not None]
                     ok_order &= kk == sorted(kk, reverse=True) and kv == kk + [None] * (len(kv) - len(kk))
@@ -168,8 +168,36 @@ async def back_test():
         check(f"back: backspace back, wrapping past the first value", app.cfg[key] == vals[-1])
 
 
+async def memory_menu_test():
+    """Memory management shows MEMORY alone (LAYOUT, SDCARD, RAM_PACKED hidden), SD_RING and SD_REC under it, live
+    in SD card mode only; each value sets LAYOUT / SDCARD as before"""
+    app = M.Builder(C.defaults(), "default")
+    async with app.run_test(size=(200, 60)) as pilot:
+        await pilot.pause()
+        n = app.nodes
+        check("memory: MEMORY is in the tree, LAYOUT SDCARD RAM_PACKED are not",
+              "MEMORY" in n and not any(k in n for k in ("LAYOUT", "SDCARD", "RAM_PACKED")))
+        check("... SD_RING and SD_REC are under MEMORY",
+              n["SD_RING"].parent.data == "MEMORY" and n["SD_REC"].parent.data == "MEMORY")
+        check("... MEMORY's values read normal / more flash / SD card mode",
+              [lab for _, lab in R.MEMORY_CHOICES] == ["normal", "more flash: one project in flash", "SD card mode"]
+              and "<normal>" in label(app, "MEMORY"))
+        check("... normal: SD_RING and SD_REC greyed", all("dim" in str(n[k].label.style) for k in ("SD_RING", "SD_REC")))
+        for want, name in ((1, "more flash"), (2, "SD card mode")):
+            await toggle(app, pilot, "MEMORY")
+            c = app.cfg
+            check(f"... {name}: LAYOUT / SDCARD as MEMORY sets them",
+                  c["MEMORY"] == want and (c["LAYOUT"], c["SDCARD"]) == ((1, 0) if want == 1 else (1, 1)))
+            live = all("dim" not in str(n[k].label.style) for k in ("SD_RING", "SD_REC"))
+            check(f"... {name}: SD_RING / SD_REC {'live' if want == 2 else 'greyed'}", live == (want == 2))
+        await toggle(app, pilot, "MEMORY")
+        c = app.cfg
+        check("... back to normal: both off", c["MEMORY"] == 0 and (c["LAYOUT"], c["SDCARD"]) == (0, 0))
+
+
 async def main():
     await sort_test()
+    await memory_menu_test()
     await back_test()
     await drums_head_test()
     await estimate_over_build_fits_test()

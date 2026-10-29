@@ -51,12 +51,12 @@ def setup(needs_auto=None, limits=_UNSET):
 
 
 def limits_in_use():
-    """-> {"flash", "sram", "flash_by_layout": {layout: bytes}, "far": whether a layout's bigger slot needs FAR_OK}: the
+    """-> {"flash", "sram", "flash_by_layout": {layout: bytes}, }: the
     release's (setup) or the classic firmware's"""
     if RELEASE_LIMITS:
-        return {"flash": RELEASE_LIMITS["flash"], "sram": RELEASE_LIMITS["sram"], "far": False,
+        return {"flash": RELEASE_LIMITS["flash"], "sram": RELEASE_LIMITS["sram"],
                 "flash_by_layout": {int(k): v for k, v in RELEASE_LIMITS.get("flash_by_layout", {}).items()}}
-    return dict(LIMITS, flash_by_layout=dict(FLASH_BY_LAYOUT), far=True)
+    return dict(LIMITS, flash_by_layout=dict(FLASH_BY_LAYOUT))
 
 
 def _stderr(msg):
@@ -67,9 +67,9 @@ def _stderr(msg):
 # 2026-10-25, docs/MEMORY-MAP.md 2.3-2.4); build.py keeps 8 KiB of SRAM spare below the stacks
 LIMITS = {"flash": 581564, "sram": 474880}
 SPARE = {"flash": 0, "sram": 8192}
-FLASH_BY_LAYOUT = {1: 765696}    # the code's room in the other flash layouts once the far probe passed (LAYOUT + FAR_OK):
-                                 # tools/flash_layout.py code_limit, which the web builder does not ship; a probe build
-                                 # (LAYOUT without FAR_OK) keeps the normal slot; tests/flash_layout_test.py checks they agree
+FLASH_BY_LAYOUT = {1: 765696}    # the code's room in the other flash layouts (LAYOUT 1):
+                                 # tools/flash_layout.py code_limit, which the web builder does not ship;
+                                 # tests/flash_layout_test.py checks they agree
 BUDGETS = ("flash", "sram")
 # the measured parts (costs.json, the deltas): "ram" = .ram_hot2 + .data + .bss, "pool", "ramtext" = .ram_text +
 # .ram_hot; the three together fill the SRAM budget
@@ -92,13 +92,13 @@ def defaults():
     return {k: it.default for k, it in R.ITEMS.items()}
 
 
-# ---- the memory front (registry.py MEMORY): a view of LAYOUT, SDCARD and FAR_OK, never stored in a .config
+# ---- the memory front (registry.py MEMORY): a view of LAYOUT and SDCARD, never stored in a .config
 def derive_memory(cfg):
-    """-> MEMORY's value for these LAYOUT / SDCARD / FAR_OK: 2 SD card mode (the card on, the big slot), 1 reduced user
-    flash (LAYOUT 1 otherwise), 0 normal"""
+    """-> MEMORY's value for these LAYOUT / SDCARD: 2 SD card mode (the card on, the big slot), 1 more flash (LAYOUT 1
+    otherwise), 0 normal"""
     if cfg.get("LAYOUT", 0) != 1:
         return 0
-    return 2 if cfg.get("SDCARD", 0) and cfg.get("FAR_OK", 0) else 1
+    return 2 if cfg.get("SDCARD", 0) else 1
 
 
 def sync_memory(cfg):
@@ -107,18 +107,18 @@ def sync_memory(cfg):
 
 
 def set_memory(cfg, mode):
-    """-> cfg with MEMORY = mode and the items it fronts set to match (a copy): 0 normal (LAYOUT, FAR_OK, SDCARD and the
-    card's streams off); 1 reduced user flash (LAYOUT 1, no card: SDCARD and the card's streams off, FAR_OK as it was);
-    2 SD card mode (LAYOUT, SDCARD and FAR_OK on)"""
+    """-> cfg with MEMORY = mode and the items it fronts set to match (a copy): 0 normal (LAYOUT, SDCARD and the
+    card's streams off); 1 more flash (LAYOUT 1, no card: SDCARD and the card's streams off); 2 SD card mode (LAYOUT
+    and SDCARD on)"""
     if mode not in (0, 1, 2):
         raise ConfigError(f"MEMORY={mode}: 0, 1 or 2")
     out = dict(cfg)
     if mode == 2:
-        out.update(LAYOUT=1, SDCARD=1, FAR_OK=1)
+        out.update(LAYOUT=1, SDCARD=1)
     else:
         out.update(LAYOUT=mode, SDCARD=0, SD_RING=0, SD_REC=0)
         if mode == 0:
-            out.update(FAR_OK=0, OVERLAY=0)
+            out.update(OVERLAY=0)
     return sync_memory(out)
 
 
@@ -143,7 +143,7 @@ def parse(text, base=None, strict=True, warn=None, reject_unknown=False):
         if not m:
             raise ConfigError(f"line {n}: expected KEY=number, got {s!r}")
         k, v = m.group(1), int(m.group(2))
-        if k == "MEMORY":                               # (the front: sets LAYOUT, SDCARD, FAR_OK; the lines after it refine)
+        if k == "MEMORY":                               # (the front: sets LAYOUT, SDCARD; the lines after it refine)
             cfg = set_memory(cfg, v)
             continue
         if k in R.FORBIDDEN:
@@ -172,7 +172,7 @@ def parse(text, base=None, strict=True, warn=None, reject_unknown=False):
     for k, it in R.ITEMS.items():                      # (a fixed item: what every build has, whatever the text says)
         if it.fixed:
             cfg[k] = it.default
-    cfg = sync_memory(cfg)                              # (MEMORY: read from LAYOUT, SDCARD and FAR_OK, whatever the text says)
+    cfg = sync_memory(cfg)                              # (MEMORY: read from LAYOUT and SDCARD, whatever the text says)
     for into, on in merged_on.items():                  # (a survivor the text does not set: what its old items were, so
         cfg[into] = cfg[into] | on if into in named else on   # an older .config with all of them off keeps it off)
     return cfg, name
@@ -257,17 +257,14 @@ def validate(cfg):
     if cfg.get("BT_PROJ") and not (cfg.get("BLE") and cfg.get("ED_MIRROR") and cfg.get("PATTERNS") and cfg.get("BACKUP")):
         err.append(Issue("projects over Bluetooth need Bluetooth MIDI (BLE), the Mirror (ED_MIRROR, its Bluetooth link), the "
                          "projects (PATTERNS) and the backup (BACKUP)", ["BT_PROJ", "BLE", "ED_MIRROR", "PATTERNS", "BACKUP"]))
-    if cfg.get("SD_RING") and not (cfg.get("SDCARD") and cfg.get("LAYOUT") == 1 and cfg.get("FAR_OK") and
+    if cfg.get("SD_RING") and not (cfg.get("SDCARD") and cfg.get("LAYOUT") == 1 and
                                    cfg.get("ARENA") and built(cfg, "ENG_SAMPLE")):
-        err.append(Issue("samples from the card (SD_RING) need the card under full FatFs (SDCARD, LAYOUT 1, FAR_OK), "
+        err.append(Issue("samples from the card (SD_RING) need the card under full FatFs (SDCARD, LAYOUT 1), "
                          "SAMPLE (its CARD set) and the arena (ARENA: the heads and the rings)",
-                         ["SD_RING", "SDCARD", "LAYOUT", "FAR_OK", "ENG_SAMPLE", "ARENA"]))
-    if cfg.get("SD_REC") and not (cfg.get("SDCARD") and cfg.get("LAYOUT") == 1 and cfg.get("FAR_OK")):
-        err.append(Issue("recording to the card (SD_REC) needs the card under full FatFs (SDCARD, LAYOUT 1, FAR_OK)",
-                         ["SD_REC", "SDCARD", "LAYOUT", "FAR_OK"]))
-    if cfg.get("FAR_OK") and not cfg.get("LAYOUT"):    # the big slot exists only in the fake SD mode layout
-        err.append(Issue("the far probe's answer (FAR_OK) opens the fake SD mode's whole slot: it needs that layout "
-                         "(LAYOUT 1)", ["FAR_OK", "LAYOUT"]))
+                         ["SD_RING", "SDCARD", "LAYOUT", "ENG_SAMPLE", "ARENA"]))
+    if cfg.get("SD_REC") and not (cfg.get("SDCARD") and cfg.get("LAYOUT") == 1):
+        err.append(Issue("recording to the card (SD_REC) needs the card under full FatFs (SDCARD, LAYOUT 1)",
+                         ["SD_REC", "SDCARD", "LAYOUT"]))
     if cfg.get("OVERLAY") and not cfg.get("LAYOUT"):   # each slot engine's code linked once per slot: the big flash
         err.append(Issue("the RAMTEXT overlays put each engine's fast code in flash once per part: they need the fake "
                          "SD mode layout (LAYOUT 1)", ["OVERLAY", "LAYOUT"]))
@@ -773,7 +770,7 @@ def tab_pool(cfg):
     if not built(cfg, "TAB_IN_POOL"):
         return {}
     fx_arena = cfg.get("ARENA", 0) > 0              # (every ARENA build: the extras)
-    stream = (fx_arena and built(cfg, "SDCARD") and cfg.get("FAR_OK", 0) and cfg.get("SD_RING", 0) > 0
+    stream = (fx_arena and built(cfg, "SDCARD") and cfg.get("LAYOUT", 0) == 1 and cfg.get("SD_RING", 0) > 0
               and built(cfg, "ENG_SAMPLE"))
     moved = (SST_TABLES if stream else 0) - (FM6_SIN_RAM if fx_arena and built(cfg, "ENG_FM6") else 0)
     return {"ram": -moved, "pool": moved}
@@ -1004,7 +1001,7 @@ def fits(total, cfg=None):
     out, lim = {}, limits_in_use()
     for b in BUDGETS:
         u, cap = used(total, b), lim[b] - SPARE[b]
-        if b == "flash" and cfg and cfg.get("LAYOUT") in lim["flash_by_layout"] and (cfg.get("FAR_OK") or not lim["far"]):
+        if b == "flash" and cfg and cfg.get("LAYOUT") in lim["flash_by_layout"]:
             cap = lim["flash_by_layout"][cfg["LAYOUT"]] - SPARE["flash"]
         out[b] = (u, cap, u - cap)
     return out

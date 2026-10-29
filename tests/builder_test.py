@@ -41,6 +41,16 @@ items = R.ITEMS
 check("registry: unique stable bits, one level of options (two under a group's head: DRUMS)",
       len({it.bit for it in items.values()}) == len(items) and
       all(not it.parent or not items[it.parent].parent or items[items[it.parent].parent].head for it in items.values()))
+_om, _ = C.parse("# name: old\nLAYOUT=1\nSDCARD=1\nFAR_OK=0\nRAM_PACKED=1\nMISSING_WARN=0\n")
+_od = C.dump(_om)
+check("memory menu: an old .config with LAYOUT SDCARD RAM_PACKED and a retired FAR_OK=0 loads, MEMORY reads SD card mode, the dump names the two, not MEMORY or FAR_OK",
+      _om["MEMORY"] == 2 and (_om["LAYOUT"], _om["SDCARD"], _om["RAM_PACKED"]) == (1, 1, 1) and "FAR_OK" not in _om
+      and all(f"{k}=1" in _od.splitlines() for k in ("LAYOUT", "SDCARD")) and "MEMORY" not in _od and "FAR_OK" not in _od)
+check("... the menu lists MEMORY alone in the group's top level, SD_RING / SD_REC under it; the five others are hidden but real items",
+      [it.key for it in R.top_level("Memory management") if it.key in ("MEMORY", "RAM_PACKED", "SDCARD", "LAYOUT")] == ["MEMORY"]
+      and R.ITEMS["MEMORY"].menu_children == ["SD_RING", "SD_REC"] and R.ITEMS["SDCARD"].menu_children == []
+      and all(R.ITEMS[k].hidden for k in ("RAM_PACKED", "SDCARD", "LAYOUT")) and "FAR_OK" not in R.ITEMS and "FAR_OK" in R.RETIRED and R.ITEMS["RAM_PACKED"].bit == 437
+      and R.ITEMS["SD_RING"].parent == "SDCARD" and R.ITEMS["SD_RING"].shown_under == "MEMORY")
 _nd = dict(C.defaults(), DRUMS=0, LANE_FX=1, DRUM_X0X909=1)
 _nf = C.flags(_nd)[0]
 check("DRUMS off: every drum switch 0 (its options' options too), the drum-only items elsewhere left out, no drum source "

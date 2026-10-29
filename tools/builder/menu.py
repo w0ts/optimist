@@ -222,7 +222,7 @@ class Builder(App):
     def node_label(self, key):
         it = R.ITEMS[key]
         v = self.cfg[key]
-        live = (not it.parent or C.built(self.cfg, it.parent)) and (key not in R.DRUMS_ONLY or C.built(self.cfg, "DRUMS"))
+        live = (not it.parent or C.built(self.cfg, it.parent)) and (not it.shown_under or C.built(self.cfg, it.shown_under)) and (key not in R.DRUMS_ONLY or C.built(self.cfg, "DRUMS"))
         if it.is_choice:
             lab = dict(it.choices).get(v, str(v))
             box = f"<{lab}>"
@@ -305,7 +305,7 @@ class Builder(App):
         tree.clear()
         self.nodes = {}
         for g in R.GROUPS:
-            items = [it for it in R.top_level(g) if self.matches(it.key) or any(self.matches(c) for c in it.children)]
+            items = [it for it in R.top_level(g) if self.matches(it.key) or any(self.matches(c) for c in it.menu_children)]
             items = [R.ITEMS[k] for k in self.sorted_keys(it.key for it in items)]
             if not items:
                 continue
@@ -316,10 +316,10 @@ class Builder(App):
     def add_node(self, parent, key, collapsed, top):
         """key under parent, its options under it (a group's head: two levels, DRUMS > DRUM_X0X909 > X909_CYM)"""
         it = R.ITEMS[key]
-        if it.children:
+        if it.menu_children:
             n = parent.add(self.node_label(key), data=key, expand=bool(self.filter) or key not in collapsed)
-            for c in self.sorted_keys(it.children):
-                if self.matches(c) or self.matches(top) or any(self.matches(g) for g in R.ITEMS[c].children):
+            for c in self.sorted_keys(it.menu_children):
+                if self.matches(c) or self.matches(top) or any(self.matches(g) for g in R.ITEMS[c].menu_children):
                     self.add_node(n, c, collapsed, top)
         else:
             n = parent.add_leaf(self.node_label(key), data=key)
@@ -403,8 +403,8 @@ class Builder(App):
         it = R.ITEMS[key]
         t = Text(it.label + "\n", style="bold")
         t.append(f"{key}" + (f"  ({it.flag})" if it.flag else "") + f"  bit {it.bit}\n", style="dim")
-        if it.parent:
-            t.append(f"option of {R.ITEMS[it.parent].label}\n", style="dim")
+        if it.parent or it.shown_under:
+            t.append(f"option of {R.ITEMS[it.shown_under or it.parent].label}\n", style="dim")
         if it.desc:
             t.append(it.desc + "\n")
         if key == "DLY_ARENA":                           # (the effects memory: up to how many of each insert at once)
@@ -438,7 +438,7 @@ class Builder(App):
         self.refresh_info()
 
     def on_tree_node_selected(self, ev):
-        if isinstance(ev.node.data, str) and not R.ITEMS[ev.node.data].children:
+        if isinstance(ev.node.data, str) and not R.ITEMS[ev.node.data].menu_children:
             self.action_toggle()
 
     # ---- actions

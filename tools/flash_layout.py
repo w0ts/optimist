@@ -29,21 +29,20 @@ def app_slot(layout: int) -> int:
     return app_hi(layout) - APP_LO - APP_HEAD - APP_TAIL
 
 
-FAR_OFF = 0x90000         # the far probe in a probe build (layout 1, FAR_OK off): app.bin offset 0x90000 (flash 0x94120),
-                          # past the normal end; everything the boot reads stays below the normal slot's end
-FAR_RESERVE = 0x10000     # FAR_OK (the probe passed on this FM-1): the far probe and the overlays' table in the slot's
-                          # last 64 KB, the code below them
+FAR_RESERVE = 0x10000     # the far probe (a console diagnostic) and the overlays' table in the fake SD mode layout's slot's
+                          # last 64 KB, the code below them (FAR_OK, the item that waited for the probe's answer on an FM-1,
+                          # is retired: the user, 2026-10-29, "drop the far probe, we don't need it")
 
 
-def far_off(far_ok: bool) -> int:
+def far_off() -> int:
     """app.bin's offset of the far probe's section (.text_far, and the overlays' table after it)"""
-    return (app_slot(1) - FAR_RESERVE) & ~0xFF if far_ok else FAR_OFF
+    return (app_slot(1) - FAR_RESERVE) & ~0xFF
 
 
-def code_limit(layout: int, far_ok: bool) -> int:
-    """how far app.bin's code and boot stream may reach: the normal slot, unless the far probe passed (FAR_OK, the
-    fake SD mode layout): then up to the far probe's place near the big slot's end"""
-    return far_off(True) if layout == 1 and far_ok else app_slot(0)
+def code_limit(layout: int) -> int:
+    """how far app.bin's code and boot stream may reach: the normal slot, or in the fake SD mode layout (LAYOUT 1) up to
+    the far probe's place near the big slot's end"""
+    return far_off() if layout == 1 else app_slot(0)
 
 
 def layout_of(flash_len: int) -> int:

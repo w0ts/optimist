@@ -125,10 +125,10 @@ emulator, not on an FM-1.
   larger S). Deviation from the sketch: no "two adjacent slots" (a part's slot is its own; a big engine stays
   resident), because slots shared between parts would need a placement that can refuse a project (open question in
   the report). `OPTIMIST_OVL_SLOT=N` forces S for a test build.
-- **The table** (`_ovl_rom`, after the far probe's `.text_far` past 0x93000: the big layout only): each engine's
+- **The table** (`_ovl_rom`, after the far probe's `.text_far` in the slot's last 64 KB: the big layout only): each engine's
   place (RAMTEXT, XIP, or the slots: its code once per slot). `core/overlay.c` checks it at boot (magic, the slots'
   address and span, each table's tag); refused, the overlay engines play nothing (the console's `ovl`: `ovl_bad 1`).
-  If the chip does not map the flash past 0x93000 (the far probe's question), this is what happens.
+  If the chip does not map the flash past 0x93000 (the far probe's question, no longer asked before a build: FAR_OK retired 2026-10-29), this is what happens.
 - **Protocol** (`core/overlay.c`): the audio (`track_render`, either core) calls a part's hooks only while
   `rto_eng[k]` names the part's engine, else the part plays nothing that block (its voices wait) and asks
   (`rto_want`). The main loop (`rto_poll`, every pass and in the wait loop) loads: `rto_eng[k]` = none, the copy,
