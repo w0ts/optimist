@@ -47,6 +47,9 @@ static uint32_t glw_state(void)                        /* every setting a GLOBAL
 #if FELUCCA_MIDI_CLKOUT
     h = glw_mix(h, &clko_on, 1);
 #endif
+#if FELUCCA_LINK
+    h = glw_mix(h, &link_mode, 1);                  /* (LINK on the MIDI page: clock_sync.c) */
+#endif
 #if DUAL_LOAD
     h = glw_mix(h, &dual_mode, 1);
 #endif
