@@ -74,9 +74,8 @@ static void dsend_dry(void)
         dsend[l] = dsend_word(0, 0, 0);
 }
 /* a lane's sound as its kit has it (RESET): the kit's source, no offsets, and DRY (2026-10-29, the user: the drum presets
- * have no reverb or FX by default): every send 0, the inserts at their default slots with amounts 0. The audio ISR must
+ * have no reverb or FX by default): every send 0, both insert amounts 0. The audio ISR must
  * not run meanwhile */
-static void lin_reset(uint32_t l);                          /* fx_slots.c */
 static void dsnd_reset(uint32_t l)
 {
     l %= DRUM_LANES;
@@ -84,7 +83,7 @@ static void dsnd_reset(uint32_t l)
     dl.src[l] = DL_KIT;
     memset(dl.ref[l], 0, sizeof dl.ref[l]);
     dsend[l] = dsend_word(0, 0, 0);
-    lin_reset(l);
+    dins_amt[0][l] = dins_amt[1][l] = 0u;                   /* (the inserts off: DST, CMP 0; their types stay) */
 }
 /* level 0..31 -> a send in a track's steps (0..127): 4v + v / 8 (31: 127) */
 AINL int32_t dsend_lvl(uint32_t v) { return (int32_t)(4u * v + (v >> 3)); }
