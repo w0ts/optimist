@@ -571,6 +571,7 @@ static void pages_keys_tests(void)
     frames(2);
     keys_are(kw(3), kws(0, 15), "D10: FX layer: the latched effect full");
     punch.req = -1;
+    let_go(B_FX);
     for (k = 0; k < 4u; k++)
         fxoff[k] = trk[k].p[P_FXOFF], trk[k].p[P_FXOFF] = 0;
     smute_set_trk(1, 1);

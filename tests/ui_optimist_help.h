@@ -58,7 +58,7 @@ static void help_tests(void)
             gl_cell(s, i, &c);
             t = hl_text();
             gl_sect(s, i, nm);
-            if (gl_info_wide()) {                       /* (SYSTEM > INFO's first page: no help line, no band; its rows run to the foot) */
+            if (s && !strcmp(nm, "INFO")) {                       /* (SYSTEM > INFO's first page: no help line, no band; its rows run to the foot) */
                 if (hl.on || t) {
                     printf("  help: %s line %u %s: a help line on the page without a band\n", SCR_NAME[scr], i, c.label ? c.label : "-");
                     ok = 0;
