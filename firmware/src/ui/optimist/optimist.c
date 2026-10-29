@@ -28,7 +28,8 @@
  * op_edits.c (the sound's edits, the work changed: what a load asks),
  * op_gldraw.c (GLOBAL and SYSTEM's settings list), op_help.c (the help line on the screen's foot),
  * op_mixdraw.c (the mixer's rows: meters, steps), op_scope.c (SCOPE), op_stepdraw.c (STEP's
- * grid and roll), op_laydraw.c (a layer's map, the TEMPO and session-grid pictures), op_input.c (the panel, the
+ * grid and roll), op_laydraw.c (a layer's map, the TEMPO and session-grid pictures), op_keep.c (the cursor kept on its page
+ * by what the page is when pages come or go), op_input.c (the panel, the
  * entry points), op_keys.c (the keys' lights: full, dim, dark in every mode). After op_cells.c, op_fm6.c (FM6's operator editor: ENV held, the SOUND family) and after
  * op_laydraw.c its drawing, op_fm6draw.c. */
 #ifndef FELUCCA_BT_AUDIO
@@ -90,6 +91,7 @@
 #include "op_laydraw.c"
 #include "op_songtbl.c"            /* SONG: the scenes table and the parts timeline (the user, 2026-10-21) */
 #include "op_fm6draw.c"
+#include "op_keep.c"                 /* the cursor kept on its page when pages come or go (op_input.c op_rows_fix) */
 #include "op_input.c"
 #include "op_keys.c"
 #include "op_nav.c"                /* the mirror's touch navigation (ED_MIRROR: io/editor/ed_mirror.c 109 NAV) */
