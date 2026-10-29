@@ -130,8 +130,8 @@ static void gl_line_draw(uint32_t k, int32_t y, const cell_t *c, uint32_t on)
     }
 }
 /* SYSTEM's first page, INFO: not 4 lines but every read-out at once, compact: the name left, the value right, text
- * only but the CPU lines' bars (gl_info_bar: the load now and its peaks; the clock, the load of each core, RAM, the battery). KNOB 1 sets
- * the CPU lines' number (op_global.c info_knob); no line is the cursor */
+ * only but the CPU lines' bars (gl_info_bar: the load now and its peaks; the clock, the load of each core, RAM, the battery). No line is the cursor,
+ * no knob does anything */
 #define GL_INFO_PH 26                                   /* a read-out page's line pitch at most */
 #define GL_INFO_PH_MAIN 34                              /* INFO's: five or six lines (the battery is the header's, 2026-10-29) spread over the band */
 static uint32_t gl_sys_item(void)                       /* SYSTEM's page shown is the one whose first line is this item (SI_NONE: not SYSTEM) */

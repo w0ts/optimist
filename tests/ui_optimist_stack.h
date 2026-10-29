@@ -93,18 +93,12 @@ static void stackmark_tests(void)
         ui.force = 1;
         frame();
         ppm("opt-info-ram");
-        memset((void *)&ovl, 0, sizeof ovl);            /* KNOB 1 as the CPU lines': half the arena 30 s ago, a quarter now */
+        memset((void *)&ovl, 0, sizeof ovl);            /* the RAM line's number is the use now; the ticks hold the maxima: half the arena 30 s ago, a quarter now */
         ovl_ring_put(&ovl.r[OVL_RAM], ARN_BYTES / 2u / 1024u, fm1_ms - 30u * 1024u);
         ovl_ring_put(&ovl.r[OVL_RAM], ARN_BYTES / 4u / 1024u, fm1_ms);
-        info_mode = OVL_MAX10;
         info_ram(&c);
-        check(!strcmp(c.label, "RAM MAX 10S") && atoi(c.val) == (int)(ARN_BYTES / 4u / 1024u),
-              "RAM line: KNOB 1 MAX 10S: the last ~10 s's most in use (30 s ago not in it), the label's suffix");
-        info_mode = OVL_MAXALL;
-        info_ram(&c);
-        check(!strcmp(c.label, "RAM MAX") && atoi(c.val) == (int)(ARN_BYTES / 2u / 1024u),
-              "RAM line: KNOB 1 MAX: the most in use since boot");
-        info_mode = OVL_NOW;
+        check(!strcmp(c.label, "RAM") && c.hold[1] > c.hold[0] && c.hold[0] > 0,
+              "RAM line: the label plain; the 10 s tick (a quarter) below the since-boot tick (half)");
         memset((void *)&ovl, 0, sizeof ovl);
     }
 #endif
@@ -113,7 +107,6 @@ static void stackmark_tests(void)
         uint32_t ci = info_line(DUAL_LOAD ? "CPU0" : FELUCCA_SYS_DEBUG ? "LOAD" : "CPU LOAD"), n = info_lines(INFO_PG_INFO);
         int32_t ph = gl_info_pitch(INFO_PG_INFO, n, gl_y0()), y0, y, by = -1, x10, x60;
         memset((void *)&ovl, 0, sizeof ovl);
-        info_mode = OVL_NOW;
         ovl_ring_put(&ovl.r[OVL_CPU0], ovw_pct(90u), fm1_ms - 30u * 1024u);   /* (90 % half a minute ago: the dim tick, red) */
         ovl_ring_put(&ovl.r[OVL_CPU0], ovw_pct(70u), fm1_ms);                 /* (70 % now: the bright tick, amber) */
         song.cpu_q8 = 40u * 256u / 100u + 1u;

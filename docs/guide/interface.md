@@ -105,11 +105,11 @@ GLOBAL and SYSTEM are settings lists: one setting on a line, the name left and t
 
 ## SYSTEM > INFO
 
-INFO is a text page, no knob edits it except KNOB 1. What a musician reads:
+INFO is a text page, no knob edits it. What a musician reads:
 
 | Line | Meaning |
 |---|---|
-| CPU0 (CPU LOAD without a second core) | The audio render load in percent; with a second core it includes CPU0's wait for CPU1. KNOB 1 chooses what it shows: NOW, the maximum of the last 5 seconds, or the maximum since boot. Over 100 means a late audio half (a gap in the sound) |
+| CPU0 (CPU LOAD without a second core) | The audio render load in percent; with a second core it includes CPU0's wait for CPU1. The bar's bright tick marks the maximum of the last 10 seconds, the dim one the maximum since boot. Over 100 means a late audio half (a gap in the sound) |
 | CPU1 | The share of each audio half the second core takes. Instead: 2ND CORE OFF and the reason (NO START, TIMEOUT, FAULT, FLASH, MISREAD, CANARY, AFTER CRASH, SETTING, PARKED, BLUETOOTH, OVERLOAD, SUPPLY). |
 | UNDERRUNS | Losses: late audio halves, USB audio's and MIDI in's, and where |
 

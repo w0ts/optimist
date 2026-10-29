@@ -291,20 +291,6 @@ static void sls_cell(uint32_t r, uint32_t k, cell_t *c)
     else
         gl_cell(1, gl_line(1, r, k), c);
 }
-/* INFO's KNOB 1 (the user, 2026-10-15: "the second encoder should switch between CURRENT, MAX OVER A FEW SECONDS, MAX FOR
- * EVER"; 2026-10-18: KNOB 1, not 2; 2026-10-28: the bars show the 10 s and since-boot peaks, the number reads them): the CPU lines'
- * number, NOW -> MAX 10S -> MAX, a detent a step, round. 1: INFO shown and KNOB 1 */
-static int info_knob(uint32_t r, uint32_t k, int32_t s)
-{
-    uint32_t e;
-    if (GL_DEV || k != 0u || r >= gl_n(1))
-        return 0;
-    e = gl_ent(1, gl_first(1, r));
-    if (sys_item(e >> 2, e & 3u) != SI_INFO)
-        return 0;
-    info_mode = (uint8_t)((info_mode + (s < 0 ? OVL_NMODE - 1u : 1u)) % OVL_NMODE);
-    return 1;
-}
 static void sls_turn(uint32_t r, uint32_t k, int32_t s, int fine)
 {
     if (GL_DEV)
