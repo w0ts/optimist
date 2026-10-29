@@ -73,7 +73,7 @@ GATER chops the track's volume in time with the tempo. Page `GATER`: DEPTH (the 
 
 ### CHRS, ECHO, JUNO, FLNG and XDLY: types that share the effects memory
 
-These keep a line of memory each (CHRS 2 KB, ECHO 8 KB, JUNO 2 KB, FLNG 1 KB, XDLY 64 or 32 KB), taken from one effects memory (builder item `DLY_ARENA`) that also holds the delay's own line. The builder builds each type or not; how many play at once is what the memory holds (the builder says, for the size chosen, up to how many of each). A slot that picks one when there is no room left stays dry until some is given back; the INSERTS list shows how many more fit.
+These keep a line of memory each (CHRS 2 KB, ECHO 8 KB, JUNO 2 KB, FLNG 1 KB, XDLY 64 or 32 KB), taken from one effects memory that also holds the delay's own line. The builder builds each type or not and sizes the memory itself (the delay's line and one line of each type built); the builder says up to how many of each play at once. A slot that picks one when there is no room left stays dry until some is given back; the INSERTS list shows how many more fit.
 
 **JUNO** is the Juno-106's chorus (from fm-106, the MN3009 model): page `JUNO CHO` with MIX (127 = fully on) and MODE (I, II, I+II). A mono track comes out in stereo. On the master it is the page `MST JUNO`, shown as `INS JUNO`.
 
