@@ -118,6 +118,9 @@ RETIRED = {
     "BT_AFH": "Bluetooth audio always hops adaptively, the channels the headset fails on skipped (bt/bt_afh.c; retired 2026-10-29, bit 395; the user: \"always on\"; any old BT_AFH value is ignored)",
     "BLE_DIAG": "the BLE diagnostics (the console's blell, the link layer's counters and rings) were removed (retired 2026-10-29, bit 253; the user: \"we can remove the diagnostics\"): BLE works the same without them; any old BLE_DIAG value is ignored",
     "BT_DIAG": "the Bluetooth audio diagnostics (the console's btinq / btscan / btpage / btclk / btrx / bttrace, the status histograms, receive logs and per-second counters) were removed (retired 2026-10-29, bit 363; the user: \"we can remove the diagnostics\"): the audio works the same without them; any old BT_DIAG value is ignored",
+    "INS_CHORUS": "the chorus insert CHRS is the chorus itself: CHO goes in any track's or the master's insert slot wherever FX_CHORUS is built, with the send's RATE and DEPTH and a dry/wet MIX (retired 2026-10-29, bit 270; the user: \"can't they be just one effect like any other? why complexify just for these two?\"); an old project's CHRS loads as CHO; any old INS_CHORUS value is ignored",
+    "INS_REVERB": "the reverb insert ROOM is the reverb itself: REV goes in any track's or the master's insert slot wherever FX_REVERB is built, the ROOM tank with the send's SIZE and DAMP and a dry/wet MIX (retired 2026-10-29, bit 440, the day it came); an old project's ROOM loads as REV; any old INS_REVERB value is ignored",
+    "INS_TDELAY": "the delay insert TDLY is the delay itself: DLY goes in any track's or the master's insert slot wherever FX_DELAY is built, with the send's TIME, FDBK and filter and a dry/wet MIX (retired 2026-10-29, bit 441, the day it came); an old project's TDLY loads as DLY; any old INS_TDELAY value is ignored",
     "DLY_ARENA": "the effects memory (the delay send's line and the limited inserts' lines) is always sized automatically: the delay's line and one line of each limited insert type built, in the arena (ARENA on) and as the fixed memory (off) alike (retired 2026-10-29, bit 378; the user: \"remove the item, always auto\"): the number of an old DLY_ARENA setting is ignored",
     "KNOB_ONEREST": "the knobs are always read with Felucca 1.6's decoder (one rest state a detent, fast turns counted; "
                     "retired 2026-10-14, released in Felucca 1.1.5 #126 and unchanged since)",
@@ -128,7 +131,7 @@ RETIRED = {
 # counted ON (the image every build is now; a build that had it off is a different image).
 # items that were a count before the effects memory (2026-10-23) and are built or not since: a .config's count reads as
 # built (core.py parse: any non-zero is 1)
-WAS_COUNT = frozenset({"INS_CHORUS", "INS_DELAY", "INS_JCHORUS", "INS_FLANGER", "INS_XDLY",
+WAS_COUNT = frozenset({"INS_DELAY", "INS_JCHORUS", "INS_FLANGER", "INS_XDLY",
                        "ARENA"})   # (ARENA: its KB until 2026-10-29, the free RAM since: on)
 
 ALWAYS_ON_TARGET = {"FELUCCA_DUAL": 2, "FELUCCA_STOCK_SUPPLY": 1}   # (target builds only, no item: system/dual.c, system/supply.c; 2026-10-29)
@@ -206,7 +209,7 @@ class Item:
 
 # The FX in one group (the user, 2026-10-29: "one FX group, no any number / limited instances split"; two since
 # 2026-10-13). Each effect's label starts with where it goes: [send+insert] the chorus, the delay and the reverb (a send
-# on the master's returns, and as a track's or the master's insert: CHRS, TDLY, ROOM), [master] what runs on the whole
+# on the master's returns, and the same type as a track's or the master's insert: CHO, DLY, REV), [master] what runs on the whole
 # mix only (PUNCH, DUCK, the returns' feedback sends), [insert] every other effect (a track's or the master's insert
 # slots). A sub-item is an option of the item above it; the mix's resolution options are no effect: no tag.
 FX = "FX"
@@ -601,10 +604,10 @@ _add("FX_DIST", "FELUCCA_FX_DIST", "[insert] DIST (per-track drive)", F, 35,
           "filter that closes as the drive rises. About 0.4 KB of flash; off: the DIST controls disappear.")
 _add("FX_CHORUS", "FELUCCA_FX_CHORUS", "[send+insert] chorus", F, 36,
      desc="The chorus effect, fed by each track's CHO send. About 0.4 KB of flash and 4 KB of pool; off: the CHO "
-          "sends and the chorus settings disappear.")
+          "sends and the chorus settings disappear." + " In a track's insert slot or the master's (INSERTS > S1 / S2) it is an insert like any other, its amount the dry/wet MIX (0 dry, 127 all wet: the send's return at unity): a track's CHO value is then the MIX and the track sends nothing to the bus. It runs the send's own code with the send's settings (RATE and DEPTH, FX > REV/CHO). Each copy needs a 4 KB line: with ARENA a block of the free RAM each, as many as it holds; without, a copy plays where the effects memory has room: room another insert leaves free, or the chorus's or the delay's line while that send is in no master slot; a slot left without room shows FULL and stays dry.")
 _add("FX_DELAY", "FELUCCA_FX_DELAY", "[send+insert] delay", F, 37,
      desc="The tempo-synced delay (echo), fed by each track's DLY send. Costs 128 KB of the pool at the full "
-          "length: shorten it with the length option, or leave it out.")
+          "length: shorten it with the length option, or leave it out." + " In a track's insert slot or the master's (INSERTS > S1 / S2) it is an insert like any other, its amount the dry/wet MIX (0 dry, 127 all wet: the send's return at unity): a track's DLY value is then the MIX and the track sends nothing to the bus. It runs the send's own code with the send's settings (TIME, FDBK and the filter, FX > DLY and DLY F). Each copy needs a line as long as the delay's (the length below): with ARENA a block of the free RAM each, as many as it holds; without, a copy plays on the delay's own line while the delay is in no master slot, or on room another insert leaves free; a slot left without room shows FULL and stays dry.")
 _add("DLY_LEN", "FELUCCA_DLY_LEN", "delay length (how long an echo can be)", F, 38, default=65536, parent="FX_DELAY",
      choices=((65536, "1.49 s (128 KB pool)"), (32768, "0.74 s (64 KB)"), (16384, "0.37 s (32 KB)")),
      desc="The longest delay time, which sets the pool memory the delay takes. A time longer than the line is "
@@ -613,7 +616,8 @@ _add("FX_REVERB", "FELUCCA_FX_REVERB", "[send+insert] reverb", F, 39,
      desc="The reverb, fed by each track's REV send and the drums' reverb, with its algorithms below (tick at least "
           "one). Each one ticked is on the device's FX > REVERB > TYPE and in the web editor's Reverb popup, switched "
           "while it plays; with one ticked there is no TYPE. They share one line buffer, sized to the largest. The "
-          "biggest user of RAM among the FX (about 17 KB with ROOM); off: the REV sends and reverb settings disappear.")
+          "biggest user of RAM among the FX (about 17 KB with ROOM); off: the REV sends and reverb settings disappear."
+          + " In a track's insert slot or the master's (INSERTS > S1 / S2) it is an insert like any other, its amount the dry/wet MIX (0 dry, 127 all wet: the send's return at unity): a track's REV value is then the MIX and the track sends nothing to the bus. It runs the send's own code with the send's settings (SIZE and DAMP, FX > REV/CHO; the insert is always the ROOM, whatever TYPE the send plays: about 280 host instructions a sample a copy). Each copy needs 19 KB: with ARENA a block of the free RAM each, as many as it holds; without, a copy plays on the delay's line while the delay is in no master slot, or on room another insert leaves free; a slot left without room shows FULL and stays dry.")
 # the reverb's algorithms (firmware/src/fx/reverb/rev_type.c): one checkbox each (bit 150, the one-tank choice REVERB, is retired)
 _add("REV_ROOM", "FELUCCA_REV_ROOM", "reverb: ROOM", F, 151, parent="FX_REVERB", symbols=("rev_ap",),
      desc="Four delay lines at 44.1 kHz, the reverb as it always was: sparse for its first ~300 ms (separate echoes, "
@@ -814,12 +818,7 @@ _INS_LIM = (" Its line is in the effects memory, sized by the builder: the delay
             "there is no room left stays dry until some is free (the INSERTS list shows how many more fit). A saved "
             "project keeps the type, not the room: on load the slots get it in order T1 T2 T3 DR, the master, the USB "
             "input, the returns.")
-_add("INS_CHORUS", "FELUCCA_INS_CHORUS", "[insert] CHRS (chorus copies for the tracks)", F, 270, default=0,
-     desc="A chorus type for the tracks' insert slots (INSERTS > S1 / S2: CHRS), beside the chorus send: two taps "
-          "around 7 ms swept apart at ~0.8 Hz; CHRS up to the middle mixes it in, past the middle widens the sweep. "
-          "On the drum track it turns the drums' mid into a stereo chorus. 2 KB of the effects memory an instance."
-          + _INS_LIM,
-     symbols=("ifx_chrs",), notice="Tested in the host tests only, not on a device.")
+# (bit 270, INS_CHORUS, CHRS: retired 2026-10-29, the CHO insert is built with FX_CHORUS; RETIRED above, never reuse the bit)
 _add("INS_DELAY", "FELUCCA_INS_DELAY", "[insert] ECHO (short delay copies for the tracks)", F, 271, default=0,
      desc="A slapback type for the tracks' insert slots (INSERTS > S1 / S2: ECHO), beside the delay send: one repeat "
           "75 ms after the sound; ECHO up to the middle sets its level, past the middle adds repeats (feedback up to "
@@ -865,22 +864,8 @@ _add("XDLY_LEN", "FELUCCA_XDLY_LEN", "XDLY line length (its longest TIME)", F, 3
      choices=((16384, "0.37 s (64 KB pool an instance)"), (8192, "0.19 s (32 KB)")),
      desc="How long each of XDLY's two lines is: TIME's top end. The shorter line halves every TIME and takes 32 KB "
           "less of the effects memory an instance.")
-# the sends as inserts (2026-10-29, fx/insfx/fxi_send.c; bits 440 441: the first free ones after MIX_EXACT's 439): the
-# reverb send's ROOM and the delay send's delay as limited insert types (FX type ids 30 ROOM, 31 TDLY)
-_add("INS_REVERB", "FELUCCA_INS_REVERB", "reverb as an insert too (ROOM, dry/wet)", F, 440, default=0, parent="FX_REVERB",
-     desc="The reverb send's ROOM as an insert type for the tracks' slots and the master's (INSERTS > S1 / S2: ROOM): "
-          "the same tank and code as the send, its SIZE and DAMP the reverb's (FX > REV/CHO), the amount its dry/wet "
-          "MIX (0 dry, 127 all wet: the send's return at unity). A mono track comes out stereo, its tail goes on after "
-          "its notes end. Needs reverb: ROOM ticked (PLATE, FDN8 and VTINY stay the send's: FDN8's ring alone is 32 KB). "
-          "About 240 host instructions a sample an instance, as the send's; 19 KB of the effects memory an instance."
-          + _INS_LIM, symbols=("ifx_room",), notice="Tested in the host tests only, not on a device.")
-_add("INS_TDELAY", "FELUCCA_INS_TDELAY", "delay as an insert too (TDLY, dry/wet)", F, 441, default=0, parent="FX_DELAY",
-     desc="The delay send's delay as an insert type for the tracks' slots and the master's (INSERTS > S1 / S2: TDLY): "
-          "the same code as the send, its TIME (synced to the tempo), FDBK and filter the delay's (FX > DLY, DLY F), "
-          "the amount its dry/wet MIX (0 dry, 127 all wet). Its repeats go on after a track's notes end. About 190 "
-          "host instructions a sample an instance; a line as long as the delay's (the length above: 128 KB at 1.49 s) "
-          "of the effects memory an instance." + _INS_LIM, symbols=("ifx_tdly",),
-     notice="Tested in the host tests only, not on a device.")
+# (bits 440 441, INS_REVERB INS_TDELAY, ROOM TDLY: came and went 2026-10-29, the REV and DLY inserts are built with
+#  FX_REVERB and FX_DELAY; RETIRED above, never reuse the bits)
 # (bit 378, DLY_ARENA, retired 2026-10-29: the effects memory (fx/insfx/fxi_mem.h, fxi.c) is always sized automatically,
 #  configure.py fx_memory / dly_arena; RETIRED above; never reuse the bit)
 # GATER (fx/insfx/gater.c, 2026-10-14): a further insert type, any number (a few bytes a track)

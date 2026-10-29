@@ -1,12 +1,9 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* The limited insert types (2026-10-13): CHRS and ECHO, insert copies of the chorus and of a short delay for the insert
- * slots (fx_slots.c S1 S2), JUNO CHORUS, FLNG (insfx.c) and XDLY (xdly.c), each a builder item (registry.h
- * FELUCCA_INS_*: built or not). Each instance's line is in the effects memory (fxi_mem.h, 2026-10-23): how many play at
+/* The limited insert types (2026-10-13): ECHO, an insert copy of a short delay for the insert slots (fx_slots.c S1 S2),
+ * JUNO CHORUS, FLNG (insfx.c) and XDLY (xdly.c), each a builder item (registry.h FELUCCA_INS_*: built or not), and the
+ * CHO DLY REV inserts (fxi_send.c: built with their effect; CHO took CHRS's place, 2026-10-29). Each instance's line is in the effects memory (fxi_mem.h, 2026-10-23): how many play at
  * once is what the memory holds. Included by insfx.c (the audio side); the main loop's side, which places an instance's
  * line and hands it to an owner holding the type: fxi.c.
- *   CHRS  a line of 1024 samples (23 ms, 2 KB), two taps around 7 ms moved half a turn apart by a
- *         ~0.8 Hz sine: a part (mono) gets (dry + the taps' mean) / 2; the drum bus feeds its mid and gets one tap on
- *         L, the other on R (stereo from the mid, as the chorus send). 1..64 its share, 64..127 its depth (2 .. 7.7 ms)
  *   ECHO  a line of 4096 samples (93 ms, 8 KB), one repeat at 75 ms added to the dry: 1..64 its
  *         level (0 .. 0.70), 64..127 its feedback (0 .. 0.60, rounded toward 0: a tail ends at exact 0); the drum bus
  *         feeds its mid, the echo goes to L and R
@@ -18,13 +15,13 @@
  * room or a send's line lent while the send is in no master slot (fxi.c "Lending"). Its evict flag (fxi.c, the line
  * going back to the send) fades it out as at amount 0. */
 #if INS_LIM
-/* The limited types by index j (FXI_J): 0 CHRS, 1 ECHO, 2 JUNO CHORUS (2026-10-14), 3 FLNG (2026-10-15), 4 XDLY
- * (2026-10-22). The owners of an instance (fxi.c, FXI_O*): the tracks 0 .. NTRK - 1, the master (its insert slots), the
+/* The limited types by index j (FXI_J): 0 CHO (CHRS's until 2026-10-29), 1 ECHO, 2 JUNO CHORUS (2026-10-14), 3 FLNG
+ * (2026-10-15), 4 XDLY (2026-10-22), 5 REV, 6 DLY (2026-10-29: fxi_send.c). The owners of an instance (fxi.c, FXI_O*): the tracks 0 .. NTRK - 1, the master (its insert slots), the
  * USB input track, the returns A B C (fx_slots.c rt_slot) */
 #define FXI_NL 7u                                       /* (the tables hold every type; a type not built: 0 instances) */
-#define FXI_J(t) ((t) == FXT_CHRS ? 0u : (t) == FXT_ECHO ? 1u : (t) == FXT_JUNO ? 2u : (t) == FXT_FLNG ? 3u : \
-                  (t) == FXT_ROOM ? 5u : (t) == FXT_TDLY ? 6u : 4u)   /* (5 ROOM, 6 TDLY 2026-10-29: fxi_send.c) */
-static const uint8_t FXI_TYS[FXI_NL] = {FXT_CHRS, FXT_ECHO, FXT_JUNO, FXT_FLNG, FXT_XDLY, FXT_ROOM, FXT_TDLY};
+#define FXI_J(t) ((t) == FXT_CHO ? 0u : (t) == FXT_ECHO ? 1u : (t) == FXT_JUNO ? 2u : (t) == FXT_FLNG ? 3u : \
+                  (t) == FXT_REV ? 5u : (t) == FXT_DLY ? 6u : 4u)
+static const uint8_t FXI_TYS[FXI_NL] = {FXT_CHO, FXT_ECHO, FXT_JUNO, FXT_FLNG, FXT_XDLY, FXT_REV, FXT_DLY};
 #define FXI_TY(j) ((uint32_t)FXI_TYS[(j) % FXI_NL])     /* (index j's type) */
 #define FXI_MST NTRK                                    /* the owners: T1 T2 T3 DR, then these (FXI_NK: fxi_mem.h) */
 #define FXI_UT (NTRK + 1u)
@@ -49,88 +46,14 @@ AINL uint32_t fxi_aix(uint32_t o)                       /* an owner -> the audio
     return o < NTRK ? o : o == FXI_MST ? IFX_MST : o == FXI_UT ? IFX_UT : IFX_RT(o - FXI_RT0);
 }
 
-/* ---- CHRS */
-#if FELUCCA_INS_CHORUS
-#define IFX_CH_LEN 1024u
-#define IFX_CH_BASE (309 << 8)                          /* the taps' centre, Q8 samples: 7 ms */
-#define IFX_CH_RATE 53                                  /* ~0.8 Hz (IFX_INC) */
-typedef struct {
-    int32_t w;                                          /* the wet share (Q15) */
-    uint32_t ph;                                        /* the LFO */
-    uint16_t wp, fill, q;                               /* the write place, samples written since the start (<= LEN),
-                                                         * zeros written in a row (<= LEN) */
-    uint8_t a, on;                                      /* the last amount (a fade-out runs at it), running (0: at rest) */
-    uint8_t evict;                                      /* its line goes back to the send (fxi.c): fading out, at 0 */
-    int16_t *line;                                      /* IFX_CH_LEN samples: units of the effects memory */
-} ifx_ch_t;
-_Static_assert(IFX_CH_LEN == FXA_Z0 * FXA_U, "CHRS: its line in units of the effects memory");
-static ifx_ch_t ifx_chrs[FXI_TN0] __attribute__((section(".pool")));   /* (main RAM is scarcer) */
-/* AINL: a tap d (Q8 samples back) after the sample at wp was written; 0 past what was written since the start */
-AINL int32_t ifx_ch_tap(const int16_t *ln, uint32_t wp, uint32_t fill, int32_t d)
-{
-    uint32_t i = (uint32_t)d >> 8;
-    int32_t y0, y1;
-    if (i + 1u >= fill)
-        return 0;
-    y0 = ln[(wp - i) & (IFX_CH_LEN - 1u)], y1 = ln[(wp - i - 1u) & (IFX_CH_LEN - 1u)];
-    return y0 + (((y1 - y0) * (d & 255)) >> 8);
-}
-/* n samples: a part's b (r 0: mono), or the drum bus's l and r (fed their mid); sh: the headroom (a part's 3, the bus's 2) */
-static HOT2 __attribute__((noinline)) void ifx_chorus(ifx_ch_t *s, int32_t a, int32_t *l, int32_t *r, uint32_t n, uint32_t sh)
-{
-    uint32_t i, wp, fill, q, inc = IFX_INC(IFX_CH_RATE);
-    int32_t w = s->w, to, dep, s0, s1, pa, pb, da, db;
-    if (s->evict)
-        a = 0;                                          /* (its line goes back to the send: out, then at rest) */
-    if (!a && !w) {
-        s->on = 0;                                      /* (at rest: it starts again from a clean line) */
-        return;
-    }
-    if (!s->on)
-        s->fill = 0, s->q = 0, s->on = 1;               /* starting: what the line holds is not read */
-    if (a)
-        s->a = (uint8_t)a;
-    to = a ? (a > 64 ? 64 : a) * 512 : 0;
-    if (s->q >= IFX_CH_LEN && !fx_any(l, n) && (!r || !fx_any(r, n))) {
-        s->w = to, s->ph += n * inc;                    /* (a clear line, silence in: silence out) */
-        return;
-    }
-    dep = s->a > 64 ? 88 + (s->a - 64) * 4 : 88;        /* the sweep, samples: 2 .. 7.7 ms */
-    s0 = osc_sine(s->ph);
-    s->ph += n * inc;
-    s1 = osc_sine(s->ph);
-    pa = IFX_CH_BASE + (((s0 + 32768) * dep) >> 8), da = IFX_CH_BASE + (((s1 + 32768) * dep) >> 8) - pa;
-    pb = IFX_CH_BASE + (((32767 - s0) * dep) >> 8), db = IFX_CH_BASE + (((32767 - s1) * dep) >> 8) - pb;
-    wp = s->wp, fill = s->fill, q = s->q;
-    for (i = 0; i < n; i++) {
-        int32_t x = r ? (l[i] >> 1) + (r[i] >> 1) : l[i], v = clamp(x >> sh, -32767, 32767), ta, tb;
-        s->line[wp] = (int16_t)v;
-        q = v ? 0u : q < IFX_CH_LEN ? q + 1u : q;
-        fill += fill < IFX_CH_LEN;
-        ta = ifx_ch_tap(s->line, wp, fill, pa + ((da * (int32_t)i) >> CTL_LOG2));
-        tb = ifx_ch_tap(s->line, wp, fill, pb + ((db * (int32_t)i) >> CTL_LOG2));
-        wp = (wp + 1u) & (IFX_CH_LEN - 1u);
-        if (fill > (IFX_CH_BASE >> 8) + 2u)             /* (starting: the fade-in once both taps read the input, no dip) */
-            w += clamp(to - w, -IFX_SLOPE, IFX_SLOPE);
-        if (r) {
-            l[i] = ifx_mix(l[i], (l[i] >> 1) + (ta << (sh - 1u)), w);
-            r[i] = ifx_mix(r[i], (r[i] >> 1) + (tb << (sh - 1u)), w);
-        } else {
-            l[i] = ifx_mix(x, (x >> 1) + ((ta + tb) << (sh - 2u)), w);
-        }
-    }
-    s->wp = (uint16_t)wp, s->fill = (uint16_t)fill, s->q = (uint16_t)q, s->w = w;
-}
-#endif
-
 /* ---- ECHO */
 #if FELUCCA_INS_DELAY
 #define IFX_EC_LEN 4096u
 #define IFX_EC_D 3308u                                  /* 75 ms */
 typedef struct {
     int32_t w;                                          /* the echo's level (Q15) */
-    uint16_t wp, fill, q;                               /* (as CHRS's: fill and q <= IFX_EC_LEN) */
-    uint8_t a, on, evict;                               /* (as CHRS's) */
+    uint16_t wp, fill, q;                               /* (fill and q <= IFX_EC_LEN) */
+    uint8_t a, on, evict;                               /* the last amount (a fade-out runs at it), running, its line going back */
     int16_t *line;                                      /* IFX_EC_LEN samples: units of the effects memory */
 } ifx_ec_t;
 _Static_assert(IFX_EC_LEN == FXA_Z1 * FXA_U, "ECHO: its line in units of the effects memory");
@@ -229,7 +152,7 @@ static __attribute__((noinline)) void ifx_jchorus(ifx_jc_t *s, uint32_t k, int32
 #endif
 
 #include "xdly.c"                                       /* XDLY: the cross-modulated dual delay (2026-10-22) */
-#include "fxi_send.c"                                   /* ROOM, TDLY: the reverb and delay sends as inserts (2026-10-29) */
+#include "fxi_send.c"                                   /* CHO REV DLY: the sends as inserts (2026-10-29) */
 /* part k's XDLY still repeats (fx.c mix_part: a part whose voices have ended stays heard until its lines are clear) */
 AINL int ifx_ringing(uint32_t k)
 {
@@ -239,12 +162,12 @@ AINL int ifx_ringing(uint32_t k)
     i = fxi_at[k % NPART][FXI_J(FXT_XDLY)];
     on |= i < FXI_TN4 && ifx_xdly[i].on && ifx_xdly[i].w && ifx_xdly[i].q < XD_LEN;
 #endif
-#if INS_ROOM                                            /* (ROOM's tail, TDLY's repeats: fxi_send.c) */
-    i = fxi_at[k % NPART][FXI_J(FXT_ROOM)];
-    on |= i < FXI_TN5 && ifx_room[i].on && ifx_room[i].w && (ifx_room[i].q < REV_Q_ROOM || ifx_rm_lp(&ifx_room[i]));
+#if INS_REV                                             /* (REV's tail, DLY's repeats: fxi_send.c) */
+    i = fxi_at[k % NPART][FXI_J(FXT_REV)];
+    on |= i < FXI_TN5 && ifx_room[i].on && ifx_room[i].w && (ifx_room[i].q < REV_Q_TANK || ifx_rm_lp(&ifx_room[i]));
 #endif
-#if INS_TDLY
-    i = fxi_at[k % NPART][FXI_J(FXT_TDLY)];
+#if INS_DLY
+    i = fxi_at[k % NPART][FXI_J(FXT_DLY)];
     on |= i < FXI_TN6 && ifx_tdly[i].on && ifx_tdly[i].w && (ifx_tdly[i].q < DLY_LEN || ifx_td_fst(&ifx_tdly[i]));
 #endif
     (void)k, (void)i;
@@ -259,9 +182,9 @@ AINL int32_t ifx_lim_w(uint32_t ty, uint32_t k)
     uint32_t i = ifx_lim_at(ty, k);
     if (i == FXI_NONE)
         return 0;
-#if FELUCCA_INS_CHORUS
-    if (ty == FXT_CHRS)
-        return ifx_chrs[i].w;
+#if INS_CHO
+    if (ty == FXT_CHO)
+        return ifx_choi[i].w;
 #endif
 #if FELUCCA_INS_DELAY
     if (ty == FXT_ECHO)
@@ -279,12 +202,12 @@ AINL int32_t ifx_lim_w(uint32_t ty, uint32_t k)
     if (ty == FXT_XDLY)
         return ifx_xdly[i].w;
 #endif
-#if INS_ROOM
-    if (ty == FXT_ROOM)
+#if INS_REV
+    if (ty == FXT_REV)
         return ifx_room[i].w;
 #endif
-#if INS_TDLY
-    if (ty == FXT_TDLY)
+#if INS_DLY
+    if (ty == FXT_DLY)
         return ifx_tdly[i].w;
 #endif
     return 0;
@@ -295,9 +218,9 @@ AINL int ifx_lim_ev(uint32_t ty, uint32_t k)
     uint32_t i;
     if (!FXT_IS_LIM(ty) || (i = ifx_lim_at(ty, k)) == FXI_NONE)
         return 0;
-#if FELUCCA_INS_CHORUS
-    if (ty == FXT_CHRS)
-        return ifx_chrs[i].evict;
+#if INS_CHO
+    if (ty == FXT_CHO)
+        return ifx_choi[i].evict;
 #endif
 #if FELUCCA_INS_DELAY
     if (ty == FXT_ECHO)
@@ -315,12 +238,12 @@ AINL int ifx_lim_ev(uint32_t ty, uint32_t k)
     if (ty == FXT_XDLY)
         return ifx_xdly[i].evict;
 #endif
-#if INS_ROOM
-    if (ty == FXT_ROOM)
+#if INS_REV
+    if (ty == FXT_REV)
         return ifx_room[i].evict;
 #endif
-#if INS_TDLY
-    if (ty == FXT_TDLY)
+#if INS_DLY
+    if (ty == FXT_DLY)
         return ifx_tdly[i].evict;
 #endif
     return 0;
@@ -331,9 +254,12 @@ AINL void ifx_lim_rest(uint32_t ty, uint32_t k)
     uint32_t i = ifx_lim_at(ty, k);
     if (i == FXI_NONE)
         return;
-#if FELUCCA_INS_CHORUS
-    if (ty == FXT_CHRS)
-        ifx_chrs[i].w = 0, ifx_chrs[i].on = 0;
+#if INS_CHO
+    if (ty == FXT_CHO) {
+        ifx_choi[i].w = 0, ifx_choi[i].on = 0;          /* (its line: not read when it starts again) */
+        if (k < NPART)
+            ifx_csd[k] = 0;
+    }
 #endif
 #if FELUCCA_INS_DELAY
     if (ty == FXT_ECHO)
@@ -354,15 +280,15 @@ AINL void ifx_lim_rest(uint32_t ty, uint32_t k)
     if (ty == FXT_XDLY)
         ifx_xdly[i].w = 0, ifx_xdly[i].on = 0;          /* (its lines: not read when it starts again) */
 #endif
-#if INS_ROOM
-    if (ty == FXT_ROOM) {
+#if INS_REV
+    if (ty == FXT_REV) {
         ifx_room[i].w = 0, ifx_room[i].on = 0;          /* (its lines: cleared when it starts again, unless 0 already) */
         if (k < NPART)
             ifx_rsd[k] = 0;
     }
 #endif
-#if INS_TDLY
-    if (ty == FXT_TDLY)
+#if INS_DLY
+    if (ty == FXT_DLY)
         ifx_tdly[i].w = 0, ifx_tdly[i].on = 0;          /* (its line: not read when it starts again) */
 #endif
 }
@@ -372,16 +298,20 @@ static HOT2 __attribute__((noinline)) void ifx_lim_run(uint32_t ty, uint32_t k, 
 {
     uint32_t i = ifx_lim_at(ty, k);
     if (i == FXI_NONE || FXR_MOVING()) {
-#if INS_ROOM
-        if (ty == FXT_ROOM && !r)
+#if INS_REV
+        if (ty == FXT_REV && !r)
             ifx_rsd[k % NPART] = 0;                     /* (no side this block) */
+#endif
+#if INS_CHO
+        if (ty == FXT_CHO && !r)
+            ifx_csd[k % NPART] = 0;
 #endif
         return;                                         /* (none; or the own room moving, core/arena.c: this block
                                                          * bypassed, its lines untouched) */
     }
-#if FELUCCA_INS_CHORUS
-    if (ty == FXT_CHRS && i < FXI_TN0)
-        ifx_chorus(&ifx_chrs[i], a, l, r, n, sh);
+#if INS_CHO
+    if (ty == FXT_CHO && i < FXI_TN0)
+        FAR(ifx_cho_run)(&ifx_choi[i], k, a, l, r, n);   /* (flash code, XIP: the RAM text has no room) */
 #endif
 #if FELUCCA_INS_DELAY
     if (ty == FXT_ECHO && i < FXI_TN1)
@@ -399,12 +329,12 @@ static HOT2 __attribute__((noinline)) void ifx_lim_run(uint32_t ty, uint32_t k, 
     if (ty == FXT_XDLY && i < FXI_TN4)
         ifx_xdly_run(&ifx_xdly[i], k, a, l, r, n, sh);
 #endif
-#if INS_ROOM
-    if (ty == FXT_ROOM && i < FXI_TN5)
+#if INS_REV
+    if (ty == FXT_REV && i < FXI_TN5)
         FAR(ifx_room_run)(&ifx_room[i], k, a, l, r, n);   /* (flash code, XIP: the RAM text has no room) */
 #endif
-#if INS_TDLY
-    if (ty == FXT_TDLY && i < FXI_TN6)
+#if INS_DLY
+    if (ty == FXT_DLY && i < FXI_TN6)
         FAR(ifx_tdly_run)(&ifx_tdly[i], a, l, r, n);
 #endif
     (void)a, (void)l, (void)r, (void)n, (void)sh;

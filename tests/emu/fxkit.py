@@ -24,7 +24,7 @@ AMT = {7: "P_TFOLD", 8: "P_TFUZZ", 9: "P_TPHSR", 10: "P_TFLNG", 11: "P_TFRMT", 1
 DSEND_CMP = 4                                    # (drum_sends.c: SOUND 3's value ids, 4 the COMP insert)
 
 
-INSERT = (1, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18)   # (DIST COMP FILT, the further ones, DUST, JUNO; CHO DLY REV are the sends)
+INSERT = (1, 5, 6, 7, 8, 9, 10, 11, 12, 14, 15, 16, 17, 18)   # (DIST COMP FILT, the further ones, DUST, JUNO; CHO DLY REV the sends and, since 2026-10-29, inserts too; CHRS 13 an alias of CHO)
 RET_OTHER = tuple(t for t in INSERT if t != 15)  # (fx-pool: the types a return may hold beside the sends: every insert but GATER)
 TRK_DEF = [FXT["DIST"], FXT["FILT"]]             # (every track's slots at the start: S1 DIST, S2 FILTER, amounts 0)
 SEND_ORDER = [FXT["REV"], FXT["DLY"], FXT["CHO"]]   # (fx_slots.c FXS_ORDER: the one order of the sends and returns)

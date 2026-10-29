@@ -63,12 +63,13 @@ def tree_keys(app):
 
 
 async def sort_test():
-    """o cycles default -> flash -> ram (the SRAM: ram + pool + ramtext, one budget since the RAM was unified): items sorted largest first inside each group, children
+    """o cycles default -> flash -> ram (the SRAM: ram + pool + ramtext, one budget since the RAM was unified): one list over every group, largest first, children
     under their parent, unmeasured last, the sorted column marked, the choice only per session"""
     app = M.Builder(C.defaults(), "default")
     async with app.run_test(size=(200, 60)) as pilot:
         await pilot.pause()
         default = tree_keys(app)
+        default_all = list(app.nodes)                   # (every item the default tree shows, at any depth)
         check("sort: starts in the default order", app.sort_by is None and "default order" in str(app.query_one("#bars").content))
         for want in ("flash", "ram", None):
             await pilot.press("o")
@@ -81,23 +82,16 @@ async def sort_test():
             parts = {"flash": ("flash",), "ram": ("ram", "pool", "ramtext")}[want]
             cost = lambda k: (lambda s: sum(s[r] for r in parts if s.get(r) is not None)
                               if any(s.get(r) is not None for r in parts) else None)(app.savings.get(k) or {})
-            ok_order = ok_unmeasured = ok_kids = True
-            for grp in app.query_one("#tree").root.children:
-                tops = [n.data for n in grp.children]
-                vals = [cost(k) for k in tops]
-                known = [v for v in vals if v is not None]
-                ok_order &= known == sorted(known, reverse=True)
-                ok_unmeasured &= vals == known + [None] * (len(vals) - len(known))
-                for n in grp.children:
-                    ok_kids &= all((R.ITEMS[c.data].shown_under or R.ITEMS[c.data].parent) == n.data for c in n.children)
-                    kv = [cost(c.data) for c in n.children]
-                    kk = [v for v in kv if v is not None]
-                    ok_order &= kk == sorted(kk, reverse=True) and kv == kk + [None] * (len(kv) - len(kk))
-            check(f"sort {want}: largest first inside each group and parent", ok_order)
-            check(f"sort {want}: unmeasured items last", ok_unmeasured)
-            check(f"sort {want}: children stay under their parent", ok_kids)
-            check(f"sort {want}: same items as the default order",
-                  sorted(sum(tree_keys(app), [])) == sorted(sum(default, [])))
+            groups = app.query_one("#tree").root.children
+            flat = [n.data for g in groups for n in g.children]
+            vals = [cost(k) for k in flat]
+            known = [v for v in vals if v is not None]
+            check(f"sort {want}: one list, the groups ignored (the user, 2026-10-29)",
+                  len(groups) == 1 and all(not n.children for n in groups[0].children))
+            check(f"sort {want}: largest first over every item", known == sorted(known, reverse=True))
+            check(f"sort {want}: unmeasured items last", vals == known + [None] * (len(vals) - len(known)))
+            check(f"sort {want}: the same items as the default order (children and options too)",
+                  sorted(flat) == sorted(default_all))
             check(f"sort {want}: the sorted column is highlighted",
                   any(s.style and "reverse" in str(s.style) for k in app.nodes for s in app.nodes[k].label.spans)
                   or app.over.get(want, 0) > 0)       # (an overflowing region keeps its red marks over the sort mark)

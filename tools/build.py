@@ -673,7 +673,7 @@ def section_sizes(hdr):
 SIZED_SYMBOLS = ("part_mem",        # (engines.c: the synth parts' engine state, a union of the engines built)
                  "arn_mem",         # (core/arena.c: where those states live now, NPART slots 8-aligned, or the ARENA)
                  "fxa_ins", "fxa_bm",   # (fxi_mem.h, fxi.c: the effects memory's own room, its units' bitmap)
-                 "ifx_chrs", "ifx_echo", "ifx_jcho", "ifx_flng", "ifx_xdly")   # (its instance tables)
+                 "ifx_choi", "ifx_echo", "ifx_jcho", "ifx_flng", "ifx_xdly", "ifx_room", "ifx_tdly")   # (its instance tables)
 
 
 CODE_LEN = None                     # (build_app: app.bin's code before the far probe's place; sizes() reports it)
