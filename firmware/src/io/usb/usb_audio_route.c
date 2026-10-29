@@ -42,11 +42,11 @@ static void ua_add(int32_t *o, uint32_t os, const int32_t *a, uint32_t sa, const
 
 /* THE SOURCE MAPPER, output-agnostic (the device-mode capture below is one consumer; a USB host-mode output to a 4-output
  * sound card can be another): channel c (0..UA_ROUTE_N-1) of this mix block, n samples (Q15 scale, int32, not clipped)
- * into o with stride os: the lanes routed to it (dlt_buf, summed as they rendered), then every other source on it. master
- * = the master output of the block (stereo interleaved, Q15, before the codec shift); the stems in track_capture, the
- * drum bus in ua_dbus, the returns in ua_ret (live only while dlt_block / ua_ret_block were told the channels are
- * taken). In the audio interrupt, after mix_block */
-static void ua_route_ch(uint32_t c, int32_t *o, uint32_t os, const int32_t *master, uint32_t n)
+ * into o with stride os: the lanes routed to it (dlt_buf, summed as they rendered), then every other source on it. The
+ * master bus before the volume in ua_mst (stereo interleaved, Q15: ua_tap.h, the knob never scales it), the stems in
+ * track_capture, the drum bus in ua_dbus, the returns in ua_ret (live only while dlt_block / ua_ret_block were told the
+ * channels are taken). In the audio interrupt, after mix_block */
+static void ua_route_ch(uint32_t c, int32_t *o, uint32_t os, uint32_t n)
 {
     uint32_t s, i, bit = 1u << c;
     if (dlt_live && (ua_lane_ch & bit))
@@ -67,10 +67,10 @@ static void ua_route_ch(uint32_t c, int32_t *o, uint32_t os, const int32_t *mast
             continue;
         if (s == UAS_MAIN || s == UAS_DBUS || s >= UAS_RA) {   /* stereo: L / R on a pair, else the sum */
             j = s >= UAS_RA ? ua_ret_ln[(s - UAS_RA) % 3u] : 0u;
-            if ((s == UAS_DBUS && !ua_dbus_live) || j >= 3u)
+            if ((s == UAS_DBUS && !ua_dbus_live) || (s == UAS_MAIN && !ua_mst_live) || j >= 3u)
                 continue;                               /* (the bus or the return not taken this block: nothing in it) */
-            a = s == UAS_MAIN ? master : s == UAS_DBUS ? ua_dbus[0] : ua_ret[j][0];
-            b = s == UAS_MAIN ? master + 1 : s == UAS_DBUS ? ua_dbus[1] : ua_ret[j][1];
+            a = s == UAS_MAIN ? ua_mst : s == UAS_DBUS ? ua_dbus[0] : ua_ret[j][0];
+            b = s == UAS_MAIN ? ua_mst + 1 : s == UAS_DBUS ? ua_dbus[1] : ua_ret[j][1];
             sa = sb = s == UAS_MAIN ? 2u : 1u;
             if (m == 3u || m == 12u) {
                 if (bit & 10u)                          /* (the pair's second channel: the right side) */
@@ -85,22 +85,24 @@ static void ua_route_ch(uint32_t c, int32_t *o, uint32_t os, const int32_t *mast
     }
 }
 /* the four channels into four mono buffers (a consumer that wants them apart) */
-static void ua_route_block(int32_t *const ch[UA_ROUTE_N], const int32_t *master, uint32_t n)
+static void ua_route_block(int32_t *const ch[UA_ROUTE_N], uint32_t n)
 {
     uint32_t c;
     for (c = 0; c < UA_ROUTE_N; c++)
-        ua_route_ch(c, ch[c], 1u, master, n);
+        ua_route_ch(c, ch[c], 1u, n);
 }
 
 /* the consumer here: the device-mode capture's frames (interleaved, UA_CAP_CHANNELS a frame, as ua_audio takes them);
- * the default routing: the stems' own buffer, no work */
-static __attribute__((noinline)) const int32_t *ua_route(const int32_t *master, uint32_t n)
+ * the default routing: the stems' own buffer, no work. out: the block's output after the volume (core/audio.c ua_block,
+ * fm1-base's optimist/core/opt_core.c opt_cap_block hand it): not a source any more, MASTER is ua_mst */
+static __attribute__((noinline)) const int32_t *ua_route(const int32_t *out, uint32_t n)
 {
     uint32_t c;
+    (void)out;
     if (ua_ident)
         return track_capture;
     for (c = 0; c < UA_CAP_CHANNELS; c++)
-        ua_route_ch(c, ua_routed + c, UA_CAP_CHANNELS, master, n);
+        ua_route_ch(c, ua_routed + c, UA_CAP_CHANNELS, n);
     return ua_routed;
 }
 
