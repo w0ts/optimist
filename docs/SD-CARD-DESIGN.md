@@ -393,6 +393,43 @@ the probed J12 pins; SD reads, a FAT32 reader and a flash-slot loader in m-bootl
     rate (C4 when none), and its first loop is what SAMPLE's LOOP repeats (the whole sample when none, or when the
     loop lies outside the data). LOOP off plays to the end either way. Tested: `tests/sd_stream_test.c` (the parse),
     `tests/sd_stream_engine_test.c` (root, loop held, LOOP off).
+- **Random access: GRAIN and STRETCH on a card set (built 2026-10-29, host-tested only;** the user: "GRAIN and STRETCH
+  must stream card sets"). A grain starts anywhere in its zone (POS, SPRD, reversed grains), STRETCH's 4096-sample window
+  moves slowly forward and wraps into the loop: a linear stream cannot follow either. `storage/sd/sd_stream_rc.h` (the
+  audio's side), `sd_stream_rc.c` (the main loop's), the engines' card paths (`eng_grain.c`, `eng_stretch.c`, the zones
+  from the card: `eng_sample.c smp_cz`):
+  - **A cache** per part on GRAIN or STRETCH with a card set (`SST_PART_RAND`): slots of one 512-byte card sector, any
+    sector of any of the part's sources in any slot, each tagged (source << 24 | file sector + 1). GRAIN's is
+    `SST_RAND_KB` (8 x SD_RING, 16 to 32 KB: 32 with SD_RING 4), STRETCH's 16 KB; in the streams' arena block after the
+    rings (33,280 B and 16,640 B with the tags), placed and refused as the rings are (MEM FULL CARD). A zone only they
+    play has no head (the pre-buffer is a stream's start); SAMPLE on the same set shares the zones with their heads.
+  - **Wants** (the audio's, each a sector range of one source by a due on the audio's clock): GRAIN's PLAN (`gr_plan`,
+    the block hook) knows the part's next grains up to 60 ms early, exactly: their positions are the part's generator's
+    next numbers and the countdowns run as the render runs them, so their sectors are wanted by the block they start in;
+    STRETCH wants its next window as soon as it read this one (a frame, 46 ms, early) and the one after. The scheduler
+    (`sst_pick`) weighs a cache's most urgent want against the streams' leads, least time left first (a stream first on a
+    tie), between the screen's strips only under 40 ms as a stream's; a full cache takes a want only 30 ms before its
+    due. When nothing is wanted, the REGION (where any grain can start: POS +- SPRD / 2 and the span) is filled from
+    slots no one used for 300 ms.
+  - **Pins**: a sounding grain pins 25 ms of its reading ahead of the reader (the rest wanted by when the reader gets
+    there: a grain streams), a reversed one its range, STRETCH the window it reads and the last one; the main loop never
+    takes a pinned slot (the audio pins, then looks at the tags; the main loop clears a tag, then looks at the pins).
+    A victim: an empty slot, else one no want holds (used longest ago), else one held for a later due.
+  - **Late and missed**: a grain whose sectors are not there waits for them silent (its window not begun) up to 20 ms,
+    then is given up; one that loses a sector while it sounds (never while pinned: a placement taken away) holds its
+    sample and fades out over 4 blocks (2.9 ms). STRETCH's reading waits up to 16 blocks (its frame's work paced into
+    the rest), then reads the last window again with its scan held (a freeze) or, with none, silence (the overlap-add
+    fades out). Counted per cache: at once, late, missed (the console's `sd stream`); misses an eighth of the reads or
+    more, 4 or more in 2 s: "T1 CARD SLOW" once (`sd_mode.c sdm_slow_tick`), said again after the part's cache went.
+  - Tested (`tests/sd_grain_test.c`, the byte-level card model at 1.9 MB/s, full FatFs, the real scheduler, the audio
+    an 8-block interrupt in the middle of the runs): with an ideal card every GRAIN preset on PIANO / VIBES / FLUTE and
+    every STRETCH preset bit-identical to the flash's; in time: GRAIN 223-335 grains at once, 4-6 late, 0 missed, 45-61
+    KB/s (2.4-3.2 % of the bus); STRETCH 0-2 windows late, 0 missed, bit-identical, 2 KB/s; stalling 100 ms every
+    600 ms: GRAIN 7-11 missed, STRETCH 1-2 frozen frames, never a click (the second difference within the flash's +25 %);
+    SAMPLE streaming VIBES beside GRAIN on PIANO never dry. Host CPU of the render: GRAIN +10-13 %, STRETCH +-2 %
+    against the flash's (`sd_grain_test` prints it). 24 KB for GRAIN misses some grains of these presets, 16 KB many.
+  - Not built: GRAIN / STRETCH on a part's CARD sample (a user's WAV: their SRC has no CARD value); the cache's memory
+    model on a dual-core FM-1 relies on in-order stores (compiler barriers only), as the streams' does.
 - **Streaming on the bench** (when an FM-1 has the card; a console build: USB_CONSOLE, which needs room in the
   profile): 1. `sd`, then `sd bench` and `sd bench SAMPLES/x.wav`: the clock, the DMA, KB/s by CMD18 (the budget the
   streams share). 2. The index pass, then `sd stream part 1 SAMPLES/x.wav` (and parts 2, 3), SAMPLE on those parts,
@@ -637,9 +674,8 @@ needed; the parts on one set share them) and counts the part's rings as a CARD p
 silent, "PIANO NOT ON CARD" said once (`sd_mode.c sdm_bank_tick`), never another set; MISSING after a load is not said
 for it (`miss.c`). A card set plays two octaves above a zone's root at most (a 22.05 kHz file reads as a 44.1 kHz one an
 octave up), the flash's three: within that, `tests/sd_sets_test.c` renders every set's factory presets from the card
-bit-identical to the flash's. GRAIN (and STRETCH) jump through a set's samples, which a stream cannot follow: on a card
-set they are silent and a load says MISSING (loading a set whole into the arena, as SLICE CARD does, would be the way:
-PIANO is 44 KB of ADPCM, beside the effects' lines in a 96 KB arena: not built).
+bit-identical to the flash's. GRAIN and STRETCH play a card set too (the user, 2026-10-29), through a cache read in
+any order (section 7, "Random access"); a load no longer says MISSING for them.
 
 **Factory presets on the card; the SD card zip** (the user, 2026-10-26: "all presets (user or factory) go on the card",
 "card only in SD mode"): SD card mode carries no factory preset tables (core.h `PRESETS_CARD`, `PRESETS_PTR`: each

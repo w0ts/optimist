@@ -64,6 +64,8 @@ static void ssl_set(uint32_t p, const void *t) { slc_tab[p] = t; }
 /* the parts' card sets (SD card mode: SAMPLE on a set the flash does not hold): set + 1, 0 none; their folders */
 static uint32_t part_bank[3];
 #define SST_PART_BANK(p) part_bank[p]
+static uint32_t part_rand[3];                        /* their caches' KB (GRAIN, STRETCH on a set: SST_PART_RAND), 0 none */
+#define SST_PART_RAND(p) part_rand[p]
 static const char *const BANK_NAMES[2] = {"PIANO", "BASS"};
 #define SST_BANK_NAME(b) BANK_NAMES[(b) % 2u]
 #include "storage/sd/sd_stream_plan.c"
@@ -304,6 +306,43 @@ static void run_card(const char *img_path)
     CHECK(sstp.state == SSTP_PLACED && sstp.bmiss == 4u && (sstp.missing & 4u) && !sst_bank_n[2] &&
           sst_bank_n[1] == 2u && sst_part_src[0] == 0, "%s: a set not on the card: part 2 missing (%x), the others play",
           what, sstp.bmiss);
+
+    /* GRAIN on the card set (SST_PART_RAND): a cache of its own in the block, no ring, no heads for zones only it plays;
+     * a SAMPLE part on the same set beside it: the zones shared, their heads back; STRETCH: its smaller cache */
+    part_bank[2] = 0;
+    part_rand[1] = SST_RAND_KB;
+    sst_plan_poll();
+    CHECK(sstp.state == SSTP_GATED, "%s: SAMPLE to GRAIN on the set: placed again", what);
+    settle();
+    k = sst_bank_src[1];
+    {
+        const uint8_t *blk = arn_ptr(SST_ARN_K);
+        CHECK(sstp.state == SSTP_PLACED && sstp.rc == 2u && sst_bank_n[1] == 2u && sst_rc[1].on && sst_rc[1].mem &&
+                  blk && sst_rc[1].mem >= blk && sst_rc[1].mem + SST_RC_BYTES(SST_RAND_KB) <= blk + sstp.need &&
+                  sst_rc[1].nk == SST_RAND_KB * 2u && !sst_rc[0].mem && !sst_rc[2].mem,
+              "%s: GRAIN: its cache in the block (%u KB, %u slots)", what, SST_RAND_KB, sst_rc[1].nk);
+        CHECK(sstp.nring == SST_PART_RINGS && sst_src[k].hlen == 0 && sst_src[k + 1u].hlen == 0 && sst_src[k].ready &&
+                  sst_src[k + 1u].ready, "%s: GRAIN: no ring of its own (%u rings: part 0's), no heads (%u, %u)", what,
+              sstp.nring, sst_src[k].hlen, sst_src[k + 1u].hlen);
+        CHECK(sstp.need >= SST_PART_RINGS * SST_K * 512u + SST_RC_BYTES(SST_RAND_KB), "%s: the need counts the cache (%u)",
+              what, sstp.need);
+    }
+    part_bank[2] = 1u;                               /* (part 2: SAMPLE on the same set, a mono part: 2 rings; room) */
+    part_voices[2] = 2;
+    sst_plan_poll();
+    settle();
+    k = sst_bank_src[1];
+    CHECK(sstp.state == SSTP_PLACED && sstp.rc == 2u && sst_bank_src[2] == k && sst_bank_n[2] == 2u && head_ok(k, 3) &&
+              head_ok(k + 1u, 4) && sst_rc[1].on, "%s: SAMPLE beside GRAIN on one set: the zones shared, with heads (plan %u)", what, sstp.state);
+    part_bank[2] = 0;
+    part_voices[2] = 8;
+    part_rand[1] = SST_STRETCH_KB;
+    sst_plan_poll();
+    CHECK(sstp.state == SSTP_GATED && !sst_rc[1].on, "%s: GRAIN to STRETCH: the cache let go first", what);
+    settle();
+    CHECK(sstp.state == SSTP_PLACED && sstp.rc == 2u && sst_rc[1].on && sst_rc[1].nk == SST_STRETCH_KB * 2u,
+          "%s: STRETCH: its cache (%u slots)", what, sst_rc[1].nk);
+    part_rand[1] = 0;
     part_bank[1] = part_bank[2] = 0;
     sst_part_set(0, 0);
     sst_plan_poll();

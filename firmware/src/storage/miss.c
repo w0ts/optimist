@@ -81,9 +81,10 @@ static void miss_part(uint32_t k)
     if (u != 0xFFu)
         miss_add(MS_ITEM(MS_ENG, k, u));
 #if FELUCCA_SD_STREAM
-    else if (ENG_IS(e, SAMPLE) && (uint32_t)t->p[P_E0] < SMP_NSETS && SMP_CARD_SET((uint32_t)t->p[P_E0]))
-        ;                                            /* (SAMPLE plays the set from the card: sd_mode.c says it when the
-                                                      * card has not got it; GRAIN cannot, below: MISSING) */
+    else if ((ENG_IS(e, SAMPLE) || ENG_IS(e, GRAIN)) && (uint32_t)t->p[P_E0] < SMP_NSETS &&
+             SMP_CARD_SET((uint32_t)t->p[P_E0]))
+        ;                                            /* (SAMPLE and GRAIN play the set from the card, STRETCH too: sd_mode.c
+                                                      * says it when the card has not got it) */
 #endif
     else if (ENG_IS(e, SAMPLE) || ENG_IS(e, GRAIN))
         miss_set(k, (uint32_t)t->p[P_E0]);           /* (in range: proj_apply, the knob) */

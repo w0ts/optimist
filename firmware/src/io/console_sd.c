@@ -386,6 +386,19 @@ static void con_sd_streams(void)
     con_kv("longest run us", (int32_t)sst_st.run_max_us);
     con_kv("least lead ms", sst_st.lead_min_ms == 0xFFFFFFFFu ? -1 : (int32_t)sst_st.lead_min_ms);
     con_kv("ui gap max ms", (int32_t)fm1_in.ui_gap_max);
+    for (i = 0; i < SST_NPART; i++)                  /* the caches (GRAIN, STRETCH on a card set: sd_stream_rc.h) */
+        if (sst_rc_live(&sst_rc[i])) {
+            con_puts("  cache part ");
+            con_dec((int32_t)i + 1);
+            con_sd_field("KB", (int32_t)sst_rc[i].nk / 2);
+            con_sd_field("at once", (int32_t)sst_rc[i].hit);
+            con_sd_field("late", (int32_t)sst_rc[i].late);
+            con_sd_field("missed", (int32_t)sst_rc[i].miss);
+            con_puts("\r\n");
+        }
+    con_kv("cache runs", (int32_t)sst_rcs.runs);
+    con_kv("cache blocks", (int32_t)sst_rcs.blocks);
+    con_kv("cache idle runs", (int32_t)sst_rcs.cold_runs);
 }
 
 static void con_sd_stream_cmd(const char *p)
