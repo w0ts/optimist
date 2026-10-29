@@ -79,7 +79,7 @@ static int fxm_ins_could(void);
 #define fxm_ins_init() ((void)0)
 #endif
 _Static_assert(FXI_TN0 <= FXI_IMAX && FXI_TN1 <= FXI_IMAX && FXI_TN2 <= FXI_IMAX && FXI_TN3 <= FXI_IMAX &&
-               FXI_TN4 <= FXI_IMAX && FXI_NK <= 16u, "fxi_own: FXI_IMAX instances; fxi_full: an owner a bit");
+               FXI_TN4 <= FXI_IMAX && FXI_TN5 <= FXI_IMAX && FXI_TN6 <= FXI_IMAX && FXI_NK <= 16u, "fxi_own: FXI_IMAX instances; fxi_full: an owner a bit");
 
 AINL uint32_t fxi_holds(uint32_t k, uint32_t ty)        /* owner k holds type ty in a slot (and it is built) */
 {
@@ -194,6 +194,14 @@ static void fxi_evict(uint32_t j, uint32_t i, uint32_t v)
     if (j == 4u)
         ifx_xdly[i].evict = (uint8_t)v;
 #endif
+#if INS_ROOM
+    if (j == 5u)
+        ifx_room[i].evict = (uint8_t)v;
+#endif
+#if INS_TDLY
+    if (j == 6u)
+        ifx_tdly[i].evict = (uint8_t)v;
+#endif
     (void)i, (void)v;
 }
 static void fxi_clear(uint32_t j, uint32_t i)           /* instance i zeroed, at rest, on its line (zeroed too) */
@@ -219,6 +227,15 @@ static void fxi_clear(uint32_t j, uint32_t i)           /* instance i zeroed, at
 #if FELUCCA_INS_XDLY
     if (j == 4u)
         memset(&ifx_xdly[i], 0, sizeof ifx_xdly[i]), ifx_xdly[i].line = ln;
+#endif
+#if INS_ROOM
+    if (j == 5u)                                        /* (its lines zeroed above: clean) */
+        memset(&ifx_room[i], 0, sizeof ifx_room[i]), ifx_room[i].line = ln, ifx_room[i].q = FX_Q_MAX,
+        ifx_room[i].rq = 0x9E3779B9u * (i + 1u);        /* (each instance its own rounding sequence) */
+#endif
+#if INS_TDLY
+    if (j == 6u)
+        memset(&ifx_tdly[i], 0, sizeof ifx_tdly[i]), ifx_tdly[i].line = ln, ifx_tdly[i].q = FX_Q_MAX;
 #endif
     (void)i;
 }
@@ -253,6 +270,14 @@ static void fxi_relink(void)
 #if FELUCCA_INS_XDLY
             if (j == 4u)
                 ifx_xdly[i].line = ln;
+#endif
+#if INS_ROOM
+            if (j == 5u)
+                ifx_room[i].line = ln;
+#endif
+#if INS_TDLY
+            if (j == 6u)
+                ifx_tdly[i].line = ln;
 #endif
             (void)ln;
         }

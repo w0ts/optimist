@@ -21,9 +21,10 @@
 /* The limited types by index j (FXI_J): 0 CHRS, 1 ECHO, 2 JUNO CHORUS (2026-10-14), 3 FLNG (2026-10-15), 4 XDLY
  * (2026-10-22). The owners of an instance (fxi.c, FXI_O*): the tracks 0 .. NTRK - 1, the master (its insert slots), the
  * USB input track, the returns A B C (fx_slots.c rt_slot) */
-#define FXI_NL 5u                                       /* (the tables hold every type; a type not built: 0 instances) */
-#define FXI_J(t) ((t) == FXT_CHRS ? 0u : (t) == FXT_ECHO ? 1u : (t) == FXT_JUNO ? 2u : (t) == FXT_FLNG ? 3u : 4u)
-static const uint8_t FXI_TYS[FXI_NL] = {FXT_CHRS, FXT_ECHO, FXT_JUNO, FXT_FLNG, FXT_XDLY};
+#define FXI_NL 7u                                       /* (the tables hold every type; a type not built: 0 instances) */
+#define FXI_J(t) ((t) == FXT_CHRS ? 0u : (t) == FXT_ECHO ? 1u : (t) == FXT_JUNO ? 2u : (t) == FXT_FLNG ? 3u : \
+                  (t) == FXT_ROOM ? 5u : (t) == FXT_TDLY ? 6u : 4u)   /* (5 ROOM, 6 TDLY 2026-10-29: fxi_send.c) */
+static const uint8_t FXI_TYS[FXI_NL] = {FXT_CHRS, FXT_ECHO, FXT_JUNO, FXT_FLNG, FXT_XDLY, FXT_ROOM, FXT_TDLY};
 #define FXI_TY(j) ((uint32_t)FXI_TYS[(j) % FXI_NL])     /* (index j's type) */
 #define FXI_MST NTRK                                    /* the owners: T1 T2 T3 DR, then these (FXI_NK: fxi_mem.h) */
 #define FXI_UT (NTRK + 1u)
@@ -31,14 +32,14 @@ static const uint8_t FXI_TYS[FXI_NL] = {FXT_CHRS, FXT_ECHO, FXT_JUNO, FXT_FLNG, 
 #define FXI_NONE 0xFFu
 /* each type's instance table (fxi_mem.h FXI_TN*: an owner each at most, no more than the memory holds) and its line's
  * units (by j) */
-static const uint8_t FXI_TN[FXI_NL] = {FXI_TN0, FXI_TN1, FXI_TN2, FXI_TN3, FXI_TN4};
-static const uint8_t FXA_SZS[FXI_NL] = {FXA_Z0, FXA_Z1, FXA_Z2, FXA_Z3, FXA_Z4};
+static const uint8_t FXI_TN[FXI_NL] = {FXI_TN0, FXI_TN1, FXI_TN2, FXI_TN3, FXI_TN4, FXI_TN5, FXI_TN6};
+static const uint8_t FXA_SZS[FXI_NL] = {FXA_Z0, FXA_Z1, FXA_Z2, FXA_Z3, FXA_Z4, FXA_Z5, FXA_Z6};
 #define FXA_SZ(j) ((uint32_t)FXA_SZS[(j) % FXI_NL])
 _Static_assert(FXA_Z4 <= 255u, "FXA_SZS: a byte");
 #define FXI_IMAX FXI_NK                                 /* (the most instances of a type) */
 /* the instance each owner's type plays on (the audio reads it once a block; fxi.c writes it with the interrupts off),
  * FXI_NONE: none (the type bypassed there); fxi_init sets every entry FXI_NONE before the audio starts */
-#define FXI_AT0 {FXI_NONE, FXI_NONE, FXI_NONE, FXI_NONE, FXI_NONE}
+#define FXI_AT0 {FXI_NONE, FXI_NONE, FXI_NONE, FXI_NONE, FXI_NONE, FXI_NONE, FXI_NONE}
 static volatile uint8_t fxi_at[FXI_NK][FXI_NL] = {FXI_AT0, FXI_AT0, FXI_AT0, FXI_AT0, FXI_AT0, FXI_AT0, FXI_AT0, FXI_AT0, FXI_AT0};
 _Static_assert(NTRK == 4u && FXI_NK == 9u, "fxi_at: T1 T2 T3 DR, the master, the USB input, A B C");
 /* the audio's index k of an owner (insfx.c: a part, the drum bus IFX_BUS, IFX_MST, IFX_UT, IFX_RT(j)) -> the owner */
@@ -228,16 +229,26 @@ static __attribute__((noinline)) void ifx_jchorus(ifx_jc_t *s, uint32_t k, int32
 #endif
 
 #include "xdly.c"                                       /* XDLY: the cross-modulated dual delay (2026-10-22) */
+#include "fxi_send.c"                                   /* ROOM, TDLY: the reverb and delay sends as inserts (2026-10-29) */
 /* part k's XDLY still repeats (fx.c mix_part: a part whose voices have ended stays heard until its lines are clear) */
 AINL int ifx_ringing(uint32_t k)
 {
+    int on = 0;
+    uint32_t i;
 #if FELUCCA_INS_XDLY
-    uint32_t i = fxi_at[k % NPART][FXI_J(FXT_XDLY)];
-    return i < FXI_TN4 && ifx_xdly[i].on && ifx_xdly[i].w && ifx_xdly[i].q < XD_LEN;
-#else
-    (void)k;
-    return 0;
+    i = fxi_at[k % NPART][FXI_J(FXT_XDLY)];
+    on |= i < FXI_TN4 && ifx_xdly[i].on && ifx_xdly[i].w && ifx_xdly[i].q < XD_LEN;
 #endif
+#if INS_ROOM                                            /* (ROOM's tail, TDLY's repeats: fxi_send.c) */
+    i = fxi_at[k % NPART][FXI_J(FXT_ROOM)];
+    on |= i < FXI_TN5 && ifx_room[i].on && ifx_room[i].w && (ifx_room[i].q < REV_Q_ROOM || ifx_rm_lp(&ifx_room[i]));
+#endif
+#if INS_TDLY
+    i = fxi_at[k % NPART][FXI_J(FXT_TDLY)];
+    on |= i < FXI_TN6 && ifx_tdly[i].on && ifx_tdly[i].w && (ifx_tdly[i].q < DLY_LEN || ifx_td_fst(&ifx_tdly[i]));
+#endif
+    (void)k, (void)i;
+    return on;
 }
 
 /* owner k's instance of limited type ty (FXI_NONE: none); k: a track, or the master (IFX_MST) */
@@ -268,6 +279,14 @@ AINL int32_t ifx_lim_w(uint32_t ty, uint32_t k)
     if (ty == FXT_XDLY)
         return ifx_xdly[i].w;
 #endif
+#if INS_ROOM
+    if (ty == FXT_ROOM)
+        return ifx_room[i].w;
+#endif
+#if INS_TDLY
+    if (ty == FXT_TDLY)
+        return ifx_tdly[i].w;
+#endif
     return 0;
 }
 /* track k's instance of type ty is fading out to give its lent line back (fxi.c): as off (a silent part: at rest) */
@@ -295,6 +314,14 @@ AINL int ifx_lim_ev(uint32_t ty, uint32_t k)
 #if FELUCCA_INS_XDLY
     if (ty == FXT_XDLY)
         return ifx_xdly[i].evict;
+#endif
+#if INS_ROOM
+    if (ty == FXT_ROOM)
+        return ifx_room[i].evict;
+#endif
+#if INS_TDLY
+    if (ty == FXT_TDLY)
+        return ifx_tdly[i].evict;
 #endif
     return 0;
 }
@@ -327,15 +354,31 @@ AINL void ifx_lim_rest(uint32_t ty, uint32_t k)
     if (ty == FXT_XDLY)
         ifx_xdly[i].w = 0, ifx_xdly[i].on = 0;          /* (its lines: not read when it starts again) */
 #endif
+#if INS_ROOM
+    if (ty == FXT_ROOM) {
+        ifx_room[i].w = 0, ifx_room[i].on = 0;          /* (its lines: cleared when it starts again, unless 0 already) */
+        if (k < NPART)
+            ifx_rsd[k] = 0;
+    }
+#endif
+#if INS_TDLY
+    if (ty == FXT_TDLY)
+        ifx_tdly[i].w = 0, ifx_tdly[i].on = 0;          /* (its line: not read when it starts again) */
+#endif
 }
 /* type ty on track k at amount a: a part's b (r 0), the drum bus's l and r; no instance: nothing (bypassed) */
 static HOT2 __attribute__((noinline)) void ifx_lim_run(uint32_t ty, uint32_t k, int32_t a, int32_t *l, int32_t *r,
                                                        uint32_t n, uint32_t sh)
 {
     uint32_t i = ifx_lim_at(ty, k);
-    if (i == FXI_NONE || FXR_MOVING())
+    if (i == FXI_NONE || FXR_MOVING()) {
+#if INS_ROOM
+        if (ty == FXT_ROOM && !r)
+            ifx_rsd[k % NPART] = 0;                     /* (no side this block) */
+#endif
         return;                                         /* (none; or the own room moving, core/arena.c: this block
                                                          * bypassed, its lines untouched) */
+    }
 #if FELUCCA_INS_CHORUS
     if (ty == FXT_CHRS && i < FXI_TN0)
         ifx_chorus(&ifx_chrs[i], a, l, r, n, sh);
@@ -355,6 +398,14 @@ static HOT2 __attribute__((noinline)) void ifx_lim_run(uint32_t ty, uint32_t k, 
 #if FELUCCA_INS_XDLY
     if (ty == FXT_XDLY && i < FXI_TN4)
         ifx_xdly_run(&ifx_xdly[i], k, a, l, r, n, sh);
+#endif
+#if INS_ROOM
+    if (ty == FXT_ROOM && i < FXI_TN5)
+        FAR(ifx_room_run)(&ifx_room[i], k, a, l, r, n);   /* (flash code, XIP: the RAM text has no room) */
+#endif
+#if INS_TDLY
+    if (ty == FXT_TDLY && i < FXI_TN6)
+        FAR(ifx_tdly_run)(&ifx_tdly[i], a, l, r, n);
 #endif
     (void)a, (void)l, (void)r, (void)n, (void)sh;
 }

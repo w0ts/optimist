@@ -112,6 +112,14 @@ static uint32_t cg_ins_part(uint32_t p)
     if ((on && INS_ON(p, FXT_XDLY) && trk[p].p[P_TXDLY] && ifx_has(FXT_XDLY, p)) || ifx_w(FXT_XDLY, p))
         n += CG_COST_XDLY;                            /* (set, fading or ringing on: xdly.c) */
 #endif
+#if INS_ROOM
+    if ((on && INS_ON(p, FXT_ROOM) && trk[p].p[P_TROOM] && ifx_has(FXT_ROOM, p)) || ifx_w(FXT_ROOM, p))
+        n += CG_COST_ROOM;                            /* (set, fading or ringing on: fxi_send.c) */
+#endif
+#if INS_TDLY
+    if ((on && INS_ON(p, FXT_TDLY) && trk[p].p[P_TTDLY] && ifx_has(FXT_TDLY, p)) || ifx_w(FXT_TDLY, p))
+        n += CG_COST_TDLY;
+#endif
     return n;
 }
 static uint32_t cg_bus_w(void)                        /* the drum bus's DIST and FILTER on all 5 channels */
@@ -153,6 +161,14 @@ static uint32_t cg_ins_bus(void)
 #if FELUCCA_INS_XDLY
     if ((fx_on(TDRUM) && INS_ON(TRK_DRUM, FXT_XDLY) && TDRUM->p[P_TXDLY] && ifx_has(FXT_XDLY, TRK_DRUM)) || ifx_w(FXT_XDLY, TRK_DRUM))
         n += CG_COST_XDLY;                            /* (its one instance on the bus's mid) */
+#endif
+#if INS_ROOM
+    if ((fx_on(TDRUM) && INS_ON(TRK_DRUM, FXT_ROOM) && TDRUM->p[P_TROOM] && ifx_has(FXT_ROOM, TRK_DRUM)) || ifx_w(FXT_ROOM, TRK_DRUM))
+        n += CG_COST_ROOM;                            /* (its one instance on the bus's mid) */
+#endif
+#if INS_TDLY
+    if ((fx_on(TDRUM) && INS_ON(TRK_DRUM, FXT_TDLY) && TDRUM->p[P_TTDLY] && ifx_has(FXT_TDLY, TRK_DRUM)) || ifx_w(FXT_TDLY, TRK_DRUM))
+        n += CG_COST_TDLY;
 #endif
     return n;
 }
@@ -212,6 +228,14 @@ static uint32_t cg_ins_mst(void)
 #if FELUCCA_INS_XDLY
         if (t == FXT_XDLY && (mst_amt[FXT_XDLY] || ifx_w(FXT_XDLY, IFX_MST)))
             n += CG_COST_XDLY;
+#endif
+#if INS_ROOM
+        if (t == FXT_ROOM && (mst_amt[FXT_ROOM] || ifx_w(FXT_ROOM, IFX_MST)))
+            n += CG_COST_ROOM;
+#endif
+#if INS_TDLY
+        if (t == FXT_TDLY && (mst_amt[FXT_TDLY] || ifx_w(FXT_TDLY, IFX_MST)))
+            n += CG_COST_TDLY;
 #endif
     }
     return n;

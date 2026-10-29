@@ -243,6 +243,12 @@ static const param_desc_t TP[P_COUNT] = {
     [P_TSPIT] = PD("SPIT", F_PCT, 0, 127, 0),      /* the band's sharpness and the drive into the clip */
     [P_TXDLY] = PD("XDLY", F_PCT, 0, 127, 0),      /* the cross-modulated dual delay (xdly.c): its MIX, dry to all wet */
 #endif
+#if INS_ROOM
+    [P_TROOM] = PD("ROOM", F_PCT, 0, 127, 0),      /* the reverb send's ROOM as an insert (fxi_send.c): its MIX, dry to all wet */
+#endif
+#if INS_TDLY
+    [P_TTDLY] = PD("TDLY", F_PCT, 0, 127, 0),      /* the delay send's delay as an insert (fxi_send.c): its MIX, dry to all wet */
+#endif
 #if FELUCCA_EX_GAIN
     [P_TEXGN] = PD("EXGN", F_DB, 0, 127, 0),       /* EXGN, the example insert (exgain.c): OFF, then LEVEL's dB (112: 0 dB) */
 #endif
@@ -1035,10 +1041,12 @@ static int page_shown(const page_t *pg)
 {
     if (!FELUCCA_DRUMS && (pg->scope == SC_DRUM || (pg->scope == SC_GLOBAL && pg->id[0] == G_DRLVL)))
         return 0;                                     /* (no drums: GLO > DRUMS, the drum track's pages) */
-    if ((pg->graph == GR_SLCR && !FELUCCA_FX_SLICER) || ((pg->id[0] == G_DTIME || pg->id[0] == G_DFTYPE) && pg->scope == SC_GLOBAL && !FXS_HAS(FXT_DLY)) ||
+    if ((pg->graph == GR_SLCR && !FELUCCA_FX_SLICER) ||
+        ((pg->id[0] == G_DTIME || pg->id[0] == G_DFTYPE) && pg->scope == SC_GLOBAL && !FXS_HAS(FXT_DLY) && !ins_any(FXT_TDLY)) ||   /* (TDLY:
+                                                       * the delay's settings, fxi_send.c) */
         ((pg->id[0] == G_CTHR || pg->id[0] == G_CGAIN) && pg->scope == SC_GLOBAL && !MST_ON(FXT_DYN)) ||   /* (COMP LIMIT:
                                                        * the master's DYN, while one of its slots holds it) */
-        (pg->id[0] == G_RSIZE && pg->scope == SC_GLOBAL && !FXS_HAS(FXT_REV) && !FXS_HAS(FXT_CHO)))
+        (pg->id[0] == G_RSIZE && pg->scope == SC_GLOBAL && !FXS_HAS(FXT_REV) && !FXS_HAS(FXT_CHO) && !ins_any(FXT_ROOM)))
         return 0;                                     /* the pages of an FX this build leaves out (registry.h), or in no
                                                        * FX slot (fx_slots.c) */
 #if REV_MULTI
