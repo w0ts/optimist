@@ -5,8 +5,12 @@
  * (the drums and fx.c write the taps); usb_audio_route.c builds the channels from them (audio.c ua_block).
  *
  * The sources, and where each is taken:
- *   MASTER       the master output as the FM-1's own output gets it, in stereo: after the master inserts, the volume, the
- *                limiter (or LIMIT's brickwall) and the knee, before the codec's -6 dB shift (Q15 full scale = 0 dBFS here).
+ *   MASTER       the master bus in stereo at a fixed level, whatever the volume knob says (the user, 2026-10-29: "the main
+ *                volume knob should NOT control the volume of the USB audio", "USB audio out has no volume control"): after
+ *                the returns, PUNCH and the master inserts (the master's DYN: its compressor), before the volume, the DC
+ *                blocker, the low cut, the limiter (or LIMIT's brickwall) and the knee, which are the FM-1's own output's
+ *                (fx.c mix_finish). Unity: MASTER_VOL's 4096, the knob at its top. Q15 full scale = 0 dBFS; the bus may go
+ *                past it, the capture clips it there (usb_audio_stream.c ua_clip: no wrap). ua_mst_tap.
  *   T1 T2 T3     a synth track's stem: after its inserts, its LEVEL and its mute, before its pan, its sends, the FX buses
  *                and the master (POST-fader: what the track contributes to the mix, without the space). Mono.
  *   DRUMS        the drum track's stem: its lanes summed (mono), each after its lane level, cut and inserts and the drum
@@ -49,6 +53,9 @@ static uint8_t ua_ret_on;                       /* the returns routed: bit k = R
 static uint8_t ua_ret_live;                     /* this block: the send lines tapped, bit j = line j (CHO DLY REV) */
 static uint8_t ua_ret_ln[3] = {0xFF, 0xFF, 0xFF};   /* this block: RET A B C's line (0xFF: none, or not tapped) */
 static int32_t ua_ret[3][2][CTL] __attribute__((section(".pool")));   /* a line's wet L R, this block (the pool: main RAM is full) */
+static uint8_t ua_mst_on;                       /* MASTER is routed (main loop: ua_route_apply) */
+static uint8_t ua_mst_live;                     /* this block: the master bus tapped (dlt_block) */
+static int32_t ua_mst[2u * CTL] __attribute__((section(".pool")));   /* the master bus before the volume, L R interleaved */
 
 /* the returns' taps of the block (fx.c capture_clear, after dlt_block): on, the host takes the capture; ln, return k's
  * line (fx_slots.c fxs_line + 1: slot k + 1's), lnl the lines with a return (fxs_lnl). Each routed return with a line:
@@ -92,6 +99,7 @@ AINL void dlt_block(uint32_t on, uint32_t n)
     uint32_t i, s;
     dlt_live = on ? dlt_mask : 0u;
     ua_dbus_live = (uint8_t)(on && ua_dbus_on);
+    ua_mst_live = (uint8_t)(on && ua_mst_on);
     if (dlt_live)
         for (s = 0; s < UA_ROUTE_N; s++)
             for (i = 0; i < n; i++)
@@ -106,6 +114,17 @@ AINL void ua_dbus_tap(const int32_t *l, const int32_t *r, uint32_t n)
     for (i = 0; i < n; i++) {
         ua_dbus[0][i] = l[i];
         ua_dbus[1][i] = r[i];
+    }
+}
+/* the master bus before the volume (fx.c mix_finish, after the master inserts): MASTER's source, at unity */
+AINL void ua_mst_tap(const int32_t *l, const int32_t *r, uint32_t n)
+{
+    uint32_t i;
+    if (!ua_mst_live)
+        return;
+    for (i = 0; i < n; i++) {
+        ua_mst[2u * i] = l[i];
+        ua_mst[2u * i + 1u] = r[i];
     }
 }
 /* ua_dst set (the setting changed, or loaded): the taps it needs (main loop; the audio interrupt reads them) */
@@ -125,6 +144,7 @@ static void ua_route_apply(void)
         }
     }
     ua_dbus_on = (uint8_t)(ua_dst[UAS_DBUS] != UAD_NONE);
+    ua_mst_on = (uint8_t)(ua_dst[UAS_MAIN] != UAD_NONE);
     ua_ret_on = (uint8_t)((ua_dst[UAS_RA] != UAD_NONE) | (ua_dst[UAS_RA + 1] != UAD_NONE) << 1 | (ua_dst[UAS_RA + 2] != UAD_NONE) << 2);
     ua_lane_ch = (uint8_t)ch;
     dlt_mask = (uint16_t)m;
