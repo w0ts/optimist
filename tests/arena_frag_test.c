@@ -56,7 +56,7 @@ static void up_name(uint32_t k, char *b) { (void)k; b[0] = 0; }
 #endif
 #ifdef ARN_NO
 #define FRAG_PACK 1                                     /* (core/arena.c's packing: 2026-10-29) */
-#define FRAG_LIM fxm_lim()
+#define FRAG_LIM ARN_BYTES
 #define FRAG_MOVING(k) arn_moving(k)          /* (a block mid-move: its source being overwritten, not checked) */
 #else
 #define FRAG_PACK 0                                     /* (fm1-next before it: the comparison) */
@@ -172,7 +172,7 @@ static const char *const RF_NAME[RF_N] = {"a part's change", "a load's part", "a
                                           "another buffer"};
 static uint32_t rf_all[RF_N], rf_packed[RF_N], rf_rule[RF_N], rf_saved;
 static uint64_t st_held, st_full;                       /* owner-steps holding a limited type, without its line */
-/* the free bytes under the send lines' places (FRAG_PACK: fx_arena.c fxm_lim; before, none: the arena's end) */
+/* the free bytes under FRAG_LIM (the arena's end in both trees since the send lines' fixed places were dropped) */
 static uint32_t frag_low(void)
 {
     fb_t b[2u * ARN_PARTS];
@@ -211,6 +211,7 @@ int main(void)
     uint8_t eng[NENGINES], lim[8];
     uint32_t ne = 0, nl = 0, e, j, n, k, steps_packed = 0, worst = 0, wf = 0, wg = 0, okall = 1, lines = 0, seen = 0;
     uint32_t lost = 0;
+    uint16_t full0[FXI_NL] = {0};
     uint64_t sum_hid = 0, sum_free = 0;
     host_tracks_init();
     fxi_init();
@@ -305,7 +306,7 @@ int main(void)
 #ifdef FRAG_DBG
                 if (FXM_BYTES[j] <= f0 && rf_rule[RF_SEND] < 6u) {
                     uint32_t c;
-                    printf("sdump: send %u wants %u at %u free %u busy %d:", j, FXM_BYTES[j], FXM_AT[j], f0, arn_busy());
+                    printf("sdump: send %u wants %u free %u busy %d:", j, FXM_BYTES[j], f0, arn_busy());
                     for (c = 0; c < ARN_PARTS; c++)
                         if (arn_cur[c].len || arn_has_next[c])
                             printf(" [c%u %u+%u%s%s n%u+%u]", c, arn_cur[c].off, arn_cur[c].len,
@@ -315,8 +316,13 @@ int main(void)
                 }
 #endif
             }
-        if (fxm_news >> FXM_INS & 1u)
-            refused(RF_INS, ins_need(), f0, 0, 1);
+        for (j = 0; j < FXI_NL; j++) {                  /* (an insert line refused: an owner newly left without, in
+                                                         * both trees alike, whatever each says on the screen) */
+            uint32_t nw = fxi_full[j] & ~full0[j];
+            for (; nw; nw &= nw - 1u)
+                refused(RF_INS, FXA_SZ(j) * FXA_U * 2u, f0, 0, 1);
+            full0[j] = fxi_full[j];
+        }
         for (j = 0; j < ARB_NC; j++)
             if (arb_news >> j & 1u)
                 refused(RF_BUF, arb_bytes(j), f0, 0, 1);

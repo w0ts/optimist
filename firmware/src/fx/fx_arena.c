@@ -2,22 +2,22 @@
 /* The effects' lines in the arena (docs/SD-MODE-DESIGN.md 6b, phase 3b; FELUCCA_FX_ARENA: every build with an arena,
  * FELUCCA_ARENA_BYTES: engines.c). The chorus, delay and reverb sends' lines (fx.c cho_buf dly_buf, rev_line; the
  * ROOM's diffusers rev_ap after the reverb's line, in its block) are blocks of the parts' arena (core/arena.c, the
- * clients after the parts: FXM_K), each at its fixed place at the arena's top (FXM_AT, the user, 2026-10-29: REV the
- * highest, then DLY, then CHO; a line never moves). A send line's place is free for a part's block while the line is
- * not placed (the engines are placed from the bottom: only a full arena reaches it); the line wanted again, that block
- * is moved away (core/arena.c arn_pack). The ARN_TOPS clients (the other buffers, the inserts' room) stay under the
- * places (fxm_lim). A line is held only while the project uses it:
+ * clients after the parts: FXM_K), placed best fit from the arena's top (ARN_TOPS, engines.c), held only while the
+ * project uses them:
  *   - a send's line while its type is in a master slot (FXS_HAS), or while it is lent to the inserts (fxi.c "Lending";
  *     placed too for an owner starved of a type the line would hold: fxl_take then lends it).
  * The limited inserts' own room (one block, FXM_INS) is fx/insfx/fxi.c's: it grows and shrinks at its edges.
  * The main loop only (fxm_poll every pass, before fxi_poll); the audio reads the pointers, nothing is placed or freed
- * in it. A send's line is placed (arn_reserve_at + arn_take with the interrupts off: a project's apply may reserve a
+ * in it. A send's line is placed (arn_reserve + arn_take with the interrupts off: a project's apply may reserve a
  * part's memory inside the audio ISR), zeroed and its bus' state reset while the bus is gated (fx.c fxm_off:
  * fx_ret_block runs no bus whose line is not placed, rev_guard keeps the reverb off), then the gate cleared. No longer
  * used: gated, and given back two blocks later (fxm_tick: CPU1's kept reverb block, REV_LATE, has run by then); used
  * again meanwhile: cleared again before the gate is cleared (no stale tail).
- * No room (the user, 2026-10-25: refuse, then propose what to drop; a dropped part is a silent placeholder): a part's
- * block in the way is moved when the free room holds it (arn_pack, once until the room changes); else a refused
+ * Packing (core/arena.c arn_pack; the user, 2026-10-29): a send line is moved only while its bus is silent (fxm_still:
+ * every cell 0, not lent): gated, two blocks (fxm_mv_ready), copied, its pointer swapped and the gate cleared
+ * (fxm_moved): nothing heard is lost. Moved up (to the top), the parts' blocks down.
+ * No room (the user, 2026-10-25: refuse, then propose what to drop; a dropped part is a silent placeholder): the blocks
+ * that may move moved together when the free room holds it (arn_pack, once until the room changes); else a refused
  * effect is bypassed where it is (a send's return adds nothing, the dry signal passes; a limited insert FULL, fxi.c),
  * kept in the project as it is, shown dim (FULL: op_cells.c) with a MEM FULL message once (op_input.c), and placed by
  * itself as soon as there is room: tried again every pass, except while a part's refused change waits
@@ -33,19 +33,10 @@ enum { FXM_NONE, FXM_ON, FXM_GOING };                   /* a send line's: not pl
 #else
 #define FXM_REV_AP 0u
 #endif
-#define FXM_R(n) (((uint32_t)(n) + ARN_ALIGN - 1u) & ~(ARN_ALIGN - 1u))
 #define FXM_B0 (FELUCCA_FX_CHORUS ? CHO_LEN * 2u : 0u)
 #define FXM_B1 (FELUCCA_FX_DELAY ? DLY_LEN * 2u : 0u)
 #define FXM_B2 (FELUCCA_FX_REVERB ? REV_LINE_N * 2u + FXM_REV_AP : 0u)
 static const uint32_t FXM_BYTES[3] = {FXM_B0, FXM_B1, FXM_B2};
-/* the fixed places: REV at the arena's end, DLY under it, CHO under that; fxm_lim the lowest (ARN_LIM, engines.c) */
-#define FXM_AT2 (ARN_BYTES - FXM_R(FXM_B2))
-#define FXM_AT1 (FXM_AT2 - FXM_R(FXM_B1))
-#define FXM_AT0 (FXM_AT1 - FXM_R(FXM_B0))
-_Static_assert(FXM_R(FXM_B0) + FXM_R(FXM_B1) + FXM_R(FXM_B2) <= ARN_BYTES,
-               "FELUCCA_ARENA_KB: the arena holds the three send lines together (tools/builder/core.py refuses less)");
-static const uint32_t FXM_AT[3] = {FXM_AT0, FXM_AT1, FXM_AT2};
-static uint32_t fxm_lim(void) { return FXM_AT0; }
 static const uint8_t FXM_TY[3] = {FXT_CHO, FXT_DLY, FXT_REV};
 static uint8_t fxm_st[3];                               /* FXM_NONE .. FXM_GOING, by send line */
 static uint8_t fxm_t0[3];                               /* fxm_tick when it was gated */
@@ -79,7 +70,7 @@ static void fxm_set(uint32_t c, void *p)                /* the line's pointer (t
 #endif
     }
 }
-/* send line c's block placed at its place (no room: 0; a part's block there and room for it below: moved first, 0
+/* send line c's block placed (no room: 0; room once the blocks that may move are moved together: moved first, 0
  * meanwhile, *wait set); the interrupts off around the arena (a part's reservation may run in the ISR) */
 static int fxm_place(uint32_t c, int *wait)
 {
@@ -87,14 +78,14 @@ static int fxm_place(uint32_t c, int *wait)
     int r;
     uint32_t room;
     fm1_irq_off();
-    r = arn_reserve_at(FXM_K(c), FXM_AT[c], FXM_BYTES[c]);
+    r = arn_reserve(FXM_K(c), FXM_BYTES[c]);
     if (!r)
         p = arn_take(FXM_K(c));
     fm1_irq_on();
     if (r) {
         room = arn_room() + 1u;
-        if (arn_busy() || (fxm_pk[c] != room && (fxm_pk[c] = room, arn_pack(FXM_K(c), FXM_BYTES[c], FXM_AT[c]))))
-            *wait = 1;                                  /* (a part's block moved away first: again after) */
+        if (arn_busy() || (fxm_pk[c] != room && (fxm_pk[c] = room, arn_pack(FXM_K(c), FXM_BYTES[c], ARN_BYTES))))
+            *wait = 1;                                  /* (the blocks moved together first: again after) */
         return 0;
     }
     fxm_pk[c] = 0;
@@ -175,9 +166,80 @@ static void fxm_gate(uint32_t c)                        /* send line c gated now
     fm1_irq_on();
     fxm_st[c] = FXM_GOING;
 }
+/* send line c's bus silent (every cell 0, no clear under way) and not lent: moving it loses nothing (core/arena.c) */
+static uint32_t fxm_still(uint32_t c)
+{
+#if INS_LIM
+    if (c < FXM_REV && fxl_st[c] != FXL_SEND)
+        return 0;
+#endif
+    if (c == FXM_CHO)
+        return fx.cho_q >= CHO_LEN && !fxz.cclr;
+    if (c == FXM_DLY)
+        return fx.dly_q >= DLY_LEN && !DLY_FST() && !fxz.dclr;
+#if FELUCCA_FX_REVERB && !FELUCCA_SPRING                /* (SPRING keeps its own state: never moved) */
+    return fx.rev_q >= REV_Q && !REV_LP_BUSY() && !REV_HALF_BUSY() && (rgd.st == RG_ON || rgd.st == RG_OFF)
+#if REV_MULTI
+           && !rsel.fade
+#endif
+           ;
+#else
+    return 0;
+#endif
+}
+static uint8_t fxm_mt0;                                 /* fxm_tick when a moving send line was gated */
+/* (core/arena.c ARN_MV_READY, the main loop) client k's block about to be copied: a send line gated first, its copy
+ * two blocks later (CPU1's kept reverb block has run by then); the room (fxi.c) at once */
+static int fxm_mv_ready(uint32_t k)
+{
+    uint32_t c = k - NPART;
+    if (c >= 3u)
+        return 1;
+    if (!(fxm_off >> c & 1u)) {
+        fm1_irq_off();
+        fxm_off |= (uint8_t)(1u << c);
+        fxm_mt0 = fxm_tick;
+        fm1_irq_on();
+        return 0;
+    }
+    return (uint8_t)(fxm_tick - fxm_mt0) >= 2u;
+}
+/* (core/arena.c ARN_MV_MOVED, the interrupts off) client k's block now at p: a send line's pointer, its gate cleared
+ * (its bus at rest as before: every cell 0); the room's lines (fxi.c) */
+static void fxm_moved(uint32_t k, void *p)
+{
+    uint32_t c = k - NPART;
+    if (c < 3u) {
+        fxm_set(c, p);
+        if (fxm_st[c] == FXM_ON)
+            fxm_off &= (uint8_t)~(1u << c);             /* (dropped meanwhile, fxm_drop: gated, given back after) */
+    }
+#if INS_LIM
+    else
+        fxr_moved(p);
+#endif
+}
+static int part_quiet(uint32_t k);
+/* (core/arena.c ARN_CAN) client k's block may move now: a part only while it is quiet (no voice, nothing queued, no
+ * switch), a send line only while its bus is silent, the inserts' room only while none of its lines is heard; any of
+ * them in a load's pack. The other buffers never */
+static int arn_can(uint32_t k)
+{
+    if (k < NPART)
+        return arn_pk.load || part_quiet(k);
+    if (k < NPART + 3u)
+        return fxm_st[k - NPART] == FXM_ON && fxm_want(k - NPART) && fxm_still(k - NPART);
+#if INS_LIM
+    if (k == NPART + 3u)
+        return arn_pk.load || fxr_quiet();
+#endif
+    return 0;
+}
 static void fxm_send(uint32_t c)                        /* send line c after the pass's changes, but a placement */
 {
     uint32_t w = fxm_want(c);
+    if (arn_moving(FXM_K(c)))
+        return;                                         /* (being moved: gated, its pointer swapped after) */
     if (fxm_st[c] == FXM_ON) {
         if (!w)
             fxm_gate(c);                                /* (no longer used) */
@@ -294,9 +356,25 @@ static void fxm_ins_refused(void) { fxm_refuse(FXM_INS); }   /* (fxi.c: an inser
 static void fxm_ins_ok(void) { fxm_full &= (uint8_t)~(1u << FXM_INS); }   /* (.. none left without: said again later) */
 #endif
 #elif PART_DROPS
+static int part_quiet(uint32_t k);
+static int arn_can(uint32_t k) { return k < NPART && (arn_pk.load || part_quiet(k)); }   /* (above) */
 #define fxm_poll() arn_poll()                           /* (the parts alone in the arena: their moves) */
 #define fxm_pending() 0
 #else
 #define fxm_poll() ((void)0)
 #define fxm_pending() 0
+#endif
+#if PART_DROPS
+/* part k is quiet: no voice sounding, no note waiting, no switch under way (moving its block is then never heard) */
+static int part_quiet(uint32_t k)
+{
+    const track_t *t = &trk[k];
+    uint32_t i;
+    if (t->xf_on || t->eng_req != t->engine || t->pold || t->xp_n)
+        return 0;
+    for (i = 0; i < NVOICE; i++)
+        if (t->v[i].active)
+            return 0;
+    return 1;
+}
 #endif

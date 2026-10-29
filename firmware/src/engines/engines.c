@@ -205,28 +205,29 @@ enum {
 #if PART_DROPS
 static void *part_mem_p[NPART];                          /* placed by need: where its switch took it (0 before) */
 #define PART_MEM_AT(p) part_mem_p[p]
-/* the arena's packing (core/arena.c arn_pack): the parts' blocks are the ones that move (nothing in them points into
- * them: a copy and part_mem_p), gated while they do (voice.c PART_MOVING); the send lines' places at the top, the
- * buffers and the inserts' room under them (FXM_NEED: fx/fx_arena.c fxm_lim) */
-#if FXM_NEED && INS_LIM                                  /* (and the inserts' room, NPART + 3, fx/insfx/fxi.c: moved up,
-                                                          * to the top's buffers, its lines repointed, fxr_moved) */
-static void fxr_moved(void *p);
-#define ARN_MOVES (((1u << NPART) - 1u) | 1u << (NPART + 3u))
-#define ARN_UPS (1u << (NPART + 3u))
-#define ARN_UP_ALIGN 1024u                               /* (its units: the arena's 1 KB, fxi_mem.h) */
-#define ARN_MV_MOVED(k, p) ((k) < NPART ? (void)(part_mem_p[k] = (p)) : fxr_moved(p))
+/* the arena's packing (core/arena.c arn_pack): what moves (nothing in it points into it: a copy and its pointer), gated
+ * while it does; only while it is quiet, or at a project load (arn_can, fx/fx_arena.c; the user, 2026-10-29: never a
+ * drop-out while it plays): the parts' blocks (part_mem_p; voice.c PART_MOVING), the send lines (their buses gated
+ * two blocks before, fx_arena.c fxm_mv_ready; moved up, to the top) and the inserts' room (fx/insfx/fxi.c fxr_moved;
+ * moved up) */
+static int arn_can(uint32_t k);                           /* (fx/fx_arena.c: client k's block may move now) */
+#define ARN_CAN(k) arn_can(k)
+#if FXM_NEED
+static void fxm_moved(uint32_t k, void *p);
+static int fxm_mv_ready(uint32_t k);
+static void fxm_sync(void);
+#define ARN_MOVES (((1u << NPART) - 1u) | 0xFu << NPART)   /* (the parts, CHO DLY REV, the inserts' room) */
+#define ARN_UPS (0xFu << NPART)
+#define ARN_UP_ALIGN 1024u                               /* (the room's units: the arena's 1 KB, fxi_mem.h) */
+#define ARN_MV_MOVED(k, p) ((k) < NPART ? (void)(part_mem_p[k] = (p)) : fxm_moved(k, p))
+#define ARN_MV_READY(k) ((k) < NPART || fxm_mv_ready(k))
+#define ARN_MV_SYNC() fxm_sync()
 #else
 #define ARN_MOVES ((1u << NPART) - 1u)
 #define ARN_MV_MOVED(k, p) ((k) < NPART ? (void)(part_mem_p[k] = (p)) : (void)0)
 #endif
 #ifdef FM1_TICKS_PER_US
 #define ARN_US() (fm1_ticks() / FM1_TICKS_PER_US)
-#endif
-#if FXM_NEED
-static uint32_t fxm_lim(void);                           /* (fx/fx_arena.c: the send lines' places start there) */
-static void fxm_sync(void);
-#define ARN_LIM fxm_lim()
-#define ARN_MV_SYNC() fxm_sync()
 #endif
 #include "../core/arena.c"
 #define PART_MOVING(t) ((uint32_t)((t) - trk) < NPART && arn_moving((uint32_t)((t) - trk)))

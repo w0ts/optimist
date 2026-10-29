@@ -158,17 +158,16 @@ static void pack_cases(void)
           "part 1 moved down to 0, its contents as they were; part 3 not moved");
     CHECK(arn_reserve(0, 2000) == 0 && arn_next[0].off == 1000, "and the 2000 B fit now (1000 .. 3000)");
     arn_take(0);
-    /* a fixed place (a send line): a part's block there moved out of it */
+    /* a place asked for (the inserts' room growing there): a part's block there moved out of it */
     reset();
     arn.mk = ARN_NO;
     CHECK(sw(0, 1000) == 0 && sw(1, 1000) == 0 && sw(2, 1000) == 0, "three placed");
     fill(2, 0xC2);
     arn_give(1);
-    CHECK(arn_reserve_at(3, 2000, 1000) == -1, "part 2 at the fixed place 2000: refused");
+    CHECK(arn_resize(3, 2000, 1000) == -1, "part 2 at the place 2000: a block there refused");
     CHECK(arn_pack(3, 1000, 2000) == 1 && run_plan(&seen) && off_of(2) == 1000 && holds(2, 0xC2),
           "packed: part 2 moved to the free 1000, its contents kept");
-    CHECK(arn_reserve_at(3, 2000, 1000) == 0 && sound(), "the fixed place free: placed");
-    arn_take(3);
+    CHECK(arn_resize(3, 2000, 1000) == 0 && off_of(3) == 2000 && sound(), "the place free: placed");
     /* the room's kind: moved up (ARN_UPS) */
     reset();
     arn.mk = ARN_NO;

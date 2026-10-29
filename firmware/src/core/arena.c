@@ -2,8 +2,7 @@
 /* The arena (docs/SD-MODE-DESIGN.md 6b): one pool region the parts' engine memories are placed in by need, instead of
  * a fixed memory per part sized for the largest engine; in every build with one (2026-10-29, the user: one memory
  * setting) the effects' lines and the other buffers too (fx/fx_arena.c, core/arena_bufs.c). At most one block per
- * client, first fit in address order (the parts), best fit from the top (ARN_TOPS: the buffers, the inserts' room),
- * or at a fixed place (arn_reserve_at: the send lines, at the arena's top).
+ * client, first fit in address order (the parts), best fit from the top (ARN_TOPS: the send lines, the buffers).
  *
  * The main loop reserves before a part's engine changes (arn_reserve, the interrupts off); the audio takes the
  * reservation at the switch (arn_take, engines.c part_mem_claim, every voice of the part over) and the part's old
@@ -13,7 +12,6 @@
  * the blocks it would give back says which part's memory would make room (engines.c part_mem_frees, model.c mem_offer).
  *
  *   arn_reserve(k, n)       0: client k's next block (n bytes; 0: none) is set aside; -1: no room
- *   arn_reserve_at(k, o, n) 0: .. at offset o (its fixed place); -1: something there (an idle block there reclaimed)
  *   arn_take(k)             (the audio, at the switch) the reservation becomes the client's block: its pointer
  *   arn_rest(k)             (the audio, at a switch to an engine that keeps nothing here) the block is idle
  *   arn_ptr(k)              the client's block, 0 none
@@ -24,24 +22,29 @@
  *                           given back too (the UI's counts, what to propose to drop; nothing changed)
  *   arn_room()              the room left, every gap (the idle blocks free: the load's gauge, the inserts' counts)
  *   arn_free_bytes()        the room left (the largest gap, for the MEM message)
- * ARN_PARTS and ARN_BYTES are set by the includer; ARN_TOPS (default none) the clients placed best fit from the top
- * below ARN_LIM (default the arena's end: the send lines' places above it); ARN_ALIGN the unit every size and place is
- * a whole number of. A part's own block is free for its own reservation: the new block is written only at the switch,
- * when the old engine is done (as the one fixed memory per part was reused); the other blocks and reservations are not.
+ * ARN_PARTS and ARN_BYTES are set by the includer; ARN_TOPS (default none) the clients placed best fit from the top;
+ * ARN_ALIGN the unit every size and place is a whole number of. A part's own block is free for its own reservation:
+ * the new block is written only at the switch, when the old engine is done (as the one fixed memory per part was
+ * reused); the other blocks and reservations are not.
  *
- * Packing (the user, 2026-10-29: "how do we avoid fragmentation?"). The clients of ARN_MOVES (the parts) may be moved;
- * nothing else ever is. A refusal the free bytes would hold (arn_pack: a part's change, a load's part, a send line's
- * fixed place, the inserts' room growing) plans moves on a copy of the arena: the movable blocks in address order, each
- * to the lowest place below it that holds it, until the refused block fits (the fewest moves in that order); no plan,
- * the refusal stands. A project's load packs every block once its parts have switched (arn_pack_all). The main loop
+ * Packing (the user, 2026-10-29: "how do we avoid fragmentation?"). The clients of ARN_MOVES may be moved, and only
+ * while ARN_CAN says (the includer: a part while it is quiet, a send line while its bus is silent, the inserts' room
+ * while none of its lines is heard; any of them in a load's pack): never a drop-out while one plays. A refusal the
+ * free bytes would hold (arn_pack: a part's change, a load's part, a send line, the inserts' room growing at a given
+ * place, another buffer) plans moves on a copy of the arena: the blocks over a place asked for moved anywhere else,
+ * the ARN_UPS (the send lines, the room) up to the highest place when that leaves a larger gap, the others by address
+ * down to the lowest place below them, until the refused block fits (the fewest moves in that order); no plan, the
+ * refusal stands, and when a block that sounds was in the way the arena is packed once it is quiet (arn_pk.want, tried
+ * every 32 passes). A project's load packs every block once its parts have switched (arn_pack_all). The main loop
  * runs the plan (arn_poll, every pass): one block at a time, its client gated while it moves (arn_moving: the audio
- * neither renders nor starts its voices, a switch waits; engines.c, voice.c), the contents copied (no state lost) in
- * windows of at most ARN_MV_CHUNK bytes with the interrupts off and at most ARN_MV_US microseconds (the window stops at
- * the first 256 bytes past it; the block period is CTL / FS = 726 us, so the audio's interrupt waits 1/18 of it at
- * most), started just after an audio block (arn_mv_sync: the copy is usually done before the next one, the client
- * not skipped at all), then its place and pointer swapped with the interrupts off (ARN_MV_MOVED). Before each move
- * its target is checked again (a reservation in the audio's section apply may have taken it): taken, the plan stops.
- * The probe (arn_probe: SYSTEM > INTERNALS ARENA MOVES): the moves, the longest (us, its start to its swap), the
+ * neither renders nor starts its voices, a switch waits; engines.c, voice.c; ARN_MV_READY: a send line's bus gated
+ * two blocks before), the contents copied (no state lost) in windows of at most ARN_MV_CHUNK bytes with the
+ * interrupts off and at most ARN_MV_US microseconds (the window stops at the first 256 bytes past it; the block period
+ * is CTL / FS = 726 us, so the audio's interrupt waits 1/18 of it at most), started just after an audio block
+ * (arn_mv_sync: the copy is usually done before the next one, the client not skipped at all), then its place and
+ * pointer swapped with the interrupts off (ARN_MV_MOVED). Before each move its target is checked again (a reservation
+ * in the audio's section apply may have taken it) and the client too (it may sound again): the plan stops.
+ * The probe (arn_probe: SYSTEM > INFO ARENA MOVE): the moves, the longest (us, its start to its swap), the
  * longest window with the interrupts off (us), the audio blocks a client was skipped in */
 #ifndef AINL
 #define AINL static inline __attribute__((always_inline))
@@ -56,15 +59,18 @@
 #define ARN_HIGH 0                                      /* the ARN_TOPS clients: best fit (0, measured as good as the
                                                          * highest place, 1: tests/arena_frag_test.c) */
 #endif
-#ifndef ARN_LIM
-#define ARN_LIM ARN_BYTES                               /* (the top end for ARN_TOPS: the arena's end) */
-#endif
 #ifndef ARN_MOVES
 #define ARN_MOVES 0u                                    /* (the clients that may be moved: none) */
 #endif
+#ifndef ARN_CAN
+#define ARN_CAN(k) 1                                    /* (client k's block may move now: quiet, or a load) */
+#endif
+#ifndef ARN_MV_READY
+#define ARN_MV_READY(k) 1                               /* (its client ready for the copy: the includer's) */
+#endif
 #ifndef ARN_UPS
-#define ARN_UPS 0u                                      /* (of those, the ones moved up, to the highest place under
-                                                         * ARN_LIM, a unit of ARN_UP_ALIGN: the inserts' room) */
+#define ARN_UPS 0u                                      /* (of those, the ones moved up, to the highest place, a
+                                                         * unit of ARN_UP_ALIGN: the send lines, the inserts' room) */
 #endif
 #ifndef ARN_UP_ALIGN
 #define ARN_UP_ALIGN ARN_ALIGN
@@ -166,7 +172,7 @@ static uint32_t arn_scan(const arn_st_t *A, uint32_t n, uint32_t skip, uint32_t 
 static uint32_t arn_place(const arn_st_t *A, uint32_t k, uint32_t n, uint32_t skip)   /* client k's place for n */
 {
     uint32_t top = ARN_TOPS >> k & 1u;
-    return arn_scan(A, n, skip, top ? ARN_ALIGN : 0u, top ? ARN_LIM : ARN_BYTES);
+    return arn_scan(A, n, skip, top ? ARN_ALIGN : 0u, top ? ARN_BYTES : ARN_BYTES);
 }
 static uint32_t arn_gap(uint32_t n, uint32_t skip) { return arn_scan(&arn, n, skip, 0, ARN_BYTES); }
 
@@ -210,24 +216,6 @@ static int arn_reserve_in(arn_st_t *A, uint32_t k, uint32_t n)
     return 0;
 }
 static int arn_reserve(uint32_t k, uint32_t n) { return arn_reserve_in(&arn, k, n); }
-
-/* client k's next block at its fixed place o (n bytes): the idle blocks there reclaimed; -1 something else there */
-static int arn_reserve_at_in(arn_st_t *A, uint32_t k, uint32_t o, uint32_t n)
-{
-    uint32_t i, idle = arn_idle_of(A), e, bo = 0;
-    if (k >= ARN_PARTS || o % ARN_ALIGN)
-        return -1;
-    n = arn_round(n);
-    if (o + n > ARN_BYTES || !arn_clear(A, o, n, idle | 1u << k))
-        return -1;
-    for (i = 0; i < ARN_PARTS; i++)
-        if ((idle >> i & 1u) && (e = arn_end(A, i, 0, &bo)) && bo < o + n && e > o)
-            A->b[0][i].len = 0;                         /* (an idle block over it: nothing reads it) */
-    A->b[1][k].off = o, A->b[1][k].len = n, A->b[1][k].idle = 0;
-    A->hn[k] = 1;
-    return 0;
-}
-static int arn_reserve_at(uint32_t k, uint32_t o, uint32_t n) { return arn_reserve_at_in(&arn, k, o, n); }
 
 static void *arn_take(uint32_t k)
 {
@@ -318,8 +306,13 @@ static struct {
     uint32_t done;                                      /* the moving block's bytes copied */
     uint32_t t0;                                        /* (ARN_US at its start) */
     uint8_t all;                                        /* arn_pack_all asked (a load): when nothing is pending */
+    uint8_t want;                                       /* a refusal found no plan (a block in the way still sounds):
+                                                         * every block packed once it is quiet (arn_poll) */
+    uint8_t blocked;                                    /* (arn_plan: blocks it could not move, they sound) */
+    uint8_t ready, tick;                                /* (the moving block's client ready; arn_poll's passes) */
+    uint8_t load;                                       /* the plan under way is a load's (arn_can: every block moves) */
 } arn_pk;
-/* the goal of a plan: client k's n bytes, at its fixed place at (ARN_BYTES: where arn_reserve puts it) */
+/* the goal of a plan: client k's n bytes, at the place at (ARN_BYTES: where arn_reserve puts it) */
 typedef struct { uint32_t k, n, at; } arn_goal_t;
 static int arn_goal_fits(const arn_st_t *A, const arn_goal_t *g)
 {
@@ -331,24 +324,27 @@ static int arn_goal_fits(const arn_st_t *A, const arn_goal_t *g)
 }
 static int arn_movable(const arn_st_t *A, uint32_t k)   /* client k's block may be moved now */
 {
-    return (ARN_MOVES >> k & 1u) && A->b[0][k].len && !A->b[0][k].idle && !A->hn[k];
+    return (ARN_MOVES >> k & 1u) && A->b[0][k].len && !A->b[0][k].idle && !A->hn[k] && ARN_CAN(k);
 }
-/* the plan on T (a copy), until g fits (g 0: every move): first the movable blocks over g's fixed place, each to the
+/* the plan on T (a copy), until g fits (g 0: every move): first the movable blocks over g's place, each to the
  * lowest place anywhere else that holds it (another line's free place too); then the ARN_UPS, the highest first, each
- * to the highest place under ARN_LIM; then the others by address, each to the lowest place below it. The moves; -1 g
+ * to the highest place; then the others by address, each to the lowest place below it. The moves; -1 g
  * does not fit even so */
 static int arn_plan(arn_st_t *T, const arn_goal_t *g)
 {
     uint32_t i, j, k, m = 0, at, o[ARN_PARTS], fx = g && g->at != ARN_BYTES;
     uint8_t id[ARN_PARTS];
+    arn_pk.blocked = 0;
     for (k = 0; k < ARN_PARTS; k++)
-        if (arn_movable(T, k)) {
+        if (!arn_movable(T, k))
+            arn_pk.blocked += (ARN_MOVES >> k & 1u) && T->b[0][k].len && !T->b[0][k].idle && !T->hn[k];
+        else {
             for (j = m; j > 0 && o[j - 1u] > T->b[0][k].off; j--)
                 o[j] = o[j - 1u], id[j] = id[j - 1u];
             o[j] = T->b[0][k].off, id[j] = (uint8_t)k, m++;
         }
     arn_pk.n = 0;
-    if (fx)                                             /* (a fixed place: kept free while the others move) */
+    if (fx)                                             /* (the place asked for: kept free while the others move) */
         T->hn[g->k] = 1, T->b[1][g->k].off = g->at, T->b[1][g->k].len = arn_round(g->n);
     if (g && arn_goal_fits(T, g))
         return 0;
@@ -359,7 +355,7 @@ static int arn_plan(arn_st_t *T, const arn_goal_t *g)
         over = fx && T->b[0][k].off < g->at + arn_round(g->n) && T->b[0][k].off + T->b[0][k].len > g->at;
         if (pass ? over || up != (pass == 1u) : !over)
             continue;
-        at = arn_scan(T, T->b[0][k].len, 1u << k, up ? ARN_UP_ALIGN : 0u, up ? ARN_LIM : ARN_BYTES);
+        at = arn_scan(T, T->b[0][k].len, 1u << k, up ? ARN_UP_ALIGN : 0u, up ? ARN_BYTES : ARN_BYTES);
         if (at == ARN_BYTES && !pass)
             return -1;
         if (at == ARN_BYTES || (pass && (up ? at <= T->b[0][k].off : at >= T->b[0][k].off)))
@@ -400,6 +396,7 @@ static int arn_pack(uint32_t k, uint32_t n, uint32_t at)
             T.b[0][i].len = 0;
     if (arn_plan(&T, &g) <= 0) {
         arn_pk.n = arn_pk.i = 0;
+        arn_pk.want |= arn_pk.blocked != 0;            /* (a block that sounds in the way: packed once it is quiet) */
         return 0;
     }
     arn_pk.i = 0;
@@ -440,17 +437,21 @@ static void arn_poll(void)
     uint32_t k, i, ok;
     arn_st_t T;
     if (arn.mk == ARN_NO && arn_pk.i >= arn_pk.n) {
-        if (!arn_pk.all)
-            return;
+        if (!arn_pk.all && (!arn_pk.want || ++arn_pk.tick & 31u))
+            return;                                     /* (a refusal's pack later: tried every 32 passes) */
         for (k = 0; k < ARN_PARTS; k++)
             if (arn_has_next[k] && (ARN_MOVES >> k & 1u))
-                return;                                 /* (a load's switches first: arn_pack_all waits) */
-        arn_pk.all = 0;
+                return;                                 /* (a load's switches first: the pack waits) */
         fm1_irq_off();
         T = arn;
         fm1_irq_on();
-        if (arn_plan(&T, 0) <= 0)
+        arn_pk.load = arn_pk.all, arn_pk.all = 0;      /* (a load's pack: its blocks move, sounding or not) */
+        if (arn_plan(&T, 0) <= 0) {
+            arn_pk.load = 0;
+            if (!arn_pk.blocked)
+                arn_pk.want = 0;                        /* (nothing left that sounds in the way: packed) */
             return;
+        }
         arn_pk.i = 0;
     }
     if (arn.mk == ARN_NO) {
@@ -463,11 +464,18 @@ static void arn_poll(void)
             arn.mk = (uint8_t)k, arn.mo = arn_pk.to[i];
         fm1_irq_on();
         if (!ok) {
-            arn_pk.n = arn_pk.i = 0;                    /* (something took its place meanwhile: the plan stops) */
+            arn_pk.n = arn_pk.i = 0, arn_pk.load = 0;   /* (something took its place, or it sounds again: the plan
+                                                         * stops, packed later) */
+            arn_pk.want = 1;
             arn_probe.stops++;
             return;
         }
-        arn_pk.done = 0;
+        arn_pk.done = 0, arn_pk.ready = 0;
+    }
+    if (!arn_pk.ready) {
+        if (!ARN_MV_READY(arn.mk))
+            return;                                     /* (its client gated for it: a pass later, a send line's bus) */
+        arn_pk.ready = 1;
         ARN_MV_SYNC();
         arn_pk.t0 = ARN_US();
     }
@@ -493,5 +501,6 @@ static void arn_poll(void)
             arn_probe.max_us = us;
     }
     arn_probe.moves++;
-    arn_pk.i++;
+    if (++arn_pk.i >= arn_pk.n)
+        arn_pk.load = 0;
 }

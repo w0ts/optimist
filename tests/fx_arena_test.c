@@ -1,9 +1,9 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* The effects' lines in the arena (firmware/src/fx/fx_arena.c; docs/SD-MODE-DESIGN.md 6b, phase 3b): built with
  * FELUCCA_FX_ARENA and an arena of one FM6 part's memory, its sine table, every send line (the reverb's with the ROOM's
- * diffusers after it) at its fixed place and one CHRS line, in whole KB (run_tests.sh), CHRS and ECHO built, the delay's
+ * diffusers after it) and one CHRS line, in whole KB (run_tests.sh), CHRS and ECHO built, the delay's
  * line 16384 samples:
- *   1. placed by need: the sends in the master slots get their lines at the first pass, at their places at the top,
+ *   1. placed by need: the sends in the master slots get their lines at the first pass, best fit from the top,
  *      zeroed, the gate open; no inserts' room while no limited type is held
  *   2. the lines sound (the wet written into the arena)
  *   3. a send out of the slots: gated, given back two blocks later, the audio runs on with its pointer 0
@@ -13,9 +13,9 @@
  *   6. refused: the send stays in its slot (the project keeps it), bypassed, FULL, said once; never placed while a
  *      part's refused change waits; restored by itself once a part is dropped (its block idle, taken back)
  *   7. the inserts' room: grown by a line while a limited type is held, given back after the last fade-out; full, the
- *      chorus send's line (in no slot) placed at its place and lent instead; the drop proposal: the parts, then the
+ *      chorus send's line (in no slot) placed and lent instead; the drop proposal: the parts, then the
  *      effects' lines (the largest first), a dropped effect bypassed as when refused, the part's change made, the effect
- *      back later (its place: a part's block there reclaimed)
+ *      back later (an idle block in its way reclaimed)
  *   8. random switches (sends in and out of the slots, inserts, parts' engines, drops, blocks between): the blocks never
  *      overlap, every pointer is its block, a gate open only on a placed line; at the end everything given back
  *   fx_arena_test */
@@ -107,7 +107,7 @@ static int any16(const int16_t *p, uint32_t n)
             return 1;
     return 0;
 }
-/* the invariants: blocks inside the arena and apart, each line's pointer its block at its fixed place, a gate open only
+/* the invariants: blocks inside the arena and apart, each line's pointer its block, a gate open only
  * on a placed line, the room's block its units, every instance's line where its units are */
 static int arena_ok(void)
 {
@@ -124,14 +124,14 @@ static int arena_ok(void)
     }
     for (c = 0; c < 3u; c++) {
         void *p = fx_ptr(c);
-        if (p != arn_ptr(FXM_K(c)) || (p && (arn_cur[FXM_K(c)].idle || arn_cur[FXM_K(c)].off != FXM_AT[c])))
+        if (p != arn_ptr(FXM_K(c)) || (p && arn_cur[FXM_K(c)].idle))
             return 0;
-        if ((fxm_st[c] == FXM_NONE) != !p || (fxm_st[c] == FXM_ON) != !(fxm_off >> c & 1u))
+        if ((fxm_st[c] == FXM_NONE) != !p || ((fxm_st[c] == FXM_ON) != !(fxm_off >> c & 1u) && !arn_moving(FXM_K(c))))
             return 0;
     }
     if (ROOM ? arn_cur[FXR_K].off != fxr_lo * FXR_UB || arn_cur[FXR_K].len != (uint32_t)(fxr_hi - fxr_lo) * FXR_UB ||
-               fxr_hi * FXR_UB > fxm_lim() : arn_cur[FXR_K].len != 0u)
-        return 0;                                       /* (the room: its units, under the send lines' places) */
+               fxr_hi * FXR_UB > ARN_BYTES : arn_cur[FXR_K].len != 0u)
+        return 0;                                       /* (the room: its units) */
 #if FELUCCA_REV_ROOM
     if (rev_ap != (rev_line ? rev_line + REV_LINE_N : 0))
         return 0;                                       /* (the ROOM's diffusers: in the reverb's block, after its line) */
@@ -172,19 +172,19 @@ int main(void)
     fxi_init();
     for (c = 0; c < 3u; c++)
         sum += arn_round(FXM_BYTES[c]);
-    CHECK(fxm_lim() == ARN_BYTES - sum && ARN_BYTES % 1024u == 0u && ARN_BYTES >= FM + SN + sum + 2048u &&
+    CHECK(ARN_BYTES % 1024u == 0u && ARN_BYTES >= FM + SN + sum + 2048u &&
           ARN_BYTES < FM + SN + sum + 2048u + 1024u && ARN_BYTES < 2u * FM + SN + sum && ARN_BYTES < 3u * FM + SN + sum -
           FXM_BYTES[FXM_CHO],
           "the premise: one FM6, its sine table, every send line and one CHRS line fit, not two FM6 (arena %u B: FM6 %u + "
-          "%u, lines %u %u %u at the top from %u)", (unsigned)ARN_BYTES, (unsigned)FM, (unsigned)SN, FXM_BYTES[0],
-          FXM_BYTES[1], FXM_BYTES[2], (unsigned)fxm_lim());
+          "%u, lines %u %u %u)", (unsigned)ARN_BYTES, (unsigned)FM, (unsigned)SN, FXM_BYTES[0], FXM_BYTES[1],
+          FXM_BYTES[2]);
     if (bad)
         return 1;                                       /* (the checks below are laid out for it) */
     CHECK(fxm_off == 7u && !cho_buf && !dly_buf && !rev_line && !ROOM, "at boot: no line placed, every send gated");
     quiet();
     /* 1. placed by need */
     CHECK(fxm_st[FXM_CHO] == FXM_ON && fxm_st[FXM_DLY] == FXM_ON && fxm_st[FXM_REV] == FXM_ON && !fxm_off && !ROOM &&
-          arena_ok(), "the sends in the master slots: their lines placed at their places, the gates open; no inserts' room");
+          arena_ok(), "the sends in the master slots: their lines placed, the gates open; no inserts' room");
     CHECK(zeros(cho_buf, FXM_BYTES[FXM_CHO]) && zeros(dly_buf, FXM_BYTES[FXM_DLY]) && zeros(rev_line, FXM_BYTES[FXM_REV]),
           "... zeroed");
     /* 2. heard */
@@ -281,10 +281,10 @@ int main(void)
     put_chrs(2, 1);
     settle(8);
     k = fxi_at[2][0];
-    CHECK(fxr_hi - fxr_lo == 2u && (fxm_news >> FXM_INS & 1u) && !fxm_full && cho_buf && k != FXI_NONE &&
-          ifx_chrs[k].line == cho_buf && fxi_state(2, 0) == FXI_OK && fxl_st[0] == FXL_LENT && arena_ok(),
-          "CHRS on track 3: the room cannot grow (FM6 under it, the sine table over it); the chorus send's line placed at "
-          "its place and lent, the instance on it (MEM FULL INSERTS said, none left without)");
+    CHECK(k != FXI_NONE && fxi_state(2, 0) == FXI_OK && !fxm_full && arena_ok() &&
+          (ifx_chrs[k].line == cho_buf ? fxl_st[0] == FXL_LENT && (fxm_news >> FXM_INS & 1u) : fxr_hi - fxr_lo == 4u),
+          "CHRS on track 3: the room grown by its line, or (no room next to it) the chorus send's line placed and lent, "
+          "the instance on it (MEM FULL INSERTS said, none left without): %s", ifx_chrs[k].line == cho_buf ? "lent" : "grown");
     put_chrs(2, 0);
     put_chrs(0, 0);
     settle(40);

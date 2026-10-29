@@ -32,7 +32,7 @@
 #define FXA_AUTO (FXI_B0 * FXA_Z0 + FXI_B1 * FXA_Z1 + FXI_B2 * FXA_Z2 + FXI_B3 * FXA_Z3 + FXI_B4 * FXA_Z4)
 /* With an arena (FXM_NEED: every build with FELUCCA_ARENA_KB, the user, 2026-10-29: one memory setting) there is no
  * DLY_ARENA: the own room is one block of the arena (fx/fx_arena.c FXM_INS) that grows and shrinks a unit at a time at
- * its edges as lines are placed and given back (fxi.c fxa_own, fxr_trim), never into the send lines' places; its
+ * its edges as lines are placed and given back (fxi.c fxa_own, fxr_trim); its
  * units are the arena's own 1 KB units from its start (unit FXA_S + u: arena bytes u KB .. u + 1 KB), so a line keeps
  * its address while the room grows. The send lines are the arena's blocks too, lent as before. How many lines play at
  * once is then what the arena holds beside the project's engines and the other lines */
