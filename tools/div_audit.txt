@@ -112,6 +112,7 @@ src/ui/optimist/op_graph.c:eg_seg:n | only in its loop (i = 1..n: never run for 
 src/ui/optimist/op_graph.c:page_frac:(c.gmax-c.gmin) | guarded "c.gmax <= c.gmin ? 0 :"
 src/ui/optimist/op_bt.c:bt_pg_paint:(int32_t)n | only under "if (n > BT_PG_ROWS)" (BT_PG_ROWS 4): n >= 5 (built where BLE_CENTRAL is, the reference profile since 2026-10-24)
 src/ui/optimist/op_bt.c:bt_pg_paint:(int32_t)(n-BT_PG_ROWS) | the same guard: n - BT_PG_ROWS >= 1
+src/ui/optimist/op_wifi.c:wf_q_text:wfq.tx | only after "if (!wfq.tx) return" (frames sent in the window, from plat_wifi_quality): wfq.tx >= 1
 src/ui/optimist/op_gldraw.c:gl_info_pitch:(int32_t)n | n = info_lines(pg) >= 1: INFO_N >= 3 (6 with SYS_DEBUG), INFO_DIAG >= 1 (FLASH IRQS OFF in every build), INFO_UA 9; gl_info() != 0 on that path (gl_paint, gl_info_draw)
 src/ui/optimist/op_mixdraw.c:mx_steps:len | TLEN: "clamp(t->p[P_SLEN], 1, NSTEP)"
 src/ui/optimist/op_mixdraw.c:mx_steps_paint:len | TLEN: "clamp(t->p[P_SLEN], 1, NSTEP)"
