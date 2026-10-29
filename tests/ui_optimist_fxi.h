@@ -10,7 +10,7 @@
  * (run_tests.sh: FXU_NC FXU_NE).
  * Included by ui_optimist_test.c. */
 /* how many CHRS, ECHO the effects memory's own room holds alone, the sends in their master slots (fxi_mem.h; run_tests.sh
- * sets it with DLY_ARENA); 0: not built */
+ * sets it, the builder's auto); 0: not built */
 #if INS_LIM
 #define FXU_NC (FXI_B0 ? FXL_MIN(FXI_NK, FXA_I / FXA_Z0) : 0u)
 #define FXU_NE (FXI_B1 ? FXL_MIN(FXI_NK, FXA_I / FXA_Z1) : 0u)

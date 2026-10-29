@@ -889,62 +889,6 @@
     "ramtext": -8
    }
   },
-  "DLY_ARENA": {
-   "32": {
-    "flash": 0,
-    "ram": 0,
-    "pool": 0,
-    "ramtext": 0
-   },
-   "48": {
-    "flash": 0,
-    "ram": 0,
-    "pool": 0,
-    "ramtext": 0
-   },
-   "64": {
-    "flash": 0,
-    "ram": 0,
-    "pool": 0,
-    "ramtext": 0
-   },
-   "96": {
-    "flash": 0,
-    "ram": 0,
-    "pool": 0,
-    "ramtext": 0
-   },
-   "128": {
-    "flash": 0,
-    "ram": 0,
-    "pool": 0,
-    "ramtext": 0
-   },
-   "160": {
-    "flash": 0,
-    "ram": 0,
-    "pool": 0,
-    "ramtext": 0
-   },
-   "192": {
-    "flash": 0,
-    "ram": 0,
-    "pool": 0,
-    "ramtext": 0
-   },
-   "256": {
-    "flash": 0,
-    "ram": 0,
-    "pool": 0,
-    "ramtext": 0
-   },
-   "320": {
-    "flash": 0,
-    "ram": 0,
-    "pool": 0,
-    "ramtext": 0
-   }
-  },
   "INS_GATER": {
    "1": {
     "flash": 2104,

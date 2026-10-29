@@ -474,7 +474,7 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #define FELUCCA_XDLY_LEN 16384             /* XDLY's line, samples (a power of two): 16384 0.37 s (64 KB an instance), 8192 */
 #endif
 #ifndef FELUCCA_DLY_ARENA
-#define FELUCCA_DLY_ARENA 0                /* the effects memory (fx/insfx/fxi_mem.h): KB of pool for the delay send's line
+#define FELUCCA_DLY_ARENA 0                /* the effects memory (fx/insfx/fxi_mem.h; the builder leaves it 0 (auto), a fixed size is for the host tests): KB of pool for the delay send's line
                                             * and every insert line (1 KB units); 0: the send's line and one line of each
                                             * limited insert type built. Ignored with an arena (FELUCCA_ARENA_KB: the
                                             * delay's line and each insert line a block of it, the user, 2026-10-29:
