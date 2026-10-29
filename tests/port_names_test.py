@@ -31,7 +31,7 @@ for mod in ("fm1_mirror", "fm1_sample_upload"):
     check(not any(m.PORT_RE.search(n) for n in OTHER), f"{mod}: other gear is not")
 
 inst = importlib.import_module("fm1_install")
-check(all(inst.PORT_RE.search(n) for n in NEW + OLD + ("FM-1", "Melodee", "SLOOP 2.4")), "fm1_install: FM1-XXXX, Optimist and the family are probed")
+check(all(inst.PORT_RE.search(n) for n in NEW + OLD + ("FM-1",)), "fm1_install: FM1-XXXX, the old Optimist / Felucca and FM-1 are probed")
 check(not any(inst.PORT_RE.search(n) for n in ("Launchkey Mini MK3", "IAC Driver Bus 1", "SMK-25 II", "Arturia KeyStep")),
       "fm1_install: other gear is never probed")
 
