@@ -2661,10 +2661,13 @@ static HOT void mix_part(track_t *t, uint32_t n MIXACC_PARAM)
         int32_t on = fx_on(t), pk = t->peak;          /* FX bypass: no sends (the buses' tails ring out) */
         pan_gains(pan, &gl, &gr);                     /* (dsp.c) */
         uint32_t ik = (uint32_t)(t - trk);              /* (a type the part holds as an insert: its amount is that insert's
-                                                         * MIX, no send to its bus, 2026-10-29: core.h INS_REV) */
+                                                         * MIX, no send to its bus, 2026-10-29: core.h INS_REV; a REV insert
+                                                         * with no memory, FULL, bypassed: the send to the reverb as with
+                                                         * no insert, so the track keeps its reverb, fxi.c. CHO and DLY
+                                                         * not: their buses lend their lines only while idle, fxi.c) */
         int32_t c = on && FXS_IN(FXT_CHO) && !INS_ON(ik, FXT_CHO) ? t->p[P_CHOR] * 258 : 0;   /* (a send in no FX slot: */
         int32_t d = on && FXS_IN(FXT_DLY) && !INS_ON(ik, FXT_DLY) ? t->p[P_DLY] * 258 : 0;    /* none, fx_slots.c) */
-        int32_t r = on && FXS_IN(FXT_REV) && !INS_ON(ik, FXT_REV) ? t->p[P_REV] * 258 : 0;
+        int32_t r = on && FXS_IN(FXT_REV) && !(INS_ON(ik, FXT_REV) && ifx_has(FXT_REV, ik)) ? t->p[P_REV] * 258 : 0;
         int32_t ga = mulq15(g0, duck.g0), gb = mulq15(g1, duck.g1);   /* mute x duck, ramped over the block */
         slicer_track(t, b, n);                          /* slicer.c: first (D2), before the inserts, level, pan, sends */
         if ((FELUCCA_FX_DIST || TFLT_ON || FELUCCA_MASTER_COMP || INS_FX || FELUCCA_FX_DUST) && !FX_INS_BYPASS)

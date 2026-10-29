@@ -167,6 +167,9 @@ static void felucca_init(void)
         }
     }
     part_mem_boot();                          /* (their engines' memories, before the audio: engines.c) */
+    fxi_init();                               /* the limited inserts: every instance free, the own room's units taken
+                                               * while it is in no block (fx/insfx/fxi.c; never run at boot before
+                                               * 2026-10-29: the zeroed pool left every unit free, the FM-1's crash) */
 #if FELUCCA_DRUMS
     TDRUM->p[P_E0] = DRUM_DEFAULT_KIT;        /* the 808 kit */
 #endif
