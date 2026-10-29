@@ -150,6 +150,7 @@ static void algo_every_tests(void)
     /* SHIFT2 + a lane's key: that lane straight away, from any track, on any page (the shifts' language: pick) */
     reset_ui();
     song.sel = 0;
+    song.octave = 0;                                    /* (reset_ui keeps the octave: an earlier random-use test may leave one) */
     op_enter(SCR_SOUND);
     frame();
     fm1_in.buttons |= BT(B_OCTUP);
