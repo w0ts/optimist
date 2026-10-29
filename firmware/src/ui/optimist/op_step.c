@@ -1034,16 +1034,15 @@ static void olp_into(const track_t *t, uint32_t b, olp_set_t *on)   /* the notes
         if (!ngate_of(s, k))
             (void)olp_add(on, s->note[k]);
 }
+/* (note_move keeps a copy of the steps: a pass cut short by a step it cannot write leaves them half written, put back) */
 static const char *nmv_out(track_t *t, uint32_t a, const nmv_t *x)   /* note x leaves step a (the others sound on) */
 {
     olp_set_t xs = {1, {x->note}};
     step_t *s = &t->step[a];
-    const char *why;
     step_del(s, x->note);
     if (!s->n)
         step_clear(s);
-    why = olp_pass(t, a, &xs, 1, x->L, 0);
-    return why ? why : olp_pass(t, a, &xs, 1, x->L, 1);
+    return olp_pass(t, a, &xs, 1, x->L, 1);
 }
 static const char *nmv_in(track_t *t, uint32_t b, const nmv_t *x)   /* note x starts at step b, its L steps */
 {
@@ -1054,54 +1053,34 @@ static const char *nmv_in(track_t *t, uint32_t b, const nmv_t *x)   /* note x st
     olp_into(t, b, &on);
     if (b + x->L > trk_len(t))
         return "LAST STEP";
-    if (s->time == ST_TIE) {                            /* (notes sounding on through it: a carry step of them and x) */
-        if (olp_has(&on, x->note))
-            return "SAME NOTE";
-        if (on.n >= 4u)
-            return "STEP FULL";
-        if (on.n && x->rt)
-            return "RATCHET HERE";                      /* (a ratcheted step carries nothing on) */
-        memset(s, 0, sizeof *s);
-        s->time = ST_NOTE;
-        s->vel = x->vel;
-        s->flags = (uint8_t)(on.n ? SF_CARRY : 0u);
-        for (k = 0; k < on.n; k++)
-            s->note[1u + k] = on.note[k], s->lvl = (uint8_t)(s->lvl | LV_NORM << (2u * (1u + k)));
-        s->n = (uint8_t)(1u + on.n);
-    } else if (step_on(s)) {                            /* (a chord: x joins it) */
-        for (k = 0; k < s->n && s->note[k] != x->note; k++)
-            ;
-        if (k < s->n || ((s->flags & SF_CARRY) && olp_has(&on, x->note)))
-            return "SAME NOTE";                         /* (in a carry step it would be the one sounding on) */
-        if (s->n >= 4u)
-            return "STEP FULL";
-        if (x->rt && (s->flags & SF_CARRY))
-            return "RATCHET HERE";
-        i = s->n++;
-        s->note[i] = x->note, s->ngate[i] = 0;
-        s->lvl = (uint8_t)((s->lvl & ~(3u << (2u * i))) | (uint32_t)x->lv << (2u * i));
-        s->rat = (uint8_t)((s->rat & ~(3u << (2u * i))) | (uint32_t)x->rt << (2u * i));
-        goto pass;
-    } else {                                            /* (an empty step: x alone, with its step's ACCENT, SLIDE) */
+    if (!step_on(s)) {                                  /* a TIE: a carry step of the notes sounding on (and x); empty: x
+                                                         * alone, with its step's ACCENT and SLIDE */
+        uint32_t tie = s->time == ST_TIE;
         step_clear(s);
         s->time = ST_NOTE;
-        s->n = 1;
         s->vel = x->vel;
-        s->flags = x->fl;
+        s->flags = tie ? (on.n ? SF_CARRY : 0u) : x->fl;
+        for (k = 0; tie && k < on.n; k++)
+            s->note[s->n++] = on.note[k];               /* (LV_NORM: 0) */
     }
-    s->note[0] = x->note;
-    s->lvl = (uint8_t)((s->lvl & ~3u) | x->lv);
-    s->rat = (uint8_t)((s->rat & ~3u) | x->rt);
-pass:
-    why = olp_pass(t, b, &xs, x->L, x->L, 0);
-    if (why)
-        return why;
-    (void)olp_pass(t, b, &xs, x->L, x->L, 1);
+    for (k = 0; k < s->n && s->note[k] != x->note; k++)
+        ;
+    if (k < s->n || ((s->flags & SF_CARRY) && olp_has(&on, x->note)))
+        return "SAME NOTE";                             /* (in a carry step it would be the one sounding on) */
+    if (s->n >= 4u)
+        return "STEP FULL";
+    if (x->rt && (s->flags & SF_CARRY))
+        return "RATCHET HERE";                          /* (a ratcheted step carries nothing on) */
+    i = s->n++;
+    s->note[i] = x->note, s->ngate[i] = 0;
+    s->lvl = (uint8_t)((s->lvl & ~(3u << (2u * i))) | (uint32_t)x->lv << (2u * i));
+    s->rat = (uint8_t)((s->rat & ~(3u << (2u * i))) | (uint32_t)x->rt << (2u * i));
+    why = olp_pass(t, b, &xs, x->L, x->L, 1);
     s = &t->step[b + x->L - 1u];                        /* (its own end: in its last step, when that one names it) */
-    for (k = 0; x->g && s->time == ST_NOTE && !s->rat && k < s->n && k < 4u; k++)
+    for (k = 0; !why && x->g && s->time == ST_NOTE && !s->rat && k < s->n && k < 4u; k++)
         if (s->note[k] == x->note)
             s->ngate[k] = x->g;
-    return 0;
+    return why;
 }
 #if FELUCCA_AUTO
 static void ev_swap(track_t *t, uint32_t a, uint32_t b)   /* the events of steps a and b exchanged */
@@ -1458,7 +1437,7 @@ static __attribute__((noinline)) uint32_t pk_heads(const track_t *t, uint32_t id
     }
     return n;
 }
-static int pk_note(const track_t *t, uint32_t idx)       /* a note starts at idx (what KNOB 1 walks) */
+static __attribute__((noinline)) int pk_note(const track_t *t, uint32_t idx)   /* a note starts at idx (what KNOB 1 walks; once) */
 {
     uint8_t k[4];
     if (idx >= trk_len(t))
