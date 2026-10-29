@@ -426,7 +426,8 @@ the probed J12 pins; SD reads, a FAT32 reader and a flash-slot loader in m-bootl
     every STRETCH preset bit-identical to the flash's; in time: GRAIN 223-335 grains at once, 4-6 late, 0 missed, 45-61
     KB/s (2.4-3.2 % of the bus); STRETCH 0-2 windows late, 0 missed, bit-identical, 2 KB/s; stalling 100 ms every
     600 ms: GRAIN 7-11 missed, STRETCH 1-2 frozen frames, never a click (the second difference within the flash's +25 %);
-    SAMPLE streaming VIBES beside GRAIN on PIANO never dry. Host CPU of the render: GRAIN +10-13 %, STRETCH +-2 %
+    SAMPLE streaming VIBES beside GRAIN on PIANO never dry. Host CPU of the render (wall ns, noisy): GRAIN -7..-1 % on
+    gpufarm, +7..+20 % on a Mac; STRETCH -5..+1 %
     against the flash's (`sd_grain_test` prints it). 24 KB for GRAIN misses some grains of these presets, 16 KB many.
   - Not built: GRAIN / STRETCH on a part's CARD sample (a user's WAV: their SRC has no CARD value); the cache's memory
     model on a dual-core FM-1 relies on in-order stores (compiler barriers only), as the streams' does.
