@@ -3964,6 +3964,7 @@ static void led_tests(void)
 #include "ui_optimist_inslots.h"                    /* 2026-10-12: the track insert slots: INSERTS, CMP, SENDS, DR's levels */
 #include "ui_optimist_noswap.h"                     /* 2026-10-18: a TYPE turn skips the other slot's type (master, lanes) */
 #include "ui_optimist_fxi.h"                         /* 2026-10-13: the limited insert types: free count, FULL, WAIT, hidden */
+#include "ui_optimist_pagekeep.h"                    /* 2026-10-29: the page kept when pages come or go (op_keep.c) */
 #include "ui_optimist_gater.h"                      /* GATER (INS_GATER): its FX row, the cards, the picture and its playhead, the help lines */
 #include "ui_optimist_lfo2.h"                      /* LFO 2: the LFO 2 and LFO2 DEST rows, RATE, SHIFT + a knob, the AMT bar */
 #include "ui_optimist_plocks.h"
@@ -4195,6 +4196,7 @@ int main(int argc, char **argv)
     strike_tests();
     smute_tests();
     pagemem_tests();
+    pagekeep_tests();
 #if FELUCCA_ED_MIRROR
     nav_tests();
 #endif
