@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 */
 /* Cache RAM (FELUCCA_CACHE_RAM, the builder's CACHE_RAM, EXPERIMENTAL, default 0): 7 of the 8 data-cache ways used as
  * 28 KiB of RAM at 0x01F28000..0x01F2F000, the configuration M-VAVE's FM-1 firmware (V15) runs with and the AC79 SDK's
  * default for a flash-only build (cpu/wl82/sdk_ld_sfc.c FREE_DACHE_WAY = 7 unless SDRAM can be switched on). All 8
