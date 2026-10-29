@@ -9,7 +9,14 @@ export const REGIONS = ["flash", "ram", "pool", "ramtext"];   // the measured pa
 export const BUDGETS = ["flash", "sram"];                     // the limits: the app slot, the packed SRAM (core.py BUDGETS)
 /* the limits of a result: BUDGETS, or its own when the data is an older release's (?ref=: flash, ram, pool, ramtext before 7da2794c) */
 export const budgetsOf = (fits) => (BUDGETS.every((r) => fits && fits[r]) ? BUDGETS : Object.keys(fits || {}));
-export const SORTS = [null, ...REGIONS];             // the menu's o: default order, then each region, largest first
+export const COSTS = ["flash", "ram"];                // what an item shows: its flash and ONE ram (the SRAM it costs), never the three parts
+export const SORTS = [null, ...COSTS];                // the menu's o: default order, flash, ram (the SRAM total), largest first
+/** the SRAM an entry costs: its sram, or ram + pool + ramtext when the data is an older release's (v0.2: no sram) */
+export const sramOf = (s) => (s && s.sram !== undefined ? s.sram : s && (s.ram !== undefined || s.pool !== undefined || s.ramtext !== undefined) ? (s.ram || 0) + (s.pool || 0) + (s.ramtext || 0) : undefined);
+/** an entry's cost in one of COSTS (flash, ram), undefined when it has none */
+export const costOf = (s, r) => (r === "ram" ? sramOf(s) : s ? s[r] : undefined);
+/** the overflow of one of COSTS: sram, or the sum of an older release's ram + pool + ramtext */
+export const overOf = (over, r) => (r === "ram" ? ["sram", "ram", "pool", "ramtext"].reduce((n, k) => n + ((over || {})[k] || 0), 0) : (over || {})[r] || 0);
 export const OVER_W = 20;                             // menu.py: cells for the overflow, past the capacity mark
 export const SHOW_MIN = 64;                           // menu.py delta_of: the regions an item moves by 64 B or more
 
@@ -47,18 +54,17 @@ export function kDelta(n) {
   return `${v >= 0 ? "+" : "-"}${Math.abs(v).toFixed(1)}K`;
 }
 
-/** what the item costs as set now, per region, as the menu lists it (delta_of): [[region, bytes]] for the regions it
-    moves by 64 B or more and every overflowing one it takes; [] when not measured or not built */
+/** what the item costs as set now, as the menu lists it (delta_of): [["flash", bytes], ["ram", bytes]] (ram = the SRAM
+    it costs) for those it moves by 64 B or more and every overflowing one it takes; [] when not measured or not built */
 export function deltaOf(key, savings, over) {
   const s = (savings || {})[key];
   if (!s) return [];
-  const out = REGIONS.filter((r) => Math.abs(s[r]) >= SHOW_MIN || ((over || {})[r] > 0 && s[r] > 0)).map((r) => [r, s[r]]);
-  return (over || {}).sram > 0 && s.sram > 0 ? [...out, ["sram", s.sram]] : out;   // (what it frees of the overflowing SRAM)
+  return COSTS.map((r) => [r, costOf(s, r) || 0]).filter(([r, n]) => Math.abs(n) >= SHOW_MIN || (overOf(over, r) > 0 && n > 0));
 }
 
-/** switching the item off alone makes every overflowing region fit (the menu's "◀ off = fits") */
+/** switching the item off alone makes every overflowing budget fit (the menu's "◀ off = fits") */
 export function offFits(deltas, over) {
-  const o = Object.entries(over || {});
+  const o = COSTS.map((r) => [r, overOf(over, r)]).filter(([, n]) => n > 0);
   if (!o.length) return false;
   const took = Object.fromEntries(deltas);
   return o.every(([r, n]) => (took[r] || 0) >= n);
@@ -76,7 +82,7 @@ export function matches(item, filter) {
 export function sortedKeys(keys, savings, sortBy) {
   const list = [...keys];
   if (!sortBy) return list;
-  const cost = (k) => { const s = (savings || {})[k]; return s && s[sortBy] !== undefined ? s[sortBy] : null; };
+  const cost = (k) => { const c = costOf((savings || {})[k], sortBy); return c !== undefined ? c : null; };
   return list.map((k, i) => [k, i]).sort((a, b) => {
     const ca = cost(a[0]), cb = cost(b[0]);
     if ((ca === null) !== (cb === null)) return ca === null ? 1 : -1;
@@ -88,6 +94,13 @@ export function sortedKeys(keys, savings, sortBy) {
     match left out, the children of a matching parent all shown (a group's head: two levels, DRUMS > DRUM_X0X909 > X909_CYM) */
 export function treeOf(reg, filter, savings, sortBy) {
   const items = reg.byKey;
+  if (sortBy) {   // a size sort: ONE list of every item, the groups and parents ignored, options and sub-items their own rows (menu.py rebuild)
+    const seen = new Set(), keys = [];
+    const visit = (k) => { if (!seen.has(k)) { seen.add(k); keys.push(k); items[k].children.forEach(visit); } };
+    for (const g of reg.groups) (reg.top[g] || []).forEach(visit);
+    const list = sortedKeys(keys.filter((k) => matches(items[k], filter)), savings, sortBy);
+    return list.length ? [{ group: `all items by ${sortBy}, largest first`, flat: true, items: list.map((k) => ({ key: k, children: [] })) }] : [];
+  }
   const hit = (k) => matches(items[k], filter) || items[k].children.some(hit);
   const node = (k, all) => ({
     key: k,
