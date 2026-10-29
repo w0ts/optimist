@@ -8,6 +8,8 @@ static struct wn_store wn_st IN_POOL;                     /* the saved networks 
 static void wifi_nets_in(const uint8_t r[WN_STORE_SIZE])
 {
     wn_load(&wn_st, r);
+    if (wn_st.mode == WN_MODE_JAM)
+        wn_st.mode = WN_MODE_AUTO;                      /* (MODE JAM is the trial's Wi-Fi stack's; this one joins saved networks only) */
 #if !FELUCCA_WIFI_AP
     if (wn_st.mode == WN_MODE_AP || wn_st.mode == WN_MODE_AP_MAN)
         wn_st.mode = WN_MODE_OFF;                       /* (a record from a build with MODE AP: this one has none, it would sit doing nothing) */

@@ -399,6 +399,11 @@ static void wf_pw_tests(void)
 }
 #if FELUCCA_WIFI_AP
 /* ---- MODE AP: the page's four lines, the password entry for the AP's key, CLEAR KEY, the channel */
+static const char *wf_state0(void)                      /* STATE in the first two-second phase (fm1_ms 0: not the password's) */
+{
+    fm1_ms = 0;
+    return wf_val("STATE");
+}
 static void wf_ap_tests(void)
 {
     uint32_t k;
@@ -410,9 +415,11 @@ static void wf_ap_tests(void)
     turn(k, 1);
     turn(k, 1);                                         /* (a detent a mode: OFF, MAN, AUTO, AP MAN, AP AUTO) */
     check(wn_st.mode == WN_MODE_AP && !strcmp(wf_val("MODE"), "AP AUTO") && wcfk.enable_off == 2, "MODE AP AUTO: the station manager told to stop (once more than OFF)");
-    check(wf_said("SAVE: PASSWORD"), "... with no key kept the page says how to give one");
-    check(!strcmp(wf_val("NAME"), "FM1-55B0") && !strcmp(wf_val("CHANNEL"), "6") && !strcmp(wf_val("STATE"), "NO PASSWORD"),
-          "... NAME the automatic one, CHANNEL 6, STATE NO PASSWORD");
+    check(!strcmp(wf_val("NAME"), "FM1-55B0") && !strcmp(wf_val("CHANNEL"), "6") && !strcmp(wf_state0(), "ACTIVE"),
+          "... with no typed key: NAME the automatic one, CHANNEL 6, STATE ACTIVE (the default password)");
+    fm1_ms = 3u << 11;                                  /* (the fourth two-second phase: the password) */
+    check(!strcmp(wf_val("STATE"), "KEY abcd2345"), "... one phase in four STATE shows the default password: KEY abcd2345");
+    fm1_ms = 0;
     frames(2);
     check(!wc.scan_want && !wf_pg_shown(), "... no scan wanted, no list of networks");
     /* the channel: the knob, 1..13 */
@@ -440,14 +447,14 @@ static void wf_ap_tests(void)
     check(wn_st.ap.set == 1 && wn_st.ap.ch == 1 && wf_zero(&pws, sizeof pws), "... the key kept, the channel unchanged, the entry's buffer wiped");
     check(!wcfk.requests, "... and nothing asked of the station manager");
     frames(2);
-    check(!strcmp(wf_val("STATE"), "ACTIVE"), "STATE: ACTIVE");
+    check(!strcmp(wf_state0(), "ACTIVE"), "STATE: ACTIVE");
     wafk.clients = 1;
-    check(!strcmp(wf_val("STATE"), "1 CLIENT"), "... one client");
+    check(!strcmp(wf_state0(), "1 CLIENT"), "... one client");
     wafk.clients = 3;
-    check(!strcmp(wf_val("STATE"), "3 CLIENTS"), "... three clients");
+    check(!strcmp(wf_state0(), "3 CLIENTS"), "... three clients");
     test_peers = 1;
     fm1_ms = 0;
-    check(!strcmp(wf_val("STATE"), "3 CLIENTS"), "... clients and a Link peer heard: the line alternates, the clients first");
+    check(!strcmp(wf_state0(), "3 CLIENTS"), "... clients and a Link peer heard: the line alternates, the clients first");
     fm1_ms = 2048;
     check(!strcmp(wf_val("STATE"), "1 LINK PEER"), "... then the Link peer (2 s later)");
     fm1_ms = 4096;
@@ -456,13 +463,13 @@ static void wf_ap_tests(void)
     fm1_ms = 2048;
     check(!strcmp(wf_val("STATE"), "3 LINK PEERS"), "... three peers: 3 LINK PEERS");
     wafk.clients = 0;
-    check(!strcmp(wf_val("STATE"), "3 LINK PEERS"), "... no client keyed but peers heard: 3 LINK PEERS");
+    check(!strcmp(wf_state0(), "3 LINK PEERS"), "... no client keyed but peers heard: 3 LINK PEERS");
     wafk.clients = 3;
     test_peers = 0;
     wafk.status = WAS_STARTING;
-    check(!strcmp(wf_val("STATE"), "STARTING"), "... STARTING");
+    check(!strcmp(wf_state0(), "STARTING"), "... STARTING");
     wafk.status = WAS_NOCAL;
-    check(!strcmp(wf_val("STATE"), "NO CAL") && !strcmp(wf_val("MODE"), "NO CAL"), "... NO CAL (and MODE says it too)");
+    check(!strcmp(wf_state0(), "NO CAL") && !strcmp(wf_val("MODE"), "NO CAL"), "... NO CAL (and MODE says it too)");
     tap(B_SAVE);
     check(wf_said("NO RADIO CAL") && !pw_on(), "SAVE with no radio calibration: NO RADIO CAL, no entry");
     wafk.status = 0;
@@ -485,9 +492,11 @@ static void wf_ap_tests(void)
     wf_hold(B_SAVE, 400);
     tap(B_SAVE);
     check(wf_said("KEY CLEARED") && wn_st.ap.set == 0 && wafk.forgets == 1 && settings_later, "... asked again, SAVE: KEY CLEARED, kept in the settings");
-    check(!strcmp(wf_val("STATE"), "NO PASSWORD"), "... STATE NO PASSWORD again");
+    check(!strcmp(wf_state0(), "ACTIVE"), "... STATE ACTIVE again (the default password)");
     wf_hold(B_SAVE, 400);
-    check(wf_said("NO PASSWORD") && !op_armed(), "SAVE held with no key: NO PASSWORD, nothing asked");
+    check(!op_armed() && pw_on() && pws.ap, "SAVE held with no typed key: nothing to clear, the password entry opens");
+    wf_hold(B_HOME, 800);
+    check(!pw_on(), "(HOME held: closed)");
     /* cancel the entry */
     tap(B_SAVE);
     wf_pw_type("abcdefgh");
@@ -505,19 +514,19 @@ static void wf_ap_tests(void)
     memset(&wafk, 0, sizeof wafk);
     k = wf_knob("MODE");
     turn(k, 1); turn(k, 1); turn(k, 1);
-    check(wn_st.mode == WN_MODE_AP_MAN && !strcmp(wf_val("MODE"), "AP MAN") && wf_said("SAVE: PASSWORD"), "AP MAN, no key kept: the page says how to give one");
-    check(!strcmp(wf_val("STATE"), "NO PASSWORD"), "... STATE NO PASSWORD");
-    tap(B_SAVE);
-    check(pw_on() && pws.ap, "... SAVE: the password entry");
+    check(wn_st.mode == WN_MODE_AP_MAN && !strcmp(wf_val("MODE"), "AP MAN"), "AP MAN, no typed key");
+    check(!strcmp(wf_state0(), "SAVE: START"), "... STATE SAVE: START (stopped until started)");
+    wf_hold(B_SAVE, 400);
+    check(pw_on() && pws.ap, "... SAVE held (nothing typed to clear): the password entry");
     wf_pw_type("manual88");
     wf_hold(B_SAVE, 500);
     check(!pw_on() && wafk.pass_calls == 1 && wafk.on, "... a typed password starts the access point in AP MAN");
     frames(2);
-    check(!strcmp(wf_val("STATE"), "ACTIVE"), "... ACTIVE");
+    check(!strcmp(wf_state0(), "ACTIVE"), "... ACTIVE");
     tap(B_SAVE);
     check(wf_said("AP STOPPED") && !wafk.on && wafk.runs == 1 && !pw_on(), "SAVE with a key kept, running: AP STOPPED");
     frames(2);
-    check(!strcmp(wf_val("STATE"), "SAVE: START"), "... STATE SAVE: START");
+    check(!strcmp(wf_state0(), "SAVE: START"), "... STATE SAVE: START");
     tap(B_SAVE);
     check(wf_said("AP STARTING") && wafk.on && wafk.runs == 2, "SAVE again: AP STARTING");
     wf_hold(B_SAVE, 400);

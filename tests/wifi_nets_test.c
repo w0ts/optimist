@@ -249,7 +249,9 @@ static void t_ap(void)
     wn_save(&s, raw);
     ok(wn_load(&r, raw) && r.mode == WN_MODE_AP_MAN, "MODE AP MAN round trip");
     raw[2] = 5;
-    ok(wn_load(&r, raw) && r.mode == WN_MODE_OFF, "a mode above AP MAN reads as OFF");
+    ok(wn_load(&r, raw) && r.mode == WN_MODE_JAM, "MODE JAM (5) is kept");
+    raw[2] = 6;
+    ok(wn_load(&r, raw) && r.mode == WN_MODE_OFF, "a mode above JAM reads as OFF");
     old[1] = 3;
     ok(!wn_load(&r, old), "a version from the future is refused");
 }
