@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* INFO's tag 0x66: what this build answers, by name and version ("opti_backup_4 opti_mirror_2 ..."; web/EDITOR_PROTOCOL.md
  * "INFO"). Every firmware of the Felucca family answers INFO with the same "FL" header, but each numbers its other commands
- * its own way (SLOOP's backup is 34..36, ours 43..48; 78 is Melodee's CZ and our SLOOP files), so a client sends nothing
+ * its own way (SLOOP's backup is 34..36, ours 43..48; 78 is Melodee's CZ), so a client sends nothing
  * else before it has read these names: a feature is offered only when its name and a version the client reads are listed.
  * A number goes up only when an older client would misread the new form (the user, 2026-10-23: "a command with a specific
  * name the indicate it is compatible with our way of doing things (and a version of the prototol, like opti_backup_1"). */

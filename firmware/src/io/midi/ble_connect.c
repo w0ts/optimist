@@ -173,8 +173,6 @@ static int rc_connect(const uint8_t a[6], uint8_t rnd)
     ok = ble_central_connect(&p);
     fm1_ble_irqs_hold(0);
     brc.tries++;
-    BLE_DG(ble_dgc.rc_tries++);
-    BLE_DG(ble_dgc.rc_try = brc.tries);
     return ok;
 }
 
@@ -194,7 +192,6 @@ static void rc_stop(void)                         /* initiating or scanning for 
 static void rc_phase(uint8_t ph)
 {
     brc.phase = ph;
-    BLE_DG(ble_dgc.rc_phase = ph);
 }
 
 /* the attempt's link was not made, or lost before any pairing started on it: made again at once (the same address),
@@ -203,7 +200,6 @@ static int rc_retry(void)
 {
     if (brc.tries >= RC_TRIES || !rc_connect(brc.addr, brc.addr_rand))
         return 0;
-    BLE_DG(ble_dgc.rc_retries++);
     brc.t_end = fm1_ms + RC_RETRY_MS;
     rc_phase(brc.search_t0 ? RC_TRY : RC_PICK);
     return 1;
@@ -234,7 +230,6 @@ static void rc_try(void)
         fm1_ble_irqs_hold(1);
         ble_ll_scan(1);
         fm1_ble_irqs_hold(0);
-        BLE_DG(ble_dgc.rc_scans++);
         rc_phase(RC_SCAN);
         return;
     }
@@ -252,11 +247,8 @@ static void rc_report(const uint8_t *pdu, uint8_t n)
     uint8_t rnd = (uint8_t)(pdu[0] >> 6 & 1u);
     if (brc.phase != RC_SCAN || n < 8u || (pdu[0] & 0x0Fu) != 0x0u)
         return;                                   /* (an ADV_IND: connectable) */
-    if (rnd && (pdu[7] >> 6) == 1u)
-        BLE_DG(ble_dgc.rc_rpa_seen++);
     if (!ble_is_dev(rc_dev(), pdu + 2, rnd))
         return;
-    BLE_DG(ble_dgc.rc_rpa_ok++);
     fm1_ble_irqs_hold(1);
     ble_ll_scan(0);
     fm1_ble_irqs_hold(0);
@@ -321,7 +313,6 @@ static void rc_ready(void)
 #endif
     ble_store_select(&ble_store, BLE_SEL_LAST);
     ble_store_changed();
-    BLE_DG(ble_dgc.rc_ok++);
 }
 
 #if BLE_CEN_PAIR
@@ -381,8 +372,6 @@ static void rc_link(void)
         return;
     }
     f = ble_central_fail();
-    BLE_DG(ble_dgc.rc_fails++);
-    BLE_DG(ble_dgc.rc_last_fail = f);
 #if BLE_CEN_PAIR
     if (ble_central_mitm())
         rc_hint_keep();
@@ -440,7 +429,6 @@ static void ble_connect_pick(const struct ble_found *e)
 #else
     brc.failed = brc.tries = 0;
 #endif
-    BLE_DG(ble_dgc.picks++);
     brc.t_end = fm1_ms + RC_PICK_MS;
     rc_phase(RC_PICK);
     if (ble_ll_central() || !rc_connect(e->addr, e->addr_rand))
@@ -625,7 +613,6 @@ static void ble_connect_poll(void)
             if (brc.phase == RC_PICK) {
                 if (brc.tries > 1u && rc_retry())
                     return;                       /* (an attempt made again, not heard in its time: the next) */
-                BLE_DG(ble_dgc.rc_fails++);
                 rc_failed_why(brc.tries > 1u ? rc_why(BLE_CF_LOST) : "NOT FOUND");
                 rc_phase(RC_OFF);
             } else

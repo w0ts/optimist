@@ -4,7 +4,8 @@
  * A switch at 0 builds exactly the firmware without it. Included by backports.h.
  *
  *   FELUCCA_DIV_LONG  SEQ DIV gains 1/2, 1BAR, 2BAR (appended: old values unchanged)         SLOOP 2.4
- *   FELUCCA_DLY_DOT   delay TIME gains 1/8D and 1/16D (appended)                              SLOOP 2.4
+ *   (delay TIME gains 1/8D and 1/16D, appended, SLOOP 2.4: always built since 2026-10-29, the builder's DLY_DOT retired;
+ *   core.h dly_units, fx.c delay_samples, params.c N_DLY)
  *   FELUCCA_MICRO     micro timing: a step held + KNOB 4 nudges it, +-1/2 step in 1/64        SLOOP 2.4
  *   FELUCCA_FILLS     fills: a step held + OCT+ (normal / fill only / no fill); GLO + 9 a fill
  *                     while held, GLO + 10 the next bar; the FX bypass moves to GLO + black 1-4 SLOOP 2.4
@@ -16,9 +17,6 @@
 
 #ifndef FELUCCA_DIV_LONG
 #define FELUCCA_DIV_LONG 1       /* core.h div_units, seq.c grid_at, params.c N_SDIV */
-#endif
-#ifndef FELUCCA_DLY_DOT
-#define FELUCCA_DLY_DOT 1        /* core.h dly_units, fx.c delay_samples, params.c N_DLY */
 #endif
 #ifndef FELUCCA_MICRO
 #define FELUCCA_MICRO 0          /* seq.c seq_tick (the fire logic), ui_layers.c steps_held_edit */

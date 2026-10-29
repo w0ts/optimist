@@ -14,7 +14,6 @@
  *   api        lane_lock_set needs the lane's hit (D4: LANE_NOHIT), lane_step_drop, lane_kind_toggle, lane_knob
  *              (recording: a hold at the step playing, heard at once; not recording: a hold in force lets go)
  *   editor     AUTO_SET takes a lane id on the drum track (clamped to its range), refuses it on a part; AUTO_GET lists it
- *   2.4        the export leaves them out and says so: lost2 bit 2 (SX24_LAUTO); a v11 request: on bit 13 (motion)
  *   old reader built with -DDLA_ON=0 (a build that does not play them): the events kept through every form, none
  *              heard, the track's other events still played, MISS lists LANE MOTION
  * Exit status: the number of failed checks. Run by tests/run_tests.sh (both builds). */
@@ -403,30 +402,6 @@ static void t_editor(void)
     check("old reader: AUTO_SET of a lane id refused (rc 1)", ed_call(ED_AUTO_SET, a, 7) && ed_out[2] == 1);
 #endif
 }
-static uint32_t get78(uint32_t flag, int withflag, uint32_t *w2)
-{
-    uint8_t a[5] = {0, 0, 0, 0, (uint8_t)flag};
-    ed_n = 0;
-    (void)ed_sl24(78, a, withflag ? 5u : 4u);
-    *w2 = withflag && ed_n >= 17u ? ed_g7(ed_out + ed_n - 2u, 2) : 0u;
-    return ed_n >= 15u ? ed_g7(ed_out + 10, 2) : 0xFFFFu;
-}
-static void t_sl24(void)
-{
-    stepx_t x;
-    uint32_t w1, w2, lost;
-    reset();
-    lane_on_all(8);
-    (void)lock_set(TDRUM, 1, P_PAN, -10);
-    (void)auto_put(AUTO_L(TRK_DRUM), 3u | AUTO_ONLY, AUTO_LANE(L, DE_DECAY), -40);
-    lost = sl24_auto_out(&x, AUTO_L(TRK_DRUM));
-    check("2.4 export: lane events left out, lost SX24_LAUTO (not LOCK, not MOTION); the track lock exported",
-          lost == SX24_LAUTO && x.lock[0].param == P_PAN && !stepx_lock_used(&x.lock[1]));
-    w1 = get78(1, 1, &w2);
-    check("SL24_GET with the flag: lost2 bit 2 (lauto), bit 13 clear", w2 == 4u && !(w1 & SX24_MOTION));
-    w1 = get78(0, 0, &w2);
-    check("... a v11 request: on bit 13 (its motion)", (w1 & SX24_MOTION) != 0u);
-}
 static void t_miss(void)
 {
     uint32_t i, n, has = 0;
@@ -457,7 +432,6 @@ int main(void)
     t_api();
 #endif
     t_editor();
-    t_sl24();
     t_miss();
     printf("lane test %s (%d failed)\n", bad ? "FAILED" : "passed", bad);
     return bad;

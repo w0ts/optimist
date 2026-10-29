@@ -27,6 +27,9 @@
 #pragma once
 #ifndef FELUCCA_FASTMATH_H
 #define FELUCCA_FASTMATH_H
+#ifndef DSPF_FAST
+#define DSPF_FAST            /* (a unit whose RAM code calls these: their out-of-line copies there too, acid_dsp.c) */
+#endif
 #include <stdint.h>
 
 #ifndef FM_TANH_SHORT
@@ -49,13 +52,13 @@
 
 typedef union { float f; uint32_t u; int32_t i; } fm_bits_t;
 
-static inline float fm_fabsf(float x) { fm_bits_t b; b.f = x; b.u &= 0x7FFFFFFFu; return b.f; }
-static inline float fm_minf(float a, float b) { return a < b ? a : b; }
-static inline float fm_maxf(float a, float b) { return a > b ? a : b; }
-static inline float fm_clampf(float x, float lo, float hi) { return x < lo ? lo : x > hi ? hi : x; }
+static inline DSPF_FAST float fm_fabsf(float x) { fm_bits_t b; b.f = x; b.u &= 0x7FFFFFFFu; return b.f; }
+static inline DSPF_FAST float fm_minf(float a, float b) { return a < b ? a : b; }
+static inline DSPF_FAST float fm_maxf(float a, float b) { return a > b ? a : b; }
+static inline DSPF_FAST float fm_clampf(float x, float lo, float hi) { return x < lo ? lo : x > hi ? hi : x; }
 
 /* floor for |x| < 2^31 */
-static inline float fm_floorf(float x)
+static inline DSPF_FAST float fm_floorf(float x)
 {
     int32_t i = (int32_t)x;
     float f = (float)i;
@@ -63,7 +66,7 @@ static inline float fm_floorf(float x)
 }
 
 /* 2^n * 2^f for an integer n and |f| <= 0.5 (or a little more) */
-static inline float fm_exp2_nf(int32_t n, float f)
+static inline DSPF_FAST float fm_exp2_nf(int32_t n, float f)
 {
     fm_bits_t b;
     float p;
@@ -82,7 +85,7 @@ static inline float fm_exp2_nf(int32_t n, float f)
 }
 
 /* 2^x. Split x = n + f, f in [-0.5, 0.5]; fitted polynomial for 2^f. */
-static inline float fm_exp2f(float x)
+static inline DSPF_FAST float fm_exp2f(float x)
 {
     float fl;
     if (x < -126.0f)
@@ -94,7 +97,7 @@ static inline float fm_exp2f(float x)
 }
 
 /* e^x with Cody-Waite reduction: x = n ln2 + r, so |x| * eps never reaches the result */
-static inline float fm_expf(float x)
+static inline DSPF_FAST float fm_expf(float x)
 {
     float n;
     if (x < -87.3f)
@@ -107,7 +110,7 @@ static inline float fm_expf(float x)
 }
 
 /* log2(x), x > 0 (denormals and 0 return -126 / -127-ish, never NaN) */
-static inline float fm_log2f(float x)
+static inline DSPF_FAST float fm_log2f(float x)
 {
     fm_bits_t b;
     float m, t, t2, p;
@@ -133,10 +136,10 @@ static inline float fm_log2f(float x)
     return (float)e + p * t;
 }
 
-static inline float fm_logf(float x) { return fm_log2f(x) * FM_LN2; }
+static inline DSPF_FAST float fm_logf(float x) { return fm_log2f(x) * FM_LN2; }
 
 /* x^y for x > 0 (x <= 0 returns 0) */
-static inline float fm_powf(float x, float y)
+static inline DSPF_FAST float fm_powf(float x, float y)
 {
     if (x <= 0.0f)
         return 0.0f;
@@ -144,9 +147,9 @@ static inline float fm_powf(float x, float y)
 }
 
 /* 10^(db/20) */
-static inline float fm_db2lin(float db) { return fm_exp2f(db * 0.166096405f); }
+static inline DSPF_FAST float fm_db2lin(float db) { return fm_exp2f(db * 0.166096405f); }
 
-static inline float fm_tanhf(float x)
+static inline DSPF_FAST float fm_tanhf(float x)
 {
     float a = fm_fabsf(x), e, r;
     if (a < 0.0004f)
@@ -172,7 +175,7 @@ static inline float fm_tanhf(float x)
 }
 
 /* sin on [-pi, pi]: odd polynomial, degree 13 */
-static inline float fm_sin_pi(float x)
+static inline DSPF_FAST float fm_sin_pi(float x)
 {
     float x2 = x * x, p;
     p = 1.345176048e-10f;                      /* degree 13, fitted */
@@ -185,14 +188,14 @@ static inline float fm_sin_pi(float x)
     return p * x;
 }
 
-static inline float fm_wrap_pi(float x)                /* to [-pi, pi), 2pi in three parts */
+static inline DSPF_FAST float fm_wrap_pi(float x)                /* to [-pi, pi), 2pi in three parts */
 {
     float k = fm_floorf(x * (1.0f / FM_TWO_PI) + 0.5f);
     return ((x - k * 6.28125f) - k * 1.9353071693331003e-3f) - k * 1.0253131561401567e-11f;
 }
 
-static inline float fm_sinf(float x) { return fm_sin_pi(fm_wrap_pi(x)); }
-static inline float fm_cosf(float x)
+static inline DSPF_FAST float fm_sinf(float x) { return fm_sin_pi(fm_wrap_pi(x)); }
+static inline DSPF_FAST float fm_cosf(float x)
 {
     float r = fm_wrap_pi(x) + 0.5f * FM_PI;          /* reduce first: adding pi/2 to a big x loses bits */
     if (r >= FM_PI)
@@ -201,20 +204,20 @@ static inline float fm_cosf(float x)
 }
 /* tan on (-pi/2, pi/2), the filter-coefficient range: cos(x) = sin(pi/2 - |x|), which keeps
  * its relative accuracy next to the pole where cos is small */
-static inline float fm_tanf(float x)
+static inline DSPF_FAST float fm_tanf(float x)
 {
     float a = fm_fabsf(x), c = (1.57079637f - a) - 4.37113883e-8f;
     return fm_sin_pi(x) / fm_sin_pi(c);
 }
 
 /* sine of a phase in turns (0..1 = one cycle): the cheap oscillator form */
-static inline float fm_sin_turns(float ph)
+static inline DSPF_FAST float fm_sin_turns(float ph)
 {
     float x = ph - fm_floorf(ph + 0.5f);          /* [-0.5, 0.5) */
     return fm_sin_pi(x * FM_TWO_PI);
 }
 
-static inline float fm_sqrtf(float x)
+static inline DSPF_FAST float fm_sqrtf(float x)
 {
     fm_bits_t b;
     float y;
@@ -231,7 +234,7 @@ static inline float fm_sqrtf(float x)
 
 /* 1 / sqrt(x), x > 0: the seed and two Newton steps (rel 5e-6). For gains, not for values that are
  * shown or compared: fm_sqrtf keeps three. */
-static inline float fm_rsqrtf(float x)
+static inline DSPF_FAST float fm_rsqrtf(float x)
 {
     fm_bits_t b;
     float y;
@@ -243,7 +246,7 @@ static inline float fm_rsqrtf(float x)
 }
 
 /* denormal / tiny-value flush for filter states */
-static inline float fm_flush(float x) { return fm_fabsf(x) < 1e-20f ? 0.0f : x; }
+static inline DSPF_FAST float fm_flush(float x) { return fm_fabsf(x) < 1e-20f ? 0.0f : x; }
 
 /* ---- Optimist: float blocks the 303 voice and the 909 / 808 kits each had (docs/DSP-SHARED.md) -------------- */
 /* (every one the same operations in the same order as each copy: the same bits with -ffp-contract=off) */
@@ -262,15 +265,15 @@ static inline __attribute__((always_inline)) float fm_tdf3(const float *c, float
 
 /* the polyBLEP residual's two halves, x the distance to the step in increments: just after it (x in [0, 1)) and
  * just before it (x in (-1, 0]). Was the 303's blep (float phase) and the 808 metal bank's blep_fix (uint32 phase) */
-static inline float fm_blep_after(float x) { return x + x - x * x - 1.0f; }
-static inline float fm_blep_before(float x) { return x * x + x + x + 1.0f; }
+static inline DSPF_FAST float fm_blep_after(float x) { return x + x - x * x - 1.0f; }
+static inline DSPF_FAST float fm_blep_before(float x) { return x * x + x + x + 1.0f; }
 
 /* s clipped to +-lim (lim > 0), tested in this order (fm_clampf tests the other way round: 2 B more in each loop).
  * Was the output clip of ACID (acid/acid_dsp.c) and of the X0X kits (x0x/x0x_drums.c), to +-2^20 */
-static inline float fm_clip_sym(float s, float lim) { return s > lim ? lim : s < -lim ? -lim : s; }
+static inline DSPF_FAST float fm_clip_sym(float s, float lim) { return s > lim ? lim : s < -lim ? -lim : s; }
 
 /* three passes of a wavefolder at +-1. Was the 909's and the 808's drive type 5 */
-static inline float fm_fold3(float v)
+static inline DSPF_FAST float fm_fold3(float v)
 {
     int i;
     for (i = 0; i < 3; i++) {
@@ -282,12 +285,12 @@ static inline float fm_fold3(float v)
 
 /* a linear pot: lo + (hi - lo) * pot / 127 (the divide, not a multiply by 1/127: the 303's pots differ). Was the
  * 909's d9_pot_value and the 808's pot_value */
-static inline float fm_lin_pot(float lo, float hi, int pot) { return lo + (hi - lo) * ((float)pot / 127.0f); }
+static inline DSPF_FAST float fm_lin_pot(float lo, float hi, int pot) { return lo + (hi - lo) * ((float)pot / 127.0f); }
 
 /* a linear discharge computed as start - n step (no sum of rounded steps), down to 0, started on its first call
  * (*ramp 0). Was the 808 cymbal's (x0x/drum808.c cy_tick); the hi-hat's (hat_tick) keeps its copy of these lines:
  * the call costs hat_tick 2 B (register allocation) */
-static inline void fm_discharge(float *lvl, uint8_t *ramp, float *base, int32_t *n, float step)
+static inline DSPF_FAST void fm_discharge(float *lvl, uint8_t *ramp, float *base, int32_t *n, float step)
 {
     if (!*ramp) {
         *ramp = 1;

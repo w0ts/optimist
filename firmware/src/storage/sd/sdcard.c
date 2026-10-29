@@ -92,9 +92,13 @@ static void sd_end(void)
 #define SST_PART_VOICES(p) (trk[p].p[P_VOICE] == V_MONO || trk[p].p[P_VOICE] == V_LEGATO ? 2u : \
                             ENGINES[trk[p].engine % NENGINES]->poly ? (uint32_t)ENGINES[trk[p].engine % NENGINES]->poly \
                                                                     : (uint32_t)NVOICE)   /* (mono: the note before's tail) */
-/* a part on SAMPLE with a set on the card (SD card mode, eng_sample.c SMP_CARD_SET): that set + 1, else 0; its folder */
-#define SST_PART_BANK(p) (trk[p].engine == (uint8_t)ENG_SLOT_SAMPLE && (uint32_t)trk[p].p[P_E0] < SMP_NSETS && \
-                          SMP_CARD_SET((uint32_t)trk[p].p[P_E0]) ? (uint32_t)trk[p].p[P_E0] + 1u : 0u)
+/* a part on SAMPLE, GRAIN or STRETCH with a set on the card (SD card mode, eng_sample.c SMP_CARD_SET): that set + 1,
+ * else 0; its folder. GRAIN and STRETCH read it through a cache (SST_PART_RAND: sd_stream_rc.h) */
+#define SST_PART_RAND(p) (trk[p].engine == (uint8_t)ENG_SLOT_GRAIN ? SST_RAND_KB : \
+                          trk[p].engine == (uint8_t)ENG_SLOT_STRETCH ? SST_STRETCH_KB : 0u)   /* (its cache's KB) */
+#define SST_PART_BANK(p) ((trk[p].engine == (uint8_t)ENG_SLOT_SAMPLE || SST_PART_RAND(p)) && \
+                          (uint32_t)trk[p].p[P_E0] < SMP_NSETS && SMP_CARD_SET((uint32_t)trk[p].p[P_E0]) ? \
+                          (uint32_t)trk[p].p[P_E0] + 1u : 0u)
 #define SST_BANK_NAME(b) SMP_SET_NAMES[(b) % SMP_NSETS]
 #include "storage/sd/sd_stream.c"                 /* samples streamed from the card: the main loop's runs */
 #include "storage/sd/sd_slice.c"                  /* SLICE on a card sample: read whole, as ADPCM */

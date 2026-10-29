@@ -302,7 +302,7 @@ static void t_spring(void)
     printf("backports: spring: wet RMS %.1f (ROOM %.1f, %+.1f dB), peak %d (ROOM %d), idle after %.2f s (ROOM %.2f s)\n",
            rms_s, rms_r, db, pk_s, pk_r, idle_s < 0 ? -1.0 : idle_s * CTL / (double)FS,
            idle_r < 0 ? -1.0 : idle_r * CTL / (double)FS);
-#if REV_TANK_HALF   /* (a tank at 22.05 kHz: REV_HALF, PLATE, FDN8 keeps nothing above 11 kHz: half this white burst's energy, -2.5 dB) */
+#if REV_TANK_HALF   /* (a tank at 22.05 kHz: PLATE, FDN8 keeps nothing above 11 kHz: half this white burst's energy, -2.5 dB) */
     check(rms_s > 0 && db > -4.0 && db < 4.0, "spring: its wet level within 4 dB of the half-rate ROOM's on the same send");
 #else
     check(rms_s > 0 && db > -3.0 && db < 3.0, "spring: its wet level within 3 dB of the ROOM's on the same send");
@@ -367,10 +367,10 @@ static double tone_db(uint32_t mode, double f)
     uint32_t i, n = FS / 2u, skip = FS / 8u;
     double in = 0, out = 0;
     fx_lowcut = (uint8_t)mode;
-    lc_l1 = lc_l2 = lc_r1 = lc_r2 = dc_l = dc_r = dce_l = dce_r = 0;
+    lc_l1 = lc_l2 = lc_r1 = lc_r2 = 0;
+    mo = mo_rest();
     memset(lce, 0, sizeof lce);
     spk_bass_reset();
-    lim_env = LIM_T;
     for (i = 0; i < n; i++) {
         int32_t l = (int32_t)(6000.0 * sin(2.0 * M_PI * f * i / FS)), r = l;
         if (i >= skip)

@@ -279,10 +279,10 @@ async def main():
             check("... the bars show the overflow when it does not fit", bool(app.over) == shown_over(withble, costs))
             await toggle(app, pilot, "BLE")
             check("... unticked: the profile again", app.cfg == base)
-    for prof in C.profile_names():        # (BLE_DIAG ticked after BLE)
+    for prof in C.profile_names():        # (one of BLE's own options, BLE_BOND, ticked after BLE; BLE_DIAG until 2026-10-29)
         base, _ = C.load_profile(prof)
-        if base["BLE_DIAG"]:              # (on in the profile already, bt-debug: ticking it would turn it off)
-            print(f"BLE_DIAG ticked on {prof}: the profile has BLE_DIAG on already, not a case")
+        if base["BLE_BOND"]:              # (on in the profile already: ticking it would turn it off)
+            print(f"BLE_BOND ticked on {prof}: the profile has BLE_BOND on already, not a case")
             continue
         app = M.Builder(dict(base), prof)
         async with app.run_test(size=(200, 60)) as pilot:
@@ -290,9 +290,9 @@ async def main():
             await toggle(app, pilot, "BLE")
             after_ble = dict(app.cfg)
             app.nodes["BLE"].expand()
-            await toggle(app, pilot, "BLE_DIAG")
-            check(f"BLE_DIAG ticked after BLE on {prof}: only it changes, nothing more is removed, the bars show what is left over",
-                  app.cfg == dict(after_ble, BLE_DIAG=1) and bool(app.over) == shown_over(app.cfg, costs))
+            await toggle(app, pilot, "BLE_BOND")
+            check(f"BLE_BOND ticked after BLE on {prof}: only it changes, nothing more is removed, the bars show what is left over",
+                  app.cfg == dict(after_ble, BLE_BOND=1) and bool(app.over) == shown_over(app.cfg, costs))
     app = M.Builder(C.defaults(), "default")             # (the ring in the bars: information)
     async with app.run_test(size=(200, 60)) as pilot:
         await pilot.pause()

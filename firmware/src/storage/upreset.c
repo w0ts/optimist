@@ -359,7 +359,7 @@ static int upf_get(uint32_t k, int16_t *ed)      /* slot k's voice -> ed: 1, or 
         acc >>= 7;
         n -= 7u;
     }
-    fm6_unpack(ed, b);
+    FAST_CALL(fm6, fm6_unpack)(ed, b);
     return 1;
 }
 #define UPF_BOOT() (flash_ok ? (void)st_upf_move(UPF_MAGIC) : (void)0, upf_used = upf_read() ? UPF->used : 0u)
@@ -513,7 +513,7 @@ static int up_voice_of(uint32_t k, int16_t *ed)  /* slot k's own FM6 voice -> ed
     if (k == UP_CARD) {
         if (!up_card_voice)
             return 0;
-        fm6_unpack(ed, up_card_voice);
+        FAST_CALL(fm6, fm6_unpack)(ed, up_card_voice);
         return 1;
     }
 #endif

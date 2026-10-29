@@ -14,7 +14,7 @@
 #   voices          the budget of 8, steal fades, MONO / LEGATO / UNISON keep their note, the VOICE cap,
 #                   no hanging notes on any MIDI / key routing.
 # After an intended change of the sound: GOLDEN_UPDATE=1 sh tests/run_tests.sh, review the diff
-# of tests/golden.txt (and of golden_rev_half.txt, the REV_HALF renders), commit it with the change. After an
+# of tests/golden.txt, commit it with the change. After an
 # intended change of the cost (or a new compiler): BUDGET_UPDATE=1 (rewrites cpu_baseline.txt and
 # target_budget.txt). VERBOSE=1: every render.
 #
@@ -282,6 +282,8 @@ job; ( jobin
     run "track FILTER (SLOOP 2.4): LP / HP on a part, the drum bus and its sends, the project, cost" "$OUT/trk_filt_test"
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_CHORDPLUS=1 -o "$OUT/chordplus_test" tests/chordplus_test.c -lm
     run "CHORD+ (SLOOP 2.4): black-key modifiers, under the finger, recorded as played, STRUM, VLEAD" "$OUT/chordplus_test"
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/seqglide_test" tests/seqglide_test.c -lm
+    run "a step's GLIDE (SF_SLIDE, #104): the next note glides there (POLY, LEGATO, MONO), not without; an old step has none" "$OUT/seqglide_test"
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/trk_filt_test_off" tests/trk_filt_test.c -lm
     run "track FILTER: every FILT at 0, the busy mix sample for sample the build without it" sh -c     "[ \"\$('$OUT/trk_filt_test' hash)\" = \"\$('$OUT/trk_filt_test_off' hash)\" ]"
 ) >"$U.out" 2>&1 & jobbg
@@ -325,10 +327,8 @@ job; ( jobin
     run "PHASE FOLD 0: the render sample for sample the build without it" sh -c "[ \"\$('$OUT/phase_fold_test' hash)\" = \"\$('$OUT/phase_fold_test_off' hash)\" ]"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
-    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_VOICE_OWN=1 -o "$OUT/voice_own_test" tests/voice_own_test.c -lm
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/voice_own_test" tests/voice_own_test.c -lm
     run "VOICE_OWN (JIANT): at the budget a part restarts its own tail, the others' tails ring on" "$OUT/voice_own_test"
-    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_VOICE_OWN=0 -o "$OUT/voice_own_test_off" tests/voice_own_test.c -lm
-    run "VOICE_OWN off: the global victim as before" "$OUT/voice_own_test_off"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     # the three drum synths, each a switch (S the 32 kits, K KAWA, P PLAITS), M the sampled kits, X the X0X kits
@@ -352,11 +352,9 @@ job; ( jobin
     run "JUNO CHORUS (fx/junocho/juno_cho.h): MIX 0 dry, each MODE stereo / bounded / as before, mid-side, headroom" "$OUT/juno_cho_test"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
-    # the reverb (fx.c): at 44.1 kHz, then with REV_HALF (the tank at 22.05 kHz) against those numbers; SPRING beside it
+    # the reverb (fx.c) at 44.1 kHz
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/reverb_test" tests/reverb_test.c -lm
     run "reverb: decay, level, bands, the tail to exactly 0 and idle" "$OUT/reverb_test" "$OUT/reverb_full.txt"
-    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_REV_HALF=1 -o "$OUT/reverb_test_half" tests/reverb_test.c -lm
-    run "reverb at half rate (REV_HALF): RT60 within 5 %, the level below 8 kHz within 1 dB of the full rate's" "$OUT/reverb_test_half" "$OUT/reverb_full.txt"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/delay_test" tests/delay_test.c -lm
@@ -388,10 +386,6 @@ job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_INS_CHORUS=1 -DFELUCCA_INS_DELAY=1 -DFELUCCA_INS_XDLY=1 -DFELUCCA_DLY_LEN=32768u -DFELUCCA_DLY_ARENA=72 -o "$OUT/fxi_xd_test" tests/fxi_test.c -lm
     run "the effects memory, DLY_ARENA 72 KB (the delay send's 64 KB line and one ECHO line): XDLY only on the send's line while it is free, FULL while it is in a slot or holds an ECHO, never both; taken back after the fade, zeroed; clean when it comes back" "$OUT/fxi_xd_test"
 ) >"$U.out" 2>&1 & jobbg
-job; ( jobin
-    $CC -O2 -w -I"$HGEN" -Ifirmware/src $BACKPORTS_ON $SEC4 -DFELUCCA_REV_HALF=1 -o "$OUT/backports_rh_test" tests/backports_test.c -lm
-    run "backported features with REV_HALF: the spring reverb in the half-rate ROOM's line" "$OUT/backports_rh_test"
-) >"$U.out" 2>&1 & jobbg
 # the reverb tanks (builder items REV_ROOM / REV_PLATE / REV_FDN8: fx.c ROOM, reverb_alt.c PLATE and FDN8), each alone
 # at both budgets: they ring out to exactly 0 and go idle; their numbers (RT60, echo density, ripple, level, host
 # instructions) and renders ($OUT/reverb/<tank>-<setting>-mix|wet.wav) for comparison; with SPRING too (TYPE: the tank
@@ -399,10 +393,8 @@ job; ( jobin
 mkdir -p "$OUT/reverb"
 TANKS=   # (each tank its own tanks-T.tsv while they run in parallel; tanks.tsv, all of them in this order, at the end)
 # (FELUCCA_REVERB=1 / 2: registry.h's one-tank switch, that tank alone; tests/reverb_proto.c keys its checks on it)
-for rt in "plate:-DFELUCCA_REVERB=1 -DFELUCCA_REV_HALF=0" "plate-half:-DFELUCCA_REVERB=1 -DFELUCCA_REV_HALF=1" \
-          "fdn8:-DFELUCCA_REVERB=2 -DFELUCCA_REV_HALF=0" "fdn8-half:-DFELUCCA_REVERB=2 -DFELUCCA_REV_HALF=1" \
-          "fdn8-pool:-DFELUCCA_REVERB=2 -DFELUCCA_REV_HALF=0 -DFELUCCA_REV_POOL=1" \
-          "fdn8-pool-half:-DFELUCCA_REVERB=2 -DFELUCCA_REV_HALF=1 -DFELUCCA_REV_POOL=1"; do   # (REV_POOL: FDN8's ring twice as long)
+for rt in "plate:-DFELUCCA_REVERB=1" "fdn8:-DFELUCCA_REVERB=2" \
+          "fdn8-pool:-DFELUCCA_REVERB=2 -DFELUCCA_REV_POOL=1"; do   # (REV_POOL: FDN8's ring twice as long)
     t=${rt%%:*}; f=${rt#*:}; TANKS="$TANKS $t"
     job; ( jobin
         $CC -O2 -w -I"$HGEN" -Ifirmware/src $f -o "$OUT/reverb_proto_$t" tests/reverb_proto.c -lm
@@ -414,11 +406,10 @@ for rt in "plate:-DFELUCCA_REVERB=1 -DFELUCCA_REV_HALF=0" "plate-half:-DFELUCCA_
         run "backported features with the reverb tank $t (SPRING beside it)" "$OUT/backports_${t}_test"
     ) >"$U.out" 2>&1 & jobbg
 done
-# AIRWIN (builder item REV_AIRWIN: reverb_airwin.c, Airwindows' VerbTiny) in its three rings: alone at both rates (16 /
-# 8 KB), beside ROOM in the pool (TYPE picks it), with FDN8 in the pool (32 KB): RT60 as the ROOM's, the level, the
+# AIRWIN (builder item REV_AIRWIN: reverb_airwin.c, Airwindows' VerbTiny) in its rings: alone (16 KB), beside ROOM in the pool (TYPE picks it), with FDN8 in the pool (32 KB): RT60 as the ROOM's, the level, the
 # ring-out to exactly 0 at every SIZE / DAMP, full-scale noise / square / DC then silence (bounded, idle); then its
 # numbers and renders beside the other tanks'
-for ra in "alone:-DFELUCCA_REV_ROOM=0 -DFELUCCA_REV_AIRWIN=1" "alone-half:-DFELUCCA_REV_ROOM=0 -DFELUCCA_REV_AIRWIN=1 -DFELUCCA_REV_HALF=1" \
+for ra in "alone:-DFELUCCA_REV_ROOM=0 -DFELUCCA_REV_AIRWIN=1" \
           "room-pool:-DFELUCCA_REV_AIRWIN=1 -DFELUCCA_REV_POOL=1" "fdn8-pool:-DFELUCCA_REV_FDN8=1 -DFELUCCA_REV_AIRWIN=1 -DFELUCCA_REV_POOL=1"; do
     t=${ra%%:*}; f=${ra#*:}
     job; ( jobin
@@ -426,7 +417,7 @@ for ra in "alone:-DFELUCCA_REV_ROOM=0 -DFELUCCA_REV_AIRWIN=1" "alone-half:-DFELU
         run "reverb AIRWIN ($t): RT60 and level as the ROOM's, rings out to exactly 0, full scale bounded, idle" "$OUT/reverb_airwin_$t"
     ) >"$U.out" 2>&1 & jobbg
 done
-for rt in "airwin:-DFELUCCA_REVERB=3 -DFELUCCA_REV_HALF=0" "airwin-half:-DFELUCCA_REVERB=3 -DFELUCCA_REV_HALF=1"; do
+for rt in "airwin:-DFELUCCA_REVERB=3"; do
     t=${rt%%:*}; f=${rt#*:}; TANKS="$TANKS $t"
     job; ( jobin
         $CC -O2 -w -I"$HGEN" -Ifirmware/src $f -o "$OUT/reverb_proto_$t" tests/reverb_proto.c -lm
@@ -438,7 +429,6 @@ done
 # time (a fade, the shared line cleared, the new one from silence, then exactly 0 and idle); projects (saved, older
 # ones, an algorithm not built: the first one, MISSING); one built: no TYPE
 for rs in "all:-DFELUCCA_REV_PLATE=1 -DFELUCCA_REV_FDN8=1 -DFELUCCA_REV_AIRWIN=1 -DFELUCCA_SPRING=1" \
-          "all-half:-DFELUCCA_REV_PLATE=1 -DFELUCCA_REV_FDN8=1 -DFELUCCA_REV_AIRWIN=1 -DFELUCCA_SPRING=1 -DFELUCCA_REV_HALF=1" \
           "room-plate:-DFELUCCA_REV_PLATE=1" "fdn8-spring:-DFELUCCA_REV_ROOM=0 -DFELUCCA_REV_FDN8=1 -DFELUCCA_SPRING=1" \
           "airwin-spring:-DFELUCCA_REV_ROOM=0 -DFELUCCA_REV_AIRWIN=1 -DFELUCCA_SPRING=1" \
           "room:" "plate:-DFELUCCA_REV_ROOM=0 -DFELUCCA_REV_PLATE=1" "spring:-DFELUCCA_REV_ROOM=0 -DFELUCCA_SPRING=1"; do
@@ -488,7 +478,7 @@ job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src $BP23_ON -o "$OUT/bp23_test" tests/bp23_test.c -lm
     run "SLOOP 2.3 / X0X 0.10.1 backports (each switch on): no stuck note after a VOICE change, overload fades, REC modes and count-in, glides" "$OUT/bp23_test"
 ) >"$U.out" 2>&1 & jobbg
-SL24_ON="-DFELUCCA_DIV_LONG=1 -DFELUCCA_DLY_DOT=1 -DFELUCCA_MICRO=1 -DFELUCCA_FILLS=1 -DFELUCCA_PLOCK=1 -DFELUCCA_MOTION=1 -DFELUCCA_QCHAIN=1"
+SL24_ON="-DFELUCCA_DIV_LONG=1 -DFELUCCA_MICRO=1 -DFELUCCA_FILLS=1 -DFELUCCA_PLOCK=1 -DFELUCCA_MOTION=1 -DFELUCCA_QCHAIN=1"
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src $SL24_ON $SEC4 -o "$OUT/sl24_seq_test" tests/sl24_seq_test.c -lm
     run "SLOOP 2.4 sequencer backports (each switch on): DIV 1/2..2BAR, delay 1/8D 1/16D, micro timing, fills, parameter locks (beside motion)" "$OUT/sl24_seq_test"
@@ -1027,9 +1017,11 @@ job; ( jobin
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/usb_audio_route_test" tests/usb_audio_route_test.c -lm &&
-    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_DRUM_X909=1 -DFELUCCA_DRUM_X808=1 -o "$OUT/usb_audio_route_x0x" tests/usb_audio_route_test.c -lm
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_DRUM_X909=1 -DFELUCCA_DRUM_X808=1 -o "$OUT/usb_audio_route_x0x" tests/usb_audio_route_test.c -lm &&
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_MIX_EXACT=1 -o "$OUT/usb_audio_route_exact" tests/usb_audio_route_test.c -lm
     run "USB AUDIO (SYSTEM): each capture channel's source (MAIN, sums, stems, drum bus, lane taps, RET A B C, OFF), the mix untouched" "$OUT/usb_audio_route_test"
     run "USB AUDIO (SYSTEM) with the X0X kits: a tapped lane of the shared sum, the mix untouched" "$OUT/usb_audio_route_x0x"
+    run "USB AUDIO (SYSTEM) with MIX_EXACT: MASTER the output at full volume, sample for sample" "$OUT/usb_audio_route_exact"
 ) >"$U.out" 2>&1 & jobbg
 # the audio path's skips (FELUCCA_SKIP, core.h): built with them and without, the same samples after every
 # neutral -> working -> neutral flip; also with the X0X kits, USB audio and the glides built (its files: the unit's
@@ -1201,14 +1193,6 @@ job; ( jobin
     run "BLE WL82 driver, MIDI behind encryption (BLE_MIDI_NEED_ENC=1): the Mac pairs on Insufficient Authentication, the link encrypted through the driver, MIDI both ways" "$OUT/ble_driver_pair_test"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
-    $CC -Wextra $BLE_SAN -Itests/ble_fake -DBLE_DIAG=0 -o "$OUT/ble_driver_nodiag_test" tests/ble_driver_test.c
-    run "BLE WL82 driver with BLE_DIAG=0 (no counters, rings or blell compiled): the same connection, discovery, MIDI both ways and timeouts" "$OUT/ble_driver_nodiag_test"
-) >"$U.out" 2>&1 & jobbg
-job; ( jobin
-    $CC -Wextra $BLE_SAN -Itests/ble_fake -DBLE_DIAG=0 -DBLE_LL_ENC=1 -DBLE_SMP_LEGACY=1 -DBLE_MIDI_NEED_ENC=1 -o "$OUT/ble_driver_pair_nodiag_test" tests/ble_driver_test.c
-    run "BLE WL82 driver with BLE_DIAG=0, MIDI behind encryption: the Mac pairs, the link encrypted, MIDI both ways" "$OUT/ble_driver_pair_nodiag_test"
-) >"$U.out" 2>&1 & jobbg
-job; ( jobin
     $CC -Wextra $BLE_SAN -DBLE_CENTRAL=1 -DBLE_LL_ENC=1 -DBLE_SMP_LEGACY=1 -o "$OUT/ble_stack_central_test" tests/ble_stack_test.c
     run "BLE stack with the scanner (BLE_CENTRAL=1, with bonding): DEVICES open scans instead of advertising, never while connected, the reports' ring, OFF / ON, a link ending into the scan" "$OUT/ble_stack_central_test"
 ) >"$U.out" 2>&1 & jobbg
@@ -1219,10 +1203,6 @@ job; ( jobin
 job; ( jobin
     $CC -Wextra $BLE_SAN -Itests/ble_fake -o "$OUT/ble_scan_driver_test" tests/ble_scan_driver_test.c
     run "BLE WL82 scanning (BLE-HW-FACTS §21.2): state 1 in the vendor's order, the channel per event, RX by RXBUFnCNTL or RXTOG, the active-scan backoff, no column reads, back to advertising" "$OUT/ble_scan_driver_test"
-) >"$U.out" 2>&1 & jobbg
-job; ( jobin
-    $CC -Wextra $BLE_SAN -Itests/ble_fake -DBLE_DIAG=0 -o "$OUT/ble_scan_driver_nodiag_test" tests/ble_scan_driver_test.c
-    run "BLE WL82 scanning with BLE_DIAG=0: the same" "$OUT/ble_scan_driver_nodiag_test"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     $CC -Wextra $BLE_SAN -o "$OUT/ble_scan_test" tests/ble_scan_test.c
@@ -1257,10 +1237,6 @@ job; ( jobin
     run "BLE WL82 initiating and master (BLE-HW-FACTS §21.3 / §21.4): state 3 in the vendor's order, the target's ADV_IND, the switch to state 6 in the event IRQ (anchor counter 2 x WinOffset + 4, shortened when the IRQ came late), the stops waiting for the engine, the master's events by the TX rule, its update at instant - 1, no column reads" "$OUT/ble_central_driver_test"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
-    $CC -Wextra $BLE_SAN -Itests/ble_fake -DBLE_DIAG=0 -o "$OUT/ble_central_driver_nodiag_test" tests/ble_central_driver_test.c
-    run "BLE WL82 initiating and master with BLE_DIAG=0: the same" "$OUT/ble_central_driver_nodiag_test"
-) >"$U.out" 2>&1 & jobbg
-job; ( jobin
     $CC -Wextra $BLE_SAN -o "$OUT/ble_store_test" tests/ble_store_test.c
     run "BLE device store: one LAST (a device we connected to), NONE / LAST, bond and identity, FORGET, older / damaged records, the settings object round trip off the SDK's sectors" "$OUT/ble_store_test"
 ) >"$U.out" 2>&1 & jobbg
@@ -1270,7 +1246,7 @@ job; ( jobin
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 -o "$OUT/ble_midi_in_test" tests/ble_midi_in_test.c -lm
-    run "BLE-MIDI in, the whole path: CoreMIDI-shaped Write Commands -> ATT -> decoder -> ring -> TIMER5 -> midi_in_q -> the synth's voices; blell's counters; 5050 writes" "$OUT/ble_midi_in_test"
+    run "BLE-MIDI in, the whole path: CoreMIDI-shaped Write Commands -> ATT -> decoder -> ring -> TIMER5 -> midi_in_q -> the synth's voices; the ring's and the router's counts; 5050 writes" "$OUT/ble_midi_in_test"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     $CC -Wextra $BLE_SAN -o "$OUT/ble_vm_test" tests/ble_vm_test.c
@@ -1326,7 +1302,7 @@ job; ( jobin
     run "BLE central in the emulator: DEVICES pick -> initiate, master, pair, discover, MIDI both ways, LAST; reboot -> LAST reconnects (LTK, an RPA resolved by its IRK); NONE leaves; an iPhone-like peripheral: Just Works refused -> passkey typed on the same link (encryption pause) -> authenticated, one connection, LAST with its level, its LTK after a reboot; a wrong passkey: one failure, no loop; the FM-1's late event interrupt, busy engine and a lost CONNECT_IND (tests/ble_emu_central_test.py)" early_out t_ble_central
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
-    run "BLE start-ups in the emulator, the full option set (BLE USB_CONSOLE BLE_BOND BLE_CENTRAL BLE_DIAG): BLUETOOTH saved ON -> the UI runs, the watchdog fed, advertising, a central connects; LAST (an iPhone-like RPA, authenticated) there -> reconnected, away -> the search; an engine never idle after a stop -> every stop gives up at its bound, the breadcrumb names it (tests/ble_emu_boot_test.py)" early_out t_ble_boot
+    run "BLE start-ups in the emulator, the full option set (BLE USB_CONSOLE BLE_BOND BLE_CENTRAL): BLUETOOTH saved ON -> the UI runs, the watchdog fed, advertising, a central connects; LAST (an iPhone-like RPA, authenticated) there -> reconnected, away -> the search; an engine never idle after a stop -> every stop gives up at its bound, the breadcrumb names it (tests/ble_emu_boot_test.py)" early_out t_ble_boot
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/hostsim" tests/hostsim.c -lm
@@ -1415,20 +1391,24 @@ job; ( jobin   # the SD card (SDCARD): ChaN's driver + Petit FatFs, then full Fa
     $CC -O2 -Ifirmware/src -o "$OUT/sd_rec_test" tests/sd_rec_test.c $FF
     run "recording to the SD card (SD_REC): the audio an interrupt feeding a 32 KB ring, the blocks to the card between the screen's strips: 2 s every frame and the WAV's header, a 150 ms stall covered, 300 ms: frames dropped and counted, never garbage, a take that fills its run (FULL), FatFs refused while it writes" "$OUT/sd_rec_test" "$OUT/sd_fat16.img" "$OUT/sd_fat32.img"
     $CC -O2 -Ifirmware/src -o "$OUT/sd_stream_plan_test" tests/sd_stream_plan_test.c $FF
-    run "SD card streaming's memory per project: the parts' card samples by hash (the index), their heads (the pre-buffer) and the rings one arena block, placed again when the setting or the parts' voices change (the voices let go first), refused with what would make room proposed (a part, a shorter pre-buffer), placed by itself once there is room, a missing sample, a part on SLICE CARD (its sample whole, no ring or head), a part on a card set (its zones by path with their keys; a set not on the card MISSING)" "$OUT/sd_stream_plan_test" "$OUT/sd_fat16.img" "$OUT/sd_fat32.img"
+    run "SD card streaming's memory per project: the parts' card samples by hash (the index), their heads (the pre-buffer) and the rings one arena block, placed again when the setting or the parts' voices change (the voices let go first), refused with what would make room proposed (a part, a shorter pre-buffer), placed by itself once there is room, a missing sample, a part on SLICE CARD (its sample whole, no ring or head), a part on a card set (its zones by path with their keys; a set not on the card MISSING), GRAIN / STRETCH on it (a cache of its own, no ring, no heads but a SAMPLE part's beside it)" "$OUT/sd_stream_plan_test" "$OUT/sd_fat16.img" "$OUT/sd_fat32.img"
     mkdir -p "$OUT/optimist"
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DFELUCCA_LAYOUT=1 -DFELUCCA_ENG_SAMPLE=0 -DFELUCCA_DRUM_USR=0 -DFELUCCA_SNAPSHOTS=0 -DFELUCCA_PATTERNS=1 -DSEC_LOG_SECTORS=7u -DFELUCCA_SECTIONS=16 -DFELUCCA_SDCARD=1 -DFELUCCA_SD_REC_KB=16 -DFELUCCA_ENG_CZ=1 -DPRESETS_CARD=0 -DUI_SDCARD=1 -o "$OUT/ui_optimist_sdcard_test" tests/ui_optimist_test.c $FF -lm
     run "SD card mode's UI (the card model, FAT32): the boot's folders and index, PROJECT's card list (SAVE by name, a version, SAVES loaded, SAVE <work>? before a LOAD, DELETE, two pages), PRESETS / KITS by name, SAMPLES (folders, USE by hash, RECENT), SYSTEM > SD CARD, a full card, the card pulled, no card, a power cut at every block write of a save from the UI" "$OUT/ui_optimist_sdcard_test" "$OUT/optimist" "$OUT/sd_fat32.img"
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DFELUCCA_LAYOUT=1 -DFELUCCA_ENG_SAMPLE=0 -DFELUCCA_DRUM_USR=0 -DFELUCCA_SNAPSHOTS=0 -DFELUCCA_PATTERNS=1 -DSEC_LOG_SECTORS=7u -DFELUCCA_SECTIONS=16 -DFELUCCA_SDCARD=1 -DFELUCCA_SD_REC_KB=16 -DPRESETS_CARD=1 -DUI_SDCARD=1 -o "$OUT/ui_optimist_sdcard_fac_test" tests/ui_optimist_test.c $FF -lm
     run "SD card mode's factory presets on the card (PRESETS_CARD: no tables): the names read at the mount, a preset's file loaded on the next pass, an ask dropped by a sound over it, a missing file and no card said" "$OUT/ui_optimist_sdcard_fac_test" "$OUT/optimist" "$OUT/sd_fat32.img"
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DFELUCCA_LAYOUT=1 -DFELUCCA_ENG_SAMPLE=1 -DFELUCCA_DRUM_USR=0 -DFELUCCA_SNAPSHOTS=0 -DFELUCCA_PATTERNS=1 -DSEC_LOG_SECTORS=7u -DFELUCCA_SECTIONS=16 -DFELUCCA_SDCARD=1 -DFELUCCA_ARENA_KB=96 -DFELUCCA_SD_RING_KB=4 -DFELUCCA_ENG_SLICE=1 -DUI_SDCARD=1 -o "$OUT/ui_optimist_sdstream_test" tests/ui_optimist_test.c $FF -lm
-    run "SD card mode's UI with streaming (SAMPLE, ARENA 96, SD_RING 4): the same, a picked sample given to the streams' plan (and from the project's record), SYSTEM > SD card's PRE-BUFFER and its KB, MEM FULL CARD: a part's drop asked, then the pre-buffer that fits; USE on a SLICE part: SLICE kept, SRC CARD, the file whole as its slice table" "$OUT/ui_optimist_sdstream_test" "$OUT/optimist" "$OUT/sd_fat32.img"
+    run "SD card mode's UI with streaming (SAMPLE, ARENA 96, SD_RING 4): the same, a picked sample given to the streams' plan (and from the project's record), SYSTEM > SD card's PRE-BUFFER and its KB, MEM FULL CARD: a part's drop asked, then the pre-buffer that fits; USE on a SLICE part: SLICE kept, SRC CARD, the file whole as its slice table; a cache's misses: CARD SLOW once" "$OUT/ui_optimist_sdstream_test" "$OUT/optimist" "$OUT/sd_fat32.img"
     rm -f "$OUT/sd_fat16.img" "$OUT/sd_fat32.img"
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_ENG_SLICE=1 -o "$OUT/sd_stream_engine_test" tests/sd_stream_engine_test.c -lm
     run "SAMPLE's CARD set (SD_RING): a note at its pitch, an octave up at most, a dry stream fades out with no click (counted), LOOP held past the end, the source let go, more notes than rings, a released voice's ring free; a drum lane on CARD: its hit streamed, a second hit cuts the first on the same ring; SLICE on CARD: the sample whole as ADPCM (25 dB or better), each slice by its key, REV, nothing placed silent" "$OUT/sd_stream_engine_test"
     rm -rf "$OUT/sd_sets" && python3 tools/gen_samples.py --card "$OUT/sd_sets" >/dev/null   # (SD card mode's sets as the zip holds them)
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/sd_sets_test" tests/sd_sets_test.c -lm
     run "SD card mode's sample sets on the card (gen_samples.py --card, SAMPLE's smp_bank_on): each zone's keys, root and loop the flash zone's; every set's factory presets (a phrase over every zone, a held loop, LOOP off, BITS, TUNE, CUT, DRV) streamed from the card bit-identical to the flash set's render, never dry; a set not on the card silent" "$OUT/sd_sets_test" "$OUT/sd_sets"
+    gunzip -c tests/fixtures/sd/fat32.img.gz > "$OUT/sd_grain.img"
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_ENG_STRETCH=1 -o "$OUT/sd_grain_test" tests/sd_grain_test.c $FF -lm
+    run "GRAIN and STRETCH on SD card mode's sets (the caches read in any order: sd_stream_rc.h, the plan's wants, the pins): on the card model at 1.9 MB/s with the real scheduler and the audio interrupting the runs: an ideal card bit-identical to the flash's for every GRAIN preset on PIANO / VIBES / FLUTE and every STRETCH preset, in time and stalling 100 ms every 600 ms the reads counted with no click, the cache let go mid-phrase faded to silence, SAMPLE streaming beside GRAIN never dry, the pessimist's 1 MB/s; the numbers (reads, CPU, KB, bus)" "$OUT/sd_grain_test" "$OUT/sd_grain.img" "$OUT/sd_sets"
+    rm -f "$OUT/sd_grain.img"
     run "the SD card zip's sample sets: the ticked sets' zones under SAMPLES/<SET>/ (the generator's files, fmt smpl inst data), no other set, the README naming them, the factory presets beside them" python3 tests/sd_zip_test.py "$OUT/sd_zip"
 ) >"$U.out" 2>&1 & jobbg
 # the screen mirrored (ED_MIRROR, io/editor/ed_mirror.c): the stream through a stand-in USB ring decoded back to the panel after
@@ -1489,48 +1469,12 @@ job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/stepx_store_test" tests/stepx_store_test.c -lm
     run "SLOOP 2.4 step extras kept with the sections and the autosave (FELUCCA_SL24_XSTEP): save, load, live store, stage, keys" "$OUT/stepx_store_test"
 ) >"$U.out" 2>&1 & jobbg
-for x in "0 0 0" "1 0 0" "1 1 1" "0 1 1" "1 1 0" "1 0 1"; do
-    set -- $x
-    job; ( jobin
-        $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_SL24_XSTEP=$1 -DFELUCCA_TRK_FILT=$2 -DFELUCCA_CHORDPLUS=$3 -o "$OUT/sl24_import_test$1$2$3" tests/sl24_import_test.c -lm
-        run "a SLOOP 2.4 project imported (golden FUN5 from 2.4's own types), XSTEP=$1 TRK_FILT=$2 CHORDPLUS=$3: values, FILT/STRUM/VLEAD, engines, FM6, kits, extras; LOAD twice" "$OUT/sl24_import_test$1$2$3"
-    ) >"$U.out" 2>&1 & jobbg
-done
-for x in "0 0 0" "1 0 0" "1 1 1" "0 1 1" "1 1 0" "1 0 1"; do   # (as the import's: both switches, each alone)
-    set -- $x
-    job; ( jobin
-        $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_SL24_XSTEP=$1 -DFELUCCA_TRK_FILT=$2 -DFELUCCA_CHORDPLUS=$3 -o "$OUT/sl24_export_test$1$2$3" tests/sl24_export_test.c -lm
-        run "ours exported for SLOOP 2.4 (SL24_EXPORT), XSTEP=$1 TRK_FILT=$2 CHORDPLUS=$3: golden FUN5 in and out byte for byte but the losses (FILT's slot); ours -> 2.4 -> ours, each loss listed; FM6 voices by PTCH or 2.4's bank; 2.4's settings; FX slots" "$OUT/sl24_export_test$1$2$3"
-    ) >"$U.out" 2>&1 & jobbg
-done
-job; ( jobin
-    $CC -O2 -w -I"$HGEN" -Ifirmware/src $INSFX_ON -DFELUCCA_TRK_FILT=1 -o "$OUT/sl24_export_ifx_test" tests/sl24_export_test.c -lm
-    run "ours exported for SLOOP 2.4 with the further inserts built (INS_*, TRK_FILT): the same, and a further insert heard lost (INSFX)" "$OUT/sl24_export_ifx_test"
-) >"$U.out" 2>&1 & jobbg
-job; ( jobin
-    $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/sl24_edimport_test" tests/sl24_edimport_test.c -lm
-    run "a SLOOP 2.4 backup file's project through the editor (SL24_EDIMPORT, cmds 90 / 91): chunks and CRCs, the FM6 parts' bank patches, every refusal, 2.4's bank read out, nothing written" "$OUT/sl24_edimport_test"
-) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/sl25_safety_test" tests/sl25_safety_test.c -lm
     run "started on SLOOP 2.5 / 2.6's flash (SL24_SAFE): their settings (88 B + the SYN kits + 2.6's MIDI part) never read as ours, never written over; each firmware reads its own" "$OUT/sl25_safety_test"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
 ) >"$U.out" 2>&1 & jobbg
-for x in "0 0 0" "1 1 1" "1 0 0"; do
-    set -- $x
-    job; ( jobin
-        $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_SL24_XSTEP=$1 -DFELUCCA_TRK_FILT=$2 -DFELUCCA_CHORDPLUS=$3 -o "$OUT/sl26_import_test$1$2$3" tests/sl26_import_test.c -lm
-        run "SLOOP 2.5 / 2.6 projects imported (golden FUN5 / FUN6 from their own types), XSTEP=$1 TRK_FILT=$2 CHORDPLUS=$3: 2.5's PHYS / NOISE, FUN6 -> FUN5, LOAD twice; PHYS exported as 2.5's" "$OUT/sl26_import_test$1$2$3"
-    ) >"$U.out" 2>&1 & jobbg
-done
-for x in "0 0 0" "1 1 1"; do
-    set -- $x
-    job; ( jobin
-        $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_SL24_XSTEP=$1 -DFELUCCA_TRK_FILT=$2 -DFELUCCA_CHORDPLUS=$3 -DFELUCCA_SL24_EXPORT=1 -o "$OUT/sl27_import_test$1$2$3" tests/sl27_import_test.c -lm
-        run "a SLOOP 2.7 project (golden FUN6 from 2.7.1's own types), XSTEP=$1 TRK_FILT=$2 CHORDPLUS=$3: its 16 drum sounds on our lanes with their TUNE / DECAY, held notes as SF_CARRY (never a chance), the arp's modes, LOAD twice; exported and back" "$OUT/sl27_import_test$1$2$3"
-    ) >"$U.out" 2>&1 & jobbg
-done
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/sec_log_test" tests/sec_log_test.c -lm
     run "song sections: the log (restarts, compaction, writes and erases cut, MEM FULL and its reserve; the patterns' ids 24..87 and the MIDI tracks' 142..225 kept, 16 busy codec B sections)" "$OUT/sec_log_test"
@@ -1740,13 +1684,6 @@ job; ( jobin
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_MACROS=1 -DFELUCCA_ENERGY=1 -o "$OUT/regress_macros" tests/regress.c -lm
     run "regression with the macros built in, at home (FELUCCA_MACROS, ENERGY): the same golden renders" "$OUT/regress_macros" tests/golden.txt tests/cpu_baseline.txt
-) >"$U.out" 2>&1 & jobbg
-job; ( jobin
-    # REV_HALF changes every render with a reverb send (by design: the tank at 22.05 kHz): its own goldens (the renders
-    # without one equal tests/golden.txt's); the CPU against a copy of the baseline (BUDGET_UPDATE=1 keeps the full rate's)
-    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_REV_HALF=1 -o "$OUT/regress_rh" tests/regress.c -lm
-    cp tests/cpu_baseline.txt "$OUT/cpu_baseline_rh.txt"
-    run "regression with the reverb at half rate (REV_HALF): tests/golden_rev_half.txt, health, CPU" "$OUT/regress_rh" tests/golden_rev_half.txt "$OUT/cpu_baseline_rh.txt"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/analog2_test" tests/analog2_test.c -lm

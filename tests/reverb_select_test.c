@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* The reverb's algorithms picked on the device (firmware/src/fx/reverb/rev_type.c, fx.c rev_bus): built by tests/run_tests.sh
- * with several sets of FELUCCA_REV_ROOM / _PLATE / _FDN8 / _AIRWIN / FELUCCA_SPRING (and REV_HALF):
+ * with several sets of FELUCCA_REV_ROOM / _PLATE / _FDN8 / _AIRWIN / FELUCCA_SPRING:
  *   list     TYPE lists the algorithms built, in order (ROOM, PLATE, FDN8, VTINY, SPRING), one name each; the REVERB
  *            page and its cell only with two or more (one built: no page, no cell), its value an index into them
  *   switch   every ordered pair of built algorithms, the old one ringing with a send going: the old tank fades out
@@ -285,7 +285,6 @@ int main(void)
     t_list();
     t_switch();
     t_project();
-    printf("reverb select: %u algorithms (mask %u), REV_HALF %d: %d failed\n", (unsigned)REV_NLIST, (unsigned)REV_MASK,
-           FELUCCA_REV_HALF, fails);
+    printf("reverb select: %u algorithms (mask %u): %d failed\n", (unsigned)REV_NLIST, (unsigned)REV_MASK, fails);
     return fails;
 }

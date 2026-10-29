@@ -23,7 +23,7 @@ analog / trio / super / phase / cz / sample / grain / slice / formant engines, t
    detune, GRAIN; `drum_on` 2 B smaller.)
 2. **Host renders**: `tests/dsp_ab.sh [BASE_REV]` builds the golden renders (`tests/regress.c`), skip scenarios and every
    X0X note from BASE_REV and from this tree in eight configurations (default; X0X kits; backported engines and
-   effects; X0X + ACID; SLICE; REV_HALF + SPRING; `ANALOG2=0`; USB audio) and compares hashes.
+   effects; X0X + ACID; SLICE; SPRING; `ANALOG2=0`; USB audio) and compares hashes.
 3. **Block against copies**: `tests/dsp_shared_test.c` keeps every replaced copy verbatim and runs it against the shared
    block, exhaustively or over 2^24 inputs. 4. `tests/golden.txt` and `golden_cz.txt` unchanged. 5. The asm kernels
    (`hal/fm1_dsp_asm.h`) are untouched; their C twins are not merged where the asm mirrors them.

@@ -23,13 +23,13 @@
 /* the set-time entry points (init, pots, a note's state): built for size too; this unit is -O2 for its render, the
  * cold paths run once a change or a note (the same operations in the same order, so the same values) */
 #define BASS303_SETUP FM_SETUP
-static BASS303_COLD float c_expf(float x) { return fm_expf(x); }
-static BASS303_COLD float c_exp2f(float x) { return fm_exp2f(x); }
-static BASS303_COLD float c_log2f(float x) { return fm_log2f(x); }
-static BASS303_COLD float c_powf(float x, float y) { return fm_powf(x, y); }
-static BASS303_COLD float c_sinf(float x) { return fm_sinf(x); }
-static BASS303_COLD float c_cosf(float x) { return fm_cosf(x); }
-static float c_db2lin(float db) { return c_exp2f(db * 0.166096405f); }      /* fm_db2lin */
+static FAST(acid) BASS303_COLD float c_expf(float x) { return fm_expf(x); }
+static FAST(acid) BASS303_COLD float c_exp2f(float x) { return fm_exp2f(x); }
+static FAST(acid) BASS303_COLD float c_log2f(float x) { return fm_log2f(x); }
+static FAST(acid) BASS303_COLD float c_powf(float x, float y) { return fm_powf(x, y); }
+static FAST(acid) BASS303_COLD float c_sinf(float x) { return fm_sinf(x); }
+static FAST(acid) BASS303_COLD float c_cosf(float x) { return fm_cosf(x); }
+static FAST(acid) float c_db2lin(float db) { return c_exp2f(db * 0.166096405f); }      /* fm_db2lin */
 /* The render's passes (one call a sub-block): each register-allocated on its own, so a change elsewhere in the
  * render does not reshuffle (and spill) the hot loops */
 #define BASS303_PASS __attribute__((noinline))
@@ -65,19 +65,19 @@ const x0x_param_t *bass303_param(int i)
     return (i >= 0 && i < BASS303_NPARAMS) ? &params[i] : 0;
 }
 
-int bass303_get(const bass303_t *b, int i)
+FAST(acid) int bass303_get(const bass303_t *b, int i)
 {
     return (i >= 0 && i < BASS303_NPARAMS) ? b->pot[i] : 0;
 }
 
 /* exp(-1/(tau_ms * fs / 1000)): one-pole / RC coefficient */
-static float rc_coeff(float tau_ms, float fs)
+static FAST(acid) float rc_coeff(float tau_ms, float fs)
 {
     return tau_ms > 0.0f ? c_expf(-1000.0f / (tau_ms * fs)) : 0.0f;
 }
 
 /* pw[m] = c^m, m = 0..BASS303_CTRL */
-static void powers(float *pw, float c)
+static FAST(acid) void powers(float *pw, float c)
 {
     int m;
     pw[0] = 1.0f;
@@ -87,7 +87,7 @@ static void powers(float *pw, float c)
 
 /* the main envelope's multiplier changed: its powers, and the closed-form gains of the two RC
  * followers it drives, g[m] = (1-a) sum_{n=1..m} a^(m-n) c^n (so r_m = a^m r_0 + g[m] e_0) */
-static BASS303_SETUP void env_tables(bass303_t *b)
+static FAST(acid) BASS303_SETUP void env_tables(bass303_t *b)
 {
     int m;
     powers(b->env_pw, b->env_c);
@@ -99,7 +99,7 @@ static BASS303_SETUP void env_tables(bass303_t *b)
 }
 
 /* Open303::calculateEnvModScalerAndOffset, the measured mapping */
-static BASS303_SETUP void calc_envmod(bass303_t *b)
+static FAST(acid) BASS303_SETUP void calc_envmod(bass303_t *b)
 {
     float e = (float)b->pot[BASS303_ENVMOD] * (1.0f / 127.0f);
     float c = c_log2f(b->cutoff * (1.0f / 313.8152786f)) * (1.0f / 2.931683907f); /* log2(c1/c0) */
@@ -110,7 +110,7 @@ static BASS303_SETUP void calc_envmod(bass303_t *b)
 }
 
 /* drive.h set_lowpass / set_low_shelf (TDF-II coefficients, a0-normalised) */
-static BASS303_SETUP void bq_lowpass(bass303_bq_t *q, float fc, float fs)
+static FAST(acid) BASS303_SETUP void bq_lowpass(bass303_bq_t *q, float fc, float fs)
 {
     float w = FM_TWO_PI * fc / fs, cs = c_cosf(w), sn = c_sinf(w);
     float alpha = sn * 0.707106781f, a0 = 1.0f + alpha;     /* sn / (2 q), q = 1/sqrt2 */
@@ -121,7 +121,7 @@ static BASS303_SETUP void bq_lowpass(bass303_bq_t *q, float fc, float fs)
     q->a2 = (1.0f - alpha) / a0;
 }
 
-static BASS303_SETUP void bq_low_shelf(bass303_bq_t *q, float fc, float gain_db, float fs)
+static FAST(acid) BASS303_SETUP void bq_low_shelf(bass303_bq_t *q, float fc, float gain_db, float fs)
 {
     float A = c_db2lin(0.5f * gain_db);                       /* 10^(g/40) */
     float w = FM_TWO_PI * fc / fs, cs = c_cosf(w), sn = c_sinf(w);
@@ -136,7 +136,7 @@ static BASS303_SETUP void bq_low_shelf(bass303_bq_t *q, float fc, float gain_db,
 }
 
 /* RAT op-amp: drive.h rat::State::update_op_amp_coeffs + the correction one-pole cutoff */
-static BASS303_SETUP void rat_coeffs(bass303_t *b)
+static FAST(acid) BASS303_SETUP void rat_coeffs(bass303_t *b)
 {
     const float R1 = 100000.0f, C1 = 1e-10f, Z1_B0 = 2.72149e-7f, Z1_B1 = 0.0027354f;
     const float Z1_A0 = 6.27638e-9f, Z1_A1 = 0.0000069f;
@@ -166,7 +166,7 @@ static BASS303_SETUP void rat_coeffs(bass303_t *b)
     b->r_corr_b1 = c_expf(-FM_TWO_PI / BASS303_SR * 1119360.558f / (dist * 2306.231003f + 1.0f));
 }
 
-BASS303_SETUP void bass303_set(bass303_t *b, int i, int v)
+FAST(acid) BASS303_SETUP void bass303_set(bass303_t *b, int i, int v)
 {
     float n;
     if (i < 0 || i >= BASS303_NPARAMS)
@@ -229,7 +229,7 @@ BASS303_SETUP void bass303_set(bass303_t *b, int i, int v)
 }
 
 /* clear everything that only matters while sound is running (Open303::triggerNote after idle) */
-static BASS303_SETUP void clear_audio_state(bass303_t *b)
+static FAST(acid) BASS303_SETUP void clear_audio_state(bass303_t *b)
 {
     int i;
     b->dc.x1 = b->dc.x2 = b->dc.y1 = b->dc.y2 = 0.0f;
@@ -255,7 +255,7 @@ static BASS303_SETUP void clear_audio_state(bass303_t *b)
 }
 
 /* the shared coefficients (Open303 constructor + setSampleRate) */
-static BASS303_SETUP void fixed_init(void)
+static FAST(acid) BASS303_SETUP void fixed_init(void)
 {
     float w, sn, cs, alpha, scale, x, F, O, ln_cosh_p, ln_cosh_m;
 
@@ -327,7 +327,7 @@ static BASS303_SETUP void fixed_init(void)
     bass303_k.ready = 1;
 }
 
-BASS303_SETUP void bass303_init(bass303_t *b)
+FAST(acid) BASS303_SETUP void bass303_init(bass303_t *b)
 {
     uint8_t *p = (uint8_t *)b;
     unsigned k;
@@ -351,7 +351,7 @@ BASS303_SETUP void bass303_init(bass303_t *b)
 
 /* ---- notes ----------------------------------------------------------------------------- */
 
-static BASS303_SETUP void set_accent_state(bass303_t *b, int accent)
+static FAST(acid) BASS303_SETUP void set_accent_state(bass303_t *b, int accent)
 {
     if (accent) {
         b->accent_gain = b->accent;
@@ -364,7 +364,7 @@ static BASS303_SETUP void set_accent_state(bass303_t *b, int accent)
     env_tables(b);
 }
 
-BASS303_SETUP void bass303_note_on(bass303_t *b, int note, int accent, int slide)
+FAST(acid) BASS303_SETUP void bass303_note_on(bass303_t *b, int note, int accent, int slide)
 {
     float f;
     if (note < 0)
@@ -388,15 +388,15 @@ BASS303_SETUP void bass303_note_on(bass303_t *b, int note, int accent, int slide
     b->started = 1;
 }
 
-void bass303_note_off(bass303_t *b) { b->gate = 0; }
-void bass303_set_lite(bass303_t *b, int on) { b->lite = on != 0; }
+FAST(acid) void bass303_note_off(bass303_t *b) { b->gate = 0; }
+FAST(acid) void bass303_set_lite(bass303_t *b, int on) { b->lite = on != 0; }
 void bass303_all_off(bass303_t *b) { b->gate = 0; }
 
 /* ---- render ---------------------------------------------------------------------------- */
 
 /* polyBLEP residual for a unit (2-high) step at phase 0, t in [0, 1), dt = increment. The
  * divides happen only on the two samples per period next to the step. */
-static inline float blep(float t, float dt)
+static inline FAST(acid) float blep(float t, float dt)
 {
     float x;
     if (t < dt) {
@@ -411,7 +411,7 @@ static inline float blep(float t, float dt)
 }
 
 #if BASS303_OS >= 2
-static inline float hb(bass303_ap_t *s, float a, float x)
+static inline FAST(acid) float hb(bass303_ap_t *s, float a, float x)
 {
     float y = a * (x - s->y1) + s->x1;
     s->x1 = x;
@@ -428,7 +428,7 @@ static inline float hb(bass303_ap_t *s, float a, float x)
  * tests/host/run_bass303.sh: what reaches the decimator is already low-passed by the ladder.
  * Paths: even coefficients take the newer sample, odd ones the older. */
 #if BASS303_OS >= 2
-static inline float decim_hb1(bass303_ap_t *s, float x_old, float x_new)
+static inline FAST(acid) float decim_hb1(bass303_ap_t *s, float x_old, float x_new)
 {
     float a = x_new, c = x_old;
     a = hb(&s[0], 0.068204076f, a);
@@ -441,7 +441,7 @@ static inline float decim_hb1(bass303_ap_t *s, float x_old, float x_new)
 }
 #endif
 #if BASS303_OS == 4
-static inline float decim_hb2(bass303_ap_t *s, float x_old, float x_new)
+static inline FAST(acid) float decim_hb2(bass303_ap_t *s, float x_old, float x_new)
 {
     float a = x_new, c = x_old;
     a = hb(&s[0], 0.104996100f, a);
@@ -454,7 +454,7 @@ static inline float decim_hb2(bass303_ap_t *s, float x_old, float x_new)
 /* While idle, advance what Open303 keeps running so the next note starts where the
  * reference would: oscillator phase, slew, the main envelope and its RC followers
  * (closed forms of N steps of each recursion). */
-static BASS303_SETUP void idle_advance(bass303_t *b, int n)
+static FAST(acid) BASS303_SETUP void idle_advance(bass303_t *b, int n)
 {
     float N = (float)n, cn, an, ph;
     if (!b->started)
@@ -485,14 +485,14 @@ static BASS303_SETUP void idle_advance(bass303_t *b, int n)
 
 typedef struct { float b0, b1, b2, a1, a2, z1, z2; } bass303_bql_t;   /* a biquad in locals */
 
-static inline void bq_get(bass303_bql_t *l, const bass303_bq_t *q, const bass303_bqz_t *z)
+static inline FAST(acid) void bq_get(bass303_bql_t *l, const bass303_bq_t *q, const bass303_bqz_t *z)
 {
     l->b0 = q->b0, l->b1 = q->b1, l->b2 = q->b2, l->a1 = q->a1, l->a2 = q->a2, l->z1 = z->z1, l->z2 = z->z2;
 }
 
-static inline void bq_put(const bass303_bql_t *l, bass303_bqz_t *z) { z->z1 = l->z1, z->z2 = l->z2; }
+static inline FAST(acid) void bq_put(const bass303_bql_t *l, bass303_bqz_t *z) { z->z1 = l->z1, z->z2 = l->z2; }
 
-static inline float bql_run(bass303_bql_t *q, float x)          /* bq_run */
+static inline FAST(acid) float bql_run(bass303_bql_t *q, float x)          /* bq_run */
 {
     float y = q->b0 * x + q->z1;
     q->z1 = q->b1 * x - q->a1 * y + q->z2;
@@ -500,7 +500,7 @@ static inline float bql_run(bass303_bql_t *q, float x)          /* bq_run */
     return y;
 }
 
-static inline float bql_run0(bass303_bql_t *q)                  /* bq_run(q, 0.0f), b0, b1, b2 > 0 */
+static inline FAST(acid) float bql_run0(bass303_bql_t *q)                  /* bq_run(q, 0.0f), b0, b1, b2 > 0 */
 {
     float y = 0.0f + q->z1;
     q->z1 = (0.0f - q->a1 * y) + q->z2;
@@ -509,7 +509,7 @@ static inline float bql_run0(bass303_bql_t *q)                  /* bq_run(q, 0.0
 }
 
 /* biquad q (state z) over x[0..n) in place, times g */
-static void bq_pass(const bass303_bq_t *q, bass303_bqz_t *z, float *x, int n, float g)
+static FAST(acid) void bq_pass(const bass303_bq_t *q, bass303_bqz_t *z, float *x, int n, float g)
 {
     bass303_bql_t l;
     int i;
@@ -520,7 +520,7 @@ static void bq_pass(const bass303_bq_t *q, bass303_bqz_t *z, float *x, int n, fl
 }
 
 /* the 2x upsampler: x[i], 0 through up_lp, times 2, into u[2i], u[2i + 1] */
-static void up_pass(bass303_t *b, const float *x, float *u, int n)
+static FAST(acid) void up_pass(bass303_t *b, const float *x, float *u, int n)
 {
     bass303_bql_t l;
     int i;
@@ -533,7 +533,7 @@ static void up_pass(bass303_t *b, const float *x, float *u, int n)
 }
 
 /* the 2x downsampler: u[2i], u[2i + 1] through down_lp, the second kept, times g */
-static void down_pass(bass303_t *b, const float *u, float *y, int n, float g)
+static FAST(acid) void down_pass(bass303_t *b, const float *u, float *y, int n, float g)
 {
     bass303_bql_t l;
     int i;
@@ -546,7 +546,7 @@ static void down_pass(bass303_t *b, const float *u, float *y, int n, float g)
 }
 
 /* the DC blocker (0.9996) in place */
-static void dcb_pass(bass303_t *b, float *x, int n)
+static FAST(acid) void dcb_pass(bass303_t *b, float *x, int n)
 {
     float x1 = b->dcb_x1, y1 = b->dcb_y1;
     int i;
@@ -561,7 +561,7 @@ static void dcb_pass(bass303_t *b, float *x, int n)
 }
 
 /* Soft: pre shelf x gain, 2x up, tanh(u + 0.15) - its value at 0, 2x down, x 1/gain, post shelf, DC blocker */
-static BASS303_PASS void drive_soft(bass303_t *b, float *out, int n)
+static FAST(acid) BASS303_PASS void drive_soft(bass303_t *b, float *out, int n)
 {
     float u[2 * BASS303_DSUB];
     int i;
@@ -576,7 +576,7 @@ static BASS303_PASS void drive_soft(bass303_t *b, float *out, int n)
 
 /* RAT: op-amp (3rd-order TDF-II), the correction one-pole x 1.877, 2x up, the clipper, 2x down x 0.3204805,
  * the tone one-pole, DC blocker */
-static BASS303_PASS void drive_rat(bass303_t *b, float *out, int n)
+static FAST(acid) BASS303_PASS void drive_rat(bass303_t *b, float *out, int n)
 {
     float u[2 * BASS303_DSUB];
     int i;
@@ -614,7 +614,7 @@ static BASS303_PASS void drive_rat(bass303_t *b, float *out, int n)
     dcb_pass(b, out, n);
 }
 
-static void drive_block(bass303_t *b, float *out, int n)
+static FAST(acid) void drive_block(bass303_t *b, float *out, int n)
 {
     int i, ns;
     for (i = 0; i < n; i += ns) {
@@ -645,7 +645,7 @@ typedef struct { float inc, f_b0, k, g2; } bass303_cs_t;      /* a sample's inte
 /* 1a: per control step, Open303's per-sample recursions advanced m samples in closed form (exact), the cutoff
  * and amp they produce at the chunk's last sample; per sample, the linear interpolation of the increment, the
  * filter's coefficients and the amp into cs[] and ab[] */
-static BASS303_PASS void run_control(bass303_t *b, bass303_cs_t *cs, float *ab, int n)
+static FAST(acid) BASS303_PASS void run_control(bass303_t *b, bass303_cs_t *cs, float *ab, int n)
 {
     int i, j, m;
     float inc = b->c_inc, f_b0 = b->c_b0, k = b->c_k, g2 = b->c_g2, a = b->c_a;
@@ -729,7 +729,7 @@ static BASS303_PASS void run_control(bass303_t *b, bass303_cs_t *cs, float *ab, 
 
 /* 1b: n samples of the oversampled oscillator -> highpass, nos values a sample into hb; inlined with nos and
  * square constant where they are (no test of the wave per oversample) */
-static inline __attribute__((always_inline)) void osc_samples(bass303_t *b, const bass303_cs_t *cs, float *hb,
+static inline FAST(acid) __attribute__((always_inline)) void osc_samples(bass303_t *b, const bass303_cs_t *cs, float *hb,
                                                               int n, int nos, int square)
 {
     const int lite = BASS303_LITE && b->lite;
@@ -766,18 +766,18 @@ static inline __attribute__((always_inline)) void osc_samples(bass303_t *b, cons
     b->hp1_y1 = hp1y;
 }
 
-static BASS303_PASS void run_osc_saw(bass303_t *b, const bass303_cs_t *cs, float *hb, int n)
+static FAST(acid) BASS303_PASS void run_osc_saw(bass303_t *b, const bass303_cs_t *cs, float *hb, int n)
 {
     osc_samples(b, cs, hb, n, BASS303_OS, 0);
 }
 
-static BASS303_PASS void run_osc_sqr(bass303_t *b, const bass303_cs_t *cs, float *hb, int n)
+static FAST(acid) BASS303_PASS void run_osc_sqr(bass303_t *b, const bass303_cs_t *cs, float *hb, int n)
 {
     osc_samples(b, cs, hb, n, BASS303_OS, 1);
 }
 
 /* 1c: the TeeBeeFilter (its feedback through the highpass) on x's n * nos values, in place */
-static inline __attribute__((always_inline)) void ladder_samples(bass303_t *b, const bass303_cs_t *cs, float *x,
+static inline FAST(acid) __attribute__((always_inline)) void ladder_samples(bass303_t *b, const bass303_cs_t *cs, float *x,
                                                                  int n, int nos)
 {
     const int lite = BASS303_LITE && b->lite;
@@ -806,13 +806,13 @@ static inline __attribute__((always_inline)) void ladder_samples(bass303_t *b, c
     b->fb_y1 = fby;
 }
 
-static BASS303_PASS void run_ladder(bass303_t *b, const bass303_cs_t *cs, float *x, int n)
+static FAST(acid) BASS303_PASS void run_ladder(bass303_t *b, const bass303_cs_t *cs, float *x, int n)
 {
     ladder_samples(b, cs, x, n, BASS303_OS);
 }
 
 /* pass 1: the voice, nos values a sample into osb */
-static void run_voice(bass303_t *b, float *ab, float *osb, int n, int nos)
+static FAST(acid) void run_voice(bass303_t *b, float *ab, float *osb, int n, int nos)
 {
     bass303_cs_t cs[BASS303_SUB];
     run_control(b, cs, ab, n);
@@ -829,7 +829,7 @@ static void run_voice(bass303_t *b, float *ab, float *osb, int n, int nos)
 }
 
 /* pass 2: the amp de-clicked (200 Hz Butterworth), times the volume, in place */
-static BASS303_PASS void run_amp(bass303_t *b, float *ab, int n)
+static FAST(acid) BASS303_PASS void run_amp(bass303_t *b, float *ab, int n)
 {
     const float b0 = bass303_k.dc_b0, b1 = bass303_k.dc_b1, a1 = bass303_k.dc_a1, a2 = bass303_k.dc_a2, g = b->amp_scaler;
     float x1 = b->dc.x1, x2 = b->dc.x2, y1 = b->dc.y1, y2 = b->dc.y2;
@@ -852,7 +852,7 @@ static BASS303_PASS void run_amp(bass303_t *b, float *ab, int n)
 #if BASS303_OS == 2
 /* pass 3: decim_hb1 on each pair. In a chain of allpass sections a section's input is the one before's output,
  * so its x1 is the previous section's y1: each path keeps four values (x, then the three y1) */
-static BASS303_PASS void run_decim(bass303_t *b, const float *osb, float *out, int n)
+static FAST(acid) BASS303_PASS void run_decim(bass303_t *b, const float *osb, float *out, int n)
 {
     bass303_ap_t *s = b->hb1;
     float a0 = s[0].x1, a1 = s[0].y1, a2 = s[2].y1, a3 = s[4].y1;    /* newer samples: s[0], s[2], s[4] */
@@ -875,7 +875,7 @@ static BASS303_PASS void run_decim(bass303_t *b, const float *osb, float *out, i
     s[1].x1 = c0, s[1].y1 = s[3].x1 = c1, s[3].y1 = s[5].x1 = c2, s[5].y1 = c3;
 }
 #elif BASS303_OS == 4
-static BASS303_PASS void run_decim(bass303_t *b, const float *osb, float *out, int n)
+static FAST(acid) BASS303_PASS void run_decim(bass303_t *b, const float *osb, float *out, int n)
 {
     int i;
     for (i = 0; i < n; i++, osb += 4)
@@ -885,7 +885,7 @@ static BASS303_PASS void run_decim(bass303_t *b, const float *osb, float *out, i
 
 /* pass 4: allpass 14 Hz, highpass 24 Hz, notch 7.5 Hz at the base rate, times the amp. A section's x1 is the
  * one before's y1 here too (hp2_x1 = ap_y1, nt.x1 = hp2_y1) */
-static BASS303_PASS void run_post(bass303_t *b, const float *ab, float *out, int n)
+static FAST(acid) BASS303_PASS void run_post(bass303_t *b, const float *ab, float *out, int n)
 {
     const float ap_b0 = bass303_k.ap_b0, hp2_b0 = bass303_k.hp2_b0, hp2_a1 = bass303_k.hp2_a1;
     const float nt_b0 = bass303_k.nt_b0, nt_b1 = bass303_k.nt_b1, nt_a1 = bass303_k.nt_a1, nt_a2 = bass303_k.nt_a2;
@@ -913,7 +913,7 @@ static BASS303_PASS void run_post(bass303_t *b, const float *ab, float *out, int
     b->nt.y2 = nt_y2;
 }
 
-static void run(bass303_t *b, float *out, int n)
+static FAST(acid) void run(bass303_t *b, float *out, int n)
 {
     float ab[BASS303_SUB];
 #if BASS303_OS > 1
@@ -940,7 +940,7 @@ static void run(bass303_t *b, float *out, int n)
     b->amp_y = fm_flush(b->amp_y);
 }
 
-void bass303_render(bass303_t *b, float *out, int n)
+FAST(acid) void bass303_render(bass303_t *b, float *out, int n)
 {
     int i;
     if (b->idle) {

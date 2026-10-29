@@ -414,7 +414,7 @@ static uint32_t pw_leds(uint32_t *d);
 #include "../../system/stackmark.h"                     /* INFO's RAM line: how deep the stacks went (painted at boot: stk_boot) */
 /* ---- SYSTEM: SLOOP's HOME-held menu as rows (ui/sloop/ui_menu.c) */
 enum { SI_NONE, SI_LIGHTS, SI_KEYS, SI_LOWCUT, SI_OUT, SI_SYNC, SI_CH1, SI_CH2,
-       SI_CH3, SI_CHD, SI_USB, SI_CPU, SI_MHZ, SI_CALIB, SI_ABOUT, SI_HOLD, SI_BLE, SI_KCOL, SI_DBGST, SI_CLKOUT, SI_CPU1, SI_INFO, SI_BATT, SI_BUILD, SI_REPO,
+       SI_CH3, SI_CHD, SI_USB, SI_CPU, SI_MHZ, SI_CALIB, SI_ABOUT, SI_HOLD, SI_BLE, SI_KCOL, SI_DBGST, SI_CLKOUT, SI_CPU1, SI_INFO, SI_BUILD, SI_REPO,
        SI_DROPS, SI_GUARD, SI_UAINFO, SI_XRUN, SI_DIAG, SI_CREDITS, SI_BLEST, SI_BLEPEER, SI_BLEMIDI, SI_BLELIST, SI_BLEAUTO,
        SI_BLEFGT, SI_FRESO, SI_VUFLOOR, SI_BTA, SI_BTAPEER, SI_BTAFMT, SI_BTAST, SI_CLKOFS, SI_BTOFS, SI_LINK, SI_LINKOFS,
 #if FELUCCA_SD_UI
@@ -645,6 +645,18 @@ static uint32_t sys_batt_pct(void)                      /* the cell's charge fro
         if (mv < MV[i])
             return PC[i - 1u] + (mv - MV[i - 1u]) * (uint32_t)(PC[i] - PC[i - 1u]) / (uint32_t)(MV[i] - MV[i - 1u]);
     return 100u;
+}
+/* the supply, for INFO's header (op_draw.c head_make): 0 on the cell, 1 5 V present (a charger or a USB host, and the chip's
+ * charger not known to run: full, off, or an external one), 2 charging (the chip's own registers: 5 V on the supply pin, its
+ * charger on and the full flag clear; main.c / fm1-base plat_battery_charging; read from the SDK's P33 map, not yet measured on
+ * an FM-1). A USB host alone (usb.config) counts as 1: the registers are not needed to know power is there */
+static uint32_t sys_batt_chg(void)
+{
+    return song.batt_chg ? song.batt_chg : usb.config && !usb.suspended ? 1u : 0u;
+}
+static uint16_t sys_batt_col(uint32_t pct)              /* the CPU bars' colours turned round: green, amber under 40 %, red under 20 % */
+{
+    return pct < 20u ? C_ERR : pct < 40u ? C_WARN : C_OK;
 }
 static void sys_ro(cell_t *c, const char *label)    /* a read-out line */
 {
@@ -977,32 +989,6 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
     case SI_CREDITS:                                    /* the credits page's one line (op_gldraw.c gl_cred_draw draws the page) */
         sys_ro(c, "CREDITS");
         break;
-    case SI_BATT: {                                     /* BATTERY: the volts and the percentage (estimated), the bars out of 3 in the gauge */
-        uint32_t bars = sys_batt_bars();
-        sys_ro(c, "BATTERY");
-        c->unit = "";
-        if (!song.batt_raw) {
-            cell_val(c, "NO READING");
-            c->col = C_DIM;
-            cell_gauge(c, 0, 0, 3, 0);
-            break;
-        }
-        {   /* "~3.87V 72%" (an estimate: see sys_batt_mv) */
-            uint32_t mv = sys_batt_mv();
-            str_cpy(c->val, "~", sizeof c->val);
-            fmt_app(c->val, (int32_t)(mv / 1000u));
-            str_app(c->val, ".", sizeof c->val);
-            fmt_app(c->val, (int32_t)(mv / 100u % 10u));
-            fmt_app(c->val, (int32_t)(mv / 10u % 10u));
-            str_app(c->val, "V ", sizeof c->val);
-            fmt_app(c->val, (int32_t)sys_batt_pct());
-            str_app(c->val, "%", sizeof c->val);
-        }
-        c->unit = usb.config && !usb.suspended ? "USB" : "";
-        c->col = bars == 0u ? C_WARN : 0;
-        cell_gauge(c, 0, 0, 3, (int32_t)bars);
-        break;
-    }
     case SI_BUILD:                                      /* the build's date and time (the compiler's) */
         sys_ro(c, "BUILD");
         cell_val(c, __DATE__);
@@ -1305,14 +1291,15 @@ static void sys_rst_cell(cell_t *c)
 /* SYSTEM's read-out pages (op_gldraw.c gl_info_draw; the user, 2026-10-15: "the 1st system screen would gain to be split in two
  * pages with easier-to-read text"), each drawn whole, text only:
  *   INFO (page 0, what a musician reads): the clock, the CPU (a bar with its peaks; KNOB 1: now, max 10 s, max), the
- *        2ND CORE (ON + load, OFF + why, NOT IN BUILD), RAM, DROPS, UNDERRUNS, GUARD (CPU_GUARD builds), the battery
+ *        2ND CORE (ON + load, OFF + why, NOT IN BUILD), RAM, DROPS, UNDERRUNS, GUARD (CPU_GUARD builds); the battery and
+ *        whether it charges are the header's (op_draw.c head_make), not a line
  *   INTERNALS (page 1): LAST RESET, the longest flash interrupts-off time, the second core's internals (DUAL builds)
  *   USB STATS (page 2, USB audio builds): the USB audio counters */
 #if FELUCCA_SYS_DEBUG
-#define INFO_BASE (7u + (uint32_t)FELUCCA_CPU_GUARD + (uint32_t)PART_DROPS)
+#define INFO_BASE (6u + (uint32_t)FELUCCA_CPU_GUARD + (uint32_t)PART_DROPS)
 #else
-#define INFO_BASE (4u + (uint32_t)DUAL_LOAD + (uint32_t)PART_DROPS)   /* (without the debug pages: CPU LOAD (CPU0, CPU1),
-                                                         * RAM, ARENA MOVE with an arena, UNDERRUNS, BATTERY) */
+#define INFO_BASE (3u + (uint32_t)DUAL_LOAD + (uint32_t)PART_DROPS)   /* (without the debug pages: CPU LOAD (CPU0, CPU1),
+                                                         * RAM, ARENA MOVE with an arena, UNDERRUNS) */
 #endif
 #define INFO_N INFO_BASE                                /* INFO's lines */
 #ifndef FELUCCA_STOCK_SUPPLY
@@ -1327,11 +1314,11 @@ static void sys_info_cell(uint32_t i, cell_t *c)        /* INFO's line i */
 #if PART_DROPS
                                             SI_ARN,
 #endif
-                                            SI_DROPS, SI_XRUN,
+                                            SI_DROPS, SI_XRUN
 #if FELUCCA_CPU_GUARD
-                                            SI_GUARD,
+                                            , SI_GUARD
 #endif
-                                            SI_BATT};   /* (SI_CPU1: the 2ND CORE line, in every build; DROPS, UNDERRUNS: the overload monitor) */
+                                            };          /* (SI_CPU1: the 2ND CORE line, in every build; DROPS, UNDERRUNS: the overload monitor) */
 #else
     static const uint8_t INFO[INFO_BASE] = {SI_CPU,
 #if DUAL_LOAD
@@ -1341,7 +1328,7 @@ static void sys_info_cell(uint32_t i, cell_t *c)        /* INFO's line i */
 #if PART_DROPS
                                             SI_ARN,     /* (the arena's moves: the FM-1's copy speed, 2026-10-29) */
 #endif
-                                            SI_XRUN, SI_BATT};   /* (what a player wants, the user 2026-10-17) */
+                                            SI_XRUN};   /* (what a player wants, the user 2026-10-17; the battery is the header's, 2026-10-29) */
 #endif
     sys_it_cell(INFO[i % INFO_N], c);
 }

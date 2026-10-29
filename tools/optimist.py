@@ -421,15 +421,15 @@ def cmd_cpu(a):
     return fm1_cpu.main(a.rest)
 
 
-BLE_FULL_SET = ("BLE=1", "USB_CONSOLE=1", "USB_AUDIO=0", "BLE_BOND=1", "BLE_CENTRAL=1", "BLE_DIAG=1")   # (the FM-1 build)
-# items the BLE test packages do not exercise, out of them so that BLE_DIAG and the whole option set fit beside
+BLE_FULL_SET = ("BLE=1", "USB_CONSOLE=1", "USB_AUDIO=0", "BLE_BOND=1", "BLE_CENTRAL=1")   # (the FM-1 build)
+# items the BLE test packages do not exercise, out of them so that the whole option set fits beside
 # user-default's store and the flash the queued branches add (the user, 2026-10-10: "remove anything you want from
 # ble test"); the shipped profiles keep all of them. The tests (ble_emu_test.py, ble_emu_central_test.py,
 # ble_emu_boot_test.py) run the BLE link, BLE-MIDI both ways (a panel key out, a note in playing the default
 # synth), the DEVICES list, bonding and boot; none of them touches:
 #  - the automation store (CHANCE, MOTION, SL24_XSTEP, MICRO, FILLS, PLOCK)
 #  - the synth engines GRAIN, TRIO, DRAWBAR, DIGITAL, PHASE (the default patch plays none of them)
-#  - the SLOOP 2.4 project importer and its safety checks (SL24_IMPORT, SL24_SAFE)
+#  - SLOOP's data kept safe (SL24_SAFE)
 #  - the step conditions (COND, 11.4 KB: on in user-default since 2026-10-13 with SEQTOOLS; the full BLE set was 432 B
 #    over the slot after feat/lfo-slots); tests/cond_test.c and the UI tests cover COND in their own builds
 #  - STEP's tools and the note generators (SEQTOOLS, NOTEGEN, apart since 2026-10-22; user-default is UI=1 since 2026-10-17,
@@ -437,20 +437,20 @@ BLE_FULL_SET = ("BLE=1", "USB_CONSOLE=1", "USB_AUDIO=0", "BLE_BOND=1", "BLE_CENT
 # measured 2026-10-11 on user-default with the whole BLE set: flash 560,596 of 581,564 B, 20,968 B free
 BLE_TEST_ROOM = ("CHANCE=0", "MOTION=0", "SL24_XSTEP=0", "MICRO=0", "FILLS=0", "PLOCK=0",
                  "ENG_GRAIN=0", "ENG_TRIO=0", "ENG_DRAWBAR=0", "ENG_DIGITAL=0", "ENG_PHASE=0",
-                 "SL24_IMPORT=0", "SL24_SAFE=0", "COND=0", "INS_FUZZ=0", "ENERGY=0", "NATIVE_BANKS=0", "SEQTOOLS=0", "NOTEGEN=0",
+                 "SL24_SAFE=0", "COND=0", "INS_FUZZ=0", "ENERGY=0", "NATIVE_BANKS=0", "SEQTOOLS=0", "NOTEGEN=0",
                  "BT_AUDIO=0")   # (2026-10-22: the profiles build Bluetooth audio now, 6 KB of RAM: the BLE tests do not use it)
 
 
 def ble_test_configs():
     """-> [(name, cfg)] the two BLE builds prepare_tests makes (the emulator tests' packages): the reference profile with BLE,
-    BLE_DIAG, BLE_CENTRAL (FLUTE dropped where it must) and with the whole option set. Also check configurations of
+    BLE_CENTRAL (FLUTE dropped where it must) and with the whole option set. Also check configurations of
     the size estimate (tools/builder/measure_costs.py check_configs), so they are anchors with a measured build"""
     def load(sets, ble_drop=None):
         with contextlib.redirect_stdout(io.StringIO()):
             return load_config(argparse.Namespace(profile=REFERENCE_PROFILE, config=None, defaults=False, set=list(sets),
                                                   name=None, ble_drop=ble_drop))[0]
-    return [(f"{REFERENCE_PROFILE}+ble-test", load(["BLE=1", "BLE_DIAG=1", "BLE_CENTRAL=1", *BLE_TEST_ROOM], ble_drop="FLUTE")),
-            (f"{REFERENCE_PROFILE}+ble-full", load([*BLE_FULL_SET, *BLE_TEST_ROOM, "PATTERNS=0", "ED_MIX=0", "ED_SEQ=0", "ED_SCREENS=0", "DUAL=0"]))]
+    return [(f"{REFERENCE_PROFILE}+ble-test", load(["BLE=1", "BLE_CENTRAL=1", *BLE_TEST_ROOM], ble_drop="FLUTE")),
+            (f"{REFERENCE_PROFILE}+ble-full", load([*BLE_FULL_SET, *BLE_TEST_ROOM, "PATTERNS=0", "ED_MIX=0", "ED_SEQ=0", "ED_SCREENS=0"]))]
 
 
 def prepare_tests():
@@ -471,7 +471,7 @@ def prepare_tests():
               ("ref", cfg, name, False), ("default", C.defaults(), "default", True)]
     checks = check_todo()
     jobs = int(os.environ.get("JOBS") or 0) or MC.default_jobs()
-    print(f"test: {len(builds)} builds the tests read ({REFERENCE_PROFILE} with BLE, BLE_DIAG and BLE_CENTRAL; with the "
+    print(f"test: {len(builds)} builds the tests read ({REFERENCE_PROFILE} with BLE and BLE_CENTRAL; with the "
           f"whole BLE option set; {REFERENCE_PROFILE}; a measurement build of the defaults) and {len(checks)} "
           f"measurement builds of the builder's check configurations, {jobs} at a time")
     from concurrent.futures import ThreadPoolExecutor
@@ -498,7 +498,7 @@ def prepare_tests():
     ble.mkdir(parents=True, exist_ok=True)
     for tag, stem in (("ble", "felucca-ble"), ("ble-full", "felucca-ble-full")):
         shutil.copy(slots / f"t-{tag}" / "felucca.fwsc", ble / f"{stem}.fwsc")
-        shutil.copy(slots / f"t-{tag}" / "felucca.elf", ble / f"{stem}.elf")     # (its symbols: the blell RAM block)
+        shutil.copy(slots / f"t-{tag}" / "felucca.elf", ble / f"{stem}.elf")     # (its symbols: the emulator tests read RAM by them)
     for tag in ("ref", "default"):                      # (the package's build, then the measurement's over it)
         for f in (slots / f"t-{tag}").iterdir():
             if f.name == "slots":

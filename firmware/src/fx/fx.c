@@ -26,26 +26,16 @@ static int16_t cho_buf[CHO_BUF_N] __attribute__((section(".pool"), aligned(4)));
  * loop, one line slowly modulated (no metallic tone on long tails); left and right take different lines.
  * That is the ROOM. The algorithms built (rev_type.c: ROOM, PLATE and FDN8 in reverb_alt.c at 22.05 kHz, AIRWIN in
  * reverb_airwin.c, SPRING in spring.c) are FX > REVERB > TYPE, switched at run time (rev_bus, below); only one runs,
- * so they share one line buffer, rev_line, the size of the largest built (ROOM 8684 samples, REV_HALF 4346; PLATE /
+ * so they share one line buffer, rev_line, the size of the largest built (ROOM 8684 samples; PLATE /
  * FDN8 / AIRWIN RV_N; SPRING 4096). */
 #define REV_ALT (FELUCCA_REV_PLATE || FELUCCA_REV_FDN8 || FELUCCA_REV_AIRWIN)   /* (AIRWIN: reverb_airwin.c) */
-#define REV_ROOM_HALF (FELUCCA_REV_ROOM && FELUCCA_REV_HALF)
-#define REV_TANK_HALF (REV_ROOM_HALF || REV_ALT)   /* a tank behind the half-band filters */
+#define REV_TANK_HALF REV_ALT   /* a tank behind the half-band filters */
 #if FELUCCA_REV_POOL             /* REV_POOL: the lines in the pool (main RAM is the scarcer); the same code */
 #define REV_SECTION __attribute__((section(".pool")))
 #else
 #define REV_SECTION              /* (.bss) */
 #endif
 #if FELUCCA_REV_ROOM
-#if FELUCCA_REV_HALF             /* REV_HALF: the tank at 22.05 kHz (rev_half_run below), every length halved */
-#define REV_MOD 6                /* (the same times in seconds: 35..63 ms, the modulation +-0.27 ms) */
-#define REV_N0 779u              /* (coprime: 19 x 41 and three primes; their mean 2169 / 2 samples: the */
-#define REV_N1 967u              /*  full rate's 2167.5 / 2, the same room and, at the same loop gain, the */
-#define REV_N2 1193u             /*  same decay time) */
-#define REV_N3 1399u
-#define REV_A0 278u
-#define REV_A1 221u
-#else
 #define REV_MOD 12               /* samples the modulated line moves (+-) */
 #define REV_N0 1559u             /* 35..63 ms, coprime */
 #define REV_N1 1931u
@@ -53,7 +43,6 @@ static int16_t cho_buf[CHO_BUF_N] __attribute__((section(".pool"), aligned(4)));
 #define REV_N3 2791u
 #define REV_A0 556u
 #define REV_A1 441u
-#endif
 static const uint16_t REV_LINE[4] = {REV_N0, REV_N1, REV_N2, REV_N3};
 static const uint16_t REV_AP[2] = {REV_A0, REV_A1};
 #define REV_ROOM_LEN (REV_N0 + REV_N1 + REV_N2 + REV_N3 + REV_MOD + 2u)
@@ -97,7 +86,7 @@ static struct {
  * input reaches exactly 0: mul_tz, fx_step, half_ap below; the delay's low-pass keeps its remainder, dly_step.) */
 #if FELUCCA_REV_ROOM
 #define REV_LONGEST (REV_N3 > REV_N0 + REV_MOD + 2u ? REV_N3 : REV_N0 + REV_MOD + 2u)
-#define REV_Q_ROOM (REV_LONGEST * (FELUCCA_REV_HALF ? 2u : 1u))   /* the longest line, in output samples */
+#define REV_Q_ROOM REV_LONGEST   /* the longest line, in output samples */
 #define REV_LP_ROOM() (fx.line_lp[0] | fx.line_lp[1] | fx.line_lp[2] | fx.line_lp[3])
 #else
 #define REV_Q_ROOM 1u
@@ -207,9 +196,19 @@ static HOT void dist_run(dist_t *s, int32_t d, int32_t *b, uint32_t n)
  * ~150 ms release, threshold where tanh is still nearly linear, so chords
  * get quieter instead of crushed. */
 #define LIM_T 18000
-static int32_t lim_env = LIM_T;
 static volatile uint8_t fx_lowcut;     /* settings: 12 dB/oct ~110 Hz for the small speaker */
-static int32_t lc_l1, lc_l2, lc_r1, lc_r2, dc_l, dc_r, dce_l, dce_r;
+static int32_t lc_l1, lc_l2, lc_r1, lc_r2;
+/* the output stage's state, the DC blocker's and the limiter's: the FM-1's own output's (mo), and USB's MASTER's own
+ * (ua_mo: the same stage at full volume, ua_mst_out) */
+typedef struct {
+    int32_t lim_env, dc_l, dc_r, dce_l, dce_r;
+} mout_t;
+static mout_t mo = {LIM_T, 0, 0, 0, 0};
+AINL mout_t mo_rest(void)                               /* (at rest: no DC, the limiter let go) */
+{
+    mout_t r = {LIM_T, 0, 0, 0, 0};
+    return r;
+}
 
 /* DC blocker (~2 Hz), always on: a leaky integrator of the input (Q6 state) subtracted from it.
  * The >> 12 step keeps its remainder (error feedback, 0..4095) and adds it to the next one, so no
@@ -235,10 +234,14 @@ AINL int32_t knee(int32_t x) { return soft_knee(x, KNEE); }   /* (dsp.c) */
 #if FELUCCA_BASSPLUS
 #include "bassplus/bassplus.c"          /* the menu's LOWCUT: BASS+ for the small speaker (from Felucca 1.0) */
 #endif
+AINL void master_dc(mout_t *s, int32_t *l, int32_t *r)   /* the DC blocker (master_pre; USB's MASTER: ua_mst_out) */
+{
+    *l = dc_block(*l, &s->dc_l, &s->dce_l);
+    *r = dc_block(*r, &s->dc_r, &s->dce_r);
+}
 AINL void master_pre(int32_t *l, int32_t *r)   /* the DC blocker and the low cut (master_out; LIMIT: master_comp.c) */
 {
-    *l = dc_block(*l, &dc_l, &dce_l);
-    *r = dc_block(*r, &dc_r, &dce_r);
+    master_dc(&mo, l, r);
     if (fx_lowcut) {                  /* two one-pole high-passes, error feedback as dc_block (the */
 #if FELUCCA_BASSPLUS
         if (fx_lowcut == 2u)
@@ -253,24 +256,29 @@ AINL void master_pre(int32_t *l, int32_t *r)   /* the DC blocker and the low cut
         }
     }
 }
-static inline HOT void master_out(int32_t *l, int32_t *r)
+AINL void master_lim(mout_t *s, int32_t *l, int32_t *r)   /* the limiter and the knee (master_out, ua_mst_out) */
 {
-    int32_t al, ar, a;
-    master_pre(l, r);
+    int32_t al, ar, a, e = s->lim_env;
     al = *l < 0 ? -*l : *l;
     ar = *r < 0 ? -*r : *r;
     a = al > ar ? al : ar;
-    if (a > lim_env)
-        lim_env += (a - lim_env) >> 2;
-    else if (lim_env > LIM_T)
-        lim_env -= ((lim_env - LIM_T) >> 12) + 1;
-    if (lim_env > LIM_T) {
-        int32_t g = (int32_t)(((uint32_t)LIM_T << 15) / (uint32_t)lim_env);   /* < 32768 */
+    if (a > e)
+        e += (a - e) >> 2;
+    else if (e > LIM_T)
+        e -= ((e - LIM_T) >> 12) + 1;
+    s->lim_env = e;
+    if (e > LIM_T) {
+        int32_t g = (int32_t)(((uint32_t)LIM_T << 15) / (uint32_t)e);   /* < 32768 */
         *l = ((*l >> 4) * g) >> 11;                      /* >> 4 first: |l| may be far above Q15 */
         *r = ((*r >> 4) * g) >> 11;
     }
     *l = knee(*l);
     *r = knee(*r);
+}
+static inline HOT void master_out(int32_t *l, int32_t *r)
+{
+    master_pre(l, r);
+    master_lim(&mo, l, r);
 }
 /* the mix bus (Q15) times MASTER (Q12, 4096 at most): 2 bits dropped before the product, so the bus' last 2 bits never
  * reach the output, and a low MASTER leaves the DAC's 24 bits 16 (a quarter turn: 11 used). MIX_EXACT: a 64-bit product,
@@ -289,8 +297,66 @@ AINL int32_t master_vol(int32_t x, int32_t m, uint8_t *f)
 #else
 #define MASTER_VOL(x, m, k) ((((x) >> 2) * (m)) >> 10)
 #endif
+/* the output stage of a block without LIMIT (mix_finish): the master volume ramped over the block, master_pre (the DC
+ * blocker, the low cut), the limiter and the knee. own: the FM-1's own output (s = &mo); 0: USB's MASTER (ua_mst_out: at
+ * 4096, the DC blocker alone, on its own state; under MIX_EXACT its bits under it, 0 at 4096, rewritten by the output's
+ * block after it) */
+static HOT2 __attribute__((noinline)) void mout_block(mout_t *s, const int32_t *ml, const int32_t *mr, int32_t *out,
+                                                     uint32_t n, int32_t m0, int32_t m1, uint32_t own)
+{
+    uint32_t i;
+    for (i = 0; i < n; i++) {
+        int32_t m = m0 + (((m1 - m0) * (int32_t)i) >> CTL_LOG2);
+        int32_t l = MASTER_VOL(ml[i], m, 2u * i);
+        int32_t r = MASTER_VOL(mr[i], m, 2u * i + 1u);
+        if (own)
+            master_pre(&l, &r);
+        else
+            master_dc(s, &l, &r);
+        master_lim(s, &l, &r);
+        out[2u * i] = l;
+        out[2u * i + 1u] = r;
+    }
+}
 #if FELUCCA_MASTER_COMP
 #include "master_comp/master_comp.c"       /* GLO > COMP / LIMIT: the bus compressor, the brickwall limiter (mix_finish) */
+#endif
+#if FELUCCA_USB_AUDIO
+/* USB's MASTER (io/usb/ua_tap.h ua_mst): the master bus through the output stage of its own, as the FM-1's own output
+ * would be at full volume, whatever the knob says (the user, 2026-10-29: "same limiter as the output"): MASTER_VOL at
+ * 4096, the DC blocker, then the limiter and the knee, or LIMIT's brickwall (its CEIL, its lookahead) when it is on.
+ * Not the menu's LOWCUT / BASS+ (the small speaker's). Its own state (ua_mo, ua_mlim), started from rest each time the
+ * host starts taking MASTER (ua_mo_on). Only while MASTER is routed and the host records (mix_finish: ua_mst_live) */
+static mout_t ua_mo;
+static uint8_t ua_mo_on;                                /* ua_mo, ua_mlim in use (0: started from rest at the next) */
+#if FELUCCA_MASTER_COMP
+static mlim_t ua_mlim __attribute__((section(".pool")));   /* (the pool: main RAM is full) */
+#endif
+static HOT2 __attribute__((noinline)) void ua_mst_out(const int32_t *ml, const int32_t *mr, uint32_t n)
+{
+    if (!ua_mo_on) {
+        ua_mo.lim_env = LIM_T;                          /* (at rest; field by field: a struct copy is a memcpy, XIP) */
+        ua_mo.dc_l = ua_mo.dc_r = ua_mo.dce_l = ua_mo.dce_r = 0;
+#if FELUCCA_MASTER_COMP
+        ua_mlim.on = 0;
+#endif
+        ua_mo_on = 1;
+    }
+#if FELUCCA_MASTER_COMP
+    if (mlim.on && (!ua_mlim.on || ua_mlim.c8 != mlim.c8)) {   /* LIMIT's CEIL, as mlim_set sets the output's */
+        if (!ua_mlim.on)
+            mlim_reset(&ua_mlim);                       /* (from OFF: an empty lookahead) */
+        ua_mlim.c8 = mlim.c8;
+        ua_mlim.clin = mlim.clin;
+    }
+    ua_mlim.on = mlim.on;
+    if (ua_mlim.on) {                                   /* (the output's code on this state, as the output's block */
+        mlim_block(&ua_mlim, &ua_mo, ml, mr, ua_mst, n, 4096, 4096, 0u);   /* below: before it, which writes the */
+        return;                                         /* bits under it after) */
+    }
+#endif
+    mout_block(&ua_mo, ml, mr, ua_mst, n, 4096, 4096, 0u);
+}
 #endif
 
 
@@ -667,7 +733,6 @@ static HOT __attribute__((noinline)) int32_t room_step_long(int32_t in, int32_t 
     *yr = o1 - o3;
     return o0 + o2;
 }
-#if !FELUCCA_REV_HALF
 static HOT __attribute__((noinline)) void room_run_long(const int32_t *in, int32_t *wl, int32_t *wr, uint32_t n,
                                                         int32_t ma, int32_t mb, int32_t g, int32_t lpk, int32_t *wv)
 {                                                       /* (a block at the full rate: out of fx_buses, whose ROOM */
@@ -678,7 +743,6 @@ static HOT __attribute__((noinline)) void room_run_long(const int32_t *in, int32
         wr[i] += rr;
     }
 }
-#endif
 /* SIZE up to RM_KNEE (90, the default): the loop gain 17000 + 104 SIZE (RT60 0.5 .. 1.44 s at DAMP 60), as ever. Above
  * it, as FDN8 (reverb_alt.c): the decay time doubles every RM_STEPS / 10 steps (exponential in RT60, even to the ear)
  * and 127 adds RM_FRZ8 / 8 doublings, a near-freeze; the loop runs room_step_long (unbiased rounding: above). The
@@ -694,11 +758,6 @@ static HOT __attribute__((noinline)) void room_run_long(const int32_t *in, int32
 #define RM_FRZ8 10               /* SIZE 127: this many eighths of a doubling more */
 #define RM_L90 (5266993u >> 8)   /* -log2(26360 / 32768), the knee's loop gain, Q16 */
 #define RM_INSH 3                /* the send above the knee: x 2^(-doublings / 2^RM_INSH), as FDN8 (RV_INSH) */
-AINL int32_t room_half_k(int32_t lpk)                  /* REV_HALF: the damping at half the rate (rev_half_run) */
-{
-    int32_t k = ((lpk * (58847 - ((26198 * lpk) >> 15))) >> 15) + 519;   /* -0.7995 lpk^2 + 1.7959 lpk + 0.0158 */
-    return k > 32767 ? 32767 : k;
-}
 static uint32_t room_isqrt(uint32_t x)
 {
     uint32_t r = 0, b = 1u << 30;
@@ -720,11 +779,7 @@ static __attribute__((noinline)) void room_long(void)   /* the gains (XIP: rare;
     }
     rho = (uint32_t)rv_exp2n(e);                        /* 2^(-e / 2^24), Q15 */
     rm.g = rv_exp2n((RM_L90 * rho) >> 7);               /* (Q16 x Q15 >> 7: Q24; < 2^31) */
-#if REV_ROOM_HALF                                       /* (the half rate's fitted damping: the mapping of the full */
-    c = 32768u - (uint32_t)room_half_k(32767 - 200 * d);   /* rate's stretched one clamps above lpk ~31500) */
-#else
     c = 1u + 200u * (uint32_t)d;                        /* DAMP's pole (32768 - lpk), Q15: 1 .. 25401 */
-#endif
     r = 32768u - c;                                     /* (>= 7367: r r >> 15 >= 1656) */
     q = (((c << 15) / ((r * r) >> 15)) * (rho >> 3)) >> 12;   /* q rho, Q15 (q <= 15.4 x 2^15, x rho / 8: < 2^31) */
     c = ((2u * q) << 7) / ((2u * q + 32768u + (room_isqrt((4u * q + 32768u) << 9) << 3)) >> 8);   /* 2q / (2q + 1 + */
@@ -775,8 +830,7 @@ static void rev_tank_clear(void)
 }
 
 #if REV_TANK_HALF
-/* REV_HALF: rev_step once per two output samples, on lines half as long (above): half the RAM, about half the
- * work. Only the reverb's send and return change; the dry mix and the other buses stay at 44.1 kHz.
+/* The half-rate tanks (PLATE, FDN8, AIRWIN): a tank step once per two output samples, on lines half as long as at 44.1 kHz. Only the reverb's send and return change; the dry mix and the other buses stay at 44.1 kHz.
  *   in:  a half-band low-pass, 15 taps (-14, 0, 39, 0, -90, 0, 321, 512, 321, 0, -90, 0, 39, 0, -14) / 1024
  *        (least squares: +-0.12 dB to 8 kHz, -0.8 dB at 9 kHz, -6 dB at 11 kHz, -37 dB or less from 14.5 kHz),
  *        then every second sample;
@@ -788,44 +842,7 @@ static void rev_tank_clear(void)
  * 9 kHz (least squares in dB, fitted as a quadratic in lpk; tests/reverb_test.c checks the RT60). Every value
  * is an FIR of the send or the tank: at 0 in, 0 out (the idle skip, above, also waits for rev_half_any() to be
  * 0). Blocks are CTL long: an even number of samples. */
-_Static_assert((CTL & 1) == 0, "REV_HALF: the reverb takes the block in pairs");
-#if FELUCCA_REV_HB_LONG
-/* REV_HB_LONG: the same pairs behind a 63-tap low-pass (Kaiser-windowed sinc, fc 9.8 kHz, beta 6; Q15, symmetric: its first
- * 32 taps, worktrees/fxn-hb-table.py 2026-10-26) instead of the half-band: -0.6 dB at 9 kHz, -8.8 at 10, -45 at 11.025 (the
- * fold), -74 at 12 kHz, against the half-band's -6 and -11, whose images of 9-11 kHz came back 6-20 dB down (the "lower
- * bitrate" grit of the half-rate reverbs, measured on the host). In: one output a pair (32 multiplies, the taps paired);
- * out: each tank sample into two outputs, the even taps and the odd (16 each, paired), x 2. Both phases sum to 16384: DC
- * passes at exactly 1. Latency 31 samples (0.7 ms). About 48 multiplies a sample more than the half-band; 1 KB of pool */
-static const int16_t RHL_H[32] = {-3, -7, 5, 19, 0, -36, -16, 53, 50, -62, -104, 50, 174, 0, -249, -102, 306, 266, -312, -492,
-                                  227, 767, 0, -1067, -443, 1358, 1248, -1601, -2935, 1764, 10244, 14564};
-static struct {
-    int32_t x[128];              /* the send, newest first, each value twice (rings of 64, no shifting) */
-    int32_t l[64], r[64];        /* the tank's out, newest first, twice (rings of 32) */
-    uint32_t j, k;
-} rhl __attribute__((section(".pool"), aligned(4)));
-AINL int32_t rhl_dec(const int32_t *h)                  /* h[0 .. 62], newest first -> the low-pass's output */
-{
-    int64_t a = (int64_t)RHL_H[31] * h[31];
-    uint32_t i;
-    for (i = 0; i < 31u; i++)
-        a += (int64_t)RHL_H[i] * (h[i] + h[62u - i]);
-    return (int32_t)(a >> 15);
-}
-AINL void rhl_int(const int32_t *p, int32_t *o)         /* p[0 .. 31] newest first -> o[0] (even taps), o[1] (odd), x 2 */
-{
-    int64_t e = 0, d = (int64_t)RHL_H[31] * p[15];
-    uint32_t i;
-    for (i = 0; i < 16u; i++)
-        e += (int64_t)RHL_H[2u * i] * (p[i] + p[31u - i]);
-    for (i = 0; i < 15u; i++)
-        d += (int64_t)RHL_H[2u * i + 1u] * (p[i] + p[30u - i]);
-    o[0] = (int32_t)(e >> 14), o[1] = (int32_t)(d >> 14);
-}
-AINL int32_t rev_half_any(void)                         /* any filter cell non-zero */
-{
-    return fx_any(rhl.x, 128) | fx_any(rhl.l, 64) | fx_any(rhl.r, 64);
-}
-#else
+_Static_assert((CTL & 1) == 0, "the half-rate reverbs take the block in pairs");
 static struct {
     int32_t e[16], l[16], r[16]; /* rings of 8, each value twice: h[j .. j + 7] newest first, no shifting. e: the */
     int32_t o[8];                /* send's newer sample of each pair, o (4): its older one; l, r: the tank's out */
@@ -839,15 +856,9 @@ AINL int32_t rev_hb(const int32_t *h)                   /* the half-band's eight
 {
     return -14 * (h[0] + h[7]) + 39 * (h[1] + h[6]) - 90 * (h[2] + h[5]) + 321 * (h[3] + h[4]);
 }
-#endif
 /* one sample of tank t at 22.05 kHz (t is a constant at every call: this folds to that tank's step) */
-FX_STEP int32_t rev_tank_step(uint32_t t, int32_t y, int32_t r, int32_t g, int32_t lpk, int32_t *yr, int32_t *wv,
-                              const int lng)
+FX_STEP int32_t rev_tank_step(uint32_t t, int32_t y, int32_t r, int32_t g, int32_t lpk, int32_t *yr, int32_t *wv)
 {
-#if REV_ROOM_HALF
-    if (t == RT_ROOM)
-        return lng ? room_step_long(y, r, g, lpk, yr, wv) : rev_step(y, r, g, lpk, yr, wv);
-#endif
 #if FELUCCA_REV_PLATE
     if (t == RT_PLATE)
         return rvp_step(y, yr, wv);
@@ -866,47 +877,26 @@ FX_STEP int32_t rev_tank_step(uint32_t t, int32_t y, int32_t r, int32_t g, int32
 }
 /* one pair: in[0], in[1] -> tank t -> w*[0], w*[1] (added) */
 FX_STEP void rev_half_pair(uint32_t t, const int32_t *in, int32_t *wl, int32_t *wr, int32_t r, int32_t g, int32_t lpk,
-                           int32_t *wv, const int lng)
+                           int32_t *wv)
 {
-#if FELUCCA_REV_HB_LONG
-    uint32_t j = rhl.j = (rhl.j - 2u) & 63u, k = rhl.k = (rhl.k - 1u) & 31u;
-    int32_t y, ol, orr, o[2];
-    rhl.x[j] = rhl.x[j + 64u] = in[1];                  /* (the pair's newer sample first: newest first) */
-    rhl.x[j + 1u] = rhl.x[j + 65u] = in[0];
-    y = rhl_dec(rhl.x + j);
-    ol = rev_tank_step(t, y, r, g, lpk, &orr, wv, lng);
-    rhl.l[k] = rhl.l[k + 32u] = ol;
-    rhl.r[k] = rhl.r[k + 32u] = orr;
-    rhl_int(rhl.l + k, o);
-    wl[0] += o[0], wl[1] += o[1];
-    rhl_int(rhl.r + k, o);
-    wr[0] += o[0], wr[1] += o[1];
-#else
     uint32_t j = rev_half.j = (rev_half.j - 1u) & 7u, q = j & 3u;
     int32_t y, ol, orr, *e = rev_half.e + j, *l = rev_half.l + j, *rr = rev_half.r + j;
     e[0] = e[8] = in[1];
     rev_half.o[q] = rev_half.o[q + 4u] = in[0];
     y = (rev_hb(e) + (rev_half.o[q + 3u] << 9)) >> 10;
-    ol = rev_tank_step(t, y, r, g, lpk, &orr, wv, lng);
+    ol = rev_tank_step(t, y, r, g, lpk, &orr, wv);
     l[0] = l[8] = ol;
     rr[0] = rr[8] = orr;
     wl[0] += rev_hb(l) >> 9;
     wr[0] += rev_hb(rr) >> 9;
     wl[1] += l[3];
     wr[1] += rr[3];
-#endif
 }
 /* a block of tank t (fx_buses' run_r); ma, mb: line 0's modulation at both ends */
 FX_STEP void rev_half_run(uint32_t t, const int32_t *rev_in, int32_t *wl, int32_t *wr, uint32_t n, int32_t ma,
                           int32_t mb, int32_t g, int32_t lpk, int32_t *wv)
 {
     uint32_t i;
-    int32_t k = lpk;
-#if REV_ROOM_HALF
-    if (t == RT_ROOM) {
-        k = RM_LONG() ? lpk : room_half_k(lpk);         /* (above the knee room_long made it for this rate) */
-    }
-#endif
 #if FELUCCA_REV_PLATE
     if (t == RT_PLATE) {
         if (song.g[G_RSIZE] != rv.size || song.g[G_RDAMP] != rv.damp)
@@ -925,25 +915,12 @@ FX_STEP void rev_half_run(uint32_t t, const int32_t *rev_in, int32_t *wl, int32_
     if (t == RT_AIRWIN && (song.g[G_RSIZE] != rv.size || song.g[G_RDAMP] != rv.damp))
         FAR(rva_params)();
 #endif
-#if REV_ROOM_HALF
-    if (t == RT_ROOM && RM_LONG()) {                    /* (above the knee: unbiased rounding, room_step_long) */
-        for (i = 0; i < n; i += 2u)
-            rev_half_pair(t, rev_in + i, wl + i, wr + i, ma + (((mb - ma) * (int32_t)i) >> CTL_LOG2), g, k, wv, 1);
-        return;
-    }
-#endif
     for (i = 0; i < n; i += 2u)
-        rev_half_pair(t, rev_in + i, wl + i, wr + i, ma + (((mb - ma) * (int32_t)i) >> CTL_LOG2), g, k, wv, 0);
+        rev_half_pair(t, rev_in + i, wl + i, wr + i, ma + (((mb - ma) * (int32_t)i) >> CTL_LOG2), g, lpk, wv);
 }
 FX_STEP void rev_half_skip(uint32_t t, uint32_t n)      /* idle: n output samples, n / 2 in the tank */
 {
     n >>= 1;
-#if REV_ROOM_HALF
-    if (t == RT_ROOM) {
-        room_skip(n);
-        return;
-    }
-#endif
 #if REV_ALT
     rv.p -= n;
 #endif
@@ -952,13 +929,8 @@ FX_STEP void rev_half_skip(uint32_t t, uint32_t n)      /* idle: n output sample
 static void rev_half_clear(void)                        /* its cells to 0 */
 {
     uint32_t i;
-#if FELUCCA_REV_HB_LONG
-    for (i = 0; i < 128u; i++)
-        rhl.x[i] = rhl.l[i & 63u] = rhl.r[i & 63u] = 0;
-#else
     for (i = 0; i < 16u; i++)
         rev_half.e[i] = rev_half.l[i] = rev_half.r[i] = rev_half.o[i & 7u] = 0;
-#endif
 }
 #define REV_HALF_BUSY() rev_half_any()
 #else
@@ -980,7 +952,7 @@ FX_STEP void rev_tank_run(uint32_t t, const int32_t *rev_in, int32_t *wl, int32_
         return;
     }
 #endif
-#if FELUCCA_REV_ROOM && !FELUCCA_REV_HALF
+#if FELUCCA_REV_ROOM
     if (t == RT_ROOM) {
         uint32_t i;
         if (run && RM_LONG()) {                         /* (above the knee: unbiased rounding, room_step_long) */
@@ -1580,17 +1552,12 @@ static __attribute__((noinline)) void rs_done(void)   /* (XIP: a call a block, F
         rs_cur[k] = rs_to[k];
 }
 
-/* the read points' ramp over the block (dca, dcb): CHO_EXACT, the whole block's change, i/CTL of it each sample (as the CHRS
- * insert, fxi_kern.c); else a step a sample cut short once a block (up to ~0.12 sample behind by the block's end, back at
- * the next: a 1378 Hz jitter of the read point, grit around every partial, 12-15 dB over the exact ramp at 220 Hz-1 kHz,
- * measured on the host 2026-10-26) */
-#if FELUCCA_CHO_EXACT
+/* the read points' ramp over the block (dca, dcb): the whole block's change, i/CTL of it each sample (as the CHRS insert,
+ * fxi_kern.c; the builder's CHO_EXACT, always on since 2026-10-29). The old step a sample cut short once a block left the
+ * read point up to ~0.12 sample behind by the block's end, back at the next: a 1378 Hz jitter, grit around every partial,
+ * 12-15 dB over the exact ramp at 220 Hz-1 kHz (measured on the host 2026-10-26) */
 #define CHO_RAMP(d, i) (((d) * (int32_t)(i)) >> CTL_LOG2)
 #define CHO_SLOPE(a0, a1) ((a1) - (a0))
-#else
-#define CHO_RAMP(d, i) ((d) * (int32_t)(i))
-#define CHO_SLOPE(a0, a1) (((a1) - (a0)) >> CTL_LOG2)
-#endif
 /* the chorus' block into wl / wr (its read points ab: ca0 dca cb0 dcb), its CHO RET (cg); -> the block's largest |right|
  * (the mixer's return meter). The delay's into wl / wr added (its divide in dly_block, flash); -> its largest |sample|.
  * From main RAM (HOT2: RAMTEXT is full; fx_buses calls each once a block) */
@@ -1677,7 +1644,7 @@ static HOT int fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int3
     run_c = FELUCCA_FX_CHORUS && (fx.cho_q < CHO_LEN || (!(gen & 1u) && fx_any(cho_in, n)));   /* (registry.h: an FX not built) */
     run_d = FELUCCA_FX_DELAY && (fx.dly_q < DLY_LEN || DLY_FST() || (!(gen & 2u) && fx_any(dly_in, n)));
     run_r = FELUCCA_FX_REVERB && (fx.rev_q < REV_Q || REV_LP_BUSY() ||
-                                  REV_HALF_BUSY() || (!(gen & 4u) && fx_any(rev_in, n)));   /* (REV_HALF: its filters too) */
+                                  REV_HALF_BUSY() || (!(gen & 4u) && fx_any(rev_in, n)));   /* (the half-rate tanks: their filters too) */
     plan = (uint32_t)run_c | (uint32_t)run_d << 1 | (uint32_t)run_r << 2;
     if (rs)
         plan |= FAR(rs_wake)(plan | (uint32_t)had << 2 | gen) & ~gen & FXB_BUILT;
@@ -2957,7 +2924,6 @@ static HOT void click_mix(uint32_t n)
 #endif
 static inline __attribute__((always_inline)) void mix_finish(int32_t *out, uint32_t n)
 {
-    uint32_t i;
     int32_t m0, m1;
     BENCH_SIG(4, mix_l, n);
     BENCH_SIG(5, send_r, n);
@@ -2971,25 +2937,21 @@ static inline __attribute__((always_inline)) void mix_finish(int32_t *out, uint3
     if (!scope_src)                                     /* the SCOPE on the master, the mixer's master column */
         FAR(vis_tap_block)(mix_l, mix_r, n);
 #if FELUCCA_USB_AUDIO
-    ua_mst_tap(mix_l, mix_r, n);                        /* USB's MASTER: before the volume, never scaled by it (ua_tap.h) */
+    if (ua_mst_live)                                    /* USB's MASTER: the output stage at full volume, never the */
+        ua_mst_out(mix_l, mix_r, n);                    /* knob's level (above) */
+    else
+        ua_mo_on = 0;
 #endif
     m0 = master_cur < 0 ? (int32_t)song.master_q12 : master_cur;   /* MASTER glides (~10 ms; X0X 0.10.1) */
     m1 = glide_next(m0, (int32_t)song.master_q12);
     master_cur = m1;
 #if FELUCCA_MASTER_COMP
     if (mlim.on) {                                      /* LIMIT > CEIL: the volume, master_pre, the lookahead brickwall */
-        mlim_block(mix_l, mix_r, out, n, m0, m1);       /* instead of the limiter and the knee (master_comp.c) */
+        mlim_block(&mlim, &mo, mix_l, mix_r, out, n, m0, m1, 1u);   /* instead of the limiter and the knee (master_comp.c) */
         return;
     }
 #endif
-    for (i = 0; i < n; i++) {
-        int32_t m = m0 + (((m1 - m0) * (int32_t)i) >> CTL_LOG2);
-        int32_t l = MASTER_VOL(mix_l[i], m, 2u * i);
-        int32_t r = MASTER_VOL(mix_r[i], m, 2u * i + 1u);
-        master_out(&l, &r);
-        out[2u * i] = l;
-        out[2u * i + 1u] = r;
-    }
+    mout_block(&mo, mix_l, mix_r, out, n, m0, m1, 1u);  /* the volume, the limiter and the knee (above) */
 }
 
 #if FELUCCA_BENCH

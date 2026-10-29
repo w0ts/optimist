@@ -166,9 +166,15 @@ static void step_move_notes_tests(void)
     frames(HOLD_FRAMES);
     ui.force = 1;
     frames(3);
-    check(held_note_sel(3) == 0 && sm_count(C_NOTE) > 0, "step notes: a step of two notes held: the selected note (the first) in C_NOTE");
+    check(st.nsel == NSEL_ALL && held_note_sel(3) == 0 && sm_count(C_NOTE) > 0,
+          "step notes: a step of two notes held: both selected first (the user, 2026-10-29), in C_NOTE");
+    turn(EN_ALGO, 1);
+    check(t->step[3].note[0] == 61 && t->step[3].note[1] == 65, "step notes: ALGORITHM with both selected moves both");
+    turn(EN_ALGO, -1);
     turn(EN_SELECT, 1);
-    check(st.nsel == 1 && held_note_sel(3) == 1, "step notes: SELECT picks the second note");
+    check(st.nsel == 0 && held_note_sel(3) == 0, "step notes: SELECT: then the lowest alone");
+    turn(EN_SELECT, 1);
+    check(st.nsel == 1 && held_note_sel(3) == 1, "step notes: SELECT: then the one above");
     turn(EN_ALGO, 1);
     check(t->step[3].note[0] == 60 && t->step[3].note[1] == 65, "step notes: ALGORITHM moves only the selected note");
     turn(EN_SELECT, 1);
@@ -177,11 +183,11 @@ static void step_move_notes_tests(void)
     check(st.hp == 0u && st.nsel == (hp_count() < 2u ? 0u : 1u), "step notes: ... and back, the last note again (one card page: nothing to page, the note before)");
     turn(EN_SELECT, -1);
     turn(EN_SELECT, -3);
-    check(st.nsel == 0 && st.hp == 0u, "step notes: SELECT stops at the first note");
+    check(st.nsel == NSEL_ALL && st.hp == 0u, "step notes: SELECT stops at the first stop: both notes");
     turn(EN_ALGO, -2);
-    check(t->step[3].note[0] == 58 && t->step[3].note[1] == 65, "step notes: ... and the first");
+    check(t->step[3].note[0] == 58 && t->step[3].note[1] == 63, "step notes: ... and both move");
     turn(EN_PRESET, 1);
-    check(t->step[4].n == 2 && t->step[4].note[1] == 65 && st.held == 1u << 4, "step notes: PRESETS still moves the whole step in time");
+    check(t->step[4].n == 2 && t->step[4].note[1] == 63 && st.held == 1u << 4, "step notes: PRESETS with both selected moves the whole step in time");
     kup(WK(3));
     stm_open(0, 16);
     t = TSEL;
@@ -192,7 +198,7 @@ static void step_move_notes_tests(void)
     frames(3);
     check(sm_count(C_NOTE) > 0, "step notes: one note held: drawn in the selection colour (the user, 2026-10-17)");
     turn(EN_SELECT, 1);
-    check(st.nsel == 0 && (hp_count() < 2u || st.hp == 1u), "step notes: one note: SELECT keeps its meaning (the card pages)");
+    check(st.nsel == NSEL_ALL && (hp_count() < 2u || st.hp == 1u), "step notes: one note: SELECT keeps its meaning (the card pages)");
     kup(WK(3));
     /* the edited note stays in view under the cards */
     stm_open(0, 16);

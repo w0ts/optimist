@@ -47,14 +47,10 @@ PAIRS = [{"MOTION": 1, "SECTIONS": 4},
          # without live editing the librarian brings the sections and the patterns too, and BACKUP the sample slots and the
          # snapshots (ed_lite.c: the base is the frames, INFO, BUILD, PING)
          {"ED_LIVE": 0, "LIBRARIAN": 0}, {"ED_LIVE": 0, "BACKUP": 0}, {"ED_LIVE": 0, "BACKUP": 0, "LIBRARIAN": 0},
-         # one core with the CDC console (the BLE test builds' set): the second core's code that DUAL=0 leaves out is not
-         # the same with the console's (2026-10-19: user-default+ble-full estimated 840 B of RAMTEXT over from ble-test)
-         {"DUAL": 0, "USB_CONSOLE": 1},   # (motion beside the four project slots vs inside the section records)
          # the reverb's algorithms share their line buffer, the half-rate filters and the code that switches them
          # (the buffer itself is computed: configure.py rev_lines; the automation store: auto_store)
          {"REV_PLATE": 1, "REV_FDN8": 1, "SPRING": 0}, {"REV_PLATE": 1, "REV_FDN8": 1, "SPRING": 1},
          {"REV_ROOM": 0, "REV_PLATE": 0, "REV_FDN8": 1},
-         {"REV_ROOM": 0, "REV_HALF": 1},         # (REV_HALF's half-band filters and half-rate tank are the ROOM's)
          {"ENG_CZ": 1, "NATIVE_BANKS": 1},       # (the CZ tone collections share the engine's tone code)
          # the five sampled kits share the PERC samples: each kit's own delta is ~0, all five off together drop them
          {f"KIT_{k}": 0 for k in ("ACOUSTIC", "DEEP", "TIGHT", "BRIGHT", "DUST")},
@@ -69,8 +65,8 @@ PAIRS = [{"MOTION": 1, "SECTIONS": 4},
          # its arrays are computed: configure.py auto_store)
          {"MICRO": 1, "FILLS": 1}, {"MICRO": 1, "PLOCK": 1}, {"FILLS": 1, "PLOCK": 1},
          {"MICRO": 1, "FILLS": 1, "PLOCK": 1},
-         # BLE with the CDC console (USB_CONSOLE): the console's blevm / bletrim commands; with BLE_DIAG blell's printing
-         {"BLE": 1, "USB_CONSOLE": 1}, {"BLE": 1, "BLE_DIAG": 1, "USB_CONSOLE": 1},
+         # BLE with the CDC console (USB_CONSOLE): the console's blevm / bletrim commands
+         {"BLE": 1, "USB_CONSOLE": 1},
          # USB audio + MIDI (with its resampler since 2026-10-15; MIDI only by default since 2026-10-12)
          {"USB_AUDIO": 1},
          # found 2026-10-12 (the "mots" check 4.7 KB under its real build; ~/costs bisection, each pair 0.3-1.6 KB of
@@ -80,17 +76,12 @@ PAIRS = [{"MOTION": 1, "SECTIONS": 4},
          {"CPU_GUARD": 1, "ENG_ACID": 1}, {"CPU_GUARD": 1, "DRUM_X0X909": 1}, {"CPU_GUARD": 1, "DRUM_X0X808": 1},
          {"CPU_GUARD": 1, "DRUM_X0X909": 1, "DRUM_X0X808": 1},
          {"MACROS": 1},
-         # BLE's bond and central together share code each one's delta pays (-3.5 KB flash, -0.35 KB RAM); the central
-         # with the diagnostics has more (+1.9 KB, +0.4 KB RAM); and each with the CDC console (the BLE test builds,
-         # tools/optimist.py BLE_FULL_SET: 7 KB under without these)
-         {"BLE": 1, "BLE_BOND": 1, "BLE_CENTRAL": 1}, {"BLE": 1, "BLE_CENTRAL": 1, "BLE_DIAG": 1},
-         {"BLE": 1, "BLE_BOND": 1, "BLE_CENTRAL": 1, "BLE_DIAG": 1},
-         {"BLE": 1, "BLE_BOND": 1, "BLE_CENTRAL": 1, "USB_CONSOLE": 1}, {"BLE": 1, "BLE_CENTRAL": 1, "BLE_DIAG": 1, "USB_CONSOLE": 1},
-         {"BLE": 1, "BLE_BOND": 1, "BLE_CENTRAL": 1, "BLE_DIAG": 1, "USB_CONSOLE": 1},
-         # the central's other levels other level (BLE_CENTRAL 3 no pairing, 2026-10-24): it shares none of SMP, its central block of the
-         # diagnostics is the same as 1's
-         {"BLE": 1, "BLE_BOND": 1, "BLE_CENTRAL": 3}, {"BLE": 1, "BLE_CENTRAL": 3, "BLE_DIAG": 1},
-         {"BLE": 1, "BLE_BOND": 1, "BLE_CENTRAL": 3, "BLE_DIAG": 1},
+         # BLE's bond and central together share code each one's delta pays (-3.5 KB flash, -0.35 KB RAM); and with
+         # the CDC console (the BLE test builds, tools/optimist.py BLE_FULL_SET)
+         {"BLE": 1, "BLE_BOND": 1, "BLE_CENTRAL": 1},
+         {"BLE": 1, "BLE_BOND": 1, "BLE_CENTRAL": 1, "USB_CONSOLE": 1},
+         # the central's other level (BLE_CENTRAL 3 no pairing, 2026-10-24): it shares none of SMP
+         {"BLE": 1, "BLE_BOND": 1, "BLE_CENTRAL": 3},
          # BLE and Bluetooth Classic Audio share the Bluetooth stack (HCI, the controller, L2CAP): with BT_AUDIO on, BLE costs
          # ~11 KB less than its delta from the defaults (2026-10-21, real builds of mots-2: BLE off 582,596, on 600,352 B,
          # the estimate said 611,664; with them both off the delta is 28.8 KB, with BT_AUDIO already built 17.8 KB)
@@ -99,12 +90,8 @@ PAIRS = [{"MOTION": 1, "SECTIONS": 4},
          # the same at the central's MINIMAL level (2026-10-24, synths_USBaudio_BTaudio_BTmidi: BLE_CENTRAL 3 -> 0 freed 10,648 B
          # of flash, the estimate said 12,460)
          {"BLE": 1, "BLE_CENTRAL": 3, "BT_AUDIO": 1},
-         # Bluetooth audio's diagnostics are built with BT_AUDIO only, and their log lines with the CDC console (the
-         # console otherwise leaves the stack silent: 14 KB of flash, mots 2026-10-21)
-         {"BT_AUDIO": 1, "BT_DIAG": 1}, {"BT_AUDIO": 1, "USB_CONSOLE": 1}, {"BT_AUDIO": 1, "BT_DIAG": 1, "USB_CONSOLE": 1},
-         # SLOOP 2.4's guard and import: core.h SL24_AUTO (PROJECT > A24) and project.c's shared reader are built
-         # with both / either, so the two off together save 3.9 KB less than their deltas
-         {"SL24_SAFE": 0, "SL24_IMPORT": 0},
+         # Bluetooth audio with the CDC console (the console leaves the stack's log lines silent)
+         {"BT_AUDIO": 1, "USB_CONSOLE": 1},
          # PLOCK's lock base is motion.c's (pool 292 B with PLOCK alone, none beyond MOTION's 900 with both: measured
          # 2026-10-15, user-default 292 B of pool over)
          {"MOTION": 1, "PLOCK": 1},
@@ -115,11 +102,7 @@ PAIRS = [{"MOTION": 1, "SECTIONS": 4},
          # the FILTER insert's code and state (core.h TFLT_ON) are built with the track FILTER or the master DJ filter
          # (on by default): TRK_FILT's delta is ~0, without FX_DJF it pays them (2026-10-19: drum-machine + TRK_FILT
          # 1,104 B of RAM and 2.4 KB of flash, its delta 96 B of flash)
-         {"FX_DJF": 0, "TRK_FILT": 1},
-         # one core with the FDN8 reverb: DUAL=0 frees 1,008 B less RAM and 1,264 B more RAMTEXT than in the defaults
-         # (2026-10-19, each item of user-default+ble-test beside DUAL on / off: only REV_FDN8 moved it over 100 B;
-         # user-default+ble-full estimated 856 B of RAM under)
-         {"REV_FDN8": 1, "DUAL": 0}]
+         {"FX_DJF": 0, "TRK_FILT": 1},]
 # items off by default that share code and state built with any of them: each one's delta pays it, so the group's
 # shared part is measured (all of them on: (sum of their deltas - what that build adds) / (n - 1)) and counted once
 # (configure.py group_delta). Found 2026-10-14: each insert beyond the first was 0.76 KB of RAM over
@@ -156,11 +139,9 @@ GROUPS = {"INS_FX": _any_of("core/core.h", "INS_FX"),   # (the insert slots)
           "FM6_PACKS": _any_of("core/registry.h", "FM6_NPACKS")}
 # a pair whose values are not valid alone: measured with these set too (their cost is in the estimate it is
 # measured against)
-PAIR_WITH = {"REV_ROOM=0,REV_HALF=1": {"REV_PLATE": 1}, "MICRO=1,FILLS=1": {"SL24_XSTEP": 1},
+PAIR_WITH = {"MICRO=1,FILLS=1": {"SL24_XSTEP": 1},
              "MICRO=1,PLOCK=1": {"SL24_XSTEP": 1}, "FILLS=1,PLOCK=1": {"SL24_XSTEP": 1},
-             "MICRO=1,FILLS=1,PLOCK=1": {"SL24_XSTEP": 1}, "MOTION=1,PLOCK=1": {"SL24_XSTEP": 1},
-             "REV_FDN8=1,DUAL=0": {"REV_ROOM": 0}}   # (FDN8 the only reverb, as the BLE builds have it: beside ROOM its
-                                                     # RAMTEXT part, -1,264 B, did not carry over)
+             "MICRO=1,FILLS=1,PLOCK=1": {"SL24_XSTEP": 1}, "MOTION=1,PLOCK=1": {"SL24_XSTEP": 1}}
 # a value that is not valid alone (the last reverb algorithm off): measured with these set too, less their own deltas
 # (so those are measured first)
 WITH = {("REV_ROOM", 0): {"REV_PLATE": 1},
@@ -441,12 +422,7 @@ _SDM = {"SDCARD": 1, "LAYOUT": 1, "ENG_SAMPLE": 0, "DRUM_USR": 0, "SNAPSHOTS": 0
                                                  # the big layout's rule needs from the defaults: a valid configuration)
 PAIRS.append(dict(_SDM))                         # (with the console too it is ~25 KB over SRAM on the defaults: not
                                                  # measurable as a pair, left out)
-# FM6 off where its tables are in the pool (TAB_IN_POOL): its delta from the defaults frees them from main RAM
-# (2026-10-24, synths_USBaudio_BTaudio_BTmidi: FM6 off freed 16 B of RAM and 608 B of the pool, the estimate said
-# 4,896 B of RAM and 4,260 B more pool; with FM6_SYSEX off too the pair and the triple measured 0: not kept)
-PAIRS.append({"ENG_FM6": 0, "TAB_IN_POOL": 1})
-# (TAB_IN_POOL in the SD card mode: a computed term, core.tab_pool. A pair LAYOUT=1,SDCARD=1,TAB_IN_POOL=1 tried
-# 2026-10-27 measured 6,340 B of flash beyond that had nothing to do with the tables and fixed 448 B of the 2,464)
+# (the tables are always in the pool since 2026-10-29: core.tab_pool, a computed term; no pair)
 # the mirror over BLE (ed_mirror.c mbr_q, mbr_cb, mbr_rx, mbr_big: in the pool) is built only with both: 2026-10-27,
 # synths_USBaudio_BTaudio_BTmidi's BLE off freed 8,280 B of pool, the estimate said +4 (BLE's own delta, from the
 # defaults: no mirror there)

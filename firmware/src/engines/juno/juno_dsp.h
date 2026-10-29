@@ -46,7 +46,7 @@ typedef struct {                 /* a voice's state */
 
 /* a packed table's value i (gen_juno_tables.py): its 16th value at or below i and the steps after it (a call:
  * once a block, or once a set of ladder coefficients) */
-static __attribute__((noinline)) int32_t juno_dtab(const uint16_t *a, const uint8_t *d, int32_t bias, uint32_t i)
+static FAST(juno) __attribute__((noinline)) int32_t juno_dtab(const uint16_t *a, const uint8_t *d, int32_t bias, uint32_t i)
 {
     uint32_t k = (i & ~15u) + 1u;
     int32_t s = (int32_t)a[i >> 4] + bias * (int32_t)(i & 15u);
@@ -61,7 +61,7 @@ typedef struct {                 /* what the resonance sets (juno_res_at) */
     int32_t k, pull, fb, inv_fb; /* RES_K, PEAK_PULL, FB_SCALE, INV_FB_SCALE */
 } juno_rset_t;
 
-JUNO_INL void juno_res_at(juno_rset_t *r, uint32_t res)   /* (res 0..127) */
+FAST(juno) JUNO_INL void juno_res_at(juno_rset_t *r, uint32_t res)   /* (res 0..127) */
 {
     uint32_t i = res > JUNO_FB_SCALE_LO ? res - JUNO_FB_SCALE_LO : 0u, nt = sizeof JUNO_FB_SCALE_T / 2u;
     r->k = JUNO_DTAB(RES_K, res);
@@ -85,7 +85,7 @@ typedef struct {                 /* the HPF of a part (after its voices), the co
 } juno_hpf_t;
 
 /* the polyBLEP residual at a wave's edge (a call: only on the samples next to an edge) */
-static __attribute__((noinline)) int32_t juno_blep(uint32_t ph, uint32_t inc)
+static FAST(juno) __attribute__((noinline)) int32_t juno_blep(uint32_t ph, uint32_t inc)
 {
     uint32_t d;
     if (inc < 2u)
@@ -105,14 +105,14 @@ static __attribute__((noinline)) int32_t juno_blep(uint32_t ph, uint32_t inc)
 }
 
 /* 1-pole coupling capacitor (1 / 4096 a sample: 1.71 Hz), the state Q12 */
-JUNO_INL int32_t juno_dc(int32_t in, int32_t *st)
+FAST(juno) JUNO_INL int32_t juno_dc(int32_t in, int32_t *st)
 {
     *st += ((in << 12) - *st) >> 12;
     return in - (*st >> 12);
 }
 
 /* the DCO and its coupling capacitor over n samples into x[]; returns the largest |x| */
-JUNO_INL int32_t juno_dco_run(juno_vs_t *s, const juno_ctl_t *c, int32_t *x, uint32_t n)
+FAST(juno) JUNO_INL int32_t juno_dco_run(juno_vs_t *s, const juno_ctl_t *c, int32_t *x, uint32_t n)
 {
     uint32_t ph = s->ph, inc = c->inc, i;
     uint32_t eff = 0xFFFFFFFFu - (0x80000000u + (uint32_t)c->pw * 18407003u);
@@ -166,7 +166,7 @@ JUNO_INL int32_t juno_dco_run(juno_vs_t *s, const juno_ctl_t *c, int32_t *x, uin
 }
 
 /* the BA662 OTA's Padé saturation, Q15 in (0..3.0): /384 as * 43691 >> 24 (exact below 3.0) */
-JUNO_INL int32_t juno_ota_sat(int32_t x)
+FAST(juno) JUNO_INL int32_t juno_ota_sat(int32_t x)
 {
     int32_t a = x < 0 ? -x : x, y;
     if (a >= 98304) {
@@ -180,7 +180,7 @@ JUNO_INL int32_t juno_ota_sat(int32_t x)
 
 /* the ladder's coefficients at a cutoff CV (14 bits): g = the cutoff table's g1 pulled to the resonance's peak, g^2, g^3;
  * A = the input's gain into u, B = the OTA's (both >> 27: 0.142 / (1 + kG), k inv_fb / (1 + kG)) */
-JUNO_INL void juno_coef(int32_t cv, const juno_rset_t *r, int32_t *cf)
+FAST(juno) JUNO_INL void juno_coef(int32_t cv, const juno_rset_t *r, int32_t *cf)
 {
     uint32_t code = (uint32_t)cv >> 2, q;
     int32_t k = r->k, g1, g1n, g2, inv;
@@ -206,7 +206,7 @@ JUNO_INL void juno_coef(int32_t cv, const juno_rset_t *r, int32_t *cf)
 
 /* one voice's block before the VCA into y[]: the ladder's coefficients once every 16 samples, at the cutoff CV's RC
  * slew taken to their middle; the slew to their end (its 16-sample step: (1 - 1393 / 32768)^16 = 0.499) */
-JUNO_INL void juno_run(juno_vs_t *s, const juno_ctl_t *c, int32_t *y, uint32_t n)
+FAST(juno) JUNO_INL void juno_run(juno_vs_t *s, const juno_ctl_t *c, int32_t *y, uint32_t n)
 {
     int32_t x[JUNO_SUB], cf[5];
     uint32_t o;
@@ -248,7 +248,7 @@ JUNO_INL void juno_run(juno_vs_t *s, const juno_ctl_t *c, int32_t *y, uint32_t n
 }
 
 /* the coupling capacitor after the ladders (fm106_dc_block, 1.59 Hz), on the part's sum of voices */
-JUNO_INL void juno_couple(int64_t *st, int32_t *x, uint32_t n)
+FAST(juno) JUNO_INL void juno_couple(int64_t *st, int32_t *x, uint32_t n)
 {
     uint32_t i;
     for (i = 0; i < n; i++) {
@@ -258,19 +258,19 @@ JUNO_INL void juno_couple(int64_t *st, int32_t *x, uint32_t n)
 }
 
 /* ---- the HPF (one per part, after the voices): 0 bass boost, 1 flat, 2 236 Hz, 3 754 Hz; 0.35 Hz coupling ---- */
-JUNO_INL int32_t juno_hpf_dc(int32_t in, int64_t *st)
+FAST(juno) JUNO_INL int32_t juno_hpf_dc(int32_t in, int64_t *st)
 {
     int64_t diff = ((int64_t)in << 16) - *st;
     *st += (diff * 837LL) >> 24;
     return in - (int32_t)(*st >> 16);
 }
-JUNO_INL int32_t juno_hpf_cut(int32_t in, int64_t *st, int64_t g)
+FAST(juno) JUNO_INL int32_t juno_hpf_cut(int32_t in, int64_t *st, int64_t g)
 {
     int64_t v = ((((int64_t)in << 16) - *st) * g) >> 24, lp = *st + v;
     *st = lp + v;
     return in - (int32_t)(lp >> 16);
 }
-JUNO_INL int32_t juno_boost(juno_hpf_t *h, int32_t in)
+FAST(juno) JUNO_INL int32_t juno_boost(juno_hpf_t *h, int32_t in)
 {
     int64_t v1 = ((((int64_t)in << 16) - h->bb1) * 70704LL) >> 24, l1 = h->bb1 + v1, v2, l2;
     int32_t lp1, y1, lp2, y2;
@@ -284,7 +284,7 @@ JUNO_INL int32_t juno_boost(juno_hpf_t *h, int32_t in)
     y2 = lp2 + (int32_t)(((int64_t)(y1 - lp2) * 2979LL) >> 15);
     return in + (int32_t)(((int64_t)y2 * 77000LL) >> 15);
 }
-JUNO_INL void juno_hpf(juno_hpf_t *h, uint32_t mode, int32_t *x, uint32_t n)
+FAST(juno) JUNO_INL void juno_hpf(juno_hpf_t *h, uint32_t mode, int32_t *x, uint32_t n)
 {
     uint32_t i;
     for (i = 0; i < n; i++) {
@@ -301,7 +301,7 @@ JUNO_INL void juno_hpf(juno_hpf_t *h, uint32_t mode, int32_t *x, uint32_t n)
 
 /* the uPD7811 cutoff DAC routine (fm106_calc_vcf_freq, with no bend): the slider (14 bits), the LFO's and the
  * envelope's amounts (signed, 14-bit units), the key tracking (0..254) around C4; clamped to 14 bits */
-JUNO_INL uint32_t juno_dac(int32_t cut14, int32_t mod14, uint32_t env14, int32_t envmod, uint32_t keytrk,
+FAST(juno) JUNO_INL uint32_t juno_dac(int32_t cut14, int32_t mod14, uint32_t env14, int32_t envmod, uint32_t keytrk,
                                 uint32_t note88)
 {
     int32_t ea = cut14 + mod14, e = (int32_t)((env14 * (uint32_t)(envmod < 0 ? -envmod : envmod)) >> 8);

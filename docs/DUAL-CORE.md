@@ -1,7 +1,8 @@
 # The second core (CPU1)
 
-**On by default.** The builder's `DUAL` item defaults to 2 (`tools/builder/registry.py`); a profile
-may set `DUAL=0`. A raw compile without the builder still defaults `FELUCCA_DUAL` to 0 (`firmware/src/felucca.c`).
+**Always on** in a build for the FM-1 (the builder's `DUAL` and `STOCK_SUPPLY` items were retired 2026-10-29; `tools/builder/registry.py`
+`ALWAYS_ON_TARGET` gives `FELUCCA_DUAL` 2 and `FELUCCA_STOCK_SUPPLY` 1 under `__PI32V2__`; an old `DUAL=0` line is ignored). The host tests and
+the sim have one core. A raw compile without the builder still defaults `FELUCCA_DUAL` to 0 (`firmware/src/felucca.c`).
 Verified on an FM-1: a soak of about 75 minutes with BLE on and USB MIDI, zero drops and zero underruns. Some units
 misread RAM on CPU1; those fall back to one core by themselves (section 5).
 
@@ -55,7 +56,7 @@ answers; `C1_CON` (`0x1EEE004`) `|= 8`, `&= ~2`; wait for the ack. Stop: `C1_CON
 before it, every BLE + dual boot crashed within 2-60 s; after it, 3 x 180 s runs clean):
 
 1. **The rails first** (`system/supply.c`, `hal/fm1_supply.h`, top of `fm1_main`, IRQs off): the builder item
-   `STOCK_SUPPLY` (default on with `DUAL`) sets the rails as the stock app does (the 1.4 V rail onto the DC-DC, VDC14
+   `FELUCCA_STOCK_SUPPLY` (always on with the second core) sets the rails as the stock app does (the 1.4 V rail onto the DC-DC, VDC14
    1.60 V, SYSVDD 1.38 V, never lowered, the PLL untouched, the 2.6 V detector after). The boot loader leaves 1.26 V /
    1.40 V on the LDO and CPU1 merely spinning crashed CPU0 there. A wrong read-back keeps CPU1 off (`2ND CORE OFF
    SUPPLY`). **Risk, at your own risk:** above the AC79 datasheet's table, absolute limits not public, unit variation,

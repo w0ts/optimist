@@ -43,13 +43,13 @@ AINL cz_mem_t *cz_mem(uint32_t p);                 /* (engines.c, after every en
 static uint32_t cz_key[NPART];                     /* what the tone / the points were built for, 0 = nothing yet */
 static void cz_forget(uint32_t p) { cz_key[p % NPART] = 0; }   /* (engines.c part_mem_claim: its memory zeroed) */
 
-static cz_voice_t *cz_voice(track_t *t, voice_t *v)
+static FASTI(cz) cz_voice_t *cz_voice(track_t *t, voice_t *v)
 {
     return &cz_mem((uint32_t)(t - trk) % NPART)->v[(uint32_t)(v - t->v) % NVOICE];
 }
 #define cz_cos neg_cos16                            /* -cos, Q15, from a 16-bit phase (dsp.c) */
 
-static int32_t cz_env_tick(cz_env_t *e, const cz_env_def_t *d, uint32_t gate)
+static FAST(cz) int32_t cz_env_tick(cz_env_t *e, const cz_env_def_t *d, uint32_t gate)
 {
     uint32_t left = 65536u;
     if (e->gate && !gate && d->sustain <= d->end && e->stage <= d->sustain)
@@ -142,14 +142,14 @@ static const cz_panel_t CZ_TONES[CZT_N] = {
 
 /* panel values -> Casio's bytes (Melodee cz_legacy.h lcz_sx_encode, native: velocity and level in the high
  * nibbles; the name bytes are not kept) */
-static uint32_t cz_sx_rate(uint32_t e, uint32_t a) { return e == 0 ? a * 127u / 99u : e == 1 ? 8u + a * 119u / 99u : a * 119u / 99u; }
-static uint32_t cz_sx_level(uint32_t e, uint32_t a) { return e == 0 ? a + (a > 63u ? 4u : 0u) : e == 1 ? a * 127u / 99u : a ? a + 28u : 0u; }
-static __attribute__((noinline)) void cz_encode(const cz_panel_t *p, uint8_t *d)
+static FAST(cz) uint32_t cz_sx_rate(uint32_t e, uint32_t a) { return e == 0 ? a * 127u / 99u : e == 1 ? 8u + a * 119u / 99u : a * 119u / 99u; }
+static FAST(cz) uint32_t cz_sx_level(uint32_t e, uint32_t a) { return e == 0 ? a + (a > 63u ? 4u : 0u) : e == 1 ? a * 127u / 99u : a ? a + 28u : 0u; }
+static FAST(cz) __attribute__((noinline)) void cz_encode(const cz_panel_t *p, uint8_t *d)
 {
     static const uint8_t VW[4] = {8, 4, 32, 2};
     static const uint8_t KA[10] = {0, 8, 17, 26, 36, 47, 58, 69, 82, 95}, KW[10] = {0, 31, 44, 57, 70, 83, 96, 111, 146, 255};
     uint32_t j, l, e, v;
-    memset(d, 0, 128);
+    FAST_ZERO(cz, d, 128);
     d[0] = (uint8_t)((p->line & 3u) | (p->oct & 3u) << 2);
     d[1] = p->sign & 1u;
     d[2] = (uint8_t)((p->fine + (p->fine ? (p->fine - 1u) / 15u : 0u)) << 2);
@@ -198,7 +198,7 @@ static __attribute__((noinline)) void cz_encode(const cz_panel_t *p, uint8_t *d)
 /* the CZ collection (cz_bank.c): its payload where it is in flash (u32 used, then CZ_NUSER tones of 144 B: Casio's 128
  * synthesis bytes, the 16-byte name), 0 = none (or being saved) */
 static const uint8_t *volatile czb_xip;
-static const uint8_t *czb_tone(uint32_t tone)          /* TONE's stored tone, 0: a built-in one, or an empty slot */
+static FAST(cz) const uint8_t *czb_tone(uint32_t tone)          /* TONE's stored tone, 0: a built-in one, or an empty slot */
 {
     const uint8_t *b = czb_xip;
     uint32_t k = tone - CZT_N;
@@ -208,7 +208,7 @@ static const uint8_t *czb_tone(uint32_t tone)          /* TONE's stored tone, 0:
 
 /* -------------------------------------------------------------- the part --- */
 /* once a block per part (also with no voice): the EDIT values; a new TONE or time builds the tone / points */
-static void cz_block(track_t *t)
+static FAST(cz) void cz_block(track_t *t)
 {
     uint32_t part = (uint32_t)(t - trk) % NPART, tone = (uint32_t)t->p[P_E0] % (CZT_N + CZ_NUSER), key;
     const int16_t *p = t->p;
@@ -261,7 +261,7 @@ static void cz_note_on(track_t *t, voice_t *v)
 }
 
 /* the voice is over: its sounding lines' DCA envelopes are past END (Melodee cz_native_done) */
-static int cz_done(track_t *t, voice_t *v)
+static FAST(cz) int cz_done(track_t *t, voice_t *v)
 {
     uint32_t part = (uint32_t)(t - trk) % NPART;
     const uint8_t *b = cz_tone(part);
@@ -274,7 +274,7 @@ static int cz_done(track_t *t, voice_t *v)
 
 /* the voice's amplitude is the engine's (its DCA envelopes): the ADSR's release never ends it, the DCA's do;
  * a voice given up for another part (stage 4) fades as any other */
-static int32_t cz_amp(track_t *t, voice_t *v, int32_t adsr)
+static FAST(cz) int32_t cz_amp(track_t *t, voice_t *v, int32_t adsr)
 {
     if (v->stage == 4u)
         return adsr;

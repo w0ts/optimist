@@ -104,9 +104,6 @@ static uint8_t live_save_off;            /* an erase held the audio (no suspend)
                                   * baseband driver (ble/ble_hw_wl82.c, hal/fm1_ble.h): host- and emulator-tested, and
                                   * run on an FM-1 with macOS (Audio MIDI Setup) */
 #endif
-#ifndef FELUCCA_BLE_DIAG
-#define FELUCCA_BLE_DIAG 0       /* with BLE: the console's blell and the counters and rings behind it (ble/ble_diag.h) */
-#endif
 #ifndef FELUCCA_BLE_BOND
 #define FELUCCA_BLE_BOND 0       /* with BLE: SMP Just Works bonding and LL encryption (ble/ble_smp.c, ble_cfg.h) */
 #endif
@@ -115,14 +112,6 @@ static uint8_t live_save_off;            /* an erase held the audio (no suspend)
 #endif
 #ifndef FELUCCA_BT_AUDIO
 #define FELUCCA_BT_AUDIO 0
-#endif
-#ifndef FELUCCA_BT_DIAG
-#define FELUCCA_BT_DIAG 0        /* with BT_AUDIO: the Classic stack's counters, trace and logs, btrx / bttrace, the live
-                                  * btpage pll= / agc= / follow= (bt/bt_inq.c, bt_page.c): a console debug build's */
-#endif
-#ifndef FELUCCA_BT_AFH
-#define FELUCCA_BT_AFH 1         /* with BT_AUDIO: adaptive frequency hopping, the channels the headset fails on dropped
-                                  * from the hop set (bt/bt_afh.c, bt_page.c; the XM4's fixed holes, 2026-10-23) */
 #endif
 #define FELUCCA_BT_UI (FELUCCA_BLE || FELUCCA_BT_AUDIO)   /* SYSTEM > Bluetooth: with either; it shows what is built (op_bt.c) */
 #define MIR_BLE (FELUCCA_ED_MIRROR && FELUCCA_BLE && FELUCCA_OTA && FELUCCA_EDITOR)   /* the screen mirrored over Bluetooth too (io/editor/ed_mirror.c) */

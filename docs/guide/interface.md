@@ -75,7 +75,7 @@ PROJECT is where storage lives. A storage row (PROJECT, SNAPSHOT, USER) has up t
 - The 16 white keys are the 16 slots of the current bank: key n selects item n and runs the operation on it, through a confirmation. YES runs it on the item the knob is on. A free slot has nothing to load or clear: a toast, no question. The operation returns to LOAD after each action, when the row changes or the screen is left, so a stray key never saves.
 - **OCT- or OCT+ tapped** on a row with slots: the previous or next **bank**, with the toast "BANK n/N".
 - **USER** (32 user presets: two banks) has an INIT card: the selected track's sound back to its engine's defaults. SHIFT2 + ITEM marks a slot a favorite. A user preset's LOAD over an edited sound is asked in red.
-- The rows after them: TOOLS (CLRSQ, INIT, MISS, NEW), SLOOP (import of a SLOOP autosave, in builds with it) and MEMORY (USED as a percentage and FREE, the sections that still fit).
+- The rows after them: TOOLS (CLRSQ, INIT, MISS, NEW) and MEMORY (USED as a percentage and FREE, the sections that still fit).
 - NAME asks for a name before a save: the keys type, SAVE finishes, HOME deletes a character or cancels.
 - SAVE held on PROJECT opens SONG; see [the sequencer](sequencer.md#sections-and-the-song).
 
@@ -109,7 +109,8 @@ INFO is a text page, no knob edits it except KNOB 1. What a musician reads:
 | CPU0 (CPU LOAD without a second core) | The audio render load in percent; with a second core it includes CPU0's wait for CPU1. KNOB 1 chooses what it shows: NOW, the maximum of the last 5 seconds, or the maximum since boot. Over 100 means a late audio half (a gap in the sound) |
 | CPU1 | The share of each audio half the second core takes. Instead: 2ND CORE OFF and the reason (NO START, TIMEOUT, FAULT, FLASH, MISREAD, CANARY, AFTER CRASH, SETTING, PARKED, BLUETOOTH, OVERLOAD, SUPPLY). |
 | UNDERRUNS | Losses: late audio halves, USB audio's and MIDI in's, and where |
-| BATTERY | The cell's volts and charge as `~3.87V 72%`, with the 3 bars in the gauge; "USB" while powered by USB; NO READING before the first sample. Both numbers are estimates: the divider and the ADC reference are not measured (assumed 1:2 divider, 3.3 V reference, the usual Li-ion curve), so check them against a meter at the cell |
+
+The battery is the page's header, not a line: no tempo and no bar number there, a battery sign instead, its fill the charge (green, amber under 40 %, red under 20 %) with the percentage beside it; no sign of a reading yet is an empty outline. The percentage is an estimate from the cell's volts: the divider and the ADC reference are not measured (assumed 1:2 divider, 3.3 V reference, the usual Li-ion curve), so check them against a meter at the cell. A bolt (and the word CHARGING where the title leaves room) show while the chip says it charges (5 V on its supply pin, its own charger on and not full); POWER shows when 5 V is there and the charge is not known (a USB host, a full cell, or a charger outside the chip). Both come from the chip's power registers, read from the SDK's map and not yet measured on an FM-1.
 
 SHIFT + SAVE on this page clears the counters. Builds made with the builder item `SYS_DEBUG` add INTERNALS (the last reset, flash interrupt time, the second core's internals), USB STATS (USB audio counters), DROPS, GUARD and CLOCK lines. They are for finding a fault, not for playing, and no ready-made build has them.
 

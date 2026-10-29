@@ -93,7 +93,7 @@ static int16_t *inst_line(uint32_t j, uint32_t i)      /* instance i of type j's
 #endif
 #if FELUCCA_INS_JCHORUS
     if (j == 2u)
-        return ifx_jcho[i].c.ln;
+        return (int16_t *)(void *)ifx_jcho[i].c.ln;   /* (32-bit samples: the units are 512 int16) */
 #endif
 #if FELUCCA_INS_FLANGER
     if (j == 3u)
@@ -254,8 +254,8 @@ static void t_reload(void)
 static void t_mem(void)
 {
     uint32_t k, e;
-    check("the units: 1 KB (512 samples); CHRS 2, ECHO 8, JUNO CHORUS 2, FLNG 1; the delay send's line its first units, "
-          "the chorus send's its last", FXA_U == 512u && FXA_Z0 == 2u && FXA_Z1 == 8u && FXA_Z2 == 2u && FXA_Z3 == 1u &&
+    check("the units: 1 KB (512 samples); CHRS 2, ECHO 8, JUNO CHORUS 4, FLNG 1; the delay send's line its first units, "
+          "the chorus send's its last", FXA_U == 512u && FXA_Z0 == 2u && FXA_Z1 == 8u && FXA_Z2 == 4u && FXA_Z3 == 1u &&
           FXA_S == FELUCCA_DLY_LEN / 512u && FXC_S == CHO_LEN / 512u && fxa_line(0) == dly_buf &&
           fxa_line(FXA_N) == cho_buf && fxa_line(FXA_S) == fxa_ins);
     reset();
@@ -547,7 +547,7 @@ static void t_flng(void)
 #endif
 
 #if FELUCCA_INS_JCHORUS && FELUCCA_INS_FLANGER
-/* JUNO CHORUS and FLNG on the chorus send's lent line (3 of its 4 units), evicted with a fade when CHO comes back */
+/* JUNO CHORUS (4 units, the whole of it) on the chorus send's lent line, FLNG left FULL; evicted with a fade when CHO comes back */
 static void t_lend_jf(void)
 {
     uint32_t j, f;
@@ -563,14 +563,14 @@ static void t_lend_jf(void)
     fx.cho_q = FX_Q_MAX;
     blocks(2);
     j = ifx_lim_at(FXT_JUNO, 0), f = ifx_lim_at(FXT_FLNG, 0);
-    check("CHO out of the slots: both on its lent line, JUNO its first 2 units, FLNG the next, never one unit twice",
-          j != FXI_NONE && f != FXI_NONE && ifx_jcho[j].c.ln == cho_buf && ifx_flng[f].line == cho_buf + 2u * FXA_U &&
-          (fxl_lent & 1u) && fxi_lent(FXT_JUNO) == 1u && fxi_lent(FXT_FLNG) == 1u && mem_ok());
+    check("CHO out of the slots: JUNO on its lent line (all 4 units), FLNG finds no unit left (FULL), never one unit twice",
+          j != FXI_NONE && f == FXI_NONE && (void *)ifx_jcho[j].c.ln == (void *)cho_buf &&
+          (fxl_lent & 1u) && fxi_lent(FXT_JUNO) == 1u && fxi_lent(FXT_FLNG) == 0u && fxi_state(0, 1) == FXI_FULL && mem_ok());
     blocks(64);
-    check("... heard: they write the line", !zeros16(cho_buf, 3u * FXA_U));
+    check("... heard: JUNO writes the line", !zeros16(cho_buf, FXA_Z2 * FXA_U));
     fxs_load(1, FXT_CHO);
     blocks(1);
-    check("CHO back: both evicted (fading out), still on the line", ifx_jcho[j].evict && ifx_flng[f].evict &&
+    check("CHO back: JUNO evicted (fading out), still on the line", ifx_jcho[j].evict &&
           ifx_lim_at(FXT_JUNO, 0) == j && fxl_st[0] == FXL_BACK);
     blocks(24);                                         /* (JUNO's MIX fades over 16 blocks) */
     check("... faded: given back, the line the bus's again (zeros), both FULL", fxl_st[0] == FXL_SEND && !fxl_lent &&

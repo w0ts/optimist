@@ -49,7 +49,7 @@ const E = vm.runInNewContext(`${proto}
    readDX7File, parseDX7Sysex, dx7Checksum, dx7Message, cleanPatch, dx7ForDevice, dx7Init, dx7Name, FM6, CZ, czSyx, czRead,
    DL, refBytes, refFrom, laneFrom, laneBytes, lanesFrom, lanesBytes, kitFrom, kitBytes, kitFile, readKitFile, kitSlots, emptyLane,
    emptySnd, sndBytes, sndFrom, BK, bkListAll, bkCheckAll, backupFile, readBackupFile, bkPlan, bkReport, bkSlotParts, crc32,
-   SN, snInfo, snapFile, readSnapFile, snAreaStreams, snReadAll, snWriteAll, snSections, S24, sl24ReadPart, sl27SongFile, sl24Lost, b64dec, sl24IsFun5, sl26ToFun5, sl24ReadFile, sl24Send, b64enc,
+   SN, snInfo, snapFile, readSnapFile, snAreaStreams, snReadAll, snWriteAll, snSections, b64dec, b64enc,
    DRUM_KIT_NAMES, SRC_KIND, KIND_TAG, srcFallback, readDrumSources, srcGroups, laneKind, laneShowGuess, readDrumShow, laneEdited,
    auditionChannel, auditionMsgs, kitStartFactory, knobValue, readDevicePages, soundLayout, FAM, X0X_VOICES, REV_ALGOS, revTypes, revName, readReverbType, readMidiSettings,
    WATCH, watchCaps, PARAMS_GLOBAL,
@@ -1326,7 +1326,7 @@ async function editorFxp() {
   ok(!y2.cells[0].ask && y2.ask === "", "scrs: op 3 ok 1: done, the question gone");
   ok(/if \(scrnOn\(\)\) groups\.setgroups = \[\];/.test(html), "scrs: with the device's GLOBAL / SYSTEM lines (SCRN) the older Settings groups (GLOBAL, NOTE REPEAT, DRUMS, MIDI CLOCK, MIDI channels) are not shown twice");
   const hs = SR(await rq(E.req.scrsInfo(5, 0, 127, 2))), hr = SR(await rq(E.req.scrsRow(5, 0, 127, 2, 0)));
-  ok(hs.n >= 1 && hr.name === "STEP" && hr.cells.map((c) => c.label).join() === "NOTE,LEVEL,RATCHET,LENGTH" && hr.cells[0].val === "C4", "scrs: STEPS with a step held (family = the step): the held step's cards, STEP: NOTE LEVEL RATCHET LENGTH");
+  ok(hs.n >= 1 && hr.name === "STEP" && hr.cells.map((c) => c.label).join() === "NOTE,LEVEL,RATCHET,GLIDE" && hr.cells[0].val === "C4", "scrs: STEPS with a step held (family = the step): the held step's cards, STEP: NOTE LEVEL RATCHET GLIDE");
   ok(/scsFam\(sc\)/.test(html) && /t\("scsStep"\)/.test(html), "scrs: the STEPS page has the held step's picker");
   const mixr = SR(await rq(E.req.scrsInfo(0, 0, 127)));
   ok(mixr.name === "MIX" && mixr.n === scrsGold.ctx.find((c) => c.s === 0).rows.length && mixr.n > 40, "scrs: the mixer (MIX): a row for each knob set of each mixer row (MASTER, T1.., DR, the 16 lanes)");
@@ -2236,174 +2236,6 @@ async function editorPatterns() {
   teardown();
 }
 
-/* SLOOP 2.4 export (ed_sl24.c, command 78): the command and the lost bits == the firmware's, the read (a part read
-   again when it changed), SLOOP 2.4's backup file as its editor.html backupObjects checks it */
-async function editorSl24() {
-  const C = E.CMD;
-  const ed = readFileSync(join(HERE, "../firmware/src/io/editor/ed_sl24.c"), "utf8"), sx = readFileSync(join(HERE, "../firmware/src/storage/sl24/sl24_export.c"), "utf8");
-  const bits = [...sx.matchAll(/SX24_([A-Z0-9]+) = (\d+)/g)].map((x) => [x[1].toLowerCase(), +x[2]]);
-  const names = [...E.S24.LOST, ...E.S24.LOST2];     /* the first word's 14 bits, then the second's (v12): bit 14 is its bit 0 */
-  ok(/ED_SL24_GET = 78/.test(ed) && C.SL24_GET === 78 && bits.length === names.filter((k) => k).length &&
-     bits.every(([n, v]) => names[Math.log2(v)] === ({ lock: "locks" }[n] || n)),
-    "sl24: cmd 78 and the lost bits == ed_sl24.c / sl24_export.c (motion bit 13, chance bit 14 = the second word's bit 0)");
-  {
-    const { rq, teardown } = attachMock({});
-    let none = false;
-    try { await rq(E.req.sl24Get(1, 0), { timeout: 200, retries: 0, quiet: true }); } catch (e) { none = true; }
-    ok(none, "sl24: a build without the export does not answer (no button)");
-    teardown();
-  }
-  const { m, rq, teardown } = attachMock({ sl24: true });
-  const p = await E.sl24ReadPart(rq, 0);
-  let gone = false;
-  try { await E.sl24ReadPart(rq, 1); } catch (e) { gone = /rc 1/.test(e.message); }
-  ok(p.data.length === 3840 && p.data[0] === 0x35 && p.data[3] === 0x46 && p.lost === 0x22 &&
-     E.sl24Lost(p.lost).join() === "fm6,locks", "sl24: the project read in CRC-checked chunks, what was lost");
-  ok(gone, "sl24: part 1 (2.4's settings) is gone: rc 1");
-  ok(p.ext === true && p.lost2 === 0, "sl24: a firmware with v12 sends the second word (here 0)");
-  m.state.sl24Bump = 3;
-  const p2 = await E.sl24ReadPart(rq, 0);
-  ok(p2.data.length === 3840 && E.crc32(p2.data) === E.crc32(p.data), "sl24: the project changed between chunks: read again, consistent");
-  const f = JSON.parse(JSON.stringify(E.sl27SongFile(p.data, "Optimist 2.4x", "2026-10-08", "my song")));
-  /* SLOOP 2.7.1's editor.html songObjects, as it is: format, version, ids 0 and the sections 2..5, lengths, CRCs, a loop
-     (0); an order, when there, 36 bytes */
-  const SECS = [2, 3, 4, 5], got = new Map();
-  let fine = f.format === "sloop-song" && f.version >= 1 && Array.isArray(f.objects) && (f.order == null || E.b64dec(f.order).length === 36);
-  for (const o of f.objects) {
-    const d = Uint8Array.from(E.b64dec(o.data || ""));
-    fine &&= (o.id === 0 || SECS.includes(o.id)) && d.length === o.len && E.crc32(d) === (o.crc >>> 0);
-    got.set(o.id, d);
-  }
-  ok(fine && got.has(0) && got.size === 1 && eq(Array.from(got.get(0)), Array.from(p.data)) && f.name === "my song",
-    "sl24: the file is SLOOP 2.7's song file (its checks pass): the project (0) alone, no settings (a load never writes SLOOP's)");
-  teardown();
-}
-/* the second lost word (protocol v12): the new editor on a v11 firmware (the flagged request says rc 1: no second word, 0, and
-   bit 13 is "motion or chance"), on a v12 one (motion bit 13, chance its own bit), and a v11 editor's request on a v12 one */
-async function editorSl24Lost2() {
-  {
-    const { m, rq, teardown } = attachMock({ sl24: true, sl24v11: true, sl24lost: [0, 1] });
-    const p = await E.sl24ReadPart(rq, 0);
-    ok(p.ext === false && p.lost2 === 0 && p.lost === (0x22 | 8192) && p.data.length === 3840 && E.sl24Lost(p.lost, p.lost2, p.ext).join() === "fm6,locks,motionchance",
-      "sl24 v12 editor on v11 firmware: the missing second word is 0, bit 13 reads 'motion or chance', the data whole");
-    ok(E.sl24Lost(0x22).join() === "fm6,locks" && E.sl24Lost(0x22 | 8192, 0, false).join() === "fm6,locks,motionchance", "sl24Lost: a bare first word as before");
-    ok(E.sl24Lost(0, 2, true).join() === "lsync" && E.sl24Lost(0, 3, true).join() === "chance,lsync" && html.includes("s24L_lsync:"),
-      "sl24Lost: the second word's bit 1 is the LFO's sync (sl24_export.c SX24_LSYNC), with its text");
-    ok(E.sl24Lost(0, 4, true).join() === "lauto" && html.includes("s24L_lauto:"),
-      "sl24Lost: the second word's bit 2 is the drum lanes' motion and locks (SX24_LAUTO), with its text");
-    ok(typeof E.BK.NAMES.DLFO === "string" && E.bkPlan({ objects: [{ tag: "DLFO", kind: "log", data: [1] }] }, { objs: [], caps: {} })[0].why === "bkUnknown",
-      "backup: the DLFO object (drum lane LFOs) has its name; a firmware that does not list it (an older one): skipped, bkUnknown");
-    ok(E.sl24Lost(0, 8, true).join() === "dlfo" && E.sl24Lost(0, 12, true).join() === "lauto,dlfo" && html.includes("s24L_dlfo:"),
-      "sl24Lost: the second word's bit 3 is a drum lane's LFO (SX24_DLFO), with its text");
-    ok(E.sl24Lost(0, 16, true).join() === "fxret" && E.sl24Lost(0, 31, true).join() === "chance,lsync,lauto,dlfo,fxret" && html.includes("s24L_fxret:"),
-      "sl24Lost: the second word's bit 4 is an FX return below unity (SX24_FXRET), with its text");
-    ok(E.sl24Lost(0, 32, true).join() === "ngate" && E.sl24Lost(0, 63, true).join() === "chance,lsync,lauto,dlfo,fxret,ngate" && html.includes("s24L_ngate:"),
-      "sl24Lost: the second word's bit 5 is a POLY note's own end (SX24_NGATE), with its text");
-    ok(E.sl24Lost(0, 512, true).join() === "lfo2" && E.sl24Lost(0, 512 | 32, true).join() === "ngate,lfo2" && html.includes("s24L_lfo2:"),
-      "sl24Lost: the second word's bit 9 is a part's LFO 2 (SX24_LFO2), with its text; bits 6..8 not this list's");
-    ok(E.sl24Lost(0, 2048, true).join() === "lfodest" && html.includes("s24L_lfodest:"),
-      "sl24Lost: the second word's bit 11 is an LFO DEST slot 2.4 has not (SX24_LFODEST), with its text");
-    teardown();
-  }
-  for (const [lostIn, want] of [[[1, 0], "fm6,locks,motion"], [[0, 1], "fm6,locks,chance"], [[1, 1], "fm6,locks,motion,chance"], [[0, 0], "fm6,locks"]]) {
-    const { rq, teardown } = attachMock({ sl24: true, sl24lost: lostIn });
-    const p = await E.sl24ReadPart(rq, 0);
-    ok(p.ext === true && p.data.length === 3840 && E.sl24Lost(p.lost, p.lost2, p.ext).join() === want, `sl24 v12 editor on v12 firmware (motion ${lostIn[0]}, chance ${lostIn[1]}): ${want}`);
-    teardown();
-  }
-  {
-    /* a v11 editor (the 4-byte request, the first word only, the data to the reply's end) on a v12 firmware */
-    const { rq, teardown } = attachMock({ sl24: true, sl24lost: [0, 1] });
-    const r = E.parse[E.CMD.SL24_GET](await rq(E.req.sl24Get(0, 0), { timeout: 200, retries: 0 }));
-    ok(r.rc === 0 && r.lost === (0x22 | 8192) && r.lost2 === 0 && r.data.length === 256,
-      "sl24 v11 editor on a v12 firmware: the reply as it was (chance on bit 13, no trailing bytes)");
-    teardown();
-  }
-}
-/* SLOOP 2.4 the other way (ed_sl24.c 78 parts 2 / 3, 90 SL24_PUT; 91 SL24_BANK is retired): a 2.4 backup file read, its
-   project (the 3840-byte FUN5 alone) sent in CRC-checked chunks, the export with the FM6 voices as 2.4's object 8 */
-async function editorSl24In() {
-  const C = E.CMD, S = E.S24;
-  const ed = readFileSync(join(HERE, "../firmware/src/io/editor/ed_sl24.c"), "utf8");
-  ok(/ED_SL24_PUT = 90 \}/.test(ed) && C.SL24_PUT === 90 && C.SL24_BANK === undefined, "sl24 in: cmd 90 == ed_sl24.c; 91 (SL24_BANK) retired");
-  const fnv = (d, n) => { let s = 0x811C9DC5; for (let i = 0; i < n; i++) s = Math.imul(s ^ d[i], 16777619) >>> 0; return s; };
-  const fun5 = (ptch) => {                            /* a 2.4 project: track 0 an FM6 part on PTCH ptch */
-    const d = new Uint8Array(S.SIZE), v = new DataView(d.buffer);
-    v.setUint32(0, 0x46554E35, true); v.setUint32(4, S.SIZE, true);
-    d[12 + 64 + 122] = 9; v.setInt16(12 + 64 + 120, ptch, true);
-    v.setUint32(S.SIZE - 4, fnv(d, S.SIZE - 4), true);
-    return d;
-  };
-  const rec = Uint8Array.from({ length: 128 }, (_, i) => (i * 5 + 1) & 0x7F);
-  [..."MY BELL   "].forEach((c, i) => { rec[118 + i] = c.charCodeAt(0); });
-  const bank24 = new Uint8Array(3472), bv = new DataView(bank24.buffer);
-  bv.setUint32(0, 0x42364D46, true); bv.setUint16(4, 1, true); bv.setUint16(6, 27, true); bv.setUint32(8, 1 << 2, true);
-  bank24.set(rec, 16 + 128 * 2);
-  const p0 = fun5(8 + 2), p3 = fun5(1), obj = (id, d) => ({ id, len: d.length, crc: E.crc32(d), data: E.b64enc(d) });
-  const file = JSON.parse(JSON.stringify({ format: "sloop-backup", version: 1, objects: [obj(0, p0), obj(1, new Uint8Array(88)), obj(3, p3), obj(4, new Uint8Array(3112)), obj(8, bank24)] }));
-  const f = E.sl24ReadFile(file);
-  ok(f.projects.map((p) => p.id).join() === "0,3" && f.bank === undefined,
-    "sl24 in: a 2.4 backup file: its FUN5 projects (working, B; not a 2.3 FUN4); its FM6 bank object is left alone");
-  let bad = false;
-  try { E.sl24ReadFile({ ...file, objects: [{ ...file.objects[0], crc: 1 }] }); } catch (e) { bad = true; }
-  ok(bad && !E.sl24IsFun5(Uint8Array.from(p0).fill(1, 100, 101)), "sl24 in: a damaged object or project refused");
-  {   /* a SLOOP 2.7 song file (its songCapture: the loop 0; tests/sl27_fun6.bin from 2.7.1's own types) -> its project as
-         FUN5, the drum track's E1..E7 and G_SAVE (2.7's drum TUNE / DECAY: sl24_import.c sl27_dt_in) carried */
-    const f7 = Uint8Array.from(readFileSync(join(HERE, "../tests/sl27_fun6.bin")));
-    const g = E.sl24ReadFile(JSON.parse(JSON.stringify({ format: "sloop-song", version: 1, name: "x", order: null, objects: [obj(0, f7)] })));
-    const d = g.projects.length === 1 && g.projects[0].id === 0 ? g.projects[0].data : null;
-    const e6 = 76 + 934 * 3 + 2 * 53, e5 = 76 + 940 * 3 + 2 * 53, gs = 8 + 2 * 19;
-    ok(d && E.sl24IsFun5(d) && eq(Array.from(d.subarray(e5, e5 + 16)), Array.from(f7.subarray(e6, e6 + 16))) && d[gs] === f7[gs] && d[gs + 1] === f7[gs + 1],
-      "sl24 in: a SLOOP 2.7 song file: its project as FUN5, the drum TUNE / DECAY words (E1..E7) and their G_SAVE mark kept");
-  }
-  {   /* a SLOOP 2.6 backup (tests/sl26_fun6.bin: FUN6 from 2.6's own types, tests/sl25_gen.c) -> its project as 2.5's */
-    const f6 = Uint8Array.from(readFileSync(join(HERE, "../tests/sl26_fun6.bin")));
-    const g = E.sl24ReadFile(JSON.parse(JSON.stringify({ format: "sloop-backup", version: 1, objects: [obj(2, f6), obj(1, new Uint8Array(88))] })));
-    const d = g.projects.length === 1 && g.projects[0].id === 2 ? g.projects[0].data : null, T = (k) => 76 + 940 * k;
-    const lk = (k, step) => { for (let i = 0; i < 24; i++) if (d[T(k) + 828 + 4 * i] === step) return d[T(k) + 829 + 4 * i]; return -1; };
-    ok(d && E.sl24IsFun5(d) && d[T(1) + 122] === 10 && d[T(2) + 122] === 6 && (d[T(0) + 764 + 3] << 24 >> 24) === -5 &&
-      d[T(0) + 924] === (1 << 2 | 2 << 4) && lk(0, 5) === 54 && lk(0, 2) === 39 && lk(0, 7) === -1 && lk(0, 8) === -1 &&
-      d[73] === 77 && (d[8 + 48] | d[9 + 48] << 8) === 10 && !E.sl26ToFun5(Uint8Array.from(f6).fill(1, 100, 101)),
-      "sl24 in: a 2.6 backup's FUN6 -> 2.5's FUN5 (engines, nudges, fills, locks moved back, 2.6's own dropped, TEXTURE's globals)");
-    {   /* LFO 2's SYNC (x[7]) n 1..10 -> RATE -n (P_LRATE, value 9), 0 or past 10: the free RATE (sl26_to_sl24 on the FM-1) */
-      let good = true;
-      const LSD = (/SLOOP_LSYNC_DUR\[10\] = \{([^}]*)\}/.exec(readFileSync(join(HERE, "../firmware/src/core/core.h"), "utf8")) || ["", ""])[1].split(",").map(Number);
-      for (const n of [0, 1, 7, 10, 11]) {
-        const c = Uint8Array.from(f6);
-        for (let k = 0; k < 4; k++) c[76 + 934 * k + 129] = n;
-        let h = 0x811C9DC5;
-        for (let i = 0; i < c.length - 4; i++) h = Math.imul(h ^ c[i], 16777619) >>> 0;
-        new DataView(c.buffer).setUint32(c.length - 4, h, true);
-        const q = E.sl26ToFun5(c);
-        for (let k = 0; k < 4; k++) {
-          const free = f6[76 + 934 * k + 18] | f6[76 + 934 * k + 19] << 8, got = (q[76 + 940 * k + 18] | q[76 + 940 * k + 19] << 8) << 16 >> 16;
-          good = good && got === (n >= 1 && n <= 10 ? -(LSD[n - 1] + 1) : free << 16 >> 16);   /* (SYNC n: DUR index LSD[n - 1], 03b676ad) */
-        }
-      }
-      ok(good, "sl24 in: a 2.6 backup's LFO 2 SYNC n -> the part's RATE -n (0, 11: its free RATE)");
-    }
-  }
-  const o = Uint8Array.from(f.projects[0].data);
-  ok(o.length === 3840 && eq(Array.from(o), Array.from(p0)), "sl24 in: the object is the 3840-byte FUN5 and nothing after it");
-  {
-    const { rq, teardown } = attachMock({});
-    let none = false;
-    try { await rq(E.req.sl24Commit(), { timeout: 200, retries: 0, quiet: true }); } catch (e) { none = true; }
-    ok(none, "sl24 in: a build without the import does not answer (no button)");
-    teardown();
-  }
-  {
-    const { m, rq, teardown } = attachMock({ sl24in: true, sl24badOnce: 1 });
-    const rc = await E.sl24Send(rq, o);
-    ok(rc === 0 && m.state.s24in.done.length === 1 && eq(Array.from(m.state.s24in.done[0]), Array.from(o)),
-      "sl24 in: sent in chunks (one refused, sent again), committed: the device has it byte for byte");
-    const bad8 = Uint8Array.from(o); bad8[200] ^= 1;
-    ok(await E.sl24Send(rq, bad8) === 8, "sl24 in: not a 2.4 project: rc 8");
-    const longer = new Uint8Array(4225); longer.set(o);
-    ok(await E.sl24Send(rq, longer) === 6, "sl24 in: an object longer than the FUN5 (an older editor's bank patches): rc 6");
-    teardown();
-  }
-}
 async function editorSnapshots() {
   const C = E.CMD;
   const ed = readFileSync(join(HERE, "../firmware/src/io/editor/ed_snap.c"), "utf8"), sc = readFileSync(join(HERE, "../firmware/src/storage/snapshots/snapshots.c"), "utf8");
@@ -3693,7 +3525,7 @@ const SUITE = [
   editorFM6Sysex, editorCZ, editorLive, editorTracks, editorMixer, editorTrackParam, editorV5,
   editorDrums, editorKitEditor, editorMixSends, editorPages, editorFxSlots, editorFxp,
   editorV13Optional, editorMacro, editorAuto, editorWifi, editorV14, editorStepx, editorDaw, editorBackup,
-  editorSnapshots, editorSl24, editorSl24Lost2, editorSl24In, editorPatterns, editorV9, editorNoteEnds,
+  editorSnapshots, editorPatterns, editorV9, editorNoteEnds,
   editorTabs, editorKeys, editorSetGate, masterStrip, reverbType, midiSettings, editorUiPass,
   editorPianoRoll, editorIcons, editorParamHelp, samplesMatch, chopTests, packages, updater,
   installerModule,

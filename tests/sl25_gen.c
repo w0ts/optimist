@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* Writes the golden SLOOP 2.5 / 2.6 files of tests/sl25_safety_test.c and tests/sl26_import_test.c with SLOOP's OWN
+/* Writes the golden SLOOP 2.5 / 2.6 files of tests/sl25_safety_test.c (and the golden projects the importer once read) with SLOOP's OWN
  * types: built against isod89/sloop-fm1 firmware/src/core.h and arranger.h, its project_t, persist_t, panel_t and
  * dsu_bank_t cut out of its project.c, panel.c and drum_synth.c as they are (tests/sl25_extract.py). Not run by
  * run_tests.sh (it needs their tree); to make them again, for each of v2.5 (fa9ce57) and v2.6 (d30d655):
