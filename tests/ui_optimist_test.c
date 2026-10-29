@@ -368,7 +368,16 @@ static void cards_up(void) { if (ui.scr == SCR_STEP && !ui.cards_t && !st.held) 
 static int fails;
 static uint32_t key_led(uint32_t k);                     /* ui_optimist_pages.h */
 static int px_in(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint16_t col);
-static void check(int ok, const char *what) { printf("optimist ui: %-72s %s\n", what, ok ? "ok" : "FAIL"); fails += !ok; }
+static void check(int ok, const char *what)
+{
+    static int oct_seen;
+    printf("optimist ui: %-72s %s\n", what, ok ? "ok" : "FAIL");
+    fails += !ok;
+    if (song.octave != oct_seen) {                      /* (a diagnostic: the check after which the keyboard octave changed) */
+        printf("  octave watch: %d at the check above\n", (int)song.octave);
+        oct_seen = song.octave;
+    }
+}
 #define RING_FRAMES ((RH_CLEAR_MS + 40u) / 16u + 2u)    /* (a delete's ring held to its end: frames of 16 ms) */
 static void reset_ui(void)
 {
