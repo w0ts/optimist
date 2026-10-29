@@ -58,7 +58,7 @@
 #ifndef CG_VSTEP
 #define CG_VSTEP 345u                    /* halves (2 s) with no late one before the cap rises a voice */
 #endif
-/* a late half holds back what eases off (a level's release, the cap's rise) only where the reactive path counts it: at a
+/* a late half holds a level's release back only where the reactive path counts it: at a
  * mean of CG_RFLOOR or more. Under it a late half is not the music's (USB, Bluetooth, a flash write) and steps nothing,
  * so it holds nothing up either (2026-10-29, the user: "the FDN8 reverb stops working randomly": before, one late half
  * every second or two at any load kept a reaction's REVERB level, the reverb off, for good: tests/cpuguard_test.c 11) */
@@ -594,7 +594,7 @@ static void cg_spike(uint32_t late)
     else if (cg.spk)
         cg.spk--;
     if (cg.vcap) {                       /* (the cap: a voice back after CG_VSTEP halves with none late; NVOICE: off) */
-        if (CG_LATE_HOLDS(late))
+        if (late)
             cg.vcn = 0;
         else if (++cg.vcn >= CG_VSTEP) {
             cg.vcn = 0;
