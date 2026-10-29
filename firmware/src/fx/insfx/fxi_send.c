@@ -11,7 +11,7 @@
  *         the loop (FREQ RES TYPE SLOPE: DLY F), the saturator and the 16-bit float line, all the send's (fx.c
  *         dly_block); a line as long as the send's, FELUCCA_DLY_LEN samples (fxi_mem.h FXA_Z6). The send's MIX and DLY
  *         RET are the send's: the insert's level is its own MIX
- * The amount is the MIX (P_TROOM, P_TTDLY; the master's mst_amt): 0 dry (the owner's samples untouched), 127 all wet,
+ * The amount is the MIX (P_TROOM, P_TTDLY: in the builds with them, core.h; the master's mst_amt): 0 dry (the owner's samples untouched), 127 all wet,
  * faded over 2.9 ms (ifx_mix). The input is the owner's block at the send's scale (a part's at its unity LEVEL is what
  * its send would carry; the wet as the send's return at unity), so a track's ROOM at 127 sounds as its send at REV 127
  * with the dry muted. A part (mono): TDLY's repeats into its block; ROOM's left and right as mid (its block) and side

@@ -128,10 +128,15 @@ static const uint8_t MOT_TAIL2[] = {
 #else
     P_COUNT, P_COUNT, P_COUNT,
 #endif
-#if INS_FX
-    P_TROOM, P_TTDLY,                                        /* (ROOM's and TDLY's MIX, 2026-10-29: +9, +10) */
+#if INS_ROOM
+    P_TROOM,                                                 /* (ROOM's MIX, 2026-10-29: +9; P_COUNT where not built) */
 #else
-    P_COUNT, P_COUNT,
+    P_COUNT,
+#endif
+#if INS_TDLY
+    P_TTDLY,                                                 /* (TDLY's MIX, 2026-10-29: +10) */
+#else
+    P_COUNT,
 #endif
 #if FELUCCA_EX_GAIN
     P_TEXGN,                                                 /* (EXGN's GAIN, the example insert: +11, only in its builds; a

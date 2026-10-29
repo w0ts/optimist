@@ -153,7 +153,16 @@ static const uint8_t FXT_AMT[FXT_N] = {
 #else
     0xFF,                                              /* (EXGN's id: not in this build) */
 #endif
-    INS_ROOM ? P_TROOM : 0xFF, INS_TDLY ? P_TTDLY : 0xFF,   /* (ROOM, TDLY: their MIX) */
+#if INS_ROOM
+    P_TROOM,                                           /* (ROOM: its MIX) */
+#else
+    0xFF,
+#endif
+#if INS_TDLY
+    P_TTDLY,                                           /* (TDLY: its MIX) */
+#else
+    0xFF,
+#endif
 };
 /* THE send order (2026-10-15, the user: "match the order between master return and the send"; turned round 2026-10-21, the
  * user: "the default project have sends as chorus, delay, reverb"): CHO DLY REV. The returns A B C hold them by default,
@@ -1271,7 +1280,13 @@ static void fxs_untlv_none(int all)
     mst_amt[FXT_EQ3] = 1;
     eq3_defaults();
     for (k = 0; k < NTRK; k++)
-        trk[k].p[P_TXDLY] = trk[k].p[P_TROOM] = trk[k].p[P_TTDLY] = 0;   /* (XDLY's, ROOM's, TDLY's MIX: built or not) */
+        trk[k].p[P_TXDLY] = 0;                         /* (XDLY's MIX: built or not) */
+    for (k = 0; k < NTRK; k++) {                       /* (ROOM's, TDLY's: only where built) */
+        if (FXT_AMT[FXT_ROOM] != 0xFFu)
+            trk[k].p[FXT_AMT[FXT_ROOM]] = 0;
+        if (FXT_AMT[FXT_TDLY] != 0xFFu)
+            trk[k].p[FXT_AMT[FXT_TDLY]] = 0;
+    }
     mst_amt[FXT_ROOM] = mst_amt[FXT_TDLY] = 0;
 #if FELUCCA_INS_XDLY
     mst_amt[FXT_XDLY] = 0;

@@ -396,9 +396,16 @@ enum {                          /* per-track parameters */
     P_TTAPE, P_TSPIT,                            /* (TAPE SPIT, 2026-10-19: fx/insfx/tapespit.c, after the shapers' range) */
     P_TXDLY,                                     /* (XDLY, 2026-10-22: fx/insfx/xdly.c, a limited type: its MIX; its TIME 1 TIME 2
                                                   * MOD FDBK the owner's, fx_slots.c xdl_v) */
-    P_TROOM, P_TTDLY,                            /* (ROOM, TDLY, 2026-10-29: fx/insfx/fxi_send.c, the reverb send's ROOM and the
-                                                  * delay send's delay as limited inserts: their MIX, dry to all wet; their
-                                                  * SIZE DAMP, TIME FDBK COLOR the sends' own, FX > REV/CHO, DLY) */
+#endif
+    /* ROOM, TDLY (2026-10-29: fx/insfx/fxi_send.c, the reverb send's ROOM and the delay send's delay as limited inserts):
+     * their MIX, dry to all wet (their SIZE DAMP, TIME FDBK filter the sends' own, FX > REV/CHO, DLY). Only in the builds
+     * that have them (as EXGN's): a build without them keeps every id as it was (the default's P_COUNT is 127: the web
+     * editor's STEPLANE lists carry ids under 128). Not part of a sound nor of a user preset; the FX record keeps them */
+#if INS_ROOM
+    P_TROOM,
+#endif
+#if INS_TDLY
+    P_TTDLY,
 #endif
 #if FELUCCA_EX_GAIN
     /* EXGN, the example insert (EX_GAIN, fx/insfx/exgain.c, CONTRIBUTING.md): a track's GAIN, its amount (0 off, else
