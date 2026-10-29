@@ -7,6 +7,8 @@ export const PYODIDE_VERSION = "314.0.7";            // pinned (released 2026-09
 export const PYODIDE_CDN = `https://cdn.jsdelivr.net/pyodide/v${PYODIDE_VERSION}/full/`;
 export const REGIONS = ["flash", "ram", "pool", "ramtext"];   // the measured parts (core.py REGIONS)
 export const BUDGETS = ["flash", "sram"];                     // the limits: the app slot, the packed SRAM (core.py BUDGETS)
+/* the limits of a result: BUDGETS, or its own when the data is an older release's (?ref=: flash, ram, pool, ramtext before 7da2794c) */
+export const budgetsOf = (fits) => (BUDGETS.every((r) => fits && fits[r]) ? BUDGETS : Object.keys(fits || {}));
 export const SORTS = [null, ...REGIONS];             // the menu's o: default order, then each region, largest first
 export const OVER_W = 20;                             // menu.py: cells for the overflow, past the capacity mark
 export const SHOW_MIN = 64;                           // menu.py delta_of: the regions an item moves by 64 B or more
