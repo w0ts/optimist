@@ -15,7 +15,7 @@
       "source": {
         "repo": "https://github.com/hugelton/Felucca",
         "commit": "727f272 (Felucca 1.0 source)",
-        "author": "Leo Kuroshita (@kurogedelic), Hügelton Instruments",
+        "author": "Leo Kuroshita (@kurogedelic), H\u00fcgelton Instruments",
         "licence": "GPL-3.0-only",
         "files": "firmware/src/core.h step_chance / step_set_chance, seq.c seq_step"
       },
@@ -38,42 +38,6 @@
       "warning": false
     },
     {
-      "switch": "FELUCCA_KEYLIT",
-      "title": "The keys light the notes the selected synth track plays (sequencer, ARP, held voices)",
-      "default": 1,
-      "group": "ui",
-      "source": {
-        "repo": "https://github.com/hugelton/Felucca",
-        "commit": "20c275e (Felucca 1.0.1, #38)",
-        "author": "Leo Kuroshita (@kurogedelic), Hügelton Instruments",
-        "licence": "GPL-3.0-only",
-        "files": "firmware/src/ui_input.c play_leds"
-      },
-      "also": {
-        "repo": "https://github.com/renebohne/sloop-fm1",
-        "commit": "e2e5099 (Add option to illuminate played notes on synth tracks)",
-        "author": "renebohne",
-        "licence": "GPL-3.0-only",
-        "used": "the held voices of the track light their keys (here without the GLO > SYSTEM NOTES setting: the switch is the choice)"
-      },
-      "files": [
-        "firmware/src/ui/sloop/keylit.c",
-        "hook: ui_input.c keys_lit"
-      ],
-      "cost": {
-        "flash": 224,
-        "ram": 0,
-        "pool": 0,
-        "ramtext": 0,
-        "cpu": "UI frame only: 27 keys x <= 13 notes compares",
-        "project_bytes": 0
-      },
-      "storage": "none",
-      "limits": "with FELUCCA_LIGHTS (SLOOP 2.3), MENU > NOTES turns it off and on at run time (a setting of the FM-1, the settings record; renebohne's NOTES setting) and it also glows under the tile layers; without LIGHTS the switch is the choice",
-      "notice": "Played-note key lights after Felucca 1.0.1 (Leo Kuroshita) and renebohne's SLOOP fork (GPL-3.0).",
-      "warning": false
-    },
-    {
       "switch": "FELUCCA_QNT_SEQ",
       "title": "SCL > QNT SEQ: the sequenced notes snap to the scale as they play",
       "default": 0,
@@ -81,7 +45,7 @@
       "source": {
         "repo": "https://github.com/hugelton/Felucca",
         "commit": "20c275e (Felucca 1.0.1, #37)",
-        "author": "Leo Kuroshita (@kurogedelic), Hügelton Instruments",
+        "author": "Leo Kuroshita (@kurogedelic), H\u00fcgelton Instruments",
         "licence": "GPL-3.0-only",
         "files": "firmware/src/seq.c seq_step (qseq), kb_map (QN_SEQ as SNAP)"
       },
@@ -110,7 +74,7 @@
       "source": {
         "repo": "https://github.com/hugelton/Felucca",
         "commit": "727f272 (Felucca 1.0 source)",
-        "author": "Leo Kuroshita (@kurogedelic), Hügelton Instruments",
+        "author": "Leo Kuroshita (@kurogedelic), H\u00fcgelton Instruments",
         "licence": "GPL-3.0-only",
         "files": "firmware/src/fx.c rev_spring, rev_clear, the model change in fx_buses; design after Valimaki, Parker and Abel (stretched allpass chirp), as Felucca credits it"
       },
@@ -141,7 +105,7 @@
       "source": {
         "repo": "https://github.com/hugelton/Felucca",
         "commit": "727f272 (Felucca 1.0 source)",
-        "author": "Leo Kuroshita (@kurogedelic), Hügelton Instruments",
+        "author": "Leo Kuroshita (@kurogedelic), H\u00fcgelton Instruments",
         "licence": "GPL-3.0-only",
         "files": "firmware/src/fx.c spk_bass, master_out (fx_lowcut 2), ui_menu.c SPEAKER"
       },
@@ -165,41 +129,11 @@
       "fixed": {
         "repo": "https://github.com/hugelton/Felucca",
         "commit": "db70550 (Felucca 1.0.2, #42)",
-        "author": "Leo Kuroshita (@kurogedelic), Hügelton Instruments",
+        "author": "Leo Kuroshita (@kurogedelic), H\u00fcgelton Instruments",
         "licence": "GPL-3.0-only",
         "what": "the trapezoid built from a 4-pole low-pass (sb_lp3, sb_lp4): the mix's 300..600 Hz no longer cancelled (440 Hz: -5.7 -> -2.2 dB, tests/backports_test.c t_bassplus_response); ours also drops the band-pass residue once the envelope is 0 (the floored steps left -21 of DC)",
         "cost": "user-default with BASSPLUS=1: RAM +64 B (the HOT2 code runs from RAM), flash -4 B; CPU ~2 multiply-adds a sample more with BASS+ on (est.), none once silent"
       }
-    },
-    {
-      "switch": "FELUCCA_BRIGHT",
-      "title": "Screen brightness: MENU > BRIGHT 1..8 (software PWM of the backlight)",
-      "default": 1,
-      "group": "ui",
-      "source": {
-        "repo": "https://github.com/charlesvestal/fm1-x0x",
-        "commit": "61654ba (Knob acceleration by speed, screen brightness, ...)",
-        "author": "Charles Vestal",
-        "licence": "GPL-3.0-only",
-        "files": "firmware/hal/fm1_lcd_hw.h fm1_lcd_bl_tick, firmware/src/app/plat_fm1.c plat_brightness (8 steps of duty)"
-      },
-      "files": [
-        "firmware/src/ui/sloop/bright.c",
-        "firmware/hal/fm1_lcd_hw.h fm1_lcd_bl_tick",
-        "hooks: main.c TIMER5 ISR, ui_menu.c BRIGHT item, project.c persist_t.bright (appended)"
-      ],
-      "cost": {
-        "flash": 304,
-        "ram": 0,
-        "pool": 0,
-        "ramtext": 0,
-        "cpu": "TIMER5 (10 kHz): a counter and one port write per tick",
-        "project_bytes": 0
-      },
-      "storage": "a slot appended to the settings record (persist_t.bright), always written 0 (= full) and never applied at boot; a build without the switch reads its own record length",
-      "limits": "It froze a real FM-1 on X0X: BRIGHTNESS 1 (duty 1/16) hung the unit, and the saved level hung it again at every boot until reflashed (X0X issue #2, 2026-10-06; X0X removed it in c6f2bf6; root cause found later: PA2 is also the /OE of the key matrix's 595s, so with the backlight line high nothing reads (Felucca 1.1.5.1, 213df5a). Here the 10 kHz tick drives PA2 low before the matrix scan, so every scan sees the 595s enabled) [R]. Here: every boot starts at full and the level is never saved (always 0 = full), and the lowest step is 4/16, not 1/16",
-      "notice": "This backlight PWM froze an FM-1 at its lowest level on X0X (issue #2; the backlight line also enables the key matrix, which this build keeps enabled during each scan). Optimist boots at full brightness every time, never stores a dim level and never goes below 4/16, so a power-off always brings the screen back at full. Ported from X0X by Charles Vestal (GPL-3.0).",
-      "warning": false
     },
     {
       "switch": "FELUCCA_MOTION",
@@ -209,7 +143,7 @@
       "source": {
         "repo": "https://github.com/hugelton/Felucca",
         "commit": "727f272 (Felucca 1.0 source)",
-        "author": "Leo Kuroshita (@kurogedelic), Hügelton Instruments",
+        "author": "Leo Kuroshita (@kurogedelic), H\u00fcgelton Instruments",
         "licence": "GPL-3.0-only",
         "files": "firmware/src/motion.c (the 64-event store, base / active, motion_capture, motion_step), hooks in seq.c, ui_input.c, project.c"
       },
@@ -241,7 +175,7 @@
       "source": {
         "repo": "https://github.com/hugelton/Felucca",
         "commit": "727f272 (Felucca 1.0 source)",
-        "author": "Leo Kuroshita (@kurogedelic), Hügelton Instruments",
+        "author": "Leo Kuroshita (@kurogedelic), H\u00fcgelton Instruments",
         "licence": "GPL-3.0-only (eng_phys.c); MIT (phys_dsp.c: DaisySP by Electrosmith, Corp and Emilie Gillet; phys_symp.c: Rings by Emilie Gillet)",
         "files": "firmware/src/eng_phys.c, phys_dsp.c, phys_symp.c"
       },
@@ -309,7 +243,7 @@
       "source": {
         "repo": "https://github.com/hugelton/Felucca-Engines",
         "commit": "c46e008 (src/eng_noise.c)",
-        "author": "Leo Kuroshita (@kurogedelic), Hügelton Instruments",
+        "author": "Leo Kuroshita (@kurogedelic), H\u00fcgelton Instruments",
         "licence": "MIT (the repository's LICENSE; eng_noise.c carries SPDX MIT and the copyright)",
         "files": "src/eng_noise.c (ported with changes to the engine_t glue only: PITCH_INC, voice amplitude written out, .macro, the retrigger state in voice.c); the DSP and the four presets are unchanged"
       },
@@ -330,7 +264,7 @@
       },
       "storage": "engine byte 15; the 8 EDIT values (MODE, COLR, FREQ, RES, TRK, DENS / LEN, DRFT, CRSH / CLK) in P_E0..P_E7: no project format change",
       "limits": "polyphony the part's 8 voices; the sound is judged on the host only (no hardware or emulator listening); the original's pattern hints are dropped; no m->fine (bend below 1/16 semitone) in the LFSR / META clock",
-      "notice": "NOISE engine from Felucca-Engines by Leo Kuroshita (@kurogedelic), Hügelton Instruments (MIT). The file stays under the MIT licence.",
+      "notice": "NOISE engine from Felucca-Engines by Leo Kuroshita (@kurogedelic), H\u00fcgelton Instruments (MIT). The file stays under the MIT licence.",
       "warning": false
     },
     {
@@ -432,38 +366,6 @@
       "warning": false
     },
     {
-      "switch": "FELUCCA_LIGHTS",
-      "title": "Lights for playing in the dark: MENU LIGHTS (every button glows OFF / LOW / MID / HIGH), KEYS (C / white keys), NOTES (KEYLIT on / off)",
-      "default": 0,
-      "group": "ui",
-      "source": {
-        "repo": "https://github.com/isod89/sloop-fm1",
-        "commit": "d691ba7 (SLOOP 2.3)",
-        "author": "isod89 (the dim pulses after Felucca 1.0.1 #35 by Leo Kuroshita; NOTES by renebohne, PR #11)",
-        "licence": "GPL-3.0-only",
-        "files": "firmware/hal/fm1_input.h fm1_input_tick (fm1_led_bg), ui_input.c ui_leds / keys_notes_dim / lights_keys_mask, ui_menu.c, panel.c lights_word"
-      },
-      "files": [
-        "firmware/hal/fm1_input.h fm1_input_tick (glow and backlight pulses timed by TIMER4)",
-        "firmware/src/ui/lights.c",
-        "firmware/src/ui/sloop/ui_input.c ui_leds, keys_lit",
-        "firmware/src/ui/sloop/ui_menu.c",
-        "firmware/src/storage/project.c persist_t.bp23"
-      ],
-      "cost": {
-        "flash": 1576,
-        "ram": 16,
-        "pool": 0,
-        "ramtext": 152,
-        "cpu": "the LED tick: a pulse of 0.5 / 1 / 2 us a frame per lit layer, during the 595 shift (TIMER5 ISR)",
-        "project_bytes": 0
-      },
-      "storage": "the settings record word persist_t.bp23 (bits 0..8); a record without it: OFF / OFF / NOTES ON",
-      "limits": "NOTES needs FELUCCA_KEYLIT (it is KEYLIT at run time); with the switch the landmark glow is a timed pulse (~1/24) instead of one frame in four; the LED brightness itself is not modelled by the emulator",
-      "notice": "Menu LIGHTS / KEYS / NOTES from SLOOP 2.3 by isod89 (after Felucca 1.0.1 by Leo Kuroshita; NOTES by renebohne; GPL-3.0).",
-      "warning": false
-    },
-    {
       "switch": "FELUCCA_DIV_ORDER",
       "title": "Note divisions in length order on the knobs and gauges (1/4 1/8 8T 1/16 16T 1/32)",
       "default": 0,
@@ -471,7 +373,7 @@
       "source": {
         "repo": "https://github.com/hugelton/Felucca",
         "commit": "db70550 (Felucca 1.0.2, #48)",
-        "author": "Leo Kuroshita (@kurogedelic), Hügelton Instruments",
+        "author": "Leo Kuroshita (@kurogedelic), H\u00fcgelton Instruments",
         "licence": "GPL-3.0-only",
         "files": "firmware/src/params.c DIV_ORDER, enum_rank, param_turn"
       },
@@ -502,7 +404,7 @@
       "source": {
         "repo": "https://github.com/hugelton/Felucca",
         "commit": "db70550 (Felucca 1.0.2, #40)",
-        "author": "Leo Kuroshita (@kurogedelic), Hügelton Instruments",
+        "author": "Leo Kuroshita (@kurogedelic), H\u00fcgelton Instruments",
         "licence": "GPL-3.0-only",
         "files": "firmware/src/perform.c perf_latched, ui_layer.c (FX LATCH), ui_menu.c"
       },
@@ -533,7 +435,7 @@
       "source": {
         "repo": "https://github.com/hugelton/Felucca",
         "commit": "b22a24b (Felucca 1.0.3, idea only)",
-        "author": "Leo Kuroshita (@kurogedelic), Hügelton Instruments",
+        "author": "Leo Kuroshita (@kurogedelic), H\u00fcgelton Instruments",
         "licence": "GPL-3.0-only",
         "files": "firmware/src/up_fm6.c (the idea: a user preset keeps its FM6 patch); our code is for Melodee's FM6"
       },
@@ -904,7 +806,7 @@
       "source": {
         "repo": "https://github.com/hugelton/Felucca",
         "commit": "9f6a885 (Felucca 1.5.6)",
-        "author": "Leo Kuroshita (@kurogedelic), Hügelton Instruments",
+        "author": "Leo Kuroshita (@kurogedelic), H\u00fcgelton Instruments",
         "licence": "GPL-3.0-only",
         "files": "firmware/src/core.h step_cond (COND_FIRST, NCOND), seq.c seq_cond_miss / seq_enter (1.5.5, #209)"
       },
@@ -935,7 +837,7 @@
       "source": {
         "repo": "https://github.com/hugelton/Felucca",
         "commit": "9f6a885 (Felucca 1.5.6)",
-        "author": "Leo Kuroshita (@kurogedelic), Hügelton Instruments",
+        "author": "Leo Kuroshita (@kurogedelic), H\u00fcgelton Instruments",
         "licence": "GPL-3.0-only",
         "files": "firmware/src/ui_tools.c (1.2 .. 1.5.5: tl_reverse, tl_random_notes, tl_lane_rnd, tl_cook_*, EUCLID, tl_double / tl_half)"
       },

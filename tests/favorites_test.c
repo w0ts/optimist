@@ -139,7 +139,7 @@ static void fill(persist_v3_t *p, uint32_t seed)
     p->panel.magic = PANEL_MAGIC;
     p->magic = PERSIST_MAGIC;
     p->view = 1;
-    p->bright = 0;                                 /* (as written: never SLOOP's kit header) */
+    p->spare = 0;                                  /* (as written: never SLOOP's kit header) */
     p->bp23 = 0x01A5C3E1u;
     memset(&p->arrangement, 0, sizeof p->arrangement);
 }
@@ -167,7 +167,7 @@ static void t_record(void)
     check("a record from before the favorites reads whole (length = the new record's)", r == (int)sizeof p);
     check("... its settings word, view, palette, panel and magic as saved",
           p.bp23 == q.bp23 && p.view == q.view && p.palette == q.palette && p.magic == q.magic && p.panel.magic == PANEL_MAGIC &&
-          p.zoom == q.zoom && p.lowcut == q.lowcut && p.bright == q.bright);
+          p.zoom == q.zoom && p.lowcut == q.lowcut && p.spare == q.spare);
 #if FELUCCA_BLE
     check("... the BLE address, trims, bond and device store kept as saved",
           !memcmp(p.ble_addr, q.ble_addr, sizeof p.ble_addr) && !memcmp(p.ble_rf, q.ble_rf, sizeof p.ble_rf) &&

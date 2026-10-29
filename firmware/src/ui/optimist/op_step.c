@@ -2170,7 +2170,6 @@ static void step_foot(char *h, char *k, uint32_t n)
     str_app(k, b, n);
 }
 
-#if FELUCCA_KEYLIT
 /* the keys of the notes a synth track sounds now: its steps', its ARP note, its voices held (the logic of Felucca
  * 1.0.1's play_leds and renebohne's voices, as ui/sloop/keylit.c keylit_play, copied): the lowest key of each */
 static uint32_t op_keys_sounding(const track_t *t)
@@ -2198,4 +2197,3 @@ static uint32_t op_keys_sounding(const track_t *t)
             }
     return m;
 }
-#endif
