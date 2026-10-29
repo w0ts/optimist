@@ -1208,6 +1208,7 @@ static struct {
     uint32_t clr;                /* the line cleared up to here (RG_CLEAR) */
 } rgd;
 static volatile uint8_t rev_live;
+static volatile uint16_t rev_sheds;                    /* the guard turned a running reverb off, since the start (rev_diag.c) */
 static __attribute__((noinline)) void rev_gclear(void)  /* (XIP: a block while RG_CLEAR) */
 {
     uint32_t i = rgd.clr, e = i + REV_GCHUNK, len = REV_LINE_N;
@@ -1243,6 +1244,7 @@ AINL uint32_t rev_guard(int run)
     if (CG_LEVEL >= CG_L_REVERB || z) {
         if (rgd.st == RG_ON) {                          /* (an idle tank: every cell 0 already, nothing to clear) */
             rgd.st = !run ? RG_OFF : z ? RG_CLEAR : RG_FADE;
+            rev_sheds += (uint16_t)(rgd.st == RG_FADE && rev_sheds < 0xFFFFu);   /* (the guard's, sounding: counted) */
             rgd.fade = REV_GFADE;
             rgd.clr = 0;
         }
@@ -2193,6 +2195,7 @@ static HOT2 __attribute__((noinline)) void dust_run(dust_t *s, int32_t d, int32_
 #include "insfx/fxi.c"              /* the limited types' instances (CHRS ECHO): the main loop hands them out, fxi_poll */
 #include "fx_arena.c"               /* FELUCCA_FX_ARENA: the effects' lines in the arena while used (fxm_poll) */
 #include "../core/arena_bufs.c"     /* ... and the other buffers only some projects use (arb_poll) */
+#include "rev_diag.c"               /* why the reverb's return is silent now (rev_why: the console, the LG readout, the stats) */
 /* the second-core test image can switch the inserts off (outside the DINS block: the track strips use it too) */
 #if defined(FELUCCA_DUALCFG) && FELUCCA_DUALCFG && FELUCCA_DUAL
 #define FX_INS_BYPASS fm1_ins_bypass                    /* (the second-core test image: dualcfg ins off, hal/fm1_dual.h) */
