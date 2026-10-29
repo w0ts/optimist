@@ -629,8 +629,7 @@ static voice_t *voice_alloc(track_t *t, uint32_t note)
     if (nfree && voices_busy() >= CG_VBUDGET) {
         track_t *vp = 0;
         uint32_t k;
-#if FELUCCA_VOICE_OWN
-        /* (JIANT 0.9.9 cpu3 da61bc62, GPL-3.0; builder item VOICE_OWN) the budget is full and this part has a released
+        /* (JIANT 0.9.9 cpu3 da61bc62, GPL-3.0; the builder's VOICE_OWN, always on since 2026-10-29) the budget is full and this part has a released
          * voice of its own: restart its oldest in place, not another part's tail faded out (that fade rendered
          * beside the new note, a voice over the budget, and cut a tail the other part still had) */
         for (i = 0, k = np; i < np; i++)
@@ -638,7 +637,6 @@ static voice_t *voice_alloc(track_t *t, uint32_t note)
                 k = i;
         if (k < np)
             return &t->v[k];
-#endif
         k = voice_victim(t, 0, &vp);
         if (k < np && vp == t)
             return &t->v[k];                            /* our own: restart it in place (no click) */

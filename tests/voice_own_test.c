@@ -2,7 +2,7 @@
 /* VOICE_OWN (core/voice.c voice_alloc; JIANT 0.9.9 cpu3 da61bc62): the shared budget (NVOICE) full, a part with a released
  * voice of its own restarts that one; the other parts' tails ring on.
  *   own       T2 has 7 old released tails, T1 one newer released voice: T1's next note takes T1's own voice, none of T2's
- *             faded (without the item: T2's oldest tail faded, the global victim)
+ *             faded
  *   none      T1 with no released voice of its own: one of T2's taken, as before
  *   held      T2's held notes: never faded for it either way
  * Exit status: the number of failed checks. */
@@ -65,12 +65,8 @@ int main(void)
     trk_note_on(&trk[0], 64, 100);
     printf("voice_own: after T1's new note: T2 tails %u fading %u; T1 held %u tails %u\n", count(&trk[1], 0, 0),
            count(&trk[1], 1, 0), count(&trk[0], 0, 1), count(&trk[0], 0, 0));
-#if FELUCCA_VOICE_OWN
     check(count(&trk[1], 1, 0) == 0u && count(&trk[1], 0, 0) == NVOICE - 1u, "own: none of T2's tails faded");
     check(count(&trk[0], 0, 1) == 1u && count(&trk[0], 0, 0) == 0u, "own: T1's own released voice took the note");
-#else
-    check(count(&trk[1], 1, 0) == 1u, "VOICE_OWN off: T2's oldest tail faded (the global victim, as before)");
-#endif
     blocks(40);
 
     /* none: T1 has no released voice: a voice from T2 as before */

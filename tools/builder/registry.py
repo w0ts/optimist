@@ -106,6 +106,7 @@ RETIRED = {
     "VIS": "the SLOOP 2.4 visualiser was dropped from the builder for now (2026-10-10); HOME on TRACKS flips the mixer dial page",
     "TAB_IN_POOL": "the sound tables, FM6's buffers and the card's stream tables are always in the pool, the RAM being one packed "
                    "region (retired 2026-10-29, bit 300; the user: \"always on\"; any old TAB_IN_POOL value is ignored)",
+    "VOICE_OWN": "at the voice budget a part always restarts its own released voice before fading another part's (retired 2026-10-29, bit 369; the user: \"default on: remove it\"; any old VOICE_OWN value is ignored)",
     "KNOB_ONEREST": "the knobs are always read with Felucca 1.6's decoder (one rest state a detent, fast turns counted; "
                     "retired 2026-10-14, released in Felucca 1.1.5 #126 and unchanged since)",
 }
@@ -118,7 +119,7 @@ RETIRED = {
 WAS_COUNT = frozenset({"INS_CHORUS", "INS_DELAY", "INS_JCHORUS", "INS_FLANGER", "INS_XDLY",
                        "ARENA"})   # (ARENA: its KB until 2026-10-29, the free RAM since: on)
 
-HASH_AS = {"KEYLIT": 1, "LIGHTS": 1, "BRIGHT": 0, "SIMD": 0, "KNOB_ONEREST": 1, "MONO_RELEASE": 1, "ST_STRICT": 1, "USB_FLOW": 1, "SHED_FADE": 1, "KEYS_FAST": 1, "TRS_NOISE": 1, "BK_CHECK": 1, "LAYER_QUIET": 1, "DLY_HALVE": 1, "LFO2": 1, "GLIDE": 1, "UI": 1, "ICONS": 0, "OVERVIEW": 0, "OV_ARP": 1, "DRUM_STEP": 1, "CHORD_NAMES": 1, "BPM_LOCK": 0, "MOTION_MARK": 1, "SEL_PAGES": 0, "BIGVALS": 0, "DRUM_ACCENT": 1, "PAGE_LINES": 1, "TAB_IN_POOL": 1}   # (each was its default in every profile)
+HASH_AS = {"KEYLIT": 1, "LIGHTS": 1, "BRIGHT": 0, "SIMD": 0, "KNOB_ONEREST": 1, "MONO_RELEASE": 1, "ST_STRICT": 1, "USB_FLOW": 1, "SHED_FADE": 1, "KEYS_FAST": 1, "TRS_NOISE": 1, "BK_CHECK": 1, "LAYER_QUIET": 1, "DLY_HALVE": 1, "LFO2": 1, "GLIDE": 1, "UI": 1, "ICONS": 0, "OVERVIEW": 0, "OV_ARP": 1, "DRUM_STEP": 1, "CHORD_NAMES": 1, "BPM_LOCK": 0, "MOTION_MARK": 1, "SEL_PAGES": 0, "BIGVALS": 0, "DRUM_ACCENT": 1, "PAGE_LINES": 1, "TAB_IN_POOL": 1, "VOICE_OWN": 1}   # (each was its default in every profile)
 
 # Never offered: used by X0X only by permission of its author, no licence
 FORBIDDEN = {
@@ -1297,16 +1298,8 @@ _add("CPU_GUARD", "FELUCCA_CPU_GUARD", "predictive CPU guard (ease back before s
           "voices, then voices shed, never the bass or the lead (MONO / LEGATO / UNISON parts) nor the drums; back "
           "after 2 s under 80 % counting what each step saved; SYSTEM > INFO's GUARD line (SYS_DEBUG) shows the step. Weights: "
           "tools/builder/cpu_costs.py from tests/cpu_baseline.txt (docs/CPU-GUARD.md)")
-JIANT_CPU3 = Provenance("JIANT 0.9.9 cpu3 (juanjiant-bit/JIANT)", "juanjiant-bit", "GPL-3.0-only", "da61bc62",
-                        "https://github.com/juanjiant-bit/JIANT")
-_add("VOICE_OWN", "FELUCCA_VOICE_OWN", "voices: reuse a track's own released voice before taking another's", Y, 369,
-     provenance=JIANT_CPU3,
-     desc="When every voice is in use and a track plays a new note, it first restarts one of its own voices that is "
-          "already releasing, instead of fading out another track's tail. The other tracks keep their tails, and no "
-          "extra fading voice runs for a moment over the budget. When the track has no releasing voice, the voice is "
-          "taken from another track as before. A few dozen bytes.",
-     notice="From JIANT 0.9.9 cpu3 by juanjiant-bit (juanjiant-bit/JIANT da61bc62, GPL-3.0). Tested in the host tests "
-            "only, not on a device.")
+# (bit 369, VOICE_OWN, retired 2026-10-29: a part at the voice budget always restarts its own released voice before
+#  fading another part's (core/voice.c, JIANT 0.9.9 cpu3 da61bc62, GPL-3.0); RETIRED above; never reuse the bit)
 _add("CACHE_RAM", "FELUCCA_CACHE_RAM", "more memory from the data cache (for the undo history)", Y, 92, default=0,
      choices=((0, "off"), (2, "8 KB (6 cache ways kept)"), (4, "16 KB (4 kept)"), (7, "28 KB (1 kept, as V15)")),
      target_only=True,

@@ -325,10 +325,8 @@ job; ( jobin
     run "PHASE FOLD 0: the render sample for sample the build without it" sh -c "[ \"\$('$OUT/phase_fold_test' hash)\" = \"\$('$OUT/phase_fold_test_off' hash)\" ]"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
-    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_VOICE_OWN=1 -o "$OUT/voice_own_test" tests/voice_own_test.c -lm
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/voice_own_test" tests/voice_own_test.c -lm
     run "VOICE_OWN (JIANT): at the budget a part restarts its own tail, the others' tails ring on" "$OUT/voice_own_test"
-    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_VOICE_OWN=0 -o "$OUT/voice_own_test_off" tests/voice_own_test.c -lm
-    run "VOICE_OWN off: the global victim as before" "$OUT/voice_own_test_off"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     # the three drum synths, each a switch (S the 32 kits, K KAWA, P PLAITS), M the sampled kits, X the X0X kits
