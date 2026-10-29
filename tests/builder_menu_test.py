@@ -146,8 +146,31 @@ async def estimate_over_build_fits_test():
         check("... the overflow lines take the build's sizes: none left", not app.over and app.budget()["exact"])
 
 
+async def back_test():
+    """shift+space (backspace where a terminal sends it as a space) takes a choice one value back, wrapping as space
+    does forward; the search box keeps its backspace"""
+    key = next(k for k, it in R.ITEMS.items() if it.is_choice and len(it.choices) >= 3 and k in C.defaults()
+               and not it.fixed)
+    vals = [c[0] for c in R.ITEMS[key].choices]
+    app = M.Builder(C.defaults(), "default")
+    async with app.run_test(size=(200, 60)) as pilot:
+        await pilot.pause()
+        app.cfg[key] = vals[1]
+        app.query_one("#tree").move_cursor(app.nodes[key])
+        await pilot.press("space")
+        await pilot.pause()
+        check(f"back: space takes {key} forward", app.cfg[key] == vals[2])
+        await pilot.press("shift+space")
+        await pilot.pause()
+        check(f"back: shift+space takes {key} back", app.cfg[key] == vals[1])
+        await pilot.press("backspace", "backspace")
+        await pilot.pause()
+        check(f"back: backspace back, wrapping past the first value", app.cfg[key] == vals[-1])
+
+
 async def main():
     await sort_test()
+    await back_test()
     await drums_head_test()
     await estimate_over_build_fits_test()
     app = M.Builder(C.defaults(), "default")
