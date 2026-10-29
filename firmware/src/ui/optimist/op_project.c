@@ -432,12 +432,12 @@ enum { SI_NONE, SI_BRIGHT, SI_LIGHTS, SI_KEYS, SI_LOWCUT, SI_OUT, SI_SYNC, SI_CH
 #define LOAD_RED 85
 static uint16_t load_col(int32_t pct) { return pct > LOAD_RED ? C_ERR : pct >= LOAD_AMBER ? C_WARN : C_OK; }
 /* INFO's overload lines (system/overload.h, cpuguard.c): the CPU lines (a bar of the load now, the ticks of its 10 s and
- * 1 min peaks; the number by KNOB 1: NOW, MAX 10S, MAX 1M, MAX), DROPS, UNDERRUNS,
+ * boot peaks; the number by KNOB 1: NOW, MAX 10S, MAX), DROPS, UNDERRUNS,
  * GUARD; DROPS, UNDERRUNS, MAX and the voices shed counted from a baseline SHIFT + YES on INFO sets (op_global.c info_clear;
  * the counters themselves go on: the console still reads them since boot) */
 #define DROPS_RED_MS 5000u                              /* DROPS red while a late half came within this long, else amber */
 static uint32_t info_shed0;
-static uint8_t info_mode;                               /* the CPU lines' number: OVL_NOW, OVL_MAX10, OVL_MAX60, OVL_MAXALL (INFO's KNOB 1) */
+static uint8_t info_mode;                               /* the CPU lines' number: OVL_NOW, OVL_MAX10, OVL_MAXALL (INFO's KNOB 1) */
 /* UNDERRUNS: everything else lost since boot: USB audio's playback / capture under- and overruns and missed frames (USB audio
  * builds), MIDI in that found its ring full (USB, TRS, BLE) */
 static uint32_t info_ua_xruns(void)
@@ -460,25 +460,24 @@ static void info_clear_counts(void)                     /* SHIFT + YES on INFO: 
     info_shed0 = cg.sheds;
 #endif
 }
-/* a CPU line's number in the measure chosen: NOW (now: the smoothed load given), MAX 10S, MAX 1M, MAX (the ring's maxima); its
+/* a CPU line's number in the measure chosen: NOW (now: the smoothed load given), MAX 10S, MAX (the ring's maxima); its
  * label's suffix */
 static int32_t info_load(uint32_t ring, int32_t now)
 {
     return info_mode == OVL_MAX10 ? (int32_t)ovl_win_pct(ring, fm1_ms, OVL_W10)
-         : info_mode == OVL_MAX60 ? (int32_t)ovl_win_pct(ring, fm1_ms, OVL_W60)
          : info_mode == OVL_MAXALL ? (int32_t)ovl_maxall_pct(ring) : now;
 }
-/* a CPU line's form: its bar the load now (0..100), the bright tick at the last ~10 s's peak, the dim one at the last ~1 min's
+/* a CPU line's form: its bar the load now (0..100), the bright tick at the last ~10 s's peak, the dim one at the peak since boot
  * (op_gldraw.c gl_info_bar; the user, 2026-10-28: "VU peak-hold style"), each in the load's colours there */
 static void info_bar(cell_t *c, uint32_t ring, int32_t now)
 {
-    uint32_t p10 = ovl_win_pct(ring, fm1_ms, OVL_W10), p60 = ovl_win_pct(ring, fm1_ms, OVL_W60);
+    uint32_t p10 = ovl_win_pct(ring, fm1_ms, OVL_W10), pall = ovl_maxall_pct(ring);
     cell_gauge(c, 0, 0, 100, now < 100 ? now : 100);
     c->pkbar = 1;
     c->hold[0] = (int16_t)(p10 < 100u ? p10 : 100u);
-    c->hold[1] = (int16_t)(p60 < 100u ? p60 : 100u);
+    c->hold[1] = (int16_t)(pall < 100u ? pall : 100u);
 }
-static const char *const INFO_MODE_SFX[OVL_NMODE] = {"", " MAX 10S", " MAX 1M", " MAX"};
+static const char *const INFO_MODE_SFX[OVL_NMODE] = {"", " MAX 10S", " MAX"};
 static void info_label(cell_t *c, const char *base)     /* "CPU0" + the measure's suffix ("CPU0 MAX 10S"), in a buffer of its own */
 {
     static char b[2][20];
@@ -801,7 +800,7 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
         break;
     }
 #endif
-    case SI_CPU: {                                      /* (DUAL: its wait for CPU1 counts in it); KNOB 1: NOW, MAX 10S, MAX 1M, MAX (over 100: late) */
+    case SI_CPU: {                                      /* (DUAL: its wait for CPU1 counts in it); KNOB 1: NOW, MAX 10S, MAX (over 100: late) */
         int32_t now = (int32_t)(song.cpu_q8 * 100u / 256u), pct = info_load(OVL_CPU0, now);
         const char *nm = DUAL_LOAD ? "CPU0" : FELUCCA_SYS_DEBUG ? "LOAD" : "CPU LOAD";   /* (DUAL: CPU0 beside CPU1, on the
                                                          * player's INFO too: the user, 2026-10-18) */
@@ -888,7 +887,7 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
             c->unit = "";
             c->col = C_WARN;
             cell_gauge(c, 0, 0, 100, 0);
-        } else {                                        /* (KNOB 1: NOW, MAX 10S, MAX 1M, MAX: its jobs' longest half) */
+        } else {                                        /* (KNOB 1: NOW, MAX 10S, MAX: its jobs' longest half) */
             int32_t now = pct;
             pct = info_load(OVL_CPU1, now);
             if (info_mode == OVL_NOW && FELUCCA_SYS_DEBUG)
@@ -1236,7 +1235,7 @@ static void sys_rst_cell(cell_t *c)
 #endif
 /* SYSTEM's read-out pages (op_gldraw.c gl_info_draw; the user, 2026-10-15: "the 1st system screen would gain to be split in two
  * pages with easier-to-read text"), each drawn whole, text only:
- *   INFO (page 0, what a musician reads): the clock, the CPU (a bar with its peaks; KNOB 1: now, max 10 s, max 1 min, max), the
+ *   INFO (page 0, what a musician reads): the clock, the CPU (a bar with its peaks; KNOB 1: now, max 10 s, max), the
  *        2ND CORE (ON + load, OFF + why, NOT IN BUILD), RAM, DROPS, UNDERRUNS, GUARD (CPU_GUARD builds), the battery
  *   INTERNALS (page 1): LAST RESET, the longest flash interrupts-off time, the second core's internals (DUAL builds)
  *   USB STATS (page 2, USB audio builds): the USB audio counters */
