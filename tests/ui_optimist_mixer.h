@@ -510,14 +510,14 @@ static void mixer_rows_tests(void)
         check(!px_in(MXL_VX + MXL_VW * 36 / 44 + 1, y, 3, MXL_VH, C_OK) && !px_in(MXL_VX + MXL_VW * 41 / 44, y, 20, MXL_VH, C_OK) && px_at(MXL_VX + MXL_VW - 1, y, C_ERR),
               "... the columns above -12 dB are shaded, not the base colour");
         mt.ui[0] = 0;
-        frames(30);
+        frames(300);   /* (the peak-hold marker, held 1.5 s and then falling, is gone too) */
         for (i = 0; i < 3u; i++) {
             mt.ui[0] = 8192;
             frame();
         }
         ppm("opt-mixer-vu-m12");
         mt.ui[0] = 0;
-        frames(30);
+        frames(300);   /* (the peak-hold marker, held 1.5 s and then falling, is gone too) */
         {   /* the scale is linear in dB: where the bar ends for -12, -6, -3 and 0 dBFS (a tick each 6 dB, 4/44 of the width) */
             static const struct { uint32_t pk, n; const char *name; } pt[4] = {
                 {8192, 36, "-12 dBFS: the -12 tick"}, {16384, 40, "-6 dBFS: the -6 tick"},
@@ -539,7 +539,7 @@ static void mixer_rows_tests(void)
                 if (q == 2u)
                     ppm("opt-mixer-vu-m3");
                 mt.ui[0] = 0;
-                frames(30);
+                frames(300);   /* (the peak-hold marker, held 1.5 s and then falling, is gone too) */
             }
         }
     }

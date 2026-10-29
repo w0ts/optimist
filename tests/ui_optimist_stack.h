@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* tests/ui_optimist_test.c, SYSTEM > INFO's CPU bars and RAM line (the user, 2026-10-28: "progress bars with 1-minute and 10-second
- * peaks", "add a RAM line"): the overload rings' 10 s and 1 min windows (system/overload.h ovl_win_pct: 64 slots of 1.024 s,
+/* tests/ui_optimist_test.c, SYSTEM > INFO's CPU bars and RAM line (the user, 2026-10-28: "progress bars with 10-second
+ * and since-boot peaks", "add a RAM line"): the overload rings' 10 s window (system/overload.h ovl_win_pct: 16 slots of 1.024 s,
  * their wrap, a stopped audio), the stacks' paint and read-back (system/stackmark.h), the RAM line, and the page as drawn: each
  * CPU line's bar under its text, filled to the load now, the ticks at its peaks. Screen opt-info-bars.ppm. */
 static uint32_t ovw_pct(uint32_t pct) { return OVL_HALF_US * pct / 100u; }
@@ -10,19 +10,18 @@ static void ovl_window_tests(void)
     memset((void *)&ovl, 0, sizeof ovl);
     ovl_ring_put(&ovl.r[OVL_CPU0], ovw_pct(80u), 0u);   /* (slot 0: 80 %; then 30 % every slot) */
     for (s = 1; s < 70u; s++) {
-        uint32_t ms = s * 1024u, w10, w60;
+        uint32_t ms = s * 1024u, w10;
         ovl_ring_put(&ovl.r[OVL_CPU0], ovw_pct(30u), ms);
         w10 = ovl_win_pct(OVL_CPU0, ms, OVL_W10);
-        w60 = ovl_win_pct(OVL_CPU0, ms, OVL_W60);
-        ok &= w10 == (s < OVL_W10 ? 80u : 30u) && w60 == (s < OVL_W60 ? 80u : 30u);
-        if (w10 != (s < OVL_W10 ? 80u : 30u) || w60 != (s < OVL_W60 ? 80u : 30u))
-            printf("  ovl: slot %u: 10 s %u %%, 1 min %u %%\n", (unsigned)s, (unsigned)w10, (unsigned)w60);
+        ok &= w10 == (s < OVL_W10 ? 80u : 30u) && ovl_maxall_pct(OVL_CPU0) == 80u;   /* (the boot tick stays) */
+        if (w10 != (s < OVL_W10 ? 80u : 30u))
+            printf("  ovl: slot %u: 10 s %u %%\n", (unsigned)s, (unsigned)w10);
     }
-    check(ok, "overload rings: a peak held 10 slots (MAX 10S) and 60 slots (MAX 1M), then forgotten, over the ring's wrap (64)");
+    check(ok, "overload rings: a peak held 10 slots (MAX 10S), then forgotten while the since-boot peak stays, over the ring's wrap (16)");
     ok = ovl_win_pct(OVL_CPU0, 69u * 1024u + 5u * 1024u, OVL_W10) == 30u && ovl_win_pct(OVL_CPU0, 69u * 1024u + 10u * 1024u, OVL_W10) == 0u;
     check(ok, "overload rings: the audio stopped: its last slots age out of the window, then 0");
     ovl_ring_put(&ovl.r[OVL_CPU0], ovw_pct(20u), 300u * 1024u);   /* (200 slots later: every old slot cleared) */
-    check(ovl_win_pct(OVL_CPU0, 300u * 1024u, OVL_W60) == 20u && ovl_win_pct(OVL_CPU0, 300u * 1024u, OVL_SLOTS) == 20u,
+    check(ovl_win_pct(OVL_CPU0, 300u * 1024u, OVL_W10) == 20u && ovl_win_pct(OVL_CPU0, 300u * 1024u, OVL_SLOTS) == 20u,
           "overload rings: after a gap longer than the ring, only the new slot counts");
     check(ovl_max5_pct(OVL_CPU0, 300u * 1024u) == 20u && ovl_maxall_pct(OVL_CPU0) == 80u, "overload rings: the 5 s record and MAX since boot as before");
     memset((void *)&ovl, 0, sizeof ovl);

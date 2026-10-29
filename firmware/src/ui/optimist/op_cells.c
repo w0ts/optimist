@@ -29,7 +29,7 @@ typedef struct {
     uint8_t ak;                         /* the actual value's bar (op_effval.c, the cards only): its form, GK_NONE none */
     int16_t amin, amax, av;             /* ... over amin..amax, at av */
     uint8_t pkbar;                      /* 1: a read-out INFO draws with its bar (gmin..gmax at gv) and the peak-hold ticks: */
-    int16_t hold[2];                    /* ... the bright one, the dim one (INFO's CPU lines: the 10 s and 1 min peaks) */
+    int16_t hold[2];                    /* ... the bright one, the dim one (INFO's CPU lines: the 10 s peak and the one since boot) */
     uint8_t dim;                        /* drawn dim: a slot with no instance left (fxi.c, FULL / in use) */
     const char *hlp;                    /* a help key (op_help.c, ctx INSERTS) before the label's: the limited types */
     const char *obj;                    /* an action's object on its card ("PROJECT"; the user, 2026-10-13: the card shows the verb) */

@@ -121,7 +121,7 @@ src/ui/optimist/op_draw.c:draw_list:(int32_t)n | inside "else if (n && n <= show
 src/ui/optimist/op_draw.c:meter_h:(1u<<sh) | inside "if (lg >= 4u)": sh = lg - 3 >= 1, so 1u << sh >= 2
 src/ui/optimist/op_draw.c:meter_h:d | d = -vuf_db(vu_floor_i) + 6: vuf_db is -80 .. -20 for any index (core/vufloor.h, out of range: the default), so d is 26 .. 86
 src/ui/optimist/op_mixdraw.c:mx_db_x:(uint32_t)w | w = -vuf_db(vu_floor_i) + 6: 26 .. 86, as op_draw.c meter_h's d
-src/ui/optimist/op_mixdraw.c:mx_vu_fill:(uint32_t)(e-k-1>0?e-k-1:1) | the divisor is e - k - 1 when that is > 0, else 1: >= 1
+src/ui/optimist/op_mixdraw.c:mx_vu_colat:(uint32_t)(e-k-1>0?e-k-1:1) | the divisor is e - k - 1 when that is > 0, else 1: >= 1
 src/ui/optimist/op_gldraw.c:gl_info_bar:span | guarded "if (v <= 0 || span <= 0) continue"
 src/ui/optimist/op_graph.c:graph_arp:(int32_t)steps | only inside "for (i = 0; i < steps; i++)": never run with steps 0 (steps = 192 / DUR_48[rate] is 0 for the values longer than a bar: 768, 576, 384, 288 48ths)
 src/ui/optimist/op_graph.c:graph_arp:DUR_48[(uint32_t)t->p[P_ARATE] | TABLE DUR_48 (core.h DUR_LIST, 768 .. 3), index % DUR_N: >= 3

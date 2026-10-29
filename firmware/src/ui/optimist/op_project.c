@@ -414,7 +414,7 @@ static uint32_t pw_leds(uint32_t *d);
 #include "../../system/stackmark.h"                     /* INFO's RAM line: how deep the stacks went (painted at boot: stk_boot) */
 /* ---- SYSTEM: SLOOP's HOME-held menu as rows (ui/sloop/ui_menu.c) */
 enum { SI_NONE, SI_BRIGHT, SI_LIGHTS, SI_KEYS, SI_LOWCUT, SI_OUT, SI_SYNC, SI_CH1, SI_CH2,
-       SI_CH3, SI_CHD, SI_USB, SI_CPU, SI_MHZ, SI_CALIB, SI_ABOUT, SI_HOLD, SI_BLE, SI_KCOL, SI_CLKOUT, SI_CPU1, SI_INFO, SI_BATT, SI_BUILD, SI_REPO,
+       SI_CH3, SI_CHD, SI_USB, SI_CPU, SI_MHZ, SI_CALIB, SI_ABOUT, SI_HOLD, SI_BLE, SI_KCOL, SI_DBGST, SI_CLKOUT, SI_CPU1, SI_INFO, SI_BATT, SI_BUILD, SI_REPO,
        SI_DROPS, SI_GUARD, SI_UAINFO, SI_XRUN, SI_DIAG, SI_CREDITS, SI_BLEST, SI_BLEPEER, SI_BLEMIDI, SI_BLELIST, SI_BLEAUTO,
        SI_BLEFGT, SI_FRESO, SI_VUFLOOR, SI_BTA, SI_BTAPEER, SI_BTAFMT, SI_BTAST, SI_CLKOFS, SI_BTOFS, SI_LINK, SI_LINKOFS,
 #if FELUCCA_SD_UI
@@ -432,12 +432,12 @@ enum { SI_NONE, SI_BRIGHT, SI_LIGHTS, SI_KEYS, SI_LOWCUT, SI_OUT, SI_SYNC, SI_CH
 #define LOAD_RED 85
 static uint16_t load_col(int32_t pct) { return pct > LOAD_RED ? C_ERR : pct >= LOAD_AMBER ? C_WARN : C_OK; }
 /* INFO's overload lines (system/overload.h, cpuguard.c): the CPU lines (a bar of the load now, the ticks of its 10 s and
- * 1 min peaks; the number by KNOB 1: NOW, MAX 10S, MAX 1M, MAX), DROPS, UNDERRUNS,
+ * boot peaks; the number by KNOB 1: NOW, MAX 10S, MAX), DROPS, UNDERRUNS,
  * GUARD; DROPS, UNDERRUNS, MAX and the voices shed counted from a baseline SHIFT + YES on INFO sets (op_global.c info_clear;
  * the counters themselves go on: the console still reads them since boot) */
 #define DROPS_RED_MS 5000u                              /* DROPS red while a late half came within this long, else amber */
 static uint32_t info_shed0;
-static uint8_t info_mode;                               /* the CPU lines' number: OVL_NOW, OVL_MAX10, OVL_MAX60, OVL_MAXALL (INFO's KNOB 1) */
+static uint8_t info_mode;                               /* the CPU lines' number: OVL_NOW, OVL_MAX10, OVL_MAXALL (INFO's KNOB 1) */
 /* UNDERRUNS: everything else lost since boot: USB audio's playback / capture under- and overruns and missed frames (USB audio
  * builds), MIDI in that found its ring full (USB, TRS, BLE) */
 static uint32_t info_ua_xruns(void)
@@ -460,25 +460,24 @@ static void info_clear_counts(void)                     /* SHIFT + YES on INFO: 
     info_shed0 = cg.sheds;
 #endif
 }
-/* a CPU line's number in the measure chosen: NOW (now: the smoothed load given), MAX 10S, MAX 1M, MAX (the ring's maxima); its
+/* a CPU line's number in the measure chosen: NOW (now: the smoothed load given), MAX 10S, MAX (the ring's maxima); its
  * label's suffix */
 static int32_t info_load(uint32_t ring, int32_t now)
 {
     return info_mode == OVL_MAX10 ? (int32_t)ovl_win_pct(ring, fm1_ms, OVL_W10)
-         : info_mode == OVL_MAX60 ? (int32_t)ovl_win_pct(ring, fm1_ms, OVL_W60)
          : info_mode == OVL_MAXALL ? (int32_t)ovl_maxall_pct(ring) : now;
 }
-/* a CPU line's form: its bar the load now (0..100), the bright tick at the last ~10 s's peak, the dim one at the last ~1 min's
+/* a CPU line's form: its bar the load now (0..100), the bright tick at the last ~10 s's peak, the dim one at the peak since boot
  * (op_gldraw.c gl_info_bar; the user, 2026-10-28: "VU peak-hold style"), each in the load's colours there */
 static void info_bar(cell_t *c, uint32_t ring, int32_t now)
 {
-    uint32_t p10 = ovl_win_pct(ring, fm1_ms, OVL_W10), p60 = ovl_win_pct(ring, fm1_ms, OVL_W60);
+    uint32_t p10 = ovl_win_pct(ring, fm1_ms, OVL_W10), pall = ovl_maxall_pct(ring);
     cell_gauge(c, 0, 0, 100, now < 100 ? now : 100);
     c->pkbar = 1;
     c->hold[0] = (int16_t)(p10 < 100u ? p10 : 100u);
-    c->hold[1] = (int16_t)(p60 < 100u ? p60 : 100u);
+    c->hold[1] = (int16_t)(pall < 100u ? pall : 100u);
 }
-static const char *const INFO_MODE_SFX[OVL_NMODE] = {"", " MAX 10S", " MAX 1M", " MAX"};
+static const char *const INFO_MODE_SFX[OVL_NMODE] = {"", " MAX 10S", " MAX"};
 static void info_label(cell_t *c, const char *base)     /* "CPU0" + the measure's suffix ("CPU0 MAX 10S"), in a buffer of its own */
 {
     static char b[2][20];
@@ -502,7 +501,11 @@ static const struct { const char *name; uint8_t it[4]; } SYS[] = {
     {"INFO", {SI_INFO, SI_NONE, SI_NONE, SI_NONE}},      /* first: one dense read-only page, not 4 lines (op_gldraw.c gl_info_draw): the clock, the
                                                          * load of each core, the memory (the user, 2026-10-14). The second core is always on:
                                                          * no 2ND CORE line; dual.c's guard still parks it and the page says why */
-#if FELUCCA_SYS_DEBUG                                   /* (the debug pages: builder item SYS_DEBUG, the user 2026-10-17) */
+#if DBG_STATS
+    {"DEBUG", {SI_DBGST, SI_NONE, SI_NONE, SI_NONE}},    /* (DEBUG STATS: the platform's stats in flash, core/dbgstats.h; a section
+                                                         * of its own after INFO: INFO's page is read-outs, no line a cursor) */
+#endif
+#if FELUCCA_SYS_DEBUG                                  /* (the debug pages: builder item SYS_DEBUG, the user 2026-10-17) */
     {"INTERNALS", {SI_DIAG, SI_NONE, SI_NONE, SI_NONE}},   /* INFO split in two (the user, 2026-10-15): what a musician reads on INFO,
                                                          * the internals here (the last reset, flash, the second core) */
 #if FELUCCA_USB_AUDIO
@@ -662,7 +665,7 @@ static void info_ram(cell_t *c)
 {
     static char lb[20];
     uint32_t k, free = stk_sram_free();
-    int32_t l = stk_least(&k);
+    int32_t l = stk_least_ever(&k);                     /* (the least ever where the platform keeps it: the release) */
     (void)k;
     str_cpy(lb, "RAM", sizeof lb);
     if (free) {
@@ -676,7 +679,7 @@ static void info_ram(cell_t *c)
         c->col = C_DIM;
     } else {
         info_kb(c->val, (uint32_t)l);
-        c->col = (uint32_t)l < STK_LOW ? C_WARN : C_OK;
+        c->col = stk_low() ? C_WARN : C_OK;             /* (STACK LOW: stackmark.h) */
     }
     c->unit = " STACK LEFT";
 }
@@ -819,7 +822,7 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
         break;
     }
 #endif
-    case SI_CPU: {                                      /* (DUAL: its wait for CPU1 counts in it); KNOB 1: NOW, MAX 10S, MAX 1M, MAX (over 100: late) */
+    case SI_CPU: {                                      /* (DUAL: its wait for CPU1 counts in it); KNOB 1: NOW, MAX 10S, MAX (over 100: late) */
         int32_t now = (int32_t)(song.cpu_q8 * 100u / 256u), pct = info_load(OVL_CPU0, now);
         const char *nm = DUAL_LOAD ? "CPU0" : FELUCCA_SYS_DEBUG ? "LOAD" : "CPU LOAD";   /* (DUAL: CPU0 beside CPU1, on the
                                                          * player's INFO too: the user, 2026-10-18) */
@@ -906,7 +909,7 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
             c->unit = "";
             c->col = C_WARN;
             cell_gauge(c, 0, 0, 100, 0);
-        } else {                                        /* (KNOB 1: NOW, MAX 10S, MAX 1M, MAX: its jobs' longest half) */
+        } else {                                        /* (KNOB 1: NOW, MAX 10S, MAX: its jobs' longest half) */
             int32_t now = pct;
             pct = info_load(OVL_CPU1, now);
             if (info_mode == OVL_NOW && FELUCCA_SYS_DEBUG)
@@ -992,6 +995,9 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
         break;
     case SI_KCOL:                                       /* the knob caps' colours on dials, labels, cards (core/knobcol.h) */
         sys_onoff(c, "KNOB COLORS", knob_colors);       /* (the settings list has the room: op_gldraw.c) */
+        break;
+    case SI_DBGST:                                      /* the platform's stats in flash every 5 minutes (core/dbgstats.h) */
+        sys_onoff(c, "DEBUG STATS", dbg_stats);
         break;
     case SI_VUFLOOR:                                    /* the dB at the meters' bottom (core/vufloor.h; op_draw.c meter_h) */
         c->label = "VU FLOOR";
@@ -1264,7 +1270,7 @@ static void sys_rst_cell(cell_t *c)
 #endif
 /* SYSTEM's read-out pages (op_gldraw.c gl_info_draw; the user, 2026-10-15: "the 1st system screen would gain to be split in two
  * pages with easier-to-read text"), each drawn whole, text only:
- *   INFO (page 0, what a musician reads): the clock, the CPU (a bar with its peaks; KNOB 1: now, max 10 s, max 1 min, max), the
+ *   INFO (page 0, what a musician reads): the clock, the CPU (a bar with its peaks; KNOB 1: now, max 10 s, max), the
  *        2ND CORE (ON + load, OFF + why, NOT IN BUILD), RAM, DROPS, UNDERRUNS, GUARD (CPU_GUARD builds), the battery
  *   INTERNALS (page 1): LAST RESET, the longest flash interrupts-off time, the second core's internals (DUAL builds)
  *   USB STATS (page 2, USB audio builds): the USB audio counters */
@@ -1412,6 +1418,9 @@ static void sys_set(uint32_t it, int32_t s)
         knob_colors = (uint8_t)sys_step(knob_colors, s, 1);
         ui.force = 1;                                   /* (every band's colours move) */
         break;
+    case SI_DBGST:                                      /* (kept in the settings record: persist_rec.c rsv_pj[1]) */
+        dbg_stats_set((uint32_t)sys_step(dbg_stats, s, 1));
+        break;
     case SI_VUFLOOR:                                    /* (kept in the settings record: persist_rec.c rsv_pj[0]) */
         vu_floor_i = (uint8_t)sys_step(vu_floor_i, s, (int32_t)VUF_N - 1);
         ui.force = 1;                                   /* (the MASTER scale and every meter's height move) */
@@ -1517,6 +1526,9 @@ static int sys_factory(uint32_t it)
     case SI_KCOL:
         knob_colors = 0;
         ui.force = 1;
+        break;
+    case SI_DBGST:
+        dbg_stats_set(0);
         break;
     case SI_VUFLOOR:
         vu_floor_i = VUF_DEF;

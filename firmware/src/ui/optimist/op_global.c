@@ -58,7 +58,7 @@ static int glo_yes(uint32_t r, uint32_t k, uint32_t ok)
 /* ---- the list: line i of screen s (0 GLOBAL, 1 SYSTEM) is cell k of row u, kept as u << 2 | k (built once: what a row
  * shows depends on the build only) */
 #define GL_PAGE 4u                                      /* the lines on screen, the knobs' */
-/* the lines of a screen, at most: SYSTEM's in this build (12 always, BRIGHT 1, USB audio 5, LIGHTS 2, CDC 1, BLE 5 + 2 with
+/* the lines of a screen, at most: SYSTEM's in this build (12 always, DEBUG STATS 1, BRIGHT 1, USB audio 5, LIGHTS 2, CDC 1, BLE 5 + 2 with
  * BLE_CENTRAL, WI-FI 4), never under 24 (GLOBAL's 19 at most); sized from the build so no RAM goes to lines it cannot have */
 #if FELUCCA_BT_UI
 #define GL_NBLE (5u + 2u * (BLE_CENTRAL != 0))
@@ -85,7 +85,7 @@ static int glo_yes(uint32_t r, uint32_t k, uint32_t ok)
 #else
 #define GL_NCDC 0u
 #endif
-#define GL_NSYSL (12u + GL_NBRI + GL_NUA + GL_NLIT + GL_NCDC + GL_NBLE + 4u * WIFI_UI + 2u * USBH_UI)   /* (WI-FI: MODE NETWORK SIGNAL STATE; USB: MODE DEVICE) */
+#define GL_NSYSL (12u + DBG_STATS + GL_NBRI + GL_NUA + GL_NLIT + GL_NCDC + GL_NBLE + 4u * WIFI_UI + 2u * USBH_UI)   /* (WI-FI: MODE NETWORK SIGNAL STATE; USB: MODE DEVICE) */
 #define GL_MAXL (GL_NSYSL > 24u ? GL_NSYSL : 24u)
 #if FELUCCA_BT_UI
 #define GL_DEV BDV_OPEN                         /* SYSTEM shows the BLE devices list (op_project.c) */
@@ -296,8 +296,8 @@ static void sls_cell(uint32_t r, uint32_t k, cell_t *c)
         gl_cell(1, gl_line(1, r, k), c);
 }
 /* INFO's KNOB 1 (the user, 2026-10-15: "the second encoder should switch between CURRENT, MAX OVER A FEW SECONDS, MAX FOR
- * EVER"; 2026-10-18: KNOB 1, not 2; 2026-10-28: the bars show the 10 s and 1 min peaks, the number reads them): the CPU lines'
- * number, NOW -> MAX 10S -> MAX 1M -> MAX, a detent a step, round. 1: INFO shown and KNOB 1 */
+ * EVER"; 2026-10-18: KNOB 1, not 2; 2026-10-28: the bars show the 10 s and since-boot peaks, the number reads them): the CPU lines'
+ * number, NOW -> MAX 10S -> MAX, a detent a step, round. 1: INFO shown and KNOB 1 */
 static int info_knob(uint32_t r, uint32_t k, int32_t s)
 {
     uint32_t e;
