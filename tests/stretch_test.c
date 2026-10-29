@@ -239,7 +239,7 @@ static void t_owner(void)
 
 static void t_ratio(void)
 {
-    const smp_zone_t *z = pst_zone(0, 0);
+    const smp_zone_t *z = pst_zone(0, 0, 0);
     uint32_t r0 = (uint32_t)(((uint64_t)pow2_q16(0) * z->rate) >> 16);
     uint32_t r12 = (uint32_t)(((uint64_t)pow2_q16(192) * z->rate) >> 16);
     check(r12 > 2u * r0 - 2u * (r0 >> 10) && r12 < 2u * r0 + 2u * (r0 >> 10) && r0,
