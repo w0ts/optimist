@@ -16,13 +16,21 @@
  *                and mute, pre pan). Only the lanes routed are tapped, only while the host records: a voice of another
  *                lane costs one mask test a block (drums.c, drum_x0x.c, fx.c dins_post). The declick tail of a stopped
  *                voice (drums.tail) belongs to no lane: it is in DRUMS only.
- * The destinations: NONE, 1, 2, 1+2, 3, 4, 3+4. A stereo source (MASTER, DRUM BUS) on a pair goes left to the first channel,
+ *   RET A B C    an FX return in stereo, as the mixer's MASTER page lists them (fx_slots.c fxs_card: return k's send line,
+ *                whatever it holds: the chorus, the delay, the reverb, or another type): its wet after the return's own
+ *                processing, its return level and MUTE, as it enters the master (before PUNCH, the master inserts and the
+ *                volume): what the return adds to the mix. A return with nothing in it (or none on its line) records
+ *                silence. Named by the slot, not by its type: the choice belongs to the return, whatever type it holds
+ *                later (the mixer's "A SENDS" .. "C SENDS"). Only the returns routed are tapped, only while the host records
+ *                (ua_ret_block): none routed, a test a line a block (fx.c fx_buses, rt_line).
+ * The destinations: NONE, 1, 2, 1+2, 3, 4, 3+4. A stereo source (MASTER, DRUM BUS, RET A B C) on a pair goes left to the first channel,
  * right to the second; on one channel, its two sides to mono, (L + R) / 2 (each side x 0.5, -6.02 dB: never clips; a
  * floor). A mono source on a pair is on both. Sources on one channel add up (the capture clips at its conversion,
  * usb_audio_stream.c ua_clip). PRE-fader stems are not offered: a stem is the track's contribution at its mixer level (a
  * muted track records silence). Defaults = the routing before this setting: T1 on 1, T2 on 2, T3 on 3, DRUMS on 4. */
-enum { UAS_MAIN, UAS_T1, UAS_T2, UAS_T3, UAS_DRUMS, UAS_DBUS, UAS_DR1, UAS_N = UAS_DR1 + DRUM_LANES };   /* (stored:
-                                                                                                         * settings record "UAR3") */
+enum { UAS_MAIN, UAS_T1, UAS_T2, UAS_T3, UAS_DRUMS, UAS_DBUS, UAS_DR1, UAS_RA = UAS_DR1 + DRUM_LANES, UAS_N = UAS_RA + 3 };
+/* (stored in this order: settings record "UAR3", a byte a source, the record's unused bytes 0 = NONE: RET A B C came
+ * after the lanes 2026-10-29, so a record of before reads them NONE; SYSTEM > USB AUDIO shows them so, their own row) */
 enum { UAD_NONE, UAD_1, UAD_2, UAD_12, UAD_3, UAD_4, UAD_34, UAD_N };   /* a source's channels */
 #define UA_ROUTE_N 4u                           /* the capture channels (usb_audio_stream.c UA_CAP_CHANNELS) */
 static const uint8_t UAD_MASK[UAD_N] = {0u, 1u, 2u, 3u, 4u, 8u, 12u};   /* each destination's channels, a bit each */
@@ -37,6 +45,44 @@ static uint16_t dlt_live;
 static uint8_t ua_dbus_live;
 static int32_t dlt_buf[UA_ROUTE_N][CTL];        /* the routed lanes, summed per channel, this block */
 static int32_t ua_dbus[2][CTL];                 /* the drum bus, this block (dbus_run) */
+static uint8_t ua_ret_on;                       /* the returns routed: bit k = RET A B C (main loop: ua_route_apply) */
+static uint8_t ua_ret_live;                     /* this block: the send lines tapped, bit j = line j (CHO DLY REV) */
+static uint8_t ua_ret_ln[3] = {0xFF, 0xFF, 0xFF};   /* this block: RET A B C's line (0xFF: none, or not tapped) */
+static int32_t ua_ret[3][2][CTL] __attribute__((section(".pool")));   /* a line's wet L R, this block (the pool: main RAM is full) */
+
+/* the returns' taps of the block (fx.c capture_clear, after dlt_block): on, the host takes the capture; ln, return k's
+ * line (fx_slots.c fxs_line + 1: slot k + 1's), lnl the lines with a return (fxs_lnl). Each routed return with a line:
+ * its line tapped, cleared for the stages to add into */
+AINL void ua_ret_block(uint32_t on, const uint8_t *ln, uint32_t lnl, uint32_t n)
+{
+    uint32_t k, j, i, live = 0;
+    for (k = 0; k < 3u; k++) {
+        j = ln[k];
+        ua_ret_ln[k] = 0xFF;
+        if (on && (ua_ret_on >> k & 1u) && j < 3u && (lnl >> j & 1u)) {
+            ua_ret_ln[k] = (uint8_t)j, live |= 1u << j;
+            for (i = 0; i < n; i++)
+                ua_ret[j][0][i] = ua_ret[j][1][i] = 0;
+        }
+    }
+    ua_ret_live = (uint8_t)live;
+}
+/* a stage of line j (fx.c): what it adds to l / r is its output. ua_ret_sub before it, ua_ret_add after it (or add alone
+ * for a stage that writes l / r whole: the chorus) */
+AINL void ua_ret_sub(uint32_t j, const int32_t *l, const int32_t *r, uint32_t n)
+{
+    uint32_t i;
+    if (ua_ret_live >> j & 1u)
+        for (i = 0; i < n; i++)
+            ua_ret[j][0][i] -= l[i], ua_ret[j][1][i] -= r[i];
+}
+AINL void ua_ret_add(uint32_t j, const int32_t *l, const int32_t *r, uint32_t n)
+{
+    uint32_t i;
+    if (ua_ret_live >> j & 1u)
+        for (i = 0; i < n; i++)
+            ua_ret[j][0][i] += l[i], ua_ret[j][1][i] += r[i];
+}
 
 /* lane ln's samples i0..i1 of b (its voice's, drum_sends.c dsend_buf) added to its channels, when it is routed */
 AINL void dlt_add(uint32_t ln, const int32_t *b, uint32_t i0, uint32_t i1)
@@ -82,7 +128,7 @@ static void ua_route_apply(void)
         if (ua_dst[s] >= UAD_N)
             ua_dst[s] = DEF[s];
         id &= ua_dst[s] == DEF[s];
-        if (s >= UAS_DR1) {
+        if (s >= UAS_DR1 && s < UAS_RA) {
             uint32_t l = s - UAS_DR1;
             dlt_chm[l] = UAD_MASK[ua_dst[s]];
             m |= (uint32_t)(dlt_chm[l] != 0u) << l;
@@ -90,6 +136,7 @@ static void ua_route_apply(void)
         }
     }
     ua_dbus_on = (uint8_t)(ua_dst[UAS_DBUS] != UAD_NONE);
+    ua_ret_on = (uint8_t)((ua_dst[UAS_RA] != UAD_NONE) | (ua_dst[UAS_RA + 1] != UAD_NONE) << 1 | (ua_dst[UAS_RA + 2] != UAD_NONE) << 2);
     ua_lane_ch = (uint8_t)ch;
     dlt_mask = (uint16_t)m;
     ua_ident = (uint8_t)id;

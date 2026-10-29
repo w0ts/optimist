@@ -1,8 +1,8 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* SYSTEM > USB AUDIO (io/usb/ua_tap.h, usb_audio_route.c): where each source goes among the four capture channels, through
  * the real mixer. A source (MASTER the master output, T1..T3 and DRUMS the stems, DRUM BUS the drum bus, DRn a lane's share
- * of DRUMS) goes to NONE, 1, 2, 1+2, 3, 4 or 3+4: a stereo source on a pair L then R, on one channel the mono sum (L + R) / 2
- * (a floor); a mono source on a pair on both; sources on one channel add up; the default routing (T1 T2 T3 DRUMS on 1 2 3 4)
+ * of DRUMS, RET A B C the FX returns as they enter the master) goes to NONE, 1, 2, 1+2, 3, 4 or 3+4: a stereo source on
+ * a pair L then R, on one channel the mono sum (L + R) / 2 (a floor); a mono source on a pair on both; sources on one channel add up; the default routing (T1 T2 T3 DRUMS on 1 2 3 4)
  * is no routing (the stems' own buffer); a tapped lane leaves the mix as it was. The settings record: favorites_test.c. */
 #include <assert.h>
 #include <math.h>
@@ -204,6 +204,164 @@ static void test_lanes(uint32_t kit, int x0x, int ins)
     }
 }
 
+/* RET A B C (the FX returns, ua_tap.h ua_ret_block): one block of the returns alone, as mix_finish runs them (rets_mix),
+ * on sends of noise (the lines in 'lines': bit j = send line j driven; amplitude 6000) and a mix bus of 0; the master
+ * output a fake (m, its own L R). -> the routed capture's frames. What the returns add to the mix bus is then mix_l /
+ * mix_r alone: it must be the taps' sum, each tap what its line added */
+static uint32_t ret_rng = 12345u;
+static const int32_t *ret_block(uint32_t lines, int32_t *m)
+{
+    int32_t *const snd[3] = {send_c, send_d, send_r};
+    capture_clear(CTL);
+    for (uint32_t i = 0; i < CTL; i++) {
+        mix_l[i] = mix_r[i] = 0;
+        for (uint32_t j = 0; j < 3u; j++) {
+            ret_rng = ret_rng * 1664525u + 1013904223u;
+            snd[j][i] = (lines >> j & 1u) ? (int32_t)(ret_rng >> 16) % 6000 : 0;
+        }
+        m[2 * i] = (int32_t)i * 7, m[2 * i + 1] = -(int32_t)i * 5;
+    }
+    rets_mix(CTL);
+    return ua_route(m, CTL);
+}
+/* the taps' sum is what the returns added (each tapped line's L R summed: every line with a return routed) */
+static void ret_sum_check(int64_t *e)
+{
+    for (uint32_t i = 0; i < CTL; i++) {
+        int32_t l = 0, r = 0;
+        for (uint32_t j = 0; j < 3u; j++)
+            if (ua_ret_live >> j & 1u) {
+                l += ua_ret[j][0][i], r += ua_ret[j][1][i];
+                e[j] += (int64_t)ua_ret[j][0][i] * ua_ret[j][0][i] + (int64_t)ua_ret[j][1][i] * ua_ret[j][1][i];
+            }
+        assert(l == mix_l[i] && r == mix_r[i]);
+    }
+}
+static void test_returns(void)
+{
+    int32_t m[CTL * 2];
+    int64_t e[3] = {0};
+    const int32_t *f;
+    setup();
+    fxs_set(FXS_DEF);                                     /* A CHO, B DLY, C REV */
+    /* one line alone: the delay's send, RET B on 1+2: the capture L R its wet, what the mix got from the returns */
+    ROUTE({UAS_RA + 1, UAD_12});
+    assert(ua_ret_on == 2u && !ua_ident && !ua_dbus_on && !dlt_mask);
+    for (uint32_t b = 0; b < 400; b++) {
+        f = ret_block(2u, m);
+        assert(ua_ret_live == 1u << FXS_LN(FXT_DLY) && ua_ret_ln[1] == FXS_LN(FXT_DLY) && ua_ret_ln[0] == 0xFF);
+        for (uint32_t i = 0; i < CTL; i++) {
+            const int32_t *x = f + i * UA_CAP_CHANNELS;
+            assert(x[0] == mix_l[i] && x[1] == mix_r[i] && x[2] == 0 && x[3] == 0);
+            e[1] += (int64_t)x[0] * x[0];
+        }
+    }
+    assert(e[1]);
+    /* the three: A on 1, B on 2 (their mono sums), C on 3+4; every send driven */
+    ROUTE({UAS_RA, UAD_1}, {UAS_RA + 1, UAD_2}, {UAS_RA + 2, UAD_34});
+    assert(ua_ret_on == 7u);
+    e[0] = e[1] = e[2] = 0;
+    for (uint32_t b = 0; b < 400; b++) {
+        f = ret_block(7u, m);
+        assert(ua_ret_live == 7u);
+        ret_sum_check(e);
+        for (uint32_t i = 0; i < CTL; i++) {
+            const int32_t *x = f + i * UA_CAP_CHANNELS;
+            const uint32_t a = ua_ret_ln[0], bb = ua_ret_ln[1], c = ua_ret_ln[2];
+            assert(x[0] == (ua_ret[a][0][i] + ua_ret[a][1][i]) >> 1 && x[1] == (ua_ret[bb][0][i] + ua_ret[bb][1][i]) >> 1);
+            assert(x[2] == ua_ret[c][0][i] && x[3] == ua_ret[c][1][i]);
+        }
+    }
+    assert(e[0] && e[1] && e[2]);                         /* (the chorus, the delay, the reverb: each heard) */
+    /* a send between the returns (A -> B, then B -> C: a chain, fx_buses in the returns' order): the sum still the taps' */
+    rs_amt[0] = 100, rs_amt[2] = 80;
+    for (uint32_t b = 0; b < 200; b++) {
+        ret_block(1u, m);
+        assert(rs_on);
+        ret_sum_check(e);
+    }
+    rs_amt[0] = rs_amt[2] = 0;
+    /* the returns reordered (A REV, B DLY, C CHO): RET A follows its slot, the reverb's line now */
+    {
+        static const uint8_t L[FX_NSLOT] = {FXT_NONE, FXT_REV, FXT_DLY, FXT_CHO};
+        fxs_set(L);
+        ret_block(7u, m);
+        assert(ua_ret_ln[0] == FXS_LN(FXT_REV) && ua_ret_ln[2] == FXS_LN(FXT_CHO));
+        ret_sum_check(e);
+    }
+#if FELUCCA_FX_DIST
+    /* a return holding another type (B DIST, fx.c rt_line: its line's send, into the mix directly), A empty: RET A silent */
+    {
+        fxs_set(FXS_DEF);
+        fxs_load(1, FXT_NONE);
+        fxs_load(2, FXT_DIST);
+        assert(fxs_rty[fxs_line[2]] == FXT_DIST);
+        e[0] = e[1] = e[2] = 0;
+        for (uint32_t b = 0; b < 300; b++) {
+            f = ret_block(6u, m);                         /* (a line with no return hears no send: fx.c FXS_IN) */
+            assert(ua_ret_ln[0] == 0xFF && ua_ret_ln[1] == fxs_line[2]);
+            if (b >= 100u)                                /* (the chorus emptied from A rings out its tail first: no return's) */
+                ret_sum_check(e);
+            for (uint32_t i = 0; i < CTL; i++)
+                assert(f[i * UA_CAP_CHANNELS] == 0);      /* (an empty return: silence) */
+        }
+        assert(e[fxs_line[2]]);
+    }
+#endif
+    /* not taken (the host does not record): no tap; NONE: no tap either */
+    fxs_set(FXS_DEF);
+    track_capture_on = 0;
+    capture_clear(CTL);
+    assert(!ua_ret_live && ua_ret_ln[0] == 0xFF);
+    track_capture_on = 1;
+    ua_route_default();
+    capture_clear(CTL);
+    assert(!ua_ret_on && !ua_ret_live && ua_ret_ln[2] == 0xFF);
+}
+
+/* the returns through the whole mix (mix_block): T1 sends to the three, RET A B C routed; the master output the same
+ * sample for sample as with the returns NONE (a child each, from the same state), each return heard on its channels */
+static void test_returns_mix(void)
+{
+    int32_t (*refs)[CTL * 2] = mmap(0, 256u * sizeof *refs, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANON, -1, 0);
+    assert(refs != MAP_FAILED);
+    for (int pass = 0; pass < 2; pass++) {
+        int status;
+        pid_t child = fork();
+        assert(child >= 0);
+        if (child) {
+            assert(waitpid(child, &status, 0) == child && WIFEXITED(status) && WEXITSTATUS(status) == 0);
+            continue;
+        }
+        int32_t out[CTL * 2];
+        int64_t e[4] = {0};
+        setup();
+        fxs_set(FXS_DEF);
+        trk[0].p[P_CHOR] = 100, trk[0].p[P_DLY] = 100, trk[0].p[P_REV] = 110;
+        if (pass)
+            ROUTE({UAS_RA, UAD_1}, {UAS_RA + 1, UAD_2}, {UAS_RA + 2, UAD_34});
+        else
+            ua_route_default();
+        for (uint32_t b = 0; b < 256; b++) {
+            if (b % 64u == 0) trk_note_on(&trk[0], 60, 110);
+            if (b % 64u == 20) trk_note_off(&trk[0], 60);
+            const int32_t *f = block(out);
+            if (!pass) {
+                memcpy(refs[b], out, sizeof out);
+                continue;
+            }
+            for (uint32_t i = 0; i < CTL * 2; i++)        /* the mix as without the taps */
+                assert(refs[b][i] == out[i]);
+            for (uint32_t i = 0; i < CTL; i++)
+                for (uint32_t c = 0; c < 4u; c++)
+                    e[c] += (int64_t)f[i * UA_CAP_CHANNELS + c] * f[i * UA_CAP_CHANNELS + c];
+        }
+        assert(!pass || (e[0] && e[1] && e[2] && e[3]));   /* (the chorus on 1, the delay on 2, the reverb on 3+4) */
+        _exit(0);
+    }
+    munmap(refs, 256u * sizeof *refs);
+}
+
 /* the choice and its names */
 static void test_setting(void)
 {
@@ -224,12 +382,15 @@ static void test_setting(void)
     ua_dst[UAS_T3] = 200;
     ua_route_apply();
     assert(ua_dst[UAS_T3] == UAD_3);                       /* out of range: the default */
-    assert(!strcmp(ua_src_name(UAS_DR1), "DR1") && !strcmp(ua_src_name(UAS_N - 1), "DR10"));
+    assert(!strcmp(ua_src_name(UAS_DR1), "DR1") && !strcmp(ua_src_name(UAS_RA - 1), "DR10"));
+    assert(!strcmp(ua_src_name(UAS_RA), "RET A") && !strcmp(ua_src_name(UAS_N - 1), "RET C"));
     for (uint32_t v = 0; v < UAS_N; v++)
         assert(strlen(ua_src_name(v)) <= 13u);
     assert(!strcmp(ua_src_name(UAS_MAIN), "MASTER") && !strcmp(ua_src_name(UAS_DBUS), "DRUM BUS"));
     assert(!strcmp(ua_dst_name(UAD_NONE), "NONE") && !strcmp(ua_dst_name(UAD_12), "1+2") && !strcmp(ua_dst_name(UAD_34), "3+4"));
-    assert(UAS_N == 6u + DRUM_LANES);                      /* (MASTER, T1..T3, DRUMS, DRUM BUS, the lanes) */
+    assert(UAS_N == 9u + DRUM_LANES && UAS_RA == UAS_DR1 + DRUM_LANES);   /* (MASTER, T1..T3, DRUMS, DRUM BUS, the lanes, RET A B C) */
+    ua_dst_step(UAS_RA + 2, 1);
+    assert(ua_dst[UAS_RA + 2] == UAD_1 && ua_ret_on == 4u && !ua_ident && !dlt_mask);   /* (a return: no lane) */
     /* two lanes on one channel, one lane on a pair: their channels */
     ua_route_default();
     ua_dst[UAS_DR1 + 4] = UAD_1, ua_dst[UAS_DR1 + 9] = UAD_1, ua_dst[UAS_DR1 + 2] = UAD_34;
@@ -244,7 +405,9 @@ int main(void)
 {
     test_sums();
     test_setting();
+    test_returns();                                       /* (first: the buses' lines still clear, no tail of another test's) */
     test_sources();
+    test_returns_mix();
     test_lanes(0, 0, 0);                                  /* the sampled kit */
     test_lanes(DRUM_SAMPLED, 0, 0);                       /* a synthesised one */
 #if DINS
@@ -256,6 +419,6 @@ int main(void)
     test_lanes(DRUM_UID_X909, 1, 0);
     puts("(with the X0X 909)");
 #endif
-    puts("USB audio routing: each source (MASTER, T1..T3, DRUMS, DRUM BUS, DR1..DR10) to NONE 1 2 1+2 3 4 3+4, sums, defaults: OK");
+    puts("USB audio routing: each source (MASTER, T1..T3, DRUMS, DRUM BUS, DR1..DR10, RET A B C) to NONE 1 2 1+2 3 4 3+4, sums, defaults: OK");
     return 0;
 }

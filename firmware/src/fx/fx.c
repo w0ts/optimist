@@ -1266,6 +1266,13 @@ static HOT2 __attribute__((noinline)) int32_t cho_gain(int32_t *wl, int32_t *wr,
  * lowered here: the main loop empties it (ui/meters.c meter_tap), as trk.peak. Out of the per-sample loops and out of
  * RAMTEXT (HOT2: main RAM): fx_buses pays a call a block. 32767 = 0 dBFS, as a track's peak */
 static volatile int32_t fx_ret_pk[3];
+#if FELUCCA_USB_AUDIO
+#define UA_RET_SUB(j, l, r, n) ua_ret_sub(j, l, r, n)   /* a return's stage for SYSTEM > USB AUDIO's RET A B C (ua_tap.h: a */
+#define UA_RET_ADD(j, l, r, n) ua_ret_add(j, l, r, n)   /* test a line a block while none is routed) */
+#else
+#define UA_RET_SUB(j, l, r, n) ((void)0)
+#define UA_RET_ADD(j, l, r, n) ((void)0)
+#endif
 static int32_t ret_cd[CTL];                             /* the wet (right) before the reverb: the chorus and the delay's, to tell the reverb's own */
 /* the tap: each return's largest |sample| of the block, as a track's peak (fx_mix_part: the block's largest, post level) */
 static HOT2 __attribute__((noinline)) int32_t fx_rev_pk(const int32_t *wr, uint32_t n)
@@ -1659,6 +1666,7 @@ static HOT int fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int3
                 if (rs)
                     rs_cho0(n);                         /* (a chain: the wet so far kept, the chorus' alone below) */
                 pk = cho_run(cho_in, wet_l, wet_r, n, ab, &wc, plan & FXB_CG);
+                UA_RET_ADD(0u, wet_l, wet_r, n);        /* (the chorus alone in the wet here, a chain's too: USB RET, ua_tap.h) */
                 cpk = pk;
                 (void)pk;
                 if (rs)
@@ -1671,16 +1679,21 @@ static HOT int fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int3
             }
         } else if (j == 1u) {
             if (run_d) {
-                int32_t pk = dly_run(dly_in, wet_l, wet_r, n, &wd);
+                int32_t pk;
+                UA_RET_SUB(1u, wet_l, wet_r, n);        /* (what the delay adds: USB RET) */
+                pk = dly_run(dly_in, wet_l, wet_r, n, &wd);
+                UA_RET_ADD(1u, wet_l, wet_r, n);
                 dpk = pk;
                 (void)pk;
             } else {
                 fx.dly_w += n;
             }
         } else {
-            if (!FX_ALL_IDLE)
+            if (!FX_ALL_IDLE) {
                 for (i = 0; i < n; i++)
                     ret_cd[i] = wet_r[i];               /* (the wet before the reverb: to tell its own, fx_rev_pk) */
+                UA_RET_SUB(2u, wet_l, wet_r, n);        /* (what the reverb adds, a kept block's too: USB RET) */
+            }
 #if REV_LATE
             if (rev_late) {                             /* kept for the next block (rev_job); the last one heard */
                 for (i = 0; i < n; i++)
@@ -1713,8 +1726,10 @@ static HOT int fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int3
 #else
             rev_bus(rev_in, wet_l, wet_r, n, ma, mb, g, lpk, run_r, &wv);   /* (the tank TYPE picks) */
 #endif
-            if (!FX_ALL_IDLE)
+            if (!FX_ALL_IDLE) {
                 rpk = fx_rev_pk(wet_r, n);
+                UA_RET_ADD(2u, wet_l, wet_r, n);
+            }
         }
         if (rs)
             rs_post(j, n);                              /* (its output into the lines to its right, before they run) */
@@ -2729,11 +2744,13 @@ static HOT2 __attribute__((noinline)) void rt_line(uint32_t j, uint32_t n)   /* 
     if (!g)
         return;
     int32_t pk = 0;
+    UA_RET_SUB(j, mix_l, mix_r, n);                     /* (what the return adds to the mix: USB RET, ua_tap.h) */
     for (i = 0; i < n; i++) {
         int32_t a = g >= 32768 ? l[i] : (l[i] >> 4) * (g >> 3) >> 8, b = g >= 32768 ? r[i] : (r[i] >> 4) * (g >> 3) >> 8;
         mix_l[i] += a, mix_r[i] += b;
         pk = (b < 0 ? -b : b) > pk ? (b < 0 ? -b : b) : pk;
     }
+    UA_RET_ADD(j, mix_l, mix_r, n);
     if (pk > fx_ret_pk[j])
         fx_ret_pk[j] = pk;                              /* (the mixer's return meter: this line's block peak, after its return level) */
 }
@@ -2949,6 +2966,7 @@ AINL void capture_clear(uint32_t n)
         for (i = 0; i < n * NTRK; i++)
             track_capture[i] = 0;
     dlt_block(track_capture_on, n);                     /* the lane / drum bus taps a channel takes (ua_tap.h) */
+    ua_ret_block(track_capture_on, fxs_line + 1, fxs_lnl, n);   /* the returns' (RET A B C: their lines) */
 }
 #endif
 #if !DUAL_RENDER                                       /* (dual.c: mix_block_dual) */
