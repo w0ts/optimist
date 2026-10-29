@@ -21,6 +21,8 @@ final class MirrorLink: ObservableObject, Transport, CompanionTransport {
     /// An fm1-base app answered the companion capability query (0x60) and not Optimist's INFO: what it says it is (Companion/)
     @Published private(set) var companion: CompanionInfo?
     @Published private(set) var bluetooth = false   // the port in use is the Bluetooth one
+    /// The port in use has sent the app something since it was taken (any SysEx: the "No mirror" screen says which case it is)
+    @Published private(set) var heard = false
     @Published private(set) var ports: [String] = []   // every MIDI port with both directions, by name (the picker)
     /// .. of them, the ones online: the Mac keeps a Bluetooth port it paired listed while it is away (offline), so the
     /// Bluetooth sheet's connection shows as one going online, not as a new port
@@ -183,6 +185,16 @@ final class MirrorLink: ObservableObject, Transport, CompanionTransport {
 
     private static func isFM1(_ e: MIDIEndpointRef) -> Bool { isFM1Name(name(e)) }
 
+    /// What a port taken is known to offer before anything is asked (nil: INFO first, as over USB). Over Bluetooth our firmware
+    /// answers 106 whatever its age, INFO only since opti_mirbt (2026-10-24): a Bluetooth port known as the FM-1's by its name,
+    /// picked by hand or connected in the app's Bluetooth sheet (`trusted`) starts at the mirror. Any other Bluetooth port is
+    /// asked INFO first: the FM-1's port may carry a name the app does not know (a system may keep the name a device had when
+    /// it first connected). It started with no features at all, and that was "No mirror in this firmware" at once, nothing asked.
+    static func startFeatures(bluetooth: Bool, name: String, trusted: Bool) -> [String: Int]? {
+        guard bluetooth, trusted || isFM1Name(name) else { return nil }
+        return [Feature.mirror.name: Feature.mirror.version]
+    }
+
     /// A Bluetooth MIDI port: its device's driver is Apple's Bluetooth MIDI driver, or its name says so (as on a Mac).
     static func isBluetooth(_ e: MIDIEndpointRef) -> Bool {
         var entity = MIDIEntityRef(), device = MIDIDeviceRef()
@@ -222,14 +234,15 @@ final class MirrorLink: ObservableObject, Transport, CompanionTransport {
         source = src ?? 0
         destination = dst ?? 0
         let bt = src.map(Self.isBluetooth) ?? false
-        let named = src.map { !chosen.isEmpty || Self.isFM1Name(Self.name($0)) } ?? false   // (picked by hand: trusted)
-        lock.withLock {                 // (over Bluetooth only 106 is answered: our firmware is known by its name, "FM1-XXXX" or the older "Optimist ...")
+        let start = Self.startFeatures(bluetooth: bt, name: src.map(Self.name) ?? "", trusted: !chosen.isEmpty || !want.isEmpty)
+        lock.withLock {
             $0.assembler = SysExAssembler()
-            $0.features = bt ? (named ? [Feature.mirror.name: Feature.mirror.version] : [:]) : nil
+            $0.features = start
             $0.btInfo = 0
             $0.btKnown = false
         }
         companion = nil
+        heard = false
         guard let src, dst != nil else {
             portName = ""
             state = .searching
@@ -541,6 +554,7 @@ final class MirrorLink: ObservableObject, Transport, CompanionTransport {
             DispatchQueue.main.async { self.asked = 0; self.tick() }
         }
         if let companionInfo { DispatchQueue.main.async { if self.companion != companionInfo { self.companion = companionInfo } } }
+        DispatchQueue.main.async { if !self.heard { self.heard = true } }
     }
 }
 
