@@ -47,6 +47,9 @@ static uint32_t glw_state(void)                        /* every setting a GLOBAL
 #if FELUCCA_MIDI_CLKOUT
     h = glw_mix(h, &clko_on, 1);
 #endif
+#if FELUCCA_LINK
+    h = glw_mix(h, &link_mode, 1);                  /* (LINK on the MIDI page: clock_sync.c) */
+#endif
 #if DUAL_LOAD
     h = glw_mix(h, &dual_mode, 1);
 #endif
@@ -67,7 +70,7 @@ static int glw_moves(uint32_t scr, uint32_t i, uint32_t role)
 {
     cell_t c;
     char v0[16], v1[16];
-    uint32_t h0 = glw_state(), h1, n = 0;
+    uint32_t h0 = glw_state(), h1, n = 0, det;
     int32_t s = 1;
     glw_line(scr, i, &c, v0);
     turn(role, s);
@@ -77,9 +80,21 @@ static int glw_moves(uint32_t scr, uint32_t i, uint32_t role)
     }
     for (n = 1, glw_line(scr, i, &c, v1); !strcmp(v0, v1) && n < 4u; n++, glw_line(scr, i, &c, v1))
         turn(role, s);
+    if (!strcmp(v0, v1)) {                              /* still the same text after four turns: a value at its end (LINK's default, ON+S/S, is the top
+                                                         * of its list): those turns stopped there and moved nothing, so no undo; the other way */
+        s = -s;
+        for (n = 0; !strcmp(v0, v1) && n < 4u; ) {
+            turn(role, s);
+            n++;
+            glw_line(scr, i, &c, v1);
+        }
+    }
     h1 = glw_state();
+    det = n;
     while (n--)
         turn(role, -s);
+    if (!(h1 != h0 && strcmp(v0, v1) != 0 && ui.row[scr] == i))
+        printf("  glwalk: %s moved %s -> %s (turning %d, %u detents), state %s, row %u of %u\n", c.label ? c.label : "-", v0, v1, (int)s, det, h1 != h0 ? "changed" : "same", ui.row[scr], i);
     return h1 != h0 && strcmp(v0, v1) != 0 && ui.row[scr] == i;   /* (back: an accelerated knob may land near) */
 }
 static int glw_still(uint32_t role)                     /* a control turned both ways: no setting changed */
@@ -135,7 +150,7 @@ static int glw_walk_line(uint32_t scr, uint32_t i)
 /* SHIFT held + PRESETS on a line with no descriptor: its FACTORY value, what a blank FM-1 / an empty settings record gives
  * (the user, 2026-10-13; panel.c settings_init, settings_word.c read as 0); BLE is never reset */
 static const struct { const char *label, *val; } GLW_FACTORY[] = {
-    {"MODE", "FREE"}, {"NUDGE", "0"}, {"LENGTH", "1"}, {"START", "NOTE"}, {"CLK OUT", "OFF"},
+    {"MODE", "FREE"}, {"NUDGE", "0"}, {"LENGTH", "1"}, {"START", "NOTE"}, {"CLK OUT", "OFF"}, {"LINK", "ON+S/S"},
     {"KNOB COLORS", "OFF"}, {"VU FLOOR", "-60"}, {"BUTTONS", "OFF"}, {"KEYS", "OFF"}, {"LOWCUT", "OFF"}, {"SERIAL", "OFF"}, {"HOLD", "350"},
     {"MASTER", "NONE"}, {"T1", "1"}, {"T2", "2"}, {"T3", "3"}, {"DRUMS", "4"}, {"DRUM BUS", "NONE"}, {"DR1", "NONE"},
     {"DR2", "NONE"}, {"DR3", "NONE"}, {"DR4", "NONE"}, {"DR5", "NONE"}, {"DR6", "NONE"}, {"DR7", "NONE"}, {"DR8", "NONE"},
@@ -264,12 +279,12 @@ static void glw_sync_long_tests(void)
     check(ok, "SYNC AUTO: the GLOBAL list draws Auto: Int / Auto: USB / Auto: TRS, the cards A:INT ..., a fixed SYNC Int / USB / TRS (the cards INT / USB / TRS)");
     check(fit, "SYNC AUTO: the long form fits the list's value field beside the label");
     {   /* GLOBAL's MIDI page: OUT IN SYNC CLK OUT on one page, in this order (3 lines without CLK OUT); SYNC no longer on Tempo */
-        static const char *const ML[4] = {"CLK IN", "CLK OUT", "", "MIDI OUT"};   /* (no MIDI IN: 2026-10-14) */
+        static const char *const ML[4] = {"CLK IN", "CLK OUT", "LINK", "MIDI OUT"};   /* (LINK: Link builds) */   /* (no MIDI IN: 2026-10-14) */
         uint32_t first = line_named(SCR_GLOBAL, FELUCCA_MIDI_CLOCK ? "CLK IN" : FELUCCA_MIDI_CLKOUT ? "CLK OUT" : "MIDI IN"), n = 0, j, pg_ok = 1;
-        n = (FELUCCA_MIDI_CLOCK ? 1u : 0u) + (FELUCCA_MIDI_CLKOUT ? 1u : 0u) + (0u) + (FELUCCA_MIDI_OUT ? 1u : 0u);
+        n = (FELUCCA_MIDI_CLOCK ? 1u : 0u) + (FELUCCA_MIDI_CLKOUT ? 1u : 0u) + (FELUCCA_LINK ? 1u : 0u) + (FELUCCA_MIDI_OUT ? 1u : 0u);
         for (j = 0, k = 0; j < 4u; j++) {
             char nm[12];
-            if (!(j == 0u ? FELUCCA_MIDI_CLOCK : j == 1u ? FELUCCA_MIDI_CLKOUT : j == 2u ? 0 : FELUCCA_MIDI_OUT))
+            if (!(j == 0u ? FELUCCA_MIDI_CLOCK : j == 1u ? FELUCCA_MIDI_CLKOUT : j == 2u ? FELUCCA_LINK : FELUCCA_MIDI_OUT))
                 continue;
             SCREENS[SCR_GLOBAL].cell(first + k, gl_kn(SCR_GLOBAL, first + k), &c);
             SCREENS[SCR_GLOBAL].name(first + k, nm);

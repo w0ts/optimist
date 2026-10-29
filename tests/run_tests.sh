@@ -856,6 +856,10 @@ job; ( jobin
     run "Optimist UI with BLE built in: SYSTEM > BT MIDI (OFF / MAN / AUTO, the radio told once; no BT AUDIO page), the settings word bits HOLD 21..22, CARDS 23, BLUETOOTH 24, KNOB COLORS 25 do not collide; YES on the BLE row opens the devices list: NONE / LAST pinned, nearby with bars, no wrap, SAVE picks / connects, HOME back, SHIFT + a button FORGET LAST (the modal), Connecting / Pairing / the code / Connected / Failed" "$OUT/ui_optimist_ble_test" "$OUT/optimist"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DFELUCCA_BLE=1 -DFELUCCA_CDC=1 -DFELUCCA_WIFI=1 -DFELUCCA_LINK=1 -DBLE_HW_WL82=1 $SEC4 -o "$OUT/ui_optimist_synclink_test" tests/ui_optimist_test.c -lm
+    run "Optimist UI with BLE and Link built in: CLK IN / SYNC steps AUTO, LINK, TRS, USB, BLE, INT (without them AUTO, TRS, USB, INT: the default build)" "$OUT/ui_optimist_synclink_test" "$OUT/optimist"
+) >"$U.out" 2>&1 & jobbg
+job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DFELUCCA_BLE=1 -DBLE_CENTRAL=0 $SEC4 -o "$OUT/ui_optimist_blenc_test" tests/ui_optimist_test.c -lm
     run "Optimist UI with BLE and no scanner built in: the devices list is NONE alone" "$OUT/ui_optimist_blenc_test" "$OUT/optimist"
 ) >"$U.out" 2>&1 & jobbg
@@ -1450,6 +1454,8 @@ job; ( jobin
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/favorites_test" tests/favorites_test.c -lm
     run "favorites (FELUCCA_FAVORITES): the store (64 factory marks by engine UID + name, 32 user slots), the settings record keeps them last: a record from before reads whole with none, older lengths, flash round trip" "$OUT/favorites_test"
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_BLE=1 -DFELUCCA_MIDI_CLKOUT=1 -DFELUCCA_LINK=1 -o "$OUT/favorites_syncext_test" tests/favorites_test.c -lm
+    run "settings record extension (2026-10-29): CLK OUT USB / BLE / BOTH, LINK OFF / ON / ON+S/S, CLK IN LINK and LINK OFS read back; an older record reads BOTH, ON+S/S, CLK OFS" "$OUT/favorites_syncext_test"
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_USB_AUDIO=1 -o "$OUT/favorites_ua_test" tests/favorites_test.c -lm
     run "favorites with USB audio: the record's USB AUDIO routing last (older records: the default; UAR1's -3 / -6 dB as L+R)" "$OUT/favorites_ua_test"
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_BLE=1 -o "$OUT/favorites_ble_test" tests/favorites_test.c -lm

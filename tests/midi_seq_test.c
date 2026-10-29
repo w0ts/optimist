@@ -207,6 +207,25 @@ static void t_word(void)
     check(((bp23_word() >> 25) & 1u) == 0u, "settings word: KNOB COLORS off clears bit 25");
     bp23_from_word(0);
     check(song.g[G_SYNC] == SYNC_AUTO && bp_set[BPS_MOUT] == 0 && bp_set[BPS_MIN] == 0, "an empty word: AUTO, KEYS, NOTES");
+#if FELUCCA_MIDI_OUT
+    {   /* MIDI OUT: KEYS 0, BOTH 1, SEQ 2 as stored since 2.4; OFF 3 (2026-10-29) is bit 29 alone: a build before reads it as KEYS */
+        uint32_t m, ok = 1;
+        for (m = 0; m <= MOUT_OFF; m++) {
+            uint32_t wm;
+            bp_set[BPS_MOUT] = (int16_t)m;
+            wm = bp23_word();
+            bp_set[BPS_MOUT] = 0;
+            bp23_from_word(wm);
+            ok &= bp_set[BPS_MOUT] == (int16_t)m;
+        }
+        bp_set[BPS_MOUT] = MOUT_OFF;
+        w = bp23_word();
+        check(ok && ((w >> 14) & 1u) == 0u && ((w >> 29) & 1u) == 1u, "settings word: MIDI OUT KEYS / BOTH / SEQ / OFF each read back as written; OFF is bit 29 alone (KEYS to an older build)");
+        bp23_from_word(1u << 14);
+        check(bp_set[BPS_MOUT] == MOUT_BOTH, "settings word: an old word with bit 14 alone: BOTH, as before");
+        bp23_from_word(0);
+    }
+#endif
 #if FELUCCA_MIDI_CLKOUT
     /* bit 26 CLOCK OUT (io/midi/clock_out.c): OFF in a word without it, its own bit */
     check(clko_on == 0u && ((bp23_word() >> 26) & 1u) == 0u, "settings word: an empty word: CLOCK OUT OFF, bit 26 written 0");
@@ -326,6 +345,31 @@ static void t_seq_out(void)
     check(ons[0] > 0u && bal[0][60] == 0 && bal[0][64] == 0 && bal[0][68] == 0 && bal[0][72] == 0, "a track set to OFF ends its notes");
     stop();
     check(ons[0] == ons[0] && all_ended(), "(and the rest ends at STOP)");
+}
+
+/* MIDI OUT = OFF (2026-10-29): the sequencer's notes and the panel's keys send nothing; what was sent before ends */
+static void t_mout_off(void)
+{
+    uint32_t o, i;
+    reset();
+    for (i = 0; i < 16u; i += 4u)
+        step_note(&trk[0], i, 60 + i);
+    bp_set[BPS_MOUT] = MOUT_BOTH;
+    clear_out();
+    play_bars(1);
+    check(total_ons() > 0u, "MIDI OUT BOTH: the sequencer's notes go out (the baseline for OFF)");
+    bp_set[BPS_MOUT] = MOUT_OFF;
+    blocks(2);
+    stop();
+    check(all_ended(), "OUT to OFF while playing: what was sent ends");
+    clear_out();
+    o = total_ons();
+    play_bars(2);
+    stop();
+    check(total_ons() == o && all_ended(), "MIDI OUT OFF: the sequencer sends no note");
+    midi_key_out(0u, 60u, 100u);
+    check(total_ons() == o, "MIDI OUT OFF: a panel key sends no note");
+    bp_set[BPS_MOUT] = MOUT_KEYS;
 }
 
 static void t_chan_move(void)
@@ -455,6 +499,7 @@ int main(void)
     t_keys_mode();
     t_seq_out();
     t_chan_move();
+    t_mout_off();
     t_no_echo();
     t_roll();
     t_in_clock();

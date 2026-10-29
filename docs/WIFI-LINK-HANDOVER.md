@@ -163,7 +163,7 @@ The user flashes it: `make flash PKG=<abs path>`. On the USB console (`tools/fm1
    `following` 4 = the FM-1 follows Link (SYNC AUTO ranks LINK below TRS and USB; SYNC LINK forces it). The pairwise question:
    `unicast_to_us` against `unicast_decrypted` (equal: the MAC decrypts frames to us) and `unicast_still_protected`.
 3. With peers > 0 the FM-1's tempo follows Live and a Live start begins at the next bar line (the FM-1 plays when stopped;
-   FC when Live stops). The FM-1's own PLAY and tempo are NOT sent to Link yet. LINK uses CLK OFS for the offset.
+   FC when Live stops). The FM-1's own PLAY and tempo are NOT sent to Link yet. LINK has its own LINK OFS (2026-10-29).
 
 How: `firmware/src/wifi/wifi_link.c` (main loop `wl_poll`, TIMER5 `wl_midi_poll`) turns Link's session into F8 / FA / FC
 timed at Link's own tick times, queued as MSRC_LINK input for `clock_sync.c`: nothing in the filter changed.

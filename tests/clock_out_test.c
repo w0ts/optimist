@@ -401,6 +401,33 @@ static void t_cont_mid(void)
               fabs((out[first].due - tk[j]) / MS) < 0.2, line);
 }
 
+/* CLK OUT's modes (2026-10-29: OFF, USB, BLE, BOTH): USB and BOTH (the old ON) send on USB; BLE alone sends nothing to USB (here no BLE
+ * is built: nowhere to send, the amber state); t_ext covers the port being the clock followed */
+static void t_modes(void)
+{
+    static const struct { uint8_t m, usb, blocked; } M[] = {{CLKO_OFF, 0, 0}, {CLKO_USB, 1, 0}, {CLKO_BLE, 0, 1}, {CLKO_BOTH, 1, 0}};
+    uint32_t i;
+    for (i = 0; i < sizeof M / sizeof M[0]; i++) {
+        char line[120];
+        reset(0, SYNC_INT, 120);
+        clko_on = M[i].m;
+        run_ms(300);
+        sends_until(T);
+        snprintf(line, sizeof line, "CLK OUT mode %u: F8 on USB %s, %s", (unsigned)M[i].m, M[i].usb ? "yes" : "none", M[i].blocked ? "blocked (amber)" : "not blocked");
+        check((count(0xF8u, 0, nout) >= 8u) == (M[i].usb != 0u) && (M[i].usb || count(0xF8u, 0, nout) == 0u) &&
+                  (clko_blocked() != 0) == (M[i].blocked != 0), line);
+    }
+#if FELUCCA_MIDI_OUT
+    reset(0, SYNC_INT, 120);                       /* MIDI OUT = OFF is the notes' alone: the clock goes on */
+    bp_set[BPS_MOUT] = MOUT_OFF;
+    clko_on = CLKO_USB;
+    run_ms(300);
+    sends_until(T);
+    check(count(0xF8u, 0, nout) >= 8u, "MIDI OUT OFF (no notes out): CLK OUT USB still sends the clock");
+    bp_set[BPS_MOUT] = MOUT_KEYS;
+#endif
+}
+
 int main(void)
 {
     t_tempo(120);
@@ -409,6 +436,7 @@ int main(void)
     t_tempo(40);
     t_tempo(240);
     t_off();
+    t_modes();
     t_change();
     t_swing();
     t_restart();
