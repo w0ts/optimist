@@ -39,6 +39,8 @@ enum Nav {
     static let songPatterns = 3
     /// Mixer row numbers (op_mixer.c MXR_*): 0 MASTER, 1..3 T1..T3, 4 DR, 5.. the drum lanes, then ACCENT
     static let drumRow = 4
+    /// The drum kit's lane names before the FM-1 has named them (drums.c LANE_DEF_INST)
+    static let defaultLanes = ["KICK", "SNARE", "CLAP", "CLOSED HAT", "OPEN HAT", "LOW TOM", "HI TOM", "RIM", "CRASH", "RIDE"]
 
     enum Op: UInt8 { case state = 0, row, track, open, tracks }
 }

@@ -3517,6 +3517,15 @@ async function editorMirror() {
     "mirror: the tab named Mirror (an old #screen opens it), PANEL and NAV replies matched, STEPS' piano roll over the mirrored screen");
   ok(/retries: seq \? 2 : 0/.test(html) && /if \(opti\("panelx"\) && mnav\.held\.size\) mirPress\(\[4, 0, 0\]\)/.test(html) && /panelx: 1 \}/.test(html),
     "mirror: with opti_panelx_1 a press carries a seq and is sent again when its answer is lost (done once); letting go is one request");
+  /* the greyed-out buttons and the one screen size (the user, 2026-10-29): the lanes' buttons are always built (the kit's names, else the
+     default lanes'), disabled off the drum track; the screen is sized as if their rows were there, with or without them */
+  const mr = /function mirRender\(force = false\) \{[\s\S]*?\n\}\n/.exec(html)[0];
+  ok(/dim: !lanes/.test(mr) && /laneNames = n > MNAV\.DRUM_ROW \+ 1 \? mnav\.tracks\.slice\(MNAV\.DRUM_ROW \+ 1\) : DRUM_LANES\.map/.test(mr) && !/\.\.\.\(lanes \?/.test(mr)
+    && /disabled: dim/.test(/function mirButton[\s\S]*?\n\}/.exec(html)[0]) && /\.mirb:disabled \{ opacity/.test(html) && /disabled: !onTrack/.test(mr) && /dim: dimT/.test(mr),
+    "mirror: the lanes' buttons always built (the kit's names, else the default lanes'), disabled and dimmed off the drum track; the tracks too with no track; the favourite on a track");
+  ok(!/classList\.toggle\("lanes"/.test(html) && !/\.mirwrap\.lanes/.test(html) && /\.mirlanes \{ min-height: 68px; \}/.test(html) && !/\.mirlanes[^{]*\{[^}]*display: none/.test(html)
+    && /\.mirwrap \{ --ms: calc\(100vh - var\(--menubar-h, 48px\) - 210px\)/.test(html) && /#p-mirror:fullscreen \.mirwrap \{ --ms: calc\(100vh - 220px\)/.test(html),
+    "mirror: the screen one size with or without the lanes (their rows always reserved, no .lanes class)");
 }
 
 /* every check in order; the synchronous ones too (awaiting undefined is harmless) */
