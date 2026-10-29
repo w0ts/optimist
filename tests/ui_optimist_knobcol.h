@@ -41,7 +41,14 @@ static void knobcol_page_lines(uint32_t scr, const char *name)
         reset_ui();
         song.sel = 0;
         if (scr == SCR_FX) tap(B_FX); else tap(B_EDIT);
-        if (scr == SCR_FX) ui.row[SCR_FX] = (uint8_t)fx_row_of("RET AMT");   /* (a row of levels: a turn opens no popup over the lines) */
+        if (scr == SCR_FX) {                    /* (a row of levels, e.g. the master FX screen's RET AMT: a turn opens no popup over the lines) */
+            uint32_t r;
+            for (r = 0; r < SCR->rows(); r++) {
+                SCR->cell(r, 0, &c);
+                if (c.label && !strcmp(c.label, "RET AMT"))
+                    ui.row[SCR_FX] = (uint8_t)r;
+            }
+        }
         ui.force = 1;
         frames(2);
         ok = 1;
