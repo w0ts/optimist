@@ -280,7 +280,12 @@ def validate(cfg):
                          "X0X 909, X0X 808) or a sampled kit", synths + ["DRUM_SAMPLED"] + kits))
     if built(cfg, "ENG_STRETCH") and not built(cfg, "ENG_SAMPLE"):
         err.append(Issue("STRETCH stretches SAMPLE's material: it needs SAMPLE", ["ENG_STRETCH", "ENG_SAMPLE"]))
-    sets = [k for k in R.ITEMS if k.startswith("SET_")]
+    sets = set_keys()
+    if card_sets(cfg) and any(cfg[k] for k in sets) and not (cfg.get("SD_RING", 0) and built(cfg, "ENG_SAMPLE") and
+                                                          cfg.get("ARENA", 0)):
+        warn.append(Issue("SD card mode: the sample sets go on the card (the SD card zip), and only SAMPLE streaming "
+                          "from it (SD_RING, ARENA) plays them: without it they are silent",
+                          ["SD_RING", "ENG_SAMPLE", "ARENA"] + [k for k in sets if cfg[k]]))
     if any(cfg[k] for k in sets) and not built(cfg, "ENG_SAMPLE") and not built(cfg, "ENG_GRAIN"):
         warn.append(Issue("sample sets without SAMPLE or GRAIN: nothing plays them (only the drums use PERC)",
                           ["ENG_SAMPLE", "ENG_GRAIN"] + [k for k in sets if cfg[k]]))
@@ -384,10 +389,12 @@ def flags(cfg):
     out["FELUCCA_SLICE"] = cfg["ENG_SLICE"]
     if not built(cfg, "DRUM_SAMPLED") or not any(cfg[k] for k in R.ITEMS if k.startswith("KIT_")):
         out["FELUCCA_DRUM_SAMPLED"] = 0
-    skip = [R.ITEMS[k].env for k in R.ITEMS if k.startswith("SET_") and not cfg[k]]
+    card = card_sets(cfg)                           # (SD card mode: every set on the card, none in the image)
+    skip = [R.ITEMS[k].env for k in set_keys() if not cfg[k] and not card]
     if not out.get("FELUCCA_DRUM_SAMPLED", 1):
         skip.append("PERC")
-    env = {"FELUCCA_SAMPLES_SKIP": ",".join(skip), "FELUCCA_SLICE": str(cfg["ENG_SLICE"])}
+    env = {"FELUCCA_SAMPLES_SKIP": ",".join(skip), "FELUCCA_SLICE": str(cfg["ENG_SLICE"]),
+           "FELUCCA_SAMPLES_CARD": "1" if card else "0"}
     return out, env
 
 
@@ -776,6 +783,32 @@ def tab_pool(cfg):
     return {"ram": -moved, "pool": moved}
 
 
+def card_sets(cfg):
+    """SD card mode (the fake SD mode's layout with the card, MEMORY 2): the sample sets go on the card, never in the
+    flash (the user, 2026-10-29: ticking a set there must not grow the flash). The image holds no set whatever is
+    ticked (gen_samples.py FELUCCA_SAMPLES_CARD: each set empty, its number and presets kept); the ticks choose the sets
+    the SD card zip carries (tools/sd_zip.py, OPTIMIST/SAMPLES/<SET>/), which SAMPLE streams (eng_sample.c
+    smp_bank_on)"""
+    return sd_mode(cfg) and built(cfg, "SDCARD")
+
+
+def set_keys():
+    """the builder's sample sets (registry.py SET_*): the generator's set names by item"""
+    return [k for k in R.ITEMS if k.startswith("SET_")]
+
+
+def image_cfg(cfg):
+    """-> cfg as the image is built: in SD card mode every set off (card_sets: they are on the card), else cfg itself"""
+    if not card_sets(cfg):
+        return cfg
+    return dict(cfg, **{k: 0 for k in set_keys()})
+
+
+def card_set_names(cfg):
+    """-> the generator's names of the sets ticked for the SD card zip (SD card mode), [] otherwise"""
+    return [R.ITEMS[k].env for k in set_keys() if cfg.get(k)] if card_sets(cfg) else []
+
+
 def sd_mode(cfg):
     """the SD card mode (registry.h FELUCCA_SD_MODE: the fake SD mode's layout, LAYOUT 1, until its own flag): the
     builds that get the arena's extras (the effects' lines, the other buffers, the load's list page)"""
@@ -865,7 +898,7 @@ def anchor_cfg(rec):
 def effective(cfg):
     """-> {key: value} what the image is built with: every image item, an option of an item left out at its default
     (the build ignores it), so two configurations that build the same image compare equal"""
-    full = dict(defaults(), **cfg)
+    full = image_cfg(dict(defaults(), **cfg))           # (SD card mode: the sets' ticks build the same image)
     return {k: full[k] if not it.parent or built(full, it.parent) else it.default
             for k, it in R.ITEMS.items() if not it.no_image}
 
@@ -913,6 +946,7 @@ def additive(cfg, costs):
     computed terms. Its error grows with the distance from the defaults (budget anchors it nearer)"""
     total = dict(costs["base"])
     items, missing = {}, []
+    cfg = image_cfg(cfg)                                # (SD card mode: the sets on the card, 0 B of flash each)
     for k, it in R.ITEMS.items():
         if it.parent and not built(cfg, it.parent):
             continue                                    # (the parent's own delta covers its options)

@@ -299,7 +299,8 @@ not set; `tools/optimist.py build` strips `FELUCCA_*` from it, so these are for 
 | `FELUCCA_ASM_CHECK` | 0 | verification build: every asm loop also runs the C on a copy (not for release) |
 | `FELUCCA_MUL64_CLEAR` | 0 | the asm loops (SVF, PHYS's curved string and sympathetic comb) with no load beside a 64-bit multiply (fm1-base's felucca-bsp docs/CPU.md), the same values, a few instructions more; set with `OPTIMIST_MUL64_CLEAR=1` (either way of building). Optimist as an fm1-base app builds with it |
 | `FELUCCA_UNDO_CAP` | 0 | the undo ring at most this many bytes (0 = all the memory left over) |
-| `FELUCCA_SAMPLES_SKIP` | empty | built-in sample sets left out, comma-separated (the builder's `SET_*` items set it); the sets after one move down a number |
+| `FELUCCA_SAMPLES_SKIP` | empty | built-in sample sets left out, comma-separated (the builder's `SET_*` items set it); a set left out keeps its number (an empty set) |
+| `FELUCCA_SAMPLES_CARD` | 0 | 1: SD card mode, every melodic set on the card (none in the image, their presets kept: docs/SD-CARD-DESIGN.md 9) |
 | `FELUCCA_DUAL_IDLE` | 0 | the second core spins in RAM between jobs, 1 sleeps (`OPTIMIST_DUAL_IDLE=1` through `optimist.py build`; the wake never reached CPU1 on the FM-1, 2026-10-15); `FELUCCA_BENCH` selects the emulator load scenarios (`docs/DUAL-CORE.md`) |
 | `FELUCCA_SIMD` | 0 | keep off: a SIMD build crackles on the real FM-1 (2026-10-12; `firmware/hal/fm1_simd.h`) |
 
