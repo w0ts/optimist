@@ -331,8 +331,8 @@ await press("5"); lk.push(await popNow() === "lane", await lsel());   /* (in its
 await press("Escape"); await popNow();
 const focused = await run(`${U} const e = document.activeElement; return e ? e.tagName + "." + e.className + (e.id ? "#" + e.id : "") : "none";`);
 await press("Enter"); lk.push(await popNow() === "lane"); await press("Escape"); lk.push(await popNow() === "");
-ok(lk[0] === true && /^2:SNARE/.test(lk[1]) && lk[2] === true && /SNARE/.test(lk[3]) && lk[4] === true && /^4:/.test(lk[5]) && lk[6] === true && lk[7] === true,
-  `e2e: keys: 3 selects the snare (no popup, its sends on the strip), 3 again opens it, 5 goes to sound 5 in it, Enter opens the selected one (${lk.join(" | ")}; focus before Enter: ${focused})`);
+ok(lk[0] === true && /^2:CLAP/.test(lk[1]) && lk[2] === true && /CLAP/.test(lk[3]) && lk[4] === true && /^4:/.test(lk[5]) && lk[6] === true && lk[7] === true,
+  `e2e: keys: 3 selects the clap (the third of the 10 lanes; no popup, its sends on the strip), 3 again opens it, 5 goes to sound 5 in it, Enter opens the selected one (${lk.join(" | ")}; focus before Enter: ${focused})`);
 const misc = [];
 for (const [k, pid] of [["d", "fxdelay"], ["r", "fxreverb"], ["c", "fxchorus"], ["o", "fxcomp"], ["h", "help"]]) { await press(k); misc.push(await popNow() === pid); if (k === "h") { await run(`const h = document.querySelector(".keyhelp"); if (h) h.scrollIntoView({ block: "center" });`); await shot("keys-help"); } await press(k); misc.push(await popNow() === ""); }
 await press(","); misc.push(await run(`${U} await sleep(400); return !$("#p-settings").hidden;`));
@@ -349,7 +349,7 @@ ok(await run(`${U} const t = (q) => (document.querySelector(q) || {}).title || "
   const lay = ["0", "1", "2"].every((n) => { const s = $('#mixer .strip[data-track="' + n + '"]'); const g = s.querySelector(".pops"), q = s.querySelector("[data-pop=sequence]");
     return g.querySelectorAll("button").length === 3 && q.getBoundingClientRect().top >= g.getBoundingClientRect().bottom && q.getBoundingClientRect().height >= 32; });
   const d = $('#mixer .strip[data-track="3"]'); const dg = d.querySelector(".pops");
-  const lay2 = dg.querySelectorAll("button").length === 2 && d.querySelector("[data-pop=sequence]").getBoundingClientRect().top >= dg.getBoundingClientRect().bottom && d.querySelectorAll(".lanes .ln").length === 16;
+  const lay2 = dg.querySelectorAll("button").length === 2 && d.querySelector("[data-pop=sequence]").getBoundingClientRect().top >= dg.getBoundingClientRect().bottom && d.querySelectorAll(".lanes .ln").length === 10;
   return JSON.stringify({ bad, lay, lay2 });`) === '{"bad":[],"lay":true,"lay2":true}', "e2e: tooltips end with their key; strip layout: group row (3 buttons; the drum group: Kit, User kits, fold, one-or-all), Sequence below");
 await shot("strips");
 /* every button (tabs, transport, popups, screens) has a tooltip and an accessible name, scanned on every screen and popup */
