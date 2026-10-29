@@ -65,3 +65,5 @@ Optimist firmware answers INFO first and is treated exactly as before. For such 
 - **Parameters**: the app's parameters by group, read and set.
 
 `Tests/CompanionTests.swift` replays a transcript the fm1-base host simulator recorded (`Tests/Fixtures/companion_transcript.txt`).
+
+The Web tabs run the web editor from the app itself: `tools/sync_ios_editor.py` (a build phase, see `project.yml`) copies `web/editor.html`, the shared style, the fonts and the notices into the bundle's `OptimistEditor/`, and `Sources/Web/EditorSite.swift` serves them as `optimistedit://app/`. No copy is committed. The Install, Build and Simulator modules are not bundled (the Flash tab, the web builder and the Simulator need the internet); the editor's saved settings and libraries live under this scheme's own storage, not the site's.

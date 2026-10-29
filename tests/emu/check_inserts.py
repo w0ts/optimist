@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """inserts: every insert type this build has, set in T1's slot S1 from the mixer, changes the sound; S1 back to ----
-gives the dry sound again; the effects memory's limited types (CHRS, JUNO CHORUS, FLNG, XDLY, ECHO) on T1, T2 and T3:
+gives the dry sound again; the effects memory's limited types (CHO (CHRS until 2026-10-29), JUNO CHORUS, FLNG, XDLY, ECHO) on T1, T2 and T3:
 how many land (docs/RELEASE-0.2-TEST.md sections 2 and 7; fx_slots.c ins_slot / ins_list, op_cells.c ins_skip).
 
 Fresh boot, the mixer, T1 on PRESETS +3 (a sound with highs), SELECT +1 (T1's insert set: S1 TYPE, amount, S2 TYPE,
@@ -22,7 +22,7 @@ import session as S
 CHORD = (F.white(1), F.white(3), F.white(5))
 CHANGE = 0.12                                           # (the bar of RMS, brightness, side, movement, tail)
 WAVE_CHANGE = 0.05                                      # (the waveform's: 5 % of the dry take's RMS)
-LIMITED = ("CHRS", "JUNO", "FLNG", "XDLY", "ECHO")
+LIMITED = ("CHO", "JUNO", "FLNG", "XDLY", "ECHO")
 NEUTRAL = ("EQ3",)                                      # (LO MID HI at 0 dB: no change until its page is set)
 
 

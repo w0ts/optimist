@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* The effects' lines in the arena (firmware/src/fx/fx_arena.c; docs/SD-MODE-DESIGN.md 6b, phase 3b): built with
  * FELUCCA_FX_ARENA and an arena of one FM6 part's memory plus every effect line (the reverb's with the ROOM's diffusers
- * after it) and 40 B (run_tests.sh), CHRS and ECHO
+ * after it) and 40 B (run_tests.sh), FLNG and ECHO
  * built, the delay's line 16384 samples:
  *   1. placed by need: the sends in the master slots get their lines at the first pass, zeroed, the gate open; nothing
  *      for the inserts' own room while no limited type is held
@@ -44,8 +44,8 @@ static uint32_t up_nth(uint32_t n) { return n; }
 static uint32_t up_rank(uint32_t s) { return s; }
 static void up_name(uint32_t k, char *b) { (void)k; b[0] = 0; }
 #include "../firmware/src/core/model.c"
-#if !FXM_NEED || !FELUCCA_INS_CHORUS || !FELUCCA_INS_DELAY || !FELUCCA_ENG_FM6 || !FXA_I
-#error "fx_arena_test: built with FELUCCA_FX_ARENA, FELUCCA_ARENA_BYTES, FM6, CHRS and ECHO (run_tests.sh)"
+#if !FXM_NEED || !FELUCCA_INS_FLANGER || !FELUCCA_INS_DELAY || !FELUCCA_ENG_FM6 || !FXA_I
+#error "fx_arena_test: built with FELUCCA_FX_ARENA, FELUCCA_ARENA_BYTES, FM6, FLNG and ECHO (run_tests.sh)"
 #endif
 
 static int bad, checks;
@@ -160,7 +160,7 @@ static void quiet(void)                                 /* every part on an engi
 }
 static void put_chrs(uint32_t k, uint32_t on)
 {
-    uint8_t s[2] = {(uint8_t)(on ? FXT_CHRS : FXT_NONE), FXT_NONE};
+    uint8_t s[2] = {(uint8_t)(on ? FXT_FLNG : FXT_NONE), FXT_NONE};
     ins_put(k, s);
 }
 
@@ -222,11 +222,11 @@ int main(void)
     set_engine_of(t0, ENG_IX_FM6);
     blocks(64);
     for (k = 0; k < NTRK; k++)
-        trk[k].p[P_TCHRS] = trk[k].p[P_TECHO] = 100;   /* (heard: a let go fades out) */
+        trk[k].p[P_TFLNG] = trk[k].p[P_TECHO] = 100;   /* (heard: a let go fades out) */
     put_chrs(0, 1);
     settle(2);
     CHECK(t0->engine == ENG_IX_FM6 && fxa_ins && fxi_state(0, 0) == FXI_OK && arena_ok(),
-          "FM6 on part 1, CHRS on track 1: the own room placed, its instance in it: the arena full");
+          "FM6 on part 1, FLNG on track 1: the own room placed, its instance in it: the arena full");
     set_engine_of(t1, ENG_IX_FM6);
     CHECK(part_mem_refused.on && part_mem_refused.part == 1u && t1->eng_req != ENG_IX_FM6 && part_mem_frees(0),
           "FM6 on part 2: refused; part 1's memory would make room (proposed first: parts before effects)");
@@ -267,9 +267,9 @@ int main(void)
     /* 7. the inserts' own room */
     put_chrs(0, 0);
     pass();
-    CHECK(fxa_ins, "CHRS let go: the own room kept while its instance fades out");
+    CHECK(fxa_ins, "FLNG let go: the own room kept while its instance fades out");
     settle(40);
-    CHECK(!fxa_ins && !arn_cur[FXM_K(FXM_INS)].len && fxi_free(FXT_CHRS) > 0u && fxi_can(0, FXT_CHRS) && arena_ok(),
+    CHECK(!fxa_ins && !arn_cur[FXM_K(FXM_INS)].len && fxi_free(FXT_FLNG) > 0u && fxi_can(0, FXT_FLNG) && arena_ok(),
           "... faded: the room given back; the UI still counts it (the arena would take it)");
     fxs_load(1, FXT_NONE);                              /* (CHO in no slot: its line given back, then lendable) */
     settle(4);
@@ -282,10 +282,10 @@ int main(void)
     fxm_news = 0;
     put_chrs(2, 1);
     settle(8);
-    k = fxi_at[2][0];
+    k = fxi_at[2][FXI_J(FXT_FLNG)];
     CHECK(!fxa_ins && (fxm_full >> FXM_INS & 1u) && (fxm_news >> FXM_INS & 1u) && cho_buf && k != FXI_NONE &&
-          ifx_chrs[k].line == cho_buf && fxi_state(2, 0) == FXI_OK && fxl_st[0] == FXL_LENT && arena_ok(),
-          "CHRS on track 3: the own room refused; the chorus send's line placed and lent, the instance on it");
+          ifx_flng[k].line == cho_buf && fxi_state(2, 0) == FXI_OK && fxl_st[0] == FXL_LENT && arena_ok(),
+          "FLNG on track 3: the own room refused; the chorus send's line placed and lent, the instance on it");
     put_chrs(2, 0);
     settle(40);
     CHECK(fxl_st[0] == FXL_SEND && !cho_buf && arena_ok(), "... let go: the line back to its send, then given back (CHO in no slot)");

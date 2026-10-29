@@ -323,6 +323,25 @@ class Builder(App):
         collapsed = {n.data for n in self.walk(tree.root) if n.children and not n.is_expanded and n.data}
         tree.clear()
         self.nodes = {}
+        if self.sort_by:                                 # (a size sort: one list over every group, largest first)
+            keys, seen = [], set()
+
+            def visit(k):
+                if k not in seen:
+                    seen.add(k)
+                    keys.append(k)
+                    for c in R.ITEMS[k].menu_children:
+                        visit(c)
+            for g in R.GROUPS:
+                for it in R.top_level(g):
+                    visit(it.key)
+            keys = self.sorted_keys(k for k in keys if self.matches(k))
+            if keys:
+                gn = tree.root.add(Text(f"all items by {self.sort_by}, largest first", style="bold"),
+                                   data=("group", "sorted"), expand=True)
+                for k in keys:
+                    self.nodes[k] = gn.add_leaf(self.node_label(k), data=k)
+            return
         for g in R.GROUPS:
             items = [it for it in R.top_level(g) if self.matches(it.key) or any(self.matches(c) for c in it.menu_children)]
             items = [R.ITEMS[k] for k in self.sorted_keys(it.key for it in items)]

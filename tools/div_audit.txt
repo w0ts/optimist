@@ -356,3 +356,4 @@ src/wifi/wifi_link.c:wl_start:(song.g[G_BPM]>20?song.g[G_BPM]:20) | clamped to 2
 src/wifi/wifi_link.c:wl_start_ap:(song.g[G_BPM]>20?song.g[G_BPM]:20) | clamped to 20 or more
 src/wifi/wifi_link.c:con_wifilink:mpb | guarded: the division runs only when mpb > 0
 src/wifi/wifi_link.c:wl_push_own:(song.g[G_BPM]>20?song.g[G_BPM]:20) | clamped to 20 or more
+src/fx/fx_arena.c:fxm_cp_room:b | b = FXM_CP_BYTES(j) = FXA_SZ(j) x FXA_U x 2: FXA_SZS of CHO DLY REV (4, FELUCCA_DLY_LEN / 512, 19) every one >= 1, FXA_U 512; only built with FELUCCA_FX_ARENA

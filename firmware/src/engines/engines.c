@@ -199,11 +199,17 @@ enum {
                  FELUCCA_PUNCH_SW + FELUCCA_ENG_FM6)       /* (#if) */
 #define SST_ARN_K (NPART + FXM_NC + (uint32_t)ARB_NC)   /* the card streams' block, after them (FELUCCA_SD_STREAM:
                                                          * storage/sd/sd_stream_plan.c, the heads and the rings) */
-#define ARN_PARTS (SST_ARN_K + (FELUCCA_SD_STREAM ? 1u : 0u))
+/* the CHO DLY REV inserts' lines (2026-10-29, the user: "each copy in an insert slot takes its memory from the arena, as
+ * many as it holds"): a block each, placed when an owner takes the type and given back when it lets go (fx/fx_arena.c
+ * fxm_cp_*, fxi.c fxa_place), after every other client; never moved (as the other buffers) */
+#define FXM_CPN ((INS_CHO || INS_REV || INS_DLY) ? 8u : 0u)
+#define FXM_CP_K0 (SST_ARN_K + (FELUCCA_SD_STREAM ? 1u : 0u))
+#define ARN_PARTS (FXM_CP_K0 + FXM_CPN)
 #define ARN_TOPS (((1u << (ARN_PARTS - NPART)) - 1u) << NPART)   /* (the lines and buffers from the top, best fit:
                                                                  * core/arena.c) */
 #else
 #define ARN_PARTS NPART
+#define FXM_CPN 0u
 #endif
 #if PART_DROPS
 static void *part_mem_p[NPART];                          /* placed by need: where its switch took it (0 before) */
