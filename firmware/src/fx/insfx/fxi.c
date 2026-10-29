@@ -153,11 +153,19 @@ static uint32_t fxa_fits(uint32_t lo, uint32_t hi, uint32_t n)   /* how many lin
 }
 /* send line s takes lines now (lent, not on its way back) */
 AINL uint32_t fxl_open(uint32_t s) { return fxl_st[s] == FXL_LENT && !fxl_send_on(s); }
+/* the own room is in memory: always without an arena; with one, only while its block is placed (fxa_ins). Its units
+ * are marked taken while it is not (fxi_init, fxm_ins_post), so this is the guard behind that bitmap: a line is never
+ * placed at fxa_ins 0 + its offset (the FM-1's crash 2026-10-29: fxi_init never ran at boot, every unit free) */
+#if FXM_NEED && FXA_I
+#define FXA_OWN() (fxa_ins != 0)
+#else
+#define FXA_OWN() 1
+#endif
 /* a place for a line of type j: the own room (XDLY from the bottom, the smaller lines from the top), else a send's line
  * while lent (the chorus's first: the smaller); FXA_NO: no room */
 static uint32_t fxa_place(uint32_t j)
 {
-    uint32_t n = FXA_SZ(j), p = fxa_fit(FXA_S, FXA_N, n, n > FXA_Z1), s;
+    uint32_t n = FXA_SZ(j), p = FXA_OWN() ? fxa_fit(FXA_S, FXA_N, n, n > FXA_Z1) : FXA_NO, s;
     if (FXR_MOVING()) {
         fxi_pend = 1;                                   /* (the own room moving: nothing placed meanwhile) */
         return FXA_NO;
@@ -513,7 +521,7 @@ static uint32_t fxl_wait(uint32_t j)
  * lent once its tail ends) */
 static uint32_t fxa_room(uint32_t j)
 {
-    uint32_t n = FXA_SZ(j), r = fxa_fits(FXA_S, FXA_N, n), s;
+    uint32_t n = FXA_SZ(j), r = FXA_OWN() ? fxa_fits(FXA_S, FXA_N, n) : 0u, s;
 #if FXM_NEED && FXA_I
     if (!fxa_ins && fxm_ins_could())
         r = FXA_I / n;                                  /* (the own room not in the arena yet: what it would hold) */
