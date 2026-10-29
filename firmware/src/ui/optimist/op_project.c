@@ -424,6 +424,7 @@ enum { SI_NONE, SI_BRIGHT, SI_LIGHTS, SI_KEYS, SI_LOWCUT, SI_OUT, SI_SYNC, SI_CH
 #endif
        SI_WFMODE, SI_WFNET, SI_WFSIG, SI_WFST,           /* SYSTEM > WI-FI (op_wifi.c): MODE, NETWORK, SIGNAL, STATE */
        SI_RAM,                                          /* INFO: the SRAM free at link, the stacks' least room left (stackmark.h) */
+       SI_UHMODE, SI_UHDEV,                             /* SYSTEM > USB (USB_HOST, the release): MODE DEVICE / HOST, DEVICE */
        SI_UAS0 };                                       /* SI_UAS0 + s: USB AUDIO's line of source s (ua_tap.h UAS_*), last */
 /* a core's load number (% of the audio budget) in its colour: green under 60, amber 60..85, red over 85 (the predictive guard's
  * ceiling, system/cpuguard.c CG_CEIL = 85 %: above it the guard sheds quality / voices); INFO's bars and ticks the same. */
@@ -512,6 +513,10 @@ static const struct { const char *name; uint8_t it[4]; } SYS[] = {
      * make it logical"): BRIGHT, KNOB COLORS (the knob caps' colours; COLOR gone 2026-10-18: the palette is MONO, panel.c),
      * LOWCUT, FILT RESO (SLOOP 2.8's FILTER RESO, a project's: core.h G_TFRES) */
     {"GENERAL", {SI_IF(FELUCCA_BRIGHT, SI_BRIGHT), SI_KCOL, SI_LOWCUT, SI_IF(FELUCCA_TFLT_RESO && FELUCCA_TRK_FILT, SI_FRESO)}},
+#if USBH_UI
+    {"USB", {SI_UHMODE, SI_UHDEV, SI_NONE, SI_NONE}},   /* the port as a MIDI host or the computer's device (USB_HOST: the trial's
+                                                         * ui/opt_usbh.h on fm1-base's; USB SERIAL below it, one section) */
+#endif
 #if FELUCCA_CDC
     {"USB", {SI_USB, SI_NONE, SI_NONE, SI_NONE}},       /* (USB SERIAL: on General's page when it fits, GL_JOIN) */
 #endif
@@ -777,6 +782,24 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
     case SI_WFST:
         wf_cell(it, c);
         break;
+#endif
+#if USBH_UI
+    case SI_UHMODE:                                     /* the port: the computer's device, or the host of a USB-MIDI device:
+                                                         * then nothing for the computer (no USB MIDI, audio, editor) */
+        c->label = "MODE";
+        cell_val(c, usbh_mode() ? "HOST, NO PC" : "DEVICE");
+        c->big = !usbh_mode();
+        c->col = usbh_mode() ? C_WARN : 0;
+        break;
+    case SI_UHDEV: {                                    /* what is plugged in: its name, CONNECTED, NONE, NO MIDI, LOW SPEED */
+        uint32_t ok;
+        c->kind = CK_RO;
+        c->label = "DEVICE";
+        cell_val(c, usbh_device(&ok));
+        c->big = str_len(c->val) <= 9u;
+        c->col = ok ? C_OK : str_eq(c->val, "NO MIDI") || str_eq(c->val, "LOW SPEED") ? C_WARN : 0;
+        break;
+    }
 #endif
     case SI_CPU: {                                      /* (DUAL: its wait for CPU1 counts in it); KNOB 1: NOW, MAX 10S, MAX 1M, MAX (over 100: late) */
         int32_t now = (int32_t)(song.cpu_q8 * 100u / 256u), pct = info_load(OVL_CPU0, now);
@@ -1326,6 +1349,12 @@ static void info_cell(uint32_t pg, uint32_t i, cell_t *c)
 static void sys_set(uint32_t it, int32_t s)
 {
     switch (it) {
+#if USBH_UI
+    case SI_UHMODE:                                     /* DEVICE / HOST, a detent each, YES round; never kept (every boot is
+                                                         * DEVICE): no settings to save */
+        usbh_set((uint32_t)sys_step((int32_t)usbh_mode(), s, 1));
+        return;
+#endif
 #if FELUCCA_SD_UI
     case SI_SDVERS:
     case SI_SDSLACK:
@@ -1415,6 +1444,11 @@ static void sys_set(uint32_t it, int32_t s)
 static int sys_factory(uint32_t it)
 {
     switch (it) {
+#if USBH_UI
+    case SI_UHMODE:
+        usbh_set(0);                                    /* (DEVICE: the computer again) */
+        return 1;
+#endif
 #if FELUCCA_SD_UI
     case SI_SDVERS:
     case SI_SDSLACK:
@@ -1539,6 +1573,12 @@ static int sys_yes(uint32_t r, uint32_t k, uint32_t ok)
         return 1;
     }
 #endif
+#endif
+#if USBH_UI
+    if (it == SI_UHMODE) {                              /* MODE: DEVICE / HOST round */
+        sys_set(it, 0);
+        return 1;
+    }
 #endif
     if (it == SI_CALIB) {                               /* PANEL: asked first (it takes every button until the end) */
         if (!ok)

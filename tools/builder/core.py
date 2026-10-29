@@ -345,6 +345,9 @@ def validate(cfg):
         err.append(Issue("Wi-Fi + Link on Optimist's own firmware runs its manager on the serial console: switch on "
                          "USB_CONSOLE (or Wi-Fi off; the release runs it on fm1-base's own Wi-Fi stack)",
                          ["WIFI_LINK", "USB_CONSOLE"]))
+    if built(cfg, "USB_HOST") and CLASSIC_HOOK():
+        err.append(Issue("the USB MIDI host is the release's (fm1-base's USB host): Optimist's own firmware has none "
+                         "(USB_HOST off, or build the release)", ["USB_HOST"]))
     if cfg["USB_CONSOLE"] and cfg["USB_AUDIO"]:
         err.append(Issue("the serial console or USB audio, not both: the USB port has three data endpoints, USB MIDI "
                          "takes one and USB audio the other two", ["USB_CONSOLE", "USB_AUDIO"]))

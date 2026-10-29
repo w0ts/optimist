@@ -38,7 +38,7 @@ static struct {
 /* the ports this goes to now: USB unless USB is the clock followed; BLE (a central listening) unless BLE is */
 static int clko_usb(void)
 {
-    return !(FELUCCA_MIDI_CLOCK && sy.src == MSRC_USB);
+    return !(FELUCCA_MIDI_CLOCK && SY_USB(sy.src));     /* (a USB host's device is the port too: MSRC_USBH) */
 }
 #if FELUCCA_BLE
 static int ble_rt_on(void);                               /* (io/midi/midi_ble.c: a central listens) */

@@ -991,5 +991,27 @@ K.CLASSIC_HOOK = _hook
 check("Wi-Fi: without BLE the build is refused; without the console too on Optimist's own firmware, not in the release "
       "(fm1-base's own Wi-Fi stack: no console)",
       bool(K.validate(dict(_wl, BLE=0))[0]) and _classic_no_con and _release_no_con and not K.validate(_wd)[0])
+# the USB MIDI host (2026-10-28): USB_HOST (bit 438, FELUCCA_USB_HOST), Connectivity, off by default, experimental with
+# what it was tested on; the release's only (fm1-base's host): refused on Optimist's own firmware; the trial's host
+# build gets it too (not target only: the flag outside __PI32V2__)
+_uh = items["USB_HOST"]
+_ud = C.defaults()
+check("USB host: USB_HOST 438 (FELUCCA_USB_HOST) in Connectivity, off by default, experimental, its tests said, an "
+      "off warning, not target only",
+      _uh.bit == 438 and _uh.flag == "FELUCCA_USB_HOST" and _uh.group == "Connectivity" and _uh.default == 0 and
+      _uh.experimental and _uh.tested == "host-tested only; USB host IN ran on Melodee, OUT not validated on a device"
+      and _uh.off_warning and not _uh.target_only and not _uh.parent)
+check("USB host: no other item has bit 438", [k for k, it in items.items() if it.bit == 438] == ["USB_HOST"])
+K.CLASSIC_HOOK = lambda: True
+_uh_classic = [e for e in K.validate(dict(_ud, USB_HOST=1))[0] if "USB_HOST" in e.keys]
+K.CLASSIC_HOOK = lambda: False
+_uh_release = [e for e in K.validate(dict(_ud, USB_HOST=1))[0] if "USB_HOST" in e.keys]
+_uh_warn = [w for w in K.validate(dict(_ud, USB_HOST=1))[1] if "USB_HOST" in w.keys]
+K.CLASSIC_HOOK = _hook
+check("USB host: refused on Optimist's own firmware, valid in the release (where it says EXPERIMENTAL and its tests)",
+      bool(_uh_classic) and not _uh_release and any("EXPERIMENTAL" in w for w in _uh_warn))
+check("USB host: on sets FELUCCA_USB_HOST 1 in the header, outside __PI32V2__; off 0",
+      K.flags(dict(_ud, USB_HOST=1))[0]["FELUCCA_USB_HOST"] == 1 and K.flags(_ud)[0]["FELUCCA_USB_HOST"] == 0 and
+      "#ifdef __PI32V2__\n#ifndef FELUCCA_USB_HOST" not in K.header(dict(_ud, USB_HOST=1)))
 print("builder test " + ("FAILED" if fails else "passed"))
 sys.exit(1 if fails else 0)

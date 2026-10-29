@@ -472,6 +472,8 @@
     {"kind": "op", "ctx": "METERS", "params": {"VU FLOOR": "Level at the meters' bottom"}},
     {"kind": "op", "ctx": "KEYS", "if": "FELUCCA_LIGHTS", "params": {
       "BUTTONS": "Buttons glow in the dark", "KEYS": "Which keys glow"}},
+    {"kind": "op", "ctx": "USB", "if": "FELUCCA_USB_HOST", "params": {
+      "MODE": "HOST until power-off: no PC", "DEVICE": "The USB-MIDI device on it"}},
     {"kind": "op", "ctx": "USB", "if": "FELUCCA_CDC", "params": {"SERIAL": "USB serial console (restart)"}},
     {"kind": "op", "ctx": "BT MIDI", "if": "FELUCCA_BLE", "params": {
       "MODE": "AUTO: last device at start", "DEVICE": "SAVE connects / lets go",
