@@ -81,6 +81,10 @@ typedef struct {
 #endif
 #endif
 #include "../firmware/src/storage/persist_rec.c"
+#if FELUCCA_LINK
+static uint8_t sync_boot = SYNC_AUTO;               /* (storage/settings_word.c's: project.c's flash part, which has it, is not in PROJ_HOST) */
+#endif
+#include "../firmware/src/storage/persist_ext.c"    /* persist_ext_* / persist_ofs_* (project.c includes it outside PROJ_HOST) */
 
 #if FELUCCA_BLE
 void ble_midi_out(uint32_t pkt) { (void)pkt; }   /* (the sequencer's BLE out: the radio is not here) */

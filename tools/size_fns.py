@@ -42,7 +42,7 @@ SIZE_FILES = ["ui/colors.c", "ui/splash.c", "storage/storage.c", "storage/uprese
               "io/editor/ed_fxp.c", "io/editor/ed_dlan.c", "io/editor/ed_scrn.c", "io/editor/ed_song.c", "io/editor/ed_tools.c", "io/editor/ed_scrs.c",
               "io/editor/ed_fav.c", "io/editor/ed_scope.c", "io/editor/ed_mirror.c", "io/editor/ed_undo.c", "io/editor/ed_note.c", "io/editor/ed_solo.c", "io/editor/ed_steplane.c", "io/editor/ed_proj.c", "io/editor/ed_clip.c", "io/editor/ed_comp.c",
               "fx/fx_slots.c", "fx/insfx/fxi.c", "fx/fx_arena.c", "core/arena_bufs.c", "fx/rev_diag.c",
-              "fx/fx_rec.c", "fx/fx_rec_log.c", "storage/dlfo_rec.c", "storage/sections/dlfo_rec_log.c", "seq/auto_lane.c", "core/model.c", "core/favorites.c", "storage/persist_rec.c", "drums/dsnd_desc.c",
+              "fx/fx_rec.c", "fx/fx_rec_log.c", "storage/dlfo_rec.c", "storage/sections/dlfo_rec_log.c", "seq/auto_lane.c", "core/model.c", "core/favorites.c", "storage/persist_rec.c", "storage/persist_ext.c", "drums/dsnd_desc.c",
               "ui/optimist/optimist.c", "ui/optimist/op_state.c", "ui/optimist/op_cells.c", "ui/optimist/op_screens.c",
               "ui/optimist/op_step.c", "ui/optimist/op_project.c", "ui/optimist/op_bt.c", "ui/optimist/op_prjflow.c", "ui/optimist/op_sdcard.c", "ui/optimist/op_graph.c", "ui/optimist/op_draw.c",
               "ui/optimist/op_stepdraw.c", "ui/optimist/op_input.c", "ui/optimist/op_keep.c", "ui/optimist/op_layers.c", "ui/optimist/op_nav.c",
