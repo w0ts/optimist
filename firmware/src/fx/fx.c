@@ -196,9 +196,19 @@ static HOT void dist_run(dist_t *s, int32_t d, int32_t *b, uint32_t n)
  * ~150 ms release, threshold where tanh is still nearly linear, so chords
  * get quieter instead of crushed. */
 #define LIM_T 18000
-static int32_t lim_env = LIM_T;
 static volatile uint8_t fx_lowcut;     /* settings: 12 dB/oct ~110 Hz for the small speaker */
-static int32_t lc_l1, lc_l2, lc_r1, lc_r2, dc_l, dc_r, dce_l, dce_r;
+static int32_t lc_l1, lc_l2, lc_r1, lc_r2;
+/* the output stage's state, the DC blocker's and the limiter's: the FM-1's own output's (mo), and USB's MASTER's own
+ * (ua_mo: the same stage at full volume, ua_mst_out) */
+typedef struct {
+    int32_t lim_env, dc_l, dc_r, dce_l, dce_r;
+} mout_t;
+static mout_t mo = {LIM_T, 0, 0, 0, 0};
+AINL mout_t mo_rest(void)                               /* (at rest: no DC, the limiter let go) */
+{
+    mout_t r = {LIM_T, 0, 0, 0, 0};
+    return r;
+}
 
 /* DC blocker (~2 Hz), always on: a leaky integrator of the input (Q6 state) subtracted from it.
  * The >> 12 step keeps its remainder (error feedback, 0..4095) and adds it to the next one, so no
@@ -224,10 +234,14 @@ AINL int32_t knee(int32_t x) { return soft_knee(x, KNEE); }   /* (dsp.c) */
 #if FELUCCA_BASSPLUS
 #include "bassplus/bassplus.c"          /* the menu's LOWCUT: BASS+ for the small speaker (from Felucca 1.0) */
 #endif
+AINL void master_dc(mout_t *s, int32_t *l, int32_t *r)   /* the DC blocker (master_pre; USB's MASTER: ua_mst_out) */
+{
+    *l = dc_block(*l, &s->dc_l, &s->dce_l);
+    *r = dc_block(*r, &s->dc_r, &s->dce_r);
+}
 AINL void master_pre(int32_t *l, int32_t *r)   /* the DC blocker and the low cut (master_out; LIMIT: master_comp.c) */
 {
-    *l = dc_block(*l, &dc_l, &dce_l);
-    *r = dc_block(*r, &dc_r, &dce_r);
+    master_dc(&mo, l, r);
     if (fx_lowcut) {                  /* two one-pole high-passes, error feedback as dc_block (the */
 #if FELUCCA_BASSPLUS
         if (fx_lowcut == 2u)
@@ -242,24 +256,29 @@ AINL void master_pre(int32_t *l, int32_t *r)   /* the DC blocker and the low cut
         }
     }
 }
-static inline HOT void master_out(int32_t *l, int32_t *r)
+AINL void master_lim(mout_t *s, int32_t *l, int32_t *r)   /* the limiter and the knee (master_out, ua_mst_out) */
 {
-    int32_t al, ar, a;
-    master_pre(l, r);
+    int32_t al, ar, a, e = s->lim_env;
     al = *l < 0 ? -*l : *l;
     ar = *r < 0 ? -*r : *r;
     a = al > ar ? al : ar;
-    if (a > lim_env)
-        lim_env += (a - lim_env) >> 2;
-    else if (lim_env > LIM_T)
-        lim_env -= ((lim_env - LIM_T) >> 12) + 1;
-    if (lim_env > LIM_T) {
-        int32_t g = (int32_t)(((uint32_t)LIM_T << 15) / (uint32_t)lim_env);   /* < 32768 */
+    if (a > e)
+        e += (a - e) >> 2;
+    else if (e > LIM_T)
+        e -= ((e - LIM_T) >> 12) + 1;
+    s->lim_env = e;
+    if (e > LIM_T) {
+        int32_t g = (int32_t)(((uint32_t)LIM_T << 15) / (uint32_t)e);   /* < 32768 */
         *l = ((*l >> 4) * g) >> 11;                      /* >> 4 first: |l| may be far above Q15 */
         *r = ((*r >> 4) * g) >> 11;
     }
     *l = knee(*l);
     *r = knee(*r);
+}
+static inline HOT void master_out(int32_t *l, int32_t *r)
+{
+    master_pre(l, r);
+    master_lim(&mo, l, r);
 }
 /* the mix bus (Q15) times MASTER (Q12, 4096 at most): 2 bits dropped before the product, so the bus' last 2 bits never
  * reach the output, and a low MASTER leaves the DAC's 24 bits 16 (a quarter turn: 11 used). MIX_EXACT: a 64-bit product,
@@ -278,8 +297,66 @@ AINL int32_t master_vol(int32_t x, int32_t m, uint8_t *f)
 #else
 #define MASTER_VOL(x, m, k) ((((x) >> 2) * (m)) >> 10)
 #endif
+/* the output stage of a block without LIMIT (mix_finish): the master volume ramped over the block, master_pre (the DC
+ * blocker, the low cut), the limiter and the knee. own: the FM-1's own output (s = &mo); 0: USB's MASTER (ua_mst_out: at
+ * 4096, the DC blocker alone, on its own state; under MIX_EXACT its bits under it, 0 at 4096, rewritten by the output's
+ * block after it) */
+static HOT2 __attribute__((noinline)) void mout_block(mout_t *s, const int32_t *ml, const int32_t *mr, int32_t *out,
+                                                     uint32_t n, int32_t m0, int32_t m1, uint32_t own)
+{
+    uint32_t i;
+    for (i = 0; i < n; i++) {
+        int32_t m = m0 + (((m1 - m0) * (int32_t)i) >> CTL_LOG2);
+        int32_t l = MASTER_VOL(ml[i], m, 2u * i);
+        int32_t r = MASTER_VOL(mr[i], m, 2u * i + 1u);
+        if (own)
+            master_pre(&l, &r);
+        else
+            master_dc(s, &l, &r);
+        master_lim(s, &l, &r);
+        out[2u * i] = l;
+        out[2u * i + 1u] = r;
+    }
+}
 #if FELUCCA_MASTER_COMP
 #include "master_comp/master_comp.c"       /* GLO > COMP / LIMIT: the bus compressor, the brickwall limiter (mix_finish) */
+#endif
+#if FELUCCA_USB_AUDIO
+/* USB's MASTER (io/usb/ua_tap.h ua_mst): the master bus through the output stage of its own, as the FM-1's own output
+ * would be at full volume, whatever the knob says (the user, 2026-10-29: "same limiter as the output"): MASTER_VOL at
+ * 4096, the DC blocker, then the limiter and the knee, or LIMIT's brickwall (its CEIL, its lookahead) when it is on.
+ * Not the menu's LOWCUT / BASS+ (the small speaker's). Its own state (ua_mo, ua_mlim), started from rest each time the
+ * host starts taking MASTER (ua_mo_on). Only while MASTER is routed and the host records (mix_finish: ua_mst_live) */
+static mout_t ua_mo;
+static uint8_t ua_mo_on;                                /* ua_mo, ua_mlim in use (0: started from rest at the next) */
+#if FELUCCA_MASTER_COMP
+static mlim_t ua_mlim __attribute__((section(".pool")));   /* (the pool: main RAM is full) */
+#endif
+static HOT2 __attribute__((noinline)) void ua_mst_out(const int32_t *ml, const int32_t *mr, uint32_t n)
+{
+    if (!ua_mo_on) {
+        ua_mo.lim_env = LIM_T;                          /* (at rest; field by field: a struct copy is a memcpy, XIP) */
+        ua_mo.dc_l = ua_mo.dc_r = ua_mo.dce_l = ua_mo.dce_r = 0;
+#if FELUCCA_MASTER_COMP
+        ua_mlim.on = 0;
+#endif
+        ua_mo_on = 1;
+    }
+#if FELUCCA_MASTER_COMP
+    if (mlim.on && (!ua_mlim.on || ua_mlim.c8 != mlim.c8)) {   /* LIMIT's CEIL, as mlim_set sets the output's */
+        if (!ua_mlim.on)
+            mlim_reset(&ua_mlim);                       /* (from OFF: an empty lookahead) */
+        ua_mlim.c8 = mlim.c8;
+        ua_mlim.clin = mlim.clin;
+    }
+    ua_mlim.on = mlim.on;
+    if (ua_mlim.on) {                                   /* (the output's code on this state, as the output's block */
+        mlim_block(&ua_mlim, &ua_mo, ml, mr, ua_mst, n, 4096, 4096, 0u);   /* below: before it, which writes the */
+        return;                                         /* bits under it after) */
+    }
+#endif
+    mout_block(&ua_mo, ml, mr, ua_mst, n, 4096, 4096, 0u);
+}
 #endif
 
 
@@ -2847,7 +2924,6 @@ static HOT void click_mix(uint32_t n)
 #endif
 static inline __attribute__((always_inline)) void mix_finish(int32_t *out, uint32_t n)
 {
-    uint32_t i;
     int32_t m0, m1;
     BENCH_SIG(4, mix_l, n);
     BENCH_SIG(5, send_r, n);
@@ -2861,25 +2937,21 @@ static inline __attribute__((always_inline)) void mix_finish(int32_t *out, uint3
     if (!scope_src)                                     /* the SCOPE on the master, the mixer's master column */
         FAR(vis_tap_block)(mix_l, mix_r, n);
 #if FELUCCA_USB_AUDIO
-    ua_mst_tap(mix_l, mix_r, n);                        /* USB's MASTER: before the volume, never scaled by it (ua_tap.h) */
+    if (ua_mst_live)                                    /* USB's MASTER: the output stage at full volume, never the */
+        ua_mst_out(mix_l, mix_r, n);                    /* knob's level (above) */
+    else
+        ua_mo_on = 0;
 #endif
     m0 = master_cur < 0 ? (int32_t)song.master_q12 : master_cur;   /* MASTER glides (~10 ms; X0X 0.10.1) */
     m1 = glide_next(m0, (int32_t)song.master_q12);
     master_cur = m1;
 #if FELUCCA_MASTER_COMP
     if (mlim.on) {                                      /* LIMIT > CEIL: the volume, master_pre, the lookahead brickwall */
-        mlim_block(mix_l, mix_r, out, n, m0, m1);       /* instead of the limiter and the knee (master_comp.c) */
+        mlim_block(&mlim, &mo, mix_l, mix_r, out, n, m0, m1, 1u);   /* instead of the limiter and the knee (master_comp.c) */
         return;
     }
 #endif
-    for (i = 0; i < n; i++) {
-        int32_t m = m0 + (((m1 - m0) * (int32_t)i) >> CTL_LOG2);
-        int32_t l = MASTER_VOL(mix_l[i], m, 2u * i);
-        int32_t r = MASTER_VOL(mix_r[i], m, 2u * i + 1u);
-        master_out(&l, &r);
-        out[2u * i] = l;
-        out[2u * i + 1u] = r;
-    }
+    mout_block(&mo, mix_l, mix_r, out, n, m0, m1, 1u);  /* the volume, the limiter and the knee (above) */
 }
 
 #if FELUCCA_BENCH

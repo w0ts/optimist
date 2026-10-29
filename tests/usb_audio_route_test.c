@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* SYSTEM > USB AUDIO (io/usb/ua_tap.h, usb_audio_route.c): where each source goes among the four capture channels, through
- * the real mixer. A source (MASTER the master bus before the volume: the knob never reaches USB, T1..T3 and DRUMS the stems, DRUM BUS the drum bus, DRn a lane's share
+ * the real mixer. A source (MASTER the master bus through its own output stage at full volume: the knob never reaches USB, T1..T3 and DRUMS the stems, DRUM BUS the drum bus, DRn a lane's share
  * of DRUMS, RET A B C the FX returns as they enter the master) goes to NONE, 1, 2, 1+2, 3, 4 or 3+4: a stereo source on
  * a pair L then R, on one channel the mono sum (L + R) / 2 (a floor); a mono source on a pair on both; sources on one channel add up; the default routing (T1 T2 T3 DRUMS on 1 2 3 4)
  * is no routing (the stems' own buffer); a tapped lane leaves the mix as it was. The settings record: favorites_test.c. */
@@ -363,11 +363,13 @@ static void test_returns_mix(void)
 }
 
 /* the volume knob never reaches USB (the user, 2026-10-29: "the main volume knob should NOT control the volume of the USB
- * audio", "USB audio out has no volume control"): the same song from the same state, a child at each MASTER (the top,
- * 4096 = unity; the bottom, 0; between, moved in the middle of the run): MASTER on 1+2, T1 on 3, DRUMS on 4, and the
- * default routing (the stems as they are) after. Every capture frame the same, bit for bit, at each volume; the FM-1's own
- * output follows the knob (silent at 0). MASTER's capture is the bus before the volume (ua_mst, not out) */
-static void test_master_knob(void)
+ * audio", "USB audio out has no volume control", "same limiter as the output"): the same song from the same state, a
+ * child at each MASTER (the top, 4096 = unity; the bottom, 0; between, moved in the middle of the run): MASTER on 1+2,
+ * T1 on 3, DRUMS on 4, and the default routing (the stems as they are) after. Every capture frame the same, bit for bit,
+ * at each volume; the FM-1's own output follows the knob (silent at 0). At the top, MASTER's capture is the FM-1's own
+ * output sample for sample (fx.c ua_mst_out: its own output stage, the same lookahead), on a mix past full scale (the
+ * limiter at work). ceil: LIMIT's CEIL (G_CCEIL: 0 OFF, the limiter and the knee; else the brickwall) */
+static void test_master_knob(int32_t ceil)
 {
     static const uint32_t VOL[3] = {4096u, 0u, 1500u};
     enum { NB = 192 };
@@ -384,11 +386,20 @@ static void test_master_knob(void)
         }
         int32_t out[CTL * 2];
         int64_t em = 0, es = 0;
+        int32_t peak = 0;
         setup();
+        for (uint32_t k = 0; k < NPART; k++)
+            trk[k].p[P_LEVEL] = 127;                      /* (loud: the bus past full scale) */
+        song.g[G_CCEIL] = (int16_t)ceil;
         track_capture_on = 1;
         song.master_q12 = VOL[pass];
         master_cur = -1;                                  /* (from the knob at once: no glide from another test's, */
-        dc_l = dc_r = dce_l = dce_r = 0;                  /*  no DC blocker's state either) */
+        mo = mo_rest();                                   /*  the output stage from rest, as USB's starts) */
+        fx_lowcut = 0;                                    /* (the small speaker's LOWCUT: the output's only) */
+#if FELUCCA_MASTER_COMP
+        mlim_reset(&mlim);
+#endif
+        ua_mo_on = 0;
         ROUTE({UAS_MAIN, UAD_12}, {UAS_T1, UAD_3}, {UAS_DRUMS, UAD_4});
         assert(ua_mst_on && !ua_ident);
         for (uint32_t b = 0; b < 2u * NB; b++) {
@@ -404,6 +415,13 @@ static void test_master_knob(void)
                 for (uint32_t k = 0; k < NPART; k++) trk_note_off(&trk[k], 48 + 7 * k);
             const int32_t *f = block(out);
             assert(b < NB || (f == track_capture && !ua_mst_live));
+            for (uint32_t i = 0; i < CTL; i++) {
+                int32_t a = mix_l[i] < 0 ? -mix_l[i] : mix_l[i];
+                peak = a > peak ? a : peak;
+            }
+            if (!pass && b < NB)
+                for (uint32_t i = 0; i < CTL * 2; i++)
+                    assert(ua_mst[i] == out[i]);          /* at the top: the FM-1's own output, sample for sample */
             for (uint32_t i = 0; i < CTL * UA_CAP_CHANNELS; i++) {
                 if (!pass)
                     refs[b][i] = f[i];
@@ -417,10 +435,14 @@ static void test_master_knob(void)
             for (uint32_t i = 0; i < CTL * 2 && b >= 2u; i++)   /* (after LIMIT's lookahead: 64 samples of before) */
                 eo[pass] += (int64_t)out[i] * out[i];
         }
-        assert(em && es);
+        assert(em && es && peak > 32767);                 /* (the bus past full scale: the limiter's work in it) */
+#if FELUCCA_MASTER_COMP
+        assert(!pass || mlim.on == (ceil != 0));
+#endif
         _exit(0);
     }
-    assert(eo[0] > 0 && eo[1] == 0 && eo[2] > 0 && eo[2] < eo[0]);   /* the FM-1's own output: the knob's (0: silence) */
+    assert(eo[0] > 0 && eo[1] == 0 && eo[2] > 0 && eo[2] != eo[0]);  /* the FM-1's own output: the knob's (0: silence; past
+                                                          * full scale the limiter evens the others out) */
     munmap(refs, 2u * NB * sizeof *refs);
     munmap(eo, 3u * sizeof *eo);
 }
@@ -471,7 +493,10 @@ int main(void)
     test_returns();                                       /* (first: the buses' lines still clear, no tail of another test's) */
     test_sources();
     test_returns_mix();
-    test_master_knob();
+    test_master_knob(0);                                  /* the limiter and the knee */
+#if FELUCCA_MASTER_COMP
+    test_master_knob(4);                                  /* LIMIT's brickwall (CEIL 4), its lookahead */
+#endif
     test_lanes(0, 0, 0);                                  /* the sampled kit */
     test_lanes(DRUM_SAMPLED, 0, 0);                       /* a synthesised one */
 #if DINS

@@ -43,7 +43,7 @@ static void ua_add(int32_t *o, uint32_t os, const int32_t *a, uint32_t sa, const
 /* THE SOURCE MAPPER, output-agnostic (the device-mode capture below is one consumer; a USB host-mode output to a 4-output
  * sound card can be another): channel c (0..UA_ROUTE_N-1) of this mix block, n samples (Q15 scale, int32, not clipped)
  * into o with stride os: the lanes routed to it (dlt_buf, summed as they rendered), then every other source on it. The
- * master bus before the volume in ua_mst (stereo interleaved, Q15: ua_tap.h, the knob never scales it), the stems in
+ * master in ua_mst (stereo interleaved, Q15: fx.c ua_mst_out, the output stage at full volume, never the knob's), the stems in
  * track_capture, the drum bus in ua_dbus, the returns in ua_ret (live only while dlt_block / ua_ret_block were told the
  * channels are taken). In the audio interrupt, after mix_block */
 static void ua_route_ch(uint32_t c, int32_t *o, uint32_t os, uint32_t n)
