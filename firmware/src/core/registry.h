@@ -667,13 +667,6 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #ifndef FELUCCA_CHO_EXACT
 #define FELUCCA_CHO_EXACT 0                /* the chorus send's read points ramped exactly over a block (fx.c CHO_RAMP) */
 #endif
-#ifndef FELUCCA_MIX_FINE
-#define FELUCCA_MIX_FINE 0                 /* a part into the mix 3 bits down, not 4 (fx.c MIX_PAN) */
-#endif
-#ifndef FELUCCA_MIX_EXACT
-#define FELUCCA_MIX_EXACT 0                /* a part into the mix and the master volume as 64-bit products, no bit dropped
-                                            * (fx.c MIX_GAIN MIX_PAN MASTER_VOL; issue 107, 2026-10-28) */
-#endif
 #ifndef FELUCCA_WIDE_FINE
 #define FELUCCA_WIDE_FINE 0                /* WIDE's all-pass at the part's scale (insfx.c ifx_ap_w) */
 #endif
