@@ -1201,8 +1201,9 @@ async function editorFxp() {
   ok(info.fxp && info.fxp.usb && info.fxp.owners === 25 && info.fxs, "fxp: INFO tag 0x57: the USB input is built, 25 owners");
   const lay = async (ow) => P(await rq(E.req.fxpGet(ow)));
   let l = await lay(0);
-  ok(l.op === 0 && l.ow === 0 && js(l.slots) === js([{ type: 1, n: 1 }, { type: 6, n: 1 }]) && E.fxpAllows(l, T.EQ3) && E.fxpAllows(l, T.NONE) && !E.fxpAllows(l, T.CHO) && !E.fxpAllows(l, T.REV),
-    "fxp: GET T1: S1 DIST, S2 FILT, one parameter each; the inserts may be held, the sends not");
+  ok(l.op === 0 && l.ow === 0 && js(l.slots) === js([{ type: 1, n: 1 }, { type: 6, n: 1 }]) && E.fxpAllows(l, T.EQ3) && E.fxpAllows(l, T.NONE) && E.fxpAllows(l, T.CHO) && E.fxpAllows(l, T.DLY) && E.fxpAllows(l, T.REV)
+    && !E.fxpAllows(l, T.CHRS) && /define FXT_INSLOT \(FXT_INSERT \| FXT_SENDS\)/.test(fs) && /fxpOk.*FXT_BUILT & FXT_INSLOT|return FXT_BUILT & FXT_INSLOT/.test(ef),
+    "fxp: GET T1: S1 DIST, S2 FILT, one parameter each; a track slot may hold the inserts and, since the 2026-10-29 unification, CHO DLY REV too (fx_slots.c: FXT_INSLOT = FXT_INSERT | FXT_SENDS, 'CHO DLY REV are a send bus in a master return and an insert in a track's or the master's slot'), but not the aliases CHRS ROOM TDLY (no slot holds them)");
   l = await lay(6);
   ok(js(l.slots) === js([{ type: 2, n: 1 }]) && l.line === 0 && E.fxpAllows(l, T.CHO) && E.fxpAllows(l, T.EQ3) && !E.fxpAllows(l, T.GATE), "fxp: GET R1: the chorus, RET only, on line 0; any insert but GATER too");
   ok((await lay(5)).slots.length === 3 && (await lay(4)).slots[1].type === T.COMP && (await lay(9)).slots[0].type === T.DIST, "fxp: the USB input has three slots (the third its values), the master S2 DYN, a drum sound S1 DIST");
@@ -2874,7 +2875,7 @@ async function masterStrip() {
      returns (2026-10-12: CRET DRET RRET, G_CRET.., the device's mixer MASTER row) are not on the strip yet: DLY RET scales
      dmix, CHO / REV RET their wet (fx.c) */
   const fxc = readFileSync(join(HERE, "../firmware/src/fx/fx.c"), "utf8");
-  ok(js(fxs.map((f) => f.ret)) === js(["MIX", "SIZE", "CDP", "THRS"]) && /dmix = .*song\.g\[G_DMIX\] \* 258.*RET_LV\(1\)/.test(fxc) && /dly_step\((dly_in|in)\[i\], dl, &f, fb, dmix/.test(fxc)
+  ok(js(fxs.map((f) => f.ret)) === js(["MIX", "SIZE", "CDP", "THRS"]) && /dmix = .*song\.g\[G_DMIX\] \* 258.*RET_LV\(1\)/.test(fxc) && /dly_blk\(dly_buf, .*in, y, n, dl, &f, fb, dmix/.test(fxc)
     && /song\.g\[G_RRET\]/.test(fxc) && /song\.g\[G_CRET\]/.test(fxc) && /MASTER_BUS = \["DUST", "DUCK", "FILT"\]/.test(html),
     "master strip: Delay MIX, Reverb SIZE, Chorus CDP beside the icons; the firmware's FX returns (DLY RET in dmix, CHO / REV RET) not on the strip yet");
   /* Settings: only true settings; every parameter that left it is in the mixer */
