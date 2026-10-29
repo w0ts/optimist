@@ -332,9 +332,8 @@
   #p-mirror { position: relative; padding-top: 8px; }
   #p-mirror > .pghelp { position: absolute; left: 0; top: 8px; margin: 0; z-index: 3; max-width: 28rem; }
   #p-mirror > .pghelp[open] { background: var(--bg); padding: 0 8px 8px 0; }
-  .mirwrap { --ms: calc(100vh - var(--menubar-h, 48px) - 120px); display: grid; gap: 12px; align-items: start; justify-content: center;
+  .mirwrap { --ms: calc(100vh - var(--menubar-h, 48px) - 210px); display: grid; gap: 12px; align-items: start; justify-content: center;
              grid-template-columns: minmax(120px, 168px) minmax(240px, var(--ms)) minmax(120px, 168px); }
-  .mirwrap.lanes { --ms: calc(100vh - var(--menubar-h, 48px) - 210px); }   /* (two rows of drum lanes under the screen: the user, 2026-10-25) */
   .mirwrap.alone { grid-template-columns: minmax(240px, calc(var(--ms) + 60px)); }
   .mirwrap.alone .mirside, .mirwrap.alone .mirpages, .mirwrap.alone .mirtracks { display: none; }
   .mirside, .mirpages, .mircenter { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
@@ -344,8 +343,7 @@
   #p-mirror:fullscreen { background: var(--bg); color: var(--fg); padding: 16px 20px; overflow: auto; margin: 0;
                          display: flex; flex-direction: column; justify-content: center; }
   #p-mirror:fullscreen .pghelp { display: none; }
-  #p-mirror:fullscreen .mirwrap.lanes { --ms: calc(100vh - 220px); }
-  #p-mirror:fullscreen .mirwrap { --ms: calc(100vh - 130px); width: 100%; grid-template-columns: minmax(120px, 200px) minmax(240px, var(--ms)) minmax(120px, 200px); }
+  #p-mirror:fullscreen .mirwrap { --ms: calc(100vh - 220px); width: 100%; grid-template-columns: minmax(120px, 200px) minmax(240px, var(--ms)) minmax(120px, 200px); }
   #p-mirror:fullscreen .mirwrap.alone { grid-template-columns: minmax(240px, calc(var(--ms) + 50px)); }
   #p-mirror:fullscreen .mirpages { max-height: calc(100vh - 40px); }
   .mirpages { max-height: 560px; overflow-y: auto; }
@@ -355,6 +353,7 @@
           display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.15; min-width: 0; }
   .mirb span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
   .mirb small { font-size: 10px; font-weight: 500; opacity: .65; }
+  .mirb:disabled { opacity: .35; cursor: default; }
   .mirb:hover:not(:disabled) { background: color-mix(in srgb, var(--fg) 15%, var(--bg)); }
   .mirb[aria-pressed=true], .mirb[aria-pressed=true]:hover { background: var(--fg); color: var(--bg); }
   .mirfav { display: flex; gap: 4px; }
@@ -365,7 +364,7 @@
   .mirx:hover { color: var(--fg); }
   .mirtracks { display: flex; flex-direction: column; gap: 6px; }
   .mirlanes { display: grid; grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); gap: 4px; }
-  .mirlanes:empty { display: none; }
+  .mirlanes { min-height: 68px; }   /* (two rows of drum lanes kept free under the screen, empty or not: the screen one size, the user 2026-10-29) */
   .mirlanes .mirb { min-height: 32px; font-size: 12px; }
   .mirtrk { display: flex; gap: 4px; }
   .mirtrk .mirb { flex: 1; padding: 2px; }
@@ -12662,16 +12661,17 @@ function mirRender(force = false) {
     el("div", { class: "mirh", text: t("mirFavs") }),
     el("div", { class: "mirfavadd" },
       el("button", { class: "mirb", type: "button", disabled: !here, title: t("mirFavAddTip"), onclick: () => navFavAdd(false) }, el("span", { text: "+ " + (here ? st.rows[st.row] : t("mirFavAdd")) })),
-      onTrack ? el("button", { class: "mirb", type: "button", title: t("mirFavAddTip"), onclick: () => navFavAdd(true) }, el("span", { text: `+ ${st.rows[st.row]} ${t("mirFavOn")} ${mnav.tracks[st.track]}` })) : ""),
+      el("button", { class: "mirb", type: "button", disabled: !onTrack, title: t("mirFavAddTip"), onclick: () => navFavAdd(true) }, el("span", { text: onTrack ? `+ ${st.rows[st.row]} ${t("mirFavOn")} ${mnav.tracks[st.track]}` : `+ ${t("mirFavAdd")} ${t("mirFavOn")} ...` }))),
     ...favs);
   $("mirpages").replaceChildren(
     ...(st.rows.length ? st.rows.map((r, i) => mirButton(r, { lit: i === st.row, on: () => navRow(i),
       menu: () => { if (i === st.row) navFavAdd(false); else navAct(async () => { await navAsk(1, [i]); }); } }))
       : [el("p", { class: "dim", text: t("mirNoPages") })]));
   const cur = st.track, dimT = cur === MNAV.NONE, n = mnav.tracks.length, lanes = !dimT && cur >= MNAV.DRUM_ROW && n > MNAV.DRUM_ROW + 1;
-  $("mirwrap").classList.toggle("lanes", lanes);   /* (the drum lanes' rows under the screen: the screen smaller, all of it fits) */
+  /* the drum lanes' buttons are always there (the kit's names, else the default lanes'), greyed out and dead off the drum track */
+  const laneNames = n > MNAV.DRUM_ROW + 1 ? mnav.tracks.slice(MNAV.DRUM_ROW + 1) : DRUM_LANES.map((l) => l[1]);
   $("mirtracks").replaceChildren(
-    el("div", { class: "mirlanes" }, ...(lanes ? mnav.tracks.slice(MNAV.DRUM_ROW + 1).map((nm, k) => mirButton(nm, { lit: cur === MNAV.DRUM_ROW + 1 + k, on: () => navTrack(MNAV.DRUM_ROW + 1 + k) })) : [])),
+    el("div", { class: "mirlanes" }, ...laneNames.map((nm, k) => mirButton(nm, { lit: lanes && cur === MNAV.DRUM_ROW + 1 + k, dim: !lanes, on: () => navTrack(MNAV.DRUM_ROW + 1 + k) }))),
     el("div", { class: "mirtrk" }, ...mnav.tracks.slice(0, MNAV.DRUM_ROW + 1).map((nm, p) =>
       mirButton(nm, { lit: p === cur || (p === MNAV.DRUM_ROW && cur > MNAV.DRUM_ROW && !dimT), dim: dimT, on: () => navTrack(p) }))));
 }
