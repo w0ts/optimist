@@ -5122,36 +5122,6 @@
     "provenance_line": "hugelton/Felucca @ 727f272 (Felucca 1.0 source) by Leo Kuroshita (@kurogedelic), Hügelton Instruments (GPL-3.0-only)"
    },
    {
-    "key": "KEYLIT",
-    "flag": "FELUCCA_KEYLIT",
-    "label": "keys light the notes played",
-    "group": "UI",
-    "bit": 65,
-    "default": 1,
-    "parent": null,
-    "desc": "Lights the keys of the notes the selected track plays (its steps, the arpeggiator, held notes), so you see the pattern on the keyboard. About 0.2 KB of flash, LEDs only; with LIGHTS, MENU > NOTES turns it on and off at run time.",
-    "experimental": false,
-    "notice": "",
-    "off_warning": "",
-    "env": "",
-    "target_only": false,
-    "symbols": [],
-    "no_image": false,
-    "fixed": false,
-    "head": false,
-    "choices": [],
-    "provenance": {
-     "project": "hugelton/Felucca",
-     "author": "Leo Kuroshita (@kurogedelic), Hügelton Instruments",
-     "licence": "GPL-3.0-only",
-     "commit": "20c275e (Felucca 1.0.1, #38)",
-     "url": "https://github.com/hugelton/Felucca"
-    },
-    "children": [],
-    "tested": "emulator-tested only",
-    "provenance_line": "hugelton/Felucca @ 20c275e (Felucca 1.0.1, #38) by Leo Kuroshita (@kurogedelic), Hügelton Instruments (GPL-3.0-only)"
-   },
-   {
     "key": "QNT_SEQ",
     "flag": "FELUCCA_QNT_SEQ",
     "label": "SCL > QNT SEQ (sequenced notes snap)",
@@ -5240,36 +5210,6 @@
     "children": [],
     "tested": "emulator-tested only",
     "provenance_line": "hugelton/Felucca @ 727f272 (Felucca 1.0 source) by Leo Kuroshita (@kurogedelic), Hügelton Instruments (GPL-3.0-only)"
-   },
-   {
-    "key": "BRIGHT",
-    "flag": "FELUCCA_BRIGHT",
-    "label": "screen brightness (MENU > BRIGHT)",
-    "group": "UI",
-    "bit": 74,
-    "default": 1,
-    "parent": null,
-    "desc": "MENU > BRIGHT: the screen backlight in 8 levels, 4/16 at the lowest (software PWM). The level lasts until power-off: every boot starts at full and a dim level is never saved. About 36 B of flash; X0X reports it working on a real FM-1. Off: always full brightness.",
-    "experimental": false,
-    "notice": "This backlight PWM froze an FM-1 at its lowest level on X0X (issue #2; the backlight line also enables the key matrix, which this build keeps enabled during each scan). Optimist boots at full brightness every time, never stores a dim level and never goes below 4/16, so a power-off always brings the screen back at full. Ported from X0X by Charles Vestal (GPL-3.0).",
-    "off_warning": "",
-    "env": "",
-    "target_only": false,
-    "symbols": [],
-    "no_image": false,
-    "fixed": false,
-    "head": false,
-    "choices": [],
-    "provenance": {
-     "project": "charlesvestal/fm1-x0x",
-     "author": "Charles Vestal",
-     "licence": "GPL-3.0-only",
-     "commit": "61654ba (Knob acceleration by speed, screen brightness, ...)",
-     "url": "https://github.com/charlesvestal/fm1-x0x"
-    },
-    "children": [],
-    "tested": "emulator-tested only",
-    "provenance_line": "charlesvestal/fm1-x0x @ 61654ba (Knob acceleration by speed, screen brightness, ...) by Charles Vestal (GPL-3.0-only)"
    },
    {
     "key": "MOTION",
@@ -5480,36 +5420,6 @@
     "children": [],
     "tested": "emulator-tested only",
     "provenance_line": "isod89/sloop-fm1 @ d691ba7 (SLOOP 2.3) by isod89 (GPL-3.0-only)"
-   },
-   {
-    "key": "LIGHTS",
-    "flag": "FELUCCA_LIGHTS",
-    "label": "menu LIGHTS / KEYS / NOTES (play in the dark)",
-    "group": "UI",
-    "bit": 106,
-    "default": 0,
-    "parent": null,
-    "desc": "Lights for playing in the dark: MENU LIGHTS (every button glows OFF / LOW / MID / HIGH), KEYS (C or white keys glow) and NOTES (the note lights of KEYLIT on / off at run time). About 1.2 KB of flash.",
-    "experimental": false,
-    "notice": "",
-    "off_warning": "",
-    "env": "",
-    "target_only": false,
-    "symbols": [],
-    "no_image": false,
-    "fixed": false,
-    "head": false,
-    "choices": [],
-    "provenance": {
-     "project": "isod89/sloop-fm1",
-     "author": "isod89 (the dim pulses after Felucca 1.0.1 #35 by Leo Kuroshita; NOTES by renebohne, PR #11)",
-     "licence": "GPL-3.0-only",
-     "commit": "d691ba7 (SLOOP 2.3)",
-     "url": "https://github.com/isod89/sloop-fm1"
-    },
-    "children": [],
-    "tested": "emulator-tested only",
-    "provenance_line": "isod89/sloop-fm1 @ d691ba7 (SLOOP 2.3) by isod89 (the dim pulses after Felucca 1.0.1 #35 by Leo Kuroshita; NOTES by renebohne, PR #11) (GPL-3.0-only)"
    },
    {
     "key": "DIV_ORDER",
@@ -6348,9 +6258,6 @@
    "KNOB_ACCEL",
    "LCD_BAUD",
    "LCD_DIRTY",
-   "KEYLIT",
-   "BRIGHT",
-   "LIGHTS",
    "DIV_ORDER"
   ],
   "System": [

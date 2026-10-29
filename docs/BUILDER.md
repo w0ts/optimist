@@ -342,9 +342,6 @@ These run once (on the master, or as the one effect each: chorus, delay, reverb,
 | knob acceleration by turn speed | `KNOB_ACCEL` | 1 / 2 / 3 / 5 / 8 steps a detent when turned fast; never on lists (engines, kits, presets) |
 | screen data speed (SPI clock) | `LCD_BAUD` | How fast data is sent to the display: 60 MHz / (n + 1). Faster redraws finish sooner (less tearing); the ST7789V takes ~62 MHz, so 60 MHz is the limit. No flash cost; the faster settings are untested here on hardware. |
 | screen: send only the changed rectangle | `LCD_DIRTY` | Redraws only the part of the graph strip that changed instead of the whole strip: less data per frame and less tearing (with the 30 MHz screen clock). Costs about 1.5 KB of flash and 0.6 KB of RAM. |
-| keys light the notes played | `KEYLIT` | Lights the keys of the notes the selected track plays (its steps, the arpeggiator, held notes), so you see the pattern on the keyboard. About 0.2 KB of flash, LEDs only; with LIGHTS, MENU > NOTES turns it on and off at run time. |
-| screen brightness (MENU > BRIGHT) | `BRIGHT` | MENU > BRIGHT: the screen backlight in 8 levels, 4/16 at the lowest (software PWM). The level lasts until power-off: every boot starts at full and a dim level is never saved. About 36 B of flash; X0X reports it working on a real FM-1. Off: always full brightness. |
-| menu LIGHTS / KEYS / NOTES (play in the dark) | `LIGHTS` | Lights for playing in the dark: MENU LIGHTS (every button glows OFF / LOW / MID / HIGH), KEYS (C or white keys glow) and NOTES (the note lights of KEYLIT on / off at run time). About 1.2 KB of flash. |
 | divisions in length order (1/8 8T 1/16 ...) | `DIV_ORDER` | Lists note divisions in length order (1/4 1/8 8T 1/16 16T 1/32) on ARP RATE, SEQ DIV, DELAY TIME and SLICER RATE; stored values are unchanged. About 0.2 KB of flash. |
 
 #### System
@@ -387,7 +384,7 @@ Items taken out of the registry are listed in `registry.RETIRED` with the reason
 `.config` that names one loads, warns "dropped" and goes on without it. They include the whole FM6 mode set (`FM6_MARK1`,
 `FM6_MODERN`, `FM6_OPL`, `FM6_MKI_FLASH`, `FM6_STORE`, `FM6_VOICES`, `FM6_ALL`, `FM6_ALGO`: FM6 has one synthesis, Dexed's
 MODERN, and the on-device operator editor), `UI` (SLOOP's UI is gone; the Optimist UI is the only one), `SIMD` (wrong on
-the real FM-1), `KEYS_DMA`, `SPLASH`, `LFO2`, and the old editor pieces (`ED_REC`, `ED_UNDO`, ...). Old data that named a
+the real FM-1), `KEYLIT`, `LIGHTS` (always built; MENU > NOTES, BUTTONS and KEYS are the run-time switches), `BRIGHT` (the backlight is always full), `KEYS_DMA`, `SPLASH`, `LFO2`, and the old editor pieces (`ED_REC`, `ED_UNDO`, ...). Old data that named a
 retired FM6 voice (an R or U number) plays the voice it holds inline, or starts from INIT VOICE; an old MOD / M.TIM /
 C.TIM over an inline voice is baked into it once on load, approximately.
 

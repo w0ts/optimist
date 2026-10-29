@@ -6,8 +6,6 @@
  *
  *   FELUCCA_REC_MODES     the REC screen's dials: MODE free / tempo, LENGTH, START note / count (4-3-2-1)
  *                                                                                        SLOOP 2.3
- *   FELUCCA_LIGHTS        menu LIGHTS / KEYS (the buttons and keys glow), NOTES (KEYLIT at run time)
- *                                                          SLOOP 2.3 (Felucca 1.0.1 #35, renebohne #11)
  * The fixes of SLOOP 2.3 that were switches here are always built since 2026-10-14, X0X 0.10.1's mixer glides
  * (49b1fc8: dsp.c glide_next) since 2026-10-19 (the refusals below). */
 #ifndef FELUCCA_BACKPORTS23_H
@@ -16,8 +14,10 @@
 #ifndef FELUCCA_REC_MODES
 #define FELUCCA_REC_MODES 0      /* seq.c, ui_input.c rec_knobs, ui_studio.c rec_screen_draw; settings: persist_t.bp23 */
 #endif
-#ifndef FELUCCA_LIGHTS
-#define FELUCCA_LIGHTS 0         /* hal/fm1_input.h (the backlight layer), lights.c, ui_input.c, ui_menu.c */
+/* Retired 2026-10-29: menu LIGHTS / KEYS (the buttons and keys glow) and NOTES are always built (SLOOP 2.3, Felucca 1.0.1 #35,
+ * renebohne #11; hal/fm1_input.h's backlight layer, lights.c) */
+#if defined(FELUCCA_LIGHTS) && !FELUCCA_LIGHTS
+#error "FELUCCA_LIGHTS was retired: the lights are always built"
 #endif
 /* Retired 2026-10-14, always built: upstream's fix is unchanged in its current release (tools/builder/registry.py
  * RETIRED). A build that still asks for one of them off is refused */

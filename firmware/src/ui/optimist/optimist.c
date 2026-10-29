@@ -51,9 +51,6 @@
 #define USBH_UI 0
 #endif
 #include "../colors.c"                  /* the colour language (engine, kit kind; the web editor's too) */
-#if FELUCCA_BRIGHT
-#include "../bright.c"                  /* the backlight level (main.c reads BL_DUTY, project.c bright_boot) */
-#endif
 #include "op_state.c"
 #include "op_names.c"             /* the names table: card labels, list cells, titles (one spelling each) */
 #if FELUCCA_MISSING_WARN
