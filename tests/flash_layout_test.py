@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-only
 """The flash layouts (docs/SD-MODE-DESIGN.md) say the same everywhere: tools/flash_layout.py against
-firmware/hal/fm1_flash_map.h, the builder's FLASH_BY_LAYOUT, app.ld's normal XIP length, the package tool's normal
+firmware/hal/fm1_flash_map.h, the builder's classic limits (configure.classic_limits), app.ld's normal XIP length, the package tool's normal
 slot; and the layout switch's table (what an install after the other layout clears).
   python3 tests/flash_layout_test.py"""
 import re
@@ -13,6 +13,9 @@ sys.path.insert(0, str(ROOT / "tools"))
 sys.path.insert(0, str(ROOT / "tools" / "builder"))
 import flash_layout as L  # noqa: E402
 import core as K  # noqa: E402
+import configure as C  # noqa: E402
+
+C.CLASSIC = True                                     # (the classic firmware's layouts: tools/flash_layout.py is its)
 
 bad = 0
 
@@ -44,9 +47,9 @@ check("fm1_flash_map.h FL_APP_HI_NORMAL / FL_APP_HI_BIG == flash_layout.APP_HI",
 ld = (ROOT / "firmware" / "app.ld").read_text()
 check("app.ld's XIP length is the normal layout's app slot (581,564 B)",
       f"LENGTH = 0x{L.app_slot(0):X}" in ld and L.app_slot(0) == 581564)
-check("the builder's flash limit is the normal slot, FLASH_BY_LAYOUT the others' code room (the whole slot, the far probe retired as a gate)",
-      K.LIMITS["flash"] == L.app_slot(0) and all(K.FLASH_BY_LAYOUT[k] == L.code_limit(k) for k in K.FLASH_BY_LAYOUT)
-      and set(K.FLASH_BY_LAYOUT) == set(L.APP_HI) - {0})
+_lim = K.limits_in_use()
+check("the builder's classic limits come from here: the normal slot, each other layout's code room (flash_layout.code_limit)",
+      _lim["flash"] == L.app_slot(0) and _lim["flash_by_layout"] == {k: L.code_limit(k) for k in L.APP_HI if k})
 check("the builder's fits(): LAYOUT 1 always the larger room (an old FAR_OK=0 changes nothing), normal the normal slot",
       K.fits({r: 0 for r in K.REGIONS}, {"LAYOUT": 0})["flash"][1] == L.app_slot(0) - K.SPARE["flash"]
       and K.fits({r: 0 for r in K.REGIONS}, {"LAYOUT": 1})["flash"][1] == L.code_limit(1) - K.SPARE["flash"])

@@ -1163,7 +1163,7 @@ check("arena: the budget summary (fmt_budget) names it",
 import web_api as WA  # noqa: E402
 WA.init(costs)
 _ar_v = WA.view(_ar_cfg)["arena"]
-_ar_pb = K.budget(_ar_cfg, costs)
+_ar_pb = K.budget(dict(_ar_cfg, **WA.WEB_FIXED), costs)   # (the page builds with its fixed compiler, JieLi's: counted since 2026-10-30)
 check("web builder: the view carries the arena (kb, free, keep, the panel's lines and the rows) the same as the menu's",
       _ar_v and _ar_v["kb"] == K.arena_size(_ar_cfg, _ar_pb["total"])["kb"] and _ar_v["lines"] == K.arena_text(_ar_cfg, _ar_pb["total"])
       and _ar_v["rows"] and WA.view(dict(_ar_cfg, ARENA=0))["arena"] is None)

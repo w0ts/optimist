@@ -38,27 +38,39 @@ def _release():
 
 
 CLASSIC_HOOK = _release
-RELEASE_LIMITS = None           # (setup: the release's slots, costs-fm1base.json "limits"; None: the classic firmware's, LIMITS)
+LIMITS_HOOK = None              # (setup: configure.py's kind_limits, the slots of the firmware built, read from its build system)
+SETUP_LIMITS = None             # (setup: the costs' "limits", where no build system is around: the web page)
 
 
-def setup(needs_auto=None, limits=_UNSET):
+def setup(needs_auto=None, limits=_UNSET, limits_hook=_UNSET):
     """the data the core cannot read itself: needs_auto, the keys of configure._needs_auto (firmware headers); limits:
-    the "limits" of the costs in use ({"flash", "sram", "flash_by_layout": {layout: bytes}}: the release's slots, fm1-base's
-    build), None for the classic firmware's (LIMITS, FLASH_BY_LAYOUT)"""
-    global NEEDS_AUTO, RELEASE_LIMITS
+    the "limits" of the costs in use ({"flash", "sram", "flash_by_layout": {layout: bytes}}: the slots of the firmware
+    they were measured on, measure_costs.py writes them from the build system), the page's; limits_hook: a function -> those
+    slots for the firmware built now (configure.py kind_limits: the build system itself, which wins over the costs' copy),
+    None where it cannot tell"""
+    global NEEDS_AUTO, SETUP_LIMITS, LIMITS_HOOK
     if needs_auto is not None:
         NEEDS_AUTO = tuple(needs_auto)
     if limits is not _UNSET:
-        RELEASE_LIMITS = dict(limits) if limits else None
+        SETUP_LIMITS = dict(limits) if limits else None
+    if limits_hook is not _UNSET:
+        LIMITS_HOOK = limits_hook
+
+
+def norm_limits(lim):
+    """a "limits" record (JSON: the layouts as strings) -> {"flash", "sram", "flash_by_layout": {int layout: bytes}}"""
+    return {"flash": int(lim["flash"]), "sram": int(lim["sram"]),
+            "flash_by_layout": {int(k): int(v) for k, v in lim.get("flash_by_layout", {}).items()}}
 
 
 def limits_in_use():
-    """-> {"flash", "sram", "flash_by_layout": {layout: bytes}, }: the
-    release's (setup) or the classic firmware's"""
-    if RELEASE_LIMITS:
-        return {"flash": RELEASE_LIMITS["flash"], "sram": RELEASE_LIMITS["sram"],
-                "flash_by_layout": {int(k): v for k, v in RELEASE_LIMITS.get("flash_by_layout", {}).items()}}
-    return dict(LIMITS, flash_by_layout=dict(FLASH_BY_LAYOUT))
+    """-> {"flash", "sram", "flash_by_layout": {layout: bytes}}: the slots of the firmware built (the hook: its build
+    system), else the costs' (setup); no number of its own (tools/flash_layout.py, tools/build.py, fm1-base's build hold them)"""
+    lim = LIMITS_HOOK() if LIMITS_HOOK else None
+    lim = lim or SETUP_LIMITS
+    if not lim:
+        raise ConfigError("no flash and SRAM limits: the costs carry none and no build system says them (core.setup)")
+    return norm_limits(lim)
 
 
 def _stderr(msg):
@@ -66,12 +78,8 @@ def _stderr(msg):
 
 
 # the budgets: the app slot and the packed SRAM (app.ld: RAM code, .data/.bss and the pool in one region since
-# 2026-10-25, docs/MEMORY-MAP.md 2.3-2.4); build.py keeps 8 KiB of SRAM spare below the stacks
-LIMITS = {"flash": 581564, "sram": 474880}
+# 2026-10-25, docs/MEMORY-MAP.md 2.3-2.4), their sizes limits_in_use(); build.py keeps 8 KiB of SRAM spare below the stacks
 SPARE = {"flash": 0, "sram": 8192}
-FLASH_BY_LAYOUT = {1: 765696}    # the code's room in the other flash layouts (LAYOUT 1):
-                                 # tools/flash_layout.py code_limit, which the web builder does not ship;
-                                 # tests/flash_layout_test.py checks they agree
 BUDGETS = ("flash", "sram")
 # the measured parts (costs.json, the deltas): "ram" = .ram_hot2 + .data + .bss, "pool", "ramtext" = .ram_text +
 # .ram_hot; the three together fill the SRAM budget
@@ -500,9 +508,16 @@ def item_delta(costs, key, value):
     d = costs.get("deltas", {}).get(key, {}).get(str(value))
     if d is None and R.ITEMS[key].no_image:             # (a front or a record, MEMORY / RAM_PACKED: nothing in the image)
         return {r: 0 for r in REGIONS}
-    if d is None or not value < R.ITEMS[key].default:
+    if d is None or not value < R.ITEMS[key].default or key in NOT_A_FEATURE:
         return d
     return {r: min(0, b) for r, b in d.items()}
+
+
+# items whose lower value is no feature switched off but another way to build the same firmware: their delta counts as
+# measured, both ways. COMPILER 0 (JieLi's clang) under its default 1 (pi32v2-llvm) made the same firmware 12-30 KB
+# bigger (measured 2026-10-30 on every profile, release), and the clamp counted it 0 B: synths-2~ (JieLi) estimated
+# from synths-2 21 KB under its real build
+NOT_A_FEATURE = ("COMPILER",)
 
 
 def item_delta_alone(costs, key, value):
@@ -1101,6 +1116,61 @@ def _grown(cfg, acfg, costs):
     return sum(1 for k in ec if ec[k] != ea[k] and ic.get(k, {}).get("flash", 0) - ia.get(k, {}).get("flash", 0) > ALIGN_NOISE)
 
 
+# the context items: what they change depends on most of the rest of the configuration, so no one delta from the
+# defaults stands for them. Each is built flipped on every check configuration too (measure_costs.py measure_checks:
+# costs.json "checks" NAME "contexts" KEY: {"from", "to", "delta"}, the real difference), and an estimate that
+# crosses one from its anchor counts the difference measured on the check configuration nearest to it (among those
+# agreeing on the other context items) in place of the sum model's. Measured 2026-10-30 (release, gpufarm, 3e0c9439):
+#   COMPILER 0 (JieLi's clang): +12.0 KB of flash on the defaults, +19.6 to +30.4 KB on the profiles (synths-2 +20.9,
+#     sd-card-mots +29.8, the user's fm1-next profile +30.4), +4.1 KB of pool on synths-2 and drum-machines only
+#   SDCARD 1: +1.1 KB of flash on the defaults, +3.3 KB with the console (sd-card), +33.2 KB in the big layout
+#     (sd-mode-probe: the full FatFs, the SD card mode)
+#   LAYOUT 1: -0.9 KB on the defaults, +29.1 KB with the card (sd-card: the SD card mode itself)
+CONTEXT_ITEMS = ("COMPILER", "LAYOUT", "SDCARD")
+
+
+def _context_measured(key, a, b, near, costs, exclude):
+    """-> {region: bytes} what key going from a to b really changed on the check configuration nearest to near among
+    those that agree with it on the other context items (2026-10-30: LAYOUT measured without the card, +0.8 KB, stood
+    for LAYOUT with it, -29 KB), None when none has it measured (the sum model's then)"""
+    en, best, best_rank = effective(near), None, None
+    for n, e in (costs or {}).get("checks", {}).items():
+        c = e.get("contexts", {}).get(key)
+        if n in exclude or not c or c.get("delta") is None or {c["from"], c["to"]} != {a, b}:
+            continue
+        acfg = anchor_cfg(e)
+        if acfg is None:
+            continue
+        ea = effective(acfg)
+        if any(ea.get(k) != en.get(k) for k in CONTEXT_ITEMS if k != key):
+            continue                                    # (measured where another context item differs: no measure of it here)
+        rank = distance(near, acfg)
+        if best_rank is None or rank < best_rank:
+            sign = 1 if (c["from"], c["to"]) == (a, b) else -1
+            best, best_rank = {r: sign * c["delta"].get(r, 0) for r in REGIONS}, rank
+    return best
+
+
+def context_terms(cfg, acfg, costs, exclude=()):
+    """-> {region: bytes} the context items (CONTEXT_ITEMS) cfg sets otherwise than its anchor acfg: each one's real
+    difference measured nearest to cfg (_context_measured) less what the sum model says it changes there (its delta, its
+    pairs, its computed terms), one item at a time from cfg towards the anchor"""
+    out = {r: 0 for r in REGIONS}
+    ec, ea = effective(cfg), effective(acfg)
+    cur = dict(defaults(), **cfg)
+    for k in CONTEXT_ITEMS:
+        if k not in ec or ec[k] == ea[k]:
+            continue
+        nxt = dict(cur, **{k: ea[k]})
+        got = _context_measured(k, ea[k], ec[k], cur, costs, exclude)
+        if got is not None:
+            hi, lo = additive(cur, costs)[0], additive(nxt, costs)[0]
+            for r in REGIONS:
+                out[r] += got[r] - (hi[r] - lo[r])
+        cur = nxt
+    return out
+
+
 def budget(cfg, costs, anchor=True, exclude=(), exact=None, extra_anchors=()):
     """-> {"total": {region: bytes}, "items": {key: {region: delta}}, "unmeasured": [keys], "exact": bool,
     "anchor": name, "distance": items} (None without costs): the total is exact, the sizes of this configuration's
@@ -1121,7 +1191,8 @@ def budget(cfg, costs, anchor=True, exclude=(), exact=None, extra_anchors=()):
         name, acfg, real, dist = ref
         at, _, _ = additive(acfg, costs)
         grown = _grown(cfg, acfg, costs)
-        total = {r: real[r] + total[r] - at[r] + ANCHOR_MARGIN[r] * grown for r in REGIONS}
+        ctx = context_terms(cfg, acfg, costs, exclude)
+        total = {r: real[r] + total[r] - at[r] + ctx[r] + ANCHOR_MARGIN[r] * grown for r in REGIONS}
     return {"total": total, "items": items, "unmeasured": missing, "exact": bool(exact),
             "anchor": ref[0] if ref else None, "distance": ref[3] if ref else None}
 
@@ -1135,12 +1206,15 @@ def undo_ring(total):
 
 def fits(total, cfg=None):
     """-> {budget: (used, capacity, over)} for flash and the packed SRAM: over > 0 overflows (SRAM keeps its 8 KiB
-    spare); the flash by the configuration's layout (LAYOUT: tools/flash_layout.py)"""
+    spare); the flash by the configuration's layout (LAYOUT: limits_in_use flash_by_layout). A real release build's sizes
+    (sizes.json app_slot: the slot fm1-base's build checked that very image against) count against their own slot"""
     out, lim = {}, limits_in_use()
     for b in BUDGETS:
         u, cap = used(total, b), lim[b] - SPARE[b]
         if b == "flash" and cfg and cfg.get("LAYOUT") in lim["flash_by_layout"]:
             cap = lim["flash_by_layout"][cfg["LAYOUT"]] - SPARE["flash"]
+        if b == "flash" and isinstance(total.get("app_slot"), int):
+            cap = total["app_slot"] - SPARE["flash"]
         out[b] = (u, cap, u - cap)
     return out
 
@@ -1428,7 +1502,7 @@ def cloud_key(cfg, commit):
 def describe():
     """-> the registry and the constants a front end needs, JSON-serialisable"""
     return {"key_tag": KEY_TAG, "registry": R.to_json(), "regions": list(REGIONS), "budgets": list(BUDGETS),
-            "limits": limits_in_use(),
+            "limits": limits_in_use() if (LIMITS_HOOK and LIMITS_HOOK()) or SETUP_LIMITS else None,   # (none before setup)
             "spare": dict(SPARE), "needs_auto": list(NEEDS_AUTO), "fit_order": [list(x) for x in FIT_ORDER]}
 
 
