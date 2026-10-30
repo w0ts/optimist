@@ -16,7 +16,10 @@
  *      includer's save and new project; here the parts freed), then placed
  *   5. a part's change refused: BT AUDIO on and idle offered with its size ("BT AUDIO 18 KB"), WI-FI (not lendable)
  *      never; streaming: not offered; YES: off, its block back, the change through; NO: nothing changed
- *   6. the radio writing into its block once given back: an ASan failure (a child process, under ASan only) */
+ *   6. the radio writing into its block once given back: an ASan failure (a child process, under ASan only)
+ *   7. FMEM_TWO (a second build): a second lent block (ARB_LEND0 + 1, the mirror's ring as opt_lend.h lends it) beside
+ *      BT AUDIO's, each placed and given back on its own, 50 cycles of both under a held note (nothing leaked, the output
+ *      bit-exact), its question named ("MIRROR 8 KB"), a write into it once given back failing under ASan */
 #define FELUCCA_ARRANGER 1
 #define FELUCCA_BTA_LEND 1
 #include <stdio.h>
@@ -87,6 +90,7 @@ static void pass(void)                                  /* a main loop pass: the
     arb_poll();
     fxi_poll();
     radio();
+    mr_isr();
 }
 static void settle(uint32_t n)
 {
@@ -409,6 +413,113 @@ int main(void)
     }
 #else
     printf("skip the use-after-give-back probe: no ASan in this compiler\n");
+#endif
+#if FMEM_TWO
+    /* 7. a second lent block */
+    {
+        uint32_t r0, l0, k0, ml0, mk0, j;
+        uint64_t h2 = 0;
+        set_engine_of(t0, eng_silent_slot());
+        blocks(64);
+        settle(4);
+        no_idle();
+        fill(0);
+        settle(4);
+        r0 = arn_room();
+        mr.on = 1;
+        settle(2);
+        CHECK(mr.p && mr.p == arn_ptr(ARB_K(ARB_LEND0 + 1)) && !fmem.ask && fmem_held() == MR_BYTES,
+              "MIRROR on: its block placed beside nothing else (%u B held)", (unsigned)fmem_held());
+        bta_set(1);
+        settle(2);
+        CHECK(mr.p && rb.p && fmem_held() == MR_BYTES + arn_round(RB_BYTES), "BT AUDIO on too: both held (%u B)", (unsigned)fmem_held());
+        mr.on = 0;
+        settle(4);
+        CHECK(!mr.p && rb.p && arn_room() + arn_round(RB_BYTES) <= r0,
+              "MIRROR off: its block back, BT AUDIO's still held");
+        bta_set(0);
+        settle(16);
+        CHECK(!mr.p && !rb.p && arn_room() == r0 && fmem_held() == 0u, "both off: the room as before (%u B)", (unsigned)arn_room());
+        l0 = rb.lends, k0 = rb.takes, ml0 = mr.lends, mk0 = mr.takes;
+        {
+            int fd[2], st2;
+            uint64_t ref = 0;
+            pid_t pid2 = -1;
+            if (pipe(fd))
+                fd[0] = fd[1] = -1;
+            fflush(stdout);
+            if (fd[0] >= 0)
+                pid2 = fork();
+            trk_note_on(&trk[1], 60, 110);
+            out_h = 1469598103934665603ull;
+            for (j = 0; j < 50u * 16u; j++) {   /* (50 cycles of each in turn; the child: nothing switched) */
+                if (pid2 != 0 && j % 8u == 0u)
+                    mr.on = (uint8_t)!mr.on;
+                if (pid2 != 0 && j % 16u == 4u)
+                    bta_set(!rb.mode);
+                blocks(1);
+                pass();
+            }
+            h2 = out_h;
+            if (pid2 == 0) {
+                if (write(fd[1], &h2, sizeof h2) != (ssize_t)sizeof h2)
+                    _exit(2);
+                _exit(0);
+            }
+            if (fd[0] < 0 || read(fd[0], &ref, sizeof ref) != (ssize_t)sizeof ref)
+                ref = ~h2;
+            if (pid2 > 0)
+                waitpid(pid2, &st2, 0);
+            if (fd[0] >= 0)
+                close(fd[0]), close(fd[1]);
+            CHECK(h2 == ref, "50 cycles of MIRROR and of BT AUDIO under a held note: the output bit-exact (%016llx)",
+                  (unsigned long long)h2);
+        }
+        trk_note_off(&trk[1], 60);
+        mr.on = 0;
+        bta_set(0);
+        settle(32);
+        CHECK(arn_room() == r0 && mr.lends - ml0 >= 50u && mr.lends - ml0 == mr.takes - mk0 && rb.lends - l0 >= 25u &&
+              rb.lends - l0 == rb.takes - k0 && !mr.p && !rb.p,
+              "... nothing leaked (%u and %u lends, all taken back)", (unsigned)(mr.lends - ml0), (unsigned)(rb.lends - l0));
+        fill(arn_free_bytes() - MR_BYTES / 2u);   /* (no room for it: the question named) */
+        settle(2);
+        mr.on = 1;
+        {
+            char a2[32];
+            uint32_t f2;
+            int red2;
+            const char *v2 = ask(a2, sizeof a2, &f2, &red2);
+            CHECK(v2 && f2 == TF_MIR && !strcmp(a2, "MIRROR 8 KB"), "no room for MIRROR (%u B): asked (%s? / %s)",
+                  (unsigned)arn_room(), v2 ? v2 : "-", v2 ? a2 : "");
+            (void)fmem_ui(0, a2, sizeof a2, &f2, &red2);   /* (the confirm let go: NO) */
+            settle(4);
+            CHECK(!mr.on && !mr.p, "NO: MIRROR off, nothing placed");
+        }
+        fill(0);
+        settle(4);
+#if HAVE_ASAN
+        {
+            int st;
+            pid_t pid;
+            uint8_t *gone;
+            mr.on = 1;
+            settle(2);
+            gone = mr.p;
+            mr.on = 0;
+            settle(4);
+            fflush(stdout);
+            pid = fork();
+            if (pid == 0) {
+                freopen("/dev/null", "w", stderr);
+                gone[100]++;
+                _exit(0);
+            }
+            waitpid(pid, &st, 0);
+            CHECK(gone && !mr.p && !(WIFEXITED(st) && WEXITSTATUS(st) == 0), "a write into MIRROR's block given back: ASan fails it");
+        }
+#endif
+    }
 #endif
     printf("%d checks, %d failed\n", checks, bad);
     return bad != 0;
