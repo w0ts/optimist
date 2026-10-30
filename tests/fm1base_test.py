@@ -8,6 +8,7 @@ import json
 import os
 import sys
 import tempfile
+import tomllib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -115,8 +116,11 @@ if fm1base.BUILD_PY.is_file():
           and "ASSERT(_sram_end" not in got)
     check("another linker script (the update loader's) is left as it is", fm1base_ld.measure_script("MEMORY { RAM : ORIGIN = 0, LENGTH = 1 }") is None)
     lim = fm1base.limits({"app_slot": 581564})
-    check("the release's limits: fm1pkg_make's app_slot of fm1.toml's app_end and of the SD card mode's, app.ld's SRAM",
-          lim == {"flash": 581564, "flash_by_layout": {"1": 0xCE000 - 0x4000 - 0x120 - 0xF24}, "sram": 0x74000})
+    _stk = tomllib.loads((fm1base.APP / "fm1.toml").read_text())   # (main_stack / irq_stack move the SRAM's end)
+    check("the release's limits: fm1pkg_make's app_slot of fm1.toml's app_end and of the SD card mode's, app.ld's SRAM "
+          "up to the stacks fm1.toml sizes",
+          lim == {"flash": 581564, "flash_by_layout": {"1": 0xCE000 - 0x4000 - 0x120 - 0xF24},
+                  "sram": 0x7C000 - _stk.get("main_stack", 24320) - _stk.get("irq_stack", 7936) - 512})
     try:
         fm1base.limits({"app_slot": 581564 + 4})
         _refused = False

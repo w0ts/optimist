@@ -21,7 +21,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 SRAM = (0x01C00000, 0x01C7C000)                 # the packed region and the stacks (device/app.ld)
 NOINIT = (0x01C7C000, 0x01C7FD50)
-STACKS = (("main stack (usp)", 0x01C74000, 0x01C7A000), ("interrupt stack (ssp)", 0x01C7A000, 0x01C7C000))
+STACKS = (("main stack (usp)", 0x01C74000, 0x01C7A000), ("interrupt stack (ssp)", 0x01C7A000, 0x01C7C000))   # (app.ld's
+# defaults, each with its guard band: an ELF's own _guard0 / _guard1 / _sstack_top instead, stacks_of)
 # (fm1-base first: a release build compiles its copies of the radio stacks and the BSP, which firmware/ also holds)
 SOURCES = [ROOT / "fm1base" / d for d in ("device", "bt", "ble", "wifi", "link", "bsp", "optimist", "lib", "include")] + [
     ROOT / "firmware"]
@@ -46,6 +47,15 @@ def parse_nm(text):
         if len(p) == 4 and re.fullmatch(r"[0-9a-fA-F]+", p[0]) and re.fullmatch(r"[0-9a-fA-F]+", p[1]):
             out.append((int(p[0], 16), int(p[1], 16), p[2], p[3]))
     return out
+
+
+def stacks_of(syms):
+    """the stacks where the ELF's linker script put them (fm1.toml main_stack / irq_stack move them): STACKS"""
+    global STACKS
+    at = {n: a for a, _, _, n in syms}
+    if all(k in at for k in ("_guard0", "_guard1", "_sstack_top")):
+        STACKS = (("main stack (usp)", at["_guard0"], at["_guard1"]),
+                  ("interrupt stack (ssp)", at["_guard1"], at["_sstack_top"]))
 
 
 def parse_sections(text):
@@ -143,6 +153,7 @@ def main(argv=None):
     a = ap.parse_args(argv)
     nm = find_nm(a.nm)
     syms = parse_nm(subprocess.run([nm, "-S", a.elf], capture_output=True, text=True, check=True).stdout)
+    stacks_of(syms)
     readelf = str(Path(nm).with_name("llvm-readelf")) if Path(nm).is_absolute() else "llvm-readelf"
     secs = parse_sections(subprocess.run([readelf, "-S", a.elf], capture_output=True, text=True).stdout)
     idx = owners() if a.by in ("owner", "dir") else {}

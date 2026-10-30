@@ -214,7 +214,12 @@ def limits(base_sizes=None):
     m = re.search(r"SRAM\s*\(rwx\)\s*:\s*ORIGIN = 0x[0-9A-Fa-f]+, LENGTH = (0x[0-9A-Fa-f]+)", ld)
     if not m:
         raise FM1BaseError(f"{DIR / 'device' / 'app.ld'}: no SRAM region")
-    return {"flash": flash, "flash_by_layout": {"1": tool.app_slot(sd_app_end())}, "sram": int(m.group(1), 0)}
+    sram = int(m.group(1), 0)
+    import tomllib
+    conf = tomllib.loads((APP / "fm1.toml").read_text())
+    if "main_stack" in conf or "irq_stack" in conf:   # (fm1-base's build moves the SRAM's end: build.py stack_script)
+        sram = 0x7C000 - int(conf.get("main_stack", 24320)) - int(conf.get("irq_stack", 7936)) - 512
+    return {"flash": flash, "flash_by_layout": {"1": tool.app_slot(sd_app_end())}, "sram": sram}
 
 
 def collect(bdir, release, name_stem, cfgfile, out=OUT):

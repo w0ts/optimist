@@ -4,6 +4,8 @@
  * stacks right under the reset-kept record (.noinit at 0x01C7C000), each over a 256 B guard band (hal/fm1_guard.h):
  *   MAIN  the main loop's (crt0: sp = _ustack_top): _ustack_lo 0x01C74100 .. _ustack_top 0x01C7A000, 24,320 B
  *   IRQ   the interrupts' (crt0: ssp = _sstack_top): _sstack_lo 0x01C7A100 .. _sstack_top 0x01C7C000, 7,936 B
+ * (the classic firmware's; the release's sizes are fm1base/optimist/fm1.toml main_stack / irq_stack, from fm1-base's static
+ * stack check, tools/stack_depth.py: 6,656 B and 6,400 B since 2026-10-30, the read the same, through the linker's symbols)
  * (a crash's sp 0x01C7BFFC is the interrupts' stack one word in: an interrupt's first push.) CPU1's jobs' stack (DUAL builds)
  * is marked by its own start and read through STK_C1_USED: hal/fm1_dual.h fm1_c1_stack's upper 5 KiB here; the release's
  * felucca-bsp fm1_cpu1_ustack (fm1.toml cpu2_stack, less its lowest 256 B: the guard), plat_cpu2_stack (fm1_compat.h).
