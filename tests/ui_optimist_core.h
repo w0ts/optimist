@@ -197,10 +197,13 @@ static void overload_tests(void)
         cg.sheds += 3u;
         sys_info_cell(g, &c);
         check(!strcmp(c.val, "REVERB -3") && !strcmp(c.unit, "V") && c.col == C_ERR, "GUARD REVERB, 3 voices shed, red");
-        cg.level = CG_TOP;
+        cg.level = CG_L_NOTES;
         cg.vcap = 5;
         sys_info_cell(g, &c);
-        check(!strncmp(c.val, "NOTES MAX5", 10), "GUARD at the top, reacting: the voices capped (MAX5)");
+        check(!strncmp(c.val, "NOTES MAX5", 10) && c.col == C_ERR, "GUARD NOTES (under REVERB since 2026-10-30: voices before the reverb), reacting: the voices capped (MAX5), red");
+        cg.level = CG_L_UNISON, cg.vcap = 0;
+        sys_info_cell(g, &c);
+        check(!strncmp(c.val, "UNISON", 6) && c.col == C_WARN, "GUARD UNISON: amber");
         cg.level = 0, cg.vcap = 0;
     }
 #endif

@@ -471,6 +471,7 @@
       "CLOCK": "CPU clock", "LOAD": "Audio load of the CPU", "CPU0": "Audio load of the first core",
       "CPU1": {"text": "2nd core's load, or why off", "if": "DUAL_LOAD"}}},
     {"kind": "op", "ctx": "INTERNALS", "params": {"INTERNALS": "Last reset, flash, 2nd core"}},
+    {"kind": "op", "ctx": "DUAL TIMES", "if": "FELUCCA_SYS_DEBUG && defined(FELUCCA_DUAL) && FELUCCA_DUAL >= 2", "params": {"DUAL TIMES": "Each core's time per block"}},
     {"kind": "op", "ctx": "USB STATS", "if": "FELUCCA_USB_AUDIO", "params": {"USB STATS": "USB audio glitch counters"}},
     {"kind": "op", "ctx": "GENERAL", "params": {
       "KNOB COLORS": "Knob numbers in cap colours",
