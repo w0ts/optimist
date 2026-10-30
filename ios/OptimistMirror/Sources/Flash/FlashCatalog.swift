@@ -13,6 +13,8 @@ struct FlashEntry: Identifiable, Equatable, Hashable {
     let url: URL
     let product: String?          // the site names it; a cloud build does not
     let sha256: String
+    /// a cloud build's .config beside it on the shelf (its BOOTLOADER); nil for the site's releases
+    var config: URL? = nil
 }
 
 enum FlashCatalog {
@@ -96,7 +98,7 @@ enum FlashCatalog {
                   matches(stem, #"^optimist-[a-z0-9-]{1,32}-[0-9a-f]{16}$"#), stem.hasSuffix(id), b.fwsc == "\(stem).fwsc",
                   b.config == "\(stem).config", let digest = b.sha256, matches(digest, hex64), let url = rawURL(sha, "\(stem).fwsc") else { return nil }
             return FlashEntry(id: "cloud:\(id)", group: "Cloud build", title: "\(String((b.name ?? "custom").prefix(32))) (key \(id))",
-                              flavour: "", url: url, product: nil, sha256: digest)
+                              flavour: "", url: url, product: nil, sha256: digest, config: rawURL(sha, "\(stem).config"))
         }
         return found.count == 1 ? found[0] : nil      // (a short key that names two: none)
     }
@@ -135,7 +137,11 @@ enum FlashCatalog {
     static func download(_ e: FlashEntry) async throws -> FlashPackage {
         let (data, code) = try await get(e.url)
         guard code == 200 else { throw NetError(description: "The download: HTTP \(code).") }
-        return try FlashPackage.check([UInt8](data), title: e.flavour.isEmpty ? e.title : "\(e.group) · \(e.title)",
-                                      file: e.url.lastPathComponent, expect: (product: e.product, sha256: e.sha256))
+        var p = try FlashPackage.check([UInt8](data), title: e.flavour.isEmpty ? e.title : "\(e.group) · \(e.title)",
+                                       file: e.url.lastPathComponent, expect: (product: e.product, sha256: e.sha256))
+        if let c = e.config, let (text, code) = try? await get(c), code == 200 {   // (the build's BOOTLOADER: docs/INSTALL-PATHS.md)
+            p.bootloader = InstallRoute.bootloader(config: String(decoding: text, as: UTF8.self))
+        }
+        return p
     }
 }

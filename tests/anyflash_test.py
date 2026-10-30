@@ -431,6 +431,37 @@ def settings():
     ok("settings: kept (the running firmware's update loader" in out.getvalue(), "the loader's way: the settings kept, said")
 
 
+def js_route():
+    """web/install_route.js chooses as fm1_route.py does, for every pair of the matrix and both BOOTLOADER values"""
+    node = shutil.which("node")
+    if not node:
+        print("web/install_route.js against fm1_route.py: skipped (no node)")
+        return
+    import subprocess
+    cases = [(r, k, b) for r in R.MATRIX_RUNNING + (R.LOADER, R.OTHER) for k in R.MATRIX_PACKAGES for b in (R.KEEP, R.MBOOT)]
+    pkgs = {k: R.sample_package(k).__dict__ for k in R.MATRIX_PACKAGES}
+    js = ("import { chooseRoute as choose, runningKind, bootloaderChoice, bootloaderFromConfig } from %r;"
+          "const [cases, pkgs] = JSON.parse(process.argv[1]);"
+          "const out = cases.map(([r, k, b]) => { const p = pkgs[k]; return choose(r, { kind: p.kind, product: p.product, "
+          "flashLen: p.flash_len, ownLoader: p.own_loader }, b, r === 'stock' ? 'FM-1_016' : '').method; });"
+          "const ids = JSON.parse(process.argv[2]).map(([i, port]) => runningKind(i, port));"
+          "const boots = [[null, false], ['keep', true], ['m-bootloader', false], ['m-bootloader', true]].map(([v, k]) => bootloaderChoice(v, k).choice);"
+          "process.stdout.write(JSON.stringify([out, ids, boots, bootloaderFromConfig('X=1\\nBOOTLOADER=1\\n')]));") % str(ROOT / "web" / "install_route.js")
+    ids = [("FM-1_015", ""), ("FM-1_906", "SLOOP"), ("FM-1_700", ""), ("FM-1_7900", ""), ("FM-1_000", ""), ("ota-FM-1_700", ""),
+           ("FM1_OFFICIAL_OPEN", ""), ("FM-1_045", ""), (None, ""), ("FM-1_501", "")]
+    r = subprocess.run([node, "--input-type=module", "-e", js, json.dumps([cases, pkgs]), json.dumps(ids)],
+                       capture_output=True, text=True)
+    if r.returncode:
+        ok(False, f"web/install_route.js runs ({r.stderr.strip()[:200]})")
+        return
+    out, kinds, boots, cfg = json.loads(r.stdout)
+    want = [R.choose(rk, R.sample_package(k), b, None, "FM-1_016" if rk == R.STOCK else "").method for rk, k, b in cases]
+    diff = [c for c, a, b in zip(cases, out, want) if a != b]
+    ok(not diff, f"web/install_route.js chooses as fm1_route.py: {len(cases)} cases" + (f" {diff[:5]}" if diff else ""))
+    ok(kinds == [R.running_kind(i, p) for i, p in ids], "... and names the running firmware the same")
+    ok(boots == ["keep", "keep", "m-bootloader", "keep"] and cfg == "m-bootloader", "... and takes BOOTLOADER the same (KEEP-only override)")
+
+
 def flash_py():
     import flash as F
     pkg = write_pkg(TMP / "optimist-8.8.fwsc", synth_flash(0x93000, 40), "FM-1_700")
@@ -501,7 +532,7 @@ def mflasher():
 if __name__ == "__main__":
     shutil.rmtree(TMP, ignore_errors=True)
     TMP.mkdir(parents=True)
-    for t in (detection, chooser, docs, sidecar, layouts, download_mode, dry_runs, settings, flash_py, mflasher):
+    for t in (detection, chooser, docs, sidecar, layouts, download_mode, dry_runs, settings, js_route, flash_py, mflasher):
         t()
     shutil.rmtree(TMP, ignore_errors=True)
     print("anyflash tests passed" if not fails else f"ANYFLASH TESTS FAILED ({fails})")

@@ -92,6 +92,11 @@ struct FlashView: View {
                 HStack { Text("A .fwsc File…").foregroundStyle(.primary); Spacer(); mark("file") }
             }
             if let err = flash.listError ?? flash.packageError { Text(err).font(.footnote).foregroundStyle(.red) }
+            if let line = flash.bootLine { Text(line).font(.footnote).foregroundStyle(.secondary) }
+            if flash.package?.bootloader == "m-bootloader" {     // (the override: m-bootloader to keep only)
+                Toggle("Install m-bootloader (from the build)", isOn: Binding(get: { !flash.keepBootloader }, set: { flash.keepBootloader = !$0 }))
+                    .font(.footnote)
+            }
             Button(flash.package.map { "Install \($0.file.isEmpty ? $0.title : $0.file)" } ?? "Install") {
                 ask = Confirmation(title: "Write \(flash.package.map { $0.file.isEmpty ? $0.title : "\($0.file) (\($0.title), \($0.product))" } ?? "") to the FM-1? Projects, presets, kits and samples stay. Keep the USB cable in until it is done.") {
                     flash.install()
@@ -103,6 +108,10 @@ struct FlashView: View {
             if !flash.status.isEmpty { Text(flash.status).font(.footnote) }
             if let r = flash.result { Text(r).font(.footnote).foregroundStyle(.green) }
             if let e = flash.error { Text(e).font(.footnote).foregroundStyle(.red) }
+            if flash.softKeyOffered {
+                Button("Switch the FM-1 to download mode (for M-Flasher)") { Task { await flash.sendSoftKey() } }.font(.footnote)
+                Link("M-Flasher", destination: InstallRoute.mflasher).font(.footnote)
+            }
         } header: {
             Text("Install")
         } footer: {
