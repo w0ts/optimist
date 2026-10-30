@@ -133,10 +133,10 @@ static void oct_master_keys_tests(void)
     check(master_sel() && kb_kind[WK(1)] == KS_NOTE && kb_trk[WK(1)] == 1, "a note held while MASTER is entered: stays T2's");
     kup(WK(1));
     check(kb_kind[WK(1)] == KS_NONE, "... and its release reaches the same voice");
-    turn(EN_ALGO, -1);                                  /* (the mixer's MASTER, by both OCT: up to RET C) */
+    turn(EN_ALGO, -(int32_t)(MXR_MASTER - MXR_T1));    /* (the mixer's MASTER, by both OCT: up to T1, the walk's first) */
     frames(2);
     kdown(WK(0));
-    check(!master_sel() && kb_kind[WK(0)] == KS_NOTE && kb_trk[WK(0)] == song.sel, "ALGORITHM leaves MASTER (RET C): the keys play the selected track");
+    check(!master_sel() && kb_kind[WK(0)] == KS_NOTE && kb_trk[WK(0)] == song.sel, "ALGORITHM leaves MASTER (up to T1): the keys follow the new track");
     kup(WK(0));
     reset_ui();
     song.sel = 1;
