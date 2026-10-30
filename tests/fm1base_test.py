@@ -8,6 +8,7 @@ import json
 import os
 import sys
 import tempfile
+import tomllib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -96,10 +97,12 @@ check("the classic slots (its build system's: flash_layout, build.py): a LAYOUT 
       and K.fits(total, {})["sram"][1] == 474880 - K.SPARE["sram"])
 C.CLASSIC = False
 if fm1base.BUILD_PY.is_file():
+    _t = tomllib.loads((fm1base.APP / "fm1.toml").read_text())   # (fm1.toml main_stack / irq_stack: the SRAM up to them)
+    _sram = 0x7C000 - _t.get("main_stack", 24320) - _t.get("irq_stack", 7936) - 512
     check("the release's slots (fm1-base's fm1pkg_make app_slot of fm1.toml's app_end and the SD card mode's): LAYOUT 1 "
-          "823,228 B, normal 581,564 B, SRAM app.ld's",
+          "823,228 B, normal 581,564 B, SRAM app.ld's up to fm1.toml's stacks",
           K.fits(total, {"LAYOUT": 1})["flash"][1] == 823228 and K.fits(total, {})["flash"][1] == 581564
-          and K.fits(total, {})["sram"][1] == 475136 - K.SPARE["sram"] and K.describe()["limits"]["sram"] == 475136)
+          and K.fits(total, {})["sram"][1] == _sram - K.SPARE["sram"] and K.describe()["limits"]["sram"] == _sram)
     check("a release build's sizes.json app_slot (fm1-base writes its normal APP_SLOT for every app_end) changes no limit",
           K.fits(dict(total, app_slot=581564), {"LAYOUT": 1})["flash"][1] == 823228)
 _hook = K.LIMITS_HOOK
@@ -115,8 +118,11 @@ if fm1base.BUILD_PY.is_file():
           and "ASSERT(_sram_end" not in got)
     check("another linker script (the update loader's) is left as it is", fm1base_ld.measure_script("MEMORY { RAM : ORIGIN = 0, LENGTH = 1 }") is None)
     lim = fm1base.limits({"app_slot": 581564})
-    check("the release's limits: fm1pkg_make's app_slot of fm1.toml's app_end and of the SD card mode's, app.ld's SRAM",
-          lim == {"flash": 581564, "flash_by_layout": {"1": 0xCE000 - 0x4000 - 0x120 - 0xF24}, "sram": 0x74000})
+    _stk = tomllib.loads((fm1base.APP / "fm1.toml").read_text())   # (main_stack / irq_stack move the SRAM's end)
+    check("the release's limits: fm1pkg_make's app_slot of fm1.toml's app_end and of the SD card mode's, app.ld's SRAM "
+          "up to the stacks fm1.toml sizes",
+          lim == {"flash": 581564, "flash_by_layout": {"1": 0xCE000 - 0x4000 - 0x120 - 0xF24},
+                  "sram": 0x7C000 - _stk.get("main_stack", 24320) - _stk.get("irq_stack", 7936) - 512})
     try:
         fm1base.limits({"app_slot": 581564 + 4})
         _refused = False

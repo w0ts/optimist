@@ -1144,6 +1144,8 @@ job; ( jobin   # the effects' lines in the arena (fx/fx_arena.c, docs/SD-MODE-DE
     #  ASan where the compiler has it, as fxi_boot: a block given back poisoned, the radio's write after it a failure)
     $CC -g $FXB_SAN -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $FXA "-DFELUCCA_ARENA_BYTES=131072u" -o "$OUT/feat_mem_test" tests/feat_mem_test.c -lm
     run "switchable features (BT AUDIO's buffers in the arena): placed at once when they fit, held while the radio lets go, given back and poisoned; on/off under a held note bit-exact, nothing leaked over 50 cycles; PACK asked (PAUSE n MS), NO changes nothing, YES fades, packs, places, resumes; NOFIT asks UNLOAD; a refused part change offers only idle lendable features; a write after the give-back fails under ASan" "$OUT/feat_mem_test"
+    $CC -g $FXB_SAN -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $FXA "-DFELUCCA_ARENA_BYTES=131072u" -DFMEM_TWO=1 -o "$OUT/feat_mem_two_test" tests/feat_mem_test.c -lm
+    run "switchable features, two lent blocks (BT AUDIO's and a second, as the mirror's ring): each placed and given back on its own, 50 cycles of both under a held note bit-exact and nothing leaked, the second's question named, a write into it once given back fails under ASan" "$OUT/feat_mem_two_test"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin   # the RAMTEXT overlays (core/overlay.c, docs/SD-MODE-DESIGN.md 6): the slots' protocol on the host
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_OVERLAY=1 -DFELUCCA_ENG_STRINGS=1 -o "$OUT/overlay_test" tests/overlay_test.c -lm
@@ -1465,6 +1467,10 @@ job; ( jobin   # the SD card (SDCARD): ChaN's driver + Petit FatFs, then full Fa
 job; ( jobin
     $CC -O2 -w -o "$OUT/mirror_test" tests/mirror_test.c
     $CC -O2 -w -DMBR_PROJ=1 -o "$OUT/mirror_proj_test" tests/mirror_test.c
+    # (the Bluetooth ring lent by the arena, MIR_LEND: under ASan where the compiler has it, a touch of it once given back fails)
+    $CC -O1 -g -fsanitize=address -fno-sanitize-recover=all -w -DMIR_LEND=1 -o "$OUT/mirror_lend_test" tests/mirror_test.c 2>/dev/null ||
+        $CC -O1 -g -w -DMIR_LEND=1 -o "$OUT/mirror_lend_test" tests/mirror_test.c
+    run "the mirror's Bluetooth ring lent by the arena (MIR_LEND, ASan): wanted only while a Bluetooth client uses it, nothing queued or sent without it, 50 lends and give-backs caught up each time, never touched once given back; every mirror test with it lent" "$OUT/mirror_lend_test"
     run "the projects' moves over Bluetooth (BT_PROJ): the backup's commands and PJ_OP queued, a BK_DATA chunk in its own slot" "$OUT/mirror_proj_test"
     run "the screen mirrored, USB and Bluetooth: 3000 random writes decoded to the same panel, long runs, a stalled host falls behind and catches up, the Bluetooth request, a slow radio, the ring overflowing, the keep-alive, a muted write not sent, the meters over USB only; STATE, MASTER, let go, seq, the test session; what the client has not sent again" "$OUT/mirror_test"
     run "the screen as a PNG (tools/fm1_mirror.py): the fixture's frames decoded to its pixels, the PNG read back, STATE in words" python3 tests/fm1_mirror_test.py "$OUT/mirror_test"

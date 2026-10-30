@@ -72,22 +72,66 @@ static void bta_set(int on)                             /* SYSTEM > BT's AUDIO M
 #define OPT_BTA_ON() (rb.mode != 0)
 #include "../fm1base/optimist/ui/opt_bta_lend.h"
 
-/* ---- the features' table: BT AUDIO lendable, WI-FI not (never offered) */
-enum { TF_BTA, TF_WIFI };
+#if FMEM_TWO
+/* ---- a second lent block (core/arena_bufs.c ARB_LEND0 + 1, as fm1base/optimist/core/opt_lend.h's mirror ring): its
+ * interrupt writes into it while it is held; on while a client uses it, given back at once once it is not */
+#define MR_BYTES 8192u
+static struct {
+    uint8_t on, *p;
+    uint32_t writes, lends, takes;
+} mr;
+static void mr_lend(void *p)
+{
+    if (!p && mr.p) {
+        POISON(mr.p, MR_BYTES);
+        mr.takes++;
+    }
+    mr.lends += p != 0;
+    mr.p = (uint8_t *)p;
+}
+static void mr_isr(void)                                /* (the radio draining the ring) */
+{
+    if (mr.p)
+        mr.p[(mr.writes++ * 13u) % MR_BYTES]++;
+}
+#define FMEM_NLEND 2
+#define FMEM_LEND_BYTES(i) ((i) ? MR_BYTES : bta_lend_bytes())
+#define FMEM_LEND_WANT(i) ((i) ? mr.on : bta_lend_want())
+#define FMEM_LEND_SET(i, p) ((i) ? mr_lend(p) : bta_lend(p))
+#else
+#define mr_isr() ((void)0)
+#endif
+
+/* ---- the features' table: BT AUDIO lendable, WI-FI not (never offered); with FMEM_TWO, MIRROR lendable too */
+enum { TF_BTA, TF_WIFI, TF_MIR };
 static uint8_t wifi_on = 1, wifi_idle = 1, paused, resumed, unloads, full_said;
+#if FMEM_TWO
+static uint32_t tf_bytes(uint32_t f) { return f == TF_BTA ? bta_lend_bytes() : f == TF_MIR ? MR_BYTES : 0u; }
+static int tf_on(uint32_t f) { return f == TF_BTA ? rb.mode : f == TF_MIR ? mr.on : wifi_on; }
+#else
 static uint32_t tf_bytes(uint32_t f) { return f == TF_BTA ? bta_lend_bytes() : 0u; }
 static int tf_on(uint32_t f) { return f == TF_BTA ? rb.mode : wifi_on; }
-static int tf_idle(uint32_t f) { return f == TF_BTA ? rb.mode && !rb.streaming : wifi_on && wifi_idle; }
+#endif
+static int tf_idle(uint32_t f) { return f == TF_BTA ? rb.mode && !rb.streaming : f == TF_WIFI && wifi_on && wifi_idle; }
 static void tf_off(uint32_t f)
 {
     if (f == TF_BTA)
         bta_set(0);
+#if FMEM_TWO
+    if (f == TF_MIR)
+        mr.on = 0;
+#endif
 }
 #define FMEM_BYTES(f) tf_bytes(f)
 #define FMEM_ON(f) tf_on(f)
 #define FMEM_IDLE(f) tf_idle(f)
 #define FMEM_OFF(f) tf_off(f)
+#if FMEM_TWO
+#define FMEM_FEATS                                                                                                      \
+    {"BT AUDIO", "SYSTEM > BT", ARB_K(ARB_BTA)}, {"WI-FI", "SYSTEM > WI-FI", FMEM_NO_K}, {"MIRROR", "", ARB_K(ARB_LEND0 + 1)}
+#else
 #define FMEM_FEATS {"BT AUDIO", "SYSTEM > BT", ARB_K(ARB_BTA)}, {"WI-FI", "SYSTEM > WI-FI", FMEM_NO_K}
+#endif
 static int tf_playing(void);
 static void tf_pause(void);
 static void tf_resume(void) { resumed++; }
@@ -98,6 +142,6 @@ static void tf_full(uint32_t f) { (void)f, full_said++; }
 #define FMEM_PAUSE() tf_pause()
 #define FMEM_RESUME() tf_resume()
 #define FMEM_QUIET() tf_quiet()
-#define FMEM_UNLOAD() tf_unload()
+#define FMEM_UNLOAD(f) ((void)(f), tf_unload())
 #define FMEM_SAY_FULL(f) tf_full(f)
 
