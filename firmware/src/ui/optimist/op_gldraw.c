@@ -139,7 +139,7 @@ static uint32_t gl_sys_item(void)                       /* SYSTEM's page shown i
     uint32_t e = gld.s && gld.first < gl_n(1) ? gl_ent(1, gld.first) : 0u;
     return gld.s ? sys_item(e >> 2, e & 3u) : SI_NONE;
 }
-static uint32_t gl_info(void)                           /* 1 + the read-out page shown (op_project.c info_cell: INFO, INTERNALS, USB STATS, DUAL TIMES), 0: none */
+static uint32_t gl_info(void)                           /* 1 + the read-out page shown (op_project.c info_cell: INFO, INTERNALS, USB STATS, CPU TIMES), 0: none */
 {
     uint32_t it = gl_sys_item();
     return it == SI_INFO ? 1u + INFO_PG_INFO : it == SI_DIAG ? 1u + INFO_PG_DIAG : it == SI_UAINFO ? 1u + INFO_PG_USB :

@@ -311,6 +311,9 @@ static HOT void dual_run(uint32_t mask, uint32_t n, mixacc_t *A)
             }
             t1 = fm1_ticks() - t0;
             dual_cost[p] += t1 - (dual_cost[p] >> 3);
+#if DUAL_TIMES
+            DUAL_TM_JOB(p, t1);                    /* (SYSTEM > CPU TIMES: this block's time of the job) */
+#endif
         }
 }
 
@@ -1052,7 +1055,7 @@ static HOT void mix_block_dual(int32_t *out, uint32_t n)
     FAR(mac_post)();
 #endif
 #if DUAL_TIMES
-    dual_tm_block(tm0, tmf, tmj0, tmj1, fm1_ticks(), got ? mask : 0u, jobs);
+    dual_tm_block(tm0, tmf, tmj0, tmj1, fm1_ticks(), got ? mask : 0u, jobs, fm1_ms);
 #endif
 }
 #endif
