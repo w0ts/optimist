@@ -17,6 +17,7 @@ is built with (an option of an item left out at its default, the retired items a
 value the image is still built as)."""
 import functools
 import hashlib
+import os
 import re
 import sys
 import textwrap
@@ -232,6 +233,13 @@ def validate(cfg):
             err.append(Issue(f"{k}={v}: one of {[c[0] for c in it.choices]}", [k]))
         elif not it.is_choice and v not in (0, 1):
             err.append(Issue(f"{k}={v}: 0 or 1", [k]))
+    if os.environ.get("OPTIMIST_ALLOW_UNBUILT") != "1":   # (measure_costs.py probes the marked values: it sets this)
+        kind = "classic" if CLASSIC_HOOK() else "release"
+        for k, it in R.ITEMS.items():
+            v = cfg.get(k, it.default)
+            why = R.not_built(k, v, kind)
+            if why:
+                err.append(Issue(f"{k}={v} is not in this build ({kind}): {why}", [k]))
     engines = [k for k, it in R.ITEMS.items() if it.group == "Synth engines" and not it.parent]
     if not any(built(cfg, k) for k in engines):
         err.append(Issue("at least one synth engine", engines))
