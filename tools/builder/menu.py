@@ -478,7 +478,10 @@ class Builder(App):
         if self.costs:
             for v in ([c[0] for c in it.choices] if it.is_choice else [0, 1]):
                 d = C.item_delta_alone(self.costs, key, v) if v != it.default else {r: 0 for r in C.REGIONS}
-                if d is not None:
+                why = R.not_built(key, v, "classic" if C.classic() else "release")
+                if why:
+                    t.append(f"  {dict(it.choices).get(v, 'on' if v else 'off'):24s} not in this build: {why}\n", style="yellow")
+                elif d is not None:
                     lab = dict(it.choices).get(v, "on" if v else "off")
                     t.append(f"  {lab:24s} " + "  ".join(f"{r} {d[r]:+,}" for r in C.REGIONS) + "\n", style="cyan")
             for name, d in self.costs.get("pairs", {}).items():   # (a cost that depends on another item's value)
@@ -523,7 +526,8 @@ class Builder(App):
             return
         before = dict(self.cfg)
         if it.is_choice:
-            vals = [c[0] for c in it.choices]
+            kind = "classic" if C.classic() else "release"
+            vals = [c[0] for c in it.choices if not R.not_built(key, c[0], kind)]   # (a value this build cannot build is not offered)
             self.cfg[key] = vals[(vals.index(self.cfg[key]) + step) % len(vals)] if self.cfg[key] in vals else vals[0]
         else:
             self.cfg[key] = 0 if self.cfg[key] else 1
