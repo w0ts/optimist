@@ -268,8 +268,8 @@ import room as RM  # noqa: E402
 check("groups: Memory management first, Connectivity (not USB & BT & MIDI) holds Wi-Fi and Link",
       R.GROUPS[0] == "Memory management" and "USB & BT & MIDI" not in R.GROUPS
       and R.ITEMS["WIFI_LINK"].group == R.ITEMS["WIFI_AP"].group == "Connectivity")
-check("groups: LAYOUT SDCARD ARENA SD_RING SD_REC OVERLAY are in Memory management, MEMORY first",
-      all(R.ITEMS[k].group == "Memory management" for k in ("LAYOUT", "SDCARD", "ARENA", "SD_RING", "SD_REC", "OVERLAY"))
+check("groups: LAYOUT SDCARD ARENA SD_RING SD_REC are in Memory management, MEMORY first",
+      all(R.ITEMS[k].group == "Memory management" for k in ("LAYOUT", "SDCARD", "ARENA", "SD_RING", "SD_REC"))
       and R.top_level("Memory management")[0].key == "MEMORY")
 check("RAM_PACKED: hidden, fixed on, nothing in the image",
       R.ITEMS["RAM_PACKED"].fixed and R.ITEMS["RAM_PACKED"].no_image and R.ITEMS["RAM_PACKED"].group == "Memory management")
@@ -288,7 +288,7 @@ check("MEMORY: reduced user flash from SD card mode: the card and its streams of
       (_q["LAYOUT"], _q["SDCARD"], _q["SD_RING"], _q["SD_REC"], _q["MEMORY"]) == (1, 0, 0, 0, 1))
 _n = RM.after_toggle(_p, dict(_p, MEMORY=0), "MEMORY", RM.NONE)[0]
 check("MEMORY: normal from SD card mode is the default memory layout again",
-      all(_n[k] == _d[k] for k in ("LAYOUT", "SDCARD", "OVERLAY", "SD_RING", "SD_REC")) and _n["MEMORY"] == 0)
+      all(_n[k] == _d[k] for k in ("LAYOUT", "SDCARD", "SD_RING", "SD_REC")) and _n["MEMORY"] == 0)
 check("MEMORY: setting LAYOUT by hand reads back through the toggle",
       RM.after_toggle(_d, dict(_d, LAYOUT=1), "LAYOUT", RM.NONE)[0]["MEMORY"] == 1)
 check("MEMORY: --set MEMORY=2 and a .config line MEMORY=2 do what the pick does",

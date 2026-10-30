@@ -1710,14 +1710,6 @@
     "ramtext": 116
    }
   },
-  "OVERLAY": {
-   "1": {
-    "flash": 0,
-    "ram": 0,
-    "pool": 0,
-    "ramtext": 0
-   }
-  },
   "BOOTLOADER": {
    "1": {
     "flash": 0,
@@ -5138,8 +5130,7 @@
   }
  },
  "unbuildable": {
-  "ENG_PHYS=3": "not in this build: PHYS's render path in the code RAM calls libgcc's 64-bit divide (__udivdi3, px_string_block): the helper is in flash, out of reach of a RAM-to-flash jump (R_PI32V2_LONG_JUMP_23M2 reaches 2 MB); build PHYS \"on\" (code in flash) [link: ld.lld: error: build/slots/6/felucca.o:(function px_string_block: .ram_hot+0x4e66): relocation R_PI32V2_LONG_JUMP_23M2 out of range: 2222871 is not in [-2097152, 2097151]; references '__udivdi3']",
-  "OVERLAY=1": "not in this build: tools/ovl_link.py puts the overlay slots on top of .ram_hot2 and the classic link does not lay out that way yet; not buildable until the layout is fixed [link: ld.lld: error: section .ovl_trio virtual address range overlaps with .ram_hot2]"
+  "ENG_PHYS=3": "not in this build: PHYS's render path in the code RAM calls libgcc's 64-bit divide (__udivdi3, px_string_block): the helper is in flash, out of reach of a RAM-to-flash jump (R_PI32V2_LONG_JUMP_23M2 reaches 2 MB); build PHYS \"on\" (code in flash) [link: ld.lld: error: build/slots/6/felucca.o:(function px_string_block: .ram_hot+0x4e66): relocation R_PI32V2_LONG_JUMP_23M2 out of range: 2222871 is not in [-2097152, 2097151]; references '__udivdi3']"
  },
  "groups": {
   "INS_FX": {

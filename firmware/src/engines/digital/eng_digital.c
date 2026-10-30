@@ -111,7 +111,7 @@ static const param_desc_t *digital_desc(const track_t *t, uint32_t k)
 }
 #endif
 
-static OVL(digital) void digital_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
+static FAST(digital) void digital_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
 {
     const int16_t *p = t->p;
     uint32_t alg = (uint32_t)p[P_E0] & 7u, i;
@@ -247,12 +247,9 @@ static const engine_t ENG_DIGITAL = {
         PU("-", F_INT, 0, 0, 0, 0),
 #endif
     },
-    PRESETS_OF(DIGITAL_PRESETS), -1, digital_note_on, OVL_FN(digital_render),
+    PRESETS_OF(DIGITAL_PRESETS), -1, digital_note_on, digital_render,
     0xFD20, {P_E4, P_E5, P_E6, P_REL},
 #if FELUCCA_DIG_TONE
     0, 0, digital_desc,
 #endif
 };
-#if FELUCCA_ENG_DIGITAL
-OVL_ENGINE(digital, ENG_SLOT_DIGITAL, digital_render, 0, 0, 0)
-#endif

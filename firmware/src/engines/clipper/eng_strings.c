@@ -13,7 +13,7 @@
  * Voice state: ph[0..2] the three taps (16' phase), s[0..1] the SVF. Part state: the ensemble LFOs (strings_block). */
 static uint32_t str_lfo[NPART][2];               /* the ensemble's slow and fast LFO, per part (strings_block) */
 
-static OVLX(strings) void strings_block(track_t *t)
+static FAST(strings) void strings_block(track_t *t)
 {
     uint32_t part = (uint32_t)(t - trk) % NPART;
     int32_t rate = t->p[P_E5];                       /* x 0.25 .. x 2 */
@@ -34,13 +34,13 @@ static void strings_note_on(track_t *t, voice_t *v)
 }
 
 /* a register: a saw, towards a square with SHP (x Q15: 0 saw .. 32767 square) */
-OVLX(strings) AINL int32_t str_reg(uint32_t ph, uint32_t inc, int32_t x)
+FAST(strings) AINL int32_t str_reg(uint32_t ph, uint32_t inc, int32_t x)
 {
     int32_t a = osc_saw(ph, inc);
     return x ? a + mulq15(((a - osc_saw(ph + 0x80000000u, inc)) >> 1) - a, x) : a;
 }
 
-static OVLX(strings) void strings_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
+static FAST(strings) void strings_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
 {
     const int16_t *p = t->p;
     int32_t acc[CTL];                                /* (on the stack: two cores) */
@@ -122,11 +122,8 @@ static const engine_t ENG_STRINGS = {
     .npresets = sizeof(STRINGS_PRESETS) / sizeof(STRINGS_PRESETS[0]),
     .fil_page = 1,
     .note_on = strings_note_on,
-    .render = OVL_FN(strings_render),
+    .render = strings_render,
     .color = 0xD50E,                             /* #d4a373 (tools/colors.json) */
     .macro = {P_E3, P_E4, P_E1, P_ATK},
-    .block = OVL_FN(strings_block),
+    .block = strings_block,
 };
-#if FELUCCA_ENG_STRINGS
-OVL_ENGINE(strings, ENG_SLOT_STRINGS, strings_render, strings_block, 0, 0)
-#endif

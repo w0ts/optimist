@@ -163,11 +163,7 @@ with the fixed regions: the old RAMTEXT's unused 3.7 KB went to it).
 
 Fixed whatever the layout: 0x01C7FD50-0x01C7FFFF (boot info, mailbox, vectors), NOINIT and the crash record from
 0x01C7C000, the stacks below it, and the update loader at 0x01C0A800 (80 KiB, overwritten during an update: nothing there
-may need to survive one). The RAMTEXT overlays (branch `sdcard` e574ddde, local; builder `OVERLAY`, bit 412, opt-in,
-only with `LAYOUT=1`): `tools/ovl_link.py` rewrites `app.ld` by exact text and needs two anchors, kept or moved with it
-(`ovl_link.script()`, `tests/ovl_link_test.py`): the resident hot code's one KEEP line
-(`KEEP(*(.ram_hot .ram_hot.*)) . = ALIGN(4); _rh_end = .;`) and one region name whose ORIGIN + LENGTH bounds the slots
-(`RAMTEXT` before the packed layout, `SRAM` in it: `ovl_link.py` needs that one edit when `sdcard` takes this). The audio path and the flash driver stay in RAM code in any layout: an erase or a write stalls XIP. Stays as it is: `CACHE_RAM` (its cost is the data cache), `FX_ARENA`
+may need to survive one). The audio path and the flash driver stay in RAM code in any layout: an erase or a write stalls XIP. Stays as it is: `CACHE_RAM` (its cost is the data cache), `FX_ARENA`
 (sharing inside the pool), the delta-coded tables (they save flash, the scarcest).
 
 ## 3. The budget
