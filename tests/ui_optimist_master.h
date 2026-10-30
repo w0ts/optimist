@@ -133,10 +133,10 @@ static void oct_master_keys_tests(void)
     check(master_sel() && kb_kind[WK(1)] == KS_NOTE && kb_trk[WK(1)] == 1, "a note held while MASTER is entered: stays T2's");
     kup(WK(1));
     check(kb_kind[WK(1)] == KS_NONE, "... and its release reaches the same voice");
-    turn(EN_ALGO, 1);
+    turn(EN_ALGO, -1);                                  /* (the mixer's MASTER, by both OCT: up to RET C) */
     frames(2);
     kdown(WK(0));
-    check(!master_sel() && kb_kind[WK(0)] == KS_NOTE && kb_trk[WK(0)] == song.sel, "ALGORITHM leaves MASTER: the keys follow the new track");
+    check(!master_sel() && kb_kind[WK(0)] == KS_NOTE && kb_trk[WK(0)] == song.sel, "ALGORITHM leaves MASTER (RET C): the keys play the selected track");
     kup(WK(0));
     reset_ui();
     song.sel = 1;
@@ -173,7 +173,7 @@ static void master_tests(void)
     check((TSEL->preset != pre || TSEL->eng_req != eng) && TSEL->p[P_ATK] == atk,
           "PRESETS on the ENV row: the sound changes, ATK stays (no hot cell)");
     turn(EN_ALGO, (int32_t)MXR_LN);                    /* (T1 .. the last lane, then MASTER: 2026-10-30) */
-    check(ui.scr == SCR_FX && song.sel == TRK_DRUM && !ui.master, "ALGORITHM past the last lane on ENV: MASTER (the FX screen), the drum track still selected");
+    check(ui.scr == SCR_FX && song.sel == 0u && !ui.master, "ALGORITHM past the last lane on ENV (one turn): MASTER (the FX screen), T1 still selected");
     SCR->cell(ui.row[SCR_FX], 0, &c);
     check(c.label != 0 && c.kind != CK_NONE, "... MASTER shows the master FX cells");
     pre = TSEL->preset;

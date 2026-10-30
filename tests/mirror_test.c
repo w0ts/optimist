@@ -46,6 +46,7 @@ static uint8_t mir_mute;
 #define OP_MAXROWS 40u
 #define GL_TOP 20
 #define MXR_LN 5u
+#define NAV_NPLACE MXR_LN                              /* (op_nav.c: the walk's places, here the stood-in five) */
 static uint32_t nav_log[4];
 static uint32_t nav_rows(void) { return 3; }
 static uint32_t nav_cur(void) { return 1; }

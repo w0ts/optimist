@@ -275,15 +275,15 @@ static uint32_t mx_items_rsend(mitem_t *it, uint32_t n, uint32_t s)
     return n;
 }
 /* a return's row (2026-10-30, the user: "Level + mute, two generic inserts like any other tracks", "the FX (gives the name
- * to the return), pre insert, post insert"): LEVEL (its line's RET; SHIFT on it: its mute) FX (its effect's TYPE, as FX >
+ * to the return), pre insert, post insert"): LEVEL (its line's RET; SHIFT on it: its mute) TYPE (its effect, as FX >
  * SLOTS) and that effect's amount (a type not a send; blank for CHO DLY REV, which are 100 % wet) | PRE TYPE, its amount,
  * POST TYPE, its amount | its EQ3's settings while a stage or its effect holds EQ3 (RET EQ3, RET EQ3 F) | its sends to the
- * other returns. An empty return: its FX card alone */
+ * other returns. An empty return: its TYPE card alone */
 static uint32_t mx_items_retrow(uint32_t r, mitem_t *it, uint32_t n)
 {
     uint32_t k = mx_ret_slot(r), j = mx_ret_ln(r), i;
     n = j < 3u ? mx_add(it, n, MG_MIX, "LEVEL", MI_RET, G_CRET + j) : mx_add(it, n, MG_MIX, 0, MI_NONE, 0);
-    n = mx_add(it, n, MG_MIX, "FX", MI_RTY, k);
+    n = mx_add(it, n, MG_MIX, "TYPE", MI_RTY, k);
     n = mx_add(it, n, MG_MIX, 0, MI_RAMT, k);
     if (j >= 3u)
         return n;

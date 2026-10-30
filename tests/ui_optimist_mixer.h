@@ -43,11 +43,9 @@ static void mixer_walk_tests(void)
 #if FELUCCA_USB_AUDIO
     turn(EN_ALGO, 1);                                   /* (fx-rework stage 3: the USB input's row after the drum tracks) */
     ok &= mx_row() == MXR_USB && song.sel == TRK_DRUM;
-    turn(EN_ALGO, 1);
-    ok &= mx_row() == MXR_USB;
     ui.force = 1;
     frame();
-    ok &= mxd.first == MXR_USB && mxd.last == MXR_N && px_in(2, 3, 50, 19, C_HI);   /* (alone; the badge "5 USB") */
+    ok &= mxd.first == MXR_USB && mxd.last == MXR_USB + 1u && px_in(2, 3, 50, 19, C_HI);   /* (alone; the badge "5 USB") */
     {
         uint32_t av = op_btn_avail();
         ok &= !(av & (1u << B_ENV | 1u << B_EDIT)) && (av & 1u << B_FX);   /* (no instrument: the track buttons dark; FX its
@@ -55,13 +53,15 @@ static void mixer_walk_tests(void)
     }
     ppm("opt-mixer-usb");
     check(ok, "ALGORITHM walks T1 T2 T3 DR and the 16 lanes (each selected), then the USB input's row, alone (the badge 5 USB, the "
-          "track buttons dark, FX lit: its inserts), stopping there");
+          "track buttons dark, FX lit: its inserts), the returns after it");
     turn(EN_ALGO, -1);
     ok = mx_row() == MXR_LN - 1u;
 #else
     turn(EN_ALGO, 1);
+    ok &= mx_row() == MXR_RET0;
+    turn(EN_ALGO, -1);
 #endif
-    check(ok && mx_row() == MXR_LN - 1u, "ALGORITHM walks T1 T2 T3 DR and the 16 lanes (each selected), stopping at the last");
+    check(ok && mx_row() == MXR_LN - 1u, "ALGORITHM walks T1 T2 T3 DR and the 16 lanes (each selected), RET A after the last, and back");
     ui.force = 1;
     frame();
     check(mxd.first == MXR_LANE0 && mxd.last == MXR_LN && mx_row_x(MXR_LN - 1u) == 0u && mx_row_y(MXR_LN - 1u) > mx_row_y(MXR_LN - 2u) &&
@@ -251,11 +251,11 @@ static void mixer_sets_tests(void)
     {   /* a return's row (2026-10-30): LEVEL FX amount | PRE TYPE amount POST TYPE amount | its sends to the other returns */
         const uint32_t ra = MXR_RET0, rb = MXR_RET0 + 1u, rc = MXR_RET0 + 2u;
         fxs_set(FXS_DEF);
-        check(mx_labels(ra, 0, "LEVEL", "FX", 0, 0) && mx_labels(ra, 1, "PRE", 0, "POST", 0) &&
+        check(mx_labels(ra, 0, "LEVEL", "TYPE", 0, 0) && mx_labels(ra, 1, "PRE", 0, "POST", 0) &&
                   mx_labels(ra, 2, 0, "DLY", "REV", 0) &&
                   mx_labels(rb, 2, FELUCCA_RET_FB ? "CHO" : 0, 0, "REV", 0) &&
                   (FELUCCA_RET_FB ? mx_labels(rc, 2, "CHO", "DLY", 0, 0) : mx_sets(rc) == 2u),
-              "RET A (CHO): LEVEL FX (no amount: a send is 100 % wet) | PRE, POST empty | its sends B DLY, C REV; B: C REV "
+              "RET A (CHO): LEVEL TYPE (no amount: a send is 100 % wet) | PRE, POST empty | its sends B DLY, C REV; B: C REV "
               "(RET_FB: A CHO too); C: none (RET_FB: A CHO, B DLY)");
     }
     {   /* a return's LEVEL, its mute (SHIFT on it), its effect, its PRE */
@@ -266,6 +266,7 @@ static void mixer_sets_tests(void)
         int16_t c0 = song.g[G_CRET + ln];
         mx_apply(ra);
         mx.set = 0;
+        ui.force = 1;
         frame();
         head_title(SCR_HOME, ra, h, sizeof h);
         mix_cell(ra, 0, &c);
@@ -296,8 +297,8 @@ static void mixer_sets_tests(void)
             rp_load(ln, RP_PRE, FXT_DIST);
             check(rp_ty[ln][RP_PRE] == FXT_DIST && rp_ty[ln][RP_POST] == FXT_NONE, "... DIST into PRE: it swaps with POST (a type once a return)");
             fxs_load(1, FXT_NONE);
-            check(rp_ty[ln][RP_PRE] == FXT_NONE && mx_labels(ra, 0, 0, "FX", 0, 0) && mx_sets(ra) == 1u,
-                  "an emptied return: its inserts emptied, its FX card alone");
+            check(rp_ty[ln][RP_PRE] == FXT_NONE && mx_labels(ra, 0, 0, "TYPE", 0, 0) && mx_sets(ra) == 1u,
+                  "an emptied return: its inserts emptied, its TYPE card alone");
         }
         fxs_set(FXS_DEF);
         rp_untlv(0, 0);
