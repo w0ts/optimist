@@ -479,7 +479,7 @@ static volatile uint8_t fx_rmute;
 #define RET_LV(j) ((fx_rmute >> (j) & 1u) ? 0 : song.g[G_CRET + (j)])
 /* a bus line whose return has an insert (fx_slots.c rp_ty: PRE or POST, or one letting go): its bus at unity, the line's
  * level and mute after its POST instead (rp_post_bus: send -> PRE -> FX -> POST -> level, mute). rp_lvm: those lines,
- * bit j (rp_plan, a block's start); RET_LVB: the level a bus applies itself */
+ * bit j (rp_block, a block's start); RET_LVB: the level a bus applies itself */
 static volatile uint8_t rp_lvm;
 #define RET_LVB(j) ((rp_lvm >> (j) & 1u) ? (song.g[G_CRET + (j)] ? 127 : 0) : RET_LV(j))
 #define FXS_IN(x) (FXS_ON(x) && !(fx_imute >> FXS_LN(x) & 1u))   /* (a send heard: a return takes it, its input not muted) */
@@ -1714,10 +1714,9 @@ static HOT2 __attribute__((noinline)) int32_t dly_run(const int32_t *in, int32_t
  * are computed per block and ramped: no sine per sample. Each bus runs in its own loop; an idle one
  * (see above) is skipped. Returns 0 when every bus was idle: wet_l / wet_r were not written (they would
  * be all 0; FELUCCA_SKIP), else 1 */
-static void rp_pre_bus(uint32_t j, int32_t *x, uint32_t n);   /* (below, after the returns' states: XIP, FAR) */
-static int32_t rp_post_bus(uint32_t j, int32_t *wl, int32_t *wr, uint32_t n);
-static void rp_save(int32_t *wl, int32_t *wr, uint32_t n, int fresh);
-static void rp_back(int32_t *wl, int32_t *wr, uint32_t n);
+/* (below, after the returns' states: XIP, FAR) */
+static void rp_line_in(uint32_t j, int32_t *wl, int32_t *wr, uint32_t n, uint32_t how);
+static int32_t rp_line_out(uint32_t j, int32_t *wl, int32_t *wr, uint32_t n);
 static HOT int fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int32_t *rev_in, int32_t *wet_l,
                      int32_t *wet_r, uint32_t n)
 {
@@ -1786,12 +1785,9 @@ static HOT int fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int3
         uint32_t j = rs ? rs_ord[s] : s, rpw = rpl >> j & 1u;
         if (rs)
             rs_pre(j, n);                               /* (a chain: the source's mark, a return holding another type) */
-        if (rpw)                                        /* (its return has an insert: the line's output alone in the wet) */
-            FAR(rp_save)(wet_l, wet_r, n, !rs && s == 0u);
-        if (rs && RP_HAS(j, RP_PRE) && !(gen >> j & 1u)) {   /* (a chain: its PRE on the send it has now) */
-            int32_t *const snd[3] = {send_c, send_d, send_r};
-            FAR(rp_pre_bus)(j, snd[j % 3u], n);
-        }
+        if (rpw)                                        /* (its return has an insert: the line's output alone in the wet; a
+                                                         * chain: its PRE on the send it has now) */
+            FAR(rp_line_in)(j, wet_l, wet_r, n, (uint32_t)(!rs && s == 0u) | (uint32_t)(rs && !(gen >> j & 1u)) << 1);
         if (j == 0u) {
             if (run_c) {
                 const int32_t ab[4] = {ca0, dca, cb0, dcb};
@@ -1865,14 +1861,8 @@ static HOT int fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int3
             }
         }
         if (rpw) {                                      /* POST, the level and the mute on the line's output, the rest back */
-            int32_t pk = FAR(rp_post_bus)(j, wet_l, wet_r, n);
-            FAR(rp_back)(wet_l, wet_r, n);
-            if (j == 0u)
-                cpk = pk;
-            else if (j == 1u)
-                dpk = pk;
-            else
-                rpk = pk;
+            int32_t pk = FAR(rp_line_out)(j, wet_l, wet_r, n);
+            cpk = j == 0u ? pk : cpk, dpk = j == 1u ? pk : dpk, rpk = j == 2u ? pk : rpk;
         }
         if (rs)
             rs_post(j, n);                              /* (its output into the lines to its right, before they run) */
@@ -2944,15 +2934,17 @@ static HOT2 __attribute__((noinline)) void rt_run(uint32_t n)
         rt_line(j, n);
 }
 /* ---- a bus line's inserts (the chorus', the delay's, the reverb's return: fx_slots.c rp_ty). From XIP (FAR: a call a block
- * only while a return has an insert; no RAM code). rp_plan: the lines whose wrapper runs (an insert, or one letting go for
+ * only while a return has an insert; no RAM code). rp_block: the lines whose wrapper runs (an insert, or one letting go for
  * RT_TAIL blocks after the last went); rp_pre_bus: the PRE on the line's mono send (into L and R, back as (L + R) / 2);
- * rp_save / rp_back: the wet so far kept apart (the pool) so the line's output is alone in the wet; rp_post_bus: POST,
+ * rp_line_in / rp_line_out: the wet so far kept apart (the pool) so the line's output is alone in the wet; rp_post_bus: POST,
  * the types letting go at 0, then the line's level and mute (the bus ran at unity: RET_LVB) -> the block's peak (the
  * mixer's RET row meter) */
 static uint8_t rp_tail[3];
 static int32_t rp_sl[CTL] __attribute__((section(".pool"))), rp_sr[CTL] __attribute__((section(".pool")));
-static __attribute__((noinline)) void rp_plan(void)
+static void rp_pre_bus(uint32_t j, int32_t *x, uint32_t n);
+static __attribute__((noinline)) void rp_block(uint32_t n)   /* (rets_mix: a block's plan; no chain: the PREs before the buses) */
 {
+    int32_t *const snd[3] = {send_c, send_d, send_r};
     uint32_t j, m = 0, bus;
     for (j = 0; j < 3u; j++) {
         bus = (fxs_lnl >> j & 1u) && fxs_rty[j] == FXT_NONE;
@@ -2964,6 +2956,9 @@ static __attribute__((noinline)) void rp_plan(void)
             m |= 1u << j;
     }
     rp_lvm = (uint8_t)m;
+    for (j = 0; !rs_on && j < 3u; j++)
+        if ((m >> j & 1u) && RP_HAS(j, RP_PRE))
+            rp_pre_bus(j, snd[j], n);
 }
 static __attribute__((noinline)) void rp_pre_bus(uint32_t j, int32_t *x, uint32_t n)
 {
@@ -2976,19 +2971,17 @@ static __attribute__((noinline)) void rp_pre_bus(uint32_t j, int32_t *x, uint32_
     for (i = 0; i < n; i++)
         x[i] = (l[i] + r[i]) >> 1;
 }
-static __attribute__((noinline)) void rp_save(int32_t *wl, int32_t *wr, uint32_t n, int fresh)
+/* before line j's bus (how: bit 0 the block's first line, the wet not written yet; bit 1 a chain's bus line: its PRE here) */
+static __attribute__((noinline)) void rp_line_in(uint32_t j, int32_t *wl, int32_t *wr, uint32_t n, uint32_t how)
 {
     uint32_t i;
-    for (i = 0; i < n; i++) {                           /* (fresh: the first line of a block, the wet not written yet) */
-        rp_sl[i] = fresh ? 0 : wl[i], rp_sr[i] = fresh ? 0 : wr[i];
+    int32_t *const snd[3] = {send_c, send_d, send_r};
+    for (i = 0; i < n; i++) {
+        rp_sl[i] = how & 1u ? 0 : wl[i], rp_sr[i] = how & 1u ? 0 : wr[i];
         wl[i] = wr[i] = 0;
     }
-}
-static __attribute__((noinline)) void rp_back(int32_t *wl, int32_t *wr, uint32_t n)
-{
-    uint32_t i;
-    for (i = 0; i < n; i++)
-        wl[i] += rp_sl[i], wr[i] += rp_sr[i];
+    if ((how & 2u) && RP_HAS(j % 3u, RP_PRE))
+        rp_pre_bus(j, snd[j % 3u], n);
 }
 static __attribute__((noinline)) int32_t rp_post_bus(uint32_t j, int32_t *wl, int32_t *wr, uint32_t n)
 {
@@ -3007,6 +3000,15 @@ static __attribute__((noinline)) int32_t rp_post_bus(uint32_t j, int32_t *wl, in
         b = b < 0 ? -b : b;
         pk = b > pk ? b : pk;
     }
+    return pk;
+}
+/* after line j's bus: POST, the level, the mute; the wet kept apart back; -> the line's peak */
+static __attribute__((noinline)) int32_t rp_line_out(uint32_t j, int32_t *wl, int32_t *wr, uint32_t n)
+{
+    uint32_t i;
+    int32_t pk = rp_post_bus(j, wl, wr, n);
+    for (i = 0; i < n; i++)
+        wl[i] += rp_sl[i], wr[i] += rp_sr[i];
     return pk;
 }
 
@@ -3130,14 +3132,8 @@ static inline __attribute__((always_inline)) void rets_mix(uint32_t n)
     uint32_t i;
     if (rs_any() | (int32_t)rs_on)
         FAR(rs_block)();                                /* (a send between the returns: a chain, fx_buses runs them all) */
-    if (rp_m | rp_lvm | rp_tail[0] | rp_tail[1] | rp_tail[2])
-        FAR(rp_plan)();                                 /* (a return's inserts: the bus lines that take them) */
-    if (!rs_on && (rp_m & rp_lvm & 7u)) {                 /* (no chain: each bus line's PRE on its send, before the buses) */
-        int32_t *const snd[3] = {send_c, send_d, send_r};
-        for (i = 0; i < 3u; i++)
-            if ((rp_m >> i & 1u) && (rp_lvm >> i & 1u))
-                FAR(rp_pre_bus)(i, snd[i], n);
-    }
+    if (rp_m | rp_lvm)
+        FAR(rp_block)(n);                               /* (a return's inserts: the bus lines that take them, their PREs) */
     if (!rs_on && (fxs_rty[0] != FXT_NONE || fxs_rty[1] != FXT_NONE || fxs_rty[2] != FXT_NONE || rt_tail[0] | rt_tail[1] | rt_tail[2]))
         rt_run(n);                                      /* the returns holding another type (above): first, their sends */
     if (fx_buses(send_c, send_d, send_r, wet_l, wet_r, n)) {  /* (0: every bus idle, nothing to add) */
