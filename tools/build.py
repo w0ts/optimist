@@ -46,7 +46,6 @@ LDR = OUT / "loader"
 GEN_REL = GEN.relative_to(SRC).as_posix()       # (the tools run with cwd SRC: build/gen, or a slot's)
 sys.path.insert(0, str(SRC / "tools"))
 import fm1pkg_make  # noqa: E402
-import install_meta  # noqa: E402  (PACKAGE.install.json: the builder's BOOTLOADER beside the package)
 import flash_layout  # noqa: E402  (the app slot's end by FELUCCA_LAYOUT: fm1_flash_map.h's numbers)
 import lz4blk  # noqa: E402
 import lzb  # noqa: E402  (the boot stream's coder: the RAM code, the tables and .data in flash)
@@ -1166,7 +1165,8 @@ def main():
     shutil.copy(ui, named.with_name(named.stem + "-ui.zip"))
     for old in OUT.glob("optimist-*.install.json"):
         old.unlink()
-    for pk in (OUT / name, named):                # the builder's BOOTLOADER beside each copy (tools/install_meta.py)
+    import install_meta                           # (PACKAGE.install.json: the builder's BOOTLOADER beside each copy)
+    for pk in (OUT / name, named):
         side = install_meta.write(pk, INSTALL["bootloader"], INSTALL["config"], INSTALL["hash"])
     print(f"named    {named}  (+ {named.stem}-ui.zip, {side.name}: bootloader {install_meta.VALUES[INSTALL['bootloader']]})")
     return 0
