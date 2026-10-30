@@ -100,8 +100,8 @@ if fm1base.BUILD_PY.is_file():
           "823,228 B, normal 581,564 B, SRAM app.ld's",
           K.fits(total, {"LAYOUT": 1})["flash"][1] == 823228 and K.fits(total, {})["flash"][1] == 581564
           and K.fits(total, {})["sram"][1] == 475136 - K.SPARE["sram"] and K.describe()["limits"]["sram"] == 475136)
-    check("a real release build's sizes count against the slot that build checked (sizes.json app_slot)",
-          K.fits(dict(total, app_slot=823228), {})["flash"][1] == 823228)
+    check("a release build's sizes.json app_slot (fm1-base writes its normal APP_SLOT for every app_end) changes no limit",
+          K.fits(dict(total, app_slot=581564), {"LAYOUT": 1})["flash"][1] == 823228)
 _hook = K.LIMITS_HOOK
 K.setup(limits_hook=None, limits={"flash": 1000, "sram": 2000, "flash_by_layout": {"1": 3000}})
 check("without a build system (the page) the costs' limits", K.fits(total, {"LAYOUT": 1})["flash"][1] == 3000
