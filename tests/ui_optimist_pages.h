@@ -341,9 +341,17 @@ static uint32_t kws(uint32_t a, uint32_t b)             /* white keys a..b */
 }
 static void hold_layer(uint32_t b) { press(b); frames(HOLD_FRAMES); }
 static void let_go(uint32_t b) { release(b); frames(2); reset_ui(); }
-/* the pages with no track context (GLOBAL, SYSTEM, PROJECT): the keys play nothing, send nothing, light nothing, pick
- * no lane; PROJECT's slot rows keep the slot pick; the layers and a key held over a page change stay sound */
+/* the pages with no track (the user, 2026-10-30: "every page without a track" plays the selected track, "exception the
+ * patterns/save page that use the keyboard"): GLOBAL, SYSTEM, MASTER FX, SCOPE play it as its own pages do; PROJECT and
+ * SONG keep their keys' own jobs (play nothing, send nothing, light nothing, pick no lane; PROJECT's slot rows pick the
+ * slot); the layers and a key held over a page change stay sound */
 static int key_dead(uint32_t k) { return kb_kind[k] == KS_UI || kb_kind[k] == KS_NONE; }
+/* a key plays the selected track: a note, a drum hit, or on the drum track a white key its step (the UI's, as on every
+ * page with the drum track) */
+static int key_plays(uint32_t k)
+{
+    return kb_kind[k] == KS_NOTE || kb_kind[k] == KS_DRUM || (is_drum(TSEL) && kb_kind[k] == KS_UI);
+}
 static void keys_global_tests(void)
 {
     uint32_t pass, r, tools = 0, sel0;
@@ -355,26 +363,23 @@ static void keys_global_tests(void)
         frames(2);
         check(ui.scr == SCR_GLOBAL, "keys, no-track pages: GLO: GLOBAL");
         kdown(WK(3));
-        check(key_dead(WK(3)) && kb_kind[WK(3)] != KS_NOTE && kb_kind[WK(3)] != KS_DRUM, "GLOBAL: a white key plays nothing");
-        keys_are(0, 0, "GLOBAL: the keys are dark");
+        check(key_plays(WK(3)), "GLOBAL: a white key plays the selected track");
         kup(WK(3));
         kdown(1);
-        check(kb_kind[1] != KS_NOTE && kb_kind[1] != KS_DRUM, "GLOBAL: a black key plays nothing");
+        check(kb_kind[1] == KS_NOTE || kb_kind[1] == KS_DRUM, "GLOBAL: a black key plays the selected track");
         kup(1);
-        sel0 = lane_selected();
         press(B_OCTDN);
         frames(HOLD_FRAMES);
         kdown(WK(5));
-        check(lane_selected() == sel0 && kb_kind[WK(5)] != KS_NOTE && kb_kind[WK(5)] != KS_DRUM, "GLOBAL: SHIFT + a key: no lane pick, no sound");
-        keys_are(0, 0, "GLOBAL: SHIFT held: the keys stay dark");
+        check(kb_kind[WK(5)] != KS_NOTE && kb_kind[WK(5)] != KS_DRUM, "GLOBAL: SHIFT + a key: its mute, no sound (as on every page)");
         kup(WK(5));
         release(B_OCTDN);
+        smute_clear();
         tap(B_GLO);
         frames(2);
         check(ui.scr == SCR_SYSTEM, "keys, no-track pages: GLO again: SYSTEM");
         kdown(WK(2));
-        check(kb_kind[WK(2)] != KS_NOTE && kb_kind[WK(2)] != KS_DRUM, "SYSTEM: a key plays nothing");
-        keys_are(0, 0, "SYSTEM: the keys are dark");
+        check(key_plays(WK(2)), "SYSTEM: a key plays the selected track (INFO: the meters while playing)");
         kup(WK(2));
         reset_ui();
         op_enter(SCR_PROJECT);
@@ -402,7 +407,8 @@ static void keys_global_tests(void)
         kup(WK(1));
         release(B_OCTDN);
         reset_ui();
-        /* MASTER FX, SCOPE, SONG (not its PATTERNS row), TEMPO: the same */
+        /* MASTER FX and SCOPE play the selected track; SONG (not its PATTERNS row) keeps its keys (the scenes, the
+         * parts, the PATTERNS / MODE key since 2026-10-20); TEMPO's are the tempo's */
         {
             static const uint8_t SCRS[3] = {SCR_FX, SCR_SCOPE, SCR_SONG};
             uint32_t i;
@@ -415,19 +421,24 @@ static void keys_global_tests(void)
                     continue;
                 sel0 = lane_selected();
                 kdown(WK(3));
-                check(ui.scr == SCRS[i] && kb_kind[WK(3)] != KS_NOTE && kb_kind[WK(3)] != KS_DRUM, "MASTER FX / SCOPE / SONG: a key plays nothing");
-                if (SCRS[i] != SCR_SONG)                /* (SONG: its keys are the scenes, the parts, the PATTERNS / MODE key since 2026-10-20) */
-                    keys_are(0, 0, "MASTER FX / SCOPE / SONG: the keys are dark");
+                if (SCRS[i] == SCR_SONG)
+                    check(ui.scr == SCRS[i] && kb_kind[WK(3)] != KS_NOTE && kb_kind[WK(3)] != KS_DRUM, "SONG: a key plays nothing (its own job)");
+                else
+                    check(ui.scr == SCRS[i] && key_plays(WK(3)), "MASTER FX / SCOPE: a key plays the selected track");
                 kup(WK(3));
                 kdown(1);
-                check(kb_kind[1] != KS_NOTE && kb_kind[1] != KS_DRUM, "MASTER FX / SCOPE / SONG: a black key plays nothing");
+                if (SCRS[i] == SCR_SONG)
+                    check(kb_kind[1] != KS_NOTE && kb_kind[1] != KS_DRUM, "SONG: a black key plays nothing");
+                else
+                    check(kb_kind[1] == KS_NOTE || kb_kind[1] == KS_DRUM, "MASTER FX / SCOPE: a black key plays the selected track");
                 kup(1);
                 press(B_OCTDN);
                 frames(HOLD_FRAMES);
                 kdown(WK(5));
-                check(lane_selected() == sel0 && kb_kind[WK(5)] != KS_NOTE && kb_kind[WK(5)] != KS_DRUM, "MASTER FX / SCOPE / SONG: SHIFT + a key: no lane pick");
+                check(lane_selected() == sel0 && kb_kind[WK(5)] != KS_NOTE && kb_kind[WK(5)] != KS_DRUM, "MASTER FX / SCOPE / SONG: SHIFT + a key: no lane pick, no sound");
                 kup(WK(5));
                 release(B_OCTDN);
+                smute_clear();
             }
             reset_ui();
             press(B_PLAY);

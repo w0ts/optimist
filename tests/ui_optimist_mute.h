@@ -76,7 +76,7 @@ static void mute_tests(void)
     ui.row[SCR_HOME] = MXR_MASTER;
     frames(2);
     key(WK(0));
-    check(ly_lock == LY_STEP, "the mixer on MASTER: the keys reach the UI only (silent)");
+    check(ly_lock == LY_PLAY, "the mixer on MASTER: the keys play the selected track (2026-10-30)");
     reset_ui();
     op_enter(SCR_FX);
     frames(2);

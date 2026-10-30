@@ -140,9 +140,9 @@ static void oct_master_keys_tests(void)
     frames(2);
     turn(EN_ALGO, -5);
     frames(2);
-    check(mx_on_master() && ly_lock == LY_STEP, "MASTER by the mixer's walk: the keys stay silent");
+    check(mx_on_master() && ly_lock == LY_PLAY, "MASTER by the mixer's walk: the keys play the selected track (2026-10-30)");
     kdown(WK(0));
-    check(kb_kind[WK(0)] == KS_UI, "... a key plays nothing");
+    check(kb_kind[WK(0)] == KS_NOTE && kb_trk[WK(0)] == song.sel, "... a key plays it");
     kup(WK(0));
     both_oct();
     check(!master_sel(), "... both OCT there goes back to the track as before");
