@@ -49,6 +49,7 @@ jobs:
         with:
           path: |
             ~/.jieli
+            build/toolchains
             sdk
           key: jieli-${{ hashFiles('tools/toolchain.py') }}
       - name: Setup (toolchain, SDK files, Python packages)
@@ -77,6 +78,7 @@ jobs:
         with:
           path: |
             ~/.jieli
+            build/toolchains
             sdk
           key: jieli-${{ hashFiles('tools/toolchain.py') }}
       - name: Setup
