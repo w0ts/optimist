@@ -933,9 +933,25 @@ class Builder(App):
         self.build_out = "flash: waiting for your answer"
         self.refresh_msgs()
         title = "Flash to FM-1\n\n" + "\n".join(plan.lines())
-        self.push_screen(Pick(title, ["Cancel", "Flash anyway (the FM-1 may refuse it)" if plan.warn
-                                          else "Flash to FM-1 (writes the firmware)"],
-                              lambda choice: self.flash_answer(plan, choice.startswith("Flash"))))
+        keep = "Flash, but keep the bootloader this time (not m-bootloader)"
+        go = ("Flash anyway (the FM-1 may refuse it)" if plan.warn else
+              "Flash through download mode (a full backup first)" if plan.download else "Flash to FM-1 (writes the firmware)")
+        offer_keep = "m-bootloader (from the build)" in plan.boot_line       # (the override only goes to keep)
+        ask = plan.download and plan.settings is not None and plan.settings.ask   # (keep or erase the settings: asked)
+        wipe_first = ask and plan.settings.default == "wipe"
+        sets = ([f"{go}, erase settings and pairings" + (" (suggested)" if wipe_first else ""),
+                 f"{go}, keep settings and pairings" + ("" if wipe_first else " (suggested)")] if ask else [go])
+        if wipe_first is False and ask:
+            sets.reverse()
+
+        def answer(choice):
+            p = F.keep_bootloader(plan) if choice == keep else plan
+            if "erase settings" in choice:
+                p = F.with_settings(p, "wipe")
+            elif "keep settings" in choice:
+                p = F.with_settings(p, "keep")
+            self.flash_answer(p, choice.startswith("Flash"))
+        self.push_screen(Pick(title, ["Cancel", *sets, *([keep] if offer_keep else [])], answer))
 
     def flash_answer(self, plan, yes):
         if not yes:

@@ -47,17 +47,40 @@ class FlashError(Exception):
 
 
 class Plan:
-    def __init__(self, package, product, running, port, notes=(), tool=None, warn=None):
+    def __init__(self, package, product, running, port, notes=(), tool=None, warn=None, route=None, boot_line="",
+                 keep_bootloader=False, settings=None, settings_flag=None):
+        self.settings = settings                         # fm1_route.Settings: keep or erase, asked or not (download mode)
+        self.settings_flag = settings_flag               # "keep" | "wipe" | None (the policy's default)
         self.package, self.product, self.running, self.port = Path(package), product, running, port
         self.tool = tool                                 # (None: Optimist's own update tool; else fm1-base's)
         self.notes = list(notes)                         # where the package comes from, and what to know about it
         self.warn = warn                                 # why the running firmware may refuse it (platform_note)
+        self.route = route                               # fm1_route.Route: the update loader, or download mode
+        self.boot_line = boot_line                       # the build's BOOTLOADER as this install takes it
+        self.keep_bootloader = keep_bootloader           # --keep-bootloader for this install
+
+    def settings_line(self):
+        import fm1_route as R
+        return R.settings_choice(self.settings, self.settings_flag)[1]
+
+    @property
+    def download(self):
+        return bool(self.route) and self.route.method == "download"
 
     def lines(self):
+        how = []
+        if self.route:
+            how = [f"route:    {'download mode (M-Flasher)' if self.download else 'the running firmware updater'}: "
+                   f"{self.route.why}"]
+            if self.download:
+                how += [f"          {i}. {st}" for i, st in enumerate(self.route.steps, 1)]
         return [f"package:  {self.package.name}  ({self.product})",
                 f"          {self.package}",
                 *self.notes,
                 f"running:  {self.running}",
+                *([self.boot_line] if self.boot_line else []),
+                *([self.settings_line()] if self.settings and self.download else []),
+                *how,
                 *([f"WARNING   {self.warn}"] if self.warn else []),
                 "",
                 "This replaces the firmware on the FM-1 now. Do not unplug it while it writes (about a minute).",
@@ -166,7 +189,7 @@ def fm1base_tool():
         return None
 
 
-def preflight(package, port=None, notes=None):
+def preflight(package, port=None, notes=None, keep_bootloader=False):
     """-> Plan; FlashError (with an exit code) when the package or the FM-1 is not right. Reads the FM-1's
     identity (fm1_install.py --info); writes nothing. notes: the lines about the package's source (default:
     source_notes, from its -ui.zip)"""
@@ -188,7 +211,49 @@ def preflight(package, port=None, notes=None):
     if rc:
         raise FlashError(("no FM-1 found over USB-MIDI (data cable? another app using it?): " if rc == 3
                           else f"cannot read the FM-1's identity (exit {rc}): ") + text, rc)
-    return Plan(package, product, text, port, notes, tool, platform_note(package, product, text))
+    route, boot_line = route_of(package, text, port, keep_bootloader)
+    if route.method == "download":
+        tool = None                                     # (download mode: Optimist's tool, through M-Flasher)
+    warn = platform_note(package, product, text) if route.method == "loader" else None
+    return Plan(package, product, text, port, notes, tool, warn, route, boot_line, keep_bootloader,
+                settings_of(package, text))
+
+
+def settings_of(package, running):
+    """fm1_route.settings_policy for this package on the FM-1 that --info described"""
+    import fm1_route as R
+    raw = Path(package).read_bytes()
+    ident = running.split()[0] if running.strip() else None
+    return R.settings_policy(ident, R.package_kind(raw, FI.flash_size(FI.logical_image(raw))))
+
+
+def with_settings(plan, flag):
+    """a copy of the plan with --keep-settings / --wipe-settings (flag "keep" / "wipe" / None: the policy's default)"""
+    import copy
+    out = copy.copy(plan)
+    out.settings_flag = flag
+    return out
+
+
+def route_of(package, running, port=None, keep_bootloader=False):
+    """-> (fm1_route.Route, the bootloader line) for this package on the FM-1 that --info described"""
+    import fm1_anyflash as AF
+    import fm1_route as R
+    m = re.match(r"(\S+)\s+\[[^]]*\]\s+port:\s*(.*)$", running.strip())
+    ident, name = (m[1], m[2]) if m else (running.split()[0] if running.strip() else None, port or "")
+    raw = Path(package).read_bytes()
+    info = R.package_kind(raw, FI.flash_size(FI.logical_image(raw)))
+    choice, line = AF.build_setting(package, keep_bootloader)
+    return R.choose(R.running_kind(ident, name), info, choice, None, ident or ""), line
+
+
+def keep_bootloader(plan):
+    """the same plan with --keep-bootloader: the build's m-bootloader turned to keep for this install (never the other
+    way); its route chosen again (the device is not read again)"""
+    route, line = route_of(plan.package, plan.running, plan.port, True)
+    warn = platform_note(plan.package, plan.product, plan.running) if route.method == "loader" else None
+    return Plan(plan.package, plan.product, plan.running, plan.port, plan.notes, plan.tool if route.method == "loader"
+                else None, warn, route, line, True, plan.settings, plan.settings_flag)
 
 
 def platform_note(package, product, running):
@@ -204,6 +269,9 @@ def install(plan, capture=True, on_line=None):
     """write the plan's package (the caller has asked, the plan's warning shown) -> (exit code, output). --force
     only for a plan with a warning the caller accepted (the package passed load_package's own checks already:
     --force then lifts the installer's platform warning alone). on_line: see run_tool"""
-    args = [str(plan.package), "--yes", *(["--force"] if plan.warn else []), *(["--port", plan.port] if plan.port else [])]
+    args = [str(plan.package), "--yes", *(["--force"] if plan.warn else []), *(["--port", plan.port] if plan.port else []),
+            *(["--keep-bootloader"] if plan.keep_bootloader and not plan.tool else []),
+            *(["--route", "download"] if plan.download else []),
+            *([f"--{plan.settings_flag}-settings"] if plan.download and plan.settings_flag else [])]
     extra = {"tool": plan.tool} if plan.tool else {}      # (Optimist's own tool: as it was called before the release)
     return run_tool(args, capture, on_line, **extra) if on_line else run_tool(args, capture, **extra)

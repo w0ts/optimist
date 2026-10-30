@@ -75,6 +75,9 @@ Its own projects live in the sections beside them.
   unchanged) and install it. Or use M-VAVE's own updater, M-UPGRADE. The official firmware does not read Optimist's data: back it up first.
 - **The FM-1 does not start Optimist:** hold **OCT−** alone while switching on (*OPTIMIST USB RESCUE*), then install again.
   After two start-ups that crash, the FM-1 goes there by itself.
+- **Switching between Optimist's own firmware and the release, or from any firmware:** the installer picks the way
+  itself (the running firmware's updater, else the chip's download mode through M-Flasher, a full backup first):
+  [docs/INSTALL-PATHS.md](docs/INSTALL-PATHS.md). No detour through V15.
 - **Nothing starts at all:** hold **OCT− + OCT+** while switching on and keep them held for **3 s**: the chip's own update mode
   (UBOOT; the screen stays dark). Then M-UPGRADE, or `tools/fm1_rescue.py` from this repository (macOS; from X0X: it
   backs up the whole flash first and writes only the firmware area), or
@@ -141,7 +144,7 @@ listed with its licence and commit in [LICENSING.md](LICENSING.md).
 - **[CS-1](https://github.com/twochannels/CS-1)** by twochannels: the CS80 engine's voice design.
 - **[X0X](https://github.com/charlesvestal/fm1-x0x)** by Charles Vestal: the rescue tool, the ACID engine (Open303, TB-3PO), the X0X 909 / 808 kits (9W9, 8W8 by athousanddetails, ER-99 by Matthew Cieplak), the mixer glides, the second core's start.
 - **[Flowstate](https://github.com/zakariachowdhury/flowstate-fm1)** by Zakaria Chowdhury: the performance macros, the CPU guard. **[Jangada](https://github.com/zednaked/jangada)** by zednaked: the SUPER engine, the second core's supply settings. **[Caravel](https://github.com/bonszaimusic/caravel)** by bonszaimusic: the DRONE engine's coupled network. **[fm-106](https://github.com/PatttF/fm-106)** by PatttF, after [Ultramaster KR-106](https://github.com/kayrockscreenprinting/ultramaster_kr106): the JUNO engine and chorus.
-- DaisySP, Rings, Plaits, MAME's uPD933, Airwindows, MSFA and Dexed, sc808; samples from Versilian Studios and Sonic Pi (CC0); fonts Terminus and JetBrains Mono (SIL OFL), Fukiai (MIT); [fm1-emulator](https://github.com/simonjohansson/fm1-emulator) by Simon Johansson; [jl-uboot-tool](https://github.com/kagaimiq/jl-uboot-tool) by kagaimiq.
+- DaisySP, Rings, Plaits, MAME's uPD933, Airwindows, MSFA and Dexed, sc808; samples from Versilian Studios and Sonic Pi (CC0); fonts Terminus and JetBrains Mono (SIL OFL), Fukiai (MIT); [fm1-emulator](https://github.com/simonjohansson/fm1-emulator) by Simon Johansson; [jl-uboot-tool](https://github.com/kagaimiq/jl-uboot-tool) by kagaimiq; [M-Flasher](https://github.com/jvitkauskas/m-flasher) and [m-bootloader](https://github.com/jvitkauskas/m-bootloader) by Julius Vitkauskas: download-mode installs and the open bootloader ([docs/INSTALL-PATHS.md](docs/INSTALL-PATHS.md)).
 
 Unofficial: not made, endorsed or supported by M-VAVE. M-VAVE and FM-1 are trademarks of their owners. Product names
 (Juno-106, TB-303, TR-808, TR-909, DX7, CZ, Prophet-5, Prophet VS, Wavestation, SID) only say what an engine or kit models.

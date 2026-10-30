@@ -29,6 +29,7 @@ import re
 import signal
 import sys
 import time
+from pathlib import Path
 
 HS_QUERY = bytes([0xF0, 0x00, 0x32, 0x45, 0x00, 0x00, 0x00, 0x40, 0x7F, 0xF7])
 UPGRADE = bytes([0xF0, 0x22, 0x24, 0x35, 0x7F, 0xF7])
@@ -49,7 +50,7 @@ DELAY = {"open": 0.3, "start": 2.0, "reply": 0.01, "loader": 3.0, "reboot": 3.0,
          "poll": 1.0, "hs": 1.0, "idle_check": 8.0, "idle_write": 180.0,
          "wait_loader": 30.0, "wait_reboot": 40.0}
 
-EXIT = {"usage": 2, "badpkg": 2, "notfound": 3, "model": 6, "lost": 4, "stopped": 4, "badreq": 4,
+EXIT = {"nomf": 8, "refused": 7, "cancel": 1, "usage": 2, "badpkg": 2, "notfound": 3, "model": 6, "lost": 4, "stopped": 4, "badreq": 4,
         "noloader": 5, "noreturn": 5, "mismatch": 6, "foreign": 6}
 
 
@@ -524,7 +525,8 @@ def no_interrupt(out=None):
                 pass
 
 
-def run(a, backend, out, ask):
+def run(a, backend, out, ask, ask_text=None):
+    _route_modules()
     up = Updater(backend, a.port)
     if a.info:
         dev = up.find()
@@ -534,11 +536,115 @@ def run(a, backend, out, ask):
         mode = "update loader (update not finished)" if dev.id.loader else "running"
         print(f"{dev.id.text}  [{mode}]  port: {dev.name}", file=out)
         return 0
-    product, image = load_package(a.package, a.force)
+    product, image = load_package(a.package, a.force)       # (before any MIDI: a bad package stops here)
     print(f"package: {product}  ({a.package})", file=out)
-    dev = up.find()
-    if not dev:
+    dev = up.find() if not (a.dry_run and a.running) else None
+    if not dev and a.route != "download" and not (a.dry_run and a.running):
         raise not_found(up)
+    text = a.running if a.running else (dev.id.text if dev else None)
+    route = choose_route(a, dev, text, out, image)
+    if a.dry_run:
+        if dev:
+            dev.link.close()
+        flash = AF.load(a.package)[2] if route.method == "download" else None
+        wipe = settings_decision(a, text, route_pkg(a, image), route, out, None)
+        AF.dry_run(AF.Env(out=out), route, route_pkg(a, image), flash, a.backup_dir, a.flash_image, wipe)
+        return 0
+    if route.method == "download":
+        return download(a, up, dev, route, out, ask, ask_text or ask_word)
+    return loader_install(a, up, dev, out, ask, product, image)
+
+
+AF = R = None
+
+
+def _route_modules():
+    """tools/fm1_anyflash.py and fm1_route.py, imported when first needed (fm1_rescue.py, which they use, imports this)"""
+    global AF, R
+    if AF is None:
+        import fm1_anyflash
+        import fm1_route
+        AF, R = fm1_anyflash, fm1_route
+
+
+def route_pkg(a, image, raw=None):
+    """the package as the route chooser sees it (fm1_route.package_kind: its identity, SHA-256, flash.bin's size)"""
+    raw = raw if raw is not None else open(a.package, "rb").read()
+    return R.package_kind(raw, flash_size(image if image is not None else logical_image(raw)))
+
+
+def settings_decision(a, running_text, info, route, out, ask_text):
+    """keep or erase the new firmware's settings and pairings (fm1_route.settings_policy, by the running -> package
+    pair): printed before anything is written; asked when the pair says so (unless --yes, --keep-settings or
+    --wipe-settings answer it) -> the fm1_layouts.WIPE key, "" to keep"""
+    if route.method != "download":
+        print("settings: kept (the running firmware's update loader writes the firmware area only)", file=out)
+        return ""
+    policy = R.settings_policy(running_text, info)
+    flag = "wipe" if a.wipe_settings else "keep" if a.keep_settings else None
+    asked = None
+    if flag is None and policy.ask and not a.yes and ask_text is not None:
+        sugg = "Y/n" if policy.default == "wipe" else "y/N"
+        ans = ask_text(f"{policy.reason}.\nErase the new firmware's settings and pairings? [{sugg}] ")
+        asked = (policy.default == "wipe") if ans == "" else ans in ("y", "yes")
+    choice, line = R.settings_choice(policy, flag, asked)
+    print(line, file=out)
+    return policy.target if choice == "wipe" else ""
+
+
+def choose_route(a, dev, text, out, image):
+    """the way for this package (tools/fm1_route.py): printed with the build's BOOTLOADER as this install takes it"""
+    info = route_pkg(a, image)
+    choice, line = AF.build_setting(a.package, a.keep_bootloader)
+    running = R.running_kind(text, dev.name if dev else "")
+    route = R.choose(running, info, choice, None, text or "")
+    if a.route == "download" and route.method == "loader":
+        soft, keys = R.entry_for(running, None)
+        route = R.Route("download", "--route download", f"by hand: {keys}" if not soft else
+                        "the installer sends the soft key over USB-MIDI", soft, choice == R.MBOOT, route.steps)
+    elif a.route == "loader" and route.method == "download" and info.kind != R.P_MBOOT and choice != R.MBOOT:
+        route = R.Route("loader", "--route loader (the running firmware may refuse it)")
+    AF.describe(AF.Env(out=out), route, info, text, dev.name if dev else "", line)
+    if route.method == "refused":
+        if dev:
+            dev.link.close()
+        raise InstallError("foreign", route.why)
+    return route
+
+
+def download(a, up, dev, route, out, ask, ask_text):
+    """the chip's download mode through M-Flasher (tools/fm1_anyflash.py): the soft key over this link"""
+    def close():
+        if dev:
+            dev.link.close()
+
+    def soft_key():
+        ok = bool(dev) and dev.link.send(R.SOFT_KEY)
+        close()
+        return ok
+
+    def back(product):
+        d = up.wait_for(lambda i: not i.loader, DELAY["wait_reboot"])
+        if d:
+            d.link.close()
+        return d.id.text if d else None
+    if not a.yes and not ask("Go on through download mode (each step shows what it writes and asks)? [y/N] "):
+        close()
+        print("cancelled", file=out)
+        return 1
+    env = AF.Env(out=out, ask=lambda q: "yes" if a.yes else ask_text(q), soft_key=soft_key, wait_back=back)
+    try:
+        AF.need_mflasher(env)
+        _, info, flash = AF.load(a.package)
+        wipe = settings_decision(a, dev.id.text if dev else None, route_pkg(a, None, raw=open(a.package, "rb").read()),
+                                 route, out, ask_text)
+        AF.download_install(env, route, a.package, flash, a.backup_dir, a.yes, info.product, wipe)
+    finally:
+        close()
+    return 0
+
+
+def loader_install(a, up, dev, out, ask, product, image):
     print(f"device:  {dev.id.text}  ({dev.name})" + ("  in update mode: the write will be finished" if dev.id.loader else ""),
           file=out)
     warn = platform_warning(dev.id, product, image)
@@ -561,6 +667,13 @@ def run(a, backend, out, ask):
     return 0
 
 
+def ask_word(prompt):
+    try:
+        return input(prompt).strip().lower()
+    except EOFError:
+        return ""
+
+
 def ask_tty(prompt):
     try:
         return input(prompt).strip().lower() in ("y", "yes")
@@ -568,26 +681,41 @@ def ask_tty(prompt):
         return False
 
 
-def main(argv=None, backend=None, out=sys.stdout, ask=ask_tty):
+def main(argv=None, backend=None, out=sys.stdout, ask=ask_tty, ask_text=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("package", nargs="?", help="Felucca package (.fwsc)")
     ap.add_argument("--info", action="store_true", help="print the identity of the connected FM-1")
     ap.add_argument("--port", metavar="NAME", help="MIDI port to use (part of its name)")
     ap.add_argument("--yes", action="store_true", help="do not ask for confirmation")
     ap.add_argument("--force", action="store_true", help="install a package without the Felucca loader marker")
+    ap.add_argument("--route", choices=("auto", "loader", "download"), default="auto",
+                    help="auto (docs/INSTALL-PATHS.md), the running firmware's loader, or download mode (M-Flasher)")
+    ap.add_argument("--keep-bootloader", action="store_true",
+                    help="keep the bootloader for this install, though the build says m-bootloader")
+    ap.add_argument("--dry-run", action="store_true", help="send nothing: print the route and what would be written where")
+    st = ap.add_mutually_exclusive_group()
+    st.add_argument("--keep-settings", action="store_true", help="download mode: keep the settings and pairings")
+    st.add_argument("--wipe-settings", action="store_true", help="download mode: erase the new firmware's settings and "
+                    "pairings (never the projects; never M-Flasher's --wipe-settings)")
+    ap.add_argument("--running", metavar="IDENTITY", help="--dry-run: the firmware the FM-1 runs (FM-1_700 ...), not asked")
+    ap.add_argument("--flash-image", metavar="BACKUP.bin", help="--dry-run: the exact sectors against this full flash image")
+    ap.add_argument("--backup-dir", type=Path, default=None, help="download mode: where the backups go "
+                    "(default: M-Flasher's, Documents/M-Flasher/backups)")
     a = ap.parse_args(argv)
+    _route_modules()
+    a.backup_dir = a.backup_dir or AF.default_backup_dir()
     if bool(a.info) == bool(a.package):
         ap.error("give a PACKAGE.fwsc or --info")
     try:
-        if backend is None:
+        if backend is None and not (a.dry_run and a.running):
             try:
                 backend = MidoBackend()
             except ImportError:
                 raise InstallError("usage", "needs mido and python-rtmidi (pip install mido python-rtmidi)")
-        return run(a, backend, out, ask)
-    except InstallError as e:
+        return run(a, backend, out, ask, ask_text)
+    except (InstallError, AF.AnyError, AF.MF.MFlasherError, AF.L.PlanError, AF.fm1_rescue.Fail) as e:
         print(f"error: {e}", file=sys.stderr)
-        return EXIT.get(e.code, 1)
+        return EXIT.get(getattr(e, "code", ""), AF.EXIT.get(getattr(e, "code", ""), 1))
     except KeyboardInterrupt:
         print("\ninterrupted: if the FM-1 is in update mode, run the install again to finish", file=sys.stderr)
         return 130

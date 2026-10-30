@@ -8,6 +8,7 @@ then "device asks, host answers" reads of the logical image. Run from the repo r
 Also checks logical_image/product_of against web/fm1base/fm1pkg.js (needs node and
 build/felucca.fwsc, skipped otherwise)."""
 import io
+import os
 import queue
 import shutil
 import subprocess
@@ -71,6 +72,7 @@ class FakeFM1:
         self.image, self.unplug_after, self.after_write = image, unplug_after, after_write
         self.stall_after, self.bad_addr = stall_after, bad_addr
         self.served = self.bad = self.upgrades = 0
+        self.soft_keys = 0                              # (the download-mode soft key F0 22 24 35 7D F7 received)
         self.sent, self.links, self.gen, self.lock = [], [], 0, threading.Lock()
         self.boot(identity, name)
 
@@ -98,7 +100,9 @@ class FakeFM1:
                 link.q.put(bytes(pkt))
 
     def rx(self, d):
-        if d == I.HS_QUERY:
+        if d == bytes([0xF0, 0x22, 0x24, 0x35, 0x7D, 0xF7]):
+            self.soft_keys += 1
+        elif d == I.HS_QUERY:
             t = self.identity.encode()
             self.tx(b"\xF0" + I.pack7(bytes([0, 0x59, 0x11, 0, 0, 0]) + t + bytes(28 - len(t))) + b"\xF7")
         elif d == I.UPGRADE:
@@ -312,20 +316,29 @@ def errors():
     rc, out, err = cli([pkgfile("own.fwsc", own), "--yes"], dev)
     ok(rc == 0 and "warning" not in out, "Optimist over Optimist, the normal layout: no warning")
     fm1b = package("FM-1_7900", size=0x93400)
+    os.environ["M_FLASHER"] = str(TMP / "no-m-flasher")   # (no M-Flasher here: download mode stops before the soft key)
     dev = FakeFM1(I.logical_image(fm1b), identity="FM-1_700", name="Optimist")
     rc, out, err = cli([pkgfile("fm1b.fwsc", fm1b), "--yes"], dev)
-    ok(rc == 6 and "fm1-base package" in err and "--force" in err and dev.upgrades == 0,
-       "fm1-base package over Optimist, --yes: stops before anything is sent")
+    ok(rc == 8 and "route:    download" in out and "M-Flasher is not installed" in err and dev.upgrades == 0
+       and not dev.soft_keys, "fm1-base package over Optimist: download mode; no M-Flasher -> exit 8, nothing sent")
     dev = FakeFM1(I.logical_image(fm1b), identity="FM-1_700", name="Optimist")
     rc, out, err = cli([pkgfile("fm1b.fwsc", fm1b)], dev, answer=False)
-    ok(rc == 1 and "warning:" in out and "cancelled" in out and dev.upgrades == 0, "... asked: no -> cancelled")
+    ok(rc == 1 and "cancelled" in out and dev.upgrades == 0 and not dev.soft_keys, "... asked: no -> cancelled")
+    # --route loader: the running firmware's loader as before (its warning, --force)
+    dev = FakeFM1(I.logical_image(fm1b), identity="FM-1_700", name="Optimist")
+    rc, out, err = cli([pkgfile("fm1b.fwsc", fm1b), "--yes", "--route", "loader"], dev)
+    ok(rc == 6 and "fm1-base package" in err and "--force" in err and dev.upgrades == 0,
+       "--route loader: fm1-base over Optimist, --yes: stops before anything is sent")
     dev = FakeFM1(I.logical_image(fm1b), identity="FM-1_700", name="Optimist", after_write="FM-1_7900")
-    rc, out, err = cli([pkgfile("fm1b.fwsc", fm1b), "--yes", "--force"], dev)
+    rc, out, err = cli([pkgfile("fm1b.fwsc", fm1b), "--yes", "--force", "--route", "loader"], dev)
     ok(rc == 0 and "warning:" in out and dev.upgrades == 2, "... --force installs it anyway")
     odd = package("FM-1_700", size=0xCE400)              # (flash.bin 0xCE000: fm1-base's SD card mode slot)
     dev = FakeFM1(I.logical_image(odd), identity="FM-1_700", name="Optimist")
+    rc, out, err = cli([pkgfile("odd.fwsc", odd), "--yes", "--route", "loader"], dev)
+    ok(rc == 6 and "0xce000" in err and dev.upgrades == 0, "--route loader: another layout's flash.bin over Optimist: stops")
+    dev = FakeFM1(I.logical_image(odd), identity="FM-1_700", name="Optimist")
     rc, out, err = cli([pkgfile("odd.fwsc", odd), "--yes"], dev)
-    ok(rc == 6 and "0xce000" in err and dev.upgrades == 0, "another layout's flash.bin over Optimist: stops")
+    ok(rc == 8 and "0xce000" in out and dev.upgrades == 0, "auto: that layout over Optimist goes to download mode")
     dev = FakeFM1(I.logical_image(fm1b), identity="FM-1_7900", name="Optimist", after_write="FM-1_7900")
     rc, out, err = cli([pkgfile("fm1b.fwsc", fm1b), "--yes"], dev)
     ok(rc == 0 and "warning" not in out, "fm1-base over fm1-base: no warning")

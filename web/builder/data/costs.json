@@ -1699,6 +1699,14 @@
     "pool": 4,
     "ramtext": -15452
    }
+  },
+  "BOOTLOADER": {
+   "1": {
+    "flash": 0,
+    "ram": 0,
+    "pool": 0,
+    "ramtext": 0
+   }
   }
  },
  "measured": "2026-10-30 00:55",
