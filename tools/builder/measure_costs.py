@@ -52,7 +52,7 @@ PAIRS = [{"MOTION": 1, "SECTIONS": 4},
          # (the buffer itself is computed: configure.py rev_lines; the automation store: auto_store)
          {"REV_PLATE": 1, "REV_FDN8": 1, "SPRING": 0}, {"REV_PLATE": 1, "REV_FDN8": 1, "SPRING": 1},
          {"REV_ROOM": 0, "REV_PLATE": 0, "REV_FDN8": 1},
-         {"ENG_CZ": 1, "NATIVE_BANKS": 1},       # (the CZ tone collections share the engine's tone code)
+         {"ENG_CZ": R.ENG_ON, "NATIVE_BANKS": 1},       # (the CZ tone collections share the engine's tone code; an engine "on" is ENG_ON (2): the registry's old 1 is no value of it, and a pair named ENG_CZ=1 never held nor built, 2026-10-30)
          # the five sampled kits share the PERC samples: each kit's own delta is ~0, all five off together drop them
          {f"KIT_{k}": 0 for k in ("ACOUSTIC", "DEEP", "TIGHT", "BRIGHT", "DUST")},
          {"DRUM_X0X909": 1, "DRUM_X0X808": 1},   # (the X0X drum voice code and its state, once for both kits)
@@ -74,7 +74,7 @@ PAIRS = [{"MOTION": 1, "SECTIONS": 4},
          # flash beyond its items' deltas): the CPU guard's parts in the ACID engine and the X0X drums (cpuguard.c,
          # eng_acid.c, drum_x0x.c: built only with both); MACROS with USB_CONSOLE 0 measured
          # so (+1.2 KB), the code behind it not traced
-         {"CPU_GUARD": 1, "ENG_ACID": 1}, {"CPU_GUARD": 1, "DRUM_X0X909": 1}, {"CPU_GUARD": 1, "DRUM_X0X808": 1},
+         {"CPU_GUARD": 1, "ENG_ACID": R.ENG_ON}, {"CPU_GUARD": 1, "DRUM_X0X909": 1}, {"CPU_GUARD": 1, "DRUM_X0X808": 1},
          {"CPU_GUARD": 1, "DRUM_X0X909": 1, "DRUM_X0X808": 1},
          {"MACROS": 1},
          # BLE's bond and central together share code each one's delta pays (-3.5 KB flash, -0.35 KB RAM); and with
@@ -455,8 +455,8 @@ PAIRS.append({"BLE": 1, "ED_MIRROR": 1})
 # with TAB_CODED_ALL, PLAITS' waveshapers (2,570 B) and JUNO's cutoff steps (1,025 B) leave flash for the pool too
 # (gen_tables.py's "plaits" and "juno" groups, 2026-10-24): the base has neither engine, so neither delta sees it
 for _tca in (1, 2):
-    PAIRS.append({"TAB_CODED_ALL": _tca, "ENG_PLAITS": 1})
-    PAIRS.append({"TAB_CODED_ALL": _tca, "ENG_JUNO": 1})
+    PAIRS.append({"TAB_CODED_ALL": _tca, "ENG_PLAITS": R.ENG_ON})
+    PAIRS.append({"TAB_CODED_ALL": _tca, "ENG_JUNO": R.ENG_ON})
 # the reverb off grows RAMTEXT (its delta +1,284 B), which item_delta's clamp of an item switched off counts 0: measured
 # here, beyond the estimate (2026-10-26, cloud build issue 58: estimated 1,752 B of RAMTEXT free, linked 112 B over;
 # from drum-machines~ FX_REVERB=0 really added 2,328 B, the estimate 980)
