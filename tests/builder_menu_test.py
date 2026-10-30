@@ -93,6 +93,11 @@ async def sort_test():
                   len(groups) == 1 and all(not n.children for n in groups[0].children))
             check(f"sort {want}: largest first over every item", known == sorted(known, reverse=True))
             check(f"sort {want}: unmeasured items last", vals == known + [None] * (len(vals) - len(known)))
+            heads = [k for k in flat if R.ITEMS[k].menu_children]
+            check(f"sort {want}: a head shows its whole subtree's count after its box, e.g. DRUMS (n)",
+                  heads and all(f"] ({app.subtree_count(k)}) " in str(app.nodes[k].label) or
+                                f"> ({app.subtree_count(k)}) " in str(app.nodes[k].label) for k in heads)
+                  and app.subtree_count("DRUMS") > len(R.ITEMS["DRUMS"].menu_children))
             check(f"sort {want}: the same items as the default order (children and options too)",
                   sorted(flat) == sorted(default_all))
             check(f"sort {want}: the sorted column is highlighted",

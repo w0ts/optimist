@@ -228,6 +228,9 @@ class Builder(App):
             box = f"<{lab}>"
         else:
             box = "[x]" if v else "[ ]"
+        n = self.subtree_count(key) if self.sort_by else 0   # (the flat sort: a head's cost holds its whole subtree)
+        if n:
+            box += f" ({n})"
         t = Text(f"{box} {it.label}", style="" if live and not it.fixed else "dim")
         if it.experimental:
             t.append("  EXPERIMENTAL", style="bold magenta")
@@ -312,6 +315,17 @@ class Builder(App):
         return sorted(keys, key=lambda k: (cost(k) is None, -(cost(k) or 0)))     # (sorted() is stable)
 
     SORT_PARTS = {"flash": ("flash",), "ram": ("ram", "pool", "ramtext")}   # (ram: the SRAM budget's parts, one sum)
+
+    @staticmethod
+    def subtree_count(key):
+        """how many items sit under key in the tree, at every depth (its options' options too)"""
+        seen, todo = set(), list(R.ITEMS[key].menu_children)
+        while todo:
+            k = todo.pop()
+            if k not in seen:
+                seen.add(k)
+                todo.extend(R.ITEMS[k].menu_children)
+        return len(seen)
 
     def sort_cost(self, k):
         """what item k costs in the sort's budget (flash; or ram: its ram + pool + ramtext), None when unmeasured"""
