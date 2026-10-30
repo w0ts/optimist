@@ -399,6 +399,8 @@ int main(void)
                         uint32_t ok = 1;
                         if (t != FXT_NONE && !(fxp_ok(ow) >> t & 1u))
                             continue;
+                        if (FXP_IS_RET(ow) && sl >= 2u && t != FXT_NONE && t == fxp_type(ow, 0))
+                            continue;                   /* (a return's PRE / POST: never its effect's type, a type once a return) */
                         if (!(ow == FXP_USB && sl == 2u) && !(FXP_IS_RET(ow) && sl == 1u))
                             fxp_set_type(ow, sl, t), ok = fxp_type(ow, sl) == t, tried++;
                         for (i = 0; i < fxp_n(ow, sl); i++) {
@@ -439,6 +441,7 @@ int main(void)
             {   /* a return's PRE and POST (slots 2, 3): loaded, one amount, its line's */
                 static const uint8_t PB[] = {1, FXP_RET0 + 1, 2, FXT_DIST}, PX[] = {1, FXP_RET0 + 1, 3, FXT_DIST};
                 uint32_t ln = fxs_line[2];
+                rp_untlv(0, 0);                         /* (the every-owner walk above left types in the stages) */
                 ed_begin(ED_FXP); r = ed_fxp(ED_FXP, PB, sizeof PB);
                 check(r && ln < 3u && rp_ty[ln][RP_PRE] == FXT_DIST && ed_out[12] == FXT_DIST && ed_out[13] == 1u,
                       "v13 FXP op 1: return B's slot 2 loads PRE DIST (its line's), one parameter");

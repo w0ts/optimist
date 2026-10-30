@@ -41,16 +41,16 @@ static int32_t blk(uint32_t j, int32_t a, uint32_t b0)
 }
 /* the peak of the mix over blocks 120 .. 199 with the sine on line j (the ramps, the tails' start done); rsig: a sum of the
  * mix's samples over those blocks (to tell two renders apart) */
-static uint32_t rsig;
+static uint32_t rsig, nblk = 200u;
 static int32_t run(uint32_t j, int32_t a)
 {
     uint32_t i, k;
     int32_t pk = 0, p;
     rsig = 0;
-    for (i = 0; i < 200u; i++) {
+    for (i = 0; i < nblk; i++) {
         p = blk(j, a, i);
-        pk = i >= 120u && p > pk ? p : pk;
-        for (k = 0; i >= 120u && k < CTL; k++)
+        pk = i >= nblk * 3u / 5u && p > pk ? p : pk;
+        for (k = 0; i >= nblk * 3u / 5u && k < CTL; k++)
             rsig = rsig * 31u + (uint32_t)mix_l[k];
     }
     return pk;
@@ -87,10 +87,14 @@ int main(void)
         fxs_load(1, FXT_FILT);
         fxs_ramt[1] = 0;
         j = fxs_line[1];
+        quiet();                                        /* (the same history before both measures) */
+        (void)run(j, 8000);
         p0 = run(j, 8000);
         rp_load(j, RP_PRE, FXT_DIST);
         rp_load(j, RP_POST, FXT_DYN);
         rp_amt[j][RP_PRE] = rp_amt[j][RP_POST] = 0;
+        quiet();
+        (void)run(j, 8000);
         p1 = run(j, 8000);
         printf("fx_retins: (generic: the peak without %d, with PRE DIST 0, POST DYN 0 %d)\n", (int)p0, (int)p1);
         check("generic (A FILT open): PRE DIST at 0, POST DYN at 0: through, the same peak", p0 > 1000 && abs(p1 - p0) <= p0 / 100 + 2);
@@ -105,6 +109,7 @@ int main(void)
 #if FELUCCA_FX_DELAY && FELUCCA_FX_DIST
     /* bus: B holds the delay (line 1), its POST DIST driven */
     song.g[G_DMIX] = 127;
+    nblk = 3000u;                                       /* (the delay's time: its repeats, then the measure over a second) */
     j = fxs_line[2];
     rp_load(j, RP_POST, FXT_DIST);
     rp_amt[j][RP_POST] = 110;
@@ -134,6 +139,7 @@ int main(void)
     for (n = 0; n < 200u; n++)
         blk(j, 0, n);
     check("... both stages gone: the wrapper lets go after its tail (rp_lvm 0)", !rp_m && !rp_lvm);
+    nblk = 200u;
     reset_all();
 #endif
 #if FELUCCA_FX_REVERB && FELUCCA_FX_DIST
