@@ -158,12 +158,11 @@ for _k in C.NEEDS_AUTO:
             WITH.setdefault((_k, _v), {"MOTION": 1})
 # the SD card mode's items: none is valid on the defaults (2026-10-27: --missing skipped all eleven, so builder_test
 # found them unmeasured): each measured with what configure.validate asks of it, less those items' own deltas. The big
-# layout (LAYOUT 1) wants the sample engine, the user drums and the snapshots out and the patterns in; OVERLAY
-# and the card's recorder and rings want LAYOUT 1 (measured first: they subtract it); the rings want SAMPLE and an
+# layout (LAYOUT 1) wants the sample engine, the user drums and the snapshots out and the patterns in; the card's
+# recorder and rings want LAYOUT 1 (measured first: they subtract it); the rings want SAMPLE and an
 # arena (ARENA on)
 _LAYOUT = {"ENG_SAMPLE": 0, "DRUM_USR": 0, "SNAPSHOTS": 0, "PATTERNS": 1}
 WITH[("LAYOUT", 1)] = dict(_LAYOUT)
-WITH[("OVERLAY", 1)] = dict(_LAYOUT, LAYOUT=1)
 WITH[("BT_PROJ", 1)] = {"BLE": 1, "ED_MIRROR": 1, "PATTERNS": 1}
 for _v in (16, 32, 64):
     WITH[("SD_REC", _v)] = dict(_LAYOUT, LAYOUT=1)

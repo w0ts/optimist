@@ -295,7 +295,7 @@ const mem = await run(`${U} const gs = [...document.querySelectorAll(".group")].
   await B.setItem("MEMORY", 0); const back = { L: B.state.values.LAYOUT, S: B.state.values.SDCARD, M: B.state.values.MEMORY };
   return { first: gs[0], gs, memKeys: keysOf("Memory management"), conn: keysOf("Connectivity"), sd, back };`);
 ok(mem.first === "Memory management" && !mem.gs.includes("USB & BT & MIDI") && mem.gs.includes("Connectivity")
-   && mem.memKeys[0] === "MEMORY" && ["ARENA", "SD_RING", "SD_REC", "OVERLAY"].every((k) => mem.memKeys.includes(k)) && ["RAM_PACKED", "LAYOUT", "SDCARD", "FAR_OK"].every((k) => !mem.memKeys.includes(k)),
+   && mem.memKeys[0] === "MEMORY" && ["ARENA", "SD_RING", "SD_REC"].every((k) => mem.memKeys.includes(k)) && ["RAM_PACKED", "LAYOUT", "SDCARD", "FAR_OK", "OVERLAY"].every((k) => !mem.memKeys.includes(k)),
    "page: Memory management is the first section (MEMORY alone of the layout rows, then ARENA ...), Connectivity replaces USB & BT & MIDI");
 ok(mem.conn.includes("WIFI_LINK") && mem.conn.includes("WIFI_AP"), "page: Connectivity lists Wi-Fi + Link and the access point");
 ok(mem.sd.L === 1 && mem.sd.S === 1 && mem.sd.M === 2 && mem.back.L === 0 && mem.back.S === 0 && mem.back.M === 0,

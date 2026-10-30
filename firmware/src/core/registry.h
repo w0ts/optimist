@@ -753,10 +753,6 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
                                             * (storage/sd/sd_rec.c: the card's stalls it covers); 0 off */
 #endif
 #define FELUCCA_SD_REC (FELUCCA_SD_FATFS && FELUCCA_SD_REC_KB > 0)   /* (full FatFs: the big layout's) */
-#ifndef FELUCCA_OVERLAY
-#define FELUCCA_OVERLAY 0                  /* the RAMTEXT overlays (core/overlay.c, docs/SD-MODE-DESIGN.md 6): the engines' hot
-                                            * code in a slot per part, loaded at an engine change; needs LAYOUT 1 (flash) */
-#endif
 #ifndef FELUCCA_LANE_FX
 #define FELUCCA_LANE_FX 0                  /* a black key held on the drum track: its lane's FX page (ROLL CHANCE FILL NUDGE),
                                             * kept as the pattern's automation events (seq/lane_fx.c, auto.h AUTO_IS_LFX) */

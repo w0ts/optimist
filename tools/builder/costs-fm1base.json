@@ -1717,14 +1717,6 @@
     "ramtext": 224
    }
   },
-  "OVERLAY": {
-   "1": {
-    "flash": -11284,
-    "ram": -4,
-    "pool": 4,
-    "ramtext": 1018
-   }
-  },
   "BOOTLOADER": {
    "1": {
     "flash": 0,

@@ -127,8 +127,6 @@ def set_memory(cfg, mode):
         out.update(LAYOUT=1, SDCARD=1)
     else:
         out.update(LAYOUT=mode, SDCARD=0, SD_RING=0, SD_REC=0)
-        if mode == 0:
-            out.update(OVERLAY=0)
     return sync_memory(out)
 
 
@@ -284,9 +282,6 @@ def validate(cfg):
     if cfg.get("SD_REC") and not (cfg.get("SDCARD") and cfg.get("LAYOUT") == 1):
         err.append(Issue("recording to the card (SD_REC) needs the card under full FatFs (SDCARD, LAYOUT 1)",
                          ["SD_REC", "SDCARD", "LAYOUT"]))
-    if cfg.get("OVERLAY") and not cfg.get("LAYOUT"):   # each slot engine's code linked once per slot: the big flash
-        err.append(Issue("the RAMTEXT overlays put each engine's fast code in flash once per part: they need the fake "
-                         "SD mode layout (LAYOUT 1)", ["OVERLAY", "LAYOUT"]))
     revs = [k for k in R.REV_ALGOS if k in R.ITEMS]
     if built(cfg, "FX_REVERB") and not any(cfg[k] for k in revs):
         err.append(Issue("the reverb bus needs an algorithm: tick ROOM, PLATE, FDN8, SPRING or VTINY "
@@ -987,24 +982,14 @@ def ram_engine_code(cfg):
     return sum(R.FAST_BYTES.get(k, 0) for k, names in R.FAST_NAMES.items() if fl.get(f"FAST_RAM_{names[0]}") and built(cfg, k))
 
 
-def overlay_ram(cfg):
-    """-> {region: bytes} OVERLAY's RAM code: the engines' hot code leaves the RAM code for the parts' slots, so it
-    saves what the RAM engines built have, nothing without them. Measured 2026-10-30 (release, d10ac475, RAMTEXT on - off):
-    the user's fm1-next profile (no engine in RAM) +116 B; with ANALOG in RAM -5,292 (FAST_BYTES 5,132); with ANALOG,
-    PHASE, DIGITAL -8,800 (8,706); sd-mode-probe -6,556 (6,446); sd-card-mots -18,140 (17,042); the measurement
-    context -15,380 (16,398). The delta from the defaults alone (-15,452) said -15 KB for each of them"""
-    return {"ramtext": -ram_engine_code(cfg)} if built(cfg, "OVERLAY") else {}
-
-
 def model_terms(cfg):
     """-> {region: bytes} the computed part of the estimate, against the default build: what is not a sum of
     per-item deltas (the reverb's line buffer, rev_lines; the automation store, auto_store; the engines' part
-    states, part_mem; the delay arena, dly_arena; the arena for both, arena_mem; the pooled tables' set, tab_pool;
-    the overlays' RAM code, overlay_ram)"""
+    states, part_mem; the delay arena, dly_arena; the arena for both, arena_mem; the pooled tables' set, tab_pool)"""
     d = defaults()
     arena = ({"pool": dly_arena(cfg)["pool"]}, {"pool": dly_arena(d)["pool"]})
     terms = [(rev_lines(cfg), rev_lines(d)), (auto_store(cfg), auto_store(d)), (part_mem(cfg), part_mem(d)), arena,
-             (arena_mem(cfg), arena_mem(d)), (tab_pool(cfg), tab_pool(d)), (overlay_ram(cfg), overlay_ram(d))]
+             (arena_mem(cfg), arena_mem(d)), (tab_pool(cfg), tab_pool(d))]
     return {r: sum(a.get(r, 0) - b.get(r, 0) for a, b in terms) for r in REGIONS}
 
 

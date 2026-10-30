@@ -94,34 +94,17 @@ enum { Q_OFF, Q_SNAP, Q_WHITE, Q_ALL, Q_SEQ };   /* P_QUANT (SCL › KEYS): seq.
  * keeps the whole audio path in XIP; the same code, placed elsewhere) */
 #define HOT __attribute__((section(".ram_hot")))
 #define HOT2 __attribute__((section(".ram_hot2")))
-#if FELUCCA_OVERLAY
-#define RTO_TARGET 1
-#define OVL(n) __attribute__((section(".ovl." #n)))
-#define OVLX(n) __attribute__((section(".ovx." #n)))
-#endif
 #else
 #define HOT
 #define HOT2
-#endif
-/* OVL(name): an engine's hot code (its sound hooks and what only they call), HOT without the RAMTEXT overlays; OVLX(name)
- * the same for an engine whose code runs from XIP without them. With FELUCCA_OVERLAY (docs/SD-MODE-DESIGN.md 6,
- * core/overlay.c) each engine's code is a section of its own (.ovl.name / .ovx.name, the hooks' table .ovh.name) that
- * tools/build.py places: into the parts' slots in RAMTEXT (linked once per slot address), or where it runs without
- * the overlays (RAMTEXT, XIP) when it is larger than a slot. Rules: as HOT's; a section's code calls only itself and
- * resident code, and nothing resident calls or names it (build.py checks: the resident image is the same in every
- * slot's link) but through its hooks' table (OVL_ENGINE) */
-#if FELUCCA_OVERLAY && defined(__PI32V2__) && !defined(RTO_TARGET)
-#error "FELUCCA_OVERLAY needs the RAM code sections (no ASM_CHECK build)"
 #endif
 /* Where an engine's hot code runs (2026-10-29, the builder's engine items: off / on / on, code in RAM): FAST_RAM_<name>
  * 1 its render path is RAM code (HOT), 0 it runs from XIP. The builder writes every engine's into felucca_config.h
  * (configure.py, registry.py FAST_NAMES); a build without them (the host tests, a hand-made header) gets where each
  * ran until then: ANALOG 2 and SUPER, PHASE, DIGITAL, TRIO, FORMANT, DRAWBAR, LOFI, SAMPLE in RAM, the rest in XIP.
- * OVL(name) / OVLX(name) (the overlay engines' marks) and FAST(name) (the others': FM6, ACID, PLAITS, PHYS, PROPHET,
- * JUNO, CZ) pick HOT or nothing by it. RAM code calls only RAM code (or through a pointer, FAR), XIP code calls RAM
+ * FAST(name), an engine's mark on its hot code (its sound hooks and what only they call), picks HOT or nothing by it. RAM code calls only RAM code (or through a pointer, FAR), XIP code calls RAM
  * code only through a pointer: an engine's choice moves its marked functions together, and what they call directly
- * is marked with it or always_inline (the release's tools/ramcode.py and the linker refuse the rest). With the
- * overlays (FELUCCA_OVERLAY) the overlay link decides instead and FAST(name) is XIP, as before */
+ * is marked with it or always_inline (the release's tools/ramcode.py and the linker refuse the rest) */
 #ifndef FAST_RAM_analog
 #define FAST_RAM_analog 1
 #endif
@@ -211,14 +194,7 @@ static inline __attribute__((always_inline)) void fast_zero(void *p, uint32_t n)
 #define FAST_PLACE_(x) FAST_PLACE_##x
 #define FAST_PLACE_1 HOT
 #define FAST_PLACE_0
-#ifndef RTO_TARGET
-#define RTO_TARGET 0
-#define OVL(n) FAST_PLACE(FAST_RAM_##n)
-#define OVLX(n) FAST_PLACE(FAST_RAM_##n)
 #define FAST(n) FAST_PLACE(FAST_RAM_##n)
-#else
-#define FAST(n)
-#endif
 /* This compiler inlines a function into a caller in another section only when it is always_inline:
  * AINL marks the small helpers that the HOT code and the rest both use (inlined everywhere). */
 /* IN_POOL: a zeroed buffer of the main loop (no audio loop reads it) in the pool instead of main RAM (app.ld .pool,
@@ -681,31 +657,6 @@ typedef struct {
     /* optional: the part's block after its voices (FM6: Dexed's DC filter); nr: voices rendered */
     void (*post)(struct track *t, int32_t *out, uint32_t n, uint32_t nr);
 } engine_t;
-
-/* An engine's sound hooks in its overlay (FELUCCA_OVERLAY, core/overlay.c): the engine_t's render, block, amp and post
- * are 0 (OVL_FN) and track_render takes them from here, the first bytes of the engine's code wherever build.py put it
- * (a part's slot once loaded, or RAMTEXT / XIP). tag: RTO_TAG(the engine's slot). Without the overlays: OVL_FN(f) is f,
- * OVL_ENGINE nothing, the build as before */
-typedef struct {
-    uint32_t tag;
-    void (*render)(struct track *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m);
-    void (*block)(struct track *t);
-    int32_t (*amp)(struct track *t, voice_t *v, int32_t adsr);
-    void (*post)(struct track *t, int32_t *out, uint32_t n, uint32_t nr);
-} rto_hdr_t;
-#define RTO_TAG(slot) (0x4F560000u | (uint32_t)(slot))   /* "OV", the engine's slot */
-#if FELUCCA_OVERLAY
-#define OVL_FN(f) 0
-#if RTO_TARGET
-#define OVL_ENGINE(n, slot, r, b, a, p)                                                                     \
-    static const rto_hdr_t rto_hdr_##n __attribute__((section(".ovh." #n), used)) = {RTO_TAG(slot), r, b, a, p};
-#else                                                    /* (the host: overlay.c lists them, RTO_HOST) */
-#define OVL_ENGINE(n, slot, r, b, a, p) static const rto_hdr_t rto_hdr_##n = {RTO_TAG(slot), r, b, a, p};
-#endif
-#else
-#define OVL_FN(f) f
-#define OVL_ENGINE(n, slot, r, b, a, p)
-#endif
 
 /* ------------------------------------------------------------ track --- */
 #define T_SILENT(t) (PART_DROPS && (t)->silent)   /* a silent placeholder (track_t.silent; only with an ARENA) */
