@@ -1719,14 +1719,14 @@
   },
   "OVERLAY": {
    "1": {
-    "flash": -11288,
+    "flash": -11284,
     "ram": -4,
     "pool": 4,
-    "ramtext": -15380
+    "ramtext": 1018
    }
   }
  },
- "measured": "2026-10-30 06:49",
+ "measured": "2026-10-30 06:56",
  "cpu": {
   "scale_pct": 104,
   "calibrated": "2026-10-06, emulator at 96 MHz, bench.c scenarios 1 2 3 7 8 (docs/CPU-GUARD.md); X0X: 2026-10-07, scenario 8 on the X0X 909 and 808 kits (x0x-drums)",
@@ -2333,7 +2333,7 @@
    },
    "built_hash": "26dc3c45",
    "sizes": {
-    "flash": 625876,
+    "flash": 625880,
     "ram": 111248,
     "pool": 303720,
     "ramtext": 50384
@@ -2343,7 +2343,7 @@
      "from": 1,
      "to": 0,
      "delta": {
-      "flash": 21756,
+      "flash": 21752,
       "ram": 184,
       "pool": 12,
       "ramtext": 1500
@@ -2353,7 +2353,7 @@
      "from": 0,
      "to": 1,
      "delta": {
-      "flash": 29132,
+      "flash": 29128,
       "ram": 776,
       "pool": 6612,
       "ramtext": -40
@@ -2363,7 +2363,7 @@
      "from": 1,
      "to": 0,
      "delta": {
-      "flash": -3300,
+      "flash": -3304,
       "ram": -1148,
       "pool": -556,
       "ramtext": 0
@@ -2754,7 +2754,7 @@
      "from": 0,
      "to": 1,
      "delta": {
-      "flash": -788,
+      "flash": -784,
       "ram": 4,
       "pool": -200,
       "ramtext": -40
@@ -3885,7 +3885,7 @@
    },
    "built_hash": "6b87f897",
    "sizes": {
-    "flash": 621480,
+    "flash": 621484,
     "ram": 109816,
     "pool": 303100,
     "ramtext": 48280
@@ -3895,7 +3895,7 @@
      "from": 1,
      "to": 0,
      "delta": {
-      "flash": 21288,
+      "flash": 21284,
       "ram": 252,
       "pool": 12,
       "ramtext": 1864
@@ -3905,7 +3905,7 @@
      "from": 1,
      "to": 0,
      "delta": {
-      "flash": 776,
+      "flash": 772,
       "ram": -4,
       "pool": 200,
       "ramtext": 40
@@ -3915,7 +3915,7 @@
      "from": 0,
      "to": 1,
      "delta": {
-      "flash": 33148,
+      "flash": 33144,
       "ram": 1888,
       "pool": 7368,
       "ramtext": 0
