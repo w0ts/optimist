@@ -662,7 +662,7 @@ def auto_store(cfg):
 # the array with each member alone (sizes.json "symbols", measure_costs.py holds these against every build it makes)
 # (2026-10-26: JUNO, DRAWBAR, CZ and SLICE's states moved in from their static arrays: their measured item costs in
 # costs.json still count those arrays as RAM until a re-measure)
-PART_MEM = {"ENG_FM6": 11712, "ENG_PHYS": 38664, "ENG_GRAIN": 21060, "ENG_ACID": 1440, "ENG_PLAITS": 1920,
+PART_MEM = {"ENG_FM6": 11712, "ENG_PHYS": 38700, "ENG_GRAIN": 21060, "ENG_ACID": 1440, "ENG_PLAITS": 1920,
             "ENG_JUNO": 1332, "ENG_DRAWBAR": 2496, "ENG_CZ": 3120, "ENG_SLICE": 3072}   # (2026-10-26: part_mem, measured on main)
 PART_MEM_NONE = 0                                   # (none built: not in the image)
 
