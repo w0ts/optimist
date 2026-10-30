@@ -29,6 +29,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
+os.environ["OPTIMIST_ALLOW_UNBUILT"] = "1"      # (core.validate would refuse the registry's NOT_BUILT values: this run probes them itself)
 sys.path.insert(0, str(HERE))
 import configure as C  # noqa: E402
 import registry as R  # noqa: E402
@@ -168,6 +169,10 @@ for _v in (16, 32, 64):
     WITH[("SD_REC", _v)] = dict(_LAYOUT, LAYOUT=1)
 for _v in (4, 8, 12, 16):
     WITH[("SD_RING", _v)] = dict(_LAYOUT, LAYOUT=1, ENG_SAMPLE=1, ARENA=192)
+
+
+def name_of(k, v):
+    return f"m-{k}-{v}"[:16]
 
 
 def with_depth(k):
@@ -312,7 +317,24 @@ LAST_ERROR = [""]       # (why the last optional measurement did not build)
 # Bluetooth audio and its options want BLE (op_bt.c), the central wants the bond too, the SD card its layout (opt_sd_mmc.c)
 LADDER = ({"BLE": 1}, {"BLE": 1, "BLE_BOND": 1},
           {"LAYOUT": 1, "ENG_SAMPLE": 0, "DRUM_USR": 0, "SNAPSHOTS": 0, "PATTERNS": 1})
-UNBUILDABLE = {}        # (a run's: "KEY=value" -> why the release does not build it, costs-fm1base.json "unbuildable")
+UNBUILDABLE = {}        # (a run's: "KEY=value" -> "not in this build: why", the registry's NOT_BUILT, probed; costs*.json "unbuildable")
+FAILED = {}             # (a run's: what should build and does not, "KEY=value" / "pair ..." -> the link error: reported loudly, rc 1)
+
+
+def kind():
+    """-> the build kind being measured: "classic" (Optimist's own firmware) or "release" (the fm1-base app)"""
+    return "classic" if C.classic() else "release"
+
+
+def declared(cfg):
+    """-> [(key, value, why)] the registry's NOT_BUILT values cfg sets, for this build kind"""
+    return [(k, v, R.not_built(k, v, kind())) for k, v in cfg.items() if k in R.ITEMS and R.not_built(k, v, kind())]
+
+
+def record_failure(name):
+    """a measurement that should have built and did not: kept for the loud report at the end"""
+    FAILED[name] = LAST_ERROR[0]
+    print(f"  FAILED {name}: {LAST_ERROR[0]}", flush=True)
 
 
 def last_error(out, log):
@@ -329,7 +351,7 @@ def measure(cfg, name, log, like=None, optional=False):
     ok, sizes, out = run_build(cfg, name, log)
     _FULL[name] = sizes
     if not (ok and sizes) and optional and not C.classic():
-        LAST_ERROR[0] = last_error(out, log)             # (the release does not build it: None, the caller says so)
+        LAST_ERROR[0] = last_error(out, log)             # (the release: it does not build: None, the caller says so, and reports it unless the registry marks it)
         return None
     over = None if ok and sizes else pool_overflow(out)
     if over is None and (not ok or not sizes):
@@ -340,6 +362,9 @@ def measure(cfg, name, log, like=None, optional=False):
         sizes = dict(like, pool=MEASURE_SRAM + over - like["ram"] - like["ramtext"])
         ok = True
     if not ok or not sizes:
+        if optional:                                     # (classic: it does not link: None; the caller says so, and reports it unless the registry marks it)
+            LAST_ERROR[0] = last_error(out or (Path(log).read_text(errors="replace") if log and Path(log).exists() else ""), log)
+            return None
         raise SystemExit(f"measure_costs: {name} failed (log {log})\n{out[-1500:]}")
     check_terms(cfg, sizes, name)
     return {r: sizes[r] for r in REG}
@@ -499,7 +524,7 @@ def probe(name, cfg):
             continue
         alt = [v for v in ([c[0] for c in it.choices] if it.is_choice else [0, 1]) if v != out[k]]
         trial = dict(out, **{k: alt[C.fnv32(f"{name}={k}") % len(alt)]})
-        if C.validate(trial)[0] or not C.distance(trial, out):
+        if C.validate(trial)[0] or declared(trial) or not C.distance(trial, out):
             continue
         out, n = trial, n + 1
         if n == PROBE_ITEMS:
@@ -519,13 +544,19 @@ def measure_checks(logd):
     configuration that does not build, which is the firmware's problem (tools/builder/verify.py), not the estimate's)"""
     out = {}
     for name, cfg in check_configs(probes=True).items():
-        ok, sizes, text = run_build(cfg, f"m-chk-{name}"[:16], logd / f"check-{name}.log")
         out[name] = dict({"hash": f"{C.cfg_hash(cfg):08x}"}, **C.anchor_record(cfg))
+        nb = declared(cfg)
+        if nb:                                          # (a value this build kind cannot build: not a failure, no measurement)
+            out[name]["not_in_this_build"] = "; ".join(f"{k}={v}: {why}" for k, v, why in nb)
+            print(f"  check {name}: not in this build ({out[name]['not_in_this_build'][:120]})", flush=True)
+            continue
+        ok, sizes, text = run_build(cfg, f"m-chk-{name}"[:16], logd / f"check-{name}.log")
         if ok and sizes:
             out[name]["sizes"] = {r: sizes[r] for r in REG}
         else:
             out[name]["failed"] = (text.strip().splitlines() or ["?"])[-1][:200]
-            print(f"  check {name}: the build failed ({out[name]['failed']}; log {logd / f'check-{name}.log'})")
+            FAILED[f"check {name}"] = out[name]["failed"]
+            print(f"  FAILED check {name}: the build failed ({out[name]['failed']}; log {logd / f'check-{name}.log'})")
         print(f"  check {name}: {out[name].get('sizes')}", flush=True)
     return out
 
@@ -658,8 +689,7 @@ def item_delta_of(out, k, v, cfg, base, logd, prev_sizes, ladder=False):
         sr = measure(ref, f"m-{k}-def"[:16], logd / f"{k}-def.log", optional=True) if sv else None
         if not sv or not sr:
             bad = R.ITEMS[k].default if sv else v       # (the side that does not build: the one measured against)
-            UNBUILDABLE[f"{k}={bad}"] = LAST_ERROR[0]
-            print(f"  {k}={bad}: the release does not build it ({LAST_ERROR[0]}): delta of {k}={v} from costs.json", flush=True)
+            record_failure(f"{k}={bad}")
             return classic_delta(k, v), prev_sizes
         t, tr = C.model_terms(cfg), C.model_terms(ref)
         return {r: sv[r] - sr[r] - (t[r] - tr[r]) for r in REG}, sv
@@ -670,8 +700,7 @@ def item_delta_of(out, k, v, cfg, base, logd, prev_sizes, ladder=False):
         if s is None and not C.classic():
             return None
     if s is None:
-        UNBUILDABLE[f"{k}={v}"] = LAST_ERROR[0]
-        print(f"  {k}={v}: the release does not build it ({LAST_ERROR[0]}): delta from costs.json", flush=True)
+        record_failure(f"{k}={v}")
         return classic_delta(k, v), prev_sizes
     ctx = {r: 0 for r in REG}                           # (what cfg has beyond the start, counted by its own deltas, as the
     for j, x in cfg.items():                            # sum model counts them: an item whose parent is off not at all,
@@ -690,6 +719,7 @@ def run(a, old, logd, new_pairs, write):
     (run_build only records the builds: nothing is written, no CPU model)"""
     t0 = time.time()
     UNBUILDABLE.clear()
+    FAILED.clear()
     base = measure(start(), "measure-base", logd / "base.log")
     limits = release_limits()
     out = {"base": base, **({"limits": limits} if limits else {}), "deltas": dict(old.get("deltas", {})) if a.only is not None else {},
@@ -715,6 +745,16 @@ def run(a, old, logd, new_pairs, write):
             if it.parent:
                 cfg[it.parent] = parent_on(R.ITEMS[it.parent])
             cfg.update(WITH.get((k, v), {}))
+            why = R.not_built(k, v, kind())
+            if why:                                     # (the registry: this build kind cannot build it; built once to show the link error)
+                out["deltas"][k][str(v)] = {r: 0 for r in REG}
+                if measure(cfg, name_of(k, v), logd / f"{k}-{v}.log", optional=True) is not None and _PLAN is None:
+                    FAILED[f"{k}={v}"] = f"marked not in this build ({why}) but it LINKS: take the mark off registry.NOT_BUILT"
+                    print(f"  FAILED {k}={v}: {FAILED[f'{k}={v}']}", flush=True)
+                else:
+                    UNBUILDABLE[f"{k}={v}"] = f"not in this build: {why} [link: {LAST_ERROR[0]}]"
+                    print(f"  {k}={v}: not in this build ({kind()}): {LAST_ERROR[0]}", flush=True)
+                continue
             err, _, _ = C.validate(cfg)
             if err:                                     # (e.g. the last FM6 mode: measured with another off)
                 print(f"  {k}={v}: skipped ({'; '.join(err)})")
@@ -747,8 +787,8 @@ def run(a, old, logd, new_pairs, write):
         out["groups"].pop(gname, None)
         cfg = dict(start(), **{k: 1 for k in members})
         s = measure(cfg, f"m-grp-{gname}"[:16], logd / f"group-{gname}.log", optional=True)
-        if s is None:                                   # (the release does not build them together: nothing shared to count)
-            UNBUILDABLE[f"group {gname}"] = LAST_ERROR[0]
+        if s is None:                                   # (they do not build together: nothing shared to count; reported)
+            record_failure(f"group {gname}")
             out["groups"][gname] = {"members": list(members), "shared": {r: 0 for r in REG}}
             continue
         est = C.budget(cfg, dict(out, pairs={}), use_exact=False, anchor=False)["total"]
@@ -763,8 +803,8 @@ def run(a, old, logd, new_pairs, write):
             continue
         cfg = dict(start(), **pair, **PAIR_WITH.get(name, {}))
         s = measure(cfg, f"m-pair-{PAIRS.index(pair)}", logd / f"pair-{name.replace(',', '-')}.log", optional=True)
-        if s is None:                                   # (the release does not build them together: nothing beyond to count)
-            UNBUILDABLE[f"pair {name}"] = LAST_ERROR[0]
+        if s is None:                                   # (they do not build together: nothing beyond to count; reported)
+            record_failure(f"pair {name}")
             out["pairs"][name] = {r: 0 for r in REG}
             continue
         out["pairs"][name] = beyond(s, cfg, out, name)
@@ -772,12 +812,21 @@ def run(a, old, logd, new_pairs, write):
     if write:                                           # (the check configurations are chosen by the budget these deltas make:
         C.costs_file(True).write_text(json.dumps(out, indent=1) + "\n")   # optimist.py ble_test_configs, room.make_room)
     out["checks"] = measure_checks(logd)
+    out["unbuildable"] = dict(kept, **UNBUILDABLE)      # (the checks and groups may have added)
     if not write:                                       # (the plan pass: the builds are listed, nothing is written)
         return 0
     C.costs_file(True).write_text(json.dumps(out, indent=1) + "\n")
     print(f"measure_costs: {C.costs_file(True)} ({time.time() - t0:.0f} s)")
     import cpu_costs                                    # the CPU guard's model follows the CPU baseline (CPU_GUARD)
     cpu_costs.main([])
+    for n, why in UNBUILDABLE.items():
+        print(f"measure_costs: not in this {kind()} build: {n}: {why}")
+    if FAILED:                                          # (real breakage: said last, loudly, and the exit status says it)
+        print("\n" + "!" * 78 + f"\nmeasure_costs: {len(FAILED)} CONFIGURATION(S) THAT SHOULD BUILD ({kind()}) DID NOT:")
+        for n, why in FAILED.items():
+            print(f"  {n}: {why}")
+        print("!" * 78)
+        return 1
 
 
 if __name__ == "__main__":

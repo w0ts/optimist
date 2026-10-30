@@ -1517,6 +1517,26 @@ def add_item(item):
         ITEMS[_up].menu_children.append(item.key)   # (the menu's tree, as the loop above makes it for the registry's own items)
 
 
+# Values a build kind cannot build (the registry's fact, read by core.validate, the menu, and measure_costs.py, which records them as
+# "not in this build" in that kind's costs file and probes them: a mark whose value links again is reported). Key: (item, value);
+# value: {"classic" (Optimist's own firmware) / "release" (the fm1-base app): why}. Not a failure of the measuring: a value
+# that SHOULD build and does not is (measure_costs.py reports it loudly)
+NOT_BUILT = {
+    ("ENG_PHYS", ENG_RAM): {
+        kind: "PHYS's render path in the code RAM calls libgcc's 64-bit divide (__udivdi3, px_string_block): the helper is in "
+              "flash, out of reach of a RAM-to-flash jump (R_PI32V2_LONG_JUMP_23M2 reaches 2 MB); build PHYS \"on\" (code in flash)"
+        for kind in ("classic", "release")},
+    ("OVERLAY", 1): {
+        "classic": "tools/ovl_link.py puts the overlay slots on top of .ram_hot2 and the classic link does not lay out that "
+                   "way yet; not buildable until the layout is fixed"},
+}
+
+
+def not_built(key, value, kind):
+    """-> why this build kind ("classic" / "release") cannot build item key at value, else an empty string"""
+    return NOT_BUILT.get((key, value), {}).get(kind, "")
+
+
 def to_json():
     out = []
     for it in _ITEMS:
@@ -1524,6 +1544,7 @@ def to_json():
                                           "experimental", "notice", "off_warning", "env", "target_only", "symbols", "no_image",
                                           "fixed", "head")}
         d["choices"] = [list(c) for c in it.choices]
+        d["not_built"] = {str(v): why for (k, v), why in NOT_BUILT.items() if k == it.key}
         d["provenance"] = it.provenance.__dict__ if it.provenance else None
         out.append(d)
     return {"groups": GROUPS, "items": out, "forbidden": FORBIDDEN, "drums_only": list(DRUMS_ONLY)}
