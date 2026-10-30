@@ -199,7 +199,19 @@ def collect(bdir, release, name_stem, cfgfile, out=OUT):
     for f in ("optimist.bin",):
         if (OUT / f).is_file():
             shutil.copy(OUT / f, bdir / "felucca.bin")
+    write_install_meta(bdir / f"{name_stem}.fwsc", cfgfile)
     return bdir / f"{name_stem}.fwsc"
+
+
+def write_install_meta(pkg, cfgfile):
+    """PACKAGE.install.json beside the package: the builder's BOOTLOADER (tools/install_meta.py), as Optimist's own
+    build writes it"""
+    import configure
+    import install_meta
+    for old in Path(pkg).parent.glob("optimist-*.install.json"):
+        old.unlink()
+    cfg, name = configure.parse(Path(cfgfile).read_text())
+    return install_meta.write(pkg, cfg.get("BOOTLOADER", 0), name or "default", f"{configure.cfg_hash(cfg):08x}")
 
 
 def ui_sidecar(pkg, cfgfile):
