@@ -264,7 +264,16 @@ static void fxm_sync(void);
 #else
 #define ARN_UNDO_KEEP ARN_UNDO_LEAST
 #endif
-#define ARN_SPARE 8192u                                  /* (the build's spare SRAM under the stacks: tools/build.py) */
+#ifndef ARN_SPARE
+#define ARN_SPARE 0u                                     /* the SRAM under the stacks the arena leaves unused at run time: none
+                                                         * (2026-10-30, was 8192, the build's spare, tools/build.py's check,
+                                                         * which stays a check of the link). Nothing else uses the free SRAM
+                                                         * once the arena has it (the undo history is after the arena, in it);
+                                                         * a stack that goes past its bottom traps in its 256-byte guard band
+                                                         * (fm1_guard_enable FM1_GUARD_STACK | FM1_GUARD_WRITE at boot: system/
+                                                         * main.c, fm1-base's device/main_fm1.c), never into the arena: the
+                                                         * 8 KB were a margin nothing read. +8 KB for the engines and effects */
+#endif
 static void undo_yield(uint8_t *lo);
 #define ARN_GREW(end) undo_yield(arn_mem + (end))
 #include "../core/arena.c"
