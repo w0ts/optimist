@@ -173,6 +173,8 @@ early t_ble_rf
 job; ( jobin
     $CC -w -Ifirmware/hal -o "$OUT/encoder_test" tests/encoder_test.c
     run "encoders: first click, direction and reversed transitions" "$OUT/encoder_test"
+    $CC -w -o "$OUT/half_peak_test" tests/half_peak_test.c
+    run "the release's master meter: each half's peak kept as a word (no 4 KB copy of the halves), equal to the copy's scan" "$OUT/half_peak_test"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     $CC -w -Ifirmware/hal -o "$OUT/encoder_fast_test" tests/encoder_fast_test.c
@@ -1119,6 +1121,8 @@ job; ( jobin   # the effects' lines in the arena (fx/fx_arena.c, docs/SD-MODE-DE
     $CC -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $FXA -DFELUCCA_REV_FDN8=1 -DFELUCCA_REV_POOL=1 -DFELUCCA_SPRING=1 "-DFELUCCA_ARENA_BYTES=89344u" -o "$OUT/fx_arena_rev_test" tests/fx_arena_test.c -lm
     run "the same with ROOM, FDN8 and SPRING (the reverb's TYPE switched, its line 32 KB)" "$OUT/fx_arena_rev_test"
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $FXA -DUI_MEMLIST=1 "-DFELUCCA_ARENA_BYTES=65536u" -o "$OUT/ui_optimist_memlist_test" tests/ui_optimist_test.c -lm
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $FXA -DUI_FMEM=1 "-DFELUCCA_ARENA_BYTES=131072u" -o "$OUT/ui_optimist_fmem_test" tests/ui_optimist_test.c -lm
+    run "the switchable features on the screen: the memory line follows BT AUDIO's block on the frame after each pass, through a PAUSE question, its YES, the pack and the placement; INFO's RAM USE line" "$OUT/ui_optimist_fmem_test"
     run "a load that does not fit (ui/optimist/op_memlist.c): the refused parts listed, then the parts and the effects' lines on the keys, the gauge and FITS the arena's trial, SAVE drops and places, HOME leaves placeholders, an edit's one confirm" "$OUT/ui_optimist_memlist_test" "$OUT/optimist"
     $CC -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $FXA -DFELUCCA_FX_SLICER=0 "-DFELUCCA_ARENA_BYTES=73984u" -o "$OUT/fx_arena_nobufs_test" tests/fx_arena_test.c -lm
     run "the same without the SLICER (no other buffer in the arena: core/arena_bufs.c's stubs)" "$OUT/fx_arena_nobufs_test"
@@ -1136,6 +1140,10 @@ job; ( jobin   # the effects' lines in the arena (fx/fx_arena.c, docs/SD-MODE-DE
     #  arena_bufs: WAVE's table 73216, one SLICER recording 8192, the 909 5376 and the 808 3584 on the host too)
     $CC -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $FXA -DFELUCCA_ENG_WAVE=1 -DFELUCCA_DRUM_X909=1 -DFELUCCA_DRUM_X808=1 "-DFELUCCA_ARENA_BYTES=164352u" -o "$OUT/arena_bufs_test" tests/arena_bufs_test.c -lm
     run "other buffers in the arena (SLICER recordings, WAVE's table, the X0X machines, the PUNCH ring while its switch is on): placed while used, given back, refused (bypassed, FULL, said once) and placed by themselves; a change to WAVE refused as an engine change, on a load the list page; a part's change waits; random switches" "$OUT/arena_bufs_test"
+    # (the switchable features' memory, core/feat_mem.c: Bluetooth audio's buffers lent by the arena on a stand-in radio;
+    #  ASan where the compiler has it, as fxi_boot: a block given back poisoned, the radio's write after it a failure)
+    $CC -g $FXB_SAN -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $FXA "-DFELUCCA_ARENA_BYTES=131072u" -o "$OUT/feat_mem_test" tests/feat_mem_test.c -lm
+    run "switchable features (BT AUDIO's buffers in the arena): placed at once when they fit, held while the radio lets go, given back and poisoned; on/off under a held note bit-exact, nothing leaked over 50 cycles; PACK asked (PAUSE n MS), NO changes nothing, YES fades, packs, places, resumes; NOFIT asks UNLOAD; a refused part change offers only idle lendable features; a write after the give-back fails under ASan" "$OUT/feat_mem_test"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin   # the RAMTEXT overlays (core/overlay.c, docs/SD-MODE-DESIGN.md 6): the slots' protocol on the host
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_OVERLAY=1 -DFELUCCA_ENG_STRINGS=1 -o "$OUT/overlay_test" tests/overlay_test.c -lm
@@ -1143,6 +1151,8 @@ job; ( jobin   # the RAMTEXT overlays (core/overlay.c, docs/SD-MODE-DESIGN.md 6)
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_OVERLAY=1 -o "$OUT/regress_ovl" tests/regress.c -lm
     run "regression with the overlays (FELUCCA_OVERLAY, the host's slots): the same golden renders (no CPU budget: tests/regress.c's own)" "$OUT/regress_ovl" tests/golden.txt "$OUT/regress_ovl_no_cpu.txt"
     run "ovl_link: the plan (the least RAMTEXT), the linker scripts, the table" python3 tests/ovl_link_test.py
+    run "ramsize: an ELF's SRAM by section and owner (each byte once, padding, gaps, the stacks)" python3 tests/ramsize_test.py
+    run "the arena to the stacks' guard band, no spare at run time: the guard armed at boot, nothing else in the free SRAM" python3 tests/arena_spare_test.py
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin   # the flash layouts (docs/SD-MODE-DESIGN.md): the numbers agree; the fake SD mode's 7-sector log
     run "flash layouts: fm1_flash_map.h, flash_layout.py, the builder and the package agree; the switch table" python3 tests/flash_layout_test.py
