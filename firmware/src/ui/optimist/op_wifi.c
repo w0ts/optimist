@@ -65,8 +65,46 @@ static int wf_nocal(void) { return wc.st == WC_FAIL && wc.fail == WCF_NOCAL; }
 static int wf_radio_ok(void) { return wc.st != WC_OFF && wc.st != WC_RADIO && !wf_nocal(); }
 #ifdef WIFI_ON_FM1B
 #define WF_JAM 1                                        /* MODE JAM (the trial's Wi-Fi stack): AUTO that also joins an FM-1 access point */
+#define WF_Q 1                                          /* how well the link works (fm1-base's plat_wifi_quality) on the STATE line */
 #else
 #define WF_JAM 0
+#define WF_Q 0                                          /* (Optimist's own stack: no such counts) */
+#endif
+#if WF_Q
+/* Reception in numbers, the user's ask (2026-10-29: "Wi-Fi reception is shit, I think": numbers, not impressions). While the page
+ * is on screen and a network is joined (or MODE AP is up), wf_poll asks fm1-base each pass (it measures only while asked), and
+ * the STATE line takes turns, 2 s each, with the joined state: the signal and the rate ("-63 dBm  1M"), then the frames
+ * sent over the last 10 s that needed a retry ("RETRY 12%") and that were never acknowledged ("LOST 3%") */
+static struct plat_wifi_quality wfq;
+static uint8_t wfq_ok;
+static void wf_q_text(char *b, uint32_t which, uint16_t *col)   /* which 0 the signal, 1 RETRY, 2 LOST: b (20 bytes) */
+{
+    uint32_t n = which == 1u ? wfq.retried : wfq.lost, pct;
+    b[0] = 0;
+    *col = 0;
+    if (which == 0u) {
+        if (wfq.rssi) {
+            fmt_int(b, wfq.rssi);
+            str_app(b, " dBm  ", 20);
+            *col = wfq.rssi >= -67 ? C_OK : wfq.rssi >= -80 ? C_WARN : C_ERR;
+        } else {
+            str_cpy(b, "NO SIGNAL ", 20);       /* (none of its frames in the last 3 s) */
+            *col = C_ERR;
+        }
+        fmt_app(b, (int32_t)(wfq.tx_kbps / 1000u));
+        str_app(b, "M", 20);
+        return;
+    }
+    str_cpy(b, which == 1u ? "RETRY " : "LOST ", 20);
+    if (!wfq.tx) {
+        str_app(b, "--", 20);                   /* (nothing sent yet in the window) */
+        return;
+    }
+    pct = (n * 100u + wfq.tx / 2u) / wfq.tx;      /* (rounded; wfq.tx > 0 here) */
+    fmt_app(b, (int32_t)pct);
+    str_app(b, "%", 20);
+    *col = pct >= (which == 1u ? 30u : 10u) ? C_ERR : pct >= (which == 1u ? 10u : 2u) ? C_WARN : C_OK;
+}
 #endif
 static const uint8_t WF_W[] = {WN_MODE_OFF, WN_MODE_MAN, WN_MODE_AUTO,   /* the modes in the knob's order, and their words */
 #if WF_JAM
@@ -424,7 +462,7 @@ static void wf_ap_state_cell(cell_t *c)
     } else if (st == WAS_STOPPED) {
         v = "SAVE: START";                              /* (AP MAN: off until SAVE) */
     } else if (st == WAS_UP) {
-        if (n && (!wl_peers() || ((fm1_ms >> 11) & 1u) == 0u)) {   /* both numbers, the user's way (2026-10-28): the line alternates every 2 s between the clients
+        if (n && (!wl_peers() || ((fm1_ms >> (WF_Q ? 13 : 11)) & 1u) == 0u)) {   /* both numbers, the user's way (2026-10-28): the line alternates every 2 s between the clients
                                                          * and the Link peers, in full words */
             fmt_int(b, (int32_t)n);
             str_app(b, n == 1u ? " CLIENT" : " CLIENTS", sizeof b);
@@ -438,6 +476,15 @@ static void wf_ap_state_cell(cell_t *c)
         }
         col = C_OK;
     }
+#if WF_Q
+    if (st == WAS_UP && n && wfq_ok && (((fm1_ms >> 11) & 3u) == 1u || ((fm1_ms >> 11) & 3u) == 2u)) {
+        /* with clients, the numbers in turns 2 and 3 (the strongest client's signal; then RETRY and LOST every other time):
+         * the clients / peers in turn 1, the password in turn 4 */
+        uint32_t p = (fm1_ms >> 11) & 3u;
+        wf_q_text(b, p == 1u ? 0u : 1u + ((fm1_ms >> 13) & 1u), &col);
+        v = b;
+    }
+#endif
     if (st != WAS_NOCAL && ((fm1_ms >> 11) & 3u) == 3u) {   /* the password, one phase in four (the user reads it to join a phone) */
         char k[16];
         if (wa_default_key(k + 4)) {
@@ -503,7 +550,7 @@ static void wf_state_cell(cell_t *c)
 #if WF_JAM
     if (wn_st.mode == WN_MODE_JAM) {                    /* MODE JAM: joined to an FM-1 access point (the line alternates with the Link peers), or one refused */
         int j = plat_wifi_jam();
-        if (j == 1 && wc.st == WC_UP && ((fm1_ms >> 11) & 1u)) {
+        if (j == 1 && wc.st == WC_UP && ((fm1_ms >> (WF_Q ? 13 : 11)) & 1u)) {   /* (with the numbers: in the state's turn, every other one) */
             uint32_t i;
             b[0] = 'J', b[1] = 'A', b[2] = 'M', b[3] = ' ';
             for (i = 0; i < wc.ap.ssid_len && i < 8u; i++)
@@ -515,6 +562,12 @@ static void wf_state_cell(cell_t *c)
             v = "JAM: LOCKED";                          /* (its owner typed a password: not tried again for two minutes) */
             col = C_WARN;
         }
+    }
+#endif
+#if WF_Q
+    if (wc.st == WC_UP && wfq_ok && ((fm1_ms >> 11) & 3u) != 0u) {   /* the numbers' turns: signal, RETRY, LOST */
+        wf_q_text(b, ((fm1_ms >> 11) & 3u) - 1u, &col);
+        v = b;
     }
 #endif
     c->kind = CK_RO;
@@ -724,6 +777,16 @@ static void wf_poll(void)
         wfs.cur = wfs.first = wfs.key_ok = 0;           /* (the page opens at the top, as bt_pg_sync) */
     wfs.page = (uint8_t)want;
     wc.scan_want = (uint8_t)want;                       /* (the manager scans while the list is on screen and nothing is joined) */
+#if WF_Q
+    {
+#if FELUCCA_WIFI_AP
+        int ap_up = WF_AP_ON && wa_status() == WAS_UP;
+#else
+        int ap_up = 0;
+#endif
+        wfq_ok = (uint8_t)(shown && (up || ap_up) && plat_wifi_quality(&wfq));   /* (measured only while asked: the page on screen) */
+    }
+#endif
     if (wc.fail_new) {
         wc.fail_new = 0;
         if (wfs.asked || shown)
