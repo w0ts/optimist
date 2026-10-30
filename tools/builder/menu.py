@@ -147,7 +147,8 @@ class Builder(App):
     #prog.on { display: block; }
     #prog_label { width: 48; }
     #prog_bar { width: 1fr; }
-    #modal { width: 70; height: auto; max-height: 24; border: thick $accent; background: $surface; padding: 1; }
+    #modal { width: 90%; max-width: 120; height: auto; max-height: 90%; border: thick $accent; background: $surface; padding: 1; }
+    #modal Label { width: 100%; }
     Pick, Ask { align: center middle; }
     """
     BINDINGS = [
