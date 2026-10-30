@@ -159,7 +159,7 @@ static void smute_tests(void)
     go_home();
     ui.row[SCR_HOME] = MXR_MASTER;
     frames(2);
-    check(mx_on_master() && keys_none(), "(the mixer's MASTER row: a page with no track)");
+    check(mx_on_master() && !keys_none(), "(the mixer's MASTER row: the keys play the selected track, 2026-10-30)");
     press(B_OCTDN);
     key(smute_black(1));
     check(smute_trk == 2u && smute_lane == 0u, "the MASTER row, SHIFT + the second white key: T2's sequencer muted");

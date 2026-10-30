@@ -6,11 +6,15 @@
 #include <stdint.h>
 
 /* the levels, in the order they ease back: engine quality (ACID without oversampling, ANALOG 2's swarm at 2
- * copies), then UNISON parts at 2 voices, then the reverb off (its wet fades out, its tank stops: fx.c rev_guard;
- * the reverb costs as much as the rest of an idle mix, and a tail goes on with nothing left to shed), then voices
- * shed (never from a MONO / LEGATO / UNISON part: the bass and the lead; never the drums) */
-enum { CG_L_OFF, CG_L_QUALITY, CG_L_UNISON, CG_L_REVERB, CG_L_NOTES };
-#define CG_TOP CG_L_NOTES
+ * copies), then UNISON parts at 2 voices, then voices capped and shed, oldest first (never from a MONO / LEGATO /
+ * UNISON part: the bass and the lead; never the drums), then, only when no voice is left to shed and the load stays
+ * over, the reverb off (its wet fades out, its tank stops: fx.c rev_guard). The user, 2026-10-30: voices before the
+ * reverb (before, the reverb went first). Every level from CG_L_NOTES on sheds and caps (CG_SHEDS); a level in front
+ * of CG_L_NOTES (the user's next one: a heavy track's voices moved to the other core while it has room) is an enum
+ * entry here, its case in cpuguard.c cg_useful and cg_enter, and its name in op_project.c CG_NAME: nothing else moves */
+enum { CG_L_OFF, CG_L_QUALITY, CG_L_UNISON, CG_L_NOTES, CG_L_REVERB };
+#define CG_TOP CG_L_REVERB
+#define CG_SHEDS(l) ((l) >= CG_L_NOTES)   /* the levels that shed voices and cap them (the reverb's too) */
 
 #if FELUCCA_CPU_GUARD
 typedef struct {
