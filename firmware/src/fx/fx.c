@@ -2972,7 +2972,7 @@ static __attribute__((noinline)) void rp_pre_bus(uint32_t j, int32_t *x, uint32_
     j %= 3u;
     for (i = 0; i < n; i++)
         l[i] = r[i] = x[i];
-    sto_ins(&rt_sto[j], IFX_RT(j), rp_ty[j][RP_PRE], rp_amt[j][RP_PRE], l, r, n);
+    FAR(sto_ins)(&rt_sto[j], IFX_RT(j), rp_ty[j][RP_PRE], rp_amt[j][RP_PRE], l, r, n);
     for (i = 0; i < n; i++)
         x[i] = (l[i] + r[i]) >> 1;
 }
@@ -2997,10 +2997,10 @@ static __attribute__((noinline)) int32_t rp_post_bus(uint32_t j, int32_t *wl, in
     j %= 3u;
     g = FX_RETQ(RET_LV(j));
     if (RP_HAS(j, RP_POST))
-        sto_ins(&rt_sto[j], IFX_RT(j), rp_ty[j][RP_POST], rp_amt[j][RP_POST], wl, wr, n);
+        FAR(sto_ins)(&rt_sto[j], IFX_RT(j), rp_ty[j][RP_POST], rp_amt[j][RP_POST], wl, wr, n);
     for (i = 0, m = STO_IDLE(IFX_RT(j)) & ~RP_BITS(j); m; i++, m >>= 1)   /* (in no stage: at 0, they let go) */
         if (m & 1u)
-            sto_ins(&rt_sto[j], IFX_RT(j), i, 0, wl, wr, n);
+            FAR(sto_ins)(&rt_sto[j], IFX_RT(j), i, 0, wl, wr, n);
     for (i = 0; i < n; i++) {
         int32_t a = g >= 32768 ? wl[i] : (wl[i] >> 4) * (g >> 3) >> 8, b = g >= 32768 ? wr[i] : (wr[i] >> 4) * (g >> 3) >> 8;
         wl[i] = a, wr[i] = b;
