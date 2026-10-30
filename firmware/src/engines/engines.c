@@ -194,6 +194,11 @@ typedef union {
 #define FELUCCA_BTA_LEND 0
 #endif
 #endif
+#ifndef FMEM_NLEND                                       /* the switchable features' blocks the arena lends (core/feat_mem.c):
+                                                         * the includer's (fm1base/optimist/core/opt_lend.h: Bluetooth audio's,
+                                                         * the mirror's ring ..); else Bluetooth audio's alone, when built */
+#define FMEM_NLEND FELUCCA_BTA_LEND
+#endif
 enum {
     ARB_SL0,
     ARB_WAVE = ARB_SL0 + (FELUCCA_FX_SLICER ? NTRK : 0),
@@ -201,11 +206,12 @@ enum {
     ARB_X808 = ARB_X909 + (FELUCCA_DRUM_X909 ? 1 : 0),
     ARB_PUNCH = ARB_X808 + (FELUCCA_DRUM_X808 ? 1 : 0),
     ARB_FM6SIN = ARB_PUNCH + (FELUCCA_PUNCH_SW ? 1 : 0),
-    ARB_BTA = ARB_FM6SIN + (FELUCCA_ENG_FM6 ? 1 : 0),
-    ARB_NC = ARB_BTA + (FELUCCA_BTA_LEND ? 1 : 0)
+    ARB_LEND0 = ARB_FM6SIN + (FELUCCA_ENG_FM6 ? 1 : 0),   /* the switchable features' blocks (FMEM_NLEND) */
+    ARB_BTA = ARB_LEND0,                                /* (Bluetooth audio's the first, when built) */
+    ARB_NC = ARB_LEND0 + FMEM_NLEND
 };
 #define ARB_ANY ((FELUCCA_FX_SLICER ? NTRK : 0) + FELUCCA_ENG_WAVE + FELUCCA_DRUM_X909 + FELUCCA_DRUM_X808 + \
-                 FELUCCA_PUNCH_SW + FELUCCA_ENG_FM6 + FELUCCA_BTA_LEND)       /* (#if) */
+                 FELUCCA_PUNCH_SW + FELUCCA_ENG_FM6 + FMEM_NLEND)             /* (#if) */
 #define SST_ARN_K (NPART + FXM_NC + (uint32_t)ARB_NC)   /* the card streams' block, after them (FELUCCA_SD_STREAM:
                                                          * storage/sd/sd_stream_plan.c, the heads and the rings) */
 /* the CHO DLY REV inserts' lines (2026-10-29, the user: "each copy in an insert slot takes its memory from the arena, as

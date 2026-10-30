@@ -72,7 +72,24 @@ static void ed_handle(const uint8_t *f, uint32_t n);   /* (editor.c / ed_lite.c:
                                          * Above a page drawn whole (1.65 KB on average, the mixer's more): at 1.5 KB a page change
                                          * went over it and came whole twice (the user: "switch ... back to mixer, there is a lag") */
 #endif
+#ifndef MIR_LEND
+#define MIR_LEND 0                      /* the ring lent by the arena while a Bluetooth session uses it (fm1base/optimist/core/opt_lend.h) */
+#endif
+#if MIR_LEND
+/* the ring a block of the arena (core/arena_bufs.c, core/feat_mem.c: "MIRROR 8 KB") only while a Bluetooth client uses it
+ * (mir_lend_want: the mirror on over Bluetooth, a request from Bluetooth in the last MIR_ALIVE_MS, frames still going out),
+ * else 0: no frame queued (mbr_put refuses: the mirror falls behind and catches up once the ring is there, a reply is
+ * asked for again by the client), the radio finds nothing to send (mir_ble_peek). Lent and taken back with the interrupts
+ * off (arb_set): the radio's never see it half there */
+static uint8_t *mbr_q;
+#define MBR_HAVE() (mbr_q != 0)
+static uint32_t mbr_seen;               /* fm1_ms of the last request from Bluetooth (mbr_take, the radio's interrupts) */
+static uint8_t mbr_no;                  /* the question answered NO (or the mirror switched off for room): not wanted again
+                                         * until the central has gone */
+#else
 static uint8_t mbr_q[MIR_BLE_RING] IN_POOL;
+#define MBR_HAVE() 1
+#endif
 #define MBR_RXN 22u                     /* a request's bytes between F0 and F7: 7D 46 4C cmd + 18 arguments at most (CLIP 2: op,
                                          * track, index, the step's 15) */
 #if MBR_PROJ
@@ -112,8 +129,8 @@ static int mbr_put(uint32_t b)
         if (fm1_ms - mir.catch_ms >= MIR_CATCH_MS && mbr.w - ((int32_t)(mbr.base - mbr.r) > 0 ? mbr.base : mbr.r) > MIR_BLE_LAG)
             return 0;                   /* (behind: the catch-up sends the screen as it is then) */
     }
-    if (mbr.fw - mbr.r >= MIR_BLE_RING)
-        return 0;                       /* (full: this frame is dropped, mbr.w never saw it) */
+    if (mbr.fw - mbr.r >= MIR_BLE_RING || !MBR_HAVE())
+        return 0;                       /* (full, or no ring: this frame is dropped, mbr.w never saw it) */
     mbr_q[mbr.fw++ % MIR_BLE_RING] = (uint8_t)b;
     return 1;
 }
@@ -128,7 +145,7 @@ static void mbr_end(void)
 static int mir_ble_peek(uint32_t *pkt)
 {
     uint32_t i, b[3] = {0, 0, 0}, n = 0;
-    if (mbr.r == mbr.w)
+    if (mbr.r == mbr.w || !MBR_HAVE())
         return 0;
     RING_PUBLISH();
     for (i = 0; i < 3u && mbr.r + i != mbr.w; i++) {
@@ -143,6 +160,10 @@ static int mir_ble_peek(uint32_t *pkt)
 }
 static void mir_ble_pop(void)
 {
+    if (!MBR_HAVE() || !mbr.pk) {
+        mbr.pk = 0;                     /* (the ring taken back since the peek: nothing to pop) */
+        return;
+    }
     mbr.mid = mbr_q[(mbr.r + mbr.pk - 1u) % MIR_BLE_RING] != 0xF7u;
     RING_PUBLISH();
     mbr.r += mbr.pk;
@@ -156,6 +177,9 @@ static void mbr_take(void)
     uint32_t cmd = mbr_rx[3], i;
     if (mbr.rx_n < 4u || mbr_rx[0] != 0x7Du || mbr_rx[1] != 0x46u || mbr_rx[2] != 0x4Cu)
         return;
+#if MIR_LEND
+    mbr_seen = fm1_ms;                  /* (a reply follows: the ring wanted, mir_lend_want) */
+#endif
     if (cmd == ED_MIRROR) {
         if (mbr.rx_n == 5u)
             mbr.req = (uint8_t)(0x80u | mbr_rx[4]);
@@ -214,6 +238,33 @@ static void mir_bt_reply(const uint8_t *p, uint32_t n)
 }
 static int mir_bt_up(void) { return ble_out_on; }
 static int mir_bt_clear(void) { return mbr.r == mbr.w; }
+#if MIR_LEND
+/* the arena's hooks (fm1base/optimist/core/opt_lend.h): the ring wanted while a central listens and a client uses it
+ * (the mirror on over Bluetooth, a request in the last MIR_ALIVE_MS) or frames still go out; never after a NO until the
+ * central has gone. mir_lend: lent (p) or taken back (0), the interrupts off: nothing queued from before */
+static int mir_lend_want(void)
+{
+    if (!mir_bt_up())
+        mbr_no = 0;
+    return mir_bt_up() && !mbr_no &&
+           ((mir.on && mir.link == MIR_BT) || fm1_ms - mbr_seen < MIR_ALIVE_MS || mbr.r != mbr.w);
+}
+static void mir_lend(void *p)
+{
+    mbr_q = (uint8_t *)p;
+    mbr.fw = mbr.w = mbr.r;
+    mbr.base = mbr.r, mbr.pk = 0, mbr.mid = 0;
+    if (mir.on && mir.link == MIR_BT)
+        mir.behind = 1;                 /* (what went before is gone: the screen sent whole again) */
+}
+static void mir_lend_off(void)          /* (its question's NO, or the offer's YES: the Bluetooth mirror ends) */
+{
+    mbr_no = 1;
+    if (mir.link == MIR_BT && mir.on)
+        mir.on = 0, mir_letgo();
+}
+static int mir_lend_on(void) { return mir_lend_want(); }   /* (core/feat_mem.c FMEM_ON: a client wants it) */
+#endif
 #else
 static int mbr_put(uint32_t b) { (void)b; return 0; }
 static void mbr_end(void) {}

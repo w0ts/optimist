@@ -257,7 +257,7 @@ static void fmem_answer(uint32_t f, int yes)
         fmem.packing = (uint8_t)(f + 1u);
         fmem.stage = 1, fmem.passes = 0, fmem.t0 = fm1_ms;
     } else if (how == FMEM_NOFIT) {
-        FMEM_UNLOAD();                                  /* (saved, then a new project: its blocks back as it switches) */
+        FMEM_UNLOAD(f);                                  /* (saved, then a new project: its blocks back as it switches) */
     }
 }
 /* every pass (arb_poll, before it places): a YES to PACK followed through. The fade first (no block moves while a part
