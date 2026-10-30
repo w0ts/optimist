@@ -160,7 +160,7 @@ AINL const smp_zone_t *smp_zone(uint32_t zi)
 
 /* voice: ph[0] position (samples), ph[1] fraction Q16, s[0] predictor, s[1] step
  * index, s[2] previous sample, s[3] current sample, s[4] zone, s[5] step Q16 */
-static inline HOT int32_t sample_next(const smp_zone_t *z, voice_t *v, int loop)
+AINL int32_t sample_next(const smp_zone_t *z, voice_t *v, int loop)   /* (inlined where it is called: SAMPLE's render in the flash (ENG_SAMPLE 2) and the drums in the RAM code, no call between them) */
 {
     uint32_t pos = v->ph[0], b = SMP_DATA[z->off + (pos >> 1)];
     uint32_t code = (pos & 1u) ? (b >> 4) : (b & 15u);

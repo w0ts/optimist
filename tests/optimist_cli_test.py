@@ -700,8 +700,8 @@ class FakeTool:
     def __init__(self, info=(0, "Optimist_730  [running]  port: FM-1"), write=(0, "done")):
         self.calls, self.info, self.write = [], info, write
 
-    def __call__(self, args, capture=True):
-        self.calls.append(list(args))
+    def __call__(self, args, capture=True, on_line=None, tool=None):   # (flash.run_tool's signature: tool, fm1-base's
+        self.calls.append(list(args))                                   # fallback when no Optimist FM-1 answers)
         return self.info if "--info" in args else self.write
 
     def wrote(self):

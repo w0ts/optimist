@@ -526,7 +526,7 @@ AINL int32_t drlvl_q15(int32_t v)
 
 /* adds the drums into the dry mix and the reverb send; mono != 0: into mono instead, before the
  * pan and the send (the SLICER, slicer.c slicer_drums, does those after it) */
-static inline HOT void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t *mono, uint32_t n)
+static HOT __attribute__((noinline)) void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t *mono, uint32_t n)   /* (one copy for both callers: drums_render, drums_render_mono; tests/target_budget.py measures it) */
 {
     uint32_t k, i;
     int32_t on = fx_on(TDRUM), lvl = drlvl_q15(song.g[G_DRLVL]), pk = drums.peak;   /* (core.h: up to 2.0) */
