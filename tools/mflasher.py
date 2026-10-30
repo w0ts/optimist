@@ -25,6 +25,8 @@ import tempfile
 import zipfile
 from pathlib import Path
 
+import repo_root
+
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
 SUBMODULE = ROOT / "third_party" / "m-flasher"
@@ -77,9 +79,9 @@ class MFlasherError(Exception):
 
 
 def home() -> Path:
-    """where setup keeps the fetched release: inside the repo (build/m-flasher, git-ignored), never in the user's home
+    """where setup keeps the fetched release: inside the repo (build/m-flasher of the main checkout, git-ignored; tools/repo_root.py), never in the user's home
     or the system (the user, 2026-10-30: nothing installed on the Mac)"""
-    return Path(os.environ.get("M_FLASHER_HOME") or ROOT / "build" / "m-flasher") / f"m-flasher-{VERSION}"
+    return repo_root.build_dir("m-flasher", "M_FLASHER_HOME", ROOT) / f"m-flasher-{VERSION}"
 
 
 def _norm(system: str | None, machine: str | None):
