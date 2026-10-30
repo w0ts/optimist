@@ -199,7 +199,7 @@ compiler for both builds, Optimist's own (`tools/build.py`) and the release (`to
   own, default profile) to 30 KB (a full release configuration) smaller, the audio's CPU the same; played on an FM-1.
 - **JieLi's clang 4** (`COMPILER=0`): the toolchain above.
 
-`setup` downloads the drop-in into `~/.jieli/pi32v2-llvm` (`PI32V2_LLVM_TOOLCHAIN=<dir>` for another): the archive
+`setup` downloads the drop-in into `build/toolchains/pi32v2-llvm-dropin-<version>` of the repository (git-ignored; nothing goes into your home; `PI32V2_LLVM_TOOLCHAIN=<dir>` for another). In a git worktree it is the main checkout's `build/toolchains` (one copy for all), in a plain copy of a tree (the farm's tar copies) `OPTIMIST_TOOLCHAINS=<dir>`, else the nearest `build/toolchains` above the tree (`tools/repo_root.py`; M-Flasher's `build/m-flasher` follows the same rule). An older copy in `~/.jieli/pi32v2-llvm` is still found, with a note to move it: the archive
 `pi32v2-llvm-dropin-<llvm>-<isa>.tar.xz`, a release asset of this repository, its SHA-256 pinned in `tools/toolchain.py`
 (`LLVM_URL`, `LLVM_SHA256`). On Linux x86-64 it runs natively; elsewhere each tool runs in the toolchain image with the
 drop-in mounted at `/opt/jieli` (the image's Python; plain `debian:bookworm-slim` has none), the release build's container

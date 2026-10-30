@@ -18,6 +18,7 @@ import tempfile
 import urllib.request
 from pathlib import Path
 
+import repo_root
 import shared
 import toolchain as TC
 
@@ -178,15 +179,15 @@ def fetch_toolchain(home=None):
 
 
 def fetch_llvm(home=None):
-    """pi32v2-llvm's drop-in (the pinned archive, tools/toolchain.py LLVM_URL) into home (~/.jieli), linked as
-    home/pi32v2-llvm -> the directory"""
-    home = Path(home or TC.JIELI_HOME)
+    """pi32v2-llvm's drop-in (the pinned archive, tools/toolchain.py LLVM_URL) into home (default: the repository's
+    build/toolchains, tools/repo_root.py; never ~/.jieli) as home/pi32v2-llvm-dropin-<version> -> that directory"""
+    home = Path(home or repo_root.toolchains_dir())
     name = f"pi32v2-llvm-dropin-{TC.LLVM_VERSION}"
     if not TC.has_clang(home / name):
         home.mkdir(parents=True, exist_ok=True)
         with tempfile.TemporaryDirectory(dir=home) as tmp:
             archive = Path(tmp) / f"{name}.tar.xz"
-            print(f"setup: downloading pi32v2-llvm {TC.LLVM_VERSION} (72 MB)")
+            print(f"setup: downloading pi32v2-llvm {TC.LLVM_VERSION} (72 MB) into {home}")
             download(TC.LLVM_URL, archive)
             if sha256(archive) != TC.LLVM_SHA256:
                 raise FetchError("the pi32v2-llvm archive does not match its SHA-256")
@@ -194,11 +195,7 @@ def fetch_llvm(home=None):
                 extract(archive, home)
             except tarfile.TarError as e:
                 raise FetchError(f"the pi32v2-llvm archive: {e}")
-    link = home / "pi32v2-llvm"
-    if link.is_symlink() or not link.exists():
-        link.unlink(missing_ok=True)
-        link.symlink_to(name)
-    return link
+    return home / name
 
 
 def extract(archive, dest, data_filter=None):
