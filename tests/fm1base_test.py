@@ -92,8 +92,10 @@ import core as K  # noqa: E402
 import fm1base_ld  # noqa: E402
 total = {"flash": 700000, "ram": 100000, "pool": 100000, "ramtext": 30000}
 C.CLASSIC = True
-check("the classic slots (its build system's: flash_layout, build.py): a LAYOUT 1 build counts the far probe's place",
-      K.fits(total, {"LAYOUT": 1})["flash"][1] == 765696 and K.fits(total, {})["flash"][1] == 581564
+check("the classic slots (its build system's: flash_layout, build.py): LAYOUT 1 its whole slot (no far probe), LAYOUT 3 "
+      "720,828 B, normal 581,564 B",
+      K.fits(total, {"LAYOUT": 1})["flash"][1] == 831420 and K.fits(total, {"LAYOUT": 3})["flash"][1] == 720828
+      and K.fits(total, {})["flash"][1] == 581564
       and K.fits(total, {})["sram"][1] == 474880 - K.SPARE["sram"])
 C.CLASSIC = False
 if fm1base.BUILD_PY.is_file():
@@ -121,8 +123,12 @@ if fm1base.BUILD_PY.is_file():
     _stk = tomllib.loads((fm1base.APP / "fm1.toml").read_text())   # (main_stack / irq_stack move the SRAM's end)
     check("the release's limits: fm1pkg_make's app_slot of fm1.toml's app_end and of the SD card mode's, app.ld's SRAM "
           "up to the stacks fm1.toml sizes",
-          lim == {"flash": 581564, "flash_by_layout": {"1": 0xCE000 - 0x4000 - 0x120 - 0xF24},
+          lim == {"flash": 581564, "flash_by_layout": {"1": 0xCE000 - 0x4000 - 0x120 - 0xF24, "3": 0xB5000 - 0x4000 - 0x120 - 0xF24},
                   "sram": 0x7C000 - _stk.get("main_stack", 24320) - _stk.get("irq_stack", 7936) - 512})
+    import flash_layout as FLT
+    check("gen_optimist.py's release ends are the step table's (tools/flash_layout.py STEPS release_end)",
+          all(fm1base.release_end(k) == FLT.STEPS[k].release_end for k in fm1base.RELEASE_END_NAMES)
+          and set(fm1base.RELEASE_END_NAMES) == {k for k in FLT.STEPS if k})
     try:
         fm1base.limits({"app_slot": 581564 + 4})
         _refused = False

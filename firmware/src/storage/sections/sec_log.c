@@ -19,12 +19,13 @@
 #ifndef SLG_V2
 #define SLG_V2 FELUCCA_PATTERNS
 #endif
-#if SLG_V2 && FELUCCA_LAYOUT == 1                     /* the fake SD mode (fm1_flash_map.h): the squeezed store */
+#include "../../../hal/fm1_flash_map.h"
+#if SLG_V2 && FELUCCA_LAYOUT != 0                     /* a relocated store (fm1_steps.h, tools/flash_layout.py STEPS) */
 #ifndef SEC_LOG_BASE
-#define SEC_LOG_BASE 0xD0000u
+#define SEC_LOG_BASE FL_LOG_LO                         /* L1 0xD0000, S0 0xB8000 */
 #endif
 #ifndef SEC_LOG_SECTORS
-#define SEC_LOG_SECTORS 7u                             /* 28 KiB: the one project (autosave copy A at 0xD7000) */
+#define SEC_LOG_SECTORS FL_LOG_SECTORS                 /* L1 7 (28 KiB: the one project), S0 32 (128 KiB) */
 #endif
 #elif SLG_V2
 #ifndef SEC_LOG_BASE
@@ -48,9 +49,11 @@
 #ifndef SEC_IDS
 #define SEC_IDS 16u
 #endif
-#include "../../../hal/fm1_flash_map.h"
-#if FELUCCA_LAYOUT == 1
-_Static_assert(SEC_LOG_BASE + SEC_LOG_SECTORS * 0x1000u <= 0xD7000u, "the section log: below autosave copy A (storage.c)");
+#if SLG_V2 && FELUCCA_LAYOUT != 0
+_Static_assert(SEC_LOG_BASE >= FL_APP_HI && SEC_LOG_BASE + SEC_LOG_SECTORS * 0x1000u <= FL_RELOC_HI &&
+               !FL_HITS(SEC_LOG_BASE, SEC_LOG_SECTORS * 0x1000u, FL_AUTOSAVE_A, FL_AUTOSAVE_A + 0x1000u) &&
+               !FL_HITS(SEC_LOG_BASE, SEC_LOG_SECTORS * 0x1000u, FL_UPF_LO, FL_UPF_HI),
+               "the section log: in the step's relocated store, off autosave copy A and the FM6 voices (storage.c)");
 #endif
 _Static_assert(FL_IN(SEC_LOG_BASE, SEC_LOG_SECTORS * 0x1000u, FL_DATA_LO, FL_DATA_HI) &&
                !FL_NEVER(SEC_LOG_BASE, SEC_LOG_SECTORS * 0x1000u), "the section log: in the store, off the SDK's sectors");

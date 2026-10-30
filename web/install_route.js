@@ -9,7 +9,7 @@
 
 export const SOFT_KEY = [0xF0, 0x22, 0x24, 0x35, 0x7D, 0xF7];
 export const V15_SHA256 = "db1642b2b6fa5c2cccb11ffd13878068bb28601678d3644049f99dc40e7edb8a";
-export const OWN_SLOTS = [0x93000, 0xD0000];
+export const OWN_SLOTS = [0x93000, 0xB5000, 0xD0000];   // (every MEMORY step's flash.bin: tools/flash_layout.py own_slots, tests/flash_layout_test.py checks)
 export const MFLASHER_URL = "https://github.com/jvitkauskas/m-flasher/releases";   // (the fallback: the pinned release page is in the site's data, MFLASHER)
 export const PATHS_URL = "https://github.com/w0ts/optimist/blob/main/docs/INSTALL-PATHS.md";
 
@@ -57,7 +57,7 @@ export function loaderTakes(running, pkg, runningText = "") {
   }
   if (running === "optimist" || running === "ambig000") {
     if (pkg.kind === "v15") return [true, "the way back to the official firmware"];
-    if (!OWN_SLOTS.includes(pkg.flashLen)) return [false, "Optimist's updater takes the layouts 0x93000 and 0xD0000 only"];
+    if (!OWN_SLOTS.includes(pkg.flashLen)) return [false, `Optimist's updater takes the layouts ${OWN_SLOTS.map((s) => "0x" + s.toString(16)).join(", ")} only`];
     if (pkg.kind === "fm1base") return [false, "Optimist's updater refuses fm1-base packages"];
     if (!pkg.ownLoader) return [false, "Optimist's updater takes the Felucca family's loader or M-VAVE's only"];
     return [true, "its own update loader"];

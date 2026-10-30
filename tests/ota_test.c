@@ -268,6 +268,32 @@ int main(int argc, char **argv)
             bad += check(WHAT[k], rc == -15 && !committed && erases == 0 && last_code == -15);
             memcpy(logical, keep, sizeof keep);
         }
+        /* every MEMORY step's size passes step 1 (fm1_steps.h FL_STEPS, tools/flash_layout.py), whatever step this
+         * build is: the package's own loader writes it; the release's 0xCE000 and a size between two steps do not */
+#define STEP_SIZE_OK(l, e, r)                                                                                    \
+        {                                                                                                        \
+            char what[96];                                                                                       \
+            reset_dev();                                                                                         \
+            set_fl_size(logical, (e));                                                                           \
+            rc = ota_session();                                                                                  \
+            snprintf(what, sizeof what, "step %d's flash.bin (%#x B): past the size check (not -15)", (l), (unsigned)(e)); \
+            bad += check(what, rc != -15 && last_code != -15);                                                   \
+            memcpy(logical, keep, sizeof keep);                                                                  \
+        }
+        FL_STEPS(STEP_SIZE_OK)
+#undef STEP_SIZE_OK
+        {
+            static const uint32_t NO[3] = {0xCE000u, 0xB4000u, 0xB6000u};
+            for (k = 0; k < 3u; k++) {
+                char what[96];
+                reset_dev();
+                set_fl_size(logical, NO[k]);
+                rc = ota_session();
+                snprintf(what, sizeof what, "no step's size (%#x B): -15, nothing erased", (unsigned)NO[k]);
+                bad += check(what, rc == -15 && !committed && erases == 0);
+                memcpy(logical, keep, sizeof keep);
+            }
+        }
     }
     {
         size_t full = logical_len;

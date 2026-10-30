@@ -94,11 +94,11 @@ def detection():
     info = R.package_kind(mb, FI.flash_size(FI.logical_image(mb)))
     ok(info.kind == R.P_MBOOT and info.flash_len is None, "package: m-bootloader's installer FM-1_099 (no flash.bin)")
     kinds = {}
-    for product, end in (("FM-1_700", 0x93000), ("FM-1_731", 0xD0000), ("FM-1_7900", 0x93000),
+    for product, end in (("FM-1_700", 0x93000), ("FM-1_731", 0xD0000), ("FM-1_7900", 0x93000), ("FM-1_700", 0xB5000),
                          ("FM-1_79000200", 0xCE000), ("FM-1_906", 0x93000), ("FM-1_700", 0xCE000)):
         raw = M.ufw(synth_flash(end, 1), b"FELUCCA-LOADER-1" + b"x" * 64, product)
         kinds[(product, end)] = R.package_kind(raw, FI.flash_size(FI.logical_image(raw))).kind
-    ok(kinds == {("FM-1_700", 0x93000): R.P_OPTIMIST, ("FM-1_731", 0xD0000): R.P_OPTIMIST,
+    ok(kinds == {("FM-1_700", 0x93000): R.P_OPTIMIST, ("FM-1_731", 0xD0000): R.P_OPTIMIST, ("FM-1_700", 0xB5000): R.P_OPTIMIST,
                  ("FM-1_7900", 0x93000): R.P_FM1BASE, ("FM-1_79000200", 0xCE000): R.P_FM1BASE,
                  ("FM-1_906", 0x93000): R.P_FELUCCA, ("FM-1_700", 0xCE000): R.P_OTHER},
        f"package: Optimist's own by identity and layout, fm1-base, Felucca ({kinds})")
@@ -204,9 +204,13 @@ def layouts():
             cleared = tgt[lo:hi] == b"\xFF" * (hi - lo)
             above = max(e2, hi)
             rest = tgt[above:L.DATA_TOP] == cur[above:L.DATA_TOP]
-            want = {(0x93000, 0xD0000): (0xD0000, 0xDA000), (0x93000, 0xCE000): (0xCE000, 0xDA000),
-                    (0xD0000, 0x93000): (0x93000, 0xD0000), (0xCE000, 0x93000): (0x93000, 0xCE000),
-                    (0xD0000, 0xCE000): (0xCE000, 0xD0000)}.get((e1, e2), (0, 0))
+            want = {(0x93000, 0xB5000): (0xB5000, 0xD8000), (0x93000, 0xD0000): (0xD0000, 0xDA000),   # (9.3's matrix)
+                    (0x93000, 0xCE000): (0xCE000, 0xDA000),
+                    (0xB5000, 0x93000): (0x93000, 0xD8000), (0xB5000, 0xD0000): (0xD0000, 0xDA000),
+                    (0xB5000, 0xCE000): (0xCE000, 0xDA000),
+                    (0xD0000, 0x93000): (0x93000, 0xDA000), (0xD0000, 0xB5000): (0xB5000, 0xDA000),
+                    (0xD0000, 0xCE000): (0xCE000, 0xD0000),
+                    (0xCE000, 0x93000): (0x93000, 0xDA000), (0xCE000, 0xB5000): (0xB5000, 0xDA000)}.get((e1, e2), (0, 0))
             lost_ok = (not p.lost) if e2 <= e1 else (p.lost and p.lost[0][0] == e1)
             ok(kept and right and cleared and rest and (lo, hi) == want and lost_ok and set(L.changed(cur, tgt)) == set(p.sectors),
                f"layout {n1} -> {n2}: package area, clear {lo:#x}-{hi:#x}, kept regions untouched, data above kept")

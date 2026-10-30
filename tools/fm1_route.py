@@ -16,9 +16,12 @@ import hashlib
 import re
 from dataclasses import dataclass, field
 
+import flash_layout                  # (tools/: the MEMORY steps' one table)
+
 STOCK_V15_SHA256 = "db1642b2b6fa5c2cccb11ffd13878068bb28601678d3644049f99dc40e7edb8a"
 LOADER_MARK = b"FELUCCA-LOADER-1"
-OWN_SLOTS = (0x93000, 0xD0000)       # Optimist's own updater's layouts (firmware/src/system/ota.c, flash_layout.py)
+OWN_SLOTS = flash_layout.own_slots()   # Optimist's own updater's sizes, every MEMORY step's (ota.c step 1: fm1_steps.h FL_STEPS;
+                                     # an updater older than the step S0 takes 0x93000 and 0xD0000 only: -15, nothing erased)
 SOFT_KEY = bytes([0xF0, 0x22, 0x24, 0x35, 0x7D, 0xF7])   # download mode from a running app (m-bootloader SPEC 4.2)
 
 # the firmwares (running) -- kind: (name, soft key, keys into download mode, its updater)
@@ -132,7 +135,7 @@ def loader_takes(running: str, pkg: PackageInfo, running_text: str = "") -> tupl
         if pkg.kind == P_V15:
             return True, "the way back to the official firmware (README.md, Getting back)"
         if pkg.flash_len not in OWN_SLOTS:
-            return False, (f"its updater takes the layouts 0x93000 and 0xD0000 only; this flash.bin is "
+            return False, (f"its updater takes the layouts {', '.join(f'{s:#x}' for s in OWN_SLOTS)} only; this flash.bin is "
                            f"{pkg.flash_len:#x}" if pkg.flash_len else "its updater needs a flash.bin")
         if pkg.kind == P_FM1BASE:
             return False, "its updater refuses fm1-base packages (2026-10-29: -16, nothing written)"

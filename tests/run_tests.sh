@@ -1086,8 +1086,10 @@ job; ( jobin
     python3 tools/fm1pkg_make.py "$OUT/old_app.bin" build/loader/ota.bin "$OUT/old.fwsc" >/dev/null
     $CC -o "$OUT/ldr_test" tests/ldr_test.c
     run "update loader: other app -> this build" "$OUT/ldr_test" "$OUT/old.fwsc" build/felucca.fwsc
-    $CC -DFELUCCA_LAYOUT=1 -o "$OUT/ldr_test_l1" tests/ldr_test.c
-    run "update loader of the fake SD mode (LAYOUT 1): what a switch of layout clears, nothing else" "$OUT/ldr_test_l1" --layout
+    for L in 1 3; do   # (the MEMORY steps, tools/flash_layout.py: L1 more flash, S0 no user samples; normal above)
+        $CC -DFELUCCA_LAYOUT=$L -o "$OUT/ldr_test_l$L" tests/ldr_test.c
+        run "update loader of LAYOUT $L: the switch matrix from every step (docs/SD-MODE-DESIGN.md 9.3), nothing else" "$OUT/ldr_test_l$L" --layout
+    done
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin   # the silent placeholder (docs/SD-MODE-DESIGN.md 6b): a part dropped to make memory room
     $CC -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 -DFELUCCA_ENG_FM6=1 -DPH_PLAIN=1 "-DFELUCCA_ARENA_BYTES=(NPART * ARN_SLOT)" -o "$OUT/placeholder_test" tests/placeholder_test.c -lm
@@ -1158,6 +1160,11 @@ job; ( jobin   # the flash layouts (docs/SD-MODE-DESIGN.md): the numbers agree; 
     run "patterns and scenes in the fake SD mode's log (7 sectors at 0xD0000): store, MEM FULL" "$OUT/patterns_test_l1"
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_SL24_XSTEP=1 $L1 -o "$OUT/project_scope_test_l1" tests/project_scope_test.c -lm
     run "the fake SD mode keeps one project: another refused, the log the one project's, MEM FULL" "$OUT/project_scope_test_l1"
+    S0="-DFELUCCA_LAYOUT=3 -DFELUCCA_ENG_SAMPLE=0 -DFELUCCA_DRUM_USR=0 -DFELUCCA_SNAPSHOTS=0 -DFELUCCA_PATTERNS=1"   # (S0, no user samples: its 32-sector log at 0xB8000, fm1_steps.h)
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_SL24_XSTEP=1 $S0 -o "$OUT/patterns_test_s0" tests/patterns_test.c -lm
+    run "patterns and scenes in the no-user-samples step's log (S0: 32 sectors at 0xB8000): store, MEM FULL" "$OUT/patterns_test_s0"
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_SL24_XSTEP=1 $S0 -o "$OUT/project_scope_test_s0" tests/project_scope_test.c -lm
+    run "the no-user-samples step (S0) keeps 16 projects in its log: each project's scenes, patterns and song its own, MEM FULL" "$OUT/project_scope_test_s0"
 ) >"$U.out" 2>&1 & jobbg
 
 job; ( jobin

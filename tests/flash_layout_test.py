@@ -1,19 +1,22 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-only
-"""The flash layouts (docs/SD-MODE-DESIGN.md) say the same everywhere: tools/flash_layout.py against
-firmware/hal/fm1_flash_map.h, the builder's classic limits (configure.classic_limits), app.ld's normal XIP length, the package tool's normal
-slot; and the layout switch's table (what an install after the other layout clears).
+"""The MEMORY steps (docs/SD-MODE-DESIGN.md section 9) say the same everywhere: tools/flash_layout.py's STEPS is the one
+table; firmware/hal/fm1_steps.h is generated from it (checked byte for byte), the other copies are checked against it:
+the builder's (registry.py LAYOUT_STEPS, the classic limits, fits()), the installers' size lists (fm1_route.py,
+fm1_install.py, web/install_route.js, the iOS app's InstallRoute.swift), app.ld's normal XIP length; and the switch
+rule against the matrix written out (9.3), every pair.
   python3 tests/flash_layout_test.py"""
 import re
 import sys
-from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "tools"))
-sys.path.insert(0, str(ROOT / "tools" / "builder"))
-import flash_layout as L  # noqa: E402
-import core as K  # noqa: E402
-import configure as C  # noqa: E402
+from builder_path import ROOT
+import configure as C
+import core as K
+import flash_layout as L
+import fm1_install
+import fm1_route
+import fm1pkg_make
+import registry as R
 
 C.CLASSIC = True                                     # (the classic firmware's layouts: tools/flash_layout.py is its)
 
@@ -22,54 +25,112 @@ bad = 0
 
 def check(what, ok):
     global bad
-    print(f"{what:<96} {'ok' if ok else 'FAIL'}")
+    print(f"{what:<110} {'ok' if ok else 'FAIL'}")
     bad += not ok
 
 
 def _raises(f, *a):
     try:
         f(*a)
-    except ValueError:
+    except (ValueError, SystemExit):
         return True
     return False
 
 
-hdr = (ROOT / "firmware" / "hal" / "fm1_flash_map.h").read_text()
-
-
-def c_hex(name):
-    m = re.search(rf"#define\s+{name}\s+0x([0-9A-Fa-f]+)u", hdr)
-    return int(m.group(1), 16) if m else None
-
-
-check("fm1_flash_map.h FL_APP_HI_NORMAL / FL_APP_HI_BIG == flash_layout.APP_HI",
-      c_hex("FL_APP_HI_NORMAL") == L.APP_HI[0] and c_hex("FL_APP_HI_BIG") == L.APP_HI[1])
+N, S0, L1 = 0, 3, 1
+hal = ROOT / "firmware" / "hal"
+check("fm1_steps.h is what tools/flash_layout.py --header makes (the one table, generated)",
+      (hal / "fm1_steps.h").read_text() == L.c_header())
+fmap = (hal / "fm1_flash_map.h").read_text()
+check("fm1_flash_map.h takes the steps from fm1_steps.h, defines no app end of its own",
+      '#include "fm1_steps.h"' in fmap and not re.search(r"#define\s+FL_(APP_HI|UPF_LO|DATA_LO)\b", fmap))
+check("the table: N 0x93000, S0 0xB5000 (R 0xD8000), L1 0xD0000 (R 0xDA000, the release 0xCE000)",
+      [(L.STEPS[k].end, L.STEPS[k].reloc, L.STEPS[k].release_end) for k in (N, S0, L1)]
+      == [(0x93000, 0x93000, 0x93000), (0xB5000, 0xD8000, 0xB5000), (0xD0000, 0xDA000, 0xCE000)])
+check("S0's store, as the design has it: FM6 voices 0xB5000, autosave A 0xB7000, a 32-sector log 0xB8000..0xD7FFF, 16 projects",
+      (L.STEPS[S0].upf, L.STEPS[S0].autosave_a, L.STEPS[S0].log_lo, L.STEPS[S0].log_sectors, L.STEPS[S0].projects)
+      == (0xB5000, 0xB7000, 0xB8000, 32, 16) and not L.STEPS[S0].samples and not L.STEPS[S0].release_built)
+check("app.bin's room: N 581,564, S0 720,828, L1 831,420 B (the far probe's reserve gone: code_limit == app_slot)",
+      [L.app_slot(k) for k in (N, S0, L1)] == [581564, 720828, 831420] and all(L.code_limit(k) == L.app_slot(k) for k in L.STEPS))
 ld = (ROOT / "firmware" / "app.ld").read_text()
-check("app.ld's XIP length is the normal layout's app slot (581,564 B)",
-      f"LENGTH = 0x{L.app_slot(0):X}" in ld and L.app_slot(0) == 581564)
+check("app.ld's XIP length is the normal step's app slot", f"LENGTH = 0x{L.app_slot(0):X}" in ld)
+build_py = (ROOT / "tools" / "build.py").read_text()
+check("tools/build.py: no far probe (.text_far, far_off, FAR_RESERVE), the XIP length from the table for any step",
+      ".text_far" not in build_py and "far_off" not in build_py and "FAR_RESERVE" not in build_py
+      and "flash_layout.app_slot(layout())" in build_py and not hasattr(L, "far_off") and not hasattr(L, "FAR_RESERVE"))
+check("no far probe in the firmware (far_probe.c gone, the console's far, fm1_guard.h's _xip_code_end)",
+      not (ROOT / "firmware" / "src" / "system" / "far_probe.c").exists()
+      and "con_far" not in (ROOT / "firmware" / "src" / "io" / "console.c").read_text()
+      and "_xip_code_end" not in (hal / "fm1_guard.h").read_text())
+
 _lim = K.limits_in_use()
-check("the builder's classic limits come from here: the normal slot, each other layout's code room (flash_layout.code_limit)",
-      _lim["flash"] == L.app_slot(0) and _lim["flash_by_layout"] == {k: L.code_limit(k) for k in L.APP_HI if k})
-check("the builder's fits(): LAYOUT 1 always the larger room (an old FAR_OK=0 changes nothing), normal the normal slot",
-      K.fits({r: 0 for r in K.REGIONS}, {"LAYOUT": 0})["flash"][1] == L.app_slot(0) - K.SPARE["flash"]
-      and K.fits({r: 0 for r in K.REGIONS}, {"LAYOUT": 1})["flash"][1] == L.code_limit(1) - K.SPARE["flash"])
-check("layout_of: a flash.bin's length names its layout; another length is refused",
-      L.layout_of(0x93000) == 0 and L.layout_of(0xD0000) == 1 and
-      all(_raises(L.layout_of, n) for n in (0x92FFF, 0x9D000, 0xB7000)))
-check("no layout's app reaches the update staging (0xE0000) or the kits / presets (0xDA000..)",
-      all(v <= L.BIG_STORE_HI - 0xA000 for v in L.APP_HI.values()) and L.BIG_STORE_HI <= L.STORE_TOP)
-normal_end, big_end = 0x4000 + 0x8E000, 0x4000 + 0xCB25B      # (app area blocks as the two packages have them)
-check("switch: normal after normal, big after big: nothing cleared",
-      L.switch_clear(normal_end, 0) == (0, 0) and L.switch_clear(big_end, 1) == (0, 0))
-check("switch: normal after big clears the old app's tail [0x93000, 0xD0000)", L.switch_clear(big_end, 0) == (0x93000, 0xD0000))
-check("switch: big after normal clears the squeezed store [0xD0000, 0xDA000)", L.switch_clear(normal_end, 1) == (0xD0000, 0xDA000))
-check("switch: big after no header of ours (end 0) clears the squeezed store too", L.switch_clear(0, 1) == (0xD0000, 0xDA000))
+check("the builder's classic limits come from here: the normal slot, every other step's whole slot",
+      _lim["flash"] == L.app_slot(0) and _lim["flash_by_layout"] == {k: L.app_slot(k) for k in L.STEPS if k})
+check("the builder's fits(): each step its own slot",
+      all(K.fits({r: 0 for r in K.REGIONS}, {"LAYOUT": k})["flash"][1] == L.app_slot(k) - K.SPARE["flash"] for k in L.STEPS))
+check("registry.py LAYOUT_STEPS (the web builder's copy) is the table's: MEMORY value, user samples kept, app slot",
+      set(R.LAYOUT_STEPS) == set(L.STEPS)
+      and all(R.LAYOUT_STEPS[k][1:] == (L.STEPS[k].samples, L.app_slot(k)) for k in L.STEPS))
+check("LAYOUT's choices are the table's layouts, MEMORY's in the table's size order (and SD card mode last)",
+      sorted(v for v, _ in R.ITEMS["LAYOUT"].choices) == sorted(L.STEPS)
+      and [v for v, _ in R.ITEMS["MEMORY"].choices] == [R.LAYOUT_STEPS[k][0] for k in L.ORDER] + [2])
+check("MEMORY <-> LAYOUT: picking each step sets its layout, reading it back gives the step",
+      all(K.set_memory(K.defaults(), R.LAYOUT_STEPS[k][0])["LAYOUT"] == k
+          and K.derive_memory(dict(K.defaults(), LAYOUT=k)) == R.LAYOUT_STEPS[k][0] for k in L.STEPS))
+
+check("layout_of: a flash.bin's length names its step; another length is refused (the release's 0xCE000 too)",
+      L.layout_of(0x93000) == N and L.layout_of(0xB5000) == S0 and L.layout_of(0xD0000) == L1 and
+      all(_raises(L.layout_of, n) for n in (0x92FFF, 0x9D000, 0xB7000, 0xCE000, 0xB4000)))
+check("no step's app or store reaches the kits (0xDA000) or the update staging (0xE0000)",
+      all(s.end <= s.reloc <= L.CLEAR_TOP for s in L.STEPS.values()) and L.CLEAR_TOP == 0xDA000 and L.STORE_TOP == 0xE0000)
+check("the package tool: every step's end makes a flash.bin, another end is refused",
+      all(not _raises(fm1pkg_make.flash_layout.layout_of, L.app_hi(k)) for k in L.STEPS)
+      and _raises(fm1pkg_make.flash_layout.layout_of, 0xC0000))
+
+# the switch matrix (9.3), written out: old end -> {new layout: (lo, hi)}; 0: no header of ours; 0xCE000 the release's L1
+MATRIX = {
+    0x93000: {N: (0, 0), S0: (0xB5000, 0xD8000), L1: (0xD0000, 0xDA000)},
+    0xB5000: {N: (0x93000, 0xD8000), S0: (0, 0), L1: (0xD0000, 0xDA000)},
+    0xD0000: {N: (0x93000, 0xDA000), S0: (0xB5000, 0xDA000), L1: (0, 0)},
+    0xCE000: {N: (0x93000, 0xDA000), S0: (0xB5000, 0xDA000), L1: (0, 0)},
+    0: {N: (0, 0), S0: (0xB5000, 0xD8000), L1: (0xD0000, 0xDA000)},
+    0x5000: {N: (0, 0), S0: (0xB5000, 0xD8000), L1: (0xD0000, 0xDA000)},
+    0xC0000: {N: (0x93000, 0xDA000), S0: (0xB5000, 0xDA000), L1: (0xD0000, 0xDA000)},
+}
+for old, row in MATRIX.items():
+    for new, want in row.items():
+        for o in ((old, old - 0xD70) if old else (old,)):   # (the head's end, inside the slot's last sector)
+            got = L.switch_clear(o, new)
+            check(f"switch to {L.STEPS[new].key} after {'no header' if not old else hex(o)}: clears "
+                  f"[{want[0]:#x}, {want[1]:#x})", got == want)
+check("switch, own <-> release in one step: L1 0xD0000 -> the release's 0xCE000 clears the old code's tail only",
+      L.switch_clear_ends(0xD0000, 0xCE000) == (0xCE000, 0xD0000) and L.switch_clear_ends(0xCE000, 0xD0000) == (0, 0))
+check("switch: no clear ever reaches 0xDA000", all(L.switch_clear_ends(o, n)[1] <= L.CLEAR_TOP
+                                                   for o in [0, 0xC0000, *L.known_ends()] for n in L.known_ends()))
+
 ldr = (ROOT / "firmware" / "loader" / "ldr_core.c").read_text()
-check("ldr_core.c clears the same ranges (FL_APP_HI_NORMAL..FL_APP_HI_BIG, FL_APP_HI_BIG..FL_UPF_HI)",
-      "lo = FL_APP_HI_NORMAL, hi = FL_APP_HI_BIG" in ldr and "lo = FL_APP_HI_BIG, hi = FL_UPF_HI" in ldr
-      and re.search(r"#define\s+FL_UPF_HI\s+0x000DA000u", hdr) is not None and L.BIG_STORE_HI == 0xDA000)
+check("ldr_core.c clears by the table (FL_ENDS, FL_RELOC_HI, FL_CLEAR_TOP), no layout constant of its own",
+      "FL_ENDS(LDR_END_STEP)" in ldr and "FL_RELOC_HI" in ldr and "FL_CLEAR_TOP" in ldr and "FL_APP_HI_BIG" not in ldr)
+ota = (ROOT / "firmware" / "src" / "system" / "ota.c").read_text()
+check("ota.c step 1 takes every step's size from the table (FL_STEPS); the official loader normal only",
+      "FL_STEPS(OTA_STEP_END)" in ota and "!ota_step_size(fl_len)" in ota and "official && fl_len != FL_APP_HI_NORMAL" in ota)
+
+own = L.own_slots()
+check("the installers' size lists are the table's: fm1_route.OWN_SLOTS, fm1_install.OWN_SLOTS",
+      own == (0x93000, 0xB5000, 0xD0000) and fm1_route.OWN_SLOTS == own and fm1_install.OWN_SLOTS == own)
 
 
+def _hex_list(text, pattern):
+    m = re.search(pattern, text)
+    return tuple(int(x, 16) for x in re.findall(r"0x([0-9A-Fa-f]+)", m.group(1))) if m else None
+
+
+js = (ROOT / "web" / "install_route.js").read_text()
+swift = (ROOT / "ios" / "OptimistMirror" / "Sources" / "Flash" / "InstallRoute.swift").read_text()
+check("web/install_route.js OWN_SLOTS is the table's", _hex_list(js, r"export const OWN_SLOTS = \[([^\]]*)\]") == own)
+check("ios InstallRoute.swift ownSlots is the table's, and its refusal names them",
+      _hex_list(swift, r"static let ownSlots = \[([^\]]*)\]") == own
+      and "takes the layouts 0x93000, 0xB5000 and 0xD0000 only" in swift)
 
 print("flash layout test " + ("FAILED" if bad else "passed"))
 sys.exit(1 if bad else 0)
