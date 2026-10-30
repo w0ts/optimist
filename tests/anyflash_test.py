@@ -21,16 +21,15 @@ import sys
 from contextlib import redirect_stderr
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "tools"))
-sys.path.insert(1, str(ROOT / "tools" / "builder"))
-import fm1_anyflash as AF  # noqa: E402
-import fm1_install as FI  # noqa: E402
-import fm1_layouts as L  # noqa: E402
-import fm1_route as R  # noqa: E402
-import fm1pkg_make as M  # noqa: E402
-import install_meta as IM  # noqa: E402
-import mflasher as MF  # noqa: E402
+from builder_path import ROOT  # (first: tools/ and tools/builder/ on sys.path for the imports below)
+
+import fm1_anyflash as AF
+import fm1_install as FI
+import fm1_layouts as L
+import fm1_route as R
+import fm1pkg_make as M
+import install_meta as IM
+import mflasher as MF
 
 FAKE = ROOT / "tests" / "fake_mflasher.py"
 TMP = ROOT / "build" / "test-anyflash"
