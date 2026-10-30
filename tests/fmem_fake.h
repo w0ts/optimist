@@ -4,6 +4,7 @@
  * few passes after its mode goes off (the device's run let go), the lending as the release has it
  * (fm1base/optimist/ui/opt_bta_lend.h), and the features' table: BT AUDIO lendable, WI-FI not. Under ASan a block given
  * back is poisoned (ARN_TOOK unpoisons one the arena hands out). Included before hostsim.c */
+#include <stdint.h>
 #include <string.h>
 #if defined(__has_feature)
 #if __has_feature(address_sanitizer)
