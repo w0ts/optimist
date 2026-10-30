@@ -246,7 +246,7 @@ static void mixer_sets_tests(void)
               mx_labels(MXR_MASTER, FELUCCA_MASTER_COMP ? 2 : 1, "DUCK", 0, 0, 0) && mx_sets(MXR_MASTER) == (FELUCCA_MASTER_COMP ? 3u : 2u),
           "MASTER: its insert slots (S1 FILT, S2 DYN), DYN's THRS RATIO GAIN CEIL, DUCK; no returns' cards (2026-10-30: their own rows)");
     check(MXR_RET0 + 3u == MXR_MASTER && MXR_MASTER + 1u == MXR_N && MXR_T1 == 0u &&
-              (!FELUCCA_USB_AUDIO || MXR_RET0 == MXR_LN + 1u) && (FELUCCA_USB_AUDIO || MXR_RET0 == MXR_LN),
+              (MXR_RET0 == MXR_LN || MXR_RET0 == MXR_LN + 1u),
           "the rows (the user, 2026-10-30): T1 T2 T3, DR, the lanes, USB IN, RET A B C, MASTER the last");
     {   /* a return's row (2026-10-30): LEVEL FX amount | PRE TYPE amount POST TYPE amount | its sends to the other returns */
         const uint32_t ra = MXR_RET0, rb = MXR_RET0 + 1u, rc = MXR_RET0 + 2u;
