@@ -10,7 +10,7 @@
 export const SOFT_KEY = [0xF0, 0x22, 0x24, 0x35, 0x7D, 0xF7];
 export const V15_SHA256 = "db1642b2b6fa5c2cccb11ffd13878068bb28601678d3644049f99dc40e7edb8a";
 export const OWN_SLOTS = [0x93000, 0xD0000];
-export const MFLASHER_URL = "https://github.com/jvitkauskas/m-flasher/releases";
+export const MFLASHER_URL = "https://github.com/jvitkauskas/m-flasher/releases";   // (the fallback: the pinned release page is in the site's data, MFLASHER)
 export const PATHS_URL = "https://github.com/w0ts/optimist/blob/main/docs/INSTALL-PATHS.md";
 
 const KEYS = {
@@ -112,4 +112,42 @@ export function nextStep(route, file = "PACKAGE.fwsc") {
 export function flashLenOf(entries) {   // (fm1pkg.js ufwEntries: {0: flash.bin, 100: ota.bin})
   const e = entries && entries[0];
   return e ? e.len : null;
+}
+
+/** { os: "macos" | "windows" | "linux" | "ios" | "android" | "other", arch: "x86_64" | "aarch64" | "" (unknown) } of the visitor.
+    nav: navigator (userAgent, userAgentData.platform); high: userAgentData.getHighEntropyValues(["architecture", "bitness"])
+    when the page could ask it ({ architecture: "arm" | "x86", bitness: "64" }), else the user agent string alone */
+export function detectPlatform(nav, high = null) {
+  const ua = String((nav && nav.userAgent) || ""), hint = String((nav && nav.userAgentData && nav.userAgentData.platform) || "");
+  let os = "other";
+  if (/iPhone|iPad|iPod/.test(ua) || /^iOS$/i.test(hint)) os = "ios";
+  else if (/Android/i.test(ua) || /^Android$/i.test(hint)) os = "android";
+  else if (/^macOS$/i.test(hint) || (!hint && /Macintosh|Mac OS X/.test(ua))) os = "macos";
+  else if (/^Windows$/i.test(hint) || (!hint && /Windows/.test(ua))) os = "windows";
+  else if (/^(Linux|Chrome OS|Chromium OS)$/i.test(hint) || (!hint && /Linux|X11/.test(ua))) os = "linux";
+  else if (/Macintosh|Mac OS X/.test(ua)) os = "macos";
+  else if (/Windows/.test(ua)) os = "windows";
+  else if (/Linux|X11/.test(ua)) os = "linux";
+  if ((os === "macos" && nav && nav.maxTouchPoints > 1)) os = "ios";     // (an iPad asking for the desktop site)
+  let arch = "";
+  const a = high && String(high.architecture || "").toLowerCase();
+  if (a === "arm") arch = "aarch64";
+  else if (a === "x86") arch = "x86_64";
+  else if (/aarch64|arm64|armv8/i.test(ua)) arch = "aarch64";
+  else if (/x86_64|x86-64|x64|amd64|Win64|WOW64|Intel/i.test(ua)) arch = "x86_64";
+  return { os, arch };
+}
+
+/** { mobile, os, files, version, page } from the site's data (tools/mflasher.py site_data(), generated into site.json):
+    files: the release's files for this visitor (the dmg for a Mac, the zip for Windows, deb / rpm / tarball for the CPU for
+    Linux; both CPUs' when the CPU is unknown), each { name, url, sha256, size, kind, arch };
+    A phone or tablet cannot run M-Flasher: mobile, files empty. The page links these and downloads nothing itself. */
+export function mflasherFor(data, platform) {
+  const files = (data && data.files) || [];
+  const os = platform.os;
+  const mobile = os === "ios" || os === "android";
+  const mine = mobile ? [] : files.filter(f => f.os === os && (f.arch === "any" || !platform.arch || f.arch === platform.arch));
+  const order = { dmg: 0, zip: 0, deb: 1, rpm: 2, "tar.gz": 3 };
+  mine.sort((a, b) => (a.arch === b.arch ? 0 : a.arch === "x86_64" ? -1 : 1) || order[a.kind] - order[b.kind]);
+  return { mobile, os, files: mine, version: data && data.version, page: (data && data.page) || MFLASHER_URL };
 }

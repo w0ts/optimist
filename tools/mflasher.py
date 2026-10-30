@@ -31,18 +31,36 @@ SUBMODULE = ROOT / "third_party" / "m-flasher"
 VERSION = "0.7.0"
 COMMIT = "0c5d50fe40a1c913c3408b9dafb33fbb88ad5d69"
 RELEASE = f"https://github.com/jvitkauskas/m-flasher/releases/download/v{VERSION}/"
-# the release's files (GitHub's digests, 2026-10-30), the binary inside each
-ASSETS = {
-    ("Darwin", "any"): (f"M-Flasher-{VERSION}-macos.dmg",
-                        "a75f2dc0f2a4a5f2545320b925f265303fd8a2d3927dcb181a909a535fb67f0e",
-                        "M-Flasher.app/Contents/MacOS/M-Flasher"),
-    ("Linux", "x86_64"): (f"m-flasher-{VERSION}-linux-x86_64.tar.gz",
-                          "4080858a224a7e2a25948da3b35fb6a2e74c4bd603f5eef73ddcb5dc4177047f", "m-flasher/m-flasher"),
-    ("Linux", "aarch64"): (f"m-flasher-{VERSION}-linux-aarch64.tar.gz",
-                           "342d9ca6af0fd63c6c46539455c9ab2f507a26b83863938159019ed092b58e2e", "m-flasher/m-flasher"),
-    ("Windows", "any"): (f"M-Flasher-{VERSION}-windows.zip",
-                         "520b83b01b41b7a24b0ced9ee5ee565d579b56f5649a26f509602d8182214538", "M-Flasher.exe"),
-}
+REPO = "jvitkauskas/m-flasher"
+PAGE = f"https://github.com/{REPO}/releases/tag/v{VERSION}"
+# the release's files (GitHub's digests, 2026-10-30): the ONE place the version, names, sizes and SHA-256 are written.
+# The web installer and the Mirror app get site_data() of it, generated at build time (tools/sync_mflasher.py,
+# web/make_site.py); tests/mflasher_get_test.py checks that they agree. os: macos / windows / linux; arch: any (one
+# build for the OS) or x86_64 / aarch64; kind: how it installs (dmg, zip, tar.gz run from a folder; deb, rpm are packages)
+RELEASE_FILES = (
+    {"name": f"M-Flasher-{VERSION}-macos.dmg", "os": "macos", "arch": "any", "kind": "dmg", "size": 7361372,
+     "sha256": "a75f2dc0f2a4a5f2545320b925f265303fd8a2d3927dcb181a909a535fb67f0e"},
+    {"name": f"M-Flasher-{VERSION}-windows.zip", "os": "windows", "arch": "any", "kind": "zip", "size": 3147567,
+     "sha256": "520b83b01b41b7a24b0ced9ee5ee565d579b56f5649a26f509602d8182214538"},
+    {"name": f"m-flasher_{VERSION}-1_amd64.deb", "os": "linux", "arch": "x86_64", "kind": "deb", "size": 4041996,
+     "sha256": "9c03a8e3a23ab9365f827b32cf75be6207fd5fda5e2e3891288542035c634584"},
+    {"name": f"m-flasher-{VERSION}-1.x86_64.rpm", "os": "linux", "arch": "x86_64", "kind": "rpm", "size": 4146963,
+     "sha256": "04d62eb2f1ca43317c9749d7eb32822db14fd2440c5197aaa5045e5b8cd573e0"},
+    {"name": f"m-flasher-{VERSION}-linux-x86_64.tar.gz", "os": "linux", "arch": "x86_64", "kind": "tar.gz", "size": 3974627,
+     "sha256": "4080858a224a7e2a25948da3b35fb6a2e74c4bd603f5eef73ddcb5dc4177047f"},
+    {"name": f"m-flasher_{VERSION}-1_arm64.deb", "os": "linux", "arch": "aarch64", "kind": "deb", "size": 3746258,
+     "sha256": "6f79dd1cacdf34cd536ff7b97adffdc37d99e7d3dde24d4b812ab48f7097e5f0"},
+    {"name": f"m-flasher-{VERSION}-1.aarch64.rpm", "os": "linux", "arch": "aarch64", "kind": "rpm", "size": 3818838,
+     "sha256": "d0807d9c896bba6bd8d04e78e91aa81d7ca5f66ad6d4c44d5d51bd0fd178e50d"},
+    {"name": f"m-flasher-{VERSION}-linux-aarch64.tar.gz", "os": "linux", "arch": "aarch64", "kind": "tar.gz", "size": 3625153,
+     "sha256": "342d9ca6af0fd63c6c46539455c9ab2f507a26b83863938159019ed092b58e2e"},
+)
+SYSTEMS = {"macos": "Darwin", "windows": "Windows", "linux": "Linux"}
+OS_LABEL = {"Darwin": "macOS", "Windows": "Windows", "Linux": "Linux"}
+# what setup downloads and runs without root: the dmg's app (its bundled CLI), the zip's exe, the tarball's binary
+INSIDE = {"dmg": "M-Flasher.app/Contents/MacOS/M-Flasher", "zip": "M-Flasher.exe", "tar.gz": "m-flasher/m-flasher"}
+ASSETS = {(SYSTEMS[f["os"]], f["arch"]): (f["name"], f["sha256"], INSIDE[f["kind"]])
+          for f in RELEASE_FILES if f["kind"] in INSIDE}
 # m-bootloader's v1.2 release (22e2559; third_party/m-bootloader is pinned at 64b74d0, two documentation commits
 # later): its SHA256SUMS, for the copies in web/fm1base/m-bootloader/ and M-Flasher's bundled build
 MBOOT_RELEASE = {"version": "1.2", "commit": "22e2559906f9fc4e077f2d6aee20bf332300439e",
@@ -62,12 +80,59 @@ def home() -> Path:
     return Path(os.environ.get("M_FLASHER_HOME") or Path.home() / ".jieli") / f"m-flasher-{VERSION}"
 
 
-def asset(system: str | None = None, machine: str | None = None):
-    """(file, sha256, binary inside) of the pinned release for this system, None when it has none"""
+def _norm(system: str | None, machine: str | None):
     system = system or platform.system()
     machine = (machine or platform.machine()).lower()
-    machine = {"amd64": "x86_64", "arm64": "aarch64"}.get(machine, machine)
+    return system, {"amd64": "x86_64", "arm64": "aarch64"}.get(machine, machine)
+
+
+def asset(system: str | None = None, machine: str | None = None):
+    """(file, sha256, binary inside) of the pinned release for this system, None when it has none"""
+    system, machine = _norm(system, machine)
     return ASSETS.get((system, "any")) or ASSETS.get((system, machine))
+
+
+def pick(system: str | None = None, machine: str | None = None):
+    """the RELEASE_FILES entry setup downloads for this system (None when there is none)"""
+    a = asset(system, machine)
+    return next((f for f in RELEASE_FILES if a and f["name"] == a[0]), None)
+
+
+def machine_label(system: str | None = None, machine: str | None = None) -> str:
+    """"macOS arm64", "Windows x86_64", "Linux aarch64" (the question's words)"""
+    system, machine = _norm(system, machine)
+    if system == "Darwin" and machine == "aarch64":
+        machine = "arm64"                            # (what Apple calls it)
+    return f"{OS_LABEL.get(system, system)} {machine}"
+
+
+def question(system: str | None = None, machine: str | None = None) -> str:
+    f = pick(system, machine)
+    if not f:
+        raise MFlasherError(f"M-Flasher {VERSION} has no release for {machine_label(system, machine)}")
+    return (f"M-Flasher (MIT, Julius Vitkauskas) is needed for this install: download v{VERSION} for "
+            f"{machine_label(system, machine)} ({f['size'] / 1e6:.1f} MB)?")
+
+
+def notes(system: str | None = None) -> list:
+    """what M-Flasher's README (docs/usage.md) says about the first run; shown to the user, never worked around"""
+    if (system or platform.system()) == "Darwin":
+        return ["M-Flasher on macOS is not signed with an Apple certificate: if macOS blocks it, the user opens "
+                "System Settings > Privacy & Security > Open Anyway (this installer does not bypass that).",
+                "When it finds the unit, it asks for the password in the system's dialog (its root helper takes the USB "
+                "device from macOS's disk driver) and once whether it may access files on a removable volume: Allow.",
+                "Run from Terminal at the Mac itself, not over SSH (macOS asks about the removable volume on the screen)."]
+    if (system or platform.system()) == "Windows":
+        return ["M-Flasher is not signed: if Windows says it protected the PC, the user chooses More info > Run anyway; "
+                "it asks for administrator rights."]
+    return []
+
+
+def site_data() -> dict:
+    """the pinned release as the web installer and the Mirror app read it (tools/sync_mflasher.py, web/make_site.py)"""
+    return {"version": VERSION, "tag": f"v{VERSION}", "repo": REPO, "page": PAGE, "license": "MIT",
+            "author": "Julius Vitkauskas",
+            "files": [dict(f, url=RELEASE + f["name"]) for f in RELEASE_FILES]}
 
 
 def binary() -> Path | None:
@@ -140,7 +205,11 @@ def fetch(download=None) -> Path:
     with tempfile.TemporaryDirectory(dir=dest.parent) as tmp:
         archive = Path(tmp) / file
         print(f"m-flasher: downloading {file} (M-Flasher {VERSION})")
-        download(RELEASE + file, archive)
+        try:
+            download(RELEASE + file, archive)
+        except Exception as e:                       # (deps.FetchError, OSError, a fake's error: nothing written)
+            raise MFlasherError(f"cannot download {RELEASE + file}: {e}; nothing installed (offline? "
+                                "M_FLASHER=/path/to/m-flasher uses a copy you already have)")
         if _sha256(archive) != want:
             raise MFlasherError(f"{file}: does not match its pinned SHA-256; nothing installed")
         out = Path(tmp) / "out"
@@ -150,6 +219,22 @@ def fetch(download=None) -> Path:
             raise MFlasherError(f"{file}: no {inside} inside")
         shutil.move(str(out), str(dest))
     return dest / inside
+
+
+def ensure(ask, say=print, download=None) -> Path:
+    """the M-Flasher to run: found, else asked for ONCE (ask(question) -> bool) and fetched, checked, installed in home()"""
+    exe = binary()
+    if exe:
+        return exe
+    q = question()
+    if not ask(q):
+        raise MFlasherError(f"M-Flasher is needed for this install and was not downloaded: python tools/fm1_anyflash.py "
+                            f"setup (v{VERSION}), or M_FLASHER=/path/to/m-flasher")
+    exe = fetch(download)
+    say(f"M-Flasher {VERSION} installed: {exe}")
+    for n in notes():
+        say("  " + n)
+    return exe
 
 
 def build_from_source() -> Path:

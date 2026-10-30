@@ -37,6 +37,7 @@ ALLOW = [
     ("web/builder/builder.js", "https://github.com/", "builder: a link the user clicks"),
     ("web/make_site.py", "https://github.com/", "the site's repository link (a link)"),
     ("tools/site_manual.py", "https://github.com/", "the manual's link to the repository (a link)"),
+    ("web/install_route.js", "https://github.com/", "installer: M-Flasher's release page and the install paths doc, links the user clicks (the page loads nothing)"),
     # the installer's cloud builds (the user's own build, by key)
     ("web/installer/installer.js", "https://api.github.com/", "installer: cloud builds"),
     ("web/installer/installer.js", "https://raw.githubusercontent.com/", "installer: cloud builds"),
@@ -48,6 +49,7 @@ SWIFT_ALLOW = [
     ("Flash/FlashCatalog.swift", "https://api.github.com/", "Flash tab: one's own cloud build"),
     ("Flash/BuilderWebView.swift", "https://github.com/", "builder: only the link kinds the app will open (a check, not a load)"),
     ("Web/WebTabView.swift", "https://w0ts.github.io/optimist/webapp/editor/", "Simulator (home screen): the site's editor, whose Simulator tab loads the firmware builds (not bundled); offline: 'needs the internet'. The Web tabs use the bundled editor (optimistedit:)"),
+    ("Flash/InstallRoute.swift", "https://github.com/", "Flash tab: M-Flasher's release list, a link the user clicks (not a load)"),
     ("Companion/Fm1BaseSite.swift", "http", "string handling of the repo link (not a request)"),
 ]
 

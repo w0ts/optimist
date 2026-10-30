@@ -31,6 +31,10 @@ targets:
       - name: Bundle the web editor
         script: python3 "$SRCROOT/../../tools/sync_ios_editor.py" "$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/OptimistEditor"
         basedOnDependencyAnalysis: false
+      # the pinned M-Flasher release (tools/mflasher.py, the one source of truth) as mflasher.json: the Firmware tab's links
+      - name: Bundle the M-Flasher release
+        script: python3 "$SRCROOT/../../tools/sync_mflasher.py" "$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/mflasher.json"
+        basedOnDependencyAnalysis: false
     settings:
       base:
         ENABLE_USER_SCRIPT_SANDBOXING: NO   # (the script reads ../../web, outside this project's folder)

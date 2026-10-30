@@ -110,7 +110,12 @@ struct FlashView: View {
             if let e = flash.error { Text(e).font(.footnote).foregroundStyle(.red) }
             if flash.softKeyOffered {
                 Button("Switch the FM-1 to download mode (for M-Flasher)") { Task { await flash.sendSoftKey() } }.font(.footnote)
-                Link("M-Flasher", destination: InstallRoute.mflasher).font(.footnote)
+            }
+            if flash.needsComputer {
+                let advice = MFlasherRelease.advice(catalyst: MFlasherRelease.isCatalyst)
+                Text(advice.text).font(.footnote)
+                Link(advice.title, destination: advice.link).font(.footnote)
+                if MFlasherRelease.isCatalyst { Link("Other systems", destination: InstallRoute.mflasher).font(.footnote) }
             }
         } header: {
             Text("Install")
