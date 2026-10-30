@@ -537,9 +537,9 @@
       "ACCENT LANE": "Raises every hit of its step",
       "ACCENT LEVEL": "Accent amount added to hits"}},
     {"kind": "op", "ctx": "INSERTS", "params": {
-      "RET SEND": "Send this return into that", "RET LEVEL": "This return's level into master",
-      "RET FX": "The effect this return plays", "RET PRE": "Insert before the return's effect",
-      "RET POST": "Insert after it, before LEVEL"}},
+      "RET SEND": "Send this return into that", "RET LEVEL": "Return level into master",
+      "RET FX": "The effect this return plays", "RET PRE": "Insert before the effect",
+      "RET POST": "Insert after the effect"}},
     {"kind": "page", "ctx": "LFO 2", "params": {
       "RATE": "LFO 2 rate (left: synced)", "WAVE": "LFO 2 wave", "TRIG": "LFO 2 restarts: note or free",
       "POL": "LFO 2: both ways or up only"}},
