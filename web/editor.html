@@ -13021,6 +13021,15 @@ function stripSlotRows(ow, ids, o = {}) {
     c.load(true).catch(report);
     out[`slot${k + 1}`] = c.el;
   }
+  if (ow >= FXP.RET0 && ow < FXP.LANE0) {             /* a return's PRE and POST (FXP slots 2, 3, 2026-10-30): its second row; a firmware of before has no such slot (the cards stay empty) */
+    out.slot2 = [2, 3].map((k) => {
+      const c = fxpCard(ow, "", { compact: true, ids, only: k, ...o });
+      c.el.dataset.stage = k === 2 ? "pre" : "post";
+      dev.stripFx.push(c);
+      c.load(true).catch(report);
+      return c.el;
+    });
+  }
   return out;
 }
 /* a synth track's instrument (the drum track's kit) on its strip: the list and a button for its editor */

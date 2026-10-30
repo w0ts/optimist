@@ -218,18 +218,18 @@ static void pgk_mixer_tests(void)
     for (s = 0; s < n0; s++) {
         mx.set = (uint8_t)s;
         mix_name(MXR_MASTER, nm);
-        if (!strcmp(nm, "RETURNS"))
+        if (!strcmp(nm, "DUCK"))
             break;
     }
     frames(2);
-    check(ui.scr == SCR_HOME && s < n0, "page kept, the mixer: MASTER's RETURNS set");
+    check(ui.scr == SCR_HOME && s < n0, "page kept, the mixer: MASTER's DUCK set (its returns: their own rows since 2026-10-30)");
     pgk_snap(a, sizeof a);
     mst_load(0, FXT_DYN);
     frame();
     n = mx_sets(MXR_MASTER);
     mix_name(MXR_MASTER, nm);
     pgk_snap(b, sizeof b);
-    check(n > n0 && mx.set > s && !strcmp(nm, "RETURNS") && !strcmp(a, b), "... DYN into a master slot (INS DYN before RETURNS): RETURNS still");
+    check(n > n0 && mx.set > s && !strcmp(nm, "DUCK") && !strcmp(a, b), "... DYN into a master slot (INS DYN before DUCK): DUCK still");
     for (s = 0; s < n; s++) {
         mx.set = (uint8_t)s;
         mix_name(MXR_MASTER, nm);

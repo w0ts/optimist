@@ -680,7 +680,11 @@ static void mix_cell(uint32_t r, uint32_t k, cell_t *c)
     c->strike |=(uint8_t)(mx_is_vol(&m) && mx_snd_muted(r));   /* (a sound mute only: the sequencer mute leaves the volume alone) */
     c->strike |= (uint8_t)(m.kind == MI_RET && ((fx_rmute >> (m.id - G_CRET) & 1u) || fx_rfull((uint32_t)(m.id - G_CRET))));
     if (m.kind == MI_RET && mx_is_ret(r))
-        c->hlp = "RET LEVEL";   /* (a muted return's card; also one whose insert is FULL: it plays nothing) */
+        c->hlp = "RET LEVEL";
+    if (m.kind == MI_RTY)
+        c->hlp = "RET FX";
+    if (m.kind == MI_RPT && !c->strike)
+        c->hlp = m.id ? "RET POST" : "RET PRE";   /* (a muted return's card; also one whose insert is FULL: it plays nothing) */
     if (m.kind == MI_ACC)
         c->hlp = "ACCENT LEVEL";
     if (m.kind == MI_RSND)
