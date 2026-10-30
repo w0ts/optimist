@@ -126,7 +126,7 @@
   },
   "ENG_FORMANT": {
    "0": {
-    "flash": -1924,
+    "flash": -1928,
     "ram": -52,
     "pool": 0,
     "ramtext": -2196
@@ -176,7 +176,7 @@
   },
   "ENG_FM6": {
    "0": {
-    "flash": -24596,
+    "flash": -24600,
     "ram": -88,
     "pool": -9128,
     "ramtext": -8
@@ -916,7 +916,7 @@
   },
   "RET_FB": {
    "0": {
-    "flash": -568,
+    "flash": -564,
     "ram": -688,
     "pool": -388,
     "ramtext": 36
@@ -1204,7 +1204,7 @@
   },
   "ED_MIX": {
    "0": {
-    "flash": -4376,
+    "flash": -4380,
     "ram": -28,
     "pool": 0,
     "ramtext": 20
@@ -1324,7 +1324,7 @@
   },
   "ASM": {
    "0": {
-    "flash": -680,
+    "flash": -684,
     "ram": 12,
     "pool": 0,
     "ramtext": -780
@@ -1657,7 +1657,32 @@
     "ramtext": 0
    }
   },
-  "SD_RING": {},
+  "SD_RING": {
+   "4": {
+    "flash": -174400,
+    "ram": 6996,
+    "pool": 12728,
+    "ramtext": 1612
+   },
+   "8": {
+    "flash": -174372,
+    "ram": 6996,
+    "pool": 12984,
+    "ramtext": 1612
+   },
+   "12": {
+    "flash": -174332,
+    "ram": 6976,
+    "pool": 13240,
+    "ramtext": 1632
+   },
+   "16": {
+    "flash": -174344,
+    "ram": 6976,
+    "pool": 13496,
+    "ramtext": 1632
+   }
+  },
   "SD_REC": {
    "16": {
     "flash": -187264,
@@ -1687,7 +1712,7 @@
    }
   }
  },
- "measured": "2026-10-30 05:51",
+ "measured": "2026-10-30 05:59",
  "cpu": {
   "scale_pct": 104,
   "calibrated": "2026-10-06, emulator at 96 MHz, bench.c scenarios 1 2 3 7 8 (docs/CPU-GUARD.md); X0X: 2026-10-07, scenario 8 on the X0X 909 and 808 kits (x0x-drums)",
@@ -2802,7 +2827,7 @@
    },
    "built_hash": "6e79872a",
    "sizes": {
-    "flash": 535840,
+    "flash": 535844,
     "ram": 83952,
     "pool": 300148,
     "ramtext": 26480
@@ -3096,7 +3121,7 @@
    },
    "built_hash": "72f4095d",
    "sizes": {
-    "flash": 565196,
+    "flash": 565192,
     "ram": 90044,
     "pool": 342452,
     "ramtext": 35864
@@ -4085,7 +4110,7 @@
    },
    "built_hash": "35164962",
    "sizes": {
-    "flash": 533304,
+    "flash": 533300,
     "ram": 81284,
     "pool": 285928,
     "ramtext": 24800
@@ -4100,7 +4125,7 @@
    "ramtext": 0
   },
   "ED_MIX=0,ED_SEQ=0,ED_SCREENS=0": {
-   "flash": 4,
+   "flash": 8,
    "ram": -12,
    "pool": -4,
    "ramtext": 20
@@ -4130,7 +4155,7 @@
    "ramtext": -184
   },
   "REV_PLATE=1,REV_FDN8=1,SPRING=1": {
-   "flash": -1292,
+   "flash": -1296,
    "ram": -792,
    "pool": 4,
    "ramtext": -172
@@ -4160,7 +4185,7 @@
    "ramtext": -132
   },
   "DRUM_SYNTH=0,DS_KAWA=0,DS_PLAITS=0": {
-   "flash": -7620,
+   "flash": -7616,
    "ram": -52,
    "pool": 0,
    "ramtext": -12
@@ -4220,7 +4245,7 @@
    "ramtext": 0
   },
   "CPU_GUARD=1,DRUM_X0X909=1": {
-   "flash": 88,
+   "flash": 92,
    "ram": 44,
    "pool": 0,
    "ramtext": -44
@@ -4232,7 +4257,7 @@
    "ramtext": -44
   },
   "CPU_GUARD=1,DRUM_X0X909=1,DRUM_X0X808=1": {
-   "flash": -76,
+   "flash": -80,
    "ram": -44,
    "pool": 0,
    "ramtext": 44
@@ -4262,13 +4287,13 @@
    "ramtext": 0
   },
   "BLE=1,BT_AUDIO=1": {
-   "flash": -10076,
+   "flash": -10080,
    "ram": -1024,
    "pool": 0,
    "ramtext": -32
   },
   "BLE=1,BLE_CENTRAL=1,BT_AUDIO=1": {
-   "flash": -1576,
+   "flash": -1572,
    "ram": 20,
    "pool": 4,
    "ramtext": 0
@@ -4280,7 +4305,7 @@
    "ramtext": 0
   },
   "BLE=1,BLE_CENTRAL=3,BT_AUDIO=1": {
-   "flash": -1596,
+   "flash": -1592,
    "ram": 44,
    "pool": -4,
    "ramtext": 0
@@ -4298,7 +4323,7 @@
    "ramtext": 0
   },
   "ENG_SAMPLE=0,ENG_GRAIN=0,ENG_SLICE=0,DRUM_USR=0": {
-   "flash": -696,
+   "flash": -700,
    "ram": -1288,
    "pool": 0,
    "ramtext": 8
@@ -4418,14 +4443,14 @@
    "ramtext": 1324
   },
   "ASM=0,ENG_FM6=0,ENG_ANALOG=0": {
-   "flash": 388,
+   "flash": 396,
    "ram": 128,
    "pool": 0,
    "ramtext": 780
   }
  },
  "unbuildable": {
-  "ENG_PHYS=3": "not in this build: PHYS's render path in the code RAM calls libgcc's 64-bit divide (__udivdi3, px_string_block): the helper is in flash, out of reach of a RAM-to-flash jump (R_PI32V2_LONG_JUMP_23M2 reaches 2 MB); build PHYS \"on\" (code in flash) [link: ld.lld: error: build/slots/77/felucca.o:(function px_string_block: .ram_hot+0x4e66): relocation R_PI32V2_LONG_JUMP_23M2 out of range: 2222849 is not in [-2097152, 2097151]; references '__udivdi3']",
+  "ENG_PHYS=3": "not in this build: PHYS's render path in the code RAM calls libgcc's 64-bit divide (__udivdi3, px_string_block): the helper is in flash, out of reach of a RAM-to-flash jump (R_PI32V2_LONG_JUMP_23M2 reaches 2 MB); build PHYS \"on\" (code in flash) [link: ld.lld: error: build/slots/100/felucca.o:(function px_string_block: .ram_hot+0x4e66): relocation R_PI32V2_LONG_JUMP_23M2 out of range: 2222849 is not in [-2097152, 2097151]; references '__udivdi3']",
   "OVERLAY=1": "not in this build: tools/ovl_link.py puts the overlay slots on top of .ram_hot2 and the classic link does not lay out that way yet; not buildable until the layout is fixed [link: ld.lld: error: section .ovl_trio virtual address range overlaps with .ram_hot2]"
  },
  "groups": {
