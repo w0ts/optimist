@@ -1193,7 +1193,8 @@ _add("LAYOUT", "FELUCCA_LAYOUT", "flash layout: fake SD mode (more room for code
 # (FELUCCA_FX_ARENA, FELUCCA_MEM_LIST). The pool estimate: core.py arena_mem (sd_mode)
 _add("ARENA", "FELUCCA_ARENA_KB", "memory per project (the free RAM: one arena for the engines and the effects' lines)",
      MEM, 411, default=1,
-     experimental=True, tested="host-tested only (tests/fx_arena_test.c, arena_bufs_test.c, arena_test.c, arena_frag_test.c, placeholder_test.c); not on an FM-1",
+     experimental=True, tested="host-tested (tests/fx_arena_test.c, arena_bufs_test.c, arena_test.c, arena_frag_test.c, placeholder_test.c); "
+                          "on the user's FM-1 since 2026-10-29 (the fm1-next test packages)",
      desc="Instead of reserving every engine's memory whether a project uses it or not, the RAM the firmware leaves free "
           "is one arena that holds what the project uses (the user, 2026-10-29: arena first, undo gets the rest): each "
           "synth part's engine state (FM6, PHYS, GRAIN, ACID, PLAITS, JUNO, DRAWBAR, CZ, SLICE), placed when an engine "
