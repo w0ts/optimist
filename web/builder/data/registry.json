@@ -4719,7 +4719,7 @@
     "parent": null,
     "desc": "One choice for the two items LAYOUT and SDCARD. Normal: the flash layout as before. Reduced user flash (LAYOUT): the code grows from 568 KiB to 816 KiB over the sample slots, the snapshots and most of the projects' room; one project stays in flash (the web or iOS app keeps the others), no SD card. SD card mode (LAYOUT + SDCARD): the same flash layout with the user data on the SD card (a hardware mod, docs/SD-CARD-DESIGN.md). Picking one sets those items; setting them by hand reads back here. The menu and the web builder list this row alone (with SD_RING and SD_REC under it in SD card mode); LAYOUT, SDCARD and the retired RAM_PACKED are real but not listed, and an old `.config` still loads them.",
     "experimental": true,
-    "notice": "",
+    "notice": "Changing this changes the flash layout: back up the projects first (web editor: Backup). Installing a build with another layout than the FM-1 has erases the user data the new code covers: from normal to more flash or SD card mode, the projects, the user samples, the snapshots and the FM6 voices in flash; back to normal, the data area starts empty. The kits and the presets are kept (docs/INSTALL-PATHS.md).",
     "off_warning": "",
     "env": "",
     "target_only": true,
@@ -4848,7 +4848,7 @@
     "label": "memory per project (the free RAM: one arena for the engines and the effects' lines)",
     "group": "Memory management",
     "bit": 411,
-    "default": 0,
+    "default": 1,
     "parent": null,
     "desc": "Instead of reserving every engine's memory whether a project uses it or not, the RAM the firmware leaves free is one arena that holds what the project uses (the user, 2026-10-29: arena first, undo gets the rest): each synth part's engine state (FM6, PHYS, GRAIN, ACID, PLAITS, JUNO, DRAWBAR, CZ, SLICE), placed when an engine is picked, its room free for the others once the part plays an engine that keeps nothing there; the effects' lines (the delay, chorus and reverb sends' lines, the limited inserts' own room: one line of each type built) and the other buffers only some projects use (each track's SLICER recording while it is on STUT, WAVE's table while a part plays WAVE, the X0X 909's and 808's states while the kit or a lane plays them, the PUNCH ring while the project's PUNCH switch is on: GLOBAL > Rec, FM6's sine table while a part plays FM6). The undo history keeps 16 KB and borrows what the arena does not use, giving it back, its oldest levels first, as soon as the arena needs it. A change that does not fit is refused and the device proposes what to drop (DROP T2 FM6, then the effects' lines: DROP REV 32 KB); a project load that does not fit opens a list of what to drop. Before anything is refused the memories are moved together when the free room would hold it, and a project load packs them all; nothing that sounds is moved (a part only while it plays nothing, a send line while its tail is silent), what sounds is packed once it is quiet (SYSTEM > INFO's RAM bar shows the arena in use and the undo history's share). A dropped or refused effect is bypassed and dimmed (FULL), kept in the project, and comes back by itself once there is room. Off: every memory reserved as before, nothing ever refused. An older configuration's size (ARENA=96) reads as on.",
     "experimental": true,
@@ -4986,37 +4986,6 @@
     "hidden": false,
     "shown_under": "MEMORY",
     "tested": "host-tested only (tests/sd_wr_test.c, sd_rec_test.c: a card model with stalls, an interrupt-driven audio clock); no FM-1 has the card yet; for now started from the console (sd rec)",
-    "provenance_line": ""
-   },
-   {
-    "key": "OVERLAY",
-    "flag": "FELUCCA_OVERLAY",
-    "label": "engines' fast code loaded per part (RAMTEXT overlays)",
-    "group": "Memory management",
-    "bit": 412,
-    "default": 0,
-    "parent": null,
-    "desc": "The engines' fast code (the sound loops run from the 32 KB code RAM) is no longer all in that RAM from start-up: each synth part has a slot there, and the code of the engine the part plays is copied into its slot from flash when the part starts playing it (a project load, an engine change: the part is silent for the copy, well under a millisecond (an estimate; 10 us in the emulator), and the notes of that moment start when it is there, within a main-loop pass). The build picks the slot size that leaves the most code RAM; an engine larger than a slot stays in the code RAM as before. Each engine in the slots is in flash once per slot (3x its fast code), so this needs the fake SD mode layout (LAYOUT). It pays when the engines built together have more fast code than three slots of the largest: with today's profiles (ANALOG 2 alone is 5 KB) the build may find no gain and keep every engine where it was. The console's ovl line shows the slots and the copy times.",
-    "experimental": true,
-    "notice": "",
-    "off_warning": "every engine's fast code in the code RAM from start-up, as before",
-    "env": "",
-    "target_only": true,
-    "symbols": [],
-    "no_image": false,
-    "fixed": false,
-    "head": false,
-    "choices": [],
-    "not_built": {
-     "1": {
-      "classic": "tools/ovl_link.py puts the overlay slots on top of .ram_hot2 and the classic link does not lay out that way yet; not buildable until the layout is fixed"
-     }
-    },
-    "provenance": null,
-    "children": [],
-    "hidden": false,
-    "shown_under": null,
-    "tested": "host-tested and booted in the emulator only, not on an FM-1",
     "provenance_line": ""
    },
    {
@@ -6374,7 +6343,7 @@
  ],
  "limits": {
   "flash": 581564,
-  "sram": 494336,
+  "sram": 475136,
   "flash_by_layout": {
    "1": 823228
   }
@@ -6439,8 +6408,7 @@
  "top": {
   "Memory management": [
    "MEMORY",
-   "ARENA",
-   "OVERLAY"
+   "ARENA"
   ],
   "Reserve": [],
   "Synth engines": [

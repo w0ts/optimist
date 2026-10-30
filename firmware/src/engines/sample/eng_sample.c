@@ -272,7 +272,7 @@ static uint32_t smp_cz_sync(uint32_t part)          /* the part's card zones now
 AINL int smp_cz_on(uint32_t s) { return s < SMP_NSETS && SMP_CARD_SET(s); }
 AINL uint32_t smp_cz_src(uint32_t part, uint32_t zl) { return (sst_bank_src[part % SST_NPART] + zl) % SST_NSRC; }
 
-static OVL(sample) void smp_card_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
+static FAST(sample) void smp_card_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
 {
     const int16_t *p = t->p;
     uint32_t k = (uint32_t)(v->s[4] & 0xFF), i, frac = v->ph[1], stepq, r;
@@ -379,7 +379,7 @@ static void sample_note_on(track_t *t, voice_t *v)
     v->s[7] = 0;                 /* lo-pass state */
 }
 
-static OVL(sample) void sample_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
+static FAST(sample) void sample_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
 {
     const int16_t *p = t->p;
     const smp_zone_t *z;
@@ -440,9 +440,6 @@ static const engine_t ENG_SAMPLE = {
         PU("DRV", F_PCT, 0, 127, 0, 0),
         PU("-", F_INT, 0, 0, 0, 0),
     },
-    SMP_PRESET_TABLE, sizeof(SMP_PRESET_TABLE) / sizeof(SMP_PRESET_TABLE[0]), -1, sample_note_on, OVL_FN(sample_render),
+    SMP_PRESET_TABLE, sizeof(SMP_PRESET_TABLE) / sizeof(SMP_PRESET_TABLE[0]), -1, sample_note_on, sample_render,
     0xFFFF, {P_E0, P_E4, P_ATK, P_REL},
 };
-#if FELUCCA_ENG_SAMPLE
-OVL_ENGINE(sample, ENG_SLOT_SAMPLE, sample_render, 0, 0, 0)
-#endif

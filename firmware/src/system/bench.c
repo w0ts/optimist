@@ -40,8 +40,7 @@
  * start again every 2 s. FELUCCA_BENCH_SAVE=1: a project save (flash erase + program) from the main
  * loop 1.5 s in, while it all plays. FELUCCA_BENCH_COMP=1 (FELUCCA_MASTER_COMP): every scenario with the master COMP
  * at THRS -10, 2:1, 10 ms, AUTO, GAIN +4 and LIMIT CEIL -0.3 (tests/master_comp_test.c's glue-limit render).
- * FELUCCA_BENCH_SWAP=1 (scenarios with the eighths groove): each part to DIGITAL and back in the middle of every phrase
- * (the RAMTEXT overlays' loads while playing, core/overlay.c). */
+ * FELUCCA_BENCH_SWAP=1 (scenarios with the eighths groove): each part to DIGITAL and back in the middle of every phrase. */
 #ifndef FELUCCA_BENCH_SWAP
 #define FELUCCA_BENCH_SWAP 0
 #endif

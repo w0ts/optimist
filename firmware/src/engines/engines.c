@@ -693,4 +693,3 @@ static void part_mem_claim(uint32_t k, uint32_t e)
 }
 #endif
 
-#include "../core/overlay.c"                  /* the RAMTEXT overlays: the engines' hot code in a slot per part (FELUCCA_OVERLAY) */

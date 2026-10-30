@@ -122,6 +122,7 @@ RETIRED = {
     "INS_REVERB": "the reverb insert ROOM is the reverb itself: REV goes in any track's or the master's insert slot wherever FX_REVERB is built, the ROOM tank with the send's SIZE and DAMP and a dry/wet MIX (retired 2026-10-29, bit 440, the day it came); an old project's ROOM loads as REV; any old INS_REVERB value is ignored",
     "INS_TDELAY": "the delay insert TDLY is the delay itself: DLY goes in any track's or the master's insert slot wherever FX_DELAY is built, with the send's TIME, FDBK and filter and a dry/wet MIX (retired 2026-10-29, bit 441, the day it came); an old project's TDLY loads as DLY; any old INS_TDELAY value is ignored",
     "DLY_ARENA": "the effects memory (the delay send's line and the limited inserts' lines) is always sized automatically: the delay's line and one line of each limited insert type built, in the arena (ARENA on) and as the fixed memory (off) alike (retired 2026-10-29, bit 378; the user: \"remove the item, always auto\"): the number of an old DLY_ARENA setting is ignored",
+    "OVERLAY": "the engines' fast code is no longer loaded per part (the RAMTEXT overlays, bit 412, retired 2026-10-30: the packed SRAM runs all its code at one speed and gives what is free to the arena, the slots cost each engine's code three times in flash, and the release build never linked them; the user: \"retire it\")",
     "KNOB_ONEREST": "the knobs are always read with Felucca 1.6's decoder (one rest state a detent, fast turns counted; "
                     "retired 2026-10-14, released in Felucca 1.1.5 #126 and unchanged since)",
 }
@@ -135,7 +136,7 @@ WAS_COUNT = frozenset({"INS_DELAY", "INS_JCHORUS", "INS_FLANGER", "INS_XDLY",
                        "ARENA"})   # (ARENA: its KB until 2026-10-29, the free RAM since: on)
 
 ALWAYS_ON_TARGET = {"FELUCCA_DUAL": 2, "FELUCCA_STOCK_SUPPLY": 1}   # (target builds only, no item: system/dual.c, system/supply.c; 2026-10-29)
-HASH_AS = {"BASSPLUS": 1, "KEYLIT": 1, "LIGHTS": 1, "BRIGHT": 0, "SIMD": 0, "KNOB_ONEREST": 1, "MONO_RELEASE": 1, "ST_STRICT": 1, "USB_FLOW": 1, "SHED_FADE": 1, "KEYS_FAST": 1, "TRS_NOISE": 1, "BK_CHECK": 1, "LAYER_QUIET": 1, "DLY_HALVE": 1, "LFO2": 1, "GLIDE": 1, "UI": 1, "ICONS": 0, "OVERVIEW": 0, "OV_ARP": 1, "DRUM_STEP": 1, "CHORD_NAMES": 1, "BPM_LOCK": 0, "MOTION_MARK": 1, "SEL_PAGES": 0, "BIGVALS": 0, "DRUM_ACCENT": 1, "PAGE_LINES": 1, "TAB_IN_POOL": 1, "VOICE_OWN": 1, "DLY_DOT": 1, "CHO_EXACT": 1, "JUNO_FINE": 1, "DUAL": 2, "STOCK_SUPPLY": 1, "REV_HALF": 0, "REV_HB_LONG": 0, "BT_AFH": 1, "BLE_DIAG": 0, "BT_DIAG": 0}   # (each was its default in every profile)
+HASH_AS = {"BASSPLUS": 1, "KEYLIT": 1, "LIGHTS": 1, "BRIGHT": 0, "SIMD": 0, "KNOB_ONEREST": 1, "MONO_RELEASE": 1, "ST_STRICT": 1, "USB_FLOW": 1, "SHED_FADE": 1, "KEYS_FAST": 1, "TRS_NOISE": 1, "BK_CHECK": 1, "LAYER_QUIET": 1, "DLY_HALVE": 1, "LFO2": 1, "GLIDE": 1, "UI": 1, "ICONS": 0, "OVERVIEW": 0, "OV_ARP": 1, "DRUM_STEP": 1, "CHORD_NAMES": 1, "BPM_LOCK": 0, "MOTION_MARK": 1, "SEL_PAGES": 0, "BIGVALS": 0, "DRUM_ACCENT": 1, "PAGE_LINES": 1, "TAB_IN_POOL": 1, "VOICE_OWN": 1, "DLY_DOT": 1, "CHO_EXACT": 1, "JUNO_FINE": 1, "DUAL": 2, "STOCK_SUPPLY": 1, "REV_HALF": 0, "REV_HB_LONG": 0, "BT_AFH": 1, "BLE_DIAG": 0, "BT_DIAG": 0, "OVERLAY": 0}   # (each was its default in every profile)
 
 # Never offered: used by X0X only by permission of its author, no licence
 FORBIDDEN = {
@@ -187,6 +188,7 @@ class Item:
     experimental: bool = False
     provenance: Optional[Provenance] = None
     notice: str = ""                 # shown when selected (X0X items: required)
+    notice_on_change: bool = False   # the notice also when changed back to its default (MEMORY: any change moves the layout)
     off_warning: str = ""            # shown when switched off
     env: str = ""                    # generator environment (sample sets: FELUCCA_SAMPLES_SKIP)
     target_only: bool = False        # only for the target build (the host tests keep their own default)
@@ -1140,6 +1142,11 @@ MEMORY_CHOICES = ((0, "normal"),
                   (1, "more flash: one project in flash"),
                   (2, "SD card mode"))
 _add("MEMORY", "", "memory: where the user data lives", MEM, 436, default=0, choices=MEMORY_CHOICES, no_image=True,
+     notice="Changing this changes the flash layout: back up the projects first (web editor: Backup). Installing a "
+            "build with another layout than the FM-1 has erases the user data the new code covers: from normal to "
+            "more flash or SD card mode, the projects, the user samples, the snapshots and the FM6 voices in flash; "
+            "back to normal, the data area starts empty. The kits and the presets are kept (docs/INSTALL-PATHS.md).",
+     notice_on_change=True,
      experimental=True, target_only=True, tested="host-tested only (docs/SD-MODE-DESIGN.md)",
      desc="One choice for the two items LAYOUT and SDCARD. Normal: the flash layout as before. Reduced user flash (LAYOUT): "
           "the code grows from 568 KiB to 816 KiB over the sample slots, the snapshots and most of the projects' room; "
@@ -1185,7 +1192,7 @@ _add("LAYOUT", "FELUCCA_LAYOUT", "flash layout: fake SD mode (more room for code
 # (registry.h FELUCCA_SD_MODE: LAYOUT 1 until its own flag): the effects' lines, the other buffers, the load's list page
 # (FELUCCA_FX_ARENA, FELUCCA_MEM_LIST). The pool estimate: core.py arena_mem (sd_mode)
 _add("ARENA", "FELUCCA_ARENA_KB", "memory per project (the free RAM: one arena for the engines and the effects' lines)",
-     MEM, 411, default=0,
+     MEM, 411, default=1,
      experimental=True, tested="host-tested only (tests/fx_arena_test.c, arena_bufs_test.c, arena_test.c, arena_frag_test.c, placeholder_test.c); not on an FM-1",
      desc="Instead of reserving every engine's memory whether a project uses it or not, the RAM the firmware leaves free "
           "is one arena that holds what the project uses (the user, 2026-10-29: arena first, undo gets the rest): each "
@@ -1249,19 +1256,7 @@ _add("SD_REC", "FELUCCA_SD_REC_KB", "record the master output to the SD card: th
           "does nothing else: samples from the card wait, the card's lists and saves say the card is busy. "
           "Needs LAYOUT (full FatFs) and SDCARD. The buffer is RAM of the pool for as long as the build has it.",
      off_warning="no recording to the card")
-# bit 412 (2026-10-25): reserved for the RAMTEXT overlays (411: the effects' arena)
-_add("OVERLAY", "FELUCCA_OVERLAY", "engines' fast code loaded per part (RAMTEXT overlays)", MEM, 412, default=0,
-     experimental=True, target_only=True, tested="host-tested and booted in the emulator only, not on an FM-1",
-     desc="The engines' fast code (the sound loops run from the 32 KB code RAM) is no longer all in that RAM from "
-          "start-up: each synth part has a slot there, and the code of the engine the part plays is copied into its "
-          "slot from flash when the part starts playing it (a project load, an engine change: the part is silent "
-          "for the copy, well under a millisecond (an estimate; 10 us in the emulator), and the notes of that moment start when it is there, within a "
-          "main-loop pass). The build picks the slot size that leaves the most code RAM; an engine larger than a slot "
-          "stays in the code RAM as before. Each engine in the slots is in flash once per slot (3x its fast code), "
-          "so this needs the fake SD mode layout (LAYOUT). It pays when the engines built together have more fast "
-          "code than three slots of the largest: with today's profiles (ANALOG 2 alone is 5 KB) the build may find no "
-          "gain and keep every engine where it was. The console's ovl line shows the slots and the copy times.",
-     off_warning="every engine's fast code in the code RAM from start-up, as before")
+# (bit 412, OVERLAY, retired 2026-10-30: RETIRED; never reuse it)
 _add("CPU_GUARD", "FELUCCA_CPU_GUARD", "predictive CPU guard (ease back before shedding)", Y, 61, default=0,
      provenance=FLOWSTATE_GUARD,
      desc="Avoids audio dropouts under heavy load by easing quality back step by step before cutting notes. Under "
@@ -1428,7 +1423,7 @@ _add("USB_HOST", "FELUCCA_USB_HOST", "USB MIDI host: a USB-MIDI keyboard, contro
 # Where each engine's hot code runs (the user, 2026-10-29): the engine's item is a choice, off / on (its render path
 # from the XIP flash, through the flash cache) / on, code in RAM (RAM code: out of the cache's way, its bytes taken from
 # the free RAM, about two thirds of them in flash: the boot stream codes RAM code). The firmware's switch per engine
-# (core.h FAST_RAM_<name>, through OVL / OVLX / FAST): FAST_NAMES. Defaults: where each ran until then (FAST_RAM:
+# (core.h FAST_RAM_<name>, through FAST): FAST_NAMES. Defaults: where each ran until then (FAST_RAM:
 # ANALOG 2 with SUPER, PHASE, DIGITAL, TRIO, FORMANT, DRAWBAR, LOFI, SAMPLE; the rest from the flash). The values are
 # 0 / 2 / 3: a .config's 1 (an engine "on" before) reads as the engine's place by default (core.parse), so an old
 # profile builds what it built. FAST_BYTES: the render path's code, bytes (the release's ELF, fm1-next 0efe7cd6, jam
@@ -1541,9 +1536,6 @@ NOT_BUILT = {
         kind: "PHYS's render path in the code RAM calls libgcc's 64-bit divide (__udivdi3, px_string_block): the helper is in "
               "flash, out of reach of a RAM-to-flash jump (R_PI32V2_LONG_JUMP_23M2 reaches 2 MB); build PHYS \"on\" (code in flash)"
         for kind in ("classic", "release")},
-    ("OVERLAY", 1): {
-        "classic": "tools/ovl_link.py puts the overlay slots on top of .ram_hot2 and the classic link does not lay out that "
-                   "way yet; not buildable until the layout is fixed"},
 }
 
 

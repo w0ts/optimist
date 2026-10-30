@@ -131,7 +131,7 @@ AINL int32_t drw_level(const int16_t *p, uint32_t k)
 }
 
 /* once per block, before the voices: bar gains, percussion, click, drive, the rotors */
-static OVL(drawbar) void drawbar_block(track_t *t)
+static FAST(drawbar) void drawbar_block(track_t *t)
 {
     drw_trk_t *T = &drw_mem(drw_part(t))->t;
     const int16_t *p = t->p;
@@ -197,7 +197,7 @@ static void drawbar_note_on(track_t *t, voice_t *v)
     V->gate = 1;
 }
 
-static OVL(drawbar) void drawbar_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
+static FAST(drawbar) void drawbar_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
 {
     drw_mem_t *M = drw_mem(drw_part(t));
     const drw_trk_t *T = &M->t;
@@ -293,9 +293,6 @@ static const engine_t ENG_DRAWBAR = {
         PU("DRV", F_PCT, 0, 127, 0, 0),
         PN("ROTR", F_ENUM, 0, 2, 1, N_DRW_ROTR),
     },
-    PRESETS_OF(DRAWBAR_PRESETS), -1, drawbar_note_on, OVL_FN(drawbar_render),
-    0xBC1F, {P_E0, P_E4, P_E6, P_E7}, 0, 0, 0, OVL_FN(drawbar_block),
+    PRESETS_OF(DRAWBAR_PRESETS), -1, drawbar_note_on, drawbar_render,
+    0xBC1F, {P_E0, P_E4, P_E6, P_E7}, 0, 0, 0, drawbar_block,
 };
-#if FELUCCA_ENG_DRAWBAR
-OVL_ENGINE(drawbar, ENG_SLOT_DRAWBAR, drawbar_render, drawbar_block, 0, 0)
-#endif
