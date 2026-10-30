@@ -1206,15 +1206,14 @@ def undo_ring(total):
 
 def fits(total, cfg=None):
     """-> {budget: (used, capacity, over)} for flash and the packed SRAM: over > 0 overflows (SRAM keeps its 8 KiB
-    spare); the flash by the configuration's layout (LAYOUT: limits_in_use flash_by_layout). A real release build's sizes
-    (sizes.json app_slot: the slot fm1-base's build checked that very image against) count against their own slot"""
+    spare); the flash by the configuration's layout (LAYOUT: limits_in_use flash_by_layout). Not a release build's
+    sizes.json app_slot: fm1-base's write_sizes puts its normal APP_SLOT there whatever app_end the build had (an SD card
+    mode build said 581,564 B; its check said "exceeds the app slot (823228 B)")"""
     out, lim = {}, limits_in_use()
     for b in BUDGETS:
         u, cap = used(total, b), lim[b] - SPARE[b]
         if b == "flash" and cfg and cfg.get("LAYOUT") in lim["flash_by_layout"]:
             cap = lim["flash_by_layout"][cfg["LAYOUT"]] - SPARE["flash"]
-        if b == "flash" and isinstance(total.get("app_slot"), int):
-            cap = total["app_slot"] - SPARE["flash"]
         out[b] = (u, cap, u - cap)
     return out
 
