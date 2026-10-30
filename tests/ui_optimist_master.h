@@ -184,6 +184,9 @@ static void master_tests(void)
     check(ui.scr == SCR_FX, "ALGORITHM on past MASTER: stays (the last)");
     turn(EN_ALGO, -1);
     check(ui.scr == SCR_SOUND && song.sel == TRK_DRUM && lane_picked(), "ALGORITHM back from MASTER: SOUND again, the last lane");
+    ui.lane = 0;
+    lane_select(0);
+    track_select(0);
     /* every other family reaches MASTER and comes back to where it was */
     {
         static const uint8_t B[] = {B_LFO, B_EDIT, B_ARP, B_FX};
@@ -198,6 +201,9 @@ static void master_tests(void)
             ok &= ui.scr == SCR_FX && ui.m_fam == fam;
             turn(EN_ALGO, -1);
             ok &= ui.scr == SCR_SOUND && song.sel == TRK_DRUM;
+            ui.lane = 0;
+            lane_select(0);
+            track_select(0);
         }
         check(ok, "MASTER from LFO, EDIT, ARP and FX pages (the family kept) and back to SOUND");
     }

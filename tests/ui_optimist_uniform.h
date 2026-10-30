@@ -64,6 +64,7 @@ static void un_scope_tests(void)                        /* #12: SCOPE's source =
     turn(EN_ALGO, -1);
     frames(2);
     check(ui.scr == SCR_SCOPE && !ui.master && scope_src == SCOPE_DR, "ALGORITHM back from MASTER: the last lane (the drums' part)");
+    lane_select(0);
     turn(EN_ALGO, 1);
     tap(B_HOME);
     check(ui.scr == SCR_HOME && !ui.master && (frame(), scope_src == 0u), "HOME: the mixer, the master flag gone");
