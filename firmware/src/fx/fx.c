@@ -2661,13 +2661,12 @@ static HOT void mix_part(track_t *t, uint32_t n MIXACC_PARAM)
         int32_t on = fx_on(t), pk = t->peak;          /* FX bypass: no sends (the buses' tails ring out) */
         pan_gains(pan, &gl, &gr);                     /* (dsp.c) */
         uint32_t ik = (uint32_t)(t - trk);              /* (a type the part holds as an insert: its amount is that insert's
-                                                         * MIX, no send to its bus, 2026-10-29: core.h INS_REV; a REV insert
-                                                         * with no memory, FULL, bypassed: the send to the reverb as with
-                                                         * no insert, so the track keeps its reverb, fxi.c. CHO and DLY
-                                                         * not: their buses lend their lines only while idle, fxi.c) */
+                                                         * MIX, no send to its bus, 2026-10-29: core.h INS_REV; also while that insert is FULL (no
+                                                         * memory, bypassed): the track plays dry and sends nothing, no
+                                                         * fallback to the shared send, 2026-10-30 ruling) */
         int32_t c = on && FXS_IN(FXT_CHO) && !INS_ON(ik, FXT_CHO) ? t->p[P_CHOR] * 258 : 0;   /* (a send in no FX slot: */
         int32_t d = on && FXS_IN(FXT_DLY) && !INS_ON(ik, FXT_DLY) ? t->p[P_DLY] * 258 : 0;    /* none, fx_slots.c) */
-        int32_t r = on && FXS_IN(FXT_REV) && !(INS_ON(ik, FXT_REV) && ifx_has(FXT_REV, ik)) ? t->p[P_REV] * 258 : 0;
+        int32_t r = on && FXS_IN(FXT_REV) && !INS_ON(ik, FXT_REV) ? t->p[P_REV] * 258 : 0;
         int32_t ga = mulq15(g0, duck.g0), gb = mulq15(g1, duck.g1);   /* mute x duck, ramped over the block */
         slicer_track(t, b, n);                          /* slicer.c: first (D2), before the inserts, level, pan, sends */
         if ((FELUCCA_FX_DIST || TFLT_ON || FELUCCA_MASTER_COMP || INS_FX || FELUCCA_FX_DUST) && !FX_INS_BYPASS)
@@ -2859,6 +2858,18 @@ static HOT2 __attribute__((noinline)) void sto_ins(sto_t *o, uint32_t i0, uint32
 #define RT_TAIL 64u                                     /* blocks (46 ms): every insert here is at rest by then */
 static sto_t rt_sto[3] = {STO_INIT(0x2B9F11C5), STO_INIT(0x6A09E667), STO_INIT(0x3C6EF372)};
 static uint8_t rt_tail[3];                              /* blocks of tail left */
+/* A return whose insert has no instance (FULL: no memory for its line; the main loop's pass has not handed it out yet, the same
+ * for a block or two) is MUTED, 2026-10-30 ruling: it outputs nothing until the insert is placed (not a pass-through of
+ * the send, not the shared reverb). Any limited type (CHO DLY REV ECHO JUNO FLNG XDLY), whatever it is. The user's mute
+ * (fx_rmute) is left alone: it is saved with the project, this is the memory's state. rt_nomem: the audio's test (the
+ * instance, fxi_at); fx_rfull: the UI's (the main loop: FULL, not the passing WAIT) */
+#if INS_LIM
+#define rt_nomem(j, t) (FXT_IS_LIM(t) && !ifx_has(t, IFX_RT(j)))
+static uint32_t fx_rfull(uint32_t j) { return fxi_ostate(FXI_RT0 + j % 3u, fxs_rty[j % 3u]) == FXI_FULL; }
+#else
+#define rt_nomem(j, t) ((void)(j), (void)(t), 0)
+#define fx_rfull(j) ((void)(j), 0u)
+#endif
 static HOT2 __attribute__((noinline)) void rt_line(uint32_t j, uint32_t n)   /* line j's return (fx_buses: in a chain's place) */
 {
     int32_t *const snd[3] = {send_c, send_d, send_r};
@@ -2880,7 +2891,7 @@ static HOT2 __attribute__((noinline)) void rt_line(uint32_t j, uint32_t n)   /* 
         if (m & 1u)
             sto_ins(&rt_sto[j], IFX_RT(j), i, 0, l, r, n);
     rt_tail[j] = t != FXT_NONE ? (uint8_t)RT_TAIL : (uint8_t)(rt_tail[j] - 1u);
-    if (!g)
+    if (!g || (t != FXT_NONE && rt_nomem(j, t)))      /* (muted: the user's, or no memory for its insert) */
         return;
     int32_t pk = 0;
     UA_RET_SUB(j, mix_l, mix_r, n);                     /* (what the return adds to the mix: USB RET, ua_tap.h) */
