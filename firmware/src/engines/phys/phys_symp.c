@@ -84,7 +84,7 @@ static FAST(phys) __attribute__((noinline)) void px_symp_block(px_symp_t *Y, con
         int32_t c, fr;
         if (f[k] < 65536u)
             continue;
-        p = f[k] >= 0x40000000u ? 0 : (uint32_t)(((uint64_t)1 << 47) / f[k]);   /* period, half-rate steps Q16 */
+        p = f[k] >= 0x40000000u ? 0 : (uint32_t)px_udiv((uint64_t)1 << 47, f[k]);   /* period, half-rate steps Q16 */
         while (p > (uint32_t)(PX_YLINE - 4) << 16)       /* fold up an octave */
             p >>= 1;
         p -= (uint32_t)(65536 - b);                      /* less the FIR's delay */

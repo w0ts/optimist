@@ -55,6 +55,8 @@ static const int32_t PHYS_GAIN[PM_COUNT] = {28000, 12000, 90000, 12000};
 
 typedef struct {
     uint8_t model;               /* PM_* the state belongs to */
+    uint8_t fresh;               /* a fresh note: phys_render resets the state first (with seed), then triggers */
+    uint32_t seed;
     union {
         px_modal_t m;            /* MODAL, MEMB */
         px_string_t s;
@@ -100,11 +102,14 @@ static FASTI(phys) phys_slot_t *phys_slot_of(track_t *t, voice_t *v)
     return i < PHYS_POLY ? &phys_mem((uint32_t)(t - trk))[i] : 0;
 }
 
+/* the bytes of the union model md uses (a reset clears these only: MODAL / MEMB 376 of SYMP's 4,292) */
+static const uint16_t PHYS_STATE_SIZE[PM_COUNT] = {sizeof(px_modal_t), sizeof(px_string_t), sizeof(px_modal_t), sizeof(px_symp_t)};
+
 /* a clean state for model md */
 static FAST(phys) void phys_reset(phys_slot_t *S, uint32_t md, uint32_t seed)
 {
     uint32_t i, *w = (uint32_t *)&S->u;
-    for (i = 0; i < sizeof S->u / 4u; i++)
+    for (i = 0; i < (PHYS_STATE_SIZE[md] + 3u) / 4u; i++)
         w[i] = 0;
     S->model = (uint8_t)md;
     seed |= 1u;
@@ -140,8 +145,14 @@ static void phys_note_on(track_t *t, voice_t *v)
     uint32_t md = (uint32_t)t->p[P_E0] % PM_COUNT;
     if (!S)
         return;
-    if ((!v->env && !v->env_out) || S->model != md)     /* a fresh voice (not a retrigger): from rest */
-        FAST_CALL(phys, phys_reset)(S, md, rng());
+    if ((!v->env && !v->env_out) || S->model != md) {   /* a fresh voice (not a retrigger): from rest, */
+        S->seed = rng();                                 /* reset in its first render (on the core that renders the */
+        S->model = (uint8_t)md;                          /* part, not here in the block's events on CPU0) */
+        S->fresh = 1;
+        return;
+    }
+    if (S->fresh)                                        /* a retrigger before that render: it strikes there */
+        return;
     switch (md) {
     case PM_MODAL:
     case PM_MEMB:
@@ -180,29 +191,30 @@ static FAST(phys) void phys_render(track_t *t, voice_t *v, int32_t *out, uint32_
         return;
     if (n > CTL)
         n = CTL;
+    if (S->fresh && S->model == md) {                    /* a fresh note (phys_note_on): from rest, struck */
+        phys_reset(S, md, S->seed);
+        if (md == PM_MODAL || md == PM_MEMB)
+            S->u.m.trig = 1;
+        else
+            S->u.s.trig = 1;                             /* (STRNG, SYMP: the union's px_string_t) */
+    }
+    S->fresh = 0;
     if (S->model != md)                                  /* MODEL changed under a sounding note */
         phys_reset(S, md, PHYS_RENDER_RNG(t));
-    switch (md) {
-    case PM_MODAL: {
-        px_modal_blk_t B;
-        px_modal_block(&B, &S->u.m, f0, strc, brit, damp, acc, pos * 129, bow);   /* pos 0..1/4 */
-        px_modal_run(&B, &S->u.m, y, ax, n);
-        break;
-    }
-    case PM_MEMB: {
-        px_modal_blk_t B;
-        px_memb_block(&B, &S->u.m, f0, strc, brit, damp, acc, pos * 516, p[P_E6] * 6192);   /* BEND 0..12 st */
-        px_modal_run(&B, &S->u.m, y, ax, n);
-        break;
-    }
-    case PM_STRING: {
+    /* by a bit of a mask, not a switch nor an if chain on md (the compiler turns both into a jump table, whose data in
+     * the RAM code reads as calls to the build's RAM-code check) */
+    if ((1u << md) & (1u << PM_MODAL | 1u << PM_MEMB)) {
+        if (md == PM_MEMB)
+            px_memb_block(&S->u.m, f0, strc, brit, damp, acc, pos * 516, p[P_E6] * 6192);   /* BEND 0..12 st */
+        else
+            px_modal_block(&S->u.m, f0, strc, brit, damp, acc, pos * 129, bow);   /* pos 0..1/4 */
+        px_modal_run(&S->u.m.B, &S->u.m, y, ax, n);
+    } else if (md == PM_STRING) {
         px_string_blk_t B;
         px_string_block(&B, &S->u.s, f0, strc, brit, damp, acc, bow, pos * 516);   /* 0..1/2 period */
         px_string_excite(&B, &S->u.s, ax, n);
         px_string_run(&B, &S->u.s, ax, y, n);
-        break;
-    }
-    default: {                                           /* SYMP */
+    } else {                                             /* SYMP */
         px_string_blk_t B;
         uint32_t f[PX_NSYMP];
         phys_symp_pitches(t, m, f);
@@ -211,8 +223,6 @@ static FAST(phys) void phys_render(track_t *t, voice_t *v, int32_t *out, uint32_
         px_string_run(&B, &S->u.y.s, ax, y, n);
         px_symp_block(&S->u.y, f, brit, damp, pos * 516);
         px_symp_run(&S->u.y, y, y, n);
-        break;
-    }
     }
     for (i = 0; i < n; i++) {
         int32_t s = px_m(y[i] + px_m(ax[i], exc, 15), g, 20), a = s < 0 ? -s : s;

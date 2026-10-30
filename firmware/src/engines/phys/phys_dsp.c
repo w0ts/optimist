@@ -135,6 +135,51 @@ static FAST(phys) int32_t px_atan(int32_t x)
     return px_m(x, p, 30);
 }
 
+/* leading zero bits of v (> 0), with shifts only (no libgcc __clzsi2) */
+static inline FAST(phys) uint32_t px_nlz(uint32_t v)
+{
+    uint32_t n = 0;
+    if (!(v >> 16)) n += 16, v <<= 16;
+    if (!(v >> 24)) n += 8, v <<= 8;
+    if (!(v >> 28)) n += 4, v <<= 4;
+    if (!(v >> 30)) n += 2, v <<= 2;
+    return n + !(v >> 31);
+}
+
+/* floor(n / v), v > 0, exact (every quotient bit): the 32 / 32 divide of the CPU only, never libgcc's __udivdi3,
+ * which sits in flash out of reach of PHYS's render as RAM code. Hacker's Delight's divlu (16-bit digits, the
+ * divisor normalised) on the remainder of the high word */
+static FAST(phys) __attribute__((noinline)) uint64_t px_udiv(uint64_t n, uint32_t v)
+{
+    uint32_t hi = (uint32_t)(n >> 32), lo = (uint32_t)n, qh = hi / v, r = hi - qh * v;
+    uint32_t s = px_nlz(v), vn1, vn0, un32, un10, un1, un0, un21, q1, q0, rhat;
+    v <<= s;
+    vn1 = v >> 16;
+    vn0 = v & 0xFFFFu;
+    un32 = s ? (r << s) | (lo >> (32u - s)) : r;
+    un10 = lo << s;
+    un1 = un10 >> 16;
+    un0 = un10 & 0xFFFFu;
+    q1 = un32 / vn1;
+    rhat = un32 - q1 * vn1;
+    while (q1 >= 65536u || q1 * vn0 > ((rhat << 16) | un1)) {
+        q1--;
+        rhat += vn1;
+        if (rhat >= 65536u)
+            break;
+    }
+    un21 = (un32 << 16) + un1 - q1 * v;
+    q0 = un21 / vn1;
+    rhat = un21 - q0 * vn1;
+    while (q0 >= 65536u || q0 * vn0 > ((rhat << 16) | un0)) {
+        q0--;
+        rhat += vn1;
+        if (rhat >= 65536u)
+            break;
+    }
+    return ((uint64_t)qh << 32) | (q1 << 16) | q0;
+}
+
 static FAST(phys) uint32_t px_isqrt64(uint64_t v)                    /* floor(sqrt(v)) */
 {
     uint64_t r = 0, b = (uint64_t)1 << 62;
@@ -159,10 +204,10 @@ typedef struct { int32_t g, rpg, gh; } px_svf_t;         /* Q28, Q28, Q30 */
 static FAST(phys) void px_svf_coef(px_svf_t *c, uint32_t f, uint32_t q8)
 {
     int32_t g = px_fasttan(f);
-    uint32_t r = (uint32_t)((((uint64_t)1 << 36) + q8 - 1u) / q8);       /* 1 / q, rounded up */
+    uint32_t r = (uint32_t)px_udiv(((uint64_t)1 << 36) + q8 - 1u, q8);       /* 1 / q, rounded up */
     uint64_t den = ((uint64_t)1 << 28) + (((uint64_t)r * (uint32_t)g) >> 28) + (((uint64_t)g * (uint32_t)g) >> 28);
     uint32_t d24 = (uint32_t)((den + 15u) >> 4);         /* Q24, rounded up */
-    uint32_t h = (uint32_t)(((uint64_t)1 << 54) / d24);  /* Q30, rounded down */
+    uint32_t h = (uint32_t)px_udiv((uint64_t)1 << 54, d24);  /* Q30, rounded down */
     c->g = g;
     c->rpg = (int32_t)(r + (uint32_t)g);
     c->gh = (int32_t)(((uint64_t)h * (uint32_t)g) >> 28);
@@ -185,7 +230,7 @@ static FAST(phys) void px_csvf_coef(px_csvf_t *c, uint32_t f, int32_t res, int32
     }
     d1 = (65536 - r4) << 13;                             /* 2 (1 - res^0.25), Q28 */
     if (fr > 0) {                                        /* min(2, 2 / freq - freq / 2) */
-        uint64_t inv = ((uint64_t)1 << 59) / (uint32_t)fr;
+        uint64_t inv = px_udiv((uint64_t)1 << 59, (uint32_t)fr);
         d2 = inv > (1u << 30) ? 2 << 28 : (int32_t)inv - (fr >> 3);
         if (d2 > 2 << 28)
             d2 = 2 << 28;
@@ -208,25 +253,42 @@ static inline FAST(phys) void px_csvf_pass(const px_csvf_t *c, px_csvf_st_t *s, 
 }
 
 /* ------------------------------------------------------------- Modal --- */
-typedef struct {
-    int32_t s[PX_NMODE][2];                              /* mode states (s1, s2), Q22 */
-    int32_t e1, e2;                                      /* exciter (ResonatorSvf<1>, low-pass), Q24 */
-    uint32_t rng;
-    int32_t benv;                                        /* MEMB: the pitch bend after a strike, Q16 (1 at it) */
-    uint8_t trig;
-} px_modal_t;
-
 typedef struct { int32_t g, rpg, gh, a; } px_mode_t;    /* px_svf_t + the mode's gain (Q28) */
-typedef struct {                                         /* per block */
+typedef struct {                                         /* per block (kept in px_modal_t while its inputs hold) */
     px_mode_t m[PX_NMODE];
     uint32_t n;                                          /* modes below 0.499 */
     px_svf_t ex;                                         /* exciter low-pass */
+    uint32_t cut;                                        /* its cutoff (cycles Q32): the strike's level */
     int32_t strike;                                      /* strike impulse, Q16 (0 = sustained) */
     uint32_t dust_thr;                                   /* Dust: hit when rand < thr (Q32) */
     uint32_t dust_inv;                                   /* 2^47 / thr: a hit u / thr = u inv >> 32, Q15 */
     int32_t dust_gain;                                   /* (4 - 3 dust_f) accent bow, Q16 */
     int32_t dust_dc;                                     /* its mean, Q20 (taken off the aux) */
 } px_modal_blk_t;
+
+#define PX_MKEY 7                                        /* the inputs px_modal_t.B was worked out for */
+typedef struct {
+    int32_t s[PX_NMODE][2];                              /* mode states (s1, s2), Q22 */
+    int32_t e1, e2;                                      /* exciter (ResonatorSvf<1>, low-pass), Q24 */
+    uint32_t rng;
+    int32_t benv;                                        /* MEMB: the pitch bend after a strike, Q16 (1 at it) */
+    uint8_t trig;
+    uint8_t kvalid;                                      /* B and key hold (0 after phys_reset) */
+    int32_t key[PX_MKEY];
+    px_modal_blk_t B;                                    /* the coefficients (inside the SYMP-sized slot: no pool) */
+} px_modal_t;
+
+/* 1 when key[] already holds k[] (B is then current), else k[] is stored and 0 */
+static FAST(phys) uint32_t px_modal_kept(px_modal_t *M, const int32_t *k)
+{
+    uint32_t i, same = M->kvalid;
+    for (i = 0; i < PX_MKEY; i++) {
+        same &= M->key[i] == k[i];
+        M->key[i] = k[i];
+    }
+    M->kvalid = 1;
+    return same;
+}
 
 /* Resonator::CalcStiff, Q16 in and out */
 static FAST(phys) int32_t px_stiff(int32_t s)
@@ -242,36 +304,54 @@ static FAST(phys) int32_t px_stiff(int32_t s)
     return 98304 - (px_sin(((uint32_t)s << 15) + 0x40000000u) >> 15);   /* 1.5 - cos(pi s) / 2 */
 }
 
-/* ModalVoice::Process, the exciter's per-block part (MODAL and MEMB): its low-pass, the strike or,
- * bowed, Dust. f0c: the note (cycles Q32, <= 0.25); b, d: brightness and damping with the accent */
-static FAST(phys) __attribute__((noinline)) void px_modal_exciter(px_modal_blk_t *B, px_modal_t *M, uint32_t f0c, int32_t brightness,
+/* ModalVoice::Process, the exciter's per-block part (MODAL and MEMB): its low-pass and, bowed, Dust (the
+ * strike: px_modal_strike). f0c: the note (cycles Q32, <= 0.25); b, d: brightness and damping with the accent */
+static FAST(phys) __attribute__((noinline)) void px_modal_exciter(px_modal_blk_t *B, uint32_t f0c, int32_t brightness,
                                                        int32_t b, int32_t d, int32_t accent, int32_t bow)
 {
     uint32_t cut;
     uint64_t fr;
     int32_t ex;
     /* exciter low-pass: cutoff = min(f 2^((b (2 - b) - 0.5) range / 12), 0.499) */
-    ex = (int32_t)(((int64_t)px_m(b, 131072 - b, 16) - 32768) * (bow ? 36 : 60) / 12);   /* octaves, Q16 */
+    ex = (px_m(b, 131072 - b, 16) - 32768) * (bow ? 36 : 60) / 12;   /* octaves, Q16 */
     fr = ((uint64_t)f0c * (bow ? 4u : 2u) * px_exp2(ex)) >> 16;
     cut = fr > 2143260078u ? 2143260078u : fr < 65536u ? 65536u : (uint32_t)fr;
     px_svf_coef(&B->ex, cut, bow ? 179u : 384u);         /* q 0.7 / 1.5 */
-    B->strike = 0;
+    B->cut = cut;
     B->dust_thr = 0;
     if (bow) {                                           /* Dust: density 0.3 (5e-5 + (1 - 5e-5) b^4) */
         int32_t dn = px_m(brightness, brightness, 16), df;
         dn = px_m(dn, dn, 16);
         df = 3 + px_m(dn, 65533, 16);
         B->dust_thr = (uint32_t)df * 19661u;             /* 0.3 df, Q32 */
-        B->dust_inv = (uint32_t)(((uint64_t)1 << 47) / B->dust_thr);
+        B->dust_inv = (uint32_t)px_udiv((uint64_t)1 << 47, B->dust_thr);
         B->dust_gain = px_m(px_m(px_m(262144 - 3 * df, accent, 16), bow, 16), (int32_t)px_exp2(-px_m(d, 217579, 16)), 16);
         B->dust_dc = (int32_t)(((uint64_t)B->dust_thr * (uint32_t)B->dust_gain) >> 29);
-    } else if (M->trig) {                                /* the strike: amplitude 2^(2 cut^2) / cut */
+    }
+}
+
+/* the strike of a block (every block, B's coefficients cached or not): at a trigger, struck (bow 0) only */
+static FAST(phys) void px_modal_strike(px_modal_blk_t *B, px_modal_t *M, int32_t d, int32_t accent, int32_t bow)
+{
+    B->strike = 0;
+    if (!bow && M->trig) {                               /* the strike: amplitude 2^(2 cut^2) / cut */
+        uint32_t cut = B->cut;
         int32_t amp = px_m(7864 + px_m(5243, accent, 16), 65536 - (d >> 1), 16);   /* (0.12 + 0.08 a)(1 - d / 2) */
         uint32_t c2 = (uint32_t)(((uint64_t)cut * cut) >> 32);
         uint64_t v = ((uint64_t)(uint32_t)amp * px_exp2((int32_t)(c2 >> 15))) << 16;   /* Q48 */
-        v /= cut;                                        /* Q16 */
+        v = px_udiv(v, cut);                                        /* Q16 */
         B->strike = v > 0x7FFFFFFFu ? 0x7FFFFFFF : (int32_t)v;
         M->trig = 0;
+    }
+}
+
+/* bound the states at +-64 (far beyond any real use): every sum of the next block fits in 32 bits */
+static FAST(phys) void px_modal_bound(const px_modal_blk_t *B, px_modal_t *M)
+{
+    uint32_t i;
+    for (i = 0; i < B->n; i++) {
+        M->s[i][0] = px_clamp(M->s[i][0], -(1 << 28), 1 << 28);
+        M->s[i][1] = px_clamp(M->s[i][1], -(1 << 28), 1 << 28);
     }
 }
 
@@ -286,8 +366,8 @@ static FAST(phys) uint64_t px_modal_q(int32_t structure, int32_t b, int32_t d, i
 
 /* ModalVoice::Process + Resonator::Process, the per-block part. f0: the note (cycles Q32);
  * structure, brightness, damping, accent, pos: Q16 0..1; bow: Q16, 0 = struck (ModalVoice
- * sustain off), > 0 = sustained by Dust at that level (sustain on) */
-static FAST(phys) __attribute__((noinline)) void px_modal_block(px_modal_blk_t *B, px_modal_t *M, uint32_t f0, int32_t structure, int32_t brightness,
+ * sustain off), > 0 = sustained by Dust at that level (sustain on). The coefficients, when an input changed */
+static FAST(phys) __attribute__((noinline)) void px_modal_coef(px_modal_blk_t *B, px_modal_t *M, uint32_t f0, int32_t structure, int32_t brightness,
                            int32_t damping, int32_t accent, int32_t pos, int32_t bow)
 {
     int32_t b = brightness + px_m(accent >> 2, 65536 - brightness, 16);
@@ -295,9 +375,9 @@ static FAST(phys) __attribute__((noinline)) void px_modal_block(px_modal_blk_t *
     int32_t stiff = px_stiff(structure), st2, stretch = 65536, ql;
     uint32_t i, phs;
     uint64_t q8, harm;
-    px_modal_exciter(B, M, f0 > 0x40000000u ? 0x40000000u : f0, brightness, b, d, accent, bow);
+    px_modal_exciter(B, f0 > 0x40000000u ? 0x40000000u : f0, brightness, b, d, accent, bow);
     /* the modes */
-    f0 = (uint32_t)(((uint64_t)f0 * (uint32_t)(((uint64_t)1 << 32) /   /* NthHarmonicCompensation(3) */
+    f0 = (uint32_t)(((uint64_t)f0 * (uint32_t)px_udiv((uint64_t)1 << 32,   /* NthHarmonicCompensation(3) */
                      (uint32_t)(65536 + stiff + px_m(stiff, stiff < 0 ? 60948 : 64225, 16)))) >> 16);
     q8 = px_modal_q(structure, b, d, &ql);
     st2 = stiff;
@@ -327,10 +407,17 @@ static FAST(phys) __attribute__((noinline)) void px_modal_block(px_modal_blk_t *
     B->n = i;
     for (; i < PX_NMODE; i++)                            /* out of the band: silent */
         M->s[i][0] = M->s[i][1] = 0;
-    for (i = 0; i < B->n; i++) {                         /* bound the states at +-64 (far beyond any real use): */
-        M->s[i][0] = px_clamp(M->s[i][0], -(1 << 28), 1 << 28);   /* every sum of the next block fits */
-        M->s[i][1] = px_clamp(M->s[i][1], -(1 << 28), 1 << 28);   /* in 32 bits */
-    }
+}
+
+/* a block of MODAL: the coefficients in M->B (worked out again only when an input changed), the strike, the bound */
+static FAST(phys) void px_modal_block(px_modal_t *M, uint32_t f0, int32_t structure, int32_t brightness, int32_t damping,
+                                      int32_t accent, int32_t pos, int32_t bow)
+{
+    const int32_t k[PX_MKEY] = {(int32_t)f0, structure, brightness, damping, accent, pos, bow};
+    if (!px_modal_kept(M, k))
+        px_modal_coef(&M->B, M, f0, structure, brightness, damping, accent, pos, bow);
+    px_modal_strike(&M->B, M, damping + px_m(accent >> 2, 65536 - damping, 16), accent, bow);
+    px_modal_bound(&M->B, M);
 }
 
 /* ----------------------------------------------------------- Membrane --- */
@@ -345,26 +432,16 @@ static const uint32_t PX_MEMB_IDEAL[PX_NMEMB] = {65536, 104421, 139955, 150432, 
 static const uint32_t PX_MEMB_LOADED[PX_NMEMB] = {65536, 131072, 196608, 197263, 262144, 261489, 327680, 328991, 326369, 393216};
 static const uint8_t PX_MEMB_M[PX_NMEMB] = {0, 1, 2, 0, 3, 1, 4, 2, 0, 5};   /* (m, n): m nodal diameters */
 
-/* as px_modal_block (struck only); harm, pos: Q16 0..1, bend: semitones Q16 */
-static FAST(phys) __attribute__((noinline)) void px_memb_block(px_modal_blk_t *B, px_modal_t *M, uint32_t f0, int32_t harm, int32_t brightness,
-                                                    int32_t damping, int32_t accent, int32_t pos, int32_t bend)
+/* as px_modal_coef (struck only), f the note after the bend; harm, pos: Q16 0..1 */
+static FAST(phys) __attribute__((noinline)) void px_memb_coef(px_modal_blk_t *B, px_modal_t *M, uint64_t f, int32_t harm, int32_t brightness,
+                                                   int32_t damping, int32_t accent, int32_t pos)
 {
     int32_t b = brightness + px_m(accent >> 2, 65536 - brightness, 16);
     int32_t d = damping + px_m(accent >> 2, 65536 - damping, 16);
     int32_t ql, w[6], pm = pos + (pos >> 1), inv;
     uint32_t i;
-    uint64_t q8, f = f0;
-    if (M->trig)
-        M->benv = 65536;
-    if (M->benv) {                                       /* the bend: f 2^(bend benv / 12), benv -> 0 in ~60 ms */
-        f = (f * px_exp2(px_m(bend, M->benv, 16) / 12)) >> 16;
-        M->benv = px_m(M->benv, 64220, 16);              /* 0.98 per block of 32 */
-        if (M->benv < 64)
-            M->benv = 0;
-    }
-    if (f > 0x40000000u)
-        f = 0x40000000u;
-    px_modal_exciter(B, M, (uint32_t)f, brightness, b, d, accent, 0);
+    uint64_t q8;
+    px_modal_exciter(B, (uint32_t)f, brightness, b, d, accent, 0);
     q8 = px_modal_q(0, b, d, &ql);
     w[0] = 65536 - px_m(pos, 39322, 16);                 /* m = 0: 1 at the centre, 0.4 at the rim */
     w[1] = pm > 65536 ? 65536 : pm;                      /* m > 0: (1.5 pos)^m, at most 1 */
@@ -380,7 +457,7 @@ static FAST(phys) __attribute__((noinline)) void px_memb_block(px_modal_blk_t *B
         B->m[i].g = c.g;
         B->m[i].rpg = c.rpg;
         B->m[i].gh = c.gh;
-        inv = (int32_t)(((uint64_t)1 << 32) / r);
+        inv = (int32_t)px_udiv((uint64_t)1 << 32, r);
         B->m[i].a = px_m(px_m(w[PX_MEMB_M[i]] << 14, 65536 - (int32_t)(mf >> 15), 18),   /* w (1 - 2 f) / ratio^2, */
                          px_m(inv, inv, 16), 16);        /* Q28: a mode's level from the strike rises as ratio^2 */
         q8 = (q8 * (uint32_t)ql) >> 16;
@@ -388,10 +465,30 @@ static FAST(phys) __attribute__((noinline)) void px_memb_block(px_modal_blk_t *B
     B->n = i;
     for (; i < PX_NMODE; i++)
         M->s[i][0] = M->s[i][1] = 0;
-    for (i = 0; i < B->n; i++) {
-        M->s[i][0] = px_clamp(M->s[i][0], -(1 << 28), 1 << 28);
-        M->s[i][1] = px_clamp(M->s[i][1], -(1 << 28), 1 << 28);
+}
+
+/* a block of MEMB, as px_modal_block; bend: semitones Q16 */
+static FAST(phys) void px_memb_block(px_modal_t *M, uint32_t f0, int32_t harm, int32_t brightness, int32_t damping,
+                                     int32_t accent, int32_t pos, int32_t bend)
+{
+    uint64_t f = f0;
+    if (M->trig)
+        M->benv = 65536;
+    if (M->benv) {                                       /* the bend: f 2^(bend benv / 12), benv -> 0 in ~60 ms */
+        f = (f * px_exp2(px_m(bend, M->benv, 16) / 12)) >> 16;
+        M->benv = px_m(M->benv, 64220, 16);              /* 0.98 per block of 32 */
+        if (M->benv < 64)
+            M->benv = 0;
     }
+    if (f > 0x40000000u)
+        f = 0x40000000u;
+    {
+        const int32_t k[PX_MKEY] = {(int32_t)f, harm, brightness, damping, accent, pos, 0};
+        if (!px_modal_kept(M, k))
+            px_memb_coef(&M->B, M, f, harm, brightness, damping, accent, pos);
+    }
+    px_modal_strike(&M->B, M, damping + px_m(accent >> 2, 65536 - damping, 16), accent, 0);
+    px_modal_bound(&M->B, M);
 }
 
 /* n (<= 32) samples: out[i] = the resonator (Q20), aux[i] = the exciter (Q20). The exciter first (skipped
@@ -408,12 +505,14 @@ static FAST(phys) void px_modal_run(const px_modal_blk_t *B, px_modal_t *M, int3
         int32_t e1 = M->e1, e2 = M->e2, t, bp, big = 0;
         uint32_t rs = M->rng;
         const px_svf_t ex = B->ex;
+        const uint32_t thr = B->dust_thr, dinv = B->dust_inv, dgain = (uint32_t)B->dust_gain;   /* (aux[] may alias B) */
+        const int32_t ddc = thr ? B->dust_dc : 0;
         for (i = 0; i < n; i++) {                        /* ResonatorSvf<1>, low-pass */
             int64_t in = 0;
-            if (B->dust_thr) {                           /* Dust */
+            if (thr) {                                   /* Dust */
                 uint32_t u = px_rand(&rs);
-                if (u < B->dust_thr)
-                    in = (int64_t)(((((uint64_t)u * B->dust_inv) >> 32) * (uint32_t)B->dust_gain) >> 7);   /* Q24 */
+                if (u < thr)
+                    in = (int64_t)(((((uint64_t)u * dinv) >> 32) * dgain) >> 7);   /* Q24 */
             } else if (!i && B->strike) {
                 in = (int64_t)B->strike << 8;
             }
@@ -423,11 +522,11 @@ static FAST(phys) void px_modal_run(const px_modal_blk_t *B, px_modal_t *M, int3
             t = px_m(ex.g, bp, 28);
             bp = e2 + t;                                 /* lp */
             e2 = bp + t;
-            aux[i] = (bp >> 4) - (B->dust_thr ? B->dust_dc : 0);
+            aux[i] = (bp >> 4) - ddc;
             x[i] = bp >> 2;                              /* the modes run in Q22 */
             big |= (bp + 256) >> 9;                      /* |lp| >= 256 (Q24) somewhere in the block */
         }
-        if (!big && !B->dust_thr && e1 > -256 && e1 < 256 && e2 > -256 && e2 < 256)
+        if (!big && !thr && e1 > -256 && e1 < 256 && e2 > -256 && e2 < 256)
             e1 = e2 = 0;                                 /* rung out (-96 dB) */
         M->e1 = px_clamp(e1, -(1 << 30), 1 << 30);
         M->e2 = px_clamp(e2, -(1 << 30), 1 << 30);
@@ -486,7 +585,7 @@ typedef struct {                                         /* per block */
 } px_string_blk_t;
 
 /* 1 / f, f Q32 cycles (>= 2^16: the callers clamp it): samples Q16 */
-static FAST(phys) uint32_t px_period(uint32_t f) { return (uint32_t)(((uint64_t)1 << 48) / f); }
+static FAST(phys) uint32_t px_period(uint32_t f) { return (uint32_t)px_udiv((uint64_t)1 << 48, f); }
 
 /* StringVoice::Process + String::ProcessInternal, the per-block part (as px_modal_block); pos (Q16)
  * places the pluck: 0 = DaisySP's plain burst, else the burst minus itself pos / 2 periods later */
@@ -523,7 +622,7 @@ static FAST(phys) __attribute__((noinline)) void px_string_block(px_string_blk_t
         dn = px_m(dn, dn, 16);
         dfx = 3 + px_m(dn, 65533, 16);
         B->dust_thr = (uint32_t)dfx * 19661u;
-        B->dust_inv = (uint32_t)(((uint64_t)1 << 47) / B->dust_thr);
+        B->dust_inv = (uint32_t)px_udiv((uint64_t)1 << 47, B->dust_thr);
         B->dust_gain = px_m(px_m(px_m(524288 - 6 * dfx, accent, 16), bow, 16), (int32_t)px_exp2(-px_m(d, 217579, 16)), 16);
         B->dust_dc = (int32_t)(((uint64_t)B->dust_thr * (uint32_t)B->dust_gain) >> 29);
     }
@@ -555,17 +654,17 @@ static FAST(phys) __attribute__((noinline)) void px_string_block(px_string_blk_t
         dcut += px_m(ti, (128 << 16) - dcut, 16);
     }
     if (B->src_ratio < 1 << 30) {                        /* resampled: the filter runs once per string step */
-        uint64_t x64 = ((uint64_t)df << 30) / (uint32_t)B->src_ratio;
+        uint64_t x64 = px_udiv((uint64_t)df << 30, (uint32_t)B->src_ratio);
         df = x64 > 2134624419u ? 2134624419u : (uint32_t)x64;
     }
     if (df > 2134624419u)                                /* OnePole: f < 0.497 */
         df = 2134624419u;
     {   /* OnePole: g = tan(pi f), G = g / (1 + g) = sin / (sin + cos) */
         int32_t s = px_sin(df >> 1), c = px_sin((df >> 1) + 0x40000000u);
-        B->G = (int32_t)(((int64_t)s << 30) / (s + c));
+        B->G = (int32_t)px_udiv((uint64_t)(uint32_t)s << 30, (uint32_t)(s + c));   /* (s, c >= 0: f < 0.25 turn) */
     }
     /* damping compensation 1 - 2 atan(1 / ratio) / 2 pi, ratio = 2^(dcut / 12) >= 2 */
-    x = (int32_t)(((uint64_t)1 << 46) / px_exp2(dcut / 12));   /* 1 / ratio, Q30 */
+    x = (int32_t)px_udiv((uint64_t)1 << 46, px_exp2(dcut / 12));   /* 1 / ratio, Q30 */
     B->comp = (1 << 30) - px_m(px_atan(x), 341782638, 30);    /* * 1 / pi */
     sp = px_m(px_m(nl, 131072 - nl, 16), 14746, 16);     /* nl (2 - nl) 0.225, Q16 */
     sc = (int32_t)(((uint64_t)delay * 238) >> 16);       /* 160 / sr * delay, Q16 */
@@ -577,7 +676,7 @@ static FAST(phys) __attribute__((noinline)) void px_string_block(px_string_blk_t
         B->noise_amt = px_m(px_m(na, na, 16), 107374182, 16);   /* ^2 * 0.1, Q30 */
         B->noise_flt = (64424509 + px_m(px_m(b, b, 16), 1009317315, 16));   /* 0.06 + 0.94 b^2 */
         B->curving = px_m(px_m(nl, nl, 16), 10737418, 16);     /* nl^2 0.01 */
-        B->ap_gain = -(int32_t)(((int64_t)663568203 * nl) / (9830 + nl));   /* -0.618 nl / (0.15 + nl) */
+        B->ap_gain = -(int32_t)px_udiv((uint64_t)663568203 * (uint32_t)nl, (uint32_t)(9830 + nl));   /* (nl >= 0) */   /* -0.618 nl / (0.15 + nl) */
     }
 }
 
@@ -597,12 +696,14 @@ static FAST(phys) void px_string_excite(const px_string_blk_t *B, px_string_t *S
 {
     uint32_t i, bk = S->bk, bend = S->bn + S->bd;
     px_csvf_st_t ex = S->ex;
+    const uint32_t thr = B->dust_thr, dinv = B->dust_inv, dgain = (uint32_t)B->dust_gain;   /* (aux[] may alias B) */
+    const int32_t ddc = thr ? B->dust_dc : 0;
     for (i = 0; i < n; i++) {
         int32_t in = 0, x = 0;
-        if (B->dust_thr) {
+        if (thr) {
             uint32_t u = px_rand(&S->rng);
-            if (u < B->dust_thr)
-                x = (int32_t)(((((uint64_t)u * B->dust_inv) >> 32) * (uint32_t)B->dust_gain) >> 11);   /* Q20 */
+            if (u < thr)
+                x = (int32_t)(((((uint64_t)u * dinv) >> 32) * dgain) >> 11);   /* Q20 */
         } else if (bk < bend) {                          /* rand in -1..1; with a pluck position, the */
             if (bk < S->bn)                              /* half of it minus its half pos / 2 periods */
                 x = (int32_t)(px_rand(&S->nz_a) >> (S->bd ? 12 : 11)) - (S->bd ? 1 << 19 : 1 << 20);   /* later */
@@ -621,7 +722,7 @@ static FAST(phys) void px_string_excite(const px_string_blk_t *B, px_string_t *S
             if (!x && ex.low > -16 && ex.low < 16 && ex.band > -16 && ex.band < 16)
                 ex.low = ex.band = 0;                    /* rung out */
         }
-        aux[i] = in - (B->dust_thr ? B->dust_dc : 0);   /* (the string has its own DC blocker) */
+        aux[i] = in - ddc;                               /* (the string has its own DC blocker) */
     }
     S->bk = bk;
     S->ex = ex;
@@ -675,38 +776,45 @@ static FAST(phys) void px_string_run_(const px_string_blk_t *B, px_string_t *S, 
     uint32_t src = S->src;
     int32_t o0 = S->out0, o1 = S->out1, lp = S->lp, disp = S->disp, bridge = S->bridge;
     int32_t dcx = S->dc_x, dcy = S->dc_y, dce = S->dc_e, ein = S->ein;
+    /* B's values in locals: a store into the lines may alias them (int32_t), so the loop would load them again
+     * after each one */
+    int32_t *line = S->line, *sline = S->sline;
+    const uint32_t ratio = (uint32_t)B->src_ratio, curved = B->curved;
+    const uint32_t dl0 = (uint32_t)(((uint64_t)B->delay * (uint32_t)B->comp) >> 30);
+    const int32_t noise_flt = B->noise_flt, noise_amt = B->noise_amt, m_ap = B->m_ap, m_main = B->m_main;
+    const int32_t ap_gain = B->ap_gain, curving = B->curving, G = B->G;
     for (i = 0; i < n; i++) {
         ein += in[i];                                    /* resampled: the input since the last step */
         /* the string */
-        src += (uint32_t)B->src_ratio;
+        src += ratio;
         if (src > 1u << 30) {
-            uint32_t dl = (uint32_t)(((uint64_t)B->delay * (uint32_t)B->comp) >> 30);
+            uint32_t dl = dl0;
             int32_t s;
             src -= 1u << 30;
-            if (!B->curved) {
+            if (!curved) {
                 int32_t nz = (int32_t)(px_rand(&rs) >> 12) - (1 << 19);   /* rand - 0.5 */
-                disp += px_m(B->noise_flt, nz - disp, 30);
-                dl = (uint32_t)(((uint64_t)dl * (uint32_t)((1 << 30) + px_m(disp, B->noise_amt, 20))) >> 30);
+                disp += px_m(noise_flt, nz - disp, 30);
+                dl = (uint32_t)(((uint64_t)dl * (uint32_t)((1 << 30) + px_m(disp, noise_amt, 20))) >> 30);
                 {
-                    uint32_t ap = (uint32_t)(((uint64_t)dl * (uint32_t)B->m_ap) >> 30);
-                    uint32_t mn = (uint32_t)(((uint64_t)dl * (uint32_t)B->m_main) >> 30);
+                    uint32_t ap = (uint32_t)(((uint64_t)dl * (uint32_t)m_ap) >> 30);
+                    uint32_t mn = (uint32_t)(((uint64_t)dl * (uint32_t)m_main) >> 30);
                     if (ap >= 4u << 16 && mn >= 4u << 16) {
                         uint32_t t = wp + (mn >> 16);
-                        int32_t a = S->line[t & PX_LMASK], bb = S->line[(t + 1u) & PX_LMASK], rd, w;
+                        int32_t a = line[t & PX_LMASK], bb = line[(t + 1u) & PX_LMASK], rd, w;
                         s = a + px_m(bb - a, (int32_t)(mn & 0xFFFF), 16);
-                        rd = S->sline[(swp + (ap >> 16)) & PX_SMASK];   /* DelayLine::Allpass */
-                        w = s + px_m(B->ap_gain, rd, 30);
-                        S->sline[swp] = w;
+                        rd = sline[(swp + (ap >> 16)) & PX_SMASK];   /* DelayLine::Allpass */
+                        w = s + px_m(ap_gain, rd, 30);
+                        sline[swp] = w;
                         swp = (swp - 1u) & PX_SMASK;
-                        s = rd - px_m(w, B->ap_gain, 30);
+                        s = rd - px_m(w, ap_gain, 30);
                     } else {
-                        s = px_hermite(S->line, wp, dl);
+                        s = px_hermite(line, wp, dl);
                     }
                 }
             } else {
                 int32_t val, as;
-                dl = (uint32_t)(((uint64_t)dl * (uint32_t)((1 << 30) - px_m(bridge, B->curving, 20))) >> 30);
-                s = px_hermite(S->line, wp, dl);
+                dl = (uint32_t)(((uint64_t)dl * (uint32_t)((1 << 30) - px_m(bridge, curving, 20))) >> 30);
+                s = px_hermite(line, wp, dl);
                 as = s < 0 ? -s : s;
                 val = as - 26214;                        /* |s| - 0.025 */
                 bridge = val > 0 ? (s > 0 ? 2 * val : -3 * val) : 0;
@@ -722,11 +830,11 @@ static FAST(phys) void px_string_run_(const px_string_blk_t *B, px_string_t *S, 
                 s = y;
             }
             {   /* OnePole low-pass */
-                int32_t v = px_m(B->G, s - lp, 30);
+                int32_t v = px_m(G, s - lp, 30);
                 s = lp + v;
                 lp = s + v;
             }
-            S->line[wp] = s;                             /* DelayLine::Write */
+            line[wp] = s;                                /* DelayLine::Write */
             wp = (wp - 1u) & PX_LMASK;
             o1 = o0;
             o0 = s;
