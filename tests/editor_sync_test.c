@@ -424,9 +424,22 @@ int main(void)
         {   /* the sends between the returns (2026-10-16): each return's slot 1, A: B C, B: C, C: none; named by the target */
             static const uint8_t LA[] = {0, FXP_RET0}, LC[] = {0, FXP_RET0 + 2}, DA1[] = {2, FXP_RET0, 1, 1}, TA[] = {1, FXP_RET0, 1, FXT_DIST};
             ed_begin(ED_FXP); r = ed_fxp(ED_FXP, LA, sizeof LA);
-            check(r && ed_out[7] == 2u && ed_out[10] == FXT_NONE && ed_out[11] == 2u, "v13 FXP op 0: return A has two slots, slot 1 (its sends) two parameters");
+            check(r && ed_out[7] == 4u && ed_out[10] == FXT_NONE && ed_out[11] == 2u && ed_out[12] == FXT_NONE && ed_out[14] == FXT_NONE,
+                  "v13 FXP op 0: return A has four slots (2026-10-30: its PRE and POST, empty), slot 1 (its sends) two parameters");
             ed_begin(ED_FXP); r = ed_fxp(ED_FXP, LC, sizeof LC);
-            check(r && ed_out[7] == 2u && ed_out[11] == (FELUCCA_RET_FB ? 2u : 0u), "... return C: its slot 1 has none (it sends to no return; RET_FB: two, to A and B)");
+            check(r && ed_out[7] == 4u && ed_out[11] == (FELUCCA_RET_FB ? 2u : 0u), "... return C: its slot 1 has none (it sends to no return; RET_FB: two, to A and B)");
+#if FELUCCA_FX_DIST
+            {   /* a return's PRE and POST (slots 2, 3): loaded, one amount, its line's */
+                static const uint8_t PB[] = {1, FXP_RET0 + 1, 2, FXT_DIST}, PX[] = {1, FXP_RET0 + 1, 3, FXT_DIST};
+                uint32_t ln = fxs_line[2];
+                ed_begin(ED_FXP); r = ed_fxp(ED_FXP, PB, sizeof PB);
+                check(r && ln < 3u && rp_ty[ln][RP_PRE] == FXT_DIST && ed_out[12] == FXT_DIST && ed_out[13] == 1u,
+                      "v13 FXP op 1: return B's slot 2 loads PRE DIST (its line's), one parameter");
+                ed_begin(ED_FXP); r = ed_fxp(ED_FXP, PX, sizeof PX);
+                check(r && rp_ty[ln][RP_PRE] == FXT_NONE && rp_ty[ln][RP_POST] == FXT_DIST, "... DIST into slot 3: POST, swapped from PRE (a type once a return)");
+                rp_untlv(0, 0);
+            }
+#endif
             ed_begin(ED_FXP); r = ed_fxp(ED_FXP, DA1, sizeof DA1);
             check(r && ed_out[9] == F_PCT && ed_n > 12u && !memcmp(ed_out + 5u + 4u + 1u + 6u, "C", 1), "v13 FXP op 2: A's second send, a level, named C");
             q[0] = 4, q[1] = FXP_RET0, q[2] = 1, q[3] = 1, q[4] = (uint8_t)((300 + 8192) & 127), q[5] = (uint8_t)((300 + 8192) >> 7);
