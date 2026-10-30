@@ -16,26 +16,39 @@ runs late right after one over 85 %; or after a half over 85 % the next is predi
 renders). A lone late half after a normal one is a spike (a flash write, another interrupt) and steps nothing. A level with
 nothing to ease in what sounds now is skipped (`cg_useful`); the half right after a step never steps on a prediction.
 
-Levels, in order:
+Levels, in order (voices before the reverb since 2026-10-30, the user: "cap and shed voices first, the reverb off only if
+that is not enough"; before, the reverb went third and the notes last):
 1. **Quality**: ACID without oversampling; ANALOG 2's swarm at 2 copies; drum tails end sooner (synth drum voice under
    -40 dBFS, not -72; X0X 808 voice 40 dB under its peak, not 60); the drum bus's DIST / FILTER count at 2/5 (L / R only).
 2. **UNISON**: a UNISON part plays at most 2 voices; the extra voices fade out at the step.
-3. **Reverb** (`fx.c rev_guard`): the bus goes off: wet fades over one half, the tank stops, its line is cleared 512
-   samples a block from XIP; on release the send returns into a silent tank. (A running reverb costs about as much as the
-   rest of an idle mix.) REV RET at 0 turns the bus off the same way in any build; CHO RET / DLY RET at 0 stop theirs.
-4. **Notes**: a half over 85 % sheds one voice before the next; a half predicted late fades out as many voices as bring
-   the prediction under 85 %, at most 4. Never shed: MONO, LEGATO or UNISON parts (bass and lead), a part with one voice,
-   the drums, the only voice still held.
+3. **Notes**: a half over 85 % sheds one voice before the next (a releasing voice first, the quietest; else the oldest held
+   one); a half predicted late fades out as many voices as bring the prediction under 85 %, at most 4; a reaction cuts one
+   and caps the voices one under what sounded. Never shed: MONO, LEGATO or UNISON parts (bass and lead), a part with one
+   voice, the drums, the only voice still held. Entered only while such a voice is there to shed (`cg_useful`, `cg_pick`).
+4. **Reverb** (`fx.c rev_guard`), the top: only when no voice is left to shed and the load stays over (8 halves over 85 %,
+   a late half after one over, a half predicted late, or a reaction), and only while the reverb runs. The bus goes off: wet
+   fades over one half, the tank stops, its line is cleared 512 samples a block from XIP; on release the send returns into
+   a silent tank. (A running reverb costs about as much as the rest of an idle mix.) Notes go on being shed there. REV RET at
+   0 turns the bus off the same way in any build; CHO RET / DLY RET at 0 stop theirs.
+
+Every level from Notes up sheds and caps (`CG_SHEDS`). A level in front of Notes (the user's next one: a heavy track's
+voices moved to the other core while it has room) is one more enum entry in `cpuguard.h`, its case in `cg_useful` (does it
+have room now) and `cg_enter` (what it does once, on the step), and its name in `op_project.c CG_NAME`; the step, the
+release, the reactive path and the shedding need no change. When no level above has anything to ease (`cg_up_ok`: no voice
+to shed, no reverb running) the guard stays where it is.
 
 **Release**: a level comes off after 2 s (`CG_RELEASE` 345 halves) under 80 %, counting what the level saved (the drop in
-the measured load over the 8 halves after its step), so it does not come and go every 2 s; the reverb level comes off only
-if the reverb is already off.
+the measured load over the 8 halves after its step; Notes saves nothing that comes back: its voices are gone), so it does
+not come and go every 2 s. The way down passes the levels with nothing to ease now. The voice cap holds Notes and the levels
+under it, not the reverb: the reverb comes back first, then the cap rises a voice every 2 s, then Notes comes off. (The
+old rule "the reverb's level comes off only if the reverb is off already" was for a reverb level met on the way down from
+the notes; the reverb is the top now and is never met on the way down.)
 
 **Reactive path** (`cg_spike`): late halves among lighter ones (the FM-1 adds them; its log at ~41-63 % mean load showed
 12-17 a second) meet neither rule above. `audio.c` reports a half that ran late (the DMA moved on); each adds 64 to a
 count that loses 1 a half; at 160 (about 3 within ~30 halves) with a mean load of 50 % or more the guard reacts: one
-level up, or at the top one voice cut and the voices capped one under what sounded (`CG_VBUDGET`, voice.c; a new note
-steals), the cap a voice higher after 2 s with no late half. A level a reaction set comes off only under the load the
+level up, or from Notes on one voice cut and the voices capped one under what sounded (`CG_VBUDGET`, voice.c; a new note
+steals), the cap a voice higher after 2 s with no late half; at Notes with no voice left to cut, the reverb's level. A level a reaction set comes off only under the load the
 drop-outs came at less 1/16 of a half, and not while voices are capped. A late half holds a release back
 only at a mean of 50 % or more, where the reactive path counts it: under it a late half is not the music's (2026-10-29,
 the user: "the FDN8 reverb stops working randomly"; before, a lone late half every second or two at any load kept a

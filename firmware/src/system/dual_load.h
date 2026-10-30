@@ -39,5 +39,44 @@ static int32_t dual_c1_pct(void)
 {
     return dual_c1_q8 == DUAL_C1_OFF ? -1 : (int32_t)(dual_c1_q8 * 100u / 256u);
 }
+
+/* the dual render's times, for SYSTEM > INTERNALS' DUAL lines (FELUCCA_SYS_DEBUG; 2026-10-30: why CPU0 peaks over
+ * 100 % while CPU1 sits at 25 %). Per 32-frame mix block, in timer ticks (24 a us) x 8, smoothed over ~8 blocks as the
+ * jobs' own dual_cost: CPU0 before the fork (pre: the events, the macros, the duck, the LFOs' draws, the old sounds'
+ * fade, the split, the post), waiting at the join (wait), after it (post: the merge, the USB input, mix_finish with the
+ * buses and the master chain, the macros' post), its whole block (blk); CPU1 in its jobs (c1: 0 in a block it had none).
+ * The render writes them with a few tick reads (dual.c mix_block_dual, fm1-base's opt_dual.c mix_block); CPU1 stores
+ * only its own last time (c1_last), CPU0 folds it in after the join; the main loop only reads */
+#if defined(FELUCCA_SYS_DEBUG) && FELUCCA_SYS_DEBUG
+#define DUAL_TIMES 1
+typedef struct {
+    uint32_t pre, wait, post, blk, c1;             /* ticks x 8, smoothed */
+    volatile uint32_t c1_last;                     /* CPU1: its jobs' ticks in the last block it had some */
+    uint8_t c1_mask;                               /* the last block's jobs CPU1 ran (bit p: job p) */
+    uint8_t ran;                                   /* the jobs that ran in the last block, either core */
+} dual_tm_t;
+static dual_tm_t dual_tm;
+#define DUAL_TM(f, t) (dual_tm.f += (uint32_t)(t) - (dual_tm.f >> 3))
+/* CPU0, a block's end: t0 its start, tf the fork (its own jobs begin), tj0 its jobs done, tj1 the join done (tj0 when
+ * nothing was posted), te now;
+ * c1 = the jobs CPU1 ran (0: none joined), ran = the block's jobs */
+static inline __attribute__((always_inline)) void dual_tm_block(uint32_t t0, uint32_t tf, uint32_t tj0, uint32_t tj1, uint32_t te, uint32_t c1, uint32_t ran)
+{
+    DUAL_TM(pre, tf - t0);
+    DUAL_TM(wait, tj1 - tj0);
+    DUAL_TM(post, te - tj1);
+    DUAL_TM(blk, te - t0);
+    DUAL_TM(c1, c1 ? dual_tm.c1_last : 0u);
+    dual_tm.c1_mask = (uint8_t)c1;
+    dual_tm.ran = (uint8_t)ran;
+}
+/* a smoothed time as a share of a block of blk_ticks, in %, rounded (it may pass 100: a block over its time) */
+static inline uint32_t dual_tm_pct(uint32_t x8, uint32_t blk_ticks)
+{
+    return blk_ticks ? (x8 / 8u * 100u + blk_ticks / 2u) / blk_ticks : 0u;
+}
+#else
+#define DUAL_TIMES 0
+#endif
 #endif
 #endif
