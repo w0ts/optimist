@@ -45,3 +45,14 @@ A flash write (saving a preset or a project) pauses the audio for a moment: avoi
 - **Simulator** (a tab): the firmware running in the browser, with the same panel. **Load from FM-1** copies your FM-1's memory into it, **Write to FM-1** writes it back. **Get a project from FM-1** copies one FM-1 project into the simulator (same number, opened); **Send this project to FM-1** saves the simulator's open project and writes it into the FM-1 project you pick, under the name you type (the FM-1 and the simulator both need a build with per-project patterns). And **Save to file / Load file** use the backup file format. The editor's device picker connects it to the simulator instead of an FM-1.
 
 The protocol is [web/EDITOR_PROTOCOL.md](../../web/EDITOR_PROTOCOL.md).
+
+## Installing over another firmware
+
+The installers find out what the FM-1 runs and take the way that works: the running firmware's own updater (the usual
+case), or the chip's download mode through [M-Flasher](https://github.com/jvitkauskas/m-flasher) on a computer, with a
+full backup of the flash first. Switching between Optimist's own firmware and the release needs no detour through the
+official firmware. Optimist to Optimist keeps the settings, the Bluetooth pairings and the projects; from another firmware
+the installer asks whether to erase the settings and pairings (projects are kept). When you use M-Flasher's own window
+for Optimist to Optimist, **untick "Also erase settings and Bluetooth pairings"**. The builder's BOOTLOADER item can add
+m-bootloader (hold REC while switching on for download mode, PLAY for its menu). The details:
+[INSTALL-PATHS.md](../INSTALL-PATHS.md).

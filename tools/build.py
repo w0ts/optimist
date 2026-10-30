@@ -84,6 +84,7 @@ OPTIMIST_VERSION = (Path(__file__).resolve().parent.parent / "VERSION").read_tex
 MEASURE = False                     # --measure: link past the slot and the pool (sizes only, never a package)
 CFG_FLAGS = set()                   # the switches build/gen/felucca_config.h sets (the env loop below skips them)
 CFG_VALUES = {}                     # ... and their values
+INSTALL = {"bootloader": 0, "config": "default", "hash": ""}   # the install settings (no_image items) for the sidecar
 # the budgets (bytes): the app slot, the packed SRAM (app.ld: RAM code, .data/.bss, the pool; the spare build.py keeps
 # below the stacks), noinit
 LIMITS = {"flash": 0x8DFBC, "sram": 0x73F00, "sram_spare": 8192, "noinit": 0x3D50}
@@ -1010,6 +1011,7 @@ def setup_config(path):
     CFG_VALUES.update(flags)
     os.environ.update(env)          # gen_samples.py: the sets, PERC, SLICE's BREAK
     print(f"config   {name}: hash {configure.cfg_hash(cfg):08x}")
+    INSTALL.update(bootloader=int(cfg.get("BOOTLOADER", 0)), config=name, hash=f"{configure.cfg_hash(cfg):08x}")
     return cfg, name
 
 
@@ -1161,7 +1163,12 @@ def main():
         old.unlink()
     shutil.copy(OUT / name, named)
     shutil.copy(ui, named.with_name(named.stem + "-ui.zip"))
-    print(f"named    {named}  (+ {named.stem}-ui.zip)")
+    for old in OUT.glob("optimist-*.install.json"):
+        old.unlink()
+    import install_meta                           # (PACKAGE.install.json: the builder's BOOTLOADER beside each copy)
+    for pk in (OUT / name, named):
+        side = install_meta.write(pk, INSTALL["bootloader"], INSTALL["config"], INSTALL["hash"])
+    print(f"named    {named}  (+ {named.stem}-ui.zip, {side.name}: bootloader {install_meta.VALUES[INSTALL['bootloader']]})")
     return 0
 
 

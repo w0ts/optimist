@@ -1754,6 +1754,7 @@ job; ( jobin
 
 job; ( jobin
     run "installer CLI (fm1_install.py) against a simulated FM-1" python3 tests/install_test.py
+    run "install paths: detection, the route, BOOTLOADER, the layouts, download mode through a fake M-Flasher, --dry-run" python3 tests/anyflash_test.py
     run "the build's ROM check (tools/romref.py): a constant used as an address fails, a number kept passes" python3 tests/romref_test.py
     run "the COMPILER item: pi32v2-llvm or JieLi, natively or in the toolchain image, for both builds" python3 tests/compiler_test.py
     run "tools that find the FM-1 by its USB-MIDI port name: FM1-XXXX, the old Optimist, not other gear" python3 tests/port_names_test.py

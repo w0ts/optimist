@@ -1300,6 +1300,22 @@ _add("COMPILER", "FELUCCA_COMPILER", "compiler: pi32v2-llvm or JieLi's clang", Y
           "release configuration), the audio's CPU the same. JieLi's is the compiler the stock firmware and every "
           "earlier Optimist were built with. costs-all measures with the default (pi32v2-llvm); this item's cost at JieLi is "
           "how much bigger JieLi's makes the same firmware.")
+# bit 443 (2026-10-30, the next free after COMPILER's 442): a flash-step setting, not firmware (no_image: nothing in
+# the image, its hash or its costs). tools/build.py writes it beside the package (PACKAGE.install.json,
+# tools/install_meta.py); the installers read it from there and show it (docs/INSTALL-PATHS.md)
+M_BOOTLOADER = Provenance("m-bootloader (jvitkauskas/m-bootloader)", "Julius Vitkauskas", "MIT", "v1.2 22e2559",
+                          "https://github.com/jvitkauskas/m-bootloader")
+_add("BOOTLOADER", "", "bootloader: keep it, or install m-bootloader", Y, 443, default=0, no_image=True,
+     choices=((0, "keep (as it is)"), (1, "m-bootloader")), provenance=M_BOOTLOADER,
+     tested="host-tested only (the installers' choice and display); m-bootloader itself on FM-1s (its author's tests)",
+     desc="What installing this build does to the FM-1's bootloader. Keep: it is never touched (the stock one, or "
+          "m-bootloader if it is there already). m-bootloader: an open bootloader by Julius Vitkauskas (MIT): hold REC "
+          "while switching on for the chip's download mode, PLAY for a recovery menu, even when a firmware does not "
+          "start; it stays through firmware updates. With it chosen, the installers (make flash, the builder's f, "
+          "tools/fm1_install.py) install it once if the FM-1 does not have it, through download mode with M-Flasher, "
+          "after a full flash backup and your yes, then the firmware. The installer shows the choice before it writes, "
+          "and its --keep-bootloader (a checkbox on the web) keeps the bootloader for one install. Nothing in the "
+          "firmware changes.")
 # (bit 57, SIMD, withdrawn 2026-10-12: the packed 16-bit forms compute something else on the real FM-1 than the emulator
 #  assumes, a build with them crackles; the code stays (hal/fm1_simd.h, FELUCCA_SIMD default 0, the boot probe
 #  FELUCCA_SIMD_PROBE through tools/build.py); RETIRED below; never reuse the bit)

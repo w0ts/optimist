@@ -121,6 +121,19 @@ def check_llvm(rep, fetch, yes):
             "python tools/optimist.py setup --yes (downloads it into ~/.jieli), or the builder's COMPILER item: JieLi")
 
 
+def check_mflasher(rep, fetch, yes):
+    """M-Flasher (third_party/m-flasher): the installers' download mode (docs/INSTALL-PATHS.md); its pinned release"""
+    import mflasher as MF
+    exe = MF.binary()
+    if exe is None and fetch and MF.asset() and confirm(f"download M-Flasher {MF.VERSION} (download-mode installs)?", yes):
+        try:
+            exe = MF.fetch()
+        except MF.MFlasherError as e:
+            print(f"setup: {e}")
+    rep.add("M-Flasher", None if exe is None else True, str(exe) if exe else "not installed (only download-mode installs need it)",
+            "python tools/fm1_anyflash.py setup")
+
+
 def toolchain_fix():
     if TC.is_native_host():
         return "python tools/optimist.py setup --yes (downloads the toolchain into ~/.jieli)"
@@ -167,6 +180,7 @@ def run(fetch=True, yes=False, emulator=True):
     check_sdk(rep, fetch, yes)
     check_toolchain(rep, fetch, yes)
     check_llvm(rep, fetch, yes)
+    check_mflasher(rep, fetch, yes)
     if emulator:
         check_emulator(rep)
     check_host_tests(rep)

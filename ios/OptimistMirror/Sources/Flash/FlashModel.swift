@@ -27,6 +27,10 @@ final class FlashModel: ObservableObject {
     @Published private(set) var status = ""
     @Published private(set) var result: String?
     @Published private(set) var error: String?
+    /// the KEEP-only override of the build's m-bootloader, for one install (docs/INSTALL-PATHS.md)
+    @Published var keepBootloader = false
+    /// the last install needs download mode (M-Flasher on a computer); true: the soft key may help there
+    @Published private(set) var softKeyOffered = false
 
     private let link: MirrorLink
     private let updater: FlashUpdater
@@ -51,8 +55,30 @@ final class FlashModel: ObservableObject {
         listsLoaded = listError == nil
     }
 
+    /// the build's BOOTLOADER as this install takes it, the line shown
+    var bootLine: String? {
+        guard let p = package else { return nil }
+        return InstallRoute.bootloaderChoice(p.bootloader, keep: keepBootloader).1
+    }
+
+    /// the way for the package onto the FM-1 that answered (tools/fm1_route.py, web/install_route.js)
+    func route(for pkg: FlashPackage, running: String, port: String) -> InstallRoute.Route {
+        let info = InstallRoute.packageKind(product: pkg.product, sha256: pkg.sha256, flashLen: InstallRoute.flashLen(pkg.image))
+        let boot = InstallRoute.bootloaderChoice(pkg.bootloader, keep: keepBootloader).0
+        return InstallRoute.choose(InstallRoute.runningKind(running, port: port), info, bootloader: boot, runningText: running)
+    }
+
+    /// the soft key (F0 22 24 35 7D F7): the FM-1 restarts in the chip's download mode, for M-Flasher on a computer
+    func sendSoftKey() async {
+        guard !busy, let f = await updater.find() else { status = "No FM-1 found."; return }
+        let sent = f.channel.send(InstallRoute.softKey)
+        f.channel.close()
+        status = sent ? "Sent: the FM-1 restarts in download mode (its screen stays as it was). Switch it off and on to leave it." : "Could not send it."
+    }
+
     func choose(_ e: FlashEntry) {
         guard !busy else { return }
+        keepBootloader = false
         chosen = e.id
         package = nil
         packageError = nil
@@ -160,18 +186,31 @@ final class FlashModel: ObservableObject {
         busy = true
         result = nil
         error = nil
+        softKeyOffered = false
 
         progress = 0
         status = "Looking for the FM-1…"
         link.hold()
         Task {
             defer { busy = false; link.release() }
+            if let f = await updater.find() {             // (the route first: download mode is said, never attempted)
+                let r = route(for: pkg, running: f.id.text, port: f.channel.name)
+                f.channel.close()
+                if r.method == "download" {
+                    status = ""
+                    progress = nil
+                    self.error = "Not installed. " + InstallRoute.nextStep(r, file: pkg.file)
+                    softKeyOffered = r.softKey
+                    return
+                }
+            }
             do {
                 let back = try await updater.install(pkg) { [weak self] s in Task { @MainActor in self?.show(s, pkg) } }
                 progress = 1
                 status = ""
                 device = back
-                result = "Installed \(pkg.title) (\(back))."
+                result = "Installed \(pkg.title) (\(back))." + (pkg.bootloader == "m-bootloader" && !keepBootloader
+                    ? " m-bootloader was not installed: on a computer, python tools/fm1_install.py with this package, or M-Flasher (a full backup first)." : "")
             } catch {
                 self.error = message(error)
                 status = ""

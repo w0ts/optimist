@@ -5161,6 +5161,48 @@
     "provenance_line": "pi32v2-llvm (jvitkauskas/pi32v2-llvm, pi32v2-isa) @ 4f631b31b by Julius Vitkauskas (Apache-2.0 WITH LLVM-exception, MIT-0)"
    },
    {
+    "key": "BOOTLOADER",
+    "flag": "",
+    "label": "bootloader: keep it, or install m-bootloader",
+    "group": "System",
+    "bit": 443,
+    "default": 0,
+    "parent": null,
+    "desc": "What installing this build does to the FM-1's bootloader. Keep: it is never touched (the stock one, or m-bootloader if it is there already). m-bootloader: an open bootloader by Julius Vitkauskas (MIT): hold REC while switching on for the chip's download mode, PLAY for a recovery menu, even when a firmware does not start; it stays through firmware updates. With it chosen, the installers (make flash, the builder's f, tools/fm1_install.py) install it once if the FM-1 does not have it, through download mode with M-Flasher, after a full flash backup and your yes, then the firmware. The installer shows the choice before it writes, and its --keep-bootloader (a checkbox on the web) keeps the bootloader for one install. Nothing in the firmware changes.",
+    "experimental": false,
+    "notice": "",
+    "off_warning": "",
+    "env": "",
+    "target_only": false,
+    "symbols": [],
+    "no_image": true,
+    "fixed": false,
+    "head": false,
+    "choices": [
+     [
+      0,
+      "keep (as it is)"
+     ],
+     [
+      1,
+      "m-bootloader"
+     ]
+    ],
+    "not_built": {},
+    "provenance": {
+     "project": "m-bootloader (jvitkauskas/m-bootloader)",
+     "author": "Julius Vitkauskas",
+     "licence": "MIT",
+     "commit": "v1.2 22e2559",
+     "url": "https://github.com/jvitkauskas/m-bootloader"
+    },
+    "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "tested": "host-tested only (the installers' choice and display); m-bootloader itself on FM-1s (its author's tests)",
+    "provenance_line": "m-bootloader (jvitkauskas/m-bootloader) @ v1.2 22e2559 by Julius Vitkauskas (MIT)"
+   },
+   {
     "key": "BLE",
     "flag": "FELUCCA_BLE",
     "label": "Bluetooth LE MIDI, our own stack",
@@ -6527,6 +6569,7 @@
    "CACHE_RAM",
    "ASM",
    "COMPILER",
+   "BOOTLOADER",
    "SL24_SAFE"
   ]
  },
