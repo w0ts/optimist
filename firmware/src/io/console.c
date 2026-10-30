@@ -130,8 +130,9 @@ static void con_flr(const char *p)                  /* flash read over SPI (no X
 }
 #endif
 
-#if FELUCCA_BLE
-/* the radio's stored calibration (midi_ble.c, ble/ble_vm.c; docs/BLE-HW-FACTS.md §14, §15.4; docs/BLE-STACK.md §8.2): read only */
+#if FELUCCA_BLE || FELUCCA_SDCARD || FELUCCA_LAYOUT == 1
+/* the radio's calibration (BLE), the far probe (LAYOUT 1), the card's blocks (console_sd.c): each one built without the
+ * others too (2026-10-30: SDCARD with the console and no BLE did not link, con_bytes undefined) */
 static void con_bytes(const char *k, const uint8_t *d, uint32_t n)   /* "key: XX XX ..", 16 a line */
 {
     uint32_t i;
@@ -144,6 +145,10 @@ static void con_bytes(const char *k, const uint8_t *d, uint32_t n)   /* "key: XX
     }
     con_puts("\r\n");
 }
+#endif
+
+#if FELUCCA_BLE
+/* the radio's stored calibration (midi_ble.c, ble/ble_vm.c; docs/BLE-HW-FACTS.md §14, §15.4; docs/BLE-STACK.md §8.2): read only */
 
 static void con_vm_rec(void *ctx, uint32_t off, uint32_t id, uint32_t len)
 {
