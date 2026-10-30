@@ -97,10 +97,12 @@ check("the classic slots (its build system's: flash_layout, build.py): a LAYOUT 
       and K.fits(total, {})["sram"][1] == 474880 - K.SPARE["sram"])
 C.CLASSIC = False
 if fm1base.BUILD_PY.is_file():
+    _t = tomllib.loads((fm1base.APP / "fm1.toml").read_text())   # (fm1.toml main_stack / irq_stack: the SRAM up to them)
+    _sram = 0x7C000 - _t.get("main_stack", 24320) - _t.get("irq_stack", 7936) - 512
     check("the release's slots (fm1-base's fm1pkg_make app_slot of fm1.toml's app_end and the SD card mode's): LAYOUT 1 "
-          "823,228 B, normal 581,564 B, SRAM app.ld's",
+          "823,228 B, normal 581,564 B, SRAM app.ld's up to fm1.toml's stacks",
           K.fits(total, {"LAYOUT": 1})["flash"][1] == 823228 and K.fits(total, {})["flash"][1] == 581564
-          and K.fits(total, {})["sram"][1] == 475136 - K.SPARE["sram"] and K.describe()["limits"]["sram"] == 475136)
+          and K.fits(total, {})["sram"][1] == _sram - K.SPARE["sram"] and K.describe()["limits"]["sram"] == _sram)
     check("a release build's sizes.json app_slot (fm1-base writes its normal APP_SLOT for every app_end) changes no limit",
           K.fits(dict(total, app_slot=581564), {"LAYOUT": 1})["flash"][1] == 823228)
 _hook = K.LIMITS_HOOK
