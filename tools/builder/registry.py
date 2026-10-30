@@ -637,6 +637,11 @@ _add("REV_FDN8", "FELUCCA_REV_FDN8", "reverb: FDN8 (long, lush)", F, 153, defaul
           "of RAM (with PLATE too, 1.1 KB of flash and 1.8 KB of RAM are shared). Experimental: measured on the host "
           "and in the emulator only, not yet heard on an FM-1.",
      notice="FDN8: measured on the host and in the emulator only; not yet heard on an FM-1.", symbols=("rvf_params",))
+_add("REV_POOL", "FELUCCA_REV_POOL", "reverb: FDN8 size", F, 122, default=0, parent="FX_REVERB",
+     choices=((1, "big ring (32 KB): the long, lush tail"), (0, "small ring (16 KB)")),
+     desc="FDN8's ring: big (32 KB) gives its eight lines twice the length, the long and lush FDN8; small (16 KB) the "
+          "shorter one. The key's old name (the reverb's buffers in the pool) is kept so profiles keep their sound: since "
+          "the RAM is one region (2026-10-25) where the buffer sits saves nothing, only the ring's size counts.")
 _add("REV_AIRWIN", "FELUCCA_REV_AIRWIN", "reverb: VTINY (Airwindows VerbTiny)", F, 230, default=0, parent="FX_REVERB",
      desc="Airwindows' VerbTiny (Chris Johnson, MIT): sixteen lines in four 4 x 4 Householder stages, left and right "
           "in one loop, at 22.05 kHz. A plain early-digital texture: peakier and grainier than FDN8 (it is not "
@@ -647,12 +652,6 @@ _add("REV_AIRWIN", "FELUCCA_REV_AIRWIN", "reverb: VTINY (Airwindows VerbTiny)", 
           "from RAM), no pool past the shared ring (user-default has no flash left for it). "
           "Experimental: measured on the host only, not yet heard on an FM-1.",
      notice="VTINY: measured on the host only; not yet heard on an FM-1.", symbols=("rva_params",))
-_add("REV_POOL", "FELUCCA_REV_POOL", "reverb buffers in the pool (saves ~17 KB RAM)", F, 122, default=0,
-     parent="FX_REVERB",
-     desc="Keeps the reverb's shared line buffer (17 KB with ROOM; PLATE and FDN8 without ROOM "
-          "16 KB; SPRING alone 8 KB) in the pool instead of main RAM: main RAM is the scarcer, and "
-          "the sound and the code stay the same. Needs that much pool free (the undo history shrinks by it in the "
-          "pool and grows by it in RAM).")
 # (bit 123, REV_HALF, retired 2026-10-29: the half-rate reverb (the ROOM and the ring of PLATE / FDN8 / VTINY at half the RAM) was
 #  dropped; RETIRED above; never reuse the bit)
 # the effects' finer arithmetic (2026-10-26, a Reddit report: the send chorus, JUNO CHORUS, WIDE and the reverbs grainy on
