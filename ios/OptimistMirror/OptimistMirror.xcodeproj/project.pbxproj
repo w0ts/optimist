@@ -29,6 +29,7 @@
 		43684D2B1E539B2E4C878E3B /* web_patch_file.json in Resources */ = {isa = PBXBuildFile; fileRef = D7B57B7B25C4E51D2AE46946 /* web_patch_file.json */; };
 		4649E2AFEED3A97BD4EEB635 /* MirrorDecoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6F31FA3CF326B87F5453721 /* MirrorDecoder.swift */; };
 		47E90E50172C5BEC29B4E96B /* Fm1Base in Resources */ = {isa = PBXBuildFile; fileRef = FFF9D200E336C4B5BA2DDBED /* Fm1Base */; };
+		48BD047F6CE6FC2E04D75C13 /* MFlasherRelease.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF1536AAC1FE62449D4969F6 /* MFlasherRelease.swift */; };
 		4A39CECF46CAAFC6056EDDDD /* EditorSession+Library.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6EB0E61259FE4F0AAF558D5C /* EditorSession+Library.swift */; };
 		4A96C6E20FB1558DCED4A41D /* MirrorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D8D6024DF9B95CFFEEF0783 /* MirrorView.swift */; };
 		4BBE66E9AF2B60BEBD45A2B3 /* NavModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80E117300E52E6D293A00964 /* NavModel.swift */; };
@@ -136,6 +137,7 @@
 		B8345EA2BC0DFECA12176351 /* make_fixtures.mjs */ = {isa = PBXFileReference; path = make_fixtures.mjs; sourceTree = "<group>"; };
 		B863C7AA9D1164281B82F9E5 /* Clip.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Clip.swift; sourceTree = "<group>"; };
 		BC918D1CB71D2C0601F37E2A /* web_pattern.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = web_pattern.json; sourceTree = "<group>"; };
+		BF1536AAC1FE62449D4969F6 /* MFlasherRelease.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MFlasherRelease.swift; sourceTree = "<group>"; };
 		C0846C9A6195130B751E2FAA /* FlashPackage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlashPackage.swift; sourceTree = "<group>"; };
 		CE24BDBA9F4261637806D42E /* EditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorView.swift; sourceTree = "<group>"; };
 		D5F518A3F5BEA843D434D27E /* FlashCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlashCatalog.swift; sourceTree = "<group>"; };
@@ -233,6 +235,7 @@
 				1D6035C9DAED9B3828807EBA /* FlashUpdater.swift */,
 				AA29302C9082248DA82C3DC5 /* FlashView.swift */,
 				2CC99639629FA0CBF1CF327E /* InstallRoute.swift */,
+				BF1536AAC1FE62449D4969F6 /* MFlasherRelease.swift */,
 			);
 			path = Flash;
 			sourceTree = "<group>";
@@ -348,6 +351,7 @@
 			buildConfigurationList = 32B9C3862D62550073532DF4 /* Build configuration list for PBXNativeTarget "OptimistMirror" */;
 			buildPhases = (
 				7C9288E0BB535B9BC4B9F091 /* Bundle the web editor */,
+				06C16EE8345D6DB91A34002C /* Bundle the M-Flasher release */,
 				8EEB54093BE4F79FF889CC98 /* Sources */,
 				2FAFC281BA477EDA93B79492 /* Resources */,
 			);
@@ -428,6 +432,25 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
+		06C16EE8345D6DB91A34002C /* Bundle the M-Flasher release */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Bundle the M-Flasher release";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "python3 \"$SRCROOT/../../tools/sync_mflasher.py\" \"$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/mflasher.json\"";
+		};
 		7C9288E0BB535B9BC4B9F091 /* Bundle the web editor */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;
@@ -482,6 +505,7 @@
 				59ECCFB2802F9750703DC830 /* LibraryFile.swift in Sources */,
 				A4AA5B98C94579EA4B836A53 /* LibraryStore.swift in Sources */,
 				95315429ACCA74BB4EDB10CE /* LibraryView.swift in Sources */,
+				48BD047F6CE6FC2E04D75C13 /* MFlasherRelease.swift in Sources */,
 				4649E2AFEED3A97BD4EEB635 /* MirrorDecoder.swift in Sources */,
 				BA6834D7B3A00D8A4007F620 /* MirrorLink.swift in Sources */,
 				4A96C6E20FB1558DCED4A41D /* MirrorView.swift in Sources */,

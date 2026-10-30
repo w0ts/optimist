@@ -24,6 +24,7 @@ ROOT = HERE.parent
 sys.path.insert(0, str(HERE))
 sys.path.insert(1, str(HERE / "builder"))               # (stamp: the commit a package was built from)
 import fm1_install as FI  # noqa: E402
+import mflasher as MF  # noqa: E402
 import progress  # noqa: E402  (stream: the tool's output as it arrives)
 import stamp  # noqa: E402
 
@@ -263,6 +264,28 @@ def platform_note(package, product, running):
     if not m:
         return None
     return FI.platform_warning(FI.Identity(m[1], m[2], int(m[3])), product, FI.load_package(str(package), False)[1])
+
+
+def mflasher_question(plan):
+    """the question to ask before a download-mode install when M-Flasher is not found here, else None"""
+    if not plan.download or MF.binary() is not None:
+        return None
+    try:
+        return MF.question()
+    except MF.MFlasherError as e:
+        raise FlashError(str(e))
+
+
+def ensure_mflasher(plan, ask, say=print, download=None):
+    """a download-mode install needs M-Flasher: found, or asked for once (ask(question) -> bool) and fetched, SHA-256
+    checked, installed in its pinned place (MF.home()). Offline, refused or a bad check: FlashError, nothing written.
+    -> the binary (None when the plan is not download mode)"""
+    if not plan.download:
+        return None
+    try:
+        return MF.ensure(ask, say, download)
+    except MF.MFlasherError as e:
+        raise FlashError(str(e))
 
 
 def install(plan, capture=True, on_line=None):

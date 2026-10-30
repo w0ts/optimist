@@ -962,6 +962,34 @@ class Builder(App):
         if not yes:
             self.flash_done("flash cancelled; nothing was written", False)
             return
+        try:
+            question = F.mflasher_question(plan)
+        except F.FlashError as e:
+            self.flash_done(f"FLASH REFUSED\n  {e}", True)
+            return
+        if question:       # download mode and no M-Flasher here: asked once, fetched, then on
+            def fetch_answer(choice):
+                if choice.startswith("Download"):
+                    self.fetch_mflasher(plan)
+                else:
+                    self.flash_done("flash cancelled; M-Flasher was not downloaded, nothing was written", False)
+            self.push_screen(Pick(question, ["Download it, then go on with the flash", "Cancel"], fetch_answer))
+            return
+        self.flash_go(plan)
+
+    @work(thread=True, exclusive=True, group="mfget")
+    def fetch_mflasher(self, plan):
+        self.call_from_thread(self.progress_show, "downloading M-Flasher", None)
+        lines = []
+        try:
+            F.ensure_mflasher(plan, lambda _q: True, lines.append)
+        except F.FlashError as e:
+            self.call_from_thread(self.flash_done, f"FLASH REFUSED\n  {e}", True)
+            return
+        self.call_from_thread(self.notify, "\n".join(lines), title="M-Flasher", timeout=30)
+        self.call_from_thread(self.flash_go, plan)
+
+    def flash_go(self, plan):
         self.flashing = True
         self.build_out = "flashing... do not unplug the FM-1 (about a minute)"
         self.refresh_msgs()
