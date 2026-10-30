@@ -1143,6 +1143,7 @@ job; ( jobin   # the RAMTEXT overlays (core/overlay.c, docs/SD-MODE-DESIGN.md 6)
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_OVERLAY=1 -o "$OUT/regress_ovl" tests/regress.c -lm
     run "regression with the overlays (FELUCCA_OVERLAY, the host's slots): the same golden renders (no CPU budget: tests/regress.c's own)" "$OUT/regress_ovl" tests/golden.txt "$OUT/regress_ovl_no_cpu.txt"
     run "ovl_link: the plan (the least RAMTEXT), the linker scripts, the table" python3 tests/ovl_link_test.py
+    run "ramsize: an ELF's SRAM by section and owner (each byte once, padding, gaps, the stacks)" python3 tests/ramsize_test.py
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin   # the flash layouts (docs/SD-MODE-DESIGN.md): the numbers agree; the fake SD mode's 7-sector log
     run "flash layouts: fm1_flash_map.h, flash_layout.py, the builder and the package agree; the switch table" python3 tests/flash_layout_test.py
