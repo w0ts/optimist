@@ -6,7 +6,7 @@ reference for the commands. Nothing here talks to a device: run() starts the pro
 fake executable that records its arguments.
 
   binary()            the M-Flasher to run, or None: $M_FLASHER, the pinned release fetched by setup
-                      (~/.jieli/m-flasher-0.7.0), M-Flasher.app in /Applications, m-flasher on the PATH
+                      (build/m-flasher/m-flasher-0.7.0 in the repo), M-Flasher.app in /Applications, m-flasher on the PATH
   fetch()             the pinned release for this system, checked by its SHA-256 (as tools/deps.py does pi32v2-llvm)
   build_from_source() cargo build --release in third_party/m-flasher (when there is no release for this system)
   argv(...)           the command lines: never --wipe-settings (it would erase the region an Optimist or fm1-base
@@ -77,7 +77,9 @@ class MFlasherError(Exception):
 
 
 def home() -> Path:
-    return Path(os.environ.get("M_FLASHER_HOME") or Path.home() / ".jieli") / f"m-flasher-{VERSION}"
+    """where setup keeps the fetched release: inside the repo (build/m-flasher, git-ignored), never in the user's home
+    or the system (the user, 2026-10-30: nothing installed on the Mac)"""
+    return Path(os.environ.get("M_FLASHER_HOME") or ROOT / "build" / "m-flasher") / f"m-flasher-{VERSION}"
 
 
 def _norm(system: str | None, machine: str | None):

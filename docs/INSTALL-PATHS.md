@@ -21,7 +21,7 @@ through the chip's download mode, writes only the 4 KiB sectors that change and 
 [m-bootloader](https://github.com/jvitkauskas/m-bootloader) (the same author, MIT) is an open bootloader: REC held while
 switching on enters download mode, PLAY a recovery menu, even when a firmware does not start.
 
-M-Flasher is fetched for the machine it runs on: `make setup` (`python tools/optimist.py setup`) and `python tools/fm1_anyflash.py setup` download the pinned release for this OS and CPU into `~/.jieli/m-flasher-0.7.0` after checking its SHA-256; the builder's flash (and `make flash`, `fm1_install.py`) asks once before downloading it when a download-mode install needs it and none is found. The pinned names, sizes and checksums are written once, in `tools/mflasher.py`; the web installer's links (site.json) and the Mirror app's (mflasher.json, `tools/sync_mflasher.py`) are generated from it. On macOS it runs the dmg app's bundled CLI, `M-Flasher.app/Contents/MacOS/M-Flasher`, which is not signed with an Apple certificate (System Settings > Privacy & Security > Open Anyway if macOS blocks it) and asks for the password in the system's dialog for its root helper.
+M-Flasher is fetched for the machine it runs on: `make setup` (`python tools/optimist.py setup`) and `python tools/fm1_anyflash.py setup` download the pinned release for this OS and CPU into `build/m-flasher/m-flasher-0.7.0` inside the repo (git-ignored; nothing is installed on the machine) after checking its SHA-256; the builder's flash (and `make flash`, `fm1_install.py`) asks once before downloading it when a download-mode install needs it and none is found. The pinned names, sizes and checksums are written once, in `tools/mflasher.py`; the web installer's links (site.json) and the Mirror app's (mflasher.json, `tools/sync_mflasher.py`) are generated from it. On macOS it runs the dmg app's bundled CLI, `M-Flasher.app/Contents/MacOS/M-Flasher`, which is not signed with an Apple certificate (System Settings > Privacy & Security > Open Anyway if macOS blocks it) and asks for the password in the system's dialog for its root helper.
 
 Both are git submodules of Optimist, pinned: `third_party/m-flasher` at v0.7.0 (`0c5d50f`), `third_party/m-bootloader` at
 `64b74d0` (v1.2, `22e2559`, and two documentation commits). They sit in Optimist, not in fm1-base: the callers are
@@ -29,7 +29,7 @@ Optimist's command-line installers; fm1-base's installer is the web page, which 
 cannot use M-Flasher. Optimist's code calls M-Flasher's command line; none of its protocol is copied here.
 
 **Getting M-Flasher.** `python tools/fm1_anyflash.py setup` fetches M-Flasher's v0.7.0 release for this system (the
-macOS disk image, the Linux tarball for x86-64 or ARM64, the Windows zip) into `~/.jieli/m-flasher-0.7.0/`, checked by
+macOS disk image, the Linux tarball for x86-64 or ARM64, the Windows zip) into `build/m-flasher/m-flasher-0.7.0/` inside the repo, checked by
 its SHA-256 as `tools/mflasher.py` pins it, as setup does with the pi32v2-llvm toolchain. `--from-source` builds the
 submodule with cargo instead. The installers also take `M_FLASHER=/path/to/m-flasher`, the app in `/Applications`, or
 `m-flasher` on the PATH. Why the release rather than a build: it is the build its author tested on each system
