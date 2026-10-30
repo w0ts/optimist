@@ -130,9 +130,8 @@ static void con_flr(const char *p)                  /* flash read over SPI (no X
 }
 #endif
 
-#if FELUCCA_BLE || FELUCCA_SDCARD || FELUCCA_LAYOUT == 1
-/* the radio's calibration (BLE), the far probe (LAYOUT 1), the card's blocks (console_sd.c): each one built without the
- * others too (2026-10-30: SDCARD with the console and no BLE did not link, con_bytes undefined) */
+#if FELUCCA_BLE || FELUCCA_SDCARD
+/* the radio's calibration (BLE), the card's blocks (console_sd.c): each one built without the other too (2026-10-30: SDCARD with the console and no BLE did not link, con_bytes undefined) */
 static void con_bytes(const char *k, const uint8_t *d, uint32_t n)   /* "key: XX XX ..", 16 a line */
 {
     uint32_t i;
@@ -1682,20 +1681,6 @@ static void con_cpu1park(void)
     con_kv("cpu1_why_after", dual.why);
 }
 #endif
-#if FELUCCA_LAYOUT == 1
-static void con_far(void)                            /* the far probe (system/far_probe.c, docs/SD-MODE-DESIGN.md) */
-{
-    static const char *const R[] = {"ok: code and data past 0x93000 work", "the constant reads wrong (not called)",
-                                    "the call returned wrong"};
-    uint32_t r = far_check();
-    con_puts("far probe ");
-    con_puts(R[r]);
-    con_puts("\r\n");
-    con_bytes("read", (const uint8_t *)far_seen, sizeof far_seen);
-    con_kx("at", (uint32_t)(uintptr_t)far_magic);
-}
-#endif
-
 #if FELUCCA_SDCARD
 #include "console_sd.c"                              /* sd: the SD card (storage/sd/sdcard.c) */
 #endif
@@ -1725,9 +1710,6 @@ static void con_exec(const char *p)
                  "  cpu1park"
 #endif
 #endif
-#if FELUCCA_LAYOUT == 1
-                 "  far"
-#endif
 #if FELUCCA_SDCARD
                  "  sd [mode duplex|dirrx|bitbang | dma on|off | raw SECTOR | ls [DIR] | cat FILE | bench [FILE] | write FILE]"
 #endif
@@ -1756,10 +1738,6 @@ static void con_exec(const char *p)
         con_params();
     else if (con_word(&p, "tabbench"))
         con_tabbench();
-#if FELUCCA_LAYOUT == 1
-    else if (con_word(&p, "far"))
-        con_far();
-#endif
 #if FELUCCA_SDCARD
     else if (con_word(&p, "sd"))
         con_sd(p);

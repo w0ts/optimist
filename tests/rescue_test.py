@@ -144,14 +144,23 @@ def main():
         was_big[0x4000:0x4020] = head                        # a fake-SD-mode app installed
         dev = FakeUboot(was_big)
         r = R.rescue(dev, stock, b"LDR", True, tmp, say=say)
-        ok(r is True and bytes(dev.flash[:normal]) == stock and bytes(dev.flash[normal:big]) == b"\xFF" * (big - normal)
-           and bytes(dev.flash[big:]) == bytes(was_big[big:]),
-           "normal after a fake-SD-mode app: its tail [0x93000, 0xD0000) cleared, the rest kept")
+        top = R.flash_layout.CLEAR_TOP
+        ok(r is True and bytes(dev.flash[:normal]) == stock and bytes(dev.flash[normal:top]) == b"\xFF" * (top - normal)
+           and bytes(dev.flash[top:]) == bytes(was_big[top:]),
+           "normal after a more-flash app: its tail and squeezed store [0x93000, 0xDA000) cleared (9.3's rule), the rest kept")
+        s0 = R.flash_layout.app_hi(3)
+        rnd0 = random.Random(7)
+        s0_img = stock[:0x4000] + bytes(rnd0.getrandbits(8) for _ in range(s0 - 0x4000))
+        dev = FakeUboot(flash)                               # a normal app installed, S0's package (its own head)
+        r = R.rescue(dev, s0_img, b"LDR", True, tmp, say=say)
+        ok(r is True and bytes(dev.flash[:s0]) == s0_img and bytes(dev.flash[s0:0xD8000]) == b"\xFF" * (0xD8000 - s0)
+           and bytes(dev.flash[0xD8000:]) == bytes(flash[0xD8000:]),
+           "no user samples (S0) after a normal app: [0xB5000, 0xD8000) cleared, 0xD8000 and up kept")
         rnd = random.Random(9)
         big_img = stock[:0x4000] + bytes(rnd.getrandbits(8) for _ in range(big - 0x4000))   # (the device's own head)
         dev = FakeUboot(flash)                               # a normal app (no header of ours in the random image)
         r = R.rescue(dev, big_img, b"LDR", True, tmp, say=say)
-        hi = R.flash_layout.BIG_STORE_HI
+        hi = R.flash_layout.CLEAR_TOP
         ok(r is True and bytes(dev.flash[:big]) == big_img and bytes(dev.flash[big:hi]) == b"\xFF" * (hi - big)
            and bytes(dev.flash[hi:]) == bytes(flash[hi:]),
            "fake SD mode after a normal app: its store [0xD0000, 0xDA000) cleared, kits / presets / settings kept")

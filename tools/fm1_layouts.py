@@ -21,10 +21,9 @@ import fm1_rescue
 SECTOR = 0x1000
 FLASH_SIZE = 0x100000
 APP_LO = 0x4000
-NORMAL_END = 0x93000
-CLEAR_TOP = 0xDA000            # the squeezed store's top, in both bigger layouts (flash_layout.BIG_STORE_HI, fm1.toml
-                               # app_clear_end): a switch from the normal layout clears [new end, here)
-DATA_TOP = 0xE0000             # no layout's app or store reaches past it (flash_layout.STORE_TOP)
+NORMAL_END = flash_layout.app_hi(0)
+CLEAR_TOP = flash_layout.CLEAR_TOP   # no switch clears at or past it (fm1.toml app_clear_end the same)
+DATA_TOP = flash_layout.STORE_TOP    # no layout's app or store reaches past it
 KEEP = (                       # never written by an install, in any layout
     (0x00000, 0x04000, "boot area (bootloader, isd_config): only an explicit bootloader step"),
     (0xE0000, 0xE5000, "update staging, fm1-base's backup journal 0xE1000 and crash ring 0xE2000-0xE3FFF"),
@@ -48,7 +47,9 @@ WIPE = {
 LAYOUTS = (
     ("own-normal", "Optimist's own, MEMORY normal", 0x93000,
      "0x95000-0xDFFFF: FM6 voices, sections / projects, autosave A, USR1-3, snapshots, kits, presets"),
-    ("own-big", "Optimist's own, MEMORY more flash or SD card mode (LAYOUT 1)", 0xD0000,
+    ("own-s0", "Optimist's own, MEMORY no user samples (LAYOUT 3)", flash_layout.app_hi(3),
+     "0xB5000-0xDFFFF: FM6 voices 0xB5000, autosave A 0xB7000, the project log 0xB8000-0xD7FFF (16 projects), kits, presets"),
+    ("own-big", "Optimist's own, MEMORY more flash or SD card mode (LAYOUT 1)", flash_layout.app_hi(1),
      "0xD0000-0xDFFFF: the squeezed store (one project, autosave A, FM6 voices), kits, presets; SD mode: the card"),
     ("base-normal", "fm1-base (Optimist's release), the normal slot", 0x93000,
      "the platform's data area 0x97000-0xDFFFF (Optimist's store, OBJ_PANEL 0xD8000), XDATA0 0x93000-0x96FFF"),
@@ -58,7 +59,14 @@ LAYOUTS = (
 
 
 def layout_of(end: int) -> str:
-    return {0x93000: "normal", 0xCE000: "big (0xCE000)", 0xD0000: "big (0xD0000)"}.get(end, f"app end {end:#x}")
+    """the step an app end belongs to (tools/flash_layout.py known_ends): its MEMORY name, the end when two builds share it"""
+    ends = flash_layout.known_ends()
+    if end not in ends:
+        return f"app end {end:#x}"
+    layout = ends[end][0]
+    shared = [e for e, (k, _) in ends.items() if k == layout]
+    name = flash_layout.NAMES[layout]
+    return f"{name} (0x{end:X})" if len(shared) > 1 else name
 
 
 def _up(n: int) -> int:
@@ -66,15 +74,16 @@ def _up(n: int) -> int:
 
 
 def installed_end(current: bytes, key: int = fm1_rescue.fm1pkg_make.KEY) -> int:
-    """where the installed firmware's slot ends: its app_area_head's end rounded up to the known slot ends
-    (0x93000, 0xCE000, 0xD0000); 0 when there is no app of this kind"""
+    """where the installed firmware's slot ends: its app_area_head's end rounded up to a sector (the tail after app.bin
+    is under one: the slot's end), else up to the next known end (tools/flash_layout.py known_ends; a head that ends on
+    a sector boundary below its slot's); 0 when there is no app of this kind"""
     end = fm1_rescue.installed_end(current, key)
     if not end:
         return 0
-    for slot in (0x93000, 0xCE000, 0xD0000):
-        if end <= slot:
-            return slot
-    return _up(end)
+    ends = flash_layout.known_ends()
+    if _up(end) in ends:
+        return _up(end)
+    return next((e for e in ends if e >= end), _up(end))
 
 
 @dataclass(frozen=True)
@@ -114,13 +123,11 @@ class PlanError(Exception):
 
 
 def _clear_range(old_end: int, new_end: int) -> tuple:
-    if not old_end or old_end == new_end:
-        return 0, 0
-    if new_end < old_end:                           # a smaller slot: the old code's tail is the new data area
-        return new_end, old_end
-    if old_end <= NORMAL_END < new_end:             # from the normal layout to a bigger one: its squeezed store
-        return new_end, max(new_end, CLEAR_TOP)
-    return 0, 0
+    """the loaders' one rule (docs/SD-MODE-DESIGN.md 9.3, flash_layout.switch_clear_ends); a flash.bin no step has:
+    only the old code's tail past it (as before)"""
+    if new_end in flash_layout.known_ends():
+        return flash_layout.switch_clear_ends(old_end, new_end)
+    return (new_end, old_end) if old_end > new_end else (0, 0)
 
 
 def _span(addrs, current) -> list:
@@ -201,4 +208,4 @@ def switches_markdown() -> str:
     return "\n".join(rows) + "\n"
 
 
-assert flash_layout.APP_HI == {0: 0x93000, 1: 0xD0000} and flash_layout.BIG_STORE_HI == CLEAR_TOP
+assert all(lo >= CLEAR_TOP or hi <= APP_LO for lo, hi, _ in KEEP[1:]), "a KEEP range below the switch clears' top"

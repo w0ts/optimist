@@ -163,6 +163,7 @@ for _k in C.NEEDS_AUTO:
 # arena (ARENA on)
 _LAYOUT = {"ENG_SAMPLE": 0, "DRUM_USR": 0, "SNAPSHOTS": 0, "PATTERNS": 1}
 WITH[("LAYOUT", 1)] = dict(_LAYOUT)
+WITH[("LAYOUT", 3)] = dict(_LAYOUT)          # (S0, no user samples: the same rules as LAYOUT 1, core.py validate)
 WITH[("BT_PROJ", 1)] = {"BLE": 1, "ED_MIRROR": 1, "PATTERNS": 1}
 for _v in (16, 32, 64):
     WITH[("SD_REC", _v)] = dict(_LAYOUT, LAYOUT=1)

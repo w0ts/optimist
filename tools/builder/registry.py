@@ -1138,18 +1138,32 @@ _add("LIVE_SAVE", "FELUCCA_LIVE_SAVE", "save while playing (flash writes in shor
 # and every profile keep loading as they did), core.set_memory writes them when it is picked (room.after_toggle), and
 # dump() leaves it out. Bits 436 and 437 are the next free after Wi-Fi's 434 / 435. LAYOUT and SDCARD are hidden
 # (the user, 2026-10-29: "these options do basically the same thing"): the menu shows MEMORY alone, SD_RING and SD_REC under it.
+# The MEMORY steps (docs/SD-MODE-DESIGN.md section 9): tools/flash_layout.py STEPS is the one table; this is the builder's
+# copy of what it needs (the web builder runs without tools/ on its path), checked by tests/flash_layout_test.py.
+# layout -> (MEMORY value, user samples / snapshots / CZ collection kept, app.bin's room in the classic build)
+LAYOUT_STEPS = {0: (0, True, 581564), 3: (4, False, 720828), 1: (1, False, 831420)}
+# MEMORY's values never change (derived, never stored: core.derive_memory); listed in size order. 3 is kept for the
+# design's S1 (one sample slot, not built)
 MEMORY_CHOICES = ((0, "normal"),
+                  (4, "no user samples: 16 projects, more flash"),
                   (1, "more flash: one project in flash"),
                   (2, "SD card mode"))
 _add("MEMORY", "", "memory: where the user data lives", MEM, 436, default=0, choices=MEMORY_CHOICES, no_image=True,
-     notice="Changing this changes the flash layout: back up the projects first (web editor: Backup). Installing a "
-            "build with another layout than the FM-1 has erases the user data the new code covers: from normal to "
-            "more flash or SD card mode, the projects, the user samples, the snapshots and the FM6 voices in flash; "
-            "back to normal, the data area starts empty. The kits and the presets are kept (docs/INSTALL-PATHS.md).",
+     notice="Changing this changes the flash layout: back up first (web editor: Backup; for a way back whole, a full "
+            "flash backup: python tools/fm1_anyflash.py backup). Installing a build with another layout than the FM-1 "
+            "has erases what the layouts keep in different places: every switch between two of normal, no user "
+            "samples and more flash / SD card mode loses the projects in flash, the FM6 voices of the user presets and "
+            "autosave copy A; leaving normal also loses the user samples and the snapshots. The kits, the presets and "
+            "the settings are kept (docs/INSTALL-PATHS.md). Afterwards restore the projects with the web editor (the "
+            "slots the new layout has). The first install of no user samples goes over a normal build of this version "
+            "(an older updater refuses its size).",
      notice_on_change=True,
      experimental=True, target_only=True, tested="host-tested only (docs/SD-MODE-DESIGN.md)",
-     desc="One choice for the two items LAYOUT and SDCARD. Normal: the flash layout as before. Reduced user flash (LAYOUT): "
-          "the code grows from 568 KiB to 816 KiB over the sample slots, the snapshots and most of the projects' room; "
+     desc="One choice for the two items LAYOUT and SDCARD. Normal: the flash layout as before (568 KiB of code). No user "
+          "samples (LAYOUT 3): the code grows to 704 KiB over the user sample slots, the snapshots and the CZ collection; "
+          "16 projects keep today's 128 KiB of project log (builds without SAMPLE, user drum samples, SNAPSHOTS and the CZ "
+          "collection, with PATTERNS: what every shipped profile builds already). More flash (LAYOUT 1): "
+          "the code grows to 812 KiB over the sample slots, the snapshots and most of the projects' room; "
           "one project stays in flash (the web or iOS app keeps the others), no SD card. SD card mode (LAYOUT + SDCARD): the same flash layout with the user data on the SD card (a hardware mod, docs/SD-CARD-DESIGN.md). "
           "Picking one sets those items; setting them by hand reads back here. The menu and the web builder list this row alone (with SD_RING and SD_REC under it in SD card mode); LAYOUT, SDCARD and the retired RAM_PACKED are real but not listed, and an old `.config` still loads them.")
 # RAM_PACKED (bit 437, retired from the menu 2026-10-29, never reused): hidden, not removed, so a .config or profile that
@@ -1176,7 +1190,7 @@ _add("SDCARD", "FELUCCA_SDCARD", "SD card on the LCD bus (a hardware mod)", MEM,
 # bit 410 (2026-10-25): the next free one after SDCARD's 409
 _add("LAYOUT", "FELUCCA_LAYOUT", "flash layout: fake SD mode (more room for code, little user data)", MEM, 410, default=0,
      hidden=True,
-     choices=((0, "normal"), (1, "fake SD mode: 816 KiB app")),
+     choices=((0, "normal"), (3, "no user samples: 704 KiB app"), (1, "fake SD mode: 816 KiB app")),
      experimental=True, target_only=True, tested="host-tested only; on an FM-1 whose flash runs the release image's 820 KB (docs/SD-MODE-DESIGN.md)",
      desc="Grows the firmware's flash from 568 KiB to 816 KiB over the user data: the user sample slots, the "
           "snapshots and most of the projects' room become code space (code runs in place from flash: no RAM). What "
@@ -1184,8 +1198,10 @@ _add("LAYOUT", "FELUCCA_LAYOUT", "flash layout: fake SD mode (more room for code
           "without SAMPLE, user drum samples, SNAPSHOTS and the CZ collection, with PATTERNS. Installing it ERASES the "
           "user data the normal layout keeps there, and going back erases this layout's (the update loader clears "
           "the other layout's sectors first): back up with the web editor before. The first install needs a normal "
-          "build of this version first (an older updater refuses the larger package). The code may use the slot up to "
-          "about 765 KB (the console's far probe, a diagnostic, and the overlays' table keep its last 64 KB).")
+          "build of this version first (an older updater refuses the larger package). The code may use the whole slot, "
+          "831,420 B (the far probe's 64 KiB reserve went 2026-10-30). LAYOUT 3 (no user samples): the app slot to "
+          "0xB5000 (720,828 B), the presets' FM6 voices, autosave copy A and the 32-sector project log above it, 16 "
+          "projects; the same build rules as LAYOUT 1 (docs/SD-MODE-DESIGN.md section 9).")
 # bit 411 (2026-10-25): the next free one after LAYOUT's 410; the arena (core/arena.c, fx/fx_arena.c, docs/SD-MODE-DESIGN.md
 # 6b): KB, 0 the fixed memories as before. The core (every build it is set in): the parts' engine states placed by need,
 # the edit's one confirm for what to drop, a load's refusals on it one by one; the extras only in the SD card mode
@@ -1532,7 +1548,14 @@ def add_item(item):
 # "not in this build" in that kind's costs file and probes them: a mark whose value links again is reported). Key: (item, value);
 # value: {"classic" (Optimist's own firmware) / "release" (the fm1-base app): why}. Not a failure of the measuring: a value
 # that SHOULD build and does not is (measure_costs.py reports it loudly)
-NOT_BUILT = {}   # (PHYS in RAM was one until its render stopped calling libgcc's __udivdi3: phys_dsp.c px_udiv, 2026-10-30)
+_S0_RELEASE = ("not for the release yet: fm1-base's own update loader and app_end do not take the MEMORY steps' table "
+               "(its slot switch would leave the old step's log sectors in the new one's; docs/SD-MODE-DESIGN.md 9.4, "
+               "the proposed fm1-base branch pr/app-end-table)")
+# (PHYS in RAM was a NOT_BUILT entry until its render stopped calling libgcc's __udivdi3: phys_dsp.c px_udiv, 2026-10-30)
+NOT_BUILT = {
+    ("MEMORY", 4): {"release": _S0_RELEASE},
+    ("LAYOUT", 3): {"release": _S0_RELEASE},
+}
 
 
 def not_built(key, value, kind):

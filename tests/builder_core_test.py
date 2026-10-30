@@ -293,6 +293,38 @@ check("MEMORY: setting LAYOUT by hand reads back through the toggle",
       RM.after_toggle(_d, dict(_d, LAYOUT=1), "LAYOUT", RM.NONE)[0]["MEMORY"] == 1)
 check("MEMORY: --set MEMORY=2 and a .config line MEMORY=2 do what the pick does",
       K.parse("MEMORY=2\n")[0]["SDCARD"] == 1)
+# ---- the MEMORY steps (docs/SD-MODE-DESIGN.md 9): no user samples, S0 (LAYOUT 3)
+check("MEMORY's choices in size order: normal, no user samples, more flash, SD card mode",
+      [v for v, _ in R.ITEMS["MEMORY"].choices] == [0, 4, 1, 2]
+      and [n.split(":")[0] for _, n in R.ITEMS["MEMORY"].choices] == ["normal", "no user samples", "more flash", "SD card mode"])
+_s0 = RM.after_toggle(_p, dict(_p, MEMORY=4), "MEMORY", RM.NONE)[0]
+check("MEMORY: no user samples from SD card mode: LAYOUT 3, the card and its streams off",
+      (_s0["LAYOUT"], _s0["SDCARD"], _s0["SD_RING"], _s0["SD_REC"], _s0["MEMORY"]) == (3, 0, 0, 0, 4))
+check("MEMORY: LAYOUT=3 by hand (an old-style .config) reads no user samples; MEMORY=4 sets it; written it reads back",
+      K.parse("LAYOUT=3\n")[0]["MEMORY"] == 4 and K.parse("MEMORY=4\n")[0]["LAYOUT"] == 3
+      and K.parse(K.dump(_s0))[0] == _s0 and "LAYOUT=3" in K.dump(_s0))
+_s0ok = dict(_s0, ENG_SAMPLE=0, DRUM_USR=0, SNAPSHOTS=0, PATTERNS=1)
+
+
+def _rule(c):
+    """the layout rule's errors for c"""
+    return [i for i in K.validate(c)[0] if "keeps no user samples" in str(i)]
+
+
+check("MEMORY no user samples: refused with SAMPLE, user drum samples or SNAPSHOTS, or PATTERNS off; fine without them",
+      not _rule(_s0ok) and all(_rule(dict(_s0ok, **{k: v})) for k, v in
+                                (("ENG_SAMPLE", R.eng_place("ENG_SAMPLE")), ("DRUM_USR", 1), ("SNAPSHOTS", 1), ("PATTERNS", 0))))
+check("MEMORY normal keeps them (the rule is the step's, not any nonzero LAYOUT)",
+      not _rule(dict(_s0ok, LAYOUT=0, ENG_SAMPLE=R.eng_place("ENG_SAMPLE"), SNAPSHOTS=1)))
+check("MEMORY no user samples is not built for the release yet (NOT_BUILT, with the reason); the classic builds it",
+      "fm1-base" in R.not_built("MEMORY", 4, "release") and "fm1-base" in R.not_built("LAYOUT", 3, "release")
+      and not R.not_built("MEMORY", 4, "classic") and not R.not_built("LAYOUT", 3, "classic"))
+try:
+    K.set_memory(_d, 3)
+    _bad3 = False
+except K.ConfigError:
+    _bad3 = True
+check("MEMORY 3 (the design's S1, one sample slot) is not offered: refused", _bad3)
 check("MEMORY: never written to a .config (the items it fronts are), and a written config reads back the same",
       "MEMORY" not in K.dump(_p, full=True) and K.parse(K.dump(_p))[0] == _p)
 check("MEMORY: no image: the header and the hash are the same for a configuration with it set or not",

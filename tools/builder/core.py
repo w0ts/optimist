@@ -105,10 +105,11 @@ def defaults():
 # ---- the memory front (registry.py MEMORY): a view of LAYOUT and SDCARD, never stored in a .config
 def derive_memory(cfg):
     """-> MEMORY's value for these LAYOUT / SDCARD: 2 SD card mode (the card on, the big slot), 1 more flash (LAYOUT 1
-    otherwise), 0 normal"""
-    if cfg.get("LAYOUT", 0) != 1:
-        return 0
-    return 2 if cfg.get("SDCARD", 0) else 1
+    otherwise), 4 no user samples (LAYOUT 3), 0 normal (registry.py LAYOUT_STEPS: a layout no step has reads normal)"""
+    layout = cfg.get("LAYOUT", 0)
+    if layout == 1 and cfg.get("SDCARD", 0):
+        return 2
+    return R.LAYOUT_STEPS.get(layout, (0,))[0]
 
 
 def sync_memory(cfg):
@@ -118,15 +119,16 @@ def sync_memory(cfg):
 
 def set_memory(cfg, mode):
     """-> cfg with MEMORY = mode and the items it fronts set to match (a copy): 0 normal (LAYOUT, SDCARD and the
-    card's streams off); 1 more flash (LAYOUT 1, no card: SDCARD and the card's streams off); 2 SD card mode (LAYOUT
-    and SDCARD on)"""
-    if mode not in (0, 1, 2):
-        raise ConfigError(f"MEMORY={mode}: 0, 1 or 2")
+    card's streams off); 4 no user samples (LAYOUT 3, no card); 1 more flash (LAYOUT 1, no card: SDCARD and the card's
+    streams off); 2 SD card mode (LAYOUT 1 and SDCARD on)"""
+    layouts = {m: k for k, (m, *_) in R.LAYOUT_STEPS.items()}
+    if mode not in layouts and mode != 2:
+        raise ConfigError(f"MEMORY={mode}: one of {', '.join(str(v) for v, _ in R.MEMORY_CHOICES)}")
     out = dict(cfg)
     if mode == 2:
         out.update(LAYOUT=1, SDCARD=1)
     else:
-        out.update(LAYOUT=mode, SDCARD=0, SD_RING=0, SD_REC=0)
+        out.update(LAYOUT=layouts[mode], SDCARD=0, SD_RING=0, SD_REC=0)
     return sync_memory(out)
 
 
@@ -262,13 +264,17 @@ def validate(cfg):
                          ["SL24_XSTEP"] + sx_users))
     if cfg.get("PATTERNS") and cfg.get("SECTIONS") == 4:
         err.append(Issue("patterns live in the section log: SECTIONS 8 or 16 (or PATTERNS off)", ["PATTERNS", "SECTIONS"]))
-    if cfg.get("LAYOUT"):                        # the fake SD mode: the user samples' and snapshots' flash is the app's
+    if not R.LAYOUT_STEPS.get(cfg.get("LAYOUT", 0), (0, False))[1]:   # (L1, S0: the user samples' and snapshots' flash is
+                                                                     # the app's or the relocated store's; an unknown
+                                                                     # layout: the same rule, validate refuses it anyway)
         clash = [k for k in ("ENG_SAMPLE", "DRUM_USR", "SNAPSHOTS") if k in R.ITEMS and built(cfg, k)
                  and not (k == "ENG_SAMPLE" and cfg.get("SD_RING"))]   # (SAMPLE's CARD set: from the card)
         if built(cfg, "NATIVE_BANKS") and built(cfg, "ENG_CZ"):
             clash.append("NATIVE_BANKS")
         if clash or not cfg.get("PATTERNS"):
-            err.append(Issue("the fake SD mode layout keeps no user samples, snapshots or CZ collection and needs "
+            step = dict(R.MEMORY_CHOICES).get(derive_memory(cfg), "").split(":")[0]
+            err.append(Issue(f"MEMORY {step} (LAYOUT {cfg.get('LAYOUT')}) keeps no user samples, "
+                             "snapshots or CZ collection and needs "
                              "PATTERNS: " + ", ".join(clash + ([] if cfg.get("PATTERNS") else ["PATTERNS off"])),
                              ["LAYOUT"] + clash + ([] if cfg.get("PATTERNS") else ["PATTERNS"])))
     if cfg.get("BT_PROJ") and not (cfg.get("BLE") and cfg.get("ED_MIRROR") and cfg.get("PATTERNS") and cfg.get("BACKUP")):

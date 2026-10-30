@@ -184,15 +184,15 @@ async def memory_menu_test():
               "MEMORY" in n and not any(k in n for k in ("LAYOUT", "SDCARD", "RAM_PACKED")))
         check("... SD_RING and SD_REC are under MEMORY",
               n["SD_RING"].parent.data == "MEMORY" and n["SD_REC"].parent.data == "MEMORY")
-        check("... MEMORY's values read normal / more flash / SD card mode",
-              [lab for _, lab in R.MEMORY_CHOICES] == ["normal", "more flash: one project in flash", "SD card mode"]
+        check("... MEMORY's values read normal / no user samples / more flash / SD card mode (in size order)",
+              [lab.split(":")[0] for _, lab in R.MEMORY_CHOICES] == ["normal", "no user samples", "more flash", "SD card mode"]
               and "<normal>" in label(app, "MEMORY"))
         check("... normal: SD_RING and SD_REC greyed", all("dim" in str(n[k].label.style) for k in ("SD_RING", "SD_REC")))
-        for want, name in ((1, "more flash"), (2, "SD card mode")):
+        for want, name, items in ((4, "no user samples", (3, 0)), (1, "more flash", (1, 0)), (2, "SD card mode", (1, 1))):
             await toggle(app, pilot, "MEMORY")
             c = app.cfg
             check(f"... {name}: LAYOUT / SDCARD as MEMORY sets them",
-                  c["MEMORY"] == want and (c["LAYOUT"], c["SDCARD"]) == ((1, 0) if want == 1 else (1, 1)))
+                  c["MEMORY"] == want and (c["LAYOUT"], c["SDCARD"]) == items)
             live = all("dim" not in str(n[k].label.style) for k in ("SD_RING", "SD_REC"))
             check(f"... {name}: SD_RING / SD_REC {'live' if want == 2 else 'greyed'}", live == (want == 2))
         await toggle(app, pilot, "MEMORY")

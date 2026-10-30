@@ -690,7 +690,7 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
                                             * storage/sd/sdcard.c, hal/fm1_sd_bus.h; the console's sd commands */
 #endif
 #ifndef FELUCCA_LAYOUT
-#define FELUCCA_LAYOUT 0                   /* the flash layout (hal/fm1_flash_map.h): 1 the fake SD mode, the app slot to
+#define FELUCCA_LAYOUT 0                   /* the flash layout, the MEMORY step (hal/fm1_steps.h): 3 no user samples, 1 the fake SD mode, the app slot to
                                             * 0xD0000 over the user samples and snapshots (docs/SD-MODE-DESIGN.md) */
 #endif
 #ifndef FELUCCA_SD_MODE
@@ -721,7 +721,7 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #ifndef FELUCCA_BT_PROJ
 #define FELUCCA_BT_PROJ 0                  /* the projects' moves over Bluetooth too (io/editor/ed_mirror.c MBR_PROJ) */
 #endif
-/* (no FELUCCA_FAR_OK since 2026-10-29: the fake SD mode layout always has the whole slot, tools/flash_layout.py code_limit) */
+/* (no FELUCCA_FAR_OK since 2026-10-29, no far probe since 2026-10-30: every layout has its whole slot, tools/flash_layout.py) */
 #ifndef FELUCCA_SD_FATFS
 #define FELUCCA_SD_FATFS (FELUCCA_SDCARD && FELUCCA_LAYOUT == 1)   /* the card under full FatFs (its
                                             * ~15 KB fit the big slot: storage/sd/fatfs/, tools/build.py), else Petit FatFs
