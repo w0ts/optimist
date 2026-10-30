@@ -25,6 +25,10 @@
 #if FELUCCA_PATTERNS
 #define FELUCCA_FLASH 1                 /* (the section log: phase 4's switch set) */
 #endif
+#if UI_FMEM                                              /* (the switchable features' build: BT AUDIO lent by the arena) */
+#define FELUCCA_BTA_LEND 1
+#include "fmem_fake.h"
+#endif
 #define main hostsim_main
 #include "hostsim.c"
 #undef main
@@ -3904,6 +3908,10 @@ static void preset_engine_tests(void)
 #include "ui_optimist_pagemem.h"                    /* 2026-10-13: every screen remembers its page (SOUND per track, the held step) */
 #include "ui_optimist_nav.h"                        /* 2026-10-24: the mirror's touch navigation (op_nav.c, 109 NAV) */
 #include "ui_optimist_memlist.h"                    /* 2026-10-25: a load that does not fit: the list of what to drop */
+#if UI_FMEM
+#include "fmem_fake_post.h"
+#include "ui_optimist_fmem.h"                       /* 2026-10-30: BT AUDIO's block in the arena, on the memory line */
+#endif
 /* ---- the buttons' half light: what has a function glows dim, the active button full, what has nothing is dark */
 static uint32_t led_lvl(uint32_t b)                     /* 2 full, 1 dim, 0 dark: the LED of panel button b */
 {
@@ -4066,6 +4074,11 @@ int main(int argc, char **argv)
     sdu_unknown_tests();
 #endif
     sdcard_cut_tests();
+    printf(fails ? "optimist ui test FAILED (%d)\n" : "optimist ui test passed\n", fails);
+    return fails != 0;
+#endif
+#if UI_FMEM                                              /* (the switchable features' build: their tests alone) */
+    fmem_ui_tests();
     printf(fails ? "optimist ui test FAILED (%d)\n" : "optimist ui test passed\n", fails);
     return fails != 0;
 #endif

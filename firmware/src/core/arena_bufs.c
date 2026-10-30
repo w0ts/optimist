@@ -38,8 +38,26 @@ static void punch_mem(void *p);
 static int punch_asked(void);
 static uint8_t arb_poff;                                /* FX + a key with the switch off: PUNCH OFF to say */
 #endif
+#if FELUCCA_BTA_LEND
+/* ARB_BTA: Bluetooth audio's buffers (fm1-base's plat_bta_mem: the audio packets' queue and the receptions' ring), lent
+ * while an AUDIO mode is on or its run is being let go. The includer's (fm1base/optimist/ui/opt_bt.h; the host test's
+ * fakes): the block's size, wanted now (the mode on, or the radio still reading it), and the block lent (p) or taken
+ * back (0: only once bta_lend_want says no, so the radio no longer reads it). Never moved (DMA-free, but the radio's
+ * interrupts read it at any time) */
+static uint32_t bta_lend_bytes(void);
+static int bta_lend_want(void);
+static void bta_lend(void *p);
+/* the switchable features (core/feat_mem.c): their table and the pause's hooks are the includer's (FMEM_FEATS:
+ * fm1base/optimist/ui/opt_feat.h; the host test's fakes) */
+#define FMEM_ANY 1
+static void str_app(char *d, const char *s, unsigned max);   /* (ui/optimist/op_state.c) */
+static void ui_message(const char *m);                  /* (the UI's message line) */
+#include "feat_mem.c"
+#else
+#define FMEM_ANY 0
+#endif
 #if ARB_ANY
-static uint8_t arb_st[ARB_NC];                          /* FXM_NONE, FXM_ON, FXM_GOING (fx_arena.c), by client */
+static uint8_t arb_st[ARB_NC];                         /* FXM_NONE, FXM_ON, FXM_GOING (fx_arena.c), by client */
 static uint8_t arb_t0[ARB_NC];                          /* fxm_tick when its pointer went to 0 */
 static uint32_t arb_full;                               /* wanted, no room (a bit by client): bypassed */
 static uint32_t arb_news;                               /* the refusals the UI has not said yet (arb_said) */
@@ -69,6 +87,10 @@ static uint32_t arb_bytes(uint32_t c)                   /* client c's block */
 #if FELUCCA_ENG_FM6
     if (c == (uint32_t)ARB_FM6SIN)
         return FM6_SIN_BYTES;
+#endif
+#if FELUCCA_BTA_LEND
+    if (c == (uint32_t)ARB_BTA)
+        return bta_lend_bytes();
 #endif
     (void)c;
     return 0;
@@ -133,6 +155,10 @@ static uint32_t arb_want(uint32_t c)                    /* client c's feature is
         return 0;
     }
 #endif
+#if FELUCCA_BTA_LEND
+    if (c == (uint32_t)ARB_BTA)
+        return bta_lend_want();
+#endif
     (void)c;
     return 0;
 }
@@ -175,6 +201,10 @@ static void arb_set(uint32_t c, void *p)
 #if FELUCCA_ENG_FM6
     if (c == (uint32_t)ARB_FM6SIN)
         FM6_SIN = (int32_t *)p;                         /* (built before: arb_open) */
+#endif
+#if FELUCCA_BTA_LEND
+    if (c == (uint32_t)ARB_BTA)
+        bta_lend(p);                                    /* (fm1-base's plat_bta_mem: the radio's interrupts see it whole) */
 #endif
     fm1_irq_on();
 }
@@ -237,6 +267,9 @@ static void arb_poll(void)
     if (punch_asked())
         arb_poff |= (uint8_t)!punch_used();             /* (refused: its MEM FULL PUNCH was said) */
 #endif
+#if FMEM_ANY
+    fmem_poll();                                        /* (a YES to a feature's pause: core/feat_mem.c) */
+#endif
     if (PART_MEM_SHORT() || arn_busy())
         return;                                         /* (a part's refused change first; the parts' blocks moving) */
     arb_ord(o);
@@ -255,6 +288,10 @@ static void arb_poll(void)
             arb_open(c, p);
         } else if (arb_pk != arn_room() + 1u && (arb_pk = arn_room() + 1u, arn_pack(ARB_K(c), arb_bytes(c), ARN_BYTES))) {
             return;                                     /* (the parts' blocks moved together first: again after) */
+#if FMEM_ANY
+        } else if (fmem_refused(ARB_K(c))) {
+            continue;                                   /* (a feature's: the UI asks, core/feat_mem.c) */
+#endif
         } else {
             arb_news |= arb_full >> c & 1u ? 0u : 1u << c;
             arb_full |= 1u << c;
@@ -311,6 +348,10 @@ static const char *arb_said(void)
         if (c == (uint32_t)ARB_FM6SIN)
             return "MEM FULL FM6";
 #endif
+#if FELUCCA_BTA_LEND
+        if (c == (uint32_t)ARB_BTA)
+            return "MEM FULL BT AUDIO";
+#endif
         return "MEM FULL X0X";
     }
     return 0;
@@ -322,4 +363,7 @@ static int arb_pending(void) { return 0; }
 #endif
 #else
 #define arb_poll() ((void)0)
+#endif
+#ifndef FMEM_ANY
+#define FMEM_ANY 0                                      /* (no switchable feature lends its memory: core/feat_mem.c) */
 #endif
