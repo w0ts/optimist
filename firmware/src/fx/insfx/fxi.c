@@ -15,7 +15,9 @@
  *   - A project load (fx_rec.c fxr_decode: FXI_ASK(2)): every instance is given back at once, then handed out again in
  *     that order while the memory has room: the same project always plays the same way, whatever came before.
  *   - An owner holding the type with no room left: the type is bypassed there (fxi_state FXI_FULL, for the UI), until
- *     some is given back.
+ *     some is given back. A track, the master or the USB input: dry, and a
+ *     CHO DLY REV insert's send does not fall back to its bus (2026-10-30). A return (A B C): muted, it outputs
+ *     nothing (fx.c rt_line, fx_rfull; the mixer's RET card struck through as a muted return's).
  *
  * The memory's units (fxi_mem.h): the delay send's line (units 0 .. FXA_S - 1), the inserts' own (.. FXA_N - 1), the
  * chorus send's line (.. FXA_T - 1). A bitmap marks the units in use (fxa_bm): never two lines on a unit. A line is a
