@@ -536,8 +536,12 @@ check("reverb: one checkbox per algorithm (ROOM, PLATE, FDN8, SPRING) under the 
 check("reverb: the one-tank choice REVERB is gone, its bit 150 not reused; ROOM 151, PLATE 152, FDN8 153",
       "REVERB" not in items and 150 not in {it.bit for it in items.values()} and
       [items[k].bit for k in revs[:3]] == [151, 152, 153])
-check("reverb: REV_POOL relabelled; the half-rate reverb (REV_HALF, bit 123) and its steep filter (REV_HB_LONG, bit 430) are dropped, an old .config loads",
-      items["REV_POOL"].label == "reverb buffers in the pool (saves ~17 KB RAM)" and
+check("reverb: REV_POOL is FDN8's size beside FDN8 (big 32 KB / small 16 KB, the user 2026-10-30), the same key so a profile keeps "
+      "its FDN8; the half-rate reverb (REV_HALF, bit 123) and its steep filter (REV_HB_LONG, bit 430) are dropped, an old .config loads",
+      items["REV_POOL"].label == "reverb: FDN8 size" and dict(items["REV_POOL"].choices) == {1: "big ring (32 KB): the long, lush tail",
+                                                                                            0: "small ring (16 KB)"} and
+      items["REV_POOL"].bit == 122 and
+      C.parse("REV_FDN8=1\nREV_POOL=1\n", warn=lambda m: None)[0]["REV_POOL"] == 1 and
       all(k not in items and k in R.RETIRED for k in ("REV_HALF", "REV_HB_LONG")) and
       C.parse("REV_HALF=1\nREV_HB_LONG=1\n", warn=lambda m: None)[0]["REV_POOL"] == C.defaults()["REV_POOL"])
 none = dict(C.defaults(), REV_ROOM=0)

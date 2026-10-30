@@ -2348,8 +2348,8 @@
      "REV_PLATE",
      "REV_FDN8",
      "SPRING",
-     "REV_AIRWIN",
-     "REV_POOL"
+     "REV_POOL",
+     "REV_AIRWIN"
     ],
     "hidden": false,
     "shown_under": null,
@@ -2444,6 +2444,42 @@
     "provenance_line": ""
    },
    {
+    "key": "REV_POOL",
+    "flag": "FELUCCA_REV_POOL",
+    "label": "reverb: FDN8 size",
+    "group": "FX",
+    "bit": 122,
+    "default": 0,
+    "parent": "FX_REVERB",
+    "desc": "FDN8's ring: big (32 KB) gives its eight lines twice the length, the long and lush FDN8; small (16 KB) the shorter one. The key's old name (the reverb's buffers in the pool) is kept so profiles keep their sound: since the RAM is one region (2026-10-25) where the buffer sits saves nothing, only the ring's size counts.",
+    "experimental": false,
+    "notice": "",
+    "off_warning": "",
+    "env": "",
+    "target_only": false,
+    "symbols": [],
+    "no_image": false,
+    "fixed": false,
+    "head": false,
+    "choices": [
+     [
+      1,
+      "big ring (32 KB): the long, lush tail"
+     ],
+     [
+      0,
+      "small ring (16 KB)"
+     ]
+    ],
+    "not_built": {},
+    "provenance": null,
+    "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "tested": "emulator-tested only",
+    "provenance_line": ""
+   },
+   {
     "key": "REV_AIRWIN",
     "flag": "FELUCCA_REV_AIRWIN",
     "label": "reverb: VTINY (Airwindows VerbTiny)",
@@ -2460,33 +2496,6 @@
     "symbols": [
      "rva_params"
     ],
-    "no_image": false,
-    "fixed": false,
-    "head": false,
-    "choices": [],
-    "not_built": {},
-    "provenance": null,
-    "children": [],
-    "hidden": false,
-    "shown_under": null,
-    "tested": "emulator-tested only",
-    "provenance_line": ""
-   },
-   {
-    "key": "REV_POOL",
-    "flag": "FELUCCA_REV_POOL",
-    "label": "reverb buffers in the pool (saves ~17 KB RAM)",
-    "group": "FX",
-    "bit": 122,
-    "default": 0,
-    "parent": "FX_REVERB",
-    "desc": "Keeps the reverb's shared line buffer (17 KB with ROOM; PLATE and FDN8 without ROOM 16 KB; SPRING alone 8 KB) in the pool instead of main RAM: main RAM is the scarcer, and the sound and the code stay the same. Needs that much pool free (the undo history shrinks by it in the pool and grows by it in RAM).",
-    "experimental": false,
-    "notice": "",
-    "off_warning": "",
-    "env": "",
-    "target_only": false,
-    "symbols": [],
     "no_image": false,
     "fixed": false,
     "head": false,
