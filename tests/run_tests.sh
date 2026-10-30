@@ -173,6 +173,8 @@ early t_ble_rf
 job; ( jobin
     $CC -w -Ifirmware/hal -o "$OUT/encoder_test" tests/encoder_test.c
     run "encoders: first click, direction and reversed transitions" "$OUT/encoder_test"
+    $CC -w -o "$OUT/half_peak_test" tests/half_peak_test.c
+    run "the release's master meter: each half's peak kept as a word (no 4 KB copy of the halves), equal to the copy's scan" "$OUT/half_peak_test"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     $CC -w -Ifirmware/hal -o "$OUT/encoder_fast_test" tests/encoder_fast_test.c
