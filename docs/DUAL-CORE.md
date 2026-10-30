@@ -103,6 +103,19 @@ Misread RAM (some units, at the boot loader's supply, seen on X0X, Melodee and J
 (GPL-3.0). The load of each core shows in SYSTEM's CPU row (`dual_load.h`: CLOCK, CPU0 including the wait in `dual_join`,
 CPU1).
 
+Where the time goes (2026-10-30: CPU0 over 100 % at its peaks while CPU1 sat at 25 %): SYSTEM > CPU TIMES (the
+`SYS_DEBUG` pages, dual builds; `op_project.c sys_dt_cell`, `dual_load.h dual_tm`). A table in % of a 32-frame mix
+block (726 us), a row a quantity, four fixed columns: AVG (smoothed over ~8 blocks), MAX (the peak of the last 2 s: a ring
+of four 512 ms windows), WST (its value in the worst block, CPU0's longest, since the page was opened) and C (the core).
+Rows: `T1 T2 T3 DR REV` each job's render time (C: the core that ran it in the last block, - not run; WST -: not run
+in that block); `PRE` CPU0 before the fork (events, macros, duck, LFO draws, the split, the post); `JOBS` its own jobs;
+`WAIT` idle at the join waiting for CPU1; `POST` after the join (the merge, the USB input, `mix_finish` with the buses and
+the master chain, the macros' post); `CPU0` its whole block (PRE + JOBS + WAIT + POST: its room is 100 less it, negative
+over); `CPU1` its jobs (its room: 100 less it). The render pays five tick reads a block on CPU0, a store per job on the
+core that runs it, compares and stores into the windows and the worst block (`dual.c mix_block_dual` / `dual_run`,
+fm1-base's `opt_dual.c`); the page reads only. How to read a drop: the WST column is the slow block itself, so the
+row that is large there (a job, PRE or POST) is what made it slow.
+
 ## 5. Testing
 
 - Console: `cpu1_mode`, `cpu1_bad`, `cpu1_canary`, `cpu1_up/why/jobs/wait_max_us`, `cpu1_supply_was`, `supply_*`.

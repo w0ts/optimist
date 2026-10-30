@@ -429,6 +429,7 @@ enum { SI_NONE, SI_LOWCUT, SI_OUT, SI_SYNC, SI_CH1, SI_CH2,
        SI_UHMODE, SI_UHDEV,                             /* SYSTEM > USB (USB_HOST, the release): MODE DEVICE / HOST, DEVICE */
        SI_ARN,                                          /* INFO: the arena's longest move and interrupts-off window (us) */
        SI_RAMUSE,                                       /* INFO: the arena's use, parts / features / free (core/feat_mem.c) */
+       SI_DUALT,                                        /* SYSTEM > CPU TIMES: the dual render's times (SYS_DEBUG, the second core) */
        SI_UAS0 };                                       /* SI_UAS0 + s: USB AUDIO's line of source s (ua_tap.h UAS_*), last */
 /* a core's load number (% of the audio budget) in its colour: green under 60, amber 60..85, red over 85 (the predictive guard's
  * ceiling, system/cpuguard.c CG_CEIL = 85 %: above it the guard sheds quality / voices); INFO's bars and ticks the same. */
@@ -474,7 +475,7 @@ static void info_bar(cell_t *c, uint32_t ring, int32_t now)
     c->hold[1] = (int16_t)(pall < 100u ? pall : 100u);
 }
 #if FELUCCA_CPU_GUARD && FELUCCA_SYS_DEBUG
-static const char *const CG_NAME[CG_TOP + 1] = {"OFF", "QUALITY", "UNISON", "REVERB", "NOTES"};
+static const char *const CG_NAME[CG_TOP + 1] = {"OFF", "QUALITY", "UNISON", "NOTES", "REVERB"};
 #endif
 #define SI_IF(c, i) ((c) ? (uint8_t)(i) : (uint8_t)SI_NONE)
 #if FELUCCA_USB_AUDIO
@@ -485,6 +486,11 @@ static int si_ua(uint32_t it) { return it >= SI_UAS0 && it < SI_UAS0 + UAS_N; }
 #else
 #define si_ua(it) 0
 #endif
+#if FELUCCA_SYS_DEBUG && DUAL_LOAD && DUAL_TIMES                 /* (DUAL_LOAD: every dual build, and the host UI test's CPU1 load build) */
+#define OP_DTIMES 1                                     /* SYSTEM > CPU TIMES (sys_dt_cell): the dual render's times */
+#else
+#define OP_DTIMES 0
+#endif
 static const struct { const char *name; uint8_t it[4]; } SYS[] = {
     {"INFO", {SI_INFO, SI_NONE, SI_NONE, SI_NONE}},      /* first: one dense read-only page, not 4 lines (op_gldraw.c gl_info_draw): the clock, the
                                                          * load of each core, the memory (the user, 2026-10-14). The second core is always on:
@@ -494,6 +500,9 @@ static const struct { const char *name; uint8_t it[4]; } SYS[] = {
                                                          * the internals here (the last reset, flash, the second core) */
 #if FELUCCA_USB_AUDIO
     {"USB STATS", {SI_UAINFO, SI_NONE, SI_NONE, SI_NONE}},   /* the USB audio glitch counters */
+#endif
+#if OP_DTIMES
+    {"CPU TIMES", {SI_DUALT, SI_NONE, SI_NONE, SI_NONE}},   /* the dual render's times per mix block, after USB STATS (2026-10-30: sys_dt_cell) */
 #endif
 #endif
     /* the screen and the sound in one section (the user, 2026-10-25: KNOB COLORS was on a page read as "audio", "group and
@@ -941,7 +950,7 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
         uint32_t n = cg.sheds - info_shed0, l = cg.level <= CG_TOP ? cg.level : CG_TOP;
         sys_ro(c, "GUARD");
         cell_val(c, CG_NAME[l]);
-        if (cg.vcap) {                                  /* (reacting at the top: the voices capped) */
+        if (cg.vcap) {                                  /* (reacting from NOTES on: the voices capped) */
             str_app(c->val, " MAX", sizeof c->val);
             fmt_app(c->val, cg.vcap);
         }
@@ -950,7 +959,7 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
             fmt_app(c->val, (int32_t)(n < 999u ? n : 999u));
         }
         c->unit = n ? "V" : "";
-        c->col = !l ? C_OK : l < CG_L_REVERB ? C_WARN : C_ERR;
+        c->col = !l ? C_OK : l < CG_L_NOTES ? C_WARN : C_ERR;   /* (voices shed or the reverb off: red) */
         cell_gauge(c, 0, 0, CG_TOP, (int32_t)l);
         break;
     }
@@ -992,6 +1001,9 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
         break;
     case SI_UAINFO:                                     /* the USB STATS page's one line */
         sys_ro(c, "USB STATS");
+        break;
+    case SI_DUALT:                                      /* the CPU TIMES page's one line (op_gldraw.c draws the page itself) */
+        sys_ro(c, "CPU TIMES");
         break;
     case SI_CREDITS:                                    /* the credits page's one line (op_credits.c gl_cred_draw draws the page) */
         sys_ro(c, "CREDITS");
@@ -1248,6 +1260,80 @@ static void sys_c1_cell(uint32_t i, cell_t *c)
 #else
 #define INFO_C1 0u
 #endif
+#if OP_DTIMES
+/* SYSTEM > CPU TIMES (2026-10-30, the user's project: CPU0 over 100 % at its peaks while CPU1 sits at 25 %; system/
+ * dual_load.h dual_tm): a table, a row a quantity, in % of a 32-frame mix block (726 us). Its columns, in the monospace
+ * face, fixed width so that they line up under the first row and never touch the name: AVG the average over ~8 blocks,
+ * MAX the peak of the last 2 s, WST its value in the worst block (CPU0's longest) since the page was opened, C the core:
+ *   T1 T2 T3 DR REV  each job's render time (the parts, the drums with their bus, the reverb's kept block); C: the core
+ *                    that ran it in the last block (0 / 1, - not run); WST "-": not run in that block
+ *   PRE              CPU0 alone before the fork: the events, the macros, the duck, the LFOs' draws, the split
+ *   JOBS             CPU0's own jobs
+ *   WAIT             CPU0 idle at the join, waiting for CPU1
+ *   POST             after the join: the merge, the USB input, mix_finish (the buses, the master chain), the macros' post
+ *   CPU0 / CPU1      each core's whole block (CPU0: PRE + JOBS + WAIT + POST; CPU1: its jobs): its room is 100 less it */
+#define INFO_DTN (1u + NPART + 8u)                      /* the names' row, the jobs, PRE JOBS WAIT POST CPU0 CPU1 */
+_Static_assert(DUAL_TM_BLK == (uint32_t)CTL * 1000000u * FM1_TICKS_PER_US / FS, "dual_load.h DUAL_TM_BLK: a mix block (CTL frames) in ticks");
+_Static_assert(NPART + 2u <= DUAL_TM_NJ, "dual_load.h DUAL_TM_NJ: the parts, the drums, the reverb");
+#define DT_COLW 3u                                      /* a column's digits: 0..999 (held there) */
+static void dt_col(char *v, int32_t pct)                /* " nnn" (right-aligned in DT_COLW), "-" for pct < 0 */
+{
+    char t[4] = "-";
+    uint32_t n, k;
+    if (pct >= 0) {
+        t[0] = 0;
+        dual_cnum(t, (uint32_t)(pct < 999 ? pct : 999));
+    }
+    n = str_len(v);
+    if (n)
+        v[n++] = ' ';
+    for (k = str_len(t); k < DT_COLW; k++)
+        v[n++] = ' ';
+    v[n] = 0;
+    dual_cat(v, t);
+}
+static void sys_dt_cell(uint32_t i, cell_t *c)
+{
+    static const char *const NM[] = {"PRE", "JOBS", "WAIT", "POST", "CPU0", "CPU1"};
+    static const char *const JN[] = {"T1", "T2", "T3", "T4"};
+    static uint32_t seen;
+    uint32_t q, j = 0, ran = dual_tm.ran, wran = dual_tm.w_ran, jobrow = i >= 1u && i < 1u + NPART + 2u;
+    char *v = c->val, core;
+    cell_clear(c);
+    c->kind = CK_RO;
+    v[0] = 0;
+    c->unit = "";
+    if (fm1_ms - seen > 1000u)
+        dual_tm.wreset = 1;                             /* (the page opened: its worst block from now) */
+    seen = fm1_ms;
+    if (!i) {                                           /* the columns' names, in the columns' places */
+        c->label = "% OF A BLOCK";
+        dual_cat(v, "AVG MAX WST C");
+        return;
+    }
+    if (jobrow) {
+        j = i - 1u;
+        q = DTQ_J0 + j;
+        c->label = j < NPART ? JN[j % 4u] : j == NPART ? "DR" : "REV";
+        core = !((ran >> j) & 1u) ? '-' : ((dual_tm.c1_mask >> j) & 1u) ? '1' : '0';
+    } else {
+        static const uint8_t Q[] = {DTQ_PRE, DTQ_OWN, DTQ_WAIT, DTQ_POST, DTQ_BLK, DTQ_C1};
+        uint32_t r = (i - 1u - NPART - 2u) % 6u;
+        q = Q[r];
+        c->label = NM[r];
+        core = q == DTQ_C1 ? '1' : '0';
+    }
+    dt_col(v, (int32_t)dual_tm_pct(dual_tm.avg[q]));
+    dt_col(v, (int32_t)dual_tm_pct_t(dual_tm_peak(q)));
+    dt_col(v, jobrow && !((wran >> j) & 1u) ? -1 : (int32_t)dual_tm_pct_t(dual_tm.worst[q]));
+    j = str_len(v);
+    v[j] = ' ', v[j + 1u] = core, v[j + 2u] = 0;
+    if (q == DTQ_BLK && dual_tm_pct_t(dual_tm_peak(DTQ_BLK)) > 100u)
+        c->col = C_WARN;
+}
+#else
+#define INFO_DTN 0u
+#endif
 #ifdef DBG_MAGIC
 /* LAST RESET (2026-10-15: a boot AFTER CRASH with nothing to say why): how the boot before this one ended, from
  * what the reset keeps (core/audio.c felucca_dbg, hal/fm1_irq.h fm1_crash, hal/fm1_sys.h's reset source).
@@ -1291,6 +1377,7 @@ static void sys_rst_cell(cell_t *c)
 #endif
 #else
 #define INFO_UA 0u                                      /* (no INTERNALS, no USB STATS) */
+#define INFO_DTN 0u
 #define INFO_C1 0u
 #define INFO_RST 0u
 #endif
@@ -1398,10 +1485,10 @@ static void sys_diag_cell(uint32_t i, cell_t *c)        /* INTERNALS' line i */
 }
 #endif
 /* the read-out pages (op_gldraw.c gl_info): 0 INFO, 1 INTERNALS, 2 USB STATS; their lines */
-enum { INFO_PG_INFO, INFO_PG_DIAG, INFO_PG_USB };
+enum { INFO_PG_INFO, INFO_PG_DIAG, INFO_PG_USB, INFO_PG_DUAL };
 static uint32_t info_lines(uint32_t pg)
 {
-    return !FELUCCA_SYS_DEBUG ? INFO_N : pg == INFO_PG_USB ? INFO_UA : pg == INFO_PG_DIAG ? INFO_DIAG : INFO_N;
+    return !FELUCCA_SYS_DEBUG ? INFO_N : pg == INFO_PG_USB ? INFO_UA : pg == INFO_PG_DIAG ? INFO_DIAG : pg == INFO_PG_DUAL ? INFO_DTN : INFO_N;
 }
 static void info_cell(uint32_t pg, uint32_t i, cell_t *c)
 {
@@ -1414,6 +1501,12 @@ static void info_cell(uint32_t pg, uint32_t i, cell_t *c)
 #endif
     if (pg == INFO_PG_DIAG) {
         sys_diag_cell(i, c);
+        return;
+    }
+#endif
+#if OP_DTIMES
+    if (pg == INFO_PG_DUAL) {
+        sys_dt_cell(i % INFO_DTN, c);
         return;
     }
 #endif

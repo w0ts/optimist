@@ -38,12 +38,15 @@ static void op_row_pick(uint32_t r)
     op_disarm();                                        /* (the question was about the other row) */
 }
 static int sys_scr(uint32_t scr) { return scr == SCR_SYSTEM || scr == SCR_GLOBAL; }   /* SYSTEM's settings shown */
-/* the pages with no track context (the user, 2026-10-13: "on pages that are global, save/load, glo, system, the keyboard
- * notes keys should not do anything", then "global pages dont play tracks. period."): GLOBAL, SYSTEM (the BLE devices
- * list too), PROJECT, MASTER FX, the mixer's MASTER row, SCOPE and SONG. Their keys play and send nothing, light nothing and start no pick or
- * record. Kept: PROJECT's slot rows pick the slot (op_project.c prj_key); SONG's PATTERNS row launches patterns; TEMPO's
- * keys (PLAY held) are the MIX layer's, they tap the tempo and play nothing. The layers (a held button) are not these
- * pages: their keys stay theirs (ui_input: the lock is LY_PLAY then) */
+/* the pages whose keys have a job of their own, so they play nothing (the user, 2026-10-30: "every page without a track"
+ * plays the selected track, "exception the patterns/save page that use the keyboard of course"; before, 2026-10-13, no
+ * page without a track played): PROJECT (its slot rows pick the slot, op_project.c prj_key) and SONG off its PATTERNS row
+ * (the scenes, the parts window: op_song.c song_keys). There the keys play and send nothing, light nothing and start no
+ * pick or record. Everywhere else, GLOBAL, SYSTEM (INFO: the meters while playing), MASTER FX, the mixer's MASTER row,
+ * USB IN and SCOPE included, the keys play the selected track as on its own pages. SONG's PATTERNS row launches
+ * patterns (a layer's); TEMPO's keys (PLAY held) are the MIX layer's; NAME, the memory list and the Wi-Fi password own
+ * their keys (page_owned). The layers (a held button) are not these pages: their keys stay theirs (ui_input: the lock
+ * is LY_PLAY then) */
 /* MASTER entered by both OCT: the keys stay the track's that was left (the user, 2026-10-15: "when we go to master using OCT+ and
  * OCT- at the same time, the keyboard should still work"). mk_trk (op_walk.c) = that track + 1, 0 none; op_walk.c oct_master_toggle sets it.
  * Any other way to MASTER (ALGORITHM, the mixer's row) keeps the keys silent. Lives only on the mixer / master FX screen
@@ -58,7 +61,7 @@ static int keys_none(void)
 {
     if (mk_live())
         return 0;
-    return sys_scr(ui.scr) || ui.scr == SCR_PROJECT || ui.scr == SCR_FX || ui.scr == SCR_SCOPE || mx_on_master() || mx_on_usb()
+    return ui.scr == SCR_PROJECT
            || (ui.scr == SCR_SONG && !song_on_pat_row());   /* (SONG's PATTERNS row: the keys launch patterns, a layer's) */
 }
 /* ALGORITHM walks the track only where there is one (the user, 2026-10-14: "it makes no sense to change track when i am
@@ -554,15 +557,15 @@ static int pick_mod(uint32_t held)
  * smute_key): the black keys the 10 drum lanes, F#5 the ACCENT lane, the first four white keys T1 T2 T3 DR. The key plays
  * nothing, playing or stopped. One mute: the sequencer's (op_mixer.c mx_mute_flip). STEP is the exception: its white keys
  * stay steps (SHIFT / SHIFT2 + a step: its ghost / hard hit, op_step.c), its black keys follow the rule. Not in a layer
- * (its keys are its own), on SONG's PATTERNS row (the patterns' grammar), on NAME, or on the pages with no track (keys_none:
- * "global pages dont play tracks. period.") */
+ * (its keys are its own), on SONG's PATTERNS row (the patterns' grammar), on NAME, or on PROJECT and SONG (keys_none: their
+ * keys have a job of their own) */
 static int shift_alone(uint32_t held, uint32_t b, int master)
 {
     return (held & 0x3FFFu) == (1u << panel.btn[b]) && !page_owned() && lay_now() == LY_PLAY && !song_on_pat_row() &&
            (!keys_none() || (master && (ui.scr == SCR_FX || mx_on_master() || mx_on_usb())));
 }
 /* the mute mode works on the master channel too (the user, 2026-10-22: "left shift mute should work when on master channel
- * too"): the mixer's MASTER row (and USB IN), the master FX page; the keys still play nothing there */
+ * too"): the mixer's MASTER row (and USB IN), the master FX page */
 static int mute_mod(uint32_t held) { return shift_alone(held, B_OCTDN, 1); }
 static int sel_mod(uint32_t held) { return shift_alone(held, B_OCTUP, 0); }
 static int shift_step_key(uint32_t k)                   /* STEP's white keys: steps, under the shifts too */
@@ -1256,7 +1259,7 @@ static void ui_input(void)
     } else if (notes && (mute_mod(held) || sel_mod(held))) {   /* SHIFT + a key: its mute; SHIFT2 + a key: selected */
         shift_keys(notes, mute_mod(held));
         op_clean &= ~(BIT(B_OCTDN) | BIT(B_OCTUP));     /* (the shift let go: no octave) */
-    } else if (notes && keys_none()) {                  /* GLOBAL, SYSTEM, PROJECT: no track, the keys do nothing here */
+    } else if (notes && keys_none()) {                  /* PROJECT, SONG: the keys have their own job here */
         op_clean &= ~held;
     } else if (notes && ui.scr == SCR_STEP && step_keys(held)) {   /* the keys are steps: what they do came from lk_q */
         op_clean &= ~held;
@@ -1431,8 +1434,10 @@ static uint32_t op_fam_mask(void)                       /* a bit per family the 
  * should be lit up only when they do something"). Both: the octave where the note keys play on a synth track (a tap on
  * release; a held step's notes; both = octave 0 / FOLLOW), STEP on the drum track (ghost / hard held), the TEMPO nudge.
  * OCT- is SHIFT, OCT+ SHIFT2, so both also where the shifts work: the pages with keys (a key's mute, a key selected),
- * SOUND (a knob's default, PRESETS), STEP, the mixer off MASTER; OCT- the BLE devices list (FORGET LAST). Dark: the NAME
- * screen, MASTER, GLOBAL (but the tempo line), SYSTEM, PROJECT, SONG, SCOPE and the other pages of no keys */
+ * SOUND (a knob's default, PRESETS), STEP, the mixer off MASTER, and since 2026-10-30 every page where the keys play the
+ * track (keys_none: GLOBAL, SYSTEM, MASTER FX, the mixer's MASTER row, USB IN, SCOPE; on GLOBAL's tempo line a tap is the
+ * nudge, op_press); OCT- the BLE devices list (FORGET LAST). Dark: the NAME screen and the other pages that own their keys
+ * (page_owned), PROJECT (but its banks), SONG */
 #if FELUCCA_BT_UI
 static int dev_listing(void);                           /* op_project.c: the BLE devices list is open */
 #endif

@@ -39,5 +39,99 @@ static int32_t dual_c1_pct(void)
 {
     return dual_c1_q8 == DUAL_C1_OFF ? -1 : (int32_t)(dual_c1_q8 * 100u / 256u);
 }
+
+/* the dual render's times, for SYSTEM > CPU TIMES (FELUCCA_SYS_DEBUG; 2026-10-30: why CPU0 peaks over 100 % while
+ * CPU1 sits at 25 %). Per 32-frame mix block, in timer ticks (24 a us), DTQ_N quantities: CPU0 before the fork (PRE:
+ * the events, the macros, the duck, the LFOs' draws, the old sounds' fade, the split, the post), its own jobs (OWN),
+ * waiting at the join (WAIT), after it (POST: the merge, the USB input, mix_finish with the buses and the master chain,
+ * the macros' post), its whole block (BLK); CPU1 in its jobs (C1: 0 in a block it had none); each job's own time (J0 + p:
+ * the parts, the drums, the reverb's kept block; only in a block it ran). Of each: the average (x 8, smoothed over ~8
+ * blocks), the peak of each 512 ms window in a ring of four (the last 2 s: the main loop takes their largest), and its
+ * value in the worst block (CPU0's longest) since the main loop last asked for a new one (wreset).
+ * The render writes them (dual.c mix_block_dual, fm1-base's opt_dual.c mix_block and dual_run) with a few tick reads,
+ * compares and stores; the core that runs a job stores its time (jt), CPU1 its own total (c1_last), CPU0 folds them in
+ * after the join; the main loop only reads (and sets wreset) */
+#if defined(FELUCCA_SYS_DEBUG) && FELUCCA_SYS_DEBUG
+#define DUAL_TIMES 1
+#define DUAL_TM_NJ 6u                              /* jobs: the parts (NPART <= 4), the drums, the reverb's kept block */
+#define DUAL_TM_WIN 4u                             /* the peaks' windows of 512 ms: the last 2 s */
+enum { DTQ_PRE, DTQ_OWN, DTQ_WAIT, DTQ_POST, DTQ_BLK, DTQ_C1, DTQ_J0, DTQ_N = DTQ_J0 + DUAL_TM_NJ };
+typedef struct {
+    uint32_t avg[DTQ_N];                           /* ticks x 8, smoothed */
+    uint16_t pk[DUAL_TM_WIN][DTQ_N];               /* each window's peak, ticks (held to 65535) */
+    uint16_t worst[DTQ_N];                         /* the worst block's, ticks */
+    uint32_t jt[DUAL_TM_NJ];                       /* the last block's job times: the core that ran it writes it */
+    volatile uint32_t c1_last;                     /* CPU1: its jobs' ticks in the last block it had some */
+    uint8_t c1_mask;                               /* the last block's jobs CPU1 ran (bit p: job p) */
+    uint8_t ran;                                   /* the jobs that ran in the last block, either core */
+    uint8_t w_c1, w_ran;                           /* the worst block's: the jobs CPU1 ran, the jobs that ran */
+    uint8_t win;                                   /* the window written now (ms >> 9, of DUAL_TM_WIN) */
+    volatile uint8_t wreset;                       /* the main loop: a new worst block from now (the page opened) */
+} dual_tm_t;
+static dual_tm_t dual_tm;
+#define DUAL_TM_JOB(p, t) ((p) < DUAL_TM_NJ ? (void)(dual_tm.jt[p] = (t)) : (void)0)   /* (dual_run: a job's time) */
+static inline __attribute__((always_inline)) void dual_tm_q(uint32_t q, uint32_t t, uint16_t *pk, uint16_t *v)
+{
+    uint16_t c = (uint16_t)(t < 0xFFFFu ? t : 0xFFFFu);
+    dual_tm.avg[q] += t - (dual_tm.avg[q] >> 3);
+    if (c > pk[q])
+        pk[q] = c;
+    v[q] = c;
+}
+/* CPU0, a block's end: t0 its start, tf the fork (its own jobs begin), tj0 its jobs done, tj1 the join done (tj0 when
+ * nothing was posted), te now; c1 = the jobs CPU1 ran (0: none joined), ran = the block's jobs; ms = fm1_ms */
+static inline __attribute__((always_inline)) void dual_tm_block(uint32_t t0, uint32_t tf, uint32_t tj0, uint32_t tj1,
+                                                                uint32_t te, uint32_t c1, uint32_t ran, uint32_t ms)
+{
+    uint32_t w = (ms >> 9) % DUAL_TM_WIN, p;
+    uint16_t v[DTQ_N], *pk = dual_tm.pk[w];
+    if (w != dual_tm.win) {                        /* (a new window: its peaks from 0) */
+        dual_tm.win = (uint8_t)w;
+        for (p = 0; p < DTQ_N; p++)
+            pk[p] = 0;
+    }
+    dual_tm_q(DTQ_PRE, tf - t0, pk, v);
+    dual_tm_q(DTQ_OWN, tj0 - tf, pk, v);
+    dual_tm_q(DTQ_WAIT, tj1 - tj0, pk, v);
+    dual_tm_q(DTQ_POST, te - tj1, pk, v);
+    dual_tm_q(DTQ_BLK, te - t0, pk, v);
+    dual_tm_q(DTQ_C1, c1 ? dual_tm.c1_last : 0u, pk, v);
+    for (p = 0; p < DUAL_TM_NJ; p++)
+        if ((ran >> p) & 1u)
+            dual_tm_q(DTQ_J0 + p, dual_tm.jt[p], pk, v);
+        else
+            v[DTQ_J0 + p] = 0;
+    dual_tm.c1_mask = (uint8_t)c1;
+    dual_tm.ran = (uint8_t)ran;
+    if (dual_tm.wreset) {                          /* (the page opened: the worst block from now) */
+        dual_tm.wreset = 0;
+        dual_tm.worst[DTQ_BLK] = 0;
+    }
+    if (v[DTQ_BLK] > dual_tm.worst[DTQ_BLK]) {     /* CPU0's longest block: every quantity as it was in it */
+        for (p = 0; p < DTQ_N; p++)
+            dual_tm.worst[p] = v[p];
+        dual_tm.w_c1 = (uint8_t)c1;
+        dual_tm.w_ran = (uint8_t)ran;
+    }
+}
+/* a mix block's time in timer ticks (32 frames, core.h CTL; 24 ticks a us): a constant, no divide by a variable */
+#define DUAL_TM_BLK (32u * 1000000u * 24u / FS)
+/* ticks as a share of a block, in %, rounded (it may pass 100: a block over its time) */
+static inline uint32_t dual_tm_pct_t(uint32_t t)
+{
+    return (t * 100u + DUAL_TM_BLK / 2u) / DUAL_TM_BLK;
+}
+static inline uint32_t dual_tm_pct(uint32_t x8) { return dual_tm_pct_t(x8 / 8u); }   /* (an average, x 8) */
+/* the main loop: quantity q's peak over the last 2 s (the largest of the windows), ticks */
+static inline uint32_t dual_tm_peak(uint32_t q)
+{
+    uint32_t w, m = 0;
+    for (w = 0; w < DUAL_TM_WIN; w++)
+        m = dual_tm.pk[w][q] > m ? dual_tm.pk[w][q] : m;
+    return m;
+}
+#else
+#define DUAL_TIMES 0
+#endif
 #endif
 #endif

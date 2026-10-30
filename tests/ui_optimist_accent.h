@@ -37,7 +37,9 @@ static void acc_key_tests(void)
     check(!strcmp(head_engine(), "ACCENT"), "... the header's badge: ACCENT");
     lane_select(3);
     for (i = 0; i < 4u; i++)
-        ui.enc_t[EN_K1 + i] = 0;                        /* (no knob turned lately: drum_hit_pick waits 300 ms after one) */
+        ui.enc_t[EN_K1 + i] = fm1_ticks() - 2u * HIT_KNOB_MS * 1000u * FM1_TICKS_PER_US;   /* (no knob turned lately:
+                                                         * drum_hit_pick waits 300 ms after one. Not 0: fm1_ticks wraps every 179 s,
+                                                         * and just after a wrap a 0 reads as a turn under 300 ms ago) */
     drums.hits = 0;
     kdown(DACC_KEY);
     check(lane_selected() == DRUM_ACC && kb_kind[DACC_KEY] == KS_DRUM && drums.hits == 0u,

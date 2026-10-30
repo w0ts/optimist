@@ -64,6 +64,9 @@ static void glo_list_tests(void)
 #if FELUCCA_USB_AUDIO
                                      "USB STATS",         /* (the USB audio counters) */
 #endif
+#if OP_DTIMES
+                                     "CPU TIMES",        /* (the dual render's times: DUAL_LOAD builds) */
+#endif
                                      "GENERAL", "USB", "METERS", "BT MIDI", "BT AUDIO", "WI-FI", "DEVICES", "USB AUDIO", "CALIBRATE", "ABOUT", "CREDITS"};
     cell_t want[GL_MAXL], c;
     char sec[GL_MAXL][12], nm[12];

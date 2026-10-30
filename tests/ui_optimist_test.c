@@ -445,7 +445,7 @@ static void forms_of(uint32_t scr)
             name = (c.label && !strcmp(c.label, "PRESET")) ||
                    (scr == SCR_HOME && c.label && (!strcmp(c.label, "SOUND") || !strcmp(c.label, "KIT"))) ||
                    (c.d && c.d->max == c.d->min) ||
-                   (scr == SCR_SYSTEM && c.kind == CK_RO && c.label && (!strcmp(c.label, "VERSION") || !strcmp(c.label, "INFO") || !strcmp(c.label, "INTERNALS") || !strcmp(c.label, "USB STATS") || !strcmp(c.label, "CREDITS") ||
+                   (scr == SCR_SYSTEM && c.kind == CK_RO && c.label && (!strcmp(c.label, "VERSION") || !strcmp(c.label, "INFO") || !strcmp(c.label, "INTERNALS") || !strcmp(c.label, "USB STATS") || !strcmp(c.label, "CPU TIMES") || !strcmp(c.label, "CREDITS") ||
                                                                  !strcmp(c.label, "BUILD") || !strcmp(c.label, "STATE") ||
                                                                  !strcmp(c.label, "DEVICE") || !strcmp(c.label, "ACTIVITY") ||
                                                                  !strcmp(c.label, "FORMAT") ||
@@ -3863,6 +3863,7 @@ static void preset_engine_tests(void)
 #include "ui_optimist_clkout.h"                    /* SYSTEM > CLOCK OUT */
 #include "ui_optimist_uasel.h"                     /* SYSTEM > USB AUDIO */
 #include "ui_optimist_core.h"                       /* SYSTEM > CPU > 2ND CORE (DUAL builds), the CPU1 cell's reason */
+#include "ui_optimist_dtimes.h"                     /* SYSTEM > CPU TIMES (DUAL_LOAD builds with the debug pages) */
 #include "ui_optimist_sysdbg.h"                     /* builder item SYS_DEBUG off: INFO is CPU LOAD, UNDERRUNS, BATTERY */
 #include "ui_optimist_stack.h"                      /* SYSTEM > INFO: the CPU bars and their peaks, the RAM line, the stacks' marks */
 #include "ui_optimist_memline.h"                    /* the memory line: the top 2 rows of every page, the arena's fill, red from 80 % */
@@ -4169,6 +4170,9 @@ int main(int argc, char **argv)
     newproj_tests();
 #if FELUCCA_SYS_DEBUG
     core_row_tests();                                   /* (INFO's every line, INTERNALS, USB STATS: the debug pages) */
+#if OP_DTIMES
+    dtimes_tests();                                     /* (SYSTEM > CPU TIMES: its table) */
+#endif
     overload_tests();
 #else
     sysdbg_off_tests();

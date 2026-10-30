@@ -22,6 +22,7 @@ static const char NM_TITLE[] =
     "INS DYN #\0Ins dyn #\0"     "RET DELAY\0Delay\0"         "RET REV\0Reverb\0"         "EQ3 FREQ\0EQ3 frq\0"   /* (fits " 5/7", a build without DUST) */
     "OP# TUNE\0OP# tune\0"       "OP# RATES\0OP# rate\0"      "OP# LEVELS\0OP# level\0"    "OP# SENS\0OP# sens\0"     "OP# SCALE\0OP# scale\0"
     "OP# CURVES\0OP# curve\0"    "PIT RATES\0Pit rate\0"      "PIT LVLS\0Pit level\0"
+    "CPU TIMES\0CPU times\0"    /* (SYSTEM > CPU TIMES, the dual render's times: its capitals kept) */
     "\0";
 /* a title's short form, where a header is short of room (op_draw.c head_short, after "Voice 2" -> "Voice2"): bar.beat
  * always stays (the user, 2026-10-14), so the title gives way, by a form chosen here, never a cut; a short form's own
@@ -31,7 +32,7 @@ static const char NM_SHORT[] =
     "LFO2 to\0L2 to\0"           "ENV2 to\0E2 to\0"           "ENV mod\0E1 mod\0"           "Slicer\0Slcr\0"
     "Insert\0Ins\0"            "Internals\0Intern\0"
     "Calibrate\0Calib\0"         "USB audio\0USB aud\0"       "USB aud\0Audio\0"           "Credits\0Credit\0"          "Devices\0Devs\0"
-    "USB stats\0Stats\0"        "BT audio\0BT aud\0"
+    "USB stats\0Stats\0"        "BT audio\0BT aud\0"        "CPU times\0Times\0"
     "\0";
 static const char NM_CARD[] =
     "VOLUME\0LEVEL\0"            "LVL\0LEVEL\0"               "DST\0DIST\0"                "DST A\0DEST A\0"

@@ -140,9 +140,9 @@ static void oct_master_keys_tests(void)
     frames(2);
     turn(EN_ALGO, -5);
     frames(2);
-    check(mx_on_master() && ly_lock == LY_STEP, "MASTER by the mixer's walk: the keys stay silent");
+    check(mx_on_master() && ly_lock == LY_PLAY, "MASTER by the mixer's walk: the keys play the selected track (2026-10-30)");
     kdown(WK(0));
-    check(kb_kind[WK(0)] == KS_UI, "... a key plays nothing");
+    check(kb_kind[WK(0)] == KS_NOTE && kb_trk[WK(0)] == song.sel, "... a key plays it");
     kup(WK(0));
     both_oct();
     check(!master_sel(), "... both OCT there goes back to the track as before");
@@ -347,6 +347,9 @@ static void held_page_tests(void)
     track_t *t;
     reset_ui();
     song.sel = 0;
+    pen_n = 1, pen_note[0] = 60, pen_oct = 0;           /* (the pen, seq.c: C4 alone, so the tapped step holds one note. Since
+                                                         * 2026-10-30 the key on the mixer's MASTER row above plays T2, CHORD 3: a
+                                                         * pen of 4 notes, and SELECT would pick among them, not page the cards) */
     tap(B_SEQ);
     key(WK(3));                                         /* (set by a tap: a press no longer sets the step) */
     kdown(WK(3));

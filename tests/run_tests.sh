@@ -792,6 +792,8 @@ job; ( jobin
     run "CPU1 load, DUAL=0: nothing built" "$OUT/dual_load_off_test"
     $CC -Ifirmware/src -DFELUCCA_DUAL=2 -o "$OUT/dual_load_test" tests/dual_load_test.c
     run "CPU1 load, DUAL=2: smoothed per audio half as song.cpu_q8, 0..100 %, OFF when down" "$OUT/dual_load_test"
+    $CC -Ifirmware/src -DFELUCCA_DUAL=2 -DFELUCCA_SYS_DEBUG=1 -o "$OUT/dual_times_test" tests/dual_load_test.c
+    run "CPU1 load and SYSTEM > CPU TIMES (SYS_DEBUG): the dual render's times per block, smoothed, in % of a block" "$OUT/dual_times_test"
 ) >"$U.out" 2>&1 & jobbg
 mkdir -p "$OUT/optimist-dual"
 job; ( jobin
