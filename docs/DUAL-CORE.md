@@ -103,6 +103,19 @@ Misread RAM (some units, at the boot loader's supply, seen on X0X, Melodee and J
 (GPL-3.0). The load of each core shows in SYSTEM's CPU row (`dual_load.h`: CLOCK, CPU0 including the wait in `dual_join`,
 CPU1).
 
+Where the time goes (2026-10-30: CPU0 over 100 % at its peaks while CPU1 sat at 25 %): SYSTEM > DUAL TIMES (the
+`SYS_DEBUG` pages, dual builds; `op_project.c sys_dt_cell`, `dual_load.h dual_tm`). Each value is smoothed over ~8 mix
+blocks (32 frames, 726 us) and given in % of a block: `T1 T2 T3 %` and `DR REV %` each job's render time (`dual_cost`),
+the unit the core that ran it in the last block (0, 1, or - not run); `CPU0 PRE %` before the fork (events, macros, duck,
+LFO draws, the split, the post), `CPU0 JOBS %` its own jobs, `CPU0 WAIT %` idle at the join waiting for CPU1 (unit: the
+longest wait since boot), `CPU0 POST %` after the join (the merge, the USB input, `mix_finish` with the buses and the
+master chain, the macros' post); `IDLE CPU0 %` = 100 less PRE + JOBS + WAIT + POST (negative: the block over its time),
+`IDLE CPU1 %` = 100 less CPU1's jobs, the room a job or voice moved there would use. The render pays five tick reads a
+block on CPU0 and one store on CPU1 (`dual.c mix_block_dual`, fm1-base's `opt_dual.c mix_block`); the page reads only.
+How to read it: a large PRE + POST with a small JOBS means the work CPU1 cannot take (the buses, the master, the
+sequencer) is what fills CPU0; a large JOBS beside a large IDLE CPU1 means the split leaves a heavy job (PHYS's track)
+on CPU0; a large WAIT means CPU1 is the long side.
+
 ## 5. Testing
 
 - Console: `cpu1_mode`, `cpu1_bad`, `cpu1_canary`, `cpu1_up/why/jobs/wait_max_us`, `cpu1_supply_was`, `supply_*`.

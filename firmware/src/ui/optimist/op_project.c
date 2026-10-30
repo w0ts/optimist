@@ -1273,16 +1273,17 @@ static void sys_c1_cell(uint32_t i, cell_t *c)
  *   IDLE CPU0 %  a block's time less CPU0's whole block (PRE + JOBS + WAIT + POST; negative: over its time)
  *   IDLE CPU1 %  a block's time less CPU1's jobs: the room a job or a voice moved to CPU1 would use */
 #define INFO_DTN 8u
-#define DT_BLK ((uint32_t)CTL * 1000000u * FM1_TICKS_PER_US / FS)   /* a mix block's time, ticks */
+#define DT_BLK DUAL_TM_BLK                              /* a mix block's time, ticks */
+_Static_assert(DUAL_TM_BLK == (uint32_t)CTL * 1000000u * FM1_TICKS_PER_US / FS, "dual_load.h DUAL_TM_BLK: a mix block (CTL frames) in ticks");
 static void dt_pct(char *v, uint32_t x8)                /* "nn" appended, a space before it if v holds something */
 {
     if (v[0])
         dual_cat(v, " ");
-    dual_cnum(v, dual_tm_pct(x8, DT_BLK));
+    dual_cnum(v, dual_tm_pct(x8));
 }
 static void dt_room(char *v, uint32_t x8)               /* a block's time less x8 (smoothed), signed % */
 {
-    uint32_t p = dual_tm_pct(x8, DT_BLK);
+    uint32_t p = dual_tm_pct(x8);
     if (p > 100u)
         dual_cat(v, "-");
     dual_cnum(v, p > 100u ? p - 100u : 100u - p);
@@ -1340,7 +1341,7 @@ static void sys_dt_cell(uint32_t i, cell_t *c)
     case 6:
         c->label = "IDLE CPU0 %";
         dt_room(v, dual_tm.blk);
-        c->col = dual_tm_pct(dual_tm.blk, DT_BLK) > 100u ? C_WARN : 0;
+        c->col = dual_tm_pct(dual_tm.blk) > 100u ? C_WARN : 0;
         break;
     default:
         c->label = "IDLE CPU1 %";

@@ -70,10 +70,12 @@ static inline __attribute__((always_inline)) void dual_tm_block(uint32_t t0, uin
     dual_tm.c1_mask = (uint8_t)c1;
     dual_tm.ran = (uint8_t)ran;
 }
-/* a smoothed time as a share of a block of blk_ticks, in %, rounded (it may pass 100: a block over its time) */
-static inline uint32_t dual_tm_pct(uint32_t x8, uint32_t blk_ticks)
+/* a mix block's time in timer ticks (32 frames, core.h CTL; 24 ticks a us): a constant, no divide by a variable */
+#define DUAL_TM_BLK (32u * 1000000u * 24u / FS)
+/* a smoothed time as a share of a block, in %, rounded (it may pass 100: a block over its time) */
+static inline uint32_t dual_tm_pct(uint32_t x8)
 {
-    return blk_ticks ? (x8 / 8u * 100u + blk_ticks / 2u) / blk_ticks : 0u;
+    return (x8 / 8u * 100u + DUAL_TM_BLK / 2u) / DUAL_TM_BLK;
 }
 #else
 #define DUAL_TIMES 0
