@@ -532,7 +532,7 @@ class Builder(App):
             self.cfg[key] = vals[(vals.index(self.cfg[key]) + step) % len(vals)] if self.cfg[key] in vals else vals[0]
         else:
             self.cfg[key] = 0 if self.cfg[key] else 1
-        if it.notice and self.cfg[key]:
+        if it.notice and (self.cfg[key] or it.notice_on_change and self.cfg[key] != before[key]):
             self.notify(it.notice, title=it.label, severity="warning", timeout=8)
         old = self.room
         self.cfg, self.room = RM.after_toggle(before, self.cfg, key, old)      # (BLE replaces samples)

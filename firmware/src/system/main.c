@@ -365,8 +365,6 @@ static BOOT_ORDER void fm1_main(void)
 #if FELUCCA_BENCH
     bench_setup();                                      /* measurement scenario (bench.c) */
 #endif
-    rto_boot();                                         /* the parts' engines' code into their slots (core/overlay.c),
-                                                         * before the audio */
 #if FELUCCA_DUAL
     dual_boot();                                        /* CPU1 (dual.c): before the audio runs (a failed start
                                                          * waits 50 ms) and before the vectors are locked */
@@ -586,7 +584,6 @@ static BOOT_ORDER void fm1_main(void)
         fxm_poll();                                     /* the effects' lines in the arena (fx/fx_arena.c; FX_ARENA) */
         arb_poll();                                     /* the other buffers in it (core/arena_bufs.c) */
         fxi_poll();                                     /* the limited inserts' instances after a change (fx/insfx/fxi.c) */
-        rto_poll();                                     /* the engines the parts asked for: their code into the slots (overlay.c) */
         felucca_dbg.stage = 2;
         ui_leds();
         ui_draw();
@@ -633,7 +630,6 @@ static BOOT_ORDER void fm1_main(void)
             fxm_poll();                         /* (an effect picked: its line within a pass) */
             arb_poll();
             fxi_poll();                         /* (a type picked: its instance within a pass) */
-            rto_poll();                         /* (an engine a part asked for: its code into the part's slot, overlay.c) */
             meter_tap();                        /* (once per audio half: the meters see every one) */
 #if FELUCCA_SD_STREAM
             (void)sst_service();                /* (the card's runs into the streams' rings while the screen idles) */

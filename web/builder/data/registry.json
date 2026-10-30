@@ -4719,7 +4719,7 @@
     "parent": null,
     "desc": "One choice for the two items LAYOUT and SDCARD. Normal: the flash layout as before. Reduced user flash (LAYOUT): the code grows from 568 KiB to 816 KiB over the sample slots, the snapshots and most of the projects' room; one project stays in flash (the web or iOS app keeps the others), no SD card. SD card mode (LAYOUT + SDCARD): the same flash layout with the user data on the SD card (a hardware mod, docs/SD-CARD-DESIGN.md). Picking one sets those items; setting them by hand reads back here. The menu and the web builder list this row alone (with SD_RING and SD_REC under it in SD card mode); LAYOUT, SDCARD and the retired RAM_PACKED are real but not listed, and an old `.config` still loads them.",
     "experimental": true,
-    "notice": "",
+    "notice": "Changing this changes the flash layout: back up the projects first (web editor: Backup). Installing a build with another layout than the FM-1 has erases the user data the new code covers: from normal to more flash or SD card mode, the projects, the user samples, the snapshots and the FM6 voices in flash; back to normal, the data area starts empty. The kits and the presets are kept (docs/INSTALL-PATHS.md).",
     "off_warning": "",
     "env": "",
     "target_only": true,
@@ -4866,7 +4866,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
-    "tested": "host-tested only (tests/fx_arena_test.c, arena_bufs_test.c, arena_test.c, arena_frag_test.c, placeholder_test.c); not on an FM-1",
+    "tested": "host-tested (tests/fx_arena_test.c, arena_bufs_test.c, arena_test.c, arena_frag_test.c, placeholder_test.c); on the user's FM-1 since 2026-10-29 (the fm1-next test packages)",
     "provenance_line": ""
    },
    {
@@ -4986,37 +4986,6 @@
     "hidden": false,
     "shown_under": "MEMORY",
     "tested": "host-tested only (tests/sd_wr_test.c, sd_rec_test.c: a card model with stalls, an interrupt-driven audio clock); no FM-1 has the card yet; for now started from the console (sd rec)",
-    "provenance_line": ""
-   },
-   {
-    "key": "OVERLAY",
-    "flag": "FELUCCA_OVERLAY",
-    "label": "engines' fast code loaded per part (RAMTEXT overlays)",
-    "group": "Memory management",
-    "bit": 412,
-    "default": 0,
-    "parent": null,
-    "desc": "The engines' fast code (the sound loops run from the 32 KB code RAM) is no longer all in that RAM from start-up: each synth part has a slot there, and the code of the engine the part plays is copied into its slot from flash when the part starts playing it (a project load, an engine change: the part is silent for the copy, well under a millisecond (an estimate; 10 us in the emulator), and the notes of that moment start when it is there, within a main-loop pass). The build picks the slot size that leaves the most code RAM; an engine larger than a slot stays in the code RAM as before. Each engine in the slots is in flash once per slot (3x its fast code), so this needs the fake SD mode layout (LAYOUT). It pays when the engines built together have more fast code than three slots of the largest: with today's profiles (ANALOG 2 alone is 5 KB) the build may find no gain and keep every engine where it was. The console's ovl line shows the slots and the copy times.",
-    "experimental": true,
-    "notice": "",
-    "off_warning": "every engine's fast code in the code RAM from start-up, as before",
-    "env": "",
-    "target_only": true,
-    "symbols": [],
-    "no_image": false,
-    "fixed": false,
-    "head": false,
-    "choices": [],
-    "not_built": {
-     "1": {
-      "classic": "tools/ovl_link.py puts the overlay slots on top of .ram_hot2 and the classic link does not lay out that way yet; not buildable until the layout is fixed"
-     }
-    },
-    "provenance": null,
-    "children": [],
-    "hidden": false,
-    "shown_under": null,
-    "tested": "host-tested and booted in the emulator only, not on an FM-1",
     "provenance_line": ""
    },
    {
@@ -6439,8 +6408,7 @@
  "top": {
   "Memory management": [
    "MEMORY",
-   "ARENA",
-   "OVERLAY"
+   "ARENA"
   ],
   "Reserve": [],
   "Synth engines": [

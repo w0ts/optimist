@@ -86,7 +86,13 @@ Phase 1 makes `FL_APP_HI` the one source (a `FELUCCA_LAYOUT` value) and derives 
 - **Real SD mode without a card:** settings stay in flash (0xFC000); the working project's autosave and one project
   stay in flash too, so the FM-1 still plays and saves its current project with no card.
 
-## 6. Hot code on the fly (RAMTEXT overlays)
+## 6. Hot code on the fly (RAMTEXT overlays): retired 2026-10-30
+
+Built, then retired with its builder item `OVERLAY` (bit 412): the packed SRAM runs all its code at one speed and
+gives what is free to the arena, the slots cost each engine's code three times in flash, and the release build never
+linked them. Each engine's builder item places its hot code instead (on, or on with the code in RAM). The design
+below is kept as it was.
+
 
 Today every engine's hot code (`HOT`, the sound loop) is copied into RAMTEXT at boot, whether a project uses the engine
 or not; RAMTEXT (32 KB) is the real limit for DSP code and the SD card does not change it. Overlays make it per project:
@@ -454,7 +460,7 @@ borrows more, measured as the third row of each size and left off: more bytes hi
 |---|---|---|
 | 1 (built) | `FELUCCA_LAYOUT` (builder item `LAYOUT`, bit 410): the app slot's end and the store map from `fm1_flash_map.h` / `tools/flash_layout.py`; the normal layout's package byte-identical from the same app; the normal image +36 B (its updater accepts either layout's package) | none |
 | 2 (built) | The **fake SD mode** (`sd-mode-probe` profile): the 816 KiB slot, the squeezed store (a 7-sector project log at 0xD0000: about 5 dense scenes a project; autosave A 0xD7000; FM6 voices 0xD8000; kits and presets unchanged), no user samples / snapshots / CZ collection, the update loader and the rescue tool clearing the other layout's sectors on a switch, the far probe | the user's install: the user data in the overlap is lost; the far probe answers the SPL question |
-| 3 | The arena (section 6b, built), then the RAMTEXT overlays (section 6, built: `OVERLAY`) | none beyond a normal build |
+| 3 | The arena (section 6b, built), then the RAMTEXT overlays (section 6, built, retired 2026-10-30) | none beyond a normal build |
 | 4 | Real SD mode: the user data on the card (`SDCARD`), flash keeps settings + one project | needs the SD mod |
 | 5 | Plugins (code from the card into RAM), if ever needed | |
 

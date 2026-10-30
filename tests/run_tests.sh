@@ -1147,12 +1147,7 @@ job; ( jobin   # the effects' lines in the arena (fx/fx_arena.c, docs/SD-MODE-DE
     $CC -g $FXB_SAN -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $FXA "-DFELUCCA_ARENA_BYTES=131072u" -DFMEM_TWO=1 -o "$OUT/feat_mem_two_test" tests/feat_mem_test.c -lm
     run "switchable features, two lent blocks (BT AUDIO's and a second, as the mirror's ring): each placed and given back on its own, 50 cycles of both under a held note bit-exact and nothing leaked, the second's question named, a write into it once given back fails under ASan" "$OUT/feat_mem_two_test"
 ) >"$U.out" 2>&1 & jobbg
-job; ( jobin   # the RAMTEXT overlays (core/overlay.c, docs/SD-MODE-DESIGN.md 6): the slots' protocol on the host
-    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_OVERLAY=1 -DFELUCCA_ENG_STRINGS=1 -o "$OUT/overlay_test" tests/overlay_test.c -lm
-    run "overlays: a part plays from its slot only once its engine is there (asked, loaded by the main loop), the same samples as in place, a change while playing, 30000 random changes" "$OUT/overlay_test"
-    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_OVERLAY=1 -o "$OUT/regress_ovl" tests/regress.c -lm
-    run "regression with the overlays (FELUCCA_OVERLAY, the host's slots): the same golden renders (no CPU budget: tests/regress.c's own)" "$OUT/regress_ovl" tests/golden.txt "$OUT/regress_ovl_no_cpu.txt"
-    run "ovl_link: the plan (the least RAMTEXT), the linker scripts, the table" python3 tests/ovl_link_test.py
+job; ( jobin   # the SRAM read-out and the stacks' guard band
     run "ramsize: an ELF's SRAM by section and owner (each byte once, padding, gaps, the stacks)" python3 tests/ramsize_test.py
     run "the arena to the stacks' guard band, no spare at run time: the guard armed at boot, nothing else in the free SRAM" python3 tests/arena_spare_test.py
 ) >"$U.out" 2>&1 & jobbg

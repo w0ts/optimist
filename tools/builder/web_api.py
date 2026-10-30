@@ -121,7 +121,7 @@ def toggle(values, key, value, room=None):
     cfg, new = RM.after_toggle(before, after, key, old, COSTS)
     it = R.ITEMS[key]
     return {"values": cfg, "room": {"dropped": [list(x) for x in new.dropped], "note": new.note},
-            "notice": it.notice if it.notice and cfg[key] else ""}
+            "notice": it.notice if it.notice and (cfg[key] or it.notice_on_change and cfg[key] != before[key]) else ""}
 
 
 def item_info(key):
