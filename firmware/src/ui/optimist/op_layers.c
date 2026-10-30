@@ -609,6 +609,17 @@ static void pat_knob(uint32_t k, int32_t s)             /* track k's next / prev
 static void op_act(uint32_t a, uint32_t k)
 {
     switch (a) {
+#if FMEM_ANY
+    case OA_FMEM:                                       /* a feature's switch-on: YES to the pause, or to UNLOAD */
+        fmem.shown = 0;
+        fmem_answer(k, 1);
+        return;
+    case OA_FMOFF:                                      /* memory short: the idle features off (kept), the change again */
+        fmem_off(k);
+        part_mem_refused.waiting |= MEM_W_FX;           /* (mem_retry waits for their blocks: arb_pending) */
+        ui_say("ON AGAIN: ", fmem_where(k));          /* (where they are switched back on) */
+        return;
+#endif
 #if PART_DROPS
     case OA_DROP:                                       /* memory short: this part a silent placeholder (op_input.c mem_tick) */
         mem_drop(k);

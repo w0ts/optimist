@@ -91,6 +91,10 @@
 #ifndef ARN_MV_MOVED
 #define ARN_MV_MOVED(k, p) ((void)(k), (void)(p))       /* (client k's block now at p: the includer's pointers) */
 #endif
+#ifndef ARN_TOOK
+#define ARN_TOOK(p, n) ((void)(p), (void)(n))           /* (a block now someone's: p, n bytes; the host tests unpoison it
+                                                         * there, ASan: a buffer given back is poisoned by its owner) */
+#endif
 #define ARN_NO 0xFFu
 _Static_assert(ARN_PARTS <= 32u, "the arena's clients: a bit each in a mask (skip, ARN_TOPS, ARN_MOVES)");
 #ifndef ARN_UNDO_KEEP
@@ -284,6 +288,8 @@ static void *arn_take(uint32_t k)
         arn_has_next[k] = 0;
     }
     arn_cur[k].idle = 0;
+    if (arn_cur[k].len)
+        ARN_TOOK(arn_mem + arn_cur[k].off, arn_cur[k].len);
     return arn_cur[k].len ? arn_mem + arn_cur[k].off : 0;
 }
 
@@ -471,6 +477,36 @@ static int arn_pack(uint32_t k, uint32_t n, uint32_t at)
     fm1_irq_on();
     return 1;
 }
+/* (nothing changed) would client k's n bytes fit after a pack: 0 as they are, > 0 that many moves planned (*moved: their
+ * bytes), -1 not even so. all: every block may move, as in a load's pack (arn_pk.load: the audio paused), else only
+ * those ARN_CAN lets move now (quiet: nothing heard). The switchable features' question (core/feat_mem.c) */
+static int arn_would_pack(uint32_t k, uint32_t n, int all, uint32_t *moved)
+{
+    arn_st_t T;
+    arn_goal_t g;
+    uint32_t i, idle, sv_n = arn_pk.n, sv_i = arn_pk.i, sv_load = arn_pk.load, sv_bl = arn_pk.blocked;
+    int r;
+    *moved = 0;
+    if (arn_pk.i < arn_pk.n || arn.mk != ARN_NO)
+        return -1;                                      /* (a plan under way: asked again once it is done) */
+    g.k = k, g.n = n, g.at = ARN_BYTES;
+    fm1_irq_off();
+    T = arn;
+    fm1_irq_on();
+    idle = arn_idle_of(&T);
+    for (i = 0; i < ARN_PARTS; i++)
+        if (idle >> i & 1u)
+            T.b[0][i].len = 0;
+    arn_pk.load = (uint8_t)(all != 0);
+    {
+        arn_st_t P = T;                                 /* (arn_plan moves T: the sizes read from the copy before) */
+        r = arn_plan(&T, &g);
+        for (i = 0; r > 0 && i < arn_pk.n; i++)
+            *moved += P.b[0][arn_pk.k[i]].len;
+    }
+    arn_pk.n = (uint8_t)sv_n, arn_pk.i = (uint8_t)sv_i, arn_pk.load = (uint8_t)sv_load, arn_pk.blocked = (uint8_t)sv_bl;
+    return r;
+}
 static int arn_busy(void) { return arn_pk.i < arn_pk.n || arn.mk != ARN_NO; }   /* (a load's pack_all: not waited for) */
 AINL int arn_moving(uint32_t k) { return arn.mk == k; }   /* (the audio, CPU1: client k's block is being moved) */
 static void arn_pack_all(void) { arn_pk.all = 1; }      /* (a load: every block packed once nothing is pending) */
@@ -536,6 +572,7 @@ static void arn_poll(void)
         if (ok) {
             arn.mk = (uint8_t)k, arn.mo = arn_pk.to[i];
             ARN_GREW(arn.mo + arn_cur[k].len);
+            ARN_TOOK(arn_mem + arn.mo, arn_cur[k].len);
         }
         fm1_irq_on();
         if (!ok) {

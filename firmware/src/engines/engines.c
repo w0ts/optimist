@@ -186,6 +186,14 @@ typedef union {
 /* the other buffers a project holds only while it uses their feature (core/arena_bufs.c), after the effects' lines: the
  * SLICER's recording of each track (STUT), WAVE's table, the X0X machines' states, the punch's ring (its project's PUNCH
  * switch on), FM6's sine table (a part on FM6); only those built */
+#ifndef FELUCCA_BTA_LEND                                 /* Bluetooth audio's buffers lent while an AUDIO mode is on (fm1-base's
+                                                         * fm1.toml bt_audio_mem = "app": plat.h plat_bta_mem; core/feat_mem.c) */
+#if defined(FM1B_BTA_MEM) && FM1B_BTA_MEM && FELUCCA_BT_AUDIO
+#define FELUCCA_BTA_LEND 1
+#else
+#define FELUCCA_BTA_LEND 0
+#endif
+#endif
 enum {
     ARB_SL0,
     ARB_WAVE = ARB_SL0 + (FELUCCA_FX_SLICER ? NTRK : 0),
@@ -193,10 +201,11 @@ enum {
     ARB_X808 = ARB_X909 + (FELUCCA_DRUM_X909 ? 1 : 0),
     ARB_PUNCH = ARB_X808 + (FELUCCA_DRUM_X808 ? 1 : 0),
     ARB_FM6SIN = ARB_PUNCH + (FELUCCA_PUNCH_SW ? 1 : 0),
-    ARB_NC = ARB_FM6SIN + (FELUCCA_ENG_FM6 ? 1 : 0)
+    ARB_BTA = ARB_FM6SIN + (FELUCCA_ENG_FM6 ? 1 : 0),
+    ARB_NC = ARB_BTA + (FELUCCA_BTA_LEND ? 1 : 0)
 };
 #define ARB_ANY ((FELUCCA_FX_SLICER ? NTRK : 0) + FELUCCA_ENG_WAVE + FELUCCA_DRUM_X909 + FELUCCA_DRUM_X808 + \
-                 FELUCCA_PUNCH_SW + FELUCCA_ENG_FM6)       /* (#if) */
+                 FELUCCA_PUNCH_SW + FELUCCA_ENG_FM6 + FELUCCA_BTA_LEND)       /* (#if) */
 #define SST_ARN_K (NPART + FXM_NC + (uint32_t)ARB_NC)   /* the card streams' block, after them (FELUCCA_SD_STREAM:
                                                          * storage/sd/sd_stream_plan.c, the heads and the rings) */
 /* the CHO DLY REV inserts' lines (2026-10-29, the user: "each copy in an insert slot takes its memory from the arena, as

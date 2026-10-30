@@ -224,12 +224,35 @@ static void mem_tick(void)
             ui_message(m);
     }
 #endif
+#if FMEM_ANY
+    {                                                   /* a feature switched on with no room: its question (feat_mem.c) */
+        uint32_t f;
+        int red = 0;
+        const char *v = fmem_ui(op_armed(), a, sizeof a, &f, &red);
+        if (v) {
+            op_arm(ARM_OP, OA_FMEM, f, v, a, red);
+            return;
+        }
+    }
+    if (!part_mem_refused.on)
+        fmem_offer_reset();                             /* (a new refusal offers the idle features again) */
+#endif
     if (ml_tick())                                      /* a load's refusals: its list (op_memlist.c), the edit's waits */
         return;
     if (!part_mem_refused.on || op_armed())
         return;
     if (mem_retry() >= 0 && (!part_mem_refused.on || part_mem_refused.waiting))
         return;                                         /* (done, or a dropped part still switching) */
+#if FMEM_ANY
+    {                                                   /* before any part: the features on but idle, all at once */
+        uint32_t m = fmem_offer();
+        if (m) {
+            fmem_list(a, sizeof a, m);
+            op_arm(ARM_OP, OA_FMOFF, m, "OFF", a, 1);
+            return;
+        }
+    }
+#endif
     if (!mem_offer(&k)) {
         part_mem_refused.on = 0;
         ui_message("MEM FULL");
