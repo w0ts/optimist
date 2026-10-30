@@ -1532,12 +1532,7 @@ def add_item(item):
 # "not in this build" in that kind's costs file and probes them: a mark whose value links again is reported). Key: (item, value);
 # value: {"classic" (Optimist's own firmware) / "release" (the fm1-base app): why}. Not a failure of the measuring: a value
 # that SHOULD build and does not is (measure_costs.py reports it loudly)
-NOT_BUILT = {
-    ("ENG_PHYS", ENG_RAM): {
-        kind: "PHYS's render path in the code RAM calls libgcc's 64-bit divide (__udivdi3, px_string_block): the helper is in "
-              "flash, out of reach of a RAM-to-flash jump (R_PI32V2_LONG_JUMP_23M2 reaches 2 MB); build PHYS \"on\" (code in flash)"
-        for kind in ("classic", "release")},
-}
+NOT_BUILT = {}   # (PHYS in RAM was one until its render stopped calling libgcc's __udivdi3: phys_dsp.c px_udiv, 2026-10-30)
 
 
 def not_built(key, value, kind):

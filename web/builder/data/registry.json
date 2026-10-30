@@ -5562,12 +5562,7 @@
       "on, code in RAM"
      ]
     ],
-    "not_built": {
-     "3": {
-      "classic": "PHYS's render path in the code RAM calls libgcc's 64-bit divide (__udivdi3, px_string_block): the helper is in flash, out of reach of a RAM-to-flash jump (R_PI32V2_LONG_JUMP_23M2 reaches 2 MB); build PHYS \"on\" (code in flash)",
-      "release": "PHYS's render path in the code RAM calls libgcc's 64-bit divide (__udivdi3, px_string_block): the helper is in flash, out of reach of a RAM-to-flash jump (R_PI32V2_LONG_JUMP_23M2 reaches 2 MB); build PHYS \"on\" (code in flash)"
-     }
-    },
+    "not_built": {},
     "provenance": {
      "project": "hugelton/Felucca",
      "author": "Leo Kuroshita (@kurogedelic), Hügelton Instruments",
