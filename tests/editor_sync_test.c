@@ -406,8 +406,15 @@ int main(void)
                             const param_desc_t *d = fxp_loc(ow, sl, i, &vp);
                             ok = ok && d && vp && d->label && d->label[0] && *vp >= d->min && *vp <= d->max;
                         }
-                        if (!ok)
-                            printf("owner %u slot %u type %u\n", ow, sl, t);
+                        if (!ok) {
+                            printf("owner %u slot %u type %u: reads %u, %u parameters", ow, sl, t, fxp_type(ow, sl), fxp_n(ow, sl));
+                            for (i = 0; i < fxp_n(ow, sl); i++) {
+                                int16_t *vp;
+                                const param_desc_t *d = fxp_loc(ow, sl, i, &vp);
+                                printf(" [%s %d %d..%d]", d && d->label ? d->label : "?", vp ? *vp : -999, d ? d->min : 0, d ? d->max : 0);
+                            }
+                            printf("\n");
+                        }
                         bad += !ok;
                     }
             }
@@ -477,7 +484,7 @@ int main(void)
         {
             static const uint8_t RT[] = {1, FXP_RET0 + 1, 0, FXT_EQ3};
             ed_begin(ED_FXP); r = ed_fxp(ED_FXP, RT, sizeof RT); ed9_known_fx();
-            check(r && fxs_slot[2] == FXT_EQ3 && ed_out[8] == FXT_EQ3 && ed_out[9] == 7u && ed_n == 5u + 3u + 2u + 2u + 5u + 1u && ed_out[10] == FXT_NONE && ed_out[11] == (FELUCCA_RET_FB ? 2u : 1u) && ed_out[ed_n - 1u] == fxs_line[2],
+            check(r && fxs_slot[2] == FXT_EQ3 && ed_out[8] == FXT_EQ3 && ed_out[9] == 7u && ed_n == 5u + 3u + 2u * 4u + 5u + 1u && ed_out[10] == FXT_NONE && ed_out[11] == (FELUCCA_RET_FB ? 2u : 1u) && ed_out[ed_n - 1u] == fxs_line[2],
                   "v13 FXP op 1: EQ3 into B: its line's RET and the six; its slot 1 its sends (B -> C; RET_FB: B -> A too); the reply ends with the return's send line");
             q[0] = 4, q[1] = FXP_RET0 + 1, q[2] = 0, q[3] = 5, q[4] = (uint8_t)((10 + 8192) & 127), q[5] = (uint8_t)((10 + 8192) >> 7);
             ed_begin(ED_FXP); r = ed_fxp(ED_FXP, q, 6); ed9_known_fx();

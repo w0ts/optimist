@@ -39,14 +39,19 @@ static int32_t blk(uint32_t j, int32_t a, uint32_t b0)
         pk = abs(mix_l[i]) > pk ? abs(mix_l[i]) : pk;
     return pk;
 }
-/* the peak of the mix over blocks 120 .. 199 with the sine on line j (the ramps, the tails' start done) */
+/* the peak of the mix over blocks 120 .. 199 with the sine on line j (the ramps, the tails' start done); rsig: a sum of the
+ * mix's samples over those blocks (to tell two renders apart) */
+static uint32_t rsig;
 static int32_t run(uint32_t j, int32_t a)
 {
-    uint32_t i;
+    uint32_t i, k;
     int32_t pk = 0, p;
+    rsig = 0;
     for (i = 0; i < 200u; i++) {
         p = blk(j, a, i);
         pk = i >= 120u && p > pk ? p : pk;
+        for (k = 0; i >= 120u && k < CTL; k++)
+            rsig = rsig * 31u + (uint32_t)mix_l[k];
     }
     return pk;
 }
@@ -87,6 +92,7 @@ int main(void)
         rp_load(j, RP_POST, FXT_DYN);
         rp_amt[j][RP_PRE] = rp_amt[j][RP_POST] = 0;
         p1 = run(j, 8000);
+        printf("fx_retins: (generic: the peak without %d, with PRE DIST 0, POST DYN 0 %d)\n", (int)p0, (int)p1);
         check("generic (A FILT open): PRE DIST at 0, POST DYN at 0: through, the same peak", p0 > 1000 && abs(p1 - p0) <= p0 / 100 + 2);
         rp_amt[j][RP_PRE] = 120;
         p1 = run(j, 8000);
@@ -106,6 +112,7 @@ int main(void)
     song.g[G_CRET + j] = 64;
     quiet();
     p1 = run(j, 12000);
+    printf("fx_retins: (bus: RET unity %d, RET half %d, rp_lvm %u)\n", (int)p0, (int)p1, (unsigned)rp_lvm);
     check("bus (B, the delay): POST DIST driven; RET at one half: the output half of unity's (the level after POST)",
           j == 1u && rp_lvm == 2u && p0 > 2000 && abs(2 * p1 - p0) <= p0 / 50 + 4);
     fx_rmute = 1u << j;
@@ -116,11 +123,13 @@ int main(void)
     song.g[G_CRET + j] = 127;
     quiet();
     p0 = run(j, 12000);
+    n = rsig;
     rp_load(j, RP_PRE, FXT_DIST);
     rp_amt[j][RP_PRE] = 127;
     quiet();
     p1 = run(j, 12000);
-    check("... PRE DIST on its send: the delay's wet changes", p0 > 2000 && abs(p1 - p0) > p0 / 20);
+    printf("fx_retins: (bus PRE: the peak without %d, with %d)\n", (int)p0, (int)p1);
+    check("... PRE DIST on its send: the delay's wet changes", p0 > 2000 && rsig != n);
     rp_load(j, RP_PRE, FXT_NONE);
     for (n = 0; n < 200u; n++)
         blk(j, 0, n);

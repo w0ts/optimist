@@ -73,10 +73,10 @@ static void c2_master_tests(void)
     for (i = 0; i < 4000u; i++)                         /* (the tails out: the tests after start from silence) */
         fx_buses(zero, zero, zero, wl, wr, CTL);
     memset(fx_ret_pk, 0, sizeof fx_ret_pk);
-    turn(EN_ALGO, 1);
+    mx_apply(MXR_T1);
     frame();
     check(mxd.first == MXR_T1 && px_in(6, mx_row_y(MXR_T1) + 3u, 16, 14, C_WHITE),
-          "the channels' view after MASTER: as before");
+          "the channels' view after the returns: as before");
     reset_ui();
 }
 

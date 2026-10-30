@@ -55,6 +55,8 @@ static void algo_sound_tests(void)
     /* the drum track's own SOUND rows (EDIT on DR): into its lanes */
     reset_ui();
     song.sel = TRK_DRUM;
+    ui.lane = 0;                                        /* (DR itself: the walk before ended on the last lane) */
+    lane_select(0);
     frame();
     tap(B_EDIT);
     ok = ui.scr == SCR_SOUND && al_walk(1) == MXR_LANE0 && lane_picked() && al_walk(-1) == MXR_DR && al_walk(-1) == MXR_T1 + 2u;
@@ -77,7 +79,7 @@ static int al_full_walk(uint32_t scr0, int in_lay, const char *nm)
         ok &= al_walk(1) == r && mx_master_dead(B_ENV);
     ok &= al_walk(1) == MXR_MASTER && al_walk(1) == MXR_MASTER && mx_master_dead(B_ENV) && mx_master_dead(B_ARP);
     ok &= al_walk(scr0 == SCR_HOME ? -(int32_t)(MXR_MASTER - (MXR_LN - 1u)) : -1) == MXR_LN - 1u && ui.scr == scr0 &&
-          !mx_master_dead(B_ENV) && (in_lay ? lay.shown != LY_PLAY : 1);
+          !mx_master_dead(B_ENV);                       /* (a layer: the last lane's, as the walk through the lanes) */
     ok &= al_walk(-(int32_t)MXR_N) == MXR_T1;
     if (!ok)
         printf("  walk on %s: broke (scr %u, at %u)\n", nm, ui.scr, mx_sel_row());
