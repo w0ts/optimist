@@ -664,7 +664,7 @@ FXM_TYPES = ("FX_CHORUS", "INS_DELAY", "INS_JCHORUS", "INS_FLANGER", "INS_XDLY",
 FXM_NAMES = {"FX_CHORUS": "CHO", "INS_DELAY": "ECHO", "INS_JCHORUS": "JUNO CHORUS", "INS_FLANGER": "FLNG",
              "INS_XDLY": "XDLY", "FX_REVERB": "REV", "FX_DELAY": "DLY"}
 FXM_STATE = {"FX_CHORUS": ("ifx_choi", 28), "INS_DELAY": ("ifx_echo", 20), "INS_JCHORUS": ("ifx_jcho", 36),
-             "INS_FLANGER": ("ifx_flng", 24), "INS_XDLY": ("ifx_xdly", 40), "FX_REVERB": ("ifx_room", 48),
+             "INS_FLANGER": ("ifx_flng", 24), "INS_XDLY": ("ifx_xdly", 40), "FX_REVERB": ("ifx_room", 52),
              "FX_DELAY": ("ifx_tdly", 60)}   # (CHO REV DLY: fxi_send.c, their structs on the 32-bit target)
 FXM_COPIES = ("FX_CHORUS", "FX_REVERB", "FX_DELAY")   # (with an arena a block each: fxi_mem.h FXI_IS_CP)
 FXM_CPN = 8            # engines.c FXM_CPN: the arena's blocks for them, at most

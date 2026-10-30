@@ -57,6 +57,10 @@ MAXD = 4
 
 dis = sys.argv[1] if len(sys.argv) > 1 else "build/felucca.dis"
 budget = sys.argv[2] if len(sys.argv) > 2 else "tests/target_budget.txt"
+# the compiler (the builder's COMPILER, f6cda882: FELUCCA_COMPILER 1 pi32v2-llvm, the default; 0 JieLi's clang 4) makes
+# other code from the same source, so each has its own budget: BUDGET for pi32v2-llvm, BUDGET's _jieli twin for JieLi's
+if "COMPILER" in switches(0) and budget.endswith(".txt"):
+    budget = budget[:-len(".txt")] + "_jieli.txt"
 LABEL = re.compile(r"^([A-Za-z_][A-Za-z_0-9.]*):$")
 INSN = re.compile(r"^\s*([0-9a-f]+):\s+((?:[0-9a-f]{2} )+)\s*(.*)$")
 TARGET = re.compile(r"goto -?\d+ <[^>]*: ([0-9a-f]+) >")

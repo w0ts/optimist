@@ -81,6 +81,10 @@ typedef struct {
 #endif
 #endif
 #include "../firmware/src/storage/persist_rec.c"
+#if FELUCCA_LINK
+static uint8_t sync_boot = SYNC_AUTO;               /* (storage/settings_word.c's: project.c's flash part, which has it, is not in PROJ_HOST) */
+#endif
+#include "../firmware/src/storage/persist_ext.c"    /* persist_ext_* / persist_ofs_* (project.c includes it outside PROJ_HOST) */
 
 #if FELUCCA_BLE
 void ble_midi_out(uint32_t pkt) { (void)pkt; }   /* (the sequencer's BLE out: the radio is not here) */
@@ -296,7 +300,9 @@ static void t_layout(void)
           offsetof(persist_t, open_proj) + 4u == offsetof(persist_t, clk_ofs) && offsetof(persist_t, clk_ofs) + 4u == offsetof(persist_t, bt_kept) &&
           offsetof(persist_t, bt_kept) + PERSIST4_BT_KEPT == offsetof(persist_t, ble_kept) &&
           offsetof(persist_t, ble_kept) + PERSIST4_BLE_KEPT == offsetof(persist_t, wifi_nets) &&
-          offsetof(persist_t, wifi_nets) + PERSIST4_WIFI_NETS <= sizeof(persist_t) && sizeof(persist_t) - offsetof(persist_t, wifi_nets) - PERSIST4_WIFI_NETS < 4u &&
+          offsetof(persist_t, wifi_nets) + PERSIST4_WIFI_NETS == offsetof(persist_t, ext_ver) &&      /* (the ext bytes after the Wi-Fi networks: 92c3eb86) */
+          offsetof(persist_t, ext_ver) + 4u == offsetof(persist_t, link_ofs) &&
+          sizeof(persist_t) - offsetof(persist_t, link_ofs) - sizeof(int16_t) < 4u &&
           PERSIST4_LEN0 == (int)offsetof(persist_t, open_proj));
     check("... and it fits a sector and stays below SLOOP 2.5's", sizeof(persist_t) <= ST_PAYLOAD_MAX && sizeof(persist_t) < 88u + 1464u);
 }
@@ -381,7 +387,7 @@ static void t_syncext(void)
     r.ext_ver = 1;
     r.link_ofs = -42;
     persist_ofs_load(&r);
-    ok &= sync_ofs[2] == -42 && sync_ofs[0] == 0;
+    ok &= sync_ofs[2] == -42 && sync_ofs[0] == 17;  /* (LINK OFS its own; CLK OFS stays the record's clk_ofs[0], 95609113) */
     sync_ofs[0] = sync_ofs[2] = 0;
 #endif
     check("settings record ext: an older record reads CLK OUT BOTH, LINK ON+S/S, LINK OFS = CLK OFS; a newer one its own LINK OFS", ok);

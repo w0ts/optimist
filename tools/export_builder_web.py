@@ -19,9 +19,14 @@ web/builder/data/:
                  (web/flavours.json, without the package globs)
 """
 import json
+import os
 import sys
 from pathlib import Path
 
+# the site's data is the release's (costs-fm1base.json, the release's rules) whatever mode the caller runs in: optimist.py
+# test sets OPTIMIST_CLASSIC=1 for its own builds, and builder_test.py's --check under it compared the data with the
+# classic firmware's costs.json, stale every time
+os.environ.pop("OPTIMIST_CLASSIC", None)
 ROOT = Path(__file__).resolve().parents[1]
 BUILDER = ROOT / "tools" / "builder"
 sys.path.insert(0, str(BUILDER))
