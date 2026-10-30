@@ -7,7 +7,7 @@
  * them: the write at 0 is a fault, not a pass.
  *   1. the state the device boots with (no fxi_init, the pool zeroed): parts on FM6 until the own room does not fit,
  *      a REV insert on T1, FLNG on T2: no line placed outside a block, each FULL (or in a block of its own), no write
- *   2. the REV insert FULL: T1's reverb send still reaches the bus (the slot bypassed, as an empty slot)
+ *   2. the REV insert FULL (ruling 2026-10-30, no fallback to the send): the track plays dry, nothing reaches the reverb bus
  *   3. fxi_init as main.c now runs it: the own room's units taken while it is not placed (fx_arena_test's invariant)
  *   fxi_boot_test */
 #define FELUCCA_ARRANGER 1
@@ -49,6 +49,18 @@ static void blocks(uint32_t n)
     while (n--) {
         events_block(CTL);
         mix_block(o, CTL);
+    }
+}
+static int32_t cap_l[200 * CTL];
+static void blocks_cap(uint32_t n)                      /* n blocks, the mix's left side kept */
+{
+    static int32_t o[CTL * 2];
+    uint32_t b, i;
+    for (b = 0; b < n; b++) {
+        events_block(CTL);
+        mix_block(o, CTL);
+        for (i = 0; i < CTL; i++)
+            cap_l[b * CTL + i] = o[2u * i];
     }
 }
 static void pass(void)                                  /* a main loop pass (main.c): the arena, then the instances */
@@ -131,7 +143,26 @@ int main(void)
         trk_note_on(t0, 60, 110);
         blocks(200);
         trk_note_off(t0, 60);
-        CHECK(rev_line && any16(rev_line, REV_LINE_N), "2. T3's REV insert FULL: its reverb send reaches the bus");
+        CHECK(rev_line && !any16(rev_line, REV_LINE_N), "2. T3's REV insert FULL: no send reaches the reverb bus");
+        {   /* the track's own signal is the dry one: the same with its REV amount at 0 is as loud */
+            static int32_t ref[200 * CTL];
+            uint32_t i;
+            blocks(100);                                /* (the first note's tail out) */
+            trk_note_on(t0, 60, 110);
+            blocks_cap(200);
+            trk_note_off(t0, 60);
+            memcpy(ref, cap_l, sizeof ref);
+            blocks(400);
+            trk[2].p[P_REV] = 0;
+            trk_note_on(t0, 60, 110);
+            blocks_cap(200);
+            trk_note_off(t0, 60);
+            trk[2].p[P_REV] = 100;
+            double e0 = 0, e1 = 0;
+            for (i = 0; i < 200u * CTL; i++)
+                e0 += (double)ref[i] * ref[i], e1 += (double)cap_l[i] * cap_l[i];   /* (two notes never match sample for sample: the voices' phase runs on) */
+            CHECK(e0 > 1e10 && fabs(e0 - e1) < 0.02 * e0 && fxi_state(2, 0) == FXI_FULL, "... T3 plays its own dry signal (heard), as loud with its REV at 0 (within 1 percent RMS): no send, no fallback");
+        }
     }
     blocks(400);
     for (k = 0; k < NTRK; k++)

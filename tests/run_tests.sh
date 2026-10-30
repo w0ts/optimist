@@ -694,6 +694,8 @@ job; ( jobin
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src $INSFX_ON -o "$OUT/fx_rt_test" tests/fx_rt_test.c -lm
     run "FX returns holding any type (fx-pool): lines, a send pinned to its own, swaps, the send through the type 100 % wet times RET, the pool on a return, RET_TLV" "$OUT/fx_rt_test"
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_INS_DELAY=1 -o "$OUT/fx_rt_full_test" tests/fx_rt_full_test.c -lm
+    run "a return whose limited insert is FULL is muted (2026-10-30): outputs exactly 0 with a send in, its bus fed silence, the user's mute untouched; plays again once the insert is placed" "$OUT/fx_rt_full_test"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/fx_rsend_test" tests/fx_rsend_test.c -lm
@@ -1126,7 +1128,7 @@ job; ( jobin   # the effects' lines in the arena (fx/fx_arena.c, docs/SD-MODE-DE
     echo 'int main(void) { return 0; }' > "$OUT/fxi_boot_san_probe.c"
     $CC $FXB_SAN -o "$OUT/fxi_boot_san_probe" "$OUT/fxi_boot_san_probe.c" 2>/dev/null || FXB_SAN=""
     $CC -g $FXB_SAN -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $FXA "-DFELUCCA_ARENA_BYTES=73984u" -o "$OUT/fxi_boot_test" tests/fxi_boot_test.c -lm
-    run "the limited inserts at power-on (no fxi_init, the pool zeroed) with the own room in no block: REV and FLNG FULL or in a block, never at fxa_ins 0; a FULL REV insert's track still sends to the reverb; fxi_init at boot marks the room's units taken" "$OUT/fxi_boot_test"
+    run "the limited inserts at power-on (no fxi_init, the pool zeroed) with the own room in no block: REV and FLNG FULL or in a block, never at fxa_ins 0; a FULL REV insert leaves its track dry (no fallback to the send: nothing reaches the reverb bus); fxi_init at boot marks the room's units taken" "$OUT/fxi_boot_test"
     $CC -g $FXB_SAN -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $FXA -DFELUCCA_REV_FDN8=1 -DFELUCCA_REV_POOL=1 -DFELUCCA_SPRING=1 "-DFELUCCA_ARENA_BYTES=89344u" -o "$OUT/fxi_boot_rev_test" tests/fxi_boot_test.c -lm
     run "the same with FDN8, REV_POOL and SPRING (the user's reverb build)" "$OUT/fxi_boot_rev_test"
     # (the arenas in whole KB, every block in 256 B units (core/arena.c ARN_ALIGN): one FM6 4096 and its sine table 4352,
