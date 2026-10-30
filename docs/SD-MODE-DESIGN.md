@@ -489,11 +489,32 @@ layout switch both ways (`tests/ldr_test.c --layout`); the rescue tool's switch 
 updater accepting both sizes (`tests/ota_test.c`); the layouts' numbers in agreement (`tests/flash_layout_test.py`);
 the patterns and project tests on the 7-sector log.
 
-## 9. MEMORY steps by sample slot (proposal 2026-10-30, not built)
+## 9. MEMORY steps by sample slot (proposal 2026-10-30; steps 1-3 of 9.6 built 2026-10-30)
 
 The user's idea (2026-10-30): more choice between MEMORY "normal" and "more flash", chosen by how many user-sample
-slots the flash keeps rather than by how many projects. Nothing here is built; every number is from the code at
-`fm1-next` 7cd4d5fe (file:line) unless marked *estimate*.
+slots the flash keeps rather than by how many projects. Every number is from the code at `fm1-next` 7cd4d5fe
+(file:line) unless marked *estimate*.
+
+**Built (branch `fm1-next-memsteps`, 2026-10-30), for the classic build: 9.6's steps 1, 2 and 3.** The far probe is
+gone (`far_probe.c`, the console's `far`, `.text_far`, `far_off`, `FAR_RESERVE`): LAYOUT 1's code limit is its
+whole slot, 831,420 B. One table, `tools/flash_layout.py` `STEPS`, generates `firmware/hal/fm1_steps.h` (checked
+byte for byte by `tests/flash_layout_test.py`); the other copies (`registry.py` `LAYOUT_STEPS`, the installers' size
+lists in `fm1_route.py` / `fm1_install.py` (imported), `web/install_route.js` and `InstallRoute.swift` (checked)) come
+from it. S0 is LAYOUT 3, MEMORY 4 "no user samples" (3 stays free for S1); S1 and S0-20 are not built. The release
+waits (9.4, last rows): `gen_optimist.py` has `S0_APP_END` and refuses LAYOUT 3, the builder marks it NOT_BUILT for
+the release, and fm1-base's side is a proposed branch, `pr/app-end-table` in the PR clone (felucca-bsp's
+`LDR_STEPS`, fm1-base's `app_steps`), not wired in.
+
+Corrections to the text below, from the code:
+
+- **One more case in the rule (9.3):** two builds of one step (the classic L1 at 0xD0000, the release's at 0xCE000)
+  are the same step: only the old code's tail is cleared (as before), not [E, max(R)), which would have erased the one
+  project the two builds share. `switch_clear_ends` and the loader identify a step by its end in `FL_ENDS`.
+- **ota.c step 1 takes the classic steps' ends only** (0x93000, 0xB5000, 0xD0000), not the release's 0xCE000: the
+  installers' lists say "what Optimist's updater takes"; an fm1-base package was refused later than step 1 on
+  2026-10-29 (-16, unexplained), so widening step 1 would not let it through either.
+- **fm1-base's `write_sizes`** is not on the branch the app-end PR is based on (`feat/app-end-934e40d`); its fix
+  (`app_slot` of the real app_end) waits for the branch that brings it.
 
 ### 9.0 What the normal layout's data area really holds
 

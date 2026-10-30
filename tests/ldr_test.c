@@ -201,11 +201,12 @@ static void felu_at(uint32_t sec, uint16_t type, uint16_t slot)
 }
 
 /* the record sweep keeps the SDK's sectors and our objects: a record-looking tail there is never erased. The objects
- * where this layout keeps them (FELUCCA_LAYOUT 1: the presets' FM6 voices at 0xD8000, autosave copy A at 0xD7000) */
+ * where this layout keeps them (fm1_steps.h by FELUCCA_LAYOUT: L1 the presets' FM6 voices at 0xD8000, autosave copy A at 0xD7000; S0 0xB5000, 0xB7000) */
 static int sweep_test(void)
 {
     static uint8_t img[0x100000];
-    const uint32_t upf = FL_UPF_LO, obj = LDR_APP_HI == FL_APP_HI_BIG ? 0xD7000u : 0x97000u, bare = LDR_APP_HI;
+    const uint32_t upf = FL_UPF_LO, obj = FELUCCA_LAYOUT ? FL_AUTOSAVE_A : 0x97000u,
+                   bare = FELUCCA_LAYOUT ? FL_LOG_LO : LDR_APP_HI;   /* (past the app, none of our objects there) */
     int bad = 0;
     uint32_t i;
     bad += check("sweep: its CRC-32 is zlib's, as storage.c's", ldr_crc32((const uint8_t *)"123456789", 9) == 0xCBF43926u);
@@ -218,7 +219,7 @@ static int sweep_test(void)
     record_at(upf + 0xF00u), record_at(upf + 0x1F00u);
     felu_at(obj, 1, 0);                                   /* a project (layout 1: autosave) object */
     record_at(obj + 0xF00u);
-    if (LDR_APP_HI == FL_APP_HI_BIG)
+    if (LDR_APP_HI > 0x94000u)
         record_at(0x93F00u);                              /* inside this layout's app: never swept */
     memcpy(img, nor, sizeof nor);
     record_at(bare + 0xF00u);                             /* a bare record (past the app): erased */
@@ -230,7 +231,7 @@ static int sweep_test(void)
     bad += check("sweep: 0xE7000..0xE9FFF (SDK VM, BTIF) never erased", !memcmp(nor + 0xE7000, img + 0xE7000, 0x3000));
     bad += check("sweep: UP_FM6's two sectors and a project kept",
                  !memcmp(nor + upf, img + upf, 0x2000) && !memcmp(nor + obj, img + obj, 0x1000));
-    if (LDR_APP_HI == FL_APP_HI_BIG)
+    if (LDR_APP_HI > 0x94000u)
         bad += check("sweep: a record-like tail inside the app kept", nor[0x93F06] == img[0x93F06]);
     nor[upf + 1u] ^= 1;                                   /* a broken head: not ours, the record goes */
     ldr_records_drop();
@@ -262,31 +263,52 @@ static int all(uint32_t lo, uint32_t hi, uint8_t v)
     return 1;
 }
 
+/* the switch matrix (docs/SD-MODE-DESIGN.md 9.3, docs/INSTALL-PATHS.md), written out here, not computed: for this
+ * build's step, what an install after each kind of installed app erases first, [lo, hi) (lo == hi: nothing) */
+typedef struct {
+    const char *what;
+    uint32_t end, lo[3], hi[3];                      /* lo / hi by the new step: N, S0, L1 */
+} sw_case_t;
+static const sw_case_t SW[] = {
+    {"after a normal app (N)", 0x93000u, {0, 0xB5000u, 0xD0000u}, {0, 0xD8000u, 0xDA000u}},
+    {"after a no-user-samples app (S0)", 0xB5000u, {0x93000u, 0, 0xD0000u}, {0xD8000u, 0, 0xDA000u}},
+    {"after a more-flash app (L1)", 0xD0000u, {0x93000u, 0xB5000u, 0}, {0xDA000u, 0xDA000u, 0}},
+    {"after the release's L1 (0xCE000: the same step)", 0xCE000u, {0x93000u, 0xB5000u, 0}, {0xDA000u, 0xDA000u, 0}},
+    {"after no header of ours", 0, {0, 0xB5000u, 0xD0000u}, {0, 0xD8000u, 0xDA000u}},
+    {"after a head ending below normal's (0x5000)", 0x5000u, {0, 0xB5000u, 0xD0000u}, {0, 0xD8000u, 0xDA000u}},
+    {"after an end no step has (0xC0000)", 0xC0000u, {0x93000u, 0xB5000u, 0xD0000u}, {0xDA000u, 0xDA000u, 0xDA000u}},
+};
+
 static int layout_switch_test(void)
 {
-    static const uint32_t KEY = 0x980Fu, NORMAL_BLK = 0x8E000u, BIG_BLK = 0xCB25Bu;   /* (blocks as the packages have) */
-    static const char *const WHAT[3] = {"after a normal app", "after a fake-SD-mode app", "after no header of ours"};
+    static const uint32_t KEY = 0x980Fu;
+    const int col = LDR_APP_HI == 0x93000u ? 0 : LDR_APP_HI == 0xB5000u ? 1 : LDR_APP_HI == 0xD0000u ? 2 : -1;
     uint8_t buf[32];
-    int bad = 0, k, rc;
-    for (k = 0; k < 3; k++) {
-        char what[96];
-        memset(nor, 0xFF, sizeof nor);
-        memset(nor + 0x5000, 0xA5, 0xE0000u - 0x5000u);               /* the app, the store: all non-erased */
-        if (k < 2)
-            installed_head(KEY, k ? BIG_BLK : NORMAL_BLK);
-        erases = 0; bad_range = 0;
-        rc = ldr_layout_switch(KEY, buf);
-        snprintf(what, sizeof what, "layout %d loader, %s", FELUCCA_LAYOUT, WHAT[k]);
-        if (LDR_APP_HI == FL_APP_HI_NORMAL && k == 1)                  /* back to normal: the old app's tail cleared */
-            bad += check(what, rc == 0 && erases == 61u && all(0x93000u, 0xD0000u, 0xFF) && all(0x5000u, 0x93000u, 0xA5)
-                         && all(0xD0000u, 0xE0000u, 0xA5));
-        else if (LDR_APP_HI == FL_APP_HI_BIG && k != 1)                /* to the fake SD mode: its store cleared */
-            bad += check(what, rc == 0 && erases == 10u && all(0xD0000u, 0xDA000u, 0xFF) && all(0x5000u, 0xD0000u, 0xA5)
-                         && all(0xDA000u, 0xE0000u, 0xA5));
-        else
-            bad += check(what, rc == 0 && erases == 0 && all(0x5000u, 0xE0000u, 0xA5));
-        bad += check("... nothing outside the loader's windows", bad_range == 0);
-    }
+    int bad = 0, rc, pass;
+    uint32_t k;
+    bad += check("this build's step is one of the matrix's (N, S0, L1)", col >= 0);
+    if (col < 0)
+        return bad;
+    for (k = 0; k < sizeof SW / sizeof SW[0]; k++)
+        for (pass = 0; pass < 2; pass++) {               /* the second: a resumed install, the old header still there */
+            const uint32_t lo = SW[k].lo[col], hi = SW[k].hi[col];
+            char what[128];
+            memset(nor, 0xFF, sizeof nor);
+            memset(nor + 0x5000, 0xA5, 0xE0000u - 0x5000u);   /* the app, the store: all non-erased */
+            if (SW[k].end)                                 /* (the block ends inside its slot's last sector, as
+                                                            * fm1pkg_make.py's: the tail after app.bin is under 4 KiB) */
+                installed_head(KEY, SW[k].end - 0x4000u - 0xF24u + 0x1B4u);
+            if (pass)                                      /* the first pass's erases done, the app not yet written */
+                memset(nor + lo, 0xFF, hi - lo);
+            erases = 0; bad_range = 0;
+            rc = ldr_layout_switch(KEY, buf);
+            snprintf(what, sizeof what, "layout %d loader, %s%s: clears [%#x, %#x)", FELUCCA_LAYOUT, SW[k].what,
+                     pass ? ", resumed" : "", (unsigned)lo, (unsigned)hi);
+            bad += check(what, rc == 0 && erases == (hi - lo) / 0x1000u && all(0x5000u, lo ? lo : 0x5000u, 0xA5) &&
+                         all(lo, hi, 0xFF) && all(hi > lo ? hi : 0x5000u, 0xE0000u, 0xA5));
+            bad += check("... nothing at or past 0xDA000 (kits, presets), nothing outside the loader's windows",
+                         all(0xDA000u, 0xE0000u, 0xA5) && bad_range == 0 && hi <= FL_CLEAR_TOP);
+        }
     return bad;
 }
 

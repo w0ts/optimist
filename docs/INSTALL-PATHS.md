@@ -154,13 +154,15 @@ when the build says keep, or says nothing. `python tools/fm1_anyflash.py bootloa
 | layout | flash.bin | user data |
 |---|---|---|
 | Optimist's own, MEMORY normal (`own-normal`) | [0x4000, 0x93000) | 0x95000-0xDFFFF: FM6 voices, sections / projects, autosave A, USR1-3, snapshots, kits, presets |
+| Optimist's own, MEMORY no user samples (LAYOUT 3) (`own-s0`) | [0x4000, 0xb5000) | 0xB5000-0xDFFFF: FM6 voices 0xB5000, autosave A 0xB7000, the project log 0xB8000-0xD7FFF (16 projects), kits, presets |
 | Optimist's own, MEMORY more flash or SD card mode (LAYOUT 1) (`own-big`) | [0x4000, 0xd0000) | 0xD0000-0xDFFFF: the squeezed store (one project, autosave A, FM6 voices), kits, presets; SD mode: the card |
 | fm1-base (Optimist's release), the normal slot (`base-normal`) | [0x4000, 0x93000) | the platform's data area 0x97000-0xDFFFF (Optimist's store, OBJ_PANEL 0xD8000), XDATA0 0x93000-0x96FFF |
 | fm1-base, app_end 0xCE000 (the release's SD card mode, 823,228 B) (`base-sd`) | [0x4000, 0xce000) | OBJ_PANEL 0xCE000 / 0xCF000, Optimist's store from 0xD0000, the rest on the card |
 
-The builder's MEMORY gives Optimist's own firmware two flash layouts (normal; more flash and SD card mode share LAYOUT
-1's 0xD0000 slot, the card holding the SD mode's data). fm1-base's `app_end` can be any 4 KiB boundary up to 0xE0000;
-the release uses 0x93000 and 0xCE000. Kept in every layout and every switch, never written by an install (the code's
+The builder's MEMORY gives Optimist's own firmware three flash layouts, the MEMORY steps (normal; no user samples,
+LAYOUT 3, 0xB5000; more flash and SD card mode share LAYOUT 1's 0xD0000 slot, the card holding the SD mode's data): one
+table, `tools/flash_layout.py` STEPS (docs/SD-MODE-DESIGN.md section 9). fm1-base's `app_end` can be any 4 KiB
+boundary up to 0xE0000; the release uses 0x93000 and 0xCE000 (no user samples is not built for the release yet). Kept in every layout and every switch, never written by an install (the code's
 `KEEP`, asserted on every plan):
 
 - 0x00000-0x03FFF the boot area (only the explicit bootloader step);
@@ -183,12 +185,13 @@ beside the backup as `BACKUP-install.bin` with the backup's `.json` (the unit's 
 same unit whole) and runs `m-flasher restore` on it. M-Flasher then writes exactly the planned sectors and verifies
 them; its plan is compared with ours first. With no clear needed, `m-flasher firmware` is run as it is.
 
-| from \ to | own-normal | own-big | base-normal | base-sd |
-|---|---|---|---|---|
-| own-normal | same layout: writes 0x4000-0x92fff | writes 0x4000-0xcffff; overwrites data 0x93000-0xcffff; clears 0xd0000-0xd9fff | writes 0x4000-0x92fff | writes 0x4000-0xcdfff; overwrites data 0x93000-0xcdfff; clears 0xce000-0xd9fff |
-| own-big | writes 0x4000-0x92fff; clears 0x93000-0xcffff | same layout: writes 0x4000-0xcffff | writes 0x4000-0x92fff; clears 0x93000-0xcffff | writes 0x4000-0xcdfff; clears 0xce000-0xcffff |
-| base-normal | writes 0x4000-0x92fff | writes 0x4000-0xcffff; overwrites data 0x93000-0xcffff; clears 0xd0000-0xd9fff | same layout: writes 0x4000-0x92fff | writes 0x4000-0xcdfff; overwrites data 0x93000-0xcdfff; clears 0xce000-0xd9fff |
-| base-sd | writes 0x4000-0x92fff; clears 0x93000-0xcdfff | writes 0x4000-0xcffff; overwrites data 0xce000-0xcffff | writes 0x4000-0x92fff; clears 0x93000-0xcdfff | same layout: writes 0x4000-0xcdfff |
+| from \ to | own-normal | own-s0 | own-big | base-normal | base-sd |
+|---|---|---|---|---|---|
+| own-normal | same layout: writes 0x4000-0x92fff | writes 0x4000-0xb4fff; overwrites data 0x93000-0xb4fff; clears 0xb5000-0xd7fff | writes 0x4000-0xcffff; overwrites data 0x93000-0xcffff; clears 0xd0000-0xd9fff | writes 0x4000-0x92fff | writes 0x4000-0xcdfff; overwrites data 0x93000-0xcdfff; clears 0xce000-0xd9fff |
+| own-s0 | writes 0x4000-0x92fff; clears 0x93000-0xd7fff | same layout: writes 0x4000-0xb4fff | writes 0x4000-0xcffff; overwrites data 0xb5000-0xcffff; clears 0xd0000-0xd9fff | writes 0x4000-0x92fff; clears 0x93000-0xd7fff | writes 0x4000-0xcdfff; overwrites data 0xb5000-0xcdfff; clears 0xce000-0xd9fff |
+| own-big | writes 0x4000-0x92fff; clears 0x93000-0xd9fff | writes 0x4000-0xb4fff; clears 0xb5000-0xd9fff | same layout: writes 0x4000-0xcffff | writes 0x4000-0x92fff; clears 0x93000-0xd9fff | writes 0x4000-0xcdfff; clears 0xce000-0xcffff |
+| base-normal | writes 0x4000-0x92fff | writes 0x4000-0xb4fff; overwrites data 0x93000-0xb4fff; clears 0xb5000-0xd7fff | writes 0x4000-0xcffff; overwrites data 0x93000-0xcffff; clears 0xd0000-0xd9fff | same layout: writes 0x4000-0x92fff | writes 0x4000-0xcdfff; overwrites data 0x93000-0xcdfff; clears 0xce000-0xd9fff |
+| base-sd | writes 0x4000-0x92fff; clears 0x93000-0xd9fff | writes 0x4000-0xb4fff; clears 0xb5000-0xd9fff | writes 0x4000-0xcffff; overwrites data 0xce000-0xcffff | writes 0x4000-0x92fff; clears 0x93000-0xd9fff | same layout: writes 0x4000-0xcdfff |
 
 What is lost, kept or moved:
 
@@ -196,8 +199,10 @@ What is lost, kept or moved:
   section log and projects at 0x97000-0x9FFFF, USR1-3 from 0xA0000, the snapshots) and the clear takes the rest up to
   0xDA000. Back the projects up first (the editor's Backup); the full backup holds them too, for a way back by
   `fm1_anyflash.py restore`. The kits (0xDA000) and presets (0xDC000) stay where both layouts keep them.
-- **From a bigger slot to normal** the old code above 0x93000 is cleared, so the new firmware finds an empty data area
-  there; the bigger layout's store above the slot (kits, presets) is kept.
+- **From a bigger slot to normal** the old code above 0x93000 and the bigger layout's store below 0xDA000 are cleared,
+  so the new firmware finds an empty data area there; the kits and presets (0xDA000 and up) are kept.
+- **Between two steps above normal** (no user samples <-> more flash) the new step clears up to the higher of the two
+  stores' tops: the old step's project log never stays where the new one keeps its own.
 - **Between Optimist's own and fm1-base in the same slot** nothing is cleared: the data area is kept as it is. Whether
   the other firmware reads it (Optimist's store objects on fm1-base's data window) is not checked here; what it does not
   recognise it ignores or rewrites. A clean way back to a firmware is to restore a backup made while it ran.
@@ -207,6 +212,32 @@ What is lost, kept or moved:
 `m-flasher firmware`'s "write only what changes, verify" is enough within one layout. A switch needs the clear, which
 M-Flasher cannot express on its own; the planned-image `restore` above does it with the flags it has. The requests below
 would let it do this itself.
+
+### The MEMORY steps: what an update install clears
+
+The update loader of the new package does the clear before it writes the app (`firmware/loader/ldr_core.c`
+`ldr_layout_switch`, from `fm1_steps.h` `FL_ENDS`), and download mode plans the same (`fm1_layouts.plan`). One rule
+for every pair, `tools/flash_layout.py` `switch_clear_ends`: each step has its app end E and R, the top of what it
+stores elsewhere than normal (N 0x93000, S0 0xD8000, L1 0xDA000); a switch from step A to step B writes [0x4000, E_B)
+and first erases [E_B, max(R_A, R_B)). Two builds of one step (Optimist's own L1 at 0xD0000, the release's at 0xCE000)
+clear only the old code's tail; an FM-1 with no app header of ours counts as normal; an end no step has clears
+[E_B, 0xDA000). Nothing at or past 0xDA000 is ever cleared (the kits, the presets, the drum records, the settings and
+autosave copy B). The loader's host test (`tests/ldr_test.c --layout`, each step's loader) has this matrix written out:
+
+| from \ to | N (normal, 0x93000) | S0 (no user samples, 0xB5000) | L1 (more flash, 0xD0000) |
+|---|---|---|---|
+| **N** | writes 0x4000-0x92FFF | writes to 0xB4FFF; clears 0xB5000-0xD7FFF | writes to 0xCFFFF; clears 0xD0000-0xD9FFF |
+| **S0** | writes to 0x92FFF; clears 0x93000-0xD7FFF | writes 0x4000-0xB4FFF | writes to 0xCFFFF; clears 0xD0000-0xD9FFF |
+| **L1** | writes to 0x92FFF; clears 0x93000-0xD9FFF | writes to 0xB4FFF; clears 0xB5000-0xD9FFF | writes 0x4000-0xCFFFF |
+| release L1 (0xCE000) | writes to 0x92FFF; clears 0x93000-0xD9FFF | writes to 0xB4FFF; clears 0xB5000-0xD9FFF | writes 0x4000-0xCFFFF (the same step) |
+| no header of ours | writes 0x4000-0x92FFF | writes to 0xB4FFF; clears 0xB5000-0xD7FFF | writes to 0xCFFFF; clears 0xD0000-0xD9FFF |
+
+What a switch between two different steps loses: the projects in flash (the log moves), the FM6 voices of the user
+presets and autosave copy A; from normal also the user sample slots and the snapshots. The working project probably
+comes back from autosave copy B (0xFE000, never cleared; not tested across a switch). L1 -> N clears 0x93000-0xD9FFF
+where the older loader cleared 0x93000-0xCFFFF only (the rule is simpler; normal read that area as empty anyway).
+Optimist's updater (`ota.c` step 1) takes every step's flash.bin size from the table; an updater older than this one
+refuses S0's 0xB5000 (-15, nothing erased): the first install of S0 goes over a normal build of this version.
 
 ### Drafted requests for M-Flasher (not sent)
 
@@ -307,3 +338,27 @@ editor (Backup). Each step says how to come back if it goes wrong.
    - Recover: `python tools/fm1_anyflash.py bootloader --stock web/stock/FM-1_015.fwsc` puts M-VAVE's bootloader back
      (the boot area only); or restore the backup made before it. If neither firmware nor bootloader starts, the USB_KEY
      dongle (m-bootloader SPEC 4.3) reaches download mode whatever the flash holds.
+5. **The MEMORY steps** (2026-10-30, branch `fm1-next-memsteps`; docs/SD-MODE-DESIGN.md section 9). The packages, the
+   dev profile (`worktrees/main-scratch/devfit5.config`) built classic once per step: `worktrees/memstep-n.fwsc` (normal),
+   `worktrees/memstep-s0.fwsc` (no user samples, LAYOUT 3), `worktrees/memstep-l1.fwsc` (more flash, LAYOUT 1). Each
+   install through the running Optimist's updater (`make flash PKG=<abs path>`, or the web installer); the user does
+   every install and every check. After each install the user makes a full backup and keeps it: Claude compares it with
+   the planned clear on the computer (`fm1_layouts.plan` against the backup before it), without touching the FM-1.
+   - **Before anything:** User backs up in the web editor (Backup: projects, presets, kits, samples, snapshots) and
+     runs `python tools/fm1_anyflash.py backup` (a full image, the way back whole).
+   - **memstep-n first** (a normal build of this version: its updater takes S0's 0xB5000; an older one refuses it with
+     -15 and erases nothing). Expect: boots as before, projects, presets, kits all there (the same step: nothing cleared).
+   - **N -> S0** (memstep-s0). Expect: boots; PROJECT lists no project in flash (the log moved to 0xB8000), the
+     working project probably back from autosave copy B; kits and presets kept, the settings and Bluetooth pairings
+     kept. Then: restore the projects from the editor's backup (16 slots), save one, switch off and on, load it; save a
+     user preset with an FM6 voice, switch off and on, load it (the voices now at 0xB5000); fill the projects until
+     MEM FULL (about 13-18 busy projects in 32 sectors, an estimate). A full backup.
+   - **S0 -> N** (memstep-n). Expect: boots; the projects in flash gone again (0x93000-0xD7FFF cleared), kits and
+     presets kept; restore from the editor; save, power-cycle, load. A full backup.
+   - **N -> S0 again, then S0 -> L1** (memstep-s0, then memstep-l1). Expect after L1: boots; one project in flash
+     (0xD0000-0xD9FFF cleared first), kits and presets kept; save the one project, power-cycle, load it; a user preset
+     with an FM6 voice saved and loaded (0xD8000). A full backup.
+   - **L1 -> S0** (memstep-s0). Expect: boots; no project in flash (0xB5000-0xD9FFF cleared: the old one-project log
+     and FM6 voices never read as S0's); restore 16 projects from the editor; the saves as in N -> S0. A full backup.
+   - Recover from any step: install memstep-n and restore with the editor, or `python tools/fm1_anyflash.py restore
+     BACKUP.bin` (the first full backup) puts the FM-1 back whole.

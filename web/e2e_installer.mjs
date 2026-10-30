@@ -206,7 +206,7 @@ ok(/^Done\. The FM-1 runs .+ \(FM-1_720\)\./.test(done.ok) && done.st.every((s) 
 await full("installer-desktop-dark-done", 1440);
 
 /* ---- errors: the cable pulled while writing, then Install again resumes; no FM-1 at all */
-/* (running a Felucca: its loader takes this small test package; Optimist's own takes 0x93000 / 0xD0000 flash.bin only) */
+/* (running a Felucca: its loader takes this small test package; Optimist's own takes the MEMORY steps' 0x93000 / 0xB5000 / 0xD0000 flash.bin only) */
 const lost = await run(`${U} D().identity = "FM-1_904"; D().served = 0; D().unplugAfter = 24; $(".oi-go").click();
   await until(() => vis(".oi-err"), 90000);
   return { err: $(".oi-err").textContent, st: [...document.querySelectorAll(".oi-phases li")].map((l) => l.dataset.st), go: $(".oi-go").disabled };`);

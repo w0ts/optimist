@@ -31,6 +31,8 @@ import sys
 import time
 from pathlib import Path
 
+import flash_layout                  # (tools/: the MEMORY steps' one table)
+
 HS_QUERY = bytes([0xF0, 0x00, 0x32, 0x45, 0x00, 0x00, 0x00, 0x40, 0x7F, 0xF7])
 UPGRADE = bytes([0xF0, 0x22, 0x24, 0x35, 0x7F, 0xF7])
 FINISH_CHECK, FINISH_WRITE = 0xE0000000, 0xF0000000
@@ -40,8 +42,8 @@ LOADER_MARK = b"FELUCCA-LOADER-1"
 # M-VAVE's V15 (web/stock/FM-1_015.fwsc), known by its whole hash: its USR entry fails the per-file CRC as
 # package_damage computes it (fm1_rescue.py the same)
 STOCK_SHA256 = "db1642b2b6fa5c2cccb11ffd13878068bb28601678d3644049f99dc40e7edb8a"
-# the app slots Optimist's own updater takes (firmware/src/system/ota.c: FL_APP_HI_NORMAL, FL_APP_HI_BIG)
-OWN_SLOTS = (0x93000, 0xD0000)
+# the app slots Optimist's own updater takes (firmware/src/system/ota.c step 1: every MEMORY step's, tools/flash_layout.py)
+OWN_SLOTS = flash_layout.own_slots()
 PORT_RE = re.compile(r"fm-?1|felucca|optimist|ota|composite|sinco|usb-midi", re.I)   # never probe other gear (fm-?1: "FM-1", and "FM1-XXXX",
                                                                                       # Optimist's name since 2026-10-29; "optimist": older firmware)
 
