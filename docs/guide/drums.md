@@ -54,9 +54,9 @@ Select a lane (its black key, or ALGORITHM), then tap EDIT. Each lane has its ow
 | **MAIN** | TUNE, DECAY, CUT, LEVEL: the four that matter most |
 | **Body** (the firmware's SOUND) | TUNE (+-24 st), DECAY, SNAP (noise <-> tone), CLICK (the attack) |
 | **Tone** (SOUND 2) | BEND (the pitch drop), CUT, DRIVE, LEVEL (-24 to +6 dB) |
-| **Sends** (SOUND 3) | the lane's own REV, DLY, CHO levels (0 to 31) and PAN, on the FX family's SENDS page too |
+| **Sends** (SOUND 3) | the lane's own REV, DLY, CHO levels (0 to 31) and PAN, on the FX family's SENDS page too. Built-in sounds and kits are dry: every send 0, no insert on (DST and CMP 0) |
 | **SOURCE** | HIT, START, LEN of a sample, on a lane that plays one |
-| **KIT** | SLOT (your kits 1 to 16), SAVE, ERASE, RESET (this sound back to the kit's) |
+| **KIT** | SLOT (your kits 1 to 16), SAVE, ERASE, RESET (this sound back to the kit's, dry: no sends, no inserts) |
 | **ENV, LFO, LFO 2, ENV2** | the lane's envelope (CLICK, DECAY, BEND, LEVEL) and its LFOs and second envelope, per hit |
 | **INSERTS** (FX) | the lane's two insert slots ([effects](effects.md)) |
 
