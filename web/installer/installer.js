@@ -26,7 +26,7 @@
 //   }) -> { unmount(), busy }    busy: true while writing (the host must not unload or hide the page then)
 import { checkUfw, logicalImage, productOf, sha256hex, ufwEntries } from "../fm1base/fm1pkg.js";
 import { STOCK_V15_SHA256, OptimistUpdater, stockBanks, validateStockPackage } from "../fm1ota_optimist.js";
-import { SOFT_KEY, bootloaderChoice, bootloaderFromConfig, chooseRoute, flashLenOf, nextStep, packageKind, runningKind } from "../install_route.js";
+import { SOFT_KEY, bootloaderChoice, bootloaderFromConfig, chooseRoute, detectPlatform, flashLenOf, mflasherFor, nextStep, packageKind, runningKind } from "../install_route.js";
 
 const STYLE_ID = "optimist-installer-style";
 const BUNDLED_CSS = null;                           /* make_site.py puts web/installer/installer.css here */
@@ -108,6 +108,7 @@ export const TEXT = {
   bootOpt: "install m-bootloader (from the build): yes. Untick to keep the bootloader for this install.",
   bootWhy: "An open bootloader by Julius Vitkauskas (MIT): REC while switching on for download mode, PLAY for a recovery menu. It is installed with a full backup of the flash first, which only M-Flasher on a computer makes: this page installs the firmware and keeps the bootloader.",
   bootLater: " m-bootloader was not installed: on a computer, python tools/fm1_install.py with this package, or M-Flasher's Install m-bootloader (a full backup first).",
+  mfTitle: "M-Flasher {v} for {os} (MIT, Julius Vitkauskas), checked by its SHA-256 after you download it: ", mfSha: "SHA-256 ", mfOther: "Other systems and all files", mfMobile: "This switch needs a computer: M-Flasher for macOS, Windows or Linux. ", mfNone: "M-Flasher: ",
   needsDownload: "Not installed. ", softKey: "Switch the FM-1 to download mode (for M-Flasher on this computer)", softSent: "Sent: the FM-1 restarts in download mode (its screen stays as it was). Switch it off and on to leave it.",
   /* step 4 */
   r1h: "The install stopped halfway", r1: "The FM-1 stays in update mode. Press Install again: it finishes.",
@@ -690,9 +691,25 @@ export function mountInstaller(container, opts = {}) {
   }
   function needsDownload(route, pkg) {
     say(el.status, "");
-    el.err.replaceChildren(h("p", {}, TEXT.needsDownload + nextStep(route, pkg.file || "PACKAGE.fwsc")), ...(route.softKey ? [el.soft] : []));
+    const mf = h("div", { class: "mflasher" });
+    el.err.replaceChildren(h("p", {}, TEXT.needsDownload + nextStep(route, pkg.file || "PACKAGE.fwsc")), mf, ...(route.softKey ? [el.soft] : []));
+    mflasherLinks(mf);
     el.soft.hidden = !route.softKey;
     el.err.hidden = false;
+  }
+  /* M-Flasher for this visitor's system: direct links to the pinned release's files with their SHA-256 (opts.mflasher, from
+     tools/mflasher.py), and the release page for the other systems. The page downloads nothing itself. */
+  async function mflasherLinks(box) {
+    let high = null;
+    try { high = nav.userAgentData && nav.userAgentData.getHighEntropyValues ? await nav.userAgentData.getHighEntropyValues(["architecture", "bitness"]) : null; } catch (e) { high = null; }
+    const view = mflasherFor(opts.mflasher, detectPlatform(nav, high));
+    const other = h("a", { href: view.page, target: "_blank", rel: "noopener" }, TEXT.mfOther);
+    if (view.mobile) { box.replaceChildren(h("p", {}, TEXT.mfMobile, other)); return; }
+    if (!view.files.length) { box.replaceChildren(h("p", {}, TEXT.mfNone, other)); return; }
+    const osName = { macos: "macOS", windows: "Windows", linux: "Linux" }[view.os] || view.os;
+    box.replaceChildren(h("p", {}, TEXT.mfTitle.replace("{v}", view.version || "").replace("{os}", osName)), h("ul", {},
+      ...view.files.map((f) => h("li", {}, h("a", { href: f.url, rel: "noopener" }, f.name), ` (${(f.size / 1e6).toFixed(1)} MB) `, TEXT.mfSha, h("code", {}, f.sha256)))),
+      h("p", {}, other));
   }
   async function sendSoftKey() {                   /* the soft key, F0 22 24 35 7D F7: the FM-1 restarts in download mode */
     try {

@@ -632,7 +632,8 @@ def download(a, up, dev, route, out, ask, ask_text):
         close()
         print("cancelled", file=out)
         return 1
-    env = AF.Env(out=out, ask=lambda q: "yes" if a.yes else ask_text(q), soft_key=soft_key, wait_back=back)
+    env = AF.Env(out=out, ask=lambda q: "yes" if a.yes else ask_text(q), soft_key=soft_key, wait_back=back,
+                 may_fetch=None if a.yes else (lambda q: ask(q + " [y/N] ")))     # (--yes downloads nothing: setup does)
     try:
         AF.need_mflasher(env)
         _, info, flash = AF.load(a.package)

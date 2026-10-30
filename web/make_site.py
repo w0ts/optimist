@@ -321,6 +321,13 @@ def release_sims(folder):
 SITE_ID = re.compile(r"FM-1_[79]\d\d|FM-1_79\d{2}(\d{4})?")
 
 
+def mflasher_release():
+    """the pinned M-Flasher release (tools/mflasher.py: the one source of truth) for the installer's download-mode help"""
+    sys.path.insert(0, str(HERE.parent / "tools"))
+    import mflasher
+    return mflasher.site_data()
+
+
 def package_entry(path, name, flavour, release="", date=""):
     """one package of the site: checked (an Optimist / Felucca identity, the update loader in it) -> its site.json entry"""
     raw = Path(path).read_bytes()
@@ -391,6 +398,7 @@ def main(version, out, flavours=None, releases=None, sims=None):
             "repo": os.environ.get("GITHUB_REPOSITORY") or "w0ts/optimist",     # (the cloud builds' list: installer.js)
             "stock": {"pkg": "../../firmware/" + STOCK_NAME, "sha256": stock_sha},
             "boot": {"pkg": "../../firmware/" + MBOOT_NAME, "version": MBOOT_VERSION, "sha256": hashlib.sha256(boot.read_bytes()).hexdigest()}}
+    site["mflasher"] = mflasher_release()
     latest = latest_of(releases)
     if latest:                                          # (the builder's and the simulator's default: builder.js, sim.js)
         site["latest"] = latest
