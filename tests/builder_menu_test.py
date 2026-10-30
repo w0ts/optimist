@@ -200,8 +200,23 @@ async def memory_menu_test():
         check("... back to normal: both off", c["MEMORY"] == 0 and (c["LAYOUT"], c["SDCARD"]) == (0, 0))
 
 
+async def dialog_wrap_test():
+    """a dialog's long line (the flash plan's) wraps inside the box instead of being cut off at its right edge"""
+    app = M.Builder(C.defaults(), "default")
+    long = "route:    download mode (M-Flasher): the build's BOOTLOADER is m-bootloader, so the installer " * 2
+    async with app.run_test(size=(100, 40)) as pilot:
+        await pilot.pause()
+        app.push_screen(M.Pick("Flash to FM-1\n\n" + long, ["Cancel"], lambda c: None))
+        await pilot.pause()
+        box = app.screen.query_one("#modal")
+        lab = app.screen.query_one("#modal Label")
+        check("dialog: the box uses the screen's width (not 70 columns)", box.size.width > 70)
+        check("dialog: a long line wraps inside the box", lab.size.width <= box.size.width and lab.size.height >= 4)
+
+
 async def main():
     await sort_test()
+    await dialog_wrap_test()
     await memory_menu_test()
     await back_test()
     await drums_head_test()
