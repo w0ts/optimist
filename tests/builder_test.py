@@ -713,14 +713,17 @@ _env = C.apply_env(_d, {"FELUCCA_ENG_ANALOG": "1", "FELUCCA_ENG_FM6": "3"})
 check("engines: the old switch FELUCCA_ENG_X=1 in the environment is the place by default, 3 code in RAM",
       (_env["ENG_ANALOG"], _env["ENG_FM6"]) == (R.ENG_RAM, R.ENG_RAM))
 _co = C.load_costs()
-_a2, _f3 = K.item_delta(_co, "ENG_ANALOG", R.ENG_ON), K.item_delta(_co, "ENG_FM6", R.ENG_RAM)
+# (costs.json measures every place now: the estimate's fallback is tried on a copy without the two entries it stands in for)
+_co_nm = dict(_co, deltas=dict(_co["deltas"], ENG_ANALOG={k: v for k, v in _co["deltas"]["ENG_ANALOG"].items() if k != str(R.ENG_ON)},
+                               ENG_FM6={k: v for k, v in _co["deltas"]["ENG_FM6"].items() if k != str(R.ENG_RAM)}))
+_a2, _f3 = K.item_delta(_co_nm, "ENG_ANALOG", R.ENG_ON), K.item_delta(_co_nm, "ENG_FM6", R.ENG_RAM)
 _s = R.FAST_BYTES
 check("engines: the estimate of a place costs.json has not measured: ANALOG on from the flash takes its render path "
       "out of the RAM code and adds what it saved to the flash (measured, else a third), FM6 in RAM the other way",
       _a2["ramtext"] == -_s["ENG_ANALOG"] and _a2["flash"] == R.fast_flash_saved("ENG_ANALOG") > 0
       and _f3["ramtext"] == _s["ENG_FM6"] and _f3["flash"] == -R.fast_flash_saved("ENG_FM6")
       and R.fast_flash_saved("ENG_TRIO") == round(_s["ENG_TRIO"] * (1 - R.FAST_FLASH_RAM))
-      and K.item_delta(_co, "ENG_ANALOG", R.ENG_RAM) == {r: 0 for r in C.REGIONS})
+      and K.item_delta(_co_nm, "ENG_ANALOG", R.ENG_RAM) == {r: 0 for r in C.REGIONS})
 _old = {"flash": 1000, "ram": 200, "pool": 50, "ramtext": 400}
 with redirect_stdout(io.StringIO()):
     _moved = MC.refreshed_base(_old, dict(_old, ramtext=488))       # (88 B: under the 256 B fit margin, was kept)
