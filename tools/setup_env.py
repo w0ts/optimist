@@ -11,6 +11,7 @@ import subprocess
 import sys
 
 import deps
+import repo_root
 import toolchain as TC
 
 SYSTEM = platform.system()          # Linux, Darwin, Windows
@@ -108,17 +109,17 @@ def check_toolchain(rep, fetch, yes):
 
 
 def check_llvm(rep, fetch, yes):
-    """pi32v2-llvm (the builder's COMPILER item, its default): its drop-in in ~/.jieli on every host (macOS too: mounted
+    """pi32v2-llvm (the builder's COMPILER item, its default): its drop-in in the repository's build/toolchains (the main checkout's, in a worktree) on every host (macOS too: mounted
     into the toolchain image)"""
     d = TC.llvm_dir()
-    if not TC.has_clang(d) and fetch and confirm("download pi32v2-llvm (72 MB) into ~/.jieli?", yes):
+    if not TC.has_clang(d) and fetch and confirm(f"download pi32v2-llvm (72 MB) into {repo_root.toolchains_dir()}?", yes):
         try:
             deps.fetch_llvm()
         except deps.FetchError as e:
             print(f"setup: {e}")
     ok = TC.has_clang(d)
     rep.add("pi32v2-llvm", ok, f"{d.resolve() if ok else d}",
-            "python tools/optimist.py setup --yes (downloads it into ~/.jieli), or the builder's COMPILER item: JieLi")
+            "python tools/optimist.py setup --yes (downloads it into build/toolchains), or the builder's COMPILER item: JieLi")
 
 
 def check_mflasher(rep, fetch, yes):

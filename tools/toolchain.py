@@ -27,6 +27,7 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
+import repo_root
 import shared
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -272,10 +273,19 @@ def compiler_of(values):
     return COMPILERS[1] if str(values.get("FELUCCA_COMPILER", "0")) == "1" else COMPILERS[0]
 
 
-def llvm_dir(env=None):
-    """pi32v2-llvm's drop-in directory: PI32V2_LLVM_TOOLCHAIN, else ~/.jieli/pi32v2-llvm (setup downloads it)"""
+def llvm_dir(env=None, root=None):
+    """pi32v2-llvm's drop-in directory: PI32V2_LLVM_TOOLCHAIN, else <toolchains>/pi32v2-llvm-dropin-<version>
+    (tools/repo_root.py: OPTIMIST_TOOLCHAINS, the main checkout's build/toolchains, ...; setup downloads it there).
+    An old copy in ~/.jieli/pi32v2-llvm is used (read only) when the new place has none."""
     env = os.environ if env is None else env
-    return Path(env.get("PI32V2_LLVM_TOOLCHAIN") or JIELI_HOME / "pi32v2-llvm")
+    if env.get("PI32V2_LLVM_TOOLCHAIN"):
+        return Path(env["PI32V2_LLVM_TOOLCHAIN"])
+    new = repo_root.toolchains_dir(root, env) / f"pi32v2-llvm-dropin-{LLVM_VERSION}"
+    old = JIELI_HOME / "pi32v2-llvm"
+    if not has_clang(new) and has_clang(old):
+        print(f"note: pi32v2-llvm is read from {old}; move it: mv ~/.jieli/pi32v2-llvm-dropin-* {new.parent}/", flush=True)
+        return old
+    return new
 
 
 def resolve_llvm(env):

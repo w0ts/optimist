@@ -31,6 +31,7 @@ from builder_path import ROOT  # (first: tools/ and tools/builder/ on sys.path f
 import fm1_anyflash as AF
 import flash as FL
 import mflasher as MF
+import shared
 
 TMP = ROOT / "build" / "test-mflasher-get"
 fails = 0
@@ -140,8 +141,8 @@ def fetching():
     finally:
         if saved is not None:
             os.environ["M_FLASHER_HOME"] = saved
-    ok(d == MF.ROOT / "build" / "m-flasher" / "m-flasher-0.7.0" and Path.home() / ".jieli" not in d.parents,
-       "the fetched release stays inside the repo (build/m-flasher, git-ignored), never in the user's home")
+    ok(d == (shared.main_checkout(MF.ROOT) or MF.ROOT) / "build" / "m-flasher" / "m-flasher-0.7.0" and Path.home() / ".jieli" not in d.parents,
+       "the fetched release stays inside the repo (build/m-flasher of the main checkout, git-ignored), never in the user's home")
     data = windows_zip()
     sha = hashlib.sha256(data).hexdigest()
     srv = Server({"M-Flasher-0.7.0-windows.zip": data})
