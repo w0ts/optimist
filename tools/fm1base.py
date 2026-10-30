@@ -29,7 +29,6 @@ OUT = APP / "build"
 BUILD_PY = DIR / "tools" / "build.py"
 LOCKS = {}                       # app directory -> its lock: one fm1-base build at a time in each
 _LOCKS_GUARD = threading.Lock()
-APP_END = 0x93000                # fm1-base's normal app area end (tools/build.py APP_END)
 FETCH = ("git submodule update --init --recursive (the fork, git@github.com:w0ts/fm1-base.git, is not public yet: "
          "its access is needed; docs/BUILDING.md, \"The release build\")")
 
@@ -155,28 +154,67 @@ def env_for(cfgfile, slot=None, measure=False):
     return env
 
 
-SD_APP_END = "0xCE000"           # fm1-base's bigger app slot: Optimist's SD card mode (LAYOUT 1) needs it (gen_optimist.py slot_check)
+def _app_value(name):
+    """-> the integer the app's generator (fm1base/optimist/gen_optimist.py, the one place Optimist's fm1-base app says
+    it) assigns to name at its top level: SD_APP_END, the SD card mode's app area end"""
+    src = APP / "gen_optimist.py"
+    if not src.is_file():
+        raise FM1BaseError(f"{src} is not there: run {FETCH}")
+    m = re.search(rf"^{name} = (0x[0-9A-Fa-f]+)", src.read_text(), re.M)
+    if not m:
+        raise FM1BaseError(f"{src}: no {name}")
+    return int(m.group(1), 16)
+
+
+def sd_app_end():
+    """fm1-base's bigger app area end, the SD card mode's (LAYOUT 1): gen_optimist.py SD_APP_END (its slot_check
+    refuses a LAYOUT 1 build without it)"""
+    return _app_value("SD_APP_END")
 
 
 def app_end(cfgfile):
-    """the app slot the configuration's flash layout needs: SD_APP_END for LAYOUT 1 (the SD card mode: fewer flash
-    projects, by design), else None (fm1-base's normal slot, 0x93000)"""
+    """the app slot the configuration's flash layout needs: FM1B_APP_END=sd_app_end() for LAYOUT 1 (the SD card mode:
+    fewer flash projects, by design), else None (the app's fm1.toml app_end, the normal slot)"""
     import configure
     cfg, _ = configure.parse(Path(cfgfile).read_text())
-    return SD_APP_END if configure.flags(cfg)[0].get("FELUCCA_LAYOUT", 0) == 1 else None
+    return f"0x{sd_app_end():X}" if configure.flags(cfg)[0].get("FELUCCA_LAYOUT", 0) == 1 else None
 
 
-def limits(base_sizes):
-    """-> the slots the release's budget counts against, from a real build's sizes.json (the default build's): {"flash": the
-    app slot (sizes.json app_slot), "flash_by_layout": {"1": the SD card mode's, FM1B_APP_END = SD_APP_END: the slot grows by
-    the app area's growth}, "sram": the SRAM region (fm1base/device/app.ld)}"""
-    import re
-    flash = int(base_sizes["app_slot"])
+def _pkg_tool():
+    """fm1-base's package tool (fm1base/tools/fm1pkg_make.py): app_slot(end), the app.bin room fm1-base's build checks
+    an image against (tools/build.py app_slot, "exceeds the app slot")"""
+    import importlib.util
+    path = DIR / "tools" / "fm1pkg_make.py"
+    if not path.is_file():
+        raise FM1BaseError(f"{path} is not there: run {FETCH}")
+    spec = importlib.util.spec_from_file_location("fm1b_pkg_make", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def normal_app_end():
+    """the app area's end of a normal build: the app's fm1.toml app_end, else fm1-base's own (fm1pkg_make.py FLASH_SIZE,
+    tools/build.py APP_END)"""
+    import tomllib
+    end = tomllib.loads((APP / "fm1.toml").read_text()).get("app_end")
+    return int(end) if end is not None else _pkg_tool().FLASH_SIZE
+
+
+def limits(base_sizes=None):
+    """-> the slots the release's budget counts against, as fm1-base's build computes them: {"flash": the normal
+    layout's app slot (fm1pkg_make.py app_slot of fm1.toml's app_end), "flash_by_layout": {"1": the SD card mode's
+    (app_slot of sd_app_end())}, "sram": the SRAM region (fm1base/device/app.ld)}. base_sizes: a real normal build's
+    sizes.json (its app_slot, what that build checked against): FM1BaseError when the two disagree"""
+    tool = _pkg_tool()
+    flash = tool.app_slot(normal_app_end())
+    if base_sizes is not None and int(base_sizes.get("app_slot", flash)) != flash:
+        raise FM1BaseError(f"the build's app slot {base_sizes['app_slot']} B is not fm1pkg_make.app_slot(fm1.toml app_end) = {flash} B")
     ld = (DIR / "device" / "app.ld").read_text()
     m = re.search(r"SRAM\s*\(rwx\)\s*:\s*ORIGIN = 0x[0-9A-Fa-f]+, LENGTH = (0x[0-9A-Fa-f]+)", ld)
     if not m:
         raise FM1BaseError(f"{DIR / 'device' / 'app.ld'}: no SRAM region")
-    return {"flash": flash, "flash_by_layout": {"1": flash + int(SD_APP_END, 0) - APP_END}, "sram": int(m.group(1), 0)}
+    return {"flash": flash, "flash_by_layout": {"1": tool.app_slot(sd_app_end())}, "sram": int(m.group(1), 0)}
 
 
 def collect(bdir, release, name_stem, cfgfile, out=OUT):

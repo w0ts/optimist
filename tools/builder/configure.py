@@ -34,7 +34,7 @@ from core import (
     ANCHOR_MARGIN as ANCHOR_MARGIN, AUTO_AUX as AUTO_AUX, AUTO_ENC_MAX as AUTO_ENC_MAX, AUTO_ITEMS as AUTO_ITEMS,
     AUTO_LIST as AUTO_LIST, AUTO_MAX as AUTO_MAX, AUTO_NTRK as AUTO_NTRK, AUTO_STORE as AUTO_STORE,
     FIT_MARGIN as FIT_MARGIN, FIT_ORDER as FIT_ORDER, FXM_UNIT as FXM_UNIT, XD_STATE as XD_STATE,
-    GRAIN_SETS as GRAIN_SETS, LIMITS as LIMITS, NEEDS as NEEDS, dly_arena as dly_arena, dly_send_kb as dly_send_kb,
+    GRAIN_SETS as GRAIN_SETS, NEEDS as NEEDS, limits_in_use as limits_in_use, dly_arena as dly_arena, dly_send_kb as dly_send_kb,
     fx_memory as fx_memory, fx_memory_text as fx_memory_text, FXM_STATE as FXM_STATE, FXM_SYMBOLS as FXM_SYMBOLS,
     FXM_TYPES as FXM_TYPES, arena_need as arena_need,
     PART_MEM as PART_MEM, PART_MEM_NONE as PART_MEM_NONE, REGIONS as REGIONS, REV_ROOM_LEN as REV_ROOM_LEN,
@@ -249,14 +249,48 @@ def costs_measured():
 
 
 def load_costs(path=None):
-    """the costs (the release's or the classic's: costs_file) -> dict or None; their "limits" (the release's slots) go to
-    the core, so every fit check after it counts against the slots the costs were measured for"""
+    """the costs (the release's or the classic's: costs_file) -> dict or None; their "limits" go to the core too (what
+    the slots were when they were measured: the build system's own, kind_limits, win where it is here)"""
     try:
         costs = json.loads(Path(path or costs_file()).read_text())
     except (OSError, ValueError):
         return None
     K.setup(limits=costs.get("limits"))
     return costs
+
+
+_BUILD_PY_SRAM = re.compile(r'^LIMITS = \{.*"sram": (0x[0-9A-Fa-f]+|\d+)', re.M)
+
+
+def classic_limits():
+    """-> the classic firmware's slots from its build: the normal layout's app slot and each other layout's code room
+    (tools/flash_layout.py app_slot, code_limit: the far probe's place in LAYOUT 1), the SRAM tools/build.py links in
+    (LIMITS sram)"""
+    import flash_layout as L
+    m = _BUILD_PY_SRAM.search((ROOT / "tools" / "build.py").read_text())
+    if not m:
+        raise ConfigError("tools/build.py: no LIMITS sram")
+    return {"flash": L.app_slot(0), "sram": int(m.group(1), 0),
+            "flash_by_layout": {str(k): L.code_limit(k) for k in sorted(L.APP_HI) if k}}
+
+
+_KIND_LIMITS = {}
+
+
+def kind_limits():
+    """-> the slots of the firmware this run builds (classic_limits; the release's: fm1base.limits, fm1-base's own
+    rules), None when its build system is not here (the release without the submodule: the costs' copy then)"""
+    kind = classic()
+    if kind not in _KIND_LIMITS:
+        if kind:
+            _KIND_LIMITS[kind] = classic_limits()
+        else:
+            import fm1base
+            try:
+                _KIND_LIMITS[kind] = fm1base.limits()
+            except fm1base.FM1BaseError:
+                _KIND_LIMITS[kind] = None
+    return _KIND_LIMITS[kind]
 
 
 def _needs_auto():
@@ -273,7 +307,7 @@ def _needs_auto():
 
 
 NEEDS_AUTO = _needs_auto()
-K.setup(needs_auto=NEEDS_AUTO)
+K.setup(needs_auto=NEEDS_AUTO, limits_hook=kind_limits)
 
 
 EXACT = ROOT / "build" / "exact-sizes.json"      # the sizes of real builds, by configuration and source

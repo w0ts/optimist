@@ -90,14 +90,23 @@ check("flash accepts the release's identity FM-1_7900 and FM-1_79010203, not FM-
 import core as K  # noqa: E402
 import fm1base_ld  # noqa: E402
 total = {"flash": 700000, "ram": 100000, "pool": 100000, "ramtext": 30000}
-check("the classic slots: a LAYOUT 1 build counts the big flash (FAR_OK is retired: an old key changes nothing)",
-      K.fits(total, {"LAYOUT": 1})["flash"][1] == 765696 and K.fits(total, {})["flash"][1] == 581564)
-K.setup(limits={"flash": 581564, "sram": 475136, "flash_by_layout": {"1": 823228}})
-check("the release's slots (costs-fm1base.json limits): LAYOUT 1 is the SD card mode's app area; SRAM is app.ld's",
-      K.fits(total, {"LAYOUT": 1})["flash"][1] == 823228 and K.fits(total, {})["flash"][1] == 581564
-      and K.fits(total, {})["sram"][1] == 475136 - K.SPARE["sram"] and K.describe()["limits"]["sram"] == 475136)
-K.setup(limits=None)
-check("without them the classic slots again", K.fits(total, {})["sram"][1] == K.LIMITS["sram"] - K.SPARE["sram"])
+C.CLASSIC = True
+check("the classic slots (its build system's: flash_layout, build.py): a LAYOUT 1 build counts the far probe's place",
+      K.fits(total, {"LAYOUT": 1})["flash"][1] == 765696 and K.fits(total, {})["flash"][1] == 581564
+      and K.fits(total, {})["sram"][1] == 474880 - K.SPARE["sram"])
+C.CLASSIC = False
+if fm1base.BUILD_PY.is_file():
+    check("the release's slots (fm1-base's fm1pkg_make app_slot of fm1.toml's app_end and the SD card mode's): LAYOUT 1 "
+          "823,228 B, normal 581,564 B, SRAM app.ld's",
+          K.fits(total, {"LAYOUT": 1})["flash"][1] == 823228 and K.fits(total, {})["flash"][1] == 581564
+          and K.fits(total, {})["sram"][1] == 475136 - K.SPARE["sram"] and K.describe()["limits"]["sram"] == 475136)
+    check("a real release build's sizes count against the slot that build checked (sizes.json app_slot)",
+          K.fits(dict(total, app_slot=823228), {})["flash"][1] == 823228)
+_hook = K.LIMITS_HOOK
+K.setup(limits_hook=None, limits={"flash": 1000, "sram": 2000, "flash_by_layout": {"1": 3000}})
+check("without a build system (the page) the costs' limits", K.fits(total, {"LAYOUT": 1})["flash"][1] == 3000
+      and K.fits(total, {})["sram"][1] == 2000 - K.SPARE["sram"])
+K.setup(limits_hook=_hook, limits=None)
 if fm1base.BUILD_PY.is_file():
     ld = (fm1base.DIR / "device" / "app.ld").read_text()
     got = fm1base_ld.measure_script(ld)
@@ -105,9 +114,14 @@ if fm1base.BUILD_PY.is_file():
           got is not None and "LENGTH = 0x800000" in got and "LENGTH = 0x180000" in got and "ORIGIN = 0x01E00000" in got
           and "ASSERT(_sram_end" not in got)
     check("another linker script (the update loader's) is left as it is", fm1base_ld.measure_script("MEMORY { RAM : ORIGIN = 0, LENGTH = 1 }") is None)
-    sizes = {"app_slot": 581564}
-    lim = fm1base.limits(sizes)
-    check("the release's limits: the slot of the build's sizes.json, the SD card mode's grown by its app area, app.ld's SRAM",
-          lim == {"flash": 581564, "flash_by_layout": {"1": 581564 + 0xCE000 - 0x93000}, "sram": 0x74000})
+    lim = fm1base.limits({"app_slot": 581564})
+    check("the release's limits: fm1pkg_make's app_slot of fm1.toml's app_end and of the SD card mode's, app.ld's SRAM",
+          lim == {"flash": 581564, "flash_by_layout": {"1": 0xCE000 - 0x4000 - 0x120 - 0xF24}, "sram": 0x74000})
+    try:
+        fm1base.limits({"app_slot": 581564 + 4})
+        _refused = False
+    except fm1base.FM1BaseError:
+        _refused = True
+    check("a measurement base whose app slot is not what fm1-base's rules say is refused", _refused)
 print("fm1base: all passed" if not fails else f"fm1base: {fails} FAILED")
 sys.exit(1 if fails else 0)
