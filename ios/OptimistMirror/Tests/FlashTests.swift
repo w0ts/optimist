@@ -199,6 +199,50 @@ final class FlashTests: XCTestCase {
             XCTFail("\(error)")
         }
     }
+    // MARK: - the route and the build's BOOTLOADER (docs/INSTALL-PATHS.md; the same pairs as tools/fm1_route.py)
+
+    func testRouteMatrix() {
+        let own = InstallRoute.Package(kind: "optimist", product: "FM-1_700", flashLen: 0x93000, ownLoader: true)
+        let rel = InstallRoute.Package(kind: "fm1base", product: "FM-1_79000200", flashLen: 0xCE000, ownLoader: true)
+        let mb = InstallRoute.Package(kind: "mboot", product: "FM-1_099", flashLen: nil, ownLoader: false)
+        let cases: [(String, InstallRoute.Package, String, String)] = [
+            ("optimist", own, "keep", "loader"), ("optimist", rel, "keep", "download"), ("fm1base", own, "keep", "loader"),
+            ("stock", own, "keep", "loader"), ("open", own, "keep", "download"), ("none", own, "keep", "download"),
+            ("fm1base", mb, "keep", "download"), ("optimist", own, "m-bootloader", "download"), ("loader", own, "keep", "loader")]
+        for (r, p, b, want) in cases {
+            XCTAssertEqual(InstallRoute.choose(r, p, bootloader: b, runningText: r == "stock" ? "FM-1_016" : "").method, want, "\(r) \(p.kind) \(b)")
+        }
+        XCTAssertEqual(InstallRoute.runningKind("FM-1_906", port: "SLOOP 2.7"), "sloop")
+        XCTAssertEqual(InstallRoute.runningKind("FM-1_7900"), "fm1base")
+        XCTAssertEqual(InstallRoute.runningKind("FM1_OFFICIAL_OPEN"), "open")
+        XCTAssertEqual(InstallRoute.packageKind(product: "FM-1_700", sha256: "", flashLen: 0xCE000).kind, "other")
+        XCTAssertNil(InstallRoute.flashLen([1, 2, 3]))
+    }
+
+    func testBootloaderOverrideGoesToKeepOnly() {
+        XCTAssertEqual(InstallRoute.bootloaderChoice("m-bootloader", keep: false).0, "m-bootloader")
+        XCTAssertEqual(InstallRoute.bootloaderChoice("m-bootloader", keep: true).0, "keep")
+        XCTAssertEqual(InstallRoute.bootloaderChoice("keep", keep: false).0, "keep")
+        XCTAssertEqual(InstallRoute.bootloaderChoice("keep", keep: true).0, "keep")
+        XCTAssertEqual(InstallRoute.bootloaderChoice(nil, keep: false).0, "keep")
+        XCTAssertTrue(InstallRoute.bootloaderChoice(nil, keep: false).1.contains("no build setting"))
+        XCTAssertEqual(InstallRoute.bootloader(config: "# x\nBOOTLOADER=1\n"), "m-bootloader")
+        XCTAssertEqual(InstallRoute.bootloader(config: "ENG_FM6=1\n"), "keep")
+    }
+
+    @MainActor
+    func testDownloadModeIsSaidNeverWritten() async throws {
+        var pkg = try FlashPackage.check(FakeFlashDevice.package("FM-1_700", size: 3000), title: "t", file: "p.fwsc")
+        pkg.bootloader = "m-bootloader"
+        let dev = FakeFlashDevice(.firmware("FM-1_700"), image: pkg.image.count, finalIdentity: "FM-1_700")
+        let model = FlashModel(link: MirrorLink(), ports: dev)
+        let r = model.route(for: pkg, running: "FM-1_700", port: "FM1-1A2B")
+        XCTAssertEqual(r.method, "download")                      // (the build's m-bootloader: M-Flasher's backup first)
+        XCTAssertTrue(InstallRoute.nextStep(r, file: "p.fwsc").contains("fm1_install.py p.fwsc"))
+        model.keepBootloader = true                              // (the override, for one install)
+        XCTAssertEqual(model.route(for: pkg, running: "FM-1_7900", port: "").method, "loader")    // (fm1-base takes it: keep, the loader)
+        XCTAssertFalse(dev.upgraded)
+    }
 }
 
 /// A fake FM-1 on USB: answers the handshake with its identity, and after the upgrade command reads the image as the device

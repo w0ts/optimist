@@ -20,7 +20,7 @@ help:
 	@echo "make build   [PROFILE=name]    build a profile without the menu ($(PROFILE))"
 	@echo "make classic [PROFILE=name]    the same, Optimist's own firmware (main's): what make build did before the release"
 	@echo "make package [PROFILE=name]    build a profile and copy .fwsc (+ -ui.zip, classic) into $(IMAGES)/"
-	@echo "make flash   [PKG=file.fwsc]   build $(PROFILE) and install it (or PKG as it is) on an FM-1 over USB-MIDI; shows both identities and asks"
+	@echo "make flash   [PKG=file.fwsc] [KEEP_BOOTLOADER=1]   build $(PROFILE) and install it (or PKG as it is); shows the identities, the route and the bootloader, and asks"
 	@echo "make profiles                  the profiles: published (CI builds them), shipped, mine"
 	@echo "make publish   PROFILE=name    CI builds this shipped profile (# publish: yes; commit it)"
 	@echo "make unpublish PROFILE=name    CI no longer builds it"
@@ -71,7 +71,7 @@ package: sdk
 # (builds PROFILE first unless PKG is given, so it never flashes an old file; asks first. Needs mido + python-rtmidi:
 # make setup)
 flash:
-	$(PY) tools/optimist.py flash $(if $(PKG),$(PKG),--profile $(PROFILE)) $(CL)
+	$(PY) tools/optimist.py flash $(if $(PKG),$(PKG),--profile $(PROFILE)) $(if $(KEEP_BOOTLOADER),--keep-bootloader) $(CL)
 
 profiles:
 	$(PY) tools/optimist.py config --profiles

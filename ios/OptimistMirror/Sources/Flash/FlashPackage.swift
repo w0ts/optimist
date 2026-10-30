@@ -11,6 +11,8 @@ struct FlashPackage: Equatable {
     let product: String           // "FM-1_700"
     let sha256: String
     let image: [UInt8]            // the logical image (the .fwsc without its 20 marker bytes)
+    /// the builder's BOOTLOADER ("keep" / "m-bootloader"; nil: no build setting with this package)
+    var bootloader: String? = nil
 
     private static let blocks = 20, blk = 0x30, keep = 0x2F
     /// firmware/loader: in every package the installer writes (make_site.py)

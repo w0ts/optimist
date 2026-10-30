@@ -24,8 +24,9 @@
 //     links,         { build, backup, editor, about, docs }: the hrefs of those (defaults: the site's relative paths)
 //     midi,          (options) => Promise<MIDIAccess>: default navigator.requestMIDIAccess (tests pass a mock)
 //   }) -> { unmount(), busy }    busy: true while writing (the host must not unload or hide the page then)
-import { checkUfw, logicalImage, productOf, sha256hex } from "../fm1base/fm1pkg.js";
+import { checkUfw, logicalImage, productOf, sha256hex, ufwEntries } from "../fm1base/fm1pkg.js";
 import { STOCK_V15_SHA256, OptimistUpdater, stockBanks, validateStockPackage } from "../fm1ota_optimist.js";
+import { SOFT_KEY, bootloaderChoice, bootloaderFromConfig, chooseRoute, flashLenOf, nextStep, packageKind, runningKind } from "../install_route.js";
 
 const STYLE_ID = "optimist-installer-style";
 const BUNDLED_CSS = null;                           /* make_site.py puts web/installer/installer.css here */
@@ -103,10 +104,11 @@ export const TEXT = {
   portsHead: "Other MIDI ports on this computer. If one is your FM-1, try it:",
   tryPort: "Try", portsWait: "Asking…", portsEmpty: "No other MIDI ports.",
   portNone: "No FM-1 answered on {port}.", portOk: "Found {id} on {port}. This browser remembers it. Press the button again.",
-  /* m-bootloader */
-  bootOpt: "Also install m-bootloader: hold PLAY while switching on for a recovery menu, or REC for update mode, even when a firmware will not start.",
-  bootWhy: "An open bootloader by Julius Vitkauskas (MIT). It replaces M-VAVE's bootloader and stays through firmware updates; Back to the official firmware puts M-VAVE's back. Its menu's WIPE USER DATA erases everything firmwares have saved. The FM-1 restarts once more for it.",
-  bootDoing: "Installing m-bootloader: the FM-1 restarts by itself…", doneBoot: " With m-bootloader.",
+  /* m-bootloader: the build's BOOTLOADER, shown; the page never writes it (its full backup first is M-Flasher's) */
+  bootOpt: "install m-bootloader (from the build): yes. Untick to keep the bootloader for this install.",
+  bootWhy: "An open bootloader by Julius Vitkauskas (MIT): REC while switching on for download mode, PLAY for a recovery menu. It is installed with a full backup of the flash first, which only M-Flasher on a computer makes: this page installs the firmware and keeps the bootloader.",
+  bootLater: " m-bootloader was not installed: on a computer, python tools/fm1_install.py with this package, or M-Flasher's Install m-bootloader (a full backup first).",
+  needsDownload: "Not installed. ", softKey: "Switch the FM-1 to download mode (for M-Flasher on this computer)", softSent: "Sent: the FM-1 restarts in download mode (its screen stays as it was). Switch it off and on to leave it.",
   /* step 4 */
   r1h: "The install stopped halfway", r1: "The FM-1 stays in update mode. Press Install again: it finishes.",
   r2h: "Optimist is installed but does not start", r2: "Hold OCT− alone while switching the FM-1 on. The screen says OPTIMIST USB RESCUE; install again from here. After two start-ups that crash, the FM-1 starts in USB rescue by itself.",
@@ -367,8 +369,11 @@ export function mountInstaller(container, opts = {}) {
   el.pkginfo = h("p.oi-pkg", { role: "status", "aria-live": "polite" });
 
   /* ---- 3 Install */
-  el.boot = h("input.oi-boot", { type: "checkbox", id: "oi-boot" });
-  el.bootRow = h("div.oi-bootopt", { hidden: true }, h("label", { for: "oi-boot" }, el.boot, " ", TEXT.bootOpt), h("p.o-dim", {}, TEXT.bootWhy));
+  el.boot = h("input.oi-boot", { type: "checkbox", id: "oi-boot", checked: true, onchange: () => render() });
+  el.bootLine = h("p.oi-bootline.o-dim", {}, "");
+  el.bootOpt = h("div.oi-bootopt", { hidden: true }, h("label", { for: "oi-boot" }, el.boot, " ", TEXT.bootOpt), h("p.o-dim", {}, TEXT.bootWhy));
+  el.bootRow = h("div.oi-bootrow", {}, el.bootLine, el.bootOpt);
+  el.soft = h("button.o-btn.sm.oi-softkey", { type: "button", hidden: true, onclick: () => sendSoftKey() }, TEXT.softKey);
   el.go = h("button.o-btn.primary.big.oi-go", { type: "button", disabled: true, onclick: () => install() }, TEXT.install);
   el.phases = h("ol.oi-phases", {}, TEXT.phases.map((t) => h("li", { "data-st": "wait" }, t)));
   el.bar = h("progress.o-progress.oi-bar", { max: "100", value: "0", "aria-label": TEXT.s3 });
@@ -468,6 +473,10 @@ export function mountInstaller(container, opts = {}) {
         pkg = await checkPackage(new Uint8Array(await r.arrayBuffer()));
         if (pkg.stock || (pkg.sha256 && pkg.sha256 !== b.sha256)) throw codeError("badpkg", `sha256 ${pkg.sha256}, expected ${b.sha256}`);
         pkg.title = `${b.name} (${TEXT.mineTitle}${b.id})`;
+        try {                                        /* (its .config beside it on the shelf: BOOTLOADER) */
+          const c = await fetchFn(cloudFileUrl(repo, shelf.sha, b.config));
+          pkg.bootloader = c.ok ? bootloaderFromConfig(await c.text()) : null;
+        } catch (_) { pkg.bootloader = null; }
         pkg.file = b.fwsc;
       } else {
         const meta = packages[Number(st.choice)];
@@ -475,9 +484,12 @@ export function mountInstaller(container, opts = {}) {
         if (!r.ok) throw codeError("loadfail", `HTTP ${r.status}`);
         pkg = await checkPackage(new Uint8Array(await r.arrayBuffer()), meta);
         pkg.title = meta.title; pkg.version = meta.release || version;
+        pkg.bootloader = meta.bootloader === "m-bootloader" || meta.bootloader === "keep" ? meta.bootloader : null;
         pkg.file = decodeURIComponent(String(meta.pkg).split(/[/?#]/).filter(Boolean).pop() || "");
       }
       if (gen !== st.gen) return;
+      if (pkg.bootloader === undefined) pkg.bootloader = null;
+      el.boot.checked = true;                        /* (a new package: the build's value again) */
       st.pkg = pkg;
     } catch (e) {
       if (gen !== st.gen) return;
@@ -517,7 +529,10 @@ export function mountInstaller(container, opts = {}) {
     el.go.disabled = !p || st.busy || !midiOf || !secure;
     el.find.disabled = st.busy || !midiOf || !secure;
     el.stockWarn.hidden = !(p && p.stock);
-    el.bootRow.hidden = !st.boot || !!(p && p.stock);                   /* (never on the return to the official firmware) */
+    const bv = p && !p.stock ? p.bootloader : null;                    /* (the build's BOOTLOADER, null: no setting) */
+    el.bootRow.hidden = !p || !!p.stock;                                /* (never on the return to the official firmware) */
+    el.bootOpt.hidden = bv !== "m-bootloader";                          /* (the override goes to keep only) */
+    el.bootLine.textContent = p ? bootloaderChoice(bv, bv === "m-bootloader" && !el.boot.checked).line : "";
     el.boot.disabled = st.busy;
     el.meta.replaceChildren(...(p ? [h("span", {}, `${p.title}${p.version ? " " + p.version : ""}`), " · ", h("span", {}, p.product),
       source && !p.stock && st.choice !== "file" && st.choice !== "mine" ? [" · ", TEXT.builtFrom, h("span.o-mono", {}, source)] : [],
@@ -543,7 +558,7 @@ export function mountInstaller(container, opts = {}) {
     try {
       const midi = await access();
       const dev = await newUpdater(midi, log).find();
-      if (dev) { dev.link.close(); say(el.found, TEXT.found + describeIdentity(dev.id), "ok"); el.ports.hidden = true; }
+      if (dev) { dev.link.close(); st.running = { text: dev.id.text, port: dev.name || "" }; say(el.found, TEXT.found + describeIdentity(dev.id), "ok"); el.ports.hidden = true; }
       else { say(el.found, TEXT.notfoundShort, "err"); el.help.hidden = false; showPorts(midi); }
       el.find.textContent = TEXT.findAgain;
     } catch (e) {
@@ -627,7 +642,9 @@ export function mountInstaller(container, opts = {}) {
     if (st.detecting) await st.detecting;            /* (one handshake at a time on the port) */
     try {
       const up = newUpdater(midi, log);
-      const withBoot = !pkg.stock && !!st.boot && el.boot.checked;
+      const dev = await up.find();                  /* (none: the steps below say so, as before) */
+      const route = dev ? routeOf(pkg, dev) : { method: "loader" };
+      if (route.method === "download") { needsDownload(route, pkg); st.busy = false; syncChoice(); render(); return; }
       const onStep = (k, a) => step(k, a, k === "write" ? up.lastAddr : undefined);
       const ota = await up.find(isOta);
       let back;
@@ -640,14 +657,10 @@ export function mountInstaller(container, opts = {}) {
       } else {
         back = await up.install(pkg.image, pkg.product, onStep, pkg.sha256);
       }
-      if (withBoot) {                                /* m-bootloader after the firmware (fm-1-base's installBoot) */
-        say(el.status, TEXT.bootDoing);
-        back = await up.installBoot(st.boot, pkg.product, onStep);
-      }
       setPhase(4, "done");
       el.bar.value = 100;
       say(el.status, "");
-      el.ok.replaceChildren(h("span", {}, `${TEXT.done}${pkg.title} (${back}).${withBoot ? TEXT.doneBoot : ""}`), " ",
+      el.ok.replaceChildren(h("span", {}, `${TEXT.done}${pkg.title} (${back}).${pkg.bootloader === "m-bootloader" && el.boot.checked ? TEXT.bootLater : ""}`), " ",
         pkg.stock ? (pkg.banks ? h("div.oi-banks", {}, h("p.o-dim", {}, TEXT.banksNote),
           h("button.o-btn.sm.oi-banksgo", { type: "button", onclick: () => restoreBanks(pkg.banks) }, TEXT.banksBtn)) : null)
           : h("button.o-btn.sm", { type: "button", onclick: () => (opts.onNavigate ? opts.onNavigate("editor") : (location.href = links.editor)) }, TEXT.openEditor));
@@ -661,18 +674,34 @@ export function mountInstaller(container, opts = {}) {
     st.busy = false; syncChoice(); render();
     if (!el.ok.hidden) el.go.textContent = TEXT.installAgain;
   }
-  /* m-bootloader (opts.boot: the site's { pkg, sha256 }): offered only when its package is here and is the one the site
-     was made with (the checksum), and says it is the FM-1_099 installer */
-  async function loadBoot() {
-    if (!opts.boot || !opts.boot.pkg) return;
+  /* the way for this package (web/install_route.js, as tools/fm1_route.py): the running firmware's loader, or the
+     chip's download mode, which a browser cannot reach. dev: the FM-1 found now (closed here) */
+  function routeOf(pkg, dev) {
+    dev.link.close();
+    const r = st.running = { text: dev.id.text, port: dev.name || "" };
+    if (pkg.stock) return { method: "loader" };
+    let flashLen = null;
+    try { flashLen = flashLenOf(ufwEntries(pkg.image)); } catch (_) { /* (checkPackage parsed it already) */ }
+    const info = packageKind(pkg.product, pkg.sha256, flashLen, true);
+    const boot = bootloaderChoice(pkg.bootloader, pkg.bootloader === "m-bootloader" && !el.boot.checked).choice;
+    const route = chooseRoute(runningKind(r.text, r.port), info, boot, r.text);
+    log(`route ${route.method}: ${route.why}`);
+    return route;
+  }
+  function needsDownload(route, pkg) {
+    say(el.status, "");
+    el.err.replaceChildren(h("p", {}, TEXT.needsDownload + nextStep(route, pkg.file || "PACKAGE.fwsc")), ...(route.softKey ? [el.soft] : []));
+    el.soft.hidden = !route.softKey;
+    el.err.hidden = false;
+  }
+  async function sendSoftKey() {                   /* the soft key, F0 22 24 35 7D F7: the FM-1 restarts in download mode */
     try {
-      const r = await fetch(opts.boot.pkg);
-      if (!r.ok) return;
-      const raw = new Uint8Array(await r.arrayBuffer());
-      if (await sha256hex(raw) !== opts.boot.sha256 || productOf(raw) !== "FM-1_099") return;
-      st.boot = logicalImage(raw);
-      render();
-    } catch (_) { /* no option, then */ }
+      const dev = await newUpdater(await access(), log).find();
+      if (!dev) { say(el.status, TEXT.notfoundShort, "err"); return; }
+      dev.link.send(SOFT_KEY);
+      dev.link.close();
+      say(el.status, TEXT.softSent, "ok");
+    } catch (e) { showError(e, -1); }
   }
   /* the official voice banks back into the V15 just installed (fm1ota.js restoreBanks) */
   async function restoreBanks(banks) {
@@ -714,7 +743,6 @@ export function mountInstaller(container, opts = {}) {
   }
   syncChoice();
   loadChoice();
-  loadBoot();
   return {
     unmount() { window.removeEventListener("beforeunload", beforeUnload); if (st.access) st.access.onstatechange = null; container.replaceChildren(); },
     get busy() { return st.busy; },

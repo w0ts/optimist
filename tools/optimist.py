@@ -59,7 +59,7 @@ DEFAULT_PROFILE = C.DEFAULT_PROFILE            # synths-USB-BTA-BTM: what build,
 REFERENCE_PROFILE = C.REFERENCE_PROFILE        # synths_USBaudio_BTaudio_BTmidi: the profile the host tests, the gate and the emulator checks build
 PY_TESTS = ("tests/builder_test.py", "tests/builder_core_test.py", "tests/builder_flash_guard_test.py",
             "tests/builder_progress_test.py", "tests/optimist_cli_test.py", "tests/fm1base_test.py", "tests/install_test.py", "tests/port_names_test.py",
-            "tests/rescue_test.py", "tests/rescue_any_test.py",
+            "tests/rescue_test.py", "tests/rescue_any_test.py", "tests/anyflash_test.py",
             "tests/icons_test.py", "tests/fm1_cpu_test.py", "tests/ble_rf_capture_test.py",
             "tests/emu_driver_once_test.py", "tools/doc_coverage.py")
 
@@ -237,7 +237,17 @@ def cmd_flash(a):
         if pkg is None:
             return 1
     try:
-        plan = flash.preflight(pkg, a.port)
+        plan = flash.preflight(pkg, a.port, keep_bootloader=a.keep_bootloader)
+        flag = "wipe" if a.wipe_settings else "keep" if a.keep_settings else None
+        if plan.download and plan.settings and plan.settings.ask and flag is None and not a.yes:
+            print(f"{plan.settings.reason}.")
+            try:
+                ans = input("Erase the new firmware's settings and pairings? " +
+                            ("[Y/n] " if plan.settings.default == "wipe" else "[y/N] ")).strip().lower()
+            except EOFError:
+                ans = ""
+            flag = plan.settings.default if not ans else ("wipe" if ans in ("y", "yes") else "keep")
+        plan = flash.with_settings(plan, flag)
         print("\n".join(plan.lines()))
         if plan.warn and a.yes:
             print("not flashed: --yes does not accept the warning above (flash without --yes to answer it)")
@@ -667,6 +677,11 @@ def parser():
     add_config_args(p)                                   # (what to build when there is no PACKAGE)
     p.add_argument("--port", metavar="NAME", help="MIDI port to use (part of its name)")
     p.add_argument("--yes", action="store_true", help="do not ask for confirmation")
+    p.add_argument("--keep-bootloader", action="store_true",
+                   help="keep the FM-1's bootloader for this install, though the build says m-bootloader")
+    sg = p.add_mutually_exclusive_group()
+    sg.add_argument("--keep-settings", action="store_true", help="download mode: keep the settings and pairings")
+    sg.add_argument("--wipe-settings", action="store_true", help="download mode: erase the new firmware's settings and pairings")
     p.set_defaults(fn=cmd_flash)
     p = sub.add_parser("config", help="the builder without the menu (configure.py arguments)", add_help=False)
     p.add_argument("rest", nargs=argparse.REMAINDER)
