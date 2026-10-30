@@ -363,7 +363,7 @@ def dry_runs():
     o = out.getvalue()
     ok(rc == 0 and not dev.calls() and dev.soft == 0, "--dry-run: no MIDI backend needed, M-Flasher never run")
     ok("route:    download" in o and f"{dev.exe} backup" in o and "firmware PACKAGE" in o, "--dry-run: the route and M-Flasher's command lines")
-    ok("0x93000" in o and "big (0xCE000)" in o and "user data overwritten" in o and "restore of the planned flash" in o,
+    ok("0x93000" in o and "more flash (0xCE000)" in o and "user data overwritten" in o and "restore of the planned flash" in o,
        "--dry-run --flash-image: the exact sectors of a layout switch, the data it overwrites")
     pkg2 = write_pkg(TMP / "dry2.fwsc", synth_flash(0x93000, 31), "FM-1_700")
     out = io.StringIO()

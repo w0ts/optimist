@@ -66,7 +66,7 @@ def layout_of(end: int) -> str:
     layout = ends[end][0]
     shared = [e for e, (k, _) in ends.items() if k == layout]
     name = flash_layout.NAMES[layout]
-    return f"{name} ({end:#x})" if len(shared) > 1 else name
+    return f"{name} (0x{end:X})" if len(shared) > 1 else name
 
 
 def _up(n: int) -> int:
