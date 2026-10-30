@@ -650,7 +650,7 @@ static void ui_tests(void)
     sends_zero();
     d = dsend_desc(L_SNARE, 0, &vp);
     param_format(d, *vp, val, &unit);
-    check("REV of a fresh lane: 4 (16, the old DRUMS REV default)", d && *vp == 4 && !strcmp(val, "4") && d->def == 4);
+    check("REV of a stored lane left as it is: 4 (16); the knob's default is 0 (built-in sounds are dry)", d && *vp == 4 && !strcmp(val, "4") && d->def == 0);
     dsend_set(L_SNARE, 0, 40);
     dsend_set(L_SNARE, 1, 7);
     dsend_set(L_SNARE, 2, -3);
@@ -665,6 +665,52 @@ static void ui_tests(void)
     sends_zero();
 }
 
+/* ------------------------------------------------------------------ dry presets (2026-10-29) */
+/* every built-in drum preset comes with no effects: each factory kit, on the drum track, in a new project's state and
+ * after RESET of each lane (the sound as the kit has it), has every lane's REV / DLY / CHO 0, no insert amount (DST /
+ * CMP 0), and the drum track's own sends and insert amounts 0 */
+static int lanes_dry(void)
+{
+    uint32_t l;
+    for (l = 0; l < DRUM_LANES; l++)
+        if (dsend_rev(dsend[l]) || dsend_dly(dsend[l]) || dsend_cho(dsend[l]) || lin_amt(l, 0) || lin_amt(l, 1) ||
+            dins_amt[0][l] || dins_amt[1][l])
+            return 0;
+    return !TDRUM->p[P_REV] && !TDRUM->p[P_DLY] && !TDRUM->p[P_CHOR] && !TDRUM->p[P_DIST] && !TDRUM->p[P_TCOMP];
+}
+static void dry_tests(void)
+{
+    uint32_t k, l, n = 0, ok_new = 1, ok_reset = 1, ok_sound = 1;
+    for (k = 0; k < DRUM_KITS; k++) {
+        if (!drum_kit_built(k))
+            continue;
+        n++;
+        TDRUM->p[P_E0] = (int16_t)k;
+        for (l = 0; l < DRUM_LANES; l++) {          /* (a wet lane first, then each way a built-in sound comes) */
+            dsend[l] = dsend_word(31, 31, 31);
+            dins_amt[0][l] = dins_amt[1][l] = 99;
+        }
+        dsend_dry();                                /* a new project / power-on with nothing stored */
+        (void)fxr_decode(0, 0, 1);                  /* (the FX record of a blank load: the inserts) */
+        ok_new &= (uint32_t)lanes_dry();
+        for (l = 0; l < DRUM_LANES; l++) {
+            dsend[l] = dsend_word(31, 31, 31);
+            dins_amt[0][l] = dins_amt[1][l] = 99;
+            dl.ofs[l][DE_TUNE] = 5;
+            dsnd_reset(l);
+            ok_sound &= (uint32_t)(dl.src[l] == DL_KIT && !dl.ofs[l][DE_TUNE]);
+        }
+        ok_reset &= (uint32_t)lanes_dry();
+    }
+    check("dry presets: at least the 808 kit is built", n >= 1u);
+    check("dry presets: every built-in kit, a new project: all sends 0, no insert, the drum track's too", ok_new);
+    check("dry presets: every built-in kit, RESET of each lane: all sends 0, no insert", ok_reset);
+    check("dry presets: RESET still brings the kit's source and no offsets", ok_sound);
+    dsend[L_SNARE] = 0;                             /* a lane left as it is in a stored project: REV 4 (kept) */
+    check("a stored lane (word 0) keeps REV 4: only the built-in presets changed", dsend_rev(dsend[L_SNARE]) == 4u);
+    sends_zero();
+}
+
 int main(void)
 {
     audio_tests();
@@ -674,6 +720,7 @@ int main(void)
     kit_tests();
     editor_tests();
     ui_tests();
+    dry_tests();
     printf(fails ? "DRUM SENDS TEST FAILED\n" : "drum sends test passed\n");
     return fails != 0;
 }
