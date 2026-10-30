@@ -134,6 +134,14 @@ def picking():
 # ---------------------------------------------------------------- the fetch ---
 
 def fetching():
+    saved = os.environ.pop("M_FLASHER_HOME", None)
+    try:
+        d = MF.home()
+    finally:
+        if saved is not None:
+            os.environ["M_FLASHER_HOME"] = saved
+    ok(d == MF.ROOT / "build" / "m-flasher" / "m-flasher-0.7.0" and Path.home() / ".jieli" not in d.parents,
+       "the fetched release stays inside the repo (build/m-flasher, git-ignored), never in the user's home")
     data = windows_zip()
     sha = hashlib.sha256(data).hexdigest()
     srv = Server({"M-Flasher-0.7.0-windows.zip": data})
