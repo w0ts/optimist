@@ -160,7 +160,7 @@ for _k in C.NEEDS_AUTO:
 # found them unmeasured): each measured with what configure.validate asks of it, less those items' own deltas. The big
 # layout (LAYOUT 1) wants the sample engine, the user drums and the snapshots out and the patterns in; OVERLAY
 # and the card's recorder and rings want LAYOUT 1 (measured first: they subtract it); the rings want SAMPLE and an
-# arena that holds the delay's 128 KB line beside them (192 KB: every SD_RING value validates there)
+# arena (ARENA on)
 _LAYOUT = {"ENG_SAMPLE": 0, "DRUM_USR": 0, "SNAPSHOTS": 0, "PATTERNS": 1}
 WITH[("LAYOUT", 1)] = dict(_LAYOUT)
 WITH[("OVERLAY", 1)] = dict(_LAYOUT, LAYOUT=1)
@@ -168,7 +168,7 @@ WITH[("BT_PROJ", 1)] = {"BLE": 1, "ED_MIRROR": 1, "PATTERNS": 1}
 for _v in (16, 32, 64):
     WITH[("SD_REC", _v)] = dict(_LAYOUT, LAYOUT=1)
 for _v in (4, 8, 12, 16):
-    WITH[("SD_RING", _v)] = dict(_LAYOUT, LAYOUT=1, ENG_SAMPLE=1, ARENA=192)
+    WITH[("SD_RING", _v)] = dict(_LAYOUT, LAYOUT=1, ENG_SAMPLE=R.eng_place("ENG_SAMPLE"), ARENA=1)   # (ARENA is on/off since 2026-10-29, ENG_SAMPLE's 1 is no value of it: the context was refused, the rings unmeasured)
 
 
 def name_of(k, v):
@@ -756,8 +756,10 @@ def run(a, old, logd, new_pairs, write):
                     print(f"  {k}={v}: not in this build ({kind()}): {LAST_ERROR[0]}", flush=True)
                 continue
             err, _, _ = C.validate(cfg)
-            if err:                                     # (e.g. the last FM6 mode: measured with another off)
-                print(f"  {k}={v}: skipped ({'; '.join(err)})")
+            if err:                                     # (the value itself refused in this build kind, USB_HOST in the classic: skipped;
+                print(f"  {k}={v}: skipped ({'; '.join(err)})")   # the context it is measured in refused: a stale WITH, reported)
+                if any(k not in getattr(e, "keys", ()) for e in err):
+                    FAILED[f"{k}={v}"] = "its measurement context is refused: " + "; ".join(err)
                 continue
             delta = item_delta_of(out, k, v, cfg, base, logd, prev_sizes)
             if delta is None:                           # (the release: not alone; below, with what it needs)
