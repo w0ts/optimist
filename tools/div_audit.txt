@@ -173,9 +173,8 @@ src/core/voice.c:voice_alloc:np | np = trk_nvoice() = poly in 1..NPOLY-1, else N
 src/engines/acid/eng_acid.c:acid_generate:len | len = P_SLEN if > 0, else 1 (as trk_len): >= 1
 src/seq/motion.c:motion_knob:trk_len(t) | TLEN
 src/seq/auto_lane.c:lane_knob:trk_len(t) | TLEN
-src/engines/phys/phys_dsp.c:px_svf_coef:q8 | every caller passes q8 >= 179: 179 / 384 (exciter) or 256 + a non-negative term (modes)
-src/engines/phys/phys_dsp.c:px_svf_coef:d24 | d24 = (den + 15) >> 4 with den >= 2^28: >= 2^24
-src/engines/phys/phys_dsp.c:px_csvf_coef:(uint32_t)fr | guarded: "if (fr > 0)"
+src/engines/phys/phys_dsp.c:__attribute__:v | px_udiv's divisor, never 0 at any caller (every 64-bit divide of PHYS goes through it, 2026-10-30): px_svf_coef q8 >= 179 (179 / 384 for the exciter, 256 + a non-negative term for the modes) and d24 = (den + 15) >> 4 with den >= 2^28; px_csvf_coef fr guarded by "if (fr > 0)"; Dust's dust_thr = df * 19661, df >= 3 (both sites); the strike's cut clamped to 65536 .. 2143260078 just before; NthHarmonicCompensation 65536 + stiff + stiff * 0.93 >= 57,631 (px_stiff >= -4096); MEMB's r = IDEAL + harm (LOADED - IDEAL) >= 65536 (both TABLEs >= 65536); px_period f >= 2^16 (every caller clamps it); src_ratio only below 1 << 30, = delay * f >> 18 >= 65536; the OnePole's sin + cos of df / 2 < 0.25 turn: >= 1; 2^(dcut / 12) with dcut >= 12 st: >= 2; 9830 + nl with nl made non-negative; phys_symp.c f[k] >= 65536 (smaller ones continue the loop)
+src/engines/phys/phys_dsp.c:__attribute__:vn1 | px_udiv: v (> 0) is shifted left by its leading zeros, so its top bit is set and vn1 = v >> 16 >= 32768 (both sites)
 src/engines/plaits/eng_plaits.c:pl_wsh:((pw>>16)|1u) | an or with 1: >= 1
 src/engines/plaits/eng_plaits.c:pl_wsh:(65536u-(pw>>16)) | pw <= 0xFFFFFFFF - 2 f0 < 2^32, so pw >> 16 <= 65535: >= 1
 src/engines/plaits/eng_plaits.c:pl_spectrum:(sh?sh:1u) | guarded: sh ? sh : 1
@@ -186,15 +185,6 @@ src/engines/plaits/eng_plaits.c:pl_grn:(uint32_t)(65536-c.bp) | c.bp <= 66 + 327
 src/engines/plaits/eng_plaits.c:pl_prt:(uint32_t)q16 | q16 = 32768 + a square (0.5 + q_sqrt^2): >= 32768
 src/engines/plaits/eng_plaits.c:pl_prt:(s16?s16:1u) | guarded: s16 ? s16 : 1
 src/engines/plaits/eng_plaits.c:plaits_render:(uint32_t)(4096+g) | g is an SVF_G entry (>= 0) or between two: >= 4096
-src/engines/phys/phys_dsp.c:__attribute__:B->dust_thr | dust_thr = df * 19661 with df = 3 + a non-negative product: >= 58,983 (both sites)
-src/engines/phys/phys_dsp.c:__attribute__:cut | cut is clamped to 65536 .. 2143260078 just before (the exciter's cutoff)
-src/engines/phys/phys_dsp.c:__attribute__:r | r = PX_MEMB_IDEAL[i] + harm (LOADED - IDEAL), both TABLEs >= 65536 and harm 0..1 Q16: >= 65536
-src/engines/phys/phys_dsp.c:px_period:f | f >= 2^16: every caller clamps it (the comment, px_string_blk callers)
-src/engines/phys/phys_dsp.c:__attribute__:(uint32_t)B->src_ratio | only below 1 << 30, where src_ratio = delay * f >> 18 with delay >= 4 << 16 and f >= 2^16: >= 65536
-src/engines/phys/phys_dsp.c:__attribute__:(s+c) | sin + cos of df / 2 with df < 0.497 (clamped just before): both >= 0 and their sum >= 1 (Q30 sin)
-src/engines/phys/phys_dsp.c:__attribute__:px_exp2(dcut/12) | dcut = 12 st + non-negative terms (>= 786432 Q16, at most 84 st): 2^(dcut / 12) >= 2
-src/engines/phys/phys_dsp.c:__attribute__:(9830+nl) | nl is |nl| (made non-negative just before): >= 9830
-src/engines/phys/phys_symp.c:__attribute__:f[k] | guarded: f[k] < 65536 continues the loop
 src/storage/sections/sec_log.c:sm_more:SEC_ALIGN(SEC_HEAD+n) | SEC_ALIGN(SEC_HEAD + n) >= 16 (SEC_HEAD is 16)
 src/engines/cz/cz_native.c:__attribute__:p->pivot | cz_native_pd: pivot = 1024 - dcw with dcw clamped to 0..1023 by its only caller (cz_native_render): >= 1
 src/engines/cz/cz_native.c:__attribute__:(2048u-p->pivot) | pivot <= 1024 (as above): >= 1024
