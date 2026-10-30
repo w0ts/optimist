@@ -111,7 +111,7 @@ SHIFT is OCT- held, SHIFT2 is OCT+ held. They read one language, as the buttons 
 | SHIFT | PLAY | stop, every voice off |
 | SHIFT2 | a layer's button | the layer locked open (either order); any other button lets it go — except on the pattern page (LFO), where SAVE + key and LFO + key store, HOME + key clears, LFO alone does nothing and HOME alone leaves it (the user, 2026-10-23) |
 
-Keys under the shifts: black key n is drum lane n, the last upper key the ACCENT lane, white keys 1..4 are T1 T2 T3 DR. On STEP the white keys stay steps (SHIFT / SHIFT2 + a step key: a ghost / hard hit). On a lane key the roles invert on STEP (the key alone selects there, plays elsewhere). Pages with no track take no shifted key (section 2.7). `shift_keys` in `op_input.c`.
+Keys under the shifts: black key n is drum lane n, the last upper key the ACCENT lane, white keys 1..4 are T1 T2 T3 DR. On STEP the white keys stay steps (SHIFT / SHIFT2 + a step key: a ghost / hard hit). On a lane key the roles invert on STEP (the key alone selects there, plays elsewhere). PROJECT and SONG, whose keys have their own job, take no shifted key (section 2.7). `shift_keys` in `op_input.c`.
 
 ### 2.4 Paging
 
@@ -138,7 +138,9 @@ SAVE then HOME is undo, HOME then SAVE is redo; both act when one of the two is 
 
 ### 2.7 Pages with no track
 
-GLOBAL, SYSTEM (the BLE devices list too), PROJECT, the master FX, SCOPE, SONG, and the mixer's MASTER and USB rows play no sound, send no MIDI note, light no key, pick no lane and record nothing: the ISR's `ly_lock` is LY_STEP there and `op_drain` drops the presses (`keys_none`). Exceptions: PROJECT's slot rows (a white key picks and runs the slot), SONG's PATTERNS row (the LFO layer's keys), TEMPO (PLAY held: a white key taps the tempo), NAME (types), a held layer (its keys are its own), and MASTER entered by both OCT (the track's keys stay live, `mk_live`).
+The keys play the selected track on every page without a track of its own (the user, 2026-10-30: "every page without a track", "exception the patterns/save page that use the keyboard of course"; it supersedes 2026-10-13's "global pages dont play tracks"): GLOBAL, SYSTEM (INFO's meters while playing; the BLE devices list too), the master FX, SCOPE, and the mixer's MASTER and USB rows play, light and record as the track's own pages, SHIFT / SHIFT2 + a key is its mute / its selection there, and OCT- / OCT+ glow and shift the keys' octave (on GLOBAL's tempo line OCT is the tempo nudge, as before).
+
+Only the pages whose keys have a job of their own play nothing, send no MIDI note, light no key, pick no lane and record nothing (`keys_none`: the ISR's `ly_lock` is LY_STEP there and `op_drain` drops the presses): PROJECT (a white key picks and runs a slot; OCT its banks) and SONG off its PATTERNS row (the scenes, the parts window). Their keys stay theirs too on SONG's PATTERNS row (the LFO layer's keys), TEMPO (PLAY held: a white key taps the tempo), NAME, the memory list and the Wi-Fi password (they type, `page_owned`), and in a held layer.
 
 ALGORITHM follows the same rule (`algo_has_track`, using the header's classification): it walks on the mixer, SOUND, STEP, SCOPE and the layers EDIT, SCL, STEP and FM6's ENV. It does nothing on PROJECT, SONG (its patterns row and the LFO-held patterns screen included, 2026-10-21; only the scenes table reads it, as its lane), TEMPO, NAME, the BLE list, a question, the master FX opened by FX, and the layers FX, ARP, GLO, LFO. On GLOBAL and SYSTEM it scrolls the cursor one line a detent. The master FX reached by walking left of T1 keeps the walk, so that right leaves it (`fx_by_walk`).
 
