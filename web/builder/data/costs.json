@@ -461,7 +461,7 @@
   },
   "X909_HAT": {
    "2": {
-    "flash": -4884,
+    "flash": -4880,
     "ram": 0,
     "pool": 16,
     "ramtext": 0
@@ -501,7 +501,7 @@
   },
   "KIT_TIGHT": {
    "0": {
-    "flash": 24,
+    "flash": 28,
     "ram": 0,
     "pool": 0,
     "ramtext": 0
@@ -557,7 +557,7 @@
   },
   "SET_PIANO": {
    "0": {
-    "flash": -44160,
+    "flash": -44164,
     "ram": 0,
     "pool": 0,
     "ramtext": 0
@@ -621,7 +621,7 @@
   },
   "FX_CHORUS": {
    "0": {
-    "flash": -1584,
+    "flash": -1580,
     "ram": -32,
     "pool": -4476,
     "ramtext": -212
@@ -643,7 +643,7 @@
     "ramtext": 8
    },
    "16384": {
-    "flash": 8,
+    "flash": 4,
     "ram": 0,
     "pool": -98304,
     "ramtext": 0
@@ -659,7 +659,7 @@
   },
   "REV_PLATE": {
    "1": {
-    "flash": 2124,
+    "flash": 2120,
     "ram": 368,
     "pool": 0,
     "ramtext": 2228
@@ -883,7 +883,7 @@
   },
   "INS_SLEW": {
    "1": {
-    "flash": 524,
+    "flash": 528,
     "ram": 360,
     "pool": 0,
     "ramtext": 552
@@ -1489,7 +1489,7 @@
   },
   "REC_MODES": {
    "1": {
-    "flash": 480,
+    "flash": 476,
     "ram": 8,
     "pool": 0,
     "ramtext": 0
@@ -1601,7 +1601,7 @@
   },
   "REV_ROOM": {
    "0": {
-    "flash": -1516,
+    "flash": -1512,
     "ram": -4,
     "pool": -1996,
     "ramtext": -1504
@@ -1671,7 +1671,32 @@
     "ramtext": 0
    }
   },
-  "SD_RING": {},
+  "SD_RING": {
+   "4": {
+    "flash": -170408,
+    "ram": 5392,
+    "pool": 8568,
+    "ramtext": 1640
+   },
+   "8": {
+    "flash": -170388,
+    "ram": 5396,
+    "pool": 8824,
+    "ramtext": 1636
+   },
+   "12": {
+    "flash": -170392,
+    "ram": 5380,
+    "pool": 9080,
+    "ramtext": 1652
+   },
+   "16": {
+    "flash": -170396,
+    "ram": 5380,
+    "pool": 9336,
+    "ramtext": 1652
+   }
+  },
   "SD_REC": {
    "16": {
     "flash": -183996,
@@ -1701,7 +1726,7 @@
    }
   }
  },
- "measured": "2026-10-30 05:53",
+ "measured": "2026-10-30 06:01",
  "cpu": {
   "scale_pct": 104,
   "calibrated": "2026-10-06, emulator at 96 MHz, bench.c scenarios 1 2 3 7 8 (docs/CPU-GUARD.md); X0X: 2026-10-07, scenario 8 on the X0X 909 and 808 kits (x0x-drums)",
@@ -2103,7 +2128,7 @@
    },
    "built_hash": "75e076bb",
    "sizes": {
-    "flash": 833736,
+    "flash": 833740,
     "ram": 145220,
     "pool": 151940,
     "ramtext": 64352
@@ -3311,7 +3336,7 @@
    },
    "built_hash": "6a62fcb9",
    "sizes": {
-    "flash": 623612,
+    "flash": 623608,
     "ram": 131776,
     "pool": 271992,
     "ramtext": 49948
@@ -3758,19 +3783,19 @@
    "ramtext": 0
   },
   "REV_PLATE=1,REV_FDN8=1,SPRING=0": {
-   "flash": -608,
+   "flash": -604,
    "ram": -332,
    "pool": 0,
    "ramtext": -344
   },
   "REV_PLATE=1,REV_FDN8=1,SPRING=1": {
-   "flash": -1216,
+   "flash": -1212,
    "ram": -328,
    "pool": 0,
    "ramtext": -700
   },
   "REV_ROOM=0,REV_PLATE=0,REV_FDN8=1": {
-   "flash": -64,
+   "flash": -68,
    "ram": 12,
    "pool": 0,
    "ramtext": -172
@@ -3800,7 +3825,7 @@
    "ramtext": 16
   },
   "SET_PIANO=0,SET_BASS=0,SET_VIBES=0,SET_HORNS=0,SET_STRGS=0,SET_FLUTE=0,SET_SCRCH=0": {
-   "flash": -1144,
+   "flash": -1140,
    "ram": 0,
    "pool": 0,
    "ramtext": 0
@@ -4059,7 +4084,7 @@
   }
  },
  "unbuildable": {
-  "ENG_PHYS=3": "not in this build: PHYS's render path in the code RAM calls libgcc's 64-bit divide (__udivdi3, px_string_block): the helper is in flash, out of reach of a RAM-to-flash jump (R_PI32V2_LONG_JUMP_23M2 reaches 2 MB); build PHYS \"on\" (code in flash) [link: ld.lld: error: optimist-13/build/o2/core_opt_core.o:(function px_string_block: .app_ram+0x6102): relocation R_PI32V2_LONG_JUMP_23M2 out of range: 2242938 is not in [-2097152, 2097151]; references '__udivdi3']"
+  "ENG_PHYS=3": "not in this build: PHYS's render path in the code RAM calls libgcc's 64-bit divide (__udivdi3, px_string_block): the helper is in flash, out of reach of a RAM-to-flash jump (R_PI32V2_LONG_JUMP_23M2 reaches 2 MB); build PHYS \"on\" (code in flash) [link: ld.lld: error: optimist-105/build/o2/core_opt_core.o:(function px_string_block: .app_ram+0x6102): relocation R_PI32V2_LONG_JUMP_23M2 out of range: 2242938 is not in [-2097152, 2097151]; references '__udivdi3']"
  },
  "groups": {
   "INS_FX": {
@@ -4083,7 +4108,7 @@
     "INS_SLEW"
    ],
    "shared": {
-    "flash": 402,
+    "flash": 403,
     "ram": -3,
     "pool": 0,
     "ramtext": 444
