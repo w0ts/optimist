@@ -1434,8 +1434,10 @@ static uint32_t op_fam_mask(void)                       /* a bit per family the 
  * should be lit up only when they do something"). Both: the octave where the note keys play on a synth track (a tap on
  * release; a held step's notes; both = octave 0 / FOLLOW), STEP on the drum track (ghost / hard held), the TEMPO nudge.
  * OCT- is SHIFT, OCT+ SHIFT2, so both also where the shifts work: the pages with keys (a key's mute, a key selected),
- * SOUND (a knob's default, PRESETS), STEP, the mixer off MASTER; OCT- the BLE devices list (FORGET LAST). Dark: the NAME
- * screen, MASTER, GLOBAL (but the tempo line), SYSTEM, PROJECT, SONG, SCOPE and the other pages of no keys */
+ * SOUND (a knob's default, PRESETS), STEP, the mixer off MASTER, and since 2026-10-30 every page where the keys play the
+ * track (keys_none: GLOBAL, SYSTEM, MASTER FX, the mixer's MASTER row, USB IN, SCOPE; on GLOBAL's tempo line a tap is the
+ * nudge, op_press); OCT- the BLE devices list (FORGET LAST). Dark: the NAME screen and the other pages that own their keys
+ * (page_owned), PROJECT (but its banks), SONG */
 #if FELUCCA_BT_UI
 static int dev_listing(void);                           /* op_project.c: the BLE devices list is open */
 #endif

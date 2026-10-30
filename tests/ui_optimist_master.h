@@ -347,6 +347,9 @@ static void held_page_tests(void)
     track_t *t;
     reset_ui();
     song.sel = 0;
+    pen_n = 1, pen_note[0] = 60, pen_oct = 0;           /* (the pen, seq.c: C4 alone, so the tapped step holds one note. Since
+                                                         * 2026-10-30 the key on the mixer's MASTER row above plays T2, CHORD 3: a
+                                                         * pen of 4 notes, and SELECT would pick among them, not page the cards) */
     tap(B_SEQ);
     key(WK(3));                                         /* (set by a tap: a press no longer sets the step) */
     kdown(WK(3));
