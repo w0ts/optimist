@@ -254,7 +254,7 @@ static void keys_lit(uint32_t *f, uint32_t *d, uint32_t *h)
         return;
     }
     if (keys_none())
-        return;                                         /* (GLOBAL, SYSTEM, MASTER FX, SCOPE: no track, the keys do nothing: dark) */
+        return;                                         /* (PROJECT, SONG: the keys have their own job: dark here) */
     if (is_drum(TSEL) && !master_sel()) {               /* the drum track: the lanes' black keys dim, the selected one full; */
         uint32_t in, on = step_win(blink, &in);         /* the white keys its steps, as on STEP (they are steps on every page) */
         for (k = 0; k < 27u; k++)
