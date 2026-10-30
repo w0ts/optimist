@@ -884,6 +884,9 @@ static void key_tests(void)
         check(ui.scr == SCR_FX, "ALGORITHM on from it: stays (nothing wraps)");
         turn(EN_ALGO, -1);
         check(ui.scr == SCR_SOUND && song.sel == TRK_DRUM && lane_picked(), "ALGORITHM back: SOUND again, the last lane");
+        ui.lane = 0;                                    /* (the walk back left the last lane picked: DR itself again for the tests after) */
+        lane_select(0);
+        track_select(0);
     }
     reset_ui();
     song.sel = TRK_DRUM;

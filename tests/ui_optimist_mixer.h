@@ -251,7 +251,7 @@ static void mixer_sets_tests(void)
     {   /* a return's row (2026-10-30): LEVEL FX amount | PRE TYPE amount POST TYPE amount | its sends to the other returns */
         const uint32_t ra = MXR_RET0, rb = MXR_RET0 + 1u, rc = MXR_RET0 + 2u;
         fxs_set(FXS_DEF);
-        check(mx_labels(ra, 0, "LEVEL", "TYPE", 0, 0) && mx_labels(ra, 1, "PRE", 0, "POST", 0) &&
+        check(mx_labels(ra, 0, "LEVEL", "A", 0, 0) && mx_labels(ra, 1, "PRE", 0, "POST", 0) &&
                   mx_labels(ra, 2, 0, "DLY", "REV", 0) &&
                   mx_labels(rb, 2, FELUCCA_RET_FB ? "CHO" : 0, 0, "REV", 0) &&
                   (FELUCCA_RET_FB ? mx_labels(rc, 2, "CHO", "DLY", 0, 0) : mx_sets(rc) == 2u),
@@ -262,7 +262,7 @@ static void mixer_sets_tests(void)
         cell_t c;
         char h[40];
         const uint32_t ra = MXR_RET0;
-        uint32_t ln = mx_ret_ln(ra), row0 = ui.row[SCR_HOME];
+        uint32_t ln = mx_ret_ln(ra), row0 = ui.row[SCR_HOME], k;
         int16_t c0 = song.g[G_CRET + ln];
         mx_apply(ra);
         mx.set = 0;
@@ -272,6 +272,8 @@ static void mixer_sets_tests(void)
         mix_cell(ra, 0, &c);
         check(ln == 0u && c.d == &GP[G_CRET] && !strcmp(c.val, "100") && !strcmp(c.label, "LEVEL"),
               "RET A's KNOB 1: its line's RET level (CHO's), at unity (100 %)");
+        for (k = 0; ui.overlay == 5u && k < 600u; k++)   /* (an earlier test's PRESETS list still open: its time out) */
+            frame();
         check(mxd.first == MXR_RET0 && mxd.last == MXR_MASTER, "... the view: the three returns, above MASTER");
         mix_cell(ra, 1, &c);
         check(!strcmp(c.val, "CHO"), "... KNOB 2: its effect, CHO (FX > SLOTS' A)");
@@ -297,7 +299,7 @@ static void mixer_sets_tests(void)
             rp_load(ln, RP_PRE, FXT_DIST);
             check(rp_ty[ln][RP_PRE] == FXT_DIST && rp_ty[ln][RP_POST] == FXT_NONE, "... DIST into PRE: it swaps with POST (a type once a return)");
             fxs_load(1, FXT_NONE);
-            check(rp_ty[ln][RP_PRE] == FXT_NONE && mx_labels(ra, 0, 0, "TYPE", 0, 0) && mx_sets(ra) == 1u,
+            check(rp_ty[ln][RP_PRE] == FXT_NONE && mx_labels(ra, 0, 0, "A", 0, 0) && mx_sets(ra) == 1u,
                   "an emptied return: its inserts emptied, its TYPE card alone");
         }
         fxs_set(FXS_DEF);

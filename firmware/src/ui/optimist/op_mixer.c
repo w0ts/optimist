@@ -283,7 +283,7 @@ static uint32_t mx_items_retrow(uint32_t r, mitem_t *it, uint32_t n)
 {
     uint32_t k = mx_ret_slot(r), j = mx_ret_ln(r), i;
     n = j < 3u ? mx_add(it, n, MG_MIX, "LEVEL", MI_RET, G_CRET + j) : mx_add(it, n, MG_MIX, 0, MI_NONE, 0);
-    n = mx_add(it, n, MG_MIX, "TYPE", MI_RTY, k);
+    n = mx_add(it, n, MG_MIX, 0, MI_RTY, k);            /* (its label the slot's, A B C: room for the unit) */
     n = mx_add(it, n, MG_MIX, 0, MI_RAMT, k);
     if (j >= 3u)
         return n;

@@ -52,6 +52,8 @@ static void algo_sound_tests(void)
     ok = al_walk(-2) == MXR_DR && !lane_picked() && al_walk(200) == MXR_MASTER && ui.scr == SCR_FX;
     ok &= al_walk(-1) == MXR_LN - 1u && ui.scr == SCR_SOUND && lane_picked();
     check(ok, "... and back: DR itself; on past the last lane MASTER (the master FX screen), back: SOUND on the last lane");
+    ui.lane = 0;
+    lane_select(0);
     /* the drum track's own SOUND rows (EDIT on DR): into its lanes */
     reset_ui();
     song.sel = TRK_DRUM;
