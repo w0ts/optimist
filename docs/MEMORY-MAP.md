@@ -35,9 +35,19 @@ The FM-1 has two kinds of memory:
 | 0x0FC000-0x0FEFFF | 12 KiB | settings A/B, autosave copy B | data |
 | 0x0FF000 | 4 KiB | SDK key_mac: never written | system |
 
-Your data is about 340 KiB in fixed areas, the same for every build (in the normal flash layout; the fake SD mode,
-builder item `LAYOUT` 1, grows the app slot to 0xD0000 over most of it: [SD-MODE-DESIGN.md](SD-MODE-DESIGN.md)). The one build setting that moves space between
-them is `SNAPSHOTS` (with the CZ collection), which trades USR3 sample space for snapshots.
+Your data is about 340 KiB in fixed areas, the same for every build (in the normal flash layout; the builder's MEMORY
+moves it: [SD-MODE-DESIGN.md](SD-MODE-DESIGN.md) section 9, the one table `tools/flash_layout.py` STEPS,
+`firmware/hal/fm1_steps.h` made from it). The one build setting that moves space between them is `SNAPSHOTS` (with the
+CZ collection), which trades USR3 sample space for snapshots.
+
+| MEMORY (`LAYOUT`) | app slot (app.bin room) | above the app, to R | projects |
+|---|---|---|---|
+| normal (0) | [0x4000, 0x93000) (581,564 B) | the table above | 16 (20 or 32 log sectors at 0xA0000) |
+| no user samples (3) | [0x4000, 0xB5000) (720,828 B) | FM6 voices 0xB5000-0xB6FFF, autosave A 0xB7000, log 32 sectors 0xB8000-0xD7FFF; R 0xD8000; 0xD8000-0xD9FFF free | 16 |
+| more flash, SD card mode (1) | [0x4000, 0xD0000) (831,420 B) | log 7 sectors 0xD0000-0xD6FFF, autosave A 0xD7000, FM6 voices 0xD8000-0xD9FFF; R 0xDA000 | 1 |
+
+In every step the kits (0xDA000), the presets (0xDC000), the drum records, the settings and autosave copy B stay where
+the table above has them; no user sample slot, snapshot or CZ collection exists past normal.
 
 ### 1.1 USR3, the snapshots and the CZ collection
 

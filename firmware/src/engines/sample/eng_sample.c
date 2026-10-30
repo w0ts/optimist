@@ -37,6 +37,7 @@ AINL uint32_t pow2_q16(int32_t d16)
  * window. Slot = header (magic, count, name, data length, CRC32) + up to 16 zones in the
  * smp_zone_t layout (off relative to the slot's data at +512) + IMA ADPCM data. */
 #include "../../../hal/fm1_xip.h"   /* relative: hostsim includes this file too */
+#include "../../../hal/fm1_flash_map.h"   /* FL_USER_SAMPLES: the step keeps the slots (fm1_steps.h) */
 #define SMP_USER_SLOTS 3
 #define SMP_USER_BASE 0xA0000u
 #define SMP_USER_SIZE 0x14000u
@@ -49,9 +50,9 @@ AINL uint32_t pow2_q16(int32_t d16)
  * that much less (32 KiB with 4 snapshots) */
 #define SMP_BANKS 0xD8000u
 #define SMP_USR3_END (SMP_BANKS - (SN_SECTORS + NB_SECTORS) * 0x1000u)   /* (and the CZ collection: cz_bank.c) */
-#if FELUCCA_LAYOUT == 1
-/* the fake SD mode (hal/fm1_flash_map.h): the slots' flash is the app's: no slot holds anything (the editor lists them
- * empty and writes nothing; smp_user_scan reads no header there) */
+#if !FL_USER_SAMPLES
+/* L1 more flash, S0 no user samples (hal/fm1_steps.h): the slots' flash is the app's or the relocated store's: no slot
+ * holds anything (the editor lists them empty and writes nothing; smp_user_scan reads no header there) */
 #define SMP_USER_CAP(k) ((void)(k), 0u)
 #elif FELUCCA_PATTERNS
 /* the section log (format 2, docs/PROJECTS-DESIGN.md) is slot USR1 (0xA0000, 80 KiB: sec_log.c SEC_LOG_BASE): the slot

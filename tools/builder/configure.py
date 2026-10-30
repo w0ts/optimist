@@ -263,9 +263,8 @@ _BUILD_PY_SRAM = re.compile(r'^LIMITS = \{.*"sram": (0x[0-9A-Fa-f]+|\d+)', re.M)
 
 
 def classic_limits():
-    """-> the classic firmware's slots from its build: the normal layout's app slot and each other layout's code room
-    (tools/flash_layout.py app_slot, code_limit: the far probe's place in LAYOUT 1), the SRAM tools/build.py links in
-    (LIMITS sram)"""
+    """-> the classic firmware's slots from its build: the normal layout's app slot and each other step's (tools/flash_layout.py
+    STEPS, code_limit: the whole slot in every step), the SRAM tools/build.py links in (LIMITS sram)"""
     import flash_layout as L
     m = _BUILD_PY_SRAM.search((ROOT / "tools" / "build.py").read_text())
     if not m:

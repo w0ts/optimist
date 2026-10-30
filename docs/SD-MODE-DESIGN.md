@@ -488,3 +488,273 @@ section at flash 0x94120, the VM descriptor at 0xD0000); the probe boots to its 
 layout switch both ways (`tests/ldr_test.c --layout`); the rescue tool's switch both ways (`tests/rescue_test.py`); the
 updater accepting both sizes (`tests/ota_test.c`); the layouts' numbers in agreement (`tests/flash_layout_test.py`);
 the patterns and project tests on the 7-sector log.
+
+## 9. MEMORY steps by sample slot (proposal 2026-10-30; steps 1-3 of 9.6 built 2026-10-30)
+
+The user's idea (2026-10-30): more choice between MEMORY "normal" and "more flash", chosen by how many user-sample
+slots the flash keeps rather than by how many projects. Every number is from the code at `fm1-next` 7cd4d5fe
+(file:line) unless marked *estimate*.
+
+**Built (branch `fm1-next-memsteps`, 2026-10-30), for the classic build: 9.6's steps 1, 2 and 3.** The far probe is
+gone (`far_probe.c`, the console's `far`, `.text_far`, `far_off`, `FAR_RESERVE`): LAYOUT 1's code limit is its
+whole slot, 831,420 B. One table, `tools/flash_layout.py` `STEPS`, generates `firmware/hal/fm1_steps.h` (checked
+byte for byte by `tests/flash_layout_test.py`); the other copies (`registry.py` `LAYOUT_STEPS`, the installers' size
+lists in `fm1_route.py` / `fm1_install.py` (imported), `web/install_route.js` and `InstallRoute.swift` (checked)) come
+from it. S0 is LAYOUT 3, MEMORY 4 "no user samples" (3 stays free for S1); S1 and S0-20 are not built. The release
+waits (9.4, last rows): `gen_optimist.py` has `S0_APP_END` and refuses LAYOUT 3, the builder marks it NOT_BUILT for
+the release, and fm1-base's side is a proposed branch, `pr/app-end-table` in the PR clone (felucca-bsp's
+`LDR_STEPS`, fm1-base's `app_steps`), not wired in.
+
+Corrections to the text below, from the code:
+
+- **One more case in the rule (9.3):** two builds of one step (the classic L1 at 0xD0000, the release's at 0xCE000)
+  are the same step: only the old code's tail is cleared (as before), not [E, max(R)), which would have erased the one
+  project the two builds share. `switch_clear_ends` and the loader identify a step by its end in `FL_ENDS`.
+- **ota.c step 1 takes the classic steps' ends only** (0x93000, 0xB5000, 0xD0000), not the release's 0xCE000: the
+  installers' lists say "what Optimist's updater takes"; an fm1-base package was refused later than step 1 on
+  2026-10-29 (-16, unexplained), so widening step 1 would not let it through either.
+- **fm1-base's `write_sizes`** is not on the branch the app-end PR is based on (`feat/app-end-934e40d`); its fix
+  (`app_slot` of the real app_end) waits for the branch that brings it.
+
+### 9.0 What the normal layout's data area really holds
+
+Two facts change the starting point of the idea:
+
+- **"Normal = 2 sample slots + 16 projects" holds only for a build with user samples.** With `PATTERNS` the project log
+  is slot USR1 (0xA0000, 20 sectors) only when `ENG_SAMPLE` or `DRUM_USR` is built; without either it is 32 sectors,
+  128 KiB, 0xA0000-0xBFFFF (`firmware/src/storage/sections/sec_log.c:29-39`). **Every profile in `config/profiles/`
+  builds `ENG_SAMPLE=0`, `DRUM_USR=0`, `SNAPSHOTS=0`, `PATTERNS=1`** (the `.config` files, e.g.
+  `synths_USBaudio_BTaudio_BTmidi.config`), so on the user's own builds 0xC0000-0xD7FFF (96 KiB) is unused flash today,
+  and so are the old project slots 0x97000-0x9EFFF (32 KiB, `storage.c:55-56`), which a `PATTERNS` build does not read
+  (`docs/MEMORY-MAP.md`, section 1).
+- **USR3 is 64 KiB, not 80:** it ends at the banks, 0xD8000 (`eng_sample.c:50`), less the snapshots and the CZ
+  collection (`eng_sample.c:51`, `registry.h:588`, `registry.h:596`). USR2 is the only full 80 KiB slot left in a
+  `PATTERNS` build (`eng_sample.c:59`).
+
+The normal layout's data area, `PATTERNS` on (`fm1_flash_map.h:44-48`, `storage.c:20-31`, `storage.c:55-56`,
+`eng_sample.c:41-61`, `sec_log.c:29-39`, `snap_store.c:20-21`):
+
+| Flash | With user samples | Without (every profile today) |
+|---|---|---|
+| 0x93000-0x94FFF | the app slot's room to grow, free (`storage.c:69-71` asserts it) | same |
+| 0x95000-0x96FFF | the presets' FM6 voices (`FL_UPF`, `fm1_flash_map.h:46-47`) | same |
+| 0x97000-0x9EFFF | the old project slots, not read with `PATTERNS` | same |
+| 0x9F000 | autosave copy A (`storage.c:55`) | same |
+| 0xA0000-0xB3FFF | the project log, 20 sectors (USR1) | the project log, 32 sectors, to 0xBFFFF |
+| 0xB4000-0xC7FFF | USR2, 80 KiB | log to 0xBFFFF, then free |
+| 0xC8000-0xD7FFF | USR3, 64 KiB less snapshots and CZ at its top | free |
+| 0xD8000-0xD9FFF | free (the retired FM6 bank); the release: `OBJ_PANEL` | same |
+| 0xDA000-0xDFFFF | kits (`storage.c:42`), presets (`storage.c:120`) | same |
+
+Project room: 20 sectors hold about 66 KiB, 32 about 108 KiB (`docs/PROJECTS-DESIGN.md:115`); a busy project is about
+6-8 KiB (*estimate*, same line). So 16 project slots is the address limit, not a promise: 20 sectors fit about 8-11 busy
+projects, 32 about 13-18 (*estimate*, from those two numbers). A full log says MEM FULL; it loses nothing.
+
+### 9.1 The steps
+
+The app grows up from 0x4000, so every step past normal moves what sits just above 0x93000: the FM6 voices, autosave
+copy A and the project log. Each new step stacks them, from the top down, under what it keeps, and the app ends below
+them. The old project slots are dropped (`ST_PROJECTS` 0, as LAYOUT 1 does: `storage.c:51-53`).
+
+**One end for both builds.** In LAYOUT 1 the release ends 8 KiB lower than the classic build (0xCE000 against 0xD0000),
+because the FM6 voices took 0xD8000, where the release keeps `OBJ_PANEL` (`fm1base/optimist/ui/opt_storage.h:118-133`,
+`fm1base/optimist/app.h:30-33`). The new steps keep 0xD8000-0xD9FFF free in Optimist's map (as normal does), put the FM6
+voices at the app's end instead, and so give the classic build and the release the **same** end: the release keeps
+`OBJ_PANEL` at 0xD8000 (its calibration survives every switch between N, S1 and S0), and own <-> release in the same
+step clears nothing. The cost: 8 KiB the classic build could have had (variant: FM6 voices at 0xD8000 in the classic
+build only, ends 8 KiB higher, the release 8 KiB lower, as LAYOUT 1).
+
+App slot = end - 0x4000 - 0x120 - 0xF24 (`tools/flash_layout.py:11-12`, `:27-29`; fm1-base the same,
+`fm1base/tools/fm1pkg_make.py:27-28`, `:105-106`).
+
+| Step (LAYOUT) | App end (classic / release) | App slot, B (classic / release) | vs normal | Kept above the app | Projects |
+|---|---|---|---|---|---|
+| **N** normal (0) | 0x93000 / 0x93000 | 581,564 / 581,564 | - | the table above | 16, 20 or 32 sectors |
+| **S1** one sample slot (new, 2) | 0xB1000 / 0xB1000 | 704,444 / 704,444 | +122,880 (120 KiB) | FM6 voices 0xB1000-0xB2FFF, autosave A 0xB3000, log 20 sectors 0xB4000-0xC7FFF (USR2's exact place), **USR3 0xC8000-0xD7FFF where it is** (snapshots, CZ at its top as today), 0xD8000 free / `OBJ_PANEL`, kits, presets | 16, 20 sectors (about 66 KiB) |
+| **S0** no user samples (new, 3) | 0xB5000 / 0xB5000 | 720,828 / 720,828 | +139,264 (136 KiB) | FM6 voices 0xB5000-0xB6FFF, autosave A 0xB7000, log 32 sectors 0xB8000-0xD7FFF, 0xD8000 free / `OBJ_PANEL`, kits, presets | 16, 32 sectors (about 108 KiB: today's room on every profile) |
+| S0-20 (variant of S0) | 0xC1000 / 0xC1000 | 769,980 / 769,980 | +188,416 (184 KiB) | FM6 voices 0xC1000-0xC2FFF, autosave A 0xC3000, log 20 sectors 0xC4000-0xD7FFF, the rest as S0 | 16, 20 sectors (about 66 KiB) |
+| **L1** more flash (1, as today) | 0xD0000 / 0xCE000 | 831,420 / 823,228; the classic **code limit today 765,696** (`FAR_RESERVE`, below) | +249,856 / +241,664 | log 7 sectors 0xD0000-0xD6FFF (`sec_log.c:22-28`), autosave A 0xD7000 (`storage.c:52`), FM6 voices 0xD8000 (`fm1_flash_map.h:41-42`); the release's `OBJ_PANEL` 0xCE000-0xCFFFF | 1 (`registry.h:719`) |
+
+Against the user's guesses: S1 is 688 KiB of app slot (guess "about 650"); the step with no user samples is 704 KiB with
+today's project room or 752 KiB with the smaller log (guess "about 730"); L1's app slot is 812 KiB of app.bin (816 KiB
+is the whole slot [0x4000, 0xD0000)). The guesses counted 80 KiB a slot; the steps also take the 8 KiB room to grow,
+the old project slots' 32 KiB and the FM6 voices' old place.
+
+**What each step loses, against normal:** S1: USR1 (already the log) and USR2; USR2's samples, and any project that
+plays them reads MISSING. S0: every user sample slot (`SMP_USER_CAP` 0 as LAYOUT 1, `eng_sample.c:55`), the snapshots
+and the CZ collection (their area is in USR3: `snap_store.c:27`, `nbank.c:187`). L1: as S0, and 15 projects. Every
+step keeps: kits, presets, the settings and autosave copy B (0xFC000-0xFEFFF), the drum records (0xE5000-0xE6FFF).
+
+**Why S0 at 32 sectors and S0-20 as a variant.** S0 at 32 sectors costs the user's profiles nothing at all (they build
+no user samples, no snapshots and have 32 sectors today) and gives +136 KiB. S0-20 buys 48 KiB more for about 42 KiB
+less project room. S0 (32) ends only 16 KiB above S1, which keeps a 64 KiB sample slot: S1 is the step for someone who
+uploads samples, S0 for everyone else.
+
+**The build rules per step** (`core.py:265-273`, `storage.c:46-49` for LAYOUT 1): S1 allows `ENG_SAMPLE`, `DRUM_USR`,
+`SNAPSHOTS` and the CZ collection (all inside USR3, as today), needs `PATTERNS`; S0 and S0-20 as LAYOUT 1 (no user
+samples, snapshots or CZ collection, `PATTERNS` on). `ENG_SAMPLE` with its built-in sets and every slot empty could be
+allowed in S0 (`SMP_USER_CAP` 0 already does it for LAYOUT 1); the rule refuses it today for LAYOUT 1 (`storage.c:46`).
+
+### 9.2 Alignment, the slot boundaries, the far probe
+
+- **4 KiB is enough.** Every end above is a 4 KiB boundary. fm1-base takes any 4 KiB boundary from 0x93000 to 0xE0000
+  (`fm1base/tools/build.py:1310`); the loaders erase 4 KiB sectors; the plain XIP window starts at the app's end
+  (`fm1_flash.h:253`), and the normal layout's 0x93000 (XIP 0x0208F000, aligned to 4 KiB but not 8 KiB) runs on every
+  FM-1. The installed slot's end is read back as the app area head's end rounded up to a sector (`fm1base/bsp/loader/
+  ldr_core.c` `ldr_slot_switch`; `tools/fm1_layouts.py:68-77`): the tail after app.bin is 0xF24 B, under a sector, so the
+  rounding finds the slot end exactly for any step.
+- **The 80 KiB slot boundaries (0xA0000, 0xB4000, 0xC8000) are not good app ends.** An end there leaves no place for
+  the FM6 voices (8 KiB) and autosave A (4 KiB) except 0xD8000-0xD9FFF, which is 8 KiB and is the release's
+  `OBJ_PANEL`. The steps end 12 KiB below a boundary instead (S1: 0xB1000 = 0xB4000 - 12 KiB), which keeps the
+  remaining slot (USR3) at its address: its samples and snapshots survive N <-> S1.
+- **The far probe's 64 KiB (`FAR_RESERVE`) is no longer needed.** It held the far probe (`firmware/src/system/far_probe.c`,
+  a few words) and the overlays' table; the overlays are retired (section 6), the user ruled on 2026-10-29 "drop the far
+  probe, we don't need it" (`tools/flash_layout.py:32-34`), `FAR_OK` is gone (`registry.h:724`), and the release's
+  0xCE000 image has run on the user's FM-1 (`registry.py:1180`). Yet `code_limit(1)` still keeps it
+  (`flash_layout.py:42-45`): today's LAYOUT 1 code limit is 765,696 B (`costs.json` `limits.flash_by_layout`), **less
+  than S0-20's 769,980**. Retiring it (`far_probe.c`, `felucca.c:233-235`, the console's `far`, `build.py:464-475` and
+  `:529-537`, `FAR_RESERVE`, `far_off`) gives LAYOUT 1 its whole 831,420 B and frees the new steps from it. (Stale on
+  the way: `far_probe.c:2-3` says app offset 0x90000; `far_off()` puts it at 0xBAF00, flash 0xBF020; `registry.py:1188`
+  says "about 765 KB".)
+
+### 9.3 What a switch erases or keeps
+
+The new package's own update loader clears, before it writes the app, what the old step kept differently from the new
+one. One rule covers every pair: with each step's **relocated-store top** R (the top of what it stores elsewhere than
+normal: N 0x93000, S1 0xC8000, S0 and S0-20 0xD8000, L1 0xDA000), a switch from step A to step B writes
+[0x4000, E_B) and erases [E_B, max(R_A, R_B)). Classic build (the release the same, but L1 at 0xCE000):
+
+| from \ to | N | S1 | S0 | L1 |
+|---|---|---|---|---|
+| **N** | writes 0x4000-0x92FFF | writes to 0xB0FFF; clears 0xB1000-0xC7FFF | writes to 0xB4FFF; clears 0xB5000-0xD7FFF | writes to 0xCFFFF; clears 0xD0000-0xD9FFF (as today) |
+| **S1** | writes to 0x92FFF; clears 0x93000-0xC7FFF | writes 0x4000-0xB0FFF | writes to 0xB4FFF; clears 0xB5000-0xD7FFF | writes to 0xCFFFF; clears 0xD0000-0xD9FFF |
+| **S0** | writes to 0x92FFF; clears 0x93000-0xD7FFF | writes to 0xB0FFF; clears 0xB1000-0xD7FFF | writes 0x4000-0xB4FFF | writes to 0xCFFFF; clears 0xD0000-0xD9FFF |
+| **L1** | writes to 0x92FFF; clears 0x93000-0xD9FFF (today 0x93000-0xCFFFF only) | writes to 0xB0FFF; clears 0xB1000-0xD9FFF | writes to 0xB4FFF; clears 0xB5000-0xD9FFF | writes 0x4000-0xCFFFF |
+
+What it means:
+
+- **The projects are lost on every switch between two different steps** (the log moves each time), and so are the
+  FM6 voices and autosave copy A. The working project probably comes back from autosave copy B at 0xFE000, which a
+  switch never touches: the store writes the other copy each time (`storage.c:331`), so B holds the last or the one
+  before (*not tested* across a switch).
+- **Kept by N <-> S1:** USR3 and the snapshots (and the CZ collection), the same address and format in both.
+- **Kept by every switch:** 0xDA000 and up (kits, presets), 0xE0000 and up (staging, drum records, the SDK's sectors,
+  settings, autosave B, key_mac): no clear reaches past 0xD9FFF (asserted in `fm1_layouts.KEEP`, `fm1_layouts.py:28`).
+- **The release's `OBJ_PANEL` (0xD8000)** survives N <-> S1 <-> S0; a switch to or from L1 loses it (it moves to 0xCE000).
+- **Own <-> release in the same step:** nothing cleared for N, S1, S0 (one end); L1 as today
+  (`docs/INSTALL-PATHS.md`, the switch matrix: own-big -> base-sd clears 0xCE000-0xCFFFF).
+- **L1 -> N changes from today:** it would also clear L1's squeezed store 0xD0000-0xD9FFF, which normal reads as USR3's
+  top and the free banks (today they read as empty: no sample or snapshot magic). Harmless either way; the rule is simpler.
+
+**Backup advice**, shown with every MEMORY change (it is already the item's notice, `registry.py:1145-1148`, to be
+reworded per step): before installing another step, **User** backs up with the web editor (Backup: the projects,
+presets, kits, the user sample slots and the snapshots, `ed_backup.c:6-12`, `:217-225`) and, for a way back whole, a full flash
+backup (`python tools/fm1_anyflash.py backup`); after the install, **User** restores the projects with the editor
+(only the slots the new step has: S1 refuses USR1/USR2, S0 and L1 every slot; L1 takes one project).
+
+### 9.4 The code changes
+
+One table drives everything: the steps' (end, R, release end) live in `tools/flash_layout.py` and
+`firmware/hal/fm1_flash_map.h`, and `tests/flash_layout_test.py` checks the two agree, as today.
+
+| Where | Function / name | Change |
+|---|---|---|
+| `firmware/hal/fm1_flash_map.h:28-51` | `FELUCCA_LAYOUT`, `FL_APP_HI`, `FL_UPF_LO/HI`, `FL_DATA_LO` | branches for 2 (S1) and 3 (S0; S0-20 a fourth if wanted); a new `FL_RELOC_HI` (R); a constant list of every step's (end, R) for the loader; `FL_APP_HI_BIG` stays the largest end (0xD0000) |
+| `firmware/src/system/ota.c:324` | `ota_stage`, step 1 | `fl_len` must be one of the list's ends (the classic ones and the release's 0xCE000), not two constants; `:342` (the official loader: normal only) stays. Not settled by this: the 2026-10-29 refusal of an fm1-base package was -16 (`docs/INSTALL-PATHS.md:66`), a check after the size check, unexplained, so widening the size check alone does not let fm1-base packages through |
+| `firmware/loader/ldr_core.c:148-168` | `ldr_layout_switch` | table-driven: the installed end E_A = the head's end rounded up to a sector; R_A from the list; erase [E_B, max(R_A, R_B)). No head of ours: as normal (clears nothing more, as today); an end not in the list (a newer step): erase [E_B, 0xDA000), the safe side. `LDR_APP_HI` / `LDR_REC_LO` (`:41-45`) and the size check (`:201`) stay |
+| `firmware/src/storage/storage.c:46-56`, `:69-71` | `ST_AUTOSAVE_A`, `ST_PROJECTS`, the `#error` rule, the asserts | per step: autosave A 0xB3000 / 0xB7000 (0xC3000), `ST_PROJECTS` 0; the room-to-grow assert (`ST_UPF_SECTOR >= FL_APP_HI + 2 sectors`) becomes `ST_UPF_SECTOR == FL_APP_HI` for the new steps |
+| `firmware/src/storage/sections/sec_log.c:22-46` | `SEC_LOG_BASE`, `SEC_LOG_SECTORS` | S1 0xB4000 x 20, S0 0xB8000 x 32 (S0-20 0xC4000 x 20); asserts: below 0xC8000 in S1, below 0xD8000 in S0 |
+| `firmware/src/engines/sample/eng_sample.c:52-61` | `SMP_USER_CAP` | S1: slots 0 and 1 hold nothing, slot 2 as today; S0: none (as LAYOUT 1) |
+| `firmware/src/core/registry.h:697`, `:719` | `FELUCCA_SD_MODE`, `PROJ_SLOTS` | already `== 1`: the new steps are neither the SD mode nor one project. Every other use of the layout must be checked for "nonzero means big": `tools/build.py:466` (`if layout():` links the far probe and the longer XIP for any nonzero), `core.py:265` (`if cfg.get("LAYOUT"):` applies LAYOUT 1's rule to any nonzero), `firmware/src/io/console.c` (four uses), `ed_backup.c:630`, `op_prjflow.c:116`, `fm1_guard.h` |
+| `tools/flash_layout.py` | `APP_HI`, `app_slot`, `code_limit`, `layout_of`, `switch_clear`, `FAR_RESERVE`, `far_off`, `BIG_STORE_HI` | one table {layout: (end, R, release end)}; `code_limit = app_slot` (no far reserve); `switch_clear(old_end, new)` = the rule of 9.3 |
+| `tools/build.py:461-475`, `:529-537` | the link, `LIMITS["flash"]` | the XIP length from the table for any layout; the far probe's section and checks go |
+| `tools/fm1pkg_make.py:26-28`, `:108-111` | `flash_image`, `FLASH_SIZE` | already takes `app_hi=` and refuses an end no layout has (`layout_of`): nothing more than the table; `--layout` (`:210`) takes the new values |
+| `tools/fm1_rescue.py:69-70`, `:207`, `:373` | `APP_END`, `CLEAR_END`, `load_package`, the switch | sizes and clears from the table (it calls `switch_clear` already) |
+| `tools/fm1_layouts.py:24-27`, `:48-77`, `:116-124` | `LAYOUTS`, `layout_of`, `installed_end`, `_clear_range` | the steps' rows (own and base), the known ends from the table, `_clear_range` = the 9.3 rule |
+| `tools/fm1_route.py:21`, `:107-109`, `:134-136` | `OWN_SLOTS`, the package kind, `loader_takes` | the list of ends |
+| `web/install_route.js:12`, `:43-44`, `:60` | `OWN_SLOTS` | the same list (generated from `flash_layout.py`, as `mflasher.json` is from `mflasher.py`, so the three cannot drift) |
+| `ios/OptimistMirror/Sources/Flash/InstallRoute.swift:12`, `:56-57`, `:71` | `ownSlots` | the same list; an App Store resubmit |
+| `tools/fm1_anyflash.py`, `tools/mflasher.py` | the download-mode plan | nothing of their own: `fm1_anyflash.py` plans through `fm1_layouts.plan` (its `dry_run`'s "up to 0xDA000" line, `:319`, stays true); `mflasher.py` holds no layout |
+| `tools/builder/registry.py:1141-1148`, `:1177-1188` | `MEMORY_CHOICES`, `MEMORY`'s notice, `LAYOUT`'s choices and text | MEMORY 3 "one sample slot", 4 "no user samples" (0-2 unchanged: MEMORY is derived, never stored, `core.py:106-116`), listed in size order; LAYOUT choices 2, 3; the notice per step |
+| `tools/builder/core.py:106-130`, `:265-273`, `:1216-1217` | `derive_memory`, `set_memory`, the layout rule, the flash cap | MEMORY <-> LAYOUT for 3, 4; the rule per step (9.1); the cap already looks up `flash_by_layout[LAYOUT]` |
+| `tools/builder/configure.py:265-274` | `classic_limits` | already one entry per layout of `flash_layout.APP_HI`: follows the table |
+| `tools/fm1base.py:169-182`, `:204-222` | `sd_app_end`, `app_end`, `limits` | the release end per layout from the table, not `== 1`; `flash_by_layout` for every layout |
+| `fm1base/optimist/gen_optimist.py:153-165`, `fm1base/optimist/fm1.toml:52-58`, `ui/opt_storage.h:118-133`, `app.h:30-33` | `SD_APP_END`, `slot_check`, `app_end` / `app_clear_end`, `OPT_PANEL_*` | the end per layout; `OBJ_PANEL` at 0xD8000 for S1 and S0 (their asserts) |
+| `fm1base/bsp/loader/ldr_core.c` `ldr_slot_switch` | felucca-bsp's loader | today: going down it erases only the old code's tail [new end, old end), going up [end, `LDR_CLEAR_END`). Between two new steps that leaves the old step's log where the new one keeps its own: S0 -> S1 would leave 16 of S0's log sectors (valid `SLG1` sectors) inside S1's log area, read as S1's records. It needs the app's list of (end, R) (an `fm1.toml` table) and the 9.3 rule. A change in the submodule |
+| `tools/builder/costs.json` `limits`, `tools/builder/measure_costs.py:165`, `:318`, `:451` | costs-all | the limits follow `classic_limits` / `fm1base.limits` on the next costs-all; the LAYOUT choices' own cost (the +36 B kind of section 7) measured for 2 and 3 as for 1 |
+| `docs/MEMORY-MAP.md`, `docs/INSTALL-PATHS.md`, this file | | the steps' maps and the switch matrix (INSTALL-PATHS' tables are made by the code and checked, `tests/anyflash_test.py`) |
+
+**The update loader ships per layout, as today.** Each package carries its own loader (`ota.bin`), compiled with the
+build's `FELUCCA_LAYOUT` (`tools/build.py` `build_loader`: `-DFELUCCA_LAYOUT=`), which writes exactly its own slot
+(`ldr_core.c:201`). The updater that runs (`ota.c`) only checks the size and stages the package's loader; so a new step
+needs every running updater to know its size once (step 1), and the clear is always done by the new step's loader,
+which knows every older step from its list.
+
+**Tests:** `tests/flash_layout_test.py` (the table in Python and C agree; `layout_of` takes the new ends, its refused
+example 0xB7000 at `:58` must change; `switch_clear` for all 16 pairs); `tests/ldr_test.c --layout` (each pair: the
+erased sectors exactly, nothing at or above 0xDA000, a resumed install clears the same); `tests/ota_test.c` (every listed
+size taken, any other -15, the official loader normal only); `tests/rescue_test.py`, `tests/anyflash_test.py` (the plans,
+the generated INSTALL-PATHS tables); `tests/builder_core_test.py`, `tests/builder_menu_test.py`, `tests/builder_test.py`
+(MEMORY's five choices, the rules, the caps); `tests/fm1base_test.py` (the release ends, `slot_check`); the sample,
+snapshot and patterns tests built per step (`tests/patterns_test.c`, `tests/project_scope_test.c`,
+`tests/compat/sec_log_142.c` already take `FELUCCA_LAYOUT`); `ios/OptimistMirror/Tests/FlashTests.swift`;
+fm1-base's `tests/ldr_slot_test.c` for each pair of steps.
+
+### 9.5 Risks and the hardware tests
+
+Risks:
+
+- **Data loss is the design:** every switch between steps loses the projects (9.3). A loader that clears the wrong
+  range could also take USR3 or the snapshots on N <-> S1. Mitigations: the clears are one rule from one table, the
+  host tests check every pair sector by sector, and no clear can reach 0xDA000 (asserted), so kits, presets, the
+  settings and the SDK's sectors are never at risk; the RAM flash driver refuses the SDK's sectors anyway
+  (`fm1_flash_map.h:71-73`).
+- **An older updater refuses a new size (-15),** as with LAYOUT 1 (section 8, step 2): the first install of a new step
+  goes over a normal build of the same version.
+- **fm1-base's loader as it is** leaves stale log sectors between two new steps (9.4): the release steps wait for that
+  change.
+- **"Nonzero means big"** in the build and the builder (9.4): a new step built as if it were LAYOUT 1 (the far probe
+  linked, LAYOUT 1's rule) until every use is checked.
+- **Projects that play a slot the step drops** read MISSING (S1: USR2; S0: all).
+- **Not measured:** that autosave B brings the working project back after a switch; the project room (the 6-8 KiB a
+  busy project is an estimate).
+
+The hardware tests. **User** installs every package and runs every check; **Claude never flashes** and writes nothing
+to the FM-1. Claude builds the packages and hands over their paths; after each step, the user's full backup file lets
+Claude compare the flash with the planned clear on the computer (`fm1_layouts.plan` against the backup), which proves
+what was erased and kept without touching the device.
+
+1. **User**: Backup in the web editor; `python tools/fm1_anyflash.py backup` (a full image).
+2. **User**: installs a normal build of the new version (its updater knows the new sizes). Expect: as before.
+3. **User**: uploads a sample to USR3, saves a snapshot (on a build with them), then installs **S1**. Expect: boots;
+   USR3 plays, the snapshot loads (kept); the projects empty; restore the projects from the backup; save one, power
+   off and on, load it; save a user preset with FM6 voices, power off and on, load it. **User**: a full backup, for
+   the comparison.
+4. **User**: installs **S0** over S1. Expect: USR3 and the snapshot gone, the projects empty; restore; the same saves
+   as in 3; a full backup.
+5. **User**: installs **N** over S0. Expect: an empty data area below 0xD8000, kits and presets kept; restore; a full
+   backup.
+6. **User**: one switch through download mode (`python tools/fm1_install.py --route download PACKAGE.fwsc`, N -> S0):
+   the plan printed first must match 9.3; then the same checks.
+7. **User**: one install of an S1 or S0 package from the web installer and one from the Mirror app (the size lists).
+8. Later, the release: **User** installs the release's S0 over the classic S0: nothing cleared, the panel calibration
+   kept.
+
+Back out of any step: install a normal build of the same version, then restore with the editor; or restore the full
+backup (`python tools/fm1_anyflash.py restore BACKUP.bin`).
+
+### 9.6 Recommendation
+
+1. **Retire the far reserve first** (9.2): no new layout, no install risk, LAYOUT 1's code limit 765,696 -> 831,420 B
+   (+65,724 B). Today it makes LAYOUT 1 smaller than the step below it would be.
+2. **Make the table one source** (9.4: `flash_layout.py`, `fm1_flash_map.h`, step 1's size list, the loader's rule, the
+   installers' lists generated) with only N and L1 in it: host-tested, byte-identical normal packages, and the updater
+   of every build from then on takes the next steps' sizes.
+3. **Add S0, no user samples, at 32 sectors** (LAYOUT 3, MEMORY "no user samples"): +139,264 B (136 KiB) for the
+   classic build and the release alike, and on every profile in `config/profiles/` it loses nothing but the switch
+   itself (they build no user samples or snapshots and keep today's 32-sector project room).
+4. **S1, one sample slot,** only if the user wants to keep uploading samples: +122,880 B, USR3 and the snapshots kept
+   from normal. It is only 16 KiB below S0, so it is a choice for samples, not for flash.
+5. **S0-20** (+188,416 B, about 42 KiB less project room) only if a build actually needs the 48 KiB more than S0 and
+   less than L1 gives.
+6. The release's steps after fm1-base's loader takes the table (9.4).

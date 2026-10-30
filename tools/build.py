@@ -459,17 +459,14 @@ def build_app():
     elf = OUT / "felucca.elf"
     ld = FW / "app.ld"
     slot = flash_layout.app_slot(layout())
-    LIMITS["flash"] = slot          # (the whole image, the far probe included; the code's own limit: the far probe's guard
-                                    # below, flash_layout.code_limit: the big slot in the fake SD mode layout)
-    FAR_OFF = flash_layout.far_off()
+    LIMITS["flash"] = slot          # (the whole slot, the code's limit in every step: flash_layout.code_limit; no far
+                                    # probe since 2026-10-30)
     ld_text = (FW / "app.ld").read_text()
-    if layout():                    # another flash layout: its XIP length, and the far probe's section past 0x93000
-        ld_text = (ld_text.replace("LENGTH = 0x8DFBC", f"LENGTH = 0x{slot:X}")
-                   .replace("*(.text*) *(.rodata*)", "*(.text .text.*) *(.rodata*)")   # (.text_far: not in .text)
-                   .replace("_etext = .; } > XIP",
-                            "_etext = .; } > XIP\n    .text_far (ORIGIN(XIP) + " + f"{FAR_OFF:#x}" +
-                            ") : { KEEP(*(.text_far .text_far.*)) } > XIP\n"
-                            "    _xip_code_end = ADDR(.text_far) + SIZEOF(.text_far);"))   # (the guard's PC window: fm1_guard.h)
+    normal = f"LENGTH = 0x{flash_layout.app_slot(0):X}"
+    if normal not in ld_text:
+        raise SystemExit(f"build: app.ld's XIP is not the normal slot ({normal}): tools/flash_layout.py and app.ld disagree")
+    if slot != flash_layout.app_slot(0):   # another step (tools/flash_layout.py STEPS): its XIP length, nothing else
+        ld_text = ld_text.replace(normal, f"LENGTH = 0x{slot:X}")
         ld = OUT / "app_layout.ld"
         ld.write_text(ld_text)
         sync_view(ld)
@@ -478,10 +475,7 @@ def build_app():
         meas = (ld_text.replace(f"LENGTH = 0x{slot:X}", f"LENGTH = 0x{slot + 0x60000:X}")
                 .replace("ORIGIN = 0x01C00100, LENGTH = 0x73F00", f"ORIGIN = 0x01C00100, LENGTH = {MEASURE_SRAM:#x}")
                 .replace("ORIGIN = 0x01C7C000", "ORIGIN = 0x01E00000")   # (NOINIT moved up: addresses for sizes only)
-                .replace('ASSERT(ORIGIN(SRAM) + LENGTH(SRAM) == _guard0', 'ASSERT(1')
-                # (the far probe right after the code, not at its place: a measured build's code may run past it,
-                # 2026-10-27: the defaults with LAYOUT 1 overlapped it at link; sizes only, its address unused)
-                .replace(f".text_far (ORIGIN(XIP) + {FAR_OFF:#x})", ".text_far"))
+                .replace('ASSERT(ORIGIN(SRAM) + LENGTH(SRAM) == _guard0', 'ASSERT(1'))
         if meas.count(f"LENGTH = {MEASURE_SRAM:#x}") != 1 or "ORIGIN = 0x01E00000" not in meas:
             raise SystemExit("build: app.ld changed: the measurement link's SRAM / NOINIT lines no longer match")
         ld.write_text(meas)
@@ -490,9 +484,8 @@ def build_app():
     # units export getters and renders this firmware never calls); crt0, the RAM code and the pool are KEEP in app.ld
     tc("pi32v2/bin/ld", "--gc-sections", "-T", ld, *objs, "-o", elf)
     for sect in ("text.bin", "data.bin", "ramtext.bin", "ramhot.bin", "ramhot2.bin", "poolinit.bin", "far.bin"):
-        (OUT / sect).unlink(missing_ok=True)
-    *_, syms, dis, rt, hdr = tc_all(("common/bin/objcopy", "-O", "binary", "-j", ".text_far", elf, OUT / "far.bin"),
-                                    ("common/bin/objcopy", "-O", "binary", "-j", ".text", elf, OUT / "text.bin"),
+        (OUT / sect).unlink(missing_ok=True)     # (far.bin: an older build's far probe, retired 2026-10-30)
+    *_, syms, dis, rt, hdr = tc_all(("common/bin/objcopy", "-O", "binary", "-j", ".text", elf, OUT / "text.bin"),
                                ("common/bin/objcopy", "-O", "binary", "-j", ".data", elf, OUT / "data.bin"),
                                ("common/bin/objcopy", "-O", "binary", "-j", ".ram_text", elf, OUT / "ramtext.bin"),
                                ("common/bin/objcopy", "-O", "binary", "-j", ".ram_hot", elf, OUT / "ramhot.bin"),
@@ -524,17 +517,7 @@ def build_app():
     img += stream
     img += b"\xff" * (-len(img) % 4)
     global CODE_LEN
-    CODE_LEN = len(img)             # (the code and the boot stream: what the builder's flash budget counts; the far probe
-                                    # keeps its own place past it: flash_layout.code_limit)
-    far = (OUT / "far.bin").read_bytes() if (OUT / "far.bin").exists() else b""
-    if far and MEASURE:             # (a measurement build: its bytes after the image, not at an address: sizes only)
-        img += far
-    elif far:                       # the far probe: after everything the boot needs, at its own offset past 0x93000
-        if len(img) > FAR_OFF:
-            raise SystemExit(f"build: the image ({len(img)} B) is past the far probe ({min(FAR_OFF, LIMITS['flash'])} B): "
-                             "the far probe keeps the slot's last 64 KB")
-        img += b"\xff" * (FAR_OFF - len(img)) + far
-        print(f"far      probe {len(far)} B at app offset {FAR_OFF:#x} (flash {0x4120 + FAR_OFF:#x})")
+    CODE_LEN = len(img)             # (the code and the boot stream: what the builder's flash budget counts)
     (OUT / "felucca.bin").write_bytes(img)
     return bytes(img), syms, dis, rt, hdr
 
@@ -557,7 +540,7 @@ SIZED_SYMBOLS = ("part_mem",        # (engines.c: the synth parts' engine state,
                  "ifx_choi", "ifx_echo", "ifx_jcho", "ifx_flng", "ifx_xdly", "ifx_room", "ifx_tdly")   # (its instance tables)
 
 
-CODE_LEN = None                     # (build_app: app.bin's code before the far probe's place; sizes() reports it)
+CODE_LEN = None                     # (build_app: app.bin's code and boot stream; sizes() reports it)
 
 
 def sizes(img, syms, hdr):

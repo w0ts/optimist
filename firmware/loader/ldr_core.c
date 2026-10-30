@@ -139,12 +139,39 @@ static void ldr_records_drop(void)
     }
 }
 
-/* 2c. a switch of layout (docs/SD-MODE-DESIGN.md): the device's own app header (copy at 0x4000, the chip key) says
- * how far the installed app reaches. Before anything is written, the sectors the other layout used for something
- * else are erased: after a fake-SD-mode app, a normal one erases the old app's tail [0x93000, 0xD0000) (else the
- * normal store would read code as its data); after a normal app, a fake-SD-mode one erases its squeezed store's
- * [0xD0000, 0xDA000) (the normal layout's user samples and snapshots: not a log). Run before the app is written, so a
- * resumed install (the record kept) sees the old header again and does the same. */
+/* 2c. a switch of step (the MEMORY steps, docs/SD-MODE-DESIGN.md 9.3): the device's own app header (copy at 0x4000,
+ * the chip key) says how far the installed app reaches; its end rounded up to a sector names the installed step (the
+ * tail after app.bin is under a sector) and FL_ENDS (fm1_steps.h, from tools/flash_layout.py) its R, the top of what
+ * it stores elsewhere than normal. One rule for every pair (tools/flash_layout.py switch_clear_ends): this step (end E,
+ * its R) erases [E, max(R_old, R)) before anything is written; after another build of the same step (the release's
+ * L1 at 0xCE000) only the old code's tail [E, E_old), the store being the same; the same end nothing. No header of
+ * ours, or an end below normal's no step has: as after normal (user data may be there). An end above normal's no step
+ * has (a newer step): [E, FL_CLEAR_TOP), the safe side.
+ * No clear reaches FL_CLEAR_TOP (the kits, the presets, the settings). Run before the app is written, so a resumed
+ * install (the record kept) sees the old header again and does the same. */
+#define LDR_END_STEP(e, l, r) if (end == (e)) old_l = (l), old_r = (r);
+_Static_assert(FL_RELOC_HI >= FL_APP_HI && FL_RELOC_HI <= FL_CLEAR_TOP, "the step's relocated store: above its app, below the kits");
+static void ldr_switch_range(uint32_t end, uint32_t *lo, uint32_t *hi)   /* end: the installed app area's, 0 none */
+{
+    int old_l = -1;
+    uint32_t old_r = FL_CLEAR_TOP;
+    end = (end + 0xFFFu) & ~0xFFFu;
+    FL_ENDS(LDR_END_STEP)
+    if (old_l < 0 && end <= FL_APP_HI_NORMAL)
+        old_l = 0, old_r = FL_APP_HI_NORMAL;           /* (no header of ours, or an end no slot has below normal's: as
+                                                        * after normal) */
+    *lo = *hi = 0;
+    if (old_l == FELUCCA_LAYOUT) {                     /* the same step: only an old code tail past this app's end */
+        if (end > LDR_APP_HI)
+            *lo = LDR_APP_HI, *hi = end;
+        return;
+    }
+    *hi = old_r > FL_RELOC_HI ? old_r : FL_RELOC_HI;
+    if (*hi > FL_CLEAR_TOP)
+        *hi = FL_CLEAR_TOP;
+    *lo = *hi > LDR_APP_HI ? LDR_APP_HI : *hi;
+}
+
 static int ldr_layout_switch(uint32_t key, uint8_t *b)
 {
     uint32_t end, s, lo, hi;
@@ -152,15 +179,8 @@ static int ldr_layout_switch(uint32_t key, uint8_t *b)
         return -8;
     ldr_sfc(b, 32, 0, key);
     end = ota_crc16(b + 2, 30, 0) == ota_rd16(b) ? LDR_APP_LO + ota_rd32(b + 8) : 0u;   /* the app area block's size
-                                                     * (fm1pkg_make.py app_area_head); 0 no header of ours: a normal
-                                                     * install clears nothing (user data may be there), a fake-SD-mode
-                                                     * one its store (tools/flash_layout.py switch_clear) */
-    if (LDR_APP_HI == FL_APP_HI_NORMAL && end > FL_APP_HI_NORMAL)
-        lo = FL_APP_HI_NORMAL, hi = FL_APP_HI_BIG;
-    else if (LDR_APP_HI == FL_APP_HI_BIG && end <= FL_APP_HI_NORMAL)
-        lo = FL_APP_HI_BIG, hi = FL_UPF_HI;
-    else
-        return 0;                                    /* the same layout */
+                                                     * (fm1pkg_make.py app_area_head); 0 no header of ours */
+    ldr_switch_range(end, &lo, &hi);
     for (s = lo; s < hi; s += 0x1000u)
         if (ldr_erase(s))
             return -9;

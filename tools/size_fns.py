@@ -89,14 +89,12 @@ SIZE_FILES += ["bt/bt_afh.c", "bt/bta_mem.c", "ble/ble_hw_wl82.c", "bt/bt_inq.c"
                "bt/bt_acl.c", "bt/bt_l2cap.c", "bt/bt_audio.c", "bt/bt_page.c",
                "bt/bt_inq_core.c", "bt/bt_lmp.c", "bt/bt_sdps.c", "ble/ble_att.c", "ble/ble_host.c", "bt/bt_avdtp.c",
                "ble/ble_midi.c", "io/midi/ble_devices.c"]
-# the SD card (SDCARD: storage/sd/; pff.c and fatfs/ their own units, listed so every source is) and the far probe
-# (LAYOUT 1)
+# the SD card (SDCARD: storage/sd/; pff.c and fatfs/ their own units, listed so every source is)
 SIZE_FILES += ["storage/sd/sdcard.c", "storage/sd/sd_mmc.c", "storage/sd/pff.c", "io/console_sd.c",
                "storage/sd/sd_diskio.c", "storage/sd/fatfs/ff.c", "storage/sd/fatfs/ffunicode.c",
                "storage/sd/sd_layout.c", "storage/sd/sd_hash.c", "storage/sd/sd_alloc.c", "storage/sd/sd_index.c",
                "storage/sd/sd_stream.c", "storage/sd/sd_stream_rc.c", "storage/sd/sd_slice.c", "storage/sd/sd_stream_plan.c",
-               "storage/sd/sd_browse.c", "storage/sd/sd_save.c", "storage/sd/sd_rec.c", "storage/sd/sd_mode.c",
-               "system/far_probe.c"]
+               "storage/sd/sd_browse.c", "storage/sd/sd_save.c", "storage/sd/sd_rec.c", "storage/sd/sd_mode.c"]
 # Wi-Fi + Link (WIFI_LINK, WIFI_AP)
 SIZE_FILES += ["wifi/wifi_crypto.c", "wifi/wifi_sta.c", "wifi/wifi_ip.c", "wifi/wifi_link.c", "link/link.c",
                "wifi/wifi_conn.c", "wifi/wifi_nets.c", "wifi/wifi_saved.c", "wifi/wifi_ap.c", "wifi/wifi_ap_dhcp.c", "wifi/wifi_apd.c",

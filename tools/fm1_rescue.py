@@ -67,7 +67,7 @@ LOADER_ADDR, LOADER_ARG = 0x1C02000, 0x0001
 
 FLASH_SIZE = 0x100000
 APP_END = flash_layout.app_hi(0)   # the normal layout's .fwsc flash entry: raw flash [0, APP_END)
-CLEAR_END = flash_layout.BIG_STORE_HI   # the highest sector a layout switch may clear
+CLEAR_END = flash_layout.CLEAR_TOP   # no layout switch clears at or past it
 WRITE_MIN = 0x4000         # flash header, SPL, isd_config: never written
 SECTOR = 0x1000
 IO = 512

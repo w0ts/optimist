@@ -35,8 +35,16 @@
 #include "../../hal/fm1_flash_map.h"
 _Static_assert(OTA_AREA == FL_OTA_LO && OTA_AREA + OTA_AREA_LEN == FL_OTA_HI && !FL_NEVER(OTA_AREA, OTA_AREA_LEN) &&
                OTA_AREA >= FL_APP_HI, "the update staging: off the app slot and the SDK's sectors");
-/* flash.bin = [0, an app slot's end): the head and this board's app area in one of the layouts (fm1_flash_map.h
- * FL_APP_HI_NORMAL, FL_APP_HI_BIG), what the package's own update loader writes (ldr_core.c LDR_APP_HI) */
+/* flash.bin = [0, an app slot's end): the head and this board's app area in one of the MEMORY steps (fm1_steps.h
+ * FL_STEPS, from tools/flash_layout.py: every step's end, whatever step this build is), what the package's own update
+ * loader writes (ldr_core.c LDR_APP_HI) */
+static int ota_step_size(uint32_t n)                /* n is one step's flash.bin size */
+{
+#define OTA_STEP_END(l, e, r) if (n == (e)) return 1;
+    FL_STEPS(OTA_STEP_END)
+#undef OTA_STEP_END
+    return 0;
+}
 #define OTA_LDR_HCRC 0xEBAAu                     /* official update loader (usb_hid_ota.bin) */
 #define OTA_LDR_DCRC 0x5881u
 #define OTA_LDR_LEN 0x4DE1u
@@ -321,9 +329,9 @@ static int ota_stage(void)                       /* steps 1..6; 0 = host said su
         return rc;
     if (!fl_off || !ota_off)
         return -3;
-    if (fl_len != FL_APP_HI_NORMAL && fl_len != FL_APP_HI_BIG)
-        return -15;                                         /* another board's package: nothing erased (either */
-                                                            /* layout: the package's own loader writes it) */
+    if (!ota_step_size(fl_len))
+        return -15;                                         /* another board's package: nothing erased (any step's */
+                                                            /* size: the package's own loader writes it) */
     /* 2. which loader: the official one (known CRCs; it rewrites the whole flash.bin
      *    including the head) or Felucca's own (app area only, checks the chip key) */
     if (ota_read(ota_off, b, 512))
