@@ -363,4 +363,36 @@ final class FakeFlashDevice: FlashPorts, FlashChannel {
         if loader { f.replaceSubrange(2000..<2016, with: Array("FELUCCA-LOADER-1".utf8)) }
         return f
     }
+
+    // MARK: - M-Flasher's release (tools/mflasher.py, bundled as mflasher.json by tools/sync_mflasher.py)
+
+    func testBundledMFlasherReleaseAndLinks() throws {
+        let r = try XCTUnwrap(MFlasherRelease.bundled(), "mflasher.json is not in the bundle (the build phase did not run)")
+        XCTAssertFalse(r.version.isEmpty)
+        XCTAssertEqual(r.page.lastPathComponent, "v\(r.version)")
+        for f in r.files {
+            XCTAssertEqual(f.sha256.count, 64, f.name)
+            XCTAssertEqual(f.url.lastPathComponent, f.name)
+            XCTAssertEqual(f.url.deletingLastPathComponent().lastPathComponent, "v\(r.version)")
+        }
+        // iPhone / iPad: a computer is needed, the link is the release page, no file
+        let phone = r.advice(catalyst: false)
+        XCTAssertTrue(phone.text.hasPrefix("This switch needs a computer: M-Flasher for macOS / Windows / Linux"))
+        XCTAssertEqual(phone.link, r.page)
+        XCTAssertNil(phone.sha256)
+        // Mac Catalyst: the macOS disk image itself, with its SHA-256
+        let mac = r.advice(catalyst: true)
+        let dmg = try XCTUnwrap(r.files.first { $0.kind == "dmg" })
+        XCTAssertEqual(mac.link, dmg.url)
+        XCTAssertEqual(mac.sha256, dmg.sha256)
+        XCTAssertTrue(mac.link.lastPathComponent.hasSuffix("macos.dmg"))
+        XCTAssertTrue(mac.text.contains(dmg.sha256))
+    }
+
+    func testMFlasherAdviceWithoutData() {
+        let empty = Bundle(for: FlashTests.self)       // (the test bundle carries no mflasher.json)
+        let a = MFlasherRelease.advice(catalyst: true, bundle: empty)
+        XCTAssertEqual(a.link, InstallRoute.mflasher)
+        XCTAssertNil(a.sha256)
+    }
 }

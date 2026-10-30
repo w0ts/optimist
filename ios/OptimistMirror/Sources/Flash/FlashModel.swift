@@ -31,6 +31,8 @@ final class FlashModel: ObservableObject {
     @Published var keepBootloader = false
     /// the last install needs download mode (M-Flasher on a computer); true: the soft key may help there
     @Published private(set) var softKeyOffered = false
+    /// the last install needs download mode: the tab says it needs a computer (M-Flasher) and links the release
+    @Published private(set) var needsComputer = false
 
     private let link: MirrorLink
     private let updater: FlashUpdater
@@ -187,6 +189,7 @@ final class FlashModel: ObservableObject {
         result = nil
         error = nil
         softKeyOffered = false
+        needsComputer = false
 
         progress = 0
         status = "Looking for the FM-1…"
@@ -201,6 +204,7 @@ final class FlashModel: ObservableObject {
                     progress = nil
                     self.error = "Not installed. " + InstallRoute.nextStep(r, file: pkg.file)
                     softKeyOffered = r.softKey
+                    needsComputer = true
                     return
                 }
             }

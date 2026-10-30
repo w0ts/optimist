@@ -125,9 +125,13 @@ def check_mflasher(rep, fetch, yes):
     """M-Flasher (third_party/m-flasher): the installers' download mode (docs/INSTALL-PATHS.md); its pinned release"""
     import mflasher as MF
     exe = MF.binary()
-    if exe is None and fetch and MF.asset() and confirm(f"download M-Flasher {MF.VERSION} (download-mode installs)?", yes):
+    if exe is None and fetch and MF.asset() and confirm(
+            f"download M-Flasher v{MF.VERSION} for {MF.machine_label()} ({MF.pick()['size'] / 1e6:.1f} MB; MIT, Julius "
+            f"Vitkauskas) into {MF.home()} (download-mode installs)?", yes):
         try:
             exe = MF.fetch()
+            for n in MF.notes():
+                print(f"setup: {n}")
         except MF.MFlasherError as e:
             print(f"setup: {e}")
     rep.add("M-Flasher", None if exe is None else True, str(exe) if exe else "not installed (only download-mode installs need it)",

@@ -48,8 +48,11 @@ class Env:
     """what the flow needs from the outside (the tests replace each): M-Flasher, the FM-1 over MIDI, the user"""
 
     def __init__(self, exe=None, out=sys.stdout, ask=None, soft_key=None, wait_back=None, sleep=time.sleep,
-                 run=MF.run):
+                 run=MF.run, may_fetch=None, download=None):
         self.exe, self.out, self.sleep, self.run_mf = exe, out, sleep, run
+        self.may_fetch = may_fetch          # (question) -> True: download the pinned M-Flasher; None: never (setup does)
+        self.download = download            # (url, dest) for MF.fetch: the tests' fake server
+        self.asked = False                  # the download question is asked once per run
         self.ask = ask or ask_tty
         self.soft_key = soft_key            # () -> True when the message was sent (the running firmware's link)
         self.wait_back = wait_back          # (product) -> the identity the FM-1 came back with, or None
@@ -102,9 +105,18 @@ def build_setting(package, keep_flag):
 def need_mflasher(env):
     if env.exe is None:
         env.exe = MF.binary()
+    if env.exe is None and env.may_fetch is not None and not env.asked:
+        env.asked = True
+        try:
+            env.exe = MF.ensure(env.may_fetch, env.say, env.download)
+        except MF.MFlasherError as e:
+            raise AnyError("nomf", str(e))
     if env.exe is None:
         raise AnyError("nomf", "M-Flasher is not installed: python tools/fm1_anyflash.py setup (its pinned release "
                                f"{MF.VERSION}), or put M_FLASHER=/path/to/m-flasher")
+    env.say(f"M-Flasher: {env.exe}")
+    for n in MF.notes():
+        env.say("  " + n)
 
 
 def mf(env, cmd, answer=None, capture=True, **kw):
