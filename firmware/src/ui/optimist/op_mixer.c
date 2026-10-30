@@ -20,13 +20,17 @@
  * engine's drive), FILTER (P_TFLT), COMP only in a slot; the sends only in a slot, REV DLY CHO. The drum track's row:
  * its LEVEL (GLO > DRUMS), FILTER, FX on, the kit; its lanes carry the sounds' own values (SOUND 2 and 3: the offsets
  * and the sends). */
-enum { MXR_MASTER, MXR_T1, MXR_DR = MXR_T1 + TRK_DRUM, MXR_LANE0, MXR_LN = MXR_LANE0 + (FELUCCA_DRUMS ? DRUM_UILANES : 0),   /* (MXR_DR: T4 without drums) */
+/* (2026-10-30, the user: "it might simplify the ui if the return track are just normal track, in the mixer page above
+ * master", "put the master at the bottom ... and the return track above"): T1 T2 T3, DR, its lanes, USB IN, RET A B C, MASTER */
+enum { MXR_T1, MXR_DR = MXR_T1 + TRK_DRUM, MXR_LANE0, MXR_LN = MXR_LANE0 + (FELUCCA_DRUMS ? DRUM_UILANES : 0),   /* (MXR_DR: T4 without drums) */
 #if FELUCCA_USB_AUDIO
        MXR_USB = MXR_LN,                         /* the USB input, a track after the drum tracks (fx-rework stage 3; fx.c ut_mix) */
-       MXR_N
+       MXR_RET0,
 #else
-       MXR_N = MXR_LN
+       MXR_RET0 = MXR_LN,
 #endif
+       MXR_MASTER = MXR_RET0 + 3,                /* the returns A B C (the master slots 1..3, fx_slots.c), then MASTER, the last */
+       MXR_N
 };
 static int mx_is_lane(uint32_t r) { return r >= MXR_LANE0 && r < MXR_LN; }
 #if FELUCCA_USB_AUDIO
@@ -36,8 +40,25 @@ static int mx_is_usb(uint32_t r) { return r == MXR_USB; }
 #endif
 #define MXR_ACC (MXR_LANE0 + DRUM_ACC)           /* the ACCENT lane's row, past the 16 sounds (core.h DRUM_UILANES) */
 static int mx_is_acc(uint32_t r) { return ACC_UI && r == MXR_ACC; }
+/* a return's row (RET A B C: the master slots 1..3), its slot, its line (the send bus it owns: its level, mute, PRE, POST;
+ * fx_slots.c fxs_line), 3: an empty return */
+static int mx_is_ret(uint32_t r) { return r >= MXR_RET0 && r < MXR_MASTER; }
+static uint32_t mx_ret_slot(uint32_t r) { return 1u + (r - MXR_RET0) % 3u; }
+static uint32_t mx_ret_ln(uint32_t r)
+{
+    uint32_t j = fxs_line[mx_ret_slot(r)];
+    return mx_is_ret(r) && j < 3u && (fxs_lnl >> j & 1u) ? j : 3u;
+}
+#if INS_LIM
+#define FXI_RT_OWN(j) (FXI_RT0 + (j))                   /* (fxi.c's owner of return line j) */
+#else
+#define FXI_RT_OWN(j) 0u
+#endif
 enum { MI_NONE, MI_TRK, MI_GLOB, MI_LANE, MI_LMUTE, MI_RET, MI_INST, MI_INSA, MI_DKS, MI_ACC, MI_AMUTE, MI_MINST, MI_MINSA,
-       MI_UT, MI_UTST, MI_UTSA, MI_UEQ, MI_RSND };
+       MI_UT, MI_UTST, MI_UTSA, MI_UEQ, MI_RSND, MI_RTY, MI_RAMT, MI_RPT, MI_RPA, MI_REQ };
+/* a return's row: MI_RET its LEVEL (G_CRET + its line), MI_RTY its effect (the master slot id's TYPE, FX > SLOTS'), MI_RAMT
+ * that effect's amount (a type not a send: fx_slots.c FXS_ID_RAMT), MI_RPT / MI_RPA its PRE (id 0) or POST (1) insert's TYPE /
+ * amount (fx_slots.c rp_desc), MI_REQ its EQ3's value id (FXS_ID_REQ + id, the row's line first: rt_eq3_pref) */
 /* MI_RSND: a send between the returns (fx_slots.c rs_amt's index: A -> B, A -> C, B -> C; MASTER's A SENDS, B SENDS) */
 /* MI_UT: the USB input's value id (fx_slots.c ut_desc: VOLUME PAN MUTE FX ON REV DLY CHO, GATER's PAT RATE SHAPE, JUNO's
  * MODE), MI_UTST / MI_UTSA its slot id's TYPE / amount, MI_UEQ its EQ3's value id (fx_slots.c FXS_ID_UEQ + id) */
@@ -83,19 +104,23 @@ static int mx_on_master(void) { return ui.scr == SCR_HOME && mx_row() == MXR_MAS
 /* the mixer on its USB row: no instrument either (the track buttons dark, the keys silent), not the master; FX its inserts
  * (mx_ut_fx below) */
 static int mx_on_usb(void) { return ui.scr == SCR_HOME && mx_is_usb(mx_row()); }
+/* the mixer on a return's row: no instrument (the track buttons dark), not the master; the keys play the selected track
+ * (2026-10-30: as every page without a track); FX opens the master FX on its effect's page (mx_ret_fx) */
+static int mx_on_ret(void) { return ui.scr == SCR_HOME && mx_is_ret(mx_row()); }
 /* MASTER selected, on any page (the user, 2026-10-12: "i want uniformity"): the mixer's row, the master FX screen, a
  * layer's ui.master. The track buttons are dark and do nothing there */
 static int master_sel(void) { return mx_on_master() || ui.scr == SCR_FX || ui.master; }
 #define MX_TRK_BTNS (1u << B_ENV | 1u << B_LFO | 1u << B_EDIT | 1u << B_ARP | 1u << B_SCL | 1u << B_SEQ)   /* the track buttons */
 /* the ACCENT lane selected (the mixer's row, or picked anywhere): no sound, so no FX and no EDIT (the user, 2026-10-19: "accent
  * has fx, makes no sense. and it has edit, makes no sense either") */
-static int acc_sel(void) { return ui.lane && is_drum(TSEL) && lane_acc() && !master_sel() && !mx_on_usb(); }
+static int acc_sel(void) { return ui.lane && is_drum(TSEL) && lane_acc() && !master_sel() && !mx_on_usb() && !mx_on_ret(); }
+static int mx_no_track(void) { return master_sel() || mx_on_usb() || mx_on_ret(); }   /* (no track's row: no lane pick by a key) */
 static uint32_t mx_dead_mask(void)                      /* the buttons that do nothing here: a bit per B_* */
 {
-    return (master_sel() ? MX_TRK_BTNS : 0u) | (mx_on_usb() ? MX_TRK_BTNS : 0u) | (acc_sel() ? 1u << B_FX | 1u << B_EDIT : 0u);
+    return (master_sel() || mx_on_usb() || mx_on_ret() ? MX_TRK_BTNS : 0u) | (acc_sel() ? 1u << B_FX | 1u << B_EDIT : 0u);
 }
 static int mx_master_dead(uint32_t b) { return b < 32u && (mx_dead_mask() >> b & 1u); }
-static uint32_t mx_trk_of(uint32_t r) { return r >= MXR_DR ? TRK_DRUM : r > MXR_MASTER ? r - MXR_T1 : 0u; }   /* (MASTER: T1, unused) */
+static uint32_t mx_trk_of(uint32_t r) { return r < MXR_DR ? r - MXR_T1 : r < MXR_LN || mx_is_usb(r) ? TRK_DRUM : 0u; }   /* (MASTER, a return: T1, unused) */
 /* row r muted. One mute (the user, 2026-10-16): a track's, a lane's and the ACCENT lane's is the sequencer mute (seq_mute.c:
  * its steps stop, the tails ring), SHIFT + its key or SHIFT + its volume card; the USB input's is its own (no sequencer).
  * A sound mute an older project or the SLOOP UI left (P_MUTE, the lane's own, drum_mix.c) counts too, so that it shows
@@ -104,6 +129,8 @@ static uint32_t mx_muted(uint32_t r)
 {
     if (r == MXR_MASTER)
         return 0u;
+    if (mx_is_ret(r))                                   /* (a return: its output's mute, fx.c fx_rmute) */
+        return mx_ret_ln(r) < 3u && (fx_rmute >> mx_ret_ln(r) & 1u);
 #if FELUCCA_USB_AUDIO
     if (mx_is_usb(r))
         return ut.v[UTV_MUTE] != 0;
@@ -119,7 +146,7 @@ static uint32_t mx_snd_muted(uint32_t r)
 {
     if (r == MXR_MASTER)
         return 0u;
-    if (mx_is_usb(r))
+    if (mx_is_usb(r) || mx_is_ret(r))
         return mx_muted(r);                             /* (the USB input: no sequencer, its mute is its sound's) */
     if (mx_is_lane(r))
         return (uint32_t)(!mx_is_acc(r) && dlm_muted(r - MXR_LANE0));
@@ -136,6 +163,11 @@ static void mx_mute_set(uint32_t r, int on)
 #endif
     if (r == MXR_MASTER)
         return;
+    if (mx_is_ret(r)) {
+        if (mx_ret_ln(r) < 3u)
+            fx_rmute = (uint8_t)(on ? fx_rmute | 1u << mx_ret_ln(r) : fx_rmute & ~(1u << mx_ret_ln(r)));
+        return;
+    }
     if (mx_is_lane(r)) {
         smute_set_lane(r - MXR_LANE0, on);
         if (!mx_is_acc(r))
@@ -169,7 +201,7 @@ static uint32_t mx_sel_row(void)                        /* the row of the select
 }
 static uint16_t mx_col(uint32_t r)                      /* the row's colour: its engine's, its lane's source */
 {
-    return r == MXR_MASTER || mx_is_usb(r) ? C_HI : mx_is_lane(r) ? op_lane_col(r - MXR_LANE0) : trk_col(mx_trk_of(r));
+    return r == MXR_MASTER || mx_is_usb(r) || mx_is_ret(r) ? C_HI : mx_is_lane(r) ? op_lane_col(r - MXR_LANE0) : trk_col(mx_trk_of(r));
 }
 
 static uint32_t mx_add(mitem_t *it, uint32_t n, uint32_t grp, const char *label, uint32_t kind, uint32_t id)
@@ -223,40 +255,51 @@ static uint32_t mx_items_synth(mitem_t *it)
     n = mx_items_sends(it, n, 0, MI_TRK, S, MI_TRK, P_PAN);
     return n;                                           /* (no FX ON and no SOUND card: the user, 2026-10-14; PRESETS is a button) */
 }
-/* MASTER's Returns (2026-10-12, the user: "on the mixer screen Master, we should have a volume control for the return
- * tracks"): a card a return, A B C (fx_slots.c fxs_card: the one order, as the master FX's RETURNS page, op_screens.c
- * FX_RET), "REV RET" ..; each turns its line's return level (core.h G_CRET G_DRET G_RRET, fx.c). An empty return has
- * no card (the audit's #7: no "-" card; was a card a slot, "S1 -"). No return holding anything: no set */
-static uint32_t mx_items_ret(mitem_t *it, uint32_t n)
+/* a return's sends to the other returns (2026-10-16, fx_slots.c rs_amt; MASTER's A SENDS B SENDS until 2026-10-30): return
+ * slot s's set, in a track's sends grammar: cards 1..3 the returns A B C (the card of the return a send goes to, named by
+ * what it holds; blank: the return itself, one to its left, an empty one), card 4 blank (a return has no PAN). C sends to
+ * none: no set. With RET_FB (the feedback sends) each return sends to the other two (A: B C, B: A C, C: A B) */
+static uint32_t mx_items_rsend(mitem_t *it, uint32_t n, uint32_t s)
 {
-    uint32_t k, t;
-    for (k = 0; k < 3u; k++)
-        if ((t = fxs_card(k)) != FXT_NONE)
-            n = mx_add(it, n, MG_SEND, fxs_ret_label(FXS_LN(t)), MI_RET, G_CRET + FXS_LN(t));
-    return n;
-}
-/* MASTER's return sends (2026-10-16, fx_slots.c rs_amt): a set a return that may send, A SENDS then B SENDS, in a track's
- * sends grammar: cards 1..3 the returns A B C (the card of the return a send goes to, named by what it holds; blank: the
- * return itself, one to its left, an empty one), card 4 blank (a return has no PAN). C sends to none: no set. A return
- * holding nothing, or nothing to its right: no set. With RET_FB (the feedback sends) each return sends to the other two
- * (A: B C, B: A C, C: A B), C SENDS too; blank: the return itself, an empty one */
-static uint32_t mx_items_rsend(mitem_t *it, uint32_t n)
-{
-    uint32_t s, k, i, any;
+    uint32_t k, i, any;
     int16_t *vp;
-    for (s = 1; s < (FELUCCA_RET_FB ? 4u : 3u); s++) {   /* (RET_FB: C SENDS too, and B's to A, C's to A and B) */
-        for (k = 0, any = 0; rs_of(s, k) < RS_N; k++)
-            any |= rs_desc(rs_of(s, k), &vp) != 0;
-        if (!any)
-            continue;
-        for (k = 0; k < 4u; k++) {
-            for (i = 0; rs_of(s, i) < RS_N && RS_DST[rs_of(s, i)] != k + 1u; i++)
-                ;
-            n = rs_of(s, i) < RS_N ? mx_add(it, n, MG_RSA + s - 1u, 0, MI_RSND, rs_of(s, i)) :
-                                     mx_add(it, n, MG_RSA + s - 1u, 0, MI_NONE, 0);
-        }
+    for (k = 0, any = 0; rs_of(s, k) < RS_N; k++)
+        any |= rs_desc(rs_of(s, k), &vp) != 0;
+    if (!any)
+        return n;
+    for (k = 0; k < 4u; k++) {
+        for (i = 0; rs_of(s, i) < RS_N && RS_DST[rs_of(s, i)] != k + 1u; i++)
+            ;
+        n = rs_of(s, i) < RS_N ? mx_add(it, n, MG_RSA + s - 1u, 0, MI_RSND, rs_of(s, i)) : mx_add(it, n, MG_RSA + s - 1u, 0, MI_NONE, 0);
     }
     return n;
+}
+/* a return's row (2026-10-30, the user: "Level + mute, two generic inserts like any other tracks", "the FX (gives the name
+ * to the return), pre insert, post insert"): LEVEL (its line's RET; SHIFT on it: its mute) FX (its effect's TYPE, as FX >
+ * SLOTS) and that effect's amount (a type not a send; blank for CHO DLY REV, which are 100 % wet) | PRE TYPE, its amount,
+ * POST TYPE, its amount | its EQ3's settings while a stage or its effect holds EQ3 (RET EQ3, RET EQ3 F) | its sends to the
+ * other returns. An empty return: its FX card alone */
+static uint32_t mx_items_retrow(uint32_t r, mitem_t *it, uint32_t n)
+{
+    uint32_t k = mx_ret_slot(r), j = mx_ret_ln(r), i;
+    n = j < 3u ? mx_add(it, n, MG_MIX, "LEVEL", MI_RET, G_CRET + j) : mx_add(it, n, MG_MIX, 0, MI_NONE, 0);
+    n = mx_add(it, n, MG_MIX, "FX", MI_RTY, k);
+    n = mx_add(it, n, MG_MIX, 0, MI_RAMT, k);
+    if (j >= 3u)
+        return n;
+    for (i = 0; i < RP_N; i++) {
+        n = mx_add(it, n, MG_INS, 0, MI_RPT, i);
+        n = mx_add(it, n, MG_INS, 0, MI_RPA, i);
+    }
+    rt_eq3_pref = (uint8_t)j;
+    if ((uint32_t)rt_eq3() == j) {
+        for (i = 0; i < 3u; i++)
+            n = mx_add(it, n, MG_UEQ, 0, MI_REQ, i);
+        for (i = 4; i < 6u; i++)
+            n = mx_add(it, n, MG_UEQF, 0, MI_REQ, i);
+    }
+    rt_eq3_pref = 3u;
+    return mx_items_rsend(it, n, k);
 }
 #if FELUCCA_USB_AUDIO
 /* the USB input's insert settings, while one of its slots holds the type (the input has no SOUND pages: they are its row's
@@ -299,12 +342,12 @@ static uint32_t mx_items_value(uint32_t r, mitem_t *it)   /* the row's value ite
             n = mx_adds(it, n, DYN, 4);
         }
 #endif
-        n = mx_items_ret(it, n);
-        n = mx_items_rsend(it, n);
-        if (g_built(G_DUCK))
+        if (g_built(G_DUCK))                            /* (its returns: their own rows since 2026-10-30) */
             n = mx_add(it, n, MG_LAST, "DUCK", MI_GLOB, G_DUCK);
         return n;
     }
+    if (mx_is_ret(r))
+        return mx_items_retrow(r, it, n);
     if (mx_is_acc(r)) {                                 /* the ACCENT lane: a lane's layout, a silent lane's cards: MUTE its sequencer
                                                          * mute (seq_mute.c SMUTE_ACC: no sound to mute), LEVEL the ACCENT amount,
                                                          * no CUT, DRIVE, DST, CMP, sends or sound */
@@ -325,7 +368,7 @@ static uint32_t mx_items_value(uint32_t r, mitem_t *it)   /* the row's value ite
         return n;
     }
 #endif
-    if (r >= MXR_LANE0) {                               /* a lane: the sound's own values (SOUND 2's offsets, 3's sends) */
+    if (mx_is_lane(r)) {                                /* a lane: the sound's own values (SOUND 2's offsets, 3's sends) */
         static const mitem_t LN[7] = {{"LEVEL", MI_LANE, DE_LEVEL, MG_MIX}, {"CUT", MI_LANE, DE_CUT, MG_MIX},
                                       {"DRIVE", MI_LANE, DE_DRIVE, MG_MIX},   /* (its PAN is the sends set's card 4; DRIVE the
                                                          * sound's own drive: a SOUND value) */
@@ -456,6 +499,21 @@ static const param_desc_t *mx_desc(uint32_t r, const mitem_t *m, int16_t **vp)
         return &GP[m->id];
     case MI_RSND:                                       /* (a send between the returns: none, a blank card) */
         return rs_desc(m->id, vp);
+    case MI_RTY:                                        /* (a return's effect: FX > SLOTS' list) */
+        return fxs_desc(m->id & 3u, vp);
+    case MI_RAMT:                                       /* (its amount: a type not a send; none, a blank card) */
+        return fxs_desc(FXS_ID_RAMT + (m->id - 1u) % 3u, vp);
+    case MI_RPT:
+        return mx_ret_ln(r) < 3u ? rp_desc(mx_ret_ln(r), m->id, vp) : 0;
+    case MI_RPA:
+        return mx_ret_ln(r) < 3u ? rp_amt_desc(mx_ret_ln(r), m->id, vp) : 0;
+    case MI_REQ: {                                      /* (the row's line's EQ3: rt_eq3 with it first) */
+        const param_desc_t *e;
+        rt_eq3_pref = (uint8_t)mx_ret_ln(r);
+        e = fxs_desc(FXS_ID_REQ + m->id, vp);
+        rt_eq3_pref = 3u;
+        return e;
+    }
     case MI_ACC:                                        /* the ACCENT amount: the drum track's own value */
         *vp = &TDRUM->p[P_DACC];
         return &DRUM_ACC_DESC;
@@ -541,8 +599,9 @@ static void mix_name(uint32_t r, char *b)
     mx_items(r, it);
     g = it[mx_set(r) * 4u].grp;
     if (r == MXR_MASTER)                                /* (as the master FX's pages; the badge says MASTER) */
-        str_cpy(b, g == MG_SEND ? "RETURNS" : g == MG_RSA ? "A SENDS" : g == MG_RSB ? "B SENDS" : g == MG_RSC ? "C SENDS" : g == MG_LAST ? "DUCK" :
-                   it[mx_set(r) * 4u].kind == MI_GLOB ? "INS DYN" : "INSERT", 12);
+        str_cpy(b, g == MG_LAST ? "DUCK" : it[mx_set(r) * 4u].kind == MI_GLOB ? "INS DYN" : "INSERT", 12);
+    else if (mx_is_ret(r))                              /* (a return: MIX, INSERT, its EQ3's, SENDS) */
+        str_cpy(b, g == MG_UEQ ? "RET EQ3" : g == MG_UEQF ? "RET EQ3 F" : g >= MG_RSA ? "SENDS" : G[g & 7u], 12);
     else
         str_cpy(b, G[g & 7u], 12);
 }
@@ -601,6 +660,13 @@ static void mix_cell(uint32_t r, uint32_t k, cell_t *c)
 #endif
         if (m.kind == MI_MINST)
             cell_own_note(c, FXI_MST_OWN, mst_slot[m.id & 1u], m.id);
+        if (m.kind == MI_RTY && mx_ret_ln(r) < 3u && fxs_rty[mx_ret_ln(r)] != FXT_NONE)
+            cell_own_note(c, FXI_RT_OWN(mx_ret_ln(r)), fxs_rty[mx_ret_ln(r)], 0);   /* (a pooled type: free / FULL) */
+        if (m.kind == MI_RPT && mx_ret_ln(r) < 3u) {
+            cell_own_note(c, FXI_RT_OWN(mx_ret_ln(r)), rp_ty[mx_ret_ln(r)][m.id & 1u], m.id);
+            if (c->strike)
+                c->label = m.id ? "POST" : "PRE";       /* (FULL: bypassed, the return plays on) */
+        }
         break;
     }
     if (m.label)
@@ -612,7 +678,9 @@ static void mix_cell(uint32_t r, uint32_t k, cell_t *c)
         c->vp = &av[k & 3u];
     }
     c->strike |=(uint8_t)(mx_is_vol(&m) && mx_snd_muted(r));   /* (a sound mute only: the sequencer mute leaves the volume alone) */
-    c->strike |= (uint8_t)(m.kind == MI_RET && ((fx_rmute >> (m.id - G_CRET) & 1u) || fx_rfull((uint32_t)(m.id - G_CRET))));   /* (a muted return's card; also one whose insert is FULL: it plays nothing) */
+    c->strike |= (uint8_t)(m.kind == MI_RET && ((fx_rmute >> (m.id - G_CRET) & 1u) || fx_rfull((uint32_t)(m.id - G_CRET))));
+    if (m.kind == MI_RET && mx_is_ret(r))
+        c->hlp = "RET LEVEL";   /* (a muted return's card; also one whose insert is FULL: it plays nothing) */
     if (m.kind == MI_ACC)
         c->hlp = "ACCENT LEVEL";
     if (m.kind == MI_RSND)
@@ -699,6 +767,37 @@ static int mx_mute_toggle(uint32_t r, const mitem_t *m)
     mx_say(r, mx_mute_flip(r) ? " SEQ MUTE" : " SEQ ON");
     return 1;
 }
+/* a return's FX TYPE turned from list entry old to v (fxs_list of n): the next entry in that direction no other return holds
+ * (the user, 2026-10-18: skip, never steal), old when none */
+static int32_t mx_rty_skip(uint32_t k, int32_t old, int32_t v, uint32_t n)
+{
+    int32_t dir = v > old ? 1 : -1, i;
+    uint32_t j, t, held;
+    if (v == old)
+        return v;
+    for (i = v; i >= 0 && i < (int32_t)n; i += dir) {
+        t = fxs_list[i];
+        for (j = 1, held = 0; j < FX_NSLOT; j++)
+            held |= j != k && t != FXT_NONE && fxs_slot[j] == t;
+        if (!held)
+            return i;
+    }
+    return old;
+}
+/* line j's stage st TYPE turned from old to v (rp_list of n): skips the other stage's type, the line's effect's, a limited
+ * type with no instance free (fxi.c fxi_can, as a track's INSERTS) */
+static int32_t mx_rp_skip(uint32_t j, uint32_t st, int32_t old, int32_t v, uint32_t n)
+{
+    int32_t dir = v > old ? 1 : -1, i;
+    if (v == old)
+        return v;
+    for (i = v; i >= 0 && i < (int32_t)n; i += dir) {
+        uint32_t t = rp_list[i];
+        if (t == FXT_NONE || (t != rp_ty[j % 3u][(st & 1u) ^ 1u] && t != rp_fx_ty(j) && fxi_can(FXI_RT_OWN(j), t)))
+            return i;
+    }
+    return old;
+}
 static void mix_turn(uint32_t r, uint32_t k, int32_t s, int fine)
 {
     mitem_t m;
@@ -721,6 +820,13 @@ static void mix_turn(uint32_t r, uint32_t k, int32_t s, int fine)
                                   FXT_N]);   /* (the other slot's type skipped) */
     }
 #endif
+    else if (m.kind == MI_RTY) {                        /* a return's effect: the types the other returns hold skipped */
+        if (s != OP_RESET)
+            fxs_load(m.id, fxs_list[(uint32_t)mx_rty_skip(m.id, *vp, param_step(d, *vp, s), (uint32_t)d->max + 1u) % FXS_NLIST]);
+    } else if (m.kind == MI_RPT) {                      /* PRE / POST TYPE: the other stage's, the effect's, the unavailable skipped */
+        if (s != OP_RESET && mx_ret_ln(r) < 3u)
+            rp_load(mx_ret_ln(r), m.id, rp_list[(uint32_t)mx_rp_skip(mx_ret_ln(r), m.id, *vp, param_step(d, *vp, s), (uint32_t)d->max + 1u) % FXT_N]);
+    }
     else if (m.kind == MI_MINST) {                      /* MASTER's slot TYPE: as a track's */
         if (s != OP_RESET)
             mst_load(m.id, mst_list[(uint32_t)mst_type_turn(m.id, param_step(d, *vp, s)) % MST_NLIST]);   /* (the other's skipped) */
@@ -792,7 +898,7 @@ static void mx_apply(uint32_t r)                        /* the cursor on row r: 
     ui.row[SCR_HOME] = (uint8_t)r;
     if (r == MXR_MASTER)
         return;
-    if (mx_is_usb(r)) {                                 /* (the USB input: no track to select, as MASTER) */
+    if (mx_is_usb(r) || mx_is_ret(r)) {                 /* (the USB input, a return: no track to select, as MASTER) */
         op_repaint();
         return;
     }
@@ -827,6 +933,21 @@ static int mx_ut_fx(void)
 #else
 static int mx_ut_fx(void) { return 0; }
 #endif
+/* FX on a return's row: the master FX, on its effect's page (REV/CHO's SIZE DAMP RATE DEPTH, the delay's, its EQ3's; any
+ * other: RETURNS) */
+static void op_enter(uint32_t scr);                     /* op_input.c */
+static void mx_ret_fx(void)
+{
+    uint32_t j = mx_ret_ln(mx_row()), t = j < 3u ? rp_fx_ty(j) : (uint32_t)FXT_NONE, r, n;
+    const char *pg = t == FXT_CHO || t == FXT_REV ? "REV/CHO" : t == FXT_DLY ? "DLY" : t == FXT_EQ3 ? "RET EQ3" : "RETURNS";
+    op_enter(SCR_FX);
+    n = fxs_rows();
+    for (r = 0; r < n; r++)
+        if (str_eq(fx_pg(r)->title, pg)) {
+            ui.row[SCR_FX] = (uint8_t)r;
+            break;
+        }
+}
 static void mx_page(int32_t d)                         /* SELECT: the knob sets, stopping at the ends (GLO tapped opens
                                                          * GLOBAL since 2026-10-12: op_global.c) */
 {
@@ -842,7 +963,7 @@ static void mx_page(int32_t d)                         /* SELECT: the knob sets,
     ui.hot = 0;
     ui.hot_lit = 0;
 }
-/* ALGORITHM across: s groups from row p (MASTER, the channels, the lanes by four, USB IN), each entered on its first row */
+/* ALGORITHM across: s groups from row p (the channels, the lanes by four, USB IN, the returns, MASTER), each entered on its first row */
 static uint32_t mx_walk_across(uint32_t p, int32_t s)
 {
     uint32_t q;
@@ -854,7 +975,7 @@ static uint32_t mx_walk_across(uint32_t p, int32_t s)
     }
     for (; s < 0; s++) {
         q = mx_across(p) ? mx_grp0(p) : p;
-        if (q == MXR_MASTER)
+        if (q == MXR_T1)
             break;
         p = mx_across(q - 1u) ? mx_grp0(q - 1u) : q - 1u;
     }
@@ -883,7 +1004,7 @@ static void mx_tick(void)
         mx.tlit[i] = (uint8_t)((th >> i) & 1u ? MX_FLASH : mx.tlit[i] ? mx.tlit[i] - 1u : 0u);
     for (i = 0; i < DRUM_LANES; i++)
         mx.llit[i] = (uint8_t)((lh >> i) & 1u ? MX_FLASH : mx.llit[i] ? mx.llit[i] - 1u : 0u);
-    if (r == MXR_MASTER || (ui.scr == SCR_HOME && mx_is_usb(r)))
+    if (r == MXR_MASTER || (ui.scr == SCR_HOME && (mx_is_usb(r) || mx_is_ret(r))))
         return;
     if (ui.scr != SCR_HOME || mx_trk_of(r) != song.sel)
         ui.row[SCR_HOME] = (uint8_t)mx_sel_row();      /* (off the mixer, another track: the row follows the selection) */

@@ -310,7 +310,7 @@ static uint32_t head_has_track(void)
         return HEAD_TRK_LY[lay.shown % LY_COUNT] && !ui.master;
     if (ui.scr == SCR_HOME)                             /* the mixer: the badge names the row's track or lane (the user, 2026-10-14: "it says mix on
                                                          * drum main and sub tracks"), MASTER its own */
-        return mx_row() != MXR_MASTER && !mx_is_usb(mx_row()) && !ui.master;
+        return mx_row() != MXR_MASTER && !mx_is_usb(mx_row()) && !mx_is_ret(mx_row()) && !ui.master;
     return HEAD_TRK_SCR[ui.scr % SCR_N] && !ui.master;
 }
 /* the title t (32 bytes, as drawn) with the n/N pos, cut to the room only where the names table failed (losing the
