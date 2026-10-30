@@ -9,7 +9,11 @@
  *              catches up, and after the last catch-up the decoded screen is the panel; only whole frames reach the radio
  * Also long runs, many colours, the 7-bit wire, the frame cut, the meters muted. op_repaint stands in for the UI's in-place repaint
  * (every band drawn again: here the whole panel blitted again; tests/ui_optimist_test.c MIRROR_CHECK checks the real one).
- * MIRROR_FIXTURE=path writes the frames of a sample screen (and its pixels) for ios/OptimistMirror's tests. */
+ * MIRROR_FIXTURE=path writes the frames of a sample screen (and its pixels) for ios/OptimistMirror's tests.
+ * With MIR_LEND (built so under ASan too: run_tests.sh mirror_lend_test) the Bluetooth ring is the arena's block, here a
+ * stand-in (lend_tests): wanted only while a Bluetooth client uses it, nothing queued or sent without it, lent and taken
+ * back 50 times with nothing left behind, and the code never touching it once given back (the block poisoned: a read or
+ * write of it fails under ASan); every test before and after runs with the ring lent. */
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -166,6 +170,37 @@ static uint8_t ed_bt;                  /* (editor.c's: the request came over Blu
 #define panel panel_tab
 #define MIR_BLE_LAG 1536u               /* (smaller than the firmware's: the random screens here catch up in less than its 4 KB) */
 #include "../firmware/src/io/editor/ed_mirror.c"
+#if MIR_LEND
+#if defined(__has_feature)
+#if __has_feature(address_sanitizer)
+#define MT_ASAN 1
+#endif
+#endif
+#if defined(__SANITIZE_ADDRESS__)
+#define MT_ASAN 1
+#endif
+#ifdef MT_ASAN
+#include <sanitizer/asan_interface.h>
+#define MT_POISON(p, n) ASAN_POISON_MEMORY_REGION(p, n)
+#define MT_UNPOISON(p, n) ASAN_UNPOISON_MEMORY_REGION(p, n)
+#else
+#define MT_POISON(p, n) ((void)(p), (void)(n))
+#define MT_UNPOISON(p, n) ((void)(p), (void)(n))
+#endif
+static uint8_t *mt_block;               /* the arena's stand-in block, MIR_BLE_RING bytes */
+static void mt_lend(int on)             /* (core/arena_bufs.c arb_set: the interrupts off, then given back poisoned) */
+{
+    if (on) {
+        MT_UNPOISON(mt_block, MIR_BLE_RING);
+        mir_lend(mt_block);
+    } else {
+        mir_lend(0);
+        MT_POISON(mt_block, MIR_BLE_RING);
+    }
+}
+#else
+#define mt_lend(on) ((void)(on))
+#endif
 #undef panel
 /* editor.c's ed_handle and ed_send, the commands Bluetooth takes: the reply framed, over Bluetooth into the ring */
 static uint32_t ed_handled[128];
@@ -726,9 +761,70 @@ static void nav_tests(void)
     check(rep[0] == 0u && rep[1] == 1u, "NAV while not mirroring: refused");
 }
 
+#if MIR_LEND
+static void lend_tests(void)
+{
+    static const uint8_t ON[] = {0xF0, 0x7D, 0x46, 0x4C, 106, 1, 0xF7};
+    uint32_t pkt, k, f0 = frames, r0 = replies;
+    mt_lend(0);                         /* (given back: the arena's) */
+    quiet = 1;
+    lcd_fill(0, 0, 240, 240, 0);
+    memcpy(md_fb, panel, sizeof panel);
+    ble_out_on = 0;
+    check(!mir_lend_want(), "lend: no central: the ring not wanted");
+    ble_out_on = 1;
+    mbr_seen = fm1_ms - MIR_ALIVE_MS;
+    check(!mir_lend_want(), "lend: a central, no client: not wanted");
+    bt_send(ON, sizeof ON);             /* (106 from Bluetooth: its reply wants the ring) */
+    check(mir_lend_want(), "lend: a request from Bluetooth: wanted");
+    mir_poll();
+    check(mir.on && mir.link == MIR_BT && !mir_ble_peek(&pkt) && mbr.r == mbr.w,
+          "lend: on, but without the ring nothing queued, nothing for the radio");
+    mir_ble_pop();
+    check(mbr.r == mbr.w, "lend: a pop without the ring: nothing taken");
+    for (k = 0; k < 50u; k++) {         /* 50 on / off: each time on, caught up, the panel; then given back */
+        mt_lend(1);
+        bt_send(ON, sizeof ON);
+        mir_poll();
+        radio(~0u);
+        mir.catch_ms = fm1_ms - MIR_CATCH_MS;
+        mir_poll();                     /* (the catch-up: the screen whole) */
+        radio(~0u);
+        check(!mir.behind && same() && mbr.r == mbr.w, "lend %u: caught up, the panel, the ring drained", (unsigned)k);
+        ble_out_on = 0;                 /* (the central goes: the ring flushed, no longer wanted) */
+        mir_ble_flush();
+        mir_poll();
+        check(!mir_lend_want() && !mir.on, "lend %u: the central gone: not wanted, off", (unsigned)k);
+        mt_lend(0);                     /* (given back, poisoned: the code must not touch it now) */
+        check(!mir_ble_peek(&pkt) && !mbr_put(0xF0u), "lend %u: given back: nothing read, nothing written", (unsigned)k);
+        mir_ble_pop();
+        ble_out_on = 1;
+        mbr_seen = fm1_ms - MIR_ALIVE_MS;
+        fm1_ms += 10u;
+    }
+    check(frames > f0 && replies >= r0 + 50u, "lend: frames and replies went out while lent (%u, %u)",
+          (unsigned)(frames - f0), (unsigned)(replies - r0));
+    bt_send(ON, sizeof ON);
+    mir_poll();
+    mir_lend_off();                     /* (the question's NO: the mirror off, not wanted while the central stays) */
+    bt_send(ON, sizeof ON);
+    mir_poll();
+    check(!mir_lend_want(), "lend: after a NO, not wanted while the central stays");
+    ble_out_on = 0;
+    check(!mir_lend_want(), "lend: the central gone");
+    ble_out_on = 1;
+    bt_send(ON, sizeof ON);
+    check(mir_lend_want(), "lend: a new central's request: wanted again");
+}
+#endif
+
 int main(void)
 {
     uint32_t k;
+#if MIR_LEND
+    mt_block = malloc(MIR_BLE_RING);
+    mt_lend(1);                         /* (every test with the ring lent; lend_tests last) */
+#endif
     usb_tests();
     panel_tests();
     panelx_tests();
@@ -736,6 +832,9 @@ int main(void)
     test_session_tests();
     bt_tests();
     nav_tests();
+#if MIR_LEND
+    lend_tests();
+#endif
     /* the fixture for the app's tests: a panel drawn whole, then its frames and its pixels */
     if (getenv("MIRROR_FIXTURE")) {
         char p[512];

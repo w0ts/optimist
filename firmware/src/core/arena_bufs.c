@@ -38,15 +38,21 @@ static void punch_mem(void *p);
 static int punch_asked(void);
 static uint8_t arb_poff;                                /* FX + a key with the switch off: PUNCH OFF to say */
 #endif
-#if FELUCCA_BTA_LEND
-/* ARB_BTA: Bluetooth audio's buffers (fm1-base's plat_bta_mem: the audio packets' queue and the receptions' ring), lent
- * while an AUDIO mode is on or its run is being let go. The includer's (fm1base/optimist/ui/opt_bt.h; the host test's
- * fakes): the block's size, wanted now (the mode on, or the radio still reading it), and the block lent (p) or taken
- * back (0: only once bta_lend_want says no, so the radio no longer reads it). Never moved (DMA-free, but the radio's
- * interrupts read it at any time) */
+#if FMEM_NLEND
+/* ARB_LEND0 + i: the switchable features' blocks (core/feat_mem.c), the includer's, each its size, wanted now (its
+ * feature on, or its interrupts still reading it) and lent (p) or taken back (0: only once it is no longer wanted, so
+ * nothing reads it), the interrupts off: fm1base/optimist/core/opt_lend.h (Bluetooth audio's queue and ring, the
+ * mirror's ring ..), the host tests' fakes. Never moved (their interrupts read them at any time). Without the
+ * includer's hooks, Bluetooth audio's alone (ui/opt_bta_lend.h's) */
+#ifndef FMEM_LEND_BYTES
 static uint32_t bta_lend_bytes(void);
 static int bta_lend_want(void);
 static void bta_lend(void *p);
+#define FMEM_LEND_BYTES(i) ((void)(i), bta_lend_bytes())
+#define FMEM_LEND_WANT(i) ((void)(i), bta_lend_want())
+#define FMEM_LEND_SET(i, p) ((void)(i), bta_lend(p))
+#endif
+#define ARB_LENT(c) ((uint32_t)(c) - (uint32_t)ARB_LEND0 < FMEM_NLEND)   /* (client c a feature's) */
 /* the switchable features (core/feat_mem.c): their table and the pause's hooks are the includer's (FMEM_FEATS:
  * fm1base/optimist/ui/opt_feat.h; the host test's fakes) */
 #define FMEM_ANY 1
@@ -88,9 +94,9 @@ static uint32_t arb_bytes(uint32_t c)                   /* client c's block */
     if (c == (uint32_t)ARB_FM6SIN)
         return FM6_SIN_BYTES;
 #endif
-#if FELUCCA_BTA_LEND
-    if (c == (uint32_t)ARB_BTA)
-        return bta_lend_bytes();
+#if FMEM_NLEND
+    if (ARB_LENT(c))
+        return FMEM_LEND_BYTES(c - (uint32_t)ARB_LEND0);
 #endif
     (void)c;
     return 0;
@@ -155,9 +161,9 @@ static uint32_t arb_want(uint32_t c)                    /* client c's feature is
         return 0;
     }
 #endif
-#if FELUCCA_BTA_LEND
-    if (c == (uint32_t)ARB_BTA)
-        return bta_lend_want();
+#if FMEM_NLEND
+    if (ARB_LENT(c))
+        return (uint32_t)(FMEM_LEND_WANT(c - (uint32_t)ARB_LEND0) != 0);
 #endif
     (void)c;
     return 0;
@@ -202,9 +208,9 @@ static void arb_set(uint32_t c, void *p)
     if (c == (uint32_t)ARB_FM6SIN)
         FM6_SIN = (int32_t *)p;                         /* (built before: arb_open) */
 #endif
-#if FELUCCA_BTA_LEND
-    if (c == (uint32_t)ARB_BTA)
-        bta_lend(p);                                    /* (fm1-base's plat_bta_mem: the radio's interrupts see it whole) */
+#if FMEM_NLEND
+    if (ARB_LENT(c))
+        FMEM_LEND_SET(c - (uint32_t)ARB_LEND0, p);      /* (its interrupts see it whole, or not at all) */
 #endif
     fm1_irq_on();
 }
@@ -347,10 +353,6 @@ static const char *arb_said(void)
 #if FELUCCA_ENG_FM6
         if (c == (uint32_t)ARB_FM6SIN)
             return "MEM FULL FM6";
-#endif
-#if FELUCCA_BTA_LEND
-        if (c == (uint32_t)ARB_BTA)
-            return "MEM FULL BT AUDIO";
 #endif
         return "MEM FULL X0X";
     }

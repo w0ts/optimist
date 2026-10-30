@@ -18,7 +18,8 @@ FIRM = ROOT / "firmware"
 FB = ROOT / "fm1base"
 ALLOWED = {"src/engines/engines.c", "hal/fm1_stack.h", "hal/fm1_guard.h", "src/seq/undo.c", "src/system/stackmark.h",
            "src/system/main.c", "sim/sim.c"}   # (main.c: the pool zeroed at boot, to its end; sim.c: the stand-ins)
-FB_ALLOWED = {"optimist/core/opt_core.c", "bsp/chip/fm1_guard.h", "device/main_fm1.c", "device/stacks.c"}   # (main_fm1.c: the pool zeroed)
+FB_ALLOWED = {"optimist/core/opt_core.c", "bsp/chip/fm1_guard.h", "device/main_fm1.c", "device/stacks.c",
+              "optimist/app.c"}   # (main_fm1.c: the pool zeroed; app.c: the boot model under _guard0, before the arena boots)
 
 
 def main():
