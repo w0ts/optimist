@@ -13,6 +13,7 @@
 		1D46E590B2CB267114600BB1 /* WebMIDIBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = B520285C89B9B6694A5AADEE /* WebMIDIBridge.swift */; };
 		248CC23956BA23EDB0DA6D41 /* NavViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A64EF8F12D362FE851E5119 /* NavViews.swift */; };
 		252C6F0B10E2DDF937BB7884 /* FlashPackage.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0846C9A6195130B751E2FAA /* FlashPackage.swift */; };
+		289A8ED1E738E0D7724C59C2 /* InstallRoute.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CC99639629FA0CBF1CF327E /* InstallRoute.swift */; };
 		299C34942B64DC1134ED07DB /* Fm1BaseSite.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E87507BD339A574142CD20A /* Fm1BaseSite.swift */; };
 		2B092C4BA428EF74970B4EF0 /* Clip.swift in Sources */ = {isa = PBXBuildFile; fileRef = B863C7AA9D1164281B82F9E5 /* Clip.swift */; };
 		3208820EB72C57B09A5A01ED /* ClipModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A082FF396382B519C2871E5 /* ClipModel.swift */; };
@@ -96,6 +97,7 @@
 		23E14A1675F08527BCC25F0E /* CompanionWire.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompanionWire.swift; sourceTree = "<group>"; };
 		2549D82FCF8A657C64070EE5 /* EditorSite.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorSite.swift; sourceTree = "<group>"; };
 		275CAE91D846510B1BFCCF01 /* Wire.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Wire.swift; sourceTree = "<group>"; };
+		2CC99639629FA0CBF1CF327E /* InstallRoute.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstallRoute.swift; sourceTree = "<group>"; };
 		3379525767B548F895665DF5 /* FlashTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlashTests.swift; sourceTree = "<group>"; };
 		3F8D6D1D160BEB2BB72F4DDA /* LibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryView.swift; sourceTree = "<group>"; };
 		427F479D77D594F69B2686BD /* LibraryStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryStore.swift; sourceTree = "<group>"; };
@@ -230,6 +232,7 @@
 				F485342E8C5CF00EF3D2AD61 /* FlashProtocol.swift */,
 				1D6035C9DAED9B3828807EBA /* FlashUpdater.swift */,
 				AA29302C9082248DA82C3DC5 /* FlashView.swift */,
+				2CC99639629FA0CBF1CF327E /* InstallRoute.swift */,
 			);
 			path = Flash;
 			sourceTree = "<group>";
@@ -475,6 +478,7 @@
 				299C34942B64DC1134ED07DB /* Fm1BaseSite.swift in Sources */,
 				7649BA4CA38129044E705918 /* Fm1BaseView.swift in Sources */,
 				82FA6A443EE98741CA5713E0 /* Fm1BaseWeb.swift in Sources */,
+				289A8ED1E738E0D7724C59C2 /* InstallRoute.swift in Sources */,
 				59ECCFB2802F9750703DC830 /* LibraryFile.swift in Sources */,
 				A4AA5B98C94579EA4B836A53 /* LibraryStore.swift in Sources */,
 				95315429ACCA74BB4EDB10CE /* LibraryView.swift in Sources */,

@@ -90,9 +90,9 @@ def source_ref():
 BUILDER_FILES = ("index.html", "app.html", "logic.js", "ui.js", "builder.js", "cloud.js", "builder.css", "py-worker.js")
 
 
-INSTALLER_IMPORTS = re.compile(r'^import \{[^}]*\} from "\.\./(?:fm1base/)?(?:fm1ota|fm1pkg|fm1ota_optimist)\.js";\n', re.M)
+INSTALLER_IMPORTS = re.compile(r'^import \{[^}]*\} from "\.\./(?:fm1base/)?(?:fm1ota|fm1pkg|fm1ota_optimist|install_route)\.js";\n', re.M)
 # fm-1-base's two files (web/fm1base/, MPL-2.0, unchanged), then Optimist's extras: the order they are inlined in
-LIB_FILES = ("fm1base/fm1pkg.js", "fm1base/fm1ota.js", "fm1ota_optimist.js")
+LIB_FILES = ("fm1base/fm1pkg.js", "fm1base/fm1ota.js", "fm1ota_optimist.js", "install_route.js")
 MBOOT_VERSION = "1.2"                              # web/fm1base/m-bootloader/fm1-uboot-X.Y.fwsc (MIT): the installer's extra choice
 MBOOT_NAME = f"m-bootloader-{MBOOT_VERSION}.fwsc"
 CSS_MARK = "const BUNDLED_CSS = null;"
@@ -107,8 +107,8 @@ def installer_module(inline):
     dropped), web/installer/installer.css in BUNDLED_CSS. inline=False: a module that still exports mountInstaller and
     its helpers (webapp/installer/installer.js, for the one-page app); inline=True: the page's own <script type=module>"""
     src = (HERE / "installer" / "installer.js").read_text(encoding="utf-8")
-    if len(INSTALLER_IMPORTS.findall(src)) != 2 or src.count(CSS_MARK) != 1:
-        raise SystemExit("web/installer/installer.js: its two imports or BUNDLED_CSS moved; update make_site.py")
+    if len(INSTALLER_IMPORTS.findall(src)) != 3 or src.count(CSS_MARK) != 1:
+        raise SystemExit("web/installer/installer.js: its three imports or BUNDLED_CSS moved; update make_site.py")
     lib = "".join(as_plain_script((HERE / f).read_text(encoding="utf-8")) + "\n" for f in LIB_FILES)
     css = (HERE / "installer" / "installer.css").read_text(encoding="utf-8")
     src = INSTALLER_IMPORTS.sub("", src).replace(CSS_MARK, f"const BUNDLED_CSS = {json.dumps(css)};")
@@ -330,9 +330,24 @@ def package_entry(path, name, flavour, release="", date=""):
                          "package")
     if raw.find(b"FELUCCA-LOADER-1") < 0:              # the update loader (firmware/loader) carries this tag
         raise SystemExit(f"{path}: no Felucca update loader in it")
-    return {"id": flavour["id"], "title": flavour["title"], "description": flavour.get("description", ""),
-            "pkg": "../../firmware/" + name, "product": product, "release": release, "date": date,
-            "sha256": hashlib.sha256(raw).hexdigest()}   # the page checks the download against it
+    digest = hashlib.sha256(raw).hexdigest()
+    entry = {"id": flavour["id"], "title": flavour["title"], "description": flavour.get("description", ""),
+             "pkg": "../../firmware/" + name, "product": product, "release": release, "date": date,
+             "sha256": digest}   # the page checks the download against it
+    boot = install_bootloader(path, digest)
+    return {**entry, "bootloader": boot} if boot else entry
+
+
+def install_bootloader(path, digest):
+    """the builder's BOOTLOADER from PACKAGE.install.json beside the package (tools/install_meta.py), when it is for this very
+    package (its SHA-256); None otherwise (the page then shows: no build setting)"""
+    side = Path(path).with_name(Path(path).stem + ".install.json")
+    try:
+        meta = json.loads(side.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    ok = isinstance(meta, dict) and meta.get("sha256") == digest and meta.get("bootloader") in ("keep", "m-bootloader")
+    return meta["bootloader"] if ok else None
 
 
 def main(version, out, flavours=None, releases=None, sims=None):
