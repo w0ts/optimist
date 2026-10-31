@@ -150,7 +150,7 @@ static void mixer_sets_tests(void)
                 mx.set = (uint8_t)s;
                 for (k = 0; k < 4u; k++) {
                     mix_cell(r, k, &e);
-                    bad += e.kind == CK_ACT || (e.label && (!strcmp(e.label, "FX") || !strcmp(e.label, "SONG") ||
+                    bad += e.kind == CK_ACT || (e.label && ((!strcmp(e.label, "FX") && !mx_is_ret(r)) || !strcmp(e.label, "SONG") ||
                            !strcmp(e.label, "PROJECT") || !strcmp(e.label, "SYSTEM")));
                 }
             }
@@ -247,7 +247,7 @@ static void mixer_sets_tests(void)
     {   /* a return's row (2026-10-30): LEVEL FX amount | PRE TYPE amount POST TYPE amount | its sends to the other returns */
         const uint32_t ra = MXR_RET0, rb = MXR_RET0 + 1u, rc = MXR_RET0 + 2u;
         fxs_set(FXS_DEF);
-        check(mx_labels(ra, 0, "LEVEL", "A", 0, 0) && mx_labels(ra, 1, "PRE", 0, "POST", 0) &&
+        check(mx_labels(ra, 0, "LEVEL", "FX", 0, 0) && mx_labels(ra, 1, "PRE", 0, "POST", 0) &&
                   mx_labels(ra, 2, 0, "DLY", "REV", 0) &&
                   mx_labels(rb, 2, FELUCCA_RET_FB ? "CHO" : 0, 0, "REV", 0) &&
                   (FELUCCA_RET_FB ? mx_labels(rc, 2, "CHO", "DLY", 0, 0) : mx_sets(rc) == 2u),
@@ -295,7 +295,7 @@ static void mixer_sets_tests(void)
             rp_load(ln, RP_PRE, FXT_DIST);
             check(rp_ty[ln][RP_PRE] == FXT_DIST && rp_ty[ln][RP_POST] == FXT_NONE, "... DIST into PRE: it swaps with POST (a type once a return)");
             fxs_load(1, FXT_NONE);
-            check(rp_ty[ln][RP_PRE] == FXT_NONE && mx_labels(ra, 0, 0, "A", 0, 0) && mx_sets(ra) == 1u,
+            check(rp_ty[ln][RP_PRE] == FXT_NONE && mx_labels(ra, 0, 0, "FX", 0, 0) && mx_sets(ra) == 1u,
                   "an emptied return: its inserts emptied, its TYPE card alone");
         }
         fxs_set(FXS_DEF);

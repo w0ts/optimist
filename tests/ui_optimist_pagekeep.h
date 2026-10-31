@@ -128,8 +128,8 @@ static void pgk_sound_fx_tests(void)
 }
 
 /* MASTER: none of the returns' pages since 2026-10-30 (the user: "the return track stuff move out of the master track"); a
- * return's own EDIT pages instead (op_mixer.c rt_rows): the cursor on its MIX page while its TYPE turns (its effect's pages after
- * it come and go): MIX still; on RET DLY F when DLY leaves that return (the editor): MIX, its one page left */
+ * return's own EDIT pages instead (op_mixer.c rt_rows): the cursor on its FX row while its TYPE turns (its effect's pages after
+ * it come and go): FX still; on RET DLY F when DLY leaves that return (the editor): FX, its one page left */
 static uint32_t pgk_rt_row(const char *nm)              /* the row of the FX screen shown whose name is nm (its count: none) */
 {
     uint32_t r, n = SCR->rows();
@@ -165,16 +165,16 @@ static void pgk_master_tests(void)
     tap(B_EDIT);
     frames(2);
     n0 = SCR->rows();
-    check(ui.scr == SCR_FX && ui.fxo == 2u && pgk_rt_is("MIX") && pgk_rt_row("RET DELAY") < n0 && pgk_rt_row("RET DLY F") < n0,
-          "RET B's EDIT pages: MIX (LEVEL, its effect's TYPE), RET DELAY, RET DLY F (the master's of before)");
+    check(ui.scr == SCR_FX && ui.fxo == 2u && pgk_rt_is("FX") && pgk_rt_row("RET DELAY") < n0 && pgk_rt_row("RET DLY F") < n0,
+          "RET B's EDIT pages: FX (its effect's TYPE; no LEVEL, 2026-10-31), RET DELAY, RET DLY F (the master's of before)");
     t0 = fxs_slot[2];
-    for (i = 0; i < 6u; i++) {                          /* its TYPE (MIX's second card) turned: other effects, other pages after MIX */
-        turn(EN_K2, 1);
+    for (i = 0; i < 6u; i++) {                          /* its TYPE (FX's first card) turned: other effects, other pages after FX */
+        turn(EN_K1, 1);
         frame();
-        same &= pgk_rt_is("MIX") && ui.row[SCR_FX] == 0u && ui.fxo == 2u;
+        same &= pgk_rt_is("FX") && ui.row[SCR_FX] == 0u && ui.fxo == 2u;
         moved |= SCR->rows() != n0;
     }
-    check(fxs_slot[2] != t0 && moved && same, "... its TYPE turned on MIX: its effect's pages after MIX come and go, MIX stays");
+    check(fxs_slot[2] != t0 && moved && same, "... its TYPE turned on FX: its effect's pages after FX come and go, FX stays");
     fxs_set(FXS_DEF);
     frame();
     pgk_on(pgk_rt_row("RET DLY F"));
@@ -182,7 +182,7 @@ static void pgk_master_tests(void)
     fxs_set(NODLY);
     frame();
     pgk_snap(b, sizeof b);
-    check(pgk_rt_is("MIX") && SCR->rows() < n0 && strcmp(a, b), "... on RET DLY F, DLY out of RET B (the editor): MIX, its page left");
+    check(pgk_rt_is("FX") && SCR->rows() < n0 && strcmp(a, b), "... on RET DLY F, DLY out of RET B (the editor): FX, its page left");
     fxs_set(FXS_DEF);
     reset_ui();
     op_enter(SCR_FX);

@@ -112,7 +112,7 @@ static int mx_on_ret(void) { return ui.scr == SCR_HOME && mx_is_ret(mx_row()); }
  * layer's ui.master. The track buttons are dark and do nothing there */
 static int master_sel(void) { return mx_on_master() || (ui.scr == SCR_FX && !ui.fxo) || ui.master; }
 /* a return selected: its mixer row, or its pages (the FX screen, ui.fxo): no instrument, EDIT and FX its own (rt_tap) */
-static int ret_sel(void) { return mx_on_ret() || (ui.scr == SCR_FX && ui.fxo); }
+static int ret_sel(void) { return mx_on_ret() || (ui.scr == SCR_FX && ui.fxo) || (ui.scr == SCR_SCOPE && ui.sret); }   /* (SCOPE on one) */
 #define MX_TRK_BTNS (1u << B_ENV | 1u << B_LFO | 1u << B_EDIT | 1u << B_ARP | 1u << B_SCL | 1u << B_SEQ)   /* the track buttons */
 /* the ACCENT lane selected (the mixer's row, or picked anywhere): no sound, so no FX and no EDIT (the user, 2026-10-19: "accent
  * has fx, makes no sense. and it has edit, makes no sense either") */
@@ -667,6 +667,8 @@ static void mix_cell(uint32_t r, uint32_t k, cell_t *c)
             cell_own_note(c, FXI_MST_OWN, mst_slot[m.id & 1u], m.id);
         if (m.kind == MI_RTY && mx_ret_ln(r) < 3u && fxs_rty[mx_ret_ln(r)] != FXT_NONE)
             cell_own_note(c, FXI_RT_OWN(mx_ret_ln(r)), fxs_rty[mx_ret_ln(r)], 0);   /* (a pooled type: free / FULL) */
+        if (m.kind == MI_RTY)
+            c->label = "FX";                            /* (the effect's line: FX, not the slot's A B C; the user, 2026-10-31) */
         if (m.kind == MI_RPT && mx_ret_ln(r) < 3u) {
             cell_own_note(c, FXI_RT_OWN(mx_ret_ln(r)), rp_ty[mx_ret_ln(r)][m.id & 1u], m.id);
             if (c->strike)
@@ -1029,6 +1031,7 @@ enum { RF_EDIT, RF_FX };
 static uint8_t rt_fam;                                  /* the return's family shown (EDIT or FX) */
 typedef struct {
     uint8_t set;                                        /* the return row's mixer set (pg 0) */
+    uint8_t ofs;                                        /* ... from its card ofs (EDIT's FX row: the MIX set without LEVEL) */
     const page_t *pg;                                   /* or a page */
     const char *nm;                                     /* its name (the header) */
 } rrow_t;
@@ -1055,7 +1058,7 @@ static uint32_t rt_set_of(uint32_t r, uint32_t grp, uint32_t from)   /* the firs
 static uint32_t rt_add(rrow_t *o, uint32_t n, uint32_t set, const page_t *pg, const char *nm)
 {
     if (n < RT_MAXR && (pg || set != 0xFFu))
-        o[n].set = (uint8_t)set, o[n].pg = pg, o[n].nm = nm, n++;
+        o[n].set = (uint8_t)set, o[n].ofs = 0, o[n].pg = pg, o[n].nm = nm, n++;
     return n;
 }
 static uint32_t rt_rows(rrow_t *o)                      /* the rows of the return shown, in its family */
@@ -1064,8 +1067,11 @@ static uint32_t rt_rows(rrow_t *o)                      /* the rows of the retur
     rt_eq3_pref = (uint8_t)j;
     eq = j < 3u && (uint32_t)rt_eq3() == j ? rt_eq3_s : 0xFFu;   /* (its EQ3: RP_N the effect, else a stage) */
     rt_eq3_pref = 3u;
-    if (rt_fam == RF_EDIT) {
-        n = rt_add(o, n, rt_set_of(r, MG_MIX, 0), 0, "MIX");
+    if (rt_fam == RF_EDIT) {                            /* (the user, 2026-10-31: "the level ... does not need to be on return track
+                                                         * edit. only the fx param": its FX row, TYPE and amount, as a synth's ENGINE) */
+        n = rt_add(o, n, rt_set_of(r, MG_MIX, 0), 0, "FX");
+        if (n)
+            o[n - 1u].ofs = 1;
         if (t == FXT_REV || t == FXT_CHO)
             n = rt_add(o, n, 0xFFu, rt_page("REV/CHO"), "RET REV");
         if (t == FXT_REV && REV_MULTI)
@@ -1084,8 +1090,10 @@ static uint32_t rt_rows(rrow_t *o)                      /* the rows of the retur
     if (rt_fam == RF_FX)
         for (s = MG_RSA; s <= MG_RSC; s++)
             n = rt_add(o, n, rt_set_of(r, s, 0), 0, "SENDS");
-    if (!n)                                             /* (an empty return: its TYPE) */
-        n = rt_add(o, n, 0u, 0, "MIX");
+    if (!n) {                                           /* (an empty return: its TYPE) */
+        n = rt_add(o, n, 0u, 0, "FX");
+        o[0].ofs = (uint8_t)(rt_fam == RF_EDIT);
+    }
     return n;
 }
 static uint32_t rt_nrows(void)
@@ -1120,7 +1128,8 @@ static void rt_cell(uint32_t k, uint32_t c, cell_t *x)
     {
         uint8_t keep = mx.set;
         mx.set = e.set;
-        mix_cell(rt_row(), c, x);
+        if (c + e.ofs < 4u)
+            mix_cell(rt_row(), c + e.ofs, x);
         mx.set = keep;
     }
 }
@@ -1136,7 +1145,8 @@ static void rt_turn(uint32_t k, uint32_t c, int32_t s, int fine)
     {
         uint8_t keep = mx.set;
         mx.set = e.set;
-        mix_turn(rt_row(), c, s, fine);
+        if (c + e.ofs < 4u)
+            mix_turn(rt_row(), c + e.ofs, s, fine);
         mx.set = keep;
     }
 }
@@ -1180,7 +1190,7 @@ static int rt_tap(uint32_t b)
         return 1;
     }
     {
-        uint32_t r = ui.scr == SCR_FX ? rt_row() : mx_row();
+        uint32_t r = ui.scr == SCR_FX ? rt_row() : ui.scr == SCR_SCOPE ? MXR_RET0 + (ui.sret - 1u) % 3u : mx_row();
         if (ui.scr != SCR_FX)
             op_enter(SCR_FX);                           /* (from the mixer: leaving by the walk goes to SOUND, as MASTER's) */
         fx_by_walk = 1;                                 /* (a return's pages walk, as a track's) */

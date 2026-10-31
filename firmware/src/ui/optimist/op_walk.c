@@ -69,6 +69,8 @@ static uint32_t walk_pos(int lay)                       /* where the walk is: a 
 {
     if (ui.scr == SCR_HOME)
         return mx_row();
+    if (ui.scr == SCR_SCOPE && ui.sret)
+        return MXR_RET0 + (ui.sret - 1u) % 3u;          /* (SCOPE on a return: its row) */
     if (lay || ui.scr == SCR_SCOPE ? ui.master : ui.scr == SCR_FX)
         return ui.scr == SCR_FX && ui.fxo && !lay ? MXR_RET0 + (ui.fxo - 1u) % 3u : MXR_MASTER;   /* (a return's pages: its row) */
     return mx_sel_row();
@@ -83,8 +85,17 @@ static void walk_sel(uint32_t p)                        /* the track, DR or a la
 }
 static void walk_to(uint32_t p, int lay)
 {
-    if (ui.scr == SCR_SCOPE)
-        lay = 1;                                        /* SCOPE: MASTER is its source (ui.master), the page stays (op_scope.c) */
+    if (ui.scr == SCR_SCOPE) {                          /* SCOPE: MASTER or a return its source (ui.master, ui.sret), the page stays */
+        uint8_t sr = (uint8_t)(mx_is_ret(p) ? 1u + p - MXR_RET0 : 0u);
+        if (ui.sret != sr)
+            ui.sret = sr, ui.force = 1;
+        if (sr) {
+            ui.master = 0;
+            op_repaint();
+            return;
+        }
+        lay = 1;                                        /* (op_scope.c) */
+    }
     if (lay && ui.master != (p == MXR_MASTER)) {        /* a layer: MASTER a UI state, its cards the master FX */
         ui.master = (uint8_t)(p == MXR_MASTER);
         ui.force = 1;
@@ -188,7 +199,7 @@ static void oct_master_toggle(void)
  * only (no pages of a track); a layer and SCOPE: no return (MASTER is their ui.master) */
 static int walk_skip(uint32_t r, int lay)
 {
-    return (ui.scr != SCR_HOME && mx_is_usb(r)) || ((lay || ui.scr == SCR_SCOPE) && mx_is_ret(r));
+    return (ui.scr != SCR_HOME && mx_is_usb(r)) || (lay && mx_is_ret(r));   /* (SCOPE walks the returns too: its source) */
 }
 static uint32_t walk_step(uint32_t p, int32_t s, int lay)
 {

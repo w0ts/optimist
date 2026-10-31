@@ -48,11 +48,11 @@ static void at_screen_tests(void)
         bad |= !(walk_pos(0) == (scr == SCR_HOME ? MXR_N : MXR_LN) - 1u && ui.scr == scr && at_sum() == sum &&
                  (lane_selected() == DRUM_UILANES - 1u || (scr == SCR_HOME && MXR_N > MXR_LN)));   /* (the mixer's USB row: no
                                                          * lane, the jump passes them) */
-        turn(EN_ALGO, -40);                             /* up past MASTER to RET A (the mixer's row, a page: its pages; SCOPE: MASTER, its
-                                                         * master source), no setting */
-        bad |= !((scr == SCR_HOME ? mx_row() == MXR_RET0 : scr == SCR_SCOPE ? (ui.scr == SCR_SCOPE && ui.master) : ui.scr == SCR_FX && ui.fxo == 1u) &&
+        turn(EN_ALGO, -40);                             /* up past MASTER to RET A (the mixer's row, a page: its pages; SCOPE: its output, the
+                                                         * source), no setting */
+        bad |= !((scr == SCR_HOME ? mx_row() == MXR_RET0 : scr == SCR_SCOPE ? (ui.scr == SCR_SCOPE && ui.sret == 1u) : ui.scr == SCR_FX && ui.fxo == 1u) &&
                  at_sum() == sum);          /* (SCOPE: MASTER is its source, the screen stays) */
-        turn(EN_ALGO, scr == SCR_SCOPE ? 1 : (int32_t)(MXR_T1 - MXR_RET0));   /* back to T1: the screen left from */
+        turn(EN_ALGO, (int32_t)(MXR_T1 - MXR_RET0));   /* back to T1: the screen left from */
         bad |= !(song.sel == 0u && ui.scr == scr && at_sum() == sum);
         if (bad)
             printf("  algotrack: %s wrong (scr %u sel %u bad %u pos %u sum %d row %u/%u)\n", SCR_NAME[scr], ui.scr, song.sel, bad, walk_pos(0), at_sum() == sum, ui.row[scr], row);

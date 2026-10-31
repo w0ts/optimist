@@ -74,11 +74,13 @@ static void algo_sound_tests(void)
  * pages; not in a layer or SCOPE), back to the same page on T1, then T2 T3 DR and the 16 lanes, stopping at both ends */
 static int al_full_walk(uint32_t scr0, int in_lay, const char *nm)
 {
-    uint32_t r, ok = 1, n, rets = !in_lay && scr0 != SCR_SCOPE;   /* (the returns: the mixer's rows and a page's own pages;
-                                                         * a layer and SCOPE stop at MASTER, their ui.master) */
+    uint32_t r, ok = 1, n, rets = !in_lay;   /* (the returns: the mixer's rows, a page's own pages, SCOPE's
+                                                         * sources; a layer stops at MASTER, its ui.master) */
     ok &= al_walk(-1) == MXR_MASTER && al_walk(-1) == (rets ? MXR_MASTER - 1u : MXR_MASTER) && mx_master_dead(B_ENV) &&
           mx_master_dead(B_ARP);                        /* (RET C above MASTER, 2026-10-30) */
-    if (rets && scr0 != SCR_HOME)
+    if (rets && scr0 == SCR_SCOPE)
+        ok &= ui.scr == SCR_SCOPE && ui.sret == 3u;   /* (SCOPE: RET C's output its source, 2026-10-31) */
+    else if (rets && scr0 != SCR_HOME)
         ok &= ui.scr == SCR_FX && ui.fxo == 3u;
     if (rets)
         ok &= al_walk(1) == MXR_MASTER;
