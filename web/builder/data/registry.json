@@ -59,6 +59,7 @@
     ],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -86,6 +87,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "on the FM-1: in use, working (the user, 2026-10-25); host-tested (responses, self-oscillation, stability)",
     "provenance_line": ""
    },
@@ -113,6 +115,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "on the FM-1: in use, working (the user, 2026-10-25); host-tested (responses, self-oscillation, stability)",
     "provenance_line": ""
    },
@@ -140,6 +143,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "on the FM-1: in use, working (the user, 2026-10-25); host-tested (responses, self-oscillation, stability)",
     "provenance_line": ""
    },
@@ -167,6 +171,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "on the FM-1: in use, working (the user, 2026-10-25); host-tested (responses, self-oscillation, stability)",
     "provenance_line": ""
    },
@@ -212,6 +217,7 @@
     ],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -239,6 +245,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -284,6 +291,7 @@
     ],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -317,6 +325,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "Felucca-Engines (hugelton/Felucca-Engines) @ 04ffe90 by Leo Kuroshita (Hügelton) (MIT)"
    },
@@ -361,6 +370,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -403,6 +413,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -446,6 +457,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -489,6 +501,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -532,6 +545,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -562,6 +576,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -622,6 +637,7 @@
     ],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "Melodee (keremimo/melodee) @ e459da5 by Kerem Kilic (GPL-3.0-only)"
    },
@@ -651,6 +667,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -678,6 +695,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -707,6 +725,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -736,6 +755,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -765,6 +785,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -794,6 +815,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -823,6 +845,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -859,6 +882,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "Melodee (keremimo/melodee) @ v0.12 18bfd53 by Kerem Kilic (GPL-3.0-only)"
    },
@@ -894,6 +918,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "Felucca (hugelton/Felucca) by Leo Kuroshita (Hügelton) (GPL-3.0-only)"
    },
@@ -930,6 +955,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "Caravel 0.3.3 (bonszaimusic/caravel, a Felucca fork) @ c6c61c7 by bonszaimusic (GPL-3.0-only)"
    },
@@ -979,6 +1005,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "Mutable Instruments Plaits (pichenettes/eurorack) @ f4cfa76 by Emilie Gillet (MIT)"
    },
@@ -1028,6 +1055,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "Clipper (isod89/clipper-fm1, Clipper 1.1) @ e690672 by 3dSam (GPL-3.0-only)"
    },
@@ -1064,6 +1092,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "Clipper (isod89/clipper-fm1, Clipper 1.1) @ e690672 by 3dSam (GPL-3.0-only)"
    },
@@ -1100,6 +1129,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "Clipper (isod89/clipper-fm1, Clipper 1.1) @ e690672 by 3dSam (GPL-3.0-only)"
    },
@@ -1136,6 +1166,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "Clipper (isod89/clipper-fm1, Clipper 1.1) @ e690672 by 3dSam (GPL-3.0-only)"
    },
@@ -1172,6 +1203,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "Clipper (isod89/clipper-fm1, Clipper 1.1) @ e690672 by 3dSam (GPL-3.0-only)"
    },
@@ -1209,6 +1241,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "Clipper (isod89/clipper-fm1, Clipper 1.1) @ e690672 by 3dSam (GPL-3.0-only)"
    },
@@ -1245,6 +1278,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "Mini-Tone 1.0.1 (eldontyrellcorp/Mini-Tone), after reSID 0.16 by Dag Lem @ 6a82562 by Stephane Schmitz (GPL-3.0-only (the reSID data GPL-2.0-or-later))"
    },
@@ -1294,6 +1328,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "Melodee (keremimo/melodee): its PROPHET engine's oscillators, Poly-Mod and Curtis filter @ 398ada1 by Kerem Kilic (GPL-3.0-only)"
    },
@@ -1327,6 +1362,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "CS-1 (twochannels/CS-1): its CS-80 voice's design @ 5dce8fa by twochannels (GPL-3.0-only)"
    },
@@ -1354,6 +1390,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -1383,6 +1420,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "host-tested only (tests/examples_test.c), not on a device",
     "provenance_line": ""
    },
@@ -1420,6 +1458,7 @@
     ],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -1449,6 +1488,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -1484,6 +1524,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "Kawa Tracker (Guizmoh/Kawa-Tracker-Fm1) @ kawa-0.5 by Guizmoh (GPL-3.0-only)"
    },
@@ -1520,6 +1561,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "Hortator (DeadActive/hortator), after Mutable Instruments Plaits (Emilie Gillet, MIT) @ 7e34159 by Leo Kuroshita (Hügelton), DEADACTIVE; Emilie Gillet (GPL-3.0-only (Plaits' algorithms MIT))"
    },
@@ -1560,6 +1602,7 @@
     ],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "X0X (charlesvestal/fm1-x0x) @ 80b7d40 by Charles Vestal (GPL-3.0-only)"
    },
@@ -1603,6 +1646,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -1641,6 +1685,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -1679,6 +1724,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -1714,6 +1760,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "X0X (charlesvestal/fm1-x0x) @ 80b7d40 by Charles Vestal (GPL-3.0-only)"
    },
@@ -1747,6 +1794,7 @@
     ],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -1774,6 +1822,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -1801,6 +1850,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -1828,6 +1878,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -1855,6 +1906,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -1882,6 +1934,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -1913,6 +1966,7 @@
     ],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -1946,6 +2000,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "SLOOP 2.8 (isod89/sloop-fm1) @ b77bf55 by isod89 (GPL-3.0-only)"
    },
@@ -1973,6 +2028,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -2000,6 +2056,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -2027,6 +2084,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -2054,6 +2112,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -2081,6 +2140,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -2108,6 +2168,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -2135,6 +2196,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -2162,6 +2224,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -2189,6 +2252,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -2216,6 +2280,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -2245,6 +2310,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -2276,6 +2342,7 @@
     ],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -2316,6 +2383,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -2353,6 +2421,7 @@
     ],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -2382,6 +2451,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -2411,6 +2481,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -2440,6 +2511,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -2476,6 +2548,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -2505,6 +2578,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -2532,6 +2606,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "host-measured only (a sine through the firmware's own code, 2026-10-26); not yet heard on an FM-1",
     "provenance_line": ""
    },
@@ -2559,6 +2634,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "host-measured only (issue 107, 2026-10-28); not yet heard on an FM-1",
     "provenance_line": ""
    },
@@ -2586,6 +2662,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "host-measured only (a sine through the firmware's own code, 2026-10-26); not yet heard on an FM-1",
     "provenance_line": ""
    },
@@ -2613,6 +2690,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "host-measured only (a sine through the firmware's own code, 2026-10-26); not yet heard on an FM-1",
     "provenance_line": ""
    },
@@ -2644,6 +2722,7 @@
     ],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -2680,6 +2759,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -2712,6 +2792,7 @@
     ],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -2748,6 +2829,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -2775,6 +2857,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -2802,6 +2885,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -2829,6 +2913,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -2859,6 +2944,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -2894,6 +2980,7 @@
     ],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "SLOOP 2.4 (isod89/sloop-fm1) @ v2.4 8d3823f by isod89 (GPL-3.0-only)"
    },
@@ -2927,6 +3014,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "SLOOP 2.8 (isod89/sloop-fm1) @ b77bf55 by isod89 (GPL-3.0-only)"
    },
@@ -2962,6 +3050,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "Felucca 1.5.6 (hugelton/Felucca) @ 9f6a885 by Leo Kuroshita (Hügelton) (GPL-3.0-only)"
    },
@@ -2997,6 +3086,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "Felucca 1.5.6 (hugelton/Felucca) @ 9f6a885 by Leo Kuroshita (Hügelton) (GPL-3.0-only)"
    },
@@ -3032,6 +3122,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "Felucca 1.5.6 (hugelton/Felucca) @ 9f6a885 by Leo Kuroshita (Hügelton) (GPL-3.0-only)"
    },
@@ -3067,6 +3158,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "Melodee 1.3.1 (keremimo/melodee) @ next 757b65b by Kerem Kilic (GPL-3.0-only)"
    },
@@ -3104,6 +3196,7 @@
     ],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "Melodee 1.3.1 (keremimo/melodee) @ next 757b65b by Kerem Kilic (GPL-3.0-only)"
    },
@@ -3133,6 +3226,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -3162,6 +3256,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -3191,6 +3286,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -3220,6 +3316,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -3249,6 +3346,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -3278,6 +3376,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -3313,6 +3412,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "Melodee 1.4.4 (keremimo/melodee) @ v1.4.4 4f5fb6d by Kerem Kilic (GPL-3.0-only)"
    },
@@ -3348,6 +3448,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "Melodee 1.4.4 (keremimo/melodee) @ v1.4.4 4f5fb6d by Kerem Kilic (GPL-3.0-only)"
    },
@@ -3377,6 +3478,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "host-tested only (tests/examples_test.c), not on a device",
     "provenance_line": ""
    },
@@ -3406,6 +3508,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -3441,6 +3544,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "fm-106 (PatttF/fm-106) @ be74757 by PatttF (GPL-3.0-only)"
    },
@@ -3470,6 +3574,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -3505,6 +3610,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "Felucca 1.5.6 (hugelton/Felucca) @ 9f6a885 by Leo Kuroshita (Hügelton) (GPL-3.0-only)"
    },
@@ -3536,6 +3642,7 @@
     ],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -3572,6 +3679,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -3601,6 +3709,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -3634,6 +3743,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "SLOOP 2.4 (isod89/sloop-fm1) @ v2.4 8d3823f by isod89 (GPL-3.0-only)"
    },
@@ -3674,6 +3784,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -3722,6 +3833,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -3752,6 +3864,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -3779,6 +3892,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -3818,6 +3932,7 @@
     ],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "Flowstate (zakariachowdhury/flowstate-fm1) @ 3962560 by Zakaria Chowdhury (GPL-3.0-only)"
    },
@@ -3853,6 +3968,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "Flowstate (zakariachowdhury/flowstate-fm1) @ 3962560 by Zakaria Chowdhury (GPL-3.0-only)"
    },
@@ -3880,6 +3996,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "host-tested only, not on a device",
     "provenance_line": ""
    },
@@ -3907,6 +4024,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -3944,6 +4062,7 @@
     ],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "Felucca (hugelton/Felucca) by Leo Kuroshita (Hügelton) (GPL-3.0-only)"
    },
@@ -3974,6 +4093,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "host-tested only (tests/examples_test.c), not on a device",
     "provenance_line": ""
    },
@@ -4001,6 +4121,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -4028,6 +4149,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -4061,6 +4183,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "Melodee (keremimo/melodee) by Kerem Kilic (GPL-3.0-only)"
    },
@@ -4088,6 +4211,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -4117,6 +4241,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -4150,6 +4275,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "Melodee (keremimo/melodee) @ 670193c by ChanceTheMaker, Kerem Kilic (GPL-3.0-only)"
    },
@@ -4183,6 +4309,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "SLOOP 2.4 (isod89/sloop-fm1) @ v2.4 8d3823f by isod89 (GPL-3.0-only)"
    },
@@ -4210,6 +4337,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -4243,6 +4371,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "Felucca (hugelton/Felucca) by Leo Kuroshita (Hügelton) (GPL-3.0-only)"
    },
@@ -4273,6 +4402,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -4300,6 +4430,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -4333,6 +4464,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "X0X (charlesvestal/fm1-x0x) @ 61654ba by Charles Vestal (GPL-3.0-only)"
    },
@@ -4379,6 +4511,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "X0X (charlesvestal/fm1-x0x) @ d179e03 by Charles Vestal (GPL-3.0-only)"
    },
@@ -4412,6 +4545,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "X0X (charlesvestal/fm1-x0x) @ 201b95c by Charles Vestal (GPL-3.0-only)"
    },
@@ -4450,6 +4584,7 @@
     ],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -4477,6 +4612,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -4504,6 +4640,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -4531,6 +4668,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -4558,6 +4696,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -4585,6 +4724,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -4612,6 +4752,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -4639,6 +4780,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "on the FM-1: the web editor's Mirror tab and the Optimist Mirror app, USB and Bluetooth (the user, 2026-10-25); host-tested (the stream decoded back to every screen drawn, every catch-up the panel)",
     "provenance_line": ""
    },
@@ -4679,6 +4821,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "host-tested only (tests/tab_coded_test.c: every table decoded byte for byte), not on a device",
     "provenance_line": ""
    },
@@ -4706,20 +4849,21 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "on the FM-1: saving while playing works (the user, 2026-10-25); host-tested",
     "provenance_line": ""
    },
    {
     "key": "MEMORY",
     "flag": "",
-    "label": "memory: where the user data lives",
+    "label": "memory: the one-row choice of before (an old .config's MEMORY line)",
     "group": "Memory management",
     "bit": 436,
     "default": 0,
     "parent": null,
-    "desc": "One choice for the two items LAYOUT and SDCARD. Normal: the flash layout as before (568 KiB of code). No user samples (LAYOUT 3): the code grows to 704 KiB over the user sample slots, the snapshots and the CZ collection; 16 projects keep today's 128 KiB of project log (builds without SAMPLE, user drum samples, SNAPSHOTS and the CZ collection, with PATTERNS: what every shipped profile builds already). More flash (LAYOUT 1): the code grows to 812 KiB over the sample slots, the snapshots and most of the projects' room; one project stays in flash (the web or iOS app keeps the others), no SD card. SD card mode (LAYOUT + SDCARD): the same flash layout with the user data on the SD card (a hardware mod, docs/SD-CARD-DESIGN.md). Picking one sets those items; setting them by hand reads back here. The menu and the web builder list this row alone (with SD_RING and SD_REC under it in SD card mode); LAYOUT, SDCARD and the retired RAM_PACKED are real but not listed, and an old `.config` still loads them.",
-    "experimental": true,
-    "notice": "Changing this changes the flash layout: back up first (web editor: Backup; for a way back whole, a full flash backup: python tools/fm1_anyflash.py backup). Installing a build with another layout than the FM-1 has erases what the layouts keep in different places: every switch between two of normal, no user samples and more flash / SD card mode loses the projects in flash, the FM6 voices of the user presets and autosave copy A; leaving normal also loses the user samples and the snapshots. The kits, the presets and the settings are kept (docs/INSTALL-PATHS.md). Afterwards restore the projects with the web editor (the slots the new layout has). The first install of no user samples goes over a normal build of this version (an older updater refuses its size).",
+    "desc": "The single MEMORY row of 2026-10-28..31, kept so that an old .config's MEMORY= line and --set MEMORY= still work: 0 normal, 4 no user samples, 1 more flash, 2 SD card mode. The menu shows SD CARD MODE, SAMPLE SLOTS and PROJECTS instead.",
+    "experimental": false,
+    "notice": "",
     "off_warning": "",
     "env": "",
     "target_only": true,
@@ -4738,11 +4882,15 @@
      ],
      [
       1,
-      "more flash: one project in flash"
+      "more flash: two projects in flash"
      ],
      [
       2,
       "SD card mode"
+     ],
+     [
+      5,
+      "another step: see SAMPLE SLOTS and PROJECTS"
      ]
     ],
     "not_built": {
@@ -4751,13 +4899,128 @@
      }
     },
     "provenance": null,
+    "children": [],
+    "hidden": true,
+    "shown_under": null,
+    "dim_when": null,
+    "tested": "emulator-tested only",
+    "provenance_line": ""
+   },
+   {
+    "key": "SD_MODE",
+    "flag": "",
+    "label": "SD card mode: user data on an SD card (a hardware mod)",
+    "group": "Memory management",
+    "bit": 445,
+    "default": 0,
+    "parent": null,
+    "desc": "On: the biggest flash for code (831,420 B, the release 823,228 B) with the user data on a microSD card wired to the LCD bus (docs/SD-CARD-DESIGN.md): one project in flash, the others, the samples and the recordings on the card; SD_RING and SD_REC under it. SAMPLE SLOTS and PROJECTS are greyed while it is on. Off: the flash keeps the user data, as SAMPLE SLOTS and PROJECTS choose.",
+    "experimental": true,
+    "notice": "",
+    "off_warning": "",
+    "env": "",
+    "target_only": true,
+    "symbols": [],
+    "no_image": true,
+    "fixed": false,
+    "head": false,
+    "choices": [],
+    "not_built": {},
+    "provenance": null,
     "children": [
      "SD_RING",
      "SD_REC"
     ],
     "hidden": false,
     "shown_under": null,
-    "tested": "host-tested only (docs/SD-MODE-DESIGN.md)",
+    "dim_when": null,
+    "tested": "host-tested only (docs/SD-CARD-DESIGN.md); no FM-1 has the card yet",
+    "provenance_line": ""
+   },
+   {
+    "key": "SMP_SLOTS",
+    "flag": "",
+    "label": "sample slots: user samples kept in flash",
+    "group": "Memory management",
+    "bit": 446,
+    "default": 3,
+    "parent": null,
+    "desc": "How many user-sample slots the flash keeps; each slot given up is code room (docs/SD-MODE-DESIGN.md 9.7). 2: USR2 and USR3 where normal keeps them (and the snapshots, the CZ collection at USR3's top); 1: USR3 alone; 0: none (no user drum samples, snapshots or CZ collection; SAMPLE plays its built-in sets). 3: the projects off (PATTERNS off): USR1 too, the old song sections. With PROJECTS, the pair is the flash layout.",
+    "experimental": false,
+    "notice": "",
+    "off_warning": "",
+    "env": "",
+    "target_only": true,
+    "symbols": [],
+    "no_image": true,
+    "fixed": false,
+    "head": false,
+    "choices": [
+     [
+      0,
+      "0: none (SAMPLE's built-in sets still play)"
+     ],
+     [
+      1,
+      "1: USR3 (64 KiB, the snapshots)"
+     ],
+     [
+      2,
+      "2: USR2 + USR3 (144 KiB, as normal)"
+     ],
+     [
+      3,
+      "3: USR1..USR3, no projects (PATTERNS off)"
+     ]
+    ],
+    "not_built": {},
+    "provenance": null,
+    "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": "SD_MODE",
+    "tested": "emulator-tested only",
+    "provenance_line": ""
+   },
+   {
+    "key": "PROJECTS",
+    "flag": "",
+    "label": "projects kept in flash",
+    "group": "Memory management",
+    "bit": 444,
+    "default": 16,
+    "parent": null,
+    "desc": "How many projects the flash keeps (the user, 2026-10-31: 2, 4 or 16); fewer projects is a smaller project log, more code room. The log's room (MEM FULL past it; a busy project is about 6-8 KB, an estimate): 16: 128 KiB with no sample slot (about 13-17 busy projects), 80 KiB in normal (7-10); 4: 44 KiB (3-5); 2: 28 KiB. The web editor's backup keeps the projects a smaller choice has no room for.",
+    "experimental": false,
+    "notice": "",
+    "off_warning": "",
+    "env": "",
+    "target_only": true,
+    "symbols": [],
+    "no_image": true,
+    "fixed": false,
+    "head": false,
+    "choices": [
+     [
+      2,
+      "2"
+     ],
+     [
+      4,
+      "4"
+     ],
+     [
+      16,
+      "16"
+     ]
+    ],
+    "not_built": {},
+    "provenance": null,
+    "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": "SD_MODE",
+    "tested": "emulator-tested only",
     "provenance_line": ""
    },
    {
@@ -4784,6 +5047,7 @@
     "children": [],
     "hidden": true,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -4811,18 +5075,19 @@
     "children": [],
     "hidden": true,
     "shown_under": null,
+    "dim_when": null,
     "tested": "host-tested only (a card model on real FAT16 / FAT32 images); no FM-1 has the mod yet",
     "provenance_line": ""
    },
    {
     "key": "LAYOUT",
     "flag": "FELUCCA_LAYOUT",
-    "label": "flash layout: fake SD mode (more room for code, little user data)",
+    "label": "flash layout: the MEMORY step (set by SD CARD MODE, SAMPLE SLOTS and PROJECTS)",
     "group": "Memory management",
     "bit": 410,
     "default": 0,
     "parent": null,
-    "desc": "Grows the firmware's flash from 568 KiB to 816 KiB over the user data: the user sample slots, the snapshots and most of the projects' room become code space (code runs in place from flash: no RAM). What is left: one project (a 28 KiB project log; the web app or the iOS app keeps the others over USB), the user presets, the user kits, the settings. Builds without SAMPLE, user drum samples, SNAPSHOTS and the CZ collection, with PATTERNS. Installing it ERASES the user data the normal layout keeps there, and going back erases this layout's (the update loader clears the other layout's sectors first): back up with the web editor before. The first install needs a normal build of this version first (an older updater refuses the larger package). The code may use the whole slot, 831,420 B (the far probe's 64 KiB reserve went 2026-10-30). LAYOUT 3 (no user samples): the app slot to 0xB5000 (720,828 B), the presets' FM6 voices, autosave copy A and the 32-sector project log above it, 16 projects; the same build rules as LAYOUT 1 (docs/SD-MODE-DESIGN.md section 9).",
+    "desc": "The flash step (docs/SD-MODE-DESIGN.md 9.7, tools/flash_layout.py STEPS): each pair of SAMPLE SLOTS and PROJECTS is one; the user sample slots given up and the smaller project log become code space (code runs in place from flash: no RAM). 0 normal (2 slots, 16 projects, 581,564 B of code); 1 (0 slots, 2 projects, 831,420 B; the SD card mode's with SDCARD); 3 (0 slots, 16 projects, 720,828 B). Installing another step ERASES what the two keep in different places (the projects in flash always; the update loader clears the other step's sectors first): back up with the web editor before. The first install of a step needs a normal build of this version first (an older updater refuses its size).",
     "experimental": true,
     "notice": "",
     "off_warning": "",
@@ -4835,19 +5100,61 @@
     "choices": [
      [
       0,
-      "normal"
+      "2 sample slots, 16 projects: 581,564 B for code"
+     ],
+     [
+      2,
+      "1 sample slot, 16 projects: 655,292 B for code"
+     ],
+     [
+      6,
+      "2 sample slots, 4 projects: 659,388 B for code"
+     ],
+     [
+      7,
+      "2 sample slots, 2 projects: 675,772 B for code"
      ],
      [
       3,
-      "no user samples: 704 KiB app"
+      "0 sample slots, 16 projects: 720,828 B for code"
+     ],
+     [
+      4,
+      "1 sample slot, 4 projects: 741,308 B for code"
+     ],
+     [
+      5,
+      "1 sample slot, 2 projects: 757,692 B for code"
+     ],
+     [
+      8,
+      "0 sample slots, 4 projects: 806,844 B for code"
      ],
      [
       1,
-      "fake SD mode: 816 KiB app"
+      "0 sample slots, 2 projects: 831,420 B for code"
      ]
     ],
     "not_built": {
+     "2": {
+      "release": "not for the release yet: fm1-base's own update loader and app_end do not take the MEMORY steps' table (its slot switch would leave the old step's log sectors in the new one's; docs/SD-MODE-DESIGN.md 9.4, the proposed fm1-base branch pr/app-end-table)"
+     },
      "3": {
+      "release": "not for the release yet: fm1-base's own update loader and app_end do not take the MEMORY steps' table (its slot switch would leave the old step's log sectors in the new one's; docs/SD-MODE-DESIGN.md 9.4, the proposed fm1-base branch pr/app-end-table)"
+     },
+     "4": {
+      "release": "not for the release yet: fm1-base's own update loader and app_end do not take the MEMORY steps' table (its slot switch would leave the old step's log sectors in the new one's; docs/SD-MODE-DESIGN.md 9.4, the proposed fm1-base branch pr/app-end-table)"
+     },
+     "5": {
+      "release": "not for the release yet: fm1-base's own update loader and app_end do not take the MEMORY steps' table (its slot switch would leave the old step's log sectors in the new one's; docs/SD-MODE-DESIGN.md 9.4, the proposed fm1-base branch pr/app-end-table)"
+     },
+     "6": {
+      "release": "not for the release yet: fm1-base's own update loader and app_end do not take the MEMORY steps' table (its slot switch would leave the old step's log sectors in the new one's; docs/SD-MODE-DESIGN.md 9.4, the proposed fm1-base branch pr/app-end-table)"
+     },
+     "7": {
+      "release": "not for the release yet: fm1-base's own update loader and app_end do not take the MEMORY steps' table (its slot switch would leave the old step's log sectors in the new one's; docs/SD-MODE-DESIGN.md 9.4, the proposed fm1-base branch pr/app-end-table)"
+     },
+     "8": {
       "release": "not for the release yet: fm1-base's own update loader and app_end do not take the MEMORY steps' table (its slot switch would leave the old step's log sectors in the new one's; docs/SD-MODE-DESIGN.md 9.4, the proposed fm1-base branch pr/app-end-table)"
      }
     },
@@ -4855,6 +5162,7 @@
     "children": [],
     "hidden": true,
     "shown_under": null,
+    "dim_when": null,
     "tested": "host-tested only; on an FM-1 whose flash runs the release image's 820 KB (docs/SD-MODE-DESIGN.md)",
     "provenance_line": ""
    },
@@ -4882,6 +5190,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "host-tested (tests/fx_arena_test.c, arena_bufs_test.c, arena_test.c, arena_frag_test.c, placeholder_test.c); on the user's FM-1 since 2026-10-29 (the fm1-next test packages)",
     "provenance_line": ""
    },
@@ -4909,6 +5218,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "host-tested only (tests/mirror_test.c); no client sends it yet",
     "provenance_line": ""
    },
@@ -4956,7 +5266,8 @@
     "provenance": null,
     "children": [],
     "hidden": false,
-    "shown_under": "MEMORY",
+    "shown_under": "SD_MODE",
+    "dim_when": null,
     "tested": "host-tested only (tests/sd_stream_test.c, sd_stream_plan_test.c: a card model with stalls, an interrupt-driven audio clock); no FM-1 has the card yet",
     "provenance_line": ""
    },
@@ -5000,7 +5311,8 @@
     "provenance": null,
     "children": [],
     "hidden": false,
-    "shown_under": "MEMORY",
+    "shown_under": "SD_MODE",
+    "dim_when": null,
     "tested": "host-tested only (tests/sd_wr_test.c, sd_rec_test.c: a card model with stalls, an interrupt-driven audio clock); no FM-1 has the card yet; for now started from the console (sd rec)",
     "provenance_line": ""
    },
@@ -5038,6 +5350,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "Flowstate (zakariachowdhury/flowstate-fm1) @ e62e186 by Zakaria Chowdhury (GPL-3.0-only)"
    },
@@ -5082,6 +5395,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "8 KB: in daily use on the user's FM-1 for days, no fault (2026-10-25); on one FM-1 2026-10-18: the boot test passes, cache RAM as fast as main RAM, flash data reads over 16 KB 57x slower (1.7 us vs 32 ns: flash data goes through the data cache)",
     "provenance_line": ""
    },
@@ -5109,6 +5423,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -5151,6 +5466,7 @@
     "children": [],
     "hidden": true,
     "shown_under": null,
+    "dim_when": null,
     "tested": "on the FM-1 (2026-10-29): Optimist's own and the release build with pi32v2-llvm 4f631b31b, the user's project played and saved, no drop, no crash; the same sound as JieLi's in an A/B",
     "provenance_line": "pi32v2-llvm (jvitkauskas/pi32v2-llvm, pi32v2-isa) @ 4f631b31b by Julius Vitkauskas (Apache-2.0 WITH LLVM-exception, MIT-0)"
    },
@@ -5193,6 +5509,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "host-tested only (the installers' choice and display); m-bootloader itself on FM-1s (its author's tests)",
     "provenance_line": "m-bootloader (jvitkauskas/m-bootloader) @ v1.2 22e2559 by Julius Vitkauskas (MIT)"
    },
@@ -5225,6 +5542,7 @@
     ],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "tested on an FM-1 with macOS Audio MIDI Setup, not yet with iOS or Windows",
     "provenance_line": ""
    },
@@ -5254,6 +5572,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "on an FM-1 with a Mac (2026-10-18)",
     "provenance_line": ""
    },
@@ -5296,6 +5615,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "on an FM-1: an iPhone app reconnected as the last device (2026-10-18)",
     "provenance_line": ""
    },
@@ -5326,6 +5646,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "on the FM-1: AirPods, a Sony WH-1000XM4 and a Bose SoundLink Mini, with BLE MIDI and the Mirror app at once (the user, 2026-10-25); host-tested (SSP, SAFER+, SBC encoder, AVDTP, L2CAP)",
     "provenance_line": ""
    },
@@ -5357,6 +5678,7 @@
     ],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "on an FM-1 as far as receive and decrypt (docs/WIFI-LINK-HANDOVER.md); DHCP and a Link session not through yet",
     "provenance_line": ""
    },
@@ -5384,6 +5706,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "host-tested (the authenticator against our own station, the daemon over a stand-in radio, the page, the web command); the radio side is not tested on an FM-1 yet",
     "provenance_line": ""
    },
@@ -5411,6 +5734,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "host-tested only; USB host IN ran on Melodee, OUT not validated on a device",
     "provenance_line": ""
    },
@@ -5444,6 +5768,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "hugelton/Felucca @ 727f272 (Felucca 1.0 source) by Leo Kuroshita (@kurogedelic), Hügelton Instruments (GPL-3.0-only)"
    },
@@ -5477,6 +5802,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "hugelton/Felucca @ 20c275e (Felucca 1.0.1, #37) by Leo Kuroshita (@kurogedelic), Hügelton Instruments (GPL-3.0-only)"
    },
@@ -5510,6 +5836,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "hugelton/Felucca @ 727f272 (Felucca 1.0 source) by Leo Kuroshita (@kurogedelic), Hügelton Instruments (GPL-3.0-only)"
    },
@@ -5543,6 +5870,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "hugelton/Felucca @ 727f272 (Felucca 1.0 source) by Leo Kuroshita (@kurogedelic), Hügelton Instruments (GPL-3.0-only)"
    },
@@ -5589,6 +5917,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "hugelton/Felucca @ 727f272 (Felucca 1.0 source) by Leo Kuroshita (@kurogedelic), Hügelton Instruments (GPL-3.0-only (eng_phys.c); MIT (phys_dsp.c: DaisySP by Electrosmith, Corp and Emilie Gillet; phys_symp.c: Rings by Emilie Gillet))"
    },
@@ -5635,6 +5964,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "charlesvestal/fm1-x0x @ 80b7d40 (HEAD; bass303.c last changed in d179e03) by Charles Vestal (GPL-3.0-only (bass303.c: Open303 by Robin Schmidt, MIT; Devilfish ranges after jc303; Soft / RAT drive after schwung-303 and dm-Rat, GPL-3.0; tb3po.c after schwung-tb3po and the Phazerville Hemisphere Suite TB_3PO applet, GPL-3.0))"
    },
@@ -5668,6 +5998,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "hugelton/Felucca-Engines @ c46e008 (src/eng_noise.c) by Leo Kuroshita (@kurogedelic), Hügelton Instruments (MIT (the repository's LICENSE; eng_noise.c carries SPDX MIT and the copyright))"
    },
@@ -5714,6 +6045,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "keremimo/melodee @ v0.11 (79c5395, 2026-10-06) by Kerem Kilic (Ellic Studio); native playback after Devin Acker's uPD933 model (MAME) (GPL-3.0-only (eng_cz.c, cz_patch.h, cz_legacy.h, eng_phase.c's CZ envelopes); cz_native.c BSD-3-Clause (MAME uPD933 by Devin Acker, modifications Kerem Kilic))"
    },
@@ -5760,6 +6092,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "PatttF/fm-106 @ be74757 (2026-10-11) by PatttF (fm-106); a fixed-point port of Ultramaster KR-106 (kayrockscreenprinting/ultramaster_kr106) (GPL-3.0-only (fm-106 and KR-106))"
    },
@@ -5793,6 +6126,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "isod89/sloop-fm1 @ d691ba7 (SLOOP 2.3) by isod89 (GPL-3.0-only)"
    },
@@ -5826,6 +6160,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "hugelton/Felucca @ db70550 (Felucca 1.0.2, #48) by Leo Kuroshita (@kurogedelic), Hügelton Instruments (GPL-3.0-only)"
    },
@@ -5859,6 +6194,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "hugelton/Felucca @ db70550 (Felucca 1.0.2, #40) by Leo Kuroshita (@kurogedelic), Hügelton Instruments (GPL-3.0-only)"
    },
@@ -5892,6 +6228,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "hugelton/Felucca @ b22a24b (Felucca 1.0.3, idea only) by Leo Kuroshita (@kurogedelic), Hügelton Instruments (GPL-3.0-only)"
    },
@@ -5925,6 +6262,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "isod89/sloop-fm1 @ 8d3823f (SLOOP 2.4) by isod89 (format read from SLOOP 2.4; the guard is ours) (GPL-3.0-only)"
    },
@@ -5958,6 +6296,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "isod89/sloop-fm1 @ 8d3823f (SLOOP 2.4) by isod89 (the layout: core.h plock_t, track_t micro / lock / fill; the storage is ours) (GPL-3.0-only)"
    },
@@ -5991,6 +6330,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "isod89/sloop-fm1 @ 8d3823f (SLOOP 2.4) by isod89 (SLOOP), on Felucca by Leo Kuroshita (GPL-3.0-only)"
    },
@@ -6024,6 +6364,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "isod89/sloop-fm1 @ 8d3823f (SLOOP 2.4) by isod89 (SLOOP), on Felucca by Leo Kuroshita (GPL-3.0-only)"
    },
@@ -6057,6 +6398,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "isod89/sloop-fm1 @ 8d3823f (SLOOP 2.4) by isod89 (SLOOP), on Felucca by Leo Kuroshita (GPL-3.0-only)"
    },
@@ -6090,6 +6432,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "isod89/sloop-fm1 @ 8d3823f (SLOOP 2.4) by isod89 (SLOOP), on Felucca by Leo Kuroshita (GPL-3.0-only)"
    },
@@ -6123,6 +6466,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "isod89/sloop-fm1 @ 8d3823f (SLOOP 2.4) by isod89 (SLOOP), on Felucca by Leo Kuroshita (GPL-3.0-only)"
    },
@@ -6156,6 +6500,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "hugelton/Felucca @ 9f6a885 (Felucca 1.5.6) by Leo Kuroshita (@kurogedelic), Hügelton Instruments (GPL-3.0-only)"
    },
@@ -6189,6 +6534,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "hugelton/Felucca @ 9f6a885 (Felucca 1.5.6) by Leo Kuroshita (@kurogedelic), Hügelton Instruments (GPL-3.0-only)"
    },
@@ -6226,6 +6572,7 @@
     ],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "pichenettes/eurorack @ master (grids/, 2011-2013) by Emilie Gillet (Mutable Instruments) (GPL-3.0-or-later)"
    },
@@ -6259,6 +6606,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "pichenettes/eurorack @ master (grids/, 2011-2013) by Emilie Gillet (Mutable Instruments) (GPL-3.0-or-later)"
    },
@@ -6292,6 +6640,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "w0ts/optimist @ feat/grids-euclid (2026-10-23) by Optimist (GPL-3.0-only)"
    },
@@ -6325,6 +6674,7 @@
     "children": [],
     "hidden": false,
     "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "w0ts/optimist @ fix/grids-step-redraw (2026-10-23) by Optimist (GPL-3.0-only)"
    }
@@ -6419,7 +6769,9 @@
  ],
  "top": {
   "Memory management": [
-   "MEMORY",
+   "SD_MODE",
+   "SMP_SLOTS",
+   "PROJECTS",
    "ARENA"
   ],
   "Reserve": [],

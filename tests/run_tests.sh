@@ -1100,7 +1100,7 @@ job; ( jobin
     python3 tools/fm1pkg_make.py "$OUT/old_app.bin" build/loader/ota.bin "$OUT/old.fwsc" >/dev/null
     $CC -o "$OUT/ldr_test" tests/ldr_test.c
     run "update loader: other app -> this build" "$OUT/ldr_test" "$OUT/old.fwsc" build/felucca.fwsc
-    for L in 1 3; do   # (the MEMORY steps, tools/flash_layout.py: L1 more flash, S0 no user samples; normal above)
+    for L in 1 2 3 4 5 6 7 8; do   # (the MEMORY steps, tools/flash_layout.py: L1 more flash, S0 no user samples; normal above)
         $CC -DFELUCCA_LAYOUT=$L -o "$OUT/ldr_test_l$L" tests/ldr_test.c
         run "update loader of LAYOUT $L: the switch matrix from every step (docs/SD-MODE-DESIGN.md 9.3), nothing else" "$OUT/ldr_test_l$L" --layout
     done
@@ -1173,12 +1173,22 @@ job; ( jobin   # the flash layouts (docs/SD-MODE-DESIGN.md): the numbers agree; 
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_SL24_XSTEP=1 $L1 -o "$OUT/patterns_test_l1" tests/patterns_test.c -lm
     run "patterns and scenes in the fake SD mode's log (7 sectors at 0xD0000): store, MEM FULL" "$OUT/patterns_test_l1"
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_SL24_XSTEP=1 $L1 -o "$OUT/project_scope_test_l1" tests/project_scope_test.c -lm
-    run "the fake SD mode keeps one project: another refused, the log the one project's, MEM FULL" "$OUT/project_scope_test_l1"
+    run "MEMORY 0 slots / 2 projects (L1) keeps two projects: a third refused, one project may fill the log, MEM FULL" "$OUT/project_scope_test_l1"
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_SL24_XSTEP=1 $L1 -DPROJ_SLOTS=1u -o "$OUT/project_scope_test_sd" tests/project_scope_test.c -lm
+    run "SD card mode keeps one project in flash (PROJ_SLOTS 1): another refused, the log the one project's, MEM FULL" "$OUT/project_scope_test_sd"
     S0="-DFELUCCA_LAYOUT=3 -DFELUCCA_ENG_SAMPLE=0 -DFELUCCA_DRUM_USR=0 -DFELUCCA_SNAPSHOTS=0 -DFELUCCA_PATTERNS=1"   # (S0, no user samples: its 32-sector log at 0xB8000, fm1_steps.h)
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_SL24_XSTEP=1 $S0 -o "$OUT/patterns_test_s0" tests/patterns_test.c -lm
     run "patterns and scenes in the no-user-samples step's log (S0: 32 sectors at 0xB8000): store, MEM FULL" "$OUT/patterns_test_s0"
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_SL24_XSTEP=1 $S0 -o "$OUT/project_scope_test_s0" tests/project_scope_test.c -lm
     run "the no-user-samples step (S0) keeps 16 projects in its log: each project's scenes, patterns and song its own, MEM FULL" "$OUT/project_scope_test_s0"
+    for LS in 2:8 4:8 5:7 6:8 7:7 8:8; do   # (the grid's later steps, docs/SD-MODE-DESIGN.md 9.7: each its log, its projects; L:S the step and
+        L=${LS%:*}; S=${LS#*:}   # the log's sectors the tests use: theirs, at most the 8 their counts assume)
+        G="-DFELUCCA_LAYOUT=$L -DFELUCCA_ENG_SAMPLE=0 -DFELUCCA_DRUM_USR=0 -DFELUCCA_SNAPSHOTS=0 -DFELUCCA_PATTERNS=1 -DSEC_LOG_SECTORS=${S}u"
+        $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_SL24_XSTEP=1 $G -o "$OUT/patterns_test_g$L" tests/patterns_test.c -lm
+        run "patterns and scenes in MEMORY step $L's log (tools/flash_layout.py STEPS): store, MEM FULL" "$OUT/patterns_test_g$L"
+        $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_SL24_XSTEP=1 $G -o "$OUT/project_scope_test_g$L" tests/project_scope_test.c -lm
+        run "MEMORY step $L keeps its projects in its log: the others refused, MEM FULL" "$OUT/project_scope_test_g$L"
+    done
 ) >"$U.out" 2>&1 & jobbg
 
 job; ( jobin

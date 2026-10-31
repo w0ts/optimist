@@ -276,8 +276,9 @@ int main(int argc, char **argv)
             reset_dev();                                                                                         \
             set_fl_size(logical, (e));                                                                           \
             rc = ota_session();                                                                                  \
-            snprintf(what, sizeof what, "step %d's flash.bin (%#x B): past the size check (not -15)", (l), (unsigned)(e)); \
-            bad += check(what, rc != -15 && last_code != -15);                                                   \
+            snprintf(what, sizeof what, "step %d's flash.bin (%#x B): past the size check (not -15), the screen's "      \
+                     "layout warning %s", (l), (unsigned)(e), (e) != FL_APP_HI ? "on" : "off");                       \
+            bad += check(what, rc != -15 && last_code != -15 && ota_relayout == ((e) != FL_APP_HI));             \
             memcpy(logical, keep, sizeof keep);                                                                  \
         }
         FL_STEPS(STEP_SIZE_OK)

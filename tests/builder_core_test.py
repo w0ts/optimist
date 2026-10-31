@@ -268,9 +268,10 @@ import room as RM  # noqa: E402
 check("groups: Memory management first, Connectivity (not USB & BT & MIDI) holds Wi-Fi and Link",
       R.GROUPS[0] == "Memory management" and "USB & BT & MIDI" not in R.GROUPS
       and R.ITEMS["WIFI_LINK"].group == R.ITEMS["WIFI_AP"].group == "Connectivity")
-check("groups: LAYOUT SDCARD ARENA SD_RING SD_REC are in Memory management, MEMORY first",
+check("groups: LAYOUT SDCARD ARENA SD_RING SD_REC are in Memory management; SD CARD MODE, SAMPLE SLOTS, PROJECTS first",
       all(R.ITEMS[k].group == "Memory management" for k in ("LAYOUT", "SDCARD", "ARENA", "SD_RING", "SD_REC"))
-      and R.top_level("Memory management")[0].key == "MEMORY")
+      and [i.key for i in R.top_level("Memory management")][:3] == ["SD_MODE", "SMP_SLOTS", "PROJECTS"]
+      and R.ITEMS["MEMORY"].hidden)
 check("RAM_PACKED: hidden, fixed on, nothing in the image",
       R.ITEMS["RAM_PACKED"].fixed and R.ITEMS["RAM_PACKED"].no_image and R.ITEMS["RAM_PACKED"].group == "Memory management")
 _d = K.defaults()
@@ -294,9 +295,6 @@ check("MEMORY: setting LAYOUT by hand reads back through the toggle",
 check("MEMORY: --set MEMORY=2 and a .config line MEMORY=2 do what the pick does",
       K.parse("MEMORY=2\n")[0]["SDCARD"] == 1)
 # ---- the MEMORY steps (docs/SD-MODE-DESIGN.md 9): no user samples, S0 (LAYOUT 3)
-check("MEMORY's choices in size order: normal, no user samples, more flash, SD card mode",
-      [v for v, _ in R.ITEMS["MEMORY"].choices] == [0, 4, 1, 2]
-      and [n.split(":")[0] for _, n in R.ITEMS["MEMORY"].choices] == ["normal", "no user samples", "more flash", "SD card mode"])
 _s0 = RM.after_toggle(_p, dict(_p, MEMORY=4), "MEMORY", RM.NONE)[0]
 check("MEMORY: no user samples from SD card mode: LAYOUT 3, the card and its streams off",
       (_s0["LAYOUT"], _s0["SDCARD"], _s0["SD_RING"], _s0["SD_REC"], _s0["MEMORY"]) == (3, 0, 0, 0, 4))
@@ -308,12 +306,13 @@ _s0ok = dict(_s0, ENG_SAMPLE=0, DRUM_USR=0, SNAPSHOTS=0, PATTERNS=1)
 
 def _rule(c):
     """the layout rule's errors for c"""
-    return [i for i in K.validate(c)[0] if "keeps no user samples" in str(i)]
+    return [i for i in K.validate(c)[0] if str(i).startswith("MEMORY: SAMPLE SLOTS")]
 
 
-check("MEMORY no user samples: refused with SAMPLE, user drum samples or SNAPSHOTS, or PATTERNS off; fine without them",
-      not _rule(_s0ok) and all(_rule(dict(_s0ok, **{k: v})) for k, v in
-                                (("ENG_SAMPLE", R.eng_place("ENG_SAMPLE")), ("DRUM_USR", 1), ("SNAPSHOTS", 1), ("PATTERNS", 0))))
+check("SAMPLE SLOTS 0 (S0): refused with user drum samples or SNAPSHOTS, or PATTERNS off; SAMPLE's built-in sets fine "
+      "(the user, 2026-10-31: zero user samples allowed)",
+      not _rule(_s0ok) and not _rule(dict(_s0ok, ENG_SAMPLE=R.eng_place("ENG_SAMPLE")))
+      and all(_rule(dict(_s0ok, **{k: v})) for k, v in (("DRUM_USR", 1), ("SNAPSHOTS", 1), ("PATTERNS", 0))))
 check("MEMORY normal keeps them (the rule is the step's, not any nonzero LAYOUT)",
       not _rule(dict(_s0ok, LAYOUT=0, ENG_SAMPLE=R.eng_place("ENG_SAMPLE"), SNAPSHOTS=1)))
 check("MEMORY no user samples is not built for the release yet (NOT_BUILT, with the reason); the classic builds it",
@@ -325,6 +324,38 @@ try:
 except K.ConfigError:
     _bad3 = True
 check("MEMORY 3 (the design's S1, one sample slot) is not offered: refused", _bad3)
+# ---- the three choices (the user, 2026-10-31; docs/SD-MODE-DESIGN.md 9.7)
+_pt = dict(_d, PATTERNS=1)
+_f = lambda c: tuple(c[k] for k in ("SD_MODE", "SMP_SLOTS", "PROJECTS"))   # noqa: E731
+check("fronts: the defaults (PATTERNS off) read SD off, 3 sample slots, 16 projects; with PATTERNS 2 slots",
+      _f(K.sync_memory(_d)) == (0, 3, 16) and _f(K.sync_memory(_pt)) == (0, 2, 16))
+check("fronts: an old LAYOUT=1 reads 0 slots, 2 projects; with SDCARD SD card mode (its projects greyed: dim_when)",
+      _f(_red) == (0, 0, 2) and _f(_sd) == (1, 0, 2)
+      and R.ITEMS["SMP_SLOTS"].dim_when == R.ITEMS["PROJECTS"].dim_when == "SD_MODE")
+_a = RM.after_toggle(_pt, dict(_pt, SMP_SLOTS=0), "SMP_SLOTS", RM.NONE)[0]
+check("fronts: SAMPLE SLOTS 0 from normal keeps 16 projects: S0 (LAYOUT 3)", (_a["LAYOUT"], _f(_a)) == (3, (0, 0, 16)))
+_b = RM.after_toggle(_a, dict(_a, PROJECTS=2), "PROJECTS", RM.NONE)[0]
+check("fronts: then PROJECTS 2: L1 (LAYOUT 1), no card", (_b["LAYOUT"], _b["SDCARD"], _f(_b)) == (1, 0, (0, 0, 2)))
+_c = RM.after_toggle(_b, dict(_b, SD_MODE=1), "SD_MODE", RM.NONE)[0]
+_e = RM.after_toggle(_c, dict(_c, SD_MODE=0), "SD_MODE", RM.NONE)[0]
+check("fronts: SD CARD MODE on: LAYOUT 1 + SDCARD; off again: the card and its streams off, L1 kept",
+      (_c["LAYOUT"], _c["SDCARD"]) == (1, 1) and (_e["LAYOUT"], _e["SDCARD"], _e["SD_RING"], _e["SD_REC"]) == (1, 0, 0, 0))
+_g = RM.after_toggle(_c, dict(_c, SMP_SLOTS=2), "SMP_SLOTS", RM.NONE)[0]
+check("fronts: SAMPLE SLOTS 2 from SD card mode keeps its 2 projects: LAYOUT 7, the card off",
+      (_g["LAYOUT"], _g["SDCARD"], _f(_g)) == (7, 0, (0, 2, 2)))
+_h = RM.after_toggle(_pt, dict(_pt, SMP_SLOTS=3), "SMP_SLOTS", RM.NONE)[0]
+check("fronts: SAMPLE SLOTS 3 is normal with PATTERNS off; 2 again turns PATTERNS on",
+      (_h["LAYOUT"], _h["PATTERNS"]) == (0, 0)
+      and RM.after_toggle(_h, dict(_h, SMP_SLOTS=2), "SMP_SLOTS", RM.NONE)[0]["PATTERNS"] == 1)
+check("fronts: .config lines and --set SMP_SLOTS= / PROJECTS= / SD_MODE= do what the pick does; never dumped",
+      K.parse("PATTERNS=1\nSMP_SLOTS=0\nPROJECTS=2\n")[0]["LAYOUT"] == 1 and K.parse("SD_MODE=1\n")[0]["SDCARD"] == 1
+      and not any(k in K.dump(_b, full=True) for k in ("SD_MODE=", "SMP_SLOTS=", "PROJECTS=")))
+_n16 = K.change_notice("PROJECTS", _a, _b)
+check("the backup warning on a change of layout: the projects, the code room; none for the same layout (SD on / off)",
+      "erases the projects in flash" in _n16 and "831,420 B for code" in _n16 and "Back up first: web editor > Backup" in _n16
+      and K.change_notice("SD_MODE", _b, _c) == "" and "USR2, USR3" in K.change_notice("SMP_SLOTS", _pt, _a))
+_w = [str(i) for i in K.validate(dict(_s0ok, LAYOUT=0))[1] if "SAMPLE SLOTS" in str(i)]
+check("normal (2 slots) without any user of them: no warning (normal is normal)", not _w)
 check("MEMORY: never written to a .config (the items it fronts are), and a written config reads back the same",
       "MEMORY" not in K.dump(_p, full=True) and K.parse(K.dump(_p))[0] == _p)
 check("MEMORY: no image: the header and the hash are the same for a configuration with it set or not",

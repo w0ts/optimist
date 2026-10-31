@@ -263,35 +263,149 @@ static int all(uint32_t lo, uint32_t hi, uint8_t v)
     return 1;
 }
 
-/* the switch matrix (docs/SD-MODE-DESIGN.md 9.3, docs/INSTALL-PATHS.md), written out here, not computed: for this
- * build's step, what an install after each kind of installed app erases first, [lo, hi) (lo == hi: nothing) */
+/* the switch matrix (docs/SD-MODE-DESIGN.md 9.3 / 9.7.2, docs/INSTALL-PATHS.md), written out here, not computed: what an
+ * install of each step after each kind of installed app erases first, [lo, hi) (lo == hi: nothing); a build checks the
+ * rows of its own step (FELUCCA_LAYOUT). Rows written by hand for N, S0 and L1, the grid's later steps' from the rule */
 typedef struct {
     const char *what;
-    uint32_t end, lo[3], hi[3];                      /* lo / hi by the new step: N, S0, L1 */
+    uint32_t end;                                    /* the installed app's end (0: no header of ours) */
+    int layout;                                      /* the step being installed */
+    uint32_t lo, hi;
 } sw_case_t;
 static const sw_case_t SW[] = {
-    {"after a normal app (N)", 0x93000u, {0, 0xB5000u, 0xD0000u}, {0, 0xD8000u, 0xDA000u}},
-    {"after a no-user-samples app (S0)", 0xB5000u, {0x93000u, 0, 0xD0000u}, {0xD8000u, 0, 0xDA000u}},
-    {"after a more-flash app (L1)", 0xD0000u, {0x93000u, 0xB5000u, 0}, {0xDA000u, 0xDA000u, 0}},
-    {"after the release's L1 (0xCE000: the same step)", 0xCE000u, {0x93000u, 0xB5000u, 0}, {0xDA000u, 0xDA000u, 0}},
-    {"after no header of ours", 0, {0, 0xB5000u, 0xD0000u}, {0, 0xD8000u, 0xDA000u}},
-    {"after a head ending below normal's (0x5000)", 0x5000u, {0, 0xB5000u, 0xD0000u}, {0, 0xD8000u, 0xDA000u}},
-    {"after an end no step has (0xC0000)", 0xC0000u, {0x93000u, 0xB5000u, 0xD0000u}, {0xDA000u, 0xDA000u, 0xDA000u}},
+/* sw-table:begin (tests/ldr_test.c's rows; the memopts steps' tool rewrites them from tools/flash_layout.py) */
+    {"after a normal app (N)", 0x93000u, 0, 0, 0},
+    {"after a normal app (N)", 0x93000u, 3, 0xB5000u, 0xD8000u},
+    {"after a normal app (N)", 0x93000u, 1, 0xD0000u, 0xDA000u},
+    {"after a no-user-samples app (S0)", 0xB5000u, 0, 0x93000u, 0xD8000u},
+    {"after a no-user-samples app (S0)", 0xB5000u, 3, 0, 0},
+    {"after a no-user-samples app (S0)", 0xB5000u, 1, 0xD0000u, 0xDA000u},
+    {"after a more-flash app (L1)", 0xD0000u, 0, 0x93000u, 0xDA000u},
+    {"after a more-flash app (L1)", 0xD0000u, 3, 0xB5000u, 0xDA000u},
+    {"after a more-flash app (L1)", 0xD0000u, 1, 0, 0},
+    {"after the release's L1 (0xCE000: the same step)", 0xCE000u, 0, 0x93000u, 0xDA000u},
+    {"after the release's L1 (0xCE000: the same step)", 0xCE000u, 3, 0xB5000u, 0xDA000u},
+    {"after the release's L1 (0xCE000: the same step)", 0xCE000u, 1, 0, 0},
+    {"after no header of ours", 0, 0, 0, 0},
+    {"after no header of ours", 0, 3, 0xB5000u, 0xD8000u},
+    {"after no header of ours", 0, 1, 0xD0000u, 0xDA000u},
+    {"after a head ending below normal's (0x5000)", 0x5000u, 0, 0, 0},
+    {"after a head ending below normal's (0x5000)", 0x5000u, 3, 0xB5000u, 0xD8000u},
+    {"after a head ending below normal's (0x5000)", 0x5000u, 1, 0xD0000u, 0xDA000u},
+    {"after an end no step has (0xC0000)", 0xC0000u, 0, 0x93000u, 0xDA000u},
+    {"after an end no step has (0xC0000)", 0xC0000u, 3, 0xB5000u, 0xDA000u},
+    {"after an end no step has (0xC0000)", 0xC0000u, 1, 0xD0000u, 0xDA000u},
+    {"after a 1-slot 16-project app (LAYOUT 2, 0xa5000)", 0xA5000u, 0, 0x93000u, 0xC8000u},
+    {"after a 1-slot 16-project app (LAYOUT 2, 0xa5000)", 0xA5000u, 1, 0xD0000u, 0xDA000u},
+    {"after a 1-slot 16-project app (LAYOUT 2, 0xa5000)", 0xA5000u, 3, 0xB5000u, 0xD8000u},
+    {"after a 2-slot 4-project app (LAYOUT 6, 0xa6000)", 0xA6000u, 0, 0x93000u, 0xB4000u},
+    {"after a 2-slot 4-project app (LAYOUT 6, 0xa6000)", 0xA6000u, 1, 0xD0000u, 0xDA000u},
+    {"after a 2-slot 4-project app (LAYOUT 6, 0xa6000)", 0xA6000u, 3, 0xB5000u, 0xD8000u},
+    {"after a 2-slot 2-project app (LAYOUT 7, 0xaa000)", 0xAA000u, 0, 0x93000u, 0xB4000u},
+    {"after a 2-slot 2-project app (LAYOUT 7, 0xaa000)", 0xAA000u, 1, 0xD0000u, 0xDA000u},
+    {"after a 2-slot 2-project app (LAYOUT 7, 0xaa000)", 0xAA000u, 3, 0xB5000u, 0xD8000u},
+    {"after a 1-slot 4-project app (LAYOUT 4, 0xba000)", 0xBA000u, 0, 0x93000u, 0xC8000u},
+    {"after a 1-slot 4-project app (LAYOUT 4, 0xba000)", 0xBA000u, 1, 0xD0000u, 0xDA000u},
+    {"after a 1-slot 4-project app (LAYOUT 4, 0xba000)", 0xBA000u, 3, 0xB5000u, 0xD8000u},
+    {"after a 1-slot 2-project app (LAYOUT 5, 0xbe000)", 0xBE000u, 0, 0x93000u, 0xC8000u},
+    {"after a 1-slot 2-project app (LAYOUT 5, 0xbe000)", 0xBE000u, 1, 0xD0000u, 0xDA000u},
+    {"after a 1-slot 2-project app (LAYOUT 5, 0xbe000)", 0xBE000u, 3, 0xB5000u, 0xD8000u},
+    {"after a 0-slot 4-project app (LAYOUT 8, 0xca000)", 0xCA000u, 0, 0x93000u, 0xD8000u},
+    {"after a 0-slot 4-project app (LAYOUT 8, 0xca000)", 0xCA000u, 1, 0xD0000u, 0xDA000u},
+    {"after a 0-slot 4-project app (LAYOUT 8, 0xca000)", 0xCA000u, 3, 0xB5000u, 0xD8000u},
+    {"after the app ending at 0x93000", 0x93000u, 2, 0xA5000u, 0xC8000u},
+    {"after the app ending at 0xa5000", 0xA5000u, 2, 0, 0},
+    {"after the app ending at 0xa6000", 0xA6000u, 2, 0xA5000u, 0xC8000u},
+    {"after the app ending at 0xaa000", 0xAA000u, 2, 0xA5000u, 0xC8000u},
+    {"after the app ending at 0xb5000", 0xB5000u, 2, 0xA5000u, 0xD8000u},
+    {"after the app ending at 0xba000", 0xBA000u, 2, 0xA5000u, 0xC8000u},
+    {"after the app ending at 0xbe000", 0xBE000u, 2, 0xA5000u, 0xC8000u},
+    {"after the app ending at 0xca000", 0xCA000u, 2, 0xA5000u, 0xD8000u},
+    {"after the app ending at 0xce000", 0xCE000u, 2, 0xA5000u, 0xDA000u},
+    {"after the app ending at 0xd0000", 0xD0000u, 2, 0xA5000u, 0xDA000u},
+    {"no header of ours", 0, 2, 0xA5000u, 0xC8000u},
+    {"a head ending below normal's (0x5000)", 0x5000u, 2, 0xA5000u, 0xC8000u},
+    {"an end no step has (0xC0000)", 0xC0000u, 2, 0xA5000u, 0xDA000u},
+    {"after the app ending at 0x93000", 0x93000u, 4, 0xBA000u, 0xC8000u},
+    {"after the app ending at 0xa5000", 0xA5000u, 4, 0xBA000u, 0xC8000u},
+    {"after the app ending at 0xa6000", 0xA6000u, 4, 0xBA000u, 0xC8000u},
+    {"after the app ending at 0xaa000", 0xAA000u, 4, 0xBA000u, 0xC8000u},
+    {"after the app ending at 0xb5000", 0xB5000u, 4, 0xBA000u, 0xD8000u},
+    {"after the app ending at 0xba000", 0xBA000u, 4, 0, 0},
+    {"after the app ending at 0xbe000", 0xBE000u, 4, 0xBA000u, 0xC8000u},
+    {"after the app ending at 0xca000", 0xCA000u, 4, 0xBA000u, 0xD8000u},
+    {"after the app ending at 0xce000", 0xCE000u, 4, 0xBA000u, 0xDA000u},
+    {"after the app ending at 0xd0000", 0xD0000u, 4, 0xBA000u, 0xDA000u},
+    {"no header of ours", 0, 4, 0xBA000u, 0xC8000u},
+    {"a head ending below normal's (0x5000)", 0x5000u, 4, 0xBA000u, 0xC8000u},
+    {"an end no step has (0xC0000)", 0xC0000u, 4, 0xBA000u, 0xDA000u},
+    {"after the app ending at 0x93000", 0x93000u, 5, 0xBE000u, 0xC8000u},
+    {"after the app ending at 0xa5000", 0xA5000u, 5, 0xBE000u, 0xC8000u},
+    {"after the app ending at 0xa6000", 0xA6000u, 5, 0xBE000u, 0xC8000u},
+    {"after the app ending at 0xaa000", 0xAA000u, 5, 0xBE000u, 0xC8000u},
+    {"after the app ending at 0xb5000", 0xB5000u, 5, 0xBE000u, 0xD8000u},
+    {"after the app ending at 0xba000", 0xBA000u, 5, 0xBE000u, 0xC8000u},
+    {"after the app ending at 0xbe000", 0xBE000u, 5, 0, 0},
+    {"after the app ending at 0xca000", 0xCA000u, 5, 0xBE000u, 0xD8000u},
+    {"after the app ending at 0xce000", 0xCE000u, 5, 0xBE000u, 0xDA000u},
+    {"after the app ending at 0xd0000", 0xD0000u, 5, 0xBE000u, 0xDA000u},
+    {"no header of ours", 0, 5, 0xBE000u, 0xC8000u},
+    {"a head ending below normal's (0x5000)", 0x5000u, 5, 0xBE000u, 0xC8000u},
+    {"an end no step has (0xC0000)", 0xC0000u, 5, 0xBE000u, 0xDA000u},
+    {"after the app ending at 0x93000", 0x93000u, 6, 0xA6000u, 0xB4000u},
+    {"after the app ending at 0xa5000", 0xA5000u, 6, 0xA6000u, 0xC8000u},
+    {"after the app ending at 0xa6000", 0xA6000u, 6, 0, 0},
+    {"after the app ending at 0xaa000", 0xAA000u, 6, 0xA6000u, 0xB4000u},
+    {"after the app ending at 0xb5000", 0xB5000u, 6, 0xA6000u, 0xD8000u},
+    {"after the app ending at 0xba000", 0xBA000u, 6, 0xA6000u, 0xC8000u},
+    {"after the app ending at 0xbe000", 0xBE000u, 6, 0xA6000u, 0xC8000u},
+    {"after the app ending at 0xca000", 0xCA000u, 6, 0xA6000u, 0xD8000u},
+    {"after the app ending at 0xce000", 0xCE000u, 6, 0xA6000u, 0xDA000u},
+    {"after the app ending at 0xd0000", 0xD0000u, 6, 0xA6000u, 0xDA000u},
+    {"no header of ours", 0, 6, 0xA6000u, 0xB4000u},
+    {"a head ending below normal's (0x5000)", 0x5000u, 6, 0xA6000u, 0xB4000u},
+    {"an end no step has (0xC0000)", 0xC0000u, 6, 0xA6000u, 0xDA000u},
+    {"after the app ending at 0x93000", 0x93000u, 7, 0xAA000u, 0xB4000u},
+    {"after the app ending at 0xa5000", 0xA5000u, 7, 0xAA000u, 0xC8000u},
+    {"after the app ending at 0xa6000", 0xA6000u, 7, 0xAA000u, 0xB4000u},
+    {"after the app ending at 0xaa000", 0xAA000u, 7, 0, 0},
+    {"after the app ending at 0xb5000", 0xB5000u, 7, 0xAA000u, 0xD8000u},
+    {"after the app ending at 0xba000", 0xBA000u, 7, 0xAA000u, 0xC8000u},
+    {"after the app ending at 0xbe000", 0xBE000u, 7, 0xAA000u, 0xC8000u},
+    {"after the app ending at 0xca000", 0xCA000u, 7, 0xAA000u, 0xD8000u},
+    {"after the app ending at 0xce000", 0xCE000u, 7, 0xAA000u, 0xDA000u},
+    {"after the app ending at 0xd0000", 0xD0000u, 7, 0xAA000u, 0xDA000u},
+    {"no header of ours", 0, 7, 0xAA000u, 0xB4000u},
+    {"a head ending below normal's (0x5000)", 0x5000u, 7, 0xAA000u, 0xB4000u},
+    {"an end no step has (0xC0000)", 0xC0000u, 7, 0xAA000u, 0xDA000u},
+    {"after the app ending at 0x93000", 0x93000u, 8, 0xCA000u, 0xD8000u},
+    {"after the app ending at 0xa5000", 0xA5000u, 8, 0xCA000u, 0xD8000u},
+    {"after the app ending at 0xa6000", 0xA6000u, 8, 0xCA000u, 0xD8000u},
+    {"after the app ending at 0xaa000", 0xAA000u, 8, 0xCA000u, 0xD8000u},
+    {"after the app ending at 0xb5000", 0xB5000u, 8, 0xCA000u, 0xD8000u},
+    {"after the app ending at 0xba000", 0xBA000u, 8, 0xCA000u, 0xD8000u},
+    {"after the app ending at 0xbe000", 0xBE000u, 8, 0xCA000u, 0xD8000u},
+    {"after the app ending at 0xca000", 0xCA000u, 8, 0, 0},
+    {"after the app ending at 0xce000", 0xCE000u, 8, 0xCA000u, 0xDA000u},
+    {"after the app ending at 0xd0000", 0xD0000u, 8, 0xCA000u, 0xDA000u},
+    {"no header of ours", 0, 8, 0xCA000u, 0xD8000u},
+    {"a head ending below normal's (0x5000)", 0x5000u, 8, 0xCA000u, 0xD8000u},
+    {"an end no step has (0xC0000)", 0xC0000u, 8, 0xCA000u, 0xDA000u},
+/* sw-table:end */
 };
 
 static int layout_switch_test(void)
 {
     static const uint32_t KEY = 0x980Fu;
-    const int col = LDR_APP_HI == 0x93000u ? 0 : LDR_APP_HI == 0xB5000u ? 1 : LDR_APP_HI == 0xD0000u ? 2 : -1;
     uint8_t buf[32];
-    int bad = 0, rc, pass;
+    int bad = 0, rc, pass, rows = 0;
     uint32_t k;
-    bad += check("this build's step is one of the matrix's (N, S0, L1)", col >= 0);
-    if (col < 0)
-        return bad;
     for (k = 0; k < sizeof SW / sizeof SW[0]; k++)
-        for (pass = 0; pass < 2; pass++) {               /* the second: a resumed install, the old header still there */
-            const uint32_t lo = SW[k].lo[col], hi = SW[k].hi[col];
+        rows += SW[k].layout == FELUCCA_LAYOUT;
+    bad += check("this build's step has its rows in the matrix", rows >= 7);
+    for (k = 0; k < sizeof SW / sizeof SW[0]; k++)
+        for (pass = 0; pass < 2 && SW[k].layout == FELUCCA_LAYOUT; pass++) {   /* the second: a resumed install */
+            const uint32_t lo = SW[k].lo, hi = SW[k].hi;
             char what[128];
             memset(nor, 0xFF, sizeof nor);
             memset(nor + 0x5000, 0xA5, 0xE0000u - 0x5000u);   /* the app, the store: all non-erased */
