@@ -30,6 +30,11 @@ enum EditorRoute: Equatable {
         case .none, .asking, .needsUSB: return false
         }
     }
+
+    /// Bluetooth with the projects: what the Projects page says of the parts that need the cable (one small grey line under
+    /// the slots, not a banner: the slots and the library work); nil when nothing is to be said
+    static let usbOnlyLine = "Sections, patterns and backup need the USB cable."
+    func usbOnlyLine(_ f: Feature) -> String? { self == .bluetooth && !carries(f) ? Self.usbOnlyLine : nil }
 }
 
 /// INFO over Bluetooth, asked by the mirror's link once a second beside its 106 (MirrorLink.tick): measured on the FM-1 while

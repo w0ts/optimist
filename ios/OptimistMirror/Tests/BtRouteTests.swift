@@ -33,6 +33,18 @@ final class BtRouteTests: XCTestCase {
         for f in [Feature.backup, .library, .projects, .patterns] { XCTAssertFalse(r.carries(f), f.name) }   // the USB message stays for these
     }
 
+    /// The Projects page over Bluetooth with opti_btproj_1: its slots carried, no banner; the parts that need the cable said in
+    /// one grey line under them (the user, 2026-10-31: the page read as an error over a working Bluetooth link)
+    func testProjectsPageOverBluetoothHasNoBanner() {
+        let i = info(["opti_proj_1", "opti_projects_1", "opti_mirbt_1", "opti_btproj_1"])
+        let r = EditorRoute.choose(searching: false, bluetooth: true, info: i, infoTried: true)
+        XCTAssertTrue(r.carries(.proj))
+        XCTAssertNil(r.usbOnlyLine(.proj))
+        XCTAssertEqual(r.usbOnlyLine(.projects), EditorRoute.usbOnlyLine)
+        XCTAssertNil(EditorRoute.usb.usbOnlyLine(.projects))
+        XCTAssertNil(EditorRoute.needsUSB.usbOnlyLine(.projects))
+    }
+
     func testBluetoothWithoutBtprojNeedsUsb() {
         let i = info(["opti_backup_4", "opti_proj_1", "opti_mirbt_1"])
         XCTAssertEqual(EditorRoute.choose(searching: false, bluetooth: true, info: i, infoTried: true), .needsUSB)
@@ -108,5 +120,29 @@ final class BtRouteTests: XCTestCase {
         XCTAssertTrue(chunks.allSatisfy { $0.1 <= BtPolicy.maxRequest })
         XCTAssertFalse(rec.overlap)
         XCTAssertEqual(fake.objs[0].data, data)
+    }
+
+    // MARK: - which port the link takes (MirrorLink.pick / launchPort)
+
+    private func port(_ n: String, bt: Bool, on: Bool = true) -> MirrorLink.PortSeen { .init(name: n, bluetooth: bt, online: on) }
+
+    /// The cable wins: the FM-1 on USB while the app held its Bluetooth port (picked in the sheet) stayed on Bluetooth (the user,
+    /// 2026-10-31: ioreg showed FM1-E040 on USB, Projects said Bluetooth). Ports as the Mac lists them then.
+    func testUSBWinsOverBluetoothPicked() {
+        let ports = [port("Optimist", bt: false), port("FM1-E040 Bluetooth", bt: true)]
+        XCTAssertEqual(MirrorLink.pick(ports, chosen: "FM1-E040 Bluetooth"), 0)
+        XCTAssertEqual(MirrorLink.pick(ports, chosen: ""), 0)
+        XCTAssertEqual(MirrorLink.pick(Array(ports.reversed()), chosen: "FM1-E040 Bluetooth"), 1)
+        XCTAssertEqual(MirrorLink.pick([ports[1]], chosen: "FM1-E040 Bluetooth"), 0)                 // (no cable: Bluetooth)
+        XCTAssertEqual(MirrorLink.pick([port("FM1-E040", bt: false, on: false), ports[1]], chosen: "FM1-E040 Bluetooth"), 1)
+        XCTAssertEqual(MirrorLink.pick(ports + [port("Launchkey", bt: false)], chosen: "Launchkey"), 2)   // (other gear by hand)
+    }
+
+    /// At launch a port already connected in the system is taken; a Bluetooth port the Mac keeps listed offline is not
+    func testLaunchTakesOnlyAPortConnected() {
+        XCTAssertEqual(MirrorLink.launchPort([port("IAC Driver Bus 1", bt: false), port("FM1-E040 Bluetooth", bt: true)], chosen: ""), 1)
+        XCTAssertNil(MirrorLink.launchPort([port("FM1-E040 Bluetooth", bt: true, on: false)], chosen: ""))
+        XCTAssertNil(MirrorLink.launchPort([port("IAC Driver Bus 1", bt: false)], chosen: ""))
+        XCTAssertEqual(MirrorLink.launchPort([port("FM1-E040 Bluetooth", bt: true), port("FM1-E040", bt: false)], chosen: ""), 1)
     }
 }

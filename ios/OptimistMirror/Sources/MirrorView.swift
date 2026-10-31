@@ -252,6 +252,8 @@ struct ConnectView: View {
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
             bluetooth.buttonStyle(.bordered).controlSize(.large)
+            Toggle("Use an already connected FM-1 at launch", isOn: $link.takeConnectedAtLaunch)
+                .font(.callout)
             if !link.ports.isEmpty || !link.chosen.isEmpty {
                 Button { choosingPort = true } label: {   // (a Menu on the Mac sized itself to its title: a button, one width)
                     Label(link.chosen.isEmpty ? "Choose MIDI Port" : link.chosen, systemImage: "cable.connector")
