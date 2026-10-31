@@ -56,7 +56,7 @@ const E = vm.runInNewContext(`${proto}
    openMidi, findPorts, wantsReconnect, isFM1Name, syncState, ROLL, rollRest, rollNotes, noteSpan, rollAdd, rollRemove, rollToggle, rollSetLength, rollSetNote, rollSetStep, rollChanged, rollGrid, rollLen, DRUM_PAGE, drumPages, drumPageRange, COLORS, engineColor, kindColor, contrast, textOn, MASTER_FX, MASTER_BUS, fxInline, FX_INLINE_MAX, NAV, SCREENS, navOpen, navClose, navKey, navScreen, navDepth, KEYS, KEY_FIXED, LANE_KEYS, keyFor, keyLabel, keyPlan, stepxBuilt, PAT, patSlotView, patUsers,
    PATREC, patRecParse, patRecBuild, patRawEmpty, patStepFrom, patStepRaw, patDrumFrom, patDrumRaw, patReadAll, patWriteAll,
    FXT, FXT_NAMES, fxsLoad, fxType, fxSlotAmt, readFx, keptIds, AUTO, autoLane, SetGate,
-   FXP, FXP_TABLE, SCRN_TABLE, SCRS_TABLE, EQ_FL_HZ, EQ_FH_HZ, fxpClass, fxpName, fxpTypeName, fxpAllows, fxpFmt, readFxpOwner, readFxpSlot, panelKey, panelKeyName, navParse, navTracksParse, navBar, navKnobs, navKnobAt, MNAV, PJF, pjfPack, pjfUnpack, WIFI, wifiCheck, wifiApCheck, wifiApDefaultKey, wifiIsAp, wifiBusy, wifiText, pack7, unpack7 })`,
+   FXP, FXP_TABLE, SCRN_TABLE, SCRS_TABLE, EQ_FL_HZ, EQ_FH_HZ, fxpClass, fxpName, fxpTypeName, fxpAllows, fxpFmt, readFxpOwner, readFxpSlot, panelKey, panelKeyName, navParse, navTracksParse, navBar, navKnobs, navKnobAt, MNAV, PJF, pjfPack, pjfUnpack, pjLibMake, pjLibMem, pjSwap, WIFI, wifiCheck, wifiApCheck, wifiApDefaultKey, wifiIsAp, wifiBusy, wifiText, pack7, unpack7 })`,
 { setTimeout, clearTimeout, setInterval, clearInterval, console, TextEncoder, TextDecoder });
 
 const editorMock = async () => {
@@ -3649,6 +3649,25 @@ e = list(L.known_ends()); print(json.dumps({f"{o}/{n}": L.switch_warning(None if
   const h = Uint8Array.from(f); h[PJF_HEAD()] ^= 1;
   ok(bad(() => E.pjfUnpack(g)) && bad(() => E.pjfUnpack(h)) && bad(() => E.pjfUnpack(f.slice(0, f.length - 1))) && bad(() => E.pjfUnpack(Uint8Array.from([1, 2, 3]))), "project file: another format version, a damaged, cut or foreign file is refused");
   function PJF_HEAD() { return E.PJF.HEAD; }
+  {
+    const L = E.pjLibMake(E.pjLibMem());
+    const a = await L.add({ slot: 0, family: "FUNB", name: "SONG A", data: Uint8Array.from([1, 2, 3]) }, 1000);
+    const b = await L.add({ slot: 1, family: "FUNB", name: "SONG A", data: Uint8Array.from([9]) }, 2000);
+    let l = await L.list();
+    ok(l.length === 2 && l[0].id === b && l[1].id === a && l[0].date === 2000 && l[1].size === E.PJF.HEAD + 3 + 4, "project library: add keeps same-named projects apart, newest first, with date and size");
+    ok(Array.from((await L.read(a)).data).join() === "1,2,3", "project library: read gives the project back");
+    await L.rename(a, "LIVE");
+    ok((await L.list()).some((e) => e.id === a && e.name === "LIVE") && (await L.read(a)).name === "LIVE", "project library: rename changes the list and the file's own name");
+    const c = await L.addFile(E.pjfPack({ slot: 2, family: "FUNB", name: "FROM FILE", data: Uint8Array.from([5]) }));
+    let refused = false; try { await L.addFile(Uint8Array.from([1, 2, 3])); } catch (e) { refused = true; }
+    ok(refused && (await L.list()).length === 3 && (await L.read(c)).name === "FROM FILE", "project library: add from file takes a project file and refuses another");
+    await L.del(b);
+    ok((await L.list()).length === 2, "project library: delete");
+    const order = [];
+    await E.pjSwap(async () => { order.push("save"); }, async () => { order.push("load"); });
+    let loaded = false; try { await E.pjSwap(async () => { throw new Error("x"); }, async () => { loaded = true; }); } catch (e) { /* expected */ }
+    ok(order.join() === "save,load" && !loaded, "project library: a swap saves the slot first and never loads after a failed save");
+  }
 }
 const verdict = failed === 0 ? "web tests passed" : `WEB TESTS FAILED (${failed})`;
 console.log(verdict);

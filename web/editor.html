@@ -7104,6 +7104,31 @@ function pjfUnpack(b) {
   if (dv.getUint32(end, true) !== crc32(b.subarray(0, end))) throw new Error("the file is damaged (CRC)");
   return { slot: b[5], family: str(6, 10), name: str(10, 22), data: b.slice(PJF.HEAD, end) };
 }
+/* the project library: .fm1proj files kept in the browser (IndexedDB, below) or in memory; `be` = { all, get, put, del } */
+function pjLibMake(be) {
+  const row = (r) => ({ id: r.id, name: r.name, date: r.date, size: r.size });
+  let n = 0;
+  return {
+    async list() { return (await be.all()).map(row).sort((a, b) => b.date - a.date); },
+    async add(x, now = Date.now()) {
+      const file = pjfPack(x), id = `${now}-${n++}-${Math.random().toString(36).slice(2, 7)}`;
+      await be.put({ id, name: x.name, date: now, size: file.length, file });
+      return id;
+    },
+    async addFile(bytes) { return this.add(pjfUnpack(bytes)); },
+    async get(id) { const r = await be.get(id); if (!r) throw new Error("not in the Library"); return r; },
+    async read(id) { return pjfUnpack((await this.get(id)).file); },
+    async rename(id, name) {
+      const r = await this.get(id), x = pjfUnpack(r.file); x.name = name;
+      const file = pjfPack(x);
+      await be.put({ ...r, name, size: file.length, file });
+    },
+    async del(id) { await be.del(id); },
+  };
+}
+const pjLibMem = () => { const m = new Map(); return { all: async () => [...m.values()], get: async (id) => m.get(id), put: async (r) => { m.set(r.id, r); }, del: async (id) => { m.delete(id); } }; };
+/* "Swap with slot N": the slot goes into the Library first; only when that worked is the chosen project written over it */
+async function pjSwap(saveSlot, load) { await saveSlot(); await load(); }
 /*wire-section:end*/
 /* one colour on the web pages: the blue (--t1) wherever an engine, a kit kind or a track had its own; COLORS (above) stays, the device's table */
 const UI_C = "var(--t1)", UI_ON = "var(--on)";
@@ -7494,6 +7519,12 @@ const TEXT = {                                      /* the page's words, by key 
   selectedTrack: "Selected",
   pjfTitle: "Project slots", pjfHelp: "Each action says where the data goes: the Active project is what plays on the FM-1 now; a slot is a stored project; a file is a .fm1proj. Files are written and read only while stopped.", pjfSd: "SD card mode: the FM-1 keeps {n} project in its flash.", 
   pjfReplace: "File → slot {n}: slot {n} holds a project. Replace it with the file's project?{again} Stopped only.", pjfExported: "Exported slot ", pjfLoaded: "File → slot: loaded into slot ", pjfBad: "Not a project file this FM-1 can take: ",
+  pjlTitle: "Library (in this browser)", pjlHelp: "Projects kept in this browser (not on the FM-1). Slot N → Library keeps a copy; Swap with slot N puts the slot into the Library and the chosen project into the slot, opened. Download and Add from file move projects to and from the phone app's Library.", pjlNone: "No projects in the Library yet.",
+  pjlSlotTo: "Slot {n} → Library", pjlActiveTo: "Active project → Library", pjlToSlot: "Library → Slot {n}…", pjlToActive: "Library → Active project", pjlSwap: "Swap with slot {n}", pjlRename: "Rename", pjlDelete: "Delete", pjlDownload: "Download", pjlAdd: "Add from file…",
+  pjlAskActive: "Active project → Library: save the Active project into slot {n}, then copy it to the Library?", pjlAskToSlot: "Library → slot {n}: slot {n} holds {name}. Replace it with {lib}? Stopped only.",
+  pjlAskToActive: "Library → Active project: write {lib} into slot {n} and open it. The Active project's unsaved changes are lost. Stopped only.", pjlAskSwap: "Swap with slot {n}: slot {n} → Library, then {lib} → slot {n}, opened.{again} Stopped only.",
+  pjlAskDelete: "Delete {lib} from the Library?", pjlRenameAsk: "Name of the project",
+  pjlSaved: "Library: saved a copy of ", pjlLoaded: "Library → slot: loaded into slot ", pjlOpened: "Library → Active project: opened in slot ", pjlSwapped: "Swapped with slot ", pjlAdded: "File → Library: added ", pjlNoStore: "The Library could not be kept in this browser (private window?): it ends with the page.",
   pjfEmpty: "empty", pjfAgain: "It is the Active project: it is opened again.", pjfNoSlot: "This memory layout has no slot {n}.",
   projHelp: "A project stores the full device state: sound and pattern of the four tracks, the selected track and the global settings.",
   snTitle: "Snapshots", snHelp: "A snapshot keeps everything in the current work: the working project, every section and the song. In a slot of the FM-1 (and in files here, as many as you like). Loading one replaces the work; the state before is kept in BEFORE LOAD. User samples, presets and kits stay as they are (MISSING says when one is gone).",
@@ -8679,35 +8710,43 @@ const pjfCall = async (o, p, name = "") => {
   const r = parse[CMD.PJ_OP](await rq(req.pjOp(o, p, name), { timeout: 10000, retries: 0 }));
   if (r.rc) throw new Error(`PJ_OP ${o}: ${BK.RC[r.rc] || r.rc}`);
 };
+/* the stored project p as a file's contents, null when the slot is empty */
+async function pjfRead(p) {
+  dev.bk = await bkList(dev);
+  const o = dev.bk.objs.find((x) => x.tag === pjfTag(p));
+  if (!o || !o.hasData) return null;
+  await pjfRefresh();
+  return { slot: p, family: dev.bk.magic, name: pjf.info ? pjf.info.names[p] : "", data: await bkReadObj(o) };
+}
+/* a project's contents into slot p: cleared first (a stream written over a project leaves the records it lacks), written, named, opened again when p is open */
+async function pjfWrite(p, x) {
+  const o = dev.bk.objs.find((q) => q.tag === pjfTag(p));
+  const open = pjf.info && pjf.info.open === p;
+  await pjfCall(3, p);
+  if (x.data.length) { await bkWriteObj(o.i, x.data); await bkEnd(dev.bk, false); }
+  await pjfCall(4, p, x.name);
+  if (open) await pjfCall(2, p);
+}
 function pjfExport(p, saveFirst = false) {
   pjfOp(async () => {
     if (saveFirst) await pjfCall(1, p);
-    dev.bk = await bkList(dev);
-    const o = dev.bk.objs.find((x) => x.tag === pjfTag(p));
-    if (!o || !o.hasData) { setStatusKey("emptySlot", String(p + 1)); return; }
-    const name = pjf.info ? pjf.info.names[p] : "";
-    saveBlob(`optimist-project-${p + 1}${name ? "-" + fileSlug(name) : ""}${PJF.EXT}`, new Blob([pjfPack({ slot: p, family: dev.bk.magic, name, data: await bkReadObj(o) })], { type: "application/octet-stream" }));
+    const x = await pjfRead(p);
+    if (!x) { setStatusKey("emptySlot", String(p + 1)); return; }
+    saveBlob(`optimist-project-${p + 1}${x.name ? "-" + fileSlug(x.name) : ""}${PJF.EXT}`, new Blob([pjfPack(x)], { type: "application/octet-stream" }));
     setStatusKey("pjfExported", String(p + 1));
   });
 }
+function pjfCheck(p, x) {
+  if (x.family !== dev.bk.magic) throw new Error(`another firmware (${x.family}, this one ${dev.bk.magic})`);
+  const o = dev.bk.objs.find((q) => q.tag === pjfTag(p));
+  if (p >= pjCount() || !o || !o.inBuild) throw new Error(t("pjfNoSlot").replace("{n}", p + 1));
+}
 async function pjfImport(p, f) {
   let x;
-  try {
-    x = pjfUnpack(new Uint8Array(await f.arrayBuffer()));
-    if (x.family !== dev.bk.magic) throw new Error(`another firmware (${x.family}, this one ${dev.bk.magic})`);
-  } catch (e) { setStatusKey("pjfBad", e.message); return; }
-  const o = dev.bk.objs.find((q) => q.tag === pjfTag(p));
-  if (p >= pjCount() || !o || !o.inBuild) { setStatusKey("pjfBad", t("pjfNoSlot").replace("{n}", p + 1)); return; }
+  try { x = pjfUnpack(new Uint8Array(await f.arrayBuffer())); pjfCheck(p, x); } catch (e) { setStatusKey("pjfBad", e.message); return; }
   const again = pjf.info && pjf.info.open === p ? " " + t("pjfAgain") : "";
   if (pjf.info && ((pjf.info.used >> p) & 1) && !confirm(t("pjfReplace").replace(/\{n\}/g, p + 1).replace("{again}", again))) return;
-  pjfOp(async () => {
-    const open = pjf.info && pjf.info.open === p;
-    await pjfCall(3, p);                              /* (a stream written over a project leaves the records it lacks: cleared first) */
-    if (x.data.length) { await bkWriteObj(o.i, x.data); await bkEnd(dev.bk, false); }
-    await pjfCall(4, p, x.name);
-    if (open) await pjfCall(2, p);
-    setStatusKey("pjfLoaded", String(p + 1));
-  });
+  pjfOp(async () => { await pjfWrite(p, x); setStatusKey("pjfLoaded", String(p + 1)); });
 }
 const tn = (key, p, extra = {}) => Object.entries(extra).reduce((x, [k, v]) => x.replace(`{${k}}`, v), t(key).replace(/\{n\}/g, p + 1));
 const pjfName = (p) => (pjf.info && pjf.info.names[p]) || t("pjfEmpty");
@@ -8731,6 +8770,102 @@ function pjfHeader(I, n) {
   const pick = el("select", { disabled: pjf.busy, "aria-label": t("activeSavePick") }, ...Array.from({ length: n }, (_, p) => el("option", { value: String(p), text: `${p + 1}${(I.used >> p) & 1 ? " " + (I.names[p] || "") : " " + t("pjfEmpty")}`, selected: p === I.open })));
   return [head, el("p", { class: "dim", text: t("activeNote") }), el("span", {}, t("activeSavePick") + " ", pick, " ",
     el("button", { ic: "port_disk", disabled: pjf.busy, onclick: () => pjfSaveActive(Number(pick.value)) }, "→")) ];
+}
+/* the project library's storage: the IndexedDB database "felucca-projects" (store "projects", keyed by id); in memory where IndexedDB is missing */
+const pjLib = (function () {
+  const mem = pjLibMem();
+  let opening = null;
+  const open = () => opening || (opening = new Promise((resolve) => {
+    try {
+      const ask = indexedDB.open("felucca-projects", 1);
+      ask.onupgradeneeded = () => ask.result.createObjectStore("projects", { keyPath: "id" });
+      ask.onsuccess = () => resolve(ask.result);
+      ask.onblocked = ask.onerror = () => resolve(null);
+    } catch (e) { resolve(null); }
+  }));
+  const run = async (mode, work, fallback) => {
+    const db = await open(); if (db == null) return fallback();
+    return new Promise((resolve, reject) => {
+      const txn = db.transaction("projects", mode), req = work(txn.objectStore("projects"));
+      let result;
+      if (req) req.onsuccess = () => { result = req.result; };
+      txn.oncomplete = () => resolve(result);
+      txn.onerror = txn.onabort = () => reject(txn.error || new Error("IndexedDB"));
+    });
+  };
+  return pjLibMake({
+    all: () => run("readonly", (st) => st.getAll(), mem.all),
+    get: (id) => run("readonly", (st) => st.get(id), () => mem.get(id)),
+    put: (r) => run("readwrite", (st) => { st.put(r); }, () => mem.put(r)),
+    del: (id) => run("readwrite", (st) => { st.delete(id); }, () => mem.del(id)),
+  });
+})();
+let pjlItems = [], pjlLoaded = false;
+async function pjlRefresh() { pjlItems = await pjLib.list(); renderProjFiles(); }
+const pjlLabel = (e) => e.name || t("pjfEmpty");
+const pjlDate = (e) => new Date(e.date).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+const pjlSize = (e) => (e.size < 1024 ? `${e.size} B` : `${(e.size / 1024).toFixed(1)} KB`);
+function pjlSaveSlot(p, saveFirst) {
+  pjfOp(async () => {
+    if (saveFirst) await pjfCall(1, p);
+    const x = await pjfRead(p);
+    if (!x) { setStatusKey("emptySlot", String(p + 1)); return; }
+    await pjLib.add(x); await pjlRefresh();
+    setStatusKey("pjlSaved", String(p + 1));
+  });
+}
+function pjlLoad(e, p, openIt) {
+  const I = pjf.info, held = (I.used >> p) & 1;
+  const ask = openIt ? tn("pjlAskToActive", p, { lib: pjlLabel(e) }) : held ? tn("pjlAskToSlot", p, { name: pjfName(p), lib: pjlLabel(e) }) : null;
+  if (ask && !confirm(ask)) return;
+  pjfOp(async () => {
+    const x = await pjLib.read(e.id);
+    pjfCheck(p, x);
+    await pjfWrite(p, x);
+    if (openIt) await pjfCall(2, p);
+    setStatusKey(openIt ? "pjlOpened" : "pjlLoaded", String(p + 1));
+  });
+}
+function pjlSwap(e, p) {
+  const again = pjf.info.open === p ? " " + t("pjfAgain") : "";
+  if (!confirm(tn("pjlAskSwap", p, { lib: pjlLabel(e), again }))) return;
+  pjfOp(async () => {
+    const x = await pjLib.read(e.id);
+    pjfCheck(p, x);
+    await pjSwap(async () => { const held = await pjfRead(p); if (held) await pjLib.add(held); },
+      async () => { await pjfWrite(p, x); await pjfCall(2, p); });
+    await pjlRefresh();
+    setStatusKey("pjlSwapped", String(p + 1));
+  });
+}
+function pjlRows(I, n) {
+  const slotSel = (fn, label) => {
+    const sel = el("select", { disabled: pjf.busy, "aria-label": label }, ...Array.from({ length: n }, (_, p) => el("option", { value: String(p), text: `${p + 1} ${(I.used >> p) & 1 ? I.names[p] || "" : t("pjfEmpty")}` })));
+    return [sel, el("button", { disabled: pjf.busy, onclick: () => fn(Number(sel.value)) }, "→")];
+  };
+  return pjlItems.map((e) => el("tr", {}, el("td", { text: pjlLabel(e) }), el("td", { class: "dim", text: `${pjlDate(e)} · ${pjlSize(e)}` }),
+    el("td", {},
+      ...slotSel((p) => pjlSwap(e, p), t("pjlSwap").replace("{n}", "N")), " ",
+      ...slotSel((p) => pjlLoad(e, p, false), t("pjlToSlot").replace("{n}", "N")), " ",
+      el("button", { disabled: pjf.busy, onclick: () => pjlLoad(e, I.open, true) }, t("pjlToActive")),
+      el("button", { onclick: async () => {
+        const typed = prompt(t("pjlRenameAsk"), e.name);
+        if (typed == null) return;
+        await pjLib.rename(e.id, typed.toUpperCase().replace(/[^A-Z0-9 \-._\/#+]/g, "").slice(0, PJF.NAME)); await pjlRefresh();
+      } }, t("pjlRename")),
+      el("button", { ic: "symbol_download", onclick: async () => saveBlob(`optimist-project-${fileSlug(e.name) || "library"}${PJF.EXT}`, new Blob([(await pjLib.get(e.id)).file], { type: "application/octet-stream" })) }, t("pjlDownload")),
+      el("button", { ic: "symbol_trash", onclick: async () => { if (confirm(t("pjlAskDelete").replace("{lib}", pjlLabel(e)))) { await pjLib.del(e.id); await pjlRefresh(); } } }, t("pjlDelete")))));
+}
+function pjlBox(I, n) {
+  const add = lbrFile(PJF.EXT + ",application/octet-stream", async (f) => {
+    try { await pjLib.addFile(new Uint8Array(await f.arrayBuffer())); await pjlRefresh(); setStatusKey("pjlAdded", f.name); } catch (e) { setStatusKey("pjfBad", e.message); }
+  });
+  const slotTo = el("select", { disabled: pjf.busy, "aria-label": t("pjlSlotTo").replace("{n}", "N") }, ...Array.from({ length: n }, (_, p) => el("option", { value: String(p), text: `${p + 1} ${(I.used >> p) & 1 ? I.names[p] || "" : t("pjfEmpty")}` })));
+  return [el("h3", { text: t("pjlTitle") }), el("p", { class: "dim", text: t("pjlHelp") }),
+    pjlItems.length ? el("table", { class: "ukits" }, ...pjlRows(I, n)) : el("p", { class: "dim", text: t("pjlNone") }),
+    el("p", {}, slotTo, " ", el("button", { disabled: pjf.busy, onclick: () => pjlSaveSlot(Number(slotTo.value), false) }, "→ " + t("pjlSlotTo").replace("{n}", "N")), " ",
+      el("button", { disabled: pjf.busy, onclick: () => { if (confirm(tn("pjlAskActive", I.open))) pjlSaveSlot(I.open, true); } }, t("pjlActiveTo")), " ",
+      el("button", { ic: "symbol_upload", onclick: () => add.click() }, t("pjlAdd")), add)];
 }
 function renderProjFiles() {
   const box = $("projfiles");
@@ -8761,7 +8896,8 @@ function renderProjFiles() {
   });
   box.replaceChildren(...pjfHeader(I, n), el("h3", { text: t("pjfTitle") }), el("p", { class: "dim", text: t("pjfHelp") }),
     ...(dev.bk.caps && dev.bk.caps.projects === 1 ? [el("p", { class: "dim", text: t("pjfSd").replace("{n}", 1) })] : []),
-    el("table", { class: "ukits" }, ...rows));
+    el("table", { class: "ukits" }, ...rows), ...pjlBox(I, n));
+  if (!pjlLoaded) { pjlLoaded = true; pjlRefresh(); }
 }
 function drawSlots() {
   const cells = [0, 1, 2, 3].flatMap((slot) => {
