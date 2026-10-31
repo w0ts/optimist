@@ -57,6 +57,6 @@ def read(package) -> tuple:
 
 
 def from_config_text(text: str):
-    """BOOTLOADER in a builder .config: "keep" / "m-bootloader" (an absent line is the default, keep)"""
+    """BOOTLOADER in a builder .config: "keep" / "m-bootloader" (an absent line is the default, m-bootloader)"""
     m = re.search(r"^\s*BOOTLOADER\s*=\s*(-?\d+)\s*$", text, re.M)
-    return VALUES.get(int(m[1]), "keep") if m else "keep"
+    return VALUES.get(int(m[1]), "keep") if m else "m-bootloader"
