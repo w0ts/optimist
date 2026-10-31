@@ -53,7 +53,7 @@ static int gls_header(void)
                 printf("  glstyle: header '%s' + '%s' (name '%s'), %d of %d px, bar.beat '%s'\n", h.t, h.pos, nm, (int)strlen(full) * 8, h.room, h.r);
             ok &= !strcmp(h.eng, s ? "SYSTEM" : "GLOBAL") && h.t[0] >= 'A' && h.t[0] <= 'Z' && !h.cut;
             ok &= np < 2u ? !h.pos[0] : !strcmp(h.pos, pos);
-            ok &= (int32_t)strlen(full) * 8 <= h.room && (h.ib ? !h.r[0] && !h.bpm[0] : h.r[0] && h.bpm[0]);   /* (whole in its room, bar.beat and the tempo kept; INFO's header has the battery in their place) */
+            ok &= (int32_t)strlen(full) * 8 <= h.room && (h.ib ? !h.r[0] : h.r[0]);   /* (whole in its room, bar.beat kept, no tempo in the header (the user, 2026-10-31); INFO's header has the battery in their place) */
             ok &= !strncmp(h.t, nm, strlen(nm)) || nm_find(NM_SHORT, nm, 0, full, sizeof full);   /* (the name, or its table's short form) */
             ok &= !strstr(h.t, "Global") && !strstr(h.t, "System");
             if (!hashes++)
@@ -321,7 +321,7 @@ static int gls_info_header(void)
     ui.force = 1;
     frame();
     head_make(&h);
-    ok &= h.ib == 2u && h.ipct >= 80u && h.ipct <= 82u && h.ichg == 2u && !h.bpm[0] && !h.r[0];   /* (INFO: the battery, no tempo) */
+    ok &= h.ib == 2u && h.ipct >= 80u && h.ipct <= 82u && h.ichg == 2u && !h.r[0];   /* (INFO: the battery, no tempo) */
     ok &= px_in((uint32_t)ix + 3, OY_HEAD + 8, 8, 4, C_OK);                       /* (the fill, green) */
     ok &= px_in((uint32_t)ix - 3 - HEAD_BOLT_W, OY_HEAD + 6, HEAD_BOLT_W, 12, C_OK);   /* (the bolt: charging) */
     ok &= !px_in((uint32_t)ix + 3 + (HEAD_IC_W - 6) * 80 / 100 + 3, OY_HEAD + 8, 3, 4, C_OK);   /* (not filled past 80 %) */
@@ -345,7 +345,7 @@ static int gls_info_header(void)
     ui.force = 1;
     frame();
     head_make(&h);
-    ok &= h.ib == 1u && !h.bpm[0];
+    ok &= h.ib == 1u;
     song.batt_raw = gls_raw_for(80);
     song.batt_chg = 1;                                  /* (5 V without a charge: POWER, no bolt) */
     ui.force = 1;
@@ -355,12 +355,16 @@ static int gls_info_header(void)
     ui.force = 1;
     frame();
     head_make(&h);
-    ok &= h.ib == 0u && h.bpm[0];                       /* (another SYSTEM page: the tempo stays) */
+    ok &= h.ib == 0u;                                   /* (another SYSTEM page) */
     ui.row[SCR_SYSTEM] = 0;
     op_enter(SCR_HOME);
     frame();
     head_make(&h);
-    ok &= h.ib == 0u && h.bpm[0];
+    ok &= h.ib == 0u;
+    song.g[G_BPM] = 188;                                /* (no tempo in the header: PLAY held, the user 2026-10-31) */
+    ui.force = 1;
+    frame();
+    ok &= !px_in(206, OY_HEAD + 4, 30, 12, C_HI);
     song.batt_raw = 0;
     song.batt_chg = 0;
     if (!ok)
