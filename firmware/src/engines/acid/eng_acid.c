@@ -20,6 +20,8 @@
  * scale), undoable. */
 void acid_pots(int k, const int16_t *e);           /* acid/acid_dsp.c (float, its own unit) */
 void acid_note(int k, int note, int accent, int slide);
+void acid_start(int k, const int16_t *e, int note, int accent);
+void acid_due(int k);
 void acid_off(int k);
 void acid_render(int k, int32_t *out, int n, int32_t gain);
 #if FELUCCA_CPU_GUARD
@@ -41,8 +43,8 @@ static void acid_note_on(track_t *t, voice_t *v)
 {
     if (t >= &trk[NPART])
         return;
-    FAST_CALL(acid, acid_pots)(acid_k(t), &t->p[P_E0]);
-    FAST_CALL(acid, acid_note)(acid_k(t), v->note, v->vel >= 120u, 0);
+    FAST_CALL(acid, acid_start)(acid_k(t), &t->p[P_E0], v->note, v->vel >= 120u);   /* (its pots and the 303's note on: in
+                                                     * the part's next render, acid_due; not here in CPU0's events) */
 }
 
 static void acid_legato(track_t *t, voice_t *v)    /* a SLIDE: the 303 slides to the note */
@@ -59,6 +61,7 @@ static FAST(acid) void acid_render_v(track_t *t, voice_t *v, int32_t *out, uint3
                                                      * not voice.c's accent kick: the 303 has its own accent) */
     if (t >= &trk[NPART] || v != &t->v[0])
         return;                                    /* (one 303 per part: its first voice) */
+    acid_due(acid_k(t));                           /* (a note started in the block's events: its start first) */
     for (i = 0; i < 8; i++)
         e[i] = t->p[P_E0 + i];
     e[0] = (int16_t)clamp(e[0] + (c >> 8), 0, 127);   /* (FLT moves the 303's CUT: 1 step a 1/127 of the range) */

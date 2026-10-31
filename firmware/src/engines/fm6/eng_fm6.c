@@ -623,6 +623,7 @@ typedef struct fm6_voice {                               /* a voice; operators i
     fm6_peg_t pe;                                        /* the pitch envelope */
     uint8_t down, sub, note, vel, fbs, quiet, played;
     uint8_t frozen;                                      /* stopped as by Dexed's panic: not kept running */
+    uint8_t fresh;                                       /* a key's set-up still to do (fm6_due): FM6_F_KEY, FM6_F_PORTA */
     uint8_t still;                                       /* over and at rest: 1 only time goes on, 2 nothing matters */
     int32_t spb;                                         /* the bend and tune it was at rest with */
 } fm6_voice_t;
@@ -1128,6 +1129,29 @@ static FAST(fm6) void fm6_keyed(fm6_voice_t *s, const int16_t *ed, uint32_t note
     }
 }
 
+/* A key's operators (fm6_keyed: their pitch, level and rate scaling) and their envelopes' first segment (fm6_eg_go), and
+ * portamento from the note's pitch, are set up in the voice's first render (fm6_render: on the core that renders the part),
+ * not in the key's events on CPU0 (fm6_note_on). The key leaves what the others read at once (its envelopes at level 0 in
+ * segment 0: fm6_playing; the pitch envelope, the phases, played); whatever reads or changes the rest first does it
+ * here first: the voice's render, its ghost, the part's post (a voice not rendered), a key again on it (fm6_note_on), a
+ * legato, portamento from it (fm6_psrc), MONO's hand-over (fm6_key, fm6_mhand), an edit or a new voice (fm6_sync, before
+ * the voice buffer changes). The same buffer and note: the same values as before */
+enum { FM6_F_KEY = 1, FM6_F_PORTA = 2 };
+static FAST(fm6) void fm6_due(uint32_t p, fm6_voice_t *s)
+{
+    const int16_t *ed = fm6_ed[p];
+    uint32_t k;
+    if (!s->fresh)
+        return;
+    fm6_keyed(s, ed, (uint32_t)clamp((int32_t)s->note + ed[FV_TRNSP] - 24, 0, 127));   /* (fm6_note) */
+    for (k = 0; k < 6u; k++) {
+        fm6_eg_go(&s->eg[k], &ed[k * FO_N], s->ol[k], s->rs[k], 0);
+        if (s->fresh & FM6_F_PORTA)
+            s->porta[k] = s->base[k];
+    }
+    s->fresh = 0;
+}
+
 /* Dexed's "playing" (Dx7Note::isPlaying: an output operator's envelope not done) */
 static FAST(fm6) int fm6_playing(const track_t *t, uint32_t i)
 {
@@ -1169,6 +1193,7 @@ static int fm6_psrc(uint32_t p, const int16_t *ed, int32_t *src)
     uint32_t k, l = fm6_pt[p].lav;
     if (!l || !fm6_v(p)[l - 1u].played || !fm6_pt[p].pon || ed[FN_PTIME] <= 0)
         return 0;
+    FAST_CALL(fm6, fm6_due)(p, &fm6_v(p)[l - 1u]);
     for (k = 0; k < 6u; k++)
         src[k] = fm6_v(p)[l - 1u].porta[k];
     return 1;
@@ -1194,6 +1219,7 @@ static void fm6_mhand(track_t *t, uint32_t c)
 {
     uint32_t p = (uint32_t)(t - trk), l = fm6_pt[p].mlive, k;
     fm6_voice_t *s = &fm6_v(p)[0];
+    FAST_CALL(fm6, fm6_due)(p, s);
     if (l) {                                             /* the one left keeps what it had */
         fm6_ms(p)[l - 1u].fplay = (uint8_t)(t->v[0].active || s->played ? FAST_CALL(fm6, fm6_playing)(t, 0) : 0);
         for (k = 0; k < 6u; k++)
@@ -1227,6 +1253,7 @@ static void fm6_key(track_t *t, uint32_t note)
     const int16_t *ed = fm6_ed[p];
     int32_t bs = -1;
     FAST_CALL(fm6, fm6_sync)(t, 0);
+    FAST_CALL(fm6, fm6_due)(p, &fm6_v(p)[0]);
     l = fm6_pt[p].mlive;
     for (i = 0; i < 16u; i++) {
         int32_t sc = ((l == k + 1u ? FAST_CALL(fm6, fm6_playing)(t, 0) : fm6_ms(p)[k].fplay) ? 0 : 4) +
@@ -1261,11 +1288,12 @@ static void fm6_key(track_t *t, uint32_t note)
 /* a key goes down (DexedAudioProcessor::keydown, Dx7Note::init) */
 static void fm6_note_on(track_t *t, voice_t *v)
 {
-    uint32_t p = (uint32_t)(t - trk), k, i, vi = (uint32_t)(v - t->v), note;
+    uint32_t p = (uint32_t)(t - trk), k, i, vi = (uint32_t)(v - t->v);
     fm6_voice_t *s = fm6_state(t, v);
     const int16_t *ed = fm6_ed[p];
     int mono = t->p[P_VOICE] != V_POLY, steal = fm6_pt[p].steal || (mono && s->played), ps;
     int32_t src[6];
+    FAST_CALL(fm6, fm6_due)(p, s);                       /* (a key again before its first render: that one first) */
     fm6_pt[p].steal = 0;
     FAST_CALL(fm6, fm6_sync)(t, v);
     ps = fm6_psrc(p, ed, src);                           /* before this voice takes the note */
@@ -1280,23 +1308,25 @@ static void fm6_note_on(track_t *t, voice_t *v)
     }
     s->vel = (uint8_t)(ed[FN_VNORM] ? v->vel * 7874015 / 10000000 : v->vel);
     s->note = v->note;
-    note = fm6_note(t, v);
-    FAST_CALL(fm6, fm6_keyed)(s, ed, note);
-    for (k = 0; k < 6u; k++) {
-        s->eg[k].level = 0;
-        FAST_CALL(fm6, fm6_eg_go)(&s->eg[k], &ed[k * FO_N], s->ol[k], s->rs[k], 0);
-        s->porta[k] = s->base[k];
+    for (k = 0; k < 6u; k++) {                           /* (fm6_keyed, fm6_eg_go and the portamento from the note: */
+        s->eg[k].level = 0;                              /* fm6_due, in the first render) */
+        s->eg[k].ix = 0;
     }
+    s->fresh = FM6_F_KEY | FM6_F_PORTA;
     fm6_peg_set(&s->pe, ed);
     s->down = 1;
     if (ed[FV_OKS] && !steal)                            /* KEY SYNC (not on a stolen voice: no click) */
         for (k = 0; k < 6u; k++)
             s->ph[k] = 0, s->gout[k] = 0;
-    if (ps && !mono)                                     /* portamento from the last voice's pitch */
+    if (ps && !mono) {                                   /* portamento from the last voice's pitch */
         for (k = 0; k < 6u; k++)
             s->porta[k] = src[k];
-    if (mono)
+        s->fresh = FM6_F_KEY;
+    }
+    if (mono && fm6_pt[p].mnew) {
         fm6_mtake(t, s);
+        s->fresh = FM6_F_KEY;
+    }
     if (!mono && !ed[FV_OKS])                            /* the same note sounding: its phases */
         for (i = 0; i < NVOICE; i++)
             if (i != vi && FAST_CALL(fm6, fm6_playing)(t, i) && fm6_v(p)[i].played && t->v[i].note == v->note) {
@@ -1319,8 +1349,10 @@ static void fm6_note_on(track_t *t, voice_t *v)
 static void fm6_legato(track_t *t, voice_t *v)
 {
     uint32_t p = (uint32_t)(t - trk), k, c;
-    fm6_voice_t *s = fm6_state(t, v), keep = *s;
+    fm6_voice_t *s = fm6_state(t, v), keep;
     const int16_t *ed = fm6_ed[p];
+    FAST_CALL(fm6, fm6_due)(p, s);                       /* (a key's set-up first) */
+    keep = *s;
     FAST_CALL(fm6, fm6_sync)(t, v);
     if (!fm6_pt[p].mnew) {                               /* a key-up: the voice keyed for this key */
         for (c = 0; c < 16u && !(fm6_ms(p)[c].note == v->note + 1u && fm6_mkd(t, c, 0)); c++)
@@ -1458,6 +1490,7 @@ static FAST(fm6) void fm6_ghost(track_t *t, voice_t *v, fm6_voice_t *s)
     const int16_t *ed = fm6_ed[p];
     int32_t pb = fm6_pt[p].pb + song.g[G_TUNE] * 13981;
     int quiet;
+    fm6_due(p, s);
     if (s->still == 2u)
         return;                                          /* key sync, not playing: its next note starts afresh */
     quiet = fm6_quiet(p, ed);
@@ -1496,6 +1529,7 @@ static FAST(fm6) void fm6_out_c(int32_t *out, const vmod_t *m, uint32_t n)
 static FAST(fm6) void fm6_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
 {
     fm6_voice_t *s = fm6_state(t, v);
+    fm6_due((uint32_t)(t - trk), s);                     /* (a new key: its operators) */
     if (!FM6_SIN_ON)
         return;                                          /* (silent until the table is there) */
     if (!s->sub)
@@ -1536,16 +1570,24 @@ static FAST(fm6) void fm6_sync(track_t *t, const voice_t *self)
     int16_t *ed = fm6_ed[p];
     if (!fm6_tab_ok)
         fm6_tables_init();                               /* (boot does it: fm6_boot; host builds here) */
-    if (!fm6_fnok[p]) {
-        fm6_fn_reset(ed);
-        fm6_fnok[p] = 1;
-    }
-    if (fm6_cur[p] != (int32_t)want + 1) {
-        fm6_load(p, want);
-        fm6_pt[p].panic = 1;
-    }
     for (i = 0; i < FN_PBUP; i++)
         h = (h ^ (uint16_t)ed[i]) * 16777619u;
+    if (!fm6_fnok[p] || fm6_cur[p] != (int32_t)want + 1 || h != fm6_pt[p].hash || fm6_pt[p].panic) {
+        for (i = 0; i < NVOICE; i++)                     /* (the buffer changes: the keys waiting for their set-up get it */
+            fm6_due(p, &fm6_v(p)[i]);                    /* from the one they were struck with, fm6_due) */
+        if (!fm6_fnok[p] || fm6_cur[p] != (int32_t)want + 1) {
+            if (!fm6_fnok[p]) {
+                fm6_fn_reset(ed);
+                fm6_fnok[p] = 1;
+            }
+            if (fm6_cur[p] != (int32_t)want + 1) {
+                fm6_load(p, want);
+                fm6_pt[p].panic = 1;
+            }
+            for (h = 2166136261u, i = 0; i < FN_PBUP; i++)
+                h = (h ^ (uint16_t)ed[i]) * 16777619u;
+        }
+    }
     if (h == fm6_pt[p].hash && !fm6_pt[p].panic)
         return;
     {
@@ -1627,6 +1669,8 @@ static FAST(fm6) void fm6_post(track_t *t, int32_t *out, uint32_t n, uint32_t nr
 {
     uint32_t p = (uint32_t)(t - trk), i;
     int32_t x1 = fm6_dc[p].x1, y = fm6_dc[p].y1;
+    for (i = 0; i < NVOICE; i++)                         /* (a key whose voice did not render: its set-up now, in */
+        fm6_due(p, &fm6_v(p)[i]);                        /* the part's job, not later with another buffer) */
     if (!nr) {
         fm6_dc[p].x1 = fm6_dc[p].y1 = 0;
         fm6_dc[p].l1 = fm6_dc[p].l2 = fm6_dc[p].h1 = fm6_dc[p].h2 = 0;
