@@ -1636,10 +1636,46 @@
    }
   },
   "LAYOUT": {
+   "2": {
+    "flash": 28,
+    "ram": 0,
+    "pool": 96,
+    "ramtext": 0
+   },
+   "6": {
+    "flash": 152,
+    "ram": 0,
+    "pool": -72,
+    "ramtext": 0
+   },
+   "7": {
+    "flash": 156,
+    "ram": 0,
+    "pool": -104,
+    "ramtext": 0
+   },
    "3": {
     "flash": -616,
     "ram": 76,
     "pool": 104,
+    "ramtext": -4
+   },
+   "4": {
+    "flash": 80,
+    "ram": 0,
+    "pool": -72,
+    "ramtext": 0
+   },
+   "5": {
+    "flash": 84,
+    "ram": 0,
+    "pool": -104,
+    "ramtext": 0
+   },
+   "8": {
+    "flash": -552,
+    "ram": 76,
+    "pool": -64,
     "ramtext": -4
    },
    "1": {
@@ -1786,7 +1822,7 @@
    }
   }
  },
- "measured": "2026-10-31 09:59",
+ "measured": "2026-10-31 10:29",
  "cpu": {
   "scale_pct": 104,
   "calibrated": "2026-10-06, emulator at 96 MHz, bench.c scenarios 1 2 3 7 8 (docs/CPU-GUARD.md); X0X: 2026-10-07, scenario 8 on the X0X 909 and 808 kits (x0x-drums)",
@@ -4177,7 +4213,7 @@
      "from": 0,
      "to": 1,
      "delta": {
-      "flash": -12148,
+      "flash": -12144,
       "ram": -1132,
       "pool": -4104,
       "ramtext": -860

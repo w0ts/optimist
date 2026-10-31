@@ -755,7 +755,7 @@ def check(img, syms, dis, rt):
     # a jump table (pi32v2-llvm's .Ljt* label, a switch's goto r2) is data in .text: the disassembler prints its entries
     # as instructions, and an entry, an XIP address in its own function, can read as a far call (2026-10-31: m-chk-dev~,
     # bk_commit_sec's .Ljta3). Such a word is skipped: within a table's first 1 KiB and naming an address near the table
-    jts = sorted(int(m.group(1), 16) for m in re.finditer(r"^([0-9a-f]+) \S+ \.Ljt\S*$", syms, re.M))
+    jts = sorted(int(m.group(1), 16) for m in re.finditer(r"^([0-9a-f]+) .*\s\.Ljt\S*$", syms, re.M))
 
     def in_jump_table(pc, raw):
         import bisect
