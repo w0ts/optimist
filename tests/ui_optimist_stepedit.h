@@ -125,6 +125,9 @@ static uint32_t se_fuzz(int knob, uint32_t runs)
         ns = st.nsel;
         if (knob == 4) {
             turn(EN_K4, 1), turn(EN_K4, 1);
+        } else if (knob == 3) {
+            int32_t d = (int32_t)se_r(4) + 1;
+            turn(EN_K3, se_r(2) ? d : -d);
         } else {
             for (c = 0; c < 20u; c++)
                 turn(EN_K2, 1);
@@ -139,11 +142,126 @@ static uint32_t se_fuzz(int knob, uint32_t runs)
             ok = 0;
         if (knob == 2 && ns != NSEL_ALL && !se_has(b, nb, st.pk, pp, pl))
             ok = 0;                                     /* (the note moved whole) */
-        if (knob == 2 && ns != NSEL_ALL && st.pk + pl < 16u && strcmp(ui.msg, "LAST STEP"))
+        if (knob == 2 && ns != NSEL_ALL && st.pk + pl < 16u && strcmp(ui.msg, "LAST STEP") && strcmp(ui.msg, "NO ROOM"))
             ok = 0;                                     /* (moved right until it stops: only at the pattern's end) */
         bad += !ok;
     }
     return bad;
+}
+/* skip: a move (time or pitch) never breaks another note; it goes past one of its pitch to where it fits, else stays */
+static int se_same(const track_t *t, const step_t *sv, uint32_t lo, uint32_t hi)   /* the steps outside [lo, hi) as in sv */
+{
+    uint32_t i;
+    for (i = 0; i < trk_len(t); i++)
+        if ((i < lo || i >= hi) && memcmp(&t->step[i], &sv[i], sizeof sv[i]))
+            return 0;
+    return 1;
+}
+static void se_overlap(track_t *t, uint32_t lo, uint32_t hi)   /* lo 0-3, hi 2-5: they share steps 3 and 4 */
+{
+    fm1_irq_off();
+    se_set(t, 0, lo, 2);
+    memset(&t->step[2], 0, sizeof t->step[2]);
+    t->step[2].time = ST_NOTE, t->step[2].flags = SF_CARRY, t->step[2].n = 2, t->step[2].vel = 100;
+    t->step[2].note[0] = (uint8_t)lo, t->step[2].note[1] = (uint8_t)hi;
+    memset(&t->step[3], 0, sizeof t->step[3]), t->step[3].time = ST_TIE;
+    memset(&t->step[4], 0, sizeof t->step[4]);
+    t->step[4].time = ST_NOTE, t->step[4].flags = SF_CARRY, t->step[4].n = 1, t->step[4].note[0] = (uint8_t)hi, t->step[4].vel = 100;
+    memset(&t->step[5], 0, sizeof t->step[5]), t->step[5].time = ST_TIE;
+    fm1_irq_on();
+}
+static void skip_tests(void)
+{
+    track_t *t;
+    step_t sv[NSTEP];
+    /* time: the user's three A of 4 steps, the middle one moved right: past the third, the others byte for byte */
+    se_open(16);
+    t = TSEL;
+    fm1_irq_off();
+    se_set(t, 0, 69, 4), se_set(t, 4, 69, 4), se_set(t, 8, 69, 4);
+    fm1_irq_on();
+    memcpy(sv, t->step, sizeof sv);
+    se_pick(t, 4, 69);
+    if (st.pk != 4u)
+        turn(EN_K1, 1);
+    turn(EN_K2, 1);
+    check(st.pk == 12u && !strcmp(sgl_notes(t), "0:69x4 8:69x4 12:69x4") && se_same(t, sv, 4, 16),
+          "skip: three A of 4 steps, the middle moved right: past the third (13-16), the first and third byte for byte");
+    turn(EN_K2, -1);
+    check(st.pk == 4u && !memcmp(t->step, sv, sizeof sv), "skip: ... and left: back past the third, every step as before");
+    /* time: left, past the note before */
+    se_open(16);
+    t = TSEL;
+    fm1_irq_off();
+    se_set(t, 4, 69, 4), se_set(t, 8, 69, 4);
+    fm1_irq_on();
+    memcpy(sv, t->step, sizeof sv);
+    se_pick(t, 8, 69);
+    if (st.pk != 8u)
+        turn(EN_K1, 1);
+    turn(EN_K2, -1);
+    check(st.pk == 0u && !strcmp(sgl_notes(t), "0:69x4 4:69x4") && !memcmp(&t->step[4], &sv[4], 4u * sizeof sv[0]),
+          "skip: the second A moved left: past the first (1-4), the first byte for byte");
+    /* time: no room (a pattern of 12): it stays, NO ROOM */
+    se_open(12);
+    t = TSEL;
+    fm1_irq_off();
+    se_set(t, 0, 69, 4), se_set(t, 4, 69, 4), se_set(t, 8, 69, 4);
+    fm1_irq_on();
+    memcpy(sv, t->step, sizeof sv);
+    se_pick(t, 4, 69);
+    if (st.pk != 4u)
+        turn(EN_K1, 1);
+    ui.msg[0] = 0;
+    turn(EN_K2, 1);
+    check(st.pk == 4u && !memcmp(t->step, sv, sizeof sv) && !strcmp(ui.msg, "NO ROOM"), "skip: no room past the third (LEN 12): every step as it was, NO ROOM");
+    ui.msg[0] = 0;
+    turn(EN_K2, -1);
+    check(st.pk == 4u && !memcmp(t->step, sv, sizeof sv) && !strcmp(ui.msg, "NO ROOM"), "skip: ... nor before the first: the same");
+    /* pitch: the user's A and B overlapping, B down: A# then past A to G#, A byte for byte */
+    se_open(16);
+    t = TSEL;
+    se_overlap(t, 69, 71);
+    check(!strcmp(sgl_notes(t), "0:69x4 2:71x4"), "skip: set: A 1-4, B 3-6");
+    memcpy(sv, t->step, sizeof sv);
+    se_pick(t, 2, 71);
+    turn(EN_K3, -1);
+    check(!strcmp(sgl_notes(t), "0:69x4 2:70x4") && se_same(t, sv, 2, 6), "skip: KNOB 3 down on B: A#, A as it was");
+    turn(EN_K3, -1);
+    check(!strcmp(sgl_notes(t), "0:69x4 2:68x4") && se_same(t, sv, 2, 6) && t->step[2].note[0] == 69u,
+          "skip: ... again: past A to G# (A sounds there), A byte for byte (was: A destroyed)");
+    turn(EN_K3, 2);
+    check(!strcmp(sgl_notes(t), "0:69x4 2:71x4") && !memcmp(t->step, sv, sizeof sv), "skip: ... up 2: past A to B, every step as at first");
+    /* pitch up: G under A, up past it; and the held step's ALGORITHM, OCT+ */
+    se_open(16);
+    t = TSEL;
+    se_overlap(t, 69, 67);
+    memcpy(sv, t->step, sizeof sv);
+    se_pick(t, 2, 67);
+    turn(EN_K3, 2);
+    check(!strcmp(sgl_notes(t), "0:69x4 2:70x4") && se_same(t, sv, 2, 6), "skip: KNOB 3 up 2 on G under A: G#, past A to A#, A as it was");
+    se_open(16);
+    t = TSEL;
+    se_overlap(t, 81, 69);
+    memcpy(sv, t->step, sizeof sv);
+    kdown(WK(2));
+    press(B_OCTUP), release(B_OCTUP);
+    check(!strcmp(sgl_notes(t), "0:81x4 2:93x4") && se_same(t, sv, 2, 6), "skip: a held step's OCT+ onto a note sounding there: an octave past it");
+    turn(EN_ALGO, -1);
+    turn(EN_ALGO, -1);
+    kup(WK(2));
+    check(!strcmp(sgl_notes(t), "0:81x4 2:91x4") && se_same(t, sv, 2, 6), "skip: ... ALGORITHM down 2: 92, 91 (no other note in the way)");
+    /* pitch: no room (B at the top, the top pitch sounding there): it stays, NO ROOM */
+    se_open(16);
+    t = TSEL;
+    se_overlap(t, 127, 126);
+    memcpy(sv, t->step, sizeof sv);
+    se_pick(t, 2, 126);
+    ui.msg[0] = 0;
+    turn(EN_K3, 1);
+    check(!memcmp(t->step, sv, sizeof sv) && !strcmp(ui.msg, "NO ROOM"), "skip: KNOB 3 up with no pitch free above: every step as it was, NO ROOM");
+    /* the fuzz: a note moved up / down in pitch, every other note as it was */
+    check(se_fuzz(3, 300) == 0u, "skip: random patterns, a note moved in pitch: every other note as it was");
 }
 static void stepedit_tests(void)
 {
@@ -272,6 +390,7 @@ static void stepedit_tests(void)
         check(ok && !strcmp(sgl_notes(t), "0:59x4 0:64x12 4:67x4"),
               "stepedit: LENGTH on G over a held E, 6 steps on and back: the step keys lit at the notes' starts only (was: the note's end lit)");
     }
+    skip_tests();
     /* the fuzz */
     check(se_fuzz(2, 300) == 0u, "stepedit: random patterns, a note moved right to the end: every other note as it was");
     check(se_fuzz(4, 300) == 0u, "stepedit: random patterns, a note lengthened: every other note as it was");
