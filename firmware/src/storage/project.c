@@ -825,7 +825,7 @@ static void l2_slots_def(int16_t *v)
         v[L2_W0[k]] = TP[L2_W0[k]].def, v[L2_W1[k]] = 0;
 }
 _Static_assert(P_L2WAVE == P_L2RATE + 1 && P_L2TRIG == P_L2RATE + 2 && P_L2POL == P_L2RATE + 3 && P_L2DA == P_L2RATE + 4 &&
-               P_L2AB == P_L2RATE + 7 && P_E1PIT == P_L2RATE + L2_NV && P_COUNT == P_VOICES + 1,
+               P_L2AB == P_L2RATE + 7 && P_E1PIT == P_L2RATE + L2_NV && P_COUNT == P_L2FADE + 1,
                "LFO 2's values: in a row (the projects of before: l2_get)");
 /* -> x, the parts' LFO 2 values (their defaults without a tag, each inside its range); 1 when p has them */
 static int l2_unpack(const project_t *p, int16_t (*x)[L2_NV])

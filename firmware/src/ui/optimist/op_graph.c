@@ -192,14 +192,15 @@ static int32_t graph_lfo_v(uint32_t w, uint32_t ph, int32_t x)
         return lfo_slew((uint32_t)(x % 20) * (0xFFFFFFFFu / 20u), lfo_slew_pair(r, (uint32_t)(x / 20 + 1) * 2654435761u));
     return lfo_shape(w, ph + (uint32_t)x * (0xFFFFFFFFu / 120u), 0);
 }
-/* the LFO as it runs (graph_lfo_v), its phase as set. two: LFO 2, from phase 0, POL UNI one way only (from the centre
- * line up, lfo2_tick's (v + 1) / 2) */
+/* the LFO as it runs (graph_lfo_v), its phase as set (PHS: LFO's, LFO 2's), POL UNI one way only (from the centre line
+ * up, track_lfo_tick's and lfo2_tick's (v + 1) / 2) */
 static void graph_lfo(const page_t *pg, uint16_t col)
 {
     const track_t *t = TSEL;
     int32_t x, py = GRAPH_H / 2, mid = GRAPH_H / 2, amp = GRAPH_H / 2 - 6;
     uint32_t two = pg->graph == GR_LFO2;
-    uint32_t ph = two ? 0u : (uint32_t)t->p[P_LPHASE] << 25, w = (uint32_t)t->p[two ? P_L2WAVE : P_LWAVE];
+    uint32_t ph = (uint32_t)t->p[two ? P_L2PHS : P_LPHASE] << 25, w = (uint32_t)t->p[two ? P_L2WAVE : P_LWAVE];
+    uint32_t uni = (uint32_t)t->p[two ? P_L2POL : P_L1POL];
 #if LANE_LFO_UI
     if (lane_lfo_pg(pg)) {                              /* a lane's LFO or LFO 2, the kit's on DR: its own wave and phase */
         uint32_t i = (uint32_t)(pg - LANE_LFO_PG);
@@ -208,12 +209,12 @@ static void graph_lfo(const page_t *pg, uint16_t col)
         if (kit_lfo_pg(pg))
             dc = &klfo[(i - 6u) / 2u];
 #endif
-        ph = (uint32_t)dc->phase << 25, w = dc->wave;
+        ph = (uint32_t)dc->phase << 25, w = dc->wave, uni = 0;
     }
 #endif
     for (x = 0; x < 240; x++) {
         int32_t v = graph_lfo_v(w, ph, x), y;
-        if (two && t->p[P_L2POL])
+        if (uni)
             v = (v + 32768) >> 1;
         y = mid - v * amp / 32768;
         if (x)
@@ -598,6 +599,7 @@ static uint32_t graph_sig(void)
     h = h * 31u + t->nheld;
     h ^= (uint32_t)t->p[P_FXOFF] << 24 ^ (uint32_t)t->p[P_LWAVE] << 26 ^ (uint32_t)t->p[P_LPHASE] << 12;
     h = h * 31u + (uint32_t)t->p[P_L2WAVE] * 5u + (uint32_t)t->p[P_L2POL];   /* (LFO 2's wave and its POL) */
+    h = h * 31u + (uint32_t)t->p[P_L1POL] * 3u + (uint32_t)t->p[P_L2PHS] * 7u;   /* (LFO's POL, LFO 2's PHS: issue 129) */
     for (i = 0; i < 4u; i++)
         h = h * 31u + (uint32_t)(fx_needle(GR_FX, i) + 1) * 7u + (uint32_t)(fx_needle(GR_INS, i) + 1) * 131u + ins_slot[song.sel % NTRK][i & 1u] * 977u + fxi_state(song.sel, i & 1u) * 7919u;
     for (i = 0; i < NSTEP; i++)

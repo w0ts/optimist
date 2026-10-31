@@ -45,7 +45,7 @@ const E = vm.runInNewContext(`${proto}
 ;({ CMD, SMP, frame, unframe, parse, req, FrameLink, makeMockDevice, buildSlot, parseWav, resample, normalize, rootFromName,
    CHOP, chopNovelty, chopHits, chopSnap, chopGrid, chopEqual, chopList, chopPick, chopFit, chopZones, wavFile, zipStore, crc32,
    UP, bank, capturePatch, auditionPatch, startWatch, libraryFile, readLibraryFile, paramKeys, remapParams, lfoSlotsFromDepths, patternFromSteps, stepsFromPattern, upName, GEN_TYPES,
-   mixer, GM_DRUM, drumName, parseNotes, formatValue, F, DRUM_LANES, LV_NAMES, emptyDrum,
+   mixer, GM_DRUM, drumName, parseNotes, formatValue, F, lratePos, lrateVal, DRUM_LANES, LV_NAMES, emptyDrum,
    readDX7File, parseDX7Sysex, dx7Checksum, dx7Message, cleanPatch, dx7ForDevice, dx7Init, dx7Name, FM6, CZ, czSyx, czRead, packDX7, unpackDX7, upfm6,
    DL, refBytes, refFrom, laneFrom, laneBytes, lanesFrom, lanesBytes, kitFrom, kitBytes, kitFile, readKitFile, kitSlots, emptyLane,
    emptySnd, sndBytes, sndFrom, BK, bkListAll, bkCheckAll, backupFile, readBackupFile, bkPlan, bkReport, bkSlotParts, crc32,
@@ -900,9 +900,11 @@ const editorV5 = async () => {
   /* the LFO's RATE below 0: a note value of the tempo (params.c N_LSYNC, SLOOP 2.6's SYNC), the mock's range as params.c's */
   ok(fv(E.F.LFOHZ, -1, 127, -22) === "4BAR" && fv(E.F.LFOHZ, -16, 127, -22) === "8T" && fv(E.F.LFOHZ, -20, 127, -22) === "1/32" && fv(E.F.LFOHZ, -22, 127, -22) === "1/64"
     && fv(E.F.LFOHZ, 0, 127, -22) === "0.05Hz" && fv(E.F.LFOHZ, 127, 127, -22) === "40.0Hz"
-    && /\[P_LRATE\] = PD\("RATE", F_LFOHZ, -LSYNC_N, 127, 60\)/.test(pc) && /#define LSYNC_N DUR_N\n/.test(readFileSync(join(HERE, "../firmware/src/core/core.h"), "utf8"))
+    && fv(E.F.LFOHZ, -23, 127, -25) === "6BAR" && fv(E.F.LFOHZ, -25, 127, -25) === "16BAR" && fv(E.F.DEG, 32) === "90deg"
+    && E.lratePos(-25) === -1 && E.lratePos(-1) === -4 && E.lratePos(-22) === -25 && E.lrateVal(-2) === -24 && E.lrateVal(-4) === -1
+    && /\[P_LRATE\] = PD\("RATE", F_LFOHZ, -LSYNC_N, 127, 60\)/.test(pc) && /#define LSYNC_N \(DUR_N \+ 3\)\n/.test(readFileSync(join(HERE, "../firmware/src/core/core.h"), "utf8"))
     && /#define DUR_N 22 /.test(readFileSync(join(HERE, "../firmware/src/core/core.h"), "utf8"))
-    && html.includes('D("RATE", F.LFOHZ, -22, 127, 60)'), "LFO RATE: -1..-22 4BAR .. 1/64 (synced, the DUR list: 03b676ad), 0..127 Hz; the mock's range -22..127 as params.c");
+    && html.includes('D("RATE", F.LFOHZ, -25, 127, 60)'), "LFO RATE: -1..-22 4BAR .. 1/64 (synced, the DUR list: 03b676ad), -23..-25 6BAR 8BAR 16BAR (issue 129, by length on a knob), 0..127 Hz; PHS in degrees; the mock's range -25..127 as params.c");
   /* a list value this build leaves out (FM6's ENGINE: DESC names it "", eng_fm6.c fm6_ed_desc): no option, and a
      part stored with it says so; a patch keeps a value the build does not show ("-" with a range) */
   const eng = { fmt: E.F.ENUM, min: 0, max: 2, names: ["", "MARK I", "OPL"] };

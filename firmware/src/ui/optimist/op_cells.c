@@ -85,14 +85,15 @@ static void cell_gauge(cell_t *c, uint32_t list, int32_t min, int32_t max, int32
                                         : min < 0 && max > 0 ? GK_BIP : GK_BAR;
 }
 
-/* the gauge of a parameter at v. LFO RATE (-LSYNC_N .. 127): a free rate (0 .. 127) is the bar from 0; a synced value
- * (< 0, a division: 4BAR slowest .. 1/32) is the list form, one of ten cells lit, left to right slow to fast */
+/* the gauge of a parameter at v. LFO RATE (-LSYNC_N .. 127; a drum lane's and the kit's too): a free rate (0 .. 127) is
+ * the bar from 0; a synced value (< 0, a division: 16BAR slowest .. 1/64) is the list form, its place lit, left to right
+ * slow to fast (params.c lrate_rank: the stored order is not the length order past 4BAR) */
 static void cell_gauge_d(cell_t *c, const param_desc_t *d, int32_t v)
 {
-    if (!is_lrate(d) && d != &DLFO_DESC[DLF_RATE])   /* (a drum lane's LFO RATE: the same range, lane_play.c) */
+    if (!is_lrate(d))
         cell_gauge(c, d->fmt == F_ENUM || d->fmt == F_ONOFF, d->min, d->max, enum_rank(d, v));   /* (a listed order: the place) */
     else if (v < 0)
-        cell_gauge(c, 1, 0, LSYNC_N - 1, -v - 1);
+        cell_gauge(c, 1, 0, LSYNC_N - 1, lrate_rank(v));
     else
         cell_gauge(c, 0, 0, d->max, v);
 }
@@ -799,9 +800,21 @@ static int32_t len_pow2(int32_t v, int32_t s, int32_t min, int32_t max)
     return v;
 }
 static int len_cell(const param_desc_t *d) { return d == &TP[P_SLEN]; }   /* (the PATTERN row's LEN: SOUND, STEP) */
+/* an LFO's PHS (F_DEG: LFO's, LFO 2's, a lane's, the kit's), coarse (issue 129): a detent to the next / previous multiple
+ * of 16 (45 degrees) within 0..max, none past it (a knob does not wrap); from a value off the grid, the next grid value in
+ * the turn's direction (40: up 48, down 32) */
+static int32_t phs_snap(int32_t v, int32_t s, int32_t max)
+{
+    int32_t n;
+    for (; s > 0; s--)
+        v = (n = (v / 16 + 1) * 16) <= max ? n : v;
+    for (; s < 0; s++)
+        v = (n = v % 16 ? v / 16 * 16 : v - 16) >= 0 ? n : v;
+    return v;
+}
 
-/* a knob (fine: PRESETS, one unit a detent) or OP_RESET on page pg's value k. LEN moves in powers of two unless
- * fine or SHIFT (ui.shift, the LFO button held): then by one; every other value as ever */
+/* a knob (fine: PRESETS, one unit a detent) or OP_RESET on page pg's value k. LEN moves in powers of two and an LFO's
+ * PHS by 45 degrees unless fine or SHIFT (ui.shift, the LFO button held): then by one; every other value as ever */
 static void page_turn(const page_t *pg, uint32_t k, int32_t s, int fine)
 {
     int16_t *vp;
@@ -826,6 +839,8 @@ static void page_turn(const page_t *pg, uint32_t k, int32_t s, int fine)
     }
     if (len_cell(d))
         page_set(pg, k, vp, fine || ui.shift ? ui_clamp(*vp + s, d->min, d->max) : len_pow2(*vp, s, d->min, d->max), s);
+    else if (d->fmt == F_DEG)
+        page_set(pg, k, vp, fine || ui.shift ? ui_clamp(*vp + s, d->min, d->max) : phs_snap(*vp, s, d->max), s);
     else
         page_set(pg, k, vp, param_step(d, *vp, fine ? s : k_accel(k, s, d)), s);
 }

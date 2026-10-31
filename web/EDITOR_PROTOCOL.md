@@ -42,9 +42,12 @@ VOICES) are not part of a sound; `DESC` names them. Nothing in the editor needs 
 
 `fmt` of a parameter (`firmware/src/core/core.h`): 0 INT, 1 PCT (share of the range), 2 BIPCT, 3 TIME, 4 LFOHZ, 5 CUTOFF, 6 DB,
 7 SEMI, 8 ENUM, 9 BPM, 10 NOTE, 11 ONOFF, 12 OCT, 13 STEPS, 14 SWING (0..100 shown as the MPC swing, 50 % + value / 4), 15 FILT
-(-64..63: below 0 a low-pass, above 0 a high-pass). LFOHZ below 0 is a note value of the tempo, one cycle each: -1 4BAR, -2 2BAR,
--3 1BAR, -4 1/2, -5 1/4, -6 1/8, -7 8T, -8 1/16, -9 16T, -10 1/32. The editor shows the value with its unit; it need not format
-it as the device does.
+(-64..63: below 0 a low-pass, above 0 a high-pass), 16 GATE, 17 DEG (an LFO's PHS 0..127, 1/128 of a cycle, shown in degrees:
+v x 360 / 128). LFOHZ below 0 is a note value of the tempo, one cycle each: -1 4BAR .. -22 1/64 (params.c N_DUR, longest first,
+dotted and triplet values between), then -23 6BAR, -24 8BAR, -25 16BAR (issue 129: stored past 1/64 so that no value moves; a
+knob walks them by length, 16BAR next to the slowest free rate). The editor shows the value with its unit; it need not format
+it as the device does. LFO's TRIG and POL (`P_L1TRIG` `P_L1POL`, part of a sound) and LFO 2's PHS and FADE (`P_L2PHS`
+`P_L2FADE`, the last ids) came with issue 129; TRIG (both LFOs) is NOTE FREE PLAY.
 
 CRC-32 is zlib's everywhere.
 
