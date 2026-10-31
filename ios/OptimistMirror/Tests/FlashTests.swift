@@ -234,18 +234,21 @@ final class FlashTests: XCTestCase {
         let stock = InstallRoute.choose("optimist", own, bootloader: "m-bootloader", mbootPresent: false)
         XCTAssertEqual(stock.method, "download")
         XCTAssertTrue(stock.wantsMboot)
-        XCTAssertEqual(InstallRoute.choose("optimist", own, bootloader: "m-bootloader", mbootPresent: nil).method, "download")
+        XCTAssertEqual(InstallRoute.choose("optimist", own, bootloader: "m-bootloader", mbootPresent: nil).method, "download")    // (explicit m-bootloader)
+        for w in [nil, false, true] {      // (the build's BOOTLOADER=1 is keep: no token, boot=stock, boot=mboot all go over USB-MIDI)
+            let k = InstallRoute.bootloaderChoice("m-bootloader", install: false).0
+            XCTAssertEqual(InstallRoute.choose("optimist", own, bootloader: k, runningText: "FM-1_700", mbootPresent: w).method, "loader")
+        }
         XCTAssertEqual(InstallRoute.choose("optimist", v15, mbootPresent: true).method, "download")    // (-5 known before)
         XCTAssertEqual(InstallRoute.choose("optimist", v15, mbootPresent: false).method, "loader")
     }
 
-    func testBootloaderOverrideGoesToKeepOnly() {
-        XCTAssertEqual(InstallRoute.bootloaderChoice("m-bootloader", keep: false).0, "m-bootloader")
-        XCTAssertEqual(InstallRoute.bootloaderChoice("m-bootloader", keep: true).0, "keep")
-        XCTAssertEqual(InstallRoute.bootloaderChoice("keep", keep: false).0, "keep")
-        XCTAssertEqual(InstallRoute.bootloaderChoice("keep", keep: true).0, "keep")
-        XCTAssertEqual(InstallRoute.bootloaderChoice(nil, keep: false).0, "keep")
-        XCTAssertTrue(InstallRoute.bootloaderChoice(nil, keep: false).1.contains("no build setting"))
+    func testMbootOnlyWhenAskedFor() {
+        for v in ["m-bootloader", "keep", nil] as [String?] {
+            XCTAssertEqual(InstallRoute.bootloaderChoice(v, install: false).0, "keep")
+            XCTAssertEqual(InstallRoute.bootloaderChoice(v, install: true).0, "m-bootloader")
+        }
+        XCTAssertTrue(InstallRoute.bootloaderChoice(nil, install: false).1.contains("no build setting"))
         XCTAssertEqual(InstallRoute.bootloader(config: "# x\nBOOTLOADER=1\n"), "m-bootloader")
         XCTAssertEqual(InstallRoute.bootloader(config: "ENG_FM6=1\n"), "keep")
     }
@@ -256,11 +259,14 @@ final class FlashTests: XCTestCase {
         pkg.bootloader = "m-bootloader"
         let dev = FakeFlashDevice(.firmware("FM-1_700"), image: pkg.image.count, finalIdentity: "FM-1_700")
         let model = FlashModel(link: MirrorLink(), ports: dev)
-        let r = model.route(for: pkg, running: "FM-1_700", port: "FM1-1A2B")
-        XCTAssertEqual(r.method, "download")                      // (the build's m-bootloader: M-Flasher's backup first)
-        XCTAssertTrue(InstallRoute.nextStep(r, file: "p.fwsc").contains("fm1_install.py p.fwsc"))
-        model.keepBootloader = true                              // (the override, for one install)
-        XCTAssertEqual(model.route(for: pkg, running: "FM-1_7900", port: "").method, "loader")    // (fm1-base takes it: keep, the loader)
+        let r = model.route(for: pkg, running: "FM-1_7900", port: "")
+        XCTAssertEqual(r.method, "loader")                        // (the build's BOOTLOADER=1: USB-MIDI, the bootloader kept)
+        model.installMboot = true                                // (asked for explicitly: M-Flasher's backup first)
+        let d = model.route(for: pkg, running: "FM-1_700", port: "FM1-1A2B")
+        XCTAssertEqual(d.method, "download")
+        XCTAssertTrue(InstallRoute.nextStep(d, file: "p.fwsc").contains("fm1_install.py p.fwsc"))
+        model.installMboot = false
+        XCTAssertEqual(model.route(for: pkg, running: "FM-1_7900", port: "").method, "loader")    // (fm1-base takes it: the loader)
         XCTAssertFalse(dev.upgraded)
     }
 }

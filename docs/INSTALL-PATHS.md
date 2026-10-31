@@ -135,11 +135,12 @@ driver's own read, never through XIP). `python tools/fm1_install.py --info` prin
 (`FM-1_7900  [running]  port: FM1-1A2B  boot=mboot`); the install, `make flash`, the builder's `f`, the web installer and
 the Mirror app's Firmware tab ask it of Optimist's identities only (FM-1_700, 720..769, 000, 79..), and never write.
 
-| the firmware says | the build says m-bootloader | the build says keep |
-|---|---|---|
-| `boot=mboot` | the USB-MIDI update: m-bootloader is there, nothing to install; Optimist's and fm1-base's writers never write the boot area, so it stays | the USB-MIDI update |
-| `boot=stock` | download mode to install it (M-Flasher, a full backup first); the USB-MIDI update that keeps the bootloader is offered beside it as an equal choice | the USB-MIDI update |
-| `boot=unknown`, or no tag (an older firmware, another firmware) | as before: download mode, with `--keep-bootloader` / the keep choice | the USB-MIDI update |
+USB-MIDI first (the user, 2026-10-31: "if we can use midi, just use midi"): whenever the running firmware's update loader
+takes the package, the route is the USB-MIDI update, whatever the build's BOOTLOADER says and whatever the firmware says
+about its bootloader (`boot=mboot`, `boot=stock`, `boot=unknown` or no tag): the build's `BOOTLOADER=1` means "keep what is
+there", and m-bootloader is never installed as a side effect of a flash. Download mode only when nothing answers on
+USB-MIDI, when the loader refuses the package (fm1-base package, a layout size it does not take, -5 / -16, the fallback
+after a -5), or when m-bootloader is asked for explicitly (below).
 
 With `boot=mboot`, M-VAVE's own package (V15) over a running Optimist goes to download mode at once: Optimist's updater
 compares the package's boot area with the FM-1's and stops with -5 (nothing erased) when they differ, as they do with
@@ -161,15 +162,15 @@ build's `.config`, which the cloud shelf keeps beside each package (`BOOTLOADER=
 
 Every installer shows it before it writes:
 
-- `bootloader: m-bootloader (from the build): installed if the FM-1 does not have it yet, after a full backup and your yes`
+- `bootloader: keep (kept as it is; --install-mboot installs m-bootloader, through download mode)` (the build says m-bootloader)
 - `bootloader: keep (from the build): not touched`
 - `bootloader: keep (no build setting with this package): not touched`
-- `bootloader: keep (--keep-bootloader for this install; the build says m-bootloader)`
+- `bootloader: m-bootloader (--install-mboot, asked for): installed if the FM-1 does not have it yet, through download mode, after a full backup and your yes`
 
-The override goes one way only: `--keep-bootloader` (`make flash KEEP_BOOTLOADER=1`, the builder's "Flash over USB-MIDI, keep
-this bootloader", the web installer's checkbox) turns the build's m-bootloader into keep for one install, for a
-package installed on someone else's FM-1 or an m-bootloader that misbehaves on a unit. Nothing installs m-bootloader
-when the build says keep, or says nothing. `python tools/fm1_anyflash.py bootloader` installs it on its own, asked.
+The only way to m-bootloader is explicit: `--install-mboot` (`make flash INSTALL_MBOOT=1`, the builder's "Install
+m-bootloader instead" entry, the web installer's checkbox, the Mirror app's option). It is never the default of the flash
+dialog, which offers one "Flash over USB-MIDI". `--keep-bootloader` is still accepted and does nothing (keep is the default).
+`python tools/fm1_anyflash.py bootloader` installs it on its own, asked.
 
 ## Layouts
 

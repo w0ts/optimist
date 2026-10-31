@@ -1327,11 +1327,11 @@ _add("BOOTLOADER", "", "bootloader: keep it, or install m-bootloader", Y, 443, d
      desc="What installing this build does to the FM-1's bootloader. Keep: it is never touched (the stock one, or "
           "m-bootloader if it is there already). m-bootloader (the default, set in every profile): an open bootloader by Julius Vitkauskas (MIT): hold REC "
           "while switching on for the chip's download mode, PLAY for a recovery menu, even when a firmware does not "
-          "start; it stays through firmware updates. With it chosen, the installers (make flash, the builder's f, "
-          "tools/fm1_install.py) install it once if the FM-1 does not have it, through download mode with M-Flasher, "
-          "after a full flash backup and your yes, then the firmware. The installer shows the choice before it writes, "
-          "and its --keep-bootloader (a checkbox on the web) keeps the bootloader for one install. Nothing in the "
-          "firmware changes.")
+          "start; it stays through firmware updates. The installers (make flash, the builder's f, "
+          "tools/fm1_install.py) use USB-MIDI whenever the running firmware takes the package and leave the bootloader "
+          "as it is, whatever this says; they install m-bootloader only when asked (--install-mboot, the builder's "
+          "entry, the web button), through download mode with M-Flasher, after a full flash backup and your yes. "
+          "Nothing in the firmware changes.")
 # (bit 57, SIMD, withdrawn 2026-10-12: the packed 16-bit forms compute something else on the real FM-1 than the emulator
 #  assumes, a build with them crackles; the code stays (hal/fm1_simd.h, FELUCCA_SIMD default 0, the boot probe
 #  FELUCCA_SIMD_PROBE through tools/build.py); RETIRED below; never reuse the bit)

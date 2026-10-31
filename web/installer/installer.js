@@ -105,8 +105,8 @@ export const TEXT = {
   tryPort: "Try", portsWait: "Asking…", portsEmpty: "No other MIDI ports.",
   portNone: "No FM-1 answered on {port}.", portOk: "Found {id} on {port}. This browser remembers it. Press the button again.",
   /* m-bootloader: the build's BOOTLOADER, shown; the page never writes it (its full backup first is M-Flasher's) */
-  bootOpt: "install m-bootloader (from the build): yes. Untick to keep the bootloader for this install.",
-  bootWhy: "An open bootloader by Julius Vitkauskas (MIT): REC while switching on for download mode, PLAY for a recovery menu. It is installed with a full backup of the flash first, which only M-Flasher on a computer makes: this page installs the firmware and keeps the bootloader.",
+  bootOpt: "Install m-bootloader instead (download mode on a computer, a full backup first). Off: the firmware goes over USB-MIDI and the bootloader stays.",
+  bootWhy: "An open bootloader by Julius Vitkauskas (MIT): REC while switching on for download mode, PLAY for a recovery menu. It is installed with a full backup of the flash first, which only M-Flasher on a computer makes: this page installs the firmware over USB-MIDI and keeps the bootloader.",
   bootLater: " m-bootloader was not installed: on a computer, python tools/fm1_install.py with this package, or M-Flasher's Install m-bootloader (a full backup first).",
   mfTitle: "M-Flasher {v} for {os} (MIT, Julius Vitkauskas), checked by its SHA-256 after you download it: ", mfSha: "SHA-256 ", mfOther: "Other systems and all files", mfMobile: "This switch needs a computer: M-Flasher for macOS, Windows or Linux. ", mfNone: "M-Flasher: ",
   keepBoot: "Install over USB-MIDI instead, keeping this bootloader",
@@ -372,7 +372,7 @@ export function mountInstaller(container, opts = {}) {
   el.pkginfo = h("p.oi-pkg", { role: "status", "aria-live": "polite" });
 
   /* ---- 3 Install */
-  el.boot = h("input.oi-boot", { type: "checkbox", id: "oi-boot", checked: true, onchange: () => render() });
+  el.boot = h("input.oi-boot", { type: "checkbox", id: "oi-boot", checked: false, onchange: () => render() });
   el.bootLine = h("p.oi-bootline.o-dim", {}, "");
   el.bootOpt = h("div.oi-bootopt", { hidden: true }, h("label", { for: "oi-boot" }, el.boot, " ", TEXT.bootOpt), h("p.o-dim", {}, TEXT.bootWhy));
   el.bootRow = h("div.oi-bootrow", {}, el.bootLine, el.bootOpt);
@@ -492,7 +492,7 @@ export function mountInstaller(container, opts = {}) {
       }
       if (gen !== st.gen) return;
       if (pkg.bootloader === undefined) pkg.bootloader = null;
-      el.boot.checked = true;                        /* (a new package: the build's value again) */
+      el.boot.checked = false;                       /* (a new package: USB-MIDI again) */
       st.pkg = pkg;
     } catch (e) {
       if (gen !== st.gen) return;
@@ -534,8 +534,8 @@ export function mountInstaller(container, opts = {}) {
     el.stockWarn.hidden = !(p && p.stock);
     const bv = p && !p.stock ? p.bootloader : null;                    /* (the build's BOOTLOADER, null: no setting) */
     el.bootRow.hidden = !p || !!p.stock;                                /* (never on the return to the official firmware) */
-    el.bootOpt.hidden = bv !== "m-bootloader";                          /* (the override goes to keep only) */
-    el.bootLine.textContent = p ? bootloaderChoice(bv, bv === "m-bootloader" && !el.boot.checked).line +
+    el.bootOpt.hidden = st.bootWord === "mboot";                        /* (explicit: only the button installs m-bootloader) */
+    el.bootLine.textContent = p ? bootloaderChoice(bv, el.boot.checked).line +
       ({ mboot: ". The FM-1 has m-bootloader already (it says so).", stock: ". The FM-1 has M-VAVE's bootloader (it says so)." }[st.bootWord] || "") : "";
     el.boot.disabled = st.busy;
     el.meta.replaceChildren(...(p ? [h("span", {}, `${p.title}${p.version ? " " + p.version : ""}`), " · ", h("span", {}, p.product),
@@ -677,7 +677,7 @@ export function mountInstaller(container, opts = {}) {
       setPhase(4, "done");
       el.bar.value = 100;
       say(el.status, "");
-      el.ok.replaceChildren(h("span", {}, `${TEXT.done}${pkg.title} (${back}).${pkg.bootloader === "m-bootloader" && el.boot.checked && st.bootWord !== "mboot" ? TEXT.bootLater : ""}`), " ",
+      el.ok.replaceChildren(h("span", {}, `${TEXT.done}${pkg.title} (${back}).`), " ",
         pkg.stock ? (pkg.banks ? h("div.oi-banks", {}, h("p.o-dim", {}, TEXT.banksNote),
           h("button.o-btn.sm.oi-banksgo", { type: "button", onclick: () => restoreBanks(pkg.banks) }, TEXT.banksBtn)) : null)
           : h("button.o-btn.sm", { type: "button", onclick: () => (opts.onNavigate ? opts.onNavigate("editor") : (location.href = links.editor)) }, TEXT.openEditor));
@@ -704,7 +704,7 @@ export function mountInstaller(container, opts = {}) {
     let flashLen = null;
     try { flashLen = flashLenOf(ufwEntries(pkg.image)); } catch (_) { /* (checkPackage parsed it already) */ }
     const info = packageKind(pkg.product, pkg.sha256, flashLen, true);
-    const boot = bootloaderChoice(pkg.bootloader, pkg.bootloader === "m-bootloader" && !el.boot.checked).choice;
+    const boot = bootloaderChoice(pkg.bootloader, el.boot.checked).choice;
     st.head.kind = info.kind;
     const route = chooseRoute(runningKind(r.text, r.port), info, boot, r.text, mbootPresentOf(st.bootWord));
     log(`route ${route.method}: ${route.why}`);
@@ -713,7 +713,7 @@ export function mountInstaller(container, opts = {}) {
   function needsDownload(route, pkg) {
     say(el.status, "");
     const mf = h("div", { class: "mflasher" });
-    /* (the build's m-bootloader, not on the FM-1: the install over USB-MIDI that keeps the bootloader is the other choice, as good) */
+    /* (m-bootloader asked for, not on the FM-1: the install over USB-MIDI that keeps the bootloader is the other choice, as good) */
     const keep = route.wantsMboot ? h("button.o-btn.sm.oi-keepboot", { type: "button", onclick: () => { el.boot.checked = false; render(); install(); } }, TEXT.keepBoot) : null;
     el.err.replaceChildren(h("p", {}, TEXT.needsDownload + nextStep(route, pkg.file || "PACKAGE.fwsc")), ...(keep ? [keep] : []), mf, ...(route.softKey ? [el.soft] : []));
     mflasherLinks(mf);

@@ -27,8 +27,8 @@ final class FlashModel: ObservableObject {
     @Published private(set) var status = ""
     @Published private(set) var result: String?
     @Published private(set) var error: String?
-    /// the KEEP-only override of the build's m-bootloader, for one install (docs/INSTALL-PATHS.md)
-    @Published var keepBootloader = false
+    /// m-bootloader asked for, for one install (download mode; docs/INSTALL-PATHS.md); off: USB-MIDI, the bootloader kept
+    @Published var installMboot = false
     /// the bootloader the FM-1 says it has (INFO tag 0x68): "mboot" | "stock" | "unknown", nil: not said (an older firmware)
     @Published private(set) var bootWord: String?
     /// the last install needs download mode only for the build's m-bootloader: the update that keeps the bootloader is offered
@@ -64,21 +64,21 @@ final class FlashModel: ObservableObject {
     /// the build's BOOTLOADER as this install takes it, the line shown
     var bootLine: String? {
         guard let p = package else { return nil }
-        return InstallRoute.bootloaderChoice(p.bootloader, keep: keepBootloader).1
+        return InstallRoute.bootloaderChoice(p.bootloader, install: installMboot).1
             + (["mboot": ". The FM-1 has m-bootloader already (it says so).", "stock": ". The FM-1 has M-VAVE's bootloader (it says so)."][bootWord ?? ""] ?? "")
     }
 
     /// the way for the package onto the FM-1 that answered (tools/fm1_route.py, web/install_route.js)
     func route(for pkg: FlashPackage, running: String, port: String, boot: String? = nil) -> InstallRoute.Route {
         let info = InstallRoute.packageKind(product: pkg.product, sha256: pkg.sha256, flashLen: InstallRoute.flashLen(pkg.image))
-        let choice = InstallRoute.bootloaderChoice(pkg.bootloader, keep: keepBootloader).0
+        let choice = InstallRoute.bootloaderChoice(pkg.bootloader, install: installMboot).0
         return InstallRoute.choose(InstallRoute.runningKind(running, port: port), info, bootloader: choice, runningText: running,
                                    mbootPresent: InstallRoute.mbootPresent(boot))
     }
 
     /// the update over USB-MIDI that keeps the bootloader, after download mode was said for the build's m-bootloader
     func installKeepingBootloader() {
-        keepBootloader = true
+        installMboot = false
         install()
     }
 
@@ -92,7 +92,7 @@ final class FlashModel: ObservableObject {
 
     func choose(_ e: FlashEntry) {
         guard !busy else { return }
-        keepBootloader = false
+        installMboot = false
         chosen = e.id
         package = nil
         packageError = nil
@@ -230,8 +230,7 @@ final class FlashModel: ObservableObject {
                 progress = 1
                 status = ""
                 device = back
-                result = "Installed \(pkg.title) (\(back))." + (pkg.bootloader == "m-bootloader" && !keepBootloader && bootWord != "mboot"
-                    ? " m-bootloader was not installed: on a computer, python tools/fm1_install.py with this package, or M-Flasher (a full backup first)." : "")
+                result = "Installed \(pkg.title) (\(back))." + ""
             } catch {
                 let info = InstallRoute.packageKind(product: pkg.product, sha256: pkg.sha256, flashLen: InstallRoute.flashLen(pkg.image))
                 if let fe = error as? FlashError, InstallRoute.headRefused(runningText, info, code: fe.code.rawValue) {
