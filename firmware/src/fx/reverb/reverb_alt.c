@@ -113,6 +113,27 @@ AINL int32_t rv_apm(int32_t x, uint32_t base, int32_t d, int32_t g, int32_t *wr)
     return b - mul_tz(v, g);
 }
 
+/* the ring through the step's own copies of rev_line and rv.p (PLATE's and FDN8's rv_step: ln, p), the same reads and
+ * writes as RV_RD / RV_WR: their every use reloaded both (a store to the ring may alias rv's 16-bit fields, rv.p any
+ * store to rv) */
+#define RVF_RD(b, d) ln[(p + (uint32_t)(b) + (uint32_t)(d)) & RV_M]
+#define RVF_WR(b, v) (ln[(p + (uint32_t)(b)) & RV_M] = (int16_t)(v))
+AINL int32_t rvf_ap(int16_t *ln, uint32_t p, int32_t x, uint32_t base, uint32_t len, int32_t g, int32_t *wr)
+{
+    int32_t b = RVF_RD(base, len), v = rv_sat(x + mul_tz(b, g));
+    RVF_WR(base, v);
+    *wr |= v;
+    return b - mul_tz(v, g);
+}
+AINL int32_t rvf_apm(int16_t *ln, uint32_t p, int32_t x, uint32_t base, int32_t d, int32_t g, int32_t *wr)
+{
+    int32_t a = RVF_RD(base, (uint32_t)d >> 8), c = RVF_RD(base, ((uint32_t)d >> 8) + 1u);
+    int32_t b = a + (((c - a) * (d & 255)) >> 8), v = rv_sat(x + mul_tz(b, g));
+    RVF_WR(base, v);
+    *wr |= v;
+    return b - mul_tz(v, g);
+}
+
 /* (rv_exp2n: rev_math.c, shared with the ROOM's long tails) */
 /* the ROOM's decay per 22.05 kHz sample at SIZE s, Q24 of log2 (fitted: -log2((17000 + 104 s) / 32768) / 2167.5
  * x 2) */
@@ -217,33 +238,35 @@ AINL void rv_lfo(void)                                    /* the two tank allpas
 }
 FX_STEP int32_t rv_step(int32_t in, int32_t *yr, int32_t *wr)
 {
-    int32_t x = mulq15(in, RV_IN), d2 = RV_RD(RB_D2, RV_D2), d4 = RV_RD(RB_D4, RV_D4), t, l, r;
-    x = rv_ap(x, RB_I1, RV_I1, 24576, wr);
-    x = rv_ap(x, RB_I2, RV_I2, 24576, wr);
-    x = rv_ap(x, RB_I3, RV_I3, 20480, wr);
-    x = rv_ap(x, RB_I4, RV_I4, 20480, wr);
-    t = rv_sat(rv_apm(x + d4, RB_M1, rv.mod[0], -22938, wr));   /* the left half */
-    RV_WR(RB_D1, t);
+    int16_t *const ln = rev_line;
+    const uint32_t p = rv.p;
+    int32_t x = mulq15(in, RV_IN), d2 = RVF_RD(RB_D2, RV_D2), d4 = RVF_RD(RB_D4, RV_D4), t, l, r;
+    x = rvf_ap(ln, p, x, RB_I1, RV_I1, 24576, wr);
+    x = rvf_ap(ln, p, x, RB_I2, RV_I2, 24576, wr);
+    x = rvf_ap(ln, p, x, RB_I3, RV_I3, 20480, wr);
+    x = rvf_ap(ln, p, x, RB_I4, RV_I4, 20480, wr);
+    t = rv_sat(rvf_apm(ln, p, x + d4, RB_M1, rv.mod[0], -22938, wr));   /* the left half */
+    RVF_WR(RB_D1, t);
     *wr |= t;
-    t = RV_RD(RB_D1, RV_D1);
+    t = RVF_RD(RB_D1, RV_D1);
     rv.lp[0] += fx_step(t - rv.lp[0], rv.k);
-    t = rv_sat(rv_ap(mul_tz(rv.lp[0], rv.gain[0]), RB_A2, RV_A2, 16384, wr));
-    RV_WR(RB_D2, t);
+    t = rv_sat(rvf_ap(ln, p, mul_tz(rv.lp[0], rv.gain[0]), RB_A2, RV_A2, 16384, wr));
+    RVF_WR(RB_D2, t);
     *wr |= t;
-    t = rv_sat(rv_apm(x + d2, RB_M3, rv.mod[1], -22938, wr));   /* the right half */
-    RV_WR(RB_D3, t);
+    t = rv_sat(rvf_apm(ln, p, x + d2, RB_M3, rv.mod[1], -22938, wr));   /* the right half */
+    RVF_WR(RB_D3, t);
     *wr |= t;
-    t = RV_RD(RB_D3, RV_D3);
+    t = RVF_RD(RB_D3, RV_D3);
     rv.lp[1] += fx_step(t - rv.lp[1], rv.k);
-    t = rv_sat(rv_ap(mul_tz(rv.lp[1], rv.gain[1]), RB_A4, RV_A4, 16384, wr));
-    RV_WR(RB_D4, t);
+    t = rv_sat(rvf_ap(ln, p, mul_tz(rv.lp[1], rv.gain[1]), RB_A4, RV_A4, 16384, wr));
+    RVF_WR(RB_D4, t);
     *wr |= t;
     /* the outputs: Dattorro's table 2 (his node names: 24_30 D1, 31_33 A2, 33_39 D2, 48_54 D3, 55_59 A4, 59_63 D4) */
-    l = RV_RD(RB_D3, RV_TL0) + RV_RD(RB_D3, RV_TL1) - RV_RD(RB_A4, RV_TL2) + RV_RD(RB_D4, RV_TL3) -
-        RV_RD(RB_D1, RV_TL4) - RV_RD(RB_A2, RV_TL5) - RV_RD(RB_D2, RV_TL6);
-    r = RV_RD(RB_D1, RV_TR0) + RV_RD(RB_D1, RV_TR1) - RV_RD(RB_A2, RV_TR2) + RV_RD(RB_D2, RV_TR3) -
-        RV_RD(RB_D3, RV_TR4) - RV_RD(RB_A4, RV_TR5) - RV_RD(RB_D4, RV_TR6);
-    rv.p--;
+    l = RVF_RD(RB_D3, RV_TL0) + RVF_RD(RB_D3, RV_TL1) - RVF_RD(RB_A4, RV_TL2) + RVF_RD(RB_D4, RV_TL3) -
+        RVF_RD(RB_D1, RV_TL4) - RVF_RD(RB_A2, RV_TL5) - RVF_RD(RB_D2, RV_TL6);
+    r = RVF_RD(RB_D1, RV_TR0) + RVF_RD(RB_D1, RV_TR1) - RVF_RD(RB_A2, RV_TR2) + RVF_RD(RB_D2, RV_TR3) -
+        RVF_RD(RB_D3, RV_TR4) - RVF_RD(RB_A4, RV_TR5) - RVF_RD(RB_D4, RV_TR6);
+    rv.p = p - 1u;
     *yr = mulq15(r, RV_OUT) << 2;
     return mulq15(l, RV_OUT) << 2;
 }
@@ -351,17 +374,6 @@ AINL void rv_lfo(void)          /* per block: each line's read, D whole samples 
         h = ((t & 255) - 128) << 6;                       /* (fraction - 1) / 2, Q15 */
         rv.eta[j] = (int16_t)(-((h * (32768 - h + ((h * h) >> 15))) >> 15));   /* (1 - f) / (1 + f), its series */
     }
-}
-/* the ring through the step's own copies of rev_line and rv.p (rvf_step: ln, p), the same reads and writes as RV_RD /
- * RV_WR: their every use reloaded both (a store to the ring may alias rv's 16-bit fields, rv.p any store to rv) */
-#define RVF_RD(b, d) ln[(p + (uint32_t)(b) + (uint32_t)(d)) & RV_M]
-#define RVF_WR(b, v) (ln[(p + (uint32_t)(b)) & RV_M] = (int16_t)(v))
-AINL int32_t rvf_ap(int16_t *ln, uint32_t p, int32_t x, uint32_t base, uint32_t len, int32_t g, int32_t *wr)   /* rv_ap's */
-{
-    int32_t b = RVF_RD(base, len), v = rv_sat(x + mul_tz(b, g));
-    RVF_WR(base, v);
-    *wr |= v;
-    return b - mul_tz(v, g);
 }
 FX_STEP int32_t rv_step(int32_t in, int32_t *yr, int32_t *wr)
 {
