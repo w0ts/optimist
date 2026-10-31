@@ -1,74 +1,63 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* The horizontal mixer's rows (op_mixer.c), in the panel under the cards. The mixer shows ONE group at a time, the one
- * the cursor is in (the user, 2026-10-11: MASTER alone, or the four channels, or the drum sounds); ALGORITHM walks the
- * rows as before and the view follows it, drawn in place (cv_tall over the panel, no clear to black):
- *   MASTER     the last row (2026-10-30): the master alone on the panel under its 2x2 cards (99 px; the header names it): a VU
- *              meter (the level from the left, its peak falling) over a dB scale, the compressor's gain reduction as an
- *              amber bar from the right with its dB (THRS or CEIL set: mc_gr_view)
- *   RETURNS    RET A B C above it (2026-10-30), three rows of a channel's 41 px: the code A B C, the effect's name (REV DLY CHO
- *              or the type the return holds; "----" empty), its PRE and POST inserts, its meter: what the return gives
- *              back to the master (fx.c fx_ret_tap, after its POST and level); a muted one struck with its M badge
- *   CHANNELS   T1 T2 T3 DR, the four rows of 41 px (the mixer keeps the 1x4 cards, op_layers.c
- *              cards_2x2):
- *                x 0..21    a colour chip and the row's code (T1 T2 T3 DR), its M / S badge under it; the selected
- *                           row's full name is the header's ("T2 mix", op_draw.c head_title)
- *                x 28..237  three lines. The text line (y +1): the engine's name in the row's colour (ANALOG, TRIO,
- *                           DRUMS), then the preset (the kit for DR, a user preset's name), cut to the room left; under
- *                           it (y +20, 6 px) the row's sequence, as SLOOP's TRACKS screen: the 16 steps of the page
- *                           playing (13 px a step: the steps set shaded by level as on STEP, in the row's colour on the selected row and grey on
- *                           the others (its colour chip too), flat dark grey when muted, past LEN empty, the playhead
- *                           white), and under the steps a thin bar a page when LEN > 16 (the one playing lit); DR all
- *                           the lanes merged; at the foot (y +34) the VU meter, a 3 px bar: the level filling from the
- *                           left, its peak falling; the compressor's gain reduction pushing in from the right in amber,
- *                           3 px a dB, only on a row whose compressor works (a part's COMP insert: fx.c tcomp_gr_q4)
- *   SOUNDS     past DR: the 16 drum lanes at once, two columns of eight (lanes 1-8 left, 9-16 right), the ACCENT lane a
- *              ninth row across both (its steps as a channel's, no meter: it has no sound), 120 x 18 px a
- *              lane: its colour chip and code (BD SD CH ...; muted: the code in the M badge's colour), its own hits
- *              on the 16 steps of the page playing (6 px a step) and its meter (its hits: drums.hits, full at the hit and falling over 12 frames; the drum voices
- *              have no level of their own to read). The header names the lane ("Snare mix")
- * The selected row framed in its colour, its ground tinted. No pan, send or insert forms on the rows: the cards show the
- * selected row's values. Each row's meter and steps are canvases of their own, drawn again only when they change. */
+/* The horizontal mixer's rows (op_mixer.c), in the panel under the 1x4 cards (MASTER's too since 2026-10-30). ONE screen
+ * (the user, 2026-10-30: "i told to put ON ONE screen the master at the bottom, and the return track above it, on the same
+ * screen. AND not to move the screen"):
+ *   the block  pinned at the panel's foot, always drawn, never moved: RET A, RET B, RET C, then MASTER the last line, 14 px a
+ *              line (MXB_H): the chip, the code (A B C M), the effect's name (REV DLY CHO or the type the return holds; "----"
+ *              empty; MASTER), its meter from x 96 (a return's: what it gives back to the master, fx.c fx_ret_tap, after its
+ *              POST and level; MASTER's: the master's peak, the compressor's reduction pushing in from the right in amber); a
+ *              muted return struck, its code in the M badge's colour. A rule over the block
+ *   the upper  the area above it shows one group of the other rows, the one the cursor was last in (the cursor in the block:
+ *   area       the group stays where it was, nothing moves):
+ *     CHANNELS   T1 T2 T3 DR, four rows (MXL_H: 22 px over the help band, 26 without): the chip, the code, the engine's name in
+ *                the row's colour and the preset (the kit for DR), the 16 steps of the page playing in a 4 px strip (shaded by
+ *                level as on STEP, grey when muted, the playhead white), the VU meter a 2 px bar at the foot with the part's
+ *                compressor reduction from the right (fx.c tcomp_gr_q4)
+ *     SOUNDS     the drum lanes and ACCENT, 13 px a lane (code, hits on the page's 16 steps, the hit meter): as many as fit (6
+ *                over the help band, 8 without), the window scrolling with the cursor (mxd.lf)
+ *     USB IN     its row alone, at the top
+ * The selected row framed in its colour. Each row's meter and steps are canvases of their own, drawn again only when they
+ * change. */
+#define MXB_N 4u                        /* the pinned block: RET A B C, MASTER */
+#define MXB_H 14                        /* a line of it */
+#define MXB_Y ((int32_t)OP_PH - (int32_t)MXB_N * MXB_H)   /* its top in the panel (the rule one row over it) */
+#define MXB_NX 22                       /* a line's name */
+#define MXB_VX 96                       /* its meter */
+#define MXB_VW 140
+#define MXB_VY 5
+#define MXB_VH 4
+#define MXU_H (MXB_Y - 1)               /* the upper area */
 #define MXL_N 4u                        /* the channels a screen */
-#define MXL_H ((int32_t)OP_PH / (int32_t)MXL_N)   /* a channel's row: 41 px (the panel 164, the mixer's cards 1x4; over the
-                                         * help band 36: the panel 146) */
+#define MXL_H (MXU_H / (int32_t)MXL_N)  /* a channel's row: 22 px over the help band, 26 without */
 #define MXL_VX 28                       /* a channel's meter and steps: the width left of the code */
 #define MXL_VW 210
-#define MXL_TY 1                        /* the text line: the engine, then the preset (the user: "each track shows the synth
-                                         * name and the preset", so the meter and the steps went thin) */
-#define MXL_SY (MXL_H - 21)             /* the steps in their row: small cells, 6 px, the page bars under them (20; 15) */
-#define MXL_SH 6
+#define MXL_TY (-2)                     /* the text line (its 16 px cell from 2 px over the row: the caps' ink inside it) */
+#define MXL_SY (MXL_H - 8)              /* the steps in their row: a 4 px strip over the meter */
+#define MXL_SH 4
 #define MXL_SP 13                       /* a step's pitch, its cell 11 */
-#define MXL_VY (MXL_H - 7)              /* the meter in its row: a thin bar, over the row's rule (34; 29) */
-#define MXL_VH 3
+#define MXL_VY (MXL_H - 3)              /* the meter: a thin bar, over the row's rule */
+#define MXL_VH 2
 #define MX_GR_PX 3                      /* the reduction: px a dB */
-#define MXS_NROW DRUM_UILANES          /* SOUNDS: the drum lanes in one column, a row each, the ACCENT lane last (the user,
-                                         * 2026-10-18: all 11 on one screen; 13 px rows over the help band, 14 without) */
+#define MXS_RH 13                       /* SOUNDS: a lane's row */
+#define MXS_VIS ((uint32_t)(MXU_H / MXS_RH))   /* the lanes shown at once (the window: mxd.lf) */
 #define MXS_SY 2                        /* a lane's steps: their y in the row (the channels' pitch, MXL_SP), the meter under them */
 #define MXS_VH 2
 #define MXS_TY (-2)                     /* a lane's code: its 16 px cell from 2 px over the row (the caps' ink inside it) */
-#define MXM_X 8                         /* MASTER: the tall meter (under the 2x2 cards: a panel of 99 rows, 117 without the help band; */
-#define MXM_W 224                       /* the header names MASTER, so no name line) */
-#define MXM_VY 4
-#define MXM_VH 10
-#define MXM_GX 32                       /* its reduction bar, "GR" at its left */
-#define MXM_GW 200
-#define MXM_GY 41
-#define MXM_GH 6
 #define MX_LV 255u                      /* a level: 0 .. 255, the meter's whole width */
 #define MX_PH_HOLD 90u                  /* the peak-hold marker holds this many frames (~1.5 s at 60 a second), then falls */
 #define MX_PH_W 2                       /* ... a marker: this wide, the meter's height */
-enum { MV_MASTER, MV_CH, MV_SOUNDS, MV_USB, MV_RET };   /* (MV_USB: the USB input's row alone, past the drum sounds; MV_RET the
-                                                         * three returns, above MASTER) */
+enum { MV_CH, MV_SOUNDS, MV_USB };      /* the upper area's group */
 static struct {
-    uint8_t first, last;                /* the rows in view: first .. last - 1 (the cursor's group) */
+    uint8_t first, last;                /* the upper rows in view: first .. last - 1 */
+    uint8_t ug;                         /* the upper area's group (MV_*): the cursor's when it is there, else as it was */
+    uint8_t lf;                         /* SOUNDS: the first lane in view */
     uint8_t vu[MXR_N], gr[MXR_N];       /* the meters as drawn (0xFF: again) */
     uint32_t stp[MXR_N];                /* the steps as drawn (a signature, the playhead left out) */
     uint8_t sta[MXR_N];                 /* the playhead as drawn (0xFF: none) */
     uint8_t pk[MXR_N];                  /* the meters' peaks (0 .. MX_LV), falling */
     uint16_t ph[MXR_N];                 /* the peak-hold markers (level x 256): jump to a new peak, hold, then fall (mx_peak) */
     uint8_t phd[MXR_N], vph[MXR_N];     /* ... frames left of the hold; the marker's level as drawn (0xFF: again) */
-    uint8_t mgr;                        /* MASTER alone: its reduction as drawn, dB x 4 (0xFF: again) */
-    uint8_t pk_first;                   /* the group the peaks are of (mx_draw) */
+    uint8_t pk_first;                   /* the upper rows the peaks are of (mx_draw) */
 #if FELUCCA_ED_MIRROR
     uint8_t mvu[MXR_N], mgv[MXR_N];     /* the meters as the mirror's client has them (0xFF: again) */
     uint8_t mvph[MXR_N];                /* ... and their peak-hold markers */
@@ -83,32 +72,42 @@ typedef struct {
 } mrect_t;
 
 static uint32_t mx_smuted(uint32_t r) { return !mx_is_usb(r) && mx_muted(r); }   /* row r muted: its steps grey, no playhead */
-static uint32_t mx_mode(uint32_t r)
+static int mx_in_block(uint32_t r) { return mx_is_ret(r) || r == MXR_MASTER; }   /* RET A B C, MASTER: the pinned block */
+static void mx_view(void)                               /* the upper area's rows in view */
 {
-    return r == MXR_MASTER ? MV_MASTER : mx_is_ret(r) ? MV_RET : r < MXR_LANE0 ? MV_CH : mx_is_usb(r) ? MV_USB : MV_SOUNDS;
+    uint32_t r = mx_row();
+    if (!mx_in_block(r))                                /* (the cursor in the block: the upper area stays as it was) */
+        mxd.ug = (uint8_t)(r < MXR_LANE0 ? MV_CH : mx_is_usb(r) ? MV_USB : MV_SOUNDS);
+    if (mxd.ug == MV_SOUNDS) {                          /* (the lanes' window: the cursor's lane in it) */
+        uint32_t n = MXR_LN - MXR_LANE0, v = MXS_VIS < n ? MXS_VIS : n, lf = mxd.lf;
+        if (mx_is_lane(r) && r - MXR_LANE0 < lf)
+            lf = r - MXR_LANE0;
+        if (mx_is_lane(r) && r - MXR_LANE0 >= lf + v)
+            lf = r - MXR_LANE0 + 1u - v;
+        lf = lf + v > n ? n - v : lf;
+        mxd.lf = (uint8_t)lf;
+        mxd.first = (uint8_t)(MXR_LANE0 + lf), mxd.last = (uint8_t)(MXR_LANE0 + lf + v);
+    } else if (mxd.ug == MV_USB) {
+        mxd.first = (uint8_t)MXR_LN, mxd.last = (uint8_t)(MXR_LN + 1u);
+    } else {
+        mxd.first = (uint8_t)MXR_T1, mxd.last = (uint8_t)MXR_LANE0;
+    }
 }
-static void mx_view(void)                               /* the rows in view: the cursor's group */
-{
-    uint32_t m = mx_mode(mx_row());
-    mxd.first = (uint8_t)(m == MV_MASTER ? MXR_MASTER : m == MV_RET ? MXR_RET0 : m == MV_CH ? MXR_T1 : m == MV_USB ? MXR_LN : MXR_LANE0);
-    mxd.last = (uint8_t)(m == MV_MASTER ? MXR_N : m == MV_RET ? MXR_MASTER : m == MV_CH ? MXR_LANE0 : m == MV_USB ? MXR_LN + 1u : MXR_LN);
-}
-static void mx_rect(uint32_t r, mrect_t *q)             /* row r's place in its group's view */
+static void mx_rect(uint32_t r, mrect_t *q)             /* row r's place in the panel (an upper row out of view: its place as if
+                                                         * the window were on it, off the area) */
 {
     memset(q, 0, sizeof *q);
-    if (r == MXR_MASTER) {
-        q->w = 240, q->h = OP_PH;
-        q->vx = MXM_X, q->vy = MXM_VY, q->vw = MXM_W, q->vh = MXM_VH;
-    } else if (r < MXR_LANE0 || mx_is_usb(r) || mx_is_ret(r)) {
-        q->y = mx_is_usb(r) ? 0 : mx_is_ret(r) ? (int32_t)(r - MXR_RET0) * MXL_H : (int32_t)(r - MXR_T1) * MXL_H, q->w = 240, q->h = MXL_H;
-                                                        /* (the USB input: a channel's row, alone, no steps; a return's: its three) */
+    q->w = 240;
+    if (mx_in_block(r)) {
+        q->y = MXB_Y + (int32_t)(r - MXR_RET0) * MXB_H, q->h = MXB_H;
+        q->vx = MXB_VX, q->vy = MXB_VY, q->vw = MXB_VW, q->vh = MXB_VH;
+    } else if (r < MXR_LANE0 || mx_is_usb(r)) {
+        q->y = mx_is_usb(r) ? 0 : (int32_t)(r - MXR_T1) * MXL_H, q->h = MXL_H;   /* (the USB input: a channel's row, alone, no steps) */
         q->sx = MXL_VX, q->sy = MXL_SY, q->sp = MXL_SP, q->sh = MXL_SH;
         q->vx = MXL_VX, q->vy = MXL_VY, q->vw = MXL_VW, q->vh = MXL_VH;
     } else {
-        uint32_t row = r - MXR_LANE0;                   /* (the ACCENT lane: DRUM_ACC, the last row) */
-        q->y = (int32_t)row * OP_PH / (int32_t)MXS_NROW;
-        q->h = (int32_t)(row + 1u) * OP_PH / (int32_t)MXS_NROW - q->y;
-        q->w = 240;
+        int32_t row = (int32_t)(r - MXR_LANE0) - (int32_t)mxd.lf;   /* (the ACCENT lane: DRUM_ACC, the last row) */
+        q->y = row * MXS_RH, q->h = MXS_RH;
         q->sx = MXL_VX, q->sy = MXS_SY, q->sp = MXL_SP, q->sh = q->h - 7;
         q->vx = MXL_VX, q->vy = q->h - 4, q->vw = MXL_VW, q->vh = MXS_VH;   /* (the meter over the row's rule) */
         if (mx_is_acc(r)) {                             /* (no sound, no meter: its steps taller) */
@@ -171,48 +170,27 @@ static void mx_paint_ground(uint32_t i, const mrect_t *q, uint16_t c)
         cv_rect(q->x, q->y + q->h - 1, q->w, 1, C_LINE);   /* (black, a rule under it: no grey ground) */
     }
 }
-/* MASTER alone: the tall meter's dB scale (a tick each 6 dB from 0 down to the VU FLOOR, some named), "GR", the returns' names
- * (its name is the header's badge). A dB d sits at (|floor| + 6 + d) / (|floor| + 6) of the width (op_draw.c meter_h) */
-static int32_t mx_db_x(int32_t d)
-{
-    int32_t w = -vuf_db(vu_floor_i) + 6;
-    return MXM_X + (int32_t)(MXM_W * (uint32_t)(w + d) / (uint32_t)w);
-}
-static void mx_paint_master(void)
-{
-    /* the named ticks of each floor (-80 .. -20): 0 and every 12 dB, skipping the one the next label's text would touch; 0 ends on its tick */
-    static const int8_t DB[VUF_N][6] = {{0, -12, -24, -48, -72, 1}, {0, -12, -24, -48, -60, 1}, {0, -12, -24, -48, 1, 1}, {0, -12, -24, -48, 1, 1},
-                                        {0, -12, -24, -36, 1, 1}, {0, -12, -24, 1, 1, 1}, {0, -6, -12, -18, 1, 1}};
-    const int8_t *nm = DB[vu_floor_i % VUF_N];
-    uint32_t i;
-    int32_t d;
-    char b[8];
-    cv_hline(OP_PH - 1, C_LINE);
-    cv_rect(2, 3, 3, OP_PH - 7, C_HI);                  /* the colour chip */
-    for (d = 0; d >= vuf_db(vu_floor_i); d -= 6)        /* the scale: a tick each 6 dB */
-        cv_rect(mx_db_x(d) - 1, MXM_VY + MXM_VH + 1, 1, 3, C_LINE);
-    for (i = 0; i < 6u && nm[i] <= 0; i++) {
-        int32_t x = mx_db_x(nm[i]);
-        fmt_int(b, nm[i]);
-        cv_texts(x - text_ws(b) + (i ? text_ws(b) / 2 : 0), MXM_VY + MXM_VH + 4, b, C_DIM);
-    }
-    cv_texts(MXM_X, MXM_GY - 5, "GR", C_DIM);
-    mx_vu_band(MXR_MASTER, MXM_X, MXM_VY, MXM_W, MXM_VH, mxd.pk[MXR_MASTER], 0);   /* (the returns: their own rows) */
-}
 static void mx_paint_row(uint32_t i)                    /* a channel's or a lane's row */
 {
     char en[10], pr[16], b[16];
     int32_t x;
     mrect_t q;
     uint16_t c = mx_col(i);
-    uint16_t cc = mx_is_lane(i) && mx_muted(i) ? C_WARN : i == mx_row() ? C_WHITE : c;   /* (a muted lane: its code in the M badge's colour) */
-    int32_t cy = mx_is_lane(i) ? MXS_TY : MXL_TY;
+    uint16_t cc = mx_muted(i) ? C_WARN : i == mx_row() ? C_WHITE : c;   /* (a muted row: its code amber, struck; the
+                                                         * rows' room under the pinned block has no M badge line) */
+    int32_t cy = mx_is_lane(i) || mx_in_block(i) ? MXS_TY : MXL_TY;
     uint32_t mu = mx_muted(i);
     mx_rect(i, &q);
     cy += q.y;
     mx_paint_ground(i, &q, c);
     cv_rect(q.x + 2, q.y + 3, 3, q.h - 7, mx_in_grp(i) ? c : C_GRAY);   /* the colour chip: grey off the knobs' rows */
     text_st(q.x + 6, cy, &FONT_S, mx_code(i), cc, mu);  /* (a muted row: its name struck through, the user, 2026-10-15) */
+    if (mx_in_block(i)) {                               /* a line of the block: its effect's name (MASTER), its meter */
+        mx_names(i, en, pr);
+        text_st(MXB_NX, cy, &FONT_S, cut(b, en, 8), i == mx_row() ? C_WHITE : c, mu);
+        mx_vu_band(i, q.x + q.vx, q.y + q.vy, q.vw, q.vh, mxd.pk[i], mx_gr_px(i, q.vw));
+        return;
+    }
     if (!mx_is_lane(i)) {                               /* the USB input: its name and whether it streams; a channel: its engine
                                                          * and preset; a return: its effect and inserts; their M badge */
         uint16_t pc = i == mx_row() ? C_WHITE : C_GRAY;
@@ -220,30 +198,29 @@ static void mx_paint_row(uint32_t i)                    /* a channel's or a lane
         x = text_st(MXL_VX, q.y + MXL_TY, &FONT_S, cut(b, en, 8), c, mu);   /* ANALOG, in the row's colour ... (USB IN) */
         if (pr[0])                                      /* (USB: "streaming" whole, never struck) */
             text_st(x + 8, q.y + MXL_TY, &FONT_S, cut(b, pr, (uint32_t)(238 - x - 8) / 8u), pc, mu && !mx_is_usb(i) && !mx_is_ret(i));
-        if (mu)                                         /* (muted: the M badge, the steps grey) */
-            cv_texts(6, q.y + 18, "M", C_WARN);
     }
     mx_steps_paint(i, q.x + q.sx, q.y + q.sy);          /* the live parts too, as they stand: never a row without them */
     if (q.vw)
         mx_vu_band(i, q.x + q.vx, q.y + q.vy, q.vw, q.vh, mxd.pk[i], mx_gr_px(i, q.vw));
 }
-static void mx_paint(void)                              /* the group in view (cv_tall) */
+static void mx_paint(void)                              /* the upper area's rows, the rule, the pinned block (cv_tall) */
 {
     uint32_t i;
-    if (mxd.first == MXR_MASTER) {
-        mx_paint_master();
-        return;
-    }
     for (i = mxd.first; i < mxd.last; i++)
+        mx_paint_row(i);
+    cv_rect(0, MXB_Y - 1, 240, 1, C_DIM);               /* (the block's rule) */
+    for (i = MXR_RET0; i < MXR_N; i++)
         mx_paint_row(i);
 }
 static uint32_t mx_static_sig(void)
 {
-    uint32_t i, sig = hu(hu(hu(hu(0x3A1u, settings.palette), mx_row()), mxd.first), mx.across);
+    uint32_t i, sig = hu(hu(hu(hu(hu(0x3A1u, settings.palette), mx_row()), mxd.first), mx.across), mxd.lf);
     char en[10], pr[16];
-    for (i = mxd.first; i < mxd.last; i++) {
+    for (i = mxd.first; i < MXR_N; i++) {
+        if (i == mxd.last && i < MXR_RET0)
+            i = MXR_RET0;                               /* (then the block, always) */
         sig = hs(hu(sig, mx_col(i)), mx_code(i));
-        if (mx_is_usb(i) || mx_is_ret(i)) {             /* (the USB input: muted, streaming; a return: muted, its chain) */
+        if (mx_is_usb(i) || mx_in_block(i)) {             /* (the USB input: muted, streaming; a return: muted, its chain) */
             mx_names(i, en, pr);
             sig = hs(hs(hu(sig, mx_muted(i)), pr), en);
             continue;
@@ -438,33 +415,6 @@ static void mx_vu_at(uint32_t r, int32_t x, int32_t y, int32_t w, int32_t h, uin
     mir_mute = 0;
 #endif
 }
-/* MASTER alone: its reduction bar and the dB ("off" while THRS and CEIL are 0), a canvas of their own */
-static void mx_master_gr(void)
-{
-    uint32_t q4 = mx_gr_q4(MXR_MASTER), gr = mx_gr_px(MXR_MASTER, MXM_GW);
-    char b[12];
-    if (q4 == mxd.mgr)
-        return;
-    mxd.mgr = (uint8_t)q4;
-    cv_begin(240 - MXM_GX, 16, C_BLACK);
-    cv_rect(0, 5 + MXM_GH - 1, MXM_GW, 1, C_LINE);
-    if (q4) {
-        cv_rect(MXM_GW - (int32_t)gr, 5, (int32_t)gr, MXM_GH, C_WARN);
-        b[0] = '-';
-        fmt_int(b + 1, (int32_t)(q4 / 4u));
-        str_app(b, " dB", sizeof b);
-        cv_texts(0, 0, b, C_WARN);
-    } else if (FELUCCA_MASTER_COMP) {
-        cv_texts(0, 0, "off", C_DIM);
-    }
-#if FELUCCA_ED_MIRROR
-    mir_mute = (uint8_t)mir_meters_off();               /* (a meter too: none over Bluetooth) */
-#endif
-    cv_blit(MXM_GX, (uint32_t)(OP_PY + MXM_GY - 5));
-#if FELUCCA_ED_MIRROR
-    mir_mute = 0;
-#endif
-}
 static uint32_t mx_on(uint32_t r, uint32_t i)           /* step i is set on row r */
 {
     const track_t *t = &trk[mx_trk_of(r)];
@@ -526,7 +476,8 @@ static void mx_steps_paint(uint32_t r, int32_t x, int32_t y)
         if (page + i < len)
             mx_step_cell(r, t, page + i, at, c, x + (int32_t)i * q.sp, y, &q);
     np = (len + 15u) / 16u;
-    if (np > 1u && r < MXR_LANE0)                       /* the pattern's pages: a thin bar each, the one playing lit */
+    if (np > 1u && r < MXR_LANE0 && MXL_H >= 30)        /* the pattern's pages: a thin bar each, the one playing lit (a row with
+                                                         * the room: none since the block took the panel's foot) */
         for (i = 0; i < np; i++)
             cv_rect(x + (int32_t)(i * 16u * MXL_SP / np), y + MXL_SH + 2, (int32_t)(16u * MXL_SP / np) - 2, 2,
                     i == page / 16u ? C_WHITE : C_DIM);
@@ -563,7 +514,8 @@ static void mx_steps(uint32_t r)
     }
     mxd.stp[r] = sig;
     mxd.sta[r] = (uint8_t)at;
-    cv_begin((uint32_t)(16 * q.sp), (uint32_t)(q.sh + (r < MXR_LANE0 ? 4 : 0)), bg);
+    cv_begin((uint32_t)(16 * q.sp), (uint32_t)(q.sh + (r < MXR_LANE0 && MXL_H >= 30 ? 4 : 0)), bg);   /* (the page bars' rows: only
+                                                         * with the room, else the meter under the steps is kept) */
     mx_steps_paint(r, 0, 0);
     cv_blit((uint32_t)(q.x + q.sx), (uint32_t)(OP_PY + q.y + q.sy));
 }
@@ -578,10 +530,10 @@ static __attribute__((noinline)) void mx_draw(void)
     mx_view();
     sig = mx_static_sig();
     if (sig != ui.sig[2]) {
-        if (mxd.first != mxd.pk_first) {                /* another group: no peak carried from one to the other */
-            memset(mxd.pk, 0, sizeof mxd.pk);
-            memset(mxd.ph, 0, sizeof mxd.ph);
-            memset(mxd.phd, 0, sizeof mxd.phd);
+        if (mxd.first != mxd.pk_first) {                /* another group up there: no peak carried from one to the other (the
+                                                         * block's own are kept: it never moves) */
+            for (i = 0; i < MXR_RET0; i++)
+                mxd.pk[i] = 0, mxd.ph[i] = 0, mxd.phd[i] = 0;
             mxd.pk_first = mxd.first;
         }
         ui.sig[2] = sig;
@@ -593,17 +545,15 @@ static __attribute__((noinline)) void mx_draw(void)
 #if FELUCCA_ED_MIRROR
     mxd.mir = (uint8_t)mir_meters_due();
 #endif
-    if (mxd.first == MXR_MASTER) {                      /* MASTER alone: its meter, its reduction */
-        mx_vu_at(MXR_MASTER, MXM_X, MXM_VY, MXM_W, MXM_VH, mx_level(MXR_MASTER, trk_lv), 0);
-        mx_master_gr();
-        return;
-    }
-    for (i = mxd.first; i < mxd.last; i++) {
+    for (i = mxd.first; i < MXR_N; i++) {               /* the upper rows in view, then the block */
         mrect_t q;
+        if (i == mxd.last && i < MXR_RET0)
+            i = MXR_RET0;
         mx_rect(i, &q);
         if (q.vw)                                       /* (the ACCENT lane: no meter) */
             mx_vu_at(i, q.x + q.vx, q.y + q.vy, q.vw, q.vh, mx_level(i, trk_lv), mx_gr_px(i, q.vw));
-        mx_steps(i);
+        if (!mx_in_block(i))
+            mx_steps(i);
     }
 }
 static void mx_redraw(void)                             /* the live parts again (an overlay went) */
@@ -617,5 +567,4 @@ static void mx_redraw(void)                             /* the live parts again 
     memset(mxd.mgv, 0xFF, sizeof mxd.mgv);
 #endif
     memset(mxd.stp, 0, sizeof mxd.stp);
-    mxd.mgr = 0xFF;
 }

@@ -76,11 +76,11 @@ static void smute_tests(void)
         dstep_set(&TDRUM->dstep[i], 0, LV_NORM, 0);
     frames(2);
     y = mx_row_y(MXR_T1 + 1u);
-    check(!px_in(6, y + 18u, 8, 14, C_WARN), "T2 not muted: no M badge");
+    check(!px_in(6, y, 16, 12, C_WARN), "T2 not muted: its code not amber");
     smute_set_trk(1, 1);
     frames(2);
     ppm("opt-smute-t2");
-    check(px_in(6, y + 18u, 8, 14, C_WARN) && !px_in(15, y + 18u, 8, 14, C_GRAY), "T2's sequencer muted: the M badge (one mute), no X");
+    check(px_in(6, y, 16, 12, C_WARN), "T2's sequencer muted: its code amber, struck (one mute; no M badge line under the pinned block)");
     smute_set_trk(1, 0);
     frames(2);
     check(!px_in(6, y + 18u, 8, 14, C_WARN), "... unmuted: the badge gone");

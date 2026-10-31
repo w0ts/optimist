@@ -329,7 +329,7 @@ static void layout_tests(void)
     song.sel = 0;
     frames(3);
     y = mx_row_y((MXR_T1 + 1u));
-    check(px_in(MXL_VX, y + MXL_TY, 56, 14, mx_col((MXR_T1 + 1u))) && MXL_VY + MXL_VH <= MXL_H && MXL_SY + MXL_SH + 4 <= MXL_VY,
+    check(px_in(MXL_VX, y + MXL_TY + 2, 56, 12, mx_col((MXR_T1 + 1u))) && MXL_VY + MXL_VH <= MXL_H && MXL_SY + MXL_SH <= MXL_VY,
           "mixer row: the engine's name in the track's colour on its text line, the steps and a thin VU under it");
     y = mx_row_y(MXR_T1);
     check(px_in(MXL_VX, y + MXL_TY, 56, 14, mx_col(MXR_T1)) && px_in(0, y, 240, 1, mx_col(MXR_T1)) &&

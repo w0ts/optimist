@@ -45,8 +45,8 @@ static void peak_ring(double amp)                       /* a sine of the given a
     for (i = 0; i < VIS_RING; i++)
         vis_pcm[0][i] = vis_pcm[1][i] = (int32_t)(sin((double)i * 2.0 * 3.14159265 / 100.0) * amp);
 }
-#define PEAK_Y ((uint32_t)(OP_PY + MXM_VY + 5))   /* (OP_PY moves with the page: read when used) */
-static uint32_t peak_x(uint32_t ph) { return (uint32_t)MXM_X + ph * (uint32_t)MXM_W / MX_LV; }   /* the marker's right end */
+#define PEAK_Y ((uint32_t)(OP_PY + MXB_Y + 3 * MXB_H + MXB_VY + 2))   /* (MASTER's line of the pinned block, its meter; OP_PY read when used) */
+static uint32_t peak_x(uint32_t ph) { return (uint32_t)MXB_VX + ph * (uint32_t)MXB_VW / MX_LV; }   /* the marker's right end */
 static void peakhold_tests(void)
 {
     uint32_t ph0, q0, i, ok;
@@ -62,7 +62,7 @@ static void peakhold_tests(void)
     peak_ring(0.0);                                     /* (silence) */
     frames(MX_PH_HOLD / 2u);
     q0 = mxd.ph[MXR_MASTER];
-    check(mxd.pk[MXR_MASTER] < ph0 && MX_PHL(MXR_MASTER) == ph0 && px_in(peak_x(ph0) - 2u, PEAK_Y, 2, 1, mx_vu_colat((int32_t)peak_x(ph0) - (int32_t)MXM_X - 1, (int32_t)(mx_vu_lv(MX_KNEE_PK) * (uint32_t)MXM_W / MX_LV), (int32_t)MXM_W, C_OK)),
+    check(mxd.pk[MXR_MASTER] < ph0 && MX_PHL(MXR_MASTER) == ph0 && px_in(peak_x(ph0) - 2u, PEAK_Y, 2, 1, mx_vu_colat((int32_t)peak_x(ph0) - (int32_t)MXB_VX - 1, (int32_t)(mx_vu_lv(MX_KNEE_PK) * (uint32_t)MXB_VW / MX_LV), (int32_t)MXB_VW, C_OK)),
           "peak hold: the bar has fallen, the marker is held where it was, drawn there in the meter's own colour");
     ppm("opt-peakhold-master");
     for (i = MX_PH_HOLD / 2u; i < MX_PH_HOLD + 10u && mxd.ph[MXR_MASTER] == q0; i++)
@@ -77,17 +77,18 @@ static void peakhold_tests(void)
     check(MX_PHL(MXR_MASTER) >= ph0 - 15u && MX_PHL(MXR_MASTER) <= ph0 + 15u && mxd.phd[MXR_MASTER] == MX_PH_HOLD, "peak hold: a level at or over the marker takes it back up and holds again");
     peak_ring(400000.0);                                 /* (over 0 dBFS: the full scale) */
     frames(3);
-    check(MX_PHL(MXR_MASTER) >= MX_LV - 2u && px_in((uint32_t)MXM_X + MXM_W - 2u, PEAK_Y, 2, 1, C_ERR), "peak hold: at 0 dBFS the marker is red");
+    check(MX_PHL(MXR_MASTER) >= MX_LV - 2u && px_in((uint32_t)MXB_VX + MXB_VW - 2u, PEAK_Y, 2, 1, C_ERR), "peak hold: at 0 dBFS the marker is red");
     peak_ring(0.0);
     frames(MX_PH_HOLD + 2u);
     VUF_SET(VUF_N - 1u);                                /* (the floor at -20: -30 dBFS is under it) */
     reset_ui();
     VUF_SET(VUF_N - 1u);
     ui.row[SCR_HOME] = MXR_MASTER;
+    mxd.ph[MXR_MASTER] = 0, mxd.phd[MXR_MASTER] = 0, mxd.pk[MXR_MASTER] = 0;   /* (the pinned block keeps its peaks across the upper area's groups: the 0 dBFS one above, out) */
     peak_ring(1036.0);
     ui.force = 1;
     frames(5);
-    check(mxd.ph[MXR_MASTER] == 0u && !px_in((uint32_t)MXM_X, PEAK_Y, MXM_W, 1, C_OK) && !px_in((uint32_t)MXM_X, PEAK_Y, MXM_W, 1, C_ERR),
+    check(mxd.ph[MXR_MASTER] == 0u && !px_in((uint32_t)MXB_VX, PEAK_Y, MXB_VW, 1, C_OK) && !px_in((uint32_t)MXB_VX, PEAK_Y, MXB_VW, 1, C_ERR),
           "peak hold: a peak under the VU FLOOR gets no marker, the bar none either");
     VUF_SET(VUF_DEF);
     peak_ring(0.0);
