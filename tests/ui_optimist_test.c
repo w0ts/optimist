@@ -4180,8 +4180,8 @@ int main(int argc, char **argv)
 #endif
 #if FELUCCA_PAGE_LINES
     plines_tests();                                     /* (the lines build: the rest of the suite assumes the 2x2 cards) */
-    lane_fx_lines_tests();
-    wavepics_tests();                                   /* (the lines build: the pictures stay on every ENV / LFO row) */                              /* (LANE FX: the 2x2 cards in the lines build too) */
+    lane_fx_lines_tests();                              /* (LANE FX: the 2x2 cards in the lines build too) */
+    wavepics_tests();                                   /* (the lines build: the pictures stay on every ENV / LFO row) */
     fuzz(5000, 4242);
     check(!band_hits, "PAGE_LINES: 5000 random frames, no blit in the help band but the help line's");
     printf(fails ? "optimist ui test FAILED (%d)\n" : "optimist ui test passed\n", fails);
