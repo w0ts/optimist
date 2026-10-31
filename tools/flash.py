@@ -69,25 +69,38 @@ class Plan:
     def download(self):
         return bool(self.route) and self.route.method == "download"
 
+    @property
+    def boot(self):
+        """the bootloader the running Optimist says it has (fm1_install.py --info's boot=...): mboot | stock | unknown | None"""
+        import fm1_route as R
+        return R.boot_token(self.running)
+
+    @property
+    def wants_mboot(self):
+        """the build says m-bootloader, this install takes it (not kept for this install) and the FM-1 does not say it
+        has it already"""
+        return "m-bootloader (from the build)" in (self.boot_line or "") and self.boot != "mboot"
+
     def lines(self):
+        """the confirmation: about four lines (what, from where, onto what, which way); the route's steps only for
+        download mode, where they differ from the usual install"""
+        boot = {"mboot": ", m-bootloader on it", "stock": ", M-VAVE's bootloader on it"}.get(self.boot, "")
         how = []
-        if self.route:
-            how = [f"route:    {'download mode (M-Flasher)' if self.download else 'the running firmware updater'}: "
-                   f"{self.route.why}"]
-            if self.download:
-                how += [f"          {i}. {st}" for i, st in enumerate(self.route.steps, 1)]
+        if self.download:
+            how = [f"route:    download mode (M-Flasher; the computer's admin password): {self.route.why}",
+                   *[f"          {i}. {st}" for i, st in enumerate(self.route.steps, 1)],
+                   *([self.boot_line] if self.boot_line else []),
+                   *([self.settings_line()] if self.settings else [])]
+        elif self.route:
+            kept = ("m-bootloader kept" if self.boot == "mboot" else "the bootloader kept")
+            how = [f"route:    the USB-MIDI update (about a minute), settings and {kept}"]
         return [f"package:  {self.package.name}  ({self.product})",
-                f"          {self.package}",
                 *self.notes,
-                f"running:  {self.running}",
-                *([self.boot_line] if self.boot_line else []),
-                *([self.settings_line()] if self.settings and self.download else []),
+                f"running:  {self.running.split()[0] if self.running.strip() else '?'}{boot}",
                 *how,
                 *([f"WARNING   {self.warn}"] if self.warn else []),
                 *([f"LAYOUT    {self.layout_warn}"] if self.layout_warn else []),
-                "",
-                "This replaces the firmware on the FM-1 now. Do not unplug it while it writes (about a minute).",
-                RECOVER]
+                "Do not unplug the FM-1 while it writes."]
 
 
 def set_flavour(classic):
@@ -242,12 +255,14 @@ def route_of(package, running, port=None, keep_bootloader=False):
     """-> (fm1_route.Route, the bootloader line) for this package on the FM-1 that --info described"""
     import fm1_anyflash as AF
     import fm1_route as R
-    m = re.match(r"(\S+)\s+\[[^]]*\]\s+port:\s*(.*)$", running.strip())
-    ident, name = (m[1], m[2]) if m else (running.split()[0] if running.strip() else None, port or "")
+    boot = R.boot_token(running)
+    text = R.BOOT_TOKEN.sub("", running).strip()
+    m = re.match(r"(\S+)\s+\[[^]]*\]\s+port:\s*(.*)$", text)
+    ident, name = (m[1], m[2].strip()) if m else (text.split()[0] if text else None, port or "")
     raw = Path(package).read_bytes()
     info = R.package_kind(raw, FI.flash_size(FI.logical_image(raw)))
     choice, line = AF.build_setting(package, keep_bootloader)
-    return R.choose(R.running_kind(ident, name), info, choice, None, ident or ""), line
+    return R.choose(R.running_kind(ident, name), info, choice, R.mboot_present_of(boot), ident or ""), line
 
 
 def keep_bootloader(plan):

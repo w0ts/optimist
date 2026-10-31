@@ -56,7 +56,7 @@ const E = vm.runInNewContext(`${proto}
    openMidi, findPorts, wantsReconnect, isFM1Name, syncState, ROLL, rollRest, rollNotes, noteSpan, rollAdd, rollRemove, rollToggle, rollSetLength, rollSetNote, rollSetStep, rollChanged, rollGrid, rollLen, DRUM_PAGE, drumPages, drumPageRange, COLORS, engineColor, kindColor, contrast, textOn, MASTER_FX, MASTER_BUS, fxInline, FX_INLINE_MAX, NAV, SCREENS, navOpen, navClose, navKey, navScreen, navDepth, KEYS, KEY_FIXED, LANE_KEYS, keyFor, keyLabel, keyPlan, stepxBuilt, PAT, patSlotView, patUsers,
    PATREC, patRecParse, patRecBuild, patRawEmpty, patStepFrom, patStepRaw, patDrumFrom, patDrumRaw, patReadAll, patWriteAll,
    FXT, FXT_NAMES, fxsLoad, fxType, fxSlotAmt, readFx, keptIds, AUTO, autoLane, SetGate,
-   FXP, FXP_TABLE, SCRN_TABLE, SCRS_TABLE, EQ_FL_HZ, EQ_FH_HZ, fxpClass, fxpName, fxpTypeName, fxpAllows, fxpFmt, readFxpOwner, readFxpSlot, panelKey, panelKeyName, navParse, navTracksParse, navBar, navKnobs, navKnobAt, MNAV, PJF, pjfPack, pjfUnpack, pjLibMake, pjLibMem, pjSwap, WIFI, wifiCheck, wifiApCheck, wifiApDefaultKey, wifiIsAp, wifiBusy, wifiText, pack7, unpack7 })`,
+   FXP, FXP_TABLE, SCRN_TABLE, SCRS_TABLE, EQ_FL_HZ, EQ_FH_HZ, fxpClass, fxpName, fxpTypeName, fxpAllows, fxpFmt, readFxpOwner, readFxpSlot, panelKey, panelKeyName, navParse, navTracksParse, navBar, navKnobs, navKnobAt, MNAV, PJF, pjfPack, pjfUnpack, pjLibMake, pjLibMem, pjSwap, WIFI, wifiCheck, wifiApCheck, wifiApDefaultKey, wifiIsAp, wifiBusy, wifiText, pack7, unpack7, btInfoOk })`,
 { setTimeout, clearTimeout, setInterval, clearInterval, console, TextEncoder, TextDecoder });
 
 const editorMock = async () => {
@@ -3564,6 +3564,15 @@ async function editorMirror() {
   const barCases = JSON.parse(readFileSync(join(HERE, "../ios/OptimistMirror/Tests/Fixtures/nav_track_bar.json"), "utf8")).cases;
   ok(barCases.every((c) => { const b = E.navBar(c.names); return JSON.stringify(b.lanes.map((i) => c.names[i])) === JSON.stringify(c.lanes) && JSON.stringify(b.bottom.map((i) => c.names[i])) === JSON.stringify(c.bottom); }),
     "mirror: the track bar: the lanes alone on line 1; line 2 T1 T2 T3 DR, RET A B C, MASTER (the same cases as the app's Nav.bar)");
+  /* INFO over Bluetooth: replies an FM-1 sent there (the app's Tests/Fixtures/bt_info_frames.json, its BtInfoTests read the same): the
+     whole one taken (opti_btproj_1 seen), a damaged one refused or taken only with the whole one's features; asked before the mirror */
+  const bi = JSON.parse(readFileSync(join(HERE, "../ios/OptimistMirror/Tests/Fixtures/bt_info_frames.json"), "utf8"));
+  const biParse = (hex) => E.parse[E.CMD.INFO](Array.from(Buffer.from(hex, "hex")).slice(5, -1));
+  const biWhole = biParse(bi.whole[0]), biBad = bi.damaged.map(biParse);
+  ok(E.btInfoOk(biWhole) && biWhole.opti.opti_btproj === 1 && biWhole.opti.opti_mirror === 2
+    && biBad.every((i) => !E.btInfoOk(i) || JSON.stringify(i.opti) === JSON.stringify(biWhole.opti)) && biBad.filter((i) => !E.btInfoOk(i)).length > biBad.length / 2,
+    "bluetooth: a whole INFO taken (opti_btproj_1), a damaged one (bytes zeroed or lost while the screen streams) refused, as the app");
+  ok(/for \(let k = 0; k < BT_INFO_TRIES && !btInfoOk\(info\); k\+\+\)/.test(html), "bluetooth: loadBt asks INFO again until a whole one comes (BT_INFO_TRIES)");
   /* the greyed-out buttons and the one screen size (the user, 2026-10-29): the lanes' buttons are always built (the kit's names, else the
      default lanes'), disabled off the drum track; the screen is sized as if their rows were there, with or without them */
   const mr = /function mirRender\(force = false\) \{[\s\S]*?\n\}\n/.exec(html)[0];
@@ -3628,6 +3637,22 @@ e = list(L.known_ends()); print(json.dumps({f"{o}/{n}": L.switch_warning(None if
      && !IR.headRefused("felucca", v15, "noloader") && !IR.headRefused("optimist", v15, "lost"), "install: -5 from Optimist on an M-VAVE package is spotted, nothing else is");
   ok(/OCT- and OCT\+ for 5 s/.test(IR.refusedStep("a.fwsc")) && /REC/.test(IR.refusedStep()) && /M-Flasher/.test(IR.refusedStep()) && /-5/.test(IR.refusedStep()),
      "install: the -5 message gives the download-mode keys and M-Flasher");
+}
+{
+  /* the running Optimist's word on its bootloader (INFO tag 0x68; tools/fm1_route.py boot_of_info): asked over the link the
+     identity came on, Optimist's identities only; the route then skips download mode when m-bootloader is there already */
+  const IR = await import("./install_route.js");
+  const reply = (w) => [0xF0, 0x7D, 0x46, 0x4C, 1, ...Buffer.from("FELUCCA 0.2"), 0x66, 2, 0x61, 0x62, ...(w ? [0x68, 5 + w.length, ...Buffer.from("boot=" + w)] : []), 0xF7];
+  ok(IR.bootOfInfo(reply("mboot")) === "mboot" && IR.bootOfInfo(reply("stock")) === "stock" && IR.bootOfInfo(reply("unknown")) === "unknown"
+     && IR.bootOfInfo(reply(null)) === null && IR.bootOfInfo([0x68, 3, ...Buffer.from("boot=mboot")]) === null, "install: INFO tag 0x68 read, a wrong length or none: null");
+  const link = (answer) => { const L = { sent: [], q: [], drain() { L.q.length = 0; }, send(b) { L.sent.push(b); if (answer) L.q.push(answer); return true; }, async read() { return L.q.shift() || null; } }; return L; };
+  const a = link(reply("mboot")), b = link(reply("mboot")), c = link(reply(null));
+  ok(await IR.askBoot(a, "FM-1_7900", 50) === "mboot" && a.sent.length === 1 && await IR.askBoot(b, "FM-1_905", 50) === null && b.sent.length === 0
+     && await IR.askBoot(c, "FM-1_700", 50) === null, "install: an Optimist is asked (another firmware is not); an older Optimist: no word");
+  const own = { kind: "optimist", flashLen: 0x93000, ownLoader: true };
+  const there = IR.chooseRoute("optimist", own, "m-bootloader", "", IR.mbootPresentOf("mboot")), stock = IR.chooseRoute("optimist", own, "m-bootloader", "", IR.mbootPresentOf("stock"));
+  ok(there.method === "loader" && stock.method === "download" && stock.wantsMboot && IR.chooseRoute("optimist", own, "keep", "", false).method === "loader",
+     "install: m-bootloader there: the update; M-VAVE's there: download mode, with the keep-the-bootloader update offered beside it");
 }
 {
   /* the MEMORY layouts (bk_caps' app end and projects bytes; USR capacity 0 = the slot is gone): 0 slots / 4 projects and 2 slots / 16 projects */

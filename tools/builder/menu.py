@@ -759,9 +759,7 @@ class Builder(App):
         ev = PG.parse_flash(ln)
         if ev:
             pct = self.flash_track.feed(ev)
-            what = {"check": "checking the package", "switch": "switching to update mode",
-                    "write": "writing, do not unplug", "restart": "restarting"}[ev[0]]
-            self.call_from_thread(self.progress_show, f"flash: {what} {pct}%", pct)
+            self.call_from_thread(self.progress_show, f"flash: {self.flash_track.label} {pct}%", pct)
 
     def action_build(self, then_emu=False):
         """b: build. -> True when a build started (False: the configuration cannot be built, said in the panel)"""
@@ -952,11 +950,13 @@ class Builder(App):
         self.build_out = "flash: waiting for your answer"
         self.refresh_msgs()
         title = "Flash to FM-1\n\n" + "\n".join(plan.lines())
-        keep = "Flash, but keep the bootloader this time (not m-bootloader)"
+        keep = "Flash over USB-MIDI, keep this bootloader (about a minute)"
         go = ("Flash anyway (the FM-1 may refuse it)" if plan.warn else
               "Flash anyway (a new memory layout: backed up first?)" if plan.layout_known else
-              "Flash through download mode (a full backup first)" if plan.download else "Flash to FM-1 (writes the firmware)")
-        offer_keep = "m-bootloader (from the build)" in plan.boot_line       # (the override only goes to keep)
+              "Flash with m-bootloader: download mode (M-Flasher, a full backup first)" if plan.download and plan.wants_mboot
+              else "Flash through download mode (a full backup first)" if plan.download else "Flash to FM-1 (writes the firmware)")
+        offer_keep = plan.wants_mboot       # (the build's m-bootloader, not on the FM-1: the USB-MIDI install that keeps
+                                            # the bootloader is the other choice, as good; the override only goes to keep)
         ask = plan.download and plan.settings is not None and plan.settings.ask   # (keep or erase the settings: asked)
         wipe_first = ask and plan.settings.default == "wipe"
         sets = ([f"{go}, erase settings and pairings" + (" (suggested)" if wipe_first else ""),

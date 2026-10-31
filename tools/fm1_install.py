@@ -35,6 +35,9 @@ import flash_layout                  # (tools/: the MEMORY steps' one table)
 
 HS_QUERY = bytes([0xF0, 0x00, 0x32, 0x45, 0x00, 0x00, 0x00, 0x40, 0x7F, 0xF7])
 UPGRADE = bytes([0xF0, 0x22, 0x24, 0x35, 0x7F, 0xF7])
+ED_INFO = bytes([0xF0, 0x7D, 0x46, 0x4C, 0x01, 0xF7])   # the editor's INFO (web/EDITOR_PROTOCOL.md): its tag 0x68 says which
+                                                        # bootloader the FM-1 has (an Optimist since 2026-10-31)
+ASKS_BOOT = re.compile(r"FM-1_(7(00|[2-6]\d)|000|79\d{2,})")   # (Optimist's identities, its release's: only these are asked)
 FINISH_CHECK, FINISH_WRITE = 0xE0000000, 0xF0000000
 MAXDATA = 512
 BLOCKS, BLK, KEEP = 20, 0x30, 0x2F
@@ -48,7 +51,7 @@ PORT_RE = re.compile(r"fm-?1|felucca|optimist|smk-37|ota|composite|sinco|usb-mid
                                                                                       # Optimist's name since 2026-10-29; "optimist": older firmware)
 
 # seconds; the tests shorten them
-DELAY = {"open": 0.3, "start": 2.0, "reply": 0.01, "loader": 3.0, "reboot": 3.0, "retry": 1.0,
+DELAY = {"info": 1.0, "open": 0.3, "start": 2.0, "reply": 0.01, "loader": 3.0, "reboot": 3.0, "retry": 1.0,
          "poll": 1.0, "hs": 1.0, "idle_check": 8.0, "idle_write": 180.0,
          "wait_loader": 30.0, "wait_reboot": 40.0}
 
@@ -244,6 +247,26 @@ def handshake(link, tries=3):
             ident = parse_identity(p)
             if ident:
                 return ident
+    return None
+
+
+def ask_boot(dev):
+    """the running Optimist's word on its bootloader (INFO tag 0x68): "mboot" | "stock" | "unknown", None when it is not
+    asked (a loader, another firmware) or says nothing (an older Optimist, a build without the editor). Writes nothing"""
+    if dev is None or dev.id.loader or not ASKS_BOOT.fullmatch(dev.id.text):
+        return None
+    _route_modules()
+    link = dev.link
+    link.drain()
+    if not link.send(ED_INFO):
+        return None
+    end = time.monotonic() + DELAY["info"]
+    while (left := end - time.monotonic()) > 0:
+        p = link.read(left)
+        if p is None:
+            return None
+        if p[:5] == ED_INFO[:5]:
+            return R.boot_of_info(p)
     return None
 
 
@@ -534,9 +557,10 @@ def run(a, backend, out, ask, ask_text=None):
         dev = up.find()
         if not dev:
             raise not_found(up)
+        boot = ask_boot(dev)
         dev.link.close()
         mode = "update loader (update not finished)" if dev.id.loader else "running"
-        print(f"{dev.id.text}  [{mode}]  port: {dev.name}", file=out)
+        print(f"{dev.id.text}  [{mode}]  port: {dev.name}" + (f"  boot={boot}" if boot else ""), file=out)
         return 0
     product, image = load_package(a.package, a.force)       # (before any MIDI: a bad package stops here)
     print(f"package: {product}  ({a.package})", file=out)
@@ -544,7 +568,8 @@ def run(a, backend, out, ask, ask_text=None):
     if not dev and a.route != "download" and not (a.dry_run and a.running):
         raise not_found(up)
     text = a.running if a.running else (dev.id.text if dev else None)
-    route = choose_route(a, dev, text, out, image)
+    boot = a.boot if a.boot else ask_boot(dev)
+    route = choose_route(a, dev, text, out, image, boot)
     if a.dry_run:
         if dev:
             dev.link.close()
@@ -605,14 +630,19 @@ def settings_decision(a, running_text, info, route, out, ask_text):
     return policy.target if choice == "wipe" else ""
 
 
-def choose_route(a, dev, text, out, image):
-    """the way for this package (tools/fm1_route.py): printed with the build's BOOTLOADER as this install takes it"""
+def choose_route(a, dev, text, out, image, boot=None):
+    """the way for this package (tools/fm1_route.py): printed with the build's BOOTLOADER as this install takes it, and
+    the bootloader the firmware says it has (boot: ask_boot's word; None: not known)"""
     info = route_pkg(a, image)
     choice, line = AF.build_setting(a.package, a.keep_bootloader)
+    present = R.mboot_present_of(boot)
+    if boot:
+        line += {"mboot": "; the FM-1 has m-bootloader (the firmware says so)", "stock": "; the FM-1 has M-VAVE's "
+                 "bootloader (the firmware says so)", "unknown": "; the firmware does not know its bootloader"}[boot]
     running = R.running_kind(text, dev.name if dev else "")
-    route = R.choose(running, info, choice, None, text or "")
+    route = R.choose(running, info, choice, present, text or "")
     if a.route == "download" and route.method == "loader":
-        soft, keys = R.entry_for(running, None)
+        soft, keys = R.entry_for(running, present)
         route = R.Route("download", "--route download", f"by hand: {keys}" if not soft else
                         "the installer sends the soft key over USB-MIDI", soft, choice == R.MBOOT, route.steps)
     elif a.route == "loader" and route.method == "download" and info.kind != R.P_MBOOT and choice != R.MBOOT:
@@ -712,6 +742,8 @@ def main(argv=None, backend=None, out=sys.stdout, ask=ask_tty, ask_text=None):
     st.add_argument("--wipe-settings", action="store_true", help="download mode: erase the new firmware's settings and "
                     "pairings (never the projects; never M-Flasher's --wipe-settings)")
     ap.add_argument("--running", metavar="IDENTITY", help="--dry-run: the firmware the FM-1 runs (FM-1_700 ...), not asked")
+    ap.add_argument("--boot", choices=("mboot", "stock", "unknown"), help="the bootloader the FM-1 has, not asked "
+                    "(a running Optimist says so itself: INFO tag 0x68)")
     ap.add_argument("--flash-image", metavar="BACKUP.bin", help="--dry-run: the exact sectors against this full flash image")
     ap.add_argument("--backup-dir", type=Path, default=None, help="download mode: where the backups go "
                     "(default: M-Flasher's, Documents/M-Flasher/backups)")

@@ -312,6 +312,7 @@ static void ota_commit(const uint8_t *parm)
 }
 #endif
 #if FELUCCA_OTA && FELUCCA_EDITOR
+#define ED_BOOT_READ st_read           /* (INFO tag 0x68: the boot area's 32 bytes, read as stored: system/bootid.h) */
 #include "io/editor/editor.c"          /* web editor SysEx (needs the OTA SysEx plumbing) */
 #endif
 #if FELUCCA_ED_MIRROR && !(FELUCCA_OTA && FELUCCA_EDITOR)   /* (no editor: display/lcd.c's calls to the mirror go nowhere) */

@@ -49,34 +49,87 @@ def build_percent(n, total):
     return min(99, sum(weights[:n - 1]) * 100 // sum(weights))
 
 
+# the download-mode route (fm1_anyflash.py through M-Flasher): each M-Flasher command is printed first ("$ PATH CMD ..."),
+# M-Flasher's own progress is "\r  NN%" (its cli.rs progress), and the way into download mode is said in one line
+MF_CMD_RE = re.compile(r"^\$ \S*[Mm]-?[Ff]lasher\S*\s+([a-z][\w-]*)")
+MF_PCT_RE = re.compile(r"^(\d{1,3})%$")
+DL_ENTER = ("sent the soft key", "put the FM-1 in download mode", "the FM-1 is in download mode already")
+DONE_RE = re.compile(r"^done: the FM-1 runs ")
+# where each M-Flasher command sits on the download route's bar (from, to): its "NN%" lines move inside it. The firmware
+# step runs twice (its plan with "no", then the write): the second call takes the second range
+MF_RANGES = {"find": (2, 3), "info": (4, 5), "backup": (6, 25), "bootloader": (26, 35), "firmware": (36, 50),
+             "restore": (36, 50), "firmware2": (50, 96), "restore2": (50, 96), "restart": (97, 98)}
+
+
 def parse_flash(line):
-    """one line of fm1_install.py's output -> (kind, value) or None: ("check", reads) while the package is read
-    back, ("switch", 0), ("write", percent 0..100), ("restart", 100)"""
+    """one line of fm1_install.py's output -> (kind, value) or None. The loader route: ("check", reads) while the
+    package is read back, ("switch", 0), ("write", percent 0..100), ("restart", 100). The download-mode route:
+    ("enter", 0), ("mf", M-Flasher's command), ("pct", its percent). Both: ("done", 100)"""
     s = ANSI_RE.sub("", line).strip()
     if s == "switching to update mode":
         return ("switch", 0)
     if s == "restarting":
         return ("restart", 100)
+    if DONE_RE.match(s):
+        return ("done", 100)
     m = CHECK_RE.match(s)
     if m:
         return ("check", int(m[1]))
     m = WRITE_RE.match(s)
     if m and int(m[1]) <= 100:
         return ("write", int(m[1]))
+    m = MF_CMD_RE.match(s)
+    if m:
+        return ("mf", m[1])
+    m = MF_PCT_RE.match(s)
+    if m and int(m[1]) <= 100:
+        return ("pct", int(m[1]))
+    if s.startswith(DL_ENTER):
+        return ("enter", 0)
     return None
 
 
+FLASH_LABELS = {"check": "checking the package", "switch": "switching to update mode", "write": "writing, do not unplug",
+                "restart": "restarting", "done": "done", "enter": "entering download mode"}
+MF_LABELS = {"find": "looking for download mode", "info": "reading the FM-1", "backup": "full backup",
+             "bootloader": "installing m-bootloader, do not unplug", "firmware": "M-Flasher plans the write",
+             "restore": "M-Flasher plans the write", "firmware2": "writing, do not unplug",
+             "restore2": "writing, do not unplug", "restart": "restarting"}
+
+
 class FlashTracker:
-    """fm1_install.py events -> one overall percentage that only rises. The Felucca loader reads the package twice
-    (its own check, then the write), so the tool's "writing N%" climbs to ~98 and starts again at ~2 (measured
-    2026-10-14): the app's check is 0-4, the first pass 5-50, the second 50-98, restarting 100."""
+    """fm1_install.py events -> one overall percentage that only rises, and a short label for it (self.label).
+    The loader route: the Felucca loader reads the package twice (its own check, then the write), so the tool's
+    "writing N%" climbs to ~98 and starts again at ~2 (measured 2026-10-14): the app's check is 0-4, the first pass
+    5-50, the second 50-98, restarting 100. The download-mode route: M-Flasher's commands in turn (MF_RANGES), each
+    one's "NN%" inside its range"""
     def __init__(self):
         self.top = 0
         self.last = -1
         self.passno = 0
+        self.mf = None                                   # (the M-Flasher command running: its range)
+        self.seen = set()
+        self.label = "starting"
+
+    def _mf(self, kind, v):
+        if kind == "enter":
+            self.label = FLASH_LABELS["enter"]
+            return 1
+        if kind == "mf":
+            key = v + "2" if v in ("firmware", "restore") and v in self.seen else v
+            self.seen.add(v)
+            self.mf = MF_RANGES.get(key)
+            self.label = MF_LABELS.get(key, f"M-Flasher {v}")
+            return self.mf[0] if self.mf else self.top
+        lo, hi = self.mf or (self.top, self.top)
+        return lo + v * (hi - lo) // 100
 
     def feed(self, event):
         kind, v = event
+        if kind in ("enter", "mf", "pct"):
+            self.top = max(self.top, min(99, self._mf(kind, v)))
+            return self.top
+        self.label = FLASH_LABELS.get(kind, self.label)
         if kind == "check":
             now = min(4, v // 4)
         elif kind == "switch":
@@ -155,6 +208,9 @@ def stream(cmd, on_line=None, cwd=None, env=None, cancel=None):
         chunks.append(text)
         parts = re.split(r"[\r\n]", tail + text)
         tail = parts.pop()
+        if tail.endswith("\x1b[K"):                     # (a "\r...ESC[K" update is whole: shown now, not when the
+            parts.append(tail)                          # next one comes, which can be half a minute later)
+            tail = ""
         emit(parts)
     rest = dec.decode(b"", final=True)
     chunks.append(rest)

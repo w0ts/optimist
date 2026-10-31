@@ -29,6 +29,10 @@ final class FlashModel: ObservableObject {
     @Published private(set) var error: String?
     /// the KEEP-only override of the build's m-bootloader, for one install (docs/INSTALL-PATHS.md)
     @Published var keepBootloader = false
+    /// the bootloader the FM-1 says it has (INFO tag 0x68): "mboot" | "stock" | "unknown", nil: not said (an older firmware)
+    @Published private(set) var bootWord: String?
+    /// the last install needs download mode only for the build's m-bootloader: the update that keeps the bootloader is offered
+    @Published private(set) var keepOffered = false
     /// the last install needs download mode (M-Flasher on a computer); true: the soft key may help there
     @Published private(set) var softKeyOffered = false
     /// the last install needs download mode: the tab says it needs a computer (M-Flasher) and links the release
@@ -61,13 +65,21 @@ final class FlashModel: ObservableObject {
     var bootLine: String? {
         guard let p = package else { return nil }
         return InstallRoute.bootloaderChoice(p.bootloader, keep: keepBootloader).1
+            + (["mboot": ". The FM-1 has m-bootloader already (it says so).", "stock": ". The FM-1 has M-VAVE's bootloader (it says so)."][bootWord ?? ""] ?? "")
     }
 
     /// the way for the package onto the FM-1 that answered (tools/fm1_route.py, web/install_route.js)
-    func route(for pkg: FlashPackage, running: String, port: String) -> InstallRoute.Route {
+    func route(for pkg: FlashPackage, running: String, port: String, boot: String? = nil) -> InstallRoute.Route {
         let info = InstallRoute.packageKind(product: pkg.product, sha256: pkg.sha256, flashLen: InstallRoute.flashLen(pkg.image))
-        let boot = InstallRoute.bootloaderChoice(pkg.bootloader, keep: keepBootloader).0
-        return InstallRoute.choose(InstallRoute.runningKind(running, port: port), info, bootloader: boot, runningText: running)
+        let choice = InstallRoute.bootloaderChoice(pkg.bootloader, keep: keepBootloader).0
+        return InstallRoute.choose(InstallRoute.runningKind(running, port: port), info, bootloader: choice, runningText: running,
+                                   mbootPresent: InstallRoute.mbootPresent(boot))
+    }
+
+    /// the update over USB-MIDI that keeps the bootloader, after download mode was said for the build's m-bootloader
+    func installKeepingBootloader() {
+        keepBootloader = true
+        install()
     }
 
     /// the soft key (F0 22 24 35 7D F7): the FM-1 restarts in the chip's download mode, for M-Flasher on a computer
@@ -190,6 +202,7 @@ final class FlashModel: ObservableObject {
         error = nil
         softKeyOffered = false
         needsComputer = false
+        keepOffered = false
 
         progress = 0
         status = "Looking for the FM-1…"
@@ -199,7 +212,8 @@ final class FlashModel: ObservableObject {
             var runningText = ""
             if let f = await updater.find() {             // (the route first: download mode is said, never attempted)
                 runningText = InstallRoute.runningKind(f.id.text, port: f.channel.name)
-                let r = route(for: pkg, running: f.id.text, port: f.channel.name)
+                bootWord = await InstallRoute.askBoot(f.channel, identity: f.id.text)   // (a running Optimist says which bootloader it has)
+                let r = route(for: pkg, running: f.id.text, port: f.channel.name, boot: bootWord)
                 f.channel.close()
                 if r.method == "download" {
                     status = ""
@@ -207,6 +221,7 @@ final class FlashModel: ObservableObject {
                     self.error = "Not installed. " + InstallRoute.nextStep(r, file: pkg.file)
                     softKeyOffered = r.softKey
                     needsComputer = true
+                    keepOffered = r.wantsMboot
                     return
                 }
             }
@@ -215,7 +230,7 @@ final class FlashModel: ObservableObject {
                 progress = 1
                 status = ""
                 device = back
-                result = "Installed \(pkg.title) (\(back))." + (pkg.bootloader == "m-bootloader" && !keepBootloader
+                result = "Installed \(pkg.title) (\(back))." + (pkg.bootloader == "m-bootloader" && !keepBootloader && bootWord != "mboot"
                     ? " m-bootloader was not installed: on a computer, python tools/fm1_install.py with this package, or M-Flasher (a full backup first)." : "")
             } catch {
                 let info = InstallRoute.packageKind(product: pkg.product, sha256: pkg.sha256, flashLen: InstallRoute.flashLen(pkg.image))

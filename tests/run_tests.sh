@@ -1098,6 +1098,11 @@ job; ( jobin
 ) >"$U.out" 2>&1 & jobbg
 
 job; ( jobin
+    $CC -Ifirmware/src -o "$OUT/bootid_test" tests/bootid_test.c
+    run "the bootloader the FM-1 has (INFO tag 0x68): stock, m-bootloader, another board's, erased, a failed read" "$OUT/bootid_test"
+) >"$U.out" 2>&1 & jobbg
+
+job; ( jobin
     head -c 200000 build/felucca.bin > "$OUT/old_app.bin"
     python3 tools/fm1pkg_make.py "$OUT/old_app.bin" build/loader/ota.bin "$OUT/old.fwsc" >/dev/null
     $CC -o "$OUT/ldr_test" tests/ldr_test.c
