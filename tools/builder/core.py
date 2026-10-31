@@ -515,6 +515,8 @@ def flags(cfg):
     if cfg.get("ARENA", 0):
         out[R.ITEMS["ARENA"].flag] = 1                  # (on: the free SRAM, engines.c ARN_FREE; a KB of before too)
     out.update(R.ALWAYS_ON_TARGET)                  # (the second core and the stock supply: every target build, no item)
+    if os.environ.get("OPTIMIST_ONE_CORE") == "1":
+        out["FELUCCA_DUAL"] = 0   # (emulator packages only: one core runs ~4x faster there; the FM-1 default stays two cores)
     out["FELUCCA_USB_AUDIO"] = cfg["USB_AUDIO"]
     out["FELUCCA_CDC"] = cfg["USB_CONSOLE"]
     out["FELUCCA_LINK"] = out["FELUCCA_WIFI"]       # (Ableton Link comes with Wi-Fi: SYNC LINK, wifi/wifi_link.c)
