@@ -81,7 +81,7 @@ final class CoreMIDIFlashPorts: FlashPorts {
 
     /// a name the FM-1 may have (its firmware's, its loader's, the stock one's), never other gear (web/fm1ota.js find)
     static func mayBeFM1(_ name: String) -> Bool {
-        name.range(of: "fm-?1|felucca|optimist|sloop|melodee|loom-?8|ota|composite|sinco|usb-midi", options: [.regularExpression, .caseInsensitive]) != nil
+        name.range(of: "fm-?1|felucca|optimist|smk-37|sloop|melodee|loom-?8|ota|composite|sinco|usb-midi", options: [.regularExpression, .caseInsensitive]) != nil
             && !name.lowercased().contains("bluetooth")
     }
 

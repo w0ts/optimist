@@ -691,6 +691,23 @@ static void layers_init(void)
     ft_drop_mask = (1u << panel.btn[B_PLAY]);
 }
 
+/* ---- the keys' velocity: SHIFT2 (OCT+) held + SELECT, 1..127 a detent each, 100 the default (seq.c key_vel), a toast with the value.
+ * Where SHIFT2 + SELECT has no other job: not STEP (the cards for the long time), SONG, GLOBAL, SYSTEM */
+static int kvel_wanted(void)
+{
+    return btn_held(B_OCTUP) && ui.scr != SCR_STEP && ui.scr != SCR_SONG && !glo_cycle() && !song_tbl_on();
+}
+static void kvel_turn(int32_t s)
+{
+    char b[8];
+    int32_t v = (int32_t)key_vel + s;
+    key_vel = (uint8_t)(v < 1 ? 1 : v > 127 ? 127 : v);
+    fmt_int(b, key_vel);
+    ui.toast_next = 1;
+    ui_say("VELOCITY: ", b);
+    ui.toast_next = 0;
+}
+
 /* ---- the octave: OCT- / OCT+ tapped (let go, nothing else used while they were down), with its toast */
 static void oct_set(int32_t o)
 {
@@ -1022,6 +1039,10 @@ static void op_knobs(uint32_t shift)
         if (s == 2)
             op_clean &= ~op_held;                       /* (turned: the layer's button is no tap) */
         return;
+    }
+    if (kvel_wanted() && (s = panel_enc(EN_SELECT)) != 0) {   /* SHIFT2 + SELECT: the keys' velocity (issue #134) */
+        kvel_turn(s);
+        turned = 1;
     }
 #if FELUCCA_PATTERNS
     if (lay_now() == LY_PAT && panel_enc(EN_SELECT) != 0)

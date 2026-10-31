@@ -67,7 +67,7 @@ enum InstallRoute {
         case "felucca", "sloop":
             return p.kind == "fm1base" ? (false, "its updater is assumed to refuse fm1-base packages") : (true, "its own update loader")
         case "optimist", "ambig000":
-            if p.kind == "v15" { return (true, "the way back to the official firmware") }
+            if p.kind == "v15" { return (true, "the way back to the official firmware (not with m-bootloader installed: the updater stops with -5, then download mode)") }
             guard let f = p.flashLen, ownSlots.contains(f) else { return (false, "Optimist's updater takes the layouts 0x93000, 0xA5000, 0xA6000, 0xAA000, 0xB5000, 0xBA000, 0xBE000, 0xCA000 and 0xD0000 only") }
             if p.kind == "fm1base" { return (false, "Optimist's updater refuses fm1-base packages") }
             if !p.ownLoader { return (false, "Optimist's updater takes the Felucca family's loader or M-VAVE's only") }
@@ -107,6 +107,18 @@ enum InstallRoute {
             if t.hasPrefix("BOOTLOADER=") { return t == "BOOTLOADER=1" ? "m-bootloader" : "keep" }
         }
         return "keep"
+    }
+
+    /// true when the running Optimist's updater may have refused an M-VAVE package (-5: the boot area differs, as with
+    /// m-bootloader installed): the install stopped before anything was erased
+    static func headRefused(_ running: String, _ p: Package, code: String) -> Bool {
+        (running == "optimist" || running == "ambig000") && (p.kind == "v15" || p.kind == "stock") && (code == "noLoader" || code == "stopped")
+    }
+
+    static func refusedStep(file: String) -> String {
+        "The FM-1 refused this package (error -5): its bootloader is not the one in the package, as when m-bootloader is installed. "
+            + "Nothing was written. Use download mode: hold OCT- and OCT+ for 5 s while stopped, or hold REC while switching on (with m-bootloader), "
+            + "then M-Flasher (\(mflasher.absoluteString)): Install firmware with \(file.isEmpty ? "PACKAGE.fwsc" : file), or on a computer python tools/fm1_install.py \(file.isEmpty ? "PACKAGE.fwsc" : file) --route download."
     }
 
     static func nextStep(_ r: Route, file: String) -> String {

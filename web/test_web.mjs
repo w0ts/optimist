@@ -56,7 +56,7 @@ const E = vm.runInNewContext(`${proto}
    openMidi, findPorts, wantsReconnect, isFM1Name, syncState, ROLL, rollRest, rollNotes, noteSpan, rollAdd, rollRemove, rollToggle, rollSetLength, rollSetNote, rollSetStep, rollChanged, rollGrid, rollLen, DRUM_PAGE, drumPages, drumPageRange, COLORS, engineColor, kindColor, contrast, textOn, MASTER_FX, MASTER_BUS, fxInline, FX_INLINE_MAX, NAV, SCREENS, navOpen, navClose, navKey, navScreen, navDepth, KEYS, KEY_FIXED, LANE_KEYS, keyFor, keyLabel, keyPlan, stepxBuilt, PAT, patSlotView, patUsers,
    PATREC, patRecParse, patRecBuild, patRawEmpty, patStepFrom, patStepRaw, patDrumFrom, patDrumRaw, patReadAll, patWriteAll,
    FXT, FXT_NAMES, fxsLoad, fxType, fxSlotAmt, readFx, keptIds, AUTO, autoLane, SetGate,
-   FXP, FXP_TABLE, SCRN_TABLE, SCRS_TABLE, EQ_FL_HZ, EQ_FH_HZ, fxpClass, fxpName, fxpTypeName, fxpAllows, fxpFmt, readFxpOwner, readFxpSlot, panelKey, panelKeyName, navParse, navTracksParse, navKnobs, navKnobAt, MNAV, PJF, pjfPack, pjfUnpack, WIFI, wifiCheck, wifiApCheck, wifiApDefaultKey, wifiIsAp, wifiBusy, wifiText, pack7, unpack7 })`,
+   FXP, FXP_TABLE, SCRN_TABLE, SCRS_TABLE, EQ_FL_HZ, EQ_FH_HZ, fxpClass, fxpName, fxpTypeName, fxpAllows, fxpFmt, readFxpOwner, readFxpSlot, panelKey, panelKeyName, navParse, navTracksParse, navBar, navKnobs, navKnobAt, MNAV, PJF, pjfPack, pjfUnpack, WIFI, wifiCheck, wifiApCheck, wifiApDefaultKey, wifiIsAp, wifiBusy, wifiText, pack7, unpack7 })`,
 { setTimeout, clearTimeout, setInterval, clearInterval, console, TextEncoder, TextDecoder });
 
 const editorMock = async () => {
@@ -3552,21 +3552,25 @@ async function editorMirror() {
     "mirror: NAV STATE parsed: screen, family, cursor, rows, track, the 1x4 cards");
   const l3 = E.navParse([1, 1, 9, 127, 0, 0, 127, 3, 50, 20]);
   ok(l3 && l3.refused && l3.track === 127 && l3.knobs[2].y === 90 && l3.knobs[2].w === 240 && E.navParse([0, 0, 1, 2, 0, 1, 65]) === null
-    && JSON.stringify(E.navTracksParse([4, 0, 3, ...nz("MASTER"), ...nz("T1"), ...nz("T2")])) === '["MASTER","T1","T2"]',
+    && JSON.stringify(E.navTracksParse([4, 0, 3, ...nz("RET A"), ...nz("MASTER"), ...nz("T1")])) === '["RET A","MASTER","T1"]',
     "mirror: NAV: the four lines, a refusal, a short reply refused; TRACKS' names");
   ok(/tabMirror: "Mirror"/.test(html) && /RENAMED_TABS = \{ screen: "mirror" \}/.test(html) && /rq\(\[CMD\.PANEL, seq \? \[\.\.\.x, mnav\.seq\] : x\]/.test(html)
     && /case CMD\.PANEL: return a\[0\] === args\[0\] && \(args\.length < 4 \|\| a\[2\] === args\[3\]\)/.test(html) && /case CMD\.NAV: return a\[0\] === args\[0\]/.test(html)
-    && /openPop\("sequence", st\.track - 1\)/.test(html) && /if \(tab === "mirror"\) nav = \{ \.\.\.nav, screen: "mirror" \}/.test(html),
+    && /openPop\("sequence", st\.track - MNAV\.ROW_T1\)/.test(html) && /if \(tab === "mirror"\) nav = \{ \.\.\.nav, screen: "mirror" \}/.test(html),
     "mirror: the tab named Mirror (an old #screen opens it), PANEL and NAV replies matched, STEPS' piano roll over the mirrored screen");
   ok(/retries: seq \? 2 : 0/.test(html) && /if \(opti\("panelx"\) && mnav\.held\.size\) mirPress\(\[4, 0, 0\]\)/.test(html) && /panelx: 1 \}/.test(html),
     "mirror: with opti_panelx_1 a press carries a seq and is sent again when its answer is lost (done once); letting go is one request");
+  /* the track bar: one rule for the app and the web (the shared cases in the app's Tests/Fixtures/nav_track_bar.json, its unit test reads the same) */
+  const barCases = JSON.parse(readFileSync(join(HERE, "../ios/OptimistMirror/Tests/Fixtures/nav_track_bar.json"), "utf8")).cases;
+  ok(barCases.every((c) => { const b = E.navBar(c.names); return JSON.stringify(b.lanes.map((i) => c.names[i])) === JSON.stringify(c.lanes) && JSON.stringify(b.bottom.map((i) => c.names[i])) === JSON.stringify(c.bottom); }),
+    "mirror: the track bar: the lanes alone on line 1; line 2 T1 T2 T3 DR, RET A B C, MASTER (the same cases as the app's Nav.bar)");
   /* the greyed-out buttons and the one screen size (the user, 2026-10-29): the lanes' buttons are always built (the kit's names, else the
      default lanes'), disabled off the drum track; the screen is sized as if their rows were there, with or without them */
   const mr = /function mirRender\(force = false\) \{[\s\S]*?\n\}\n/.exec(html)[0];
   ok(/dim: !lanes/.test(mr) && /laneNames = n > MNAV\.DRUM_ROW \+ 1 \? mnav\.tracks\.slice\(MNAV\.DRUM_ROW \+ 1\) : DRUM_LANES\.map/.test(mr) && !/\.\.\.\(lanes \?/.test(mr)
     && /disabled: dim/.test(/function mirButton[\s\S]*?\n\}/.exec(html)[0]) && /\.mirb:disabled \{ opacity/.test(html) && /disabled: !onTrack/.test(mr) && /dim: dimT/.test(mr),
     "mirror: the lanes' buttons always built (the kit's names, else the default lanes'), disabled and dimmed off the drum track; the tracks too with no track; the favourite on a track");
-  ok(!/classList\.toggle\("lanes"/.test(html) && !/\.mirwrap\.lanes/.test(html) && /\.mirlanes \{ min-height: 68px; \}/.test(html) && !/\.mirlanes[^{]*\{[^}]*display: none/.test(html)
+  ok(!/classList\.toggle\("lanes"/.test(html) && !/\.mirwrap\.lanes/.test(html) && /\.mirlanes \{ min-height: 60px; \}/.test(html) && !/\.mirlanes[^{]*\{[^}]*display: none/.test(html)
     && /\.mirwrap \{ --ms: calc\(100vh - var\(--menubar-h, 48px\) - 210px\)/.test(html) && /#p-mirror:fullscreen \.mirwrap \{ --ms: calc\(100vh - 220px\)/.test(html),
     "mirror: the screen one size with or without the lanes (their rows always reserved, no .lanes class)");
 }
@@ -3615,6 +3619,15 @@ e = list(L.known_ends()); print(json.dumps({f"{o}/{n}": L.switch_warning(None if
      && IR.installedEndOf({ bits: new Array(70).fill(0) }) === 0x93000
      && IR.installedEndOf({ bits: Object.assign(new Array(70).fill(0), { [Math.floor(410 / 7)]: 2 ** (410 % 7) }) }) === null,
      "install: the installed layout from bk_caps: its app end; an older normal build by its LAYOUT bit off; else not known");
+}
+{
+  /* a -5 from Optimist's updater (m-bootloader installed, an M-VAVE package): the installer falls back to download mode */
+  const IR = await import("./install_route.js");
+  const v15 = { kind: "v15" }, own = { kind: "optimist" };
+  ok(IR.headRefused("optimist", v15, "noloader") && IR.headRefused("ambig000", { kind: "stock" }, "stopped") && !IR.headRefused("optimist", own, "noloader")
+     && !IR.headRefused("felucca", v15, "noloader") && !IR.headRefused("optimist", v15, "lost"), "install: -5 from Optimist on an M-VAVE package is spotted, nothing else is");
+  ok(/OCT- and OCT\+ for 5 s/.test(IR.refusedStep("a.fwsc")) && /REC/.test(IR.refusedStep()) && /M-Flasher/.test(IR.refusedStep()) && /-5/.test(IR.refusedStep()),
+     "install: the -5 message gives the download-mode keys and M-Flasher");
 }
 {
   /* the MEMORY layouts (bk_caps' app end and projects bytes; USR capacity 0 = the slot is gone): 0 slots / 4 projects and 2 slots / 16 projects */

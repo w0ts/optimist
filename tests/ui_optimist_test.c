@@ -3965,6 +3965,7 @@ static void preset_engine_tests(void)
 #include "ui_optimist_hold.h"                      /* SYSTEM HOLD: a click is a tap, a hold the layer */
 #include "ui_optimist_lane.h"                      /* the lane: preview when stopped, the pick silent playing */
 #include "ui_optimist_step35.h"                     /* STEP: entry follows OCT, a held step transposed */
+#include "ui_optimist_keyvel.h"                   /* the keys' velocity: SHIFT2 + SELECT, played and recorded (issue #134) */
 #include "ui_optimist_rechold.h"                   /* REC held: the track cleared */
 #include "ui_optimist_drenv.h"                     /* the drum track's ENV: the lane's envelope values */
 #include "ui_optimist_ble.h"                        /* with FELUCCA_BLE: SYSTEM > BLUETOOTH, the settings word's bits */
@@ -4289,6 +4290,7 @@ int main(int argc, char **argv)
     lane_preview_tests();
     step_pages_tests();
     rec_hold_tests();
+    keyvel_tests();
     drum_env_tests();
     mix35_tests();
     c2_master_tests();
