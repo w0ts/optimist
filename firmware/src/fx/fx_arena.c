@@ -471,6 +471,12 @@ static void fxm_moved(uint32_t k, void *p)
         fxi_relink();
     }
 #endif
+#if FXI_LB
+    else if (k >= FXM_CP_K0 && k < FXM_CP_K0 + FXI_CPN) {
+        fxm_cp_p[k - FXM_CP_K0] = (int16_t *)p;         /* (a copy's block: its instance's line repointed) */
+        fxi_relink();
+    }
+#endif
 }
 static int part_quiet(uint32_t k);
 /* (core/arena.c ARN_CAN) client k's block may move now: a part only while it is quiet (no voice, nothing queued, no
@@ -485,6 +491,10 @@ static int arn_can(uint32_t k)
 #if INS_LIM && FXA_I
     if (k == FXM_K(FXM_INS))
         return arn_pk.load || fxi_room_quiet();
+#endif
+#if FXI_LB
+    if (k >= FXM_CP_K0 && k < FXM_CP_K0 + FXI_CPN)
+        return fxm_cp_p[k - FXM_CP_K0] && fxi_cp_quiet(k - FXM_CP_K0);   /* (at rest, a load's pack too) */
 #endif
     return 0;
 }
