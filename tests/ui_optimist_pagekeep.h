@@ -127,51 +127,66 @@ static void pgk_sound_fx_tests(void)
     reset_ui();
 }
 
-/* MASTER: the cursor on SLOTS (the returns' types), a return's type turned by its knob: the returns' pages before SLOTS (RET REV,
- * RET DELAY, RET DLY F) come and go with it, SLOTS stays (the user's case); then the cursor on RET DLY F when DLY leaves the
- * returns: SLOTS */
+/* MASTER: none of the returns' pages since 2026-10-30 (the user: "the return track stuff move out of the master track"); a
+ * return's own EDIT pages instead (op_mixer.c rt_rows): the cursor on its FX row while its TYPE turns (its effect's pages after
+ * it come and go): FX still; on RET DLY F when DLY leaves that return (the editor): FX, its one page left */
+static uint32_t pgk_rt_row(const char *nm)              /* the row of the FX screen shown whose name is nm (its count: none) */
+{
+    uint32_t r, n = SCR->rows();
+    char t[16];
+    for (r = 0; r < n; r++) {
+        SCR->name(r, t);
+        if (!strcmp(t, nm))
+            return r;
+    }
+    return n;
+}
+static int pgk_rt_is(const char *nm)
+{
+    char t[16];
+    SCR->name(ui.row[SCR_FX], t);
+    return ui.scr == SCR_FX && !strcmp(t, nm);
+}
 static void pgk_master_tests(void)
 {
     static const uint8_t NODLY[FX_NSLOT] = {FXT_NONE, FXT_CHO, FXT_NONE, FXT_REV};
+    static const char *const GONE[] = {"SLOTS", "RETURNS", "RET REV", "RET TYPE", "RET DELAY", "RET DLY F", "RET AMT", "RET EQ3"};
     char a[200], b[200];
-    uint32_t r0, s, moved = 0, same = 1, n0;
-    int32_t d;
+    uint32_t r0, i, same = 1, n0, t0, moved = 0;
     reset_ui();
     fxs_set(FXS_DEF);
     op_enter(SCR_FX);
     frames(2);
-    r0 = pgk_row("SLOTS");
-    check(ui.scr == SCR_FX && r0 < SCR->rows(), "page kept, MASTER: SLOTS a row");
-    pgk_on(r0);
+    for (i = 0, r0 = 1; i < sizeof GONE / sizeof GONE[0]; i++)
+        r0 &= pgk_rt_row(GONE[i]) == SCR->rows() && pgk_row(GONE[i]) == SCR->rows();
+    check(ui.scr == SCR_FX && !ui.fxo && r0, "MASTER's pages: no SLOTS, RETURNS, RET REV, RET TYPE, RET DELAY, RET DLY F, RET AMT, RET EQ3");
+    op_enter(SCR_HOME);                                 /* RET B (DLY), its EDIT pages */
+    mx_apply(MXR_RET0 + 1u);
+    tap(B_EDIT);
+    frames(2);
     n0 = SCR->rows();
-    for (s = 0; s < 3u; s++)                            /* each return's knob, a few detents each way */
-        for (d = -3; d <= 3; d++) {
-            if (!d)
-                continue;
-            turn(EN_K1 + s, d > 0 ? 1 : -1);
-            frame();
-            same &= pgk_title_is("SLOTS") && ui.hot == s;
-            moved |= ui.row[SCR_FX] != r0;
-        }
-    check(moved, "... the returns' types turned on SLOTS: pages before it came or went (the case reproduced)");
-    check(same, "... every detent: SLOTS still on the screen, the hot card the knob turned");
+    check(ui.scr == SCR_FX && ui.fxo == 2u && pgk_rt_is("FX") && pgk_rt_row("RET DELAY") < n0 && pgk_rt_row("RET DLY F") < n0,
+          "RET B's EDIT pages: FX (its effect's TYPE; no LEVEL, 2026-10-31), RET DELAY, RET DLY F (the master's of before)");
+    t0 = fxs_slot[2];
+    for (i = 0; i < 6u; i++) {                          /* its TYPE (FX's first card) turned: other effects, other pages after FX */
+        turn(EN_K1, 1);
+        frame();
+        same &= pgk_rt_is("FX") && ui.row[SCR_FX] == 0u && ui.fxo == 2u;
+        moved |= SCR->rows() != n0;
+    }
+    check(fxs_slot[2] != t0 && moved && same, "... its TYPE turned on FX: its effect's pages after FX come and go, FX stays");
     fxs_set(FXS_DEF);
     frame();
-    check(pgk_title_is("SLOTS") && SCR->rows() == n0 && ui.row[SCR_FX] == r0, "... the default returns again: SLOTS, at its old place");
+    pgk_on(pgk_rt_row("RET DLY F"));
     pgk_snap(a, sizeof a);
     fxs_set(NODLY);
     frame();
     pgk_snap(b, sizeof b);
-    check(SCR->rows() < n0 && pgk_title_is("SLOTS") && ui.row[SCR_FX] < r0, "... DLY out of the returns (the editor): its pages before SLOTS go, SLOTS stays");
+    check(pgk_rt_is("FX") && SCR->rows() < n0 && strcmp(a, b), "... on RET DLY F, DLY out of RET B (the editor): FX, its page left");
     fxs_set(FXS_DEF);
-    frame();
-    r0 = pgk_row("DLY F");
-    if (r0 < SCR->rows()) {
-        pgk_on(r0);
-        fxs_set(NODLY);
-        frame();
-        check(pgk_title_is("SLOTS"), "... on RET DLY F, DLY out of the returns: SLOTS (the slots it was the effect of)");
-    }
+    reset_ui();
+    op_enter(SCR_FX);
+    frames(2);
 #if FELUCCA_MASTER_COMP
     /* the master inserts: INS DYN 1 / 2 come with DYN in a master slot; the cursor on DUCK (after them) stays on DUCK */
     {
@@ -218,18 +233,18 @@ static void pgk_mixer_tests(void)
     for (s = 0; s < n0; s++) {
         mx.set = (uint8_t)s;
         mix_name(MXR_MASTER, nm);
-        if (!strcmp(nm, "RETURNS"))
+        if (!strcmp(nm, "DUCK"))
             break;
     }
     frames(2);
-    check(ui.scr == SCR_HOME && s < n0, "page kept, the mixer: MASTER's RETURNS set");
+    check(ui.scr == SCR_HOME && s < n0, "page kept, the mixer: MASTER's DUCK set (its returns: their own rows since 2026-10-30)");
     pgk_snap(a, sizeof a);
     mst_load(0, FXT_DYN);
     frame();
     n = mx_sets(MXR_MASTER);
     mix_name(MXR_MASTER, nm);
     pgk_snap(b, sizeof b);
-    check(n > n0 && mx.set > s && !strcmp(nm, "RETURNS") && !strcmp(a, b), "... DYN into a master slot (INS DYN before RETURNS): RETURNS still");
+    check(n > n0 && mx.set > s && !strcmp(nm, "DUCK") && !strcmp(a, b), "... DYN into a master slot (INS DYN before DUCK): DUCK still");
     for (s = 0; s < n; s++) {
         mx.set = (uint8_t)s;
         mix_name(MXR_MASTER, nm);

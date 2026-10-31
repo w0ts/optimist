@@ -64,7 +64,8 @@ static void oct_master_tests(void)
     release(B_OCTUP);
     release(B_OCTDN);
     frames(2);
-    check(master_sel() && ui.scr == SCR_FX && song.octave == 0, "both OCT tapped: MASTER (the master FX page), the octave untouched");
+    check(master_sel() && ui.scr == SCR_HOME && mx_on_master() && song.octave == 0,
+          "both OCT tapped: the mixer, MASTER selected (2026-10-30: \"goes to master page with master selected\"), the octave untouched");
     both_oct();
     check(!master_sel() && song.sel == 1 && ui.scr == SCR_SOUND && snd_fam == FAM_ENV, "both OCT again: back on T2's ENV page");
     song.octave = 1;
@@ -138,7 +139,7 @@ static void oct_master_keys_tests(void)
     op_enter(SCR_HOME);
     ui.row[SCR_HOME] = MXR_T1 + 1u;
     frames(2);
-    turn(EN_ALGO, -5);
+    turn(EN_ALGO, -2);                                  /* (T2, T1, MASTER: the returns above it) */
     frames(2);
     check(mx_on_master() && ly_lock == LY_PLAY, "MASTER by the mixer's walk: the keys play the selected track (2026-10-30)");
     kdown(WK(0));
@@ -176,7 +177,11 @@ static void master_tests(void)
     turn(EN_PRESET, 3);
     check(TSEL->preset == pre && TSEL->eng_req == eng, "PRESETS on MASTER: nothing");
     turn(EN_ALGO, -1);
-    check(ui.scr == SCR_FX, "ALGORITHM left on MASTER: stays");
+    check(ui.scr == SCR_FX && ui.fxo == 3u && rt_fam == RF_EDIT, "ALGORITHM left on MASTER: RET C's EDIT pages (the returns above it, 2026-10-30)");
+    turn(EN_ALGO, -5);
+    check(ui.scr == SCR_FX && ui.fxo == 1u, "... on: RET A, stopping there (the first)");
+    turn(EN_ALGO, 3);
+    check(ui.scr == SCR_FX && !ui.fxo, "... right: MASTER");
     turn(EN_ALGO, 1);
     check(ui.scr == SCR_SOUND && snd_fam == FAM_ENV && song.sel == 0u, "ALGORITHM right from MASTER: T1's ENV rows again");
     /* every other family reaches MASTER and comes back to where it was */

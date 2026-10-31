@@ -432,6 +432,7 @@ static void check(int ok, const char *what) { printf("optimist ui: %-72s %s\n", 
 static void reset_ui(void)
 {
     pl_filt = PLF_ALL;                                  /* (the list unfiltered: a filter's test leaves it filtered otherwise) */
+    memset(rt_mem, 0, sizeof rt_mem);                  /* (the returns' pages open on their first, op_mixer.c) */
     fm1_in.buttons = 0;
     fm1_in.notes = 0;
     glo_last = SCR_GLOBAL;                              /* (a power-on's: GLO opens GLOBAL first, op_global.c) */
@@ -572,15 +573,30 @@ static void fxpool_tests(void)
     go_home();
     ui.row[SCR_HOME] = MXR_MASTER;
     tap(B_FX);
-    check(ui.scr == SCR_FX && fx_row_of("SLOTS") >= 0 && fx_row_of("RET AMT") >= 0 && fx_row_of("RET EQ3") >= 0 &&
-          fx_row_of("RET EQ3 F") >= 0, "fx-pool: EQ3 on A, PHSR on C: the master FX screen has SLOTS, RET AMT, RET EQ3, RET EQ3 F");
-    ui.row[SCR_FX] = (uint8_t)fx_row_of("SLOTS"), ui.force = 1, frame(), ppm("opt-fxpool-slots");
-    ui.row[SCR_FX] = (uint8_t)fx_row_of("RET AMT"), ui.force = 1, frame(), ppm("opt-fxpool-retamt");
-    ui.row[SCR_FX] = (uint8_t)fx_row_of("RET EQ3"), ui.force = 1, frame(), ppm("opt-fxpool-reteq3");
-    r = fx_row_of("RETURNS");
-    ui.row[SCR_FX] = (uint8_t)(r < 0 ? 0 : r), ui.force = 1, frame(), ppm("opt-fxpool-returns");
-    fxs_cell((uint32_t)ui.row[SCR_FX], 2, &c);
-    check(r >= 0 && c.label && !strcmp(c.label, "PHSR RT"), "... RETURNS' card 3 (C, line 0) named PHSR RT (the return's type)");
+    check(ui.scr == SCR_FX && !ui.fxo && fx_row_of("SLOTS") < 0 && fx_row_of("RET AMT") < 0 && fx_row_of("RET EQ3") < 0,
+          "fx-pool: EQ3 on A, PHSR on C: the master FX screen has none of the returns' pages (their own, 2026-10-30)");
+    go_home();
+    mx_apply(MXR_RET0);
+    tap(B_EDIT);                                        /* RET A (EQ3): its EDIT pages, FX then RET EQ3, RET EQ3 F */
+    {
+        uint32_t k, n = SCR->rows(), eq = 0;
+        char nm[16];
+        for (k = 0; k < n; k++) {
+            SCR->name(k, nm);
+            eq += !strcmp(nm, "RET EQ3") || !strcmp(nm, "RET EQ3 F");
+            if (!strcmp(nm, "RET EQ3"))
+                ui.row[SCR_FX] = (uint8_t)k, ui.force = 1, frame(), ppm("opt-fxpool-reteq3");
+        }
+        check(ui.scr == SCR_FX && ui.fxo == 1u && eq == 2u, "... RET A's EDIT pages: RET EQ3 and RET EQ3 F (its effect EQ3)");
+    }
+    go_home();
+    mx_apply(MXR_RET0 + 2u);
+    tap(B_EDIT);                                        /* RET C (PHSR): its FX row, TYPE and the amount */
+    ui.force = 1, frame(), ppm("opt-fxpool-retamt");
+    SCR->cell(0, 0, &c);
+    r = !strcmp(c.val, "PHSR");
+    SCR->cell(0, 1, &c);
+    check(ui.fxo == 3u && r && c.d != 0, "... RET C's FX row: PHSR, then its amount (a type not a send)");
     ins_put(0, s);
     song.sel = 0;
     go_home();
@@ -896,7 +912,7 @@ static void key_tests(void)
     tap(B_HOME);
     check(ui.scr == SCR_HOME, "HOME tapped: NO, back to the mixer");
     tap(B_HOME);
-    check(ui.scr == SCR_SCOPE, "HOME at the root: the scope [P]");
+    check(ui.scr == SCR_SCOPE, "HOME at the root: the scope [P] (2026-10-31: for any row)");
     tap(B_HOME);
     check(ui.scr == SCR_HOME, "HOME on the scope: the mixer again");
     ui.row[SCR_HOME] = MXR_MASTER;
@@ -910,7 +926,7 @@ static void key_tests(void)
     ui.force = 1;
     frame();
     ppm("opt-fx");
-    {   /* FX tapped, then ALGORITHM left past T1: the global FX screen, and back */
+    {   /* FX tapped, then ALGORITHM left past T1: the global FX screen (MASTER), on: the returns' FX pages, and back */
         char h[40];
         uint32_t n, r;
         reset_ui();
@@ -923,7 +939,7 @@ static void key_tests(void)
         turn(EN_ALGO, -1);
         check(song.sel == 0 && ui.scr == SCR_SOUND, "... and back to T1");
         turn(EN_ALGO, -1);
-        check(ui.scr == SCR_FX, "ALGORITHM left past T1: the global FX screen");
+        check(ui.scr == SCR_FX && !ui.fxo, "ALGORITHM left past T1: the global FX screen (MASTER)");
         head_title(SCR_FX, ui.row[SCR_FX], h, sizeof h);
         check(!strcmp(h, "Insert"), "its header names it (Insert under the MASTER badge, the first page: the inserts)");
         n = SCR->rows();
@@ -933,7 +949,12 @@ static void key_tests(void)
         tap(B_FX);
         check(ui.scr == SCR_FX && ui.row[SCR_FX] == 0u, "... past the last: the first again (a button again wraps)");
         turn(EN_ALGO, -1);
-        check(ui.scr == SCR_FX, "ALGORITHM left on it: stays (nothing wraps)");
+        check(ui.scr == SCR_FX && ui.fxo == 3u && rt_fam == RF_FX && walk_pos(0) == MXR_RET0 + 2u,
+              "ALGORITHM left on it: RET C's FX pages (a return a track, 2026-10-30: its PRE POST inserts and its sends)");
+        turn(EN_ALGO, -5);
+        check(ui.scr == SCR_FX && ui.fxo == 1u && rt_fam == RF_FX, "... RET A's, stopping there (nothing wraps)");
+        turn(EN_ALGO, 3);
+        check(ui.scr == SCR_FX && !ui.fxo, "... right: MASTER again");
         turn(EN_ALGO, 1);
         check(ui.scr == SCR_SOUND && snd_fam == FAM_FX && song.sel == 0, "ALGORITHM right: T1's FX pages again");
     }
@@ -3355,6 +3376,18 @@ static void tracks_default(void)
         apply_preset_to(&trk[i], trk_def_preset(i));
         trk[i].engine = trk[i].eng_req;
     }
+    {   /* the returns as the defaults (the walk reaches their pages since 2026-10-30: random use turns their TYPE, PRE, POST) */
+        uint32_t k, s;
+        for (k = 1; k < FX_NSLOT; k++)
+            fxs_load(k, FXT_NONE);
+        for (k = 1; k < FX_NSLOT; k++)
+            fxs_load(k, FXS_DEF[k]);
+        for (k = 0; k < 3u; k++)
+            for (s = 0; s < RP_N; s++)
+                rp_load(k, s, FXT_NONE);
+        fx_rmute = fx_imute = 0;
+        fxs_lm_apply();
+    }
     memset(&dl, 0, sizeof dl);
     lane_select(0);
     ui.lane = 0;
@@ -4026,6 +4059,7 @@ static void led_tests(void)
 #include "ui_optimist_noswap.h"                     /* 2026-10-18: a TYPE turn skips the other slot's type (master, lanes) */
 #include "ui_optimist_fxi.h"                         /* 2026-10-13: the limited insert types: free count, FULL, WAIT, hidden */
 #include "ui_optimist_pagekeep.h"                    /* 2026-10-29: the page kept when pages come or go (op_keep.c) */
+#include "ui_optimist_rettrk.h"                      /* 2026-10-30: the returns as tracks: their pages, HOME, the keys, both OCT */
 #include "ui_optimist_gater.h"                      /* GATER (INS_GATER): its FX row, the cards, the picture and its playhead, the help lines */
 #include "ui_optimist_lfo2.h"                      /* LFO 2: the LFO 2 and LFO2 DEST rows, RATE, SHIFT + a knob, the AMT bar */
 #include "ui_optimist_plocks.h"
@@ -4267,6 +4301,7 @@ int main(int argc, char **argv)
     smute_tests();
     pagemem_tests();
     pagekeep_tests();
+    rettrk_tests();
 #if FELUCCA_ED_MIRROR
     nav_tests();
 #endif

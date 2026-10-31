@@ -710,6 +710,14 @@ job; ( jobin
     run "... every further insert built, the CPU guard on" "$OUT/fx_rsend_ifx_test"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/fx_retins_test" tests/fx_retins_test.c -lm
+    run "a return's PRE and POST inserts (2026-10-30): send -> PRE -> FX -> POST -> level, mute; through at 0, the level after POST, the line's own, RPP_TLV, an old project without it" "$OUT/fx_retins_test"
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src $INSFX_ON -o "$OUT/fx_retins_ifx_test" tests/fx_retins_test.c -lm
+    run "... every further insert built" "$OUT/fx_retins_ifx_test"
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_NOTEGEN=1 -o "$OUT/fx_retins_gen_test" tests/fx_retins_test.c -lm
+    run "... with the note generators: a record with the return sends and a generator keeps both (RSND_TLV 0x4D, GEN_TLV 0x4B)" "$OUT/fx_retins_gen_test"
+) >"$U.out" 2>&1 & jobbg
+job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/fx_returns_test" tests/fx_returns_test.c -lm
     run "FX returns: CHO / DLY / REV RET at one half halve the wet, at 0 silent with the bus not run (its line cleared, no old tail back), the FX record, PROJECT SAVE / LOAD" "$OUT/fx_returns_test"
 ) >"$U.out" 2>&1 & jobbg

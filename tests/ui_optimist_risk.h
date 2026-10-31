@@ -56,9 +56,14 @@ static int rk_at(uint32_t scr, const char *row, const char *lab)
 static uint32_t rk_n, rk_ok;
 static void rk_after(const char *what, uint32_t h0)     /* armed now: HOME lets it go, nothing changed */
 {
-    int asked = op_armed();
+    int asked = op_armed(), save_first = asked && FELUCCA_PATTERNS && prj_arm_op == PO_SAVE_LOAD;
     tap(B_HOME);
     frame();
+    if (save_first && op_armed() && prj_arm_op == PO_LOAD) {   /* (PATTERNS, the work changed and stopped: "SAVE <open>?" first,
+                                                         * HOME asks the LOAD itself, HOME again lets it go: op_prjflow.c prj_no) */
+        tap(B_HOME);
+        frame();
+    }
     if (!asked || op_armed() || rk_state() != h0) {
         printf("  risk: %s: %s\n", what, !asked ? "no question" : op_armed() ? "still asked after HOME" : "changed on HOME");
         rk_ok = 0;

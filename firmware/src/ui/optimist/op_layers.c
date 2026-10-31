@@ -87,9 +87,9 @@ static struct {
  * 2026-10-17: "Master mixer. 2*2 cards"); a layer's map over the mixer is the layer's screen, so it is 2x2 too */
 #if FELUCCA_SD_UI
 static int sdc_listing(void);                           /* op_sdcard.c: a card's list, four small cards over its page */
-static int cards_2x2(void) { return (ui.scr != SCR_HOME || lay.shown != LY_PLAY || mx_row() == MXR_MASTER) && !sdc_listing(); }
+static int cards_2x2(void) { return (ui.scr != SCR_HOME || lay.shown != LY_PLAY || mx_row() <= MXR_MASTER) && !sdc_listing(); }   /* (the master screen: MASTER and the returns above it, 2026-10-30) */
 #else
-static int cards_2x2(void) { return ui.scr != SCR_HOME || lay.shown != LY_PLAY || mx_row() == MXR_MASTER; }
+static int cards_2x2(void) { return ui.scr != SCR_HOME || lay.shown != LY_PLAY || mx_row() <= MXR_MASTER; }   /* (the master screen: MASTER and the returns) */
 #endif
 
 static uint32_t lay_now(void) { return lay.lock != LY_PLAY ? lay.lock : lay.held; }   /* the layer at work */
@@ -805,7 +805,7 @@ static int lay_knobs(void)
             ui.master = 0;                              /* (the layer let go: the track under it; SCOPE's MASTER is its source) */
         return 0;
     }
-    if ((mx_on_master() || ui.scr == SCR_FX) && lay_master_ok(lay_now()) && !ui.master) {
+    if ((mx_on_master() || (ui.scr == SCR_FX && !ui.fxo)) && lay_master_ok(lay_now()) && !ui.master) {
         ui.master = 1;                                  /* (FX held on MASTER: the master FX's cards) */
         ui.force = 1;
     }

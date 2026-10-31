@@ -96,9 +96,11 @@ static int oct_fold_here(void) { return ui.scr == SCR_STEP && !is_drum(TSEL) && 
 static void op_enter(uint32_t scr)
 {
     fx_by_walk = 0;                                     /* (a screen entered: the master FX screen is the walk's again only via walk_master_in) */
+    rt_keep();                                          /* (a return's pages left: their row kept, op_mixer.c) */
     uint8_t from_master = ui.scr == SCR_HOME && mx_row() == MXR_MASTER;   /* (SCOPE opened on the mixer's MASTER row: its source) */
+    uint8_t from_ret = (uint8_t)(ui.scr == SCR_HOME && mx_is_ret(mx_row()) ? 1u + mx_row() - MXR_RET0 : 0u);   /* (... a return's) */
     if (ui.scr == SCR_SCOPE)
-        ui.master = 0;                                  /* (the scope's MASTER source goes with the scope) */
+        ui.master = 0, ui.sret = 0;                     /* (the scope's MASTER or return source goes with the scope) */
     if (scr != ui.scr && (sys_scr(ui.scr) || (tp.on && sys_scr(tp.prev))))
         sys_leave();                                    /* (SYSTEM or GLOBAL left: their settings saved; the TEMPO page over
                                                          * them: ui.scr is SCR_TEMPO) */
@@ -111,7 +113,9 @@ static void op_enter(uint32_t scr)
         song.g[G_SLOT] = (int16_t)(prj_cur + 1);        /* (PROJECT opens on the slot loaded or saved last) */
     ui.scr = (uint8_t)(scr % SCR_N);
     if (scr == SCR_SCOPE)
-        ui.master = from_master;
+        ui.master = from_master, ui.sret = from_ret;
+    if (scr == SCR_FX)                                  /* (the FX screen opened: MASTER's until a return's is asked, op_mixer.c rt_open) */
+        ui.fxo = 0;
     if (scr == SCR_FX)                                  /* (the master FX opened: right goes to SOUND T1, unless the walk */
         ui.m_scr = SCR_SOUND, ui.m_fam = SND_ALL, ui.m_row = 0;   /* sets where it came from: op_walk.c) */
     step_reset();                                       /* (STEP: the keys are steps again, nothing held) */
@@ -339,7 +343,7 @@ static void op_no(void)
     if (ui.scr == SCR_HOME)
         op_enter(SCR_SCOPE);                            /* at the root: the mixer and the scope, in turn [P] */
     else
-        op_enter(SCR_HOME);                             /* back: the mixer, on the row it was left on */
+        home_in();                                      /* the mixer, on the selection's row, nothing else changed (op_walk.c) */
 }
 
 /* ---- transport (as SLOOP's ui_input.c B_PLAY and ui_studio.c rec_toggle) */
@@ -659,7 +663,7 @@ static void shift_keys(uint32_t notes, int mute)
 static void drum_hit_pick(uint32_t notes)
 {
     uint32_t k, now = fm1_ticks();
-    if (!is_drum(TSEL) || master_sel() || ui.scr == SCR_STEP)
+    if (!is_drum(TSEL) || mx_no_track() || ui.scr == SCR_STEP)
         return;                                         /* (STEP: step_played picks the last hit, the keys playing) */
     for (k = 0; k < 4u; k++)
         if (now - ui.enc_t[EN_K1 + k] < HIT_KNOB_MS * 1000u * FM1_TICKS_PER_US)
@@ -812,6 +816,8 @@ static void op_tap(uint32_t b, uint32_t id)
     if (b == B_LFO && lay.lock == LY_PAT)
         return;                                         /* the pattern page locked open: LFO alone does nothing (LFO + key stores, as SAVE) */
 #endif
+    if (b < NB && rt_tap(b))
+        return;                                         /* (a return's EDIT and FX: its pages, op_mixer.c) */
     if (b < NB && mx_master_dead(b))
         return;                                         /* (the mixer's MASTER: a track button does nothing) */
     if (b == B_FX && mx_on_master())
