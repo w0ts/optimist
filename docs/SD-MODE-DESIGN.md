@@ -766,6 +766,10 @@ and numbe of projects. this will allow to control how much flash we get."* And: 
 warn the user to backup their data first."* Numbers from the code at `fm1-next` 471e84e0 (file:line) unless marked
 *estimate*; the grid's ends and rooms are computed from `tools/flash_layout.py`'s own formulas.
 
+**Revised 2026-10-31** on the user's answer: *"if the memory makes two many combination, projects can be 1/2/4/16"*:
+PROJECTS offers 1, 2, 4 and 16 (8 dropped). The design's S1 (one slot, 20 sectors, 0xB1000) and S0-20 (0xC1000) of 9.1
+are 8-project cells and go with it.
+
 #### 9.7.0 Where things stand
 
 - **SD card mode today** is MEMORY 2 = `LAYOUT` 1 + `SDCARD` 1 (`core.py:106-131` `derive_memory` / `set_memory`):
@@ -790,7 +794,7 @@ warn the user to backup their data first."* Numbers from the code at `fm1-next` 
 samples survive switches; under them, top down, the project log, autosave copy A, the FM6 voices, and the app ends
 there (the 9.1 stack): `end = top - (log sectors + 3) x 4 KiB`, top 0xD8000 (no slot; 0xD8000 stays free for the
 release's `OBJ_PANEL`), 0xC8000 (USR3) or 0xB4000 (USR2 + USR3). **Log sectors by PROJECTS:** 1 and 2: 7, 4: 11,
-8: 20, 16: 32 (about 8 KiB a project after the reserve, 16 the tightest, as today). Three cells are the steps of today
+16: 32 (about 8 KiB a project after the reserve, 16 the tightest, as today). Three cells are the steps of today
 and keep their exact layout: N, S0, L1.
 
 Code room = app.bin's room (`flash_layout.slot_of`). Gain = against normal's 581,564 B. Room = `SEC_ROOM`;
@@ -799,15 +803,12 @@ Code room = app.bin's room (`flash_layout.slot_of`). Gain = against normal's 581
 | SD | SAMPLE SLOTS | PROJECTS | Step (LAYOUT) | App end (classic / release) | Code room, B | Gain, B | Log | Room | Busy projects (*est.*) |
 |---|---|---|---|---|---|---|---|---|---|
 | off | 2 (USR2+USR3) | 16 | **N** (0), today's normal | 0x93000 / 0x93000 | 581,564 | 0 | 20 sect. at 0xA0000 | 66.2 KiB | 7-10 |
-| off | 2 | 8 | new (9) | 0x9D000 / same | 622,524 | +40,960 | 20 at 0xA0000 | 66.2 KiB | 7-10 |
-| off | 2 | 4 | new (10) | 0xA6000 / same | 659,388 | +77,824 | 11 at 0xA9000 | 34.8 KiB | 3-5 |
-| off | 2 | 1 or 2 | new (11) | 0xAA000 / same | 675,772 | +94,208 | 7 at 0xAD000 | 20.9 KiB | 2 |
-| off | 1 (USR3) | 16 | new (5) | 0xA5000 / same | 655,292 | +73,728 | 32 at 0xA8000 | 108.0 KiB | 13-17 |
-| off | 1 | 8 | **S1** (2, the design's) | 0xB1000 / same | 704,444 | +122,880 | 20 at 0xB4000 | 66.2 KiB | 7-10 |
-| off | 1 | 4 | new (6) | 0xBA000 / same | 741,308 | +159,744 | 11 at 0xBD000 | 34.8 KiB | 3-5 |
-| off | 1 | 1 or 2 | new (7) | 0xBE000 / same | 757,692 | +176,128 | 7 at 0xC1000 | 20.9 KiB | 2 |
+| off | 2 | 4 | new (6) | 0xA6000 / same | 659,388 | +77,824 | 11 at 0xA9000 | 34.8 KiB | 3-5 |
+| off | 2 | 1 or 2 | new (7) | 0xAA000 / same | 675,772 | +94,208 | 7 at 0xAD000 | 20.9 KiB | 2 |
+| off | 1 (USR3) | 16 | new (2) | 0xA5000 / same | 655,292 | +73,728 | 32 at 0xA8000 | 108.0 KiB | 13-17 |
+| off | 1 | 4 | new (4) | 0xBA000 / same | 741,308 | +159,744 | 11 at 0xBD000 | 34.8 KiB | 3-5 |
+| off | 1 | 1 or 2 | new (5) | 0xBE000 / same | 757,692 | +176,128 | 7 at 0xC1000 | 20.9 KiB | 2 |
 | off | 0 | 16 | **S0** (3), built | 0xB5000 / same (not built) | 720,828 | +139,264 | 32 at 0xB8000 | 108.0 KiB | 13-17 |
-| off | 0 | 8 | **S0-20** (4, the design's) | 0xC1000 / same | 769,980 | +188,416 | 20 at 0xC4000 | 66.2 KiB | 7-10 |
 | off | 0 | 4 | new (8) | 0xCA000 / same | 806,844 | +225,280 | 11 at 0xCD000 | 34.8 KiB | 3-5 |
 | off | 0 | 1 or 2 | **L1** (1), today's "more flash" | 0xD0000 / 0xCE000 | 831,420 / 823,228 | +249,856 / +241,664 | 7 at 0xD0000 | 20.9 KiB | 2 |
 | **on** | (the card) | 1 in flash + the card | **L1** (1) + SDCARD | 0xD0000 / 0xCE000 | 831,420 / 823,228 (less the card's code) | as L1 | 7 at 0xD0000 | 20.9 KiB | 1 slot |
@@ -820,11 +821,14 @@ Notes on the grid:
   (7 sectors) at 0xCE000, the release's L1 end (the same clash, `known_ends`); so column 0 keeps L1 for both, and the
   other columns follow (5 sectors would gain only 8 KiB). So PROJECTS 1 and 2 are one step and differ only in `PROJ_SLOTS`
   (a build flag, no flash moved). **PROJECTS 1 gains no flash over 2**; the user may want to drop 1 from the list.
+  How the UI shows it: PROJECTS 1 and 2 show the same code room, and 1's label says so ("1: the same flash as 2, one
+  slot"); a change between them gives no backup notice (nothing moves, 9.7.2).
 - **SAMPLE SLOTS 2 + PROJECTS 16 is normal as it is** (20 sectors: room for 7-10 busy projects, not 16). A 32-sector
-  variant would end at 0x91000, 8 KiB *below* normal: not offered. SLOTS 2 + PROJECTS 8 has the **same** log size and
-  place as normal and 40 KiB more code (normal's 8 KiB room to grow and its unread old project slots, 9.0).
-- **12 different layouts** (N, L1, S0 and 9 new), ends 0x93000, 0x9D000, 0xA5000, 0xA6000, 0xAA000, 0xB1000, 0xB5000,
-  0xBA000, 0xBE000, 0xC1000, 0xCA000, 0xD0000; all 4 KiB aligned, all distinct, none 0xCE000.
+  variant would end at 0x91000, 8 KiB *below* normal: not offered. (The dropped SLOTS 2 + PROJECTS 8 would have been
+  normal's same log with 40 KiB more code: normal's room to grow and its unread old project slots, 9.0.)
+- **9 different layouts** (N, L1, S0 and 6 new) for 12 cells, ends 0x93000, 0xA5000, 0xA6000, 0xAA000, 0xB5000,
+  0xBA000, 0xBE000, 0xCA000, 0xD0000; all 4 KiB aligned, all distinct, none 0xCE000. LAYOUT numbers: 2 (it was kept
+  for S1, which is gone), 4..8 new; 0, 1, 3 as today.
 - **The release** has the same end as the classic build in every new step (they all end below 0xD8000, `OBJ_PANEL`
   stays at 0xD8000, `opt_storage.h` the non-L1 branch); only L1 differs (0xCE000, as today).
 - **Build rules per column:** SLOTS 0: no `DRUM_USR`, `SNAPSHOTS`, CZ collection (as S0/L1 today, `storage.c:46-49`);
@@ -837,7 +841,7 @@ Notes on the grid:
 #### 9.7.2 What a switch keeps (the 9.3 rule, unchanged)
 
 Each new step's R (the top of what it moves) is its column's top: 0xD8000, 0xC8000, 0xB4000; N 0x93000, L1 0xDA000. A
-switch from A to B writes [0x4000, E_B) and erases [E_B, max(R_A, R_B)). Computed for every pair of the 15 cells:
+switch from A to B writes [0x4000, E_B) and erases [E_B, max(R_A, R_B)). Computed for every pair of the 12 cells:
 
 | from \ to | same column, other PROJECTS | the other sample column (1 <-> 2) | column 0 <-> 1 or 2 | PROJECTS 1 <-> 2 (one step) |
 |---|---|---|---|---|
@@ -850,7 +854,7 @@ SD on <-> SLOTS 0 + PROJECTS 1/2: the same step (L1): the one project kept, as M
 one step: nothing cleared (as 9.3). The working project probably comes back from autosave B (0xFE000), *not tested
 across a switch* (9.3).
 
-Two traps the rule leaves, both harmless by the code read here (*not tested*):
+One trap the rule leaves, harmless by the code read here (*not tested*):
 
 - **N without user samples** has a 32-sector log to 0xBFFFF (`sec_log.c:37-38`); a switch to a column-2 step clears
   only to 0xB4000, so 12 old log sectors stay in USR2's place. A sample slot reads them as empty (no "FSMP" magic,
@@ -858,8 +862,6 @@ Two traps the rule leaves, both harmless by the code read here (*not tested*):
   log's sectors without an "SLG1" head. Whether the log erases them before use or treats them as sealed is **to check**
   (`sec_log.c` heal / compaction); if not clean, that N's loader clears to 0xC0000 (its loader knows it builds no
   samples).
-- **SLOTS 2 + PROJECTS 8 could keep normal's projects** (the same log at 0xA0000 x 20), but only when normal was built
-  with samples (20 sectors); its loader cannot tell from the installed end alone, so the rule clears. Not proposed.
 
 #### 9.7.3 STEPS, FL_ENDS, the loaders and the packages out there
 
@@ -869,7 +871,7 @@ Two traps the rule leaves, both harmless by the code read here (*not tested*):
   are generated, so `ldr_layout_switch` (`ldr_core.c:175`) and `ota_step_size` (`ota.c:41-47`) take them with no hand
   edit. `FL_USER_SAMPLES` becomes the slot count (0, 1, 2) and `SMP_USER_CAP`, `sec_log.c`, `storage.c`'s `#error`
   key on it.
-- **PROJECTS is a build flag, not a layout:** a new `FELUCCA_PROJ_SLOTS` (1, 2, 4, 8, 16), `registry.h:719`
+- **PROJECTS is a build flag, not a layout:** a new `FELUCCA_PROJ_SLOTS` (1, 2, 4, 16), `registry.h:719`
   `PROJ_SLOTS` from it, bounded by the step's log (a step's own maximum: `FL_PROJ_SLOTS`, already generated).
   `op_prjflow.c:116` uses `FELUCCA_SECTIONS` as the project count outside L1: it takes `PROJ_SLOTS` instead.
   `ed_backup.c:96` (PJ01..PJ16 offered up to `PROJ_SLOTS`), `ed_proj.c:77`, `sections.c:842`, `:1007` already use it.
@@ -889,7 +891,7 @@ Two traps the rule leaves, both harmless by the code read here (*not tested*):
 - **Packages out there** (N, L1, S0 of every version) keep their ends and stay valid; a new loader recognises them by
   `FL_ENDS`. An old loader (S0-era) installing an old package over a new step: its `ldr_layout_switch` sees an end it
   does not know: above normal it clears [E, 0xDA000), the safe side; at or below, as after normal (`flash_layout.py:144`)
-  — which for column 2's ends (0x9D000..0xAA000, above normal) is the safe side too. No new step ends below 0x93000.
+  — which for column 2's ends (0xA6000, 0xAA000, above normal) is the safe side too. No new step ends below 0x93000.
 
 #### 9.7.4 The builder
 
@@ -901,7 +903,7 @@ step's own count, so an old `.config` without it reads as before: 16, L1 1):
 |---|---|---|
 | `SD_CARD_MODE` (bit 445) | off / on | always |
 | `SAMPLE_SLOTS` (bit 446) | 0, 1 (USR3, 64 KiB), 2 (USR2 + USR3, 144 KiB); 3 only with PATTERNS off (normal) | SD off |
-| `PROJECTS` (444, real) | 1, 2, 4, 8, 16 | SD off, PATTERNS on |
+| `PROJECTS` (444, real) | 1, 2, 4, 16 (1 and 2: the same code room shown; 1 labelled "the same flash as 2") | SD off, PATTERNS on |
 
 - **SD on:** SAMPLE SLOTS and PROJECTS hidden (the card holds samples and projects; flash keeps one project, no slot);
   SD_RING and SD_REC shown under SD CARD MODE (`shown_under`, as today under MEMORY). Each value in the menu and the web
@@ -940,29 +942,28 @@ build with fewer PROJECTS takes only PJ01..PJnn (the rest stays in the file) and
   PROJECTS 2 in L1 changes no flash, only `PROJ_SLOTS`: buildable once the flag exists (*not built*).
 - **Waits for fm1-base's loader** (`ldr_slot_switch`, `bsp/loader/ldr_core.c:151-170`: going down it clears only the
   old code's tail, so a new step over another leaves the old log inside the new one's): S0 (already `NOT_BUILT`,
-  `registry.py:1551-1558`) and the 9 new steps. `gen_optimist.py` `APP_ENDS` and `NOT_BUILT` list them; fm1-base's
+  `registry.py:1551-1558`) and the 6 new steps. `gen_optimist.py` `APP_ENDS` and `NOT_BUILT` list them; fm1-base's
   proposed `pr/app-end-table` takes the generated (end, R) list.
 
 #### 9.7.7 Risks and tests
 
 - **Data loss on switching** is the design (9.7.2): mitigated by the one rule from one table, no clear past 0xDA000
-  (asserted), the warnings of 9.7.5. The new risk is the count: 12 layouts, 15 x 15 cell pairs; a loader that maps an
+  (asserted), the warnings of 9.7.5. The new risk is the count: 9 layouts, 12 x 12 cell pairs; a loader that maps an
   end to the wrong R could take USR3 on a column 1 <-> 2 switch.
-- **Install refusals:** every older updater refuses the 9 new sizes (-15): one hop through normal of the new version.
+- **Install refusals:** every older updater refuses the 6 new sizes (-15): one hop through normal of the new version.
 - **Project room shrinks:** PROJECTS 4 and 1/2 (34.8 / 20.9 KiB) refuse a big restore with MEM FULL; the 6-8 KiB a
   project is an estimate: measuring a real busy project's bytes is part of phase 2.
-- **The two traps of 9.7.2** (stale log or sample sectors) to check in `sec_log.c` and by a host test.
-- **Tests:** `tests/flash_layout_test.py` (the 12 rows, the header, `switch_clear_ends` for all 144 end pairs and the
-  release's, the 9.7.2 table generated and compared); `tests/ldr_test.c --layout` per pair (erased sectors exactly,
+- **The trap of 9.7.2** (stale log or sample sectors) to check in `sec_log.c` and by a host test.
+- **Tests:** `tests/flash_layout_test.py` (the 9 rows, the header, `switch_clear_ends` for all 100 pairs of the 10 known
+  ends, the release's 0xCE000 among them, the 9.7.2 table generated and compared); `tests/ldr_test.c --layout` per pair (erased sectors exactly,
   USR3 kept on 1 <-> 2, nothing at or above 0xDA000); `tests/ota_test.c` (every listed size, others -15);
   `tests/anyflash_test.py`, `rescue_test.py` (plans, INSTALL-PATHS' generated tables); `builder_core_test.py`,
   `builder_menu_test.py`, `builder_test.py` (the three fronts, old MEMORY / LAYOUT configs load to the right cells,
   hidden-when-SD, notices per pair, no notice on 1 <-> 2); `sec_log_test.c`, `patterns_test.c`,
-  `project_scope_test.c` built per log size (7, 11, 20, 32) and per `PROJ_SLOTS`; the sample and snapshot tests per
+  `project_scope_test.c` built per log size (7, 11, 32; 20 for normal with samples) and per `PROJ_SLOTS`; the sample and snapshot tests per
   column; the web installer's and the Mirror's layout read (`install_route` tests, `FlashTests.swift`); fm1-base's
   `ldr_slot_test.c` when the release takes them. Hardware: as 9.5, User installs, Claude never flashes.
 
 **Recommendation:** build the three items and the `PROJECTS` flag first with only today's steps (N, S0, L1: the cells
-SLOTS 2/16, 0/16, 0/1-2, SD on) and the install warning; then add steps cell by cell as wanted, S1 (1/8) and the
-column-0 ones (0/8, 0/4) first. Open for the user: keep PROJECTS 1 in the list (no flash over 2)? allow SAMPLE's
+SLOTS 2/16, 0/16, 0/1-2, SD on) and the install warning; then add steps cell by cell as wanted, 0/4 and 1/16 first. Open for the user: keep PROJECTS 1 in the list (no flash over 2)? allow SAMPLE's
 built-in sets with SLOTS 0? the firmware's own notice only, or a refusal without the host's confirmation?
