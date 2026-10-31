@@ -534,6 +534,29 @@ static void head_info_draw(const head_t *h, int32_t tend)
     if (word)
         cv_texts(x - 6 - text_ws(word), 4, word, wc);
 }
+/* ---- the memory line (the user, 2026-10-29): the topmost 2 rows of every page, filled left to right by the arena's fill, the
+ * quantity of SYSTEM > INFO's RAM bar (op_project.c info_ram_pct; without an arena the fixed SRAM's use at link). Dim below
+ * MEM_RED percent, red from it, the rest dark; no text. Painted into the header's canvas (rows 0-1 of its 25), so a header
+ * drawn again sends the line as it is in the same transfer; on its own (memline_draw, after the header) only when its pixel
+ * width or colour changes and the header did not draw. Never black first and the line after: the header's canvas was black
+ * on rows 0-1 and the line followed in a second write, and the FM-1's panel showed the gap between the two (the user,
+ * 2026-10-31: "the memory bar flashes", at every header redraw: the loop position's beat while playing, a drop-out's mark,
+ * the help line's end) */
+#define MEM_RED 80u                                     /* the percent from which the line is red */
+#define MEM_H 2
+static uint32_t memline_sig;                            /* the line as on the screen (memline_key), 0 not known */
+static uint32_t memline_px(uint32_t pct) { return pct * 12u / 5u; }   /* (240 px = 100 %) */
+static uint16_t memline_col(uint32_t pct) { return pct >= MEM_RED ? C_ERR : C_DIM; }
+static uint32_t memline_key(uint32_t pct) { return hu(hu(1u, memline_px(pct)), pct >= MEM_RED); }
+static void memline_paint(void)                         /* into the header's canvas (rows 0-1), as memline_draw draws it */
+{
+    uint32_t pct = info_ram_pct(), px = memline_px(pct);
+    if (px)
+        cv_rect(0, 0, (int32_t)px, MEM_H, memline_col(pct));
+    if (px < 240u)
+        cv_rect((int32_t)px, 0, (int32_t)(240u - px), MEM_H, C_LINE);
+    memline_sig = memline_key(pct);
+}
 /* (noinline: a call from op_frame_draw, which is smaller without it inlined) */
 static __attribute__((noinline)) void draw_head(void)
 {
@@ -592,6 +615,7 @@ static __attribute__((noinline)) void draw_head(void)
     }
     cv_rect(0, OH_HEAD - 1 - (drop != 0u), 240, 1 + (drop != 0u), drop ? mk : C_LINE);   /* (a drop-out (red) or an underrun
                                                          * (amber) in the last second: the header's rule, 2 px) */
+    memline_paint();                                    /* (rows 0-1: the memory line, in this transfer) */
     cv_blit(0, OY_HEAD);
 }
 
@@ -1266,23 +1290,12 @@ static void draw_overlay(uint32_t ov)
         draw_toast();
 }
 
-/* ---- the memory line (the user, 2026-10-29): the topmost 2 rows of every page, filled left to right by the arena's fill, the
- * quantity of SYSTEM > INFO's RAM bar (op_project.c info_ram_pct; without an arena the fixed SRAM's use at link). Dim below
- * MEM_RED percent, red from it, the rest dark; no text. Painted after the header (whose canvas covers rows 0..24 and is
- * black on rows 0-1), again only when its pixel width or colour changes, or the header or the whole screen was redrawn */
-#define MEM_RED 80u                                     /* the percent from which the line is red */
-#define MEM_H 2
-static uint32_t memline_sig;
-static uint32_t memline_px(uint32_t pct) { return pct * 12u / 5u; }   /* (240 px = 100 %) */
-static uint16_t memline_col(uint32_t pct) { return pct >= MEM_RED ? C_ERR : C_DIM; }
+/* ---- the memory line (op_draw.c memline_*, above draw_head): its own writes, when the fill moved and the header did not draw */
 static void memline_draw(void)
 {
-    uint32_t pct = info_ram_pct(), px = memline_px(pct), sig;
-    if (ui.force)
-        memline_sig = 0;                                     /* (the screen was blacked) */
-    sig = hu(hu(hu(1u, px), pct >= MEM_RED), ui.sig[0]);   /* (ui.sig[0]: the header drew again, over rows 0-1) */
+    uint32_t pct = info_ram_pct(), px = memline_px(pct), sig = memline_key(pct);
     if (sig == memline_sig)
-        return;
+        return;                                         /* (as on the screen: the header's canvas carried it, or this did) */
     memline_sig = sig;
     if (px)
         lcd_fill(0, 0, (int32_t)px, MEM_H, memline_col(pct));
