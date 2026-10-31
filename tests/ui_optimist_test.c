@@ -60,6 +60,36 @@ static void top_see(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint16
             bad |= (p ? p[(j - y) * w + i] : c) != top_want[x + i];
     top_bad += bad;
 }
+/* a flash (ui_optimist_prefilter.h): while fl_on, a pixel under the header (y >= fl_y0) that one frame writes with two different
+ * colours, shown one then the other on the FM-1's panel (it sees every transfer); fl_bad counts such pixels, fl_ylo / fl_yhi
+ * the rows they are in. Each frame starts afresh (frame) */
+static uint8_t fl_on, fl_n[240u * 240u];
+static uint16_t fl_v[240u * 240u];
+static uint32_t fl_bad, fl_y0 = 25u, fl_ylo = 240u, fl_yhi;
+static void fl_see(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint16_t *p, uint16_t c)
+{
+    uint32_t i, j, a;
+    uint16_t v;
+    if (!fl_on)
+        return;
+    for (j = 0; j < h; j++) {
+        if (y + j < fl_y0)
+            continue;
+        for (i = 0; i < w; i++) {
+            a = (y + j) * 240u + x + i;
+            v = p ? p[j * w + i] : c;
+            if (fl_n[a] == 1u && fl_v[a] != v) {
+                fl_n[a] = 2u;                           /* (counted once) */
+                fl_bad++;
+                fl_ylo = y + j < fl_ylo ? y + j : fl_ylo;
+                fl_yhi = y + j > fl_yhi ? y + j : fl_yhi;
+            } else if (!fl_n[a]) {
+                fl_n[a] = 1u;
+                fl_v[a] = v;
+            }
+        }
+    }
+}
 #ifdef MIRROR_CHECK
 /* MIRROR_CHECK: every write also through the mirror's encoder (io/editor/ed_mirror_enc.h) and the client's decoder (mirror_dec.h):
  * at the end the decoded screen is this one (tests/run_tests.sh, ED_MIRROR) */
@@ -131,6 +161,7 @@ static void lcd_blit(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint1
 #endif
     blit_px += w * h;
     top_see(x, y, w, h, p, 0);
+    fl_see(x, y, w, h, p, 0);
     if (x <= 120u && 120u < x + w && y <= 180u && 180u < y + h)
         probe_hits++;
     assert(x + w <= 240 && y + h <= 240);
@@ -152,6 +183,7 @@ static void lcd_fill(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint16_t c)
 #endif
     full_fills += w == 240u && h == 240u;
     top_see(x, y, w, h, 0, swap16(c));
+    fl_see(x, y, w, h, 0, swap16(c));
     for (j = 0; j < h; j++)
         for (i = 0; i < w; i++)
             screen[(y + j) * 240 + x + i] = swap16(c);
@@ -282,6 +314,7 @@ static uint32_t nb_list_of(uint32_t kind, uint32_t *rank, uint32_t n, uint32_t *
 }
 static uint32_t nb_kind_at(uint32_t i) { return i + 1u; }
 static uint32_t nb_engine_slot(uint32_t kind) { return kind == 1u ? 0u : 1u; }
+static int nb_factory(uint32_t kind, uint32_t k) { return kind == 1u && k < 2u; }   /* (kind 1: two built-in slots, the third filled, for the filters) */
 #endif
 #if !FELUCCA_PATTERNS                                    /* (project.c is in the TU with the section log only: NEW PROJECT's blank load of the FX and the automation) */
 static int fxr_decode(const uint8_t *a, uint32_t n, int all) { (void)a; (void)n; (void)all; return 0; }
@@ -353,6 +386,8 @@ static void frame(void)                                 /* one UI frame (~16 ms)
     uint32_t q;
     static int32_t o[CTL * 2];
     static int hashing = -1;
+    if (fl_on)
+        memset(fl_n, 0, sizeof fl_n);                   /* (a flash is within one frame) */
     for (q = 0; q < 22u; q++)
         mix_block(o, CTL);
     ui_input();
@@ -396,9 +431,7 @@ static void check(int ok, const char *what) { printf("optimist ui: %-72s %s\n", 
 #define RING_FRAMES ((RH_CLEAR_MS + 40u) / 16u + 2u)    /* (a delete's ring held to its end: frames of 16 ms) */
 static void reset_ui(void)
 {
-#if FELUCCA_FAVORITES
-    fav_list = 0;                                       /* (LIST ALL: a favorites test leaves the list filtered otherwise) */
-#endif
+    pl_filt = PLF_ALL;                                  /* (the list unfiltered: a filter's test leaves it filtered otherwise) */
     fm1_in.buttons = 0;
     fm1_in.notes = 0;
     glo_last = SCR_GLOBAL;                              /* (a power-on's: GLO opens GLOBAL first, op_global.c) */
@@ -1966,11 +1999,11 @@ static void layer_tests(void)
             check(!left, "EDIT's PRESET card: 150 detents on, the engine never changes");
             (void)preset_pos(&total);
             check(total > 0u && total < all, "... its list is the engine's part of the whole list");
-            press(B_OCTUP);
+            press(B_OCTDN);
             turn(EN_PRESET, 1);
-            release(B_OCTUP);
+            release(B_OCTDN);
             frames(2);
-            check(tsel()->eng_req != e0, "SHIFT2 + PRESETS: the engine step still changes the engine");
+            check(tsel()->eng_req != e0, "SHIFT + PRESETS: the engine step still changes the engine");
             op_enter(SCR_SOUND);
             ui.row[SCR_SOUND] = 0;
             ui.force = 1;
@@ -2078,11 +2111,11 @@ static void layer_tests(void)
             }
             check(worst <= 1u, "PRESETS scrolled with the popup up: one blit over its box a detent (no flash from the panel under it)");
         }
-        press(B_OCTUP);
+        press(B_OCTDN);
         turn(EN_PRESET, 1);
-        release(B_OCTUP);
+        release(B_OCTDN);
         frames(3);
-        check(op_overlay() == 5u, "SHIFT2 + PRESETS (the engine step): the popup list too");
+        check(op_overlay() == 5u, "SHIFT + PRESETS (the engine step): the popup list too");
         ppm("opt-engine-popup");
         frames(OP_TOAST_FRAMES + 5u);
         check(op_overlay() == 0u, "... gone with the toast, ~1.5 s after the last turn");
@@ -3811,7 +3844,7 @@ static void preset_engine_tests(void)
           "the mixer's PRESETS: a toast with the preset's engine, framed in its colour");
     turn(EN_PRESET, -1);
     reset_ui();
-    {   /* the list by instrument; SHIFT2 held + PRESETS: the next / previous instrument (the user, 2026-10-12; SHIFT2 since 2026-10-16) */
+    {   /* the list by instrument; SHIFT held + PRESETS: the next / previous instrument (the user, 2026-10-12; SHIFT2 2026-10-16, SHIFT since 2026-10-31) */
         uint32_t i, e0, e1, sorted = 1, ok = 1, k, ne = 0, back;
         for (i = 1; i < NBANK; i++)
             if (preset_at(i, &k) < preset_at(i - 1u, &k))
@@ -3823,17 +3856,17 @@ static void preset_engine_tests(void)
         for (i = 0; i < NBANK; i++)                     /* (the instruments in the list: eng_built takes a UID, not the slot i) */
             if (!i || preset_at(i, &k) != preset_at(i - 1u, &k))
                 ne++;
-        press(B_OCTUP);
+        press(B_OCTDN);
         turn(EN_PRESET, 1);
         e1 = TSEL->eng_req;
         cur = preset_pos(&total);
         check(e1 != e0 && (cur == 0u || preset_at(cur - 1u, &k) != e1),
-              "SHIFT2 held + PRESETS: the next instrument, its first sound");
+              "SHIFT held + PRESETS: the next instrument, its first sound");
         turn(EN_PRESET, -1);
         back = TSEL->eng_req;
-        release(B_OCTUP);
-        check(back == e0 && ui.scr == SCR_HOME && !op_armed(), "... and back; OCT+ let go: nothing else (no octave, no SYSTEM)");
-        press(B_OCTUP);
+        release(B_OCTDN);
+        check(back == e0 && ui.scr == SCR_HOME && !op_armed(), "... and back; OCT- let go: nothing else (no octave, no SYSTEM)");
+        press(B_OCTDN);
         for (i = 0; i < ne + 1u; i++)
             turn(EN_PRESET, -1);                        /* (down to the first instrument: the list stops there, no wrap) */
         for (i = 0, ok = 0; i < ne + 2u; i++) {
@@ -3841,7 +3874,7 @@ static void preset_engine_tests(void)
             turn(EN_PRESET, 1);
             ok += TSEL->eng_req != was;
         }
-        release(B_OCTUP);
+        release(B_OCTDN);
         check(ne <= 1u || ok == ne - 1u, "... every turn a new instrument up to the last, which stays (no wrap round)");
         set_engine_of(TSEL, e0);                        /* (the track as it was) */
         snd_mark(song.sel);
@@ -4011,6 +4044,7 @@ static void led_tests(void)
 #include "ui_optimist_colours.h"                     /* batch C: colour means something (mute tiles, red, dim, REC, SUPER) */
 #include "ui_optimist_plines.h"                      /* PAGE_LINES: the rows with no picture as GLOBAL's lines */
 #include "ui_optimist_screens.h"                     /* batch E: per-screen oddities (titles, STEP, drums, names, pictures) */
+#include "ui_optimist_prefilter.h"                   /* the preset list's filter (SHIFT2 + PRESETS), SHIFT + PRESETS the engines, the popup's header, no flash */
 #include "ui_optimist_favorites.h"                   /* FELUCCA_FAVORITES: the FAVORITES row under the SOUND row (docs/UI-OPTIMIST-DESIGN.md 13 Favorites) */
 
 #ifndef UIO_NO_MAIN                                     /* (tests/audio_hang_stress.c: its own main) */
@@ -4237,6 +4271,7 @@ int main(int argc, char **argv)
     nav_tests();
 #endif
     favorites_tests();
+    prefilter_tests();
     algotrack_tests();
     uniform_tests();
     lforate_tests();

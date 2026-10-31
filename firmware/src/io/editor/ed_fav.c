@@ -1,9 +1,9 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* Editor protocol v13: the favorites (core/favorites.c, FELUCCA_FAVORITES; included by editor.c; web/EDITOR_PROTOCOL.md "Favorites").
- * The device marks sounds as favorites (SHIFT2 + PRESETS on its panel) and PRESETS can browse the marked ones only (SHIFT2 + SELECT); this is the
+ * The device marks sounds as favorites (SAVE + PRESETS on its panel) and PRESETS can browse the marked ones only (the FAVORITES filter, SHIFT2 + PRESETS); this is the
  * same store: a factory sound is marked by its engine and name, a user preset by its slot, up to FAV_N (64) marks; saved with the settings.
  *   100 FAVS  op [...] -> op [...]
- *       op 0                       -> 0, factory marks (of FAV_N at most), FAV_N, list (the PRESETS list: 0 ALL, 1 FAV), user presets marked
+ *       op 0                       -> 0, factory marks (of FAV_N at most), FAV_N, list (the PRESETS list: 1 FAV, 0 any other filter), user presets marked
  *       op 1  engine               -> 1, engine, n, the marks of the engine's n presets, 7 to a byte (bit k of the stream: preset k is marked)
  *                                     engine NENGINES (the number of engines): the user presets, n = UP_SLOTS
  *       op 2  engine, k, on        -> 2, engine, k, rc (0 as it was, 1 changed, 2 FULL: FAV_N factory marks), factory marks
@@ -31,7 +31,7 @@ static int ed_fav(uint32_t cmd, const uint8_t *a, uint32_t na)
     if (op == 3u) {
         if (na < 2u || a[1] > 1u)
             return 0;
-        fav_list = a[1];
+        pl_filt = a[1] ? PLF_FAV : PLF_ALL;            /* (the preset list's filter, core/model.c: FAVORITES or ALL) */
         settings_later = 1;
         ui.force = 1;
         ed_b2(3, fav_list);

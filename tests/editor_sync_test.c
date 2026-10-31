@@ -597,7 +597,7 @@ int main(void)
         int r;
         uint32_t i, c0;
         memset(&fav, 0, sizeof fav);
-        fav_list = 0;
+        pl_filt = PLF_ALL;
         q[0] = 0;
         ed_begin(ED_FAV); r = ed_fav(ED_FAV, q, 1);
         check(r && ed_out[5] == 0u && ed_out[6] == 0u && ed_out[7] == FAV_N && ed_out[8] == 0u && ed_out[9] == 0u, "v13 FAVS op 0: no favorites, FAV_N places, the list is ALL");

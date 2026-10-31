@@ -150,10 +150,11 @@ static int lane_presets(void);
 #if FELUCCA_FAVORITES
 static int op_fav_here(void);                           /* op_screens.c: FAVORITES, marked and browsed where presets are picked (PRESETS) */
 static void op_fav_mark(int on);
-static void op_fav_list(uint32_t on);
 static void pre_toast_fav(const char *what);            /* op_preset.c */
 #endif
 static void lane_kind_step(int32_t s);
+static void op_pl_filter_step(int32_t s);               /* op_screens.c: SHIFT2 + PRESETS, the preset list's filter */
+static void pre_toast_filter(void);                     /* op_preset.c: its popup, the header lit */
 static const char *lane_sound_name(uint32_t l);
 
 /* The drum track's ACCENT lane (core.h DRUM_ACC, lane 10) as this UI shows it: a lane as the others (a row in the grid,

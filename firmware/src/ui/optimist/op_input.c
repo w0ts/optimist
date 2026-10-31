@@ -869,8 +869,8 @@ static int pre_free(void) { return !op_armed() && !rh.ring && !page_owned() && u
 #if FELUCCA_FAVORITES
 /* FAVORITES (docs/UI-OPTIMIST-DESIGN.md 13 Favorites) are marked and browsed where presets are picked, not on a SOUND row (the user, 2026-10-14: "we have a
  * preset button, that is enough"): SAVE held + PRESETS marks the sound playing a favorite (right: saved into the favorites, 2026-10-16)
- * or unmarks it (left), SHIFT2 + SELECT browses only the favorites (right) or every sound (left); a synth track's, not under a
- * question, the NAME screen, STEP or MASTER */
+ * or unmarks it (left); the FAVORITES filter (SHIFT2 + PRESETS, since 2026-10-31; before, SHIFT2 + SELECT) browses only them;
+ * a synth track's, not under a question, the NAME screen, STEP or MASTER */
 static int fav_gesture_ok(void)
 {
     return !is_drum(TSEL) && pre_free() && ui.scr != SCR_STEP && !sys_scr(ui.scr);
@@ -878,8 +878,11 @@ static int fav_gesture_ok(void)
 #endif
 /* PRESETS browses the selected track's presets (the drum track: its kits), one a detent, on every screen but STEP,
  * where it pages the window, and GLOBAL and SYSTEM, where it does nothing (the user, 2026-10-10: "presets knobs act as select everywhere, remove it"). Under a question, the REC ring or the NAME screen
- * the turn is drained and changes nothing. SHIFT2 (more, 2026-10-16) + PRESETS: the instruments (a lane off KIT: its kinds;
- * STEP: the window follows the playhead again); SAVE + PRESETS: the favorite. 1: a turn was taken */
+ * the turn is drained and changes nothing. The shifts (the user, 2026-10-31: "Left shift plus preset should go to the next/prev
+ * engine. Right shift should cycle thru (filter) types of preset"): SHIFT (OCT-, left) + PRESETS the instruments (DR: its kits;
+ * a lane off KIT: its kinds; SHIFT2 had them since 2026-10-16), SHIFT2 (OCT+, right) + PRESETS the list's filter (ALL FACTORY
+ * USER FAVORITES INIT; a synth track's; STEP: the window follows the playhead again); SAVE + PRESETS: the favorite. 1: a turn
+ * was taken */
 static int op_presets_turn(void)
 {
     int32_t s = panel_enc(EN_PRESET);
@@ -889,7 +892,15 @@ static int op_presets_turn(void)
         op_clean &= ~(BIT(B_OCTDN) | BIT(B_OCTUP));     /* (a shift with PRESETS: no octave, no NO when let go) */
     if (sys_scr(ui.scr)) {                              /* GLOBAL, SYSTEM: PRESETS does nothing (the user, 2026-10-13): a knob k is
                                                          * line k, CALIBRATE runs from YES */
-    } else if (btn_held(B_OCTDN)) {              /* SHIFT + PRESETS: nothing (the turn drained) */
+    } else if (btn_held(B_OCTDN)) {                     /* SHIFT + PRESETS: the instruments (STEP, a step held: nothing, the turn drained) */
+        if (ui.scr != SCR_STEP && pre_free() && !st_holding()) {
+            if (lane_presets())
+                lane_kind_step(s);                      /* (a lane off KIT: its sound's next / previous kind, op_walk.c) */
+            else
+                op_engine_step(s);                      /* (DR, a lane on KIT: its kits) */
+            if (!op_armed())
+                lane_presets() ? pre_toast() : pre_toast_engine();   /* (asked "Discard edits?": no toast) */
+        }
     } else if (ui.scr == SCR_STEP && btn_held(B_OCTUP)) {   /* STEP: SHIFT2 + PRESETS: the window follows the playhead again
                                                          * (PRESETS alone scrolls the window) */
         st.follow = 1;
@@ -899,13 +910,12 @@ static int op_presets_turn(void)
         pre_toast_fav(0);
         op_clean &= ~BIT(B_SAVE);                       /* (SAVE let go: no YES) */
 #endif
-    } else if (btn_held(B_OCTUP) && pre_free() && !st_holding()) {
-        if (lane_presets())
-            lane_kind_step(s);                          /* (a lane off KIT: its sound's next / previous kind, op_walk.c) */
-        else
-            op_engine_step(s);                          /* SHIFT2 + PRESETS: the instruments (DR: its kits) */
-        if (!op_armed())
-            lane_presets() ? pre_toast() : pre_toast_engine();                                /* (asked "Discard edits?": no toast) */
+    } else if (btn_held(B_OCTUP)) {                     /* SHIFT2 + PRESETS: the list's filter, a synth track's (the drum track,
+                                                         * a lane: their kits and sounds have none, the turn drained) */
+        if (pre_free() && !st_holding() && !is_drum(TSEL)) {
+            op_pl_filter_step(s);
+            pre_toast_filter();
+        }
     } else if (ui.scr == SCR_STEP) {                    /* STEP: the window's pages, every track (the user, 2026-10-11:
                                                          * "in the step sequencer it scroll pages thru the piano roll"),
                                                          * stopping at the ends; a step held: nothing (the held keys are
@@ -998,7 +1008,7 @@ static int rec_knob(uint32_t row, uint32_t k, const cell_t *c)
 }
 static void op_knobs(uint32_t shift)
 {
-    uint32_t k, row = ui.row[ui.scr], n = SCR->rows(), turned = 0, favsel = 0;
+    uint32_t k, row = ui.row[ui.scr], n = SCR->rows(), turned = 0;
     int32_t s;
     cell_t c;
     ui.shift = btn_held(B_LFO);     /* SHIFT = LFO held (the user): the cells' fine path */
@@ -1016,21 +1026,13 @@ static void op_knobs(uint32_t shift)
             turned = 1;
         goto knobs_done;
     }
-#if FELUCCA_FAVORITES
-    if (btn_held(B_OCTUP) && fav_gesture_ok() && (s = panel_enc(EN_SELECT)) != 0) {   /* SHIFT2 + SELECT: the favorites only / all */
-        op_fav_list(s > 0);
-        pre_toast_fav(fav_list ? "FAVORITES ONLY" : "ALL SOUNDS");
-        favsel = 1;
-        turned = 1;
-    }
-#endif
-    if (ui.scr == SCR_HOME && !favsel) {                /* the mixer: SELECT its knob sets */
+    if (ui.scr == SCR_HOME) {                           /* the mixer: SELECT its knob sets */
         if ((s = panel_enc(EN_SELECT)) != 0) {
             mx_page(s);
             turned = 1;
         }
     }
-    if (!favsel && (s = panel_enc(EN_SELECT)) != 0) {   /* the cursor: a row a detent, stopping at the ends */
+    if ((s = panel_enc(EN_SELECT)) != 0) {              /* the cursor: a row a detent, stopping at the ends */
         if (glo_cycle())
             glo_step(s);                                /* (GLOBAL, SYSTEM: their pages of 4 lines, op_global.c) */
         else if (ui.scr == SCR_STEP && !st.held && btn_held(B_OCTUP))
