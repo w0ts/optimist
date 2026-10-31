@@ -133,7 +133,7 @@ def loader_takes(running: str, pkg: PackageInfo, running_text: str = "") -> tupl
         return True, "its own update loader (unverified for this package: download mode if it refuses)"
     if running in (OPTIMIST, AMBIG_000):
         if pkg.kind == P_V15:
-            return True, "the way back to the official firmware (README.md, Getting back)"
+            return True, "the way back to the official firmware (README.md, Getting back); not with m-bootloader installed: the updater stops with -5, then download mode"
         if pkg.flash_len not in OWN_SLOTS:
             return False, (f"its updater takes the layouts {', '.join(f'{s:#x}' for s in OWN_SLOTS)} only; this flash.bin is "
                            f"{pkg.flash_len:#x}" if pkg.flash_len else "its updater needs a flash.bin")
@@ -279,6 +279,20 @@ def choose(running: str, pkg: PackageInfo, bootloader: str = KEEP, mboot_present
                   "the other layout left), M-Flasher's own plan read back and compared, then your yes",
                   "M-Flasher writes and verifies every sector, stops on a mismatch; the FM-1 restarts"]
     return Route("download", reason, enter, soft, want or pkg.kind == P_MBOOT, tuple(steps))
+
+
+def head_refused(running: str, pkg: PackageInfo, code: str) -> bool:
+    """True when the running Optimist's updater may have refused an M-VAVE package with -5 (its first 0x4000 bytes, the boot
+    area, differ from the installed ones: m-bootloader is installed); the install stopped before anything was erased"""
+    return running in (OPTIMIST, AMBIG_000) and pkg.kind in (P_V15, P_STOCK) and code in ("noloader", "stopped")
+
+
+def refused_route(running: str, pkg: PackageInfo) -> Route:
+    """the download-mode route after a -5: M-Flasher (docs/INSTALL-PATHS.md); the firmware's check is unchanged"""
+    route = choose(running, pkg, KEEP, True, "")
+    steps = route.steps if route.method == "download" else choose(running, pkg, MBOOT, True, "").steps
+    return Route("download", "the updater refused the package (-5: its bootloader differs, as with m-bootloader installed)",
+                 "OCT- + OCT+ held 5 s while stopped, or REC held while switching on (with m-bootloader)", False, False, steps)
 
 
 # ------------------------------------------------------------------ the docs' matrix ---

@@ -44,7 +44,7 @@ LOADER_MARK = b"FELUCCA-LOADER-1"
 STOCK_SHA256 = "db1642b2b6fa5c2cccb11ffd13878068bb28601678d3644049f99dc40e7edb8a"
 # the app slots Optimist's own updater takes (firmware/src/system/ota.c step 1: every MEMORY step's, tools/flash_layout.py)
 OWN_SLOTS = flash_layout.own_slots()
-PORT_RE = re.compile(r"fm-?1|felucca|optimist|ota|composite|sinco|usb-midi", re.I)   # never probe other gear (fm-?1: "FM-1", and "FM1-XXXX",
+PORT_RE = re.compile(r"fm-?1|felucca|optimist|smk-37|ota|composite|sinco|usb-midi", re.I)   # never probe other gear (fm-?1: "FM-1", and "FM1-XXXX",
                                                                                       # Optimist's name since 2026-10-29; "optimist": older firmware)
 
 # seconds; the tests shorten them
@@ -554,7 +554,18 @@ def run(a, backend, out, ask, ask_text=None):
         return 0
     if route.method == "download":
         return download(a, up, dev, route, out, ask, ask_text or ask_word)
-    return loader_install(a, up, dev, out, ask, product, image)
+    try:
+        return loader_install(a, up, dev, out, ask, product, image)
+    except InstallError as e:
+        info = route_pkg(a, image)
+        if a.route == "loader" or not R.head_refused(R.running_kind(text, dev.name), info, e.code):
+            raise
+        print(f"the FM-1 did not start the update ({e}). Optimist's updater refuses an M-VAVE package when the "
+              "bootloader differs (error -5, as with m-bootloader installed); nothing was written. "
+              "Download mode (M-Flasher) instead:", file=out)
+        route = R.refused_route(R.running_kind(text, dev.name), info)
+        AF.describe(AF.Env(out=out), route, info, text, dev.name, "")
+        return download(a, up, None, route, out, ask, ask_text or ask_word)
 
 
 AF = R = None
