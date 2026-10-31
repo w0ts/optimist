@@ -92,6 +92,8 @@ final class MirrorLink: ObservableObject, Transport, CompanionTransport {
         var pending: Pending?     // the editor request waiting for its reply
         var cpending: CPending?   // the companion request waiting for its answer
         var token = 0
+        var lostSeen = 0          // the decoder's checked frames lost, as last acted on
+        var lostAsk = Date.distantPast   // the whole panel last asked for because of them
     }
     private struct Pending {
         var cmd: UInt8
@@ -186,7 +188,7 @@ final class MirrorLink: ObservableObject, Transport, CompanionTransport {
     private static let catchMaxUSB: TimeInterval = 0.25  // (USB: a page is in within a few frames; the mixer leaves rows black, so
                                                          //  "every row drawn" never came and its meters never paused: 1.5 s, then 2 s seen)
     private static func wholeFill(_ f: [UInt8]) -> Bool {
-        f.count == 18 && f[5] == 0 && Array(f[6..<14]) == [0, 0, 0, 0, 112, 1, 112, 1]
+        (f.count == 18 && f[5] == 0 || f.count == 21 && f[5] == 8) && Array(f[6..<14]) == [0, 0, 0, 0, 112, 1, 112, 1]
     }
 
     /// Ask for the whole panel again (the app came back to the front).
@@ -363,7 +365,7 @@ final class MirrorLink: ObservableObject, Transport, CompanionTransport {
             if ask == .ask { send([1]) }
             if ask == .gaveUp, !btGaveUp { btGaveUp = true }
         }
-        send([MirrorDecoder.cmd, wantWhole ? 3 : 1])
+        send([MirrorDecoder.cmd, (wantWhole ? 3 : 1) | MirrorDecoder.checkedBit])   // (bit 3: checked frames; an older firmware ignores it)
         wantWhole = false
         asked += 1
     }
@@ -609,7 +611,7 @@ final class MirrorLink: ObservableObject, Transport, CompanionTransport {
                         s.held = Date()
                         s.rows = [Bool](repeating: false, count: 240)
                         s.rowsLeft = 240
-                    } else if s.rowsLeft > 0, f.count >= 14, f[5] <= 1 {   // (FILL, BLIT: their rows; MORE goes on in them)
+                    } else if s.rowsLeft > 0, f.count >= 14, f[5] <= 1 || f[5] == 8 || f[5] == 9 {   // (FILL, BLIT: their rows; MORE goes on in them)
                         let y = Int(f[8]) | Int(f[9]) << 7, h = Int(f[12]) | Int(f[13]) << 7
                         for r in max(0, y)..<min(240, y + h) where !s.rows[r] { s.rows[r] = true; s.rowsLeft -= 1 }
                     }
@@ -621,6 +623,17 @@ final class MirrorLink: ObservableObject, Transport, CompanionTransport {
             return (on, identified, answers, companionInfo, drew, btDev)
         }
         for (c, a) in answers { c.resume(returning: a) }
+        let lostNow = lock.withLock { s -> Bool in   // checked frames lost: the whole panel asked again (at most twice a second)
+            guard s.decoder.lost != s.lostSeen, Date().timeIntervalSince(s.lostAsk) > 0.5 else { return false }
+            s.lostSeen = s.decoder.lost
+            s.lostAsk = Date()
+            return true
+        }
+        if lostNow {                    // (the request alone: tick's other asks and its rate log keep their pace)
+            DispatchQueue.main.async {
+                if self.state == .mirroring, self.destination != 0 { self.send([MirrorDecoder.cmd, 3 | MirrorDecoder.checkedBit]) }
+            }
+        }
         if let btDev { DispatchQueue.main.async { if self.btDevice != btDev { self.btDevice = btDev } } }
         if replied || drew {            // (a panel write drawn is the mirror answering too: a lost 106 reply never shows No mirror)
             DispatchQueue.main.async {

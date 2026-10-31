@@ -16,6 +16,11 @@ struct MirrorDecoder {
     private var at = 0
     private var slots = [UInt16](repeating: 0, count: 7)
     private var next = 1
+    /// Checked frames (ops 8, 9, 10: asked with 106 bit 3, ed_mirror_enc.h): the next seq, one seen, a MORE now would go astray
+    private var seq = 0, haveSeq = false, broken = false
+    /// Checked frames dropped or lost (a sum failed, a gap in seq): the picture is not whole, the link asks for it again
+    private(set) var lost = 0
+    static let checkedBit: UInt8 = 8
 
     /// The reply to a MIRROR request (F0 7D 46 4C 6A on version w w h h F7), or nil for anything else.
     static func reply(_ f: [UInt8]) -> (on: Bool, version: Int)? {
@@ -39,8 +44,22 @@ struct MirrorDecoder {
     @discardableResult
     mutating func apply(_ f: [UInt8]) -> Bool {
         guard Self.isMirror(f), Self.reply(f) == nil else { return false }
-        let n = f.count - 1
-        let op = f[5]
+        var n = f.count - 1
+        var op = f[5]
+        if op >= 8 && op <= 10 {        // checked: seq, then Fletcher sums A and B of 7D .. seq, before F7
+            guard n >= 9 else { lost += 1; broken = true; return false }
+            var a = 0, b = 0
+            for k in 1..<(n - 2) { a += Int(f[k]); b += a }
+            guard a & 127 == Int(f[n - 2]), b & 127 == Int(f[n - 1]) else { lost += 1; broken = true; return false }
+            let q = Int(f[n - 3])
+            if haveSeq && q != seq { lost += 1; broken = true }   // (frames lost or repeated before this one)
+            seq = (q + 1) & 127
+            haveSeq = true
+            if op == 10 && broken { lost += 1; return false }    // (its BLIT lost: it would paint into another rectangle)
+            broken = false
+            op -= 8
+            n -= 3
+        }
         var i = 6
         func two(_ k: Int) -> Int { Int(f[k]) | Int(f[k + 1]) << 7 }
         func colour(_ k: Int) -> UInt16 { UInt16(truncatingIfNeeded: two(k) | Int(f[k + 2]) << 14) }
