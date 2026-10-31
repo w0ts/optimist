@@ -81,6 +81,8 @@ static int stalled;                     /* 1: the USB host reads nothing (the ri
 static uint32_t states;                 /* op 4 STATE frames received; the last one's bytes */
 static uint8_t state[29];
 static FILE *fix;
+static uint32_t mt_lossy, mt_lost, mt_zeroed, mt_twice, mt_rs = 7;   /* the lossy transport (chk_tests) */
+static uint32_t mt_rnd(uint32_t n) { mt_rs = mt_rs * 1103515245u + 12345u; return (mt_rs >> 8) % n; }
 static void host_byte(uint8_t b)
 {
     if (b == 0xF0u)
@@ -102,7 +104,22 @@ static void host_byte(uint8_t b)
             for (i = 0; i < 7u; i++)
                 link[i] = hf[6u + 2u * i] | hf[7u + 2u * i] << 7;
         }
-        else
+        else if (mt_lossy && hn > 9u && hf[5] <= 10u) {   /* (a Mac's MIDI driver: a frame lost, bytes zeroed, one twice) */
+            uint32_t r = mt_rnd(100), i, at, len;
+            if (r < 4u) {
+                mt_lost++;
+            } else if (r < 8u) {
+                at = 6u + mt_rnd(hn - 8u), len = 1u + mt_rnd(12);
+                for (i = at; i < at + len && i < hn - 1u; i++)
+                    hf[i] = 0;
+                mt_zeroed++;
+                md_frame(hf, hn);
+            } else {
+                md_frame(hf, hn);
+                if (r < 10u)
+                    md_frame(hf, hn), mt_twice++;
+            }
+        } else
             bad += !md_frame(hf, hn);
         if (fix)
             fwrite(hf, 1, hn, fix);
@@ -923,6 +940,80 @@ static void bigcatch_tests(void)
     lcd_fill(0, 0, 240, 240, 0);
     radio(~0u);
 }
+/* checked frames (106 bit 3; ed_mirror_enc.h ops 8..10) over a lossy transport (2026-11-01 on the FM-1 from a Mac: the cards at
+ * another x, fragments of other rectangles: a lost BLIT's MOREs painted into the rectangle before, zeroed bytes drawn as pixels).
+ * The client's picture is either exact, or it knows it lost something (and asks for the whole panel again): never garbage it
+ * believes. Without checks the same transport leaves wrong pixels the client cannot know about */
+static void chk_tests(void)
+{
+    static const uint8_t ONC[] = {0xF0, 0x7D, 0x46, 0x4C, 106, 1 | 2 | MIR_CHK_BIT, 0xF7},
+                         ON[] = {0xF0, 0x7D, 0x46, 0x4C, 106, 1 | 2, 0xF7};
+    uint32_t k, d0, asks = 0, wrong_known = 0, wrong_unknown = 0, pass;
+    for (pass = 0; pass < 2u; pass++) {   /* 0: checked, 1: as before */
+        ble_out_on = 1;
+        bt_send(pass ? ON : ONC, 7);
+        fm1_ms += MIR_CATCH_MS;
+        MIR_SEEN();
+        mir_poll();
+        radio(~0u);
+        mir_poll();
+        radio(~0u);
+        check(same() && (pass || me.chk), "checked frames (%u): on, caught up, the panel", pass);
+        md.have_seq = 0, md.broken = 0;
+        wrong_known = wrong_unknown = asks = 0;
+        mt_lossy = 1;
+        for (k = 0; k < 1500u; k++) {
+            d0 = md.dropped;
+            random_write();
+            radio(~0u);
+            fm1_ms += MIR_MARK_MS;      /* (the mark after the frames: seq alone; again a second later) */
+            MIR_SEEN();
+            mir_poll();
+            radio(~0u);
+            fm1_ms += MIR_MARK_IDLE_MS;
+            MIR_SEEN();
+            mir_poll();
+            radio(~0u);
+            if (md.dropped != d0) {     /* (it knows: the whole panel asked for, which comes whole here) */
+                wrong_known += !same();
+                mt_lossy = 0;
+                bt_send(pass ? ON : ONC, 7);
+                fm1_ms += MIR_CATCH_MS;
+                MIR_SEEN();
+                mir_poll();
+                radio(~0u);
+                mir_poll();
+                radio(~0u);
+                mt_lossy = 1;
+                asks++;
+                check(same(), "checked frames: the whole panel asked again, the panel");
+            } else if (!same()) {
+                wrong_unknown++;
+                mt_lossy = 0;           /* (as before: wrong until something else repaints it; resync for the next write) */
+                bt_send(pass ? ON : ONC, 7);
+                fm1_ms += MIR_CATCH_MS;
+                MIR_SEEN();
+                mir_poll();
+                radio(~0u);
+                mir_poll();
+                radio(~0u);
+                mt_lossy = 1;
+            }
+            MIR_SEEN();
+            mir_poll();
+            radio(~0u);
+        }
+        mt_lossy = 0;
+        printf("checked frames %s: %u lost, %u zeroed, %u twice; %u catch-ups asked, wrong %u known / %u unknown\n",
+               pass ? "off" : "on", mt_lost, mt_zeroed, mt_twice, asks, wrong_known, wrong_unknown);
+        if (!pass)
+            check(wrong_unknown == 0u && asks > 20u, "checked frames: a lossy link never leaves a picture the client believes wrong");
+        else
+            check(wrong_unknown > 20u, "as before (no checks): the same link leaves wrong pictures the client cannot see");
+        mt_lost = mt_zeroed = mt_twice = 0;
+    }
+    me.chk = 0;
+}
 int main(void)
 {
     uint32_t k;
@@ -937,6 +1028,7 @@ int main(void)
     test_session_tests();
     bt_tests();
     bigcatch_tests();
+    chk_tests();
     lag_tests();
     nav_tests();
 #if MIR_LEND
