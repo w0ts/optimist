@@ -634,7 +634,7 @@ def choose_route(a, dev, text, out, image, boot=None):
     """the way for this package (tools/fm1_route.py): printed with the build's BOOTLOADER as this install takes it, and
     the bootloader the firmware says it has (boot: ask_boot's word; None: not known)"""
     info = route_pkg(a, image)
-    choice, line = AF.build_setting(a.package, a.keep_bootloader)
+    choice, line = AF.build_setting(a.package, a.install_mboot)
     present = R.mboot_present_of(boot)
     if boot:
         line += {"mboot": "; the FM-1 has m-bootloader (the firmware says so)", "stock": "; the FM-1 has M-VAVE's "
@@ -734,8 +734,9 @@ def main(argv=None, backend=None, out=sys.stdout, ask=ask_tty, ask_text=None):
     ap.add_argument("--force", action="store_true", help="install a package without the Felucca loader marker")
     ap.add_argument("--route", choices=("auto", "loader", "download"), default="auto",
                     help="auto (docs/INSTALL-PATHS.md), the running firmware's loader, or download mode (M-Flasher)")
-    ap.add_argument("--keep-bootloader", action="store_true",
-                    help="keep the bootloader for this install, though the build says m-bootloader")
+    ap.add_argument("--install-mboot", action="store_true",
+                    help="install m-bootloader (download mode, a full backup first); never done otherwise")
+    ap.add_argument("--keep-bootloader", action="store_true", help=argparse.SUPPRESS)   # (the default now; older callers)
     ap.add_argument("--dry-run", action="store_true", help="send nothing: print the route and what would be written where")
     st = ap.add_mutually_exclusive_group()
     st.add_argument("--keep-settings", action="store_true", help="download mode: keep the settings and pairings")

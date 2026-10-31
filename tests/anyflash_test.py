@@ -138,13 +138,18 @@ def chooser():
     ok(r.install_mboot and any("m-bootloader into the boot area" in s for s in r.steps), "BOOTLOADER m-bootloader: installed once, in the steps")
     # the display and the KEEP-only override
     lines = {(v, k): R.bootloader_choice(v, k) for v in (None, R.KEEP, R.MBOOT) for k in (False, True)}
-    ok(lines[(R.MBOOT, False)][0] == R.MBOOT and "m-bootloader (from the build)" in lines[(R.MBOOT, False)][1]
-       and "backup" in lines[(R.MBOOT, False)][1], "display: m-bootloader from the build, a backup first")
-    ok(lines[(R.MBOOT, True)] [0] == R.KEEP and "--keep-bootloader" in lines[(R.MBOOT, True)][1], "override: m-bootloader -> keep")
-    ok(all(lines[(v, k)][0] == R.KEEP for v in (None, R.KEEP) for k in (False, True)),
-       "override never installs m-bootloader: keep and no setting stay keep, with or without the flag")
-    ok("keep (from the build)" in lines[(R.KEEP, False)][1] and "no build setting" in lines[(None, False)][1],
-       "display: keep from the build / no build setting")
+    ok(all(lines[(v, True)][0] == R.MBOOT and "--install-mboot" in lines[(v, True)][1] and "backup" in lines[(v, True)][1]
+           for v in (None, R.KEEP, R.MBOOT)), "--install-mboot (explicit) is the only way to m-bootloader, a backup first")
+    ok(all(lines[(v, False)][0] == R.KEEP for v in (None, R.KEEP, R.MBOOT)),
+       "the build's BOOTLOADER (m-bootloader, keep or nothing) is keep: MIDI first")
+    ok("kept as it is" in lines[(R.MBOOT, False)][1] and "keep (from the build)" in lines[(R.KEEP, False)][1]
+       and "no build setting" in lines[(None, False)][1], "display: m-bootloader kept / keep from the build / no build setting")
+    for rk in (R.OPTIMIST, R.FM1BASE, R.FELUCCA, R.STOCK):
+        for mp in (None, True, False):
+            pc = pk(R.P_OPTIMIST if rk != R.STOCK else R.P_V15)
+            if R.loader_takes(rk, pc, "", mp)[0]:
+                ok(R.choose(rk, pc, lines[(R.MBOOT, False)][0], mp, "").method == "loader",
+                   f"the loader takes it ({rk}, boot {mp}): USB-MIDI with the build's BOOTLOADER=1")
 
 
 def docs():
@@ -381,13 +386,14 @@ def dry_runs():
     with redirect_stderr(io.StringIO()):
         FI.main([str(pkg2), "--dry-run", "--running", "FM-1_700"], out=out)
     o = out.getvalue()
-    ok("bootloader: m-bootloader (from the build)" in o and "route:    download" in o and "bootloader --backup-dir" in o,
-       "--dry-run with BOOTLOADER m-bootloader: shown, download mode, the bootloader step")
+    ok("kept as it is" in o and "route:    loader" in o and "bootloader --backup-dir" not in o,
+       "--dry-run with BOOTLOADER m-bootloader: kept, the loader (MIDI first, no token and boot unknown)")
     out = io.StringIO()
     with redirect_stderr(io.StringIO()):
-        FI.main([str(pkg2), "--dry-run", "--running", "FM-1_700", "--keep-bootloader"], out=out)
+        FI.main([str(pkg2), "--dry-run", "--running", "FM-1_700", "--install-mboot"], out=out)
     o = out.getvalue()
-    ok("bootloader: keep (--keep-bootloader" in o and "route:    loader" in o, "--keep-bootloader: keep shown, the loader again")
+    ok("bootloader: m-bootloader (--install-mboot" in o and "route:    download" in o and "bootloader --backup-dir" in o,
+       "--install-mboot: shown, download mode, the bootloader step")
     out = io.StringIO()
     AF.main(["backup", "--dry-run", "--backup-dir", str(TMP / "b")], AF.Env(out=out))
     ok(f"{dev.exe} backup {TMP / 'b'}" in out.getvalue() and not dev.calls(), "fm1_anyflash.py backup --dry-run: the command only")
@@ -455,7 +461,7 @@ def js_route():
           "const out = cases.map(([r, k, b, m]) => { const p = pkgs[k]; return choose(r, { kind: p.kind, product: p.product, "
           "flashLen: p.flash_len, ownLoader: p.own_loader }, b, r === 'stock' ? 'FM-1_016' : '', m).method; });"
           "const ids = JSON.parse(process.argv[2]).map(([i, port]) => runningKind(i, port));"
-          "const boots = [[null, false], ['keep', true], ['m-bootloader', false], ['m-bootloader', true]].map(([v, k]) => bootloaderChoice(v, k).choice);"
+          "const boots = [[null, false], ['keep', true], ['m-bootloader', false], ['m-bootloader', true], ['keep', false]].map(([v, k]) => bootloaderChoice(v, k).choice);"
           "process.stdout.write(JSON.stringify([out, ids, boots, bootloaderFromConfig('X=1\\nBOOTLOADER=1\\n')]));") % str(ROOT / "web" / "install_route.js")
     ids = [("FM-1_015", ""), ("FM-1_906", "SLOOP"), ("FM-1_700", ""), ("FM-1_7900", ""), ("FM-1_000", ""), ("ota-FM-1_700", ""),
            ("FM1_OFFICIAL_OPEN", ""), ("FM-1_045", ""), (None, ""), ("FM-1_501", "")]
@@ -469,7 +475,7 @@ def js_route():
     diff = [c for c, a, b in zip(cases, out, want) if a != b]
     ok(not diff, f"web/install_route.js chooses as fm1_route.py: {len(cases)} cases" + (f" {diff[:5]}" if diff else ""))
     ok(kinds == [R.running_kind(i, p) for i, p in ids], "... and names the running firmware the same")
-    ok(boots == ["keep", "keep", "m-bootloader", "keep"] and cfg == "m-bootloader", "... and takes BOOTLOADER the same (KEEP-only override)")
+    ok(boots == ["keep", "m-bootloader", "keep", "m-bootloader", "keep"] and cfg == "m-bootloader", "... and takes BOOTLOADER the same (--install-mboot only)")
 
 
 def flash_py():
@@ -489,12 +495,11 @@ def flash_py():
         text = "\n".join(plan.lines())
         ok(not plan.layout_known and "LAYOUT    If the FM-1 has another memory layout than this firmware's (normal)" in text,
            "the layout warning, no install recorded here: the installed layout not known, said so (never a refusal)")
-        ok("bootloader: m-bootloader (from the build)" in text and plan.download and "route:    download mode" in text,
-           "make flash / the builder's f: the confirmation shows the bootloader and the route")
+        ok(not plan.download and "Flash over USB-MIDI" in text and "route:    download" not in text,
+           "make flash / the builder's f: BOOTLOADER=1 and no token: Flash over USB-MIDI, the bootloader kept")
         F.install(plan)
-        ok(seen[-1][:2] == [str(pkg), "--yes"] and "--route" in seen[-1] and "--keep-bootloader" not in seen[-1]
-           and "--wipe-settings" not in seen[-1] and "settings: kept" in text,
-           "... the install runs fm1_install.py --yes --route download")
+        ok(seen[-1][:2] == [str(pkg), "--yes"] and "--route" not in seen[-1] and "--install-mboot" not in seen[-1],
+           "... the install runs fm1_install.py --yes, no download mode")
         ok(F.last_install_end() == 0x93000, "an install that worked records its layout (build/last-install.json)")
         s0 = write_pkg(TMP / "optimist-8.8-s0.fwsc", synth_flash(0xB5000, 41), "FM-1_700")
         sp = F.preflight(s0, notes=[])
@@ -502,13 +507,13 @@ def flash_py():
            in "\n".join(sp.lines()) and "last install from this computer" in sp.layout_warn,
            "... the next package of another layout: the warning names what it erases (and asks 'anyway')")
         ok(F.layout_note(pkg) == ("", False), "... a package of the same layout: no warning")
-        kept = F.keep_bootloader(plan)
-        F.install(kept)
-        ok(kept.keep_bootloader and not kept.download and "--keep-bootloader" in seen[-1] and "--route" not in seen[-1],
-           "the builder's 'keep the bootloader this time': --keep-bootloader, the loader again")
+        mb = F.install_mboot(plan)
+        F.install(mb)
+        ok(mb.install_mboot and mb.download and "--install-mboot" in seen[-1] and "--route" in seen[-1] and "settings: kept" in "\n".join(mb.lines()),
+           "the builder's explicit entry: --install-mboot, download mode")
         IM.write(pkg, 0)
         plan = F.preflight(pkg, notes=[])
-        ok("the USB-MIDI update" in "\n".join(plan.lines()) and "bootloader kept" in "\n".join(plan.lines())
+        ok("Flash over USB-MIDI" in "\n".join(plan.lines()) and "bootloader kept" in "\n".join(plan.lines())
            and not plan.download, "BOOTLOADER keep: the running firmware's loader, the bootloader kept, said in one line")
     finally:
         F.run_tool = real
@@ -588,12 +593,12 @@ def boot_word():
     own, rel, v15p = R.sample_package(R.P_OPTIMIST), R.sample_package(R.P_FM1BASE), R.sample_package(R.P_V15)
     r = R.choose(R.OPTIMIST, own, R.MBOOT, True)
     ok(r.method == "loader" and not r.install_mboot and "already" in r.why,
-       "m-bootloader there, the build wants it: the USB-MIDI update, nothing to install")
+       "m-bootloader there, asked for: the USB-MIDI update, nothing to install")
     r = R.choose(R.FM1BASE, rel, R.MBOOT, True, "FM-1_7900")
     ok(r.method == "loader", "... the release over the release (fm1-base's updater) the same")
     r = R.choose(R.OPTIMIST, own, R.MBOOT, False)
     ok(r.method == "download" and r.install_mboot and any("m-bootloader" in s for s in r.steps),
-       "M-VAVE's bootloader there, the build wants m-bootloader: download mode with its step")
+       "M-VAVE's bootloader there, m-bootloader asked for (explicit): download mode with its step")
     ok(R.choose(R.OPTIMIST, own, R.KEEP, False).method == "loader",
        "... and the install that keeps the bootloader (the other choice) is the USB-MIDI update")
     ok(R.choose(R.OPTIMIST, own, R.MBOOT, None) == R.choose(R.OPTIMIST, own, R.MBOOT),
@@ -608,8 +613,8 @@ def boot_word():
     pkg = write_pkg(TMP / "boot.fwsc", synth_flash(0x93000, 32), "FM-1_700")
     IM.write(pkg, 1)
     for line, want in (("FM-1_700  [running]  port: FM1-1A2B  boot=mboot", "loader"),
-                       ("FM-1_700  [running]  port: FM1-1A2B  boot=stock", "download"),
-                       ("FM-1_700  [running]  port: FM1-1A2B", "download")):
+                       ("FM-1_700  [running]  port: FM1-1A2B  boot=stock", "loader"),
+                       ("FM-1_700  [running]  port: FM1-1A2B", "loader")):
         r, _ = F.route_of(pkg, line)
         ok(r.method == want, f"flash.route_of {line[line.index('port'):]!r}: {want}")
     real = F.run_tool
@@ -622,9 +627,9 @@ def boot_word():
            f"the builder's dialog with m-bootloader there: about four lines, no steps ({len(plan.lines())} lines)")
         F.run_tool = lambda args, capture=True, on_line=None, tool=None: (0, "FM-1_700  [running]  port: FM1-1A2B  boot=stock")
         plan = F.preflight(pkg, notes=[])
-        kept = F.keep_bootloader(plan)
-        ok(plan.download and plan.wants_mboot and "1." in "\n".join(plan.lines()) and not kept.download,
-           "M-VAVE's there: download mode with its steps, and the keep choice is the USB-MIDI update")
+        mb = F.install_mboot(plan)
+        ok(not plan.download and not plan.wants_mboot and mb.download and mb.wants_mboot and "1." in "\n".join(mb.lines()),
+           "M-VAVE's there (boot=stock), BOOTLOADER=1: USB-MIDI; the explicit m-bootloader is download mode with its steps")
     finally:
         F.run_tool = real
     # -- fm1_install.py --dry-run with the word given

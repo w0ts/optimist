@@ -137,14 +137,14 @@ enum InstallRoute {
         let k = mbootPresent == true ? "hold REC while switching on (m-bootloader)" + ((keys[running] ?? "").isEmpty ? "" : "; or " + keys[running]!)
             : keys[running] ?? ""
         if !want && takes { return Route(method: "loader", why: why, softKey: soft, keys: k) }
-        return Route(method: "download", why: want ? "the build's BOOTLOADER is m-bootloader" : why, softKey: soft, keys: k,
+        return Route(method: "download", why: want ? "m-bootloader was asked for" : why, softKey: soft, keys: k,
                      wantsMboot: want && takes)
     }
 
-    /// (choice, line): keep (the override) only turns m-bootloader into keep; no build setting keeps the bootloader
-    static func bootloaderChoice(_ value: String?, keep: Bool) -> (String, String) {
-        if value == "m-bootloader" && keep { return ("keep", "bootloader: keep (turned off for this install; the build says m-bootloader)") }
-        if value == "m-bootloader" { return ("m-bootloader", "bootloader: m-bootloader (from the build): needs a full backup first, which M-Flasher makes on a computer") }
+    /// (choice, line): USB-MIDI first, so the build's BOOTLOADER is keep whatever it says; m-bootloader only when asked for (install)
+    static func bootloaderChoice(_ value: String?, install: Bool) -> (String, String) {
+        if install { return ("m-bootloader", "bootloader: m-bootloader (asked for): needs a full backup first, which M-Flasher makes on a computer") }
+        if value == "m-bootloader" { return ("keep", "bootloader: keep (kept as it is; the option installs m-bootloader, through download mode)") }
         if value == "keep" { return ("keep", "bootloader: keep (from the build): not touched") }
         return ("keep", "bootloader: keep (no build setting with this package): not touched")
     }

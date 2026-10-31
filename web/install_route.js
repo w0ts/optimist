@@ -3,8 +3,8 @@
 // The web installer's half of tools/fm1_route.py (docs/INSTALL-PATHS.md): what runs, what the package is, and whether the
 // running firmware's update loader takes it. A browser cannot reach the chip's download mode (a USB mass-storage device:
 // WebUSB refuses that class, it is not HID, Web MIDI reaches a running firmware only), so where the route is download mode
-// the page says what to do on a computer, and can send the soft key. The builder's BOOTLOADER is shown with its KEEP-only
-// override; the page never writes m-bootloader (its full backup first is M-Flasher's). tests/anyflash_test.py checks that
+// the page says what to do on a computer, and can send the soft key. The builder's BOOTLOADER is kept (USB-MIDI first);
+// m-bootloader only through the explicit button; the page never writes m-bootloader (its full backup first is M-Flasher's). tests/anyflash_test.py checks that
 // this file and fm1_route.py choose the same way for every pair of the matrix.
 
 export const SOFT_KEY = [0xF0, 0x22, 0x24, 0x35, 0x7D, 0xF7];
@@ -160,14 +160,14 @@ export function chooseRoute(running, pkg, bootloader = "keep", runningText = "",
   const softKey = SOFT_KEY_OK.has(running), keys = mbootPresent === true
     ? "hold REC while switching on (m-bootloader)" + (KEYS[running] ? "; or " + KEYS[running] : "") : KEYS[running] || "";
   if (!want && takes) return { method: "loader", why, softKey, keys, wantsMboot: false };
-  return { method: "download", why: want ? "the build's BOOTLOADER is m-bootloader" : why, softKey, keys, wantsMboot: want && takes };
+  return { method: "download", why: want ? "m-bootloader was asked for" : why, softKey, keys, wantsMboot: want && takes };
 }
 
-/** { choice, line }: the build's BOOTLOADER as this install takes it; keep (the override) only turns m-bootloader into
-    keep, never the other way; no build setting keeps the bootloader */
-export function bootloaderChoice(value, keep = false) {
-  if (value === "m-bootloader" && keep) return { choice: "keep", line: "bootloader: keep (unticked for this install; the build says m-bootloader)" };
-  if (value === "m-bootloader") return { choice: "m-bootloader", line: "bootloader: m-bootloader (from the build): needs a full backup first, which M-Flasher makes on a computer" };
+/** { choice, line }: the bootloader of this install (fm1_route.bootloader_choice). USB-MIDI first: the build's BOOTLOADER
+    is keep whatever it says; m-bootloader only when asked for (installMboot: the page's own button), through download mode */
+export function bootloaderChoice(value, installMboot = false) {
+  if (installMboot) return { choice: "m-bootloader", line: "bootloader: m-bootloader (asked for): installed if the FM-1 does not have it yet, needs a full backup first, which M-Flasher makes on a computer" };
+  if (value === "m-bootloader") return { choice: "keep", line: "bootloader: keep (kept as it is; the m-bootloader button installs it, through download mode)" };
   if (value === "keep") return { choice: "keep", line: "bootloader: keep (from the build): not touched" };
   return { choice: "keep", line: "bootloader: keep (no build setting with this package): not touched" };
 }
