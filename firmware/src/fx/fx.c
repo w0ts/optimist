@@ -1379,11 +1379,11 @@ static HOT2 __attribute__((noinline)) void ua_ret_acc(uint32_t j, const int32_t 
 /* the SCOPE on a return (the user, 2026-10-31: "if i am on, say, ret C on mixer, i click home ... it should go to scope ret C"):
  * scope_src SCOPE_RET0 + line j, the line's output after its POST and level (what it gives the master), into the visualiser's
  * ring: SC_RET with sg -1 before the stage that adds it (a mark), 1 after (the take), 0 for a block written whole. A test a
- * line a block, the copy only for the one looked at (scope_ret_acc, below with the ring; XIP: FAR) */
+ * line a block, the copy only for the one looked at (scope_ret_acc, below with the ring; RAM code, HOT2, with the stages) */
 static volatile uint8_t scope_src;
-static __attribute__((noinline)) void scope_ret_acc(const int32_t *l, const int32_t *r, uint32_t n, int32_t sg);
+static HOT2 __attribute__((noinline)) void scope_ret_acc(const int32_t *l, const int32_t *r, uint32_t n, int32_t sg);
 #define SCOPE_RET0 5u
-#define SC_RET(j, l, r, n, sg) do { if (scope_src == SCOPE_RET0 + (j)) FAR(scope_ret_acc)(l, r, n, sg); } while (0)
+#define SC_RET(j, l, r, n, sg) do { if (scope_src == SCOPE_RET0 + (j)) scope_ret_acc(l, r, n, sg); } while (0)
 static int32_t ret_cd[CTL];                             /* the wet (right) before the reverb: the chorus and the delay's, to tell the reverb's own */
 /* the tap: each return's largest |sample| of the block, as a track's peak (fx_mix_part: the block's largest, post level) */
 static HOT2 __attribute__((noinline)) int32_t fx_rev_pk(const int32_t *wr, uint32_t n)
@@ -3028,7 +3028,8 @@ static __attribute__((noinline)) int32_t rp_line_out(uint32_t j, int32_t *wl, in
 {
     uint32_t i;
     int32_t pk = rp_post_bus(j, wl, wr, n);
-    SC_RET(j, wl, wr, n, 0);                            /* (the SCOPE on this return: its output alone here) */
+    if (scope_src == SCOPE_RET0 + j)
+        FAR(scope_ret_acc)(wl, wr, n, 0);               /* (the SCOPE on this return: its output alone here; XIP to RAM: FAR) */
     for (i = 0; i < n; i++)
         wl[i] += rp_sl[i], wr[i] += rp_sr[i];
     return pk;
@@ -3146,7 +3147,7 @@ static __attribute__((noinline)) void scope_drums_take(uint32_t n)
     vis_wr += n;
 }
 #define SCOPE_DRUMS(f) do { if (scope_src == SCOPE_DR) FAR(f)(n); } while (0)
-static __attribute__((noinline)) void scope_ret_acc(const int32_t *l, const int32_t *r, uint32_t n, int32_t sg)
+static HOT2 __attribute__((noinline)) void scope_ret_acc(const int32_t *l, const int32_t *r, uint32_t n, int32_t sg)
 {
     uint32_t i, w = vis_wr & (VIS_RING - 1u);
     if (sg < 0)                                         /* (the mark: the block before the stage, taken off after it) */
