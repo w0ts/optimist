@@ -402,8 +402,8 @@ static int head_other(head_t *h)
     }
     {
         static const char *const RB[3] = {"RET A", "RET B", "RET C"};   /* (a return's row: its badge, 2026-10-30) */
-        h->eng = ui.scr == SCR_FX || ui.master || mx_on_master() ? "MASTER" : mx_on_usb() ? "5 USB" :
-                 mx_on_ret() ? RB[(mx_row() - MXR_RET0) % 3u] : SCR_NAME[ui.scr % SCR_N];
+        h->eng = ui.scr == SCR_FX && ui.fxo ? RB[(ui.fxo - 1u) % 3u] : ui.scr == SCR_FX || ui.master || mx_on_master() ? "MASTER" :
+                 mx_on_usb() ? "5 USB" : mx_on_ret() ? RB[(mx_row() - MXR_RET0) % 3u] : SCR_NAME[ui.scr % SCR_N];
     }
     h->muted = (uint8_t)((mx_on_usb() || mx_on_ret()) && mx_muted(mx_row()));   /* (the USB input, a return muted: its badge struck through) */
     if (!gl_scr(ui.scr))

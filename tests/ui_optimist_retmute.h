@@ -26,7 +26,7 @@ static void retmute_tests(void)
     fx_rmute = 0;
     reset_ui();
     frames(2);
-    ui.row[SCR_HOME] = MXR_RET0;
+    mx_apply(MXR_RET0);
     frames(2);
     if (!rm_find_ret_card(&k, &m)) {
         check(0, "retmute: RET A has its LEVEL card in this build");

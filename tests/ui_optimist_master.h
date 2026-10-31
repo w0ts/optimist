@@ -2,8 +2,8 @@
 /* tests/ui_optimist_test.c, the user's rulings of 2026-10-10:
  *   PRESETS browses the selected track's sounds (the drum track: its kits) wherever you are; nothing under a question,
  *   on MASTER or on the NAME screen; it is no longer the hot cell's value, a layer's hot knob or a held step's chance
- *   ALGORITHM left past T1 is MASTER on every page and layer with a track (the master FX), right goes back to T1; STEP
- *   stops at T1 (the automation store has per-track lists only: no master target)
+ *   ALGORITHM past the last lane is MASTER on every page and layer with a track (the master FX; the mixer's last row since
+ *   2026-10-30), back goes to the last lane; T1 is the walk's first stop
  * Included by ui_optimist_test.c after ui_optimist_cards.h. */
 static void layout_tests(void);
 static void held_page_tests(void);
@@ -31,9 +31,13 @@ static void algo_inplace_tests(void)
     ok = algo_step_inplace(1) && song.sel == 2u && ui.scr == SCR_SOUND && px_in(2, 3, 4, 19, trk_col(2));
     ok &= (uint32_t)algo_step_inplace(-1) && song.sel == 1u;
     check(ok, "ALGORITHM on SOUND (ENV): the track changes in place, both ways");
-    ok = algo_step_inplace(-1) && song.sel == 0u && algo_step_inplace(-1) && ui.scr == SCR_FX;
-    ok &= (uint32_t)algo_step_inplace(1) && ui.scr == SCR_SOUND && song.sel == 0u;
+    ok = algo_step_inplace(-1) && song.sel == 0u;
+    turn(EN_ALGO, (int32_t)(MXR_LN - 1u));             /* (the last lane: MASTER after it) */
+    ok &= (uint32_t)algo_step_inplace(1) && ui.scr == SCR_FX;
+    ok &= (uint32_t)algo_step_inplace(-1) && ui.scr == SCR_SOUND && song.sel == TRK_DRUM;
     check(ok, "ALGORITHM to MASTER (the FX screen) and back: in place");
+    track_select(0);
+    ui.lane = 0;
     tap(B_SEQ);
     ok = ui.scr == SCR_STEP && algo_step_inplace(1) && song.sel == 1u && algo_step_inplace(1) && algo_step_inplace(1) &&
          song.sel == TRK_DRUM;
@@ -129,17 +133,17 @@ static void oct_master_keys_tests(void)
     check(master_sel() && kb_kind[WK(1)] == KS_NOTE && kb_trk[WK(1)] == 1, "a note held while MASTER is entered: stays T2's");
     kup(WK(1));
     check(kb_kind[WK(1)] == KS_NONE, "... and its release reaches the same voice");
-    turn(EN_ALGO, 1);
+    turn(EN_ALGO, -(int32_t)(MXR_MASTER - MXR_T1));    /* (the mixer's MASTER, by both OCT: up to T1, the walk's first) */
     frames(2);
     kdown(WK(0));
-    check(!master_sel() && kb_kind[WK(0)] == KS_NOTE && kb_trk[WK(0)] == song.sel, "ALGORITHM leaves MASTER: the keys follow the new track");
+    check(!master_sel() && kb_kind[WK(0)] == KS_NOTE && kb_trk[WK(0)] == song.sel, "ALGORITHM leaves MASTER (up to T1): the keys follow the new track");
     kup(WK(0));
     reset_ui();
     song.sel = 1;
     op_enter(SCR_HOME);
     ui.row[SCR_HOME] = MXR_T1 + 1u;
     frames(2);
-    turn(EN_ALGO, -2);                                  /* (T2, T1, MASTER: the returns above it) */
+    turn(EN_ALGO, (int32_t)MXR_N);
     frames(2);
     check(mx_on_master() && ly_lock == LY_PLAY, "MASTER by the mixer's walk: the keys play the selected track (2026-10-30)");
     kdown(WK(0));
@@ -168,18 +172,24 @@ static void master_tests(void)
     turn(EN_PRESET, 1);
     check((TSEL->preset != pre || TSEL->eng_req != eng) && TSEL->p[P_ATK] == atk,
           "PRESETS on the ENV row: the sound changes, ATK stays (no hot cell)");
-    turn(EN_ALGO, -1);
-    check(ui.scr == SCR_FX && song.sel == 0u && !ui.master, "ALGORITHM left from T1 on ENV: MASTER (the FX screen), T1 still selected");
+    turn(EN_ALGO, TO_MASTER);                          /* (T1 .. the last lane, RET A B C, then MASTER: 2026-10-30) */
+    check(ui.scr == SCR_FX && !ui.fxo && song.sel == 0u && !ui.master,
+          "ALGORITHM past the last lane and the returns on ENV (one turn): MASTER (the FX screen), T1 still selected");
     SCR->cell(ui.row[SCR_FX], 0, &c);
     check(c.label != 0 && c.kind != CK_NONE, "... MASTER shows the master FX cells");
     pre = TSEL->preset;
     eng = TSEL->eng_req;
     turn(EN_PRESET, 3);
     check(TSEL->preset == pre && TSEL->eng_req == eng, "PRESETS on MASTER: nothing");
-    turn(EN_ALGO, -1);
-    check(ui.scr == SCR_FX, "ALGORITHM left on MASTER: stays");
     turn(EN_ALGO, 1);
-    check(ui.scr == SCR_SOUND && snd_fam == FAM_ENV && song.sel == 0u, "ALGORITHM right from MASTER: T1's ENV rows again");
+    check(ui.scr == SCR_FX, "ALGORITHM on past MASTER: stays (the last)");
+    turn(EN_ALGO, -1);
+    check(ui.scr == SCR_FX && ui.fxo == 3u && rt_fam == RF_EDIT, "ALGORITHM back from MASTER: RET C's EDIT pages (from ENV)");
+    turn(EN_ALGO, -3);
+    check(ui.scr == SCR_SOUND && song.sel == TRK_DRUM && lane_picked(), "... back past RET A: SOUND again, the last lane");
+    ui.lane = 0;
+    lane_select(0);
+    track_select(0);
     /* every other family reaches MASTER and comes back to where it was */
     {
         static const uint8_t B[] = {B_LFO, B_EDIT, B_ARP, B_FX};
@@ -190,12 +200,15 @@ static void master_tests(void)
             song.sel = 0;
             tap(B[i]);
             fam = snd_fam;
-            turn(EN_ALGO, -1);
-            ok &= ui.scr == SCR_FX && song.sel == 0u;
-            turn(EN_ALGO, 1);
-            ok &= ui.scr == SCR_SOUND && snd_fam == fam && song.sel == 0u;
+            turn(EN_ALGO, TO_MASTER);
+            ok &= ui.scr == SCR_FX && !ui.fxo && ui.m_fam == fam;
+            turn(EN_ALGO, -WALK_TAIL);
+            ok &= ui.scr == SCR_SOUND && song.sel == TRK_DRUM;
+            ui.lane = 0;
+            lane_select(0);
+            track_select(0);
         }
-        check(ok, "MASTER from LFO, EDIT, ARP and FX pages and back, each on its family");
+        check(ok, "MASTER from LFO, EDIT, ARP and FX pages (the family kept) and back to SOUND");
     }
     /* another track: ALGORITHM is the track as ever */
     reset_ui();
@@ -307,8 +320,8 @@ static void master_tests(void)
     reset_ui();
     song.sel = 0;
     tap(B_SEQ);
-    turn(EN_ALGO, -1);
-    check(ui.scr == SCR_FX && song.sel == 0u, "STEP: ALGORITHM left from T1, MASTER: the master FX (2026-10-12)");
+    turn(EN_ALGO, TO_MASTER);
+    check(ui.scr == SCR_FX && !ui.fxo, "STEP: ALGORITHM past the last lane, MASTER: the master FX (2026-10-12; the last since 2026-10-30)");
     reset_ui();
 }
 /* the 2026-10-10 layouts: a mixer row names its sound; a SOUND page's picture or rows take the whole panel */

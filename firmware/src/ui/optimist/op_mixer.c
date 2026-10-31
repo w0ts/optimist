@@ -20,18 +20,18 @@
  * engine's drive), FILTER (P_TFLT), COMP only in a slot; the sends only in a slot, REV DLY CHO. The drum track's row:
  * its LEVEL (GLO > DRUMS), FILTER, FX on, the kit; its lanes carry the sounds' own values (SOUND 2 and 3: the offsets
  * and the sends). */
-/* (2026-10-30, the user: "it might simplify the ui if the return track are just normal track, in the mixer page above
- * master", then "put ON ONE screen the master, not at the bottom, but where it was before, top, and the return track above it,
- * on the same screen. AND not to move the screen"): RET A B C, MASTER (the fixed block at the top), T1 T2 T3, DR, its lanes,
- * USB IN */
-enum { MXR_RET0, MXR_MASTER = MXR_RET0 + 3,           /* the returns A B C (the master slots 1..3, fx_slots.c), then MASTER */
-       MXR_T1, MXR_DR = MXR_T1 + TRK_DRUM, MXR_LANE0, MXR_LN = MXR_LANE0 + (FELUCCA_DRUMS ? DRUM_UILANES : 0),   /* (MXR_DR: T4 without drums) */
+/* (2026-10-30, the user: "it might simplify the ui if the return track are just normal track", "make the return tracks normal
+ * track citizens"): the walk's order everywhere, T1 T2 T3, DR, its lanes, (the mixer's USB IN), RET A B C, MASTER; the mixer shows
+ * the last four on one screen (op_mixdraw.c, the master page) */
+enum { MXR_T1, MXR_DR = MXR_T1 + TRK_DRUM, MXR_LANE0, MXR_LN = MXR_LANE0 + (FELUCCA_DRUMS ? DRUM_UILANES : 0),   /* (MXR_DR: T4 without drums) */
 #if FELUCCA_USB_AUDIO
        MXR_USB = MXR_LN,                         /* the USB input, a track after the drum tracks (fx-rework stage 3; fx.c ut_mix) */
-       MXR_N
+       MXR_RET0,
 #else
-       MXR_N = MXR_LN
+       MXR_RET0 = MXR_LN,
 #endif
+       MXR_MASTER = MXR_RET0 + 3,                /* the returns A B C (the master slots 1..3, fx_slots.c), then MASTER */
+       MXR_N
 };
 static int mx_is_lane(uint32_t r) { return r >= MXR_LANE0 && r < MXR_LN; }
 #if FELUCCA_USB_AUDIO
@@ -110,19 +110,22 @@ static int mx_on_usb(void) { return ui.scr == SCR_HOME && mx_is_usb(mx_row()); }
 static int mx_on_ret(void) { return ui.scr == SCR_HOME && mx_is_ret(mx_row()); }
 /* MASTER selected, on any page (the user, 2026-10-12: "i want uniformity"): the mixer's row, the master FX screen, a
  * layer's ui.master. The track buttons are dark and do nothing there */
-static int master_sel(void) { return mx_on_master() || ui.scr == SCR_FX || ui.master; }
+static int master_sel(void) { return mx_on_master() || (ui.scr == SCR_FX && !ui.fxo) || ui.master; }
+/* a return selected: its mixer row, or its pages (the FX screen, ui.fxo): no instrument, EDIT and FX its own (rt_tap) */
+static int ret_sel(void) { return mx_on_ret() || (ui.scr == SCR_FX && ui.fxo); }
 #define MX_TRK_BTNS (1u << B_ENV | 1u << B_LFO | 1u << B_EDIT | 1u << B_ARP | 1u << B_SCL | 1u << B_SEQ)   /* the track buttons */
 /* the ACCENT lane selected (the mixer's row, or picked anywhere): no sound, so no FX and no EDIT (the user, 2026-10-19: "accent
  * has fx, makes no sense. and it has edit, makes no sense either") */
-static int acc_sel(void) { return ui.lane && is_drum(TSEL) && lane_acc() && !master_sel() && !mx_on_usb() && !mx_on_ret(); }
-static int mx_no_track(void) { return master_sel() || mx_on_usb() || mx_on_ret(); }   /* (no track's row: no lane pick by a key) */
+static int acc_sel(void) { return ui.lane && is_drum(TSEL) && lane_acc() && !master_sel() && !mx_on_usb() && !ret_sel(); }
+static int mx_no_track(void) { return master_sel() || mx_on_usb() || ret_sel(); }   /* (no track's row: no lane pick by a key) */
 static uint32_t mx_dead_mask(void)                      /* the buttons that do nothing here: a bit per B_* */
 {
-    return (master_sel() || mx_on_usb() || mx_on_ret() ? MX_TRK_BTNS : 0u) | (acc_sel() ? 1u << B_FX | 1u << B_EDIT : 0u);
+    return (master_sel() || mx_on_usb() ? MX_TRK_BTNS : 0u) | (ret_sel() ? MX_TRK_BTNS & ~(1u << B_EDIT) : 0u) |
+           (acc_sel() ? 1u << B_FX | 1u << B_EDIT : 0u);
 }
 static int mx_master_dead(uint32_t b) { return b < 32u && (mx_dead_mask() >> b & 1u); }
-static uint32_t mx_trk_of(uint32_t r) { return r <= MXR_MASTER ? 0u : r < MXR_DR ? r - MXR_T1 : TRK_DRUM; }   /* (MASTER, a return: T1,
-                                                         * unused; the USB input: DR's, as before) */
+static uint32_t mx_trk_of(uint32_t r) { return r < MXR_DR ? r - MXR_T1 : r < MXR_LN || mx_is_usb(r) ? TRK_DRUM : 0u; }   /* (MASTER, a
+                                                         * return: T1, unused; the USB input: DR's, as before) */
 /* row r muted. One mute (the user, 2026-10-16): a track's, a lane's and the ACCENT lane's is the sequencer mute (seq_mute.c:
  * its steps stop, the tails ring), SHIFT + its key or SHIFT + its volume card; the USB input's is its own (no sequencer).
  * A sound mute an older project or the SLOOP UI left (P_MUTE, the lane's own, drum_mix.c) counts too, so that it shows
@@ -939,21 +942,6 @@ static int mx_ut_fx(void)
 #else
 static int mx_ut_fx(void) { return 0; }
 #endif
-/* FX on a return's row: the master FX, on its effect's page (REV/CHO's SIZE DAMP RATE DEPTH, the delay's, its EQ3's; any
- * other: RETURNS) */
-static void op_enter(uint32_t scr);                     /* op_input.c */
-static void mx_ret_fx(void)
-{
-    uint32_t j = mx_ret_ln(mx_row()), t = j < 3u ? rp_fx_ty(j) : (uint32_t)FXT_NONE, r, n;
-    const char *pg = t == FXT_CHO || t == FXT_REV ? "REV/CHO" : t == FXT_DLY ? "DLY" : t == FXT_EQ3 ? "RET EQ3" : "RETURNS";
-    op_enter(SCR_FX);
-    n = fxs_rows();
-    for (r = 0; r < n; r++)
-        if (str_eq(fx_pg(r)->title, pg)) {
-            ui.row[SCR_FX] = (uint8_t)r;
-            break;
-        }
-}
 static void mx_page(int32_t d)                         /* SELECT: the knob sets, stopping at the ends (GLO tapped opens
                                                          * GLOBAL since 2026-10-12: op_global.c) */
 {
@@ -969,7 +957,7 @@ static void mx_page(int32_t d)                         /* SELECT: the knob sets,
     ui.hot = 0;
     ui.hot_lit = 0;
 }
-/* ALGORITHM across: s groups from row p (the returns, MASTER, the channels, the lanes by four, USB IN), each entered on its first row */
+/* ALGORITHM across: s groups from row p (the channels, the lanes by four, USB IN, the returns, MASTER), each entered on its first row */
 static uint32_t mx_walk_across(uint32_t p, int32_t s)
 {
     uint32_t q;
@@ -981,12 +969,13 @@ static uint32_t mx_walk_across(uint32_t p, int32_t s)
     }
     for (; s < 0; s++) {
         q = mx_across(p) ? mx_grp0(p) : p;
-        if (q == MXR_RET0)
+        if (q == MXR_T1)
             break;
         p = mx_across(q - 1u) ? mx_grp0(q - 1u) : q - 1u;
     }
     return p;
 }
+static uint32_t walk_pos(int lay);                     /* op_walk.c */
 /* once a frame: the cursor follows the track selected elsewhere (ALGORITHM on another screen, the editor) and the
  * lane picked (HOME + a key); the lanes' hits (drums.c drums.hits, as SLOOP's kit pads take them) */
 static void mx_tick(void)
@@ -1010,10 +999,13 @@ static void mx_tick(void)
         mx.tlit[i] = (uint8_t)((th >> i) & 1u ? MX_FLASH : mx.tlit[i] ? mx.tlit[i] - 1u : 0u);
     for (i = 0; i < DRUM_LANES; i++)
         mx.llit[i] = (uint8_t)((lh >> i) & 1u ? MX_FLASH : mx.llit[i] ? mx.llit[i] - 1u : 0u);
-    if (r == MXR_MASTER || (ui.scr == SCR_HOME && (mx_is_usb(r) || mx_is_ret(r))))
+    if (ui.scr == SCR_HOME && (r == MXR_MASTER || mx_is_usb(r) || mx_is_ret(r)))
         return;
-    if (ui.scr != SCR_HOME || mx_trk_of(r) != song.sel)
-        ui.row[SCR_HOME] = (uint8_t)mx_sel_row();      /* (off the mixer, another track: the row follows the selection) */
+    if (ui.scr != SCR_HOME)
+        ui.row[SCR_HOME] = (uint8_t)walk_pos(0);       /* (off the mixer: the row follows the selection, a return's or MASTER's
+                                                         * pages too) */
+    else if (mx_trk_of(r) != song.sel)
+        ui.row[SCR_HOME] = (uint8_t)mx_sel_row();      /* (another track: the row follows the selection) */
     else if (mx_is_lane(r) && r - MXR_LANE0 != lane_selected())
         ui.row[SCR_HOME] = (uint8_t)(MXR_LANE0 + lane_selected());
     if (ui.scr == SCR_HOME && is_drum(TSEL))
@@ -1026,3 +1018,164 @@ static void scope_name(uint32_t r, char *b);
 static void scope_cell(uint32_t r, uint32_t k, cell_t *c);
 static void scope_turn(uint32_t r, uint32_t k, int32_t s, int fine);
 static int scope_yes(uint32_t r, uint32_t k, uint32_t ok);
+
+/* ---- a return as a track (2026-10-30, the user: "the idea of having the tracks is that the return track stuff move out of the
+ * master track", "make the return tracks normal track citizens"). Its pages are the FX screen's while ui.fxo is 1..3 (RET A B C):
+ * EDIT its effect (TYPE in an engine's place, LEVEL, the effect's amount; then the effect's own pages: REV/CHO's SIZE DAMP RATE
+ * DEPTH, the reverb's TYPE, the delay's and its filter's, its EQ3's), FX its inserts PRE and POST (a track's grammar), its EQ3's
+ * when a stage holds it, its sends to the other returns. A row: one of the return's mixer sets (mx_items_retrow) or a page of
+ * PAGES (the effect's: the master FX screen's of before, gone from it) */
+enum { RF_EDIT, RF_FX };
+static uint8_t rt_fam;                                  /* the return's family shown (EDIT or FX) */
+typedef struct {
+    uint8_t set;                                        /* the return row's mixer set (pg 0) */
+    const page_t *pg;                                   /* or a page */
+    const char *nm;                                     /* its name (the header) */
+} rrow_t;
+#define RT_MAXR 10u
+static uint32_t rt_row(void) { return MXR_RET0 + (ui.fxo ? ui.fxo - 1u : 0u) % 3u; }
+static const page_t *rt_page(const char *t)             /* PAGES' page of that title (the FX family's globals), 0: none built */
+{
+    uint32_t i;
+    for (i = 0; i < NPAGES; i++)
+        if (PAGES[i].fam == FAM_FX && (PAGES[i].scope == SC_GLOBAL || PAGES[i].scope == SC_BPSET) && str_eq(PAGES[i].title, t) &&
+            page_shown(&PAGES[i]))
+            return &PAGES[i];
+    return 0;
+}
+static uint32_t rt_set_of(uint32_t r, uint32_t grp, uint32_t from)   /* the first set of row r from set `from` whose items are grp's */
+{
+    mitem_t it[MX_MAXI];
+    uint32_t n = mx_items(r, it) / 4u, s;
+    for (s = from; s < n; s++)
+        if (it[s * 4u].grp == grp)
+            return s;
+    return 0xFFu;
+}
+static uint32_t rt_add(rrow_t *o, uint32_t n, uint32_t set, const page_t *pg, const char *nm)
+{
+    if (n < RT_MAXR && (pg || set != 0xFFu))
+        o[n].set = (uint8_t)set, o[n].pg = pg, o[n].nm = nm, n++;
+    return n;
+}
+static uint32_t rt_rows(rrow_t *o)                      /* the rows of the return shown, in its family */
+{
+    uint32_t r = rt_row(), j = mx_ret_ln(r), t = j < 3u ? rp_fx_ty(j) : (uint32_t)FXT_NONE, n = 0, s, eq;
+    rt_eq3_pref = (uint8_t)j;
+    eq = j < 3u && (uint32_t)rt_eq3() == j ? rt_eq3_s : 0xFFu;   /* (its EQ3: RP_N the effect, else a stage) */
+    rt_eq3_pref = 3u;
+    if (rt_fam == RF_EDIT) {
+        n = rt_add(o, n, rt_set_of(r, MG_MIX, 0), 0, "MIX");
+        if (t == FXT_REV || t == FXT_CHO)
+            n = rt_add(o, n, 0xFFu, rt_page("REV/CHO"), "RET REV");
+        if (t == FXT_REV && REV_MULTI)
+            n = rt_add(o, n, 0xFFu, rt_page("REVERB"), "RET TYPE");
+        if (t == FXT_DLY) {
+            n = rt_add(o, n, 0xFFu, rt_page("DLY"), "RET DELAY");
+            n = rt_add(o, n, 0xFFu, rt_page("DLY F"), "RET DLY F");
+        }
+    } else {
+        n = rt_add(o, n, rt_set_of(r, MG_INS, 0), 0, "INSERT");
+    }
+    if ((rt_fam == RF_EDIT) == (eq == RP_N) && eq != 0xFFu) {   /* (its EQ3's: the effect's on EDIT, a stage's on FX) */
+        n = rt_add(o, n, rt_set_of(r, MG_UEQ, 0), 0, "RET EQ3");
+        n = rt_add(o, n, rt_set_of(r, MG_UEQF, 0), 0, "RET EQ3 F");
+    }
+    if (rt_fam == RF_FX)
+        for (s = MG_RSA; s <= MG_RSC; s++)
+            n = rt_add(o, n, rt_set_of(r, s, 0), 0, "SENDS");
+    if (!n)                                             /* (an empty return: its TYPE) */
+        n = rt_add(o, n, 0u, 0, "MIX");
+    return n;
+}
+static uint32_t rt_nrows(void)
+{
+    rrow_t o[RT_MAXR];
+    return rt_rows(o);
+}
+static int rt_at(uint32_t k, rrow_t *e)
+{
+    rrow_t o[RT_MAXR];
+    uint32_t n = rt_rows(o);
+    if (k >= n)
+        return 0;
+    *e = o[k];
+    return 1;
+}
+static void rt_name(uint32_t k, char *b)
+{
+    rrow_t e;
+    str_cpy(b, rt_at(k, &e) ? e.nm : "", 12);
+}
+static void rt_cell(uint32_t k, uint32_t c, cell_t *x)
+{
+    rrow_t e;
+    cell_clear(x);
+    if (!rt_at(k, &e))
+        return;
+    if (e.pg) {
+        page_cell(e.pg, c, x);
+        return;
+    }
+    {
+        uint8_t keep = mx.set;
+        mx.set = e.set;
+        mix_cell(rt_row(), c, x);
+        mx.set = keep;
+    }
+}
+static void rt_turn(uint32_t k, uint32_t c, int32_t s, int fine)
+{
+    rrow_t e;
+    if (!rt_at(k, &e))
+        return;
+    if (e.pg) {
+        page_turn(e.pg, c, s, fine);
+        return;
+    }
+    {
+        uint8_t keep = mx.set;
+        mx.set = e.set;
+        mix_turn(rt_row(), c, s, fine);
+        mx.set = keep;
+    }
+}
+static int rt_yes(uint32_t k, uint32_t c, uint32_t ok)
+{
+    rrow_t e;
+    return rt_at(k, &e) && e.pg && page_yes(SCR_FX, k, e.pg, c, ok);
+}
+/* return row r's pages shown (the FX screen already entered), family fam (RF_*), its first row */
+static void rt_open(uint32_t r, uint32_t fam)
+{
+    ui.fxo = (uint8_t)(1u + (r - MXR_RET0) % 3u);
+    rt_fam = (uint8_t)fam;
+    ui.row[SCR_FX] = 0;
+    ui.hot = 0;
+    ui.hot_lit = 0;
+    ui.force = 1;
+}
+/* EDIT or FX tapped on a return (its mixer row, its pages): that family of its pages; tapped again on them, the next row,
+ * round. 1: taken */
+static void op_enter(uint32_t scr);                     /* op_input.c */
+static void op_row_pick(uint32_t r);
+static uint8_t fx_by_walk;                              /* (op_walk.c: the FX screen reached by the walk) */
+static int rt_tap(uint32_t b)
+{
+    uint32_t fam = b == B_EDIT ? RF_EDIT : RF_FX;
+    if ((b != B_EDIT && b != B_FX) || !ret_sel())
+        return 0;
+    if (ui.scr == SCR_FX && rt_fam == fam) {
+        op_row_pick(ui.row[SCR_FX] + 1u < rt_nrows() ? ui.row[SCR_FX] + 1u : 0u);
+        return 1;
+    }
+    {
+        uint32_t r = ui.scr == SCR_FX ? rt_row() : mx_row();
+        if (ui.scr != SCR_FX)
+            op_enter(SCR_FX);                           /* (from the mixer: leaving by the walk goes to SOUND, as MASTER's) */
+        fx_by_walk = 1;                                 /* (a return's pages walk, as a track's) */
+        rt_open(r, fam);
+        op_repaint();
+    }
+    return 1;
+}

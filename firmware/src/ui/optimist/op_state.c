@@ -74,6 +74,8 @@ static struct {
     char msg[30];                     /* (29 characters: the header's width) */
     /* the grammar */
     uint8_t scr;                      /* the screen shown (SCR_*) */
+    uint8_t fxo;                      /* the FX screen's owner (SCR_FX): 0 MASTER (its pages), 1..3 RET A B C (a return's pages: its
+                                       * effect, its inserts and sends, op_mixer.c rt_*; 2026-10-30: the returns as tracks) */
     uint8_t master;                   /* MASTER selected in a layer (op_layers.c): a UI state, song.sel stays T1; on SOUND
                                        * it is the FX screen (SCR_FX), which m_fam / m_row lead back from */
     uint8_t m_scr, m_fam, m_row;      /* the page, SOUND family and row ALGORITHM left for MASTER (SND_ALL: every row) */
