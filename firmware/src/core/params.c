@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments */
 /* Parameter descriptors, formatting and the page table. */
-static const char *const N_LWAVE[] = {"SIN", "TRI", "SAW", "SQR", "S&H"};
+static const char *const N_LWAVE[] = {"SIN", "TRI", "SAW", "SQR", "S&H", "SLEW"};   /* (SLEW last: a saved index keeps its wave, lfo_slot.h) */
 /* the note values of the tempo (core.h DUR_48), longest first: every duration there is is an index into this list (the arp's RATE,
  * SEQ DIV, the delay's TIME, an LFO's synced RATE -(i + 1), the slicer's and the gater's step, ROLL). T a triplet, D dotted */
 static const char *const N_DUR[DUR_N] = {"4BAR", "3BAR", "2BAR", "1BARD", "1BAR", "1/2D", "1T", "1/2", "1/4D", "2T", "1/4",

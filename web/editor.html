@@ -5160,7 +5160,7 @@ function makeMockDevice(opt = {}) {                /* (opt: see above) */
   const TP = [D("LVL", F.DB, 0, 127, 104),
     /* 1 ENV */ D("ATK", F.TIME, 0, 127, 10), D("DEC", F.TIME, 0, 127, 70), D("SUS", F.PCT, 0, 127, 90), D("REL", F.TIME, 0, 127, 60),
     /* 5 ENV DEST */ D("FLT", F.BIPCT, -64, 63, 0), D("PIT", F.BIPCT, -64, 63, 0), D("SHP", F.BIPCT, -64, 63, 0), D("TRIM", F.INT, -64, 63, 0),
-    /* 9 LFO */ D("RATE", F.LFOHZ, -22, 127, 60), E("WAVE", ["SIN", "TRI", "SAW", "SQR", "S&H"], 0), D("PHS", F.INT, 0, 127, 0), D("FADE", F.TIME, 0, 127, 0),
+    /* 9 LFO */ D("RATE", F.LFOHZ, -22, 127, 60), E("WAVE", ["SIN", "TRI", "SAW", "SQR", "S&H", "SLEW"], 0), D("PHS", F.INT, 0, 127, 0), D("FADE", F.TIME, 0, 127, 0),
     /* 13 LFO DEST */ E("DST A", LT_NAMES, 0), D("AMT A", F.BIPCT, -128, 127, 0), E("DST B", LT_NAMES, 0), D("AMT B", F.BIPCT, -128, 127, 0),
     E("MODE", ["OFF", "UP", "DN", "UPDN", "RND", "ORD", "BASS"], 0), E("RATE", NDUR, 16), D("OCT", F.INT, 1, 4, 1), D("GATE", F.GATE, 1, 127, 32),
     /* 21 ARP 2 */ D("SWG", F.SWING, 0, 100, 0), D("PROB", F.PCT, 0, 127, 127), E("HOLD", NONOFF, 0), E("ORD", ["NOTE", "PLAY"], 0),

@@ -114,7 +114,8 @@ static void effv_mods(uint32_t k, const voice_t *v, int32_t lfo, effv_mod_t *m)
     lfo_apply(dep, lfo, (lfo + 32768) >> 1, &lm, &lm.g1);
     if (k < NPART && LFO2_ON(t)) {                      /* LFO 2's block (voice.c lfo2_tick: its phase and S&H value as the
                                                          * audio side left them) */
-        int32_t w = lfo_shape((uint32_t)t->p[P_L2WAVE], lfo2[k].ph, lfo2[k].rnd), u = (w + 32768) >> 1, d2[LFO_NDEP] = {0, 0, 0, 0, 0, 0};
+        uint32_t wv = (uint32_t)t->p[P_L2WAVE];
+        int32_t w = lfo_shape(wv, lfo2[k].ph, lfo2_rnd(&lfo2[k], wv, k)), u = (w + 32768) >> 1, d2[LFO_NDEP] = {0, 0, 0, 0, 0, 0};
         lfo_dep(&t->p[P_L2DA], d2);
         lfo_apply(d2, t->p[P_L2POL] ? u : w, u, &lm, &lm.g2);
     }

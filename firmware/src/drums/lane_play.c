@@ -8,13 +8,14 @@
  * reads dl_ofs as before (no other work). XIP: none of it is in RAM code.
  *
  * The lanes' LFOs (D6, the user's option A: one LFO a lane, 16): RATE (P_LRATE's: 0..127 free, -1..-10 one cycle a note
- * value of the tempo, voice.c LSYNC_KT), WAVE (SIN TRI SAW SQR S&H), PHS (where its cycle is at PLAY), FADE (its fade in
+ * value of the tempo, voice.c LSYNC_KT), WAVE (SIN TRI SAW SQR S&H SLEW), PHS (where its cycle is at PLAY), FADE (its fade in
  * from PLAY), then two destination slots (core/lfo_slot.h: DEST OFF or one of the 8 lane values TUNE .. LEVEL, AMT
  * -64..63; the user, 2026-10-12). An LFO whose slots are all OFF or at AMT 0 is off and costs nothing (dlfo_on). A live
  * one has no tick either: its value is figured at the lane's hit from the transport (D8: it restarts at PLAY, at PHS):
  * playing, from the blocks since PLAY (song.tick) or, synced, from the beats and units (clk_beat, clk_pos), the same
  * phase a per-block tick would reach; stopped, from the blocks counted since (dlfo_free, the only per-block work: one
- * increment while stopped with a live LFO). S&H draws its value from a hash of the cycle (lfo_rnd_of): no rng() at a hit.
+ * increment while stopped with a live LFO). S&H draws its value from a hash of the cycle (lfo_rnd_of): no rng() at a hit;
+ * SLEW glides from that value to the next cycle's (dlfo_rnd).
  *
  * Kept with the project in a record of its own (D6: the FX record has no room; storage/dlfo_rec.c, its stored form
  * dlfo_encode below), so an older firmware ignores it and an older project reads with every LFO off. Every build keeps
@@ -23,7 +24,7 @@
 
 typedef struct {
     int8_t rate;                           /* -LSYNC_N..-1 synced (params.c N_LSYNC), 0..127 free (LFO_INC) */
-    uint8_t wave;                          /* SIN TRI SAW SQR S&H (params.c N_LWAVE) */
+    uint8_t wave;                          /* SIN TRI SAW SQR S&H SLEW (params.c N_LWAVE) */
     uint8_t phase;                         /* 0..127: its cycle's place at PLAY (x 1/128) */
     uint8_t fade;                          /* 0..127: its fade in from PLAY (ENV_LIN, as P_LFADE), 0 none */
     lfo_slot_t s[LFO_NSLOT];               /* dest 0 OFF, 1..DE_N the lane value DE_* + 1; amount -64..63 */
@@ -287,6 +288,13 @@ static int dlfo_decode(const uint8_t *a, uint32_t n)
 #if DLFO_ON
 /* the blocks counted while stopped (events_block, once a block: one increment, only with a live LFO) */
 #define DLFO_BLOCK() do { if (dlfo_on && !song.playing) dlfo_free++; } while (0)
+/* lfo_shape's rnd for wave w in cycle n of LFO l: S&H's value of the cycle (a hash of it), SLEW's from it to the next one's */
+static uint32_t dlfo_rnd(uint32_t w, uint32_t n, uint32_t l)
+{
+    if (w == LFO_WAVE_SLEW)
+        return lfo_slew_pair(lfo_rnd_of(n, l), lfo_rnd_of(n + 1u, l));
+    return w == LFO_WAVE_SH ? lfo_rnd_of(n, l) : 0u;
+}
 /* lane l's LFO c (dlfo or dlfo2) now (Q15, its fade in): at a hit (the ISR) */
 static int32_t dlfo_now(const dlfo_t *c, uint32_t l)
 {
@@ -307,7 +315,7 @@ static int32_t dlfo_now(const dlfo_t *c, uint32_t l)
         uint64_t fv = (uint64_t)n * (st ? st : 1u);
         f = fv < 32767u ? (uint32_t)fv : 32767u;
     }
-    return (lfo_shape(c->wave, (uint32_t)p, c->wave == LFO_WAVE_SH ? lfo_rnd_of((uint32_t)(p >> 32), l) : 0u) * (int32_t)f) >> 15;
+    return (lfo_shape(c->wave, (uint32_t)p, dlfo_rnd(c->wave, (uint32_t)(p >> 32), l)) * (int32_t)f) >> 15;
 }
 /* lane l's ENV2 now (0..32767): at a hit (the ISR), from its place since PLAY in 1/256 of a 16th step (playing; stopped:
  * its start), wrapped at its RTRG (1, 2, 4 bars of 16 steps: a power of two); the slopes denv_k's, no divide but by the

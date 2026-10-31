@@ -18,9 +18,14 @@ AINL int eng_sampled(const engine_t *e) { return ENG_IS(e, SAMPLE) || ENG_IS(e, 
 #else
 AINL int eng_sampled(const engine_t *e) { return ENG_IS(e, SAMPLE); }
 #endif
+#include "lfo_slot.h"                                  /* (the waves: lfo_shape's, SLEW's lfo_slew) */
+/* LFO's wave at phase ph: lfo_shape's, from the track (lfo_rnd: S&H's value the top 16 bits, the one before it the low
+ * 16 bits: SLEW goes from that one to this one over the cycle, track_lfo_tick) */
 AINL int32_t lfo_wave(track_t *t, uint32_t ph)
 {
     switch (t->p[P_LWAVE]) {
+    case LFO_WAVE_SLEW:
+        return lfo_slew(ph, t->lfo_rnd);
     case 1:
         return osc_tri(ph);
     case 2:
@@ -119,11 +124,10 @@ static uint16_t lfo_mac_m;                             /* bit 4 k + d: lfo_mac[k
 /* LFO 2 (core.h P_L2RATE .. P_L2AB): a second LFO a part, two slots as LFO's. Its state is the part's
  * (lfo2[], not in track_t: the drum track has none). Each block (track_render, either core): nothing at all while every
  * slot is OFF or at 0 (the phase waits); else the phase steps by RATE (free or synced, lfo_inc_of), S&H takes its next
- * value at each wrap from a hash of the last (no rng(): the same samples on either core, no draw order), the wave
- * (lfo_slot.h lfo_shape, LFO's five) and POL (UNI: (v + 1) / 2, SLOOP 2.6's) give v (Q15, kept for lfo_over), and its
+ * value at each wrap from a hash of the last (no rng(): the same samples on either core, no draw order; SLEW glides to
+ * that next one, lfo2_rnd), the wave (lfo_slot.h lfo_shape, LFO's six) and POL (UNI: (v + 1) / 2, SLOOP 2.6's) give v (Q15, kept for lfo_over), and its
  * slots of PIT FLT SHP AMP the block's offsets (lfo_apply). TRIG NOTE: a fresh phrase restarts it at phase 0
  * (trk_note_on, with LFO's); FREE: never. No divide, no 64-bit but the synced step (LFO's) */
-#include "lfo_slot.h"
 typedef struct {
     uint32_t ph;                                        /* the phase */
     uint32_t rnd;                                       /* S&H's value this cycle (the top 16 bits) */
@@ -131,6 +135,11 @@ typedef struct {
 } lfo2_t;
 static lfo2_t lfo2[NPART] = {[0 ... NPART - 1] = {0, 0x80000000u, 0}};   /* (S&H at 0 till a wrap) */
 _Static_assert(P_L2AA == P_L2DA + 1 && P_L2DB == P_L2DA + 2 && P_L2AB == P_L2DA + 3, "lfo2[]: one a part");
+/* LFO 2's rnd for lfo_shape: S&H's value; SLEW: from it to the next (the hash it takes at the wrap: no state, no rng()) */
+AINL uint32_t lfo2_rnd(const lfo2_t *s, uint32_t w, uint32_t k)
+{
+    return w == LFO_WAVE_SLEW ? lfo_slew_pair(s->rnd, lfo_rnd_of(s->rnd, k)) : s->rnd;
+}
 #define LFO2_ON(t) (((t)->p[P_L2DA] && (t)->p[P_L2AA]) || ((t)->p[P_L2DB] && (t)->p[P_L2AB]))   /* (else: nothing) */
 /* part t's LFO 2 this block -> o (left as it is while it is off). In XIP flash, called through a pointer (FAR) by the
  * render, only while it acts: once a part a block, its code out of RAMTEXT (the ISR never runs while the flash is busy) */
@@ -145,7 +154,7 @@ static __attribute__((noinline)) void lfo2_tick(const track_t *t, lfo_mod_t *o) 
     s->ph += lfo_inc_of(p[P_L2RATE]);
     if (s->ph < old)
         s->rnd = lfo_rnd_of(s->rnd, (uint32_t)(t - trk));
-    v = lfo_shape((uint32_t)p[P_L2WAVE], s->ph, s->rnd);
+    v = lfo_shape((uint32_t)p[P_L2WAVE], s->ph, lfo2_rnd(s, (uint32_t)p[P_L2WAVE], (uint32_t)(t - trk)));
     u = (v + 32768) >> 1;                               /* 0..32767 */
     if (p[P_L2POL])
         v = u;                                          /* UNI: one way only, as far */
@@ -472,9 +481,9 @@ static HOT void track_lfo_tick(track_t *t)
     t->lfo_ph += lfo_inc(t);
     if (t->lfo_ph < old)
 #if DUAL_RENDER
-        t->lfo_rnd = dual_lfo_rnd[t - trk];
-#else
-        t->lfo_rnd = rng();
+        t->lfo_rnd = lfo_slew_pair(t->lfo_rnd, dual_lfo_rnd[t - trk]);   /* (S&H: the top 16 bits; SLEW: from the */
+#else                                                                   /* last value to this one, lfo_wave) */
+        t->lfo_rnd = lfo_slew_pair(t->lfo_rnd, rng());
 #endif
     t->lfo_val = lfo_wave(t, t->lfo_ph);
     if (t->lfo_fade < 32767) {
