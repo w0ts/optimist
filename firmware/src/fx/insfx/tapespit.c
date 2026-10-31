@@ -70,8 +70,10 @@ static __attribute__((noinline)) void ifx_ts_block(ifx_ts_t *s, uint32_t spit, u
 }
 
 /* TAPE (spit 0) or SPIT (1) at amount a on n samples of b; sh: b's headroom (a part's 3, the bus's 2) */
-static HOT2 __attribute__((noinline)) void ifx_ts_run(ifx_ts_t *s, uint32_t spit, int32_t a, int32_t *b, uint32_t n,
-                                                      uint32_t sh)
+/* (__restrict: b, the track's block, is never the insert's state: its filters stay in registers across the stores
+ * to b) */
+static HOT2 __attribute__((noinline)) void ifx_ts_run(ifx_ts_t *s, uint32_t spit, int32_t a, int32_t *__restrict b,
+                                                      uint32_t n, uint32_t sh)
 {
     tsvf_t c[3];
     uint32_t i;
