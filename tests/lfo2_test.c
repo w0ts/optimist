@@ -7,6 +7,10 @@
  *   maths     PIT FLT SHP on LFO DEST's scale ((v AMT 3) >> 8, (v AMT) >> 8), AMP 32767 - u AMT 258, < 0 upside down,
  *             never below 0 nor above unity; two slots: their sum; POL UNI one way only (0..+1); the waves (SQR SAW
  *             exact); S&H once a cycle, no rng()
+ *   SLEW      (issue 129) the shape: from one S&H value to the next on a smoothstep, at phase 0 exactly S&H's value; LFO
+ *             and LFO 2 at their fastest free and synced rates: every block within the glide's steepest slope of the
+ *             last (continuous across the wraps), each cycle starting at its S&H value, no extra rng() draw, LFO's S&H
+ *             values the same draws as with S&H; SLEW kept by a project (LFO and LFO 2)
  *   trig      NOTE: a fresh phrase restarts it at 0, a note over a held one does not; FREE: never
  *   render    a part with LFO 2 on AMP / PIT sounds different from off; the render with it off is the render of before
  *   project   capture -> apply round trip (every value, both TRIGs and POLs, synced and free RATE, AMT -128 .. 127, two
@@ -55,12 +59,12 @@ static void t_params(void)
     uint32_t i, k;
     int ok;
     ok = r->min == -LSYNC_N && r->max == 127 && r->def == 60 && r->fmt == F_LFOHZ;
-    ok &= TP[P_L2WAVE].max == 4 && TP[P_L2TRIG].max == 1 && TP[P_L2POL].max == 1;
+    ok &= TP[P_L2WAVE].max == LFO_WAVES - 1 && TP[P_LWAVE].max == LFO_WAVES - 1 && TP[P_L2TRIG].max == 1 && TP[P_L2POL].max == 1;
     for (k = 0; k < 2u; k++)
         ok &= TP[P_L2DA + 2u * k].max == LT_N - 1 && TP[P_L2AA + 2u * k].min == -128 && TP[P_L2AA + 2u * k].max == 127 &&
               !TP[P_L2DA + 2u * k].def && !TP[P_L2AA + 2u * k].def;
     ok &= !TP[P_L2WAVE].def && !TP[P_L2TRIG].def && !TP[P_L2POL].def;
-    check(ok, "params: RATE -22..127 (60), WAVE 5, TRIG NOTE/FREE, POL BI/UNI, two slots (DEST LT_N, AMT -128..127); all off");
+    check(ok, "params: RATE -22..127 (60), WAVE 6 (both LFOs), TRIG NOTE/FREE, POL BI/UNI, two slots (DEST LT_N, AMT -128..127); all off");
     for (i = 0, ok = 1; i < 5u; i++) {
         param_format(&TP[P_L2DA], (int32_t)i, v, &u);
         ok &= !strcmp(v, D[i]);
@@ -173,7 +177,7 @@ static void t_maths(void)
         ok &= o.m[1] == ((((int32_t)(ph >> 16)) - 32768) * 126) >> 8;
     }
     check(ok, "maths: SAW exact over the cycle");
-    for (w = 0; w < 5u; w++) {                         /* POL: BI both ways, UNI 0..+1 */
+    for (w = 0; w < LFO_WAVES; w++) {                  /* POL: BI both ways, UNI 0..+1 */
         int32_t blo = 0, bhi = 0, ulo = 0;
         for (ph = 0; ph < 0xFFF00000u; ph += 0x00F00000u) {
             l2_set(t, 0, (int32_t)w, 0, 0, LT_FLT, 126);
@@ -229,6 +233,127 @@ static void t_maths(void)
         }
         check(ok && changes >= wraps && wraps > 10u && rng_state == r0,
               "S&H: a new value at a wrap only, every wrap (a hash of the last: no rng(), either core)");
+    }
+}
+
+/* SLEW's steepest move over a phase step inc: smoothstep's slope 1.5 x the full range 65535, plus the rounding */
+static int32_t slew_bound(uint32_t inc) { return (int32_t)((3ull * 65535u * inc) >> 33) + 3; }
+static int32_t iabs(int32_t x) { return x < 0 ? -x : x; }
+/* LFO 2 of part 0 at RATE rate on SLEW for n blocks: each block's move within slew_bound, each wrap's value S&H's of the new
+ * cycle (within a block's move), no rng() -> 1 when so; *span: its max - min */
+static int slew_lfo2(int32_t rate, uint32_t n, int32_t *span)
+{
+    track_t *t = &trk[0];
+    lfo_mod_t o;
+    uint32_t i, old, inc = lfo_inc_of(rate), r0 = rng_state, wraps = 0;
+    int32_t last, mn = 32767, mx = -32768, b = slew_bound(inc);
+    int ok = 1;
+    l2_set(t, rate, LFO_WAVE_SLEW, 0, 0, LT_FLT, 126);
+    lfo2[0].ph = 0, lfo2[0].rnd = 0x80000000u;
+    o = (lfo_mod_t){{0, 0, 0}, -1, -1};
+    lfo2_tick(t, &o);
+    last = lfo2[0].v;
+    for (i = 0; i < n; i++) {
+        old = lfo2[0].ph;
+        lfo2_tick(t, &o);
+        ok &= iabs(lfo2[0].v - last) <= b;
+        if (lfo2[0].ph < old) {
+            wraps++;
+            ok &= iabs(lfo2[0].v - lfo_shape(LFO_WAVE_SH, 0, lfo2[0].rnd)) <= b;
+        }
+        last = lfo2[0].v;
+        mn = last < mn ? last : mn, mx = last > mx ? last : mx;
+    }
+    *span = mx - mn;
+    return ok && wraps > 20u && rng_state == r0;
+}
+/* LFO of part 0 at RATE rate, WAVE wave for n blocks (track_lfo_tick) -> the hash of its S&H values (lfo_rnd's top 16 bits at
+ * each wrap); SLEW: *ok cleared on a move past slew_bound or a cycle not starting at the S&H value before it */
+static uint32_t slew_lfo1(int32_t rate, uint32_t wave, uint32_t n, int *ok, int32_t *span)
+{
+    track_t *t = &trk[0];
+    uint32_t i, old, h = 2166136261u, prev = 0, inc;
+    int32_t last, mn = 32767, mx = -32768, b;
+    rng_state = 0x1234567u;
+    t->p[P_LRATE] = (int16_t)rate, t->p[P_LWAVE] = (int16_t)wave, t->p[P_LFADE] = 0;
+    t->lfo_ph = 0, t->lfo_rnd = 0, t->lfo_fade = 32767;
+    inc = lfo_inc(t), b = slew_bound(inc);
+    track_lfo_tick(t);
+    last = t->lfo_val;
+    for (i = 0; i < n; i++) {
+        old = t->lfo_ph;
+        prev = t->lfo_rnd;
+        track_lfo_tick(t);
+        if (t->lfo_ph < old) {
+            h = (h ^ (t->lfo_rnd >> 16)) * 16777619u;
+            if (wave == LFO_WAVE_SLEW)                 /* (LFO's draw is rng(): SLEW starts at the value drawn before) */
+                *ok &= iabs(t->lfo_val - lfo_shape(LFO_WAVE_SH, 0, prev)) <= b;
+        }
+        if (wave == LFO_WAVE_SLEW)
+            *ok &= iabs(t->lfo_val - last) <= b;
+        last = t->lfo_val;
+        mn = last < mn ? last : mn, mx = last > mx ? last : mx;
+    }
+    *span = mx - mn;
+    return h ^ rng_state;
+}
+static void t_slew(void)
+{
+    uint32_t i, j, ph;
+    int ok = 1;
+    int32_t span, span2, span3;
+    uint32_t keep_blk = clk_blk;
+    init();
+    for (i = 0; i < 4000u; i++) {                       /* the shape alone */
+        uint32_t a = lfo_rnd_of(i, 7u), b = lfo_rnd_of(i + 1u, 7u), r = lfo_slew_pair(a, b);
+        int32_t last = lfo_shape(LFO_WAVE_SLEW, 0, r), v, lo = lfo_shape(LFO_WAVE_SH, 0, a), hi = lfo_shape(LFO_WAVE_SH, 0, b);
+        ok &= last == lo && iabs(lfo_shape(LFO_WAVE_SLEW, 0xFFFFFFFFu, r) - hi) <= 2;
+        for (j = 1; j <= 256u; j++) {
+            ph = j == 256u ? 0xFFFFFFFFu : j << 24;
+            v = lfo_shape(LFO_WAVE_SLEW, ph, r);
+            ok &= iabs(v - last) <= slew_bound(1u << 24) &&   /* (one way: within the Q15 rounding, 8) */
+                  (hi >= lo ? v >= last - 8 && v <= hi + 2 : v <= last + 8 && v >= hi - 2);
+            last = v;
+        }
+    }
+    check(ok, "SLEW: the shape goes from one S&H value (exactly, at phase 0) to the next (at the wrap, within 2), one way, never "
+              "steeper than 1.5 x the range a cycle");
+    ok = slew_lfo2(127, 20000u, &span);                 /* (the fastest free rate) */
+    clk_blk = CTL * 240u;                               /* (the fastest synced: 1/64 at 240 BPM) */
+    ok &= slew_lfo2(-LSYNC_N, 20000u, &span2);
+    clk_blk = CTL * 120u;
+    ok &= slew_lfo2(-11, 20000u, &span3);               /* (1/4 at 120) */
+    clk_blk = keep_blk;
+    printf("SLEW LFO 2: spans %d %d %d, block steps <= %d (free 127) %d (1/64 at 240 BPM)\n", (int)span, (int)span2, (int)span3,
+           (int)slew_bound(LFO_INC[127]), (int)slew_bound((uint32_t)(((uint64_t)CTL * 240u * LSYNC_KT[LSYNC_N - 1]) >> 16)));
+    check(ok && span > 40000 && span2 > 40000 && span3 > 40000,
+          "SLEW LFO 2: at free 127, 1/64 at 240 BPM and 1/4: each block within the steepest glide of the last (continuous at "
+          "the wraps), each cycle starting at its S&H value, the whole range covered, no rng()");
+    {
+        int ok1 = 1, ok0 = 1;
+        uint32_t h4, h5;
+        h4 = slew_lfo1(127, LFO_WAVE_SH, 20000u, &ok0, &span);
+        h5 = slew_lfo1(127, LFO_WAVE_SLEW, 20000u, &ok1, &span2);
+        clk_blk = CTL * 240u;
+        ok1 &= slew_lfo1(-LSYNC_N, LFO_WAVE_SH, 20000u, &ok0, &span) == slew_lfo1(-LSYNC_N, LFO_WAVE_SLEW, 20000u, &ok1, &span3);
+        clk_blk = keep_blk;
+        check(ok1 && h4 == h5 && span2 > 40000 && span3 > 40000,
+              "SLEW LFO: at free 127 and 1/64 at 240 BPM each block within the steepest glide (continuous at the wraps), each "
+              "cycle starting at the S&H value drawn before; the same rng() draws and S&H values as S&H");
+    }
+    {                                                   /* a project keeps SLEW on both LFOs */
+        uint32_t k;
+        init();
+        for (k = 0; k < NPART; k++) {
+            trk[k].p[P_LWAVE] = LFO_WAVE_SLEW;
+            l2_set(&trk[k], -11, LFO_WAVE_SLEW, 1, 1, LT_FLT, 50);
+        }
+        proj_capture(&q, &tdl);
+        init();
+        proj_apply(&q, &tdl, 1);
+        for (k = 0, ok = 1; k < NPART; k++)
+            ok &= trk[k].p[P_LWAVE] == LFO_WAVE_SLEW && trk[k].p[P_L2WAVE] == LFO_WAVE_SLEW && trk[k].p[P_L2DA] == LT_FLT;
+        check(ok, "SLEW: a project keeps it (LFO and LFO 2 WAVE 5 back after capture -> apply)");
     }
 }
 
@@ -373,6 +498,7 @@ int main(void)
     t_params();
     t_off_rate();
     t_maths();
+    t_slew();
     t_trig();
     t_render();
     t_project();

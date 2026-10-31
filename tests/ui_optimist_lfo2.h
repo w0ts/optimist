@@ -4,6 +4,8 @@
  *               LFO DEST, on the synth tracks only
  *   the cards   each maps to its P_L2* value; RATE shows as LFO's does (the free bar from 0, a synced division as ten
  *               cells), SHIFT held + a knob puts the value back to its default
+ *   SLEW        (issue 129) both WAVE cards read SLEW; the picture (opt-lfo2-slew, opt-lfo-slew) differs from S&H's and
+ *               glides through S&H's steps
  *   the bars    AMT's second bar is the destination's actual value, equal to what the render used (ANALOG 2's cutoff)
  * Included after ui_optimist_inslots.h (ins_row). */
 static void lfo2ui_cell(uint32_t r, uint32_t k, cell_t *c)
@@ -149,6 +151,41 @@ static void lfo2ui_tests(void)
     ppm("opt-lfo2-dest");
     check(snd_graph_page(rd) == snd_page(r) && snd_graph_page(rl) != snd_page(r) && snd_graph_page(rl)->graph == GR_LFO,
           "the graph: LFO2 DEST shows LFO 2's wave, LFO DEST still LFO's");
+    {   /* SLEW (issue 129): its name on both LFOs' WAVE card; its picture a glide through the S&H picture's steps */
+        static uint16_t shot[240 * 240];
+        uint32_t rw = ins_row("LFO");
+        int32_t x, v, pv = 0, jump = 0, sjump = 0, ps = 0;
+        TSEL->p[P_L2DA] = LT_OFF, TSEL->p[P_L2AA] = 0, TSEL->p[P_L2POL] = 0, TSEL->p[P_L2WAVE] = LFO_WAVE_SLEW;
+        lfo2ui_cell(r, 1, &c);
+        check(!strcmp(c.label, "WAVE") && !strcmp(c.val, "SLEW"), "SLEW: LFO 2's WAVE card reads SLEW");
+        frames(2);
+        ppm("opt-lfo2-slew");
+        memcpy(shot, screen, sizeof shot);
+        TSEL->p[P_L2WAVE] = LFO_WAVE_SH;
+        ui.force = 1;
+        frames(2);
+        check(memcmp(shot, screen, sizeof shot) != 0, "SLEW: LFO 2's picture is not S&H's");
+        TSEL->p[P_LWAVE] = LFO_WAVE_SLEW;
+        check(rw < SCR->rows(), "SLEW: the LFO row");
+        if (rw < SCR->rows()) {
+            lfo2ui_cell(rw, 1, &c);
+            check(!strcmp(c.label, "WAVE") && !strcmp(c.val, "SLEW") && c.vp == &TSEL->p[P_LWAVE], "SLEW: LFO's WAVE card reads SLEW");
+            frames(2);
+            ppm("opt-lfo-slew");
+        }
+        TSEL->p[P_LWAVE] = 0, TSEL->p[P_L2WAVE] = 1;
+        for (x = 0, v = 1; x < 240; x++) {              /* the picture's values (op_graph.c graph_lfo_v) */
+            int32_t a = graph_lfo_v(LFO_WAVE_SLEW, 0, x), b = graph_lfo_v(LFO_WAVE_SH, 0, x);
+            if (x) {
+                jump = a - pv > jump ? a - pv : pv - a > jump ? pv - a : jump;
+                sjump = b - ps > sjump ? b - ps : ps - b > sjump ? ps - b : sjump;
+            }
+            v &= x % 20 || a == b;
+            pv = a, ps = b;
+        }
+        check(v && jump <= 65535 * 3 / 40 + 3 && sjump > 2 * jump,
+              "SLEW: the picture glides (no column further than the steepest glide from the last), meeting each S&H step at its start");
+    }
     /* the drum track has no LFO 2 */
     song.sel = TRK_DRUM;
 #if KLFO_ON
