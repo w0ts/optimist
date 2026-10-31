@@ -227,9 +227,10 @@ static void ds_start(dsv_t *s)
 {
     uint32_t i, crush = s->crush, vel = (uint32_t)s->gain;
     int32_t semi = s->base16, rnd = s->rnd;
+    dsnd_t d0 = s->snd;
     const dsnd_t *d;
-    /* everything after the sound zeroed (it kept its own copy: ds_on_snd), word by word (libc.c's memset goes by bytes) */
-    fast_zero((uint8_t *)s + __builtin_offsetof(dsv_t, ph), (uint32_t)(sizeof *s - __builtin_offsetof(dsv_t, ph)));
+    memset(s, 0, sizeof *s);
+    s->snd = d0;
     d = s->d = &s->snd;
     s->crush = (uint8_t)crush;
     s->gain = (int32_t)vel * 258;
