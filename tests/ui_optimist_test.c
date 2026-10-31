@@ -4067,6 +4067,7 @@ static void led_tests(void)
 #include "ui_optimist_missline.h"                   /* the MISSING line stays until HOME */
 #include "ui_optimist_premiss.h"                    /* a user preset of an engine not built: not in PRESETS */
 #include "ui_optimist_fm6rx.h"                     /* a DX7 voice over SysEx: no whole-screen fill (#133) */
+#include "ui_optimist_vufloor2.h"                   /* VU FLOOR / KNOB COLORS: no whole-screen fill */
 #include "ui_optimist_notename.h"                   /* the note played on the keys, bottom left (Melodee's) */
 #include "ui_optimist_stepdots.h"                   /* the drum steps as dots (Melodee's): STEP and the mixer */
 #include "ui_optimist_accent.h"                     /* the drum track's ACCENT lane: key 1, STEP's 17th row, the amount, the walk */
@@ -4361,6 +4362,7 @@ int main(int argc, char **argv)
     missline_tests();
     notename_tests();                                   /* (late: the note it plays moves the master's meters, SCRS's golden) */
     notename_blink_tests();
+    vufloor_blink_tests();
     fuzz(20000, 12345);
     check(1, "20000 frames of random use: every draw on the screen");
     if (band_hits)

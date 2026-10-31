@@ -1535,14 +1535,14 @@ static void sys_set(uint32_t it, int32_t s)
         break;
     case SI_KCOL:                                       /* (kept in the settings word: settings_word.c) */
         knob_colors = (uint8_t)sys_step(knob_colors, s, 1);
-        ui.force = 1;                                   /* (every band's colours move) */
+        ui.redraw = 1;                                   /* (every band's colours move: the bands again over themselves, no black fill) */
         break;
     case SI_DBGST:                                      /* (kept in the settings record: persist_rec.c rsv_pj[1]) */
         dbg_stats_set((uint32_t)sys_step(dbg_stats, s, 1));
         break;
     case SI_VUFLOOR:                                    /* (kept in the settings record: persist_rec.c rsv_pj[0]) */
         vu_floor_i = (uint8_t)sys_step(vu_floor_i, s, (int32_t)VUF_N - 1);
-        ui.force = 1;                                   /* (the MASTER scale and every meter's height move) */
+        ui.redraw = 1;                                   /* (the MASTER scale and every meter's height move: the bands again over themselves, no black fill) */
         break;
 #if FELUCCA_MIDI_CLKOUT
     case SI_CLKOUT:                                     /* (kept in the settings word: settings_word.c) */
@@ -1635,14 +1635,14 @@ static int sys_factory(uint32_t it)
         break;
     case SI_KCOL:
         knob_colors = 0;
-        ui.force = 1;
+        ui.redraw = 1;
         break;
     case SI_DBGST:
         dbg_stats_set(0);
         break;
     case SI_VUFLOOR:
         vu_floor_i = VUF_DEF;
-        ui.force = 1;
+        ui.redraw = 1;
         break;
 #if FELUCCA_MIDI_CLKOUT
     case SI_CLKOUT:
