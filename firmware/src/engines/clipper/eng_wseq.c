@@ -199,7 +199,7 @@ static void wseq_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
         x = tsvf_lp(&flt, y * 3 >> 2, &ic1, &ic2);
         if (x > 16000 || x < -16000)
             x = soft_knee(x, 16000);
-        out[i] += mulq15(mulq15(x << 1, amp_at(m, i)), VOICE_FS) << 1;
+        out[i] += VOICE_OUT(x << 1, amp_at(m, i), 1);
     }
     v->ph[0] = pa;
     v->ph[1] = pb;

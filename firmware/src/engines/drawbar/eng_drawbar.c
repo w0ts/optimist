@@ -268,7 +268,7 @@ static FAST(drawbar) void drawbar_render(track_t *t, voice_t *v, int32_t *out, u
             acc[i] = (softclip((acc[i] * dg) >> 9) * dcomp) >> 8;
     }
     for (i = 0; i < n; i++)                             /* acc: Q15 with headroom to 4.0 */
-        out[i] += mulq15(mulq15(acc[i] >> 1, amp_at(m, i)), VOICE_FS) << 1;
+        out[i] += VOICE_OUT(acc[i] >> 1, amp_at(m, i), 1);
 }
 
 static const preset_t DRAWBAR_PRESETS[] = {
