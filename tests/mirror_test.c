@@ -172,6 +172,8 @@ static uint8_t ed_bt;                  /* (editor.c's: the request came over Blu
 #ifndef MIR_BLE_LAG
 #define MIR_BLE_LAG 1536u               /* (smaller than the firmware's: the random screens here catch up in less than its 4 KB) */
 #endif
+static void mt_bt_idle(void);           /* (ed_mirror.c MBR_IDLE: a catch-up waiting on a full ring; the radio below) */
+#define MBR_IDLE() mt_bt_idle()
 #include "../firmware/src/io/editor/ed_mirror.c"
 #if MIR_LEND
 #if defined(__has_feature)
@@ -239,6 +241,13 @@ static uint32_t radio(uint32_t n)
     return got;
 }
 
+static uint32_t mt_radio_rate;          /* bytes the radio drains while a catch-up waits, each wait (0: none, time goes on) */
+static void mt_bt_idle(void)
+{
+    if (mt_radio_rate)
+        radio(mt_radio_rate);
+    fm1_ms++;
+}
 /* ---- the panel itself, as display/lcd.c sends it (pixels byte-swapped) */
 static uint16_t panel[240 * 240];
 static uint32_t repaints;
@@ -867,6 +876,53 @@ static void lag_tests(void)
     memset(&mbl, 0, sizeof mbl);
 #endif
 }
+/* a catch-up larger than the Bluetooth ring (2026-11-01 on the FM-1: the mixer of mots-config, 8.7-9.5 KB, the ring 8 KB): it
+ * was cut at its last band every time and caught up again twice a second for ever, the client showing the top of the screen.
+ * Now a catch-up waits on a full ring while the radio drains it, and goes out whole; with no radio reading it gives up */
+static void bigcatch_tests(void)
+{
+    static const uint8_t ON[] = {0xF0, 0x7D, 0x46, 0x4C, 106, 1, 0xF7};
+    uint32_t k, w0, r0, sent, q = quiet;
+    ble_out_on = 1;
+    bt_send(ON, sizeof ON);
+    mir_poll();
+    radio(~0u);
+    quiet = 0;
+    for (k = 0; k < 4u; k++) {                  /* (a busy panel: its catch-up well over 8 KB) */
+        canvas(240, 60, 12);
+        lcd_blit(0, 60u * k, 240, 60, cv);
+        radio(~0u);
+    }
+    quiet = (uint8_t)q;
+    mir.behind = 1, mir.catch_ms = fm1_ms - MIR_CATCH_MS;
+    mt_radio_rate = 0;                          /* (no radio reading while it waits) */
+    MIR_SEEN();
+    mir_poll();
+    check(mir.behind && mbr.w - mbr.r <= MIR_BLE_RING, "a catch-up over the ring, nothing read: given up, behind (%u queued)",
+          mbr.w - mbr.r);
+    radio(~0u);
+    fm1_ms += MIR_CATCH_MS;
+    mt_radio_rate = 96;                         /* (the radio draining while the catch-up waits) */
+    r0 = repaints;
+    w0 = mbr.w;
+    sent = 0;
+    MIR_SEEN();
+    mir_poll();
+    sent = mbr.w - w0;
+    radio(~0u);
+    check(repaints == r0 + 1u && !mir.behind && sent > MIR_BLE_RING && same(),
+          "a catch-up of %u bytes over the %u-byte ring, the radio draining: out whole, not behind, the panel", sent, MIR_BLE_RING);
+    for (k = 0; k < 20u; k++) {
+        fm1_ms += 16u;
+        MIR_SEEN();
+        mir_poll();
+        radio(~0u);
+    }
+    check(repaints == r0 + 1u && !mir.behind, "... and no catch-up after it");
+    mt_radio_rate = 0;
+    lcd_fill(0, 0, 240, 240, 0);
+    radio(~0u);
+}
 int main(void)
 {
     uint32_t k;
@@ -880,6 +936,7 @@ int main(void)
     state_tests();
     test_session_tests();
     bt_tests();
+    bigcatch_tests();
     lag_tests();
     nav_tests();
 #if MIR_LEND
