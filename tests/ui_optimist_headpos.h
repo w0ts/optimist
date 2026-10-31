@@ -31,4 +31,36 @@ static void headpos_tests(void)
     check(hp_head_full >= 1u, "header: a message draws the header whole");
     tap(B_PLAY);
     frames(5);
+    {   /* every page the user plays on (2026-11-01: "still slow" over Bluetooth with PATTERNS / SECTIONS on): 4 s playing on
+         * each, no whole-width header blit after the first second */
+        static const uint8_t PG[] = {SCR_HOME, SCR_SOUND, SCR_FX, SCR_STEP, SCR_SONG, SCR_GLOBAL};
+        uint32_t k, full = 0, px = 0;
+        char who[64] = "";
+        for (k = 0; k < sizeof PG; k++) {
+            reset_ui();
+            op_enter(PG[k]);
+            frame();
+            tap(B_PLAY);
+            frames(60);
+            hp_head_px = hp_head_full = 0;
+#ifdef MIRROR_CHECK
+            {   /* the mirror's bytes a second while playing (what a link must carry to keep up) */
+                uint32_t b0 = mc_bytes, f0 = mc_frames;
+                frames(240);
+                printf("  mirror, playing on page %u: %u B/s, %u frames/s\n", (unsigned)PG[k], (unsigned)(mc_bytes - b0) / 4u,
+                       (unsigned)(mc_frames - f0) / 4u);
+            }
+#else
+            frames(240);
+#endif
+            if (hp_head_full && strlen(who) < 50u)
+                snprintf(who + strlen(who), sizeof who - strlen(who), " %u:%u", (unsigned)PG[k], (unsigned)hp_head_full);
+            full += hp_head_full, px += hp_head_px;
+            tap(B_PLAY);
+            frames(5);
+        }
+        snprintf(b, sizeof b, "header: playing 4 s on HOME SOUND FX STEP SONG GLOBAL: %u px into the header, %u whole-width blits%s",
+                 (unsigned)px, (unsigned)full, who);
+        check(full == 0u, b);
+    }
 }

@@ -121,15 +121,19 @@ static void mir_wire_end(void)
 #include "../firmware/src/io/editor/ed_mirror_enc.h"
 static uint8_t mir_mute;                                /* (display/lcd.c's: a meter not due) */
 static uint32_t mc_meter_ms, mc_meter_sends, mc_meter_now;
+static int mc_bt = -1;                                  /* MIRROR_BT=1: the client over Bluetooth (no meters: ed_mirror.c) */
+static int mc_is_bt(void) { if (mc_bt < 0) mc_bt = getenv("MIRROR_BT") != 0; return mc_bt; }
 static uint32_t mir_meters_due(void)                    /* (ed_mirror.c's, the client always there; mc_meter_now: a window now) */
 {
+    if (mc_is_bt())
+        return 0;
     if (fm1_ms - mc_meter_ms < 100u && !mc_meter_now)
         return 0;
     mc_meter_ms = fm1_ms;
     mc_meter_sends++;
     return 1;
 }
-static uint32_t mir_meters_off(void) { return 0; }    /* (USB here: Bluetooth's empty meters, mirror_test.c) */
+static uint32_t mir_meters_off(void) { return (uint32_t)mc_is_bt(); }   /* (USB unless MIRROR_BT: Bluetooth's empty meters, mirror_test.c) */
 static void mir_blit(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint16_t *p) { mir_enc_blit_skip(x, y, w, h, p); }   /* (gfx.c cv_mirror) */
 /* MIRROR_TRACE=FILE: every write the mirror sends, recorded (B x y w h, the pixels; F x y w h c; u16 each) to replay it
  * through another encoder and compare the bytes */
