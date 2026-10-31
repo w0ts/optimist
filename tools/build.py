@@ -46,6 +46,7 @@ LDR = OUT / "loader"
 GEN_REL = GEN.relative_to(SRC).as_posix()       # (the tools run with cwd SRC: build/gen, or a slot's)
 sys.path.insert(0, str(SRC / "tools"))
 import farcalls  # noqa: E402  (RAM <-> XIP direct calls)
+import srcgit  # noqa: E402  (the tree's commit: OPTIMIST_COMMIT, or git when SRC is the repository)
 import fm1pkg_make  # noqa: E402
 import flash_layout  # noqa: E402  (the app slot's end by FELUCCA_LAYOUT: fm1_flash_map.h's numbers)
 import lz4blk  # noqa: E402
@@ -900,13 +901,8 @@ def ui_sidecar(fwsc):
     emulator's fm1-ui serves it beside the firmware (as rust-emulator/scripts/make-ui-sidecar.sh did by hand)"""
     out = fwsc.with_name(fwsc.stem + "-ui.zip")
     web = SRC / "web"
-    def git(*a):
-        try:                            # (no git: a tree from a zip, or Windows without git)
-            p = subprocess.run(["git", "-C", str(SRC), *a], capture_output=True, text=True)
-        except OSError:
-            return ""
-        return p.stdout.strip() if p.returncode == 0 else ""
-    commit, dirty = git("rev-parse", "HEAD") or "unknown", git("status", "--porcelain", "--", "web", "firmware")
+    commit = srcgit.commit(SRC) or "unknown"
+    dirty = srcgit.modified(SRC, "web", "firmware")
     cfg = (GEN / "felucca_config.h").read_text() if (GEN / "felucca_config.h").exists() else ""
     m = re.search(r'FELUCCA_CFG_NAME "([^"]*)"', cfg)
     h = re.search(r"FELUCCA_CFG_HASH (\d+)u", cfg)
@@ -1035,14 +1031,8 @@ def release_name(release=None):
     """optimist-X.Y.fwsc for a release build, else optimist-X.Y-dev-<commit>.fwsc (-modified: uncommitted changes)"""
     if release:
         return f"optimist-{release}.fwsc"
-    def git(*args):
-        try:                            # (no git: a tree from a zip, or Windows without git)
-            r = subprocess.run(["git", "-C", str(SRC), *args], capture_output=True, text=True)
-        except OSError:
-            return ""
-        return r.stdout.strip() if r.returncode == 0 else ""
-    commit = git("rev-parse", "--short", "HEAD") or "local"
-    changed = git("status", "--porcelain", "--", "firmware", "tools", "web")
+    commit = srcgit.commit(SRC, short=True) or "unknown"
+    changed = srcgit.modified(SRC, "firmware", "tools", "web")
     return f"optimist-{OPTIMIST_VERSION}-dev-{commit}{'-modified' if changed else ''}.fwsc"
 
 

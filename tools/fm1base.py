@@ -355,9 +355,12 @@ def ui_sidecar(pkg, cfgfile):
     def git(*a):
         r = subprocess.run(["git", "-C", str(ROOT), *a], capture_output=True, text=True)
         return r.stdout.strip() if r.returncode == 0 else ""
-    commit, dirty = git("rev-parse", "HEAD") or "unknown", git("status", "--porcelain", "--", "web", "firmware", "fm1base")
+    import srcgit
+    commit, dirty = srcgit.commit(ROOT) or "unknown", srcgit.modified(ROOT, "web", "firmware", "fm1base")
+    base_commit = os.environ.get("OPTIMIST_FM1BASE_COMMIT", "").strip()[:7] or (   # (the submodule's own commit: only when
+        git("-C", str(DIR), "rev-parse", "--short", "HEAD") if srcgit.is_toplevel(DIR) else "")   # DIR is a repository)
     cfg, name = configure.parse(Path(cfgfile).read_text())
-    source = (f"Web editor for {pkg.name} (the release: Optimist on fm1-base {git('-C', str(DIR), 'rev-parse', '--short', 'HEAD') or '?'})\n"
+    source = (f"Web editor for {pkg.name} (the release: Optimist on fm1-base {base_commit or '?'})\n"
               f"from {ROOT} at {commit}{' (with uncommitted changes)' if dirty else ''}, web/editor.html (GPL-3.0-only)\n"
               f"build configuration: {name or 'default'} hash {configure.cfg_hash(cfg):08x}\n")
     notices = ("LICENSE", "LICENSING.md") + tuple(sorted("LICENSES/" + p.name for p in (ROOT / "LICENSES").glob("*.txt")))

@@ -564,14 +564,9 @@ def version():
     """the VERSION file's number plus -dev-<commit> (-modified: uncommitted firmware/tools/web changes),
     as tools/build.py names a development build"""
     v = (ROOT / "VERSION").read_text().strip()
-    def git(*args):
-        try:                            # (no git: a tree from a zip, or Windows without git)
-            r = subprocess.run(["git", "-C", str(ROOT), *args], capture_output=True, text=True)
-        except OSError:
-            return ""
-        return r.stdout.strip() if r.returncode == 0 else ""
-    commit = git("rev-parse", "--short", "HEAD") or "local"
-    changed = git("status", "--porcelain", "--", "firmware", "tools", "web")
+    import srcgit                      # (tools/srcgit.py: OPTIMIST_COMMIT, else git only when ROOT is the repository itself)
+    commit = srcgit.commit(ROOT, short=True) or "unknown"
+    changed = srcgit.modified(ROOT, "firmware", "tools", "web")
     return f"{v}-dev-{commit}{'-modified' if changed else ''}"
 
 
