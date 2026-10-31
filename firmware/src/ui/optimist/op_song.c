@@ -540,7 +540,7 @@ static void song_pat_hold(void)
         if (lay.pmod == 10u && w < LAY_NSCN)
             scene_clear_ask(w);
         else if (lay.pmod != 10u && w < PAT_N)
-            pat_clear_ask(song.sel % NTRK, w);
+            pat_clear_ask(lay.pmod == 5u ? (uint32_t)NTRK : song.sel % NTRK, w);   /* (black 5: every track) */
         op_arm_hold();                                  /* (asked from a held key: the ring, the hold confirms) */
     }
 #endif

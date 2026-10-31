@@ -1875,9 +1875,13 @@ static void layer_tests(void)
     }
     for (k = 0; k < 8u; k++)
         t->step[k].time = ST_NOTE, t->step[k].n = 1, t->step[k].note[0] = (uint8_t)(48 + k);
-    fm1_in.notes |= 1u << 13;                           /* black key 6 was the store modifier: nothing now */
+    fm1_in.notes |= 1u << 13;                           /* black key 6 stops (was black 5): asked over the edits just made, no store either way */
     frame();
-    key(WK(1));
+    if (op_armed())
+        tap(B_HOME);
+    key(WK(1));                                          /* (white 2 over the edits: asked now, the question let go) */
+    if (op_armed())
+        tap(B_HOME);
     fm1_in.notes &= ~(1u << 13);
     frame();
     check(!pat_has(0, 1), "LFO + black 6 + white 2: no store any more (the upper-key modifiers are gone)");
@@ -1960,8 +1964,20 @@ static void layer_tests(void)
          * at once (before the hold) is SHIFT and keeps the screen under it (ui_optimist_len.h: LEN by one) */
         check(lpk.on && ui.scr == SCR_SONG, "LFO held: the patterns screen (SONG's PATTERNS row)");
         turn(EN_K2, 1);
-        check(song.sel == 1u && lay.shown == LY_PLAY, "LFO held + KNOB 2 on the patterns screen: T2 selected");
-        turn(EN_K1, 1);
+        check(song.sel == 2u && lay.shown == LY_PLAY, "LFO held + KNOB 2 on the patterns screen: T3 selected (the knobs read the cards by columns, 2026-10-31)");
+        {   /* (a knob turned makes the hold SHIFT's: each knob in a hold of its own) K1 T1, K3 T2, K4 DR */
+            static const uint8_t KN[3] = {EN_K1, EN_K3, EN_K4}, WANT[3] = {0, 1, 3};
+            uint32_t i;
+            for (i = 0; i < 3u; i++) {
+                release(B_LFO);
+                frames(2);
+                song.sel = 2;
+                press(B_LFO);
+                frames(HOLD_FRAMES);
+                turn(KN[i], 1);
+                check(song.sel == WANT[i], i == 0 ? "... KNOB 1: T1 (top left)" : i == 1 ? "... KNOB 3: T2 (top right)" : "... KNOB 4: DR (bottom right)");
+            }
+        }
         song.sel = 0;
     }
     release(B_LFO);
@@ -3066,8 +3082,8 @@ static void song_tests(void)
         song.sel = 0;
         turn(EN_ALGO, 2);
         check(song.sel == 0u && ui.scr == SCR_SONG && !ui.master, "PATTERNS row: ALGORITHM does nothing (a global screen)");
-        turn(EN_K3, 1);
-        check(song.sel == 2u, "PATTERNS row: KNOB 3 selects T3 (the keys then launch its patterns)");
+        turn(EN_K2, 1);
+        check(song.sel == 2u, "PATTERNS row: KNOB 2 selects T3 (the cards by columns; the keys then launch its patterns)");
         turn(EN_K1, 1);
         check(song.sel == 0u, "... KNOB 1 selects T1");
         press(B_SEQ);
@@ -4097,6 +4113,7 @@ static void led_tests(void)
 #include "ui_optimist_colours.h"                     /* batch C: colour means something (mute tiles, red, dim, REC, SUPER) */
 #include "ui_optimist_plines.h"                      /* PAGE_LINES: the rows with no picture as GLOBAL's lines */
 #include "ui_optimist_screens.h"                     /* batch E: per-screen oddities (titles, STEP, drums, names, pictures) */
+#include "ui_optimist_patwarn.h"                     /* pattern mode: the unsaved warning, black 5 = all tracks, black 6 = stop, a black key held + n stores, the numbers */
 #include "ui_optimist_prefilter.h"                   /* the preset list's filter (SHIFT2 + PRESETS), SHIFT + PRESETS the engines, the popup's header, no flash */
 #include "ui_optimist_favorites.h"                   /* FELUCCA_FAVORITES: the FAVORITES row under the SOUND row (docs/UI-OPTIMIST-DESIGN.md 13 Favorites) */
 
@@ -4332,6 +4349,9 @@ int main(int argc, char **argv)
 #endif
     favorites_tests();
     prefilter_tests();
+#if FELUCCA_PATTERNS
+    patwarn_tests();
+#endif
     algotrack_tests();
     uniform_tests();
     lforate_tests();

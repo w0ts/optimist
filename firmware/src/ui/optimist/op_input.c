@@ -659,6 +659,8 @@ static void shift_keys(uint32_t notes, int mute)
  * Not where the keys mean something else (STEP's steps, a layer's tiles, NAME, the FM6 layer: ui_input's other
  * branches), not on MASTER, and not while a value is being turned (a knob in the last 300 ms: the cards stay). On a
  * key down, from the main loop's note edges: nothing in seq.c's key ISR. The lowest key of a chord wins */
+/* the patterns screen (LFO layer, SONG's PATTERNS row): K1 T1 (top left), K2 T3 (bottom left), K3 T2 (top right), K4 DR (bottom right) */
+static const uint8_t PAT_KNOB_CELL[4] = {0, 2, 1, 3};
 #define HIT_KNOB_MS 300u
 static void drum_hit_pick(uint32_t notes)
 {
@@ -1095,6 +1097,7 @@ static void op_knobs(uint32_t shift)
     if (op_presets_turn())                              /* PRESETS: the selected track's sound, wherever you are */
         turned = 1;
     for (k = 0; k < 4u; k++) {
+        uint32_t ck;
         if ((s = panel_enc(EN_K1 + k)) == 0)
             continue;
         turned = 1;
@@ -1109,23 +1112,24 @@ static void op_knobs(uint32_t shift)
             continue;
         }
         step_cards_show();                              /* (STEP: a value edited) */
-        SCR->cell(row, k, &c);
+        ck = song_on_pat_row() ? PAT_KNOB_CELL[k] : k;   /* (the patterns screen: the knobs read the 2x2 cards by columns, the user 2026-10-31) */
+        SCR->cell(row, ck, &c);
         if (c.kind == CK_NONE)
             continue;
-        ui.hot = (uint8_t)k;                            /* (an action cell: the turn only picks it) */
-        gl_pick(row, k);                                /* (GLOBAL, SYSTEM: its line the cursor) */
+        ui.hot = (uint8_t)ck;                            /* (an action cell: the turn only picks it) */
+        gl_pick(row, ck);                                /* (GLOBAL, SYSTEM: its line the cursor) */
         ui.hot_lit = 1;
-        HL_NOTE(k);                                     /* (the help line: what it changes, op_help.c) */
-        if (c.kind == CK_RO && k == 0u && cred_page()) {   /* SYSTEM > CREDITS: KNOB 1 scrolls the end titles (a read-out, no value) */
+        HL_NOTE(ck);                                     /* (the help line: what it changes, op_help.c) */
+        if (c.kind == CK_RO && ck == 0u && cred_page()) {   /* SYSTEM > CREDITS: KNOB 1 scrolls the end titles (a read-out, no value) */
             cred_turn(s);
             continue;
         }
-        if (c.kind == CK_VAL && rec_knob(row, k, &c))
+        if (c.kind == CK_VAL && rec_knob(row, ck, &c))
             continue;                                   /* REC held: its motion and locks cleared, the value stays */
         if (c.kind == CK_VAL)
-            SCR->turn(row, k, shift ? OP_RESET : s, 0);  /* SHIFT held: back to its default */
+            SCR->turn(row, ck, shift ? OP_RESET : s, 0);  /* SHIFT held: back to its default */
         if (c.kind == CK_VAL && !shift)
-            pop_enum_open(row, k);                      /* (a list value: the popup list, op_preset.c) */
+            pop_enum_open(row, ck);                      /* (a list value: the popup list, op_preset.c) */
     }
 knobs_done:
     if (turned) {

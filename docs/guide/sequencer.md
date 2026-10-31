@@ -105,9 +105,10 @@ The SCL page (and the layer: hold SCL, press a key to set the key of the song) h
 
 Builder item `PATTERNS`: each track keeps up to 16 stored patterns, and a **scene** names a pattern per track. **LFO held** is the patterns layer:
 
-- A white key n launches the selected track's pattern n at the end of its pass (OCT- + the key: at the next bar; OCT+ + the key: now). SAVE + n stores the working pattern into slot n (asked over a used one). HOME + n clears slot n (asked).
-- Black keys 1-4 pick the track, 5 stops the pattern, 9 duplicates the working pattern into the first free slot ("NO FREE PATTERN" if none).
+- A white key n launches the selected track's pattern n at the end of its pass (OCT- + the key: at the next bar; OCT+ + the key: now). SAVE + n stores the working pattern into slot n (asked over a used one). HOME + n clears slot n (asked). A black key 1-4 held + a white key n stores that track's working pattern in slot n (black 5 held: every track's), as SAVE + n. A launch or a stop over a pattern with edits not stored asks "LOSE EDITS?" and names the tracks: YES (SAVE) goes on, HOME keeps the edits.
+- Black keys 1-4 pick the track, 5 is ALL TRACKS (the white keys launch, SAVE + n stores and HOME + n clears on every track; tap it again for the selected track), 6 stops the pattern, 9 duplicates the working pattern into the first free slot ("NO FREE PATTERN" if none).
 - Black key 10 turns the white keys into scenes A-P (until black 10 again or LFO is let go): the same verbs launch, store and clear a scene. SEQ + n stores the four tracks' patterns as scene n.
+- On the patterns screen the knobs read the four cards by columns: KNOB 1 T1 (top left), KNOB 2 T3 (bottom left), KNOB 3 T2 (top right), KNOB 4 DR (bottom right); a turn selects that track and cues its next or previous stored pattern.
 - SAVE + SEQ stores the working pattern into the slot it came from. The SONG screen has a PATTERNS row with the same keys.
 
 ## Sections and the song
