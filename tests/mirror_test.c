@@ -169,7 +169,9 @@ static uint32_t reboots;
 static void fm1_reboot(void) { reboots++; }
 static uint8_t ed_bt;                  /* (editor.c's: the request came over Bluetooth) */
 #define panel panel_tab
+#ifndef MIR_BLE_LAG
 #define MIR_BLE_LAG 1536u               /* (smaller than the firmware's: the random screens here catch up in less than its 4 KB) */
+#endif
 #include "../firmware/src/io/editor/ed_mirror.c"
 #if MIR_LEND
 #if defined(__has_feature)
@@ -838,6 +840,33 @@ static void lend_tests(void)
 }
 #endif
 
+/* the lag rule follows the link (ed_mirror.c mbr_lag): no rate yet MIR_BLE_LAG; a full link's drain gives MIR_LAG_MS of it,
+ * between MIR_LAG_MIN and MIR_BLE_LAG; a window the ring went empty in is not counted */
+static void lag_tests(void)
+{
+#if MIR_LAG_ADAPT
+    uint32_t r0 = mbr.r, w0 = mbr.w, k, lo = MIR_LAG_MIN < MIR_BLE_LAG ? MIR_LAG_MIN : MIR_BLE_LAG;
+    memset(&mbl, 0, sizeof mbl);
+    mbl.t = fm1_ms;
+    check(mbr_lag() == MIR_BLE_LAG, "lag: no rate measured yet: MIR_BLE_LAG");
+    mbr.w = mbr.r + 100000u;               /* (frames waiting) */
+    mbl.busy = 1, mbl.r = mbr.r, mbl.t = fm1_ms;
+    fm1_ms += MIR_LAG_WIN_MS, mbr.r += 1150u;   /* 4.6 KB/s */
+    k = mbr_lag();
+    check(mbl.rate == 4600u && k == (2300u < lo ? lo : 2300u > MIR_BLE_LAG ? MIR_BLE_LAG : 2300u),
+          "lag: 4.6 KB/s full: %u bytes (half a second, not under %u)", k, lo);
+    for (k = 0; k < 20u; k++)
+        fm1_ms += MIR_LAG_WIN_MS, mbr.r += 5000u, (void)mbr_lag();   /* 20 KB/s */
+    check(mbl.rate > 19000u && mbr_lag() == MIR_BLE_LAG, "lag: 20 KB/s: MIR_BLE_LAG (%u B/s)", mbl.rate);
+    k = mbl.rate;
+    mbr.w = mbr.r;                         /* (nothing waiting: the link not full) */
+    fm1_ms += MIR_LAG_WIN_MS, (void)mbr_lag();
+    fm1_ms += MIR_LAG_WIN_MS, (void)mbr_lag();
+    check(mbl.rate == k, "lag: windows with nothing waiting leave the rate as it was");
+    mbr.r = r0, mbr.w = w0, mbr.fw = w0;
+    memset(&mbl, 0, sizeof mbl);
+#endif
+}
 int main(void)
 {
     uint32_t k;
@@ -851,6 +880,7 @@ int main(void)
     state_tests();
     test_session_tests();
     bt_tests();
+    lag_tests();
     nav_tests();
 #if MIR_LEND
     lend_tests();
