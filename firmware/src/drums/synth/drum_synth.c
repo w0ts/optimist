@@ -383,104 +383,118 @@ static HOT int ds_render(dsv_t *s, int32_t *__restrict out, uint32_t n)
         wave = 0, src = 0, c = 0;                       /* (no tone, noise or click layer: its samples are the tone) */
     }
 #endif
-    for (i = 0; i < n; i++) {
-        int32_t tone = 0, nz = 0, x;
-        if (wave) {
-            uint32_t ph = s->ph;
-            if (t2m == DK_FM && d->t2) {                /* (KAWA) the partial modulates the tone's phase: its level the index */
-                s->ph3 += ((uint32_t)inc >> 5) * d->t2;
-                ph += (uint32_t)mulq15(sine_i(s->ph3), mulq15(mulq15(a, a), t2l)) << 17;
-            }
-            switch (wave) {
-            case DW_SINE: tone = sine_i(ph); break;
-            case DW_TRI: tone = osc_tri(ph); break;
-            case DW_SQUARE: tone = (int32_t)ph < 0 ? -24000 : 24000; break;
-            case DW_FM:                                 /* ratio 1.41: metallic, index follows the tone */
-                tone = sine_i(ph + ((uint32_t)(sine_i(s->ph2) * a) << 1));
-                s->ph2 += (uint32_t)inc + ((uint32_t)inc >> 2) + ((uint32_t)inc >> 3) + ((uint32_t)inc >> 5);
-                break;
-            default:                                    /* BELL: two squares */
-                tone = ((int32_t)ph < 0 ? -12000 : 12000) + ((int32_t)s->ph2 < 0 ? -12000 : 12000);
-                s->ph2 += (uint32_t)inc + ((uint32_t)inc >> 1) - ((uint32_t)inc >> 6);
-                break;
-            }
-            s->ph += (uint32_t)inc;
-            tone = mulq15(tone, a);
-            if (d->t2 && t2m == DK_MIX) {               /* the second mode: a sine, decaying twice as fast */
-                s->ph3 += ((uint32_t)inc >> 5) * d->t2;
-                tone += mulq15(mulq15(sine_i(s->ph3), mulq15(a, a)), t2l);
-            } else if (d->t2 && t2m == DK_RING) {       /* (KAWA) the partial rings the tone: its level the depth */
-                s->ph3 += ((uint32_t)inc >> 5) * d->t2;
-                tone += mulq15(mulq15(tone, sine_i(s->ph3)) - tone, t2l);
-            }
-        }
+    {   /* the voice's running state in locals for the block, written back after it: s->snd (d) is bytes, which alias
+         * every store through s, so each sample reloaded the sound's fields and kept the phases and filters in memory */
+        uint32_t ph = s->ph, ph2 = s->ph2, ph3 = s->ph3, t2 = d->t2, clap = d->src & DN_CLAP, lfsr = s->lfsr;
+        uint32_t cacc = s->cacc, cinc = s->cinc;
+        int32_t rnd = s->rnd, cprev = s->cprev, hp1 = s->hp1, hp2 = s->hp2, ahp = s->ahp, f1 = s->f1, f2 = s->f2;
+        int32_t fk = s->fk, gain = s->gain, lg = s->lg, held = s->held, holdn = s->holdn, dr8 = d->drive;
+        int32_t crush = s->crush;
+        tsvf_t fc = s->c;
 #if FELUCCA_DS_PLAITS
-        else if (d->wave >= DW_PKICK)
-            tone = px[i];
+        uint32_t pmodel = d->wave >= DW_PKICK;
 #endif
-        if (src) {
-            if (src == DN_WHITE) {
-                nz = (int32_t)noise32(&s->rnd) >> 17;
-            } else if (src == DN_CHIP) {
-                s->cacc += s->cinc;
-                if (s->cacc < s->cinc)                  /* wrapped: clock the LFSR (dsp_common.h) */
-                    s->lfsr = lfsr15(s->lfsr);
-                nz = (s->lfsr & 1u) ? 20000 : -20000;
-            } else {                                    /* METAL / CYM: six squares (+ white) */
-                s->mph[0] += s->minc[0];              /* unrolled: one sign bit each */
-                s->mph[1] += s->minc[1];
-                s->mph[2] += s->minc[2];
-                s->mph[3] += s->minc[3];
-                s->mph[4] += s->minc[4];
-                s->mph[5] += s->minc[5];
-                nz = (int32_t)(((s->mph[0] >> 31) + (s->mph[1] >> 31) + (s->mph[2] >> 31) +
-                                (s->mph[3] >> 31) + (s->mph[4] >> 31) + (s->mph[5] >> 31)) * 9600u) - 28800;
-                if (src == DN_CYM)
-                    nz += (int32_t)noise32(&s->rnd) >> 18;
+        for (i = 0; i < n; i++) {
+            int32_t tone = 0, nz = 0, x;
+            if (wave) {
+                uint32_t p = ph;
+                if (t2m == DK_FM && t2) {               /* (KAWA) the partial modulates the tone's phase: its level the index */
+                    ph3 += ((uint32_t)inc >> 5) * t2;
+                    p += (uint32_t)mulq15(sine_i(ph3), mulq15(mulq15(a, a), t2l)) << 17;
+                }
+                switch (wave) {
+                case DW_SINE: tone = sine_i(p); break;
+                case DW_TRI: tone = osc_tri(p); break;
+                case DW_SQUARE: tone = (int32_t)p < 0 ? -24000 : 24000; break;
+                case DW_FM:                             /* ratio 1.41: metallic, index follows the tone */
+                    tone = sine_i(p + ((uint32_t)(sine_i(ph2) * a) << 1));
+                    ph2 += (uint32_t)inc + ((uint32_t)inc >> 2) + ((uint32_t)inc >> 3) + ((uint32_t)inc >> 5);
+                    break;
+                default:                                /* BELL: two squares */
+                    tone = ((int32_t)p < 0 ? -12000 : 12000) + ((int32_t)ph2 < 0 ? -12000 : 12000);
+                    ph2 += (uint32_t)inc + ((uint32_t)inc >> 1) - ((uint32_t)inc >> 6);
+                    break;
+                }
+                ph += (uint32_t)inc;
+                tone = mulq15(tone, a);
+                if (t2 && t2m == DK_MIX) {              /* the second mode: a sine, decaying twice as fast */
+                    ph3 += ((uint32_t)inc >> 5) * t2;
+                    tone += mulq15(mulq15(sine_i(ph3), mulq15(a, a)), t2l);
+                } else if (t2 && t2m == DK_RING) {      /* (KAWA) the partial rings the tone: its level the depth */
+                    ph3 += ((uint32_t)inc >> 5) * t2;
+                    tone += mulq15(mulq15(tone, sine_i(ph3)) - tone, t2l);
+                }
             }
-            if (wave == DW_BELL)
-                nz += tone, tone = 0;
-            if (s->ahp) {                               /* two one-pole high-passes: 12 dB / oct */
-                s->hp1 += mulq15(nz - s->hp1, s->ahp);
-                nz -= s->hp1;
-                s->hp2 += mulq15(nz - s->hp2, s->ahp);
-                nz -= s->hp2;
+#if FELUCCA_DS_PLAITS
+            else if (pmodel)
+                tone = px[i];
+#endif
+            if (src) {
+                if (src == DN_WHITE) {
+                    nz = (int32_t)noise32(&rnd) >> 17;
+                } else if (src == DN_CHIP) {
+                    cacc += cinc;
+                    if (cacc < cinc)                    /* wrapped: clock the LFSR (dsp_common.h) */
+                        lfsr = lfsr15(lfsr);
+                    nz = (lfsr & 1u) ? 20000 : -20000;
+                } else {                                /* METAL / CYM: six squares (+ white) */
+                    s->mph[0] += s->minc[0];            /* unrolled: one sign bit each */
+                    s->mph[1] += s->minc[1];
+                    s->mph[2] += s->minc[2];
+                    s->mph[3] += s->minc[3];
+                    s->mph[4] += s->minc[4];
+                    s->mph[5] += s->minc[5];
+                    nz = (int32_t)(((s->mph[0] >> 31) + (s->mph[1] >> 31) + (s->mph[2] >> 31) +
+                                    (s->mph[3] >> 31) + (s->mph[4] >> 31) + (s->mph[5] >> 31)) * 9600u) - 28800;
+                    if (src == DN_CYM)
+                        nz += (int32_t)noise32(&rnd) >> 18;
+                }
+                if (wave == DW_BELL)
+                    nz += tone, tone = 0;
+                if (ahp) {                              /* two one-pole high-passes: 12 dB / oct */
+                    hp1 += mulq15(nz - hp1, ahp);
+                    nz -= hp1;
+                    hp2 += mulq15(nz - hp2, ahp);
+                    nz -= hp2;
+                }
+                nz = mulq15(nz, z);
+                if (clap)
+                    nz <<= 1;                           /* band-passed: as loud as the others */
             }
-            nz = mulq15(nz, z);
-            if (d->src & DN_CLAP)
-                nz <<= 1;                               /* band-passed: as loud as the others */
-        }
-        if (c) {                                        /* the click: differentiated noise, bright */
-            int32_t w = (int32_t)noise32(&s->rnd) >> 17;
-            nz += mulq15(w - s->cprev, c);
-            s->cprev = w;
-        }
-        x = fall ? tone + nz : nz;
-        if (fmode) {                                    /* SVF (dsp.c tsvf_tick), with the BP / HP outs */
-            int32_t v1, v2 = tsvf_tick(&s->c, x, &s->f1, &s->f2, &v1);
-            x = fmode == DF_LP ? v2 : fmode == DF_BP ? v1 : x - ((s->fk * v1) >> 12) - v2;
-        }
-        x += fall ? 0 : tone;
-        if (d->drive)
-            x = softclip((x * drive) >> 4);
-        if (s->crush) {
-            if (--s->holdn <= 0) {
-                s->holdn = hold;
-                s->held = (x >> bits) << bits;
+            if (c) {                                    /* the click: differentiated noise, bright */
+                int32_t w = (int32_t)noise32(&rnd) >> 17;
+                nz += mulq15(w - cprev, c);
+                cprev = w;
             }
-            x = s->held;
-        }
-        out[i] = ((mulq15(x, s->gain) >> 2) * s->lg) >> 8;
-        a = (sa += ra) >> CTL_LOG2;
-        z = (sz += rn) >> CTL_LOG2;
-        c = (sc += rc) >> CTL_LOG2;
-        inc += di;
+            x = fall ? tone + nz : nz;
+            if (fmode) {                                /* SVF (dsp.c tsvf_tick), with the BP / HP outs */
+                int32_t v1, v2 = tsvf_tick(&fc, x, &f1, &f2, &v1);
+                x = fmode == DF_LP ? v2 : fmode == DF_BP ? v1 : x - ((fk * v1) >> 12) - v2;
+            }
+            x += fall ? 0 : tone;
+            if (dr8)
+                x = softclip((x * drive) >> 4);
+            if (crush) {
+                if (--holdn <= 0) {
+                    holdn = hold;
+                    held = (x >> bits) << bits;
+                }
+                x = held;
+            }
+            out[i] = ((mulq15(x, gain) >> 2) * lg) >> 8;
+            a = (sa += ra) >> CTL_LOG2;
+            z = (sz += rn) >> CTL_LOG2;
+            c = (sc += rc) >> CTL_LOG2;
+            inc += di;
 #if FELUCCA_DS_KAWA
-        if (rise) {                                     /* RISE: the tone and the noise swell in */
-            rr = (sr += dr) >> CTL_LOG2;
-            a = mulq15(a, rr), z = mulq15(z, rr);
-        }
+            if (rise) {                                 /* RISE: the tone and the noise swell in */
+                rr = (sr += dr) >> CTL_LOG2;
+                a = mulq15(a, rr), z = mulq15(z, rr);
+            }
 #endif
+        }
+        s->ph = ph, s->ph2 = ph2, s->ph3 = ph3, s->lfsr = lfsr, s->cacc = cacc, s->rnd = rnd, s->cprev = cprev;
+        s->hp1 = hp1, s->hp2 = hp2, s->f1 = f1, s->f2 = f2, s->held = held, s->holdn = holdn;
     }
 #ifdef t2m
 #undef t2m
