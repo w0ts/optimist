@@ -470,7 +470,7 @@ static FAST(analog) void A2_REF(a2_out)(int32_t *out, const int32_t *b, int32_t 
     int32_t acc = amp0 << 5, d = amp1 - amp0;         /* the amplitude, x 32 (n == CTL) */
     for (i = 0; i < n; i++, acc += d) {
         int32_t y = soft_knee(b[i], 16000);           /* ANALOG's soft knee after the filter (dsp.c) */
-        out[i] += mulq15(mulq15(y << 1, acc >> 5), VOICE_FS) << 1;
+        out[i] += VOICE_OUT(y << 1, acc >> 5, 1);
     }
 }
 #if FELUCCA_ASM

@@ -194,7 +194,7 @@ static FAST(lofi) void lofi_render(track_t *t, voice_t *v, int32_t *__restrict o
         }
         ph0 += inc;
         lp += mulq15(clamp(held - lp, -65535, 65535), lpk);   /* (a WAVE / CHIP change mid-note: no wrap) */
-        out[i] += mulq15(mulq15(lp, amp_at(m, i)), VOICE_FS);
+        out[i] += VOICE_OUT(lp, amp_at(m, i), 0);
     }
     v->ph[0] = ph0;
     v->s[0] = held;

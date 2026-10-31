@@ -45,6 +45,7 @@ MERGED = {
 
 # Dropped items: a .config naming one still loads; the setting is ignored with a warning (configure.py parse)
 RETIRED = {
+    "MIX_ROUND": "a voice into its part and a part into the mix are always one product rounded to the nearest, no floor: clean fades at MASTER max (issue 132; retired 2026-10-31, bit 444, the day it came; the user: \"no need for an option. Bug fix is permanent\"); any old MIX_ROUND value is ignored",
     "BASSPLUS": "BASS+ (Felucca 1.0, Leo Kuroshita) is always built: SYSTEM's speaker low cut always offers it (retired 2026-10-29, bit 73; the user: \"remove the entry from the builder config now and keep it working automatically\")",
     "FAR_OK": "the fake SD mode layout (LAYOUT 1) always has its whole slot; the far probe's answer is no longer asked for (retired 2026-10-29, bit 413; the user: \"drop the far probe, we don't need it\")",
     "KEYLIT": "the keys always light the notes the selected track plays (retired 2026-10-29, bit 65; the user: \"this flag just does not make sense: remove\"; the settings record keeps a NOTES-off bit that no menu line sets yet)",
@@ -675,6 +676,8 @@ _add("MIX_EXACT", "FELUCCA_MIX_EXACT", "mix: full resolution into the mix and th
           "volume too (2 bits down before). Before, each part reached the mix in steps of 16: a long release or a "
           "reverb tail went through its last few bits, a bitcrusher on headphones. Supersedes MIX_FINE. A few "
           "multiplies a sample more, no RAM; every sound changes a little, so it is off by default.")
+# (bit 444, MIX_ROUND, retired 2026-10-31: a voice into its part and a part into the mix are always one rounded product
+#  each (dsp.c VOICE_OUT, fx.c mix_lg, MIX_PAN); RETIRED above; never reuse the bit)
 _add("WIDE_FINE", "FELUCCA_WIDE_FINE", "WIDE: all-pass at full resolution", F, 427, default=0, parent="INS_WIDTH",
      experimental=True, tested=_FINE_TESTED,
      desc="WIDE's all-pass runs at the part's own scale with 64-bit products instead of 4 bits down (the drum bus's "
@@ -1140,7 +1143,7 @@ _add("LIVE_SAVE", "FELUCCA_LIVE_SAVE", "save while playing (flash writes in shor
 # projects"): SD_MODE, SMP_SLOTS and PROJECTS (docs/SD-MODE-DESIGN.md 9.7). A front has no firmware switch and no image
 # of its own (no_image): core.sync_memory reads it back from LAYOUT / SDCARD / PATTERNS, core.set_front writes them when
 # one is picked (room.after_toggle), dump() leaves it out, an old .config's LAYOUT / SDCARD / MEMORY lines keep loading.
-# MEMORY (bit 436, the one-row front of 2026-10-28..31) stays a hidden front for those lines. Bits 444..446: the next free.
+# MEMORY (bit 436, the one-row front of 2026-10-28..31) stays a hidden front for those lines. Bits 447..: the next free (444 is MIX_ROUND, retired).
 # The steps: tools/flash_layout.py STEPS is the one table; this is the builder's copy of what it needs (the web builder
 # runs without tools/ on its path), checked by tests/flash_layout_test.py.
 # layout -> (user sample slots kept, projects, app.bin's room in the classic build); normal: 2 slots (3 with PATTERNS off)
@@ -1173,7 +1176,7 @@ _add("SMP_SLOTS", "", "sample slots: user samples kept in flash", MEM, 446, defa
           "2: USR2 and USR3 where normal keeps them (and the snapshots, the CZ collection at USR3's top); 1: USR3 "
           "alone; 0: none (no user drum samples, snapshots or CZ collection; SAMPLE plays its built-in sets). 3: the "
           "projects off (PATTERNS off): USR1 too, the old song sections. With PROJECTS, the pair is the flash layout.")
-_add("PROJECTS", "", "projects kept in flash", MEM, 444, default=16, no_image=True,
+_add("PROJECTS", "", "projects kept in flash", MEM, 447, default=16, no_image=True,
      choices=tuple((p, str(p)) for p in sorted({p for _, p, _ in LAYOUT_STEPS.values()})),
      dim_when="SD_MODE", target_only=True,
      desc="How many projects the flash keeps (the user, 2026-10-31: 2, 4 or 16); fewer projects is a smaller project "

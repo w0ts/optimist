@@ -131,7 +131,7 @@ static FAST(super) void super_render(track_t *t, voice_t *v, int32_t *out, uint3
         else if (ftyp == 3)
             y = (s >> 1) - ((kq * bp) >> 12) - y;     /* HP = in - k bp - lp */
         y = soft_knee(y, 16000);                      /* ANALOG's soft knee: only resonance peaks saturate */
-        out[i] += mulq15(mulq15(y << 1, amp_at(m, i)), VOICE_FS) << 1;
+        out[i] += VOICE_OUT(y << 1, amp_at(m, i), 1);
     }
     v->ph[0] = ph0;
     v->ph[2] = spr + dinc * n;

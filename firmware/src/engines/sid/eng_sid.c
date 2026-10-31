@@ -162,7 +162,7 @@ static void sid_render(track_t *t, voice_t *v, int32_t *__restrict out, uint32_t
         }
         y = clamp(y, -20000, 20000);
         ext += (((y << 8) - ext) * SID_EXT_K) >> 16;  /* the external high-pass: the chip's output stage takes the DC out */
-        out[i] += mulq15(mulq15(soft_knee((y - (ext >> 8)) << 3, 32000), amp_at(m, i)), VOICE_FS);
+        out[i] += VOICE_OUT(soft_knee((y - (ext >> 8)) << 3, 32000), amp_at(m, i), 0);
     }
     v->ph[0] = ph0;
     v->ph[1] = ph1;

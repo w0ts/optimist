@@ -333,7 +333,7 @@ static FAST(trio) void trio_render(track_t *t, voice_t *v, int32_t *out, uint32_
         ic1 = a + ((ic1 - a) >> 2);
         y = (x * ma + v1 * mb + v2 * mc) >> 10;
         y = soft_knee(y, 16000);                        /* linear up to half scale, then a soft knee */
-        out[i] += mulq15(mulq15(y << 1, amp_at(m, i)), VOICE_FS) << 1;
+        out[i] += VOICE_OUT(y << 1, amp_at(m, i), 1);
     }
     prev = cur + cr[n];
     v->ph[0] = ph0;

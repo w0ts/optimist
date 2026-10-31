@@ -211,7 +211,7 @@ static FAST(cz) void cz_native_render(track_t *t, voice_t *v, int32_t *__restric
             line[l]=mulq15(raw,amp[l][0]+((step[l]*(int32_t)i)>>8));
         }
         int32_t sample=first==last ? line[first] : (modulation==4u) ? mulq15(line[0],line[1])*2 : (line[0]+line[1])>>1;
-        out[i]+=mulq15(mulq15(sample, amp_at(m, i)), VOICE_FS) << CZ_GAIN;
+        out[i]+=VOICE_OUT(sample, amp_at(m, i), CZ_GAIN);
     }
     v->ph[0]=ph[0];v->ph[1]=ph[1];v->s[0]=(int32_t)tg[0];v->s[1]=(int32_t)tg[1];v->s[2]=dc[0];v->s[3]=dc[1];
 }

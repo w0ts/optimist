@@ -230,7 +230,7 @@ static void noise_render(track_t *t, voice_t *v, int32_t *__restrict out, uint32
             }
             y = (int32_t)reg;
         }
-        out[i] += mulq15(mulq15(y, amp_at(m, i)), VOICE_FS);
+        out[i] += VOICE_OUT(y, amp_at(m, i), 0);
     }
     v->s[0] = ic1;
     v->s[1] = ic2;

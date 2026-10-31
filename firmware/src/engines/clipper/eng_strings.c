@@ -78,7 +78,7 @@ static FAST(strings) void strings_render(track_t *t, voice_t *v, int32_t *__rest
         int32_t y = tsvf_lp(&flt, acc[i] >> 1, &ic1, &ic2);
         if (y > 16000 || y < -16000)
             y = soft_knee(y, 16000);
-        out[i] += mulq15(mulq15(y << 1, amp_at(m, i)), VOICE_FS) << 1;
+        out[i] += VOICE_OUT(y << 1, amp_at(m, i), 1);
     }
     v->s[0] = ic1;
     v->s[1] = ic2;
