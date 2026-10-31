@@ -151,7 +151,9 @@
      below; a page the firmware lacks: renderPanels */
   html[data-conn=lite] #tabs > button[data-tab]:not([data-tab=projects]):not([data-tab=backup]):not([data-tab=library]):not([data-tab=install]):not([data-tab=build]):not([data-tab=sim]):not([data-tab=mirror]),
   html[data-conn=lite]:not([data-lib]) #tabs > button[data-tab=library], html[data-conn=lite]:not([data-lib]) #tabs > button[data-tab=projects],
-  html[data-conn=bt] #tabs > button[data-tab]:not([data-tab=mirror]):not([data-tab=install]):not([data-tab=build]):not([data-tab=sim]) { display: none !important; }
+  html[data-conn=bt] #tabs > button[data-tab]:not([data-tab=mirror]):not([data-tab=install]):not([data-tab=build]):not([data-tab=sim]):not([data-tab=projects]),
+  html[data-conn=bt]:not([data-btproj]) #tabs > button[data-tab=projects],
+  html[data-conn=bt] #slots, html[data-conn=bt] #slotshead, html[data-conn=bt] #p-projects > .pghelp { display: none !important; }   /* (opti_btproj_1: the Projects tab with the project slots and the library only: PJ_OP and BK_*; the sections need the cable) */
   /* the icon-only tabs: their name when the icon font is not there (file://, a failed load) */
   html:not(.fk) .tabs button.ionly[data-ic]::after { content: attr(aria-label); }
   #libr .lbr { display: flex; flex-wrap: wrap; gap: 4px; margin: 4px 0 8px; }
@@ -7288,6 +7290,7 @@ const TEXT = {                                      /* the page's words, by key 
   nodevice: "No FM-1 found. Plug it in by USB: it connects as soon as it appears.",
   nodevicebt: "No FM-1 over Bluetooth: turn Bluetooth on in the FM-1's SYSTEM page, then connect it to this computer (Mac: Audio MIDI Setup, Window > Show MIDI Studio, the Bluetooth button). It connects as soon as its port appears.",
   readyBt: "Connected over Bluetooth: the Mirror page only (the rest of the editor needs the USB cable).",
+  readyBtProj: "Connected over Bluetooth: the Mirror page and the Projects page (project slots and library); the rest of the editor needs the USB cable.",
   connecting: "Connecting",
   reading: "Reading ",
   steploading: "Reading steps ",
@@ -7807,7 +7810,7 @@ $("about").addEventListener("mousedown", (e) => { if (e.target === $("about")) $
 $("popx").addEventListener("click", () => closePop());
 $("pop").addEventListener("cancel", (e) => { e.preventDefault(); closePop(); });   /* Escape */
 $("pop").addEventListener("mousedown", (e) => { if (e.target === $("pop")) closePop(); });   /* a click outside (the backdrop) */
-const OPTI = { backup: 4, mirror: 2, library: 1, projects: 1, proj: 1, panel: 1, nav: 1, mirbt: 1, wifi: 1, panelx: 1 };   /* (the versions this page reads) */
+const OPTI = { backup: 4, mirror: 2, library: 1, projects: 1, proj: 1, btproj: 1, panel: 1, nav: 1, mirbt: 1, wifi: 1, panelx: 1 };   /* (the versions this page reads) */
 const opti = (f) => !!dev && !!dev.info && !!dev.info.opti && dev.info.opti["opti_" + f] === OPTI[f];
 const hasKitPage = () => !!dev && !!dev.dl && !!dev.smp;   /* the build has drum lanes (36..) and sample slots */
 const hasSnaps = () => !!dev && !!dev.sn;            /* the firmware has snapshots (protocol v8, commands 54..57) */
@@ -7832,6 +7835,7 @@ function renderPanels() {                         /* the tab bar's state, then w
   const bt = !!dev && !!dev.bt && !!dev.info;   /* (Bluetooth: the Mirror page alone, loadBt) */
   document.documentElement.dataset.conn = bt ? "bt" : lite ? "lite" : ready ? "on" : "off";   /* not connected: the connect card only (the Install and Build tabs need no device) */
   if (lite && dev.info.lib) document.documentElement.dataset.lib = ""; else delete document.documentElement.dataset.lib;
+  if (bt && opti("btproj") && opti("proj") && opti("backup")) document.documentElement.dataset.btproj = ""; else delete document.documentElement.dataset.btproj;
   if (APPS.includes(want)) document.documentElement.dataset.app = want; else delete document.documentElement.dataset.app;
   document.documentElement.dataset.page = want;   /* (the page shown: the transport bar on the Editor page only) */
   let hint = "";                                    /* (a TEXT key: why the screen is empty) */
@@ -8035,7 +8039,8 @@ async function openPort() {
     if (typeof input.open === "function") await input.open().catch(() => {});   /* (an already open port: nothing to do) */
     dev = { link, input, output, info: null, dump: null, keys: null, bank: null, fm6: null, watch: false,
       pdesc: [], gdesc: [], names: [], steps: [], slotUsed: Array(4).fill(null),
-      bt: devSrc !== "sim" && isBtPort(input) };      /* (bt: the Mirror page alone, loadBt) */
+      bt: devSrc !== "sim" && isBtPort(input) };      /* (bt: the Mirror page, and the projects with opti_btproj_1; loadBt) */
+    if (dev.bt) btWrap(link);
     sets.clear();                                    /* (another FM-1, maybe) */
     await pullDevice(dev);
   } catch (err) {
@@ -8207,7 +8212,18 @@ async function pullDevice(d) {
 /* over Bluetooth MIDI the FM-1 answers INFO, the mirror (106) and its buttons (108, 109: with opti_mirbt_1) and nothing else
    (web/EDITOR_PROTOCOL.md "The screen mirrored"; the Mirror app's MirrorLink.swift): the Mirror page alone, its replies behind
    up to 0.65 s of screen (ed_mirror.c MIR_BLE_LAG). A firmware that answers 106 alone there: the screen, known by the port's name */
-const BT_WAIT = 1500;
+const BT_WAIT = 1500, BT_WAIT_LONG = 3000;
+/* the waits over Bluetooth LE (as the Mirror app's BtPolicy): a reply sits behind the screen the firmware streams and the connection
+   interval, and a BK_DATA chunk waits for the firmware's one long-request slot (a busy one drops it: the request is sent again).
+   Longer waits, at least 2 repeats for a request that may be sent twice (retries 0 stays 0); the queue sends one request at a time */
+function btOptions(rq, o = {}) {
+  const long = rq[0] === CMD.BK_DATA, r = o.retries ?? 1;
+  return { ...o, timeout: Math.max(o.timeout || 0, long ? BT_WAIT_LONG : BT_WAIT), retries: r > 0 ? Math.max(r, 2) : 0 };
+}
+function btWrap(link) {
+  const send = link.request.bind(link);
+  link.request = (rq, o = {}) => send(rq, btOptions(rq, o));
+}
 async function loadBt(d) {
   let info = null;
   try { info = parse[CMD.INFO](await d.link.request(req.info(), { timeout: BT_WAIT, retries: 2 })); }
@@ -8219,7 +8235,7 @@ async function loadBt(d) {
   tab = "mirror";
   if (location.hash !== "#mirror") history.replaceState(null, "", location.pathname + location.search + "#mirror");
   renderPanels();
-  setStatusKey("readyBt");
+  setStatusKey(opti("btproj") ? "readyBtProj" : "readyBt");
 }
 async function loadLite(d) {
   const quiet = { timeout: 400, retries: 0, quiet: true };

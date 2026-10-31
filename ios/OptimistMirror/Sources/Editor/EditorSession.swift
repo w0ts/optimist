@@ -81,10 +81,17 @@ final class EditorSession: ObservableObject {
         link.objectWillChange.sink { [weak self] _ in self?.objectWillChange.send() }.store(in: &bag)
     }
 
-    /// The USB link is there and the FM-1 answered INFO.
-    var ready: Bool { link.editorPossible && info != nil }
-    /// Ready, and the firmware offers f (INFO's tag 66)
-    func ready(_ f: Feature) -> Bool { ready && info?.has(f) == true }
+    /// INFO was asked and got an answer or none (over Bluetooth: an older firmware answers the mirror only there)
+    @Published private(set) var infoTried = false
+
+    /// How the editor reaches the FM-1 now: the cable, Bluetooth (INFO names opti_btproj_1: the project slots and library), or not
+    var route: EditorRoute {
+        EditorRoute.choose(searching: link.state == .searching, bluetooth: link.bluetooth, info: info, infoTried: infoTried)
+    }
+    /// A link there carries the editor's requests and the FM-1 answered INFO.
+    var ready: Bool { (route == .usb || route == .bluetooth) && info != nil }
+    /// Ready, the firmware offers f (INFO's tag 66) and the link in use carries it (Bluetooth: the projects only)
+    func ready(_ f: Feature) -> Bool { ready && info?.has(f) == true && route.carries(f) }
     var idle: Bool { ready && !busy }
 
     // MARK: running an operation
@@ -128,16 +135,27 @@ final class EditorSession: ObservableObject {
     /// INFO, then what the screens show. Called when the port changes (the FM-1 restarts after a restore).
     func connect() async {
         info = nil
+        infoTried = false
         projects = nil; sectionUsed = []; bkList = nil; patList = nil; bank = nil
-        guard link.editorPossible else { return }
-        link.hold()
-        defer { link.release() }
+        guard link.editorPossible || (link.bluetoothInUse && link.state == .mirroring) else { return }   // (Bluetooth: once the mirror runs; MirrorView asks again then)
+        let hold = !link.bluetooth      // (Bluetooth: the mirror goes on and the exchange waits its turn: an older firmware leaves INFO unanswered for seconds)
+        if hold { link.hold() }
+        defer { if hold { link.release() } }
         do {
             info = try await Ops.info(link)
+            infoTried = true
             note = nil
         } catch {
+            infoTried = true
+            if link.bluetooth { note = nil; return }      // (an older firmware answers the mirror only there: the screens say so)
             note = Note(text: "The FM-1 did not answer the editor's INFO (\(error.localizedDescription)).", error: true)
         }
+    }
+
+    /// Over Bluetooth the port may not answer yet when it is taken: INFO is asked again once the mirror runs
+    func connectIfNeeded() async {
+        guard link.bluetooth, link.state == .mirroring, info == nil, !busy else { return }
+        await connect()
     }
 
     func device() -> DeviceStamp? {
@@ -160,11 +178,11 @@ final class EditorSession: ObservableObject {
     }
 
     func readProjects() async throws {
-        if info?.has(.proj) == true {
+        if ready(.proj) {
             projects = try await Ops.projList(link)
-            if info?.has(.projects) != true { bkList = try? await Ops.bkListAll(link) }   // (the layout's project count is bk_caps')
+            if !ready(.projects) { bkList = try? await Ops.bkListAll(link) }   // (the layout's project count is bk_caps')
         }
-        if info?.has(.projects) == true {
+        if ready(.projects) {
             bkList = try? await Ops.bkListAll(link)
             var used: [Int?] = []
             for k in 0..<sectionCount {
