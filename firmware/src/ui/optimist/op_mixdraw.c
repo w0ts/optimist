@@ -216,10 +216,16 @@ static void mx_paint_master(void)
     text_st(MXK_NX, MXM_MY - 3, &FONT_S, "MASTER", MXR_MASTER == mx_row() ? C_WHITE : C_HI, 0);
     for (d = 0; d >= vuf_db(vu_floor_i); d -= 6)        /* the scale: a tick each 6 dB */
         cv_rect(mx_db_x(d) - 1, MXM_VY + MXM_VH + 1, 1, 3, C_LINE);
-    for (i = 0; i < 6u && nm[i] <= 0; i++) {
-        int32_t x = mx_db_x(nm[i]);
+    for (i = 0, d = 240; i < 6u && nm[i] <= 0; i++) {   /* (right to left: a label that would touch the one right of it, or the
+                                                         * screen's edge, left out: the meter is 140 px since 2026-10-30) */
+        int32_t x = mx_db_x(nm[i]), w, l;
         fmt_int(b, nm[i]);
-        cv_texts(x - text_ws(b) + (i ? text_ws(b) / 2 : 0), MXM_VY + MXM_VH + 4, b, C_DIM);
+        w = text_ws(b);
+        l = x - w + (i ? w / 2 : 0);
+        if (l + w > d - 3 || l + w > 238)
+            continue;
+        cv_texts(l, MXM_VY + MXM_VH + 4, b, C_DIM);
+        d = l;
     }
     cv_texts(MXM_GX - 20, MXM_GY - 5, "GR", C_DIM);
     mx_vu_band(MXR_MASTER, MXM_X, MXM_VY, MXM_W, MXM_VH, mxd.pk[MXR_MASTER], 0);   /* (the returns: their own rows) */
