@@ -61,7 +61,10 @@ static struct {
 /* M-UPGRADE SysEx (ota.c): one received frame at a time (7-bit bytes between
  * F0 and F7; frames arriving while one is pending are dropped, the host
  * retries), and a TX ring of SysEx event packets sent before any MIDI. */
-static uint8_t sx_frame[640];
+#ifndef SX_FRAME_MAX
+#define SX_FRAME_MAX 640u        /* the app (a 512-B response = 605 wire bytes); the update loader takes a 4 KiB one */
+#endif
+static uint8_t sx_frame[SX_FRAME_MAX];
 static uint32_t sx_pos;
 static volatile uint32_t sx_frame_len;
 static volatile uint8_t sx_ready, sx_collect, sx_busy;

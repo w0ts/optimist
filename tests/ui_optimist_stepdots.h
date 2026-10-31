@@ -49,7 +49,7 @@ static void stepdots_tests(void)
         frames(2);
         mx_rect(r, &q);
         cy = (uint32_t)(OP_PY + q.y + q.sy), cx = (uint32_t)(q.x + q.sx);
-        check(dots_cell(cx + (uint32_t)q.sp, cy, (uint32_t)q.sp - 1u, (uint32_t)q.sh, 0) &&
+        check(dots_cell(cx + (uint32_t)MX_STEP_X(1, q.sp), cy, (uint32_t)q.sp - 1u, (uint32_t)q.sh, 0) &&
               dots_cell(cx, cy, (uint32_t)q.sp - 1u, (uint32_t)q.sh, 1),
               "the mixer's lane row: an empty step a 1 px dot, a beat's a 2 x 2 dot");
         ppm("opt-mixer-dots");
