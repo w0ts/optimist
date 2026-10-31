@@ -118,6 +118,26 @@ static void lane_fx_ui_tests(void)
         SCREENS[SCR_LFX].cell(1, 1, &c);
         check(!strcmp(c.label, "FLAM") && !strcmp(c.val, "10") && !strcmp(c.unit, "ms"), "its card: FLAM 10 ms");
     }
+    {
+        cell_t c;
+        SCREENS[SCR_LFX].cell(1, 3, &c);
+        check(!strcmp(c.label, "CH ACC") && !strcmp(c.val, "=NORM") && lfx_get(t, 4, LFX_I_CHACC) == LFX_ACC_SAME, "KNOB 4: CH ACC, =NORM by default");
+        turn(EN_K4, -1);
+        check(lfx_get(t, 4, LFX_I_CHACC) == 100, "... a detent down: 100 %");
+        turn(EN_K4, -3);
+        SCREENS[SCR_LFX].cell(1, 3, &c);
+        check(lfx_get(t, 4, LFX_I_CHACC) == 85 && !strcmp(c.val, "85") && !strcmp(c.unit, "%"), "... 3 more: 85 % (5 % a detent)");
+        turn(EN_K4, 5);
+        check(lfx_get(t, 4, LFX_I_CHACC) == 100, "... up to 100 %, not past it in one turn");
+        turn(EN_K4, 1);
+        SCREENS[SCR_LFX].cell(1, 3, &c);
+        check(lfx_get(t, 4, LFX_I_CHACC) == LFX_ACC_SAME && !strcmp(c.val, "=NORM"), "... one more: =NORM");
+        turn(EN_K4, -4);
+        press(B_OCTDN);
+        turn(EN_K4, 1);
+        release(B_OCTDN);
+        check(lfx_get(t, 4, LFX_I_CHACC) == LFX_ACC_SAME, "SHIFT + KNOB 4: back to =NORM");
+    }
     ui.force = 1;
     frame();
     ppm("opt-lane-fx2");

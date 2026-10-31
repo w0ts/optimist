@@ -6,7 +6,8 @@
  * press still plays and selects the lane as a tap does (op_input.c drum_hit_pick).
  *   row FX     ROLL (OFF x2 x3 x4 x6 x8) · CHANCE (0..100 %, 5 % a detent; past 100 EVERY: 1:2 .. 4:4, the loops the lane
  *              plays, op_step.c chc_turn) · FILL (ALWAYS / FILL / NO FILL) · NUDGE (-32..31, 1/64 of a step)
- *   row FX 2   VRAND (velocity at random, 0..64) · FLAM (OFF, 5..40 ms) · RAMP (-100..100 %: a ROLL's hits fade in / out) · -
+ *   row FX 2   VRAND (velocity at random, 0..64) · FLAM (OFF, 5..40 ms) · RAMP (-100..100 %: a ROLL's hits fade in / out) · CH ACC
+ *              (the chance of an accented hit: the ACCENT lane's step or a HARD hit; 0..100 %, 5 % a detent, then "=NORM": as CHANCE, the default)
  * KNOB 1-4, SHIFT + a knob its default, SELECT the row. The pattern's events (seq/auto.c lfx_get / lfx_set), heard from
  * the next step (seq/lane_fx.c) */
 static int keys_none(void);                             /* op_input.c */
@@ -55,7 +56,7 @@ enum { LXR_FX, LXR_FX2, LXR_N };                        /* the page's rows (SELE
 static const char *const LX_ROLL[LFX_ROLL_N + 1u] = {"OFF", "x2", "x3", "x4", "x6", "x8"};
 static const char *const LX_FILL[3] = {"ALWAYS", "FILL", "NO FILL"};
 static const uint8_t LX_CARD[LXR_N][4] = {{LFX_I_ROLL, LFX_I_CHANCE, LFX_I_FILL, LFX_I_NUDGE},   /* (KNOB 1-4: the user's order) */
-                                          {LFX_I_VRND, LFX_I_FLAM, LFX_I_RAMP, 0xFF}};   /* (EVERY: CHANCE past 100) */
+                                          {LFX_I_VRND, LFX_I_FLAM, LFX_I_RAMP, LFX_I_CHACC}};   /* (EVERY: CHANCE past 100) */
 /* the lane's CHANCE knob (op_step.c chc_turn): its CHANCE, past 100 its EVERY */
 static int32_t lx_chc(const track_t *t) { int32_t e = lfx_get(t, lx.lane, LFX_I_EVERY); return e ? 100 + e : lfx_get(t, lx.lane, LFX_I_CHANCE); }
 
@@ -138,11 +139,18 @@ static void lx_frame(uint32_t held)
         lx_open();
 }
 
+/* CH ACC's knob: 5 % a detent (1 fine), up past 100 to =NORM, from =NORM down to 100 */
+static int32_t lx_acc_turn(int32_t c, int32_t s, int fine)
+{
+    if (c > 100)
+        return s < 0 ? 100 : LFX_ACC_SAME;
+    return c + s > 0 && c == 100 && s > 0 ? LFX_ACC_SAME : ui_clamp(c + s * (fine ? 1 : 5), 0, 100);
+}
 static uint32_t lx_rows(void) { return LXR_N; }
 static void lx_name(uint32_t r, char *b) { str_cpy(b, r ? "LANE FX 2" : "LANE FX", 12); }   /* (the badge: the lane) */
 static void lx_cell(uint32_t r, uint32_t k, cell_t *c)
 {
-    static const char *const LBL[LFX_N] = {"ROLL", "NUDGE", "FILL", "CHANCE", "VRAND", "FLAM", "RAMP", ""};
+    static const char *const LBL[LFX_N] = {"ROLL", "NUDGE", "FILL", "CHANCE", "VRAND", "FLAM", "RAMP", "", "CH ACC", "", "", ""};
     uint32_t i;
     int32_t v;
     cell_clear(c);
@@ -161,11 +169,13 @@ static void lx_cell(uint32_t r, uint32_t k, cell_t *c)
         cell_list(c, LBL[i], LX_ROLL[v], (int32_t)LFX_ROLL_N, v);
     else if (i == LFX_I_FILL)
         cell_list(c, LBL[i], LX_FILL[v], 2, v);
+    else if (i == LFX_I_CHACC && v > 100)
+        cell_list(c, LBL[i], "=NORM", LFX_ACC_SAME, v);
     else if (i == LFX_I_FLAM && !v)
         cell_list(c, LBL[i], "OFF", 8, 0);
     else {
         c->label = LBL[i];
-        c->unit = i == LFX_I_RAMP ? "%" : i == LFX_I_FLAM ? "ms" : "";
+        c->unit = i == LFX_I_RAMP || i == LFX_I_CHACC ? "%" : i == LFX_I_FLAM ? "ms" : "";
         fmt_int(c->val, i == LFX_I_FLAM ? v * LFX_FLAM_MS : v);
         cell_gauge(c, 0, LFX_R[i / 4u][i % 4u][0], LFX_R[i / 4u][i % 4u][1], v);
     }
@@ -183,6 +193,7 @@ static void lx_turn(uint32_t r, uint32_t k, int32_t s, int fine)
         return;
     d = i == LFX_I_RAMP && !fine ? 5 : i == LFX_I_VRND && !fine ? 2 : 1;   /* (a detent: 5 %, 2 levels) */
     v = i == LFX_I_CHANCE ? chc_turn(lx_chc(t), s, fine)
+      : i == LFX_I_CHACC && s != OP_RESET ? lx_acc_turn(lfx_get(t, lx.lane, i), s, fine)
       : s == OP_RESET ? LFX_R[i / 4u][i % 4u][2]
                       : ui_clamp(lfx_get(t, lx.lane, i) + s * d, LFX_R[i / 4u][i % 4u][0], LFX_R[i / 4u][i % 4u][1]);
     if (!lx.sess)
