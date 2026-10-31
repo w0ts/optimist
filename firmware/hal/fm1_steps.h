@@ -6,10 +6,10 @@
 #pragma once
 
 /* every classic step: X(layout, app end, R = the top of what it stores elsewhere than normal) */
-#define FL_STEPS(X) X(0, 0x00093000u, 0x00093000u) X(3, 0x000B5000u, 0x000D8000u) X(1, 0x000D0000u, 0x000DA000u)
+#define FL_STEPS(X) X(0, 0x00093000u, 0x00093000u) X(3, 0x000B5000u, 0x000D8000u) X(8, 0x000CA000u, 0x000D8000u) X(1, 0x000D0000u, 0x000DA000u)
 /* every app end an installed firmware of ours may have (the classic steps' and the release's): X(end, its step's
  * layout, its R): the update loader's switch clear (ldr_core.c ldr_layout_switch) */
-#define FL_ENDS(X) X(0x00093000u, 0, 0x00093000u) X(0x000B5000u, 3, 0x000D8000u) X(0x000CE000u, 1, 0x000DA000u) X(0x000D0000u, 1, 0x000DA000u)
+#define FL_ENDS(X) X(0x00093000u, 0, 0x00093000u) X(0x000B5000u, 3, 0x000D8000u) X(0x000CA000u, 8, 0x000D8000u) X(0x000CE000u, 1, 0x000DA000u) X(0x000D0000u, 1, 0x000DA000u)
 #define FL_CLEAR_TOP 0x000DA000u                 /* no switch clears at or past it: kits, presets, settings */
 #define FL_APP_HI_NORMAL 0x00093000u
 #define FL_APP_HI_BIG 0x000D0000u                /* the largest step's app end */
@@ -51,6 +51,18 @@
 #define FL_USER_SAMPLES 0                       /* user sample slots, snapshots, the CZ collection */
 #define FL_USER_SLOTS 0u                        /* the slots kept, from USR3 down (normal: eng_sample.c's rule) */
 #define FL_PROJ_SLOTS 16u
+#elif FELUCCA_LAYOUT == 8                  /* S0-4, no user samples, 4 projects */
+#define FL_APP_HI 0x000CA000u
+#define FL_RELOC_HI 0x000D8000u
+#define FL_UPF_LO 0x000CA000u                /* FELUCCA_UP_FM6: OBJ_UPFM6, A/B */
+#define FL_UPF_HI 0x000CC000u
+#define FL_DATA_LO 0x000CA000u               /* Optimist's store starts here */
+#define FL_AUTOSAVE_A 0x000CC000u
+#define FL_LOG_LO 0x000CD000u
+#define FL_LOG_SECTORS 11u
+#define FL_USER_SAMPLES 0                       /* user sample slots, snapshots, the CZ collection */
+#define FL_USER_SLOTS 0u                        /* the slots kept, from USR3 down (normal: eng_sample.c's rule) */
+#define FL_PROJ_SLOTS 4u
 #else
-#error "FELUCCA_LAYOUT: 0 (normal), 1 (more flash), 3 (no user samples) (tools/flash_layout.py)"
+#error "FELUCCA_LAYOUT: 0 (normal), 1 (more flash), 3 (no user samples), 8 (no user samples, 4 projects) (tools/flash_layout.py)"
 #endif

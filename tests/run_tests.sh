@@ -1088,7 +1088,7 @@ job; ( jobin
     python3 tools/fm1pkg_make.py "$OUT/old_app.bin" build/loader/ota.bin "$OUT/old.fwsc" >/dev/null
     $CC -o "$OUT/ldr_test" tests/ldr_test.c
     run "update loader: other app -> this build" "$OUT/ldr_test" "$OUT/old.fwsc" build/felucca.fwsc
-    for L in 1 3; do   # (the MEMORY steps, tools/flash_layout.py: L1 more flash, S0 no user samples; normal above)
+    for L in 1 3 8; do   # (the MEMORY steps, tools/flash_layout.py: L1 more flash, S0 no user samples; normal above)
         $CC -DFELUCCA_LAYOUT=$L -o "$OUT/ldr_test_l$L" tests/ldr_test.c
         run "update loader of LAYOUT $L: the switch matrix from every step (docs/SD-MODE-DESIGN.md 9.3), nothing else" "$OUT/ldr_test_l$L" --layout
     done
@@ -1169,6 +1169,13 @@ job; ( jobin   # the flash layouts (docs/SD-MODE-DESIGN.md): the numbers agree; 
     run "patterns and scenes in the no-user-samples step's log (S0: 32 sectors at 0xB8000): store, MEM FULL" "$OUT/patterns_test_s0"
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_SL24_XSTEP=1 $S0 -o "$OUT/project_scope_test_s0" tests/project_scope_test.c -lm
     run "the no-user-samples step (S0) keeps 16 projects in its log: each project's scenes, patterns and song its own, MEM FULL" "$OUT/project_scope_test_s0"
+    for L in 8; do   # (the grid's later steps, docs/SD-MODE-DESIGN.md 9.7: each its log, its projects)
+        G="-DFELUCCA_LAYOUT=$L -DFELUCCA_ENG_SAMPLE=0 -DFELUCCA_DRUM_USR=0 -DFELUCCA_SNAPSHOTS=0 -DFELUCCA_PATTERNS=1"
+        $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_SL24_XSTEP=1 $G -o "$OUT/patterns_test_g$L" tests/patterns_test.c -lm
+        run "patterns and scenes in MEMORY step $L's log (tools/flash_layout.py STEPS): store, MEM FULL" "$OUT/patterns_test_g$L"
+        $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_SL24_XSTEP=1 $G -o "$OUT/project_scope_test_g$L" tests/project_scope_test.c -lm
+        run "MEMORY step $L keeps its projects in its log: the others refused, MEM FULL" "$OUT/project_scope_test_g$L"
+    done
 ) >"$U.out" 2>&1 & jobbg
 
 job; ( jobin

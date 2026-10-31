@@ -108,7 +108,8 @@ check("the package tool: every step's end makes a flash.bin, another end is refu
       all(not _raises(fm1pkg_make.flash_layout.layout_of, L.app_hi(k)) for k in L.STEPS)
       and _raises(fm1pkg_make.flash_layout.layout_of, 0xC0000))
 
-# the switch matrix (9.3), written out: old end -> {new layout: (lo, hi)}; 0: no header of ours; 0xCE000 the release's L1
+# the switch matrix (9.3, 9.7.2), written out: old end -> {new layout: (lo, hi)}; 0: no header of ours; 0xCE000 the
+# release's L1. N, S0 and L1 written by hand; the grid's later steps' rows from the rule (the memopts steps' tool)
 MATRIX = {
     0x93000: {N: (0, 0), S0: (0xB5000, 0xD8000), L1: (0xD0000, 0xDA000)},
     0xB5000: {N: (0x93000, 0xD8000), S0: (0, 0), L1: (0xD0000, 0xDA000)},
@@ -118,6 +119,18 @@ MATRIX = {
     0x5000: {N: (0, 0), S0: (0xB5000, 0xD8000), L1: (0xD0000, 0xDA000)},
     0xC0000: {N: (0x93000, 0xDA000), S0: (0xB5000, 0xDA000), L1: (0xD0000, 0xDA000)},
 }
+# matrix-steps:begin
+MATRIX.setdefault(0x0, {}).update({8: (0xca000, 0xd8000)})
+MATRIX.setdefault(0x5000, {}).update({8: (0xca000, 0xd8000)})
+MATRIX.setdefault(0xc0000, {}).update({8: (0xca000, 0xda000)})
+MATRIX.setdefault(0x93000, {}).update({8: (0xca000, 0xd8000)})
+MATRIX.setdefault(0xb5000, {}).update({8: (0xca000, 0xd8000)})
+MATRIX.setdefault(0xca000, {}).update({0: (0x93000, 0xd8000), 1: (0xd0000, 0xda000), 3: (0xb5000, 0xd8000), 8: (0x0, 0x0)})
+MATRIX.setdefault(0xce000, {}).update({8: (0xca000, 0xda000)})
+MATRIX.setdefault(0xd0000, {}).update({8: (0xca000, 0xda000)})
+# matrix-steps:end
+check("the switch matrix covers every step and every installed end", set(MATRIX) == {0, 0x5000, 0xC0000, *L.known_ends()}
+      and all(set(row) == set(L.STEPS) for row in MATRIX.values()))
 for old, row in MATRIX.items():
     for new, want in row.items():
         for o in ((old, old - 0xD70) if old else (old,)):   # (the head's end, inside the slot's last sector)
@@ -138,7 +151,7 @@ check("ota.c step 1 takes every step's size from the table (FL_STEPS); the offic
 
 own = L.own_slots()
 check("the installers' size lists are the table's: fm1_route.OWN_SLOTS, fm1_install.OWN_SLOTS",
-      own == (0x93000, 0xB5000, 0xD0000) and fm1_route.OWN_SLOTS == own and fm1_install.OWN_SLOTS == own)
+      own == tuple(sorted(s.end for s in L.STEPS.values())) and own[0] == 0x93000 and fm1_route.OWN_SLOTS == own and fm1_install.OWN_SLOTS == own)
 
 
 def _hex_list(text, pattern):
@@ -156,7 +169,7 @@ check("web/install_route.js LAYOUT_ENDS is the table's: every known end, its ste
       == [[e, k, L.STEPS[k].slots, L.STEPS[k].name] for e, (k, _) in L.known_ends().items()])
 check("ios InstallRoute.swift ownSlots is the table's, and its refusal names them",
       _hex_list(swift, r"static let ownSlots = \[([^\]]*)\]") == own
-      and "takes the layouts 0x93000, 0xB5000 and 0xD0000 only" in swift)
+      and f"takes the layouts {', '.join(f'0x{e:X}' for e in own[:-1])} and 0x{own[-1]:X} only" in swift)
 
 print("flash layout test " + ("FAILED" if bad else "passed"))
 sys.exit(1 if bad else 0)
