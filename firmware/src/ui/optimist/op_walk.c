@@ -3,9 +3,8 @@
  * algo button should work the same on all pages, master (if it makes sense), t1, t2,t3,t4 and then individual drum
  * lanes (if it makes sense)", "really the algo knob should select the track and drum sub track every where", "i want
  * uniformity"; "the preset on a drum lane should change the drum lane preset, not the kit").
- *   the walk   one walk, the same on every page and layer, the mixer's rows: T1 T2 T3, DR, then the 16 lanes and the ACCENT lane, then
- *              MASTER (the mixer's last row since 2026-10-30; on the mixer USB IN and the returns A B C before it),
- *              stopping at both ends. MASTER: on the mixer its row; in a layer ui.master (the master FX's cards); on
+ *   the walk   one walk, the same on every page and layer, the mixer's rows: MASTER, T1 T2 T3, DR, then the 16 lanes and the ACCENT
+ *              lane, stopping at both ends (on the mixer the returns A B C above MASTER and USB IN after the lanes: its own rows). MASTER: on the mixer its row; in a layer ui.master (the master FX's cards); on
  *              any other page the master FX screen (SCR_FX), which turned right goes back to the page it was left
  *              from (SCOPE is the exception: MASTER is its source, ui.master, and it stays). A lane: the page's view of it (SOUND its pages, STEP its steps; a family the drum track has none
  *              of: every row, op_screens.c snd_family). A held step (op_step.c), NAME (op_name.c) and a free take eat it
@@ -144,18 +143,14 @@ static void oct_master_toggle(void)
         ui_say("KEYS ", trk_tag(song.sel));
     }
 }
-/* s detents of the walk from row p, stopping at the ends: on the mixer every row; elsewhere T1 .. the last lane, then MASTER (the
- * USB input's and the returns' rows are the mixer's only: they have no pages of a track) */
+/* s detents of the walk from row p, stopping at the ends: on the mixer every row (RET A .. USB IN); elsewhere MASTER .. the
+ * last lane (the returns' and the USB input's rows are the mixer's only: they have no pages of a track) */
 static uint32_t walk_step(uint32_t p, int32_t s)
 {
     int mixer = ui.scr == SCR_HOME;
-    for (; s > 0 && p + 1u < MXR_N; s--)
-        p = !mixer && p + 1u >= MXR_LN ? MXR_MASTER : p + 1u;
-    for (; s < 0 && p > MXR_T1; s++)
-        p = !mixer && p >= MXR_LN ? MXR_LN - 1u : p - 1u;
-    return p;
+    return (uint32_t)ui_clamp((int32_t)p + s, mixer ? MXR_RET0 : MXR_MASTER, (int32_t)(mixer ? MXR_N : MXR_LN) - 1);
 }
-/* ALGORITHM turned s detents (lay: in a performance layer): T1 .. the 16th lane .. MASTER, the same on every page */
+/* ALGORITHM turned s detents (lay: in a performance layer): MASTER .. the 16th lane, the same on every page */
 static void algo_walk(int32_t s, int lay)
 {
     uint32_t p, n;

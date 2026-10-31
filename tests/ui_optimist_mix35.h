@@ -42,19 +42,13 @@ static void mixer_views_tests(void)
     reset_ui();
     song.sel = 0;
     frames(2);
-    mx_apply(MXR_MASTER - 1u);                          /* (RET C, the last return: MASTER below it since 2026-10-30) */
-    frames(2);
-    ok = algo_step_inplace(1) && mx_row() == MXR_MASTER && mxd.first == MXR_T1;
-    check(ok, "ALGORITHM past RET C: MASTER, drawn in place, the screen as it was (the pinned block)");
-    ok = algo_step_inplace(-1) && mx_row() == MXR_MASTER - 1u && mxd.first == MXR_T1;
-    check(ok, "... back: RET C, in place");
-    mx_apply(MXR_T1);
-    frames(2);
-    ok = mx_row() == MXR_T1 && mxd.first == MXR_T1 && mxd.last == MXR_LANE0;
-    check(ok, "T1: the four channels");
+    ok = algo_step_inplace(-1) && mx_row() == MXR_MASTER && mxd.first == MXR_RET0 && mxd.last == MXR_T1;
+    check(ok, "ALGORITHM past T1: MASTER's screen (the returns above it), drawn in place");
+    ok = algo_step_inplace(1) && mx_row() == MXR_T1 && mxd.first == MXR_T1 && mxd.last == MXR_LANE0;
+    check(ok, "... back: the four channels, in place");
     while (mx_row() < MXR_DR)
         turn(EN_ALGO, 1);
-    ok = algo_step_inplace(1) && mx_row() == MXR_LANE0 && mxd.first == MXR_LANE0 &&
+    ok = algo_step_inplace(1) && mx_row() == MXR_LANE0 && mxd.first == MXR_LANE0 && mxd.last == MXR_LN &&
          px_in(0, OP_PY, 240, 1, lane_col(0));
     check(ok, "past DR: the drum lanes, in place, the kick's row framed");
     ok = algo_step_inplace(-1) && mx_row() == MXR_DR && mxd.first == MXR_T1;

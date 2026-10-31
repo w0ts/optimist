@@ -527,7 +527,7 @@ static void ed_nav(const uint8_t *a, uint32_t na)
         ok = 0;
     ed_b2(op, !ok);
     if (op == 4u) {
-        ed_b(NAV_NPLACE);                               /* (T1 .. the last lane, then MASTER: op_nav.c) */
+        ed_b(NAV_NPLACE);                               /* (MASTER, T1 .. the last lane: op_nav.c) */
         for (i = 0; i < NAV_NPLACE; i++)
             nav_track_name(i, b), ed_str(b, 11);
         return;

@@ -163,11 +163,6 @@ static void edtools_tests(void)
     q[0] = 6, q[1] = GT_EUCLID;                         /* (a type the build has not) */
     ed_begin(ED_TOOLS);
     ok &= !ed_tools(ED_TOOLS, q, 2);
-    {   /* (the selected slot's GRIDS at its defaults first, whichever test left it moved) */
-        gen_t g = *ng_cur();
-        g.type = g.type == GT_GRIDS ? (uint8_t)GT_EUCLID : g.type;   /* (op 6: another type than the slot's, its defaults) */
-        ng_put(&g);
-    }
     q[0] = 6, q[1] = GT_GRIDS;
     ed_begin(ED_TOOLS);
     r = ed_tools(ED_TOOLS, q, 2);

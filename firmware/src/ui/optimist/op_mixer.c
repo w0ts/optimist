@@ -21,16 +21,17 @@
  * its LEVEL (GLO > DRUMS), FILTER, FX on, the kit; its lanes carry the sounds' own values (SOUND 2 and 3: the offsets
  * and the sends). */
 /* (2026-10-30, the user: "it might simplify the ui if the return track are just normal track, in the mixer page above
- * master", "put the master at the bottom ... and the return track above"): T1 T2 T3, DR, its lanes, USB IN, RET A B C, MASTER */
-enum { MXR_T1, MXR_DR = MXR_T1 + TRK_DRUM, MXR_LANE0, MXR_LN = MXR_LANE0 + (FELUCCA_DRUMS ? DRUM_UILANES : 0),   /* (MXR_DR: T4 without drums) */
+ * master", then "put ON ONE screen the master, not at the bottom, but where it was before, top, and the return track above it,
+ * on the same screen. AND not to move the screen"): RET A B C, MASTER (the fixed block at the top), T1 T2 T3, DR, its lanes,
+ * USB IN */
+enum { MXR_RET0, MXR_MASTER = MXR_RET0 + 3,           /* the returns A B C (the master slots 1..3, fx_slots.c), then MASTER */
+       MXR_T1, MXR_DR = MXR_T1 + TRK_DRUM, MXR_LANE0, MXR_LN = MXR_LANE0 + (FELUCCA_DRUMS ? DRUM_UILANES : 0),   /* (MXR_DR: T4 without drums) */
 #if FELUCCA_USB_AUDIO
        MXR_USB = MXR_LN,                         /* the USB input, a track after the drum tracks (fx-rework stage 3; fx.c ut_mix) */
-       MXR_RET0,
-#else
-       MXR_RET0 = MXR_LN,
-#endif
-       MXR_MASTER = MXR_RET0 + 3,                /* the returns A B C (the master slots 1..3, fx_slots.c), then MASTER, the last */
        MXR_N
+#else
+       MXR_N = MXR_LN
+#endif
 };
 static int mx_is_lane(uint32_t r) { return r >= MXR_LANE0 && r < MXR_LN; }
 #if FELUCCA_USB_AUDIO
@@ -120,7 +121,8 @@ static uint32_t mx_dead_mask(void)                      /* the buttons that do n
     return (master_sel() || mx_on_usb() || mx_on_ret() ? MX_TRK_BTNS : 0u) | (acc_sel() ? 1u << B_FX | 1u << B_EDIT : 0u);
 }
 static int mx_master_dead(uint32_t b) { return b < 32u && (mx_dead_mask() >> b & 1u); }
-static uint32_t mx_trk_of(uint32_t r) { return r < MXR_DR ? r - MXR_T1 : r < MXR_LN || mx_is_usb(r) ? TRK_DRUM : 0u; }   /* (MASTER, a return: T1, unused) */
+static uint32_t mx_trk_of(uint32_t r) { return r <= MXR_MASTER ? 0u : r < MXR_DR ? r - MXR_T1 : TRK_DRUM; }   /* (MASTER, a return: T1,
+                                                         * unused; the USB input: DR's, as before) */
 /* row r muted. One mute (the user, 2026-10-16): a track's, a lane's and the ACCENT lane's is the sequencer mute (seq_mute.c:
  * its steps stop, the tails ring), SHIFT + its key or SHIFT + its volume card; the USB input's is its own (no sequencer).
  * A sound mute an older project or the SLOOP UI left (P_MUTE, the lane's own, drum_mix.c) counts too, so that it shows
@@ -967,7 +969,7 @@ static void mx_page(int32_t d)                         /* SELECT: the knob sets,
     ui.hot = 0;
     ui.hot_lit = 0;
 }
-/* ALGORITHM across: s groups from row p (the channels, the lanes by four, USB IN, the returns, MASTER), each entered on its first row */
+/* ALGORITHM across: s groups from row p (the returns, MASTER, the channels, the lanes by four, USB IN), each entered on its first row */
 static uint32_t mx_walk_across(uint32_t p, int32_t s)
 {
     uint32_t q;
@@ -979,7 +981,7 @@ static uint32_t mx_walk_across(uint32_t p, int32_t s)
     }
     for (; s < 0; s++) {
         q = mx_across(p) ? mx_grp0(p) : p;
-        if (q == MXR_T1)
+        if (q == MXR_RET0)
             break;
         p = mx_across(q - 1u) ? mx_grp0(q - 1u) : q - 1u;
     }

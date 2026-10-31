@@ -49,11 +49,11 @@ static void nav_tests(void)
     frames(1);
     check(ok && is_drum(TSEL) && lane_picked() && lane_selected() == 1u && nav_track() == MXR_LANE0 + 1u,
           "nav: a drum lane walked to (DR, the lane picked)");
-    ok = nav_walk(NAV_NPLACE - 1u);
+    ok = nav_walk(MXR_MASTER);
     frames(1);
-    check(ok && ui.scr == SCR_FX && nav_track() == NAV_NPLACE - 1u, "nav: MASTER walked to: the master FX, as ALGORITHM");
+    check(ok && ui.scr == SCR_FX && nav_track() == MXR_MASTER, "nav: MASTER walked to: the master FX, as ALGORITHM");
     nav_open(SCR_HOME, NAV_NONE);
-    nav_walk(NAV_NPLACE - 1u);
+    nav_walk(MXR_MASTER);
     frames(1);
     n = nav_rows();
     nav_row_name(0, a, sizeof a);
@@ -85,7 +85,7 @@ static void nav_tests(void)
 #endif
     ok = nav_open(SCR_HOME, NAV_NONE);
     frames(1);
-    ok = ok && nav_walk(NAV_NPLACE - 1u);
+    ok = ok && nav_walk(MXR_MASTER);
     frames(1);
     if (ui.scr != SCR_HOME)
         ok = ok && nav_open(SCR_HOME, NAV_NONE), frames(1);
