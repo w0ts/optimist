@@ -146,6 +146,9 @@ static const uint8_t BENCH_ACID_F[16] = {1, 0, 2, 0, 0, 0, 1, 2, 0, 0, 1, 0, 0, 
 static uint8_t bench_acid_held[NPART];
 #endif
 
+#if FELUCCA_BENCH == 18
+#include "bench_plaits.c"          /* 18: the PLAITS costs */
+#endif
 static void bench_setup(void)                              /* boot, after felucca_init (main loop) */
 {
     uint32_t p, s = FELUCCA_BENCH == 4    ? 0u
@@ -211,7 +214,7 @@ static void bench_setup(void)                              /* boot, after felucc
     (void)s, (void)p;
     return;
 #endif
-    if (FELUCCA_BENCH == 8) {
+    if (FELUCCA_BENCH == 8 || FELUCCA_BENCH == 18) {
         song.g[G_BPM] = 120;
         return;
     }
@@ -290,6 +293,8 @@ static void bench_notes(int on)
 static void bench_block(void)                              /* audio interrupt, after the block's events */
 {
     uint32_t b = bench.blk++, e = b / BENCH_EIGHTH;
+    if (FELUCCA_BENCH == 18)
+        return;                                            /* (18: nothing plays; bench_frame measures) */
 #if BENCH_PXS
     {
         uint32_t p;
@@ -391,6 +396,10 @@ static HOT void bench_sig(uint32_t k, const int32_t *b, uint32_t n)   /* (HOT: t
 
 static void bench_frame(void)                              /* main loop */
 {
+#if FELUCCA_BENCH == 18
+    if (!bench_pl_done && bench.blk >= 64u)
+        bpl_run();                                         /* (bench_plaits.c: once) */
+#endif
     if (bench.save_req) {
         bench.save_req = 0;
         project_save(0);
