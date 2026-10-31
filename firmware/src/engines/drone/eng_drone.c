@@ -157,7 +157,7 @@ AINL int32_t drone_ear(drone_pt_t *d, uint32_t e, const uint32_t *st, uint32_t o
     return soft_knee(d->low[e], 16000);
 }
 
-static void drone_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
+static void drone_render(track_t *t, voice_t *v, int32_t *__restrict out, uint32_t n, const vmod_t *m)
 {
     static const uint32_t IV[4] = {0, 16384, 32768, 65536};   /* SPREAD's ratios - 1 at 127, Q16 */
     static const int8_t DT[4] = {-3, -1, 1, 3};

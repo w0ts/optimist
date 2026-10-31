@@ -352,7 +352,7 @@ AINL int ds_alive(const dsv_t *s)
 }
 
 /* n (<= CTL) samples of voice s into out[] (Q15-ish, peak ~ 32767); returns 0 when it ended */
-static HOT int ds_render(dsv_t *s, int32_t *out, uint32_t n)
+static HOT int ds_render(dsv_t *s, int32_t *__restrict out, uint32_t n)
 {
     const dsnd_t *d = s->d;
     uint32_t i, src = d->src & 15u, wave = d->wave, fmode = s->fmode & 3u, fall = s->fmode & DF_ALL;

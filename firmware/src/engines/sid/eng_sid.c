@@ -93,7 +93,7 @@ static void sid_note_on(track_t *t, voice_t *v)
     }
 }
 
-static void sid_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
+static void sid_render(track_t *t, voice_t *v, int32_t *__restrict out, uint32_t n, const vmod_t *m)
 {
     const int16_t *p = t->p;
     uint32_t mask = SID_WMASK[(uint32_t)p[P_E0] & 7u], md = (uint32_t)p[P_E2] & 3u, fm = (uint32_t)p[P_E4] & 7u, i;

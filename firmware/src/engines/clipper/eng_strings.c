@@ -40,7 +40,7 @@ FAST(strings) AINL int32_t str_reg(uint32_t ph, uint32_t inc, int32_t x)
     return x ? a + mulq15(((a - osc_saw(ph + 0x80000000u, inc)) >> 1) - a, x) : a;
 }
 
-static FAST(strings) void strings_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
+static FAST(strings) void strings_render(track_t *t, voice_t *v, int32_t *__restrict out, uint32_t n, const vmod_t *m)
 {
     const int16_t *p = t->p;
     int32_t acc[CTL];                                /* (on the stack: two cores) */

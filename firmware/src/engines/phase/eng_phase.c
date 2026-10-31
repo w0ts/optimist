@@ -265,7 +265,7 @@ static FAST(phase) __attribute__((noinline)) void phase_xfade(track_t *t, voice_
     }
 }
 
-static FAST(phase) void phase_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
+static FAST(phase) void phase_render(track_t *t, voice_t *v, int32_t *__restrict out, uint32_t n, const vmod_t *m)
 {
     if (t->p[P_E7] > 0) {
         if (v->s[4] == PD_UNFOLDED)
@@ -280,7 +280,7 @@ static FAST(phase) void phase_render(track_t *t, voice_t *v, int32_t *out, uint3
 }
 #else
 #undef fg
-static FAST(phase) void phase_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
+static FAST(phase) void phase_render(track_t *t, voice_t *v, int32_t *__restrict out, uint32_t n, const vmod_t *m)
 {
     phase_loop(t, v, out, n, m);
 }
