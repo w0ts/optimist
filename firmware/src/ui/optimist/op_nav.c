@@ -85,14 +85,18 @@ static uint32_t nav_mode(void)
             return b;
     return NAV_NONE;
 }
-/* the walk's place (a mixer row, MXR_MASTER .. MXR_LN - 1), NAV_NONE where ALGORITHM walks nothing (the USB row too) */
+/* the walk's places: 0 .. MXR_LN - 1 the mixer rows T1 .. the last lane, MXR_LN MASTER (the mixer's last row since 2026-10-30);
+ * NAV_NONE where ALGORITHM walks nothing (the USB row, the returns' too) */
+#define NAV_NPLACE (MXR_LN + 1u)
+static uint32_t nav_row_of(uint32_t i) { return i < MXR_LN ? i : MXR_MASTER; }
 static uint32_t nav_track(void)
 {
     uint32_t p = walk_pos(0);
-    return algo_has_track() && p < MXR_LN ? p : NAV_NONE;
+    return !algo_has_track() ? NAV_NONE : p < MXR_LN ? p : p == MXR_MASTER ? MXR_LN : NAV_NONE;
 }
-static void nav_track_name(uint32_t p, char *b)         /* (b holds 12) */
+static void nav_track_name(uint32_t i, char *b)         /* place i's name (b holds 12) */
 {
+    uint32_t p = nav_row_of(i);
     str_cpy(b, p == MXR_MASTER ? "MASTER" : p >= MXR_LANE0 ? lane_name(p - MXR_LANE0) : trk_tag(mx_trk_of(p)), 12);
 }
 static int nav_row(uint32_t r)
@@ -120,10 +124,10 @@ static int nav_row(uint32_t r)
 }
 static int nav_walk(uint32_t p)
 {
-    if (!nav_free() || p >= MXR_LN || nav_track() == NAV_NONE || ft_on)
+    if (!nav_free() || p >= NAV_NPLACE || nav_track() == NAV_NONE || ft_on)
         return 0;
     if (p != nav_track())
-        walk_to(p, 0);
+        walk_to(nav_row_of(p), 0);
     return 1;
 }
 /* screen scr (SCR_*; TEMPO is PLAY held, never opened), on SOUND page button b's family (NAV_NONE: every row) */
@@ -132,7 +136,7 @@ static int nav_open(uint32_t scr, uint32_t b)
     uint32_t f;
     if (!nav_free() || scr >= SCR_N || scr == SCR_TEMPO || scr == SCR_LFX)
         return 0;
-    if (scr == SCR_SOUND && b == B_FX && mx_on_master())
+    if (scr == SCR_SOUND && b == B_FX && (mx_on_master() || mx_on_ret()))
         scr = SCR_FX;                                   /* (FX on the mixer's MASTER: the master FX, as the panel's, op_input.c) */
     else if (scr == SCR_SOUND && b != NAV_NONE) {
         if (b >= NB || JUMP_FAM[b] == 0xFF || JUMP_FAM[b] == FAM_GLO)

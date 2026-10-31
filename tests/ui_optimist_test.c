@@ -858,7 +858,7 @@ static void key_tests(void)
     ui.force = 1;
     frame();
     ppm("opt-fx");
-    {   /* FX tapped, then ALGORITHM left past T1: the global FX screen, and back */
+    {   /* FX tapped, then ALGORITHM past the last lane: the global FX screen, and back (MASTER the walk's last, 2026-10-30) */
         char h[40];
         uint32_t n, r;
         reset_ui();
@@ -870,8 +870,8 @@ static void key_tests(void)
         check(song.sel == 1 && ui.scr == SCR_SOUND && snd_fam == FAM_FX, "ALGORITHM right: T2's FX pages");
         turn(EN_ALGO, -1);
         check(song.sel == 0 && ui.scr == SCR_SOUND, "... and back to T1");
-        turn(EN_ALGO, -1);
-        check(ui.scr == SCR_FX, "ALGORITHM left past T1: the global FX screen");
+        turn(EN_ALGO, (int32_t)MXR_LN);
+        check(ui.scr == SCR_FX, "ALGORITHM past the last lane: the global FX screen");
         head_title(SCR_FX, ui.row[SCR_FX], h, sizeof h);
         check(!strcmp(h, "Insert"), "its header names it (Insert under the MASTER badge, the first page: the inserts)");
         n = SCR->rows();
@@ -880,10 +880,13 @@ static void key_tests(void)
         check(ui.scr == SCR_FX && ui.row[SCR_FX] == n - 1u, "FX tapped again on it: the next page, up to the last");
         tap(B_FX);
         check(ui.scr == SCR_FX && ui.row[SCR_FX] == 0u, "... past the last: the first again (a button again wraps)");
-        turn(EN_ALGO, -1);
-        check(ui.scr == SCR_FX, "ALGORITHM left on it: stays (nothing wraps)");
         turn(EN_ALGO, 1);
-        check(ui.scr == SCR_SOUND && snd_fam == FAM_FX && song.sel == 0, "ALGORITHM right: T1's FX pages again");
+        check(ui.scr == SCR_FX, "ALGORITHM on from it: stays (nothing wraps)");
+        turn(EN_ALGO, -1);
+        check(ui.scr == SCR_SOUND && song.sel == TRK_DRUM && lane_picked(), "ALGORITHM back: SOUND again, the last lane");
+        ui.lane = 0;                                    /* (the walk back left the last lane picked: DR itself again for the tests after) */
+        lane_select(0);
+        track_select(0);
     }
     reset_ui();
     song.sel = TRK_DRUM;

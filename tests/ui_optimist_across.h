@@ -56,8 +56,12 @@ static void across_tests(void)
     turn(EN_ALGO, -2);
     check(mx_row() == MXR_T1, "across: ALGORITHM back two: the channels, T1");
     turn(EN_ALGO, -1);
+    check(mx_row() == MXR_T1, "across: ALGORITHM back from T1: it stays (the first row since 2026-10-30)");
+    mx_apply(MXR_MASTER);
     check(mx_row() == MXR_MASTER && !mx_across(mx_row()), "across: MASTER: as ever, its own cards");
-    turn(EN_ALGO, 1);
+    turn(EN_ALGO, -1);
+    check(mx_row() == MXR_MASTER - 1u && !mx_across(mx_row()), "across: a return's row: its own cards too");
+    mx_apply(MXR_T1);
     across_flip();
     mix_cell(MXR_T1, 1, &c[1]);
     check(!mx.across && c[1].label && str_eq(c[1].label, "PAN"), "across: SHIFT2 + HOME again: by row (T1's PAN on card 2)");

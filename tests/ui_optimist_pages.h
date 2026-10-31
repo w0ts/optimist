@@ -216,7 +216,7 @@ static void pages_master_order_tests(void)
     mst_defaults();                                     /* (FILT DYN: earlier tests turn the master's TYPE cards) */
     fxs_set(FXS_DEF);                                   /* (the returns CHO DLY REV: the default) */
     reset_ui();
-    turn(EN_ALGO, -1);
+    mx_apply(MXR_MASTER);                               /* (the mixer's MASTER row, its last since 2026-10-30) */
     tap(B_FX);
     n = SCR->rows();
     for (r = 0; r < n; r++) {
@@ -273,7 +273,7 @@ static void pages_master_tests(void)
     mst_defaults();                                     /* (FILT DYN: earlier tests turn the master's TYPE cards) */
     fxs_set(FXS_DEF);                                   /* (the returns CHO DLY REV: the default) */
     reset_ui();
-    turn(EN_ALGO, -1);
+    mx_apply(MXR_MASTER);
     tap(B_FX);
     n = SCR->rows();
     for (r = 0; r < n; r++) {
@@ -805,7 +805,7 @@ static void pages_head_tests(void)
         check(!strncmp(t, "General ", 8) && hd_badge_is("SYSTEM"), "D11: SYSTEM's KNOB COLORS line: the badge SYSTEM, \"General n/N\"");
     }
     reset_ui();
-    turn(EN_ALGO, -1);
+    mx_apply(MXR_MASTER);
     tap(B_FX);
     {
         char t[32];

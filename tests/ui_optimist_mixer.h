@@ -43,11 +43,9 @@ static void mixer_walk_tests(void)
 #if FELUCCA_USB_AUDIO
     turn(EN_ALGO, 1);                                   /* (fx-rework stage 3: the USB input's row after the drum tracks) */
     ok &= mx_row() == MXR_USB && song.sel == TRK_DRUM;
-    turn(EN_ALGO, 1);
-    ok &= mx_row() == MXR_USB;
     ui.force = 1;
     frame();
-    ok &= mxd.first == MXR_USB && mxd.last == MXR_N && px_in(2, 3, 50, 19, C_HI);   /* (alone; the badge "5 USB") */
+    ok &= mxd.first == MXR_USB && mxd.last == MXR_USB + 1u && px_in(2, 3, 50, 19, C_HI);   /* (alone; the badge "5 USB") */
     {
         uint32_t av = op_btn_avail();
         ok &= !(av & (1u << B_ENV | 1u << B_EDIT)) && (av & 1u << B_FX);   /* (no instrument: the track buttons dark; FX its
@@ -55,13 +53,15 @@ static void mixer_walk_tests(void)
     }
     ppm("opt-mixer-usb");
     check(ok, "ALGORITHM walks T1 T2 T3 DR and the 16 lanes (each selected), then the USB input's row, alone (the badge 5 USB, the "
-          "track buttons dark, FX lit: its inserts), stopping there");
+          "track buttons dark, FX lit: its inserts), the returns after it");
     turn(EN_ALGO, -1);
     ok = mx_row() == MXR_LN - 1u;
 #else
     turn(EN_ALGO, 1);
+    ok &= mx_row() == MXR_RET0;
+    turn(EN_ALGO, -1);
 #endif
-    check(ok && mx_row() == MXR_LN - 1u, "ALGORITHM walks T1 T2 T3 DR and the 16 lanes (each selected), stopping at the last");
+    check(ok && mx_row() == MXR_LN - 1u, "ALGORITHM walks T1 T2 T3 DR and the 16 lanes (each selected), RET A after the last, and back");
     ui.force = 1;
     frame();
     check(mxd.first == MXR_LANE0 && mxd.last == MXR_LN && mx_row_x(MXR_LN - 1u) == 0u && mx_row_y(MXR_LN - 1u) > mx_row_y(MXR_LN - 2u) &&
@@ -82,12 +82,17 @@ static void mixer_walk_tests(void)
     turn(EN_ALGO, -3);
     check(mx_row() == MXR_T1 && song.sel == 0, "... T3, T2, T1");
     turn(EN_ALGO, -1);
+    check(mx_row() == MXR_T1, "... and it stops there: T1 is the first row (2026-10-30: MASTER is the last)");
+    mx_apply(MXR_LN - 1u);                              /* (the last lane: the walk on to USB IN, the returns, MASTER) */
+    turn(EN_ALGO, (int32_t)(MXR_MASTER - (MXR_LN - 1u)));
     ui.force = 1;
     frame();
-    check(mx_row() == MXR_MASTER && song.sel == 0 && mxd.first == 0 && mxd.last == MXR_T1,
-          "past T1 up: MASTER alone on the panel (the track stays)");
-    turn(EN_ALGO, -1);
+    check(mx_row() == MXR_MASTER && song.sel == TRK_DRUM && mxd.first == MXR_MASTER && mxd.last == MXR_N,
+          "past the last lane down: USB IN, RET A B C, then MASTER alone on the panel (the track stays)");
+    turn(EN_ALGO, 1);
     check(mx_row() == MXR_MASTER, "... and it stops there");
+    track_select(0);
+    ui.lane = 0;
     ui.force = 1;
     frame();
     check(px_in(2, 3, 20, 19, C_HI) && !px_in(2, 3, 20, 19, trk_col(0)),
@@ -122,8 +127,10 @@ static void mixer_walk_tests(void)
         frame();
     }
     ppm("opt-mixer-h-master");
-    turn(EN_ALGO, 1);
-    check(mx_row() == MXR_T1, "down again: T1");
+    turn(EN_ALGO, -1);
+    check(mx_row() == MXR_MASTER - 1u && mx_is_ret(mx_row()), "up again: RET C, above MASTER");
+    mx_apply(MXR_T1);
+    check(mx_row() == MXR_T1, "T1 again");
     song.sel = 2;                                       /* the track selected elsewhere: the cursor follows */
     frame();
     check(mx_row() == MXR_T1 + 2u, "the cursor follows the track selected elsewhere");
@@ -236,59 +243,106 @@ static void mixer_sets_tests(void)
     mst_defaults();
     check(mx_labels(MXR_MASTER, 0, "S1", 0, "S2", 0) &&
               (!FELUCCA_MASTER_COMP || mx_labels(MXR_MASTER, 1, "THRS", "RATIO", "GAIN", "CEIL")) &&
-              mx_labels(MXR_MASTER, FELUCCA_MASTER_COMP ? 2 : 1, "CHO RET", "DLY RET", "REV RET", 0) &&
-              mx_labels(MXR_MASTER, FELUCCA_MASTER_COMP ? 3 : 2, 0, "DLY", "REV", 0) &&
-              mx_labels(MXR_MASTER, FELUCCA_MASTER_COMP ? 4 : 3, FELUCCA_RET_FB ? "CHO" : 0, 0, "REV", 0) &&
-              (!FELUCCA_RET_FB || mx_labels(MXR_MASTER, FELUCCA_MASTER_COMP ? 5 : 4, "CHO", "DLY", 0, 0)) &&
-              mx_labels(MXR_MASTER, (FELUCCA_MASTER_COMP ? 5 : 4) + FELUCCA_RET_FB, "DUCK", 0, 0, 0),
-          "MASTER: its insert slots (S1 FILT, S2 DYN), DYN's THRS RATIO GAIN CEIL, the returns (a card a send a slot holds: "
-          "CHO DLY REV RET, the one order), A's sends (B DLY, C REV), B's (C REV; RET_FB: A CHO too), RET_FB: C's (A CHO, B DLY), "
-          "DUCK (fx-rework)");
-    {   /* the sends between the returns (2026-10-16, fx_slots.c rs_amt): a set a return that sends, a track's sends grammar
-         * (card k is return k's, blank where none: the return itself, one to its left; card 4 no PAN) */
+              mx_labels(MXR_MASTER, FELUCCA_MASTER_COMP ? 2 : 1, "DUCK", 0, 0, 0) && mx_sets(MXR_MASTER) == (FELUCCA_MASTER_COMP ? 3u : 2u),
+          "MASTER: its insert slots (S1 FILT, S2 DYN), DYN's THRS RATIO GAIN CEIL, DUCK; no returns' cards (2026-10-30: their own rows)");
+    check(MXR_RET0 + 3u == MXR_MASTER && MXR_MASTER + 1u == MXR_N && MXR_T1 == 0u &&
+              (MXR_RET0 == MXR_LN || MXR_RET0 == MXR_LN + 1u),
+          "the rows (the user, 2026-10-30): T1 T2 T3, DR, the lanes, USB IN, RET A B C, MASTER the last");
+    {   /* a return's row (2026-10-30): LEVEL FX amount | PRE TYPE amount POST TYPE amount | its sends to the other returns */
+        const uint32_t ra = MXR_RET0, rb = MXR_RET0 + 1u, rc = MXR_RET0 + 2u;
+        fxs_set(FXS_DEF);
+        check(mx_labels(ra, 0, "LEVEL", "A", 0, 0) && mx_labels(ra, 1, "PRE", 0, "POST", 0) &&
+                  mx_labels(ra, 2, 0, "DLY", "REV", 0) &&
+                  mx_labels(rb, 2, FELUCCA_RET_FB ? "CHO" : 0, 0, "REV", 0) &&
+                  (FELUCCA_RET_FB ? mx_labels(rc, 2, "CHO", "DLY", 0, 0) : mx_sets(rc) == 2u),
+              "RET A (CHO): LEVEL TYPE (no amount: a send is 100 % wet) | PRE, POST empty | its sends B DLY, C REV; B: C REV "
+              "(RET_FB: A CHO too); C: none (RET_FB: A CHO, B DLY)");
+    }
+    {   /* a return's LEVEL, its mute (SHIFT on it), its effect, its PRE */
         cell_t c;
         char h[40];
-        uint32_t row0 = ui.row[SCR_HOME], sa = FELUCCA_MASTER_COMP ? 3u : 2u, i, n, ok;
+        const uint32_t ra = MXR_RET0;
+        uint32_t ln = mx_ret_ln(ra), row0 = ui.row[SCR_HOME], k;
+        int16_t c0 = song.g[G_CRET + ln];
+        mx_apply(ra);
+        mx.set = 0;
+        ui.force = 1;
+        frame();
+        head_title(SCR_HOME, ra, h, sizeof h);
+        mix_cell(ra, 0, &c);
+        check(ln == 0u && c.d == &GP[G_CRET] && !strcmp(c.val, "100") && !strcmp(c.label, "LEVEL"),
+              "RET A's KNOB 1: its line's RET level (CHO's), at unity (100 %)");
+        for (k = 0; ui.overlay == 5u && k < 600u; k++)   /* (an earlier test's PRESETS list still open: its time out) */
+            frame();
+        check(mxd.first == MXR_RET0 && mxd.last == MXR_MASTER, "... the view: the three returns, above MASTER");
+        mix_cell(ra, 1, &c);
+        check(!strcmp(c.val, "CHO"), "... KNOB 2: its effect, CHO (FX > SLOTS' A)");
+        turn(EN_K1, -5);
+        check(song.g[G_CRET] < c0, "... KNOB 1 turned: its level down");
+        press(B_OCTDN);
+        turn(EN_K1, 1);
+        release(B_OCTDN);
+        check(fx_rmute & 1u, "... SHIFT + KNOB 1: muted (the mixer's mute grammar)");
+        mix_cell(ra, 0, &c);
+        check(c.strike && mx_muted(ra), "... its card struck, its row muted");
+        turn(EN_K1, 1);
+        check(!(fx_rmute & 1u), "... KNOB 1 turned again: on (a level turned unmutes, as a volume)");
+        mx.set = 1;
+        turn(EN_K1, 1);
+        check(rp_ty[ln][RP_PRE] != FXT_NONE && rp_ty[ln][RP_PRE] != FXT_CHO, "... INSERT, KNOB 1: a PRE type (never the effect's own, CHO)");
+        rp_load(ln, RP_PRE, FXT_NONE);
+        if (FELUCCA_FX_DIST) {
+            rp_load(ln, RP_POST, FXT_DIST);
+            mix_cell(ra, 3, &c);
+            check(c.d == &TP[P_DIST] && c.vp == &rp_amt[ln][RP_POST] && rp_amt[ln][RP_POST] == TP[P_DIST].def,
+                  "... POST DIST: KNOB 4 its amount, the stage's own, at DIST's default");
+            rp_load(ln, RP_PRE, FXT_DIST);
+            check(rp_ty[ln][RP_PRE] == FXT_DIST && rp_ty[ln][RP_POST] == FXT_NONE, "... DIST into PRE: it swaps with POST (a type once a return)");
+            fxs_load(1, FXT_NONE);
+            check(rp_ty[ln][RP_PRE] == FXT_NONE && mx_labels(ra, 0, 0, "A", 0, 0) && mx_sets(ra) == 1u,
+                  "an emptied return: its inserts emptied, its TYPE card alone");
+        }
+        fxs_set(FXS_DEF);
+        rp_untlv(0, 0);
+        fx_rmute = 0;
+        song.g[G_CRET] = c0;
+        ui.row[SCR_HOME] = (uint8_t)row0;
+        mx.set = 0;
+    }
+    {   /* the sends between the returns (2026-10-16, fx_slots.c rs_amt), on each return's row since 2026-10-30: a track's sends
+         * grammar (card k is return k's, blank where none: the return itself, one to its left; card 4 no PAN) */
+        cell_t c;
+        char h[40];
+        uint32_t row0 = ui.row[SCR_HOME], ra = MXR_RET0, rb = MXR_RET0 + 1u, n, i, ok;
         mitem_t it[MX_MAXI];
-        ui.row[SCR_HOME] = MXR_MASTER;
-        mx.set = (uint8_t)sa;
-        head_title(SCR_HOME, MXR_MASTER, h, sizeof h);
-        check(!strcmp(h, "A sends"), "A SENDS: the header names it (A sends)");
-        mix_cell(MXR_MASTER, 1, &c);
+        fxs_set(FXS_DEF);
+        ui.row[SCR_HOME] = (uint8_t)ra;
+        mx.set = 2;
+        head_title(SCR_HOME, ra, h, sizeof h);
+        check(!strcmp(h, "Sends"), "RET A's sends: the header names the set (Sends)");
+        mix_cell(ra, 1, &c);
         check(c.vp == &rs_amt[RS_AB] && !strcmp(c.val, "0") && c.d->fmt == F_PCT, "... KNOB 2: A -> B (named by B's type, DLY), 0 by default");
-        mix_cell(MXR_MASTER, 0, &c);
+        mix_cell(ra, 0, &c);
         check(!c.d && !c.label, "... KNOB 1 (A itself) and KNOB 4 (no PAN): blank");
         turn(EN_K2, 5);
         turn(EN_K3, 3);
         check(rs_amt[RS_AB] > 0 && rs_amt[RS_AC] > 0 && rs_amt[RS_BC] == 0, "... KNOB 2 and 3 turned: A -> B, A -> C up, B -> C kept");
-        mx.set = (uint8_t)(sa + 1u);
-        head_title(SCR_HOME, MXR_MASTER, h, sizeof h);
+        ui.row[SCR_HOME] = (uint8_t)rb;
         turn(EN_K3, 4);
         turn(EN_K2, 4);
         turn(EN_K1, 4);
 #if FELUCCA_RET_FB
-        check(!strcmp(h, "B sends") && rs_amt[RS_BC] > 0 && rs_amt[RS_BA] > 0, "B SENDS: KNOB 3 B -> C, KNOB 1 B -> A (RET_FB), KNOB 2 (B) nothing");
-        mx.set = (uint8_t)(sa + 2u);
-        head_title(SCR_HOME, MXR_MASTER, h, sizeof h);
-        turn(EN_K1, 2);
-        turn(EN_K2, 3);
-        turn(EN_K3, 3);
-        check(!strcmp(h, "C sends") && rs_amt[RS_CA] > 0 && rs_amt[RS_CB] > 0, "C SENDS (RET_FB): KNOB 1 C -> A, KNOB 2 C -> B, KNOB 3 (C) nothing");
+        check(rs_amt[RS_BC] > 0 && rs_amt[RS_BA] > 0, "RET B's sends: KNOB 3 B -> C, KNOB 1 B -> A (RET_FB), KNOB 2 (B) nothing");
         rs_amt[RS_BA] = rs_amt[RS_CA] = rs_amt[RS_CB] = 0;
 #else
-        check(!strcmp(h, "B sends") && rs_amt[RS_BC] > 0, "B SENDS: KNOB 3 B -> C; KNOB 1 and 2 (left of it) do nothing");
+        check(rs_amt[RS_BC] > 0, "RET B's sends: KNOB 3 B -> C; KNOB 1 and 2 (left of it) do nothing");
 #endif
         rs_amt[RS_AB] = rs_amt[RS_AC] = rs_amt[RS_BC] = 0;
-        fxs_load(2, FXT_NONE);                          /* B empty: A's B card blank, no B SENDS set */
-        n = mx_items(MXR_MASTER, it);
+        fxs_load(2, FXT_NONE);                          /* B empty: A's B card blank, B has no sends set */
+        n = mx_items(rb, it);
         for (i = 0, ok = 1; i < n; i++)
             ok &= it[i].grp != MG_RSB;
-        check(ok && mx_labels(MXR_MASTER, sa, 0, 0, "REV", 0), "B empty: A SENDS has only C's card, no B SENDS set");
-        fxs_load(1, FXT_NONE);
-        n = mx_items(MXR_MASTER, it);
-        for (i = 0, ok = 1; i < n; i++)
-            ok &= it[i].grp != MG_RSB && it[i].grp != MG_RSA && (!FELUCCA_RET_FB || it[i].grp != MG_RSC);
-        check(ok, "A and B empty: no sends set (C sends to none; RET_FB: C's targets empty)");
+        check(ok && mx_labels(ra, 2, 0, 0, "REV", 0), "B empty: A's sends have only C's card, B has none");
         fxs_set(FXS_DEF);
         ui.row[SCR_HOME] = (uint8_t)row0;
         mx.set = 0;
@@ -297,8 +351,7 @@ static void mixer_sets_tests(void)
                                                         * order between master return and the send": card k is R(k+1) */
         uint32_t ps = 2u, ok;                           /* (T1: MIX, INSERT, SENDS) */
         fxs_load(1, FXT_CHO);                           /* (A CHO, C REV: a swap) */
-        ok = mx_labels(MXR_MASTER, FELUCCA_MASTER_COMP ? 2 : 1, "CHO RET", "DLY RET", "REV RET", 0) &&
-             mx_labels(MXR_T1, ps, "CHO", "DLY", "REV", "PAN") && mx_labels(MXR_LANE0 + 2u, 2, "CHO", "DLY", "REV", 0);
+        ok = mx_labels(MXR_T1, ps, "CHO", "DLY", "REV", "PAN") && mx_labels(MXR_LANE0 + 2u, 2, "CHO", "DLY", "REV", 0);
         fxs_load(2, FXT_NONE);                          /* (B empty: its card blank, the others in place) */
         ok &= mx_labels(MXR_T1, ps, "CHO", 0, "REV", "PAN") && mx_labels(MXR_LANE0 + 2u, 2, "CHO", 0, "REV", 0);
         fxs_set(FXS_DEF);
@@ -313,37 +366,6 @@ static void mixer_sets_tests(void)
             own |= it[i].kind == MI_GLOB && (it[i].id == G_DUST || it[i].id == G_FILT || it[i].id == G_CTHR);
         check(!own, "MASTER: no DUST FILT card, and no DYN set while no master slot holds DYN");
         mst_defaults();
-    }
-    {   /* MASTER's Returns (2026-10-12; batch D: REV DLY CHO, a card a send in a slot, the master FX's RETURNS order) */
-        cell_t c;
-        char h[40];
-        int16_t r0 = song.g[G_RRET], c0 = song.g[G_CRET], d0 = song.g[G_DRET];
-        uint32_t row0 = ui.row[SCR_HOME], k, any = 0;
-        const uint32_t rs = FELUCCA_MASTER_COMP ? 2u : 1u;   /* (the returns' set: after the compressor's) */
-        ui.row[SCR_HOME] = MXR_MASTER;
-        mx.set = (uint8_t)rs;
-        head_title(SCR_HOME, MXR_MASTER, h, sizeof h);
-        check(!strcmp(h, "Returns"), "MASTER's last set: the header names it (Returns, under the MASTER badge)");
-        mix_cell(MXR_MASTER, 0, &c);
-        check(c.d == &GP[G_CRET] && !strcmp(c.val, "100") && c.d->def == 127, "... KNOB 1 CHO RET, at unity (100 %) by default");
-        mix_cell(MXR_MASTER, 3, &c);
-        check(!c.d && !c.label && !c.val[0], "... KNOB 4: no send left, the knob's frame alone (no \"-\": the audit's #7)");
-        turn(EN_K1, -5);
-        check(song.g[G_CRET] < c0 && song.g[G_RRET] == r0 && song.g[G_DRET] == d0, "... KNOB 1 turned: CHO RET down (song.g), the others kept");
-        turn(EN_K4, -5);
-        check(song.g[G_RRET] == r0 && song.g[G_DRET] == d0, "... KNOB 4 on the empty card: nothing");
-        turn(EN_K3, -3);
-        check(song.g[G_RRET] < r0, "... KNOB 3 (REV RET): REV RET down");
-        fxs_load(1, FXT_NONE);                          /* CHO in no slot: no card for its return, DLY and REV move up */
-        for (k = 0; k < 4u; k++) {
-            mix_cell(MXR_MASTER, k, &c);
-            any |= c.d == &GP[G_CRET];
-        }
-        check(!any && mx_labels(MXR_MASTER, rs, "DLY RET", "REV RET", 0, 0), "... CHO in no slot: no card for its return");
-        fxs_set(FXS_DEF);
-        song.g[G_RRET] = r0, song.g[G_CRET] = c0, song.g[G_DRET] = d0;
-        ui.row[SCR_HOME] = (uint8_t)row0;
-        mx.set = 0;
     }
     mx.set = 0;
     turn(EN_SELECT, 1);
@@ -546,7 +568,7 @@ static void mixer_rows_tests(void)
 #if FELUCCA_MASTER_COMP
     {   /* the compressors' reduction: a bar from the right, only where one works */
         uint32_t x = MXM_GX + MXM_GW;
-        turn(EN_ALGO, -1);                              /* MASTER, alone */
+        mx_apply(MXR_MASTER);                           /* MASTER, alone */
         song.g[G_CTHR] = -10;
         mc_gr_view = -6;                                /* 6 dB: 18 px from the right */
         frame();
@@ -561,7 +583,7 @@ static void mixer_rows_tests(void)
         check(!px_in(MXM_GX, y, MXM_GW, MXM_GH, C_WARN), "THRS and CEIL off: no compressor, no bar");
         song.g[G_CCEIL] = GP[G_CCEIL].def;
         mc_gr_view = 0;
-        turn(EN_ALGO, 1);
+        mx_apply(MXR_T1);
         ins_load(0, 1, FXT_COMP);                       /* T1's COMP insert (its S2), reducing 8 dB */
         trk[0].p[P_TCOMP] = 60;
         tcomp[0].gr16 = (int32_t)(8 * 65536 / 6.02);
@@ -636,14 +658,14 @@ static void scope_tests(void)
     for (pk = 0, i = 0; i < VIS_RING; i++)
         pk = (vis_pcm[0][i] < 0 ? -vis_pcm[0][i] : vis_pcm[0][i]) > pk ? (vis_pcm[0][i] < 0 ? -vis_pcm[0][i] : vis_pcm[0][i]) : pk;
     check(scope_src == SCOPE_DR && vis_wr != w0 && pk < 64, "SCOPE DR: the drums' part (silent here), not T2's note");
-    turn(EN_ALGO, -4);                                  /* MASTER: the master output, still on SCOPE */
+    turn(EN_ALGO, (int32_t)(MXR_LN - MXR_DR));         /* MASTER (past the last lane, 2026-10-30): the master output, still on SCOPE */
     frames(3);
     for (pk = 0, i = 0; i < VIS_RING; i++)
         pk = vis_pcm[0][i] > pk ? vis_pcm[0][i] : pk;
     ui.force = 1;
     frames(2);
     ppm("opt-scope-master");
-    check(ui.scr == SCR_SCOPE && ui.master && scope_src == 0u && pk > 0 && px_in(0, OY_PANEL, 240, SC_H, C_HI), "SCOPE MASTER (ALGORITHM left of T1): the mix, in the palette's ink, still on SCOPE");
+    check(ui.scr == SCR_SCOPE && ui.master && scope_src == 0u && pk > 0 && px_in(0, OY_PANEL, 240, SC_H, C_HI), "SCOPE MASTER (ALGORITHM past the last lane): the mix, in the palette's ink, still on SCOPE");
     fm1_in.notes &= ~(1u << 10);
     {
         cell_t c;

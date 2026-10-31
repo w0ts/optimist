@@ -399,6 +399,8 @@ int main(void)
                         uint32_t ok = 1;
                         if (t != FXT_NONE && !(fxp_ok(ow) >> t & 1u))
                             continue;
+                        if (FXP_IS_RET(ow) && sl >= 2u && t != FXT_NONE && t == fxp_type(ow, 0))
+                            continue;                   /* (a return's PRE / POST: never its effect's type, a type once a return) */
                         if (!(ow == FXP_USB && sl == 2u) && !(FXP_IS_RET(ow) && sl == 1u))
                             fxp_set_type(ow, sl, t), ok = fxp_type(ow, sl) == t, tried++;
                         for (i = 0; i < fxp_n(ow, sl); i++) {
@@ -406,8 +408,15 @@ int main(void)
                             const param_desc_t *d = fxp_loc(ow, sl, i, &vp);
                             ok = ok && d && vp && d->label && d->label[0] && *vp >= d->min && *vp <= d->max;
                         }
-                        if (!ok)
-                            printf("owner %u slot %u type %u\n", ow, sl, t);
+                        if (!ok) {
+                            printf("owner %u slot %u type %u: reads %u, %u parameters", ow, sl, t, fxp_type(ow, sl), fxp_n(ow, sl));
+                            for (i = 0; i < fxp_n(ow, sl); i++) {
+                                int16_t *vp;
+                                const param_desc_t *d = fxp_loc(ow, sl, i, &vp);
+                                printf(" [%s %d %d..%d]", d && d->label ? d->label : "?", vp ? *vp : -999, d ? d->min : 0, d ? d->max : 0);
+                            }
+                            printf("\n");
+                        }
                         bad += !ok;
                     }
             }
@@ -424,9 +433,23 @@ int main(void)
         {   /* the sends between the returns (2026-10-16): each return's slot 1, A: B C, B: C, C: none; named by the target */
             static const uint8_t LA[] = {0, FXP_RET0}, LC[] = {0, FXP_RET0 + 2}, DA1[] = {2, FXP_RET0, 1, 1}, TA[] = {1, FXP_RET0, 1, FXT_DIST};
             ed_begin(ED_FXP); r = ed_fxp(ED_FXP, LA, sizeof LA);
-            check(r && ed_out[7] == 2u && ed_out[10] == FXT_NONE && ed_out[11] == 2u, "v13 FXP op 0: return A has two slots, slot 1 (its sends) two parameters");
+            check(r && ed_out[7] == 4u && ed_out[10] == FXT_NONE && ed_out[11] == 2u && ed_out[12] == FXT_NONE && ed_out[14] == FXT_NONE,
+                  "v13 FXP op 0: return A has four slots (2026-10-30: its PRE and POST, empty), slot 1 (its sends) two parameters");
             ed_begin(ED_FXP); r = ed_fxp(ED_FXP, LC, sizeof LC);
-            check(r && ed_out[7] == 2u && ed_out[11] == (FELUCCA_RET_FB ? 2u : 0u), "... return C: its slot 1 has none (it sends to no return; RET_FB: two, to A and B)");
+            check(r && ed_out[7] == 4u && ed_out[11] == (FELUCCA_RET_FB ? 2u : 0u), "... return C: its slot 1 has none (it sends to no return; RET_FB: two, to A and B)");
+#if FELUCCA_FX_DIST
+            {   /* a return's PRE and POST (slots 2, 3): loaded, one amount, its line's */
+                static const uint8_t PB[] = {1, FXP_RET0 + 1, 2, FXT_DIST}, PX[] = {1, FXP_RET0 + 1, 3, FXT_DIST};
+                uint32_t ln = fxs_line[2];
+                rp_untlv(0, 0);                         /* (the every-owner walk above left types in the stages) */
+                ed_begin(ED_FXP); r = ed_fxp(ED_FXP, PB, sizeof PB);
+                check(r && ln < 3u && rp_ty[ln][RP_PRE] == FXT_DIST && ed_out[12] == FXT_DIST && ed_out[13] == 1u,
+                      "v13 FXP op 1: return B's slot 2 loads PRE DIST (its line's), one parameter");
+                ed_begin(ED_FXP); r = ed_fxp(ED_FXP, PX, sizeof PX);
+                check(r && rp_ty[ln][RP_PRE] == FXT_NONE && rp_ty[ln][RP_POST] == FXT_DIST, "... DIST into slot 3: POST, swapped from PRE (a type once a return)");
+                rp_untlv(0, 0);
+            }
+#endif
             ed_begin(ED_FXP); r = ed_fxp(ED_FXP, DA1, sizeof DA1);
             check(r && ed_out[9] == F_PCT && ed_n > 12u && !memcmp(ed_out + 5u + 4u + 1u + 6u, "C", 1), "v13 FXP op 2: A's second send, a level, named C");
             q[0] = 4, q[1] = FXP_RET0, q[2] = 1, q[3] = 1, q[4] = (uint8_t)((300 + 8192) & 127), q[5] = (uint8_t)((300 + 8192) >> 7);
@@ -464,7 +487,7 @@ int main(void)
         {
             static const uint8_t RT[] = {1, FXP_RET0 + 1, 0, FXT_EQ3};
             ed_begin(ED_FXP); r = ed_fxp(ED_FXP, RT, sizeof RT); ed9_known_fx();
-            check(r && fxs_slot[2] == FXT_EQ3 && ed_out[8] == FXT_EQ3 && ed_out[9] == 7u && ed_n == 5u + 3u + 2u + 2u + 5u + 1u && ed_out[10] == FXT_NONE && ed_out[11] == (FELUCCA_RET_FB ? 2u : 1u) && ed_out[ed_n - 1u] == fxs_line[2],
+            check(r && fxs_slot[2] == FXT_EQ3 && ed_out[8] == FXT_EQ3 && ed_out[9] == 7u && ed_n == 5u + 3u + 2u * 4u + 5u + 1u && ed_out[10] == FXT_NONE && ed_out[11] == (FELUCCA_RET_FB ? 2u : 1u) && ed_out[ed_n - 1u] == fxs_line[2],
                   "v13 FXP op 1: EQ3 into B: its line's RET and the six; its slot 1 its sends (B -> C; RET_FB: B -> A too); the reply ends with the return's send line");
             q[0] = 4, q[1] = FXP_RET0 + 1, q[2] = 0, q[3] = 5, q[4] = (uint8_t)((10 + 8192) & 127), q[5] = (uint8_t)((10 + 8192) >> 7);
             ed_begin(ED_FXP); r = ed_fxp(ED_FXP, q, 6); ed9_known_fx();
