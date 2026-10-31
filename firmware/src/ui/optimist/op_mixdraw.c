@@ -73,12 +73,13 @@ static struct {
     uint8_t sta[MXR_N];                 /* the playhead as drawn (0xFF: none) */
     uint8_t pk[MXR_N];                  /* the meters' peaks (0 .. MX_LV), falling */
     uint16_t ph[MXR_N];                 /* the peak-hold markers (level x 256): jump to a new peak, hold, then fall (mx_peak) */
+    uint8_t clip[MXR_N], vcl[MXR_N];    /* the CLIP light: frames left lit; as drawn (0xFF: again) */
     uint8_t phd[MXR_N], vph[MXR_N];     /* ... frames left of the hold; the marker's level as drawn (0xFF: again) */
     uint8_t mgr;                        /* MASTER alone: its reduction as drawn, dB x 4 (0xFF: again) */
     uint8_t pk_first;                   /* the group the peaks are of (mx_draw) */
 #if FELUCCA_ED_MIRROR
     uint8_t mvu[MXR_N], mgv[MXR_N];     /* the meters as the mirror's client has them (0xFF: again) */
-    uint8_t mvph[MXR_N];                /* ... and their peak-hold markers */
+    uint8_t mvph[MXR_N], mvcl[MXR_N];   /* ... and their peak-hold markers, CLIP lights */
     uint8_t mir;                        /* this frame the meters may go to it (io/editor/ed_mirror.c mir_meters_due) */
 #endif
 } mxd = {.first = MXR_T1, .last = MXR_LANE0, .pk_first = MXR_T1};
@@ -345,43 +346,54 @@ static uint32_t mx_gr_px(uint32_t r, int32_t w)         /* row r's reduction as 
     uint32_t gr = mx_gr_q4(r) * MX_GR_PX / 4u;
     return gr > (uint32_t)w ? (uint32_t)w : gr;
 }
-/* the lit bar's colour: its own below -12 dB; from there each column goes on to amber, then red where the bar tops out
- * (a full-scale peak: 32767 lights the whole width, the 0 tick).
- * The scale is op_draw.c meter_h's: log2 of the peak in 6 dB steps, a tick each at i * 4 + 4 of 44, so the columns stand for dB. Integer RGB565 lerps */
-#define MX_KNEE_PK 8192                                 /* -12 dBFS: the bar it lights ends at the -12 tick, 36/44 of the width */
+/* the lit bar's colours by the signal's dBFS (the user, 2026-10-31: "green below -18 dBFS; amber from -18 to -6 dBFS; red from -6 (or -3)
+ * dBFS; a separate held clip light at 0 dBFS"; -6 picked): green under -18, amber -18 .. -6, red from -6. The bands are cut
+ * at the peaks 2^12 (-18.06 dB) and 2^14 (-6.02 dB) through mx_vu_lv, so they stand at the same dB whatever the VU FLOOR is.
+ * A lane's row (its lit hit, no level) keeps its instrument colour. The CLIP light: the meter's last MX_CLIP_W px, dark red,
+ * red while a sample reached 0 dBFS and MX_CLIP_HOLD frames after the last (~1 s at 60 a second) */
+#define MX_AMBER_PK 4096                                /* -18 dBFS: green ends, amber starts */
+#define MX_RED_PK 16384                                 /* -6 dBFS: amber ends, red starts */
+#define MX_CLIP_HOLD 60u
+#define MX_CLIP_W 4
 static uint16_t mx_lerp(uint16_t a, uint16_t b, uint32_t t)   /* a to b, t 0 .. 256 */
 {
     uint32_t rb = ((a & 0xF81Fu) * (256u - t) + (b & 0xF81Fu) * t) >> 8;
     uint32_t g = (((uint32_t)a & 0x07E0u) * (256u - t) + ((uint32_t)b & 0x07E0u) * t) >> 8;
     return (uint16_t)((rb & 0xF81Fu) | (g & 0x07E0u));
 }
-/* the colour of column c of a meter: col up to the knee k, from there on to amber, then red at the end e (the fill's gradient) */
-static uint16_t mx_vu_colat(int32_t c, int32_t k, int32_t e, uint16_t col)
+static int32_t mx_band_px(int32_t pk, int32_t w)        /* the column where the band starting at peak pk begins */
 {
-    uint32_t u;
-    if (c < k)
-        return col;
-    u = e > k ? (uint32_t)(c - k) * 256u / (uint32_t)(e - k - 1 > 0 ? e - k - 1 : 1) : 256u;
-    if (u > 256u)
-        u = 256u;
-    return u < 128u ? mx_lerp(col, C_WARN, u * 2u) : mx_lerp(C_WARN, C_ERR, (u - 128u) * 2u);
+    return (int32_t)(mx_vu_lv(pk) * (uint32_t)w / MX_LV);
 }
-static void mx_vu_fill(int32_t x, int32_t y, int32_t w, int32_t h, int32_t px, uint16_t col)
+/* the colour of column c of a meter: green, amber or red by its band; col alone on a lane's row (col0 == 0 means bands) */
+static uint16_t mx_vu_colat(int32_t c, int32_t w, uint16_t lane_col)
 {
-    int32_t k = (int32_t)(mx_vu_lv(MX_KNEE_PK) * (uint32_t)w / MX_LV), e = (int32_t)(mx_vu_lv(32767) * (uint32_t)w / MX_LV), c;
-    cv_rect(x, y, px < k ? px : k, h, col);
-    for (c = k; c < px; c++)                            /* (a column each: at most ~20 above the knee) */
-        cv_rect(x + c, y, 1, h, mx_vu_colat(c, k, e, col));
+    if (lane_col)
+        return lane_col;
+    return c < mx_band_px(MX_AMBER_PK, w) ? C_OK : c < mx_band_px(MX_RED_PK, w) ? C_WARN : C_ERR;
+}
+static void mx_vu_fill(int32_t x, int32_t y, int32_t w, int32_t h, int32_t px, uint16_t lane_col)
+{
+    int32_t k1 = mx_band_px(MX_AMBER_PK, w), k2 = mx_band_px(MX_RED_PK, w);
+    if (lane_col) {
+        cv_rect(x, y, px, h, lane_col);
+        return;
+    }
+    cv_rect(x, y, px < k1 ? px : k1, h, C_OK);
+    if (px > k1)
+        cv_rect(x + k1, y, (px < k2 ? px : k2) - k1, h, C_WARN);
+    if (px > k2)
+        cv_rect(x + k2, y, px - k2, h, C_ERR);
 }
 /* the peak-hold marker at level ph (0 .. MX_LV; 0: none, which is every peak under the VU FLOOR): a thin tick ending at its
- * place, in the meter's own colour there; red at 0 dBFS, within 0.5 dB (the master's knee stops just short of the full scale) (the user, 2026-10-29: "VU meters just get normal audio peaks") */
-static void mx_vu_mark(int32_t x, int32_t y, int32_t w, int32_t h, uint32_t ph, uint16_t col)
+ * place, in the colour of its band; red at 0 dBFS, within 0.5 dB (the master's knee stops just short of the full scale) (the user, 2026-10-29: "VU meters just get normal audio peaks") */
+static void mx_vu_mark(int32_t x, int32_t y, int32_t w, int32_t h, uint32_t ph, uint16_t lane_col)
 {
-    int32_t px = (int32_t)(ph * (uint32_t)w / MX_LV), k = (int32_t)(mx_vu_lv(MX_KNEE_PK) * (uint32_t)w / MX_LV), e = (int32_t)(mx_vu_lv(32767) * (uint32_t)w / MX_LV);
+    int32_t px = (int32_t)(ph * (uint32_t)w / MX_LV);
     if (!ph)
         return;
     px = px < MX_PH_W ? MX_PH_W : px;
-    cv_rect(x + px - MX_PH_W, y, MX_PH_W, h, ph >= MX_LV - 2u ? C_ERR : mx_vu_colat(px - 1, k, e, col));
+    cv_rect(x + px - MX_PH_W, y, MX_PH_W, h, ph >= MX_LV - 2u ? C_ERR : mx_vu_colat(px - 1, w, lane_col));
 }
 /* the marker's fall, level x 256 a frame, for a 20 dB/s fall on the scale the VU FLOOR sets (floor + 6 dB wide = MX_LV: 20 * 255 * 256 /
  * ((|floor| + 6) * 60), per floor -80 .. -20) */
@@ -413,9 +425,12 @@ static void mx_vu_paint(uint32_t r, int32_t x, int32_t y, int32_t w, int32_t h, 
     int32_t px = (int32_t)(pk * (uint32_t)w / MX_LV);
     cv_rect(x, y, w, h, C_BLACK);
     cv_rect(x, y + h - 1, w, 1, C_LINE);                /* the track: a line on black */
-    uint16_t col = mx_is_lane(r) || mx_is_usb(r) ? mx_col(r) : C_OK;   /* (the returns' meters too: the channels' green) */
+    uint16_t col = mx_is_lane(r) ? mx_col(r) : 0u;      /* (a lane's lit hit: its colour; every level meter: the bands) */
     mx_vu_fill(x, y, w, h, px, col);
     mx_vu_mark(x, y, w, h, ph, col);
+    if (!mx_is_lane(r))                                 /* the CLIP light, over the meter's last px, a black gap before it */
+        cv_rect(x + w - MX_CLIP_W - 1, y, 1, h - 1, C_BLACK),
+        cv_rect(x + w - MX_CLIP_W, y, MX_CLIP_W, h - 1, mxd.clip[r] ? C_ERR : mx_lerp(C_BLACK, C_ERR, 56u));
     if (gr)
         cv_rect(x + w - (int32_t)gr, y, (int32_t)gr, h, C_WARN);   /* the reduction, from the right */
 }
@@ -433,7 +448,7 @@ static void mx_vu_band(uint32_t r, int32_t x, int32_t y, int32_t w, int32_t h, u
  * last had it, even when the panel's did not (the user, 2026-10-23: "send the meter ... 5 or 10 times per sec") */
 static void mx_vu_at(uint32_t r, int32_t x, int32_t y, int32_t w, int32_t h, uint32_t lv, uint32_t gr)
 {
-    uint32_t pk = mxd.pk[r], panel, phl;
+    uint32_t pk = mxd.pk[r], panel, phl, cl;
 #if FELUCCA_ED_MIRROR
     uint32_t mir;
 #endif
@@ -441,9 +456,12 @@ static void mx_vu_at(uint32_t r, int32_t x, int32_t y, int32_t w, int32_t h, uin
     mxd.pk[r] = (uint8_t)pk;
     mx_peak(r, lv);
     phl = MX_PHL(r);
-    panel = pk != mxd.vu[r] || gr != mxd.gr[r] || phl != mxd.vph[r];
+    if (!mx_is_lane(r))                                 /* (the master's knee stops 2 units short of the full scale) */
+        mxd.clip[r] = lv >= (r == MXR_MASTER ? MX_LV - 2u : MX_LV) ? (uint8_t)MX_CLIP_HOLD : mxd.clip[r] ? (uint8_t)(mxd.clip[r] - 1u) : 0u;
+    cl = mxd.clip[r] != 0u;
+    panel = pk != mxd.vu[r] || gr != mxd.gr[r] || phl != mxd.vph[r] || cl != mxd.vcl[r];
 #if FELUCCA_ED_MIRROR
-    mir = mxd.mir && (pk != mxd.mvu[r] || gr != mxd.mgv[r] || phl != mxd.mvph[r]);
+    mir = mxd.mir && (pk != mxd.mvu[r] || gr != mxd.mgv[r] || phl != mxd.mvph[r] || cl != mxd.mvcl[r]);
     if (!panel && !mir)
         return;
 #else
@@ -453,11 +471,12 @@ static void mx_vu_at(uint32_t r, int32_t x, int32_t y, int32_t w, int32_t h, uin
     mxd.vu[r] = (uint8_t)pk;
     mxd.gr[r] = (uint8_t)gr;
     mxd.vph[r] = (uint8_t)phl;
+    mxd.vcl[r] = (uint8_t)cl;
     cv_begin((uint32_t)w, (uint32_t)h, C_BLACK);
     mx_vu_paint(r, 0, 0, w, h, pk, gr, phl);
 #if FELUCCA_ED_MIRROR
     if (mir)
-        mxd.mvu[r] = (uint8_t)pk, mxd.mgv[r] = (uint8_t)gr, mxd.mvph[r] = (uint8_t)phl;
+        mxd.mvu[r] = (uint8_t)pk, mxd.mgv[r] = (uint8_t)gr, mxd.mvph[r] = (uint8_t)phl, mxd.mvcl[r] = (uint8_t)cl;
     if (!panel) {
         cv_mirror((uint32_t)x, (uint32_t)(OP_PY + y));  /* (the client's alone: the panel shows it already) */
         return;
@@ -647,8 +666,10 @@ static void mx_redraw(void)                             /* the live parts again 
     memset(mxd.vu, 0xFF, sizeof mxd.vu);
     memset(mxd.gr, 0xFF, sizeof mxd.gr);
     memset(mxd.vph, 0xFF, sizeof mxd.vph);
+    memset(mxd.vcl, 0xFF, sizeof mxd.vcl);
 #if FELUCCA_ED_MIRROR
     memset(mxd.mvph, 0xFF, sizeof mxd.mvph);
+    memset(mxd.mvcl, 0xFF, sizeof mxd.mvcl);
     memset(mxd.mvu, 0xFF, sizeof mxd.mvu);              /* (a catch-up: the client's meters again too) */
     memset(mxd.mgv, 0xFF, sizeof mxd.mgv);
 #endif

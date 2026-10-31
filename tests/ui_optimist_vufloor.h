@@ -3,6 +3,7 @@
  * bottom, -80 .. -20 in 10 dB steps, -60 by default and then exactly the meter of before the setting; a lower floor shows quieter
  * peaks, a higher one fewer, 0 dBFS is always the full scale, the MASTER scale's ticks run from 0 down to the floor. Screens
  * opt-vufloor-master-80 / -60 / -20.ppm (VUF_SET: the baseline build of the same test is made without the setting, sed on this line). */
+#define VUF_60 2u                                         /* (-60: the look of before the setting; the default is -40 since 2026-10-31) */
 #ifdef VUF_BASELINE                                     /* the build of before the setting: its -60 screen, to compare */
 #define VUF_SET(i) ((void)(i))
 #else
@@ -50,9 +51,9 @@ static uint32_t peak_x(uint32_t ph) { return (uint32_t)MXM_X + ph * (uint32_t)MX
 static void peakhold_tests(void)
 {
     uint32_t ph0, q0, i, ok;
-    VUF_SET(VUF_DEF);
+    VUF_SET(VUF_60);
     reset_ui();
-    VUF_SET(VUF_DEF);
+    VUF_SET(VUF_60);
     ui.row[SCR_HOME] = MXR_MASTER;
     peak_ring(8000.0);                                  /* (about -12 dBFS) */
     ui.force = 1;
@@ -62,7 +63,7 @@ static void peakhold_tests(void)
     peak_ring(0.0);                                     /* (silence) */
     frames(MX_PH_HOLD / 2u);
     q0 = mxd.ph[MXR_MASTER];
-    check(mxd.pk[MXR_MASTER] < ph0 && MX_PHL(MXR_MASTER) == ph0 && px_in(peak_x(ph0) - 2u, PEAK_Y, 2, 1, mx_vu_colat((int32_t)peak_x(ph0) - (int32_t)MXM_X - 1, (int32_t)(mx_vu_lv(MX_KNEE_PK) * (uint32_t)MXM_W / MX_LV), (int32_t)MXM_W, C_OK)),
+    check(mxd.pk[MXR_MASTER] < ph0 && MX_PHL(MXR_MASTER) == ph0 && px_in(peak_x(ph0) - 2u, PEAK_Y, 2, 1, mx_vu_colat((int32_t)peak_x(ph0) - (int32_t)MXM_X - 1, (int32_t)MXM_W, 0u)),
           "peak hold: the bar has fallen, the marker is held where it was, drawn there in the meter's own colour");
     ppm("opt-peakhold-master");
     for (i = MX_PH_HOLD / 2u; i < MX_PH_HOLD + 10u && mxd.ph[MXR_MASTER] == q0; i++)
@@ -70,7 +71,7 @@ static void peakhold_tests(void)
     check(i >= MX_PH_HOLD - 2u && i <= MX_PH_HOLD + 1u && mxd.ph[MXR_MASTER] < q0, "peak hold: held MX_PH_HOLD (~1.5 s) frames, then it starts to fall");
     q0 = mxd.ph[MXR_MASTER];
     frames(20);                                         /* (20 frames: a build with a sounding master may stop it at that level sooner) */
-    ok = q0 - mxd.ph[MXR_MASTER] == 20u * MX_PH_FALL[VUF_DEF];
+    ok = q0 - mxd.ph[MXR_MASTER] == 20u * MX_PH_FALL[VUF_60];
     check(ok && MX_PHL(MXR_MASTER) < ph0, "peak hold: then it falls steadily, 330/256 of a unit a frame (20 dB/s on the -60 scale)");
     peak_ring(8000.0);
     frames(1);
@@ -89,7 +90,7 @@ static void peakhold_tests(void)
     frames(5);
     check(mxd.ph[MXR_MASTER] == 0u && !px_in((uint32_t)MXM_X, PEAK_Y, MXM_W, 1, C_OK) && !px_in((uint32_t)MXM_X, PEAK_Y, MXM_W, 1, C_ERR),
           "peak hold: a peak under the VU FLOOR gets no marker, the bar none either");
-    VUF_SET(VUF_DEF);
+    VUF_SET(VUF_60);
     peak_ring(0.0);
     reset_ui();
 }
@@ -98,7 +99,7 @@ static void vufloor_tests(void)
     uint32_t i, fl, ok = 1, mono = 1, k;
     int32_t pk;
     /* the default is the meter of before: every peak of 16 bits (and beyond), the same height */
-    VUF_SET(VUF_DEF);
+    VUF_SET(VUF_60);
     for (pk = -5; pk <= 70000; pk++)
         ok &= meter_h(pk) == meter_h_before(pk);
     check(ok, "VU FLOOR -60 (the default): meter_h gives, for every peak 0 .. 70000, the height it gave before the setting");
@@ -131,21 +132,21 @@ static void vufloor_tests(void)
     /* the setting's line: the knob steps it, stops at the ends, YES goes round, SHIFT + the knob its factory value */
     reset_ui();
     k = line_named(SCR_SYSTEM, "VU FLOOR");
-    check(vu_floor_i == VUF_DEF, "SYSTEM > METERS: VU FLOOR starts at -60");
+    check(vu_floor_i == VUF_DEF, "SYSTEM > METERS: VU FLOOR starts at -40 (the default)");
     turn(LINE_KNOB(k), 1);
-    check(vu_floor_i == VUF_DEF + 1u && vuf_db(vu_floor_i) == -50, "VU FLOOR: the knob up: -50");
+    check(vu_floor_i == VUF_DEF + 1u && vuf_db(vu_floor_i) == -30, "VU FLOOR: the knob up: -30");
     for (i = 0; i < 9u; i++)
         turn(LINE_KNOB(k), -1);
     check(vu_floor_i == 0u && vuf_db(vu_floor_i) == -80, "VU FLOOR: the knob down to the end: -80");
     for (i = 0; i < 9u; i++)
         turn(LINE_KNOB(k), 1);
     check(vu_floor_i == VUF_N - 1u && vuf_db(vu_floor_i) == -20, "VU FLOOR: the knob up to the other end: -20");
-    VUF_SET(VUF_DEF);
+    VUF_SET(VUF_60);
     peakhold_tests();                                   /* (its frames move the master compressor: SCRS golden GR -5 -> -4) */
     vufloor_master_view(0, 1036.0, "opt-vufloor-master-80");
-    vufloor_master_view(VUF_DEF, 1036.0, "opt-vufloor-master-60");
+    vufloor_master_view(VUF_60, 1036.0, "opt-vufloor-master-60");
     vufloor_master_view(VUF_N - 1u, 8000.0, "opt-vufloor-master-20");
-    VUF_SET(VUF_DEF);
+    VUF_SET(VUF_60);
     reset_ui();
 }
 #endif
