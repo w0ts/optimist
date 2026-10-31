@@ -81,6 +81,32 @@ static void ed_opti_list(uint32_t tag, const char *s, uint32_t n)   /* a tag of 
     for (i = 0; i + 1u < n; i++)
         ed_b((uint8_t)s[i]);
 }
+#ifdef ED_BOOT_READ                       /* (felucca.c: st_read; fm1-base's opt_editor.h: plat_boot_read) */
+#include "system/bootid.h"
+/* INFO tag 0x68: which bootloader the FM-1 has, "boot=mboot", "boot=stock" or "boot=unknown" (system/bootid.h): the
+ * installers take the update loader with m-bootloader there, instead of planning download mode to install it. Read once
+ * (a failed read again next time) */
+static void ed_boot_info(void)
+{
+    static uint8_t id = 0xFFu;
+    const char *w;
+    uint32_t r = id, n = 0;
+    if (r == 0xFFu) {
+        r = bootid_read(ED_BOOT_READ);
+        if (r != BOOTID_UNKNOWN)
+            id = (uint8_t)r;
+    }
+    w = bootid_word(r);
+    while (w[n])
+        n++;
+    ed_b(0x68);
+    ed_b(n);
+    while (*w)
+        ed_b((uint8_t)*w++);
+}
+#else
+#define ed_boot_info() ((void)0)
+#endif
 static void ed_opti_info(void)
 {
     static const char S[] = ED_OPTI_BK ED_OPTI_MIR ED_OPTI_LIB ED_OPTI_PAT ED_OPTI_PJ;
@@ -96,5 +122,6 @@ static void ed_opti_info(void)
     for (i = 0; i + 1u < sizeof S; i++)
         ed_b((uint8_t)S[i]);
     ed_opti_list(0x67, M, sizeof M);   /* (tag 0x67: more names, the same form; a client that knows none skips it) */
+    ed_boot_info();                    /* (tag 0x68: the bootloader, a client that knows none skips it) */
 }
 #endif

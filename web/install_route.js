@@ -86,9 +86,44 @@ export function packageKind(product, sha256 = "", flashLen = null, ownLoader = t
   return { kind, product, flashLen, ownLoader };
 }
 
-/** [takes, why]: fm1_route.loader_takes */
-export function loaderTakes(running, pkg, runningText = "") {
+/* the running Optimist's word on its bootloader (fm1_route.py boot_of_info): the editor's INFO, tag 0x68 "boot=mboot",
+   "boot=stock" or "boot=unknown" (firmware/src/system/bootid.h). Asked of Optimist's identities only; no answer: not known */
+export const ED_INFO = [0xF0, 0x7D, 0x46, 0x4C, 0x01, 0xF7];
+export const ASKS_BOOT = /^FM-1_(7(00|[2-6]\d)|000|79\d{2,})$/;
+/** the word of INFO's tag 0x68 in an INFO reply (bytes), null without (an older Optimist) */
+export function bootOfInfo(bytes) {
+  const b = Array.from(bytes || []);
+  for (let i = 0; i + 2 < b.length; i++) {
+    if (b[i] !== 0x68) continue;
+    const n = b[i + 1], t = String.fromCharCode(...b.slice(i + 2, i + 2 + n));
+    if (/^boot=(mboot|stock|unknown)$/.test(t)) return t.slice(5);
+  }
+  return null;
+}
+/** true: m-bootloader is there; false: M-VAVE's bootloader is; null: not known */
+export function mbootPresentOf(word) {
+  return word === "mboot" ? true : word === "stock" ? false : null;
+}
+/** ask a running Optimist which bootloader it has, over the link the identity came on (link: fm1ota.js's, send / read /
+    drain) -> "mboot" | "stock" | "unknown" | null. Writes nothing */
+export async function askBoot(link, identity, ms = 1000) {
+  if (!link || !ASKS_BOOT.test(String(identity || ""))) return null;
+  link.drain();
+  if (!link.send(ED_INFO)) return null;
+  const end = Date.now() + ms;
+  while (Date.now() < end) {
+    const p = await link.read(end - Date.now());
+    if (!p) return null;
+    if (p[1] === 0x7D && p[2] === 0x46 && p[3] === 0x4C && p[4] === 1) return bootOfInfo(p);
+  }
+  return null;
+}
+
+/** [takes, why]: fm1_route.loader_takes (mbootPresent: the firmware's own word) */
+export function loaderTakes(running, pkg, runningText = "", mbootPresent = null) {
   if (pkg.kind === "mboot") return [false, "m-bootloader is installed through download mode (a full backup first)"];
+  if (mbootPresent === true && (running === "optimist" || running === "ambig000") && (pkg.kind === "v15" || pkg.kind === "stock"))
+    return [false, "m-bootloader is installed (the firmware says so): Optimist's updater refuses M-VAVE's package (-5, its head differs)"];
   if (running === "loader") return [true, "the update loader finishes the cut-off install"];
   if (running === "felucca" || running === "sloop") {
     if (pkg.kind === "fm1base") return [false, "its updater is assumed to refuse fm1-base packages"];
@@ -114,13 +149,18 @@ export function loaderTakes(running, pkg, runningText = "") {
   return [false, "nothing answers on USB-MIDI"];
 }
 
-/** { method: "loader" | "download", why, softKey, keys }: fm1_route.choose */
-export function chooseRoute(running, pkg, bootloader = "keep", runningText = "") {
-  const want = bootloader === "m-bootloader" && pkg.kind !== "mboot";
-  const [takes, why] = loaderTakes(running, pkg, runningText);
-  const softKey = SOFT_KEY_OK.has(running), keys = KEYS[running] || "";
-  if (!want && takes) return { method: "loader", why, softKey, keys };
-  return { method: "download", why: want ? "the build's BOOTLOADER is m-bootloader" : why, softKey, keys };
+/** { method: "loader" | "download", why, softKey, keys, wantsMboot }: fm1_route.choose. mbootPresent: the firmware's word
+    (true: m-bootloader is there already, nothing to install; null: not known, as before). wantsMboot: download mode only for
+    the build's m-bootloader, so the install that keeps the bootloader (the loader) is the other choice, as good */
+export function chooseRoute(running, pkg, bootloader = "keep", runningText = "", mbootPresent = null) {
+  const want = bootloader === "m-bootloader" && pkg.kind !== "mboot" && mbootPresent !== true;
+  let [takes, why] = loaderTakes(running, pkg, runningText, mbootPresent);
+  if (bootloader === "m-bootloader" && mbootPresent === true && pkg.kind !== "mboot")
+    why = "m-bootloader is on the FM-1 already (the firmware says so), kept; " + why;
+  const softKey = SOFT_KEY_OK.has(running), keys = mbootPresent === true
+    ? "hold REC while switching on (m-bootloader)" + (KEYS[running] ? "; or " + KEYS[running] : "") : KEYS[running] || "";
+  if (!want && takes) return { method: "loader", why, softKey, keys, wantsMboot: false };
+  return { method: "download", why: want ? "the build's BOOTLOADER is m-bootloader" : why, softKey, keys, wantsMboot: want && takes };
 }
 
 /** { choice, line }: the build's BOOTLOADER as this install takes it; keep (the override) only turns m-bootloader into

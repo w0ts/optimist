@@ -440,18 +440,20 @@ def settings():
 
 
 def js_route():
-    """web/install_route.js chooses as fm1_route.py does, for every pair of the matrix and both BOOTLOADER values"""
+    """web/install_route.js chooses as fm1_route.py does, for every pair of the matrix, both BOOTLOADER values and each
+    word of the firmware on its bootloader (none, m-bootloader there, M-VAVE's there)"""
     node = shutil.which("node")
     if not node:
         print("web/install_route.js against fm1_route.py: skipped (no node)")
         return
     import subprocess
-    cases = [(r, k, b) for r in R.MATRIX_RUNNING + (R.LOADER, R.OTHER) for k in R.MATRIX_PACKAGES for b in (R.KEEP, R.MBOOT)]
+    cases = [(r, k, b, m) for r in R.MATRIX_RUNNING + (R.LOADER, R.OTHER) for k in R.MATRIX_PACKAGES for b in (R.KEEP, R.MBOOT)
+             for m in (None, True, False)]
     pkgs = {k: R.sample_package(k).__dict__ for k in R.MATRIX_PACKAGES}
     js = ("import { chooseRoute as choose, runningKind, bootloaderChoice, bootloaderFromConfig } from %r;"
           "const [cases, pkgs] = JSON.parse(process.argv[1]);"
-          "const out = cases.map(([r, k, b]) => { const p = pkgs[k]; return choose(r, { kind: p.kind, product: p.product, "
-          "flashLen: p.flash_len, ownLoader: p.own_loader }, b, r === 'stock' ? 'FM-1_016' : '').method; });"
+          "const out = cases.map(([r, k, b, m]) => { const p = pkgs[k]; return choose(r, { kind: p.kind, product: p.product, "
+          "flashLen: p.flash_len, ownLoader: p.own_loader }, b, r === 'stock' ? 'FM-1_016' : '', m).method; });"
           "const ids = JSON.parse(process.argv[2]).map(([i, port]) => runningKind(i, port));"
           "const boots = [[null, false], ['keep', true], ['m-bootloader', false], ['m-bootloader', true]].map(([v, k]) => bootloaderChoice(v, k).choice);"
           "process.stdout.write(JSON.stringify([out, ids, boots, bootloaderFromConfig('X=1\\nBOOTLOADER=1\\n')]));") % str(ROOT / "web" / "install_route.js")
@@ -463,7 +465,7 @@ def js_route():
         ok(False, f"web/install_route.js runs ({r.stderr.strip()[:200]})")
         return
     out, kinds, boots, cfg = json.loads(r.stdout)
-    want = [R.choose(rk, R.sample_package(k), b, None, "FM-1_016" if rk == R.STOCK else "").method for rk, k, b in cases]
+    want = [R.choose(rk, R.sample_package(k), b, m, "FM-1_016" if rk == R.STOCK else "").method for rk, k, b, m in cases]
     diff = [c for c, a, b in zip(cases, out, want) if a != b]
     ok(not diff, f"web/install_route.js chooses as fm1_route.py: {len(cases)} cases" + (f" {diff[:5]}" if diff else ""))
     ok(kinds == [R.running_kind(i, p) for i, p in ids], "... and names the running firmware the same")
@@ -506,8 +508,8 @@ def flash_py():
            "the builder's 'keep the bootloader this time': --keep-bootloader, the loader again")
         IM.write(pkg, 0)
         plan = F.preflight(pkg, notes=[])
-        ok("bootloader: keep (from the build)" in "\n".join(plan.lines()) and not plan.download,
-           "BOOTLOADER keep: shown, the running firmware's loader")
+        ok("the USB-MIDI update" in "\n".join(plan.lines()) and "bootloader kept" in "\n".join(plan.lines())
+           and not plan.download, "BOOTLOADER keep: the running firmware's loader, the bootloader kept, said in one line")
     finally:
         F.run_tool = real
 
@@ -548,10 +550,96 @@ def mflasher():
     ok("third_party/m-flasher" in sub and "third_party/m-bootloader" in sub, ".gitmodules: m-flasher and m-bootloader")
 
 
+def enc_ffff(data):
+    """JieLi's ENC from state 0xFFFF (m-bootloader SPEC 5.1): a fixed keystream, one step a byte"""
+    out, st = bytearray(), 0xFFFF
+    for b in data:
+        out.append(b ^ (st & 0xFF))
+        st = ((st << 1) & 0xFFFF) ^ (0x1021 if st & 0x8000 else 0)
+    return bytes(out)
+
+
+def boot_word():
+    """the running Optimist's word on its bootloader (INFO tag 0x68, firmware/src/system/bootid.h) and what the routes
+    make of it (2026-10-31: the user, "implement something that talks to the optimist firmware and ask them")"""
+    # -- bootid.h's constants against the real bytes: M-VAVE's V15 flash.bin at 0xA0, m-bootloader 1.2's container
+    import re as _re
+    text = (ROOT / "firmware" / "src" / "system" / "bootid.h").read_text()
+    const = {n: bytes(int(x, 16) for x in _re.findall(r"0x([0-9a-f]{2})", body))
+             for n, body in _re.findall(r"(BOOTID_\w+)\[16\] = \{([^}]*)\}", text)}
+    _, _, v15 = AF.load(ROOT / "web" / "stock" / "FM-1_015.fwsc")
+    boot = (ROOT / "web" / "fm1base" / "m-bootloader" / "fm1-uboot-1.2.boot").read_bytes()
+    ok(const["BOOTID_STOCK_HEAD"] == v15[0xA0:0xB0], "bootid.h: the stock head is V15's flash.bin at 0xA0, as stored")
+    ok(const["BOOTID_MBOOT_TAG"] == enc_ffff(boot[16:16 + 0x50])[0x40:0x50] and boot[0x50:0x58] == b"AC79BLID",
+       "bootid.h: m-bootloader's tag is its container's payload +0x40 ciphered from the payload's start")
+    # -- the INFO reply's tag and the --info line
+    head = bytes([0xF0, 0x7D, 0x46, 0x4C, 1]) + b"FELUCCA 0.2\0" + bytes([0x66, 3]) + b"abc"
+    for w in ("mboot", "stock", "unknown"):
+        t = b"boot=" + w.encode()
+        ok(R.boot_of_info(head + bytes([0x68, len(t)]) + t + b"\xF7") == w, f"INFO tag 0x68: boot={w}")
+    ok(R.boot_of_info(head + b"\xF7") is None and R.boot_of_info(head + bytes([0x68, 3]) + b"boot=mboot\xF7") is None
+       and R.boot_of_info(b"") is None, "INFO without the tag (an older Optimist), or a length that does not match: none")
+    ok(R.boot_token("FM-1_7900  [running]  port: FM1-1A2B  boot=mboot") == "mboot"
+       and R.boot_token("FM-1_7900  [running]  port: FM1-1A2B") is None and R.boot_token("x boot=other") is None,
+       "--info line: the token at its end, nothing without it")
+    ok([R.mboot_present_of(w) for w in ("mboot", "stock", "unknown", None)] == [True, False, None, None],
+       "the token: mboot present, stock absent, unknown and none: not known")
+    # -- the routes with it
+    own, rel, v15p = R.sample_package(R.P_OPTIMIST), R.sample_package(R.P_FM1BASE), R.sample_package(R.P_V15)
+    r = R.choose(R.OPTIMIST, own, R.MBOOT, True)
+    ok(r.method == "loader" and not r.install_mboot and "already" in r.why,
+       "m-bootloader there, the build wants it: the USB-MIDI update, nothing to install")
+    r = R.choose(R.FM1BASE, rel, R.MBOOT, True, "FM-1_7900")
+    ok(r.method == "loader", "... the release over the release (fm1-base's updater) the same")
+    r = R.choose(R.OPTIMIST, own, R.MBOOT, False)
+    ok(r.method == "download" and r.install_mboot and any("m-bootloader" in s for s in r.steps),
+       "M-VAVE's bootloader there, the build wants m-bootloader: download mode with its step")
+    ok(R.choose(R.OPTIMIST, own, R.KEEP, False).method == "loader",
+       "... and the install that keeps the bootloader (the other choice) is the USB-MIDI update")
+    ok(R.choose(R.OPTIMIST, own, R.MBOOT, None) == R.choose(R.OPTIMIST, own, R.MBOOT),
+       "no token (an older firmware): as before")
+    r = R.choose(R.OPTIMIST, v15p, R.KEEP, True)
+    ok(r.method == "download" and "-5" in r.why, "V15 over Optimist with m-bootloader there: download mode at once (no -5 first)")
+    ok(R.choose(R.OPTIMIST, v15p, R.KEEP, False).method == "loader", "... with M-VAVE's bootloader: the updater, as before")
+    ok(R.choose(R.OPTIMIST, R.sample_package(R.P_MBOOT), R.KEEP, True).method == "download",
+       "m-bootloader's installer: download mode still")
+    # -- the builder's and make flash's plan from the --info line
+    import flash as F
+    pkg = write_pkg(TMP / "boot.fwsc", synth_flash(0x93000, 32), "FM-1_700")
+    IM.write(pkg, 1)
+    for line, want in (("FM-1_700  [running]  port: FM1-1A2B  boot=mboot", "loader"),
+                       ("FM-1_700  [running]  port: FM1-1A2B  boot=stock", "download"),
+                       ("FM-1_700  [running]  port: FM1-1A2B", "download")):
+        r, _ = F.route_of(pkg, line)
+        ok(r.method == want, f"flash.route_of {line[line.index('port'):]!r}: {want}")
+    real = F.run_tool
+    F.run_tool = lambda args, capture=True, on_line=None, tool=None: (0, "FM-1_700  [running]  port: FM1-1A2B  boot=mboot")
+    try:
+        plan = F.preflight(pkg, notes=[])
+        text = "\n".join(plan.lines())
+        ok(not plan.download and not plan.wants_mboot and "m-bootloader on it" in text
+           and "m-bootloader kept" in text and "1." not in text and len(plan.lines()) <= 5,
+           f"the builder's dialog with m-bootloader there: about four lines, no steps ({len(plan.lines())} lines)")
+        F.run_tool = lambda args, capture=True, on_line=None, tool=None: (0, "FM-1_700  [running]  port: FM1-1A2B  boot=stock")
+        plan = F.preflight(pkg, notes=[])
+        kept = F.keep_bootloader(plan)
+        ok(plan.download and plan.wants_mboot and "1." in "\n".join(plan.lines()) and not kept.download,
+           "M-VAVE's there: download mode with its steps, and the keep choice is the USB-MIDI update")
+    finally:
+        F.run_tool = real
+    # -- fm1_install.py --dry-run with the word given
+    out = io.StringIO()
+    with redirect_stderr(io.StringIO()):
+        FI.main([str(pkg), "--dry-run", "--running", "FM-1_700", "--boot", "mboot"], out=out)
+    ok("route:    loader" in out.getvalue() and "the firmware says so" in out.getvalue(),
+       "--dry-run --boot mboot: the loader, the bootloader said")
+
+
 if __name__ == "__main__":
     shutil.rmtree(TMP, ignore_errors=True)
     TMP.mkdir(parents=True)
-    for t in (detection, chooser, docs, sidecar, layouts, download_mode, dry_runs, settings, js_route, flash_py, mflasher):
+    for t in (detection, chooser, docs, sidecar, layouts, download_mode, dry_runs, settings, js_route, flash_py, mflasher,
+              boot_word):
         t()
     shutil.rmtree(TMP, ignore_errors=True)
     print("anyflash tests passed" if not fails else f"ANYFLASH TESTS FAILED ({fails})")

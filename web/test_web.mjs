@@ -3630,6 +3630,22 @@ e = list(L.known_ends()); print(json.dumps({f"{o}/{n}": L.switch_warning(None if
      "install: the -5 message gives the download-mode keys and M-Flasher");
 }
 {
+  /* the running Optimist's word on its bootloader (INFO tag 0x68; tools/fm1_route.py boot_of_info): asked over the link the
+     identity came on, Optimist's identities only; the route then skips download mode when m-bootloader is there already */
+  const IR = await import("./install_route.js");
+  const reply = (w) => [0xF0, 0x7D, 0x46, 0x4C, 1, ...Buffer.from("FELUCCA 0.2"), 0x66, 2, 0x61, 0x62, ...(w ? [0x68, 5 + w.length, ...Buffer.from("boot=" + w)] : []), 0xF7];
+  ok(IR.bootOfInfo(reply("mboot")) === "mboot" && IR.bootOfInfo(reply("stock")) === "stock" && IR.bootOfInfo(reply("unknown")) === "unknown"
+     && IR.bootOfInfo(reply(null)) === null && IR.bootOfInfo([0x68, 3, ...Buffer.from("boot=mboot")]) === null, "install: INFO tag 0x68 read, a wrong length or none: null");
+  const link = (answer) => { const L = { sent: [], q: [], drain() { L.q.length = 0; }, send(b) { L.sent.push(b); if (answer) L.q.push(answer); return true; }, async read() { return L.q.shift() || null; } }; return L; };
+  const a = link(reply("mboot")), b = link(reply("mboot")), c = link(reply(null));
+  ok(await IR.askBoot(a, "FM-1_7900", 50) === "mboot" && a.sent.length === 1 && await IR.askBoot(b, "FM-1_905", 50) === null && b.sent.length === 0
+     && await IR.askBoot(c, "FM-1_700", 50) === null, "install: an Optimist is asked (another firmware is not); an older Optimist: no word");
+  const own = { kind: "optimist", flashLen: 0x93000, ownLoader: true };
+  const there = IR.chooseRoute("optimist", own, "m-bootloader", "", IR.mbootPresentOf("mboot")), stock = IR.chooseRoute("optimist", own, "m-bootloader", "", IR.mbootPresentOf("stock"));
+  ok(there.method === "loader" && stock.method === "download" && stock.wantsMboot && IR.chooseRoute("optimist", own, "keep", "", false).method === "loader",
+     "install: m-bootloader there: the update; M-VAVE's there: download mode, with the keep-the-bootloader update offered beside it");
+}
+{
   /* the MEMORY layouts (bk_caps' app end and projects bytes; USR capacity 0 = the slot is gone): 0 slots / 4 projects and 2 slots / 16 projects */
   const lay = async (caps) => { const r = attachMock({ caps }); const L = await E.bkListAll(r.rq); const sm = E.parse[E.CMD.SMP_INFO](await r.rq(E.req.smpInfo())); r.teardown(); return { L, sm }; };
   const a = await lay({ appEnd: 0xB5000, projects: 4, usrCap: [0, 0, 0] });

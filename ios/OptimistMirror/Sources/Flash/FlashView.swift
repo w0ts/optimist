@@ -108,6 +108,9 @@ struct FlashView: View {
             if !flash.status.isEmpty { Text(flash.status).font(.footnote) }
             if let r = flash.result { Text(r).font(.footnote).foregroundStyle(.green) }
             if let e = flash.error { Text(e).font(.footnote).foregroundStyle(.red) }
+            if flash.keepOffered {             // (the build's m-bootloader, not on the FM-1: the update keeping the bootloader, as good)
+                Button("Install over USB-MIDI instead, keeping this bootloader") { flash.installKeepingBootloader() }.font(.footnote)
+            }
             if flash.softKeyOffered {
                 Button("Switch the FM-1 to download mode (for M-Flasher)") { Task { await flash.sendSoftKey() } }.font(.footnote)
             }
