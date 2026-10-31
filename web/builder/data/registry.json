@@ -5107,6 +5107,10 @@
       "1 sample slot, 16 projects: 655,292 B for code"
      ],
      [
+      6,
+      "2 sample slots, 4 projects: 659,388 B for code"
+     ],
+     [
       3,
       "0 sample slots, 16 projects: 720,828 B for code"
      ],
@@ -5138,6 +5142,9 @@
       "release": "not for the release yet: fm1-base's own update loader and app_end do not take the MEMORY steps' table (its slot switch would leave the old step's log sectors in the new one's; docs/SD-MODE-DESIGN.md 9.4, the proposed fm1-base branch pr/app-end-table)"
      },
      "5": {
+      "release": "not for the release yet: fm1-base's own update loader and app_end do not take the MEMORY steps' table (its slot switch would leave the old step's log sectors in the new one's; docs/SD-MODE-DESIGN.md 9.4, the proposed fm1-base branch pr/app-end-table)"
+     },
+     "6": {
       "release": "not for the release yet: fm1-base's own update loader and app_end do not take the MEMORY steps' table (its slot switch would leave the old step's log sectors in the new one's; docs/SD-MODE-DESIGN.md 9.4, the proposed fm1-base branch pr/app-end-table)"
      },
      "8": {
