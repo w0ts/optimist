@@ -152,13 +152,38 @@ static uint32_t mbr_lag(void)
 #else
 #define mbr_lag() MIR_BLE_LAG
 #endif
+/* A catch-up larger than the ring (2026-11-01, measured on the FM-1 from the Mac: the mixer of mots-config, 8.7-9.5 KB a catch-up,
+ * the ring 8 KB) was cut at its last band every time: behind again, the next catch-up cut the same, 2 a second for ever, the
+ * client showing the top of the screen only ("stuck there, not updating"). Inside a catch-up a full ring is now waited on while
+ * the radio drains it (its interrupts read the ring: progress), given up after MIR_STALL_MS without progress (no central
+ * reading). mbr.wait_ms: the time waited in this catch-up, which extends its window (the lag rule and base) by as much */
+#ifndef MBR_IDLE
+#define MBR_IDLE() ota_idle()
+#endif
+static uint32_t mbr_wait_ms;
+static int mir_bt_up(void);
+static int mbr_in_catch(void) { return fm1_ms - mir.catch_ms < MIR_CATCH_MS + mbr_wait_ms; }
+static void mbr_wait_room(void)
+{
+    uint32_t t0 = fm1_ms, r = mbr.r, start = fm1_ms;
+    while (mbr.fw - mbr.r >= MIR_BLE_RING && MBR_HAVE() && mir_bt_up()) {
+        if (mbr.r != r)
+            t0 = fm1_ms, r = mbr.r;
+        if (fm1_ms - t0 > MIR_STALL_MS)
+            break;
+        MBR_IDLE();
+    }
+    mbr_wait_ms += fm1_ms - start;
+}
 static int mbr_put(uint32_t b)
 {
     if (b == 0xF0u) {
         mbr.fw = mbr.w;
-        if (!mbr_reply && fm1_ms - mir.catch_ms >= MIR_CATCH_MS && mbr.w - ((int32_t)(mbr.base - mbr.r) > 0 ? mbr.base : mbr.r) > mbr_lag())
+        if (!mbr_reply && !mbr_in_catch() && mbr.w - ((int32_t)(mbr.base - mbr.r) > 0 ? mbr.base : mbr.r) > mbr_lag())
             return 0;                   /* (behind: the catch-up sends the screen as it is then) */
     }
+    if (mbr.fw - mbr.r >= MIR_BLE_RING && mbr_in_catch())
+        mbr_wait_room();                /* (a catch-up goes out whole: waited on while the radio drains) */
     if (mbr.fw - mbr.r >= MIR_BLE_RING || !MBR_HAVE())
         return 0;                       /* (full, or no ring: this frame is dropped, mbr.w never saw it) */
     mbr_q[mbr.fw++ % MIR_BLE_RING] = (uint8_t)b;
@@ -166,7 +191,7 @@ static int mbr_put(uint32_t b)
 }
 static void mbr_end(void)
 {
-    if (fm1_ms - mir.catch_ms < MIR_CATCH_MS)
+    if (mbr_in_catch())
         mbr.base = mbr.fw;              /* (a catch-up: its own bytes never count, or a slow link would catch up again and again) */
     RING_PUBLISH();
     mbr.w = mbr.fw;
@@ -661,6 +686,9 @@ static void mir_poll(void)
         return;
     mir.behind = 0;
     mir.catch_ms = fm1_ms;
+#if MIR_BLE
+    mbr_wait_ms = 0;
+#endif
     mir_enc_forget_all();               /* (a frame may have been lost: nothing known; the black makes every row known black) */
     mir_enc_fill_skip(0, 0, 240, 240, 0);   /* (black to the client only: the panel is not cleared) */
     op_repaint();
