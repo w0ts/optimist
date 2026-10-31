@@ -124,11 +124,42 @@ static uint32_t fxm_lent(uint32_t s)
 #else
 #define fxm_lent(s) ((void)(s), 0u)
 #endif
+/* (2026-10-31, ramaudit) a send line in a master slot only while its bus is heard: given back after FXM_IDLE_S seconds
+ * with no input and no tail (fx.c FXM_HEAR: what fx_buses would run), placed again at its next input (its first block
+ * or so of the send not heard). A new project's three send lines (102 KB on the user's build) then take nothing until
+ * a track sends to them. 0: while in a master slot, as before (the host tests' default: engines.c) */
+#ifndef FELUCCA_FXM_IDLE_FREE
+#define FELUCCA_FXM_IDLE_FREE 0
+#endif
+#ifndef FXM_IDLE_S
+#define FXM_IDLE_S 60u
+#endif
+#define FXM_IDLE_BLOCKS (FXM_IDLE_S * (uint32_t)FS / CTL)
+static uint32_t fxm_heard_at[3];
+static uint8_t fxm_heard_ever, fxm_hw_seen;
+static uint32_t fxm_used(uint32_t c)                  /* bus c had input or a tail in the last FXM_IDLE_S */
+{
+    return !FELUCCA_FXM_IDLE_FREE || ((fxm_heard_ever >> c & 1u) && fxm_blk - fxm_heard_at[c] < FXM_IDLE_BLOCKS);
+}
+static uint32_t fxm_hear_poll(void)                     /* (the main loop, a pass) -> the buses heard, a bit each */
+{
+    uint32_t c, h, m = 0;
+    fm1_irq_off();
+    h = fxm_hear;
+    fxm_hear = 0;
+    fm1_irq_on();
+    for (c = 0; c < 3u; c++) {
+        if (h >> c & 1u)
+            fxm_heard_at[c] = fxm_blk, fxm_heard_ever |= (uint8_t)(1u << c);
+        m |= fxm_used(c) << c;
+    }
+    return m;
+}
 static uint32_t fxm_want(uint32_t c)                    /* send line c is used now */
 {
     if (!FXM_BYTES[c])
         return 0;
-    return FXS_HAS(FXM_TY[c]) || (c < FXM_REV && fxm_lent(c));
+    return (FXS_HAS(FXM_TY[c]) && fxm_used(c)) || (c < FXM_REV && fxm_lent(c));
 }
 /* send line c zeroed and its bus at rest (gated: the audio does not run it), then the gate cleared */
 static void fxm_open(uint32_t c)
@@ -353,8 +384,9 @@ static void fxm_poll(void)
     uint8_t o[FXM_NC];
     uint32_t i, c;
     int wait;
+    uint32_t hw = fxm_hear_poll();
     arn_poll();
-    if (fxs_live == fxm_seen && !fxm_full && fxm_st[0] != FXM_GOING && fxm_st[1] != FXM_GOING &&
+    if (fxs_live == fxm_seen && hw == fxm_hw_seen && !fxm_full && fxm_st[0] != FXM_GOING && fxm_st[1] != FXM_GOING &&
         fxm_st[2] != FXM_GOING
 #if INS_LIM
         && !fxi_dirty && !fxi_pend
@@ -362,6 +394,7 @@ static void fxm_poll(void)
         )
         return;                                         /* (nothing changed: a few compares a pass) */
     fxm_seen = fxs_live;
+    fxm_hw_seen = (uint8_t)hw;
     for (c = 0; c < 3u; c++)
         if (FXM_BYTES[c])
             fxm_send(c);

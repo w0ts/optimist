@@ -17,6 +17,12 @@ static int16_t *dly_buf, *cho_buf;
  * rev_guard); fx_arena.c's, written with the interrupts off. fxm_tick: fx_ret_block's blocks (a line gated is given back
  * or cleared two blocks later: CPU1's kept reverb block, REV_LATE, has run by then) */
 static volatile uint8_t fxm_off = 7u, fxm_tick;
+/* (FELUCCA_FXM_IDLE_FREE, fx_arena.c: a send line only while its bus is heard) the buses that had input or a tail this
+ * block, as fx_buses planned them before the gates (a chain, rs: all three), and the blocks counted; the main loop reads
+ * and clears fxm_hear */
+static volatile uint8_t fxm_hear;
+static volatile uint32_t fxm_blk;
+#define FXM_HEAR(p) (fxm_hear |= (uint8_t)((p) & 7u), fxm_blk++)
 #else
 static int16_t dly_buf[DLY_BUF_N] __attribute__((section(".pool"), aligned(4)));
 static int16_t cho_buf[CHO_BUF_N] __attribute__((section(".pool"), aligned(4)));
@@ -1779,6 +1785,9 @@ static HOT int fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int3
         plan |= (uint32_t)rp_m & 7u & ~gen & FXB_BUILT;
     if (rs)
         plan |= FAR(rs_wake)(plan | (uint32_t)had << 2 | gen) & ~gen & FXB_BUILT;
+#if FXM_NEED
+    FXM_HEAR(rs ? 7u : plan);                           /* (fx_arena.c FELUCCA_FXM_IDLE_FREE: what each bus would run) */
+#endif
     plan = fx_ret_block(plan);                          /* (the returns, the guard) */
     run_c = (plan & FXB_C) != 0, run_d = (plan & FXB_D) != 0, run_r = (plan & FXB_R) != 0;
 #define FX_ALL_IDLE (FELUCCA_SKIP && !FELUCCA_SPRING && !(run_c | run_d | run_r | had | (int)rpl))   /* (SPRING: its own state) */
