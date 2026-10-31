@@ -47,11 +47,13 @@ _od = C.dump(_om)
 check("memory menu: an old .config with LAYOUT SDCARD RAM_PACKED and a retired FAR_OK=0 loads, MEMORY reads SD card mode, the dump names the two, not MEMORY or FAR_OK",
       _om["MEMORY"] == 2 and (_om["LAYOUT"], _om["SDCARD"], _om["RAM_PACKED"]) == (1, 1, 1) and "FAR_OK" not in _om
       and all(f"{k}=1" in _od.splitlines() for k in ("LAYOUT", "SDCARD")) and "MEMORY" not in _od and "FAR_OK" not in _od)
-check("... the menu lists MEMORY alone in the group's top level, SD_RING / SD_REC under it; the five others are hidden but real items",
-      [it.key for it in R.top_level("Memory management") if it.key in ("MEMORY", "RAM_PACKED", "SDCARD", "LAYOUT")] == ["MEMORY"]
-      and R.ITEMS["MEMORY"].menu_children == ["SD_RING", "SD_REC"] and R.ITEMS["SDCARD"].menu_children == []
+check("... the menu lists SD CARD MODE, SAMPLE SLOTS, PROJECTS in the group's top level, SD_RING / SD_REC under SD CARD MODE; "
+      "MEMORY and the others are hidden but real items",
+      [it.key for it in R.top_level("Memory management") if it.key in ("MEMORY", "SD_MODE", "SMP_SLOTS", "PROJECTS", "RAM_PACKED",
+                                                                        "SDCARD", "LAYOUT")] == ["SD_MODE", "SMP_SLOTS", "PROJECTS"]
+      and R.ITEMS["SD_MODE"].menu_children == ["SD_RING", "SD_REC"] and R.ITEMS["SDCARD"].menu_children == [] and R.ITEMS["MEMORY"].hidden
       and all(R.ITEMS[k].hidden for k in ("RAM_PACKED", "SDCARD", "LAYOUT")) and "FAR_OK" not in R.ITEMS and "FAR_OK" in R.RETIRED and R.ITEMS["RAM_PACKED"].bit == 437
-      and R.ITEMS["SD_RING"].parent == "SDCARD" and R.ITEMS["SD_RING"].shown_under == "MEMORY")
+      and R.ITEMS["SD_RING"].parent == "SDCARD" and R.ITEMS["SD_RING"].shown_under == "SD_MODE")
 check("backported items (SPRING, PUNCH_LATCH, UP_FM6, GRIDS_*) are in their parent's menu_children, like any option, in the children's order",
       all(k in R.ITEMS[R.ITEMS[k].parent].menu_children for k in ("SPRING", "PUNCH_LATCH", "UP_FM6", "GRIDS_EUCLID", "GRIDS_LFO", "GRIDS_VEL"))
       and [c for c in R.ITEMS["FX_REVERB"].children if c in R.ITEMS["FX_REVERB"].menu_children] == R.ITEMS["FX_REVERB"].menu_children)

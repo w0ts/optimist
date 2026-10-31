@@ -174,30 +174,42 @@ async def back_test():
 
 
 async def memory_menu_test():
-    """Memory management shows MEMORY alone (LAYOUT, SDCARD, RAM_PACKED hidden), SD_RING and SD_REC under it, live
-    in SD card mode only; each value sets LAYOUT / SDCARD as before"""
-    app = M.Builder(C.defaults(), "default")
+    """Memory management shows SD CARD MODE, SAMPLE SLOTS and PROJECTS (MEMORY, LAYOUT, SDCARD, RAM_PACKED hidden),
+    SD_RING and SD_REC under SD CARD MODE, live in SD card mode only, SAMPLE SLOTS and PROJECTS greyed then; each pick
+    sets LAYOUT / SDCARD (docs/SD-MODE-DESIGN.md 9.7)"""
+    app = M.Builder(dict(C.defaults(), PATTERNS=1), "default")
     async with app.run_test(size=(200, 60)) as pilot:
         await pilot.pause()
         n = app.nodes
-        check("memory: MEMORY is in the tree, LAYOUT SDCARD RAM_PACKED are not",
-              "MEMORY" in n and not any(k in n for k in ("LAYOUT", "SDCARD", "RAM_PACKED")))
-        check("... SD_RING and SD_REC are under MEMORY",
-              n["SD_RING"].parent.data == "MEMORY" and n["SD_REC"].parent.data == "MEMORY")
-        check("... MEMORY's values read normal / no user samples / more flash / SD card mode (in size order)",
-              [lab.split(":")[0] for _, lab in R.MEMORY_CHOICES] == ["normal", "no user samples", "more flash", "SD card mode"]
-              and "<normal>" in label(app, "MEMORY"))
-        check("... normal: SD_RING and SD_REC greyed", all("dim" in str(n[k].label.style) for k in ("SD_RING", "SD_REC")))
-        for want, name, items in ((4, "no user samples", (3, 0)), (1, "more flash", (1, 0)), (2, "SD card mode", (1, 1))):
-            await toggle(app, pilot, "MEMORY")
-            c = app.cfg
-            check(f"... {name}: LAYOUT / SDCARD as MEMORY sets them",
-                  c["MEMORY"] == want and (c["LAYOUT"], c["SDCARD"]) == items)
-            live = all("dim" not in str(n[k].label.style) for k in ("SD_RING", "SD_REC"))
-            check(f"... {name}: SD_RING / SD_REC {'live' if want == 2 else 'greyed'}", live == (want == 2))
-        await toggle(app, pilot, "MEMORY")
+        check("memory: SD_MODE, SMP_SLOTS, PROJECTS are in the tree; MEMORY LAYOUT SDCARD RAM_PACKED are not",
+              all(k in n for k in ("SD_MODE", "SMP_SLOTS", "PROJECTS"))
+              and not any(k in n for k in ("MEMORY", "LAYOUT", "SDCARD", "RAM_PACKED")))
+        check("... SD_RING and SD_REC are under SD_MODE",
+              n["SD_RING"].parent.data == "SD_MODE" and n["SD_REC"].parent.data == "SD_MODE")
+        check("... normal: SD_RING and SD_REC greyed, SAMPLE SLOTS and PROJECTS live",
+              all("dim" in str(n[k].label.style) for k in ("SD_RING", "SD_REC"))
+              and all("dim" not in str(n[k].label.style) for k in ("SMP_SLOTS", "PROJECTS")))
+        await toggle(app, pilot, "PROJECTS")              # (16 -> 2 is the next value round: 2, 16)
         c = app.cfg
-        check("... back to normal: both off", c["MEMORY"] == 0 and (c["LAYOUT"], c["SDCARD"]) == (0, 0))
+        check("... PROJECTS from 16 with 2 slots: the nearest step (no 2-slot 2-project step yet)",
+              c["PROJECTS"] in (2, 16) and c["LAYOUT"] in R.LAYOUT_STEPS)
+        app.cfg = C.sync_memory(dict(C.defaults(), PATTERNS=1))
+        app.refresh_all()
+        await toggle(app, pilot, "SMP_SLOTS")             # (2 -> 3: PATTERNS off)
+        c = app.cfg
+        check("... SAMPLE SLOTS 3: normal, PATTERNS off", (c["SMP_SLOTS"], c["LAYOUT"], c["PATTERNS"]) == (3, 0, 0))
+        await toggle(app, pilot, "SMP_SLOTS")             # (3 -> 0: no user samples, 16 projects)
+        c = app.cfg
+        check("... SAMPLE SLOTS 0: S0 (LAYOUT 3), PATTERNS on", (c["SMP_SLOTS"], c["LAYOUT"], c["PATTERNS"]) == (0, 3, 1))
+        await toggle(app, pilot, "SD_MODE")
+        c = app.cfg
+        check("... SD CARD MODE on: LAYOUT 1 + SDCARD; SD_RING / SD_REC live, SAMPLE SLOTS / PROJECTS greyed",
+              (c["LAYOUT"], c["SDCARD"]) == (1, 1) and all("dim" not in str(n[k].label.style) for k in ("SD_RING", "SD_REC"))
+              and all("dim" in str(n[k].label.style) for k in ("SMP_SLOTS", "PROJECTS")))
+        await toggle(app, pilot, "SD_MODE")
+        c = app.cfg
+        check("... SD CARD MODE off: the card off, the big step kept (0 slots, 2 projects)",
+              (c["LAYOUT"], c["SDCARD"], c["SMP_SLOTS"], c["PROJECTS"]) == (1, 0, 0, 2))
 
 
 async def dialog_wrap_test():

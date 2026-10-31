@@ -9,8 +9,47 @@
 
 export const SOFT_KEY = [0xF0, 0x22, 0x24, 0x35, 0x7D, 0xF7];
 export const V15_SHA256 = "db1642b2b6fa5c2cccb11ffd13878068bb28601678d3644049f99dc40e7edb8a";
-export const OWN_SLOTS = [0x93000, 0xB5000, 0xD0000];   // (every MEMORY step's flash.bin: tools/flash_layout.py own_slots, tests/flash_layout_test.py checks)
-export const MFLASHER_URL = "https://github.com/jvitkauskas/m-flasher/releases";   // (the fallback: the pinned release page is in the site's data, MFLASHER)
+export const OWN_SLOTS = [0x93000, 0xA5000, 0xA6000, 0xAA000, 0xB5000, 0xBA000, 0xBE000, 0xCA000, 0xD0000];   // (every MEMORY step's flash.bin: tools/flash_layout.py own_slots, tests/flash_layout_test.py checks)
+// every app end an installed firmware of ours may have: [end, layout, user sample slots kept, MEMORY's name] (tools/flash_layout.py
+// known_ends with its STEPS: tests/flash_layout_test.py checks this copy; the release's L1 ends at 0xCE000, the same step)
+export const LAYOUT_ENDS = [[0x93000, 0, 2, "normal"], [0xA5000, 2, 1, "one sample slot, 16 projects"], [0xA6000, 6, 2, "two sample slots, 4 projects"], [0xAA000, 7, 2, "two sample slots, 2 projects"], [0xB5000, 3, 0, "no user samples"], [0xBA000, 4, 1, "one sample slot, 4 projects"], [0xBE000, 5, 1, "one sample slot, 2 projects"], [0xCA000, 8, 0, "no user samples, 4 projects"], [0xCE000, 1, 0, "more flash"], [0xD0000, 1, 0, "more flash"]];
+const BACKUP_WHERE = "Back up first: web editor > Backup.";
+/** what installing the app ending at newEnd erases after the app ending at oldEnd (null: not known), by the switch rule
+ * (docs/SD-MODE-DESIGN.md 9.7.2; tools/flash_layout.py switch_loss, the same words): [] the same step */
+export function switchLoss(oldEnd, newEnd) {
+  const row = (e) => LAYOUT_ENDS.find((r) => r[0] === e);
+  const nw = row(newEnd);
+  if (!nw) return [];
+  const up = oldEnd == null ? null : Math.ceil(oldEnd / 0x1000) * 0x1000;
+  const od = (up != null && row(up)) || LAYOUT_ENDS[0];
+  if (up != null && row(up) && od[1] === nw[1]) return [];
+  const out = ["the projects in flash", "the FM6 voices of the user presets"];
+  const usr2 = od[2] >= 2 && nw[2] < 2, usr3 = od[2] >= 1 && nw[2] < 1;
+  if (usr2 && usr3) out.push("the user samples (USR2, USR3) and the snapshots");
+  else if (usr3) out.push("the user samples in USR3 and the snapshots");
+  else if (usr2) out.push("the user samples in USR2");
+  return out;
+}
+/** the one line before a layout change (the user, 2026-10-31: "when we flash a different layout, we warn the user to backup their
+ * data first"); "" when nothing is erased; oldEnd null: the installed layout is not known, the line says so */
+export function switchWarning(oldEnd, newEnd) {
+  const loss = switchLoss(oldEnd, newEnd);
+  if (!loss.length) return "";
+  const what = loss.length > 1 ? `${loss.slice(0, -1).join(", ")} and ${loss[loss.length - 1]}` : loss[0];
+  const name = LAYOUT_ENDS.find((r) => r[0] === newEnd)[3];
+  return oldEnd == null ? `If the FM-1 has another memory layout than this firmware's (${name}), installing it erases ${what}. ${BACKUP_WHERE}`
+    : `New memory layout (${name}): installing it erases ${what}. ${BACKUP_WHERE}`;
+}
+/** the installed app's end from the editor's bk_caps (ed_backup.c): a firmware of 2026-10-31 on says it (appEnd); an older one
+ * built normal says so by its LAYOUT bit (410) off; otherwise null (not known) */
+export function installedEndOf(caps) {
+  if (!caps) return null;
+  if (caps.appEnd) return caps.appEnd;
+  const bits = caps.bits || [];
+  const layoutOn = Math.floor((bits[Math.floor(410 / 7)] || 0) / 2 ** (410 % 7)) % 2 === 1;
+  return bits.length > Math.floor(410 / 7) && !layoutOn ? 0x93000 : null;
+}
+export const MFLASHER_URL ="https://github.com/jvitkauskas/m-flasher/releases";   // (the fallback: the pinned release page is in the site's data, MFLASHER)
 export const PATHS_URL = "https://github.com/w0ts/optimist/blob/main/docs/INSTALL-PATHS.md";
 
 const KEYS = {

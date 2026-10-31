@@ -317,6 +317,8 @@ static int ota_body(uint32_t src, uint32_t len, uint8_t *b, int prog, uint32_t *
 }
 
 static uint8_t ota_staging;                      /* the staging area was erased in this session (ota_session) */
+static uint8_t ota_relayout;                          /* the package is another MEMORY step than this firmware's: the screen
+                                                  * warns (ota_show; the user, 2026-10-31: warn, never refuse) */
 
 static int ota_stage(void)                       /* steps 1..6; 0 = host said success */
 {
@@ -332,6 +334,8 @@ static int ota_stage(void)                       /* steps 1..6; 0 = host said su
     if (!ota_step_size(fl_len))
         return -15;                                         /* another board's package: nothing erased (any step's */
                                                             /* size: the package's own loader writes it) */
+    ota_relayout = fl_len != FL_APP_HI;                     /* (another layout: its loader clears what the two keep */
+    ota_show(1, 0);                                         /* differently, docs/SD-MODE-DESIGN.md 9.3) */
     /* 2. which loader: the official one (known CRCs; it rewrites the whole flash.bin
      *    including the head) or Felucca's own (app area only, checks the chip key) */
     if (ota_read(ota_off, b, 512))
@@ -407,6 +411,7 @@ static int ota_session(void)
     int rc;
     ota_deadline = ota_now_ms() + 120000u;          /* step 1 normally takes ~5 s; a stalled host gives up after 2 min */
     ota_staging = 0;
+    ota_relayout = 0;
     rc = ota_stage();
     if (rc) {
         if (ota_staging)                            /* (refused before staging: nothing to erase) */

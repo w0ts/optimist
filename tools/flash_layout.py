@@ -11,11 +11,16 @@ slot ends and where it keeps what it moves. Everything else takes it from here:
                              copies, checked against this table by tests/flash_layout_test.py (the web page and the
                              iOS app cannot import it)
 
-  0  N   normal           the app slot [0x4000, 0x93000)
-  1  L1  more flash       the app slot [0x4000, 0xD0000), the store squeezed into 0xD0000..0xD9FFF (one project)
-  3  S0  no user samples  the app slot [0x4000, 0xB5000), above it the FM6 voices, autosave A and a 32-sector log
-  (2 is kept for S1, one sample slot: the design's, not built)
+The builder's three MEMORY choices (docs/SD-MODE-DESIGN.md 9.7): SD CARD MODE (L1 with the card), else SAMPLE SLOTS
+(0, 1: USR3, 2: USR2 + USR3) x PROJECTS (2, 4, 16). Each pair is one step: the slots kept stay where normal has them,
+and under them, top down, the project log, autosave copy A, the FM6 voices; the app ends there (`stacked`).
+
+  0  N   normal           2 slots, 16 projects: the app slot [0x4000, 0x93000), the store as before
+  1  L1  more flash       0 slots, 2 projects: [0x4000, 0xD0000), the store squeezed into 0xD0000..0xD9FFF; SD card mode
+  3  S0  no user samples  0 slots, 16 projects: [0x4000, 0xB5000), above it the FM6 voices, autosave A, a 32-sector log
 """
+from __future__ import annotations
+
 from dataclasses import dataclass
 
 APP_LO = 0x4000
@@ -40,19 +45,38 @@ class Step:
     autosave_a: int       # the working project's autosave copy A (copy B 0xFE000 in every step)
     log_lo: int           # the project log (sec_log.c SEC_LOG_BASE)
     log_sectors: int      # its sectors; 0: the build's rule (normal: 20 with user samples, else 32)
-    samples: bool         # user sample slots, snapshots and the CZ collection (USR3) kept
-    projects: int         # the projects the flash keeps (registry.h PROJ_SLOTS)
+    slots: int            # the user sample slots kept (USR3 1, USR2 + USR3 2; with USR3 the snapshots and the CZ
+                          # collection); normal 2 (3 without PATTERNS: eng_sample.c)
+    projects: int         # the projects the flash keeps (registry.h PROJ_SLOTS; SD card mode 1)
+
+
+SLOT_TOP = {0: 0xD8000, 1: 0xC8000, 2: 0xB4000}   # where the kept slots start (0: OBJ_PANEL's 0xD8000, the release's)
+LOG_SECTORS = {2: 7, 4: 11, 16: 32}               # the project log by PROJECTS (about 8 KiB a project, 16 the tightest)
+
+
+def stacked(layout: int, key: str, name: str, slots: int, projects: int) -> Step:
+    """a step of the grid (docs/SD-MODE-DESIGN.md 9.7.1): under the kept slots the log, autosave A, the FM6 voices;
+    the app ends at the FM6 voices; the release's end the same (OBJ_PANEL stays at 0xD8000)"""
+    top, n = SLOT_TOP[slots], LOG_SECTORS[projects]
+    log_lo = top - n * SECTOR
+    end = log_lo - 3 * SECTOR
+    return Step(layout, key, name, end, top, end, False, end, end, log_lo - SECTOR, log_lo, n, slots, projects)
 
 
 STEPS = {
     0: Step(0, "N", "normal", 0x93000, 0x93000, 0x93000, True,
-            0x95000, 0x97000, 0x9F000, 0xA0000, 0, True, 16),
+            0x95000, 0x97000, 0x9F000, 0xA0000, 0, 2, 16),
     1: Step(1, "L1", "more flash", 0xD0000, 0xDA000, 0xCE000, True,
-            0xD8000, 0xD0000, 0xD7000, 0xD0000, 7, False, 1),
-    3: Step(3, "S0", "no user samples", 0xB5000, 0xD8000, 0xB5000, False,
-            0xB5000, 0xB5000, 0xB7000, 0xB8000, 32, False, 16),
+            0xD8000, 0xD0000, 0xD7000, 0xD0000, 7, 0, 2),
+    3: stacked(3, "S0", "no user samples", 0, 16),
+    8: stacked(8, "S0-4", "no user samples, 4 projects", 0, 4),
+    2: stacked(2, "S1-16", "one sample slot, 16 projects", 1, 16),
+    4: stacked(4, "S1-4", "one sample slot, 4 projects", 1, 4),
+    5: stacked(5, "S1-2", "one sample slot, 2 projects", 1, 2),
+    6: stacked(6, "S2-4", "two sample slots, 4 projects", 2, 4),
+    7: stacked(7, "S2-2", "two sample slots, 2 projects", 2, 2),
 }
-ORDER = (0, 3, 1)         # by size: the builder's MEMORY choices and the tables list them so
+ORDER = tuple(sorted(STEPS, key=lambda k: STEPS[k].end))   # by size: the tables list them so
 
 APP_HI = {k: s.end for k, s in STEPS.items()}
 NAMES = {k: s.name for k, s in STEPS.items()}
@@ -71,7 +95,10 @@ def _check_table():
             parts = sorted([(s.upf, s.upf + 2 * SECTOR), (s.autosave_a, s.autosave_a + SECTOR), (s.log_lo, log_hi)])
             assert all(a[1] <= b[0] for a, b in zip(parts, parts[1:])), f"{s.key}: its store's parts overlap"
             assert parts[0][0] >= s.end and parts[-1][1] <= s.reloc and s.data_lo == min(s.end, s.log_lo), s.key
-            assert not s.samples and s.log_sectors, s.key
+            assert s.log_sectors and s.reloc <= (CLEAR_TOP if s.slots == 0 else SLOT_TOP[s.slots]), s.key
+            assert s.slots == 0 or s.reloc == SLOT_TOP[s.slots], f"{s.key}: its kept slots stay where normal has them"
+    rel = {s.release_end for s in STEPS.values()} - {s.end for s in STEPS.values()}
+    assert not rel & set(ends), "a classic end equal to another step's release end"
 
 
 _check_table()
@@ -151,6 +178,48 @@ def switch_clear_ends(old_end: int, new_end: int) -> tuple:
     return (new_end, hi) if hi > new_end else (0, 0)
 
 
+BACKUP_WHERE = "Back up first: web editor > Backup."
+
+
+def switch_loss(old_end: int | None, new_end: int) -> tuple:
+    """what an install of the app ending at new_end erases of the user's data after the app ending at old_end, by the
+    switch rule (docs/SD-MODE-DESIGN.md 9.7.2): () for the same step (own <-> release in one step too); the projects in
+    flash and the user presets' FM6 voices whenever the step changes (the log, autosave A and the voices move); the user
+    sample slots the old step kept and the new one does not (USR2; USR3 with the snapshots and the CZ collection).
+    old_end None: not known (the words of a change from normal)"""
+    ends = known_ends()
+    if new_end not in ends:
+        raise ValueError(f"app end {new_end:#x}: no step's")
+    new = STEPS[ends[new_end][0]]
+    old_up = None if old_end is None else (old_end + SECTOR - 1) & ~(SECTOR - 1)
+    old = STEPS[ends[old_up][0]] if old_up in ends else STEPS[0]
+    if old_up in ends and old.layout == new.layout:
+        return ()
+    out = ["the projects in flash", "the FM6 voices of the user presets"]
+    usr2, usr3 = old.slots >= 2 > new.slots, old.slots >= 1 > new.slots
+    if usr2 and usr3:
+        out.append("the user samples (USR2, USR3) and the snapshots")
+    elif usr3:
+        out.append("the user samples in USR3 and the snapshots")
+    elif usr2:
+        out.append("the user samples in USR2")
+    return tuple(out)
+
+
+def switch_warning(old_end: int | None, new_end: int) -> str:
+    """the one line every installer and the builder show before a switch (the user, 2026-10-31: "when we flash a
+    different layout, we warn the user to backup their data first"); "" when nothing is erased. old_end None: the
+    installed step is not known: the line says so"""
+    loss = switch_loss(old_end, new_end)
+    if not loss:
+        return ""
+    what = ", ".join(loss[:-1]) + " and " + loss[-1] if len(loss) > 1 else loss[0]
+    name = STEPS[known_ends()[new_end][0]].name
+    if old_end is None:
+        return f"If the FM-1 has another memory layout than this firmware's ({name}), installing it erases {what}. {BACKUP_WHERE}"
+    return f"New memory layout ({name}): installing it erases {what}. {BACKUP_WHERE}"
+
+
 def switch_clear(old_end: int, new_layout: int) -> tuple:
     """the sectors [lo, hi) a switch to the classic new_layout clears before the new app is written (ldr_core.c
     ldr_layout_switch). old_end: where the installed app area ends (its app_area_head; rounded up to a sector here)"""
@@ -194,8 +263,10 @@ def c_header() -> str:
                   f"#define FL_LOG_LO {_h(s.log_lo)}",
                   f"#define FL_LOG_SECTORS {s.log_sectors}u" + ("                       /* 0: sec_log.c's rule (20 with user "
                                                                  "samples, else 32) */" if not s.log_sectors else ""),
-                  f"#define FL_USER_SAMPLES {int(s.samples)}                       /* user sample slots, snapshots, the CZ "
+                  f"#define FL_USER_SAMPLES {int(s.slots > 0)}                       /* user sample slots, snapshots, the CZ "
                   "collection */",
+                  f"#define FL_USER_SLOTS {s.slots}u                        /* the slots kept, from USR3 down (normal: "
+                  "eng_sample.c's rule) */",
                   f"#define FL_PROJ_SLOTS {s.projects}u"]
     names = ", ".join(f"{s.layout} ({s.name})" for s in sorted(STEPS.values(), key=lambda s: s.layout))
     lines += ["#else", f'#error "FELUCCA_LAYOUT: {names} (tools/flash_layout.py)"', "#endif", ""]

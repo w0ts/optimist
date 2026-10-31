@@ -752,6 +752,18 @@ def check(img, syms, dis, rt):
     else:
         notes.append(f".ram_text: {len([ln for ln in rt.splitlines() if LINE.match(ln)])} insns, no calls")
     far = []
+    # a jump table (pi32v2-llvm's .Ljt* label, a switch's goto r2) is data in .text: the disassembler prints its entries
+    # as instructions, and an entry, an XIP address in its own function, can read as a far call (2026-10-31: m-chk-dev~,
+    # bk_commit_sec's .Ljta3). Such a word is skipped: within a table's first 1 KiB and naming an address near the table
+    jts = sorted(int(m.group(1), 16) for m in re.finditer(r"^([0-9a-f]+) .*\s\.Ljt\S*$", syms, re.M))
+
+    def in_jump_table(pc, raw):
+        import bisect
+        i = bisect.bisect_right(jts, pc) - 1
+        if i < 0 or pc - jts[i] >= 0x400 or len(raw.split()) != 4:
+            return False
+        word = int.from_bytes(bytes.fromhex(raw.replace(" ", "")), "little")
+        return abs(word - jts[i]) < 0x8000
     import romref                   # nothing may call the chip ROM or use its addresses (tools/romref.py: a constant
     for val in romref.rom_refs(dis):                            # kept as a number, e.g. pi32v2-llvm's, passes)
         errors.append(f"reference to ROM address {val:#010x}")
@@ -763,7 +775,7 @@ def check(img, syms, dis, rt):
         # refuse it; this catches one that wrapped instead. Target = pc + offset + 4 (also for the
         # conditional form "if (..) { call N }", whose label is printed on the next line)
         c = re.search(r"\bcall (-?\d+)\b", mm.group(3))
-        if c:
+        if c and not in_jump_table(int(mm.group(1), 16), mm.group(2)):
             pc = int(mm.group(1), 16)
             if (pc >= 0x02000000) != ((pc + int(c.group(1)) + 4) & 0xFFFFFFFF >= 0x02000000):
                 far.append(f"{pc:#x} -> {(pc + int(c.group(1)) + 4) & 0xFFFFFFFF:#x}")

@@ -223,7 +223,7 @@ class Builder(App):
     def node_label(self, key):
         it = R.ITEMS[key]
         v = self.cfg[key]
-        live = (not it.parent or C.built(self.cfg, it.parent)) and (not it.shown_under or C.built(self.cfg, it.shown_under)) and (key not in R.DRUMS_ONLY or C.built(self.cfg, "DRUMS"))
+        live = (not it.parent or C.built(self.cfg, it.parent)) and (not it.shown_under or C.built(self.cfg, it.shown_under)) and (key not in R.DRUMS_ONLY or C.built(self.cfg, "DRUMS")) and not (it.dim_when and C.built(self.cfg, it.dim_when))
         if it.is_choice:
             lab = dict(it.choices).get(v, str(v))
             box = f"<{lab}>"
@@ -532,10 +532,11 @@ class Builder(App):
             self.cfg[key] = vals[(vals.index(self.cfg[key]) + step) % len(vals)] if self.cfg[key] in vals else vals[0]
         else:
             self.cfg[key] = 0 if self.cfg[key] else 1
-        if it.notice and (self.cfg[key] or it.notice_on_change and self.cfg[key] != before[key]):
-            self.notify(it.notice, title=it.label, severity="warning", timeout=8)
         old = self.room
         self.cfg, self.room = RM.after_toggle(before, self.cfg, key, old)      # (BLE replaces samples)
+        notice = C.change_notice(key, before, self.cfg)                   # (a memory item: the layout's backup warning)
+        if notice:
+            self.notify(notice, title=it.label, severity="warning", timeout=12)
         if self.room.note and self.room.note != old.note:
             self.notify(self.room.note, title="BLE", severity="warning", timeout=12)
         self.refresh_all()
@@ -940,6 +941,7 @@ class Builder(App):
         title = "Flash to FM-1\n\n" + "\n".join(plan.lines())
         keep = "Flash, but keep the bootloader this time (not m-bootloader)"
         go = ("Flash anyway (the FM-1 may refuse it)" if plan.warn else
+              "Flash anyway (a new memory layout: backed up first?)" if plan.layout_known else
               "Flash through download mode (a full backup first)" if plan.download else "Flash to FM-1 (writes the firmware)")
         offer_keep = "m-bootloader (from the build)" in plan.boot_line       # (the override only goes to keep)
         ask = plan.download and plan.settings is not None and plan.settings.ask   # (keep or erase the settings: asked)

@@ -59,6 +59,7 @@ class Plan:
         self.route = route                               # fm1_route.Route: the update loader, or download mode
         self.boot_line = boot_line                       # the build's BOOTLOADER as this install takes it
         self.keep_bootloader = keep_bootloader           # --keep-bootloader for this install
+        self.layout_warn, self.layout_known = layout_note(package)   # the backup warning of a layout change (never a refusal)
 
     def settings_line(self):
         import fm1_route as R
@@ -83,6 +84,7 @@ class Plan:
                 *([self.settings_line()] if self.settings and self.download else []),
                 *how,
                 *([f"WARNING   {self.warn}"] if self.warn else []),
+                *([f"LAYOUT    {self.layout_warn}"] if self.layout_warn else []),
                 "",
                 "This replaces the firmware on the FM-1 now. Do not unplug it while it writes (about a minute).",
                 RECOVER]
@@ -297,4 +299,63 @@ def install(plan, capture=True, on_line=None):
             *(["--route", "download"] if plan.download else []),
             *([f"--{plan.settings_flag}-settings"] if plan.download and plan.settings_flag else [])]
     extra = {"tool": plan.tool} if plan.tool else {}      # (Optimist's own tool: as it was called before the release)
-    return run_tool(args, capture, on_line, **extra) if on_line else run_tool(args, capture, **extra)
+    rc, out = run_tool(args, capture, on_line, **extra) if on_line else run_tool(args, capture, **extra)
+    if rc == 0:
+        remember_install(plan.package)
+    return rc, out
+
+
+# ---- the layout warning (the user, 2026-10-31: "when we flash a different layout, we warn the user to backup their data
+# first"): the FM-1's installed layout is not readable over the update protocol, so this computer remembers the layout of
+# its last install (build/last-install.json); with none, the warning says the installed layout is not known
+LAST_INSTALL = ROOT / "build" / "last-install.json"
+
+
+def package_end(package):
+    """the package's flash.bin end (its MEMORY step's app end); None when it is not one of ours"""
+    import flash_layout
+    try:
+        end = FI.flash_size(FI.logical_image(Path(package).read_bytes()))
+    except (OSError, ValueError, IndexError) as e:     # (a file too short for a package's head)
+        print(f"flash: cannot read the package's layout ({e})", file=sys.stderr)
+        return None
+    return end if end in flash_layout.known_ends() else None
+
+
+def last_install_end():
+    """the app end of the last install from this computer, None when none is recorded (or the record is unreadable)"""
+    import json
+    try:
+        return int(json.loads(LAST_INSTALL.read_text())["end"], 16)
+    except FileNotFoundError:
+        return None
+    except (OSError, ValueError, KeyError, TypeError) as e:
+        print(f"flash: {LAST_INSTALL} unreadable ({e}): the installed layout is not known", file=sys.stderr)
+        return None
+
+
+def layout_note(package):
+    """-> (the warning line, whether the installed layout is known to differ): the last install's layout against the
+    package's (flash_layout.switch_warning); ("", False) for the same layout or a package not of ours"""
+    import flash_layout
+    end = package_end(package)
+    if end is None:
+        return "", False
+    prev = last_install_end()
+    line = flash_layout.switch_warning(prev, end)
+    if prev is not None and line:
+        line += " (the layout of the last install from this computer)"
+    return line, prev is not None and bool(line)
+
+
+def remember_install(package):
+    """after an install that worked: its layout is the FM-1's now (build/last-install.json)"""
+    import json
+    end = package_end(package)
+    if end is None:
+        return
+    try:
+        LAST_INSTALL.parent.mkdir(parents=True, exist_ok=True)
+        LAST_INSTALL.write_text(json.dumps({"end": f"{end:#x}", "package": Path(package).name}) + "\n")
+    except OSError as e:
+        print(f"flash: the installed layout was not recorded ({e})", file=sys.stderr)

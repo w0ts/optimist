@@ -54,7 +54,9 @@ def synth_flash(end, seed):
     head = bytearray(M.entry(M.crc16(isd), 0x500, len(isd), 0x02, 0x80, 0, "isd_config.ini"))
     M.enc(head, 0, 32)
     f[32:64] = head
-    app = bytearray(M.entry(0xFFFF, 0x4000, end - 0x4000 - 0x1000, 0x83, 0xFF, 0, "app_area_head"))
+    app = bytearray(M.entry(0xFFFF, 0x4000, end - 0x4000 - 0xF24 + 0x1B4, 0x83, 0xFF, 0, "app_area_head"))   # (as
+    # fm1pkg_make.py's: the block ends inside the slot's last sector; a block ending a whole sector short would name the
+    # step 4 KiB below, LAYOUT 2's 0xA5000 for LAYOUT 6's 0xA6000)
     M.sfc(app, 0, 32, 0, 0x980F)
     f[0x4000:0x4020] = app
     return bytes(f)
@@ -66,7 +68,8 @@ def unit_flash(end, seed=7):
     f = bytearray(L.FLASH_SIZE)
     f[0:end] = synth_flash(end, seed)
     for a in range(end, L.FLASH_SIZE):
-        f[a] = (a >> 12) & 0xFF ^ 0x5A
+        v = (a >> 12) & 0xFF ^ 0x5A
+        f[a] = v if v != 0xFF else 0x5A                  # (never a blank sector: 0xA5000's pattern was 0xFF, read as no data)
     f[0:0x4000] = bytes([0xB7]) * 0x4000                 # (the unit's boot area: its own)
     return bytes(f)
 
@@ -210,7 +213,9 @@ def layouts():
                     (0xB5000, 0xCE000): (0xCE000, 0xDA000),
                     (0xD0000, 0x93000): (0x93000, 0xDA000), (0xD0000, 0xB5000): (0xB5000, 0xDA000),
                     (0xD0000, 0xCE000): (0xCE000, 0xD0000),
-                    (0xCE000, 0x93000): (0x93000, 0xDA000), (0xCE000, 0xB5000): (0xB5000, 0xDA000)}.get((e1, e2), (0, 0))
+                    (0xCE000, 0x93000): (0x93000, 0xDA000), (0xCE000, 0xB5000): (0xB5000, 0xDA000)}.get(
+                (e1, e2), L.flash_layout.switch_clear_ends(e1, e2) if {e1, e2} - {0x93000, 0xB5000, 0xD0000, 0xCE000} else (0, 0))
+            # (a later grid step: the rule's, written out in tests/flash_layout_test.py and tests/ldr_test.c)
             lost_ok = (not p.lost) if e2 <= e1 else (p.lost and p.lost[0][0] == e1)
             ok(kept and right and cleared and rest and (lo, hi) == want and lost_ok and set(L.changed(cur, tgt)) == set(p.sectors),
                f"layout {n1} -> {n2}: package area, clear {lo:#x}-{hi:#x}, kept regions untouched, data above kept")
@@ -475,15 +480,26 @@ def flash_py():
         seen.append(list(args))
         return (0, "FM-1_700  [running]  port: FM1-1A2B") if "--info" in args else (0, "done")
     real, F.run_tool = F.run_tool, fake_tool
+    F.LAST_INSTALL = TMP / "last-install.json"         # (this test's installs record nothing in the repo's build/)
+    F.LAST_INSTALL.unlink(missing_ok=True)
     try:
         plan = F.preflight(pkg, notes=[])
         text = "\n".join(plan.lines())
+        ok(not plan.layout_known and "LAYOUT    If the FM-1 has another memory layout than this firmware's (normal)" in text,
+           "the layout warning, no install recorded here: the installed layout not known, said so (never a refusal)")
         ok("bootloader: m-bootloader (from the build)" in text and plan.download and "route:    download mode" in text,
            "make flash / the builder's f: the confirmation shows the bootloader and the route")
         F.install(plan)
         ok(seen[-1][:2] == [str(pkg), "--yes"] and "--route" in seen[-1] and "--keep-bootloader" not in seen[-1]
            and "--wipe-settings" not in seen[-1] and "settings: kept" in text,
            "... the install runs fm1_install.py --yes --route download")
+        ok(F.last_install_end() == 0x93000, "an install that worked records its layout (build/last-install.json)")
+        s0 = write_pkg(TMP / "optimist-8.8-s0.fwsc", synth_flash(0xB5000, 41), "FM-1_700")
+        sp = F.preflight(s0, notes=[])
+        ok(sp.layout_known and "LAYOUT    New memory layout (no user samples): installing it erases the projects in flash"
+           in "\n".join(sp.lines()) and "last install from this computer" in sp.layout_warn,
+           "... the next package of another layout: the warning names what it erases (and asks 'anyway')")
+        ok(F.layout_note(pkg) == ("", False), "... a package of the same layout: no warning")
         kept = F.keep_bootloader(plan)
         F.install(kept)
         ok(kept.keep_bootloader and not kept.download and "--keep-bootloader" in seen[-1] and "--route" not in seen[-1],

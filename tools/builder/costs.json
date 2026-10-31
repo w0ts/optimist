@@ -1,6 +1,6 @@
 {
  "base": {
-  "flash": 684588,
+  "flash": 684772,
   "ram": 75640,
   "pool": 376996,
   "ramtext": 39800
@@ -10,7 +10,13 @@
   "sram": 474880,
   "flash_by_layout": {
    "1": 831420,
-   "3": 720828
+   "2": 655292,
+   "3": 720828,
+   "4": 741308,
+   "5": 757692,
+   "6": 659388,
+   "7": 675772,
+   "8": 806844
   }
  },
  "deltas": {
@@ -1282,6 +1288,12 @@
     "ram": 0,
     "pool": 0,
     "ramtext": 0
+   },
+   "5": {
+    "flash": 0,
+    "ram": 0,
+    "pool": 0,
+    "ramtext": 0
    }
   },
   "RAM_PACKED": {
@@ -1624,15 +1636,51 @@
    }
   },
   "LAYOUT": {
+   "2": {
+    "flash": 28,
+    "ram": 0,
+    "pool": 96,
+    "ramtext": 0
+   },
+   "6": {
+    "flash": 152,
+    "ram": 0,
+    "pool": -72,
+    "ramtext": 0
+   },
+   "7": {
+    "flash": 156,
+    "ram": 0,
+    "pool": -104,
+    "ramtext": 0
+   },
    "3": {
-    "flash": -528,
-    "ram": 12,
+    "flash": -616,
+    "ram": 76,
     "pool": 104,
     "ramtext": -4
    },
+   "4": {
+    "flash": 80,
+    "ram": 0,
+    "pool": -72,
+    "ramtext": 0
+   },
+   "5": {
+    "flash": 84,
+    "ram": 0,
+    "pool": -104,
+    "ramtext": 0
+   },
+   "8": {
+    "flash": -552,
+    "ram": 76,
+    "pool": -64,
+    "ramtext": -4
+   },
    "1": {
-    "flash": -488,
-    "ram": 12,
+    "flash": -556,
+    "ram": 76,
     "pool": -96,
     "ramtext": -4
    }
@@ -1730,9 +1778,51 @@
     "pool": 66480,
     "ramtext": 116
    }
+  },
+  "SD_MODE": {
+   "1": {
+    "flash": 0,
+    "ram": 0,
+    "pool": 0,
+    "ramtext": 0
+   }
+  },
+  "SMP_SLOTS": {
+   "0": {
+    "flash": 0,
+    "ram": 0,
+    "pool": 0,
+    "ramtext": 0
+   },
+   "1": {
+    "flash": 0,
+    "ram": 0,
+    "pool": 0,
+    "ramtext": 0
+   },
+   "2": {
+    "flash": 0,
+    "ram": 0,
+    "pool": 0,
+    "ramtext": 0
+   }
+  },
+  "PROJECTS": {
+   "2": {
+    "flash": 0,
+    "ram": 0,
+    "pool": 0,
+    "ramtext": 0
+   },
+   "4": {
+    "flash": 0,
+    "ram": 0,
+    "pool": 0,
+    "ramtext": 0
+   }
   }
  },
- "measured": "2026-10-30 22:33",
+ "measured": "2026-10-31 10:46",
  "cpu": {
   "scale_pct": 104,
   "calibrated": "2026-10-06, emulator at 96 MHz, bench.c scenarios 1 2 3 7 8 (docs/CPU-GUARD.md); X0X: 2026-10-07, scenario 8 on the X0X 909 and 808 kits (x0x-drums)",
@@ -1846,9 +1936,9 @@
    },
    "built_hash": "659e2911",
    "sizes": {
-    "flash": 547016,
-    "ram": 89836,
-    "pool": 329484,
+    "flash": 547220,
+    "ram": 89840,
+    "pool": 329488,
     "ramtext": 28972
    },
    "contexts": {
@@ -1856,9 +1946,9 @@
      "from": 1,
      "to": 0,
      "delta": {
-      "flash": 15296,
-      "ram": 1500,
-      "pool": 4,
+      "flash": 15284,
+      "ram": 1496,
+      "pool": 0,
       "ramtext": 204
      }
     },
@@ -1866,9 +1956,9 @@
      "from": 0,
      "to": 1,
      "delta": {
-      "flash": 9576,
+      "flash": 9568,
       "ram": 52,
-      "pool": 560,
+      "pool": 552,
       "ramtext": 0
      }
     }
@@ -1970,9 +2060,9 @@
    },
    "built_hash": "7a4c818a",
    "sizes": {
-    "flash": 585824,
-    "ram": 90304,
-    "pool": 345860,
+    "flash": 586020,
+    "ram": 90308,
+    "pool": 345856,
     "ramtext": 27764
    },
    "contexts": {
@@ -1980,9 +2070,9 @@
      "from": 1,
      "to": 0,
      "delta": {
-      "flash": 15328,
-      "ram": 1620,
-      "pool": 4,
+      "flash": 15316,
+      "ram": 1616,
+      "pool": 8,
       "ramtext": 4
      }
     },
@@ -1992,7 +2082,7 @@
      "delta": {
       "flash": 3028,
       "ram": 60,
-      "pool": 552,
+      "pool": 560,
       "ramtext": 0
      }
     }
@@ -2074,9 +2164,9 @@
    },
    "built_hash": "10e31dcf",
    "sizes": {
-    "flash": 582832,
-    "ram": 95844,
-    "pool": 309620,
+    "flash": 583028,
+    "ram": 95848,
+    "pool": 309624,
     "ramtext": 22424
    },
    "contexts": {
@@ -2084,9 +2174,9 @@
      "from": 1,
      "to": 0,
      "delta": {
-      "flash": 12596,
-      "ram": 1176,
-      "pool": 4104,
+      "flash": 12560,
+      "ram": 1172,
+      "pool": 4100,
       "ramtext": 512
      }
     },
@@ -2096,7 +2186,7 @@
      "delta": {
       "flash": 3032,
       "ram": 44,
-      "pool": 560,
+      "pool": 552,
       "ramtext": 0
      }
     }
@@ -2200,9 +2290,9 @@
    },
    "built_hash": "75e076bb",
    "sizes": {
-    "flash": 779040,
-    "ram": 104320,
-    "pool": 196916,
+    "flash": 779124,
+    "ram": 104324,
+    "pool": 196920,
     "ramtext": 40004
    },
    "contexts": {
@@ -2210,9 +2300,9 @@
      "from": 1,
      "to": 0,
      "delta": {
-      "flash": 19112,
-      "ram": 1628,
-      "pool": 20,
+      "flash": 19080,
+      "ram": 1624,
+      "pool": 16,
       "ramtext": 500
      }
     }
@@ -2319,9 +2409,9 @@
    },
    "built_hash": "26dc3c45",
    "sizes": {
-    "flash": 596812,
-    "ram": 91096,
-    "pool": 332280,
+    "flash": 597008,
+    "ram": 91100,
+    "pool": 332276,
     "ramtext": 26748
    },
    "contexts": {
@@ -2329,9 +2419,9 @@
      "from": 1,
      "to": 0,
      "delta": {
-      "flash": 15660,
-      "ram": 1460,
-      "pool": 4,
+      "flash": 15644,
+      "ram": 1456,
+      "pool": 8,
       "ramtext": 180
      }
     },
@@ -2339,9 +2429,9 @@
      "from": 1,
      "to": 0,
      "delta": {
-      "flash": -9588,
+      "flash": -9580,
       "ram": -52,
-      "pool": -560,
+      "pool": -552,
       "ramtext": 0
      }
     }
@@ -2445,9 +2535,9 @@
    },
    "built_hash": "699efad8",
    "sizes": {
-    "flash": 586224,
-    "ram": 90748,
-    "pool": 345856,
+    "flash": 586416,
+    "ram": 90752,
+    "pool": 345860,
     "ramtext": 27764
    },
    "contexts": {
@@ -2456,8 +2546,8 @@
      "to": 0,
      "delta": {
       "flash": 15260,
-      "ram": 1612,
-      "pool": 4,
+      "ram": 1608,
+      "pool": 0,
       "ramtext": 4
      }
     },
@@ -2465,9 +2555,9 @@
      "from": 0,
      "to": 1,
      "delta": {
-      "flash": 3020,
+      "flash": 3028,
       "ram": 44,
-      "pool": 560,
+      "pool": 552,
       "ramtext": 0
      }
     }
@@ -2573,9 +2663,9 @@
    },
    "built_hash": "7af10e98",
    "sizes": {
-    "flash": 586700,
-    "ram": 91044,
-    "pool": 331520,
+    "flash": 586840,
+    "ram": 91048,
+    "pool": 331524,
     "ramtext": 26748
    },
    "contexts": {
@@ -2583,9 +2673,9 @@
      "from": 1,
      "to": 0,
      "delta": {
-      "flash": 15572,
-      "ram": 1436,
-      "pool": 4,
+      "flash": 15512,
+      "ram": 1432,
+      "pool": 0,
       "ramtext": 180
      }
     },
@@ -2593,9 +2683,9 @@
      "from": 0,
      "to": 1,
      "delta": {
-      "flash": 35476,
+      "flash": 35464,
       "ram": 2556,
-      "pool": 11532,
+      "pool": 11524,
       "ramtext": 0
      }
     }
@@ -2690,7 +2780,7 @@
    },
    "built_hash": "360956cd",
    "sizes": {
-    "flash": 580740,
+    "flash": 580940,
     "ram": 76836,
     "pool": 341748,
     "ramtext": 21156
@@ -2700,7 +2790,7 @@
      "from": 1,
      "to": 0,
      "delta": {
-      "flash": 12700,
+      "flash": 12692,
       "ram": 1264,
       "pool": 4108,
       "ramtext": 900
@@ -2710,7 +2800,7 @@
      "from": 0,
      "to": 1,
      "delta": {
-      "flash": 3032,
+      "flash": 3024,
       "ram": 28,
       "pool": 560,
       "ramtext": 0
@@ -2817,7 +2907,7 @@
    },
    "built_hash": "694db753",
    "sizes": {
-    "flash": 583144,
+    "flash": 583336,
     "ram": 80452,
     "pool": 319184,
     "ramtext": 28840
@@ -2837,7 +2927,7 @@
      "from": 0,
      "to": 1,
      "delta": {
-      "flash": 3028,
+      "flash": 3032,
       "ram": 28,
       "pool": 552,
       "ramtext": 0
@@ -2941,9 +3031,9 @@
    },
    "built_hash": "36c8d2f4",
    "sizes": {
-    "flash": 584680,
-    "ram": 90864,
-    "pool": 341600,
+    "flash": 584868,
+    "ram": 90868,
+    "pool": 341596,
     "ramtext": 29908
    },
    "contexts": {
@@ -2951,9 +3041,9 @@
      "from": 1,
      "to": 0,
      "delta": {
-      "flash": 15320,
-      "ram": 1556,
-      "pool": 0,
+      "flash": 15308,
+      "ram": 1552,
+      "pool": 4,
       "ramtext": 56
      }
     },
@@ -2961,9 +3051,9 @@
      "from": 0,
      "to": 1,
      "delta": {
-      "flash": 3040,
+      "flash": 3036,
       "ram": 44,
-      "pool": 552,
+      "pool": 560,
       "ramtext": 0
      }
     }
@@ -3057,9 +3147,9 @@
    },
    "built_hash": "6e79872a",
    "sizes": {
-    "flash": 536740,
-    "ram": 84108,
-    "pool": 300188,
+    "flash": 536932,
+    "ram": 84112,
+    "pool": 300192,
     "ramtext": 26452
    },
    "contexts": {
@@ -3067,9 +3157,9 @@
      "from": 1,
      "to": 0,
      "delta": {
-      "flash": 12588,
-      "ram": 1496,
-      "pool": 4,
+      "flash": 12600,
+      "ram": 1492,
+      "pool": 0,
       "ramtext": -16
      }
     },
@@ -3077,9 +3167,9 @@
      "from": 0,
      "to": 1,
      "delta": {
-      "flash": 3044,
+      "flash": 3032,
       "ram": 44,
-      "pool": 560,
+      "pool": 552,
       "ramtext": 0
      }
     }
@@ -3173,9 +3263,9 @@
    },
    "built_hash": "040648da",
    "sizes": {
-    "flash": 526852,
-    "ram": 81512,
-    "pool": 285964,
+    "flash": 527044,
+    "ram": 81516,
+    "pool": 285968,
     "ramtext": 25440
    },
    "contexts": {
@@ -3183,9 +3273,9 @@
      "from": 1,
      "to": 0,
      "delta": {
-      "flash": 12684,
-      "ram": 1328,
-      "pool": 4,
+      "flash": 12656,
+      "ram": 1324,
+      "pool": 0,
       "ramtext": 152
      }
     },
@@ -3195,7 +3285,7 @@
      "delta": {
       "flash": 9596,
       "ram": 52,
-      "pool": 560,
+      "pool": 552,
       "ramtext": 0
      }
     }
@@ -3293,9 +3383,9 @@
    },
    "built_hash": "3ff5aaa6",
    "sizes": {
-    "flash": 535040,
-    "ram": 91160,
-    "pool": 329260,
+    "flash": 535232,
+    "ram": 91164,
+    "pool": 329264,
     "ramtext": 28976
    },
    "contexts": {
@@ -3303,9 +3393,9 @@
      "from": 1,
      "to": 0,
      "delta": {
-      "flash": 15456,
-      "ram": 1504,
-      "pool": 0,
+      "flash": 15440,
+      "ram": 1500,
+      "pool": -4,
       "ramtext": 200
      }
     },
@@ -3313,9 +3403,9 @@
      "from": 0,
      "to": 1,
      "delta": {
-      "flash": 9588,
+      "flash": 9580,
       "ram": 52,
-      "pool": 560,
+      "pool": 552,
       "ramtext": 0
      }
     }
@@ -3417,9 +3507,9 @@
    },
    "built_hash": "72f4095d",
    "sizes": {
-    "flash": 566084,
-    "ram": 90136,
-    "pool": 342484,
+    "flash": 566276,
+    "ram": 90140,
+    "pool": 342480,
     "ramtext": 35836
    },
    "contexts": {
@@ -3427,9 +3517,9 @@
      "from": 1,
      "to": 0,
      "delta": {
-      "flash": 15680,
-      "ram": 1644,
-      "pool": 4,
+      "flash": 15688,
+      "ram": 1640,
+      "pool": 8,
       "ramtext": -84
      }
     },
@@ -3437,9 +3527,9 @@
      "from": 0,
      "to": 1,
      "delta": {
-      "flash": 3032,
+      "flash": 3040,
       "ram": 44,
-      "pool": 552,
+      "pool": 560,
       "ramtext": 0
      }
     }
@@ -3518,9 +3608,9 @@
    },
    "built_hash": "54453d60",
    "sizes": {
-    "flash": 616240,
-    "ram": 95852,
-    "pool": 304276,
+    "flash": 616432,
+    "ram": 95856,
+    "pool": 304280,
     "ramtext": 22424
    },
    "contexts": {
@@ -3528,9 +3618,9 @@
      "from": 1,
      "to": 0,
      "delta": {
-      "flash": 11572,
-      "ram": 1164,
-      "pool": 4108,
+      "flash": 11540,
+      "ram": 1160,
+      "pool": 4104,
       "ramtext": 512
      }
     },
@@ -3540,7 +3630,7 @@
      "delta": {
       "flash": 3040,
       "ram": 44,
-      "pool": 560,
+      "pool": 552,
       "ramtext": 0
      }
     }
@@ -3642,20 +3732,20 @@
    },
    "built_hash": "162d62b2",
    "sizes": {
-    "flash": 766560,
-    "ram": 103636,
-    "pool": 196364,
-    "ramtext": 40112
+    "flash": 767924,
+    "ram": 102264,
+    "pool": 196360,
+    "ramtext": 40080
    },
    "contexts": {
     "COMPILER": {
      "from": 1,
      "to": 0,
      "delta": {
-      "flash": 17312,
-      "ram": 1612,
-      "pool": 24,
-      "ramtext": 388
+      "flash": 15976,
+      "ram": 2984,
+      "pool": 28,
+      "ramtext": 420
      }
     }
    }
@@ -3759,9 +3849,9 @@
    },
    "built_hash": "1aee26b5",
    "sizes": {
-    "flash": 596184,
-    "ram": 90512,
-    "pool": 323856,
+    "flash": 596388,
+    "ram": 90516,
+    "pool": 323852,
     "ramtext": 26748
    },
    "contexts": {
@@ -3769,9 +3859,9 @@
      "from": 1,
      "to": 0,
      "delta": {
-      "flash": 15704,
-      "ram": 1528,
-      "pool": 0,
+      "flash": 15684,
+      "ram": 1524,
+      "pool": 4,
       "ramtext": 180
      }
     },
@@ -3781,7 +3871,7 @@
      "delta": {
       "flash": -9588,
       "ram": -52,
-      "pool": -560,
+      "pool": -552,
       "ramtext": 0
      }
     }
@@ -3884,9 +3974,9 @@
    },
    "built_hash": "6a62fcb9",
    "sizes": {
-    "flash": 577312,
-    "ram": 86460,
-    "pool": 312836,
+    "flash": 577512,
+    "ram": 86464,
+    "pool": 312840,
     "ramtext": 29060
    },
    "contexts": {
@@ -3894,9 +3984,9 @@
      "from": 1,
      "to": 0,
      "delta": {
-      "flash": 15020,
-      "ram": 1468,
-      "pool": 4,
+      "flash": 15004,
+      "ram": 1464,
+      "pool": 0,
       "ramtext": -204
      }
     },
@@ -3904,9 +3994,9 @@
      "from": 0,
      "to": 1,
      "delta": {
-      "flash": 3036,
+      "flash": 3024,
       "ram": 60,
-      "pool": 560,
+      "pool": 552,
       "ramtext": 0
      }
     }
@@ -4013,9 +4103,9 @@
    },
    "built_hash": "6b87f897",
    "sizes": {
-    "flash": 586452,
-    "ram": 90924,
-    "pool": 331660,
+    "flash": 586584,
+    "ram": 90928,
+    "pool": 331656,
     "ramtext": 24520
    },
    "contexts": {
@@ -4023,9 +4113,9 @@
      "from": 1,
      "to": 0,
      "delta": {
-      "flash": 15796,
-      "ram": 1404,
-      "pool": 4,
+      "flash": 15744,
+      "ram": 1400,
+      "pool": 8,
       "ramtext": 596
      }
     },
@@ -4033,7 +4123,7 @@
      "from": 0,
      "to": 1,
      "delta": {
-      "flash": 35224,
+      "flash": 35216,
       "ram": 2480,
       "pool": 11528,
       "ramtext": 0
@@ -4128,7 +4218,7 @@
    },
    "built_hash": "7e803559",
    "sizes": {
-    "flash": 587552,
+    "flash": 587740,
     "ram": 78588,
     "pool": 347852,
     "ramtext": 22208
@@ -4138,7 +4228,7 @@
      "from": 0,
      "to": 1,
      "delta": {
-      "flash": -12148,
+      "flash": -12144,
       "ram": -1132,
       "pool": -4104,
       "ramtext": -860
@@ -4148,7 +4238,7 @@
      "from": 0,
      "to": 1,
      "delta": {
-      "flash": 3384,
+      "flash": 3376,
       "ram": 76,
       "pool": 552,
       "ramtext": 0
@@ -4258,9 +4348,9 @@
    },
    "built_hash": "2b7bf532",
    "sizes": {
-    "flash": 598120,
-    "ram": 89720,
-    "pool": 333084,
+    "flash": 598324,
+    "ram": 89724,
+    "pool": 333088,
     "ramtext": 29792
    },
    "contexts": {
@@ -4268,9 +4358,9 @@
      "from": 1,
      "to": 0,
      "delta": {
-      "flash": 14624,
-      "ram": 1640,
-      "pool": 4,
+      "flash": 14572,
+      "ram": 1636,
+      "pool": 0,
       "ramtext": -104
      }
     },
@@ -4278,9 +4368,9 @@
      "from": 0,
      "to": 1,
      "delta": {
-      "flash": 3044,
+      "flash": 3036,
       "ram": 60,
-      "pool": 560,
+      "pool": 552,
       "ramtext": 0
      }
     }
@@ -4380,9 +4470,9 @@
    },
    "built_hash": "7137deb0",
    "sizes": {
-    "flash": 598208,
-    "ram": 91872,
-    "pool": 340360,
+    "flash": 598392,
+    "ram": 91876,
+    "pool": 340356,
     "ramtext": 29908
    },
    "contexts": {
@@ -4390,9 +4480,9 @@
      "from": 1,
      "to": 0,
      "delta": {
-      "flash": 16744,
-      "ram": 1536,
-      "pool": 4,
+      "flash": 16752,
+      "ram": 1532,
+      "pool": 8,
       "ramtext": 56
      }
     },
@@ -4400,9 +4490,9 @@
      "from": 0,
      "to": 1,
      "delta": {
-      "flash": 3028,
+      "flash": 3036,
       "ram": 60,
-      "pool": 552,
+      "pool": 560,
       "ramtext": 0
      }
     }
@@ -4496,9 +4586,9 @@
    },
    "built_hash": "2bcbfb86",
    "sizes": {
-    "flash": 535920,
-    "ram": 84400,
-    "pool": 300188,
+    "flash": 536108,
+    "ram": 84404,
+    "pool": 300192,
     "ramtext": 27120
    },
    "contexts": {
@@ -4506,9 +4596,9 @@
      "from": 1,
      "to": 0,
      "delta": {
-      "flash": 12324,
-      "ram": 1552,
-      "pool": 4,
+      "flash": 12304,
+      "ram": 1548,
+      "pool": 0,
       "ramtext": -232
      }
     },
@@ -4516,9 +4606,9 @@
      "from": 0,
      "to": 1,
      "delta": {
-      "flash": 3032,
+      "flash": 3040,
       "ram": 60,
-      "pool": 560,
+      "pool": 552,
       "ramtext": 0
      }
     }
@@ -4616,9 +4706,9 @@
    },
    "built_hash": "35164962",
    "sizes": {
-    "flash": 534204,
-    "ram": 81436,
-    "pool": 285968,
+    "flash": 534400,
+    "ram": 81440,
+    "pool": 285964,
     "ramtext": 24776
    },
    "contexts": {
@@ -4626,9 +4716,9 @@
      "from": 1,
      "to": 0,
      "delta": {
-      "flash": 12568,
-      "ram": 1316,
-      "pool": 0,
+      "flash": 12524,
+      "ram": 1312,
+      "pool": 4,
       "ramtext": 168
      }
     },
@@ -4636,9 +4726,9 @@
      "from": 0,
      "to": 1,
      "delta": {
-      "flash": 9588,
+      "flash": 9580,
       "ram": 52,
-      "pool": 552,
+      "pool": 560,
       "ramtext": 0
      }
     }
@@ -4929,8 +5019,8 @@
    "ramtext": 0
   },
   "SDCARD=1,LAYOUT=1,ENG_SAMPLE=0,DRUM_USR=0,SNAPSHOTS=0,PATTERNS=1": {
-   "flash": 27912,
-   "ram": 2600,
+   "flash": 27896,
+   "ram": 2536,
    "pool": 10672,
    "ramtext": -144
   },

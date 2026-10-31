@@ -282,6 +282,10 @@ static void ota_show(uint32_t step, int32_t code)
     draw_text_box(0, 92, 240, &FONT_S, "UPDATE", C_WHITE, 1);
     if (step < 9u) {
         draw_text_box(0, 124, 240, &FONT_S, STEP[step < 6u ? step : 0], C_HI, 1);
+        if (ota_relayout) {                     /* (ota.c: another MEMORY step: the data it keeps elsewhere is erased) */
+            draw_text_box(0, 156, 240, &FONT_S, "NEW MEMORY LAYOUT", C_WHITE, 1);
+            draw_text_box(0, 176, 240, &FONT_S, "PROJECTS ERASED", C_WHITE, 1);
+        }
         return;
     }
     if (code == 1)

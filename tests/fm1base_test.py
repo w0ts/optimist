@@ -128,7 +128,8 @@ if fm1base.BUILD_PY.is_file():
     import flash_layout as FLT
     check("gen_optimist.py's release ends are the step table's (tools/flash_layout.py STEPS release_end)",
           all(fm1base.release_end(k) == FLT.STEPS[k].release_end for k in fm1base.RELEASE_END_NAMES)
-          and set(fm1base.RELEASE_END_NAMES) == {k for k in FLT.STEPS if k})
+          and set(fm1base.RELEASE_END_NAMES) <= {k for k in FLT.STEPS if k}
+          and all(__import__("registry").not_built("LAYOUT", k, "release") for k in FLT.STEPS if k and k not in fm1base.RELEASE_END_NAMES))
     try:
         fm1base.limits({"app_slot": 581564 + 4})
         _refused = False

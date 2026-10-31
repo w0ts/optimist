@@ -52,6 +52,9 @@ static int ed_smp_erase(uint32_t k, uint32_t all)  /* header sector, or the whol
 {
     uint32_t i, took;
     int rc = 0;
+    if (SMP_USER_CAP(k) <= SMP_USER_DATA)          /* (a slot with no room: its flash is the project log's, the app's or
+                                                    * another store object's in this MEMORY step: never erased here) */
+        return 1;
     usr_nz[k] = 0;
 #if SMP_USR_ZONES
     for (i = 0; i < 16u; i++)

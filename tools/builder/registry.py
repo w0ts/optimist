@@ -201,6 +201,7 @@ class Item:
     hidden: bool = False             # a real item the menu and the web builder do not list (a front sets it; configs and
                                      # profiles keep loading and dumping it, the checks still name it)
     shown_under: Optional[str] = None   # listed under this item instead of its parent (display only: core.built goes by parent)
+    dim_when: Optional[str] = None   # greyed (not live) while this item is on (SAMPLE SLOTS, PROJECTS under SD card mode)
     children: list = field(default_factory=list)
     menu_children: list = field(default_factory=list)   # what the menu lists under it: children + shown_under, less hidden
 
@@ -1133,39 +1134,52 @@ _add("LIVE_SAVE", "FELUCCA_LIVE_SAVE", "save while playing (flash writes in shor
           "for the stop again until the next start. Snapshots, backup restores, sample uploads, the web editor's writes "
           "and the working project's autosave still wait for the stop. About 240 B of flash, 1 byte of RAM.",
      off_warning="saves refused (STOP BEFORE SAVE) or held until the transport stops, as before")
-# ---- Memory management (the user, 2026-10-28): the first group. MEMORY is a front for two real items (LAYOUT, SDCARD;
-# FAR_OK went 2026-10-29), no firmware switch and no image of its own (no_image): core.sync_memory reads it from them (an older .config
-# and every profile keep loading as they did), core.set_memory writes them when it is picked (room.after_toggle), and
-# dump() leaves it out. Bits 436 and 437 are the next free after Wi-Fi's 434 / 435. LAYOUT and SDCARD are hidden
-# (the user, 2026-10-29: "these options do basically the same thing"): the menu shows MEMORY alone, SD_RING and SD_REC under it.
-# The MEMORY steps (docs/SD-MODE-DESIGN.md section 9): tools/flash_layout.py STEPS is the one table; this is the builder's
-# copy of what it needs (the web builder runs without tools/ on its path), checked by tests/flash_layout_test.py.
-# layout -> (MEMORY value, user samples / snapshots / CZ collection kept, app.bin's room in the classic build)
-LAYOUT_STEPS = {0: (0, True, 581564), 3: (4, False, 720828), 1: (1, False, 831420)}
-# MEMORY's values never change (derived, never stored: core.derive_memory); listed in size order. 3 is kept for the
-# design's S1 (one sample slot, not built)
+# ---- Memory management (the user, 2026-10-28; three choices 2026-10-31): the first group. The real items are LAYOUT
+# (the flash step, FELUCCA_LAYOUT) and SDCARD, both hidden; the menu and the web builder show three fronts instead (the
+# user, 2026-10-31: "one switch for SDCard mode (on/off) and when off, two options: number of sample slot and numbe of
+# projects"): SD_MODE, SMP_SLOTS and PROJECTS (docs/SD-MODE-DESIGN.md 9.7). A front has no firmware switch and no image
+# of its own (no_image): core.sync_memory reads it back from LAYOUT / SDCARD / PATTERNS, core.set_front writes them when
+# one is picked (room.after_toggle), dump() leaves it out, an old .config's LAYOUT / SDCARD / MEMORY lines keep loading.
+# MEMORY (bit 436, the one-row front of 2026-10-28..31) stays a hidden front for those lines. Bits 444..446: the next free.
+# The steps: tools/flash_layout.py STEPS is the one table; this is the builder's copy of what it needs (the web builder
+# runs without tools/ on its path), checked by tests/flash_layout_test.py.
+# layout -> (user sample slots kept, projects, app.bin's room in the classic build); normal: 2 slots (3 with PATTERNS off)
+LAYOUT_STEPS = {0: (2, 16, 581564), 2: (1, 16, 655292), 6: (2, 4, 659388), 7: (2, 2, 675772), 3: (0, 16, 720828), 4: (1, 4, 741308), 5: (1, 2, 757692), 8: (0, 4, 806844), 1: (0, 2, 831420)}
+NORMAL_APP = LAYOUT_STEPS[0][2]
+# MEMORY's old values (derived, never stored): normal 0, more flash 1, SD card mode 2, no user samples 4; 5 any other step
+MEMORY_OF = {0: 0, 3: 4, 1: 1}
 MEMORY_CHOICES = ((0, "normal"),
                   (4, "no user samples: 16 projects, more flash"),
-                  (1, "more flash: one project in flash"),
-                  (2, "SD card mode"))
-_add("MEMORY", "", "memory: where the user data lives", MEM, 436, default=0, choices=MEMORY_CHOICES, no_image=True,
-     notice="Changing this changes the flash layout: back up first (web editor: Backup; for a way back whole, a full "
-            "flash backup: python tools/fm1_anyflash.py backup). Installing a build with another layout than the FM-1 "
-            "has erases what the layouts keep in different places: every switch between two of normal, no user "
-            "samples and more flash / SD card mode loses the projects in flash, the FM6 voices of the user presets and "
-            "autosave copy A; leaving normal also loses the user samples and the snapshots. The kits, the presets and "
-            "the settings are kept (docs/INSTALL-PATHS.md). Afterwards restore the projects with the web editor (the "
-            "slots the new layout has). The first install of no user samples goes over a normal build of this version "
-            "(an older updater refuses its size).",
-     notice_on_change=True,
-     experimental=True, target_only=True, tested="host-tested only (docs/SD-MODE-DESIGN.md)",
-     desc="One choice for the two items LAYOUT and SDCARD. Normal: the flash layout as before (568 KiB of code). No user "
-          "samples (LAYOUT 3): the code grows to 704 KiB over the user sample slots, the snapshots and the CZ collection; "
-          "16 projects keep today's 128 KiB of project log (builds without SAMPLE, user drum samples, SNAPSHOTS and the CZ "
-          "collection, with PATTERNS: what every shipped profile builds already). More flash (LAYOUT 1): "
-          "the code grows to 812 KiB over the sample slots, the snapshots and most of the projects' room; "
-          "one project stays in flash (the web or iOS app keeps the others), no SD card. SD card mode (LAYOUT + SDCARD): the same flash layout with the user data on the SD card (a hardware mod, docs/SD-CARD-DESIGN.md). "
-          "Picking one sets those items; setting them by hand reads back here. The menu and the web builder list this row alone (with SD_RING and SD_REC under it in SD card mode); LAYOUT, SDCARD and the retired RAM_PACKED are real but not listed, and an old `.config` still loads them.")
+                  (1, "more flash: two projects in flash"),
+                  (2, "SD card mode"),
+                  (5, "another step: see SAMPLE SLOTS and PROJECTS"))
+SLOT_WORDS = ((0, "0: none (SAMPLE's built-in sets still play)"), (1, "1: USR3 (64 KiB, the snapshots)"),
+              (2, "2: USR2 + USR3 (144 KiB, as normal)"), (3, "3: USR1..USR3, no projects (PATTERNS off)"))
+_add("MEMORY", "", "memory: the one-row choice of before (an old .config's MEMORY line)", MEM, 436, default=0,
+     choices=MEMORY_CHOICES, no_image=True, hidden=True, target_only=True,
+     desc="The single MEMORY row of 2026-10-28..31, kept so that an old .config's MEMORY= line and --set MEMORY= still "
+          "work: 0 normal, 4 no user samples, 1 more flash, 2 SD card mode. The menu shows SD CARD MODE, SAMPLE SLOTS "
+          "and PROJECTS instead.")
+_add("SD_MODE", "", "SD card mode: user data on an SD card (a hardware mod)", MEM, 445, default=0, no_image=True,
+     experimental=True, target_only=True, tested="host-tested only (docs/SD-CARD-DESIGN.md); no FM-1 has the card yet",
+     desc="On: the biggest flash for code (831,420 B, the release 823,228 B) with the user data on a microSD card wired "
+          "to the LCD bus (docs/SD-CARD-DESIGN.md): one project in flash, the others, the samples and the recordings "
+          "on the card; SD_RING and SD_REC under it. SAMPLE SLOTS and PROJECTS are greyed while it is on. Off: the "
+          "flash keeps the user data, as SAMPLE SLOTS and PROJECTS choose.")
+_add("SMP_SLOTS", "", "sample slots: user samples kept in flash", MEM, 446, default=3, no_image=True,
+     choices=tuple((v, w) for v, w in SLOT_WORDS if v == 3 or any(s == v for s, _, _ in LAYOUT_STEPS.values())),
+     dim_when="SD_MODE", target_only=True,
+     desc="How many user-sample slots the flash keeps; each slot given up is code room (docs/SD-MODE-DESIGN.md 9.7). "
+          "2: USR2 and USR3 where normal keeps them (and the snapshots, the CZ collection at USR3's top); 1: USR3 "
+          "alone; 0: none (no user drum samples, snapshots or CZ collection; SAMPLE plays its built-in sets). 3: the "
+          "projects off (PATTERNS off): USR1 too, the old song sections. With PROJECTS, the pair is the flash layout.")
+_add("PROJECTS", "", "projects kept in flash", MEM, 444, default=16, no_image=True,
+     choices=tuple((p, str(p)) for p in sorted({p for _, p, _ in LAYOUT_STEPS.values()})),
+     dim_when="SD_MODE", target_only=True,
+     desc="How many projects the flash keeps (the user, 2026-10-31: 2, 4 or 16); fewer projects is a smaller project "
+          "log, more code room. The log's room (MEM FULL past it; a busy project is about 6-8 KB, an estimate): 16: "
+          "128 KiB with no sample slot (about 13-17 busy projects), 80 KiB in normal (7-10); 4: 44 KiB (3-5); 2: 28 KiB. "
+          "The web editor's backup keeps the projects a smaller choice has no room for.")
 # RAM_PACKED (bit 437, retired from the menu 2026-10-29, never reused): hidden, not removed, so a .config or profile that
 # names it keeps loading and dumping as before.
 _add("RAM_PACKED", "", "RAM: one packed region, always", MEM, 437, default=1, no_image=True, fixed=True, hidden=True,
@@ -1188,20 +1202,18 @@ _add("SDCARD", "FELUCCA_SDCARD", "SD card on the LCD bus (a hardware mod)", MEM,
           "(measured 2026-10-25, Petit FatFs).",
      off_warning="no SD card")
 # bit 410 (2026-10-25): the next free one after SDCARD's 409
-_add("LAYOUT", "FELUCCA_LAYOUT", "flash layout: fake SD mode (more room for code, little user data)", MEM, 410, default=0,
-     hidden=True,
-     choices=((0, "normal"), (3, "no user samples: 704 KiB app"), (1, "fake SD mode: 816 KiB app")),
+_add("LAYOUT", "FELUCCA_LAYOUT", "flash layout: the MEMORY step (set by SD CARD MODE, SAMPLE SLOTS and PROJECTS)", MEM, 410,
+     default=0, hidden=True,
+     choices=tuple((k, f"{s} sample slot{'' if s == 1 else 's'}, {p} projects: {room:,} B for code") for k, (s, p, room)
+                   in sorted(LAYOUT_STEPS.items(), key=lambda kv: kv[1][2])),
      experimental=True, target_only=True, tested="host-tested only; on an FM-1 whose flash runs the release image's 820 KB (docs/SD-MODE-DESIGN.md)",
-     desc="Grows the firmware's flash from 568 KiB to 816 KiB over the user data: the user sample slots, the "
-          "snapshots and most of the projects' room become code space (code runs in place from flash: no RAM). What "
-          "is left: one project (a 28 KiB project log; the web app or the iOS app keeps the others over USB), the user presets, the user kits, the settings. Builds "
-          "without SAMPLE, user drum samples, SNAPSHOTS and the CZ collection, with PATTERNS. Installing it ERASES the "
-          "user data the normal layout keeps there, and going back erases this layout's (the update loader clears "
-          "the other layout's sectors first): back up with the web editor before. The first install needs a normal "
-          "build of this version first (an older updater refuses the larger package). The code may use the whole slot, "
-          "831,420 B (the far probe's 64 KiB reserve went 2026-10-30). LAYOUT 3 (no user samples): the app slot to "
-          "0xB5000 (720,828 B), the presets' FM6 voices, autosave copy A and the 32-sector project log above it, 16 "
-          "projects; the same build rules as LAYOUT 1 (docs/SD-MODE-DESIGN.md section 9).")
+     desc="The flash step (docs/SD-MODE-DESIGN.md 9.7, tools/flash_layout.py STEPS): each pair of SAMPLE SLOTS and "
+          "PROJECTS is one; the user sample slots given up and the smaller project log become code space (code runs in "
+          "place from flash: no RAM). 0 normal (2 slots, 16 projects, 581,564 B of code); 1 (0 slots, 2 projects, "
+          "831,420 B; the SD card mode's with SDCARD); 3 (0 slots, 16 projects, 720,828 B). Installing another step "
+          "ERASES what the two keep in different places (the projects in flash always; the update loader clears the "
+          "other step's sectors first): back up with the web editor before. The first install of a step needs a normal "
+          "build of this version first (an older updater refuses its size).")
 # bit 411 (2026-10-25): the next free one after LAYOUT's 410; the arena (core/arena.c, fx/fx_arena.c, docs/SD-MODE-DESIGN.md
 # 6b): KB, 0 the fixed memories as before. The core (every build it is set in): the parts' engine states placed by need,
 # the edit's one confirm for what to drop, a load's refusals on it one by one; the extras only in the SD card mode
@@ -1242,7 +1254,7 @@ _add("BT_PROJ", "FELUCCA_BT_PROJ", "projects to and from the phone over Bluetoot
 # sd_stream_plan.c, docs/SD-CARD-DESIGN.md 7): the ring's KB a voice, 0 off (registry.h FELUCCA_SD_RING_KB -> SD_STREAM:
 # full FatFs, SAMPLE and the arena too, else it builds nothing)
 _add("SD_RING", "FELUCCA_SD_RING_KB", "samples streamed from the SD card (SAMPLE's CARD set): each voice's lookahead", MEM,
-     415, default=0, parent="SDCARD", shown_under="MEMORY",
+     415, default=0, parent="SDCARD", shown_under="SD_MODE",
      choices=((0, "off"), (4, "4 KB a voice (46 ms of 44.1 kHz 16-bit mono)"), (8, "8 KB a voice (93 ms)"),
               (12, "12 KB a voice (139 ms)"), (16, "16 KB a voice (186 ms)")),
      experimental=True, target_only=True, tested="host-tested only (tests/sd_stream_test.c, sd_stream_plan_test.c: "
@@ -1261,7 +1273,7 @@ _add("SD_RING", "FELUCCA_SD_RING_KB", "samples streamed from the SD card (SAMPLE
 # bit 416 (2026-10-26): the next free one after SD_RING's 415; the master recorded to the SD card (storage/sd/sd_rec.c,
 # docs/SD-CARD-DESIGN.md 7): the ring's KB, 0 off (registry.h FELUCCA_SD_REC_KB -> SD_REC with full FatFs)
 _add("SD_REC", "FELUCCA_SD_REC_KB", "record the master output to the SD card: the buffer for the card's stalls", MEM,
-     416, default=0, parent="SDCARD", shown_under="MEMORY",
+     416, default=0, parent="SDCARD", shown_under="SD_MODE",
      choices=((0, "off"), (16, "16 KB (93 ms of 44.1 kHz 16-bit stereo)"), (32, "32 KB (186 ms)"), (64, "64 KB (372 ms)")),
      experimental=True, target_only=True, tested="host-tested only (tests/sd_wr_test.c, sd_rec_test.c: a card model with "
      "stalls, an interrupt-driven audio clock); no FM-1 has the card yet; for now started from the console (sd rec)",
@@ -1554,7 +1566,13 @@ _S0_RELEASE = ("not for the release yet: fm1-base's own update loader and app_en
 # (PHYS in RAM was a NOT_BUILT entry until its render stopped calling libgcc's __udivdi3: phys_dsp.c px_udiv, 2026-10-30)
 NOT_BUILT = {
     ("MEMORY", 4): {"release": _S0_RELEASE},
+    ("LAYOUT", 2): {"release": _S0_RELEASE},
     ("LAYOUT", 3): {"release": _S0_RELEASE},
+    ("LAYOUT", 4): {"release": _S0_RELEASE},
+    ("LAYOUT", 5): {"release": _S0_RELEASE},
+    ("LAYOUT", 6): {"release": _S0_RELEASE},
+    ("LAYOUT", 7): {"release": _S0_RELEASE},
+    ("LAYOUT", 8): {"release": _S0_RELEASE},
 }
 
 
