@@ -2769,12 +2769,14 @@ const parse = {   /* the replies' readers, by command */
     for (let k = 0; k < count; k++) { const used = rd.b(), engine = rd.b(); slots.push({ slot: start + k, used, engine, name: rd.s() }); }
     return { start, count, total, slots };
   },
-  /* UP_GET: P_COUNT (from INFO) values, then the UP.PAT pattern steps as [note, flags] */
+  /* UP_GET: P_COUNT (from INFO) values, then the UP.PAT pattern steps as [note, flags]; an FM6 slot that keeps its own
+     voice (opti_upfm6_1): then its 128 packed DX7 bytes -> dx7 (155 VCED values), else null */
   [CMD.UP_GET](a, { pcount }) {
     const rd = new ByteReader(a), slot = rd.b(), used = rd.b(), engine = rd.b(), name = rd.s();
     const p = Array.from({ length: pcount }, () => rd.v());
     const pattern = Array.from({ length: UP.PAT }, () => { const note = rd.b(); return [note, rd.b()]; });
-    return { slot, used, engine, name, p, pattern };
+    const dx7 = a.length - rd.i >= DX7.PACKED ? unpackDX7(Array.from(a.slice(rd.i, rd.i + DX7.PACKED))) : null;
+    return { slot, used, engine, name, p, pattern, dx7 };
   },
   [CMD.UP_PUT]: (a) => parse[CMD.SMP_BEGIN](a),
   [CMD.UP_STORE]: (a) => parse[CMD.SMP_BEGIN](a),
@@ -3198,12 +3200,14 @@ const req = {                                       /* each: (arguments) -> [cmd
   smpInfo: bareReq(CMD.SMP_INFO),
   upList: (start, count) => [CMD.UP_LIST, [req7(start), Math.min(UP.LIST_MAX, Math.max(1, count | 0))]],
   upGet: (s) => [CMD.UP_GET, [req7(s)]],
-  /* pt = {engine, name, p (P_COUNT values), pattern (UP.PAT steps of [note, flags])} */
+  /* pt = {engine, name, p (P_COUNT values), pattern (UP.PAT steps of [note, flags]), dx7: an FM6 voice (155 VCED values;
+     only to a firmware listing opti_upfm6_1: bank.put) or none} */
   upPut: (s, pt) => {
     const steps = [];
     for (let k = 0; k < UP.PAT; k++) { const st = (pt.pattern || [])[k] || [0, 0]; steps.push(req7(st[0]), st[1] & 7); }
     const values = pt.p.flatMap((v) => v14enc(v ?? 0));
-    return [CMD.UP_PUT, [req7(s), req7(pt.engine), ...strEnc(upName(pt.name)), ...values, ...steps]];
+    const voice = pt.dx7 ? packDX7(dx7ForDevice(pt.dx7)) : [];
+    return [CMD.UP_PUT, [req7(s), req7(pt.engine), ...strEnc(upName(pt.name)), ...values, ...steps, ...voice]];
   },
   upStore: (s, name) => [CMD.UP_STORE, [req7(s), ...strEnc(name ? upName(name) : "")]],   /* an empty name: the device picks one ("ANALOG 07") */
   upLoad: (s) => [CMD.UP_LOAD, [req7(s)]],
@@ -4055,6 +4059,21 @@ function unpackDX7(packed) {
     g[14] & 1, (g[14] >> 1) & 7, (g[14] >> 4) & 7, g[15], ...g.slice(16, 26));
   return out;
 }
+/* 155 VCED values -> one 128-byte packed (VMEM) voice, unpackDX7's inverse (eng_fm6.c fm6_pack: what a user slot keeps) */
+function packDX7(voice) {
+  const v = dx7Voice(voice), out = [];
+  for (let op = 0; op < 6; op++) {
+    const o = v.slice(op * DX7.OP_SIZE, (op + 1) * DX7.OP_SIZE);
+    out.push(...o.slice(0, 11), (o[11] & 3) | ((o[12] & 3) << 2), (o[13] & 7) | ((o[20] & 15) << 3),
+      (o[14] & 3) | ((o[15] & 7) << 2), o[16], (o[17] & 1) | ((o[18] & 31) << 1), o[19]);
+  }
+  const g = v.slice(DX7.GLOBAL_AT);
+  out.push(...g.slice(0, 8), g[8] & 31, (g[9] & 7) | ((g[10] & 1) << 3), ...g.slice(11, 15),
+    (g[15] & 1) | ((g[16] & 7) << 1) | ((g[17] & 7) << 4), g[18], ...g.slice(19, 29));
+  return out;
+}
+/* the firmware keeps an FM6 user preset's own voice and moves it with UP_GET / UP_PUT (INFO tag 67 "opti_upfm6_1") */
+const upfm6 = (info) => !!(info && info.opti && info.opti.opti_upfm6 === 1);
 /* the sum byte of a block of data bytes */
 const dx7Checksum = (data) => (128 - (data.reduce((acc, x) => acc + x, 0) & 127)) & 127;
 /* the single-voice message the device receives (device number 0) */
@@ -4449,9 +4468,10 @@ const bank = {   /* the user-bank commands */
     const r = await request(req.upGet(slot));
     return parse[CMD.UP_GET](r, info);
   },
-  /* put / store / load / erase -> the device's rc (0 ok) */
-  async put(request, slot, pt) {
-    if (pt.dx7) throw new Error("A DX7 voice cannot go to a user preset slot");
+  /* put / store / load / erase -> the device's rc (0 ok). A patch with its own FM6 voice (dx7) goes only to a firmware
+     that keeps it with the slot (info: INFO, listing opti_upfm6_1); elsewhere the voice would be dropped unsaid */
+  async put(request, slot, pt, info) {
+    if (pt.dx7 && !upfm6(info)) throw new Error("A DX7 voice cannot go to a user preset slot");
     const r = await request(req.upPut(slot, pt), FLASH_OPT);
     return parse[CMD.UP_PUT](r).rc;
   },
@@ -7300,8 +7320,8 @@ const TEXT = {                                      /* the page's words, by key 
   saveToLib: "Save current sound",
   import: "Import",
   exportLib: "Export library",
-  dx7Help: "Import library JSON or DX7 .syx voices and 32-voice banks. Audition a DX7 voice on an FM6 track: the device takes the voice for that track. The device keeps none: SAVE AS on the device.",
-  dx7Sent: "DX7 voice sent to the FM6 track (not confirmed by the device; SAVE AS on the device keeps it): ", dx7Store: "A DX7 voice is only auditioned here: the device keeps none (SAVE AS on the device).",
+  dx7Help: "Import library JSON or DX7 .syx voices and 32-voice banks: each voice becomes an FM6 entry. Double-click one to audition it on an FM6 track (over USB); drag it onto a user slot to keep it there (a firmware with \"FM6 user presets keep their voice\", UP_FM6; else SAVE AS on the device).",
+  dx7Sent: "DX7 voice sent to the FM6 track (not confirmed by the device; SAVE AS on the device keeps it): ", dx7Store: "This firmware keeps no FM6 voice with a user slot: audition the voice, then SAVE AS on the device (or build it with \"FM6 user presets keep their voice\", UP_FM6).",
   fm6Use: "Play on track", fm6Import: "Import .syx", 
   
   
@@ -14960,7 +14980,7 @@ function fullParams(p) {                            /* UP_PUT takes every parame
   return Array.from({ length: dev.info.pcount }, (_, i) => {
     if (p.p[i] != null) return p.p[i];
     const desc = dev.pdesc[i];
-    return desc && (i < dev.info.pe0 || p.engine === dev.dump.engine) ? desc.def : 0;
+    return desc && (i < dev.info.pe0 || (dev.dump && p.engine === dev.dump.engine)) ? desc.def : 0;   /* (the librarian: no DUMP) */
   });
 }
 
@@ -15014,8 +15034,9 @@ function renderLib() {                              /* the filters' choices, the
   ["libren", "libtags", "libdup", "libdel", "libexp1"].forEach((id) => { $(id).disabled = !sel; });
   $("libaud").disabled = !sel || !engineOk(sel) || (sel.dx7 && isDrum()) || libBusy;
   setLabel($("libput"), t("toSlot"));
-  $("libput").disabled = !sel || sel.dx7 || libBusy || !dev || !dev.bank || bankSel == null;   /* (a DX7 voice is only auditioned: there is no place to keep it) */
-  $("libput").title = sel && sel.dx7 ? t("dx7Store") : "";
+  const noVoice = Boolean(sel && sel.dx7) && !upfm6(dev && dev.info);   /* (a firmware without opti_upfm6_1 keeps no voice with a slot) */
+  $("libput").disabled = !sel || noVoice || libBusy || !dev || !dev.bank || bankSel == null;
+  $("libput").title = noVoice ? t("dx7Store") : "";
   $("libsave").disabled = libBusy || !dev;
   $("libexport").disabled = lib.length === 0;
 }
@@ -15133,13 +15154,14 @@ $("factlib").addEventListener("click", () => libOp(libFromFactory));
 function libPut(id, slot) {                         /* a library entry into a device slot (asks before writing over one) */
   const p = libById(id);
   if (!dev || !dev.bank || !p || slot == null || libBusy) return;
-  if (p.dx7) { setStatusKey("dx7Store"); return; }
+  if (p.dx7 && !upfm6(dev.info)) { setStatusKey("dx7Store"); return; }   /* (a firmware that keeps no voice with a slot) */
   const target = dev.bank.slots[slot];
   if (!engineOk(p)) return void setStatusKey("badEngine", p.engineName || p.engine);
   if (target.used && !okOverwrite(slot, target.name)) return;
+  const pt = p.dx7 ? { ...p, engine: dev.info.engines.indexOf("FM6") } : p;   /* (a .syx voice: FM6, its values the defaults) */
   return libOp(async () => {
-    const name = upName(p.name);
-    checkRc(await bank.put(rqf, slot, { ...p, name, p: fullParams(p) })); await refreshSlot(slot);
+    const name = upName(pt.name);
+    checkRc(await bank.put(rqf, slot, { ...pt, name, p: fullParams(pt) }, dev.info)); await refreshSlot(slot);
     setStatusKey("putDone", `${slotName(slot)} ${name}`);
   });
 }
@@ -15243,9 +15265,9 @@ function bankStoreAt(slot) {                        /* the track's sound into a 
 function bankGet(slot) {                            /* a user slot copied into the library */
   if (libBusy || slot == null || !dev || !dev.bank) return;
   return libOp(async () => {
-    const u = await bank.get(rqf, dev.info, slot), { name, engine, p, pattern } = u;
+    const u = await bank.get(rqf, dev.info, slot), { name, engine, p, pattern, dx7 } = u;
     if (!u.used) return void setStatusKey("emptySlot", slotName(slot));
-    await libAdd([{ name, engine, engineName: dev.info.engines[engine], p, pattern, tags: ["device"] }]);
+    await libAdd([{ name, engine, engineName: dev.info.engines[engine], p, pattern, tags: ["device"], ...(dx7 ? { dx7 } : {}) }]);   /* (an FM6 slot's own voice: issue #133) */
     setStatusKey("copiedLib", name);
   });
 }
