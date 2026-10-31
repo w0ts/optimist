@@ -1161,7 +1161,9 @@ job; ( jobin   # the flash layouts (docs/SD-MODE-DESIGN.md): the numbers agree; 
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_SL24_XSTEP=1 $L1 -o "$OUT/patterns_test_l1" tests/patterns_test.c -lm
     run "patterns and scenes in the fake SD mode's log (7 sectors at 0xD0000): store, MEM FULL" "$OUT/patterns_test_l1"
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_SL24_XSTEP=1 $L1 -o "$OUT/project_scope_test_l1" tests/project_scope_test.c -lm
-    run "the fake SD mode keeps one project: another refused, the log the one project's, MEM FULL" "$OUT/project_scope_test_l1"
+    run "MEMORY 0 slots / 2 projects (L1) keeps two projects: a third refused, one project may fill the log, MEM FULL" "$OUT/project_scope_test_l1"
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_SL24_XSTEP=1 $L1 -DPROJ_SLOTS=1u -o "$OUT/project_scope_test_sd" tests/project_scope_test.c -lm
+    run "SD card mode keeps one project in flash (PROJ_SLOTS 1): another refused, the log the one project's, MEM FULL" "$OUT/project_scope_test_sd"
     S0="-DFELUCCA_LAYOUT=3 -DFELUCCA_ENG_SAMPLE=0 -DFELUCCA_DRUM_USR=0 -DFELUCCA_SNAPSHOTS=0 -DFELUCCA_PATTERNS=1"   # (S0, no user samples: its 32-sector log at 0xB8000, fm1_steps.h)
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_SL24_XSTEP=1 $S0 -o "$OUT/patterns_test_s0" tests/patterns_test.c -lm
     run "patterns and scenes in the no-user-samples step's log (S0: 32 sectors at 0xB8000): store, MEM FULL" "$OUT/patterns_test_s0"

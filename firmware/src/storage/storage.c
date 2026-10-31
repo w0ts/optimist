@@ -43,10 +43,10 @@ enum { OBJ_SETTINGS, OBJ_PROJECT0, OBJ_UPRESET0 = OBJ_PROJECT0 + 4, OBJ_AUTOSAVE
 #define ST_DLANES_SECTOR 0xE5000u              /* FL_DLANE_LO */
 #define ST_UPF_SECTOR FL_UPF_LO                /* 0x95000: OBJ_UPFM6 (until fix/upfm6-off-vm 0xE7000 / 0xE8000: st_upf_move) */
 #define ST_UPF_OLD FL_OLD_UPF_LO               /* 0xE7000: the old copy A; B at 0xE8000 (read only, never written) */
-#if !FL_USER_SAMPLES && ((FELUCCA_ENG_SAMPLE && !FELUCCA_SD_STREAM) || FELUCCA_DRUM_USR || FELUCCA_SNAPSHOTS || CZ_NUSER || \
-                         !FELUCCA_PATTERNS)   /* (SAMPLE with SD_RING: its CARD set; its slots hold nothing here,
-                                               * eng_sample.c SMP_USER_CAP) */
-#error "FELUCCA_LAYOUT 1 (more flash) and 3 (no user samples): no user sample slots (ENG_SAMPLE, DRUM_USR), no SNAPSHOTS, no CZ collection; PATTERNS on (docs/SD-MODE-DESIGN.md 9)"
+#if FELUCCA_LAYOUT != 0 && (!FELUCCA_PATTERNS || \
+                            (!FL_USER_SAMPLES && (FELUCCA_DRUM_USR || FELUCCA_SNAPSHOTS || CZ_NUSER)))
+/* (SAMPLE with no slot: its built-in sets, its slots hold nothing, eng_sample.c SMP_USER_CAP; the user, 2026-10-31) */
+#error "MEMORY SAMPLE SLOTS 0 (hal/fm1_steps.h): no user drum samples, no SNAPSHOTS, no CZ collection; every step but normal: PATTERNS on (docs/SD-MODE-DESIGN.md 9.7)"
 #endif
 #define ST_AUTOSAVE_A FL_AUTOSAVE_A            /* by the step (fm1_steps.h): normal 0x9F000, L1 0xD7000, S0 0xB7000 */
 #if FELUCCA_LAYOUT != 0                        /* a relocated store (fm1_flash_map.h): the old slots are the app's */
@@ -62,8 +62,11 @@ _Static_assert(FL_STORE_OK(0xFC000u, 2u * ST_SECTOR) && FL_STORE_OK(ST_AUTOSAVE_
 #if FELUCCA_UP_FM6
 _Static_assert(FL_STORE_OK(ST_UPF_SECTOR, 2u * ST_SECTOR), "fm1_flash_map.h included before FELUCCA_UP_FM6 was set");
 #endif
-#if defined(SMP_USER_BASE) && FL_USER_SAMPLES   /* (eng_sample.c before: the user sample slots; L1, S0: none) */
-_Static_assert(FL_STORE_OK(SMP_USER_BASE, SMP_USER_SLOTS * SMP_USER_SIZE), "user sample slots: in the store");
+#if defined(SMP_USER_BASE) && FL_USER_SAMPLES   /* (eng_sample.c before: the user sample slots the step keeps) */
+#define ST_SMP_KEPT (FELUCCA_LAYOUT == 0 ? SMP_USER_SLOTS : FL_USER_SLOTS)
+_Static_assert(FL_STORE_OK(SMP_USER_BASE + (SMP_USER_SLOTS - ST_SMP_KEPT) * SMP_USER_SIZE, ST_SMP_KEPT * SMP_USER_SIZE) &&
+               (FELUCCA_LAYOUT == 0 || SMP_USER_BASE + (SMP_USER_SLOTS - ST_SMP_KEPT) * SMP_USER_SIZE >= FL_RELOC_HI),
+               "user sample slots: in the store, above the step's relocated store");
 #endif
 _Static_assert(FL_IN(ST_UPF_SECTOR, 2u * ST_SECTOR, FL_UPF_LO, FL_UPF_HI) && !FL_NEVER(ST_UPF_SECTOR, 2u * ST_SECTOR) &&
                ST_UPF_SECTOR >= FL_APP_HI + (FELUCCA_LAYOUT == 0 ? 2u * ST_SECTOR : 0u),

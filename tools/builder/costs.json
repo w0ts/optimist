@@ -1282,6 +1282,12 @@
     "ram": 0,
     "pool": 0,
     "ramtext": 0
+   },
+   "5": {
+    "flash": 0,
+    "ram": 0,
+    "pool": 0,
+    "ramtext": 0
    }
   },
   "RAM_PACKED": {
@@ -1729,6 +1735,36 @@
     "ram": 692,
     "pool": 66480,
     "ramtext": 116
+   }
+  },
+  "SD_MODE": {
+   "1": {
+    "flash": 0,
+    "ram": 0,
+    "pool": 0,
+    "ramtext": 0
+   }
+  },
+  "SMP_SLOTS": {
+   "0": {
+    "flash": 0,
+    "ram": 0,
+    "pool": 0,
+    "ramtext": 0
+   },
+   "2": {
+    "flash": 0,
+    "ram": 0,
+    "pool": 0,
+    "ramtext": 0
+   }
+  },
+  "PROJECTS": {
+   "2": {
+    "flash": 0,
+    "ram": 0,
+    "pool": 0,
+    "ramtext": 0
    }
   }
  },

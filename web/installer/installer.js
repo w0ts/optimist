@@ -26,7 +26,7 @@
 //   }) -> { unmount(), busy }    busy: true while writing (the host must not unload or hide the page then)
 import { checkUfw, logicalImage, productOf, sha256hex, ufwEntries } from "../fm1base/fm1pkg.js";
 import { STOCK_V15_SHA256, OptimistUpdater, stockBanks, validateStockPackage } from "../fm1ota_optimist.js";
-import { SOFT_KEY, bootloaderChoice, bootloaderFromConfig, chooseRoute, detectPlatform, flashLenOf, mflasherFor, nextStep, packageKind, runningKind } from "../install_route.js";
+import { SOFT_KEY, bootloaderChoice, bootloaderFromConfig, chooseRoute, detectPlatform, flashLenOf, installedEndOf, mflasherFor, nextStep, packageKind, runningKind, switchWarning } from "../install_route.js";
 
 const STYLE_ID = "optimist-installer-style";
 const BUNDLED_CSS = null;                           /* make_site.py puts web/installer/installer.css here */
@@ -598,13 +598,26 @@ export function mountInstaller(container, opts = {}) {
       if (k === i && state !== "fail") li.setAttribute("aria-current", "step"); else li.removeAttribute("aria-current");
     });
   }
-  function ask(stock) {
-    if (st.asked) return Promise.resolve("go");
+  /* the layout warning of this package (web/install_route.js switchWarning): the installed layout from the editor's last list of
+     the connected FM-1 (opts.deviceCaps, the one-page app), else not known; "" for M-VAVE's own firmware or the same layout.
+     known: true when the installed layout is known to differ (the question is asked again then, whatever was answered before) */
+  function layoutWarning(pkg) {
+    if (pkg.stock) return { line: "", known: false };
+    let flashLen = null;
+    try { flashLen = flashLenOf(ufwEntries(pkg.image)); } catch (_) { return { line: "", known: false }; }
+    let caps = null;
+    try { caps = opts.deviceCaps ? opts.deviceCaps() : null; } catch (_) { caps = null; }
+    const installed = installedEndOf(caps);
+    return { line: switchWarning(installed, flashLen), known: installed != null };
+  }
+  function ask(stock, warn = { line: "", known: false }) {
+    if (st.asked && !(warn.line && warn.known)) return Promise.resolve("go");
     return new Promise((resolve) => {
       const close = (v) => { dlg.close(); dlg.remove(); resolve(v); };
       const dlg = h("dialog.o-pop.oi-ask", { "aria-labelledby": "oi-ask-h", oncancel: (ev) => { ev.preventDefault(); close("cancel"); } },
         h("h3", { id: "oi-ask-h" }, TEXT.askTitle),
         h("p", {}, stock ? TEXT.askBodyStock : TEXT.askBody),
+        warn.line ? h("p.o-msg.warn.oi-layout", {}, warn.line) : null,
         h("div.oi-row", {},
           h("button.o-btn.primary", { type: "button", onclick: () => close("go") }, TEXT.askGo),
           h("button.o-btn", { type: "button", onclick: () => close("backup") }, TEXT.askBackup),
@@ -616,7 +629,7 @@ export function mountInstaller(container, opts = {}) {
   async function install() {
     const pkg = st.pkg;
     if (!pkg || st.busy) return;
-    const answer = await ask(pkg.stock);
+    const answer = await ask(pkg.stock, layoutWarning(pkg));
     if (answer === "backup") {
       if (opts.onNavigate) opts.onNavigate("backup"); else window.open(links.backup, "_blank", "noopener");
       return;

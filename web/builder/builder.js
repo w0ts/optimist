@@ -350,7 +350,8 @@ function renderMsgs() {
 
 function itemRow(key, hasKids) {
   const it = S.reg.byKey[key], v = S.view, val = S.values[key] ?? it.default;
-  const live = (!it.parent || built(S.reg, S.values, it.parent)) && (!it.shown_under || built(S.reg, S.values, it.shown_under)) && (!S.reg.drumsOnly.includes(key) || built(S.reg, S.values, "DRUMS"));
+  const live = (!it.parent || built(S.reg, S.values, it.parent)) && (!it.shown_under || built(S.reg, S.values, it.shown_under)) && (!S.reg.drumsOnly.includes(key) || built(S.reg, S.values, "DRUMS"))
+    && !(it.dim_when && built(S.reg, S.values, it.dim_when));   /* (SAMPLE SLOTS, PROJECTS: greyed in SD card mode) */
   const id = `it-${key}`;
   let ctl;
   if (it.choices.length) {

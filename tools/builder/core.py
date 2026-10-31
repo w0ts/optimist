@@ -102,34 +102,142 @@ def defaults():
     return {k: it.default for k, it in R.ITEMS.items()}
 
 
-# ---- the memory front (registry.py MEMORY): a view of LAYOUT and SDCARD, never stored in a .config
+# ---- the memory fronts (registry.py SD_MODE, SMP_SLOTS, PROJECTS; MEMORY the old one-row front): views of LAYOUT,
+# SDCARD and PATTERNS, never stored in a .config (docs/SD-MODE-DESIGN.md 9.7)
+FRONTS = ("MEMORY", "SD_MODE", "SMP_SLOTS", "PROJECTS")
+MEMORY_KEYS = FRONTS + ("LAYOUT", "SDCARD")          # (a change of one may move the flash layout: change_notice)
+STREAMS_OFF = {"SDCARD": 0, "SD_RING": 0, "SD_REC": 0}
+
+
+def _grid():
+    """{(sample slots, projects): layout} of every step (registry.py LAYOUT_STEPS)"""
+    return {(s, p): k for k, (s, p, _) in R.LAYOUT_STEPS.items()}
+
+
+def sd_on(cfg):
+    """SD card mode: the card on in the big step (LAYOUT 1 + SDCARD)"""
+    return cfg.get("LAYOUT", 0) == 1 and bool(cfg.get("SDCARD", 0))
+
+
 def derive_memory(cfg):
-    """-> MEMORY's value for these LAYOUT / SDCARD: 2 SD card mode (the card on, the big slot), 1 more flash (LAYOUT 1
-    otherwise), 4 no user samples (LAYOUT 3), 0 normal (registry.py LAYOUT_STEPS: a layout no step has reads normal)"""
+    """-> MEMORY's (old) value for these LAYOUT / SDCARD: 2 SD card mode, 1 more flash (LAYOUT 1 otherwise), 4 no user
+    samples (LAYOUT 3), 0 normal (a layout no step has reads normal), 5 another step of the grid"""
     layout = cfg.get("LAYOUT", 0)
-    if layout == 1 and cfg.get("SDCARD", 0):
+    if sd_on(cfg):
         return 2
-    return R.LAYOUT_STEPS.get(layout, (0,))[0]
+    if layout not in R.LAYOUT_STEPS:
+        return 0
+    return R.MEMORY_OF.get(layout, 5)
+
+
+def derive_fronts(cfg):
+    """-> {SD_MODE, SMP_SLOTS, PROJECTS} as these LAYOUT / SDCARD / PATTERNS read: SD card mode on: no slot, the big
+    step's projects; normal with PATTERNS off: 3 slots"""
+    layout = cfg.get("LAYOUT", 0)
+    slots, projects, _ = R.LAYOUT_STEPS.get(layout, R.LAYOUT_STEPS[0])
+    if sd_on(cfg):
+        slots = 0
+    elif layout == 0 and not cfg.get("PATTERNS", 0):
+        slots = 3
+    return {"SD_MODE": int(sd_on(cfg)), "SMP_SLOTS": slots, "PROJECTS": projects}
 
 
 def sync_memory(cfg):
-    """-> cfg with MEMORY read back from the items it fronts (a copy)"""
-    return dict(cfg, MEMORY=derive_memory(cfg))
+    """-> cfg with MEMORY and the three fronts read back from the items they front (a copy)"""
+    return dict(cfg, MEMORY=derive_memory(cfg), **derive_fronts(cfg))
 
 
 def set_memory(cfg, mode):
     """-> cfg with MEMORY = mode and the items it fronts set to match (a copy): 0 normal (LAYOUT, SDCARD and the
     card's streams off); 4 no user samples (LAYOUT 3, no card); 1 more flash (LAYOUT 1, no card: SDCARD and the card's
     streams off); 2 SD card mode (LAYOUT 1 and SDCARD on)"""
-    layouts = {m: k for k, (m, *_) in R.LAYOUT_STEPS.items()}
+    layouts = {m: k for k, m in R.MEMORY_OF.items()}
     if mode not in layouts and mode != 2:
-        raise ConfigError(f"MEMORY={mode}: one of {', '.join(str(v) for v, _ in R.MEMORY_CHOICES)}")
+        raise ConfigError(f"MEMORY={mode}: one of 0, 4, 1, 2")
     out = dict(cfg)
     if mode == 2:
         out.update(LAYOUT=1, SDCARD=1)
     else:
-        out.update(LAYOUT=layouts[mode], SDCARD=0, SD_RING=0, SD_REC=0)
+        out.update(LAYOUT=layouts[mode], **STREAMS_OFF)
     return sync_memory(out)
+
+
+def _near(pairs, want):
+    """the (slots, projects) of pairs closest to want: the same slots first, then the projects nearest (more first)"""
+    return min(pairs, key=lambda sp: (sp[0] != want[0], abs(sp[1] - want[1]), -sp[1], abs(sp[0] - want[0])))
+
+
+def set_front(cfg, key, value):
+    """-> cfg with the front key (MEMORY, SD_MODE, SMP_SLOTS, PROJECTS) at value and LAYOUT / SDCARD / PATTERNS set to
+    match (a copy). SD_MODE off leaves the big step without the card (0 slots, 2 projects); SMP_SLOTS keeps the
+    projects and PROJECTS the slots when the grid has the pair, else the nearest step; SMP_SLOTS 3 is normal with
+    PATTERNS off (no projects: USR1 is a slot again), 0..2 turn PATTERNS on; leaving SD card mode turns the card off"""
+    if key == "MEMORY":
+        return set_memory(cfg, value)
+    if key not in FRONTS:
+        raise ConfigError(f"{key}: not a memory front")
+    now = derive_fronts(cfg)
+    out = dict(cfg)
+    if key == "SD_MODE":
+        if value:
+            return set_memory(out, 2)
+        if now["SD_MODE"]:
+            out.update(STREAMS_OFF)
+        return sync_memory(out)
+    if key == "SMP_SLOTS" and value == 3:
+        out.update(LAYOUT=0, PATTERNS=0, **STREAMS_OFF)
+        return sync_memory(out)
+    want = (value, now["PROJECTS"]) if key == "SMP_SLOTS" else (min(now["SMP_SLOTS"], 2), value)
+    grid = _grid()
+    if not any((s if key == "SMP_SLOTS" else p) == value for s, p in grid):
+        raise ConfigError(f"{key}={value}: no flash step has it "
+                          f"({', '.join(str(v) for v, _ in R.ITEMS[key].choices)})")
+    pair = want if want in grid else _near([sp for sp in grid if (sp[0] if key == "SMP_SLOTS" else sp[1]) == value],
+                                           want)
+    out.update(LAYOUT=grid[pair], PATTERNS=1, **STREAMS_OFF)
+    return sync_memory(out)
+
+
+def layout_room(layout):
+    """app.bin's room in the classic build for this step (registry.py LAYOUT_STEPS)"""
+    return R.LAYOUT_STEPS.get(layout, R.LAYOUT_STEPS[0])[2]
+
+
+def switch_loss(old_layout, new_layout):
+    """what installing new_layout's firmware over old_layout's erases (the builder's copy of tools/flash_layout.py
+    switch_loss, checked against it by tests/flash_layout_test.py): () the same step"""
+    if old_layout == new_layout:
+        return ()
+    old = R.LAYOUT_STEPS.get(old_layout, R.LAYOUT_STEPS[0])[0]
+    new = R.LAYOUT_STEPS.get(new_layout, R.LAYOUT_STEPS[0])[0]
+    out = ["the projects in flash", "the FM6 voices of the user presets"]
+    usr2, usr3 = old >= 2 > new, old >= 1 > new
+    if usr2 and usr3:
+        out.append("the user samples (USR2, USR3) and the snapshots")
+    elif usr3:
+        out.append("the user samples in USR3 and the snapshots")
+    elif usr2:
+        out.append("the user samples in USR2")
+    return tuple(out)
+
+
+def change_notice(key, before, after):
+    """the notice the menu and the web builder show when key changed from before to after (both whole, synced): for
+    the memory items the backup warning of a layout change (the user, 2026-10-31: "when we flash a different layout,
+    we warn the user to backup their data first"), with the new code room; "" when the layout stays (SD card mode on
+    or off in the big step: the one project stays). Any other item: its own notice"""
+    it = R.ITEMS[key]
+    if key in MEMORY_KEYS:
+        old, new = before.get("LAYOUT", 0), after.get("LAYOUT", 0)
+        loss = switch_loss(old, new)
+        if not loss:
+            return ""
+        what = ", ".join(loss[:-1]) + " and " + loss[-1]
+        room = layout_room(new)
+        return (f"New memory layout: {room:,} B for code ({room - R.NORMAL_APP:+,} B against normal). Installing it on "
+                f"an FM-1 with the layout of before erases {what}. Back up first: web editor > Backup. The first "
+                f"install of a new layout goes over a normal build of this version.")
+    return it.notice if it.notice and (after[key] or it.notice_on_change and after[key] != before[key]) else ""
 
 
 def parse(text, base=None, strict=True, warn=None, reject_unknown=False):
@@ -153,8 +261,8 @@ def parse(text, base=None, strict=True, warn=None, reject_unknown=False):
         if not m:
             raise ConfigError(f"line {n}: expected KEY=number, got {s!r}")
         k, v = m.group(1), int(m.group(2))
-        if k == "MEMORY":                               # (the front: sets LAYOUT, SDCARD; the lines after it refine)
-            cfg = set_memory(cfg, v)
+        if k in FRONTS:                                 # (a front: sets LAYOUT, SDCARD; the lines after it refine)
+            cfg = set_front(cfg, k, v)
             continue
         if k in R.FORBIDDEN:
             raise ConfigError(f"{k}: never offered ({R.FORBIDDEN[k]})")
@@ -197,7 +305,7 @@ def dump(cfg, name="", full=False):
     for g in R.GROUPS:
         rows = []
         for k, it in R.ITEMS.items():
-            if it.group == g and k != "MEMORY" and (full or cfg[k] != it.default):
+            if it.group == g and k not in FRONTS and (full or cfg[k] != it.default):
                 rows.append(f"{k}={cfg[k]}")
         if rows:
             out.append(f"# {g}")
@@ -264,19 +372,23 @@ def validate(cfg):
                          ["SL24_XSTEP"] + sx_users))
     if cfg.get("PATTERNS") and cfg.get("SECTIONS") == 4:
         err.append(Issue("patterns live in the section log: SECTIONS 8 or 16 (or PATTERNS off)", ["PATTERNS", "SECTIONS"]))
-    if not R.LAYOUT_STEPS.get(cfg.get("LAYOUT", 0), (0, False))[1]:   # (L1, S0: the user samples' and snapshots' flash is
-                                                                     # the app's or the relocated store's; an unknown
-                                                                     # layout: the same rule, validate refuses it anyway)
-        clash = [k for k in ("ENG_SAMPLE", "DRUM_USR", "SNAPSHOTS") if k in R.ITEMS and built(cfg, k)
-                 and not (k == "ENG_SAMPLE" and cfg.get("SD_RING"))]   # (SAMPLE's CARD set: from the card)
-        if built(cfg, "NATIVE_BANKS") and built(cfg, "ENG_CZ"):
+    layout = cfg.get("LAYOUT", 0)
+    if layout != 0:                                    # (every step but normal: a relocated store, the project log;
+        slots = R.LAYOUT_STEPS.get(layout, (0,))[0]    # SAMPLE SLOTS 0: the slots' flash is the app's or the store's;
+        clash = [] if slots else [k for k in ("DRUM_USR", "SNAPSHOTS") if k in R.ITEMS and built(cfg, k)]   # an unknown
+        if not slots and built(cfg, "NATIVE_BANKS") and built(cfg, "ENG_CZ"):   # layout: the same, validate refuses it)
             clash.append("NATIVE_BANKS")
         if clash or not cfg.get("PATTERNS"):
-            step = dict(R.MEMORY_CHOICES).get(derive_memory(cfg), "").split(":")[0]
-            err.append(Issue(f"MEMORY {step} (LAYOUT {cfg.get('LAYOUT')}) keeps no user samples, "
-                             "snapshots or CZ collection and needs "
-                             "PATTERNS: " + ", ".join(clash + ([] if cfg.get("PATTERNS") else ["PATTERNS off"])),
+            err.append(Issue(f"MEMORY: SAMPLE SLOTS {slots} (LAYOUT {layout}) "
+                             + ("keeps no user drum samples, snapshots or CZ collection" if clash else "")
+                             + (" and " if clash and not cfg.get("PATTERNS") else "")
+                             + ("needs PATTERNS (the project log)" if not cfg.get("PATTERNS") else "")
+                             + (": " + ", ".join(clash) if clash else ""),
                              ["LAYOUT"] + clash + ([] if cfg.get("PATTERNS") else ["PATTERNS"])))
+        if slots and not any(built(cfg, k) for k in ("ENG_SAMPLE", "DRUM_USR", "SNAPSHOTS", "NATIVE_BANKS") if k in R.ITEMS):
+            warn.append(Issue(f"MEMORY: SAMPLE SLOTS {slots} keeps flash for user samples that nothing in this build "
+                              "uses (no SAMPLE, user drum samples, snapshots or CZ collection): SAMPLE SLOTS 0 gives it "
+                              "to the code", ["LAYOUT"]))
     if cfg.get("BT_PROJ") and not (cfg.get("BLE") and cfg.get("ED_MIRROR") and cfg.get("PATTERNS") and cfg.get("BACKUP")):
         err.append(Issue("projects over Bluetooth need Bluetooth MIDI (BLE), the Mirror (ED_MIRROR, its Bluetooth link), the "
                          "projects (PATTERNS) and the backup (BACKUP)", ["BT_PROJ", "BLE", "ED_MIRROR", "PATTERNS", "BACKUP"]))

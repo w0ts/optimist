@@ -47,6 +47,7 @@ def sidecar(pkg, commit, name="mots", h="1901b25c", dirty=False):
 
 with tempfile.TemporaryDirectory() as td:
     td = Path(td)
+    FL.LAST_INSTALL = td / "last-install.json"         # (the installs below record nothing in the repo's build/)
     pkg = td / "optimist-0.1-dev-abc.fwsc"
     pkg.write_bytes(b"package one")
     code = {str(td / "menu.py"): "aa", str(td / "registry.py"): "bb"}

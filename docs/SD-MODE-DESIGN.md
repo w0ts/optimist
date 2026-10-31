@@ -770,6 +770,15 @@ warn the user to backup their data first."* Numbers from the code at `fm1-next` 
 PROJECTS offers 1, 2, 4 and 16 (8 dropped). The design's S1 (one slot, 20 sectors, 0xB1000) and S0-20 (0xC1000) of 9.1
 are 8-project cells and go with it.
 
+**Ruled 2026-10-31** (the user: *"if 1 and 2 have the same layout and we dont save flash, whats the point ? :) but with
+the no sample gains, in think we can have just 2/4/16 projects:) yes allow zero user samples :) i dont use samples. Yes
+layout change should warn user."*): **PROJECTS 2, 4 or 16** (1 dropped: it saved no flash; SD card mode keeps its one
+project in flash); **SAMPLE SLOTS 0 allows SAMPLE** with its built-in sets (every slot's capacity 0); **a layout change
+warns, never refuses** (the builder, the web installer, the terminal flash, the FM-1's own update screen).
+
+**Built (branch `fm1-next-memopts`):** the three items, the old-config mapping, the warnings (9.7.4, 9.7.5) and the
+steps of 9.7.8.
+
 #### 9.7.0 Where things stand
 
 - **SD card mode today** is MEMORY 2 = `LAYOUT` 1 + `SDCARD` 1 (`core.py:106-131` `derive_memory` / `set_memory`):
@@ -804,13 +813,13 @@ Code room = app.bin's room (`flash_layout.slot_of`). Gain = against normal's 581
 |---|---|---|---|---|---|---|---|---|---|
 | off | 2 (USR2+USR3) | 16 | **N** (0), today's normal | 0x93000 / 0x93000 | 581,564 | 0 | 20 sect. at 0xA0000 | 66.2 KiB | 7-10 |
 | off | 2 | 4 | new (6) | 0xA6000 / same | 659,388 | +77,824 | 11 at 0xA9000 | 34.8 KiB | 3-5 |
-| off | 2 | 1 or 2 | new (7) | 0xAA000 / same | 675,772 | +94,208 | 7 at 0xAD000 | 20.9 KiB | 2 |
+| off | 2 | 2 | new (7) | 0xAA000 / same | 675,772 | +94,208 | 7 at 0xAD000 | 20.9 KiB | 2 |
 | off | 1 (USR3) | 16 | new (2) | 0xA5000 / same | 655,292 | +73,728 | 32 at 0xA8000 | 108.0 KiB | 13-17 |
 | off | 1 | 4 | new (4) | 0xBA000 / same | 741,308 | +159,744 | 11 at 0xBD000 | 34.8 KiB | 3-5 |
-| off | 1 | 1 or 2 | new (5) | 0xBE000 / same | 757,692 | +176,128 | 7 at 0xC1000 | 20.9 KiB | 2 |
+| off | 1 | 2 | new (5) | 0xBE000 / same | 757,692 | +176,128 | 7 at 0xC1000 | 20.9 KiB | 2 |
 | off | 0 | 16 | **S0** (3), built | 0xB5000 / same (not built) | 720,828 | +139,264 | 32 at 0xB8000 | 108.0 KiB | 13-17 |
 | off | 0 | 4 | new (8) | 0xCA000 / same | 806,844 | +225,280 | 11 at 0xCD000 | 34.8 KiB | 3-5 |
-| off | 0 | 1 or 2 | **L1** (1), today's "more flash" | 0xD0000 / 0xCE000 | 831,420 / 823,228 | +249,856 / +241,664 | 7 at 0xD0000 | 20.9 KiB | 2 |
+| off | 0 | 2 | **L1** (1), today's "more flash" | 0xD0000 / 0xCE000 | 831,420 / 823,228 | +249,856 / +241,664 | 7 at 0xD0000 | 20.9 KiB | 2 |
 | **on** | (the card) | 1 in flash + the card | **L1** (1) + SDCARD | 0xD0000 / 0xCE000 | 831,420 / 823,228 (less the card's code) | as L1 | 7 at 0xD0000 | 20.9 KiB | 1 slot |
 | off, PATTERNS off | 3 | (no projects: the sections) | **N** (0) | 0x93000 | 581,564 | 0 | the old slots 0x97000 | - | - |
 
@@ -820,9 +829,8 @@ Notes on the grid:
   0xD0000, L1's end with another layout (an installed end must name its step, `flash_layout.py:64`), and 2 projects
   (7 sectors) at 0xCE000, the release's L1 end (the same clash, `known_ends`); so column 0 keeps L1 for both, and the
   other columns follow (5 sectors would gain only 8 KiB). So PROJECTS 1 and 2 are one step and differ only in `PROJ_SLOTS`
-  (a build flag, no flash moved). **PROJECTS 1 gains no flash over 2**; the user may want to drop 1 from the list.
-  How the UI shows it: PROJECTS 1 and 2 show the same code room, and 1's label says so ("1: the same flash as 2, one
-  slot"); a change between them gives no backup notice (nothing moves, 9.7.2).
+  (a build flag, no flash moved). **PROJECTS 1 gained no flash over 2**: dropped (ruled above).
+  The UI offers 2, 4, 16; SD card mode (the same step) keeps one project in flash, PROJECTS greyed.
 - **SAMPLE SLOTS 2 + PROJECTS 16 is normal as it is** (20 sectors: room for 7-10 busy projects, not 16). A 32-sector
   variant would end at 0x91000, 8 KiB *below* normal: not offered. (The dropped SLOTS 2 + PROJECTS 8 would have been
   normal's same log with 40 KiB more code: normal's room to grow and its unread old project slots, 9.0.)
@@ -843,14 +851,14 @@ Notes on the grid:
 Each new step's R (the top of what it moves) is its column's top: 0xD8000, 0xC8000, 0xB4000; N 0x93000, L1 0xDA000. A
 switch from A to B writes [0x4000, E_B) and erases [E_B, max(R_A, R_B)). Computed for every pair of the 12 cells:
 
-| from \ to | same column, other PROJECTS | the other sample column (1 <-> 2) | column 0 <-> 1 or 2 | PROJECTS 1 <-> 2 (one step) |
+| from \ to | same column, other PROJECTS | the other sample column (1 <-> 2) | column 0 <-> 1 or 2 | SD card mode <-> 0 slots + 2 projects (one step) |
 |---|---|---|---|---|
 | projects, autosave A, FM6 voices | **lost** (the log moves) | **lost** | **lost** | **kept** (a 1-project build keeps project 2's records unread) |
 | USR3 + snapshots + CZ collection | kept (columns 1, 2) | **kept** | **lost** | kept |
 | USR2 | kept (column 2) | lost (column 1 has none) | lost | kept |
 | kits, presets, settings, autosave B, drum records | kept | kept | kept | kept |
 
-SD on <-> SLOTS 0 + PROJECTS 1/2: the same step (L1): the one project kept, as MEMORY 1 <-> 2 today. Own <-> release in
+SD on <-> SLOTS 0 + PROJECTS 2: the same step (L1): the one project kept, as MEMORY 1 <-> 2 today. Own <-> release in
 one step: nothing cleared (as 9.3). The working project probably comes back from autosave B (0xFE000), *not tested
 across a switch* (9.3).
 
@@ -909,7 +917,7 @@ step's own count, so an old `.config` without it reads as before: 16, L1 1):
   SD_RING and SD_REC shown under SD CARD MODE (`shown_under`, as today under MEMORY). Each value in the menu and the web
   builder shows its step's code room ("PROJECTS 4: 741,308 B for code") from `LAYOUT_STEPS`, which grows to every
   step's (layout -> slots, projects, room) and stays checked against the table (`tests/flash_layout_test.py`).
-- **Old values load:** `MEMORY=0` -> SD off, SLOTS 2, PROJECTS 16; `MEMORY=4` -> off, 0, 16; `MEMORY=1` -> off, 0, 1;
+- **Old values load:** `MEMORY=0` -> SD off, SLOTS 2, PROJECTS 16; `MEMORY=4` -> off, 0, 16; `MEMORY=1` -> off, 0, 2;
   `MEMORY=2` -> on. `LAYOUT=n` (and `SDCARD`) as written: the three fronts read back from them (`sync_memory`'s
   successor). `MEMORY` stays parsed (`parse`, `core.py:156`) and is no longer dumped or shown; its bit 436 stays
   retired, never reused. The web builder gets the same through `to_json` / `web_api.py` (no copy of the logic in JS
@@ -917,7 +925,7 @@ step's own count, so an old `.config` without it reads as before: 16, L1 1):
 - **The backup notice** (`notice_on_change`, `menu.py:535`, `web_api.py:124`; MEMORY has it today, `registry.py:1160`)
   on all three. Today the notice is one fixed text. New: `core.switch_loss(before, after)` names what the switch
   erases (9.7.2's table) and the notice is that one line, e.g. *"New memory layout: installing it erases the projects
-  and sample slot USR2. Back up first: web editor > Backup."* PROJECTS 1 <-> 2: no notice (nothing erased).
+  and sample slot USR2. Back up first: web editor > Backup."* SD card mode on <-> off: no notice (nothing erased).
 
 #### 9.7.5 The backup warning at install (the user's ruling)
 
@@ -938,7 +946,7 @@ build with fewer PROJECTS takes only PJ01..PJnn (the rest stays in the file) and
 
 #### 9.7.6 The release
 
-- **Now:** N (SLOTS 2 + 16, and normal with PATTERNS off), L1 (SLOTS 0 + PROJECTS 1/2 at 0xCE000), SD on (L1 + card).
+- **Now:** N (SLOTS 2 + 16, and normal with PATTERNS off), L1 (SLOTS 0 + PROJECTS 2 at 0xCE000), SD on (L1 + card).
   PROJECTS 2 in L1 changes no flash, only `PROJ_SLOTS`: buildable once the flag exists (*not built*).
 - **Waits for fm1-base's loader** (`ldr_slot_switch`, `bsp/loader/ldr_core.c:151-170`: going down it clears only the
   old code's tail, so a new step over another leaves the old log inside the new one's): S0 (already `NOT_BUILT`,
@@ -951,7 +959,7 @@ build with fewer PROJECTS takes only PJ01..PJnn (the rest stays in the file) and
   (asserted), the warnings of 9.7.5. The new risk is the count: 9 layouts, 12 x 12 cell pairs; a loader that maps an
   end to the wrong R could take USR3 on a column 1 <-> 2 switch.
 - **Install refusals:** every older updater refuses the 6 new sizes (-15): one hop through normal of the new version.
-- **Project room shrinks:** PROJECTS 4 and 1/2 (34.8 / 20.9 KiB) refuse a big restore with MEM FULL; the 6-8 KiB a
+- **Project room shrinks:** PROJECTS 4 and 2 (34.8 / 20.9 KiB) refuse a big restore with MEM FULL; the 6-8 KiB a
   project is an estimate: measuring a real busy project's bytes is part of phase 2.
 - **The trap of 9.7.2** (stale log or sample sectors) to check in `sec_log.c` and by a host test.
 - **Tests:** `tests/flash_layout_test.py` (the 9 rows, the header, `switch_clear_ends` for all 100 pairs of the 10 known
