@@ -1,0 +1,12 @@
+{
+  "note": "One definition of the track bar for the iOS app (Nav.bar) and the web editor (navBar): from the FM-1's 4 TRACKS list, the drum lanes on their own line, then T1 T2 T3 DR, RET A B C, MASTER. Both test suites read this file.",
+  "cases": [
+    { "names": ["RET A", "RET B", "RET C", "MASTER", "T1", "T2", "T3", "DR", "KICK", "SNARE", "ACCENT"],
+      "lanes": ["KICK", "SNARE", "ACCENT"], "bottom": ["T1", "T2", "T3", "DR", "RET A", "RET B", "RET C", "MASTER"] },
+    { "names": ["RET A", "RET B", "RET C", "MASTER", "T1", "T2", "T3", "DR"],
+      "lanes": [], "bottom": ["T1", "T2", "T3", "DR", "RET A", "RET B", "RET C", "MASTER"] },
+    { "names": ["RET A", "RET B", "RET C", "MASTER", "T1", "T2", "T3", "T4", "KICK"],
+      "lanes": ["KICK"], "bottom": ["T1", "T2", "T3", "T4", "RET A", "RET B", "RET C", "MASTER"] },
+    { "names": [], "lanes": [], "bottom": [] }
+  ]
+}
