@@ -1184,7 +1184,7 @@ static uint32_t meter_h(int32_t pk)
 /* ---- the note played on the keys, at the screen's bottom left (the user, 2026-10-24, after Melodee): its name (A#4; a
  * chord's lowest) while a note key is down and NN_FRAMES after the last one is let go. A build with the help band: the
  * help line shows it at its left end (op_help.c hl_pre / hl_post: the band is the line's alone); without the band, it is
- * drawn last each frame over the panel's corner, and when it goes the screen is drawn again whole */
+ * drawn last each frame over the panel's corner, and when it goes the cards and the panel are drawn again over it */
 #define NN_FRAMES 60u                   /* ~1 s at 60 frames a second */
 #define NN_W 38u
 #define NN_Y 224u                       /* the help band's text rows (op_help.c HL_Y + 2), the panel's last 16 without it */
@@ -1208,7 +1208,8 @@ static void nn_post(void)               /* last, after the frame's force is spen
     if (OP_FOOT)
         return;                                         /* (the help band: the help line draws it) */
     if (nn_gone) {
-        ui.force = 1;                                   /* (gone: the corner drawn again by whatever is under it) */
+        ui.redraw = 1;                                  /* (gone: the corner drawn again by whatever is under it; the cards and the panel over
+                                                         * what is there, next frame: no black fill of the screen, that blinked ~1 s after a key, #121) */
         return;
     }
     if (!nn_vis)
@@ -1316,6 +1317,11 @@ static void op_frame_draw(void)
     if (ui.force) {
         lcd_fill(0, 0, 240, 240, C_BLACK);
         memset(ui.sig, 0, sizeof ui.sig);
+    }
+    if (ui.redraw) {                                    /* the cards and the panel again, over what they drew (a DX7 voice shows, the note's corner goes) */
+        ui.redraw = 0;
+        ui.sig[1] = ui.sig[2] = ui.sig[4] = 0;
+        mx_redraw();
     }
     if (ov != ui.overlay || ui.force) {                 /* the panel under the overlay: again when it goes */
         if (ui.overlay == 5u)                           /* (the popup list covers the cards too: every band again, drawn over it; no black
