@@ -180,9 +180,20 @@ static void graph_adsr(const page_t *pg, uint16_t col)
         rel = page_frac(pg, 1, 127);
     graph_adsr4(page_frac(pg, 0, 127), page_frac(pg, 1, 127), page_frac(pg, 2, 127), rel, col);
 }
-/* the LFO as it runs: two cycles over the width from the core's own wave (core/lfo_slot.h lfo_shape, voice.c lfo_wave's),
- * its phase as set; S&H drawn as random steps (SLOOP's graph_lfo, copied). two: LFO 2, from phase 0, POL UNI one way
- * only (from the centre line up, lfo2_tick's (v + 1) / 2) */
+/* the picture's wave w at column x (of 240) from phase ph (Q15): two cycles over the width from the core's own wave
+ * (core/lfo_slot.h lfo_shape, voice.c lfo_wave's); S&H drawn as random steps 20 columns wide (SLOOP's graph_lfo, copied),
+ * SLEW as the core glides between those same values, one step's width a glide */
+static int32_t graph_lfo_v(uint32_t w, uint32_t ph, int32_t x)
+{
+    uint32_t r = (uint32_t)(x / 20) * 2654435761u;
+    if (w == LFO_WAVE_SH)
+        return (int32_t)(r >> 16) - 32768;
+    if (w == LFO_WAVE_SLEW)
+        return lfo_slew((uint32_t)(x % 20) * (0xFFFFFFFFu / 20u), lfo_slew_pair(r, (uint32_t)(x / 20 + 1) * 2654435761u));
+    return lfo_shape(w, ph + (uint32_t)x * (0xFFFFFFFFu / 120u), 0);
+}
+/* the LFO as it runs (graph_lfo_v), its phase as set. two: LFO 2, from phase 0, POL UNI one way only (from the centre
+ * line up, lfo2_tick's (v + 1) / 2) */
 static void graph_lfo(const page_t *pg, uint16_t col)
 {
     const track_t *t = TSEL;
@@ -201,8 +212,7 @@ static void graph_lfo(const page_t *pg, uint16_t col)
     }
 #endif
     for (x = 0; x < 240; x++) {
-        int32_t v = w == 4u ? (int32_t)((uint32_t)(x / 20) * 2654435761u >> 16) - 32768
-                            : lfo_shape(w, ph + (uint32_t)x * (0xFFFFFFFFu / 120u), 0), y;
+        int32_t v = graph_lfo_v(w, ph, x), y;
         if (two && t->p[P_L2POL])
             v = (v + 32768) >> 1;
         y = mid - v * amp / 32768;
