@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* tests/ui_optimist_test.c, 2026-10-16: the returns' MUTE on the mixer's MASTER row (SHIFT = OCT- held, + the RETURNS card's knob, once per hold; the card struck
+/* tests/ui_optimist_test.c, 2026-10-16: the returns' MUTE on the mixer's RET A row (2026-10-30; was MASTER's RETURNS cards; SHIFT = OCT- held, + its LEVEL knob, once per hold; the card struck
  * through; a turned level unmutes it; fx.c fx_rmute) and the editor's SOLO op 7 on the Optimist UI (the same bits the gesture sets; the editor's REC,
  * cmd 107, is gone since 2026-10-19). Included after ui_optimist_edv14.h and ui_optimist_solo.h. */
 static void ed_known(uint32_t k, uint32_t id) { (void)k, (void)id; }
@@ -7,10 +7,10 @@ static void ed_known(uint32_t k, uint32_t id) { (void)k, (void)id; }
 static int rm_find_ret_card(uint32_t *k, mitem_t *m)   /* the MASTER row's RETURNS set shown, a card of it */
 {
     uint32_t s, c;
-    for (s = 0; s < mx_sets(MXR_MASTER); s++) {
+    for (s = 0; s < mx_sets(MXR_RET0); s++) {
         mx.set = (uint8_t)s;
         for (c = 0; c < 4u; c++)
-            if (mx_item(MXR_MASTER, c, m) && m->kind == MI_RET) {
+            if (mx_item(MXR_RET0, c, m) && m->kind == MI_RET) {
                 *k = c;
                 return 1;
             }
@@ -26,10 +26,10 @@ static void retmute_tests(void)
     fx_rmute = 0;
     reset_ui();
     frames(2);
-    ui.row[SCR_HOME] = MXR_MASTER;
+    ui.row[SCR_HOME] = MXR_RET0;
     frames(2);
     if (!rm_find_ret_card(&k, &m)) {
-        check(0, "retmute: the MASTER row has a RETURNS set in this build");
+        check(0, "retmute: RET A has its LEVEL card in this build");
         return;
     }
     ln = (uint32_t)(m.id - G_CRET) % 3u, bit = 1u << ln;
@@ -38,8 +38,8 @@ static void retmute_tests(void)
     turn(EN_K1 + k, 1);
     turn(EN_K1 + k, 1);
     release(B_OCTDN);
-    check(fx_rmute == bit && song.g[m.id] == lv, "retmute: SHIFT + a RETURNS knob: that line's return muted (once per hold, two turns), its level kept");
-    mix_cell(MXR_MASTER, k, &c);
+    check(fx_rmute == bit && song.g[m.id] == lv, "retmute: SHIFT + a return's LEVEL knob: that line's return muted (once per hold, two turns), its level kept");
+    mix_cell(MXR_RET0, k, &c);
     check(c.strike, "retmute: the muted return's card is struck through");
     press(B_OCTDN);
     turn(EN_K1 + k, 1);
@@ -61,7 +61,7 @@ static void retmute_tests(void)
         q[1] = (uint8_t)r;
         ed_begin(ED_SOLO);
         check(ed_solo(ED_SOLO, q, 3) && fx_rmute == bit && ed_out[17] == (1u << r), "retmute: the editor's SOLO 7 sets the bit the gesture sets, the reply's ret mask in return order");
-        mix_cell(MXR_MASTER, k, &c);
+        mix_cell(MXR_RET0, k, &c);
         check(c.strike, "retmute: ... and the card is struck through");
         fx_rmute = 0;
     }

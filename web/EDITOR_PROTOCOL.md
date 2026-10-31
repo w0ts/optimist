@@ -424,6 +424,7 @@ The page's `autoLane(param)` reads an id. Every write is an undo level (`ED_LIVE
 **FXP (94)** reaches every slot by **owner** and describes each slot and parameter itself (the device's own descriptors), so an editor names no type. Tag 57: `03 01 flags owners` (flags bit 0 the USB input is built; owners = 19).
 Owners: 0..3 tracks T1 T2 T3 DR, 4 the master, 5 the USB input (slots 0 1, and slot 2: its own VOLUME PAN MUTE FX ON REV DLY CHO), 6..8 the returns A B C, 9..18 the drum sounds (lanes 0..9; slots 0 1: only that slot's amount).
 A return's slot 0 is its type; slot 1 holds its **sends to the returns to its right** (A: B C, B: C; 0..127, listed whatever the returns hold; type 0 always; op 1 on it loads nothing; no feedback). With the item `RET_FB` each return also has its two others.
+Slots 2 and 3 (2026-10-30; GET says 4 slots) are the return's **PRE** and **POST** inserts (the device's RET A B C mixer rows): send -> PRE -> its effect -> POST -> RET level -> master. Op 1 loads a type a stage may hold (every type the return's slot 0 may hold but CHO DLY REV's send, which are inserts there where built; never the return's own effect's type, a type the other stage holds swaps them; an empty return: unchanged), one parameter, its amount (EQ3: its six, the amount ON). They belong to the return's send line, as its RET level: re-read the returns after a type change. An editor that reads slot 0 and 1 only is unaffected.
 
 | op | Request args | Reply args |
 | --- | --- | --- |

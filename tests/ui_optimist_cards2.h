@@ -11,41 +11,40 @@ static void c2_master_tests(void)
 {
     static const int32_t zero[CTL];
     static int32_t in[CTL], wl[CTL], wr[CTL];
-    uint8_t ret[3];
-    uint32_t i, n, ok = 1, y, x;
+    uint32_t i, ok = 1, y, x;
     reset_ui();
-    ui.force = 1;                                       /* T1's row first (the cards 1x4, its panel from row 76) */
+    ui.row[SCR_HOME] = (uint8_t)(MXR_MASTER - 1u);     /* RET C's row first (the cards 1x4, its panel from row 76) */
+    ui.force = 1;
     frame();
-    turn(EN_ALGO, -1);                                  /* MASTER, alone (no forced redraw: as the FM-1 draws it) */
+    turn(EN_ALGO, 1);                                   /* MASTER, alone, the last row (no forced redraw: as the FM-1 draws it) */
     frame();
     frame();
     for (y = OY_CARD + OH_CARD_2X2; y < OY_PANEL_2X2; y++)   /* (the FM-1, 2026-10-25: T1's rows left under DYN) */
         for (x = 0; x < 240u; x++)
             ok &= (uint32_t)(screen[y * 240u + x] == C_BLACK);
-    check(ok, "MASTER after T1: the rows between the 2x2 cards and the panel cleared (nothing of T1's panel left)");
-    ok = 1;
-    n = mx_rets(ret);
-    check(mxd.first == MXR_MASTER && n == 3u && ret[0] == 0u && ret[1] == 1u && ret[2] == 2u,
-          "MASTER page: three return lines, A B C = CHO DLY REV (the default; every FX built here)");
-    for (i = 0; i < n; i++) {                           /* the names in C_HI where T1 .. DR were */
-        y = (uint32_t)(OP_PY + MXM_CY + (int32_t)i * MXM_CP);
-        ok &= (uint32_t)px_in(MXM_X, y, 24, 14, C_HI);
-    }
-    for (i = 0; i < NTRK; i++)
-        ok &= (uint32_t)!px_in(0, (uint32_t)(OP_PY + MXM_CY), 240, (uint32_t)(OP_PH - MXM_CY), trk_col(i));
-    y = (uint32_t)(OP_PY + MXM_CY + 3 * MXM_CP);        /* (where DR's line was: nothing) */
-    ok &= (uint32_t)!px_in(MXM_X, y, 240u - MXM_X, 240u - y, C_HI);   /* (the MASTER chip at x 2 runs down: not counted) */
-    check(ok, "MASTER page: the CHO DLY REV names, no track's colour under GR, nothing in DR's old place");
+    check(ok && mx_row() == MXR_MASTER, "MASTER after RET C: the rows between the 2x2 cards and the panel cleared (nothing of RET C's panel left)");
+    y = (uint32_t)(OP_PY + MXM_GY + MXM_GH + 2);
+    for (i = 0, ok = 1; i < NTRK; i++)
+        ok &= (uint32_t)!px_in(0, y, 240, (uint32_t)OP_PY + (uint32_t)OP_PH - y, trk_col(i));
+    ok &= (uint32_t)!px_in(MXM_X, y, 240u - MXM_X, (uint32_t)OP_PY + (uint32_t)OP_PH - y - 1u, C_HI);   /* (the chip at x 2: not counted) */
+    check(mxd.first == MXR_MASTER && ok, "MASTER page: its meter and GR alone, no return lines under them (2026-10-30: the returns' own rows)");
     check(px_in(MXM_GX, (uint32_t)(OP_PY + MXM_GY), MXM_GW, MXM_GH, C_LINE), "MASTER page: the GR line kept");
     ppm("opt-cards2-master");
     mt.ret[2] = 12000;                                  /* REV loud, DLY and CHO silent (meter_tap's side: set here) */
     mt.ret[1] = mt.ret[0] = 0;
     memset(fx_ret_pk, 0, sizeof fx_ret_pk);
+    mx_apply(MXR_RET0);
+    ui.force = 1;
     ui_draw();
-    y = (uint32_t)(OP_PY + MXM_CY + MXM_CV);
-    check(px_in(MXM_GX, y + 2u * MXM_CP, 40, MXM_CH, C_OK) && !px_in(MXM_GX, y + MXM_CP, 40, MXM_CH - 1u, C_OK) &&
-          !px_in(MXM_GX, y, 40, MXM_CH - 1u, C_OK),
-          "MASTER page: the REV return's meter (C) fills, CHO's and DLY's stay empty");
+    {
+        mrect_t qa, qc;
+        mx_rect(MXR_RET0, &qa);
+        mx_rect(MXR_RET0 + 2u, &qc);
+        check(mxd.first == MXR_RET0 && mxd.last == MXR_MASTER && px_in((uint32_t)(qc.x + qc.vx), (uint32_t)(OP_PY + qc.y + qc.vy), 40, (uint32_t)qc.vh, C_OK) &&
+                  !px_in((uint32_t)(qa.x + qa.vx), (uint32_t)(OP_PY + qa.y + qa.vy), 40, (uint32_t)qa.vh, C_OK) &&
+                  px_in(MXL_VX, (uint32_t)(OP_PY + qa.y + MXL_TY), 24, 14, C_HI),
+              "the returns' rows: RET C's meter (REV) fills, RET A's (CHO) stays empty; A names its effect");
+    }
     ppm("opt-cards2-master-rev");
     /* the tap: each bus's return seen apart (fx_buses, one block at a time, the sends set by hand) */
     for (i = 0; i < 6000u; i++)                         /* (the buses drained first: an earlier test's tails, the sequencer mute
@@ -74,10 +73,10 @@ static void c2_master_tests(void)
     for (i = 0; i < 4000u; i++)                         /* (the tails out: the tests after start from silence) */
         fx_buses(zero, zero, zero, wl, wr, CTL);
     memset(fx_ret_pk, 0, sizeof fx_ret_pk);
-    turn(EN_ALGO, 1);
+    mx_apply(MXR_T1);
     frame();
     check(mxd.first == MXR_T1 && px_in(6, mx_row_y(MXR_T1) + 3u, 16, 14, C_WHITE),
-          "the channels' view after MASTER: as before");
+          "the channels' view after the returns: as before");
     reset_ui();
 }
 

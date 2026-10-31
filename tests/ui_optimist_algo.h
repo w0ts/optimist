@@ -1,8 +1,9 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* tests/ui_optimist_test.c, the user's requests of 2026-10-12 (docs/UI-OPTIMIST-DESIGN.md 2.7 Pages with no track):
  *   "the algo button should work the same on all pages, master (if it makes sense), t1, t2,t3,t4 and then individual
- *   drum lanes (if it makes sense)", then "i want uniformity": one walk, the mixer's order MASTER T1 T2 T3 DR and the
- *   16 lanes, the same on every page and layer
+ *   drum lanes (if it makes sense)", then "i want uniformity": one walk, the mixer's order T1 T2 T3 DR, the 16 lanes and
+ *   MASTER (the last since 2026-10-30: "put the master at the bottom"; on the mixer USB IN and RET A B C before it), the
+ *   same on every page and layer
  *   "the preset on a drum lane should change the drum lane preset, not the kit": PRESETS on DR the kit; on a lane with
  *   SRC KIT the kit too, on a lane on an instrument that lane's sound only; SHIFT + PRESETS the same split
  *   ARP "is the same as lfo/env. no list": its picture is never blank, the arp off or notes held
@@ -20,20 +21,13 @@ static void algo_mixer_tests(void)
     reset_ui();
     song.sel = 0;
     frames(2);
-    ok &= al_walk(-1) == MXR_MASTER && al_walk(-1) == MXR_MASTER;
-    for (r = MXR_T1; r < MXR_LN; r++)
+    ok &= al_walk(-1) == MXR_T1 && al_walk(-1) == MXR_T1;
+    for (r = MXR_T1 + 1u; r < MXR_N; r++)
         ok &= al_walk(1) == r;
-#if FELUCCA_USB_AUDIO
-    ok &= al_walk(1) == MXR_USB && al_walk(1) == MXR_USB;   /* (the USB input's row, the mixer's last) */
-    ok &= al_walk(-1) == MXR_LN - 1u;
-#endif
-#if FELUCCA_USB_AUDIO
-    ok &= al_walk(1) == MXR_N - 1u && al_walk(-1) == MXR_LN - 1u;
-#else
-    ok &= al_walk(1) == MXR_LN - 1u;
-#endif
+    ok &= al_walk(1) == MXR_MASTER && mx_master_dead(B_ENV);   /* (MASTER, the mixer's last) */
+    ok &= al_walk(-(int32_t)(MXR_MASTER - (MXR_LN - 1u))) == MXR_LN - 1u;
     ok &= lane_picked() && lane_selected() == DRUM_UILANES - 1u;
-    check(ok, "walk, the mixer: MASTER, T1 .. DR, the 16 lanes and the ACCENT lane (built), stopping at both ends");
+    check(ok, "walk, the mixer: T1 .. DR, the 16 lanes and the ACCENT lane (built), USB IN (built), RET A B C, MASTER, stopping at both ends");
     ok = al_walk(-(int32_t)DRUM_UILANES) == MXR_DR && !lane_picked() && song.sel == TRK_DRUM;
     check(ok, "... back to DR: DR itself selected (no lane)");
     reset_ui();
@@ -46,9 +40,8 @@ static void algo_sound_tests(void)
     set_engine_of(&trk[0], trk_def_engine(0));          /* (the tests before leave T1 on whatever engine the presets' walk ended on; an FM6 has its own ENV page) */
     frames(2);
     tap(B_ENV);
-    ok = al_walk(-1) == MXR_MASTER && ui.scr == SCR_FX;
-    ok &= al_walk(1) == MXR_T1 && ui.scr == SCR_SOUND && snd_fam == FAM_ENV;
-    check(ok, "walk, SOUND (a synth's ENV): MASTER is the master FX screen, right T1's ENV again");
+    ok = al_walk(-1) == MXR_T1 && ui.scr == SCR_SOUND && snd_fam == FAM_ENV;
+    check(ok, "walk, SOUND (a synth's ENV): left of T1 nothing, T1's ENV stays (MASTER is past the last lane)");
     ok = al_walk(1) == MXR_T1 + 1u && al_walk(1) == MXR_T1 + 2u && al_walk(1) == MXR_DR && !lane_picked();
     ok &= al_walk(1) == MXR_LANE0 && lane_picked() && lane_selected() == 0u;
     ok &= al_walk(1) == MXR_LANE0 + 1u && lane_picked() && lane_selected() == 1u && ui.scr == SCR_SOUND;
@@ -56,11 +49,16 @@ static void algo_sound_tests(void)
     check(ok, "walk, SOUND: T2 T3 DR, then lane 1 and lane 2 (the drum SOUND pages are per lane)");
     ok = px_in(2, 3, 4, 19, lane_col(1));
     check(ok, "... the header's badge: the lane, in its sound's colour");
-    ok = al_walk(-2) == MXR_DR && !lane_picked() && al_walk(-200) == MXR_MASTER && ui.scr == SCR_FX;
-    check(ok, "... and back: DR itself, then down to MASTER");
+    ok = al_walk(-2) == MXR_DR && !lane_picked() && al_walk(200) == MXR_MASTER && ui.scr == SCR_FX;
+    ok &= al_walk(-1) == MXR_LN - 1u && ui.scr == SCR_SOUND && lane_picked();
+    check(ok, "... and back: DR itself; on past the last lane MASTER (the master FX screen), back: SOUND on the last lane");
+    ui.lane = 0;
+    lane_select(0);
     /* the drum track's own SOUND rows (EDIT on DR): into its lanes */
     reset_ui();
     song.sel = TRK_DRUM;
+    ui.lane = 0;                                        /* (DR itself: the walk before ended on the last lane) */
+    lane_select(0);
     frame();
     tap(B_EDIT);
     ok = ui.scr == SCR_SOUND && al_walk(1) == MXR_LANE0 && lane_picked() && al_walk(-1) == MXR_DR && al_walk(-1) == MXR_T1 + 2u;
@@ -68,21 +66,23 @@ static void algo_sound_tests(void)
     song.sel = 0;
     reset_ui();
 }
-/* the same walk on every screen and layer (the user, 2026-10-12: "i want uniformity"): from T1, MASTER (the page's
- * master view: the master FX screen, a layer's master FX cards; the badge MASTER, the track buttons dark), back to the
- * same page on T1, then T2 T3 DR and the 16 lanes, stopping at both ends */
+/* the same walk on every screen and layer (the user, 2026-10-12: "i want uniformity"): from T1 (it stops there) T2 T3 DR
+ * and the 16 lanes, then MASTER (the page's master view: the master FX screen, a layer's master FX cards; the badge MASTER,
+ * the track buttons dark; on the mixer USB IN and RET A B C before it), back to the same page on the last lane, both ends */
 static int al_full_walk(uint32_t scr0, int in_lay, const char *nm)
 {
     uint32_t r, ok = 1, n;
-    ok &= al_walk(-1) == MXR_MASTER && al_walk(-1) == MXR_MASTER && mx_master_dead(B_ENV) && mx_master_dead(B_ARP);
-    ok &= al_walk(1) == MXR_T1 && ui.scr == scr0 && !mx_master_dead(B_ENV) && (in_lay ? lay.shown != LY_PLAY : 1);
+    ok &= al_walk(-1) == MXR_T1 && ui.scr == scr0 && !mx_master_dead(B_ENV) && (in_lay ? lay.shown != LY_PLAY : 1);
     for (r = MXR_T1 + 1u; r < MXR_LN; r++) {
         n = al_walk(1);
         ok &= n == r && (r < MXR_LANE0 ? !lane_picked() : lane_picked() && lane_selected() == r - MXR_LANE0);
     }
-    ok &= al_walk(3) == (scr0 == SCR_HOME ? MXR_N : MXR_LN) - 1u && ui.scr == scr0;   /* (the mixer: on to the USB input's
-                                                         * row, in a build with USB audio) */
-    ok &= al_walk(-(int32_t)MXR_N) == MXR_MASTER;
+    for (r = MXR_LN; scr0 == SCR_HOME && r < MXR_MASTER; r++)   /* (the mixer: USB IN, the returns: no track's buttons) */
+        ok &= al_walk(1) == r && mx_master_dead(B_ENV);
+    ok &= al_walk(1) == MXR_MASTER && al_walk(1) == MXR_MASTER && mx_master_dead(B_ENV) && mx_master_dead(B_ARP);
+    ok &= al_walk(scr0 == SCR_HOME ? -(int32_t)(MXR_MASTER - (MXR_LN - 1u)) : -1) == MXR_LN - 1u && ui.scr == scr0 &&
+          !mx_master_dead(B_ENV);                       /* (a layer: the last lane's, as the walk through the lanes) */
+    ok &= al_walk(-(int32_t)MXR_N) == MXR_T1;
     if (!ok)
         printf("  walk on %s: broke (scr %u, at %u)\n", nm, ui.scr, mx_sel_row());
     return (int)ok;
@@ -101,7 +101,7 @@ static void algo_every_tests(void)
         tap(PB[i]);
         ok &= (uint32_t)al_full_walk(ui.scr, 0, "a page button's page");
     }
-    check(ok, "walk, SOUND's families and STEP: MASTER T1 .. DR, the 16 lanes, both ends, the page kept");
+    check(ok, "walk, SOUND's families and STEP: T1 .. DR, the 16 lanes, MASTER, both ends, the page kept");
     ok = 1;
     for (i = 0; i < sizeof SC; i++) {
         reset_ui();
@@ -124,7 +124,7 @@ static void algo_every_tests(void)
         press(LB[i]);
         frames(HOLD_FRAMES);
         ok &= (uint32_t)al_full_walk(SCR_SOUND, 1, "a layer");
-        ok &= al_walk(-(int32_t)MXR_N) == MXR_MASTER && ui.master;
+        ok &= al_walk((int32_t)MXR_N) == MXR_MASTER && ui.master;
         frames(HOLD_FRAMES);
         release(LB[i]);
         frames(2);
@@ -134,8 +134,9 @@ static void algo_every_tests(void)
     reset_ui();
     song.sel = 0;
     tap(B_SEQ);
-    ok = al_walk(-1) == MXR_MASTER && ui.scr == SCR_FX && px_in(2, 3, 4, 19, C_HI) && al_walk(1) == MXR_T1 && ui.scr == SCR_STEP;
-    check(ok, "STEP, ALGORITHM left from T1: MASTER (the master FX), right: STEP again");
+    ok = al_walk((int32_t)(MXR_LN - MXR_T1)) == MXR_MASTER && ui.scr == SCR_FX && px_in(2, 3, 4, 19, C_HI) &&
+         al_walk(-1) == MXR_LN - 1u && ui.scr == SCR_STEP;
+    check(ok, "STEP, ALGORITHM past the last lane: MASTER (the master FX), back: STEP again");
     /* STEP's lane pages follow the lane */
     reset_ui();
     song.sel = TRK_DRUM;

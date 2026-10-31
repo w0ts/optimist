@@ -659,7 +659,7 @@ static void shift_keys(uint32_t notes, int mute)
 static void drum_hit_pick(uint32_t notes)
 {
     uint32_t k, now = fm1_ticks();
-    if (!is_drum(TSEL) || master_sel() || ui.scr == SCR_STEP)
+    if (!is_drum(TSEL) || mx_no_track() || ui.scr == SCR_STEP)
         return;                                         /* (STEP: step_played picks the last hit, the keys playing) */
     for (k = 0; k < 4u; k++)
         if (now - ui.enc_t[EN_K1 + k] < HIT_KNOB_MS * 1000u * FM1_TICKS_PER_US)
@@ -816,6 +816,8 @@ static void op_tap(uint32_t b, uint32_t id)
         return;                                         /* (the mixer's MASTER: a track button does nothing) */
     if (b == B_FX && mx_on_master())
         op_enter(SCR_FX);                               /* (the mixer's MASTER: FX is the master FX) */
+    else if (b == B_FX && mx_on_ret())
+        mx_ret_fx();                                    /* (a return's row: the master FX on its effect's page, op_mixer.c) */
     else if (b == B_FX && mx_on_usb())
         (void)mx_ut_fx();                               /* (the mixer's USB row: its inserts, op_mixer.c) */
     else if (b == B_SAVE && !op_armed() && hold) {

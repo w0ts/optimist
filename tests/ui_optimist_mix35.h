@@ -42,10 +42,16 @@ static void mixer_views_tests(void)
     reset_ui();
     song.sel = 0;
     frames(2);
-    ok = algo_step_inplace(-1) && mx_row() == MXR_MASTER && mxd.first == MXR_MASTER && mxd.last == MXR_T1;
-    check(ok, "ALGORITHM past T1: MASTER alone, drawn in place");
-    ok = algo_step_inplace(1) && mx_row() == MXR_T1 && mxd.first == MXR_T1 && mxd.last == MXR_LANE0;
-    check(ok, "... back: the four channels, in place");
+    mx_apply(MXR_MASTER - 1u);                          /* (RET C, the last return: MASTER below it since 2026-10-30) */
+    frames(2);
+    ok = algo_step_inplace(1) && mx_row() == MXR_MASTER && mxd.first == MXR_MASTER && mxd.last == MXR_N;
+    check(ok, "ALGORITHM past RET C: MASTER alone, drawn in place");
+    ok = algo_step_inplace(-1) && mx_row() == MXR_MASTER - 1u && mxd.first == MXR_RET0 && mxd.last == MXR_MASTER;
+    check(ok, "... back: the three returns, in place");
+    mx_apply(MXR_T1);
+    frames(2);
+    ok = mx_row() == MXR_T1 && mxd.first == MXR_T1 && mxd.last == MXR_LANE0;
+    check(ok, "T1: the four channels");
     while (mx_row() < MXR_DR)
         turn(EN_ALGO, 1);
     ok = algo_step_inplace(1) && mx_row() == MXR_LANE0 && mxd.first == MXR_LANE0 && mxd.last == MXR_LN &&
