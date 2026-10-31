@@ -2682,9 +2682,10 @@ const parse = {   /* the replies' readers, by command */
     o.fxp = null;                                    /* 57: every FX slot by owner (v13, ed_fxp.c): {usb, owners} */
     o.lite = false;                                  /* 64: a backup-only firmware (builder ED_LIVE off, ed_lite.c): Backup alone */
     o.lib = false;                                   /* 64 bit 1: and the librarian (builder LIBRARIAN): sections, presets, kits, patterns */
+    o.intact = true;                                 /* the blocks end at the reply's end, the names printable (btInfoOk) */
     while (o.proto >= 6 && r.i + 2 <= a.length) {    /* WATCH while on keeps what is not pushed yet, bit 1 no RELOAD */
       const id = r.b(), n = r.b();                   /* after the editor's own PRESET / G_ENGSEL (Felucca 1.0.2 #65) */
-      if (r.i + n > a.length) break;
+      if (r.i + n > a.length) { o.intact = false; break; }
       if (id === 0x53 && n >= 1) o.syncCaps = a[r.i] & 3;
       if (id === 0x52 && n >= 3) o.reverb = { mask: a[r.i] & 15, scope: a[r.i + 1], id: a[r.i + 2] };
       if (id === 0x54 && n >= 3) o.midiSet = { mask: a[r.i] & 7, scope: a[r.i + 1], id: a[r.i + 2] };   /* 54: the MIDI settings (below) */
@@ -2705,6 +2706,7 @@ const parse = {   /* the replies' readers, by command */
       if (id === 0x59 && n >= 2 && a[r.i] >= 1) o.scrn = { screens: a[r.i + 1] };   /* 59: version, screens (GLOBAL, SYSTEM) */
       if (id === 0x65 && n >= 1 && a[r.i] >= 1) o.mirror = { v: a[r.i] };   /* 65: the screen mirrored (ED_MIRROR), version */
       if (id === 0x66 || id === 0x67) o.opti = { ...(o.opti || {}), ...optiParse(a.slice(r.i, r.i + n)) };   /* 66, 67 (66 full): the features by name and version (ed_opti.h) */
+      if ((id === 0x66 || id === 0x67) && a.slice(r.i, r.i + n).some((c) => c < 0x20 || c > 0x7E)) o.intact = false;   /* (names are printable: zeroed bytes are not) */
       if (id === 0x64 && n >= 1) { o.lite = !!(a[r.i] & 1); o.lib = !!(a[r.i] & 2); }   /* 64: backup and restore only (loadLite), bit 1 the librarian */
       if (id === 0x58 && n >= 2 && a[r.i] >= 1) o.dlan = { groups: a[r.i + 1] };   /* 58: version, groups */
       if (id === 0x5F && n >= 2 && a[r.i] >= 1) o.undo = { many: !!(a[r.i + 1] & 1) };   /* 5F: version, flags (bit 0 a history of many levels) */
@@ -2716,6 +2718,7 @@ const parse = {   /* the replies' readers, by command */
       if (id === 0x57 && n >= 3 && a[r.i] >= 1) o.fxp = { usb: !!(a[r.i + 1] & 1), owners: a[r.i + 2] };   /* 57: version, flags (bit 0 USB input), owners */
       r.i += n;
     }
+    if (o.proto >= 6 && r.i !== a.length) o.intact = false;   /* (a byte left over: a block's length did not hold) */
     return o;
   },
   [CMD.BUILD](a) {                                   /* v6: profile, .config hash, one bit per registry item */
@@ -7008,6 +7011,10 @@ function optiParse(b) {
   for (const w of String.fromCharCode(...b).split(" ")) { const u = w.lastIndexOf("_"); if (u > 0 && /^\d+$/.test(w.slice(u + 1))) o[w.slice(0, u)] = +w.slice(u + 1); }
   return o;
 }
+/* an INFO taken over Bluetooth (the Mirror app's DeviceInfo.wholeOverBluetooth): whole, and listing opti_mirror (only ed_mirror.c
+   answers INFO there). Asked while the screen streams it comes damaged, still F0 .. F7 (measured on the FM-1 2026-10-31: 18 of 20,
+   bytes zeroed or lost; ios/OptimistMirror/Tests/Fixtures/bt_info_frames.json) */
+const btInfoOk = (info) => !!info && info.intact !== false && !!info.opti && info.opti.opti_mirror !== undefined;
 /* the Mirror page's keys and touch buttons, as the Mirror app's (ios/OptimistMirror/Sources/PanelKeys.swift, Nav/NavState.swift;
    web/EDITOR_PROTOCOL.md "The panel pressed", "The touch navigation"). The computer keyboard is the FM-1's panel, the FM-1
    Emulator's keys: letters and Space hold the buttons (108 PANEL kind 0, by label), the arrows OCT- and OCT+, A W S E D R F G T H
@@ -8212,7 +8219,7 @@ async function pullDevice(d) {
 /* over Bluetooth MIDI the FM-1 answers INFO, the mirror (106) and its buttons (108, 109: with opti_mirbt_1) and nothing else
    (web/EDITOR_PROTOCOL.md "The screen mirrored"; the Mirror app's MirrorLink.swift): the Mirror page alone, its replies behind
    up to 0.65 s of screen (ed_mirror.c MIR_BLE_LAG). A firmware that answers 106 alone there: the screen, known by the port's name */
-const BT_WAIT = 1500, BT_WAIT_LONG = 3000;
+const BT_WAIT = 1500, BT_WAIT_LONG = 3000, BT_INFO_TRIES = 4;
 /* the waits over Bluetooth LE (as the Mirror app's BtPolicy): a reply sits behind the screen the firmware streams and the connection
    interval, and a BK_DATA chunk waits for the firmware's one long-request slot (a busy one drops it: the request is sent again).
    Longer waits, at least 2 repeats for a request that may be sent twice (retries 0 stays 0); the queue sends one request at a time */
@@ -8225,9 +8232,12 @@ function btWrap(link) {
   link.request = (rq, o = {}) => send(rq, btOptions(rq, o));
 }
 async function loadBt(d) {
-  let info = null;
-  try { info = parse[CMD.INFO](await d.link.request(req.info(), { timeout: BT_WAIT, retries: 2 })); }
-  catch (e) { if (e.message === "closed") throw e; }
+  let info = null;                                  /* (asked before the mirror runs: it comes whole; a damaged one is asked again) */
+  for (let k = 0; k < BT_INFO_TRIES && !btInfoOk(info); k++) {
+    try { info = parse[CMD.INFO](await d.link.request(req.info(), { timeout: BT_WAIT, retries: 2 })); }
+    catch (e) { if (e.message === "closed") throw e; break; }   /* (unanswered after its retries: a firmware that answers 106 alone) */
+  }
+  if (!btInfoOk(info)) info = null;
   d.info = info ? { ...info, ntrk: 0, lite: false, lib: false }
     : { version: d.input.name, ntrk: 0, mirror: { v: MIRROR_V }, opti: { opti_mirror: OPTI.mirror } };
   if (dev !== d) return;

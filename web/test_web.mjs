@@ -56,7 +56,7 @@ const E = vm.runInNewContext(`${proto}
    openMidi, findPorts, wantsReconnect, isFM1Name, syncState, ROLL, rollRest, rollNotes, noteSpan, rollAdd, rollRemove, rollToggle, rollSetLength, rollSetNote, rollSetStep, rollChanged, rollGrid, rollLen, DRUM_PAGE, drumPages, drumPageRange, COLORS, engineColor, kindColor, contrast, textOn, MASTER_FX, MASTER_BUS, fxInline, FX_INLINE_MAX, NAV, SCREENS, navOpen, navClose, navKey, navScreen, navDepth, KEYS, KEY_FIXED, LANE_KEYS, keyFor, keyLabel, keyPlan, stepxBuilt, PAT, patSlotView, patUsers,
    PATREC, patRecParse, patRecBuild, patRawEmpty, patStepFrom, patStepRaw, patDrumFrom, patDrumRaw, patReadAll, patWriteAll,
    FXT, FXT_NAMES, fxsLoad, fxType, fxSlotAmt, readFx, keptIds, AUTO, autoLane, SetGate,
-   FXP, FXP_TABLE, SCRN_TABLE, SCRS_TABLE, EQ_FL_HZ, EQ_FH_HZ, fxpClass, fxpName, fxpTypeName, fxpAllows, fxpFmt, readFxpOwner, readFxpSlot, panelKey, panelKeyName, navParse, navTracksParse, navBar, navKnobs, navKnobAt, MNAV, PJF, pjfPack, pjfUnpack, pjLibMake, pjLibMem, pjSwap, WIFI, wifiCheck, wifiApCheck, wifiApDefaultKey, wifiIsAp, wifiBusy, wifiText, pack7, unpack7 })`,
+   FXP, FXP_TABLE, SCRN_TABLE, SCRS_TABLE, EQ_FL_HZ, EQ_FH_HZ, fxpClass, fxpName, fxpTypeName, fxpAllows, fxpFmt, readFxpOwner, readFxpSlot, panelKey, panelKeyName, navParse, navTracksParse, navBar, navKnobs, navKnobAt, MNAV, PJF, pjfPack, pjfUnpack, pjLibMake, pjLibMem, pjSwap, WIFI, wifiCheck, wifiApCheck, wifiApDefaultKey, wifiIsAp, wifiBusy, wifiText, pack7, unpack7, btInfoOk })`,
 { setTimeout, clearTimeout, setInterval, clearInterval, console, TextEncoder, TextDecoder });
 
 const editorMock = async () => {
@@ -3564,6 +3564,15 @@ async function editorMirror() {
   const barCases = JSON.parse(readFileSync(join(HERE, "../ios/OptimistMirror/Tests/Fixtures/nav_track_bar.json"), "utf8")).cases;
   ok(barCases.every((c) => { const b = E.navBar(c.names); return JSON.stringify(b.lanes.map((i) => c.names[i])) === JSON.stringify(c.lanes) && JSON.stringify(b.bottom.map((i) => c.names[i])) === JSON.stringify(c.bottom); }),
     "mirror: the track bar: the lanes alone on line 1; line 2 T1 T2 T3 DR, RET A B C, MASTER (the same cases as the app's Nav.bar)");
+  /* INFO over Bluetooth: replies an FM-1 sent there (the app's Tests/Fixtures/bt_info_frames.json, its BtInfoTests read the same): the
+     whole one taken (opti_btproj_1 seen), a damaged one refused or taken only with the whole one's features; asked before the mirror */
+  const bi = JSON.parse(readFileSync(join(HERE, "../ios/OptimistMirror/Tests/Fixtures/bt_info_frames.json"), "utf8"));
+  const biParse = (hex) => E.parse[E.CMD.INFO](Array.from(Buffer.from(hex, "hex")).slice(5, -1));
+  const biWhole = biParse(bi.whole[0]), biBad = bi.damaged.map(biParse);
+  ok(E.btInfoOk(biWhole) && biWhole.opti.opti_btproj === 1 && biWhole.opti.opti_mirror === 2
+    && biBad.every((i) => !E.btInfoOk(i) || JSON.stringify(i.opti) === JSON.stringify(biWhole.opti)) && biBad.filter((i) => !E.btInfoOk(i)).length > biBad.length / 2,
+    "bluetooth: a whole INFO taken (opti_btproj_1), a damaged one (bytes zeroed or lost while the screen streams) refused, as the app");
+  ok(/for \(let k = 0; k < BT_INFO_TRIES && !btInfoOk\(info\); k\+\+\)/.test(html), "bluetooth: loadBt asks INFO again until a whole one comes (BT_INFO_TRIES)");
   /* the greyed-out buttons and the one screen size (the user, 2026-10-29): the lanes' buttons are always built (the kit's names, else the
      default lanes'), disabled off the drum track; the screen is sized as if their rows were there, with or without them */
   const mr = /function mirRender\(force = false\) \{[\s\S]*?\n\}\n/.exec(html)[0];
