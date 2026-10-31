@@ -197,7 +197,7 @@ const cli = JSON.parse(py(["tests/builder_web_ref.py"], JSON.stringify({ views, 
 ok(same(parsed, cli.texts), `${texts.length} profiles parsed alike`);
 const bad = [];
 for (const [i, q] of views.entries()) {
-  for (const f of ["eval", "savings", "conflicts", "over", "fit", "proposals", "dump"]) if (!same(sortObj(pv.views[i][f]), sortObj(cli.views[i][f]))) bad.push(`${q.name} ${f}`);
+  for (const f of ["eval", "savings", "arena_item", "conflicts", "over", "fit", "proposals", "dump"]) if (!same(sortObj(pv.views[i][f]), sortObj(cli.views[i][f]))) bad.push(`${q.name} ${f}`);
 }
 ok(!bad.length, `${views.length} configurations: evaluate, budget, fits, key, savings, fit, proposals = the CLI's${bad.length ? ": " + bad.slice(0, 6).join(", ") : ""}`);
 ok(toggles.every((q, i) => same(pv.toggles[i].values, cli.toggles[i].values) && same(pv.toggles[i].room, cli.toggles[i].room)), `${toggles.length} BLE toggles (room.py): the values and the room = the CLIx27s`);
@@ -317,9 +317,19 @@ const inf = await run(`${U} $("#import").open = false; await B.choosePreset("fla
   return { h: $("#info h3").textContent, rows: document.querySelectorAll("#info tbody tr").length, same: B.state.values.FX_REVERB === was, preset: $("#bpreset").value };`);
 ok(inf.h === (reg.registry.items || reg.registry).find((it) => it.key === "FX_REVERB").label && inf.rows >= 2 && inf.same && inf.preset === "flavour:default", `page: a click on an item's text shows its details and costs (${inf.rows} rows), without toggling it`);
 const kb = await run(`${U} const s = $("#sort").value; document.body.focus(); document.dispatchEvent(new KeyboardEvent("keydown", { key: "o", bubbles: true })); await sleep(50);
-  const v = $("#sort").value; document.dispatchEvent(new KeyboardEvent("keydown", { key: "o", bubbles: true })); document.dispatchEvent(new KeyboardEvent("keydown", { key: "o", bubbles: true })); await sleep(50);
-  return { s, v, back: $("#sort").value };`);
-ok(kb.s === "" && kb.v === "flash" && kb.back === "", "page: o cycles the sort as in the menu (default, flash, ram)");
+  const v = $("#sort").value; for (let i = 0; i < 2; i++) document.dispatchEvent(new KeyboardEvent("keydown", { key: "o", bubbles: true })); await sleep(50);
+  const arena = $("#sort").value; document.dispatchEvent(new KeyboardEvent("keydown", { key: "o", bubbles: true })); await sleep(50);
+  return { s, v, arena, back: $("#sort").value };`);
+ok(kb.s === "" && kb.v === "flash" && kb.arena === "arena" && kb.back === "", "page: o cycles the sort as in the menu (default, flash, ram, arena)");
+const ar = await run(`${U} const so = $("#sort"); so.value = "arena"; so.dispatchEvent(new Event("change")); await sleep(80);
+  const keys = [...document.querySelectorAll(".group .row")].map((r) => r.dataset.key), a = B.state.view.arena_item;
+  const first = document.querySelector(".row .arena");
+  return { vals: keys.map((k) => a[k]), tags: [...document.querySelectorAll(".row .arena")].map((c) => c.textContent), tip: first ? first.title : "", groups: document.querySelectorAll(".group").length };`);
+const arv = ar.vals.filter((x) => x !== null && x !== undefined);
+ok(ar.vals.length > 100 && arv.every((x, i, l) => i === 0 || l[i - 1] >= x) && ar.vals.slice(-6).includes(null) && ar.groups === 1 && ar.tags.some((t) => /^arena \d/.test(t)) && ar.tags.includes("arena ?") && ar.tip === "RAM taken from the arena by one instance (one part / one effect slot)",
+  "page: sort by arena is ONE list, largest one-instance arena first, unknown (?) last; the Arena column with its tooltip");
+await shot("builder-desktop-arena-sorted");
+await run(`${U} const so = $("#sort"); so.value = ""; so.dispatchEvent(new Event("change")); await sleep(50);`);
 
 /* ---- the notices policy: on the page only what must be acted on; the NOTICE texts in the (i) and the closed notes */
 const np = await run(`${U} await B.choosePreset("flavour:default"); await until(() => B.state.name.toLowerCase() === ${JSON.stringify(DFLT_NAME.toLowerCase())}); await sleep(100);

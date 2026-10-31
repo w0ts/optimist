@@ -10,7 +10,10 @@ export const BUDGETS = ["flash", "sram"];                     // the limits: the
 /* the limits of a result: BUDGETS, or its own when the data is an older release's (?ref=: flash, ram, pool, ramtext before 7da2794c) */
 export const budgetsOf = (fits) => (BUDGETS.every((r) => fits && fits[r]) ? BUDGETS : Object.keys(fits || {}));
 export const COSTS = ["flash", "ram"];                // what an item shows: its flash and ONE ram (the SRAM it costs), never the three parts
-export const SORTS = [null, ...COSTS];                // the menu's o: default order, flash, ram (the SRAM total), largest first
+export const ARENA_TIP = "RAM taken from the arena by one instance (one part / one effect slot)";
+export const SORTS = [null, ...COSTS, "arena"];       // the menu's o: default order, flash, ram (the SRAM total), arena (one instance), largest first
+/** the Arena column: the arena bytes of one instance as KB ("12.5K"), "?" when the size is not known, "" when it takes none (core.py item_arena) */
+export const arenaText = (n) => (n === null || n === undefined ? "?" : n ? `${(n / 1024).toFixed(1)}K` : "");
 /** the SRAM an entry costs: its sram, or ram + pool + ramtext when the data is an older release's (v0.2: no sram) */
 export const sramOf = (s) => (s && s.sram !== undefined ? s.sram : s && (s.ram !== undefined || s.pool !== undefined || s.ramtext !== undefined) ? (s.ram || 0) + (s.pool || 0) + (s.ramtext || 0) : undefined);
 /** an entry's cost in one of COSTS (flash, ram), undefined when it has none */
@@ -79,10 +82,11 @@ export function matches(item, filter) {
 
 /** keys in the active sort: the largest use of the region first (what the item costs as set now), the unmeasured
     last, ties and the default sort in the registry order (menu.py sorted_keys) */
-export function sortedKeys(keys, savings, sortBy) {
+export function sortedKeys(keys, savings, sortBy, arena) {
   const list = [...keys];
   if (!sortBy) return list;
-  const cost = (k) => { const c = costOf((savings || {})[k], sortBy); return c !== undefined ? c : null; };
+  const cost = sortBy === "arena" ? (k) => { const c = (arena || {})[k]; return c === undefined ? null : c; }   // (arena: null = unknown, last)
+    : (k) => { const c = costOf((savings || {})[k], sortBy); return c !== undefined ? c : null; };
   return list.map((k, i) => [k, i]).sort((a, b) => {
     const ca = cost(a[0]), cb = cost(b[0]);
     if ((ca === null) !== (cb === null)) return ca === null ? 1 : -1;
@@ -92,26 +96,26 @@ export function sortedKeys(keys, savings, sortBy) {
 
 /** the list as the menu builds it (rebuild): [{group, items: [{key, children: [{key, children}]}]}], groups without a
     match left out, the children of a matching parent all shown (a group's head: two levels, DRUMS > DRUM_X0X909 > X909_CYM) */
-export function treeOf(reg, filter, savings, sortBy) {
+export function treeOf(reg, filter, savings, sortBy, arena) {
   const items = reg.byKey;
   if (sortBy) {   // a size sort: ONE list of every item, the groups and parents ignored, options and sub-items their own rows (menu.py rebuild)
     const seen = new Set(), keys = [];
     const visit = (k) => { if (!seen.has(k)) { seen.add(k); keys.push(k); items[k].children.forEach(visit); } };
     for (const g of reg.groups) (reg.top[g] || []).forEach(visit);
-    const list = sortedKeys(keys.filter((k) => matches(items[k], filter)), savings, sortBy);
+    const list = sortedKeys(keys.filter((k) => matches(items[k], filter)), savings, sortBy, arena);
     return list.length ? [{ group: `all items by ${sortBy}, largest first`, flat: true, items: list.map((k) => ({ key: k, children: [] })) }] : [];
   }
   const hit = (k) => matches(items[k], filter) || items[k].children.some(hit);
   const node = (k, all) => ({
     key: k,
-    children: sortedKeys(items[k].children, savings, sortBy).filter((c) => all || matches(items[k], filter) || hit(c))
+    children: sortedKeys(items[k].children, savings, sortBy, arena).filter((c) => all || matches(items[k], filter) || hit(c))
       .map((c) => node(c, all || matches(items[k], filter))),
   });
   const out = [];
   for (const g of reg.groups) {
     const top = (reg.top[g] || []).filter(hit);
     if (!top.length) continue;
-    out.push({ group: g, items: sortedKeys(top, savings, sortBy).map((k) => node(k, false)) });
+    out.push({ group: g, items: sortedKeys(top, savings, sortBy, arena).map((k) => node(k, false)) });
   }
   return out;
 }

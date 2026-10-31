@@ -189,7 +189,7 @@ class Builder(App):
         self.flashing = False                            # the FM-1 is being written: q and ctrl+c are refused (action_quit)
         self.code0 = ST.code_fingerprint()               # the builder's code as it started (changed: f refuses)
         self.source = ST.source_line(C.ROOT)             # the checkout and commit a build compiles
-        self.over, self.savings = {}, {}
+        self.over, self.savings, self.arena_item = {}, {}, {}
         self.exact = None                                # (cfg_hash, sizes) of the last build, measurement builds too
         self.conflicts = {}
         self.room = RM.NONE                              # what BLE removed to make room (room.py)
@@ -243,6 +243,9 @@ class Builder(App):
             name = "ram" if r == "sram" else r            # (one RAM, as the bars count it)
             t.append(f"  {name} {n / 1024:+.1f}K",
                      style="bold red" if hot else ("bold reverse cyan" if name == self.sort_by else "cyan"))
+        ar = self.arena_item.get(key, 0)                 # (the arena one instance takes, whatever the item's state: "?" unknown)
+        if ar is None or ar:
+            t.append(f"  arena {self.arena_text(ar)}", style="bold reverse cyan" if self.sort_by == "arena" else "cyan")
         if key.startswith("SET_") and C.card_sets(self.cfg):   # (SD card mode: 0 B of flash, the SD card zip holds it)
             t.append("  on the card" if v else "  not on the card", style="cyan" if v else "dim")
         took = dict(deltas)
@@ -262,6 +265,11 @@ class Builder(App):
         if errs:                                         # an error of validate() names this item: live, in red
             t.append(f"  ✗ {errs[0]}" + (f" (+{len(errs) - 1})" if len(errs) > 1 else ""), style="bold red")
         return t
+
+    @staticmethod
+    def arena_text(n):
+        """the Arena column: KB of the arena one instance takes, "?" when not known (core.item_arena)"""
+        return "?" if n is None else f"{n / 1024:.1f}K"
 
     def delta_of(self, key):
         """what the item costs as set now (vs off / its smallest choice) per region, from costs.json:
@@ -298,6 +306,7 @@ class Builder(App):
         b = self.budget()
         self.over = {r: o for r, (_, _, o) in C.fits(b["total"], self.cfg).items() if o > 0} if b else {}
         self.savings = C.savings_of(self.cfg, self.costs) if self.costs else {}
+        self.arena_item = C.arena_items(self.cfg)
 
     def matches(self, key):
         if not self.filter:
@@ -315,7 +324,8 @@ class Builder(App):
         cost = self.sort_cost
         return sorted(keys, key=lambda k: (cost(k) is None, -(cost(k) or 0)))     # (sorted() is stable)
 
-    SORT_PARTS = {"flash": ("flash",), "ram": ("ram", "pool", "ramtext")}   # (ram: the SRAM budget's parts, one sum)
+    SORT_PARTS = {"flash": ("flash",), "ram": ("ram", "pool", "ramtext"), "arena": ()}   # (ram: the SRAM budget's parts, one sum;
+                                                                                         # arena: one instance's, core.item_arena)
 
     @staticmethod
     def subtree_count(key):
@@ -329,7 +339,10 @@ class Builder(App):
         return len(seen)
 
     def sort_cost(self, k):
-        """what item k costs in the sort's budget (flash; or ram: its ram + pool + ramtext), None when unmeasured"""
+        """what item k costs in the sort's budget (flash; or ram: its ram + pool + ramtext; or arena: one instance's),
+        None when unmeasured"""
+        if self.sort_by == "arena":                      # (0: takes none; None: unknown, last)
+            return self.arena_item.get(k)
         s = (self.savings or {}).get(k) or {}
         if self.sort_by == "ram" and s.get("sram") is not None:
             return s["sram"]
@@ -543,7 +556,7 @@ class Builder(App):
 
 
     def action_sort(self):
-        """o: default order -> flash -> ram (the SRAM: ram + pool + ramtext), within each group (children stay under
+        """o: default order -> flash -> ram (the SRAM: ram + pool + ramtext) -> arena (one instance), within each group (children stay under
         their parent)"""
         order = [None, *self.SORT_PARTS]
         self.sort_by = order[(order.index(self.sort_by) + 1) % len(order)]

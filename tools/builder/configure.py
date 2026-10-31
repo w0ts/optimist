@@ -49,6 +49,7 @@ from core import (
     pair_conds as pair_conds, pair_delta as pair_delta, parse as parse, part_mem as part_mem,
     rev_lines as rev_lines, savings_of as savings_of, undo_ring as undo_ring,
     arena_fits as arena_fits, arena_size as arena_size, arena_text as arena_text,
+    ARENA_UNKNOWN as ARENA_UNKNOWN, arena_items as arena_items, item_arena as item_arena,
     validate as validate, evaluate as evaluate, describe as describe)
 
 HERE = Path(__file__).resolve().parent

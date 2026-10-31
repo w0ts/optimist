@@ -103,6 +103,8 @@
   .ob-root .row .fold { flex: none; min-height: 20px; width: 20px; padding: 0; margin-top: 1px; font-size: var(--fs-2); }
   .ob-root .row.parent { cursor: default; }
   .ob-root .cost { font-family: var(--font-mono); color: var(--text-dim); white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .ob-root .arena { font-family: var(--font-mono); color: var(--text-dim); white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .ob-root .arena.sortby { color: var(--text); text-decoration: underline; text-underline-offset: 2px; }
   .ob-root .cost.hot { color: var(--err); font-weight: 700; }
   .ob-root .cost.sortby { color: var(--text); text-decoration: underline; text-underline-offset: 2px; }
   .ob-root .fits { color: var(--accent); font-weight: 700; white-space: nowrap; }
