@@ -1,6 +1,6 @@
 {
  "base": {
-  "flash": 727060,
+  "flash": 727080,
   "ram": 100624,
   "pool": 370948,
   "ramtext": 55296
@@ -1637,14 +1637,50 @@
    }
   },
   "LAYOUT": {
+   "2": {
+    "flash": 0,
+    "ram": 0,
+    "pool": 0,
+    "ramtext": 0
+   },
+   "6": {
+    "flash": 0,
+    "ram": 0,
+    "pool": 0,
+    "ramtext": 0
+   },
+   "7": {
+    "flash": 0,
+    "ram": 0,
+    "pool": 0,
+    "ramtext": 0
+   },
    "3": {
     "flash": 0,
     "ram": 0,
     "pool": 0,
     "ramtext": 0
    },
+   "4": {
+    "flash": 0,
+    "ram": 0,
+    "pool": 0,
+    "ramtext": 0
+   },
+   "5": {
+    "flash": 0,
+    "ram": 0,
+    "pool": 0,
+    "ramtext": 0
+   },
+   "8": {
+    "flash": 0,
+    "ram": 0,
+    "pool": 0,
+    "ramtext": 0
+   },
    "1": {
-    "flash": -856,
+    "flash": -920,
     "ram": 12,
     "pool": -104,
     "ramtext": -40
@@ -1787,7 +1823,7 @@
    }
   }
  },
- "measured": "2026-10-30 21:16",
+ "measured": "2026-10-31 10:47",
  "cpu": {
   "scale_pct": 104,
   "calibrated": "2026-10-06, emulator at 96 MHz, bench.c scenarios 1 2 3 7 8 (docs/CPU-GUARD.md); X0X: 2026-10-07, scenario 8 on the X0X 909 and 808 kits (x0x-drums)",
@@ -1901,7 +1937,7 @@
    },
    "built_hash": "659e2911",
    "sizes": {
-    "flash": 590156,
+    "flash": 590152,
     "ram": 108168,
     "pool": 299440,
     "ramtext": 50832
@@ -1911,7 +1947,7 @@
      "from": 1,
      "to": 0,
      "delta": {
-      "flash": 24176,
+      "flash": 24196,
       "ram": 200,
       "pool": 12,
       "ramtext": 1500
@@ -1921,7 +1957,7 @@
      "from": 0,
      "to": 1,
      "delta": {
-      "flash": 3304,
+      "flash": 3308,
       "ram": 1112,
       "pool": 556,
       "ramtext": 0
@@ -2025,7 +2061,7 @@
    },
    "built_hash": "7a4c818a",
    "sizes": {
-    "flash": 632972,
+    "flash": 632960,
     "ram": 128316,
     "pool": 305048,
     "ramtext": 51956
@@ -2035,7 +2071,7 @@
      "from": 1,
      "to": 0,
      "delta": {
-      "flash": 23568,
+      "flash": 23592,
       "ram": 232,
       "pool": 12,
       "ramtext": 1248
@@ -2129,7 +2165,7 @@
    },
    "built_hash": "10e31dcf",
    "sizes": {
-    "flash": 643448,
+    "flash": 643440,
     "ram": 143028,
     "pool": 268812,
     "ramtext": 42084
@@ -2139,7 +2175,7 @@
      "from": 1,
      "to": 0,
      "delta": {
-      "flash": 21172,
+      "flash": 21180,
       "ram": 288,
       "pool": 4104,
       "ramtext": 1196
@@ -2149,7 +2185,7 @@
      "from": 0,
      "to": 1,
      "delta": {
-      "flash": 1116,
+      "flash": 1112,
       "ram": 528,
       "pool": 556,
       "ramtext": 0
@@ -2255,7 +2291,7 @@
    },
    "built_hash": "75e076bb",
    "sizes": {
-    "flash": 836808,
+    "flash": 836740,
     "ram": 127960,
     "pool": 139380,
     "ramtext": 64512
@@ -2265,7 +2301,7 @@
      "from": 1,
      "to": 0,
      "delta": {
-      "flash": 30396,
+      "flash": 30416,
       "ram": 252,
       "pool": 28,
       "ramtext": 1748
@@ -2374,7 +2410,7 @@
    },
    "built_hash": "26dc3c45",
    "sizes": {
-    "flash": 626704,
+    "flash": 626700,
     "ram": 107160,
     "pool": 303756,
     "ramtext": 50384
@@ -2384,7 +2420,7 @@
      "from": 1,
      "to": 0,
      "delta": {
-      "flash": 21680,
+      "flash": 21704,
       "ram": 192,
       "pool": 12,
       "ramtext": 1500
@@ -2394,7 +2430,7 @@
      "from": 1,
      "to": 0,
      "delta": {
-      "flash": -3308,
+      "flash": -3304,
       "ram": -1148,
       "pool": -556,
       "ramtext": 0
@@ -2500,7 +2536,7 @@
    },
    "built_hash": "699efad8",
    "sizes": {
-    "flash": 633392,
+    "flash": 633380,
     "ram": 128700,
     "pool": 305048,
     "ramtext": 52012
@@ -2510,7 +2546,7 @@
      "from": 1,
      "to": 0,
      "delta": {
-      "flash": 23156,
+      "flash": 23184,
       "ram": 232,
       "pool": 12,
       "ramtext": 1292
@@ -2520,7 +2556,7 @@
      "from": 0,
      "to": 1,
      "delta": {
-      "flash": 1120,
+      "flash": 1124,
       "ram": 528,
       "pool": 556,
       "ramtext": 0
@@ -2628,7 +2664,7 @@
    },
    "built_hash": "7af10e98",
    "sizes": {
-    "flash": 622468,
+    "flash": 622464,
     "ram": 106020,
     "pool": 303000,
     "ramtext": 50344
@@ -2648,7 +2684,7 @@
      "from": 0,
      "to": 1,
      "delta": {
-      "flash": 33208,
+      "flash": 33180,
       "ram": 1920,
       "pool": 7368,
       "ramtext": 0
@@ -2745,7 +2781,7 @@
    },
    "built_hash": "360956cd",
    "sizes": {
-    "flash": 644788,
+    "flash": 644776,
     "ram": 115960,
     "pool": 313232,
     "ramtext": 43876
@@ -2755,7 +2791,7 @@
      "from": 1,
      "to": 0,
      "delta": {
-      "flash": 21252,
+      "flash": 21276,
       "ram": 276,
       "pool": 4100,
       "ramtext": 2028
@@ -2765,7 +2801,7 @@
      "from": 0,
      "to": 1,
      "delta": {
-      "flash": 1112,
+      "flash": 1120,
       "ram": 528,
       "pool": 556,
       "ramtext": 0
@@ -2872,7 +2908,7 @@
    },
    "built_hash": "694db753",
    "sizes": {
-    "flash": 647256,
+    "flash": 647248,
     "ram": 119584,
     "pool": 290660,
     "ramtext": 51508
@@ -2882,7 +2918,7 @@
      "from": 1,
      "to": 0,
      "delta": {
-      "flash": 21864,
+      "flash": 21884,
       "ram": 228,
       "pool": 12,
       "ramtext": 1212
@@ -2892,7 +2928,7 @@
      "from": 0,
      "to": 1,
      "delta": {
-      "flash": 1116,
+      "flash": 1120,
       "ram": 528,
       "pool": 556,
       "ramtext": 0
@@ -2996,7 +3032,7 @@
    },
    "built_hash": "36c8d2f4",
    "sizes": {
-    "flash": 631992,
+    "flash": 631984,
     "ram": 128756,
     "pool": 300788,
     "ramtext": 54176
@@ -3006,7 +3042,7 @@
      "from": 1,
      "to": 0,
      "delta": {
-      "flash": 22492,
+      "flash": 22516,
       "ram": 240,
       "pool": 12,
       "ramtext": 1344
@@ -3116,7 +3152,7 @@
    },
    "built_hash": "3ff5aaa6",
    "sizes": {
-    "flash": 578496,
+    "flash": 578504,
     "ram": 109076,
     "pool": 299216,
     "ramtext": 51248
@@ -3126,7 +3162,7 @@
      "from": 1,
      "to": 0,
      "delta": {
-      "flash": 23972,
+      "flash": 23980,
       "ram": 204,
       "pool": 12,
       "ramtext": 1476
@@ -3240,7 +3276,7 @@
    },
    "built_hash": "72f4095d",
    "sizes": {
-    "flash": 613264,
+    "flash": 613260,
     "ram": 128136,
     "pool": 301672,
     "ramtext": 60060
@@ -3250,7 +3286,7 @@
      "from": 1,
      "to": 0,
      "delta": {
-      "flash": 23852,
+      "flash": 23860,
       "ram": 220,
       "pool": 12,
       "ramtext": 1232
@@ -3341,7 +3377,7 @@
    },
    "built_hash": "54453d60",
    "sizes": {
-    "flash": 676888,
+    "flash": 676876,
     "ram": 143020,
     "pool": 263468,
     "ramtext": 42068
@@ -3351,7 +3387,7 @@
      "from": 1,
      "to": 0,
      "delta": {
-      "flash": 20116,
+      "flash": 20128,
       "ram": 292,
       "pool": 4104,
       "ramtext": 1212
@@ -3361,7 +3397,7 @@
      "from": 0,
      "to": 1,
      "delta": {
-      "flash": 1092,
+      "flash": 1100,
       "ram": 560,
       "pool": 556,
       "ramtext": 0
@@ -3465,20 +3501,20 @@
    },
    "built_hash": "162d62b2",
    "sizes": {
-    "flash": 824436,
-    "ram": 127228,
+    "flash": 825660,
+    "ram": 125884,
     "pool": 138828,
-    "ramtext": 64620
+    "ramtext": 64588
    },
    "contexts": {
     "COMPILER": {
      "from": 1,
      "to": 0,
      "delta": {
-      "flash": 28340,
-      "ram": 280,
+      "flash": 27052,
+      "ram": 1624,
       "pool": 28,
-      "ramtext": 1628
+      "ramtext": 1660
      }
     }
    }
@@ -3582,7 +3618,7 @@
    },
    "built_hash": "1aee26b5",
    "sizes": {
-    "flash": 626128,
+    "flash": 626124,
     "ram": 107124,
     "pool": 295332,
     "ramtext": 49804
@@ -3592,7 +3628,7 @@
      "from": 1,
      "to": 0,
      "delta": {
-      "flash": 21544,
+      "flash": 21564,
       "ram": 228,
       "pool": 12,
       "ramtext": 1592
@@ -3707,7 +3743,7 @@
    },
    "built_hash": "6a62fcb9",
    "sizes": {
-    "flash": 624580,
+    "flash": 624572,
     "ram": 127704,
     "pool": 272028,
     "ramtext": 50092
@@ -3717,7 +3753,7 @@
      "from": 1,
      "to": 0,
      "delta": {
-      "flash": 24988,
+      "flash": 25016,
       "ram": 236,
       "pool": 12,
       "ramtext": 1132
@@ -3836,7 +3872,7 @@
    },
    "built_hash": "6b87f897",
    "sizes": {
-    "flash": 622128,
+    "flash": 622124,
     "ram": 105728,
     "pool": 303136,
     "ramtext": 48280
@@ -3846,7 +3882,7 @@
      "from": 1,
      "to": 0,
      "delta": {
-      "flash": 21464,
+      "flash": 21468,
       "ram": 244,
       "pool": 12,
       "ramtext": 1860
@@ -3856,7 +3892,7 @@
      "from": 0,
      "to": 1,
      "delta": {
-      "flash": 33160,
+      "flash": 33140,
       "ram": 1888,
       "pool": 7368,
       "ramtext": 0
@@ -3951,7 +3987,7 @@
    },
    "built_hash": "7e803559",
    "sizes": {
-    "flash": 659956,
+    "flash": 659964,
     "ram": 115548,
     "pool": 319328,
     "ramtext": 47232
@@ -3961,7 +3997,7 @@
      "from": 0,
      "to": 1,
      "delta": {
-      "flash": -20532,
+      "flash": -20544,
       "ram": -252,
       "pool": -4100,
       "ramtext": -1896
@@ -4081,7 +4117,7 @@
    },
    "built_hash": "2b7bf532",
    "sizes": {
-    "flash": 659096,
+    "flash": 659088,
     "ram": 130868,
     "pool": 292276,
     "ramtext": 55312
@@ -4091,7 +4127,7 @@
      "from": 1,
      "to": 0,
      "delta": {
-      "flash": 25404,
+      "flash": 25432,
       "ram": 304,
       "pool": 12,
       "ramtext": 1388
@@ -4101,7 +4137,7 @@
      "from": 0,
      "to": 1,
      "delta": {
-      "flash": 1116,
+      "flash": 1112,
       "ram": 528,
       "pool": 556,
       "ramtext": 0
@@ -4203,7 +4239,7 @@
    },
    "built_hash": "7137deb0",
    "sizes": {
-    "flash": 648464,
+    "flash": 648460,
     "ram": 131996,
     "pool": 299548,
     "ramtext": 53448
@@ -4213,7 +4249,7 @@
      "from": 1,
      "to": 0,
      "delta": {
-      "flash": 25348,
+      "flash": 25368,
       "ram": 232,
       "pool": 12,
       "ramtext": 1264
@@ -4223,7 +4259,7 @@
      "from": 0,
      "to": 1,
      "delta": {
-      "flash": 1108,
+      "flash": 1104,
       "ram": 528,
       "pool": 556,
       "ramtext": 0
@@ -4516,7 +4552,7 @@
    "ramtext": 0
   },
   "SDCARD=1,LAYOUT=1,ENG_SAMPLE=0,DRUM_USR=0,SNAPSHOTS=0,PATTERNS=1": {
-   "flash": 31248,
+   "flash": 31236,
    "ram": 804,
    "pool": 6512,
    "ramtext": -148
@@ -4595,7 +4631,13 @@
   }
  },
  "unbuildable": {
-  "LAYOUT=3": "not in this build: not for the release yet: fm1-base's own update loader and app_end do not take the MEMORY steps' table (its slot switch would leave the old step's log sectors in the new one's; docs/SD-MODE-DESIGN.md 9.4, the proposed fm1-base branch pr/app-end-table) [link: build: exit status 1]"
+  "LAYOUT=2": "not in this build: not for the release yet: fm1-base's own update loader and app_end do not take the MEMORY steps' table (its slot switch would leave the old step's log sectors in the new one's; docs/SD-MODE-DESIGN.md 9.4, the proposed fm1-base branch pr/app-end-table) [link: build: exit status 1]",
+  "LAYOUT=6": "not in this build: not for the release yet: fm1-base's own update loader and app_end do not take the MEMORY steps' table (its slot switch would leave the old step's log sectors in the new one's; docs/SD-MODE-DESIGN.md 9.4, the proposed fm1-base branch pr/app-end-table) [link: build: exit status 1]",
+  "LAYOUT=7": "not in this build: not for the release yet: fm1-base's own update loader and app_end do not take the MEMORY steps' table (its slot switch would leave the old step's log sectors in the new one's; docs/SD-MODE-DESIGN.md 9.4, the proposed fm1-base branch pr/app-end-table) [link: build: exit status 1]",
+  "LAYOUT=3": "not in this build: not for the release yet: fm1-base's own update loader and app_end do not take the MEMORY steps' table (its slot switch would leave the old step's log sectors in the new one's; docs/SD-MODE-DESIGN.md 9.4, the proposed fm1-base branch pr/app-end-table) [link: build: exit status 1]",
+  "LAYOUT=4": "not in this build: not for the release yet: fm1-base's own update loader and app_end do not take the MEMORY steps' table (its slot switch would leave the old step's log sectors in the new one's; docs/SD-MODE-DESIGN.md 9.4, the proposed fm1-base branch pr/app-end-table) [link: build: exit status 1]",
+  "LAYOUT=5": "not in this build: not for the release yet: fm1-base's own update loader and app_end do not take the MEMORY steps' table (its slot switch would leave the old step's log sectors in the new one's; docs/SD-MODE-DESIGN.md 9.4, the proposed fm1-base branch pr/app-end-table) [link: build: exit status 1]",
+  "LAYOUT=8": "not in this build: not for the release yet: fm1-base's own update loader and app_end do not take the MEMORY steps' table (its slot switch would leave the old step's log sectors in the new one's; docs/SD-MODE-DESIGN.md 9.4, the proposed fm1-base branch pr/app-end-table) [link: build: exit status 1]"
  },
  "groups": {
   "INS_FX": {
