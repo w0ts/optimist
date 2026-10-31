@@ -102,21 +102,88 @@ def measure_toolchain(compiler="jieli"):
     linked, its pi32v2/bin/ld the wrapper tools/fm1base_ld.py (room for any build: fm1-base has no measurement mode).
     Made once per compiler (ROOT/build/measure-toolchain, -llvm), shared by parallel builds: under SHIM_LOCK (measure_costs
     runs them as threads), built in a directory of its own and renamed into place (2026-10-29: costs-all's 288 jobs at
-    once removed each other's half-made shim, FileNotFoundError on its links)"""
+    once removed each other's half-made shim, FileNotFoundError on its links).
+    Where fm1-base runs the tools in a container (in_container: macOS, JIELI_DOCKER=1) only this directory is mounted
+    (at /opt/jieli), so a link to the host's toolchain dangles there (2026-10-31, the Mac: "stat /opt/jieli/pi32v2/bin/clang:
+    no such file"): the shim is then whole in itself (_make_container_shim, -docker)"""
     real = Path(toolchain_env(compiler)["JIELI_TOOLCHAIN"]).resolve()
-    shim = ROOT / "build" / ("measure-toolchain" + ("-llvm" if compiler == "llvm" else ""))
+    boxed = in_container()
+    shim = ROOT / "build" / ("measure-toolchain" + ("-llvm" if compiler == "llvm" else "") + ("-docker" if boxed else ""))
     with SHIM_LOCK:
-        if (shim / "pi32v2" / "bin" / "ld").is_file() and (shim / "real").resolve() == real:
+        if (shim / "pi32v2" / "bin" / "ld").is_file() and (shim / "real").resolve() == real and (
+                not boxed or _shim_ld_current(shim)):
             return shim
         tmp = shim.with_name(f"{shim.name}.{os.getpid()}")
         shutil.rmtree(tmp, ignore_errors=True)
-        _make_shim(tmp, real)
+        (_make_container_shim if boxed else _make_shim)(tmp, real)
         shutil.rmtree(shim, ignore_errors=True)
         os.rename(tmp, shim)
     return shim
 
 
 SHIM_LOCK = threading.Lock()
+LD_PY = HERE / "fm1base_ld.py"
+
+
+def in_container():
+    """fm1-base's build runs the toolchain in a container (its tools/build.py use_docker: anywhere but Linux x86-64, or
+    JIELI_DOCKER=1), with only JIELI_TOOLCHAIN's directory mounted, at /opt/jieli"""
+    import toolchain as TC
+    return os.environ.get("JIELI_DOCKER", "0" if TC.is_native_host() else "1") == "1"
+
+
+def _shim_ld_current(shim):
+    """the container shim's copy of fm1base_ld.py is this checkout's"""
+    copy = shim / "measure" / LD_PY.name
+    return copy.is_file() and copy.read_bytes() == LD_PY.read_bytes()
+
+
+def _make_container_shim(shim, real):
+    """measure_toolchain's directory at shim for a container: real's tree as hard links (copies across file systems),
+    its relative links kept as they are; the real ld at measure/bin/ld (as deep as pi32v2/bin/ld: the drop-in's jlwrap.py
+    finds its toolchain three levels up from the name it is run by), a copy of fm1base_ld.py in measure/, and
+    pi32v2/bin/ld the wrapper, which finds both from its own path and runs the container's python3 (the toolchain image)"""
+    shim.mkdir(parents=True)
+    for src in real.iterdir():
+        if src.name != "pi32v2":
+            _mirror(src, shim / src.name, real)
+    (shim / "pi32v2").mkdir()
+    for sub in (real / "pi32v2").iterdir():
+        if sub.name != "bin":
+            _mirror(sub, shim / "pi32v2" / sub.name, real)
+    (shim / "pi32v2" / "bin").mkdir()
+    for tool in (real / "pi32v2" / "bin").iterdir():
+        if tool.name != "ld":
+            _mirror(tool, shim / "pi32v2" / "bin" / tool.name, real)
+    (shim / "measure" / "bin").mkdir(parents=True)
+    _mirror(real / "pi32v2" / "bin" / "ld", shim / "measure" / "bin" / "ld", real)
+    shutil.copy2(LD_PY, shim / "measure" / LD_PY.name)
+    ld = shim / "pi32v2" / "bin" / "ld"
+    ld.write_text('#!/bin/sh\nd=$(dirname "$0")/../..\n'
+                  f'FM1B_REAL_LD="$d/measure/bin/ld" exec python3 "$d/measure/{LD_PY.name}" "$@"\n')
+    ld.chmod(0o755)
+    (shim / "real").symlink_to(real)
+
+
+def _mirror(src, dst, top):
+    """src (inside top) at dst: a relative link that stays inside top as the same link, any other link as what it
+    points at, a directory entry by entry, a file hard-linked (copied when dst is on another file system)"""
+    if src.is_symlink():
+        target = os.readlink(src)
+        inside = os.path.normpath(src.parent / target)
+        if not os.path.isabs(target) and (inside == str(top) or inside.startswith(str(top) + os.sep)):
+            dst.symlink_to(target)
+            return
+        src = src.resolve(strict=True)
+    if src.is_dir():
+        dst.mkdir()
+        for child in src.iterdir():
+            _mirror(child, dst / child.name, top)
+        return
+    try:
+        os.link(src, dst)
+    except OSError:
+        shutil.copy2(src, dst)
 
 
 def _make_shim(shim, real):
@@ -144,6 +211,9 @@ def env_for(cfgfile, slot=None, measure=False):
     env.update(OPTIMIST=str(ROOT), OPT_CONFIG=str(Path(cfgfile).resolve()), OPT_TREE_COPY="1")
     if measure:
         env["JIELI_TOOLCHAIN"] = str(measure_toolchain(compiler_of(cfgfile)))
+        if in_container():           # (the wrapper's python3: the toolchain image's, JieLi's too, never plain debian)
+            import toolchain as TC
+            env["JIELI_DOCKER_IMAGE"] = TC.image_name()
     if slot:
         env["FM1B_JOBS"] = "2"       # (builds side by side: each one's compile pool small)
     env.pop("OPT_PROFILE", None)
