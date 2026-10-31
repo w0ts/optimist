@@ -376,9 +376,7 @@ static void acc_walk_tests(void)
         frames(2);
         turn(EN_ALGO, 40);
         frames(2);
-        if (S[scr] == SCR_HOME)                         /* (the mixer: USB IN, the returns, MASTER after it) */
-            turn(EN_ALGO, -(int32_t)(MXR_MASTER - MXR_ACC)), frames(2);
-        else                                            /* (a page: MASTER after it) */
+        if (S[scr] == SCR_HOME && MXR_N > MXR_LN)       /* (the mixer: the USB input's row after it, built) */
             turn(EN_ALGO, -1), frames(2);
         ok &= lane_selected() == DRUM_ACC && mx_sel_row() == MXR_ACC && lane_picked() && ui.scr == S[scr];
         turn(EN_ALGO, -1);
@@ -395,8 +393,8 @@ static void acc_walk_tests(void)
     frame();
     turn(EN_ALGO, 40);
     frames(2);
-    turn(EN_ALGO, -(int32_t)(MXR_MASTER - MXR_ACC));   /* (USB IN, the returns, MASTER after it) */
-    frames(2);
+    if (MXR_N > MXR_LN)                                 /* (the USB input's row after it, built) */
+        turn(EN_ALGO, -1), frames(2);
     ok = mx_row() == MXR_ACC && mxd.first == MXR_LANE0;
     {
         cell_t l;

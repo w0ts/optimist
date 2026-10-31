@@ -107,7 +107,7 @@ static int cl_list(const char *what, uint32_t scr, uint32_t first_row, uint32_t 
         ui.row[scr] = (uint8_t)i;
         ui.force = 1;
         frame();
-        if ((scr == SCR_PROJECT && prj_listing()) /* (a slot row: its own panel, lst is another draw's) */ || lst.shown == 0u || i < lst.first || i >= lst.first + lst.shown)
+        if (lst.shown == 0u || i < lst.first || i >= lst.first + lst.shown)
             continue;
         seen++;
         ok &= cl_row(what, OP_PY + lst.top + (int32_t)(i - lst.first) * lst.rh, lst.rh - 1, trk_col(song.sel), cur_bg(trk_col(song.sel)));

@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* tests/ui_optimist_test.c, ALGORITHM is the track and nothing else (docs/UI-OPTIMIST-DESIGN.md 2.7 Pages with no track; the user,
  * 2026-10-13: "ALGORITHM moves track - NO. only the track!"). On every screen and in every performance layer a turn moves
- * the walk (T1 T2 T3 DR, the 16 lanes, MASTER) and changes no setting, no cursor row, no page; and the controls that had
+ * the walk (MASTER T1 T2 T3 DR, the 16 lanes) and changes no setting, no cursor row, no page; and the controls that had
  * been ALGORITHM's elsewhere work without it: on GLOBAL and SYSTEM SELECT pages and a knob picks its line, on the BLE
  * devices list SELECT moves the cursor. The one exception (the user, 2026-10-14: "ALGORITHM should scroll one item at a time"):
  * on GLOBAL and SYSTEM's lists ALGORITHM scrolls the lines, one a detent across the pages (op_global.c glo_walk). Included after ui_optimist_pagemem.h. */
@@ -33,7 +33,7 @@ static void at_screen_tests(void)
         lane_transport(0);
         song.sel = 0;
         op_enter(scr);
-        ui.row[scr] = (uint8_t)(SCREENS[scr].rows() > 1u ? 1u : 0u);
+        ui.row[scr] = (uint8_t)(scr == SCR_HOME ? MXR_T1 : SCREENS[scr].rows() > 1u ? 1u : 0u);   /* (the mixer: T1's row, under RET A B C and MASTER) */
         op_rows_fix();
         frames(2);
         sum = at_sum();
@@ -44,24 +44,21 @@ static void at_screen_tests(void)
         bad |= !(ui.scr == scr && at_sum() == sum);
         if (scr != SCR_SOUND && scr != SCR_STEP && scr != SCR_HOME)
             bad |= ui.row[scr] != row;                  /* (a list screen's cursor; SOUND's rows follow the track's pages, the mixer's row is the walk) */
-        turn(EN_ALGO, 40);                              /* on to MASTER, the last (2026-10-30), stopping there: the master FX screen (the
-                                                         * mixer's row; SCOPE: its master source), no setting */
-        bad |= !((scr == SCR_HOME ? mx_row() == MXR_MASTER : scr == SCR_SCOPE ? (ui.scr == SCR_SCOPE && ui.master) : ui.scr == SCR_FX) &&
+        turn(EN_ALGO, 20);                              /* the last lane, stopping there (the mixer: the USB input's row, built) */
+        bad |= !(walk_pos(0) == (scr == SCR_HOME ? MXR_N : MXR_LN) - 1u && ui.scr == scr && at_sum() == sum &&
+                 (lane_selected() == DRUM_UILANES - 1u || (scr == SCR_HOME && MXR_N > MXR_LN)));   /* (the mixer's USB row: no
+                                                         * lane, the jump passes them) */
+        turn(EN_ALGO, -40);                             /* up past MASTER to RET A (the mixer's row, a page: its pages; SCOPE: MASTER, its
+                                                         * master source), no setting */
+        bad |= !((scr == SCR_HOME ? mx_row() == MXR_RET0 : scr == SCR_SCOPE ? (ui.scr == SCR_SCOPE && ui.master) : ui.scr == SCR_FX && ui.fxo == 1u) &&
                  at_sum() == sum);          /* (SCOPE: MASTER is its source, the screen stays) */
-        turn(EN_ALGO, -1);                              /* back: RET C (the mixer its row, a page its pages), SCOPE the last lane */
-        if (scr == SCR_SOUND || scr == SCR_STEP) {
-            bad |= !(ui.scr == SCR_FX && ui.fxo == 3u && at_sum() == sum) << 1;
-            turn(EN_ALGO, 1 - WALK_TAIL);               /* (on back past RET A: the last lane, the screen left from) */
-        }
-        bad |= !((scr == SCR_HOME ? mx_row() == MXR_MASTER - 1u : walk_pos(0) == MXR_LN - 1u && lane_selected() == DRUM_UILANES - 1u) &&
-                 ui.scr == scr && at_sum() == sum) << 2;
-        turn(EN_ALGO, -60);                             /* up to T1, stopping there */
-        bad |= !(song.sel == 0u && walk_pos(0) == MXR_T1 && ui.scr == scr && at_sum() == sum);
+        turn(EN_ALGO, scr == SCR_SCOPE ? 1 : (int32_t)(MXR_T1 - MXR_RET0));   /* back to T1: the screen left from */
+        bad |= !(song.sel == 0u && ui.scr == scr && at_sum() == sum);
         if (bad)
             printf("  algotrack: %s wrong (scr %u sel %u bad %u pos %u sum %d row %u/%u)\n", SCR_NAME[scr], ui.scr, song.sel, bad, walk_pos(0), at_sum() == sum, ui.row[scr], row);
         ok &= !bad;
     }
-    check(ok, "ALGORITHM on every screen: only the walk moves (T1 .. DR .. the 16th lane, RET A B C, MASTER and back); no setting, row or screen changes");
+    check(ok, "ALGORITHM on every screen: only the walk moves (T1 .. DR .. the 16th lane .. MASTER and back); no setting, row or screen changes");
 }
 static void at_layer_tests(void)
 {

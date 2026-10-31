@@ -85,14 +85,14 @@ static uint32_t nav_mode(void)
             return b;
     return NAV_NONE;
 }
-/* the walk's places: T1 .. the last lane, then RET A B C, MASTER (2026-10-30: the returns as tracks); NAV_NONE where ALGORITHM
- * walks nothing (the USB row too) */
-#define NAV_NPLACE (MXR_LN + 4u)
-static uint32_t nav_row_of(uint32_t i) { return i < MXR_LN ? i : MXR_RET0 + (i - MXR_LN) % 4u; }
+/* the walk's places: RET A B C, MASTER, T1 .. the last lane (the mixer rows 0 .. MXR_LN - 1; 2026-10-30: the returns as tracks);
+ * NAV_NONE where ALGORITHM walks nothing (the USB row too) */
+#define NAV_NPLACE MXR_LN
+static uint32_t nav_row_of(uint32_t i) { return i; }
 static uint32_t nav_track(void)
 {
     uint32_t p = walk_pos(0);
-    return !algo_has_track() ? NAV_NONE : p < MXR_LN ? p : p >= MXR_RET0 && p <= MXR_MASTER ? MXR_LN + (p - MXR_RET0) : NAV_NONE;
+    return algo_has_track() && p < MXR_LN ? p : NAV_NONE;
 }
 static void nav_track_name(uint32_t i, char *b)         /* place i's name (b holds 12) */
 {

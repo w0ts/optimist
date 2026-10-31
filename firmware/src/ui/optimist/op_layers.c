@@ -87,9 +87,9 @@ static struct {
  * 2026-10-17: "Master mixer. 2*2 cards"); a layer's map over the mixer is the layer's screen, so it is 2x2 too */
 #if FELUCCA_SD_UI
 static int sdc_listing(void);                           /* op_sdcard.c: a card's list, four small cards over its page */
-static int cards_2x2(void) { return (ui.scr != SCR_HOME || lay.shown != LY_PLAY || mx_row() >= MXR_RET0) && !sdc_listing(); }   /* (the master screen: MASTER and the returns above it, 2026-10-30) */
+static int cards_2x2(void) { return (ui.scr != SCR_HOME || lay.shown != LY_PLAY || mx_row() <= MXR_MASTER) && !sdc_listing(); }   /* (the master screen: MASTER and the returns above it, 2026-10-30) */
 #else
-static int cards_2x2(void) { return ui.scr != SCR_HOME || lay.shown != LY_PLAY || mx_row() >= MXR_RET0; }   /* (the master screen: MASTER and the returns) */
+static int cards_2x2(void) { return ui.scr != SCR_HOME || lay.shown != LY_PLAY || mx_row() <= MXR_MASTER; }   /* (the master screen: MASTER and the returns) */
 #endif
 
 static uint32_t lay_now(void) { return lay.lock != LY_PLAY ? lay.lock : lay.held; }   /* the layer at work */
