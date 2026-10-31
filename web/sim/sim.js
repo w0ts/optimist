@@ -582,7 +582,7 @@ export function mountSim(container, opts = {}) {
       const fm = await pjList(dev.client), sm = await pjList(sim);
       Object.assign(st.pj, { fm, sm, typed: false });
       if (mode === "get" && !fm.used.some(Boolean)) throw new Error(TEXT.pjNone);
-      el.pjPick.replaceChildren(...Array.from({ length: PJ_N }, (_, k) =>
+      el.pjPick.replaceChildren(...Array.from({ length: fm.count }, (_, k) =>
         h("option", { value: String(k), disabled: mode === "get" && !fm.used[k] }, pjLabel(k, fm.used[k], fm.names[k]))));
       el.pjPick.value = String(mode === "get" ? (fm.used[fm.open] ? fm.open : fm.used.indexOf(true)) : sm.open);
       el.pjPickLabel.textContent = mode === "get" ? TEXT.pjFrom : TEXT.pjTo;

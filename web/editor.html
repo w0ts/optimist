@@ -1314,6 +1314,7 @@
   .dest.slots4 button { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 8px 10px; text-align: left; white-space: normal;
                         background: var(--bg); color: var(--fg); border: 1px solid var(--line); }
   .dest.slots4 button b { font-weight: 600; }
+  .dest.slots4 button[hidden] { display: none; }
   .dest.slots4 button .cap, .dest.slots4 button .now { color: var(--dim); overflow-wrap: anywhere; }
   .dest.slots4 button.full .now { color: var(--fg); }
   .dest.slots4 button progress { width: 100%; height: 4px; }
@@ -1666,6 +1667,7 @@
   <section class="panel" id="p-projects" data-tab="projects" hidden data-dev>
     <details class="pghelp"><summary title="About this page" aria-label="About this page">i</summary><p class="dim" data-t="projHelp"></p></details>
     <div id="slots" class="slots"></div>
+    <div id="projfiles"></div>
     <div id="libr"></div>
   </section>
 
@@ -1748,7 +1750,7 @@ const CMD = {
   FX: 86, FX_PUSH: 87,   /* (v10: the FX slots, ed_fxs.c; INFO tag 0x56) */
   AUTO_GET: 92, AUTO_SET: 93,   /* (v11: the automation store, ed_stepx.c; a firmware before it does not answer) */
   FXP: 94, DLAN: 95, SCRN: 96, SONGC: 97, TOOLS: 98, SCRS: 99, FAVS: 100, SCOPE: 101,
-  UNDO: 102, NOTE: 103, SOLO: 104, STEPLANE: 105, MIRROR: 106, REC: 107, PANEL: 108, NAV: 109, WIFI: 112 };   /* (WIFI: the Wi-Fi networks, ed_wifi.c, INFO 67 opti_wifi_1) */   /* (PANEL, NAV: the Mirror page's keys, knob drags and touch buttons, ED_MIRROR; INFO 66) */   /* (MIRROR: the screen, ED_MIRROR; INFO tag 65) */   /* (v14: undo / redo, notes, solo and mute, a step in the context of a drum lane; INFO tags 5F..62) */   /* (v13: every effect slot of every owner, ed_fxp.c; INFO tag 0x57) */
+  UNDO: 102, NOTE: 103, SOLO: 104, STEPLANE: 105, MIRROR: 106, REC: 107, PANEL: 108, NAV: 109, PJ_OP: 110, WIFI: 112 };   /* (WIFI: the Wi-Fi networks, ed_wifi.c, INFO 67 opti_wifi_1) */   /* (PANEL, NAV: the Mirror page's keys, knob drags and touch buttons, ED_MIRROR; INFO 66) */   /* (MIRROR: the screen, ED_MIRROR; INFO tag 65) */   /* (v14: undo / redo, notes, solo and mute, a step in the context of a drum lane; INFO tags 5F..62) */   /* (v13: every effect slot of every owner, ed_fxp.c; INFO tag 0x57) */
 /* the automation store (firmware seq/auto.h): an event's place (bits 0..5 the step, bit 6 STEP-ONLY: a lock; else a hold
    event, motion), its parameter (a stored P_* id, or a pseudo-parameter), its value (a signed byte) */
 const AUTO = { ONLY: 0x40, STEP: 0x3F, COND: 0xFC, NUDGE: 0xFD, FILL: 0xFE, CHANCE: 0xFF, MAX: 128, PAGE: 64,   /* (COND 1..9: 1:2 2:2 1:3 2:3 3:3 1:4 2:4 3:4 4:4, Felucca 1.5.6) */
@@ -2348,7 +2350,7 @@ async function cpSmpInfo(L) {
     slots.push({ zones, name, kib });
     caps.push(o ? Math.floor(o.room / 1024) : 0);
   }
-  return { nslots: 3, slotKiB: SMP.SLOT_SIZE / 1024, slots, caps };
+  return { nslots: 3, slotKiB: SMP.SLOT_SIZE / 1024, slots, caps, has: caps.map((c) => c > 0) };
 }
 /* slot k (0..2) := header (480 bytes) and data: the file its header page (the rest of it 0xFF, as the flash) then the data;
    end: the session it opened ends (BKCTL 0; not inside a restore, whose BKCTL 1 ends it) */
@@ -2764,6 +2766,7 @@ const parse = {   /* the replies' readers, by command */
     for (let k = 0; k < nslots; k++) { const zones = rd.b(), name = rd.s(); slots.push({ zones, name, kib: rd.b() }); }
     const o = { nslots, slotKiB, slots };
     o.caps = o.slots.map((u) => (r.i < a.length ? r.b() : o.slotKiB));   /* (drum kits firmware) each slot's KiB */
+    o.has = o.caps.map((c) => c > 0);                /* (the layout keeps the slot: SMP_USER_CAP 0 = SAMPLE SLOTS took it away) */
     return { ...o };
   },
   [CMD.UP_LIST]: (a) => {
@@ -3109,6 +3112,14 @@ const parse = {   /* the replies' readers, by command */
   [CMD.BK_DATA](a) { return { i: a[0], off: rd7(a, 1, 3), rc: a[4] }; },
   [CMD.BK_COMMIT](a) { return { i: a[0], rc: a[1] }; },
   [CMD.BK_END](a) { return { rc: a[0] }; },
+  [CMD.PJ_OP](a) {                                  /* 110 (ed_proj.c): op 0 -> 0, 0, rc, the open project, used (3 x 7 bit), 16 names; the others op, p, rc */
+    const o = { op: a[0], rc: a[2] };
+    if (a[0] === 0) {
+      o.open = a[3]; o.used = rd7(a, 4, 3); o.names = []; let q = 7;
+      for (let k = 0; k < 16; k++) { let z = q; while (z < a.length && a[z]) z++; o.names.push(String.fromCharCode(...a.slice(q, z))); q = z + 1; }
+    }
+    return o;
+  },
   /* snapshots (cmds 54..57, ed_snap.c) */
   [CMD.SN_LIST](a) {
     const r = new ByteReader(a);
@@ -3264,6 +3275,7 @@ const req = {                                       /* each: (arguments) -> [cmd
   bkData: (i, off, bytes) => [CMD.BK_DATA, [i & 0x7F, ...wr7(off, 3), ...wr7(crc32(bytes), 5), ...pack7(bytes)]],
   bkCommit: (i, dry) => [CMD.BK_COMMIT, dry ? [i & 0x7F, 1] : [i & 0x7F]],   /* dry (BK_VERSION 4): check only, nothing written */
   bkEnd: (done) => [CMD.BK_END, [done ? 1 : 0]],
+  pjOp: (op, p = 0, name = "") => [CMD.PJ_OP, op === 0 ? [0] : [op & 0x7F, p & 0x7F, ...(op === 4 ? [...name].map((c) => c.charCodeAt(0) & 0x7F) : [])]],
   /* snapshots: the list; op 0 save (name: "" made from the work), 1 load, 2 clear, 3 rename; a chunk of a slot's stream;
      an import (begin, data, commit, abort) */
   snList: () => [CMD.SN_LIST, [SN.VERSION]],
@@ -6702,6 +6714,7 @@ function makeMockDevice(opt = {}) {                /* (opt: see above) */
           wb(cp.eng, 2); wb(cp.kits % 2 ** 35, 5); wb(Math.floor(cp.kits / 2 ** 35), 1); wb(cp.sets, 2); b(4);
           cp.usrCap.forEach((v) => wb(v, 3)); wb(214, 2); wb(780, 2); wb(2538, 2); wb(198, 2);
           b(69); b(61); b(29); b(1); b(0x7F);              /* (a section record: PJ_NP, PJ_E0, LEN's place; the bits) */
+          if (cp.projects != null) { wb((cp.appEnd || 0x93000) >> 12, 2); b(cp.projects); }   /* (the MEMORY step: opt.caps.appEnd / projects) */
         } else if (cmd === CMD.BK_READ) {
           if (a.length < 4 || a[0] >= tags.length) return null;
           const d = objOf(a[0]).data, o = rd(1, 3), c = d.subarray(o, Math.min(d.length, o + 256));
@@ -7061,6 +7074,27 @@ function navTracksParse(a) {
 }
 /* the knob a point of the panel (240 x 240) is on, -1 none */
 const navKnobAt = (knobs, x, y) => knobs.findIndex((r) => x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h);
+/* a project as a file (.fm1proj; web/sim/bk.js packProject / unpackProject: the same bytes) */
+const PJF = { MAGIC: "FM1P", VERSION: 1, HEAD: 26, EXT: ".fm1proj", NAME: 12 };
+const pjf = { busy: false, info: null };
+const pjCount = () => (dev && dev.bk && dev.bk.caps && dev.bk.caps.projects != null ? Math.min(16, dev.bk.caps.projects) : 16);
+const pjfTag = (p) => `PJ${String(p + 1).padStart(2, "0")}`;
+function pjfPack({ slot, family, name, data }) {
+  const out = new Uint8Array(PJF.HEAD + data.length + 4), dv = new DataView(out.buffer), asc = (str, n) => [...String(str).padEnd(n, "\0").slice(0, n)].map((c) => c.charCodeAt(0) & 0x7F);
+  out.set(asc(PJF.MAGIC, 4), 0); out[4] = PJF.VERSION; out[5] = slot; out.set(asc(family, 4), 6); out.set(asc(name, PJF.NAME), 10);
+  dv.setUint32(22, data.length, true); out.set(data, PJF.HEAD);
+  dv.setUint32(PJF.HEAD + data.length, crc32(out.subarray(0, PJF.HEAD + data.length)), true);
+  return out;
+}
+function pjfUnpack(b) {
+  const str = (a, z) => String.fromCharCode(...b.subarray(a, z)).replace(/\0+$/, "");
+  if (b.length < PJF.HEAD + 4 || str(0, 4) !== PJF.MAGIC) throw new Error("not an Optimist project file");
+  if (b[4] !== PJF.VERSION) throw new Error(`format ${b[4]} (this page reads ${PJF.VERSION})`);
+  const dv = new DataView(b.buffer, b.byteOffset, b.length), n = dv.getUint32(22, true), end = PJF.HEAD + n;
+  if (end + 4 !== b.length) throw new Error("the file is cut short");
+  if (dv.getUint32(end, true) !== crc32(b.subarray(0, end))) throw new Error("the file is damaged (CRC)");
+  return { slot: b[5], family: str(6, 10), name: str(10, 22), data: b.slice(PJF.HEAD, end) };
+}
 /*wire-section:end*/
 /* one colour on the web pages: the blue (--t1) wherever an engine, a kit kind or a track had its own; COLORS (above) stays, the device's table */
 const UI_C = "var(--t1)", UI_ON = "var(--on)";
@@ -7437,6 +7471,9 @@ const TEXT = {                                      /* the page's words, by key 
   rec: "REC",
   selectTrack: "Select",
   selectedTrack: "Selected",
+  pjfTitle: "Projects", pjfHelp: "One project as a file (.fm1proj): export it to keep it or to swap it, load a file into any project. Stopped only.", pjfSd: "SD card mode: the FM-1 keeps {n} project in its flash.", pjfExport: "Export", pjfLoad: "Load from file",
+  pjfSaveFirst: "Project {n} is the open one. Save the work into it before exporting?\n\nOK: save and export. Cancel: export what is stored.", pjfReplace: "Project {n} holds a project: replace it with the file's? Stopped only.", pjfExported: "Exported project ", pjfLoaded: "Loaded into project ", pjfBad: "Not a project file this FM-1 can take: ",
+  pjfEmpty: "empty", pjfOpen: "open", pjfNoSlot: "This memory layout has no project {n}.",
   projHelp: "A project stores the full device state: sound and pattern of the four tracks, the selected track and the global settings.",
   snTitle: "Snapshots", snHelp: "A snapshot keeps everything in the current work: the working project, every section and the song. In a slot of the FM-1 (and in files here, as many as you like). Loading one replaces the work; the state before is kept in BEFORE LOAD. User samples, presets and kits stay as they are (MISSING says when one is gone).",
   snNone: "This firmware has no snapshots.", snSave: "Save", snLoad: "Load", snClear: "Clear", snRename: "Rename",
@@ -7718,7 +7755,7 @@ $("about").addEventListener("mousedown", (e) => { if (e.target === $("about")) $
 $("popx").addEventListener("click", () => closePop());
 $("pop").addEventListener("cancel", (e) => { e.preventDefault(); closePop(); });   /* Escape */
 $("pop").addEventListener("mousedown", (e) => { if (e.target === $("pop")) closePop(); });   /* a click outside (the backdrop) */
-const OPTI = { backup: 4, mirror: 2, library: 1, projects: 1, panel: 1, nav: 1, mirbt: 1, wifi: 1, panelx: 1 };   /* (the versions this page reads) */
+const OPTI = { backup: 4, mirror: 2, library: 1, projects: 1, proj: 1, panel: 1, nav: 1, mirbt: 1, wifi: 1, panelx: 1 };   /* (the versions this page reads) */
 const opti = (f) => !!dev && !!dev.info && !!dev.info.opti && dev.info.opti["opti_" + f] === OPTI[f];
 const hasKitPage = () => !!dev && !!dev.dl && !!dev.smp;   /* the build has drum lanes (36..) and sample slots */
 const hasSnaps = () => !!dev && !!dev.sn;            /* the firmware has snapshots (protocol v8, commands 54..57) */
@@ -7751,7 +7788,7 @@ function renderPanels() {                         /* the tab bar's state, then w
     let show = mine && (!needsDev || ready);
     if (mine && APPS.includes(want)) appShow(want);
     if (mine && needsDev && !dev) hint = "needDevice";   /* (connecting: the status line has it meanwhile) */
-    if (show && want === "samples" && !dev.smp) { hint = "smpNone"; show = false; }   /* (a build without sample slots) */
+    if (show && want === "samples" && (!dev.smp || !dev.smp.has.some(Boolean))) { hint = "smpNone"; show = false; }   /* (a build without sample slots) */
     if (show && want === "drumkit" && !hasKitPage()) { show = false; hint = "kitPageNone"; }
     if (show && want === "drumkit") renderDrumKit();
     if (show && want === "settings") renderDevScreens().catch(report);
@@ -8295,7 +8332,7 @@ function drawSysinfo() {
     ["enginesL", info.engines.join(", ")],
     ["tracksN", String(info.ntrk || 1)],
     ["stepsN", String(info.nstep)],
-    ["smpSlots", orNone(dev.smp, dev.smp && `${dev.smp.nslots} × ${dev.smp.slotKiB} KiB`)],
+    ["smpSlots", orNone(dev.smp, dev.smp && `${dev.smp.has.filter(Boolean).length} × ${dev.smp.slotKiB} KiB`)],
     ["userBank", orNone(dev.bank, dev.bank && String(dev.bank.total))],
   ];
   table.replaceChildren(...facts.map(([name, value]) => el("tr", {}, el("th", { text: t(name) }), el("td", { text: value }))));
@@ -8605,6 +8642,70 @@ function report(err) { if (err && err.message !== "closed") { console.warn(err);
    1 used, 2 a SLOOP 2.4 project kept under an empty section (FELUCCA_SL24_SAFE; never erased), 3 another firmware's */
 const SLOT_STATE = ["empty", "used", "sl24", "notOurs"];
 /* the four project slots: number, state, Load, Save (four cells a slot in the grid) */
+/* ---- project files (.fm1proj; web/sim/bk.js packProject / unpackProject: the same bytes). The slots shown are the installed
+   layout's (bk_caps' projects byte: 2, 4 or 16; SD card mode 1); an older firmware does not say: 16. */
+async function pjfRefresh() {
+  if (!dev || !opti("proj")) { pjf.info = null; return; }
+  try { pjf.info = parse[CMD.PJ_OP](await rq(req.pjOp(0), { timeout: 1500, retries: 1, quiet: true })); } catch (e) { if (e.message === "closed") return; pjf.info = null; }
+  renderProjFiles();
+}
+async function pjfOp(fn) {
+  if (!dev || pjf.busy) return;
+  pjf.busy = true; renderProjFiles();
+  try { await op(fn); dev.bk = await bkList(dev); } finally { pjf.busy = false; await pjfRefresh(); }
+}
+const pjfCall = async (o, p, name = "") => {
+  const r = parse[CMD.PJ_OP](await rq(req.pjOp(o, p, name), { timeout: 10000, retries: 0 }));
+  if (r.rc) throw new Error(`PJ_OP ${o}: ${BK.RC[r.rc] || r.rc}`);
+};
+function pjfExport(p) {
+  pjfOp(async () => {
+    const open = pjf.info && pjf.info.open === p;
+    if (open && confirm(t("pjfSaveFirst").replace("{n}", p + 1))) await pjfCall(1, p);
+    dev.bk = await bkList(dev);
+    const o = dev.bk.objs.find((x) => x.tag === pjfTag(p));
+    if (!o || !o.hasData) { setStatusKey("emptySlot", String(p + 1)); return; }
+    const name = pjf.info ? pjf.info.names[p] : "";
+    saveBlob(`optimist-project-${p + 1}${name ? "-" + fileSlug(name) : ""}${PJF.EXT}`, new Blob([pjfPack({ slot: p, family: dev.bk.magic, name, data: await bkReadObj(o) })], { type: "application/octet-stream" }));
+    setStatusKey("pjfExported", String(p + 1));
+  });
+}
+async function pjfImport(p, f) {
+  let x;
+  try {
+    x = pjfUnpack(new Uint8Array(await f.arrayBuffer()));
+    if (x.family !== dev.bk.magic) throw new Error(`another firmware (${x.family}, this one ${dev.bk.magic})`);
+  } catch (e) { setStatusKey("pjfBad", e.message); return; }
+  const o = dev.bk.objs.find((q) => q.tag === pjfTag(p));
+  if (p >= pjCount() || !o || !o.inBuild) { setStatusKey("pjfBad", t("pjfNoSlot").replace("{n}", p + 1)); return; }
+  if (pjf.info && ((pjf.info.used >> p) & 1) && !confirm(t("pjfReplace").replace("{n}", p + 1))) return;
+  pjfOp(async () => {
+    const open = pjf.info && pjf.info.open === p;
+    await pjfCall(3, p);                              /* (a stream written over a project leaves the records it lacks: cleared first) */
+    if (x.data.length) { await bkWriteObj(o.i, x.data); await bkEnd(dev.bk, false); }
+    await pjfCall(4, p, x.name);
+    if (open) await pjfCall(2, p);
+    setStatusKey("pjfLoaded", String(p + 1));
+  });
+}
+function renderProjFiles() {
+  const box = $("projfiles");
+  if (!box) return;
+  if (!dev || !opti("proj") || !opti("backup") || dev.info.lite) { box.replaceChildren(); return; }
+  if (!dev.bk) { bkList(dev).then((L) => { dev.bk = L; renderProjFiles(); }, () => {}); return; }
+  if (!pjf.info) { pjfRefresh(); return; }
+  const n = pjCount(), I = pjf.info;
+  const rows = Array.from({ length: n }, (_, p) => {
+    const used = (I.used >> p) & 1, imp = lbrFile(PJF.EXT + ",application/octet-stream", (f) => pjfImport(p, f));
+    return el("tr", {}, el("td", { text: String(p + 1) }),
+      el("td", { class: "dim", text: used ? (I.names[p] || "") + (I.open === p ? ` (${t("pjfOpen")})` : "") : t("pjfEmpty") }),
+      el("td", {}, el("button", { ic: "symbol_download", disabled: pjf.busy || !used, onclick: () => pjfExport(p) }, t("pjfExport")),
+        el("button", { ic: "symbol_upload", disabled: pjf.busy, onclick: () => imp.click() }, t("pjfLoad")), imp));
+  });
+  box.replaceChildren(el("h3", { text: t("pjfTitle") }), el("p", { class: "dim", text: t("pjfHelp") }),
+    ...(dev.bk.caps && dev.bk.caps.projects === 1 ? [el("p", { class: "dim", text: t("pjfSd").replace("{n}", 1) })] : []),
+    el("table", { class: "ukits" }, ...rows));
+}
 function drawSlots() {
   const cells = [0, 1, 2, 3].flatMap((slot) => {
     const used = dev.slotUsed[slot];
@@ -8614,6 +8715,7 @@ function drawSlots() {
       el("button", { ic: "port_disk", onclick: () => runProject(1, slot) }, t("save"))];
   });
   $("slots").replaceChildren(...cells);
+  renderProjFiles();
 }
 /* PROJECT op 0 loads slot `slot`, op 1 saves into it (after the user confirms) */
 async function runProject(op, slot) {
@@ -9726,7 +9828,7 @@ function drawSamples() {
   const box = $("smpslots");                        /* (no slots at all: the tab itself says so, renderPanels) */
   if (!dev || !dev.smp) { box.replaceChildren(); smpPage.ui = null; return; }
   const P = smpPage, n = dev.smp.nslots;
-  if (P.slot >= n) P.slot = 0;
+  if (P.slot >= n || !dev.smp.has[P.slot]) P.slot = Math.max(0, dev.smp.has.indexOf(true));   /* (a slot the layout lacks is not offered) */
   if (!P.ui || P.ui.n !== n || !box.contains(P.ui.send)) {
     const u = P.ui = { n };
     const step = (k, title, ...kids) => el("section", { class: "kstep" }, el("h3", {}, el("span", { class: "num", text: String(k) }), title), ...kids);
@@ -9783,6 +9885,7 @@ function drawSamples() {
   /* 1 */
   for (const b of u.slots.children) {
     const k = +b.dataset.k, x = dev.smp.slots[k];
+    b.hidden = !dev.smp.has[k];
     b.setAttribute("aria-checked", k === P.slot ? "true" : "false");
     b.title = b.getAttribute("aria-label") || `USR${k + 1}`;
     b.setAttribute("aria-label", `USR${k + 1}: ${x.zones ? `${x.name || "—"}, ${x.zones} ${t("zones")}` : t("empty")}`);
@@ -10611,9 +10714,10 @@ function kpBuild() {
 function renderDrumKit() {
   if (!$("kitpage") || !hasKitPage()) return;
   if (!kpUi || !$("kitpage").contains(kpUi.send)) kpBuild();
-  const u = kpUi, n = dev.smp.nslots || 3;
-  if (u.slot.children.length !== n) u.slot.replaceChildren(...Array.from({ length: n }, (_, k) => el("option", { value: k, text: `USR${k + 1}` })));
-  u.slot.value = String(Math.min(kpDraft.slot, n - 1));
+  const u = kpUi, n = dev.smp.nslots || 3, ks3 = Array.from({ length: n }, (_, k) => k).filter((k) => dev.smp.has[k]);
+  if (u.slot.children.length !== ks3.length || +u.slot.children[0].value !== ks3[0]) u.slot.replaceChildren(...ks3.map((k) => el("option", { value: k, text: `USR${k + 1}` })));
+  if (!ks3.includes(kpDraft.slot)) kpDraft.slot = ks3[0] ?? 0;
+  u.slot.value = String(kpDraft.slot);
   if (document.activeElement !== u.name) u.name.value = kpDraft.name;
   const ks = dev.ukits || [];
   if (u.storeSlot.children.length !== ks.length) u.storeSlot.replaceChildren(...ks.map((k) => el("option", { value: k.slot, text: kitName(k.slot) })));

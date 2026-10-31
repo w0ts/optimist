@@ -100,6 +100,29 @@ try {
   check(!same(saved, unsaved) && same(got2, saved), `back with the work saved first (B's project ${same(saved, unsaved) ? "unchanged" : "saved"}, A's 7 its copy)`);
   check(pa.open === 6 && pa.names[6] === "BACK" && pa.names[2] === "SIM SONG", `A: open ${pa.open + 1}, "${pa.names[6]}", 3 still "${pa.names[2]}"`);
 
+  // the installed layout: the project slots shown are bk_caps' (the sim's build: PROJ_SLOTS), the slots the user samples keep
+  const lay = await BK.deviceLayout(ca), pl = await BK.projects(ca);
+  check(lay.caps.known && lay.caps.projects === pl.count && pl.used.length === pl.count && pl.names.length === pl.count && lay.caps.appEnd > 0,
+    `layout: ${lay.caps.projects} projects (${pl.count} shown), app end ${lay.caps.appEnd.toString(16)}, ${lay.caps.slots} sample slots`);
+  // a project as a file: project 3 exported (.fm1proj bytes), loaded into project 1 of the same and of the other instance, compared
+  const file = await BK.exportProject(ca, 2), fu = BK.unpackProject(file);
+  check(fu.slot === 2 && fu.family === lay.magic && fu.name === "SIM SONG" && same(fu.data, await BK.readProject(ca, 2)), `export: ${file.length} bytes, "${fu.name}", family ${fu.family}`);
+  await BK.importProject(ca, 0, file);
+  check(same(await BK.readProject(ca, 0), fu.data) && (await BK.projects(ca)).names[0] === "SIM SONG", "import into project 1: byte for byte, named");
+  await BK.importProject(cb, 0, file);
+  check(same(await BK.readProject(cb, 0), fu.data), "import into the other instance's project 1: byte for byte");
+  const wrong = Uint8Array.from(file); wrong[6] = 0x58;
+  let why = "";
+  try { await BK.importProject(ca, 1, wrong); } catch (e) { why = e.message; }
+  check(/damaged|another firmware/.test(why) && !(await BK.projects(ca)).used[1], `a damaged file refused, nothing written (${why})`);
+  const other = BK.packProject({ slot: 0, family: "SLP2", name: "X", data: fu.data });
+  why = "";
+  try { await BK.importProject(ca, 1, other); } catch (e) { why = e.message; }
+  check(/another firmware/.test(why) && !(await BK.projects(ca)).used[1], `a file of another firmware family refused (${why})`);
+  why = "";
+  try { await BK.importProject(ca, 16, file); } catch (e) { why = e.message; }
+  check(/no project 17/.test(why), `a slot the layout lacks refused (${why})`);
+
   let refused = "";
   try { await BK.moveProject(ca, cb, 11, 0); } catch (e) { refused = e.message; }
   check(/empty/.test(refused), `an empty project refused (${refused})`);

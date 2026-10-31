@@ -56,7 +56,7 @@ const E = vm.runInNewContext(`${proto}
    openMidi, findPorts, wantsReconnect, isFM1Name, syncState, ROLL, rollRest, rollNotes, noteSpan, rollAdd, rollRemove, rollToggle, rollSetLength, rollSetNote, rollSetStep, rollChanged, rollGrid, rollLen, DRUM_PAGE, drumPages, drumPageRange, COLORS, engineColor, kindColor, contrast, textOn, MASTER_FX, MASTER_BUS, fxInline, FX_INLINE_MAX, NAV, SCREENS, navOpen, navClose, navKey, navScreen, navDepth, KEYS, KEY_FIXED, LANE_KEYS, keyFor, keyLabel, keyPlan, stepxBuilt, PAT, patSlotView, patUsers,
    PATREC, patRecParse, patRecBuild, patRawEmpty, patStepFrom, patStepRaw, patDrumFrom, patDrumRaw, patReadAll, patWriteAll,
    FXT, FXT_NAMES, fxsLoad, fxType, fxSlotAmt, readFx, keptIds, AUTO, autoLane, SetGate,
-   FXP, FXP_TABLE, SCRN_TABLE, SCRS_TABLE, EQ_FL_HZ, EQ_FH_HZ, fxpClass, fxpName, fxpTypeName, fxpAllows, fxpFmt, readFxpOwner, readFxpSlot, panelKey, panelKeyName, navParse, navTracksParse, navKnobs, navKnobAt, MNAV, WIFI, wifiCheck, wifiApCheck, wifiApDefaultKey, wifiIsAp, wifiBusy, wifiText, pack7, unpack7 })`,
+   FXP, FXP_TABLE, SCRN_TABLE, SCRS_TABLE, EQ_FL_HZ, EQ_FH_HZ, fxpClass, fxpName, fxpTypeName, fxpAllows, fxpFmt, readFxpOwner, readFxpSlot, panelKey, panelKeyName, navParse, navTracksParse, navKnobs, navKnobAt, MNAV, PJF, pjfPack, pjfUnpack, WIFI, wifiCheck, wifiApCheck, wifiApDefaultKey, wifiIsAp, wifiBusy, wifiText, pack7, unpack7 })`,
 { setTimeout, clearTimeout, setInterval, clearInterval, console, TextEncoder, TextDecoder });
 
 const editorMock = async () => {
@@ -3615,6 +3615,27 @@ e = list(L.known_ends()); print(json.dumps({f"{o}/{n}": L.switch_warning(None if
      && IR.installedEndOf({ bits: new Array(70).fill(0) }) === 0x93000
      && IR.installedEndOf({ bits: Object.assign(new Array(70).fill(0), { [Math.floor(410 / 7)]: 2 ** (410 % 7) }) }) === null,
      "install: the installed layout from bk_caps: its app end; an older normal build by its LAYOUT bit off; else not known");
+}
+{
+  /* the MEMORY layouts (bk_caps' app end and projects bytes; USR capacity 0 = the slot is gone): 0 slots / 4 projects and 2 slots / 16 projects */
+  const lay = async (caps) => { const r = attachMock({ caps }); const L = await E.bkListAll(r.rq); const sm = E.parse[E.CMD.SMP_INFO](await r.rq(E.req.smpInfo())); r.teardown(); return { L, sm }; };
+  const a = await lay({ appEnd: 0xB5000, projects: 4, usrCap: [0, 0, 0] });
+  ok(a.L.caps.projects === 4 && a.L.caps.appEnd === 0xB5000 && a.L.caps.usrCap.every((v) => v === 0), "layout 0 slots / 4 projects: bk_caps' projects, app end and slot capacities read");
+  const b = await lay({ appEnd: 0x93000, projects: 16, usrCap: [81920, 81920, 65536] });
+  ok(b.L.caps.projects === 16 && b.L.caps.appEnd === 0x93000 && b.L.caps.usrCap.every((v) => v > 0), "layout 2 slots / 16 projects: read");
+  const c = await lay({});
+  ok(c.L.caps.projects === undefined && c.L.caps.appEnd === undefined, "an older firmware (no MEMORY bytes): projects not reported (the page keeps 16)");
+  ok(/const pjCount = \(\) => \(dev && dev\.bk && dev\.bk\.caps && dev\.bk\.caps\.projects != null \? Math\.min\(16, dev\.bk\.caps\.projects\) : 16\)/.test(html)
+    && /Array\.from\(\{ length: n \}, \(_, p\) =>/.test(html), "projects: the page lists as many as bk_caps says, 16 without");
+  ok(/b\.hidden = !dev\.smp\.has\[k\]/.test(html) && /\.dest\.slots4 button\[hidden\]/.test(html), "samples: a slot with capacity 0 is hidden");
+  const f = E.pjfPack({ slot: 1, family: "FUNB", name: "SONG 2", data: Uint8Array.from([1, 2, 3, 250]) });
+  const u = E.pjfUnpack(f);
+  ok(u.slot === 1 && u.family === "FUNB" && u.name === "SONG 2" && Array.from(u.data).join() === "1,2,3,250", "project file: pack and unpack round trip (.fm1proj)");
+  const bad = (fn) => { try { fn(); return false; } catch (e) { return true; } };
+  const g = Uint8Array.from(f); g[4] = 2;
+  const h = Uint8Array.from(f); h[PJF_HEAD()] ^= 1;
+  ok(bad(() => E.pjfUnpack(g)) && bad(() => E.pjfUnpack(h)) && bad(() => E.pjfUnpack(f.slice(0, f.length - 1))) && bad(() => E.pjfUnpack(Uint8Array.from([1, 2, 3]))), "project file: another format version, a damaged, cut or foreign file is refused");
+  function PJF_HEAD() { return E.PJF.HEAD; }
 }
 const verdict = failed === 0 ? "web tests passed" : `WEB TESTS FAILED (${failed})`;
 console.log(verdict);

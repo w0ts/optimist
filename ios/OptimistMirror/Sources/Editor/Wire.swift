@@ -271,6 +271,10 @@ struct BkCaps: Equatable {
     var engAt: Int, trk: Int, kitAt: Int, e0At: Int
     var np: Int, pe0: Int, slen: Int
     var bits: [Int]
+    /// the installed MEMORY layout (bk_caps' last three bytes, 2026-10-31 on; nil: an older firmware): the app slot's end and the
+    /// projects the flash keeps (2, 4, 16; SD card mode 1)
+    var appEnd: Int? = nil
+    var projects: Int? = nil
 }
 
 struct BkList: Equatable {
@@ -313,6 +317,8 @@ struct BkList: Equatable {
                             usrCap: [Wire.rd7(a, p + 11, 3), Wire.rd7(a, p + 14, 3), Wire.rd7(a, p + 17, 3)],
                             engAt: Wire.rd7(a, p + 20, 2), trk: Wire.rd7(a, p + 22, 2), kitAt: Wire.rd7(a, p + 24, 2),
                             e0At: Wire.rd7(a, p + 26, 2), np: Int(a[p + 28]), pe0: Int(a[p + 29]), slen: Int(a[p + 30]), bits: bits)
+            let q = p + 32 + Int(a[p + 31])
+            if q + 3 <= a.count { o.caps?.appEnd = Wire.rd7(a, q, 2) * 4096; o.caps?.projects = Int(a[q + 2]) }
         }
         return o
     }
