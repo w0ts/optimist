@@ -363,11 +363,11 @@
   .mirx { background: color-mix(in srgb, var(--fg) 8%, var(--bg)); color: var(--dim); border: 0; border-radius: 8px; padding: 0 10px; }
   .mirx:hover { color: var(--fg); }
   .mirtracks { display: flex; flex-direction: column; gap: 6px; }
-  .mirlanes { display: grid; grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); gap: 4px; }
-  .mirlanes { min-height: 68px; }   /* (two rows of drum lanes kept free under the screen, empty or not: the screen one size, the user 2026-10-29) */
-  .mirlanes .mirb { min-height: 32px; font-size: 12px; }
-  .mirtrk { display: flex; gap: 4px; }
-  .mirtrk .mirb { flex: 1; padding: 2px; }
+  .mirlanes { display: grid; grid-template-columns: repeat(auto-fill, minmax(54px, 1fr)); gap: 4px; }
+  .mirlanes { min-height: 60px; }   /* (two rows of drum lanes kept free under the screen, empty or not: the screen one size, the user 2026-10-29) */
+  .mirlanes .mirb, .mirtrk .mirb { min-height: 28px; font-size: 11px; padding: 2px 4px; }
+  .mirtrk { display: flex; flex-wrap: wrap; gap: 4px; }   /* (T1 T2 T3 DR RET A B C MASTER: small buttons, wrapping on a narrow screen) */
+  .mirtrk .mirb { flex: 0 1 auto; min-width: 40px; }
   @media (max-width: 760px) {
     .mirwrap, #p-mirror:fullscreen .mirwrap { grid-template-columns: 1fr 1fr; }
     .mirwrap.alone, #p-mirror:fullscreen .mirwrap.alone { grid-template-columns: 1fr; }
@@ -7028,7 +7028,7 @@ function panelKey(key, shift) {
    button (108's labels), the buttons' order on the page (the panel's: FX SCL ENV LFO EDIT GLOBAL SYSTEM HOME SAVE ARP SEQ SONG
    PATTERN), and the button a lit screen's own button presses again (its next page, as on the FM-1) */
 const MNAV = {
-  NONE: 127, SOUND: 1, MASTER: 2, STEPS: 5, SONG: 6, PATTERNS: 3, DRUM_ROW: 4,
+  NONE: 127, SOUND: 1, MASTER: 2, STEPS: 5, SONG: 6, PATTERNS: 3, ROW_RET: 0, ROW_MASTER: 3, ROW_T1: 4, DRUM_ROW: 7,   /* (the mixer rows as the firmware lists them, op_mixer.c: RET A B C, MASTER, T1 T2 T3, DR, the lanes) */
   SCREENS: ["MIX", "SOUND", "MASTER", "PROJECT", "SYSTEM", "STEPS", "SONG", "TEMPO", "SCOPE", "GLOBAL"],
   TITLES: ["HOME", "SOUND", "FX", "SAVE", "SYSTEM", "SEQ", "SONG", "PLAY HOLD", "HOME ×2", "GLOBAL"],
   MODES: { 0: "FX", 1: "SCL", 2: "ENV", 3: "LFO", 4: "EDIT", 8: "ARP" },
@@ -7060,7 +7060,15 @@ function navParse(a) {
   if (i < a.length) st.knobs = a[i] === 3 ? navKnobs(3, a[i + 1] | 0, a[i + 2] | 0) : navKnobs(a[i]);
   return st;
 }
-/* a reply to 4 TRACKS: 4, 0, n, n names (MASTER, T1..T3, DR, the lanes, ACCENT) */
+/* the track bar from a 4 TRACKS list: the SAME rule as the iOS app's Nav.bar (ios/OptimistMirror/Sources/Nav/NavState.swift), checked
+   against the same cases (ios/OptimistMirror/Tests/Fixtures/nav_track_bar.json): the drum lanes (rows past DR) on their own line; the
+   second line T1 T2 T3 DR, then RET A B C and MASTER. Row numbers, in the order shown. */
+function navBar(names) {
+  const n = names.length, R = MNAV.ROW_RET, D = MNAV.DRUM_ROW, T = MNAV.ROW_T1;
+  const rng = (a, z) => Array.from({ length: Math.max(0, Math.min(z, n) - a) }, (_, k) => a + k);
+  return { lanes: rng(D + 1, n), bottom: [...rng(T, D + 1), ...rng(R, MNAV.ROW_MASTER + 1)] };
+}
+/* a reply to 4 TRACKS: 4, 0, n, n names (RET A B C, MASTER, T1..T3, DR, the lanes, ACCENT) */
 function navTracksParse(a) {
   if (!a || a.length < 3) return [];
   const out = [];
@@ -12871,12 +12879,13 @@ function mirRender(force = false) {
       menu: () => { if (i === st.row) navFavAdd(false); else navAct(async () => { await navAsk(1, [i]); }); } }))
       : [el("p", { class: "dim", text: t("mirNoPages") })]));
   const cur = st.track, dimT = cur === MNAV.NONE, n = mnav.tracks.length, lanes = !dimT && cur >= MNAV.DRUM_ROW && n > MNAV.DRUM_ROW + 1;
+  const bar = navBar(mnav.tracks);
   /* the drum lanes' buttons are always there (the kit's names, else the default lanes'), greyed out and dead off the drum track */
   const laneNames = n > MNAV.DRUM_ROW + 1 ? mnav.tracks.slice(MNAV.DRUM_ROW + 1) : DRUM_LANES.map((l) => l[1]);
   $("mirtracks").replaceChildren(
     el("div", { class: "mirlanes" }, ...laneNames.map((nm, k) => mirButton(nm, { lit: lanes && cur === MNAV.DRUM_ROW + 1 + k, dim: !lanes, on: () => navTrack(MNAV.DRUM_ROW + 1 + k) }))),
-    el("div", { class: "mirtrk" }, ...mnav.tracks.slice(0, MNAV.DRUM_ROW + 1).map((nm, p) =>
-      mirButton(nm, { lit: p === cur || (p === MNAV.DRUM_ROW && cur > MNAV.DRUM_ROW && !dimT), dim: dimT, on: () => navTrack(p) }))));
+    el("div", { class: "mirtrk" }, ...bar.bottom.map((p) =>
+      mirButton(mnav.tracks[p], { lit: p === cur || (p === MNAV.DRUM_ROW && cur > MNAV.DRUM_ROW && !dimT), dim: dimT, on: () => navTrack(p) }))));
 }
 /* over the screen: the buttons on or off, full screen, on STEPS of a synth track its piano roll (the editor's Sequence) */
 /* the corner's icons (stroked 24 x 24 paths) */
@@ -12896,8 +12905,8 @@ function mirBar(st) {
     ...(navOn() ? [mirTool(mnav.alone ? "buttons" : "alone", t(mnav.alone ? "mirShowButtons" : "mirHideButtons"),
       () => { mnav.alone = !mnav.alone; mirKeep(MIR_ALONE_KEY, mnav.alone ? "1" : "0"); mirRender(true); })] : []),
     mirTool(fs ? "exit" : "full", t(fs ? "mirFullExit" : "mirFull"), mirrorFull));
-  if (st && st.screen === MNAV.STEPS && st.track >= 1 && st.track < MNAV.DRUM_ROW && dev && dev.dump && hasTracks())
-    bar.push(el("button", { type: "button", title: t("mirRollTip"), onclick: () => openPop("sequence", st.track - 1) }, t("mirRoll")));
+  if (st && st.screen === MNAV.STEPS && st.track >= MNAV.ROW_T1 && st.track < MNAV.DRUM_ROW && dev && dev.dump && hasTracks())
+    bar.push(el("button", { type: "button", title: t("mirRollTip"), onclick: () => openPop("sequence", st.track - MNAV.ROW_T1) }, t("mirRoll")));
   if (mirrorOn() && !opti("nav")) bar.push(el("span", { class: "dim", text: t("mirNoNav") }));
   else if (mirrorOn() && !btCarries()) bar.push(el("span", { class: "dim", text: t("mirNoBt") }));
   $("mirbar").replaceChildren(...bar);

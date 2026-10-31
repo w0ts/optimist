@@ -187,7 +187,7 @@ extension FakeFM1 {
     /// TRACKS: the mixer rows' names
     static func nav(_ a: [UInt8]) -> [UInt8] {
         let op = a.first ?? 0
-        if op == 4 { return [4, 0, 7] + ["MASTER", "T1", "T2", "T3", "DR", "KICK", "SNARE"].flatMap { Array($0.utf8) + [0] } }
+        if op == 4 { return [4, 0, 10] + ["RET A", "RET B", "RET C", "MASTER", "T1", "T2", "T3", "DR", "KICK", "SNARE"].flatMap { Array($0.utf8) + [0] } }
         let row: UInt8 = op == 1 && a.count > 1 ? a[1] : 1
         return [op, op > 4 ? 1 : 0, 1, 3, row, 3] + ["LFO", "LFO DEST", "LFO 2"].flatMap { Array($0.utf8) + [0] } + [2, 2]
     }
