@@ -219,6 +219,26 @@ final class FlashTests: XCTestCase {
         XCTAssertNil(InstallRoute.flashLen([1, 2, 3]))
     }
 
+    /// the running Optimist's word on its bootloader (INFO tag 0x68), as tools/fm1_route.py and web/install_route.js read it
+    func testBootWordAndTheRoute() {
+        let head: [UInt8] = [0xF0, 0x7D, 0x46, 0x4C, 1] + Array("FELUCCA 0.2".utf8) + [0x66, 2, 0x61, 0x62]
+        for w in ["mboot", "stock", "unknown"] {
+            XCTAssertEqual(InstallRoute.bootOfInfo(head + [0x68, UInt8(5 + w.count)] + Array("boot=\(w)".utf8) + [0xF7]), w)
+        }
+        XCTAssertNil(InstallRoute.bootOfInfo(head + [0xF7]))
+        XCTAssertNil(InstallRoute.bootOfInfo([0x68, 3] + Array("boot=mboot".utf8)))
+        XCTAssertTrue(InstallRoute.asksBoot("FM-1_7900") && InstallRoute.asksBoot("FM-1_700") && !InstallRoute.asksBoot("FM-1_905"))
+        let own = InstallRoute.Package(kind: "optimist", product: "FM-1_700", flashLen: 0x93000, ownLoader: true)
+        let v15 = InstallRoute.Package(kind: "v15", product: "FM-1_015", flashLen: 0x93000, ownLoader: false)
+        XCTAssertEqual(InstallRoute.choose("optimist", own, bootloader: "m-bootloader", mbootPresent: true).method, "loader")
+        let stock = InstallRoute.choose("optimist", own, bootloader: "m-bootloader", mbootPresent: false)
+        XCTAssertEqual(stock.method, "download")
+        XCTAssertTrue(stock.wantsMboot)
+        XCTAssertEqual(InstallRoute.choose("optimist", own, bootloader: "m-bootloader", mbootPresent: nil).method, "download")
+        XCTAssertEqual(InstallRoute.choose("optimist", v15, mbootPresent: true).method, "download")    // (-5 known before)
+        XCTAssertEqual(InstallRoute.choose("optimist", v15, mbootPresent: false).method, "loader")
+    }
+
     func testBootloaderOverrideGoesToKeepOnly() {
         XCTAssertEqual(InstallRoute.bootloaderChoice("m-bootloader", keep: false).0, "m-bootloader")
         XCTAssertEqual(InstallRoute.bootloaderChoice("m-bootloader", keep: true).0, "keep")

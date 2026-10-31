@@ -118,13 +118,46 @@ def package_kind(raw: bytes, flash_len: int | None = None) -> PackageInfo:
     return PackageInfo(kind, product, digest, flash_len, own)
 
 
+# ------------------------------------------------------------- the firmware's own word ---
+# A running Optimist reads its boot area and says which bootloader is there: INFO tag 0x68, "boot=mboot", "boot=stock"
+# or "boot=unknown" (firmware/src/system/bootid.h); fm1_install.py --info prints it at the end of its line. No token (an
+# older firmware, another one, no editor in the build): not known, as before
+BOOT_TOKEN = re.compile(r"(?:^|\s)boot=(mboot|stock|unknown)(?:\s|$)")
+BOOT_PRESENT = {"mboot": True, "stock": False, "unknown": None}
+INFO_TAG = re.compile(rb"\x68([\x01-\x7f])(boot=(?:mboot|stock|unknown))")
+
+
+def boot_token(text: str | None) -> str | None:
+    """the token's word ("mboot" | "stock" | "unknown") in an fm1_install.py --info line, None without"""
+    m = BOOT_TOKEN.search(text or "")
+    return m[1] if m else None
+
+
+def boot_of_info(reply: bytes) -> str | None:
+    """the word of INFO's tag 0x68 in the editor's INFO reply (F0 7D 46 4C 01 .. F7), None without: the tag's id, its
+    length, then its text (web/EDITOR_PROTOCOL.md; the reply's other bytes are 7-bit too, so the text is looked for
+    with its id and a length that matches it)"""
+    for m in INFO_TAG.finditer(bytes(reply or b"")):
+        if m[1][0] == len(m[2]):
+            return m[2][5:].decode()
+    return None
+
+
+def mboot_present_of(token: str | None) -> bool | None:
+    """True: m-bootloader is there; False: another bootloader (M-VAVE's) is; None: not known"""
+    return BOOT_PRESENT.get(token or "")
+
+
 # --------------------------------------------------------------- the running loader ---
 
-def loader_takes(running: str, pkg: PackageInfo, running_text: str = "") -> tuple:
+def loader_takes(running: str, pkg: PackageInfo, running_text: str = "", mboot_present: bool | None = None) -> tuple:
     """(True, why) when the running firmware's update loader takes this package, (False, why) when it refuses it
-    (or may, unverified): then download mode"""
+    (or may, unverified): then download mode. mboot_present: the firmware's own word (True: m-bootloader is there)"""
     if pkg.kind == P_MBOOT:
         return False, "m-bootloader is installed through download mode here (a full backup first)"
+    if mboot_present and running in (OPTIMIST, AMBIG_000) and pkg.kind in (P_V15, P_STOCK):
+        return False, ("m-bootloader is installed (the firmware says so): Optimist's updater refuses M-VAVE's package "
+                       "(-5, its head differs)")
     if running == LOADER:
         return True, "the update loader finishes the cut-off install (fm1_install.py resumes it)"
     if running in (FELUCCA, SLOOP):                 # (their updater's rules: not read here; Optimist's came from Felucca 1.6.1)
@@ -261,8 +294,10 @@ def choose(running: str, pkg: PackageInfo, bootloader: str = KEEP, mboot_present
     soft, keys = entry_for(running, mboot_present)
     enter = ("the installer sends the soft key over USB-MIDI" + (f" (or: {keys})" if keys != "-" else "")) if soft \
         else f"by hand: {keys}"
-    want = bootloader == MBOOT and pkg.kind != P_MBOOT
-    takes, why = loader_takes(running, pkg, running_text)
+    want = bootloader == MBOOT and pkg.kind != P_MBOOT and mboot_present is not True
+    takes, why = loader_takes(running, pkg, running_text, mboot_present)
+    if bootloader == MBOOT and mboot_present is True and pkg.kind != P_MBOOT:
+        why = "m-bootloader is on the FM-1 already (the firmware says so), kept; " + why
     if not want and takes:
         return Route("loader", why, steps=("the running firmware checks the package and starts its update loader",
                                            "the loader writes the firmware area; the FM-1 restarts",

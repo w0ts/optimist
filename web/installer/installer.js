@@ -26,7 +26,7 @@
 //   }) -> { unmount(), busy }    busy: true while writing (the host must not unload or hide the page then)
 import { checkUfw, logicalImage, productOf, sha256hex, ufwEntries } from "../fm1base/fm1pkg.js";
 import { STOCK_V15_SHA256, OptimistUpdater, stockBanks, validateStockPackage } from "../fm1ota_optimist.js";
-import { SOFT_KEY, bootloaderChoice, bootloaderFromConfig, chooseRoute, detectPlatform, headRefused, refusedStep, flashLenOf, installedEndOf, mflasherFor, nextStep, packageKind, runningKind, switchWarning } from "../install_route.js";
+import { SOFT_KEY, askBoot, mbootPresentOf, bootloaderChoice, bootloaderFromConfig, chooseRoute, detectPlatform, headRefused, refusedStep, flashLenOf, installedEndOf, mflasherFor, nextStep, packageKind, runningKind, switchWarning } from "../install_route.js";
 
 const STYLE_ID = "optimist-installer-style";
 const BUNDLED_CSS = null;                           /* make_site.py puts web/installer/installer.css here */
@@ -109,6 +109,7 @@ export const TEXT = {
   bootWhy: "An open bootloader by Julius Vitkauskas (MIT): REC while switching on for download mode, PLAY for a recovery menu. It is installed with a full backup of the flash first, which only M-Flasher on a computer makes: this page installs the firmware and keeps the bootloader.",
   bootLater: " m-bootloader was not installed: on a computer, python tools/fm1_install.py with this package, or M-Flasher's Install m-bootloader (a full backup first).",
   mfTitle: "M-Flasher {v} for {os} (MIT, Julius Vitkauskas), checked by its SHA-256 after you download it: ", mfSha: "SHA-256 ", mfOther: "Other systems and all files", mfMobile: "This switch needs a computer: M-Flasher for macOS, Windows or Linux. ", mfNone: "M-Flasher: ",
+  keepBoot: "Install over USB-MIDI instead, keeping this bootloader",
   needsDownload: "Not installed. ", softKey: "Switch the FM-1 to download mode (for M-Flasher on this computer)", softSent: "Sent: the FM-1 restarts in download mode (its screen stays as it was). Switch it off and on to leave it.",
   /* step 4 */
   r1h: "The install stopped halfway", r1: "The FM-1 stays in update mode. Press Install again: it finishes.",
@@ -315,7 +316,7 @@ export function mountInstaller(container, opts = {}) {
   const fresh = !!mine0;                               /* (the user's build, when there is one, is picked at once: as the app) */
   addStyle(container.ownerDocument);
 
-  const st = { access: null, choice: fresh ? "mine" : packages.length ? "0" : "file", pkg: null, pkgErr: "", busy: false, asked: false, gen: 0,
+  const st = { access: null, choice: fresh ? "mine" : packages.length ? "0" : "file", pkg: null, pkgErr: "", busy: false, asked: false, bootWord: null, gen: 0,
     mine: mine0 };
   const el = {};
   const link = (where, text) => h("a", { href: links[where], ...(/^https?:/.test(links[where]) ? { target: "_blank", rel: "noopener" } : {}),
@@ -534,7 +535,8 @@ export function mountInstaller(container, opts = {}) {
     const bv = p && !p.stock ? p.bootloader : null;                    /* (the build's BOOTLOADER, null: no setting) */
     el.bootRow.hidden = !p || !!p.stock;                                /* (never on the return to the official firmware) */
     el.bootOpt.hidden = bv !== "m-bootloader";                          /* (the override goes to keep only) */
-    el.bootLine.textContent = p ? bootloaderChoice(bv, bv === "m-bootloader" && !el.boot.checked).line : "";
+    el.bootLine.textContent = p ? bootloaderChoice(bv, bv === "m-bootloader" && !el.boot.checked).line +
+      ({ mboot: ". The FM-1 has m-bootloader already (it says so).", stock: ". The FM-1 has M-VAVE's bootloader (it says so)." }[st.bootWord] || "") : "";
     el.boot.disabled = st.busy;
     el.meta.replaceChildren(...(p ? [h("span", {}, `${p.title}${p.version ? " " + p.version : ""}`), " · ", h("span", {}, p.product),
       source && !p.stock && st.choice !== "file" && st.choice !== "mine" ? [" · ", TEXT.builtFrom, h("span.o-mono", {}, source)] : [],
@@ -658,7 +660,7 @@ export function mountInstaller(container, opts = {}) {
     try {
       const up = newUpdater(midi, log);
       const dev = await up.find();                  /* (none: the steps below say so, as before) */
-      const route = dev ? routeOf(pkg, dev) : { method: "loader" };
+      const route = dev ? await routeOf(pkg, dev) : { method: "loader" };
       if (route.method === "download") { needsDownload(route, pkg); st.busy = false; syncChoice(); render(); return; }
       const onStep = (k, a) => step(k, a, k === "write" ? up.lastAddr : undefined);
       const ota = await up.find(isOta);
@@ -675,7 +677,7 @@ export function mountInstaller(container, opts = {}) {
       setPhase(4, "done");
       el.bar.value = 100;
       say(el.status, "");
-      el.ok.replaceChildren(h("span", {}, `${TEXT.done}${pkg.title} (${back}).${pkg.bootloader === "m-bootloader" && el.boot.checked ? TEXT.bootLater : ""}`), " ",
+      el.ok.replaceChildren(h("span", {}, `${TEXT.done}${pkg.title} (${back}).${pkg.bootloader === "m-bootloader" && el.boot.checked && st.bootWord !== "mboot" ? TEXT.bootLater : ""}`), " ",
         pkg.stock ? (pkg.banks ? h("div.oi-banks", {}, h("p.o-dim", {}, TEXT.banksNote),
           h("button.o-btn.sm.oi-banksgo", { type: "button", onclick: () => restoreBanks(pkg.banks) }, TEXT.banksBtn)) : null)
           : h("button.o-btn.sm", { type: "button", onclick: () => (opts.onNavigate ? opts.onNavigate("editor") : (location.href = links.editor)) }, TEXT.openEditor));
@@ -692,8 +694,10 @@ export function mountInstaller(container, opts = {}) {
   }
   /* the way for this package (web/install_route.js, as tools/fm1_route.py): the running firmware's loader, or the
      chip's download mode, which a browser cannot reach. dev: the FM-1 found now (closed here) */
-  function routeOf(pkg, dev) {
+  async function routeOf(pkg, dev) {
+    st.bootWord = await askBoot(dev.link, dev.id.text).catch(() => null);   /* (a running Optimist says which bootloader it has) */
     dev.link.close();
+    if (st.bootWord) log(`bootloader: ${st.bootWord} (the firmware says so)`);
     const r = st.running = { text: dev.id.text, port: dev.name || "" };
     st.head = { running: runningKind(r.text, r.port), kind: pkg.stock ? "v15" : "" };
     if (pkg.stock) return { method: "loader" };
@@ -702,14 +706,16 @@ export function mountInstaller(container, opts = {}) {
     const info = packageKind(pkg.product, pkg.sha256, flashLen, true);
     const boot = bootloaderChoice(pkg.bootloader, pkg.bootloader === "m-bootloader" && !el.boot.checked).choice;
     st.head.kind = info.kind;
-    const route = chooseRoute(runningKind(r.text, r.port), info, boot, r.text);
+    const route = chooseRoute(runningKind(r.text, r.port), info, boot, r.text, mbootPresentOf(st.bootWord));
     log(`route ${route.method}: ${route.why}`);
     return route;
   }
   function needsDownload(route, pkg) {
     say(el.status, "");
     const mf = h("div", { class: "mflasher" });
-    el.err.replaceChildren(h("p", {}, TEXT.needsDownload + nextStep(route, pkg.file || "PACKAGE.fwsc")), mf, ...(route.softKey ? [el.soft] : []));
+    /* (the build's m-bootloader, not on the FM-1: the install over USB-MIDI that keeps the bootloader is the other choice, as good) */
+    const keep = route.wantsMboot ? h("button.o-btn.sm.oi-keepboot", { type: "button", onclick: () => { el.boot.checked = false; render(); install(); } }, TEXT.keepBoot) : null;
+    el.err.replaceChildren(h("p", {}, TEXT.needsDownload + nextStep(route, pkg.file || "PACKAGE.fwsc")), ...(keep ? [keep] : []), mf, ...(route.softKey ? [el.soft] : []));
     mflasherLinks(mf);
     el.soft.hidden = !route.softKey;
     el.err.hidden = false;

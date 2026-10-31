@@ -24,6 +24,44 @@ enum InstallRoute {
         let why: String
         let softKey: Bool
         let keys: String
+        var wantsMboot = false    // download mode only for the build's m-bootloader: the update keeping the bootloader is as good
+    }
+
+    // the running Optimist's word on its bootloader (tools/fm1_route.py boot_of_info, web/install_route.js bootOfInfo): the
+    // editor's INFO, tag 0x68 "boot=mboot", "boot=stock" or "boot=unknown" (firmware/src/system/bootid.h)
+    static let edInfo: [UInt8] = [0xF0, 0x7D, 0x46, 0x4C, 0x01, 0xF7]
+
+    /// whether this identity is asked (Optimist's, its release's)
+    static func asksBoot(_ identity: String) -> Bool { m(identity, #"^FM-1_(7(00|[2-6]\d)|000|79\d{2,})$"#) }
+
+    /// the word of INFO's tag 0x68 in an INFO reply, nil without (an older Optimist)
+    static func bootOfInfo(_ b: [UInt8]) -> String? {
+        var i = 0
+        while i + 2 < b.count {
+            if b[i] == 0x68 {
+                let n = Int(b[i + 1])
+                if i + 2 + n <= b.count, let t = String(bytes: b[(i + 2)..<(i + 2 + n)], encoding: .ascii),
+                   ["boot=mboot", "boot=stock", "boot=unknown"].contains(t) { return String(t.dropFirst(5)) }
+            }
+            i += 1
+        }
+        return nil
+    }
+
+    /// true: m-bootloader is there; false: M-VAVE's bootloader is; nil: not known
+    static func mbootPresent(_ word: String?) -> Bool? { word == "mboot" ? true : word == "stock" ? false : nil }
+
+    /// ask a running Optimist which bootloader it has, over the channel its identity came on. Writes nothing
+    static func askBoot(_ ch: FlashChannel, identity: String, timeout: TimeInterval = 1.0) async -> String? {
+        guard asksBoot(identity) else { return nil }
+        ch.drain()
+        guard ch.send(edInfo) else { return nil }
+        let end = Date().addingTimeInterval(timeout)
+        while Date() < end {
+            guard let p = await ch.read(timeout: end.timeIntervalSinceNow) else { return nil }
+            if p.count > 5 && p[1] == 0x7D && p[2] == 0x46 && p[3] == 0x4C && p[4] == 1 { return bootOfInfo(p) }
+        }
+        return nil
     }
 
     private static let keys: [String: String] = [
@@ -60,8 +98,11 @@ enum InstallRoute {
         return Package(kind: kind, product: product, flashLen: flashLen, ownLoader: ownLoader)
     }
 
-    static func loaderTakes(_ running: String, _ p: Package, runningText: String = "") -> (Bool, String) {
+    static func loaderTakes(_ running: String, _ p: Package, runningText: String = "", mbootPresent: Bool? = nil) -> (Bool, String) {
         if p.kind == "mboot" { return (false, "m-bootloader is installed through download mode (a full backup first)") }
+        if mbootPresent == true && (running == "optimist" || running == "ambig000") && (p.kind == "v15" || p.kind == "stock") {
+            return (false, "m-bootloader is installed (the firmware says so): Optimist's updater refuses M-VAVE's package (-5, its head differs)")
+        }
         switch running {
         case "loader": return (true, "the update loader finishes the cut-off install")
         case "felucca", "sloop":
@@ -84,12 +125,20 @@ enum InstallRoute {
         }
     }
 
-    static func choose(_ running: String, _ p: Package, bootloader: String = "keep", runningText: String = "") -> Route {
-        let want = bootloader == "m-bootloader" && p.kind != "mboot"
-        let (takes, why) = loaderTakes(running, p, runningText: runningText)
-        let soft = softKeyOK.contains(running), k = keys[running] ?? ""
+    /// mbootPresent: the firmware's word (true: m-bootloader is there already, nothing to install; nil: not known, as before)
+    static func choose(_ running: String, _ p: Package, bootloader: String = "keep", runningText: String = "",
+                       mbootPresent: Bool? = nil) -> Route {
+        let want = bootloader == "m-bootloader" && p.kind != "mboot" && mbootPresent != true
+        var (takes, why) = loaderTakes(running, p, runningText: runningText, mbootPresent: mbootPresent)
+        if bootloader == "m-bootloader" && mbootPresent == true && p.kind != "mboot" {
+            why = "m-bootloader is on the FM-1 already (the firmware says so), kept; " + why
+        }
+        let soft = softKeyOK.contains(running)
+        let k = mbootPresent == true ? "hold REC while switching on (m-bootloader)" + ((keys[running] ?? "").isEmpty ? "" : "; or " + keys[running]!)
+            : keys[running] ?? ""
         if !want && takes { return Route(method: "loader", why: why, softKey: soft, keys: k) }
-        return Route(method: "download", why: want ? "the build's BOOTLOADER is m-bootloader" : why, softKey: soft, keys: k)
+        return Route(method: "download", why: want ? "the build's BOOTLOADER is m-bootloader" : why, softKey: soft, keys: k,
+                     wantsMboot: want && takes)
     }
 
     /// (choice, line): keep (the override) only turns m-bootloader into keep; no build setting keeps the bootloader
