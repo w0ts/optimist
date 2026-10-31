@@ -1328,11 +1328,11 @@ _add("COMPILER", "FELUCCA_COMPILER", "compiler: pi32v2-llvm or JieLi's clang", Y
 # tools/install_meta.py); the installers read it from there and show it (docs/INSTALL-PATHS.md)
 M_BOOTLOADER = Provenance("m-bootloader (jvitkauskas/m-bootloader)", "Julius Vitkauskas", "MIT", "v1.2 22e2559",
                           "https://github.com/jvitkauskas/m-bootloader")
-_add("BOOTLOADER", "", "bootloader: keep it, or install m-bootloader", Y, 443, default=0, no_image=True,
+_add("BOOTLOADER", "", "bootloader: keep it, or install m-bootloader", Y, 443, default=1, no_image=True,
      choices=((0, "keep (as it is)"), (1, "m-bootloader")), provenance=M_BOOTLOADER,
      tested="host-tested only (the installers' choice and display); m-bootloader itself on FM-1s (its author's tests)",
      desc="What installing this build does to the FM-1's bootloader. Keep: it is never touched (the stock one, or "
-          "m-bootloader if it is there already). m-bootloader: an open bootloader by Julius Vitkauskas (MIT): hold REC "
+          "m-bootloader if it is there already). m-bootloader (the default, set in every profile): an open bootloader by Julius Vitkauskas (MIT): hold REC "
           "while switching on for the chip's download mode, PLAY for a recovery menu, even when a firmware does not "
           "start; it stays through firmware updates. With it chosen, the installers (make flash, the builder's f, "
           "tools/fm1_install.py) install it once if the FM-1 does not have it, through download mode with M-Flasher, "
