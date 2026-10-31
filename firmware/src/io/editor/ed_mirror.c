@@ -412,7 +412,8 @@ static uint32_t mir_meters_off(void)
 {
     return mir.on && mir.link == MIR_BT;
 }
-/* a request on link l: on / off, the whole panel again (bit 1), the panel's STATE too (bit 2); a first on catches up */
+/* a request on link l: on / off, the whole panel again (bit 1), the panel's STATE too (bit 2), checked frames (bit 3); a first on
+ * catches up */
 static void mir_ask(uint32_t bits, uint32_t l)
 {
     MIR_SEEN();
@@ -424,6 +425,7 @@ static void mir_ask(uint32_t bits, uint32_t l)
     if ((bits & 4u) && !mir.state)
         mir.state_ms = fm1_ms - MIR_STATE_IDLE_MS;   /* (asked: a STATE at once) */
     mir.state = (uint8_t)(bits >> 2 & 1u);
+    me.chk = (uint8_t)((bits & MIR_CHK_BIT) != 0u);   /* (bit 3: checked frames, ed_mirror_enc.h) */
     mir.on = (uint8_t)(bits & 1u);
     if (!mir.on)
         mir_letgo();
@@ -623,6 +625,26 @@ static void mir_test(void)
         fm1_reboot();                   /* (the user's own again) */
     }
 }
+/* Checked frames: a lost frame shows as a gap in seq at the next one, which may come late (an idle screen). So after frames went
+ * out, an empty checked MORE (no pixels: seq only) follows within MIR_MARK_MS, and every MIR_MARK_IDLE_MS while the client
+ * mirrors: a client that lost the last of them knows */
+enum { MIR_MARK_MS = 300,              /* frames went out: the mark this soon after */
+       MIR_MARK_IDLE_MS = 1000 };        /* and again this often (a mark lost too: 10 bytes a second) */
+static struct { uint32_t ms; uint8_t seq; } mmark;
+static void mir_mark(void)
+{
+    if (!me.chk || !mir_live() || fm1_ms - mmark.ms < (me.seq == mmark.seq ? MIR_MARK_IDLE_MS : MIR_MARK_MS))
+        return;
+#if MIR_BLE
+    if (mir.link == MIR_BT && MIR_BLE_RING - (mbr.fw - mbr.r) < 64u)
+        return;
+#endif
+    me.ok = 1;
+    me_open_px(2);
+    me_close();
+    mmark.ms = fm1_ms;
+    mmark.seq = me.seq;
+}
 /* ed_service, every main-loop pass: a request over Bluetooth answered; a link that fell behind caught up once it is clear */
 static void mir_poll(void)
 {
@@ -681,6 +703,7 @@ static void mir_poll(void)
     mir_live();                         /* (the link gone, the keep-alive out: off) */
     mir_test();
     mir_state();
+    mir_mark();
     if (!mir.on || !mir.behind || ui.overlay == 5u || (mir.link == MIR_BT ? !mir_bt_clear() : so_w != so_r) ||
         fm1_ms - mir.catch_ms < MIR_CATCH_MS)
         return;

@@ -14,10 +14,15 @@
  *     n 14     a bitmap: s the colour of the 1s; then a byte g << 3 | b: b the slot of the 0s, then g + 1 bytes of 7 pixels each, the
  *              first pixel in bit 6 (two colours: text on its ground, 7 pixels a byte)
  *     n 15     the pixels above (one row up in the rectangle, from its second row): s 0..6: s + 1 pixels, s 7: 8 + L pixels
- *   The encoder takes a bitmap or the pixels above only where they are the shorter. */
+ *   The encoder takes a bitmap or the pixels above only where they are the shorter.
+ *   Checked frames (the client asks with 106 bit 3; 2026-11-01): ops 8, 9, 10 instead of 0, 1, 2, the same body, then seq (7 bit, +1 each
+ *   checked frame sent) and a Fletcher sum of the bytes 7D .. seq before F7: A = sum of the bytes, B = sum of A after each, both & 127. Over Bluetooth a Mac's MIDI driver zeroes or
+ *   loses bytes of long SysEx (measured 2026-10-31 / 11-01): the client drops a frame whose sum fails, and a MORE after a gap in seq
+ *   (its BLIT lost: it would paint into the rectangle before), and asks for the whole panel again. A client that never asks gets
+ *   ops 0..2 as before; an older firmware ignores bit 3, so the client reads both. */
 #ifndef ED_MIRROR_ENC_H
 #define ED_MIRROR_ENC_H
-enum { ED_MIRROR = 106, ED_PANEL = 108, ED_NAV = 109, MIR_VERSION = 2, MIR_CUT = 250, MIR_SLOTS = 7, MIR_LIT = 7, MIR_LONG = 13, MIR_BITS = 14, MIR_UP = 15,
+enum { ED_MIRROR = 106, ED_PANEL = 108, ED_NAV = 109, MIR_VERSION = 2, MIR_CHK_OP = 8, MIR_CHK_BIT = 8, MIR_CUT = 250, MIR_SLOTS = 7, MIR_LIT = 7, MIR_LONG = 13, MIR_BITS = 14, MIR_UP = 15,
        MIR_SHORT = 13,                  /* the pixels a one-byte run holds at most */
        MIR_LMAX = 8191,                 /* a length's largest */
        MIR_BMAX = 16 };                 /* a bitmap's 7-pixel bytes at most */
@@ -26,6 +31,7 @@ static struct {
     uint8_t rr, ok;                     /* the next slot a colour takes; 0: the link failed (the rest of this write dropped) */
     uint16_t n;                         /* bytes in the frame so far */
     uint16_t w, sw;                     /* the rectangle's width; its rows' stride (pixels): wider when it is a part of a blit */
+    uint8_t chk, chk_f, seq, sa, sb;    /* checked frames asked for; this frame is one; the next seq; the frame's sums so far */
 } me;
 /* the rectangle's pixel i (row by row, me.w a row), in a buffer of rows me.sw apart */
 static uint32_t me_at(const uint16_t *px, uint32_t i) { return me.sw == me.w ? px[i] : px[i / me.w * me.sw + i % me.w]; }
@@ -36,6 +42,8 @@ static void me_b(uint32_t b)
     if (me.ok && !mir_wire(b))
         me.ok = 0;
     me.n++;
+    if (b < 0x80u)
+        me.sa = (uint8_t)(me.sa + b), me.sb = (uint8_t)(me.sb + me.sa);
 }
 static void me_b2(uint32_t v)
 {
@@ -45,18 +53,36 @@ static void me_b2(uint32_t v)
 static void me_open(uint32_t op)
 {
     me.n = 0;
+    me.sa = me.sb = 0;
+    me.chk_f = 0;
     me_b(0xF0), me_b(0x7D), me_b(0x46), me_b(0x4C), me_b(ED_MIRROR), me_b(op);
+}
+static void me_open_px(uint32_t op)     /* a panel write's frame: FILL, BLIT, MORE (checked when asked) */
+{
+    me_open(me.chk ? op + MIR_CHK_OP : op);
+    me.chk_f = me.chk;
 }
 static void me_close(void)
 {
+    if (me.chk_f) {
+        uint32_t a, b;
+        me_b(me.seq & 127u);
+        a = me.sa & 127u, b = me.sb & 127u;
+        me_b(a);
+        me_b(b);
+    }
     me_b(0xF7);
-    if (me.ok)
+    if (me.ok) {
         mir_wire_end();
+        if (me.chk_f)
+            me.seq = (uint8_t)((me.seq + 1u) & 127u);
+    }
+    me.chk_f = 0;
 }
 static void me_rect(uint32_t op, uint32_t x, uint32_t y, uint32_t w, uint32_t h)
 {
     me.ok = 1;
-    me_open(op);
+    me_open_px(op);
     me_b2(x), me_b2(y), me_b2(w), me_b2(h);
 }
 static void me_col(uint32_t c)
@@ -81,7 +107,7 @@ static void me_cut(void)
 {
     if (me.n > MIR_CUT) {               /* (a token is 21 bytes at most: the frame stays under MIR_CUT + 24) */
         me_close();
-        me_open(2);
+        me_open_px(2);
     }
 }
 /* token n with colour c's slot (MIR_SLOTS: none, s 7: c follows the token's own bytes, me_lit) */
