@@ -27,6 +27,70 @@ static int memline_row_ok(uint32_t px, uint16_t on)       /* both rows: on for t
                 return 0;
     return 1;
 }
+/* the line steady while the header draws again (the user, 2026-10-31: "the memory bar flashes on master and drum (main)
+ * track"): the fill unchanged, every write over rows 0-1 puts the line's own pixels there, never the header's black first
+ * and the line after it (the FM-1's panel shows the gap). The header is made to draw again by what does it on an FM-1: the
+ * loop position's beats while playing, a message and its end. On the mixer's MASTER and DR rows, the master FX page and
+ * DR's SOUND page, then T1's mixer row (every page has the line) */
+static void memline_want(uint32_t pct)
+{
+    uint32_t x, px = memline_px(pct);
+    for (x = 0; x < 240u; x++)
+        top_want[x] = swap16(x < px ? memline_col(pct) : C_LINE);
+}
+static int memline_steady(const char *where)
+{
+    char b[96];
+    int ok;
+    memline_set(60);
+    ui.force = 1;
+    frame();
+    memline_want(60);
+    top_bad = top_head = 0;
+    top_on = 1;
+    tap(B_PLAY);                                        /* (the loop position moves on every beat: the header again) */
+    frames(150);
+    ui_message("MEMLINE");
+    frames(150);                                        /* (the message, then the header as it was) */
+    tap(B_PLAY);
+    frames(5);
+    top_on = 0;
+    ok = top_head >= 3u && top_bad == 0u && memline_row_ok(memline_px(60), C_DIM);
+    snprintf(b, sizeof b, "memory line: steady on %s while the header draws again (%u header transfers, %u bad writes)", where,
+             (unsigned)top_head, (unsigned)top_bad);
+    check(ok, b);
+    return ok;
+}
+static void memline_steady_tests(void)
+{
+    reset_ui();
+    stk_boot();
+    op_enter(SCR_HOME);
+    frame();
+    turn(EN_ALGO, -1);                                  /* (T1 -> the mixer's MASTER row) */
+    check(mx_row() == MXR_MASTER, "memory line: the mixer on MASTER");
+    memline_steady("the mixer's MASTER row");
+    op_enter(SCR_FX);
+    ui.master = 1;
+    frames(2);
+    check(master_sel() && ui.scr == SCR_FX, "memory line: the master FX page");
+    memline_steady("MASTER's FX page");
+    reset_ui();
+    op_enter(SCR_HOME);
+    frame();
+    while (mx_row() != MXR_DR && mx_row() < MXR_LANE0)
+        turn(EN_ALGO, 1);
+    check(mx_row() == MXR_DR && song.sel == TRK_DRUM, "memory line: the mixer on DR (the drums' main row)");
+    memline_steady("the mixer's DR row");
+    op_enter(SCR_SOUND);
+    frames(2);
+    check(song.sel == TRK_DRUM && ui.scr == SCR_SOUND && !lane_picked(), "memory line: DR's SOUND page");
+    memline_steady("DR's SOUND page");
+    reset_ui();
+    op_enter(SCR_HOME);
+    frame();
+    memline_steady("T1's mixer row");
+}
 static void memline_tests(void)
 {
     static const uint32_t PAGES[] = {SCR_HOME, SCR_STEP, SCR_SYSTEM, SCR_SCOPE};
@@ -71,6 +135,7 @@ static void memline_tests(void)
         frame();
         check(!px_at(239, 1, C_WHITE) && memline_row_ok(memline_px(51), C_DIM), "memory line: the fill moved: redrawn");
     }
+    memline_steady_tests();
     reset_ui();
 #if PART_DROPS
     memcpy(arn_cur, ml_save_cur, sizeof arn_cur);
