@@ -45,6 +45,8 @@ HOST_ENV = {"FELUCCA_SAMPLES_SKIP": "", "FELUCCA_SLICE": "0"}
 LDR = OUT / "loader"
 GEN_REL = GEN.relative_to(SRC).as_posix()       # (the tools run with cwd SRC: build/gen, or a slot's)
 sys.path.insert(0, str(SRC / "tools"))
+import farcalls  # noqa: E402  (RAM <-> XIP direct calls)
+import srcgit  # noqa: E402  (the tree's commit: OPTIMIST_COMMIT, or git when SRC is the repository)
 import fm1pkg_make  # noqa: E402
 import flash_layout  # noqa: E402  (the app slot's end by FELUCCA_LAYOUT: fm1_flash_map.h's numbers)
 import lz4blk  # noqa: E402
@@ -751,34 +753,10 @@ def check(img, syms, dis, rt):
         errors.append(f".ram_text contains calls: {rt_calls[:3]}")
     else:
         notes.append(f".ram_text: {len([ln for ln in rt.splitlines() if LINE.match(ln)])} insns, no calls")
-    far = []
-    # a jump table (pi32v2-llvm's .Ljt* label, a switch's goto r2) is data in .text: the disassembler prints its entries
-    # as instructions, and an entry, an XIP address in its own function, can read as a far call (2026-10-31: m-chk-dev~,
-    # bk_commit_sec's .Ljta3). Such a word is skipped: within a table's first 1 KiB and naming an address near the table
-    jts = sorted(int(m.group(1), 16) for m in re.finditer(r"^([0-9a-f]+) .*\s\.Ljt\S*$", syms, re.M))
-
-    def in_jump_table(pc, raw):
-        import bisect
-        i = bisect.bisect_right(jts, pc) - 1
-        if i < 0 or pc - jts[i] >= 0x400 or len(raw.split()) != 4:
-            return False
-        word = int.from_bytes(bytes.fromhex(raw.replace(" ", "")), "little")
-        return abs(word - jts[i]) < 0x8000
     import romref                   # nothing may call the chip ROM or use its addresses (tools/romref.py: a constant
     for val in romref.rom_refs(dis):                            # kept as a number, e.g. pi32v2-llvm's, passes)
         errors.append(f"reference to ROM address {val:#010x}")
-    for ln in dis.splitlines():
-        mm = LINE.match(ln)
-        if not mm:
-            continue
-        # a direct call between RAM code and XIP is out of reach (core.h HOT, FAR): the linker should
-        # refuse it; this catches one that wrapped instead. Target = pc + offset + 4 (also for the
-        # conditional form "if (..) { call N }", whose label is printed on the next line)
-        c = re.search(r"\bcall (-?\d+)\b", mm.group(3))
-        if c and not in_jump_table(int(mm.group(1), 16), mm.group(2)):
-            pc = int(mm.group(1), 16)
-            if (pc >= 0x02000000) != ((pc + int(c.group(1)) + 4) & 0xFFFFFFFF >= 0x02000000):
-                far.append(f"{pc:#x} -> {(pc + int(c.group(1)) + 4) & 0xFFFFFFFF:#x}")
+    far = farcalls.far_calls(dis)    # (tools/farcalls.py: a data word that looks like a call is not one)
     if far:
         errors.append(f"direct calls between RAM and XIP code: {far[:4]}")
     over = errors if not MEASURE else OVER       # a measurement build reports the overflow, it never ships
@@ -923,13 +901,8 @@ def ui_sidecar(fwsc):
     emulator's fm1-ui serves it beside the firmware (as rust-emulator/scripts/make-ui-sidecar.sh did by hand)"""
     out = fwsc.with_name(fwsc.stem + "-ui.zip")
     web = SRC / "web"
-    def git(*a):
-        try:                            # (no git: a tree from a zip, or Windows without git)
-            p = subprocess.run(["git", "-C", str(SRC), *a], capture_output=True, text=True)
-        except OSError:
-            return ""
-        return p.stdout.strip() if p.returncode == 0 else ""
-    commit, dirty = git("rev-parse", "HEAD") or "unknown", git("status", "--porcelain", "--", "web", "firmware")
+    commit = srcgit.commit(SRC) or "unknown"
+    dirty = srcgit.modified(SRC, "web", "firmware")
     cfg = (GEN / "felucca_config.h").read_text() if (GEN / "felucca_config.h").exists() else ""
     m = re.search(r'FELUCCA_CFG_NAME "([^"]*)"', cfg)
     h = re.search(r"FELUCCA_CFG_HASH (\d+)u", cfg)
@@ -1058,14 +1031,8 @@ def release_name(release=None):
     """optimist-X.Y.fwsc for a release build, else optimist-X.Y-dev-<commit>.fwsc (-modified: uncommitted changes)"""
     if release:
         return f"optimist-{release}.fwsc"
-    def git(*args):
-        try:                            # (no git: a tree from a zip, or Windows without git)
-            r = subprocess.run(["git", "-C", str(SRC), *args], capture_output=True, text=True)
-        except OSError:
-            return ""
-        return r.stdout.strip() if r.returncode == 0 else ""
-    commit = git("rev-parse", "--short", "HEAD") or "local"
-    changed = git("status", "--porcelain", "--", "firmware", "tools", "web")
+    commit = srcgit.commit(SRC, short=True) or "unknown"
+    changed = srcgit.modified(SRC, "firmware", "tools", "web")
     return f"optimist-{OPTIMIST_VERSION}-dev-{commit}{'-modified' if changed else ''}.fwsc"
 
 
