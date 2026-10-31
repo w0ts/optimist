@@ -1376,6 +1376,14 @@ static HOT2 __attribute__((noinline)) void ua_ret_acc(uint32_t j, const int32_t 
 #define UA_RET_SUB(j, l, r, n) ((void)0)
 #define UA_RET_ADD(j, l, r, n) ((void)0)
 #endif
+/* the SCOPE on a return (the user, 2026-10-31: "if i am on, say, ret C on mixer, i click home ... it should go to scope ret C"):
+ * scope_src SCOPE_RET0 + line j, the line's output after its POST and level (what it gives the master), into the visualiser's
+ * ring: SC_RET with sg -1 before the stage that adds it (a mark), 1 after (the take), 0 for a block written whole. A test a
+ * line a block, the copy only for the one looked at (scope_ret_acc, below with the ring; XIP: FAR) */
+static volatile uint8_t scope_src;
+static __attribute__((noinline)) void scope_ret_acc(const int32_t *l, const int32_t *r, uint32_t n, int32_t sg);
+#define SCOPE_RET0 5u
+#define SC_RET(j, l, r, n, sg) do { if (scope_src == SCOPE_RET0 + (j)) FAR(scope_ret_acc)(l, r, n, sg); } while (0)
 static int32_t ret_cd[CTL];                             /* the wet (right) before the reverb: the chorus and the delay's, to tell the reverb's own */
 /* the tap: each return's largest |sample| of the block, as a track's peak (fx_mix_part: the block's largest, post level) */
 static HOT2 __attribute__((noinline)) int32_t fx_rev_pk(const int32_t *wr, uint32_t n)
@@ -1796,6 +1804,8 @@ static HOT int fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int3
                     rs_cho0(n);                         /* (a chain: the wet so far kept, the chorus' alone below) */
                 pk = cho_run(cho_in, wet_l, wet_r, n, ab, &wc, plan & FXB_CG);
                 UA_RET_ADD(0u, wet_l, wet_r, n);        /* (the chorus alone in the wet here, a chain's too: USB RET, ua_tap.h) */
+                if (!rpw)
+                    SC_RET(0u, wet_l, wet_r, n, 0);     /* (the SCOPE on RET's CHO; with an insert: rp_line_out) */
                 cpk = pk;
                 (void)pk;
                 if (rs)
@@ -1810,8 +1820,12 @@ static HOT int fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int3
             if (run_d) {
                 int32_t pk;
                 UA_RET_SUB(1u, wet_l, wet_r, n);        /* (what the delay adds: USB RET) */
+                if (!rpw)
+                    SC_RET(1u, wet_l, wet_r, n, -1);
                 pk = dly_run(dly_in, wet_l, wet_r, n, &wd);
                 UA_RET_ADD(1u, wet_l, wet_r, n);
+                if (!rpw)
+                    SC_RET(1u, wet_l, wet_r, n, 1);
                 dpk = pk;
                 (void)pk;
             } else {
@@ -1822,6 +1836,8 @@ static HOT int fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int3
                 for (i = 0; i < n; i++)
                     ret_cd[i] = wet_r[i];               /* (the wet before the reverb: to tell its own, fx_rev_pk) */
                 UA_RET_SUB(2u, wet_l, wet_r, n);        /* (what the reverb adds, a kept block's too: USB RET) */
+                if (!rpw)
+                    SC_RET(2u, wet_l, wet_r, n, -1);
             }
 #if REV_LATE
             if (rev_late) {                             /* kept for the next block (rev_job); the last one heard */
@@ -1858,6 +1874,8 @@ static HOT int fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int3
             if (!FX_ALL_IDLE) {
                 rpk = fx_rev_pk(wet_r, n);
                 UA_RET_ADD(2u, wet_l, wet_r, n);
+                if (!rpw)
+                    SC_RET(2u, wet_l, wet_r, n, 1);
             }
         }
         if (rpw) {                                      /* POST, the level and the mute on the line's output, the rest back */
@@ -2126,7 +2144,8 @@ static uint32_t tcomp_gr_q4(uint32_t k)
 /* The Optimist UI's SCOPE (ui/optimist/op_scope.c): the visualiser's ring below, one source at a time. scope_src, set
  * by the main loop only: 0 the master (the mix, as the visualiser takes it), 1..3 part 1..3's block after its inserts
  * (DIST, SLICER, FILTER, COMP; before its level and pan: mix_part), 4 the drum track (the mix after the drums less the
- * mix before them: mix_block). The ISR reads the byte once a part and a block; one ring, never five */
+ * mix before them: mix_block), SCOPE_RET0 + j return line j's output (SC_RET). The ISR reads the byte once a part and a block;
+ * one ring, never five */
 static volatile uint8_t scope_src;
 static __attribute__((noinline)) void vis_tap_block(const int32_t *l, const int32_t *r, uint32_t n);
 #define SCOPE_DR 4u
@@ -2918,12 +2937,14 @@ static HOT2 __attribute__((noinline)) void rt_line(uint32_t j, uint32_t n)   /* 
         return;
     int32_t pk = 0;
     UA_RET_SUB(j, mix_l, mix_r, n);                     /* (what the return adds to the mix: USB RET, ua_tap.h) */
+    SC_RET(j, mix_l, mix_r, n, -1);
     for (i = 0; i < n; i++) {
         int32_t a = g >= 32768 ? l[i] : (l[i] >> 4) * (g >> 3) >> 8, b = g >= 32768 ? r[i] : (r[i] >> 4) * (g >> 3) >> 8;
         mix_l[i] += a, mix_r[i] += b;
         pk = (b < 0 ? -b : b) > pk ? (b < 0 ? -b : b) : pk;
     }
     UA_RET_ADD(j, mix_l, mix_r, n);
+    SC_RET(j, mix_l, mix_r, n, 1);
     if (pk > fx_ret_pk[j])
         fx_ret_pk[j] = pk;                              /* (the mixer's return meter: this line's block peak, after its return level) */
 }
@@ -3007,6 +3028,7 @@ static __attribute__((noinline)) int32_t rp_line_out(uint32_t j, int32_t *wl, in
 {
     uint32_t i;
     int32_t pk = rp_post_bus(j, wl, wr, n);
+    SC_RET(j, wl, wr, n, 0);                            /* (the SCOPE on this return: its output alone here) */
     for (i = 0; i < n; i++)
         wl[i] += rp_sl[i], wr[i] += rp_sr[i];
     return pk;
@@ -3124,6 +3146,21 @@ static __attribute__((noinline)) void scope_drums_take(uint32_t n)
     vis_wr += n;
 }
 #define SCOPE_DRUMS(f) do { if (scope_src == SCOPE_DR) FAR(f)(n); } while (0)
+static __attribute__((noinline)) void scope_ret_acc(const int32_t *l, const int32_t *r, uint32_t n, int32_t sg)
+{
+    uint32_t i, w = vis_wr & (VIS_RING - 1u);
+    if (sg < 0)                                         /* (the mark: the block before the stage, taken off after it) */
+        for (i = 0; i < n; i++)
+            vis_pcm[0][w + i] = -l[i], vis_pcm[1][w + i] = -r[i];
+    else if (sg > 0)
+        for (i = 0; i < n; i++)
+            vis_pcm[0][w + i] += l[i], vis_pcm[1][w + i] += r[i];
+    else
+        for (i = 0; i < n; i++)
+            vis_pcm[0][w + i] = l[i], vis_pcm[1][w + i] = r[i];
+    if (sg >= 0)
+        vis_wr += n;
+}
 /* the buses, the master chain and the output (mix_block, and dual.c's mix_block_dual) */
 /* the returns into the mix (mix_finish; the tests): the sends between them (rs_block: a chain, fx_buses runs every return
  * in their order), else those holding another type (rt_run) first, then the buses */

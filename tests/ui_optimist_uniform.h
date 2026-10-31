@@ -53,7 +53,7 @@ static void un_scope_tests(void)                        /* #12: SCOPE's source =
     turn(EN_ALGO, -1);
     frames(2);
     check(song.sel == 1u && scope_src == 2u, "ALGORITHM: the source follows the selected track (T2)");
-    turn(EN_ALGO, -5);
+    turn(EN_ALGO, -2);
     frames(2);
     check(ui.scr == SCR_SCOPE && ui.master && scope_src == 0u, "ALGORITHM to MASTER: the master output, SCOPE stays (not the master FX screen)");
     press(B_EDIT);
@@ -72,6 +72,21 @@ static void un_scope_tests(void)                        /* #12: SCOPE's source =
     frame();
     tap(B_HOME);
     check(ui.scr == SCR_SCOPE && ui.master && scope_src == 0u, "SCOPE opened from the mixer's MASTER row: the master");
+    turn(EN_ALGO, -1);
+    frames(2);
+    {
+        char h[16];
+        SCR->name(0, h);
+        check(ui.scr == SCR_SCOPE && !ui.master && ui.sret == 3u && scope_src == SCOPE_RET0 + mx_ret_ln(MXR_RET0 + 2u) && !strcmp(h, "RET C"),
+              "SCOPE: ALGORITHM up from MASTER: RET C's output (2026-10-31: the returns are SCOPE's sources too)");
+    }
+    tap(B_HOME);
+    frames(2);
+    check(ui.scr == SCR_HOME && mx_row() == MXR_RET0 + 2u, "... HOME: the mixer on RET C");
+    tap(B_HOME);
+    frames(2);
+    check(ui.scr == SCR_SCOPE && ui.sret == 3u && (frame(), scope_src == SCOPE_RET0 + mx_ret_ln(MXR_RET0 + 2u)),
+          "SCOPE opened from the mixer's RET C row: RET C's output (the user: \"it should go to scope ret C\")");
     tap(B_HOME);
     reset_ui();
 }

@@ -2,7 +2,7 @@
 /* tests/ui_optimist_test.c, 2026-10-30: the returns as tracks (docs/UI-OPTIMIST-DESIGN.md 4.1.1; the user: "the idea of having the
  * tracks is that the return track stuff move out of the master track", "clicking home ... should just change the screen to
  * mixer. not change the track, page", "make the return tracks normal track citizens"):
- *   1  RET A's EDIT pages: MIX (LEVEL, its effect's TYPE in an engine's place), the effect's own pages; FX: its PRE POST inserts,
+ *   1  RET A's EDIT pages: FX (its effect's TYPE, as a synth's ENGINE; no LEVEL), the effect's own pages; FX: its PRE POST inserts,
  *      its sends; the header's badge RET A
  *   2  MASTER's pages: the master's only (ui_optimist_pagekeep.h, ui_optimist_pages.h D3)
  *   3  the walk RET A B C, MASTER, T1 .. the lanes on every page (ui_optimist_algo.h; 2026-10-31: "keep it AT THE TOP")
@@ -35,12 +35,11 @@ static void rtk_pages_tests(void)
     tap(B_EDIT);
     frames(2);
     rtk_rows(rows, sizeof rows);
-    check(ui.scr == SCR_FX && ui.fxo == 1u && rt_fam == RF_EDIT && !strncmp(rows, "MIX,RET REV", 11),
-          "1: EDIT on RET A's row: its EDIT pages, MIX then its effect's (CHO: RET REV)");
+    check(ui.scr == SCR_FX && ui.fxo == 1u && rt_fam == RF_EDIT && !strncmp(rows, "FX,RET REV", 10),
+          "1: EDIT on RET A's row: its EDIT pages, FX (its TYPE, as a synth's ENGINE) then its effect's (CHO: RET REV)");
     SCR->cell(0, 0, &c);
-    check(c.label && !strcmp(c.label, "LEVEL") && c.d == &GP[G_CRET], "... MIX's first card: its LEVEL (CHO's line)");
-    SCR->cell(0, 1, &c);
-    check(!strcmp(c.val, "CHO"), "... its second: the effect's TYPE, CHO (an engine's place)");
+    check(c.label && !strcmp(c.label, "FX") && !strcmp(c.val, "CHO"), "... FX's first card: the effect's TYPE, CHO, labelled FX (2026-10-31)");
+    check(pgk_rt_row("MIX") == SCR->rows(), "... no LEVEL on EDIT (the user: \"only the fx param\"; the mixer row keeps it)");
     {
         head_t h;
         head_make(&h);

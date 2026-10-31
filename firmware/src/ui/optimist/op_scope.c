@@ -14,10 +14,16 @@
 static const page_t SCOPE_MASTER = {"MASTER", FAM_GLO, SC_GLOBAL, GR_NONE, {G_FILT, G_CTHR, G_CRAT, G_CGR}};
 static const uint8_t SCOPE_TRK_ID[4] = {P_LEVEL, P_PAN, P_FXOFF, P_DIST};
 static uint32_t scope_rows(void) { return 1u; }
-static uint32_t scope_row(void) { return ui.master ? 0u : 1u + song.sel % NTRK; }   /* the source: 0 MASTER, 1.. a track */
-static void scope_src_name(uint32_t r, char *b) { str_cpy(b, r ? trk_tag(r - 1u) : "MASTER", 12); }
+/* the source: 0 MASTER, 1.. a track, SCOPE_RET0 + k return k (RET A B C, ui.sret; the user, 2026-10-31: "it should go to scope
+ * ret C") */
+static uint32_t scope_row(void) { return ui.master ? 0u : ui.sret ? SCOPE_RET0 + (ui.sret - 1u) % 3u : 1u + song.sel % NTRK; }
+static void scope_src_name(uint32_t r, char *b)
+{
+    static const char *const RN[3] = {"RET A", "RET B", "RET C"};
+    str_cpy(b, r >= SCOPE_RET0 ? RN[(r - SCOPE_RET0) % 3u] : r ? trk_tag(r - 1u) : "MASTER", 12);
+}
 static void scope_name(uint32_t r, char *b) { (void)r; scope_src_name(scope_row(), b); }
-static uint16_t scope_col(uint32_t r) { return r ? trk_col(r - 1u) : C_HI; }
+static uint16_t scope_col(uint32_t r) { return r && r < SCOPE_RET0 ? trk_col(r - 1u) : C_HI; }
 static const param_desc_t *scope_desc(uint32_t r, uint32_t k, int16_t **vp)
 {
     uint32_t id = SCOPE_TRK_ID[k & 3u];
@@ -32,6 +38,13 @@ static void scope_cell(uint32_t r, uint32_t k, cell_t *c)
     r = scope_row();
     if (!r) {
         page_cell(&SCOPE_MASTER, k, c);
+        return;
+    }
+    if (r >= SCOPE_RET0) {                              /* (a return: its mixer row's first set, LEVEL and its effect) */
+        uint8_t keep = mx.set;
+        mx.set = 0;
+        mix_cell(MXR_RET0 + r - SCOPE_RET0, k, c);
+        mx.set = keep;
         return;
     }
     {
@@ -50,6 +63,13 @@ static void scope_turn(uint32_t r, uint32_t k, int32_t s, int fine)
         page_turn(&SCOPE_MASTER, k, s, fine);
         return;
     }
+    if (r >= SCOPE_RET0) {
+        uint8_t keep = mx.set;
+        mx.set = 0;
+        mix_turn(MXR_RET0 + r - SCOPE_RET0, k, s, fine);
+        mx.set = keep;
+        return;
+    }
     d = scope_desc(r, k, &vp);
     val_turn(d, vp, k, s, fine);
 }
@@ -59,6 +79,8 @@ static int scope_yes(uint32_t r, uint32_t k, uint32_t ok)
     r = scope_row();
     if (!r)
         return page_yes(SCR_SCOPE, r, &SCOPE_MASTER, k, ok);
+    if (r >= SCOPE_RET0)
+        return 0;
     {
         const param_desc_t *d = scope_desc(r, k, &vp);  /* (the descriptor first: it sets vp) */
         return val_toggle(d, vp);                       /* (FX: on / dry) */
@@ -73,6 +95,10 @@ static uint8_t scope_ed_src;
 static void scope_tick(void)
 {
     uint32_t s = ui.scr == SCR_SCOPE ? scope_row() : 0u;
+    if (s >= SCOPE_RET0) {                              /* (a return: its line's output; an empty return: none, the trace flat) */
+        uint32_t j = mx_ret_ln(MXR_RET0 + s - SCOPE_RET0);
+        s = j < 3u ? SCOPE_RET0 + j : 0xFFu;
+    }
 #if FELUCCA_ED_SCOPE
     if (scope_ed_ms && fm1_ms - scope_ed_ms < 2000u)    /* (the editor looks: its source, as the panel's SCOPE would) */
         s = scope_ed_src;
