@@ -26,6 +26,7 @@
 #define X0X_CH808 11u                              /* (x0x_drums.c: the 808's first channel) */
 uint32_t x0x_hit(uint32_t snd, uint32_t vel, const int8_t *ofs, uint32_t at);   /* x0x/x0x_drums.c (float) */
 uint32_t x0x_block(uint32_t n);
+int8_t *x0x_pend_ofs(uint32_t ch);
 void x0x_render(uint32_t ch, int32_t *out, uint32_t n, int32_t gain, int add);
 void x0x_off(void);
 #if FXM_NEED
@@ -221,36 +222,58 @@ static struct {
     uint8_t note[X0X_NCH], lane[X0X_NCH];        /* its GM note, the lane that played it (DRUM_LANES: none) */
     int32_t cut[X0X_NCH], flt[X0X_NCH], lg[X0X_NCH], last[X0X_NCH + 1];   /* last[X0X_NCH]: the shared sum */
     uint32_t live;                                 /* a bit per channel sounding or with a hit due (x0x_sounding) */
+    uint32_t due;                                  /* a bit per channel hit in the events, its offsets to work out (x0x_due) */
+    uint8_t kit[X0X_NCH], inst[X0X_NCH], code[X0X_NCH];   /* that hit's kit (a style kit: its own), instrument, x0x_code */
 } xc;
 
 /* an X0X voice sounds, or a hit is due in this block: the drum glides (drums.c dgl_block) and the quiet test
  * (project.c audio_quiet) count the X0X channels, which are not drums.v voices */
 AINL uint32_t x0x_sounding(void) { return xc.live; }
 
-/* a hit of note on X0X kit k (lane l); 0: the machine lacks it (the stand-in plays it) */
+/* a hit of note on X0X kit k (lane l); 0: the machine lacks it (the stand-in plays it). In the block's events (CPU0) the
+ * hit is taken with the lane's offsets as they are now (dl_ofs_play: this hit's automation and LFO), the kit, the
+ * instrument and the sound kept; its offsets (the variant's, the style kit's, the lane's), LEVEL and CUT- are worked out
+ * in the drums' job (x0x_due, drums_x0x: either core), before its block, as here before */
 static int x0x_on(uint32_t k, uint32_t note, uint32_t vel, uint32_t l)
 {
-    uint32_t c = x0x_code(k, l, note), ch, i, st = k;
-    const int8_t *u = dl_ofs_play(l), *v;
-    int8_t o[DE_N];
-    int32_t sty[DE_N];
+    uint32_t c = x0x_code(k, l, note), ch, st = k;
     if (c == XN_NONE)
         return 0;
-    k = DRUM_UID_XMACH(k);                          /* (a style kit: its machine, its offsets below) */
-    v = (k == DRUM_UID_X909 ? X9_VAR : X8_VAR)[c >> 5];
-    x0x_style_all(st, l < DRUM_LANES ? lane_inst(l) : INST_N, sty);
-    for (i = 0; i < DE_N; i++)
-        o[i] = (int8_t)clamp(v[i] + sty[i] + (u ? u[i] : 0), -64, 63);
-    ch = x0x_hit(k == DRUM_UID_X909 ? (c & 31u) : 16u + (c & 15u), vel, o, ev_ofs < CTL ? ev_ofs : 0u);
+    k = DRUM_UID_XMACH(k);                          /* (a style kit: its machine, its offsets in x0x_due) */
+    ch = x0x_hit(k == DRUM_UID_X909 ? (c & 31u) : 16u + (c & 15u), vel, dl_ofs_play(l), ev_ofs < CTL ? ev_ofs : 0u);
     if (ch >= X0X_NCH)
         return 0;
     xc.note[ch] = (uint8_t)note;
     xc.lane[ch] = (uint8_t)(l < DRUM_LANES ? l : DRUM_LANES);
     xc.live |= 1u << ch;                           /* (due in this block: drums_mix runs drums_x0x) */
-    xc.lg[ch] = dl_lvl_g(clamp(o[DE_LEVEL], -24, 6));   /* 2^(dB / 6.02) (drum_synth.c) */
-    xc.cut[ch] = o[DE_CUT] < 0 && !(((k == DRUM_UID_X909 ? X9_SHOW[c & 31u] : X8_SHOW[c & 15u])) & XS_TONE)
-                     ? dl_cut_k(o[DE_CUT]) : 0;
+    xc.kit[ch] = (uint8_t)st;
+    xc.inst[ch] = (uint8_t)(l < DRUM_LANES ? lane_inst(l) : INST_N);
+    xc.code[ch] = (uint8_t)c;
+    xc.due |= 1u << ch;
     return 1;
+}
+/* the hits of the block's events (x0x_on): each one's offsets in its place (the variant's, the style kit's, the lane's
+ * that x0x_hit took), its LEVEL and CUT- (a hit replaced by another on its channel, or stopped: only what is due) */
+static void x0x_due(void)
+{
+    uint32_t ch, i;
+    for (ch = 0; xc.due >> ch; ch++) {
+        int8_t *o = x0x_pend_ofs(ch);
+        uint32_t c = xc.code[ch], m;
+        int32_t sty[DE_N];
+        const int8_t *v;
+        if (!((xc.due >> ch) & 1u) || !o)
+            continue;
+        m = DRUM_UID_XMACH(xc.kit[ch]);
+        v = (m == DRUM_UID_X909 ? X9_VAR : X8_VAR)[c >> 5];
+        x0x_style_all(xc.kit[ch], xc.inst[ch], sty);
+        for (i = 0; i < DE_N; i++)
+            o[i] = (int8_t)clamp(v[i] + sty[i] + o[i], -64, 63);
+        xc.lg[ch] = dl_lvl_g(clamp(o[DE_LEVEL], -24, 6));   /* 2^(dB / 6.02) (drum_synth.c) */
+        xc.cut[ch] = o[DE_CUT] < 0 && !(((m == DRUM_UID_X909 ? X9_SHOW[c & 31u] : X8_SHOW[c & 15u])) & XS_TONE)
+                         ? dl_cut_k(o[DE_CUT]) : 0;
+    }
+    xc.due = 0;
 }
 
 /* every X0X voice stops now, its last sample fading (the declick tail) */
@@ -323,8 +346,11 @@ static __attribute__((noinline)) int32_t drums_x0x(int32_t *ml, int32_t *mr, int
                                                    int32_t on, int32_t lvl, int32_t pre, int32_t gl,
                                                    int32_t gr, int32_t pk)
 {
-    uint32_t mask = x0x_block(n), ch, i, summed = 0, ln, sl = 0, ins = 0;
+    uint32_t mask, ch, i, summed = 0, ln, sl = 0, ins = 0;
     int32_t r, d, c, cl, cr, z0, z1, cp;
+    if (xc.due)
+        x0x_due();                                  /* (the events' hits: their offsets, LEVEL, CUT-) */
+    mask = x0x_block(n);
     xc.live = mask;                                 /* (the channels sounding or due now) */
     int32_t r0 = dsend_one(on);                     /* (the lanes all alike: their reverb send, nothing else) */
     if (r0 < 0)
