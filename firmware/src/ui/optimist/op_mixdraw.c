@@ -34,13 +34,16 @@
 #define MXL_N 4u                        /* the channels a screen */
 #define MXL_H ((int32_t)OP_PH / (int32_t)MXL_N)   /* a channel's row: 41 px (the panel 164, the mixer's cards 1x4; over the
                                          * help band 36: the panel 146) */
-#define MXL_VX 28                       /* a channel's meter and steps: the width left of the code */
+#define MXL_VX 27                       /* a channel's meter and steps: the width left of the code (27: the 4 groups of steps end at 239) */
 #define MXL_VW 210
 #define MXL_TY 1                        /* the text line: the engine, then the preset (the user: "each track shows the synth
                                          * name and the preset", so the meter and the steps went thin) */
 #define MXL_SY (MXL_H - 21)             /* the steps in their row: small cells, 6 px, the page bars under them (20; 15) */
 #define MXL_SH 6
 #define MXL_SP 13                       /* a step's pitch, its cell 11 */
+#define MXL_GG 2                        /* the extra gap after every 4th step: 4 groups of 4 (the user, 2026-10-31) */
+#define MXL_SW (16 * MXL_SP + 3 * MXL_GG - 1)   /* the 16 steps' width (a lane's last cell ends it), the groups' gaps in */
+#define MX_STEP_X(i, sp) ((int32_t)(i) * (sp) + (int32_t)(((i) / 4u) * MXL_GG))   /* step i's x from the first's */
 #define MXL_VY (MXL_H - 7)              /* the meter in its row: a thin bar, over the row's rule (34; 29) */
 #define MXL_VH 3
 #define MX_GR_PX 3                      /* the reduction: px a dB */
@@ -591,11 +594,11 @@ static void mx_steps_paint(uint32_t r, int32_t x, int32_t y)
     mx_rect(r, &q);
     for (i = 0; i < 16u; i++)
         if (page + i < len)
-            mx_step_cell(r, t, page + i, at, c, x + (int32_t)i * q.sp, y, &q);
+            mx_step_cell(r, t, page + i, at, c, x + MX_STEP_X(i, q.sp), y, &q);
     np = (len + 15u) / 16u;
     if (np > 1u && r < MXR_LANE0)                       /* the pattern's pages: a thin bar each, the one playing lit */
         for (i = 0; i < np; i++)
-            cv_rect(x + (int32_t)(i * 16u * MXL_SP / np), y + MXL_SH + 2, (int32_t)(16u * MXL_SP / np) - 2, 2,
+            cv_rect(x + (int32_t)(i * (uint32_t)MXL_SW / np), y + MXL_SH + 2, (int32_t)((uint32_t)MXL_SW / np) - 2, 2,
                     i == page / 16u ? C_WHITE : C_DIM);
 }
 static void mx_steps(uint32_t r)
@@ -622,15 +625,15 @@ static void mx_steps(uint32_t r)
         for (k = 0; k < 2u; k++) {
             if (s[k] < page || s[k] >= page + 16u)
                 continue;
-            cv_begin((uint32_t)q.sp, (uint32_t)q.sh, bg);
+            cv_begin((uint32_t)q.sp - 1u, (uint32_t)q.sh, bg);   /* (a cell is at most sp - 1 wide) */
             mx_step_cell(r, t, s[k], at, c, 0, 0, &q);
-            cv_blit((uint32_t)(q.x + q.sx + (int32_t)(s[k] - page) * q.sp), (uint32_t)(OP_PY + q.y + q.sy));
+            cv_blit((uint32_t)(q.x + q.sx + MX_STEP_X(s[k] - page, q.sp)), (uint32_t)(OP_PY + q.y + q.sy));
         }
         return;
     }
     mxd.stp[r] = sig;
     mxd.sta[r] = (uint8_t)at;
-    cv_begin((uint32_t)(16 * q.sp), (uint32_t)(q.sh + (r < MXR_LANE0 ? 4 : 0)), bg);
+    cv_begin((uint32_t)MXL_SW, (uint32_t)(q.sh + (r < MXR_LANE0 ? 4 : 0)), bg);
     mx_steps_paint(r, 0, 0);
     cv_blit((uint32_t)(q.x + q.sx), (uint32_t)(OP_PY + q.y + q.sy));
 }

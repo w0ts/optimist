@@ -540,8 +540,8 @@ static void pages_keys_tests(void)
     song.sel = 0;                                       /* the keys light the notes the track sounds (always built since 2026-10-29) */
     op_enter(SCR_STEP);
     frames(2);
-    press(B_SEQ);
-    frames(HOLD_FRAMES);
+    tap(B_REC);                                         /* (REC on: STEP's keys are the keyboard, 2026-10-31) */
+    frames(2);
     {
         uint32_t f = 0, d = 0, h = 0, k = 6, was;
         keys_lit(&f, &d, &h);
@@ -549,10 +549,10 @@ static void pages_keys_tests(void)
         trk[0].seq_n = 1;
         trk[0].seq_notes[0] = (uint8_t)kb_map(&trk[0], k);
         keys_lit(&f, &d, &h);
-        check(!was && ((f >> k) & 1u), "STEP, a synth track, SEQ held: the key of the note the track sounds (its step's) lights, dark before");
+        check(!was && ((f >> k) & 1u) && !(d & kws(0, 15)), "STEP, a synth track, REC on: the key of the note the track sounds lights, dark before; no step dim");
         trk[0].seq_n = 0;
     }
-    release(B_SEQ);
+    tap(B_REC);
     reset_ui();
     song.sel = TRK_DRUM;
     op_enter(SCR_STEP);

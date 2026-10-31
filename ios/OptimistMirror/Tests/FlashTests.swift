@@ -177,6 +177,37 @@ final class FlashTests: XCTestCase {
         XCTAssertFalse(dev.upgraded)
     }
 
+    // MARK: - the fast install (docs/INSTALL-SPEED.md)
+
+    func testFastWordAndTableMatchTheOtherHosts() {
+        // tools/fm1_install.py FAST_HELLO / sector_table, web/fm1ota_optimist.js, the loaders' tests: the same vectors
+        XCTAssertEqual(FlashProtocol.fastHello, [0xF0, 0x00, 0x32, 0x45, 0x19, 0x00, 0x00, 0x40, 0x00, 0x00, 0x20, 0x38, 0x07, 0xF7])
+        let v = (0..<8192).map { UInt8(truncatingIfNeeded: ($0 &* 31) ^ ($0 >> 8)) }
+        XCTAssertEqual(FlashProtocol.sectorTable(v, offset: 0, count: 2), [98, 4, 162, 95, 146, 95, 92, 197, 155, 40, 53, 131])
+        XCTAssertEqual(FlashProtocol.fastReply(FlashProtocol.frame(FlashProtocol.fastCommand, [1, 0, 16])), 4096)
+        XCTAssertNil(FlashProtocol.answer(v, FlashProtocol.Request(flags: 0, address: 0, length: 4096), maxData: FlashProtocol.maxData))
+    }
+
+    func testFastLoaderGetsTheTableAnd4KReads() async throws {
+        let pkg = try FlashPackage.check(FakeFlashDevice.package("FM-1_700", size: 0x6000), title: "t")
+        let dev = FakeFlashDevice(.loader("ota-FM-1_700"), image: pkg.image.count, finalIdentity: "FM-1_700", fast: true)
+        let back = try await updater(dev).install(pkg) { _ in }
+        let n = pkg.image.count / 4096
+        XCTAssertEqual(back, "FM-1_700")
+        XCTAssertTrue(dev.fastOn)
+        XCTAssertEqual(dev.written, Array(pkg.image[0..<(n * 4096)]))
+        XCTAssertEqual(dev.table, FlashProtocol.sectorTable(pkg.image, offset: 0, count: n))
+    }
+
+    func testOlderLoaderIgnoresTheWord() async throws {
+        let pkg = try FlashPackage.check(FakeFlashDevice.package("FM-1_700", size: 3000), title: "t")
+        let dev = FakeFlashDevice(.loader("ota-FM-1_700"), image: pkg.image.count, finalIdentity: "FM-1_700")
+        _ = try await updater(dev).install(pkg) { _ in }
+        XCTAssertEqual(dev.fastWords, 1)
+        XCTAssertFalse(dev.fastOn)
+        XCTAssertEqual(dev.written, pkg.image)
+    }
+
     func testWrongIdentityAfterTheWrite() async throws {
         let pkg = try FlashPackage.check(FakeFlashDevice.package("FM-1_700", size: 3000), title: "t")
         let dev = FakeFlashDevice(.firmware("FM-1_700"), image: pkg.image.count, finalIdentity: "FM-1_904")
@@ -282,13 +313,18 @@ final class FakeFlashDevice: FlashPorts, FlashChannel {
     let finalIdentity: String
     private(set) var written: [UInt8] = []
     private(set) var upgraded = false
+    let fast: Bool                  // the loader answers the fast install's word (docs/INSTALL-SPEED.md)
+    private(set) var fastOn = false
+    private(set) var fastWords = 0
     private var reads: [(UInt32, Int)] = []
     private var finish: UInt32 = 0
     private var pending: (UInt32, Int)?
+    private(set) var table: [UInt8] = []
     private let queue = SysExQueue()
 
-    init(_ mode: Mode, image: Int, finalIdentity: String) {
+    init(_ mode: Mode, image: Int, finalIdentity: String, fast: Bool = false) {
         self.mode = mode
+        self.fast = fast
         self.imageSize = image
         self.finalIdentity = finalIdentity
     }
@@ -317,12 +353,23 @@ final class FakeFlashDevice: FlashPorts, FlashChannel {
             case .firmware(let t), .loader(let t): queue.push(Self.identity(t))
             default: break
             }
+        } else if bytes == FlashProtocol.fastHello {
+            fastWords += 1
+            if fast, case .loader = mode {
+                fastOn = true
+                queue.push(FlashProtocol.frame(FlashProtocol.fastCommand, [1, 0, 16]))
+            }
         } else if bytes == FlashProtocol.upgrade {
             upgraded = true
             switch mode {
             case .firmware:
                 reads = [(0, 512), (1024, 300), (UInt32(imageSize - 64), 64)]
                 finish = FlashProtocol.step1Done
+            case .loader where fastOn:
+                let n = imageSize / FlashProtocol.sector
+                reads = [(FlashProtocol.table, n * 6)] + (0..<n).map { (UInt32($0 * FlashProtocol.sector), FlashProtocol.sector) }
+                written = []
+                finish = FlashProtocol.step2Done
             case .loader:
                 reads = stride(from: 0, to: imageSize, by: 512).map { (UInt32($0), min(512, imageSize - $0)) }
                 written = []
@@ -336,7 +383,8 @@ final class FakeFlashDevice: FlashPorts, FlashChannel {
                 return true
             }
             guard let p = pending, p.0 == addr, p.1 == data.count else { return true }
-            if finish == FlashProtocol.step2Done { written += data }
+            if finish == FlashProtocol.step2Done, addr < FlashProtocol.table { written += data }
+            if addr == FlashProtocol.table { table = data }
             next()
         }
         return true

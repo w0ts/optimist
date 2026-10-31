@@ -14,14 +14,14 @@ static void s35_open(void)                              /* a synth track's STEP,
     tap(B_SEQ);
     frames(2);
 }
-static uint32_t s35_pick(uint32_t k)                    /* SEQ held + key k: the pen; its note */
+static uint32_t s35_pick(uint32_t k)                    /* key k played on a sound page (EDIT), back to STEP: the pen; its note */
 {
     uint32_t n;
-    press(B_SEQ);
+    tap(B_EDIT);
     kdown(k);
     n = pen_note[0];
     kup(k);
-    release(B_SEQ);
+    tap(B_SEQ);
     frames(2);
     return n;
 }
@@ -34,12 +34,9 @@ static void s35_entry_tests(void)
     kdown(WK(0));
     kup(WK(0));
     check(step_on(&TSEL->step[0]) && TSEL->step[0].note[0] == n, "STEP entry: a tapped step takes the note played");
-    press(B_SEQ);                                       /* (OCT on the roll is the octave and the view, 2026-10-13: the */
-    frames(HOLD_FRAMES);                                /* keyboard octave is OCT while the keys play, SEQ held) */
-    tap(B_OCTUP);
-    release(B_SEQ);
+    tap(B_OCTUP);                                       /* (OCT on the roll is the octave and the view, 2026-10-13) */
     frames(2);
-    check(song.octave == 1, "STEP, SEQ held + OCT+: the keyboard octave up (the roll's view is the same value)");
+    check(song.octave == 1, "STEP, OCT+: the keyboard octave up (the roll's view is the same value)");
     kdown(WK(1));
     kup(WK(1));
     check(TSEL->step[1].note[0] == n + 12u, "STEP entry after OCT+: the note an octave up (it follows the keyboard octave)");

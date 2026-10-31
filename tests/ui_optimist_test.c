@@ -1423,11 +1423,13 @@ static void step_keys_tests(void)
     kup(WK(4));                                         /* (cleared again, as the following tests expect) */
     check(!dstep_mask(&t->dstep[4]), "drums: ... a step held + HOME clears it");
     seq_long();
-    check(st.play && ly_lock == LY_PLAY && ui.scr == SCR_STEP, "SEQ held alone on STEP (past HOLD): the keys play, STEP stays");
+    check(!st.play && ly_lock == LY_STEP && ui.scr == SCR_STEP, "SEQ held alone on STEP (past HOLD): nothing, the keys stay steps (REC on plays them, 2026-10-31)");
     key(BK(7));
-    check(!dstep_mask(&t->dstep[7]) && lane_selected() == 7, "the keys playing: a black key, no step set, the lane is the last hit");
-    seq_long();
-    check(!st.play && ly_lock == LY_STEP, "SEQ held again: the keys are steps");
+    check(!dstep_mask(&t->dstep[7]) && lane_selected() == 7, "drums: a black key on STEP: no step set, the lane is the last hit");
+    tap(B_REC);
+    check(rec_wait && ly_lock == LY_STEP, "drums, REC armed on STEP: the white keys stay steps (as on every page of the drum track)");
+    tap(B_REC);
+    check(!rec_wait && !song.rec, "... REC again: off");
     turn(EN_SELECT, 9);
     turn(EN_SELECT, -(int32_t)STP_TL);                 /* (past LANE: TOOLS, EUCLID, op_tools.c) */
     check(lane_selected() == 7 && ui.row[SCR_STEP] == STP_PAT, "drums, no step held: SELECT walks PATTERN, then the tools (the lane stays 8)");
@@ -1525,13 +1527,13 @@ static void step_synth_tests(void)
     pen_note[0] = 64;
     key(WK(3));
     check(step_on(&t->step[3]) && t->step[3].note[0] == 64 && t->step[3].n == 1, "synth: a step tapped: the pen's note");
-    press(B_SEQ);
+    tap(B_EDIT);                                        /* (the pick: the keys played on a sound page; on STEP REC on plays them) */
     fm1_in.notes |= 1u << WK(0) | 1u << WK(2) | 1u << WK(4);   /* a chord, the keys held together */
     frame();
     fm1_in.notes = 0;
     frame();
-    release(B_SEQ);
-    check(pen_n == 3 && !st.play && ui.scr == SCR_STEP, "synth: SEQ held + keys: they play, the chord is the pick");
+    tap(B_SEQ);
+    check(pen_n == 3 && !st.play && ui.scr == SCR_STEP, "synth: keys played on a sound page: the chord is the pick, back on STEP");
     key(WK(5));
     check(t->step[5].n == 3 && t->step[5].note[0] == pen_note[0] && t->step[5].note[2] == pen_note[2],
           "synth: the next tapped step takes the chord");
@@ -1539,17 +1541,17 @@ static void step_synth_tests(void)
         uint8_t c[4];
         uint32_t m, j, same;
         t->p[P_CHORD] = 1;                              /* TRIAD */
-        press(B_SEQ);
+        tap(B_EDIT);
         fm1_in.notes |= 1u << WK(2);                    /* one key */
         frame();
         fm1_in.notes = 0;
         frame();
-        release(B_SEQ);
+        tap(B_SEQ);
         m = chord_notes(t, kb_map(t, WK(2)), c);
         same = pen_n == m && m == 3u;
         for (j = 0; same && j < m; j++)
             same = pen_note[j] == c[j];
-        check(same, "synth, chord mode: SEQ held + one key: the pick is the whole chord");
+        check(same, "synth, chord mode: one key played: the pick is the whole chord");
         memset(&t->step[7], 0, sizeof t->step[7]);
         key(WK(7));
         same = t->step[7].n == 3u;
@@ -4019,6 +4021,7 @@ static void preset_engine_tests(void)
 #include "ui_optimist_overlap.h"                   /* a synth note past another: the picked note seen, moved past (snap), LENGTH over */
 #include "ui_optimist_seqglide.h"                  /* 2026-10-29 (#104): GLIDE on the held step, a held note picked, a chord all first, a note moved alone */
 #include "ui_optimist_stepedit.h"                  /* 2026-10-31: a note moved past another, the move not stopped, LENGTH only lengthens */
+#include "ui_optimist_stepsave.h"                  /* 2026-10-31: REC on = the keys play, the last note entered picked, SAVE with no note picked */
 #include "ui_optimist_stephold.h"                  /* STEP: a tap toggles the step, a hold opens its cards only */
 #include "ui_optimist_lforate.h"                  /* LFO RATE: the free bar from 0, a synced value as a division */
 #include "ui_optimist_mix35.h"                      /* batch 35: the mixer's three views, its knob sets, the title flash */
@@ -4301,6 +4304,7 @@ int main(int argc, char **argv)
     overlap_tests();
     seqglide_tests();
     stepedit_tests();
+    stepsave_tests();
     step_cards_leak_tests();
     s35_entry_tests();
     s35_transpose_tests();
