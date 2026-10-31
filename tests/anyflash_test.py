@@ -54,7 +54,9 @@ def synth_flash(end, seed):
     head = bytearray(M.entry(M.crc16(isd), 0x500, len(isd), 0x02, 0x80, 0, "isd_config.ini"))
     M.enc(head, 0, 32)
     f[32:64] = head
-    app = bytearray(M.entry(0xFFFF, 0x4000, end - 0x4000 - 0x1000, 0x83, 0xFF, 0, "app_area_head"))
+    app = bytearray(M.entry(0xFFFF, 0x4000, end - 0x4000 - 0xF24 + 0x1B4, 0x83, 0xFF, 0, "app_area_head"))   # (as
+    # fm1pkg_make.py's: the block ends inside the slot's last sector; a block ending a whole sector short would name the
+    # step 4 KiB below, LAYOUT 2's 0xA5000 for LAYOUT 6's 0xA6000)
     M.sfc(app, 0, 32, 0, 0x980F)
     f[0x4000:0x4020] = app
     return bytes(f)
