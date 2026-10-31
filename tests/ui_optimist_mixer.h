@@ -483,19 +483,23 @@ static void mixer_rows_tests(void)
     frame();
     y = mx_row_y(MXR_DR);
     check(px_in(MXL_VX, y + MXL_SY, 11, MXL_SH, lvl_col(trk_col(TRK_DRUM), 2u)), "DR's sequence: every lane merged (the snare's step 1, SOFT)");
-    check(px_in(MXL_VX + 2 * MXL_SP, y + MXL_SY, 11, MXL_SH, lvl_col(trk_col(TRK_DRUM), LV_GHOST)) &&
-          px_in(MXL_VX + 3 * MXL_SP, y + MXL_SY, 11, MXL_SH, lvl_col(trk_col(TRK_DRUM), LV_HARD)), "DR's sequence: shaded by its strongest hit");
-    check(!px_in(MXL_VX + MXL_SP, y + MXL_SY, 11, MXL_SH, trk_col(TRK_DRUM)), "DR's sequence: an accent alone is no hit");
+    check(px_in(MXL_VX + MX_STEP_X(2, MXL_SP), y + MXL_SY, 11, MXL_SH, lvl_col(trk_col(TRK_DRUM), LV_GHOST)) &&
+          px_in(MXL_VX + MX_STEP_X(3, MXL_SP), y + MXL_SY, 11, MXL_SH, lvl_col(trk_col(TRK_DRUM), LV_HARD)), "DR's sequence: shaded by its strongest hit");
+    check(!px_in(MXL_VX + MX_STEP_X(1, MXL_SP), y + MXL_SY, 11, MXL_SH, trk_col(TRK_DRUM)), "DR's sequence: an accent alone is no hit");
     turn(EN_ALGO, 3);
     frame();
     y = mx_row_y(MXR_LANE0 + 2u);
     check(mx_row() == MXR_LANE0 + 2u && px_in(MXL_VX, y + MXS_SY, 5, 4, lvl_col(lane_col(2), 2u)),
           "the snare lane's cell: its own hit, shaded by its level as on STEP");
-    check(px_in(MXL_VX + 2 * MXL_SP, y + MXS_SY, 5, 4, lvl_col(lane_col(2), LV_GHOST)) &&
-          px_in(MXL_VX + 3 * MXL_SP, y + MXS_SY, 5, 4, lvl_col(lane_col(2), LV_HARD)) &&
+    check(px_in(MXL_VX + MX_STEP_X(2, MXL_SP), y + MXS_SY, 5, 4, lvl_col(lane_col(2), LV_GHOST)) &&
+          px_in(MXL_VX + MX_STEP_X(3, MXL_SP), y + MXS_SY, 5, 4, lvl_col(lane_col(2), LV_HARD)) &&
           lvl_col(lane_col(2), LV_GHOST) != lvl_col(lane_col(2), LV_HARD), "the snare lane: GHOST dim, HARD full");
     y = mx_row_y(MXR_LANE0 + 3u);
     check(y + MXS_SY + 4 <= 240u && !px_in(MXL_VX, y + MXS_SY, 5, 4, lane_col(3)), "the clap lane's cell: none");
+    check(MX_STEP_X(4, MXL_SP) - MX_STEP_X(3, MXL_SP) == MXL_SP + MXL_GG && MX_STEP_X(8, MXL_SP) - MX_STEP_X(7, MXL_SP) == MXL_SP + MXL_GG &&
+          MX_STEP_X(12, MXL_SP) - MX_STEP_X(11, MXL_SP) == MXL_SP + MXL_GG && MX_STEP_X(5, MXL_SP) - MX_STEP_X(4, MXL_SP) == MXL_SP &&
+          MXL_VX + MX_STEP_X(15, MXL_SP) + MXL_SP - 1 <= 240 && MXL_VX + MXL_SW <= 240,
+          "the steps: a MXL_GG wider gap after 3, 7 and 11 (4 groups of 4), the last cell ends at 239 or before");
     ppm("opt-mixer-sounds");
     memset(&dr->dstep[0], 0, 4 * sizeof dr->dstep[0]);
     song.sel = 0;
