@@ -162,8 +162,9 @@ for _k in C.NEEDS_AUTO:
 # recorder and rings want LAYOUT 1 (measured first: they subtract it); the rings want SAMPLE and an
 # arena (ARENA on)
 _LAYOUT = {"ENG_SAMPLE": 0, "DRUM_USR": 0, "SNAPSHOTS": 0, "PATTERNS": 1}
-WITH[("LAYOUT", 1)] = dict(_LAYOUT)
-WITH[("LAYOUT", 3)] = dict(_LAYOUT)          # (S0, no user samples: the same rules as LAYOUT 1, core.py validate)
+for _k, (_slots, _, _) in R.LAYOUT_STEPS.items():   # (every MEMORY step past normal, core.py validate: no sample slot as
+    if _k:                                           # LAYOUT 1 and S0; with slots, the patterns only)
+        WITH[("LAYOUT", _k)] = dict(_LAYOUT) if not _slots else {"PATTERNS": 1}
 WITH[("BT_PROJ", 1)] = {"BLE": 1, "ED_MIRROR": 1, "PATTERNS": 1}
 for _v in (16, 32, 64):
     WITH[("SD_REC", _v)] = dict(_LAYOUT, LAYOUT=1)
