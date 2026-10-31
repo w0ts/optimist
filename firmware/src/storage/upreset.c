@@ -321,18 +321,18 @@ static int upf_read(void)                        /* the object -> st_buf: valid 
 {
     return flash_ok && st_load(OBJ_UPFM6, st_buf, sizeof(upf_t)) == (int)sizeof(upf_t) && UPF->magic == UPF_MAGIC;
 }
-static void upf_set(uint32_t k, const int16_t *ed)   /* slot k's voice = ed (0: none), then to flash */
+/* slot k's voice = b (fm6_pack's 128 B, a DX7 VMEM voice, 7 bits a byte; 0: none), then to flash. The editor's UP_PUT
+ * brings one too (ed_user.c, issue #133: a library entry keeps its voice) */
+static void upf_write(uint32_t k, const uint8_t *b)
 {
-    uint8_t b[128];
     uint32_t i, j, acc = 0, n = 0;
-    if (!flash_ok || k >= UP_SLOTS || (!ed && (upf_hold || !((upf_used >> k) & 1u))))
+    if (!flash_ok || k >= UP_SLOTS || (!b && (upf_hold || !((upf_used >> k) & 1u))))
         return;
     if (!upf_read()) {
         memset(st_buf, 0, sizeof(upf_t));
         UPF->magic = UPF_MAGIC;
     }
-    if (ed) {
-        fm6_pack(b, ed);
+    if (b) {
         for (i = j = 0; i < 128u; i++) {         /* 8 x 7 bits -> 7 bytes */
             acc |= (uint32_t)(b[i] & 127u) << n;
             for (n += 7u; n >= 8u; n -= 8u, acc >>= 8)
@@ -344,9 +344,15 @@ static void upf_set(uint32_t k, const int16_t *ed)   /* slot k's voice = ed (0: 
     }
     upf_used = st_save(OBJ_UPFM6, st_buf, sizeof(upf_t)) ? upf_used & ~(1u << k) : UPF->used;
 }
-static int upf_get(uint32_t k, int16_t *ed)      /* slot k's voice -> ed: 1, or none: 0 */
+static void upf_set(uint32_t k, const int16_t *ed)   /* slot k's voice = ed (0: none), then to flash */
 {
     uint8_t b[128];
+    if (ed)
+        fm6_pack(b, ed);
+    upf_write(k, ed ? b : (const uint8_t *)0);
+}
+static int upf_raw(uint32_t k, uint8_t *b)       /* slot k's voice -> b (fm6_pack's 128 B): 1, or none: 0 */
+{
     uint32_t i, j, acc = 0, n = 0;
     if (k >= UP_SLOTS || !((upf_used >> k) & 1u) || !upf_read() || !((UPF->used >> k) & 1u))
         return 0;
@@ -359,11 +365,20 @@ static int upf_get(uint32_t k, int16_t *ed)      /* slot k's voice -> ed: 1, or 
         acc >>= 7;
         n -= 7u;
     }
+    return 1;
+}
+static int upf_get(uint32_t k, int16_t *ed)      /* slot k's voice -> ed: 1, or none: 0 */
+{
+    uint8_t b[128];
+    if (!upf_raw(k, b))
+        return 0;
     FAST_CALL(fm6, fm6_unpack)(ed, b);
     return 1;
 }
+#define UPF_ON 1                                 /* (ed_user.c: UP_GET and UP_PUT carry a slot's voice) */
 #define UPF_BOOT() (flash_ok ? (void)st_upf_move(UPF_MAGIC) : (void)0, upf_used = upf_read() ? UPF->used : 0u)
 #else
+#define UPF_ON 0
 #define upf_set(k, ed) ((void)0)
 #define UPF_BOOT() ((void)0)
 #endif

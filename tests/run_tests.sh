@@ -155,6 +155,10 @@ t_sim() {
     mkdir -p build/sim/test
     "$py" tools/sim.py build --wasm --out build/sim/test/sim.wasm >build/sim/test-build.log 2>&1 || { tail -20 build/sim/test-build.log; return 1; }
     node tests/sim_test.mjs build/sim/test/sim.wasm || return 1
+    # (FM6 user presets keep their voice through the library: UP_GET / UP_PUT with UP_FM6, issue #133)
+    printf 'ENG_FM6=1\nFM6_SYSEX=1\nUP_FM6=1\n' >build/sim/test/fm6.config
+    "$py" tools/sim.py build --wasm --config build/sim/test/fm6.config --out build/sim/test/sim-fm6.wasm >build/sim/test-build-fm6.log 2>&1 || { tail -20 build/sim/test-build-fm6.log; return 1; }
+    node tests/sim_fm6lib_test.mjs build/sim/test/sim-fm6.wasm || return 1
     # (one project moved between two instances: a build with PATTERNS, live editing not needed)
     "$py" tools/sim.py build --wasm --config config/profiles/synths_USBaudio_BTaudio_BTmidi.config --out build/sim/test/sim-pj.wasm >build/sim/test-build-pj.log 2>&1 || { tail -20 build/sim/test-build-pj.log; return 1; }
     node tests/sim_projects_test.mjs build/sim/test/sim-pj.wasm || return 1
