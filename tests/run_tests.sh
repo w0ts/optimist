@@ -284,6 +284,10 @@ job; ( jobin
     run "master COMP / LIMIT: the static curve (+-0.5 dB), attack / release / AUTO, bit-exact when off, no sample past CEIL, the project's bytes" "$OUT/master_comp_test"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/djfilt_test" tests/djfilt_test.c -lm
+    run "master DJ FILTER: silence stays silent at every setting (from rest, after a sine, after a move, a constant input), the response its double-precision twin's" "$OUT/djfilt_test"
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_TFLT_FINE=1 -o "$OUT/djfilt_fine_test" tests/djfilt_test.c -lm
+    run "master DJ FILTER with TFLT_FINE (64-bit products): the same" "$OUT/djfilt_fine_test"
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_TRK_FILT=1 -o "$OUT/trk_filt_test" tests/trk_filt_test.c -lm
     run "track FILTER (SLOOP 2.4): LP / HP on a part, the drum bus and its sends, the project, cost" "$OUT/trk_filt_test"
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_CHORDPLUS=1 -o "$OUT/chordplus_test" tests/chordplus_test.c -lm
