@@ -95,7 +95,7 @@ export function loaderTakes(running, pkg, runningText = "") {
     return [true, "its own update loader"];
   }
   if (running === "optimist" || running === "ambig000") {
-    if (pkg.kind === "v15") return [true, "the way back to the official firmware"];
+    if (pkg.kind === "v15") return [true, "the way back to the official firmware (not with m-bootloader installed: the updater stops with -5, then download mode)"];
     if (!OWN_SLOTS.includes(pkg.flashLen)) return [false, `Optimist's updater takes the layouts ${OWN_SLOTS.map((s) => "0x" + s.toString(16)).join(", ")} only`];
     if (pkg.kind === "fm1base") return [false, "Optimist's updater refuses fm1-base packages"];
     if (!pkg.ownLoader) return [false, "Optimist's updater takes the Felucca family's loader or M-VAVE's only"];
@@ -136,6 +136,20 @@ export function bootloaderChoice(value, keep = false) {
 export function bootloaderFromConfig(text) {
   const m = /^\s*BOOTLOADER\s*=\s*(-?\d+)\s*$/m.exec(String(text || ""));
   return m ? (Number(m[1]) === 1 ? "m-bootloader" : "keep") : "m-bootloader";
+}
+
+/** true when the running Optimist's updater may have refused an M-VAVE package (-5: its first 0x4000 bytes, the boot area,
+    differ from the installed ones, as with m-bootloader installed): the install stopped before anything was erased */
+export function headRefused(running, pkg, code) {
+  return (running === "optimist" || running === "ambig000") && (pkg.kind === "v15" || pkg.kind === "stock")
+    && (code === "noloader" || code === "stopped");
+}
+
+/** the words when the updater refused (-5): download mode with M-Flasher; the firmware's check is unchanged */
+export function refusedStep(file = "PACKAGE.fwsc") {
+  return "The FM-1 refused this package (error -5): its bootloader is not the one in the package, as when m-bootloader is installed. " +
+    "Nothing was written. Use download mode: hold OCT- and OCT+ for 5 s while stopped, or hold REC while switching on (with m-bootloader), " +
+    `then M-Flasher (${MFLASHER_URL}): Install firmware with ${file}, or on a computer python tools/fm1_install.py ${file} --route download.`;
 }
 
 /** the next step when the route is download mode: the words the page and the Mirror app show */
