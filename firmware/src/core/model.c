@@ -17,7 +17,18 @@ static int project_used(uint32_t slot);
 static uint32_t project_state(uint32_t s);   /* project.c sl24_guard.c */
 #endif
 #define FAV_SAVE_LATER() (settings_later = 1)       /* (panel.c: written once the audio is quiet, project.c sections_flush) */
-#include "favorites.c"                      /* FELUCCA_FAVORITES: the marked sounds (fav, fav_list) */
+#include "favorites.c"                      /* FELUCCA_FAVORITES: the marked sounds (fav) */
+/* the preset list's filter (the user, 2026-10-31: "Right shift should cycle thru (filter) types of preset. Factory, user,
+ * favorites/init etc."): SHIFT2 + PRESETS steps it in PLF_ORDER (op_screens.c op_pl_filter_step), the popup list's header
+ * names it (op_preset.c). PLF_FAV is 1 and PLF_ALL 0: the editor's FAVS "list" byte (io/editor/ed_fav.c, protocol v13) is
+ * this with the other filters read as ALL. Not kept over a power cycle */
+enum { PLF_ALL, PLF_FAV, PLF_FACTORY, PLF_USER, PLF_INIT, PLF_N };
+static uint8_t pl_filt;
+#if FELUCCA_FAVORITES
+#define fav_list (pl_filt == PLF_FAV)        /* (the favorites only: the filter FAVORITES) */
+#else
+#define fav_list 0u
+#endif
 static int up_used(uint32_t k);              /* user presets: upreset.c */
 static int up_load(uint32_t k);
 static uint32_t up_count(void);
@@ -32,6 +43,7 @@ static uint32_t nb_list(uint32_t *rank, uint32_t n, uint32_t *at);
 static uint32_t nb_list_of(uint32_t kind, uint32_t *rank, uint32_t n, uint32_t *at);
 static uint32_t nb_kind_at(uint32_t i);
 static uint32_t nb_engine_slot(uint32_t kind);
+static int nb_factory(uint32_t kind, uint32_t slot);
 #define NB_NK 2u
 static void nb_row(uint32_t k, char *tag, char *nm);
 static void nb_load(uint32_t k);
@@ -769,15 +781,26 @@ static int fav_entry(uint32_t e, uint32_t k)
         return fav_user_has(k);
     return e < NENGINES && fav_has(eng_uid(e), preset_name(e, k));
 }
-#else
-#define fav_list 0u
 #endif
 static uint32_t up_engine_slot(uint32_t k);                 /* storage/upreset.c: a user preset's engine slot */
+/* list entry (e, k) of preset_all_at by its source: PLF_FACTORY (a factory sound; an engine's own collection's built-in
+ * voices, the FM6 packs), PLF_INIT (an engine's INIT) or PLF_USER (a user preset; a collection's slots the player fills:
+ * the DX7 bank received, the CZ tones) */
+static uint32_t pl_source(uint32_t e, uint32_t k)
+{
+    if (e == NENGINES)
+        return PLF_USER;
+#if FELUCCA_NB_LIST
+    if (e == NB_LIST)
+        return nb_factory(k >> 8, k & 255u) ? PLF_FACTORY : PLF_USER;
+#endif
+    return k == PRESET_INIT ? PLF_INIT : PLF_FACTORY;
+}
 /* the browsing view of the whole list: EDIT's PRESET card (the user, 2026-10-21: "I would expect to see all the presets
  * of the current engine, and not be able to switch engine") the selected track's engine's sounds only (its factory ones,
  * INIT, its user presets, its own collection); the PRESETS knob ("one big list of everything", pl_whole) every engine's;
- * with LIST FAV the marked sounds of every engine. The engine step (SHIFT2 + PRESETS, the ENGINE card) walks the whole
- * list: preset_all_* */
+ * with a filter (pl_filt: FACTORY, USER, FAVORITES, INIT) that filter's sounds of every engine. The engine step (SHIFT +
+ * PRESETS since 2026-10-31, the ENGINE card) walks the whole list's engines whatever the filter: preset_all_* */
 static uint8_t pl_whole;                             /* the browsing list: 1 every engine's sounds in a row (the PRESETS knob), 0 the track's engine's (EDIT's PRESET card): set by whoever last browsed */
 static int pl_keep(uint32_t e, uint32_t k)
 {
@@ -789,6 +812,8 @@ static int pl_keep(uint32_t e, uint32_t k)
     if (fav_list)
         return fav_entry(e, k);
 #endif
+    if (pl_filt != PLF_ALL)
+        return pl_source(e, k) == pl_filt;              /* (a filter: its sounds of every engine, as FAVORITES always listed them) */
     if (is_drum(TSEL) || pl_whole)
         return 1;
     if (e == NENGINES)
@@ -799,9 +824,50 @@ static int pl_keep(uint32_t e, uint32_t k)
 #endif
     return e == TSEL->eng_req % NENGINES;
 }
+/* the INIT filter's list: every engine of the whole list once, in its order, each its INIT (the whole list holds an INIT only
+ * for an engine with no factory sound: the filter lists them all, "init" in the user's words). l[] its engines: the count */
+static uint32_t pl_init_list(uint8_t *l)
+{
+    uint8_t seen[NENGINES];
+    uint32_t i, k, e, c = 0;
+    if (!bank_ready)
+        bank_resolve();
+    memset(seen, 0, sizeof seen);
+    for (i = 0; i < NLIST; i++) {
+        e = preset_all_at(i, &k);
+        if (e < NENGINES && !seen[e]) {
+            seen[e] = 1;
+            l[c++] = (uint8_t)e;
+        }
+    }
+    return c;
+}
+/* the selected track plays its engine's INIT (apply_preset_to: the engine's values at their defaults; not a user preset): an
+ * INIT edited since reads as not (the list then shows it as outside, PRESETS goes to the first) */
+static int pl_on_init(void)
+{
+    const engine_t *e = ENGINES[TSEL->eng_req % NENGINES];
+    uint32_t i;
+    if (user_of(TSEL) < UP_SLOTS)
+        return 0;
+    for (i = 0; i < 8u; i++)
+        if (TSEL->p[P_E0 + i] != e->edit[i].def)
+            return 0;
+    return 1;
+}
 static uint32_t preset_pos(uint32_t *total)          /* list index of the selected track's preset; >= *total: not in the list */
 {
-    uint32_t all, cur = preset_all_pos(&all), i, n = 0, pos = 0xFFFFFFFFu;
+    uint32_t all, cur, i, n = 0, pos = 0xFFFFFFFFu;
+    if (pl_filt == PLF_INIT && !is_drum(TSEL)) {
+        uint8_t l[NENGINES];
+        n = pl_init_list(l);
+        for (i = 0; i < n && pl_on_init(); i++)
+            if (l[i] == TSEL->eng_req % NENGINES)
+                pos = i;
+        *total = n;
+        return pos == 0xFFFFFFFFu ? n : pos;
+    }
+    cur = preset_all_pos(&all);
     for (i = 0; i < all; i++) {
         uint32_t k, e = preset_all_at(i, &k);
         if (!pl_keep(e, k))
@@ -824,7 +890,16 @@ static uint32_t preset_src(uint32_t n)               /* list index n -> the whol
     }
     return all;
 }
-static uint32_t preset_at(uint32_t n, uint32_t *k) { return preset_all_at(preset_src(n), k); }
+static uint32_t preset_at(uint32_t n, uint32_t *k)
+{
+    if (pl_filt == PLF_INIT && !is_drum(TSEL)) {     /* (the INIT filter: engine n's INIT) */
+        uint8_t l[NENGINES];
+        uint32_t c = pl_init_list(l);
+        *k = PRESET_INIT;
+        return n < c ? l[n] : (c ? l[c - 1u] : 0u);
+    }
+    return preset_all_at(preset_src(n), k);
+}
 #if FELUCCA_FAVORITES
 /* the selected track's sound as a list entry (e = engine slot, or NENGINES: user preset k): 0 if it has none to mark
  * (the drum track, the engines' own collections, a factory sound the list does not hold) */

@@ -265,18 +265,18 @@ static void algo_presets_tests(void)
     dl.src[2] = src[2];
     snd_mark(TRK_DRUM);                                 /* (the lanes as loaded: no edits to ask about) */
     k0 = ls_kind(ls_cur(2, n));
-    fm1_in.buttons |= BT(B_OCTUP);
+    fm1_in.buttons |= BT(B_OCTDN);
     frame();
     turn(EN_PRESET, 1);
-    fm1_in.buttons &= ~BT(B_OCTUP);
+    fm1_in.buttons &= ~BT(B_OCTDN);
     frames(2);
     ppm("opt-algo-lane-kind");
     k1 = ls_kind(ls_cur(2, n));
     ok = k1 != k0 && dl.src[2] != DL_KIT && drum_kit_pos() == kit;
     for (i = 0; i < ls_cur(2, n); i++)
         ok &= !ls_ok(i) || ls_kind(i) != k1;           /* (the kind's first sound) */
-    check(ok, "SHIFT2 + PRESETS on a lane on an instrument: the first sound of the next kind (the kit stays)");
-    check(ui.scr == SCR_SOUND && song.octave == 0, "... OCT+ let go: no octave (the screen stays)");
+    check(ok, "SHIFT + PRESETS on a lane on an instrument: the first sound of the next kind (the kit stays)");
+    check(ui.scr == SCR_SOUND && song.octave == 0, "... OCT- let go: no octave (the screen stays)");
     /* the mixer's lane rows: the same */
     memset(&dl, 0, sizeof dl);
     dl.src[4] = (uint8_t)dsnd_idx_src(al_first_own(4));

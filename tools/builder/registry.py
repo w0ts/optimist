@@ -1015,8 +1015,8 @@ _add("MISSING_WARN", "FELUCCA_MISSING_WARN", "say what a project uses and this b
           "engine, kit, sample set or FX this build leaves out (once per item until power-off; never stalls the "
           "audio); PROJECT > TOOLS > MISSING lists them again. Off: they play their stand-ins silently (saves 1.5 KB of flash)")
 _add("FAVORITES", "FELUCCA_FAVORITES", "favorites: mark sounds, browse only them", U, 141, provenance=FELUCCA,
-     desc="With the presets: SHIFT2 (OCT+ held) + PRESETS marks the sound playing, SHIFT2 + SELECT "
-          "browses only the favorites, a star after a favorite's name in the toast and in PROJECT > USER (SHIFT2 + ITEM marks a slot). Up to 64 factory sounds (kept by engine and name: they stay marked over builds that leave engines "
+     desc="With the presets: SAVE held + PRESETS marks the sound playing, the FAVORITES filter of the preset list (SHIFT2 + "
+          "PRESETS) browses only the favorites, a star after a favorite's name in the toast and in PROJECT > USER (SHIFT2 + ITEM marks a slot). Up to 64 factory sounds (kept by engine and name: they stay marked over builds that leave engines "
           "out) and any of the 32 user presets (an erased preset loses its mark); the FM6 / CZ banks and the drum track have "
           "none. Kept with the settings (136 B at the end of the settings record: an older record reads whole with none; "
           "a build without this item keeps the rest and forgets them on its next save). About 1 KB of flash, 136 B of pool. "

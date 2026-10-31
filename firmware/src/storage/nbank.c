@@ -115,6 +115,8 @@ static uint32_t nb_list(uint32_t *rank, uint32_t n, uint32_t *at)   /* the selec
 /* the collections this build has, in the whole list's order (the user, 2026-10-21: "always in the big list": every engine's
  * own after the user presets, whichever track is selected); the entry's k is (kind << 8) | slot */
 static uint32_t nb_kind_at(uint32_t i) { return i == 0u ? NB_FM6 : NB_CZ; }
+/* slot k of a collection is built in (the FM6 voice packs: the preset list's FACTORY filter), not a slot the player fills */
+static int nb_factory(uint32_t kind, uint32_t k) { return kind == NB_FM6 && k < FM6_NPKV; }
 static uint32_t nb_engine_slot(uint32_t kind)             /* the engine slot a collection belongs to */
 {
     uint32_t e;
