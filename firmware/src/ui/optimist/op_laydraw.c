@@ -303,11 +303,12 @@ static void tempo_draw(int32_t h)
 
 /* ---- the PATTERNS row's panel: the 4 x 16 session grid (docs/PATTERNS-DESIGN.md section 4), h rows from the panel's top */
 #if FELUCCA_PATTERNS
+#define PAT_RULER 10                                    /* the numbers' row over the grid */
 static uint32_t song_grid_sig(void)
 {
     uint32_t k, h = 0x51u + lay.pchg * 7u + song.sel;
     for (k = 0; k < NTRK; k++)
-        h = h * 31u + pat_cur[k] * 3u + pat_req[k] * 5u;
+        h = h * 31u + pat_cur[k] * 3u + pat_req[k] * 5u + (uint32_t)(lay.pmod == 5u);
     for (k = 0; k < NTRK * PAT_N; k++)
         h = h * 3u + (uint32_t)pat_has(k / PAT_N, k % PAT_N);
     return h;
@@ -315,14 +316,22 @@ static uint32_t song_grid_sig(void)
 static void song_grid_draw(int32_t h)
 {
     uint32_t k, i;
-    int32_t rh = (h - 4) / (int32_t)NTRK;
+    int32_t rh = (h - 4 - PAT_RULER) / (int32_t)NTRK;
     pat_refresh();
+    for (i = 0; i < PAT_N; i++) {                       /* the pattern numbers 1..16 over the columns (the user, 2026-10-31): text on the dark panel, not on a
+                                                         * block (no text on fills, hw unreadable); the selected track's playing one green, its queued amber */
+        char nb[4];
+        uint16_t nc = pat_cur[song.sel % NTRK] == i ? C_OK : pat_req[song.sel % NTRK] == i ? C_WARN : C_GRAY;
+        fmt_int(nb, (int32_t)i + 1);
+        cv_texts(26 + (int32_t)i * 13 + (11 - text_ws(nb)) / 2, 1, nb, nc);
+    }
     for (k = 0; k < NTRK; k++) {
-        int32_t y = 2 + (int32_t)k * rh;
+        int32_t y = 2 + PAT_RULER + (int32_t)k * rh;
         uint16_t tc = trk_col(k);
-        if (k == song.sel)
-            cv_hline(y - 2, C_DIM), cv_hline(y + rh - 2, C_DIM);   /* (the selected track, its keys launch: lined) */
-        cv_texts(3, y + (rh - 12) / 2, trk_tag(k), k == song.sel ? C_WHITE : tc);
+        int sel = k == song.sel || lay.pmod == 5u;      /* (the selected track, its keys launch: lined; black 5: every track) */
+        if (sel)
+            cv_hline(y - 2, C_DIM), cv_hline(y + rh - 2, C_DIM);
+        cv_texts(3, y + (rh - 12) / 2, trk_tag(k), sel ? C_WHITE : tc);
         for (i = 0; i < PAT_N; i++) {
             int32_t x = 26 + (int32_t)i * 13;
             uint16_t c = pat_cur[k] == i ? C_OK : pat_req[k] == i ? C_WARN : pat_has(k, i) ? col_shade(tc, 4u) : OP_SURF;

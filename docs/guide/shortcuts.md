@@ -154,7 +154,9 @@ Patterns and scenes share one grammar in the LFO layer (and on SONG's PATTERNS r
 | SAVE + SEQ | a track | the working pattern into its slot (asked over a used one) [PATTERNS] |
 | LFO held + a white key | anywhere | launch the track's pattern n at the end of its pass; OCT- + the key: at the next bar; OCT+ + the key: now [PATTERNS] |
 | LFO held + SAVE + a white key | anywhere | store the working pattern into slot n (asked over a used one) [PATTERNS] |
-| LFO held + black key 1-4 / 5 / 9 | anywhere | pick the track / stop its pattern / duplicate it into a free slot [PATTERNS] |
+| LFO held + black key 1-4 / 5 / 6 / 9 | anywhere | pick the track / ALL TRACKS (the white keys, SAVE + n, HOME + n act on T1..DR; again: the selected track) / stop its pattern / duplicate it into a free slot [PATTERNS] |
+| LFO held + a black key 1-4 held + a white key | anywhere | store that track's working pattern into slot n (black 5 held: every track's), as SAVE + n [PATTERNS] |
+| a launch or stop over edits not stored | the LFO layer, SONG's PATTERNS row | asks "LOSE EDITS? T1 T3" (the tracks with edits): YES (SAVE) goes on, HOME keeps them [PATTERNS] |
 | LFO held + black key 10 | anywhere | **the scenes**: the white keys are scenes A-P until black 10 again or LFO is let go [PATTERNS] |
 | the scenes + a white key | the LFO layer | start that scene at the next bar (stopped: load it, asked over changed work); two or more in one hold while playing: a chain [QCHAIN] |
 | the scenes + SAVE + a white key | the LFO layer | the loop into that scene (asked over a used one) |
