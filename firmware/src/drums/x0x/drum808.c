@@ -1754,7 +1754,10 @@ int drum808_active(const drum808_t *d)
 
 /* Run one voice for up to m samples into buf; stops where 8W8 would stop calling
  * it (the voice went inactive). Returns the samples written. */
-static int voice_run(drum808_t *d, int l, float *buf, int m, const float *bus, const float *pair)
+/* (__restrict: buf, the shared bank's bus and pair are the caller's own arrays, never a voice's state: the ticks keep
+ * their state in registers across the stores to buf) */
+static int voice_run(drum808_t *d, int l, float *__restrict buf, int m, const float *__restrict bus,
+                     const float *__restrict pair)
 {
     int i;
     switch (l) {
