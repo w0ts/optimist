@@ -80,6 +80,9 @@ static void seqglide_tests(void)
     t->step[1].time = ST_TIE;
     fm1_irq_on();
     turn(EN_K1, -8);
+    check(st.pk == PK_NONE && !pk_ok(), "seqglide: KNOB 1 left past the first note: no note picked");
+    turn(EN_K1, 1);
+    check(st.pk == 0u && st.nsel == NSEL_ALL, "seqglide: ... right: the first note again (the chord, all of it)");
     turn(EN_K1, 1);
     check(st.pk == 0u && t->step[0].note[st.nsel] == 60u, "seqglide: a chord on step 1: 60 picked alone");
     turn(EN_K2, -1);

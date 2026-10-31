@@ -188,6 +188,29 @@ static RAMFN int fl_erase4k_ram(uint32_t off, uint32_t *took_us)
     fl_exit(&s);
     return rc;
 }
+/* the loader's erase while it receives (ldr_core.c, the fast install): begin sends 20h and leaves the XIP off, as
+ * fl_erase4k_ram does while it waits; the loader runs from RAM and only polls USB until end, which waits the erase out
+ * and gives the XIP back. Between the two nothing may touch the flash */
+static RAMFN int fl_erase4k_begin_ram(uint32_t off, fl_saved_t *s)
+{
+    if (!FL_RANGE_OK(off, 0x1000u) || FL_SDK_SYS(off, 0x1000u) || (off & 0xFFFu))
+        return -1;
+    if (fl_enter(s)) return -2;
+    fl_wren();
+    if (!(fl_rdsr(0x05) & 2u)) {                  /* WEL did not set */
+        fl_exit(s);
+        return -3;
+    }
+    fl_cs(0); fl_tx(0x20); fl_addr(off); fl_cs(1);
+    fl_inval(off, 4096u);
+    return 0;
+}
+static RAMFN int fl_erase4k_end_ram(const fl_saved_t *s, uint32_t *took_us)
+{
+    int rc = fl_wait_ready(500000u, took_us);     /* generic NOR max 400 ms */
+    fl_exit(s);
+    return rc;
+}
 #else
 /* the app: a sector erase in short windows (fm1_flash_slice.h, fl_erase4k_sliced below) */
 #define FLS_INL     RAMINL

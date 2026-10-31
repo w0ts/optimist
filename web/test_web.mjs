@@ -18,6 +18,8 @@ import * as crypto from "node:crypto";
 import * as cp from "node:child_process";
 import * as fs from "node:fs";
 import { logicalImage, productOf } from "./fm1base/fm1pkg.js";
+import { OPT_FAST_HELLO, optParseFast, optSectorTable } from "./fm1ota_optimist.js";
+import { pack7 as otaPack7 } from "./fm1base/fm1ota.js";
 import { OFFICIAL_LOADER, OUR_LOADER, OptimistUpdater, STOCK_BANKS_SIZE, STOCK_V15_SHA256, stockBanks, validateStockPackage } from "./fm1ota_optimist.js";
 import { FakeFM1, fakePackage } from "./installer/mock_fm1.js";
 import * as INST from "./installer/installer.js";
@@ -3403,6 +3405,19 @@ async function updater() {   /* every outcome of install() and resume() */
   const tracked = new FakeFM1(image), upT = new OptimistUpdater(tracked.access), addrs = [];
   await upT.install(image, "FM-1_900", (k) => { if (k === "write") addrs.push(upT.lastAddr); });
   ok(addrs.length > 1 && addrs.every((a) => a % 512 === 0 && a < image.length) && addrs.includes(512), `fm1ota_optimist.js: lastAddr follows the write (${addrs.join(" ")})`);
+  // the fast install (docs/INSTALL-SPEED.md): the same frames as tools/fm1_install.py and the app's FlashProtocol
+  const vec = Uint8Array.from({ length: 8192 }, (_, i) => ((i * 31) ^ (i >> 8)) & 0xFF);
+  ok(Buffer.from(OPT_FAST_HELLO).toString("hex") === "f0003245190000400000203807f7" &&
+     Buffer.from(optSectorTable(vec, 0, 2)).toString("hex") === "6204a25f925f5cc59b283583" &&
+     optParseFast([0xF0, ...otaPack7([0, 0x59, 0x31, 3, 0, 0, 1, 0, 16, ~17 & 0xFF]), 0xF7]) === 4096,
+     "fm1ota_optimist.js: the fast install's word and table are the Python host's and the loader's (vectors)");
+  const big = Uint8Array.from({ length: 0x6000 }, (_, i) => (i * 7) & 0xFF);
+  const fastDev = new FakeFM1(big, { fast: true }), upF = new OptimistUpdater(fastDev.access);
+  ok(await upF.install(big, "FM-1_900") === "FM-1_900" && upF.fast && fastDev.fastOn && !fastDev.bad && fastDev.served >= 8,
+     `fm1ota_optimist.js: a fast loader gets the table and 4 KiB reads, no pause (${fastDev.served} answers)`);
+  const oldDev = new FakeFM1(image), upO = new OptimistUpdater(oldDev.access);
+  ok(await upO.install(image, "FM-1_900") === "FM-1_900" && !upO.fast && oldDev.fastWords === 1 && !oldDev.bad,
+     "fm1ota_optimist.js: an older loader ignores the word and gets fm1base's write (today's protocol)");
   const withBoot = new FakeFM1(image, { identity: "FM-1_720", loaderIdentity: "FM-1_720" });
   const bootSteps = [];
   const bootBack = await new OptimistUpdater(withBoot.access).installBoot(image, "FM-1_720", (k) => bootSteps.push(k));
