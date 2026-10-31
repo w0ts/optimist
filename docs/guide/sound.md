@@ -149,7 +149,7 @@ The **VOICE** page has four cards: the mode, GLD (glide time), GLMOD and PRIO.
 
 ### LFO 1 and LFO 2
 
-**LFO** has the cards RATE, WAVE (SIN, TRI, SAW, SQR, S&H), PHS (start phase) and FADE (fade-in). **LFO 2** (always on) has RATE, WAVE, TRIG (NOTE restarts it with a new phrase, FREE) and POL (BI or UNI). Turn RATE down past its slowest free rate (0.05 Hz) and it locks to the tempo: one cycle is 4BAR, 2BAR, 1BAR, 1/2, 1/4, 1/8, 8T, 1/16, 16T or 1/32. It follows the tempo and an external MIDI clock.
+**LFO** has the cards RATE, WAVE (SIN, TRI, SAW, SQR, S&H, SLEW: a random value each cycle as S&H, reached by a smooth glide instead of a step), PHS (start phase) and FADE (fade-in). **LFO 2** (always on) has RATE, WAVE, TRIG (NOTE restarts it with a new phrase, FREE) and POL (BI or UNI). Turn RATE down past its slowest free rate (0.05 Hz) and it locks to the tempo: one cycle is 4BAR, 2BAR, 1BAR, 1/2, 1/4, 1/8, 8T, 1/16, 16T or 1/32. It follows the tempo and an external MIDI clock.
 
 ### ENV and ENV 2
 

@@ -10,8 +10,12 @@
  *   the effect  lfo_slot_mod: the LFO (Q15) x the amount onto a value whose range is span (max - min): +-span / 2 at
  *               amount 64 with the LFO at its peak, so a full LFO on a value at its middle sweeps its whole range. The
  *               owner clamps the sum into the value's range. span x 128 x 32768 must fit an int32: span <= 255.
- *   the waves   lfo_shape: P_LWAVE's SIN TRI SAW SQR S&H (as voice.c lfo_wave, which takes them from a track), Q15;
- *               S&H holds rnd (a value drawn once a cycle by the owner). */
+ *   the waves   lfo_shape: P_LWAVE's SIN TRI SAW SQR S&H SLEW (as voice.c lfo_wave, which takes them from a track), Q15;
+ *               S&H holds rnd (a value drawn once a cycle by the owner). SLEW (issue 129, last in the list: a saved
+ *               wave index keeps its meaning) glides over the cycle from one random value to the next with no step:
+ *               rnd's low 16 bits the value it leaves at phase 0, its top 16 bits the one it reaches at the wrap
+ *               (lfo_slew_pair), on a smoothstep of the phase (3x^2 - 2x^3: no corner at the values either); the
+ *               owner draws its values as S&H's, so SLEW passes through S&H's values, one a cycle. */
 #ifndef FELUCCA_LFO_SLOT_H
 #define FELUCCA_LFO_SLOT_H
 
@@ -19,8 +23,9 @@
 #define LFO_AMT_MIN (-64)
 #define LFO_AMT_MAX 63
 #define LFO_DEST_OFF 0u
-#define LFO_WAVES 5u                     /* SIN TRI SAW SQR S&H (params.c N_LWAVE) */
+#define LFO_WAVES 6u                     /* SIN TRI SAW SQR S&H SLEW (params.c N_LWAVE) */
 #define LFO_WAVE_SH 4u
+#define LFO_WAVE_SLEW 5u
 typedef struct {
     uint8_t dest;                        /* 0 OFF, 1.. the owner's destination + 1 */
     int8_t amt;                          /* LFO_AMT_MIN..LFO_AMT_MAX, 0: none */
@@ -88,10 +93,22 @@ static inline lfo_slot_t lfo_slot_fix(uint32_t dest, int32_t amt, uint32_t ndest
 /* the LFO's value lfo (Q15) at summed amount amt onto a value whose range is span (<= 255): what to add to it */
 static inline int32_t lfo_slot_mod(int32_t lfo, int32_t amt, int32_t span) { return (lfo * amt * span) >> 22; }
 
-/* wave w at phase ph (Q15); rnd: S&H's value this cycle (the top 16 bits used) */
+/* SLEW's rnd for a cycle from S&H's value a to b (each its top 16 bits) */
+static inline uint32_t lfo_slew_pair(uint32_t a, uint32_t b) { return (b & 0xFFFF0000u) | (a >> 16); }
+/* SLEW at phase ph: from rnd's low 16 bits (phase 0) to its top 16 bits (the wrap), on smoothstep(ph) (Q15, unsigned:
+ * x^2 (<= 32766) x (3 - 2x) (<= 98304) fits 32 bits); (b - a) x s: 65535 x 32767 < 2^31 */
+static inline int32_t lfo_slew(uint32_t ph, uint32_t rnd)
+{
+    uint32_t x = ph >> 17, s = (((x * x) >> 15) * (98304u - 2u * x)) >> 15;
+    int32_t a = (int32_t)(rnd & 0xFFFFu) - 32768, b = (int32_t)(rnd >> 16) - 32768;
+    return a + (((b - a) * (int32_t)s) >> 15);
+}
+/* wave w at phase ph (Q15); rnd: S&H's value this cycle (the top 16 bits used); SLEW: lfo_slew_pair's */
 static inline int32_t lfo_shape(uint32_t w, uint32_t ph, uint32_t rnd)
 {
     switch (w) {
+    case LFO_WAVE_SLEW:
+        return lfo_slew(ph, rnd);
     case 1:
         return osc_tri(ph);
     case 2:
