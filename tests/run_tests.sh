@@ -1111,6 +1111,9 @@ job; ( jobin
     python3 tools/fm1pkg_make.py "$OUT/old_app.bin" build/loader/ota.bin "$OUT/old.fwsc" >/dev/null
     $CC -o "$OUT/ldr_test" tests/ldr_test.c
     run "update loader: other app -> this build" "$OUT/ldr_test" "$OUT/old.fwsc" build/felucca.fwsc
+    $CC -DOTA_FAST_CHUNK=4096u -DOTA_FRAME_MAX=4200u -o "$OUT/ldr_test_fast" tests/ldr_test.c
+    run "update loader, fast install (docs/INSTALL-SPEED.md): the table, changed sectors only, erase while receiving, resume" "$OUT/ldr_test_fast" "$OUT/old.fwsc" build/felucca.fwsc
+    run "install replay: fm1_install.py against the real loader code, today's protocol and the fast one, a cut-off install resumed" python3 tests/install_replay_test.py "$OUT/old.fwsc" build/felucca.fwsc
     for L in 1 2 3 4 5 6 7 8; do   # (the MEMORY steps, tools/flash_layout.py: L1 more flash, S0 no user samples; normal above)
         $CC -DFELUCCA_LAYOUT=$L -o "$OUT/ldr_test_l$L" tests/ldr_test.c
         run "update loader of LAYOUT $L: the switch matrix from every step (docs/SD-MODE-DESIGN.md 9.3), nothing else" "$OUT/ldr_test_l$L" --layout

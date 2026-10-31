@@ -699,6 +699,13 @@ static void rec_restart(track_t *t, uint32_t idx, uint32_t abs, uint32_t own)
     t->rh_nudge = 0;
     t->rh_drop = 0;
 }
+/* the last note recorded (the UI's STEP picks it, op_step.c step_tick): its track, step and pitch; rec_last_n counts */
+static volatile uint8_t rec_last_n, rec_last_trk, rec_last_at, rec_last_note;
+static void rec_last_set(const track_t *t, uint32_t idx, uint32_t note)
+{
+    rec_last_trk = (uint8_t)(t - trk), rec_last_at = (uint8_t)idx, rec_last_note = (uint8_t)note;
+    rec_last_n++;
+}
 static void rec_note(track_t *t, uint32_t note, uint32_t vel, uint32_t rat, int hold)
 {
     uint32_t len = trk_len(t), later, abs = rec_target(t, &later), idx = TRK_IDX(t, abs, len), k;
@@ -708,6 +715,7 @@ static void rec_note(track_t *t, uint32_t note, uint32_t vel, uint32_t rat, int 
     if (over && t->rh_ties && abs == t->rh_start_abs + t->rh_ties)
         t->rh_ties--;                               /* (this one goes into their last TIE: the step before is) */
     step_add(t, idx, note, vel, vel_lvl(vel), rat);
+    rec_last_set(t, idx, note);
     if (over)
         carry = (uint32_t)rec_carry(t, idx, abs, (int)later);   /* POLY: they go on through this one's step */
     if (over && !carry && ENGINES[t->engine]->legato) {   /* played over a held note: live it slid (ACID's legato), */
@@ -747,6 +755,7 @@ static void rec_hit(track_t *t, uint32_t lane, uint32_t lvl, uint32_t rat)
     uint32_t later, abs = rec_target(t, &later);
     undo_mark(t, UNDO_REC(t));
     dstep_set(&t->dstep[TRK_IDX(t, abs, trk_len(t))], lane, lvl, rat);
+    rec_last_set(t, TRK_IDX(t, abs, trk_len(t)), lane);
     t->seq_active = 1;
     if (later) {
         if (t->rskip_abs != abs)
@@ -2766,13 +2775,14 @@ static uint32_t seq_goes_on(const track_t *t, const step_t *s)
     return 0;
 }
 /* a carry step s (SF_CARRY): its notes sounding go on (-> bit k: note k), the other notes sounding end. skip: its
- * notes not played here */
+ * notes not played here. A note with an end of its own still to come (seq_nm: an ngate in the step before) does not go
+ * on: the carry step strikes it again, as note_span and the editor read it (its end a block late must not hold it on) */
 static uint32_t seq_carry(track_t *t, const step_t *s, uint32_t skip)
 {
     uint32_t i, k, n = 0, keep = 0;
     for (i = 0; i < t->seq_n; i++) {
         uint32_t x = t->seq_notes[i];
-        for (k = 0; k < s->n && (s->note[k] != x || (((skip | keep) >> k) & 1u)); k++)
+        for (k = 0; k < s->n && (s->note[k] != x || (((skip | keep) >> k) & 1u) || ((t->seq_nm >> i) & 1u)); k++)
             ;
         if (k < s->n) {
             keep |= 1u << k;

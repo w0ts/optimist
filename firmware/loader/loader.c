@@ -13,6 +13,9 @@
 #define FELUCCA_OTA_DRYRUN 0
 #define FELUCCA_USB_PID 0x0002
 #define FELUCCA_ID "ota-FM-1_700"      /* Optimist's loader; installers resume ota-FM-1_7XX and 9XX */
+#define OTA_FAST_CHUNK 4096u           /* the fast install (ota.c, ldr_core.c): one sector per read */
+#define OTA_FRAME_MAX 4200u            /* a decoded 4 KiB response (4111 B) */
+#define SX_FRAME_MAX 4736u             /* ... as it comes in, 7-bit packed (4699 B) */
 #define RING_PUBLISH() __asm__ volatile("" ::: "memory")
 #include "fm1_time.h"
 #include "fm1_sys.h"
@@ -48,7 +51,17 @@ static void ldr_poll(void)                          /* USB at ~2 kHz, watchdog *
 
 /* ---- ota.c hooks (the SysEx frame hooks are in usb.c) ---- */
 static uint32_t ota_now_ms(void) { return ldr_ms(); }
-static void ota_idle(void) { ldr_poll(); }
+/* while it waits for a reply the loader has nothing else to do: EP1 is emptied as soon as a packet is there, not once
+ * per 0.5 ms poll (a 4 KiB reply is 98 USB packets: 49 ms at one per poll). usb_poll still runs every 0.5 ms for the
+ * rest (EP0, bus reset, the frame watch); ep1_rx returns at once when no packet waits */
+static void ota_idle(void)
+{
+    ldr_poll();
+    if (usb.config) {
+        ep1_rx();
+        ep1_tx();
+    }
+}
 /* step-1 hooks of ota.c: not used by the loader */
 static int ota_erase(uint32_t off) { (void)off; return -1; }
 static int ota_prog(uint32_t off, const void *p, uint32_t n) { (void)off; (void)p; (void)n; return -1; }
@@ -74,6 +87,23 @@ static void ldr_record_clear(void)
     fm1_updata_parm_clear();                        /* CRC 0: the SPL ignores it on a warm reset */
 }
 static int ldr_flash_known(void) { return fl_jedec_ram() == 0x856014u; }   /* as the app (project.c) */
+/* the erase while the sector comes in (ldr_core.c, the fast install): nothing touches the flash in between */
+static fl_saved_t ldr_er_saved;
+static uint8_t ldr_er_on;
+static int ldr_erase_begin(uint32_t off)
+{
+    int rc = fl_erase4k_begin_ram(off, &ldr_er_saved);
+    ldr_er_on = rc == 0;
+    return rc;
+}
+static int ldr_erase_end(void)
+{
+    uint32_t took;
+    if (!ldr_er_on)
+        return -1;
+    ldr_er_on = 0;
+    return fl_erase4k_end_ram(&ldr_er_saved, &took);
+}
 
 /* A progress bar so the panel is not dark while the app area is rewritten. No panel init or reset: the ST7789
  * keeps its picture (the app's UPDATE screen) over the core reset, only the pins and the backlight (PA2) fall

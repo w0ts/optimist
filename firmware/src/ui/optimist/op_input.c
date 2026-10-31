@@ -307,8 +307,11 @@ static void op_yes(void)
         return;                                         /* (STEP, the cards down, a note picked: its cards, op_step.c) */
     if (!SCR->yes(ui.row[ui.scr], ui.hot, 0)) {         /* SAVE works on every page but SEQ (where it is "reverse", the user, 2026-10-14): where YES has
                                                          * nothing to do it opens PROJECT, as on the mixer (GLOBAL and SYSTEM too, 2026-10-15) */
-        if (ui.scr == SCR_STEP)
-            return;                                     /* (STEP: SAVE is the TOOLS cards' verb and the undo chord's first half) */
+        if (ui.scr == SCR_STEP) {
+            (void)step_save_own();                      /* (STEP, no note picked: the pattern into its own slot; SAVE is also
+                                                         * the TOOLS cards' verb and the undo chord's first half: no tap then) */
+            return;
+        }
         if (ui.scr != SCR_PROJECT)
             op_enter(SCR_PROJECT);
         else if (ui.row[SCR_PROJECT] != 0u)
@@ -1499,6 +1502,8 @@ static int step_yes_any(void)                           /* STEP: would YES do so
     const param_desc_t *d;
     if (st.held || op_armed() || (!ui.cards_t && pk_ok()))
         return 1;                                       /* (the cards down, a note picked: SAVE its cards) */
+    if (FELUCCA_PATTERNS && !pk_ok())
+        return 1;                                       /* (no note picked: the pattern stored into its own slot) */
 #if FELUCCA_SEQTOOLS || FELUCCA_GENS
     if (stp_tl(ui.row[SCR_STEP]) >= 0)
         return stp_tl(ui.row[SCR_STEP]) == 0 || (stp_tl(ui.row[SCR_STEP]) == 2 && (ui.hot == 0u || (ui.hot == 2u && ng_on())));

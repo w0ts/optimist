@@ -68,10 +68,11 @@ class FakeFM1:
     """a MIDI backend with one FM-1 on it"""
 
     def __init__(self, image, identity="FM-1_015", name="FM-1", unplug_after=None, after_write="FM-1_900",
-                 stall_after=None, bad_addr=None, boot=None):
+                 stall_after=None, bad_addr=None, boot=None, fast=False):
         self.image, self.unplug_after, self.after_write = image, unplug_after, after_write
         self.boot_word, self.infos = boot, 0                 # (boot: INFO tag 0x68's word, an Optimist since 2026-10-31)
         self.stall_after, self.bad_addr = stall_after, bad_addr
+        self.fast, self.fast_on, self.fast_words = fast, False, 0     # (the fast install: docs/INSTALL-SPEED.md)
         self.served = self.bad = self.upgrades = 0
         self.soft_keys = 0                              # (the download-mode soft key F0 22 24 35 7D F7 received)
         self.sent, self.links, self.gen, self.lock = [], [], 0, threading.Lock()
@@ -109,13 +110,21 @@ class FakeFM1:
                 t = b"boot=" + self.boot_word.encode()
                 self.tx(bytes([0xF0, 0x7D, 0x46, 0x4C, 1]) + b"FELUCCA 0.2" + bytes([0x66, 2]) + b"ab" +
                         bytes([0x68, len(t)]) + t + b"\xF7")
+        elif d == I.FAST_HELLO:
+            self.fast_words += 1
+            if self.fast and self.identity.startswith("ota-"):
+                self.fast_on = True
+                self.tx(I.frame(I.FAST_CMD, [1, 0x00, 0x10]))
         elif d == I.HS_QUERY:
             t = self.identity.encode()
             self.tx(b"\xF0" + I.pack7(bytes([0, 0x59, 0x11, 0, 0, 0]) + t + bytes(28 - len(t))) + b"\xF7")
         elif d == I.UPGRADE:
             self.upgrades += 1
             first = self.bad_addr if self.bad_addr is not None else 0
-            self.queue = ([(first + k * 512, 512) for k in range(6)] + [(I.FINISH_WRITE, 8)]
+            n = len(self.image) // I.SECTOR
+            self.queue = ([(I.TABLE, n * 6)] + [(k * I.SECTOR, I.SECTOR) for k in range(n)] + [(I.FINISH_WRITE, 8)]
+                          if self.identity.startswith("ota-") and self.fast_on
+                          else [(first + k * 512, 512) for k in range(6)] + [(I.FINISH_WRITE, 8)]
                           if self.identity.startswith("ota-")
                           else [(0, 64), (0x40, 160), (0x1000, 512), (I.FINISH_CHECK, 8)])
             self.next()
@@ -123,7 +132,7 @@ class FakeFM1:
             u = I.unpack7(d[1:-1])
             addr, n = self.waiting
             fin = addr >= I.FINISH_CHECK
-            want = b"success\0" if fin else self.image[addr:addr + n]
+            want = b"success\0" if fin else I.answer(self.image, addr, n, I.FAST_CHUNK)
             if u[14:14 + len(want)] != want or len(u) != 15 + len(want):
                 self.bad += 1
             self.waiting = None
@@ -356,6 +365,25 @@ def errors():
     ok(rc == 2, "missing file -> exit 2")
 
 
+def fast():
+    """the fast install's word, table and 4 KiB reads (docs/INSTALL-SPEED.md); an older loader gets today's protocol"""
+    vec = bytes(((i * 31) ^ (i >> 8)) & 0xFF for i in range(8192))
+    ok(I.FAST_HELLO.hex() == "f0003245190000400000203807f7" and I.sector_table(vec, 0, 2).hex() == "6204a25f925f5cc59b283583"
+       and I.parse_fast(I.frame(I.FAST_CMD, [1, 0, 16])) == 4096, "fast: the word and the table (the web's, the app's, the loader's vectors)")
+    ok(I.answer(vec, 0, 4096, I.MAXDATA) is None and I.answer(vec, I.TABLE, 12, I.MAXDATA) is None
+       and I.answer(vec, I.TABLE + 4096, 12, I.FAST_CHUNK) is None, "fast: 4 KiB reads and the table only after the word, inside the package")
+    raw = package(size=0x6000)
+    image = I.logical_image(raw)
+    p = pkgfile("fast.fwsc", raw)
+    dev = FakeFM1(image, fast=True)
+    rc, out, err = cli([p, "--yes"], dev)
+    ok(rc == 0 and dev.fast_on and dev.bad == 0 and "fast install" in out, f"fast: a fast loader: table + 4 KiB reads ({dev.served} reads)")
+    dev = FakeFM1(image)
+    rc, out, err = cli([p, "--yes"], dev)
+    ok(rc == 0 and dev.fast_words == 1 and not dev.fast_on and dev.bad == 0 and "today's protocol" in out,
+       "fast: an older loader ignores the word: today's protocol")
+
+
 def against_js():
     clean = ROOT / "build/felucca.fwsc"
     if not shutil.which("node") or not clean.exists():
@@ -440,6 +468,7 @@ refused_minus5()
 interrupts()
 installs()
 errors()
+fast()
 against_js()
 shutil.rmtree(TMP, ignore_errors=True)
 print(f"INSTALL TESTS FAILED ({failed})" if failed else "install tests passed")
