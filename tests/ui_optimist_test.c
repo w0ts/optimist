@@ -521,15 +521,30 @@ static void fxpool_tests(void)
     go_home();
     ui.row[SCR_HOME] = MXR_MASTER;
     tap(B_FX);
-    check(ui.scr == SCR_FX && fx_row_of("SLOTS") >= 0 && fx_row_of("RET AMT") >= 0 && fx_row_of("RET EQ3") >= 0 &&
-          fx_row_of("RET EQ3 F") >= 0, "fx-pool: EQ3 on A, PHSR on C: the master FX screen has SLOTS, RET AMT, RET EQ3, RET EQ3 F");
-    ui.row[SCR_FX] = (uint8_t)fx_row_of("SLOTS"), ui.force = 1, frame(), ppm("opt-fxpool-slots");
-    ui.row[SCR_FX] = (uint8_t)fx_row_of("RET AMT"), ui.force = 1, frame(), ppm("opt-fxpool-retamt");
-    ui.row[SCR_FX] = (uint8_t)fx_row_of("RET EQ3"), ui.force = 1, frame(), ppm("opt-fxpool-reteq3");
-    r = fx_row_of("RETURNS");
-    ui.row[SCR_FX] = (uint8_t)(r < 0 ? 0 : r), ui.force = 1, frame(), ppm("opt-fxpool-returns");
-    fxs_cell((uint32_t)ui.row[SCR_FX], 2, &c);
-    check(r >= 0 && c.label && !strcmp(c.label, "PHSR RT"), "... RETURNS' card 3 (C, line 0) named PHSR RT (the return's type)");
+    check(ui.scr == SCR_FX && !ui.fxo && fx_row_of("SLOTS") < 0 && fx_row_of("RET AMT") < 0 && fx_row_of("RET EQ3") < 0,
+          "fx-pool: EQ3 on A, PHSR on C: the master FX screen has none of the returns' pages (their own, 2026-10-30)");
+    go_home();
+    mx_apply(MXR_RET0);
+    tap(B_EDIT);                                        /* RET A (EQ3): its EDIT pages, FX then RET EQ3, RET EQ3 F */
+    {
+        uint32_t k, n = SCR->rows(), eq = 0;
+        char nm[16];
+        for (k = 0; k < n; k++) {
+            SCR->name(k, nm);
+            eq += !strcmp(nm, "RET EQ3") || !strcmp(nm, "RET EQ3 F");
+            if (!strcmp(nm, "RET EQ3"))
+                ui.row[SCR_FX] = (uint8_t)k, ui.force = 1, frame(), ppm("opt-fxpool-reteq3");
+        }
+        check(ui.scr == SCR_FX && ui.fxo == 1u && eq == 2u, "... RET A's EDIT pages: RET EQ3 and RET EQ3 F (its effect EQ3)");
+    }
+    go_home();
+    mx_apply(MXR_RET0 + 2u);
+    tap(B_EDIT);                                        /* RET C (PHSR): its FX row, TYPE and the amount */
+    ui.force = 1, frame(), ppm("opt-fxpool-retamt");
+    SCR->cell(0, 0, &c);
+    r = !strcmp(c.val, "PHSR");
+    SCR->cell(0, 1, &c);
+    check(ui.fxo == 3u && r && c.d != 0, "... RET C's FX row: PHSR, then its amount (a type not a send)");
     ins_put(0, s);
     song.sel = 0;
     go_home();

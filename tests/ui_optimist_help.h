@@ -139,6 +139,7 @@ static void help_tests(void)
     turn(EN_K1, -1);
     frames(HL_FRAMES + 5u);
     check(!hl.on, "... gone after ~2 s");
+    fxs_set(FXS_DEF);                                   /* (the returns CHO DLY REV: random use before may have turned their types, 2026-10-31) */
     /* what has no line yet: information for the report (tools/param_help.json) */
     memcpy(&hlt_t0, &trk[0], sizeof hlt_t0);
     for (s = 0; s < NTRK; s++) {

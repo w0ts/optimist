@@ -91,6 +91,8 @@ static int al_full_walk(uint32_t scr0, int in_lay, const char *nm)
     }
     ok &= al_walk(3) == (scr0 == SCR_HOME ? MXR_N : MXR_LN) - 1u && ui.scr == scr0;   /* (the mixer: on to the USB input's
                                                          * row, in a build with USB audio) */
+    rets |= lay.shown == LY_PLAY;                       /* (a layer no longer shown on the last lane, a build's EDIT on a lane: the
+                                                         * page's walk, up to RET A) */
     ok &= al_walk(-(int32_t)MXR_N) == (rets ? MXR_RET0 : MXR_MASTER);   /* (up to RET A) */
     if (!ok)
         printf("  walk on %s: broke (scr %u, at %u)\n", nm, ui.scr, mx_sel_row());
@@ -133,7 +135,8 @@ static void algo_every_tests(void)
         press(LB[i]);
         frames(HOLD_FRAMES);
         ok &= (uint32_t)al_full_walk(SCR_SOUND, 1, "a layer");
-        ok &= al_walk(-(int32_t)MXR_N) == MXR_MASTER && ui.master;
+        ok &= lay.shown == LY_PLAY ? al_walk(-(int32_t)MXR_N) == MXR_RET0   /* (the layer gone on a lane: the page's walk) */
+                                   : al_walk(-(int32_t)MXR_N) == MXR_MASTER && ui.master;
         frames(HOLD_FRAMES);
         release(LB[i]);
         frames(2);
