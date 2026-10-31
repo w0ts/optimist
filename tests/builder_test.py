@@ -632,8 +632,8 @@ check("... up to N at once in the memory chosen (each type alone, the sends in t
       and "CHO up to 3 (+6 while the delay" in C.fx_memory_text(_m)
       and "ECHO up to 1 (+8 while the delay is in no master slot)" in C.fx_memory_text(_m))
 _ma = _fm(ARENA=1, **_four)
-check("... with ARENA: each CHO DLY REV copy a block of the arena (8 at most), not in the own room (13 KB: ECHO JUNO FLNG)",
-      _ma["own"] == 13 and all(_ma["types"][k]["arena"] == 8 for k in ("FX_CHORUS", "FX_DELAY", "FX_REVERB"))
+check("... with ARENA: every copy a block of the arena (8 at most), no own room (engines.c FELUCCA_FXI_LINE_BLOCKS)",
+      _ma["own"] == 0 and all(_ma["types"][k]["arena"] == 8 for k in _ma["types"])
       and _ma["types"]["FX_REVERB"]["max"] == 9 and "more in the arena's free RAM" in C.fx_memory_text(_ma))
 _rn = []
 _e, _w, _n = C.validate(dict(C.defaults(), **_four))
@@ -684,7 +684,7 @@ check("... an arena needing more than the SRAM can give it: the one error left, 
           for e in C.validate(dict(C.defaults(), ARENA=1, **dict(_sd, DLY_LEN=65536, INS_XDLY=1, XDLY_LEN=16384,
                                                                       INS_DELAY=1, INS_JCHORUS=1,
                                                                       INS_FLANGER=1, REV_FDN8=1, REV_ROOM=1, REV_PLATE=1, SPRING=1,
-                                                                      REV_AIRWIN=1, ENG_WAVE=1)))[0]))
+                                                                      REV_AIRWIN=1, ENG_WAVE=1, FX_PUNCH=1, PUNCH_N=65536)))[0]))
 _cfg, _ = C.parse("INS_DELAY=4\nINS_JCHORUS=3\nINS_FLANGER=1\nINS_XDLY=2\n", warn=lambda m: None)
 check("an old .config's instance counts (INS_DELAY=4 ...) load as built: no setting lost, no error",
       all(_cfg[k] == 1 for k in C.FXM_TYPES if k in R.WAS_COUNT) and not [e for e in C.validate(_cfg)[0] if set(e.keys) & set(C.FXM_TYPES)]
@@ -1124,10 +1124,10 @@ check("USB host: on sets FELUCCA_USB_HOST 1 in the header, outside __PI32V2__; o
 # known configuration with sizes whose free SRAM is known (anchor), and a neighbour a few items away
 _ar_cfg = dict(C.defaults(), ARENA=1, **_sd)
 _ar_real = {"flash": 600000, "ram": 90000, "pool": 150000, "ramtext": 30000}     # (a real build's sizes: 475,136 - 8,192 - 270,000 free)
-_ar_free = K.undo_ring(_ar_real)
+_ar_free = K.sram_free(_ar_real)
 _ar_a = K.arena_size(_ar_cfg, _ar_real, exact=True)
-check("arena: the real build's free SRAM less the undo's 16 KB keep, exact, in whole units (8 B)",
-      _ar_a["free"] == _ar_free == sram - 8192 - 270000 and _ar_a["keep"] == 16384 and _ar_a["bytes"] == (_ar_free - 16384) & ~7
+check("arena: the real build's free SRAM (no spare: engines.c ARN_SPARE 0) less the undo's 16 KB keep, exact, in whole units (8 B)",
+      _ar_a["free"] == _ar_free == sram - 270000 and _ar_a["keep"] == 16384 and _ar_a["bytes"] == (_ar_free - 16384) & ~7
       and _ar_a["kb"] == _ar_a["bytes"] // 1024 and _ar_a["exact"] and K.arena_size(dict(_ar_cfg, ARENA=0), _ar_real) is None)
 check("arena: nothing when the sizes leave no free SRAM (never negative)", K.arena_size(_ar_cfg, dict(_ar_real, pool=900000))["bytes"] == 0)
 check("arena: the cache RAM gives the SRAM it frees to the arena (2 ways +8 KB, 4 or 7 ways +15 KB: the undo keeps 1 KB)",
@@ -1164,6 +1164,10 @@ check("arena text: the size marked as an estimate, a row a line, a verdict, with
       and any("all at once" in x for x in _ar_t) and any("MEM FULL" in x or "fits" in x for x in _ar_t)
       and K.arena_text(dict(_ar_cfg, ARENA=0), _ar_real) == [] and K.arena_text(_ar_cfg, _ar_real, True)[0].startswith("arena ")
       and "~" not in K.arena_text(_ar_cfg, _ar_real, True)[0])
+check("undo with ARENA: its keep and the cache RAM, borrowing the arena's free top; without, its ring",
+      K.undo_text(dict(_ar_cfg, CACHE_RAM=4), _ar_real) == "undo keeps 1.0 KB + cache RAM 16 KB, borrows the arena's free top"
+      and K.undo_text(dict(_ar_cfg, ARENA=0), _ar_real) == f"undo ring {K.undo_ring(_ar_real):,} B"
+      and "borrows the arena" in C.fmt_budget(_ar_cfg, costs))
 check("arena: the budget summary (fmt_budget) names it",
       "arena ~" in C.fmt_budget(_ar_cfg, costs) and "arena" not in C.fmt_budget(dict(_ar_cfg, ARENA=0), costs))
 import web_api as WA  # noqa: E402

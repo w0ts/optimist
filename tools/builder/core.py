@@ -545,8 +545,9 @@ def arena_need(cfg):
     sends = arena_sends(blocks)                         # (every ARENA build: the extras, registry.h FELUCCA_FX_ARENA)
     if sends:
         what.update(sends)
-        if blocks.get("the inserts' own room"):
-            what["the inserts' own room"] = blocks["the inserts' own room"]
+        for k in ("the inserts' own room", "the largest limited insert's line"):
+            if blocks.get(k):
+                what[k] = blocks[k]
         other = {k: v for k, v in blocks.items() if k not in what}
         if other:
             k = max(other, key=other.get)
@@ -835,11 +836,13 @@ def fx_memory(cfg):
           "INS_XDLY": on("XDLY_LEN") // 256, "FX_REVERB": FXM_ROOM_KB, "FX_DELAY": send}   # (DLY: the delay's line)
     arena = bool(cfg.get("ARENA", 0))                    # (engines.c FXM_NEED: every ARENA build)
     types = [k for k in FXM_TYPES if on(k)]
-    own = sum(kb[k] for k in types if k not in FXM_COPIES)   # (fxi_mem.h FXA_AUTO: CHO DLY REV none of their own)
+    # (fxi_mem.h FXA_AUTO: CHO DLY REV none of their own; with an arena none at all, every line a block of its own:
+    # engines.c FELUCCA_FXI_LINE_BLOCKS, 2026-10-31)
+    own = 0 if arena else sum(kb[k] for k in types if k not in FXM_COPIES)
     out = {}
     for k in types:
         z = kb[k]
-        cp = FXM_CPN if arena and k in FXM_COPIES else 0
+        cp = FXM_CPN if arena else 0
         out[k] = {"kb": z, "max": min(FXM_OWNERS, own // z + send // z + cho // z + cp),
                   "own": min(FXM_OWNERS, own // z), "dly": send // z, "cho": cho // z, "arena": cp}
     return {"send": send, "cho": cho, "own": own, "types": out}
@@ -989,7 +992,9 @@ def arena_blocks(cfg):
     out = {"a part's engine state": part_mem(cfg)["pool"] // nparts(cfg), "the delay's line": mem["send"] * 1024,
            "the chorus send's line": mem["cho"] * 1024,
            "the reverb's line": sum(rev.values()) + rev_ap(cfg) if built(cfg, "FX_REVERB") else 0,
-           "the inserts' own room": mem["own"] * 1024, **arena_bufs(cfg)}
+           "the inserts' own room": mem["own"] * 1024,
+           "the largest limited insert's line": max((t["kb"] for k, t in mem["types"].items() if k not in FXM_COPIES),
+                                                     default=0) * 1024 if cfg.get("ARENA", 0) else 0, **arena_bufs(cfg)}
     return {k: v for k, v in out.items() if v}
 
 
@@ -1092,12 +1097,40 @@ def arena_undo_keep(cfg):
     return ARN_UNDO_LEAST - free if free + ARN_UNDO_SRAM < ARN_UNDO_LEAST else ARN_UNDO_SRAM
 
 
+ARN_SPARE = 0   # engines.c ARN_SPARE: the arena runs to the stacks' guard band (2026-10-30; the 8 KiB spare is the link's check only)
+
+
+def sram_free(total):
+    """the SRAM the link leaves free (the pool's end to the stacks' guard band, less ARN_SPARE): what the arena is cut from"""
+    return max(0, limits_in_use()["sram"] - ARN_SPARE - used(total, "sram"))
+
+
+def undo_info(cfg, total):
+    """-> {"ring", "arena", "keep", "cache"} the undo history: with ARENA it keeps only ARN_UNDO_KEEP of the SRAM (and the
+    cache RAM's ways, CACHE_RAM) and borrows what the arena does not use, giving it back (seq/undo.c undo_yield): it never
+    takes the arena's room; without, its ring is the free SRAM less the spare (undo_ring)"""
+    if cfg.get("ARENA", 0):
+        ways = cfg.get("CACHE_RAM", 0)
+        return {"ring": undo_ring(total), "arena": True, "keep": arena_undo_keep(cfg),
+                "cache": CACHE_RAM_BYTES.get(ways, ways * 4096) if ways else 0}
+    return {"ring": undo_ring(total), "arena": False, "keep": 0, "cache": 0}
+
+
+def undo_text(cfg, total):
+    """the undo line of the budget (the console's, the menu's): with ARENA its keep and that it borrows the arena's free top"""
+    u = undo_info(cfg, total)
+    if not u["arena"]:
+        return f"undo ring {u['ring']:,} B"
+    cache = f" + cache RAM {u['cache'] // 1024} KB" if u["cache"] else ""
+    return f"undo keeps {_kb1(u['keep'])} KB{cache}, borrows the arena's free top"
+
+
 def arena_size(cfg, total, exact=False):
-    """-> {"bytes", "kb", "free", "keep", "exact"} the arena a build gets: the free SRAM (undo_ring of the total) less the
+    """-> {"bytes", "kb", "free", "keep", "exact"} the arena a build gets: the free SRAM (sram_free of the total) less the
     undo's keep; exact: the total is a real build's sizes (else the estimate); None with ARENA off"""
     if not cfg.get("ARENA", 0) or not total:
         return None
-    free, keep = undo_ring(total), arena_undo_keep(cfg)
+    free, keep = sram_free(total), arena_undo_keep(cfg)
     n = max(0, free - keep) & ~7
     return {"bytes": n, "kb": n // 1024, "free": free, "keep": keep, "exact": bool(exact)}
 
@@ -1124,6 +1157,9 @@ def arena_fits(cfg):
                      blocks["a part's engine state"], nparts(cfg), "the largest engine built, a part each"))
     if blocks.get("the inserts' own room"):
         rows.append(("the inserts' room", blocks["the inserts' own room"], 1, "the limited inserts' lines"))
+    if blocks.get("the largest limited insert's line"):
+        rows.append(("a limited insert's line", blocks["the largest limited insert's line"], 1,
+                     "the largest built (ECHO JUNO FLNG XDLY: each copy its own line's size)"))
     for k, v in arena_bufs(cfg).items():
         if k == "FM6's sine table":
             continue                                    # (held with FM6's engine state: a few KB, in the table's note)

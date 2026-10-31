@@ -94,7 +94,7 @@ def view(values, name="", commit=None):
     over = {r: o for r, (_, _, o) in K.fits(b["total"], cfg).items() if o > 0} if b else {}
     undo = None
     if b and K.built(cfg, "UNDO_HISTORY"):
-        undo = {"ring": K.undo_ring(b["total"])}
+        undo = dict(K.undo_info(cfg, b["total"]), text=K.undo_text(cfg, b["total"]))
     arena = None
     if b:                                               # (ARENA on: the free SRAM less the undo's keep, what fits in it)
         a = K.arena_size(cfg, b["total"], b.get("exact"))
