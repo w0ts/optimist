@@ -285,13 +285,13 @@ static void draw_head_flash(uint16_t tc)                /* the header while tf.t
     cv_texts(x + 8, 4, cut(b, c, room < 14u ? room : 14u), C_WHITE);   /* (b holds 16) */
 }
 /* the title's room in pixels: right of the title's x (lead: the badge and its gap, or the bare margin), left of the loop
- * position r and the tempo bpm */
+ * position r (no tempo: it is on PLAY held, the user 2026-10-31) */
 #define HEAD_PAD 2                      /* the badge: its text's inset */
 #define HEAD_GAP 5                      /* the badge to the title */
 #define HEAD_END 1                      /* the title's end to the REC mark (the title's room: op_names.c's titles fit it) */
-static int32_t head_room(int32_t lead, const char *bpm, const char *r)
+static int32_t head_room(int32_t lead, const char *r)
 {
-    return 236 - text_ws(bpm) - 16 - HEAD_END - (r[0] ? text_ws(r) : 0) - lead;
+    return 236 - 16 - HEAD_END - (r[0] ? text_ws(r) : 0) - lead;
 }
 /* ... and per layer (HEAD_TRK_SCR above) */
 static const uint8_t HEAD_TRK_LY[LY_COUNT] = {
@@ -322,9 +322,9 @@ static int head_finish(char *t, const char *pos, int32_t room)
     return (int32_t)str_len(t) * 8 > room;
 }
 /* the header as drawn (draw_head; the tests read it): the badge, the title and its n/N fitted, the preset, the loop
- * position and the tempo, their places */
+ * position, their places (no tempo: PLAY held) */
 typedef struct {
-    char t[32], r[16], bpm[8], pos[12], bt[24], pr[16];
+    char t[32], r[16], pos[12], bt[24], pr[16];
     const char *eng;                    /* the badge's text, "" none */
     uint16_t tc, mc;                    /* the badge's colour, the title's */
     uint8_t badge, cut, muted;               /* a badge drawn; the title cut to its room (never, on a track page) */
@@ -464,17 +464,15 @@ static void head_make(head_t *h)
         head_title(ui.scr, ui.row[ui.scr], h->t, sizeof h->t);
     }
     loop_pos(TSEL, h->r);                               /* (STEP too: bar.beat on every screen, style guide 1) */
-    fmt_int(h->bpm, song.g[G_BPM]);
     h->batt = (uint8_t)head_batt();
     h->ib = (uint8_t)head_info();
-    if (h->ib) {                                        /* INFO: the battery in place of the tempo and the loop position */
-        h->bpm[0] = 0;
+    if (h->ib) {                                        /* INFO: the battery in place of the loop position */
         h->r[0] = 0;
         h->ipct = (uint8_t)(h->ib == 2u ? sys_batt_pct() : 0u);
         h->ichg = (uint8_t)sys_batt_chg();
     }
     h->tx = 2 + h->bw + HEAD_GAP;                       /* the title's room, left of the position and the tempo */
-    h->room = head_room(h->tx, h->bpm, h->r) - (h->batt ? HEAD_BATT_W : 0) - (h->ib ? HEAD_IB_W : 0);
+    h->room = head_room(h->tx, h->r) - (h->batt ? HEAD_BATT_W : 0) - (h->ib ? HEAD_IB_W : 0);
     if ((int32_t)(str_len(h->t) + str_len(h->pos)) * 8 > h->room)
         head_short(h->t, sizeof h->t, h->room > 8 * (int32_t)str_len(h->pos) ? (uint32_t)(h->room / 8 - (int32_t)str_len(h->pos)) : 0u);                  /* (short of room: the title's short form; bar.beat always stays, the
                                                          * user, 2026-10-14) */
@@ -574,8 +572,8 @@ static __attribute__((noinline)) void draw_head(void)
     drop = ovl_recent(fm1_ms, OVL_MARK_MS) ? 2u : xr && fm1_ms - ovl.xrun_ms < OVL_MARK_MS ? 1u : 0u;
     mk = drop == 2u ? C_ERR : C_WARN;                   /* (the mark: red a drop-out, amber another underrun) */
     head_make(&h);
-    bx = 236 - text_ws(h.bpm) - (h.batt ? HEAD_BATT_W : 0);
-    sig = hs(hs(hs(hs(hu(hu(hu(1u, h.tc), h.mc), rec * 2u + song.playing), ui.msg_t ? ui.msg : h.t), h.r), h.bpm), h.eng);
+    bx = 236 - (h.batt ? HEAD_BATT_W : 0);
+    sig = hs(hs(hs(hu(hu(hu(1u, h.tc), h.mc), rec * 2u + song.playing), ui.msg_t ? ui.msg : h.t), h.r), h.eng);
     sig = hs(sig, h.pr);
     sig = hu(hu(sig, h.muted), h.batt);
     sig = hu(sig, (uint32_t)h.ib | (uint32_t)h.ipct << 8 | (uint32_t)h.ichg << 16);
@@ -608,7 +606,6 @@ static __attribute__((noinline)) void draw_head(void)
             head_info_draw(&h, tw);
             bx = 236 - HEAD_IB_W;               /* (INFO: the mark left of the battery's room) */
         } else {
-            cv_texts(bx, 4, h.bpm, C_HI);
             if (h.batt)
                 head_batt_draw(238 - 13, h.batt);
             bx -= 8 + text_ws(h.r);             /* (the loop position's x, "" none) */
