@@ -3184,15 +3184,15 @@ static inline __attribute__((always_inline)) void rets_mix(uint32_t n)
         }
     }
 }
-#if !FELUCCA_DRUMS
-/* the click without a drum track (FELUCCA_DRUMS 0; with drums, the kit's wood blocks 76 / 77: seq.c click_note): a triangle
+/* the metronome click, its own fixed voice whatever kit is loaded (the user, 2026-10-31: "when i use the kit kawa, the click
+ * sound changes to something strange"; it used the kit's wood blocks 76 / 77): a triangle
  * blip at 1.5 kHz, the bar's first beat (77) at 2 kHz, falling about 25 dB in 10 ms, into the mix before the master */
 static struct { uint32_t ph, inc; int32_t a; } clk_v;
 static void click_note(uint32_t note, uint32_t vel)
 {
     clk_v.ph = 0;
     clk_v.inc = (uint32_t)(4294967296.0 * (note == 77u ? 2000.0 : 1500.0) / FS);
-    clk_v.a = (int32_t)(vel > 127u ? 127u : vel) * 96;   /* (127: 12192, half a voice's VOICE_FS) */
+    clk_v.a = (int32_t)(vel > 127u ? 127u : vel) * 22;   /* (velocities 30 / 18: peak 660 / 396, 12 dB under the old wood block at 120 / 72) */
 }
 static HOT void click_mix(uint32_t n)
 {
@@ -3205,18 +3205,13 @@ static HOT void click_mix(uint32_t n)
         clk_v.a -= clk_v.a >> 7;
     }
 }
-#else
-#define click_note(note, vel) drum_on(note, vel)
-#endif
 static inline __attribute__((always_inline)) void mix_finish(int32_t *out, uint32_t n)
 {
     int32_t m0, m1;
     BENCH_SIG(4, mix_l, n);
     BENCH_SIG(5, send_r, n);
     rets_mix(n);
-#if !FELUCCA_DRUMS
-    click_mix(n);                                       /* (the click: no drum track to play it) */
-#endif
+    click_mix(n);                                       /* (the click: before the master, as the rest of the mix) */
     if (FELUCCA_FX_PUNCH)
         punch_process(mix_l, mix_r, n);
     mst_run(mix_l, mix_r, n);                           /* the master's insert slots (above) */
