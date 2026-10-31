@@ -9,10 +9,10 @@
 
 export const SOFT_KEY = [0xF0, 0x22, 0x24, 0x35, 0x7D, 0xF7];
 export const V15_SHA256 = "db1642b2b6fa5c2cccb11ffd13878068bb28601678d3644049f99dc40e7edb8a";
-export const OWN_SLOTS = [0x93000, 0xB5000, 0xCA000, 0xD0000];   // (every MEMORY step's flash.bin: tools/flash_layout.py own_slots, tests/flash_layout_test.py checks)
+export const OWN_SLOTS = [0x93000, 0xA5000, 0xB5000, 0xCA000, 0xD0000];   // (every MEMORY step's flash.bin: tools/flash_layout.py own_slots, tests/flash_layout_test.py checks)
 // every app end an installed firmware of ours may have: [end, layout, user sample slots kept, MEMORY's name] (tools/flash_layout.py
 // known_ends with its STEPS: tests/flash_layout_test.py checks this copy; the release's L1 ends at 0xCE000, the same step)
-export const LAYOUT_ENDS = [[0x93000, 0, 2, "normal"], [0xB5000, 3, 0, "no user samples"], [0xCA000, 8, 0, "no user samples, 4 projects"], [0xCE000, 1, 0, "more flash"], [0xD0000, 1, 0, "more flash"]];
+export const LAYOUT_ENDS = [[0x93000, 0, 2, "normal"], [0xA5000, 2, 1, "one sample slot, 16 projects"], [0xB5000, 3, 0, "no user samples"], [0xCA000, 8, 0, "no user samples, 4 projects"], [0xCE000, 1, 0, "more flash"], [0xD0000, 1, 0, "more flash"]];
 const BACKUP_WHERE = "Back up first: web editor > Backup.";
 /** what installing the app ending at newEnd erases after the app ending at oldEnd (null: not known), by the switch rule
  * (docs/SD-MODE-DESIGN.md 9.7.2; tools/flash_layout.py switch_loss, the same words): [] the same step */

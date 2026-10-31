@@ -66,7 +66,8 @@ def unit_flash(end, seed=7):
     f = bytearray(L.FLASH_SIZE)
     f[0:end] = synth_flash(end, seed)
     for a in range(end, L.FLASH_SIZE):
-        f[a] = (a >> 12) & 0xFF ^ 0x5A
+        v = (a >> 12) & 0xFF ^ 0x5A
+        f[a] = v if v != 0xFF else 0x5A                  # (never a blank sector: 0xA5000's pattern was 0xFF, read as no data)
     f[0:0x4000] = bytes([0xB7]) * 0x4000                 # (the unit's boot area: its own)
     return bytes(f)
 

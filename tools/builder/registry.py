@@ -1144,7 +1144,7 @@ _add("LIVE_SAVE", "FELUCCA_LIVE_SAVE", "save while playing (flash writes in shor
 # The steps: tools/flash_layout.py STEPS is the one table; this is the builder's copy of what it needs (the web builder
 # runs without tools/ on its path), checked by tests/flash_layout_test.py.
 # layout -> (user sample slots kept, projects, app.bin's room in the classic build); normal: 2 slots (3 with PATTERNS off)
-LAYOUT_STEPS = {0: (2, 16, 581564), 3: (0, 16, 720828), 8: (0, 4, 806844), 1: (0, 2, 831420)}
+LAYOUT_STEPS = {0: (2, 16, 581564), 2: (1, 16, 655292), 3: (0, 16, 720828), 8: (0, 4, 806844), 1: (0, 2, 831420)}
 NORMAL_APP = LAYOUT_STEPS[0][2]
 # MEMORY's old values (derived, never stored): normal 0, more flash 1, SD card mode 2, no user samples 4; 5 any other step
 MEMORY_OF = {0: 0, 3: 4, 1: 1}
@@ -1572,6 +1572,7 @@ _S0_RELEASE = ("not for the release yet: fm1-base's own update loader and app_en
 # (PHYS in RAM was a NOT_BUILT entry until its render stopped calling libgcc's __udivdi3: phys_dsp.c px_udiv, 2026-10-30)
 NOT_BUILT = {
     ("MEMORY", 4): {"release": _S0_RELEASE},
+    ("LAYOUT", 2): {"release": _S0_RELEASE},
     ("LAYOUT", 3): {"release": _S0_RELEASE},
     ("LAYOUT", 8): {"release": _S0_RELEASE},
 }

@@ -4961,6 +4961,10 @@
       "0: none (SAMPLE's built-in sets still play)"
      ],
      [
+      1,
+      "1: USR3 (64 KiB, the snapshots)"
+     ],
+     [
       2,
       "2: USR2 + USR3 (144 KiB, as normal)"
      ],
@@ -5099,6 +5103,10 @@
       "2 sample slots, 16 projects: 581,564 B for code"
      ],
      [
+      2,
+      "1 sample slot, 16 projects: 655,292 B for code"
+     ],
+     [
       3,
       "0 sample slots, 16 projects: 720,828 B for code"
      ],
@@ -5112,6 +5120,9 @@
      ]
     ],
     "not_built": {
+     "2": {
+      "release": "not for the release yet: fm1-base's own update loader and app_end do not take the MEMORY steps' table (its slot switch would leave the old step's log sectors in the new one's; docs/SD-MODE-DESIGN.md 9.4, the proposed fm1-base branch pr/app-end-table)"
+     },
      "3": {
       "release": "not for the release yet: fm1-base's own update loader and app_end do not take the MEMORY steps' table (its slot switch would leave the old step's log sectors in the new one's; docs/SD-MODE-DESIGN.md 9.4, the proposed fm1-base branch pr/app-end-table)"
      },
