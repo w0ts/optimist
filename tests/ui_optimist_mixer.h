@@ -43,11 +43,9 @@ static void mixer_walk_tests(void)
 #if FELUCCA_USB_AUDIO
     turn(EN_ALGO, 1);                                   /* (fx-rework stage 3: the USB input's row after the drum tracks) */
     ok &= mx_row() == MXR_USB && song.sel == TRK_DRUM;
-    turn(EN_ALGO, 1);
-    ok &= mx_row() == MXR_USB;
     ui.force = 1;
     frame();
-    ok &= mxd.first == MXR_USB && mxd.last == MXR_N && px_in(2, 3, 50, 19, C_HI);   /* (alone; the badge "5 USB") */
+    ok &= mxd.first == MXR_USB && mxd.last == MXR_USB + 1u && px_in(2, 3, 50, 19, C_HI);   /* (alone; the badge "5 USB") */
     {
         uint32_t av = op_btn_avail();
         ok &= !(av & (1u << B_ENV | 1u << B_EDIT)) && (av & 1u << B_FX);   /* (no instrument: the track buttons dark; FX its
@@ -55,13 +53,15 @@ static void mixer_walk_tests(void)
     }
     ppm("opt-mixer-usb");
     check(ok, "ALGORITHM walks T1 T2 T3 DR and the 16 lanes (each selected), then the USB input's row, alone (the badge 5 USB, the "
-          "track buttons dark, FX lit: its inserts), stopping there");
+          "track buttons dark, FX lit: its inserts), the returns after it");
     turn(EN_ALGO, -1);
     ok = mx_row() == MXR_LN - 1u;
 #else
     turn(EN_ALGO, 1);
+    ok &= mx_row() == MXR_RET0;
+    turn(EN_ALGO, -1);
 #endif
-    check(ok && mx_row() == MXR_LN - 1u, "ALGORITHM walks T1 T2 T3 DR and the 16 lanes (each selected), stopping at the last");
+    check(ok && mx_row() == MXR_LN - 1u, "ALGORITHM walks T1 T2 T3 DR and the 16 lanes (each selected), RET A after the last, and back");
     ui.force = 1;
     frame();
     check(mxd.first == MXR_LANE0 && mxd.last == MXR_LN && mx_row_x(MXR_LN - 1u) == 0u && mx_row_y(MXR_LN - 1u) > mx_row_y(MXR_LN - 2u) &&
@@ -82,16 +82,17 @@ static void mixer_walk_tests(void)
     turn(EN_ALGO, -3);
     check(mx_row() == MXR_T1 && song.sel == 0, "... T3, T2, T1");
     turn(EN_ALGO, -1);
+    check(mx_row() == MXR_T1, "... and it stops there: T1 is the first row (2026-10-30: MASTER is the last)");
+    mx_apply(MXR_LN - 1u);                              /* (the last lane: the walk on to USB IN, the returns, MASTER) */
+    turn(EN_ALGO, (int32_t)(MXR_MASTER - (MXR_LN - 1u)));
     ui.force = 1;
     frame();
-    check(mx_row() == MXR_MASTER && song.sel == 0 && mxd.first == MXR_RET0 && mxd.last == MXR_T1,
-          "past T1 up: MASTER, the master screen with the returns above it (the track stays)");
-    turn(EN_ALGO, -1);
-    frame();
-    check(mx_row() == MXR_MASTER - 1u && mxd.first == MXR_RET0 && mxd.last == MXR_T1, "... up again: RET C, the same screen (the frame moved, not the screen)");
-    turn(EN_ALGO, -5);
-    check(mx_row() == MXR_RET0, "... RET B, RET A, and it stops there");
-    mx_apply(MXR_MASTER);
+    check(mx_row() == MXR_MASTER && song.sel == TRK_DRUM && mxd.first == MXR_RET0 && mxd.last == MXR_N,
+          "past the last lane down: USB IN, RET A B C, then MASTER on the master screen under them (the track stays)");
+    turn(EN_ALGO, 1);
+    check(mx_row() == MXR_MASTER, "... and it stops there");
+    track_select(0);
+    ui.lane = 0;
     ui.force = 1;
     frame();
     check(px_in(2, 3, 20, 19, C_HI) && !px_in(2, 3, 20, 19, trk_col(0)),
@@ -126,8 +127,10 @@ static void mixer_walk_tests(void)
         frame();
     }
     ppm("opt-mixer-h-master");
-    turn(EN_ALGO, 1);
-    check(mx_row() == MXR_T1, "down again: T1");
+    turn(EN_ALGO, -1);
+    check(mx_row() == MXR_MASTER - 1u && mx_is_ret(mx_row()), "up again: RET C, above MASTER");
+    mx_apply(MXR_T1);
+    check(mx_row() == MXR_T1, "T1 again");
     song.sel = 2;                                       /* the track selected elsewhere: the cursor follows */
     frame();
     check(mx_row() == MXR_T1 + 2u, "the cursor follows the track selected elsewhere");
@@ -242,8 +245,9 @@ static void mixer_sets_tests(void)
               (!FELUCCA_MASTER_COMP || mx_labels(MXR_MASTER, 1, "THRS", "RATIO", "GAIN", "CEIL")) &&
               mx_labels(MXR_MASTER, FELUCCA_MASTER_COMP ? 2 : 1, "DUCK", 0, 0, 0) && mx_sets(MXR_MASTER) == (FELUCCA_MASTER_COMP ? 3u : 2u),
           "MASTER: its insert slots (S1 FILT, S2 DYN), DYN's THRS RATIO GAIN CEIL, DUCK; no returns' cards (2026-10-30: their own rows)");
-    check(MXR_RET0 == 0u && MXR_RET0 + 3u == MXR_MASTER && MXR_MASTER + 1u == MXR_T1,
-          "the rows (the user, 2026-10-30): RET A B C, MASTER (where it was, the returns above it), T1 T2 T3, DR, the lanes, USB IN");
+    check(MXR_RET0 + 3u == MXR_MASTER && MXR_MASTER + 1u == MXR_N && MXR_T1 == 0u &&
+              (MXR_RET0 == MXR_LN || MXR_RET0 == MXR_LN + 1u),
+          "the rows (the user, 2026-10-30): T1 T2 T3, DR, the lanes, USB IN, RET A B C, MASTER the last");
     {   /* a return's row (2026-10-30): LEVEL FX amount | PRE TYPE amount POST TYPE amount | its sends to the other returns */
         const uint32_t ra = MXR_RET0, rb = MXR_RET0 + 1u, rc = MXR_RET0 + 2u;
         fxs_set(FXS_DEF);
@@ -270,7 +274,7 @@ static void mixer_sets_tests(void)
               "RET A's KNOB 1: its line's RET level (CHO's), at unity (100 %)");
         for (k = 0; ui.overlay == 5u && k < 600u; k++)   /* (an earlier test's PRESETS list still open: its time out) */
             frame();
-        check(mxd.first == MXR_RET0 && mxd.last == MXR_T1, "... the view: the master screen, the three returns above MASTER");
+        check(mxd.first == MXR_RET0 && mxd.last == MXR_N, "... the view: the master screen, the three returns above MASTER");
         mix_cell(ra, 1, &c);
         check(!strcmp(c.val, "CHO"), "... KNOB 2: its effect, CHO (FX > SLOTS' A)");
         turn(EN_K1, -5);
@@ -420,7 +424,7 @@ static void mixer_sets_tests(void)
         release(B_OCTDN);
         check(ui.scr == SCR_HOME, "SHIFT held alone past HOLD on the mixer: nothing (SYSTEM is in GLO's cycle: D1)");
         tap(B_HOME);
-        check(ui.scr == SCR_SCOPE, "HOME tapped: still the scope (SCOPE keeps its entry)");
+        check(ui.scr == SCR_PROJECT, "HOME tapped: the page HOME left, PROJECT (2026-10-30)");
         tap(B_HOME);
         song.sel = TRK_DRUM;
         reset_ui();
@@ -614,71 +618,11 @@ static void mixer_rows_tests(void)
         reset_ui();
     }
 }
-/* the master screen (the user, 2026-10-30: "put ON ONE screen the master, not at the bottom, but where it was before, top, and
- * the return track above it, on the same screen. AND not to move the screen"; "only change the master screen with the
- * returns"): RET A, RET B, RET C, MASTER, top down, the four lines of one screen whichever of them is selected; moving among
- * them moves the frame only; the channels' screen as it was, left and entered again by the walk */
-static int mx_mscreen_shown(uint32_t py)                /* the master screen up: its four lines in place, A B C M */
-{
-    static const char *const C[4] = {"A", "B", "C", "M"};
-    uint32_t k, ok = 1;
-    int32_t y = -1;
-    for (k = 0; k < 4u; k++) {
-        mrect_t q;
-        mx_rect(MXR_RET0 + k, &q);
-        ok &= q.y > y && !strcmp(mx_code(MXR_RET0 + k), C[k]) &&
-              (px_in(6, (uint32_t)(OP_PY + q.y), 10, 14, C_HI) || px_in(6, (uint32_t)(OP_PY + q.y), 10, 14, C_WHITE) ||
-               px_in(6, (uint32_t)(OP_PY + q.y), 10, 14, C_WARN));
-        y = q.y;
-    }
-    return (int)ok && mxd.first == MXR_RET0 && mxd.last == MXR_T1 && cards_2x2() && OP_PY == py;
-}
-static void mixer_mscreen_tests(void)
-{
-    uint32_t r, ok = 1, py, y1;
-    reset_ui();
-    mx_apply(MXR_MASTER);
-    ui.force = 1;
-    frame();
-    py = OP_PY;
-    for (r = MXR_RET0; r <= MXR_MASTER; r++) {         /* each of the four selected: the same screen, the frame on it */
-        mx_apply(r);
-        frame();
-        ok &= mx_mscreen_shown(py) && mx_row() == r;
-    }
-    ppm("opt-mixer-mscreen-retb");
-    check(ok, "master screen: RET A, RET B, RET C, MASTER top down whichever is selected, the screen in place (the 2x2 cards, the "
-              "panel's origin)");
-    mx_apply(MXR_T1);
-    ui.force = 1;
-    frame();
-    y1 = mx_row_y(MXR_T1);
-    turn(EN_ALGO, -1);                                  /* up from T1: MASTER, the master screen */
-    frame();
-    ok = mx_row() == MXR_MASTER && mx_mscreen_shown(py);
-    turn(EN_ALGO, -2);                                  /* RET B: the frame only */
-    frame();
-    ok &= mx_row() == MXR_RET0 + 1u && mx_mscreen_shown(py);
-    turn(EN_ALGO, 3);                                   /* down to T1 again: the channels' screen as it was */
-    frame();
-    ok &= mx_row() == MXR_T1 && mxd.first == MXR_T1 && mxd.last == MXR_LANE0 && mx_row_y(MXR_T1) == y1 && !cards_2x2();
-    check(ok, "master screen: the walk in (MASTER, RET B) moves the frame only; out again, the channels' screen as it was");
-    reset_ui();
-    frame();
-    press(B_OCTDN);                                     /* both OCT: the mixer, MASTER selected */
-    press(B_OCTUP);
-    release(B_OCTUP);
-    release(B_OCTDN);
-    frames(2);
-    check(mx_row() == MXR_MASTER && mx_mscreen_shown(py), "master screen: both OCT selects MASTER on it");
-    reset_ui();
-}
 static void mixer_tests(void)
 {
     mixer_walk_tests();
     mixer_sets_tests();
     mixer_rows_tests();
-    mixer_mscreen_tests();
 }
 
 static void scope_tests(void)
@@ -714,14 +658,14 @@ static void scope_tests(void)
     for (pk = 0, i = 0; i < VIS_RING; i++)
         pk = (vis_pcm[0][i] < 0 ? -vis_pcm[0][i] : vis_pcm[0][i]) > pk ? (vis_pcm[0][i] < 0 ? -vis_pcm[0][i] : vis_pcm[0][i]) : pk;
     check(scope_src == SCOPE_DR && vis_wr != w0 && pk < 64, "SCOPE DR: the drums' part (silent here), not T2's note");
-    turn(EN_ALGO, -4);                                  /* MASTER: the master output, still on SCOPE */
+    turn(EN_ALGO, (int32_t)(MXR_LN - MXR_DR));         /* MASTER (past the last lane, 2026-10-30): the master output, still on SCOPE */
     frames(3);
     for (pk = 0, i = 0; i < VIS_RING; i++)
         pk = vis_pcm[0][i] > pk ? vis_pcm[0][i] : pk;
     ui.force = 1;
     frames(2);
     ppm("opt-scope-master");
-    check(ui.scr == SCR_SCOPE && ui.master && scope_src == 0u && pk > 0 && px_in(0, OY_PANEL, 240, SC_H, C_HI), "SCOPE MASTER (ALGORITHM left of T1): the mix, in the palette's ink, still on SCOPE");
+    check(ui.scr == SCR_SCOPE && ui.master && scope_src == 0u && pk > 0 && px_in(0, OY_PANEL, 240, SC_H, C_HI), "SCOPE MASTER (ALGORITHM past the last lane): the mix, in the palette's ink, still on SCOPE");
     fm1_in.notes &= ~(1u << 10);
     {
         cell_t c;

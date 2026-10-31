@@ -96,6 +96,7 @@ static int oct_fold_here(void) { return ui.scr == SCR_STEP && !is_drum(TSEL) && 
 static void op_enter(uint32_t scr)
 {
     fx_by_walk = 0;                                     /* (a screen entered: the master FX screen is the walk's again only via walk_master_in) */
+    hmx.valid = 0;                                      /* (and HOME's way back forgotten: op_walk.c home_in sets it after) */
     uint8_t from_master = ui.scr == SCR_HOME && mx_row() == MXR_MASTER;   /* (SCOPE opened on the mixer's MASTER row: its source) */
     if (ui.scr == SCR_SCOPE)
         ui.master = 0;                                  /* (the scope's MASTER source goes with the scope) */
@@ -112,6 +113,8 @@ static void op_enter(uint32_t scr)
     ui.scr = (uint8_t)(scr % SCR_N);
     if (scr == SCR_SCOPE)
         ui.master = from_master;
+    if (scr == SCR_FX)                                  /* (the FX screen opened: MASTER's until a return's is asked, op_mixer.c rt_open) */
+        ui.fxo = 0;
     if (scr == SCR_FX)                                  /* (the master FX opened: right goes to SOUND T1, unless the walk */
         ui.m_scr = SCR_SOUND, ui.m_fam = SND_ALL, ui.m_row = 0;   /* sets where it came from: op_walk.c) */
     step_reset();                                       /* (STEP: the keys are steps again, nothing held) */
@@ -336,10 +339,11 @@ static void op_no(void)
     if (sdc_home())
         return;                                         /* (PROJECT, a card's list: up a folder, SAVES back: op_sdcard.c) */
 #endif
-    if (ui.scr == SCR_HOME)
-        op_enter(SCR_SCOPE);                            /* at the root: the mixer and the scope, in turn [P] */
-    else
-        op_enter(SCR_HOME);                             /* back: the mixer, on the row it was left on */
+    if (ui.scr == SCR_HOME) {
+        if (!home_back())                               /* (the page HOME left, op_walk.c) */
+            op_enter(SCR_SCOPE);                        /* at the root: the mixer and the scope, in turn [P] */
+    } else
+        home_in();                                      /* the mixer, on the selection's row, nothing else changed (op_walk.c) */
 }
 
 /* ---- transport (as SLOOP's ui_input.c B_PLAY and ui_studio.c rec_toggle) */
@@ -812,12 +816,12 @@ static void op_tap(uint32_t b, uint32_t id)
     if (b == B_LFO && lay.lock == LY_PAT)
         return;                                         /* the pattern page locked open: LFO alone does nothing (LFO + key stores, as SAVE) */
 #endif
+    if (b < NB && rt_tap(b))
+        return;                                         /* (a return's EDIT and FX: its pages, op_mixer.c) */
     if (b < NB && mx_master_dead(b))
         return;                                         /* (the mixer's MASTER: a track button does nothing) */
     if (b == B_FX && mx_on_master())
         op_enter(SCR_FX);                               /* (the mixer's MASTER: FX is the master FX) */
-    else if (b == B_FX && mx_on_ret())
-        mx_ret_fx();                                    /* (a return's row: the master FX on its effect's page, op_mixer.c) */
     else if (b == B_FX && mx_on_usb())
         (void)mx_ut_fx();                               /* (the mixer's USB row: its inserts, op_mixer.c) */
     else if (b == B_SAVE && !op_armed() && hold) {

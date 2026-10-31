@@ -204,8 +204,7 @@ static void pages_master_order_tests(void)
     static const struct { const char *name, *old; uint8_t scope; } W[] = {
         {"INSERTS", "MST INS", SC_FXSLOT}, {"INS DYN 1", "COMP", SC_GLOBAL}, {"INS DYN 2", "LIMIT", SC_GLOBAL},
         {"DUCK", "MASTER", SC_GLOBAL},
-        {"RETURNS", 0, 0}, {"RET REV", "REV/CHO", SC_GLOBAL}, {"RET DELAY", "DLY", SC_GLOBAL}, {"RET DLY F", "DLY F", SC_GLOBAL},
-        {"SLOTS", "SLOTS", SC_FXSLOT},
+        /* (RETURNS, RET REV, RET DELAY, RET DLY F, SLOTS: the returns' own pages since 2026-10-30, op_mixer.c rt_rows) */
 #if FELUCCA_MACROS
         {"MACRO", "MACRO", SC_MACRO},
 #endif
@@ -216,7 +215,7 @@ static void pages_master_order_tests(void)
     mst_defaults();                                     /* (FILT DYN: earlier tests turn the master's TYPE cards) */
     fxs_set(FXS_DEF);                                   /* (the returns CHO DLY REV: the default) */
     reset_ui();
-    turn(EN_ALGO, -1);
+    mx_apply(MXR_MASTER);                               /* (the mixer's MASTER row, its last since 2026-10-30) */
     tap(B_FX);
     n = SCR->rows();
     for (r = 0; r < n; r++) {
@@ -254,14 +253,14 @@ static void pages_master_order_tests(void)
         }
         i++;
     }
-    ok = order && r == n;
-    check(ok, "MASTER's pages come in the order inserts (INSERTS, INS DYN 1 2, DUCK), returns (RETURNS, RET REV, RET DELAY, RET DLY F), SLOTS, MACRO");
-    check(cards, "... each moved page's four cards are the ones PAGES gives it; INS DYN 2 GAIN CEIL (GR a read-out), RETURNS has CHO DLY REV RET (the one order)");
+    ok = order && r == n && i == sizeof W / sizeof W[0];
+    check(ok, "MASTER's pages come in the order inserts (INSERTS, INS DYN 1 2, DUCK), MACRO; none of the returns' (2026-10-30)");
+    check(cards, "... each moved page's four cards are the ones PAGES gives it; INS DYN 2 GAIN CEIL (GR a read-out)");
     reset_ui();
 }
 static void pages_master_tests(void)
 {
-    static const char *const WANT[] = {"INSERTS", "INS DYN 1", "INS DYN 2", "DUCK", "RETURNS", "RET REV", "RET DELAY", "RET DLY F", "SLOTS",
+    static const char *const WANT[] = {"INSERTS", "INS DYN 1", "INS DYN 2", "DUCK",
 #if FELUCCA_MACROS
                                        "MACRO",
 #endif
@@ -273,7 +272,7 @@ static void pages_master_tests(void)
     mst_defaults();                                     /* (FILT DYN: earlier tests turn the master's TYPE cards) */
     fxs_set(FXS_DEF);                                   /* (the returns CHO DLY REV: the default) */
     reset_ui();
-    turn(EN_ALGO, -1);
+    mx_apply(MXR_MASTER);
     tap(B_FX);
     n = SCR->rows();
     for (r = 0; r < n; r++) {
@@ -284,7 +283,8 @@ static void pages_master_tests(void)
         i++;
     }
     check(ui.scr == SCR_FX && ok && i == sizeof WANT / sizeof WANT[0],
-          FELUCCA_MACROS ? "D3: MASTER's 10 pages: INSERTS INS DYN 1 2 DUCK, RETURNS RET REV RET DELAY RET DLY F, SLOTS, MACRO" : "D3: MASTER's pages: INSERTS INS DYN 1 2 DUCK, RETURNS RET REV RET DELAY RET DLY F, SLOTS");
+          FELUCCA_MACROS ? "D3: MASTER's pages: INSERTS INS DYN 1 2 DUCK, MACRO (the returns' on their own rows, 2026-10-30)"
+                         : "D3: MASTER's pages: INSERTS INS DYN 1 2 DUCK (the returns' on their own rows, 2026-10-30)");
     pages_master_order_tests();
     head_title(SCR_FX, 0, h, sizeof h);
     check(!strcmp(SCR_NAME[SCR_FX], "MASTER") && !strcmp(h, "Insert"), "D3: the screen is MASTER (its badge), the title \"Insert\"");
@@ -357,6 +357,7 @@ static void keys_global_tests(void)
     uint32_t pass, r, tools = 0, sel0;
     for (pass = 0; pass < 2u; pass++) {
         song.sel = pass ? TRK_DRUM : 0;
+        trk[0].p[P_CHORD] = 0;                          /* (T1 plays notes: the random use before may leave a CHORD mode, its black keys modifiers) */
         reset_ui();
         frames(2);
         tap(B_GLO);
@@ -805,7 +806,7 @@ static void pages_head_tests(void)
         check(!strncmp(t, "General ", 8) && hd_badge_is("SYSTEM"), "D11: SYSTEM's KNOB COLORS line: the badge SYSTEM, \"General n/N\"");
     }
     reset_ui();
-    turn(EN_ALGO, -1);
+    mx_apply(MXR_MASTER);
     tap(B_FX);
     {
         char t[32];

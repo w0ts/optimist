@@ -92,13 +92,13 @@ typedef struct {
 static uint32_t mx_smuted(uint32_t r) { return !mx_is_usb(r) && mx_muted(r); }   /* row r muted: its steps grey, no playhead */
 static uint32_t mx_mode(uint32_t r)
 {
-    return r <= MXR_MASTER ? MV_MASTER : r < MXR_LANE0 ? MV_CH : mx_is_usb(r) ? MV_USB : MV_SOUNDS;
+    return mx_is_ret(r) || r == MXR_MASTER ? MV_MASTER : r < MXR_LANE0 ? MV_CH : mx_is_usb(r) ? MV_USB : MV_SOUNDS;
 }
 static void mx_view(void)                               /* the rows in view: the cursor's group */
 {
     uint32_t m = mx_mode(mx_row());
     mxd.first = (uint8_t)(m == MV_MASTER ? MXR_RET0 : m == MV_CH ? MXR_T1 : m == MV_USB ? MXR_LN : MXR_LANE0);
-    mxd.last = (uint8_t)(m == MV_MASTER ? MXR_MASTER + 1u : m == MV_CH ? MXR_LANE0 : m == MV_USB ? MXR_LN + 1u : MXR_LN);
+    mxd.last = (uint8_t)(m == MV_MASTER ? MXR_N : m == MV_CH ? MXR_LANE0 : m == MV_USB ? MXR_LN + 1u : MXR_LN);
 }
 static void mx_rect(uint32_t r, mrect_t *q)             /* row r's place in its group's view */
 {

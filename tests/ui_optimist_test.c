@@ -292,6 +292,10 @@ static uint32_t kit_tmp[4096 / 4];
 #endif
 
 static const char *outdir;
+/* the walk off the mixer past the last lane: RET A B C, then MASTER (2026-10-30, the user: "make the return tracks normal track
+ * citizens"); from T1 to MASTER on a page */
+#define WALK_TAIL 4
+#define TO_MASTER ((int32_t)MXR_LN - 1 + WALK_TAIL)
 static void ppm(const char *name)
 {
     char path[512];
@@ -844,7 +848,10 @@ static void key_tests(void)
     tap(B_HOME);
     check(ui.scr == SCR_HOME, "HOME tapped: NO, back to the mixer");
     tap(B_HOME);
-    check(ui.scr == SCR_SCOPE, "HOME at the root: the scope [P]");
+    check(ui.scr == SCR_STEP, "HOME again: the page HOME left, STEP (2026-10-30: \"it should just change the screen to mixer\")");
+    reset_ui();                                         /* (the mixer, entered otherwise: no page to go back to) */
+    tap(B_HOME);
+    check(ui.scr == SCR_SCOPE, "HOME at the root (no page HOME left): the scope [P]");
     tap(B_HOME);
     check(ui.scr == SCR_HOME, "HOME on the scope: the mixer again");
     ui.row[SCR_HOME] = MXR_MASTER;
@@ -858,7 +865,7 @@ static void key_tests(void)
     ui.force = 1;
     frame();
     ppm("opt-fx");
-    {   /* FX tapped, then ALGORITHM left past T1: the global FX screen, and back */
+    {   /* FX tapped, then ALGORITHM past the last lane: the global FX screen, and back (MASTER the walk's last, 2026-10-30) */
         char h[40];
         uint32_t n, r;
         reset_ui();
@@ -870,8 +877,15 @@ static void key_tests(void)
         check(song.sel == 1 && ui.scr == SCR_SOUND && snd_fam == FAM_FX, "ALGORITHM right: T2's FX pages");
         turn(EN_ALGO, -1);
         check(song.sel == 0 && ui.scr == SCR_SOUND, "... and back to T1");
-        turn(EN_ALGO, -1);
-        check(ui.scr == SCR_FX, "ALGORITHM left past T1: the global FX screen");
+        turn(EN_ALGO, (int32_t)MXR_LN - 1);
+        check(ui.scr == SCR_SOUND && snd_fam == FAM_FX && lane_picked(), "ALGORITHM to the last lane: its FX pages");
+        turn(EN_ALGO, 1);
+        check(ui.scr == SCR_FX && ui.fxo == 1u && rt_fam == RF_FX && walk_pos(0) == MXR_RET0,
+              "... on: RET A's FX pages (a return a track, 2026-10-30: its PRE POST inserts and its sends)");
+        turn(EN_ALGO, 2);
+        check(ui.scr == SCR_FX && ui.fxo == 3u && rt_fam == RF_FX, "... RET C's FX pages");
+        turn(EN_ALGO, 1);
+        check(ui.scr == SCR_FX && !ui.fxo, "ALGORITHM past RET C: the global FX screen (MASTER)");
         head_title(SCR_FX, ui.row[SCR_FX], h, sizeof h);
         check(!strcmp(h, "Insert"), "its header names it (Insert under the MASTER badge, the first page: the inserts)");
         n = SCR->rows();
@@ -880,10 +894,15 @@ static void key_tests(void)
         check(ui.scr == SCR_FX && ui.row[SCR_FX] == n - 1u, "FX tapped again on it: the next page, up to the last");
         tap(B_FX);
         check(ui.scr == SCR_FX && ui.row[SCR_FX] == 0u, "... past the last: the first again (a button again wraps)");
-        turn(EN_ALGO, -1);
-        check(ui.scr == SCR_FX, "ALGORITHM left on it: stays (nothing wraps)");
         turn(EN_ALGO, 1);
-        check(ui.scr == SCR_SOUND && snd_fam == FAM_FX && song.sel == 0, "ALGORITHM right: T1's FX pages again");
+        check(ui.scr == SCR_FX, "ALGORITHM on from it: stays (nothing wraps)");
+        turn(EN_ALGO, -1);
+        check(ui.scr == SCR_FX && ui.fxo == 3u, "ALGORITHM back: RET C's pages");
+        turn(EN_ALGO, -3);
+        check(ui.scr == SCR_SOUND && song.sel == TRK_DRUM && lane_picked() && snd_fam == FAM_FX, "... back past RET A: SOUND again, the last lane's FX pages");
+        ui.lane = 0;                                    /* (the walk back left the last lane picked: DR itself again for the tests after) */
+        lane_select(0);
+        track_select(0);
     }
     reset_ui();
     song.sel = TRK_DRUM;
@@ -3303,6 +3322,18 @@ static void tracks_default(void)
         apply_preset_to(&trk[i], trk_def_preset(i));
         trk[i].engine = trk[i].eng_req;
     }
+    {   /* the returns as the defaults (the walk reaches their pages since 2026-10-30: random use turns their TYPE, PRE, POST) */
+        uint32_t k, s;
+        for (k = 1; k < FX_NSLOT; k++)
+            fxs_load(k, FXT_NONE);
+        for (k = 1; k < FX_NSLOT; k++)
+            fxs_load(k, FXS_DEF[k]);
+        for (k = 0; k < 3u; k++)
+            for (s = 0; s < RP_N; s++)
+                rp_load(k, s, FXT_NONE);
+        fx_rmute = fx_imute = 0;
+        fxs_lm_apply();
+    }
     memset(&dl, 0, sizeof dl);
     lane_select(0);
     ui.lane = 0;
@@ -3974,6 +4005,7 @@ static void led_tests(void)
 #include "ui_optimist_noswap.h"                     /* 2026-10-18: a TYPE turn skips the other slot's type (master, lanes) */
 #include "ui_optimist_fxi.h"                         /* 2026-10-13: the limited insert types: free count, FULL, WAIT, hidden */
 #include "ui_optimist_pagekeep.h"                    /* 2026-10-29: the page kept when pages come or go (op_keep.c) */
+#include "ui_optimist_rettrk.h"                      /* 2026-10-30: the returns as tracks: their pages, HOME, the keys, both OCT */
 #include "ui_optimist_gater.h"                      /* GATER (INS_GATER): its FX row, the cards, the picture and its playhead, the help lines */
 #include "ui_optimist_lfo2.h"                      /* LFO 2: the LFO 2 and LFO2 DEST rows, RATE, SHIFT + a knob, the AMT bar */
 #include "ui_optimist_plocks.h"
@@ -4214,6 +4246,7 @@ int main(int argc, char **argv)
     smute_tests();
     pagemem_tests();
     pagekeep_tests();
+    rettrk_tests();
 #if FELUCCA_ED_MIRROR
     nav_tests();
 #endif
