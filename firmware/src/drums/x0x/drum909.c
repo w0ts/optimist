@@ -542,7 +542,9 @@ static void d9_warm(d9_biquad_t *f, const float *end)
 }
 
 /* Kick (er99_bt_render with the stock sweep, one shell) */
-static void d9_render_bd(d9_bt_t *v, const float *nz, const d9_bus_t *bus, int n)
+/* (__restrict on each render's voice: the bus' buffers and the shared noise are never a voice's state, so its fields
+ * stay in registers across the stores to the bus) */
+static void d9_render_bd(d9_bt_t *__restrict v, const float *nz, const d9_bus_t *bus, int n)
 {
     const int m = n < v->mute ? n : v->mute;
     v->mute -= m;
@@ -589,7 +591,7 @@ static void d9_render_bd(d9_bt_t *v, const float *nz, const d9_bus_t *bus, int n
 
 /* Snare (er99_bt_render, two shells + ENV4 noise). Its click path is pinned
  * off (attack 0 at every trigger), so it is not computed: 0 either way. */
-static void d9_render_sd(d9_bt_t *v, const float *nz, const d9_bus_t *bus, int n)
+static void d9_render_sd(d9_bt_t *__restrict v, const float *nz, const d9_bus_t *bus, int n)
 {
     const int m = n < v->mute ? n : v->mute;
     v->mute -= m;
@@ -630,7 +632,7 @@ static void d9_render_sd(d9_bt_t *v, const float *nz, const d9_bus_t *bus, int n
 /* Toms (er99_tom909_render): three VCOs on their own envelopes + stick noise.
  * The two upper partials and the stick are attack features (110 / 70 / 8 ms);
  * once their envelopes have run out (-100 dB) they are skipped. */
-static void d9_render_tom(d9_tom_t *t, const d9_bt_t *p, const float *nz, const d9_bus_t *bus, int n)
+static void d9_render_tom(d9_tom_t *__restrict t, const d9_bt_t *p, const float *nz, const d9_bus_t *bus, int n)
 {
     const int m = n < t->mute ? n : t->mute;
     t->mute -= m;
@@ -674,7 +676,7 @@ static void d9_render_tom(d9_tom_t *t, const d9_bt_t *p, const float *nz, const 
 }
 
 /* Rim shot (er99_rim909_render) */
-static void d9_render_rim(d9_rim_t *v, const float *nz, const d9_bus_t *bus, int n)
+static void d9_render_rim(d9_rim_t *__restrict v, const float *nz, const d9_bus_t *bus, int n)
 {
     const int m = n < v->mute ? n : v->mute;
     v->mute -= m;
@@ -695,7 +697,7 @@ static void d9_render_rim(d9_rim_t *v, const float *nz, const d9_bus_t *bus, int
 }
 
 /* Hand clap (er99_clap909_render) */
-static void d9_render_clap(d9_clap_t *v, const float *nz, const d9_bus_t *bus, int n)
+static void d9_render_clap(d9_clap_t *__restrict v, const float *nz, const d9_bus_t *bus, int n)
 {
     static const float amp[4] = { 1.22f, 1.35f, 1.68f, 1.0f };
     const int m = n < v->mute ? n : v->mute;
@@ -741,7 +743,7 @@ static inline int32_t d9_smp_at(const d9_smp_t *s, const int8_t *buf, const uint
 }
 
 /* Hats, ride, crash (render_sampler) */
-static void d9_render_smp(d9_smp_t *s, const d9_bus_t *bus, int n)
+static void d9_render_smp(d9_smp_t *__restrict s, const d9_bus_t *bus, int n)
 {
     if (!s->playing)
         return;
