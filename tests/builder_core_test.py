@@ -341,7 +341,8 @@ _e = RM.after_toggle(_c, dict(_c, SD_MODE=0), "SD_MODE", RM.NONE)[0]
 check("fronts: SD CARD MODE on: LAYOUT 1 + SDCARD; off again: the card and its streams off, L1 kept",
       (_c["LAYOUT"], _c["SDCARD"]) == (1, 1) and (_e["LAYOUT"], _e["SDCARD"], _e["SD_RING"], _e["SD_REC"]) == (1, 0, 0, 0))
 _g = RM.after_toggle(_c, dict(_c, SMP_SLOTS=2), "SMP_SLOTS", RM.NONE)[0]
-check("fronts: SAMPLE SLOTS 2 from SD card mode: normal, the card off", (_g["LAYOUT"], _g["SDCARD"], _f(_g)) == (0, 0, (0, 2, 16)))
+check("fronts: SAMPLE SLOTS 2 from SD card mode keeps its 2 projects: LAYOUT 7, the card off",
+      (_g["LAYOUT"], _g["SDCARD"], _f(_g)) == (7, 0, (0, 2, 2)))
 _h = RM.after_toggle(_pt, dict(_pt, SMP_SLOTS=3), "SMP_SLOTS", RM.NONE)[0]
 check("fronts: SAMPLE SLOTS 3 is normal with PATTERNS off; 2 again turns PATTERNS on",
       (_h["LAYOUT"], _h["PATTERNS"]) == (0, 0)
