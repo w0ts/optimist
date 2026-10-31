@@ -284,7 +284,6 @@ static inline HOT void master_out(int32_t *l, int32_t *r)
  * none dropped, and the 7 bits under each Q15 out sample kept for audio.c audio_block (the DAC's 24; USB, Bluetooth and
  * the card take the Q15 as before). The master's DC blocker, low cut and limiter after it leave the 7 bits off by under
  * a Q15 step: never further than the step dropped before (mix_finish, master_comp.c mlim_block) */
-#if FELUCCA_MIX_EXACT
 static uint8_t mst_frac[2u * CTL];
 AINL int32_t master_vol(int32_t x, int32_t m, uint8_t *f)
 {
@@ -293,9 +292,6 @@ AINL int32_t master_vol(int32_t x, int32_t m, uint8_t *f)
     return (int32_t)(p >> 12);
 }
 #define MASTER_VOL(x, m, k) master_vol((x), (m), &mst_frac[k])
-#else
-#define MASTER_VOL(x, m, k) ((((x) >> 2) * (m)) >> 10)
-#endif
 /* the output stage of a block without LIMIT (mix_finish): the master volume ramped over the block, master_pre (the DC
  * blocker, the low cut), the limiter and the knee. own: the FM-1's own output (s = &mo); 0: USB's MASTER (ua_mst_out: at
  * 4096, the DC blocker alone, on its own state; under MIX_EXACT its bits under it, 0 at 4096, rewritten by the output's
@@ -2211,16 +2207,9 @@ static HOT2 __attribute__((noinline)) void dust_run(dust_t *s, int32_t d, int32_
 }
 
 /* a part's sample x (|x| < 2^21) times its pan gain g (Q12, 4096 at most) into the mix (mix_part, insfx.c ifx_side_mix):
- * MIX_FINE drops 3 bits before the product (at most 2^18 x 2^12), not 4: the dry's steps half as coarse, the floor 5.3 dB
- * lower on every part (host, 2026-10-26). MIX_EXACT (issue 107, 2026-10-28): a 64-bit product, no bit dropped, rounded to
+ * a 64-bit product, no bit dropped (issue 107, 2026-10-28; MIX_FINE and MIX_EXACT, always since 2026-10-31), rounded to
  * the nearest (issue 132): a fading note's tail no longer ends on a floor's -1 square wave */
-#if FELUCCA_MIX_EXACT
 #define MIX_PAN(x, g) ((int32_t)(((int64_t)(x) * (g) + 2048) >> 12))
-#elif FELUCCA_MIX_FINE
-#define MIX_PAN(x, g) ((((x) >> 3) * (g)) >> 9)
-#else
-#define MIX_PAN(x, g) ((((x) >> 4) * (g)) >> 8)
-#endif
 /* a part's sample b (the voices' sum) times its LEVEL lv (Q12) and its mute x duck gain g (Q15, applied under 32767):
  * the value that goes to its pan, sends and USB stem (mix_part, insfx.c ifx_side_mix). One 64-bit product of all three,
  * rounded to the nearest (|b| < 2^20, lv g < 2^29; issue 132, after SLOOP 2.8.4's "clean fades"). LEVEL dropped 2 bits
