@@ -40,6 +40,11 @@ ED_INFO = bytes([0xF0, 0x7D, 0x46, 0x4C, 0x01, 0xF7])   # the editor's INFO (web
 ASKS_BOOT = re.compile(r"FM-1_(7(00|[2-6]\d)|000|79\d{2,})")   # (Optimist's identities, its release's: only these are asked)
 FINISH_CHECK, FINISH_WRITE = 0xE0000000, 0xF0000000
 MAXDATA = 512
+# the fast install (docs/INSTALL-SPEED.md): before step 2's upgrade command the host says it can serve 4 KiB reads and the
+# per-sector table (cmd 0x31 [1, 4096 LE]); a loader that can answers the same frame, then reads only the sectors that
+# differ, 4 KiB at a time, after the table at TABLE + flash.bin's offset. A loader that says nothing gets today's protocol
+FAST_CMD, FAST_VERSION, FAST_CHUNK, SECTOR = 0x31, 1, 4096, 4096
+TABLE = 0xD0000000
 BLOCKS, BLK, KEEP = 20, 0x30, 0x2F
 LOADER_MARK = b"FELUCCA-LOADER-1"
 # M-VAVE's V15 (web/stock/FM-1_015.fwsc), known by its whole hash: its USR entry fails the per-file CRC as
@@ -51,7 +56,8 @@ PORT_RE = re.compile(r"fm-?1|felucca|optimist|smk-37|ota|composite|sinco|usb-mid
                                                                                       # Optimist's name since 2026-10-29; "optimist": older firmware)
 
 # seconds; the tests shorten them
-DELAY = {"info": 1.0, "open": 0.3, "start": 2.0, "reply": 0.01, "loader": 3.0, "reboot": 3.0, "retry": 1.0,
+DELAY = {"info": 1.0, "open": 0.3, "start": 2.0, "start_fast": 0.05, "fast": 0.5, "reply": 0.01, "loader": 3.0,
+         "reboot": 3.0, "retry": 1.0,
          "poll": 1.0, "hs": 1.0, "idle_check": 8.0, "idle_write": 180.0,
          "wait_loader": 30.0, "wait_reboot": 40.0}
 
@@ -99,6 +105,51 @@ def response(addr, data, fl=0):
     body += addr.to_bytes(4, "little") + bytes([n & 0xFF, (n >> 8) & 0xFF, 0]) + bytes(data)
     body.append(~sum(body[6:]) & 0xFF)
     return b"\xF0" + pack7(body) + b"\xF7"
+
+
+def frame(cmd, body):
+    """a host -> device command as ota.c ota_take reads it: 00 59 cmd len24 body ~sum(body), 7-bit packed"""
+    u = bytes([0x00, 0x59, cmd, len(body) & 0xFF, (len(body) >> 8) & 0xFF, 0]) + bytes(body) + bytes([~sum(body) & 0xFF])
+    return b"\xF0" + pack7(u) + b"\xF7"
+
+
+FAST_HELLO = frame(FAST_CMD, [FAST_VERSION, FAST_CHUNK & 0xFF, FAST_CHUNK >> 8])
+
+
+def parse_fast(pkt):
+    """the loader's answer to FAST_HELLO -> its read size, or None"""
+    if len(pkt) < 2 or pkt[0] != 0xF0 or pkt[-1] != 0xF7:
+        return None
+    u = unpack7(pkt[1:-1])
+    if len(u) != 10 or u[:6] != bytes([0, 0x59, FAST_CMD, 3, 0, 0]) or ~sum(u[6:9]) & 0xFF != u[9] or u[6] != FAST_VERSION:
+        return None
+    return u[7] | u[8] << 8
+
+
+def crc32(data):
+    import zlib
+    return zlib.crc32(data) & 0xFFFFFFFF
+
+
+def sector_table(image, off, n):
+    """the fast install's table: per 4 KiB sector of image[off:], CRC16 (XMODEM, the UFW's) and CRC-32 (zlib), LE"""
+    out = bytearray()
+    for k in range(n):
+        s = image[off + k * SECTOR:off + (k + 1) * SECTOR]
+        out += _crc16(s).to_bytes(2, "little") + crc32(s).to_bytes(4, "little")
+    return bytes(out)
+
+
+def answer(image, addr, n, maxdata):
+    """the bytes a read request asks for (a table request included), or None when it is outside the package"""
+    if TABLE <= addr < FINISH_CHECK:
+        off = addr - TABLE
+        if maxdata < FAST_CHUNK or n % 6 or n > maxdata or off + n // 6 * SECTOR > len(image):
+            return None
+        return sector_table(image, off, n // 6)
+    if n > maxdata or addr + n > len(image):
+        return None
+    return image[addr:addr + n]
 
 
 def parse_request(pkt):
@@ -310,8 +361,10 @@ class Updater:
             time.sleep(DELAY["retry"])
         return None
 
-    def serve(self, link, image, finish, idle, progress):
-        """answer read requests until the device asks for `finish`; -> (served, finished, lost)"""
+    def serve(self, link, image, finish, idle, progress, maxdata=MAXDATA, pace=None):
+        """answer read requests until the device asks for `finish`; -> (served, finished, lost). maxdata/pace: today's
+        protocol 512 B and DELAY["reply"] before each answer; the fast install 4 KiB, its table, no pause"""
+        pace = DELAY["reply"] if pace is None else pace
         served, last = 0, time.monotonic()
         while True:
             pkt = link.read(DELAY["poll"])
@@ -331,13 +384,16 @@ class Updater:
                 if addr == finish:
                     return served, True, False
                 continue
-            if n > MAXDATA or addr + n > len(image):
+            data = answer(image, addr, n, maxdata)
+            if data is None:
                 raise InstallError("badreq", f"the device asked for {addr:#x}+{n}, outside the package")
-            time.sleep(DELAY["reply"])
-            if not link.send(response(addr, image[addr:addr + n], fl)):
+            if pace:
+                time.sleep(pace)
+            if not link.send(response(addr, data, fl)):
                 return served, False, True
             served += 1
-            progress(served, addr + n)
+            if addr < TABLE:
+                progress(served, addr + n)
 
     def check(self, dev, image, step):
         """step 1: the running firmware checks the package and starts the loader"""
@@ -359,13 +415,32 @@ class Updater:
                                            "run the install again: the FM-1 stays in update mode until it is done")
         return ota
 
+    def fast_hello(self, link):
+        """the fast install's word to the loader -> True when it answers (docs/INSTALL-SPEED.md); an older loader
+        ignores the frame and gets today's protocol"""
+        link.drain()
+        if not link.send(FAST_HELLO):
+            return False
+        end = time.monotonic() + DELAY["fast"]
+        while (left := end - time.monotonic()) > 0:
+            p = link.read(left)
+            if p is None:
+                return False
+            if parse_fast(p) == FAST_CHUNK:
+                return True
+        return False
+
     def write(self, ota, image, step):
-        """step 2: the loader reads and writes the whole package, then restarts"""
+        """step 2: the loader reads and writes the whole package (only what differs, when it can: fast_hello), then
+        restarts"""
         step("write", 0)
+        fast = self.fast_hello(ota.link)
+        step("fast" if fast else "classic")
         ota.link.send(UPGRADE)
-        time.sleep(DELAY["start"])
+        time.sleep(DELAY["start_fast"] if fast else DELAY["start"])
         served, finished, lost = self.serve(ota.link, image, FINISH_WRITE, DELAY["idle_write"],
-                                            lambda k, end: step("write", min(99, end * 100 // len(image))))
+                                            lambda k, end: step("write", min(99, end * 100 // len(image))),
+                                            FAST_CHUNK if fast else MAXDATA, 0 if fast else None)
         ota.link.close()
         if not finished:
             raise InstallError("lost" if lost else "stopped",
@@ -509,6 +584,10 @@ class Progress:
     def __call__(self, k, a=None):
         if k == "check":
             self.put(f"checking the package ({a} reads)")
+        elif k in ("fast", "classic"):
+            self.end()
+            print("the loader sends only the sectors that differ (fast install)" if k == "fast" else
+                  "an older loader: the whole package, twice (today's protocol)", file=self.out, flush=True)
         elif k == "write":
             self.put(f"writing {a:3d}%")
         else:
