@@ -142,7 +142,7 @@
      sound left out (no live editing) */
   html:not([data-conn=lite]) #libr, html[data-conn=lite]:not([data-lib]) #libr,
   html[data-conn=lite] #libaud, html[data-conn=lite] #libsave, html[data-conn=lite] #czbox,
-  html[data-conn=lite] #slots, html[data-conn=lite] #p-projects > .pghelp, html[data-conn=lite] .tbar > :not(#mock) { display: none !important; }
+  html[data-conn=lite] #slots, html[data-conn=lite] #slotshead, html[data-conn=lite] #p-projects > .pghelp, html[data-conn=lite] .tbar > :not(#mock) { display: none !important; }
   /* Bluetooth (data-conn=bt, loadBt): the Mirror page alone, Install, Build, the Simulator */
   html[data-conn=bt] .tbar > :not(#mock) { display: none !important; }
   /* tabs only for what the connection offers (the user, 2026-10-25, back to it after trying every tab always shown: "i see
@@ -1666,8 +1666,9 @@
 
   <section class="panel" id="p-projects" data-tab="projects" hidden data-dev>
     <details class="pghelp"><summary title="About this page" aria-label="About this page">i</summary><p class="dim" data-t="projHelp"></p></details>
-    <div id="slots" class="slots"></div>
     <div id="projfiles"></div>
+    <h3 id="slotshead" data-t="slotsTitle"></h3>
+    <div id="slots" class="slots"></div>
     <div id="libr"></div>
   </section>
 
@@ -7217,7 +7218,19 @@ const TEXT = {                                      /* the page's words, by key 
   saveFile: "Save to file",
   loadFile: "Load file",
   projects: "Projects",
-  load: "Load", save: "Save", used: "used", empty: "empty", unknown: "—", sl24: "SLOOP (kept)", notOurs: "not ours (kept)",
+  load: "Load", save: "Save", secLoad: "Section {n} → Active project", secSave: "Active project → Section {n}", secLoadAsk: "Section {n} → Active project: this overwrites the sound and pattern now in use. Continue?", secSaveAsk: "Active project → Section {n}: replace the contents of section {n}?", slotsTitle: "Sections of the Active project", section: "Section {n}",
+  loadOff: "Section {n} holds nothing to load.",
+  activeIs: "Active project: {name} (slot {n})", activeNone: "Active project: not saved yet", activeNote: "What plays on the FM-1 now. Saving writes it into a slot; opening a slot makes that slot the Active project.",
+  activeSave: "Save active project → slot {n}", activeSavePick: "Save active project → slot", activeMark: "Active",
+  pjfOpenBtn: "Slot {n} → Active project", pjfSaveBtn: "Active project → slot {n}", pjfExportBtn: "Slot {n} → File…", pjfExportActive: "Active project → File…",
+  pjfLoadBtn: "File → Slot {n}…", pjfRename: "Rename slot {n}…", pjfClear: "Clear slot {n}…",
+  pjfOffEmpty: "Slot {n} is empty.", pjfOffActive: "Slot {n} is already the Active project.", pjfOffExport: "Slot {n} is empty: nothing to export.", pjfOffOnlyActive: "Only the Active project's own slot ({a}) exports it.",
+  pjfOffClearActive: "Slot {n} is the Active project: save it elsewhere first.", pjfOffClearEmpty: "Slot {n} is already empty.",
+  pjfAskOpen: "Slot {n} → Active project: open it on the FM-1. The Active project's unsaved changes are replaced. Continue?",
+  pjfAskSave: "Save the Active project into slot {n}?", pjfAskSaveOver: "Active project → slot {n}: slot {n} holds {name}. Replace it with the Active project?",
+  pjfAskExportActive: "Save the Active project into slot {n}, then export slot {n} to a file?", pjfAskClear: "Clear slot {n} ({name})? Everything stored in it is erased.",
+  pjfRenameAsk: "Name of slot {n} (up to 12 of A-Z 0-9 space - . _ / # +)", pjfSaved: "Active project → slot ", pjfOpened: "Slot → Active project: opened slot ", pjfClearedMsg: "Cleared slot ", pjfRenamedMsg: "Renamed slot ",
+  used: "used", empty: "empty", unknown: "—", sl24: "SLOOP (kept)", notOurs: "not ours (kept)",
   keptSlot: "Not loaded: another firmware's project is kept there (SLOOP), slot ",
   steps: "Steps",
   reload: "Reload",
@@ -7471,9 +7484,9 @@ const TEXT = {                                      /* the page's words, by key 
   rec: "REC",
   selectTrack: "Select",
   selectedTrack: "Selected",
-  pjfTitle: "Projects", pjfHelp: "One project as a file (.fm1proj): export it to keep it or to swap it, load a file into any project. Stopped only.", pjfSd: "SD card mode: the FM-1 keeps {n} project in its flash.", pjfExport: "Export", pjfLoad: "Load from file",
-  pjfSaveFirst: "Project {n} is the open one. Save the work into it before exporting?\n\nOK: save and export. Cancel: export what is stored.", pjfReplace: "Project {n} holds a project: replace it with the file's? Stopped only.", pjfExported: "Exported project ", pjfLoaded: "Loaded into project ", pjfBad: "Not a project file this FM-1 can take: ",
-  pjfEmpty: "empty", pjfOpen: "open", pjfNoSlot: "This memory layout has no project {n}.",
+  pjfTitle: "Project slots", pjfHelp: "Each action says where the data goes: the Active project is what plays on the FM-1 now; a slot is a stored project; a file is a .fm1proj. Files are written and read only while stopped.", pjfSd: "SD card mode: the FM-1 keeps {n} project in its flash.", 
+  pjfReplace: "File → slot {n}: slot {n} holds a project. Replace it with the file's project?{again} Stopped only.", pjfExported: "Exported slot ", pjfLoaded: "File → slot: loaded into slot ", pjfBad: "Not a project file this FM-1 can take: ",
+  pjfEmpty: "empty", pjfAgain: "It is the Active project: it is opened again.", pjfNoSlot: "This memory layout has no slot {n}.",
   projHelp: "A project stores the full device state: sound and pattern of the four tracks, the selected track and the global settings.",
   snTitle: "Snapshots", snHelp: "A snapshot keeps everything in the current work: the working project, every section and the song. In a slot of the FM-1 (and in files here, as many as you like). Loading one replaces the work; the state before is kept in BEFORE LOAD. User samples, presets and kits stay as they are (MISSING says when one is gone).",
   snNone: "This firmware has no snapshots.", snSave: "Save", snLoad: "Load", snClear: "Clear", snRename: "Rename",
@@ -8658,10 +8671,9 @@ const pjfCall = async (o, p, name = "") => {
   const r = parse[CMD.PJ_OP](await rq(req.pjOp(o, p, name), { timeout: 10000, retries: 0 }));
   if (r.rc) throw new Error(`PJ_OP ${o}: ${BK.RC[r.rc] || r.rc}`);
 };
-function pjfExport(p) {
+function pjfExport(p, saveFirst = false) {
   pjfOp(async () => {
-    const open = pjf.info && pjf.info.open === p;
-    if (open && confirm(t("pjfSaveFirst").replace("{n}", p + 1))) await pjfCall(1, p);
+    if (saveFirst) await pjfCall(1, p);
     dev.bk = await bkList(dev);
     const o = dev.bk.objs.find((x) => x.tag === pjfTag(p));
     if (!o || !o.hasData) { setStatusKey("emptySlot", String(p + 1)); return; }
@@ -8678,7 +8690,8 @@ async function pjfImport(p, f) {
   } catch (e) { setStatusKey("pjfBad", e.message); return; }
   const o = dev.bk.objs.find((q) => q.tag === pjfTag(p));
   if (p >= pjCount() || !o || !o.inBuild) { setStatusKey("pjfBad", t("pjfNoSlot").replace("{n}", p + 1)); return; }
-  if (pjf.info && ((pjf.info.used >> p) & 1) && !confirm(t("pjfReplace").replace("{n}", p + 1))) return;
+  const again = pjf.info && pjf.info.open === p ? " " + t("pjfAgain") : "";
+  if (pjf.info && ((pjf.info.used >> p) & 1) && !confirm(t("pjfReplace").replace(/\{n\}/g, p + 1).replace("{again}", again))) return;
   pjfOp(async () => {
     const open = pjf.info && pjf.info.open === p;
     await pjfCall(3, p);                              /* (a stream written over a project leaves the records it lacks: cleared first) */
@@ -8688,6 +8701,29 @@ async function pjfImport(p, f) {
     setStatusKey("pjfLoaded", String(p + 1));
   });
 }
+const tn = (key, p, extra = {}) => Object.entries(extra).reduce((x, [k, v]) => x.replace(`{${k}}`, v), t(key).replace(/\{n\}/g, p + 1));
+const pjfName = (p) => (pjf.info && pjf.info.names[p]) || t("pjfEmpty");
+function pjfSaveActive(p) {
+  const I = pjf.info, held = ((I.used >> p) & 1) && I.open !== p;
+  if (!confirm(held ? tn("pjfAskSaveOver", p, { name: pjfName(p) }) : tn("pjfAskSave", p))) return;
+  pjfOp(async () => { await pjfCall(1, p); setStatusKey("pjfSaved", String(p + 1)); });
+}
+function pjfRename(p) {
+  const typed = prompt(tn("pjfRenameAsk", p), pjf.info.names[p] || "");
+  if (typed == null) return;
+  const nm = typed.toUpperCase().replace(/[^A-Z0-9 \-._\/#+]/g, "").slice(0, PJF.NAME);
+  pjfOp(async () => { await pjfCall(4, p, nm); setStatusKey("pjfRenamedMsg", String(p + 1)); });
+}
+/* a button with the reason it is off as its tooltip */
+const pjfBtn = (ic, key, p, off, fn, extra = {}) => el("button", { ic, disabled: pjf.busy || !!off, title: off || tn(key, p, extra), onclick: fn }, tn(key, p, extra));
+function pjfHeader(I, n) {
+  const saved = (I.used >> I.open) & 1;
+  const head = el("p", { class: "pjact" }, el("b", { text: saved ? t("activeIs").replace("{name}", I.names[I.open] || "").replace("{n}", I.open + 1) : t("activeNone") }));
+  if (saved) return [head, el("p", { class: "dim", text: t("activeNote") }), pjfBtn("port_disk", "activeSave", I.open, null, () => pjfSaveActive(I.open))];
+  const pick = el("select", { disabled: pjf.busy, "aria-label": t("activeSavePick") }, ...Array.from({ length: n }, (_, p) => el("option", { value: String(p), text: `${p + 1}${(I.used >> p) & 1 ? " " + (I.names[p] || "") : " " + t("pjfEmpty")}`, selected: p === I.open })));
+  return [head, el("p", { class: "dim", text: t("activeNote") }), el("span", {}, t("activeSavePick") + " ", pick, " ",
+    el("button", { ic: "port_disk", disabled: pjf.busy, onclick: () => pjfSaveActive(Number(pick.value)) }, "→")) ];
+}
 function renderProjFiles() {
   const box = $("projfiles");
   if (!box) return;
@@ -8696,13 +8732,26 @@ function renderProjFiles() {
   if (!pjf.info) { pjfRefresh(); return; }
   const n = pjCount(), I = pjf.info;
   const rows = Array.from({ length: n }, (_, p) => {
-    const used = (I.used >> p) & 1, imp = lbrFile(PJF.EXT + ",application/octet-stream", (f) => pjfImport(p, f));
-    return el("tr", {}, el("td", { text: String(p + 1) }),
-      el("td", { class: "dim", text: used ? (I.names[p] || "") + (I.open === p ? ` (${t("pjfOpen")})` : "") : t("pjfEmpty") }),
-      el("td", {}, el("button", { ic: "symbol_download", disabled: pjf.busy || !used, onclick: () => pjfExport(p) }, t("pjfExport")),
-        el("button", { ic: "symbol_upload", disabled: pjf.busy, onclick: () => imp.click() }, t("pjfLoad")), imp));
+    const used = (I.used >> p) & 1, active = I.open === p, imp = lbrFile(PJF.EXT + ",application/octet-stream", (f) => pjfImport(p, f));
+    const tr = el("tr", active ? { class: "pjactive" } : {}, el("td", { text: String(p + 1) }),
+      el("td", { class: "dim" }, used ? I.names[p] || "" : t("pjfEmpty"), active ? el("b", { text: ` ${t("activeMark")}` }) : ""),
+      el("td", {},
+        pjfBtn("symbol_folder_open", "pjfOpenBtn", p, active ? tn("pjfOffActive", p) : used ? null : tn("pjfOffEmpty", p), () => {
+          if (confirm(tn("pjfAskOpen", p))) pjfOp(async () => { await pjfCall(2, p); setStatusKey("pjfOpened", String(p + 1)); });
+        }),
+        pjfBtn("port_disk", "pjfSaveBtn", p, null, () => pjfSaveActive(p)),
+        pjfBtn("symbol_download", "pjfExportBtn", p, used ? null : tn("pjfOffExport", p), () => pjfExport(p)),
+        pjfBtn("symbol_download", "pjfExportActive", p, active ? null : tn("pjfOffOnlyActive", p, { a: I.open + 1 }), () => {
+          if (confirm(tn("pjfAskExportActive", p))) pjfExport(p, true);
+        }),
+        pjfBtn("symbol_upload", "pjfLoadBtn", p, null, () => imp.click()), imp,
+        pjfBtn(null, "pjfRename", p, null, () => pjfRename(p)),
+        pjfBtn("symbol_trash", "pjfClear", p, used ? (active ? tn("pjfOffClearActive", p) : null) : tn("pjfOffClearEmpty", p), () => {
+          if (confirm(tn("pjfAskClear", p, { name: pjfName(p) }))) pjfOp(async () => { await pjfCall(3, p); setStatusKey("pjfClearedMsg", String(p + 1)); });
+        })));
+    return tr;
   });
-  box.replaceChildren(el("h3", { text: t("pjfTitle") }), el("p", { class: "dim", text: t("pjfHelp") }),
+  box.replaceChildren(...pjfHeader(I, n), el("h3", { text: t("pjfTitle") }), el("p", { class: "dim", text: t("pjfHelp") }),
     ...(dev.bk.caps && dev.bk.caps.projects === 1 ? [el("p", { class: "dim", text: t("pjfSd").replace("{n}", 1) })] : []),
     el("table", { class: "ukits" }, ...rows));
 }
@@ -8710,9 +8759,10 @@ function drawSlots() {
   const cells = [0, 1, 2, 3].flatMap((slot) => {
     const used = dev.slotUsed[slot];
     const state = used == null ? t("unknown") : t(SLOT_STATE[used] || "used");
-    return [el("span", { text: String(slot + 1) }), el("span", { class: "dim", text: state }),
-      el("button", { ic: "symbol_folder_open", onclick: () => runProject(0, slot) }, t("load")),
-      el("button", { ic: "port_disk", onclick: () => runProject(1, slot) }, t("save"))];
+    const off = used === 1 ? "" : t("loadOff").replace("{n}", slot + 1);
+    return [el("span", { text: t("section").replace("{n}", slot + 1) }), el("span", { class: "dim", text: state }),
+      el("button", { ic: "symbol_folder_open", disabled: !!off, title: off || t("secLoad").replace("{n}", slot + 1), onclick: () => runProject(0, slot) }, t("secLoad").replace("{n}", slot + 1)),
+      el("button", { ic: "port_disk", title: t("secSave").replace("{n}", slot + 1), onclick: () => runProject(1, slot) }, t("secSave").replace("{n}", slot + 1))];
   });
   $("slots").replaceChildren(...cells);
   renderProjFiles();
@@ -8720,7 +8770,7 @@ function drawSlots() {
 /* PROJECT op 0 loads slot `slot`, op 1 saves into it (after the user confirms) */
 async function runProject(op, slot) {
   if (dev == null) return;
-  const ask = t(op === 0 ? "confirmLoad" : "confirmSave").replace("{n}", slot + 1);
+  const ask = t(op === 0 ? "secLoadAsk" : "secSaveAsk").replace(/\{n\}/g, slot + 1);
   if (!confirm(ask)) return;
   busy += 1;
   try {
