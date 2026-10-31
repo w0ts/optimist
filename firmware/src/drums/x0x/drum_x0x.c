@@ -183,6 +183,25 @@ static int32_t x0x_style(uint32_t k, uint32_t in, uint32_t d)
             return X0X_STYLE[i][3];
     return 0;
 }
+/* every value's x0x_style at once, one pass over X0X_STYLE (x0x_style per value rescanned it DE_N times a hit: a hit
+ * 4,082 emulator instructions, now 933); a (kit, in, d)'s first entry wins, as in x0x_style */
+_Static_assert(DE_N <= 32, "x0x_style_all's seen mask");
+static void x0x_style_all(uint32_t k, uint32_t in, int32_t *o)
+{
+    uint32_t i, seen = 0;
+    for (i = 0; i < DE_N; i++)
+        o[i] = 0;
+    if (k < DRUM_UID_XSTYLE || k >= DRUM_UID_XSTYLE + DRUM_NXSTYLE)
+        return;
+    for (i = 0; i < sizeof X0X_STYLE / sizeof X0X_STYLE[0]; i++) {
+        uint32_t d = (uint32_t)X0X_STYLE[i][2];
+        if ((uint32_t)X0X_STYLE[i][0] == k - DRUM_UID_XSTYLE && (uint32_t)X0X_STYLE[i][1] == in && d < DE_N &&
+            !((seen >> d) & 1u)) {
+            o[d] = X0X_STYLE[i][3];
+            seen |= 1u << d;
+        }
+    }
+}
 static int32_t x0x_var_decay(uint32_t k, uint32_t l)    /* the DECAY its variant and style add (the graph) */
 {
     uint32_t c = x0x_code(k, l, l < DRUM_LANES ? LANE_NOTE_OF(l) : 0u);
@@ -214,12 +233,14 @@ static int x0x_on(uint32_t k, uint32_t note, uint32_t vel, uint32_t l)
     uint32_t c = x0x_code(k, l, note), ch, i, st = k;
     const int8_t *u = dl_ofs_play(l), *v;
     int8_t o[DE_N];
+    int32_t sty[DE_N];
     if (c == XN_NONE)
         return 0;
     k = DRUM_UID_XMACH(k);                          /* (a style kit: its machine, its offsets below) */
     v = (k == DRUM_UID_X909 ? X9_VAR : X8_VAR)[c >> 5];
+    x0x_style_all(st, l < DRUM_LANES ? lane_inst(l) : INST_N, sty);
     for (i = 0; i < DE_N; i++)
-        o[i] = (int8_t)clamp(v[i] + x0x_style(st, l < DRUM_LANES ? lane_inst(l) : INST_N, i) + (u ? u[i] : 0), -64, 63);
+        o[i] = (int8_t)clamp(v[i] + sty[i] + (u ? u[i] : 0), -64, 63);
     ch = x0x_hit(k == DRUM_UID_X909 ? (c & 31u) : 16u + (c & 15u), vel, o, ev_ofs < CTL ? ev_ofs : 0u);
     if (ch >= X0X_NCH)
         return 0;
