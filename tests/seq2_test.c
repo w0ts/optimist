@@ -6,6 +6,8 @@
  *   ratchet  x2 / x3 / x4 hits evenly in their step (drums and synth)
  *   roll     ARP + key: hits on the grid at G_ROLL; recorded as ratchets (1/32 -> x2 on 1/16 steps)
  *   erase    EDIT + key: the lane goes as the playhead passes (playing), all of it (stopped); undo / redo
+ *   restrike a note ended by its own end (ngate) in the step before a carry step that names it is struck there again,
+ *            the other note goes on (the editor writes this when a note is lengthened over the pitch struck again)
  *   chords   P_CHORD: one key plays the chord of the scale (white keys walk the degrees from C4)
  *   mute     P_MUTE / solo: no new notes, the output fades
  *   fx       P_FXOFF: the track as dry as with no DIST, SLICER, sends; the values kept
@@ -202,6 +204,38 @@ static void t_ratchet(void)
         }
         check(starts == 3u, "synth: a note x3 starts 3 times in its step");
     }
+}
+
+/* B 59 + E 64 at 0, G 67 at 4 (E goes on: carry), E ends at its own end in 7 and is struck again at 8 (G goes on) */
+static void t_restrike(uint32_t bpm)
+{
+    static const uint8_t BE[2] = {59, 64}, EG[2] = {64, 67};
+    uint32_t i, starts = 0, at8 = 0, last, s8, s9;
+    char what[96];
+    reset(bpm);
+    s8 = div_samples(DUR_DEF_16) * 8u / CTL, s9 = div_samples(DUR_DEF_16) * 9u / CTL;
+    host_preset(&trk[0], 0, 7);
+    trk[0].p[P_VOICE] = V_POLY;
+    put_step(&trk[0], 0, 2, BE, ST_NOTE, 0);
+    for (i = 1; i < 12u; i++)
+        put_step(&trk[0], i, 0, BE, ST_TIE, 0);
+    put_step(&trk[0], 4, 2, EG, ST_NOTE, SF_CARRY);
+    put_step(&trk[0], 7, 2, EG, ST_NOTE, SF_CARRY);
+    trk[0].step[7].ngate[0] = 127;                   /* (E's own end: the step's end) */
+    put_step(&trk[0], 8, 2, EG, ST_NOTE, SF_CARRY);
+    trk[0].p[P_SLEN] = 16;
+    transport_req = 1;
+    last = vage;
+    while (blk < div_samples(DUR_DEF_16) * 12u / CTL) {
+        run_block();
+        if (vage != last) {
+            starts += vage - last;
+            at8 += blk > s8 - 2u && blk <= s9 ? vage - last : 0u;
+        }
+        last = vage;
+    }
+    snprintf(what, sizeof what, "synth %u BPM: E ended at its own end struck again in the carry step, G goes on", bpm);
+    check(starts == 4u && at8 == 1u, what);
 }
 
 static void t_roll(void)
@@ -477,6 +511,9 @@ int main(void)
     t_roll();
     t_erase_undo();
     t_chords();
+    t_restrike(120);
+    t_restrike(87);
+    t_restrike(173);
     t_mute();
     t_fxbypass();
     t_swing_triplets();
