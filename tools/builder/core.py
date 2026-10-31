@@ -172,6 +172,8 @@ def set_front(cfg, key, value):
     match (a copy). SD_MODE off leaves the big step without the card (0 slots, 2 projects); SMP_SLOTS keeps the
     projects and PROJECTS the slots when the grid has the pair, else the nearest step; SMP_SLOTS 3 is normal with
     PATTERNS off (no projects: USR1 is a slot again), 0..2 turn PATTERNS on; leaving SD card mode turns the card off"""
+    if key == "MEMORY" and value == 5:                  # (another step, derived: LAYOUT and the fronts say which; a
+        return sync_memory(cfg)                         # config handed in as KEY=value lines names it, not an error)
     if key == "MEMORY":
         return set_memory(cfg, value)
     if key not in FRONTS:
@@ -1313,6 +1315,14 @@ def _grown(cfg, acfg, costs):
 CONTEXT_ITEMS = ("COMPILER", "LAYOUT", "SDCARD")
 
 
+def _ctx_class(key, v):
+    """a context item's value as the measures agree on it: LAYOUT is the big step (1) or not: the other steps (normal, the
+    sample-slot x project grid) build the same code, a few hundred bytes apart, so a COMPILER or SDCARD measure made on
+    normal stands for them (a step no check configuration has made 4 projects drop the measured COMPILER +7.9 KB and
+    show less flash than 16 projects)"""
+    return (v == 1) if key == "LAYOUT" else v
+
+
 def _context_measured(key, a, b, near, costs, exclude):
     """-> {region: bytes} what key going from a to b really changed on the check configuration nearest to near among
     those that agree with it on the other context items (2026-10-30: LAYOUT measured without the card, +0.8 KB, stood
@@ -1326,7 +1336,7 @@ def _context_measured(key, a, b, near, costs, exclude):
         if acfg is None:
             continue
         ea = effective(acfg)
-        if any(ea.get(k) != en.get(k) for k in CONTEXT_ITEMS if k != key):
+        if any(_ctx_class(k, ea.get(k)) != _ctx_class(k, en.get(k)) for k in CONTEXT_ITEMS if k != key):
             continue                                    # (measured where another context item differs: no measure of it here)
         rank = distance(near, acfg)
         if best_rank is None or rank < best_rank:
@@ -1398,6 +1408,10 @@ def fits(total, cfg=None):
         u, cap = used(total, b), lim[b] - SPARE[b]
         if b == "flash" and cfg and cfg.get("LAYOUT") in lim["flash_by_layout"]:
             cap = lim["flash_by_layout"][cfg["LAYOUT"]] - SPARE["flash"]
+        elif b == "flash" and cfg and cfg.get("LAYOUT") in R.LAYOUT_STEPS:
+            # a step the build system gives no slot (the release builds only 1 and 3; its other steps' end = the classic
+            # end): the design table's room, not the normal slot, or 4 projects showed no more room than 16
+            cap = layout_room(cfg["LAYOUT"]) - SPARE["flash"]
         out[b] = (u, cap, u - cap)
     return out
 

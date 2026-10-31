@@ -408,6 +408,31 @@ check("card sets: outside SD card mode a set's tick is its flash, as before (SKI
       "PIANO" in K.flags(_cl)[1]["FELUCCA_SAMPLES_SKIP"].split(",") and K.card_set_names(K.defaults()) == [])
 
 
+# PROJECTS: fewer projects leave more code room, in every SAMPLE SLOTS row, in the core and in the web data (the user,
+# 2026-10-31: "4 project uses more flash that 16"). The release's limits name steps 1 and 3 only: the others fell back to
+# the normal slot (no more room at 4 than 16); a step no check configuration built dropped the measured COMPILER +7.9 KB
+# (4 projects read lower than 16); a step handed in as KEY=value lines (MEMORY=5) did not load
+_hook, _setup = K.LIMITS_HOOK, K.SETUP_LIMITS
+_rel = {"flash": R.LAYOUT_STEPS[0][2], "sram": K.limits_in_use()["sram"], "flash_by_layout": {1: 823228, 3: 720828}}
+_cls = dict(_rel, flash_by_layout={k: v[2] for k, v in R.LAYOUT_STEPS.items() if k})
+for _kind, _lim in (("release", _rel), ("classic", _cls)):
+    K.setup(limits=_lim, limits_hook=None)
+    for _sl in (2, 1, 0):
+        _room_of = {}
+        for _p in (16, 4, 2):
+            _c = K.set_front(K.set_front(K.sync_memory(K.defaults()), "SMP_SLOTS", _sl), "PROJECTS", _p)
+            _f = web_api.view(_c)["eval"]["fits"]["flash"]
+            _g = K.fits(K.budget(_c, costs)["total"], _c)["flash"]
+            _room_of[_p] = (_f["capacity"] - _f["used"], _g[1] - _g[0])
+        check(f"projects ({_kind}, {_sl} slots): room 2 > 4 > 16, web view and core "
+              f"({_room_of[2][0]:,} > {_room_of[4][0]:,} > {_room_of[16][0]:,})",
+              all(_room_of[2][i] > _room_of[4][i] > _room_of[16][i] for i in (0, 1)))
+K.setup(limits=_setup, limits_hook=_hook)
+_step = K.set_front(K.sync_memory(K.defaults()), "PROJECTS", 4)
+check("projects: a step handed in as KEY=value lines (MEMORY=5 and its LAYOUT) loads as the same step",
+      K.parse("".join(f"{k}={v}\n" for k, v in _step.items()))[0]["LAYOUT"] == _step["LAYOUT"])
+
+
 if __name__ == "__main__":
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--against", metavar="REF", help="compare with configure.py at this git ref")
