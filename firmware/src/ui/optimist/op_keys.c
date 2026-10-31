@@ -85,10 +85,10 @@ static void keys_pat(uint32_t *f, uint32_t *d, uint32_t blink)       /* LFO held
         keys_pat_white(f, d, blink);
     for (k = 0; k < 27u; k++) {
         b = pat_black(k);
-        if (b < 1u || b > 10u || (b >= 6u && b <= 8u))
-            continue;                                   /* (6 7 8 were store, copy, clear: now SAVE + n, HOME + n) */
+        if (b < 1u || b > 10u || b == 7u || b == 8u)
+            continue;                                   /* (7 8 were copy, clear: now SAVE + n, HOME + n; 6 stops) */
         *d |= 1u << k;
-        if (b == song.sel % NTRK + 1u || b == lay.pmod)
+        if ((b <= 4u && (b == song.sel % NTRK + 1u || lay.pmod == 5u)) || b == lay.pmod)   /* (all tracks: 1-4 and 5 lit) */
             *f |= 1u << k;
     }
 }

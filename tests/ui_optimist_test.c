@@ -1872,9 +1872,13 @@ static void layer_tests(void)
     }
     for (k = 0; k < 8u; k++)
         t->step[k].time = ST_NOTE, t->step[k].n = 1, t->step[k].note[0] = (uint8_t)(48 + k);
-    fm1_in.notes |= 1u << 13;                           /* black key 6 was the store modifier: nothing now */
+    fm1_in.notes |= 1u << 13;                           /* black key 6 stops (was black 5): asked over the edits just made, no store either way */
     frame();
-    key(WK(1));
+    if (op_armed())
+        tap(B_HOME);
+    key(WK(1));                                          /* (white 2 over the edits: asked now, the question let go) */
+    if (op_armed())
+        tap(B_HOME);
     fm1_in.notes &= ~(1u << 13);
     frame();
     check(!pat_has(0, 1), "LFO + black 6 + white 2: no store any more (the upper-key modifiers are gone)");
@@ -4093,6 +4097,7 @@ static void led_tests(void)
 #include "ui_optimist_colours.h"                     /* batch C: colour means something (mute tiles, red, dim, REC, SUPER) */
 #include "ui_optimist_plines.h"                      /* PAGE_LINES: the rows with no picture as GLOBAL's lines */
 #include "ui_optimist_screens.h"                     /* batch E: per-screen oddities (titles, STEP, drums, names, pictures) */
+#include "ui_optimist_patwarn.h"                     /* pattern mode: the unsaved warning, black 5 = all tracks, black 6 = stop, a black key held + n stores, the numbers */
 #include "ui_optimist_prefilter.h"                   /* the preset list's filter (SHIFT2 + PRESETS), SHIFT + PRESETS the engines, the popup's header, no flash */
 #include "ui_optimist_favorites.h"                   /* FELUCCA_FAVORITES: the FAVORITES row under the SOUND row (docs/UI-OPTIMIST-DESIGN.md 13 Favorites) */
 
@@ -4327,6 +4332,9 @@ int main(int argc, char **argv)
 #endif
     favorites_tests();
     prefilter_tests();
+#if FELUCCA_PATTERNS
+    patwarn_tests();
+#endif
     algotrack_tests();
     uniform_tests();
     lforate_tests();

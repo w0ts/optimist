@@ -11,7 +11,7 @@
  *   EDIT  erase as it plays                      KNOB  SHIFT LENGTH TRANSPOSE (undo: SAVE then HOME)
  *   LFO   the patterns and the scenes (PATTERNS): ui/sloop's ui_pat.c, copied: white n launches the selected track's
  *         pattern n at its end (OCT+ held: now; OCT- held is SHIFT, the clear), SAVE + n stores the working pattern into slot n
- *         (asked over a used one), HOME + n clears it (asked); the black keys 1-4 the track, 5 stop, 9 duplicate, 10
+ *         (asked over a used one), HOME + n clears it (asked); the black keys 1-4 the track, 5 ALL TRACKS, 6 stop, 9 duplicate, 10
  *         the scenes (the user, 2026-10-16): the white keys are scenes A-P until black 10 again or the layer goes, the
  *         same verbs: n launches scene n at the next bar (stopped: loaded; two or more in one hold: a chain, QCHAIN),
  *         SAVE + n stores the loop into it, HOME + n clears it. SONG's PATTERNS row has these keys too. Its cards show
@@ -509,46 +509,136 @@ static void pat_name(char *b, uint32_t k, uint32_t s)   /* "T2 5", "DR 16" */
 /* the store's button on the pattern page: SAVE; the page locked open (SHIFT2 + LFO), LFO as well (the user, 2026-10-23: "it
  * should behave like the save button on this page: hold + white key to save a pattern, nothing otherwise") */
 static int pat_save_held(void) { return btn_held(B_SAVE) || (lay.lock == LY_PAT && btn_held(B_LFO)); }
+/* "all tracks" (black 5, lay.pmod 5; the user, 2026-10-31): the tracks' index NTRK stands for every track in the store and
+ * clear asks (arm_k = t << 4 | slot), a mask of tracks in the launch asks */
+#define PAT_ALLT NTRK
+#define PAT_ALLM ((1u << NTRK) - 1u)
+static uint32_t pat_mask(uint32_t t) { return t >= NTRK ? PAT_ALLM : 1u << t; }
+static void pat_name_t(char *b, uint32_t t, uint32_t s)   /* "T2 5", "ALL 5" */
+{
+    if (t < NTRK) {
+        pat_name(b, t, s);
+        return;
+    }
+    str_cpy(b, "ALL ", 5);
+    fmt_int(b + 4, (int32_t)s + 1);
+}
+static uint32_t pat_any_has(uint32_t t, uint32_t s)     /* t's slot s holds a pattern (all tracks: on any) */
+{
+    uint32_t k, m = pat_mask(t), n = 0;
+    for (k = 0; k < NTRK; k++)
+        n |= ((m >> k) & 1u) && pat_has(k, s);
+    return n;
+}
+static int pat_store_all(uint32_t t, uint32_t s)        /* the working copy of t (all tracks: each) into slot s; 0 done */
+{
+    uint32_t k, m = pat_mask(t);
+    for (k = 0; k < NTRK; k++)
+        if (((m >> k) & 1u) && pat_store_slot(k, s))
+            return 1;
+    return 0;
+}
 static void pat_store_ask(uint32_t t, uint32_t s)       /* the working copy into slot s: asked over a used one */
 {
     char nm[8];
-    pat_name(nm, t, s);
-    if (pat_has(t, s))
+    pat_name_t(nm, t, s);
+    if (pat_any_has(t, s))
         op_arm(ARM_OP, OA_PAT_STORE, t << 4 | s, "STORE", nm, 1);
-    else if (!pat_store_slot(t, s))
+    else if (!pat_store_all(t, s))
         ui_say("STORED ", nm);
 }
 static void pat_clear_ask(uint32_t t, uint32_t s)
 {
     char nm[8];
-    pat_name(nm, t, s);
-    if (!pat_has(t, s))
+    uint32_t k, m = pat_mask(t), used = 0;
+    pat_name_t(nm, t, s);
+    for (k = 0; k < NTRK; k++)
+        used |= ((m >> k) & 1u) && pat_users(k, s, PAT_ALL);
+    if (!pat_any_has(t, s))
         ui_say("EMPTY ", nm);
     else
-        op_arm(ARM_OP, OA_PAT_CLR, t << 4 | s, pat_users(t, s, PAT_ALL) ? "CLEAR USED" : "CLEAR", nm, 1);
+        op_arm(ARM_OP, OA_PAT_CLR, t << 4 | s, used ? "CLEAR USED" : "CLEAR", nm, 1);
+}
+/* a launch (or a stop) replaces the tracks' working patterns: those with edits not stored (pat_changed) are asked first
+ * (the user, 2026-10-31: "when we load a pattern and will lose the current pattern (not saved) we should have a warning"),
+ * "LOSE EDITS? T1 T3"; YES (SAVE) launches, HOME cancels. The launch's timing waits in pat_pend_when */
+static uint8_t pat_pend_when;
+static uint32_t pat_unsaved(uint32_t mask)
+{
+    return (proj_tmp_busy() ? lay.pchg : pat_changed()) & mask;
+}
+static void pat_go(uint32_t mask, uint32_t w, uint32_t when)   /* w: a slot, PAT_NONE stops */
+{
+    uint32_t k;
+    for (k = 0; k < NTRK; k++)
+        if ((mask >> k) & 1u)
+            pat_launch(k, w, when);
+}
+static int pat_go_ask(uint32_t mask, uint32_t w, uint32_t when)   /* 1: asked, 0: launched */
+{
+    uint32_t lost = pat_unsaved(mask), k;
+    char a[17];
+    if (!lost) {
+        pat_go(mask, w, when);
+        return 0;
+    }
+    a[0] = 0;
+    for (k = 0; k < NTRK; k++) {
+        if (!((lost >> k) & 1u))
+            continue;
+        if (a[0])
+            str_app(a, " ", sizeof a);
+        str_app(a, trk_tag(k), sizeof a);
+    }
+    pat_pend_when = (uint8_t)when;
+    op_arm(ARM_OP, w < PAT_N ? OA_PAT_GO : OA_PAT_STOP, (mask << 4 | (w < PAT_N ? w : 0u)), "LOSE EDITS", a, 1);
+    return 1;
 }
 static void pat_launch_key(uint32_t t, uint32_t w)      /* white n: launch (OCT- held: next bar, OCT+ held: now) */
 {
     uint32_t when = fm1_in.buttons & dyn_bit[0] ? PW_BAR : fm1_in.buttons & dyn_bit[1] ? PW_NOW : PW_END;
     char nm[8];
-    pat_name(nm, t, w);
-    pat_launch(t, w, when);
+    pat_name_t(nm, t, w);
+    if (pat_go_ask(pat_mask(t), w, when))
+        return;
     if (!song.playing)
         ui_say("LOADED ", nm);
     else
         ui_say(nm, when == PW_BAR ? " NEXT BAR" : when == PW_NOW ? " NOW" : " AT END");
 }
+static uint32_t pat_held_black(uint32_t but)            /* a black key 1..5 still held (not key but): 1..5, else 0 */
+{
+    uint32_t k, b;
+    for (k = 0; k < 27u; k++) {
+        b = pat_black(k);
+        if (k != but && b >= 1u && b <= 5u && ((fm1_in.notes >> k) & 1u))
+            return b;
+    }
+    return 0;
+}
 static void pat_layer_key(uint32_t k, int32_t w)
 {
-    uint32_t t = song.sel % NTRK, b = pat_black(k), s;
+    uint32_t sel = song.sel % NTRK, t = lay.pmod == 5u ? PAT_ALLT : sel, b = pat_black(k), s;
     char nm[8];
     if (b >= 1u && b <= 4u) {
+        if (lay.pmod == 5u)
+            lay.pmod = 0;                               /* (a track picked: not all of them any more) */
         track_select(b - 1u);
         return;
     }
-    if (b == 5u) {
-        pat_launch(t, PAT_NONE, PW_END);
-        ui_message(song.playing ? "STOP AT END" : "STOPPED");
+    if (b == 5u) {                                      /* ALL TRACKS (the user, 2026-10-31): the white keys, SAVE + n and HOME + n act on T1..DR; again: the selected track */
+        if (lay.pmod == 10u) {
+            ui_message("SCENES: ALL TRACKS");           /* (a scene is all the tracks already) */
+            return;
+        }
+        lay.pmod = (uint8_t)(lay.pmod == 5u ? 0u : 5u);
+        ui_message(lay.pmod ? "ALL TRACKS" : "PATTERNS");
+        ui.force = 1;
+        return;
+    }
+    if (b == 6u) {                                      /* STOP (was black 5): the track, all tracks when picked */
+        if (!pat_go_ask(pat_mask(t), PAT_NONE, PW_END))
+            ui_message(song.playing ? "STOP AT END" : "STOPPED");
         return;
     }
     if (b == 10u) {                                     /* the scenes: the white keys are scenes A-P until black 10 again */
@@ -561,14 +651,14 @@ static void pat_layer_key(uint32_t k, int32_t w)
         ui.force = 1;
         return;
     }
-    if (b >= 6u && b <= 8u)
+    if (b == 7u || b == 8u)
         return;                                         /* (store, copy and clear were modifiers: now SAVE + n, HOME + n, the user 2026-10-13) */
     if (b == 9u) {                                      /* DUPLICATE: into the first free slot */
-        s = pat_free(t);
-        pat_name(nm, t, s);
+        s = pat_free(sel);                              /* (the selected track's, whatever the picks) */
+        pat_name(nm, sel, s);
         if (s >= PAT_N)
             ui_message("NO FREE PATTERN");
-        else if (!pat_store_slot(t, s))
+        else if (!pat_store_slot(sel, s))
             ui_say("DUPLICATE ", nm);
         return;
     }
@@ -584,6 +674,10 @@ static void pat_layer_key(uint32_t k, int32_t w)
             scene_clear_ask((uint32_t)w);
         else
             scene_launch_at((uint32_t)w, btn_held(B_OCTUP));   /* (SHIFT2 + n: as soon as possible) */
+    } else if (pat_held_black(k)) {                     /* a black key 1-4 held + n: that track's working pattern into slot n, black 5 held: every track's
+                                                         * (the user, 2026-10-31: the same as SAVE + n, asked over a used slot) */
+        b = pat_held_black(k);
+        pat_store_ask(b == 5u ? PAT_ALLT : b - 1u, (uint32_t)w);
     } else if (pat_save_held()) {    /* SAVE + n (the page locked open: LFO + n too): the working pattern into slot n (asked) */
         pat_store_ask(t, (uint32_t)w);
     } else if (btn_held(B_HOME)) {               /* HOME + n: clear slot n (asked; the user, 2026-10-20: HOME clears, as elsewhere) */
@@ -641,13 +735,27 @@ static void op_act(uint32_t a, uint32_t k)
     case OA_PAT_STORE:
     case OA_PAT_CLR: {
         char nm[8];
-        uint32_t t = k >> 4, s = k & 15u;
-        pat_name(nm, t, s);
-        if (a == OA_PAT_STORE ? pat_store_slot(t, s) : pat_write(t, s, 0))
+        uint32_t t = k >> 4, s = k & 15u, i, m = pat_mask(t), bad = 0;
+        pat_name_t(nm, t, s);
+        if (a == OA_PAT_STORE) {
+            bad = (uint32_t)pat_store_all(t, s);
+        } else {
+            for (i = 0; i < NTRK && !bad; i++)
+                bad = ((m >> i) & 1u) && pat_has(i, s) ? (uint32_t)pat_write(i, s, 0) : 0u;
+        }
+        if (bad)
             break;                                      /* (what went wrong is said: MEM FULL ...) */
         ui_say(a == OA_PAT_STORE ? "STORED " : "CLEARED ", nm);
         break;
     }
+    case OA_PAT_GO:                                     /* "Lose edits?" YES: the launch asked for (pat_go_ask) */
+        pat_go(k >> 4, k & 15u, pat_pend_when);
+        ui_say(song.playing ? "LAUNCHED " : "LOADED ", (k >> 4) == PAT_ALLM ? "ALL" : "PATTERN");
+        break;
+    case OA_PAT_STOP:
+        pat_go(k >> 4, PAT_NONE, PW_END);
+        ui_message(song.playing ? "STOP AT END" : "STOPPED");
+        break;
 #endif
     case OA_SCN_LOAD:
         scene_load_now(k);
