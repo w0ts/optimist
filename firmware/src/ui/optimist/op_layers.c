@@ -83,13 +83,13 @@ static struct {
 #endif
 } lay = {.lock = LY_PLAY, .shown = LY_PLAY, .held = LY_PLAY};
 /* the cards 2x2 (op_state.c): everywhere but the mixer's channel and lane rows, which want the height ("but not in mixer !",
- * the user, 2026-10-12); the mixer's MASTER row took the big cards from 2026-10-17 ("Master mixer. 2*2 cards") until the
- * pinned block (2026-10-30: "not to move the screen"): 1x4 there too; a layer's map over the mixer is the layer's screen, 2x2 */
+ * the user, 2026-10-12); the mixer's MASTER row is one meter and the returns, so it takes the big cards too (the user,
+ * 2026-10-17: "Master mixer. 2*2 cards"); a layer's map over the mixer is the layer's screen, so it is 2x2 too */
 #if FELUCCA_SD_UI
 static int sdc_listing(void);                           /* op_sdcard.c: a card's list, four small cards over its page */
-static int cards_2x2(void) { return (ui.scr != SCR_HOME || lay.shown != LY_PLAY) && !sdc_listing(); }   /* (MASTER too: 1x4 since 2026-10-30, the screen never moves) */
+static int cards_2x2(void) { return (ui.scr != SCR_HOME || lay.shown != LY_PLAY || mx_row() <= MXR_MASTER) && !sdc_listing(); }   /* (the master screen: MASTER and the returns above it, 2026-10-30) */
 #else
-static int cards_2x2(void) { return ui.scr != SCR_HOME || lay.shown != LY_PLAY; }   /* (MASTER too: 1x4 since 2026-10-30, the screen never moves) */
+static int cards_2x2(void) { return ui.scr != SCR_HOME || lay.shown != LY_PLAY || mx_row() <= MXR_MASTER; }   /* (the master screen: MASTER and the returns) */
 #endif
 
 static uint32_t lay_now(void) { return lay.lock != LY_PLAY ? lay.lock : lay.held; }   /* the layer at work */
