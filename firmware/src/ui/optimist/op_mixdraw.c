@@ -363,25 +363,44 @@ static int32_t mx_band_px(int32_t pk, int32_t w)        /* the column where the 
 {
     return (int32_t)(mx_vu_lv(pk) * (uint32_t)w / MX_LV);
 }
-/* the colour of column c of a meter: green, amber or red by its band; col alone on a lane's row (col0 == 0 means bands) */
+/* the colour of column c, with the bands starting at k1 (amber) and k2 (red): gradients (the user, 2026-10-31: "i like the colors,
+ * and the thresholds, but please make them gradients"): green blends into amber over the 6 dB under -18 dBFS and amber into red
+ * over the 6 dB under -6 dBFS, so each band's colour is whole from its threshold on; -30 dBFS stays green, -12 amber */
+static uint16_t mx_vu_grad(int32_t c, int32_t k1, int32_t k2)
+{
+    int32_t s = (k2 - k1) / 2;                          /* 6 dB in px (k1 .. k2 is 12 dB) */
+    if (s < 1 || c >= k2)
+        return c < k1 ? C_OK : c < k2 ? C_WARN : C_ERR;
+    if (c < k1 - s)
+        return C_OK;
+    if (c < k1)
+        return mx_lerp(C_OK, C_WARN, (uint32_t)((c - (k1 - s) + 1) * 256 / (s + 1)));
+    if (c < k2 - s)
+        return C_WARN;
+    return mx_lerp(C_WARN, C_ERR, (uint32_t)((c - (k2 - s) + 1) * 256 / (s + 1)));
+}
+/* the colour of column c of a meter: its gradient; col alone on a lane's row (col0 == 0 means bands) */
 static uint16_t mx_vu_colat(int32_t c, int32_t w, uint16_t lane_col)
 {
     if (lane_col)
         return lane_col;
-    return c < mx_band_px(MX_AMBER_PK, w) ? C_OK : c < mx_band_px(MX_RED_PK, w) ? C_WARN : C_ERR;
+    return mx_vu_grad(c, mx_band_px(MX_AMBER_PK, w), mx_band_px(MX_RED_PK, w));
 }
 static void mx_vu_fill(int32_t x, int32_t y, int32_t w, int32_t h, int32_t px, uint16_t lane_col)
 {
-    int32_t k1 = mx_band_px(MX_AMBER_PK, w), k2 = mx_band_px(MX_RED_PK, w);
+    int32_t k1 = mx_band_px(MX_AMBER_PK, w), k2 = mx_band_px(MX_RED_PK, w), c = 0;
     if (lane_col) {
         cv_rect(x, y, px, h, lane_col);
         return;
     }
-    cv_rect(x, y, px < k1 ? px : k1, h, C_OK);
-    if (px > k1)
-        cv_rect(x + k1, y, (px < k2 ? px : k2) - k1, h, C_WARN);
-    if (px > k2)
-        cv_rect(x + k2, y, px - k2, h, C_ERR);
+    while (c < px) {                                    /* runs of one colour: whole bands in one rect, the blends a column each */
+        uint16_t col = mx_vu_grad(c, k1, k2);
+        int32_t e = c + 1;
+        while (e < px && mx_vu_grad(e, k1, k2) == col)
+            e++;
+        cv_rect(x + c, y, e - c, h, col);
+        c = e;
+    }
 }
 /* the peak-hold marker at level ph (0 .. MX_LV; 0: none, which is every peak under the floor): a thin tick ending at its
  * place, in the colour of its band; red at 0 dBFS, within 0.5 dB (the master's knee stops just short of the full scale) (the user, 2026-10-29: "VU meters just get normal audio peaks") */

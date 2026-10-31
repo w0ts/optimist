@@ -35,6 +35,17 @@ static void vucolor_tests(void)
     ok &= vuc_at(32767.0 * 0.2512) == C_WARN;           /* -12 dBFS */
     ok &= vuc_at(32767.0 * 0.7079) == C_ERR;            /* -3 dBFS */
     check(ok, "VU colours: -30 dBFS green, -12 amber, -3 red at the bar's top (floor -40)");
+    {                                                   /* gradients: whole at the thresholds, no jump between two columns */
+        int32_t k1 = mx_band_px(MX_AMBER_PK, MXM_W), k2 = mx_band_px(MX_RED_PK, MXM_W), c, step = 0, mid = 0;
+        for (c = 1; c < MXM_W; c++) {
+            uint16_t a = mx_vu_grad(c - 1, k1, k2), b = mx_vu_grad(c, k1, k2);
+            int32_t d = abs((int32_t)(a >> 11) - (int32_t)(b >> 11)) + abs((int32_t)((a >> 5) & 63u) - (int32_t)((b >> 5) & 63u)) / 2;
+            step = d > step ? d : step;
+            mid += b != C_OK && b != C_WARN && b != C_ERR;
+        }
+        check(mx_vu_grad(k1, k1, k2) == C_WARN && mx_vu_grad(k2, k1, k2) == C_ERR && mx_vu_grad(k1 - (k2 - k1) / 2 - 1, k1, k2) == C_OK
+              && mid > 4 && step <= 4, "VU colours: green blends into amber under -18 dBFS and amber into red under -6, whole from each threshold");
+    }
     reset_ui();
     ui.row[SCR_HOME] = MXR_MASTER;
     vuc_feed(1036.0);
