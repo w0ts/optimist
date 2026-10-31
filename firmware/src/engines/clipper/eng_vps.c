@@ -100,7 +100,7 @@ static void vps_render(track_t *t, voice_t *v, int32_t *__restrict out, uint32_t
         x = tsvf_lp(&flt, x, &ic1, &ic2);
         if (x > 16000 || x < -16000)
             x = soft_knee(x, 16000);
-        out[i] += mulq15(mulq15(x << 1, amp_at(m, i)), VOICE_FS) << 1;
+        out[i] += VOICE_OUT(x << 1, amp_at(m, i), 1);
     }
     v->ph[0] = ph0;
     v->ph[1] = ph1;

@@ -565,7 +565,7 @@ static void grain_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const
     lp = smp_lp_k((p[P_E7] << 8) + m->cutoff);          /* (dsp.c) */
     for (i = 0; i < n; i++) {
         y += mulq15(clamp(clamp(acc[i], -65535, 65535) - y, -65535, 65535), lp);
-        out[i] += mulq15(mulq15(y, amp_at(m, i)), VOICE_FS) << 1;
+        out[i] += VOICE_OUT(y, amp_at(m, i), 1);
     }
     v->s[2] = y;
 }

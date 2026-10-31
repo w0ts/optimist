@@ -904,14 +904,14 @@ One trap the rule leaves, harmless by the code read here (*not tested*):
 #### 9.7.4 The builder
 
 Three items replace MEMORY in the first group, all fronts (`no_image`, never stored, as MEMORY: `core.py:105-131`)
-over the real items `LAYOUT`, `SDCARD` and a new `PROJECTS` (`FELUCCA_PROJ_SLOTS`, bit 444, the next free; 0 = the
+over the real items `LAYOUT`, `SDCARD` and a new `PROJECTS` (`FELUCCA_PROJ_SLOTS`, bit 447 (444 is MIX_ROUND, retired by fadefix), the next free; 0 = the
 step's own count, so an old `.config` without it reads as before: 16, L1 1):
 
 | Item | Values (with the code room shown on each) | Shown |
 |---|---|---|
 | `SD_CARD_MODE` (bit 445) | off / on | always |
 | `SAMPLE_SLOTS` (bit 446) | 0, 1 (USR3, 64 KiB), 2 (USR2 + USR3, 144 KiB); 3 only with PATTERNS off (normal) | SD off |
-| `PROJECTS` (444, real) | 1, 2, 4, 16 (1 and 2: the same code room shown; 1 labelled "the same flash as 2") | SD off, PATTERNS on |
+| `PROJECTS` (447, real) | 1, 2, 4, 16 (1 and 2: the same code room shown; 1 labelled "the same flash as 2") | SD off, PATTERNS on |
 
 - **SD on:** SAMPLE SLOTS and PROJECTS hidden (the card holds samples and projects; flash keeps one project, no slot);
   SD_RING and SD_REC shown under SD CARD MODE (`shown_under`, as today under MEMORY). Each value in the menu and the web
@@ -981,7 +981,7 @@ built-in sets with SLOTS 0? the firmware's own notice only, or a refusal without
 - **PROJECTS is a front, not a firmware flag:** with 1 dropped every (slots, projects) pair is one step, so LAYOUT alone
   says it; `PROJ_SLOTS` is the step's `FL_PROJ_SLOTS` (`fm1_steps.h`), 1 in SD card mode (LAYOUT 1 + SDCARD). L1 without
   the card now keeps **2** projects (was 1): the user's own profile (LAYOUT 1) gains a second project slot, its layout
-  unchanged. Fronts: `SD_MODE` 445, `SMP_SLOTS` 446, `PROJECTS` 444 (`core.set_front`, `derive_fronts`); `MEMORY` 436
+  unchanged. Fronts: `SD_MODE` 445, `SMP_SLOTS` 446, `PROJECTS` 447 (`core.set_front`, `derive_fronts`); `MEMORY` 436
   hidden, old lines still load.
 - **Steps (`tools/flash_layout.py` STEPS):** 0 N (2/16), 1 L1 (0/2), 3 S0 (0/16), 8 (0/4, 0xCA000), 2 (1/16, 0xA5000),
   4 (1/4, 0xBA000), 5 (1/2, 0xBE000), 6 (2/4, 0xA6000), 7 (2/2, 0xAA000); the numbers of the 9.7.1 table. None but N and

@@ -206,7 +206,7 @@ AINL void phase_loop(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmo
         if (fg)     /* (the blocker's step of a full-scale swing, +-65534, and SUB's 25400 on it: s x amp would wrap
                      * 32 bits past 65535; FOLD 0 stays within 58167) */
             s = clamp(s, -65535, 65535);
-        out[i] += mulq15(mulq15(s, amp_at(m, i)), VOICE_FS) << 1;
+        out[i] += VOICE_OUT(s, amp_at(m, i), 1);
     }
     v->ph[0] = ph0;
     v->ph[1] = ph1;

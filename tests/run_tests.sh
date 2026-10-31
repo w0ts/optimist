@@ -1063,6 +1063,12 @@ job; ( jobin
     run "SPK LOWCUT / HP BASS: each on its side of the jack, OFF never; Bluetooth, USB and the card plain bit for bit; the jack's debounce" "$OUT/outcorr_test"
     run "SPK LOWCUT / HP BASS with MIX_EXACT (the 7 bits under the output)" "$OUT/outcorr_exact_test"
 ) >"$U.out" 2>&1 & jobbg
+# issue 132: a soft note's release at MASTER max against a float fit (tests/fade_tail_test.c; the voice and mix products
+# rounded, dsp.c VOICE_OUT, fx.c mix_lg MIX_PAN), with MIX_EXACT (the master's bits under the output) as the user builds
+job; ( jobin
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_MIX_EXACT=1 -o "$OUT/fade_tail_test" tests/fade_tail_test.c -lm
+    run "a soft note's tail at MASTER max (issue 132): under 0.6 LSB rms of a float fit (-45..-80 dBFS), THD+N at -70 dBFS under -20 dB" "$OUT/fade_tail_test" check
+) >"$U.out" 2>&1 & jobbg
 # the audio path's skips (FELUCCA_SKIP, core.h): built with them and without, the same samples after every
 # neutral -> working -> neutral flip; also with the X0X kits, USB audio and the glides built (its files: the unit's
 # number $nu in their names, as the four run at once)

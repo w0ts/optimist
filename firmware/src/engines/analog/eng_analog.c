@@ -82,7 +82,7 @@ static FAST(analog) void analog_render(track_t *t, voice_t *v, int32_t *out, uin
             }
             s = y << 1;
         }
-        out[i] += mulq15(mulq15(s, amp_at(m, i)), VOICE_FS) << 1;
+        out[i] += VOICE_OUT(s, amp_at(m, i), 1);
     }
     v->ph[0] = ph0;
     v->ph[1] = ph1;

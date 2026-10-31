@@ -475,7 +475,7 @@ static void slice_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const
         }
         y = lerp16(v->s[2], v->s[3], frac);
         v->s[7] += mulq15(y - v->s[7], lp);             /* TONE */
-        out[i] += mulq15(mulq15(v->s[7], amp_at(m, i)), VOICE_FS) << 1;
+        out[i] += VOICE_OUT(v->s[7], amp_at(m, i), 1);
         if (v->s[6] == 2)
             break;
     }

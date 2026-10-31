@@ -341,7 +341,7 @@ static FAST(sample) void smp_card_render(track_t *t, voice_t *v, int32_t *out, u
         if (drv)
             y = softclip(y + (((y >> 2) * (drv * 150)) >> 11));
         v->s[7] += mulq15(y - v->s[7], lp);
-        out[i] += mulq15(mulq15(v->s[7], amp_at(m, i)), VOICE_FS) << 1;
+        out[i] += VOICE_OUT(v->s[7], amp_at(m, i), 1);
         if (v->s[6])
             break;
     }
@@ -427,7 +427,7 @@ static FAST(sample) void sample_render(track_t *t, voice_t *v, int32_t *out, uin
         if (drv)
             s = softclip(s + (((s >> 2) * (drv * 150)) >> 11));   /* = s * drv * 600 / 32768, no overflow */
         v->s[7] += mulq15(s - v->s[7], lp);           /* gentle tone control (CUT) */
-        out[i] += mulq15(mulq15(v->s[7], amp_at(m, i)), VOICE_FS) << 1;
+        out[i] += VOICE_OUT(v->s[7], amp_at(m, i), 1);
         if (v->s[6])
             break;
     }
