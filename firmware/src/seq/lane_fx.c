@@ -6,6 +6,7 @@
  *
  *   ROLL       every hit of the lane plays x2 x3 x4 x6 x8 in its step, evenly (a hit's own ratchet: the larger wins)
  *   CHANCE     each hit of the lane plays with this probability (its rolls with it); on top of the step's own chance
+ *   CHANCE ACC the same for an accented hit (the ACCENT lane on its step, or a HARD hit): 0..100 %, or =NORM (101, the default): CHANCE
  *   FILL       the lane plays always / only in a fill / never in one (GLO + 9 held, + 10 the next bar)
  *   NUDGE      the lane's hits early or late by 1/64 of a step (up to half a step)
  *   VEL RAND   each hit's velocity moved at random by up to this much, either way
@@ -41,9 +42,20 @@ static int lfx_every_miss(const track_t *t, uint32_t l, int next)
 #define lfx_every_miss(t, l, next) 0
 #endif
 /* lane l's hit stays silent: its EVERY, its FILL, then its CHANCE (a roll only below 100 %) */
-static int lfx_drop(const track_t *t, uint32_t l, int next)
+/* the hit of lane l in step s is accented: the ACCENT lane's step (its sequencer not muted) or a HARD hit */
+static int lfx_accented(const dstep_t *s, uint32_t l)
+{
+#if FELUCCA_DRUM_ACCENT
+    if ((s->acc & DACC_ON) && !smute_lane_on(DRUM_ACC))
+        return 1;
+#endif
+    return dstep_lvl(s, l) == LV_HARD;
+}
+static int lfx_drop(const track_t *t, const dstep_t *s, uint32_t l, int next)
 {
     int32_t c = lfx_v[l][LFX_I_CHANCE];
+    if (lfx_v[l][LFX_I_CHACC] <= 100 && lfx_accented(s, l))
+        c = lfx_v[l][LFX_I_CHACC];                      /* (CHANCE ACC: its own chance; =NORM keeps CHANCE) */
     if (lfx_every_miss(t, l, next))
         return 1;
 #if FELUCCA_FILLS
@@ -102,7 +114,7 @@ static void lfx_sound(track_t *t, const dstep_t *s, uint32_t l, uint32_t e)
 
 /* a drum step fires with lanes m to hit (drum_step): -> those it plays now. The others: silent (lfx_out), or played
  * here (lfx_man, from the sounds played early: lfx_pre) */
-static uint32_t lfx_step(const track_t *t, uint32_t m)
+static uint32_t lfx_step(const track_t *t, const dstep_t *s, uint32_t m)
 {
     uint32_t l, mine = lfx_eabs == t->seq_abs, was = mine ? lfx_early : 0u, wout = mine ? lfx_eout : 0u;
     lfx_out = lfx_man = lfx_early = lfx_eout = 0;
@@ -113,7 +125,7 @@ static uint32_t lfx_step(const track_t *t, uint32_t m)
         lfx_pre[l] = 0;
         if (!(m & b))
             continue;
-        if (wout & b || (!(was & b) && lfx_drop(t, l, 0))) {   /* (decided in the step before, or now) */
+        if (wout & b || (!(was & b) && lfx_drop(t, s, l, 0))) {   /* (decided in the step before, or now) */
             m &= ~b;
             lfx_out |= b;
         } else if ((was & b) || lfx_managed(l)) {
@@ -159,7 +171,7 @@ static void lfx_ahead(track_t *t, uint32_t idx, uint32_t len, uint32_t into, uin
             (int32_t)into < (int32_t)slen + at)
             continue;
         if (!(lfx_early & b)) {                         /* (its first sound due: decided now, for the step to come) */
-            if (smute_lane_on(l) || lfx_drop(t, l, (int)wrap)) {
+            if (smute_lane_on(l) || lfx_drop(t, n, l, (int)wrap)) {
                 lfx_eout |= b;
                 continue;
             }
