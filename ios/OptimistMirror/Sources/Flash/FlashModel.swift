@@ -196,7 +196,9 @@ final class FlashModel: ObservableObject {
         link.hold()
         Task {
             defer { busy = false; link.release() }
+            var runningText = ""
             if let f = await updater.find() {             // (the route first: download mode is said, never attempted)
+                runningText = InstallRoute.runningKind(f.id.text, port: f.channel.name)
                 let r = route(for: pkg, running: f.id.text, port: f.channel.name)
                 f.channel.close()
                 if r.method == "download" {
@@ -216,7 +218,13 @@ final class FlashModel: ObservableObject {
                 result = "Installed \(pkg.title) (\(back))." + (pkg.bootloader == "m-bootloader" && !keepBootloader
                     ? " m-bootloader was not installed: on a computer, python tools/fm1_install.py with this package, or M-Flasher (a full backup first)." : "")
             } catch {
-                self.error = message(error)
+                let info = InstallRoute.packageKind(product: pkg.product, sha256: pkg.sha256, flashLen: InstallRoute.flashLen(pkg.image))
+                if let fe = error as? FlashError, InstallRoute.headRefused(runningText, info, code: fe.code.rawValue) {
+                    self.error = InstallRoute.refusedStep(file: pkg.file)
+                    needsComputer = true
+                } else {
+                    self.error = message(error)
+                }
                 status = ""
                 append("error: \(self.error ?? "")")
             }

@@ -6,6 +6,10 @@ There is more in 0.2 than one firmware can hold: 26 synth engines, 37 kits, the 
 
 User presets and projects saved by an earlier firmware (SLOOP, or Optimist before 0.2) are not read by 0.2: their formats changed. The installer makes a backup first; keep it.
 
+fm1-next renames the USB device to FM1-XXXX; the old 0.2 installer won't find it: use the new site or the app.
+
+From a running Optimist with m-bootloader installed, the update to M-VAVE's official V15 stops with error -5 (nothing written): the installers then say to use download mode (OCT- + OCT+ held 5 s, or REC at power-on, then M-Flasher).
+
 ## Bluetooth
 
 - **Bluetooth audio.** The FM-1 plays through AirPods and other Bluetooth headphones and speakers (A2DP, our own stack): pairing, bonding, reconnect without pairing; SHIFT + volume switches between Bluetooth and the FM-1's own output, or reconnects the last device. Adaptive frequency hopping: the link counts the headset's answers per radio channel and drops the bad channels from the hop set every 30 s, as every phone does.

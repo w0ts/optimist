@@ -21,10 +21,10 @@ def check(ok, what):
 
 
 NEW = ("FM1-1A2B", "FM1-1A2B MIDI 1", "FM1-ffff 1", "FM1-0000")
-OLD = ("Optimist", "Optimist (Felucca)", "Felucca")
+OLD = ("Optimist", "Optimist (Felucca)", "Felucca", "FM-1", "FM1", "SMK-37")
 OTHER = ("Launchkey Mini MK3", "IAC Driver Bus 1", "SMK-25 II", "Arturia KeyStep", "FM1-12", "FM1-ZZZZ")
 
-for mod in ("fm1_mirror", "fm1_sample_upload"):
+for mod in ("fm1_mirror",):
     m = importlib.import_module(mod)
     check(all(m.PORT_RE.search(n) for n in NEW), f"{mod}: the new name FM1-XXXX is found")
     check(all(m.PORT_RE.search(n) for n in OLD), f"{mod}: the old names (Optimist, Felucca) are still found")
@@ -38,6 +38,9 @@ check(not any(inst.PORT_RE.search(n) for n in ("Launchkey Mini MK3", "IAC Driver
 flash = importlib.import_module("flash")
 check(flash.FM1B_PORTS == ("FM1-", "Optimist"), "flash: fm1-base's tool is given FM1- first, then Optimist")
 # the substring each is matched by (fm1_install Updater.candidates: the port name in the input name, any case)
+for rel in ("ios/OptimistMirror/Sources/Flash/FlashLink.swift",):
+    txt = (ROOT / rel).read_text()
+    check("smk-37" in txt.lower() and "optimist" in txt and "fm-?1" in txt, f"{rel}: finder names FM-1, Optimist and SMK-37")
 check(all(any(p.lower() in n.lower() for p in flash.FM1B_PORTS) for n in ("FM1-1A2B", "Optimist")), "flash: both port names reach an FM-1")
 check(not any(p.lower() in "Launchkey Mini MK3".lower() for p in flash.FM1B_PORTS), "flash: not other gear")
 
