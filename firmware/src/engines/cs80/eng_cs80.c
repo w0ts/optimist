@@ -122,7 +122,7 @@ static void cs80_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
         v->ph[2] = rph;
     }
     for (i = 0; i < n; i++)
-        out[i] += mulq15(mulq15(soft_knee(acc[i] >> 1, 24000), amp_at(m, i)), VOICE_FS) << 1;
+        out[i] += VOICE_OUT(soft_knee(acc[i] >> 1, 24000), amp_at(m, i), 1);
 }
 
 static const preset_t CS80_PRESETS[] = {

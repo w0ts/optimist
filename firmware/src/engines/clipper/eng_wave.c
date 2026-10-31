@@ -276,7 +276,7 @@ static void wave_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
             }
             s = y << 1;
         }
-        out[i] += mulq15(mulq15(s, amp_at(m, i)), VOICE_FS) << 1;
+        out[i] += VOICE_OUT(s, amp_at(m, i), 1);
     }
     v->s[0] = sv[0];
     v->s[1] = sv[1];

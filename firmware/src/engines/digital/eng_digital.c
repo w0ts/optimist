@@ -88,7 +88,7 @@ static void dig_tone_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, co
         pa += ia;
         p1 += ib;
         p2 += ib;
-        out[i] += mulq15(mulq15(mulq15(x, gx) + mulq15(y, gy), amp_at(m, i)), VOICE_FS);
+        out[i] += VOICE_OUT(mulq15(x, gx) + mulq15(y, gy), amp_at(m, i), 0);
     }
     v->ph[0] = pc;
     v->ph[1] = pa;
@@ -192,7 +192,7 @@ static FAST(digital) void digital_render(track_t *t, voice_t *v, int32_t *out, u
         ph1 += i2;
         ph2 += i3;
         ph4 += i4;
-        out[i] += mulq15(mulq15(s, amp_at(m, i)), VOICE_FS);   /* full-scale sines: 6 dB below the others */
+        out[i] += VOICE_OUT(s, amp_at(m, i), 0);   /* full-scale sines: 6 dB below the others */
     }
     v->ph[0] = ph0;
     v->ph[1] = ph1;

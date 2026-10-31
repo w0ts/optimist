@@ -2189,6 +2189,26 @@ static HOT2 __attribute__((noinline)) void dust_run(dust_t *s, int32_t d, int32_
 #if !FELUCCA_MIX_EXACT
 #define MIX_GAIN(x, g) (((x) >> 4) * ((g) >> 3) >> 8)  /* (Q15 in two halves: no 32-bit overflow) */
 #endif
+/* a part's sample b (the voices' sum) times its LEVEL lv (Q12) and its mute x duck gain g (Q15, applied under 32767):
+ * the value that goes to its pan, sends and USB stem (mix_part, insfx.c ifx_side_mix). LEVEL dropped 2 bits of b before
+ * its product, so a part reached the bus in steps of 4 x its level (LEVEL 0 dB: 4 LSB of the output), then MIX_GAIN
+ * floored it again. MIX_ROUND (issue 132, after SLOOP 2.8.4's "clean fades"): one 64-bit product of all three, rounded to
+ * the nearest (|b| < 2^20, lv g < 2^29); and MIX_PAN rounded too: a fading note's tail no longer steps down in 4s, nor
+ * ends on a floor's -1 square wave */
+#if FELUCCA_MIX_ROUND
+#undef MIX_PAN
+#define MIX_PAN(x, g) ((int32_t)(((int64_t)(x) * (g) + 2048) >> 12))
+AINL int32_t mix_lg(int32_t b, int32_t lv, int32_t g)
+{
+    return (int32_t)(((int64_t)clamp(b, -884000, 884000) * (lv * (g < 32767 ? g : 32768)) + (1 << 26)) >> 27);
+}
+#else
+AINL int32_t mix_lg(int32_t b, int32_t lv, int32_t g)
+{
+    int32_t x = ((clamp(b, -884000, 884000) >> 2) * lv) >> 10;   /* pre-shift: 8 loud voices */
+    return g < 32767 ? MIX_GAIN(x, g) : x;
+}
+#endif
 #include "insfx/insfx.c"            /* the further insert types FOLD FUZZ PHSR FLNG FRMT WIDE CHRS ECHO (ins_one, dbus_ins) */
 #include "insfx/fxi.c"              /* the limited types' instances (CHRS ECHO): the main loop hands them out, fxi_poll */
 #include "fx_arena.c"               /* FELUCCA_FX_ARENA: the effects' lines in the arena while used (fxm_poll) */
@@ -2687,10 +2707,8 @@ static HOT void mix_part(track_t *t, uint32_t n MIXACC_PARAM)
         for (i = 0; i < n; i++) {
             /* pre-shift: 8 loud voices; the input saturates where LEVEL would overflow (FM6 keeps Dexed's
              * headroom, 16 unit sines a voice: as Melodee's mix_part; no other engine gets there) */
-            int32_t x = ((clamp(b[i], -884000, 884000) >> 2) * (lvl0 + dl * (int32_t)i)) >> 10, a;
-            int32_t xs, g = ga + (((gb - ga) * (int32_t)i) >> CTL_LOG2);
-            if (g < 32767)
-                x = MIX_GAIN(x, g);                     /* (mute x duck: above) */
+            int32_t g = ga + (((gb - ga) * (int32_t)i) >> CTL_LOG2);   /* (mute x duck: above) */
+            int32_t x = mix_lg(b[i], lvl0 + dl * (int32_t)i, g), a, xs;   /* (LEVEL and the gain: above) */
             a = x < 0 ? -x : x;
             xs = clamp(x, -xmax, xmax);                 /* sends: mulq15 would overflow */
 #if FELUCCA_USB_AUDIO

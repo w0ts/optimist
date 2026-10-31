@@ -7,6 +7,16 @@
 #define VOICE_FS 24000           /* per-voice level: one voice peaks near -6 dBFS before the master */
 
 AINL int32_t mulq15(int32_t a, int32_t b) { return (a * b) >> 15; }
+/* a voice's sample s times its amplitude a (Q15) at VOICE_FS, << sh: what each engine adds to out[]. Two floored Q15
+ * products, then the shift: the first alone is a step of 1.5 LSB of the output at a soft note's tail, the shift 2^sh more
+ * (issue 132). MIX_ROUND: one product, s a >> 10 then x VOICE_FS / 64 (both under 2^30 wherever s a was under 2^31, as
+ * mulq15 needs), rounded to the nearest at the output's LSB */
+#if FELUCCA_MIX_ROUND
+_Static_assert(VOICE_FS % 64 == 0, "VOICE_OUT: VOICE_FS / 64 exact");
+#define VOICE_OUT(s, a, sh) (((((s) * (a)) >> 10) * (VOICE_FS / 64) + (1 << (13 - (sh)))) >> (14 - (sh)))
+#else
+#define VOICE_OUT(s, a, sh) (mulq15(mulq15((s), (a)), VOICE_FS) << (sh))
+#endif
 /* a gain gliding to its target (the mixer glides, after X0X 0.10.1: fx.c mix_part, drums.c drums_mix): one step a block */
 #define GLIDE_K 2294             /* Q15: 1 - exp(-CTL / (10 ms x FS)) = 0.0700 for CTL 32, FS 44.1 kHz */
 _Static_assert(CTL == 32, "GLIDE_K is for blocks of 32 frames");

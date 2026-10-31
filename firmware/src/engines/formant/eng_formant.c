@@ -201,7 +201,7 @@ static FAST(formant) void formant_render(track_t *t, voice_t *v, int32_t *out, u
             s = s < 0 ? -a : a;
         }
         ph += inc;
-        out[i] += mulq15(mulq15(s, amp_at(m, i)), VOICE_FS) << 1;
+        out[i] += VOICE_OUT(s, amp_at(m, i), 1);
     }
     v->ph[0] = ph;
     v->ph[1] = (uint32_t)y7;

@@ -567,7 +567,7 @@ static FAST(plaits) void plaits_render(track_t *t, voice_t *v, int32_t *out, uin
             S->lp = x;
         }
         x = soft_knee((x * gain) >> 12, 24000);
-        out[i] += mulq15(mulq15(x, amp_at(m, i)), VOICE_FS);
+        out[i] += VOICE_OUT(x, amp_at(m, i), 0);
     }
 }
 
