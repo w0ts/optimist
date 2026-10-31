@@ -5,8 +5,8 @@
 import Foundation
 
 final class NavDemo {
-    private var screen = 1, mode = Nav.Mode.lfo.rawValue, row = 1, track = 2
-    private let tracks = ["MASTER", "T1", "T2", "T3", "DR", "KICK", "SNARE", "CL HAT", "OP HAT", "CLAP", "TOM", "RIM", "COW",
+    private var screen = 1, mode = Nav.Mode.lfo.rawValue, row = 1, track = 5
+    private let tracks = ["RET A", "RET B", "RET C", "MASTER", "T1", "T2", "T3", "DR", "KICK", "SNARE", "CL HAT", "OP HAT", "CLAP", "TOM", "RIM", "COW",
                           "CYMB", "SHAKE", "ACCENT"]
     private let fams: [Int: [String]] = [
         Nav.Mode.env.rawValue: ["ENV", "ENV mod", "ENV2", "ENV2 to"],
@@ -48,7 +48,7 @@ final class NavDemo {
     func clip(_ a: [UInt8]) -> [UInt8] {
         let t = Int(a.count > 1 ? a[1] : 0), i = Int(a.count > 2 ? a[2] : 0)
         switch a.first ?? 127 {
-        case 0: return [0, 0, UInt8(max(0, min(2, track - 1))), 4, 32, 0, 32, 0, 32, 0, 16, 1]
+        case 0: return [0, 0, UInt8(max(0, min(2, track - Nav.t1Row))), 4, 32, 0, 32, 0, 32, 0, 16, 1]
         case 1:
             guard t < 3, i < 64, a.count >= 4 else { return [1, 1, UInt8(t), UInt8(i), 0] }
             let n = min(16, Int(a[3]), 64 - i)
@@ -66,7 +66,7 @@ final class NavDemo {
         var ok = true
         switch op {
         case 1 where a.count > 1 && (Int(a[1]) < rows.count || (screen == 6 && Int(a[1]) == Nav.songPatterns)): row = Int(a[1])
-        case 2 where a.count > 1 && hasTrack: track = Int(a[1]); screen = track == 0 ? 2 : screen == 2 ? 1 : screen
+        case 2 where a.count > 1 && hasTrack: track = Int(a[1]); screen = track <= Nav.masterRow ? 2 : screen == 2 ? 1 : screen
         case 3 where a.count > 2: screen = Int(a[1]); mode = screen == 1 ? Int(a[2]) : Nav.none; row = 0
         case 0, 4: break
         default: ok = false
