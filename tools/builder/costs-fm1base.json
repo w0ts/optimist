@@ -1178,14 +1178,6 @@
     "ramtext": 0
    }
   },
-  "LCD_DIRTY": {
-   "0": {
-    "flash": 8,
-    "ram": 0,
-    "pool": 0,
-    "ramtext": 0
-   }
-  },
   "EDITOR": {
    "0": {
     "flash": -26740,
@@ -4084,7 +4076,6 @@
     "FAVORITES": 0,
     "PARAM_HELP": 1,
     "LCD_BAUD": 0,
-    "LCD_DIRTY": 0,
     "ED_LIVE": 0,
     "ED_MIX": 0,
     "ED_SEQ": 0,

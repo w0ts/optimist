@@ -4516,40 +4516,6 @@
     "provenance_line": "X0X (charlesvestal/fm1-x0x) @ d179e03 by Charles Vestal (GPL-3.0-only)"
    },
    {
-    "key": "LCD_DIRTY",
-    "flag": "FELUCCA_LCD_DIRTY",
-    "label": "screen: send only the changed rectangle",
-    "group": "UI",
-    "bit": 68,
-    "default": 1,
-    "parent": null,
-    "desc": "Redraws only the part of the graph strip that changed instead of the whole strip: less data per frame and less tearing (with the 30 MHz screen clock). Costs about 1.5 KB of flash and 0.6 KB of RAM.",
-    "experimental": false,
-    "notice": "Ported from X0X by Charles Vestal (GPL-3.0): dirty-rectangle screen updates. Not yet tried on hardware here.",
-    "off_warning": "",
-    "env": "",
-    "target_only": false,
-    "symbols": [],
-    "no_image": false,
-    "fixed": false,
-    "head": false,
-    "choices": [],
-    "not_built": {},
-    "provenance": {
-     "project": "X0X (charlesvestal/fm1-x0x)",
-     "author": "Charles Vestal",
-     "licence": "GPL-3.0-only",
-     "commit": "201b95c",
-     "url": "https://github.com/charlesvestal/fm1-x0x"
-    },
-    "children": [],
-    "hidden": false,
-    "shown_under": null,
-    "dim_when": null,
-    "tested": "emulator-tested only",
-    "provenance_line": "X0X (charlesvestal/fm1-x0x) @ 201b95c by Charles Vestal (GPL-3.0-only)"
-   },
-   {
     "key": "EDITOR",
     "flag": "FELUCCA_EDITOR",
     "label": "web editor (USB SysEx)",
@@ -6761,10 +6727,6 @@
   [
    "SET_HORNS",
    0
-  ],
-  [
-   "LCD_DIRTY",
-   0
   ]
  ],
  "top": {
@@ -6900,7 +6862,6 @@
    "SYS_DEBUG",
    "KNOB_ACCEL",
    "LCD_BAUD",
-   "LCD_DIRTY",
    "DIV_ORDER"
   ],
   "System": [

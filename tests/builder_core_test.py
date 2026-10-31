@@ -69,9 +69,9 @@ _in = 184
 _lim = K.limits_in_use()                                         # (the slots of the costs in use: the release's or the classic's)
 _sram = _lim["sram"] - K.SPARE["sram"] - _in                     # (the SRAM parts sum to _in inside; flash well inside)
 _base = {"flash": _lim["flash"] - 4096, "ram": 90000, "pool": _sram - 90000 - 30000, "ramtext": 30000}
-_one = dict(d, LCD_DIRTY=1 - d["LCD_DIRTY"])
+_one = dict(d, FAVORITES=1 - d["FAVORITES"])
 _tc = dict(costs, base=_base, checks={},
-           deltas=dict(costs["deltas"], LCD_DIRTY={str(_one["LCD_DIRTY"]): {r: 0 for r in K.REGIONS}}))
+           deltas=dict(costs["deltas"], FAVORITES={str(_one["FAVORITES"]): {r: 0 for r in K.REGIONS}}))
 _b0, _b1 = K.budget(d, _tc), K.budget(_one, _tc)
 check(f"fit margin: a configuration's own build (distance 0) {_in} B inside the SRAM budget is not over",
       _b0["distance"] == 0 and _b0["total"]["ram"] == _base["ram"] and not K.over_any(d, _tc))

@@ -16,7 +16,6 @@
 static uint8_t lcd_small[64];
 static uint8_t lcd_busy;           /* a lcd_data DMA may still run; CS is low */
 uint32_t lcd_px_sent;              /* pixels sent by lcd_fill / lcd_blit (a diagnostic: emulator peek) */
-static void lcd_touched(uint32_t y0, uint32_t y1);   /* lcd_dirty.c: rows written */
 
 static void lcd_spin(uint32_t n)
 {
@@ -53,7 +52,6 @@ static void lcd_data(const void *p, uint32_t n)
 static void lcd_window(uint32_t x0, uint32_t y0, uint32_t x1, uint32_t y1)
 {
     lcd_sync();
-    lcd_touched(y0, y1);
     lcd_px_sent += (x1 - x0 + 1u) * (y1 - y0 + 1u);
     lcd_small[0] = (uint8_t)(x0 >> 8);
     lcd_small[1] = (uint8_t)x0;
