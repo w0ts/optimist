@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* tests/ui_optimist_test.c, STEP with a step held (the user, 2026-10-16): PRESETS moves the held step left / right in time (its
- * events go with it, the neighbour swaps, the ends refuse, the window pages, undoable), ALGORITHM moves it up / down (a synth
+ * events go with it, a note of another pitch stays where it is, the ends refuse, the window pages, undoable), ALGORITHM moves it up / down (a synth
  * note a semitone, the SELECTed one of several; a drum hit one lane); the encoders keep their meaning with nothing held and when
  * the step is let go; the edited note stays in view under the cards, the selected note is drawn in C_NOTE. And REC held on a
  * picked drum lane clears only that lane. Included by ui_optimist_test.c. */
@@ -24,6 +24,15 @@ static void sm_note(track_t *t, uint32_t i, uint32_t n)
     t->step[i].n = 1;
     t->step[i].time = ST_NOTE;
     t->step[i].vel = 100;
+}
+static int sm_has(const track_t *t, uint32_t i, uint32_t nt, uint32_t L)   /* note nt starts at step i, L steps long */
+{
+    const step_t *s = &t->step[i];
+    uint32_t k;
+    for (k = 0; s->time == ST_NOTE && k < s->n && k < 4u; k++)
+        if (s->note[k] == nt)
+            return (note_span(t, i, k) + 127u) / 128u == L;
+    return 0;
 }
 static void sm_undo(void)
 {
@@ -67,13 +76,14 @@ static void step_move_synth_tests(void)
     }
 #endif
     turn(EN_PRESET, 1);
-    check(t->step[4].note[0] == 60 && t->step[5].note[0] == 70 && st.held == 1u << 4, "step move: touching a note: the next detent is the snap (nothing moves)");
+    check(t->step[4].time == ST_REST && sm_has(t, 5, 60, 1) && sm_has(t, 5, 70, 1) && st.held == 1u << 5,
+          "step move: onto another pitch's note: it goes there, the other stays (2026-10-31: no snap, no swap)");
     turn(EN_PRESET, 1);
-    check(t->step[5].note[0] == 60 && t->step[4].note[0] == 70, "step move: ... the one after: past it, they swap, nothing lost");
+    check(sm_has(t, 6, 60, 1) && sm_has(t, 5, 70, 1) && t->step[5].n == 1u, "step move: ... and on past it, the other where it was");
     turn(EN_PRESET, -1);
     turn(EN_PRESET, -1);
     turn(EN_PRESET, -1);
-    check(t->step[3].note[0] == 60 && t->step[5].note[0] == 70 && st.held == 1u << 3, "step move: PRESETS left three times (the snap, past, on): back");
+    check(t->step[3].note[0] == 60 && t->step[5].note[0] == 70 && st.held == 1u << 3, "step move: PRESETS left three times (onto it, past, on): back");
     kup(WK(3));
     check(!st.held && t->step[3].time == ST_NOTE && t->step[3].note[0] == 60, "step move: let go: not toggled, nothing held");
     kdown(WK(5));
@@ -120,8 +130,8 @@ static void step_move_synth_tests(void)
     t->step[7].time = ST_TIE;
     kdown(WK(3));
     turn(EN_PRESET, 3);
-    check(t->step[4].note[0] == 55 && t->step[5].time == ST_TIE && t->step[6].note[0] == 60 && t->step[7].time == ST_TIE && st.held == 1u << 6,
-          "step move: on, the snap at the tied note, then past it: the two notes swap whole, ties and all");
+    check(sm_has(t, 6, 55, 2) && sm_has(t, 6, 60, 2) && st.held == 1u << 6,
+          "step move: on over a tied note of another pitch, onto it: a chord, each its whole length, the tied note where it was");
     kup(WK(3));
     /* ALGORITHM: the pitch */
     stm_open(0, 16);

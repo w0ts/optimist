@@ -7,7 +7,7 @@
  *              alone, the one above ...; then the next step's
  *   move       a note moved (KNOB 2, PRESETS held) is the selected note(s) alone, each its whole length: the bug was a chord's
  *              other note moved with it and a note sounding on past its ties (carry steps) cut in two; at the first / last
- *              step it stays and says so; the same pitch where it would go: it stays
+ *              step it stays and says so; the same pitch where it would go: it goes past (2026-10-31, ui_optimist_stepedit.h)
  * Included by ui_optimist_test.c after ui_optimist_overlap.h. */
 static const char *sgl_notes(const track_t *t)          /* every note that starts, "step:pitch x steps", in step then pitch order */
 {
