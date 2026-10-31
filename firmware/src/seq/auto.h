@@ -103,10 +103,13 @@ static inline int auto_pseudo_ok(uint32_t param, int32_t v)
  * 0..3 the lane (0..9), bits 4..5 the page (two of four used); param AUTO_COND + i, value i of the page (LFX_R):
  *   page 0  ROLL (1..5: x2 x3 x4 x6 x8) · NUDGE (1/64 of a step) · FILL (FILL ONLY / NO FILL) · CHANCE (0..99 %)
  *   page 1  VEL RAND (1..64) · FLAM (1..8: 5..40 ms) · ROLL RAMP (-100..100 %) · EVERY (1..9: 1:2 2:2 1:3 .. 4:4)
+ *   page 2  CHANCE ACC (0..100 %: the chance of an accented hit, 101 = "=NORM": as CHANCE; the other three values of the page unused)
  * The default (none, 0, ALWAYS, 100 % on page 0; 0 on page 1) is no event. The event is the lane's, not a step's: the
  * walks that move, copy or clear steps leave it (AUTO_IS_LFX); an older build refuses the list (auto_ev_ok there) */
 #define LFX_LANES 10u
-#define LFX_PAGES 2u
+#define LFX_PAGES 3u
+#define LFX_ACC_SAME 101                 /* CHANCE ACC past 100: "=NORM", accented hits use CHANCE (its default: no event)
+                                  * (an older project's lanes have no such event: as before) */
 #define LFX_ROLL_N 5u                    /* ROLL's values 1..LFX_ROLL_N */
 #define LFX_FLAM_MS 5                    /* FLAM: its value x this, in ms */
 #define AUTO_IS_LFX(e) (AUTO_PSEUDO((e)->param) && !((e)->place & (AUTO_ONLY | 0x80u)))
@@ -115,7 +118,8 @@ static inline int auto_pseudo_ok(uint32_t param, int32_t v)
 #define AUTO_LFX_PG(e) (((uint32_t)(e)->place >> 4) & 3u)
 static const int8_t LFX_R[LFX_PAGES][4][3] = {           /* each value's min, max, default (no event) */
     {{0, (int8_t)LFX_ROLL_N, 0}, {MICRO_MIN, MICRO_MAX, 0}, {0, FC_NOFILL, FC_NORM}, {0, 100, 100}},
-    {{0, 64, 0}, {0, 8, 0}, {-100, 100, 0}, {0, (int8_t)AUTO_NCOND, 0}}};
+    {{0, 64, 0}, {0, 8, 0}, {-100, 100, 0}, {0, (int8_t)AUTO_NCOND, 0}},
+    {{0, LFX_ACC_SAME, LFX_ACC_SAME}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}};
 static inline int auto_lfx_ok(const auto_ev_t *e)
 {
     uint32_t pg = AUTO_LFX_PG(e), i = (uint32_t)e->param - AUTO_COND;

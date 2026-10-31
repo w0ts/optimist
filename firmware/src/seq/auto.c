@@ -244,7 +244,7 @@ static uint8_t seq_skip[NTRK];           /* the step playing failed its conditio
 #if FELUCCA_LANE_FX
 /* the drum lanes' FX in force (auto.h AUTO_IS_LFX; i = page x 4 + the value on it), read from the list at each drum step (auto_step), so an
  * edit, a load or a pattern switch is heard at the next step: [lane][param - AUTO_COND] ROLL NUDGE FILL CHANCE */
-enum { LFX_I_ROLL, LFX_I_NUDGE, LFX_I_FILL, LFX_I_CHANCE, LFX_I_VRND, LFX_I_FLAM, LFX_I_RAMP, LFX_I_EVERY, LFX_N };
+enum { LFX_I_ROLL, LFX_I_NUDGE, LFX_I_FILL, LFX_I_CHANCE, LFX_I_VRND, LFX_I_FLAM, LFX_I_RAMP, LFX_I_EVERY, LFX_I_CHACC, LFX_I_X1, LFX_I_X2, LFX_I_X3, LFX_N };
 _Static_assert(LFX_N == 4u * LFX_PAGES, "four values a page");
 static int8_t lfx_v[LFX_LANES][LFX_N];
 static uint32_t lfx_eabs = SEQ_NONE;    /* the step (seq_abs) the early lanes were decided for (lane_fx.c; STOP: none) */
