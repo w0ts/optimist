@@ -195,8 +195,8 @@ removes its code, RAM and pool together.
 
 **Fitting order** (`FIT_ORDER`, the builder's "fit" drops these, least loss first, until the estimate fits): ENG_SLICE,
 then `DLY_LEN` 32768 (0.74 s; saves 64 KB of pool; a 1/4-note delay needs 81 BPM or more), `PUNCH_N` 16384 (saves 32 KB),
-`SL_LEN` 2048 (saves 16 KB), the LOFI, FORMANT, PHASE and DRAWBAR engines, the SCRCH, STRGS and HORNS sample sets, and
-last `LCD_DIRTY`. PERC is never dropped. Other levers measured earlier (sizes from 2026-10-05, order of magnitude only):
+`SL_LEN` 2048 (saves 16 KB), the LOFI, FORMANT, PHASE and DRAWBAR engines, and the SCRCH, STRGS and HORNS sample sets (`LCD_DIRTY`,
+the last step, was retired 2026-10-31). PERC is never dropped. Other levers measured earlier (sizes from 2026-10-05, order of magnitude only):
 parameter icons off about 5.6 KB; FM6's black-key editor about 5.4 KB; a sample set 20-44 KB; USB audio and the console off
 about 2.5 KB of flash and 12 KB of pool; OTA off 12.8 KB (not an option: it is the update path).
 

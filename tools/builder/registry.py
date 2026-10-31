@@ -116,6 +116,7 @@ RETIRED = {
     "STOCK_SUPPLY": "the core rails are raised to the FM-1's stock values at start-up in every build for the FM-1 (retired 2026-10-29, bit 62; any old STOCK_SUPPLY value is ignored)",
     "REV_HALF": "the half-rate reverb (the ROOM at 22.05 kHz, a half-size ring for PLATE / FDN8 / VTINY) was dropped (2026-10-29, bit 123; the user: \"drop those\"): an old .config with REV_HALF=1 builds the full-rate reverb",
     "REV_HB_LONG": "the steep 63-tap filter of the half-rate reverbs was dropped (2026-10-29, bit 430; the user: \"drop those\"): the reverbs keep the 15-tap half-band",
+    "LCD_DIRTY": "the dirty-rectangle screen update (cv_blit_dirty, after X0X 201b95c) had no caller since the old graph strip went with f1ab07ed (2026-10-19), so the item changed nothing on the screen; the code is removed (retired 2026-10-31, bit 68, never reuse it; any old LCD_DIRTY value is ignored)",
     "BT_AFH": "Bluetooth audio always hops adaptively, the channels the headset fails on skipped (bt/bt_afh.c; retired 2026-10-29, bit 395; the user: \"always on\"; any old BT_AFH value is ignored)",
     "BLE_DIAG": "the BLE diagnostics (the console's blell, the link layer's counters and rings) were removed (retired 2026-10-29, bit 253; the user: \"we can remove the diagnostics\"): BLE works the same without them; any old BLE_DIAG value is ignored",
     "BT_DIAG": "the Bluetooth audio diagnostics (the console's btinq / btscan / btpage / btclk / btrx / bttrace, the status histograms, receive logs and per-second counters) were removed (retired 2026-10-29, bit 363; the user: \"we can remove the diagnostics\"): the audio works the same without them; any old BT_DIAG value is ignored",
@@ -137,7 +138,7 @@ WAS_COUNT = frozenset({"INS_DELAY", "INS_JCHORUS", "INS_FLANGER", "INS_XDLY",
                        "ARENA"})   # (ARENA: its KB until 2026-10-29, the free RAM since: on)
 
 ALWAYS_ON_TARGET = {"FELUCCA_DUAL": 2, "FELUCCA_STOCK_SUPPLY": 1}   # (target builds only, no item: system/dual.c, system/supply.c; 2026-10-29)
-HASH_AS = {"BASSPLUS": 1, "KEYLIT": 1, "LIGHTS": 1, "BRIGHT": 0, "SIMD": 0, "KNOB_ONEREST": 1, "MONO_RELEASE": 1, "ST_STRICT": 1, "USB_FLOW": 1, "SHED_FADE": 1, "KEYS_FAST": 1, "TRS_NOISE": 1, "BK_CHECK": 1, "LAYER_QUIET": 1, "DLY_HALVE": 1, "LFO2": 1, "GLIDE": 1, "UI": 1, "ICONS": 0, "OVERVIEW": 0, "OV_ARP": 1, "DRUM_STEP": 1, "CHORD_NAMES": 1, "BPM_LOCK": 0, "MOTION_MARK": 1, "SEL_PAGES": 0, "BIGVALS": 0, "DRUM_ACCENT": 1, "PAGE_LINES": 1, "TAB_IN_POOL": 1, "VOICE_OWN": 1, "DLY_DOT": 1, "CHO_EXACT": 1, "JUNO_FINE": 1, "DUAL": 2, "STOCK_SUPPLY": 1, "REV_HALF": 0, "REV_HB_LONG": 0, "BT_AFH": 1, "BLE_DIAG": 0, "BT_DIAG": 0, "OVERLAY": 0}   # (each was its default in every profile)
+HASH_AS = {"BASSPLUS": 1, "KEYLIT": 1, "LIGHTS": 1, "BRIGHT": 0, "SIMD": 0, "KNOB_ONEREST": 1, "MONO_RELEASE": 1, "ST_STRICT": 1, "USB_FLOW": 1, "SHED_FADE": 1, "KEYS_FAST": 1, "TRS_NOISE": 1, "BK_CHECK": 1, "LAYER_QUIET": 1, "DLY_HALVE": 1, "LFO2": 1, "GLIDE": 1, "UI": 1, "ICONS": 0, "OVERVIEW": 0, "OV_ARP": 1, "DRUM_STEP": 1, "CHORD_NAMES": 1, "BPM_LOCK": 0, "MOTION_MARK": 1, "SEL_PAGES": 0, "BIGVALS": 0, "DRUM_ACCENT": 1, "PAGE_LINES": 1, "TAB_IN_POOL": 1, "VOICE_OWN": 1, "DLY_DOT": 1, "CHO_EXACT": 1, "JUNO_FINE": 1, "DUAL": 2, "STOCK_SUPPLY": 1, "REV_HALF": 0, "REV_HB_LONG": 0, "BT_AFH": 1, "LCD_DIRTY": 1, "BLE_DIAG": 0, "BT_DIAG": 0, "OVERLAY": 0}   # (each was its default in every profile)
 
 # Never offered: used by X0X only by permission of its author, no licence
 FORBIDDEN = {
@@ -1052,12 +1053,8 @@ _add("LCD_BAUD", "LCD_BAUD", "screen data speed (SPI clock)", U, 79, default=1,
           "hardware.", provenance=x0x("d179e03"),
      notice="Ported from X0X by Charles Vestal (GPL-3.0): the faster LCD clock ran on X0X's FM-1; untested on "
             "hardware here.")
-_add("LCD_DIRTY", "FELUCCA_LCD_DIRTY", "screen: send only the changed rectangle", U, 68,
-     desc="Redraws only the part of the graph strip that changed instead of the whole strip: less data per frame and "
-          "less tearing (with the 30 MHz screen clock). Costs about 1.5 KB of flash and 0.6 KB of RAM.",
-     provenance=x0x("201b95c"),
-     notice="Ported from X0X by Charles Vestal (GPL-3.0): dirty-rectangle screen updates. Not yet tried on "
-            "hardware here.")
+# (bit 68, LCD_DIRTY, retired 2026-10-31: its function cv_blit_dirty had no caller since f1ab07ed, so it changed nothing on the screen; RETIRED above;
+#  never reuse the bit)
 
 # ---- system
 Y = "System"

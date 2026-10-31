@@ -170,7 +170,7 @@ PARENT = {"FELUCCA_SPRING": "FX_REVERB", "FELUCCA_PUNCH_LATCH": "FX_PUNCH",
 AFTER = {"FELUCCA_SPRING": "REV_FDN8"}   # an option's place among its parent's (SPRING beside the other reverb algorithms)
 BITS = {  # switch -> stable BUILD bit (append only)
     "FELUCCA_CHANCE": 64, "FELUCCA_QNT_SEQ": 66, "FELUCCA_KNOB_ACCEL": 67,
-    "FELUCCA_LCD_DIRTY": 68, "FELUCCA_UNDO_HISTORY": 69, "FELUCCA_SIZE": 70,   # (71: FELUCCA_UA_RESAMPLE, retired 2026-10-15: USB audio always resamples; never reuse the bit)
+    "FELUCCA_UNDO_HISTORY": 69, "FELUCCA_SIZE": 70,   # (68: FELUCCA_LCD_DIRTY, retired 2026-10-31: the dirty-rectangle code had no caller; never reuse the bit; 71: FELUCCA_UA_RESAMPLE, retired 2026-10-15: USB audio always resamples; never reuse the bit)
     "FELUCCA_SPRING": 72,    # (73: FELUCCA_BASSPLUS, retired 2026-10-29: BASS+ always built; 65: FELUCCA_KEYLIT and 106: FELUCCA_LIGHTS, retired 2026-10-29: always built; 74: FELUCCA_BRIGHT, retired 2026-10-29: the screen is always full; never reuse the bits)
                                                                                        # (75: FELUCCA_DLY_HALVE, retired 2026-10-14: always built; never reuse)
     "FELUCCA_MOTION": 76, "FELUCCA_ENG_PHYS": 77, "FELUCCA_ENG_ACID": 78,
