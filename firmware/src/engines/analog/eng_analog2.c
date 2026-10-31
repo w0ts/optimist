@@ -588,7 +588,7 @@ static void a2_asm_selftest(void)
 }
 #endif
 
-static FAST(analog) void analog_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
+static FAST(analog) void analog_render(track_t *t, voice_t *v, int32_t *__restrict out, uint32_t n, const vmod_t *m)
 {
 #if FELUCCA_ASM_CHECK
     static uint8_t tested;

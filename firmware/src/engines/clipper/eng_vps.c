@@ -59,7 +59,7 @@ static void vps_note_on(track_t *t, voice_t *v)
     }
 }
 
-static void vps_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
+static void vps_render(track_t *t, voice_t *v, int32_t *__restrict out, uint32_t n, const vmod_t *m)
 {
     const int16_t *p = t->p;
     vps_seg_t a1, b1, a2, b2;

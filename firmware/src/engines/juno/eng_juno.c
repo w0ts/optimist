@@ -57,7 +57,7 @@ static FAST(juno) int32_t juno_amp(track_t *t, voice_t *v, int32_t adsr)
 
 /* the level: y * amp >> 15 (y < 2^18): ANALOG's, measured below the master's limiter (juno_test; >> 12 was 18-27 dB
  * over, the presets' trims: tools/level_presets.py) */
-static FAST(juno) void juno_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
+static FAST(juno) void juno_render(track_t *t, voice_t *v, int32_t *__restrict out, uint32_t n, const vmod_t *m)
 {
     const int16_t *p = t->p;
     juno_vs_t *s = juno_vs(t, v);

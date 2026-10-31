@@ -124,7 +124,7 @@ static inline P5_FAST float p5_wave(uint32_t ph, uint32_t inc, uint32_t pw, int 
     return y;
 }
 
-P5_FAST void p5_render(int32_t *out, uint32_t n, uint32_t *ph, int32_t *st, const p5_args_t *a)
+P5_FAST void p5_render(int32_t *__restrict out, uint32_t n, uint32_t *ph, int32_t *st, const p5_args_t *a)
 {
     float z[4] = {p5_ld(&st[0]), p5_ld(&st[1]), p5_ld(&st[2]), p5_ld(&st[3])};
     float tr = p5_ld(&st[4]), tail = p5_ld(&st[5]), unused = 0.0f;

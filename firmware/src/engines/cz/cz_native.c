@@ -149,7 +149,7 @@ static FAST(cz) uint32_t cz_mod(const uint8_t *b, const cz_ed_t *ed)
     static const uint8_t M[4] = {0, 0, 4, 3};
     return ed->mod ? M[ed->mod & 3u] : (b[15] >> 3) & 7u;
 }
-static FAST(cz) void cz_native_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
+static FAST(cz) void cz_native_render(track_t *t, voice_t *v, int32_t *__restrict out, uint32_t n, const vmod_t *m)
 {
     uint32_t part = (uint32_t)(t - trk) % NPART;
     const uint8_t *b = cz_tone(part);

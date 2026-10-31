@@ -100,7 +100,7 @@ static void noise_note_on(track_t *t, voice_t *v)
     v->ph[2] = 0;
 }
 
-static void noise_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
+static void noise_render(track_t *t, voice_t *v, int32_t *__restrict out, uint32_t n, const vmod_t *m)
 {
     const int16_t *p = t->p;
     uint32_t mode = (uint32_t)p[P_E0] & 3u, sel = ((uint32_t)p[P_E5] >> 4) & 7u, i;

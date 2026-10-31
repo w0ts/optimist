@@ -91,7 +91,7 @@ AINL void cs80_chan(voice_t *v, uint32_t c, uint32_t w, uint32_t inc, uint32_t p
     v->s[4u * c + 3u] = l2;
 }
 
-static void cs80_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
+static void cs80_render(track_t *t, voice_t *v, int32_t *__restrict out, uint32_t n, const vmod_t *m)
 {
     const int16_t *p = t->p;
     uint32_t w1 = (uint32_t)clamp(p[P_E0], 0, CS_NWAVE - 1), w2 = (uint32_t)clamp(p[P_E1], 0, CS_NWAVE - 1);

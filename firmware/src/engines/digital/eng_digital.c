@@ -111,7 +111,7 @@ static const param_desc_t *digital_desc(const track_t *t, uint32_t k)
 }
 #endif
 
-static FAST(digital) void digital_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
+static FAST(digital) void digital_render(track_t *t, voice_t *v, int32_t *__restrict out, uint32_t n, const vmod_t *m)
 {
     const int16_t *p = t->p;
     uint32_t alg = (uint32_t)p[P_E0] & 7u, i;
