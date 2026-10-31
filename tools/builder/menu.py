@@ -759,9 +759,7 @@ class Builder(App):
         ev = PG.parse_flash(ln)
         if ev:
             pct = self.flash_track.feed(ev)
-            what = {"check": "checking the package", "switch": "switching to update mode",
-                    "write": "writing, do not unplug", "restart": "restarting"}[ev[0]]
-            self.call_from_thread(self.progress_show, f"flash: {what} {pct}%", pct)
+            self.call_from_thread(self.progress_show, f"flash: {self.flash_track.label} {pct}%", pct)
 
     def action_build(self, then_emu=False):
         """b: build. -> True when a build started (False: the configuration cannot be built, said in the panel)"""

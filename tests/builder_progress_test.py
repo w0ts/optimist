@@ -3,6 +3,7 @@
 fm1_install.py's progress output, and the streaming runner both the menu and the CLI use. No device, no toolchain."""
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -51,7 +52,7 @@ check("flash: writing gives the percentage (the tool pads it to 3 columns)",
       and P.parse_flash("writing 100%") == ("write", 100))
 check("flash: the mode switch is a phase of its own", P.parse_flash("switching to update mode") == ("switch", 0))
 check("flash: restarting is the last phase", P.parse_flash("restarting") == ("restart", 100))
-for junk in ("", "done: the FM-1 runs FM-1_700", "starting the update on FM-1_700", "writing 101%", "writing x%"):
+for junk in ("", "starting the update on FM-1_700", "writing 101%", "writing x%"):
     check(f"flash: no progress in {junk!r}", P.parse_flash(junk) is None)
 
 # ---- one overall flash percentage that only rises. The loader reads the package twice (its check, then the write),
@@ -94,6 +95,64 @@ with tempfile.TemporaryDirectory() as td:
     boom = []
     rc, _ = P.stream([sys.executable, "-c", "print('x')"], on_line=lambda s: boom.append(1) or 1 / 0)
     check("stream: a callback that raises does not kill the run or lose the exit code", rc == 0 and boom)
+
+# ---- both install routes replayed: fm1_install.py's own printing (its Progress class, the loader route) and the
+# download-mode route's lines (fm1_anyflash.py's "$ M-Flasher CMD", M-Flasher's "\r  NN%" through its line reader),
+# through stream() as the builder runs them: the bar must leave "starting" and rise to 100 on each (2026-10-31: the
+# builder's bar stayed at "flash: starting --%" for a whole install)
+LOADER_CHILD = (
+    "import sys; sys.path.insert(0, {tools!r}); import fm1_install as FI; p = FI.Progress(sys.stdout); "
+    "print('route:    loader: its own update loader (the normal install)'); p('start', 'FM-1_7900'); "
+    "[p('check', k) for k in range(1, 8)]; p('loader'); [p('write', v) for v in range(0, 100, 9)]; "
+    "[p('write', v) for v in range(2, 100, 9)]; p('write', 100); p('reboot'); p('done', 'FM-1_7900')")
+MF = "/Users/x/optimist/build/m-flasher/m-flasher-0.7.0/M-Flasher.app/Contents/MacOS/M-Flasher"
+DOWNLOAD_LINES = (["route:    download: the build's BOOTLOADER is m-bootloader", f"M-Flasher: {MF}",
+                   "sent the soft key (F0 22 24 35 7D F7) over USB-MIDI; waiting for download mode",
+                   f"$ {MF} find", "In download mode: /dev/x", f"$ {MF} info", "  model      FM-1",
+                   f"$ {MF} backup /Users/x/Documents/M-Flasher/backups"] + [f"  {v:3d}%" for v in range(0, 101, 20)] +
+                  ["Backup saved: /x/fm1.bin", f"$ {MF} bootloader --backup-dir /x"] + [f"  {v:3d}%" for v in (0, 50, 100)] +
+                  [f"$ {MF} firmware /x/p.fwsc --backup-dir /x", "Nothing written.",
+                   f"$ {MF} firmware /x/p.fwsc --backup-dir /x --yes"] + [f"  {v:3d}%" for v in range(0, 101, 10)] +
+                  [f"$ {MF} restart", "done: the FM-1 runs FM-1_7900"])
+
+
+def replay(code):
+    t, bar = P.FlashTracker(), []
+
+    def on(ln):
+        ev = P.parse_flash(ln)
+        if ev:
+            bar.append((t.feed(ev), t.label))
+    rc, _ = P.stream([sys.executable, "-c", code], on_line=on)
+    return rc, bar
+
+
+rc, bar = replay(LOADER_CHILD.format(tools=str(Path(__file__).resolve().parent.parent / "tools")))
+vals = [v for v, _ in bar]
+check("replay, the loader route (fm1_install.Progress's own lines): the bar moves from the first read, only rises, "
+      "ends at 100", rc == 0 and len(bar) > 20 and all(a <= b for a, b in zip(vals, vals[1:])) and vals[-1] == 100
+      and any(lb.startswith("writing") and 50 < v < 100 for v, lb in bar))
+child = "import sys\nfor ln in " + repr(DOWNLOAD_LINES) + ":\n    print(ln.replace('  ', '\\r  ', 1) if ln.strip().endswith('%') else ln, flush=True)\n"
+rc, bar = replay(child)
+vals = [v for v, _ in bar]
+labels = [lb for _, lb in bar]
+check("replay, the download-mode route: download mode, backup, m-bootloader, M-Flasher's plan and its write each move "
+      "the bar, only rising, to 100", rc == 0 and all(a <= b for a, b in zip(vals, vals[1:])) and vals[-1] == 100
+      and "full backup" in labels and "installing m-bootloader, do not unplug" in labels
+      and any(lb.startswith("writing") and 50 < v < 97 for v, lb in bar) and vals[0] < 5)
+check("download route: a percentage before any M-Flasher command does not jump the bar",
+      P.FlashTracker().feed(("pct", 80)) == 0)
+check("download route: the write call (the second firmware call) is past the plan",
+      P.MF_RANGES["firmware2"][0] >= P.MF_RANGES["firmware"][1])
+for ln, want in ((f"$ {MF} backup /x", ("mf", "backup")), ("  42%", ("pct", 42)), ("done: the FM-1 runs FM-1_700", ("done", 100)),
+                 ("put the FM-1 in download mode: by hand: REC", ("enter", 0))):
+    check(f"flash: {ln!r} is {want}", P.parse_flash(ln) == want)
+
+# ---- a "\r...ESC[K" update is handed on as soon as it arrives (not held until the next one)
+seen, t0 = [], time.monotonic()
+rc, _ = P.stream([sys.executable, "-c", "import sys, time; sys.stdout.write('\\rwriting  5%\\x1b[K'); sys.stdout.flush(); "
+                  "time.sleep(0.6); sys.stdout.write('\\n')"], on_line=lambda s: seen.append((time.monotonic(), s)))
+check("stream: an ESC[K update is handed on at once, not after the 0.6 s wait", any(s == "writing  5%" and at - t0 < 0.5 for at, s in seen))
 
 print("progress: " + ("all passed" if not fails else f"{fails} FAILED"))
 sys.exit(1 if fails else 0)
