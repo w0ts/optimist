@@ -1931,6 +1931,15 @@ static void layer_tests(void)
     tap(B_LFO);
     frames(2);
     check(lay.lock == LY_PAT && ui.scr == SCR_SONG && !op_armed(), "... locked: LFO alone does nothing (no LFO pages)");
+    {   /* the user, 2026-10-31: "when i click on pattern mode (shift lfo) it select should not switch between pattern and song modes/pages" */
+        uint8_t r0 = ui.row[SCR_SONG];
+        turn(EN_SELECT, 1);
+        frames(2);
+        check(lay.lock == LY_PAT && ui.scr == SCR_SONG && song_on_pat_row() && ui.row[SCR_SONG] == r0, "... locked: SELECT + stays in pattern mode (no SONG)");
+        turn(EN_SELECT, -1);
+        frames(2);
+        check(lay.lock == LY_PAT && ui.scr == SCR_SONG && song_on_pat_row() && ui.row[SCR_SONG] == r0, "... locked: SELECT - stays in pattern mode (no SONG)");
+    }
     tap(B_HOME);
     frames(2);
     check(lay.lock == LY_PLAY && ui.scr != SCR_SONG, "... HOME alone: the page let go, back to the screen under it");
