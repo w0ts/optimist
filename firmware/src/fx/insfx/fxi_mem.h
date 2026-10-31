@@ -44,8 +44,13 @@
 #define FXI_B5 (INS_REV != 0)
 #define FXI_B6 (INS_DLY != 0)
 #define FXI_CPN FXM_CPN                                  /* (the arena's blocks for the CHO DLY REV copies, engines.c) */
-#define FXI_IS_CP(j) (FXI_CPN && ((j) == 0u || (j) == 5u || (j) == 6u))   /* (a type whose copies are arena blocks) */
-#define FXA_AUTO (FXI_B1 * FXA_Z1 + FXI_B2 * FXA_Z2 + FXI_B3 * FXA_Z3 + FXI_B4 * FXA_Z4)   /* (CHO DLY REV: none, above) */
+#ifndef FELUCCA_FXI_LINE_BLOCKS
+#define FELUCCA_FXI_LINE_BLOCKS 0                        /* (engines.c sets it with an arena) */
+#endif
+/* with an arena, every line type's copies are blocks of their own (engines.c FELUCCA_FXI_LINE_BLOCKS): no own room */
+#define FXI_LB (FXI_CPN && FELUCCA_FXI_LINE_BLOCKS)
+#define FXI_IS_CP(j) (FXI_CPN && (FXI_LB || (j) == 0u || (j) == 5u || (j) == 6u))   /* (a type whose copies are arena blocks) */
+#define FXA_AUTO (FXI_LB ? 0u : FXI_B1 * FXA_Z1 + FXI_B2 * FXA_Z2 + FXI_B3 * FXA_Z3 + FXI_B4 * FXA_Z4)   /* (CHO DLY REV: none) */
 #define FXA_I (FELUCCA_DLY_ARENA ? FELUCCA_DLY_ARENA - FXA_S : FXA_AUTO)
 #define FXA_N (FXA_S + FXA_I)
 #define FXA_T (FXA_N + FXC_S)
@@ -55,19 +60,20 @@
 #define FXI_TNX(b, z) ((b) ? FXL_MIN(FXI_NK, FXI_MX(z)) : 0u)
 #define FXI_TNC(b, z) ((b) ? FXL_MIN(FXI_NK, FXI_MX(z) + FXI_CPN) : 0u)   /* (CHO DLY REV: + the arena's) */
 #define FXI_TN0 FXI_TNC(FXI_B0, FXA_Z0)
-#define FXI_TN1 FXI_TNX(FXI_B1, FXA_Z1)
-#define FXI_TN2 FXI_TNX(FXI_B2, FXA_Z2)
-#define FXI_TN3 FXI_TNX(FXI_B3, FXA_Z3)
-#define FXI_TN4 FXI_TNX(FXI_B4, FXA_Z4)
+#define FXI_TNL(b, z) (FXI_LB ? FXI_TNC(b, z) : FXI_TNX(b, z))   /* (the limited types: the arena's blocks too) */
+#define FXI_TN1 FXI_TNL(FXI_B1, FXA_Z1)
+#define FXI_TN2 FXI_TNL(FXI_B2, FXA_Z2)
+#define FXI_TN3 FXI_TNL(FXI_B3, FXA_Z3)
+#define FXI_TN4 FXI_TNL(FXI_B4, FXA_Z4)
 #define FXI_TN5 FXI_TNC(FXI_B5, FXA_Z5)
 #define FXI_TN6 FXI_TNC(FXI_B6, FXA_Z6)
 _Static_assert(!FELUCCA_DLY_ARENA || FELUCCA_DLY_ARENA >= FXA_S,
                "FELUCCA_DLY_ARENA: KB, at least the delay send's line (0: auto)");
 _Static_assert(FXA_T <= 1024u, "the effects memory: 1 MB at most (fxi.c fxa_bm)");
-_Static_assert(!FXI_B1 || FXI_MX(FXA_Z1) >= 1u, "FELUCCA_DLY_ARENA: no room for one ECHO line (8 KB)");
-_Static_assert(!FXI_B2 || FXI_MX(FXA_Z2) >= 1u, "FELUCCA_DLY_ARENA: no room for one JUNO CHORUS line (4 KB)");
-_Static_assert(!FXI_B3 || FXI_MX(FXA_Z3) >= 1u, "FELUCCA_DLY_ARENA: no room for one FLNG line (1 KB)");
-_Static_assert(!FXI_B4 || FXI_MX(FXA_Z4) >= 1u, "FELUCCA_DLY_ARENA: no room for one XDLY (2 lines of FELUCCA_XDLY_LEN)");
+_Static_assert(!FXI_B1 || FXI_LB || FXI_MX(FXA_Z1) >= 1u, "FELUCCA_DLY_ARENA: no room for one ECHO line (8 KB)");
+_Static_assert(!FXI_B2 || FXI_LB || FXI_MX(FXA_Z2) >= 1u, "FELUCCA_DLY_ARENA: no room for one JUNO CHORUS line (4 KB)");
+_Static_assert(!FXI_B3 || FXI_LB || FXI_MX(FXA_Z3) >= 1u, "FELUCCA_DLY_ARENA: no room for one FLNG line (1 KB)");
+_Static_assert(!FXI_B4 || FXI_LB || FXI_MX(FXA_Z4) >= 1u, "FELUCCA_DLY_ARENA: no room for one XDLY (2 lines of FELUCCA_XDLY_LEN)");
 /* (CHO DLY REV: no room may be FULL, their table empty, FXI_TN*: a build with nowhere to place one never offers it) */
 _Static_assert(FXA_Z5 <= 255u && FXA_Z6 <= 255u, "fxi_kern.c FXA_SZS: a byte");
 _Static_assert(FELUCCA_XDLY_LEN % 256 == 0 && CHO_LEN % FXA_U == 0, "the lines: whole units");
@@ -82,6 +88,12 @@ static int16_t fxa_ins[FXA_I * FXA_U] __attribute__((section(".pool"), aligned(4
 #endif
 #if FXI_CPN
 static int16_t *fxm_cp_p[FXI_CPN];                      /* the CHO DLY REV copies' blocks (fx_arena.c), units FXA_T + c */
+#endif
+#if FXI_LB && FXM_NEED
+/* instance i of type j's block is moving (core/arena.c, FXM_CP_MOVES: only while it is at rest): the kernel lets it be */
+#define FXI_CP_MOVING(j, i) (fxa_u[j][i] >= FXA_T && arn_moving(FXM_CP_K0 + (fxa_u[j][i] - FXA_T) % FXI_CPN))
+#else
+#define FXI_CP_MOVING(j, i) 0
 #endif
 /* unit u's samples (fxi.c: an instance's line; 4-byte aligned: the kernels zero a line a word at a time) */
 AINL int16_t *fxa_line(uint32_t u)

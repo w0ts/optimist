@@ -34,6 +34,7 @@ static const uint8_t FXA_SZS[FXI_NL] = {FXA_Z0, FXA_Z1, FXA_Z2, FXA_Z3, FXA_Z4, 
 #define FXA_SZ(j) ((uint32_t)FXA_SZS[(j) % FXI_NL])
 _Static_assert(FXA_Z4 <= 255u, "FXA_SZS: a byte");
 #define FXI_IMAX FXI_NK                                 /* (the most instances of a type) */
+static uint16_t fxa_u[FXI_NL][FXI_IMAX] IN_POOL;      /* each instance's first unit (fxi.c; the main loop writes it) */
 /* the instance each owner's type plays on (the audio reads it once a block; fxi.c writes it with the interrupts off),
  * FXI_NONE: none (the type bypassed there); fxi_init sets every entry FXI_NONE before the audio starts */
 #define FXI_AT0 {FXI_NONE, FXI_NONE, FXI_NONE, FXI_NONE, FXI_NONE, FXI_NONE, FXI_NONE}
@@ -297,7 +298,7 @@ static HOT2 __attribute__((noinline)) void ifx_lim_run(uint32_t ty, uint32_t k, 
                                                        uint32_t n, uint32_t sh)
 {
     uint32_t i = ifx_lim_at(ty, k);
-    if (i == FXI_NONE || FXR_MOVING()) {
+    if (i == FXI_NONE || FXR_MOVING() || FXI_CP_MOVING(FXI_J(ty), i)) {
 #if INS_REV
         if (ty == FXT_REV && !r)
             ifx_rsd[k % NPART] = 0;                     /* (no side this block) */
