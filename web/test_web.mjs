@@ -46,7 +46,7 @@ const E = vm.runInNewContext(`${proto}
    CHOP, chopNovelty, chopHits, chopSnap, chopGrid, chopEqual, chopList, chopPick, chopFit, chopZones, wavFile, zipStore, crc32,
    UP, bank, capturePatch, auditionPatch, startWatch, libraryFile, readLibraryFile, paramKeys, remapParams, lfoSlotsFromDepths, patternFromSteps, stepsFromPattern, upName, GEN_TYPES,
    mixer, GM_DRUM, drumName, parseNotes, formatValue, F, DRUM_LANES, LV_NAMES, emptyDrum,
-   readDX7File, parseDX7Sysex, dx7Checksum, dx7Message, cleanPatch, dx7ForDevice, dx7Init, dx7Name, FM6, CZ, czSyx, czRead,
+   readDX7File, parseDX7Sysex, dx7Checksum, dx7Message, cleanPatch, dx7ForDevice, dx7Init, dx7Name, FM6, CZ, czSyx, czRead, packDX7, unpackDX7, upfm6,
    DL, refBytes, refFrom, laneFrom, laneBytes, lanesFrom, lanesBytes, kitFrom, kitBytes, kitFile, readKitFile, kitSlots, emptyLane,
    emptySnd, sndBytes, sndFrom, BK, bkListAll, bkCheckAll, backupFile, readBackupFile, bkPlan, bkReport, bkSlotParts, crc32,
    SN, snInfo, snapFile, readSnapFile, snAreaStreams, snReadAll, snWriteAll, snSections, b64dec, b64enc,
@@ -403,6 +403,20 @@ async function editorDX7() {
   let writes = 0;
   const err = await E.bank.put(() => { writes++; }, 0, p).then(() => null, (e) => e.message);
   ok(err && !writes, "DX7: regular preset slot cannot silently discard voice data");
+  /* issue #133: an FM6 user slot keeps its own voice (UP_FM6); UP_GET / UP_PUT carry it as 128 packed bytes after the pattern
+     (opti_upfm6_1), the library keeps it as dx7 */
+  ok(eq(E.packDX7(voice), packed) && eq(E.unpackDX7(E.packDX7(voice)), voice), "DX7: packDX7 == Yamaha VMEM packing, unpackDX7's inverse");
+  const up6 = { opti: { opti_upfm6: 1 }, pcount: 3 };
+  let frameArgs = null;
+  const rc6 = await E.bank.put(async ([c, a]) => { frameArgs = a; return [0, 0]; }, 0, { ...p, engine: 9, p: [1, 2, 3], pattern: null }, up6);
+  ok(rc6 === 0 && !E.upfm6({ opti: { opti_library: 1 } }) && E.upfm6(up6)
+    && eq(frameArgs.slice(-128), E.packDX7(E.dx7ForDevice(voice))) && frameArgs.length === 2 + 11 + 6 + 32 + 128,
+    "DX7: UP_PUT to a firmware with opti_upfm6_1 ends with the packed voice");
+  const reply = [0, 1, 9, ...Array.from("TEST VOICE", (ch) => ch.charCodeAt(0)), 0, ...[1, 2, 3].flatMap((x) => [(x + 8192) & 127, (x + 8192) >> 7]),
+    ...Array(32).fill(0)];
+  const g0 = E.parse[E.CMD.UP_GET](reply, up6), g6 = E.parse[E.CMD.UP_GET]([...reply, ...packed], up6);
+  ok(g0.dx7 === null && eq(g0.p, [1, 2, 3]) && eq(g6.dx7, voice) && eq(g6.p, [1, 2, 3]),
+    "DX7: UP_GET reads the slot's voice after the pattern (none: null, an older firmware's reply)");
 
   /* audition against the mock: FM6 (engine 10) selected first, then the voice, confirmed by its echo */
   const { m, link, rq, sent, teardown } = attachMock({});

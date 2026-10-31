@@ -13,6 +13,19 @@ static uint32_t ed_flash_busy(void) { return song.playing || transport_req || st
                                                          * sample slots alone, which a restore and the samples page write) */
 /* a user preset's engine on the wire: its slot, 127 when this build leaves the engine out (kept, not loadable) */
 static uint32_t ed_up_eng(uint32_t uid) { return eng_built(uid) ? eng_slot_built(uid) : 127u; }
+#if UPF_ON
+/* FM6's own voice (UP_FM6, upreset.c upf_*: issue #133, a library copy of an FM6 slot played INIT VOICE): UP_GET ends
+ * with the slot's voice when it has one, UP_PUT may end with one (fm6_pack's 128 bytes, a DX7 VMEM voice, 7 bits each;
+ * INFO "opti_upfm6_1"). Where an UP_PUT frame's pattern ends: the voice, if any, after it */
+#define ED_UPF_N 128u
+static uint32_t ed_up_end(const uint8_t *a, uint32_t na)
+{
+    uint32_t n;
+    for (n = 0; 2u + n < na && a[2 + n]; n++)
+        ;
+    return 3u + n + 2u * P_COUNT + 32u;
+}
+#endif
 #endif
 
 /* ---- user sample slots (eng_sample.c): flash SMP_USER_BASE + k * SMP_USER_SIZE ----
@@ -171,6 +184,14 @@ static int ed_user(uint32_t cmd, const uint8_t *a, uint32_t na)
         for (i = 0; i < 16u; i++) {
             ed_b2(u ? r->note[i] : 0u, u ? r->flags[i] : 0u);
         }
+#if UPF_ON
+        if (u && r->engine == ENG_UID_FM6) {               /* its own voice, when it has one (an older editor reads past it) */
+            uint8_t b[ED_UPF_N];
+            if (upf_raw(a[0], b))
+                for (i = 0; i < ED_UPF_N; i++)
+                    ed_b(b[i]);
+        }
+#endif
         return 1;
     }
     case ED_UP_PUT: {                                      /* slot, engine, name, values, pattern -> slot, rc */
@@ -184,7 +205,17 @@ static int ed_user(uint32_t cmd, const uint8_t *a, uint32_t na)
             int16_t v[P_COUNT];
             up_values(r, v);                               /* each value inside its range */
             up_vals_put(r, v);
-            rc = ed_flash_busy() ? 3u : up_put(slot, r) ? 2u : 0u;
+#if UPF_ON
+            uint8_t vb[ED_UPF_N];                          /* the voice that came with it, copied before any flash write */
+            uint32_t at = ed_up_end(a, na), has = r->engine == ENG_UID_FM6 && na >= at + ED_UPF_N;
+            if (has)
+                memcpy(vb, a + at, ED_UPF_N);
+#endif
+            rc = ed_flash_busy() ? 3u : up_put(slot, r) ? 2u : 0u;   /* (up_put drops the slot's old FM6 voice) */
+#if UPF_ON
+            if (!rc && has)
+                upf_write(slot, vb);                       /* (a flash write of its own) */
+#endif
         }
         break;
     }

@@ -61,6 +61,11 @@ static int ed_wifi(uint32_t cmd, const uint8_t *a, uint32_t na);
 #define ED_OPTI_WIFI ""
 #define ED_WIFI_FN
 #endif
+#if defined(UPF_ON) && UPF_ON && ED_LIB
+#define ED_OPTI_UPF "opti_upfm6_1 "   /* (tag 0x67: UP_GET / UP_PUT carry an FM6 slot's own voice, ed_user.c; issue #133) */
+#else
+#define ED_OPTI_UPF ""
+#endif
 #if FELUCCA_DRUMS
 #define ED_OPTI_ND ""
 #else
@@ -84,7 +89,7 @@ static void ed_opti_info(void)
 #if FELUCCA_ED_MIRROR
     _Static_assert(MIR_VERSION == 2, "ed_opti.h: opti_mirror_ names MIR_VERSION");
 #endif
-    static const char M[] = ED_OPTI_MORE ED_OPTI_ND ED_OPTI_WIFI;
+    static const char M[] = ED_OPTI_MORE ED_OPTI_ND ED_OPTI_WIFI ED_OPTI_UPF;
     _Static_assert(sizeof M < 128u, "INFO tag 0x67: one 7-bit length");
     ed_b(0x66);
     ed_b(sizeof S - 1u);

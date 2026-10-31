@@ -133,7 +133,7 @@ strings, NTRK, the protocol byte (7), each engine slot's UID, then tagged blocks
 | 64 | `01 flags` | lite build: bit 0 backup only, bit 1 the librarian |
 | 65 | `01 version` | MIRROR (below, "The screen mirrored"): `MIR_VERSION` (2) |
 | 66 | `n` ASCII | the features by name and version, space-separated (`ed_opti.h`): `opti_backup_4` (43..48, `BK_VERSION`), `opti_mirror_2` (106, `MIR_VERSION`), `opti_panel_1` (108), `opti_nav_1` (109), `opti_mirbt_1` (INFO, 108 and 109 over Bluetooth MIDI too, with `BLE`), `opti_library_1` (16..21), `opti_projects_1` (9), `opti_patterns_1` (79..84), `opti_proj_1` (110). Every Felucca-family firmware answers `INFO` with the same header but numbers its other commands its own way (SLOOP's backup is 34..36; 78 is Melodee's CZ), so a client sends nothing else until it has read this tag, and offers a feature only when its name and a version it reads are listed. A number goes up only when an older client would misread the new form. Over Bluetooth (only 106, `INFO`, 108, 109 and 111 answered) the firmware is also known by its advertised name, "FM1-XXXX" ("Optimist ..." before 2026-10-29) |
-| 67 | `n` ASCII | more feature names, the same form as 66 (66 is full: one 7-bit length): `opti_clip_1` (111, `ED_MIRROR`); `opti_wifi_1` (112, the Wi-Fi networks; only a build with Wi-Fi); `opti_nodrums_1`: a build without the drum track (the builder's DRUMS off): track 4 is a synth part like 1..3 (its steps, notes and pages a part's, no drum lanes, kits or drum sources), named T4. A client reads both and merges them; one that knows only 66 skips 67 by its length |
+| 67 | `n` ASCII | more feature names, the same form as 66 (66 is full: one 7-bit length): `opti_clip_1` (111, `ED_MIRROR`); `opti_wifi_1` (112, the Wi-Fi networks; only a build with Wi-Fi); `opti_nodrums_1`: a build without the drum track (the builder's DRUMS off): track 4 is a synth part like 1..3 (its steps, notes and pages a part's, no drum lanes, kits or drum sources), named T4; `opti_upfm6_1`: an FM6 user preset keeps its own voice (the builder's UP_FM6) and `UP_GET` / `UP_PUT` carry it (17, 18). A client reads both and merges them; one that knows only 66 skips 67 by its length |
 
 `BUILD` (no args): the build's name string (16), its config hash (5 x 7 bit), the item bytes count and bytes (bit n = registry item n
 built, 7 a byte). The backup file records it.
@@ -203,8 +203,8 @@ Frames stay below 640 bytes.
 | cmd | Request | Reply |
 | --- | --- | --- |
 | 16 UP_LIST | start, count (1..16) | start, count, total slots, per slot: used, engine, name ("" if unused) |
-| 17 UP_GET | slot | slot, used, engine, name, P_COUNT x v14, 16 x (note, flags); an empty slot: used 0, zeros |
-| 18 UP_PUT | slot, engine, name, P_COUNT x v14, 16 x (note, flags) | slot, rc (0 ok, 1 arguments, 2 flash, 3 the transport plays). 1 s |
+| 17 UP_GET | slot | slot, used, engine, name, P_COUNT x v14, 16 x (note, flags); an empty slot: used 0, zeros. `opti_upfm6_1`: an FM6 slot that keeps its own voice then ends with it, 128 bytes (a DX7 packed VMEM voice, 7 bits each); a slot without one (its VOICE value names a built-in voice) ends after the pattern |
+| 18 UP_PUT | slot, engine, name, P_COUNT x v14, 16 x (note, flags) [, 128 voice bytes] | slot, rc (0 ok, 1 arguments, 2 flash, 3 the transport plays). 1 s. Writing a record drops the slot's old FM6 voice; `opti_upfm6_1`: an FM6 record followed by a voice (as UP_GET's) keeps that voice, which UP_LOAD then plays. A firmware without it ignores the bytes: the editor sends a voice only to one that lists it |
 | 19 UP_STORE | slot, name ("" = the automatic name, "ANALOG 07") | slot, rc (as UP_PUT; 1 also for the drum track selected). Stores the current sound |
 | 20 UP_LOAD | slot | slot, rc (0 ok, 1 empty / invalid) |
 | 21 UP_ERASE | slot | slot, rc (0 ok, 1 arguments, 2 flash, 3 the transport plays) |
