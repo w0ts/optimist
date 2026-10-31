@@ -3951,7 +3951,7 @@ static void preset_engine_tests(void)
 #include "ui_optimist_picker.h"                   /* STEP: the note picker (the cards down) */
 #include "ui_optimist_master.h"                    /* PRESETS = the sound only; ALGORITHM to MASTER */
 #include "ui_optimist_knobcol.h"                   /* SYSTEM > SCREEN > KNOB COLORS */
-#include "ui_optimist_vufloor.h"                   /* SYSTEM > METERS > VU FLOOR: meter_h at each floor, the MASTER scale */
+#include "ui_optimist_vumeter.h"                   /* the fixed -40 dBFS floor: meter_h, the peak-hold marker, the MASTER scale */
 #include "ui_optimist_vucolor.h"                   /* the VU colour bands (green / amber / red by dBFS) and the CLIP light */
 #include "ui_optimist_syncorder.h"                 /* CLK IN / SYNC: AUTO first, the sources in its order, INT last */
 #include "ui_optimist_syncnudge.h"                /* PLAY held > NUDGE: the sync offset while following a clock */
@@ -4078,7 +4078,7 @@ static void led_tests(void)
 #include "ui_optimist_missline.h"                   /* the MISSING line stays until HOME */
 #include "ui_optimist_premiss.h"                    /* a user preset of an engine not built: not in PRESETS */
 #include "ui_optimist_fm6rx.h"                     /* a DX7 voice over SysEx: no whole-screen fill (#133) */
-#include "ui_optimist_vufloor2.h"                   /* VU FLOOR / KNOB COLORS: no whole-screen fill */
+#include "ui_optimist_knobblink.h"                  /* KNOB COLORS: no whole-screen fill */
 #include "ui_optimist_notename.h"                   /* the note played on the keys, bottom left (Melodee's) */
 #include "ui_optimist_stepdots.h"                   /* the drum steps as dots (Melodee's): STEP and the mixer */
 #include "ui_optimist_accent.h"                     /* the drum track's ACCENT lane: key 1, STEP's 17th row, the amount, the walk */
@@ -4261,7 +4261,7 @@ int main(int argc, char **argv)
     master_tests();
     algo_inplace_tests();
     knobcol_tests();
-    vufloor_tests();
+    vumeter_tests();
     vucolor_tests();
     clkout_tests();
     syncnudge_tests();
@@ -4376,7 +4376,7 @@ int main(int argc, char **argv)
     missline_tests();
     notename_tests();                                   /* (late: the note it plays moves the master's meters, SCRS's golden) */
     notename_blink_tests();
-    vufloor_blink_tests();
+    knobcolors_blink_tests();
     fuzz(20000, 12345);
     check(1, "20000 frames of random use: every draw on the screen");
     if (band_hits)

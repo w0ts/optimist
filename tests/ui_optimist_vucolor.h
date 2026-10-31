@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* tests/ui_optimist_test.c, the level meters' colours (op_mixdraw.c mx_vu_fill; the user, 2026-10-31: "green below -18 dBFS; amber from
  * -18 to -6 dBFS; red from -6 (or -3) dBFS; a separate held clip light at 0 dBFS"): the bar's top (its rightmost lit column) is green at
- * -30 dBFS, amber at -12, red at -3, at two VU FLOORs; a full-scale sample lights CLIP, which goes out about a second after the last. */
+ * -30 dBFS, amber at -12, red at -3, at the fixed -40 floor; a full-scale sample lights CLIP, which goes out about a second after the last. */
 #define VUC_Y ((uint32_t)(OP_PY + MXM_VY + 5))
 static uint16_t vuc_top(void)                           /* the colour of MASTER's bar at its rightmost lit column, 0: none (the clip box left out) */
 {
@@ -19,11 +19,9 @@ static void vuc_feed(double amp)
     for (i = 0; i < VIS_RING; i++)
         vis_pcm[0][i] = vis_pcm[1][i] = (int32_t)(sin((double)i * 2.0 * 3.14159265 / 100.0) * amp);
 }
-static uint16_t vuc_at(uint32_t fl, double amp)         /* a sine of amplitude amp for a few frames at floor fl: the bar's top colour */
+static uint16_t vuc_at(double amp)                      /* a sine of amplitude amp for a few frames: the bar's top colour */
 {
-    VUF_SET(fl);
     reset_ui();
-    VUF_SET(fl);
     ui.row[SCR_HOME] = MXR_MASTER;
     vuc_feed(amp);
     ui.force = 1;
@@ -32,17 +30,12 @@ static uint16_t vuc_at(uint32_t fl, double amp)         /* a sine of amplitude a
 }
 static void vucolor_tests(void)
 {
-    static const uint32_t FL[2] = {2u, 4u};             /* -60 and -40 */
-    uint32_t k, ok = 1u;
-    for (k = 0; k < 2u; k++) {
-        ok &= vuc_at(FL[k], 32767.0 * 0.0316) == C_OK;  /* -30 dBFS */
-        ok &= vuc_at(FL[k], 32767.0 * 0.2512) == C_WARN;   /* -12 dBFS */
-        ok &= vuc_at(FL[k], 32767.0 * 0.7079) == C_ERR;    /* -3 dBFS */
-    }
-    check(ok, "VU colours: -30 dBFS green, -12 amber, -3 red at the bar's top, at VU FLOOR -60 and -40");
-    VUF_SET(VUF_DEF);
+    uint32_t ok = 1u;
+    ok &= vuc_at(32767.0 * 0.0316) == C_OK;             /* -30 dBFS */
+    ok &= vuc_at(32767.0 * 0.2512) == C_WARN;           /* -12 dBFS */
+    ok &= vuc_at(32767.0 * 0.7079) == C_ERR;            /* -3 dBFS */
+    check(ok, "VU colours: -30 dBFS green, -12 amber, -3 red at the bar's top (floor -40)");
     reset_ui();
-    VUF_SET(VUF_DEF);
     ui.row[SCR_HOME] = MXR_MASTER;
     vuc_feed(1036.0);
     ui.force = 1;
@@ -56,6 +49,5 @@ static void vucolor_tests(void)
     check(mxd.clip[MXR_MASTER], "CLIP: held for about a second after the last full-scale sample");
     frames(20);
     check(!mxd.clip[MXR_MASTER] && !px_in((uint32_t)(MXM_X + MXM_W - MX_CLIP_W), VUC_Y, MX_CLIP_W, 1, C_ERR), "CLIP: out after the hold");
-    VUF_SET(VUF_DEF);
     reset_ui();
 }

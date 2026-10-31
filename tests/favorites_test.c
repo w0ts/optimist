@@ -307,19 +307,14 @@ static void t_layout(void)
     check("... and it fits a sector and stays below SLOOP 2.5's", sizeof(persist_t) <= ST_PAYLOAD_MAX && sizeof(persist_t) < 88u + 1464u);
 }
 
-/* VU FLOOR (core/vufloor.h): one byte of the record, 0 = -60; a record from before it has 0 there */
+/* VU FLOOR is gone (core/vufloor.h: fixed -40 dBFS since 2026-10-31): rsv_pj[0] stays in the record, ignored; a record from before has 0 there */
 static void t_vufloor(void)
 {
     persist_t p;
     persist_v3_t old;
-    uint32_t i, ok = 1;
     fill(&old, 21);
     persist_from_v3(&p, &old);
-    check("VU FLOOR: a record converted from an older layout has 0 in its byte, which reads as -60", p.rsv_pj[0] == 0u && vuf_dec(p.rsv_pj[0]) == 2u && vuf_db(vuf_dec(p.rsv_pj[0])) == -60);
-    for (i = 0; i < VUF_N; i++)
-        ok &= vuf_dec(vuf_enc(i)) == i && vuf_db(i) == -80 + 10 * (int32_t)i;
-    check("VU FLOOR: each of -80 .. -20 stored and read back as itself", ok);
-    check("VU FLOOR: -60 is stored as 0 (the default is -40), a byte out of range reads as the default", vuf_enc(2u) == 0u && vuf_db(VUF_DEF) == -40 && vuf_dec(0xFFu) == VUF_DEF && vuf_dec(VUF_N ^ 2u) == VUF_DEF);
+    check("VU FLOOR retired: a record converted from an older layout has 0 in its (ignored) byte", p.rsv_pj[0] == 0u);
 }
 
 static void t_flash(void)
