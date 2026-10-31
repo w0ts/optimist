@@ -82,6 +82,14 @@ static uint32_t project_state(uint32_t s) { return (uint32_t)project_used(s); } 
 #include "../firmware/src/io/editor/ed_dlan.c"
 static uint8_t settings_later;                                 /* (model.c: the settings are saved a moment after an edit) */
 static const char *preset_name(uint32_t e, uint32_t k) { return k == 0xFFu || !ENGINES[e]->npresets ? "INIT" : ENGINES[e]->presets[k % ENGINES[e]->npresets].name; }
+/* the preset list's filter (core/model.c: PLF_*, pl_filt; the FAVS list byte is its FAVORITES / ALL) */
+enum { PLF_ALL, PLF_FAV, PLF_FACTORY, PLF_USER, PLF_INIT, PLF_N };
+static uint8_t pl_filt;
+#if FELUCCA_FAVORITES
+#define fav_list (pl_filt == PLF_FAV)
+#else
+#define fav_list 0u
+#endif
 #include "../firmware/src/core/favorites.c"
 #include "../firmware/src/io/editor/ed_fav.c"
 #include "../firmware/src/io/editor/ed_fxp.c"
