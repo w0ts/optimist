@@ -861,7 +861,7 @@ def setup_config(path):
     CFG_VALUES.update(flags)
     os.environ.update(env)          # gen_samples.py: the sets, PERC, SLICE's BREAK
     print(f"config   {name}: hash {configure.cfg_hash(cfg):08x}")
-    INSTALL.update(bootloader=int(cfg.get("BOOTLOADER", 0)), config=name, hash=f"{configure.cfg_hash(cfg):08x}")
+    INSTALL.update(bootloader=int(cfg.get("BOOTLOADER", 1)), config=name, hash=f"{configure.cfg_hash(cfg):08x}")
     return cfg, name
 
 

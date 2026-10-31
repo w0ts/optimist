@@ -341,7 +341,7 @@ def write_install_meta(pkg, cfgfile):
     for old in Path(pkg).parent.glob("optimist-*.install.json"):
         old.unlink()
     cfg, name = configure.parse(Path(cfgfile).read_text())
-    return install_meta.write(pkg, cfg.get("BOOTLOADER", 0), name or "default", f"{configure.cfg_hash(cfg):08x}")
+    return install_meta.write(pkg, cfg.get("BOOTLOADER", 1), name or "default", f"{configure.cfg_hash(cfg):08x}")
 
 
 def ui_sidecar(pkg, cfgfile):
