@@ -158,7 +158,10 @@ final class EditorSession: ObservableObject {
     }
 
     private func readProjects() async throws {
-        if info?.has(.proj) == true { projects = try await Ops.projList(link) }
+        if info?.has(.proj) == true {
+            projects = try await Ops.projList(link)
+            if info?.has(.projects) != true { bkList = try? await Ops.bkListAll(link) }   // (the layout's project count is bk_caps')
+        }
         if info?.has(.projects) == true {
             bkList = try? await Ops.bkListAll(link)
             var used: [Int?] = []
@@ -180,6 +183,47 @@ final class EditorSession: ObservableObject {
             try await Ops.projOp(link, op: op, p, name: name)
             try await readProjects()
             say(["", "Saved as project \(p + 1).", "Opened project \(p + 1).", "Cleared project \(p + 1).", "Named."][op])
+        }
+    }
+
+    /// the project slots the installed MEMORY layout keeps (bk_caps' projects byte: 2, 4, 16; SD card mode 1); 16 on a firmware
+    /// that does not say
+    var projectCount: Int { min(ProjList.count, bkList?.caps?.projects ?? ProjList.count) }
+
+    /// a project as a .fm1proj file (the web editor's format): the stored project; with `saveFirst` the work is saved into it before
+    func exportProject(_ p: Int, saveFirst: Bool) {
+        run("Reading project \(p + 1)…") { [self] in
+            if saveFirst { try await Ops.projOp(link, op: 1, p) }
+            projects = try await Ops.projList(link)
+            let l = try await Ops.bkListAll(link)
+            bkList = l
+            guard let o = l.objs.first(where: { $0.tag == ProjectFile.tag(p) }), o.hasData else { say("Empty project \(p + 1).", error: true); return }
+            let name = p < (projects?.names.count ?? 0) ? projects!.names[p] : ""
+            let file = ProjectFile.encode(slot: p, family: l.magic, name: name, data: try await Ops.readObject(link, o))
+            export = ExportItem(url: try FileIO.temp("optimist-project-\(p + 1)\(name.isEmpty ? "" : "-" + FileIO.slug(name)).\(ProjectFile.ext)", Data(file)))
+            say("Exported: project \(p + 1).")
+        }
+    }
+
+    /// a .fm1proj file into project p: cleared first (a stream written over a project leaves the records it lacks), written, named,
+    /// opened when p is the open project. Another firmware family, a damaged file or a slot the layout lacks is refused
+    func importProject(_ p: Int, _ url: URL) {
+        let f: ProjectFile.Contents
+        do { f = try ProjectFile.decode(Array(try FileIO.read(url))) } catch { say("Not a project file this FM-1 can take: \(error.localizedDescription)", error: true); return }
+        run("Loading project \(p + 1)…") { [self] in
+            let l = try await Ops.bkListAll(link)
+            bkList = l
+            guard f.family == l.magic else { throw WireError("Not a project file this FM-1 can take: another firmware (\(f.family), this one \(l.magic))") }
+            guard p < projectCount, let o = l.objs.first(where: { $0.tag == ProjectFile.tag(p) }), o.inBuild else {
+                throw WireError("Not a project file this FM-1 can take: this memory layout has no project \(p + 1)")
+            }
+            let open = try await Ops.projList(link).open == p
+            try await Ops.projOp(link, op: 3, p)
+            if !f.data.isEmpty { try await Ops.writeObject(link, index: o.i, tag: o.tag, data: f.data); _ = try await Ops.end(link, done: false) }
+            try await Ops.projOp(link, op: 4, p, name: f.name)
+            if open { try await Ops.projOp(link, op: 2, p) }
+            try await readProjects()
+            say("Loaded into project \(p + 1).")
         }
     }
 

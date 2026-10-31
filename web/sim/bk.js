@@ -41,15 +41,34 @@ export function client(send, timeoutMs = 2500) {
 }
 
 /* every backup object the device holds: [{ i, tag, kind, flags, len, crc }] (BK_LIST, the editor's command 43) */
-export async function listObjects(c) {
+export async function listObjects(c) { return (await deviceLayout(c)).objs; }
+
+/* what the installed MEMORY layout keeps (ed_backup.c bk_caps, the page that ends BK_LIST): the app end, the project
+   slots, the user sample slots (a capacity of 0 = the layout took the slot away). An older firmware lacks the app end
+   and the project count: 16 projects and the slots by capacity, as before. r: the reply body, p: where bk_caps starts */
+export function layoutCaps(r, p) {
+  const usrCap = [0, 1, 2].map((k) => fromU7(r.slice(p + 11 + 3 * k), 3));
+  const q = p + 32 + r[p + 31], known = q + 3 <= r.length;
+  const projects = known ? r[q + 2] : 16;
+  return { usrCap, slots: usrCap.filter((v) => v > 0).length, appEnd: known ? fromU7(r.slice(q), 2) * 4096 : null,
+    projects, known, sdCard: known && projects === 1 };
+}
+/* the list (every page), the firmware's magic (the project family: "FUNB") and the layout's caps */
+export async function deviceLayout(c) {
   const objs = [];
+  let magic = "", caps = null;
   for (let first = 0; ;) {
     const r = await c.request(CMD.LIST, [4, first]);
     const n = r[1], f = r[10], count = r[11];
+    magic = String.fromCharCode(...r.slice(4, 8));
     for (let k = 0, o = 12; k < count; k++, o += 14)
       objs.push({ i: f + k, tag: String.fromCharCode(...r.slice(o, o + 4)).replace(/\0+$/, ""), kind: r[o + 4], flags: r[o + 5], len: fromU7(r.slice(o + 6), 3), crc: fromU7(r.slice(o + 9), 5) });
     first = f + count;
-    if (first >= n || !count) return objs;
+    if (first >= n || !count) {
+      const p = 12 + 14 * count;
+      if (r.length >= p + 32) caps = layoutCaps(r, p);
+      return { objs, magic, caps: caps || { usrCap: [1, 1, 1], slots: 3, appEnd: null, projects: 16, known: false, sdCard: false } };
+    }
   }
 }
 
@@ -181,13 +200,15 @@ export async function hasProjects(c) {
   const r = await c.request(1).catch(() => null);
   return !!r && String.fromCharCode(...r).includes("opti_proj_1");
 }
-/* -> { open, used: [16 bool], names: [16 string] } */
-export async function projects(c) {
+/* -> { open, used: [count bool], names: [count string], count }; count: the project slots the installed layout keeps
+   (bk_caps; 16 on a firmware that does not say). The reply always carries 16 places: the rest is not shown. */
+export async function projects(c, count = null) {
   const r = await c.request(PJ_OP, [0]);
   if (r[2]) throw pjErr(r[2]);
+  const n = Math.min(PJ_N, count == null ? (await deviceLayout(c)).caps.projects : count);
   const used = fromU7(r.slice(4), 3), names = [];
   for (let o = 7, k = 0; k < PJ_N; k++) { const z = r.indexOf(0, o); names.push(String.fromCharCode(...r.slice(o, z < 0 ? r.length : z))); o = z < 0 ? r.length : z + 1; }
-  return { open: r[3], used: Array.from({ length: PJ_N }, (_, k) => !!((used >> k) & 1)), names };
+  return { open: r[3], count: n, used: Array.from({ length: n }, (_, k) => !!((used >> k) & 1)), names: names.slice(0, n) };
 }
 /* op 1 save the work as project p, 2 open p, 3 clear p, 4 name p. Throws on a refusal */
 export async function projectOp(c, op, p, name = "") {
@@ -205,8 +226,8 @@ export async function readProject(c, p) {
    asked, or when it is dst's open project (its work would be the old one's) */
 export async function writeProject(c, p, data, name, open) {
   const obj = (await listObjects(c)).find((o) => o.tag === pjTag(p));
-  if (!obj) throw new Error("this firmware has no projects to write");
-  const was = await projects(c);
+  if (!obj || !(obj.flags & 1)) throw new Error(`this memory layout has no project ${p + 1}`);
+  const was = await projects(c, 16);
   await projectOp(c, 3, p);
   if (data.length) { await writeObject(c, obj, data); await end(c, false); }
   await projectOp(c, 4, p, name);
@@ -215,10 +236,54 @@ export async function writeProject(c, p, data, name, open) {
 /* src's project `from` into dst's project `to`: { save } saves src's work into `from` first (src's open project: its
    current state), { name } names it on dst (default: its name on src), { open } opens it on dst */
 export async function moveProject(src, dst, from, to, { save = false, name = null, open = false } = {}) {
-  const s = await projects(src);
+  const s = await projects(src, 16);
   if (save) await projectOp(src, 1, from);
   const data = await readProject(src, from);
   if (!data.length) throw new Error(`project ${from + 1} is empty`);
   await writeProject(dst, to, data, name === null ? s.names[from] : name, open);
   return data.length;
+}
+
+/* ---- a project as a file (.fm1proj; the web editor and the Optimist Mirror app write and read the same bytes):
+   "FM1P", format version u8 (1), slot u8 (0-based, where it came from), the firmware family (4 ASCII: the BK_LIST magic,
+   "FUNB"), the name (12 ASCII, 0-padded), the stream's length u32 LE, the stream (the PJnn object, as the device gives it),
+   CRC-32 of all of it before, u32 LE */
+export const PROJ_FILE = { MAGIC: "FM1P", VERSION: 1, EXT: ".fm1proj", HEAD: 26 };
+export function packProject({ slot, family, name, data }) {
+  const d = Uint8Array.from(data), out = new Uint8Array(PROJ_FILE.HEAD + d.length + 4), dv = new DataView(out.buffer);
+  out.set(Array.from(PROJ_FILE.MAGIC, (ch) => ch.charCodeAt(0)), 0);
+  out[4] = PROJ_FILE.VERSION; out[5] = slot;
+  out.set(Array.from(family.padEnd(4, "\0").slice(0, 4), (ch) => ch.charCodeAt(0)), 6);
+  out.set(Array.from(pjName(name).padEnd(PJ_NAME, "\0"), (ch) => ch.charCodeAt(0)), 10);
+  dv.setUint32(22, d.length, true);
+  out.set(d, PROJ_FILE.HEAD);
+  dv.setUint32(PROJ_FILE.HEAD + d.length, crc32(out.subarray(0, PROJ_FILE.HEAD + d.length)), true);
+  return out;
+}
+export function unpackProject(bytes) {
+  const b = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+  if (b.length < PROJ_FILE.HEAD + 4 || String.fromCharCode(...b.subarray(0, 4)) !== PROJ_FILE.MAGIC) throw new Error("not an Optimist project file");
+  if (b[4] !== PROJ_FILE.VERSION) throw new Error(`project file format ${b[4]} (this page reads ${PROJ_FILE.VERSION})`);
+  const dv = new DataView(b.buffer, b.byteOffset, b.length), n = dv.getUint32(22, true), end = PROJ_FILE.HEAD + n;
+  if (end + 4 !== b.length) throw new Error("the project file is cut short or has extra bytes");
+  if (dv.getUint32(end, true) !== crc32(b.subarray(0, end))) throw new Error("the project file is damaged (CRC)");
+  return { slot: b[5], family: String.fromCharCode(...b.subarray(6, 10)).replace(/\0+$/, ""),
+    name: String.fromCharCode(...b.subarray(10, 22)).replace(/\0+$/, ""), data: Array.from(b.subarray(PROJ_FILE.HEAD, end)) };
+}
+/* project p of the device as file bytes */
+export async function exportProject(c, p) {
+  const lay = await deviceLayout(c), pj = await projects(c, lay.caps.projects);
+  if (p >= pj.count) throw new Error(`this memory layout has no project ${p + 1}`);
+  const data = await readProject(c, p);
+  if (!data.length) throw new Error(`project ${p + 1} is empty`);
+  return packProject({ slot: p, family: lay.magic, name: pj.names[p], data });
+}
+/* a file's project into project p (cleared first, named, and opened when it is the open one or asked). Refuses another
+   firmware family, a slot the layout lacks */
+export async function importProject(c, p, bytes, { open = false } = {}) {
+  const f = unpackProject(bytes), lay = await deviceLayout(c);
+  if (f.family !== lay.magic) throw new Error(`the file is from another firmware (${f.family}, this one ${lay.magic})`);
+  if (p >= lay.caps.projects) throw new Error(`this memory layout has no project ${p + 1}`);
+  await writeProject(c, p, f.data, f.name, open);
+  return f;
 }

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// Projects: the FM-1's 16 projects (PJ_OP 110: open, save the work there, rename, clear), the open project's sections A..
+// Projects: the FM-1's projects (as many as the installed MEMORY layout keeps: 2, 4, 16; PJ_OP 110: open, save the work there, rename, clear, a project as a .fm1proj file), the open project's sections A..
 // (PROJECT load / save, a section as a .optimist-backup file) and the per-track patterns
 // (PAT_*: a pattern as an optimist-pattern .json), as the web editor's Projects tab and librarian.
 import SwiftUI
@@ -21,7 +21,7 @@ struct ProjectsView: View {
         let done: (String) -> Void
     }
 
-    enum Target { case section(Int), pattern(Int, Int) }
+    enum Target { case section(Int), pattern(Int, Int), project(Int) }
 
     private static let state = ["empty", "used", "SLOOP 2.4 project", "another firmware's"]
 
@@ -30,8 +30,12 @@ struct ProjectsView: View {
             List {
                 Section { LinkStatus(s, .projects) }.listRowBackground(Color.clear)
                 if s.ready(.proj), let l = s.projects {
-                    Section("Projects") {
-                        ForEach(0..<ProjList.count, id: \.self) { p in projectRow(l, p) }
+                    Section {
+                        ForEach(0..<s.projectCount, id: \.self) { p in projectRow(l, p) }
+                    } header: {
+                        Text("Projects")
+                    } footer: {
+                        if s.bkList?.caps?.projects == 1 { Text("SD card mode: the FM-1 keeps 1 project in its flash.") }
                     }
                 }
                 if s.ready(.projects) {
@@ -56,6 +60,10 @@ struct ProjectsView: View {
                 switch t {
                 case .section(let k):
                     ask = Confirmation(title: "Replace section \(Names.sectionLetter(k)) with the file's? Stopped only. The FM-1 restarts when done.") { s.importSection(k, url) }
+                case .project(let p):
+                    let used = s.projects.map { p < $0.used.count && $0.used[p] } ?? false
+                    let go = { s.importProject(p, url) }
+                    if used { ask = Confirmation(title: "Project \(p + 1) holds a project: replace it with the file's? Stopped only.", action: go) } else { go() }
                 case .pattern(let k, let p):
                     ask = Confirmation(title: "Replace \(Self.trackName(k)) · pattern \(p + 1) with the file's?") { s.importPattern(k, p, url) }
                 }
@@ -94,6 +102,13 @@ struct ProjectsView: View {
                 Button("Save the Work Here") {
                     ask = Confirmation(title: used && !open ? "\(n) holds a project: replace it with the work?" : "Save the work as \(n)?") { s.projOp(1, p) }
                 }
+                if open {
+                    Button("Save and Export…") { ask = Confirmation(title: "Save the work into \(n), then export it?") { s.exportProject(p, saveFirst: true) } }
+                    Button("Export Saved…") { s.exportProject(p, saveFirst: false) }.disabled(!used)
+                } else {
+                    Button("Export…") { s.exportProject(p, saveFirst: false) }.disabled(!used)
+                }
+                Button("Load from File…") { target = .project(p); importing = true }
                 Button("Rename…") {
                     text = p < l.names.count ? l.names[p] : ""
                     prompt = Prompt(title: "Name of project \(p + 1)") { s.projOp(4, p, name: $0) }
