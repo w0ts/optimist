@@ -5,8 +5,9 @@
  *                     one after, each with its engine's name and colour chip (a user preset: its record's engine)
  *   the mixer         PRESETS on the SOUND row: a toast "Super saw (ANALOG)" framed in the engine's colour; the
  *                     strips' names in their engine's colour (op_draw.c draw_strip)
- *   PRESETS, SHIFT2 + PRESETS (the engine step): a popup list of the sounds over the panel, the one playing lit in the middle,
- *                     scrolling as you turn, ~1.5 s after the last turn (draw_pop; the drum track: its factory kits) */
+ *   PRESETS, SHIFT + PRESETS (the engine step): a popup list of the sounds over the panel, the one playing lit in the middle,
+ *                     scrolling as you turn, ~1.5 s after the last turn (draw_pop; the drum track: its factory kits); its
+ *                     header, taller, names the list's filter (SHIFT2 + PRESETS) and is lit a moment when it changes */
 static uint32_t up_engine_slot(uint32_t k);             /* storage/upreset.c (FELUCCA_UI == 1) */
 #if FELUCCA_NB_LIST
 static uint32_t nb_kind(const track_t *t);              /* storage/nbank.c */
@@ -55,6 +56,25 @@ static void pre_toast_drum(void)
     if (!on && !dl.ukit && drum_kit_built(drum_kit()))
         pop_kind = 2;                                   /* (a factory kit: the popup list of the kits, over the toast) */
 }
+/* the filter's name as the popup's header shows it (op_screens.c PLF_ORDER) */
+static const char *pl_filt_name(void)
+{
+    return pl_filt == PLF_FACTORY ? "FACTORY" : pl_filt == PLF_USER ? "USER" : pl_filt == PLF_FAV ? "FAVORITES" : pl_filt == PLF_INIT ? "INIT" : "ALL";
+}
+/* the popup list of the sounds with no sound of it playing (a filter the sound is not in, or one that holds nothing): the toast's
+ * words its filter, or what it lacks */
+static void pre_toast_list(uint32_t kind)
+{
+    char m[30];
+    uint32_t total;
+    (void)preset_pos(&total);
+    str_cpy(m, total ? pl_filt_name() : pl_filt == PLF_FAV ? "NO FAVORITES" : pl_filt == PLF_USER ? "NO USER PRESETS" : "NO SOUNDS", sizeof m);
+    ui.toast_next = 1;
+    ui_message(m);
+    ui.toast_next = 0;
+    ui.toast_col = C_HI;
+    pop_kind = (uint8_t)kind;
+}
 static void pre_toast_kind(uint32_t kind)               /* kind 1: the PRESETS knob's popup (the whole list), 5: EDIT's PRESET card's (the engine's own sounds) */
 {
     char nm[16], m[30], en[10];
@@ -64,8 +84,11 @@ static void pre_toast_kind(uint32_t kind)               /* kind 1: the PRESETS k
         return;
     }
     cur = preset_pos(&total);
-    if (cur >= total)                                   /* (none, or LIST FAV with the sound not in the list) */
+    if (cur >= total) {                                 /* (none, or a filter the sound playing is not in) */
+        if (pl_filt != PLF_ALL)
+            pre_toast_list(kind);                       /* (the list as filtered all the same: its header says what it holds) */
         return;
+    }
     e = pre_entry(cur, nm);
     pre_engine(e, en);
     str_cpy(m, nm, sizeof m);
@@ -87,8 +110,18 @@ static void pre_toast_kind(uint32_t kind)               /* kind 1: the PRESETS k
 }
 static void pre_toast(void) { pre_toast_kind(1u); }
 static void pre_toast_edit(void) { pre_toast_kind(5u); }
+/* SHIFT2 + PRESETS: the filter changed, the PRESETS knob's list (every engine's sounds) as filtered, its header lit */
+static void pre_toast_filter(void)
+{
+    pl_whole = 1;
+    pre_toast();
+    if (pop_kind != 1u)
+        pre_toast_list(1u);
+}
+#define PLF_HL_MS 600u                                  /* the header lit after the filter changed */
+static uint32_t pop_hl(void) { return pl_filt_ms && fm1_ms - pl_filt_ms < PLF_HL_MS; }
 #if FELUCCA_FAVORITES
-/* a toast over the sound playing: "FAV + NAME" marked, "FAV - NAME" unmarked; the list kept: "FAVORITES ONLY" / "ALL SOUNDS" */
+/* a toast over the sound playing: "FAV + NAME" marked, "FAV - NAME" unmarked */
 static void pre_toast_fav(const char *what)
 {
     char nm[16], m[30];
@@ -118,7 +151,7 @@ static uint32_t pre_sig(void)
     if (pop_kind == 3u)
         return hu(hu(0x3E1u, (uint32_t)(int32_t)*pen.vp), settings.palette + (uint32_t)(uintptr_t)pen.d);
     uint32_t total, cur = preset_pos(&total);
-    return (((0x9E5u * 16777619u ^ cur) * 16777619u ^ total) * 16777619u ^
+    return (((0x9E5u * 16777619u ^ cur) * 16777619u ^ total) * 16777619u ^ (pl_filt * 2u + pop_hl()) * 7919u ^
             (tsel()->eng_req * 64u + (uint32_t)user_of(tsel()) + settings.palette * 4096u)) * 31u +
 #if FELUCCA_FAVORITES
            (fav_count() * 131u + fav.user * 2654435761u + (uint32_t)fav_list * 40503u + (uint32_t)op_fav_here() * 7u) +
@@ -174,7 +207,7 @@ static void pop_enum_open(uint32_t row, uint32_t k)
     ui.toast_col = pen.col;
     pop_kind = 3;
 }
-/* the ENGINE step's popup (EDIT's ENGINE card, SHIFT2 + PRESETS; the user, 2026-10-21: "the engine ... should only list the engines"):
+/* the ENGINE step's popup (EDIT's ENGINE card, SHIFT + PRESETS; the user, 2026-10-21: "the engine ... should only list the engines"):
  * the engines, in the whole list's order, the track's lit in the middle in its colour */
 static void pop_engines(uint32_t *list, uint32_t *n, uint32_t *at)
 {
@@ -226,29 +259,63 @@ static void pop_drum_kits(uint32_t *list, uint32_t *n, uint32_t *at)   /* the ki
 }
 static void cv_tall(uint32_t y, uint32_t h, uint16_t bg, void (*fn)(void));   /* op_draw.c */
 #define POP_RH 28                                       /* a popup row: the large face (the user, 2026-10-21: "bigger font to be more readable") */
+#define POP_HH 36                                       /* the header: the list's title (the sounds: its filter) in the large face, taller (the
+                                                         * user, 2026-10-31: "keep the filter at the top of the list, and make it taller") */
+#define POP_Y (OY_CARD - 2)                             /* the box's top: over the whole cards band (1x4 and 2x2), which so never draws under
+                                                         * it (op_draw.c op_frame_draw: the cards drawn, then the box over their rows, flashed
+                                                         * the list's top on every detent, the user 2026-10-31) */
 static struct {
     uint32_t kits[64], total, cur, half;
     int32_t h;
     uint16_t fr;
+    uint8_t out;                                        /* the sound playing is not in the list (a filter): no row lit */
 } pop;                                                  /* what pop_paint draws (draw_pop) */
+static int pop_sounds(void) { return pop_kind == 1u || pop_kind == 5u; }
+/* the header: the title big, the place in the list small at the right; the sounds' list: its filter, a mark a filter under the
+ * place (the one shown lit: the cycle SHIFT2 + PRESETS steps), the whole header framed in white and the name white a moment
+ * after the filter changed (pop_hl). No text on a fill (the FM-1's panel) */
+static void pop_head(void)
+{
+    char t[16];
+    uint32_t i;
+    int32_t ty = 2 + (POP_HH - (int32_t)FONT_L.h) / 2, hl = pop_sounds() && pop_hl();
+    str_cpy(t, pop_kind == 2u ? "KIT" : pop_kind == 3u ? pen.d->label : pop_kind == 4u ? "ENGINE" : pl_filt_name(), sizeof t);
+    cv_text(16, ty, text_w(&FONT_L, t) <= 150 ? &FONT_L : &FONT_S, t, hl ? C_WHITE : pop_sounds() ? C_HI : C_GRAY);
+    if (pop.total) {
+        fmt_int(t, (int32_t)(pop.out ? 0u : pop.cur + 1u));
+        str_app(t, "/", sizeof t);
+        fmt_app(t, (int32_t)pop.total);
+    } else {
+        str_cpy(t, "0", sizeof t);
+    }
+    cv_texts(224 - text_ws(t), 6, t, C_GRAY);
+    if (pop_sounds())
+        for (i = 0; i < PLF_NORDER; i++)                /* (the filters, right to left from the box's edge: the lit one shown) */
+            cv_rect(224 - (int32_t)(PLF_NORDER - i) * 12 + 2, POP_HH - 6, 10, 3, PLF_ORDER[i] == pl_filt ? (hl ? C_WHITE : C_HI) : C_LINE);
+    cv_rect(10, POP_HH + 2, 220, 1, C_LINE);             /* (the rule under the header) */
+    if (hl) {                                           /* (lit: a frame round the header, outlines only) */
+        cv_rect(12, 4, 216, 2, C_WHITE);
+        cv_rect(12, POP_HH - 1, 216, 2, C_WHITE);
+        cv_rect(12, 4, 2, POP_HH - 3, C_WHITE);
+        cv_rect(226, 4, 2, POP_HH - 3, C_WHITE);
+    }
+}
 static void pop_paint(void)                             /* the box in its own coordinates (cv_tall: taller than a canvas) */
 {
     uint32_t row;
     int32_t off, ry;
-    char t[12];
     cv_rect(8, 0, 224, pop.h, pop.fr);                  /* the frame, the engine's colour */
     cv_rect(10, 2, 220, pop.h - 4, OP_SURF);
-    str_cpy(t, pop_kind == 2u ? "KIT" : pop_kind == 3u ? pen.d->label : pop_kind == 4u ? "ENGINE" : "SOUND", sizeof t);
-    cv_texts(16, 6, t, C_GRAY);
-    fmt_int(t, (int32_t)pop.cur + 1);
-    str_app(t, "/", sizeof t);
-    fmt_app(t, (int32_t)pop.total);
-    cv_texts(224 - text_ws(t), 6, t, C_GRAY);
+    pop_head();
+    if (!pop.total) {                                   /* (a filter that holds nothing: says so on the middle row) */
+        cv_text_mid(POP_HH + 6 + (int32_t)pop.half * POP_RH + (POP_RH - (int32_t)FONT_S.h) / 2, &FONT_S, "NONE", C_GRAY);
+        return;
+    }
     for (row = 0, off = -(int32_t)pop.half; row < pop.half * 2u + 1u; row++, off++) {
         uint32_t idx = (uint32_t)(((int32_t)pop.cur + off + (int32_t)pop.total * 2) % (int32_t)pop.total), eng;
         char nm[16], en[12];
         uint16_t ec;
-        ry = 20 + (int32_t)row * POP_RH;
+        ry = POP_HH + 6 + (int32_t)row * POP_RH;
         if ((int32_t)pop.cur + off < 0 || (int32_t)pop.cur + off >= (int32_t)pop.total)
             continue;                                   /* (a list stops at its ends: nothing past them, not the other end's items; the user, 2026-10-21) */
         if (pop_kind == 4u) {
@@ -293,22 +360,22 @@ static void pop_paint(void)                             /* the box in its own co
             }
 #endif
             f = text_w(&FONT_L, nm) <= 190 ? &FONT_L : &FONT_S;   /* (the large face where the name fits) */
-            if (off == 0 && en[0])                              /* (the one playing: its tag in the header, always) */
-                cv_texts(16 + text_ws(pop_kind == 2u ? "KIT" : "SOUND") + 12, 6, en, ec);
+            if (off == 0 && en[0] && pop_kind == 2u)            /* (the kit playing: its style in the header, always) */
+                cv_texts(16 + text_w(&FONT_L, "KIT") + 12, 6, en, ec);
             if (text_w(f, nm) + text_ws(en) + 8 > 190)
                 en[0] = 0;                                      /* (the tag only where it fits beside the name) */
-            if (off == 0)
+            if (off == 0 && !pop.out)
                 cv_rect(12, ry - 1, 216, POP_RH - 2, C_LINE);   /* (the one playing: a lit band) */
             if (um || fm) {
                 uint16_t sc = fm ? C_WARN : ec;
-                cv_text(14, ry + (POP_RH - (int32_t)FONT_L.h) / 2, &FONT_L, "*", off == 0 ? sc : col_shade(sc, 3u));
+                cv_text(14, ry + (POP_RH - (int32_t)FONT_L.h) / 2, &FONT_L, "*", off == 0 && !pop.out ? sc : col_shade(sc, 3u));
             } else {
                 cv_rect(16, ry + POP_RH / 2 - 4, 6, 8, ec);     /* the engine's chip */
             }
             if (pop_kind == 3u && !pen_avail(enum_at(pen.d, pen.d->min + (int32_t)idx)))   /* (a type the slot cannot take now: struck, dim) */
                 text_st(28, ry + (POP_RH - (int32_t)f->h) / 2, f, nm, col_shade(C_GRAY, 3u), 1);
             else
-                cv_text(28, ry + (POP_RH - (int32_t)f->h) / 2, f, nm, off == 0 ? C_WHITE : C_GRAY);
+                cv_text(28, ry + (POP_RH - (int32_t)f->h) / 2, f, nm, off == 0 && !pop.out ? C_WHITE : C_GRAY);
             cv_text(224 - text_ws(en), ry + (POP_RH - (int32_t)FONT_S.h) / 2, &FONT_S, en, ec);                /* (the engine's name in its colour on every row: not dimmed) */
         }
     }
@@ -325,12 +392,17 @@ static void draw_pop(void)
     } else {
         pop.cur = preset_pos(&pop.total);
     }
-    if (!pop.total || pop.cur >= pop.total)
+    pop.out = 0;
+    if (pop_sounds() && pop.cur >= pop.total)
+        pop.cur = 0, pop.out = 1;                       /* (a filter the sound is not in: its list from the top, nothing lit) */
+    if ((!pop.total && !pop_sounds()) || (pop.total && pop.cur >= pop.total))
         return;
     pop.fr = pop_kind == 4u ? ENG_COL[tsel()->eng_req % NENGINES] : ui.toast_col ? ui.toast_col : C_HI;
     pop.half = 2u;                                      /* (five rows whatever the list holds: the ends of a short list are blank, the user, 2026-10-21) */
-    pop.h = (int32_t)(pop.half * 2u + 1u) * POP_RH + 24;
-    cv_tall((uint32_t)((240 - pop.h) / 2), (uint32_t)pop.h, C_BLACK, pop_paint);
+    if (pop.out)
+        pop.cur = pop.half;                             /* (the first rows in place: the list's top in the box's top rows) */
+    pop.h = (int32_t)(pop.half * 2u + 1u) * POP_RH + POP_HH + 10;
+    cv_tall((uint32_t)POP_Y, (uint32_t)pop.h, C_BLACK, pop_paint);
 }
 /* the SOUND row's picture (GRAPH_H rows): the preset before, the one playing (white, its engine big in colour), the
  * one after; a favorite has a star after its name; LIST FAV with the sound playing not in the list: it stays in the middle,

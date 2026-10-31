@@ -56,10 +56,10 @@ Every button, knob and key gesture, grouped by what you want to do, then the one
 | PRESETS | a synth track | its preset (asks "Discard T1 edits?" over edits) |
 | PRESETS | DR, a lane on the kit | the kit |
 | PRESETS | a lane on its own source | that lane's sound |
-| SHIFT2 + PRESETS | a synth track | the next / previous instrument (engine) |
-| SHIFT2 + PRESETS | a lane on its own source | the next / previous kind (user, sampled, synth, X0X) |
+| SHIFT + PRESETS | a synth track | the next / previous instrument (engine), its first sound |
+| SHIFT2 + PRESETS | a synth track | the preset list's filter, round: ALL, FACTORY, USER, FAVORITES, INIT (the popup's header names it) |
+| SHIFT + PRESETS | a lane on its own source | the next / previous kind (user, sampled, synth, X0X) |
 | SAVE + PRESETS | a synth track | the sound a favorite (right) or not (left) [FAVORITES] |
-| SHIFT2 + SELECT | a synth track | browse the favorites only (right) or every sound (left) [FAVORITES] |
 | SHIFT2 + SELECT | STEP, no step held | the page's cards stay about 30 s after each turn instead of 1.5 s, until STEP is left (a generator tuned while it plays) |
 | SHIFT + ENV | a synth track | INIT the sound (asked over edits) |
 
