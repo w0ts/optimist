@@ -106,6 +106,7 @@ SHIFT is OCT- held, SHIFT2 is OCT+ held. They read one language, as the buttons 
 | (on SONG) | a scene key held (alone) | asks to clear that scene |
 | (on SONG) | SHIFT + a scene key / a part key | the same questions as the holds: clear that scene, delete that part and what follows |
 | (patterns view: the PATTERNS row, the LFO layer) | a pattern key held (alone) | asks to clear that pattern (HOME + key still does; SHIFT + key is the launch's next-bar timing there) |
+| (patterns view: the PATTERNS row, the LFO layer, held or locked) | SELECT | nothing: it stays in pattern mode and neither leaves the PATTERNS row nor opens SONG (the user, 2026-10-31: "when i click on pattern mode (shift lfo) it select should not switch between pattern and song modes/pages"); SONG stays reachable by SEQ and its own page |
 | (on SONG, PATTERNS row) | SEQ held + a white key | SEQ + n stores the four tracks' patterns as scene n (asked over a used one; SEQ + SAVE + n does too), SEQ + HOME + n clears it; scenes are launched from the SONG view or black key 10's scenes view |
 | (on SONG) | a part key held (alone) | asks to delete that part and every part after it (part 1 stays) |
 | (on SONG) | a part key held + a scene key | that scene is the part's; the part (and those between) made when past the chain's end |
