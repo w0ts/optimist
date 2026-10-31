@@ -103,7 +103,6 @@ final class MirrorLink: ObservableObject, Transport, CompanionTransport {
     private var demo: NavDemo?    // MIRROR_DEMO: 109 NAV answered here (NavDemo.swift)
 #endif
     private static let unanswered = 3   // requests without a reply: no mirror in this build
-    private static let btReplyWait: TimeInterval = 1.5   // (Bluetooth: a reply waits behind up to 0.65 s of screen, ed_mirror.c MIR_BLE_LAG)
 
     init() {
 #if DEBUG
@@ -407,6 +406,9 @@ final class MirrorLink: ObservableObject, Transport, CompanionTransport {
 
     /// True when the port in use can carry the editor's requests: the USB one (over Bluetooth the FM-1 answers the mirror only).
     var editorPossible: Bool { state != .searching && !bluetooth }
+    /// A port is taken and is Bluetooth: the editor may ask INFO there, whether the firmware lists opti_btproj_1 decides the rest
+    /// (EditorRoute)
+    var bluetoothInUse: Bool { state != .searching && bluetooth }
 
     @MainActor
     func exchange(_ cmd: Cmd, _ args: [UInt8], timeout: TimeInterval, retries: Int) async throws -> [UInt8] {
@@ -417,10 +419,11 @@ final class MirrorLink: ObservableObject, Transport, CompanionTransport {
         let body = try Wire.body(cmd.rawValue, args)
         await gate.acquire()
         defer { gate.release() }
-        var left = retries
+        let (wait, tries) = bluetooth ? BtPolicy.apply(cmd, timeout: timeout, retries: retries) : (timeout, retries)
+        var left = tries
         while true {
             do {
-                return try await attempt(cmd.rawValue, args, body, bluetooth ? max(timeout, Self.btReplyWait) : timeout)
+                return try await attempt(cmd.rawValue, args, body, wait)
             } catch let e as WireError where e.isTimeout && left > 0 {
                 left -= 1
             }
