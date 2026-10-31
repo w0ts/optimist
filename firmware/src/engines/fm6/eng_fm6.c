@@ -626,6 +626,32 @@ typedef struct fm6_voice {                               /* a voice; operators i
     uint8_t still;                                       /* over and at rest: 1 only time goes on, 2 nothing matters */
     int32_t spb;                                         /* the bend and tune it was at rest with */
 } fm6_voice_t;
+/* fm6_freq / fm6_exp2 through operator k's last result: a held note's pitch and level repeat block after block (FM6
+ * x4: 274 -> 212 emulator instructions a sample). Pure functions (the same in, the same out), so a voice slot's memo
+ * stays right whatever its voice state becomes (a note, a MONO hand-over, the part's memory given to another engine):
+ * a static array per part and voice slot, not in the part's memory (its size, the arena's, unchanged); .bss: none held
+ * at power-on. Bit k of mf_ok / me_ok: operator k's held */
+typedef struct {
+    int32_t mf_in[6], mf_out[6], me_in[6], me_out[6];
+    uint8_t mf_ok, me_ok;
+} fm6_memo_t;
+static fm6_memo_t fm6_memo[NPART][NVOICE];
+static inline FAST(fm6) int32_t fm6_freq_m(fm6_memo_t *s, uint32_t k, int32_t lf)
+{
+    if (!((s->mf_ok >> k) & 1u) || s->mf_in[k] != lf) {
+        s->mf_in[k] = lf, s->mf_out[k] = fm6_freq(lf);
+        s->mf_ok |= (uint8_t)(1u << k);
+    }
+    return s->mf_out[k];
+}
+static inline FAST(fm6) int32_t fm6_exp2_m(fm6_memo_t *s, uint32_t k, int32_t x)
+{
+    if (!((s->me_ok >> k) & 1u) || s->me_in[k] != x) {
+        s->me_in[k] = x, s->me_out[k] = fm6_exp2(x);
+        s->me_ok |= (uint8_t)(1u << k);
+    }
+    return s->me_out[k];
+}
 /* MONO / LEGATO: Dexed keys one of its 16 voices for every key and hands the sounding state from
  * voice to voice (transferSignal / transferState). FM6 plays the note on one voice and keeps what
  * else Dexed's voices hold: the note, its key-down order, whether it counts as playing, its
@@ -1031,12 +1057,12 @@ static FAST(fm6) void fm6_op_fb(fm6_voice_t *s, uint32_t k, int32_t *out, int ad
 
 /* the block's routing (FmCore / EngineMsfa render): which operators sound, into what, from what, their gain
  * ramps; operators below the threshold only keep time */
-static FAST(fm6) void fm6_plan(fm6_voice_t *s, const int32_t *lv, uint32_t alg, uint32_t fbshift)
+static FAST(fm6) void fm6_plan(fm6_voice_t *s, fm6_memo_t *mo, const int32_t *lv, uint32_t alg, uint32_t fbshift)
 {
     uint32_t k, has = 1u, fb_on = fbshift < 16u;
     for (k = 0; k < 6u; k++) {
         uint32_t f = FM6_ALG[alg][k], out = f & 3u, in = (f >> 4) & 3u, add = f & 4u, run;
-        int32_t g1 = s->gout[k], g2 = fm6_exp2(lv[k] - (14 << 24));
+        int32_t g1 = s->gout[k], g2 = fm6_exp2_m(mo, k, lv[k] - (14 << 24));
         run = g1 >= 1120 || g2 >= 1120;
         s->gout[k] = g2;
         s->plan[k] = 0;
@@ -1330,6 +1356,7 @@ static FAST(fm6) void fm6_control(track_t *t, voice_t *v, fm6_voice_t *s, const 
 {
     uint32_t p = (uint32_t)(t - trk), alg, k, dead = 1;
     const int16_t *ed = fm6_ed[p];
+    fm6_memo_t *mo = &fm6_memo[p][v - t->v];
     int32_t lv[6], lfo = fm6_lfo[p].val, dly = fm6_lfo[p].depth, pm, sens, pbase, amd, a1, a2, tune;
     uint32_t pmd = ((uint32_t)ed[FV_LPMD] * 165u) >> 6;
     alg = (uint32_t)ed[FV_ALG] & 31u;
@@ -1368,7 +1395,7 @@ static FAST(fm6) void fm6_control(track_t *t, voice_t *v, fm6_voice_t *s, const 
             continue;
         }
         if (op[FO_MODE]) {
-            s->fq[k] = fm6_freq(s->base[k] + pbase);
+            s->fq[k] = fm6_freq_m(mo, k, s->base[k] + pbase);
         } else {
             int32_t b = s->base[k];
             if (s->porta[k] != s->base[k]) {             /* portamento towards the note */
@@ -1380,7 +1407,7 @@ static FAST(fm6) void fm6_control(track_t *t, voice_t *v, fm6_voice_t *s, const 
                     np = s->base[k];
                 s->porta[k] = np;
             }
-            s->fq[k] = fm6_freq(b + pm);
+            s->fq[k] = fm6_freq_m(mo, k, b + pm);
         }
         level = fm6_eg_step(&s->eg[k], op, s->ol[k], rs, s->down);
         if (FM6_AMS[op[FO_AMS]]) {                       /* AMS: the modulation takes a part of the level */
@@ -1406,7 +1433,7 @@ static FAST(fm6) void fm6_control(track_t *t, voice_t *v, fm6_voice_t *s, const 
             dead = 0;
     }
     s->quiet = dead ? (uint8_t)(s->quiet + (s->quiet < 2u)) : 0;
-    fm6_plan(s, lv, alg, ed[FV_FB] ? 8u - (uint32_t)ed[FV_FB] : 16u);
+    fm6_plan(s, mo, lv, alg, ed[FV_FB] ? 8u - (uint32_t)ed[FV_FB] : 16u);
 }
 
 /* a voice that is over: its envelopes, pitch, gains and phases go on a Dexed block, without the
