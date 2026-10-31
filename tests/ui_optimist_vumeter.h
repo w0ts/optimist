@@ -57,7 +57,7 @@ static void peakhold_tests(void)
     frames(MX_PH_HOLD + 2u);
     reset_ui();                                         /* (-50 dBFS is under the floor) */
     ui.row[SCR_HOME] = MXR_MASTER;
-    song.g[G_FILT] = 0;                                 /* (the master's DJ filter open: left a hair on by an earlier test's random use, its high-pass's rounding is a DC of ~726 on a silent master, read here as a peak) */
+    song.g[G_FILT] = 1;                                 /* (the master's DJ filter a hair into high-pass, as an earlier test's random use can leave it: its rounding left a DC of ~726 on a silent master before fx.c tflt_tick_e, read here as a peak) */
     peak_ring(104.0);
     ui.force = 1;
     frames(5);
