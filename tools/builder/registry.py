@@ -1155,18 +1155,12 @@ MEMORY_CHOICES = ((0, "normal"),
                   (5, "another step: see SAMPLE SLOTS and PROJECTS"))
 SLOT_WORDS = ((0, "0: none (SAMPLE's built-in sets still play)"), (1, "1: USR3 (64 KiB, the snapshots)"),
               (2, "2: USR2 + USR3 (144 KiB, as normal)"), (3, "3: USR1..USR3, no projects (PATTERNS off)"))
-_LAYOUT_NOTICE = ("Changing this changes the flash layout: the builder says, as each installer does, what installing it "
-                  "erases (the projects in flash always, the user samples the new choice does not keep). Back up first: "
-                  "web editor > Backup (and, for a way back whole, python tools/fm1_anyflash.py backup); afterwards "
-                  "restore the projects with the editor. The first install of a new layout goes over a normal build "
-                  "of this version (an older updater refuses its size).")
 _add("MEMORY", "", "memory: the one-row choice of before (an old .config's MEMORY line)", MEM, 436, default=0,
-     choices=MEMORY_CHOICES, no_image=True, hidden=True, notice=_LAYOUT_NOTICE, notice_on_change=True, target_only=True,
+     choices=MEMORY_CHOICES, no_image=True, hidden=True, target_only=True,
      desc="The single MEMORY row of 2026-10-28..31, kept so that an old .config's MEMORY= line and --set MEMORY= still "
           "work: 0 normal, 4 no user samples, 1 more flash, 2 SD card mode. The menu shows SD CARD MODE, SAMPLE SLOTS "
           "and PROJECTS instead.")
 _add("SD_MODE", "", "SD card mode: user data on an SD card (a hardware mod)", MEM, 445, default=0, no_image=True,
-     notice=_LAYOUT_NOTICE, notice_on_change=True,
      experimental=True, target_only=True, tested="host-tested only (docs/SD-CARD-DESIGN.md); no FM-1 has the card yet",
      desc="On: the biggest flash for code (831,420 B, the release 823,228 B) with the user data on a microSD card wired "
           "to the LCD bus (docs/SD-CARD-DESIGN.md): one project in flash, the others, the samples and the recordings "
@@ -1174,14 +1168,14 @@ _add("SD_MODE", "", "SD card mode: user data on an SD card (a hardware mod)", ME
           "flash keeps the user data, as SAMPLE SLOTS and PROJECTS choose.")
 _add("SMP_SLOTS", "", "sample slots: user samples kept in flash", MEM, 446, default=3, no_image=True,
      choices=tuple((v, w) for v, w in SLOT_WORDS if v == 3 or any(s == v for s, _, _ in LAYOUT_STEPS.values())),
-     notice=_LAYOUT_NOTICE, notice_on_change=True, dim_when="SD_MODE", target_only=True,
+     dim_when="SD_MODE", target_only=True,
      desc="How many user-sample slots the flash keeps; each slot given up is code room (docs/SD-MODE-DESIGN.md 9.7). "
           "2: USR2 and USR3 where normal keeps them (and the snapshots, the CZ collection at USR3's top); 1: USR3 "
           "alone; 0: none (no user drum samples, snapshots or CZ collection; SAMPLE plays its built-in sets). 3: the "
           "projects off (PATTERNS off): USR1 too, the old song sections. With PROJECTS, the pair is the flash layout.")
 _add("PROJECTS", "", "projects kept in flash", MEM, 444, default=16, no_image=True,
      choices=tuple((p, str(p)) for p in sorted({p for _, p, _ in LAYOUT_STEPS.values()})),
-     notice=_LAYOUT_NOTICE, notice_on_change=True, dim_when="SD_MODE", target_only=True,
+     dim_when="SD_MODE", target_only=True,
      desc="How many projects the flash keeps (the user, 2026-10-31: 2, 4 or 16); fewer projects is a smaller project "
           "log, more code room. The log's room (MEM FULL past it; a busy project is about 6-8 KB, an estimate): 16: "
           "128 KiB with no sample slot (about 13-17 busy projects), 80 KiB in normal (7-10); 4: 44 KiB (3-5); 2: 28 KiB. "
