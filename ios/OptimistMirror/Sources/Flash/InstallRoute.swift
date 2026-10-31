@@ -9,7 +9,7 @@ import Foundation
 enum InstallRoute {
     static let softKey: [UInt8] = [0xF0, 0x22, 0x24, 0x35, 0x7D, 0xF7]
     static let v15SHA256 = "db1642b2b6fa5c2cccb11ffd13878068bb28601678d3644049f99dc40e7edb8a"
-    static let ownSlots = [0x93000, 0xA5000, 0xB5000, 0xCA000, 0xD0000]   // (every MEMORY step's flash.bin: tools/flash_layout.py own_slots, tests/flash_layout_test.py checks)
+    static let ownSlots = [0x93000, 0xA5000, 0xB5000, 0xBA000, 0xCA000, 0xD0000]   // (every MEMORY step's flash.bin: tools/flash_layout.py own_slots, tests/flash_layout_test.py checks)
     static let mflasher = URL(string: "https://github.com/jvitkauskas/m-flasher/releases")!
 
     struct Package: Equatable {
@@ -68,7 +68,7 @@ enum InstallRoute {
             return p.kind == "fm1base" ? (false, "its updater is assumed to refuse fm1-base packages") : (true, "its own update loader")
         case "optimist", "ambig000":
             if p.kind == "v15" { return (true, "the way back to the official firmware") }
-            guard let f = p.flashLen, ownSlots.contains(f) else { return (false, "Optimist's updater takes the layouts 0x93000, 0xA5000, 0xB5000, 0xCA000 and 0xD0000 only") }
+            guard let f = p.flashLen, ownSlots.contains(f) else { return (false, "Optimist's updater takes the layouts 0x93000, 0xA5000, 0xB5000, 0xBA000, 0xCA000 and 0xD0000 only") }
             if p.kind == "fm1base" { return (false, "Optimist's updater refuses fm1-base packages") }
             if !p.ownLoader { return (false, "Optimist's updater takes the Felucca family's loader or M-VAVE's only") }
             return (true, "its own update loader")
