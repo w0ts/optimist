@@ -9,6 +9,7 @@ import UIKit
 
 enum NavMetrics {
     static let button: CGFloat = 52
+    static let compact: CGFloat = 30             // the track bar's smaller buttons, all one height
     static let gap: CGFloat = 8
     static let corner: CGFloat = 10
 }
@@ -17,6 +18,7 @@ enum NavMetrics {
 struct NavButton: View {
     let title: String
     var caption: String? = nil            // under the title, small: a screen's own name under its button's
+    var compact = false                   // the track bar's small button
     var lit = false
     var dim = false
     var star = false
@@ -31,9 +33,9 @@ struct NavButton: View {
                 if star { Image(systemName: "star.fill").font(.caption) }
                 VStack(spacing: 0) {
                     Text(title)
-                        .font(.system(size: 17, weight: lit ? .bold : .semibold, design: .rounded))
+                        .font(.system(size: compact ? 11 : 17, weight: lit ? .bold : .semibold, design: .rounded))
                         .lineLimit(1)
-                        .minimumScaleFactor(0.6)
+                        .minimumScaleFactor(compact ? 0.7 : 0.6)
                     if let caption {
                         Text(caption)
                             .font(.system(size: 11, weight: .medium, design: .rounded))
@@ -43,8 +45,8 @@ struct NavButton: View {
                     }
                 }
             }
-            .frame(maxWidth: .infinity, minHeight: NavMetrics.button)
-            .padding(.horizontal, 8)
+            .frame(maxWidth: .infinity, minHeight: compact ? NavMetrics.compact : NavMetrics.button, maxHeight: compact ? NavMetrics.compact : nil)
+            .padding(.horizontal, compact ? 3 : 8)
             .foregroundStyle(lit ? Color(.systemBackground) : dim ? Color.primary.opacity(0.35) : Color.primary)   // (the system's theme)
             .background(lit ? Color.primary : Color.primary.opacity(dim ? 0.05 : 0.12),
                         in: RoundedRectangle(cornerRadius: NavMetrics.corner, style: .continuous))
@@ -196,7 +198,7 @@ struct NavTracks: View {
     @ObservedObject var nav: NavModel
 
     /// Always room for the lanes' line (the user, 2026-10-24: the screen must not change size between T1..T3 and DR)
-    static let height = NavMetrics.button * 2 + NavMetrics.gap
+    static let height = NavMetrics.compact * 3 + 4 + NavMetrics.gap
 
     /// The lanes' buttons: always drawn (the kit's names, else the default lanes'), available only while the drum track or a lane
     /// is the selection (the user, 2026-10-29: "the buttons that are not available should be greyed out")
@@ -206,22 +208,25 @@ struct NavTracks: View {
     }
 
     var body: some View {
-        let cur = nav.state?.track ?? Nav.none, dim = cur == Nav.none, n = nav.tracks.count
+        let cur = nav.state?.track ?? Nav.none, dim = cur == Nav.none
         let lanes = Self.lanes(tracks: nav.tracks, current: cur)
+        let bar = Nav.bar(count: nav.tracks.count)
+        let cols = [GridItem(.adaptive(minimum: 44), spacing: 4)]
         VStack(spacing: NavMetrics.gap) {
-            HStack(spacing: 4) {
+            LazyVGrid(columns: cols, spacing: 4) {
                 ForEach(Array(lanes.names.enumerated()), id: \.offset) { k, name in
-                    NavButton(title: name, lit: lanes.available && Nav.drumRow + 1 + k == cur, dim: !lanes.available) { nav.pick(track: Nav.drumRow + 1 + k) }
+                    NavButton(title: name, compact: true, lit: lanes.available && Nav.drumRow + 1 + k == cur, dim: !lanes.available) { nav.pick(track: Nav.drumRow + 1 + k) }
                 }
             }
-            .frame(height: NavMetrics.button)
-            HStack(spacing: NavMetrics.gap) {
-                ForEach(0..<min(n, Nav.drumRow + 1), id: \.self) { p in
-                    NavButton(title: nav.tracks[p], lit: p == cur || (p == Nav.drumRow && cur > Nav.drumRow && cur != Nav.none), dim: dim) {
+            .frame(height: NavMetrics.compact * 2 + 4, alignment: .top)
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 40), spacing: 4)], alignment: .leading, spacing: 4) {
+                ForEach(bar.bottom, id: \.self) { p in
+                    NavButton(title: nav.tracks[p], compact: true, lit: p == cur || (p == Nav.drumRow && cur > Nav.drumRow && cur != Nav.none), dim: dim) {
                         nav.pick(track: p)
                     }
                 }
             }
+            .frame(height: NavMetrics.compact, alignment: .top)
         }
         .frame(height: Self.height, alignment: .bottom)
     }
