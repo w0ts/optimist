@@ -39,7 +39,7 @@ final class MirrorLink: ObservableObject, Transport, CompanionTransport {
     /// the port Connect took or the Bluetooth sheet connected ("": the FM-1's, USB first); until the next Disconnect
     private var want = ""
     func disconnect() { atLaunch = false; paused = true; want = ""; reconnect() }
-    /// port: the one to take (the Bluetooth sheet's: not the USB cable's when it is in too)
+    /// port: the one to take (the Bluetooth sheet's or the one picked: kept while it works)
     func resume(_ port: String = "") { atLaunch = false; paused = false; want = port; reconnect() }
     /// The app just started: an FM-1 port already connected in the system (the USB cable in, its Bluetooth MIDI port connected
     /// in the system's Bluetooth MIDI settings) is taken as if Connect were pressed (the user, 2026-10-31: having to disconnect
@@ -50,6 +50,10 @@ final class MirrorLink: ObservableObject, Transport, CompanionTransport {
     /// The welcome screen's "Use an already connected FM-1 at launch" (default on; off: the user picks, as before 2026-10-31)
     @Published var takeConnectedAtLaunch = UserDefaults.standard.object(forKey: "launchConnected") as? Bool ?? true {
         didSet { UserDefaults.standard.set(takeConnectedAtLaunch, forKey: "launchConnected") }
+    }
+    /// The port in use last time, by name (the launch takes it again when it is connected)
+    private var lastPort = UserDefaults.standard.string(forKey: "lastPort") ?? "" {
+        didSet { UserDefaults.standard.set(lastPort, forKey: "lastPort") }
     }
     private static let launchTake: TimeInterval = 3
     private func reconnect() {
@@ -247,21 +251,17 @@ final class MirrorLink: ObservableObject, Transport, CompanionTransport {
         let bluetooth: Bool
         let online: Bool
     }
-    /// The index of the port to take: the FM-1's USB port whenever one is online (the cable wins over Bluetooth, also over a
-    /// Bluetooth port picked by hand or connected in the Bluetooth sheet: the user, 2026-10-31, on USB with the app still on
-    /// Bluetooth), else the port picked by hand when it is there, else the FM-1's: USB first, Bluetooth else.
+    /// The index of the port to take: the port picked by hand (USB or Bluetooth) whenever it is listed, never swapped for another
+    /// (the user, 2026-10-31: "i did not ask for usb midi first. i asked you to fix BT"), else the FM-1's: USB first, Bluetooth else.
     static func pick(_ ports: [PortSeen], chosen: String) -> Int? {
-        let usb = ports.firstIndex { !$0.bluetooth && $0.online && isFM1Name($0.name) }
-        if !chosen.isEmpty, let i = ports.firstIndex(where: { $0.name == chosen }) {
-            return ports[i].bluetooth ? usb ?? i : i
-        }
-        return usb ?? ports.firstIndex { !$0.bluetooth && isFM1Name($0.name) } ?? ports.firstIndex { isFM1Name($0.name) }
+        if !chosen.isEmpty, let i = ports.firstIndex(where: { $0.name == chosen }) { return i }
+        return ports.firstIndex { !$0.bluetooth && isFM1Name($0.name) } ?? ports.firstIndex { isFM1Name($0.name) }
     }
-    /// At launch: the port `pick` takes among those online (a Bluetooth port the system keeps listed offline is not
-    /// connected; nil: nothing connected, the welcome screen)
-    static func launchPort(_ ports: [PortSeen], chosen: String) -> Int? {
+    /// At launch: among the ports online (a Bluetooth port the system keeps listed offline is not connected), the one used last
+    /// time (by name) when it is connected, else any FM-1 port; nil: nothing connected, the welcome screen
+    static func launchPort(_ ports: [PortSeen], last: String) -> Int? {
         let on = ports.indices.filter { ports[$0].online }
-        return pick(on.map { ports[$0] }, chosen: chosen).map { on[$0] }
+        return pick(on.map { ports[$0] }, chosen: last).map { on[$0] }
     }
     private static func seen(_ count: Int, _ get: (Int) -> MIDIEndpointRef) -> [PortSeen] {
         (0..<count).map(get).map { PortSeen(name: name($0), bluetooth: isBluetooth($0), online: isOnline($0)) }
@@ -277,11 +277,14 @@ final class MirrorLink: ObservableObject, Transport, CompanionTransport {
         if !paused, !portName.isEmpty, !online.contains(portName) {
             paused = true; want = ""    // (the port in use gone, the USB cable out: the welcome screen, no other port taken; the
         }                               //  user, 2026-10-24: "NO AUTOCONNECT", it went on over Bluetooth by itself)
-        if paused, atLaunch, takeConnectedAtLaunch, Self.launchPort(Self.seen(MIDIGetNumberOfSources(), MIDIGetSource), chosen: chosen) != nil {
-            atLaunch = false; paused = false; want = ""   // (an FM-1 port already connected in the system at launch: taken)
+        let seenSrc = Self.seen(MIDIGetNumberOfSources(), MIDIGetSource)
+        if paused, atLaunch, takeConnectedAtLaunch, let i = Self.launchPort(seenSrc, last: lastPort.isEmpty ? chosen : lastPort),
+           outs.contains(seenSrc[i].name) {
+            atLaunch = false; paused = false; want = seenSrc[i].name   // (the last port used, else an FM-1 port, already connected at launch: taken)
         }
         let src = paused ? nil : Self.find(MIDIGetNumberOfSources(), MIDIGetSource, chosen: want.isEmpty ? chosen : want)
         let dst = paused ? nil : Self.find(MIDIGetNumberOfDestinations(), MIDIGetDestination, chosen: want.isEmpty ? chosen : want)
+        if !paused, let n = src.map(Self.name), n != lastPort { lastPort = n }
         guard src != source || dst != destination else { return }
         if source != 0 { MIDIPortDisconnectSource(inPort, source) }
         source = src ?? 0

@@ -3653,6 +3653,10 @@ e = list(L.known_ends()); print(json.dumps({f"{o}/{n}": L.switch_warning(None if
   const there = IR.chooseRoute("optimist", own, "m-bootloader", "", IR.mbootPresentOf("mboot")), stock = IR.chooseRoute("optimist", own, "m-bootloader", "", IR.mbootPresentOf("stock"));
   ok(there.method === "loader" && stock.method === "download" && stock.wantsMboot && IR.chooseRoute("optimist", own, "keep", "", false).method === "loader",
      "install: m-bootloader there: the update; M-VAVE's there: download mode, with the keep-the-bootloader update offered beside it");
+  ok(IR.bootloaderChoice("m-bootloader", false).choice === "keep" && IR.bootloaderChoice("m-bootloader", true).choice === "m-bootloader"
+     && IR.chooseRoute("optimist", own, IR.bootloaderChoice("m-bootloader", false).choice, "FM-1_700", null).method === "loader"
+     && IR.chooseRoute("optimist", own, IR.bootloaderChoice("m-bootloader", false).choice, "FM-1_700", IR.mbootPresentOf("stock")).method === "loader",
+     "install: BOOTLOADER=1 and no token or boot=stock: USB-MIDI; only the explicit m-bootloader is download mode");
 }
 {
   /* the MEMORY layouts (bk_caps' app end and projects bytes; USR capacity 0 = the slot is gone): 0 slots / 4 projects and 2 slots / 16 projects */

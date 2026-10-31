@@ -237,7 +237,7 @@ def cmd_flash(a):
         if pkg is None:
             return 1
     try:
-        plan = flash.preflight(pkg, a.port, keep_bootloader=a.keep_bootloader)
+        plan = flash.preflight(pkg, a.port, install_mboot=a.install_mboot)
         flag = "wipe" if a.wipe_settings else "keep" if a.keep_settings else None
         if plan.download and plan.settings and plan.settings.ask and flag is None and not a.yes:
             print(f"{plan.settings.reason}.")
@@ -685,8 +685,9 @@ def parser():
     add_config_args(p)                                   # (what to build when there is no PACKAGE)
     p.add_argument("--port", metavar="NAME", help="MIDI port to use (part of its name)")
     p.add_argument("--yes", action="store_true", help="do not ask for confirmation")
-    p.add_argument("--keep-bootloader", action="store_true",
-                   help="keep the FM-1's bootloader for this install, though the build says m-bootloader")
+    p.add_argument("--install-mboot", action="store_true",
+                   help="install m-bootloader (download mode, a full backup first); never done otherwise")
+    p.add_argument("--keep-bootloader", action="store_true", help=argparse.SUPPRESS)   # (the default now; older callers)
     sg = p.add_mutually_exclusive_group()
     sg.add_argument("--keep-settings", action="store_true", help="download mode: keep the settings and pairings")
     sg.add_argument("--wipe-settings", action="store_true", help="download mode: erase the new firmware's settings and pairings")

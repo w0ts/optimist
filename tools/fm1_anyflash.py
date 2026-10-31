@@ -5,7 +5,7 @@
 (third_party/m-flasher, Julius Vitkauskas, MIT). The way is chosen per (running firmware, package, the build's
 BOOTLOADER): tools/fm1_route.py, docs/INSTALL-PATHS.md.
 
-  fm1_install.py PACKAGE.fwsc [--keep-bootloader] [--dry-run [--flash-image BACKUP.bin]] [--route download]
+  fm1_install.py PACKAGE.fwsc [--install-mboot] [--dry-run [--flash-image BACKUP.bin]] [--route download]
                                                an install: the route chosen there, the download-mode part here
   fm1_anyflash.py backup | restore BACKUP.bin | bootloader [--stock PACKAGE.fwsc] | restart   (download mode,
                                                M-Flasher's own plan and question; --dry-run prints the command)
@@ -16,7 +16,7 @@ Every write in download mode: the model check (an FM-1, from M-Flasher's read of
 (its path printed), the plan shown (the sectors, ours and M-Flasher's own, compared), and a typed "yes" (or --yes,
 given by a caller that asked already: make flash, the builder's f). --dry-run sends nothing to the FM-1 (no soft key,
 no M-Flasher) and prints what would be run and written where; with --flash-image (a backup) the exact sectors.
-The bootloader is left as it is unless the build says m-bootloader (and --keep-bootloader does not say keep).
+The bootloader is left as it is, whatever the build's BOOTLOADER says; --install-mboot installs m-bootloader (download mode).
 
 m-bootloader's coming SD card flashing (a .fwsc from the card) is not a path here yet: sd_card_route() is its hook."""
 from __future__ import annotations
@@ -94,9 +94,9 @@ def load(path):
     return raw, info, flash
 
 
-def build_setting(package, keep_flag):
+def build_setting(package, install_mboot=False):
     value, note = install_meta.read(package)
-    choice, line = R.bootloader_choice(value, keep_flag)
+    choice, line = R.bootloader_choice(value, install_mboot)
     return choice, line + ("" if value else f" ({note})")
 
 
@@ -322,10 +322,10 @@ def dry_run(env, route, info, flash, backup_dir, flash_image, wipe=""):
 
 # --------------------------------------------------------------------------- install ---
 
-def plan_install(package, running_text, port="", keep_flag=False, mboot_present=None):
+def plan_install(package, running_text, port="", install_mboot=False, mboot_present=None):
     """-> (Route, PackageInfo, flash.bin, bootloader line): what install would do, nothing sent"""
     raw, info, flash = load(package)
-    choice, line = build_setting(package, keep_flag)
+    choice, line = build_setting(package, install_mboot)
     running = R.running_kind(running_text, port)
     route = R.choose(running, info, choice, mboot_present, running_text or "")
     return route, info, flash, line
