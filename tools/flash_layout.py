@@ -74,6 +74,7 @@ STEPS = {
     4: stacked(4, "S1-4", "one sample slot, 4 projects", 1, 4),
     5: stacked(5, "S1-2", "one sample slot, 2 projects", 1, 2),
     6: stacked(6, "S2-4", "two sample slots, 4 projects", 2, 4),
+    7: stacked(7, "S2-2", "two sample slots, 2 projects", 2, 2),
 }
 ORDER = tuple(sorted(STEPS, key=lambda k: STEPS[k].end))   # by size: the tables list them so
 
