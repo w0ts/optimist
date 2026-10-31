@@ -96,7 +96,7 @@ static int oct_fold_here(void) { return ui.scr == SCR_STEP && !is_drum(TSEL) && 
 static void op_enter(uint32_t scr)
 {
     fx_by_walk = 0;                                     /* (a screen entered: the master FX screen is the walk's again only via walk_master_in) */
-    hmx.valid = 0;                                      /* (and HOME's way back forgotten: op_walk.c home_in sets it after) */
+    rt_keep();                                          /* (a return's pages left: their row kept, op_mixer.c) */
     uint8_t from_master = ui.scr == SCR_HOME && mx_row() == MXR_MASTER;   /* (SCOPE opened on the mixer's MASTER row: its source) */
     if (ui.scr == SCR_SCOPE)
         ui.master = 0;                                  /* (the scope's MASTER source goes with the scope) */
@@ -339,10 +339,9 @@ static void op_no(void)
     if (sdc_home())
         return;                                         /* (PROJECT, a card's list: up a folder, SAVES back: op_sdcard.c) */
 #endif
-    if (ui.scr == SCR_HOME) {
-        if (!home_back())                               /* (the page HOME left, op_walk.c) */
-            op_enter(SCR_SCOPE);                        /* at the root: the mixer and the scope, in turn [P] */
-    } else
+    if (ui.scr == SCR_HOME)
+        op_enter(SCR_SCOPE);                            /* at the root: the mixer and the scope, in turn [P] */
+    else
         home_in();                                      /* the mixer, on the selection's row, nothing else changed (op_walk.c) */
 }
 

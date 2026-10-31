@@ -21,17 +21,17 @@
  * its LEVEL (GLO > DRUMS), FILTER, FX on, the kit; its lanes carry the sounds' own values (SOUND 2 and 3: the offsets
  * and the sends). */
 /* (2026-10-30, the user: "it might simplify the ui if the return track are just normal track", "make the return tracks normal
- * track citizens"): the walk's order everywhere, T1 T2 T3, DR, its lanes, (the mixer's USB IN), RET A B C, MASTER; the mixer shows
- * the last four on one screen (op_mixdraw.c, the master page) */
-enum { MXR_T1, MXR_DR = MXR_T1 + TRK_DRUM, MXR_LANE0, MXR_LN = MXR_LANE0 + (FELUCCA_DRUMS ? DRUM_UILANES : 0),   /* (MXR_DR: T4 without drums) */
+ * track citizens", then 2026-10-31: "master screen should be ABOVE the other t1/t2 etc. can you please keep it AT THE TOP LIKE IT
+ * WAS BEFORE"): the walk's order everywhere, RET A B C, MASTER (the master screen, op_mixdraw.c), T1 T2 T3, DR, its lanes, (the
+ * mixer's USB IN) */
+enum { MXR_RET0, MXR_MASTER = MXR_RET0 + 3,           /* the returns A B C (the master slots 1..3, fx_slots.c), then MASTER */
+       MXR_T1, MXR_DR = MXR_T1 + TRK_DRUM, MXR_LANE0, MXR_LN = MXR_LANE0 + (FELUCCA_DRUMS ? DRUM_UILANES : 0),   /* (MXR_DR: T4 without drums) */
 #if FELUCCA_USB_AUDIO
        MXR_USB = MXR_LN,                         /* the USB input, a track after the drum tracks (fx-rework stage 3; fx.c ut_mix) */
-       MXR_RET0,
-#else
-       MXR_RET0 = MXR_LN,
-#endif
-       MXR_MASTER = MXR_RET0 + 3,                /* the returns A B C (the master slots 1..3, fx_slots.c), then MASTER */
        MXR_N
+#else
+       MXR_N = MXR_LN
+#endif
 };
 static int mx_is_lane(uint32_t r) { return r >= MXR_LANE0 && r < MXR_LN; }
 #if FELUCCA_USB_AUDIO
@@ -124,7 +124,7 @@ static uint32_t mx_dead_mask(void)                      /* the buttons that do n
            (acc_sel() ? 1u << B_FX | 1u << B_EDIT : 0u);
 }
 static int mx_master_dead(uint32_t b) { return b < 32u && (mx_dead_mask() >> b & 1u); }
-static uint32_t mx_trk_of(uint32_t r) { return r < MXR_DR ? r - MXR_T1 : r < MXR_LN || mx_is_usb(r) ? TRK_DRUM : 0u; }   /* (MASTER, a
+static uint32_t mx_trk_of(uint32_t r) { return r <= MXR_MASTER ? 0u : r < MXR_DR ? r - MXR_T1 : TRK_DRUM; }   /* (MASTER, a
                                                          * return: T1, unused; the USB input: DR's, as before) */
 /* row r muted. One mute (the user, 2026-10-16): a track's, a lane's and the ACCENT lane's is the sequencer mute (seq_mute.c:
  * its steps stop, the tails ring), SHIFT + its key or SHIFT + its volume card; the USB input's is its own (no sequencer).
@@ -957,7 +957,7 @@ static void mx_page(int32_t d)                         /* SELECT: the knob sets,
     ui.hot = 0;
     ui.hot_lit = 0;
 }
-/* ALGORITHM across: s groups from row p (the channels, the lanes by four, USB IN, the returns, MASTER), each entered on its first row */
+/* ALGORITHM across: s groups from row p (the returns, MASTER, the channels, the lanes by four, USB IN), each entered on its first row */
 static uint32_t mx_walk_across(uint32_t p, int32_t s)
 {
     uint32_t q;
@@ -969,7 +969,7 @@ static uint32_t mx_walk_across(uint32_t p, int32_t s)
     }
     for (; s < 0; s++) {
         q = mx_across(p) ? mx_grp0(p) : p;
-        if (q == MXR_T1)
+        if (q == MXR_RET0)
             break;
         p = mx_across(q - 1u) ? mx_grp0(q - 1u) : q - 1u;
     }
@@ -1145,12 +1145,22 @@ static int rt_yes(uint32_t k, uint32_t c, uint32_t ok)
     rrow_t e;
     return rt_at(k, &e) && e.pg && page_yes(SCR_FX, k, e.pg, c, ok);
 }
-/* return row r's pages shown (the FX screen already entered), family fam (RF_*), its first row */
+/* each return's page per family, as it was left (a page button reopens it, as a track's family: op_screens.c snd_mem_row) */
+static uint8_t rt_mem[3][2];
+static void rt_keep(void)
+{
+    if (ui.scr == SCR_FX && ui.fxo)
+        rt_mem[(ui.fxo - 1u) % 3u][rt_fam & 1u] = ui.row[SCR_FX];
+}
+/* return row r's pages shown (the FX screen already entered), family fam (RF_*), on the page left there */
 static void rt_open(uint32_t r, uint32_t fam)
 {
+    uint32_t k;
+    rt_keep();
     ui.fxo = (uint8_t)(1u + (r - MXR_RET0) % 3u);
     rt_fam = (uint8_t)fam;
-    ui.row[SCR_FX] = 0;
+    k = rt_mem[ui.fxo - 1u][fam & 1u];
+    ui.row[SCR_FX] = (uint8_t)(k < rt_nrows() ? k : 0u);
     ui.hot = 0;
     ui.hot_lit = 0;
     ui.force = 1;

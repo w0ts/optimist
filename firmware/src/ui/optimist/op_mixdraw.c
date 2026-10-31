@@ -98,7 +98,7 @@ static void mx_view(void)                               /* the rows in view: the
 {
     uint32_t m = mx_mode(mx_row());
     mxd.first = (uint8_t)(m == MV_MASTER ? MXR_RET0 : m == MV_CH ? MXR_T1 : m == MV_USB ? MXR_LN : MXR_LANE0);
-    mxd.last = (uint8_t)(m == MV_MASTER ? MXR_N : m == MV_CH ? MXR_LANE0 : m == MV_USB ? MXR_LN + 1u : MXR_LN);
+    mxd.last = (uint8_t)(m == MV_MASTER ? MXR_MASTER + 1u : m == MV_CH ? MXR_LANE0 : m == MV_USB ? MXR_LN + 1u : MXR_LN);
 }
 static void mx_rect(uint32_t r, mrect_t *q)             /* row r's place in its group's view */
 {
