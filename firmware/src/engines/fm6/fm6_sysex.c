@@ -67,7 +67,7 @@ static void fm6_service(void)                            /* main loop: a DX7 fra
     } else {
         ui_message("FM6: BAD CHECKSUM");
     }
-    ui.force = 1;
+    ui.redraw = 1;                                       /* what shows the voice draws again over itself, once a frame: no black fill of the screen (#133) */
     RING_PUBLISH();
     fm6_rx_ready = 0;
 }

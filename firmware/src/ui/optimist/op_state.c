@@ -65,6 +65,7 @@ static struct {
     /* read by the core under SLOOP's names: project.c (menu: autosave waits), main.c (force, page: the crash
      * breadcrumb), editor.c and the stores (force), miss.c (msg, msg_t, layer, hold_kind) */
     uint8_t force;                    /* everything redraws */
+    uint8_t redraw;                   /* the cards and the panel draw again over what is there, no black fill first (a corner went, a DX7 voice came) */
     uint8_t menu;                     /* always 0: this UI has no modal menu */
     uint8_t page;                     /* the PAGES entry of the cursor row (TRACKS when the row is no page) */
     uint8_t layer;                    /* the performance layer shown (op_layers.c), LY_PLAY none */

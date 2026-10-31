@@ -9,7 +9,7 @@
 #include "hostsim.c"
 #undef main
 
-static struct { int force; } ui;
+static struct { int force, redraw; } ui;
 static char last_msg[64];
 static void ui_message(const char *m) { str_cpy(last_msg, m, sizeof last_msg); }
 static void ui_say(const char *a, const char *b)
@@ -87,6 +87,7 @@ int main(void)
     check("a voice dump on the FM6 track (selected): into its buffer, every operator on, the notes stop (panic)",
           !memcmp(fm6_ed[1], ed, 155 * sizeof ed[0]) && fm6_ed[1][FV_ON + 2] == 1 && fm6_pt[1].panic);
     check("... told \"FM6 VOICE <name>\", nothing waiting for the main loop", !strncmp(last_msg, "FM6 VOICE Z", 11) && !fm6_rx_ready);
+    check("... #133: the screen is asked to draw what shows the voice again, never everything (ui.force stays 0)", ui.redraw == 1 && ui.force == 0);
     check("... the track's VOICE and the other tracks' buffers untouched", trk[1].p[P_E0] == 0 && !memcmp(fm6_ed[0], other0, sizeof other0));
 
     m[100] ^= 1;                                           /* a bad checksum */
