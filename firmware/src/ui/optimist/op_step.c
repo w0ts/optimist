@@ -320,13 +320,34 @@ static void olp_xown(const step_t *o, olp_set_t *xon, olp_set_t *xc)
         }
     *xon = nx;
 }
+/* step p (the one before, as written; pd what goes on out of it) ends the notes r at its own end (127: the step's end, as
+ * recording does in a long note's step, seq.c rec_note): a note struck again in a carry step after it is struck there, not
+ * held on (the user, 2026-10-31: G lengthened over E struck again at step 9 said SAME NOTE). A TIE becomes the carry step
+ * of what sounds through it. -> 0 fine, else why not */
+static const char *olp_cut(step_t *p, const olp_set_t *pd, const olp_set_t *r)
+{
+    uint32_t k;
+    if (p->time == ST_TIE) {
+        memset(p, 0, sizeof *p);
+        p->time = ST_NOTE, p->flags = SF_CARRY, p->vel = 100;
+        for (k = 0; k < pd->n; k++)
+            p->note[p->n++] = pd->note[k];              /* (LV_NORM: 0) */
+    }
+    if (p->time != ST_NOTE || p->rat)
+        return "RATCHET HERE";
+    for (k = 0; k < p->n && k < 4u; k++)
+        if (olp_has(r, p->note[k]))
+            p->ngate[k] = 127u;
+    return 0;
+}
 /* the notes starting at a (x: they; xs 0: every note of a) sound L steps; the steps after a written again so the others
  * sound as before (xs: one note of a chord, or one no longer in a at all: the others of a go on as they do). wr 0: only
  * checked. -> 0 fine, else why not (the toast) */
 static const char *olp_pass(track_t *t, uint32_t a, const olp_set_t *xs, uint32_t L, uint32_t end, int wr)
 {
     const step_t *h = &t->step[a];
-    olp_set_t x = {0}, prev = {0}, snd, start, out, pd, d, xon, xc;
+    olp_set_t x = {0}, prev = {0}, snd, start, out, pd, d, xon, xc, r;
+    step_t lw = *h;                                     /* (the step before as written: a, then each nw) */
     uint32_t j, k, own;
     for (k = 0; k < h->n && k < 4u; k++)
         if (!xs)
@@ -367,14 +388,19 @@ static const char *olp_pass(track_t *t, uint32_t a, const olp_set_t *xs, uint32_
             memset(&nw, 0, sizeof nw);
             nw.time = ST_REST;                          /* (what sounded ends here) */
         } else {
-            for (k = 0; carry.n && k < start.n; k++)
+            for (k = 0, r.n = 0; carry.n && k < start.n; k++)
                 if (olp_has(&pd, start.note[k]))
-                    return "SAME NOTE";                 /* (a carry step would hold it on: it would no longer start) */
+                    (void)olp_add(&r, start.note[k]);   /* (a carry step would hold it on: it ends in the step before) */
+            if (r.n && (why = olp_cut(&lw, &pd, &r)) != 0)
+                return why;
+            if (r.n && wr)
+                t->step[j - 1u] = lw;
             if ((why = olp_build(&o, &start, &carry, &nw)) != 0)
                 return why;
         }
         if (wr)
             t->step[j] = nw;
+        lw = nw;
         prev = out;
         pd.n = 0;                                       /* (what goes on out of the step as written) */
         for (k = 0; nw.time == ST_TIE && k < d.n; k++)
@@ -554,12 +580,15 @@ static int step_has(const track_t *t, uint32_t idx)     /* a tap would clear it:
 {
     return is_drum(t) ? dstep_has(&t->dstep[idx], lane_selected()) : step_on(&t->step[idx]);
 }
-/* the keys' view of a step: the selected lane's hit; the drum track with SEQ held (SEQ + a key clears the whole step): any lane's */
+/* the keys' view of a step: the selected lane's hit; the drum track with SEQ held (SEQ + a key clears the whole step): any lane's;
+ * a synth step where a note starts (pk_note), not a carry step that only holds notes on, as a TIE (the user, 2026-10-31:
+ * "when i extend a note, the keyboard lit up on the end of the note, but not all the time": LENGTH over another note
+ * writes a carry step where the other note goes on alone, and it lit) */
 static int step_shown(const track_t *t, uint32_t idx)
 {
     if (is_drum(t) && btn_held(B_SEQ))
         return dstep_lanes(&t->dstep[idx]) != 0u;
-    return step_has(t, idx);
+    return is_drum(t) ? step_has(t, idx) : pk_note(t, idx);
 }
 
 /* step idx's p-locks go (IRQ off): the step-only events of a parameter, a drum lane's values included; the step's notes,

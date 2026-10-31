@@ -2766,13 +2766,14 @@ static uint32_t seq_goes_on(const track_t *t, const step_t *s)
     return 0;
 }
 /* a carry step s (SF_CARRY): its notes sounding go on (-> bit k: note k), the other notes sounding end. skip: its
- * notes not played here */
+ * notes not played here. A note with an end of its own still to come (seq_nm: an ngate in the step before) does not go
+ * on: the carry step strikes it again, as note_span and the editor read it (its end a block late must not hold it on) */
 static uint32_t seq_carry(track_t *t, const step_t *s, uint32_t skip)
 {
     uint32_t i, k, n = 0, keep = 0;
     for (i = 0; i < t->seq_n; i++) {
         uint32_t x = t->seq_notes[i];
-        for (k = 0; k < s->n && (s->note[k] != x || (((skip | keep) >> k) & 1u)); k++)
+        for (k = 0; k < s->n && (s->note[k] != x || (((skip | keep) >> k) & 1u) || ((t->seq_nm >> i) & 1u)); k++)
             ;
         if (k < s->n) {
             keep |= 1u << k;

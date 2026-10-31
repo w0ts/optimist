@@ -9,6 +9,9 @@
  *   length   LENGTH on one note of a chord (the lowest picked alone) lengthens that note alone; LENGTH up to a note of the
  *            same pitch never writes it away (was: the pass took it for the lengthened note's own and erased it)
  *   fuzz     random patterns: a note moved or lengthened, every other note as it was
+ *   restrike LENGTH on G over E struck again where G would go on (the user's FM-1 photo, 2026-10-31: B 1-4, E 1-8 and
+ *            9-12, G 5-8; "SAME NOTE"): G goes on, E's first note ends at its step's end, the second still struck
+ *   keys     LENGTH over another note: the step keys light where notes start, never at the carry step it writes at its end
  * Included by ui_optimist_test.c after ui_optimist_seqglide.h (sgl_notes). */
 static void se_set(track_t *t, uint32_t i, uint32_t n, uint32_t len)   /* note n at step i, len steps (its TIEs) */
 {
@@ -54,6 +57,34 @@ static int se_has(const se_n_t *o, uint32_t n, uint32_t s, uint32_t p, uint32_t 
         if (o[i].s == s && o[i].p == p && o[i].l == l)
             return 1;
     return 0;
+}
+static void se_user(track_t *t, uint32_t again)         /* the photo: B 59 1-4, E 64 1-12 (again: struck again at 9), G 67 5-8 */
+{
+    uint32_t i;
+    fm1_irq_off();
+    se_set(t, 0, 59, 4);
+    t->step[0].n = 2, t->step[0].note[1] = 64;
+    memset(&t->step[4], 0, sizeof t->step[4]);
+    t->step[4].time = ST_NOTE, t->step[4].flags = SF_CARRY, t->step[4].n = 2, t->step[4].vel = 100;
+    t->step[4].note[0] = 64, t->step[4].note[1] = 67;   /* (64 goes on, 67 starts: a carry step) */
+    for (i = 5; i < 8u; i++)
+        memset(&t->step[i], 0, sizeof t->step[i]), t->step[i].time = ST_TIE;
+    if (again) {
+        se_set(t, 8, 64, 4);
+    } else {
+        memset(&t->step[8], 0, sizeof t->step[8]);
+        t->step[8].time = ST_NOTE, t->step[8].flags = SF_CARRY, t->step[8].n = 1, t->step[8].note[0] = 64, t->step[8].vel = 100;
+        for (i = 9; i < 12u; i++)
+            memset(&t->step[i], 0, sizeof t->step[i]), t->step[i].time = ST_TIE;
+    }
+    fm1_irq_on();
+}
+static void se_pick(const track_t *t, uint32_t at, uint32_t note)   /* KNOB 1 walked to the note alone */
+{
+    uint32_t c;
+    st.pk = PK_NONE;
+    for (c = 0; c < 12u && !(st.pk == at && st.nsel != NSEL_ALL && t->step[at].note[st.nsel] == note); c++)
+        turn(EN_K1, 1);
 }
 static uint32_t se_rnd = 1;
 static uint32_t se_r(uint32_t m)
@@ -193,6 +224,54 @@ static void stepedit_tests(void)
     turn(EN_K1, 1);
     turn(EN_K4, 3);
     check(!strcmp(sgl_notes(t), "2:62x3 5:62x2"), "stepedit: LENGTH up to a note of its pitch: the gap filled, the other note kept (was erased)");
+    /* restrike: the user's pattern, G lengthened over E struck again at step 9 */
+    se_open(16);
+    t = TSEL;
+    se_user(t, 1);
+    check(!strcmp(sgl_notes(t), "0:59x4 0:64x8 4:67x4 8:64x4"), "stepedit: set: the photo, E struck again at 9");
+    se_pick(t, 4, 67);
+    check(st.pk == 4u && st.nsel != NSEL_ALL && t->step[4].note[st.nsel] == 67u, "stepedit: ... G picked alone");
+    {
+        uint32_t c, ok = 1;
+        turn(EN_K4, 1);                                 /* (touching E's second note: the snap) */
+        for (c = 5; c <= 8u; c++) {
+            char want[48];
+            ui.msg[0] = 0;
+            turn(EN_K4, 1);
+            snprintf(want, sizeof want, "0:59x4 0:64x8 4:67x%u 8:64x4", c);
+            ok &= !strcmp(sgl_notes(t), want) && strcmp(ui.msg, "SAME NOTE") != 0;
+        }
+        check(ok, "stepedit: LENGTH on G over E struck again: G 5, 6, 7, 8 steps, E's two notes as they were (was: SAME NOTE)");
+    }
+    check(t->step[7].time == ST_NOTE && (t->step[7].flags & SF_CARRY) && t->step[8].time == ST_NOTE && (t->step[8].flags & SF_CARRY),
+          "stepedit: ... E's first note ends in step 8 (its own end), step 9 strikes E again, G goes on");
+    turn(EN_K4, -4);
+    check(!strcmp(sgl_notes(t), "0:59x4 0:64x8 4:67x4 8:64x4"), "stepedit: ... and back: G 4 steps, E's notes as they were");
+    /* keys: LENGTH over another note never lights the carry step it writes (only where notes start) */
+    {
+        uint32_t f, d, h, c, ok = 1, want = keys_of(1u | 1u << 4);
+        se_open(16);
+        t = TSEL;
+        se_user(t, 0);
+        se_pick(t, 4, 67);
+        frames(2);
+        keys_lit(&f, &d, &h);
+        ok &= (f & keys_white(16)) == want;
+        for (c = 0; c < 6u; c++) {
+            turn(EN_K4, 1);
+            frames(2);
+            keys_lit(&f, &d, &h);
+            ok &= (f & keys_white(16)) == want;
+        }
+        for (c = 0; c < 6u; c++) {
+            turn(EN_K4, -1);
+            frames(2);
+            keys_lit(&f, &d, &h);
+            ok &= (f & keys_white(16)) == want;
+        }
+        check(ok && !strcmp(sgl_notes(t), "0:59x4 0:64x12 4:67x4"),
+              "stepedit: LENGTH on G over a held E, 6 steps on and back: the step keys lit at the notes' starts only (was: the note's end lit)");
+    }
     /* the fuzz */
     check(se_fuzz(2, 300) == 0u, "stepedit: random patterns, a note moved right to the end: every other note as it was");
     check(se_fuzz(4, 300) == 0u, "stepedit: random patterns, a note lengthened: every other note as it was");
