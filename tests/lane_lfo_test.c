@@ -337,7 +337,7 @@ static void t_record(void)
     check("a length that is not 4 + lanes x entry: refused, every LFO off", !dlfo_decode(a, n - 1u) && !dlfo_any_live());
     memcpy(b2, a, n);
     b2[4] = 0x80, b2[5] = 9, b2[8] = 12, b2[6] = 200;  /* (rate -128, wave 9, dest 12, phase 200) */
-    check("values out of range brought back (RATE -22, WAVE SIN, PHS 72, DEST OFF)", dlfo_decode(b2, n) && dlfo[0].rate == -(int32_t)LSYNC_N &&
+    check("values out of range brought back (RATE -25, WAVE SIN, PHS 72, DEST OFF)", dlfo_decode(b2, n) && dlfo[0].rate == -(int32_t)LSYNC_N &&
           !dlfo[0].wave && dlfo[0].phase == (200u & 127u) && !dlfo[0].s[0].dest);
     /* through a project buffer, a section, the autosave */
     {
@@ -519,7 +519,7 @@ static void t_mod2(void)
  * steepest glide of the last (smoothstep's 1.5 x the range a cycle), a cycle's first block at that cycle's S&H value */
 static uint64_t slew_ph(int32_t rate, uint32_t n)       /* (dlfo_now's phase at block n, playing: free, or synced at 240 BPM) */
 {
-    uint32_t kt = LSYNC_KT[LSYNC_N - 1], u = n * CTL * 240u;
+    uint32_t kt = LSYNC_KT[DUR_N - 1], u = n * CTL * 240u;   /* (1/64, the shortest) */
     if (rate >= 0) {
         song.tick = n;
         return (uint64_t)n * LFO_INC[rate];
@@ -529,7 +529,7 @@ static uint64_t slew_ph(int32_t rate, uint32_t n)       /* (dlfo_now's phase at 
 }
 static void t_slew(void)
 {
-    static const int8_t RATE[2] = {127, -LSYNC_N};
+    static const int8_t RATE[2] = {127, -DUR_N};
     dlfo_t c = {0, LFO_WAVE_SLEW, 0, 0, {{DE_DECAY + 1u, 40}, {0, 0}}}, h = c;
     uint32_t r, n, ok = 1, starts = 0;
     int32_t span = 0;

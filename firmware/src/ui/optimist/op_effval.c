@@ -111,13 +111,12 @@ static void effv_mods(uint32_t k, const voice_t *v, int32_t lfo, effv_mod_t *m)
         if (LT_CLASSIC(d))
             dep[d - LT_PIT] += effv_p(k, P_L1AA + 2u * (uint32_t)j);
     }
-    lfo_apply(dep, lfo, (lfo + 32768) >> 1, &lm, &lm.g1);
-    if (k < NPART && LFO2_ON(t)) {                      /* LFO 2's block (voice.c lfo2_tick: its phase and S&H value as the
-                                                         * audio side left them) */
-        uint32_t wv = (uint32_t)t->p[P_L2WAVE];
-        int32_t w = lfo_shape(wv, lfo2[k].ph, lfo2_rnd(&lfo2[k], wv, k)), u = (w + 32768) >> 1, d2[LFO_NDEP] = {0, 0, 0, 0, 0, 0};
+    lfo_apply(dep, lfo, t->p[P_L1POL] ? lfo : (lfo + 32768) >> 1, &lm, &lm.g1);   /* (voice.c lfo1_voices) */
+    if (k < NPART && LFO2_ON(t)) {                      /* LFO 2's block (voice.c lfo2_tick: its value, POL and FADE in, as
+                                                         * the audio side left it) */
+        int32_t w = lfo2[k].v, u = t->p[P_L2POL] ? w : (w + 32768) >> 1, d2[LFO_NDEP] = {0, 0, 0, 0, 0, 0};
         lfo_dep(&t->p[P_L2DA], d2);
-        lfo_apply(d2, t->p[P_L2POL] ? u : w, u, &lm, &lm.g2);
+        lfo_apply(d2, w, u, &lm, &lm.g2);
     }
     m->cut = lm.m[1];
     if (v && v->vel > 110)                              /* (an accent opens the filter with the envelope) */

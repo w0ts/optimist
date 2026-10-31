@@ -71,7 +71,7 @@ The shifts on PRESETS, the user, 2026-10-31: *"Left shift plus preset should go 
 
 The filters (`model.c pl_filt`, `pl_source`; `op_screens.c PLF_ORDER`): **ALL** every sound (the whole list); **FACTORY** the factory sounds and the FM6 voice packs; **USER** the user presets and the collections' slots the player fills (the DX7 bank received, the CZ tones); **FAVORITES** the marked sounds; **INIT** each engine's INIT, one an engine (an INIT edited since reads as outside the list). A filter lists its sounds of every engine, EDIT's PRESET card too (as FAVORITES always did). A sound playing outside the filter: the list from its top, nothing lit, *0/N*; PRESETS then goes to the list's first (right) or last (left). An empty filter: the popup all the same, *NONE*. Not kept over a power cycle (ALL). The web editor's FAVS op 3 sets FAVORITES or ALL; its op 0 reads 1 only for FAVORITES.
 
-PATTERN's LEN moves through 1 2 4 8 16 32 64; LFO held + the knob moves it by one.
+PATTERN's LEN moves through 1 2 4 8 16 32 64 and an LFO's PHS by 45 degrees; LFO held + the knob (or PRESETS) moves either by one.
 
 ### 2.2 Taps, holds, YES and NO
 
@@ -254,14 +254,28 @@ SEQ tapped. With nothing held the **16 white keys are the 16 steps of the window
 
 ### 4.3 SOUND
 
-The selected track's pages as rows, in `core/params.c` PAGES order, with the page buttons narrowing to a family (LFO shows LFO, LFO DEST, LFO 2, LFO2 DEST; ENV the envelopes and DEST rows; FX the track's effects; EDIT the engine's rows; SCL, ARP theirs). The whole list is shown when SOUND is entered from the master FX or by a walk.
+The selected track's pages as rows, in `core/params.c` PAGES order, with the page buttons narrowing to a family (LFO shows LFO, LFO PHS, LFO DEST, LFO 2, LFO2 PHS, LFO2 DEST; ENV the envelopes and DEST rows; FX the track's effects; EDIT the engine's rows; SCL, ARP theirs). The whole list is shown when SOUND is entered from the master FX or by a walk.
 
 - **EDIT opens on MAIN**, the four values that matter most: a synth engine's `engine_t.macro` (CUT RES first where there is a filter; FM6 has none and no MAIN), a drum lane's TUNE DECAY CUT LEVEL. One SELECT back is the **SOUND row**: a synth track ENGINE PRESET INIT SAVE AS; the drum track the lane's SRC, ACCENT, INSTR and the KIT. SHIFT2 + PRESETS steps the engine (the next engine's first sound); presets are otherwise picked with PRESETS, so the toasts name the preset and its engine in the engine's colour.
 - **Drum track.** The pages are the selected lane's (section 5). With DR itself picked, ENV and LFO do nothing (dark LEDs). A value the lane has of its own is the lane's; a value only the track has stays the track's and is tagged **DR**, amber, top right (the drum bus's inserts "DR ins", the kit send levels "DR sends", Bus send, Slicer, Filter, Gater, Comp, PATTERN, the KIT card). The first SOUND card follows the lane's source: KIT, a PRESET (a lane on an instrument), a SLOT (USR1..3), or dim "-" (ACCENT).
 - **FM6**: section 4.12.
-- **LFO 2** (always built): LFO 2 RATE WAVE TRIG POL; LFO2 DEST DST A AMT A DST B AMT B. DEST lists OFF PIT FLT SHP AMP RES PAN LVL ATK DEC E1..E8 (an engine's own names), and XRATE / XAMT to the other LFO. The drum track has none (its lanes have their own, section 5).
+- **LFO and LFO 2** (LFO 2 always built; issue #129 B and C, built 2026-10-31, the user: "both lfo are the same"): the two LFOs have the same six values on the same rows, so there is no LFO 3. The family's rows: LFO, **LFO PHS**, LFO DEST, LFO 2, **LFO2 PHS**, LFO2 DEST (titles *LFO*, *Phase*, *LFO to*, *LFO2*, *Phase 2*, *LFO2 to*; the drum track has none of them, its lanes have their own, section 5):
+
+  | Row | KNOB 1 | KNOB 2 | KNOB 3 | KNOB 4 |
+  |---|---|---|---|---|
+  | LFO / LFO 2 | RATE | WAVE | TRIG NOTE FREE PLAY | POL BI UNI |
+  | LFO PHS / LFO2 PHS (two cards) | PHS (degrees) | FADE | | |
+  | LFO DEST / LFO2 DEST | DST A | AMT A | DST B | AMT B |
+
+  DEST lists OFF PIT FLT SHP AMP RES PAN LVL ATK DEC E1..E8 (an engine's own names), the other LFO's RATE and AMT, and every value of a synth track's pages (issue 75), the four new ones too (L1 TRG, L1 POL, L2 PHS, L2 FAD).
+  - **RATE**, KNOB right = slower then free: 1/64 32T 1/32 ... 1T 1BAR 1BARD 2BAR 3BAR 4BAR **6BAR 8BAR 16BAR**, then free 0.05 Hz .. 40 Hz (a fast turn down stops at 0.05 Hz first, then one note value a detent). The reporter's 1/3 1/6 1/12 1/24 of a bar are 2T 4T 8T 16T. Stored: 0..127 free, -1 4BAR .. -22 1/64 as before, -23 6BAR -24 8BAR -25 16BAR (`core.h LSYNC_LIST`), so no stored value moves; the knob and the gauge walk a place order by length (`params.c lrate_pos lrate_val lrate_rank`; the web editor's knob the same). LFO, LFO 2, the lanes' and the kit's LFOs.
+  - **PHS** in degrees (stored 0..127, 1/128 of a cycle, shown v x 360 / 128 rounded, unit *deg*). A detent moves it 45 degrees on the 45 grid (a value off it goes to the next grid value in the turn's direction; 315 is the last, no wrap); **LFO held + the knob, or PRESETS, moves it by one** (2.8 degrees), LEN's fine path (`op_cells.c phs_snap`, `ui.shift`); SHIFT + the knob: 0. LFO's, LFO 2's, the lanes' and the kit's PHS.
+  - **TRIG**: NOTE restarts the LFO at PHS on a fresh phrase, its FADE from 0 (LFO as it always did; LFO 2 restarted at 0 before, PHS 0 now); FREE never restarts it (no FADE); **PLAY** (the reporter's T.FREE) takes the phase from the transport while playing: PHS at PLAY, then synced on the bar (beats and units since PLAY: through tempo changes, an external clock, loops of other lengths), free at its rate from PHS; FADE from PLAY. Stopped, PLAY runs on as FREE. `voice.c lfo_play_ph lfo_play_fade lfo1_next` (dual.c draws S&H's value from the same phase).
+  - **POL** UNI: one way only, (v + 1) / 2, as LFO 2's always was; LFO's AMP slot from it.
+  - **Old projects and presets play as before**: every new value's default is the old behaviour (TRIG NOTE, POL BI, LFO 2's PHS 0 and FADE 0; FADE 0 and FREE skip the multiply, sample for sample: the golden renders unchanged).
+  - **Where they live.** LFO's TRIG and POL are part of a sound (`P_L1TRIG P_L1POL`, the sound's last values, `P_SLAST`): a user preset keeps them (UPB4 by count: a preset of before loads them at NOTE BI), a factory preset and INIT set NOTE BI. LFO 2's PHS and FADE (`P_L2PHS P_L2FADE`, the last ids, so `P_COUNT` passes 127: the editor's ids are 2 x 7 bit since protocol 7) are the track's, as LFO 2's others. None of the four is lockable. A project keeps the four in an optional block at the end of its modulation record (`dlfo_rec.c` XREC_TAG 0xD7, after the kit's LFOs; written only when one of them is not at its default, so a project at the defaults is byte for byte one of before; a project without it reads them at their defaults). **An older firmware** refuses a modulation record longer than its own maximum (`dlr_from_rec`), so a project saved with the block loses its whole modulation record there (every LFO slot off); the user, 2026-10-31: "Don't care about that". An older firmware also clamps RATE -23..-25 to 1/64.
 - **ENV 1 MOD** has four depth knobs made per engine, the amplitude always ENV 1's. VOICE 2 is ALLOC DETUNE VOICES DROP.
-- Pictures: ENV, ENV2 envelopes; LFO and LFO 2 waves (`lfo_shape`); FX slots as needles named with their card's label; the scale on an octave of keys; the pattern's steps; ARP draws the arpeggio over the held notes or a C E G reference, never blank.
+- Pictures: ENV, ENV2 envelopes; LFO and LFO 2 waves (`lfo_shape`, at their PHS, UNI one way); FX slots as needles named with their card's label; the scale on an octave of keys; the pattern's steps; ARP draws the arpeggio over the held notes or a C E G reference, never blank.
 
 ### 4.4 The master FX
 

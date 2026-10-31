@@ -6,13 +6,20 @@ static const char *const N_LWAVE[] = {"SIN", "TRI", "SAW", "SQR", "S&H", "SLEW"}
  * SEQ DIV, the delay's TIME, an LFO's synced RATE -(i + 1), the slicer's and the gater's step, ROLL). T a triplet, D dotted */
 static const char *const N_DUR[DUR_N] = {"4BAR", "3BAR", "2BAR", "1BARD", "1BAR", "1/2D", "1T", "1/2", "1/4D", "2T", "1/4",
                                          "1/8D", "4T", "1/8", "1/16D", "8T", "1/16", "1/32D", "16T", "1/32", "32T", "1/64"};
-#define N_LSYNC N_DUR
 #define N_DIV N_DUR
 #define N_SDIV N_DUR
 #define N_DLY N_DUR
 #define N_SLDIV N_DUR
 #define N_ROLL N_DUR
-static const char *const N_L2TRIG[] = {"NOTE", "FREE"};   /* LFO 2 (SLOOP 2.6's LFO 2 TRIG, POL) */
+/* an LFO's synced RATE past the DUR values (core.h LSYNC_LIST: -23 .. -25, issue 129): its name, any synced RATE's */
+static const char *const N_LSX[LSYNC_N - DUR_N] = {"6BAR", "8BAR", "16BAR"};
+static const char *lsync_name(int32_t v)               /* v < 0: RATE v */
+{
+    uint32_t i = (uint32_t)(-v - 1);
+    return i < DUR_N ? N_DUR[i] : i < LSYNC_N ? N_LSX[i - DUR_N] : N_DUR[0];
+}
+/* LFO's and LFO 2's TRIG (core.h LTRIG_*: PLAY appended, issue 129), POL (SLOOP 2.6's LFO 2 TRIG, POL) */
+static const char *const N_L2TRIG[] = {"NOTE", "FREE", "PLAY"};
 static const char *const N_L2POL[] = {"BI", "UNI"};
 /* a modulation slot's DEST (core.h LT_*: LFO's, LFO 2's, ENV's, ENV2's) */
 static const char *const N_LT[LT_N] = {"OFF", "PIT", "FLT", "SHP", "AMP", "RES", "PAN", "LVL", "ATK", "DEC",
@@ -32,7 +39,8 @@ static const char *const N_LT[LT_N] = {"OFF", "PIT", "FLT", "SHP", "AMP", "RES",
                                        "VOICE", "GLIDE", "GL MOD", "PRIO", "ALLOC", "DETUNE", "VOICES", "DROP",
                                        "ARP", "AR RT", "AR OCT", "AR GT", "AR SWG", "AR PRB", "AR HLD", "AR ORD",
                                        "LEN", "DIV", "SWING", "GATE",
-                                       "MUTE", "FX OFF"};
+                                       "MUTE", "FX OFF",
+                                       "L1 TRG", "L1 POL", "L2 PHS", "L2 FAD"};
 static const char *const N_AMODE[] = {"OFF", "UP", "DN", "UPDN", "RND", "ORD", "BASS"};   /* (BASS appended: the lowest, then the others in turn) */
 static const char *const N_SCALE[] = {"CHR", "MAJ", "MIN", "DOR", "MIX", "PEN", "MPEN", "HARM",
                                     "PHRY", "LYD", "LOC", "MEL", "BLUES", "WHOLE", "DIMHW", "DIMWH"};
@@ -142,7 +150,7 @@ static const param_desc_t TP[P_COUNT] = {
     [P_ED_FX] = PD("TRIM", F_INT, -64, 63, 0),   /* the sound's level trim, 1/2 dB (presets set it) */
     [P_LRATE] = PD("RATE", F_LFOHZ, -LSYNC_N, 127, 60),   /* (< 0: synced, N_LSYNC) */
     [P_LWAVE] = PE("WAVE", N_LWAVE, 0),
-    [P_LPHASE] = PD("PHS", F_INT, 0, 127, 0),
+    [P_LPHASE] = PD("PHS", F_DEG, 0, 127, 0),   /* (shown in degrees; a detent 45: op_cells.c phs_turn) */
     [P_LFADE] = PD("FADE", F_TIME, 0, 127, 0),
     [P_L1DA] = PN("DST A", F_ENUM, 0, LT_NB - 1, 0, N_LT),   /* LFO DEST: two slots (core.h LT_*) */
     [P_L1AA] = PD("AMT A", F_BIPCT, LFO_AMT_LO, LFO_AMT_HI, 0),   /* (2 = a depth of 1 of before; AMP: 1) */
@@ -258,6 +266,10 @@ static const param_desc_t TP[P_COUNT] = {
     [P_L2WAVE] = PE("WAVE", N_LWAVE, 0),
     [P_L2TRIG] = PE("TRIG", N_L2TRIG, 0),
     [P_L2POL] = PE("POL", N_L2POL, 0),
+    [P_L2PHS] = PD("PHS", F_DEG, 0, 127, 0),       /* (issue 129: LFO 2's as LFO's) */
+    [P_L2FADE] = PD("FADE", F_TIME, 0, 127, 0),
+    [P_L1TRIG] = PE("TRIG", N_L2TRIG, 0),           /* (issue 129: LFO's as LFO 2's; NOTE BI: LFO as before) */
+    [P_L1POL] = PE("POL", N_L2POL, 0),
     [P_L2DA] = PN("DST A", F_ENUM, 0, LT_NB - 1, 0, N_LT),   /* its two slots, as LFO's */
     [P_L2AA] = PD("AMT A", F_BIPCT, LFO_AMT_LO, LFO_AMT_HI, 0),
     [P_L2DB] = PN("DST B", F_ENUM, 0, LT_NB - 1, 0, N_LT),
@@ -513,14 +525,24 @@ static int param_hidden(const param_desc_t *d)          /* one of FM6's EDIT val
 #define param_step0(d, v, steps) clamp((v) + (steps), (d)->min, (d)->max)
 #endif
 
-#define is_lrate(d) ((d) == &TP[P_LRATE] || (d) == &TP[P_L2RATE])   /* an LFO's RATE (LFO 2's too) */
+/* an LFO's RATE (LFO's, LFO 2's, a drum lane's or the kit's: a free rate 0..127 and the synced ones below 0) */
+#define is_lrate(d) ((d)->fmt == F_LFOHZ && (d)->min < 0)
+/* RATE v's place on the knob (issue 129): the free rates as they are (0..127), the synced ones below in length order,
+ * -1 the longest (16BAR) .. -LSYNC_N the shortest (1/64), as stored: -1 4BAR .. -22 1/64 (DUR), then -23 6BAR -24 8BAR
+ * -25 16BAR (core.h LSYNC_LIST, appended so that no stored value moves) */
+#define LSYNC_X (LSYNC_N - DUR_N)                      /* the synced values past the DUR ones */
+static int32_t lrate_pos(int32_t v) { return v >= 0 ? v : v >= -DUR_N ? v - LSYNC_X : -(LSYNC_N + 1) - v; }
+static int32_t lrate_val(int32_t x) { return x >= 0 ? x : x >= -LSYNC_X ? -(LSYNC_N + 1) - x : x + LSYNC_X; }
+/* a synced RATE v's rank, 0 the longest .. LSYNC_N - 1 the shortest (its gauge, op_cells.c) */
+static int32_t lrate_rank(int32_t v) { return -lrate_pos(v) - 1; }
 /* the LFO's RATE turned (steps detents, accelerated): a fast turn down stops at 0 first, the slowest free rate; below 0
- * (the synced note values, N_LSYNC) one value a detent, whatever the speed; above 0 as every value */
+ * (the synced note values, lsync_name) one value a detent, whatever the speed, in length order; above 0 as every value */
 static int32_t lrate_step(const param_desc_t *d, int32_t v, int32_t steps)
 {
-    if (!steps || (v >= 0 && v + steps >= 0))
-        return clamp(v + steps, d->min, d->max);
-    return v > 0 ? 0 : clamp(v + (steps < 0 ? -1 : 1), d->min, d->max);
+    int32_t x = lrate_pos(clamp(v, d->min, d->max));
+    if (!steps || (x >= 0 && x + steps >= 0))
+        return lrate_val(clamp(x + steps, d->min, d->max));
+    return x > 0 ? 0 : lrate_val(clamp(x + (steps < 0 ? -1 : 1), d->min, d->max));
 }
 
 #if BP_SET_ANY
@@ -624,6 +646,10 @@ static void param_format(const param_desc_t *d, int32_t v, char *val, const char
         fmt_int(val, d->max > 0 ? (v * 100 + d->max / 2) / d->max : v);
         *unit = "%";
         break;
+    case F_DEG:                                       /* an LFO's PHS: 1/128 of a cycle, in degrees */
+        fmt_int(val, (clamp(v, 0, 127) * 360 + 64) / 128);
+        *unit = "deg";
+        break;
     case F_GATE:                                      /* 1/64 of the step: 64 is 100 %, 127 about 200 % */
         fmt_int(val, (v * 100 + 32) / 64);
         *unit = "%";
@@ -674,7 +700,7 @@ static void param_format(const param_desc_t *d, int32_t v, char *val, const char
     case F_LFOHZ: {
         uint32_t h = LFO_HZ_X100[v & 127];
         if (v < 0) {                                  /* (RATE: a note value of the tempo) */
-            str_cpy(val, N_LSYNC[(uint32_t)(-v - 1) < LSYNC_N ? (uint32_t)(-v - 1) : 0u], 6);
+            str_cpy(val, lsync_name(v), 6);
             break;
         }
         if (h < 1000u)
@@ -812,10 +838,13 @@ static const page_t PAGES[] = {
      * drum track's only ENV page, in place of the synth's; the user, 2026-10-11) */
     {"ENV", FAM_ENV, SC_DSND, GR_DSND, {DE_CLICK, DE_DECAY, DE_BEND, DE_LEVEL}},
 #endif
-    {"LFO", FAM_LFO, SC_TRACK, GR_LFO, {P_LRATE, P_LWAVE, P_LPHASE, P_LFADE}},
+    /* LFO and LFO 2 the same (issue 129, the user 2026-10-31: "both lfo are the same"): RATE WAVE TRIG POL, then PHS FADE,
+     * then DEST (voice.c track_lfo_tick, lfo2_tick; the synth tracks' only: page_for_drum) */
+    {"LFO", FAM_LFO, SC_TRACK, GR_LFO, {P_LRATE, P_LWAVE, P_L1TRIG, P_L1POL}},
+    {"LFO PHS", FAM_LFO, SC_TRACK, GR_LFO, {P_LPHASE, P_LFADE, 0xFF, 0xFF}},
     {"LFO DEST", FAM_LFO, SC_TRACK, GR_NONE, {P_L1DA, P_L1AA, P_L1DB, P_L1AB}},   /* DEST A, AMT A, DEST B, AMT B */
-    /* LFO 2 (voice.c lfo2_tick; the synth tracks' only: page_for_drum). DEST AMT leave two cards for a second pair */
     {"LFO 2", FAM_LFO, SC_TRACK, GR_LFO2, {P_L2RATE, P_L2WAVE, P_L2TRIG, P_L2POL}},
+    {"LFO2 PHS", FAM_LFO, SC_TRACK, GR_LFO2, {P_L2PHS, P_L2FADE, 0xFF, 0xFF}},
     {"LFO2 DEST", FAM_LFO, SC_TRACK, GR_NONE, {P_L2DA, P_L2AA, P_L2DB, P_L2AB}},
     /* the track's two insert slots: S1 TYPE, its amount, S2 TYPE, its amount (fx_slots.c; the ids: page_id) */
     {"INSERTS", FAM_FX, SC_TRACK, GR_INS, {PID_INST, 0xFF, PID_INST + 1, 0xFF}},
