@@ -688,22 +688,6 @@
     "ramtext": 216
    }
   },
-  "MIX_FINE": {
-   "1": {
-    "flash": 0,
-    "ram": 0,
-    "pool": 0,
-    "ramtext": 0
-   }
-  },
-  "MIX_EXACT": {
-   "1": {
-    "flash": 340,
-    "ram": 328,
-    "pool": -4,
-    "ramtext": 60
-   }
-  },
   "WIDE_FINE": {
    "1": {
     "flash": 704,

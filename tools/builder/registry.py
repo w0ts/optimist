@@ -45,6 +45,8 @@ MERGED = {
 
 # Dropped items: a .config naming one still loads; the setting is ignored with a warning (configure.py parse)
 RETIRED = {
+    "MIX_FINE": "a part goes into the mix as a 64-bit product, no bit dropped (fx.c MIX_PAN; retired 2026-10-31, bit 426; the user, after weeks on the FM-1: \"tested? then make it default and remove option\"); any old MIX_FINE value is ignored",
+    "MIX_EXACT": "the parts reach the mix and the mix reaches the master volume as 64-bit products, the master's 7 bits under the output kept for the DAC (fx.c MIX_PAN MASTER_VOL; retired 2026-10-31, bit 439, with MIX_FINE; the user: \"tested? then make it default and remove option\"); any old MIX_EXACT value is ignored",
     "MIX_ROUND": "a voice into its part and a part into the mix are always one product rounded to the nearest, no floor: clean fades at MASTER max (issue 132; retired 2026-10-31, bit 444, the day it came; the user: \"no need for an option. Bug fix is permanent\"); any old MIX_ROUND value is ignored",
     "BASSPLUS": "BASS+ (Felucca 1.0, Leo Kuroshita) is always built: SYSTEM's speaker low cut always offers it (retired 2026-10-29, bit 73; the user: \"remove the entry from the builder config now and keep it working automatically\")",
     "FAR_OK": "the fake SD mode layout (LAYOUT 1) always has its whole slot; the far probe's answer is no longer asked for (retired 2026-10-29, bit 413; the user: \"drop the far probe, we don't need it\")",
@@ -138,7 +140,7 @@ WAS_COUNT = frozenset({"INS_DELAY", "INS_JCHORUS", "INS_FLANGER", "INS_XDLY",
                        "ARENA"})   # (ARENA: its KB until 2026-10-29, the free RAM since: on)
 
 ALWAYS_ON_TARGET = {"FELUCCA_DUAL": 2, "FELUCCA_STOCK_SUPPLY": 1}   # (target builds only, no item: system/dual.c, system/supply.c; 2026-10-29)
-HASH_AS = {"BASSPLUS": 1, "KEYLIT": 1, "LIGHTS": 1, "BRIGHT": 0, "SIMD": 0, "KNOB_ONEREST": 1, "MONO_RELEASE": 1, "ST_STRICT": 1, "USB_FLOW": 1, "SHED_FADE": 1, "KEYS_FAST": 1, "TRS_NOISE": 1, "BK_CHECK": 1, "LAYER_QUIET": 1, "DLY_HALVE": 1, "LFO2": 1, "GLIDE": 1, "UI": 1, "ICONS": 0, "OVERVIEW": 0, "OV_ARP": 1, "DRUM_STEP": 1, "CHORD_NAMES": 1, "BPM_LOCK": 0, "MOTION_MARK": 1, "SEL_PAGES": 0, "BIGVALS": 0, "DRUM_ACCENT": 1, "PAGE_LINES": 1, "TAB_IN_POOL": 1, "VOICE_OWN": 1, "DLY_DOT": 1, "CHO_EXACT": 1, "JUNO_FINE": 1, "DUAL": 2, "STOCK_SUPPLY": 1, "REV_HALF": 0, "REV_HB_LONG": 0, "BT_AFH": 1, "LCD_DIRTY": 1, "BLE_DIAG": 0, "BT_DIAG": 0, "OVERLAY": 0}   # (each was its default in every profile)
+HASH_AS = {"MIX_FINE": 1, "MIX_EXACT": 1, "BASSPLUS": 1, "KEYLIT": 1, "LIGHTS": 1, "BRIGHT": 0, "SIMD": 0, "KNOB_ONEREST": 1, "MONO_RELEASE": 1, "ST_STRICT": 1, "USB_FLOW": 1, "SHED_FADE": 1, "KEYS_FAST": 1, "TRS_NOISE": 1, "BK_CHECK": 1, "LAYER_QUIET": 1, "DLY_HALVE": 1, "LFO2": 1, "GLIDE": 1, "UI": 1, "ICONS": 0, "OVERVIEW": 0, "OV_ARP": 1, "DRUM_STEP": 1, "CHORD_NAMES": 1, "BPM_LOCK": 0, "MOTION_MARK": 1, "SEL_PAGES": 0, "BIGVALS": 0, "DRUM_ACCENT": 1, "PAGE_LINES": 1, "TAB_IN_POOL": 1, "VOICE_OWN": 1, "DLY_DOT": 1, "CHO_EXACT": 1, "JUNO_FINE": 1, "DUAL": 2, "STOCK_SUPPLY": 1, "REV_HALF": 0, "REV_HB_LONG": 0, "BT_AFH": 1, "LCD_DIRTY": 1, "BLE_DIAG": 0, "BT_DIAG": 0, "OVERLAY": 0}   # (each was its default in every profile)
 
 # Never offered: used by X0X only by permission of its author, no licence
 FORBIDDEN = {
@@ -664,26 +666,16 @@ _add("REV_AIRWIN", "FELUCCA_REV_AIRWIN", "reverb: VTINY (Airwindows VerbTiny)", 
 _FINE_TESTED = "host-measured only (a sine through the firmware's own code, 2026-10-26); not yet heard on an FM-1"
 # (bit 425, CHO_EXACT, retired 2026-10-29: the chorus send's read points are always ramped exactly over the block
 #  (fx.c CHO_RAMP); RETIRED above; never reuse the bit)
-_add("MIX_FINE", "FELUCCA_MIX_FINE", "mix: finer part level steps (lower noise floor)", F, 426, default=0,
-     experimental=True, tested=_FINE_TESTED,
-     desc="Each synth part (and the side of WIDE, JUNO CHORUS and DRONE's BEAT) goes into the mix with 3 bits dropped "
-          "before its pan gain instead of 4: the steps half as coarse, the noise floor 5.3 dB lower on every part "
-          "(about -65 dB under the signal; a quiet part gains the most). Same headroom (the product stays under "
-          "2^31). No flash or RAM to speak of; every sound changes a little, so it is off by default.")
-_add("MIX_EXACT", "FELUCCA_MIX_EXACT", "mix: full resolution into the mix and the master (quiet tails)", F, 439,
-     default=0, experimental=True, tested="host-measured only (issue 107, 2026-10-28); not yet heard on an FM-1",
-     desc="Every synth part reaches the mix as 64-bit products, no bit dropped: its mute x duck gain (at rest 32766, "
-          "so the 4 bits down were taken on every block) and its pan gain (4 bits down; MIX_FINE: 3). The master "
-          "volume too (2 bits down before). Before, each part reached the mix in steps of 16: a long release or a "
-          "reverb tail went through its last few bits, a bitcrusher on headphones. Supersedes MIX_FINE. A few "
-          "multiplies a sample more, no RAM; every sound changes a little, so it is off by default.")
+# (bit 426, MIX_FINE and bit 439, MIX_EXACT, retired 2026-10-31: a part goes into the mix, and the mix into the master volume, as
+#  64-bit products with no bit dropped, the master's 7 bits under the output kept for the DAC (fx.c MIX_PAN MASTER_VOL, audio.c,
+#  master_comp.c); RETIRED above; never reuse the bits)
 # (bit 444, MIX_ROUND, retired 2026-10-31: a voice into its part and a part into the mix are always one rounded product
 #  each (dsp.c VOICE_OUT, fx.c mix_lg, MIX_PAN); RETIRED above; never reuse the bit)
 _add("WIDE_FINE", "FELUCCA_WIDE_FINE", "WIDE: all-pass at full resolution", F, 427, default=0, parent="INS_WIDTH",
      experimental=True, tested=_FINE_TESTED,
      desc="WIDE's all-pass runs at the part's own scale with 64-bit products instead of 4 bits down (the drum bus's "
           "and the master's: 3): its side, only in the left ear, is no longer rounded to 16 units. Measured: 3.5-4.5 dB "
-          "less noise in that ear (about 7 with MIX_FINE). More headroom than before (+-3 M, was +-0.5 M). A few "
+          "less noise in that ear (about 7 with finer mix steps). More headroom than before (+-3 M, was +-0.5 M). A few "
           "multiplies a sample more.")
 _add("TFLT_FINE", "FELUCCA_TFLT_FINE", "track FILTER: full resolution (quiet high-pass)", F, 428, default=0,
      experimental=True, tested=_FINE_TESTED,

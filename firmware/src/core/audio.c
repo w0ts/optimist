@@ -108,9 +108,7 @@ static void audio_block(int32_t *out, uint32_t n)       /* mix (fx.c), then Q15 
         if (muted)
             for (i = 0; i < 2u * n; i++) {
                 out[i] = 0;
-#if FELUCCA_MIX_EXACT
                 mst_frac[i] = 0;                        /* (nothing under the silence) */
-#endif
             }
     }
 #endif
@@ -120,13 +118,8 @@ static void audio_block(int32_t *out, uint32_t n)       /* mix (fx.c), then Q15 
                                                          * output, or its own stage's while the codec's is corrected */
 #endif
     for (i = 0; i < n; i++) {                           /* (no scope tap: SLOOP's HOME scope is gone) */
-#if FELUCCA_MIX_EXACT
         out[2u * i] = (out[2u * i] << OUT_SHIFT) | mst_frac[2u * i];               /* (fx.c MASTER_VOL) */
         out[2u * i + 1u] = (out[2u * i + 1u] << OUT_SHIFT) | mst_frac[2u * i + 1u];
-#else
-        out[2u * i] <<= OUT_SHIFT;
-        out[2u * i + 1u] <<= OUT_SHIFT;
-#endif
     }
 }
 
