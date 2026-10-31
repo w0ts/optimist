@@ -1154,14 +1154,14 @@ static void draw_list(void)
 /* a peak (32767 = 0 dBFS) as a height 0 .. METER_H, linear in dB: 64 units a 6 dB step (a tick each, at 4/44 of METER_H with
  * the floor -60), the step from the leading bit, the place inside it from the next 3 mantissa bits (METER_T: 64 * log2(1 +
  * k/8), the rest interpolated linearly: within 0.05 dB). 2^14 is the -6 tick, 2^13 the -12 tick, 32767 the end.
- * The floor (vu_floor_i, SYSTEM > METERS VU FLOOR, -80 .. -20): a peak under it draws nothing; the scale is the floor + 6 dB
- * wide (the -60 floor: 66 dB, 704 / 66 = 64 / 6 as before), so the floor's own tick stands 6 / (|floor| + 6) in. A peak
+ * The floor (VU_FLOOR_DB, -40, fixed; the user, 2026-10-31: "we are a groovebox, not a DAW"): a peak under it draws nothing; the scale is the
+ * floor + 6 dB wide (46 dB), so the floor's own tick stands 6 / 46 in. A peak
  * of 1 .. 7 has fewer than 3 mantissa bits: the table's index is the bits it has */
 static const uint8_t METER_T[9] = {0, 11, 21, 29, 37, 45, 52, 58, 64};
 static uint32_t meter_h(int32_t pk)
 {
     uint32_t a = pk > 0 ? (uint32_t)pk : 0u, lg, rem, idx, r, sh;
-    int32_t fl = -vuf_db(vu_floor_i), d = fl + 6, f, l;     /* (l: 64 a 6 dB step, 960 = 0 dBFS) */
+    int32_t fl = -VU_FLOOR_DB, d = fl + 6, f, l;     /* (l: 64 a 6 dB step, 960 = 0 dBFS) */
     if (a == 0u)
         return 0u;
     lg = 31u - (uint32_t)__builtin_clz(a);

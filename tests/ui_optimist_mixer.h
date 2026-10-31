@@ -510,9 +510,8 @@ static void mixer_rows_tests(void)
         frames(30);
         check(seen, "T1's row: its VU meter fills from the left while it plays");
     }
-    {   /* the VU's bands by dBFS: green under -18, amber -18 .. -6, red from -6 (a full-scale peak ends in red); on the -60 floor, where the ticks stand 4/44 of the width apart */
+    {   /* the VU's bands by dBFS: green under -18, amber -18 .. -6, red from -6 (a full-scale peak ends in red); on the -40 floor, where a dB is 1/46 of the width */
         uint32_t i, red = 0, amb = 0, y = mx_row_y(MXR_T1) + MXL_VY;
-        vu_floor_i = 2u;
         for (i = 0; i < 3u; i++) {
             mt.ui[0] = 8192;                            /* -12 dBFS: lights up to the -12 dB tick */
             frame();
@@ -525,8 +524,8 @@ static void mixer_rows_tests(void)
         }
         ppm("opt-mixer-vu-full");
         red = (uint32_t)px_in(MXL_VX + MXL_VW - 4, y, 4, MXL_VH, C_ERR);
-        check(red && px_in(MXL_VX, y, MXL_VW * 32 / 44, MXL_VH, C_OK) && px_in(MXL_VX + MXL_VW * 33 / 44, y, MXL_VW * 6 / 44, MXL_VH, C_WARN), "T1's VU at 0 dBFS: green below -18 dB, amber to -6, red at the top");
-        check(!px_in(MXL_VX + MXL_VW * 32 / 44 + 1, y, MXL_VW * 8 / 44 - 2, MXL_VH, C_OK) && !px_in(MXL_VX + MXL_VW * 40 / 44 + 1, y, MXL_VW * 4 / 44 - 8, MXL_VH, C_WARN) && px_at(MXL_VX + MXL_VW - 1, y, C_ERR),
+        check(red && px_in(MXL_VX, y, MXL_VW * 28 / 46, MXL_VH, C_OK) && px_in(MXL_VX + MXL_VW * 29 / 46, y, MXL_VW * 10 / 46, MXL_VH, C_WARN), "T1's VU at 0 dBFS: green below -18 dB, amber to -6, red at the top");
+        check(!px_in(MXL_VX + MXL_VW * 28 / 46 + 1, y, MXL_VW * 12 / 46 - 2, MXL_VH, C_OK) && !px_in(MXL_VX + MXL_VW * 40 / 46 + 1, y, MXL_VW * 6 / 46 - 8, MXL_VH, C_WARN) && px_at(MXL_VX + MXL_VW - 1, y, C_ERR),
               "... the bands cut at -18 and -6 dB, no blend");
         mt.ui[0] = 0;
         frames(300);   /* (the peak-hold marker, held 1.5 s and then falling, is gone too) */
@@ -537,13 +536,13 @@ static void mixer_rows_tests(void)
         ppm("opt-mixer-vu-m12");
         mt.ui[0] = 0;
         frames(300);   /* (the peak-hold marker, held 1.5 s and then falling, is gone too) */
-        {   /* the scale is linear in dB: where the bar ends for -12, -6, -3 and 0 dBFS (a tick each 6 dB, 4/44 of the width) */
+        {   /* the scale is linear in dB: where the bar ends for -12, -6, -3 and 0 dBFS (a tick each 6 dB, 1/46 of the width a dB) */
             static const struct { uint32_t pk, n; const char *name; } pt[4] = {
-                {8192, 36, "-12 dBFS: the -12 tick"}, {16384, 40, "-6 dBFS: the -6 tick"},
-                {23197, 42, "-3 dBFS: half-way to 0"}, {32767, 44, "0 dBFS: the whole bar"}};
+                {8192, 34, "-12 dBFS: the -12 tick"}, {16384, 40, "-6 dBFS: the -6 tick"},
+                {23197, 43, "-3 dBFS: half-way to 0"}, {32767, 46, "0 dBFS: the whole bar"}};
             uint32_t q, j;
             for (q = 0; q < 4u; q++) {
-                int32_t end = 0, lim = MXL_VW - MX_CLIP_W - 1, want = (int32_t)(MXL_VW * pt[q].n / 44u), d;   /* (the CLIP light and its gap at the end are no bar) */
+                int32_t end = 0, lim = MXL_VW - MX_CLIP_W - 1, want = (int32_t)(MXL_VW * pt[q].n / 46u), d;   /* (the CLIP light and its gap at the end are no bar) */
                 if (want > lim)
                     want = lim;
                 char nm[64];
@@ -563,7 +562,6 @@ static void mixer_rows_tests(void)
                 frames(300);   /* (the peak-hold marker, held 1.5 s and then falling, is gone too) */
             }
         }
-        vu_floor_i = VUF_DEF;
     }
 #if FELUCCA_MASTER_COMP
     {   /* the compressors' reduction: a bar from the right, only where one works */

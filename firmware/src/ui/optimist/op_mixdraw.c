@@ -182,19 +182,17 @@ static void mx_paint_ground(uint32_t i, const mrect_t *q, uint16_t c)
         cv_rect(q->x, q->y + q->h - 1, q->w, 1, C_LINE);   /* (black, a rule under it: no grey ground) */
     }
 }
-/* MASTER alone: the tall meter's dB scale (a tick each 6 dB from 0 down to the VU FLOOR, some named), "GR", the returns' names
+/* MASTER alone: the tall meter's dB scale (a tick each 6 dB from 0 down to the -40 dBFS floor, some named), "GR", the returns' names
  * (its name is the header's badge). A dB d sits at (|floor| + 6 + d) / (|floor| + 6) of the width (op_draw.c meter_h) */
 static int32_t mx_db_x(int32_t d)
 {
-    int32_t w = -vuf_db(vu_floor_i) + 6;
+    int32_t w = -VU_FLOOR_DB + 6;
     return MXM_X + (int32_t)(MXM_W * (uint32_t)(w + d) / (uint32_t)w);
 }
 static void mx_paint_master(void)
 {
-    /* the named ticks of each floor (-80 .. -20): 0 and every 12 dB, skipping the one the next label's text would touch; 0 ends on its tick */
-    static const int8_t DB[VUF_N][6] = {{0, -12, -24, -48, -72, 1}, {0, -12, -24, -48, -60, 1}, {0, -12, -24, -48, 1, 1}, {0, -12, -24, -48, 1, 1},
-                                        {0, -12, -24, -36, 1, 1}, {0, -12, -24, 1, 1, 1}, {0, -6, -12, -18, 1, 1}};
-    const int8_t *nm = DB[vu_floor_i % VUF_N];
+    /* the named ticks: 0 and every 12 dB down to the floor; 0 ends on its tick */
+    static const int8_t nm[6] = {0, -12, -24, -36, 1, 1};
     uint32_t i;
     int32_t d;
     char b[16];
@@ -215,7 +213,7 @@ static void mx_paint_master(void)
     cv_rect(2, q.y + 3, 3, q.h - 6, mx_in_grp(MXR_MASTER) ? C_HI : C_GRAY);   /* the colour chip */
     text_st(6, MXM_MY - 3, &FONT_S, "M", MXR_MASTER == mx_row() ? C_WHITE : C_HI, 0);
     text_st(MXK_NX, MXM_MY - 3, &FONT_S, "MASTER", MXR_MASTER == mx_row() ? C_WHITE : C_HI, 0);
-    for (d = 0; d >= vuf_db(vu_floor_i); d -= 6)        /* the scale: a tick each 6 dB */
+    for (d = 0; d >= VU_FLOOR_DB; d -= 6)        /* the scale: a tick each 6 dB */
         cv_rect(mx_db_x(d) - 1, MXM_VY + MXM_VH + 1, 1, 3, C_LINE);
     for (i = 0, d = 240; i < 6u && nm[i] <= 0; i++) {   /* (right to left: a label that would touch the one right of it, or the
                                                          * screen's edge, left out: the meter is 140 px since 2026-10-30) */
@@ -348,7 +346,7 @@ static uint32_t mx_gr_px(uint32_t r, int32_t w)         /* row r's reduction as 
 }
 /* the lit bar's colours by the signal's dBFS (the user, 2026-10-31: "green below -18 dBFS; amber from -18 to -6 dBFS; red from -6 (or -3)
  * dBFS; a separate held clip light at 0 dBFS"; -6 picked): green under -18, amber -18 .. -6, red from -6. The bands are cut
- * at the peaks 2^12 (-18.06 dB) and 2^14 (-6.02 dB) through mx_vu_lv, so they stand at the same dB whatever the VU FLOOR is.
+ * at the peaks 2^12 (-18.06 dB) and 2^14 (-6.02 dB) through mx_vu_lv, so they stand at the same dB.
  * A lane's row (its lit hit, no level) keeps its instrument colour. The CLIP light: the meter's last MX_CLIP_W px, dark red,
  * red while a sample reached 0 dBFS and MX_CLIP_HOLD frames after the last (~1 s at 60 a second) */
 #define MX_AMBER_PK 4096                                /* -18 dBFS: green ends, amber starts */
@@ -385,7 +383,7 @@ static void mx_vu_fill(int32_t x, int32_t y, int32_t w, int32_t h, int32_t px, u
     if (px > k2)
         cv_rect(x + k2, y, px - k2, h, C_ERR);
 }
-/* the peak-hold marker at level ph (0 .. MX_LV; 0: none, which is every peak under the VU FLOOR): a thin tick ending at its
+/* the peak-hold marker at level ph (0 .. MX_LV; 0: none, which is every peak under the floor): a thin tick ending at its
  * place, in the colour of its band; red at 0 dBFS, within 0.5 dB (the master's knee stops just short of the full scale) (the user, 2026-10-29: "VU meters just get normal audio peaks") */
 static void mx_vu_mark(int32_t x, int32_t y, int32_t w, int32_t h, uint32_t ph, uint16_t lane_col)
 {
@@ -395,9 +393,9 @@ static void mx_vu_mark(int32_t x, int32_t y, int32_t w, int32_t h, uint32_t ph, 
     px = px < MX_PH_W ? MX_PH_W : px;
     cv_rect(x + px - MX_PH_W, y, MX_PH_W, h, ph >= MX_LV - 2u ? C_ERR : mx_vu_colat(px - 1, w, lane_col));
 }
-/* the marker's fall, level x 256 a frame, for a 20 dB/s fall on the scale the VU FLOOR sets (floor + 6 dB wide = MX_LV: 20 * 255 * 256 /
- * ((|floor| + 6) * 60), per floor -80 .. -20) */
-static const uint16_t MX_PH_FALL[VUF_N] = {253, 286, 330, 389, 473, 604, 837};
+/* the marker's fall, level x 256 a frame, for a 20 dB/s fall on the -40 dBFS floor's scale (floor + 6 dB wide = MX_LV: 20 * 255 * 256 /
+ * ((|floor| + 6) * 60)) */
+#define MX_PH_FALL 473u
 #define MX_PHL(r) ((uint32_t)(mxd.ph[r] + 128u) >> 8)   /* row r's marker as a level */
 /* row r's marker, a frame on: it jumps to a level at or over it and holds MX_PH_HOLD frames, then falls steadily until the level
  * catches it. Only the audio meters have one (a lane's lit hit is no level) */
@@ -412,7 +410,7 @@ static void mx_peak(uint32_t r, uint32_t lv)
     } else if (mxd.phd[r]) {
         mxd.phd[r]--;
     } else {
-        uint32_t f = MX_PH_FALL[vu_floor_i % VUF_N];
+        uint32_t f = MX_PH_FALL;
         q = q > f ? q - f : 0u;
     }
     mxd.ph[r] = (uint16_t)q;
