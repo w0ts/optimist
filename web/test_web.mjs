@@ -3617,6 +3617,15 @@ e = list(L.known_ends()); print(json.dumps({f"{o}/{n}": L.switch_warning(None if
      "install: the installed layout from bk_caps: its app end; an older normal build by its LAYOUT bit off; else not known");
 }
 {
+  /* a -5 from Optimist's updater (m-bootloader installed, an M-VAVE package): the installer falls back to download mode */
+  const IR = await import("./install_route.js");
+  const v15 = { kind: "v15" }, own = { kind: "optimist" };
+  ok(IR.headRefused("optimist", v15, "noloader") && IR.headRefused("ambig000", { kind: "stock" }, "stopped") && !IR.headRefused("optimist", own, "noloader")
+     && !IR.headRefused("felucca", v15, "noloader") && !IR.headRefused("optimist", v15, "lost"), "install: -5 from Optimist on an M-VAVE package is spotted, nothing else is");
+  ok(/OCT- and OCT\+ for 5 s/.test(IR.refusedStep("a.fwsc")) && /REC/.test(IR.refusedStep()) && /M-Flasher/.test(IR.refusedStep()) && /-5/.test(IR.refusedStep()),
+     "install: the -5 message gives the download-mode keys and M-Flasher");
+}
+{
   /* the MEMORY layouts (bk_caps' app end and projects bytes; USR capacity 0 = the slot is gone): 0 slots / 4 projects and 2 slots / 16 projects */
   const lay = async (caps) => { const r = attachMock({ caps }); const L = await E.bkListAll(r.rq); const sm = E.parse[E.CMD.SMP_INFO](await r.rq(E.req.smpInfo())); r.teardown(); return { L, sm }; };
   const a = await lay({ appEnd: 0xB5000, projects: 4, usrCap: [0, 0, 0] });

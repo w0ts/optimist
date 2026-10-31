@@ -26,7 +26,7 @@
 //   }) -> { unmount(), busy }    busy: true while writing (the host must not unload or hide the page then)
 import { checkUfw, logicalImage, productOf, sha256hex, ufwEntries } from "../fm1base/fm1pkg.js";
 import { STOCK_V15_SHA256, OptimistUpdater, stockBanks, validateStockPackage } from "../fm1ota_optimist.js";
-import { SOFT_KEY, bootloaderChoice, bootloaderFromConfig, chooseRoute, detectPlatform, flashLenOf, installedEndOf, mflasherFor, nextStep, packageKind, runningKind, switchWarning } from "../install_route.js";
+import { SOFT_KEY, bootloaderChoice, bootloaderFromConfig, chooseRoute, detectPlatform, headRefused, refusedStep, flashLenOf, installedEndOf, mflasherFor, nextStep, packageKind, runningKind, switchWarning } from "../install_route.js";
 
 const STYLE_ID = "optimist-installer-style";
 const BUNDLED_CSS = null;                           /* make_site.py puts web/installer/installer.css here */
@@ -271,6 +271,7 @@ function rememberPort(name) {
 /* an updater that asks the remembered ports too */
 function newUpdater(midi, log) {
   const up = new OptimistUpdater(midi, log);
+  up.setNames(["optimist", "fm1-", "smk-37"]);   /* our names: "FM1-XXXX" since fm1-next, "Optimist" before; fm1ota.js has FM-1, FM1, Felucca */
   pickedPorts().forEach((n) => up.allow(n));
   return up;
 }
@@ -682,6 +683,7 @@ export function mountInstaller(container, opts = {}) {
       el.go.textContent = TEXT.installAgain;
     } catch (e) {
       showError(e, phase);
+      if (st.head && headRefused(st.head.running, { kind: st.head.kind }, e && e.code)) { el.err.textContent = refusedStep(pkg.file || "PACKAGE.fwsc"); st.head = null; }
       if (e && e.code === "notfound") showPorts(midi);
       log(String(e && e.stack || e));
     }
@@ -693,11 +695,13 @@ export function mountInstaller(container, opts = {}) {
   function routeOf(pkg, dev) {
     dev.link.close();
     const r = st.running = { text: dev.id.text, port: dev.name || "" };
+    st.head = { running: runningKind(r.text, r.port), kind: pkg.stock ? "v15" : "" };
     if (pkg.stock) return { method: "loader" };
     let flashLen = null;
     try { flashLen = flashLenOf(ufwEntries(pkg.image)); } catch (_) { /* (checkPackage parsed it already) */ }
     const info = packageKind(pkg.product, pkg.sha256, flashLen, true);
     const boot = bootloaderChoice(pkg.bootloader, pkg.bootloader === "m-bootloader" && !el.boot.checked).choice;
+    st.head.kind = info.kind;
     const route = chooseRoute(runningKind(r.text, r.port), info, boot, r.text);
     log(`route ${route.method}: ${route.why}`);
     return route;

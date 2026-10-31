@@ -396,7 +396,22 @@ def _thread_guard():
         return False
 
 
+def refused_minus5():
+    """a -5 (the running Optimist's updater refuses an M-VAVE package: m-bootloader installed) falls back to download mode"""
+    I._route_modules()
+    R = I.R
+    v15 = R.sample_package(R.P_V15)
+    own = R.sample_package(R.P_OPTIMIST)
+    ok(R.head_refused(R.OPTIMIST, v15, "noloader") and R.head_refused(R.AMBIG_000, v15, "stopped"), "-5 on V15 from Optimist")
+    ok(not R.head_refused(R.OPTIMIST, own, "noloader") and not R.head_refused(R.FELUCCA, v15, "noloader")
+       and not R.head_refused(R.OPTIMIST, v15, "lost"), "-5 only for M-VAVE packages from Optimist")
+    route = R.refused_route(R.OPTIMIST, v15)
+    ok(route.method == "download" and any("M-Flasher" in s for s in route.steps)
+       and "OCT-" in route.enter and "REC" in route.enter, "the -5 route is download mode with M-Flasher steps")
+
+
 wire()
+refused_minus5()
 interrupts()
 installs()
 errors()
