@@ -1759,6 +1759,12 @@
     "pool": 0,
     "ramtext": 0
    },
+   "1": {
+    "flash": 0,
+    "ram": 0,
+    "pool": 0,
+    "ramtext": 0
+   },
    "2": {
     "flash": 0,
     "ram": 0,
@@ -1768,6 +1774,12 @@
   },
   "PROJECTS": {
    "2": {
+    "flash": 0,
+    "ram": 0,
+    "pool": 0,
+    "ramtext": 0
+   },
+   "4": {
     "flash": 0,
     "ram": 0,
     "pool": 0,
