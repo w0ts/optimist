@@ -27,7 +27,10 @@
       "DST A": "What ENV 2 moves (slot A)", "AMT A": "How much ENV 2 moves A", "DST B": "What ENV 2 moves (slot B)",
       "AMT B": "How much ENV 2 moves B"}},
     {"kind": "page", "ctx": "LFO", "params": {
-      "RATE": "LFO rate, left end: in tempo", "WAVE": "LFO waveform", "PHS": "LFO start phase", "FADE": "LFO fade-in time"}},
+      "RATE": "LFO rate, left end: in tempo", "WAVE": "LFO waveform", "PHS": "LFO start phase", "FADE": "LFO fade-in time",
+      "TRIG": "LFO restart: NOTE FREE PLAY", "POL": "LFO: both ways or up only"}},
+    {"kind": "page", "ctx": "LFO PHS", "params": {
+      "PHS": "LFO start phase (LFO: fine)", "FADE": "LFO fade-in after restart"}},
     {"kind": "page", "ctx": "LFO DEST", "params": {
       "DST A": "What LFO moves (slot A)", "AMT A": "How much LFO moves A", "DST B": "What LFO moves (slot B)",
       "AMT B": "How much LFO moves B"}},
@@ -540,13 +543,15 @@
     {"kind": "op", "ctx": "INSERTS", "params": {
       "RET SEND": "Send this return into that"}},
     {"kind": "page", "ctx": "LFO 2", "params": {
-      "RATE": "LFO 2 rate (left: synced)", "WAVE": "LFO 2 wave", "TRIG": "LFO 2 restarts: note or free",
+      "RATE": "LFO 2 rate (left: synced)", "WAVE": "LFO 2 wave", "TRIG": "LFO 2 restart: NOTE FREE PLAY",
       "POL": "LFO 2: both ways or up only"}},
+    {"kind": "page", "ctx": "LFO2 PHS", "params": {
+      "PHS": "LFO 2 start phase (LFO: fine)", "FADE": "LFO 2 fade-in after restart"}},
     {"kind": "page", "ctx": "LFO2 DEST", "params": {
       "DST A": "What LFO 2 moves (slot A)", "AMT A": "How much LFO 2 moves A",
       "DST B": "What LFO 2 moves (slot B)", "AMT B": "How much LFO 2 moves B"}},
     {"kind": "op", "ctx": "LFO 2", "params": {
-      "RATE": "LFO 2 rate (left: synced)", "WAVE": "LFO 2 wave", "TRIG": "LFO 2 restarts: note or free",
+      "RATE": "LFO 2 rate (left: synced)", "WAVE": "LFO 2 wave", "TRIG": "LFO 2 restart: NOTE FREE PLAY",
       "POL": "LFO 2: both ways or up only"}},
     {"kind": "op", "ctx": "LFO2 DEST", "params": {
       "DST A": "What LFO 2 moves (slot A)", "AMT A": "How much LFO 2 moves A",

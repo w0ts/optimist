@@ -42,7 +42,17 @@
 /* then (GRIDS_LFO, 2026-10-23) KREC_TAG and the kit's two LFOs (lane_play.c klfo_encode, KLFO_ENC bytes), when they are not at
  * their defaults; a reader of before stops after the parts' block (mrec_decode reads no further) */
 #define KREC_TAG 0xD4u
-#define DLR_MAX (2u + DLFO_ENC_MAX + NPART * MREC_PART + 1u + KLFO_ENC)
+/* then (issue 129, 2026-10-31) XREC_TAG, the parts' count n and each part's XREC_NV bytes (int8): LFO's TRIG POL, LFO 2's
+ * PHS FADE (XREC_ID), when one is not at its default. A reader without it stops before it (its kit's LFOs take KLFO_ENC
+ * bytes and leave the rest), but refuses a record longer than its DLR_MAX (dlr_from_rec): there such a project loses its
+ * whole record (the user, 2026-10-31: "Don't care about that"). Without the block: their defaults (NOTE BI, 0 0) */
+#define XREC_TAG 0xD7u
+#define KREC_LEN 16u                                    /* (KREC's bytes after its tag: lane_play.c KLFO_ENC where built) */
+_Static_assert(!KLFO_ENC || KLFO_ENC == KREC_LEN, "the kit LFOs' block: 16 bytes");
+#define XREC_NV 4u
+static const uint8_t XREC_ID[XREC_NV] = {P_L1TRIG, P_L1POL, P_L2PHS, P_L2FADE};
+#define XREC_LEN (2u + NPART * XREC_NV)
+#define DLR_MAX (2u + DLFO_ENC_MAX + NPART * MREC_PART + 1u + KLFO_ENC + XREC_LEN)
 static void proj_patch(int16_t *v, uint32_t k);        /* (project.c: a track's values as stored, under the motion) */
 /* the first id of field group g (0 LFO, 1 LFO 2, 2 ENV, 3 ENV2, 4 FLT B) and its size; P_COUNT: not in this build */
 static uint32_t mrec_grp(uint32_t g, uint32_t *n)
@@ -102,27 +112,60 @@ static void mrec_parts_get(const uint8_t *a, uint32_t tag)
         if (mrec_part_vals(a, k, trk[k].p, tag))
             env1_drop |= (uint8_t)(1u << k);
 }
-/* the record's stored form -> o: the tag, the lanes', the parts'; 0 bytes when every one is at its defaults (no record:
- * read as a project of before, whose words at 0 give those very defaults) */
+/* the parts' XREC block -> o (XREC_LEN bytes) -> 1 when a value is not its default (else nothing to write) */
+static uint32_t xrec_put(uint8_t *o)
+{
+    int16_t v[P_COUNT];
+    uint32_t k, i, nd = 0;
+    o[0] = XREC_TAG, o[1] = NPART;
+    for (k = 0; k < NPART; k++) {
+        proj_patch(v, k);
+        for (i = 0; i < XREC_NV; i++) {
+            o[2u + k * XREC_NV + i] = (uint8_t)(int8_t)v[XREC_ID[i]];
+            nd |= v[XREC_ID[i]] != TP[XREC_ID[i]].def;
+        }
+    }
+    return nd;
+}
+/* a block (n bytes at a, 0: none) onto the parts: each value inside its range; a part it lacks, or none: the defaults */
+static void xrec_get(const uint8_t *a, uint32_t n)
+{
+    uint32_t k, i, np = a && n >= 2u && a[0] == XREC_TAG ? a[1] : 0u;
+    if (n < 2u + np * XREC_NV)
+        np = 0;
+    for (k = 0; k < NPART; k++)
+        for (i = 0; i < XREC_NV; i++)
+            trk[k].p[XREC_ID[i]] = (int16_t)(k < np ? clamp((int8_t)a[2u + k * XREC_NV + i], TP[XREC_ID[i]].min,
+                                                            TP[XREC_ID[i]].max) : TP[XREC_ID[i]].def);
+}
+/* the record's stored form -> o: the tag, the lanes', the parts', the kit's LFOs, XREC; 0 bytes when every one is at its
+ * defaults (no record: read as a project of before, whose words at 0 give those very defaults) */
 static uint32_t mrec_encode(uint8_t *o)
 {
-    uint32_t n = dlfo_encode(o + 2), parts;
+    uint8_t x[XREC_LEN];
+    uint32_t n = dlfo_encode(o + 2), parts, xr = xrec_put(x);
     o[0] = MREC_TAG_W, o[1] = (uint8_t)n;
     parts = mrec_parts_put(o + 2 + n);
-    if (!parts && !n && klfo_is_def())
+    if (!parts && !n && klfo_is_def() && !xr)
         return 0;
     n += 2u + NPART * MREC_PART;
-    if (klfo_is_def())
-        return n;
-    o[n] = KREC_TAG;                                   /* (the kit's LFOs: GRIDS_LFO) */
-    klfo_encode(o + n + 1u);
-    return n + 1u + KLFO_ENC;
+    if (!klfo_is_def()) {
+        o[n] = KREC_TAG;                               /* (the kit's LFOs: GRIDS_LFO) */
+        klfo_encode(o + n + 1u);
+        n += 1u + KLFO_ENC;
+    }
+    if (xr) {
+        memcpy(o + n, x, XREC_LEN);                     /* (issue 129: LFO's TRIG POL, LFO 2's PHS FADE) */
+        n += XREC_LEN;
+    }
+    return n;
 }
 /* a stored form (0 / 0: none) onto the lanes (refused: every LFO off) and the parts (when it has them) -> the record's
  * tag when the parts' block was there (MREC_TAG, MREC_TAG_D2), else 0 */
 static uint32_t mrec_decode(const uint8_t *a, uint32_t n)
 {
     uint32_t l;
+    xrec_get(0, 0);                                     /* (XREC's values: their defaults till the block) */
     if (!a || n < 2u || !MREC_TAG_OK(a[0])) {           /* (none, or a record of before: the lanes' alone) */
         klfo_decode(0, 0);
         if (!a || !dlfo_decode(a, n))
@@ -139,6 +182,10 @@ static uint32_t mrec_decode(const uint8_t *a, uint32_t n)
     mrec_parts_get(a + 2 + l, a[0]);
     l += 2u + MREC_NP(a[0]) * MREC_PART_OF(a[0]);              /* (the kit's LFOs after the parts: GRIDS_LFO; else their defaults) */
     klfo_decode(n > l && a[l] == KREC_TAG ? a + l + 1u : 0, n > l + 1u ? n - l - 1u : 0u);
+    if (n > l && a[l] == KREC_TAG)
+        l += 1u + KREC_LEN;                             /* (the kit's two LFOs: their bytes in every build, built or not) */
+    if (n > l && a[l] == XREC_TAG)
+        xrec_get(a + l, n - l);
     return a[0];
 }
 #define DLR_AUX 4u
