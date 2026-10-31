@@ -28,7 +28,9 @@ struct ProjectsView: View {
     var body: some View {
         NavigationStack {
             List {
-                Section { LinkStatus(s, .projects) }.listRowBackground(Color.clear)
+                if s.route.usbOnlyLine(.projects) == nil || !s.ready(.proj) {   // (Bluetooth with the slots: the grey line below instead)
+                    Section { LinkStatus(s, .projects) }.listRowBackground(Color.clear)
+                }
                 if s.ready(.proj), let l = s.projects {
                     Section { activeHeader(l) }
                     Section {
@@ -40,6 +42,9 @@ struct ProjectsView: View {
                     }
                 }
                 LibrarySection(s: s)
+                if s.ready(.proj), let line = s.route.usbOnlyLine(.projects) {
+                    Section { Text(line).font(.footnote).foregroundStyle(.secondary) }.listRowBackground(Color.clear)
+                }
                 if s.ready(.projects) {
                     Section(s.projects.map { sectionsTitle($0) } ?? "Sections") {
                         ForEach(0..<s.sectionUsed.count, id: \.self) { k in sectionRow(k) }

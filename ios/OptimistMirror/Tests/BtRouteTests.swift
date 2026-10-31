@@ -33,6 +33,18 @@ final class BtRouteTests: XCTestCase {
         for f in [Feature.backup, .library, .projects, .patterns] { XCTAssertFalse(r.carries(f), f.name) }   // the USB message stays for these
     }
 
+    /// The Projects page over Bluetooth with opti_btproj_1: its slots carried, no banner; the parts that need the cable said in
+    /// one grey line under them (the user, 2026-10-31: the page read as an error over a working Bluetooth link)
+    func testProjectsPageOverBluetoothHasNoBanner() {
+        let i = info(["opti_proj_1", "opti_projects_1", "opti_mirbt_1", "opti_btproj_1"])
+        let r = EditorRoute.choose(searching: false, bluetooth: true, info: i, infoTried: true)
+        XCTAssertTrue(r.carries(.proj))
+        XCTAssertNil(r.usbOnlyLine(.proj))
+        XCTAssertEqual(r.usbOnlyLine(.projects), EditorRoute.usbOnlyLine)
+        XCTAssertNil(EditorRoute.usb.usbOnlyLine(.projects))
+        XCTAssertNil(EditorRoute.needsUSB.usbOnlyLine(.projects))
+    }
+
     func testBluetoothWithoutBtprojNeedsUsb() {
         let i = info(["opti_backup_4", "opti_proj_1", "opti_mirbt_1"])
         XCTAssertEqual(EditorRoute.choose(searching: false, bluetooth: true, info: i, infoTried: true), .needsUSB)
