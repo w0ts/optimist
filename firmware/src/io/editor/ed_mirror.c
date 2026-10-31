@@ -125,11 +125,38 @@ static int mbr_cmd_ok(uint32_t cmd)       /* the projects' moves: the backup's 4
 static uint8_t mbr_reply;                /* a reply being queued (mir_bt_reply): never held back by MIR_BLE_LAG, only a full ring
                                          * stops it (the user, 2026-10-31: INFO, PJ_OP and the library's replies were dropped 1 in 3
                                          * while the screen streamed: the client asked again and again, Projects never answered) */
+/* The lag rule follows the link (2026-11-01): what the radio drained while frames waited, measured each MIR_LAG_WIN_MS, gives
+ * the bytes MIR_LAG_MS of waiting holds, between MIR_LAG_MIN (above a page drawn whole, see MIR_BLE_LAG) and MIR_BLE_LAG. A slow
+ * link (the Mac's 7.5 ms, 4.6 KB/s: 2.5 KB, 0.55 s instead of 0.9) catches up sooner; a fast one keeps MIR_BLE_LAG */
+#ifndef MIR_LAG_ADAPT
+#define MIR_LAG_ADAPT 1
+#endif
+#if MIR_LAG_ADAPT
+enum { MIR_LAG_MS = 500, MIR_LAG_WIN_MS = 250, MIR_LAG_MIN = 2560 };
+static struct { uint32_t t, r, rate; uint8_t busy; } mbl;   /* the window's start, mbr.r then; bytes a second; frames waited */
+static uint32_t mbr_lag(void)
+{
+    uint32_t dt = fm1_ms - mbl.t, lag, lo = MIR_LAG_MIN < MIR_BLE_LAG ? MIR_LAG_MIN : MIR_BLE_LAG;
+    if (dt >= MIR_LAG_WIN_MS) {
+        if (mbl.busy && mbr.r != mbr.w) {   /* (waited at both ends: the link ran full) */
+            uint32_t now = (mbr.r - mbl.r) * 1000u / dt;
+            mbl.rate = mbl.rate ? (mbl.rate * 3u + now) / 4u : now;
+        }
+        mbl.t = fm1_ms, mbl.r = mbr.r, mbl.busy = mbr.r != mbr.w;
+    }
+    if (!mbl.rate)
+        return MIR_BLE_LAG;
+    lag = mbl.rate * MIR_LAG_MS / 1000u;
+    return lag < lo ? lo : lag > MIR_BLE_LAG ? MIR_BLE_LAG : lag;
+}
+#else
+#define mbr_lag() MIR_BLE_LAG
+#endif
 static int mbr_put(uint32_t b)
 {
     if (b == 0xF0u) {
         mbr.fw = mbr.w;
-        if (!mbr_reply && fm1_ms - mir.catch_ms >= MIR_CATCH_MS && mbr.w - ((int32_t)(mbr.base - mbr.r) > 0 ? mbr.base : mbr.r) > MIR_BLE_LAG)
+        if (!mbr_reply && fm1_ms - mir.catch_ms >= MIR_CATCH_MS && mbr.w - ((int32_t)(mbr.base - mbr.r) > 0 ? mbr.base : mbr.r) > mbr_lag())
             return 0;                   /* (behind: the catch-up sends the screen as it is then) */
     }
     if (mbr.fw - mbr.r >= MIR_BLE_RING || !MBR_HAVE())

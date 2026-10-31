@@ -1500,6 +1500,8 @@ job; ( jobin   # the SD card (SDCARD): ChaN's driver + Petit FatFs, then full Fa
 job; ( jobin
     $CC -O2 -w -o "$OUT/mirror_test" tests/mirror_test.c
     $CC -O2 -w -DMBR_PROJ=1 -o "$OUT/mirror_proj_test" tests/mirror_test.c
+    $CC -O2 -w -DMIR_BLE_LAG=4096 -o "$OUT/mirror_lag_test" tests/mirror_test.c
+    run "the screen mirrored with the firmware's 4 KB lag: the lag rule follows the link's drain (2.5 KB at 4.6 KB/s, 4 KB from 8 KB/s), every mirror test" "$OUT/mirror_lag_test"
     # (the Bluetooth ring lent by the arena, MIR_LEND: under ASan where the compiler has it, a touch of it once given back fails)
     $CC -O1 -g -fsanitize=address -fno-sanitize-recover=all -w -DMIR_LEND=1 -o "$OUT/mirror_lend_test" tests/mirror_test.c 2>/dev/null ||
         $CC -O1 -g -w -DMIR_LEND=1 -o "$OUT/mirror_lend_test" tests/mirror_test.c
