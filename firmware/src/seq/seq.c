@@ -1841,6 +1841,9 @@ static void arm_start(track_t *t)
     }
 }
 
+/* the velocity of the panel's keys (SHIFT2 + SELECT, op_input.c kvel_turn; the user, issue #134: "set the velocity of the keyboard while
+ * playing"): played and recorded as the keys' note velocity. 100 is what the keys always gave. Not saved: 100 at power on */
+static uint8_t key_vel = 100;
 static void drum_input(uint32_t lane, uint32_t lvl, uint32_t rat, int rec);
 #if FELUCCA_CHORDPLUS
 static const uint8_t *in_chord;                    /* input_on's note is note in_chord_i of in_chord (CHORD+: STRUM) */
@@ -2100,9 +2103,9 @@ static void chord_revoice(uint32_t sel)
                 ;
             if (i == kb_n[k]) {
                 in_key = (uint8_t)(k + 1u);         /* (a chord's new note: of this key, #191) */
-                input_on(t, nw[j], 100);
+                input_on(t, nw[j], key_vel);
                 in_key = 0;
-                midi_key_out(mc, nw[j], 100u);
+                midi_key_out(mc, nw[j], key_vel);
             }
         }
         memcpy(kb_nt[k], nw, nn);
@@ -2266,12 +2269,12 @@ static void key_down(uint32_t k)
             in_chord = kb_n[k] > 1u ? kb_nt[k] : 0;   /* (STRUM: the sound; MIDI out gets the chord at once) */
             in_chord_n = kb_n[k];
             in_chord_i = i;
-            input_on(t, kb_nt[k][i], 100);
+            input_on(t, kb_nt[k][i], key_vel);
             in_chord = 0;
 #else
-            input_on(t, kb_nt[k][i], 100);
+            input_on(t, kb_nt[k][i], key_vel);
 #endif
-            midi_key_out(mc, kb_nt[k][i], 100u);
+            midi_key_out(mc, kb_nt[k][i], key_vel);
         }
         in_key = 0;
         kb_shown = kb_nt[k][0];

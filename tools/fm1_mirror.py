@@ -18,7 +18,7 @@ import zlib
 from collections import deque
 from pathlib import Path
 
-PORT_RE = re.compile(r"FM1-[0-9A-F]{4}|optimist|felucca", re.I)   # the USB name: "FM1-XXXX" (since 2026-10-29); "Optimist" (older firmware)
+PORT_RE = re.compile(r"FM1-[0-9A-F]{4}|FM-1|FM1(?![\w-])|optimist|felucca|SMK-37", re.I)   # the USB name: "FM1-XXXX" (since 2026-10-29); "Optimist" (older firmware)
 HDR = [0x7D, 0x46, 0x4C]
 MIRROR = 106
 W = H = 240
