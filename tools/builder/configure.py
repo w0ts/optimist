@@ -30,7 +30,8 @@ from pathlib import Path
 # re-export). Every importer has tools/builder on sys.path already (it found this module there)
 import core as K
 from core import (
-    derive_memory as derive_memory, set_memory as set_memory, sync_memory as sync_memory,
+    derive_memory as derive_memory, set_memory as set_memory, sync_memory as sync_memory, set_front as set_front,
+    FRONTS as FRONTS, change_notice as change_notice,
     ANCHOR_MARGIN as ANCHOR_MARGIN, AUTO_AUX as AUTO_AUX, AUTO_ENC_MAX as AUTO_ENC_MAX, AUTO_ITEMS as AUTO_ITEMS,
     AUTO_LIST as AUTO_LIST, AUTO_MAX as AUTO_MAX, AUTO_NTRK as AUTO_NTRK, AUTO_STORE as AUTO_STORE,
     FIT_MARGIN as FIT_MARGIN, FIT_ORDER as FIT_ORDER, FXM_UNIT as FXM_UNIT, XD_STATE as XD_STATE,
@@ -635,7 +636,7 @@ def resolve_cli(a):
             continue
         if not m or m.group(1) not in R.ITEMS:
             raise ConfigError(f"--set {s}: KEY=number with a registry key")
-        cfg = set_memory(cfg, int(m.group(2))) if m.group(1) == "MEMORY" else sync_memory(dict(cfg, **{m.group(1): int(m.group(2))}))
+        cfg = set_front(cfg, m.group(1), int(m.group(2))) if m.group(1) in FRONTS else sync_memory(dict(cfg, **{m.group(1): int(m.group(2))}))
     drop = getattr(a, "ble_drop", None)
     if drop is not None:                                # (BLE replaces samples: room.py)
         import room

@@ -25,6 +25,7 @@
 #define FL_LOG_LO 0x000A0000u
 #define FL_LOG_SECTORS 0u                       /* 0: sec_log.c's rule (20 with user samples, else 32) */
 #define FL_USER_SAMPLES 1                       /* user sample slots, snapshots, the CZ collection */
+#define FL_USER_SLOTS 2u                        /* the slots kept, from USR3 down (normal: eng_sample.c's rule) */
 #define FL_PROJ_SLOTS 16u
 #elif FELUCCA_LAYOUT == 1                  /* L1, more flash */
 #define FL_APP_HI 0x000D0000u
@@ -36,7 +37,8 @@
 #define FL_LOG_LO 0x000D0000u
 #define FL_LOG_SECTORS 7u
 #define FL_USER_SAMPLES 0                       /* user sample slots, snapshots, the CZ collection */
-#define FL_PROJ_SLOTS 1u
+#define FL_USER_SLOTS 0u                        /* the slots kept, from USR3 down (normal: eng_sample.c's rule) */
+#define FL_PROJ_SLOTS 2u
 #elif FELUCCA_LAYOUT == 3                  /* S0, no user samples */
 #define FL_APP_HI 0x000B5000u
 #define FL_RELOC_HI 0x000D8000u
@@ -47,6 +49,7 @@
 #define FL_LOG_LO 0x000B8000u
 #define FL_LOG_SECTORS 32u
 #define FL_USER_SAMPLES 0                       /* user sample slots, snapshots, the CZ collection */
+#define FL_USER_SLOTS 0u                        /* the slots kept, from USR3 down (normal: eng_sample.c's rule) */
 #define FL_PROJ_SLOTS 16u
 #else
 #error "FELUCCA_LAYOUT: 0 (normal), 1 (more flash), 3 (no user samples) (tools/flash_layout.py)"

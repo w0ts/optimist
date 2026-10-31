@@ -475,15 +475,26 @@ def flash_py():
         seen.append(list(args))
         return (0, "FM-1_700  [running]  port: FM1-1A2B") if "--info" in args else (0, "done")
     real, F.run_tool = F.run_tool, fake_tool
+    F.LAST_INSTALL = TMP / "last-install.json"         # (this test's installs record nothing in the repo's build/)
+    F.LAST_INSTALL.unlink(missing_ok=True)
     try:
         plan = F.preflight(pkg, notes=[])
         text = "\n".join(plan.lines())
+        ok(not plan.layout_known and "LAYOUT    If the FM-1 has another memory layout than this firmware's (normal)" in text,
+           "the layout warning, no install recorded here: the installed layout not known, said so (never a refusal)")
         ok("bootloader: m-bootloader (from the build)" in text and plan.download and "route:    download mode" in text,
            "make flash / the builder's f: the confirmation shows the bootloader and the route")
         F.install(plan)
         ok(seen[-1][:2] == [str(pkg), "--yes"] and "--route" in seen[-1] and "--keep-bootloader" not in seen[-1]
            and "--wipe-settings" not in seen[-1] and "settings: kept" in text,
            "... the install runs fm1_install.py --yes --route download")
+        ok(F.last_install_end() == 0x93000, "an install that worked records its layout (build/last-install.json)")
+        s0 = write_pkg(TMP / "optimist-8.8-s0.fwsc", synth_flash(0xB5000, 41), "FM-1_700")
+        sp = F.preflight(s0, notes=[])
+        ok(sp.layout_known and "LAYOUT    New memory layout (no user samples): installing it erases the projects in flash"
+           in "\n".join(sp.lines()) and "last install from this computer" in sp.layout_warn,
+           "... the next package of another layout: the warning names what it erases (and asks 'anyway')")
+        ok(F.layout_note(pkg) == ("", False), "... a package of the same layout: no warning")
         kept = F.keep_bootloader(plan)
         F.install(kept)
         ok(kept.keep_bootloader and not kept.download and "--keep-bootloader" in seen[-1] and "--route" not in seen[-1],

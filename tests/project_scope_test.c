@@ -244,19 +244,20 @@ int main(void)
 #endif
     sec_pend_clear();
     fresh();
-#if FELUCCA_LAYOUT == 1
-    /* ---- the fake SD mode keeps one project (PROJ_SLOTS 1, the user 2026-10-25: the web app and the iOS app keep the
-     * others over USB): another is never opened, cleared or listed; the one project fills the whole log */
+#if PROJ_SLOTS < 16u
+    /* ---- a step with few projects (MEMORY PROJECTS 2 or 4; SD card mode 1, the user 2026-10-25: the card, the web app
+     * and the iOS app keep the others): a project past PROJ_SLOTS is never opened, cleared or listed; one project may
+     * fill the whole log */
     make(1), take(1);
     ok = state_save() == 0;
     project_save(0);
     ok &= !strcmp(last_msg, "SAVED") && scene_is(0, 1) && state_is(1);
-    check("one project: the work saved as its state, stored as scene A", ok);
-    ok = !open_p(1) && open_proj == 0u && slg.proj == 0u && scene_is(0, 1) && state_is(1);
-    check("... project 2 refused: project 1 still open, as it was", ok);
+    check("few projects: the work saved as its state, stored as scene A", ok);
+    ok = !open_p(PROJ_SLOTS) && open_proj == 0u && slg.proj == 0u && scene_is(0, 1) && state_is(1);
+    check("... the project past PROJ_SLOTS refused: project 1 still open, as it was", ok);
     snapshot();
-    ok = project_clear(3) != 0 && as_snapshot();
-    check("... project 4 not cleared (none kept): project 1's records byte for byte", ok);
+    ok = project_clear(PROJ_SLOTS) != 0 && as_snapshot();
+    check("... the project past PROJ_SLOTS not cleared (none kept): project 1's records byte for byte", ok);
     check("... only project 1 listed", project_slot_used(0) && !project_slot_used(1) && !project_slot_used(15));
     restart();
     check("... a restart: project 1, its state and scene A", open_proj == 0u && scene_is(0, 1) && state_is(1));

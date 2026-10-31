@@ -153,7 +153,7 @@ static const bk_obj_t BK_OBJS[] = {
  * magic, chunk; v3 adds first and count), 14 bytes an object, bk_caps at the end of the list. A page keeps room for
  * the caps, so any page may be the last; the objects go on in the next page (v3), never cut. */
 static const uint8_t bk_bits[] = FELUCCA_CFG_BITS;   /* the builder's items (BUILD, 49), bk_caps' last bytes */
-#define BK_CAPS_N (23u + 3u * SMP_USER_SLOTS + sizeof bk_bits)   /* (bk_caps, byte for byte) */
+#define BK_CAPS_N (26u + 3u * SMP_USER_SLOTS + sizeof bk_bits)   /* (bk_caps, byte for byte) */
 #define BK_HEAD2_N 10u
 #define BK_HEAD3_N 12u
 #define BK_PAGE ((ED_PAYLOAD_N - BK_HEAD3_N - BK_CAPS_N) / 14u)   /* objects a v3 reply */
@@ -680,6 +680,8 @@ static __attribute__((noinline)) void bk_caps(void)
         ed_b32(SMP_USER_CAP(i), 3);                           /* USR1..3 capacity, bytes */
     ed_bs(BK_CAPS_K, sizeof BK_CAPS_K);                       /* (the build's constants: a table, not a call each) */
     ed_bs(bk_bits, sizeof bk_bits);
+    ed_b32(FL_APP_HI >> 12, 2);                               /* the MEMORY step: its app end / 4 KiB (the installers' */
+    ed_b(PROJ_SLOTS);                                         /* layout warning, docs/SD-MODE-DESIGN.md 9.7.5), its projects */
 }
 
 #if SEC_LOGGED

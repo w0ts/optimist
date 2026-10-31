@@ -2523,8 +2523,8 @@ async function editorBackup() {
   ok(/id="backup"/.test(html) && /id="bkprog"/.test(html) && /function bkRestore\(/.test(html) && /function backupDo\(/.test(html) &&
     /<section class="panel" id="p-backup" data-tab="backup"/.test(html), "editor: Backup section (its own backup tab, #backup), progress, restore");
   const inst = readFileSync(join(HERE, "installer", "installer.js"), "utf8");
-  ok(/const answer = await ask\(pkg\.stock\)/.test(inst) && INST.TEXT.askTitle === "Back up first?" && /backup: "\.\.\/editor\/#backup"/.test(inst)
-    && /opts\.onNavigate\("backup"\)/.test(inst), "installer: asks to back up first, opens the editor's Backup (or the host's tab)");
+  ok(/const answer = await ask\(pkg\.stock, layoutWarning\(pkg\)\)/.test(inst) && /warn\.line \? h\("p\.o-msg\.warn\.oi-layout"/.test(inst) && INST.TEXT.askTitle === "Back up first?" && /backup: "\.\.\/editor\/#backup"/.test(inst)
+    && /opts\.onNavigate\("backup"\)/.test(inst), "installer: asks to back up first (with the layout warning when the layout changes), opens the editor's Backup (or the host's tab)");
 }
 
 /* ------------------------------------- the UI pass: connect state, auto-connect, mixer, piano roll --- */
@@ -3584,6 +3584,21 @@ for (const check of SUITE) await check();
     && SIM.siteLabel({ id: "local", title: "Local build: synth", sim: "x.wasm" }) === "Local build: synth"
     && /st\.choice \|\| \(packages\.length \? "site:0" : null\)/.test(src) && /\.\.\.\(p\.release \? \{ profile: p\.id \} : \{ flavour: p\.id \}\)/.test(src),
     "sim: the first site build is the default (the latest release's, listed first); main's labelled development; a release's Configuration opens its profile");
+}
+/* ===== the install's layout warning (web/install_route.js, the user 2026-10-31: "when we flash a different layout, we warn the
+   user to backup their data first"): the same line as tools/flash_layout.py switch_warning for every pair of known ends ===== */
+{
+  const IR = await import("./install_route.js");
+  const ends = IR.LAYOUT_ENDS.map((r) => r[0]);
+  const want = JSON.parse(py(`import json, sys; sys.path.insert(0, "tools"); import flash_layout as L
+e = list(L.known_ends()); print(json.dumps({f"{o}/{n}": L.switch_warning(None if o == -1 else o, n) for o in [-1, *e] for n in e}))`).toString());
+  const got = {};
+  for (const o of [-1, ...ends]) for (const n of ends) got[`${o}/${n}`] = IR.switchWarning(o === -1 ? null : o, n);
+  ok(JSON.stringify(got) === JSON.stringify(want), "install: the layout warning is flash_layout.py's, every pair of ends and an unknown one");
+  ok(IR.installedEndOf({ appEnd: 0xB5000, bits: [] }) === 0xB5000 && IR.installedEndOf(null) === null
+     && IR.installedEndOf({ bits: new Array(70).fill(0) }) === 0x93000
+     && IR.installedEndOf({ bits: Object.assign(new Array(70).fill(0), { [Math.floor(410 / 7)]: 2 ** (410 % 7) }) }) === null,
+     "install: the installed layout from bk_caps: its app end; an older normal build by its LAYOUT bit off; else not known");
 }
 const verdict = failed === 0 ? "web tests passed" : `WEB TESTS FAILED (${failed})`;
 console.log(verdict);

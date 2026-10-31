@@ -254,7 +254,7 @@ def cmd_flash(a):
             return 1
         if not a.yes:
             try:
-                go = input("Flash it anyway? [y/N] " if plan.warn else "Flash it? [y/N] ").strip().lower() in ("y", "yes")
+                go = input("Flash it anyway? [y/N] " if plan.warn or plan.layout_known else "Flash it? [y/N] ").strip().lower() in ("y", "yes")
             except EOFError:
                 go = False
             if not go:

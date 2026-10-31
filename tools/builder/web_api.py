@@ -64,6 +64,7 @@ def registry_view():
     order (backports.py AFTER), what an EXPERIMENTAL item was tested on, its provenance as one line"""
     d = K.describe()
     extra = {k: {"children": list(it.menu_children), "hidden": it.hidden or k in WEB_FIXED, "shown_under": it.shown_under,
+                 "dim_when": it.dim_when,
                  "tested": it.tested,
                  "provenance_line": it.provenance.line() if it.provenance else ""} for k, it in R.ITEMS.items()}
     for item in d["registry"]["items"]:
@@ -121,7 +122,7 @@ def toggle(values, key, value, room=None):
     cfg, new = RM.after_toggle(before, after, key, old, COSTS)
     it = R.ITEMS[key]
     return {"values": cfg, "room": {"dropped": [list(x) for x in new.dropped], "note": new.note},
-            "notice": it.notice if it.notice and (cfg[key] or it.notice_on_change and cfg[key] != before[key]) else ""}
+            "notice": K.change_notice(key, before, cfg)}
 
 
 def item_info(key):
