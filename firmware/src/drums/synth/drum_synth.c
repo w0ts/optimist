@@ -167,6 +167,7 @@ typedef struct {
 #if FELUCCA_DS_PLAITS
     dplaits_t pl;                /* a Plaits model's state (DW_PKICK, DW_PSNARE) */
     uint8_t quiet;               /* its quiet blocks in a row */
+    uint8_t pfresh;              /* hit, not started yet: its first render starts it (pl.st) */
 #endif
 } dsv_t;
 
@@ -234,6 +235,25 @@ static void ds_on_snd(dsv_t *s, const dsnd_t *d, uint32_t crush, int32_t semi, u
         s->lg = (int32_t)(q >= 0 ? g << q : g >> -q);
     }
     s->base16 = ((int32_t)d->pitch + semi) * 16 + d->fine;
+#if FELUCCA_DS_PLAITS
+    if (d->wave >= DW_PKICK) {                          /* a Plaits model: its own state and the click layer's (the other
+                                                         * layers' and the filter's: dp_block reads none), started in its
+                                                         * first render (dp_block, the drums' job, on the core that renders
+                                                         * them), not here in the block's events on CPU0 */
+        s->ck = s->ck_to = (int32_t)d->click * 258;
+#if FELUCCA_DS_KAWA
+        s->hits = (uint8_t)DK_HITS(d);                  /* (its re-strikes strike the click again: dp_control) */
+        s->gap = (uint8_t)(d->kgap ? d->kgap : 1u);
+#endif
+        s->rnd = (int32_t)(0x9E3779B9u ^ (note * 2654435761u) ^ rng());   /* (its seed, as below: the same draw) */
+        s->pl.st.seed = (uint32_t)s->rnd;
+        s->pl.st.vel = vel;
+        s->pfresh = 1;
+        return;                                         /* (fmode 0: its fcut is its TONE, no filter of the layers; the
+                                                         * velocity both the model's accent, its timbre, and the level as
+                                                         * every sound's) */
+    }
+#endif
     s->pe = d->bend || d->fenv ? 32767 : 0;
     s->kpe = ds_k32(d->btime);
     s->inc = s->inc_to = ds_inc(s->base16 + ((s->pe * (int32_t)d->bend * 16) >> 15));
@@ -270,13 +290,6 @@ static void ds_on_snd(dsv_t *s, const dsnd_t *d, uint32_t crush, int32_t semi, u
     s->gap = (uint8_t)(d->kgap ? d->kgap : 1u);
     s->rr = s->rr_to = d->krise ? 0 : 32767;
     s->kr = d->krise ? ds_k32(d->krise) : 0u;
-#endif
-#if FELUCCA_DS_PLAITS
-    if (d->wave >= DW_PKICK) {
-        dp_on(&s->pl, d, s->base16, vel, (uint32_t)s->rnd);
-        s->fmode = 0;                                   /* (its fcut is its TONE: no filter of the layers; the velocity both
-                                                         * the model's accent, its timbre, and the level as every sound's) */
-    }
 #endif
 }
 static void ds_on(dsv_t *s, const dkit_t *kit, uint32_t note, uint32_t vel)
@@ -351,8 +364,68 @@ AINL int ds_alive(const dsv_t *s)
            s->ck > CG_DTAIL;                            /* (8; the CPU guard's quality level: 327, cpuguard.h) */
 }
 
-/* n (<= CTL) samples of voice s into out[] (Q15-ish, peak ~ 32767); returns 0 when it ended */
-static HOT int ds_render(dsv_t *s, int32_t *out, uint32_t n)
+#if FELUCCA_DS_PLAITS
+/* ds_control's lines a Plaits model's samples depend on: the click's envelope (KAWA: struck again at a re-strike, its gap
+ * a noise draw) */
+AINL void dp_control(dsv_t *s, const dsnd_t *d)
+{
+    s->ck = s->ck_to;
+#if FELUCCA_DS_KAWA
+    if (s->hits && !--s->gap) {
+        s->hits--;
+        s->gap = (uint8_t)((d->kgap ? d->kgap : 1u) + ((uint32_t)noise32(&s->rnd) >> 31));
+        s->ck = (int32_t)d->click * 258;
+    }
+#else
+    (void)d;
+#endif
+    s->ck_to = (s->ck * 3) >> 3;
+}
+/* ds_render of a Plaits model (DW_PKICK, DW_PSNARE): at its first, the hit's start (dp_on); its samples, then ds_render's
+ * lines for a sound of no tone, no noise and no filter (the same samples): the click layer (its level, the sound's CLICK,
+ * is KPUNC's FM too; silent on a block's first sample, then ramped, as ds_render's has always played it), DRIVE, the
+ * kit's crush, the velocity, LEVEL. The other layers' envelopes are not kept (nothing reads them). Ends quiet for 46 ms
+ * (after 50 ms), or at 6 s. Inlined (ds_render too): in drums_mix, whose calls through a pointer the release allows */
+AINL int dp_block(dsv_t *s, int32_t *out, uint32_t n)
+{
+    const dsnd_t *d = s->d;
+    int32_t px[CTL], pk, drive = 16 + d->drive, bits = s->crush & 15, hold = (s->crush >> 4) + 1;
+    int32_t rc = s->ck_to - s->ck, sc = s->ck << CTL_LOG2, c = 0;
+    uint32_t i;
+    if (s->pfresh) {
+        uint32_t seed = s->pl.st.seed, vel = s->pl.st.vel;
+        s->pfresh = 0;
+        FAR(dp_on)(&s->pl, d, s->base16, vel, seed);   /* (XIP code: through a pointer) */
+    }
+    pk = dp_render(&s->pl, d->wave, px, n);
+    s->quiet = (uint8_t)(pk < DP_QUIET ? (s->quiet < 255u ? s->quiet + 1u : 255u) : 0u);
+    for (i = 0; i < n; i++) {
+        int32_t x = px[i];
+        if (c) {                                        /* the click: differentiated noise */
+            int32_t w = (int32_t)noise32(&s->rnd) >> 17;
+            x += mulq15(w - s->cprev, c);
+            s->cprev = w;
+        }
+        c = (sc += rc) >> CTL_LOG2;
+        if (d->drive)
+            x = softclip((x * drive) >> 4);
+        if (s->crush) {
+            if (--s->holdn <= 0) {
+                s->holdn = hold;
+                s->held = (x >> bits) << bits;
+            }
+            x = s->held;
+        }
+        out[i] = ((mulq15(x, s->gain) >> 2) * s->lg) >> 8;
+    }
+    s->t += n;
+    dp_control(s, d);
+    return !(s->t >= DP_LIFE || (s->t > FS / 20u && s->quiet >= DP_QBLOCKS));
+}
+#endif
+
+/* ds_render of a sound of layers (every sound but a Plaits model) */
+static HOT int ds_layers(dsv_t *s, int32_t *out, uint32_t n)
 {
     const dsnd_t *d = s->d;
     uint32_t i, src = d->src & 15u, wave = d->wave, fmode = s->fmode & 3u, fall = s->fmode & DF_ALL;
@@ -374,14 +447,6 @@ static HOT int ds_render(dsv_t *s, int32_t *out, uint32_t n)
         a = mulq15(a, rr), z = mulq15(z, rr);
 #else
 #define t2m DK_MIX
-#endif
-#if FELUCCA_DS_PLAITS
-    int32_t px[CTL];
-    if (wave >= DW_PKICK) {                             /* a Plaits model: its samples instead of the layers */
-        int32_t pk = dp_render(&s->pl, wave, px, n);
-        s->quiet = (uint8_t)(pk < DP_QUIET ? (s->quiet < 255u ? s->quiet + 1u : 255u) : 0u);
-        wave = 0, src = 0, c = 0;                       /* (no tone, noise or click layer: its samples are the tone) */
-    }
 #endif
     for (i = 0; i < n; i++) {
         int32_t tone = 0, nz = 0, x;
@@ -414,10 +479,6 @@ static HOT int ds_render(dsv_t *s, int32_t *out, uint32_t n)
                 tone += mulq15(mulq15(tone, sine_i(s->ph3)) - tone, t2l);
             }
         }
-#if FELUCCA_DS_PLAITS
-        else if (d->wave >= DW_PKICK)
-            tone = px[i];
-#endif
         if (src) {
             if (src == DN_WHITE) {
                 nz = (int32_t)noise32(&s->rnd) >> 17;
@@ -487,9 +548,15 @@ static HOT int ds_render(dsv_t *s, int32_t *out, uint32_t n)
 #endif
     s->t += n;
     ds_control(s);
-#if FELUCCA_DS_PLAITS
-    if (d->wave >= DW_PKICK)                            /* a Plaits model: quiet for 46 ms (after 50 ms), or 6 s */
-        return !(s->t >= DP_LIFE || (s->t > FS / 20u && s->quiet >= DP_QBLOCKS));
-#endif
     return ds_alive(s);
+}
+
+/* n (<= CTL) samples of voice s into out[] (Q15-ish, peak ~ 32767); returns 0 when it ended */
+static HOT inline __attribute__((always_inline)) int ds_render(dsv_t *s, int32_t *out, uint32_t n)
+{
+#if FELUCCA_DS_PLAITS
+    if (s->d->wave >= DW_PKICK)
+        return dp_block(s, out, n);                     /* a Plaits model: its samples instead of the layers */
+#endif
+    return ds_layers(s, out, n);
 }

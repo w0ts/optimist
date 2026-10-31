@@ -176,7 +176,11 @@ typedef struct {
     qpole_t dlp, shp;
     qsvf_t slp;
 } scrak_t;
-typedef union { kpunc_t kp; scrak_t sc; } dplaits_t;
+typedef union {
+    kpunc_t kp;
+    scrak_t sc;
+    struct { uint32_t seed, vel; } st;                   /* a hit not started yet (ds_on_snd: its first render starts it) */
+} dplaits_t;
 
 /* ---- KPUNC: TUNE DECAY TONE FM; synthetic bass drum (Plaits SyntheticBassDrum) */
 static void kpunc_start(kpunc_t *k, int32_t note, int32_t tone, int32_t decay, int32_t chr, int32_t vel, uint32_t seed)
@@ -321,7 +325,9 @@ static HOT int32_t scrak_tick(scrak_t *k)
 #define DP_QUIET 4228                                        /* -72 dB re 1.0 (Q24): a quiet block */
 #define DP_QBLOCKS 64u                                       /* quiet blocks in a row that end a hit (46 ms) */
 #define DP_LIFE ((uint32_t)FS * 6u)                          /* and every hit ends at 6 s */
-static void dp_on(dplaits_t *p, const dsnd_t *d, int32_t base16, uint32_t vel, uint32_t seed)
+/* a hit's start: the model's coefficients and state (dp_block, its first render: the drums' job, on the core that
+ * renders the drums; this from the flash, called through a pointer) */
+static __attribute__((noinline)) void dp_on(dplaits_t *p, const dsnd_t *d, int32_t base16, uint32_t vel, uint32_t seed)
 {
     int32_t note = clamp((base16 + 8) >> 4, 0, 127);
     if (d->wave == DW_PKICK)
