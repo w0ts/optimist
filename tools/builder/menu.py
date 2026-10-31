@@ -950,13 +950,12 @@ class Builder(App):
         self.build_out = "flash: waiting for your answer"
         self.refresh_msgs()
         title = "Flash to FM-1\n\n" + "\n".join(plan.lines())
-        keep = "Flash over USB-MIDI, keep this bootloader (about a minute)"
+        mboot = "Install m-bootloader instead: download mode (M-Flasher, a full backup first)"
         go = ("Flash anyway (the FM-1 may refuse it)" if plan.warn else
               "Flash anyway (a new memory layout: backed up first?)" if plan.layout_known else
               "Flash with m-bootloader: download mode (M-Flasher, a full backup first)" if plan.download and plan.wants_mboot
-              else "Flash through download mode (a full backup first)" if plan.download else "Flash to FM-1 (writes the firmware)")
-        offer_keep = plan.wants_mboot       # (the build's m-bootloader, not on the FM-1: the USB-MIDI install that keeps
-                                            # the bootloader is the other choice, as good; the override only goes to keep)
+              else "Flash through download mode (a full backup first)" if plan.download else "Flash over USB-MIDI")
+        offer_mboot = not plan.download and plan.boot != "mboot"   # (USB-MIDI first: m-bootloader only as its own, explicit entry)
         ask = plan.download and plan.settings is not None and plan.settings.ask   # (keep or erase the settings: asked)
         wipe_first = ask and plan.settings.default == "wipe"
         sets = ([f"{go}, erase settings and pairings" + (" (suggested)" if wipe_first else ""),
@@ -965,13 +964,13 @@ class Builder(App):
             sets.reverse()
 
         def answer(choice):
-            p = F.keep_bootloader(plan) if choice == keep else plan
+            p = F.install_mboot(plan) if choice == mboot else plan
             if "erase settings" in choice:
                 p = F.with_settings(p, "wipe")
             elif "keep settings" in choice:
                 p = F.with_settings(p, "keep")
-            self.flash_answer(p, choice.startswith("Flash"))
-        self.push_screen(Pick(title, ["Cancel", *sets, *([keep] if offer_keep else [])], answer))
+            self.flash_answer(p, choice.startswith(("Flash", "Install")))
+        self.push_screen(Pick(title, ["Cancel", *sets, *([mboot] if offer_mboot else [])], answer))
 
     def flash_answer(self, plan, yes):
         if not yes:

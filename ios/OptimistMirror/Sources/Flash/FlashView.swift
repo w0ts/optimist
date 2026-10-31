@@ -93,8 +93,8 @@ struct FlashView: View {
             }
             if let err = flash.listError ?? flash.packageError { Text(err).font(.footnote).foregroundStyle(.red) }
             if let line = flash.bootLine { Text(line).font(.footnote).foregroundStyle(.secondary) }
-            if flash.package?.bootloader == "m-bootloader" {     // (the override: m-bootloader to keep only)
-                Toggle("Install m-bootloader (from the build)", isOn: Binding(get: { !flash.keepBootloader }, set: { flash.keepBootloader = !$0 }))
+            if flash.package != nil && flash.bootWord != "mboot" {     // (explicit: only this option installs m-bootloader, in download mode)
+                Toggle("Install m-bootloader instead (download mode, a computer, a full backup first)", isOn: $flash.installMboot)
                     .font(.footnote)
             }
             Button(flash.package.map { "Install \($0.file.isEmpty ? $0.title : $0.file)" } ?? "Install") {
@@ -108,7 +108,7 @@ struct FlashView: View {
             if !flash.status.isEmpty { Text(flash.status).font(.footnote) }
             if let r = flash.result { Text(r).font(.footnote).foregroundStyle(.green) }
             if let e = flash.error { Text(e).font(.footnote).foregroundStyle(.red) }
-            if flash.keepOffered {             // (the build's m-bootloader, not on the FM-1: the update keeping the bootloader, as good)
+            if flash.keepOffered {             // (m-bootloader asked for, not on the FM-1: the update keeping the bootloader, as good)
                 Button("Install over USB-MIDI instead, keeping this bootloader") { flash.installKeepingBootloader() }.font(.footnote)
             }
             if flash.softKeyOffered {

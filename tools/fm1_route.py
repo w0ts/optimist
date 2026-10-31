@@ -205,14 +205,15 @@ class Route:
     steps: tuple = field(default=())
 
 
-def bootloader_choice(build_value: str | None, keep_flag: bool) -> tuple:
-    """(choice, line): the builder's BOOTLOADER as this install takes it. --keep-bootloader only turns m-bootloader
-    into keep, never the other way; a package without the build's setting keeps the bootloader"""
-    if build_value == MBOOT and keep_flag:
-        return KEEP, "bootloader: keep (--keep-bootloader for this install; the build says m-bootloader)"
+def bootloader_choice(build_value: str | None, install_mboot: bool = False) -> tuple:
+    """(choice, line): the bootloader of this install. MIDI first (the user, 2026-10-31: "if we can use midi, just use
+    midi"): the build's BOOTLOADER=1 means keep what is there; m-bootloader is installed only when asked for
+    explicitly (--install-mboot, the builder's entry, the web button, the app's option), through download mode"""
+    if install_mboot:
+        return MBOOT, ("bootloader: m-bootloader (--install-mboot, asked for): installed if the FM-1 does not have it "
+                       "yet, through download mode, after a full backup and your yes")
     if build_value == MBOOT:
-        return MBOOT, ("bootloader: m-bootloader (from the build): installed if the FM-1 does not have it yet, after a "
-                       "full backup and your yes (--keep-bootloader: not for this install)")
+        return KEEP, "bootloader: keep (kept as it is; --install-mboot installs m-bootloader, through download mode)"
     if build_value == KEEP:
         return KEEP, "bootloader: keep (from the build): not touched"
     return KEEP, "bootloader: keep (no build setting with this package): not touched"
@@ -289,7 +290,8 @@ def entry_for(running: str, mboot_present: bool | None) -> tuple:
 
 def choose(running: str, pkg: PackageInfo, bootloader: str = KEEP, mboot_present: bool | None = None,
            running_text: str = "") -> Route:
-    """the way for this package onto this FM-1. bootloader: bootloader_choice's; mboot_present: whether the FM-1 has
+    """the way for this package onto this FM-1: USB-MIDI whenever the running loader takes the package. bootloader:
+    bootloader_choice's (MBOOT only when installing m-bootloader was asked for, never from the build's BOOTLOADER); mboot_present: whether the FM-1 has
     m-bootloader (None: not known until M-Flasher reads the flash in download mode)"""
     soft, keys = entry_for(running, mboot_present)
     enter = ("the installer sends the soft key over USB-MIDI" + (f" (or: {keys})" if keys != "-" else "")) if soft \
@@ -302,7 +304,7 @@ def choose(running: str, pkg: PackageInfo, bootloader: str = KEEP, mboot_present
         return Route("loader", why, steps=("the running firmware checks the package and starts its update loader",
                                            "the loader writes the firmware area; the FM-1 restarts",
                                            "the installer checks the identity it comes back with"))
-    reason = "the build's BOOTLOADER is m-bootloader" if want else why
+    reason = "m-bootloader was asked for (--install-mboot)" if want else why
     steps = ["download mode: " + enter, "M-Flasher reads the flash (model, bootloader, firmware): an FM-1 only",
              "M-Flasher saves a full backup (its path is printed)"]
     if want and mboot_present is not True:
