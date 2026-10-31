@@ -8,7 +8,6 @@
  * clip at the input and the output. Left out (Optimist's track does them): Melodee's native patch and its envelopes,
  * the LFO and wheel, the SSM (Rev 1 / 2) stages, the noise source, the voice drift, the dual-core batching. */
 #include "p5_dsp.h"
-#include "p5_tables.h"
 /* PROPHET "on, code in RAM" (the builder, FAST_RAM_prophet; core.h FAST): p5_render in the RAM code's section (.ram_hot;
  * the release's opt_fpu_p5.c: .app_ram, FAST_SECTION); eng_prophet.c's prophet_render with it */
 #if defined(__PI32V2__) && defined(FAST_RAM_prophet) && FAST_RAM_prophet
@@ -16,9 +15,13 @@
 #define FAST_SECTION ".ram_hot"
 #endif
 #define P5_FAST __attribute__((section(FAST_SECTION)))
+/* and its tables (P5_TANH 4 KB, P5_EXP2 2 KB, P5_TPT_G 0.5 KB: read every sample) in RAM, .data: no flash-cache
+ * misses on them, the same values */
+#define P5_TAB __attribute__((section(".data.p5_tab")))
 #else
 #define P5_FAST
 #endif
+#include "p5_tables.h"
 
 typedef union { float f; uint32_t u; int32_t i; } p5_bits_t;
 
