@@ -1040,10 +1040,11 @@ static void list_paint(void)
 }
 /* PAGE_LINES: a SOUND page's graph is worth the 2x2 cards over it (the user, 2026-10-18: "use the 2*2 card layout only
  * when there is something useful to display below it"): a shape (ENV, LFO, ARP, SCL, the steps, the gater), not the FX
- * slots' needles (faders repeating the cards' values: an insert's had them, a lane's not), nor a lane's name and kit */
+ * slots' needles (faders repeating the cards' values: an insert's had them, a lane's not), nor a lane's name and kit; but the
+ * lane's ENV is its envelope (graph_denv): the ENV family always shows its picture (the user, 2026-10-31) */
 static int pic_useful(const page_t *gp)
 {
-    return has_graph(gp) && gp->graph != GR_FX && gp->graph != GR_INS && gp->graph != GR_DSND;
+    return has_graph(gp) && gp->graph != GR_FX && gp->graph != GR_INS && (gp->graph != GR_DSND || gp->fam == FAM_ENV);
 }
 /* the picture row cur of the screen shows over its rows: 0 none, 1 SOUND's graph, 2 the session grid (SONG's PATTERNS
  * row), 3 the tempo, 4 FM6's algorithm, 5 the SOUND row's presets */

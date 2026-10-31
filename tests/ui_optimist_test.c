@@ -4062,6 +4062,7 @@ static void led_tests(void)
 #include "ui_optimist_rettrk.h"                      /* 2026-10-30: the returns as tracks: their pages, HOME, the keys, both OCT */
 #include "ui_optimist_gater.h"                      /* GATER (INS_GATER): its FX row, the cards, the picture and its playhead, the help lines */
 #include "ui_optimist_lfo2.h"                      /* LFO 2: the LFO 2 and LFO2 DEST rows, RATE, SHIFT + a knob, the AMT bar */
+#include "ui_optimist_wavepics.h"                  /* ENV / LFO families: every row draws its picture */
 #include "ui_optimist_plocks.h"
 #include "ui_optimist_seqtools.h"                   /* Felucca 1.5.6: STEP's TOOLS and EUCLID, the COND card */
 #include "ui_optimist_missline.h"                   /* the MISSING line stays until HOME */
@@ -4178,7 +4179,8 @@ int main(int argc, char **argv)
 #endif
 #if FELUCCA_PAGE_LINES
     plines_tests();                                     /* (the lines build: the rest of the suite assumes the 2x2 cards) */
-    lane_fx_lines_tests();                              /* (LANE FX: the 2x2 cards in the lines build too) */
+    lane_fx_lines_tests();
+    wavepics_tests();                                   /* (the lines build: the pictures stay on every ENV / LFO row) */                              /* (LANE FX: the 2x2 cards in the lines build too) */
     fuzz(5000, 4242);
     check(!band_hits, "PAGE_LINES: 5000 random frames, no blit in the help band but the help line's");
     printf(fails ? "optimist ui test FAILED (%d)\n" : "optimist ui test passed\n", fails);
@@ -4335,6 +4337,7 @@ int main(int argc, char **argv)
     gater_ui_tests();
 #endif
     lfo2ui_tests();
+    wavepics_tests();
 #if FELUCCA_PLOCK
     plock_audit_tests();
 #endif
