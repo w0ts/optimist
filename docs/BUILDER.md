@@ -21,7 +21,7 @@ Keys: `space` / `enter` toggle (a sized item: its next value), `/` search, `p` p
 name, then where, yours (`config/my-profiles`, git-ignored) or stock (`config/profiles`, to commit; a stock profile saved
 over keeps its first comment lines and its publish flag), `u` publish the profile or not (CI builds the published ones; one
 of yours is moved to `config/profiles` first, to commit), `d` delete a profile (never the default, `synths_USBaudio_BTaudio_BTmidi`), `w`
-write a `.config`, `l` load, `o` sort by size (cycles registry order, flash, RAM, pool, RAM code; items without a
+write a `.config`, `l` load, `o` sort by size (cycles registry order, flash, RAM, arena; items without a
 measured cost last), `b` build, `e` build and run in the emulator (96 MHz, background), `f` flash to the FM-1, `x` / `c`
 expand / collapse all, `left` / `right` page the list, `q` quit.
 
@@ -451,6 +451,16 @@ outside the project's payload, so a PRJ1..PRJ4 / AUTO backup does not hold it.
   `tests/param_help_pack_test.c` checks every line unpacks to the table's text.
 - The firmware reports what it is: `INFO` adds each slot's engine UID, `BUILD` (cmd 49) the configuration's name, hash and
   one bit per registry item (`web/EDITOR_PROTOCOL.md`).
+
+## Arena column
+
+Every item that keeps memory in the arena (`ARENA`, docs/SD-MODE-DESIGN.md 6b) shows `arena 12.5K`: the RAM one instance
+takes from it (one part's engine state, one effect's line, one buffer), whether the item is on or not. `o` and the web
+page's Sort menu order by it, largest first; an item that takes none shows nothing and sorts after those that do. The numbers
+are the ones the arena estimate uses (`core.py` `item_arena`: `PART_MEM` per part, `fx_memory`, `arena_bufs`), so a size option
+(`DLY_LEN`, `XDLY_LEN`, `SL_LEN`, `PUNCH_N`, the reverb algorithms) shows the block it sizes. `?` (sorted last): the item uses the
+arena but its size is not defined in this source (the SD card streams' block depends on the project; Bluetooth audio, Wi-Fi Link,
+its access point and the mirror's ring are lent by fm1-base): `ARENA_UNKNOWN`. FM6's figure includes its 4 KB sine table.
 
 ## Budget
 

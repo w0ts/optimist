@@ -74,7 +74,7 @@ async def sort_test():
         check("costs: an item shows flash and one ram, no pool / ramtext parts (the user, 2026-10-29)",
               not any(re.search(r"\b(pool|ramtext) [+-]\d", s) for s in labels) and any(re.search(r"\bram [+-]\d", s) for s in labels))
         check("sort: starts in the default order", app.sort_by is None and "default order" in str(app.query_one("#bars").content))
-        for want in ("flash", "ram", None):
+        for want in ("flash", "ram", "arena", None):
             await pilot.press("o")
             await pilot.pause()
             check(f"sort: o selects {want or 'default order'}", app.sort_by == want)
@@ -82,9 +82,10 @@ async def sort_test():
                 check("sort: back to the default order", tree_keys(app) == default)
                 break
             check(f"sort {want}: the bar names it", f"sort (o): {want}" in str(app.query_one("#bars").content))
-            parts = {"flash": ("flash",), "ram": ("ram", "pool", "ramtext")}[want]
-            cost = lambda k: (lambda s: sum(s[r] for r in parts if s.get(r) is not None)
-                              if any(s.get(r) is not None for r in parts) else None)(app.savings.get(k) or {})
+            parts = {"flash": ("flash",), "ram": ("ram", "pool", "ramtext"), "arena": ()}[want]
+            cost = (lambda k: app.arena_item.get(k)) if want == "arena" else (
+                lambda k: (lambda s: sum(s[r] for r in parts if s.get(r) is not None)
+                           if any(s.get(r) is not None for r in parts) else None)(app.savings.get(k) or {}))
             groups = app.query_one("#tree").root.children
             flat = [n.data for g in groups for n in g.children]
             vals = [cost(k) for k in flat]
@@ -103,6 +104,14 @@ async def sort_test():
             check(f"sort {want}: the sorted column is highlighted",
                   any(s.style and "reverse" in str(s.style) for k in app.nodes for s in app.nodes[k].label.spans)
                   or app.over.get("sram" if want == "ram" else want, 0) > 0)   # (an overflowing region keeps its red marks)
+    app = M.Builder(C.defaults(), "default")
+    async with app.run_test(size=(200, 60)) as pilot:
+        await pilot.pause()
+        lab = lambda k: str(app.nodes[k].label)
+        check("arena column: shown beside the costs as KB of one instance (ENG_PHYS 12.6K, FX_DELAY 128.0K), also for an item that is off",
+              "arena 12.6K" in lab("ENG_PHYS") and "arena 128.0K" in lab("FX_DELAY") and "arena 8.0K" in lab("INS_DELAY"))
+        check("arena column: ? for an item that uses the arena with no size defined here (SD_RING), nothing for one that takes none",
+              "arena ?" in lab("SD_RING") and "arena" not in lab("ENG_ANALOG"))
     check("sort: per session, a new builder starts in the default order", M.Builder(C.defaults(), "default").sort_by is None)
 
 

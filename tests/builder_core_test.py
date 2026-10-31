@@ -23,6 +23,7 @@ import configure as C
 import core as K
 import optimist as O
 import registry as R
+import web_api
 
 fails = 0
 
@@ -261,6 +262,31 @@ def once(M):
                    for v in ([c[0] for c in it.choices] if it.is_choice else (0, 1))},
          "kits": M.kit_shared(costs), "defaults": M.defaults(), "needs_auto": list(M.NEEDS_AUTO)}))
 
+
+# ---- the Arena column (the user, 2026-10-31): the arena one instance of each item takes, from the numbers the arena model uses
+_ar = K.arena_items(_d0 := K.defaults())
+check("arena: every item has a value (bytes, 0 for none) or None ('?'), configure re-exports them",
+      set(_ar) == set(R.ITEMS) and all(v is None or (isinstance(v, int) and v >= 0) for v in _ar.values())
+      and C.arena_items is K.arena_items and C.item_arena is K.item_arena and C.ARENA_UNKNOWN is K.ARENA_UNKNOWN)
+check("arena: None only for the items in ARENA_UNKNOWN, each in the registry",
+      {k for k, v in _ar.items() if v is None} == set(K.ARENA_UNKNOWN) and set(K.ARENA_UNKNOWN) <= set(R.ITEMS))
+check("arena: a part's engine state is PART_MEM / NPART (FM6 with its sine table), WAVE's table, the X0X states",
+      all(_ar[k] == K.PART_MEM[k] // K.NPART + (K.FM6_SIN if k == "ENG_FM6" else 0) for k in K.PART_MEM)
+      and _ar["ENG_WAVE"] == K.WAVE_MEM and _ar["DRUM_X0X808"] == K.X808_STATE and _ar["DRUM_X0X909"] == K.X909_STATE[0])
+check("arena: the effects' lines are fx_memory's and follow their size options (DLY_LEN, XDLY_LEN, SL_LEN, PUNCH_N)",
+      _ar["FX_CHORUS"] == K.FXM_CHO_KB * 1024 and _ar["INS_DELAY"] == 8192 and _ar["INS_JCHORUS"] == 4096 and _ar["INS_FLANGER"] == 1024
+      and _ar["FX_DELAY"] == _ar["DLY_LEN"] == K.dly_send_kb(_d0) * 1024 and _ar["FX_SLICER"] == 2 * _d0["SL_LEN"]
+      and _ar["FX_PUNCH"] == 2 * _d0["PUNCH_N"]
+      and K.item_arena(dict(_d0, DLY_LEN=32768), "FX_DELAY") == 65536
+      and K.item_arena(dict(_d0, INS_XDLY=1), "INS_XDLY") == K.fx_memory(dict(_d0, INS_XDLY=1))["types"]["INS_XDLY"]["kb"] * 1024)
+check("arena: the reverb send's block is rev_lines + the ROOM's diffusers (arena_blocks), each algorithm alone its own line",
+      _ar["FX_REVERB"] == K.arena_blocks(_d0)["the reverb's line"] and _ar["REV_PLATE"] == 2 * 8192 and _ar["SPRING"] == 2 * 4096
+      and _ar["REV_ROOM"] == 2 * K.REV_ROOM_LEN + K.rev_ap(_d0))
+check("arena: an engine that keeps no state in the arena takes 0 (ANALOG, DIGITAL), a plain insert too",
+      _ar["ENG_ANALOG"] == _ar["ENG_DIGITAL"] == _ar["INS_FOLD"] == _ar["KIT_ACOUSTIC"] == 0)
+web_api.init(costs, C.NEEDS_AUTO)
+check("arena: web_api.view carries it as arena_item (JSON: null for unknown)",
+      json.loads(json.dumps(web_api.view({})["arena_item"])) == _ar)
 
 # ---- the memory management group (the user, 2026-10-28): first, MEMORY a front for LAYOUT / SDCARD (FAR_OK went 2026-10-29)
 import room as RM  # noqa: E402

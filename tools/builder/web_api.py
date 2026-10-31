@@ -102,6 +102,7 @@ def view(values, name="", commit=None):
                      rows=[[n, by, c, note] for n, by, c, note in K.arena_fits(cfg)["rows"]]) if a else None
     return {"eval": ev, "arena": arena,
             "savings": K.savings_of(cfg, COSTS) if COSTS else {},
+            "arena_item": K.arena_items(cfg),   # (bytes of the arena one instance of each item takes; null: unknown)
             "conflicts": {k: [str(e) for e in v] for k, v in K.conflicts(cfg).items()},
             "over": over, "undo": undo,
             "kit_shared": K.kit_shared(COSTS) if COSTS else None,

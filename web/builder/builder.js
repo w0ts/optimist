@@ -7,7 +7,7 @@
 // tools/builder/web_api.py). The cloud build (where from, the request, its progress): cloud.js. opts.app: the Mirror
 // app's page (web/builder/app.html): the Build card first, without the files and the keys. docs/WEB.md.
 import {
-  MAIN_REF, PYODIDE_VERSION, TURNSTILE_SITEKEY, COSTS, costOf, BUDGETS, budgetsOf, SORTS, barModel, fmtK, built, cloudConfigUrl, commitOf, latestOf, pickRef, refUrl, repoOf, defaultPreset, defaults, deltaOf, fileName, fmt,
+  MAIN_REF, PYODIDE_VERSION, TURNSTILE_SITEKEY, COSTS, costOf, BUDGETS, budgetsOf, SORTS, ARENA_TIP, arenaText, barModel, fmtK, built, cloudConfigUrl, commitOf, latestOf, pickRef, refUrl, repoOf, defaultPreset, defaults, deltaOf, fileName, fmt,
   changeText, gaugeModel, hasInfo, indexRegistry, kDelta, messagesOf, offFits, oneLine, overflowLines, presets, pyodideBase, savedOf, treeOf,
 } from "./logic.js";
 import { mountCloud } from "./cloud.js";
@@ -33,7 +33,7 @@ const TEMPLATE = `
       <button type="button" id="save" title="Keep this configuration under its name (in this browser, or the app)">Save</button>
       <button type="button" id="unsave" class="quiet" hidden>Delete</button>
       <label class="o-field grow">Search<input id="search" type="search" placeholder="label, key, group" autocomplete="off"></label>
-      <label class="o-field half">Sort<select id="sort"><option value="">default order</option><option value="flash">flash, largest first</option><option value="ram">ram, largest first</option></select></label>
+      <label class="o-field half">Sort<select id="sort"><option value="">default order</option><option value="flash">flash, largest first</option><option value="ram">ram, largest first</option><option value="arena">arena (one instance), largest first</option></select></label>
       <button type="button" id="expand" class="icon" title="Expand all (x)" aria-label="Expand all">▾▾</button>
       <button type="button" id="collapse" class="icon" title="Collapse all (c)" aria-label="Collapse all">▸▸</button>
       <button type="button" id="reset" disabled>Reset to default</button>
@@ -369,6 +369,8 @@ function itemRow(key, hasKids) {
     const hot = (over[r] || 0) > 0 && n > 0;
     tags.append(el("span", { class: "cost" + (hot ? " hot" : "") + (r === S.sortBy ? " sortby" : ""), text: `${r} ${kDelta(n)}` }));
   }
+  const an = v && v.arena_item ? v.arena_item[key] : undefined;
+  if (an !== undefined && arenaText(an)) tags.append(el("span", { class: "arena" + (S.sortBy === "arena" ? " sortby" : ""), title: ARENA_TIP, text: `arena ${arenaText(an)}` }));
   if (v && offFits(deltas, over)) tags.append(el("span", { class: "fits", text: "◀ off = fits" }));
   if (S.reg.kits.includes(key) && live && v) {
     const sh = v.kit_shared && v.kit_shared.flash;
@@ -402,7 +404,7 @@ function renderTree() {
   const ae = document.activeElement, keepFocus = ae && ae.id, keepFold = ae && ae.dataset && ae.dataset.fold;
   tree.textContent = "";
   const v = S.view;
-  for (const g of treeOf(S.reg, S.filter, v ? v.savings : {}, S.sortBy)) {
+  for (const g of treeOf(S.reg, S.filter, v ? v.savings : {}, S.sortBy, v ? v.arena_item : null)) {
     const gid = "g:" + g.group, open = !S.collapsed.has(gid) || !!S.filter;
     const list = el("ul", { hidden: !open });
     const li = (t) => {

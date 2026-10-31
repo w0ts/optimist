@@ -992,6 +992,71 @@ def arena_blocks(cfg):
 SEND_LINES = ("the delay's line", "the chorus send's line", "the reverb's line")
 
 
+# ---- the arena one instance of an item takes (the user, 2026-10-31: "list the arena ram (assuming one instance) and allow
+# sorting on that"). One instance = one part's engine state, one effect's line, one buffer: the same numbers arena_blocks
+# places (PART_MEM / NPART, fx_memory, arena_bufs), not a second table. A size option (DLY_LEN, XDLY_LEN, SL_LEN, PUNCH_N,
+# the reverb algorithms, the X909 sample widths) shows the block it sizes. 0: the item keeps nothing in the arena.
+# None ("?"): it does, but the size is not defined by a constant in this source: the card streams' block is the project's
+# (sd_stream_plan.c sst_need: its rings, caches and each card sample), and the features lent by the includer (core/feat_mem.c
+# FMEM_FEATS: BT AUDIO, the mirror's Bluetooth ring, Wi-Fi Link, its access point) are sized in fm1-base (plat.h
+# plat_*_mem_bytes), which this checkout does not carry
+ARENA_UNKNOWN = {
+    "ENG_SAMPLE": "its card samples stream through a block sized by the project (sd_stream_plan.c sst_need)",
+    "SD_RING": "the card streams' block: the rings and each card sample, sized by the project (sd_stream_plan.c sst_need)",
+    "BT_AUDIO": "a lent block, sized in fm1-base (plat_bta_mem_bytes), not in this source",
+    "ED_MIRROR": "its Bluetooth ring is lent only by the includer (MIR_LEND; MIR_BLE_RING 8192 B when it is)",
+    "WIFI_LINK": "a lent block, sized in fm1-base (plat_link_mem_bytes), not in this source",
+    "WIFI_AP": "a lent block, sized in fm1-base (plat_wifi_ap_mem_bytes), not in this source",
+}
+
+
+def _reverb_arena(cfg, algo=None):
+    """-> bytes of the reverb send's block (the line and, with ROOM, its diffusers): the algorithms as set, or algo alone"""
+    c = dict(cfg, FX_REVERB=1)
+    if algo:
+        c.update({a: 0 for a in R.REV_ALGOS if a in c}, **{algo: 1})
+    return sum(rev_lines(c).values()) + rev_ap(c)
+
+
+def item_arena(cfg, key):
+    """-> bytes of the arena one instance of the item takes (see above), 0 for none, None when it is not known"""
+    if key in ARENA_UNKNOWN:
+        return None
+    if key in PART_MEM:
+        return PART_MEM[key] // NPART + (FM6_SIN if key == "ENG_FM6" else 0)
+    if key in ("FX_DELAY", "DLY_LEN"):
+        return 2 * cfg["DLY_LEN"]
+    if key in ("INS_XDLY", "XDLY_LEN"):
+        return 4 * cfg["XDLY_LEN"]                      # (two lines of XDLY_LEN samples, 2 B each)
+    if key in ("FX_SLICER", "SL_LEN"):
+        return 2 * cfg["SL_LEN"]
+    if key in ("FX_PUNCH", "PUNCH_N"):
+        return 2 * cfg["PUNCH_N"]
+    if key == "FX_CHORUS":
+        return FXM_CHO_KB * 1024
+    fixed = {"INS_DELAY": 8, "INS_JCHORUS": 4, "INS_FLANGER": 1}   # (fx_memory: KB of a line)
+    if key in fixed:
+        return fixed[key] * 1024
+    if key == "FX_REVERB":
+        return _reverb_arena(cfg)
+    if key in R.REV_ALGOS:
+        return _reverb_arena(cfg, key)
+    if key == "ENG_WAVE":
+        return WAVE_MEM
+    if key in ("DRUM_X0X909", "X909_CYM", "X909_HAT"):
+        return X909_STATE[cfg.get("X909_CYM", 0) == 2 or cfg.get("X909_HAT", 0) == 2]
+    if key == "DRUM_X0X808":
+        return X808_STATE
+    return 0
+
+
+def arena_items(cfg):
+    """-> {key: bytes | None} item_arena of every item, as the configuration sets its sizes (the builder's Arena column)"""
+    return {k: item_arena(cfg, k) for k in R.ITEMS}
+
+
+
+
 def arena_sends(blocks):
     """-> {name: bytes} the send lines among arena_blocks: a new project has the chorus, the delay and the reverb in
     its master slots (fx/fx_arena.c places each line while its type is in one), so the arena must hold them together,

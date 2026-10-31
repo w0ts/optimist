@@ -8,7 +8,7 @@ run them (the estimate only: no real build's sizes, as on the page), without web
 
 request: {"views": [{"values", "name", "commit"}], "toggles": [{"values", "key", "value", "room"}],
           "texts": [".config text"]}
-answers: {"views": [{"eval", "savings", "conflicts", "over", "fit", "proposals", "dump"}], "toggles": [{"values", "room"}],
+answers: {"views": [{"eval", "savings", "arena_item", "conflicts", "over", "fit", "proposals", "dump"}], "toggles": [{"values", "room"}],
           "texts": [{"values", "name", "warnings", "error"}], "registry": core.describe()}
 """
 import json
@@ -34,7 +34,7 @@ def view(q, costs):
     ev = C.evaluate({"config": cfg, "costs": costs, "commit": q.get("commit")})
     b = C.budget(cfg, costs, use_exact=False)
     fitted, changes = C.fit(cfg, costs)
-    return {"eval": ev, "savings": C.savings_of(cfg, costs),
+    return {"eval": ev, "savings": C.savings_of(cfg, costs), "arena_item": C.arena_items(cfg),
             "conflicts": {k: [str(e) for e in v] for k, v in C.conflicts(cfg).items()},
             "over": {r: o for r, (_, _, o) in C.fits(b["total"], cfg).items() if o > 0},
             "fit": {"values": fitted, "changes": changes}, "proposals": C.K.proposals(cfg, costs), "dump": C.dump(cfg, q.get("name", ""))}
