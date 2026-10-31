@@ -233,6 +233,10 @@ static void keys_lit(uint32_t *f, uint32_t *d, uint32_t *h)
         prj_keys_lit(f, d, blink);                      /* (the slots: used full, free dim, the selected one blinking) */
         return;
     }
+    if (ui.scr == SCR_STEP && step_save_keys()) {
+        *f = step_save_lit();                           /* (SAVE held, no note picked: the used pattern slots) */
+        return;
+    }
     if (ui.scr == SCR_STEP) {
         *f = step_leds(blink);
         *d = step_keys(fm1_in.buttons) ? step_dim() : 0u;

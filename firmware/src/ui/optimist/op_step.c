@@ -63,6 +63,7 @@ static int roll_carried(const track_t *t, const step_t *s, uint32_t idx, uint32_
 static void hp_save(void);
 static void hp_reopen(void);
 static void pk_unlatch(void);
+static void pk_take(uint32_t idx, uint32_t slot);       /* the note entered / edited: the picked one */
 static int pk_ok(void);
 
 static const uint8_t LV_UP[4] = {LV_GHOST, LV_SOFT, LV_NORM, LV_HARD};   /* the levels, softest first */
@@ -82,13 +83,22 @@ static int step_pick(uint32_t held)
     (void)held;
     return 0;
 }
-/* the keys are steps now: STEP shown, not toggled to playing, and not a pick: the drum track's HOME (step_pick), a
- * synth track's SEQ (the pen). The drum track's SEQ + a step clears it (step_key) */
+/* REC on, STEP's keys play (the user, 2026-10-31: "in SEQ mode, we need to hold SEQ to record notes with the keyboard. just
+ * change that, if REC is on the keyboard acts as midi keyboard, off it acts as step seq. more logical"): armed or
+ * recording, they sound and record as on every other page (the pen: a synth's notes set the pick); off, they are steps */
+static int step_rec_keys(void) { return song.rec != 0u || rec_wait != 0u; }
+/* the keys are steps now: STEP shown, REC off, and not a pick (the drum track's HOME, step_pick: none now). The drum
+ * track's SEQ + a step clears it (step_key); a synth track's SEQ held is nothing to the keys any more (it was the pen:
+ * REC on is) */
+static int step_save_keys(void);                        /* below: SAVE held, no note picked: the keys are slots */
+static void step_save_key(uint32_t w);
 static int step_keys(uint32_t held)
 {
-    if (ui.scr != SCR_STEP || st.play)
+    if (ui.scr == SCR_STEP && step_save_keys())
+        return 1;
+    if (ui.scr != SCR_STEP || st.play || (!is_drum(TSEL) && step_rec_keys()))
         return 0;
-    return is_drum(TSEL) ? !step_pick(held) : !(held & (1u << panel.btn[B_SEQ]));
+    return is_drum(TSEL) ? !step_pick(held) : 1;
 }
 
 /* ---- the window */
@@ -96,6 +106,16 @@ static void step_tick(void)                             /* once a frame: FOLLOW,
 {
     const track_t *t = tsel();
     uint32_t n = step_pages(t);
+    static uint8_t rec_seen;
+    if (rec_seen != rec_last_n) {                       /* a note recorded on the selected track: the picked one */
+        const step_t *s = &t->step[rec_last_at % NSTEP];
+        uint32_t k;
+        rec_seen = rec_last_n;
+        for (k = 0; k < s->n && k < 4u && s->note[k] != rec_last_note; k++)
+            ;
+        if (rec_last_trk == song.sel && !st.held && (is_drum(t) ? rec_last_note == lane_selected() : k < s->n && k < 4u))
+            pk_take(rec_last_at, is_drum(t) ? 0u : k);
+    }
     if (st.latch && (ui.scr != SCR_STEP || !pk_ok()))
         pk_unlatch();                                   /* (the picked note's cards: another track, lane or screen lets go) */
     if (st.follow && song.playing && !st.held)
@@ -663,6 +683,10 @@ static void step_key(uint32_t k, uint32_t down, uint32_t held)
     }
     if (w < 0 || w > 15)
         return;
+    if (down && step_save_keys()) {
+        step_save_key((uint32_t)w);                     /* (SAVE + white key n: slot n, never a step) */
+        return;
+    }
     if (down && ui.scr != SCR_STEP)
         step_tick();                                    /* (off STEP: the window FOLLOW keeps, inside LEN) */
     bit = 1u << w;
@@ -688,6 +712,9 @@ static void step_key(uint32_t k, uint32_t down, uint32_t held)
                 step_set(t, idx);
             fm1_irq_on();
             sync_reload = 1;
+            if (!pk_note(t, idx) && st.pk == idx && st.pk_trk == song.sel)
+                st.pk = PK_NONE;                        /* (the picked note tapped off: nothing picked) */
+            pk_take(idx, NSEL_ALL);                     /* (a note set: the picked one) */
         }
         else if (pk_note(t, idx) && st.pk_trk == song.sel && st.pk != PK_NONE && !st.latch)
             st.pk = (uint8_t)idx;                       /* (held, moved by PRESETS: the selection where it went) */
@@ -750,10 +777,15 @@ static track_t *held_open(void)                         /* an edit of the steps 
     fm1_irq_off();
     return t;
 }
-static void held_shut(void)                             /* ... done: IRQ on, the sequencer told */
+static void pk_take(uint32_t idx, uint32_t slot);       /* below: the note edited, picked */
+static int32_t held_first(void);
+static void held_shut(void)                             /* ... done: IRQ on, the sequencer told; the step edited, picked */
 {
+    int32_t i = held_first();
     fm1_irq_on();
     sync_reload = 1;
+    if (i >= 0 && (st.pk != (uint32_t)i || st.pk_trk != song.sel))
+        pk_take((uint32_t)i, st.nsel);
 }
 /* the steps held, one by one: f(t, idx) for each within LEN (IRQ off, one undo level, edited: kept when let go); -> how many */
 static uint32_t held_each(void (*f)(track_t *t, uint32_t idx, int32_t s), int32_t s)
@@ -1589,6 +1621,30 @@ static void pk_free(const uint32_t *sv)                 /* ... let go: the pick 
  * one above, etc."); past the highest the next step's notes, all first; back the other way: the highest .. the lowest, all,
  * the step before's highest. One note: one stop. At the first / last note it stays */
 static int32_t pk_lo(int32_t m) { return m > 1 ? -1 : 0; }   /* the first stop of a step of m notes */
+static void pk_none(void)                               /* KNOB 1's stop before the first note: nothing picked, said */
+{
+    if (st.latch)
+        pk_unlatch();
+    st.pk = PK_NONE, st.snapl = 0;
+    ui_message("NO NOTE");
+    op_repaint();
+}
+/* the note just entered or edited is the picked one (the user, 2026-10-31: "the last note entered/edited in the step seq
+ * must be selected"): a step key's note, a held step's, a recorded one (seq.c rec_last), a moved one; KNOB 1 goes on from
+ * it. slot: its slot in the step (NSEL_ALL: every note starting there) */
+static void pk_take(uint32_t idx, uint32_t slot)
+{
+    const track_t *t = tsel();
+    uint8_t k[4];
+    if (ui.scr != SCR_STEP || st.latch || idx >= trk_len(t) || !pk_note(t, idx))
+        return;
+    if (st.pk != idx || st.pk_trk != song.sel)
+        st.snapl = 0;
+    st.pk = (uint8_t)idx, st.pk_trk = song.sel;
+    if (!is_drum(t) && pk_heads(t, idx, k) == 1u)
+        slot = k[0];                                    /* (one note: its slot, KNOB 1's one stop there) */
+    st.nsel = is_drum(t) ? 0u : (uint8_t)slot;
+}
 static __attribute__((noinline)) void pk_walk(int32_t s)   /* KNOB 1: s notes on, stopping at the first / last (once:
                                                             * inlined into ui_input it cost 950 B) */
 {
@@ -1605,8 +1661,11 @@ static __attribute__((noinline)) void pk_walk(int32_t s)   /* KNOB 1: s notes on
             r = -1;                                     /* (the chord picked whole) */
         else if (r == m)
             r = d > 0 ? pk_lo(m) - 1 : m;               /* (its note gone: from the step's edge) */
+    } else if (d < 0) {
+        pk_none();                                      /* (none: the stop before the first note, the left end) */
+        return;
     } else {
-        i = d > 0 ? (int32_t)st.page * 16 - 1 : (int32_t)st.page * 16 + 16;   /* (none: from the window's edge) */
+        i = (int32_t)st.page * 16 - 1;                  /* (none: from the window's edge, the first note after it) */
     }
     while (n-- > 0) {
         if (r + d >= pk_lo(m) && r + d < m && !drum) {
@@ -1615,6 +1674,11 @@ static __attribute__((noinline)) void pk_walk(int32_t s)   /* KNOB 1: s notes on
         }
         for (j = i + d; j >= 0 && j < len && !pk_note(t, (uint32_t)j); j += d)
             ;
+        if (j < 0 && pk_note(t, (uint32_t)i)) {
+            pk_none();                                  /* (left past the first note: no note picked, the user, 2026-10-31: "we
+                                                         * need a way to select no note") */
+            return;
+        }
         if (j < 0 || j >= len)
             break;
         i = j;
@@ -1663,6 +1727,63 @@ static void pk_knob(uint32_t k, int32_t s, int shift)   /* a knob turned on STEP
         held_edit(is_drum(TSEL) ? 0u : 4u, s);          /* (drums: LEVEL; synths: LENGTH, edit_synth 4) */
     }
     pk_free(sv);
+}
+/* ---- SAVE with no note picked (the user, 2026-10-31): tapped, the working pattern into the slot it came from, unasked
+ * (its own: "STORED T1 5"; none yet: the first free one), on release and not when HOME joined in (SAVE then HOME is undo);
+ * held, the white keys light the selected track's used slots; SAVE + white key n stores into slot n, asked over a used one
+ * (the LFO layer's SAVE + n, pat_store_ask). While SAVE is held the white keys are slots, never steps (step_keys). A note
+ * picked: SAVE is the note's (tapped its cards, held its mute) */
+#if FELUCCA_PATTERNS
+static int pat_has(uint32_t k, uint32_t s);             /* storage/sections/pat.c, later in the unit */
+static uint32_t pat_free(uint32_t k);
+static int pat_store_slot(uint32_t k, uint32_t s);
+static void pat_store_ask(uint32_t t, uint32_t s);      /* op_layers.c */
+static void pat_name(char *b, uint32_t k, uint32_t s);
+#endif
+static uint32_t keys_of(uint32_t m);                    /* op_input.c: a window's steps as white keys */
+static int step_save_keys(void)                         /* SAVE held, no note picked, nothing held: the keys are slots */
+{
+    return FELUCCA_PATTERNS && ui.scr == SCR_STEP && btn_held(B_SAVE) && !pk_ok() && !st.held && !op_armed();
+}
+static int step_save_own(void)                          /* SAVE tapped, no note picked: 1 done */
+{
+#if FELUCCA_PATTERNS
+    uint32_t t = song.sel % NTRK, s;
+    char nm[8];
+    if (ui.scr != SCR_STEP || pk_ok() || st.held || op_armed())
+        return 0;
+    s = pat_cur[t] < PAT_N ? pat_cur[t] : pat_free(t);
+    if (s >= PAT_N) {
+        ui_message("NO FREE PATTERN");
+    } else if (!pat_store_slot(t, s)) {
+        pat_name(nm, t, s);
+        ui.toast_next = 1;                              /* (a toast in the middle, as a confirmed store) */
+        ui_say("STORED ", nm);
+        ui.toast_next = 0;
+    }
+    return 1;
+#else
+    return 0;
+#endif
+}
+static void step_save_key(uint32_t w)                   /* SAVE + white key w: the working pattern into slot w (asked over a used one) */
+{
+#if FELUCCA_PATTERNS
+    if (w < PAT_N)                                      /* (SAVE let go after: no tap, the key used it, op_input.c) */
+        pat_store_ask(song.sel % NTRK, w);
+#else
+    (void)w;
+#endif
+}
+static uint32_t step_save_lit(void)                     /* SAVE held: the used slots' white keys */
+{
+    uint32_t m = 0;
+#if FELUCCA_PATTERNS
+    uint32_t w;
+    for (w = 0; w < 16u && w < PAT_N; w++)
+        m |= pat_has(song.sel % NTRK, w) ? 1u << w : 0u;
+#endif
+    return keys_of(m);
 }
 static int pk_save(void)                                /* SAVE tapped: the picked note's cards; 1 done */
 {
@@ -1733,7 +1854,8 @@ static int pk_delete(void)                              /* HOME held alone: the 
     step_wipe(t, st.pk, 0);                             /* (the drum track: the lane's hit; a synth: the note and its ties) */
     fm1_irq_on();
     sync_reload = 1;
-    ui_message("NOTE DELETED");                         /* (the pick stays there: KNOB 1 goes on from it) */
+    st.pk = PK_NONE;                                    /* (nothing picked: KNOB 1's "no note", the user, 2026-10-31) */
+    ui_message("NOTE DELETED");
     op_repaint();
     return 1;
 }
@@ -2432,6 +2554,9 @@ static void step_seq_tap(uint32_t lng)
         op_row_pick(ui.row[SCR_STEP] + 1u < n ? ui.row[SCR_STEP] + 1u : 0u);   /* (past the last: the first) */
         return;
     }
+    if (lng)
+        return;                                         /* (SEQ held long on STEP: nothing; the keys play with REC on, step_keys.
+                                                         * It toggled them to playing before, 2026-10-31) */
     st.play = (uint8_t)!st.play;
     if (st.held)
         hp_save();
@@ -2488,13 +2613,12 @@ static void step_foot(char *h, char *k, uint32_t n)
 #endif
         return;
     }
-    str_cpy(h, st.play ? "Seq steps  Home back" : "Seq play  Home back", n);
+    str_cpy(h, step_rec_keys() ? "Rec off steps  Home back" : "Rec on play  Home back", n);
     if (is_drum(TSEL) && btn_held(B_SEQ) && !st.play) {
         str_cpy(k, "Keys clear steps", n);              /* (the drum track: SEQ + a key clears its step) */
         return;
     }
-    str_cpy(k, step_pick(fm1_in.buttons) || (!is_drum(TSEL) && btn_held(B_SEQ)) ? "Pick "
-              : st.play ? "Keys play " : "Keys steps ", n);
+    str_cpy(k, step_pick(fm1_in.buttons) ? "Pick " : !step_keys(fm1_in.buttons) ? "Keys play " : "Keys steps ", n);
     step_pick_name(b, sizeof b);
     str_app(k, b, n);
 }
