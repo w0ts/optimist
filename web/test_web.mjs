@@ -3547,6 +3547,37 @@ async function editorMirror() {
   }
   ok(frames > 50 && !bad && !diff, `mirror: ${frames} frames decoded to the fixture's screen (${bad} bad, ${diff} pixels off)`);
   ok(!mirrorFrame([3, 0, 0]) && !mirrorFrame([1, 0, 0]), "mirror: an unknown op or a short BLIT refused");
+  {   /* checked frames (106 bit 3; ed_mirror_enc.h ops 8..10, 2026-11-01): the fixture's pushes as the firmware sends them checked */
+    const pushes = [];
+    for (let i = 0, st = -1; i < sx.length; i++) {
+      if (sx[i] === 0xF0) st = i;
+      if (sx[i] === 0xF7 && st >= 0) { pushes.push(Array.from(sx.subarray(st + 5, i))); st = -1; }
+    }
+    let seq = 0;
+    const chk = pushes.map((a) => {
+      if (a[0] > 2 || (a.length === 6 && a[0] <= 1 && a[1] >= 1)) return a;
+      const g = [a[0] + 8, ...a.slice(1), seq];
+      seq = (seq + 1) & 127;
+      let x = 0, y = 0;
+      for (const b of [0x7D, 0x46, 0x4C, 106, ...g]) { x += b; y += x; }
+      return [...g, x & 127, y & 127];
+    });
+    mir.img.data.fill(0); mir.haveSeq = false; mir.broken = false; mir.lost = 0;
+    let cbad = 0, cdiff = 0;
+    for (const a of chk) if (!mirrorFrame(a)) cbad++;
+    for (let k = 0; k < 240 * 240; k++) {
+      const c = px[2 * k] | (px[2 * k + 1] << 8), d = mir.img.data;
+      cdiff += d[4 * k] !== Math.round(((c >> 11) & 31) * 255 / 31) || d[4 * k + 1] !== Math.round(((c >> 5) & 63) * 255 / 63) || d[4 * k + 2] !== Math.round((c & 31) * 255 / 31);
+    }
+    ok(!cbad && !cdiff && mir.lost === 0, `mirror: checked frames decoded to the fixture's screen (${cbad} bad, ${cdiff} pixels off)`);
+    const k = chk.findIndex((a, i) => a[0] === 9 && chk[i + 1] && chk[i + 1][0] === 10 && a.length > 40);
+    const zeroed = chk[k].slice(); for (let i = 15; i < 25; i++) zeroed[i] = 0;
+    const before = Uint8ClampedArray.from(mir.img.data), l0 = mir.lost;
+    ok(k >= 0 && !mirrorFrame(zeroed) && !mirrorFrame(chk[k + 1]) && mir.lost > l0 && mir.img.data.every((v, i) => v === before[i]),
+      "mirror: a checked BLIT with bytes zeroed dropped, its MORE after it dropped too, nothing drawn (the whole panel asked again)");
+    mir.haveSeq = false; mir.broken = false;
+    ok(mirrorFrame(chk[k]) && mirrorFrame(chk[k + 1]), "mirror: ... the same frames whole drawn");
+  }
   ok(/f\.cmd === CMD\.MIRROR && !\(f\.a\.length === 6 && f\.a\[0\] <= 1 && f\.a\[1\] >= 1\)\) \{ this\.onMirror\(f\.a\)/.test(html) && /onMirror: \(a\) => mirrorFrame\(a\),/.test(html)
     && /MIRROR: 106/.test(html) && /id === 0x65 && n >= 1 && a\[r\.i\] >= 1\) o\.mirror/.test(html) && /dev\.info\.mirror\.v === MIRROR_V/.test(html)
     && /<button role="tab" data-tab="mirror"[^>]* hidden>/.test(html) && /b\.hidden = !mirrorOn\(\)/.test(html)
