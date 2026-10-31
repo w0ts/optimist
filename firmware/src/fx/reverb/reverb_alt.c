@@ -352,16 +352,29 @@ AINL void rv_lfo(void)          /* per block: each line's read, D whole samples 
         rv.eta[j] = (int16_t)(-((h * (32768 - h + ((h * h) >> 15))) >> 15));   /* (1 - f) / (1 + f), its series */
     }
 }
+/* the ring through the step's own copies of rev_line and rv.p (rvf_step: ln, p), the same reads and writes as RV_RD /
+ * RV_WR: their every use reloaded both (a store to the ring may alias rv's 16-bit fields, rv.p any store to rv) */
+#define RVF_RD(b, d) ln[(p + (uint32_t)(b) + (uint32_t)(d)) & RV_M]
+#define RVF_WR(b, v) (ln[(p + (uint32_t)(b)) & RV_M] = (int16_t)(v))
+AINL int32_t rvf_ap(int16_t *ln, uint32_t p, int32_t x, uint32_t base, uint32_t len, int32_t g, int32_t *wr)   /* rv_ap's */
+{
+    int32_t b = RVF_RD(base, len), v = rv_sat(x + mul_tz(b, g));
+    RVF_WR(base, v);
+    *wr |= v;
+    return b - mul_tz(v, g);
+}
 FX_STEP int32_t rv_step(int32_t in, int32_t *yr, int32_t *wr)
 {
+    int16_t *const ln = rev_line;
+    const uint32_t p = rv.p;
     int32_t x = rv_sat(mulq15(in, rv.in)), g1 = rv.g1, g2 = rv.g2, f[8], s = 0, w, l, r, any = x;
     uint32_t rq = rv.rq;
-    RV_WR(RB_PD, x);                                     /* the pre-delay */
-    x = RV_RD(RB_PD, rv.pd);
-    x = rv_ap(x, RB_IA, RV_IA, g1, &any);
-    x = rv_ap(x, RB_IB, RV_IB, g1, &any);
-    x = rv_ap(x, RB_IC, RV_IC, g2, &any);
-    x = rv_ap(x, RB_ID, RV_ID, g2, &any);
+    RVF_WR(RB_PD, x);                                    /* the pre-delay */
+    x = RVF_RD(RB_PD, rv.pd);
+    x = rvf_ap(ln, p, x, RB_IA, RV_IA, g1, &any);
+    x = rvf_ap(ln, p, x, RB_IB, RV_IB, g1, &any);
+    x = rvf_ap(ln, p, x, RB_IC, RV_IC, g2, &any);
+    x = rvf_ap(ln, p, x, RB_ID, RV_ID, g2, &any);
     /* a line: D samples back, then a first-order allpass for the fraction (Dattorro: a flat response, no treble
      * lost to the modulation as through a linear interpolation; its correction to the nearest: |eta| <= 1/3, at 0
      * in it still shrinks to 0; held to int16, the low-pass' product fits),
@@ -373,7 +386,7 @@ FX_STEP int32_t rv_step(int32_t in, int32_t *yr, int32_t *wr)
      * Few values live at once (2026-10-12, revcrack: the eight o and eight f held to the end spilled ~140 words a
      * sample to the stack on the target): each line adds its o to the outputs and its f to the sum at once, the
      * f kept in a small array for the writes. The same sums, the same samples */
-#define RV_LN(k, ol) { int32_t d_ = rv.mod[k], u0_ = RV_RD(RB_##k, d_), u1_ = RV_RD(RB_##k, d_ + 1), o_, lp_; \
+#define RV_LN(k, ol) { int32_t d_ = rv.mod[k], u0_ = RVF_RD(RB_##k, d_), u1_ = RVF_RD(RB_##k, d_ + 1), o_, lp_; \
                        o_ = rv.ap[k] = rv_sat(u1_ + ((rv.eta[k] * (u0_ - rv.ap[k]) + 0x4000) >> 15)); \
                        rq = rq * 1664525u + 1013904223u; \
                        lp_ = rv.lp[k] = o_ + rv_rnd(rv.lp[k] - o_, rv.kl[k], (int32_t)(rq >> 17)); \
@@ -384,14 +397,16 @@ FX_STEP int32_t rv_step(int32_t in, int32_t *yr, int32_t *wr)
 #undef RV_LN
     s = (s + ((s >> 31) & 3)) >> 2;                      /* 2/8 of the sum, toward 0 */
     rv.rq = rq;
-#define RV_WL(k, v) w = rv_sat(s - f[k] + (v)); RV_WR(RB_##k, w); any |= w
+#define RV_WL(k, v) w = rv_sat(s - f[k] + (v)); RVF_WR(RB_##k, w); any |= w
     RV_WL(0, x); RV_WL(1, -x); RV_WL(2, x); RV_WL(3, -x); RV_WL(4, x); RV_WL(5, -x); RV_WL(6, x); RV_WL(7, -x);
 #undef RV_WL
     *wr |= any;
-    rv.p--;
+    rv.p = p - 1u;
     *yr = mulq15(r, RV_OUT) << 2;
     return mulq15(l, RV_OUT) << 2;
 }
+#undef RVF_RD
+#undef RVF_WR
 #undef rv_params
 #undef rv_lfo
 #undef rv_step
