@@ -182,7 +182,7 @@ final class EditorSession: ObservableObject {
         run(label) { [self] in
             try await Ops.projOp(link, op: op, p, name: name)
             try await readProjects()
-            say(["", "Saved as project \(p + 1).", "Opened project \(p + 1).", "Cleared project \(p + 1).", "Named."][op])
+            say(["", "Active project → slot \(p + 1): saved.", "Slot \(p + 1) → Active project: opened.", "Slot \(p + 1) cleared.", "Slot \(p + 1) renamed."][op])
         }
     }
 
@@ -192,16 +192,16 @@ final class EditorSession: ObservableObject {
 
     /// a project as a .fm1proj file (the web editor's format): the stored project; with `saveFirst` the work is saved into it before
     func exportProject(_ p: Int, saveFirst: Bool) {
-        run("Reading project \(p + 1)…") { [self] in
+        run(saveFirst ? "Saving the Active project into slot \(p + 1)…" : "Reading slot \(p + 1)…") { [self] in
             if saveFirst { try await Ops.projOp(link, op: 1, p) }
             projects = try await Ops.projList(link)
             let l = try await Ops.bkListAll(link)
             bkList = l
-            guard let o = l.objs.first(where: { $0.tag == ProjectFile.tag(p) }), o.hasData else { say("Empty project \(p + 1).", error: true); return }
+            guard let o = l.objs.first(where: { $0.tag == ProjectFile.tag(p) }), o.hasData else { say("Slot \(p + 1) is empty.", error: true); return }
             let name = p < (projects?.names.count ?? 0) ? projects!.names[p] : ""
             let file = ProjectFile.encode(slot: p, family: l.magic, name: name, data: try await Ops.readObject(link, o))
             export = ExportItem(url: try FileIO.temp("optimist-project-\(p + 1)\(name.isEmpty ? "" : "-" + FileIO.slug(name)).\(ProjectFile.ext)", Data(file)))
-            say("Exported: project \(p + 1).")
+            say(saveFirst ? "Active project → slot \(p + 1) → File: exported." : "Slot \(p + 1) → File: exported.")
         }
     }
 
@@ -210,12 +210,12 @@ final class EditorSession: ObservableObject {
     func importProject(_ p: Int, _ url: URL) {
         let f: ProjectFile.Contents
         do { f = try ProjectFile.decode(Array(try FileIO.read(url))) } catch { say("Not a project file this FM-1 can take: \(error.localizedDescription)", error: true); return }
-        run("Loading project \(p + 1)…") { [self] in
+        run("File → slot \(p + 1)…") { [self] in
             let l = try await Ops.bkListAll(link)
             bkList = l
             guard f.family == l.magic else { throw WireError("Not a project file this FM-1 can take: another firmware (\(f.family), this one \(l.magic))") }
             guard p < projectCount, let o = l.objs.first(where: { $0.tag == ProjectFile.tag(p) }), o.inBuild else {
-                throw WireError("Not a project file this FM-1 can take: this memory layout has no project \(p + 1)")
+                throw WireError("Not a project file this FM-1 can take: this memory layout has no slot \(p + 1)")
             }
             let open = try await Ops.projList(link).open == p
             try await Ops.projOp(link, op: 3, p)
@@ -223,7 +223,7 @@ final class EditorSession: ObservableObject {
             try await Ops.projOp(link, op: 4, p, name: f.name)
             if open { try await Ops.projOp(link, op: 2, p) }
             try await readProjects()
-            say("Loaded into project \(p + 1).")
+            say("File → slot \(p + 1): loaded.")
         }
     }
 
