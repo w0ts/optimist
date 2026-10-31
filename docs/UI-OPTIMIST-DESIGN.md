@@ -37,10 +37,11 @@ A screen is five functions (rows, a row's name, a cell, a turn, a YES). A cell i
 
 | Screen | Reached by |
 |---|---|
-| The mixer (HOME) | HOME tapped, anywhere; the root |
+| The mixer (HOME) | HOME tapped, anywhere (the selection and the page kept: section 4.1); the root |
 | SOUND (a track's pages) | ENV LFO EDIT FX SCL ARP tapped |
 | STEP | SEQ tapped |
 | The master FX | FX tapped on the mixer's MASTER row; ALGORITHM left of T1 |
+| A return's pages (RET A B C) | EDIT or FX tapped on its mixer row; ALGORITHM left of MASTER (section 4.1.1) |
 | GLOBAL, SYSTEM | GLO tapped: from any other page the one open last (GLOBAL after power-on, kept in RAM only: not over a restart); on one of them, the other. Each keeps its line |
 | PROJECT | SAVE tapped where YES has nothing to do |
 | SONG | SAVE held on PROJECT, SEQ held off STEP, SHIFT2 + SEQ anywhere (on SONG a long SAVE does nothing: the user, 2026-10-23 — a store gesture held long must not leave the screen; back is SEQ held, or a SAVE tap) |
@@ -59,7 +60,7 @@ Every screen is a list of rows. A row has up to four cells; the cells of the cur
 | Control | Does |
 |---|---|
 | SELECT | the cursor: which row (or page). Stops at the ends |
-| ALGORITHM | the track, on every screen that has one: MASTER, T1 T2 T3, DR, the 10 drum lanes, ACCENT. Stops at both ends. Section 2.7 lists where it does nothing |
+| ALGORITHM | the track, on every screen that has one: RET A B C, MASTER, T1 T2 T3, DR, the 10 drum lanes, ACCENT (2026-10-30, the master group first since 2026-10-31; the mixer: USB IN after the lanes). Stops at both ends. Section 2.7 lists where it does nothing |
 | PRESETS | the selected track's sound, one a detent: a synth preset, DR the kit, a lane on its own source that lane's sound. On STEP it scrolls the 16-step window; on GLOBAL, SYSTEM and MASTER it does nothing; under a question, the REC ring and NAME it does nothing |
 | KNOB 1..4 | the cursor row's four cells; a turn makes its cell hot |
 | SHIFT + a knob | the value back to its default (the mixer's volume cards: the row's mute) |
@@ -74,7 +75,7 @@ PATTERN's LEN moves through 1 2 4 8 16 32 64; LFO held + the knob moves it by on
 
 ### 2.2 Taps, holds, YES and NO
 
-- SAVE tapped is YES: enter a row, toggle an on / off value, do an action, confirm a question. HOME tapped is NO: cancel, go back to the mixer; at the root nothing.
+- SAVE tapped is YES: enter a row, toggle an on / off value, do an action, confirm a question. HOME tapped is NO: cancel, go to the mixer, nothing else changed (the track, lane or return selected and the page kept; HOME again: SCOPE, section 4.1).
 - SAVE, HOME and the page buttons act when let go, and only if nothing else was pressed, turned or played meanwhile. That is how a tap, a layer and a chord are told apart.
 - A hold is 350 ms by default, one threshold for every tap-or-hold decision (a layer's map, PLAY for TEMPO, a step key, NAME). SYSTEM > CALIBRATE > HOLD sets 250 / 350 / 500 ms (`core/hold.h`, settings word bits 21..22). A page button let go within hold + 150 ms still counts as a tap.
 - A page button tapped goes to its family's rows; tapped again, to the next row, past the last the first (section 2.4).
@@ -85,7 +86,7 @@ SHIFT is OCT- held, SHIFT2 is OCT+ held. They read one language, as the buttons 
 
 - **SHIFT: off, less, remove.** Mute, clear, default, a ghost hit, the panic, INIT, a return muted.
 - **SHIFT2: pick, on, more.** Select, a hard hit, launch now, the preset list's filter, a layer locked open, STEP's window following again. (The next instrument or kind is SHIFT + PRESETS since 2026-10-31, the user's left shift: section 2.1.)
-- OCT- and OCT+ change the octave (-3..+3) when let go, and only if no other control was used while held. Both tapped together (let go within 400 ms): the track <-> MASTER toggle, back to the page left; on a synth track's STEP, FOLD instead (section 4.2).
+- OCT- and OCT+ change the octave (-3..+3) when let go, and only if no other control was used while held. Both tapped together (let go within 400 ms): the track <-> MASTER toggle: the mixer with MASTER selected (2026-10-30), again back to the page and track left; on a synth track's STEP, FOLD instead (section 4.2).
 - HOME is only HOME / NO. SAVE is never a shift: it saves.
 
 | Held | Plus | Does |
@@ -144,11 +145,11 @@ SAVE then HOME is undo, HOME then SAVE is redo; both act when one of the two is 
 
 ### 2.7 Pages with no track
 
-The keys play the selected track on every page without a track of its own (the user, 2026-10-30: "every page without a track", "exception the patterns/save page that use the keyboard of course"; it supersedes 2026-10-13's "global pages dont play tracks"): GLOBAL, SYSTEM (INFO's meters while playing; the BLE devices list too), the master FX, SCOPE, and the mixer's MASTER and USB rows play, light and record as the track's own pages, SHIFT / SHIFT2 + a key is its mute / its selection there, and OCT- / OCT+ glow and shift the keys' octave (on GLOBAL's tempo line OCT is the tempo nudge, as before).
+The keys play the selected track on every page without a track of its own (the user, 2026-10-30: "every page without a track", "exception the patterns/save page that use the keyboard of course"; it supersedes 2026-10-13's "global pages dont play tracks"): GLOBAL, SYSTEM (INFO's meters while playing; the BLE devices list too), the master FX, SCOPE, and the mixer's MASTER, return (RET A B C, 2026-10-30) and USB rows play, light and record as the track's own pages, SHIFT / SHIFT2 + a key is its mute / its selection there, and OCT- / OCT+ glow and shift the keys' octave (on GLOBAL's tempo line OCT is the tempo nudge, as before).
 
 Only the pages whose keys have a job of their own play nothing, send no MIDI note, light no key, pick no lane and record nothing (`keys_none`: the ISR's `ly_lock` is LY_STEP there and `op_drain` drops the presses): PROJECT (a white key picks and runs a slot; OCT its banks) and SONG off its PATTERNS row (the scenes, the parts window). Their keys stay theirs too on SONG's PATTERNS row (the LFO layer's keys), TEMPO (PLAY held: a white key taps the tempo), NAME, the memory list and the Wi-Fi password (they type, `page_owned`), and in a held layer.
 
-ALGORITHM follows the same rule (`algo_has_track`, using the header's classification): it walks on the mixer, SOUND, STEP, SCOPE and the layers EDIT, SCL, STEP and FM6's ENV. It does nothing on PROJECT, SONG (its patterns row and the LFO-held patterns screen included, 2026-10-21; only the scenes table reads it, as its lane), TEMPO, NAME, the BLE list, a question, the master FX opened by FX, and the layers FX, ARP, GLO, LFO. On GLOBAL and SYSTEM it scrolls the cursor one line a detent. The master FX reached by walking left of T1 keeps the walk, so that right leaves it (`fx_by_walk`).
+ALGORITHM follows the same rule (`algo_has_track`, using the header's classification): it walks on the mixer, SOUND, STEP, SCOPE and the layers EDIT, SCL, STEP and FM6's ENV. It does nothing on PROJECT, SONG (its patterns row and the LFO-held patterns screen included, 2026-10-21; only the scenes table reads it, as its lane), TEMPO, NAME, the BLE list, a question, the master FX opened by FX, and the layers FX, ARP, GLO, LFO. On GLOBAL and SYSTEM it scrolls the cursor one line a detent. The master FX and the returns' pages reached by walking keep the walk, so that it leaves them (`fx_by_walk`).
 
 ## 3. The look
 
@@ -198,9 +199,9 @@ One table names every thing, looked up when drawn; what cells, rows and help lin
 
 ### 4.1 The mixer (HOME)
 
-Horizontal: **the rows are the tracks, the four knobs are four values of the selected row** on its 1x4 cards. Rows: MASTER (above T1, out of view until the cursor goes up), T1 T2 T3, DR, the 10 drum lanes, ACCENT, and with USB audio built the USB input after the drums (`MXR_*`, `op_mixer.c`). ALGORITHM walks them; a lane row selects that lane (its sound previews once if the transport is stopped, `lane_pick_from`).
+Horizontal: **the rows are the tracks, the four knobs are four values of the selected row** on its 1x4 cards. Rows: RET A, RET B, RET C and MASTER (the master screen at the top, section 4.1.1; the user, 2026-10-31: *"master screen should be ABOVE the other t1/t2 etc. can you please keep it AT THE TOP LIKE IT WAS BEFORE"*), T1 T2 T3, DR, the 10 drum lanes, ACCENT, and with USB audio built the USB input after the drums (`MXR_*`, `op_mixer.c`). ALGORITHM walks them; a lane row selects that lane (its sound previews once if the transport is stopped, `lane_pick_from`).
 
-The panel shows one group at a time and the view follows the cursor (`mx_view`): **MASTER** alone (a tall VU over a dB scale, the compressor's gain reduction as an amber bar from the right with its dB, the REV DLY CHO returns' meters, `fx_ret_tap`); **channels** T1 T2 T3 DR, four rows of 41 px (code and chip, the engine and preset in the track's colour, the page's 16 steps with a page bar when LEN > 16, a thin VU with the part's compressor reduction pushing from the right); **the drum lanes** and ACCENT in one column (13 px rows over the help band): code, hits on the page's steps, a hit meter that falls over 12 frames; **USB IN** alone. DR shows every lane's hits merged. The selected row is outlined in its colour. A sequencer-muted row's steps are grey with an X by its code.
+The panel shows one group at a time and the view follows the cursor (`mx_view`): **the master screen** (a return or MASTER selected: RET A B C, then MASTER, the four always on it, section 4.1.1); **channels** T1 T2 T3 DR, four rows of 41 px (code and chip, the engine and preset in the track's colour, the page's 16 steps with a page bar when LEN > 16, a thin VU with the part's compressor reduction pushing from the right); **the drum lanes** and ACCENT in one column (13 px rows over the help band): code, hits on the page's steps, a hit meter that falls over 12 frames; **USB IN** alone. DR shows every lane's hits merged. The selected row is outlined in its colour. A sequencer-muted row's steps are grey with an X by its code.
 
 SELECT pages the row's knob sets, in one order on every row: the mix, the insert slots, the sends, the rest (each group starts a set; `mx_items`). The header names the set (*T1 mix*, *T1 insert*, *T1 sends*).
 
@@ -210,12 +211,31 @@ SELECT pages the row's knob sets, in one order on every row: the mix, the insert
 | DR | VOLUME \| its two insert slots \| its send levels (0..100 %), PAN |
 | a lane | LEVEL CUT DRIVE \| its two insert slots \| REV DLY CHO, PAN |
 | ACCENT | ACCENT (the amount) |
-| MASTER | its insert slots; DYN's THRS RATIO GAIN CEIL while a master slot holds DYN; the returns A B C levels; A SENDS and B SENDS (the sends between the returns, left to right; C SENDS and the feedback ones with `RET_FB`); DUCK |
+| RET A B C | LEVEL TYPE (its effect; the card labelled FX) and the effect's amount (a type not a send; none for CHO DLY REV) \| PRE TYPE, amount, POST TYPE, amount \| RET EQ3, RET EQ3 F while it holds EQ3 \| its sends to the other returns (left to right; both ways with `RET_FB`). An empty return: its TYPE card alone. Its pages hold the same (section 4.1.1) |
+| MASTER | its insert slots; DYN's THRS RATIO GAIN CEIL while a master slot holds DYN; DUCK (the returns: their own rows and pages since 2026-10-30) |
 | USB IN | VOLUME PAN FX ON \| its slots, then each insert's settings (USB EQ3, EQ3 F, GATER, JUNO) \| its sends |
 
 **ACROSS** (SHIFT2 + HOME on the mixer, again: by row; issue #97, the user 2026-10-28): the four knobs are the four rows of the cursor's group, T1 T2 T3 DR or the lanes 1-4, 5-8, 9-10 + ACCENT, each on its value n (VOLUME first: a four-track recorder's faders). SELECT steps n one value a detent, ALGORITHM walks the groups (MASTER, the channels, the lanes by four, USB IN); the header says *Tracks* or *Lanes* with n/N, the group's rows are outlined on the panel. Only the first card with a value is labelled while the four share it, each card in its row's colour. MASTER and USB IN keep their own cards. SHIFT + a knob mutes that card's row (each row once a hold). RAM only, on until toggled (`mx_across`, `op_mixer.c`).
 
-Mute is not a card: SHIFT + the row's volume knob mutes the sequencer (a return: SHIFT + its card's knob; USB IN keeps its own mute). There is no solo. SAVE tapped always opens PROJECT (the mixer has no YES). FX tapped on MASTER: the master FX; on USB IN: its inserts. PRESETS browses the row's sound. HOME tapped opens SCOPE. A layer held over the mixer is the layer's own 2 x 2 screen.
+Mute is not a card: SHIFT + the row's volume knob mutes the sequencer (a return: SHIFT + its LEVEL knob mutes its output, SHIFT + E F G its input; USB IN keeps its own mute). There is no solo. SAVE tapped always opens PROJECT (the mixer has no YES). FX tapped on MASTER: the master FX; on a return: its FX pages, EDIT its EDIT pages (section 4.1.1); on USB IN: its inserts. PRESETS browses the row's sound.
+
+**HOME** (the user, 2026-10-30: *"clicking home takes me back to the t1/t2/t3/drum screen ? why it should just change the screen to mixer. not change the track, page"*): from any page HOME shows the mixer and changes nothing else: the track, the lane, the return or MASTER selected stays, its row is the cursor and the view is its group's (a track or lane: the tracks; a return or MASTER: the master screen). HOME again on the mixer: SCOPE, for any row (2026-10-31, the user's pick from a mockup: *T2 ENV -> HOME -> the mixer on T2 -> HOME -> SCOPE*; *RET B FX -> HOME -> the master screen on RET B -> HOME -> SCOPE*); it never goes back to the page. The pages keep their memory: a page button reopens the page left (a track's family, a return's EDIT or FX: `op_mixer.c` `rt_mem`) (`op_walk.c` `home_in`). A layer held over the mixer is the layer's own 2 x 2 screen.
+
+### 4.1.1 The returns: tracks of their own, and the master screen
+
+The user, 2026-10-30: *"it might simplify the ui if the return track are just normal track, in the mixer page above master"*, *"Level + mute, two generic inserts like any other tracks"*, *"we could have 2 insert per return track (disto in reverb!)"*, *"the FX (gives the name to the return), pre insert, post insert"*; then *"the idea of having the tracks is that the return track stuff move out of the master track, so that on the master track we only have the inserts stuff etc, not the return track stuff"*, *"clicking home takes me back to the t1/t2/t3/drum screen ? why it should just change the screen to mixer. not change the track, page"*, *"make the return tracks normal track citizens"*.
+
+- **The returns.** RET A B C are the master's return slots 1..3 (`fx_slots.c` `fxs_slot`). Each owns a send line (`fxs_line`: CHO's 0, DLY's 1, REV's 2, another type a free one); its LEVEL (`G_CRET` + line), its output mute (`fx_rmute`), its input mute (`fx_imute`) and its PRE and POST belong to that line, so they move with the effect when two returns swap types. Emptying a return empties its inserts (its level and mutes stay).
+- **A return's pages** (the FX screen with a return as its owner, `ui.fxo` 1..3; `op_mixer.c` `rt_rows`): the badge RET A / B / C, as a track's. **EDIT** (EDIT tapped on its row or its pages; again: the next page, round): the effect only (the user, 2026-10-31: *"the level ... does not need to be on return track edit. only the fx param"*, *"the line for selecting the engine says A/B/C, confusing.. just put FX"*): **FX** (TYPE: its effect, as a synth's ENGINE on its SOUND row, labelled FX, a turn skipping the types the other returns hold; the effect's amount for a type that is not a send; LEVEL and its mute stay on the mixer row), then the effect's own pages (CHO and REV: RET REV, SIZE DAMP RATE DEPTH; REV with more than one algorithm: RET TYPE; DLY: RET DELAY and RET DLY F; EQ3 as the effect: RET EQ3, RET EQ3 F). **FX**: **INSERT** (PRE TYPE, its amount, POST TYPE, its amount: a track's insert grammar, ---- then the types A to Z; a turn skips the other stage's type, the return's own effect and a limited type with no instance free), RET EQ3 / RET EQ3 F while a stage holds EQ3, **SENDS** (its sends to the other returns). ENV LFO ARP SCL SEQ do nothing there (dark).
+- **The walk.** RET A, RET B, RET C, MASTER, T1 .. the last lane, on every page (the master group at the top, as MASTER was before: 2026-10-31): left of T1 MASTER (the master FX), left of it RET C .. RET A, each on its family of the page left (FX's pages: its FX; any other: its EDIT); right of MASTER T1 on the page left. On the mixer USB IN comes after the lanes; SCOPE and the layers stop at MASTER (their `ui.master`). The touch navigation (109 NAV op 4) lists RET A B C, MASTER, T1 .. the last lane (`NAV_NPLACE`, the mixer's rows but USB IN).
+- **The master screen.** A return or MASTER selected on the mixer: four lines, top down RET A, RET B, RET C, MASTER, the four always on the screen; moving among them moves only the frame. A return's line: its chip, its code A B C, its effect's name (REV DLY CHO or the type it holds; *----* empty), its meter (what it gives back to the master, after its POST and level; muted: struck, its code amber). MASTER's: its VU meter over the dB scale, the compressor's reduction (GR) under it. A track or lane selected: the tracks' views as before.
+- **MASTER** keeps only the master's: its inserts, DYN (INS DYN 1, 2), DUCK, the master EQ, MACRO. RETURNS, RET REV, RET TYPE, RET DELAY, RET DLY F, RET AMT, RET EQ3 and SLOTS are gone from the master FX screen (the returns' pages hold them).
+- **The keys.** On a return's pages, its row and MASTER the keys play the track selected before (a return selects no track: the last played one).
+- **Both OCT** on a return's pages or a track's page: the mixer's master screen, MASTER selected; again: the page and the selection left.
+- **Signal.** send bus -> PRE -> FX -> POST -> LEVEL, mute -> master. A return holding another type (`fx.c` `rt_line`): the line's send into L and R, PRE, the effect, POST, then the level. A send bus (the chorus, the delay, the reverb: `fx_buses`): PRE runs on the line's mono send (L = R in, (L + R) / 2 back) before the bus, the bus runs at unity (`RET_LVB`), its output alone in the wet (`rp_line_in` / `rp_line_out`), POST and the level and mute after it. A chain of return sends (`rs_block`) runs PRE in the chain's order. Nothing of it runs while no stage holds a type (`rp_m`, `rp_lvm` 0: the mix sample for sample as before); a stage emptied lets its type go at 0 for 64 blocks.
+- **Types and instances.** A stage holds `RP_OK`: every type a return may hold (`RT_OK`: not GATER, XDLY or EXGN) and CHO DLY REV as inserts where built. A type at most once on a return (effect, PRE, POST): the three share the return's one owner, its states and fxi.c's owner `FXI_RT0 + j`, in the same pool as every slot. A FULL PRE or POST is bypassed, the return plays on (its card FULL, struck); a return whose own effect is FULL is muted (the FULL rule).
+- **Project.** The levels, mutes, types, amounts and sends are stored as before (FXRET_TLV, the header, RET_TLV, RSND_TLV, now 0x4D: at 0x4B, GEN_TLV's id, a record's sends were read as a note generator's). The inserts are RPP_TLV (0x4C, 12 bytes: each line's PRE type, amount, POST type, amount), written only when a stage holds a type; an older firmware skips it. A project of before loads with no inserts (no migration: the user's ruling).
+- **Editor.** FXP (94): a return owner (6..8) has four slots: 0 its effect, 1 its sends, 2 PRE, 3 POST (`ed_fxp.c`). The mirror's NAV (109 op 4) places: RET A B C, MASTER, T1 .. the last lane.
 
 ### 4.2 STEP
 
@@ -245,7 +265,7 @@ The selected track's pages as rows, in `core/params.c` PAGES order, with the pag
 
 ### 4.4 The master FX
 
-Reached by FX on the mixer's MASTER row or ALGORITHM left of T1; FX again: the next page. Badge MASTER. Pages in the signal's order (`FX_ORDER`, `FX_ALIAS` in `op_screens.c`): **Inserts** (the master bus's slots and amounts), the dynamics (INS DYN 1 THRS RATIO ATK REL, INS DYN 2 GAIN CEIL GR, while a slot holds DYN), JUNO / EQ3 settings while a slot holds them, **Duck**, **Returns** (A B C levels, REVERB's TYPE as the fourth card), the effects they return (Delay and its filter TYPE SLOPE FREQ RES, Reverb), the return sends and EQ, **Slots** (the types), **Macro** (COLOR MOTN SPACE ENRGY, MACROS builds). Page names are at most 9 characters. TUNE is on GLOBAL's Tempo list. The mixer's MASTER row follows the same order.
+Reached by FX on the mixer's MASTER row or ALGORITHM left of T1; FX again: the next page. Badge MASTER. The master's own pages only (2026-10-30: the returns' are theirs, section 4.1.1). Pages in the signal's order (`FX_ORDER`, `FX_ALIAS` in `op_screens.c`): **Inserts** (the master bus's slots and amounts), the dynamics (INS DYN 1 THRS RATIO ATK REL, INS DYN 2 GAIN CEIL GR, while a slot holds DYN), JUNO / EQ3 settings while a slot holds them, **Duck**, **Macro** (COLOR MOTN SPACE ENRGY, MACROS builds). Page names are at most 9 characters. TUNE is on GLOBAL's Tempo list. The mixer's MASTER row follows the same order.
 
 ### 4.5 SONG
 
@@ -309,7 +329,7 @@ A layer's "Oct- locks it" hint shows once per power-on (on the help line, else u
 
 ### 4.10 SCOPE
 
-HOME tapped on the mixer (again: back). One row, one page of cards: the source's values (a track LEVEL PAN FX DRIVE; MASTER FILT THRS RATIO GR). The source is ALGORITHM's: the selected track, a lane counts as DR, MASTER the master output (it stays on SCOPE). The panel is the oscilloscope: trigger-stable (the latest rising zero crossing after a swing below peak / 8 that leaves a whole screen), 236 points two frames apart (10.7 ms), scaled to the peak, 30 frames a second, in the source's colour. Audio side (`fx.c`): one 8 KB ring, `vis_pcm`, switched by `scope_src`: 0 the master mix (before the volume, limiter and knee), 1..3 a part after its inserts and before level and pan, 4 the drums' part of the mix. Off SCOPE the source is the master, which the mixer's MASTER row reads.
+HOME tapped on the mixer (again: back; section 4.1). One row, one page of cards: the source's values (a track LEVEL PAN FX DRIVE; MASTER FILT THRS RATIO GR; a return its mixer row's LEVEL FX). The source is ALGORITHM's: the selected track, a lane counts as DR, MASTER the master output, a return (RET A B C, `ui.sret`; the user, 2026-10-31: *"if i am on, say, ret C on mixer, i click home ... it should go to scope ret C"*) its output after its POST and level (`fx.c` `SC_RET`, `scope_src` 5..7 the line; what SYSTEM > USB AUDIO's RET taps take, then its POST and level); it stays on SCOPE. HOME from the mixer's row opens SCOPE on that row's source. The panel is the oscilloscope: trigger-stable (the latest rising zero crossing after a swing below peak / 8 that leaves a whole screen), 236 points two frames apart (10.7 ms), scaled to the peak, 30 frames a second, in the source's colour. Audio side (`fx.c`): one 8 KB ring, `vis_pcm`, switched by `scope_src`: 0 the master mix (before the volume, limiter and knee), 1..3 a part after its inserts and before level and pan, 4 the drums' part of the mix. Off SCOPE the source is the master, which the mixer's MASTER row reads.
 
 ### 4.11 NAME
 

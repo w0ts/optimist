@@ -232,7 +232,27 @@ static void fxs_lm_apply(void)                          /* the drum lanes' send 
 }
 #define FXS_HAS(x) (fxs_live >> (x) & 1u)
 #define FXS_ON(x) (fxs_lnl >> FXS_LN(x) & 1u)
-#define FXI_RT_HOLDS(j, t) (fxs_rty[(j) % 3u] == (t) && FXS_GEN(t))   /* (fxi.c: a return owning a limited type) */
+/* ---- a return's two inserts, PRE and POST (2026-10-30, the user: "Level + mute, two generic inserts like any other tracks",
+ * "the FX (gives the name to the return), pre insert, post insert", "disto in reverb!"; docs/UI-OPTIMIST-DESIGN.md 4.1.1).
+ * Line j's PRE runs on what reaches its effect (its send bus, before the chorus, the delay, the reverb or the other type)
+ * and its POST on what the effect gives back, before the line's RET level and mute: send -> PRE -> FX -> POST -> level,
+ * mute -> the mix. A type each of RP_OK (a stereo owner's types: RT_OK, and CHO DLY REV as inserts where built), its amount
+ * the stage's own (rp_amt; the type's default when loaded, as a new track's), kept per line as the RET level and the mute,
+ * so they go with the effect when two returns swap types; an emptied return's inserts are emptied (fxs_load). A type at
+ * most once on a return (its effect, PRE, POST): the three share the return's states (fx.c rt_sto, insfx.c IFX_RT(j),
+ * fxi.c FXI_RT0 + j: the same pool of instances as every slot's; a FULL one is bypassed, the return plays on). The FX
+ * record keeps them (fx_rec.c RPP_TLV; a project of before has none: every return without) */
+#define RP_OK (RT_OK | (FXT_BUILT & ((INS_CHO ? FXT_BIT(FXT_CHO) : 0u) | (INS_DLY ? FXT_BIT(FXT_DLY) : 0u) | \
+                                     (INS_REV ? FXT_BIT(FXT_REV) : 0u))))
+enum { RP_PRE, RP_POST, RP_N };
+static uint8_t rp_ty[3][RP_N] = {{FXT_NONE, FXT_NONE}, {FXT_NONE, FXT_NONE}, {FXT_NONE, FXT_NONE}};
+static int16_t rp_amt[3][RP_N];
+static volatile uint8_t rp_m;                          /* what the audio reads (rp_fix): bit j line j's PRE heard, 3 + j its POST */
+#define RP_HAS(j, s) (rp_m >> ((uint32_t)(s) * 3u + (uint32_t)(j)) & 1u)
+#define RP_TY(j, s) (RP_HAS(j, s) ? (uint32_t)rp_ty[(j) % 3u][(s) & 1u] : (uint32_t)FXT_NONE)
+#define RP_BITS(j) (FXT_BIT(RP_TY(j, RP_PRE)) | FXT_BIT(RP_TY(j, RP_POST)))   /* (bit 0: FXT_NONE) */
+#define FXI_RT_HOLDS(j, t) ((t) != FXT_NONE && ((fxs_rty[(j) % 3u] == (t) && FXS_GEN(t)) || RP_TY((j) % 3u, RP_PRE) == (t) || \
+                                                RP_TY((j) % 3u, RP_POST) == (t)))   /* (fxi.c: a return owning a limited type) */
 /* a type's amount on a return when loaded: the full-wet point (the share / feedback types' middle; JUNO CHORUS's MIX 127;
  * FILT's open centre) */
 AINL int16_t rt_def(uint32_t t) { return t == FXT_JUNO ? 127 : t == FXT_FILT ? 0 : t == FXT_EQ3 ? 1 : 64; }   /* (EQ3: ON) */
@@ -250,6 +270,31 @@ static volatile uint8_t fxl_lent;
 #define FXI_ASK(v) ((void)0)
 #endif
 
+/* line j's effect: the type of the return slot holding it (a send's, or another type), FXT_NONE none */
+static uint32_t rp_fx_ty(uint32_t j)
+{
+    uint32_t k;
+    for (k = 1; k < FX_NSLOT; k++)
+        if (fxs_line[k] == j % 3u && fxs_slot[k] != FXT_NONE)
+            return fxs_slot[k];
+    return FXT_NONE;
+}
+/* what the audio reads of the inserts: a stage holding a type a return may hold, of a line with a return (fxs_lnl), heard;
+ * a stage holding its line's effect's type is emptied (a type once a return: the effect took it) */
+static void rp_fix(void)
+{
+    uint32_t j, s, t, m = 0;
+    for (j = 0; j < 3u; j++)
+        for (s = 0; s < RP_N; s++) {
+            t = rp_ty[j][s];
+            if (t != FXT_NONE && t == rp_fx_ty(j))
+                rp_ty[j][s] = FXT_NONE, rp_amt[j][s] = 0, t = FXT_NONE;
+            if ((fxs_lnl >> j & 1u) && t < FXT_N && (RP_OK >> t & 1u) && FXT_AMT[t] != 0xFFu)
+                m |= 1u << (s * 3u + j);
+        }
+    rp_m = (uint8_t)m;
+    FXI_ASK(1u);                                       /* (a limited type's instance: fxi.c, the main loop) */
+}
 /* the lines after a change of the return slots: a send type on its own line; another type keeps its line while free,
  * else takes the first free one; then what the audio reads */
 static void fxs_fix(void)
@@ -292,6 +337,7 @@ static void fxs_fix(void)
         fxs_rty[k] = rty[k], fxs_rsl[k] = rsl[k];
     IRQ_RESTORE(ie);
     fxs_lm_apply();
+    rp_fix();                                          /* (the returns' inserts heard on the lines with a return) */
     FXI_ASK(1u);                                       /* (a send back in a slot: its line, if lent, back; a return's
                                                         * limited type: its instance, fxi.c) */
 }
@@ -434,8 +480,11 @@ static void fxs_load(uint32_t k, uint32_t t)
             fxs_fix();
             return;
         }
+    j = fxs_line[k];
     fxs_slot[k] = (uint8_t)t;
     fxs_ramt[k] = FXS_GEN(t) ? rt_def(t) : 0;
+    if (t == FXT_NONE && j < 3u)                       /* (an emptied return: its inserts emptied with it, its level and */
+        rp_ty[j][RP_PRE] = rp_ty[j][RP_POST] = FXT_NONE, rp_amt[j][RP_PRE] = rp_amt[j][RP_POST] = 0;   /* mute kept) */
     fxs_fix();
 }
 /* the returns' TLV (fx_rec.c RET_TLV): slots 1..3's type, line, amount; 0: no return holds another type (the header says
@@ -534,6 +583,94 @@ static void rs_untlv(const uint8_t *a, uint32_t n)      /* (0, 0: none, every se
     uint32_t k;
     for (k = 0; k < RS_N; k++)
         rs_amt[k] = (int16_t)(k < n ? clamp(a[k], 0, 127) : 0);
+}
+
+/* ---- the returns' inserts (above: RP_OK, rp_ty): the TYPE lists, the loader, the amounts, the stored form */
+/* the TYPE list of a return's insert: ----, then the types RP_OK holds, A to Z (FXT_ALPHA; the same list for PRE and POST) */
+static const char *rp_names[FXT_N];
+static uint8_t rp_list[FXT_N];
+static int16_t rp_v[RP_N];
+static param_desc_t rp_d[RP_N] = {PN("PRE", F_ENUM, 0, 0, 0, rp_names), PN("POST", F_ENUM, 0, 0, 0, rp_names)};
+static uint32_t rp_nlist(void)                          /* the list built; -> its length */
+{
+    uint32_t i, t, n = 0;
+    for (i = 0; i <= FXT_NALPHA; i++)
+        if ((t = FXT_LISTED(i)) == FXT_NONE || (RP_OK >> t & 1u)) {
+            rp_names[n] = t == FXT_NONE ? "----" : t == FXT_DYN ? "DYN" : TP[FXT_AMT[t]].label;
+            rp_list[n++] = (uint8_t)t;
+        }
+    return n;
+}
+/* line j's stage s TYPE as a list entry (*vp: its index in rp_list) */
+static const param_desc_t *rp_desc(uint32_t j, uint32_t s, int16_t **vp)
+{
+    uint32_t i, n = rp_nlist();
+    j %= 3u, s &= 1u;
+    rp_v[s] = 0;                                       /* (a type this build lacks: shown empty, kept) */
+    for (i = 0; i < n; i++)
+        if (rp_list[i] == rp_ty[j][s])
+            rp_v[s] = (int16_t)i;
+    rp_d[s].max = (int16_t)(n - 1u);
+    *vp = &rp_v[s];
+    return &rp_d[s];
+}
+/* line j's stage s amount: the type's (its label names it, as a track's slot amount), 0 an empty stage */
+static const param_desc_t *rp_amt_desc(uint32_t j, uint32_t s, int16_t **vp)
+{
+    uint32_t t = rp_ty[j % 3u][s & 1u];
+    *vp = 0;
+    if (!(t < FXT_N && (RP_OK >> t & 1u) && FXT_AMT[t] != 0xFFu))
+        return 0;
+    *vp = &rp_amt[j % 3u][s & 1u];
+    return &TP[FXT_AMT[t]];
+}
+/* type t into line j's stage s (the mixer, the editor): the type the other stage holds swaps the two (their amounts with
+ * them); the line's effect's type, or a type a return may not hold: unchanged. A new type: its default amount */
+static void rp_load(uint32_t j, uint32_t s, uint32_t t)
+{
+    j %= 3u, s &= 1u;
+    if ((t != FXT_NONE && !(t < FXT_N && (RP_OK >> t & 1u))) || (t != FXT_NONE && t == rp_fx_ty(j)) || rp_ty[j][s] == t)
+        return;
+    {
+        IRQ_SAVE(ie);
+        if (t != FXT_NONE && rp_ty[j][s ^ 1u] == t) {
+            int16_t a = rp_amt[j][s ^ 1u];
+            rp_ty[j][s ^ 1u] = rp_ty[j][s], rp_amt[j][s ^ 1u] = rp_amt[j][s];
+            rp_ty[j][s] = (uint8_t)t, rp_amt[j][s] = a;
+        } else {
+            rp_ty[j][s] = (uint8_t)t;
+            rp_amt[j][s] = t == FXT_NONE ? 0 : TP[FXT_AMT[t]].def;
+        }
+        IRQ_RESTORE(ie);
+    }
+    rp_fix();
+}
+/* the stored form (fx_rec.c RPP_TLV): each line's PRE type, its amount, POST type, its amount (CHO DLY REV's lines: the
+ * returns' levels' order); 0: no stage holds a type */
+#define RP_TLV_N 12u
+static uint32_t rp_tlv(uint8_t *o)
+{
+    uint32_t j, s, any = 0;
+    for (j = 0; j < 3u; j++)
+        for (s = 0; s < RP_N; s++) {
+            o[4u * j + 2u * s] = rp_ty[j][s];
+            o[4u * j + 2u * s + 1u] = (uint8_t)(int8_t)rp_amt[j][s];
+            any |= rp_ty[j][s] != FXT_NONE;
+        }
+    return any ? RP_TLV_N : 0u;
+}
+static void rp_untlv(const uint8_t *a, uint32_t n)      /* (after the returns' types: rt_untlv; 0, 0 or a short one: none) */
+{
+    uint32_t j, s, t;
+    for (j = 0; j < 3u; j++)
+        for (s = 0; s < RP_N; s++) {
+            t = n >= RP_TLV_N ? FXT_LEGACY(a[4u * j + 2u * s]) : FXT_NONE;
+            if (!(t < FXT_N && (RP_OK >> t & 1u) && FXT_AMT[t] != 0xFFu) || (s && rp_ty[j][0] == t))
+                t = FXT_NONE;                          /* (a type this build cannot hold there, or twice: empty) */
+            rp_ty[j][s] = (uint8_t)t;
+            rp_amt[j][s] = t != FXT_NONE ? (int16_t)clamp((int8_t)a[4u * j + 2u * s + 1u], TP[FXT_AMT[t]].min, TP[FXT_AMT[t]].max) : 0;
+        }
+    rp_fix();
 }
 
 
@@ -1429,12 +1566,22 @@ static const param_desc_t INS_DESC[INS_N] = {PN("S1", F_ENUM, 0, INS_NLIST - 1, 
 #define FXS_IS_XD(k) ((k) >= FXS_ID_TXD && (k) < FXS_ID_MXD + XDV_N)
 #define FXS_IS_EQ3(k) (((k) >= FXS_ID_TEQ && (k) < FXS_ID_TEQ + 6u) || ((k) >= FXS_ID_MEQ && (k) < FXS_ID_MEQ + 6u) || \
                        ((k) >= FXS_ID_REQ && (k) < FXS_ID_REQ + 6u) || ((k) >= FXS_ID_UEQ && (k) < FXS_ID_UEQ + 6u))
-static int rt_eq3(void)                                /* the line whose return holds EQ3, 3: none */
+/* the line whose return holds EQ3 (its effect, its PRE or POST: rt_eq3_s, the stage, RP_N the effect), 3: none; rt_eq3_pref
+ * (the mixer's return row, op_mixer.c): that line first, when it holds one */
+static uint8_t rt_eq3_pref = 3u, rt_eq3_s = RP_N;
+static int rt_eq3(void)
 {
-    uint32_t j;
-    for (j = 0; j < 3u && fxs_rty[j] != FXT_EQ3; j++)
-        ;
-    return (int)j;
+    uint32_t j, k;
+    for (k = 0; k < 4u; k++) {
+        j = k ? k - 1u : rt_eq3_pref;
+        if (j >= 3u || (k && j == rt_eq3_pref))
+            continue;
+        rt_eq3_s = (uint8_t)(fxs_rty[j] == FXT_EQ3 ? RP_N : RP_TY(j, RP_PRE) == FXT_EQ3 ? RP_PRE : RP_TY(j, RP_POST) == FXT_EQ3 ? RP_POST : 0xFFu);
+        if (rt_eq3_s != 0xFFu)
+            return (int)j;
+    }
+    rt_eq3_s = RP_N;
+    return 3;
 }
 /* an EQ3 page's cell id (FXS_ID_TEQ / MEQ / REQ + 0..5): its value and descriptor (0: none) */
 static const param_desc_t *eq3_desc(uint32_t k, int16_t **vp)
@@ -1465,7 +1612,8 @@ static const param_desc_t *eq3_desc(uint32_t k, int16_t **vp)
             return &RON;
         }
 #endif
-        *vp = base == FXS_ID_MEQ ? &mst_amt[FXT_EQ3] : &fxs_ramt[fxs_rsl[o - NTRK - 2u]];
+        *vp = base == FXS_ID_MEQ ? &mst_amt[FXT_EQ3] : rt_eq3_s < RP_N ? &rp_amt[o - NTRK - 2u][rt_eq3_s] :
+                                                                         &fxs_ramt[fxs_rsl[o - NTRK - 2u]];   /* (a return's: its effect's, or the stage's) */
         return &RON;
     }
     f = f > 3u ? f - 1u : f;                            /* (4 5: FREQ L, FREQ H) */

@@ -3,8 +3,10 @@
  * algo button should work the same on all pages, master (if it makes sense), t1, t2,t3,t4 and then individual drum
  * lanes (if it makes sense)", "really the algo knob should select the track and drum sub track every where", "i want
  * uniformity"; "the preset on a drum lane should change the drum lane preset, not the kit").
- *   the walk   one walk, the same on every page and layer, the mixer's rows: MASTER, T1 T2 T3, DR, then the 16 lanes and the ACCENT lane,
- *              stopping at both ends. MASTER: on the mixer its row; in a layer ui.master (the master FX's cards); on
+ *   the walk   one walk, the same on every page, the mixer's rows: RET A B C, MASTER, T1 T2 T3, DR, the 16 lanes and the ACCENT
+ *              lane, stopping at both ends (2026-10-30, the user: "make the return tracks normal track citizens"; 2026-10-31: the
+ *              master group "AT THE TOP LIKE IT WAS BEFORE"; USB IN after the lanes on the mixer only; a layer and SCOPE skip the
+ *              returns: MASTER their ui.master). MASTER: on the mixer its row; in a layer ui.master (the master FX's cards); on
  *              any other page the master FX screen (SCR_FX), which turned right goes back to the page it was left
  *              from (SCOPE is the exception: MASTER is its source, ui.master, and it stays). A lane: the page's view of it (SOUND its pages, STEP its steps; a family the drum track has none
  *              of: every row, op_screens.c snd_family). A held step (op_step.c), NAME (op_name.c) and a free take eat it
@@ -67,8 +69,10 @@ static uint32_t walk_pos(int lay)                       /* where the walk is: a 
 {
     if (ui.scr == SCR_HOME)
         return mx_row();
+    if (ui.scr == SCR_SCOPE && ui.sret)
+        return MXR_RET0 + (ui.sret - 1u) % 3u;          /* (SCOPE on a return: its row) */
     if (lay || ui.scr == SCR_SCOPE ? ui.master : ui.scr == SCR_FX)
-        return MXR_MASTER;
+        return ui.scr == SCR_FX && ui.fxo && !lay ? MXR_RET0 + (ui.fxo - 1u) % 3u : MXR_MASTER;   /* (a return's pages: its row) */
     return mx_sel_row();
 }
 static void walk_sel(uint32_t p)                        /* the track, DR or a lane of row p selected */
@@ -81,8 +85,17 @@ static void walk_sel(uint32_t p)                        /* the track, DR or a la
 }
 static void walk_to(uint32_t p, int lay)
 {
-    if (ui.scr == SCR_SCOPE)
-        lay = 1;                                        /* SCOPE: MASTER is its source (ui.master), the page stays (op_scope.c) */
+    if (ui.scr == SCR_SCOPE) {                          /* SCOPE: MASTER or a return its source (ui.master, ui.sret), the page stays */
+        uint8_t sr = (uint8_t)(mx_is_ret(p) ? 1u + p - MXR_RET0 : 0u);
+        if (ui.sret != sr)
+            ui.sret = sr, ui.force = 1;
+        if (sr) {
+            ui.master = 0;
+            op_repaint();
+            return;
+        }
+        lay = 1;                                        /* (op_scope.c) */
+    }
     if (lay && ui.master != (p == MXR_MASTER)) {        /* a layer: MASTER a UI state, its cards the master FX */
         ui.master = (uint8_t)(p == MXR_MASTER);
         ui.force = 1;
@@ -91,39 +104,123 @@ static void walk_to(uint32_t p, int lay)
         mx_apply(p);
         return;
     }
-    if (p == MXR_MASTER) {
-        if (!lay)
+    if (p == MXR_MASTER || mx_is_ret(p)) {             /* MASTER, a return: their pages (the FX screen), the page left kept */
+        uint32_t fam = ui.scr != SCR_FX ? (snd_fam == FAM_FX ? RF_FX : RF_EDIT) : ui.fxo ? rt_fam : ui.m_fam == FAM_FX ? RF_FX : RF_EDIT;
+                                                        /* (a return: EDIT, or FX from FX's pages; from another return, its
+                                                         * family; from MASTER's, the family of the page left for it) */
+        if (lay)
+            return;
+        if (ui.scr != SCR_FX)
             walk_master_in();
+        if (mx_is_ret(p))
+            rt_open(p, fam);
+        else if (ui.fxo) {                              /* (a return's pages to MASTER's: its first) */
+            ui.fxo = 0;
+            ui.row[SCR_FX] = 0;
+            ui.force = 1;
+        }
+        fx_by_walk = 1;
+        walk_inplace();
         return;
     }
     if (ui.scr == SCR_FX)
         walk_master_out();                              /* (a layer over it too: the page left, else MASTER again) */
     walk_sel(p);
 }
-/* both OCT tapped: a track page to MASTER (the selection and the page remembered), again back to that track and page. MASTER entered
- * any other way (the mixer's row, the FX button) has no memory: it goes back to the selected track */
+/* HOME (the user, 2026-10-30: "clicking home takes me back to the t1/t2/t3/drum screen ? why it should just change the screen to
+ * mixer. not change the track, page"; 2026-10-31, from a mockup: HOME again: SCOPE, for any row): a page to the mixer, on the row of
+ * what is selected (a track, a lane, a return, MASTER), nothing changed; its view the row's group (the master screen for a
+ * return or MASTER). HOME on the mixer: SCOPE (op_input.c op_no). The pages keep their memory: a page button reopens its page */
+static void home_in(void)
+{
+    uint32_t p = walk_pos(0);
+    op_enter(SCR_HOME);
+    if (p < MXR_N)
+        ui.row[SCR_HOME] = (uint8_t)p;                  /* (the selection's row: a return or MASTER their page, op_mixdraw.c) */
+}
+/* both OCT tapped: a track page to the mixer, MASTER selected (the user, 2026-10-30: "oct+ + oct- goes to master page with master
+ * selected"; the selection and the page remembered), again back to that track and page. SCOPE keeps MASTER as its source
+ * (ui.master). MASTER entered any other way (the mixer's row, the FX button) has no memory: it goes back to the selected track */
 static uint8_t mk_trk;                                  /* both OCT to MASTER: the keys stay this track's + 1, 0 none (op_input.c mk_live) */
 static struct {
     uint8_t valid;
     uint8_t row;                                        /* the mixer row of the selection that was left */
+    uint8_t page;                                       /* a page was left for the mixer (ui.m_scr m_fam m_row: walk_master_out) */
+    uint8_t fxo;                                        /* ... the FX screen's: its owner + 1 (MASTER 1, RET A 2 ..), 0 none */
 } om;
 static void oct_master_toggle(void)
 {
     if (master_sel()) {
         uint32_t p = om.valid ? om.row : mx_sel_row();
+        int page = om.valid && om.page && ui.scr == SCR_HOME;
         om.valid = 0;
-        walk_to(p, 0);
+        if (om.fxo && ui.scr == SCR_HOME) {             /* (MASTER's or a return's pages it came from) */
+            uint8_t ms = ui.m_scr, mf = ui.m_fam, mr = ui.m_row;   /* (their walk back: the page before them) */
+            op_enter(SCR_FX);
+            ui.m_scr = ms, ui.m_fam = mf, ui.m_row = mr;
+            fx_by_walk = 1;
+            if (om.fxo > 1u)
+                rt_open(MXR_RET0 + om.fxo - 2u, rt_fam);
+            walk_inplace();
+        } else if (page) {                              /* (the page it came from, the track it had) */
+            walk_master_out();
+            walk_sel(p);
+        } else {
+            walk_to(p, 0);
+        }
         if (ui.master)
             ui.master = 0, ui.force = 1;                /* (SCOPE's source) */
     } else {
         om.row = (uint8_t)walk_pos(0);
         om.valid = 1;
-        walk_to(MXR_MASTER, 0);
+        om.fxo = (uint8_t)(ui.scr == SCR_FX ? ui.fxo + 1u : 0u);
+        om.page = (uint8_t)(ui.scr != SCR_HOME && ui.scr != SCR_SCOPE && ui.scr != SCR_FX);
+        if (om.fxo)
+            op_enter(SCR_HOME), mx_apply(MXR_MASTER);
+        if (om.fxo) {
+            ;                                           /* (the FX screen: the mixer on MASTER, above) */
+        } else if (om.page) {                           /* (a page: the mixer on MASTER, the page kept as walk_master_in keeps it) */
+            uint8_t scr = ui.scr == SCR_TEMPO ? tp.prev : ui.scr, fam = snd_fam, row = ui.row[scr % SCR_N];
+            if (scr == SCR_TEMPO)
+                scr = SCR_SOUND;
+            op_enter(SCR_HOME);
+            ui.m_scr = scr;
+            ui.m_fam = fam;
+            ui.m_row = row;
+            mx_apply(MXR_MASTER);
+        } else {
+            walk_to(MXR_MASTER, 0);
+        }
         mk_trk = (uint8_t)(song.sel + 1u);               /* (the keys stay that track's: op_input.c mk_live) */
         ui_say("KEYS ", trk_tag(song.sel));
     }
 }
-/* ALGORITHM turned s detents (lay: in a performance layer): MASTER .. the 16th lane, the same on every page */
+/* s detents of the walk from row p, stopping at the ends: RET A B C, MASTER, T1 .. the lanes; the USB input's row the mixer's
+ * only (no pages of a track); a layer and SCOPE: no return (MASTER is their ui.master) */
+static int walk_skip(uint32_t r, int lay)
+{
+    return (ui.scr != SCR_HOME && mx_is_usb(r)) || (lay && mx_is_ret(r));   /* (SCOPE walks the returns too: its source) */
+}
+static uint32_t walk_step(uint32_t p, int32_t s, int lay)
+{
+    int32_t q;
+    for (; s > 0; s--) {
+        for (q = (int32_t)p + 1; q < (int32_t)MXR_N && walk_skip((uint32_t)q, lay); q++)
+            ;
+        if (q >= (int32_t)MXR_N)
+            break;
+        p = (uint32_t)q;
+    }
+    for (; s < 0; s++) {
+        for (q = (int32_t)p - 1; q >= 0 && walk_skip((uint32_t)q, lay); q--)
+            ;
+        if (q < 0)
+            break;
+        p = (uint32_t)q;
+    }
+    return p;
+}
+/* ALGORITHM turned s detents (lay: in a performance layer): RET A B C, MASTER, T1 .. the 16th lane, the same on every page */
 static void algo_walk(int32_t s, int lay)
 {
     uint32_t p, n;
@@ -133,8 +230,7 @@ static void algo_walk(int32_t s, int lay)
     if (ui.scr == SCR_HOME && mx.across)
         n = mx_walk_across(p, s);                       /* (the mixer across: the groups, op_mixer.c) */
     else
-        n = (uint32_t)ui_clamp((int32_t)p + s, MXR_MASTER, (int32_t)(ui.scr == SCR_HOME ? MXR_N : MXR_LN) - 1);   /* (the USB
-                                                         * input's row: the mixer's only, it has no pages of a track) */
+        n = walk_step(p, s, lay);
     if (n != p)
         walk_to(n, lay);
 }

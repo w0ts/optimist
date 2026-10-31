@@ -629,15 +629,36 @@ static const page_t *fx_type_page(void)
             return &PAGES[i];
     return 0;
 }
+static uint32_t rt_nrows(void);                          /* a return's own pages (ui.fxo: op_mixer.c) */
+static void rt_name(uint32_t k, char *b);
+static void rt_cell(uint32_t k, uint32_t c, cell_t *x);
+static void rt_turn(uint32_t k, uint32_t c, int32_t s, int fine);
+static int rt_yes(uint32_t k, uint32_t c, uint32_t ok);
+/* the returns' pages (2026-10-30: "the return track stuff move out of the master track"): a return's own since, never MASTER's */
+static int fx_ret_page(uint32_t ix)
+{
+    static const char *const T[] = {"REV/CHO", "REVERB", "DLY", "DLY F", "SLOTS", "RET AMT", "RET EQ3", "RET EQ3 F"};
+    uint32_t i;
+    if (ix == FX_RET_IX)
+        return 1;
+    for (i = 0; i < sizeof T / sizeof T[0]; i++)
+        if (str_eq(PAGES[ix].title, T[i]))
+            return 1;
+    return 0;
+}
 static uint32_t fxs_rows(void)
 {
+    if (ui.fxo)
+        return rt_nrows();
     uint32_t n = page_rows(fx_page, fx_ix), i, j;
     for (i = j = 0; i < n; i++)                         /* (REVERB's TYPE: on RETURNS) */
         if (!fx_type_pg(fx_pg_of(fx_ix[i])))
             fx_ix[j++] = fx_ix[i];
     n = j;
-    if (n < OP_MAXROWS)
-        fx_ix[n++] = FX_RET_IX, fx_ret_sync();
+    for (i = j = 0; i < n; i++)                         /* (the returns' pages: theirs, not MASTER's) */
+        if (!fx_ret_page(fx_ix[i]))
+            fx_ix[j++] = fx_ix[i];
+    n = j;
     for (i = 1; i < n; i++) {                           /* PAGES' order to this one's (stable insertion sort) */
         uint8_t v = fx_ix[i];
         for (j = i; j && fx_rank(fx_ix[j - 1u]) > fx_rank(v); j--)
@@ -648,6 +669,10 @@ static uint32_t fxs_rows(void)
 }
 static void fxs_name(uint32_t r, char *b)
 {
+    if (ui.fxo) {
+        rt_name(r, b);
+        return;
+    }
     const char *t = fx_pg(r)->title;
     uint32_t i;
     for (i = 0; i < sizeof FX_ALIAS / sizeof FX_ALIAS[0]; i++)
@@ -686,6 +711,10 @@ static const page_t *fxs_at(uint32_t r, uint32_t k, uint32_t *j)
 }
 static void fxs_cell(uint32_t r, uint32_t k, cell_t *c)
 {
+    if (ui.fxo) {
+        rt_cell(r, k, c);
+        return;
+    }
     uint32_t j;
     const page_t *pg = fxs_at(r, k, &j);
     cell_clear(c);
@@ -697,6 +726,10 @@ static void fxs_cell(uint32_t r, uint32_t k, cell_t *c)
 }
 static void fxs_turn(uint32_t r, uint32_t k, int32_t s, int fine)
 {
+    if (ui.fxo) {
+        rt_turn(r, k, s, fine);
+        return;
+    }
     uint32_t j;
     const page_t *pg = fxs_at(r, k, &j);
     if (pg)
@@ -704,6 +737,8 @@ static void fxs_turn(uint32_t r, uint32_t k, int32_t s, int fine)
 }
 static int fxs_yes(uint32_t r, uint32_t k, uint32_t ok)
 {
+    if (ui.fxo)
+        return rt_yes(r, k, ok);
     uint32_t j;
     const page_t *pg = fxs_at(r, k, &j);
     return pg && page_yes(SCR_FX, r, pg, j, ok);
