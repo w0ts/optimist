@@ -925,7 +925,8 @@ _add("LANE_FX", "FELUCCA_LANE_FX", "drum lane FX: hold a black key (ROLL, CHANCE
           "FILL (the lane plays always, only in a fill or never in one: GLO + 9 / 10) and NUDGE (the whole lane early "
           "or late, up to half a step); SELECT, the second page: VRAND (each hit's velocity at random, up to 64 either "
           "way), FLAM (a grace note 5 to 40 ms before the hit), RAMP (a roll's hits fade in or out) and EVERY (the lane "
-          "plays on loop 1:2 .. 4:4 only; with COND). KNOB 1-4 turn them, SHIFT + a knob resets. Saved with the pattern, "
+          "plays on loop 1:2 .. 4:4 only; with COND) and CH ACC (the chance of an accented hit, one the ACCENT lane accents or a "
+          "HARD one: 0 to 100 %, or =NORM, the default, which uses CHANCE). KNOB 1-4 turn them, SHIFT + a knob resets. Saved with the pattern, "
           "as events of its automation (an older build refuses a drum pattern that has them). Not on STEP (a lane key "
           "held + a step sets its level there). Needs the automation store.")
 

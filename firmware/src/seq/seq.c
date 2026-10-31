@@ -2920,7 +2920,7 @@ static void drum_step(track_t *t, const dstep_t *s, uint32_t skip)
     smute_lhits |= dstep_mask(s) & ~skip & (uint32_t)smute_lane;   /* (a muted lane's key flashes: something to unmute) */
     seq_out_track_off(t);                           /* the last step's hits end here */
 #if FELUCCA_LANE_FX
-    m = lfx_step(t, m);                             /* (its lanes' FX: silent, late, early, rolled) */
+    m = lfx_step(t, s, m);                             /* (its lanes' FX: silent, late, early, rolled) */
 #endif
     for (l = 0; m; l++, m >>= 1)
         if (m & 1u) {
