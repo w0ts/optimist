@@ -1023,6 +1023,10 @@ static void op_knobs(uint32_t shift)
             op_clean &= ~op_held;                       /* (turned: the layer's button is no tap) */
         return;
     }
+#if FELUCCA_PATTERNS
+    if (lay_now() == LY_PAT && panel_enc(EN_SELECT) != 0)
+        turned = 1;                                     /* (pattern mode: SELECT stays in it, it neither leaves SONG's PATTERNS row nor opens SONG; the user, 2026-10-31) */
+#endif
     if (step_knobs())                                   /* STEP, a step held: SELECT, ALGORITHM its own */
         turned = 1;
     if (song_tbl_on()) {                                /* SONG's tables: the cursor, the part, the lane, the value (op_songtbl.c) */
