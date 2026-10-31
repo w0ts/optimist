@@ -22,7 +22,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
 import fm1_install as I  # noqa: E402
 
-I.DELAY.update(open=0, start=0.01, reply=0, loader=0.01, reboot=0.01, retry=0.02, poll=0.05, hs=0.1,
+I.DELAY.update(info=0.2, open=0, start=0.01, reply=0, loader=0.01, reboot=0.01, retry=0.02, poll=0.05, hs=0.1,
                idle_check=0.4, idle_write=0.4, wait_loader=2, wait_reboot=2)
 failed = 0
 
@@ -68,8 +68,9 @@ class FakeFM1:
     """a MIDI backend with one FM-1 on it"""
 
     def __init__(self, image, identity="FM-1_015", name="FM-1", unplug_after=None, after_write="FM-1_900",
-                 stall_after=None, bad_addr=None):
+                 stall_after=None, bad_addr=None, boot=None):
         self.image, self.unplug_after, self.after_write = image, unplug_after, after_write
+        self.boot_word, self.infos = boot, 0                 # (boot: INFO tag 0x68's word, an Optimist since 2026-10-31)
         self.stall_after, self.bad_addr = stall_after, bad_addr
         self.served = self.bad = self.upgrades = 0
         self.soft_keys = 0                              # (the download-mode soft key F0 22 24 35 7D F7 received)
@@ -102,6 +103,12 @@ class FakeFM1:
     def rx(self, d):
         if d == bytes([0xF0, 0x22, 0x24, 0x35, 0x7D, 0xF7]):
             self.soft_keys += 1
+        elif d == I.ED_INFO:
+            self.infos += 1
+            if self.boot_word:
+                t = b"boot=" + self.boot_word.encode()
+                self.tx(bytes([0xF0, 0x7D, 0x46, 0x4C, 1]) + b"FELUCCA 0.2" + bytes([0x66, 2]) + b"ab" +
+                        bytes([0x68, len(t)]) + t + b"\xF7")
         elif d == I.HS_QUERY:
             t = self.identity.encode()
             self.tx(b"\xF0" + I.pack7(bytes([0, 0x59, 0x11, 0, 0, 0]) + t + bytes(28 - len(t))) + b"\xF7")
@@ -396,6 +403,23 @@ def _thread_guard():
         return False
 
 
+def boot_info():
+    """--info asks a running Optimist which bootloader it has (INFO tag 0x68), and only an Optimist"""
+    image = I.logical_image(package())
+    dev = FakeFM1(image, identity="FM-1_7900", name="FM1-1A2B", boot="mboot")
+    rc, out, err = cli(["--info"], dev)
+    ok(rc == 0 and out.strip().endswith("port: FM1-1A2B  boot=mboot") and dev.infos == 1, "--info: boot=mboot at the end")
+    dev = FakeFM1(image, identity="FM-1_700", name="FM1-1A2B")
+    rc, out, err = cli(["--info"], dev)
+    ok(rc == 0 and "boot=" not in out and dev.infos == 1, "--info: an Optimist that says nothing (older): no token")
+    dev = FakeFM1(image, identity="FM-1_905", name="Felucca", boot="mboot")
+    rc, out, err = cli(["--info"], dev)
+    ok(rc == 0 and "boot=" not in out and dev.infos == 0, "--info: another firmware is not asked")
+    dev = FakeFM1(image, identity="ota-FM-1_700", name="Optimist Update", boot="mboot")
+    rc, out, err = cli(["--info"], dev)
+    ok(rc == 0 and dev.infos == 0, "--info: an update loader is not asked")
+
+
 def refused_minus5():
     """a -5 (the running Optimist's updater refuses an M-VAVE package: m-bootloader installed) falls back to download mode"""
     I._route_modules()
@@ -411,6 +435,7 @@ def refused_minus5():
 
 
 wire()
+boot_info()
 refused_minus5()
 interrupts()
 installs()

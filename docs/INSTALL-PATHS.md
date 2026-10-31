@@ -125,6 +125,28 @@ and ask for `yes` itself.
 `fm1_anyflash.sd_card_route()` is the hook (it refuses for now), so the route chooser can grow a third way without
 touching the other two.
 
+## Asking the firmware which bootloader it has
+
+Over USB-MIDI an installer cannot read the flash, so before 2026-10-31 it could not tell whether m-bootloader was on the
+FM-1, and planned download mode (M-Flasher) for every build that says m-bootloader. A running Optimist now reads its own
+boot area and says which bootloader is there: the editor's `INFO` (cmd 1) ends with the tag 0x68, `boot=mboot`,
+`boot=stock` or `boot=unknown` (web/EDITOR_PROTOCOL.md; `firmware/src/system/bootid.h`: 32 bytes, read with the flash
+driver's own read, never through XIP). `python tools/fm1_install.py --info` prints it at the end of its line
+(`FM-1_7900  [running]  port: FM1-1A2B  boot=mboot`); the install, `make flash`, the builder's `f`, the web installer and
+the Mirror app's Firmware tab ask it of Optimist's identities only (FM-1_700, 720..769, 000, 79..), and never write.
+
+| the firmware says | the build says m-bootloader | the build says keep |
+|---|---|---|
+| `boot=mboot` | the USB-MIDI update: m-bootloader is there, nothing to install; Optimist's and fm1-base's writers never write the boot area, so it stays | the USB-MIDI update |
+| `boot=stock` | download mode to install it (M-Flasher, a full backup first); the USB-MIDI update that keeps the bootloader is offered beside it as an equal choice | the USB-MIDI update |
+| `boot=unknown`, or no tag (an older firmware, another firmware) | as before: download mode, with `--keep-bootloader` / the keep choice | the USB-MIDI update |
+
+With `boot=mboot`, M-VAVE's own package (V15) over a running Optimist goes to download mode at once: Optimist's updater
+compares the package's boot area with the FM-1's and stops with -5 (nothing erased) when they differ, as they do with
+m-bootloader there; without the word the installers try the update first and fall back to download mode on the -5
+(`fm1_route.head_refused`, since 74210808). `tools/fm1_install.py --dry-run --running ID --boot mboot|stock` shows the
+route without a device.
+
 ## The build's BOOTLOADER
 
 The builder item `BOOTLOADER` (System, bit 443, `keep` by default, or `m-bootloader`) is a flash-step setting: it
@@ -144,8 +166,8 @@ Every installer shows it before it writes:
 - `bootloader: keep (no build setting with this package): not touched`
 - `bootloader: keep (--keep-bootloader for this install; the build says m-bootloader)`
 
-The override goes one way only: `--keep-bootloader` (`make flash KEEP_BOOTLOADER=1`, the builder's "Flash, but keep the
-bootloader this time", the web installer's checkbox) turns the build's m-bootloader into keep for one install, for a
+The override goes one way only: `--keep-bootloader` (`make flash KEEP_BOOTLOADER=1`, the builder's "Flash over USB-MIDI, keep
+this bootloader", the web installer's checkbox) turns the build's m-bootloader into keep for one install, for a
 package installed on someone else's FM-1 or an m-bootloader that misbehaves on a unit. Nothing installs m-bootloader
 when the build says keep, or says nothing. `python tools/fm1_anyflash.py bootloader` installs it on its own, asked.
 
