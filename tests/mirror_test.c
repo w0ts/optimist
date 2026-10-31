@@ -641,6 +641,25 @@ static void bt_tests(void)
     }
     radio(~0u);
     check(repaints == r0 && !mir.behind && same(), "a slow link: %u catch-ups more while small writes went on", repaints - r0);
+    /* a reply while the screen is MIR_BLE_LAG behind (the user, 2026-10-31: INFO, PJ_OP and the library's replies came 1 in 3
+     * never while the screen streamed: the lag rule dropped them like a screen frame): queued, only a full ring stops it */
+    {
+        static const uint8_t ASK[] = {0x7D, 0x46, 0x4C, 1};
+        uint32_t w0, n0;
+        fm1_ms += MIR_CATCH_MS;
+        for (k = 0; k < 400u && mbr.w - ((int32_t)(mbr.base - mbr.r) > 0 ? mbr.base : mbr.r) <= MIR_BLE_LAG; k++)
+            random_write();
+        mir.behind = 0;
+        w0 = mbr.w;
+        lcd_fill(1, 1, 2, 2, 7);
+        check(mbr.w == w0, "past MIR_BLE_LAG: a screen frame held back");
+        n0 = mbr.w;
+        ed_bt = 1, ed_handle(ASK, sizeof ASK), ed_bt = 0;
+        check(mbr.w > n0 && mbr_q[(mbr.w - 1u) % MIR_BLE_RING] == 0xF7u && mbr_q[n0 % MIR_BLE_RING] == 0xF0u &&
+                  mbr_q[(n0 + 4u) % MIR_BLE_RING] == 1u, "past MIR_BLE_LAG: a reply queued all the same (%u bytes)", mbr.w - n0);
+        radio(~0u);
+        mir.behind = 1, MIR_SEEN(), mir_poll(), radio(~0u);
+    }
     /* the central goes: off, the ring emptied (midi_ble.c ble_app_state) */
     ble_out_on = 0;
     mir_ble_flush();

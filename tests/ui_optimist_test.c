@@ -150,6 +150,7 @@ static void mc_trace(uint16_t op, uint32_t x, uint32_t y, uint32_t w, uint32_t h
         fwrite(p, 2, w * h, f);
 }
 #endif
+static uint32_t hp_head_px, hp_head_full;               /* (ui_optimist_headpos.h) */
 static void lcd_blit(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint16_t *p)
 {
     uint32_t i, j;
@@ -160,6 +161,8 @@ static void lcd_blit(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint1
     }
 #endif
     blit_px += w * h;
+    hp_head_px += y < 25u ? w * (y + h > 25u ? 25u - y : h) : 0u;
+    hp_head_full += y < 25u && w == 240u;
     top_see(x, y, w, h, p, 0);
     fl_see(x, y, w, h, p, 0);
     if (x <= 120u && 120u < x + w && y <= 180u && 180u < y + h)
@@ -3961,6 +3964,7 @@ static void preset_engine_tests(void)
 #include "ui_optimist_dtimes.h"                     /* SYSTEM > CPU TIMES (DUAL_LOAD builds with the debug pages) */
 #include "ui_optimist_sysdbg.h"                     /* builder item SYS_DEBUG off: INFO is CPU LOAD, UNDERRUNS, BATTERY */
 #include "ui_optimist_stack.h"                      /* SYSTEM > INFO: the CPU bars and their peaks, the RAM line, the stacks' marks */
+#include "ui_optimist_headpos.h"                    /* the loop position drawn alone while playing (the mirror's bytes) */
 #include "ui_optimist_memline.h"                    /* the memory line: the top 2 rows of every page, the arena's fill, red from 80 % */
 #include "ui_optimist_hold.h"                      /* SYSTEM HOLD: a click is a tap, a hold the layer */
 #include "ui_optimist_lane.h"                      /* the lane: preview when stopped, the pick silent playing */
@@ -4286,6 +4290,7 @@ int main(int argc, char **argv)
     ovl_window_tests();                                 /* (the rings' 10 s and 1 min windows, their wrap) */
     stackmark_tests();                                  /* (the stacks' paint and read-back, INFO's RAM line) */
     memline_tests();                                    /* (the memory line over every page) */
+    headpos_tests();                                    /* (bar.beat alone while playing) */
     hold_tests();
     lane_preview_tests();
     step_pages_tests();

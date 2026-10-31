@@ -559,6 +559,28 @@ static void memline_paint(void)                         /* into the header's can
         cv_rect((int32_t)px, 0, (int32_t)(240u - px), MEM_H, C_LINE);
     memline_sig = memline_key(pct);
 }
+/* The loop position (bar.beat) alone changed: only its text drawn again, not the header's 240 x 25 (the user, 2026-10-31:
+ * the mirror over Bluetooth "DEAD SLOW": measured on the FM-1 playing, the header drawn whole at every beat was 2.4 KB/s of
+ * the 4.6 KB/s its Bluetooth link carried (850 B each, 2.8 a second): the mirror's ring always behind, so a catch-up after
+ * another and the replies dropped). The same width only (the recording mark left of it stays put); a message, INFO's mark
+ * or the track's flash shows no position: nothing to draw. 1: the header is as it should be */
+#define HEAD_R_Y 2                                      /* the text's rows only: the memory line (0-1) and the rule stay */
+static struct { uint32_t sig; uint8_t w; } head_r;      /* the position as drawn: its text's signature, its width */
+static int head_pos_only(const head_t *h, uint32_t fl)
+{
+    uint32_t rs = hs(1u, h->r);
+    int32_t bx;
+    if (rs == head_r.sig || fl || ui.msg_t || h->ib)
+        return 1;                                       /* (unchanged, or not shown: the rest's signature decides) */
+    if (text_ws(h->r) != (int32_t)head_r.w || !h->r[0])
+        return 0;                                       /* (another width: drawn whole) */
+    head_r.sig = rs;
+    bx = 236 - (h->batt ? HEAD_BATT_W : 0) - 8 - head_r.w;
+    cv_begin(head_r.w, OH_HEAD - 2 - HEAD_R_Y, C_BLACK);
+    cv_texts(0, 4 - HEAD_R_Y, h->r, song.playing ? C_OK : C_DIM);
+    cv_blit((uint32_t)bx, OY_HEAD + HEAD_R_Y);
+    return 1;
+}
 /* (noinline: a call from op_frame_draw, which is smaller without it inlined) */
 static __attribute__((noinline)) void draw_head(void)
 {
@@ -573,7 +595,8 @@ static __attribute__((noinline)) void draw_head(void)
     mk = drop == 2u ? C_ERR : C_WARN;                   /* (the mark: red a drop-out, amber another underrun) */
     head_make(&h);
     bx = 236 - (h.batt ? HEAD_BATT_W : 0);
-    sig = hs(hs(hs(hu(hu(hu(1u, h.tc), h.mc), rec * 2u + song.playing), ui.msg_t ? ui.msg : h.t), h.r), h.eng);
+    sig = hs(hs(hu(hu(hu(1u, h.tc), h.mc), rec * 2u + song.playing), ui.msg_t ? ui.msg : h.t), h.eng);   /* (the loop
+                                                         * position apart: head_pos_only) */
     sig = hs(sig, h.pr);
     sig = hu(hu(sig, h.muted), h.batt);
     sig = hu(sig, (uint32_t)h.ib | (uint32_t)h.ipct << 8 | (uint32_t)h.ichg << 16);
@@ -584,9 +607,10 @@ static __attribute__((noinline)) void draw_head(void)
         snd_name(song.sel, c);
         sig = hs(hu(hu(sig, 0x7F1u), TSEL->eng_req), c);
     }
-    if (sig == ui.sig[0])
+    if (sig == ui.sig[0] && head_pos_only(&h, fl))
         return;
     ui.sig[0] = sig;
+    head_r.sig = hs(1u, h.r), head_r.w = (uint8_t)text_ws(h.r);
     cv_begin(240, OH_HEAD, C_BLACK);
     if (fl) {
         draw_head_flash(trk_col(song.sel));             /* (the track's colour, whatever the page's badge) */

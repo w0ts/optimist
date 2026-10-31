@@ -122,11 +122,14 @@ static int mbr_cmd_ok(uint32_t cmd)       /* the projects' moves: the backup's 4
 #else
 #define mbr_cmd_ok(cmd) 0
 #endif
+static uint8_t mbr_reply;                /* a reply being queued (mir_bt_reply): never held back by MIR_BLE_LAG, only a full ring
+                                         * stops it (the user, 2026-10-31: INFO, PJ_OP and the library's replies were dropped 1 in 3
+                                         * while the screen streamed: the client asked again and again, Projects never answered) */
 static int mbr_put(uint32_t b)
 {
     if (b == 0xF0u) {
         mbr.fw = mbr.w;
-        if (fm1_ms - mir.catch_ms >= MIR_CATCH_MS && mbr.w - ((int32_t)(mbr.base - mbr.r) > 0 ? mbr.base : mbr.r) > MIR_BLE_LAG)
+        if (!mbr_reply && fm1_ms - mir.catch_ms >= MIR_CATCH_MS && mbr.w - ((int32_t)(mbr.base - mbr.r) > 0 ? mbr.base : mbr.r) > MIR_BLE_LAG)
             return 0;                   /* (behind: the catch-up sends the screen as it is then) */
     }
     if (mbr.fw - mbr.r >= MIR_BLE_RING || !MBR_HAVE())
@@ -231,8 +234,10 @@ static void mir_ble_rx(uint32_t pkt)
 static void mir_bt_reply(const uint8_t *p, uint32_t n)
 {
     uint32_t i;
+    mbr_reply = 1;
     for (i = 0; i < n && mbr_put(p[i]); i++)
         ;
+    mbr_reply = 0;
     if (i == n)
         mbr_end();
 }
