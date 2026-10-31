@@ -159,6 +159,8 @@ typedef struct {
     int32_t gain, lg;            /* velocity Q15, the sound's level Q10 */
     int32_t held, holdn;         /* crush: sample-and-hold */
     uint8_t crush, bursts, fmode;
+    uint8_t fresh;               /* hit, not started yet: its first render starts it (ds_start; snd, crush, rnd and, in
+                                  * base16 and gain, the note's offset and the velocity kept for it) */
 #if FELUCCA_DS_KAWA
     uint8_t hits, gap;           /* re-strikes left, blocks to the next */
     int32_t rr, rr_to;           /* RISE: the envelopes' share, Q15 (0 at the hit, up to 32767) */
@@ -218,12 +220,17 @@ static const int16_t DS_METALS[4][6] = {{0, 109, 163, 259, 268, 377}, {0, 96, 13
 static const int16_t DS_METAL[6] = {0, 109, 163, 259, 268, 377};
 #endif
 
-/* sound d (crush: its kit's) hit at note (semi: the note's offset from the sound, ds_lane) */
-static void ds_on_snd(dsv_t *s, const dsnd_t *d, uint32_t crush, int32_t semi, uint32_t note, uint32_t vel)
+/* a hit's start (ds_on_snd kept it: its sound, the kit's crush, the note's offset from the sound, the velocity, the
+ * noise's seed): in its first render (ds_render: the drums' job, on the core that renders them), not in the block's
+ * events on CPU0. The state as the hit had it set: the same samples */
+static void ds_start(dsv_t *s)
 {
-    uint32_t i;
+    uint32_t i, crush = s->crush, vel = (uint32_t)s->gain;
+    int32_t semi = s->base16, rnd = s->rnd;
+    dsnd_t d0 = s->snd;
+    const dsnd_t *d;
     memset(s, 0, sizeof *s);
-    s->snd = *d;                                        /* (d may be a caller's temporary: ds_unpack, de_synth) */
+    s->snd = d0;
     d = s->d = &s->snd;
     s->crush = (uint8_t)crush;
     s->gain = (int32_t)vel * 258;
@@ -245,7 +252,7 @@ static void ds_on_snd(dsv_t *s, const dsnd_t *d, uint32_t crush, int32_t semi, u
         s->hits = (uint8_t)DK_HITS(d);                  /* (its re-strikes strike the click again: dp_control) */
         s->gap = (uint8_t)(d->kgap ? d->kgap : 1u);
 #endif
-        s->rnd = (int32_t)(0x9E3779B9u ^ (note * 2654435761u) ^ rng());   /* (its seed, as below: the same draw) */
+        s->rnd = rnd;                                   /* (its seed, as below) */
         s->pl.st.seed = (uint32_t)s->rnd;
         s->pl.st.vel = vel;
         s->pfresh = 1;
@@ -272,7 +279,7 @@ static void ds_on_snd(dsv_t *s, const dsnd_t *d, uint32_t crush, int32_t semi, u
     if (s->fmode & 3u)
         ds_filter(s);
     s->ahp = d->hpf ? ds_onepole(d->hpf) : 0;
-    s->rnd = (int32_t)(0x9E3779B9u ^ (note * 2654435761u) ^ rng());
+    s->rnd = rnd;
     s->lfsr = 0x4001u;
     {   /* CHIP clock: 8x that note; saturated (the top notes would wrap 32 bits: a dull noise) */
         uint32_t ci = pitch_inc(clamp((int32_t)d->chip, 0, 127) * 16);
@@ -291,6 +298,20 @@ static void ds_on_snd(dsv_t *s, const dsnd_t *d, uint32_t crush, int32_t semi, u
     s->rr = s->rr_to = d->krise ? 0 : 32767;
     s->kr = d->krise ? ds_k32(d->krise) : 0u;
 #endif
+}
+/* sound d (crush: its kit's) hit at note (semi: the note's offset from the sound, ds_lane), in the block's events (CPU0):
+ * what the start needs is kept (d may be a caller's temporary: ds_unpack, de_synth), the noise's seed drawn here (rng():
+ * the same draws in the same order); ds_start does the rest in the hit's first render. A voice hit again (stolen) before
+ * that render: this hit replaces the one waiting, as its start replaced the state before */
+static void ds_on_snd(dsv_t *s, const dsnd_t *d, uint32_t crush, int32_t semi, uint32_t note, uint32_t vel)
+{
+    s->snd = *d;
+    s->d = &s->snd;
+    s->crush = (uint8_t)crush;
+    s->base16 = semi;
+    s->gain = (int32_t)vel;
+    s->rnd = (int32_t)(0x9E3779B9u ^ (note * 2654435761u) ^ rng());
+    s->fresh = 1;
 }
 static void ds_on(dsv_t *s, const dkit_t *kit, uint32_t note, uint32_t vel)
 {
@@ -565,6 +586,8 @@ static HOT int ds_layers(dsv_t *s, int32_t *__restrict out, uint32_t n)
 /* n (<= CTL) samples of voice s into out[] (Q15-ish, peak ~ 32767); returns 0 when it ended */
 static HOT inline __attribute__((always_inline)) int ds_render(dsv_t *s, int32_t *out, uint32_t n)
 {
+    if (s->fresh)
+        FAR(ds_start)(s);                               /* (a hit: its start, ds_on_snd) */
 #if FELUCCA_DS_PLAITS
     if (s->d->wave >= DW_PKICK)
         return dp_block(s, out, n);                     /* a Plaits model: its samples instead of the layers */
