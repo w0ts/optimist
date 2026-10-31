@@ -55,7 +55,7 @@ enum { PLM_WSH, PLM_ADD, PLM_GRN, PLM_PRT, PLM_N };
 
 typedef struct {
     uint8_t model;                                       /* PLM_* the state belongs to */
-    uint8_t spare;
+    uint8_t fresh;                                       /* a note from rest: plaits_render resets the state first (model, rng) */
     uint8_t trig;                                        /* PRTCL: strike every particle (a new note) */
     uint8_t alive;                                       /* PRTCL: the particles still ringing, bit j */
     int32_t lp;                                          /* TONE's one-pole */
@@ -107,8 +107,11 @@ static void plaits_note_on(track_t *t, voice_t *v)
     pl_voice_t *S = pl_voice(t, v);
     if (!S)
         return;
-    if (!v->env || S->model != (uint32_t)t->p[P_E0] % PLM_N)   /* silent: afresh (sounding: its phases kept) */
-        pl_reset(S, (uint32_t)t->p[P_E0] % PLM_N, (v->note + 1u) * 0x9E3779B9u ^ (uint32_t)v->fine * 0x85EBCA6Bu);
+    if (!v->env || S->model != (uint32_t)t->p[P_E0] % PLM_N) {   /* silent: afresh (sounding: its phases kept), */
+        S->model = (uint8_t)((uint32_t)t->p[P_E0] % PLM_N);       /* reset in its first render (on the core that */
+        S->rng = (v->note + 1u) * 0x9E3779B9u ^ (uint32_t)v->fine * 0x85EBCA6Bu;   /* renders the part, not here in */
+        S->fresh = 1;                                              /* the block's events on CPU0): its model, seed */
+    }
     S->trig = 1;
 }
 
@@ -534,6 +537,10 @@ static FAST(plaits) void plaits_render(track_t *t, voice_t *v, int32_t *out, uin
         return;
     if (n > CTL)
         n = CTL;
+    if (S->fresh) {                                      /* a note from rest (plaits_note_on): the state afresh, struck */
+        pl_reset(S, S->model, S->rng);
+        S->trig = 1;
+    }
     if (S->model != md) {                                /* MODEL changed under the note: that model afresh */
         uint8_t tr = S->trig;
         pl_reset(S, md, S->rng);
