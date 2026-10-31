@@ -37,11 +37,15 @@
 #define ACID_PARTS 3
 _Static_assert(sizeof(bass303_t) <= ACID_MEM_BYTES, "acid_mem.h ACID_MEM_BYTES: a part's engine memory holds a bass303_t");
 static uint8_t acid_ready[ACID_PARTS], acid_gate[ACID_PARTS];
+static struct acid_pend_s {
+    uint8_t on, note, acc;
+    int16_t e[8];
+} acid_pend[ACID_PARTS];   /* (acid_start below) */
 
 void acid_forget(int k)                            /* (engines.c part_mem_claim: another engine had the memory) */
 {
     if (k >= 0 && k < ACID_PARTS)
-        acid_ready[k] = acid_gate[k] = 0;
+        acid_ready[k] = acid_gate[k] = acid_pend[k].on = 0;
 }
 
 /* our 8 EDIT values -> the 303's pots: CUT RESO ENV DEC ACC WAVE DRV SLD (the rest: X0X's defaults). WAVE 0..3:
@@ -77,13 +81,41 @@ FAST(acid) FM_SETUP void acid_pots(int k, const int16_t *e)
         bass303_set(b, BASS303_DRVTYPE, drv);
 }
 
-FAST(acid) FM_SETUP void acid_note(int k, int note, int accent, int slide)
+static FAST(acid) FM_SETUP void acid_note0(int k, int note, int accent, int slide)
 {
     bass303_t *b = acid_part(k);
     if (!b)
         return;
     bass303_note_on(b, note, accent, slide);
     acid_gate[k] = 1;
+}
+
+/* A note's start (acid_start, in the block's events on CPU0) waits for the part's next render (acid_due, in its job:
+ * either core): its pots as the note found them (the authored EDIT values; the render's own come after, LFO / macro
+ * moved), then the 303's note on, as before in the events. Anything else that touches the 303 before then (another
+ * note, a slide, the render, a note off) does the waiting start first: the same calls in the same order */
+FAST(acid) FM_SETUP void acid_due(int k)
+{
+    if (k < 0 || k >= ACID_PARTS || !acid_pend[k].on)
+        return;
+    acid_pend[k].on = 0;
+    acid_pots(k, acid_pend[k].e);
+    acid_note0(k, acid_pend[k].note, acid_pend[k].acc, 0);
+}
+FAST(acid) FM_SETUP void acid_start(int k, const int16_t *e, int note, int accent)
+{
+    int i;
+    if (k < 0 || k >= ACID_PARTS)
+        return;
+    acid_due(k);
+    for (i = 0; i < 8; i++)
+        acid_pend[k].e[i] = e[i];
+    acid_pend[k].note = (uint8_t)note, acid_pend[k].acc = (uint8_t)(accent != 0), acid_pend[k].on = 1;
+}
+FAST(acid) FM_SETUP void acid_note(int k, int note, int accent, int slide)
+{
+    acid_due(k);
+    acid_note0(k, note, accent, slide);
 }
 
 #if FELUCCA_CPU_GUARD
@@ -97,7 +129,9 @@ FAST(acid) void acid_lite(int k, int on)                      /* the CPU guard: 
 
 FAST(acid) FM_SETUP void acid_off(int k)
 {
-    bass303_t *b = acid_part(k);
+    bass303_t *b;
+    acid_due(k);
+    b = acid_part(k);
     if (b && acid_gate[k]) {
         bass303_note_off(b);
         acid_gate[k] = 0;
