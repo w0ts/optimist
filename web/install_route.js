@@ -132,10 +132,10 @@ export function bootloaderChoice(value, keep = false) {
   return { choice: "keep", line: "bootloader: keep (no build setting with this package): not touched" };
 }
 
-/** BOOTLOADER in a builder .config: "m-bootloader" / "keep" (an absent line is the default, keep) */
+/** BOOTLOADER in a builder .config: "m-bootloader" / "keep" (an absent line is the default, m-bootloader) */
 export function bootloaderFromConfig(text) {
   const m = /^\s*BOOTLOADER\s*=\s*(-?\d+)\s*$/m.exec(String(text || ""));
-  return m && Number(m[1]) === 1 ? "m-bootloader" : "keep";
+  return m ? (Number(m[1]) === 1 ? "m-bootloader" : "keep") : "m-bootloader";
 }
 
 /** the next step when the route is download mode: the words the page and the Mirror app show */
