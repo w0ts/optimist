@@ -8,7 +8,7 @@
  * (dBFS of a sine as loud), the error's rms in LSB and the THD+N. A plain 16-bit rounding is 0.29 LSB rms.
  *   fade_tail_test          the table of every case (information)
  *   fade_tail_test check    pass / fail: the worst error between -45 and -80 dBFS under BOUND LSB rms, and the window
- *                           nearest -70 dBFS with THD+N under BOUND_THDN dB (tests/run_tests.sh, MIX_ROUND builds)
+ *                           nearest -70 dBFS with THD+N under BOUND_THDN dB (tests/run_tests.sh, built with MIX_EXACT)
  * Exit status: the number of failed checks. */
 #define main hostsim_main
 #include "hostsim.c"
@@ -23,10 +23,10 @@
 #define VSOFT 12
 #endif
 #ifndef BOUND
-#define BOUND 0.6                                       /* LSB rms (MIX_EXACT alone: 0.85 to 1.3; MIX_ROUND 0.48) */
+#define BOUND 0.6                                       /* LSB rms (the floored products before: 0.85 to 1.3; rounded 0.48) */
 #endif
 #ifndef BOUND_THDN
-#define BOUND_THDN (-20.0)                              /* dB, at -70 dBFS (MIX_EXACT alone: -17 to -18 at MASTER max) */
+#define BOUND_THDN (-20.0)                              /* dB, at -70 dBFS (the floored products before: -17 to -18 at MASTER max) */
 #endif
 static double cap[NBLK * CTL];
 static double incq[NBLK];                               /* the note's phase step a sample this block (2^32 a turn) */

@@ -673,13 +673,6 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #define FELUCCA_MIX_EXACT 0                /* a part into the mix and the master volume as 64-bit products, no bit dropped
                                             * (fx.c MIX_GAIN MIX_PAN MASTER_VOL; issue 107, 2026-10-28) */
 #endif
-#ifndef FELUCCA_MIX_ROUND
-#define FELUCCA_MIX_ROUND 0                /* a voice into its part and a part into the mix as one rounded product each, no
-                                            * floor (dsp.c VOICE_OUT, fx.c mix_lg MIX_PAN; issue 132, 2026-10-31) */
-#endif
-#if FELUCCA_MIX_ROUND && !FELUCCA_MIX_EXACT
-#error "MIX_ROUND is built on MIX_EXACT (the master volume's bits under the output: fx.c MASTER_VOL)"
-#endif
 #ifndef FELUCCA_WIDE_FINE
 #define FELUCCA_WIDE_FINE 0                /* WIDE's all-pass at the part's scale (insfx.c ifx_ap_w) */
 #endif
