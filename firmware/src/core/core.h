@@ -242,7 +242,8 @@ enum {
     F_ONOFF, F_OCT, F_STEPS,
     F_SWING,                    /* 0..100: MPC swing, 50 % (straight) .. 75 % */
     F_FILT,                     /* -64..63: the DJ filter, LP <- OFF -> HP */
-    F_GATE                      /* 1..127: a note's length in 1/64 of its step, 2 % .. 198 % (past 100 % it overlaps the next) */
+    F_GATE,                     /* 1..127: a note's length in 1/64 of its step, 2 % .. 198 % (past 100 % it overlaps the next) */
+    F_DEG                       /* 0..127: an LFO's PHS, 1/128 of a cycle, shown in degrees (v x 360 / 128, rounded) */
 };
 
 /* a parameter's descriptor, 12 bytes (was 20, 2026-10-23: ~330 of them in flash): the range and the default as bytes
@@ -409,19 +410,29 @@ enum {                          /* per-track parameters */
      * DIOD MS20: A2M_* + 1), OFF HP by default; its cutoff and resonance. Part of a sound (model.c param_kept: P_SLAST) */
     P_A2BTYP, P_A2BCUT, P_A2BRES,
 #endif
+    /* LFO's TRIG and POL (issue 129, 2026-10-31, the user: "both lfo are the same"): as LFO 2's (TRIG NOTE FREE PLAY, POL
+     * BI UNI); NOTE BI by default, LFO as it always was. Part of a sound (model.c param_kept: P_SLAST; a user preset of
+     * before loads them at their defaults, upreset.c); a project keeps them in its modulation record (dlfo_rec.c XREC) */
+    P_L1TRIG, P_L1POL,
     /* VOICES (voice.c trk_nvoice): the part's voice count in POLY and UNISON, 0 = the engine's max (JUNO 6, ACID 1 ...; the card shows it as that number, params.c page_desc),
      * else 1..8 and at most the engine's (MONO stays a mode of P_VOICE). Every build. Not part of a sound nor of a user
      * preset (param_kept), not lockable; stored in a project in the FX record (fx_rec.c VCNT_TLV) */
     P_VOICES,
+    /* LFO 2's PHS and FADE (issue 129, 2026-10-31): as LFO's (PHS 0..127 x 1/128 of a cycle, where TRIG NOTE and PLAY restart
+     * it; FADE its fade in from that restart). Not part of a sound nor of a user preset (as LFO 2's others); a project keeps
+     * them in its modulation record (dlfo_rec.c XREC). Past 127 ids since: the editor's ids are 2 x 7 bit (protocol 7) */
+    P_L2PHS, P_L2FADE,
     P_COUNT
 };
 #if FELUCCA_ANALOG2
 #define P_NLAST P_N2AB          /* the envelopes' values: P_E1PIT .. P_NLAST */
-#define P_SLAST P_A2BRES        /* a sound's values after P_E7: P_E1PIT .. P_SLAST (the envelopes', FLT B's) */
 #else
 #define P_NLAST P_E1Z
-#define P_SLAST P_NLAST
 #endif
+#define P_SLAST P_L1POL         /* a sound's values after P_E7: P_E1PIT .. P_SLAST (the envelopes', FLT B's, LFO's TRIG POL) */
+/* an LFO's TRIG (P_L1TRIG, P_L2TRIG): NOTE a fresh phrase restarts it at PHS (and its FADE), FREE never, PLAY at PLAY (synced:
+ * its phase from the transport, voice.c lfo_play_ph; stopped it runs on as FREE) */
+enum { LTRIG_NOTE, LTRIG_FREE, LTRIG_PLAY };
 /* The modulation destinations, one list for the four modulators (LFO DEST, LFO2 DEST, ENV DEST, ENV2 DEST; params.c
  * N_LT, voice.c LT_TAB says how each acts):
  *   PIT FLT SHP AMP  every voice of the part (an LFO: each block, as its four depths did, AMT 2 = depth 1; AMP: AMT =
@@ -461,6 +472,7 @@ enum { LT_OFF, LT_PIT, LT_FLT, LT_SHP, LT_AMP, LT_RES, LT_PAN, LT_LVL, LT_ATK, L
        LT_AMODE, LT_ARATE, LT_AOCT, LT_AGATE, LT_ASWING, LT_APROB, LT_AHOLD, LT_AORDER,          /* ARP, ARP 2 */
        LT_SLEN, LT_SDIV, LT_SSWING, LT_SGATE,                                /* PATTERN */
        LT_MUTE, LT_FXOFF,                                                    /* the mixer's */
+       LT_L1TRIG, LT_L1POL, LT_L2PHS, LT_L2FADE,                             /* LFO's TRIG POL, LFO 2's PHS FADE (issue 129) */
        LT_N };
 #define LT_NB LT_N                             /* the destinations (every build: LFO 2 is always built) */
 /* ENV 1's AMT on FLT (2 x its FLT depth, P_ED_FLT): for an engine that models the envelope's cutoff depth itself
@@ -491,7 +503,11 @@ AINL int32_t pit_mul(int32_t v, int32_t a) { return (v * (pit_depth(a) >> 4)) >>
 /* RATE below 0 (voice.c lfo_inc): one cycle per note value of the tempo, longest first, as SLOOP 2.6's LFO 2 SYNC
  * (after Felucca 1.4 by Leo Kuroshita): RATE -n is the DUR index n - 1; with SYNC on the free RATE is not heard */
 #define DUR_N 22                /* the note values of the tempo (DUR_48 below): RATE -1 .. -22 */
-#define LSYNC_N DUR_N
+/* an LFO's synced RATE: the DUR values (-1 4BAR .. -22 1/64), then the longer ones of issue 129 (2026-10-31): -23 6BAR,
+ * -24 8BAR, -25 16BAR, stored past the others so that no value moves (a knob walks them in length order: params.c
+ * lrate_pos); LSYNC_LIST their lengths in 48ths of a beat */
+#define LSYNC_N (DUR_N + 3)
+#define LSYNC_LIST(X) DUR_LIST(X) X(1152) X(1536) X(3072)
 #define P_TAIL 1                /* a track has values after P_E7 (P_ENG_END .. P_COUNT - 1): none stored with it, none part
                                  * of a sound but the envelopes' slots (param_kept) */
 

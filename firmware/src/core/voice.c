@@ -54,7 +54,7 @@ static uint32_t dual_lfo_rnd[NPART];
 #define LSYNC_ONE 281474976710656ull                    /* 2^48 */
 _Static_assert(BEAT_U == LSYNC_U * 24u, "a cycle of P 24ths of a beat is LSYNC_U x P units");
 #define LSYNC_KE(d) (uint32_t)((LSYNC_ONE + DUR_U48 * (d) / 2u) / (DUR_U48 * (d))),   /* a cycle of d 48ths of a beat (core.h DUR_LIST) */
-static const uint32_t LSYNC_KT[LSYNC_N] = {DUR_LIST(LSYNC_KE)};   /* RATE -(i + 1): DUR index i, 4BAR .. 1/64 */
+static const uint32_t LSYNC_KT[LSYNC_N] = {LSYNC_LIST(LSYNC_KE)};   /* RATE -(i + 1): DUR index i, 4BAR .. 1/64, then 6BAR 8BAR 16BAR */
 /* the phase step this block of an LFO at RATE r (LFO's and LFO 2's) */
 AINL uint32_t lfo_inc_of(int32_t r)
 {
@@ -64,6 +64,35 @@ AINL uint32_t lfo_inc_of(int32_t r)
 }
 /* the phase step of t's LFO this block (track_lfo_tick; dual.c dual_lfo_draw: the same) */
 AINL uint32_t lfo_inc(const track_t *t) { return lfo_inc_of(t->p[P_LRATE]); }
+/* TRIG PLAY while playing (issue 129, LFO's and LFO 2's): the phase from PLAY, at PHS. Free: the blocks since PLAY
+ * (song.tick) at the rate's step; synced: the beats and units since PLAY (clk_beat, clk_pos), so it stays on the bar
+ * whatever the tempo, the nudge or an external clock did, as a drum lane's LFO (lane_play.c dlfo_now). No state */
+AINL uint32_t lfo_play_ph(int32_t r, int32_t phs)
+{
+    uint64_t q;
+    if (r >= 0) {
+        q = (uint64_t)song.tick * LFO_INC[r & 127];
+    } else {
+        uint32_t kt = LSYNC_KT[(uint32_t)(-r - 1) < LSYNC_N ? (uint32_t)(-r - 1) : 0u];
+        q = (uint64_t)clk_beat * (((uint64_t)BEAT_U * kt) >> 16) + (((uint64_t)clk_pos * kt) >> 16);
+    }
+    return (uint32_t)q + ((uint32_t)phs << 25);
+}
+/* its fade in from PLAY (Q15): FADE's step (ENV_LIN >> 9, as after a note) a block since PLAY; FADE 0: none */
+AINL int32_t lfo_play_fade(int32_t fade)
+{
+    uint32_t st = ENV_LIN[fade & 127] >> 9;
+    uint64_t fv = (uint64_t)song.tick * (st ? st : 1u);
+    return !fade || fv >= 32767u ? 32767 : (int32_t)fv;
+}
+/* t's LFO phase after this block (track_lfo_tick; dual.c dual_lfo_draw: the same): TRIG PLAY playing from the transport,
+ * else a step on */
+AINL uint32_t lfo1_next(const track_t *t)
+{
+    if (t->p[P_L1TRIG] == LTRIG_PLAY && song.playing)
+        return lfo_play_ph(t->p[P_LRATE], t->p[P_LPHASE]);
+    return t->lfo_ph + lfo_inc(t);
+}
 
 /* LFO DEST's slots (core.h LT_*), both LFOs. Two kinds of destination:
  *   PIT FLT SHP AMP  the voices' (track_render, every block): an LFO's slots summed per destination into dep[4] (AMT
@@ -131,9 +160,10 @@ static uint16_t lfo_mac_m;                             /* bit 4 k + d: lfo_mac[k
 typedef struct {
     uint32_t ph;                                        /* the phase */
     uint32_t rnd;                                       /* S&H's value this cycle (the top 16 bits) */
-    int32_t v;                                          /* its value of the last block (Q15, POL in; lfo_over) */
+    int32_t v;                                          /* its value of the last block (Q15, POL and FADE in; lfo_over) */
+    int32_t fade;                                       /* TRIG NOTE: its fade in since the restart (Q15) */
 } lfo2_t;
-static lfo2_t lfo2[NPART] = {[0 ... NPART - 1] = {0, 0x80000000u, 0}};   /* (S&H at 0 till a wrap) */
+static lfo2_t lfo2[NPART] = {[0 ... NPART - 1] = {0, 0x80000000u, 0, 32767}};   /* (S&H at 0 till a wrap) */
 _Static_assert(P_L2AA == P_L2DA + 1 && P_L2DB == P_L2DA + 2 && P_L2AB == P_L2DA + 3, "lfo2[]: one a part");
 /* LFO 2's rnd for lfo_shape: S&H's value; SLEW: from it to the next (the hash it takes at the wrap: no state, no rng()) */
 AINL uint32_t lfo2_rnd(const lfo2_t *s, uint32_t w, uint32_t k)
@@ -147,26 +177,41 @@ static __attribute__((noinline)) void lfo2_tick(const track_t *t, lfo_mod_t *o) 
 {
     const int16_t *p = t->p;
     lfo2_t *s = &lfo2[(uint32_t)(t - trk) % NPART];
-    int32_t v, u, dep[LFO_NDEP] = {0, 0, 0, 0, 0, 0};
+    int32_t v, u, f = 32767, dep[LFO_NDEP] = {0, 0, 0, 0, 0, 0};
     uint32_t old = s->ph;
     if (!LFO2_ON(t))
         return;
-    s->ph += lfo_inc_of(p[P_L2RATE]);
+    if (p[P_L2TRIG] == LTRIG_PLAY && song.playing) {    /* (TRIG PLAY: from PLAY at PHS, its FADE from PLAY) */
+        s->ph = lfo_play_ph(p[P_L2RATE], p[P_L2PHS]);
+        f = lfo_play_fade(p[P_L2FADE]);
+    } else {
+        s->ph += lfo_inc_of(p[P_L2RATE]);
+        if (p[P_L2TRIG] == LTRIG_NOTE) {                /* (NOTE: its FADE from the restart, as LFO's) */
+            if (s->fade < 32767) {
+                int32_t step = (int32_t)(ENV_LIN[p[P_L2FADE] & 127] >> 9);
+                s->fade = p[P_L2FADE] ? clamp(s->fade + (step ? step : 1), 0, 32767) : 32767;
+            }
+            f = s->fade;
+        }
+    }
     if (s->ph < old)
         s->rnd = lfo_rnd_of(s->rnd, (uint32_t)(t - trk));
     v = lfo_shape((uint32_t)p[P_L2WAVE], s->ph, lfo2_rnd(s, (uint32_t)p[P_L2WAVE], (uint32_t)(t - trk)));
-    u = (v + 32768) >> 1;                               /* 0..32767 */
     if (p[P_L2POL])
-        v = u;                                          /* UNI: one way only, as far */
+        v = (v + 32768) >> 1;                           /* UNI: one way only, as far (0..32767) */
+    if (f < 32767)
+        v = mulq15(v, f);                               /* (FADE 0, FREE: as before, sample for sample) */
+    u = p[P_L2POL] ? v : (v + 32768) >> 1;              /* (AMP, either POL: from u, SLOOP's) */
     s->v = v;
     lfo_dep(&p[P_L2DA], dep);
     lfo_apply(dep, v, u, o, &o->g2);                    /* (AMP, either POL: from u, SLOOP's) */
 }
-/* a fresh phrase on part k (trk_note_on): TRIG NOTE restarts it */
+/* a fresh phrase on part k (trk_note_on): TRIG NOTE restarts it at PHS, its FADE from 0 */
 AINL void lfo2_retrig(const track_t *t)
 {
-    if (!t->p[P_L2TRIG])
-        lfo2[(uint32_t)(t - trk) % NPART].ph = 0;
+    lfo2_t *s = &lfo2[(uint32_t)(t - trk) % NPART];
+    if (t->p[P_L2TRIG] == LTRIG_NOTE)
+        s->ph = (uint32_t)t->p[P_L2PHS] << 25, s->fade = 0;
 }
 /* part t's LFO at lfo (Q15, its fade in) on the voices: its slots of PIT FLT SHP AMP (or a macro's depths) -> o */
 AINL void lfo1_voices(const track_t *t, int32_t lfo, lfo_mod_t *o)
@@ -181,7 +226,7 @@ AINL void lfo1_voices(const track_t *t, int32_t lfo, lfo_mod_t *o)
                 dep[d] = lfo_mac[k][d];
     }
 #endif
-    lfo_apply(dep, lfo, (lfo + 32768) >> 1, o, &o->g1);
+    lfo_apply(dep, lfo, t->p[P_L1POL] ? lfo : (lfo + 32768) >> 1, o, &o->g1);   /* (UNI: lfo_val one way already) */
 }
 
 /* How each destination acts (core.h LT_*): {kind, its argument, class}. Kinds: LK_V the voices' (the argument: its
@@ -262,7 +307,8 @@ static const uint8_t LT_TAB[LT_N][3] = {
     LT_SV(P_AMODE), LT_SV(P_ARATE), LT_SV(P_AOCT), LT_SV(P_AGATE), LT_SV(P_ASWING), LT_SV(P_APROB), LT_SV(P_AHOLD),
     LT_SV(P_AORDER),
     LT_SV(P_SLEN), LT_SV(P_SDIV), LT_SV(P_SSWING), LT_SV(P_SGATE),
-    LT_PV(P_MUTE), LT_PV(P_FXOFF)};
+    LT_PV(P_MUTE), LT_PV(P_FXOFF),
+    LT_SV(P_L1TRIG), LT_PV(P_L1POL), LT_PV(P_L2PHS), LT_PV(P_L2FADE)};   /* (issue 129; TRIG read at a note: LC_SEQ, as L2 TRG) */
 _Static_assert(LT_N <= 128 && P_COUNT <= 256, "a DEST in a signed byte (dlfo_rec.c's record, a user preset, the editor's "
                "7 bits); an id in a byte. (The stored forms of before keep 5 or 6 bits: project.c l2_pack, env_store.h)");
 #define LO_MAX 48u                                     /* the values moved in a block (36 slots, an XAMT two each: more is
@@ -477,16 +523,20 @@ AINL uint32_t lfo_seq_any(void)
 
 static HOT void track_lfo_tick(track_t *t)
 {
-    uint32_t old = t->lfo_ph;
-    t->lfo_ph += lfo_inc(t);
+    uint32_t old = t->lfo_ph, trig = (uint32_t)t->p[P_L1TRIG];
+    int32_t w;
+    t->lfo_ph = lfo1_next(t);
     if (t->lfo_ph < old)
 #if DUAL_RENDER
         t->lfo_rnd = lfo_slew_pair(t->lfo_rnd, dual_lfo_rnd[t - trk]);   /* (S&H: the top 16 bits; SLEW: from the */
 #else                                                                   /* last value to this one, lfo_wave) */
         t->lfo_rnd = lfo_slew_pair(t->lfo_rnd, rng());
 #endif
-    t->lfo_val = lfo_wave(t, t->lfo_ph);
-    if (t->lfo_fade < 32767) {
+    w = lfo_wave(t, t->lfo_ph);
+    t->lfo_val = t->p[P_L1POL] ? (w + 32768) >> 1 : w;  /* (POL UNI: one way only, as LFO 2's) */
+    if (trig != LTRIG_NOTE) {                           /* (FREE: no fade; PLAY: from PLAY) */
+        t->lfo_fade = trig == LTRIG_PLAY && song.playing ? lfo_play_fade(t->p[P_LFADE]) : 32767;
+    } else if (t->lfo_fade < 32767) {
         int32_t step = (int32_t)(ENV_LIN[t->p[P_LFADE] & 127] >> 9);
         t->lfo_fade = t->p[P_LFADE] ? clamp(t->lfo_fade + (step ? step : 1), 0, 32767) : 32767;
     }
@@ -936,9 +986,9 @@ static void trk_note_on(track_t *t, uint32_t note, uint32_t vel)
 #endif
     for (i = 0; i < NVOICE; i++)
         any |= t->v[i].gate;
-    if (!any) {                                        /* fresh phrase: LFO retrigger and fade */
-        t->lfo_ph = (uint32_t)t->p[P_LPHASE] << 25;
-        t->lfo_fade = 0;
+    if (!any) {                                        /* fresh phrase: LFO retrigger and fade (its TRIG NOTE) */
+        if (t->p[P_L1TRIG] == LTRIG_NOTE)
+            t->lfo_ph = (uint32_t)t->p[P_LPHASE] << 25, t->lfo_fade = 0;
         lfo2_retrig(t);                                 /* (LFO 2: TRIG NOTE) */
     }
     if (mode == V_POLY) {

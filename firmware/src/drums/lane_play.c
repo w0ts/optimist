@@ -40,7 +40,7 @@ static uint32_t dlfo_free;                 /* blocks counted while stopped (even
 enum { DLF_RATE, DLF_WAVE, DLF_PHASE, DLF_FADE, DLF_DEST1, DLF_AMT1, DLF_DEST2, DLF_AMT2, DLF_N };
 static const char *const N_DLDEST[DE_N + 1u] = {"OFF", "TUNE", "DECAY", "SNAP", "CLICK", "BEND", "CUT", "DRIVE", "LEVEL"};
 static const param_desc_t DLFO_DESC[DLF_N] = {
-    PD("RATE", F_LFOHZ, -LSYNC_N, 127, DLFO_RATE_DEF), PE("WAVE", N_LWAVE, 0), PD("PHS", F_INT, 0, 127, 0),
+    PD("RATE", F_LFOHZ, -LSYNC_N, 127, DLFO_RATE_DEF), PE("WAVE", N_LWAVE, 0), PD("PHS", F_DEG, 0, 127, 0),
     PD("FADE", F_TIME, 0, 127, 0), PE("DEST", N_DLDEST, 0), PD("AMT", F_BIPCT, LFO_AMT_MIN, LFO_AMT_MAX, 0),
     PE("DEST2", N_DLDEST, 0), PD("AMT2", F_BIPCT, LFO_AMT_MIN, LFO_AMT_MAX, 0)};
 _Static_assert(sizeof N_LWAVE / sizeof N_LWAVE[0] == LFO_WAVES, "the waves: lfo_slot.h's");
@@ -350,7 +350,7 @@ _Static_assert(BEAT_U <= 0xFFFFFFFFu / 1024u, "clk_pos x 1024 fits 32 bits");
 #define KLFO_N 2u
 static const char *const N_KLDEST[GR_KIT_N + 1u] = {"OFF", "X", "Y", "CHAOS", "BD", "SD", "HH"};
 static const param_desc_t KLFO_DESC[DLF_N] = {
-    PD("RATE", F_LFOHZ, -LSYNC_N, 127, DLFO_RATE_DEF), PE("WAVE", N_LWAVE, 0), PD("PHS", F_INT, 0, 127, 0),
+    PD("RATE", F_LFOHZ, -LSYNC_N, 127, DLFO_RATE_DEF), PE("WAVE", N_LWAVE, 0), PD("PHS", F_DEG, 0, 127, 0),
     PD("FADE", F_TIME, 0, 127, 0), PE("DEST", N_KLDEST, 0), PD("AMT", F_BIPCT, LFO_AMT_MIN, LFO_AMT_MAX, 0),
     PE("DEST2", N_KLDEST, 0), PD("AMT2", F_BIPCT, LFO_AMT_MIN, LFO_AMT_MAX, 0)};
 static dlfo_t klfo[KLFO_N] = {DLFO_DEF_INIT, DLFO_DEF_INIT};   /* the working project's */
