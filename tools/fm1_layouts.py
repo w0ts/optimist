@@ -51,6 +51,12 @@ LAYOUTS = (
      "0xB5000-0xDFFFF: FM6 voices 0xB5000, autosave A 0xB7000, the project log 0xB8000-0xD7FFF (16 projects), kits, presets"),
     ("own-big", "Optimist's own, MEMORY more flash or SD card mode (LAYOUT 1)", flash_layout.app_hi(1),
      "0xD0000-0xDFFFF: the squeezed store (one project, autosave A, FM6 voices), kits, presets; SD mode: the card"),
+    *(("own-l%d" % s.layout, f"Optimist's own, MEMORY {s.slots} sample slot{'' if s.slots == 1 else 's'}, {s.projects} "
+       f"projects (LAYOUT {s.layout})", s.end,
+       f"{s.end:#x}-0xDFFFF: FM6 voices {s.upf:#x}, autosave A {s.autosave_a:#x}, the project log {s.log_lo:#x}-"
+       f"{s.log_lo + s.log_sectors * SECTOR - 1:#x} ({s.projects} projects)"
+       + (", USR3" if s.slots == 1 else ", USR2, USR3" if s.slots == 2 else "") + ", kits, presets")
+      for s in sorted(flash_layout.STEPS.values(), key=lambda s: s.end) if s.layout not in (0, 1, 3)),
     ("base-normal", "fm1-base (Optimist's release), the normal slot", 0x93000,
      "the platform's data area 0x97000-0xDFFFF (Optimist's store, OBJ_PANEL 0xD8000), XDATA0 0x93000-0x96FFF"),
     ("base-sd", "fm1-base, app_end 0xCE000 (the release's SD card mode, 823,228 B)", 0xCE000,

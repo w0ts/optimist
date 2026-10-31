@@ -69,8 +69,9 @@ STEPS = {
     1: Step(1, "L1", "more flash", 0xD0000, 0xDA000, 0xCE000, True,
             0xD8000, 0xD0000, 0xD7000, 0xD0000, 7, 0, 2),
     3: stacked(3, "S0", "no user samples", 0, 16),
+    8: stacked(8, "S0-4", "no user samples, 4 projects", 0, 4),
 }
-ORDER = (0, 3, 1)         # by size: the builder's MEMORY choices and the tables list them so
+ORDER = tuple(sorted(STEPS, key=lambda k: STEPS[k].end))   # by size: the tables list them so
 
 APP_HI = {k: s.end for k, s in STEPS.items()}
 NAMES = {k: s.name for k, s in STEPS.items()}

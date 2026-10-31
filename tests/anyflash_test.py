@@ -210,7 +210,9 @@ def layouts():
                     (0xB5000, 0xCE000): (0xCE000, 0xDA000),
                     (0xD0000, 0x93000): (0x93000, 0xDA000), (0xD0000, 0xB5000): (0xB5000, 0xDA000),
                     (0xD0000, 0xCE000): (0xCE000, 0xD0000),
-                    (0xCE000, 0x93000): (0x93000, 0xDA000), (0xCE000, 0xB5000): (0xB5000, 0xDA000)}.get((e1, e2), (0, 0))
+                    (0xCE000, 0x93000): (0x93000, 0xDA000), (0xCE000, 0xB5000): (0xB5000, 0xDA000)}.get(
+                (e1, e2), L.flash_layout.switch_clear_ends(e1, e2) if {e1, e2} - {0x93000, 0xB5000, 0xD0000, 0xCE000} else (0, 0))
+            # (a later grid step: the rule's, written out in tests/flash_layout_test.py and tests/ldr_test.c)
             lost_ok = (not p.lost) if e2 <= e1 else (p.lost and p.lost[0][0] == e1)
             ok(kept and right and cleared and rest and (lo, hi) == want and lost_ok and set(L.changed(cur, tgt)) == set(p.sectors),
                f"layout {n1} -> {n2}: package area, clear {lo:#x}-{hi:#x}, kept regions untouched, data above kept")
