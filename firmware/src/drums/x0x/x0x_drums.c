@@ -373,6 +373,10 @@ FM_SETUP uint32_t x0x_hit(uint32_t snd, uint32_t vel, const int8_t *ofs, uint32_
     return ch;
 }
 
+/* channel ch's hit waiting for its block (0: none): its offsets (drum_x0x.c x0x_due: the lane's as x0x_hit took them,
+ * the hit's in their place) */
+int8_t *x0x_pend_ofs(uint32_t ch) { return ch < X0X_NCH && xd.pend[ch].on ? xd.pend[ch].ofs : 0; }
+
 static FM_SETUP void x0x_trigger(uint32_t ch)
 {
     x0x_pend_t *p = &xd.pend[ch];
