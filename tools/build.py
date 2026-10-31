@@ -45,6 +45,7 @@ HOST_ENV = {"FELUCCA_SAMPLES_SKIP": "", "FELUCCA_SLICE": "0"}
 LDR = OUT / "loader"
 GEN_REL = GEN.relative_to(SRC).as_posix()       # (the tools run with cwd SRC: build/gen, or a slot's)
 sys.path.insert(0, str(SRC / "tools"))
+import farcalls  # noqa: E402  (RAM <-> XIP direct calls)
 import fm1pkg_make  # noqa: E402
 import flash_layout  # noqa: E402  (the app slot's end by FELUCCA_LAYOUT: fm1_flash_map.h's numbers)
 import lz4blk  # noqa: E402
@@ -751,22 +752,10 @@ def check(img, syms, dis, rt):
         errors.append(f".ram_text contains calls: {rt_calls[:3]}")
     else:
         notes.append(f".ram_text: {len([ln for ln in rt.splitlines() if LINE.match(ln)])} insns, no calls")
-    far = []
     import romref                   # nothing may call the chip ROM or use its addresses (tools/romref.py: a constant
     for val in romref.rom_refs(dis):                            # kept as a number, e.g. pi32v2-llvm's, passes)
         errors.append(f"reference to ROM address {val:#010x}")
-    for ln in dis.splitlines():
-        mm = LINE.match(ln)
-        if not mm:
-            continue
-        # a direct call between RAM code and XIP is out of reach (core.h HOT, FAR): the linker should
-        # refuse it; this catches one that wrapped instead. Target = pc + offset + 4 (also for the
-        # conditional form "if (..) { call N }", whose label is printed on the next line)
-        c = re.search(r"\bcall (-?\d+)\b", mm.group(3))
-        if c:
-            pc = int(mm.group(1), 16)
-            if (pc >= 0x02000000) != ((pc + int(c.group(1)) + 4) & 0xFFFFFFFF >= 0x02000000):
-                far.append(f"{pc:#x} -> {(pc + int(c.group(1)) + 4) & 0xFFFFFFFF:#x}")
+    far = farcalls.far_calls(dis)    # (tools/farcalls.py: a data word that looks like a call is not one)
     if far:
         errors.append(f"direct calls between RAM and XIP code: {far[:4]}")
     over = errors if not MEASURE else OVER       # a measurement build reports the overflow, it never ships
