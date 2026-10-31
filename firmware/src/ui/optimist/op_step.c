@@ -877,6 +877,94 @@ static void note_repitch(track_t *t, uint32_t idx, uint32_t k, uint32_t nt)
             q->note[c] = (uint8_t)nt;
     }
 }
+/* ---- a note moved in pitch never breaks another (the user, 2026-10-31: "if i have note on A and B that have a common
+ * portion of their duration overlapping, if i move the B down, it should not destroy the A, it should skip past it"). The
+ * notes m of step a go one row on (d +-1 a semitone, +-12 an octave; fold: FOLD's next row) and on past every pitch where
+ * a note of it sounds in their time (one pitch never sounds twice at once: its carry steps would join the two), to the
+ * first that leaves every other note as it was (nt_sum, the same before and after); none (the keyboard's end): they stay,
+ * "NO ROOM". A chord moves whole, its shape kept */
+static uint32_t nt_sum(const track_t *t, uint32_t a, uint32_t m)   /* every note that starts: its step, pitch (m of a: none), length */
+{
+    uint32_t i, j, n, h = 0;
+    uint8_t k[4];
+    for (i = 0; i < trk_len(t); i++)
+        for (j = 0, n = pk_heads(t, i, k); j < n; j++) {   /* (a sum: the order a step lists its notes in, lowest first, may
+                                                         * change with the moved pitch) */
+            uint32_t p = i == a && ((m >> k[j]) & 1u) ? 255u : t->step[i].note[k[j]];
+            uint32_t x = (i << 24 | p << 16 | note_span(t, i, k[j])) * 2654435761u;
+            h += (x ^ x >> 15) * 2246822519u + 1u;
+        }
+    return h;
+}
+static int nt_clash(const track_t *t, uint32_t a, uint32_t m, uint32_t q, uint32_t sp)   /* another note of pitch q sounds in [a, a + sp) */
+{
+    uint32_t i, j, n, lo = a * 128u, hi = a * 128u + sp;
+    uint8_t k[4];
+    for (i = 0; i < trk_len(t); i++)
+        for (j = 0, n = pk_heads(t, i, k); j < n; j++) {
+            uint32_t s0 = i * 128u, s1 = s0 + note_span(t, i, k[j]);
+            if ((i == a && ((m >> k[j]) & 1u)) || t->step[i].note[k[j]] != q)
+                continue;
+            if (s0 < hi && lo < s1)
+                return 1;
+        }
+    return 0;
+}
+static const char *pitch_move(track_t *t, uint32_t a, uint32_t m, int32_t d, int fold)   /* (IRQ off) -> 0 moved, else why not */
+{
+    step_t sv[NSTEP];                                   /* (the steps back when a pitch does not leave the others as they were) */
+    step_t *s = &t->step[a];
+    int32_t o[4], q[4];
+    uint32_t k, j, len = trk_len(t), h = nt_sum(t, a, m), tries;
+    m &= (1u << (s->n < 4u ? s->n : 4u)) - 1u;
+    if (!m || !step_on(s))
+        return 0;
+    for (k = 0; k < 4u; k++)
+        o[k] = q[k] = k < s->n ? s->note[k] : 0;
+    memcpy(sv, t->step, len * sizeof(step_t));
+    for (tries = 0; tries < 128u; tries++) {
+        int ok = 1;
+        for (k = 0; k < s->n && k < 4u; k++) {
+            int32_t x;
+            if (!((m >> k) & 1u))
+                continue;
+            x = ui_clamp(fold ? roll_fold_step(t, q[k], d) : q[k] + d, 0, 127);
+            if (x == q[k] || (d > 0 ? x < q[k] : x > q[k]))
+                return "NO ROOM";                       /* (the keyboard's end) */
+            q[k] = x;
+        }
+        for (k = 0; k < s->n && k < 4u && ok; k++)
+            if ((m >> k) & 1u) {
+                ok = !nt_clash(t, a, m, (uint32_t)q[k], note_span(t, a, k));
+                for (j = 0; j < k && ok; j++)
+                    ok = !((m >> j) & 1u) || q[j] != q[k];
+            }
+        if (!ok)
+            continue;
+        for (j = 0; j < 4u; j++) {                      /* (the highest first going up, the lowest down: no name met twice) */
+            int32_t b = -1;
+            for (k = 0; k < s->n && k < 4u; k++)
+                if (((m >> k) & 1u) && s->note[k] == (uint8_t)o[k] && o[k] != q[k] && (b < 0 || (d > 0 ? o[k] > o[b] : o[k] < o[b])))
+                    b = (int32_t)k;
+            if (b < 0)
+                break;
+            note_repitch(t, a, (uint32_t)b, (uint32_t)q[b]);
+        }
+        if (nt_sum(t, a, m) == h)
+            return 0;
+        memcpy(t->step, sv, len * sizeof(step_t));      /* (another note changed: on to the next pitch) */
+    }
+    return "NO ROOM";
+}
+static void pitch_moves(track_t *t, uint32_t a, uint32_t m, int32_t s, int32_t row, int fold)   /* |s| moves of row (+-1, +-12) */
+{
+    const char *why = 0;
+    int32_t n = s > 0 ? s : -s;
+    while (n-- > 0 && !why)
+        why = pitch_move(t, a, m, s > 0 ? row : -row, fold);
+    if (why)
+        ui_message(why);
+}
 /* GLIDE (the user, 2026-10-29: "where did we put the glide? i think it should be on the first page of the PLOCK, we can
  * remove length"): the step's SLIDE (SF_SLIDE, stored with the step since SLOOP: seq.c seq_step holds its notes into the
  * next step, which then plays legato with a glide, voice.c; GLIDE 0 glides in SLIDE_T). OFF / ON, right on, left off */
@@ -899,6 +987,11 @@ static void edit_synth(track_t *t, uint32_t idx, int32_t s)
     }
     if (k == 4u) {
         step_note_resize(t, idx, s == OP_RESET ? -(int32_t)NSTEP : s, m);
+        return;
+    }
+    if (k == 0u || k == 5u) {                           /* (NOTE: semitones; 5: OCT- / OCT+, octaves; past a pitch sounding there) */
+        if (s != OP_RESET)
+            pitch_moves(t, idx, m, s, k == 5u ? 12 : 1, 0);
         return;
     }
     for (i = 0; i < st_->n && i < 4u; i++) {
@@ -938,7 +1031,7 @@ static void held_notes(void (*f)(track_t *t, uint32_t idx, int32_t s), int32_t s
 }
 /* a step held + OCT- / OCT+ (the user, 2026-10-11): every note of the steps held an octave down / up, each clamped
  * to 0..127; the keyboard octave and FM6's paging stay (a synth track's: edit_synth's NOTE, held_edit's packing) */
-static void held_octave(int32_t d) { held_notes(edit_synth, (uint16_t)(int16_t)(12 * d)); }
+static void held_octave(int32_t d) { held_notes(edit_synth, (int32_t)(5u << 16) | (uint16_t)(int16_t)d); }
 
 /* ---- a held step moved (the user, 2026-10-16): PRESETS moves it left / right in time, ALGORITHM up / down (a synth step's
  * note a semitone, a drum hit to the lane above / below as drawn). The events of the step (its locks, motion, nudge,
@@ -947,13 +1040,9 @@ static void held_octave(int32_t d) { held_notes(edit_synth, (uint16_t)(int16_t)(
  * (st.fabs), the window pages when they cross its edge. Several held: they move together, in one undo level. */
 static void held_pitch_one(track_t *t, uint32_t idx, int32_t s)
 {
-    step_t *x = &t->step[idx];
-    uint32_t k, m = sel_mask(t, idx);
-    if (!step_on(x))
+    if (!step_on(&t->step[idx]))
         return;
-    for (k = 0; k < x->n && k < 4u; k++)
-        if ((m >> k) & 1u)
-            note_repitch(t, idx, k, (uint32_t)ui_clamp(roll_fold_step(t, x->note[k], s), 0, 127));   /* (folded: row to row) */
+    pitch_moves(t, idx, sel_mask(t, idx), s, 1, 1);     /* (folded: row to row; past a pitch sounding there) */
 }
 static void held_pitch(int32_t s) { held_notes(held_pitch_one, s); }   /* ALGORITHM on a held synth step: the selected notes up / down */
 #if FELUCCA_AUTO
@@ -1192,7 +1281,7 @@ static const char *note_move(track_t *t, uint32_t a, uint32_t m, int32_t d, uint
     memcpy(sv, t->step, len * sizeof(step_t));
     for (b = (int32_t)a + d;; b += d) {
         if (b < 0 || (uint32_t)b + L > len) {
-            why = d < 0 ? "FIRST STEP" : "LAST STEP";
+            why = b != (int32_t)a + d ? "NO ROOM" : d < 0 ? "FIRST STEP" : "LAST STEP";   /* (past a note: nowhere it fits) */
             break;
         }
         had = pk_heads(t, (uint32_t)b, hd);
