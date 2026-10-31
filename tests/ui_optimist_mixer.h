@@ -28,11 +28,11 @@ static void mixer_walk_tests(void)
     reset_ui();
     ui.force = 1;
     frame();
-    check(mx_row() == MXR_T1 && mxd.first == MXR_T1 && px_in(6, mx_row_y(MXR_T1) + 3u, 16, 14, C_WHITE) && MXL_H == (OP_FOOT ? 36 : 41) &&
-              px_in(0, mx_row_y(MXR_T1) + 2u, 4, 30, trk_col(0)) && px_in(0, mx_row_y(MXR_DR) + 2u, 4, 30, C_GRAY) &&
-              !px_in(0, mx_row_y(MXR_DR) + 2u, 4, 30, trk_col(TRK_DRUM)) && !px_in(0, mx_row_y(MXR_DR) + (uint32_t)MXL_H + 2u, 4, 1, lane_col(0)),
-          "the mixer opens on T1 T2 T3 DR, four rows of 41 px (36 over the help band; MASTER above, out of view); the selected "
-          "row's chip in its colour, the others grey");
+    check(mx_row() == MXR_T1 && mxd.first == MXR_T1 && px_in(6, mx_row_y(MXR_T1), 16, 12, C_WHITE) && MXL_H >= 20 &&
+              px_in(0, mx_row_y(MXR_T1) + 2u, 4, (uint32_t)MXL_H - 6u, trk_col(0)) && px_in(0, mx_row_y(MXR_DR) + 2u, 4, (uint32_t)MXL_H - 6u, C_GRAY) &&
+              !px_in(0, mx_row_y(MXR_DR) + 2u, 4, (uint32_t)MXL_H - 6u, trk_col(TRK_DRUM)) && mx_row_y(MXR_DR) + (uint32_t)MXL_H <= (uint32_t)(OP_PY + MXB_Y),
+          "the mixer opens on T1 T2 T3 DR, four rows over the pinned block (RET A B C, MASTER at the foot); the selected row's chip "
+          "in its colour, the others grey");
     for (i = 1; i < MXR_LN - MXR_T1; i++) {             /* ALGORITHM down: T2 T3 DR, then the 16 lanes */
         turn(EN_ALGO, 1);
         ok &= mx_row() == MXR_T1 + i;
@@ -45,7 +45,7 @@ static void mixer_walk_tests(void)
     ok &= mx_row() == MXR_USB && song.sel == TRK_DRUM;
     ui.force = 1;
     frame();
-    ok &= mxd.first == MXR_USB && mxd.last == MXR_USB + 1u && px_in(2, 3, 50, 19, C_HI);   /* (alone; the badge "5 USB") */
+    ok &= mxd.first == MXR_USB && mxd.last == MXR_USB + 1u && px_in(2, 3, 50, 19, C_HI);   /* (alone up there; the badge "5 USB") */
     {
         uint32_t av = op_btn_avail();
         ok &= !(av & (1u << B_ENV | 1u << B_EDIT)) && (av & 1u << B_FX);   /* (no instrument: the track buttons dark; FX its
@@ -64,14 +64,17 @@ static void mixer_walk_tests(void)
     check(ok && mx_row() == MXR_LN - 1u, "ALGORITHM walks T1 T2 T3 DR and the 16 lanes (each selected), RET A after the last, and back");
     ui.force = 1;
     frame();
-    check(mxd.first == MXR_LANE0 && mxd.last == MXR_LN && mx_row_x(MXR_LN - 1u) == 0u && mx_row_y(MXR_LN - 1u) > mx_row_y(MXR_LN - 2u) &&
+    check(mxd.last == MXR_LN && mxd.first == MXR_LN - (MXS_VIS < MXR_LN - MXR_LANE0 ? MXS_VIS : MXR_LN - MXR_LANE0) &&
+              mx_row_x(MXR_LN - 1u) == 0u && mx_row_y(MXR_LN - 1u) > mx_row_y(MXR_LN - 2u) &&
               px_in(0, mx_row_y(MXR_LN - 1u), 240, 1, ACC_UI ? C_HI : lane_col(DRUM_LANES - 1u)) &&
               !px_in(0, mx_row_y(MXR_LN - 1u) + 2u, 240, 3, col_shade(ACC_UI ? C_HI : lane_col(DRUM_LANES - 1u), 3u)),
-          "past DR the view is every drum lane, one column (2026-10-18); the selected lane framed in its colour, no tinted ground");
+          "past DR the upper area shows the lanes, one column, its window on the cursor's (the last); the selected lane framed in its "
+          "colour, no tinted ground");
     ppm("opt-mixer-h-lane16");
-    for (ok = 1, i = MXR_LANE0 + 1u; i < MXR_LN; i++)
+    for (ok = 1, i = mxd.first + 1u; i < MXR_LN; i++)
         ok &= mx_row_x(i) == 0u && mx_row_y(i) > mx_row_y(i - 1u);
-    check(ok && mx_row_y(MXR_LN - 1u) + 13u <= (uint32_t)(OP_PY + OP_PH), "every lane in the one column, top down, the last on the screen");
+    check(ok && mx_row_y(MXR_LN - 1u) + (uint32_t)MXS_RH <= (uint32_t)(OP_PY + MXB_Y),
+          "the lanes in view in the one column, top down, the last over the pinned block");
     for (i = 0, ok = 1; i < DRUM_UILANES; i++) {        /* back up through the lanes to DR, T3 ... */
         turn(EN_ALGO, -1);
         ok &= mx_row() == MXR_LN - 2u - i;
@@ -87,8 +90,8 @@ static void mixer_walk_tests(void)
     turn(EN_ALGO, (int32_t)(MXR_MASTER - (MXR_LN - 1u)));
     ui.force = 1;
     frame();
-    check(mx_row() == MXR_MASTER && song.sel == TRK_DRUM && mxd.first == MXR_MASTER && mxd.last == MXR_N,
-          "past the last lane down: USB IN, RET A B C, then MASTER alone on the panel (the track stays)");
+    check(mx_row() == MXR_MASTER && song.sel == TRK_DRUM && mxd.first < MXR_RET0 && mx_row_y(MXR_MASTER) == (uint32_t)(OP_PY + MXB_Y + 3 * MXB_H),
+          "past the last lane down: USB IN, RET A B C, then MASTER, the block's last line (the upper area as it was, the track stays)");
     turn(EN_ALGO, 1);
     check(mx_row() == MXR_MASTER, "... and it stops there");
     track_select(0);
@@ -274,7 +277,7 @@ static void mixer_sets_tests(void)
               "RET A's KNOB 1: its line's RET level (CHO's), at unity (100 %)");
         for (k = 0; ui.overlay == 5u && k < 600u; k++)   /* (an earlier test's PRESETS list still open: its time out) */
             frame();
-        check(mxd.first == MXR_RET0 && mxd.last == MXR_MASTER, "... the view: the three returns, above MASTER");
+        check(mxd.first == MXR_T1 && mx_row_y(ra) == (uint32_t)(OP_PY + MXB_Y), "... the screen as it was: the channels up there, RET A the block's first line");
         mix_cell(ra, 1, &c);
         check(!strcmp(c.val, "CHO"), "... KNOB 2: its effect, CHO (FX > SLOTS' A)");
         turn(EN_K1, -5);
@@ -567,20 +570,23 @@ static void mixer_rows_tests(void)
     }
 #if FELUCCA_MASTER_COMP
     {   /* the compressors' reduction: a bar from the right, only where one works */
-        uint32_t x = MXM_GX + MXM_GW;
-        mx_apply(MXR_MASTER);                           /* MASTER, alone */
+        mrect_t qm;
+        uint32_t x;
+        mx_apply(MXR_MASTER);                           /* MASTER: the block's last line */
+        mx_rect(MXR_MASTER, &qm);
+        x = (uint32_t)(qm.vx + qm.vw);
         song.g[G_CTHR] = -10;
         mc_gr_view = -6;                                /* 6 dB: 18 px from the right */
         frame();
-        y = OP_PY + MXM_GY;
-        check(px_in(x - 17u, y, 4, MXM_GH, C_WARN) && !px_in(x - 22u, y, 3, MXM_GH, C_WARN),
-              "MASTER alone: the compressor's 6 dB as an amber bar pushing in from the right (18 px)");
+        y = (uint32_t)(OP_PY + qm.y + qm.vy);
+        check(px_in(x - 17u, y, 4, (uint32_t)qm.vh, C_WARN) && !px_in(x - 22u, y, 3, (uint32_t)qm.vh, C_WARN),
+              "MASTER's line: the compressor's 6 dB as an amber bar pushing in from the right of its meter (18 px)");
         ui.force = 1;
         frame();
         ppm("opt-mixer-h-master-gr");
         song.g[G_CTHR] = 0, song.g[G_CCEIL] = 0;        /* (CEIL is on by default since 2026-10-11) */
         frame();
-        check(!px_in(MXM_GX, y, MXM_GW, MXM_GH, C_WARN), "THRS and CEIL off: no compressor, no bar");
+        check(!px_in((uint32_t)qm.vx, y, (uint32_t)qm.vw, (uint32_t)qm.vh, C_WARN), "THRS and CEIL off: no compressor, no bar");
         song.g[G_CCEIL] = GP[G_CCEIL].def;
         mc_gr_view = 0;
         mx_apply(MXR_T1);
@@ -612,17 +618,79 @@ static void mixer_rows_tests(void)
         reset_ui();
         ui.force = 1;
         frame();
-        check(!cards_2x2() && MXL_H == (OP_FOOT ? 36 : 41) && mxd.first == MXR_T1 && !px_at(30u, OY_CARD + BIG_H - 1u, C_LINE),
-              "the mixer keeps the 1x4 cards and its four rows of 41 (36) px (every other screen is 2x2)");
+        check(!cards_2x2() && MXL_H == (MXB_Y - 1) / 4 && MXL_H >= 20 && mxd.first == MXR_T1 && !px_at(30u, OY_CARD + BIG_H - 1u, C_LINE),
+              "the mixer keeps the 1x4 cards, its four channels over the pinned block (every other screen is 2x2)");
         ppm("opt-mixer-h-2x2");
         reset_ui();
     }
+}
+/* the pinned block (the user, 2026-10-30: "i told to put ON ONE screen the master at the bottom, and the return track above it, on
+ * the same screen. AND not to move the screen"): whatever row is selected, the panel's four last lines are RET A, RET B, RET C,
+ * MASTER (their codes drawn there), the panel's origin and the cards' size never change, and the walk into the block and out
+ * of it leaves the upper area where it was */
+static int mx_block_shown(void)                         /* the four bottom lines drawn: A B C M, each line's code in its place */
+{
+    static const char *const C[4] = {"A", "B", "C", "M"};
+    uint32_t k, ok = 1;
+    for (k = 0; k < 4u; k++) {
+        mrect_t q;
+        mx_rect(MXR_RET0 + k, &q);
+        ok &= q.y == MXB_Y + (int32_t)k * MXB_H && q.h == MXB_H && !strcmp(mx_code(MXR_RET0 + k), C[k]) &&
+              (px_in(6, (uint32_t)(OP_PY + q.y), 10, (uint32_t)q.h, C_HI) || px_in(6, (uint32_t)(OP_PY + q.y), 10, (uint32_t)q.h, C_WHITE) ||
+               px_in(6, (uint32_t)(OP_PY + q.y), 10, (uint32_t)q.h, C_WARN));
+    }
+    return (int)ok && MXB_Y + 4 * MXB_H == OP_PH && MXR_MASTER == MXR_RET0 + 3u;
+}
+static void mixer_pinned_tests(void)
+{
+    uint32_t r, ok = 1, py, f;
+    reset_ui();
+    ui.force = 1;
+    frame();
+    py = OP_PY;
+    for (r = 0; r < MXR_N; r++) {                       /* every row selected in turn: the block at the foot, the panel in place */
+        mx_apply(r);
+        frame();
+        ok &= mx_block_shown() && OP_PY == py && !cards_2x2() && mx_row() == r;
+        if (!mx_in_block(r))
+            ok &= mxd.first <= r && r < mxd.last;       /* (an upper row: in view up there) */
+    }
+    check(ok, "pinned block: whatever row is selected, the four bottom lines are RET A, RET B, RET C, MASTER, the panel in place");
+    reset_ui();
+    frame();
+    mx_apply(MXR_LANE0 + 2u);                           /* (a lane: the upper area on the lanes) */
+    frame();
+    f = mxd.first;
+    turn(EN_ALGO, (int32_t)(MXR_RET0 + 1u - mx_row()));   /* the walk into the block: RET B */
+    frame();
+    ok = mx_row() == MXR_RET0 + 1u && mxd.first == f && OP_PY == py && mx_block_shown();
+    ppm("opt-mixer-pinned-retb");
+    turn(EN_ALGO, 2);                                   /* MASTER */
+    frame();
+    ok &= mx_row() == MXR_MASTER && mxd.first == f && OP_PY == py && mx_block_shown();
+    ppm("opt-mixer-pinned-master");
+    turn(EN_ALGO, -(int32_t)(MXR_MASTER - (MXR_LN - 1u)));   /* out again, up to the last lane */
+    frame();
+    ok &= mx_row() == MXR_LN - 1u && OP_PY == py && mxd.last == MXR_LN && mx_block_shown();
+    check(ok, "pinned block: the walk into it (RET B, MASTER) moves only the highlight, the upper area and the panel's origin "
+              "as they were; out again the upper area follows the cursor, the block stays");
+    reset_ui();
+    frame();
+    press(B_OCTDN);                                     /* both OCT: the mixer, MASTER selected, nothing moved */
+    press(B_OCTUP);
+    release(B_OCTUP);
+    release(B_OCTDN);
+    frames(2);
+    check(mx_row() == MXR_MASTER && mxd.first == MXR_T1 && OP_PY == py && mx_block_shown(),
+          "pinned block: both OCT selects MASTER, the channels still up there, the panel in place");
+    reset_ui();
 }
 static void mixer_tests(void)
 {
     mixer_walk_tests();
     mixer_sets_tests();
     mixer_rows_tests();
+    mixer_pinned_tests();
 }
 
 static void scope_tests(void)

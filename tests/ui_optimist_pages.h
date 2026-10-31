@@ -357,6 +357,7 @@ static void keys_global_tests(void)
     uint32_t pass, r, tools = 0, sel0;
     for (pass = 0; pass < 2u; pass++) {
         song.sel = pass ? TRK_DRUM : 0;
+        trk[0].p[P_CHORD] = 0;                          /* (T1 plays notes: the random use before may leave a CHORD mode, its black keys modifiers) */
         reset_ui();
         frames(2);
         tap(B_GLO);
