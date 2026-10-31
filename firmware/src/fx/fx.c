@@ -2175,40 +2175,24 @@ static HOT2 __attribute__((noinline)) void dust_run(dust_t *s, int32_t d, int32_
 
 /* a part's sample x (|x| < 2^21) times its pan gain g (Q12, 4096 at most) into the mix (mix_part, insfx.c ifx_side_mix):
  * MIX_FINE drops 3 bits before the product (at most 2^18 x 2^12), not 4: the dry's steps half as coarse, the floor 5.3 dB
- * lower on every part (host, 2026-10-26). MIX_EXACT (issue 107, 2026-10-28): 64-bit products, no bit dropped, here and in
- * MIX_GAIN, the part's mute x duck gain g (Q15): its 4 bits down were taken on every block, the gain at rest being
- * 32766 (mulq15(32767, 32767)): every part reached the bus in steps of 16, a long tail's last bits a bitcrusher */
+ * lower on every part (host, 2026-10-26). MIX_EXACT (issue 107, 2026-10-28): a 64-bit product, no bit dropped, rounded to
+ * the nearest (issue 132): a fading note's tail no longer ends on a floor's -1 square wave */
 #if FELUCCA_MIX_EXACT
-#define MIX_PAN(x, g) ((int32_t)(((int64_t)(x) * (g)) >> 12))
-#define MIX_GAIN(x, g) ((int32_t)(((int64_t)(x) * (g)) >> 15))
+#define MIX_PAN(x, g) ((int32_t)(((int64_t)(x) * (g) + 2048) >> 12))
 #elif FELUCCA_MIX_FINE
 #define MIX_PAN(x, g) ((((x) >> 3) * (g)) >> 9)
 #else
 #define MIX_PAN(x, g) ((((x) >> 4) * (g)) >> 8)
 #endif
-#if !FELUCCA_MIX_EXACT
-#define MIX_GAIN(x, g) (((x) >> 4) * ((g) >> 3) >> 8)  /* (Q15 in two halves: no 32-bit overflow) */
-#endif
 /* a part's sample b (the voices' sum) times its LEVEL lv (Q12) and its mute x duck gain g (Q15, applied under 32767):
- * the value that goes to its pan, sends and USB stem (mix_part, insfx.c ifx_side_mix). LEVEL dropped 2 bits of b before
- * its product, so a part reached the bus in steps of 4 x its level (LEVEL 0 dB: 4 LSB of the output), then MIX_GAIN
- * floored it again. MIX_ROUND (issue 132, after SLOOP 2.8.4's "clean fades"): one 64-bit product of all three, rounded to
- * the nearest (|b| < 2^20, lv g < 2^29); and MIX_PAN rounded too: a fading note's tail no longer steps down in 4s, nor
- * ends on a floor's -1 square wave */
-#if FELUCCA_MIX_ROUND
-#undef MIX_PAN
-#define MIX_PAN(x, g) ((int32_t)(((int64_t)(x) * (g) + 2048) >> 12))
+ * the value that goes to its pan, sends and USB stem (mix_part, insfx.c ifx_side_mix). One 64-bit product of all three,
+ * rounded to the nearest (|b| < 2^20, lv g < 2^29; issue 132, after SLOOP 2.8.4's "clean fades"). LEVEL dropped 2 bits
+ * of b before its product (a part reached the bus in steps of 4 x its level: 4 LSB of the output at 0 dB), then the
+ * mute x duck gain floored it again (always: at rest it is mulq15(32767, 32767) = 32766) */
 AINL int32_t mix_lg(int32_t b, int32_t lv, int32_t g)
 {
     return (int32_t)(((int64_t)clamp(b, -884000, 884000) * (lv * (g < 32767 ? g : 32768)) + (1 << 26)) >> 27);
 }
-#else
-AINL int32_t mix_lg(int32_t b, int32_t lv, int32_t g)
-{
-    int32_t x = ((clamp(b, -884000, 884000) >> 2) * lv) >> 10;   /* pre-shift: 8 loud voices */
-    return g < 32767 ? MIX_GAIN(x, g) : x;
-}
-#endif
 #include "insfx/insfx.c"            /* the further insert types FOLD FUZZ PHSR FLNG FRMT WIDE CHRS ECHO (ins_one, dbus_ins) */
 #include "insfx/fxi.c"              /* the limited types' instances (CHRS ECHO): the main loop hands them out, fxi_poll */
 #include "fx_arena.c"               /* FELUCCA_FX_ARENA: the effects' lines in the arena while used (fxm_poll) */
