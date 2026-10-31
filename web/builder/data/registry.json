@@ -4987,7 +4987,7 @@
     "flag": "",
     "label": "projects kept in flash",
     "group": "Memory management",
-    "bit": 444,
+    "bit": 447,
     "default": 16,
     "parent": null,
     "desc": "How many projects the flash keeps (the user, 2026-10-31: 2, 4 or 16); fewer projects is a smaller project log, more code room. The log's room (MEM FULL past it; a busy project is about 6-8 KB, an estimate): 16: 128 KiB with no sample slot (about 13-17 busy projects), 80 KiB in normal (7-10); 4: 44 KiB (3-5); 2: 28 KiB. The web editor's backup keeps the projects a smaller choice has no room for.",
