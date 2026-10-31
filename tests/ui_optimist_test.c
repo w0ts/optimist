@@ -3217,13 +3217,19 @@ static void song_tests(void)
     }
     ui.row[SCR_SONG] = (uint8_t)song_row_of(SG_SCENE, 2);
     frame();
-    {   /* the SCENES table (op_songtbl.c): KNOB 1..4 the values of T1..DR, PRESETS the BARS, SELECT the cursor, ALGORITHM the lane */
+    {   /* the SCENES table (op_songtbl.c): KNOB 1..4 = T1 T2 T3 DR of the cursor's scene, PRESETS the BARS, SELECT and ALGORITHM the cursor along the scenes */
         scene_bars[2] = 0;
         ui.row[SCR_SONG] = (uint8_t)song_row_of(SG_SCENE, 2);
         frame();
         check(song_tbl_on(), "SONG, a scene row: the SCENES table");
-        turn(EN_ALGO, 9);
-        check(stb_lane == 4u, "SCENES: ALGORITHM down the lanes to BARS (the last)");
+        ui.row[SCR_SONG] = (uint8_t)song_row_of(SG_SCENE, 2);
+        turn(EN_ALGO, 1);
+        check(ui.row[SCR_SONG] == song_row_of(SG_SCENE, 3), "... ALGORITHM +1: the next scene");
+        turn(EN_ALGO, -1);
+        check(ui.row[SCR_SONG] == song_row_of(SG_SCENE, 2), "... ALGORITHM -1: back");
+        turn(EN_SELECT, 1);
+        check(ui.row[SCR_SONG] == song_row_of(SG_SCENE, 3), "... SELECT moves the cursor too");
+        turn(EN_SELECT, -1);
         turn(EN_PRESET, 3);
         check(scene_bars[2] == 3u && !strcmp(ui.msg, "SCENE C: 3 BARS") && sg.dirty, "... PRESETS: the scene's BARS 3, said, the song to be saved");
         turn(EN_PRESET, -9);
@@ -3240,20 +3246,36 @@ static void song_tests(void)
             song_cell(song_row_of(SG_PART, 0), 4, &sc5);
             check(sc5.label == 0, "... no 5th cell on the other rows");
         }
-        turn(EN_SELECT, 1);
-        check(ui.row[SCR_SONG] == song_row_of(SG_SCENE, 3) && stb_lane == 4u, "SCENES: SELECT the cursor to the next scene, the lane kept");
-        turn(EN_SELECT, -1);
-        turn(EN_ALGO, -9);
-        check(stb_lane == 0u, "... ALGORITHM up the lanes");
-        turn(EN_K2, 1);
-        check(stb_lane == 0u, "... KNOB 2 edits the next scene's value in that lane (the lane stays)");
-        {   /* KNOB 2: the scene after the cursor's, the same lane: its BARS lane too */
-            uint32_t b3 = scene_bars[3];
-            turn(EN_ALGO, 9);
-            turn(EN_K2, 2);
-            check(scene_bars[3] == b3 + 2u && scene_bars[2] == 0u, "... on the BARS lane KNOB 2 sets the next scene's BARS (the current stays)");
-            scene_bars[3] = b3;
-            turn(EN_ALGO, -9);
+        {   /* KNOB 1..4 = T1 T2 T3 DR of the scene under the cursor (C): a turn edits that track's cell there, in that column only */
+            static const uint8_t KN[4] = {EN_K1, EN_K2, EN_K3, EN_K4};
+            uint32_t k;
+            for (k = 0; k < 4u; k++) {
+#if FELUCCA_PATTERNS
+                sg.scn |= 1u << 2;
+                sg.ed_s = 0xFF;
+#endif
+                turn(KN[k], 1);
+#if FELUCCA_PATTERNS
+                check(ui.row[SCR_SONG] == song_row_of(SG_SCENE, 2) && sg.ed_s == 2u && sg.ed_k == k, k == 0 ? "SCENES: KNOB 1 edits T1 of the cursor's scene" : k == 1 ? "SCENES: KNOB 2 edits T2 of the cursor's scene" : k == 2 ? "SCENES: KNOB 3 edits T3 of the cursor's scene" : "SCENES: KNOB 4 edits DR of the cursor's scene");
+#else
+                check(ui.row[SCR_SONG] == song_row_of(SG_SCENE, 2), "SCENES: a knob turn leaves the cursor on its scene");
+#endif
+            }
+            turn(EN_ALGO, 1);
+            turn(KN[2], 1);
+#if FELUCCA_PATTERNS
+            check(sg.ed_s == 3u || !((sg.scn >> 3) & 1u), "... after ALGORITHM the knobs edit the next scene's tracks");
+#endif
+            turn(EN_ALGO, -1);
+        }
+        {   /* BARS stays on its row: PRESETS edits the cursor scene's BARS, the knobs never */
+            uint32_t b2 = scene_bars[2], b3 = scene_bars[3];
+            turn(EN_K1, 3);
+            turn(EN_K4, 3);
+            check(scene_bars[2] == b2 && scene_bars[3] == b3, "SCENES: KNOBS 1..4 leave every BARS alone");
+            turn(EN_PRESET, 2);
+            check(scene_bars[2] == b2 + 2u && scene_bars[3] == b3, "... PRESETS sets the cursor scene's BARS alone");
+            scene_bars[2] = b2;
         }
         ui.force = 1;
         frames(2);
@@ -3265,12 +3287,11 @@ static void song_tests(void)
     {   /* the PARTS timeline: two lanes (the scene, the bars: S the scene's, A the longest pattern, a number) */
         uint32_t bars = arrangement.entry[0].bars, cnt = arrangement.count;
         cell_t bc;
-        stb_lane = 0;
         arrangement.entry[0].bars = 0;
         song_cell(song_row_of(SG_PART, 0), 1, &bc);
         check(song_tbl_on() && !strcmp(bc.val, "SCENE"), "PARTS table: BARS 0 is S (it follows its scene's BARS)");
         turn(EN_ALGO, 1);
-        check(stb_lane == 0u, "PARTS: ALGORITHM does nothing (the scene lane only)");
+        check(ui.row[SCR_SONG] == song_row_of(SG_PART, 0), "PARTS: ALGORITHM does nothing");
         turn(EN_PRESET, 2);
         check(arrangement.entry[0].bars == 2u, "PARTS: PRESETS the bars (from S up: 1, 2)");
         turn(EN_PRESET, -5);
