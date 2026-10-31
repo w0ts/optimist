@@ -70,7 +70,7 @@ AINL int32_t cs80_vco(uint32_t w, uint32_t ph, uint32_t inc, uint32_t pw)
 
 /* channel c of voice v, n samples ADDED to acc (Q15 x its MIX gain): VCO, high-pass, low-pass (+ the sine) */
 AINL void cs80_chan(voice_t *v, uint32_t c, uint32_t w, uint32_t inc, uint32_t pw, int32_t gain, const tsvf_t *hp,
-                    const tsvf_t *lp, int32_t k, int32_t *acc, uint32_t n)
+                    const tsvf_t *lp, int32_t k, int32_t *__restrict acc, uint32_t n)
 {
     int32_t h1 = v->s[4u * c], h2 = v->s[4u * c + 1u], l1 = v->s[4u * c + 2u], l2 = v->s[4u * c + 3u];
     uint32_t ph = v->ph[c], i;
