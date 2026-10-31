@@ -21,6 +21,11 @@ final class MirrorLink: ObservableObject, Transport, CompanionTransport {
     /// An fm1-base app answered the companion capability query (0x60) and not Optimist's INFO: what it says it is (Companion/)
     @Published private(set) var companion: CompanionInfo?
     @Published private(set) var bluetooth = false   // the port in use is the Bluetooth one
+    /// Bluetooth: the FM-1's INFO, once a whole one came (the link asks it, the editor screens read it here: one asker, so the
+    /// editor's INFO never queues behind the screen or holds the mirror's requests back)
+    @Published private(set) var btDevice: DeviceInfo?
+    /// Bluetooth: INFO was asked BtAsk.tries times and no whole answer came (a firmware that answers the mirror only there)
+    @Published private(set) var btGaveUp = false
     /// The port in use has sent the app something since it was taken (any SysEx: the "No mirror" screen says which case it is)
     @Published private(set) var heard = false
     @Published private(set) var ports: [String] = []   // every MIDI port with both directions, by name (the picker)
@@ -61,8 +66,9 @@ final class MirrorLink: ObservableObject, Transport, CompanionTransport {
         var bytes = 0             // SysEx bytes received since the last tick (the link's rate, logged)
         var known = false         // the last reply's version is the decoder's (another firmware's pushes: not drawn)
         var features: [String: Int]?   // INFO's tag 66 over USB (nil: not asked yet); nothing but INFO is sent before it
-        var btInfo = 0            // Bluetooth, mirroring: INFOs sent to learn whether PANEL and NAV go there too (opti_mirbt)
-        var btKnown = false       // .. and its answer came (an older firmware answers none: the screen only)
+        var bt = false            // the port in use is the Bluetooth one (`bluetooth`, for CoreMIDI's thread)
+        var btInfo = 0            // Bluetooth, mirroring: ticks spent on INFO, to learn whether PANEL and NAV go there too (opti_mirbt)
+        var btKnown = false       // .. and a whole answer came (an older firmware answers none: the screen only)
         var held: Date?           // a catch-up began (the whole panel filled): the picture shown stays until it is in
         var rows = [Bool](repeating: true, count: 240)   // since that fill, the rows drawn again
         var rowsLeft = 0
@@ -97,6 +103,10 @@ final class MirrorLink: ObservableObject, Transport, CompanionTransport {
     private var timer: Timer?
     private var asked = 0         // requests since the last reply
     private var wantWhole = true
+    /// Bluetooth, a port known as the FM-1's: what it offers when INFO went unanswered for btInfoFirst ticks (an older firmware
+    /// answers the mirror only there): the screen anyway
+    private var btFallback: [String: Int]?
+    private static let btInfoFirst = 2
 
     private static let keepAlive: TimeInterval = 1.0
 #if DEBUG
@@ -186,12 +196,19 @@ final class MirrorLink: ObservableObject, Transport, CompanionTransport {
 
     /// What a port taken is known to offer before anything is asked (nil: INFO first, as over USB). Over Bluetooth our firmware
     /// answers 106 whatever its age, INFO only since opti_mirbt (2026-10-24): a Bluetooth port known as the FM-1's by its name,
-    /// picked by hand or connected in the app's Bluetooth sheet (`trusted`) starts at the mirror. Any other Bluetooth port is
+    /// picked by hand or connected in the app's Bluetooth sheet (`trusted`) falls back to the mirror when INFO is not answered whole
+    /// within btInfoFirst ticks (INFO goes first: asked while the screen streams it comes damaged). Any other Bluetooth port is
     /// asked INFO first: the FM-1's port may carry a name the app does not know (a system may keep the name a device had when
     /// it first connected). It started with no features at all, and that was "No mirror in this firmware" at once, nothing asked.
     static func startFeatures(bluetooth: Bool, name: String, trusted: Bool) -> [String: Int]? {
         guard bluetooth, trusted || isFM1Name(name) else { return nil }
         return [Feature.mirror.name: Feature.mirror.version]
+    }
+
+    /// An INFO reply's arguments as the link takes them: over Bluetooth a whole one only (DeviceInfo.wholeOverBluetooth), nil else
+    static func takeInfo(_ args: [UInt8], bluetooth: Bool) -> DeviceInfo? {
+        guard let i = try? DeviceInfo.parse(args) else { return nil }
+        return !bluetooth || i.wholeOverBluetooth ? i : nil
     }
 
     /// A Bluetooth MIDI port: its device's driver is Apple's Bluetooth MIDI driver, or its name says so (as on a Mac).
@@ -233,15 +250,19 @@ final class MirrorLink: ObservableObject, Transport, CompanionTransport {
         source = src ?? 0
         destination = dst ?? 0
         let bt = src.map(Self.isBluetooth) ?? false
-        let start = Self.startFeatures(bluetooth: bt, name: src.map(Self.name) ?? "", trusted: !chosen.isEmpty || !want.isEmpty)
+        btFallback = Self.startFeatures(bluetooth: bt, name: src.map(Self.name) ?? "", trusted: !chosen.isEmpty || !want.isEmpty)
         lock.withLock {
             $0.assembler = SysExAssembler()
-            $0.features = start
+            $0.features = nil   // (INFO first, Bluetooth too: asked before the screen streams it comes whole, btFallback after)
+            $0.bt = bt
+            $0.known = false     // (the version is the new port's reply's: no frame drawn before it)
             $0.btInfo = 0
             $0.btKnown = false
         }
         companion = nil
         heard = false
+        btDevice = nil
+        btGaveUp = false
         guard let src, dst != nil else {
             portName = ""
             state = .searching
@@ -259,14 +280,24 @@ final class MirrorLink: ObservableObject, Transport, CompanionTransport {
     // MARK: - requests
 
     private func tick() {
-        guard destination != 0, holds == 0, gate.tryAcquire() else { return }
-        defer { DispatchQueue.main.asyncAfter(deadline: .now() + 0.06) { [gate] in gate.release() } }   // (the reply, before the next request)
+        guard destination != 0, holds == 0 else { return }
+        // USB: one request at a time, the mirror's in a free moment between the editor's. Bluetooth: the firmware takes 106 apart
+        // from the requests it queues (ed_mirror.c mbr_take), so the mirror's goes out every second whatever waits: an editor
+        // request held 1.5 s and more for its reply there, and the screen stalled behind it (MIR_ALIVE_MS 3 s)
+        if !bluetooth {
+            guard gate.tryAcquire() else { return }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.06) { [gate] in gate.release() }   // (the reply, before the next request)
+        }
         let bytes = lock.withLock { s in defer { s.bytes = 0 }; return s.bytes }
         if state == .mirroring {
             Self.log.info("\(self.bluetooth ? "bluetooth" : "usb", privacy: .public) \(bytes) bytes/s")
             print("\(bluetooth ? "bluetooth" : "usb") \(bytes) bytes/s")
         }
         if asked >= Self.unanswered, state != .mirroring { state = .noMirror }
+        if let fb = btFallback, asked >= Self.btInfoFirst, lock.withLock({ $0.features == nil }) {
+            lock.withLock { $0.features = fb }   // (Bluetooth: no whole INFO in 2 s, an FM-1's port: the screen; INFO asked beside it)
+            asked = 0
+        }
         let f = lock.withLock { $0.features }
         if f == nil {                   // INFO first: another firmware may give 106 another meaning (ed_opti.h)
             if companion != nil { return }   // (an fm1-base app: it has been identified, nothing else is asked)
@@ -279,18 +310,18 @@ final class MirrorLink: ObservableObject, Transport, CompanionTransport {
             asked += 1
             return
         }
-        guard f?[Feature.mirror.name] == Feature.mirror.version else {
+        guard f?[Feature.mirror.name] == Feature.mirror.version || state == .mirroring else {   // (its frames drawn: it mirrors)
             state = .noMirror
             return
         }
-        let askBT = state == .mirroring && bluetooth && lock.withLock { s -> Bool in
-            guard !s.btKnown, s.btInfo < Self.unanswered else { return false }
-            s.btInfo += 1
-            return true
-        }
-        if askBT {                      // (over Bluetooth: INFO once mirroring; a firmware with opti_mirbt answers it there)
-            send([1])
-            return
+        if state == .mirroring && bluetooth {   // (over Bluetooth: INFO once mirroring, beside the mirror's request, never instead)
+            let ask = lock.withLock { s -> BtAsk in
+                let a = BtAsk.next(known: s.btKnown, ticks: s.btInfo)
+                if a != .none { s.btInfo += 1 }
+                return a
+            }
+            if ask == .ask { send([1]) }
+            if ask == .gaveUp, !btGaveUp { btGaveUp = true }
         }
         send([MirrorDecoder.cmd, wantWhole ? 3 : 1])
         wantWhole = false
@@ -352,7 +383,7 @@ final class MirrorLink: ObservableObject, Transport, CompanionTransport {
     var navMissing: String? {
         guard state == .mirroring, !canNavigate else { return nil }
         if bluetooth, !lock.withLock({ linkCarries($0) }) {
-            return lock.withLock({ $0.btKnown || $0.btInfo < Self.unanswered })
+            return lock.withLock({ $0.btKnown || BtAsk.next(known: false, ticks: $0.btInfo) != .gaveUp })
                 ? "Asking the FM-1 whether its buttons work over Bluetooth…"
                 : "Over Bluetooth this firmware sends its screen only: the touch buttons need the USB cable, or a build made after 2026-10-24."
         }
@@ -502,8 +533,9 @@ final class MirrorLink: ObservableObject, Transport, CompanionTransport {
         }
         guard !frames.isEmpty else { return }
         let got = frames
-        let (replied, identified, answers, companionInfo) = lock.withLock { s -> (Bool, Bool, [(CheckedContinuation<[UInt8], Error>, [UInt8])], CompanionInfo?) in
-            var identified = false
+        let (replied, identified, answers, companionInfo, drew, btDev) = lock.withLock { s -> (Bool, Bool, [(CheckedContinuation<[UInt8], Error>, [UInt8])], CompanionInfo?, Bool, DeviceInfo?) in
+            var identified = false, drew = false
+            var btDev: DeviceInfo?
             var companionInfo: CompanionInfo?
             var on = false
             var answers: [(CheckedContinuation<[UInt8], Error>, [UInt8])] = []
@@ -516,10 +548,10 @@ final class MirrorLink: ObservableObject, Transport, CompanionTransport {
                         answers.append((p.continuation, c.body))
                     }
                 } else if !MirrorDecoder.isMirror(f), let u = Wire.unframe(f) {         // an editor reply
-                    if u.cmd == 1, s.features == nil, let i = try? DeviceInfo.parse(u.args) { s.features = i.features; identified = true }
-                    else if u.cmd == 1, s.btInfo > 0, !s.btKnown, let i = try? DeviceInfo.parse(u.args) {
-                        s.features = i.features   // (Bluetooth: the whole list now, opti_mirbt among it)
-                        s.btKnown = true
+                    if u.cmd == 1, let i = Self.takeInfo(u.args, bluetooth: s.bt) {   // (Bluetooth: a whole one only; a damaged one is asked again)
+                        if s.features == nil { s.features = i.features; identified = true }
+                        else if s.bt, !s.btKnown { s.features = i.features }   // (Bluetooth: the whole list now, opti_mirbt among it)
+                        if s.bt { s.btKnown = true; btDev = i }
                     }
                     if let p = s.pending, p.cmd == u.cmd, Wire.replyMatches(p.cmd, p.args, u.args) {
                         s.pending = nil
@@ -543,15 +575,17 @@ final class MirrorLink: ObservableObject, Transport, CompanionTransport {
                     }
                     s.lastFrame = Date()
                     s.generation += 1
+                    drew = true
                 }
             }
-            return (on, identified, answers, companionInfo)
+            return (on, identified, answers, companionInfo, drew, btDev)
         }
         for (c, a) in answers { c.resume(returning: a) }
-        if replied {
+        if let btDev { DispatchQueue.main.async { if self.btDevice != btDev { self.btDevice = btDev } } }
+        if replied || drew {            // (a panel write drawn is the mirror answering too: a lost 106 reply never shows No mirror)
             DispatchQueue.main.async {
                 self.asked = 0
-                self.state = .mirroring
+                if self.state != .mirroring { self.state = .mirroring }   // (once: a frame batch comes many times a second)
             }
         } else if identified {          // (INFO in: the mirror's own requests start counting now)
             DispatchQueue.main.async { self.asked = 0; self.tick() }

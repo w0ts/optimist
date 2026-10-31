@@ -184,6 +184,14 @@ struct DeviceInfo: Equatable {
     var patSlots = 0, patScenes = 0   // tag 55: the per-track patterns (0: none)
     var hasPatterns: Bool { patSlots > 0 && has(.patterns) }
     var features: [String: Int] = [:]   // tags 66 and 67: "opti_backup_4 opti_mirror_2 ...", name -> version (none: not optimist's way)
+    /// The tagged blocks ended exactly at the reply's end and the feature names are printable. Over Bluetooth an INFO asked
+    /// while the screen streams comes damaged, still F0 .. F7 (measured on the FM-1, 2026-10-31: 18 of 20, a run of bytes
+    /// zeroed in place or bytes lost): its block lengths or its names no longer hold.
+    var intact = true
+
+    /// An INFO the Bluetooth link can trust: whole, and from a firmware that mirrors (over Bluetooth only ed_mirror.c answers
+    /// INFO, so a reply without opti_mirror is a damaged one)
+    var wholeOverBluetooth: Bool { intact && features[Feature.mirror.name] != nil }
 
     /// The firmware offers f in the version this app reads (firmware/src/io/editor/ed_opti.h): every Felucca-family
     /// firmware answers INFO, but numbers its other commands its own way.
@@ -210,12 +218,17 @@ struct DeviceInfo: Equatable {
         if o.proto >= 6 { for _ in 0..<o.nengines where !r.atEnd { _ = try r.b() } }   // v6: each engine's UID
         while o.proto >= 6 && r.i + 2 <= a.count {
             let id = try r.b(), n = Int(try r.b())
-            if r.i + n > a.count { break }
+            if r.i + n > a.count { o.intact = false; break }
             if id == 0x55 && n >= 2 { o.patSlots = Int(a[r.i]); o.patScenes = Int(a[r.i + 1]) }
             if id == 0x64 && n >= 1 { o.lite = a[r.i] & 1 != 0; o.lib = a[r.i] & 2 != 0 }
-            if id == 0x66 || id == 0x67 { o.features.merge(features(a[r.i..<r.i + n])) { $1 } }   // (67: more names, 66 full)
+            if id == 0x66 || id == 0x67 {                // (67: more names, 66 full)
+                let text = a[r.i..<r.i + n]
+                if text.contains(where: { $0 < 0x20 || $0 > 0x7E }) { o.intact = false }   // (names are printable: zeroed bytes are not)
+                o.features.merge(features(text)) { $1 }
+            }
             r.i += n
         }
+        if o.proto >= 6 && r.i != a.count { o.intact = false }   // (a byte left over: a block's length did not hold)
         return o
     }
 }

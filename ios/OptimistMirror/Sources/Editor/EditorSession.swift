@@ -137,25 +137,36 @@ final class EditorSession: ObservableObject {
         info = nil
         infoTried = false
         projects = nil; sectionUsed = []; bkList = nil; patList = nil; bank = nil
-        guard link.editorPossible || (link.bluetoothInUse && link.state == .mirroring) else { return }   // (Bluetooth: once the mirror runs; MirrorView asks again then)
-        let hold = !link.bluetooth      // (Bluetooth: the mirror goes on and the exchange waits its turn: an older firmware leaves INFO unanswered for seconds)
-        if hold { link.hold() }
-        defer { if hold { link.release() } }
+        if link.bluetooth {             // (Bluetooth: the link asks INFO beside the mirror's request and keeps the whole answer)
+            adoptBluetoothInfo()
+            return
+        }
+        guard link.editorPossible else { return }
+        link.hold()
+        defer { link.release() }
         do {
             info = try await Ops.info(link)
             infoTried = true
             note = nil
         } catch {
             infoTried = true
-            if link.bluetooth { note = nil; return }      // (an older firmware answers the mirror only there: the screens say so)
             note = Note(text: "The FM-1 did not answer the editor's INFO (\(error.localizedDescription)).", error: true)
         }
     }
 
-    /// Over Bluetooth the port may not answer yet when it is taken: INFO is asked again once the mirror runs
+    /// Over Bluetooth INFO is the link's (MirrorLink.btDevice: one asker, beside the screen, a damaged reply refused and asked
+    /// again); the screens take it once it is in, or know there will be none (btGaveUp: a firmware that answers the mirror only)
+    private func adoptBluetoothInfo() {
+        guard link.bluetoothInUse else { return }
+        info = link.btDevice
+        infoTried = link.btDevice != nil || link.btGaveUp
+        note = nil
+    }
+
+    /// Bluetooth: the link's INFO came in (or it gave up) after the port was taken
     func connectIfNeeded() async {
-        guard link.bluetooth, link.state == .mirroring, info == nil, !busy else { return }
-        await connect()
+        guard link.bluetooth, info == nil, !busy else { return }
+        adoptBluetoothInfo()
     }
 
     func device() -> DeviceStamp? {

@@ -32,6 +32,27 @@ enum EditorRoute: Equatable {
     }
 }
 
+/// INFO over Bluetooth, asked by the mirror's link once a second beside its 106 (MirrorLink.tick): measured on the FM-1 while
+/// the screen streams (2026-10-31), about 1 in 3 INFOs gets no reply (the firmware drops a reply that would start behind 4 KB of
+/// screen, ed_mirror.c MIR_BLE_LAG) and 1 in 20 comes damaged (DeviceInfo.intact). So it is asked `tries` times until a whole
+/// one comes, and given up `grace` ticks after the last ask (a reply comes up to ~1.4 s late).
+enum BtAsk: Equatable {
+    case none      // known: nothing to ask
+    case ask       // send INFO with this tick's 106
+    case wait      // asked enough: the last replies may still come
+    case gaveUp    // no whole answer: a firmware that answers the mirror only there
+
+    static let tries = 6
+    static let grace = 2
+
+    /// the step for this tick, `ticks` ticks already spent on INFO
+    static func next(known: Bool, ticks: Int) -> BtAsk {
+        if known { return .none }
+        if ticks < tries { return .ask }
+        return ticks < tries + grace ? .wait : .gaveUp
+    }
+}
+
 /// Timeouts and retries over Bluetooth Low Energy: a reply waits behind the screen the firmware streams (up to 0.65 s) and the
 /// connection interval, and a request that came while the firmware's single long-request slot was busy is dropped (the
 /// client asks again), so each wait is longer and each request that may be repeated gets more tries than over USB.
