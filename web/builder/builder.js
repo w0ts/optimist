@@ -49,8 +49,8 @@ const TEMPLATE = `
           <div id="bars"></div>
           <div class="side">
             <button type="button" id="fit" class="primary" hidden>Make it fit</button>
-            <span id="undo" class="o-chip"></span>
             <span id="arena" class="o-chip"></span>
+            <span id="undo" class="o-chip"></span>
             <button type="button" id="keychip" class="o-chip tip-end" data-tip="The cloud key of this configuration" aria-label="Copy the configuration's key">key -</button>
           </div>
         </div>
@@ -302,8 +302,8 @@ function renderBars() {
   $("fit").hidden = !overNow;                // (only when the configuration does not fit: nothing in its place otherwise)
   const u = v.undo, ud = $("undo");
   ud.className = "o-chip";
-  ud.textContent = u ? `undo ${fmtKB(u.ring)}` : "";
-  ud.title = u ? `UNDO ring ${fmt(u.ring)} B` : "";
+  ud.textContent = u ? (u.arena ? `undo keeps ${fmtKB(u.keep)}${u.cache ? ` + cache ${fmtKB(u.cache)}` : ""}` : `undo ${fmtKB(u.ring)}`) : "";
+  ud.title = u ? (u.text || `UNDO ring ${fmt(u.ring)} B`) : "";
   const a = v.arena, ar = $("arena");
   ar.className = "o-chip";
   ar.textContent = a ? `arena ${a.exact ? "" : "~"}${a.kb}K` : "";

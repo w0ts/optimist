@@ -425,12 +425,13 @@ class Builder(App):
         for r, (used, cap, over) in C.fits(b["total"], self.cfg).items():
             lines.append(bar(r, used, cap, over))
             lines.append("\n")
-        if C.built(self.cfg, "UNDO_HISTORY"):               # (what RAM and pool leave: the undo history's ring)
-            lines.append(Text(f"{'UNDO':8s} ring {C.undo_ring(b['total']):,} B"))
-            lines.append("\n")
         ar = self.arena()
-        if ar:                                           # (the arena: the free SRAM less the undo's keep)
-            lines.append(Text(f"{'ARENA':8s} {'' if ar['exact'] else '~'}{ar['kb']} KB" + ("" if ar["exact"] else " (estimate)")))
+        if ar:                                           # (the arena first: the free SRAM less the undo's keep)
+            lines.append(Text(f"{'ARENA':8s} {'' if ar['exact'] else '~'}{ar['kb']} KB" + ("" if ar["exact"] else " (estimate)"),
+                              style="bold"))
+            lines.append("\n")
+        if C.built(self.cfg, "UNDO_HISTORY"):               # (with ARENA its keep: it borrows the arena's free top)
+            lines.append(Text(f"{'UNDO':8s} " + C.undo_text(self.cfg, b["total"]).removeprefix("undo ")))
             lines.append("\n")
         w.update(lines)
 
