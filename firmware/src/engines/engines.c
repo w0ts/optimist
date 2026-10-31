@@ -223,6 +223,10 @@ enum {
 #ifndef FELUCCA_FXI_LINE_BLOCKS
 #define FELUCCA_FXI_LINE_BLOCKS 1
 #endif
+#if !defined(FELUCCA_FXM_IDLE_FREE) && defined(__PI32V2__)
+#define FELUCCA_FXM_IDLE_FREE 1                          /* (the device: a send line only while its bus is heard, fx_arena.c;
+                                                         * the host tests keep 0 unless they ask) */
+#endif
 #ifndef FXM_CPN_MAX
 #define FXM_CPN_MAX 8u                                   /* (the copies' blocks at most: ARN_PARTS <= 32) */
 #endif

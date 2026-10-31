@@ -137,6 +137,33 @@ int main(void)
     settle(60);
     b = cp_bytes(&n);
     CHECK(n == 0u && b == 0u && arn_room() == room0, "let go: every copy faded out and its block given back, the room as before");
+#if FELUCCA_FXM_IDLE_FREE
+    /* 5. (FELUCCA_FXM_IDLE_FREE) the send lines only while their bus is heard */
+    fxs_set(FXS_DEF);
+    for (k = 0; k < NTRK; k++)
+        trk[k].p[P_CHOR] = trk[k].p[P_DLY] = trk[k].p[P_REV] = 0;
+    settle(8);
+    CHECK(!cho_buf && !dly_buf && !rev_line && arn_room() == room0,
+          "the sends in the master slots, nothing sent: no line placed (the arena's room as with none)");
+    trk[0].p[P_DLY] = 100;
+    trk_note_on(&trk[0], 60, 110);
+    for (n = 0; n < 40u && !dly_buf; n++)
+        blocks(1), pass();
+    blocks(8);
+    pass();
+    CHECK(dly_buf && !cho_buf && !rev_line && fxm_st[FXM_DLY] == FXM_ON && !(fxm_off & 2u),
+          "a note sent to the delay: its line placed and heard after %u blocks; CHO and REV still none", (unsigned)n);
+    trk_note_off(&trk[0], 60);
+    trk[0].p[P_DLY] = 0;
+    for (n = 0; n < (FXM_IDLE_S + 8u) * FS / CTL && dly_buf; n++) {
+        blocks(1);
+        if (!(n & 15u))
+            pass();
+    }
+    settle(4);
+    CHECK(!dly_buf && fxm_st[FXM_DLY] == FXM_NONE && arn_room() == room0,
+          "... its tail over and %u s of nothing: the line given back (%u blocks)", (unsigned)FXM_IDLE_S, (unsigned)n);
+#endif
     printf("fx_lineblk_test: %d checks, %d failed\n", checks, bad);
     return bad != 0;
 }
