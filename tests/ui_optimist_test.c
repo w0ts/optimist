@@ -1961,8 +1961,20 @@ static void layer_tests(void)
          * at once (before the hold) is SHIFT and keeps the screen under it (ui_optimist_len.h: LEN by one) */
         check(lpk.on && ui.scr == SCR_SONG, "LFO held: the patterns screen (SONG's PATTERNS row)");
         turn(EN_K2, 1);
-        check(song.sel == 1u && lay.shown == LY_PLAY, "LFO held + KNOB 2 on the patterns screen: T2 selected");
-        turn(EN_K1, 1);
+        check(song.sel == 2u && lay.shown == LY_PLAY, "LFO held + KNOB 2 on the patterns screen: T3 selected (the knobs read the cards by columns, 2026-10-31)");
+        {   /* (a knob turned makes the hold SHIFT's: each knob in a hold of its own) K1 T1, K3 T2, K4 DR */
+            static const uint8_t KN[3] = {EN_K1, EN_K3, EN_K4}, WANT[3] = {0, 1, 3};
+            uint32_t i;
+            for (i = 0; i < 3u; i++) {
+                release(B_LFO);
+                frames(2);
+                song.sel = 2;
+                press(B_LFO);
+                frames(HOLD_FRAMES);
+                turn(KN[i], 1);
+                check(song.sel == WANT[i], i == 0 ? "... KNOB 1: T1 (top left)" : i == 1 ? "... KNOB 3: T2 (top right)" : "... KNOB 4: DR (bottom right)");
+            }
+        }
         song.sel = 0;
     }
     release(B_LFO);
@@ -3067,8 +3079,8 @@ static void song_tests(void)
         song.sel = 0;
         turn(EN_ALGO, 2);
         check(song.sel == 0u && ui.scr == SCR_SONG && !ui.master, "PATTERNS row: ALGORITHM does nothing (a global screen)");
-        turn(EN_K3, 1);
-        check(song.sel == 2u, "PATTERNS row: KNOB 3 selects T3 (the keys then launch its patterns)");
+        turn(EN_K2, 1);
+        check(song.sel == 2u, "PATTERNS row: KNOB 2 selects T3 (the cards by columns; the keys then launch its patterns)");
         turn(EN_K1, 1);
         check(song.sel == 0u, "... KNOB 1 selects T1");
         press(B_SEQ);
