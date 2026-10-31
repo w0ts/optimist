@@ -315,11 +315,11 @@ static void t_vufloor(void)
     uint32_t i, ok = 1;
     fill(&old, 21);
     persist_from_v3(&p, &old);
-    check("VU FLOOR: a record converted from an older layout has 0 in its byte, which reads as -60", p.rsv_pj[0] == 0u && vuf_dec(p.rsv_pj[0]) == VUF_DEF && vuf_db(vuf_dec(p.rsv_pj[0])) == -60);
+    check("VU FLOOR: a record converted from an older layout has 0 in its byte, which reads as -60", p.rsv_pj[0] == 0u && vuf_dec(p.rsv_pj[0]) == 2u && vuf_db(vuf_dec(p.rsv_pj[0])) == -60);
     for (i = 0; i < VUF_N; i++)
         ok &= vuf_dec(vuf_enc(i)) == i && vuf_db(i) == -80 + 10 * (int32_t)i;
     check("VU FLOOR: each of -80 .. -20 stored and read back as itself", ok);
-    check("VU FLOOR: the default is stored as 0, a byte out of range reads as the default", vuf_enc(VUF_DEF) == 0u && vuf_dec(0xFFu) == VUF_DEF && vuf_dec(VUF_N ^ VUF_DEF) == VUF_DEF);
+    check("VU FLOOR: -60 is stored as 0 (the default is -40), a byte out of range reads as the default", vuf_enc(2u) == 0u && vuf_db(VUF_DEF) == -40 && vuf_dec(0xFFu) == VUF_DEF && vuf_dec(VUF_N ^ 2u) == VUF_DEF);
 }
 
 static void t_flash(void)

@@ -510,23 +510,24 @@ static void mixer_rows_tests(void)
         frames(30);
         check(seen, "T1's row: its VU meter fills from the left while it plays");
     }
-    {   /* the VU's gradient: its own colour up to -12 dB, amber and red above it (a full-scale peak ends in red) */
+    {   /* the VU's bands by dBFS: green under -18, amber -18 .. -6, red from -6 (a full-scale peak ends in red); on the -60 floor, where the ticks stand 4/44 of the width apart */
         uint32_t i, red = 0, amb = 0, y = mx_row_y(MXR_T1) + MXL_VY;
+        vu_floor_i = 2u;
         for (i = 0; i < 3u; i++) {
             mt.ui[0] = 8192;                            /* -12 dBFS: lights up to the -12 dB tick */
             frame();
         }
         amb = (uint32_t)px_in(MXL_VX, y, MXL_VW, MXL_VH, C_WARN);
-        check(!amb && !px_in(MXL_VX, y, MXL_VW, MXL_VH, C_ERR), "T1's VU at the -12 dB tick: no amber, no red");
+        check(amb && !px_in(MXL_VX, y, MXL_VW, MXL_VH, C_ERR), "T1's VU at the -12 dB tick: amber at the top, no red");
         for (i = 0; i < 3u; i++) {
             mt.ui[0] = 32767;                           /* 0 dBFS */
             frame();
         }
         ppm("opt-mixer-vu-full");
         red = (uint32_t)px_in(MXL_VX + MXL_VW - 4, y, 4, MXL_VH, C_ERR);
-        check(red && px_in(MXL_VX, y, MXL_VW * 36 / 44, MXL_VH, C_OK), "T1's VU at 0 dBFS: green below -12 dB, red at the top");
-        check(!px_in(MXL_VX + MXL_VW * 36 / 44 + 1, y, 3, MXL_VH, C_OK) && !px_in(MXL_VX + MXL_VW * 41 / 44, y, 20, MXL_VH, C_OK) && px_at(MXL_VX + MXL_VW - 1, y, C_ERR),
-              "... the columns above -12 dB are shaded, not the base colour");
+        check(red && px_in(MXL_VX, y, MXL_VW * 32 / 44, MXL_VH, C_OK) && px_in(MXL_VX + MXL_VW * 33 / 44, y, MXL_VW * 6 / 44, MXL_VH, C_WARN), "T1's VU at 0 dBFS: green below -18 dB, amber to -6, red at the top");
+        check(!px_in(MXL_VX + MXL_VW * 32 / 44 + 1, y, MXL_VW * 8 / 44 - 2, MXL_VH, C_OK) && !px_in(MXL_VX + MXL_VW * 40 / 44 + 1, y, MXL_VW * 4 / 44 - 8, MXL_VH, C_WARN) && px_at(MXL_VX + MXL_VW - 1, y, C_ERR),
+              "... the bands cut at -18 and -6 dB, no blend");
         mt.ui[0] = 0;
         frames(300);   /* (the peak-hold marker, held 1.5 s and then falling, is gone too) */
         for (i = 0; i < 3u; i++) {
@@ -542,13 +543,15 @@ static void mixer_rows_tests(void)
                 {23197, 42, "-3 dBFS: half-way to 0"}, {32767, 44, "0 dBFS: the whole bar"}};
             uint32_t q, j;
             for (q = 0; q < 4u; q++) {
-                int32_t end = 0, want = (int32_t)(MXL_VW * pt[q].n / 44u), d;
+                int32_t end = 0, lim = MXL_VW - MX_CLIP_W - 1, want = (int32_t)(MXL_VW * pt[q].n / 44u), d;   /* (the CLIP light and its gap at the end are no bar) */
+                if (want > lim)
+                    want = lim;
                 char nm[64];
                 for (j = 0; j < 3u; j++) {
                     mt.ui[0] = (int32_t)pt[q].pk;
                     frame();
                 }
-                for (j = 0; j < MXL_VW; j++)
+                for (j = 0; j < (uint32_t)lim; j++)
                     if (screen[y * 240u + MXL_VX + j] != swap16(C_BLACK))
                         end = (int32_t)j + 1;
                 d = end - want;
@@ -560,6 +563,7 @@ static void mixer_rows_tests(void)
                 frames(300);   /* (the peak-hold marker, held 1.5 s and then falling, is gone too) */
             }
         }
+        vu_floor_i = VUF_DEF;
     }
 #if FELUCCA_MASTER_COMP
     {   /* the compressors' reduction: a bar from the right, only where one works */
