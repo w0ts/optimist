@@ -2,13 +2,13 @@
 /* A soft note's release, MASTER at the top (issue 132; after SLOOP 2.8.4's "clean fades", isod89/sloop-fm1 91f3018):
  * the error of the tail against a float reference, in LSB of the 16-bit output (Q15).
  * Each case holds an ANALOG sine (no drive, filter open, no sends, no inserts), lets it go on a long release and renders
- * the codec's output (mix_block: the Q15 sample and, under MIX_EXACT, its 7 bits under, audio.c's 24). Over windows of
+ * the codec's output (mix_block: the Q15 sample and its 7 bits under, audio.c's 24). Over windows of
  * WIN samples it fits the note by least squares in doubles (H harmonics, each amplitude a quadratic in time, plus a
  * line for the DC blocker's leftovers): the fit is the reference, what is left the error. Reported a window: its level
  * (dBFS of a sine as loud), the error's rms in LSB and the THD+N. A plain 16-bit rounding is 0.29 LSB rms.
  *   fade_tail_test          the table of every case (information)
  *   fade_tail_test check    pass / fail: the worst error between -45 and -80 dBFS under BOUND LSB rms, and the window
- *                           nearest -70 dBFS with THD+N under BOUND_THDN dB (tests/run_tests.sh, built with MIX_EXACT)
+ *                           nearest -70 dBFS with THD+N under BOUND_THDN dB (tests/run_tests.sh)
  * Exit status: the number of failed checks. */
 #define main hostsim_main
 #include "hostsim.c"
@@ -124,11 +124,7 @@ static void run(const char *name, uint32_t vel, int lvl, int32_t master, int sho
         mix_block(o, CTL);
         incq[b] = (double)(uint32_t)(t->v[0].ph[0] - ph) / CTL;
         for (i = 0; i < CTL; i++) {
-#if FELUCCA_MIX_EXACT
             cap[b * CTL + i] = o[2 * i] + mst_frac[2 * i] / 128.0;   /* (the DAC's 24 bits: audio.c audio_block) */
-#else
-            cap[b * CTL + i] = o[2 * i];
-#endif
         }
         if (t->v[0].active)
             nb = b + 1u;

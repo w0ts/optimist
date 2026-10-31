@@ -3,7 +3,7 @@
  * note super well, for synth tracks not at all. When we move a note make sure its plock follow. We should be able to extend /
  * move a note past another one in synth seq, some snapping that helps feel when the note touches"):
  *   the picker's note (KNOB 1, nothing held) drawn in C_NOTE over its whole length, its step framed; none picked: none
- *   KNOB 2 (move) into a note: the snap, then past it whole (ties and all), each note's locks with it
+ *   KNOB 2 (move) into a note of another pitch: over it, onto it (a chord), on; it stays where it was (2026-10-31: no snap)
  *   KNOB 4 (LENGTH) into a note: the snap, then over it (a carry step: both sound), on past its end, back; note_span says so
  *   ALGORITHM / KNOB 3 on a note over another: it stays whole (its carry steps renamed)
  * Included by ui_optimist_test.c after ui_optimist_picker.h. */
@@ -41,24 +41,24 @@ static void overlap_tests(void)
     frames(2);
     ppm("opt-step-picked");
     check(st.pk == 2u && sm_count(C_NOTE) > 0u, "overlap: a synth note picked (KNOB 1): drawn in the selection colour, its step framed");
-    /* KNOB 2: move right: one step (4, 5 touch 67), the snap, past it */
+    /* KNOB 2: move right: one step (4, 5 touch 67), over 67's start (both sound), onto it (a chord), the 67 where it was
+     * (2026-10-31: no snap, no swap) */
     turn(EN_K2, 1);
     check(st.pk == 3u && step_on(&t->step[3]) && t->step[4].time == ST_TIE, "overlap: KNOB 2 right: the note a step on");
     turn(EN_K2, 1);
-    check(st.pk == 3u && t->step[3].note[0] == 60 && t->step[5].note[0] == 67, "overlap: touching the next note: the snap, nothing moves");
+    check(st.pk == 4u && sm_has(t, 4, 60, 2) && sm_has(t, 5, 67, 2), "overlap: KNOB 2 on: over the next note's start, both sound");
     turn(EN_K2, 1);
-    check(st.pk == 5u && t->step[3].note[0] == 67 && t->step[4].time == ST_TIE && t->step[5].note[0] == 60 && t->step[6].time == ST_TIE,
-          "overlap: the next detent: past it, ties and all");
+    check(st.pk == 5u && sm_has(t, 5, 60, 2) && sm_has(t, 5, 67, 2) && t->step[3].time == ST_REST && t->step[4].time == ST_REST,
+          "overlap: ... onto it (another pitch): a chord, the other note where it was");
 #if FELUCCA_AUTO
     {
         int32_t v;
-        check(auto_get(AL(t), 5 | AUTO_ONLY, 0, &v) && v == 11 && auto_get(AL(t), 6 | AUTO_ONLY, 0, &v) && v == 12 &&
-              auto_get(AL(t), 3 | AUTO_ONLY, 0, &v) && v == 21, "overlap: ... each note's locks went with it (its TIE's too)");
+        check(auto_get(AL(t), 5 | AUTO_ONLY, 0, &v) && v == 21, "overlap: ... the other note's lock where it was");
     }
 #endif
     turn(EN_K2, -1);
     turn(EN_K2, -1);
-    check(st.pk == 3u && t->step[3].note[0] == 60 && t->step[5].note[0] == 67, "overlap: KNOB 2 left: the snap, then back past it");
+    check(st.pk == 3u && t->step[3].note[0] == 60 && t->step[5].note[0] == 67, "overlap: KNOB 2 left: back over it to where it was");
     /* KNOB 4: LENGTH from 2 steps (3, 4): it touches 67 at 5: the snap, then over it */
     turn(EN_K4, 1);
     check(ov_span(t, 3) == 2u && t->step[5].note[0] == 67 && t->step[5].n == 1u, "overlap: LENGTH into the next note: the snap, nothing changes");

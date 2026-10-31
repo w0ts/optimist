@@ -1,12 +1,12 @@
 # DRONE engine golden renders (tests/drone_test.c): preset, FNV-1a 64 of the output (4-note chord,
 # 2 s held, the keys up and HOLD OFF, 6 s more, dry). Rewritten by GOLDEN_UPDATE=1 -- only for an
 # intended change.
-00_STILL_AIR a9510113fe4d0a0a
-01_OPEN_FIFTH 93ecc9cdfc9142f3
-02_SLOW_CHAIN 551e0d8fe1883f4d
-03_DARK_RING 76bd42938872f493
-04_SWARM 4c6381ef129175cf
-05_THETA 5993d16bcc3df0cf
-06_ALPHA 9c67c53605ef1249
-07_DELTA 475c785564fef8d8
-08_GAMMA f927ed5033bd6940
+00_STILL_AIR aa95a54d81936e59
+01_OPEN_FIFTH 42f70eb9ac681379
+02_SLOW_CHAIN 3e44f0843cee871b
+03_DARK_RING 4f2a5b000aa262c3
+04_SWARM 68e337cac549e3d3
+05_THETA 1b27a762dcd98375
+06_ALPHA 4e4a6f98afcfa79f
+07_DELTA 0e6db76f84daa0f7
+08_GAMMA b27c59cb3867e3ae
