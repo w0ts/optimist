@@ -228,14 +228,27 @@ static void op_fav_mark(int on)
         ui.force = 1;
     }
 }
-static void op_fav_list(uint32_t on)                    /* LIST: the marked sounds only / the whole list */
-{
-    if (fav_list != (uint8_t)on) {
-        fav_list = (uint8_t)on;
-        ui.force = 1;
-    }
-}
 #endif
+/* the preset list's filters this build has, in SHIFT2 + PRESETS' order (the user, 2026-10-31: "Factory, user, favorites/init
+ * etc."): ALL, FACTORY, USER, FAVORITES (FELUCCA_FAVORITES), INIT */
+static const uint8_t PLF_ORDER[] = {PLF_ALL, PLF_FACTORY, PLF_USER,
+#if FELUCCA_FAVORITES
+                                    PLF_FAV,
+#endif
+                                    PLF_INIT};
+#define PLF_NORDER (sizeof PLF_ORDER / sizeof PLF_ORDER[0])
+static uint32_t pl_filt_ms;                             /* fm1_ms when the filter last changed, 0 never: the popup's header lit a moment */
+/* SHIFT2 + PRESETS: the next (right) / previous (left) filter, one a turn, round (a cycle, the user's word); the sound playing
+ * stays (one not in the filtered list: PRESETS then goes to its first / last). The popup list shows it (op_preset.c) */
+static void op_pl_filter_step(int32_t s)
+{
+    uint32_t i;
+    for (i = 0; i < PLF_NORDER - 1u && PLF_ORDER[i] != pl_filt; i++)
+        ;
+    i = (i + PLF_NORDER + (s > 0 ? 1u : PLF_NORDER - 1u)) % PLF_NORDER;
+    pl_filt = PLF_ORDER[i];
+    pl_filt_ms = fm1_ms ? fm1_ms : 1u;
+}
 static void op_preset_step(int32_t s)                   /* the next / previous sound: one a detent */
 {
     uint32_t total, cur;
@@ -252,9 +265,8 @@ static void op_preset_step(int32_t s)                   /* the next / previous s
     cur = preset_pos(&total);
     t = (int32_t)total;
     if (!total) {
-        if (fav_list)
-            ui_message("NO FAVORITES");
-    } else if (cur >= total) {                          /* (LIST FAV, a sound not marked: the first / last marked) */
+        ;                                               /* (a filter that holds nothing: the sound stays, the popup says so) */
+    } else if (cur >= total) {                          /* (a filter, the sound playing not in it: the first / last it holds) */
         op_preset_go(s > 0 ? (uint32_t)((s - 1) % t) : (uint32_t)(t - 1 - (-s - 1) % t));
     } else {
         int32_t to = ui_clamp((int32_t)cur + s, 0, t - 1);   /* (a list stops at its ends: no wrap round) */
@@ -263,38 +275,27 @@ static void op_preset_step(int32_t s)                   /* the next / previous s
     }
     ed_done();
 }
-/* HOME held + PRESETS: the next / previous instrument, its first sound (the user, 2026-10-12: "home held (shift) +
- * preset should navigate instruments, not presets"). The factory and INIT part of the list is grouped by engine
- * (bank_resolve), so a step skips the selected engine's group, round; the drum track: its kits, as PRESETS. LIST FAV:
- * the same over the marked sounds */
+/* SHIFT + PRESETS (the user, 2026-10-31: "Left shift plus preset should go to the next/prev engine"; before, SHIFT2) and
+ * EDIT's ENGINE card: the next / previous instrument, its first sound (the user, 2026-10-12: "home held (shift) + preset
+ * should navigate instruments, not presets"). The factory and INIT part of the whole list is grouped by engine
+ * (bank_resolve), every engine this build has, so a step skips the selected engine's group, stopping at the first and last;
+ * the filter does not narrow it (an engine with nothing in the filter is still reached). The drum track: its kits, as
+ * PRESETS */
 static uint32_t list_eng(uint32_t n)
 {
     uint32_t k;
-    return fav_list ? preset_at(n, &k) : preset_all_at(n, &k);   /* (LIST FAV: the marked sounds of every engine; else the whole list) */
+    return preset_all_at(n, &k);
 }
 static void op_engine_step(int32_t s)
 {
-    uint32_t total, i, j, e0 = TSEL->eng_req, et, n;
+    uint32_t total, i, j, e0 = TSEL->eng_req, et, n = NLIST, k, e;
     if (ed_ask(EK_ENGINE, s))
         return;
-    if (is_drum(TSEL)) {
+    if (is_drum(TSEL) || n == 0u) {
         op_preset_step(s);
         return;
     }
-    i = fav_list ? preset_pos(&total) : preset_all_pos(&total);   /* (the whole list: browsing keeps to one engine, this step is what leaves it) */
-    n = fav_list ? total : NLIST;
-    if (n == 0u) {
-        op_preset_step(s);
-        return;
-    }
-    if (fav_list && i >= n) {                           /* (LIST FAV, a sound not marked: the first / last marked sound's group) */
-        i = s > 0 ? 0u : n - 1u;
-        for (j = 0; j < n && i > 0u && list_eng(i - 1u) == list_eng(i); j++)
-            i--;
-        op_preset_go(i);
-        ed_done();
-        return;
-    }
+    i = preset_all_pos(&total);                         /* (the whole list: browsing keeps to one engine, this step is what leaves it) */
     if (i >= n)                                         /* (a user sound: from its engine's group, or the top) */
         for (i = 0; i < n - 1u && list_eng(i) != e0; i++)
             ;
@@ -308,12 +309,8 @@ static void op_engine_step(int32_t s)
     et = list_eng(i);
     for (j = 0; j < n && i > 0u && list_eng(i - 1u) == et; j++)
         i--;                                            /* (back to that group's first sound) */
-    if (fav_list) {
-        op_preset_go(i);
-    } else {
-        uint32_t k, e = preset_all_at(i, &k);
-        op_preset_load(e, k);
-    }
+    e = preset_all_at(i, &k);
+    op_preset_load(e, k);
     ed_done();
 }
 /* a value of descriptor d at vp: a knob (accelerated), PRESETS (fine), or OP_RESET */

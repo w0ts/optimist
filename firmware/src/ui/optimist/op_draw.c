@@ -1348,8 +1348,13 @@ static void op_frame_draw(void)
         ui.force = 0;
         return;
     }
-    if (lay.shown != LY_PLAY)
-        lay_draw_cards();                               /* a layer: its knobs' cards, its tiles (op_laydraw.c) */
+    if (ov == 5u)
+        ;                                               /* (PRESETS' popup list covers the cards band whole, op_preset.c POP_Y: the cards are not
+                                                         * drawn under it; every band again when it closes. A sound changed at a detent changed
+                                                         * the cards, they were sent, then the box over their rows: the list's top flashed, the
+                                                         * user 2026-10-31: "when scrolling the top of the list flash") */
+    else if (lay.shown != LY_PLAY)
+        lay_draw_cards();                              /* a layer: its knobs' cards, its tiles (op_laydraw.c) */
     else if (ui.scr != SCR_STEP && !glo_cycle() && !pl_on() && !song_tbl_on()
 #if FELUCCA_BT_UI
              && !dev_listing()                          /* (the BLE devices: no cards, the list the whole panel, the user 2026-10-19) */
