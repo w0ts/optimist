@@ -157,7 +157,7 @@ static int list(void)                    /* v3: page after page (first = what ca
             return 0;
     } while (nobj < BK_N);
     caps_at = p;                                       /* what the build holds (bk_caps), the builder's bits last */
-    return p + BK_CAPS_N == ed_n && p + 32u + ed_out[p + 31] == ed_n;
+    return p + BK_CAPS_N == ed_n && p + 32u + ed_out[p + 31] + 3u == ed_n;   /* (the builder's bits, then the MEMORY step: app end / 4 KiB (2 bytes) and the projects (1), memopts) */
 }
 /* an older editor (v1 / v2: the whole list in one reply, no first / count): this build's list fits one, or no reply */
 static int list_v2(void)
