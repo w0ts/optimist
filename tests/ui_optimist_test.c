@@ -43,6 +43,23 @@ static uint32_t band_y = 240u, band_hits;               /* the help band's first
 static uint32_t gl_info_wide(void);                     /* op_gldraw.c: SYSTEM > INFO's first page has no help band: its rows run to the foot */
 static uint32_t probe_hits;                             /* the blits that cover the probe pixel (120, 180): inside PRESETS' popup, a flash when more than one a frame */
 static uint32_t blit_px;                                /* the pixels sent (ui_optimist_slowframe.h: a step press sends its column) */
+/* the memory line's rows (0-1, ui_optimist_memline.h): while top_on, every pixel any write puts there is held against top_want
+ * (the line as it must stay, swapped as the screen holds it); top_bad counts the writes that put another colour there, a
+ * flash on the FM-1 even when a later write puts the line back the same frame. top_head: the header's transfers (y 0, 25 rows) */
+static uint8_t top_on;
+static uint16_t top_want[240];
+static uint32_t top_bad, top_head;
+static void top_see(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint16_t *p, uint16_t c)
+{
+    uint32_t i, j, bad = 0;
+    if (!top_on || y >= 2u)
+        return;
+    top_head += x == 0u && y == 0u && w == 240u && h == 25u;
+    for (j = y; j < 2u && j < y + h; j++)
+        for (i = 0; i < w; i++)
+            bad |= (p ? p[(j - y) * w + i] : c) != top_want[x + i];
+    top_bad += bad;
+}
 #ifdef MIRROR_CHECK
 /* MIRROR_CHECK: every write also through the mirror's encoder (io/editor/ed_mirror_enc.h) and the client's decoder (mirror_dec.h):
  * at the end the decoded screen is this one (tests/run_tests.sh, ED_MIRROR) */
@@ -113,6 +130,7 @@ static void lcd_blit(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint1
     }
 #endif
     blit_px += w * h;
+    top_see(x, y, w, h, p, 0);
     if (x <= 120u && 120u < x + w && y <= 180u && 180u < y + h)
         probe_hits++;
     assert(x + w <= 240 && y + h <= 240);
@@ -133,6 +151,7 @@ static void lcd_fill(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint16_t c)
     mc_trace('F', x, y, w, h, 0, c);
 #endif
     full_fills += w == 240u && h == 240u;
+    top_see(x, y, w, h, 0, swap16(c));
     for (j = 0; j < h; j++)
         for (i = 0; i < w; i++)
             screen[(y + j) * 240 + x + i] = swap16(c);
