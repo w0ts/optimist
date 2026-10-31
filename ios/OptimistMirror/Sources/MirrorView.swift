@@ -160,7 +160,7 @@ struct RootView: View {
                 BluetoothPicker.dismiss()
             }
         }
-        .onChange(of: link.state) {                // (Bluetooth: the mirror runs, INFO is asked: opti_btproj_1 opens the Projects screen)
+        .onChange(of: "\(link.btDevice != nil)|\(link.btGaveUp)") {   // (Bluetooth: the link's INFO came in: opti_btproj_1 opens the Projects screen)
             Task { await session.connectIfNeeded() }
         }
         .onChange(of: link.online) { old, now in   // (a device connected in the sheet: taken afresh, whatever the link did before
