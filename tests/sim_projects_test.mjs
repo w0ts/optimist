@@ -123,6 +123,19 @@ try {
   try { await BK.importProject(ca, 16, file); } catch (e) { why = e.message; }
   check(/no project 17/.test(why), `a slot the layout lacks refused (${why})`);
 
+  // the project library's swap (the app's and the page's "Swap with slot N"): slot 3 goes into the library first, then the chosen
+  // library project is written over it and opened; the library keeps the old slot byte for byte
+  await BK.projectOp(ca, 4, 0, "OTHER");
+  const chosen = await BK.exportProject(ca, 0), heldBefore = await BK.readProject(ca, 2);
+  const libFiles = [];
+  libFiles.push(await BK.exportProject(ca, 2));                  // 1. the slot into the library
+  await BK.importProject(ca, 2, chosen, { open: true });         // 2. the chosen project into the slot, opened
+  const pw = await BK.projects(ca), savedHeld = BK.unpackProject(libFiles[0]);
+  check(pw.names[2] === "OTHER" && pw.open === 2 && same(await BK.readProject(ca, 2), BK.unpackProject(chosen).data), `swap: slot 3 now "${pw.names[2]}", open ${pw.open + 1}`);
+  check(savedHeld.name === "SIM SONG" && same(savedHeld.data, heldBefore), "swap: the old slot 3 is in the library, byte for byte");
+  await BK.importProject(ca, 2, libFiles[0], { open: true });    // and swapped back
+  check((await BK.projects(ca)).names[2] === "SIM SONG" && same(await BK.readProject(ca, 2), heldBefore), "swap back: the first project is in slot 3 again");
+
   let refused = "";
   try { await BK.moveProject(ca, cb, 11, 0); } catch (e) { refused = e.message; }
   check(/empty/.test(refused), `an empty project refused (${refused})`);

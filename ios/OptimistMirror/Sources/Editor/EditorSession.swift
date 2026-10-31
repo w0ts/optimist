@@ -51,6 +51,8 @@ final class EditorSession: ObservableObject {
 
     // projects
     @Published private(set) var projects: ProjList?
+    let projectLibrary = ProjectLibrary.standard
+    @Published private(set) var libraryItems: [ProjectLibrary.Entry] = []
     @Published private(set) var sectionUsed: [Int?] = []
     @Published private(set) var bkList: BkList?
     @Published private(set) var patList: PatList?
@@ -157,7 +159,7 @@ final class EditorSession: ObservableObject {
         run("Reading the projects…") { [self] in try await readProjects() }
     }
 
-    private func readProjects() async throws {
+    func readProjects() async throws {
         if info?.has(.proj) == true {
             projects = try await Ops.projList(link)
             if info?.has(.projects) != true { bkList = try? await Ops.bkListAll(link) }   // (the layout's project count is bk_caps')
@@ -186,6 +188,8 @@ final class EditorSession: ObservableObject {
         }
     }
 
+    func setLibraryItems(_ l: [ProjectLibrary.Entry]) { libraryItems = l }
+
     /// the project slots the installed MEMORY layout keeps (bk_caps' projects byte: 2, 4, 16; SD card mode 1); 16 on a firmware
     /// that does not say
     var projectCount: Int { min(ProjList.count, bkList?.caps?.projects ?? ProjList.count) }
@@ -211,20 +215,35 @@ final class EditorSession: ObservableObject {
         let f: ProjectFile.Contents
         do { f = try ProjectFile.decode(Array(try FileIO.read(url))) } catch { say("Not a project file this FM-1 can take: \(error.localizedDescription)", error: true); return }
         run("File → slot \(p + 1)…") { [self] in
-            let l = try await Ops.bkListAll(link)
-            bkList = l
-            guard f.family == l.magic else { throw WireError("Not a project file this FM-1 can take: another firmware (\(f.family), this one \(l.magic))") }
-            guard p < projectCount, let o = l.objs.first(where: { $0.tag == ProjectFile.tag(p) }), o.inBuild else {
-                throw WireError("Not a project file this FM-1 can take: this memory layout has no slot \(p + 1)")
-            }
-            let open = try await Ops.projList(link).open == p
-            try await Ops.projOp(link, op: 3, p)
-            if !f.data.isEmpty { try await Ops.writeObject(link, index: o.i, tag: o.tag, data: f.data); _ = try await Ops.end(link, done: false) }
-            try await Ops.projOp(link, op: 4, p, name: f.name)
-            if open { try await Ops.projOp(link, op: 2, p) }
+            try await writeSlot(p, f)
             try await readProjects()
             say("File → slot \(p + 1): loaded.")
         }
+    }
+
+    /// the stored project p as a file's contents (nil when the slot is empty); the open slot is read as stored, not as played
+    func readSlot(_ p: Int) async throws -> ProjectFile.Contents? {
+        projects = try await Ops.projList(link)
+        let l = try await Ops.bkListAll(link)
+        bkList = l
+        guard let o = l.objs.first(where: { $0.tag == ProjectFile.tag(p) }), o.hasData else { return nil }
+        let name = p < (projects?.names.count ?? 0) ? projects!.names[p] : ""
+        return ProjectFile.Contents(slot: p, family: l.magic, name: name, data: try await Ops.readObject(link, o))
+    }
+
+    /// a project's contents into slot p: cleared first, written, named, opened again when p is the open project
+    func writeSlot(_ p: Int, _ f: ProjectFile.Contents) async throws {
+        let l = try await Ops.bkListAll(link)
+        bkList = l
+        guard f.family == l.magic else { throw WireError("Not a project file this FM-1 can take: another firmware (\(f.family), this one \(l.magic))") }
+        guard p < projectCount, let o = l.objs.first(where: { $0.tag == ProjectFile.tag(p) }), o.inBuild else {
+            throw WireError("Not a project file this FM-1 can take: this memory layout has no slot \(p + 1)")
+        }
+        let open = try await Ops.projList(link).open == p
+        try await Ops.projOp(link, op: 3, p)
+        if !f.data.isEmpty { try await Ops.writeObject(link, index: o.i, tag: o.tag, data: f.data); _ = try await Ops.end(link, done: false) }
+        try await Ops.projOp(link, op: 4, p, name: f.name)
+        if open { try await Ops.projOp(link, op: 2, p) }
     }
 
     func projectOp(_ op: Int, _ k: Int) {

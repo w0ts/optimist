@@ -39,6 +39,7 @@ struct ProjectsView: View {
                         if s.bkList?.caps?.projects == 1 { Text("SD card mode: the FM-1 keeps 1 project in its flash.") }
                     }
                 }
+                LibrarySection(s: s)
                 if s.ready(.projects) {
                     Section(s.projects.map { sectionsTitle($0) } ?? "Sections") {
                         ForEach(0..<s.sectionUsed.count, id: \.self) { k in sectionRow(k) }

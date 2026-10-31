@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		04911E8303FC273E81596618 /* web_pattern.json in Resources */ = {isa = PBXBuildFile; fileRef = BC918D1CB71D2C0601F37E2A /* web_pattern.json */; };
 		062132F0259E36C55666B468 /* FlashModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97A7F3D3AAA5E0266A203852 /* FlashModel.swift */; };
+		15DB650E0D5FB5EADA2A9145 /* EditorSession+ProjectLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE12A7C56328797B58ABC83F /* EditorSession+ProjectLibrary.swift */; };
 		18163E4D3F3B904F94913039 /* FlashUpdater.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D6035C9DAED9B3828807EBA /* FlashUpdater.swift */; };
 		1D46E590B2CB267114600BB1 /* WebMIDIBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = B520285C89B9B6694A5AADEE /* WebMIDIBridge.swift */; };
 		202AF85544425486000CBDBB /* nav_track_bar.json in Resources */ = {isa = PBXBuildFile; fileRef = 61EDA40C866B877E0EC4F084 /* nav_track_bar.json */; };
@@ -43,6 +44,7 @@
 		590E774A42EE127044B729DF /* FlashTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3379525767B548F895665DF5 /* FlashTests.swift */; };
 		59385CC6793D8483D7960E66 /* FlashLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FE726FFB0EECCD2974DCD93 /* FlashLink.swift */; };
 		59ECCFB2802F9750703DC830 /* LibraryFile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4DD5DDFFD7CFEC7920FB8F45 /* LibraryFile.swift */; };
+		5E4DD371B2801D452A4C8483 /* ProjectLibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9849568AA14DF749A8D4B0D /* ProjectLibraryView.swift */; };
 		65F999E229A263CF8EC6C99D /* ClipView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74CA39AA661ECFC0D0F4BA76 /* ClipView.swift */; };
 		6605375F284126043DBD9B42 /* PixelScreenTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AD0794C163ECF8A44EED973 /* PixelScreenTests.swift */; };
 		67E8FF3A5B642D68B66B1EBE /* FlashCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5F518A3F5BEA843D434D27E /* FlashCatalog.swift */; };
@@ -58,6 +60,7 @@
 		95315429ACCA74BB4EDB10CE /* LibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F8D6D1D160BEB2BB72F4DDA /* LibraryView.swift */; };
 		9559B90268B5A297C2899EAC /* PixelScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0403BA98824CE186F6CE38C2 /* PixelScreen.swift */; };
 		9A27CB820A2691AF488B847C /* BluetoothPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08CDB3647FD4A337F9737AE8 /* BluetoothPicker.swift */; };
+		9D8AE5F505871B9C539F4CD9 /* ProjectLibraryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7DD8C0A3C9962CC0B232C9E2 /* ProjectLibraryTests.swift */; };
 		A4AA5B98C94579EA4B836A53 /* LibraryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 427F479D77D594F69B2686BD /* LibraryStore.swift */; };
 		A89EBD425D402C149A4A2D33 /* NavState.swift in Sources */ = {isa = PBXBuildFile; fileRef = A56F2B4C2834D8062355F8B0 /* NavState.swift */; };
 		AD46B38D1534BD51B9093140 /* web_library.json in Resources */ = {isa = PBXBuildFile; fileRef = 4F9FA8878BB640A9C6EF190C /* web_library.json */; };
@@ -73,6 +76,7 @@
 		E5AA9C28DDBCD932D70D5713 /* ProjectsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D997030CC4F53B83CBC034D4 /* ProjectsView.swift */; };
 		EA9A675019417CE731AD0431 /* ProjectFile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34E710CCCF17D4997B15C34F /* ProjectFile.swift */; };
 		F8C8D6CE351CB615630475A4 /* FlashView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA29302C9082248DA82C3DC5 /* FlashView.swift */; };
+		FE8FA8DA856C2B3AF8858B17 /* ProjectLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC8439C4CF7BD5C4635FF256 /* ProjectLibrary.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -126,6 +130,7 @@
 		750790AD3169CC4AA53C2829 /* Fm1BaseView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Fm1BaseView.swift; sourceTree = "<group>"; };
 		767C19A1A44F5402AAA48323 /* WebTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebTabView.swift; sourceTree = "<group>"; };
 		7A64EF8F12D362FE851E5119 /* NavViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NavViews.swift; sourceTree = "<group>"; };
+		7DD8C0A3C9962CC0B232C9E2 /* ProjectLibraryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectLibraryTests.swift; sourceTree = "<group>"; };
 		80E117300E52E6D293A00964 /* NavModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NavModel.swift; sourceTree = "<group>"; };
 		966AB47DC696C8582C328253 /* MirrorDecoderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MirrorDecoderTests.swift; sourceTree = "<group>"; };
 		97A7F3D3AAA5E0266A203852 /* FlashModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlashModel.swift; sourceTree = "<group>"; };
@@ -143,6 +148,8 @@
 		BC918D1CB71D2C0601F37E2A /* web_pattern.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = web_pattern.json; sourceTree = "<group>"; };
 		BF1536AAC1FE62449D4969F6 /* MFlasherRelease.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MFlasherRelease.swift; sourceTree = "<group>"; };
 		C0846C9A6195130B751E2FAA /* FlashPackage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlashPackage.swift; sourceTree = "<group>"; };
+		C9849568AA14DF749A8D4B0D /* ProjectLibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectLibraryView.swift; sourceTree = "<group>"; };
+		CC8439C4CF7BD5C4635FF256 /* ProjectLibrary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectLibrary.swift; sourceTree = "<group>"; };
 		CE24BDBA9F4261637806D42E /* EditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorView.swift; sourceTree = "<group>"; };
 		D5F518A3F5BEA843D434D27E /* FlashCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlashCatalog.swift; sourceTree = "<group>"; };
 		D6F31FA3CF326B87F5453721 /* MirrorDecoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MirrorDecoder.swift; sourceTree = "<group>"; };
@@ -154,6 +161,7 @@
 		F35BAB0C19445FAE914889A1 /* PatternFile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternFile.swift; sourceTree = "<group>"; };
 		F485342E8C5CF00EF3D2AD61 /* FlashProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlashProtocol.swift; sourceTree = "<group>"; };
 		F69672169B84190D40265EA6 /* web_backup.optimist-backup */ = {isa = PBXFileReference; path = "web_backup.optimist-backup"; sourceTree = "<group>"; };
+		FE12A7C56328797B58ABC83F /* EditorSession+ProjectLibrary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EditorSession+ProjectLibrary.swift"; sourceTree = "<group>"; };
 		FFF9D200E336C4B5BA2DDBED /* Fm1Base */ = {isa = PBXFileReference; lastKnownFileType = folder; name = Fm1Base; path = Resources/Fm1Base; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
@@ -257,6 +265,7 @@
 				966AB47DC696C8582C328253 /* MirrorDecoderTests.swift */,
 				A561D6989A7E8999B645A3FF /* NavTests.swift */,
 				4AD0794C163ECF8A44EED973 /* PixelScreenTests.swift */,
+				7DD8C0A3C9962CC0B232C9E2 /* ProjectLibraryTests.swift */,
 				6B0BD11686668E01A58833DF /* Fixtures */,
 			);
 			path = Tests;
@@ -317,6 +326,7 @@
 				6736D3DEE9260E0180D15469 /* BackupView.swift */,
 				69FC05011ED5286C56AEC8F9 /* EditorSession.swift */,
 				6EB0E61259FE4F0AAF558D5C /* EditorSession+Library.swift */,
+				FE12A7C56328797B58ABC83F /* EditorSession+ProjectLibrary.swift */,
 				CE24BDBA9F4261637806D42E /* EditorView.swift */,
 				4DD5DDFFD7CFEC7920FB8F45 /* LibraryFile.swift */,
 				427F479D77D594F69B2686BD /* LibraryStore.swift */,
@@ -324,6 +334,8 @@
 				0AE84B2EF5EC5BA03F190291 /* Ops.swift */,
 				F35BAB0C19445FAE914889A1 /* PatternFile.swift */,
 				34E710CCCF17D4997B15C34F /* ProjectFile.swift */,
+				CC8439C4CF7BD5C4635FF256 /* ProjectLibrary.swift */,
+				C9849568AA14DF749A8D4B0D /* ProjectLibraryView.swift */,
 				D997030CC4F53B83CBC034D4 /* ProjectsView.swift */,
 				275CAE91D846510B1BFCCF01 /* Wire.swift */,
 			);
@@ -494,6 +506,7 @@
 				86C2DCA34E6A498375CE0BDE /* CompanionClient.swift in Sources */,
 				53291A7DDFAC8703E3FC99BB /* CompanionWire.swift in Sources */,
 				4A39CECF46CAAFC6056EDDDD /* EditorSession+Library.swift in Sources */,
+				15DB650E0D5FB5EADA2A9145 /* EditorSession+ProjectLibrary.swift in Sources */,
 				DB5365102B4235E1D0BBD403 /* EditorSession.swift in Sources */,
 				50E3EA210070257BB3669391 /* EditorSite.swift in Sources */,
 				D53FDA0428DCB2AA7D257362 /* EditorView.swift in Sources */,
@@ -525,6 +538,8 @@
 				D49D71173482047512F84808 /* PatternFile.swift in Sources */,
 				9559B90268B5A297C2899EAC /* PixelScreen.swift in Sources */,
 				EA9A675019417CE731AD0431 /* ProjectFile.swift in Sources */,
+				FE8FA8DA856C2B3AF8858B17 /* ProjectLibrary.swift in Sources */,
+				5E4DD371B2801D452A4C8483 /* ProjectLibraryView.swift in Sources */,
 				E5AA9C28DDBCD932D70D5713 /* ProjectsView.swift in Sources */,
 				1D46E590B2CB267114600BB1 /* WebMIDIBridge.swift in Sources */,
 				4F744A40E73497D46C97718D /* WebTabView.swift in Sources */,
@@ -545,6 +560,7 @@
 				3AA30F2A997715C708ED3D3C /* MirrorDecoderTests.swift in Sources */,
 				4DEE706CD9164E7FB8DAD1B1 /* NavTests.swift in Sources */,
 				6605375F284126043DBD9B42 /* PixelScreenTests.swift in Sources */,
+				9D8AE5F505871B9C539F4CD9 /* ProjectLibraryTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -715,7 +731,9 @@
 				INFOPLIST_KEY_CFBundleDisplayName = "Optimist Mirror";
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.music";
+				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "Connects to the FM-1 over Bluetooth MIDI to show its screen.";
+				INFOPLIST_KEY_UIFileSharingEnabled = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UIRequiresFullScreen = YES;
 				INFOPLIST_KEY_UIStatusBarHidden = YES;
@@ -744,7 +762,9 @@
 				INFOPLIST_KEY_CFBundleDisplayName = "Optimist Mirror";
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.music";
+				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "Connects to the FM-1 over Bluetooth MIDI to show its screen.";
+				INFOPLIST_KEY_UIFileSharingEnabled = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UIRequiresFullScreen = YES;
 				INFOPLIST_KEY_UIStatusBarHidden = YES;
