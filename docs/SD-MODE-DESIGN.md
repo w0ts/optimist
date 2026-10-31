@@ -975,3 +975,23 @@ build with fewer PROJECTS takes only PJ01..PJnn (the rest stays in the file) and
 **Recommendation:** build the three items and the `PROJECTS` flag first with only today's steps (N, S0, L1: the cells
 SLOTS 2/16, 0/16, 0/1-2, SD on) and the install warning; then add steps cell by cell as wanted, 0/4 and 1/16 first. Open for the user: keep PROJECTS 1 in the list (no flash over 2)? allow SAMPLE's
 built-in sets with SLOTS 0? the firmware's own notice only, or a refusal without the host's confirmation?
+
+#### 9.7.8 As built (2026-10-31, branch `fm1-next-memopts`)
+
+- **PROJECTS is a front, not a firmware flag:** with 1 dropped every (slots, projects) pair is one step, so LAYOUT alone
+  says it; `PROJ_SLOTS` is the step's `FL_PROJ_SLOTS` (`fm1_steps.h`), 1 in SD card mode (LAYOUT 1 + SDCARD). L1 without
+  the card now keeps **2** projects (was 1): the user's own profile (LAYOUT 1) gains a second project slot, its layout
+  unchanged. Fronts: `SD_MODE` 445, `SMP_SLOTS` 446, `PROJECTS` 444 (`core.set_front`, `derive_fronts`); `MEMORY` 436
+  hidden, old lines still load.
+- **Steps (`tools/flash_layout.py` STEPS):** 0 N (2/16), 1 L1 (0/2), 3 S0 (0/16), 8 (0/4, 0xCA000), 2 (1/16, 0xA5000),
+  4 (1/4, 0xBA000), 5 (1/2, 0xBE000), 6 (2/4, 0xA6000), 7 (2/2, 0xAA000); the numbers of the 9.7.1 table. None but N and
+  L1 for the release (NOT_BUILT).
+- **Warnings:** the builder (`core.change_notice`), the web installer (`install_route.js` `switchWarning`: the installed
+  end from the editor's `bk_caps`, which now ends with the app end / 4 KiB and `PROJ_SLOTS`; an older firmware: known
+  only when its LAYOUT bit is off, else "if the FM-1 has another layout"), `make flash` / the builder's f (`flash.py`:
+  the last install from this computer, `build/last-install.json`; asks "anyway" when it differs, never refuses), the
+  classic firmware's update screen (`ota.c`: NEW MEMORY LAYOUT / PROJECTS ERASED). Not built: the release's update
+  screen (fm1-base's updater), the Mirror app's Firmware tab (needs the same `bk_caps` read and an App Store resubmit;
+  its `ownSlots` list is updated, checked by `tests/flash_layout_test.py`).
+- **Fix on the way:** `ed_user.c` never erases a sample slot with no room (`SMP_USER_CAP` 0): a BEGIN to such a slot
+  erased its first sector, which in the new steps is the project log's or the app's.
