@@ -7804,6 +7804,8 @@ function renderPanels() {                         /* the tab bar's state, then w
   if (APPS.includes(want)) document.documentElement.dataset.app = want; else delete document.documentElement.dataset.app;
   document.documentElement.dataset.page = want;   /* (the page shown: the transport bar on the Editor page only) */
   let hint = "";                                    /* (a TEXT key: why the screen is empty) */
+  const noSmp = !!dev && !!dev.smp && !dev.smp.has.some(Boolean);   /* a MEMORY layout with no user-sample slot: no Samples, no Kits tab */
+  for (const t of ["samples", "drumkit"]) { const b = document.querySelector(`#tabs > button[data-tab="${t}"]`); if (b) b.hidden = noSmp; }
   for (const p of document.querySelectorAll(".panel[data-tab]")) {
     const mine = want === p.dataset.tab, needsDev = "dev" in p.dataset;
     let show = mine && (!needsDev || ready);
@@ -10773,6 +10775,11 @@ function renderDrumKit() {
   if (!$("kitpage") || !hasKitPage()) return;
   if (!kpUi || !$("kitpage").contains(kpUi.send)) kpBuild();
   const u = kpUi, n = dev.smp.nslots || 3, ks3 = Array.from({ length: n }, (_, k) => k).filter((k) => dev.smp.has[k]);
+  if (!ks3.length) {                                   /* a MEMORY layout with no user-sample slot: nothing to build a kit from */
+    $("kitpage").replaceChildren(el("p", { class: "muted", text: "This firmware's memory layout keeps no user-sample slots, so there is no kit to build from samples. Choose SAMPLE SLOTS 1 or 2 in the builder to use this page." }));
+    kpUi = null;
+    return;
+  }
   if (u.slot.children.length !== ks3.length || +u.slot.children[0].value !== ks3[0]) u.slot.replaceChildren(...ks3.map((k) => el("option", { value: k, text: `USR${k + 1}` })));
   if (!ks3.includes(kpDraft.slot)) kpDraft.slot = ks3[0] ?? 0;
   u.slot.value = String(kpDraft.slot);
