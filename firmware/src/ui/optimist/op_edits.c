@@ -101,7 +101,7 @@ static void work_mark(void)                             /* the work is as stored
 static int8_t prj_cur = -1;                             /* the project slot loaded or saved last (-1: none, NEW or power-on): the PROJECT page
                                                          * opens on it, so that a SAVE asks for that slot (the user, 2026-10-21) */
 static uint8_t pj_op, pj_slot;                          /* 1 load, 2 save (the slot), 3 the card's project load
-                                                         * (sd_mode.c sdm_load_later); 0 none */
+                                                         * (sd_mode.c sdm_load_later), 4 a new project in a free slot; 0 none */
 #if FELUCCA_SD_UI
 static void sdm_load_now(void);                        /* storage/sd/sd_mode.c */
 #endif
@@ -158,6 +158,25 @@ static int prj_save_go(uint32_t s)
     work_mark();
     return 0;
 }
+/* LOAD of a free slot s, YES to "NEW PROJECT s?" (the user, 2026-11-01): a clean project (as NEW) is the open one in slot s and
+ * stored there, so that the slot is no longer free */
+static void prj_new_here(uint32_t s)
+{
+    char m[20], n[8];
+#if FELUCCA_PATTERNS
+    prj_load_go(s);                                     /* (a free project opens as a blank work in that slot) */
+    if (project_cur() != s)
+        return;
+#else
+    op_project_new();
+#endif
+    if (prj_save_go(s))
+        return;
+    fmt_int(n, (int32_t)s + 1);
+    str_cpy(m, "NEW PROJECT ", sizeof m);
+    str_app(m, n, sizeof m);
+    ui_message(m);
+}
 static void pj_tick(void)                               /* once a frame (lay_frame) */
 {
     uint32_t op = pj_op;
@@ -166,6 +185,8 @@ static void pj_tick(void)                               /* once a frame (lay_fra
     pj_op = 0;
     if (op == 1u)
         prj_load_go(pj_slot);
+    else if (op == 4u)
+        prj_new_here(pj_slot);
 #if FELUCCA_SD_UI
     else if (op == 3u)
         sdm_load_now();
