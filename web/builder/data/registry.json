@@ -5427,9 +5427,9 @@
     "label": "the screen's drawing canvas: smaller for RAM",
     "group": "System",
     "bit": 452,
-    "default": 0,
+    "default": 2,
     "parent": null,
-    "desc": "The screen is drawn piece by piece into a canvas and sent to the display. 124 rows (240 x 124 pixels, 59,520 B of RAM) as ever; 62 rows frees 29,760 B, 31 rows 44,640 B. The pieces taller than the canvas (the panels, the questions, the cards, the boot logo) are drawn in more passes: more of the screen's drawing time (the audio is not affected: it runs in interrupts) and more seams where a panel changes on the display a piece at a time. The same pixels at every choice.",
+    "desc": "The screen is drawn piece by piece into a canvas and sent to the display. 31 rows (240 x 31 pixels, 14,880 B of RAM) by default (the user, 2026-11-01: on the FM-1 it looks the same as the 124 rows before); 62 rows (29,760 B) and 124 rows (59,520 B, as before) are the other choices. The pieces taller than the canvas (the panels, the questions, the cards, the boot logo) are drawn in more passes: more of the screen's drawing time (the audio is not affected: it runs in interrupts) and more seams where a panel changes on the display a piece at a time. The same pixels at every choice.",
     "experimental": true,
     "notice": "",
     "off_warning": "",
@@ -5459,7 +5459,7 @@
     "hidden": false,
     "shown_under": null,
     "dim_when": null,
-    "tested": "host tests only (2026-11-01): every frame of the UI's host run the same pixels at 124, 62 and 31 rows; the FM-1's tearing and frame time not looked at yet",
+    "tested": "host tests: every frame of the UI's host run the same pixels at 124, 62 and 31 rows; on the FM-1 (2026-11-01, the user): 62 and 31 rows look the same as 124, so 31 is the default",
     "provenance_line": ""
    },
    {
