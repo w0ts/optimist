@@ -390,7 +390,6 @@ static int ble_forget_yes(uint32_t r, uint32_t k, uint32_t ok)   /* FORGET LAST:
  * these. Without WIFI_UI each folds to nothing and the pages are as they were. */
 static void wf_cell(uint32_t it, cell_t *c);            /* a WI-FI line: MODE, NETWORK, SIGNAL, STATE */
 static void wf_mode_set(int32_t s);
-static void wf_tune_set(uint32_t it, int32_t s);        /* a tuning line (the trial's stack): its switch, a detent ON / OFF */
 static int wf_turn(int32_t s);                          /* NETWORK's knob: the list's cursor -> 1 when the list is shown */
 static int wf_ch_turn(int32_t s);                       /* CHANNEL's knob in MODE AP -> 1 taken */
 static void wf_save(void);                              /* SAVE tapped on the page */
@@ -424,7 +423,6 @@ enum { SI_NONE, SI_TUNE, SI_RECQ, SI_PUNCH, SI_OUT, SI_SYNC, SI_CH1, SI_CH2,
        SI_SDBACK, SI_SDREST,                            /* SETTINGS: BACKUP to the card, RESTORE from it (sd_mode.c) */
 #endif
        SI_WFMODE, SI_WFNET, SI_WFSIG, SI_WFST,           /* SYSTEM > WI-FI (op_wifi.c): MODE, NETWORK, SIGNAL, STATE */
-       SI_WFCAL, SI_WFFLT, SI_WFAGC, SI_WFRATE,         /* .. its second page on the trial's stack: the tuning's four switches */
        SI_RAM,                                          /* INFO: the SRAM free at link, the stacks' least room left (stackmark.h) */
        SI_UHMODE, SI_UHDEV,                             /* SYSTEM > USB (USB_HOST, the release): MODE DEVICE / HOST, DEVICE */
        SI_ARN,                                          /* INFO: the arena's longest move and interrupts-off window (us) */
@@ -535,10 +533,6 @@ static const struct { const char *name; uint8_t it[4]; } SYS[] = {
 #endif
 #if WIFI_UI
     {"WI-FI", {SI_WFMODE, SI_WFNET, SI_WFSIG, SI_WFST}},   /* the same pattern as the Bluetooth pages (the user, 2026-10-27: "it should be very similar") */
-#ifdef WIFI_ON_FM1B
-    {"WI-FI", {SI_WFCAL, SI_WFFLT, SI_WFAGC, SI_WFRATE}},   /* the tuning, for the user's A/B (2026-10-30: fm1-base's wifi_tune.h): FACT CAL,
-                                                         * RX FILTER, AGC, TX RATE, each ON / OFF and what it does now */
-#endif
 #endif
 #if FELUCCA_USB_AUDIO
     /* where each source goes (the user, 2026-10-17: "each track, including master, can be assigned to none, 1, 2, 1+2, 3, 4,
@@ -838,10 +832,6 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
     case SI_WFNET:
     case SI_WFSIG:
     case SI_WFST:
-    case SI_WFCAL:
-    case SI_WFFLT:
-    case SI_WFAGC:
-    case SI_WFRATE:
         wf_cell(it, c);
         break;
 #endif
@@ -1587,12 +1577,6 @@ static void sys_set(uint32_t it, int32_t s)
 #if WIFI_UI
     case SI_WFMODE:                                     /* WI-FI's MODE: OFF, MAN, AUTO (kept in the settings record, wn_st.mode) */
         wf_mode_set(s);
-        break;
-    case SI_WFCAL:
-    case SI_WFFLT:
-    case SI_WFAGC:
-    case SI_WFRATE:                                     /* the tuning's switches (the trial's stack), YES round */
-        wf_tune_set(it, s);
         break;
 #endif
 #if BLE_CENTRAL
