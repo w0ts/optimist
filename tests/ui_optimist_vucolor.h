@@ -28,6 +28,31 @@ static uint16_t vuc_at(double amp)                      /* a sine of amplitude a
     frames(4);
     return vuc_top();
 }
+static uint32_t vuc_lane(uint32_t sel, uint32_t lit)       /* lane 0 selected (sel) or not (lane 1 picked), the other lit to lit/MX_LIT: C_OK + 2 * C_ERR drawn on the screen */
+{
+    uint32_t l = sel ? 0u : 1u, r;
+    reset_ui();
+    for (r = MXR_T1; r < MXR_LANE0 + (sel ? 0u : 3u); r++)   /* (the walk into the lanes' view) */
+        turn(EN_ALGO, 1);
+    ui.force = 1;
+    frame();
+    mx.lit[l] = (uint8_t)lit;
+    ui.force = 1;
+    frame();
+    ppm(sel ? (lit > 6u ? "vuc-lane-sel-loud" : "vuc-lane-sel-quiet") : (lit > 6u ? "vuc-lane-uns-loud" : "vuc-lane-uns-quiet"));
+    r = (uint32_t)px_in(0, 20, 240, 220, C_OK) + 2u * (uint32_t)px_in(0, 20, 240, 220, C_ERR);
+    return r;
+}
+static void vucolor_lane_tests(void)                    /* the drum lanes' meters: the same gradient as the tracks', selected or not (the user, 2026-11-01: "the peak meters in drum lanes are red") */
+{
+    uint32_t ok = 1u;
+    ok &= vuc_lane(1u, 3u) == 1u;                       /* a quiet hit: green, selected */
+    ok &= vuc_lane(0u, 3u) == 1u;                       /* ... unselected */
+    ok &= (vuc_lane(1u, 12u) & 2u) != 0u;               /* a full hit: red at its top, selected */
+    ok &= (vuc_lane(0u, 12u) & 2u) != 0u;               /* ... unselected */
+    check(ok, "VU colours: a drum lane's meter is green when quiet and red only when loud, selected or not (never the lane's kind colour)");
+    reset_ui();
+}
 static void vucolor_tests(void)
 {
     uint32_t ok = 1u;
@@ -61,4 +86,5 @@ static void vucolor_tests(void)
     frames(20);
     check(!mxd.clip[MXR_MASTER] && !px_in((uint32_t)(MXM_X + MXM_W - MX_CLIP_W), VUC_Y, MX_CLIP_W, 1, C_ERR), "CLIP: out after the hold");
     reset_ui();
+    vucolor_lane_tests();
 }
