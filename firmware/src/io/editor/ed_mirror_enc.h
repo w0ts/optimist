@@ -32,7 +32,12 @@ static struct {
     uint16_t n;                         /* bytes in the frame so far */
     uint16_t w, sw;                     /* the rectangle's width; its rows' stride (pixels): wider when it is a part of a blit */
     uint8_t chk, chk_f, seq, sa, sb;    /* checked frames asked for; this frame is one; the next seq; the frame's sums so far */
+    uint8_t rx, ry, rw, rh;             /* the rectangle the frame being sent draws in (a MORE: its BLIT's; w 0: none, a mark) */
 } me;
+/* the rectangles of the last MIR_RR checked frames by seq (entry seq & (MIR_RR - 1), seq | 0x80 when valid): a client that lost
+ * frames a .. b asks for them (106 bit 4, ed_mirror.c mir_fix) and only those rectangles go again */
+enum { MIR_RR = 64, MIR_FIX_BIT = 16 };
+static struct { uint8_t seq, x, y, w, h; } me_rr[MIR_RR];
 /* the rectangle's pixel i (row by row, me.w a row), in a buffer of rows me.sw apart */
 static uint32_t me_at(const uint16_t *px, uint32_t i) { return me.sw == me.w ? px[i] : px[i / me.w * me.sw + i % me.w]; }
 static int mir_wire(uint32_t b);
@@ -74,14 +79,19 @@ static void me_close(void)
     me_b(0xF7);
     if (me.ok) {
         mir_wire_end();
-        if (me.chk_f)
+        if (me.chk_f) {
+            uint32_t k = me.seq & (MIR_RR - 1u);
+            me_rr[k].seq = (uint8_t)(me.seq | 0x80u);
+            me_rr[k].x = me.rx, me_rr[k].y = me.ry, me_rr[k].w = me.rw, me_rr[k].h = me.rh;
             me.seq = (uint8_t)((me.seq + 1u) & 127u);
+        }
     }
     me.chk_f = 0;
 }
 static void me_rect(uint32_t op, uint32_t x, uint32_t y, uint32_t w, uint32_t h)
 {
     me.ok = 1;
+    me.rx = (uint8_t)x, me.ry = (uint8_t)y, me.rw = (uint8_t)(w > 255u ? 255u : w), me.rh = (uint8_t)(h > 255u ? 255u : h);
     me_open_px(op);
     me_b2(x), me_b2(y), me_b2(w), me_b2(h);
 }
@@ -261,7 +271,13 @@ static void mir_enc_blit(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const u
  * nothing new. ed_mirror.c forgets it all when the client may have lost a frame (behind, a first on). Off by default (the user,
  * 2026-10-26): on the UI's whole host run it saves 1.1 % of the bytes for 7.7 KB of pool; the host tests build it on */
 #ifndef MIR_SKIP
+#if defined(MIR_BLE) && MIR_BLE
+#define MIR_SKIP 1                      /* with Bluetooth (2026-11-01): a client that lost frames gets only their rectangles again
+                                         * (ed_mirror.c mir_fix: forgotten here, the panel repainted, the rest not sent) instead of
+                                         * a whole 9 KB panel at 5 KB/s */
+#else
 #define MIR_SKIP 0
+#endif
 #endif
 #if MIR_SKIP
 #ifndef IN_POOL
@@ -279,6 +295,15 @@ static uint32_t me_hash(const uint16_t *p, uint32_t n)   /* FNV-1a over the pixe
     return h;
 }
 static void mir_enc_forget_all(void) { memset(me_known, 0, sizeof me_known); }
+static void mir_enc_forget(uint32_t x, uint32_t y, uint32_t w, uint32_t h)   /* the client may not hold this rectangle */
+{
+    uint32_t j, s, s0 = x / MIR_SEGW, s1 = (x + w - 1u) / MIR_SEGW;
+    if (!w || !h)
+        return;
+    for (j = y; j < y + h && j < 240u; j++)
+        for (s = s0; s <= s1 && s < MIR_NSEG; s++)
+            me_known[j] &= (uint8_t)~(1u << s);
+}
 /* row ry, pixels x .. x + w of p: the changed span [*a, *b) in pixels from x; 0: nothing changed. new: the whole segments' hashes */
 static int me_span(const uint16_t *p, uint32_t x, uint32_t w, uint32_t ry, uint32_t *a, uint32_t *b, uint32_t *nh)
 {
@@ -335,6 +360,16 @@ static void mir_enc_fill_skip(uint32_t x, uint32_t y, uint32_t w, uint32_t h, ui
     uint32_t j, s, s0 = x / MIR_SEGW, s1 = (x + w - 1u) / MIR_SEGW, hs = 2166136261u, pc = (c >> 8 | c << 8) & 0xFFFFu;
     for (j = 0; j < MIR_SEGW; j++)
         hs = (hs ^ pc) * 16777619u;
+    if (w && h && x % MIR_SEGW == 0u && w % MIR_SEGW == 0u) {   /* (whole segments the client holds in this colour: not again) */
+        uint32_t all = 1;
+        for (j = y; j < y + h && all; j++)
+            for (s = s0; s <= s1 && all; s++)
+                all = (me_known[j] >> s & 1u) && me_seg[j][s] == hs;
+        if (all) {
+            me_skipped += (s1 - s0 + 1u) * h;
+            return;
+        }
+    }
     me.ok = 1;
     mir_enc_fill(x, y, w, h, c);
     for (j = y; j < y + h; j++)
@@ -350,5 +385,6 @@ static void mir_enc_fill_skip(uint32_t x, uint32_t y, uint32_t w, uint32_t h, ui
 #define mir_enc_blit_skip mir_enc_blit
 #define mir_enc_fill_skip mir_enc_fill
 static void mir_enc_forget_all(void) {}
+static void mir_enc_forget(uint32_t x, uint32_t y, uint32_t w, uint32_t h) { (void)x, (void)y, (void)w, (void)h; }
 #endif
 #endif

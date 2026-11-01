@@ -11,7 +11,14 @@ static struct {
     uint32_t rr;
     uint32_t seq, have_seq, broken;     /* checked frames (ops 8..10): the next seq; one seen; a MORE now would go astray */
     uint32_t dropped;                   /* checked frames dropped (a bad sum, a MORE after a gap): the client asks a catch-up */
+    uint32_t fix_have, fix_lo, fix_hi;  /* the seqs lost since the last ask (106 bit 4: only their rectangles again) */
 } md;
+static void md_lost(uint32_t lo, uint32_t hi)
+{
+    if (!md.fix_have)
+        md.fix_lo = lo & 127u, md.fix_have = 1;
+    md.fix_hi = hi & 127u;
+}
 static uint32_t md_2(const uint8_t *p) { return p[0] | (uint32_t)p[1] << 7; }
 static void md_px(uint16_t c, uint32_t n)
 {
@@ -43,11 +50,16 @@ static int md_frame(const uint8_t *f, uint32_t n)
             md.dropped++, md.broken = 1;
             return 0;
         }
-        if (md.have_seq && seq != md.seq)
-            md.dropped++, md.broken = 1;   /* (frames lost or repeated before this one: the picture is not whole) */
+        if (md.have_seq && seq != md.seq) {
+            if (((md.seq - seq) & 127u) - 1u < 32u)
+                return 0;               /* (a frame again, already had: nothing) */
+            md.dropped++, md.broken = 1;   /* (frames lost before this one: the picture is not whole) */
+            md_lost(md.seq, seq - 1u);
+        }
         md.seq = (seq + 1u) & 127u, md.have_seq = 1;
         if (op == 10u && md.broken) {
             md.dropped++;
+            md_lost(md.fix_have ? md.fix_lo : seq, seq);
             return 0;                   /* (its BLIT lost: it would paint into another rectangle) */
         }
         md.broken = 0;

@@ -122,6 +122,7 @@ static int mbr_cmd_ok(uint32_t cmd)       /* the projects' moves: the backup's 4
 #else
 #define mbr_cmd_ok(cmd) 0
 #endif
+static void mir_fix_ask(uint32_t lo, uint32_t hi);   /* (below: frames lo .. hi lost, the radio's interrupts or USB) */
 static uint8_t mbr_reply;                /* a reply being queued (mir_bt_reply): never held back by MIR_BLE_LAG, only a full ring
                                          * stops it (the user, 2026-10-31: INFO, PJ_OP and the library's replies were dropped 1 in 3
                                          * while the screen streamed: the client asked again and again, Projects never answered) */
@@ -236,8 +237,11 @@ static void mbr_take(void)
     mbr_seen = fm1_ms;                  /* (a reply follows: the ring wanted, mir_lend_want) */
 #endif
     if (cmd == ED_MIRROR) {
-        if (mbr.rx_n == 5u)
-            mbr.req = (uint8_t)(0x80u | mbr_rx[4]);
+        if (mbr.rx_n == 5u || (mbr.rx_n == 7u && (mbr_rx[4] & MIR_FIX_BIT))) {
+            if (mbr.rx_n == 7u)
+                mir_fix_ask(mbr_rx[5], mbr_rx[6]);
+            mbr.req = (uint8_t)(0x80u | (mbr_rx[4] & ~MIR_FIX_BIT));
+        }
         return;
     }
     if (cmd != 1u && cmd != ED_PANEL && cmd != ED_NAV && cmd != 111u && !mbr_cmd_ok(cmd))
@@ -434,7 +438,9 @@ static void mir_ask(uint32_t bits, uint32_t l)
 }
 static void ed_mirror(const uint8_t *a, uint32_t na)
 {
-    mir_ask(na ? a[0] : 0u, MIR_USB);
+    if (na == 3u && (a[0] & MIR_FIX_BIT))
+        mir_fix_ask(a[1], a[2]);
+    mir_ask(na ? a[0] & ~MIR_FIX_BIT : 0u, MIR_USB);
     ed_b(mir.on);
     ed_b(MIR_VERSION);
     ed_b4(240u & 127u, 240u >> 7, 240u & 127u, 240u >> 7);
@@ -625,6 +631,56 @@ static void mir_test(void)
         fm1_reboot();                   /* (the user's own again) */
     }
 }
+/* Frames lost (106 bit 4, seq lo .. hi, the client's: a sum failed, a gap, a MORE dropped after one): their rectangles forgotten
+ * (ed_mirror_enc.h me_rr, MIR_SKIP's knowledge) and the panel repainted in place with no black first: only what the client may
+ * lack goes out, the rest is skipped as held. A seq no longer in me_rr, or a range over MIR_RR: the whole panel (a catch-up).
+ * The client draws on meanwhile (no whole fill: nothing held). At most one repaint every MIR_FIX_MS, the ranges merged */
+enum { MIR_FIX_MS = 60 };
+static volatile uint8_t mfix_req, mfix_lo, mfix_hi;      /* asked (the radio's interrupts write them; the main loop takes them) */
+static uint8_t mfix_due;                                 /* rectangles forgotten, the repaint not yet done */
+static uint32_t mfix_ms, mfix_n, mfix_whole;            /* the last repaint; repaints done; whole panels instead (the tests') */
+static void mir_fix_ask(uint32_t lo, uint32_t hi)
+{
+    if (mfix_req && ((hi - mfix_lo) & 127u) < MIR_RR)
+        mfix_hi = (uint8_t)(hi & 127u);                  /* (one range: from the earlier lo) */
+    else if (mfix_req)
+        mfix_lo = (uint8_t)(lo & 127u), mfix_hi = (uint8_t)(hi & 127u), mfix_req = 2;   /* (too far apart: the whole panel) */
+    else
+        mfix_lo = (uint8_t)(lo & 127u), mfix_hi = (uint8_t)(hi & 127u), mfix_req = 1;
+}
+static void mir_fix(void)
+{
+    uint32_t lo, hi, n, k, whole;
+    if (mfix_req) {
+        RING_PUBLISH();
+        lo = mfix_lo, hi = mfix_hi, whole = mfix_req == 2u;
+        mfix_req = 0;
+        n = ((hi - lo) & 127u) + 1u;
+        if (n > MIR_RR || !MIR_SKIP)
+            whole = 1;
+        for (k = 0; k < n && !whole; k++) {
+            uint32_t sq = (lo + k) & 127u, e = sq & (MIR_RR - 1u);
+            if (me_rr[e].seq != (sq | 0x80u))
+                whole = 1;                               /* (overwritten since: which rectangle is not known) */
+            else
+                mir_enc_forget(me_rr[e].x, me_rr[e].y, me_rr[e].w, me_rr[e].h);
+        }
+        if (whole) {
+            mfix_whole++;
+            mir.behind = 1, mir.catch_ms = fm1_ms - MIR_CATCH_MS;
+            mfix_due = 0;
+            return;
+        }
+        mfix_due = 1;
+    }
+    if (mfix_due && mir_live() && fm1_ms - mfix_ms >= MIR_FIX_MS) {
+        mfix_due = 0;
+        mfix_ms = fm1_ms;
+        mfix_n++;
+        op_repaint();                                    /* (in place: what the client holds is skipped) */
+    }
+}
+
 /* Checked frames: a lost frame shows as a gap in seq at the next one, which may come late (an idle screen). So after frames went
  * out, an empty checked MORE (no pixels: seq only) follows within MIR_MARK_MS, and every MIR_MARK_IDLE_MS while the client
  * mirrors: a client that lost the last of them knows */
@@ -640,6 +696,7 @@ static void mir_mark(void)
         return;
 #endif
     me.ok = 1;
+    me.rw = 0;                          /* (the mark draws nothing: lost, nothing to send again) */
     me_open_px(2);
     me_close();
     mmark.ms = fm1_ms;
@@ -703,6 +760,7 @@ static void mir_poll(void)
     mir_live();                         /* (the link gone, the keep-alive out: off) */
     mir_test();
     mir_state();
+    mir_fix();
     mir_mark();
     if (!mir.on || !mir.behind || ui.overlay == 5u || (mir.link == MIR_BT ? !mir_bt_clear() : so_w != so_r) ||
         fm1_ms - mir.catch_ms < MIR_CATCH_MS)
