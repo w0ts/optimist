@@ -294,7 +294,7 @@ Entered by SAVE held on PROJECT, SEQ held off STEP or SHIFT2 + SEQ (section 1.3)
 
 ### 4.6 PROJECT
 
-Rows: PROJECT, SNAPSHOT, USER, TOOLS (CLEAR SEQ, INIT SOUND, MISSING, NEW), MEMORY (USED, FREE). In SD card mode the card's lists come first (PROJECT on the card, PRESETS, KITS, SAMPLES: section 4.14). A storage row is four cards (`op_prjflow.c`):
+Rows: PROJECT, SNAPSHOT, USER, TOOLS (CLEAR SEQ, INIT SOUND, MISSING, NEW), MEMORY (USED, FREE), FX MEM (section 4.6.1). In SD card mode the card's lists come first (PROJECT on the card, PRESETS, KITS, SAMPLES: section 4.14). A storage row is four cards (`op_prjflow.c`):
 
 | Card | |
 |---|---|
@@ -359,6 +359,41 @@ A user preset or a project is named before it is written: SAVE + a sound button,
 ### 4.12 The FM6 editor
 
 On an FM6 track ENV held is the operator layer (the black keys pick OP1..6, PIT, GLO, MONO / POLY; OCT-/OCT+ the page). ENV tapped is SOUND's FM6 family: OPERATOR (OP ALG FDBK VCE), the picked operator's six pages (TUNE, RATES, LEVELS, SENS, SCALE, CURVES, in M-VAVE's order), PIT's two, ALGO, LFO, LFO 2, PORTA; the algorithm is drawn over the rows (RATES, LEVELS and PIT draw the envelope instead). On those rows SHIFT2 + a black key picks the operator, SHIFT + it switches it off. Edits go into the part's voice (`fm6_ed`); a voice is kept by SAVE AS, a DX7 voice arrives by SysEx.
+
+### 4.6.1 FX MEM and the make-room question
+
+PROJECT's last row (`op_fxmem.c`, `fx/fx_memsz.h`; the user, 2026-11-01: "on-device settings for memory for the big fishes:
+delay, verb etc."; ruled per FX, per project). Only with the effects' lines in the arena (builder `ARENA`). The cards:
+
+| Card | |
+|---|---|
+| DLY MEM | the delay send's line: FULL (the build's `DLY_LEN`), 1/2, 1/4, 1/8 (never under 93 ms) |
+| REV MEM | the reverb's ring: FULL or SMALL (FDN8's 16 KB layout; PLATE and ROOM sound the same in both). Offered by a build with the 32 KB ring (`REV_POOL` with FDN8, no AIRWIN) |
+| XDLY MEM | each XDLY insert's two lines: FULL or HALF (every TIME half) |
+| FREE | the arena's room, KB (a read-out, its bar) |
+
+A size the build does not offer shows FULL alone. A turn applies at once: the line is given back (its effect silent a few
+blocks) and placed again at the new size; XDLY's owners let go and take theirs again. No room for it: MEM FULL as any refused
+line. The project keeps the sizes (the FX record's `FXZ_TLV`; a project from before, or a new one: FULL). A delay TIME longer
+than a short line plays at a half, a quarter.. of it (still on the beat); the message line says so once (*Dly line 0.19s:
+time /2*). The panel: the arena as a bar (the effects' lines bright, the rest of what is used grey, the room outlined), *Arena
+used/size K FX K*, then every big line with its length and KB: placed white, not used now dim, refused amber; the fixed ones
+grey (CHO 4K: its DEPTH reaches 1,163 samples back; ECHO 8K: its 75 ms repeat; JUNO 4K; FLNG 1K).
+
+**The make-room question** (the user, 2026-11-01: "when I switch synth engine I get a memory-related message, but I cannot do
+anything about it"). The standard question (SAVE yes, HOME no), *SHRINK REV SMALL DLY 1/2?*, with the need on the message line
+(*FM6 needs 8 kb, 4 kb free*). Its sizes are the least change that frees the need: REV SMALL, then XDLY HALF, then the delay a
+step at a time, counting only lines placed.
+- A part's engine change that does not fit: asked first, once a refusal, before the idle features (OFF) and the drops (DROP T2
+  FM6, DROP REV 32 KB). YES takes the sizes and the change goes through once the lines are back; HOME offers the next way, as
+  before: nothing is changed by the question itself.
+- An FX type with no room in an INSERTS slot's list: the entry is dim with the memory mark (a small amber chip; not struck: the
+  struck entries are the other slot's type, still skipped). The list stops on it; picked, the message line says *XDLY needs 64
+  kb, 30 kb free* and the question asks when smaller sizes free it. YES takes them and the type is placed as soon as its room
+  is there; HOME, or no answer, puts the slot back to what it held (*Not changed*). When no size frees it, the message alone
+  and the slot FULL (bypassed), as before.
+
+The web editor shows the row through SCRS (the device's PROJECT cards, `ed_scrs.c`), not the panel.
 
 ### 4.13 The load's memory list
 
