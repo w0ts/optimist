@@ -2128,6 +2128,11 @@ static void chord_revoice(uint32_t sel)
  * the pattern (the user, 2026-10-21); stopped or recording they sound as ever, SHIFT2 + the key sounds the lane (the UI's audition) */
 static volatile uint8_t pick_quiet;
 static void seq_pick_quiet(uint32_t on) { pick_quiet = (uint8_t)(on != 0u); }
+/* STEP, the drum track, REC on (the UI sets it every frame, op_step.c step_drum_rec): the black keys play their lane and
+ * record the hit as the pads of every other page do (the user, 2026-11-01: "on SEQ, drums if REC is on black keys also
+ * record notes"); the white keys stay steps */
+static volatile uint8_t step_rec_blk;
+static void seq_step_rec_black(uint32_t on) { step_rec_blk = (uint8_t)(on != 0u); }
 static void key_down(uint32_t k)
 {
     uint32_t layer = layer_now(), sel = song.sel % NTRK, i, mc;
@@ -2135,6 +2140,8 @@ static void key_down(uint32_t k)
     kb_kind[k] = KS_NONE;
     kb_trk[k] = (uint8_t)sel;
     kb_n[k] = 0;
+    if (layer == LY_STEP && step_rec_blk && is_drum(t) && punch_key(k) < 0)
+        layer = LY_PLAY;                              /* (STEP, REC on: a black key plays its lane and records, as on the other pages) */
     switch (layer) {
     case LY_FX: {                                     /* FX held: the white keys pick a punch-in effect */
         int32_t fx = punch_key(k);

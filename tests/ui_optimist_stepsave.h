@@ -23,6 +23,55 @@ static void sv_open(void)                               /* STEP on T1, LEN 16, o
     TSEL->p[P_CHORD] = 0;
     pen_n = 1, pen_note[0] = 60;
 }
+static uint32_t sv_hits(uint32_t lane)                  /* the drum track's steps with a hit of the lane */
+{
+    uint32_t i, n = 0;
+    for (i = 0; i < NSTEP; i++)
+        n += dstep_has(&TDRUM->dstep[i], lane) ? 1u : 0u;
+    return n;
+}
+/* 2026-11-01 ("on SEQ, drums if REC is on black keys also record notes"): on STEP's drum track REC on, a black key plays its lane,
+ * records the hit at the playhead and picks the lane (and the hit); REC off it only picks the lane (stopped: heard, not recorded) */
+static void sv_drum_rec_tests(void)
+{
+    uint32_t f, d, h, n;
+    memset(TDRUM->dstep, 0, sizeof TDRUM->dstep);
+    lane_select(1);
+    frames(2);
+    check(rec_wait && step_drum_rec() && !song.playing, "drum rec: REC armed on STEP's drum track: the black keys are the pads");
+    kdown(BK(5));
+    frames(2);
+    keys_lit(&f, &d, &h);
+    check(lane_selected() == 5u && song.playing && ((song.rec >> TRK_DRUM) & 1u), "drum rec: a black key armed: the lane picked, the take started");
+    check(sv_hits(5) == 1u && sv_hits(1) == 0u && !step_on(&TSEL->step[0]), "drum rec: ... its hit recorded at the playhead (one step, no step toggled)");
+    check(f & (1u << BK(5)), "drum rec: ... its key lit");
+    kup(BK(5));
+    frames(4);
+    check(pk_ok() && st.pk < NSTEP && dstep_has(&TDRUM->dstep[st.pk], 5), "drum rec: ... the hit entered is the picked note");
+    n = sv_hits(5);
+    kdown(BK(7));
+    frames(2);
+    kup(BK(7));
+    frames(2);
+    check(lane_selected() == 7u && sv_hits(7) == 1u && sv_hits(5) == n, "drum rec: recording: another black key picks its lane and records its hit");
+    key(WK(3));
+    frames(2);
+    check(step_keys(fm1_in.buttons) && ly_lock == LY_STEP && lane_selected() == 7u, "drum rec: the white keys stay steps");
+    tap(B_PLAY);
+    frames(4);
+    tap(B_REC);
+    tap(B_REC);
+    frames(2);
+    check(!rec_wait && !song.rec && !step_drum_rec(), "drum rec: REC off: the black keys are lane picks");
+    memset(TDRUM->dstep, 0, sizeof TDRUM->dstep);
+    kdown(BK(2));
+    frames(2);
+    kup(BK(2));
+    frames(2);
+    check(lane_selected() == 2u && sv_hits(2) == 0u && !song.playing, "drum rec: REC off: a black key picks the lane, nothing recorded");
+    tap(B_REC);
+    frames(2);
+}
 static void sv_rec_tests(void)
 {
     track_t *t;
@@ -65,6 +114,7 @@ static void sv_rec_tests(void)
     tap(B_REC);
     frames(2);
     check(rec_wait && step_keys(fm1_in.buttons), "keys: drums, REC on: the white keys stay steps (as on every page)");
+    sv_drum_rec_tests();
     tap(B_REC);
     memset(TDRUM->dstep, 0, sizeof TDRUM->dstep);
     song.sel = 0;
