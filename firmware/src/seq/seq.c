@@ -2391,8 +2391,8 @@ static uint32_t an_left;
 static void audition_notes(uint32_t tr, const uint8_t *nt, uint32_t n, uint32_t vel)
 {
     uint32_t i;
-    if (song.playing || tr >= NTRK || !n)
-        return;
+    if (tr >= NTRK || !n)
+        return;                                         /* (playing too: STEP ENTRY while the sequencer runs, op_stepentry.c) */
     fm1_irq_off();
     for (i = 0; i < n && i < 4u; i++)
         an_nt[i] = nt[i];

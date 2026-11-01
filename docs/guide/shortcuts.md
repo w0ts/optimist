@@ -34,6 +34,7 @@ Every button, knob and key gesture, grouped by what you want to do, then the one
 | FX tapped | the mixer's MASTER row | the master FX page; again: its next page |
 | FX tapped | the mixer's USB IN row | its insert slots |
 | SEQ tapped | anywhere | STEP; on STEP: its next page (PATTERN, TOOLS [SEQTOOLS], GEN, GEN OUT [NOTEGEN or GEN_GRIDS]) |
+| SEQ tapped twice (within 0.35 s) | a synth track's STEP | STEP ENTRY on or off, stopped or playing (toast *STEP ENTRY* / *STEP SEQ*); the first tap acts at once as above and the second puts its page back; off, REC armed: the keys play |
 | GLO tapped | anywhere | the one of GLOBAL / SYSTEM open last (GLOBAL after power-on); on GLOBAL: SYSTEM; on SYSTEM: GLOBAL |
 | HOME tapped | a page | back to the mixer, on its row |
 | HOME tapped | the mixer | SCOPE; HOME again: the mixer |

@@ -307,8 +307,68 @@ static void sen_other_tests(void)
     song.sel = 0;
     reset_ui();
 }
+static void sen_dbl_tests(void)                         /* the double SEQ tap: STEP ENTRY on / off, stopped or playing (op_step.c step_seq_tap) */
+{
+    track_t *t;
+    uint32_t r0, n0, n1;
+    sen_open(32);
+    sen_rec_off();
+    t = TSEL;
+    cards_up();
+    frames(30);
+    r0 = ui.row[SCR_STEP];
+    check(!se_on() && !song.playing && !rec_wait, "step entry dbl: REC off, stopped: the step sequencer");
+    tap(B_SEQ);
+    frames(30);
+    check(!se_on() && (step_rows() < 2u || ui.row[SCR_STEP] != r0), "step entry dbl: one SEQ tap: its next row as ever, no mode change");
+    tap(B_SEQ);
+    frames(30);
+    r0 = ui.row[SCR_STEP];
+    tap(B_SEQ);
+    tap(B_SEQ);
+    check(se_on() && ui.row[SCR_STEP] == r0 && !strcmp(ui.msg, "STEP ENTRY"), "step entry dbl: two SEQ taps: STEP ENTRY on (the first tap's row put back), said");
+    n0 = kb_map(t, WK(0));
+    key(WK(0));
+    check(se_starts(t, st.cur, n0) >= 0 && !song.playing, "step entry dbl: stopped, REC off: a key adds its note on the cursor step");
+    frames(30);
+    tap(B_PLAY);
+    frames(4);
+    check(song.playing && !song.rec && se_on() && step_keys(fm1_in.buttons) && !st.follow, "step entry dbl: PLAY is the transport's: playing, STEP ENTRY stays, the cursor its own");
+    pk_cards_down();
+    turn(EN_K1, 3);
+    n1 = kb_map(t, WK(2));
+    key(WK(2));
+    check(st.cur == 3u && se_starts(t, 3, n1) >= 0 && song.playing && !song.rec, "step entry dbl: playing: a key adds its note on the cursor step (K1), no take");
+    check(an_on_n == 1u && an_on_nt[0] == n1, "step entry dbl: ... heard once");
+    key(WK(2));
+    check(!step_on(&t->step[3]), "step entry dbl: ... the same key again removes it");
+    frames(30);
+    tap(B_SEQ);
+    tap(B_SEQ);
+    check(!se_on() && st.follow && song.playing && !strcmp(ui.msg, "STEP SEQ"), "step entry dbl: two SEQ taps again: the step sequencer, said");
+    frames(30);
+    tap(B_SEQ);
+    tap(B_SEQ);
+    check(se_on() && song.playing, "step entry dbl: ... and on again");
+    tap(B_PLAY);
+    frames(4);
+    check(!song.playing && se_on(), "step entry dbl: PLAY stops, STEP ENTRY stays");
+    tap(B_SEQ);
+    tap(B_SEQ);
+    check(!se_on(), "step entry dbl: off again");
+    sen_rec_off();
+    tap(B_REC);
+    frames(2);
+    check(rec_wait && !se_on(), "step entry dbl: REC armed, stopped, switched off by the toggle: it stays off (the keys play)");
+    tap(B_SEQ);
+    tap(B_SEQ);
+    check(se_on() && rec_wait && !song.playing, "step entry dbl: ... a double tap: on again");
+    sen_rec_off();
+    reset_ui();
+}
 static void stepentry_tests(void)
 {
+    sen_dbl_tests();
     sen_toggle_tests();
     sen_cursor_tests();
     sen_knob_tests();
