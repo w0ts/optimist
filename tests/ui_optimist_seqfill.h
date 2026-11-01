@@ -62,11 +62,13 @@ static void sf_synth_tests(void)
     fm1_irq_on();
     frames(2);
     sf_key(2);
-    check(step_on(&t->step[2]) && step_fill(t, 2) == FC_NOFILL && strstr(ui.msg, "NO FILL"), "seq fills: a normal step: NO FILL, the note stays");
+    check(step_on(&t->step[2]) && step_fill(t, 2) == FC_NORM && strstr(ui.msg, "STEP 3 NORMAL NOTE"), "seq fills: a normal note: unchanged, the popup says NORMAL NOTE");
+    fm1_irq_off();
+    (void)step_fill_set(t, 2, FC_NOFILL);
+    fm1_irq_on();
     sf_key(2);
-    check(step_on(&t->step[2]) && step_fill(t, 2) == FC_NORM && strstr(ui.msg, "NORMAL"), "seq fills: a NO FILL step: normal again");
+    check(step_on(&t->step[2]) && step_fill(t, 2) == FC_NOFILL && strstr(ui.msg, "NO FILL NOTE"), "seq fills: a NO FILL note (SAVE's): unchanged too");
     sf_key(0);
-    sf_key(2);
     release(B_SEQ);
     frames(3);
     check(!step_fillview() && step_fill(t, 0) == FC_FILL && step_fill(t, 2) == FC_NOFILL, "seq fills: SEQ let go: the normal view, the conditions kept");
@@ -114,10 +116,8 @@ static void sf_drum_tests(void)
     check(step_fillview() && strstr(ui.msg, "FILLS ") && strstr(ui.msg, lane_name(2)), "seq fills: SEQ held on the drum track: the fill view, header names the lane");
     sf_key(1);
     check(dstep_has(&t->dstep[1], 2) && dstep_has(&t->dstep[1], 3), "seq fills: the old clear is gone: SEQ + a step leaves the step's lanes ...");
-    check(step_lane_fc(t, 1, 2) == FC_NOFILL && step_lev(t, 1, 2) == AUTO_LF_NOFILL, "seq fills: ... a normal hit becomes NO FILL on that lane");
+    check(step_lane_fc(t, 1, 2) == FC_NORM && !step_lev(t, 1, 2) && strstr(ui.msg, "NORMAL HIT"), "seq fills: ... a normal hit is unchanged, the popup says so");
     check(step_lane_fc(t, 1, 3) == FC_NORM && step_fill(t, 1) == FC_NORM && !step_muted(t, 1, 2), "seq fills: ... the other lane and the step's own condition untouched, not muted");
-    sf_key(1);
-    check(step_lane_fc(t, 1, 2) == FC_NORM && dstep_has(&t->dstep[1], 2) && !step_lev(t, 1, 2), "seq fills: a NO FILL hit: normal again, no event");
     sf_key(4);
     check(dstep_has(&t->dstep[4], 2) && step_lane_fc(t, 4, 2) == FC_FILL && !dstep_has(&t->dstep[4], 3), "seq fills: an empty step: the lane's hit, FILL ONLY");
     check(strstr(ui.msg, "FILL ONLY") && pk_ok() && st.pk == 4u, "seq fills: ... popup, the hit picked");
@@ -149,7 +149,7 @@ static void sf_drum_tests(void)
     release(B_SEQ);
     st.pk = PK_NONE;
     sm_undo();
-    check(!dstep_has(&t->dstep[7], 2) && step_lane_fc(t, 1, 2) == FC_NOFILL, "seq fills: undo: the last press only");
+    check(!dstep_has(&t->dstep[7], 2) && step_lane_fc(t, 1, 2) == FC_NORM, "seq fills: undo: the last press only");
     press(B_SEQ);
     frames(4);
     ppm("opt-seq-fills-drums");

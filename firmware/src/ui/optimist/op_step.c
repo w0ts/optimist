@@ -26,7 +26,7 @@
  *   SHIFT held + keys     the drum track's pick: the keys play (ly_lock is let go while SHIFT is down, the sound only
  *                         stopped); a key picks its lane (lane_sel), the last upper key the ACCENT lane
  *   SEQ held + keys       the FILL view of the selected synth track / drum lane (FELUCCA_FILLS): a step key adds a FILL ONLY note / hit,
- *                         removes a FILL ONLY one, marks a normal one NO FILL, takes a NO FILL one back (step_fill_key)
+ *                         removes a FILL ONLY one, leaves a normal one (popup); step_fill_key
  *   SEQ tapped again      the keys play with the screen up (the window keeps following); again: steps
  * With no step held the cards are the track's PATTERN row (and TOOLS, GEN, GEN OUT). Every step key pressed opens an undo level (undo_mark), as SLOOP's step entry. The logic
  * of the edits is SLOOP's (ui/sloop/ui_layers.c step_down / steps_held_*), copied: nothing in ui/sloop is called. */
@@ -768,7 +768,7 @@ static void step_shift_cycle(track_t *t, uint32_t idx)
 #if STEP_FILLS
 /* SEQ held + a step key (the fill view): the selected track's (synth) or lane's (drums: that lane's hit only, its AUTO_MUTE event's value
  * keeps its condition) fills, each press one undo level and a popup. An empty step: a note / hit there, FILL ONLY; a FILL ONLY step: removed;
- * a normal step: NO FILL (silent in a fill); a NO FILL step: normal again */
+ * a normal or NO FILL note: left as it is, the popup says so (NO FILL is SAVE on a held step) */
 static void step_fill_key(track_t *t, uint32_t idx)
 {
     uint32_t drum = is_drum(t), l = lane_selected(), has, fc, ok = 1, add = 0, gone = 0;
@@ -780,6 +780,19 @@ static void step_fill_key(track_t *t, uint32_t idx)
     }
     has = drum ? dstep_has(&t->dstep[idx], l) : step_on(&t->step[idx]);
     fc = !has ? FC_NORM : drum ? step_lane_fc(t, idx, l) : step_fill(t, idx);
+    if (has && fc != FC_FILL) {                         /* (a normal or NO FILL note: the gesture leaves it, SAVE on a held step sets NO FILL) */
+        ui.toast_next = 1;
+        if (drum) {
+            ui_say(lane_short(l), fc == FC_NOFILL ? " NO FILL HIT" : " NORMAL HIT");
+        } else {
+            str_cpy(who, trk_tag((uint32_t)song.sel), sizeof who);
+            str_app(who, " STEP ", sizeof who);
+            fmt_app(who, (int32_t)idx + 1);
+            ui_say(who, fc == FC_NOFILL ? " NO FILL NOTE" : " NORMAL NOTE");
+        }
+        ui.toast_next = 0;
+        return;
+    }
     undo_mark(t, st.sess);
     fm1_irq_off();
     if (!has) {
@@ -795,10 +808,6 @@ static void step_fill_key(track_t *t, uint32_t idx)
         else
             step_off_keep(t, idx);
         gone = 1, say = " REMOVED";
-    } else {
-        uint32_t nf = fc == FC_NORM ? FC_NOFILL : FC_NORM;
-        ok = (uint32_t)(drum ? step_lane_fc_set(t, idx, l, nf) : step_fill_set(t, idx, nf));
-        say = nf == FC_NOFILL ? " NO FILL" : " NORMAL";
     }
     fm1_irq_on();
     sync_reload = 1;
@@ -2780,10 +2789,6 @@ static void step_foot(char *h, char *k, uint32_t n)
         return;
     }
     str_cpy(h, step_rec_keys() ? "Rec off steps  Home back" : "Rec on play  Home back", n);
-    if (step_fillview()) {
-        str_cpy(k, "Keys: add / drop fills", n);        /* (SEQ held: the fill view) */
-        return;
-    }
     str_cpy(k, step_pick(fm1_in.buttons) ? "Pick " : !step_keys(fm1_in.buttons) ? "Keys play " : "Keys steps ", n);
     step_pick_name(b, sizeof b);
     str_app(k, b, n);
