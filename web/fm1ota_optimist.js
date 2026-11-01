@@ -24,6 +24,19 @@ export const STOCK_RETURN_LOADER = (id) => OFFICIAL_LOADER(id) || IS_MVAVE_LOADE
 
 const optFail = (code, msg, detail = "") => Object.assign(new Error(msg), { code, detail });
 
+// the fast install's word to the loader -> true when it answers (an older loader ignores the frame)
+async function optFastHello(link) {
+  link.drain();
+  if (!link.send(OPT_FAST_HELLO)) return false;
+  const end = Date.now() + 500;
+  while (Date.now() < end) {
+    const p = await link.read(end - Date.now());
+    if (!p) return false;
+    if (optParseFast(p) === OPT_FAST_CHUNK) return true;
+  }
+  return false;
+}
+
 /* ------------------------------------------------------------------ the official firmware, for a return to stock */
 // After Felucca 1.0.1 web/fm1pkg.js (validateStockPackage; Leo Kuroshita, GPL-3.0-only): only the user's unmodified M-VAVE
 // FM-1 V15 file is accepted, and its SHA-256 pins every byte (files, loader, layout), so nothing else needs parsing. The pin
@@ -72,6 +85,63 @@ export async function stockBanks(fwsc) {
   throw new Error("the official file's voice banks did not check out");
 }
 
+/* ------------------------------------------------------------------ the fast install */
+// docs/INSTALL-SPEED.md, the same as tools/fm1_install.py (fast_hello, sector_table) and the app's FlashProtocol: before
+// step 2's upgrade command the page says it can serve 4 KiB reads and the per-sector table (cmd 0x31 [1, 4096 LE]); a
+// loader that can answers the same frame and then asks only the sectors that differ, 4 KiB at a time, after the table
+// at OPT_TABLE + flash.bin's offset (per 4 KiB sector: CRC16 XMODEM, CRC-32 zlib, little-endian). An older loader
+// says nothing and gets fm1base's write (today's protocol: 512-byte reads of the whole package, twice).
+const OPT_FAST_CMD = 0x31, OPT_FAST_CHUNK = 4096, OPT_SECTOR = 4096, OPT_TABLE = 0xD0000000;
+const optUpgrade = [0xF0, 0x22, 0x24, 0x35, 0x7F, 0xF7];
+const optSleep = (ms) => new Promise((r) => setTimeout(r, ms));
+export const OPT_FAST_HELLO = optFrame(OPT_FAST_CMD, [1, OPT_FAST_CHUNK & 0xFF, OPT_FAST_CHUNK >> 8]);
+// the loader's answer to OPT_FAST_HELLO -> its read size, or 0
+export function optParseFast(pkt) {
+  if (!pkt || pkt[0] !== 0xF0 || pkt[pkt.length - 1] !== 0xF7) return 0;
+  const r = optParseReply(pkt);
+  return r && r.cmd === OPT_FAST_CMD && r.data.length === 3 && r.data[0] === 1 ? r.data[1] | (r.data[2] << 8) : 0;
+}
+const OPT_T16 = Array.from({ length: 256 }, (_, i) => { let c = i << 8; for (let k = 0; k < 8; k++) c = c & 0x8000 ? ((c << 1) ^ 0x1021) & 0xFFFF : (c << 1) & 0xFFFF; return c; });
+const OPT_T32 = Array.from({ length: 256 }, (_, i) => { let c = i; for (let k = 0; k < 8; k++) c = c & 1 ? (c >>> 1) ^ 0xEDB88320 : c >>> 1; return c >>> 0; });
+export function optCrc16(d) { let c = 0; for (let i = 0; i < d.length; i++) c = ((c << 8) & 0xFFFF) ^ OPT_T16[((c >> 8) ^ d[i]) & 0xFF]; return c; }
+export function optCrc32(d) { let c = 0xFFFFFFFF; for (let i = 0; i < d.length; i++) c = (c >>> 8) ^ OPT_T32[(c ^ d[i]) & 0xFF]; return (c ^ 0xFFFFFFFF) >>> 0; }
+// the table for n sectors of image from off: 6 bytes each
+export function optSectorTable(image, off, n) {
+  const out = new Uint8Array(n * 6);
+  for (let k = 0; k < n; k++) {
+    const s = image.subarray(off + k * OPT_SECTOR, off + (k + 1) * OPT_SECTOR), c16 = optCrc16(s), c32 = optCrc32(s);
+    out.set([c16 & 0xFF, c16 >> 8, c32 & 0xFF, (c32 >>> 8) & 0xFF, (c32 >>> 16) & 0xFF, c32 >>> 24], k * 6);
+  }
+  return out;
+}
+// the answer to a read request (cmd 0x30): fm1base's response, any length
+export function optResponse(addr, data, fl = 0) {
+  const len = data.length, body = [0x00, 0x59, 0x30, (len + 8) & 0xFF, ((len + 8) >> 8) & 0xFF, 0, fl,
+    addr & 0xFF, (addr >>> 8) & 0xFF, (addr >>> 16) & 0xFF, (addr >>> 24) & 0xFF, len & 0xFF, (len >> 8) & 0xFF, 0];
+  let s = 0;
+  for (let i = 6; i < body.length; i++) s += body[i];
+  for (const b of data) s += b;
+  return [0xF0, ...pack7([...body, ...data, ~s & 0xFF]), 0xF7];
+}
+function optRequest(pkt) {
+  if (!pkt || pkt[0] !== 0xF0 || pkt[pkt.length - 1] !== 0xF7) return null;
+  const u = unpack7(pkt.slice(1, -1));
+  if (u.length !== 15 || u[0] !== 0 || u[1] !== 0x59 || u[2] !== 0x30) return null;
+  let s = 0;
+  for (let i = 6; i < 14; i++) s += u[i];
+  if ((~s & 0xFF) !== u[14]) return null;
+  return { fl: u[6], addr: (u[7] | (u[8] << 8) | (u[9] << 16) | (u[10] << 24)) >>> 0, len: u[11] | (u[12] << 8) | (u[13] << 16) };
+}
+// the bytes a fast read asks for (the table included), or null outside the package
+function optFastData(image, addr, len) {
+  if (addr >= OPT_TABLE && addr < 0xE0000000) {
+    const off = addr - OPT_TABLE;
+    if (len % 6 || len > OPT_FAST_CHUNK || off + (len / 6) * OPT_SECTOR > image.length) return null;
+    return optSectorTable(image, off, len / 6);
+  }
+  return len > OPT_FAST_CHUNK || addr + len > image.length ? null : image.subarray(addr, addr + len);
+}
+
 /* ------------------------------------------------------------------ the updater */
 // a command to the running stock firmware and its reply (M-VAVE's FM1 Open V13 updater, sdk/WebUpdate.js frame / parse,
 // GPL-3.0-only): 00 59, the command, a 24-bit length, the payload, the payload's checksum (~sum), 7-bit packed
@@ -102,6 +172,48 @@ function optRequestAddr(pkt) {
 //  - resume(image, onStep, product, accept): a loader `accept` does not name is refused (foreign) before anything is written
 //  - restoreBanks: the official voice banks back into a running V15
 export class OptimistUpdater extends Updater {
+  // step 2: the fast install when the loader answers the word (docs/INSTALL-SPEED.md), else fm1base's write. this.fast says
+  // which one ran
+  async write(ota, image, step) {
+    this.fast = await optFastHello(ota.link);
+    if (!this.fast) return super.write(ota, image, step);
+    ota.link.send(optUpgrade);
+    await optSleep(50);
+    const s2 = await this.serveFast(ota.link, image, 0xF0000000, 180000, (n, b) => step && step("write", n, b));
+    ota.link.close();
+    return s2;
+  }
+
+  // fm1base's serve for the fast install: 4 KiB reads and the table, no pause before an answer
+  async serveFast(link, image, finishAddr, idleMs, onProgress) {
+    let served = 0, bytes = 0, last = Date.now();
+    for (;;) {
+      const pkt = await link.read(1000);
+      if (!pkt) {
+        if (link.lost) return { served, finished: false, lost: true };
+        if (Date.now() - last > idleMs) return { served, finished: false };
+        continue;
+      }
+      const r = optRequest(pkt);
+      if (!r) continue;
+      last = Date.now();
+      if (r.addr === 0xE0000000 || r.addr === 0xF0000000) {
+        link.send(optResponse(r.addr, [...new TextEncoder().encode("success"), 0]));
+        if (r.addr === finishAddr) return { served, finished: true };
+        continue;
+      }
+      const data = optFastData(image, r.addr, r.len);
+      if (!data) throw optFail("badreq", `bad request ${r.addr.toString(16)}+${r.len}`);
+      if (!link.send(optResponse(r.addr, data, r.fl))) return { served, finished: false, lost: true };
+      served++;
+      if (r.addr < OPT_TABLE) {
+        this.lastAddr = r.addr;
+        bytes += r.len;
+        if (onProgress) onProgress(served, bytes);
+      }
+    }
+  }
+
   async serve(link, image, finishAddr, idleMs, onProgress) {   // (wraps link.read to remember the last address asked)
     const read = link.read.bind(link);
     link.read = async (ms) => { const p = await read(ms); const a = optRequestAddr(p); if (a >= 0) this.lastAddr = a; return p; };

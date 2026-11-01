@@ -284,6 +284,10 @@ job; ( jobin
     run "master COMP / LIMIT: the static curve (+-0.5 dB), attack / release / AUTO, bit-exact when off, no sample past CEIL, the project's bytes" "$OUT/master_comp_test"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/djfilt_test" tests/djfilt_test.c -lm
+    run "master DJ FILTER: silence stays silent at every setting (from rest, after a sine, after a move, a constant input), the response its double-precision twin's" "$OUT/djfilt_test"
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_TFLT_FINE=1 -o "$OUT/djfilt_fine_test" tests/djfilt_test.c -lm
+    run "master DJ FILTER with TFLT_FINE (64-bit products): the same" "$OUT/djfilt_fine_test"
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_TRK_FILT=1 -o "$OUT/trk_filt_test" tests/trk_filt_test.c -lm
     run "track FILTER (SLOOP 2.4): LP / HP on a part, the drum bus and its sends, the project, cost" "$OUT/trk_filt_test"
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_CHORDPLUS=1 -o "$OUT/chordplus_test" tests/chordplus_test.c -lm
@@ -1107,6 +1111,9 @@ job; ( jobin
     python3 tools/fm1pkg_make.py "$OUT/old_app.bin" build/loader/ota.bin "$OUT/old.fwsc" >/dev/null
     $CC -o "$OUT/ldr_test" tests/ldr_test.c
     run "update loader: other app -> this build" "$OUT/ldr_test" "$OUT/old.fwsc" build/felucca.fwsc
+    $CC -DOTA_FAST_CHUNK=4096u -DOTA_FRAME_MAX=4200u -o "$OUT/ldr_test_fast" tests/ldr_test.c
+    run "update loader, fast install (docs/INSTALL-SPEED.md): the table, changed sectors only, erase while receiving, resume" "$OUT/ldr_test_fast" "$OUT/old.fwsc" build/felucca.fwsc
+    run "install replay: fm1_install.py against the real loader code, today's protocol and the fast one, a cut-off install resumed" python3 tests/install_replay_test.py "$OUT/old.fwsc" build/felucca.fwsc
     for L in 1 2 3 4 5 6 7 8; do   # (the MEMORY steps, tools/flash_layout.py: L1 more flash, S0 no user samples; normal above)
         $CC -DFELUCCA_LAYOUT=$L -o "$OUT/ldr_test_l$L" tests/ldr_test.c
         run "update loader of LAYOUT $L: the switch matrix from every step (docs/SD-MODE-DESIGN.md 9.3), nothing else" "$OUT/ldr_test_l$L" --layout

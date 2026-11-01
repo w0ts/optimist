@@ -16,9 +16,29 @@
 
 static uint8_t nor[0x100000], *logical;
 static size_t logical_len;
-static uint8_t rx[1024];
+static uint8_t rx[5000];
 static uint32_t rx_len, rx_full, now_ms, requests, erases, bad_range, record_cleared, f0_asked;
 static uint32_t corrupt_at, corrupt_once, no_finish;   /* the host serves a damaged byte / never says "success" */
+static uint32_t cut_after, served, wire_in, wire_out, progs, er_on;   /* the host stops after cut_after answers; counts */
+static uint32_t t_crc16(const uint8_t *p, uint32_t n)
+{
+    uint32_t c = 0, i;
+    while (n--) {
+        c ^= (uint32_t)*p++ << 8;
+        for (i = 0; i < 8; i++) c = c & 0x8000 ? (c << 1) ^ 0x1021 : c << 1;
+        c &= 0xFFFF;
+    }
+    return c;
+}
+static uint32_t t_crc32(const uint8_t *p, uint32_t n)
+{
+    uint32_t c = 0xFFFFFFFFu, k;
+    while (n--) {
+        c ^= *p++;
+        for (k = 0; k < 8; k++) c = (c >> 1) ^ (c & 1 ? 0xEDB88320u : 0);
+    }
+    return ~c;
+}
 
 static uint32_t pack7(const uint8_t *in, uint32_t n, uint8_t *out)
 {
@@ -44,13 +64,18 @@ static uint32_t unpack7h(const uint8_t *in, uint32_t n, uint8_t *out)
 
 static int ota_wire_send(const uint8_t *p, uint32_t n)
 {
-    uint8_t u[64], m[600];
+    static uint8_t m[4200];
+    uint8_t u[64];
     uint32_t addr, len, i, s = 0;
     unpack7h(p + 1, n - 2, u);
     if (u[2] == 0x11) return 0;
     addr = u[7] | u[8] << 8 | u[9] << 16 | (uint32_t)u[10] << 24;
     len = u[11] | u[12] << 8 | u[13] << 16;
     requests++;
+    wire_out += n;
+    if (cut_after && served >= cut_after)
+        return 0;                                    /* the host is gone (a cut-off install) */
+    served++;
     memcpy(m, "\x00\x59\x30", 3);
     m[3] = (uint8_t)(len + 8); m[4] = (uint8_t)((len + 8) >> 8); m[5] = 0; m[6] = 0;
     memcpy(m + 7, &addr, 4);
@@ -63,6 +88,20 @@ static int ota_wire_send(const uint8_t *p, uint32_t n)
         f0_asked += addr == 0xF0000000u;
         memset(m + 14, 0, len);
         memcpy(m + 14, "success", 8);
+    } else if (addr >= 0xD0000000u) {                /* the fast install's table: CRC16 + CRC-32 per 4 KiB sector */
+        static uint8_t sec4k[0x1000];
+        uint32_t off = addr - 0xD0000000u, k, c16, c32;
+        if (len % 6u || off + len / 6u * 0x1000u > logical_len)
+            return 0;                                /* (as the host refuses: no reply) */
+        for (k = 0; k < len / 6u; k++) {
+            memcpy(sec4k, logical + off + k * 0x1000u, 0x1000);
+            if (corrupt_at && !corrupt_once && corrupt_at - (off + k * 0x1000u) < 0x1000u)
+                sec4k[corrupt_at - (off + k * 0x1000u)] ^= 0x08;   /* a damaged package: its table says so too */
+            c16 = t_crc16(sec4k, 0x1000);
+            c32 = t_crc32(sec4k, 0x1000);
+            m[14 + k * 6] = (uint8_t)c16; m[15 + k * 6] = (uint8_t)(c16 >> 8);
+            memcpy(m + 16 + k * 6, &c32, 4);
+        }
     } else {
         if (addr + len > logical_len)
             return 0;                                /* past a cut-short package: the host has nothing to send */
@@ -77,6 +116,7 @@ static int ota_wire_send(const uint8_t *p, uint32_t n)
     m[14 + len] = (uint8_t)~s;
     rx_len = pack7(m, 15 + len, rx);
     rx_full = 1;
+    wire_in += rx_len + 2;
     return 0;
 }
 static int ota_frame_get(const uint8_t **p, uint32_t *n) { if (!rx_full) return 0; *p = rx; *n = rx_len; return 1; }
@@ -90,9 +130,14 @@ static void ota_show(uint32_t step, int32_t code) { (void)step; (void)code; }
 static void ota_commit(const uint8_t *parm) { (void)parm; }
 #include "../firmware/src/system/ota.c"
 
-static int ldr_fread(uint32_t off, void *p, uint32_t n) { memcpy(p, nor + off, n); return 0; }
+static void no_erase_on(const char *what)
+{
+    if (er_on) { printf("FLASH %s WHILE AN ERASE RUNS\n", what); exit(1); }
+}
+static int ldr_fread(uint32_t off, void *p, uint32_t n) { no_erase_on("READ"); memcpy(p, nor + off, n); return 0; }
 static int ldr_erase(uint32_t off)
 {
+    no_erase_on("ERASE");
     if (off < 0x4000u || off >= 0xFC000u || (off & 0xFFFu)) bad_range++;
     if (off < 0x4000u) { printf("ERASE IN THE HEAD %#x\n", off); exit(1); }
     erases++;
@@ -103,6 +148,8 @@ static int ldr_prog(uint32_t off, const void *p, uint32_t n)
 {
     const uint8_t *s = p;
     uint32_t i;
+    no_erase_on("PROGRAM");
+    progs++;
     if (off < 0x4000u || off + n > FL_APP_HI || ((off & 0xFFu) + n) > 256u) bad_range++;
     for (i = 0; i < n; i++) nor[off + i] &= s[i];
     return 0;
@@ -112,7 +159,19 @@ static uint32_t flash_unknown;
 static int ldr_flash_known(void) { return !flash_unknown; }
 static void ldr_progress(uint32_t done, uint32_t total) { (void)done; (void)total; }
 static void ldr_checking(uint32_t done, uint32_t total) { (void)done; (void)total; }
+#ifdef OTA_FAST_CHUNK
+static uint32_t er_off;
+static int ldr_erase_begin(uint32_t off) { int rc = ldr_erase(off); er_on = !rc; er_off = off; return rc; }
+static int ldr_erase_end(void) { if (!er_on) return -1; er_on = 0; return 0; }
+#endif
 #include "../firmware/loader/ldr_core.c"
+#ifdef OTA_FAST_CHUNK
+#define FAST 1
+static int session(void) { ota_fast = 1; return ldr_session(); }   /* (the host said the fast word: ota_fast_hello) */
+#else
+#define FAST 0
+static int session(void) { return ldr_session(); }
+#endif
 
 static uint8_t *load_logical(const char *path, size_t *len)
 {
@@ -466,7 +525,7 @@ int main(int argc, char **argv)
             logical_len = nfo + SZ[k] > full ? nfo + SZ[k] : full;
             set_fl_size(logical, SZ[k]);
             erases = 0; record_cleared = 0;
-            rc = ldr_session();
+            rc = session();
             printf("  rc %d, %u sector erases\n", rc, erases);
             bad += check(WHAT[k], rc == -15 && erases == 0 && !record_cleared && nor[0xE4F06] == 0x41 &&
                          !memcmp(nor, old + ofo, 0x93000));
@@ -477,14 +536,16 @@ int main(int argc, char **argv)
         }
         logical_len = nfo + 0x50000u;                /* cut short in the app area */
         erases = 0; record_cleared = 0;
-        rc = ldr_session();
+        rc = session();
         bad += check("cut short inside flash.bin: refused, nothing erased", rc < 0 && erases == 0 && !record_cleared &&
                      !memcmp(nor, old + ofo, 0x93000));
         logical_len = full;
         requests = 0;
     }
-    rc = ldr_session();
-    printf("  rc %d, %u requests, %u sector erases\n", rc, requests, erases);
+    wire_in = wire_out = progs = 0;
+    rc = session();
+    printf("  rc %d, %u requests, %u sector erases, %u page programs, wire: %u B to the FM-1, %u B from it (%s)\n", rc,
+           requests, erases, progs, wire_in, wire_out, FAST ? "fast" : "today's protocol");
     bad += check("install completes (flash.bin exactly the app area)", rc == 0);
     bad += check("app area == the new package's flash.bin", !memcmp(nor + 0x4000, logical + nfo + 0x4000, 0x93000 - 0x4000));
     bad += check("flash head [0, 0x4000) untouched", !memcmp(nor, head, sizeof head));
@@ -493,15 +554,43 @@ int main(int argc, char **argv)
     bad += check("no write outside the allowed windows", bad_range == 0);
     /* same package again: nothing to erase */
     erases = 0; requests = 0;
-    rc = ldr_session();
+    rc = session();
     bad += check("re-run with the same package erases nothing", rc == 0 && erases == 0);
+#ifdef OTA_FAST_CHUNK
+    {
+        printf("  re-run: %u requests\n", requests);
+        bad += check("fast: a re-run sends no sector (header, app head, table, finish)", requests <= 5u);
+        {
+            static const uint8_t VEC[12] = {98, 4, 162, 95, 146, 95, 92, 197, 155, 40, 53, 131};   /* the hosts' vector */
+            static uint8_t v[0x2000];
+            uint32_t k;
+            for (k = 0; k < sizeof v; k++)
+                v[k] = (uint8_t)((k * 31u) ^ (k >> 8));
+            bad += check("fast: the table entries are the hosts' (Python, web, app vector)",
+                         ldr_same(v, VEC) && ldr_same(v + 0x1000, VEC + 6));
+        }
+        /* cut off half way (the host gone after some sectors), then resumed: the rest only, and all of it */
+        memcpy(nor, old + ofo, 0x93000);
+        put_record();
+        record_cleared = 0;
+        requests = 0; served = 0; cut_after = 40u;
+        rc = session();
+        bad += check("fast: cut off after 40 answers: no success, the record stays", rc < 0 && !record_cleared &&
+                     nor[0xE4F06] == 0x41);
+        cut_after = 0; requests = 0; erases = 0;
+        rc = session();
+        printf("  resumed: rc %d, %u requests, %u erases\n", rc, requests, erases);
+        bad += check("fast: the resumed install completes and matches the package", rc == 0 && record_cleared &&
+                     !memcmp(nor + 0x4000, logical + nfo + 0x4000, LDR_APP_HI - 0x4000));
+    }
+#endif
     /* a package for another chip key is refused before any erase */
     {
         uint8_t save = logical[nfo + 0x4000 + 5];
         logical[nfo + 0x4000 + 5] ^= 0x5A;           /* app area head no longer decrypts */
         memcpy(nor, old + ofo, 0x93000);
         erases = 0;
-        rc = ldr_session();
+        rc = session();
         bad += check("foreign key / damaged app head refused, nothing erased", rc == -6 && erases == 0);
         logical[nfo + 0x4000 + 5] = save;
     }
@@ -513,7 +602,7 @@ int main(int argc, char **argv)
         record_cleared = 0;
         corrupt_at = nfo + 0x30123u;
         corrupt_once = 1;
-        rc = ldr_session();
+        rc = session();
         bad += check("a byte damaged once: caught by the CRC, fixed by a 2nd pass", rc == 0 && record_cleared
                      && nor[0xE4F06] == 0xFF && !memcmp(nor + 0x4000, logical + nfo + 0x4000, 0x93000 - 0x4000));
         /* the package itself damaged (every pass): the record stays, nothing is booted */
@@ -523,25 +612,25 @@ int main(int argc, char **argv)
         corrupt_at = nfo + 0x30123u;
         corrupt_once = 0;
         erases = 0;
-        rc = ldr_session();
+        rc = session();
         bad += check("a damaged package: refused after 3 passes, the record stays", rc == -12 && !record_cleared
                      && nor[0xE4F06] == r6);
         bad += check("... and the working app was never erased or written (checked before anything is erased)",
                      erases == 0 && !memcmp(nor, old + ofo, 0x93000));
         corrupt_at = nfo + 0x100u;                   /* in the head: never written, still checked */
-        rc = ldr_session();
+        rc = session();
         bad += check("... also when the damage is in the head", rc == -12 && !record_cleared && erases == 0
                      && !memcmp(nor, old + ofo, 0x93000));
         corrupt_at = nfo + 0x91000u;                 /* the last app sector */
-        rc = ldr_session();
+        rc = session();
         bad += check("... and in the last app sector", rc == -12 && erases == 0 && !memcmp(nor, old + ofo, 0x93000));
         corrupt_at = 0;
         /* no "success" from the host: the record stays (the host can finish later) */
         no_finish = 1;
-        rc = ldr_session();
+        rc = session();
         bad += check("no \"success\" from the host: the record stays", rc == -13 && !record_cleared && nor[0xE4F06] == r6);
         no_finish = 0;
-        rc = ldr_session();
+        rc = session();
         bad += check("... and the next session finishes", rc == 0 && record_cleared && nor[0xE4F06] == 0xFF);
     }
     /* another flash chip: nothing written, the records go (the old firmware starts again) */
@@ -551,7 +640,7 @@ int main(int argc, char **argv)
         record_cleared = 0;
         erases = 0;
         flash_unknown = 1;
-        rc = ldr_session();
+        rc = session();
         bad += check("unknown flash chip: nothing written, record dropped", rc == -14 && record_cleared && erases == 1
                      && nor[0xE4F06] == 0xFF && !memcmp(nor, old + ofo, 0x93000));
         flash_unknown = 0;
