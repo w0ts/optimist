@@ -34,6 +34,10 @@ static void patview_tests(void)
     for (i = 0, w = 1; i + 2u < PAT_N; i++)
         w &= (uint32_t)(PG_X(i + 2u) - PG_X(i)) >= 16u;
     check(w, "numbers: two numbers on a line are 16 px apart or more (a 2-digit number is 16 px wide): 10..16 do not crowd");
+    for (i = 4, w = 1; i < PAT_N; i += 4)               /* columns 4/5, 8/9, 12/13 (0-based 3/4, 7/8, 11/12): MXL_GG wider than the plain pitch; inside a group none */
+        w &= (uint32_t)((PG_X(i) - PG_X(i - 1u)) - (int32_t)((i * 40u / 3u) - ((i - 1u) * 40u / 3u))) == (uint32_t)MXL_GG && PG_X(i + 1u) - PG_X(i) <= 14 && PG_X(i) - PG_X(i - 1u) >= PG_CW + 2 + MXL_GG;
+    check(w, "groups: a gap of MXL_GG more after every 4th column (4/5, 8/9, 12/13), the cells inside a group unchanged, a 2 px space between cells still");
+    check(PG_X(15) + PG_CW <= 240, "... the last cell inside 240 px");
     check(PG_X(15) + (PG_CW + 16) / 2 <= 240 && PG_X(0) + (PG_CW - 8) / 2 >= 0, "... the first and the last number inside the screen");
     check(px_in((uint32_t)PG_X(4) - 2u, (uint32_t)OP_PY, 16, PG_NUMH, C_OK) && px_in((uint32_t)PG_X(9) - 2u, (uint32_t)OP_PY + PG_NUMH, 16, PG_NUMH, C_GRAY),
           "... 5 (playing, green) on the upper line, 10 (grey) on the lower line");
@@ -62,6 +66,7 @@ static void patview_tests(void)
     check(!px_in(pvt_step_x(1) + 1u, y + 17u, 9, 12, lvl_col(trk_col(0), LV_NORM)) && !px_in(pvt_step_x(1) + 1u, y + 17u, 9, 12, lvl_col(trk_col(0), LV_HARD)),
           "... the steps between empty outlines");
     check(pvt_step_x(4) - pvt_step_x(3) == 13u + MXL_GG && pvt_step_x(5) - pvt_step_x(4) == 13u, "... 4 groups of 4 with the mixer's bigger gap");
+    ppm("opt-patterns-gap");
     /* read, not loaded */
     trk[0].step[0].n = 0, trk[0].step[0].time = ST_REST;
     check(pat_peek(0, 4, &d) && d.hit[0] == (uint16_t)(1u | 1u << 4 | 1u << 8) && ((d.lvl[0] >> 16) & 3u) == LV_HARD && d.len == (uint8_t)trk[0].p[P_SLEN],
