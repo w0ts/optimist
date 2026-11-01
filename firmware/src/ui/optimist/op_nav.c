@@ -165,7 +165,7 @@ static int nav_open(uint32_t scr, uint32_t b)
  * GL_TOP + gl_y0, gl_pitch apart). The client draws the places from these (Nav/NavState.swift knobRects) */
 static uint32_t nav_knobs(void)
 {
-    if (!nav_free() || ui.overlay || ui.scr == SCR_STEP || ui.scr == SCR_SCOPE || song_tbl_on() || prj_listing()
+    if (!nav_free() || ui.overlay || pat_view() || ui.scr == SCR_STEP || ui.scr == SCR_SCOPE || song_tbl_on() || prj_listing()
 #if FELUCCA_BT_UI
         || dev_listing()
 #endif

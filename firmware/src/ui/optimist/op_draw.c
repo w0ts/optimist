@@ -1112,7 +1112,7 @@ static void draw_list(void)
     uint32_t pic = row_pic(cur);                        /* the picture over the rows (row_pic) */
     char nm[12];
     cell_t c;
-    if (pic && ui.scr != SCR_SONG) {                    /* a picture: alone, the whole panel (the user, 2026-10-12: "Keep the
+    if (pic && (ui.scr != SCR_SONG || pic == 2u)) {                    /* a picture: alone, the whole panel (the user, 2026-10-12: "Keep the
                                                          * graph"; ARP "is the same as lfo/env. no list"); the header names
                                                          * the row and its n/N, SELECT walks them. SONG keeps its rows under
                                                          * the session grid: its list is the content */
@@ -1122,8 +1122,6 @@ static void draw_list(void)
     } else if (pic) {                                   /* the picture takes the height the rows leave: they sit at the foot */
         uint32_t fit = (uint32_t)(LIST_H - GRAPH_MIN - 3) / ROW_H;
         shown = n < fit ? n : fit;
-        if (ui.scr == SCR_SONG && pic == 2u)
-            shown = 1;                                  /* (the PATTERNS row alone: no scene or mode row beside it, the grid taller; the user, 2026-10-21) */
         top = LIST_H - (int32_t)shown * ROW_H;
         gr_h = top - 3;
     } else if (n && n <= shown) {                       /* no picture (EDIT, VOICE, PROJECT, SYSTEM, GLOBAL, the master FX: the
@@ -1162,7 +1160,7 @@ static void draw_list(void)
     if (pic == 2u)
         sig = hu(sig, song_grid_sig());
 #endif
-    sig = hu(sig, (uint32_t)(top * 256 + rh));
+    sig = hu(sig, (uint32_t)(top * 256 + rh) + (uint32_t)OP_PY * 65536u);
     if (ui.scr == SCR_SONG)
         for (i = first; i < n && i < first + shown; i++)
             sig = hu(sig, song_row_col(i));
@@ -1387,6 +1385,8 @@ static void op_frame_draw(void)
                                                          * user 2026-10-31: "when scrolling the top of the list flash") */
     else if (lay.shown != LY_PLAY)
         lay_draw_cards();                              /* a layer: its knobs' cards, its tiles (op_laydraw.c) */
+    else if (pat_view())
+        ui.sig[1] = 0;                                 /* (the patterns screen: its panel takes the cards' band; the cards drawn again when it closes) */
     else if (ui.scr != SCR_STEP && !glo_cycle() && !pl_on() && !song_tbl_on()
 #if FELUCCA_BT_UI
              && !dev_listing()                          /* (the BLE devices: no cards, the list the whole panel, the user 2026-10-19) */
