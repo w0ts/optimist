@@ -83,9 +83,11 @@ export class FakeFM1 {
     return [[0, 64], [0x40, 160], [0x1000, 512], [FLASH_TOP, 8]];
   }
   rx(msg) {
+    if (sameBytes(msg, [0xFC])) { this.stops = (this.stops || 0) + 1; if (!this.upgradesSeen) this.stopsFirst = (this.stopsFirst || 0) + 1; return; }   /* MIDI STOP: counted, and whether it came before the first upgrade command */
     if (sameBytes(msg, [0xF0, 0x22, 0x24, 0x35, 0x7D, 0xF7])) { this.softKeys = (this.softKeys || 0) + 1; return; }   /* the download-mode soft key: counted, nothing else */
     if (sameBytes(msg, HANDSHAKE)) return this.reportIdentity();
     if (sameBytes(msg, UPGRADE_REQ)) {
+      this.upgradesSeen = (this.upgradesSeen || 0) + 1;
       this.queue = this.readPlan();
       return this.next();
     }

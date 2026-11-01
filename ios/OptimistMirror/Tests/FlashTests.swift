@@ -155,6 +155,7 @@ final class FlashTests: XCTestCase {
         XCTAssertEqual(steps.first, .start("FM-1_904"))
         XCTAssertTrue(steps.contains(.loader))
         XCTAssertEqual(steps.last, .done("FM-1_700"))
+        XCTAssertEqual(dev.stopsBeforeUpgrade, 1)          // one MIDI STOP (0xFC) before the first update command
     }
 
     func testResumeFromOurLoader() async throws {
@@ -313,6 +314,7 @@ final class FakeFlashDevice: FlashPorts, FlashChannel {
     let finalIdentity: String
     private(set) var written: [UInt8] = []
     private(set) var upgraded = false
+    private(set) var stopsBeforeUpgrade = 0   // MIDI STOPs received before the first upgrade command
     let fast: Bool                  // the loader answers the fast install's word (docs/INSTALL-SPEED.md)
     private(set) var fastOn = false
     private(set) var fastWords = 0
@@ -348,7 +350,9 @@ final class FakeFlashDevice: FlashPorts, FlashChannel {
     func close() {}
 
     func send(_ bytes: [UInt8]) -> Bool {
-        if bytes == FlashProtocol.handshake {
+        if bytes == FlashProtocol.midiStop {
+            if !upgraded { stopsBeforeUpgrade += 1 }
+        } else if bytes == FlashProtocol.handshake {
             switch mode {
             case .firmware(let t), .loader(let t): queue.push(Self.identity(t))
             default: break
