@@ -91,16 +91,16 @@ int main(void)
         dual_tm.wreset = 1;                             /* (the page opened again: the worst from now) */
         dual_tm_block(t, t + P(10u), t + P(60u), t + P(75u), t + P(95u), 0x2u, 0x3u, ms);
         check(dual_tm_pct_t(dual_tm.worst[DTQ_BLK]) == 95u && !dual_tm.wreset, "CPU TIMES: the page opened again: a new worst block");
-        dual_tm_block(t, t + P(10u), t + P(1110u), t + P(1110u), t + P(1130u), 0u, 0x1u, ms);   /* (no post; a block past 65535 ticks) */
-        check(dual_tm.worst[DTQ_BLK] == 0xFFFFu && dual_tm.worst[DTQ_WAIT] == 0u && dual_tm.worst[DTQ_C1] == 0u &&
-                  dual_tm.worst[DTQ_J0 + 1u] == 0u,
-              "CPU TIMES: nothing posted: no wait, no CPU1 time; a block past 65535 ticks held there; a job not run: 0");
-        check(DUAL_TM_BLK == 17414u, "CPU TIMES: a block of 32 frames at 44.1 kHz: 17414 ticks (726 us)");
         DUAL_TM_XJOB(5u, P(4u));                        /* (SYSTEM > TOP: a job after the block, Bluetooth's SBC: audio.c) */
         dual_tm_block(t, t + P(10u), t + P(60u), t + P(75u), t + P(95u), 0x2u, 0x3u, ms);
         ok = dual_tm.ran == 0x23u && dual_tm_pct_t(dual_tm_peak(DTQ_J0 + 5u)) == 4u && !dual_tm.xran;
         dual_tm_block(t, t + P(10u), t + P(60u), t + P(75u), t + P(95u), 0x2u, 0x3u, ms);
         check(ok && dual_tm.ran == 0x3u, "TOP: a job timed after the block (DUAL_TM_XJOB) folded into the next block once, its time a job's");
+        dual_tm_block(t, t + P(10u), t + P(1110u), t + P(1110u), t + P(1130u), 0u, 0x1u, ms);   /* (no post; a block past 65535 ticks) */
+        check(dual_tm.worst[DTQ_BLK] == 0xFFFFu && dual_tm.worst[DTQ_WAIT] == 0u && dual_tm.worst[DTQ_C1] == 0u &&
+                  dual_tm.worst[DTQ_J0 + 1u] == 0u,
+              "CPU TIMES: nothing posted: no wait, no CPU1 time; a block past 65535 ticks held there; a job not run: 0");
+        check(DUAL_TM_BLK == 17414u, "CPU TIMES: a block of 32 frames at 44.1 kHz: 17414 ticks (726 us)");
 #undef P
     }
 #endif
