@@ -550,6 +550,9 @@ enum {                          /* global parameters */
      * (and the drum track's), 0 (clean, as before) .. 10. The HOME menu's AUDIO line; kept in the delay filter's TLV, its 4th
      * byte (fx_rec.c DLYF_TLV: none, or 3 bytes = 0) */
     G_TFRES,
+    /* FX MEMORY (2026-11-01, fx/fx_memsz.h): the size of the delay send's line (0 FULL .. 3 1/8), the reverb's ring (0 FULL,
+     * 1 SMALL), each XDLY insert's lines (0 FULL, 1 HALF); per project, in the FX record (fx_rec.c FXZ_TLV: none = 0) */
+    G_FXZ_DLY, G_FXZ_REV, G_FXZ_XDL,
     G_COUNT
 };
 enum { DLYF_LP, DLYF_HP, DLYF_BP, DLYF_PEAK };

@@ -223,7 +223,7 @@ int main(void)
     host_tracks_init();
     fxi_init();
     for (c = 0; c < FXM_NC; c++)
-        lines += arn_round(FXM_BYTES[c]);
+        lines += arn_round(fxm_bytes(c));
     CHECK(ARB_NC == NTRK + 4u + FELUCCA_PUNCH_SW && ARN_BYTES >= FM + SN + lines + WT + SL + X9 + X8 &&
           ARN_BYTES <= FM + SN + lines + WT + SL + X9 + X8 + 256u,
           "the premise: one FM6 and its sine table, the lines, WAVE's table, one SLICER recording and both X0X machines fit "

@@ -770,7 +770,7 @@ static const uint16_t XD_D[128] = {
 };
 #endif
 _Static_assert(FS == 44100 && (FELUCCA_XDLY_LEN == 16384 || FELUCCA_XDLY_LEN == 8192), "XD_D: 44.1 kHz, a line of 16384 or 8192");
-#define XD_SH (FELUCCA_XDLY_LEN == 16384 ? 0u : 1u)    /* (a shorter line: half the times) */
+#define XD_SH ((FELUCCA_XDLY_LEN == 16384 ? 0u : 1u) + (uint32_t)fxsz_xdl)   /* (a shorter line: half the times; FX MEMORY HALF too) */
 AINL uint32_t xd_samples(int32_t v) { return (uint32_t)XD_D[clamp(v, 0, 127)] >> XD_SH; }
 static const char XD_TAG_MS[] = "ms";
 static const param_desc_t XD_DESC[XDV_N] = {

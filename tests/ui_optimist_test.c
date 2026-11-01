@@ -4201,6 +4201,7 @@ static void preset_engine_tests(void)
 #include "ui_optimist_pagemem.h"                    /* 2026-10-13: every screen remembers its page (SOUND per track, the held step) */
 #include "ui_optimist_nav.h"                        /* 2026-10-24: the mirror's touch navigation (op_nav.c, 109 NAV) */
 #include "ui_optimist_memlist.h"                    /* 2026-10-25: a load that does not fit: the list of what to drop */
+#include "ui_optimist_fxmem.h"                     /* 2026-11-01: PROJECT > FX MEM, the make-room question */
 #if UI_FMEM
 #include "fmem_fake_post.h"
 #include "ui_optimist_fmem.h"                       /* 2026-10-30: BT AUDIO's block in the arena, on the memory line */
@@ -4393,6 +4394,11 @@ int main(int argc, char **argv)
 #endif
 #if UI_FMEM                                              /* (the switchable features' build: their tests alone) */
     fmem_ui_tests();
+    printf(fails ? "optimist ui test FAILED (%d)\n" : "optimist ui test passed\n", fails);
+    return fails != 0;
+#endif
+#if UI_FXZ                                               /* (FX MEMORY's build, run_tests.sh: its tests alone) */
+    fxmem_ui_tests();
     printf(fails ? "optimist ui test FAILED (%d)\n" : "optimist ui test passed\n", fails);
     return fails != 0;
 #endif
