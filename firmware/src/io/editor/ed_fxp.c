@@ -4,7 +4,8 @@
  * An OWNER is where a slot lives: 0..3 the tracks T1 T2 T3 DR (two insert slots S1 S2 each), 4 the master (S1 S2), 5 the
  * USB input (S1 S2, and slot 2: its own values VOLUME PAN MUTE FX ON REV DLY CHO), 6..8 the returns A B C (slot 0: a send
  * type CHO DLY REV, or any other type the return may hold; slot 1, 2026-10-16: its sends to the returns to its right, named
- * "B" "C": A two, B one, C none; fx_slots.c rs_amt), 9..24 the drum sounds (lanes 0..15, S1 S2: the
+ * "B" "C": A two, B one, C none; fx_slots.c rs_amt; slots 2 and 3, 2026-10-30: its PRE and POST inserts, fx_slots.c rp_ty,
+ * the types RP_OK holds, one amount each, EQ3 its six), 9..24 the drum sounds (lanes 0..15, S1 S2: the
  * types a voice can hold). A slot holds a TYPE id (FXT_*: 0 empty) and the type has parameters (a count and a descriptor
  * each, the device's own: DYN THRS RATIO ATK REL GAIN CEIL, EQ3 LO MID HI ON FREQ L FREQ H, GATER DEPTH PAT RATE SHAPE,
  * JUNO MIX MODE; every other insert one amount), so an editor draws any slot from what the device says and names no type.
@@ -35,8 +36,14 @@ _Static_assert(NTRK == 4, "the owners: T1 T2 T3 DR, then the master, the USB inp
 #define FXP_USB_ON 0u
 #endif
 
-static uint32_t fxp_slots(uint32_t ow) { return ow == FXP_USB ? 3u : 2u; }   /* (a return: its type, its sends) */
 #define FXP_IS_RET(ow) ((ow) >= FXP_RET0 && (ow) < FXP_LANE0)
+static uint32_t fxp_slots(uint32_t ow) { return ow == FXP_USB ? 3u : FXP_IS_RET(ow) ? 4u : 2u; }   /* (a return: its type, its
+                                                        * sends, its PRE, its POST) */
+static uint32_t fxp_rln(uint32_t ow)                    /* a return's line (fx_slots.c fxs_line), 3: empty */
+{
+    uint32_t k = 1u + (ow - FXP_RET0) % 3u, ln = fxs_line[k];
+    return ln < 3u && fxs_slot[k] != FXT_NONE ? ln : 3u;
+}
 static int fxp_owner(uint32_t ow) { return ow < FXP_NOWN && (ow != FXP_USB || FXP_USB_ON); }
 
 static uint32_t fxp_type(uint32_t ow, uint32_t sl)
@@ -53,14 +60,15 @@ static uint32_t fxp_type(uint32_t ow, uint32_t sl)
 #endif
     }
     if (ow < FXP_LANE0)
-        return sl ? (uint32_t)FXT_NONE : fxs_slot[1u + (ow - FXP_RET0) % 3u];   /* (slot 1: its sends) */
+        return sl >= 2u ? (fxp_rln(ow) < 3u ? (uint32_t)rp_ty[fxp_rln(ow)][(sl - 2u) & 1u] : (uint32_t)FXT_NONE) :
+               sl ? (uint32_t)FXT_NONE : fxs_slot[1u + (ow - FXP_RET0) % 3u];   /* (slot 1: its sends; 2, 3: PRE, POST) */
     return lin_slot[(ow - FXP_LANE0) % DRUM_LANES][sl & 1u];
 }
 /* the types an owner may hold (the built ones; FXT_NONE always) */
 static uint32_t fxp_ok(uint32_t ow)
 {
     if (ow < NTRK)
-        return FXT_BUILT & FXT_INSERT;
+        return FXT_BUILT & FXT_INSLOT;
     if (ow == FXP_MST)
         return MST_OK;
     if (ow == FXP_USB) {
@@ -122,6 +130,14 @@ static const param_desc_t *fxp_loc(uint32_t ow, uint32_t sl, uint32_t i, int16_t
     }
     if (t == FXT_NONE || t >= FXT_N || !(FXT_BUILT >> t & 1u))
         return 0;
+    if (FXP_IS_RET(ow) && sl >= 2u) {                   /* a return's PRE / POST: the stage's amount (EQ3: its six, the amount ON) */
+        uint32_t ln = fxp_rln(ow);
+        if (ln >= 3u)
+            return 0;
+        if (t == FXT_EQ3)
+            return fxp_eq3(NTRK + 2u + ln, i, &rp_amt[ln][(sl - 2u) & 1u], &FXP_EQON, vp);
+        return i ? 0 : rp_amt_desc(ln, sl - 2u, vp);
+    }
     if (ow >= FXP_RET0 && ow < FXP_LANE0) {            /* a return: its line's RET, then the type's own */
         uint32_t k = 1u + (ow - FXP_RET0), ln = fxs_line[k % FX_NSLOT];
         if (ln >= 3u)
@@ -257,7 +273,10 @@ static void fxp_set_type(uint32_t ow, uint32_t sl, uint32_t t)
     else if (ow == FXP_USB)
         ut_load(sl, t);
 #endif
-    else if (ow < FXP_LANE0)
+    else if (ow < FXP_LANE0 && sl >= 2u) {             /* a return's PRE / POST (an empty return: none) */
+        if (fxp_rln(ow) < 3u)
+            rp_load(fxp_rln(ow), sl - 2u, t);
+    } else if (ow < FXP_LANE0)
         fxs_load(1u + (ow - FXP_RET0), t);
     else {                                             /* a lane: lin_set's list index of the type */
         uint32_t i, n = 0, ix = 0, l = ow - FXP_LANE0;
@@ -304,6 +323,8 @@ static uint32_t ed_fxp_sig(uint32_t h)
         FXP_H(fxs_ramt[k] + 256 * fxs_line[k]);
     for (k = 0; k < RS_N; k++)
         FXP_H(rs_amt[k]);
+    for (k = 0; k < 3u * RP_N; k++)
+        FXP_H(rp_ty[k / RP_N][k % RP_N] + 256 * rp_amt[k / RP_N][k % RP_N]);
     p = &lin_slot[0][0];
     for (k = 0; k < DRUM_LANES * INS_N; k++)
         FXP_H(p[k]);

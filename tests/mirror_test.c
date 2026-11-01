@@ -9,7 +9,11 @@
  *              catches up, and after the last catch-up the decoded screen is the panel; only whole frames reach the radio
  * Also long runs, many colours, the 7-bit wire, the frame cut, the meters muted. op_repaint stands in for the UI's in-place repaint
  * (every band drawn again: here the whole panel blitted again; tests/ui_optimist_test.c MIRROR_CHECK checks the real one).
- * MIRROR_FIXTURE=path writes the frames of a sample screen (and its pixels) for ios/OptimistMirror's tests. */
+ * MIRROR_FIXTURE=path writes the frames of a sample screen (and its pixels) for ios/OptimistMirror's tests.
+ * With MIR_LEND (built so under ASan too: run_tests.sh mirror_lend_test) the Bluetooth ring is the arena's block, here a
+ * stand-in (lend_tests): wanted only while a Bluetooth client uses it, nothing queued or sent without it, lent and taken
+ * back 50 times with nothing left behind, and the code never touching it once given back (the block poisoned: a read or
+ * write of it fails under ASan); every test before and after runs with the ring lent. */
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -20,6 +24,7 @@ static int fails, checks;
 
 /* ---- the device's side, stood in: usb.c's SysEx ring, editor.c's reply, midi_ble.c's listener, the UI */
 #define MIR_BLE 1
+#define MIR_SKIP 1                      /* (off in the firmware by default: tested here all the same) */
 #define IN_POOL
 #define SXQ 64u
 #define RING_PUBLISH() ((void)0)
@@ -29,9 +34,13 @@ static volatile uint8_t sx_busy;
 static struct { uint8_t config; uint32_t resets; } usb = {1, 0};
 static volatile uint32_t fm1_ms;
 static volatile uint8_t ble_out_on;
-static uint8_t ble_ll_tx_octets(void) { return 251; }     /* (the radio's: ble/ble_ll.c, ble_att.c) */
+#ifndef MT_OCTETS
+#define MT_OCTETS 251                   /* (tests/mirror_aimd_test.c: the Mac's 50 octets at 7.5 ms) */
+#define MT_INTERVAL 9
+#endif
+static uint8_t ble_ll_tx_octets(void) { return MT_OCTETS; }   /* (the radio's: ble/ble_ll.c, ble_att.c) */
 static uint16_t ble_att_mtu(void) { return 185; }
-static uint16_t ble_ll_interval(void) { return 9; }
+static uint16_t ble_ll_interval(void) { return MT_INTERVAL; }
 static uint16_t ble_ll_peer_len(uint32_t i) { static const uint16_t V[4] = {251, 2120, 50, 512}; return V[i & 3u]; }
 static struct { uint8_t overlay, scr; } ui;
 static uint8_t mir_mute;
@@ -41,6 +50,7 @@ static uint8_t mir_mute;
 #define OP_MAXROWS 40u
 #define GL_TOP 20
 #define MXR_LN 5u
+#define NAV_NPLACE MXR_LN                              /* (op_nav.c: the walk's places, here the stood-in five) */
 static uint32_t nav_log[4];
 static uint32_t nav_rows(void) { return 3; }
 static uint32_t nav_cur(void) { return 1; }
@@ -72,7 +82,11 @@ static void ed_str(const char *s, uint32_t max)   /* (editor.c's: ASCII, 0-termi
 static uint8_t hf[4096];
 static uint32_t hn, frames, bytes, bad, max_frame, replies, last_reply_on, links, link[7], ed_replies, ed_last[3];
 static int stalled;                     /* 1: the USB host reads nothing (the ring stays full) */
+static uint32_t states;                 /* op 4 STATE frames received; the last one's bytes */
+static uint8_t state[29];
 static FILE *fix;
+static uint32_t mt_lossy, mt_lost, mt_zeroed, mt_twice, mt_rs = 7;   /* the lossy transport (chk_tests) */
+static uint32_t mt_rnd(uint32_t n) { mt_rs = mt_rs * 1103515245u + 12345u; return (mt_rs >> 8) % n; }
 static void host_byte(uint8_t b)
 {
     if (b == 0xF0u)
@@ -84,6 +98,8 @@ static void host_byte(uint8_t b)
         max_frame = hn > max_frame ? hn : max_frame;
         if (hn >= 6u && hf[4] != 106u)
             ed_replies++, ed_last[0] = hf[4], ed_last[1] = hn > 5u ? hf[5] : 0u, ed_last[2] = hn > 6u ? hf[6] : 0u;   /* (an editor reply: Bluetooth's PANEL, NAV, INFO) */
+        else if (hn == 6u + 29u + 1u && hf[5] == 4u)     /* (op 4 STATE) */
+            states++, memcpy(state, hf + 6, 29);
         else if (hn == 12u && hf[5] <= 1u && hf[6] >= 1u)
             replies++, last_reply_on = hf[5];
         else if (hn == 21u && hf[5] == 3u) {             /* (op 3 LINK, after a Bluetooth reply) */
@@ -92,7 +108,22 @@ static void host_byte(uint8_t b)
             for (i = 0; i < 7u; i++)
                 link[i] = hf[6u + 2u * i] | hf[7u + 2u * i] << 7;
         }
-        else
+        else if (mt_lossy && hn > 9u && hf[5] <= 10u) {   /* (a Mac's MIDI driver: a frame lost, bytes zeroed, one twice) */
+            uint32_t r = mt_rnd(100), i, at, len;
+            if (r < 4u) {
+                mt_lost++;
+            } else if (r < 8u) {
+                at = 6u + mt_rnd(hn - 8u), len = 1u + mt_rnd(12);
+                for (i = at; i < at + len && i < hn - 1u; i++)
+                    hf[i] = 0;
+                mt_zeroed++;
+                md_frame(hf, hn);
+            } else {
+                md_frame(hf, hn);
+                if (r < 10u)
+                    md_frame(hf, hn), mt_twice++;
+            }
+        } else
             bad += !md_frame(hf, hn);
         if (fix)
             fwrite(hf, 1, hn, fix);
@@ -136,10 +167,66 @@ static void fm1_remote_key(uint32_t id, uint32_t down)
 }
 static void fm1_remote_enc(uint32_t e, int32_t s) { rem_enc[e] += s; }
 static void fm1_remote_clear(void) { rem_btn = rem_note = 0; }
+/* the input layer's state and LEDs (hal/fm1_input.h: its key map, debounced keys, the steps taken, the LED columns), for STATE */
+#define FM1_NCOL 11u
+#define FM1_NENC 7u
+static const int8_t FM1_KEYMAP[6][FM1_NCOL] = {
+    {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1},
+    { 5, 11,  4, 10,  3,  9,  2,  8, -1, -1, -1},
+    {34, 35, 36, 37, 38, 40, 39, 13,  7,  6, 12},
+    {23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33},
+    { 0,  1, 15, 14, 17, 16, 19, 18, 20, 21, 22},
+    {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1},
+};
+static struct { uint32_t notes, buttons; } fm1_in;
+static int16_t fm1_turned[FM1_NENC];
+static uint8_t fm1_led[FM1_NCOL], fm1_led_dim[FM1_NCOL], fm1_led_half[FM1_NCOL];
+#define OP_LAMP_COL 8u                  /* (op_input.c: PLAY's green lamp) */
+#define OP_LAMP_ROW 1u
+/* the test session's side in felucca.c and the HAL: the blank store, the start's flag, a restart (counted, nothing restarts here) */
+static uint8_t st_blank;
+static volatile uint32_t mir_test_boot;
+static uint32_t reboots;
+static void fm1_reboot(void) { reboots++; }
 static uint8_t ed_bt;                  /* (editor.c's: the request came over Bluetooth) */
 #define panel panel_tab
+#ifndef MIR_BLE_LAG
 #define MIR_BLE_LAG 1536u               /* (smaller than the firmware's: the random screens here catch up in less than its 4 KB) */
+#endif
+static void mt_bt_idle(void);           /* (ed_mirror.c MBR_IDLE: a catch-up waiting on a full ring; the radio below) */
+#define MBR_IDLE() mt_bt_idle()
 #include "../firmware/src/io/editor/ed_mirror.c"
+#if MIR_LEND
+#if defined(__has_feature)
+#if __has_feature(address_sanitizer)
+#define MT_ASAN 1
+#endif
+#endif
+#if defined(__SANITIZE_ADDRESS__)
+#define MT_ASAN 1
+#endif
+#ifdef MT_ASAN
+#include <sanitizer/asan_interface.h>
+#define MT_POISON(p, n) ASAN_POISON_MEMORY_REGION(p, n)
+#define MT_UNPOISON(p, n) ASAN_UNPOISON_MEMORY_REGION(p, n)
+#else
+#define MT_POISON(p, n) ((void)(p), (void)(n))
+#define MT_UNPOISON(p, n) ((void)(p), (void)(n))
+#endif
+static uint8_t *mt_block;               /* the arena's stand-in block, MIR_BLE_RING bytes */
+static void mt_lend(int on)             /* (core/arena_bufs.c arb_set: the interrupts off, then given back poisoned) */
+{
+    if (on) {
+        MT_UNPOISON(mt_block, MIR_BLE_RING);
+        mir_lend(mt_block);
+    } else {
+        mir_lend(0);
+        MT_POISON(mt_block, MIR_BLE_RING);
+    }
+}
+#else
+#define mt_lend(on) ((void)(on))
+#endif
 #undef panel
 /* editor.c's ed_handle and ed_send, the commands Bluetooth takes: the reply framed, over Bluetooth into the ring */
 static uint32_t ed_handled[128];
@@ -175,6 +262,13 @@ static uint32_t radio(uint32_t n)
     return got;
 }
 
+static uint32_t mt_radio_rate;          /* bytes the radio drains while a catch-up waits, each wait (0: none, time goes on) */
+static void mt_bt_idle(void)
+{
+    if (mt_radio_rate)
+        radio(mt_radio_rate);
+    fm1_ms++;
+}
 /* ---- the panel itself, as display/lcd.c sends it (pixels byte-swapped) */
 static uint16_t panel[240 * 240];
 static uint32_t repaints;
@@ -374,6 +468,130 @@ static void panel_tests(void)
     nrep = 0, ed_panel(FX_DOWN, 3);
     check(rem_btn == 0u && nrep == 2 && rep[1] == 1, "PANEL: refused while not mirroring");
 }
+/* 108 PANEL's extensions (opti_panelx_1): MASTER from the client, let go, the seq (a request repeated is answered again, not done twice) */
+static void panelx_tests(void)
+{
+    static const uint8_t M500[3] = {3, 500u & 127u, 500u >> 7}, MPOT[3] = {3, 127, 127}, GO[3] = {4, 0, 0},
+                         FX9[4] = {0, 0, 1, 9}, FX10[4] = {0, 0, 1, 10};
+    ask(1);
+    check(mir_master(800) == 800u, "MASTER: the pot's while the client sets none");
+    nrep = 0, ed_panel(M500, 3);
+    check(nrep == 2 && rep[1] == 0 && mir_master(800) == 500u && mir.pot == 800u, "MASTER 500 from the client plays, the pot read 800");
+    ed_panel(MPOT, 3);
+    check(mir_master(800) == 800u, "MASTER 1024 and up: the pot's again");
+    ed_panel(M500, 3), ed_panel(FX9, 4);
+    check(rem_btn == 1u << 2, "FX held with seq 9");
+    nrep = 0, ed_panel(GO, 3);
+    check(rem_btn == 0u && mir_master(800) == 800u && nrep == 2 && rep[1] == 0, "let go: every key up, MASTER the pot's");
+    nrep = 0, ed_panel(FX9, 4);
+    check(rem_btn == 0u && nrep == 3 && rep[1] == 0 && rep[2] == 9, "seq 9 again: answered again (done), not done twice");
+    nrep = 0, ed_panel(FX10, 4);
+    check(rem_btn == 1u << 2 && nrep == 3 && rep[2] == 10, "seq 10: done, its seq in the reply");
+    ed_panel(M500, 3);
+    ask(0);
+    check(rem_btn == 0u && mir.master == 0u, "the mirror off: keys up, MASTER the pot's");
+    ask(1);
+    nrep = 0, ed_panel(FX10, 4);
+    check(rem_btn == 1u << 2, "a new client: seq 10 is new to it, done");
+    ask(0);
+}
+/* 108 kind 5, the test session (opti_mtest_1): a restart after the answer, into a blank FM-1 (mir_test_boot) or the user's own;
+ * ended by the mirror going off, or no client within MIR_TEST_WAIT_MS of its start; never over Bluetooth */
+static void test_session_tests(void)
+{
+    static const uint8_t START[3] = {5, 1, 0}, END[3] = {5, 0, 0};
+    uint32_t r0 = reboots;
+    ask(1);
+    nrep = 0, ed_panel(END, 3);
+    check(nrep == 2 && rep[1] == 1, "end refused outside a test session");
+    ed_bt = 1, nrep = 0, ed_panel(START, 3), ed_bt = 0;
+    check(rep[1] == 1 && !mir.test_req, "refused over Bluetooth");
+    nrep = 0, ed_panel(START, 3);
+    check(rep[1] == 0 && mir.test_req == 1u, "start: answered");
+    fm1_ms += MIR_TEST_REPLY_MS - 1u, MIR_SEEN(), mir_poll();
+    check(reboots == r0, "no restart before its answer has had MIR_TEST_REPLY_MS");
+    fm1_ms += 1u, mir_poll();
+    check(reboots == r0 + 1u && mir_test_boot == MIR_TEST_MAGIC, "then a restart into a test session");
+    /* the start as main.c makes it: the flag read and cleared, the store blank; the client asks again */
+    memset(&mir, 0, sizeof mir), st_blank = 1, mir_test_boot = 0, fm1_ms = 1000;
+    host_drain(), MIR_SEEN(), ask(5), mir_poll(), host_drain(), mir_poll(), host_drain();   /* (the catch-up, then the STATE) */
+    check(reboots == r0 + 1u && (state[28] & 2u), "in the session: STATE says so");
+    nrep = 0, ed_panel(START, 3);
+    fm1_ms += MIR_TEST_REPLY_MS, MIR_SEEN(), mir_poll();
+    check(reboots == r0 + 2u && mir_test_boot == MIR_TEST_MAGIC, "asked again: blank again (a restart)");
+    memset(&mir, 0, sizeof mir), mir_test_boot = 0, fm1_ms = 1000;
+    MIR_SEEN(), ask(1), mir_poll();
+    nrep = 0, ed_panel(END, 3);
+    fm1_ms += MIR_TEST_REPLY_MS, MIR_SEEN(), mir_poll();
+    check(rep[1] == 0 && reboots == r0 + 3u && mir_test_boot == 0u, "end: a restart into the user's own");
+    memset(&mir, 0, sizeof mir), fm1_ms = 1000;
+    MIR_SEEN(), ask(1), mir_poll();
+    ask(0), mir_poll();
+    check(reboots == r0 + 4u && mir_test_boot == 0u, "the mirror off: the session ends (the user's own)");
+    memset(&mir, 0, sizeof mir), fm1_ms = 1000;
+    mir_poll();
+    check(reboots == r0 + 4u, "no client yet: the session waits");
+    fm1_ms = MIR_TEST_WAIT_MS + 1u, mir_poll();
+    check(reboots == r0 + 5u && mir_test_boot == 0u, "no client within MIR_TEST_WAIT_MS: ended");
+    memset(&mir, 0, sizeof mir), st_blank = 0, fm1_ms = 100000;
+}
+static uint32_t bits7(const uint8_t *b, uint32_t n)
+{
+    uint32_t v = 0, i;
+    for (i = 0; i < n; i++)
+        v |= (uint32_t)b[i] << (7u * i);
+    return v;
+}
+/* 106 op 4 STATE (opti_mstate_1): asked with bit 2; what is held and lit, the knobs' detents, MASTER; when it changes, at most
+ * every MIR_STATE_MS, every MIR_STATE_IDLE_MS anyway, never without room on the link (no catch-up for it) */
+static void state_tests(void)
+{
+    uint32_t s0;
+    host_drain();
+    s0 = states;
+    MIR_SEEN();
+    ask(1);
+    mir_poll(), host_drain();
+    fm1_ms += 600u, MIR_SEEN(), mir_poll(), host_drain();
+    check(states == s0, "no STATE unless asked (bit 2)");
+    ask(5);
+    mir_poll(), host_drain();           /* (a first on: the catch-up first) */
+    mir_poll(), host_drain();
+    check(states == s0 + 1u && bits7(state, 2) == 0u && bits7(state + 2, 4) == 0u, "asked: a STATE at once, nothing held");
+    mir_master(700);
+    fm1_in.buttons = 1u << 12;          /* (PLAY: matrix button 12) */
+    fm1_in.notes = 1u << 5;
+    fm1_led[10] |= 1u << 2;             /* (PLAY's LED: column 10, row PA6) */
+    fm1_led[6] |= 1u << 4;              /* (note key 5, id 19: column 6, row PA8) */
+    fm1_led[OP_LAMP_COL] |= 1u << OP_LAMP_ROW;
+    fm1_led_dim[3] |= 1u << 4;          /* (note key 0, id 14: column 3, row PA8) */
+    fm1_turned[2] = 3, fm1_turned[6] = 2;   /* (KNOB 1 three on; PRESETS: encoder 6, direction -1) */
+    fm1_ms += MIR_STATE_MS - 1u, MIR_SEEN(), mir_poll(), host_drain();
+    check(states == s0 + 1u, "a change: not before MIR_STATE_MS");
+    fm1_ms += 1u, mir_poll(), host_drain();
+    check(states == s0 + 2u, "a change: sent after MIR_STATE_MS");
+    check(bits7(state, 2) == 1u << 10 && bits7(state + 2, 4) == 1u << 5, "held: PLAY by its label, note key 5");
+    check(bits7(state + 6, 3) == (1u << 10 | 1u << 14) && bits7(state + 9, 4) == 1u << 5, "lit: PLAY, its green lamp, note key 5");
+    check(bits7(state + 13, 2) == 0u && bits7(state + 15, 4) == 1u, "dim: note key 0");
+    check(state[19 + 3] == 64u + 3u && state[19 + 2] == 64u - 2u && state[19] == 64u, "the detents: KNOB 1 +3, PRESETS -2, SELECT none");
+    check(bits7(state + 26, 2) == 700u && state[28] == 0u, "MASTER's pot 700, the pot's playing");
+    check(fm1_turned[2] == 0 && fm1_turned[6] == 0, "the detents reported are cleared");
+    fm1_ms += MIR_STATE_MS, mir_poll(), host_drain();
+    check(states == s0 + 2u, "no change: nothing");
+    fm1_ms += MIR_STATE_IDLE_MS, MIR_SEEN(), mir_poll(), host_drain();
+    check(states == s0 + 3u && state[19 + 3] == 64u, "every MIR_STATE_IDLE_MS anyway, no detents twice");
+    fm1_in.buttons = 0;
+    so_w = so_r + SXQ - 10u;            /* (the SysEx ring nearly full: no room for a STATE) */
+    fm1_ms += MIR_STATE_MS, MIR_SEEN(), mir_poll();
+    check(!mir.behind && so_w == so_r + SXQ - 10u, "no room: no STATE, the screen not behind for it");
+    so_r = so_w;
+    fm1_ms += MIR_STATE_MS, MIR_SEEN(), mir_poll(), host_drain();
+    check(states == s0 + 4u && bits7(state, 2) == 0u, "room again: the change sent");
+    fm1_in.notes = 0;
+    memset(fm1_led, 0, sizeof fm1_led), memset(fm1_led_dim, 0, sizeof fm1_led_dim);
+    ask(0);
+    check(bad == 0u, "%u frames not decoded", bad);
+}
 static void bt_tests(void)
 {
     static const uint8_t ON[] = {0xF0, 0x7D, 0x46, 0x4C, 106, 1, 0xF7}, BAD[] = {0xF0, 0x7D, 0x46, 0x4C, 105, 1, 0xF7},
@@ -435,11 +653,17 @@ static void bt_tests(void)
     }
     check(k < 100u, "never caught up");
     check(lost > 10u && same(), "a slow radio: behind %u times, caught up, the panel (%u bytes sent)", lost, sent);
+    check(mst.soft > 10u && mst.whole[MIR_WHY_LAG] == 0u, "... each catch-up for a lag in place, no whole panel (%u repaints in place)",
+          mst.soft);
     check(bad == 0u, "%u frames not decoded", bad);
     /* a link slower than a catch-up (the iPad scanning in its Bluetooth sheet) with small writes going on: one catch-up, not one
      * after the other (its own bytes are not the lag) */
     for (k = 0; k < 60u; k++)
         random_write();
+    for (k = 0; k < 20u; k++) {         /* (busy enough that its catch-up is over the lag, whatever MIR_BLE_LAG is built) */
+        canvas(240, 12, 16);
+        lcd_blit(0, 12u * k, 240, 12, cv);
+    }
     radio(~0u);
     mir.behind = 1, mir.catch_ms = fm1_ms - MIR_CATCH_MS;
     MIR_SEEN();
@@ -455,6 +679,25 @@ static void bt_tests(void)
     }
     radio(~0u);
     check(repaints == r0 && !mir.behind && same(), "a slow link: %u catch-ups more while small writes went on", repaints - r0);
+    /* a reply while the screen is MIR_BLE_LAG behind (the user, 2026-10-31: INFO, PJ_OP and the library's replies came 1 in 3
+     * never while the screen streamed: the lag rule dropped them like a screen frame): queued, only a full ring stops it */
+    {
+        static const uint8_t ASK[] = {0x7D, 0x46, 0x4C, 1};
+        uint32_t w0, n0;
+        fm1_ms += MIR_CATCH_MS;
+        for (k = 0; k < 400u && mbr.w - ((int32_t)(mbr.base - mbr.r) > 0 ? mbr.base : mbr.r) <= MIR_BLE_LAG; k++)
+            random_write();
+        mir.behind = 0;
+        w0 = mbr.w;
+        lcd_fill(1, 1, 2, 2, 7);
+        check(mbr.w == w0, "past MIR_BLE_LAG: a screen frame held back");
+        n0 = mbr.w;
+        ed_bt = 1, ed_handle(ASK, sizeof ASK), ed_bt = 0;
+        check(mbr.w > n0 && mbr_q[(mbr.w - 1u) % MIR_BLE_RING] == 0xF7u && mbr_q[n0 % MIR_BLE_RING] == 0xF0u &&
+                  mbr_q[(n0 + 4u) % MIR_BLE_RING] == 1u, "past MIR_BLE_LAG: a reply queued all the same (%u bytes)", mbr.w - n0);
+        radio(~0u);
+        mir.behind = 1, MIR_SEEN(), mir_poll(), radio(~0u);
+    }
     /* the central goes: off, the ring emptied (midi_ble.c ble_app_state) */
     ble_out_on = 0;
     mir_ble_flush();
@@ -504,6 +747,46 @@ static void bt_tests(void)
         check(mbr.cw == mbr.cr, "no central: the requests waiting dropped");
         fm1_remote_clear();
     }
+#if MBR_PROJ
+    {   /* BT_PROJ: the projects' moves over Bluetooth too: the backup's 43..48 and 110 queued as the others; a long one (a
+         * BK_DATA chunk, 256 B packed) in its own slot, a second one while it waits dropped, a long PANEL never */
+        static uint8_t data[310], data2[310], longpanel[60];
+        static const uint8_t LIST[] = {0xF0, 0x7D, 0x46, 0x4C, 43, 4, 0, 0xF7}, PJ[] = {0xF0, 0x7D, 0x46, 0x4C, 110, 0, 0xF7};
+        uint32_t i, e0;
+        ble_out_on = 1;
+        bt_send(ON, sizeof ON);
+        mir_poll();
+        radio(~0u);
+        data[0] = 0xF0, data[1] = 0x7D, data[2] = 0x46, data[3] = 0x4C, data[4] = 46;
+        for (i = 5; i < sizeof data - 1u; i++)
+            data[i] = (uint8_t)(i & 0x7Fu);
+        data[sizeof data - 1u] = 0xF7;
+        memcpy(data2, data, sizeof data2);
+        longpanel[0] = 0xF0, longpanel[1] = 0x7D, longpanel[2] = 0x46, longpanel[3] = 0x4C, longpanel[4] = 108;
+        for (i = 5; i < sizeof longpanel - 1u; i++)
+            longpanel[i] = 1;
+        longpanel[sizeof longpanel - 1u] = 0xF7;
+        memset(ed_handled, 0, sizeof ed_handled);
+        e0 = ed_replies;
+        bt_send(LIST, sizeof LIST);
+        bt_send(PJ, sizeof PJ);
+        bt_send(data, sizeof data);
+        bt_send(data2, sizeof data2);
+        bt_send(longpanel, sizeof longpanel);
+        check(mbr.big_n == 1u && mbr_big_len == sizeof data - 2u && mbr_big[4 - 1] == 46u,
+              "a BK_DATA of %u bytes waits whole in its slot", (unsigned)(sizeof data - 2u));
+        mir_poll();
+        radio(~0u);
+        check(ed_handled[43] == 1u && ed_handled[110] == 1u && ed_handled[46] == 1u && ed_handled[108] == 0u && !mbr.big_n,
+              "BK_LIST and PJ_OP queued and run, the BK_DATA run once (the second, sent while it waited, dropped), a long PANEL not");
+        check(ed_replies - e0 == 3u && !bad, "their 3 replies came over Bluetooth, whole");
+        bt_send(data, sizeof data);
+        ble_out_on = 0;
+        mir_poll();
+        check(!mbr.big_n, "no central: the long request waiting dropped");
+        ble_out_on = 1;
+    }
+#endif
 }
 
 /* 109 NAV: the reply's shape, each op by the stood-in navigation */
@@ -536,13 +819,316 @@ static void nav_tests(void)
     check(rep[0] == 0u && rep[1] == 1u, "NAV while not mirroring: refused");
 }
 
+#if MIR_LEND
+static void lend_tests(void)
+{
+    static const uint8_t ON[] = {0xF0, 0x7D, 0x46, 0x4C, 106, 1, 0xF7};
+    uint32_t pkt, k, f0 = frames, r0 = replies;
+    mt_lend(0);                         /* (given back: the arena's) */
+    quiet = 1;
+    lcd_fill(0, 0, 240, 240, 0);
+    memcpy(md_fb, panel, sizeof panel);
+    ble_out_on = 0;
+    check(!mir_lend_want(), "lend: no central: the ring not wanted");
+    ble_out_on = 1;
+    mbr_seen = fm1_ms - MIR_ALIVE_MS;
+    check(!mir_lend_want(), "lend: a central, no client: not wanted");
+    bt_send(ON, sizeof ON);             /* (106 from Bluetooth: its reply wants the ring) */
+    check(mir_lend_want(), "lend: a request from Bluetooth: wanted");
+    mir_poll();
+    check(mir.on && mir.link == MIR_BT && !mir_ble_peek(&pkt) && mbr.r == mbr.w,
+          "lend: on, but without the ring nothing queued, nothing for the radio");
+    mir_ble_pop();
+    check(mbr.r == mbr.w, "lend: a pop without the ring: nothing taken");
+    for (k = 0; k < 50u; k++) {         /* 50 on / off: each time on, caught up, the panel; then given back */
+        mt_lend(1);
+        bt_send(ON, sizeof ON);
+        mir_poll();
+        radio(~0u);
+        mir.catch_ms = fm1_ms - MIR_CATCH_MS;
+        mir_poll();                     /* (the catch-up: the screen whole) */
+        radio(~0u);
+        check(!mir.behind && same() && mbr.r == mbr.w, "lend %u: caught up, the panel, the ring drained", (unsigned)k);
+        ble_out_on = 0;                 /* (the central goes: the ring flushed, no longer wanted) */
+        mir_ble_flush();
+        mir_poll();
+        check(!mir_lend_want() && !mir.on, "lend %u: the central gone: not wanted, off", (unsigned)k);
+        mt_lend(0);                     /* (given back, poisoned: the code must not touch it now) */
+        check(!mir_ble_peek(&pkt) && !mbr_put(0xF0u), "lend %u: given back: nothing read, nothing written", (unsigned)k);
+        mir_ble_pop();
+        ble_out_on = 1;
+        mbr_seen = fm1_ms - MIR_ALIVE_MS;
+        fm1_ms += 10u;
+    }
+    check(frames > f0 && replies >= r0 + 50u, "lend: frames and replies went out while lent (%u, %u)",
+          (unsigned)(frames - f0), (unsigned)(replies - r0));
+    bt_send(ON, sizeof ON);
+    mir_poll();
+    mir_lend_off();                     /* (the question's NO: the mirror off, not wanted while the central stays) */
+    bt_send(ON, sizeof ON);
+    mir_poll();
+    check(!mir_lend_want(), "lend: after a NO, not wanted while the central stays");
+    ble_out_on = 0;
+    check(!mir_lend_want(), "lend: the central gone");
+    ble_out_on = 1;
+    bt_send(ON, sizeof ON);
+    check(mir_lend_want(), "lend: a new central's request: wanted again");
+}
+#endif
+
+/* the lag rule follows the link (ed_mirror.c mbr_lag): no rate yet MIR_BLE_LAG; a full link's drain gives MIR_LAG_MS of it,
+ * between MIR_LAG_MIN and MIR_BLE_LAG; a window the ring went empty in is not counted */
+static void lag_tests(void)
+{
+#if MIR_LAG_ADAPT
+    uint32_t r0 = mbr.r, w0 = mbr.w, k, lo = MIR_LAG_MIN < MIR_BLE_LAG ? MIR_LAG_MIN : MIR_BLE_LAG;
+    memset(&mbl, 0, sizeof mbl);
+    mbl.t = fm1_ms;
+    check(mbr_lag() == MIR_BLE_LAG, "lag: no rate measured yet: MIR_BLE_LAG");
+    mbr.w = mbr.r + 100000u;               /* (frames waiting) */
+    mbl.busy = 1, mbl.r = mbr.r, mbl.t = fm1_ms;
+    fm1_ms += MIR_LAG_WIN_MS, mbr.r += 1150u;   /* 4.6 KB/s */
+    k = mbr_lag();
+    check(mbl.rate == 4600u && k == (2300u < lo ? lo : 2300u > MIR_BLE_LAG ? MIR_BLE_LAG : 2300u),
+          "lag: 4.6 KB/s full: %u bytes (half a second, not under %u)", k, lo);
+    for (k = 0; k < 20u; k++)
+        fm1_ms += MIR_LAG_WIN_MS, mbr.r += 5000u, (void)mbr_lag();   /* 20 KB/s */
+    check(mbl.rate > 19000u && mbr_lag() == MIR_BLE_LAG, "lag: 20 KB/s: MIR_BLE_LAG (%u B/s)", mbl.rate);
+    k = mbl.rate;
+    mbr.w = mbr.r;                         /* (nothing waiting: the link not full) */
+    fm1_ms += MIR_LAG_WIN_MS, (void)mbr_lag();
+    fm1_ms += MIR_LAG_WIN_MS, (void)mbr_lag();
+    check(mbl.rate == k, "lag: windows with nothing waiting leave the rate as it was");
+    mbr.r = r0, mbr.w = w0, mbr.fw = w0;
+    memset(&mbl, 0, sizeof mbl);
+#endif
+}
+/* a catch-up larger than the Bluetooth ring (2026-11-01 on the FM-1: the mixer of mots-config, 8.7-9.5 KB, the ring 8 KB): it
+ * was cut at its last band every time and caught up again twice a second for ever, the client showing the top of the screen.
+ * Now a catch-up waits on a full ring while the radio drains it, and goes out whole; with no radio reading it gives up */
+static void bigcatch_tests(void)
+{
+    static const uint8_t ON[] = {0xF0, 0x7D, 0x46, 0x4C, 106, 1, 0xF7};
+    uint32_t k, w0, r0, sent, q = quiet;
+    ble_out_on = 1;
+    bt_send(ON, sizeof ON);
+    mir_poll();
+    radio(~0u);
+    quiet = 0;
+    for (k = 0; k < 4u; k++) {                  /* (a busy panel: its catch-up well over 8 KB) */
+        canvas(240, 60, 12);
+        lcd_blit(0, 60u * k, 240, 60, cv);
+        radio(~0u);
+    }
+    quiet = (uint8_t)q;
+    mir.behind = 1, mir.catch_ms = fm1_ms - MIR_CATCH_MS;
+    mt_radio_rate = 0;                          /* (no radio reading while it waits) */
+    MIR_SEEN();
+    mir_poll();
+    check(mir.behind && mbr.w - mbr.r <= MIR_BLE_RING, "a catch-up over the ring, nothing read: given up, behind (%u queued)",
+          mbr.w - mbr.r);
+    radio(~0u);
+    fm1_ms += MIR_CATCH_MS;
+    mt_radio_rate = 96;                         /* (the radio draining while the catch-up waits) */
+    r0 = repaints;
+    w0 = mbr.w;
+    sent = 0;
+    MIR_SEEN();
+    mir_poll();
+    sent = mbr.w - w0;
+    radio(~0u);
+    check(repaints == r0 + 1u && !mir.behind && sent > MIR_BLE_RING && same(),
+          "a catch-up of %u bytes over the %u-byte ring, the radio draining: out whole, not behind, the panel", sent, MIR_BLE_RING);
+    for (k = 0; k < 20u; k++) {
+        fm1_ms += 16u;
+        MIR_SEEN();
+        mir_poll();
+        radio(~0u);
+    }
+    check(repaints == r0 + 1u && !mir.behind, "... and no catch-up after it");
+    mt_radio_rate = 0;
+    lcd_fill(0, 0, 240, 240, 0);
+    radio(~0u);
+}
+/* checked frames (106 bit 3; ed_mirror_enc.h ops 8..10) over a lossy transport (2026-11-01 on the FM-1 from a Mac: the cards at
+ * another x, fragments of other rectangles: a lost BLIT's MOREs painted into the rectangle before, zeroed bytes drawn as pixels).
+ * The client's picture is either exact, or it knows it lost something (and asks for the whole panel again): never garbage it
+ * believes. Without checks the same transport leaves wrong pixels the client cannot know about */
+static void chk_tests(void)
+{
+    static const uint8_t ONC[] = {0xF0, 0x7D, 0x46, 0x4C, 106, 1 | 2 | MIR_CHK_BIT, 0xF7},
+                         ON[] = {0xF0, 0x7D, 0x46, 0x4C, 106, 1 | 2, 0xF7};
+    uint32_t k, d0, asks = 0, wrong_known = 0, wrong_unknown = 0, pass;
+    for (pass = 0; pass < 2u; pass++) {   /* 0: checked, 1: as before */
+        ble_out_on = 1;
+        bt_send(pass ? ON : ONC, 7);
+        fm1_ms += MIR_CATCH_MS;
+        MIR_SEEN();
+        mir_poll();
+        radio(~0u);
+        mir_poll();
+        radio(~0u);
+        check(same() && (pass || me.chk), "checked frames (%u): on, caught up, the panel", pass);
+        md.have_seq = 0, md.broken = 0;
+        wrong_known = wrong_unknown = asks = 0;
+        mt_lossy = 1;
+        for (k = 0; k < 1500u; k++) {
+            d0 = md.dropped;
+            random_write();
+            radio(~0u);
+            fm1_ms += MIR_MARK_MS;      /* (the mark after the frames: seq alone; again a second later) */
+            MIR_SEEN();
+            mir_poll();
+            radio(~0u);
+            fm1_ms += MIR_MARK_IDLE_MS;
+            MIR_SEEN();
+            mir_poll();
+            radio(~0u);
+            if (md.dropped != d0) {     /* (it knows: the whole panel asked for, which comes whole here) */
+                wrong_known += !same();
+                mt_lossy = 0;
+                bt_send(pass ? ON : ONC, 7);
+                fm1_ms += MIR_CATCH_MS;
+                MIR_SEEN();
+                mir_poll();
+                radio(~0u);
+                mir_poll();
+                radio(~0u);
+                mt_lossy = 1;
+                asks++;
+                check(same(), "checked frames: the whole panel asked again, the panel");
+            } else if (!same()) {
+                wrong_unknown++;
+                mt_lossy = 0;           /* (as before: wrong until something else repaints it; resync for the next write) */
+                bt_send(pass ? ON : ONC, 7);
+                fm1_ms += MIR_CATCH_MS;
+                MIR_SEEN();
+                mir_poll();
+                radio(~0u);
+                mir_poll();
+                radio(~0u);
+                mt_lossy = 1;
+            }
+            MIR_SEEN();
+            mir_poll();
+            radio(~0u);
+        }
+        mt_lossy = 0;
+        printf("checked frames %s: %u lost, %u zeroed, %u twice; %u catch-ups asked, wrong %u known / %u unknown\n",
+               pass ? "off" : "on", mt_lost, mt_zeroed, mt_twice, asks, wrong_known, wrong_unknown);
+        if (!pass)
+            check(wrong_unknown == 0u && asks > 20u, "checked frames: a lossy link never leaves a picture the client believes wrong");
+        else
+            check(wrong_unknown > 20u, "as before (no checks): the same link leaves wrong pictures the client cannot see");
+        mt_lost = mt_zeroed = mt_twice = 0;
+    }
+    me.chk = 0;
+}
+/* lost frames asked for by seq (106 bit 4, ed_mirror.c mir_fix): only their rectangles again, the panel repainted in place, the
+ * rest skipped as held (MIR_SKIP); a whole panel only when a seq is no longer known. The client's picture exact after each */
+static void fix_tests(void)
+{
+    static const uint8_t ONC[] = {0xF0, 0x7D, 0x46, 0x4C, 106, 1 | 2 | MIR_CHK_BIT, 0xF7};
+    uint32_t k, d0, fixes = 0, wrong = 0, unknown = 0, fbytes = 0, wbytes = 0, w0 = mfix_whole, n0 = mfix_n, b0;
+    ble_out_on = 1;
+    bt_send(ONC, 7);
+    fm1_ms += MIR_CATCH_MS;
+    MIR_SEEN();
+    mir_poll();
+    radio(~0u);
+    mir_poll();
+    radio(~0u);
+    b0 = bytes;
+    mir.behind = 1, mir.catch_ms = fm1_ms - MIR_CATCH_MS;   /* (a whole panel's bytes, to compare) */
+    mir_poll();
+    radio(~0u);
+    wbytes = bytes - b0;
+    md.have_seq = 0, md.broken = 0, md.fix_have = 0;
+    mt_lossy = 1;
+    for (k = 0; k < 1500u; k++) {
+        uint32_t x = 30u * rnd(8), w = 30u * (1u + rnd(8u - x / 30u)), h = 1u + rnd(60), y = rnd(241u - h);
+        d0 = md.dropped;
+        if (rnd(4) == 0u)               /* (the UI's writes: whole 30-pixel segments mostly, as its bands and cards) */
+            lcd_fill(x, y, w, h, (uint16_t)rnd(0x10000u));
+        else {
+            canvas(w, h, 1u + rnd(4));
+            lcd_blit(x, y, w, h, cv);
+        }
+        radio(~0u);
+        fm1_ms += MIR_MARK_MS;
+        MIR_SEEN();
+        mir_poll();
+        radio(~0u);
+        fm1_ms += MIR_MARK_IDLE_MS;
+        MIR_SEEN();
+        mir_poll();
+        radio(~0u);
+        if (md.dropped != d0 && !md.fix_have) {   /* (a frame damaged, the marks after it lost too: the next mark tells) */
+            mt_lossy = 0;
+            fm1_ms += MIR_MARK_IDLE_MS;
+            MIR_SEEN();
+            mir_poll();
+            radio(~0u);
+            mt_lossy = 1;
+        }
+        if (md.dropped != d0 && md.fix_have) {
+            uint32_t q;
+            mt_lossy = 0;
+            b0 = bytes;
+            for (q = 0; q < md.fix_have; q++) {   /* (each run of lost seqs asked alone) */
+                uint8_t f[9] = {0xF0, 0x7D, 0x46, 0x4C, 106, 1 | MIR_CHK_BIT | MIR_FIX_BIT, (uint8_t)md.fix_lo[q], (uint8_t)md.fix_hi[q], 0xF7};
+                bt_send(f, 9);
+            }
+            md.fix_have = 0;
+            fm1_ms += MIR_FIX_MS;
+            MIR_SEEN();
+            mir_poll();
+            radio(~0u);
+            mir_poll();                 /* (the repaint, when the reply went first) */
+            radio(~0u);
+            fm1_ms += MIR_CATCH_MS;
+            mir_poll();
+            radio(~0u);
+            fbytes += bytes - b0;
+            fixes++;
+            mt_lossy = 1;
+            if (!same()) {
+                wrong++;
+                printf("  fix wrong at %u\n", k);
+            }
+        } else
+            unknown += !same() && md.dropped == d0;
+        if (md.dropped != d0 && !same() && !md.fix_have)
+            wrong++;
+    }
+    mt_lossy = 0;
+    printf("lost frames asked by seq: %u asks, %u repaints, %u whole panels; %u B an ask on average, a whole panel %u B; wrong %u, unknown %u\n",
+           fixes, mfix_n - n0, mfix_whole - w0, fixes ? fbytes / fixes : 0u, wbytes, wrong, unknown);
+    check(fixes > 20u && wrong == 0u && unknown == 0u, "lost frames asked by seq: the picture exact after each ask");
+    check(fixes && fbytes / fixes * 3u < wbytes, "lost frames asked by seq: an ask costs under a third of a whole panel");
+    me.chk = 0;
+}
 int main(void)
 {
     uint32_t k;
+#if MIR_LEND
+    mt_block = malloc(MIR_BLE_RING);
+    mt_lend(1);                         /* (every test with the ring lent; lend_tests last) */
+#endif
     usb_tests();
     panel_tests();
+    panelx_tests();
+    state_tests();
+    test_session_tests();
     bt_tests();
+    bigcatch_tests();
+    chk_tests();
+    fix_tests();
+    lag_tests();
     nav_tests();
+#if MIR_LEND
+    lend_tests();
+#endif
     /* the fixture for the app's tests: a panel drawn whole, then its frames and its pixels */
     if (getenv("MIRROR_FIXTURE")) {
         char p[512];

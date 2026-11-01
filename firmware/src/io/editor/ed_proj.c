@@ -74,6 +74,10 @@ static int ed_proj(uint32_t cmd, const uint8_t *a, uint32_t na)
     }
     if (na < 2u || a[1] >= 16u)
         return 0;
+    if (a[1] >= PROJ_SLOTS) {                          /* (the fake SD mode keeps one project: the others are the client's) */
+        ed_b3(a[0], a[1], 1u);
+        return 1;
+    }
     ed_b3(a[0], a[1], edpj_op(a[0], a[1], a + 2, na - 2u));
     return 1;
 }

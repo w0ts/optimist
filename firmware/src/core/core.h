@@ -87,7 +87,7 @@ enum { Q_OFF, Q_SNAP, Q_WHITE, Q_ALL, Q_SEQ };   /* P_QUANT (SCL › KEYS): seq.
  * .ram_hot2; same rules: it calls HOT / HOT2 code directly, XIP code through a pointer): mostly the effects
  * (fx.c, the inserts, the master comp, the spring); FM6's code and GRAIN run from XIP (docs/MEMORY-MAP.md
  * section 2 and 3). TAB_RAM
- * (felucca_tables.h) puts a constant table that the sample loops read into .data: copied to RAM at
+ * (felucca_tables.h) puts a constant table that the sample loops read into the pool: copied to RAM at
  * boot, so the UI's font reads cannot evict it from the data cache either (no extra flash). */
 #if defined(__PI32V2__) && !(defined(FELUCCA_ASM_CHECK) && FELUCCA_ASM_CHECK)
 /* (an ASM_CHECK verification build runs every asm kernel next to its C: too big for RAMTEXT, so it
@@ -98,6 +98,103 @@ enum { Q_OFF, Q_SNAP, Q_WHITE, Q_ALL, Q_SEQ };   /* P_QUANT (SCL › KEYS): seq.
 #define HOT
 #define HOT2
 #endif
+/* Where an engine's hot code runs (2026-10-29, the builder's engine items: off / on / on, code in RAM): FAST_RAM_<name>
+ * 1 its render path is RAM code (HOT), 0 it runs from XIP. The builder writes every engine's into felucca_config.h
+ * (configure.py, registry.py FAST_NAMES); a build without them (the host tests, a hand-made header) gets where each
+ * ran until then: ANALOG 2 and SUPER, PHASE, DIGITAL, TRIO, FORMANT, DRAWBAR, LOFI, SAMPLE in RAM, the rest in XIP.
+ * FAST(name), an engine's mark on its hot code (its sound hooks and what only they call), picks HOT or nothing by it. RAM code calls only RAM code (or through a pointer, FAR), XIP code calls RAM
+ * code only through a pointer: an engine's choice moves its marked functions together, and what they call directly
+ * is marked with it or always_inline (the release's tools/ramcode.py and the linker refuse the rest) */
+#ifndef FAST_RAM_analog
+#define FAST_RAM_analog 1
+#endif
+#ifndef FAST_RAM_super
+#define FAST_RAM_super FAST_RAM_analog                  /* (SUPER is ANALOG 2's swarm: one item) */
+#endif
+#ifndef FAST_RAM_phase
+#define FAST_RAM_phase 1
+#endif
+#ifndef FAST_RAM_digital
+#define FAST_RAM_digital 1
+#endif
+#ifndef FAST_RAM_trio
+#define FAST_RAM_trio 1
+#endif
+#ifndef FAST_RAM_formant
+#define FAST_RAM_formant 1
+#endif
+#ifndef FAST_RAM_drawbar
+#define FAST_RAM_drawbar 1
+#endif
+#ifndef FAST_RAM_lofi
+#define FAST_RAM_lofi 1
+#endif
+#ifndef FAST_RAM_sample
+#define FAST_RAM_sample 1
+#endif
+#ifndef FAST_RAM_fm6
+#define FAST_RAM_fm6 0
+#endif
+#ifndef FAST_RAM_acid
+#define FAST_RAM_acid 0
+#endif
+#ifndef FAST_RAM_plaits
+#define FAST_RAM_plaits 0
+#endif
+#ifndef FAST_RAM_phys
+#define FAST_RAM_phys 0
+#endif
+#ifndef FAST_RAM_prophet
+#define FAST_RAM_prophet 0
+#endif
+#ifndef FAST_RAM_juno
+#define FAST_RAM_juno 0
+#endif
+#ifndef FAST_RAM_cz
+#define FAST_RAM_cz 0
+#endif
+#ifndef FAST_RAM_strings
+#define FAST_RAM_strings 0
+#endif
+/* FASTI(name): a small helper of an engine's render path that the engine's XIP code (its note hooks, the UI) calls too:
+ * always inlined while the engine's code is RAM code (each side its own copy), as it was otherwise. FAST_CALL(name, f):
+ * a call to f, one of the engine's render path's functions, from its code that stays in XIP: through a pointer while
+ * the engine's code is RAM code (FAR: out of a direct call's reach), a plain call otherwise */
+#define FASTI(n) FAST_INL_(FAST_RAM_##n)
+#define FAST_INL_(x) FAST_INL__(x)
+#define FAST_INL__(x) FAST_INL_##x
+#define FAST_INL_1 __attribute__((always_inline))
+#define FAST_INL_0
+#define FAST_CALL(n, f) FAST_CALL_(FAST_RAM_##n, f)
+#define FAST_CALL_(x, f) FAST_CALL__(x, f)
+#define FAST_CALL__(x, f) FAST_CALL_##x(f)
+#define FAST_CALL_1(f) FAR(f)
+#define FAST_CALL_0(f) f
+/* FAST_ZERO(name, p, n): memset(p, 0, n) in an engine's render path: word by word while the engine's code is RAM code
+ * (libc.c's memset is XIP code; a plain loop the compiler turns back into the call: a barrier in it) */
+#define FAST_ZERO(n, p, sz) FAST_ZERO_(FAST_RAM_##n, p, sz)
+#define FAST_ZERO_(x, p, sz) FAST_ZERO__(x, p, sz)
+#define FAST_ZERO__(x, p, sz) FAST_ZERO_##x(p, sz)
+#define FAST_ZERO_1(p, sz) fast_zero(p, sz)
+#define FAST_ZERO_0(p, sz) memset(p, 0, sz)
+static inline __attribute__((always_inline)) void fast_zero(void *p, uint32_t n)
+{
+    uint32_t *w = (uint32_t *)p, i;                    /* (p 4-aligned: an engine's state) */
+    uint8_t *b;
+    for (i = 0; i < n / 4u; i++) {
+        w[i] = 0;
+        __asm__ volatile("" ::: "memory");           /* (a barrier: the loop stays a loop, not a call to memset) */
+    }
+    for (b = (uint8_t *)(w + i), i *= 4u; i < n; i++) {
+        *b++ = 0;
+        __asm__ volatile("" ::: "memory");
+    }
+}
+#define FAST_PLACE(x) FAST_PLACE_(x)
+#define FAST_PLACE_(x) FAST_PLACE_##x
+#define FAST_PLACE_1 HOT
+#define FAST_PLACE_0
+#define FAST(n) FAST_PLACE(FAST_RAM_##n)
 /* This compiler inlines a function into a caller in another section only when it is always_inline:
  * AINL marks the small helpers that the HOT code and the rest both use (inlined everywhere). */
 /* IN_POOL: a zeroed buffer of the main loop (no audio loop reads it) in the pool instead of main RAM (app.ld .pool,
@@ -107,10 +204,10 @@ enum { Q_OFF, Q_SNAP, Q_WHITE, Q_ALL, Q_SEQ };   /* P_QUANT (SCL › KEYS): seq.
 #else
 #define IN_POOL
 #endif
-/* IN_POOL_AUDIO: a zeroed buffer the audio path reads (per sample or per block): in the pool only with the builder's
- * EXPERIMENTAL TAB_IN_POOL (as the TAB_RAM tables), else main RAM as before; unverified on the FM-1 (the console's
- * tabbench measures the two) */
-#if defined(__PI32V2__) && defined(FELUCCA_TAB_IN_POOL) && FELUCCA_TAB_IN_POOL
+/* IN_POOL_AUDIO: a zeroed buffer the audio path reads (per sample or per block): in the pool too (the RAM is one packed
+ * region, docs/MEMORY-MAP.md: main RAM and pool are the same SRAM; the builder's TAB_IN_POOL, retired 2026-10-29, is
+ * always on; the console's tabbench measures the two) */
+#ifdef __PI32V2__
 #define IN_POOL_AUDIO __attribute__((section(".pool")))
 #else
 #define IN_POOL_AUDIO
@@ -145,7 +242,8 @@ enum {
     F_ONOFF, F_OCT, F_STEPS,
     F_SWING,                    /* 0..100: MPC swing, 50 % (straight) .. 75 % */
     F_FILT,                     /* -64..63: the DJ filter, LP <- OFF -> HP */
-    F_GATE                      /* 1..127: a note's length in 1/64 of its step, 2 % .. 198 % (past 100 % it overlaps the next) */
+    F_GATE,                     /* 1..127: a note's length in 1/64 of its step, 2 % .. 198 % (past 100 % it overlaps the next) */
+    F_DEG                       /* 0..127: an LFO's PHS, 1/128 of a cycle, shown in degrees (v x 360 / 128, rounded) */
 };
 
 /* a parameter's descriptor, 12 bytes (was 20, 2026-10-23: ~330 of them in flash): the range and the default as bytes
@@ -181,8 +279,19 @@ AINL const char *pd_unit(const param_desc_t *d) { return d->nl ? 0 : (const char
 #define INS_FX 1                       /* the further insert types: EQ3 always built (2026-10-18), the others builder items */
 /* slot-relative automation (seq/auto_slot.c; a builder item until 2026-10-18) */
 #define SLOT_AUTO (FELUCCA_AUTO && (FELUCCA_MOTION || FELUCCA_PLOCK))
-/* the insert types with a limited number of instances (fx/insfx/fxi.c: CHRS ECHO JUNO FLNG, a builder count each) */
-#define INS_LIM (FELUCCA_INS_CHORUS || FELUCCA_INS_DELAY || FELUCCA_INS_JCHORUS || FELUCCA_INS_FLANGER || FELUCCA_INS_XDLY)
+/* the send effects as inserts (2026-10-29, the user: "chorus, delay and reverb can go on normal tracks as INSERTS with a
+ * dry/wet amount"; then: "can't they be just one effect like any other? why complexify just for these two?"): CHO DLY
+ * REV are one type each (fx_slots.c FXT_CHO FXT_DLY FXT_REV), a send bus in a master return, an insert in a track's or
+ * the master's slot wherever their effect is built (fx/insfx/fxi_send.c: the send's own code on a state of its own).
+ * The insert's MIX is the owner's amount of the type, as every other insert's: a track's P_CHOR P_DLY P_REV (a track
+ * holding the type as an insert sends nothing to that bus: fx.c mix_part), the master's mst_amt. The REV insert is the
+ * ROOM tank, whatever the send's TYPE (its code built with the reverb: REV_ROOM_CODE) */
+#define INS_CHO FELUCCA_FX_CHORUS
+#define INS_DLY FELUCCA_FX_DELAY
+#define INS_REV FELUCCA_FX_REVERB
+/* the insert types with a limited number of instances (fx/insfx/fxi.c: CHO ECHO JUNO FLNG XDLY REV DLY, built or not) */
+#define INS_LIM (INS_CHO || FELUCCA_INS_DELAY || FELUCCA_INS_JCHORUS || FELUCCA_INS_FLANGER || FELUCCA_INS_XDLY || \
+                 INS_REV || INS_DLY)
 enum {                          /* per-track parameters */
     P_LEVEL,
     P_ATK, P_DEC, P_SUS, P_REL,
@@ -241,7 +350,8 @@ enum {                          /* per-track parameters */
     /* the further insert types' amounts (fx/insfx/insfx.c; fx_slots.c FXT_FOLD ..): 0 off .. 127. All eight exist when
      * any of them is built (the same ids in every such build). Not part of a sound nor of a user preset (as P_TCOMP);
      * the FX record keeps them (fx_slots.c fxs_tlv, a TLV a type). P_TCHRS P_TECHO (2026-10-13): the insert copies of
-     * the chorus and a short delay (fxi.c) */
+     * the chorus and a short delay (fxi.c); P_TCHRS unused since 2026-10-29 (CHRS is the CHO insert, its MIX P_CHOR: an
+     * old project's CHRS amount moves there, fx_rec.c), its id kept */
     P_TFOLD, P_TFUZZ, P_TPHSR, P_TFLNG, P_TFRMT, P_TWIDE, P_TCHRS, P_TECHO,
     /* GATER (2026-10-14, fx/insfx/gater.c): its amount (DEPTH) after ECHO's, then its PATTERN, RATE and SHAPE (a
      * track's own, kept in GATER's TLV after the amounts) */
@@ -270,6 +380,8 @@ enum {                          /* per-track parameters */
     P_TXDLY,                                     /* (XDLY, 2026-10-22: fx/insfx/xdly.c, a limited type: its MIX; its TIME 1 TIME 2
                                                   * MOD FDBK the owner's, fx_slots.c xdl_v) */
 #endif
+    /* (ROOM's and TDLY's MIX, P_TROOM P_TTDLY, 2026-10-29, came and went the same day: the REV and DLY inserts' MIX is a
+     * track's P_REV P_DLY, core.h INS_REV above; P_COUNT stays 127, the web editor's STEPLANE lists carry ids under 128) */
 #if FELUCCA_EX_GAIN
     /* EXGN, the example insert (EX_GAIN, fx/insfx/exgain.c, CONTRIBUTING.md): a track's GAIN, its amount (0 off, else
      * -55.5 .. +7.5 dB, 112 = 0 dB: LEVEL's curve). As every insert amount: not part of a sound nor of a user preset; the
@@ -298,19 +410,29 @@ enum {                          /* per-track parameters */
      * DIOD MS20: A2M_* + 1), OFF HP by default; its cutoff and resonance. Part of a sound (model.c param_kept: P_SLAST) */
     P_A2BTYP, P_A2BCUT, P_A2BRES,
 #endif
+    /* LFO's TRIG and POL (issue 129, 2026-10-31, the user: "both lfo are the same"): as LFO 2's (TRIG NOTE FREE PLAY, POL
+     * BI UNI); NOTE BI by default, LFO as it always was. Part of a sound (model.c param_kept: P_SLAST; a user preset of
+     * before loads them at their defaults, upreset.c); a project keeps them in its modulation record (dlfo_rec.c XREC) */
+    P_L1TRIG, P_L1POL,
     /* VOICES (voice.c trk_nvoice): the part's voice count in POLY and UNISON, 0 = the engine's max (JUNO 6, ACID 1 ...; the card shows it as that number, params.c page_desc),
      * else 1..8 and at most the engine's (MONO stays a mode of P_VOICE). Every build. Not part of a sound nor of a user
      * preset (param_kept), not lockable; stored in a project in the FX record (fx_rec.c VCNT_TLV) */
     P_VOICES,
+    /* LFO 2's PHS and FADE (issue 129, 2026-10-31): as LFO's (PHS 0..127 x 1/128 of a cycle, where TRIG NOTE and PLAY restart
+     * it; FADE its fade in from that restart). Not part of a sound nor of a user preset (as LFO 2's others); a project keeps
+     * them in its modulation record (dlfo_rec.c XREC). Past 127 ids since: the editor's ids are 2 x 7 bit (protocol 7) */
+    P_L2PHS, P_L2FADE,
     P_COUNT
 };
 #if FELUCCA_ANALOG2
 #define P_NLAST P_N2AB          /* the envelopes' values: P_E1PIT .. P_NLAST */
-#define P_SLAST P_A2BRES        /* a sound's values after P_E7: P_E1PIT .. P_SLAST (the envelopes', FLT B's) */
 #else
 #define P_NLAST P_E1Z
-#define P_SLAST P_NLAST
 #endif
+#define P_SLAST P_L1POL         /* a sound's values after P_E7: P_E1PIT .. P_SLAST (the envelopes', FLT B's, LFO's TRIG POL) */
+/* an LFO's TRIG (P_L1TRIG, P_L2TRIG): NOTE a fresh phrase restarts it at PHS (and its FADE), FREE never, PLAY at PLAY (synced:
+ * its phase from the transport, voice.c lfo_play_ph; stopped it runs on as FREE) */
+enum { LTRIG_NOTE, LTRIG_FREE, LTRIG_PLAY };
 /* The modulation destinations, one list for the four modulators (LFO DEST, LFO2 DEST, ENV DEST, ENV2 DEST; params.c
  * N_LT, voice.c LT_TAB says how each acts):
  *   PIT FLT SHP AMP  every voice of the part (an LFO: each block, as its four depths did, AMT 2 = depth 1; AMP: AMT =
@@ -350,6 +472,7 @@ enum { LT_OFF, LT_PIT, LT_FLT, LT_SHP, LT_AMP, LT_RES, LT_PAN, LT_LVL, LT_ATK, L
        LT_AMODE, LT_ARATE, LT_AOCT, LT_AGATE, LT_ASWING, LT_APROB, LT_AHOLD, LT_AORDER,          /* ARP, ARP 2 */
        LT_SLEN, LT_SDIV, LT_SSWING, LT_SGATE,                                /* PATTERN */
        LT_MUTE, LT_FXOFF,                                                    /* the mixer's */
+       LT_L1TRIG, LT_L1POL, LT_L2PHS, LT_L2FADE,                             /* LFO's TRIG POL, LFO 2's PHS FADE (issue 129) */
        LT_N };
 #define LT_NB LT_N                             /* the destinations (every build: LFO 2 is always built) */
 /* ENV 1's AMT on FLT (2 x its FLT depth, P_ED_FLT): for an engine that models the envelope's cutoff depth itself
@@ -378,25 +501,13 @@ AINL int32_t pit_mul(int32_t v, int32_t a) { return (v * (pit_depth(a) >> 4)) >>
 #define P_LEG_AMP P_L1AB
 #define P_ENG_END (P_E7 + 1)    /* the values a track stores in a project or a user preset: P_LEVEL .. P_E7 */
 /* RATE below 0 (voice.c lfo_inc): one cycle per note value of the tempo, longest first, as SLOOP 2.6's LFO 2 SYNC
- * (after Felucca 1.4 by Leo Kuroshita): its P_LSYNC n (0 OFF, 1..10) is our RATE -n; with SYNC on its RATE is not
- * heard. LRATE_OF_SLOOP: its SYNC and RATE -> our RATE; SLOOP_LSYNC_OF: our RATE -> its SYNC (its RATE: ours, 0..127) */
+ * (after Felucca 1.4 by Leo Kuroshita): RATE -n is the DUR index n - 1; with SYNC on the free RATE is not heard */
 #define DUR_N 22                /* the note values of the tempo (DUR_48 below): RATE -1 .. -22 */
-#define LSYNC_N DUR_N
-/* (2026-10-22: RATE -n is DUR index n - 1, not SLOOP's n: SLOOP 2.6's 10 values are DUR indices SLOOP_LSYNC_DUR[n - 1]) */
-static const uint8_t SLOOP_LSYNC_DUR[10] = {0, 2, 4, 7, 10, 13, 15, 16, 18, 19};   /* 4BAR 2BAR 1BAR 1/2 1/4 1/8 8T 1/16 16T 1/32 */
-#define LRATE_OF_SLOOP(lsync, rate) ((lsync) > 0 && (lsync) <= 10 ? -(int32_t)SLOOP_LSYNC_DUR[(lsync) - 1] - 1 : (int32_t)(rate))
-static int32_t sloop_lsync_of(int32_t rate)    /* our RATE -> SLOOP's SYNC 0..10: a value it has not, the nearest it has */
-{
-    int32_t d = -rate - 1, i, best = 1;
-    if (rate >= 0)
-        return 0;
-    for (i = 2; i <= 10; i++)
-        if ((SLOOP_LSYNC_DUR[i - 1] > d ? SLOOP_LSYNC_DUR[i - 1] - d : d - SLOOP_LSYNC_DUR[i - 1]) <
-            (SLOOP_LSYNC_DUR[best - 1] > d ? SLOOP_LSYNC_DUR[best - 1] - d : d - SLOOP_LSYNC_DUR[best - 1]))
-            best = i;
-    return best;
-}
-#define SLOOP_LSYNC_OF(rate) sloop_lsync_of(rate)
+/* an LFO's synced RATE: the DUR values (-1 4BAR .. -22 1/64), then the longer ones of issue 129 (2026-10-31): -23 6BAR,
+ * -24 8BAR, -25 16BAR, stored past the others so that no value moves (a knob walks them in length order: params.c
+ * lrate_pos); LSYNC_LIST their lengths in 48ths of a beat */
+#define LSYNC_N (DUR_N + 3)
+#define LSYNC_LIST(X) DUR_LIST(X) X(1152) X(1536) X(3072)
 #define P_TAIL 1                /* a track has values after P_E7 (P_ENG_END .. P_COUNT - 1): none stored with it, none part
                                  * of a sound but the envelopes' slots (param_kept) */
 
@@ -443,8 +554,6 @@ enum {                          /* global parameters */
 };
 enum { DLYF_LP, DLYF_HP, DLYF_BP, DLYF_PEAK };
 #define PJ_NG ((uint32_t)G_CTHR)   /* the globals a project's g[] holds (its format: 32 since format 1's 27 grew) */
-#define SL24_AUTO (FELUCCA_SL24_SAFE && FELUCCA_SL24_IMPORT)   /* PROJECT > A24 (sl24_guard.c) */
-#define G_A24 (G_COUNT + 2)     /* PROJECT > A24: import SLOOP 2.4's autosave (GO, twice); no stored value */
 #define G_CGR (G_COUNT + 1)     /* LIMIT > GR: the master's gain reduction now, whole dB (master_comp.c); no stored value */
 #if FELUCCA_MASTER_COMP
 static int16_t mc_gr_view;      /* (its value: meters.c, the main loop) */
@@ -457,9 +566,10 @@ static volatile uint8_t miss_gen;   /* + 1 per load (proj_apply, also in the aud
 #define MISS_BUMP() ((void)0)
 #endif
 /* G_SYNC (clock_sync.c): the values of the first clock builds kept (0 INT = projects from before the
- * clock; USB / TRS = usb.c MSRC_*); AUTO, the default, follows TRS, then USB, then BLE, then the internal tempo;
- * BLE (MSRC_BLE, io/midi/midi_ble.c) came after AUTO, so the stored values stay */
-enum { SYNC_INT, SYNC_USB, SYNC_TRS, SYNC_AUTO, SYNC_BLE };
+ * clock; USB / TRS = io/midi/midi_rings.c MSRC_*); AUTO, the default, follows (clock_sync.c sy_rank) LINK (Link builds), TRS, USB, BLE, then the internal tempo;
+ * knobs and lists show AUTO, that order, INT (params.c SYNC_ORDER);
+ * BLE (MSRC_BLE, io/midi/midi_ble.c) and LINK (MSRC_LINK, link.c) came after AUTO, so the stored values stay */
+enum { SYNC_INT, SYNC_USB, SYNC_TRS, SYNC_AUTO, SYNC_BLE, SYNC_LINK };
 
 /* ----------------------------------------------------------- voices --- */
 typedef struct {
@@ -514,6 +624,18 @@ typedef struct {
     const int8_t *x;
 } preset_t;
 #define FX(d, c, dl, r) .fx = {(d) + 1, (c) + 1, (dl) + 1, (r) + 1}
+/* an engine's factory presets (engine_t .presets, .npresets). SD card mode reads them from the card instead (PRESETS_CARD:
+ * storage/sd/sd_mode.c sdm_factory_*, the files tools/sd_factory.c makes): the table is then named only inside sizeof,
+ * its count kept, the table and its names never in the image */
+#ifndef PRESETS_CARD
+#define PRESETS_CARD FELUCCA_SD_UI                       /* (a host test sets 0: its harness reads the tables) */
+#endif
+#if PRESETS_CARD
+#define PRESETS_PTR(a) ((const preset_t *)0)
+#else
+#define PRESETS_PTR(a) (a)
+#endif
+#define PRESETS_OF(a) PRESETS_PTR(a), (uint8_t)(sizeof(a) / sizeof((a)[0]))
 #define XP(...) .x = (const int8_t[8]){__VA_ARGS__}  /* XP(P_GLIDE + 1, 30, P_ED_PIT + 1, 8): parameter id + 1, value
                                                       * (a ninth value does not compile: the four pairs are the room) */
 #define ARP(m, rt, o, g) XP(P_AMODE + 1, m, P_ARATE + 1, rt, P_AOCT + 1, o, P_AGATE + 1, g)   /* MODE, RATE, OCT, GATE */
@@ -627,6 +749,7 @@ typedef struct {                 /* a step of the drum track (in RAM; stored: it
 } dstep_t;
 #define DSTEP_SN 10u             /* a drum step's stored bytes (on, lvl, rat) */
 typedef struct { uint8_t on[2], lvl[4], rat[4]; } dstep_sn_t;   /* a drum step as stored (dstep_t without its acc) */
+typedef struct { uint8_t len; uint16_t hit[DRUM_LANES]; uint32_t lvl[DRUM_LANES]; uint16_t mut[DRUM_LANES]; } pat_peek_t;   /* a stored pattern as the patterns screen previews it (sections/pat.c pat_peek) */
 _Static_assert(sizeof(pstep_t) == 10 && sizeof(dstep_t) == DSTEP_SN + 1u && sizeof(dstep_sn_t) == DSTEP_SN && sizeof(step_t) == 14 &&
                __builtin_offsetof(dstep_t, acc) == DSTEP_SN && NSTEP * sizeof(dstep_t) <= NSTEP * sizeof(step_t) &&
                __builtin_offsetof(step_t, ngate) == sizeof(pstep_t), "a stored step is 10 bytes on every track");
@@ -640,7 +763,7 @@ typedef struct track {
     uint8_t engine, preset;      /* engine: what the audio ISR renders */
     uint8_t eng_req;             /* engine the UI asked for (the ISR switches at a block start) */
     uint8_t user;                /* user preset slot + 1 the sound came from (UI), 0 = none */
-    uint8_t silent;              /* a silent placeholder (dropped to make memory room, docs/ARENA.md): its
+    uint8_t silent;              /* a silent placeholder (dropped to make memory room, docs/SD-MODE-DESIGN.md 6b): its
                                   * sequence kept, no note played, no engine shown, until an engine is picked */
     voice_t v[NVOICE];
     /* LFO */
@@ -741,6 +864,7 @@ typedef struct {
     uint32_t cpu_q8;             /* audio ISR load, 1/256 */
     uint32_t master_q12;
     int32_t batt_raw;            /* smoothed ADC ch3 (battery divider), 0 = not read yet */
+    uint8_t batt_chg;            /* the supply (op_project.c sys_batt_chg): 0 on the cell, 1 5 V present, 2 charging; 0 = not read yet */
 } song_t;
 
 static track_t trk[NTRK];        /* the instrument: three parts and the drum track */

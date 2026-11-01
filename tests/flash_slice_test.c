@@ -1,5 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only
- * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments */
+/* SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 */
 /* hal/fm1_flash_slice.h on a model of the P25Q80H (datasheet §5.4, §10.36 - 10.38): a sector erase in short
  * interrupts-off windows, suspended (75h) between them, resumed (7Ah). Checked: the longest window stays near
  * FLS_SLICE_US (an audio half is 5.8 ms; the whole erase was one 17.2 ms window), the sector always ends erased and

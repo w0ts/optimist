@@ -71,6 +71,13 @@ static void edstl_json_desc(FILE *f, const param_desc_t *d)
 }
 static void edstl_golden(void)
 {
+    static const uint8_t NOINS[2] = {FXT_NONE, INS_DEF1};   /* (slot 1 empty, slot 2 the FILTER: the golden's state) */
+    uint32_t t0;
+    fxs_set(FXS_DEF);                                   /* (the returns as the defaults, the tracks' slots as the golden was written:
+                                                         * the sends' names follow the returns' types, the INSERTS page the slots; random
+                                                         * use before reaches the returns' pages since 2026-10-30) */
+    for (t0 = 0; t0 < NTRK; t0++)
+        ins_put(t0, NOINS);
     static const uint8_t CX[][2] = {{0, 127}, {1, 127}, {3, 127}, {3, 0}, {3, 2}, {3, DRUM_ACC}};
     const char *gold = "tests/steplane_table.json";
     FILE *f = tmpfile();

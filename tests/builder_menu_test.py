@@ -7,6 +7,8 @@ it until the next b. No build here. Needs Textual: run with the builder's venv (
 tests/run_tests.sh uses it when it is there)."""
 import asyncio
 import os
+import re
+os.environ.setdefault("OPTIMIST_CLASSIC", "1")   # (Optimist's own firmware's tests: not the release on fm1-base)
 import shutil
 import subprocess
 import sys
@@ -61,14 +63,18 @@ def tree_keys(app):
 
 
 async def sort_test():
-    """o cycles default -> flash -> ram -> pool -> ramtext: items sorted largest first inside each group, children
+    """o cycles default -> flash -> ram (the SRAM: ram + pool + ramtext, one budget since the RAM was unified): one list over every group, largest first, children
     under their parent, unmeasured last, the sorted column marked, the choice only per session"""
     app = M.Builder(C.defaults(), "default")
     async with app.run_test(size=(200, 60)) as pilot:
         await pilot.pause()
         default = tree_keys(app)
+        default_all = list(app.nodes)                   # (every item the default tree shows, at any depth)
+        labels = [str(n.label) for n in app.nodes.values()]
+        check("costs: an item shows flash and one ram, no pool / ramtext parts (the user, 2026-10-29)",
+              not any(re.search(r"\b(pool|ramtext) [+-]\d", s) for s in labels) and any(re.search(r"\bram [+-]\d", s) for s in labels))
         check("sort: starts in the default order", app.sort_by is None and "default order" in str(app.query_one("#bars").content))
-        for want in ("flash", "ram", "pool", "ramtext", None):
+        for want in ("flash", "ram", "arena", None):
             await pilot.press("o")
             await pilot.pause()
             check(f"sort: o selects {want or 'default order'}", app.sort_by == want)
@@ -76,27 +82,36 @@ async def sort_test():
                 check("sort: back to the default order", tree_keys(app) == default)
                 break
             check(f"sort {want}: the bar names it", f"sort (o): {want}" in str(app.query_one("#bars").content))
-            cost = lambda k: (app.savings.get(k) or {}).get(want)
-            ok_order = ok_unmeasured = ok_kids = True
-            for grp in app.query_one("#tree").root.children:
-                tops = [n.data for n in grp.children]
-                vals = [cost(k) for k in tops]
-                known = [v for v in vals if v is not None]
-                ok_order &= known == sorted(known, reverse=True)
-                ok_unmeasured &= vals == known + [None] * (len(vals) - len(known))
-                for n in grp.children:
-                    ok_kids &= all(R.ITEMS[c.data].parent == n.data for c in n.children)
-                    kv = [cost(c.data) for c in n.children]
-                    kk = [v for v in kv if v is not None]
-                    ok_order &= kk == sorted(kk, reverse=True) and kv == kk + [None] * (len(kv) - len(kk))
-            check(f"sort {want}: largest first inside each group and parent", ok_order)
-            check(f"sort {want}: unmeasured items last", ok_unmeasured)
-            check(f"sort {want}: children stay under their parent", ok_kids)
-            check(f"sort {want}: same items as the default order",
-                  sorted(sum(tree_keys(app), [])) == sorted(sum(default, [])))
+            parts = {"flash": ("flash",), "ram": ("ram", "pool", "ramtext"), "arena": ()}[want]
+            cost = (lambda k: app.arena_item.get(k)) if want == "arena" else (
+                lambda k: (lambda s: sum(s[r] for r in parts if s.get(r) is not None)
+                           if any(s.get(r) is not None for r in parts) else None)(app.savings.get(k) or {}))
+            groups = app.query_one("#tree").root.children
+            flat = [n.data for g in groups for n in g.children]
+            vals = [cost(k) for k in flat]
+            known = [v for v in vals if v is not None]
+            check(f"sort {want}: one list, the groups ignored (the user, 2026-10-29)",
+                  len(groups) == 1 and all(not n.children for n in groups[0].children))
+            check(f"sort {want}: largest first over every item", known == sorted(known, reverse=True))
+            check(f"sort {want}: unmeasured items last", vals == known + [None] * (len(vals) - len(known)))
+            heads = [k for k in flat if R.ITEMS[k].menu_children]
+            check(f"sort {want}: a head shows its whole subtree's count after its box, e.g. DRUMS (n)",
+                  heads and all(f"] ({app.subtree_count(k)}) " in str(app.nodes[k].label) or
+                                f"> ({app.subtree_count(k)}) " in str(app.nodes[k].label) for k in heads)
+                  and app.subtree_count("DRUMS") > len(R.ITEMS["DRUMS"].menu_children))
+            check(f"sort {want}: the same items as the default order (children and options too)",
+                  sorted(flat) == sorted(default_all))
             check(f"sort {want}: the sorted column is highlighted",
                   any(s.style and "reverse" in str(s.style) for k in app.nodes for s in app.nodes[k].label.spans)
-                  or app.over.get(want, 0) > 0)       # (an overflowing region keeps its red marks over the sort mark)
+                  or app.over.get("sram" if want == "ram" else want, 0) > 0)   # (an overflowing region keeps its red marks)
+    app = M.Builder(C.defaults(), "default")
+    async with app.run_test(size=(200, 60)) as pilot:
+        await pilot.pause()
+        lab = lambda k: str(app.nodes[k].label)
+        check("arena column: shown beside the costs as KB of one instance (ENG_PHYS 12.6K, FX_DELAY 128.0K), also for an item that is off",
+              "arena 12.6K" in lab("ENG_PHYS") and "arena 128.0K" in lab("FX_DELAY") and "arena 8.0K" in lab("INS_DELAY"))
+        check("arena column: ? for an item that uses the arena with no size defined here (SD_RING), nothing for one that takes none",
+              "arena ?" in lab("SD_RING") and "arena" not in lab("ENG_ANALOG"))
     check("sort: per session, a new builder starts in the default order", M.Builder(C.defaults(), "default").sort_by is None)
 
 
@@ -122,12 +137,13 @@ async def estimate_over_build_fits_test():
     app = M.Builder(C.defaults(), "default")
     async with app.run_test(size=(200, 60)) as pilot:
         await pilot.pause()
-        cap = {r: C.LIMITS[r] - C.SPARE[r] for r in C.REGIONS}
+        sram = C.limits_in_use()["sram"] - C.SPARE["sram"]                  # (the SRAM parts filling the budget exactly)
+        cap = {"flash": C.limits_in_use()["flash"], "ram": 90000, "pool": sram - 120000, "ramtext": 30000}
         est = C.budget(app.cfg, app.costs)
         app.budget = lambda cfg=None: dict(est, total=dict(cap, flash=cap["flash"] + 19046), exact=False)
         real = dict(cap, flash=cap["flash"] - 14072)
         calls, saved = [], C.build
-        C.build = lambda cfg, name, measure=False, on_line=None: (calls.append(measure) or (True, real, ""))
+        C.build = lambda cfg, name, measure=False, on_line=None, cancel=None: (calls.append(measure) or (True, real, ""))
         try:
             app.run_build(dict(app.cfg), "default")
             for _ in range(60):
@@ -144,8 +160,86 @@ async def estimate_over_build_fits_test():
         check("... the overflow lines take the build's sizes: none left", not app.over and app.budget()["exact"])
 
 
+async def back_test():
+    """shift+space (backspace where a terminal sends it as a space) takes a choice one value back, wrapping as space
+    does forward; the search box keeps its backspace"""
+    key = next(k for k, it in R.ITEMS.items() if it.is_choice and len(it.choices) >= 3 and k in C.defaults()
+               and not it.fixed)
+    vals = [c[0] for c in R.ITEMS[key].choices]
+    app = M.Builder(C.defaults(), "default")
+    async with app.run_test(size=(200, 60)) as pilot:
+        await pilot.pause()
+        app.cfg[key] = vals[1]
+        app.query_one("#tree").move_cursor(app.nodes[key])
+        await pilot.press("space")
+        await pilot.pause()
+        check(f"back: space takes {key} forward", app.cfg[key] == vals[2])
+        await pilot.press("shift+space")
+        await pilot.pause()
+        check(f"back: shift+space takes {key} back", app.cfg[key] == vals[1])
+        await pilot.press("backspace", "backspace")
+        await pilot.pause()
+        check(f"back: backspace back, wrapping past the first value", app.cfg[key] == vals[-1])
+
+
+async def memory_menu_test():
+    """Memory management shows SD CARD MODE, SAMPLE SLOTS and PROJECTS (MEMORY, LAYOUT, SDCARD, RAM_PACKED hidden),
+    SD_RING and SD_REC under SD CARD MODE, live in SD card mode only, SAMPLE SLOTS and PROJECTS greyed then; each pick
+    sets LAYOUT / SDCARD (docs/SD-MODE-DESIGN.md 9.7)"""
+    app = M.Builder(dict(C.defaults(), PATTERNS=1), "default")
+    async with app.run_test(size=(200, 60)) as pilot:
+        await pilot.pause()
+        n = app.nodes
+        check("memory: SD_MODE, SMP_SLOTS, PROJECTS are in the tree; MEMORY LAYOUT SDCARD RAM_PACKED are not",
+              all(k in n for k in ("SD_MODE", "SMP_SLOTS", "PROJECTS"))
+              and not any(k in n for k in ("MEMORY", "LAYOUT", "SDCARD", "RAM_PACKED")))
+        check("... SD_RING and SD_REC are under SD_MODE",
+              n["SD_RING"].parent.data == "SD_MODE" and n["SD_REC"].parent.data == "SD_MODE")
+        check("... normal: SD_RING and SD_REC greyed, SAMPLE SLOTS and PROJECTS live",
+              all("dim" in str(n[k].label.style) for k in ("SD_RING", "SD_REC"))
+              and all("dim" not in str(n[k].label.style) for k in ("SMP_SLOTS", "PROJECTS")))
+        await toggle(app, pilot, "PROJECTS")              # (16 -> 2 is the next value round: 2, 16)
+        c = app.cfg
+        check("... PROJECTS from 16 with 2 slots: the nearest step (no 2-slot 2-project step yet)",
+              c["PROJECTS"] in (2, 16) and c["LAYOUT"] in R.LAYOUT_STEPS)
+        app.cfg = C.sync_memory(dict(C.defaults(), PATTERNS=1))
+        app.refresh_all()
+        await toggle(app, pilot, "SMP_SLOTS")             # (2 -> 3: PATTERNS off)
+        c = app.cfg
+        check("... SAMPLE SLOTS 3: normal, PATTERNS off", (c["SMP_SLOTS"], c["LAYOUT"], c["PATTERNS"]) == (3, 0, 0))
+        await toggle(app, pilot, "SMP_SLOTS")             # (3 -> 0: no user samples, 16 projects)
+        c = app.cfg
+        check("... SAMPLE SLOTS 0: S0 (LAYOUT 3), PATTERNS on", (c["SMP_SLOTS"], c["LAYOUT"], c["PATTERNS"]) == (0, 3, 1))
+        await toggle(app, pilot, "SD_MODE")
+        c = app.cfg
+        check("... SD CARD MODE on: LAYOUT 1 + SDCARD; SD_RING / SD_REC live, SAMPLE SLOTS / PROJECTS greyed",
+              (c["LAYOUT"], c["SDCARD"]) == (1, 1) and all("dim" not in str(n[k].label.style) for k in ("SD_RING", "SD_REC"))
+              and all("dim" in str(n[k].label.style) for k in ("SMP_SLOTS", "PROJECTS")))
+        await toggle(app, pilot, "SD_MODE")
+        c = app.cfg
+        check("... SD CARD MODE off: the card off, the big step kept (0 slots, 2 projects)",
+              (c["LAYOUT"], c["SDCARD"], c["SMP_SLOTS"], c["PROJECTS"]) == (1, 0, 0, 2))
+
+
+async def dialog_wrap_test():
+    """a dialog's long line (the flash plan's) wraps inside the box instead of being cut off at its right edge"""
+    app = M.Builder(C.defaults(), "default")
+    long = "route:    download mode (M-Flasher): the build's BOOTLOADER is m-bootloader, so the installer " * 2
+    async with app.run_test(size=(100, 40)) as pilot:
+        await pilot.pause()
+        app.push_screen(M.Pick("Flash to FM-1\n\n" + long, ["Cancel"], lambda c: None))
+        await pilot.pause()
+        box = app.screen.query_one("#modal")
+        lab = app.screen.query_one("#modal Label")
+        check("dialog: the box uses the screen's width (not 70 columns)", box.size.width > 70)
+        check("dialog: a long line wraps inside the box", lab.size.width <= box.size.width and lab.size.height >= 4)
+
+
 async def main():
     await sort_test()
+    await dialog_wrap_test()
+    await memory_menu_test()
+    await back_test()
     await drums_head_test()
     await estimate_over_build_fits_test()
     app = M.Builder(C.defaults(), "default")
@@ -226,10 +320,10 @@ async def main():
             check("... the bars show the overflow when it does not fit", bool(app.over) == shown_over(withble, costs))
             await toggle(app, pilot, "BLE")
             check("... unticked: the profile again", app.cfg == base)
-    for prof in C.profile_names():        # (BLE_DIAG ticked after BLE)
+    for prof in C.profile_names():        # (one of BLE's own options, BLE_BOND, ticked after BLE; BLE_DIAG until 2026-10-29)
         base, _ = C.load_profile(prof)
-        if base["BLE_DIAG"]:              # (on in the profile already, bt-debug: ticking it would turn it off)
-            print(f"BLE_DIAG ticked on {prof}: the profile has BLE_DIAG on already, not a case")
+        if base["BLE_BOND"]:              # (on in the profile already: ticking it would turn it off)
+            print(f"BLE_BOND ticked on {prof}: the profile has BLE_BOND on already, not a case")
             continue
         app = M.Builder(dict(base), prof)
         async with app.run_test(size=(200, 60)) as pilot:
@@ -237,14 +331,26 @@ async def main():
             await toggle(app, pilot, "BLE")
             after_ble = dict(app.cfg)
             app.nodes["BLE"].expand()
-            await toggle(app, pilot, "BLE_DIAG")
-            check(f"BLE_DIAG ticked after BLE on {prof}: only it changes, nothing more is removed, the bars show what is left over",
-                  app.cfg == dict(after_ble, BLE_DIAG=1) and bool(app.over) == shown_over(app.cfg, costs))
+            await toggle(app, pilot, "BLE_BOND")
+            check(f"BLE_BOND ticked after BLE on {prof}: only it changes, nothing more is removed, the bars show what is left over",
+                  app.cfg == dict(after_ble, BLE_BOND=1) and bool(app.over) == shown_over(app.cfg, costs))
     app = M.Builder(C.defaults(), "default")             # (the ring in the bars: information)
     async with app.run_test(size=(200, 60)) as pilot:
         await pilot.pause()
         bars = lambda: str(app.query_one("#bars").content)
         check("the bars show the undo ring", "UNDO" in bars() and "ring" in bars())
+        arena_off = app.cfg.get("ARENA", 0) == 0
+        check("ARENA off (the default): no arena line in the bars, none on the item", arena_off and "ARENA" not in bars()
+              and "arena ~" not in label(app, "ARENA"))
+        await toggle(app, pilot, "ARENA")
+        tree = app.query_one("#tree")
+        tree.move_cursor(app.nodes["ARENA"])
+        await pilot.pause()
+        info = str(app.query_one("#info_t").content)
+        check("ARENA on: the item's line, the bars and the info panel give the size marked as an estimate (~N KB), and what fits",
+              app.cfg["ARENA"] == 1 and re.search(r"arena ~\d+ KB", label(app, "ARENA")) and re.search(r"ARENA\s+~\d+ KB \(estimate\)", bars())
+              and re.search(r"arena ~\d+ KB \(estimate: free SRAM", info) and "all at once" in info and "sends" in info)
+        await toggle(app, pilot, "ARENA")
         check("no Reserve group in the menu", "RESERVE_UNDO_KB" not in [n.data for g in app.query_one("#tree").root.children for n in g.children])
     app = M.Builder(C.defaults(), "default")             # q and ctrl+c are refused while the FM-1 is written, work again after
     async with app.run_test(size=(200, 60)) as pilot:

@@ -162,7 +162,7 @@ static void reset(uint32_t sync)
     memset(&sy, 0, sizeof sy);
     memset(sy_pr, 0, sizeof sy_pr);
     sy.mode = (uint8_t)sync;
-    sync_ofs[0] = sync_ofs[1] = 0;
+    sync_ofs[0] = sync_ofs[1] = sync_ofs[2] = 0;
     T = 1e6;
     nmev = mevr = non = nterr = 0;
     cpu_instr = cpu_samples = 0;
@@ -254,8 +254,8 @@ static void follow(const scen_t *c)
     double t = 2e6, first, late_max = -1e9;
     char line[200];
     reset(SYNC_AUTO);
-    sync_ofs[c->src == MSRC_BLE] = c->ofs;
-    sync_ofs[c->src != MSRC_BLE] = 77;           /* (the other source's offset: never this clock's) */
+    sync_ofs[0] = sync_ofs[1] = sync_ofs[2] = 77;   /* (the other sources' offsets: never this clock's) */
+    sync_ofs[c->src == MSRC_BLE ? 1 : FELUCCA_LINK && c->src == MSRC_LINK ? 2 : 0] = c->ofs;
     if (every == 2u)                               /* (fast: a hat every other beat, so it falls quiet) */
         for (k = 4; k < 16u; k += 8u)
             memset(&TDRUM->dstep[k], 0, sizeof TDRUM->dstep[k]);

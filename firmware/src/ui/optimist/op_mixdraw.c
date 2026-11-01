@@ -2,11 +2,15 @@
 /* The horizontal mixer's rows (op_mixer.c), in the panel under the cards. The mixer shows ONE group at a time, the one
  * the cursor is in (the user, 2026-10-11: MASTER alone, or the four channels, or the drum sounds); ALGORITHM walks the
  * rows as before and the view follows it, drawn in place (cv_tall over the panel, no clear to black):
- *   MASTER     past T1 up: the master alone on the panel under its 2x2 cards (99 px; the header names it): a VU meter (the level from the
- *              left, its peak falling) over a dB scale, the compressor's gain reduction as an amber bar from the right
- *              with its dB (THRS or CEIL set: mc_gr_view), and under it the FX returns' meters, REV DLY CHO (those
- *              built; the user, 2026-10-12: the four channels' meters here were "useless", the channels' rows show
- *              them): what the effects give back to the master (fx.c fx_ret_tap, a sample a block)
+ *   MASTER     the master screen, under the 2x2 cards (99 px; 117 without the help band), ONE screen for the returns and the
+ *              master (the user, 2026-10-30: "put ON ONE screen the master, not at the bottom, but where it was before, top,
+ *              and the return track above it, on the same screen. AND not to move the screen"; "only change the master screen
+ *              with the returns"): its rows RET A, RET B, RET C, then MASTER, top down, all four always drawn, the cursor's
+ *              framed (moving among them moves only the frame). A return's line (15 px): its chip, its code A B C, its effect's
+ *              name (REV DLY CHO or the type it holds; "----" empty), its meter from x 96 (what it gives back to the master,
+ *              fx.c fx_ret_tap, after its POST and level; a muted one struck, its code amber). MASTER under them: M MASTER,
+ *              its VU meter (the level from the left, its peak falling) over a dB scale, the compressor's gain reduction as an
+ *              amber bar from the right with its dB (THRS or CEIL set: mc_gr_view)
  *   CHANNELS   T1 T2 T3 DR, the four rows of 41 px (the mixer keeps the 1x4 cards, op_layers.c
  *              cards_2x2):
  *                x 0..21    a colour chip and the row's code (T1 T2 T3 DR), its M / S badge under it; the selected
@@ -30,13 +34,16 @@
 #define MXL_N 4u                        /* the channels a screen */
 #define MXL_H ((int32_t)OP_PH / (int32_t)MXL_N)   /* a channel's row: 41 px (the panel 164, the mixer's cards 1x4; over the
                                          * help band 36: the panel 146) */
-#define MXL_VX 28                       /* a channel's meter and steps: the width left of the code */
+#define MXL_VX 27                       /* a channel's meter and steps: the width left of the code (27: the 4 groups of steps end at 239) */
 #define MXL_VW 210
 #define MXL_TY 1                        /* the text line: the engine, then the preset (the user: "each track shows the synth
                                          * name and the preset", so the meter and the steps went thin) */
 #define MXL_SY (MXL_H - 21)             /* the steps in their row: small cells, 6 px, the page bars under them (20; 15) */
 #define MXL_SH 6
 #define MXL_SP 13                       /* a step's pitch, its cell 11 */
+#define MXL_GG 2                        /* the extra gap after every 4th step: 4 groups of 4 (the user, 2026-10-31) */
+#define MXL_SW (16 * MXL_SP + 3 * MXL_GG - 1)   /* the 16 steps' width (a lane's last cell ends it), the groups' gaps in */
+#define MX_STEP_X(i, sp) ((int32_t)(i) * (sp) + (int32_t)(((i) / 4u) * MXL_GG))   /* step i's x from the first's */
 #define MXL_VY (MXL_H - 7)              /* the meter in its row: a thin bar, over the row's rule (34; 29) */
 #define MXL_VH 3
 #define MX_GR_PX 3                      /* the reduction: px a dB */
@@ -45,33 +52,41 @@
 #define MXS_SY 2                        /* a lane's steps: their y in the row (the channels' pitch, MXL_SP), the meter under them */
 #define MXS_VH 2
 #define MXS_TY (-2)                     /* a lane's code: its 16 px cell from 2 px over the row (the caps' ink inside it) */
-#define MXM_X 8                         /* MASTER: the tall meter (under the 2x2 cards: a panel of 99 rows, 117 without the help band; */
-#define MXM_W 224                       /* the header names MASTER, so no name line) */
-#define MXM_VY 4
-#define MXM_VH 10
-#define MXM_GX 32                       /* its reduction bar, "GR" at its left */
-#define MXM_GW 200
-#define MXM_GY 41
+#define MXK_H 15                        /* the master screen: a return's line, RET A B C from the top */
+#define MXK_Y 1
+#define MXK_NX 22                       /* a line's name */
+#define MXM_MY (MXK_Y + 3 * MXK_H + 2)  /* MASTER's line (48): M MASTER, its meter on it, the scale and GR under it */
+#define MXM_X 96                        /* MASTER's meter (and the returns' meters: the same column) */
+#define MXM_W 140
+#define MXM_VY (MXM_MY + 2)
+#define MXM_VH 8
+#define MXM_GX 96                       /* its reduction bar, "GR" at its left */
+#define MXM_GW 140
+#define MXM_GY (MXM_MY + 30)
 #define MXM_GH 6
-#define MXM_CY 53                       /* the FX returns' meters: a line each, the third one's name ending on the panel's foot */
-#define MXM_CP 15
-#define MXM_CH 8                        /* (a return's meter: most of its name's height) */
-#define MXM_CV 4                        /* its top under its name's line */
 #define MX_LV 255u                      /* a level: 0 .. 255, the meter's whole width */
-enum { MV_MASTER, MV_CH, MV_SOUNDS, MV_USB };   /* (MV_USB: the USB input's row alone, past the drum sounds) */
+#define MX_PH_HOLD 90u                  /* the peak-hold marker holds this many frames (~1.5 s at 60 a second), then falls */
+#define MX_PH_W 2                       /* ... a marker: this wide, the meter's height */
+enum { MV_MASTER, MV_CH, MV_SOUNDS, MV_USB };   /* (MV_USB: the USB input's row alone, past the drum sounds; MV_MASTER the
+                                                 * master screen: RET A B C and MASTER) */
 static struct {
     uint8_t first, last;                /* the rows in view: first .. last - 1 (the cursor's group) */
     uint8_t vu[MXR_N], gr[MXR_N];       /* the meters as drawn (0xFF: again) */
     uint32_t stp[MXR_N];                /* the steps as drawn (a signature, the playhead left out) */
     uint8_t sta[MXR_N];                 /* the playhead as drawn (0xFF: none) */
     uint8_t pk[MXR_N];                  /* the meters' peaks (0 .. MX_LV), falling */
+    uint16_t ph[MXR_N];                 /* the peak-hold markers (level x 256): jump to a new peak, hold, then fall (mx_peak) */
+    uint8_t clip[MXR_N], vcl[MXR_N];    /* the CLIP light: frames left lit; as drawn (0xFF: again) */
+    uint8_t phd[MXR_N], vph[MXR_N];     /* ... frames left of the hold; the marker's level as drawn (0xFF: again) */
     uint8_t mgr;                        /* MASTER alone: its reduction as drawn, dB x 4 (0xFF: again) */
     uint8_t pk_first;                   /* the group the peaks are of (mx_draw) */
 #if FELUCCA_ED_MIRROR
     uint8_t mvu[MXR_N], mgv[MXR_N];     /* the meters as the mirror's client has them (0xFF: again) */
+    uint8_t mvph[MXR_N], mvcl[MXR_N];   /* ... and their peak-hold markers, CLIP lights */
     uint8_t mir;                        /* this frame the meters may go to it (io/editor/ed_mirror.c mir_meters_due) */
 #endif
 } mxd = {.first = MXR_T1, .last = MXR_LANE0, .pk_first = MXR_T1};
+static uint32_t mx_rlv[3];             /* the returns' lines' levels this frame (mx_draw, meter_ret_take) */
 typedef struct {
     int32_t x, y, w, h;                 /* a row's place in the panel */
     int32_t sx, sy, sp, sh;             /* its steps: x, y in the row, a step's pitch and height */
@@ -79,19 +94,25 @@ typedef struct {
 } mrect_t;
 
 static uint32_t mx_smuted(uint32_t r) { return !mx_is_usb(r) && mx_muted(r); }   /* row r muted: its steps grey, no playhead */
-static uint32_t mx_mode(uint32_t r) { return r == MXR_MASTER ? MV_MASTER : r < MXR_LANE0 ? MV_CH : mx_is_usb(r) ? MV_USB : MV_SOUNDS; }
+static uint32_t mx_mode(uint32_t r)
+{
+    return mx_is_ret(r) || r == MXR_MASTER ? MV_MASTER : r < MXR_LANE0 ? MV_CH : mx_is_usb(r) ? MV_USB : MV_SOUNDS;
+}
 static void mx_view(void)                               /* the rows in view: the cursor's group */
 {
     uint32_t m = mx_mode(mx_row());
-    mxd.first = (uint8_t)(m == MV_MASTER ? MXR_MASTER : m == MV_CH ? MXR_T1 : m == MV_USB ? MXR_LN : MXR_LANE0);
-    mxd.last = (uint8_t)(m == MV_MASTER ? MXR_T1 : m == MV_CH ? MXR_LANE0 : m == MV_USB ? MXR_N : MXR_LN);
+    mxd.first = (uint8_t)(m == MV_MASTER ? MXR_RET0 : m == MV_CH ? MXR_T1 : m == MV_USB ? MXR_LN : MXR_LANE0);
+    mxd.last = (uint8_t)(m == MV_MASTER ? MXR_MASTER + 1u : m == MV_CH ? MXR_LANE0 : m == MV_USB ? MXR_LN + 1u : MXR_LN);
 }
 static void mx_rect(uint32_t r, mrect_t *q)             /* row r's place in its group's view */
 {
     memset(q, 0, sizeof *q);
-    if (r == MXR_MASTER) {
-        q->w = 240, q->h = OP_PH;
-        q->vx = MXM_X, q->vy = MXM_VY, q->vw = MXM_W, q->vh = MXM_VH;
+    if (r == MXR_MASTER) {                              /* (the master screen's foot: its line, its scale, its GR) */
+        q->y = MXM_MY - 2, q->w = 240, q->h = OP_PH - (MXM_MY - 2);
+        q->vx = MXM_X, q->vy = MXM_VY - q->y, q->vw = MXM_W, q->vh = MXM_VH;
+    } else if (mx_is_ret(r)) {                          /* (a return's line, above MASTER) */
+        q->y = MXK_Y + (int32_t)(r - MXR_RET0) * MXK_H, q->w = 240, q->h = MXK_H;
+        q->vx = MXM_X, q->vy = 4, q->vw = MXM_W, q->vh = 6;
     } else if (r < MXR_LANE0 || mx_is_usb(r)) {
         q->y = mx_is_usb(r) ? 0 : (int32_t)(r - MXR_T1) * MXL_H, q->w = 240, q->h = MXL_H;   /* (the USB input: a channel's row,
                                                          * alone, no steps) */
@@ -112,7 +133,9 @@ static void mx_rect(uint32_t r, mrect_t *q)             /* row r's place in its 
 }
 static const char *mx_code(uint32_t r)                  /* the row's code at its left */
 {
-    return r == MXR_MASTER ? "M" : mx_is_usb(r) ? "U" : r >= MXR_LANE0 ? lane_code(r - MXR_LANE0) : trk_tag(mx_trk_of(r));
+    static const char *const RC[3] = {"A", "B", "C"};
+    return r == MXR_MASTER ? "M" : mx_is_usb(r) ? "U" : mx_is_ret(r) ? RC[(r - MXR_RET0) % 3u] : mx_is_lane(r) ? lane_code(r - MXR_LANE0) :
+           trk_tag(mx_trk_of(r));
 }
 /* the row's sound as two words: the engine (DRUMS for the drum track, MASTER, a lane's name) and the preset (the kit
  * for the drum track, a lane's own sound, a user preset's name); each cut to the room it has */
@@ -126,6 +149,14 @@ static void mx_names(uint32_t r, char *eng, char *pre)
         str_cpy(eng, "USB IN", 9);
         str_cpy(pre, ut_live ? "streaming" : "no stream", 14);
 #endif
+    } else if (mx_is_ret(r)) {                          /* (a return: its effect, then its inserts PRE and POST) */
+        uint32_t j = mx_ret_ln(r), a = j < 3u ? rp_ty[j][RP_PRE] : (uint32_t)FXT_NONE, b = j < 3u ? rp_ty[j][RP_POST] : (uint32_t)FXT_NONE;
+        str_cpy(eng, j < 3u ? fxs_line_name(j) : "----", 9);
+        if (a != FXT_NONE || b != FXT_NONE) {
+            str_cpy(pre, a != FXT_NONE ? TP[FXT_AMT[a]].label : "-", 14);
+            str_app(pre, " > ", 14);
+            str_app(pre, b != FXT_NONE ? TP[FXT_AMT[b]].label : "-", 14);
+        }
     } else if (r >= MXR_LANE0) {
         str_cpy(eng, lane_name(r - MXR_LANE0), 9);
         if (!mx_is_acc(r))
@@ -136,7 +167,7 @@ static void mx_names(uint32_t r, char *eng, char *pre)
         snd_name(k, pre);
     }
 }
-static void mx_vu_paint(uint32_t r, int32_t x, int32_t y, int32_t w, int32_t h, uint32_t pk, uint32_t gr);
+static void mx_vu_paint(uint32_t r, int32_t x, int32_t y, int32_t w, int32_t h, uint32_t pk, uint32_t gr, uint32_t ph);
 static void mx_vu_band(uint32_t r, int32_t x, int32_t y, int32_t w, int32_t h, uint32_t pk, uint32_t gr);
 static void mx_steps_paint(uint32_t r, int32_t x, int32_t y);
 static uint32_t mx_gr_px(uint32_t r, int32_t w);
@@ -154,40 +185,52 @@ static void mx_paint_ground(uint32_t i, const mrect_t *q, uint16_t c)
         cv_rect(q->x, q->y + q->h - 1, q->w, 1, C_LINE);   /* (black, a rule under it: no grey ground) */
     }
 }
-/* the MASTER page's return lines, top down: A B C, those holding something (fx_slots.c fxs_card, the one order; ret:
- * each one's line, fx.c fx_ret_pk's index) */
-static uint32_t mx_rets(uint8_t *ret)
+/* MASTER alone: the tall meter's dB scale (a tick each 6 dB from 0 down to the -40 dBFS floor, some named), "GR", the returns' names
+ * (its name is the header's badge). A dB d sits at (|floor| + 6 + d) / (|floor| + 6) of the width (op_draw.c meter_h) */
+static int32_t mx_db_x(int32_t d)
 {
-    uint32_t n = 0, k, t;
-    for (k = 0; k < 3u; k++)
-        if ((t = fxs_card(k)) != FXT_NONE)
-            ret[n++] = (uint8_t)FXS_LN(t);
-    return n;
+    int32_t w = -VU_FLOOR_DB + 6;
+    return MXM_X + (int32_t)(MXM_W * (uint32_t)(w + d) / (uint32_t)w);
 }
-/* MASTER alone: the tall meter's dB scale (a tick each 6 dB, 0 -12 -24 -48 named), "GR", the returns' names (its name is the
- * header's badge) */
 static void mx_paint_master(void)
 {
-    static const int8_t DB[4] = {0, -12, -24, -48};
-    uint32_t i, n;
-    uint8_t ret[3];
-    char b[8];
-    cv_hline(OP_PH - 1, C_LINE);
-    cv_rect(2, 3, 3, OP_PH - 7, C_HI);                  /* the colour chip */
-    for (i = 0; i <= 10u; i++)                          /* the scale: lg 5 .. 15 (op_draw.c meter_h), 6 dB a tick */
-        cv_rect(MXM_X + (int32_t)((i * 4u + 4u) * MXM_W / 44u) - 1, MXM_VY + MXM_VH + 1, 1, 3, C_LINE);
-    for (i = 0; i < 4u; i++) {
-        int32_t x = MXM_X + (int32_t)(((15u - (uint32_t)(-DB[i] / 6) - 5u) * 4u + 4u) * MXM_W / 44u);
-        fmt_int(b, DB[i]);
-        cv_texts(x - text_ws(b) + (i ? text_ws(b) / 2 : 0), MXM_VY + MXM_VH + 4, b, C_DIM);
+    /* the named ticks: 0 and every 12 dB down to the floor; 0 ends on its tick */
+    static const int8_t nm[6] = {0, -12, -24, -36, 1, 1};
+    uint32_t i;
+    int32_t d;
+    char b[16];
+    mrect_t q;
+    char en[10], pr[16];
+    for (i = MXR_RET0; i < MXR_MASTER; i++) {           /* RET A B C: a line each */
+        uint32_t mu = mx_muted(i);
+        mx_rect(i, &q);
+        mx_paint_ground(i, &q, C_HI);
+        cv_rect(2, q.y + 3, 3, q.h - 6, mx_in_grp(i) ? C_HI : C_GRAY);
+        text_st(6, q.y - 1, &FONT_S, mx_code(i), mu ? C_WARN : i == mx_row() ? C_WHITE : C_HI, mu);
+        mx_names(i, en, pr);
+        text_st(MXK_NX, q.y - 1, &FONT_S, cut(b, en, 8), i == mx_row() ? C_WHITE : C_HI, mu);
+        mx_vu_band(i, q.vx, q.y + q.vy, q.vw, q.vh, mxd.pk[i], 0);
     }
-    cv_texts(MXM_X, MXM_GY - 5, "GR", C_DIM);
-    n = mx_rets(ret);
-    for (i = 0; i < n; i++)                             /* (the type each return holds: a send's, or the other one's) */
-        cv_texts(MXM_X, MXM_CY + (int32_t)i * MXM_CP, fxs_line_name(ret[i]), C_HI);
-    mx_vu_band(MXR_MASTER, MXM_X, MXM_VY, MXM_W, MXM_VH, mxd.pk[MXR_MASTER], 0);
-    for (i = 0; i < n; i++)                             /* (a return's meter state: the row T1 + its line's, unseen here) */
-        mx_vu_band(MXR_T1 + i, MXM_GX, MXM_CY + (int32_t)i * MXM_CP + MXM_CV, MXM_GW, MXM_CH, mxd.pk[MXR_T1 + i], 0);
+    mx_rect(MXR_MASTER, &q);                            /* MASTER */
+    mx_paint_ground(MXR_MASTER, &q, C_HI);
+    cv_rect(2, q.y + 3, 3, q.h - 6, mx_in_grp(MXR_MASTER) ? C_HI : C_GRAY);   /* the colour chip */
+    text_st(6, MXM_MY - 3, &FONT_S, "M", MXR_MASTER == mx_row() ? C_WHITE : C_HI, 0);
+    text_st(MXK_NX, MXM_MY - 3, &FONT_S, "MASTER", MXR_MASTER == mx_row() ? C_WHITE : C_HI, 0);
+    for (d = 0; d >= VU_FLOOR_DB; d -= 6)        /* the scale: a tick each 6 dB */
+        cv_rect(mx_db_x(d) - 1, MXM_VY + MXM_VH + 1, 1, 3, C_LINE);
+    for (i = 0, d = 240; i < 6u && nm[i] <= 0; i++) {   /* (right to left: a label that would touch the one right of it, or the
+                                                         * screen's edge, left out: the meter is 140 px since 2026-10-30) */
+        int32_t x = mx_db_x(nm[i]), w, l;
+        fmt_int(b, nm[i]);
+        w = text_ws(b);
+        l = x - w + (i ? w / 2 : 0);
+        if (l + w > d - 3 || l + w > 238)
+            continue;
+        cv_texts(l, MXM_VY + MXM_VH + 4, b, C_DIM);
+        d = l;
+    }
+    cv_texts(MXM_GX - 20, MXM_GY - 5, "GR", C_DIM);
+    mx_vu_band(MXR_MASTER, MXM_X, MXM_VY, MXM_W, MXM_VH, mxd.pk[MXR_MASTER], 0);   /* (the returns: their own rows) */
 }
 static void mx_paint_row(uint32_t i)                    /* a channel's or a lane's row */
 {
@@ -195,21 +238,21 @@ static void mx_paint_row(uint32_t i)                    /* a channel's or a lane
     int32_t x;
     mrect_t q;
     uint16_t c = mx_col(i);
-    uint16_t cc = i >= MXR_LANE0 && mx_muted(i) ? C_WARN : i == mx_row() ? C_WHITE : c;   /* (a muted lane: its code in the M badge's colour) */
-    int32_t cy = i >= MXR_LANE0 && !mx_is_usb(i) ? MXS_TY : MXL_TY;
+    uint16_t cc = mx_is_lane(i) && mx_muted(i) ? C_WARN : i == mx_row() ? C_WHITE : c;   /* (a muted lane: its code in the M badge's colour) */
+    int32_t cy = mx_is_lane(i) ? MXS_TY : MXL_TY;
     uint32_t mu = mx_muted(i);
     mx_rect(i, &q);
     cy += q.y;
     mx_paint_ground(i, &q, c);
     cv_rect(q.x + 2, q.y + 3, 3, q.h - 7, mx_in_grp(i) ? c : C_GRAY);   /* the colour chip: grey off the knobs' rows */
     text_st(q.x + 6, cy, &FONT_S, mx_code(i), cc, mu);  /* (a muted row: its name struck through, the user, 2026-10-15) */
-    if (mx_is_usb(i) || i < MXR_LANE0) {                /* the USB input: its name and whether it streams; a channel: its engine
-                                                         * and preset; their M badge */
+    if (!mx_is_lane(i)) {                               /* the USB input: its name and whether it streams; a channel: its engine
+                                                         * and preset; a return: its effect and inserts; their M badge */
         uint16_t pc = i == mx_row() ? C_WHITE : C_GRAY;
         mx_names(i, en, pr);
         x = text_st(MXL_VX, q.y + MXL_TY, &FONT_S, cut(b, en, 8), c, mu);   /* ANALOG, in the row's colour ... (USB IN) */
         if (pr[0])                                      /* (USB: "streaming" whole, never struck) */
-            text_st(x + 8, q.y + MXL_TY, &FONT_S, cut(b, pr, (uint32_t)(238 - x - 8) / 8u), pc, mu && !mx_is_usb(i));
+            text_st(x + 8, q.y + MXL_TY, &FONT_S, cut(b, pr, (uint32_t)(238 - x - 8) / 8u), pc, mu && !mx_is_usb(i) && !mx_is_ret(i));
         if (mu)                                         /* (muted: the M badge, the steps grey) */
             cv_texts(6, q.y + 18, "M", C_WARN);
     }
@@ -220,7 +263,7 @@ static void mx_paint_row(uint32_t i)                    /* a channel's or a lane
 static void mx_paint(void)                              /* the group in view (cv_tall) */
 {
     uint32_t i;
-    if (mxd.first == MXR_MASTER) {
+    if (mxd.first == MXR_RET0) {                        /* (the master screen: RET A B C, MASTER) */
         mx_paint_master();
         return;
     }
@@ -233,9 +276,9 @@ static uint32_t mx_static_sig(void)
     char en[10], pr[16];
     for (i = mxd.first; i < mxd.last; i++) {
         sig = hs(hu(sig, mx_col(i)), mx_code(i));
-        if (mx_is_usb(i)) {                             /* (the USB input: muted, streaming) */
+        if (mx_is_usb(i) || mx_is_ret(i)) {             /* (the USB input: muted, streaming; a return: muted, its chain) */
             mx_names(i, en, pr);
-            sig = hs(hu(sig, mx_muted(i)), pr);
+            sig = hs(hs(hu(sig, mx_muted(i)), pr), en);
             continue;
         }
         if (i >= MXR_LANE0) {                           /* (a lane: its code, muted or not; the kit is the header's) */
@@ -293,6 +336,8 @@ static uint32_t mx_level(uint32_t r, const uint32_t *trk_lv)   /* row r's level 
         return mx_vu_lv(pk);
     }
 #endif
+    if (mx_is_ret(r))
+        return mx_ret_ln(r) < 3u ? mx_rlv[mx_ret_ln(r)] : 0u;   /* (its line's return: fx.c fx_ret_pk) */
     if (r >= MXR_LANE0)
         return MX_LV * mx.lit[r - MXR_LANE0] / MX_LIT;
     return trk_lv[mx_trk_of(r)];
@@ -302,15 +347,110 @@ static uint32_t mx_gr_px(uint32_t r, int32_t w)         /* row r's reduction as 
     uint32_t gr = mx_gr_q4(r) * MX_GR_PX / 4u;
     return gr > (uint32_t)w ? (uint32_t)w : gr;
 }
+/* the lit bar's colours by the signal's dBFS (the user, 2026-10-31: "green below -18 dBFS; amber from -18 to -6 dBFS; red from -6 (or -3)
+ * dBFS; a separate held clip light at 0 dBFS"; -6 picked): green under -18, amber -18 .. -6, red from -6. The bands are cut
+ * at the peaks 2^12 (-18.06 dB) and 2^14 (-6.02 dB) through mx_vu_lv, so they stand at the same dB.
+ * A lane's row (its lit hit, no level) keeps its instrument colour. The CLIP light: the meter's last MX_CLIP_W px, dark red,
+ * red while a sample reached 0 dBFS and MX_CLIP_HOLD frames after the last (~1 s at 60 a second) */
+#define MX_AMBER_PK 4096                                /* -18 dBFS: green ends, amber starts */
+#define MX_RED_PK 16384                                 /* -6 dBFS: amber ends, red starts */
+#define MX_CLIP_HOLD 60u
+#define MX_CLIP_W 4
+static uint16_t mx_lerp(uint16_t a, uint16_t b, uint32_t t)   /* a to b, t 0 .. 256 */
+{
+    uint32_t rb = ((a & 0xF81Fu) * (256u - t) + (b & 0xF81Fu) * t) >> 8;
+    uint32_t g = (((uint32_t)a & 0x07E0u) * (256u - t) + ((uint32_t)b & 0x07E0u) * t) >> 8;
+    return (uint16_t)((rb & 0xF81Fu) | (g & 0x07E0u));
+}
+static int32_t mx_band_px(int32_t pk, int32_t w)        /* the column where the band starting at peak pk begins */
+{
+    return (int32_t)(mx_vu_lv(pk) * (uint32_t)w / MX_LV);
+}
+/* the colour of column c, with the bands starting at k1 (amber) and k2 (red): gradients (the user, 2026-10-31: "i like the colors,
+ * and the thresholds, but please make them gradients"): green blends into amber over the 6 dB under -18 dBFS and amber into red
+ * over the 6 dB under -6 dBFS, so each band's colour is whole from its threshold on; -30 dBFS stays green, -12 amber */
+static uint16_t mx_vu_grad(int32_t c, int32_t k1, int32_t k2)
+{
+    int32_t s = (k2 - k1) / 2;                          /* 6 dB in px (k1 .. k2 is 12 dB) */
+    if (s < 1 || c >= k2)
+        return c < k1 ? C_OK : c < k2 ? C_WARN : C_ERR;
+    if (c < k1 - s)
+        return C_OK;
+    if (c < k1)
+        return mx_lerp(C_OK, C_WARN, (uint32_t)((c - (k1 - s) + 1) * 256 / (s + 1)));
+    if (c < k2 - s)
+        return C_WARN;
+    return mx_lerp(C_WARN, C_ERR, (uint32_t)((c - (k2 - s) + 1) * 256 / (s + 1)));
+}
+/* the colour of column c of a meter: its gradient; col alone on a lane's row (col0 == 0 means bands) */
+static uint16_t mx_vu_colat(int32_t c, int32_t w, uint16_t lane_col)
+{
+    if (lane_col)
+        return lane_col;
+    return mx_vu_grad(c, mx_band_px(MX_AMBER_PK, w), mx_band_px(MX_RED_PK, w));
+}
+static void mx_vu_fill(int32_t x, int32_t y, int32_t w, int32_t h, int32_t px, uint16_t lane_col)
+{
+    int32_t k1 = mx_band_px(MX_AMBER_PK, w), k2 = mx_band_px(MX_RED_PK, w), c = 0;
+    if (lane_col) {
+        cv_rect(x, y, px, h, lane_col);
+        return;
+    }
+    while (c < px) {                                    /* runs of one colour: whole bands in one rect, the blends a column each */
+        uint16_t col = mx_vu_grad(c, k1, k2);
+        int32_t e = c + 1;
+        while (e < px && mx_vu_grad(e, k1, k2) == col)
+            e++;
+        cv_rect(x + c, y, e - c, h, col);
+        c = e;
+    }
+}
+/* the peak-hold marker at level ph (0 .. MX_LV; 0: none, which is every peak under the floor): a thin tick ending at its
+ * place, in the colour of its band; red at 0 dBFS, within 0.5 dB (the master's knee stops just short of the full scale) (the user, 2026-10-29: "VU meters just get normal audio peaks") */
+static void mx_vu_mark(int32_t x, int32_t y, int32_t w, int32_t h, uint32_t ph, uint16_t lane_col)
+{
+    int32_t px = (int32_t)(ph * (uint32_t)w / MX_LV);
+    if (!ph)
+        return;
+    px = px < MX_PH_W ? MX_PH_W : px;
+    cv_rect(x + px - MX_PH_W, y, MX_PH_W, h, ph >= MX_LV - 2u ? C_ERR : mx_vu_colat(px - 1, w, lane_col));
+}
+/* the marker's fall, level x 256 a frame, for a 20 dB/s fall on the -40 dBFS floor's scale (floor + 6 dB wide = MX_LV: 20 * 255 * 256 /
+ * ((|floor| + 6) * 60)) */
+#define MX_PH_FALL 473u
+#define MX_PHL(r) ((uint32_t)(mxd.ph[r] + 128u) >> 8)   /* row r's marker as a level */
+/* row r's marker, a frame on: it jumps to a level at or over it and holds MX_PH_HOLD frames, then falls steadily until the level
+ * catches it. Only the audio meters have one (a lane's lit hit is no level) */
+static void mx_peak(uint32_t r, uint32_t lv)
+{
+    uint32_t q = mxd.ph[r];
+    if (mx_is_lane(r))
+        return;
+    if ((lv << 8) >= q) {
+        q = lv << 8;
+        mxd.phd[r] = (uint8_t)MX_PH_HOLD;
+    } else if (mxd.phd[r]) {
+        mxd.phd[r]--;
+    } else {
+        uint32_t f = MX_PH_FALL;
+        q = q > f ? q - f : 0u;
+    }
+    mxd.ph[r] = (uint16_t)q;
+}
 /* row r's meter at x, y of the canvas, w x h: its level pk (0 .. MX_LV) from the left, the reduction gr px from the
  * right (its own canvas, or the band: mx_paint draws the live parts with the rows, so a row drawn again never shows
  * them gone) */
-static void mx_vu_paint(uint32_t r, int32_t x, int32_t y, int32_t w, int32_t h, uint32_t pk, uint32_t gr)
+static void mx_vu_paint(uint32_t r, int32_t x, int32_t y, int32_t w, int32_t h, uint32_t pk, uint32_t gr, uint32_t ph)
 {
     int32_t px = (int32_t)(pk * (uint32_t)w / MX_LV);
     cv_rect(x, y, w, h, C_BLACK);
     cv_rect(x, y + h - 1, w, 1, C_LINE);                /* the track: a line on black */
-    cv_rect(x, y, px, h, pk > MX_LV - 10u ? C_ERR : r >= MXR_LANE0 ? mx_col(r) : C_OK);   /* (the returns' meters too: the channels' green) */
+    uint16_t col = mx_is_lane(r) ? mx_col(r) : 0u;      /* (a lane's lit hit: its colour; every level meter: the bands) */
+    mx_vu_fill(x, y, w, h, px, col);
+    mx_vu_mark(x, y, w, h, ph, col);
+    if (!mx_is_lane(r))                                 /* the CLIP light, over the meter's last px, a black gap before it */
+        cv_rect(x + w - MX_CLIP_W - 1, y, 1, h - 1, C_BLACK),
+        cv_rect(x + w - MX_CLIP_W, y, MX_CLIP_W, h - 1, mxd.clip[r] ? C_ERR : mx_lerp(C_BLACK, C_ERR, 56u));
     if (gr)
         cv_rect(x + w - (int32_t)gr, y, (int32_t)gr, h, C_WARN);   /* the reduction, from the right */
 }
@@ -322,21 +462,26 @@ static void mx_vu_band(uint32_t r, int32_t x, int32_t y, int32_t w, int32_t h, u
     if (mir_meters_off())
         pk = 0, gr = 0, mxd.vu[r] = 0xFF;
 #endif
-    mx_vu_paint(r, x, y, w, h, pk, gr);
+    mx_vu_paint(r, x, y, w, h, pk, gr, MX_PHL(r));
 }
 /* a meter: drawn when it changed; to the mirror's client at most every MIR_METER_MS (io/editor/ed_mirror.c), what changed since it
  * last had it, even when the panel's did not (the user, 2026-10-23: "send the meter ... 5 or 10 times per sec") */
 static void mx_vu_at(uint32_t r, int32_t x, int32_t y, int32_t w, int32_t h, uint32_t lv, uint32_t gr)
 {
-    uint32_t pk = mxd.pk[r], panel;
+    uint32_t pk = mxd.pk[r], panel, phl, cl;
 #if FELUCCA_ED_MIRROR
     uint32_t mir;
 #endif
     pk = lv > pk ? lv : pk > 5u ? pk - 5u : 0u;         /* (falls ~4 px a frame on a channel's row) */
     mxd.pk[r] = (uint8_t)pk;
-    panel = pk != mxd.vu[r] || gr != mxd.gr[r];
+    mx_peak(r, lv);
+    phl = MX_PHL(r);
+    if (!mx_is_lane(r))                                 /* (the master's knee stops 2 units short of the full scale) */
+        mxd.clip[r] = lv >= (r == MXR_MASTER ? MX_LV - 2u : MX_LV) ? (uint8_t)MX_CLIP_HOLD : mxd.clip[r] ? (uint8_t)(mxd.clip[r] - 1u) : 0u;
+    cl = mxd.clip[r] != 0u;
+    panel = pk != mxd.vu[r] || gr != mxd.gr[r] || phl != mxd.vph[r] || cl != mxd.vcl[r];
 #if FELUCCA_ED_MIRROR
-    mir = mxd.mir && (pk != mxd.mvu[r] || gr != mxd.mgv[r]);
+    mir = mxd.mir && (pk != mxd.mvu[r] || gr != mxd.mgv[r] || phl != mxd.mvph[r] || cl != mxd.mvcl[r]);
     if (!panel && !mir)
         return;
 #else
@@ -345,11 +490,13 @@ static void mx_vu_at(uint32_t r, int32_t x, int32_t y, int32_t w, int32_t h, uin
 #endif
     mxd.vu[r] = (uint8_t)pk;
     mxd.gr[r] = (uint8_t)gr;
+    mxd.vph[r] = (uint8_t)phl;
+    mxd.vcl[r] = (uint8_t)cl;
     cv_begin((uint32_t)w, (uint32_t)h, C_BLACK);
-    mx_vu_paint(r, 0, 0, w, h, pk, gr);
+    mx_vu_paint(r, 0, 0, w, h, pk, gr, phl);
 #if FELUCCA_ED_MIRROR
     if (mir)
-        mxd.mvu[r] = (uint8_t)pk, mxd.mgv[r] = (uint8_t)gr;
+        mxd.mvu[r] = (uint8_t)pk, mxd.mgv[r] = (uint8_t)gr, mxd.mvph[r] = (uint8_t)phl, mxd.mvcl[r] = (uint8_t)cl;
     if (!panel) {
         cv_mirror((uint32_t)x, (uint32_t)(OP_PY + y));  /* (the client's alone: the panel shows it already) */
         return;
@@ -392,9 +539,14 @@ static uint32_t mx_on(uint32_t r, uint32_t i)           /* step i is set on row 
 {
     const track_t *t = &trk[mx_trk_of(r)];
     if (r >= MXR_LANE0)
-        return dstep_has(&t->dstep[i % NSTEP], r - MXR_LANE0);
-    if (is_drum(t))                                     /* (DR: the sounds' hits only; the ACCENT lane's own row shows */
-        return dstep_mask(&t->dstep[i % NSTEP]) != 0u;  /* the accents, the user 2026-10-23) */
+        return dstep_has(&t->dstep[i % NSTEP], r - MXR_LANE0) && !fill_only(t, i, r - MXR_LANE0);
+    if (is_drum(t)) {                                   /* (DR: the sounds' hits only; the ACCENT lane's own row shows */
+        uint32_t n;                                     /* the accents, the user 2026-10-23; a FILL ONLY hit: not, it plays in a fill only) */
+        for (n = 0; n < DRUM_LANES; n++)
+            if (dstep_has(&t->dstep[i % NSTEP], n) && !fill_only(t, i, n))
+                return 1;
+        return 0;
+    }
     return trk_on_step(mx_trk_of(r), i);
 }
 /* the level step i of row r is shaded by, as STEP shades it (lvl_col): a lane's hit's own, a channel's strongest note,
@@ -409,7 +561,7 @@ static uint32_t mx_lvl(uint32_t r, uint32_t i)
     if (is_drum(t)) {
         const dstep_t *d = &t->dstep[i % NSTEP];
         for (n = 0; n < DRUM_LANES; n++)
-            if (dstep_has(d, n) && lvl_rank(dstep_lvl(d, n)) > lvl_rank(lv))
+            if (dstep_has(d, n) && !fill_only(t, i, n) && lvl_rank(dstep_lvl(d, n)) > lvl_rank(lv))
                 lv = dstep_lvl(d, n);
         return lv;
     }
@@ -421,11 +573,32 @@ static uint32_t mx_lvl(uint32_t r, uint32_t i)
 }
 /* row r's steps at x, y of the canvas (on the row's ground): the page playing, the playhead white, the pages' bars (a
  * channel's row) */
+/* step s of row r holds only muted notes or hits (the store's AUTO_MUTE / AUTO_SMUTE): a lane's hit, a synth step, the DR row's every hit */
+static uint32_t mx_nmuted(uint32_t r, const track_t *t, uint32_t s)
+{
+#if FELUCCA_AUTO
+    uint32_t n, any = 0;
+    if (r >= MXR_LANE0)
+        return (uint32_t)step_muted(t, s, r - MXR_LANE0);
+    if (!is_drum(t))
+        return (uint32_t)step_muted(t, s, 0);
+    for (n = 0; n < DRUM_LANES; n++)
+        if (dstep_has(&t->dstep[s % NSTEP], n) && !fill_only(t, s, n)) {
+            if (!step_muted(t, s, n))
+                return 0;
+            any = 1;
+        }
+    return any;
+#else
+    (void)r, (void)t, (void)s;
+    return 0;
+#endif
+}
 /* step s's cell of row r at x, y (at: the playhead; c: the row's colour, grey muted) */
 static void mx_step_cell(uint32_t r, const track_t *t, uint32_t s, uint32_t at, uint16_t c, int32_t x, int32_t y, const mrect_t *q)
 {
     uint16_t sc = song.playing && s == at && !mx_smuted(r) ? C_WHITE
-                : !mx_on(r, s) ? C_BLACK : mx_smuted(r) ? c   /* (muted: flat dark grey, no levels) */
+                : !mx_on(r, s) ? C_BLACK : mx_smuted(r) || mx_nmuted(r, t, s) ? mute_col()   /* (muted: the one grey, no levels) */
                 : r != mx_row() ? col_shade(C_WHITE, 3u + lvl_rank(mx_lvl(r, s)))   /* (not selected: grey 3/8 .. 6/8, */
                 : op_step_auto(t, s, r >= MXR_LANE0 ? r - MXR_LANE0 : 0xFFu) ? lvl_acol(mx_lvl(r, s))   /* under the */
                 : lvl_col(c, mx_lvl(r, s));                 /* playhead's white; the user, 2026-10-23) */
@@ -436,27 +609,27 @@ static void mx_step_cell(uint32_t r, const track_t *t, uint32_t s, uint32_t at, 
 }
 static void mx_steps_paint(uint32_t r, int32_t x, int32_t y)
 {
-    if (mx_is_usb(r))
+    if (mx_is_usb(r) || mx_is_ret(r))
         return;                                         /* (no sequence) */
     const track_t *t = &trk[mx_trk_of(r)];
     uint32_t len = (uint32_t)ui_clamp(t->p[P_SLEN], 1, NSTEP), at = t->seq_idx % len, page = at & ~15u, i, np;
-    uint16_t c = mx_smuted(r) ? C_DIM : mx_col(r);   /* (the sequencer muted: the steps grey, no playhead) */
+    uint16_t c = mx_col(r);   /* (the sequencer muted: the steps grey, no playhead) */
     mrect_t q;
     if (r == MXR_MASTER)
         return;
     mx_rect(r, &q);
     for (i = 0; i < 16u; i++)
         if (page + i < len)
-            mx_step_cell(r, t, page + i, at, c, x + (int32_t)i * q.sp, y, &q);
+            mx_step_cell(r, t, page + i, at, c, x + MX_STEP_X(i, q.sp), y, &q);
     np = (len + 15u) / 16u;
     if (np > 1u && r < MXR_LANE0)                       /* the pattern's pages: a thin bar each, the one playing lit */
         for (i = 0; i < np; i++)
-            cv_rect(x + (int32_t)(i * 16u * MXL_SP / np), y + MXL_SH + 2, (int32_t)(16u * MXL_SP / np) - 2, 2,
+            cv_rect(x + (int32_t)(i * (uint32_t)MXL_SW / np), y + MXL_SH + 2, (int32_t)((uint32_t)MXL_SW / np) - 2, 2,
                     i == page / 16u ? C_WHITE : C_DIM);
 }
 static void mx_steps(uint32_t r)
 {
-    if (mx_is_usb(r))
+    if (mx_is_usb(r) || mx_is_ret(r))
         return;
     const track_t *t = &trk[mx_trk_of(r)];
     uint32_t len = (uint32_t)ui_clamp(t->p[P_SLEN], 1, NSTEP), at = t->seq_idx % len, page = at & ~15u, i, sig;
@@ -468,43 +641,43 @@ static void mx_steps(uint32_t r)
     sig = hu(hu(hu(hu(hu(hu(0x57u, song.playing), page), len), bg), mx_smuted(r)), r == mx_row());
     for (i = 0; i < 16u; i++)
         sig = sig * 5u + mx_on(r, page + i) * 2u + (mx_on(r, page + i) && op_step_auto(t, page + i, r >= MXR_LANE0 ? r - MXR_LANE0 : 0xFFu))
-            + (mx_on(r, page + i) ? lvl_rank(mx_lvl(r, page + i)) * 7u : 0u);   /* (a level turned: drawn again) */
+            + (mx_on(r, page + i) ? lvl_rank(mx_lvl(r, page + i)) * 7u + mx_nmuted(r, t, page + i) * 11u : 0u);   /* (a level turned: drawn again) */
     if (sig == mxd.stp[r]) {            /* the playhead alone moved on the page: its two cells (the screen mirror over Bluetooth, */
         uint32_t k, s[2] = {mxd.sta[r], at};   /* 2026-10-23: every row's whole strip a step was most of a playing mixer's bytes) */
-        uint16_t c = mx_smuted(r) ? C_DIM : mx_col(r);
+        uint16_t c = mx_col(r);
         if (!song.playing || at == mxd.sta[r])
             return;
         mxd.sta[r] = (uint8_t)at;
         for (k = 0; k < 2u; k++) {
             if (s[k] < page || s[k] >= page + 16u)
                 continue;
-            cv_begin((uint32_t)q.sp, (uint32_t)q.sh, bg);
+            cv_begin((uint32_t)q.sp - 1u, (uint32_t)q.sh, bg);   /* (a cell is at most sp - 1 wide) */
             mx_step_cell(r, t, s[k], at, c, 0, 0, &q);
-            cv_blit((uint32_t)(q.x + q.sx + (int32_t)(s[k] - page) * q.sp), (uint32_t)(OP_PY + q.y + q.sy));
+            cv_blit((uint32_t)(q.x + q.sx + MX_STEP_X(s[k] - page, q.sp)), (uint32_t)(OP_PY + q.y + q.sy));
         }
         return;
     }
     mxd.stp[r] = sig;
     mxd.sta[r] = (uint8_t)at;
-    cv_begin((uint32_t)(16 * q.sp), (uint32_t)(q.sh + (r < MXR_LANE0 ? 4 : 0)), bg);
+    cv_begin((uint32_t)MXL_SW, (uint32_t)(q.sh + (r < MXR_LANE0 ? 4 : 0)), bg);
     mx_steps_paint(r, 0, 0);
     cv_blit((uint32_t)(q.x + q.sx), (uint32_t)(OP_PY + q.y + q.sy));
 }
 /* (noinline: a call from op_frame_draw, which is smaller without it inlined) */
 static __attribute__((noinline)) void mx_draw(void)
 {
-    uint32_t i, sig, trk_lv[NTRK], ret_lv[3], n;
-    uint8_t ret[3];
+    uint32_t i, sig, trk_lv[NTRK];
     for (i = 0; i < NTRK; i++)                          /* (taken every frame, seen or not: no stale peak) */
         trk_lv[i] = mx_vu_lv(meter_ui_take(i));
-    n = mx_rets(ret);
-    for (i = 0; i < n; i++)                             /* (the returns too) */
-        ret_lv[i] = mx_vu_lv(meter_ret_take(ret[i]));
+    for (i = 0; i < 3u; i++)                            /* (the returns' lines too) */
+        mx_rlv[i] = mx_vu_lv(meter_ret_take(i));
     mx_view();
     sig = mx_static_sig();
     if (sig != ui.sig[2]) {
-        if (mxd.first != mxd.pk_first) {                /* another group: MASTER's lines are the returns, kept in the */
-            memset(mxd.pk, 0, sizeof mxd.pk);           /* channels' places: no peak carried from one to the other */
+        if (mxd.first != mxd.pk_first) {                /* another group: no peak carried from one to the other */
+            memset(mxd.pk, 0, sizeof mxd.pk);
+            memset(mxd.ph, 0, sizeof mxd.ph);
+            memset(mxd.phd, 0, sizeof mxd.phd);
             mxd.pk_first = mxd.first;
         }
         ui.sig[2] = sig;
@@ -516,11 +689,14 @@ static __attribute__((noinline)) void mx_draw(void)
 #if FELUCCA_ED_MIRROR
     mxd.mir = (uint8_t)mir_meters_due();
 #endif
-    if (mxd.first == MXR_MASTER) {                      /* MASTER alone: its meter, its reduction, the returns' meters */
+    if (mxd.first == MXR_RET0) {                        /* the master screen: the returns' meters, MASTER's, its reduction */
+        for (i = MXR_RET0; i < MXR_MASTER; i++) {
+            mrect_t q;
+            mx_rect(i, &q);
+            mx_vu_at(i, q.vx, q.y + q.vy, q.vw, q.vh, mx_level(i, trk_lv), 0);
+        }
         mx_vu_at(MXR_MASTER, MXM_X, MXM_VY, MXM_W, MXM_VH, mx_level(MXR_MASTER, trk_lv), 0);
         mx_master_gr();
-        for (i = 0; i < n; i++)
-            mx_vu_at(MXR_T1 + i, MXM_GX, MXM_CY + (int32_t)i * MXM_CP + MXM_CV, MXM_GW, MXM_CH, ret_lv[i], 0);
         return;
     }
     for (i = mxd.first; i < mxd.last; i++) {
@@ -535,7 +711,11 @@ static void mx_redraw(void)                             /* the live parts again 
 {
     memset(mxd.vu, 0xFF, sizeof mxd.vu);
     memset(mxd.gr, 0xFF, sizeof mxd.gr);
+    memset(mxd.vph, 0xFF, sizeof mxd.vph);
+    memset(mxd.vcl, 0xFF, sizeof mxd.vcl);
 #if FELUCCA_ED_MIRROR
+    memset(mxd.mvph, 0xFF, sizeof mxd.mvph);
+    memset(mxd.mvcl, 0xFF, sizeof mxd.mvcl);
     memset(mxd.mvu, 0xFF, sizeof mxd.mvu);              /* (a catch-up: the client's meters again too) */
     memset(mxd.mgv, 0xFF, sizeof mxd.mgv);
 #endif

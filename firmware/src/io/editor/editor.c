@@ -10,6 +10,15 @@
 #define ED_HDR0 0x7D
 #define ED_HDR1 0x46
 #define ED_HDR2 0x4C
+/* FELUCCA_ED_COMPANION: the backup's objects and the sample slots are fm1-base companion files instead of cmds 43..48 and
+ * 11..15 (ed_comp.c; the trial, Optimist as an fm1-base app, sets it with fm1.toml companion = true). Optimist's own
+ * firmware: 0, those commands as they are */
+#ifndef FELUCCA_ED_COMPANION
+#define FELUCCA_ED_COMPANION 0
+#endif
+#if FELUCCA_ED_COMPANION && (FELUCCA_ED_LIVE || !FELUCCA_FLASH || !FELUCCA_BACKUP)
+#error "FELUCCA_ED_COMPANION: the editor without live editing, with BACKUP (ed_lite.c, ed_backup.c)"
+#endif
 enum { ED_INFO = 1, ED_GET, ED_SET, ED_DUMP, ED_DESC, ED_STEP_GET, ED_STEP_SET, ED_PRESET, ED_PROJECT, ED_NAMES,
        ED_SMP_BEGIN, ED_SMP_WRITE, ED_SMP_END, ED_SMP_ERASE, ED_SMP_INFO,
        ED_UP_LIST, ED_UP_GET, ED_UP_PUT, ED_UP_STORE, ED_UP_LOAD, ED_UP_ERASE,   /* v2: user presets */
@@ -140,11 +149,6 @@ static void ed_mirror_info(void) {}
 #include "ed_proj.c"           /* cmd 110: the projects (open, save, clear, name; their streams are the backup's PJ01..) */
 #else
 #define ED_PROJ_FN
-#endif
-#if (FELUCCA_SL24_EXPORT || FELUCCA_SL24_EDIMPORT) && FELUCCA_FLASH
-#include "ed_sl24.c"           /* cmd 78: the working project and the settings for SLOOP 2.4 (its backup file); 90, 91 its import */
-#else
-#define ED_SL24_FN
 #endif
 
 /* the engine byte of DUMP / RELOAD / TRACK: NENGINES = the drum track (no engine) */
@@ -286,10 +290,10 @@ typedef int (*ed_cmd_t)(uint32_t cmd, const uint8_t *a, uint32_t na);
 static const ed_cmd_t ED_FX_CMDS[] = {ED_FXS_FN ED_FXP_FN ED_DLAN_FN ED_SCRN_FN ED_SONGC_FN ED_TOOLS_FN ED_SCRS_FN ED_FAV_FN
                                       ED_SCOPE_FN ED_UNDO_FN ED_NOTE_FN ED_SOLO_FN ED_STEPLANE_FN 0};   /* 86..105 */
 /* 65 the macros' effect on the values; 11..21: samples, user presets; 36..42: drum lanes, kits; 43..48: backup; 50, 51
- * drum sources; 52 pages; 54..57 snapshots; 66 the CZ collection; 78, 90, 91 SLOOP 2.4; 79..84 patterns; 92, 93: the
- * automation; 110 the projects; 111 the clip */
+ * drum sources; 52 pages; 54..57 snapshots; 66 the CZ collection; 78, 90, 91 were SLOOP 2.4's (removed 2026-10-29, not reused); 79..84 patterns; 92, 93: the
+ * automation; 110 the projects; 111 the clip; 112 the Wi-Fi networks */
 static const ed_cmd_t ED_CMDS[] = {ED_MACRO_FN ED_USER_FN ED_DRUMS_FN ED_BACKUP_FN ED_DSRC_FN ED_PAGES_FN ED_SNAP_FN
-                                   ED_CZ_FN ED_SL24_FN ED_PAT_FN ED_STEPX_FN ED_PROJ_FN ED_CLIP_FN 0};
+                                   ED_CZ_FN ED_PAT_FN ED_STEPX_FN ED_PROJ_FN ED_CLIP_FN ED_WIFI_FN 0};
 static int ed_cmds(const ed_cmd_t *t, uint32_t cmd, const uint8_t *a, uint32_t na)   /* 1: one of t answered */
 {
     for (; *t; t++)
@@ -467,7 +471,7 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
         } else {
             ed_b(ENGINES[a[0]]->npresets);
             for (i = 0; i < ENGINES[a[0]]->npresets; i++)
-                ed_str(ENGINES[a[0]]->presets[i].name, 12);
+                ed_str(preset_name(a[0], i), 12);
         }
         for (i = 0; i < 2u; i++)                           /* then the two edit-page titles */
             ed_str(ENGINES[a[0]]->page_title[i], 8);

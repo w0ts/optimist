@@ -56,6 +56,49 @@ int main(void)
     check(dual_c1_pct() > 0, "the value updates each half");
     dual_load_take(half / 2u, 0);
     check(dual_c1_q8 == DUAL_C1_OFF && dual_c1_pct() == -1, "CPU1 down: OFF (-1)");
+#if DUAL_TIMES
+    {   /* SYSTEM > CPU TIMES (-DFELUCCA_SYS_DEBUG=1): a block (DUAL_TM_BLK ticks, P(k) = k % of it): pre 10 %, CPU0's jobs 50 %,
+         * the wait 15 %, post 20 %; CPU1's jobs 60 % in the blocks it ran; job 0 30 %, job 1 (CPU1) 60 %. The averages
+         * (x 8, ~8 blocks), the peaks of the 512 ms windows (the last 2 s), the worst block's values */
+        uint32_t t, ms = 0;
+        int ok = 1;
+#define P(k) (DUAL_TM_BLK * (k) / 100u)
+        for (i = 0; i < 200u; i++, ms += 2u) {
+            t = i * DUAL_TM_BLK;
+            dual_tm.c1_last = P(60u);
+            DUAL_TM_JOB(0u, P(30u));
+            DUAL_TM_JOB(1u, P(60u));
+            dual_tm_block(t, t + P(10u), t + P(60u), t + P(75u), t + P(95u), 0x2u, 0x3u, ms);
+        }
+        ok &= dual_tm_pct(dual_tm.avg[DTQ_PRE]) == 10u && dual_tm_pct(dual_tm.avg[DTQ_OWN]) == 50u;
+        ok &= dual_tm_pct(dual_tm.avg[DTQ_WAIT]) == 15u && dual_tm_pct(dual_tm.avg[DTQ_POST]) == 20u;
+        ok &= dual_tm_pct(dual_tm.avg[DTQ_BLK]) == 95u && dual_tm_pct(dual_tm.avg[DTQ_C1]) == 60u;
+        ok &= dual_tm_pct(dual_tm.avg[DTQ_J0]) == 30u && dual_tm_pct(dual_tm.avg[DTQ_J0 + 1u]) == 60u;
+        check(ok, "CPU TIMES: the averages: PRE 10, JOBS 50, WAIT 15, POST 20, CPU0 95, CPU1 60, the jobs 30 / 60 %");
+        check(dual_tm.c1_mask == 0x2u && dual_tm.ran == 0x3u, "CPU TIMES: the last block's CPU1 jobs and the jobs that ran");
+        t = 200u * DUAL_TM_BLK;                          /* one block of 180 %: CPU0's own jobs 135 % */
+        dual_tm_block(t, t + P(10u), t + P(145u), t + P(160u), t + P(180u), 0x2u, 0x3u, ms);
+        ok = dual_tm_pct_t(dual_tm_peak(DTQ_BLK)) == 180u && dual_tm_pct_t(dual_tm_peak(DTQ_OWN)) == 135u;
+        ok &= dual_tm_pct_t(dual_tm.worst[DTQ_BLK]) == 180u && dual_tm_pct_t(dual_tm.worst[DTQ_OWN]) == 135u;
+        ok &= dual_tm_pct_t(dual_tm.worst[DTQ_PRE]) == 10u && dual_tm.w_c1 == 0x2u && dual_tm.w_ran == 0x3u;
+        check(ok, "CPU TIMES: a block of 180 %: its peak (MAX) and the worst block's values (CPU0 180, its own jobs 135, PRE 10)");
+        for (i = 0; i < 1100u; i++, ms += 2u) {         /* 2.2 s of the steady blocks: the peak ages out, the worst stays */
+            t = (201u + i) * DUAL_TM_BLK;
+            dual_tm_block(t, t + P(10u), t + P(60u), t + P(75u), t + P(95u), 0x2u, 0x3u, ms);
+        }
+        check(dual_tm_pct_t(dual_tm_peak(DTQ_BLK)) == 95u && dual_tm_pct_t(dual_tm.worst[DTQ_BLK]) == 180u,
+              "CPU TIMES: 2 s on, the peak back to 95 %, the worst block still 180 %");
+        dual_tm.wreset = 1;                             /* (the page opened again: the worst from now) */
+        dual_tm_block(t, t + P(10u), t + P(60u), t + P(75u), t + P(95u), 0x2u, 0x3u, ms);
+        check(dual_tm_pct_t(dual_tm.worst[DTQ_BLK]) == 95u && !dual_tm.wreset, "CPU TIMES: the page opened again: a new worst block");
+        dual_tm_block(t, t + P(10u), t + P(1110u), t + P(1110u), t + P(1130u), 0u, 0x1u, ms);   /* (no post; a block past 65535 ticks) */
+        check(dual_tm.worst[DTQ_BLK] == 0xFFFFu && dual_tm.worst[DTQ_WAIT] == 0u && dual_tm.worst[DTQ_C1] == 0u &&
+                  dual_tm.worst[DTQ_J0 + 1u] == 0u,
+              "CPU TIMES: nothing posted: no wait, no CPU1 time; a block past 65535 ticks held there; a job not run: 0");
+        check(DUAL_TM_BLK == 17414u, "CPU TIMES: a block of 32 frames at 44.1 kHz: 17414 ticks (726 us)");
+#undef P
+    }
+#endif
 #endif
     printf("%s\n", fails ? "dual_load: FAILED" : "dual_load: all ok");
     return fails != 0;

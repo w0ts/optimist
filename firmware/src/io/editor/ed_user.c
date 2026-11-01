@@ -8,11 +8,24 @@
  * SMP_ERASE), rc 5 for SMP_WRITE (its 3 is a failed write). SMP_END only programs the header (no erase). After
  * SLOOP 2.4 (isod89/sloop-fm1 v2.4, 8d3823f, editor.c ed_flash_busy, GPL-3.0-only) */
 #include "ed_reply.h"         /* (ed_b2..ed_b4, ed_b32) */
-static uint32_t ed_flash_busy(void) { return song.playing || transport_req; }
+static uint32_t ed_flash_busy(void) { return song.playing || transport_req || st_blank; }   /* (st_blank: a test session writes nothing) */
 #if ED_LIB                                              /* (the user presets: the librarian's, in either editor; else the
                                                          * sample slots alone, which a restore and the samples page write) */
 /* a user preset's engine on the wire: its slot, 127 when this build leaves the engine out (kept, not loadable) */
 static uint32_t ed_up_eng(uint32_t uid) { return eng_built(uid) ? eng_slot_built(uid) : 127u; }
+#if UPF_ON
+/* FM6's own voice (UP_FM6, upreset.c upf_*: issue #133, a library copy of an FM6 slot played INIT VOICE): UP_GET ends
+ * with the slot's voice when it has one, UP_PUT may end with one (fm6_pack's 128 bytes, a DX7 VMEM voice, 7 bits each;
+ * INFO "opti_upfm6_1"). Where an UP_PUT frame's pattern ends: the voice, if any, after it */
+#define ED_UPF_N 128u
+static uint32_t ed_up_end(const uint8_t *a, uint32_t na)
+{
+    uint32_t n;
+    for (n = 0; 2u + n < na && a[2 + n]; n++)
+        ;
+    return 3u + n + 2u * P_COUNT + 32u;
+}
+#endif
 #endif
 
 /* ---- user sample slots (eng_sample.c): flash SMP_USER_BASE + k * SMP_USER_SIZE ----
@@ -39,6 +52,9 @@ static int ed_smp_erase(uint32_t k, uint32_t all)  /* header sector, or the whol
 {
     uint32_t i, took;
     int rc = 0;
+    if (SMP_USER_CAP(k) <= SMP_USER_DATA)          /* (a slot with no room: its flash is the project log's, the app's or
+                                                    * another store object's in this MEMORY step: never erased here) */
+        return 1;
     usr_nz[k] = 0;
 #if SMP_USR_ZONES
     for (i = 0; i < 16u; i++)
@@ -51,6 +67,7 @@ static int ed_smp_erase(uint32_t k, uint32_t all)  /* header sector, or the whol
     ed_smp_inval(k);
     return rc;
 }
+#if !FELUCCA_ED_COMPANION                              /* (the companion's files write the slots: ed_comp.c) */
 /* (noinline: inlined into ed_user, 32 B more flash) */
 static __attribute__((noinline)) int ed_smp_end(uint32_t k, const uint8_t *a, uint32_t na)
 {
@@ -76,6 +93,7 @@ static __attribute__((noinline)) int ed_smp_end(uint32_t k, const uint8_t *a, ui
     smp_user_scan(k);
     return usr_nz[k] ? 0 : 5;
 }
+#endif
 
 /* a command of 11..21; 0 = not one of them, or a frame too short (no reply). The ones that answer slot, rc break to
  * the one reply at the end */
@@ -83,6 +101,7 @@ static int ed_user(uint32_t cmd, const uint8_t *a, uint32_t na)
 {
     uint32_t i, rc = 0;
     switch (cmd) {
+#if !FELUCCA_ED_COMPANION                              /* (11..15: the companion's files USR1..USR3, ed_comp.c) */
     case ED_SMP_BEGIN:                                     /* slot -> slot, rc */
     case ED_SMP_ERASE:
         if (na < 1u || a[0] >= SMP_USER_SLOTS || !flash_ok)
@@ -131,6 +150,7 @@ static int ed_user(uint32_t cmd, const uint8_t *a, uint32_t na)
         for (i = 0; i < SMP_USER_SLOTS; i++)               /* (appended) each slot's KiB: USR3 64 */
             ed_b(SMP_USER_CAP(i) / 1024u);
         return 1;
+#endif
 #if ED_LIB
     case ED_UP_LIST: {                                     /* start, count -> start, count, total, per slot: used, engine, name */
         uint32_t s0, cnt;
@@ -167,6 +187,14 @@ static int ed_user(uint32_t cmd, const uint8_t *a, uint32_t na)
         for (i = 0; i < 16u; i++) {
             ed_b2(u ? r->note[i] : 0u, u ? r->flags[i] : 0u);
         }
+#if UPF_ON
+        if (u && r->engine == ENG_UID_FM6) {               /* its own voice, when it has one (an older editor reads past it) */
+            uint8_t b[ED_UPF_N];
+            if (upf_raw(a[0], b))
+                for (i = 0; i < ED_UPF_N; i++)
+                    ed_b(b[i]);
+        }
+#endif
         return 1;
     }
     case ED_UP_PUT: {                                      /* slot, engine, name, values, pattern -> slot, rc */
@@ -180,7 +208,17 @@ static int ed_user(uint32_t cmd, const uint8_t *a, uint32_t na)
             int16_t v[P_COUNT];
             up_values(r, v);                               /* each value inside its range */
             up_vals_put(r, v);
-            rc = ed_flash_busy() ? 3u : up_put(slot, r) ? 2u : 0u;
+#if UPF_ON
+            uint8_t vb[ED_UPF_N];                          /* the voice that came with it, copied before any flash write */
+            uint32_t at = ed_up_end(a, na), has = r->engine == ENG_UID_FM6 && na >= at + ED_UPF_N;
+            if (has)
+                memcpy(vb, a + at, ED_UPF_N);
+#endif
+            rc = ed_flash_busy() ? 3u : up_put(slot, r) ? 2u : 0u;   /* (up_put drops the slot's old FM6 voice) */
+#if UPF_ON
+            if (!rc && has)
+                upf_write(slot, vb);                       /* (a flash write of its own) */
+#endif
         }
         break;
     }

@@ -17,10 +17,11 @@ SYSTEM > BT MIDI page (`docs/UI-OPTIMIST-DESIGN.md` section 4.7, `ui/optimist/op
   reconnection initiated from us, not whether to accept a connection"). A Mac or phone that connects to the visible FM-1 is
   accepted as always, whatever the choice, and **never** becomes LAST; its bond stays `persist_t.ble_bond`.
   Choosing NONE never drops a Mac that is connected to us.
-- **Name:** the FM-1 advertises **`Optimist XXXX`**, XXXX = the last four hex digits of its address (`BLE_DEVICE_NAME`; it was
-  `FM-1 XXXX` until 2026-10-16, stock's `FM-1_BLE`). Kept short because a scanned name is cut to `BLE_NAME_MAX` = 16 characters.
+- **Name:** the FM-1 advertises **`FM1-XXXX`**, XXXX = the last four hex digits of its address (`BLE_DEVICE_NAME` `FM1-`, no
+  separator: `BLE_NAME_SEP`; the same four digits as its USB name, `firmware/src/system/devname.h`; it was `Optimist XXXX` until
+  2026-10-29, `FM-1 XXXX` until 2026-10-16, stock's `FM-1_BLE`). Kept short because a scanned name is cut to `BLE_NAME_MAX` = 16 characters.
   macOS keeps the name it first saw per address: after a rename forget the device in System Settings > Bluetooth and in Audio
-  MIDI Setup. A scanned `Optimist` or `FM-1` name counts as KIND FM-1.
+  MIDI Setup. A scanned `FM1-` and four hex digits, `Optimist ` or `FM-1 ` name counts as KIND FM-1 (`ble_name_is_fm1`).
 - Builder items: `BLE_CENTRAL` (the scan, connecting out, LAST; it brings `BLE_BOND` with it). Without it the list shows NONE and
   the last device only.
 
@@ -146,7 +147,7 @@ found by **scanning and resolving** each ADV_IND's AdvA with the IRK (the engine
 address just heard. NONE leaves our central link and stops the search; FORGET does the same and drops the entry.
 
 ### 4.4 FM-1 to FM-1
-One FM-1 is visible, the other picks `Optimist XXXX` from the devices list (KIND FM-1). MIDI flows both ways on the one link. Notes that came
+One FM-1 is visible, the other picks `FM1-XXXX` from the devices list (KIND FM-1). MIDI flows both ways on the one link. Notes that came
 in from MIDI are not sent back out; one loop remains [I]: the arpeggiator plays held MIDI notes and its notes go out, so two FM-1s
 with the arp on and MIDI OUT = SEQ can ping-pong. If both pick each other at once, the first CONNECT_IND wins and the loser keeps the
 link as peripheral. MIDI clock and transport go over the link as over USB (CLK OUT, CLK IN BLE: `clock_out.c`,

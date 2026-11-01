@@ -123,15 +123,6 @@ BLE_API void ble_app_midi_pop(void)
     bmo_r++;
 }
 
-/* blell's BLE-MIDI in, the app's side (console.c prints it after ble_dg's mi_*): each field has one writer, the BLE
- * interrupts (off .. overflow) or the TIMER5 tick (drained .. drained_on); 'blell clear' zeroes them */
-#if BLE_DIAG
-static struct {
-    uint32_t off, not_chan, pushed, overflow;   /* BLUETOOTH OFF / route without IN; not a channel message; queued; full */
-    uint32_t drained, drain_full, drained_on;   /* into midi_in_q; midi_in_q full (retried); of them note ons */
-} ble_mdg;
-#endif
-
 #ifndef OVL_LOST
 #define OVL_LOST(k) ((void)0)            /* (a unit without the overload monitor, system/overload.h: the driver tests) */
 #endif
@@ -193,20 +184,14 @@ BLE_API void ble_app_midi_in(uint32_t pkt, uint16_t ts, uint16_t last_ts)
         return;
     }
 #endif
-    if (!ble_on || !(ble_midi_route & BLE_ROUTE_IN)) {
-        BLE_DG(ble_mdg.off++);
+    if (!ble_on || !(ble_midi_route & BLE_ROUTE_IN))
         return;
-    }
-    if ((cin < 8u || cin > 0xEu) && !ble_clock_msg(pkt)) {
-        BLE_DG(ble_mdg.not_chan++);
+    if ((cin < 8u || cin > 0xEu) && !ble_clock_msg(pkt))
         return;
-    }
     if (bmi_w - bmi_r >= BMQ) {
-        BLE_DG(ble_mdg.overflow++);
         OVL_LOST(OVL_MIDI_BLE);                  /* (INFO's UNDERRUNS, system/overload.h) */
         return;
     }
-    BLE_DG(ble_mdg.pushed++);
     ble_in_q[bmi_w % BMQ] = pkt;
     ble_in_t[bmi_w % BMQ] = ble_in_time(ts, last_ts);
     RING_PUBLISH();
@@ -224,7 +209,7 @@ static void ble_rt_push(uint32_t due, uint32_t pkt)   /* the audio ISR, clock_ou
     RING_PUBLISH();
     brt_w++;
 }
-static void ble_rt_drop_after(uint32_t t, uint32_t pkt)   /* (as usb.c rt_out_drop_after: a start's F8s taken back) */
+static void ble_rt_drop_after(uint32_t t, uint32_t pkt)   /* (as midi_rings.c rt_out_drop_after: a start's F8s taken back) */
 {
     uint32_t i;
     for (i = brt_r; i != brt_w; i++)
@@ -233,7 +218,7 @@ static void ble_rt_drop_after(uint32_t t, uint32_t pkt)   /* (as usb.c rt_out_dr
 }
 #endif
 
-static void ble_midi_out(uint32_t pkt)          /* the audio ISR, from usb.c's midi_out_event */
+static void ble_midi_out(uint32_t pkt)          /* the audio ISR, from midi_rings.c's midi_out_event */
 {
     if (!ble_out_on || !(ble_midi_route & BLE_ROUTE_OUT) || bmo_w - bmo_r >= BMQ)
         return;
@@ -272,13 +257,8 @@ static void ble_midi_poll(void)                 /* the TIMER5 ISR, 2 kHz: BLE in
 {
     while (bmi_r != bmi_w) {
         RING_PUBLISH();
-        if (!midi_in_enqueue(ble_in_q[bmi_r % BMQ], MSRC_BLE, ble_in_t[bmi_r % BMQ])) {
-            BLE_DG(ble_mdg.drain_full++);
+        if (!midi_in_enqueue(ble_in_q[bmi_r % BMQ], MSRC_BLE, ble_in_t[bmi_r % BMQ]))
             return;                             /* the router's ring is full: the next tick */
-        }
-        BLE_DG(ble_mdg.drained++);
-        if (((ble_in_q[bmi_r % BMQ] >> 8) & 0xF0u) == 0x90u && ((ble_in_q[bmi_r % BMQ] >> 24) & 0x7Fu))
-            BLE_DG(ble_mdg.drained_on++);
         ble_note_seen(ble_in_q[bmi_r % BMQ]);
         RING_PUBLISH();
         bmi_r++;
@@ -290,7 +270,7 @@ static void ble_midi_poll(void)                 /* the TIMER5 ISR, 2 kHz: BLE in
 /* The device address: VM id 104 (a provisioned public address) when the driver finds one, else a random static
  * address made once and kept with the settings (project.c persist_t), so a central sees the same device after every
  * power-on. [6] = BLE_ADDR_KEPT marks a kept one. */
-#define BLE_ADDR_KEPT 0xA5u
+#define BLE_ADDR_KEPT DEV_ADDR_KEPT              /* (0xA5: devname.h) */
 static uint8_t ble_addr_kept[8];
 static uint8_t settings_later;                  /* (ui/panel.c: saved with the settings once quiet, project.c) */
 static uint8_t ble_up;                          /* the radio and the stack started (once per boot: ble_radio_start) */
@@ -301,12 +281,17 @@ static uint8_t ble_midi_addr(uint8_t a[6])
 {
     uint32_t i;
     uint8_t rnd = ble_hw_addr(a);
+    int id = dev_uid_id();
     if (!rnd)
         return 0;
     if (ble_addr_kept[6] == BLE_ADDR_KEPT && (ble_addr_kept[5] >> 6) == 3u) {
         for (i = 0; i < 6u; i++)
             a[i] = ble_addr_kept[i];
     } else {
+        if (id >= 0) {                          /* the name "FM1-XXXX" (devname.h): a new address ends in the flash ID's four digits, as the */
+            a[0] = (uint8_t)id;                 /* USB name has them already, so Bluetooth names the FM-1 as USB did */
+            a[1] = (uint8_t)(id >> 8);
+        }
         for (i = 0; i < 6u; i++)
             ble_addr_kept[i] = a[i];
         ble_addr_kept[6] = BLE_ADDR_KEPT;

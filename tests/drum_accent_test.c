@@ -15,8 +15,6 @@
  *              into the steps; a project without them (older): no accent, the amount its default (stored 0); a scene
  *              saved and loaded; the autosave read back; a pattern stored and launched; the autosave hash sees an accent
  *   editor     DRUM_STEP: bit 16 of on, the fifth groups' bits 4..5; a write with them sets the lane, one without clears it
- *   2.4        the export says the accents are lost (SX24_DACC, lost2 bit 12), not without any; the ACCENT amount's slot
- *              comes back from a 2.4 round trip as it went
  * Exit status: the number of failed checks. Run by tests/run_tests.sh. */
 #include "lane_host.h"
 #include "../firmware/src/io/editor/ed_steps.c"
@@ -451,26 +449,6 @@ static void t_editor(void)
     check("... one without them (an older editor): the accent off, the kick on", dstep_has(&TDRUM->dstep[9], 0) &&
           !dstep_has(&TDRUM->dstep[9], DRUM_ACC));
 }
-static uint32_t get78(uint32_t *w2)
-{
-    uint8_t a[5] = {0, 0, 0, 0, 1};
-    ed_n = 0;
-    (void)ed_sl24(78, a, 5u);
-    *w2 = ed_n >= 17u ? ed_g7(ed_out + ed_n - 2u, 2) : 0xFFFFu;
-    return ed_n;
-}
-static void t_sl24(void)
-{
-    uint32_t w2;
-    setup_store();
-    clear_lists();
-    (void)get78(&w2);
-    check("2.4 export: the accents lost, lost2 bit 12 (SX24_DACC)", (w2 & (1u << 12)) && SX24_DACC == 1u << (14 + 12));
-    reset();
-    dstep_set(&TDRUM->dstep[1], 0, LV_NORM, 0);
-    (void)get78(&w2);
-    check("... none: bit 12 clear", !(w2 & (1u << 12)));
-}
 
 int main(void)
 {
@@ -486,7 +464,6 @@ int main(void)
     t_saveload();
     t_patterns();
     t_editor();
-    t_sl24();
     printf("accent test %s (%d failed)\n", bad ? "FAILED" : "passed", bad);
     return bad;
 }

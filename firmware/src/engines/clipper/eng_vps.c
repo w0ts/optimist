@@ -59,7 +59,7 @@ static void vps_note_on(track_t *t, voice_t *v)
     }
 }
 
-static void vps_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
+static void vps_render(track_t *t, voice_t *v, int32_t *__restrict out, uint32_t n, const vmod_t *m)
 {
     const int16_t *p = t->p;
     vps_seg_t a1, b1, a2, b2;
@@ -100,7 +100,7 @@ static void vps_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const v
         x = tsvf_lp(&flt, x, &ic1, &ic2);
         if (x > 16000 || x < -16000)
             x = soft_knee(x, 16000);
-        out[i] += mulq15(mulq15(x << 1, amp_at(m, i)), VOICE_FS) << 1;
+        out[i] += VOICE_OUT(x << 1, amp_at(m, i), 1);
     }
     v->ph[0] = ph0;
     v->ph[1] = ph1;
@@ -137,7 +137,7 @@ static const engine_t ENG_VPS = {
         PU("DTN", F_PCT, 0, 127, 20, 0),
         PU("SUB", F_PCT, 0, 127, 0, 0),
     },
-    .presets = VPS_PRESETS,
+    .presets = PRESETS_PTR(VPS_PRESETS),
     .npresets = sizeof(VPS_PRESETS) / sizeof(VPS_PRESETS[0]),
     .fil_page = 1,
     .note_on = vps_note_on,

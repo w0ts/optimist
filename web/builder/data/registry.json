@@ -2,14 +2,14 @@
  "key_tag": "optimist-cloud/1",
  "registry": {
   "groups": [
+   "Memory management",
    "Reserve",
    "Synth engines",
    "Drums",
    "Sample sets",
-   "FX: any number (each track its own)",
-   "FX: limited instances (once, or a set count)",
+   "FX",
    "Sequencer",
-   "USB & BT & MIDI",
+   "Connectivity",
    "UI",
    "System"
   ],
@@ -20,7 +20,7 @@
     "label": "ANALOG 2 (analog-style synth, swarm, 2 filters)",
     "group": "Synth engines",
     "bit": 0,
-    "default": 1,
+    "default": 3,
     "parent": null,
     "desc": "The main subtractive synth: two oscillators with hard sync, a swarm of up to 6 detuned copies (supersaw), two filters. About 6 KB of flash and 4.7 KB of fast RAM code; it is also the stand-in that most other engines fall back to, so keep it unless you need the space.",
     "experimental": false,
@@ -35,7 +35,21 @@
     "no_image": false,
     "fixed": false,
     "head": false,
-    "choices": [],
+    "choices": [
+     [
+      0,
+      "off"
+     ],
+     [
+      2,
+      "on"
+     ],
+     [
+      3,
+      "on, code in RAM"
+     ]
+    ],
+    "not_built": {},
     "provenance": null,
     "children": [
      "A2_LADR",
@@ -43,6 +57,9 @@
      "A2_DIOD",
      "A2_MS20"
     ],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -65,8 +82,12 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": null,
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "on the FM-1: in use, working (the user, 2026-10-25); host-tested (responses, self-oscillation, stability)",
     "provenance_line": ""
    },
@@ -89,8 +110,12 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": null,
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "on the FM-1: in use, working (the user, 2026-10-25); host-tested (responses, self-oscillation, stability)",
     "provenance_line": ""
    },
@@ -113,8 +138,12 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": null,
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "on the FM-1: in use, working (the user, 2026-10-25); host-tested (responses, self-oscillation, stability)",
     "provenance_line": ""
    },
@@ -137,8 +166,12 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": null,
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "on the FM-1: in use, working (the user, 2026-10-25); host-tested (responses, self-oscillation, stability)",
     "provenance_line": ""
    },
@@ -148,7 +181,7 @@
     "label": "DIGITAL (4-operator FM)",
     "group": "Synth engines",
     "bit": 1,
-    "default": 1,
+    "default": 3,
     "parent": null,
     "desc": "Four-operator FM synth: 8 classic algorithms, feedback on operator 4 and one modulation INDEX with its own envelope. About 2 KB of flash; the stand-in for FM6 when FM6 is left out.",
     "experimental": false,
@@ -163,11 +196,28 @@
     "no_image": false,
     "fixed": false,
     "head": false,
-    "choices": [],
+    "choices": [
+     [
+      0,
+      "off"
+     ],
+     [
+      2,
+      "on"
+     ],
+     [
+      3,
+      "on, code in RAM"
+     ]
+    ],
+    "not_built": {},
     "provenance": null,
     "children": [
      "DIG_TONE"
     ],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -190,8 +240,12 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": null,
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -201,7 +255,7 @@
     "label": "PHASE (phase distortion)",
     "group": "Synth engines",
     "bit": 2,
-    "default": 1,
+    "default": 3,
     "parent": null,
     "desc": "Phase-distortion synth: bends the phase of a cosine wave to get saw, square, pulse and resonant shapes with a second line to mix or ring-modulate. About 1.4 KB of flash; the stand-in for CZ.",
     "experimental": false,
@@ -216,11 +270,28 @@
     "no_image": false,
     "fixed": false,
     "head": false,
-    "choices": [],
+    "choices": [
+     [
+      0,
+      "off"
+     ],
+     [
+      2,
+      "on"
+     ],
+     [
+      3,
+      "on, code in RAM"
+     ]
+    ],
+    "not_built": {},
     "provenance": null,
     "children": [
      "PHASE_FOLD"
     ],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -243,6 +314,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": {
      "project": "Felucca-Engines (hugelton/Felucca-Engines)",
      "author": "Leo Kuroshita (Hügelton)",
@@ -251,6 +323,9 @@
      "url": "https://github.com/hugelton/Felucca-Engines"
     },
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "Felucca-Engines (hugelton/Felucca-Engines) @ 04ffe90 by Leo Kuroshita (Hügelton) (MIT)"
    },
@@ -260,7 +335,7 @@
     "label": "LOFI (chip sounds, wavetable)",
     "group": "Synth engines",
     "bit": 3,
-    "default": 1,
+    "default": 3,
     "parent": null,
     "desc": "Chip voice: pulse, triangle, saw, noise and a 4-bit wavetable, with a few-bit amplitude, a held (low) sample rate and a pitch sweep. About 2 KB of flash.",
     "experimental": false,
@@ -276,9 +351,26 @@
     "no_image": false,
     "fixed": false,
     "head": false,
-    "choices": [],
+    "choices": [
+     [
+      0,
+      "off"
+     ],
+     [
+      2,
+      "on"
+     ],
+     [
+      3,
+      "on, code in RAM"
+     ]
+    ],
+    "not_built": {},
     "provenance": null,
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -288,7 +380,7 @@
     "label": "SAMPLE (sample sets, USR slots)",
     "group": "Synth engines",
     "bit": 4,
-    "default": 1,
+    "default": 3,
     "parent": null,
     "desc": "Plays the built-in sample sets and your own samples (USR1..USR3 slots) across the keyboard, with loops. About 1.4 KB of flash plus the sets you keep (see Sample sets); it is also the stand-in for GRAIN and SLICE.",
     "experimental": false,
@@ -302,9 +394,26 @@
     "no_image": false,
     "fixed": false,
     "head": false,
-    "choices": [],
+    "choices": [
+     [
+      0,
+      "off"
+     ],
+     [
+      2,
+      "on"
+     ],
+     [
+      3,
+      "on, code in RAM"
+     ]
+    ],
+    "not_built": {},
     "provenance": null,
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -314,7 +423,7 @@
     "label": "VOICE (formant, sung vowels)",
     "group": "Synth engines",
     "bit": 5,
-    "default": 1,
+    "default": 3,
     "parent": null,
     "desc": "Formant synth that sings vowels from the keyboard (4 voices; BUZZ and BREATH shape the voice). About 2.7 KB of flash; a special sound, leave it out if you need the space.",
     "experimental": false,
@@ -329,9 +438,26 @@
     "no_image": false,
     "fixed": false,
     "head": false,
-    "choices": [],
+    "choices": [
+     [
+      0,
+      "off"
+     ],
+     [
+      2,
+      "on"
+     ],
+     [
+      3,
+      "on, code in RAM"
+     ]
+    ],
+    "not_built": {},
     "provenance": null,
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -341,7 +467,7 @@
     "label": "TRIO (3 oscillators)",
     "group": "Synth engines",
     "bit": 6,
-    "default": 1,
+    "default": 3,
     "parent": null,
     "desc": "Three oscillators with ring modulation and hard sync into a multimode filter, in the style of early 8-bit home-computer sound chips. About 3.4 KB of flash.",
     "experimental": false,
@@ -356,9 +482,26 @@
     "no_image": false,
     "fixed": false,
     "head": false,
-    "choices": [],
+    "choices": [
+     [
+      0,
+      "off"
+     ],
+     [
+      2,
+      "on"
+     ],
+     [
+      3,
+      "on, code in RAM"
+     ]
+    ],
+    "not_built": {},
     "provenance": null,
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -368,7 +511,7 @@
     "label": "WHEEL (drawbar organ)",
     "group": "Synth engines",
     "bit": 7,
-    "default": 1,
+    "default": 3,
     "parent": null,
     "desc": "Tonewheel-style organ: nine sine drawbars per note, 16 registrations to choose from. About 2.3 KB of flash and 2.5 KB of RAM.",
     "experimental": false,
@@ -383,9 +526,26 @@
     "no_image": false,
     "fixed": false,
     "head": false,
-    "choices": [],
+    "choices": [
+     [
+      0,
+      "off"
+     ],
+     [
+      2,
+      "on"
+     ],
+     [
+      3,
+      "on, code in RAM"
+     ]
+    ],
+    "not_built": {},
     "provenance": null,
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -411,8 +571,12 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": null,
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -422,7 +586,7 @@
     "label": "FM6 (DX7, bit-exact with Dexed)",
     "group": "Synth engines",
     "bit": 9,
-    "default": 1,
+    "default": 2,
     "parent": null,
     "desc": "Six-operator FM that plays Yamaha DX7 voices the way the Dexed plug-in does (MSFA, bit for bit), with its own operator editor and DX7 SysEx in; INIT VOICE and the voice packs below are its sounds. The biggest engine: about 28 KB of flash and 6 KB of RAM; its options below trim it down.",
     "experimental": false,
@@ -439,7 +603,21 @@
     "no_image": false,
     "fixed": false,
     "head": false,
-    "choices": [],
+    "choices": [
+     [
+      0,
+      "off"
+     ],
+     [
+      2,
+      "on"
+     ],
+     [
+      3,
+      "on, code in RAM"
+     ]
+    ],
+    "not_built": {},
     "provenance": {
      "project": "Melodee (keremimo/melodee)",
      "author": "Kerem Kilic",
@@ -457,6 +635,9 @@
      "FM6_PK_80S",
      "UP_FM6"
     ],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "Melodee (keremimo/melodee) @ e459da5 by Kerem Kilic (GPL-3.0-only)"
    },
@@ -481,8 +662,12 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": null,
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -505,8 +690,12 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": null,
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -531,8 +720,12 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": null,
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -557,8 +750,12 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": null,
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -583,8 +780,12 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": null,
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -609,8 +810,12 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": null,
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -635,8 +840,12 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": null,
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -662,6 +871,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": {
      "project": "Melodee (keremimo/melodee)",
      "author": "Kerem Kilic",
@@ -670,6 +880,9 @@
      "url": "https://github.com/keremimo/melodee"
     },
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "Melodee (keremimo/melodee) @ v0.12 18bfd53 by Kerem Kilic (GPL-3.0-only)"
    },
@@ -694,6 +907,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": {
      "project": "Felucca (hugelton/Felucca)",
      "author": "Leo Kuroshita (Hügelton)",
@@ -702,6 +916,9 @@
      "url": "https://github.com/hugelton/Felucca"
     },
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "Felucca (hugelton/Felucca) by Leo Kuroshita (Hügelton) (GPL-3.0-only)"
    },
@@ -727,6 +944,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": {
      "project": "Caravel 0.3.3 (bonszaimusic/caravel, a Felucca fork)",
      "author": "bonszaimusic",
@@ -735,6 +953,9 @@
      "url": "https://github.com/bonszaimusic/caravel"
     },
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "Caravel 0.3.3 (bonszaimusic/caravel, a Felucca fork) @ c6c61c7 by bonszaimusic (GPL-3.0-only)"
    },
@@ -759,7 +980,21 @@
     "no_image": false,
     "fixed": false,
     "head": false,
-    "choices": [],
+    "choices": [
+     [
+      0,
+      "off"
+     ],
+     [
+      2,
+      "on"
+     ],
+     [
+      3,
+      "on, code in RAM"
+     ]
+    ],
+    "not_built": {},
     "provenance": {
      "project": "Mutable Instruments Plaits (pichenettes/eurorack)",
      "author": "Emilie Gillet",
@@ -768,6 +1003,9 @@
      "url": "https://github.com/pichenettes/eurorack"
     },
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "Mutable Instruments Plaits (pichenettes/eurorack) @ f4cfa76 by Emilie Gillet (MIT)"
    },
@@ -792,7 +1030,21 @@
     "no_image": false,
     "fixed": false,
     "head": false,
-    "choices": [],
+    "choices": [
+     [
+      0,
+      "off"
+     ],
+     [
+      2,
+      "on"
+     ],
+     [
+      3,
+      "on, code in RAM"
+     ]
+    ],
+    "not_built": {},
     "provenance": {
      "project": "Clipper (isod89/clipper-fm1, Clipper 1.1)",
      "author": "3dSam",
@@ -801,6 +1053,9 @@
      "url": "https://github.com/isod89/clipper-fm1"
     },
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "Clipper (isod89/clipper-fm1, Clipper 1.1) @ e690672 by 3dSam (GPL-3.0-only)"
    },
@@ -826,6 +1081,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": {
      "project": "Clipper (isod89/clipper-fm1, Clipper 1.1)",
      "author": "3dSam",
@@ -834,6 +1090,9 @@
      "url": "https://github.com/isod89/clipper-fm1"
     },
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "Clipper (isod89/clipper-fm1, Clipper 1.1) @ e690672 by 3dSam (GPL-3.0-only)"
    },
@@ -859,6 +1118,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": {
      "project": "Clipper (isod89/clipper-fm1, Clipper 1.1)",
      "author": "3dSam",
@@ -867,6 +1127,9 @@
      "url": "https://github.com/isod89/clipper-fm1"
     },
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "Clipper (isod89/clipper-fm1, Clipper 1.1) @ e690672 by 3dSam (GPL-3.0-only)"
    },
@@ -892,6 +1155,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": {
      "project": "Clipper (isod89/clipper-fm1, Clipper 1.1)",
      "author": "3dSam",
@@ -900,6 +1164,9 @@
      "url": "https://github.com/isod89/clipper-fm1"
     },
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "Clipper (isod89/clipper-fm1, Clipper 1.1) @ e690672 by 3dSam (GPL-3.0-only)"
    },
@@ -925,6 +1192,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": {
      "project": "Clipper (isod89/clipper-fm1, Clipper 1.1)",
      "author": "3dSam",
@@ -933,6 +1201,9 @@
      "url": "https://github.com/isod89/clipper-fm1"
     },
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "Clipper (isod89/clipper-fm1, Clipper 1.1) @ e690672 by 3dSam (GPL-3.0-only)"
    },
@@ -959,6 +1230,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": {
      "project": "Clipper (isod89/clipper-fm1, Clipper 1.1)",
      "author": "3dSam",
@@ -967,6 +1239,9 @@
      "url": "https://github.com/isod89/clipper-fm1"
     },
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "Clipper (isod89/clipper-fm1, Clipper 1.1) @ e690672 by 3dSam (GPL-3.0-only)"
    },
@@ -992,6 +1267,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": {
      "project": "Mini-Tone 1.0.1 (eldontyrellcorp/Mini-Tone), after reSID 0.16 by Dag Lem",
      "author": "Stephane Schmitz",
@@ -1000,6 +1276,9 @@
      "url": "https://github.com/eldontyrellcorp/Mini-Tone"
     },
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "Mini-Tone 1.0.1 (eldontyrellcorp/Mini-Tone), after reSID 0.16 by Dag Lem @ 6a82562 by Stephane Schmitz (GPL-3.0-only (the reSID data GPL-2.0-or-later))"
    },
@@ -1024,7 +1303,21 @@
     "no_image": false,
     "fixed": false,
     "head": false,
-    "choices": [],
+    "choices": [
+     [
+      0,
+      "off"
+     ],
+     [
+      2,
+      "on"
+     ],
+     [
+      3,
+      "on, code in RAM"
+     ]
+    ],
+    "not_built": {},
     "provenance": {
      "project": "Melodee (keremimo/melodee): its PROPHET engine's oscillators, Poly-Mod and Curtis filter",
      "author": "Kerem Kilic",
@@ -1033,6 +1326,9 @@
      "url": "https://github.com/keremimo/melodee"
     },
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "Melodee (keremimo/melodee): its PROPHET engine's oscillators, Poly-Mod and Curtis filter @ 398ada1 by Kerem Kilic (GPL-3.0-only)"
    },
@@ -1055,6 +1351,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": {
      "project": "CS-1 (twochannels/CS-1): its CS-80 voice's design",
      "author": "twochannels",
@@ -1063,6 +1360,9 @@
      "url": "https://github.com/twochannels/CS-1"
     },
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "CS-1 (twochannels/CS-1): its CS-80 voice's design @ 5dce8fa by twochannels (GPL-3.0-only)"
    },
@@ -1085,8 +1385,12 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": null,
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -1111,8 +1415,12 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": null,
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "host-tested only (tests/examples_test.c), not on a device",
     "provenance_line": ""
    },
@@ -1135,6 +1443,7 @@
     "fixed": false,
     "head": true,
     "choices": [],
+    "not_built": {},
     "provenance": null,
     "children": [
      "DRUM_SYNTH",
@@ -1147,6 +1456,9 @@
      "DRUM_USR",
      "DRUM_KITS"
     ],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -1171,8 +1483,12 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": null,
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -1197,6 +1513,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": {
      "project": "Kawa Tracker (Guizmoh/Kawa-Tracker-Fm1)",
      "author": "Guizmoh",
@@ -1205,6 +1522,9 @@
      "url": "https://github.com/Guizmoh/Kawa-Tracker-Fm1"
     },
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "Kawa Tracker (Guizmoh/Kawa-Tracker-Fm1) @ kawa-0.5 by Guizmoh (GPL-3.0-only)"
    },
@@ -1230,6 +1550,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": {
      "project": "Hortator (DeadActive/hortator), after Mutable Instruments Plaits (Emilie Gillet, MIT)",
      "author": "Leo Kuroshita (Hügelton), DEADACTIVE; Emilie Gillet",
@@ -1238,6 +1559,9 @@
      "url": "https://github.com/DeadActive/hortator"
     },
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "Hortator (DeadActive/hortator), after Mutable Instruments Plaits (Emilie Gillet, MIT) @ 7e34159 by Leo Kuroshita (Hügelton), DEADACTIVE; Emilie Gillet (GPL-3.0-only (Plaits' algorithms MIT))"
    },
@@ -1263,6 +1587,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": {
      "project": "X0X (charlesvestal/fm1-x0x)",
      "author": "Charles Vestal",
@@ -1275,6 +1600,9 @@
      "X909_HAT",
      "X0X_TANH"
     ],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "X0X (charlesvestal/fm1-x0x) @ 80b7d40 by Charles Vestal (GPL-3.0-only)"
    },
@@ -1313,8 +1641,12 @@
       "off"
      ]
     ],
+    "not_built": {},
     "provenance": null,
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -1348,8 +1680,12 @@
       "6-bit (16 KB, 30 dB)"
      ]
     ],
+    "not_built": {},
     "provenance": null,
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -1383,8 +1719,12 @@
       "256 points (1 KB)"
      ]
     ],
+    "not_built": {},
     "provenance": null,
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -1409,6 +1749,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": {
      "project": "X0X (charlesvestal/fm1-x0x)",
      "author": "Charles Vestal",
@@ -1417,6 +1758,9 @@
      "url": "https://github.com/charlesvestal/fm1-x0x"
     },
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "X0X (charlesvestal/fm1-x0x) @ 80b7d40 by Charles Vestal (GPL-3.0-only)"
    },
@@ -1439,6 +1783,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": null,
     "children": [
      "KIT_ACOUSTIC",
@@ -1447,6 +1792,9 @@
      "KIT_BRIGHT",
      "KIT_DUST"
     ],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -1469,8 +1817,12 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": null,
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -1493,8 +1845,12 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": null,
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -1517,8 +1873,12 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": null,
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -1541,8 +1901,12 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": null,
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -1565,8 +1929,12 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": null,
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -1591,10 +1959,14 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": null,
     "children": [
      "DS_NTUNE"
     ],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -1617,6 +1989,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": {
      "project": "SLOOP 2.8 (isod89/sloop-fm1)",
      "author": "isod89",
@@ -1625,6 +1998,9 @@
      "url": "https://github.com/isod89/sloop-fm1"
     },
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "SLOOP 2.8 (isod89/sloop-fm1) @ b77bf55 by isod89 (GPL-3.0-only)"
    },
@@ -1647,8 +2023,12 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": null,
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -1671,8 +2051,12 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": null,
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -1684,7 +2068,7 @@
     "bit": 28,
     "default": 1,
     "parent": null,
-    "desc": "A grand piano, plus the dusty and lo-fi piano variants. Played by the SAMPLE and GRAIN engines (and their presets); leaving it out frees its flash, and it can still be uploaded to a USR slot.",
+    "desc": "A grand piano, plus the dusty and lo-fi piano variants. Played by the SAMPLE and GRAIN engines (and their presets); leaving it out frees its flash, and it can still be uploaded to a USR slot. In SD card mode no set is in the flash (0 B, ticked or not): a ticked set goes on the card in the SD card zip (OPTIMIST/SAMPLES/<SET>/) and SAMPLE streams it from there; GRAIN cannot (its grains jump through the set): GRAIN on a set is silent there, said MISSING.",
     "experimental": false,
     "notice": "",
     "off_warning": "",
@@ -1695,8 +2079,12 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": null,
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -1708,7 +2096,7 @@
     "bit": 29,
     "default": 1,
     "parent": null,
-    "desc": "An upright bass, plus a deep bass variant. Played by the SAMPLE and GRAIN engines (and their presets); leaving it out frees its flash, and it can still be uploaded to a USR slot.",
+    "desc": "An upright bass, plus a deep bass variant. Played by the SAMPLE and GRAIN engines (and their presets); leaving it out frees its flash, and it can still be uploaded to a USR slot. In SD card mode no set is in the flash (0 B, ticked or not): a ticked set goes on the card in the SD card zip (OPTIMIST/SAMPLES/<SET>/) and SAMPLE streams it from there; GRAIN cannot (its grains jump through the set): GRAIN on a set is silent there, said MISSING.",
     "experimental": false,
     "notice": "",
     "off_warning": "",
@@ -1719,8 +2107,12 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": null,
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -1732,7 +2124,7 @@
     "bit": 30,
     "default": 1,
     "parent": null,
-    "desc": "A vibraphone. Played by the SAMPLE and GRAIN engines (and their presets); leaving it out frees its flash, and it can still be uploaded to a USR slot.",
+    "desc": "A vibraphone. Played by the SAMPLE and GRAIN engines (and their presets); leaving it out frees its flash, and it can still be uploaded to a USR slot. In SD card mode no set is in the flash (0 B, ticked or not): a ticked set goes on the card in the SD card zip (OPTIMIST/SAMPLES/<SET>/) and SAMPLE streams it from there; GRAIN cannot (its grains jump through the set): GRAIN on a set is silent there, said MISSING.",
     "experimental": false,
     "notice": "",
     "off_warning": "",
@@ -1743,8 +2135,12 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": null,
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -1756,7 +2152,7 @@
     "bit": 31,
     "default": 1,
     "parent": null,
-    "desc": "Horn stabs. Played by the SAMPLE and GRAIN engines (and their presets); leaving it out frees its flash, and it can still be uploaded to a USR slot.",
+    "desc": "Horn stabs. Played by the SAMPLE and GRAIN engines (and their presets); leaving it out frees its flash, and it can still be uploaded to a USR slot. In SD card mode no set is in the flash (0 B, ticked or not): a ticked set goes on the card in the SD card zip (OPTIMIST/SAMPLES/<SET>/) and SAMPLE streams it from there; GRAIN cannot (its grains jump through the set): GRAIN on a set is silent there, said MISSING.",
     "experimental": false,
     "notice": "",
     "off_warning": "",
@@ -1767,8 +2163,12 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": null,
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -1780,7 +2180,7 @@
     "bit": 32,
     "default": 1,
     "parent": null,
-    "desc": "String stabs. Played by the SAMPLE and GRAIN engines (and their presets); leaving it out frees its flash, and it can still be uploaded to a USR slot.",
+    "desc": "String stabs. Played by the SAMPLE and GRAIN engines (and their presets); leaving it out frees its flash, and it can still be uploaded to a USR slot. In SD card mode no set is in the flash (0 B, ticked or not): a ticked set goes on the card in the SD card zip (OPTIMIST/SAMPLES/<SET>/) and SAMPLE streams it from there; GRAIN cannot (its grains jump through the set): GRAIN on a set is silent there, said MISSING.",
     "experimental": false,
     "notice": "",
     "off_warning": "",
@@ -1791,8 +2191,12 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": null,
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -1804,7 +2208,7 @@
     "bit": 33,
     "default": 1,
     "parent": null,
-    "desc": "A lo-fi flute. Played by the SAMPLE and GRAIN engines (and their presets); leaving it out frees its flash, and it can still be uploaded to a USR slot.",
+    "desc": "A lo-fi flute. Played by the SAMPLE and GRAIN engines (and their presets); leaving it out frees its flash, and it can still be uploaded to a USR slot. In SD card mode no set is in the flash (0 B, ticked or not): a ticked set goes on the card in the SD card zip (OPTIMIST/SAMPLES/<SET>/) and SAMPLE streams it from there; GRAIN cannot (its grains jump through the set): GRAIN on a set is silent there, said MISSING.",
     "experimental": false,
     "notice": "",
     "off_warning": "",
@@ -1815,8 +2219,12 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": null,
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -1828,7 +2236,7 @@
     "bit": 34,
     "default": 1,
     "parent": null,
-    "desc": "Turntable scratch hits. Played by the SAMPLE and GRAIN engines (and their presets); leaving it out frees its flash, and it can still be uploaded to a USR slot.",
+    "desc": "Turntable scratch hits. Played by the SAMPLE and GRAIN engines (and their presets); leaving it out frees its flash, and it can still be uploaded to a USR slot. In SD card mode no set is in the flash (0 B, ticked or not): a ticked set goes on the card in the SD card zip (OPTIMIST/SAMPLES/<SET>/) and SAMPLE streams it from there; GRAIN cannot (its grains jump through the set): GRAIN on a set is silent there, said MISSING.",
     "experimental": false,
     "notice": "",
     "off_warning": "",
@@ -1839,16 +2247,20 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": null,
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
    {
     "key": "FX_DIST",
     "flag": "FELUCCA_FX_DIST",
-    "label": "DIST (per-track drive)",
-    "group": "FX: any number (each track its own)",
+    "label": "[insert] DIST (per-track drive)",
+    "group": "FX",
     "bit": 35,
     "default": 1,
     "parent": null,
@@ -1863,20 +2275,24 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": null,
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
    {
     "key": "FX_CHORUS",
     "flag": "FELUCCA_FX_CHORUS",
-    "label": "chorus",
-    "group": "FX: limited instances (once, or a set count)",
+    "label": "[send+insert] chorus",
+    "group": "FX",
     "bit": 36,
     "default": 1,
     "parent": null,
-    "desc": "The chorus effect, fed by each track's CHO send. About 0.4 KB of flash and 4 KB of pool; off: the CHO sends and the chorus settings disappear.",
+    "desc": "The chorus effect, fed by each track's CHO send. About 0.4 KB of flash and 4 KB of pool; off: the CHO sends and the chorus settings disappear. In a track's insert slot or the master's (INSERTS > S1 / S2) it is an insert like any other, its amount the dry/wet MIX (0 dry, 127 all wet: the send's return at unity): a track's CHO value is then the MIX and the track sends nothing to the bus. It runs the send's own code with the send's settings (RATE and DEPTH, FX > REV/CHO). Each copy needs a 4 KB line: with ARENA a block of the free RAM each, as many as it holds; without, a copy plays where the effects memory has room: room another insert leaves free, or the chorus's or the delay's line while that send is in no master slot; a slot left without room shows FULL and stays dry.",
     "experimental": false,
     "notice": "",
     "off_warning": "",
@@ -1889,22 +2305,24 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": null,
-    "children": [
-     "CHO_EXACT"
-    ],
+    "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
    {
     "key": "FX_DELAY",
     "flag": "FELUCCA_FX_DELAY",
-    "label": "delay",
-    "group": "FX: limited instances (once, or a set count)",
+    "label": "[send+insert] delay",
+    "group": "FX",
     "bit": 37,
     "default": 1,
     "parent": null,
-    "desc": "The tempo-synced delay (echo), fed by each track's DLY send. Costs 128 KB of the pool at the full length: shorten it with the length option, or leave it out.",
+    "desc": "The tempo-synced delay (echo), fed by each track's DLY send. Costs 128 KB of the pool at the full length: shorten it with the length option, or leave it out. In a track's insert slot or the master's (INSERTS > S1 / S2) it is an insert like any other, its amount the dry/wet MIX (0 dry, 127 all wet: the send's return at unity): a track's DLY value is then the MIX and the track sends nothing to the bus. It runs the send's own code with the send's settings (TIME, FDBK and the filter, FX > DLY and DLY F). Each copy needs a line as long as the delay's (the length below): with ARENA a block of the free RAM each, as many as it holds; without, a copy plays on the delay's own line while the delay is in no master slot, or on room another insert leaves free; a slot left without room shows FULL and stays dry.",
     "experimental": false,
     "notice": "",
     "off_warning": "",
@@ -1917,11 +2335,14 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": null,
     "children": [
-     "DLY_LEN",
-     "DLY_DOT"
+     "DLY_LEN"
     ],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -1929,7 +2350,7 @@
     "key": "DLY_LEN",
     "flag": "FELUCCA_DLY_LEN",
     "label": "delay length (how long an echo can be)",
-    "group": "FX: limited instances (once, or a set count)",
+    "group": "FX",
     "bit": 38,
     "default": 65536,
     "parent": "FX_DELAY",
@@ -1957,20 +2378,24 @@
       "0.37 s (32 KB)"
      ]
     ],
+    "not_built": {},
     "provenance": null,
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
    {
     "key": "FX_REVERB",
     "flag": "FELUCCA_FX_REVERB",
-    "label": "reverb",
-    "group": "FX: limited instances (once, or a set count)",
+    "label": "[send+insert] reverb",
+    "group": "FX",
     "bit": 39,
     "default": 1,
     "parent": null,
-    "desc": "The reverb, fed by each track's REV send and the drums' reverb, with its algorithms below (tick at least one). Each one ticked is on the device's FX > REVERB > TYPE and in the web editor's Reverb popup, switched while it plays; with one ticked there is no TYPE. They share one line buffer, sized to the largest. The biggest user of RAM among the FX (about 17 KB with ROOM); off: the REV sends and reverb settings disappear.",
+    "desc": "The reverb, fed by each track's REV send and the drums' reverb, with its algorithms below (tick at least one). Each one ticked is on the device's FX > REVERB > TYPE and in the web editor's Reverb popup, switched while it plays; with one ticked there is no TYPE. They share one line buffer, sized to the largest. The biggest user of RAM among the FX (about 17 KB with ROOM); off: the REV sends and reverb settings disappear. In a track's insert slot or the master's (INSERTS > S1 / S2) it is an insert like any other, its amount the dry/wet MIX (0 dry, 127 all wet: the send's return at unity): a track's REV value is then the MIX and the track sends nothing to the bus. It runs the send's own code with the send's settings (SIZE and DAMP, FX > REV/CHO; the insert is always the ROOM, whatever TYPE the send plays: about 280 host instructions a sample a copy). Each copy needs 19 KB: with ARENA a block of the free RAM each, as many as it holds; without, a copy plays on the delay's line while the delay is in no master slot, or on room another insert leaves free; a slot left without room shows FULL and stays dry.",
     "experimental": false,
     "notice": "",
     "off_warning": "",
@@ -1984,17 +2409,19 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": null,
     "children": [
      "REV_ROOM",
      "REV_PLATE",
      "REV_FDN8",
      "SPRING",
-     "REV_AIRWIN",
      "REV_POOL",
-     "REV_HALF",
-     "REV_HB_LONG"
+     "REV_AIRWIN"
     ],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -2002,7 +2429,7 @@
     "key": "REV_ROOM",
     "flag": "FELUCCA_REV_ROOM",
     "label": "reverb: ROOM",
-    "group": "FX: limited instances (once, or a set count)",
+    "group": "FX",
     "bit": 151,
     "default": 1,
     "parent": "FX_REVERB",
@@ -2019,8 +2446,12 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": null,
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -2028,7 +2459,7 @@
     "key": "REV_PLATE",
     "flag": "FELUCCA_REV_PLATE",
     "label": "reverb: PLATE (Dattorro)",
-    "group": "FX: limited instances (once, or a set count)",
+    "group": "FX",
     "bit": 152,
     "default": 0,
     "parent": "FX_REVERB",
@@ -2045,8 +2476,12 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": null,
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -2054,7 +2489,7 @@
     "key": "REV_FDN8",
     "flag": "FELUCCA_REV_FDN8",
     "label": "reverb: FDN8 (long, lush)",
-    "group": "FX: limited instances (once, or a set count)",
+    "group": "FX",
     "bit": 153,
     "default": 0,
     "parent": "FX_REVERB",
@@ -2071,8 +2506,49 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": null,
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
+    "tested": "emulator-tested only",
+    "provenance_line": ""
+   },
+   {
+    "key": "REV_POOL",
+    "flag": "FELUCCA_REV_POOL",
+    "label": "reverb: FDN8 size",
+    "group": "FX",
+    "bit": 122,
+    "default": 0,
+    "parent": "FX_REVERB",
+    "desc": "FDN8's ring: big (32 KB) gives its eight lines twice the length, the long and lush FDN8; small (16 KB) the shorter one. The key's old name (the reverb's buffers in the pool) is kept so profiles keep their sound: since the RAM is one region (2026-10-25) where the buffer sits saves nothing, only the ring's size counts.",
+    "experimental": false,
+    "notice": "",
+    "off_warning": "",
+    "env": "",
+    "target_only": false,
+    "symbols": [],
+    "no_image": false,
+    "fixed": false,
+    "head": false,
+    "choices": [
+     [
+      1,
+      "big ring (32 KB): the long, lush tail"
+     ],
+     [
+      0,
+      "small ring (16 KB)"
+     ]
+    ],
+    "not_built": {},
+    "provenance": null,
+    "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -2080,7 +2556,7 @@
     "key": "REV_AIRWIN",
     "flag": "FELUCCA_REV_AIRWIN",
     "label": "reverb: VTINY (Airwindows VerbTiny)",
-    "group": "FX: limited instances (once, or a set count)",
+    "group": "FX",
     "bit": 230,
     "default": 0,
     "parent": "FX_REVERB",
@@ -2097,90 +2573,20 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": null,
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
-    "provenance_line": ""
-   },
-   {
-    "key": "REV_POOL",
-    "flag": "FELUCCA_REV_POOL",
-    "label": "reverb buffers in the pool (saves ~17 KB RAM)",
-    "group": "FX: limited instances (once, or a set count)",
-    "bit": 122,
-    "default": 0,
-    "parent": "FX_REVERB",
-    "desc": "Keeps the reverb's shared line buffer (17 KB with ROOM, 8.7 KB at half rate; PLATE and FDN8 without ROOM 16 KB, 8 KB at half rate; SPRING alone 8 KB) in the pool instead of main RAM: main RAM is the scarcer, and the sound and the code stay the same. Needs that much pool free (the undo history shrinks by it in the pool and grows by it in RAM).",
-    "experimental": false,
-    "notice": "",
-    "off_warning": "",
-    "env": "",
-    "target_only": false,
-    "symbols": [],
-    "no_image": false,
-    "fixed": false,
-    "head": false,
-    "choices": [],
-    "provenance": null,
-    "children": [],
-    "tested": "emulator-tested only",
-    "provenance_line": ""
-   },
-   {
-    "key": "REV_HALF",
-    "flag": "FELUCCA_REV_HALF",
-    "label": "half-rate reverb (half the RAM, no top octave)",
-    "group": "FX: limited instances (once, or a set count)",
-    "bit": 123,
-    "default": 0,
-    "parent": "FX_REVERB",
-    "desc": "Runs the ROOM reverb at half the sample rate (22.05 kHz) behind a half-band filter: its memory takes half the RAM (-8.7 KB) and it costs less CPU, with the same decay and room size. PLATE and FDN8 already run at 22.05 kHz; here they get half the ring (8 KB), a smaller tank with more audible modes. The reverb loses its top octave (above ~11 kHz); the dry sound and the other buses are untouched.",
-    "experimental": false,
-    "notice": "",
-    "off_warning": "",
-    "env": "",
-    "target_only": false,
-    "symbols": [
-     "rev_half"
-    ],
-    "no_image": false,
-    "fixed": false,
-    "head": false,
-    "choices": [],
-    "provenance": null,
-    "children": [],
-    "tested": "emulator-tested only",
-    "provenance_line": ""
-   },
-   {
-    "key": "CHO_EXACT",
-    "flag": "FELUCCA_CHO_EXACT",
-    "label": "chorus: exact modulation ramp (less grit)",
-    "group": "FX: limited instances (once, or a set count)",
-    "bit": 425,
-    "default": 0,
-    "parent": "FX_CHORUS",
-    "desc": "The chorus send moves its two read points by exactly 1/32 of the block's change each sample, as the CHRS insert does, instead of a step rounded down once a block. The old way left the read point up to 0.12 sample behind by each block's end and snapped it back 1378 times a second: a faint grit around every note, heard on headphones. Measured: 12-15 dB less of it from 220 Hz to 1 kHz, about 5 dB at 3 kHz. A few bytes of flash, no RAM, two shifts a sample.",
-    "experimental": true,
-    "notice": "",
-    "off_warning": "",
-    "env": "",
-    "target_only": false,
-    "symbols": [],
-    "no_image": false,
-    "fixed": false,
-    "head": false,
-    "choices": [],
-    "provenance": null,
-    "children": [],
-    "tested": "host-measured only (a sine through the firmware's own code, 2026-10-26); not yet heard on an FM-1",
     "provenance_line": ""
    },
    {
     "key": "WIDE_FINE",
     "flag": "FELUCCA_WIDE_FINE",
     "label": "WIDE: all-pass at full resolution",
-    "group": "FX: any number (each track its own)",
+    "group": "FX",
     "bit": 427,
     "default": 0,
     "parent": "INS_WIDTH",
@@ -2195,8 +2601,12 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": null,
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "host-measured only (a sine through the firmware's own code, 2026-10-26); not yet heard on an FM-1",
     "provenance_line": ""
    },
@@ -2204,7 +2614,7 @@
     "key": "TFLT_FINE",
     "flag": "FELUCCA_TFLT_FINE",
     "label": "track FILTER: full resolution (quiet high-pass)",
-    "group": "FX: any number (each track its own)",
+    "group": "FX",
     "bit": 428,
     "default": 0,
     "parent": null,
@@ -2219,64 +2629,20 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": null,
     "children": [],
-    "tested": "host-measured only (a sine through the firmware's own code, 2026-10-26); not yet heard on an FM-1",
-    "provenance_line": ""
-   },
-   {
-    "key": "JUNO_FINE",
-    "flag": "FELUCCA_JUNO_FINE",
-    "label": "JUNO CHORUS: 32-bit line (less grit, twice the memory)",
-    "group": "FX: limited instances (once, or a set count)",
-    "bit": 429,
-    "default": 0,
-    "parent": "INS_JCHORUS",
-    "desc": "JUNO CHORUS keeps its line at 32 bits at the owner's own scale instead of 16 bits 3 bits down (a bus: 2): its wet no longer moves in steps of 8, and its side, different in each ear, no longer carries that rounding. Measured with the shift gone: 6-12 dB less noise. Each instance takes 4 KB of the effects memory instead of 2 (fewer instances fit); more headroom than before (+-3 M, was +-0.26 M on a part).",
-    "experimental": true,
-    "notice": "",
-    "off_warning": "",
-    "env": "",
-    "target_only": false,
-    "symbols": [],
-    "no_image": false,
-    "fixed": false,
-    "head": false,
-    "choices": [],
-    "provenance": null,
-    "children": [],
-    "tested": "host-measured only (a sine through the firmware's own code, 2026-10-26); not yet heard on an FM-1",
-    "provenance_line": ""
-   },
-   {
-    "key": "REV_HB_LONG",
-    "flag": "FELUCCA_REV_HB_LONG",
-    "label": "half-rate reverbs: steep 63-tap filter (no aliasing)",
-    "group": "FX: limited instances (once, or a set count)",
-    "bit": 430,
-    "default": 0,
-    "parent": "FX_REVERB",
-    "desc": "The reverbs that run at 22.05 kHz (FDN8, PLATE, VTINY, ROOM with REV_HALF) sit behind a 63-tap low-pass (9.8 kHz) instead of the 15-tap half-band. The half-band let 9-11 kHz come back mirrored to 11-13 kHz only 6-20 dB down, the grainy 'lower bitrate' top of these reverbs; the low-pass is -45 dB at the fold (11 kHz) and -74 dB at 12 kHz, -0.6 dB at 9 kHz, -9 dB at 10 kHz. About 48 multiplies a sample more, 1 KB of pool, 0.7 ms of latency (pre-delay) instead of 0.3.",
-    "experimental": true,
-    "notice": "",
-    "off_warning": "",
-    "env": "",
-    "target_only": false,
-    "symbols": [],
-    "no_image": false,
-    "fixed": false,
-    "head": false,
-    "choices": [],
-    "provenance": null,
-    "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "host-measured only (a sine through the firmware's own code, 2026-10-26); not yet heard on an FM-1",
     "provenance_line": ""
    },
    {
     "key": "FX_SLICER",
     "flag": "FELUCCA_FX_SLICER",
-    "label": "SLICER (stutter / gate insert)",
-    "group": "FX: any number (each track its own)",
+    "label": "[insert] SLICER (stutter / gate on each track)",
+    "group": "FX",
     "bit": 40,
     "default": 1,
     "parent": null,
@@ -2293,10 +2659,14 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": null,
     "children": [
      "SL_LEN"
     ],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -2304,7 +2674,7 @@
     "key": "SL_LEN",
     "flag": "FELUCCA_SL_LEN",
     "label": "SLICER capture length (stutter memory)",
-    "group": "FX: any number (each track its own)",
+    "group": "FX",
     "bit": 41,
     "default": 4096,
     "parent": "FX_SLICER",
@@ -2328,16 +2698,20 @@
       "93 ms (16 KB)"
      ]
     ],
+    "not_built": {},
     "provenance": null,
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
    {
     "key": "FX_PUNCH",
     "flag": "FELUCCA_FX_PUNCH",
-    "label": "PUNCH (16 punch-in FX)",
-    "group": "FX: limited instances (once, or a set count)",
+    "label": "[master] PUNCH (16 punch-in FX)",
+    "group": "FX",
     "bit": 42,
     "default": 1,
     "parent": null,
@@ -2354,11 +2728,15 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": null,
     "children": [
      "PUNCH_N",
      "PUNCH_LATCH"
     ],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -2366,7 +2744,7 @@
     "key": "PUNCH_N",
     "flag": "FELUCCA_PUNCH_N",
     "label": "PUNCH memory length (how much mix it can loop)",
-    "group": "FX: limited instances (once, or a set count)",
+    "group": "FX",
     "bit": 43,
     "default": 32768,
     "parent": "FX_PUNCH",
@@ -2390,16 +2768,20 @@
       "0.37 s (32 KB)"
      ]
     ],
+    "not_built": {},
     "provenance": null,
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
    {
     "key": "FX_DJF",
     "flag": "FELUCCA_FX_DJF",
-    "label": "DJ filter (MASTER FILT)",
-    "group": "FX: any number (each track its own)",
+    "label": "[insert] DJ filter (MASTER FILT)",
+    "group": "FX",
     "bit": 44,
     "default": 1,
     "parent": null,
@@ -2414,16 +2796,20 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": null,
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
    {
     "key": "FX_DUST",
     "flag": "FELUCCA_FX_DUST",
-    "label": "DUST (vinyl / lo-fi master)",
-    "group": "FX: any number (each track its own)",
+    "label": "[insert] DUST (vinyl / lo-fi)",
+    "group": "FX",
     "bit": 45,
     "default": 1,
     "parent": null,
@@ -2438,16 +2824,20 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": null,
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
    {
     "key": "FX_DUCK",
     "flag": "FELUCCA_FX_DUCK",
-    "label": "DUCK (kick ducks the parts)",
-    "group": "FX: limited instances (once, or a set count)",
+    "label": "[master] DUCK (kick ducks the parts)",
+    "group": "FX",
     "bit": 46,
     "default": 1,
     "parent": null,
@@ -2462,16 +2852,20 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": null,
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
    {
     "key": "MASTER_COMP",
     "flag": "FELUCCA_MASTER_COMP",
-    "label": "COMP + LIMIT (master compressor, brickwall limiter)",
-    "group": "FX: any number (each track its own)",
+    "label": "[insert] COMP + LIMIT (DYN: compressor, brickwall limiter)",
+    "group": "FX",
     "bit": 155,
     "default": 1,
     "parent": null,
@@ -2489,16 +2883,20 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": null,
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
    {
     "key": "TRK_FILT",
     "flag": "FELUCCA_TRK_FILT",
-    "label": "track FILTER (LP <- off -> HP on each track)",
-    "group": "FX: any number (each track its own)",
+    "label": "[insert] track FILTER (LP <- off -> HP on each track)",
+    "group": "FX",
     "bit": 205,
     "default": 0,
     "parent": null,
@@ -2513,6 +2911,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": {
      "project": "SLOOP 2.4 (isod89/sloop-fm1)",
      "author": "isod89",
@@ -2523,18 +2922,21 @@
     "children": [
      "TFLT_RESO"
     ],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "SLOOP 2.4 (isod89/sloop-fm1) @ v2.4 8d3823f by isod89 (GPL-3.0-only)"
    },
    {
     "key": "TFLT_RESO",
     "flag": "FELUCCA_TFLT_RESO",
-    "label": "track FILTER: resonance setting (HOME > AUDIO > FILT RESO)",
-    "group": "FX: any number (each track its own)",
+    "label": "track FILTER: resonance setting (GLOBAL > FILTER > FILT RESO)",
+    "group": "FX",
     "bit": 367,
     "default": 1,
     "parent": "TRK_FILT",
-    "desc": "One setting for every track's FILTER (and the drum track's and the drum lanes'): HOME > AUDIO > FILT RESO, 0 (clean, as before) to 10 (a resonant peak at the cutoff, never self-oscillating). Saved with the project. A few hundred bytes. The master's DJ filter stays clean.",
+    "desc": "One setting for every track's FILTER (and the drum track's and the drum lanes'): GLOBAL > FILTER > FILT RESO, 0 (clean, as before) to 10 (a resonant peak at the cutoff, never self-oscillating). Saved with the project. A few hundred bytes. The master's DJ filter stays clean.",
     "experimental": false,
     "notice": "From SLOOP 2.8's FILTER RESO by isod89 (isod89/sloop-fm1 b77bf55, GPL-3.0). Tested in the host tests only, not on a device.",
     "off_warning": "",
@@ -2545,6 +2947,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": {
      "project": "SLOOP 2.8 (isod89/sloop-fm1)",
      "author": "isod89",
@@ -2553,14 +2956,17 @@
      "url": "https://github.com/isod89/sloop-fm1"
     },
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "SLOOP 2.8 (isod89/sloop-fm1) @ b77bf55 by isod89 (GPL-3.0-only)"
    },
    {
     "key": "INS_FOLD",
     "flag": "FELUCCA_INS_FOLD",
-    "label": "FOLD insert (wavefolder)",
-    "group": "FX: any number (each track its own)",
+    "label": "[insert] FOLD (wavefolder)",
+    "group": "FX",
     "bit": 256,
     "default": 0,
     "parent": null,
@@ -2577,6 +2983,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": {
      "project": "Felucca 1.5.6 (hugelton/Felucca)",
      "author": "Leo Kuroshita (Hügelton)",
@@ -2585,14 +2992,17 @@
      "url": "https://github.com/hugelton/Felucca"
     },
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "Felucca 1.5.6 (hugelton/Felucca) @ 9f6a885 by Leo Kuroshita (Hügelton) (GPL-3.0-only)"
    },
    {
     "key": "INS_FUZZ",
     "flag": "FELUCCA_INS_FUZZ",
-    "label": "FUZZ insert",
-    "group": "FX: any number (each track its own)",
+    "label": "[insert] FUZZ",
+    "group": "FX",
     "bit": 257,
     "default": 0,
     "parent": null,
@@ -2609,6 +3019,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": {
      "project": "Felucca 1.5.6 (hugelton/Felucca)",
      "author": "Leo Kuroshita (Hügelton)",
@@ -2617,14 +3028,17 @@
      "url": "https://github.com/hugelton/Felucca"
     },
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "Felucca 1.5.6 (hugelton/Felucca) @ 9f6a885 by Leo Kuroshita (Hügelton) (GPL-3.0-only)"
    },
    {
     "key": "INS_PHASER",
     "flag": "FELUCCA_INS_PHASER",
-    "label": "PHSR insert (phaser)",
-    "group": "FX: any number (each track its own)",
+    "label": "[insert] PHSR (phaser)",
+    "group": "FX",
     "bit": 258,
     "default": 0,
     "parent": null,
@@ -2641,6 +3055,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": {
      "project": "Felucca 1.5.6 (hugelton/Felucca)",
      "author": "Leo Kuroshita (Hügelton)",
@@ -2649,14 +3064,17 @@
      "url": "https://github.com/hugelton/Felucca"
     },
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "Felucca 1.5.6 (hugelton/Felucca) @ 9f6a885 by Leo Kuroshita (Hügelton) (GPL-3.0-only)"
    },
    {
     "key": "INS_FORMANT",
     "flag": "FELUCCA_INS_FORMANT",
-    "label": "FRMT insert (vowel filter)",
-    "group": "FX: any number (each track its own)",
+    "label": "[insert] FRMT (vowel filter)",
+    "group": "FX",
     "bit": 260,
     "default": 0,
     "parent": null,
@@ -2673,6 +3091,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": {
      "project": "Melodee 1.3.1 (keremimo/melodee)",
      "author": "Kerem Kilic",
@@ -2681,14 +3100,17 @@
      "url": "https://github.com/keremimo/melodee"
     },
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "Melodee 1.3.1 (keremimo/melodee) @ next 757b65b by Kerem Kilic (GPL-3.0-only)"
    },
    {
     "key": "INS_WIDTH",
     "flag": "FELUCCA_INS_WIDTH",
-    "label": "WIDE insert (stereo width)",
-    "group": "FX: any number (each track its own)",
+    "label": "[insert] WIDE (stereo width)",
+    "group": "FX",
     "bit": 261,
     "default": 0,
     "parent": null,
@@ -2705,6 +3127,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": {
      "project": "Melodee 1.3.1 (keremimo/melodee)",
      "author": "Kerem Kilic",
@@ -2715,14 +3138,17 @@
     "children": [
      "WIDE_FINE"
     ],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "Melodee 1.3.1 (keremimo/melodee) @ next 757b65b by Kerem Kilic (GPL-3.0-only)"
    },
    {
     "key": "INS_SFOLD",
     "flag": "FELUCCA_INS_SFOLD",
-    "label": "SFLD insert (sine wavefolder)",
-    "group": "FX: any number (each track its own)",
+    "label": "[insert] SFLD (sine wavefolder)",
+    "group": "FX",
     "bit": 343,
     "default": 0,
     "parent": null,
@@ -2739,16 +3165,20 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": null,
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
    {
     "key": "INS_RECT",
     "flag": "FELUCCA_INS_RECT",
-    "label": "RECT insert (rectifier, octave up)",
-    "group": "FX: any number (each track its own)",
+    "label": "[insert] RECT (rectifier, octave up)",
+    "group": "FX",
     "bit": 345,
     "default": 0,
     "parent": null,
@@ -2765,16 +3195,20 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": null,
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
    {
     "key": "INS_HARM",
     "flag": "FELUCCA_INS_HARM",
-    "label": "HARM insert (harmonic exciter)",
-    "group": "FX: any number (each track its own)",
+    "label": "[insert] HARM (harmonic exciter)",
+    "group": "FX",
     "bit": 346,
     "default": 0,
     "parent": null,
@@ -2791,16 +3225,20 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": null,
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
    {
     "key": "INS_RING",
     "flag": "FELUCCA_INS_RING",
-    "label": "RING insert (ring modulator)",
-    "group": "FX: any number (each track its own)",
+    "label": "[insert] RING (ring modulator)",
+    "group": "FX",
     "bit": 347,
     "default": 0,
     "parent": null,
@@ -2817,16 +3255,20 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": null,
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
    {
     "key": "INS_SUBOCT",
     "flag": "FELUCCA_INS_SUBOCT",
-    "label": "SUB insert (octave down)",
-    "group": "FX: any number (each track its own)",
+    "label": "[insert] SUB (octave down)",
+    "group": "FX",
     "bit": 348,
     "default": 0,
     "parent": null,
@@ -2843,16 +3285,20 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": null,
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
    {
     "key": "INS_SLEW",
     "flag": "FELUCCA_INS_SLEW",
-    "label": "SLEW insert (slew-rate crunch)",
-    "group": "FX: any number (each track its own)",
+    "label": "[insert] SLEW (slew-rate crunch)",
+    "group": "FX",
     "bit": 349,
     "default": 0,
     "parent": null,
@@ -2869,16 +3315,20 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": null,
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
    {
     "key": "INS_TAPE",
     "flag": "FELUCCA_INS_TAPE",
-    "label": "TAPE insert (tape tone)",
-    "group": "FX: any number (each track its own)",
+    "label": "[insert] TAPE (tape tone)",
+    "group": "FX",
     "bit": 356,
     "default": 0,
     "parent": null,
@@ -2895,6 +3345,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": {
      "project": "Melodee 1.4.4 (keremimo/melodee)",
      "author": "Kerem Kilic",
@@ -2903,14 +3354,17 @@
      "url": "https://github.com/keremimo/melodee"
     },
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "Melodee 1.4.4 (keremimo/melodee) @ v1.4.4 4f5fb6d by Kerem Kilic (GPL-3.0-only)"
    },
    {
     "key": "INS_SPIT",
     "flag": "FELUCCA_INS_SPIT",
-    "label": "SPIT insert (random resonant band, driven)",
-    "group": "FX: any number (each track its own)",
+    "label": "[insert] SPIT (random resonant band, driven)",
+    "group": "FX",
     "bit": 357,
     "default": 0,
     "parent": null,
@@ -2927,6 +3381,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": {
      "project": "Melodee 1.4.4 (keremimo/melodee)",
      "author": "Kerem Kilic",
@@ -2935,14 +3390,17 @@
      "url": "https://github.com/keremimo/melodee"
     },
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "Melodee 1.4.4 (keremimo/melodee) @ v1.4.4 4f5fb6d by Kerem Kilic (GPL-3.0-only)"
    },
    {
     "key": "EX_GAIN",
     "flag": "FELUCCA_EX_GAIN",
-    "label": "EXGN insert: the example effect (a gain in dB)",
-    "group": "FX: any number (each track its own)",
+    "label": "[insert] EXGN: the example effect (a gain in dB)",
+    "group": "FX",
     "bit": 421,
     "default": 0,
     "parent": null,
@@ -2959,46 +3417,24 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": null,
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "host-tested only (tests/examples_test.c), not on a device",
-    "provenance_line": ""
-   },
-   {
-    "key": "INS_CHORUS",
-    "flag": "FELUCCA_INS_CHORUS",
-    "label": "CHRS insert (chorus copies for the tracks)",
-    "group": "FX: limited instances (once, or a set count)",
-    "bit": 270,
-    "default": 0,
-    "parent": null,
-    "desc": "A chorus type for the tracks' insert slots (INSERTS > S1 / S2: CHRS), beside the chorus send: two taps around 7 ms swept apart at ~0.8 Hz; CHRS up to the middle mixes it in, past the middle widens the sweep. On the drum track it turns the drums' mid into a stereo chorus. 2 KB of the effects memory an instance. Its line is in the effects memory (below): as many play at once as it holds; a slot that picks it when there is no room left stays dry until some is free (the INSERTS list shows how many more fit). A saved project keeps the type, not the room: on load the slots get it in order T1 T2 T3 DR, the master, the USB input, the returns.",
-    "experimental": false,
-    "notice": "Tested in the host tests only, not on a device.",
-    "off_warning": "",
-    "env": "",
-    "target_only": false,
-    "symbols": [
-     "ifx_chrs"
-    ],
-    "no_image": false,
-    "fixed": false,
-    "head": false,
-    "choices": [],
-    "provenance": null,
-    "children": [],
-    "tested": "emulator-tested only",
     "provenance_line": ""
    },
    {
     "key": "INS_DELAY",
     "flag": "FELUCCA_INS_DELAY",
-    "label": "ECHO insert (short delay copies for the tracks)",
-    "group": "FX: limited instances (once, or a set count)",
+    "label": "[insert] ECHO (short delay copies for the tracks)",
+    "group": "FX",
     "bit": 271,
     "default": 0,
     "parent": null,
-    "desc": "A slapback type for the tracks' insert slots (INSERTS > S1 / S2: ECHO), beside the delay send: one repeat 75 ms after the sound; ECHO up to the middle sets its level, past the middle adds repeats (feedback up to 60 %). Up to 93 ms of line an instance (the long, tempo-synced delay stays the send's): 8 KB of the effects memory. Its line is in the effects memory (below): as many play at once as it holds; a slot that picks it when there is no room left stays dry until some is free (the INSERTS list shows how many more fit). A saved project keeps the type, not the room: on load the slots get it in order T1 T2 T3 DR, the master, the USB input, the returns.",
+    "desc": "A slapback type for the tracks' insert slots (INSERTS > S1 / S2: ECHO), beside the delay send: one repeat 75 ms after the sound; ECHO up to the middle sets its level, past the middle adds repeats (feedback up to 60 %). Up to 93 ms of line an instance (the long, tempo-synced delay stays the send's): 8 KB of the effects memory. Its line is in the effects memory, sized by the builder: the delay's line and one line of each limited insert type built, so each type built plays once at the same time (more while the delay or the chorus is in no master slot: a send in none lends its line); a slot that picks it when there is no room left stays dry until some is free (the INSERTS list shows how many more fit). A saved project keeps the type, not the room: on load the slots get it in order T1 T2 T3 DR, the master, the USB input, the returns.",
     "experimental": false,
     "notice": "Tested in the host tests only, not on a device.",
     "off_warning": "",
@@ -3011,20 +3447,24 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": null,
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
    {
     "key": "INS_JCHORUS",
     "flag": "FELUCCA_INS_JCHORUS",
-    "label": "JUNO CHORUS insert (the Juno-106 chorus)",
-    "group": "FX: limited instances (once, or a set count)",
+    "label": "[insert] JUNO CHORUS (the Juno-106 chorus)",
+    "group": "FX",
     "bit": 142,
     "default": 0,
     "parent": null,
-    "desc": "The Juno-106's chorus as an insert type (INSERTS > S1 / S2, and the master's insert slots: JUNO): the MN3009 BBD model of fm-106, MODE I, II or I+II, JUNO its mix (127: the Juno's chorus on). A mono track comes out stereo. About 130 host instructions a sample an instance; 2 KB of the effects memory. Its line is in the effects memory (below): as many play at once as it holds; a slot that picks it when there is no room left stays dry until some is free (the INSERTS list shows how many more fit). A saved project keeps the type, not the room: on load the slots get it in order T1 T2 T3 DR, the master, the USB input, the returns.",
+    "desc": "The Juno-106's chorus as an insert type (INSERTS > S1 / S2, and the master's insert slots: JUNO): the MN3009 BBD model of fm-106, MODE I, II or I+II, JUNO its mix (127: the Juno's chorus on). A mono track comes out stereo. About 130 host instructions a sample an instance; 2 KB of the effects memory. Its line is in the effects memory, sized by the builder: the delay's line and one line of each limited insert type built, so each type built plays once at the same time (more while the delay or the chorus is in no master slot: a send in none lends its line); a slot that picks it when there is no room left stays dry until some is free (the INSERTS list shows how many more fit). A saved project keeps the type, not the room: on load the slots get it in order T1 T2 T3 DR, the master, the USB input, the returns.",
     "experimental": false,
     "notice": "From fm-106 by PatttF (GPL-3.0), after Ultramaster KR-106 (GPL-3.0). Tested in the host tests only, not on a device.",
     "off_warning": "",
@@ -3037,6 +3477,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": {
      "project": "fm-106 (PatttF/fm-106)",
      "author": "PatttF",
@@ -3044,17 +3485,18 @@
      "commit": "be74757",
      "url": "https://github.com/PatttF/fm-106"
     },
-    "children": [
-     "JUNO_FINE"
-    ],
+    "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "fm-106 (PatttF/fm-106) @ be74757 by PatttF (GPL-3.0-only)"
    },
    {
     "key": "RET_FB",
     "flag": "FELUCCA_RET_FB",
-    "label": "return feedback sends (B to A, C to A, C to B)",
-    "group": "FX: any number (each track its own)",
+    "label": "[master] return feedback sends (B to A, C to A, C to B)",
+    "group": "FX",
     "bit": 167,
     "default": 1,
     "parent": null,
@@ -3071,20 +3513,24 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": null,
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
    {
     "key": "INS_FLANGER",
     "flag": "FELUCCA_INS_FLANGER",
-    "label": "FLNG insert (flanger)",
-    "group": "FX: limited instances (once, or a set count)",
+    "label": "[insert] FLNG (flanger)",
+    "group": "FX",
     "bit": 259,
     "default": 0,
     "parent": null,
-    "desc": "A flanger type for any insert slot (a track's, the master's, the USB input's) and the returns (FLNG): a short delay swept 0.25 .. 5 ms (~0.25 Hz); FLNG up to the middle mixes it in, past the middle adds feedback. 1 KB of the effects memory an instance. Its line is in the effects memory (below): as many play at once as it holds; a slot that picks it when there is no room left stays dry until some is free (the INSERTS list shows how many more fit). A saved project keeps the type, not the room: on load the slots get it in order T1 T2 T3 DR, the master, the USB input, the returns.",
+    "desc": "A flanger type for any insert slot (a track's, the master's, the USB input's) and the returns (FLNG): a short delay swept 0.25 .. 5 ms (~0.25 Hz); FLNG up to the middle mixes it in, past the middle adds feedback. 1 KB of the effects memory an instance. Its line is in the effects memory, sized by the builder: the delay's line and one line of each limited insert type built, so each type built plays once at the same time (more while the delay or the chorus is in no master slot: a send in none lends its line); a slot that picks it when there is no room left stays dry until some is free (the INSERTS list shows how many more fit). A saved project keeps the type, not the room: on load the slots get it in order T1 T2 T3 DR, the master, the USB input, the returns.",
     "experimental": false,
     "notice": "From Felucca 1.5.6's track INSERT FLANG by Leo Kuroshita (GPL-3.0). Tested in the host tests and the emulator only, not on a device.",
     "off_warning": "",
@@ -3097,6 +3543,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": {
      "project": "Felucca 1.5.6 (hugelton/Felucca)",
      "author": "Leo Kuroshita (Hügelton)",
@@ -3105,14 +3552,17 @@
      "url": "https://github.com/hugelton/Felucca"
     },
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "Felucca 1.5.6 (hugelton/Felucca) @ 9f6a885 by Leo Kuroshita (Hügelton) (GPL-3.0-only)"
    },
    {
     "key": "INS_XDLY",
     "flag": "FELUCCA_INS_XDLY",
-    "label": "XDLY insert (LYRA-8 style cross-modulated dual delay)",
-    "group": "FX: limited instances (once, or a set count)",
+    "label": "[insert] XDLY (LYRA-8 style cross-modulated dual delay)",
+    "group": "FX",
     "bit": 376,
     "default": 0,
     "parent": null,
@@ -3129,10 +3579,14 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": null,
     "children": [
      "XDLY_LEN"
     ],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -3140,7 +3594,7 @@
     "key": "XDLY_LEN",
     "flag": "FELUCCA_XDLY_LEN",
     "label": "XDLY line length (its longest TIME)",
-    "group": "FX: limited instances (once, or a set count)",
+    "group": "FX",
     "bit": 377,
     "default": 16384,
     "parent": "INS_XDLY",
@@ -3164,81 +3618,20 @@
       "0.19 s (32 KB)"
      ]
     ],
+    "not_built": {},
     "provenance": null,
     "children": [],
-    "tested": "emulator-tested only",
-    "provenance_line": ""
-   },
-   {
-    "key": "DLY_ARENA",
-    "flag": "FELUCCA_DLY_ARENA",
-    "label": "effects memory (shared by the delay and every insert with a line)",
-    "group": "FX: limited instances (once, or a set count)",
-    "bit": 378,
-    "default": 0,
-    "parent": null,
-    "desc": "One pool memory, in 1 KB units, for the delay send's line (its length above) and the line of every insert that has one: CHRS 2 KB, ECHO 8 KB, JUNO CHORUS 2 KB, FLNG 1 KB, XDLY 2 lines of its length. An insert takes its room when a slot picks it and gives it back when the slot lets go; with no room left the slot shows FULL and stays dry. How many of each play at once is what this memory holds: the builder's notice says, for each type built, up to how many at once (alone) in the size chosen, and how many more while the delay or the chorus is in no master slot: a send in none lends its line to the inserts (as many as fit; taken back, faded out, when the send is put back). Auto: the delay's line plus one line of each insert built, so every insert built can play at least once at the same time. Larger: more at once. At least the delay's line, and room for one line of each insert built (an error names the one that does not fit).",
-    "experimental": false,
-    "notice": "",
-    "off_warning": "",
-    "env": "",
-    "target_only": false,
-    "symbols": [],
-    "no_image": false,
-    "fixed": false,
-    "head": false,
-    "choices": [
-     [
-      0,
-      "auto: the delay's line and one line of each insert"
-     ],
-     [
-      32,
-      "32 KB"
-     ],
-     [
-      48,
-      "48 KB"
-     ],
-     [
-      64,
-      "64 KB"
-     ],
-     [
-      96,
-      "96 KB"
-     ],
-     [
-      128,
-      "128 KB"
-     ],
-     [
-      160,
-      "160 KB"
-     ],
-     [
-      192,
-      "192 KB"
-     ],
-     [
-      256,
-      "256 KB"
-     ],
-     [
-      320,
-      "320 KB"
-     ]
-    ],
-    "provenance": null,
-    "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
    {
     "key": "INS_GATER",
     "flag": "FELUCCA_INS_GATER",
-    "label": "GATER insert (tempo-synced trance gate)",
-    "group": "FX: any number (each track its own)",
+    "label": "[insert] GATER (tempo-synced trance gate)",
+    "group": "FX",
     "bit": 330,
     "default": 0,
     "parent": null,
@@ -3255,8 +3648,12 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": null,
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -3279,6 +3676,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": {
      "project": "SLOOP 2.4 (isod89/sloop-fm1)",
      "author": "isod89",
@@ -3287,6 +3685,9 @@
      "url": "https://github.com/isod89/sloop-fm1"
     },
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "SLOOP 2.4 (isod89/sloop-fm1) @ v2.4 8d3823f by isod89 (GPL-3.0-only)"
    },
@@ -3322,8 +3723,12 @@
       "4: A..D, the old project slots"
      ]
     ],
+    "not_built": {},
     "provenance": null,
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -3367,8 +3772,12 @@
       "off: USR3 64 KiB"
      ]
     ],
+    "not_built": {},
     "provenance": null,
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -3394,8 +3803,12 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": null,
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -3418,8 +3831,12 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": null,
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -3446,6 +3863,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": {
      "project": "Flowstate (zakariachowdhury/flowstate-fm1)",
      "author": "Zakaria Chowdhury",
@@ -3456,6 +3874,9 @@
     "children": [
      "ENERGY"
     ],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "Flowstate (zakariachowdhury/flowstate-fm1) @ 3962560 by Zakaria Chowdhury (GPL-3.0-only)"
    },
@@ -3480,6 +3901,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": {
      "project": "Flowstate (zakariachowdhury/flowstate-fm1)",
      "author": "Zakaria Chowdhury",
@@ -3488,6 +3910,9 @@
      "url": "https://github.com/zakariachowdhury/flowstate-fm1"
     },
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "Flowstate (zakariachowdhury/flowstate-fm1) @ 3962560 by Zakaria Chowdhury (GPL-3.0-only)"
    },
@@ -3499,7 +3924,7 @@
     "bit": 420,
     "default": 0,
     "parent": null,
-    "desc": "On the drum track, a black key held past the hold time opens its lane's FX page until the key is let go: ROLL (every hit of the lane repeats x2 to x8 in its step), CHANCE (each hit plays with this probability), FILL (the lane plays always, only in a fill or never in one: GLO + 9 / 10) and NUDGE (the whole lane early or late, up to half a step); SELECT, the second page: VRAND (each hit's velocity at random, up to 64 either way), FLAM (a grace note 5 to 40 ms before the hit), RAMP (a roll's hits fade in or out) and EVERY (the lane plays on loop 1:2 .. 4:4 only; with COND). KNOB 1-4 turn them, SHIFT + a knob resets. Saved with the pattern, as events of its automation (an older build refuses a drum pattern that has them). Not on STEP (a lane key held + a step sets its level there). Needs the automation store.",
+    "desc": "On the drum track, a black key held past the hold time opens its lane's FX page until the key is let go: ROLL (every hit of the lane repeats x2 to x8 in its step), CHANCE (each hit plays with this probability), FILL (the lane plays always, only in a fill or never in one: GLO + 9 / 10) and NUDGE (the whole lane early or late, up to half a step); SELECT, the second page: VRAND (each hit's velocity at random, up to 64 either way), FLAM (a grace note 5 to 40 ms before the hit), RAMP (a roll's hits fade in or out) and EVERY (the lane plays on loop 1:2 .. 4:4 only; with COND) and CH ACC (the chance of an accented hit, one the ACCENT lane accents or a HARD one: 0 to 100 %, or =NORM, the default, which uses CHANCE). KNOB 1-4 turn them, SHIFT + a knob resets. Saved with the pattern, as events of its automation (an older build refuses a drum pattern that has them). Not on STEP (a lane key held + a step sets its level there). Needs the automation store.",
     "experimental": true,
     "notice": "",
     "off_warning": "",
@@ -3510,8 +3935,12 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": null,
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "host-tested only, not on a device",
     "provenance_line": ""
    },
@@ -3534,8 +3963,12 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": null,
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -3560,6 +3993,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": {
      "project": "Felucca (hugelton/Felucca)",
      "author": "Leo Kuroshita (Hügelton)",
@@ -3570,6 +4004,9 @@
     "children": [
      "EX_NOTEGEN"
     ],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "Felucca (hugelton/Felucca) by Leo Kuroshita (Hügelton) (GPL-3.0-only)"
    },
@@ -3595,8 +4032,12 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": null,
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "host-tested only (tests/examples_test.c), not on a device",
     "provenance_line": ""
    },
@@ -3604,7 +4045,7 @@
     "key": "USB_MIDI",
     "flag": "",
     "label": "USB MIDI (always: notes, clock, the editor, updates)",
-    "group": "USB & BT & MIDI",
+    "group": "Connectivity",
     "bit": 362,
     "default": 1,
     "parent": null,
@@ -3619,8 +4060,12 @@
     "fixed": true,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": null,
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -3628,7 +4073,7 @@
     "key": "USB_CONSOLE",
     "flag": "",
     "label": "USB serial console (logs, diagnostics)",
-    "group": "USB & BT & MIDI",
+    "group": "Connectivity",
     "bit": 360,
     "default": 0,
     "parent": null,
@@ -3643,8 +4088,12 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": null,
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -3652,7 +4101,7 @@
     "key": "USB_AUDIO",
     "flag": "",
     "label": "USB audio (4 stems in, stereo out)",
-    "group": "USB & BT & MIDI",
+    "group": "Connectivity",
     "bit": 361,
     "default": 0,
     "parent": null,
@@ -3667,6 +4116,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": {
      "project": "Melodee (keremimo/melodee)",
      "author": "Kerem Kilic",
@@ -3675,6 +4125,9 @@
      "url": "https://github.com/keremimo/melodee"
     },
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "Melodee (keremimo/melodee) by Kerem Kilic (GPL-3.0-only)"
    },
@@ -3682,7 +4135,7 @@
     "key": "UART",
     "flag": "FELUCCA_UART",
     "label": "TRS MIDI IN",
-    "group": "USB & BT & MIDI",
+    "group": "Connectivity",
     "bit": 48,
     "default": 1,
     "parent": null,
@@ -3697,8 +4150,12 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": null,
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -3706,7 +4163,7 @@
     "key": "MIDI_CLOCK",
     "flag": "FELUCCA_MIDI_CLOCK",
     "label": "MIDI clock in + out",
-    "group": "USB & BT & MIDI",
+    "group": "Connectivity",
     "bit": 49,
     "default": 1,
     "parent": null,
@@ -3723,8 +4180,12 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": null,
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -3732,7 +4193,7 @@
     "key": "MIDI_EXPR",
     "flag": "FELUCCA_MIDI_EXPR",
     "label": "MIDI expression (bend, mod, sustain, RPN)",
-    "group": "USB & BT & MIDI",
+    "group": "Connectivity",
     "bit": 50,
     "default": 1,
     "parent": null,
@@ -3747,6 +4208,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": {
      "project": "Melodee (keremimo/melodee)",
      "author": "ChanceTheMaker, Kerem Kilic",
@@ -3755,6 +4217,9 @@
      "url": "https://github.com/keremimo/melodee"
     },
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "Melodee (keremimo/melodee) @ 670193c by ChanceTheMaker, Kerem Kilic (GPL-3.0-only)"
    },
@@ -3762,7 +4227,7 @@
     "key": "MIDI_NOTEOUT",
     "flag": "FELUCCA_MIDI_OUT",
     "label": "MIDI note out of the sequencer (GLOBAL MIDI OUT = BOTH or SEQ)",
-    "group": "USB & BT & MIDI",
+    "group": "Connectivity",
     "bit": 199,
     "default": 1,
     "parent": null,
@@ -3777,6 +4242,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": {
      "project": "SLOOP 2.4 (isod89/sloop-fm1)",
      "author": "isod89",
@@ -3785,6 +4251,9 @@
      "url": "https://github.com/isod89/sloop-fm1"
     },
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "SLOOP 2.4 (isod89/sloop-fm1) @ v2.4 8d3823f by isod89 (GPL-3.0-only)"
    },
@@ -3807,8 +4276,12 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": null,
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -3820,7 +4293,7 @@
     "bit": 141,
     "default": 1,
     "parent": null,
-    "desc": "With the presets: SHIFT2 (OCT+ held) + PRESETS marks the sound playing, SHIFT2 + SELECT browses only the favorites, a star after a favorite's name in the toast and in PROJECT > USER (SHIFT2 + ITEM marks a slot). Up to 64 factory sounds (kept by engine and name: they stay marked over builds that leave engines out) and any of the 32 user presets (an erased preset loses its mark); the FM6 / CZ banks and the drum track have none. Kept with the settings (136 B at the end of the settings record: an older record reads whole with none; a build without this item keeps the rest and forgets them on its next save). About 1 KB of flash, 136 B of pool. Off: no marks.",
+    "desc": "With the presets: SAVE held + PRESETS marks the sound playing, the FAVORITES filter of the preset list (SHIFT2 + PRESETS) browses only the favorites, a star after a favorite's name in the toast and in PROJECT > USER (SHIFT2 + ITEM marks a slot). Up to 64 factory sounds (kept by engine and name: they stay marked over builds that leave engines out) and any of the 32 user presets (an erased preset loses its mark); the FM6 / CZ banks and the drum track have none. Kept with the settings (136 B at the end of the settings record: an older record reads whole with none; a build without this item keeps the rest and forgets them on its next save). About 1 KB of flash, 136 B of pool. Off: no marks.",
     "experimental": false,
     "notice": "After Felucca 1.6's favorites by Leo Kuroshita (GPL-3.0). Tested in the host UI and storage tests only, not on a device.",
     "off_warning": "",
@@ -3831,6 +4304,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": {
      "project": "Felucca (hugelton/Felucca)",
      "author": "Leo Kuroshita (Hügelton)",
@@ -3839,6 +4313,9 @@
      "url": "https://github.com/hugelton/Felucca"
     },
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "Felucca (hugelton/Felucca) by Leo Kuroshita (Hügelton) (GPL-3.0-only)"
    },
@@ -3864,8 +4341,12 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": null,
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -3888,8 +4369,12 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": null,
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -3912,6 +4397,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": {
      "project": "X0X (charlesvestal/fm1-x0x)",
      "author": "Charles Vestal",
@@ -3920,6 +4406,9 @@
      "url": "https://github.com/charlesvestal/fm1-x0x"
     },
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "X0X (charlesvestal/fm1-x0x) @ 61654ba by Charles Vestal (GPL-3.0-only)"
    },
@@ -3955,6 +4444,7 @@
       "60 MHz"
      ]
     ],
+    "not_built": {},
     "provenance": {
      "project": "X0X (charlesvestal/fm1-x0x)",
      "author": "Charles Vestal",
@@ -3963,38 +4453,11 @@
      "url": "https://github.com/charlesvestal/fm1-x0x"
     },
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "X0X (charlesvestal/fm1-x0x) @ d179e03 by Charles Vestal (GPL-3.0-only)"
-   },
-   {
-    "key": "LCD_DIRTY",
-    "flag": "FELUCCA_LCD_DIRTY",
-    "label": "screen: send only the changed rectangle",
-    "group": "UI",
-    "bit": 68,
-    "default": 1,
-    "parent": null,
-    "desc": "Redraws only the part of the graph strip that changed instead of the whole strip: less data per frame and less tearing (with the 30 MHz screen clock). Costs about 1.5 KB of flash and 0.6 KB of RAM.",
-    "experimental": false,
-    "notice": "Ported from X0X by Charles Vestal (GPL-3.0): dirty-rectangle screen updates. Not yet tried on hardware here.",
-    "off_warning": "",
-    "env": "",
-    "target_only": false,
-    "symbols": [],
-    "no_image": false,
-    "fixed": false,
-    "head": false,
-    "choices": [],
-    "provenance": {
-     "project": "X0X (charlesvestal/fm1-x0x)",
-     "author": "Charles Vestal",
-     "licence": "GPL-3.0-only",
-     "commit": "201b95c",
-     "url": "https://github.com/charlesvestal/fm1-x0x"
-    },
-    "children": [],
-    "tested": "emulator-tested only",
-    "provenance_line": "X0X (charlesvestal/fm1-x0x) @ 201b95c by Charles Vestal (GPL-3.0-only)"
    },
    {
     "key": "EDITOR",
@@ -4017,6 +4480,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": null,
     "children": [
      "BACKUP",
@@ -4025,8 +4489,12 @@
      "ED_MIX",
      "ED_SEQ",
      "ED_SCREENS",
-     "ED_MIRROR"
+     "ED_MIRROR",
+     "BT_PROJ"
     ],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -4049,8 +4517,12 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": null,
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -4073,8 +4545,12 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": null,
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -4097,8 +4573,12 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": null,
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -4121,8 +4601,12 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": null,
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -4145,8 +4629,12 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": null,
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -4169,8 +4657,12 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": null,
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
@@ -4193,44 +4685,24 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": null,
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "on the FM-1: the web editor's Mirror tab and the Optimist Mirror app, USB and Bluetooth (the user, 2026-10-25); host-tested (the stream decoded back to every screen drawn, every catch-up the panel)",
-    "provenance_line": ""
-   },
-   {
-    "key": "TAB_IN_POOL",
-    "flag": "FELUCCA_TAB_IN_POOL",
-    "label": "sound tables and FM6 buffers in the pool, not main RAM",
-    "group": "System",
-    "bit": 300,
-    "default": 0,
-    "parent": null,
-    "desc": "Moves what the sound loops read from main RAM to the pool: the sine, soft-clip and GRAIN window tables (about 2.5 KB, copied there from flash at start-up) and FM6's sine table, operator buses and voices (about 5.9 KB), so builder items get that much more main RAM. Unverified on hardware: both are the same SRAM as far as is known and the emulator cannot tell a speed difference, so on the FM-1 it may be slower; compare the console's TABBENCH figures and the CPU meter with it off and on. The sound is the same.",
-    "experimental": false,
-    "notice": "",
-    "off_warning": "",
-    "env": "",
-    "target_only": false,
-    "symbols": [],
-    "no_image": false,
-    "fixed": false,
-    "head": false,
-    "choices": [],
-    "provenance": null,
-    "children": [],
-    "tested": "on the FM-1: in daily use for days, all good (the user, 2026-10-25); emulator-tested",
     "provenance_line": ""
    },
    {
     "key": "TAB_CODED_ALL",
     "flag": "FELUCCA_TAB_CODED_ALL",
     "label": "tables unpacked into RAM (flash for pool)",
-    "group": "FX: any number (each track its own)",
+    "group": "FX",
     "bit": 386,
     "default": 0,
     "parent": null,
-    "desc": "Trades flash for pool: smooth lookup tables the sound and the UI read are kept in flash as the differences between neighbours and unpacked at start-up into the pool, always the pool whether or not TAB_IN_POOL is on (main RAM pays nothing); the undo history ring, which takes what the pool has left, is that much shorter. The same values: the sound and the screens are unchanged; the tables read a little faster from RAM than from flash. The eleven small tables (pitch, envelope and LFO rates, cutoff, levels, decay): 4.3 KB of pool for about 2.2 KB of flash; every table adds FM6's five (fine, detune, LFO and portamento): 7.3 KB of pool for about 3.1 KB of flash (measured on the synth profile and the user's). With PLAITS built, either choice also unpacks its five waveshapers: 2.5 KB more of pool for about 1.9 KB more of flash. Either choice also moves the small font's bitmaps to the pool as they are (1.5 KB of pool for 1.0 KB of flash: they travel in the start-up stream like the rest) and, when built, JUNO's eleven small tables, the master compressor's 2^x curve and XDLY's TIME curve, delta-coded like the small tables (together 2.0 KB of pool for 1.3 KB of flash on the user's configuration, 2026-10-24).",
+    "desc": "Trades flash for pool: smooth lookup tables the sound and the UI read are kept in flash as the differences between neighbours and unpacked at start-up into the pool, always the pool (main RAM pays nothing); the undo history ring, which takes what the pool has left, is that much shorter. The same values: the sound and the screens are unchanged; the tables read a little faster from RAM than from flash. The eleven small tables (pitch, envelope and LFO rates, cutoff, levels, decay): 4.3 KB of pool for about 2.2 KB of flash; every table adds FM6's five (fine, detune, LFO and portamento): 7.3 KB of pool for about 3.1 KB of flash (measured on the synth profile and the user's). With PLAITS built, either choice also unpacks its five waveshapers: 2.5 KB more of pool for about 1.9 KB more of flash. Either choice also moves the small font's bitmaps to the pool as they are (1.5 KB of pool for 1.0 KB of flash: they travel in the start-up stream like the rest) and, when built, JUNO's eleven small tables, the master compressor's 2^x curve and XDLY's TIME curve, delta-coded like the small tables (together 2.0 KB of pool for 1.3 KB of flash on the user's configuration, 2026-10-24).",
     "experimental": true,
     "notice": "",
     "off_warning": "",
@@ -4254,8 +4726,12 @@
       "every table, FM6's five too (3 KB of pool more)"
      ]
     ],
+    "not_built": {},
     "provenance": null,
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "host-tested only (tests/tab_coded_test.c: every table decoded byte for byte), not on a device",
     "provenance_line": ""
    },
@@ -4278,9 +4754,476 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": null,
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "on the FM-1: saving while playing works (the user, 2026-10-25); host-tested",
+    "provenance_line": ""
+   },
+   {
+    "key": "MEMORY",
+    "flag": "",
+    "label": "memory: the one-row choice of before (an old .config's MEMORY line)",
+    "group": "Memory management",
+    "bit": 436,
+    "default": 0,
+    "parent": null,
+    "desc": "The single MEMORY row of 2026-10-28..31, kept so that an old .config's MEMORY= line and --set MEMORY= still work: 0 normal, 4 no user samples, 1 more flash, 2 SD card mode. The menu shows SD CARD MODE, SAMPLE SLOTS and PROJECTS instead.",
+    "experimental": false,
+    "notice": "",
+    "off_warning": "",
+    "env": "",
+    "target_only": true,
+    "symbols": [],
+    "no_image": true,
+    "fixed": false,
+    "head": false,
+    "choices": [
+     [
+      0,
+      "normal"
+     ],
+     [
+      4,
+      "no user samples: 16 projects, more flash"
+     ],
+     [
+      1,
+      "more flash: two projects in flash"
+     ],
+     [
+      2,
+      "SD card mode"
+     ],
+     [
+      5,
+      "another step: see SAMPLE SLOTS and PROJECTS"
+     ]
+    ],
+    "not_built": {
+     "4": {
+      "release": "not for the release yet: fm1-base's own update loader and app_end do not take the MEMORY steps' table (its slot switch would leave the old step's log sectors in the new one's; docs/SD-MODE-DESIGN.md 9.4, the proposed fm1-base branch pr/app-end-table)"
+     }
+    },
+    "provenance": null,
+    "children": [],
+    "hidden": true,
+    "shown_under": null,
+    "dim_when": null,
+    "tested": "emulator-tested only",
+    "provenance_line": ""
+   },
+   {
+    "key": "SD_MODE",
+    "flag": "",
+    "label": "SD card mode: user data on an SD card (a hardware mod)",
+    "group": "Memory management",
+    "bit": 445,
+    "default": 0,
+    "parent": null,
+    "desc": "On: the biggest flash for code (831,420 B, the release 823,228 B) with the user data on a microSD card wired to the LCD bus (docs/SD-CARD-DESIGN.md): one project in flash, the others, the samples and the recordings on the card; SD_RING and SD_REC under it. SAMPLE SLOTS and PROJECTS are greyed while it is on. Off: the flash keeps the user data, as SAMPLE SLOTS and PROJECTS choose.",
+    "experimental": true,
+    "notice": "",
+    "off_warning": "",
+    "env": "",
+    "target_only": true,
+    "symbols": [],
+    "no_image": true,
+    "fixed": false,
+    "head": false,
+    "choices": [],
+    "not_built": {},
+    "provenance": null,
+    "children": [
+     "SD_RING",
+     "SD_REC"
+    ],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
+    "tested": "host-tested only (docs/SD-CARD-DESIGN.md); no FM-1 has the card yet",
+    "provenance_line": ""
+   },
+   {
+    "key": "SMP_SLOTS",
+    "flag": "",
+    "label": "sample slots: user samples kept in flash",
+    "group": "Memory management",
+    "bit": 446,
+    "default": 3,
+    "parent": null,
+    "desc": "How many user-sample slots the flash keeps; each slot given up is code room (docs/SD-MODE-DESIGN.md 9.7). 2: USR2 and USR3 where normal keeps them (and the snapshots, the CZ collection at USR3's top); 1: USR3 alone; 0: none (no user drum samples, snapshots or CZ collection; SAMPLE plays its built-in sets). 3: the projects off (PATTERNS off): USR1 too, the old song sections. With PROJECTS, the pair is the flash layout.",
+    "experimental": false,
+    "notice": "",
+    "off_warning": "",
+    "env": "",
+    "target_only": true,
+    "symbols": [],
+    "no_image": true,
+    "fixed": false,
+    "head": false,
+    "choices": [
+     [
+      0,
+      "0: none (SAMPLE's built-in sets still play)"
+     ],
+     [
+      1,
+      "1: USR3 (64 KiB, the snapshots)"
+     ],
+     [
+      2,
+      "2: USR2 + USR3 (144 KiB, as normal)"
+     ],
+     [
+      3,
+      "3: USR1..USR3, no projects (PATTERNS off)"
+     ]
+    ],
+    "not_built": {},
+    "provenance": null,
+    "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": "SD_MODE",
+    "tested": "emulator-tested only",
+    "provenance_line": ""
+   },
+   {
+    "key": "PROJECTS",
+    "flag": "",
+    "label": "projects kept in flash",
+    "group": "Memory management",
+    "bit": 447,
+    "default": 16,
+    "parent": null,
+    "desc": "How many projects the flash keeps (the user, 2026-10-31: 2, 4 or 16); fewer projects is a smaller project log, more code room. The log's room (MEM FULL past it; a busy project is about 6-8 KB, an estimate): 16: 128 KiB with no sample slot (about 13-17 busy projects), 80 KiB in normal (7-10); 4: 44 KiB (3-5); 2: 28 KiB. The web editor's backup keeps the projects a smaller choice has no room for.",
+    "experimental": false,
+    "notice": "",
+    "off_warning": "",
+    "env": "",
+    "target_only": true,
+    "symbols": [],
+    "no_image": true,
+    "fixed": false,
+    "head": false,
+    "choices": [
+     [
+      2,
+      "2"
+     ],
+     [
+      4,
+      "4"
+     ],
+     [
+      16,
+      "16"
+     ]
+    ],
+    "not_built": {},
+    "provenance": null,
+    "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": "SD_MODE",
+    "tested": "emulator-tested only",
+    "provenance_line": ""
+   },
+   {
+    "key": "RAM_PACKED",
+    "flag": "",
+    "label": "RAM: one packed region, always",
+    "group": "Memory management",
+    "bit": 437,
+    "default": 1,
+    "parent": null,
+    "desc": "The RAM is one packed region in every build (the code RAM, the data and the pool share it: docs/MEMORY-MAP.md), so there is no switch for it. Shown for the record, it cannot be switched off.",
+    "experimental": false,
+    "notice": "",
+    "off_warning": "",
+    "env": "",
+    "target_only": false,
+    "symbols": [],
+    "no_image": true,
+    "fixed": true,
+    "head": false,
+    "choices": [],
+    "not_built": {},
+    "provenance": null,
+    "children": [],
+    "hidden": true,
+    "shown_under": null,
+    "dim_when": null,
+    "tested": "emulator-tested only",
+    "provenance_line": ""
+   },
+   {
+    "key": "SDCARD",
+    "flag": "FELUCCA_SDCARD",
+    "label": "SD card on the LCD bus (a hardware mod)",
+    "group": "Memory management",
+    "bit": 409,
+    "default": 0,
+    "parent": null,
+    "desc": "Reads and writes a microSD card wired to the LCD's SPI bus: the card's clock and data in on the LCD's, its data out on the LCD's D/C line through 1 kOhm, its chip select the LCD's through one inverter (74LVC1G04), so the card is selected whenever the screen is not (docs/SD-CARD-DESIGN.md has the wiring and the parts). FAT16 or FAT32 (cards up to 32 GB as sold; larger ones reformatted FAT32). In the normal layout 8.3 names, files made on a computer that the FM-1 reads and writes inside (Petit FatFs: no new files, no growing); with LAYOUT 1 full FatFs: long names, files created and grown, the card's own OPTIMIST folder (about 1 KB of flash more while only the console uses it, about 20 KB once the card's pages use all of it). For now the serial console's sd commands only (USB_CONSOLE): mount, list, dump, speed test, write test. Without the mod it finds no card and changes nothing. 5,032 B of flash, 20 B of RAM and 556 B of pool with the console (measured 2026-10-25, Petit FatFs).",
+    "experimental": true,
+    "notice": "",
+    "off_warning": "no SD card",
+    "env": "",
+    "target_only": true,
+    "symbols": [],
+    "no_image": false,
+    "fixed": false,
+    "head": false,
+    "choices": [],
+    "not_built": {},
+    "provenance": null,
+    "children": [],
+    "hidden": true,
+    "shown_under": null,
+    "dim_when": null,
+    "tested": "host-tested only (a card model on real FAT16 / FAT32 images); no FM-1 has the mod yet",
+    "provenance_line": ""
+   },
+   {
+    "key": "LAYOUT",
+    "flag": "FELUCCA_LAYOUT",
+    "label": "flash layout: the MEMORY step (set by SD CARD MODE, SAMPLE SLOTS and PROJECTS)",
+    "group": "Memory management",
+    "bit": 410,
+    "default": 0,
+    "parent": null,
+    "desc": "The flash step (docs/SD-MODE-DESIGN.md 9.7, tools/flash_layout.py STEPS): each pair of SAMPLE SLOTS and PROJECTS is one; the user sample slots given up and the smaller project log become code space (code runs in place from flash: no RAM). 0 normal (2 slots, 16 projects, 581,564 B of code); 1 (0 slots, 2 projects, 831,420 B; the SD card mode's with SDCARD); 3 (0 slots, 16 projects, 720,828 B). Installing another step ERASES what the two keep in different places (the projects in flash always; the update loader clears the other step's sectors first): back up with the web editor before. The first install of a step needs a normal build of this version first (an older updater refuses its size).",
+    "experimental": true,
+    "notice": "",
+    "off_warning": "",
+    "env": "",
+    "target_only": true,
+    "symbols": [],
+    "no_image": false,
+    "fixed": false,
+    "head": false,
+    "choices": [
+     [
+      0,
+      "2 sample slots, 16 projects: 581,564 B for code"
+     ],
+     [
+      2,
+      "1 sample slot, 16 projects: 655,292 B for code"
+     ],
+     [
+      6,
+      "2 sample slots, 4 projects: 659,388 B for code"
+     ],
+     [
+      7,
+      "2 sample slots, 2 projects: 675,772 B for code"
+     ],
+     [
+      3,
+      "0 sample slots, 16 projects: 720,828 B for code"
+     ],
+     [
+      4,
+      "1 sample slot, 4 projects: 741,308 B for code"
+     ],
+     [
+      5,
+      "1 sample slot, 2 projects: 757,692 B for code"
+     ],
+     [
+      8,
+      "0 sample slots, 4 projects: 806,844 B for code"
+     ],
+     [
+      1,
+      "0 sample slots, 2 projects: 831,420 B for code"
+     ]
+    ],
+    "not_built": {
+     "2": {
+      "release": "not for the release yet: fm1-base's own update loader and app_end do not take the MEMORY steps' table (its slot switch would leave the old step's log sectors in the new one's; docs/SD-MODE-DESIGN.md 9.4, the proposed fm1-base branch pr/app-end-table)"
+     },
+     "3": {
+      "release": "not for the release yet: fm1-base's own update loader and app_end do not take the MEMORY steps' table (its slot switch would leave the old step's log sectors in the new one's; docs/SD-MODE-DESIGN.md 9.4, the proposed fm1-base branch pr/app-end-table)"
+     },
+     "4": {
+      "release": "not for the release yet: fm1-base's own update loader and app_end do not take the MEMORY steps' table (its slot switch would leave the old step's log sectors in the new one's; docs/SD-MODE-DESIGN.md 9.4, the proposed fm1-base branch pr/app-end-table)"
+     },
+     "5": {
+      "release": "not for the release yet: fm1-base's own update loader and app_end do not take the MEMORY steps' table (its slot switch would leave the old step's log sectors in the new one's; docs/SD-MODE-DESIGN.md 9.4, the proposed fm1-base branch pr/app-end-table)"
+     },
+     "6": {
+      "release": "not for the release yet: fm1-base's own update loader and app_end do not take the MEMORY steps' table (its slot switch would leave the old step's log sectors in the new one's; docs/SD-MODE-DESIGN.md 9.4, the proposed fm1-base branch pr/app-end-table)"
+     },
+     "7": {
+      "release": "not for the release yet: fm1-base's own update loader and app_end do not take the MEMORY steps' table (its slot switch would leave the old step's log sectors in the new one's; docs/SD-MODE-DESIGN.md 9.4, the proposed fm1-base branch pr/app-end-table)"
+     },
+     "8": {
+      "release": "not for the release yet: fm1-base's own update loader and app_end do not take the MEMORY steps' table (its slot switch would leave the old step's log sectors in the new one's; docs/SD-MODE-DESIGN.md 9.4, the proposed fm1-base branch pr/app-end-table)"
+     }
+    },
+    "provenance": null,
+    "children": [],
+    "hidden": true,
+    "shown_under": null,
+    "dim_when": null,
+    "tested": "host-tested only; on an FM-1 whose flash runs the release image's 820 KB (docs/SD-MODE-DESIGN.md)",
+    "provenance_line": ""
+   },
+   {
+    "key": "ARENA",
+    "flag": "FELUCCA_ARENA_KB",
+    "label": "memory per project (the free RAM: one arena for the engines and the effects' lines)",
+    "group": "Memory management",
+    "bit": 411,
+    "default": 0,
+    "parent": null,
+    "desc": "Instead of reserving every engine's memory whether a project uses it or not, the RAM the firmware leaves free is one arena that holds what the project uses (the user, 2026-10-29: arena first, undo gets the rest): each synth part's engine state (FM6, PHYS, GRAIN, ACID, PLAITS, JUNO, DRAWBAR, CZ, SLICE), placed when an engine is picked, its room free for the others once the part plays an engine that keeps nothing there; the effects' lines (the delay, chorus and reverb sends' lines, the limited inserts' own room: one line of each type built) and the other buffers only some projects use (each track's SLICER recording while it is on STUT, WAVE's table while a part plays WAVE, the X0X 909's and 808's states while the kit or a lane plays them, the PUNCH ring while the project's PUNCH switch is on: GLOBAL > Rec, FM6's sine table while a part plays FM6). The undo history keeps 16 KB and borrows what the arena does not use, giving it back, its oldest levels first, as soon as the arena needs it. A change that does not fit is refused and the device proposes what to drop (DROP T2 FM6, then the effects' lines: DROP REV 32 KB); a project load that does not fit opens a list of what to drop. Before anything is refused the memories are moved together when the free room would hold it, and a project load packs them all; nothing that sounds is moved (a part only while it plays nothing, a send line while its tail is silent), what sounds is packed once it is quiet (SYSTEM > INFO's RAM bar shows the arena in use and the undo history's share). A dropped or refused effect is bypassed and dimmed (FULL), kept in the project, and comes back by itself once there is room. Off: every memory reserved as before, nothing ever refused. An older configuration's size (ARENA=96) reads as on.",
+    "experimental": true,
+    "notice": "",
+    "off_warning": "",
+    "env": "",
+    "target_only": false,
+    "symbols": [],
+    "no_image": false,
+    "fixed": false,
+    "head": false,
+    "choices": [],
+    "not_built": {},
+    "provenance": null,
+    "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
+    "tested": "host-tested (tests/fx_arena_test.c, arena_bufs_test.c, arena_test.c, arena_frag_test.c, placeholder_test.c); on the user's FM-1 since 2026-10-29 (the fm1-next test packages)",
+    "provenance_line": ""
+   },
+   {
+    "key": "BT_PROJ",
+    "flag": "FELUCCA_BT_PROJ",
+    "label": "projects to and from the phone over Bluetooth",
+    "group": "System",
+    "bit": 414,
+    "default": 0,
+    "parent": "EDITOR",
+    "desc": "The web editor's and the phone's project moves (a project read from the FM-1, or one written into it: the backup's project streams and the project command) over Bluetooth MIDI too, not only over the USB cable, so with one project on the FM-1 the phone keeps the others without a cable. Over Bluetooth a project moves at the link's few KB a second (a dense project in a few seconds). About 640 B of the pool (a request's room for the stream's chunks).",
+    "experimental": true,
+    "notice": "",
+    "off_warning": "projects move over the USB cable only",
+    "env": "",
+    "target_only": false,
+    "symbols": [],
+    "no_image": false,
+    "fixed": false,
+    "head": false,
+    "choices": [],
+    "not_built": {},
+    "provenance": null,
+    "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
+    "tested": "host-tested only (tests/mirror_test.c); no client sends it yet",
+    "provenance_line": ""
+   },
+   {
+    "key": "SD_RING",
+    "flag": "FELUCCA_SD_RING_KB",
+    "label": "samples streamed from the SD card (SAMPLE's CARD set): each voice's lookahead",
+    "group": "Memory management",
+    "bit": 415,
+    "default": 0,
+    "parent": "SDCARD",
+    "desc": "SAMPLE's SET gets a last value, CARD: the part plays its sample from the SD card (a WAV of 8 or 16 bits, mono or stereo, up to 176 kHz), streamed, not loaded. Each sample's first moments are kept in memory (the pre-buffer, one setting: 25, 50, 100 or 200 ms, 50 by default; 50 ms of 44.1 kHz 16-bit mono is 4.4 KB a sample) so a note starts at once while the card's first block comes; each playing voice reads ahead into a ring of this size, filled in short bursts of 4 KB between the screen's strips (the screen and the card share a bus). A card that stalls longer than the ring holds makes the voice fade out at once (no click; the console's sd stream counts it). 8 voices take 8 x this of the arena while the project plays card samples, with the heads; a project whose samples do not fit is refused and the device proposes what to drop (a part's engine, or a shorter pre-buffer). A card sample plays at most an octave up (each octave doubles what it reads). Needs LAYOUT (full FatFs) and SDCARD, SAMPLE and ARENA.",
+    "experimental": true,
+    "notice": "",
+    "off_warning": "no samples from the card",
+    "env": "",
+    "target_only": true,
+    "symbols": [],
+    "no_image": false,
+    "fixed": false,
+    "head": false,
+    "choices": [
+     [
+      0,
+      "off"
+     ],
+     [
+      4,
+      "4 KB a voice (46 ms of 44.1 kHz 16-bit mono)"
+     ],
+     [
+      8,
+      "8 KB a voice (93 ms)"
+     ],
+     [
+      12,
+      "12 KB a voice (139 ms)"
+     ],
+     [
+      16,
+      "16 KB a voice (186 ms)"
+     ]
+    ],
+    "not_built": {},
+    "provenance": null,
+    "children": [],
+    "hidden": false,
+    "shown_under": "SD_MODE",
+    "dim_when": null,
+    "tested": "host-tested only (tests/sd_stream_test.c, sd_stream_plan_test.c: a card model with stalls, an interrupt-driven audio clock); no FM-1 has the card yet",
+    "provenance_line": ""
+   },
+   {
+    "key": "SD_REC",
+    "flag": "FELUCCA_SD_REC_KB",
+    "label": "record the master output to the SD card: the buffer for the card's stalls",
+    "group": "Memory management",
+    "bit": 416,
+    "default": 0,
+    "parent": "SDCARD",
+    "desc": "Records what the FM-1 plays (the master, 16-bit stereo at 44.1 kHz) into a WAV on the SD card, RECORD/REC-0001.WAV and on. The audio goes into a buffer of this size and the card takes it a block at a time between the screen's strips (the screen and the card share a bus); a card that stalls longer than the buffer holds loses frames (counted), never writes noise. The file is one contiguous run sized for the length asked (a minute when none): a take that reaches its end stops there. While it records, the card does nothing else: samples from the card wait, the card's lists and saves say the card is busy. Needs LAYOUT (full FatFs) and SDCARD. The buffer is RAM of the pool for as long as the build has it.",
+    "experimental": true,
+    "notice": "",
+    "off_warning": "no recording to the card",
+    "env": "",
+    "target_only": true,
+    "symbols": [],
+    "no_image": false,
+    "fixed": false,
+    "head": false,
+    "choices": [
+     [
+      0,
+      "off"
+     ],
+     [
+      16,
+      "16 KB (93 ms of 44.1 kHz 16-bit stereo)"
+     ],
+     [
+      32,
+      "32 KB (186 ms)"
+     ],
+     [
+      64,
+      "64 KB (372 ms)"
+     ]
+    ],
+    "not_built": {},
+    "provenance": null,
+    "children": [],
+    "hidden": false,
+    "shown_under": "SD_MODE",
+    "dim_when": null,
+    "tested": "host-tested only (tests/sd_wr_test.c, sd_rec_test.c: a card model with stalls, an interrupt-driven audio clock); no FM-1 has the card yet; for now started from the console (sd rec)",
     "provenance_line": ""
    },
    {
@@ -4306,6 +5249,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": {
      "project": "Flowstate (zakariachowdhury/flowstate-fm1)",
      "author": "Zakaria Chowdhury",
@@ -4314,38 +5258,11 @@
      "url": "https://github.com/zakariachowdhury/flowstate-fm1"
     },
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "Flowstate (zakariachowdhury/flowstate-fm1) @ e62e186 by Zakaria Chowdhury (GPL-3.0-only)"
-   },
-   {
-    "key": "VOICE_OWN",
-    "flag": "FELUCCA_VOICE_OWN",
-    "label": "voices: reuse a track's own released voice before taking another's",
-    "group": "System",
-    "bit": 369,
-    "default": 1,
-    "parent": null,
-    "desc": "When every voice is in use and a track plays a new note, it first restarts one of its own voices that is already releasing, instead of fading out another track's tail. The other tracks keep their tails, and no extra fading voice runs for a moment over the budget. When the track has no releasing voice, the voice is taken from another track as before. A few dozen bytes.",
-    "experimental": false,
-    "notice": "From JIANT 0.9.9 cpu3 by juanjiant-bit (juanjiant-bit/JIANT da61bc62, GPL-3.0). Tested in the host tests only, not on a device.",
-    "off_warning": "",
-    "env": "",
-    "target_only": false,
-    "symbols": [],
-    "no_image": false,
-    "fixed": false,
-    "head": false,
-    "choices": [],
-    "provenance": {
-     "project": "JIANT 0.9.9 cpu3 (juanjiant-bit/JIANT)",
-     "author": "juanjiant-bit",
-     "licence": "GPL-3.0-only",
-     "commit": "da61bc62",
-     "url": "https://github.com/juanjiant-bit/JIANT"
-    },
-    "children": [],
-    "tested": "emulator-tested only",
-    "provenance_line": "JIANT 0.9.9 cpu3 (juanjiant-bit/JIANT) @ da61bc62 by juanjiant-bit (GPL-3.0-only)"
    },
    {
     "key": "CACHE_RAM",
@@ -4383,8 +5300,12 @@
       "28 KB (1 kept, as V15)"
      ]
     ],
+    "not_built": {},
     "provenance": null,
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "8 KB: in daily use on the user's FM-1 for days, no fault (2026-10-25); on one FM-1 2026-10-18: the boot test passes, cache RAM as fast as main RAM, flash data reads over 16 KB 57x slower (1.7 us vs 32 ns: flash data goes through the data cache)",
     "provenance_line": ""
    },
@@ -4407,144 +5328,110 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": null,
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": ""
    },
    {
-    "key": "ARENA",
-    "flag": "FELUCCA_ARENA_KB",
-    "label": "memory per project (an arena for the synth engines)",
+    "key": "COMPILER",
+    "flag": "FELUCCA_COMPILER",
+    "label": "compiler: pi32v2-llvm or JieLi's clang",
     "group": "System",
-    "bit": 411,
-    "default": 0,
+    "bit": 442,
+    "default": 1,
     "parent": null,
-    "desc": "Instead of reserving the largest engine's memory for each synth part whether a project uses it or not, one pool memory of this size holds what the project uses: each part's engine state (FM6, PHYS, GRAIN, ACID, PLAITS, JUNO, DRAWBAR, CZ, SLICE), placed when an engine is picked, its room free for the others once the part plays an engine that keeps nothing there. What the arena does not need goes to the undo history. A change that does not fit is refused and the device proposes a part to drop (DROP T2 FM6); a dropped part plays nothing (NONE) until an engine is picked for it; a project load that does not fit offers its refused parts the same way, one at a time, the project's sound kept. Off: every memory reserved as before, nothing ever refused, no arena code.",
-    "experimental": true,
+    "desc": "The C compiler the firmware is built with. pi32v2-llvm (Julius Vitkauskas's LLVM with a pi32v2 target) makes the same firmware 14 to 30 KB smaller than JieLi's own clang 4 (measured on the default profile and a full release configuration), the audio's CPU the same. JieLi's is the compiler the stock firmware and every earlier Optimist were built with. costs-all measures with the default (pi32v2-llvm); this item's cost at JieLi is how much bigger JieLi's makes the same firmware.",
+    "experimental": false,
+    "notice": "",
+    "off_warning": "",
+    "env": "",
+    "target_only": true,
+    "symbols": [],
+    "no_image": false,
+    "fixed": false,
+    "head": false,
+    "choices": [
+     [
+      1,
+      "pi32v2-llvm (smaller)"
+     ],
+     [
+      0,
+      "JieLi clang 4"
+     ]
+    ],
+    "not_built": {},
+    "provenance": {
+     "project": "pi32v2-llvm (jvitkauskas/pi32v2-llvm, pi32v2-isa)",
+     "author": "Julius Vitkauskas",
+     "licence": "Apache-2.0 WITH LLVM-exception, MIT-0",
+     "commit": "4f631b31b",
+     "url": "https://github.com/jvitkauskas/pi32v2-llvm"
+    },
+    "children": [],
+    "hidden": true,
+    "shown_under": null,
+    "dim_when": null,
+    "tested": "on the FM-1 (2026-10-29): Optimist's own and the release build with pi32v2-llvm 4f631b31b, the user's project played and saved, no drop, no crash; the same sound as JieLi's in an A/B",
+    "provenance_line": "pi32v2-llvm (jvitkauskas/pi32v2-llvm, pi32v2-isa) @ 4f631b31b by Julius Vitkauskas (Apache-2.0 WITH LLVM-exception, MIT-0)"
+   },
+   {
+    "key": "BOOTLOADER",
+    "flag": "",
+    "label": "bootloader: keep it, or install m-bootloader",
+    "group": "System",
+    "bit": 443,
+    "default": 1,
+    "parent": null,
+    "desc": "What installing this build does to the FM-1's bootloader. Keep: it is never touched (the stock one, or m-bootloader if it is there already). m-bootloader (the default, set in every profile): an open bootloader by Julius Vitkauskas (MIT): hold REC while switching on for the chip's download mode, PLAY for a recovery menu, even when a firmware does not start; it stays through firmware updates. The installers (make flash, the builder's f, tools/fm1_install.py) use USB-MIDI whenever the running firmware takes the package and leave the bootloader as it is, whatever this says; they install m-bootloader only when asked (--install-mboot, the builder's entry, the web button), through download mode with M-Flasher, after a full flash backup and your yes. Nothing in the firmware changes.",
+    "experimental": false,
     "notice": "",
     "off_warning": "",
     "env": "",
     "target_only": false,
     "symbols": [],
-    "no_image": false,
+    "no_image": true,
     "fixed": false,
     "head": false,
     "choices": [
      [
       0,
-      "off: every engine's memory reserved, as before"
+      "keep (as it is)"
      ],
      [
-      24,
-      "24 KB"
-     ],
-     [
-      32,
-      "32 KB"
-     ],
-     [
-      40,
-      "40 KB"
-     ],
-     [
-      48,
-      "48 KB"
-     ],
-     [
-      64,
-      "64 KB"
-     ],
-     [
-      96,
-      "96 KB"
+      1,
+      "m-bootloader"
      ]
     ],
-    "provenance": null,
-    "children": [],
-    "tested": "host-tested only (tests/arena_test.c, placeholder_test.c, backports_test.c); not on an FM-1",
-    "provenance_line": ""
-   },
-   {
-    "key": "DUAL",
-    "flag": "FELUCCA_DUAL",
-    "label": "second CPU core renders parts 2-3",
-    "group": "System",
-    "bit": 58,
-    "default": 2,
-    "parent": null,
-    "desc": "The FM-1's second CPU core renders synth parts 2 and 3 while the first renders the rest, cutting the first core's load by 40 to 44 % in the emulator, with the same sound. It costs about 3.3 KB of flash, 3.7 KB of RAM and 6 KB of pool. On some FM-1s the second core misreads RAM at the boot loader's supply: it then runs nothing it misread, is held for the session and the FM-1 goes on with one core (the message CPU1 OFF MISREAD); a boot after one that crashed in its first 30 s stays on one core.",
-    "experimental": false,
-    "notice": "Its guard against misread RAM is ported from X0X by Charles Vestal (GPL-3.0): the second core runs only the next job, with a matching check word, and is held at the first one it refuses.",
-    "off_warning": "",
-    "env": "",
-    "target_only": true,
-    "symbols": [],
-    "no_image": false,
-    "fixed": false,
-    "head": false,
-    "choices": [
-     [
-      0,
-      "off"
-     ],
-     [
-      2,
-      "on"
-     ]
-    ],
+    "not_built": {},
     "provenance": {
-     "project": "X0X (charlesvestal/fm1-x0x)",
-     "author": "Charles Vestal",
-     "licence": "GPL-3.0-only",
-     "commit": "47f8e4c",
-     "url": "https://github.com/charlesvestal/fm1-x0x"
-    },
-    "children": [
-     "STOCK_SUPPLY"
-    ],
-    "tested": "on the FM-1: the default since 2026-10-16",
-    "provenance_line": "X0X (charlesvestal/fm1-x0x) @ 47f8e4c by Charles Vestal (GPL-3.0-only)"
-   },
-   {
-    "key": "STOCK_SUPPLY",
-    "flag": "FELUCCA_STOCK_SUPPLY",
-    "label": "raise the core rails to the FM-1's stock values at start-up (for the second core)",
-    "group": "System",
-    "bit": 62,
-    "default": 1,
-    "parent": "DUAL",
-    "desc": "At start-up, before the second core, the audio and Bluetooth, the FM-1's rails are set as its own M-VAVE firmware sets them: the 1.4 V rail moved from its LDO to the DC-DC, then raised to 1.60 V (VDC14 7), then the core rail to 1.38 V (SYSVDD 15), a step at a time, never lowered (the boot loader leaves 1.40 V and 1.26 V). Read back after: if a value is wrong, the second core stays off (2ND CORE OFF SUPPLY) and the FM-1 runs on one core. SYSTEM > INTERNALS shows the rails (SUPPLY). Second-core builds only; it replaces the earlier DUAL_BOOST (1.50 V / 1.38 V on the LDO). On the second core's test unit both cores crashed within seconds at the boot loader's rails and ran 3 x 3 minutes with 1.50 V / 1.38 V; the stock sequence itself is still being measured.",
-    "experimental": false,
-    "notice": "At your own risk: the FM-1's own firmware raises its rails this way, every custom firmware leaves them at the boot loader's lower levels. 1.38 V core and 1.60 V on the 1.4 V rail are above the AC79 datasheet's table (the chip's absolute limits are not public); chips vary from unit to unit; the effect on heat and battery life has not been measured.",
-    "off_warning": "",
-    "env": "",
-    "target_only": true,
-    "symbols": [],
-    "no_image": false,
-    "fixed": false,
-    "head": false,
-    "choices": [],
-    "provenance": {
-     "project": "Melodee (keremimo/melodee)",
-     "author": "Kerem Kilic",
-     "licence": "GPL-3.0-only",
-     "commit": "7a51700",
-     "url": "https://github.com/keremimo/melodee"
+     "project": "m-bootloader (jvitkauskas/m-bootloader)",
+     "author": "Julius Vitkauskas",
+     "licence": "MIT",
+     "commit": "v1.2 22e2559",
+     "url": "https://github.com/jvitkauskas/m-bootloader"
     },
     "children": [],
-    "tested": "the sequence emulator- and host-tested; 1.50 V / 1.38 V measured on one FM-1 (2026-10-16)",
-    "provenance_line": "Melodee (keremimo/melodee) @ 7a51700 by Kerem Kilic (GPL-3.0-only)"
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
+    "tested": "host-tested only (the installers' choice and display); m-bootloader itself on FM-1s (its author's tests)",
+    "provenance_line": "m-bootloader (jvitkauskas/m-bootloader) @ v1.2 22e2559 by Julius Vitkauskas (MIT)"
    },
    {
     "key": "BLE",
     "flag": "FELUCCA_BLE",
     "label": "Bluetooth LE MIDI, our own stack",
-    "group": "USB & BT & MIDI",
+    "group": "Connectivity",
     "bit": 252,
     "default": 0,
     "parent": null,
-    "desc": "BLE MIDI as the stock firmware offers it (named Optimist XXXX, the BLE-MIDI service), from a stack written for Optimist (docs/BLE-STACK.md): BLE in plays the synth, the FM-1's own notes go out with real timestamps. Tested on an FM-1 with macOS Audio MIDI Setup (not yet with iOS or Windows). The radio's start-up tables, captured from the stock V15 firmware, are included: no V15 file is needed (FM1_STOCK_FWSC makes a fresh capture instead, with the same result). Bluetooth starts OFF: switch it on in SYSTEM > Bluetooth. About 32 KB of flash and 6.5 KB of RAM (the menu shows the measured figures; BLE_DIAG below adds more); where the build then overflows, ticking it removes the smallest single item that frees enough (sample sets first, then other items), or the one you pick instead.",
+    "desc": "BLE MIDI as the stock firmware offers it (named FM1-XXXX, the BLE-MIDI service), from a stack written for Optimist (docs/BLE-STACK.md): BLE in plays the synth, the FM-1's own notes go out with real timestamps. Tested on an FM-1 with macOS Audio MIDI Setup (not yet with iOS or Windows). The radio's start-up tables, captured from the stock V15 firmware, are included: no V15 file is needed (FM1_STOCK_FWSC makes a fresh capture instead, with the same result). Bluetooth starts OFF: switch it on in SYSTEM > Bluetooth. About 32 KB of flash and 6.5 KB of RAM (the menu shows the measured figures); where the build then overflows, ticking it removes the smallest single item that frees enough (sample sets first, then other items), or the one you pick instead.",
     "experimental": false,
     "notice": "",
     "off_warning": "",
@@ -4557,46 +5444,23 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": null,
     "children": [
-     "BLE_DIAG",
      "BLE_BOND",
      "BLE_CENTRAL"
     ],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "tested on an FM-1 with macOS Audio MIDI Setup, not yet with iOS or Windows",
-    "provenance_line": ""
-   },
-   {
-    "key": "BLE_DIAG",
-    "flag": "FELUCCA_BLE_DIAG",
-    "label": "BLE diagnostics: the console's blell, counters and rings",
-    "group": "USB & BT & MIDI",
-    "bit": 253,
-    "default": 0,
-    "parent": "BLE",
-    "desc": "For finding BLE faults: the console's blell command (needs the serial console, USB_CONSOLE) and the counters and rings behind it (link-layer events, the radio's receive and transmit state, the protocol packets, BLE-MIDI in). About 6 KB of flash and 2.3 KB of RAM, and 6 KB of flash more with the console (USB_CONSOLE) for blell itself. Leave it off for normal use: BLE works the same without it; bletrim and blevm stay, and so does the boot breadcrumb.",
-    "experimental": false,
-    "notice": "",
-    "off_warning": "",
-    "env": "",
-    "target_only": true,
-    "symbols": [
-     "con_blell"
-    ],
-    "no_image": false,
-    "fixed": false,
-    "head": false,
-    "choices": [],
-    "provenance": null,
-    "children": [],
-    "tested": "emulator-tested only",
     "provenance_line": ""
    },
    {
     "key": "BLE_BOND",
     "flag": "FELUCCA_BLE_BOND",
     "label": "BLE pairing when a Mac or phone connects to the FM-1 (Just Works, encrypted, remembered)",
-    "group": "USB & BT & MIDI",
+    "group": "Connectivity",
     "bit": 254,
     "default": 0,
     "parent": "BLE",
@@ -4613,8 +5477,12 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": null,
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "on an FM-1 with a Mac (2026-10-18)",
     "provenance_line": ""
    },
@@ -4622,7 +5490,7 @@
     "key": "BLE_CENTRAL",
     "flag": "FELUCCA_BLE_CENTRAL",
     "label": "BLE devices: the FM-1 connects to BLE-MIDI devices",
-    "group": "USB & BT & MIDI",
+    "group": "Connectivity",
     "bit": 255,
     "default": 0,
     "parent": "BLE",
@@ -4652,8 +5520,12 @@
       "minimal: never pairs (controllers, another FM-1)"
      ]
     ],
+    "not_built": {},
     "provenance": null,
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "on an FM-1: an iPhone app reconnected as the last device (2026-10-18)",
     "provenance_line": ""
    },
@@ -4661,7 +5533,7 @@
     "key": "BT_AUDIO",
     "flag": "FELUCCA_BT_AUDIO",
     "label": "Bluetooth Classic Audio (A2DP Source, SBC)",
-    "group": "USB & BT & MIDI",
+    "group": "Connectivity",
     "bit": 281,
     "default": 0,
     "parent": null,
@@ -4679,64 +5551,101 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": null,
-    "children": [
-     "BT_AFH",
-     "BT_DIAG"
-    ],
+    "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "on the FM-1: AirPods, a Sony WH-1000XM4 and a Bose SoundLink Mini, with BLE MIDI and the Mirror app at once (the user, 2026-10-25); host-tested (SSP, SAFER+, SBC encoder, AVDTP, L2CAP)",
     "provenance_line": ""
    },
    {
-    "key": "BT_AFH",
-    "flag": "FELUCCA_BT_AFH",
-    "label": "Bluetooth audio: adaptive frequency hopping (the channels the headset fails on skipped)",
-    "group": "USB & BT & MIDI",
-    "bit": 395,
-    "default": 1,
-    "parent": "BT_AUDIO",
-    "desc": "What every phone's Bluetooth controller does: the FM-1 counts the headset's answers per radio channel (79 of them) every 30 s and takes the channels it fails on out of the hopping (LMP_set_AFH; at least 20 stay), so a few bad channels no longer stall the stream. Measured need and result (2026-10-23, a WH-1000XM4): as the FM-1 warmed, channels 7 MHz apart went deaf (a clock harmonic's comb) and the stream stalled and crackled on them; with this on, 6 channels dropped over 6 minutes, every switch held and not one audio packet was lost. A console build (BT_DIAG) switches only when told (btpage afh=0 / 1 / 3).",
-    "experimental": false,
+    "key": "WIFI_LINK",
+    "flag": "FELUCCA_WIFI",
+    "label": "Wi-Fi + Link: join a network, Ableton Link as a clock",
+    "group": "Connectivity",
+    "bit": 434,
+    "default": 0,
+    "parent": null,
+    "desc": "The FM-1 joins a Wi-Fi network (WPA2-PSK with CCMP) on the radio BLE already uses: SYSTEM > WI-FI scans, lists the access points heard, keeps the saved networks and joins one (the password typed on the keys), and the web editor has a Wi-Fi tab. Ableton Link is a clock source: SYNC gets LINK (AUTO ranks it first), the session's tempo and beat are the MIDI clock. Needs BLE (the same radio, the on-chip driver). On Optimist's own firmware it needs the serial console (USB_CONSOLE) too: the Wi-Fi manager and the editor's Wi-Fi command run on it; the release runs them on fm1-base's own Wi-Fi stack (wifi_stack = own), with no console. Off by default. Measured 2026-10-28 on the bt-debug configuration, with and without it: 26.6 KB of flash, 1.9 KB of RAM and 3.7 KB of the pool. Open and WPA3-only networks, TKIP and networks that need protected management frames are shown grey and cannot be joined. The console's Wi-Fi test commands and the software CCMP are not part of it (the OPTIMIST_WIFI=1 dev build, +9.9 KB of flash).",
+    "experimental": true,
     "notice": "",
     "off_warning": "",
     "env": "",
     "target_only": true,
     "symbols": [
-     "bt_afh_classify"
+     "lk_poll"
     ],
     "no_image": false,
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": null,
-    "children": [],
-    "tested": "emulator-tested only",
+    "children": [
+     "WIFI_AP"
+    ],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
+    "tested": "on an FM-1 as far as receive and decrypt (docs/WIFI-LINK-HANDOVER.md); DHCP and a Link session not through yet",
     "provenance_line": ""
    },
    {
-    "key": "BT_DIAG",
-    "flag": "FELUCCA_BT_DIAG",
-    "label": "Bluetooth audio diagnostics: the console's btrx / bttrace, counters and logs",
-    "group": "USB & BT & MIDI",
-    "bit": 363,
+    "key": "WIFI_AP",
+    "flag": "FELUCCA_WIFI_AP",
+    "label": "Wi-Fi AP: the FM-1 as an access point (MODE AP)",
+    "group": "Connectivity",
+    "bit": 435,
     "default": 0,
-    "parent": "BT_AUDIO",
-    "desc": "For finding Bluetooth audio faults on a console build (USB_CONSOLE): the btrx and bttrace logs, the status histograms and the per-second counters (receive status bits, signal level, gain), and the live btpage pll= / agc= / follow= commands, and every line the Bluetooth stack writes to the console (btinq, btpage). About 14 KB of flash and 6.4 KB of RAM with the console. Leave it off for normal use: the audio works the same without it.",
-    "experimental": false,
+    "parent": "WIFI_LINK",
+    "desc": "MODE AP on the SYSTEM > WI-FI page: the FM-1 is the Wi-Fi access point, so a phone, a laptop or Ableton Live joins it directly, with no router (a gig). MODE gets two more values, AP AUTO (starts at power-on) and AP MAN (started and stopped with SAVE): the page shows the network's name (FM1- and four digits of the radio's address, or one set from the web editor), the channel (1 to 13) and the state; SAVE types the password (8 to 63 characters, the same entry as a network's), SAVE held clears the key. No access point runs without a password; only the key made from it is kept. WPA2 personal (AES), up to 4 stations, addresses 192.168.4.2 to .5 from the FM-1's own DHCP server, Link runs on that network. The web editor's Wi-Fi tab gets the same. Needs Wi-Fi + Link. Not tested on the device yet (host-tested only): the radio side may need changes. Off by default. Measured 2026-10-28 on the bt-debug configuration, with and without it (Wi-Fi + Link on in both): 8.1 KB of flash, no RAM and 1.8 KB of the pool.",
+    "experimental": true,
     "notice": "",
     "off_warning": "",
     "env": "",
     "target_only": true,
-    "symbols": [
-     "con_btrx"
-    ],
+    "symbols": [],
     "no_image": false,
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": null,
     "children": [],
-    "tested": "emulator-tested only",
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
+    "tested": "host-tested (the authenticator against our own station, the daemon over a stand-in radio, the page, the web command); the radio side is not tested on an FM-1 yet",
+    "provenance_line": ""
+   },
+   {
+    "key": "USB_HOST",
+    "flag": "FELUCCA_USB_HOST",
+    "label": "USB MIDI host: a USB-MIDI keyboard, controller or synth plugged into the FM-1",
+    "group": "Connectivity",
+    "bit": 438,
+    "default": 0,
+    "parent": null,
+    "desc": "The FM-1's USB port as a MIDI host: a class-compliant USB-MIDI keyboard, controller or synth plugged into the FM-1, directly or behind one powered hub. The FM-1 gives the port no power: a powered hub or a powered USB adapter is needed. SYSTEM > USB: MODE DEVICE or HOST, and DEVICE, the device's name as it gives it (else CONNECTED, NONE, NO MIDI). Its notes play the tracks on their channels as any MIDI input, its clock can be followed (CLK IN USB or AUTO), and the FM-1's notes and CLOCK OUT go to it. HOST is the port's only use meanwhile: no computer (no USB MIDI to a Mac, no USB audio, no web editor or installer over USB) until MODE is DEVICE again or the FM-1 is switched off. HOST is never remembered: the FM-1 always starts as a device, so it is never locked out of its computer. The release only (Optimist as an fm1-base app: fm1-base's USB host, from Melodee); Optimist's own firmware has none. Off by default. Host-tested only (the host simulator's USB device, felucca-bsp's model of the USB controller): USB host input ran on Melodee, output is not validated on a device yet.",
+    "experimental": true,
+    "notice": "",
+    "off_warning": "no USB-MIDI keyboard or synth on the FM-1's own USB port (a computer's USB MIDI works as always)",
+    "env": "",
+    "target_only": false,
+    "symbols": [],
+    "no_image": false,
+    "fixed": false,
+    "head": false,
+    "choices": [],
+    "not_built": {},
+    "provenance": null,
+    "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
+    "tested": "host-tested only; USB host IN ran on Melodee, OUT not validated on a device",
     "provenance_line": ""
    },
    {
@@ -4758,6 +5667,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": {
      "project": "hugelton/Felucca",
      "author": "Leo Kuroshita (@kurogedelic), Hügelton Instruments",
@@ -4766,38 +5676,11 @@
      "url": "https://github.com/hugelton/Felucca"
     },
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "hugelton/Felucca @ 727f272 (Felucca 1.0 source) by Leo Kuroshita (@kurogedelic), Hügelton Instruments (GPL-3.0-only)"
-   },
-   {
-    "key": "KEYLIT",
-    "flag": "FELUCCA_KEYLIT",
-    "label": "keys light the notes played",
-    "group": "UI",
-    "bit": 65,
-    "default": 1,
-    "parent": null,
-    "desc": "Lights the keys of the notes the selected track plays (its steps, the arpeggiator, held notes), so you see the pattern on the keyboard. About 0.2 KB of flash, LEDs only; with LIGHTS, MENU > NOTES turns it on and off at run time.",
-    "experimental": false,
-    "notice": "",
-    "off_warning": "",
-    "env": "",
-    "target_only": false,
-    "symbols": [],
-    "no_image": false,
-    "fixed": false,
-    "head": false,
-    "choices": [],
-    "provenance": {
-     "project": "hugelton/Felucca",
-     "author": "Leo Kuroshita (@kurogedelic), Hügelton Instruments",
-     "licence": "GPL-3.0-only",
-     "commit": "20c275e (Felucca 1.0.1, #38)",
-     "url": "https://github.com/hugelton/Felucca"
-    },
-    "children": [],
-    "tested": "emulator-tested only",
-    "provenance_line": "hugelton/Felucca @ 20c275e (Felucca 1.0.1, #38) by Leo Kuroshita (@kurogedelic), Hügelton Instruments (GPL-3.0-only)"
    },
    {
     "key": "QNT_SEQ",
@@ -4818,6 +5701,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": {
      "project": "hugelton/Felucca",
      "author": "Leo Kuroshita (@kurogedelic), Hügelton Instruments",
@@ -4826,6 +5710,9 @@
      "url": "https://github.com/hugelton/Felucca"
     },
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "hugelton/Felucca @ 20c275e (Felucca 1.0.1, #37) by Leo Kuroshita (@kurogedelic), Hügelton Instruments (GPL-3.0-only)"
    },
@@ -4833,7 +5720,7 @@
     "key": "SPRING",
     "flag": "FELUCCA_SPRING",
     "label": "reverb: SPRING",
-    "group": "FX: limited instances (once, or a set count)",
+    "group": "FX",
     "bit": 72,
     "default": 0,
     "parent": "FX_REVERB",
@@ -4848,6 +5735,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": {
      "project": "hugelton/Felucca",
      "author": "Leo Kuroshita (@kurogedelic), Hügelton Instruments",
@@ -4856,68 +5744,11 @@
      "url": "https://github.com/hugelton/Felucca"
     },
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "hugelton/Felucca @ 727f272 (Felucca 1.0 source) by Leo Kuroshita (@kurogedelic), Hügelton Instruments (GPL-3.0-only)"
-   },
-   {
-    "key": "BASSPLUS",
-    "flag": "FELUCCA_BASSPLUS",
-    "label": "BASS+ speaker mode",
-    "group": "FX: limited instances (once, or a set count)",
-    "bit": 73,
-    "default": 0,
-    "parent": null,
-    "desc": "A third MENU > LOWCUT setting (OFF / LOWCUT / BASS+) for the FM-1's small speaker: it adds harmonics of the bass below ~150 Hz, which the speaker can play, and raises the low cut to ~220 Hz. About 0.5 KB of flash and 0.35 KB of RAM; CPU only while BASS+ is on.",
-    "experimental": false,
-    "notice": "",
-    "off_warning": "",
-    "env": "",
-    "target_only": false,
-    "symbols": [],
-    "no_image": false,
-    "fixed": false,
-    "head": false,
-    "choices": [],
-    "provenance": {
-     "project": "hugelton/Felucca",
-     "author": "Leo Kuroshita (@kurogedelic), Hügelton Instruments",
-     "licence": "GPL-3.0-only",
-     "commit": "727f272 (Felucca 1.0 source)",
-     "url": "https://github.com/hugelton/Felucca"
-    },
-    "children": [],
-    "tested": "emulator-tested only",
-    "provenance_line": "hugelton/Felucca @ 727f272 (Felucca 1.0 source) by Leo Kuroshita (@kurogedelic), Hügelton Instruments (GPL-3.0-only)"
-   },
-   {
-    "key": "BRIGHT",
-    "flag": "FELUCCA_BRIGHT",
-    "label": "screen brightness (MENU > BRIGHT)",
-    "group": "UI",
-    "bit": 74,
-    "default": 1,
-    "parent": null,
-    "desc": "MENU > BRIGHT: the screen backlight in 8 levels, 4/16 at the lowest (software PWM). The level lasts until power-off: every boot starts at full and a dim level is never saved. About 36 B of flash; X0X reports it working on a real FM-1. Off: always full brightness.",
-    "experimental": false,
-    "notice": "This backlight PWM froze an FM-1 at its lowest level on X0X (issue #2; the backlight line also enables the key matrix, which this build keeps enabled during each scan). Optimist boots at full brightness every time, never stores a dim level and never goes below 4/16, so a power-off always brings the screen back at full. Ported from X0X by Charles Vestal (GPL-3.0).",
-    "off_warning": "",
-    "env": "",
-    "target_only": false,
-    "symbols": [],
-    "no_image": false,
-    "fixed": false,
-    "head": false,
-    "choices": [],
-    "provenance": {
-     "project": "charlesvestal/fm1-x0x",
-     "author": "Charles Vestal",
-     "licence": "GPL-3.0-only",
-     "commit": "61654ba (Knob acceleration by speed, screen brightness, ...)",
-     "url": "https://github.com/charlesvestal/fm1-x0x"
-    },
-    "children": [],
-    "tested": "emulator-tested only",
-    "provenance_line": "charlesvestal/fm1-x0x @ 61654ba (Knob acceleration by speed, screen brightness, ...) by Charles Vestal (GPL-3.0-only)"
    },
    {
     "key": "MOTION",
@@ -4938,6 +5769,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": {
      "project": "hugelton/Felucca",
      "author": "Leo Kuroshita (@kurogedelic), Hügelton Instruments",
@@ -4946,6 +5778,9 @@
      "url": "https://github.com/hugelton/Felucca"
     },
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "hugelton/Felucca @ 727f272 (Felucca 1.0 source) by Leo Kuroshita (@kurogedelic), Hügelton Instruments (GPL-3.0-only)"
    },
@@ -4967,7 +5802,21 @@
     "no_image": false,
     "fixed": false,
     "head": false,
-    "choices": [],
+    "choices": [
+     [
+      0,
+      "off"
+     ],
+     [
+      2,
+      "on"
+     ],
+     [
+      3,
+      "on, code in RAM"
+     ]
+    ],
+    "not_built": {},
     "provenance": {
      "project": "hugelton/Felucca",
      "author": "Leo Kuroshita (@kurogedelic), Hügelton Instruments",
@@ -4976,6 +5825,9 @@
      "url": "https://github.com/hugelton/Felucca"
     },
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "hugelton/Felucca @ 727f272 (Felucca 1.0 source) by Leo Kuroshita (@kurogedelic), Hügelton Instruments (GPL-3.0-only (eng_phys.c); MIT (phys_dsp.c: DaisySP by Electrosmith, Corp and Emilie Gillet; phys_symp.c: Rings by Emilie Gillet))"
    },
@@ -4997,7 +5849,21 @@
     "no_image": false,
     "fixed": false,
     "head": false,
-    "choices": [],
+    "choices": [
+     [
+      0,
+      "off"
+     ],
+     [
+      2,
+      "on"
+     ],
+     [
+      3,
+      "on, code in RAM"
+     ]
+    ],
+    "not_built": {},
     "provenance": {
      "project": "charlesvestal/fm1-x0x",
      "author": "Charles Vestal",
@@ -5006,6 +5872,9 @@
      "url": "https://github.com/charlesvestal/fm1-x0x"
     },
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "charlesvestal/fm1-x0x @ 80b7d40 (HEAD; bass303.c last changed in d179e03) by Charles Vestal (GPL-3.0-only (bass303.c: Open303 by Robin Schmidt, MIT; Devilfish ranges after jc303; Soft / RAT drive after schwung-303 and dm-Rat, GPL-3.0; tb3po.c after schwung-tb3po and the Phazerville Hemisphere Suite TB_3PO applet, GPL-3.0))"
    },
@@ -5028,6 +5897,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": {
      "project": "hugelton/Felucca-Engines",
      "author": "Leo Kuroshita (@kurogedelic), Hügelton Instruments",
@@ -5036,6 +5906,9 @@
      "url": "https://github.com/hugelton/Felucca-Engines"
     },
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "hugelton/Felucca-Engines @ c46e008 (src/eng_noise.c) by Leo Kuroshita (@kurogedelic), Hügelton Instruments (MIT (the repository's LICENSE; eng_noise.c carries SPDX MIT and the copyright))"
    },
@@ -5057,7 +5930,21 @@
     "no_image": false,
     "fixed": false,
     "head": false,
-    "choices": [],
+    "choices": [
+     [
+      0,
+      "off"
+     ],
+     [
+      2,
+      "on"
+     ],
+     [
+      3,
+      "on, code in RAM"
+     ]
+    ],
+    "not_built": {},
     "provenance": {
      "project": "keremimo/melodee",
      "author": "Kerem Kilic (Ellic Studio); native playback after Devin Acker's uPD933 model (MAME)",
@@ -5066,6 +5953,9 @@
      "url": "https://github.com/keremimo/melodee"
     },
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "keremimo/melodee @ v0.11 (79c5395, 2026-10-06) by Kerem Kilic (Ellic Studio); native playback after Devin Acker's uPD933 model (MAME) (GPL-3.0-only (eng_cz.c, cz_patch.h, cz_legacy.h, eng_phase.c's CZ envelopes); cz_native.c BSD-3-Clause (MAME uPD933 by Devin Acker, modifications Kerem Kilic))"
    },
@@ -5087,7 +5977,21 @@
     "no_image": false,
     "fixed": false,
     "head": false,
-    "choices": [],
+    "choices": [
+     [
+      0,
+      "off"
+     ],
+     [
+      2,
+      "on"
+     ],
+     [
+      3,
+      "on, code in RAM"
+     ]
+    ],
+    "not_built": {},
     "provenance": {
      "project": "PatttF/fm-106",
      "author": "PatttF (fm-106); a fixed-point port of Ultramaster KR-106 (kayrockscreenprinting/ultramaster_kr106)",
@@ -5096,6 +6000,9 @@
      "url": "https://github.com/PatttF/fm-106"
     },
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "PatttF/fm-106 @ be74757 (2026-10-11) by PatttF (fm-106); a fixed-point port of Ultramaster KR-106 (kayrockscreenprinting/ultramaster_kr106) (GPL-3.0-only (fm-106 and KR-106))"
    },
@@ -5118,6 +6025,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": {
      "project": "isod89/sloop-fm1",
      "author": "isod89",
@@ -5126,38 +6034,11 @@
      "url": "https://github.com/isod89/sloop-fm1"
     },
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "isod89/sloop-fm1 @ d691ba7 (SLOOP 2.3) by isod89 (GPL-3.0-only)"
-   },
-   {
-    "key": "LIGHTS",
-    "flag": "FELUCCA_LIGHTS",
-    "label": "menu LIGHTS / KEYS / NOTES (play in the dark)",
-    "group": "UI",
-    "bit": 106,
-    "default": 0,
-    "parent": null,
-    "desc": "Lights for playing in the dark: MENU LIGHTS (every button glows OFF / LOW / MID / HIGH), KEYS (C or white keys glow) and NOTES (the note lights of KEYLIT on / off at run time). About 1.2 KB of flash.",
-    "experimental": false,
-    "notice": "",
-    "off_warning": "",
-    "env": "",
-    "target_only": false,
-    "symbols": [],
-    "no_image": false,
-    "fixed": false,
-    "head": false,
-    "choices": [],
-    "provenance": {
-     "project": "isod89/sloop-fm1",
-     "author": "isod89 (the dim pulses after Felucca 1.0.1 #35 by Leo Kuroshita; NOTES by renebohne, PR #11)",
-     "licence": "GPL-3.0-only",
-     "commit": "d691ba7 (SLOOP 2.3)",
-     "url": "https://github.com/isod89/sloop-fm1"
-    },
-    "children": [],
-    "tested": "emulator-tested only",
-    "provenance_line": "isod89/sloop-fm1 @ d691ba7 (SLOOP 2.3) by isod89 (the dim pulses after Felucca 1.0.1 #35 by Leo Kuroshita; NOTES by renebohne, PR #11) (GPL-3.0-only)"
    },
    {
     "key": "DIV_ORDER",
@@ -5178,6 +6059,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": {
      "project": "hugelton/Felucca",
      "author": "Leo Kuroshita (@kurogedelic), Hügelton Instruments",
@@ -5186,6 +6068,9 @@
      "url": "https://github.com/hugelton/Felucca"
     },
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "hugelton/Felucca @ db70550 (Felucca 1.0.2, #48) by Leo Kuroshita (@kurogedelic), Hügelton Instruments (GPL-3.0-only)"
    },
@@ -5193,7 +6078,7 @@
     "key": "PUNCH_LATCH",
     "flag": "FELUCCA_PUNCH_LATCH",
     "label": "punch LATCH: FX + key latches its effect",
-    "group": "FX: limited instances (once, or a set count)",
+    "group": "FX",
     "bit": 131,
     "default": 0,
     "parent": "FX_PUNCH",
@@ -5208,6 +6093,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": {
      "project": "hugelton/Felucca",
      "author": "Leo Kuroshita (@kurogedelic), Hügelton Instruments",
@@ -5216,6 +6102,9 @@
      "url": "https://github.com/hugelton/Felucca"
     },
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "hugelton/Felucca @ db70550 (Felucca 1.0.2, #40) by Leo Kuroshita (@kurogedelic), Hügelton Instruments (GPL-3.0-only)"
    },
@@ -5238,6 +6127,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": {
      "project": "hugelton/Felucca",
      "author": "Leo Kuroshita (@kurogedelic), Hügelton Instruments",
@@ -5246,6 +6136,9 @@
      "url": "https://github.com/hugelton/Felucca"
     },
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "hugelton/Felucca @ b22a24b (Felucca 1.0.3, idea only) by Leo Kuroshita (@kurogedelic), Hügelton Instruments (GPL-3.0-only)"
    },
@@ -5257,7 +6150,7 @@
     "bit": 161,
     "default": 1,
     "parent": null,
-    "desc": "Coming from SLOOP (2.7): Optimist never erases or writes over what SLOOP left that it cannot read: the four section slots and the autosave (shown as SLOOP on the PROJECT page and in the editor, not EMPTY), SLOOP's FM6 bank and a user sample longer than ours (USR3, USR4). SLOOP's user presets are not read (2026-10-24): a save into SLOOP's bank writes it over as Optimist's. SLOOP's settings (its SYN1..SYN4 drum kits, MIDI LEARN, theme and favourites) are never read as Optimist's and never written over: Optimist keeps its own beside them, so each firmware finds its own after a switch. Off, the first start erases SLOOP's projects. About 0.7 KB of flash.",
+    "desc": "On by default. Coming from SLOOP (2.7): Optimist never erases or writes over what SLOOP left that it cannot read: the four section slots and the autosave (shown as SLOOP on the PROJECT page and in the editor, not EMPTY), SLOOP's FM6 bank and a user sample longer than ours (USR3, USR4). Optimist does not read SLOOP's projects or user presets (a save into SLOOP's bank writes it over as Optimist's). SLOOP's settings (its SYN1..SYN4 drum kits, MIDI LEARN, theme and favourites) are never read as Optimist's and never written over: Optimist keeps its own beside them, so each firmware finds its own after a switch. OFF RISKS SLOOP'S DATA ON AN FM-1 THAT RAN SLOOP: the first start erases its four project slots (sec_migrate), the second autosave writes over its autosave, the first drum record saved erases its FM6 bank (0xE5000), a user kit save erases the tail of a long USR3 sample and UP_FM6 the head of USR4, and the settings save writes over its settings. Costs about 1.8 KB of flash (1,884 B measured in the jam release build, 0.7 KB on its own in the older estimate). Not built without DRUMS.",
     "experimental": false,
     "notice": "",
     "off_warning": "",
@@ -5268,6 +6161,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": {
      "project": "isod89/sloop-fm1",
      "author": "isod89 (format read from SLOOP 2.4; the guard is ours)",
@@ -5276,6 +6170,9 @@
      "url": "https://github.com/isod89/sloop-fm1"
     },
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "isod89/sloop-fm1 @ 8d3823f (SLOOP 2.4) by isod89 (format read from SLOOP 2.4; the guard is ours) (GPL-3.0-only)"
    },
@@ -5298,6 +6195,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": {
      "project": "isod89/sloop-fm1",
      "author": "isod89 (the layout: core.h plock_t, track_t micro / lock / fill; the storage is ours)",
@@ -5306,6 +6204,9 @@
      "url": "https://github.com/isod89/sloop-fm1"
     },
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "isod89/sloop-fm1 @ 8d3823f (SLOOP 2.4) by isod89 (the layout: core.h plock_t, track_t micro / lock / fill; the storage is ours) (GPL-3.0-only)"
    },
@@ -5328,6 +6229,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": {
      "project": "isod89/sloop-fm1",
      "author": "isod89 (SLOOP), on Felucca by Leo Kuroshita",
@@ -5336,68 +6238,11 @@
      "url": "https://github.com/isod89/sloop-fm1"
     },
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "isod89/sloop-fm1 @ 8d3823f (SLOOP 2.4) by isod89 (SLOOP), on Felucca by Leo Kuroshita (GPL-3.0-only)"
-   },
-   {
-    "key": "DLY_DOT",
-    "flag": "FELUCCA_DLY_DOT",
-    "label": "delay TIME 1/8D, 1/16D (SLOOP 2.4)",
-    "group": "FX: limited instances (once, or a set count)",
-    "bit": 176,
-    "default": 1,
-    "parent": "FX_DELAY",
-    "desc": "FX > DLY > TIME gains 1/8D and 1/16D (dotted: 3/4 and 3/8 of a beat), as SLOOP 2.4. With the 0.74 s delay line a 1/8D below 61 BPM halves to 1/16D. Costs 28 B of flash.",
-    "experimental": false,
-    "notice": "",
-    "off_warning": "",
-    "env": "",
-    "target_only": false,
-    "symbols": [],
-    "no_image": false,
-    "fixed": false,
-    "head": false,
-    "choices": [],
-    "provenance": {
-     "project": "isod89/sloop-fm1",
-     "author": "isod89 (SLOOP), on Felucca by Leo Kuroshita",
-     "licence": "GPL-3.0-only",
-     "commit": "8d3823f (SLOOP 2.4)",
-     "url": "https://github.com/isod89/sloop-fm1"
-    },
-    "children": [],
-    "tested": "emulator-tested only",
-    "provenance_line": "isod89/sloop-fm1 @ 8d3823f (SLOOP 2.4) by isod89 (SLOOP), on Felucca by Leo Kuroshita (GPL-3.0-only)"
-   },
-   {
-    "key": "SL24_IMPORT",
-    "flag": "FELUCCA_SL24_IMPORT",
-    "label": "import SLOOP 2.7 projects (LOAD twice)",
-    "group": "System",
-    "bit": 163,
-    "default": 1,
-    "parent": null,
-    "desc": "A SLOOP 2.7 project left in a section slot shows as SLOOP on the PROJECT page; LOAD it twice and it becomes the working project (values, engines, drum kits, steps; nudges, locks and fills with the step extras storage), then SAVE puts it in a section; PROJECT > SLOOP IMPORT (twice) does the same with SLOOP's autosave. The original stays in flash. The drums: each of SLOOP's 16 sounds with hits gets a lane playing it (on its default lane when it has one), with its TUNE and DECAY; more than 10 used: the 10 with the most hits (said DRUMS CUT). Held notes stay held. An FM6 part keeps its factory patch as its voice, with SLOOP's macros in it; a USR1..USR3 kit plays the same user sample slot from the lanes. Lost: the INSERT, ENV SYNC, LFO 2's TRIG / POL, GLO > TEXTURE, a NOISE part (ANALOG), a SYN kit (the default kit), the arp modes past ORD (the nearest, said ARP CUT); the ANALOG filter TYPE goes to ANALOG 2's, LFO 2's SYNC to the LFO's tempo-synced RATE. About 3.5 KB of flash (unmeasured since 2026-10-19).",
-    "experimental": false,
-    "notice": "",
-    "off_warning": "",
-    "env": "",
-    "target_only": false,
-    "symbols": [],
-    "no_image": false,
-    "fixed": false,
-    "head": false,
-    "choices": [],
-    "provenance": {
-     "project": "isod89/sloop-fm1",
-     "author": "isod89 (the format: project.c, core.h, eng_fm6.c, drums.c; the importer is ours)",
-     "licence": "GPL-3.0-only",
-     "commit": "8d3823f (SLOOP 2.4)",
-     "url": "https://github.com/isod89/sloop-fm1"
-    },
-    "children": [],
-    "tested": "emulator-tested only",
-    "provenance_line": "isod89/sloop-fm1 @ 8d3823f (SLOOP 2.4) by isod89 (the format: project.c, core.h, eng_fm6.c, drums.c; the importer is ours) (GPL-3.0-only)"
    },
    {
     "key": "MICRO",
@@ -5418,6 +6263,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": {
      "project": "isod89/sloop-fm1",
      "author": "isod89 (SLOOP), on Felucca by Leo Kuroshita",
@@ -5426,6 +6272,9 @@
      "url": "https://github.com/isod89/sloop-fm1"
     },
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "isod89/sloop-fm1 @ 8d3823f (SLOOP 2.4) by isod89 (SLOOP), on Felucca by Leo Kuroshita (GPL-3.0-only)"
    },
@@ -5448,6 +6297,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": {
      "project": "isod89/sloop-fm1",
      "author": "isod89 (SLOOP), on Felucca by Leo Kuroshita",
@@ -5456,6 +6306,9 @@
      "url": "https://github.com/isod89/sloop-fm1"
     },
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "isod89/sloop-fm1 @ 8d3823f (SLOOP 2.4) by isod89 (SLOOP), on Felucca by Leo Kuroshita (GPL-3.0-only)"
    },
@@ -5478,6 +6331,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": {
      "project": "isod89/sloop-fm1",
      "author": "isod89 (SLOOP), on Felucca by Leo Kuroshita",
@@ -5486,6 +6340,9 @@
      "url": "https://github.com/isod89/sloop-fm1"
     },
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "isod89/sloop-fm1 @ 8d3823f (SLOOP 2.4) by isod89 (SLOOP), on Felucca by Leo Kuroshita (GPL-3.0-only)"
    },
@@ -5508,6 +6365,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": {
      "project": "isod89/sloop-fm1",
      "author": "isod89 (SLOOP), on Felucca by Leo Kuroshita",
@@ -5516,68 +6374,11 @@
      "url": "https://github.com/isod89/sloop-fm1"
     },
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "isod89/sloop-fm1 @ 8d3823f (SLOOP 2.4) by isod89 (SLOOP), on Felucca by Leo Kuroshita (GPL-3.0-only)"
-   },
-   {
-    "key": "SL24_EXPORT",
-    "flag": "FELUCCA_SL24_EXPORT",
-    "label": "export a project for SLOOP 2.7 (web editor)",
-    "group": "System",
-    "bit": 164,
-    "default": 0,
-    "parent": null,
-    "desc": "Adds Export for SLOOP 2.7 to the web editor's Projects screen: the working project as a SLOOP song file, which SLOOP's editor loads (Song & sections > Load a song file: it replaces the song on that FM-1, never its settings). Nothing is written to the FM-1. The drum lanes go onto SLOOP's sounds with their TUNE and DECAY, held notes stay held. Lossy, and the editor lists what is left out: FX OFF, ANALOG 2, SLICE / ACID / CZ parts (their fallback), an FM6 voice that is not one of SLOOP's F1..F8 (F1), X0X and user kits (808), drum lanes on user samples or sending apart, the reverb type, COMP / LIMIT, the steps' chance, motion, locks on those; sections and samples stay behind. About 1.5 KB of flash (unmeasured since 2026-10-19).",
-    "experimental": false,
-    "notice": "",
-    "off_warning": "",
-    "env": "",
-    "target_only": false,
-    "symbols": [],
-    "no_image": false,
-    "fixed": false,
-    "head": false,
-    "choices": [],
-    "provenance": {
-     "project": "isod89/sloop-fm1",
-     "author": "isod89 (the formats: project.c project_t / persist_t, core.h, panel.c, arranger.h, editor.html's backup file; the exporter is ours)",
-     "licence": "GPL-3.0-only",
-     "commit": "8d3823f (SLOOP 2.4)",
-     "url": "https://github.com/isod89/sloop-fm1"
-    },
-    "children": [],
-    "tested": "emulator-tested only",
-    "provenance_line": "isod89/sloop-fm1 @ 8d3823f (SLOOP 2.4) by isod89 (the formats: project.c project_t / persist_t, core.h, panel.c, arranger.h, editor.html's backup file; the exporter is ours) (GPL-3.0-only)"
-   },
-   {
-    "key": "SL24_EDIMPORT",
-    "flag": "FELUCCA_SL24_EDIMPORT",
-    "label": "import a SLOOP 2.7 song or backup (web editor)",
-    "group": "System",
-    "bit": 181,
-    "default": 0,
-    "parent": null,
-    "desc": "Adds Import a SLOOP 2.7 song or backup to the web editor's Backup screen: a project of a SLOOP song file or backup file (its loop, or A..D of a backup) becomes the working project, as LOAD twice does with one left in flash; SAVE then keeps it in a section. Nothing else is written. Needs SL24_IMPORT. About 1.2 KB of flash and 0.4 KB of pool.",
-    "experimental": false,
-    "notice": "",
-    "off_warning": "",
-    "env": "",
-    "target_only": false,
-    "symbols": [],
-    "no_image": false,
-    "fixed": false,
-    "head": false,
-    "choices": [],
-    "provenance": {
-     "project": "isod89/sloop-fm1",
-     "author": "isod89 (the formats: project.c project_t, fm6_bank.c fm6_bank_t, editor.html's backup file; the import is ours)",
-     "licence": "GPL-3.0-only",
-     "commit": "8d3823f (SLOOP 2.4)",
-     "url": "https://github.com/isod89/sloop-fm1"
-    },
-    "children": [],
-    "tested": "emulator-tested only",
-    "provenance_line": "isod89/sloop-fm1 @ 8d3823f (SLOOP 2.4) by isod89 (the formats: project.c project_t, fm6_bank.c fm6_bank_t, editor.html's backup file; the import is ours) (GPL-3.0-only)"
    },
    {
     "key": "COND",
@@ -5598,6 +6399,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": {
      "project": "hugelton/Felucca",
      "author": "Leo Kuroshita (@kurogedelic), Hügelton Instruments",
@@ -5606,6 +6408,9 @@
      "url": "https://github.com/hugelton/Felucca"
     },
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "hugelton/Felucca @ 9f6a885 (Felucca 1.5.6) by Leo Kuroshita (@kurogedelic), Hügelton Instruments (GPL-3.0-only)"
    },
@@ -5628,6 +6433,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": {
      "project": "hugelton/Felucca",
      "author": "Leo Kuroshita (@kurogedelic), Hügelton Instruments",
@@ -5636,6 +6442,9 @@
      "url": "https://github.com/hugelton/Felucca"
     },
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "hugelton/Felucca @ 9f6a885 (Felucca 1.5.6) by Leo Kuroshita (@kurogedelic), Hügelton Instruments (GPL-3.0-only)"
    },
@@ -5658,6 +6467,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": {
      "project": "pichenettes/eurorack",
      "author": "Emilie Gillet (Mutable Instruments)",
@@ -5670,6 +6480,9 @@
      "GRIDS_LFO",
      "GRIDS_VEL"
     ],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "pichenettes/eurorack @ master (grids/, 2011-2013) by Emilie Gillet (Mutable Instruments) (GPL-3.0-or-later)"
    },
@@ -5692,6 +6505,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": {
      "project": "pichenettes/eurorack",
      "author": "Emilie Gillet (Mutable Instruments)",
@@ -5700,6 +6514,9 @@
      "url": "https://github.com/pichenettes/eurorack"
     },
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "pichenettes/eurorack @ master (grids/, 2011-2013) by Emilie Gillet (Mutable Instruments) (GPL-3.0-or-later)"
    },
@@ -5722,6 +6539,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": {
      "project": "w0ts/optimist",
      "author": "Optimist",
@@ -5730,6 +6548,9 @@
      "url": "https://github.com/w0ts/optimist"
     },
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "w0ts/optimist @ feat/grids-euclid (2026-10-23) by Optimist (GPL-3.0-only)"
    },
@@ -5752,6 +6573,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "not_built": {},
     "provenance": {
      "project": "w0ts/optimist",
      "author": "Optimist",
@@ -5760,6 +6582,9 @@
      "url": "https://github.com/w0ts/optimist"
     },
     "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
     "tested": "emulator-tested only",
     "provenance_line": "w0ts/optimist @ fix/grids-step-redraw (2026-10-23) by Optimist (GPL-3.0-only)"
    }
@@ -5774,10 +6599,7 @@
    "GRIDS_EUCLID",
    "GRIDS_LFO",
    "GRIDS_VEL",
-   "SL24_SAFE",
-   "SL24_IMPORT",
-   "SL24_EXPORT",
-   "SL24_EDIMPORT"
+   "SL24_SAFE"
   ]
  },
  "regions": [
@@ -5786,17 +6608,21 @@
   "pool",
   "ramtext"
  ],
+ "budgets": [
+  "flash",
+  "sram"
+ ],
  "limits": {
   "flash": 581564,
-  "ram": 98304,
-  "pool": 344064,
-  "ramtext": 32512
+  "sram": 494336,
+  "flash_by_layout": {
+   "1": 823228,
+   "3": 720828
+  }
  },
  "spare": {
   "flash": 0,
-  "ram": 0,
-  "pool": 8192,
-  "ramtext": 0
+  "sram": 8192
  },
  "needs_auto": [
   "LANE_FX"
@@ -5845,13 +6671,15 @@
   [
    "SET_HORNS",
    0
-  ],
-  [
-   "LCD_DIRTY",
-   0
   ]
  ],
  "top": {
+  "Memory management": [
+   "SD_MODE",
+   "SMP_SLOTS",
+   "PROJECTS",
+   "ARENA"
+  ],
   "Reserve": [],
   "Synth engines": [
    "ENG_ANALOG",
@@ -5897,12 +6725,17 @@
    "SET_FLUTE",
    "SET_SCRCH"
   ],
-  "FX: any number (each track its own)": [
+  "FX": [
    "FX_DIST",
+   "FX_CHORUS",
+   "FX_DELAY",
+   "FX_REVERB",
    "TFLT_FINE",
    "FX_SLICER",
+   "FX_PUNCH",
    "FX_DJF",
    "FX_DUST",
+   "FX_DUCK",
    "MASTER_COMP",
    "TRK_FILT",
    "INS_FOLD",
@@ -5919,23 +6752,13 @@
    "INS_TAPE",
    "INS_SPIT",
    "EX_GAIN",
-   "RET_FB",
-   "INS_GATER",
-   "TAB_CODED_ALL"
-  ],
-  "FX: limited instances (once, or a set count)": [
-   "FX_CHORUS",
-   "FX_DELAY",
-   "FX_REVERB",
-   "FX_PUNCH",
-   "FX_DUCK",
-   "INS_CHORUS",
    "INS_DELAY",
    "INS_JCHORUS",
+   "RET_FB",
    "INS_FLANGER",
    "INS_XDLY",
-   "DLY_ARENA",
-   "BASSPLUS"
+   "INS_GATER",
+   "TAB_CODED_ALL"
   ],
   "Sequencer": [
    "CHORDPLUS",
@@ -5961,7 +6784,7 @@
    "SEQTOOLS",
    "GEN_GRIDS"
   ],
-  "USB & BT & MIDI": [
+  "Connectivity": [
    "USB_MIDI",
    "USB_CONSOLE",
    "USB_AUDIO",
@@ -5970,7 +6793,9 @@
    "MIDI_EXPR",
    "MIDI_NOTEOUT",
    "BLE",
-   "BT_AUDIO"
+   "BT_AUDIO",
+   "WIFI_LINK",
+   "USB_HOST"
   ],
   "UI": [
    "MISSING_WARN",
@@ -5979,26 +6804,17 @@
    "SYS_DEBUG",
    "KNOB_ACCEL",
    "LCD_BAUD",
-   "LCD_DIRTY",
-   "KEYLIT",
-   "BRIGHT",
-   "LIGHTS",
    "DIV_ORDER"
   ],
   "System": [
    "EDITOR",
-   "TAB_IN_POOL",
    "LIVE_SAVE",
    "CPU_GUARD",
-   "VOICE_OWN",
    "CACHE_RAM",
    "ASM",
-   "ARENA",
-   "DUAL",
-   "SL24_SAFE",
-   "SL24_IMPORT",
-   "SL24_EXPORT",
-   "SL24_EDIMPORT"
+   "COMPILER",
+   "BOOTLOADER",
+   "SL24_SAFE"
   ]
  },
  "kits": [
@@ -6010,8 +6826,6 @@
  ],
  "fit_margin": {
   "flash": 1024,
-  "ram": 448,
-  "pool": 0,
-  "ramtext": 256
+  "sram": 704
  }
 }

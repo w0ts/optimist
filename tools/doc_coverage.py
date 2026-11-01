@@ -45,6 +45,7 @@ CONCEPTS = [
     ("sequencer", "step conditions (COND)", [r"(?i)condition", r"(?i)1:2|every other|fill"]),
     ("sequencer", "nudge and micro timing", [r"(?i)nudge", r"(?i)micro"]),
     ("sequencer", "fills", [r"(?i)\bfills?\b"]),
+    ("sequencer", "STEP ENTRY: the cursor, keys toggle notes, PLAY arms the take", [r"STEP ENTRY", r"(?i)cursor", r"(?i)PLAY.{0,40}arms"]),
     ("sequencer", "EUCLID note generator with keep / restore", [r"EUCLID", r"(?i)keep", r"(?i)restore"]),
     ("sequencer", "pattern tools (TOOLS: copy, rotate, ...)", [r"(?i)pattern tools|\bTOOLS\b"]),
     ("sequencer", "arpeggiator (modes, rate, order)", [r"(?i)arp", r"(?i)order"]),
@@ -94,11 +95,11 @@ CONCEPTS = [
 ]
 
 FX_NAMES = {"FXT_DIST": "DIST", "FXT_COMP": "DYN", "FXT_FILT": "FILT", "FXT_FOLD": "FOLD", "FXT_FUZZ": "FUZZ",
-            "FXT_PHSR": "PHSR", "FXT_FLNG": "FLNG", "FXT_FRMT": "FRMT", "FXT_WIDE": "WIDE", "FXT_CHRS": "CHRS",
+            "FXT_PHSR": "PHSR", "FXT_FLNG": "FLNG", "FXT_FRMT": "FRMT", "FXT_WIDE": "WIDE",
             "FXT_ECHO": "ECHO", "FXT_GATE": "GATER", "FXT_DUST": "DUST", "FXT_JUNO": "JUNO",
             "FXT_SFLD": "SFLD", "FXT_RECT": "RECT", "FXT_HARM": "HARM", "FXT_RING": "RING",
             "FXT_SUBO": "SUB", "FXT_SLEW": "SLEW", "FXT_TAPE": "TAPE", "FXT_SPIT": "SPIT", "FXT_XDLY": "XDLY",
-            "FXT_EXGN": "EXGN"}   # (no FXT_WRAP: retired the day it came, registry.py RETIRED INS_WRAP; its id stays)
+            "FXT_EXGN_ID": "EXGN"}   # (CHRS ROOM TDLY: aliases of CHO REV DLY since 2026-10-29, fx_slots.c FXT_LEGACY; no FXT_WRAP: retired the day it came, registry.py RETIRED INS_WRAP; its id stays)
 
 
 def read(rel):

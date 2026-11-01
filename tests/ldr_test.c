@@ -3,7 +3,9 @@
 /* Host test of the Felucca update loader (firmware/loader/ldr_core.c): a fake
  * host serves a package over the SysEx protocol, the "device" flash starts as
  * another package's flash.bin (as if that firmware were installed).
- *   ldr_test OLD.fwsc NEW.fwsc */
+ *   ldr_test OLD.fwsc NEW.fwsc
+ *   ldr_test --layout          only the switch of flash layout (ldr_layout_switch), for a build of another
+ *                              FELUCCA_LAYOUT (docs/SD-MODE-DESIGN.md) */
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -14,9 +16,29 @@
 
 static uint8_t nor[0x100000], *logical;
 static size_t logical_len;
-static uint8_t rx[1024];
+static uint8_t rx[5000];
 static uint32_t rx_len, rx_full, now_ms, requests, erases, bad_range, record_cleared, f0_asked;
 static uint32_t corrupt_at, corrupt_once, no_finish;   /* the host serves a damaged byte / never says "success" */
+static uint32_t cut_after, served, wire_in, wire_out, progs, er_on;   /* the host stops after cut_after answers; counts */
+static uint32_t t_crc16(const uint8_t *p, uint32_t n)
+{
+    uint32_t c = 0, i;
+    while (n--) {
+        c ^= (uint32_t)*p++ << 8;
+        for (i = 0; i < 8; i++) c = c & 0x8000 ? (c << 1) ^ 0x1021 : c << 1;
+        c &= 0xFFFF;
+    }
+    return c;
+}
+static uint32_t t_crc32(const uint8_t *p, uint32_t n)
+{
+    uint32_t c = 0xFFFFFFFFu, k;
+    while (n--) {
+        c ^= *p++;
+        for (k = 0; k < 8; k++) c = (c >> 1) ^ (c & 1 ? 0xEDB88320u : 0);
+    }
+    return ~c;
+}
 
 static uint32_t pack7(const uint8_t *in, uint32_t n, uint8_t *out)
 {
@@ -42,13 +64,18 @@ static uint32_t unpack7h(const uint8_t *in, uint32_t n, uint8_t *out)
 
 static int ota_wire_send(const uint8_t *p, uint32_t n)
 {
-    uint8_t u[64], m[600];
+    static uint8_t m[4200];
+    uint8_t u[64];
     uint32_t addr, len, i, s = 0;
     unpack7h(p + 1, n - 2, u);
     if (u[2] == 0x11) return 0;
     addr = u[7] | u[8] << 8 | u[9] << 16 | (uint32_t)u[10] << 24;
     len = u[11] | u[12] << 8 | u[13] << 16;
     requests++;
+    wire_out += n;
+    if (cut_after && served >= cut_after)
+        return 0;                                    /* the host is gone (a cut-off install) */
+    served++;
     memcpy(m, "\x00\x59\x30", 3);
     m[3] = (uint8_t)(len + 8); m[4] = (uint8_t)((len + 8) >> 8); m[5] = 0; m[6] = 0;
     memcpy(m + 7, &addr, 4);
@@ -61,6 +88,20 @@ static int ota_wire_send(const uint8_t *p, uint32_t n)
         f0_asked += addr == 0xF0000000u;
         memset(m + 14, 0, len);
         memcpy(m + 14, "success", 8);
+    } else if (addr >= 0xD0000000u) {                /* the fast install's table: CRC16 + CRC-32 per 4 KiB sector */
+        static uint8_t sec4k[0x1000];
+        uint32_t off = addr - 0xD0000000u, k, c16, c32;
+        if (len % 6u || off + len / 6u * 0x1000u > logical_len)
+            return 0;                                /* (as the host refuses: no reply) */
+        for (k = 0; k < len / 6u; k++) {
+            memcpy(sec4k, logical + off + k * 0x1000u, 0x1000);
+            if (corrupt_at && !corrupt_once && corrupt_at - (off + k * 0x1000u) < 0x1000u)
+                sec4k[corrupt_at - (off + k * 0x1000u)] ^= 0x08;   /* a damaged package: its table says so too */
+            c16 = t_crc16(sec4k, 0x1000);
+            c32 = t_crc32(sec4k, 0x1000);
+            m[14 + k * 6] = (uint8_t)c16; m[15 + k * 6] = (uint8_t)(c16 >> 8);
+            memcpy(m + 16 + k * 6, &c32, 4);
+        }
     } else {
         if (addr + len > logical_len)
             return 0;                                /* past a cut-short package: the host has nothing to send */
@@ -75,6 +116,7 @@ static int ota_wire_send(const uint8_t *p, uint32_t n)
     m[14 + len] = (uint8_t)~s;
     rx_len = pack7(m, 15 + len, rx);
     rx_full = 1;
+    wire_in += rx_len + 2;
     return 0;
 }
 static int ota_frame_get(const uint8_t **p, uint32_t *n) { if (!rx_full) return 0; *p = rx; *n = rx_len; return 1; }
@@ -88,9 +130,14 @@ static void ota_show(uint32_t step, int32_t code) { (void)step; (void)code; }
 static void ota_commit(const uint8_t *parm) { (void)parm; }
 #include "../firmware/src/system/ota.c"
 
-static int ldr_fread(uint32_t off, void *p, uint32_t n) { memcpy(p, nor + off, n); return 0; }
+static void no_erase_on(const char *what)
+{
+    if (er_on) { printf("FLASH %s WHILE AN ERASE RUNS\n", what); exit(1); }
+}
+static int ldr_fread(uint32_t off, void *p, uint32_t n) { no_erase_on("READ"); memcpy(p, nor + off, n); return 0; }
 static int ldr_erase(uint32_t off)
 {
+    no_erase_on("ERASE");
     if (off < 0x4000u || off >= 0xFC000u || (off & 0xFFFu)) bad_range++;
     if (off < 0x4000u) { printf("ERASE IN THE HEAD %#x\n", off); exit(1); }
     erases++;
@@ -101,7 +148,9 @@ static int ldr_prog(uint32_t off, const void *p, uint32_t n)
 {
     const uint8_t *s = p;
     uint32_t i;
-    if (off < 0x4000u || off + n > 0x93000u || ((off & 0xFFu) + n) > 256u) bad_range++;
+    no_erase_on("PROGRAM");
+    progs++;
+    if (off < 0x4000u || off + n > FL_APP_HI || ((off & 0xFFu) + n) > 256u) bad_range++;
     for (i = 0; i < n; i++) nor[off + i] &= s[i];
     return 0;
 }
@@ -110,7 +159,19 @@ static uint32_t flash_unknown;
 static int ldr_flash_known(void) { return !flash_unknown; }
 static void ldr_progress(uint32_t done, uint32_t total) { (void)done; (void)total; }
 static void ldr_checking(uint32_t done, uint32_t total) { (void)done; (void)total; }
+#ifdef OTA_FAST_CHUNK
+static uint32_t er_off;
+static int ldr_erase_begin(uint32_t off) { int rc = ldr_erase(off); er_on = !rc; er_off = off; return rc; }
+static int ldr_erase_end(void) { if (!er_on) return -1; er_on = 0; return 0; }
+#endif
 #include "../firmware/loader/ldr_core.c"
+#ifdef OTA_FAST_CHUNK
+#define FAST 1
+static int session(void) { ota_fast = 1; return ldr_session(); }   /* (the host said the fast word: ota_fast_hello) */
+#else
+#define FAST 0
+static int session(void) { return ldr_session(); }
+#endif
 
 static uint8_t *load_logical(const char *path, size_t *len)
 {
@@ -198,10 +259,13 @@ static void felu_at(uint32_t sec, uint16_t type, uint16_t slot)
     memcpy(nor + sec, h, 32);
 }
 
-/* the record sweep keeps the SDK's sectors and our objects: a record-looking tail there is never erased */
+/* the record sweep keeps the SDK's sectors and our objects: a record-looking tail there is never erased. The objects
+ * where this layout keeps them (fm1_steps.h by FELUCCA_LAYOUT: L1 the presets' FM6 voices at 0xD8000, autosave copy A at 0xD7000; S0 0xB5000, 0xB7000) */
 static int sweep_test(void)
 {
     static uint8_t img[0x100000];
+    const uint32_t upf = FL_UPF_LO, obj = FELUCCA_LAYOUT ? FL_AUTOSAVE_A : 0x97000u,
+                   bare = FELUCCA_LAYOUT ? FL_LOG_LO : LDR_APP_HI;   /* (past the app, none of our objects there) */
     int bad = 0;
     uint32_t i;
     bad += check("sweep: its CRC-32 is zlib's, as storage.c's", ldr_crc32((const uint8_t *)"123456789", 9) == 0xCBF43926u);
@@ -209,24 +273,215 @@ static int sweep_test(void)
     nor[0xE8000] = 0x55, nor[0xE8001] = 0xAA, nor[0xE8002] = 0xAA, nor[0xE8003] = 0x55;   /* the stock SDK VM */
     for (i = 0; i < 3u; i++)
         record_at(0xE7F00u + i * 0x1000u);                /* 0xE7F00, 0xE8F00, 0xE9F00 */
-    felu_at(0x95000u, 10, 0);                             /* UP_FM6's voices, A / B, each with a record-like tail */
-    felu_at(0x96000u, 10, 1);
-    record_at(0x95F00u), record_at(0x96F00u);
-    felu_at(0x97000u, 1, 0);                              /* a project object */
-    record_at(0x97F00u);
+    felu_at(upf, 10, 0);                                  /* UP_FM6's voices, A / B, each with a record-like tail */
+    felu_at(upf + 0x1000u, 10, 1);
+    record_at(upf + 0xF00u), record_at(upf + 0x1F00u);
+    felu_at(obj, 1, 0);                                   /* a project (layout 1: autosave) object */
+    record_at(obj + 0xF00u);
+    if (LDR_APP_HI > 0x94000u)
+        record_at(0x93F00u);                              /* inside this layout's app: never swept */
     memcpy(img, nor, sizeof nor);
-    record_at(0x93F00u);                                  /* a bare record (the app's room): erased */
+    record_at(bare + 0xF00u);                             /* a bare record (past the app): erased */
     put_record();                                         /* ours, 0xE4F00: erased */
     erases = 0;
     ldr_records_drop();
-    bad += check("sweep: the records at 0xE4F00 and 0x93F00 erased", nor[0xE4F06] == 0xFF && nor[0x93F06] == 0xFF &&
-                 erases == 2);
+    bad += check("sweep: the records at 0xE4F00 and past the app erased", nor[0xE4F06] == 0xFF &&
+                 nor[bare + 0xF06u] == 0xFF && erases == 2);
     bad += check("sweep: 0xE7000..0xE9FFF (SDK VM, BTIF) never erased", !memcmp(nor + 0xE7000, img + 0xE7000, 0x3000));
-    bad += check("sweep: UP_FM6's 0x95000 / 0x96000 and a project kept",
-                 !memcmp(nor + 0x95000, img + 0x95000, 0x2000) && !memcmp(nor + 0x97000, img + 0x97000, 0x1000));
-    nor[0x95001] ^= 1;                                    /* a broken head: not ours, the record goes */
+    bad += check("sweep: UP_FM6's two sectors and a project kept",
+                 !memcmp(nor + upf, img + upf, 0x2000) && !memcmp(nor + obj, img + obj, 0x1000));
+    if (LDR_APP_HI > 0x94000u)
+        bad += check("sweep: a record-like tail inside the app kept", nor[0x93F06] == img[0x93F06]);
+    nor[upf + 1u] ^= 1;                                   /* a broken head: not ours, the record goes */
     ldr_records_drop();
-    bad += check("sweep: a sector whose FELU head is broken is not taken for ours", nor[0x95F06] == 0xFF);
+    bad += check("sweep: a sector whose FELU head is broken is not taken for ours", nor[upf + 0xF06u] == 0xFF);
+    return bad;
+}
+
+/* the switch of flash layout (ldr_core.c ldr_layout_switch): the installed app's own header at 0x4000 (SFC'd with the
+ * chip key) says how far it reaches; the sectors the other layout used differently are erased, nothing else */
+static void installed_head(uint32_t key, uint32_t blk)
+{
+    uint8_t e[32];
+    uint32_t c;
+    memset(e, 0xFF, sizeof e);
+    e[4] = 0x20; e[5] = 0x01; e[6] = 0x00; e[7] = 0x02;               /* (0x02000120: fm1pkg_make.py app_area_head) */
+    e[8] = (uint8_t)blk; e[9] = (uint8_t)(blk >> 8); e[10] = (uint8_t)(blk >> 16); e[11] = (uint8_t)(blk >> 24);
+    c = ota_crc16(e + 2, 30, 0);
+    e[0] = (uint8_t)c; e[1] = (uint8_t)(c >> 8);
+    ldr_sfc(e, 32, 0, key);
+    memcpy(nor + 0x4000, e, sizeof e);
+}
+
+static int all(uint32_t lo, uint32_t hi, uint8_t v)
+{
+    uint32_t i;
+    for (i = lo; i < hi; i++)
+        if (nor[i] != v)
+            return 0;
+    return 1;
+}
+
+/* the switch matrix (docs/SD-MODE-DESIGN.md 9.3 / 9.7.2, docs/INSTALL-PATHS.md), written out here, not computed: what an
+ * install of each step after each kind of installed app erases first, [lo, hi) (lo == hi: nothing); a build checks the
+ * rows of its own step (FELUCCA_LAYOUT). Rows written by hand for N, S0 and L1, the grid's later steps' from the rule */
+typedef struct {
+    const char *what;
+    uint32_t end;                                    /* the installed app's end (0: no header of ours) */
+    int layout;                                      /* the step being installed */
+    uint32_t lo, hi;
+} sw_case_t;
+static const sw_case_t SW[] = {
+/* sw-table:begin (tests/ldr_test.c's rows; the memopts steps' tool rewrites them from tools/flash_layout.py) */
+    {"after a normal app (N)", 0x93000u, 0, 0, 0},
+    {"after a normal app (N)", 0x93000u, 3, 0xB5000u, 0xD8000u},
+    {"after a normal app (N)", 0x93000u, 1, 0xD0000u, 0xDA000u},
+    {"after a no-user-samples app (S0)", 0xB5000u, 0, 0x93000u, 0xD8000u},
+    {"after a no-user-samples app (S0)", 0xB5000u, 3, 0, 0},
+    {"after a no-user-samples app (S0)", 0xB5000u, 1, 0xD0000u, 0xDA000u},
+    {"after a more-flash app (L1)", 0xD0000u, 0, 0x93000u, 0xDA000u},
+    {"after a more-flash app (L1)", 0xD0000u, 3, 0xB5000u, 0xDA000u},
+    {"after a more-flash app (L1)", 0xD0000u, 1, 0, 0},
+    {"after the release's L1 (0xCE000: the same step)", 0xCE000u, 0, 0x93000u, 0xDA000u},
+    {"after the release's L1 (0xCE000: the same step)", 0xCE000u, 3, 0xB5000u, 0xDA000u},
+    {"after the release's L1 (0xCE000: the same step)", 0xCE000u, 1, 0, 0},
+    {"after no header of ours", 0, 0, 0, 0},
+    {"after no header of ours", 0, 3, 0xB5000u, 0xD8000u},
+    {"after no header of ours", 0, 1, 0xD0000u, 0xDA000u},
+    {"after a head ending below normal's (0x5000)", 0x5000u, 0, 0, 0},
+    {"after a head ending below normal's (0x5000)", 0x5000u, 3, 0xB5000u, 0xD8000u},
+    {"after a head ending below normal's (0x5000)", 0x5000u, 1, 0xD0000u, 0xDA000u},
+    {"after an end no step has (0xC0000)", 0xC0000u, 0, 0x93000u, 0xDA000u},
+    {"after an end no step has (0xC0000)", 0xC0000u, 3, 0xB5000u, 0xDA000u},
+    {"after an end no step has (0xC0000)", 0xC0000u, 1, 0xD0000u, 0xDA000u},
+    {"after a 1-slot 16-project app (LAYOUT 2, 0xa5000)", 0xA5000u, 0, 0x93000u, 0xC8000u},
+    {"after a 1-slot 16-project app (LAYOUT 2, 0xa5000)", 0xA5000u, 1, 0xD0000u, 0xDA000u},
+    {"after a 1-slot 16-project app (LAYOUT 2, 0xa5000)", 0xA5000u, 3, 0xB5000u, 0xD8000u},
+    {"after a 2-slot 4-project app (LAYOUT 6, 0xa6000)", 0xA6000u, 0, 0x93000u, 0xB4000u},
+    {"after a 2-slot 4-project app (LAYOUT 6, 0xa6000)", 0xA6000u, 1, 0xD0000u, 0xDA000u},
+    {"after a 2-slot 4-project app (LAYOUT 6, 0xa6000)", 0xA6000u, 3, 0xB5000u, 0xD8000u},
+    {"after a 2-slot 2-project app (LAYOUT 7, 0xaa000)", 0xAA000u, 0, 0x93000u, 0xB4000u},
+    {"after a 2-slot 2-project app (LAYOUT 7, 0xaa000)", 0xAA000u, 1, 0xD0000u, 0xDA000u},
+    {"after a 2-slot 2-project app (LAYOUT 7, 0xaa000)", 0xAA000u, 3, 0xB5000u, 0xD8000u},
+    {"after a 1-slot 4-project app (LAYOUT 4, 0xba000)", 0xBA000u, 0, 0x93000u, 0xC8000u},
+    {"after a 1-slot 4-project app (LAYOUT 4, 0xba000)", 0xBA000u, 1, 0xD0000u, 0xDA000u},
+    {"after a 1-slot 4-project app (LAYOUT 4, 0xba000)", 0xBA000u, 3, 0xB5000u, 0xD8000u},
+    {"after a 1-slot 2-project app (LAYOUT 5, 0xbe000)", 0xBE000u, 0, 0x93000u, 0xC8000u},
+    {"after a 1-slot 2-project app (LAYOUT 5, 0xbe000)", 0xBE000u, 1, 0xD0000u, 0xDA000u},
+    {"after a 1-slot 2-project app (LAYOUT 5, 0xbe000)", 0xBE000u, 3, 0xB5000u, 0xD8000u},
+    {"after a 0-slot 4-project app (LAYOUT 8, 0xca000)", 0xCA000u, 0, 0x93000u, 0xD8000u},
+    {"after a 0-slot 4-project app (LAYOUT 8, 0xca000)", 0xCA000u, 1, 0xD0000u, 0xDA000u},
+    {"after a 0-slot 4-project app (LAYOUT 8, 0xca000)", 0xCA000u, 3, 0xB5000u, 0xD8000u},
+    {"after the app ending at 0x93000", 0x93000u, 2, 0xA5000u, 0xC8000u},
+    {"after the app ending at 0xa5000", 0xA5000u, 2, 0, 0},
+    {"after the app ending at 0xa6000", 0xA6000u, 2, 0xA5000u, 0xC8000u},
+    {"after the app ending at 0xaa000", 0xAA000u, 2, 0xA5000u, 0xC8000u},
+    {"after the app ending at 0xb5000", 0xB5000u, 2, 0xA5000u, 0xD8000u},
+    {"after the app ending at 0xba000", 0xBA000u, 2, 0xA5000u, 0xC8000u},
+    {"after the app ending at 0xbe000", 0xBE000u, 2, 0xA5000u, 0xC8000u},
+    {"after the app ending at 0xca000", 0xCA000u, 2, 0xA5000u, 0xD8000u},
+    {"after the app ending at 0xce000", 0xCE000u, 2, 0xA5000u, 0xDA000u},
+    {"after the app ending at 0xd0000", 0xD0000u, 2, 0xA5000u, 0xDA000u},
+    {"no header of ours", 0, 2, 0xA5000u, 0xC8000u},
+    {"a head ending below normal's (0x5000)", 0x5000u, 2, 0xA5000u, 0xC8000u},
+    {"an end no step has (0xC0000)", 0xC0000u, 2, 0xA5000u, 0xDA000u},
+    {"after the app ending at 0x93000", 0x93000u, 4, 0xBA000u, 0xC8000u},
+    {"after the app ending at 0xa5000", 0xA5000u, 4, 0xBA000u, 0xC8000u},
+    {"after the app ending at 0xa6000", 0xA6000u, 4, 0xBA000u, 0xC8000u},
+    {"after the app ending at 0xaa000", 0xAA000u, 4, 0xBA000u, 0xC8000u},
+    {"after the app ending at 0xb5000", 0xB5000u, 4, 0xBA000u, 0xD8000u},
+    {"after the app ending at 0xba000", 0xBA000u, 4, 0, 0},
+    {"after the app ending at 0xbe000", 0xBE000u, 4, 0xBA000u, 0xC8000u},
+    {"after the app ending at 0xca000", 0xCA000u, 4, 0xBA000u, 0xD8000u},
+    {"after the app ending at 0xce000", 0xCE000u, 4, 0xBA000u, 0xDA000u},
+    {"after the app ending at 0xd0000", 0xD0000u, 4, 0xBA000u, 0xDA000u},
+    {"no header of ours", 0, 4, 0xBA000u, 0xC8000u},
+    {"a head ending below normal's (0x5000)", 0x5000u, 4, 0xBA000u, 0xC8000u},
+    {"an end no step has (0xC0000)", 0xC0000u, 4, 0xBA000u, 0xDA000u},
+    {"after the app ending at 0x93000", 0x93000u, 5, 0xBE000u, 0xC8000u},
+    {"after the app ending at 0xa5000", 0xA5000u, 5, 0xBE000u, 0xC8000u},
+    {"after the app ending at 0xa6000", 0xA6000u, 5, 0xBE000u, 0xC8000u},
+    {"after the app ending at 0xaa000", 0xAA000u, 5, 0xBE000u, 0xC8000u},
+    {"after the app ending at 0xb5000", 0xB5000u, 5, 0xBE000u, 0xD8000u},
+    {"after the app ending at 0xba000", 0xBA000u, 5, 0xBE000u, 0xC8000u},
+    {"after the app ending at 0xbe000", 0xBE000u, 5, 0, 0},
+    {"after the app ending at 0xca000", 0xCA000u, 5, 0xBE000u, 0xD8000u},
+    {"after the app ending at 0xce000", 0xCE000u, 5, 0xBE000u, 0xDA000u},
+    {"after the app ending at 0xd0000", 0xD0000u, 5, 0xBE000u, 0xDA000u},
+    {"no header of ours", 0, 5, 0xBE000u, 0xC8000u},
+    {"a head ending below normal's (0x5000)", 0x5000u, 5, 0xBE000u, 0xC8000u},
+    {"an end no step has (0xC0000)", 0xC0000u, 5, 0xBE000u, 0xDA000u},
+    {"after the app ending at 0x93000", 0x93000u, 6, 0xA6000u, 0xB4000u},
+    {"after the app ending at 0xa5000", 0xA5000u, 6, 0xA6000u, 0xC8000u},
+    {"after the app ending at 0xa6000", 0xA6000u, 6, 0, 0},
+    {"after the app ending at 0xaa000", 0xAA000u, 6, 0xA6000u, 0xB4000u},
+    {"after the app ending at 0xb5000", 0xB5000u, 6, 0xA6000u, 0xD8000u},
+    {"after the app ending at 0xba000", 0xBA000u, 6, 0xA6000u, 0xC8000u},
+    {"after the app ending at 0xbe000", 0xBE000u, 6, 0xA6000u, 0xC8000u},
+    {"after the app ending at 0xca000", 0xCA000u, 6, 0xA6000u, 0xD8000u},
+    {"after the app ending at 0xce000", 0xCE000u, 6, 0xA6000u, 0xDA000u},
+    {"after the app ending at 0xd0000", 0xD0000u, 6, 0xA6000u, 0xDA000u},
+    {"no header of ours", 0, 6, 0xA6000u, 0xB4000u},
+    {"a head ending below normal's (0x5000)", 0x5000u, 6, 0xA6000u, 0xB4000u},
+    {"an end no step has (0xC0000)", 0xC0000u, 6, 0xA6000u, 0xDA000u},
+    {"after the app ending at 0x93000", 0x93000u, 7, 0xAA000u, 0xB4000u},
+    {"after the app ending at 0xa5000", 0xA5000u, 7, 0xAA000u, 0xC8000u},
+    {"after the app ending at 0xa6000", 0xA6000u, 7, 0xAA000u, 0xB4000u},
+    {"after the app ending at 0xaa000", 0xAA000u, 7, 0, 0},
+    {"after the app ending at 0xb5000", 0xB5000u, 7, 0xAA000u, 0xD8000u},
+    {"after the app ending at 0xba000", 0xBA000u, 7, 0xAA000u, 0xC8000u},
+    {"after the app ending at 0xbe000", 0xBE000u, 7, 0xAA000u, 0xC8000u},
+    {"after the app ending at 0xca000", 0xCA000u, 7, 0xAA000u, 0xD8000u},
+    {"after the app ending at 0xce000", 0xCE000u, 7, 0xAA000u, 0xDA000u},
+    {"after the app ending at 0xd0000", 0xD0000u, 7, 0xAA000u, 0xDA000u},
+    {"no header of ours", 0, 7, 0xAA000u, 0xB4000u},
+    {"a head ending below normal's (0x5000)", 0x5000u, 7, 0xAA000u, 0xB4000u},
+    {"an end no step has (0xC0000)", 0xC0000u, 7, 0xAA000u, 0xDA000u},
+    {"after the app ending at 0x93000", 0x93000u, 8, 0xCA000u, 0xD8000u},
+    {"after the app ending at 0xa5000", 0xA5000u, 8, 0xCA000u, 0xD8000u},
+    {"after the app ending at 0xa6000", 0xA6000u, 8, 0xCA000u, 0xD8000u},
+    {"after the app ending at 0xaa000", 0xAA000u, 8, 0xCA000u, 0xD8000u},
+    {"after the app ending at 0xb5000", 0xB5000u, 8, 0xCA000u, 0xD8000u},
+    {"after the app ending at 0xba000", 0xBA000u, 8, 0xCA000u, 0xD8000u},
+    {"after the app ending at 0xbe000", 0xBE000u, 8, 0xCA000u, 0xD8000u},
+    {"after the app ending at 0xca000", 0xCA000u, 8, 0, 0},
+    {"after the app ending at 0xce000", 0xCE000u, 8, 0xCA000u, 0xDA000u},
+    {"after the app ending at 0xd0000", 0xD0000u, 8, 0xCA000u, 0xDA000u},
+    {"no header of ours", 0, 8, 0xCA000u, 0xD8000u},
+    {"a head ending below normal's (0x5000)", 0x5000u, 8, 0xCA000u, 0xD8000u},
+    {"an end no step has (0xC0000)", 0xC0000u, 8, 0xCA000u, 0xDA000u},
+/* sw-table:end */
+};
+
+static int layout_switch_test(void)
+{
+    static const uint32_t KEY = 0x980Fu;
+    uint8_t buf[32];
+    int bad = 0, rc, pass, rows = 0;
+    uint32_t k;
+    for (k = 0; k < sizeof SW / sizeof SW[0]; k++)
+        rows += SW[k].layout == FELUCCA_LAYOUT;
+    bad += check("this build's step has its rows in the matrix", rows >= 7);
+    for (k = 0; k < sizeof SW / sizeof SW[0]; k++)
+        for (pass = 0; pass < 2 && SW[k].layout == FELUCCA_LAYOUT; pass++) {   /* the second: a resumed install */
+            const uint32_t lo = SW[k].lo, hi = SW[k].hi;
+            char what[128];
+            memset(nor, 0xFF, sizeof nor);
+            memset(nor + 0x5000, 0xA5, 0xE0000u - 0x5000u);   /* the app, the store: all non-erased */
+            if (SW[k].end)                                 /* (the block ends inside its slot's last sector, as
+                                                            * fm1pkg_make.py's: the tail after app.bin is under 4 KiB) */
+                installed_head(KEY, SW[k].end - 0x4000u - 0xF24u + 0x1B4u);
+            if (pass)                                      /* the first pass's erases done, the app not yet written */
+                memset(nor + lo, 0xFF, hi - lo);
+            erases = 0; bad_range = 0;
+            rc = ldr_layout_switch(KEY, buf);
+            snprintf(what, sizeof what, "layout %d loader, %s%s: clears [%#x, %#x)", FELUCCA_LAYOUT, SW[k].what,
+                     pass ? ", resumed" : "", (unsigned)lo, (unsigned)hi);
+            bad += check(what, rc == 0 && erases == (hi - lo) / 0x1000u && all(0x5000u, lo ? lo : 0x5000u, 0xA5) &&
+                         all(lo, hi, 0xFF) && all(hi > lo ? hi : 0x5000u, 0xE0000u, 0xA5));
+            bad += check("... nothing at or past 0xDA000 (kits, presets), nothing outside the loader's windows",
+                         all(0xDA000u, 0xE0000u, 0xA5) && bad_range == 0 && hi <= FL_CLEAR_TOP);
+        }
     return bad;
 }
 
@@ -236,7 +491,12 @@ int main(int argc, char **argv)
     uint8_t *old, head[0x4000];
     uint32_t ofo, nfo;
     int bad = 0, rc;
-    if (argc < 3) { printf("usage: ldr_test OLD.fwsc NEW.fwsc\n"); return 2; }
+    if (argc == 2 && !strcmp(argv[1], "--layout")) {
+        bad = layout_switch_test();
+        printf("%s\n", bad ? "LOADER TEST FAILED" : "loader test passed");
+        return bad != 0;
+    }
+    if (argc < 3) { printf("usage: ldr_test OLD.fwsc NEW.fwsc | --layout\n"); return 2; }
     old = load_logical(argv[1], &olen);
     logical = load_logical(argv[2], &logical_len);
     ofo = flash_off(old);
@@ -265,7 +525,7 @@ int main(int argc, char **argv)
             logical_len = nfo + SZ[k] > full ? nfo + SZ[k] : full;
             set_fl_size(logical, SZ[k]);
             erases = 0; record_cleared = 0;
-            rc = ldr_session();
+            rc = session();
             printf("  rc %d, %u sector erases\n", rc, erases);
             bad += check(WHAT[k], rc == -15 && erases == 0 && !record_cleared && nor[0xE4F06] == 0x41 &&
                          !memcmp(nor, old + ofo, 0x93000));
@@ -276,14 +536,16 @@ int main(int argc, char **argv)
         }
         logical_len = nfo + 0x50000u;                /* cut short in the app area */
         erases = 0; record_cleared = 0;
-        rc = ldr_session();
+        rc = session();
         bad += check("cut short inside flash.bin: refused, nothing erased", rc < 0 && erases == 0 && !record_cleared &&
                      !memcmp(nor, old + ofo, 0x93000));
         logical_len = full;
         requests = 0;
     }
-    rc = ldr_session();
-    printf("  rc %d, %u requests, %u sector erases\n", rc, requests, erases);
+    wire_in = wire_out = progs = 0;
+    rc = session();
+    printf("  rc %d, %u requests, %u sector erases, %u page programs, wire: %u B to the FM-1, %u B from it (%s)\n", rc,
+           requests, erases, progs, wire_in, wire_out, FAST ? "fast" : "today's protocol");
     bad += check("install completes (flash.bin exactly the app area)", rc == 0);
     bad += check("app area == the new package's flash.bin", !memcmp(nor + 0x4000, logical + nfo + 0x4000, 0x93000 - 0x4000));
     bad += check("flash head [0, 0x4000) untouched", !memcmp(nor, head, sizeof head));
@@ -292,15 +554,43 @@ int main(int argc, char **argv)
     bad += check("no write outside the allowed windows", bad_range == 0);
     /* same package again: nothing to erase */
     erases = 0; requests = 0;
-    rc = ldr_session();
+    rc = session();
     bad += check("re-run with the same package erases nothing", rc == 0 && erases == 0);
+#ifdef OTA_FAST_CHUNK
+    {
+        printf("  re-run: %u requests\n", requests);
+        bad += check("fast: a re-run sends no sector (header, app head, table, finish)", requests <= 5u);
+        {
+            static const uint8_t VEC[12] = {98, 4, 162, 95, 146, 95, 92, 197, 155, 40, 53, 131};   /* the hosts' vector */
+            static uint8_t v[0x2000];
+            uint32_t k;
+            for (k = 0; k < sizeof v; k++)
+                v[k] = (uint8_t)((k * 31u) ^ (k >> 8));
+            bad += check("fast: the table entries are the hosts' (Python, web, app vector)",
+                         ldr_same(v, VEC) && ldr_same(v + 0x1000, VEC + 6));
+        }
+        /* cut off half way (the host gone after some sectors), then resumed: the rest only, and all of it */
+        memcpy(nor, old + ofo, 0x93000);
+        put_record();
+        record_cleared = 0;
+        requests = 0; served = 0; cut_after = 40u;
+        rc = session();
+        bad += check("fast: cut off after 40 answers: no success, the record stays", rc < 0 && !record_cleared &&
+                     nor[0xE4F06] == 0x41);
+        cut_after = 0; requests = 0; erases = 0;
+        rc = session();
+        printf("  resumed: rc %d, %u requests, %u erases\n", rc, requests, erases);
+        bad += check("fast: the resumed install completes and matches the package", rc == 0 && record_cleared &&
+                     !memcmp(nor + 0x4000, logical + nfo + 0x4000, LDR_APP_HI - 0x4000));
+    }
+#endif
     /* a package for another chip key is refused before any erase */
     {
         uint8_t save = logical[nfo + 0x4000 + 5];
         logical[nfo + 0x4000 + 5] ^= 0x5A;           /* app area head no longer decrypts */
         memcpy(nor, old + ofo, 0x93000);
         erases = 0;
-        rc = ldr_session();
+        rc = session();
         bad += check("foreign key / damaged app head refused, nothing erased", rc == -6 && erases == 0);
         logical[nfo + 0x4000 + 5] = save;
     }
@@ -312,7 +602,7 @@ int main(int argc, char **argv)
         record_cleared = 0;
         corrupt_at = nfo + 0x30123u;
         corrupt_once = 1;
-        rc = ldr_session();
+        rc = session();
         bad += check("a byte damaged once: caught by the CRC, fixed by a 2nd pass", rc == 0 && record_cleared
                      && nor[0xE4F06] == 0xFF && !memcmp(nor + 0x4000, logical + nfo + 0x4000, 0x93000 - 0x4000));
         /* the package itself damaged (every pass): the record stays, nothing is booted */
@@ -322,25 +612,25 @@ int main(int argc, char **argv)
         corrupt_at = nfo + 0x30123u;
         corrupt_once = 0;
         erases = 0;
-        rc = ldr_session();
+        rc = session();
         bad += check("a damaged package: refused after 3 passes, the record stays", rc == -12 && !record_cleared
                      && nor[0xE4F06] == r6);
         bad += check("... and the working app was never erased or written (checked before anything is erased)",
                      erases == 0 && !memcmp(nor, old + ofo, 0x93000));
         corrupt_at = nfo + 0x100u;                   /* in the head: never written, still checked */
-        rc = ldr_session();
+        rc = session();
         bad += check("... also when the damage is in the head", rc == -12 && !record_cleared && erases == 0
                      && !memcmp(nor, old + ofo, 0x93000));
         corrupt_at = nfo + 0x91000u;                 /* the last app sector */
-        rc = ldr_session();
+        rc = session();
         bad += check("... and in the last app sector", rc == -12 && erases == 0 && !memcmp(nor, old + ofo, 0x93000));
         corrupt_at = 0;
         /* no "success" from the host: the record stays (the host can finish later) */
         no_finish = 1;
-        rc = ldr_session();
+        rc = session();
         bad += check("no \"success\" from the host: the record stays", rc == -13 && !record_cleared && nor[0xE4F06] == r6);
         no_finish = 0;
-        rc = ldr_session();
+        rc = session();
         bad += check("... and the next session finishes", rc == 0 && record_cleared && nor[0xE4F06] == 0xFF);
     }
     /* another flash chip: nothing written, the records go (the old firmware starts again) */
@@ -350,12 +640,13 @@ int main(int argc, char **argv)
         record_cleared = 0;
         erases = 0;
         flash_unknown = 1;
-        rc = ldr_session();
+        rc = session();
         bad += check("unknown flash chip: nothing written, record dropped", rc == -14 && record_cleared && erases == 1
                      && nor[0xE4F06] == 0xFF && !memcmp(nor, old + ofo, 0x93000));
         flash_unknown = 0;
     }
     bad += sweep_test();
+    bad += layout_switch_test();
     printf("%s\n", bad ? "LOADER TEST FAILED" : "loader test passed");
     return bad != 0;
 }

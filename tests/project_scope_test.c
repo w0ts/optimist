@@ -18,7 +18,9 @@
 #ifndef FELUCCA_MOTION
 #define FELUCCA_MOTION 1
 #endif
+#ifndef SEC_LOG_SECTORS
 #define SEC_LOG_SECTORS 8u                             /* (a small log: compactions early) */
+#endif   /* (-DSEC_LOG_SECTORS=7u: the fake SD mode's log, FELUCCA_LAYOUT 1) */
 #define main hostsim_main
 #include "hostsim.c"
 #undef main
@@ -194,6 +196,45 @@ static void restart(void)                              /* persist_boot: the log,
 }
 static int open_p(uint32_t p) { return project_scope_set(p) == 0 && open_proj == p && slg.proj == p; }
 
+/* a later firmware's records (MIDI tracks' phase 0): fu_*[j], record j's bytes, id and project (0-based) */
+static uint8_t fu_b[12][256];
+static uint32_t fu_n[12], fu_id[12], fu_pr[12];
+/* the newest valid record of (pr, id) in the flash: its length (-1 none, 0 a clear), its bytes -> b */
+static int fu_newest(uint32_t pr, uint32_t id, uint8_t *b)
+{
+    uint32_t s, p, bseq = 0;
+    int n = -1;
+    for (s = 0; s < SEC_LOG_SECTORS; s++) {
+        sec_shead_t sh;
+        memcpy(&sh, nor + slg_off(s), sizeof sh);
+        if (sh.magic != SEC_MAGIC || sh.hcrc != st_crc32(&sh, 12))
+            continue;
+        for (p = SEC_HEAD; p + SEC_HEAD <= SEC_SECT;) {
+            sec_rhead_t h;
+            memcpy(&h, nor + slg_off(s) + p, sizeof h);
+            if (h.magic != SEC_RMAGIC || h.len > SEC_REC_MAX || p + SEC_HEAD + h.len > SEC_SECT)
+                break;
+            if (h.state == 0x00u && h.proj == pr && h.id == id && (n < 0 || h.seq > bseq) &&
+                slg_rcrc(&h, nor + slg_off(s) + p + SEC_HEAD) == h.crc)
+                bseq = h.seq, n = h.len, memcpy(b, nor + slg_off(s) + p + SEC_HEAD, h.len);
+            p += SEC_ALIGN(SEC_HEAD + h.len);
+        }
+    }
+    return n;
+}
+/* the records of project-to-be `from` (0: fu 0..9, 1: fu 10..11) in project pr: all there byte for byte (want), or none */
+static int fu_all(uint32_t from, uint32_t pr, int want)
+{
+    static uint8_t b[SEC_REC_MAX];
+    uint32_t j;
+    for (j = from ? 10u : 0u; j < (from ? 12u : 10u); j++) {
+        int n = fu_newest(pr, fu_id[j], b);
+        if (want ? n != (int)fu_n[j] || memcmp(b, fu_b[j], fu_n[j]) : n > 0)
+            return 0;
+    }
+    return 1;
+}
+
 int main(void)
 {
     uint32_t i, k, ok;
@@ -203,6 +244,41 @@ int main(void)
 #endif
     sec_pend_clear();
     fresh();
+#if PROJ_SLOTS < 16u
+    /* ---- a step with few projects (MEMORY PROJECTS 2 or 4; SD card mode 1, the user 2026-10-25: the card, the web app
+     * and the iOS app keep the others): a project past PROJ_SLOTS is never opened, cleared or listed; one project may
+     * fill the whole log */
+    make(1), take(1);
+    ok = state_save() == 0;
+    project_save(0);
+    ok &= !strcmp(last_msg, "SAVED") && scene_is(0, 1) && state_is(1);
+    check("few projects: the work saved as its state, stored as scene A", ok);
+    ok = !open_p(PROJ_SLOTS) && open_proj == 0u && slg.proj == 0u && scene_is(0, 1) && state_is(1);
+    check("... the project past PROJ_SLOTS refused: project 1 still open, as it was", ok);
+    snapshot();
+    ok = project_clear(PROJ_SLOTS) != 0 && as_snapshot();
+    check("... the project past PROJ_SLOTS not cleared (none kept): project 1's records byte for byte", ok);
+    check("... only project 1 listed", project_slot_used(0) && !project_slot_used(1) && !project_slot_used(15));
+    restart();
+    check("... a restart: project 1, its state and scene A", open_proj == 0u && scene_is(0, 1) && state_is(1));
+    for (i = 1, rc = 0; i < SEC_IDS && rc == 0; i++) {   /* dense scenes (every step busy, none shared) until refused */
+        uint32_t j;
+        host_tracks_init();
+        for (k = 0; k < NTRK; k++) {
+            trk[k].p[P_SLEN] = NSTEP;
+            for (j = 0; j < NSTEP; j++)
+                memset(&trk[k].step[j], (int)(1u + (i * 7u + j + k) % 200u), sizeof trk[k].step[j]);
+        }
+        memset(pat_cur, PAT_NONE, NTRK);
+        project_save(i);
+        rc = strcmp(last_msg, "SAVED");
+    }
+    printf("one project: %u busy scenes stored, then \"%s\"; MEM %u %%\n", i - 1u, last_msg, slg_used_pct());
+    check("... the log full of the one project: refused, its state and scene A whole", (rc != 0 || i == SEC_IDS) &&
+          state_is(1) && scene_is(0, 1));
+    printf("project scope test %s\n", bad ? "FAILED" : "passed");
+    return bad != 0;
+#endif
     /* ---- a project's state and scenes are its own */
     make(1), take(1);
     ok = state_save() == 0;
@@ -452,6 +528,76 @@ int main(void)
     rc = project_clear(0);
     project_save(0);
     check("... project 1 cleared from project 2: the store goes in", rc == 0 && !strcmp(last_msg, "SAVED") && scene_is(0, 20));
+    {   /* MIDI tracks' phase 0: a later firmware's ids (226..255, never indexed here) are a project's as the others: a save as
+         * copies them, DELETE clears them, a restart and compactions keep them byte for byte */
+        uint32_t j, c3 = 1, c0 = 1;
+        fresh();
+        ok = open_p(0);
+        make(21), take(21);
+        ok &= state_save() == 0;
+        project_save(0);
+        for (j = 0; j < 12u; j++) {                    /* project 1's ids 226..235, project 2's 226..227 */
+            uint32_t pr = j < 10u ? 0u : 1u, id = SLG_IDS + (j < 10u ? j : j - 10u), n = 30u + 17u * j, b;
+            for (b = 0; b < n; b++)
+                fu_b[j][b] = (uint8_t)(j * 37u + b * 5u);
+            fu_n[j] = n, fu_id[j] = id, fu_pr[j] = pr;
+            ok &= slg_make_room(SEC_ALIGN(SEC_HEAD + n), SLG_IDS) == 0 && slg_append_rawp(id, pr, slg.seq++, fu_b[j], n) == 0;
+        }
+        restart();
+        check("a later firmware's records (ids 226..235) in project 1, two in project 2: there after a restart",
+              ok && fu_all(0u, 0u, 1) && fu_all(1u, 1u, 1) && project_slot_used(1));
+        {   /* a power cut at every write of the save as: project 4 holds none of them or all, the sources whole */
+            static uint8_t img[sizeof nor];
+            uint32_t n, all = 1, done = 0, olds = 0, news = 0;
+            memcpy(img, nor, sizeof nor);
+            for (n = 1; !done && n < 5000u; n++) {
+                int o, w;
+                memcpy(nor, img, sizeof nor);
+                open_proj = 0;
+                restart();
+                cut_in = (int)n;
+                (void)project_save_as(3);
+                done = cut_in > 0;
+                cut_in = -1;
+                open_proj = 0;
+                restart();
+                o = fu_all(0u, 3u, 0);
+                w = (o || fu_all(0u, 3u, 1)) && fu_all(0u, 0u, 1) && fu_all(1u, 1u, 1);
+                olds += (uint32_t)o, news += (uint32_t)!o;
+                all &= (uint32_t)w;
+            }
+            check("... a save as cut at every write: project 4 none of them or all of them, projects 1 and 2 whole",
+                  all && done && olds && news);
+            memcpy(nor, img, sizeof nor);
+            open_proj = 0;
+            restart();
+        }
+        ok = project_save_as(3) == 0 && open_proj == 3u;
+        restart();
+        check("save as into project 4: project 1's later firmware's records copied (bytes as they are), project 1 and 2 kept",
+              ok && fu_all(0u, 3u, 1) && fu_all(0u, 0u, 1) && fu_all(1u, 1u, 1));
+        ok = open_p(0) && project_clear(0) == 0;
+        restart();
+        check("DELETE project 1: its later firmware's records cleared (the slot empty after a restart), project 4's and 2's kept",
+              ok && fu_all(0u, 0u, 0) && !project_slot_used(0) && fu_all(0u, 3u, 1) && fu_all(1u, 1u, 1));
+        for (i = 0, erases = 0; i < 60u; i++) {        /* stores in project 1 again: compactions */
+            uint32_t q;
+            host_tracks_init();
+            for (k = 0; k < NTRK; k++) {
+                trk[k].p[P_SLEN] = NSTEP;
+                for (q = 0; q < NSTEP; q++)
+                    memset(&trk[k].step[q], (int)(1u + (i * 7u + q + k) % 200u), sizeof trk[k].step[q]);
+            }
+            memset(pat_cur, PAT_NONE, NTRK);
+            project_save(i % 3u);
+            if (i % 9u == 0u)
+                restart();
+            c3 &= fu_all(0u, 3u, 1) && fu_all(1u, 1u, 1);
+            c0 &= fu_all(0u, 0u, 0);
+        }
+        check("... 60 dense stores after (compactions, restarts): project 4's and 2's kept byte for byte, project 1's never back",
+              c3 && c0 && erases > 4u);
+    }
     printf("project scope test %s\n", bad ? "FAILED" : "passed");
     return bad != 0;
 }

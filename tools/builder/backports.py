@@ -11,30 +11,25 @@ from pathlib import Path
 import registry as R
 
 SRC = Path(__file__).resolve().parents[2] / "tools" / "backports.json"
-GROUP = {"sequencer": "Sequencer", "ui": "UI", "fx": R.FX_ANY, "drums": "Drums", "midi": "USB & BT & MIDI",
+GROUP = {"sequencer": "Sequencer", "ui": "UI", "fx": R.FX, "drums": "Drums", "midi": "USB & BT & MIDI",
          "system": "System", "engines": "Synth engines", "engine": "Synth engines", "experimental": "System"}
 LABEL = {  # short menu labels (the title stays in the details)
-    "FELUCCA_CHANCE": "per-step chance (STEP 2 PROB)", "FELUCCA_KEYLIT": "keys light the notes played",
+    "FELUCCA_CHANCE": "per-step chance (STEP 2 PROB)",
     "FELUCCA_QNT_SEQ": "SCL > QNT SEQ (sequenced notes snap)", "FELUCCA_SPRING": "reverb: SPRING",
-    "FELUCCA_BASSPLUS": "BASS+ speaker mode", "FELUCCA_BRIGHT": "screen brightness (MENU > BRIGHT)",
     "FELUCCA_MOTION": "motion recording (knobs per step)",
     "FELUCCA_ENG_NOISE": "NOISE (colours, crackle, shift-register noise)",
     "FELUCCA_ENG_PHYS": "PHYS (physical models)", "FELUCCA_ENG_ACID": "ACID (TB-303 bass + line generator)",
     "FELUCCA_ENG_CZ": "CZ (CZ-1 style tones)",
     "FELUCCA_ENG_JUNO": "JUNO (Juno-106 voice)",
-    "FELUCCA_LIGHTS": "menu LIGHTS / KEYS / NOTES (play in the dark)",
     "FELUCCA_REC_MODES": "REC screen dials: mode, length, count-in",
     "FELUCCA_DIV_ORDER": "divisions in length order (1/8 8T 1/16 ...)",
     "FELUCCA_PUNCH_LATCH": "punch LATCH: FX + key latches its effect",
     "FELUCCA_UP_FM6": "FM6 user presets keep their voice",
     "FELUCCA_SL24_SAFE": "SLOOP's data kept safe (never erased)",
     "FELUCCA_SL24_XSTEP": "step extras storage (nudge, locks, fills; 2.4)",
-    "FELUCCA_DIV_LONG": "SEQ DIV 1/2, 1BAR, 2BAR (SLOOP 2.4)", "FELUCCA_DLY_DOT": "delay TIME 1/8D, 1/16D (SLOOP 2.4)",
+    "FELUCCA_DIV_LONG": "SEQ DIV 1/2, 1BAR, 2BAR (SLOOP 2.4)",
     "FELUCCA_MICRO": "micro timing: nudge a step (SLOOP 2.4)", "FELUCCA_FILLS": "fills: GLO + 9 / 10, step conditions (SLOOP 2.4)",
     "FELUCCA_PLOCK": "parameter locks per step (SLOOP 2.4)", "FELUCCA_QCHAIN": "quick chain: SAVE + section taps (SLOOP 2.4)",
-    "FELUCCA_SL24_IMPORT": "import SLOOP 2.7 projects (LOAD twice)",
-    "FELUCCA_SL24_EXPORT": "export a project for SLOOP 2.7 (web editor)",
-    "FELUCCA_SL24_EDIMPORT": "import a SLOOP 2.7 song or backup (web editor)",
     "FELUCCA_COND": "step conditions 1:2 .. 4:4 (Felucca 1.5.6)",
     "FELUCCA_SEQTOOLS": "STEP tools (Felucca 1.5.6)",
     "FELUCCA_GEN_GRIDS": "note generator GRIDS (Mutable Instruments Grids)",
@@ -44,9 +39,6 @@ DESC = {  # what each switch does for the user (plain words; sizes from tools/bu
                       "that fails plays as a rest. About 0.5 KB of flash; nothing changes until a step's chance is turned "
                       "down. Synth tracks only; the web editor does not show it yet. Off: every step plays (chances "
                       "stay saved).",
-    "FELUCCA_KEYLIT": "Lights the keys of the notes the selected track plays (its steps, the arpeggiator, held notes), "
-                      "so you see the pattern on the keyboard. About 0.2 KB of flash, LEDs only; with LIGHTS, MENU > "
-                      "NOTES turns it on and off at run time.",
     "FELUCCA_QNT_SEQ": "SCL > QNT SEQ: the keys and the sequenced notes snap to the scale as they play, so a pattern "
                        "follows a change of ROOT or SCALE; the steps keep their notes as written. About 0.3 KB of "
                        "flash; not on GM KIT or SLICE parts. A build without it plays a project's QNT SEQ as ALL.",
@@ -54,13 +46,6 @@ DESC = {  # what each switch does for the user (plain words; sizes from tools/bu
                       "spring (SPRNG on FX > REVERB > TYPE when two or more are ticked). Its output is mono, and it "
                       "is a little lighter on CPU than ROOM (emulator). Beside ROOM: about 1.9 KB of flash and "
                       "2.3 KB of RAM; ticked alone it is the only reverb.",
-    "FELUCCA_BASSPLUS": "A third MENU > LOWCUT setting (OFF / LOWCUT / BASS+) for the FM-1's small speaker: it adds "
-                        "harmonics of the bass below ~150 Hz, which the speaker can play, and raises the low cut to "
-                        "~220 Hz. About 0.5 KB of flash and 0.35 KB of RAM; CPU only while BASS+ is on.",
-    "FELUCCA_BRIGHT": "MENU > BRIGHT: the screen backlight in 8 levels, 4/16 at the lowest (software PWM). The level "
-                      "lasts until power-off: every boot starts at full and a dim level is never saved. About 36 B "
-                      "of flash; X0X reports it working on a real FM-1. Off: "
-                      "always full brightness.",
     "FELUCCA_MOTION": "Motion recording: while recording, knob turns are stored per step and replayed on every pass "
                       "(SEQ > MOTION: play on / off per track, clear). The events are the automation store's (up "
                       "to 128 a track with its locks, nudges and fills); undone with the recording pass, editable "
@@ -87,9 +72,6 @@ DESC = {  # what each switch does for the user (plain words; sizes from tools/bu
     "FELUCCA_REC_MODES": "REC screen dials: MODE (free / tempo), LENGTH (1 / 2 / 4 bars) and START (note / 4-3-2-1 "
                          "count-in). The count-in runs on the internal clock only and in 4/4. About 1.2 KB of flash; "
                          "off: free recording started by a note.",
-    "FELUCCA_LIGHTS": "Lights for playing in the dark: MENU LIGHTS (every button glows OFF / LOW / MID / HIGH), KEYS (C "
-                      "or white keys glow) and NOTES (the note lights of KEYLIT on / off at run time). About 1.2 KB of "
-                      "flash.",
     "FELUCCA_DIV_ORDER": "Lists note divisions in length order (1/4 1/8 8T 1/16 16T 1/32) on ARP RATE, SEQ DIV, DELAY "
                          "TIME and SLICER RATE; stored values are unchanged. About 0.2 KB of flash.",
     "FELUCCA_PUNCH_LATCH": "PUNCH: FX + a key latches its effect so you can let go; the same key or FX + OCT- turns it "
@@ -101,34 +83,24 @@ DESC = {  # what each switch does for the user (plain words; sizes from tools/bu
     "FELUCCA_DIV_LONG": "SEQ > DIV (and the SEQ layer's KNOB 2) go on past 1/4 to 1/2, 1BAR and 2BAR: a step of 2, 4 or 8 "
                         "beats, for slow chords and pads; such steps are never swung. Stored values unchanged (appended), so "
                         "SLOOP 2.4 projects load as they play there. Costs 172 B of flash.",
-    "FELUCCA_DLY_DOT": "FX > DLY > TIME gains 1/8D and 1/16D (dotted: 3/4 and 3/8 of a beat), as SLOOP 2.4. With the "
-                       "0.74 s delay line a 1/8D below 61 BPM halves to 1/16D. Costs 28 B of flash.",
 }
 DESC["FELUCCA_SL24_SAFE"] = (
-    "Coming from SLOOP (2.7): Optimist never erases or writes over what SLOOP left that it cannot read: the four "
-    "section slots and the autosave (shown as SLOOP on the PROJECT page and in the editor, not EMPTY), SLOOP's FM6 "
-    "bank and a user sample longer than ours (USR3, USR4). SLOOP's user presets are not read (2026-10-24): a "
-    "save into SLOOP's bank writes it over as Optimist's. SLOOP's settings (its SYN1..SYN4 drum kits, MIDI "
-    "LEARN, theme and favourites) are never read as Optimist's and never written over: Optimist keeps its own beside "
-    "them, so each firmware finds its own after a switch. Off, the first start erases SLOOP's projects. About 0.7 KB "
-    "of flash.")
+    "On by default. Coming from SLOOP (2.7): Optimist never erases or writes over what SLOOP left that it cannot read: "
+    "the four section slots and the autosave (shown as SLOOP on the PROJECT page and in the editor, not EMPTY), SLOOP's "
+    "FM6 bank and a user sample longer than ours (USR3, USR4). Optimist does not read SLOOP's projects or user presets "
+    "(a save into SLOOP's bank writes it over as Optimist's). SLOOP's settings (its SYN1..SYN4 drum kits, MIDI LEARN, "
+    "theme and favourites) are never read as Optimist's and never written over: Optimist keeps its own beside them, so "
+    "each firmware finds its own after a switch. OFF RISKS SLOOP'S DATA ON AN FM-1 THAT RAN SLOOP: the first start "
+    "erases its four project slots (sec_migrate), the second autosave writes over its autosave, the first drum record "
+    "saved erases its FM6 bank (0xE5000), a user kit save erases the tail of a long USR3 sample and UP_FM6 the head of "
+    "USR4, and the settings save writes over its settings. Costs about 1.8 KB of flash (1,884 B measured in the jam "
+    "release build, 0.7 KB on its own in the older estimate). Not built without DRUMS.")
 DESC["FELUCCA_SL24_XSTEP"] = (
     "Keeps SLOOP 2.4's per-step extras with every project: each step's nudge (micro timing), its parameter locks and "
     "fill condition (the automation store's step-only events, up to 128 a track), stored in 2.4's own layout while it "
     "holds them (24 locks a track), so 2.4 projects carry them over. Storage only: the "
     "sequencer features that play them come with their own switches. A section with none costs nothing. About 1.6 KB of flash, "
     "0.9 KB of RAM and 4.2 KB of pool.")
-DESC["FELUCCA_SL24_IMPORT"] = (
-    "A SLOOP 2.7 project left in a section slot shows as SLOOP on the PROJECT page; LOAD it twice and it becomes the "
-    "working project (values, engines, drum kits, steps; nudges, locks and fills with the step extras storage), then "
-    "SAVE puts it in a section; PROJECT > SLOOP IMPORT (twice) does the same with SLOOP's autosave. The original stays "
-    "in flash. The drums: each of SLOOP's 16 sounds with hits gets a lane playing it (on its default lane when it has "
-    "one), with its TUNE and DECAY; more than 10 used: the 10 with the most hits (said DRUMS CUT). Held notes stay "
-    "held. An FM6 part keeps its factory patch as its voice, with SLOOP's macros in it; a USR1..USR3 kit plays the "
-    "same user sample slot from the lanes. Lost: the INSERT, ENV SYNC, LFO 2's TRIG / POL, GLO > TEXTURE, a NOISE part "
-    "(ANALOG), a SYN kit (the default kit), the arp modes past ORD (the nearest, said ARP CUT); the ANALOG filter TYPE "
-    "goes to ANALOG 2's, LFO 2's SYNC to the LFO's tempo-synced RATE. About 3.5 KB of flash (unmeasured since "
-    "2026-10-19).")
 DESC["FELUCCA_MICRO"] = (
     "Micro timing, as SLOOP 2.4: hold a step on the SEQ layer and turn KNOB 4 to play it up to half a step early or late "
     "(1/64 of a step a click; the step shows a dot). With it, KNOB 4 on a held step is the nudge and the note length "
@@ -147,19 +119,6 @@ DESC["FELUCCA_QCHAIN"] = (
     "Quick chain, as SLOOP 2.4: while playing, hold SAVE and tap up to 8 sections (of the bank shown: A..P with 16 "
     "sections): the first plays from the next bar, and when SAVE is let go they play in that order, each for the bars "
     "of its longest pattern, looped; one tap is a plain jump and stops the chain, STOP ends it. RAM only. 1 KB of flash.")
-DESC["FELUCCA_SL24_EXPORT"] = (
-    "Adds Export for SLOOP 2.7 to the web editor's Projects screen: the working project as a SLOOP song file, which "
-    "SLOOP's editor loads (Song & sections > Load a song file: it replaces the song on that FM-1, never its settings). "
-    "Nothing is written to the FM-1. The drum lanes go onto SLOOP's sounds with their TUNE and DECAY, held notes stay "
-    "held. Lossy, and the editor lists what is left out: FX OFF, ANALOG 2, SLICE / ACID / CZ parts (their fallback), "
-    "an FM6 voice that is not one of SLOOP's F1..F8 (F1), X0X and user kits (808), drum lanes on user samples or "
-    "sending apart, the reverb type, COMP / LIMIT, the steps' chance, motion, locks on those; sections and samples "
-    "stay behind. About 1.5 KB of flash (unmeasured since 2026-10-19).")
-DESC["FELUCCA_SL24_EDIMPORT"] = (
-    "Adds Import a SLOOP 2.7 song or backup to the web editor's Backup screen: a project of a SLOOP song file or "
-    "backup file (its loop, or A..D of a backup) becomes the working project, as LOAD twice does with one left in "
-    "flash; SAVE then keeps it in a section. Nothing else is written. Needs SL24_IMPORT. About 1.2 KB of flash and 0.4 "
-    "KB of pool.")
 DESC["FELUCCA_COND"] = (
     "Step conditions from Felucca 1.5.6: a step plays only on loop a of every b of its track (1:2 2:2 1:3 2:3 3:3 1:4 "
     "2:4 3:4 4:4), counted from PLAY, a song section or a launched pattern. With FILL and the chance on the same step: "
@@ -205,20 +164,20 @@ DESC["FELUCCA_GRIDS_VEL"] = (
     "project. DRUMS mode only (EUCL has no levels). About 0.2 KB of flash.")
 LABEL["FELUCCA_GRIDS_VEL"] = "GRIDS: velocity (VEL on DENSITY)"
 LABEL["FELUCCA_GRIDS_LFO"] = "GRIDS: two LFOs on DR (the kit GRIDS)"
-PARENT = {"FELUCCA_SPRING": "FX_REVERB", "FELUCCA_DLY_DOT": "FX_DELAY", "FELUCCA_PUNCH_LATCH": "FX_PUNCH",
+PARENT = {"FELUCCA_SPRING": "FX_REVERB", "FELUCCA_PUNCH_LATCH": "FX_PUNCH",
           "FELUCCA_UP_FM6": "ENG_FM6", "FELUCCA_GRIDS_EUCLID": "GEN_GRIDS",
           "FELUCCA_GRIDS_LFO": "GEN_GRIDS", "FELUCCA_GRIDS_VEL": "GEN_GRIDS"}   # options of a registry item
 AFTER = {"FELUCCA_SPRING": "REV_FDN8"}   # an option's place among its parent's (SPRING beside the other reverb algorithms)
 BITS = {  # switch -> stable BUILD bit (append only)
-    "FELUCCA_CHANCE": 64, "FELUCCA_KEYLIT": 65, "FELUCCA_QNT_SEQ": 66, "FELUCCA_KNOB_ACCEL": 67,
-    "FELUCCA_LCD_DIRTY": 68, "FELUCCA_UNDO_HISTORY": 69, "FELUCCA_SIZE": 70,   # (71: FELUCCA_UA_RESAMPLE, retired 2026-10-15: USB audio always resamples; never reuse the bit)
-    "FELUCCA_SPRING": 72, "FELUCCA_BASSPLUS": 73, "FELUCCA_BRIGHT": 74,   # (75: FELUCCA_DLY_HALVE, retired 2026-10-14: always built; never reuse)
+    "FELUCCA_CHANCE": 64, "FELUCCA_QNT_SEQ": 66, "FELUCCA_KNOB_ACCEL": 67,
+    "FELUCCA_UNDO_HISTORY": 69, "FELUCCA_SIZE": 70,   # (68: FELUCCA_LCD_DIRTY, retired 2026-10-31: the dirty-rectangle code had no caller; never reuse the bit; 71: FELUCCA_UA_RESAMPLE, retired 2026-10-15: USB audio always resamples; never reuse the bit)
+    "FELUCCA_SPRING": 72,    # (73: FELUCCA_BASSPLUS, retired 2026-10-29: BASS+ always built; 65: FELUCCA_KEYLIT and 106: FELUCCA_LIGHTS, retired 2026-10-29: always built; 74: FELUCCA_BRIGHT, retired 2026-10-29: the screen is always full; never reuse the bits)
+                                                                                       # (75: FELUCCA_DLY_HALVE, retired 2026-10-14: always built; never reuse)
     "FELUCCA_MOTION": 76, "FELUCCA_ENG_PHYS": 77, "FELUCCA_ENG_ACID": 78,
     # (110: FELUCCA_BK_CHECK, retired 2026-10-14: always built; never reuse the bit)
     # (109: FELUCCA_TRS_NOISE, retired 2026-10-14: always built; never reuse the bit)
     # (108: FELUCCA_KNOB_ONEREST, retired 2026-10-14: Felucca 1.6's knob decoder is always built; never reuse the bit)
     # (107: FELUCCA_GLIDE, retired 2026-10-19: the mixer glides are always built; never reuse the bit)
-    "FELUCCA_LIGHTS": 106,
     "FELUCCA_REC_MODES": 105,
     # (104: FELUCCA_KEYS_FAST, retired 2026-10-14: always built; never reuse the bit)
     # (103: FELUCCA_SHED_FADE, retired 2026-10-14: always built; never reuse the bit)
@@ -234,12 +193,11 @@ BITS = {  # switch -> stable BUILD bit (append only)
     "FELUCCA_ENG_JUNO": 139,
     "FELUCCA_SL24_SAFE": 161,
     "FELUCCA_SL24_XSTEP": 162,
-    "FELUCCA_SL24_IMPORT": 163,                           # (SLOOP 2.4 phase 0: 161..164; 160 is feat/pr45-small's)
-    "FELUCCA_SL24_EXPORT": 164,
+    # (163: FELUCCA_SL24_IMPORT, 164: FELUCCA_SL24_EXPORT, 181: FELUCCA_SL24_EDIMPORT, removed 2026-10-29: never reuse the bits)
     # SLOOP 2.4 sequencer (Phase 2 of the 2.4 backport: bits 175..194)
-    "FELUCCA_DIV_LONG": 175, "FELUCCA_DLY_DOT": 176, "FELUCCA_MICRO": 177, "FELUCCA_FILLS": 178,
+    # (176: FELUCCA_DLY_DOT, retired 2026-10-29: the delay TIME's dotted values are always built; never reuse the bit)
+    "FELUCCA_DIV_LONG": 175, "FELUCCA_MICRO": 177, "FELUCCA_FILLS": 178,
     "FELUCCA_PLOCK": 179, "FELUCCA_QCHAIN": 180,
-    "FELUCCA_SL24_EDIMPORT": 181,                       # (SLOOP 2.4 leftovers: the editor import of a 2.4 backup file)
     "FELUCCA_COND": 240,                                # (Felucca 1.5.6: 240..244)
     "FELUCCA_SEQTOOLS": 241,
     "FELUCCA_GEN_GRIDS": 370,                          # (the GRIDS note generator; its own item since 2026-10-22)
@@ -297,6 +255,10 @@ def load(path=SRC):
             ch = R.ITEMS[parent].children
             ch.remove(key)
             ch.insert(ch.index(AFTER[sw]) + 1, key)
+            mc = R.ITEMS[parent].menu_children
+            if AFTER[sw] in mc and key in mc:
+                mc.remove(key)
+                mc.insert(mc.index(AFTER[sw]) + 1, key)
         items.append(it)
     return items
 

@@ -64,7 +64,8 @@ static void oct_master_tests(void)
     release(B_OCTUP);
     release(B_OCTDN);
     frames(2);
-    check(master_sel() && ui.scr == SCR_FX && song.octave == 0, "both OCT tapped: MASTER (the master FX page), the octave untouched");
+    check(master_sel() && ui.scr == SCR_HOME && mx_on_master() && song.octave == 0,
+          "both OCT tapped: the mixer, MASTER selected (2026-10-30: \"goes to master page with master selected\"), the octave untouched");
     both_oct();
     check(!master_sel() && song.sel == 1 && ui.scr == SCR_SOUND && snd_fam == FAM_ENV, "both OCT again: back on T2's ENV page");
     song.octave = 1;
@@ -138,11 +139,11 @@ static void oct_master_keys_tests(void)
     op_enter(SCR_HOME);
     ui.row[SCR_HOME] = MXR_T1 + 1u;
     frames(2);
-    turn(EN_ALGO, -5);
+    turn(EN_ALGO, -2);                                  /* (T2, T1, MASTER: the returns above it) */
     frames(2);
-    check(mx_on_master() && ly_lock == LY_STEP, "MASTER by the mixer's walk: the keys stay silent");
+    check(mx_on_master() && ly_lock == LY_PLAY, "MASTER by the mixer's walk: the keys play the selected track (2026-10-30)");
     kdown(WK(0));
-    check(kb_kind[WK(0)] == KS_UI, "... a key plays nothing");
+    check(kb_kind[WK(0)] == KS_NOTE && kb_trk[WK(0)] == song.sel, "... a key plays it");
     kup(WK(0));
     both_oct();
     check(!master_sel(), "... both OCT there goes back to the track as before");
@@ -176,7 +177,11 @@ static void master_tests(void)
     turn(EN_PRESET, 3);
     check(TSEL->preset == pre && TSEL->eng_req == eng, "PRESETS on MASTER: nothing");
     turn(EN_ALGO, -1);
-    check(ui.scr == SCR_FX, "ALGORITHM left on MASTER: stays");
+    check(ui.scr == SCR_FX && ui.fxo == 3u && rt_fam == RF_EDIT, "ALGORITHM left on MASTER: RET C's EDIT pages (the returns above it, 2026-10-30)");
+    turn(EN_ALGO, -5);
+    check(ui.scr == SCR_FX && ui.fxo == 1u, "... on: RET A, stopping there (the first)");
+    turn(EN_ALGO, 3);
+    check(ui.scr == SCR_FX && !ui.fxo, "... right: MASTER");
     turn(EN_ALGO, 1);
     check(ui.scr == SCR_SOUND && snd_fam == FAM_ENV && song.sel == 0u, "ALGORITHM right from MASTER: T1's ENV rows again");
     /* every other family reaches MASTER and comes back to where it was */
@@ -347,6 +352,9 @@ static void held_page_tests(void)
     track_t *t;
     reset_ui();
     song.sel = 0;
+    pen_n = 1, pen_note[0] = 60, pen_oct = 0;           /* (the pen, seq.c: C4 alone, so the tapped step holds one note. Since
+                                                         * 2026-10-30 the key on the mixer's MASTER row above plays T2, CHORD 3: a
+                                                         * pen of 4 notes, and SELECT would pick among them, not page the cards) */
     tap(B_SEQ);
     key(WK(3));                                         /* (set by a tap: a press no longer sets the step) */
     kdown(WK(3));

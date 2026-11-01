@@ -30,6 +30,7 @@ static uint32_t nb_kind(const track_t *t)
 #define NB_FM6_RX (FELUCCA_FM6_SYSEX ? 32u : 0u)          /* the received bank's slots, after the packs' */
 #else
 #define NB_FM6_RX 0u
+#undef FM6_NPKV                                          /* (eng_fm6.c's, of the packs: no list of them here) */
 #define FM6_NPKV 0u
 #endif
 static uint32_t nb_slots(uint32_t kind) { return kind == NB_FM6 ? FM6_NPKV + NB_FM6_RX : kind == NB_CZ ? CZ_NUSER : 0u; }
@@ -57,7 +58,7 @@ static const uint8_t *nb_raw(uint32_t kind, uint32_t k, uint32_t *name_at)
 #endif
     *name_at = 128u;
 #if CZ_NUSER
-    return czb_tone(CZT_N + k);
+    return FAST_CALL(cz, czb_tone)(CZT_N + k);
 #else
     return 0;
 #endif
@@ -114,6 +115,8 @@ static uint32_t nb_list(uint32_t *rank, uint32_t n, uint32_t *at)   /* the selec
 /* the collections this build has, in the whole list's order (the user, 2026-10-21: "always in the big list": every engine's
  * own after the user presets, whichever track is selected); the entry's k is (kind << 8) | slot */
 static uint32_t nb_kind_at(uint32_t i) { return i == 0u ? NB_FM6 : NB_CZ; }
+/* slot k of a collection is built in (the FM6 voice packs: the preset list's FACTORY filter), not a slot the player fills */
+static int nb_factory(uint32_t kind, uint32_t k) { return kind == NB_FM6 && k < FM6_NPKV; }
 static uint32_t nb_engine_slot(uint32_t kind)             /* the engine slot a collection belongs to */
 {
     uint32_t e;
@@ -164,7 +167,7 @@ static void nb_load(uint32_t k)
             fm6_cur[song.sel % NPART] = 0;              /* the pack's voice afresh */
         } else {                                        /* a voice of the received bank: into the buffer, VOICE INIT */
             uint32_t o;
-            fm6_unpack(fm6_ed[song.sel % NPART], nb_raw(kind, k, &o));
+            FAST_CALL(fm6, fm6_unpack)(fm6_ed[song.sel % NPART], nb_raw(kind, k, &o));
             t->p[P_E0] = 0;
             fm6_cur[song.sel % NPART] = 1;
             fm6_pt[song.sel % NPART].panic = 1;

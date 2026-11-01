@@ -30,22 +30,26 @@ from pathlib import Path
 # re-export). Every importer has tools/builder on sys.path already (it found this module there)
 import core as K
 from core import (
+    derive_memory as derive_memory, set_memory as set_memory, sync_memory as sync_memory, set_front as set_front,
+    FRONTS as FRONTS, change_notice as change_notice,
     ANCHOR_MARGIN as ANCHOR_MARGIN, AUTO_AUX as AUTO_AUX, AUTO_ENC_MAX as AUTO_ENC_MAX, AUTO_ITEMS as AUTO_ITEMS,
     AUTO_LIST as AUTO_LIST, AUTO_MAX as AUTO_MAX, AUTO_NTRK as AUTO_NTRK, AUTO_STORE as AUTO_STORE,
     FIT_MARGIN as FIT_MARGIN, FIT_ORDER as FIT_ORDER, FXM_UNIT as FXM_UNIT, XD_STATE as XD_STATE,
-    GRAIN_SETS as GRAIN_SETS, LIMITS as LIMITS, NEEDS as NEEDS, dly_arena as dly_arena, dly_send_kb as dly_send_kb,
+    GRAIN_SETS as GRAIN_SETS, NEEDS as NEEDS, limits_in_use as limits_in_use, dly_arena as dly_arena, dly_send_kb as dly_send_kb,
     fx_memory as fx_memory, fx_memory_text as fx_memory_text, FXM_STATE as FXM_STATE, FXM_SYMBOLS as FXM_SYMBOLS,
-    FXM_TYPES as FXM_TYPES,
+    FXM_TYPES as FXM_TYPES, arena_need as arena_need,
     PART_MEM as PART_MEM, PART_MEM_NONE as PART_MEM_NONE, REGIONS as REGIONS, REV_ROOM_LEN as REV_ROOM_LEN,
-    SL24_XS as SL24_XS, SPARE as SPARE, ConfigError as ConfigError, Issue as Issue, additive as additive,
+    SPARE as SPARE, ConfigError as ConfigError, Issue as Issue, additive as additive,
     anchor_cfg as anchor_cfg, anchor_record as anchor_record, auto_built as auto_built, auto_store as auto_store,
-    built as built, built_parent as built_parent, canonical as canonical, cfg_bits as cfg_bits, cfg_diff as cfg_diff,
+    built as built, built_parent as built_parent, canonical as canonical, card_sets as card_sets, cfg_bits as cfg_bits, cfg_diff as cfg_diff,
     cfg_hash as cfg_hash, cloud_key as cloud_key, conflicts as conflicts, counted as counted, defaults as defaults,
     distance as distance, dump as dump, effective as effective, fits as fits, flags as flags, fnv32 as fnv32,
     group_delta as group_delta, header as header, is_last_kit as is_last_kit, item_delta as item_delta,
     item_delta_alone as item_delta_alone, kit_keys as kit_keys, kit_shared as kit_shared, model_terms as model_terms,
     pair_conds as pair_conds, pair_delta as pair_delta, parse as parse, part_mem as part_mem,
-    rev_lines as rev_lines, savings_of as savings_of, undo_ring as undo_ring,
+    rev_lines as rev_lines, savings_of as savings_of, undo_ring as undo_ring, undo_text as undo_text,
+    arena_fits as arena_fits, arena_size as arena_size, arena_text as arena_text,
+    ARENA_UNKNOWN as ARENA_UNKNOWN, arena_items as arena_items, item_arena as item_arena,
     validate as validate, evaluate as evaluate, describe as describe)
 
 HERE = Path(__file__).resolve().parent
@@ -68,6 +72,7 @@ def _noted():
     if CONFIG_SHARED:
         shared.note("profiles", CONFIG)         # (OPTIMIST_LOCAL_PROFILES=1 uses this worktree's own)
 COSTS = HERE / "costs.json"
+COSTS_RELEASE = HERE / "costs-fm1base.json"            # the release's (fm1-base's build), measured by measure_costs.py
 
 
 BLE_DROP_HELP = ("with BLE on: the item to remove to make room for it when the build would overflow, a sample set "
@@ -124,7 +129,7 @@ def save_profile(cfg, name, stock=False):
     p = here / f"{name}.config"
     body = dump(cfg, name)
     if stock and p.exists():
-        head, groups = [], {f"# {g}" for g in R.GROUPS}
+        head, groups = [], {f"# {g}" for g in R.GROUPS} | {f"# {g}" for g in R.LEGACY_GROUPS}
         for ln in p.read_text().splitlines():
             if not ln.startswith("#") or ln.startswith("# firmware builder configuration") or ln.strip() in groups:
                 break                                    # (a file the menu wrote: its own header and first group end it)
@@ -213,6 +218,8 @@ def apply_env(cfg, env):
     for k, it in R.ITEMS.items():
         if it.flag and it.flag in env and re.fullmatch(r"-?\d+u?", env[it.flag]):
             cfg[k] = int(env[it.flag].rstrip("u"))
+            if k in R.FAST_NAMES and cfg[k] == R.ENG_LEGACY_ON:   # (an engine's switch 1: on at its place by default)
+                cfg[k] = R.eng_place(k)
     if env.get("FELUCCA_LCD_BAUD", "") in ("0", "1", "2", "3", "4"):
         cfg["LCD_BAUD"] = int(env["FELUCCA_LCD_BAUD"])
     if env.get("FELUCCA_SLICE") in ("0", "1"):
@@ -228,11 +235,63 @@ def apply_env(cfg, env):
 
 
 # ---- the budget (measured deltas, tools/builder/costs.json)
-def load_costs(path=COSTS):
+def costs_file(strict=False):
+    """the costs the budget reads: the release's own (costs-fm1base.json, measured through fm1-base's build:
+    measure_costs.py) once there is one, else Optimist's classic costs.json (the same items, measured on the classic
+    firmware: an estimate for the release until it is measured; a real build is exact whatever these say). strict: the
+    release's file even when it is not there yet (what measure_costs.py writes)"""
+    if classic() or (not strict and not COSTS_RELEASE.is_file()):
+        return COSTS
+    return COSTS_RELEASE
+
+
+def costs_measured():
+    """False: the release's budget is estimated from the classic firmware's measurements (no costs-fm1base.json yet)"""
+    return classic() or COSTS_RELEASE.is_file()
+
+
+def load_costs(path=None):
+    """the costs (the release's or the classic's: costs_file) -> dict or None; their "limits" go to the core too (what
+    the slots were when they were measured: the build system's own, kind_limits, win where it is here)"""
     try:
-        return json.loads(Path(path).read_text())
+        costs = json.loads(Path(path or costs_file()).read_text())
     except (OSError, ValueError):
         return None
+    K.setup(limits=costs.get("limits"))
+    return costs
+
+
+_BUILD_PY_SRAM = re.compile(r'^LIMITS = \{.*"sram": (0x[0-9A-Fa-f]+|\d+)', re.M)
+
+
+def classic_limits():
+    """-> the classic firmware's slots from its build: the normal layout's app slot and each other step's (tools/flash_layout.py
+    STEPS, code_limit: the whole slot in every step), the SRAM tools/build.py links in (LIMITS sram)"""
+    import flash_layout as L
+    m = _BUILD_PY_SRAM.search((ROOT / "tools" / "build.py").read_text())
+    if not m:
+        raise ConfigError("tools/build.py: no LIMITS sram")
+    return {"flash": L.app_slot(0), "sram": int(m.group(1), 0),
+            "flash_by_layout": {str(k): L.code_limit(k) for k in sorted(L.APP_HI) if k}}
+
+
+_KIND_LIMITS = {}
+
+
+def kind_limits():
+    """-> the slots of the firmware this run builds (classic_limits; the release's: fm1base.limits, fm1-base's own
+    rules), None when its build system is not here (the release without the submodule: the costs' copy then)"""
+    kind = classic()
+    if kind not in _KIND_LIMITS:
+        if kind:
+            _KIND_LIMITS[kind] = classic_limits()
+        else:
+            import fm1base
+            try:
+                _KIND_LIMITS[kind] = fm1base.limits()
+            except fm1base.FM1BaseError:
+                _KIND_LIMITS[kind] = None
+    return _KIND_LIMITS[kind]
 
 
 def _needs_auto():
@@ -249,10 +308,26 @@ def _needs_auto():
 
 
 NEEDS_AUTO = _needs_auto()
-K.setup(needs_auto=NEEDS_AUTO)
+K.setup(needs_auto=NEEDS_AUTO, limits_hook=kind_limits)
 
 
 EXACT = ROOT / "build" / "exact-sizes.json"      # the sizes of real builds, by configuration and source
+EXACT_RELEASE = ROOT / "build" / "exact-sizes-fm1base.json"   # (the release build's: another firmware, other sizes)
+
+# Which firmware a build makes: the release (Optimist as an fm1-base app, the submodule fm1base/: tools/fm1base.py) or
+# Optimist's own, the classic one (tools/optimist.py --classic, make classic; OPTIMIST_CLASSIC=1)
+CLASSIC = False
+
+
+def classic():
+    return CLASSIC or os.environ.get("OPTIMIST_CLASSIC") == "1"
+
+
+K.CLASSIC_HOOK = classic                          # (the core's rules for the firmware built: Wi-Fi's console)
+
+
+def exact_file():
+    return EXACT if classic() else EXACT_RELEASE
 
 
 _SOURCE_STATE = [0.0, None]                      # (when, value): one budget asks for it twice
@@ -272,6 +347,8 @@ def _source_state():
         r = subprocess.run(["git", "-C", str(ROOT), *args], capture_output=True, text=True)
         return r.stdout if r.returncode == 0 else ""
     paths = ["firmware", "assets", "tools/build.py", ":(glob)tools/gen*.py"]
+    if not classic():
+        paths += ["fm1base", "tools/fm1base.py"]       # (the release: fm1-base's commit builds it)
     tree = git("ls-files", "-s", "--", *paths)
     dirty = git("diff", "HEAD", "--", *paths) + git("ls-files", "--others", "--exclude-standard", "--", *paths)
     return f"{fnv32(tree):08x}-{fnv32(dirty) if dirty else 0:08x}"
@@ -284,7 +361,7 @@ def exact_key(cfg):
 def exact_builds():
     """-> {exact_key: {region: bytes, "cfg", "built_hash"}} the real builds remembered (remember_sizes)"""
     try:
-        known = json.loads(EXACT.read_text())
+        known = json.loads(exact_file().read_text())
     except (OSError, ValueError):
         return {}
     return known if isinstance(known, dict) else {}
@@ -303,10 +380,11 @@ def remember_sizes(cfg, sizes):
     with _EXACT_LOCK:
         known = exact_builds()
         known[exact_key(cfg)] = dict({r: sizes[r] for r in REGIONS}, **anchor_record(cfg))   # (an anchor: budget)
-        EXACT.parent.mkdir(parents=True, exist_ok=True)
-        tmp = EXACT.with_name(f"{EXACT.name}.{os.getpid()}.tmp")
+        dst = exact_file()
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        tmp = dst.with_name(f"{dst.name}.{os.getpid()}.tmp")
         tmp.write_text(json.dumps(dict(list(known.items())[-64:]), indent=1) + "\n")   # (the last 64 builds)
-        os.replace(tmp, EXACT)      # (whole or not at all: another process may be reading it)
+        os.replace(tmp, dst)      # (whole or not at all: another process may be reading it)
 
 
 def exact_anchors():
@@ -365,8 +443,11 @@ def write_header(cfg, name, path=ROOT / "build" / "gen" / "felucca_config.h"):
 
 def build_python():
     """a Python with Pillow for tools/build.py (the generators need it): this one, else the builder's venv"""
-    if importlib.util.find_spec("PIL") is not None:
-        return sys.executable
+    try:                                                # (PIL.Image: a removed Pillow's empty PIL folder imports)
+        if importlib.util.find_spec("PIL.Image") is not None:
+            return sys.executable
+    except ModuleNotFoundError:
+        pass
     sys.path.insert(0, str(HERE.parent))
     import deps                                         # (the venv: BUILDER_VENV, ./tools/builder/venv or the main checkout's)
     venv = deps.venv_dir()
@@ -386,10 +467,10 @@ def in_container():
             or os.environ.get("JIELI_BACKEND") in ("docker", "image"))
 
 
-def _run(cmd, env, echo, on_line=None):
+def _run(cmd, env, echo, on_line=None, cancel=None):
     """-> (returncode, output); echo: print each line as it comes (the CLI), else quiet (the menu); on_line: called
-    with each line as it comes (the menu's progress bar reads the stage lines)"""
-    if not echo and not on_line:
+    with each line as it comes (the menu's progress bar reads the stage lines); cancel: an Event that ends the run"""
+    if not echo and not on_line and cancel is None:
         p = subprocess.run(cmd, cwd=ROOT, env=env, capture_output=True, text=True, encoding="utf-8",
                            errors="replace")
         return p.returncode, p.stdout + p.stderr
@@ -402,7 +483,7 @@ def _run(cmd, env, echo, on_line=None):
             print(ln, flush=True)
         if on_line:
             on_line(ln)
-    return PR.stream(cmd, on_line=each, cwd=ROOT, env=env)
+    return PR.stream(cmd, on_line=each, cwd=ROOT, env=env, cancel=cancel)
 
 
 def build_dir(outdir=None):
@@ -410,10 +491,12 @@ def build_dir(outdir=None):
     return Path(outdir) if outdir else ROOT / (os.environ.get("OPTIMIST_BUILD_DIR") or "build")
 
 
-def build(cfg, name, measure=False, log=None, extra=(), echo=False, on_line=None, outdir=None):
+def build(cfg, name, measure=False, log=None, extra=(), echo=False, on_line=None, outdir=None, cancel=None):
     """a real build of this configuration (tools/build.py) -> (ok, sizes dict, output text); extra: more
     build.py arguments (--release X.Y); on_line: called with each output line while it builds; outdir: another
-    build directory inside the tree than build/ (OPTIMIST_BUILD_DIR: parallel measurement builds, one each)"""
+    build directory inside the tree than build/ (OPTIMIST_BUILD_DIR: parallel measurement builds, one each);
+    cancel: an Event; set, the build is killed (the output ends with "build: cancelled"). A failed build's output ends
+    with the line "build: exit status N" """
     err, _, _ = validate(cfg)
     if err:
         msg = "configuration errors:\n  " + "\n  ".join(err)
@@ -430,18 +513,28 @@ def build(cfg, name, measure=False, log=None, extra=(), echo=False, on_line=None
            *(["--measure"] if measure else []), *extra]
     out, rc = "", 1
     (bdir / "sizes.json").unlink(missing_ok=True)   # (a failed build must not report the last one's)
-    for attempt in range(3):                            # (Docker: clang crashes now and then, and the mount has
+    if not classic():
+        rc, out = release_build(cfgfile, bdir, measure, extra, echo, on_line, parallel=bool(outdir), cancel=cancel)
+        if log:
+            Path(log).write_text(out)
+        return _sized(cfg, bdir, rc, measure, out)
+    for attempt in range(3):                          # (Docker: clang crashes now and then, and the mount has
                                                         # shown stale files to the tools; a retry works)
-        rc, out = _run(cmd, env, echo, on_line)
+        rc, out = _run(cmd, env, echo, on_line, cancel)
         flaky = ("core dumped" in out or "Segmentation" in out or "No such file" in out or "Bus error" in out or
                  ("felucca_config.h" in out and "error:" in out))
-        if rc == 0 or not flaky or attempt == 2 or not in_container():
+        if rc == 0 or rc == 130 or not flaky or attempt == 2 or not in_container():
             break
         if echo:
             print(f"build: the toolchain failed in a way a retry fixes; again ({attempt + 2} of 3)")
         __import__("time").sleep(2 + 3 * attempt)        # (let the mount settle before the next try)
     if log:
         Path(log).write_text(out)
+    return _sized(cfg, bdir, rc, measure, out)
+
+
+def _sized(cfg, bdir, rc, measure, out):
+    """a build's result -> (ok, sizes dict, output): its sizes.json, remembered as exact"""
     sizes = None
     try:
         sizes = json.loads((bdir / "sizes.json").read_text())
@@ -449,21 +542,33 @@ def build(cfg, name, measure=False, log=None, extra=(), echo=False, on_line=None
         pass
     if sizes and all(r in sizes for r in REGIONS):
         remember_sizes(cfg, sizes)                       # (the menu shows these, exact, from now on)
+    if measure and not classic():
+        rc = 0 if sizes else 1       # (fm1-base has no measurement mode: a build over the slot stops at its package, its sizes.json is written first)
+    if rc:
+        out += f"\nbuild: exit status {rc}"
     return rc == 0, sizes, out
+
+
+def release_build(cfgfile, bdir, measure, extra, echo, on_line, parallel=False, cancel=None):
+    """the release: fm1-base's build of this .config (tools/fm1base.py) -> (returncode, output). extra: --release X.Y"""
+    import fm1base
+    release = extra[extra.index("--release") + 1] if "--release" in extra else None
+    try:
+        return fm1base.build(cfgfile, bdir, build_python(), lambda cmd, env: _run(cmd, env, echo, on_line, cancel), release,
+                             f"optimist-{release or version()}", parallel=parallel, measure=measure)
+    except fm1base.FM1BaseError as e:
+        if echo:
+            print(f"build: {e}", file=sys.stderr)
+        return 2, f"build: {e}"
 
 
 def version():
     """the VERSION file's number plus -dev-<commit> (-modified: uncommitted firmware/tools/web changes),
     as tools/build.py names a development build"""
     v = (ROOT / "VERSION").read_text().strip()
-    def git(*args):
-        try:                            # (no git: a tree from a zip, or Windows without git)
-            r = subprocess.run(["git", "-C", str(ROOT), *args], capture_output=True, text=True)
-        except OSError:
-            return ""
-        return r.stdout.strip() if r.returncode == 0 else ""
-    commit = git("rev-parse", "--short", "HEAD") or "local"
-    changed = git("status", "--porcelain", "--", "firmware", "tools", "web")
+    import srcgit                      # (tools/srcgit.py: OPTIMIST_COMMIT, else git only when ROOT is the repository itself)
+    commit = srcgit.commit(ROOT, short=True) or "unknown"
+    changed = srcgit.modified(ROOT, "firmware", "tools", "web")
     return f"{v}-dev-{commit}{'-modified' if changed else ''}"
 
 
@@ -475,7 +580,7 @@ def package(cfg, name, outdir, stem=None, echo=False, summary=None, release=None
     ok, sizes, out = build(cfg, name, measure=False, echo=echo, extra=["--release", release] if release else ())
     pkg, ui = build_dir() / "felucca.fwsc", build_dir() / "felucca-ui.zip"   # (OPTIMIST_BUILD_DIR's, as build's)
     result = {"ok": False, "name": name, "hash": f"{cfg_hash(cfg):08x}", "sizes": sizes, "fwsc": None, "ui": None}
-    if not ok or not pkg.exists() or not ui.exists():
+    if not ok or not pkg.exists() or (classic() and not ui.exists()):
         if not echo:
             print(out[-2000:])
         print("package: the build failed or does not fit: nothing copied")
@@ -484,15 +589,16 @@ def package(cfg, name, outdir, stem=None, echo=False, summary=None, release=None
     slug = stem or f"optimist-{release or version()}-" + re.sub(r"[^a-z0-9]+", "-", (name or "custom").lower()).strip("-")
     outdir.mkdir(parents=True, exist_ok=True)
     (outdir / f"{slug}.fwsc").write_bytes(pkg.read_bytes())
-    (outdir / f"{slug}-ui.zip").write_bytes(ui.read_bytes())
+    if ui.exists():                     # (the release, fm1-base's app, has no web editor sidecar)
+        (outdir / f"{slug}-ui.zip").write_bytes(ui.read_bytes())
     notices = ("LICENSE", "LICENSING.md") + tuple(sorted("LICENSES/" + p.name for p in (ROOT / "LICENSES").glob("*.txt")))
     for f in notices:                   # next to the package (JieLi SDK files, Apache-2.0; the MIT / BSD-3-Clause parts)
         dst = outdir / "LICENSES" / Path(f).name if f.startswith("LICENSES/") else outdir / f
         dst.parent.mkdir(parents=True, exist_ok=True)
         dst.write_bytes((ROOT / f).read_bytes())
-    print(f"package: {outdir / (slug + '.fwsc')} (+ -ui.zip): " +
+    print(f"package: {outdir / (slug + '.fwsc')} " + ("(+ -ui.zip)" if ui.exists() else "") + ": " +
           ", ".join(f"{r} {sizes[r]:,}" for r in REGIONS))
-    result.update(ok=True, fwsc=str(outdir / f"{slug}.fwsc"), ui=str(outdir / f"{slug}-ui.zip"))
+    result.update(ok=True, fwsc=str(outdir / f"{slug}.fwsc"), ui=str(outdir / f"{slug}-ui.zip") if ui.exists() else None)
     _summary(summary, result)
     return 0
 
@@ -526,7 +632,7 @@ def resolve_cli(a):
             continue
         if not m or m.group(1) not in R.ITEMS:
             raise ConfigError(f"--set {s}: KEY=number with a registry key")
-        cfg[m.group(1)] = int(m.group(2))
+        cfg = set_front(cfg, m.group(1), int(m.group(2))) if m.group(1) in FRONTS else sync_memory(dict(cfg, **{m.group(1): int(m.group(2))}))
     drop = getattr(a, "ble_drop", None)
     if drop is not None:                                # (BLE replaces samples: room.py)
         import room
@@ -544,12 +650,18 @@ def fmt_budget(cfg, costs):
     rows = []
     for r, (used, cap, over) in fits(b["total"], cfg).items():
         rows.append(f"  {r:8s} {used:9,d} / {cap:9,d}  {'OVER by ' + format(over, ',') if over > 0 else 'free ' + format(-over, ',')}")
+    ar = arena_size(cfg, b["total"], b.get("exact"))
+    if ar:                                          # (the arena first: what a project's engines and effects get)
+        rows.append(f"  arena {'' if ar['exact'] else '~'}{ar['kb']} KB" + ("" if ar["exact"] else " (estimate)"))
     if built(cfg, "UNDO_HISTORY"):
-        rows.append(f"  undo ring {undo_ring(b['total']):7,d} B")
+        rows.append(f"  {undo_text(cfg, b['total'])}")
     if b["unmeasured"]:
         rows.append(f"  (not measured: {', '.join(b['unmeasured'])})")
     head = ("exact (the last real build of this configuration from this source):" if b.get("exact")
             else f"estimate (from the real build of {b['anchor']}, {b['distance']} items away, and the measured deltas):")
+    if not costs_measured():
+        rows.append("  (costs: Optimist's classic measurements, none through fm1-base's build yet: "
+                    "tools/builder/measure_costs.py; a real build is exact)")
     return head + "\n" + "\n".join(rows)
 
 

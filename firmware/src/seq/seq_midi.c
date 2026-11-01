@@ -13,6 +13,7 @@
  *   midi_key_out(...)    a key of the panel to MIDI OUT (KEYS and BOTH; not with SEQ, but its note off; nothing on a
  *                        channel that is OFF)
  *
+ *   MIDI OUT = OFF sends no note (the keys' and the sequencer's; a note off for one sent before still goes).
  *   MIDI OUT = BOTH (FELUCCA_MIDI_OUT, GLOBAL; SLOOP 2.4's SEQ, value 1) or SEQ (the sequencer alone, no keys, 2026-10-17):
  *   what the sequencer, the arp and the rolls play goes out, on the track's channel (the drums on theirs). Rules (as 2.4):
  *     - every note is ended: a set of the notes sent per track, a note on again while it is on is ended first;
@@ -24,6 +25,8 @@
  *       as the arp's notes: that is the arp's output, not an echo of the note.
  *   Called from the audio interrupt (events_block): no waits, midi_out_event only queues. */
 #define MCH_OFF 0xFFu
+/* the sequencer's notes go out: BOTH or SEQ (KEYS: the keys alone; OFF: nothing, 2026-10-29) */
+static int mout_seq(void) { return bp_set[BPS_MOUT] == MOUT_BOTH || bp_set[BPS_MOUT] == MOUT_SEQ; }
 
 static uint32_t trk_midi_ch(uint32_t i)
 {
@@ -68,7 +71,7 @@ static void midi_note_out(uint32_t mc, uint32_t note, uint32_t vel)
 static void midi_key_out(uint32_t mc, uint32_t note, uint32_t vel)
 {
 #if FELUCCA_MIDI_OUT
-    if (vel && bp_set[BPS_MOUT] == MOUT_SEQ)
+    if (vel && (bp_set[BPS_MOUT] == MOUT_SEQ || bp_set[BPS_MOUT] == MOUT_OFF))
         return;
 #endif
     midi_note_out(mc, note, vel);
@@ -103,7 +106,7 @@ static int seq_out_held(const track_t *t, uint32_t note)    /* its note is on (a
 static void seq_out_on(const track_t *t, uint32_t note, uint32_t vel)
 {
     uint32_t i = trk_index(t) % NTRK, ch = trk_midi_ch(i), w;
-    if (!bp_set[BPS_MOUT] || note > 127u || ch == MCH_OFF)
+    if (!mout_seq() || note > 127u || ch == MCH_OFF)
         return;
     for (w = 0; w < 4u && !mo_set[i][w]; w++)
         ;
@@ -133,7 +136,7 @@ static void seq_out_check(void)
             ;
         if (w == 4u)
             continue;
-        if (!bp_set[BPS_MOUT] || trk_midi_ch(i) != mo_ch[i])
+        if (!mout_seq() || trk_midi_ch(i) != mo_ch[i])
             seq_out_track_off(&trk[i]);
         else
             busy = 1;

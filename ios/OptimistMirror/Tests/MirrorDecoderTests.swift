@@ -91,6 +91,121 @@ final class MirrorDecoderTests: XCTestCase {
         var dec = MirrorDecoder()
         XCTAssertFalse(dec.apply(f))
     }
+    // ---- checked frames (106 bit 3; ed_mirror_enc.h ops 8..10): the fixture's frames as the firmware sends them checked
+    private func checked(_ fs: [[UInt8]]) -> [[UInt8]] {
+        var seq = 0
+        return fs.map { f in
+            guard f.count >= 7, f[5] <= 2, MirrorDecoder.reply(f) == nil else { return f }
+            var g = Array(f.dropLast())
+            g[5] += 8
+            g.append(UInt8(seq))
+            seq = (seq + 1) & 127
+            var a = 0, b = 0
+            for k in 1..<g.count { a += Int(g[k]); b += a }
+            return g + [UInt8(a & 127), UInt8(b & 127), 0xF7]
+        }
+    }
+
+    func testCheckedFixtureDecodesToThePanel() throws {
+        let raw = try fixture("rgb565")
+        let want: [UInt16] = (0..<raw.count / 2).map { (i: Int) -> UInt16 in UInt16(raw[2 * i]) | UInt16(raw[2 * i + 1]) << 8 }
+        var dec = MirrorDecoder()
+        for f in checked(frames(try fixture("sysex"))) { dec.apply(f) }
+        XCTAssertEqual(dec.lost, 0)
+        XCTAssertEqual(zip(dec.pixels, want).filter { $0 != $1 }.count, 0)
+    }
+
+    func testCheckedZeroedBytesDropped() throws {
+        let fs = checked(frames(try fixture("sysex")))
+        let k: Int = try XCTUnwrap(fs.firstIndex { (f: [UInt8]) -> Bool in f.count > 60 && f[5] == 9 })
+        var dec = MirrorDecoder()
+        for f in fs[..<k] { dec.apply(f) }
+        var bad = fs[k]
+        for i in 20..<30 { bad[i] = 0 }                  // (a Mac's MIDI driver: a run zeroed in place)
+        XCTAssertFalse(dec.apply(bad))
+        XCTAssertGreaterThan(dec.lost, 0)
+        if k + 1 < fs.count, fs[k + 1][5] == 10 { XCTAssertFalse(dec.apply(fs[k + 1])) }   // (its MORE: no rectangle to go in)
+    }
+
+    func testCheckedMoreAfterLostBlitDropped() throws {
+        let fs = checked(frames(try fixture("sysex")))
+        let k: Int = try XCTUnwrap(fs.indices.first { (i: Int) -> Bool in i + 1 < fs.count && fs[i][5] == 9 && fs[i + 1][5] == 10 })
+        var dec = MirrorDecoder()
+        for f in fs[..<k] { dec.apply(f) }
+        let before = dec.pixels
+        XCTAssertFalse(dec.apply(fs[k + 1]))             // (the BLIT lost on the way: its MORE comes after a gap)
+        XCTAssertEqual(dec.pixels, before)
+        XCTAssertGreaterThan(dec.lost, 0)
+    }
+
+    func testLostSeqsTold() throws {
+        let fs = checked(frames(try fixture("sysex")))
+        let k: Int = try XCTUnwrap(fs.indices.first { (i: Int) -> Bool in i + 2 < fs.count && fs[i][5] == 9 && fs[i + 1][5] == 10 })
+        var dec = MirrorDecoder()
+        for f in fs[..<k] { dec.apply(f) }
+        let seqOf = { (f: [UInt8]) -> Int in Int(f[f.count - 4]) }
+        XCTAssertFalse(dec.apply(fs[k + 1]))             // (the BLIT lost: its MORE dropped)
+        let runs = dec.takeLost()
+        XCTAssertEqual(runs.count, 1)
+        XCTAssertEqual(runs.first?.lo, seqOf(fs[k]))
+        XCTAssertEqual(runs.first?.hi, seqOf(fs[k + 1]))
+        XCTAssertTrue(dec.takeLost().isEmpty)
+        XCTAssertFalse(dec.apply(fs[k + 1]))             // (the same frame again: nothing, no loss)
+        XCTAssertEqual(dec.again, 1)
+        XCTAssertEqual(dec.lostGap, 1)
+        XCTAssertEqual(dec.lostMore, 1)
+    }
+
+    func testLostRunsKeptApart() throws {
+        let fs = checked(frames(try fixture("sysex")))
+        let px = fs.indices.filter { fs[$0][5] == 9 || fs[$0][5] == 8 }
+        XCTAssertGreaterThan(px.count, 6)
+        let a = px[2], b = px[5]                        // (two BLIT / FILL frames lost, frames between them come whole)
+        var dec = MirrorDecoder()
+        for i in fs.indices where i != a && i != b && !(i > a && i < px[3] && fs[i][5] == 10) && !(i > b && i < px[6] && fs[i][5] == 10) {
+            dec.apply(fs[i])
+        }
+        let runs = dec.takeLost()
+        XCTAssertEqual(runs.count, 2)
+        XCTAssertEqual(runs.first?.lo, Int(fs[a][fs[a].count - 4]))
+        XCTAssertEqual(runs.last?.lo, Int(fs[b][fs[b].count - 4]))
+    }
+
+    func testStatsParsed() {
+        var f: [UInt8] = [0xF0, 0x7D, 0x46, 0x4C, 106, 5]
+        for v in [1, 2, 3, 4, 5, 6, 70000, 9] { f += [UInt8(v & 127), UInt8(v >> 7 & 127), UInt8(v >> 14 & 127)] }
+        f.append(0xF7)
+        XCTAssertEqual(MirrorDecoder.stats(f), [1, 2, 3, 4, 5, 6, 70000, 9])
+        var dec = MirrorDecoder()
+        XCTAssertFalse(dec.apply(f))
+    }
+
+    /// op 6 PACE (opti_miraimd_1): the budget and its counts, never a write; the keep-alive's report starts at 0, seq 0
+    func testPaceParsedAndAck() {
+        var f: [UInt8] = [0xF0, 0x7D, 0x46, 0x4C, 106, 6]
+        for v in [5219, 2, 21, 311] { f += [UInt8(v & 127), UInt8(v >> 7 & 127), UInt8(v >> 14 & 127)] }
+        f.append(0xF7)
+        XCTAssertEqual(MirrorDecoder.pace(f), [5219, 2, 21, 311])
+        XCTAssertNil(MirrorDecoder.stats(f))
+        var dec = MirrorDecoder()
+        XCTAssertFalse(dec.apply(f))
+        XCTAssertEqual(dec.ack, [0, 0])
+    }
+
+    /// op 6 PACE with the ACK's delay (6 values): read whole; the quiet bit is bit 6
+    func testPaceWithDelay() {
+        var f: [UInt8] = [0xF0, 0x7D, 0x46, 0x4C, 106, 6]
+        for v in [5000, 1, 9, 248, 640, 1] { f += [UInt8(v & 127), UInt8(v >> 7 & 127), UInt8(v >> 14 & 127)] }
+        f.append(0xF7)
+        XCTAssertEqual(MirrorDecoder.pace(f), [5000, 1, 9, 248, 640, 1])
+        XCTAssertEqual(MirrorDecoder.quietBit, 64)
+    }
+
+    func testUncheckedFramesStillRead() throws {
+        var dec = MirrorDecoder()
+        XCTAssertTrue(dec.apply([0xF0, 0x7D, 0x46, 0x4C, 106, 0, 0, 0, 0, 0, 112, 1, 112, 1, 127, 127, 3, 0xF7]))
+        XCTAssertEqual(dec.lost, 0)
+    }
 }
 
 final class FeatureTests: XCTestCase {
@@ -107,5 +222,53 @@ final class FeatureTests: XCTestCase {
         XCTAssertTrue(other.features.isEmpty)
         XCTAssertFalse(other.has(.backup))
         XCTAssertFalse(try DeviceInfo.parse(Array("X".utf8) + [0, 0, 0, 0, 0, 0, 64, 0, 0, 0, 7, 0x66, 13] + Array("opti_backup_9".utf8)).has(.backup))
+    }
+}
+
+/// The Bluetooth sheet and the port it connects (BluetoothPicker.done / newPort, MirrorLink.startFeatures). The sheet closes
+/// once the link has taken the port connected in it, whatever that port's name and before the FM-1 answers: it waited for the
+/// mirrored screen, so it stayed open when the FM-1 did not answer, or when the port's name was not one the app knew (the
+/// user, 2026-10-24 and 2026-10-29: "the BT connection window should CLOSE on successful connect").
+final class BluetoothConnectTests: XCTestCase {
+    /// FM1-XXXX (2026-10-29), the older Optimist / Felucca names, a name a system kept from older firmware, any other
+    private let names = ["FM1-1A2B", "FM1-1A2B Bluetooth", "fm1-e040", "Optimist E040", "Optimist 112D Bluetooth", "Felucca",
+                         "FM-1 1A2B", "FM-1_BLE", "Some Synth"]
+
+    func testSheetClosesOnceThePortConnectedInItIsTaken() {
+        let before = ["IAC Driver Bus 1", "FM1-9999"]
+        for n in names {
+            let p = BluetoothPicker.newPort(old: before, now: before + [n])
+            XCTAssertEqual(p, n, n)
+            for s in [MirrorLink.State.asking, .noMirror, .mirroring] {
+                XCTAssertTrue(BluetoothPicker.done(picked: n, port: n, bluetooth: true, state: s), "\(n) \(s)")
+            }
+            XCTAssertFalse(BluetoothPicker.done(picked: n, port: n, bluetooth: true, state: .searching), n)   // (gone again)
+            XCTAssertFalse(BluetoothPicker.done(picked: n, port: "", bluetooth: true, state: .asking), n)
+        }
+        XCTAssertNil(BluetoothPicker.newPort(old: before, now: before))                       // (nothing connected)
+        XCTAssertNil(BluetoothPicker.newPort(old: before, now: ["FM1-9999"]))                  // (one gone)
+    }
+
+    func testSheetStaysUntilThePortIsTaken() {
+        XCTAssertFalse(BluetoothPicker.done(picked: "", port: "FM1-1A2B", bluetooth: false, state: .asking))   // (USB, nothing picked)
+        XCTAssertFalse(BluetoothPicker.done(picked: "FM1-1A2B Bluetooth", port: "FM1-1A2B", bluetooth: false, state: .mirroring))
+        XCTAssertTrue(BluetoothPicker.done(picked: "", port: "FM1-1A2B", bluetooth: true, state: .mirroring))   // (mirrors anyway)
+    }
+
+    /// A Bluetooth port starts at the mirror when it is known (its name, a hand pick, the sheet's); else INFO first, as USB.
+    /// Never "nothing offered": that was "No mirror in this firmware" at once, nothing asked
+    func testBluetoothPortsAreAskedNotRefused() {
+        let mirror = [Feature.mirror.name: Feature.mirror.version]
+        for n in ["FM1-1A2B", "FM1-1A2B Bluetooth", "Optimist E040", "Optimist 112D Bluetooth", "Felucca"] {
+            XCTAssertEqual(MirrorLink.startFeatures(bluetooth: true, name: n, trusted: false), mirror, n)
+        }
+        for n in names {
+            XCTAssertEqual(MirrorLink.startFeatures(bluetooth: true, name: n, trusted: true), mirror, n)
+            XCTAssertNil(MirrorLink.startFeatures(bluetooth: false, name: n, trusted: true), n)    // (USB: INFO first)
+            XCTAssertNotEqual(MirrorLink.startFeatures(bluetooth: true, name: n, trusted: false), [:], n)
+        }
+        for n in ["FM-1 1A2B", "FM-1_BLE", "Some Synth"] {
+            XCTAssertNil(MirrorLink.startFeatures(bluetooth: true, name: n, trusted: false), n)
+        }
     }
 }

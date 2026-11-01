@@ -70,7 +70,7 @@ AINL int32_t cs80_vco(uint32_t w, uint32_t ph, uint32_t inc, uint32_t pw)
 
 /* channel c of voice v, n samples ADDED to acc (Q15 x its MIX gain): VCO, high-pass, low-pass (+ the sine) */
 AINL void cs80_chan(voice_t *v, uint32_t c, uint32_t w, uint32_t inc, uint32_t pw, int32_t gain, const tsvf_t *hp,
-                    const tsvf_t *lp, int32_t k, int32_t *acc, uint32_t n)
+                    const tsvf_t *lp, int32_t k, int32_t *__restrict acc, uint32_t n)
 {
     int32_t h1 = v->s[4u * c], h2 = v->s[4u * c + 1u], l1 = v->s[4u * c + 2u], l2 = v->s[4u * c + 3u];
     uint32_t ph = v->ph[c], i;
@@ -91,7 +91,7 @@ AINL void cs80_chan(voice_t *v, uint32_t c, uint32_t w, uint32_t inc, uint32_t p
     v->s[4u * c + 3u] = l2;
 }
 
-static void cs80_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
+static void cs80_render(track_t *t, voice_t *v, int32_t *__restrict out, uint32_t n, const vmod_t *m)
 {
     const int16_t *p = t->p;
     uint32_t w1 = (uint32_t)clamp(p[P_E0], 0, CS_NWAVE - 1), w2 = (uint32_t)clamp(p[P_E1], 0, CS_NWAVE - 1);
@@ -122,7 +122,7 @@ static void cs80_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
         v->ph[2] = rph;
     }
     for (i = 0; i < n; i++)
-        out[i] += mulq15(mulq15(soft_knee(acc[i] >> 1, 24000), amp_at(m, i)), VOICE_FS) << 1;
+        out[i] += VOICE_OUT(soft_knee(acc[i] >> 1, 24000), amp_at(m, i), 1);
 }
 
 static const preset_t CS80_PRESETS[] = {

@@ -16,6 +16,7 @@ static uint32_t host_now;
 #define SYNC_NOW() host_now
 #pragma GCC diagnostic ignored "-Wint-to-pointer-cast"   /* SIE register macros (never touched here) */
 #define __attribute__(x)
+static const char *dev_name(void) { return "FM1-0000"; }   /* (system/devname.c: the product string, usb.c) */
 #include "../firmware/src/io/usb/usb.c"
 
 static int fails;

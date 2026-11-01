@@ -55,12 +55,18 @@ static const char *const SCR_NAME[SCR_N] = {"MIX", "SOUND", "MASTER", "PROJECT",
 #define ARM_OP 0xFDu                  /* arm_scr: an action of no screen cell, arm_row its OA_*, arm_k its argument */
 enum { OA_SCN_STORE, OA_SCN_CLR, OA_PAT_STORE, OA_PAT_CLR, OA_INIT, OA_EXTRAS, OA_DISCARD, OA_SREC,
        OA_SCN_LOAD, OA_PART_CUT, OA_DROP, OA_MISSING,   /* (OA_MISSING: the popup after a load, miss.c; YES or HOME closes it) */
+       OA_PAT_GO, OA_PAT_STOP,        /* (a pattern launch / stop over edits not stored, op_layers.c pat_go_ask) */
+       OA_FMEM, OA_FMOFF,             /* (a switchable feature's room: its question, the idle ones offered; core/feat_mem.c) */
+#if FELUCCA_SD_STREAM
+       OA_SDDROP,                     /* (the card samples' memory short: a part dropped, storage/sd/sd_mode.c) */
+#endif
 };
 
 static struct {
     /* read by the core under SLOOP's names: project.c (menu: autosave waits), main.c (force, page: the crash
      * breadcrumb), editor.c and the stores (force), miss.c (msg, msg_t, layer, hold_kind) */
     uint8_t force;                    /* everything redraws */
+    uint8_t redraw;                   /* the cards and the panel draw again over what is there, no black fill first (a corner went, a DX7 voice came) */
     uint8_t menu;                     /* always 0: this UI has no modal menu */
     uint8_t page;                     /* the PAGES entry of the cursor row (TRACKS when the row is no page) */
     uint8_t layer;                    /* the performance layer shown (op_layers.c), LY_PLAY none */
@@ -70,6 +76,9 @@ static struct {
     char msg[30];                     /* (29 characters: the header's width) */
     /* the grammar */
     uint8_t scr;                      /* the screen shown (SCR_*) */
+    uint8_t sret;                     /* SCOPE on a return: 1..3 RET A B C (its output, fx.c SC_RET), 0 none (2026-10-31) */
+    uint8_t fxo;                      /* the FX screen's owner (SCR_FX): 0 MASTER (its pages), 1..3 RET A B C (a return's pages: its
+                                       * effect, its inserts and sends, op_mixer.c rt_*; 2026-10-30: the returns as tracks) */
     uint8_t master;                   /* MASTER selected in a layer (op_layers.c): a UI state, song.sel stays T1; on SOUND
                                        * it is the FX screen (SCR_FX), which m_fam / m_row lead back from */
     uint8_t m_scr, m_fam, m_row;      /* the page, SOUND family and row ALGORITHM left for MASTER (SND_ALL: every row) */
@@ -86,6 +95,7 @@ static struct {
     char arm_verb[12], arm_arg[17];   /* the modal's two lines: "CLEAR?" and its target, "T2" (BLE_NAME_MAX + 1) */
     uint8_t arm_raw;                  /* the target is a name as it was given (a BLE device): never recased */
     uint8_t arm_danger;               /* it destroys something: a red frame (else amber) */
+    uint8_t arm_stop;                 /* it stops the transport first (a project's load while playing): the modal says so */
     uint8_t arm_ring;                 /* a delete asked while its key or button is held: the ring fills (the hold confirms, letting go cancels), not the modal */
     uint8_t toast_t;                  /* frames the toast stays: the result of an action just confirmed */
     uint16_t cards_t;                 /* STEP: frames the four cards stay over the grid (a page change, a value edited: ~1.5 s,
@@ -145,10 +155,11 @@ static int lane_presets(void);
 #if FELUCCA_FAVORITES
 static int op_fav_here(void);                           /* op_screens.c: FAVORITES, marked and browsed where presets are picked (PRESETS) */
 static void op_fav_mark(int on);
-static void op_fav_list(uint32_t on);
 static void pre_toast_fav(const char *what);            /* op_preset.c */
 #endif
 static void lane_kind_step(int32_t s);
+static void op_pl_filter_step(int32_t s);               /* op_screens.c: SHIFT2 + PRESETS, the preset list's filter */
+static void pre_toast_filter(void);                     /* op_preset.c: its popup, the header lit */
 static const char *lane_sound_name(uint32_t l);
 
 /* The drum track's ACCENT lane (core.h DRUM_ACC, lane 10) as this UI shows it: a lane as the others (a row in the grid,
@@ -177,8 +188,8 @@ static uint32_t op_step_auto(const track_t *t, uint32_t step, uint32_t lane)
     uint32_t i;
     for (i = 0; i < l->n; i++) {
         const auto_ev_t *e = &l->ev[i];
-        if ((e->place & AUTO_STEP) != (step & AUTO_STEP) || AUTO_PSEUDO(e->param))
-            continue;
+        if ((e->place & AUTO_STEP) != (step & AUTO_STEP) || AUTO_PSEUDO(e->param) || AUTO_IS_MUTE(e->param))
+            continue;                           /* (a mute is no automation: a lane's mute marked every lane's cell of the step) */
         if (!AUTO_IS_LANE(e->param) || AUTO_LANE_L(e->param) == lane || lane == 0xFFu)
             return 1;
     }
@@ -292,7 +303,11 @@ static void ui_say_st(uint32_t st, const char *a, const char *b)
 static int case_keep(const char *w, uint32_t len)
 {
     static const char *const K[] = {"DR", "FX", "LFO", "ENV", "ENV2", "MIDI", "USB", "BPM", "CPU", "OCT", "GLO",
-                                    "ARP", "SCL", "UI", "CC", "ACID", "GEN", "MHZ", "BLE", "BT"};
+                                    "ARP", "SCL", "UI", "CC", "ACID", "GEN", "MHZ", "BLE", "BT"
+#if WIFI_UI
+                                    , "WI-FI", "AP"
+#endif
+    };
     uint32_t i, j;
     while (len && !((w[len - 1u] >= 'A' && w[len - 1u] <= 'Z') || (w[len - 1u] >= '0' && w[len - 1u] <= '9')))
         len--;                                          /* (the word without its "?", ":" or ",": "DR?" is DR) */
@@ -349,6 +364,7 @@ static void op_arm(uint32_t scr, uint32_t row, uint32_t k, const char *q, const 
     str_app(ui.arm_verb, "?", sizeof ui.arm_verb);
     str_cpy(ui.arm_arg, arg, sizeof ui.arm_arg);
     ui.arm_danger = (uint8_t)(danger != 0u);
+    ui.arm_stop = 0;
     ui.arm_ring = 0;
     ui.arm_raw = 0;
     ui.toast_t = 0;

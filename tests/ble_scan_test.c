@@ -143,18 +143,34 @@ static void t_table(void)
     n += ad_midi(ad, 0x07);
     mk(0x40, 0x0D, ad, n);
     ble_scan_add(&t, pdu, plen, 0x0700, 180);
-    n = ad_name(ad, 0x09, "Optimist A1B2");     /* (the name in the SCAN_RSP, as ours: the two do not fit one 31-octet payload) */
+    n = ad_name(ad, 0x09, "FM1-A1B2");          /* (the name in the SCAN_RSP, as ours: the two do not fit one 31-octet payload) */
     mk(0x44, 0x0D, ad, n);
     ble_scan_add(&t, pdu, plen, 0x0700, 181);
     n = listed(&t, idx);
-    check("another FM-1 (\"Optimist \" name): KIND FM-1", n == 4u && t.e[idx[3]].kind == (BLE_KIND_MIDI | BLE_KIND_FM1) &&
-          !strcmp(t.e[idx[3]].name, "Optimist A1B2"));
+    check("another FM-1 (\"FM1-\" and four hex digits): KIND FM-1", n == 4u && t.e[idx[3]].kind == (BLE_KIND_MIDI | BLE_KIND_FM1) &&
+          !strcmp(t.e[idx[3]].name, "FM1-A1B2"));
+    n = ad_name(ad, 0x09, "Optimist A1B2");
+    mk(0x44, 0x0D, ad, n);
+    ble_scan_add(&t, pdu, plen, 0x0700, 181);
+    n = listed(&t, idx);
+    check("the name of the builds before 2026-10-29 (\"Optimist \"): still KIND FM-1",
+          n == 4u && t.e[idx[3]].kind == (BLE_KIND_MIDI | BLE_KIND_FM1) && !strcmp(t.e[idx[3]].name, "Optimist A1B2"));
     n = ad_name(ad, 0x09, "FM-1 A1B2");
     mk(0x44, 0x0D, ad, n);
     ble_scan_add(&t, pdu, plen, 0x0700, 182);
     n = listed(&t, idx);
     check("the same device under the name of the builds before the rename (\"FM-1 \"): still KIND FM-1",
           n == 4u && t.e[idx[3]].kind == (BLE_KIND_MIDI | BLE_KIND_FM1));
+    {
+        static const char *const NOT[] = {"FM1-A1B", "FM1-A1BG", "FM1A1B2", "FM1-", "fm1-A1B2", "FM-12345", "Optimist", "Other synth", "KeyStep 37"};
+        static const char *const YES[] = {"FM1-A1B2", "FM1-0000", "FM1-ffff", "Optimist 112D", "FM-1 1F2D"};
+        uint32_t k, bad = 0;
+        for (k = 0; k < sizeof NOT / sizeof NOT[0]; k++)
+            bad += ble_name_is_fm1(NOT[k]) != 0u;
+        for (k = 0; k < sizeof YES / sizeof YES[0]; k++)
+            bad += ble_name_is_fm1(YES[k]) == 0u;
+        check("ble_name_is_fm1: FM1- + 4 hex, \"Optimist \", \"FM-1 \"; not three or a non-hex digit, another name", bad == 0);
+    }
     {
         static const uint8_t utf[] = {'C', 'a', 'f', 0xC3, 0xA9, ' ', 0xE2, 0x82, 0xAC, ' ', 'L', 'o', 'n', 'g',
                                       'e', 'r', ' ', 'N', 'a', 'm', 'e'};

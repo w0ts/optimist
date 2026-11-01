@@ -4,7 +4,7 @@
 The builder item `BT_AUDIO` (EXPERIMENTAL, off by default; on in the shipped profiles) is our own GPL-3.0 BR/EDR stack,
 no JieLi library: inquiry, paging, Secure Simple Pairing (Just Works, P-192), E0, L2CAP, AVDTP and an SBC encoder
 (`firmware/src/bt/`), an A2DP source to headphones and speakers; its page is SYSTEM > BT AUDIO (`ui/optimist/op_bt.c`).
-`BT_AFH` (on with it) skips the channels the headset fails on: measured with a WH-1000XM4 on 2026-10-23 (its registry
+AFH (always on with it; the builder's `BT_AFH`, retired 2026-10-29) skips the channels the headset fails on: measured with a WH-1000XM4 on 2026-10-23 (its registry
 text). This page holds the hardware as it was read and measured; `BT_INQ_PROBE` (bit 280, dropped 2026-10-20) was the
 console probe the stack grew from.
 
@@ -254,10 +254,10 @@ unit). A second FM-1 on stock V15 is therefore a possible inquiry target (unveri
 | File | What |
 |---|---|
 | `firmware/hal/fm1_bredr.h` | registers, frame struct, init list, clock, alarm, slot timers, IRQ 40/41 entries |
-| `firmware/src/bt/bt_inq.c`, `bt_inq_con.c` | stage 1: radio and clock check (`btclk`), inquiry (`btinq`), inquiry scan (`btscan`), `bttrace`, `btrx`; the console half is `bt_inq_con.c` |
+| `firmware/src/bt/bt_inq.c`, `bt_inq_con.c` | stage 1: radio and clock check, inquiry, inquiry scan (the screen's scan and connect, bt_audio.c); `bt_inq_con.c` decodes the ring (its log lines compile to nothing). The console's `btclk`, `btinq`, `btscan`, `btpage`, `bttrace`, `btrx` went with the BT_DIAG item, 2026-10-29 |
 | `firmware/src/ble/rf_share.h` | the radio shared with BLE: one start-up, the LE block BLE's (§9.1; host test `tests/bt_coex_test.c`) |
 | `firmware/src/bt/bt_inq_core.c` | portable: sync-word parity, FHS parse/build, EIR name (host test `tests/bt_inq_test.c`) |
-| `firmware/src/bt/bt_page.c`, `bt_lmp.c` | stage 2: `btpage ADDR` pages as master, minimal LMP (host test `tests/bt_lmp_test.c`) |
+| `firmware/src/bt/bt_page.c`, `bt_lmp.c` | stage 2: the page as master (bp_start), minimal LMP (host test `tests/bt_lmp_test.c`) |
 | `firmware/src/bt/bt_acl.c`, `bt_l2cap.c`, `bt_avdtp.c` | stages 3-4: L2CAP over DM1 fragments, an SDP client, an AVDTP initiator (host tests `bt_l2cap_test`, `bt_avdtp_test`) |
 | `firmware/src/bt/bt_safer.c`, `bt_ssp.c`, `uECC.c`, `bt_sha256.c` | SAFER+ (E1/E21/E22/E3), SSP (f1-f3/g, P-192) (host tests `tests/bt_crypto_test.c`, `bt_ssp_test.c`) |
 | `firmware/src/bt/bt_audio.c`, `bt_sbc.c`, `bt_afh.c`, `bt_avrcp.c`, `bt_sdps.c` | the A2DP source, the SBC encoder, AFH, AVRCP, the SDP server |

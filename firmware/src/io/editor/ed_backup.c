@@ -93,7 +93,7 @@ static const bk_obj_t BK_OBJS[] = {
 #define BK_S(n) {{'S', (char)('0' + (n) / 10), (char)('0' + (n) % 10), ' '}, BK_SEC, (n) - 1, (n) <= FELUCCA_SECTIONS}
 #define BK_P(n) {{'P', 'T', 'N', (char)('0' + (n))}, BK_LOG, BK_PID + (n) - 1, 1}
 #if FELUCCA_PATTERNS
-#define BK_PJ(n) {{'P', 'J', (char)('0' + (n) / 10), (char)('0' + (n) % 10)}, BK_PJS, (n) - 1, 1}
+#define BK_PJ(n) {{'P', 'J', (char)('0' + (n) / 10), (char)('0' + (n) % 10)}, BK_PJS, (n) - 1, (n) <= PROJ_SLOTS}
     BK_PJ(1), BK_PJ(2), BK_PJ(3), BK_PJ(4), BK_PJ(5), BK_PJ(6), BK_PJ(7), BK_PJ(8),   /* each project whole (its state, scenes, */
     BK_PJ(9), BK_PJ(10), BK_PJ(11), BK_PJ(12), BK_PJ(13), BK_PJ(14), BK_PJ(15), BK_PJ(16),   /* patterns, song, records) */
     {{'P', 'N', 'A', 'M'}, BK_LOG, BK_NMID, 1},           /* the project names (device-wide) */
@@ -153,7 +153,7 @@ static const bk_obj_t BK_OBJS[] = {
  * magic, chunk; v3 adds first and count), 14 bytes an object, bk_caps at the end of the list. A page keeps room for
  * the caps, so any page may be the last; the objects go on in the next page (v3), never cut. */
 static const uint8_t bk_bits[] = FELUCCA_CFG_BITS;   /* the builder's items (BUILD, 49), bk_caps' last bytes */
-#define BK_CAPS_N (23u + 3u * SMP_USER_SLOTS + sizeof bk_bits)   /* (bk_caps, byte for byte) */
+#define BK_CAPS_N (26u + 3u * SMP_USER_SLOTS + sizeof bk_bits)   /* (bk_caps, byte for byte) */
 #define BK_HEAD2_N 10u
 #define BK_HEAD3_N 12u
 #define BK_PAGE ((ED_PAYLOAD_N - BK_HEAD3_N - BK_CAPS_N) / 14u)   /* objects a v3 reply */
@@ -514,7 +514,10 @@ static uint32_t bk_pj_record(uint32_t id, uint32_t n)
         ok = n > 4u && n <= sizeof fxr_rbuf;
     else if ((id >= DLR_ID0 && id <= DLR_ID_AUTO) || id == DLR_ID_STATE)
         ok = n > 4u && n <= sizeof dlr_rbuf;
-    sec_stage_id = -1;                                 /* (the stage was the check's scratch) */
+    else if (id >= SLG_ID_MPAT0 && id < SLG_IDS)
+        ok = 1;                                        /* (the MIDI tracks' ids, sec_log.c: reserved, nothing here reads them;
+                                                        * kept as they are for the firmware that writes them) */
+    sec_stage_id = -1;                                /* (the stage was the check's scratch) */
     if (!ok)
         return 2;
     return slg_put(id, BK_BUF, n, 1) ? 7u : 0u;
@@ -622,8 +625,14 @@ static uint32_t bk_info(uint32_t i, uint32_t *crc)
         *crc = h.crc;
         return h.len;
     } else {
-        const smp_user_hdr_t *h = (const smp_user_hdr_t *)smp_user_xip(o->id);
+        const smp_user_hdr_t *h;
         uint32_t n = 0;
+        /* a slot with no room holds nothing (smp_user_scan's rule): its header is never read. FELUCCA_LAYOUT 1 (the
+         * slots' flash is the app's) and USR1 with PATTERNS (the section log); on fm1-base such a slot is outside the
+         * data windows, smp_user_xip NULL (fm1_compat.h plat_data): reading it was the editor connect's CPU exception */
+        if (SMP_USER_CAP(o->id) <= SMP_USER_DATA)
+            return 0;
+        h = (const smp_user_hdr_t *)smp_user_xip(o->id);
         if (h->magic == SMP_USER_MAGIC && h->version == 1 && h->data_len <= SMP_USER_CAP(o->id) - SMP_USER_DATA)
             n = SMP_USER_DATA + h->data_len;                    /* a sample set: header, its data */
 #ifdef FM6_MAGIC
@@ -671,6 +680,8 @@ static __attribute__((noinline)) void bk_caps(void)
         ed_b32(SMP_USER_CAP(i), 3);                           /* USR1..3 capacity, bytes */
     ed_bs(BK_CAPS_K, sizeof BK_CAPS_K);                       /* (the build's constants: a table, not a call each) */
     ed_bs(bk_bits, sizeof bk_bits);
+    ed_b32(FL_APP_HI >> 12, 2);                               /* the MEMORY step: its app end / 4 KiB (the installers' */
+    ed_b(PROJ_SLOTS);                                         /* layout warning, docs/SD-MODE-DESIGN.md 9.7.5), its projects */
 }
 
 #if SEC_LOGGED
@@ -826,6 +837,7 @@ static void bk_close(void)
 #endif
 }
 
+#if !FELUCCA_ED_COMPANION
 /* a backup / restore command; 0 = not one of them: no reply */
 static int ed_backup(uint32_t cmd, const uint8_t *a, uint32_t na)
 {
@@ -875,8 +887,8 @@ static int ed_backup(uint32_t cmd, const uint8_t *a, uint32_t na)
         off = ed_r32(a + 1, 3);
         n = bk_info(i, &crc);
         n = off < n ? (n - off > BK_CHUNK ? BK_CHUNK : n - off) : 0u;
-        {
-            const uint8_t *p = BK_OBJS[i].kind == BK_ST ? st_buf + off : BK_PJ_BUF(i, off, n) BK_SEC_BUF(i, off) BK_SNP_BUF(i, off, n)
+        {                                              /* (nothing to read: no object's pointer, a slot's maybe NULL) */
+            const uint8_t *p = !n ? st_buf : BK_OBJS[i].kind == BK_ST ? st_buf + off : BK_PJ_BUF(i, off, n) BK_SEC_BUF(i, off) BK_SNP_BUF(i, off, n)
                                BK_OBJS[i].kind == BK_FM6 ? fm6_bank_xip + off : smp_user_xip(BK_OBJS[i].id) + off;
             ed_b(i);
             ed_b32(off, 3);
@@ -1008,3 +1020,7 @@ static int ed_backup(uint32_t cmd, const uint8_t *a, uint32_t na)
     return 1;
 }
 #define ED_BACKUP_FN ed_backup,             /* (editor.c: its table of commands) */
+#else
+#include "ed_comp.c"           /* the same objects as fm1-base companion files (the trial: Optimist as an fm1-base app) */
+#define ED_BACKUP_FN
+#endif

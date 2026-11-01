@@ -18,7 +18,7 @@ Every gesture in one list: [shortcuts.md](shortcuts.md). This page says what the
 | LFO held | The patterns and scenes layer. With a knob: the value in fine steps |
 | PLAY | Tapped: start / stop. Held: the tempo page |
 | REC | Record the selected track. Held: the ring that clears recorded material |
-| GLO | Tapped: GLOBAL; on GLOBAL, SYSTEM; on SYSTEM, GLOBAL. Each keeps its line |
+| GLO | Tapped: from any other page, the one of GLOBAL / SYSTEM that was open last (GLOBAL after power-on; not kept over a restart); on GLOBAL, SYSTEM; on SYSTEM, GLOBAL. Each keeps its line |
 | SEQ | Tapped: STEP. Held (not on STEP): SONG |
 
 SAVE then HOME is undo, HOME then SAVE is redo. SHIFT and SHIFT2 are not buttons of their own: [shortcuts.md](shortcuts.md) lists what each does with a key, a knob or a button.
@@ -43,6 +43,8 @@ PLAY has a second LED, green, which together with PLAY's red one is the transpor
 
 REC's own LED is red: lit while a take records, blinking while armed and waiting for the first note. The count-in pulses the green on each beat.
 
+**The memory line.** The topmost 2 pixel rows of every page are a thin bar filled from the left in proportion to how full the memory is (the same quantity as SYSTEM > INFO's RAM bar: the project's parts and the effects' lines in the arena; a build without an arena shows the fixed memory's use). It is dim below 80 % and red from 80 %. The splash and the other full-screen screens do not show it.
+
 ## The mixer
 
 The mixer is the first screen. The rows are tracks: MASTER above T1, then T1, T2, T3, DR, the drum track's 10 lanes plus the ACCENT lane, and, in a USB audio build, a USB IN row after them. ALGORITHM walks the rows; the panel shows the selected row's group. Each row has its meter and its sequence. SELECT pages the knob sets of the row, in the same order on every row:
@@ -59,7 +61,7 @@ A muted track or lane is **struck through**: a line through its mixer row name, 
 PLAY held past the hold time opens the tempo page; let go and the screen before returns. A short tap of PLAY stays start / stop. The page has TEMPO (BPM, NUDGE, SWING, SYNC), REC (MODE, LENGTH, START, CLICK) and REC 2 (QUANT).
 
 - **BPM** 40 to 240. **SWING** 0 to 100.
-- **NUDGE:** OCT- or OCT+ held makes the clock about 3.9 % slower or faster while held. The BPM value never changes, and nothing happens while an external clock is followed.
+- **NUDGE:** on the FM-1's own clock, OCT- or OCT+ held makes the clock about 3.9 % slower or faster while held, and the knob moves it 1 ms a click, once; the BPM value never changes and nothing is saved. While a clock is followed (USB, TRS or Ableton Link; Bluetooth MIDI) the card is that source's offset instead, CLK OFS (BT OFS for Bluetooth MIDI), in ms: the knob sets it, OCT- / OCT+ held move it 1 ms later / earlier, and it is saved with the settings, the same value GLOBAL's MIDI page shows.
 - **Tap tempo:** with PLAY held, tap a white key; two taps or more set the tempo.
 - **SYNC** (the MIDI clock to follow): INT, USB, TRS, BLE or AUTO (AUTO shows the clock it follows, as A:USB). On GLOBAL it is CLK IN.
 - **REC:** MODE FREE or TEMPO, LENGTH 1, 2 or 4 bars, START NOTE or COUNT (count-in), CLICK OFF, REC or ON. **QUANT** ON snaps a recorded note to the grid; OFF keeps its start as a nudge and its length as a gate lock.
@@ -72,10 +74,10 @@ SEQ tapped opens STEP, one screen for synth tracks and the drum track. The 16 wh
 
 PROJECT is where storage lives. A storage row (PROJECT, SNAPSHOT, USER) has up to four cards: **BANK** (only for a store of more than 16 slots), the operation (**LOAD**, the default, **SAVE** or **DELETE**), **ITEM** (the slot; the knob walks all of them and the bank follows) and, on PROJECT, **NEW** (a blank project but for the drum ACCENT lane's four on the floor, touching no slot). A build whose project slots are kept in RAM has no DELETE.
 
-- The 16 white keys are the 16 slots of the current bank: key n selects item n and runs the operation on it, through a confirmation. YES runs it on the item the knob is on. A free slot has nothing to load or clear: a toast, no question. The operation returns to LOAD after each action, when the row changes or the screen is left, so a stray key never saves.
+- The 16 white keys are the 16 slots of the current bank: key n selects item n and runs the operation on it, through a confirmation. YES runs it on the item the knob is on. A free slot has nothing to clear (or, for a snapshot or user preset, to load): a toast, no question. A key past the last slot (MEMORY keeps 2 or 4 projects, a snapshot store has fewer than 16) is a toast too: *Only 2 projects: see memory* (SNAPSHOT: *Only 3 snapshots*), never silence. Loading a free PROJECT slot instead asks "NEW PROJECT n?": YES makes a clean project (default sounds, empty patterns, default tempo) the open one and saves it in that slot; HOME changes nothing. If the work has unsaved edits, the usual "save the open project?" question comes first. The operation returns to LOAD after each action, when the row changes or the screen is left, so a stray key never saves.
 - **OCT- or OCT+ tapped** on a row with slots: the previous or next **bank**, with the toast "BANK n/N".
 - **USER** (32 user presets: two banks) has an INIT card: the selected track's sound back to its engine's defaults. SHIFT2 + ITEM marks a slot a favorite. A user preset's LOAD over an edited sound is asked in red.
-- The rows after them: TOOLS (CLRSQ, INIT, MISS, NEW), SLOOP (import of a SLOOP autosave, in builds with it) and MEMORY (USED as a percentage and FREE, the sections that still fit).
+- The rows after them: TOOLS (CLRSQ, INIT, MISS, NEW) and MEMORY (USED as a percentage and FREE, the sections that still fit).
 - NAME asks for a name before a save: the keys type, SAVE finishes, HOME deletes a character or cancels.
 - SAVE held on PROJECT opens SONG; see [the sequencer](sequencer.md#sections-and-the-song).
 
@@ -84,32 +86,34 @@ PROJECT is where storage lives. A storage row (PROJECT, SNAPSHOT, USER) has up t
 GLOBAL and SYSTEM are settings lists: one setting on a line, the name left and the value right, in pages of 4. SELECT moves a page at a time; knob k edits line k and makes it the cursor; ALGORITHM moves the cursor a line; SAVE is YES on the cursor line (an on / off value toggles, an action line runs); SHIFT + a knob returns a value to its default.
 
 **GLOBAL**
-- **Tempo:** BPM, NUDGE (read-out), SWING, TUNE (the master tuning, -50 to 50 cents).
+- **Tempo:** BPM, NUDGE (as on the tempo page: the clock's offset while a clock is followed), SWING, TUNE (the master tuning, -50 to 50 cents).
 - **Rec:** MODE, LENGTH, START, CLICK, QUANT.
-- **MIDI:** CLK IN (the clock to follow: INT, USB, TRS, BLE, AUTO), CLK OUT (ON or OFF; amber when ON but there is nowhere to send it), MIDI OUT; CLK OFS and BT OFS ([midi-usb.md](midi-usb.md#midi-clock)). There is no MIDI IN line: notes come in through the track channels.
+- **Filter:** FILT RESO, the resonance of every track's FILTER, 0 (clean) to 10, saved with the project (builds with the track FILTER; `TFLT_RESO`).
+- **MIDI:** CLK IN (the clock to follow: AUTO, LINK, TRS, USB, BLE, INT), CLK OUT (OFF, USB, BLE or BOTH; amber when the chosen port cannot send), LINK (Link builds: OFF, ON, ON+S/S), MIDI OUT (OFF, KEYS, SEQ, BOTH); CLK OFS, BT OFS and LINK OFS ([midi-usb.md](midi-usb.md#midi-clock)). There is no MIDI IN line: notes come in through the track channels.
 - **Channels:** T1, T2, T3, DR (the MIDI channel of each track).
 
 **SYSTEM**
 - **INFO:** the read-out below. Always the first page.
-- **SCREEN:** BRIGHT (the screen backlight, in builds with it), KNOB COLORS (ON / OFF).
-- **AUDIO:** LOWCUT (OFF, LOWCUT, or BASS+ in builds with it); FILT RESO, the resonance of every track's FILTER, 0 (clean) to 10, saved with the project (`TFLT_RESO`).
-- **KEYS:** BUTTONS (OFF, LOW, MID, HIGH) and KEYS (OFF, C, WHITE, ALL), the backlight of the buttons and keys, in builds with LIGHTS.
+- **SCREEN:** KNOB COLORS (ON / OFF). The backlight is always full.
+- **AUDIO:** the output's correction, chosen by the headphone jack and applied to the FM-1's own output only (never to Bluetooth, USB or a recording on the card): SPK LOWCUT (OFF, ON or BASS+; ON at first) while nothing is plugged in, the speaker's ~110 Hz low cut, or BASS+ (the bass heard through its harmonics); HPHN BASS (OFF, +3 dB or +6 dB; OFF at first) while headphones are in, a bass shelf below ~110 Hz.
+- **DEBUG STATS** (the release build; the last line of the General page, after HPHN BASS): ON or OFF, OFF at first. While ON the FM-1 keeps its load, late audio halves and stack depths in flash every 5 minutes, for a unit that misbehaves only after hours of play.
 - **USB:** SERIAL, ON or OFF; amber until a restart applies it (builds with the USB console).
 - **BT MIDI** (builds with `BLE`): MODE, DEVICE, ACTIVITY, STATE. **BT AUDIO** (builds with `BT_AUDIO`): MODE, DEVICE, FORMAT, STATE. Both can be on at once; MODE, the devices list and SAVE: [midi-usb.md](midi-usb.md#bluetooth-midi-and-bluetooth-audio). A connect not up in 30 s says NO ANSWER.
 - **CALIBRATE:** PANEL (teaches the panel's buttons and knobs, asked first) and HOLD (a button's hold time: 250, 350 or 500 ms).
-- **USB AUDIO:** (USB audio builds) one line a source: MASTER, T1 to T3, DRUMS, DRUM BUS, DR1 to DR10. Each goes to NONE, 1, 2, 1+2, 3, 4 or 3+4 of the four capture channels sent to the computer. See [midi-usb.md](midi-usb.md).
-- **ABOUT:** VERSION (and the commit it was built from), BUILD (date and time) and the repository address. **CREDITS** follows.
+- **USB AUDIO:** (USB audio builds) one line a source: MASTER, T1 to T3, DRUMS, DRUM BUS, DR1 to DR10, RET A to RET C (the FX returns). Each goes to NONE, 1, 2, 1+2, 3, 4 or 3+4 of the four capture channels sent to the computer. See [midi-usb.md](midi-usb.md).
+- **ABOUT:** VERSION (and the commit it was built from), BUILD (date and time) and the repository address. **CREDITS** follows, the last page: whose work Optimist is built from, as end titles that rise by themselves and loop; turn KNOB 1 to scroll by hand, either way (the crawl resumes 3 s after the last turn). LICENSING.md has the licences.
 
 ## SYSTEM > INFO
 
-INFO is a text page, no knob edits it except KNOB 1. What a musician reads:
+INFO is a text page, no knob edits it. What a musician reads:
 
 | Line | Meaning |
 |---|---|
-| CPU0 (CPU LOAD without a second core) | The audio render load in percent; with a second core it includes CPU0's wait for CPU1. KNOB 1 chooses what it shows: NOW, the maximum of the last 5 seconds, or the maximum since boot. Over 100 means a late audio half (a gap in the sound) |
+| CPU0 (CPU LOAD without a second core) | The audio render load in percent; with a second core it includes CPU0's wait for CPU1. The bar's bright tick marks the maximum of the last 10 seconds, the dim one the maximum since boot. Over 100 means a late audio half (a gap in the sound) |
 | CPU1 | The share of each audio half the second core takes. Instead: 2ND CORE OFF and the reason (NO START, TIMEOUT, FAULT, FLASH, MISREAD, CANARY, AFTER CRASH, SETTING, PARKED, BLUETOOTH, OVERLOAD, SUPPLY). |
 | UNDERRUNS | Losses: late audio halves, USB audio's and MIDI in's, and where |
-| BATTERY | The cell's volts and charge as `~3.87V 72%`, with the 3 bars in the gauge; "USB" while powered by USB; NO READING before the first sample. Both numbers are estimates: the divider and the ADC reference are not measured (assumed 1:2 divider, 3.3 V reference, the usual Li-ion curve), so check them against a meter at the cell |
+
+The battery is the page's header, not a line: no tempo and no bar number there, a battery sign instead, its fill the charge (green, amber under 40 %, red under 20 %) with the percentage beside it; no sign of a reading yet is an empty outline. The percentage is an estimate from the cell's volts: the divider and the ADC reference are not measured (assumed 1:2 divider, 3.3 V reference, the usual Li-ion curve), so check them against a meter at the cell. A bolt (and the word CHARGING where the title leaves room) show while the chip says it charges (5 V on its supply pin, its own charger on and not full); POWER shows when 5 V is there and the charge is not known (a USB host, a full cell, or a charger outside the chip). Both come from the chip's power registers, read from the SDK's map and not yet measured on an FM-1.
 
 SHIFT + SAVE on this page clears the counters. Builds made with the builder item `SYS_DEBUG` add INTERNALS (the last reset, flash interrupt time, the second core's internals), USB STATS (USB audio counters), DROPS, GUARD and CLOCK lines. They are for finding a fault, not for playing, and no ready-made build has them.
 

@@ -51,6 +51,8 @@ final class EditorSession: ObservableObject {
 
     // projects
     @Published private(set) var projects: ProjList?
+    let projectLibrary = ProjectLibrary.standard
+    @Published private(set) var libraryItems: [ProjectLibrary.Entry] = []
     @Published private(set) var sectionUsed: [Int?] = []
     @Published private(set) var bkList: BkList?
     @Published private(set) var patList: PatList?
@@ -79,10 +81,17 @@ final class EditorSession: ObservableObject {
         link.objectWillChange.sink { [weak self] _ in self?.objectWillChange.send() }.store(in: &bag)
     }
 
-    /// The USB link is there and the FM-1 answered INFO.
-    var ready: Bool { link.editorPossible && info != nil }
-    /// Ready, and the firmware offers f (INFO's tag 66)
-    func ready(_ f: Feature) -> Bool { ready && info?.has(f) == true }
+    /// INFO was asked and got an answer or none (over Bluetooth: an older firmware answers the mirror only there)
+    @Published private(set) var infoTried = false
+
+    /// How the editor reaches the FM-1 now: the cable, Bluetooth (INFO names opti_btproj_1: the project slots and library), or not
+    var route: EditorRoute {
+        EditorRoute.choose(searching: link.state == .searching, bluetooth: link.bluetooth, info: info, infoTried: infoTried)
+    }
+    /// A link there carries the editor's requests and the FM-1 answered INFO.
+    var ready: Bool { (route == .usb || route == .bluetooth) && info != nil }
+    /// Ready, the firmware offers f (INFO's tag 66) and the link in use carries it (Bluetooth: the projects only)
+    func ready(_ f: Feature) -> Bool { ready && info?.has(f) == true && route.carries(f) }
     var idle: Bool { ready && !busy }
 
     // MARK: running an operation
@@ -126,16 +135,38 @@ final class EditorSession: ObservableObject {
     /// INFO, then what the screens show. Called when the port changes (the FM-1 restarts after a restore).
     func connect() async {
         info = nil
+        infoTried = false
         projects = nil; sectionUsed = []; bkList = nil; patList = nil; bank = nil
+        if link.bluetooth {             // (Bluetooth: the link asks INFO beside the mirror's request and keeps the whole answer)
+            adoptBluetoothInfo()
+            return
+        }
         guard link.editorPossible else { return }
         link.hold()
         defer { link.release() }
         do {
             info = try await Ops.info(link)
+            infoTried = true
             note = nil
         } catch {
+            infoTried = true
             note = Note(text: "The FM-1 did not answer the editor's INFO (\(error.localizedDescription)).", error: true)
         }
+    }
+
+    /// Over Bluetooth INFO is the link's (MirrorLink.btDevice: one asker, beside the screen, a damaged reply refused and asked
+    /// again); the screens take it once it is in, or know there will be none (btGaveUp: a firmware that answers the mirror only)
+    private func adoptBluetoothInfo() {
+        guard link.bluetoothInUse else { return }
+        info = link.btDevice
+        infoTried = link.btDevice != nil || link.btGaveUp
+        note = nil
+    }
+
+    /// Bluetooth: the link's INFO came in (or it gave up) after the port was taken
+    func connectIfNeeded() async {
+        guard link.bluetooth, info == nil, !busy else { return }
+        adoptBluetoothInfo()
     }
 
     func device() -> DeviceStamp? {
@@ -157,9 +188,12 @@ final class EditorSession: ObservableObject {
         run("Reading the projects…") { [self] in try await readProjects() }
     }
 
-    private func readProjects() async throws {
-        if info?.has(.proj) == true { projects = try await Ops.projList(link) }
-        if info?.has(.projects) == true {
+    func readProjects() async throws {
+        if ready(.proj) {
+            projects = try await Ops.projList(link)
+            if !ready(.projects) { bkList = try? await Ops.bkListAll(link) }   // (the layout's project count is bk_caps')
+        }
+        if ready(.projects) {
             bkList = try? await Ops.bkListAll(link)
             var used: [Int?] = []
             for k in 0..<sectionCount {
@@ -179,8 +213,66 @@ final class EditorSession: ObservableObject {
         run(label) { [self] in
             try await Ops.projOp(link, op: op, p, name: name)
             try await readProjects()
-            say(["", "Saved as project \(p + 1).", "Opened project \(p + 1).", "Cleared project \(p + 1).", "Named."][op])
+            say(["", "Active project → slot \(p + 1): saved.", "Slot \(p + 1) → Active project: opened.", "Slot \(p + 1) cleared.", "Slot \(p + 1) renamed."][op])
         }
+    }
+
+    func setLibraryItems(_ l: [ProjectLibrary.Entry]) { libraryItems = l }
+
+    /// the project slots the installed MEMORY layout keeps (bk_caps' projects byte: 2, 4, 16; SD card mode 1); 16 on a firmware
+    /// that does not say
+    var projectCount: Int { min(ProjList.count, bkList?.caps?.projects ?? ProjList.count) }
+
+    /// a project as a .fm1proj file (the web editor's format): the stored project; with `saveFirst` the work is saved into it before
+    func exportProject(_ p: Int, saveFirst: Bool) {
+        run(saveFirst ? "Saving the Active project into slot \(p + 1)…" : "Reading slot \(p + 1)…") { [self] in
+            if saveFirst { try await Ops.projOp(link, op: 1, p) }
+            projects = try await Ops.projList(link)
+            let l = try await Ops.bkListAll(link)
+            bkList = l
+            guard let o = l.objs.first(where: { $0.tag == ProjectFile.tag(p) }), o.hasData else { say("Slot \(p + 1) is empty.", error: true); return }
+            let name = p < (projects?.names.count ?? 0) ? projects!.names[p] : ""
+            let file = ProjectFile.encode(slot: p, family: l.magic, name: name, data: try await Ops.readObject(link, o))
+            export = ExportItem(url: try FileIO.temp("optimist-project-\(p + 1)\(name.isEmpty ? "" : "-" + FileIO.slug(name)).\(ProjectFile.ext)", Data(file)))
+            say(saveFirst ? "Active project → slot \(p + 1) → File: exported." : "Slot \(p + 1) → File: exported.")
+        }
+    }
+
+    /// a .fm1proj file into project p: cleared first (a stream written over a project leaves the records it lacks), written, named,
+    /// opened when p is the open project. Another firmware family, a damaged file or a slot the layout lacks is refused
+    func importProject(_ p: Int, _ url: URL) {
+        let f: ProjectFile.Contents
+        do { f = try ProjectFile.decode(Array(try FileIO.read(url))) } catch { say("Not a project file this FM-1 can take: \(error.localizedDescription)", error: true); return }
+        run("File → slot \(p + 1)…") { [self] in
+            try await writeSlot(p, f)
+            try await readProjects()
+            say("File → slot \(p + 1): loaded.")
+        }
+    }
+
+    /// the stored project p as a file's contents (nil when the slot is empty); the open slot is read as stored, not as played
+    func readSlot(_ p: Int) async throws -> ProjectFile.Contents? {
+        projects = try await Ops.projList(link)
+        let l = try await Ops.bkListAll(link)
+        bkList = l
+        guard let o = l.objs.first(where: { $0.tag == ProjectFile.tag(p) }), o.hasData else { return nil }
+        let name = p < (projects?.names.count ?? 0) ? projects!.names[p] : ""
+        return ProjectFile.Contents(slot: p, family: l.magic, name: name, data: try await Ops.readObject(link, o))
+    }
+
+    /// a project's contents into slot p: cleared first, written, named, opened again when p is the open project
+    func writeSlot(_ p: Int, _ f: ProjectFile.Contents) async throws {
+        let l = try await Ops.bkListAll(link)
+        bkList = l
+        guard f.family == l.magic else { throw WireError("Not a project file this FM-1 can take: another firmware (\(f.family), this one \(l.magic))") }
+        guard p < projectCount, let o = l.objs.first(where: { $0.tag == ProjectFile.tag(p) }), o.inBuild else {
+            throw WireError("Not a project file this FM-1 can take: this memory layout has no slot \(p + 1)")
+        }
+        let open = try await Ops.projList(link).open == p
+        try await Ops.projOp(link, op: 3, p)
+        if !f.data.isEmpty { try await Ops.writeObject(link, index: o.i, tag: o.tag, data: f.data); _ = try await Ops.end(link, done: false) }
+        try await Ops.projOp(link, op: 4, p, name: f.name)
+        if open { try await Ops.projOp(link, op: 2, p) }
     }
 
     func projectOp(_ op: Int, _ k: Int) {

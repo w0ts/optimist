@@ -16,4 +16,10 @@ static uint16_t knob_col(uint32_t k, uint16_t def)
 {
     return knob_colors && k < KNOBCOL_N ? KNOB_COL[k] : def;
 }
+/* the cap's colour at 5/8 of each channel: an inactive row's label (a dimmed version of its own knob, never white, no fill behind it) */
+static inline uint16_t knob_col_dim(uint32_t k, uint16_t def)
+{
+    uint32_t c = knob_col(k, def);
+    return knob_colors && k < KNOBCOL_N ? (uint16_t)(((((c >> 11) & 31u) * 5u / 8u) << 11) | ((((c >> 5) & 63u) * 5u / 8u) << 5) | ((c & 31u) * 5u / 8u)) : (uint16_t)c;
+}
 #endif

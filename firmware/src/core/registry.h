@@ -352,9 +352,6 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #ifndef FELUCCA_REV_POOL
 #define FELUCCA_REV_POOL 0                 /* the reverb's four lines (17 KB) in the pool instead of main RAM */
 #endif
-#ifndef FELUCCA_REV_HALF
-#define FELUCCA_REV_HALF 0                 /* the reverb's tank at 22.05 kHz: half its lines' RAM (fx.c) */
-#endif
 /* the reverb's algorithms (fx.c, reverb_alt.c; SPRING: backports.h): each one built is on FX > REVERB > TYPE (rev_type.c),
  * picked at run time; one built: no TYPE. At least one with the bus (rev_type.c says so). They share one line buffer */
 #ifdef FELUCCA_REVERB                      /* (the old one-tank choice, 0 ROOM, 1 PLATE, 2 FDN8, 3 AIRWIN: that tank alone) */
@@ -388,6 +385,10 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #endif
 #ifndef FELUCCA_FX_PUNCH
 #define FELUCCA_FX_PUNCH 1                 /* the 16 punch-in FX on the mix (FX + a white key) */
+#endif
+#ifndef FELUCCA_PUNCH_N
+#define FELUCCA_PUNCH_N 32768u            /* its ring, samples (a power of two): 0.74 s; 16384 frees 32 KiB of pool
+                                            * (fx/punch/punch.c; core/arena_bufs.c in the arena) */
 #endif
 #ifndef FELUCCA_FX_DJF
 #define FELUCCA_FX_DJF 1                   /* MASTER > FILT: the DJ filter */
@@ -454,11 +455,10 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #endif
 /* the insert copies of the "once" effects (fx/insfx/insfx.c, fxi.c: 2026-10-13), each built (non-zero; a count until
  * 2026-10-23, any count reads as built) or not. Their lines are in the effects memory (fx/insfx/fxi_mem.h, the size
- * FELUCCA_DLY_ARENA): fxi.c places one when an owner picks the type (the main loop), an owner left without room is
- * bypassed */
-#ifndef FELUCCA_INS_CHORUS
-#define FELUCCA_INS_CHORUS 0               /* CHRS: a two-tap chorus, 2 KB of the effects memory an instance */
-#endif
+ * FELUCCA_DLY_ARENA; with an arena, FELUCCA_ARENA_KB, each line a block of it instead): fxi.c places one when an owner
+ * picks the type (the main loop), an owner left without room is bypassed */
+/* (CHRS, FELUCCA_INS_CHORUS, and ROOM / TDLY, FELUCCA_INS_REVERB / FELUCCA_INS_TDELAY: retired 2026-10-29, the CHO REV DLY
+ * inserts are built with their effect, core.h INS_CHO INS_REV INS_DLY) */
 #ifndef FELUCCA_INS_DELAY
 #define FELUCCA_INS_DELAY 0                /* ECHO: a 75 ms slapback with feedback, 8 KB of the effects memory an instance */
 #endif
@@ -473,17 +473,23 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #define FELUCCA_XDLY_LEN 16384             /* XDLY's line, samples (a power of two): 16384 0.37 s (64 KB an instance), 8192 */
 #endif
 #ifndef FELUCCA_DLY_ARENA
-#define FELUCCA_DLY_ARENA 0                /* the effects memory (fx/insfx/fxi_mem.h): KB of pool for the delay send's line
+#define FELUCCA_DLY_ARENA 0                /* the effects memory (fx/insfx/fxi_mem.h; the builder leaves it 0 (auto), a fixed size is for the host tests): KB of pool for the delay send's line
                                             * and every insert line (1 KB units); 0: the send's line and one line of each
-                                            * limited insert type built */
+                                            * limited insert type built. Ignored with an arena (FELUCCA_ARENA_KB: the
+                                            * delay's line and each insert line a block of it, the user, 2026-10-29:
+                                            * one memory setting) */
 #endif
 #ifndef FELUCCA_ARENA_KB
-#define FELUCCA_ARENA_KB 0                 /* the builder's ARENA (bit 411): KB of pool the parts' engine states are placed
-                                            * in by need (core/arena.c, docs/ARENA.md); 0: NPART x the largest at fixed
-                                            * places, as the fixed memories were */
+#define FELUCCA_ARENA_KB 0                 /* the builder's ARENA (bit 411): on (non-zero), the parts' engine states, the
+                                            * effects' lines and the other buffers placed by need (core/arena.c; the
+                                            * extras: FELUCCA_FX_ARENA below) in the SRAM the link leaves free, taken at
+                                            * boot (the user, 2026-10-29: "arena first, undo gets the rest": the undo
+                                            * history borrows what it does not use, seq/undo.c); 0: the fixed memories
+                                            * as before. An older builder's KB (24 .. 256) reads as on */
 #endif
 #if FELUCCA_ARENA_KB && !defined(FELUCCA_ARENA_BYTES)
-#define FELUCCA_ARENA_BYTES (FELUCCA_ARENA_KB * 1024u)
+#define FELUCCA_ARENA_BYTES (FELUCCA_ARENA_KB > 1 ? FELUCCA_ARENA_KB * 1024u : 96u * 1024u)   /* (the host's stand-in for
+                                            * the free SRAM: the device takes what there is, engines.c ARN_FREE) */
 #endif
 #ifdef FELUCCA_ARENA_BYTES
 #define PART_DROPS 1                       /* (an arena placed by need: a change can be refused, a part dropped, a silent
@@ -512,7 +518,7 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
                                             * the one item MIDI_CLOCK is clock in + out; tests may still set it alone */
 #endif
 #ifndef FELUCCA_TFLT_RESO
-#define FELUCCA_TFLT_RESO 1                /* HOME > AUDIO > FILT RESO (SLOOP 2.8): the track FILTER's resonance, 0 clean .. 10 (fx.c
+#define FELUCCA_TFLT_RESO 1                /* GLOBAL > FILTER > FILT RESO (SLOOP 2.8): the track FILTER's resonance, 0 clean .. 10 (fx.c
                                             * tflt_reso; core.h G_TFRES). Only with the track FILTER (TRK_FILT) */
 #endif
 #ifndef FELUCCA_DS_NTUNE
@@ -521,10 +527,6 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #endif
 #ifndef FELUCCA_PHASE_FOLD
 #define FELUCCA_PHASE_FOLD 1               /* PHASE's E7 FOLD: a sine wavefolder (Felucca-Engines 04ffe90, MIT; engines/phase/eng_phase.c) */
-#endif
-#ifndef FELUCCA_VOICE_OWN
-#define FELUCCA_VOICE_OWN 1                /* voices: at the shared budget, a part restarts its own released voice before
-                                            * fading another part's (JIANT 0.9.9 cpu3; core/voice.c voice_alloc) */
 #endif
 #ifndef FELUCCA_REC_PLAIN
 #define FELUCCA_REC_PLAIN 0                /* seq.c rec_poly: recording keeps every note played whatever the voice mode (MONO, LEGATO,
@@ -664,20 +666,11 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #endif
 /* the effects' finer arithmetic (2026-10-26, a Reddit report of grainy FX; each measured on the host, none heard yet): the
  * old arithmetic stays the default, each its own builder item */
-#ifndef FELUCCA_CHO_EXACT
-#define FELUCCA_CHO_EXACT 0                /* the chorus send's read points ramped exactly over a block (fx.c CHO_RAMP) */
-#endif
 #ifndef FELUCCA_WIDE_FINE
 #define FELUCCA_WIDE_FINE 0                /* WIDE's all-pass at the part's scale (insfx.c ifx_ap_w) */
 #endif
 #ifndef FELUCCA_TFLT_FINE
 #define FELUCCA_TFLT_FINE 0                /* the track FILTER at the samples' scale, 64-bit products (fx.c tflt_tick_w) */
-#endif
-#ifndef FELUCCA_JUNO_FINE
-#define FELUCCA_JUNO_FINE 0                /* JUNO CHORUS's line at 32 bits: 4 KB of the effects memory (juno_cho.h) */
-#endif
-#ifndef FELUCCA_REV_HB_LONG
-#define FELUCCA_REV_HB_LONG 0              /* the half-rate reverbs behind a 63-tap low-pass (fx.c rhl_dec, rhl_int) */
 #endif
 #ifndef FELUCCA_LIVE_SAVE
 #define FELUCCA_LIVE_SAVE 0                /* saves while playing: no STOP BEFORE SAVE, the waiting writes (sections, song,
@@ -685,6 +678,78 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
                                             * at a time; off again until the next start if the flash part ever holds an
                                             * erase in one window (seq.c SAVE_WAITS_PLAY, felucca.c FL_ERASE_HELD) */
 #endif
+#ifndef FELUCCA_SDCARD
+#define FELUCCA_SDCARD 0                   /* a microSD card on the LCD's SPI1 (a hardware mod, docs/SD-CARD-DESIGN.md):
+                                            * storage/sd/sdcard.c, hal/fm1_sd_bus.h; the console's sd commands */
+#endif
+#ifndef FELUCCA_LAYOUT
+#define FELUCCA_LAYOUT 0                   /* the flash layout, the MEMORY step (hal/fm1_steps.h): 3 no user samples, 1 the fake SD mode, the app slot to
+                                            * 0xD0000 over the user samples and snapshots (docs/SD-MODE-DESIGN.md) */
+#endif
+#ifndef FELUCCA_SD_MODE
+#define FELUCCA_SD_MODE (FELUCCA_LAYOUT == 1)   /* the SD card mode (one builder flag later: the bigger flash, the card,
+                                            * projects by name, banks of 16; the fake SD mode's layout until then): what
+                                            * only it builds keys on this one macro */
+#endif
+#if FELUCCA_ARENA_KB && !defined(FELUCCA_FX_ARENA)
+#define FELUCCA_FX_ARENA 1                 /* (the arena's extras: every build with an arena, 2026-10-29, the user: one
+                                            * memory setting; the SD card mode's builds only before) */
+#endif
+#ifndef FELUCCA_FX_ARENA
+#define FELUCCA_FX_ARENA 0                 /* 1: with an arena placed by need (FELUCCA_ARENA_BYTES, engines.c), the arena's
+                                            * extras: the effects' big lines (the sends' delay, chorus and reverb lines,
+                                            * each limited insert's line) placed in it while a project uses them
+                                            * (fx/fx_arena.c), the other buffers (core/arena_bufs.c) and the load's list
+                                            * page (FELUCCA_MEM_LIST); 0: static, as before, a load's refusals offered one
+                                            * by one on the edit's confirm */
+#endif
+#ifndef FELUCCA_MEM_LIST
+#define FELUCCA_MEM_LIST FELUCCA_FX_ARENA  /* the load's memory list page (ui/optimist/op_memlist.c, model.c mem_load_*) */
+#endif
+#define FELUCCA_PUNCH_SW (FELUCCA_FX_PUNCH && FELUCCA_FX_ARENA)   /* a project's PUNCH switch (GLOBAL > Rec): the punch's
+                                            * ring in the arena only while it is on (fx/punch/punch.c, core/arena_bufs.c);
+                                            * without the arena's extras the ring is static and PUNCH always there */
+#include "../../hal/fm1_flash_map.h"        /* FL_PROJ_SLOTS: the step's projects (hal/fm1_steps.h) */
+#ifndef PROJ_SLOTS
+#define PROJ_SLOTS (FELUCCA_SDCARD && FELUCCA_LAYOUT == 1 ? 1u : FL_PROJ_SLOTS)   /* the projects the flash keeps
+                                            * (PATTERNS): the step's (MEMORY's PROJECTS 2, 4 or 16: tools/flash_layout.py);
+                                            * the SD card mode one, the others on the card (the user, 2026-10-25) */
+#endif
+#ifndef FELUCCA_BT_PROJ
+#define FELUCCA_BT_PROJ 0                  /* the projects' moves over Bluetooth too (io/editor/ed_mirror.c MBR_PROJ) */
+#endif
+/* (no FELUCCA_FAR_OK since 2026-10-29, no far probe since 2026-10-30: every layout has its whole slot, tools/flash_layout.py) */
+#ifndef FELUCCA_SD_FATFS
+#define FELUCCA_SD_FATFS (FELUCCA_SDCARD && FELUCCA_LAYOUT == 1)   /* the card under full FatFs (its
+                                            * ~15 KB fit the big slot: storage/sd/fatfs/, tools/build.py), else Petit FatFs
+                                            * (the bring-up's: no files created, 8.3 names) */
+#endif
+#ifndef FELUCCA_SD_UI
+#define FELUCCA_SD_UI (FELUCCA_SD_MODE && FELUCCA_SD_FATFS)   /* the SD card mode's card side (docs/SD-CARD-DESIGN.md 9): the
+                                            * user's data on the card by name, every list as banks of 16 on the keys
+                                            * (storage/sd/sd_mode.c, ui/optimist/op_sdcard.c), the working project the one-
+                                            * project flash store's; the card under full FatFs (SDCARD + LAYOUT 1). Once the
+                                            * mode's one flag builds the card in: FELUCCA_SD_MODE alone */
+#endif
+#if FELUCCA_SD_UI && !(FELUCCA_PATTERNS && SEC_LOGGED && FELUCCA_LAYOUT == 1)
+#error "SD card mode needs the projects of the section log (PATTERNS, SECTIONS 8 or 16) in the fake SD mode's layout"
+#endif
+#ifndef FELUCCA_SD_RING_KB
+#define FELUCCA_SD_RING_KB 0               /* the builder's SD_RING (bit 415): samples streamed from the card, the KB of
+                                            * lookahead a playing voice keeps (storage/sd/sd_stream.c); 0 off */
+#endif
+#ifndef FELUCCA_SD_STREAM
+#define FELUCCA_SD_STREAM (FELUCCA_SD_FATFS && FELUCCA_SD_RING_KB > 0 && FELUCCA_ENG_SAMPLE && FELUCCA_FX_ARENA)   /* (the
+                                            * heads and the rings are an arena block per project: ARENA; the voices are
+                                            * SAMPLE's CARD set) */
+#endif
+#define FELUCCA_SD_LANES (FELUCCA_SD_STREAM && FELUCCA_DRUMS)   /* the drum lanes play card samples too (drums/lane_card.c:
+                                                                 * the same streams, a lane a slot of the plan) */
+#ifndef FELUCCA_SD_REC_KB
+#define FELUCCA_SD_REC_KB 0                /* the builder's SD_REC (bit 416): the master recorded to the card, the ring's KB
+                                            * (storage/sd/sd_rec.c: the card's stalls it covers); 0 off */
+#endif
+#define FELUCCA_SD_REC (FELUCCA_SD_FATFS && FELUCCA_SD_REC_KB > 0)   /* (full FatFs: the big layout's) */
 #ifndef FELUCCA_LANE_FX
 #define FELUCCA_LANE_FX 0                  /* a black key held on the drum track: its lane's FX page (ROLL CHANCE FILL NUDGE),
                                             * kept as the pattern's automation events (seq/lane_fx.c, auto.h AUTO_IS_LFX) */
@@ -738,6 +803,10 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
  * 80, 81, 89 are never reused). INIT VOICE is always there; the voice packs are builder items; DX7 SysEx is received only */
 #ifndef FELUCCA_FM6_SYSEX
 #define FELUCCA_FM6_SYSEX 1                /* DX7 SysEx in: a voice replaces the track's, a 32-voice bank is a pick list in PRESETS */
+#endif
+#if !FELUCCA_ENG_FM6 && FELUCCA_FM6_SYSEX  /* (without FM6 nothing takes a voice: until 2026-10-27 the receiver and its */
+#undef FELUCCA_FM6_SYSEX                   /*  4 KB bank buffer were built anyway, so FM6 off freed no pool) */
+#define FELUCCA_FM6_SYSEX 0
 #endif
 #ifndef FELUCCA_FM6_PK_KEYS
 #define FELUCCA_FM6_PK_KEYS 0              /* pack 1: keys and e-pianos, 16 voices */

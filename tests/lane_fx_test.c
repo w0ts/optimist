@@ -284,6 +284,93 @@ static void t_page2(void)
     check("EVERY 1:2: the snare on 2 of 4 passes, the kick on all", hn[2][2] == 2u && hn[0][0] == 4u);
 }
 
+/* CHANCE ACC: the chance of an accented hit (the ACCENT lane's step, or a HARD hit); 101 = =NORM (the default): CHANCE */
+static uint32_t total(uint32_t l)
+{
+    uint32_t s, n = 0;
+    for (s = 0; s < 8u; s++)
+        n += hn[s][l];
+    return n;
+}
+static void setup_acc(void)                             /* + the kick's step 5 HARD, step 3 accented by the ACCENT lane */
+{
+    setup();
+    dstep_set(&TDRUM->dstep[4], 0, LV_HARD, 0);
+    TDRUM->dstep[2].acc = 1u;
+}
+static void t_chacc(void)
+{
+    uint32_t hs[8][DRUM_LANES], i, hits = 0, a_hits = 0;
+    dstep_t st;
+    track_t *t = TDRUM;
+    setup_acc();
+    check("CHANCE ACC defaults to =NORM (101): no event, nothing stored", lfx_get(t, 4, LFX_I_CHACC) == LFX_ACC_SAME && !AL(t)->n);
+    play_pass();
+    memcpy(hs, hn, sizeof hs);
+    setup_acc();
+    set(4, LFX_I_CHANCE, 100), set(2, LFX_I_CHACC, LFX_ACC_SAME);
+    play_pass();
+    check("=NORM and CHANCE 100: the same pass hit for hit as a lane without FX", !memcmp(hs, hn, sizeof hs));
+    setup_acc();
+    check("CHANCE ACC 30: one event on page 2 (lane 4), read back; =NORM again: the event goes",
+          set(4, LFX_I_CHACC, 30) && AL(t)->n == 1u && AUTO_LFX_PG(&AL(t)->ev[0]) == 2u && lfx_get(t, 4, LFX_I_CHACC) == 30 &&
+          set(4, LFX_I_CHACC, LFX_ACC_SAME) && !AL(t)->n);
+    setup_acc();
+    set(0, LFX_I_CHANCE, 0);                            /* the kick: NORM chance 0, ACC =NORM: the HARD hit uses CHANCE too */
+    play_pass();
+    check("CHANCE 0, ACC =NORM: the HARD kick is silent too (accented hits use CHANCE)", !total(0));
+    set(0, LFX_I_CHACC, 100);
+    play_pass();
+    check("CHANCE 0, ACC 100: the NORM kick (step 1) is silent, the HARD kick (step 5) plays", hn[0][0] == 0u && hn[4][0] == 1u && mn[4][0] == 1u);
+    setup_acc();
+    set(4, LFX_I_CHACC, 0);
+    set(4, LFX_I_ROLL, 3);
+    play_pass();
+    check("hat ACC 0: silent on the step the ACCENT lane accents (step 3, rolls too), the other 7 steps play (x4)",
+          hn[2][4] == 0u && mn[2][4] == 0u && hn[0][4] == 4u && hn[7][4] == 4u && total(4) == 28u);
+    setup_acc();
+    set(0, LFX_I_CHANCE, 100), set(0, LFX_I_CHACC, 0);
+    play_pass();
+    check("kick ACC 0: the HARD kick is silent, the NORM kick plays", hn[4][0] == 0u && hn[0][0] == 1u);
+    setup_acc();
+    dstep_set(&TDRUM->dstep[1], 0, LV_GHOST, 0);
+    set(0, LFX_I_CHANCE, 0), set(0, LFX_I_CHACC, 100);
+    play_pass();
+    check("a GHOST hit is a normal one: CHANCE 0 silences it", hn[1][0] == 0u && hn[4][0] == 1u);
+    /* statistics on the roll itself */
+    memset(&st, 0, sizeof st);
+    dstep_set(&st, 4, LV_HARD, 0);
+    setup_acc();
+    set(4, LFX_I_CHANCE, 100), set(4, LFX_I_CHACC, 25);
+    lfx_reset();
+    for (i = 0; i < NTRK; i++)
+        auto_step(&trk[i], 0);
+    for (i = 0; i < 20000u; i++)
+        a_hits += !lfx_drop(t, &st, 4, 0);
+    printf("lane fx: CHANCE ACC 25 on a HARD hit: %u of 20000\n", a_hits);
+    check("CHANCE ACC 25: about a quarter of 20000 HARD hits play (4700..5300)", a_hits > 4700u && a_hits < 5300u);
+    set(4, LFX_I_CHANCE, 50), set(4, LFX_I_CHACC, LFX_ACC_SAME);
+    for (i = 0; i < NTRK; i++)
+        auto_step(&trk[i], 0);
+    for (i = 0; i < 20000u; i++)
+        hits += !lfx_drop(t, &st, 4, 0);
+    check("CHANCE 50, ACC =NORM: a HARD hit plays about half the time (9700..10300)", hits > 9700u && hits < 10300u);
+    {                                                   /* stored: the pattern's list, an older list reads =NORM */
+        uint8_t b[AUTO_TRK_ENC_MAX];
+        auto_list_t l2;
+        const uint8_t *p = b;
+        uint32_t n;
+        setup_acc();
+        set(4, LFX_I_CHACC, 60), set(4, LFX_I_CHANCE, 40);
+        n = auto_enc_trk(AL(t), b);
+        check("CHANCE ACC stored and read back with the pattern (60), CHANCE beside it (40)",
+              auto_dec_trk(&l2, &p, b + n) && l2.n == 2u && !memcmp(l2.ev, AL(t)->ev, 6));
+        setup_acc();
+        set(4, LFX_I_CHANCE, 40);
+        n = auto_enc_trk(AL(t), b), p = b;
+        check("an older list (no page 2 event) reads CHANCE ACC =NORM", auto_dec_trk(&l2, &p, b + n) && l2.n == 1u && lfx_get(t, 4, LFX_I_CHACC) == LFX_ACC_SAME);
+    }
+}
 int main(void)
 {
     (void)auto_for(&proj_tmp.cur, 1), (void)auto_for(&sec_stage_p, 1);
@@ -294,6 +381,7 @@ int main(void)
     t_fill();
     t_nudge();
     t_page2();
+    t_chacc();
     printf("lane fx: %s (%d failed)\n", bad ? "FAILED" : "passed", bad);
     return bad;
 }

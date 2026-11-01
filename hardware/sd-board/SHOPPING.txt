@@ -1,0 +1,32 @@
+FM-1 SD card mod: shopping list (AliExpress), 2026-10-25
+=========================================================
+
+The user's plan: no breadboard test rig. Find J12's pin map with a breakout, then order the
+SD board (JLCPCB, assembled) directly. The SD board is also the splitter (two 10-pin sockets).
+
+Prices as AliExpress showed them on 2026-10-25 (EUR, may change). Check that the option
+(pins, length, type) exists before paying.
+
+1. THE BREAKOUT: 10-pin 0.5 mm -> 2.54 mm adapter board, flat-cable connector ALREADY SOLDERED
+   For the pin map: J12 -> 10-pin cable -> this board; the multimeter probes go into its
+   2.54 mm holes (no pin headers needed for that).
+   https://www.aliexpress.com/item/1005007617729176.html   (soldered connector, 4-60 pins, 4000+ sold, ~EUR 2.33) -> 10P, 0.5 mm
+   or https://www.aliexpress.com/item/4001049362633.html   ("welded plate" = connector soldered, 2 pcs ~EUR 1.69) -> 10P
+   or https://www.aliexpress.com/item/1005013310252310.html   (soldered connector, comes with a 6/12/20 cm cable, ~EUR 2.59) -> 10 pin, 0.5 mm
+   Take 2 (one spare). Its connector may be bottom- or top-contact: either works with the
+   A and B cables below (one of them puts the contacts on the right side).
+
+2. 10-pin 0.5 mm cables, types A and B, 60 and 80 mm: IN THE CART (done)
+
+3. 10-pin 0.5 mm extension board (two sockets 1:1), to try under the screen: IN THE CART
+   (the user's idea: more wiggle room for the LCD cable)
+
+Then: Claude builds the pin-finder firmware (one LCD pin high at a time); the User installs
+it, reads the breakout's 10 holes with the multimeter, and the SD board is finished and ordered.
+
+Not needed any more: the 6-pin cables, a separate splitter, and the test-rig parts
+(SD module, 74HC04, breadboard, jumper wires, resistors, capacitors): JLCPCB solders those
+parts on the SD board.
+
+Update 2026-10-27: J12 pin map probed by Julius (docs/SD-CARD-DESIGN.md section 3), so the
+pin-finder firmware is not needed for the taps; the breakout still serves to confirm pin 7 (3.3 V).

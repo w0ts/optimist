@@ -8,9 +8,6 @@
  * A mono ring of the mix (PUNCH_N samples, 0.74 s) feeds the loops, reverse, tape stop,
  * half speed, wobble and echo; the filters, crush and gate run in stereo. Every change
  * crossfades over 64 samples. Runs in the audio ISR (mix_block, fx.c). */
-#ifndef FELUCCA_PUNCH_N
-#define FELUCCA_PUNCH_N 32768u            /* the ring, samples (a power of two): 0.74 s; 16384 frees 32 KiB of pool */
-#endif
 #define PUNCH_N ((uint32_t)FELUCCA_PUNCH_N)
 _Static_assert(FELUCCA_PUNCH_N >= 4096 && (FELUCCA_PUNCH_N & (FELUCCA_PUNCH_N - 1)) == 0, "FELUCCA_PUNCH_N: a power of two");
 /* the transport clock (core.h clk_pos) places the loops and the gate on the grid */
@@ -21,7 +18,16 @@ enum { PX_LOOP4, PX_LOOP8, PX_LOOP16, PX_LOOP32, PX_STUT, PX_REV, PX_STOP, PX_HA
 static const char *const PUNCH_NAME[PUNCH_NFX] = {
     "LOOP 4", "LOOP 8", "LOOP 16", "LOOP 32", "STUTTER", "REVERSE", "STOP", "HALF",
     "LOW", "HIGH", "PHONE", "CRUSH", "ALIAS", "GATE", "ECHO", "WOBBLE"};
+#if FELUCCA_PUNCH_SW
+/* the arena's extras (the SD card mode): the ring is a block of the arena (core/arena_bufs.c ARB_PUNCH), placed while the
+ * project's PUNCH switch is on (punch_sw: GLOBAL > Rec, a new project's OFF, an older one's OFF too: nothing a project
+ * stores uses the punch, a live control), 0 meanwhile: no punch, the mix as it is */
+static int16_t *punch_ring;
+static int16_t punch_sw;
+static const param_desc_t PUNCH_SW_D = PE("PUNCH", N_ONOFF, 0);
+#else
 static int16_t punch_ring[FELUCCA_FX_PUNCH ? PUNCH_N : 1] __attribute__((section(".pool")));
+#endif
 static struct {
     volatile int8_t req;          /* effect asked for by the keys (-1 none), ISR keyboard_block */
     volatile uint8_t hold;        /* FX button held (UI main loop) */
@@ -137,6 +143,12 @@ static HOT void punch_process(int32_t *l, int32_t *r, uint32_t n)
     int32_t want = punch.req;
     uint32_t beat, step, echo_d;
     tsvf_t c1, c2;
+#if FELUCCA_PUNCH_SW
+    if (!punch_ring) {                                  /* (not placed: the switch off, or refused) */
+        punch.cur = -1;
+        return;
+    }
+#endif
     if (punch.cur < 0 && want < 0) {                   /* idle: only the ring */
         for (i = 0; i < n; i++)
             punch_ring[punch.w++ & (PUNCH_N - 1u)] = (int16_t)clamp((l[i] + r[i]) >> 4, -32768, 32767);
@@ -243,6 +255,25 @@ static HOT void punch_process(int32_t *l, int32_t *r, uint32_t n)
 }
 
 /* the keyboard (seq.c keyboard_block) while FX is held: white key index 0..15, -1 = black */
+#if FELUCCA_PUNCH_SW
+/* core/arena_bufs.c: the ring wanted (the switch on, or an effect still fading out); placed at p, zeroed, or gone (0;
+ * the interrupts off); the main loop's check of FX + a key while it is not placed: let go, 1 (the UI says so) */
+static uint32_t punch_used(void) { return punch_sw || punch.cur >= 0; }
+static void punch_mem(void *p)
+{
+    punch_ring = (int16_t *)p;
+    punch.w = 0;
+}
+static int punch_asked(void)
+{
+    if (punch.req < 0 || punch_ring)
+        return 0;
+    punch.req = -1;
+    punch.keybit = 0;
+    return 1;
+}
+#endif
+
 static int32_t punch_key(uint32_t k)
 {
     static const int8_t W[12] = {0, -1, 1, -1, 2, -1, 3, 4, -1, 5, -1, 6};   /* from F */

@@ -81,7 +81,7 @@ final class CoreMIDIFlashPorts: FlashPorts {
 
     /// a name the FM-1 may have (its firmware's, its loader's, the stock one's), never other gear (web/fm1ota.js find)
     static func mayBeFM1(_ name: String) -> Bool {
-        name.range(of: "fm-1|felucca|optimist|ota|composite|sinco|usb-midi", options: [.regularExpression, .caseInsensitive]) != nil
+        name.range(of: "fm-?1|felucca|optimist|smk-37|sloop|melodee|loom-?8|ota|composite|sinco|usb-midi", options: [.regularExpression, .caseInsensitive]) != nil
             && !name.lowercased().contains("bluetooth")
     }
 
@@ -140,6 +140,15 @@ final class CoreMIDIChannel: FlashChannel {
     var lost: Bool { Self.endpoint(sourceID) == nil || Self.endpoint(destinationID) == nil }
 
     func send(_ bytes: [UInt8]) -> Bool {
+        if bytes.count == 1, bytes[0] >= 0xF8, let dst = Self.endpoint(destinationID) {   // a system real-time byte: one UMP word
+            var word = UInt32(0x1000_0000) | UInt32(bytes[0]) << 16
+            let raw = UnsafeMutableRawPointer.allocate(byteCount: 256, alignment: 8)
+            defer { raw.deallocate() }
+            let list = raw.bindMemory(to: MIDIEventList.self, capacity: 1)
+            let packet = MIDIEventListInit(list, ._1_0)
+            _ = MIDIEventListAdd(list, 256, packet, 0, 1, &word)
+            return MIDISendEventList(outPort, dst, list) == noErr
+        }
         guard bytes.count >= 2, let dst = Self.endpoint(destinationID) else { return false }
         let words = SysExAssembler.packets(Array(bytes[1..<(bytes.count - 1)]))
         let size = 64 + words.count / 2 * 32

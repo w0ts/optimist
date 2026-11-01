@@ -40,7 +40,7 @@ static void pages_nav_tests(void)
         check(ui.scr == SCR_SYSTEM && ui.row[SCR_SYSTEM] == gl_pfirst(1, ps - 1u), "D1: GLO: SYSTEM again, on its line");
         tap(B_ENV);
         tap(B_GLO);
-        check(ui.scr == SCR_GLOBAL, "D1: GLO from another screen: GLOBAL");
+        check(ui.scr == SCR_SYSTEM, "D1: GLO from another screen: the one open last (SYSTEM was left for SOUND), not GLOBAL (2026-10-29)");
         check(glo_find(SCR_GLOBAL, "SYSTEM") == ng, "D1: GLOBAL has no SYSTEM line (GLO reaches SYSTEM)");
 #if BT_OVL
         bt.boot = 1;
@@ -69,7 +69,6 @@ static void pages_nav_tests(void)
 #if FELUCCA_SYS_DEBUG                                   /* (D2: the debug INFO page; SYS_DEBUG off: ui_optimist_sysdbg.h) */
     /* D2 (2026-10-14: SYSTEM's first page is INFO, read-outs: the clock, each core's load, the memory) */
     SCREENS[SCR_SYSTEM].name(0, nm);
-    info_mode = OVL_NOW;                                /* (the CPU line's measure: NOW, INFO's KNOB 2) */
     sys_info_cell(0, &c);
     sys_info_cell(1, &c2);
     check(!strcmp(nm, "INFO") && c.kind == CK_RO && !strcmp(c.label, "CLOCK") && !strcmp(c.unit, "MHz") &&
@@ -205,8 +204,7 @@ static void pages_master_order_tests(void)
     static const struct { const char *name, *old; uint8_t scope; } W[] = {
         {"INSERTS", "MST INS", SC_FXSLOT}, {"INS DYN 1", "COMP", SC_GLOBAL}, {"INS DYN 2", "LIMIT", SC_GLOBAL},
         {"DUCK", "MASTER", SC_GLOBAL},
-        {"RETURNS", 0, 0}, {"RET REV", "REV/CHO", SC_GLOBAL}, {"RET DELAY", "DLY", SC_GLOBAL}, {"RET DLY F", "DLY F", SC_GLOBAL},
-        {"SLOTS", "SLOTS", SC_FXSLOT},
+        /* (RETURNS, RET REV, RET DELAY, RET DLY F, SLOTS: the returns' own pages since 2026-10-30, op_mixer.c rt_rows) */
 #if FELUCCA_MACROS
         {"MACRO", "MACRO", SC_MACRO},
 #endif
@@ -217,7 +215,7 @@ static void pages_master_order_tests(void)
     mst_defaults();                                     /* (FILT DYN: earlier tests turn the master's TYPE cards) */
     fxs_set(FXS_DEF);                                   /* (the returns CHO DLY REV: the default) */
     reset_ui();
-    turn(EN_ALGO, -1);
+    mx_apply(MXR_MASTER);                               /* (the mixer's MASTER row, its last since 2026-10-30) */
     tap(B_FX);
     n = SCR->rows();
     for (r = 0; r < n; r++) {
@@ -255,14 +253,14 @@ static void pages_master_order_tests(void)
         }
         i++;
     }
-    ok = order && r == n;
-    check(ok, "MASTER's pages come in the order inserts (INSERTS, INS DYN 1 2, DUCK), returns (RETURNS, RET REV, RET DELAY, RET DLY F), SLOTS, MACRO");
-    check(cards, "... each moved page's four cards are the ones PAGES gives it; INS DYN 2 GAIN CEIL (GR a read-out), RETURNS has CHO DLY REV RET (the one order)");
+    ok = order && r == n && i == sizeof W / sizeof W[0];
+    check(ok, "MASTER's pages come in the order inserts (INSERTS, INS DYN 1 2, DUCK), MACRO; none of the returns' (2026-10-30)");
+    check(cards, "... each moved page's four cards are the ones PAGES gives it; INS DYN 2 GAIN CEIL (GR a read-out)");
     reset_ui();
 }
 static void pages_master_tests(void)
 {
-    static const char *const WANT[] = {"INSERTS", "INS DYN 1", "INS DYN 2", "DUCK", "RETURNS", "RET REV", "RET DELAY", "RET DLY F", "SLOTS",
+    static const char *const WANT[] = {"INSERTS", "INS DYN 1", "INS DYN 2", "DUCK",
 #if FELUCCA_MACROS
                                        "MACRO",
 #endif
@@ -274,7 +272,7 @@ static void pages_master_tests(void)
     mst_defaults();                                     /* (FILT DYN: earlier tests turn the master's TYPE cards) */
     fxs_set(FXS_DEF);                                   /* (the returns CHO DLY REV: the default) */
     reset_ui();
-    turn(EN_ALGO, -1);
+    mx_apply(MXR_MASTER);
     tap(B_FX);
     n = SCR->rows();
     for (r = 0; r < n; r++) {
@@ -285,7 +283,8 @@ static void pages_master_tests(void)
         i++;
     }
     check(ui.scr == SCR_FX && ok && i == sizeof WANT / sizeof WANT[0],
-          FELUCCA_MACROS ? "D3: MASTER's 10 pages: INSERTS INS DYN 1 2 DUCK, RETURNS RET REV RET DELAY RET DLY F, SLOTS, MACRO" : "D3: MASTER's pages: INSERTS INS DYN 1 2 DUCK, RETURNS RET REV RET DELAY RET DLY F, SLOTS");
+          FELUCCA_MACROS ? "D3: MASTER's pages: INSERTS INS DYN 1 2 DUCK, MACRO (the returns' on their own rows, 2026-10-30)"
+                         : "D3: MASTER's pages: INSERTS INS DYN 1 2 DUCK (the returns' on their own rows, 2026-10-30)");
     pages_master_order_tests();
     head_title(SCR_FX, 0, h, sizeof h);
     check(!strcmp(SCR_NAME[SCR_FX], "MASTER") && !strcmp(h, "Insert"), "D3: the screen is MASTER (its badge), the title \"Insert\"");
@@ -342,40 +341,46 @@ static uint32_t kws(uint32_t a, uint32_t b)             /* white keys a..b */
 }
 static void hold_layer(uint32_t b) { press(b); frames(HOLD_FRAMES); }
 static void let_go(uint32_t b) { release(b); frames(2); reset_ui(); }
-/* the pages with no track context (GLOBAL, SYSTEM, PROJECT): the keys play nothing, send nothing, light nothing, pick
- * no lane; PROJECT's slot rows keep the slot pick; the layers and a key held over a page change stay sound */
+/* the pages with no track (the user, 2026-10-30: "every page without a track" plays the selected track, "exception the
+ * patterns/save page that use the keyboard"): GLOBAL, SYSTEM, MASTER FX, SCOPE play it as its own pages do; PROJECT and
+ * SONG keep their keys' own jobs (play nothing, send nothing, light nothing, pick no lane; PROJECT's slot rows pick the
+ * slot); the layers and a key held over a page change stay sound */
 static int key_dead(uint32_t k) { return kb_kind[k] == KS_UI || kb_kind[k] == KS_NONE; }
+/* a key plays the selected track: a note, a drum hit, or on the drum track a white key its step (the UI's, as on every
+ * page with the drum track) */
+static int key_plays(uint32_t k)
+{
+    return kb_kind[k] == KS_NOTE || kb_kind[k] == KS_DRUM || (is_drum(TSEL) && kb_kind[k] == KS_UI);
+}
 static void keys_global_tests(void)
 {
     uint32_t pass, r, tools = 0, sel0;
     for (pass = 0; pass < 2u; pass++) {
         song.sel = pass ? TRK_DRUM : 0;
+        trk[0].p[P_CHORD] = 0;                          /* (T1 plays notes: the random use before may leave a CHORD mode, its black keys modifiers) */
         reset_ui();
         frames(2);
         tap(B_GLO);
         frames(2);
         check(ui.scr == SCR_GLOBAL, "keys, no-track pages: GLO: GLOBAL");
         kdown(WK(3));
-        check(key_dead(WK(3)) && kb_kind[WK(3)] != KS_NOTE && kb_kind[WK(3)] != KS_DRUM, "GLOBAL: a white key plays nothing");
-        keys_are(0, 0, "GLOBAL: the keys are dark");
+        check(key_plays(WK(3)), "GLOBAL: a white key plays the selected track");
         kup(WK(3));
         kdown(1);
-        check(kb_kind[1] != KS_NOTE && kb_kind[1] != KS_DRUM, "GLOBAL: a black key plays nothing");
+        check(kb_kind[1] == KS_NOTE || kb_kind[1] == KS_DRUM, "GLOBAL: a black key plays the selected track");
         kup(1);
-        sel0 = lane_selected();
         press(B_OCTDN);
         frames(HOLD_FRAMES);
         kdown(WK(5));
-        check(lane_selected() == sel0 && kb_kind[WK(5)] != KS_NOTE && kb_kind[WK(5)] != KS_DRUM, "GLOBAL: SHIFT + a key: no lane pick, no sound");
-        keys_are(0, 0, "GLOBAL: SHIFT held: the keys stay dark");
+        check(kb_kind[WK(5)] != KS_NOTE && kb_kind[WK(5)] != KS_DRUM, "GLOBAL: SHIFT + a key: its mute, no sound (as on every page)");
         kup(WK(5));
         release(B_OCTDN);
+        smute_clear();
         tap(B_GLO);
         frames(2);
         check(ui.scr == SCR_SYSTEM, "keys, no-track pages: GLO again: SYSTEM");
         kdown(WK(2));
-        check(kb_kind[WK(2)] != KS_NOTE && kb_kind[WK(2)] != KS_DRUM, "SYSTEM: a key plays nothing");
-        keys_are(0, 0, "SYSTEM: the keys are dark");
+        check(key_plays(WK(2)), "SYSTEM: a key plays the selected track (INFO: the meters while playing)");
         kup(WK(2));
         reset_ui();
         op_enter(SCR_PROJECT);
@@ -403,7 +408,8 @@ static void keys_global_tests(void)
         kup(WK(1));
         release(B_OCTDN);
         reset_ui();
-        /* MASTER FX, SCOPE, SONG (not its PATTERNS row), TEMPO: the same */
+        /* MASTER FX and SCOPE play the selected track; SONG (not its PATTERNS row) keeps its keys (the scenes, the
+         * parts, the PATTERNS / MODE key since 2026-10-20); TEMPO's are the tempo's */
         {
             static const uint8_t SCRS[3] = {SCR_FX, SCR_SCOPE, SCR_SONG};
             uint32_t i;
@@ -416,19 +422,24 @@ static void keys_global_tests(void)
                     continue;
                 sel0 = lane_selected();
                 kdown(WK(3));
-                check(ui.scr == SCRS[i] && kb_kind[WK(3)] != KS_NOTE && kb_kind[WK(3)] != KS_DRUM, "MASTER FX / SCOPE / SONG: a key plays nothing");
-                if (SCRS[i] != SCR_SONG)                /* (SONG: its keys are the scenes, the parts, the PATTERNS / MODE key since 2026-10-20) */
-                    keys_are(0, 0, "MASTER FX / SCOPE / SONG: the keys are dark");
+                if (SCRS[i] == SCR_SONG)
+                    check(ui.scr == SCRS[i] && kb_kind[WK(3)] != KS_NOTE && kb_kind[WK(3)] != KS_DRUM, "SONG: a key plays nothing (its own job)");
+                else
+                    check(ui.scr == SCRS[i] && key_plays(WK(3)), "MASTER FX / SCOPE: a key plays the selected track");
                 kup(WK(3));
                 kdown(1);
-                check(kb_kind[1] != KS_NOTE && kb_kind[1] != KS_DRUM, "MASTER FX / SCOPE / SONG: a black key plays nothing");
+                if (SCRS[i] == SCR_SONG)
+                    check(kb_kind[1] != KS_NOTE && kb_kind[1] != KS_DRUM, "SONG: a black key plays nothing");
+                else
+                    check(kb_kind[1] == KS_NOTE || kb_kind[1] == KS_DRUM, "MASTER FX / SCOPE: a black key plays the selected track");
                 kup(1);
                 press(B_OCTDN);
                 frames(HOLD_FRAMES);
                 kdown(WK(5));
-                check(lane_selected() == sel0 && kb_kind[WK(5)] != KS_NOTE && kb_kind[WK(5)] != KS_DRUM, "MASTER FX / SCOPE / SONG: SHIFT + a key: no lane pick");
+                check(lane_selected() == sel0 && kb_kind[WK(5)] != KS_NOTE && kb_kind[WK(5)] != KS_DRUM, "MASTER FX / SCOPE / SONG: SHIFT + a key: no lane pick, no sound");
                 kup(WK(5));
                 release(B_OCTDN);
+                smute_clear();
             }
             reset_ui();
             press(B_PLAY);
@@ -526,6 +537,25 @@ static void pages_keys_tests(void)
     frames(2);
     lanes_lit("D10: the drum track's SOUND: the lanes' black keys (and the last upper key, ACCENT) lit, the selected one full");
     reset_ui();
+    song.sel = 0;                                       /* the keys light the notes the track sounds (always built since 2026-10-29) */
+    op_enter(SCR_STEP);
+    frames(2);
+    tap(B_REC);                                         /* (REC on: STEP's keys are the keyboard, 2026-10-31; stopped it is STEP ENTRY */
+    tap(B_PLAY);                                        /* since 2026-11-01, PLAY arms the take: the keys the keyboard again) */
+    frames(2);
+    {
+        uint32_t f = 0, d = 0, h = 0, k = 6, was;
+        keys_lit(&f, &d, &h);
+        was = (f >> k) & 1u;
+        trk[0].seq_n = 1;
+        trk[0].seq_notes[0] = (uint8_t)kb_map(&trk[0], k);
+        keys_lit(&f, &d, &h);
+        check(!was && ((f >> k) & 1u) && !(d & kws(0, 15)), "STEP, a synth track, REC on: the key of the note the track sounds lights, dark before; no step dim");
+        trk[0].seq_n = 0;
+    }
+    tap(B_REC);
+    frames(2);
+    reset_ui();
     song.sel = TRK_DRUM;
     op_enter(SCR_STEP);
     lane_select(4);
@@ -542,8 +572,8 @@ static void pages_keys_tests(void)
         uint32_t f = 0, d = 0, h = 0, len = trk_len(TDRUM), w, edim = 0;
         keys_lit(&f, &d, &h);
         for (w = 0; w < 16u && w < len; w++)
-            edim |= (w == 2u || w == 3u) ? 0u : kw(w);
-        check((f & kws(0, 15)) == (kw(2) | kw(3)) && (d & kws(0, 15)) == edim, "STEP, the drum track, SEQ held: the steps with any lane set full (the selected lane's or not), the empty ones dim");
+            edim |= w == 2u ? 0u : kw(w);
+        check((f & kws(0, 15)) == kw(2) && (d & kws(0, 15)) == edim, "STEP, the drum track, SEQ held (the fill view): the selected lane's steps full, the empty ones dim (no more any lane's)");
     }
     release(B_SEQ);
     reset_ui();
@@ -555,24 +585,7 @@ static void pages_keys_tests(void)
     frames(2);
     keys_are(kw(3), kws(0, 15), "D10: FX layer: the latched effect full");
     punch.req = -1;
-#if FELUCCA_LIGHTS
-    {   /* LIGHTS / KEYS ALL: the backlight off while a mode lights its keys */
-        uint8_t kl = lights_keys, ll = lights_lvl, q = led_pos[14u];
-        uint32_t on_lay, on_mix;
-        lights_keys = 3;
-        lights_lvl = LIGHTS_LOW;
-        frames(2);
-        on_lay = (fm1_led_bg[q >> 3] >> (q & 7u)) & 1u;
-        let_go(B_FX);
-        frames(2);
-        on_mix = (fm1_led_bg[q >> 3] >> (q & 7u)) & 1u;
-        check(!on_lay && on_mix, "D10: the KEYS backlight is off while a layer lights its keys, on again on the mixer");
-        lights_keys = kl;
-        lights_lvl = ll;
-    }
-#else
     let_go(B_FX);
-#endif
     for (k = 0; k < 4u; k++)
         fxoff[k] = trk[k].p[P_FXOFF], trk[k].p[P_FXOFF] = 0;
     smute_set_trk(1, 1);
@@ -795,7 +808,7 @@ static void pages_head_tests(void)
         check(!strncmp(t, "General ", 8) && hd_badge_is("SYSTEM"), "D11: SYSTEM's KNOB COLORS line: the badge SYSTEM, \"General n/N\"");
     }
     reset_ui();
-    turn(EN_ALGO, -1);
+    mx_apply(MXR_MASTER);
     tap(B_FX);
     {
         char t[32];

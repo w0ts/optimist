@@ -9,7 +9,7 @@ start-up and stored trims, the central role, the console tools. Registers and en
 ## 1. What it is, and where it stands
 
 - Builder items (MIDI & USB group): **`BLE`** (`FELUCCA_BLE`, off by default; off, the image is byte-identical but for the
-  builder's configuration hash), **`BLE_DIAG`** (the `blell` diagnostics), **`BLE_BOND`** (pairing, an encrypted link),
+  builder's configuration hash), **`BLE_BOND`** (pairing, an encrypted link),
   **`BLE_CENTRAL`** (the devices list, connecting out, reconnecting LAST; at level 1 it brings the bonding code with it). Their
   costs: `tools/builder/costs.json` (docs/BUILDER.md). No V15 file is needed: the radio's start-up tables are committed (section 8.3).
 - **SYSTEM > BT MIDI > MODE is OFF by default** and then the radio does not even start; MAN or AUTO switch it on.
@@ -33,7 +33,7 @@ master) · `ble_host.c` (GAP data, L2CAP, signalling) · `ble_att.c` (ATT server
 `ble_midi.c` (BLE-MIDI packets to and from USB-MIDI event packets) · `ble_store.c`, `ble_scan.c` (the one remembered device; the
 nearby devices' table) · `ble_hw_wl82.c` + `ble_hw_wl82_central.c` + `hal/fm1_ble.h` (**the driver** on the AC791N / WL82 engine,
 section 7) · `ble_hw_stub.c` (a driver that never calls back, `FELUCCA_BLE_STUB=1`) · `ble_vm.c`, `hal/fm1_ble_rf.h`,
-`hal/ble_rf_tables_v15.h` (stored trims, the start-up program runner, the captured tables; section 8) · `ble_diag.c` (`blell`) ·
+`hal/ble_rf_tables_v15.h` (stored trims, the start-up program runner, the captured tables; section 8) ·
 `ble_stack.c` (the unity-build wrapper: every function `static` via `BLE_API`) · `io/midi/midi_ble.c`, `ble_devices.c`,
 `ble_connect.c` (rings, bond, address, on / off; the devices list; connecting out and LAST) · `tools/ble_rf_capture.py`,
 `ble_rf_pack.py`, `ble_vm.py` (the table capture, its packing, a VM dump decoder).
@@ -59,7 +59,7 @@ retransmission), `_tx` (a TX buffer is free: the LL writes the final, already en
 ## 4. Link layer (peripheral)
 
 - **Advertising:** ADV_IND = AdvA + flags (`02 01 06`) + the BLE-MIDI 128-bit UUID, ChSel 0; SCAN_RSP = the complete local name
-  `Optimist XXXX` (`BLE_DEVICE_NAME`; stock's was `FM-1_BLE`). 100 ms, 37 / 38 / 39.
+  `FM1-XXXX` (`BLE_DEVICE_NAME` `FM1-` and `BLE_NAME_SEP`; before 2026-10-29 `Optimist XXXX`; stock's was `FM-1_BLE`). 100 ms, 37 / 38 / 39.
 - **CONNECT_IND checks:** our AdvA and RxAdd; Interval 6..3200; Timeout 10..3200 and > (1 + Latency) x Interval x 2; WinSize
   1..min(8, Interval - 1); WinOffset <= Interval; Hop 5..16; >= 2 channels; not the advertising AA. Anything else is ignored and
   advertising goes on (`cind_rej_why` says which).
@@ -72,7 +72,7 @@ retransmission), `_tx` (a TX buffer is free: the LL writes the final, already en
 
 ## 5. Host and GATT
 
-Handles: 1 GAP 0x1800; 2-3 Device Name (`Optimist XXXX`); 4-5 Appearance (0); 6-7 Peripheral Preferred Connection Parameters
+Handles: 1 GAP 0x1800; 2-3 Device Name (`FM1-XXXX`); 4-5 Appearance (0); 6-7 Peripheral Preferred Connection Parameters
 (6, 9, 0, 100); 8 GATT 0x1801; 9-11 Service Changed + CCCD; 12 BLE-MIDI service `03B80E5A-EDE8-4B33-A751-6CE34EC4C700`; 13-15 MIDI
 I/O `7772E5DB-3868-4112-A1A9-F2669D106BF3` (read: empty; write without response; notify; Write Request accepted too) + CCCD.
 
@@ -282,20 +282,13 @@ writes memory, flash or a register.
 | `blevm` | every VM candidate's first word, every valid record (offset, id, length), the live area, which records are there, 187's CRC, the data |
 | `blevmdump` | every candidate area raw (24 KiB in `flr`'s format, then `end`); `tools/ble_vm.py LOG` decodes a saved log |
 | `bletrim` | the trim source, BLUETOOTH and whether the radio started this boot, the VM summary, the copy raw and decoded, the tables' SHA-256, what the start-up did (ops, trims, LUT words, timeouts, the scan's band, the last section and the set) |
-| `blell [clear\|regs]` | (`BLE_DIAG`) the counters and rings of `ble_diag.h`; `regs` adds the engine's columns and interrupt registers |
 | `flr OFFSET [LEN<=256]` | raw flash from `0x093000` up (the VM: `flr 0xe8000 256`) |
 | `dbg` | ends with `prev_ble` / `prev_ble_irqs` (the breadcrumb) |
 
-**`BLE_DIAG`** builds the counters: the LL, the driver, the TX / RX rings, the protocol ring of the last 64 PDUs both ways (every ATT,
-signalling and SMP PDU, and LL encryption PDUs), BLE-MIDI in, and for the central role `scan_*`, `cen_*`, `m_*`, `gc_*`, `si_*`,
-`rc_*`. Off, every recording is `BLE_DG(statement)`, which compiles to nothing; the radio code, `bletrim`, `blevm`, `blevmdump` and the
-breadcrumb are the same. `blell` reads RAM only; counters run from the radio's start or `blell clear`. The field names are in
-`ble_diag.c`; the ones to read first: `adv_events` (IRQ 45 while advertising: must keep growing), `cind_ok` / `cind_rej_why`
-(why a CONNECT_IND was refused: 1 not advertising, 2 format, 3 RxAdd, 4 AdvA, 5 interval / latency / timeout, 6 WinSize, 7 WinOffset,
-8 hop, 9 map, 10 AA), `rx_good` / `rx_crc_bad` / `rx_repeat` / `rx_desync`, `tx_queued` / `tx_acked` (should follow each other) /
-`tx_ack_evt_max` (1-3), `ctl_rx_last` / `ctl_tx_last` / `att_rx_last` (the last 8 opcodes), `closes` / `close_reason` / `close_by`
-(0 us, 1 the central, 2 supervision timeout, 3 never established, 4 procedure timeout, 5 protocol error, 6 our terminate
-unacknowledged), `isr_max_us`, `clk_step_max`.
+The link layer's diagnostics (the `BLE_DIAG` item: `blell`, its counters, the event and protocol rings) were removed
+2026-10-29 (the user: "we can remove the diagnostics"); the driver keeps its own counters (`ble_hw_wl82.c`
+`ble_hw_stat`: events, receptions, repeats, errors, TX handed and acknowledged, connections, late instants, the longest
+interrupt), the breadcrumb below names every start-up step and the last link stop, and the emulator tests read both.
 
 **The BLE breadcrumb** (`hal/fm1_ble_rf.h`): a word in `.noinit` (it survives a watchdog reset, not a power cycle) that every step of the
 radio's start-up writes, and a count of BLE interrupts since. At boot `main.c` moves them to `prev_ble` / `prev_ble_irqs`. `prev_ble` reads

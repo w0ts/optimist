@@ -37,7 +37,6 @@
 #include "../firmware/src/ble/ble_host.c"
 #include "../firmware/src/ble/ble_att.c"
 #include "../firmware/src/ble/ble_midi.c"
-#include "../firmware/src/ble/ble_diag.c"
 #include "../firmware/src/ble/ble_store.c"
 #include "../firmware/src/ble/ble_scan.c"
 #include "../firmware/src/ble/ble_gattc.c"
@@ -99,7 +98,6 @@ void ble_hw_chmap_update(const uint8_t chm[5], uint16_t instant) { memcpy(hw.chm
 void ble_hw_set_lengths(uint8_t max_tx, uint8_t max_rx) { (void)max_tx, (void)max_rx; }
 void ble_hw_tx_kick(void) {}
 uint32_t ble_hw_time_us(void) { return now_us; }
-uint32_t ble_hw_diag_now(void) { return now_us; }
 static const uint8_t OWN[6] = {0x11, 0x22, 0x33, 0x44, 0x55, 0xC6};
 uint8_t ble_hw_addr(uint8_t addr[6]) { memcpy(addr, OWN, 6); return 1; }
 void ble_hw_rand(uint8_t *out, uint8_t n)
@@ -126,8 +124,12 @@ void ble_app_state(void) { state_calls++; }
 void ble_app_bond(const uint8_t rand[8], uint16_t ediv, const uint8_t ltk[16]) { (void)rand, (void)ediv, (void)ltk; }
 void ble_app_peer_id(const uint8_t irk[16], const uint8_t a[6], uint8_t r) { (void)irk, (void)a, (void)r; }
 static struct ble_keys got_keys;
-static int got_keys_n;
-void ble_app_central_keys(const struct ble_keys *k) { got_keys = *k, got_keys_n++; }
+static int got_keys_n, auth_keys_n;            /* bonds handed to the firmware; those authenticated (a passkey) */
+void ble_app_central_keys(const struct ble_keys *k)
+{
+    got_keys = *k, got_keys_n++;
+    auth_keys_n += (k->has & BLE_KEYS_AUTH) != 0;
+}
 
 /* ------------------------------------------------------------------------------------- the peripheral */
 static const uint8_t PADDR[6] = {0x37, 0x37, 0x4B, 0x65, 0x79, 0xC4};   /* random static */
@@ -178,7 +180,15 @@ static struct {
     int enc_wait, mic_on_enc;                  /* events until its LL_ENC_RSP (its host's LTK lookup); it leaves
                                                 * with 0x3D on our LL_ENC_REQ (a key it cannot use) */
     uint8_t enc_req[23];
+    /* what it saw of ours / answered (counted on its side of the air) */
+    int auth_errs, cccd_writes, wcmd_n;        /* its Insufficient Authentication answers; our CCCD Write Requests;
+                                                * our Write Commands (any handle) */
+    int mconf_n, enc_rejs, late_fails;         /* our Mconfirms; its LL_REJECT_EXT_IND to our LL_ENC_REQ; its late
+                                                * Pairing Failed (after a Just Works pairing) */
+    int sig_rsp_n, sig_rsp_id, sig_rsp_res;    /* our L2CAP Connection Parameter Update Responses: the last's id and
+                                                * result */
 } P;
+static int pair_reqs_all;                      /* our Pairing Requests it got, over all links (P.pair_reqs: this one) */
 
 static void p_reset(void)
 {
@@ -324,6 +334,7 @@ static void p_enc_answer(const uint8_t *p)
     } else {
         d[0] = LL_REJECT_EXT_IND, d[1] = LL_ENC_REQ, d[2] = 0x06;
         p_ctrl(d, 3);
+        P.enc_rejs++;
         P.enc_start = 0;
         return;
     }
@@ -371,6 +382,7 @@ static void p_smp(const uint8_t *p, int n)
     (void)n;
     switch (p[0]) {
     case 0x01:                                 /* Pairing Request */
+        pair_reqs_all++;
         if (!P.pair_reqs++)
             memcpy(P.preq_first, p, 7);
         P.enc_stk = 0;
@@ -391,6 +403,7 @@ static void p_smp(const uint8_t *p, int n)
         P.smp_st = 1;
         return;
     case 0x03:                                 /* Mconfirm */
+        P.mconf_n++;
         memcpy(P.mconf, p + 1, 16);
         if (P.pk && P.typed < 0) {
             P.smp_st = 10;                     /* (its user has not typed the passkey yet) */
@@ -423,6 +436,7 @@ static void p_smp(const uint8_t *p, int n)
             else if (P.iphone && !P.pk) {      /* (iOS after a Just Works pairing, blell-dev3 pdu 121 / 160) */
                 c[0] = 0x05, c[1] = 0x08;
                 p_l2(6, c, 2);
+                P.late_fails++;
             }
         }
         return;
@@ -516,12 +530,15 @@ static void p_att_rx(const uint8_t *p, int n)
             p_att_err(0x12, p[1], 0x03);
             return;
         }
+        P.cccd_writes++;
         if ((P.need_auth && !P.enc_rx) || (P.mitm_need && (!P.enc_rx || !P.enc_auth || P.sc_only))) {
             p_att_err(0x12, PH_CCCD, 0x05);    /* Insufficient Authentication (Apple's peripherals, QA1831) */
+            P.auth_errs++;
             if (P.late_pending) {              /* (its late Pairing Failed after the refusal: our MITM request out) */
                 static const uint8_t f[2] = {0x05, 0x08};
                 P.late_pending = 0;
                 p_l2(6, f, 2);
+                P.late_fails++;
             }
             return;
         }
@@ -530,6 +547,7 @@ static void p_att_rx(const uint8_t *p, int n)
         p_att(r, 1);
         return;
     case 0x52:                                 /* Write Command: the FM-1's MIDI out */
+        P.wcmd_n++;
         if (p[1] == PH_MIDI_V) {
             P.writes++;
             memcpy(P.wcmd, p + 3, n - 3 < 8 ? n - 3 : 8);
@@ -537,6 +555,16 @@ static void p_att_rx(const uint8_t *p, int n)
         return;
     default:
         return;
+    }
+}
+
+/* its L2CAP signalling channel (CID 5): our Connection Parameter Update Response {code 0x13, id, length 2, result} */
+static void p_sig(const uint8_t *p, int n)
+{
+    if (n >= 6 && p[0] == 0x13) {
+        P.sig_rsp_n++;
+        P.sig_rsp_id = p[1];
+        P.sig_rsp_res = p[4] | p[5] << 8;
     }
 }
 
@@ -575,11 +603,13 @@ static void p_take(uint8_t *pdu, int len)
             p_att_rx(P.l2 + 4, P.have - 4);
         else if (cid == 6)
             p_smp(P.l2 + 4, P.have - 4);
+        else if (cid == 5)
+            p_sig(P.l2 + 4, P.have - 4);
     }
 }
 
 /* one connection event (the master transmits first) */
-static void p_event(void)
+static void p_event_run(void)
 {
     uint8_t pdu[2 + 255];
     int i, k;
@@ -611,6 +641,21 @@ static void p_event(void)
     if (P.dying)
         P.alive = P.dying = 0;                 /* (its TERMINATE_IND went: gone) */
 }
+/* the passkeys we showed (a new one on the screen), over all links */
+static int passkeys_n;
+static uint32_t passkey_last = BLE_NO_PASSKEY;
+static void p_event(void)
+{
+    uint32_t pk;
+    p_event_run();
+#if BLE_CEN_PAIR
+    pk = ble_central_passkey();
+#else
+    pk = BLE_NO_PASSKEY;
+#endif
+    passkeys_n += pk != BLE_NO_PASSKEY && pk != passkey_last;
+    passkey_last = pk;
+}
 static void p_events(int n)
 {
     while (n-- > 0)
@@ -622,6 +667,21 @@ static int p_ctrl_seen(uint8_t op)
     for (i = 0; i < P.ctrl_n && i < 96; i++)
         if (P.ctrl[i][0] == op)
             return i + 1;
+    return 0;
+}
+static int p_ctrl_count(uint8_t op)
+{
+    int i, k = 0;
+    for (i = 0; i < P.ctrl_n && i < 96; i++)
+        k += P.ctrl[i][0] == op;
+    return k;
+}
+static int p_att_seen(uint8_t op)
+{
+    int i;
+    for (i = 0; i < P.att_n && i < 64; i++)
+        if (P.att_ops[i] == op)
+            return 1;
     return 0;
 }
 
@@ -693,7 +753,8 @@ static void test_initiator(void)
     check("initiator: a second CONNECT_IND draws another AA and CRCInit",
           hw.in.conn.aa != aa && hw.in.conn.crc_init != crc && ble_aa_valid(hw.in.conn.aa));
     ble_central_cancel();
-    check("blell: two connects, two cancels counted", ble_dgc.connects == 2 && ble_dgc.cancels == 2);
+    check("initiator: two connects, two cancels: state 3 started twice, stopped twice, IDLE",
+          hw.init_starts == 2 && hw.init_stops == 2 && !hw.init_on && ble_central_state() == BLE_CS_IDLE);
 }
 
 static void test_master_and_gatt(void)
@@ -709,8 +770,7 @@ static void test_master_and_gatt(void)
           v && f && l && v < f && f < l && bll.feat_known && bll.peer_feat == 0x21 && bll.len_done);
     check("GATT client: MTU (185), Find By Type Value, Read By Type, Find Information, the CCCD write",
           P.att_ops[0] == 0x02 && P.att_ops[1] == 0x06 && P.att_ops[2] == 0x08 && batt.mtu == 185 && P.cccd == 1 &&
-              ble_dgc.gc_svc_s == PH_MIDI && ble_dgc.gc_svc_e == PH_DESC && ble_dgc.gc_val == PH_MIDI_V &&
-              ble_dgc.gc_cccd == PH_CCCD);
+              bgc.svc_s == PH_MIDI && bgc.svc_e == PH_DESC && bgc.val == PH_MIDI_V && bgc.cccd == PH_CCCD);
     check("ready: BLE-MIDI subscribed, ble_midi_ready(), the firmware told", ble_central_state() == BLE_CS_READY &&
           ble_midi_ready() && ble_gattc_midi() == PH_MIDI_V && state_calls >= 2);
     {
@@ -724,7 +784,7 @@ static void test_master_and_gatt(void)
     out_q[out_w++ % 64] = 0x09u | 0x90u << 8 | 0x40u << 16 | 0x50u << 24;
     p_events(3);
     check("MIDI out: a Write Command (Write Without Response) to its MIDI I/O value: 90 40 50",
-          P.writes == 1 && P.wcmd[2] == 0x90 && P.wcmd[3] == 0x40 && P.wcmd[4] == 0x50 && ble_dgc.gc_wcmd_tx == 1);
+          P.writes == 1 && P.wcmd[2] == 0x90 && P.wcmd[3] == 0x40 && P.wcmd[4] == 0x50 && P.wcmd_n == 1);
     memset(d, 0, 9);
     d[0] = LL_PERIPHERAL_FEATURE_REQ, d[1] = 0x21;
     p_ctrl(d, 9);
@@ -759,9 +819,9 @@ static void test_master_and_gatt(void)
         P.att_n = 0;
         p_l2(5, req, sizeof req);
         p_events(3);
-        check("its L2CAP Connection Parameter Update Request {6, 9, 0, 200}: accepted, then an LL update to 9",
-              hw.upd_n == 2 && hw.upd.interval == 9 && hw.upd.timeout == 200 && P.ctrl_n > n0 &&
-                  ble_dgc.m_l2_upd_rx == 1);
+        check("its L2CAP Connection Parameter Update Request {6, 9, 0, 200}: accepted (one Response, its id, result 0), "
+              "then an LL update to 9", hw.upd_n == 2 && hw.upd.interval == 9 && hw.upd.timeout == 200 &&
+                  P.ctrl_n > n0 && P.sig_rsp_n == 1 && P.sig_rsp_id == 0x09 && P.sig_rsp_res == 0);
         p_events(16);
     }
     {
@@ -784,10 +844,11 @@ static void test_pairing(void)
     connect(0);
     P.need_auth = 1;
     p_events(80);
-    check("pairing: the CCCD write answered Insufficient Authentication -> legacy Just Works as initiator",
-          ble_dgc.gc_auth_errs >= 1 && ble_dgc.si_pair_req >= 1 && ble_dgc.si_pair_rsp >= 1 && ble_dgc.si_confirm_ok >= 1);
+    check("pairing: the CCCD write answered Insufficient Authentication -> legacy Just Works as initiator (our Pairing "
+          "Request, our Mconfirm on its Response, the STK's LL_ENC_REQ once its Sconfirm checked)",
+          P.auth_errs >= 1 && P.pair_reqs >= 1 && P.mconf_n >= 1 && P.enc_stk);
     check("pairing: the STK encryption (EDIV 0, Rand 0) started by us, the link encrypted both ways",
-          ble_ll_encrypted() && P.enc_tx && P.enc_rx && ble_dgc.m_enc_on >= 1);
+          ble_ll_encrypted() && bll.enc_rx && P.enc_tx && P.enc_rx);
     check("pairing: its keys taken (LTK, EDIV / Rand, IRK, identity), ours sent after (4 PDUs), to the firmware",
           got_keys_n == n0 + 1 && got_keys.has == (BLE_KEYS_LTK | BLE_KEYS_ID) && got_keys.ltk[0] == 0x40 &&
               got_keys.ediv == 0xBEEF && got_keys.rand[7] == 0x77 && got_keys.irk[0] == 0xA7 &&
@@ -799,13 +860,14 @@ static void test_pairing(void)
               "bonded once refuses a new IRK for the same identity address", !memcmp(P.our_irk, irk, 16));
     }
     check("pairing: the CCCD written again once paired: ready", ble_central_state() == BLE_CS_READY && P.cccd == 1 &&
-          ble_dgc.gc_retries >= 1);
+          P.cccd_writes >= 2);
     leave();
     connect(1);
     P.need_auth = 1;
     p_events(60);
     check("a bonded peer: encrypted at once with the bond's LTK (its EDIV / Rand), no pairing, ready",
-          P.ltk_used == 1 && P.smp_st == 0 && ble_central_state() == BLE_CS_READY && ble_dgc.si_ltk_enc >= 1);
+          P.ltk_used == 1 && P.smp_st == 0 && ble_central_state() == BLE_CS_READY && bcen.enc_tried &&
+              bcen.encrypted && !bcen.pairing);
     leave();
     P.lost_bond = 1;
     connect(1);
@@ -813,7 +875,7 @@ static void test_pairing(void)
     P.need_auth = 1;
     p_events(90);
     check("a bond the peripheral lost: LL_ENC_REQ refused (Key Missing) -> paired afresh, ready",
-          ble_dgc.m_enc_rej >= 1 && got_keys_n == n0 + 2 && ble_central_state() == BLE_CS_READY);
+          P.enc_rejs >= 1 && !bcen.peer.bonded && got_keys_n == n0 + 2 && ble_central_state() == BLE_CS_READY);
     leave();
     connect(0);
     {
@@ -821,7 +883,7 @@ static void test_pairing(void)
         p_l2(6, sec, 2);
     }
     p_events(80);
-    check("its SMP Security Request: we pair (no bond), then ready", ble_dgc.si_sec_req_rx == 1 && P.paired &&
+    check("its SMP Security Request: we pair (one Pairing Request, no bond), then ready", P.pair_reqs == 1 && P.paired &&
           ble_central_state() == BLE_CS_READY);
     leave();
     connect(0);
@@ -871,7 +933,8 @@ static void unauth_bond(void)
 static void test_passkey(void)
 {
     int n0 = got_keys_n, i0 = hw.init_starts;
-    uint32_t pr0 = ble_dgc.si_pair_req, pk;
+    int pr0 = pair_reqs_all;
+    uint32_t pk;
     connect(0);
     iphone();
     shown = 0;
@@ -880,9 +943,9 @@ static void test_passkey(void)
     check("Mac / iPhone-like (it can type): Insufficient Authentication -> ONE pairing, the passkey at once: "
           "DisplayOnly, bonding + MITM, the passkey shown, no Just Works before it (macOS drops an alert that comes "
           "right after another)", ble_connected() && P.pair_reqs == 1 && P.preq_first[1] == 0x00 &&
-              P.preq_first[3] == 0x05 && P.pk && pk < 1000000u && ble_dgc.cen_need_mitm == 0 &&
-              ble_dgc.si_repair == 0 && ble_dgc.si_passkey == 1 && ble_central_pairing() && P.smp_st == 10 &&
-              ble_dgc.si_pair_req == pr0 + 1 && hw.init_starts == i0 + 1 && got_keys_n == n0 &&
+              P.preq_first[3] == 0x05 && P.pk && pk < 1000000u && bcen.repair == 0 &&
+              passkeys_n == 1 && ble_central_pairing() && P.smp_st == 10 &&
+              pair_reqs_all == pr0 + 1 && hw.init_starts == i0 + 1 && got_keys_n == n0 &&
               ble_central_state() == BLE_CS_SETUP);
     p_events(400);
     check("... 4.5 s while its user types: still waiting, the same passkey, the link up (the SMP timer runs from our "
@@ -891,31 +954,33 @@ static void test_passkey(void)
     p_events(80);
     check("... typed: Sconfirm / Srand with TK = the passkey, the STK, keys both ways: authenticated, ready, on the "
           "one link, no encryption pause (it was not encrypted before)",
-          ble_central_state() == BLE_CS_READY && P.cccd == 1 && P.enc_auth && ble_dgc.si_auth_done == 1 &&
+          ble_central_state() == BLE_CS_READY && P.cccd == 1 && P.enc_auth && auth_keys_n == 1 &&
               P.pause_n == 0 && hw.init_starts == i0 + 1 && got_keys_n == n0 + 1 &&
               (got_keys.has & (BLE_KEYS_AUTH | BLE_KEYS_LTK)) == (BLE_KEYS_AUTH | BLE_KEYS_LTK) && ble_central_prompted());
-    check("... the passkey no longer shown; no late Pairing Failed",
-          ble_central_passkey() == BLE_NO_PASSKEY && ble_dgc.si_fail_late == 0);
+    check("... the passkey no longer shown; no late Pairing Failed from it",
+          ble_central_passkey() == BLE_NO_PASSKEY && P.late_fails == 0);
     leave();
-    pr0 = ble_dgc.si_pair_req;
+    pr0 = pair_reqs_all;
     connect_sec(1, BLE_PEER_MITM | BLE_PEER_AUTH);
     iphone();
     shown = 0;
     p_events_watch(60);
     check("reconnect with the authenticated bond: encrypted with its LTK, accepted, ready, no pairing, nothing shown",
-          P.ltk_used == 1 && P.enc_auth && ble_central_state() == BLE_CS_READY && ble_dgc.si_pair_req == pr0 && !shown);
+          P.ltk_used == 1 && P.enc_auth && ble_central_state() == BLE_CS_READY && pair_reqs_all == pr0 && !shown);
     check("... the data length exchanged before our LL_ENC_REQ (the iPhone sends its own LL_LENGTH_REQ otherwise, "
           "and our answer during the encryption start made it leave with MIC Failure, blell-dev6)",
           P.mic_terms == 0 && p_ctrl_seen(LL_LENGTH_REQ) && p_ctrl_seen(LL_LENGTH_REQ) < p_ctrl_seen(LL_ENC_REQ) &&
-              ble_dgc.m_len_done >= 1);
+              bll.len_done);
     leave();
     connect_sec(1, BLE_PEER_MITM | BLE_PEER_AUTH);
     iphone();
     P.len_always = 1;
     p_events(60);
     check("its LL_LENGTH_REQ crossing our LL_ENC_REQ: held while the encryption starts (5.1.3.1: no other PDU of "
-          "ours), answered once encrypted: no MIC Failure, ready", P.mic_terms == 0 && P.ltk_used == 1 && P.enc_auth &&
-              ble_dgc.m_held >= 1 && P.len_done && ble_central_state() == BLE_CS_READY && ble_dgc.si_pair_req == pr0);
+          "ours), answered once encrypted (our LL_LENGTH_RSP after our LL_START_ENC_RSP): no MIC Failure, ready",
+          P.mic_terms == 0 && P.ltk_used == 1 && P.enc_auth && p_ctrl_seen(LL_START_ENC_RSP) &&
+              p_ctrl_seen(LL_LENGTH_RSP) > p_ctrl_seen(LL_START_ENC_RSP) && P.len_done &&
+              ble_central_state() == BLE_CS_READY && pair_reqs_all == pr0);
     leave();
     connect_sec(1, BLE_PEER_MITM | BLE_PEER_AUTH);
     iphone();
@@ -923,7 +988,7 @@ static void test_passkey(void)
     p_events(30);
     check("it leaves with MIC Failure (0x3D) on our LL_ENC_REQ with the bond: KEY (3D), not a link lost, no pairing",
           !ble_connected() && ble_central_fail() == BLE_CF_KEY && ble_central_code() == 0x3D &&
-              ble_dgc.si_pair_req == pr0 && P.mic_terms == 1);
+              pair_reqs_all == pr0 && P.mic_terms == 1);
     leave();
     P.lost_bond = 1;
     connect_sec(1, BLE_PEER_MITM | BLE_PEER_AUTH);
@@ -931,13 +996,13 @@ static void test_passkey(void)
     P.lost_bond = 1;
     p_events(30);
     check("its bond lost (the phone forgot it): the pairing goes straight to the passkey (MITM known), no Just Works",
-          ble_dgc.m_enc_rej >= 1 && P.preq[3] == 0x05 && ble_central_passkey() != BLE_NO_PASSKEY &&
-              ble_dgc.si_pair_req == pr0 + 1);
+          P.enc_rejs >= 1 && P.preq[3] == 0x05 && ble_central_passkey() != BLE_NO_PASSKEY &&
+              pair_reqs_all == pr0 + 1);
     P.typed = (long)((ble_central_passkey() + 1u) % 1000000u);
     p_events(40);
     check("a passkey typed wrong: its Pairing Failed (Confirm Value Failed) -> PAIRING (4), the link left, no retry",
           !ble_connected() && ble_central_fail() == BLE_CF_PAIRING && ble_central_code() == 0x04 &&
-              ble_dgc.si_pair_req == pr0 + 1 && ble_central_passkey() == BLE_NO_PASSKEY);
+              pair_reqs_all == pr0 + 1 && ble_central_passkey() == BLE_NO_PASSKEY);
     P.lost_bond = 0;
     connect_sec(0, BLE_PEER_MITM);
     iphone();
@@ -954,8 +1019,8 @@ static void test_passkey(void)
     p_events(80);
     check("refused even after the passkey (a peer that wants Secure Connections): AUTH (5), no other pairing, no loop",
           !ble_connected() && ble_central_fail() == BLE_CF_AUTH && ble_central_code() == 0x05 &&
-              ble_dgc.cen_need_mitm == 0 && ble_dgc.si_auth_done == 2);
-    pr0 = ble_dgc.si_pair_req;
+              bcen.repair == 0 && auth_keys_n == 2);
+    pr0 = pair_reqs_all;
     connect_sec(0, BLE_PEER_MITM);
     iphone();
     p_events(2400);
@@ -963,7 +1028,7 @@ static void test_passkey(void)
     p_events(400);
     check("the 30 s SMP timeout (nobody typed): PAIRING (FF), the link left, the passkey gone",
           !ble_connected() && ble_central_fail() == BLE_CF_PAIRING && ble_central_code() == 0xFF &&
-              ble_central_passkey() == BLE_NO_PASSKEY && ble_dgc.si_pair_req == pr0 + 1);
+              ble_central_passkey() == BLE_NO_PASSKEY && pair_reqs_all == pr0 + 1);
     connect(0);
     P.io = 0x04;
     {
@@ -983,12 +1048,13 @@ static void test_passkey(void)
     check("an older Just Works bond: encrypted with it, refused (0x05) -> paired again ON THE SAME LINK with the "
           "passkey: DisplayOnly, bonding + MITM, no disconnection", ble_connected() && P.ltk_used == 1 &&
               P.pair_reqs == 1 && P.preq[1] == 0x00 && P.preq[3] == 0x05 && P.pk && pk < 1000000u &&
-              ble_dgc.cen_need_mitm == 1 && ble_dgc.si_repair == 1 && ble_central_pairing() && P.smp_st == 10);
+              bcen.repair == 1 && ble_central_mitm() && ble_central_pairing() && P.smp_st == 10);
     P.typed = (long)pk;
     p_events(80);
     check("... typed: the STK through the LL's encryption pause (PAUSE_ENC_REQ / RSP, a new ENC_REQ), authenticated, "
           "ready on the one link", ble_central_state() == BLE_CS_READY && P.enc_auth && P.pause_n == 1 &&
-              ble_dgc.m_pause_tx >= 1 && ble_dgc.m_pause_rsp_rx >= 1 &&
+              p_ctrl_seen(LL_PAUSE_ENC_RSP) > p_ctrl_seen(LL_PAUSE_ENC_REQ) && p_ctrl_count(LL_ENC_REQ) == 2 &&
+              bcen.repair == 2 &&
               (got_keys.has & BLE_KEYS_AUTH) && ble_central_mitm());
     leave();
     unauth_bond();
@@ -1000,8 +1066,8 @@ static void test_passkey(void)
     p_events_watch(70);
     check("a peer that refuses the pairing on the encrypted link (before any passkey): NEED_MITM, the link left (a new "
           "link with the passkey from the start is the firmware's), nothing shown",
-          !ble_connected() && ble_central_fail() == BLE_CF_NEED_MITM && ble_dgc.si_repair_fallback == 1 && !shown &&
-              ble_dgc.si_repair == 2);
+          !ble_connected() && ble_central_fail() == BLE_CF_NEED_MITM && bcen.repair == 1 && !shown &&
+              P.pair_reqs == 1);
     connect_sec(0, BLE_PEER_MITM);
     iphone();
     shown = 0;
@@ -1013,7 +1079,7 @@ static void test_passkey(void)
     P.typed = (long)pk;
     p_events(80);
     check("... typed: authenticated, ready; no pause (the link was not encrypted before)",
-          ble_central_state() == BLE_CS_READY && P.enc_auth && P.pause_n == 0 && ble_dgc.si_auth_done == 4);
+          ble_central_state() == BLE_CS_READY && P.enc_auth && P.pause_n == 0 && auth_keys_n == 4);
     leave();
     unauth_bond();
     connect(1);
@@ -1025,7 +1091,7 @@ static void test_passkey(void)
     p_events(450);
     check("... 5 s: NEED_MITM (FF), the link left: a new link with the passkey instead",
           !ble_connected() && ble_central_fail() == BLE_CF_NEED_MITM && ble_central_code() == 0xFF &&
-              ble_dgc.si_repair_fallback == 2);
+              bcen.repair == 1 && P.pair_reqs == 1);
     unauth_bond();
     connect(1);
     iphone();
@@ -1081,13 +1147,14 @@ static void test_gatt_variants(void)
     P.no_fbtv = 1;
     p_events(50);
     check("a server without Find By Type Value: the primary services walked (Read By Group Type), ready",
-          ble_central_state() == BLE_CS_READY && ble_dgc.gc_svc_s == PH_MIDI);
+          ble_central_state() == BLE_CS_READY && bgc.svc_s == PH_MIDI);
     leave();
     connect(0);
     P.no_midi = 1;
     p_events(30);
-    check("no BLE-MIDI service: the link left, NO MIDI SERVICE", !ble_connected() &&
-          ble_central_fail() == BLE_CF_NO_MIDI && ble_dgc.gc_no_midi >= 1 && hw.adv_on);
+    check("no BLE-MIDI service: the link left, NO MIDI SERVICE (asked for it, no characteristic looked for, no CCCD)",
+          !ble_connected() && ble_central_fail() == BLE_CF_NO_MIDI && p_att_seen(0x06) && !p_att_seen(0x08) &&
+              !P.cccd_writes && hw.adv_on);
 }
 
 static void test_endings(void)
@@ -1097,7 +1164,7 @@ static void test_endings(void)
     p_events(8);
     check("the peripheral never answers: no packet in six intervals -> lost (0x3E), advertising again",
           !ble_connected() && ble_central_fail() == BLE_CF_LOST && ble_central_code() == BLE_ERR_CONN_FAILED &&
-              hw.adv_on && ble_dgc.m_estab_fails >= 1);
+              hw.adv_on && !bll.established);
     connect(0);
     p_events(30);
     {
@@ -1127,27 +1194,6 @@ static void test_rpa(void)
 }
 #endif
 
-/* the console's blell: the central block printed (ble_diag.c bd_central) */
-static char out[65536];
-static size_t out_n;
-static void put(const char *t)
-{
-    size_t n = strlen(t);
-    if (out_n + n < sizeof out)
-        memcpy(out + out_n, t, n + 1), out_n += n;
-}
-static void test_blell(void)
-{
-    ble_diag_print(put, 0);
-    check("blell: the central counters printed (initiator, master, GATT client, SMP initiator, reconnection)",
-          strstr(out, "cen_connects ") && strstr(out, "master_starts ") && strstr(out, "m_events_rx ") &&
-              strstr(out, "gc_state ") && strstr(out, "gc_subscribed ") && strstr(out, "si_done ") &&
-              strstr(out, "rc_tries ") && strstr(out, "c4_rx_to_evt_us "));
-    ble_diag_clear();
-    check("blell clear: the central block zeroed, its magic kept", !ble_dgc.connects && !ble_dgc.gc_subscribed &&
-          ble_dgc.magic == BLE_DIAG_CENT_MAGIC && ble_dgc.m_first_evt == 0xFFFFu);
-}
-
 int main(void)
 {
     test_initiator();
@@ -1163,7 +1209,6 @@ int main(void)
 #if BLE_CEN_PAIR
     test_rpa();
 #endif
-    test_blell();
     printf("BLE central (level %d): %s\n", BLE_CENTRAL, fails ? "FAILED" : "all passed");
     return fails != 0;
 }

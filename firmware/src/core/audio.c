@@ -25,7 +25,7 @@ struct felucca_dbg {
      * it first went DUAL_STARVE_MS without one); where: bit 0 in dual_join, bit 1 in the audio render */
     uint32_t loop_ms, loop_gap_max, starve_ms, where;
     uint32_t prev_loop_gap_max, prev_starve_ms, prev_where, prev_in_audio, prev_cpu_q8, prev_late;
-    /* the audio's peaks (system/overload.h, the INFO's MAX 5S / MAX), % of a half (over 100: late), each half: kept by a reset */
+    /* the audio's peaks (system/overload.h: since boot as INFO's MAX, the last ~5 s), % of a half (over 100: late), each half: kept by a reset */
     uint32_t pk_all, pk_5s, pk1_5s, drops;
     uint32_t prev_pk_all, prev_pk_5s, prev_pk1_5s, prev_drops;
     uint32_t us_sum;                      /* every half's render us added (wraps; the console: the mean between two polls) */
@@ -72,9 +72,20 @@ static __attribute__((noinline)) uint32_t ua_take(int32_t *l, int32_t *r, uint32
 }
 #endif
 
+#if FELUCCA_SD_REC
+static void sdr_feed(const int32_t *q15, uint32_t n);    /* storage/sd/sd_rec.c */
+static uint32_t sdr_recording(void);
+#endif
+static uint8_t bt_streamed;                             /* the last block went to Bluetooth (its own output muted) */
 static void audio_block(int32_t *out, uint32_t n)       /* mix (fx.c), then Q15 -> 24 bit */
 {
     uint32_t i;
+#if FELUCCA_SD_REC
+    const uint32_t rec = sdr_recording();               /* (this block's: the recorder takes the plain output) */
+#else
+    const uint32_t rec = 0;
+#endif
+    oc_begin(bt_streamed, rec, n);                       /* SPK LOWCUT / HPHN BASS: the codec's output only (fx/outcorr.c) */
 #if FELUCCA_USB_AUDIO
     track_capture_on = ua.cap_alt != 0;                 /* (the stems this block: fx.c capture_clear) */
 #endif
@@ -90,13 +101,21 @@ static void audio_block(int32_t *out, uint32_t n)       /* mix (fx.c), then Q15 
 #if FELUCCA_BT_AUDIO
     {
         int bt_audio_feed(const int32_t *q15_pcm, uint32_t n);
-        if (bt_audio_feed(out, n))                      /* (streaming to Bluetooth: the FM-1's own output silent, the user
-                                                         * 2026-10-19; back as soon as the link stops streaming) */
+        const uint32_t muted = (uint32_t)bt_audio_feed(oc_bt_frames(out), n);   /* (streaming to Bluetooth: the FM-1's own output silent,
+                                                         * the user 2026-10-19; back as soon as the link stops streaming. A
+                                                         * corrected block goes as silence: oc_bt_frames) */
+        bt_streamed = (uint8_t)muted;
+        if (muted)
             for (i = 0; i < 2u * n; i++) {
                 out[i] = 0;
                 mst_frac[i] = 0;                        /* (nothing under the silence) */
             }
     }
+#endif
+#if FELUCCA_SD_REC
+    if (rec)
+        sdr_feed(oc_rec_frames(out), n);                /* the master into the card's ring (storage/sd/sd_rec.c): the plain
+                                                         * output, or its own stage's while the codec's is corrected */
 #endif
     for (i = 0; i < n; i++) {                           /* (no scope tap: SLOOP's HOME scope is gone) */
         out[2u * i] = (out[2u * i] << OUT_SHIFT) | mst_frac[2u * i];               /* (fx.c MASTER_VOL) */
@@ -210,6 +229,9 @@ void fm1_alnk0_irq(void)                       /* via isr_alnk0 (hal/fm1_isr.S) 
         if (us > audio_max_us)
             audio_max_us = us;
         ovl_half(us + w, late, fm1_ms);                    /* PEAK (its wait too), DROPS, the header's mark (system/overload.h) */
+#if PART_DROPS
+        ovl_ring_put(&ovl.r[OVL_RAM], (ARN_BYTES - arn_room()) / 1024u, fm1_ms);   /* (the arena in use: INFO's RAM bar) */
+#endif
         felucca_dbg.pk_all = ovl_maxall_pct(OVL_CPU0);     /* (the same measures into the reset-kept record) */
         felucca_dbg.pk_5s = ovl_max5_pct(OVL_CPU0, fm1_ms);
         felucca_dbg.pk1_5s = ovl_max5_pct(OVL_CPU1, fm1_ms);

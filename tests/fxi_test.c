@@ -1,19 +1,19 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* Host test of the limited insert types' instances and the effects memory (firmware/src/fx/insfx/fxi.c, fxi_kern.c,
  * fxi_mem.h, 2026-10-23: one memory for the delay send's line and every insert's line), the firmware's own sources
- * through hostsim.c, built with CHRS and ECHO (run_tests.sh; more types in the other builds). The own room is cut to a
+ * through hostsim.c, built with CHO and ECHO (run_tests.sh; more types in the other builds). The own room is cut to a
  * known size where a check needs one (room(): units taken as if other lines held them):
- *   1. assign: an owner picking CHRS gets an instance and 2 units at the next fxi_poll (none before it: bypassed),
- *      zeroed first; the free count is what the memory still holds (CHRS 5 in the auto 10 KB, ECHO 1)
+ *   1. assign: an owner picking CHO gets an instance and 2 units at the next fxi_poll (none before it: bypassed),
+ *      zeroed first; the free count is what the memory still holds (CHO 5 in the auto 10 KB, ECHO 1)
  *   2. swap: S1 <-> S2 on the track keeps its instance
- *   3. exhaust: a track picking CHRS with no room gets none (fxi_state FULL, fxi_free 0, fxi_can 0) and is bypassed
- *   4. free: a track dropping CHRS gives its line back only after its fade-out (no click), then the waiting track
+ *   3. exhaust: a track picking CHO with no room gets none (fxi_state FULL, fxi_free 0, fxi_can 0) and is bypassed
+ *   4. free: a track dropping CHO gives its line back only after its fade-out (no click), then the waiting track
  *      takes it, cleared (no old line read)
  *   5. reload: a project load hands the instances out in owner order T1 T2 T3 DR whatever came before
  *   6. the UI's queries for types that are not limited (FXI_ANY) and not built (0)
  *   7. the memory: the line sizes; FULL while the free units are not in one run (8 free, no ECHO), placed once they
  *      are; never two lines on a unit
- *   8. lending: the chorus send's line holds CHRS while CHO is in no master slot, the delay send's ECHO
+ *   8. lending: the chorus send's line holds CHO while CHO is in no master slot, the delay send's ECHO
  *   9. JUNO CHORUS, FLNG (the second build): a track and the master, FULL, the side, the TLV; both on the chorus send's
  *      lent line, evicted with a fade when CHO comes back
  *  10. XDLY (the third build: DLY_ARENA 72 KB, the delay send's line 64 KB): only on the send's line, beside an ECHO */
@@ -29,6 +29,7 @@ static void check(const char *what, int ok)
 {
     printf("fxi: %-100s %s\n", what, ok ? "ok" : "FAIL");
     fails += !ok;
+    fflush(stdout);                                    /* (a crash keeps what was said) */
 }
 #define NB 64u
 static int32_t x[NB * CTL], y[NB * CTL];
@@ -50,13 +51,13 @@ static void play(uint32_t k, int32_t a)
     uint32_t i, j;
     static int32_t r[NB * CTL];
     for (j = 0; j < NTRK; j++)
-        trk[j].p[P_TCHRS] = trk[j].p[P_TECHO] = (int16_t)a;
+        trk[j].p[P_CHOR] = trk[j].p[P_TECHO] = (int16_t)a;
     memcpy(y, x, sizeof y), memcpy(r, x, sizeof r);
     for (i = 0; i < NB; i++) {
         if (k == TRK_DRUM) {
             uint32_t s;
             for (s = 0; s < INS_N; s++)
-                if (ins_slot[TRK_DRUM][s] >= FXT_NEW0)
+                if (IFX_TYPE(ins_slot[TRK_DRUM][s]))
                     ifx_bus(ins_slot[TRK_DRUM][s], fx_on(TDRUM) ? a : 0, y + i * CTL, r + i * CTL, CTL);
         } else {
             ins_part(&trk[k], y + i * CTL, CTL);
@@ -70,8 +71,9 @@ static int same(void)
 static void reset(void)
 {
     uint32_t k;
-    for (k = 0; k < NTRK; k++)
-        slots(k, FXT_NONE, FXT_NONE), trk[k].p[P_FXOFF] = 0;
+    for (k = 0; k < NTRK; k++)                         /* (P_CHOR: the CHO insert's MIX, the chorus send's level out of one) */
+        slots(k, FXT_NONE, FXT_NONE), trk[k].p[P_FXOFF] = 0, trk[k].p[P_CHOR] = trk[k].p[P_TECHO] = 0;
+    memset(cho_buf, 0, sizeof cho_buf), fx.cho_q = FX_Q_MAX;   /* (the chorus send at rest: a test's sends before gone) */
     fxs_set(FXS_DEF);                                   /* (the master slots: ---- CHO DLY REV) */
     fxi_init();
     fxi_poll();
@@ -83,9 +85,9 @@ static void room(uint32_t r)
 }
 static int16_t *inst_line(uint32_t j, uint32_t i)      /* instance i of type j's line pointer */
 {
-#if FELUCCA_INS_CHORUS
+#if INS_CHO
     if (j == 0u)
-        return ifx_chrs[i].line;
+        return ifx_choi[i].line;
 #endif
 #if FELUCCA_INS_DELAY
     if (j == 1u)
@@ -93,7 +95,7 @@ static int16_t *inst_line(uint32_t j, uint32_t i)      /* instance i of type j's
 #endif
 #if FELUCCA_INS_JCHORUS
     if (j == 2u)
-        return ifx_jcho[i].c.ln;
+        return (int16_t *)(void *)ifx_jcho[i].c.ln;   /* (32-bit samples: the units are 512 int16) */
 #endif
 #if FELUCCA_INS_FLANGER
     if (j == 3u)
@@ -102,6 +104,14 @@ static int16_t *inst_line(uint32_t j, uint32_t i)      /* instance i of type j's
 #if FELUCCA_INS_XDLY
     if (j == 4u)
         return ifx_xdly[i].line;
+#endif
+#if INS_REV
+    if (j == 5u)
+        return ifx_room[i].line;
+#endif
+#if INS_DLY
+    if (j == 6u)
+        return ifx_tdly[i].line;
 #endif
     (void)i;
     return 0;
@@ -135,71 +145,80 @@ static int zeros16(const int16_t *p, uint32_t n)
     return 1;
 }
 
-#if FELUCCA_INS_CHORUS && FELUCCA_INS_DELAY
+#if INS_CHO && FELUCCA_INS_DELAY
 static void t_assign(void)
 {
     uint32_t i0;
     int16_t *top = fxa_line(FXA_N - FXA_Z0);
     reset();
     sine();
-    check("built: the auto memory (one line of each type: 10 KB) holds CHRS 5 at once, ECHO 1; nothing out",
-          FXA_I == 10u && fxi_cap(FXT_CHRS) == 5u && fxi_cap(FXT_ECHO) == 1u && fxi_free(FXT_CHRS) == 5u &&
+    check("built: the auto memory (ECHO's line: 8 KB; CHO none of its own) holds CHO 2 at once, ECHO 1; nothing out",
+          FXA_I == 8u && fxi_cap(FXT_CHO) == 2u && fxi_cap(FXT_ECHO) == 1u && fxi_free(FXT_CHO) == 2u &&
           fxi_used(FXT_ECHO) == 0u && FXI_TN[0] == FXI_NK);
     memset(fxa_line(FXA_S), 0x5A, FXA_I * FXA_U * 2u);  /* (an old line in every unit of the own room) */
-    slots(1, FXT_CHRS, FXT_NONE);
+    slots(1, FXT_CHO, FXT_NONE);
     check("picked: no instance before the main loop's pass (WAIT, bypassed)", fxi_state(1, 0) == FXI_WAIT &&
-          ifx_lim_at(FXT_CHRS, 1) == FXI_NONE);
+          ifx_lim_at(FXT_CHO, 1) == FXI_NONE);
     play(1, 90);
     check("... the part bit for bit meanwhile", same());
     fxi_poll();
-    i0 = ifx_lim_at(FXT_CHRS, 1);
-    check("after fxi_poll: an instance (OK), one used, 4 more fit", i0 != FXI_NONE && fxi_state(1, 0) == FXI_OK &&
-          fxi_used(FXT_CHRS) == 1u && fxi_free(FXT_CHRS) == 4u && fxi_free(FXT_ECHO) == 1u);
-    check("... its line the own room's top 2 units, zeroed when handed out, the units below untouched (0x5A)",
-          ifx_chrs[i0].line == top && zeros16(top, IFX_CH_LEN) && !ifx_chrs[i0].w && top[-1] == 0x5A5A && mem_ok());
+    i0 = ifx_lim_at(FXT_CHO, 1);
+    check("after fxi_poll: an instance (OK), one used, 1 more fits, no ECHO (4 units left)", i0 != FXI_NONE &&
+          fxi_state(1, 0) == FXI_OK && fxi_used(FXT_CHO) == 1u && fxi_free(FXT_CHO) == 1u && fxi_free(FXT_ECHO) == 0u);
+    check("... its line the own room's top 4 units, zeroed when handed out, the units below untouched (0x5A)",
+          ifx_choi[i0].line == top && zeros16(top, CHO_LEN) && !ifx_choi[i0].w && top[-1] == 0x5A5A && mem_ok());
     play(1, 90);
     check("... heard", !same());
-    slots(1, FXT_NONE, FXT_CHRS);
+    slots(1, FXT_NONE, FXT_CHO);
     fxi_poll();
-    check("S1 -> S2 on the track: the same instance", ifx_lim_at(FXT_CHRS, 1) == i0 && fxi_state(1, 1) == FXI_OK);
-    slots(1, FXT_ECHO, FXT_CHRS);
+    check("S1 -> S2 on the track: the same instance", ifx_lim_at(FXT_CHO, 1) == i0 && fxi_state(1, 1) == FXI_OK);
+    slots(1, FXT_ECHO, FXT_CHO);
     fxi_poll();
-    check("ECHO beside it on the same track: its own 8 units, the memory full (CHRS 1 of 1, ECHO 0 free)",
-          ifx_lim_at(FXT_ECHO, 1) != FXI_NONE && fxi_free(FXT_ECHO) == 0u && fxi_free(FXT_CHRS) == 0u &&
-          fxi_cap(FXT_CHRS) == 1u && mem_ok() && zeros16(ifx_echo[ifx_lim_at(FXT_ECHO, 1)].line, IFX_EC_LEN));
+    check("ECHO beside it on the same track: no room for its 8 units (FULL, bypassed), CHO's 1 more still free",
+          ifx_lim_at(FXT_ECHO, 1) == FXI_NONE && fxi_state(1, 0) == FXI_FULL && fxi_free(FXT_ECHO) == 0u &&
+          fxi_free(FXT_CHO) == 1u && fxi_cap(FXT_CHO) == 2u && mem_ok());
+    slots(1, FXT_ECHO, FXT_NONE);
+    fxi_poll();
+    for (i0 = 0; i0 < 8u; i0++)
+        ins_part(&trk[1], y + i0 * CTL, CTL);           /* (it was heard: it fades out at 0 first) */
+    fxi_poll();
+    fxi_poll();
+    check("... CHO let go (faded): ECHO placed, its line zeroed, the memory full",
+          ifx_lim_at(FXT_ECHO, 1) != FXI_NONE && fxi_free(FXT_ECHO) == 0u && fxi_free(FXT_CHO) == 0u && mem_ok() &&
+          zeros16(ifx_echo[ifx_lim_at(FXT_ECHO, 1)].line, IFX_EC_LEN));
 }
 
 static void t_exhaust(void)
 {
     uint32_t i;
     reset();
-    room(2u * FXA_Z0);                                  /* (room for two CHRS) */
+    room(2u * FXA_Z0);                                  /* (room for two CHO) */
     sine();
-    slots(0, FXT_CHRS, FXT_NONE), slots(2, FXT_CHRS, FXT_NONE);
+    slots(0, FXT_CHO, FXT_NONE), slots(2, FXT_CHO, FXT_NONE);
     fxi_poll();
-    check("room for two: both out", fxi_free(FXT_CHRS) == 0u && fxi_state(0, 0) == FXI_OK && fxi_state(2, 0) == FXI_OK);
-    check("... a third track could not have one (fxi_can 0), one holding it can", !fxi_can(1, FXT_CHRS) &&
-          fxi_can(0, FXT_CHRS) && fxi_can(1, FXT_DIST) == FELUCCA_FX_DIST);
-    slots(TRK_DRUM, FXT_CHRS, FXT_NONE);
+    check("room for two: both out", fxi_free(FXT_CHO) == 0u && fxi_state(0, 0) == FXI_OK && fxi_state(2, 0) == FXI_OK);
+    check("... a third track could not have one (fxi_can 0), one holding it can", !fxi_can(1, FXT_CHO) &&
+          fxi_can(0, FXT_CHO) && fxi_can(1, FXT_DIST) == FELUCCA_FX_DIST);
+    slots(TRK_DRUM, FXT_CHO, FXT_NONE);
     fxi_poll();
     check("a third (the drum track): no room left, FULL", fxi_state(TRK_DRUM, 0) == FXI_FULL &&
-          ifx_lim_at(FXT_CHRS, TRK_DRUM) == FXI_NONE);
+          ifx_lim_at(FXT_CHO, TRK_DRUM) == FXI_NONE);
     play(TRK_DRUM, 127);
     check("... the drum bus bypassed bit for bit", same());
     play(0, 127);
     slots(0, FXT_NONE, FXT_NONE);
     fxi_poll();
-    check("T1 drops CHRS while it sounds: kept until it has faded (no click), the drum track still FULL",
-          ifx_lim_at(FXT_CHRS, 0) != FXI_NONE && fxi_state(TRK_DRUM, 0) == FXI_FULL && fxi_pend);
+    check("T1 drops CHO while it sounds: kept until it has faded (no click), the drum track still FULL",
+          ifx_lim_at(FXT_CHO, 0) != FXI_NONE && fxi_state(TRK_DRUM, 0) == FXI_FULL && fxi_pend);
     for (i = 0; i < 8u; i++)
         ins_part(&trk[0], y + i * CTL, CTL);            /* (in no slot: it fades out at 0) */
     fxi_poll();
-    check("... faded: back, and the drum track has it now (OK)", ifx_lim_at(FXT_CHRS, 0) == FXI_NONE &&
+    check("... faded: back, and the drum track has it now (OK)", ifx_lim_at(FXT_CHO, 0) == FXI_NONE &&
           fxi_state(TRK_DRUM, 0) == FXI_OK && !fxi_pend && mem_ok());
     {
-        uint32_t j = ifx_lim_at(FXT_CHRS, TRK_DRUM);
-        check("... its line cleared when handed on (T1's sound not in it)", zeros16(ifx_chrs[j].line, IFX_CH_LEN) &&
-              !ifx_chrs[j].w);
+        uint32_t j = ifx_lim_at(FXT_CHO, TRK_DRUM);
+        check("... its line cleared when handed on (T1's sound not in it)", zeros16(ifx_choi[j].line, CHO_LEN) &&
+              !ifx_choi[j].w);
     }
     play(TRK_DRUM, 127);
     check("... the drum bus heard", !same());
@@ -210,7 +229,7 @@ static void owners(uint8_t *o)
 {
     uint32_t k;
     for (k = 0; k < NTRK; k++)
-        o[k] = (uint8_t)(ifx_lim_at(FXT_CHRS, k) != FXI_NONE);
+        o[k] = (uint8_t)(ifx_lim_at(FXT_CHO, k) != FXI_NONE);
 }
 static void t_reload(void)
 {
@@ -219,24 +238,24 @@ static void t_reload(void)
     reset();
     room(2u * FXA_Z0);
     /* history: T3 and DR take the two first, then T1 asks (FULL) */
-    slots(2, FXT_CHRS, FXT_NONE), slots(TRK_DRUM, FXT_CHRS, FXT_NONE);
+    slots(2, FXT_CHO, FXT_NONE), slots(TRK_DRUM, FXT_CHO, FXT_NONE);
     fxi_poll();
-    slots(0, FXT_DIST, FXT_CHRS);
+    slots(0, FXT_DIST, FXT_CHO);
     fxi_poll();
     check("before the load: T3 and DR have them, T1 FULL", fxi_state(0, 1) == FXI_FULL && fxi_state(2, 0) == FXI_OK &&
           fxi_state(TRK_DRUM, 0) == FXI_OK);
-    trk[0].p[P_TCHRS] = 40;
+    trk[0].p[P_CHOR] = 40;
     n = fxr_encode(rec);
-    check("the FX record keeps the slots' types (no instance index): T1 S2 CHRS", n > 0u);
+    check("the FX record keeps the slots' types (no instance index): T1 S2 CHO", n > 0u);
     (void)fxr_decode(rec, n, 1);                        /* (a load) */
     fxi_poll();
     owners(a);
     check("loaded: T1 and T3 have them (owner order), DR FULL", a[0] && !a[1] && a[2] && !a[3] &&
-          fxi_state(TRK_DRUM, 0) == FXI_FULL && trk[0].p[P_TCHRS] == 40 && ins_slot[0][1] == FXT_CHRS && mem_ok());
+          fxi_state(TRK_DRUM, 0) == FXI_FULL && trk[0].p[P_CHOR] == 40 && ins_slot[0][1] == FXT_CHO && mem_ok());
     /* another history, the same project loaded: the same owners */
     fxi_init();
     room(2u * FXA_Z0);
-    slots(TRK_DRUM, FXT_CHRS, FXT_NONE);
+    slots(TRK_DRUM, FXT_CHO, FXT_NONE);
     fxi_poll();
     (void)fxr_decode(rec, n, 1);
     fxi_poll();
@@ -247,37 +266,36 @@ static void t_reload(void)
     (void)fxr_decode(0, 0, 1);                          /* (a project without a record: the defaults) */
     fxi_poll();
     check("a project without a record (old, or new): no limited type held, the memory free again",
-          fxi_free(FXT_CHRS) == 2u && fxi_used(FXT_CHRS) == 0u && fxi_used(FXT_ECHO) == 0u && ins_slot[0][0] != FXT_CHRS);
+          fxi_free(FXT_CHO) == 2u && fxi_used(FXT_CHO) == 0u && fxi_used(FXT_ECHO) == 0u && ins_slot[0][0] != FXT_CHO);
 }
 
 /* 7. the memory: sizes, a run of free units, never two lines on a unit */
 static void t_mem(void)
 {
     uint32_t k, e;
-    check("the units: 1 KB (512 samples); CHRS 2, ECHO 8, JUNO CHORUS 2, FLNG 1; the delay send's line its first units, "
-          "the chorus send's its last", FXA_U == 512u && FXA_Z0 == 2u && FXA_Z1 == 8u && FXA_Z2 == 2u && FXA_Z3 == 1u &&
+    check("the units: 1 KB (512 samples); CHO 4, ECHO 8, JUNO CHORUS 4, FLNG 1; the delay send's line its first units, "
+          "the chorus send's its last", FXA_U == 512u && FXA_Z0 == 4u && FXA_Z1 == 8u && FXA_Z2 == 4u && FXA_Z3 == 1u &&
           FXA_S == FELUCCA_DLY_LEN / 512u && FXC_S == CHO_LEN / 512u && fxa_line(0) == dly_buf &&
           fxa_line(FXA_N) == cho_buf && fxa_line(FXA_S) == fxa_ins);
     reset();
-    for (k = 0; k < NTRK; k++)
-        slots(k, FXT_CHRS, FXT_NONE);
+    for (k = 0; k < 2u; k++)
+        slots(k, FXT_CHO, FXT_NONE);
     fxi_poll();
-    slots(0, FXT_CHRS, FXT_ECHO);
+    slots(0, FXT_CHO, FXT_ECHO);
     fxi_poll();
-    check("4 CHRS (8 units of 10): ECHO FULL (2 free)", fxi_state(0, 1) == FXI_FULL && fxi_free(FXT_ECHO) == 0u &&
-          fxi_free(FXT_CHRS) == 1u && mem_ok());
-    slots(1, FXT_NONE, FXT_NONE), slots(TRK_DRUM, FXT_NONE, FXT_NONE), slots(0, FXT_NONE, FXT_ECHO);
+    check("2 CHO (8 units of 8): ECHO FULL (none free)", fxi_state(0, 1) == FXI_FULL && fxi_free(FXT_ECHO) == 0u &&
+          fxi_free(FXT_CHO) == 0u && mem_ok());
+    slots(1, FXT_NONE, FXT_NONE);
     fxi_poll();
-    check("T1 T2 DR give theirs back (silent: at once): 8 units free but not in one run, ECHO still FULL",
-          fxi_used(FXT_CHRS) == 1u && fxi_state(0, 1) == FXI_FULL && fxi_free(FXT_ECHO) == 0u && fxi_free(FXT_CHRS) == 4u &&
-          mem_ok());
-    slots(2, FXT_NONE, FXT_NONE);
+    check("T2 gives its back (silent: at once): 4 units free, ECHO still FULL", fxi_used(FXT_CHO) == 1u &&
+          fxi_state(0, 1) == FXI_FULL && fxi_free(FXT_ECHO) == 0u && fxi_free(FXT_CHO) == 1u && mem_ok());
+    slots(0, FXT_NONE, FXT_ECHO);
     fxi_poll();
     fxi_poll();
     e = ifx_lim_at(FXT_ECHO, 0);
-    check("T3 gives its back: one run of 10, ECHO placed (OK) from the top of the room, zeroed", e != FXI_NONE &&
+    check("T1 gives its back: one run of 8, ECHO placed (OK) from the top of the room, zeroed", e != FXI_NONE &&
           fxi_state(0, 1) == FXI_OK && ifx_echo[e].line == fxa_line(FXA_N - FXA_Z1) && zeros16(ifx_echo[e].line, IFX_EC_LEN) &&
-          fxi_free(FXT_CHRS) == 1u && mem_ok());
+          fxi_free(FXT_CHO) == 0u && mem_ok());
     reset();
 }
 
@@ -301,7 +319,7 @@ static void blocks(uint32_t nb)                         /* the whole mix, nb blo
         fxi_poll();
     }
 }
-#if FELUCCA_INS_CHORUS && FELUCCA_INS_DELAY
+#if INS_CHO && FELUCCA_INS_DELAY
 static void t_lend(void)
 {
     uint32_t own = 2u, k = own, i, b, ok;
@@ -309,28 +327,28 @@ static void t_lend(void)
     reset();
     room(own * FXA_Z0);
     host_preset(&trk[k], 0, 0);
-    trk[k].p[P_SUS] = 127, trk[k].p[P_LEVEL] = 100, trk[k].p[P_TCHRS] = 100;
+    trk[k].p[P_SUS] = 127, trk[k].p[P_LEVEL] = 100, trk[k].p[P_CHOR] = 127;   /* (its CHO insert all wet) */
     trk_note_on(&trk[k], 57, 100);
-    check("the chorus send's line: 4 units (2 CHRS lines), the delay's every one of its own", FXC_S == 4u &&
+    check("the chorus send's line: 4 units (1 CHO line), the delay's every one of its own", FXC_S == 4u &&
           FXA_S == DLY_LEN / FXA_U);
     for (i = 0; i < own; i++)
-        slots(i, FXT_CHRS, FXT_NONE);
-    slots(k, FXT_CHRS, FXT_NONE);
+        slots(i, FXT_CHO, FXT_NONE);
+    slots(k, FXT_CHO, FXT_NONE);
     blocks(4);
     check("CHO in a master slot: nothing lent, the track past the room FULL",
-          !fxl_lent && fxi_state(k, 0) == FXI_FULL && fxi_cap(FXT_CHRS) == own);
+          !fxl_lent && fxi_state(k, 0) == FXI_FULL && fxi_cap(FXT_CHO) == own);
     fxs_load(1, FXT_NONE);
     fx.cho_q = 100;                                     /* (as if its tail still rang) */
     fxi_poll();
     check("CHO out of the slots, its tail ringing: not lent yet (WAIT), cap counts the send's line",
-          !fxl_lent && fxi_state(k, 0) == FXI_WAIT && fxi_cap(FXT_CHRS) == own + 2u);
+          !fxl_lent && fxi_state(k, 0) == FXI_WAIT && fxi_cap(FXT_CHO) == own + 1u);
     fx.cho_q = FX_Q_MAX;
     blocks(1);
-    i = ifx_lim_at(FXT_CHRS, k);
-    check("... idle: lent (the gate set), the track has the send's line's first 2 units (OK)", (fxl_lent & 1u) &&
-          i != FXI_NONE && ifx_chrs[i].line == cho_buf && fxi_state(k, 0) == FXI_OK && fxi_lent(FXT_CHRS) == 1u && mem_ok());
+    i = ifx_lim_at(FXT_CHO, k);
+    check("... idle: lent (the gate set), the track has the send's line (its 4 units, OK)", (fxl_lent & 1u) &&
+          i != FXI_NONE && ifx_choi[i].line == cho_buf && fxi_state(k, 0) == FXI_OK && fxi_lent(FXT_CHO) == 1u && mem_ok());
     blocks(64);
-    check("... heard: the insert writes its slice", !zeros16(cho_buf, IFX_CH_LEN));
+    check("... heard: the insert writes its slice", !zeros16(cho_buf, CHO_LEN));
     {   /* the bus gated: fed a loud send it neither steps nor clears the lent line */
         static int16_t snap[CHO_LEN];
         int32_t ci[CTL], z[CTL] = {0}, wl[CTL], wr[CTL];
@@ -342,39 +360,39 @@ static void t_lend(void)
         song.g[G_CRET] = 127;
         check("the chorus bus gated while lent: a loud send, RET 0: its line untouched", !memcmp(snap, cho_buf, sizeof snap));
     }
-    w0 = ifx_chrs[i].w;
+    w0 = ifx_choi[i].w;
     fxs_load(1, FXT_CHO);
     fxi_poll();
     check("CHO back in a slot: taking it back (the insert still on it, evicted, the gate still set)",
-          fxl_st[0] == FXL_BACK && ifx_lim_at(FXT_CHRS, k) == i && ifx_chrs[i].evict && (fxl_lent & 1u));
+          fxl_st[0] == FXL_BACK && ifx_lim_at(FXT_CHO, k) == i && ifx_choi[i].evict && (fxl_lent & 1u));
     mix_block(mixbuf, CTL);
-    w1 = ifx_chrs[i].w;
+    w1 = ifx_choi[i].w;
     check("... a fade-out, not a cut (one block: down by 32 x the slope)", w0 == 32768 && w1 == w0 - (int32_t)CTL * IFX_SLOPE);
     blocks(8);
     check("... faded: the line back to the bus, all zeros, the gate cleared; the track FULL again",
           fxl_st[0] == FXL_SEND && !(fxl_lent & 1u) && zeros16(cho_buf, CHO_LEN) && fx.cho_q >= CHO_LEN &&
-          fxi_state(k, 0) == FXI_FULL && ifx_lim_at(FXT_CHRS, k) == FXI_NONE);
+          fxi_state(k, 0) == FXI_FULL && ifx_lim_at(FXT_CHO, k) == FXI_NONE);
     fxs_load(1, FXT_NONE);
     blocks(64);
-    i = ifx_lim_at(FXT_CHRS, k);
-    ok = (fxl_lent & 1u) && i != FXI_NONE && ifx_chrs[i].w == 32768;
+    i = ifx_lim_at(FXT_CHO, k);
+    ok = (fxl_lent & 1u) && i != FXI_NONE && ifx_choi[i].w == 32768;
     fxs_load(1, FXT_CHO);
     fxi_poll();                                         /* (the main loop's pass right after the change) */
     blocks(1);
-    w0 = ifx_chrs[i].w;
+    w0 = ifx_choi[i].w;
     fxs_load(1, FXT_NONE);
     fxi_poll();
     blocks(1);
-    w1 = ifx_chrs[i].w;
+    w1 = ifx_choi[i].w;
     check("lent again; CHO in and out within a block or two: it stays lent, the insert fades back in (no gap)",
-          ok && fxl_st[0] == FXL_LENT && !ifx_chrs[i].evict && w0 < 32768 && w1 > w0 && ifx_lim_at(FXT_CHRS, k) == i);
+          ok && fxl_st[0] == FXL_LENT && !ifx_choi[i].evict && w0 < 32768 && w1 > w0 && ifx_lim_at(FXT_CHO, k) == i);
     slots(k, FXT_NONE, FXT_NONE);
     blocks(8);
-    check("the track drops CHRS: faded, the line back to the bus (zeros, gate cleared)",
+    check("the track drops CHO: faded, the line back to the bus (zeros, gate cleared)",
           fxl_st[0] == FXL_SEND && !fxl_lent && zeros16(cho_buf, CHO_LEN));
-    slots(k, FXT_CHRS, FXT_NONE);
+    slots(k, FXT_CHO, FXT_NONE);
     blocks(4);
-    i = ifx_lim_at(FXT_CHRS, k);
+    i = ifx_lim_at(FXT_CHO, k);
     trk[k].p[P_MUTE] = 1;
     blocks(16);
     fxs_load(1, FXT_CHO);
@@ -401,30 +419,30 @@ static void t_lend(void)
     reset();
 }
 
-/* a load with CHO in no master slot and more tracks holding CHRS than the own room holds: the same tracks every time */
+/* a load with CHO in no master slot and more tracks holding CHO than the own room holds: the same tracks every time */
 static void t_lend_load(void)
 {
     uint8_t rec[FXR_MAX], a[NTRK], c[NTRK];
     uint32_t n, k, ok = 1;
     reset();
     for (k = 0; k < NTRK; k++)
-        slots(k, FXT_CHRS, FXT_NONE);
+        slots(k, FXT_CHO, FXT_NONE);
     fxs_load(1, FXT_NONE);
-    trk[0].p[P_TCHRS] = 30;
+    trk[0].p[P_CHOR] = 30;
     n = fxr_encode(rec);
     for (k = 0; k < 2u; k++) {
         fxi_init();
         room(2u * FXA_Z0);
         if (k)
-            slots(TRK_DRUM, FXT_CHRS, FXT_NONE), fxi_poll();   /* (another history) */
+            slots(TRK_DRUM, FXT_CHO, FXT_NONE), fxi_poll();   /* (another history) */
         (void)fxr_decode(rec, n, 1);
         blocks(4);
         owners(k ? c : a);
     }
-    for (k = 0; k < NTRK; k++)
-        ok &= a[k] == c[k] && a[k];
-    check("a load, CHO in no slot, every track CHRS: 2 in the own room, 2 on the send's line, the same every time", ok &&
-          fxi_state(TRK_DRUM, 0) == FXI_OK && fxi_lent(FXT_CHRS) == 2u && mem_ok());
+    for (k = 0, n = 0; k < NTRK; k++)
+        ok &= a[k] == c[k], n += a[k];
+    check("a load, CHO in no slot, every track CHO: 2 in the own room, 1 on the send's line, the drums FULL, the same every time",
+          ok && n == 3u && a[0] && a[1] && a[2] && fxi_state(TRK_DRUM, 0) == FXI_FULL && fxi_lent(FXT_CHO) == 1u && mem_ok());
     reset();
 }
 #endif
@@ -493,8 +511,8 @@ static void t_juno(void)
 #endif
 
 #if FELUCCA_INS_FLANGER
-/* FLNG in the effects memory (a unit an instance): any owner takes one (the master after the tracks); CHRS on the master
- * takes a CHRS line */
+/* FLNG in the effects memory (a unit an instance): any owner takes one (the master after the tracks); CHO on the master
+ * takes a CHO line */
 static int32_t fr[NB * CTL];
 static void play_mst2(uint32_t t, int32_t a)
 {
@@ -531,23 +549,23 @@ static void t_flng(void)
     for (i = 0; i < NB * CTL; i++)
         lr |= y[i] != fr[i];
     check("... heard on the master; L and R the same sweep (the same input: the same output)", !same() && !lr);
-    fxa_mark(FXA_N - FXA_Z3 - FXA_Z0, FXA_Z0, 0);       /* (2 units more free: room for a CHRS line) */
-    m[0] = FXT_CHRS;
+    fxa_mark(FXA_N - FXA_Z3 - FXA_Z0, FXA_Z0, 0);       /* (2 units more free: room for a CHO line) */
+    m[0] = FXT_CHO;
     mst_put(m);
     fxi_poll();
-    check("CHRS on the master: a CHRS line (the master is an owner of every limited type)",
-          fxi_ostate(FXI_MST, FXT_CHRS) == FXI_OK && ifx_lim_at(FXT_CHRS, IFX_MST) != FXI_NONE && mem_ok());
-    play_mst2(FXT_CHRS, 90);
+    check("CHO on the master: a CHO line (the master is an owner of every limited type)",
+          fxi_ostate(FXI_MST, FXT_CHO) == FXI_OK && ifx_lim_at(FXT_CHO, IFX_MST) != FXI_NONE && mem_ok());
+    play_mst2(FXT_CHO, 90);
     check("... heard", !same());
     m[0] = FXT_NONE;
     mst_put(m);
-    play_mst2(FXT_CHRS, 0);
+    play_mst2(FXT_CHO, 0);
     fxi_poll();
 }
 #endif
 
 #if FELUCCA_INS_JCHORUS && FELUCCA_INS_FLANGER
-/* JUNO CHORUS and FLNG on the chorus send's lent line (3 of its 4 units), evicted with a fade when CHO comes back */
+/* JUNO CHORUS (4 units, the whole of it) on the chorus send's lent line, FLNG left FULL; evicted with a fade when CHO comes back */
 static void t_lend_jf(void)
 {
     uint32_t j, f;
@@ -563,14 +581,14 @@ static void t_lend_jf(void)
     fx.cho_q = FX_Q_MAX;
     blocks(2);
     j = ifx_lim_at(FXT_JUNO, 0), f = ifx_lim_at(FXT_FLNG, 0);
-    check("CHO out of the slots: both on its lent line, JUNO its first 2 units, FLNG the next, never one unit twice",
-          j != FXI_NONE && f != FXI_NONE && ifx_jcho[j].c.ln == cho_buf && ifx_flng[f].line == cho_buf + 2u * FXA_U &&
-          (fxl_lent & 1u) && fxi_lent(FXT_JUNO) == 1u && fxi_lent(FXT_FLNG) == 1u && mem_ok());
+    check("CHO out of the slots: JUNO on its lent line (all 4 units), FLNG finds no unit left (FULL), never one unit twice",
+          j != FXI_NONE && f == FXI_NONE && (void *)ifx_jcho[j].c.ln == (void *)cho_buf &&
+          (fxl_lent & 1u) && fxi_lent(FXT_JUNO) == 1u && fxi_lent(FXT_FLNG) == 0u && fxi_state(0, 1) == FXI_FULL && mem_ok());
     blocks(64);
-    check("... heard: they write the line", !zeros16(cho_buf, 3u * FXA_U));
+    check("... heard: JUNO writes the line", !zeros16(cho_buf, FXA_Z2 * FXA_U));
     fxs_load(1, FXT_CHO);
     blocks(1);
-    check("CHO back: both evicted (fading out), still on the line", ifx_jcho[j].evict && ifx_flng[f].evict &&
+    check("CHO back: JUNO evicted (fading out), still on the line", ifx_jcho[j].evict &&
           ifx_lim_at(FXT_JUNO, 0) == j && fxl_st[0] == FXL_BACK);
     blocks(24);                                         /* (JUNO's MIX fades over 16 blocks) */
     check("... faded: given back, the line the bus's again (zeros), both FULL", fxl_st[0] == FXL_SEND && !fxl_lent &&
@@ -660,13 +678,13 @@ static void t_arena(void)
 int main(void)
 {
     host_tracks_init();
-#if FELUCCA_INS_CHORUS && FELUCCA_INS_DELAY && !FELUCCA_INS_XDLY && !FELUCCA_DLY_ARENA
-    if (!FELUCCA_INS_JCHORUS && !FELUCCA_INS_FLANGER) {   /* (the counts below: the auto memory of CHRS and ECHO) */
+#if INS_CHO && FELUCCA_INS_DELAY && !FELUCCA_INS_XDLY && !FELUCCA_DLY_ARENA
+    if (!FELUCCA_INS_JCHORUS && !FELUCCA_INS_FLANGER) {   /* (the counts below: the auto memory of CHO and ECHO) */
         t_assign();
         t_mem();
     }
 #endif
-#if FELUCCA_INS_CHORUS && FELUCCA_INS_DELAY
+#if INS_CHO && FELUCCA_INS_DELAY
     t_exhaust();
     t_reload();
     t_query();

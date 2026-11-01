@@ -47,6 +47,7 @@ def sidecar(pkg, commit, name="mots", h="1901b25c", dirty=False):
 
 with tempfile.TemporaryDirectory() as td:
     td = Path(td)
+    FL.LAST_INSTALL = td / "last-install.json"         # (the installs below record nothing in the repo's build/)
     pkg = td / "optimist-0.1-dev-abc.fwsc"
     pkg.write_bytes(b"package one")
     code = {str(td / "menu.py"): "aa", str(td / "registry.py"): "bb"}
@@ -120,6 +121,28 @@ with tempfile.TemporaryDirectory() as td:
           any(ln.startswith("built:") for ln in lines) and
           [i for i, ln in enumerate(lines) if ln.startswith("built:")][0] <
           [i for i, ln in enumerate(lines) if ln.startswith("running:")][0])
+    # the platform warning (2026-10-29: an fm1-base package over an Optimist build stopped at the device's loader
+    # check, -16): shown in the confirmation, and only an accepted plan passes --force to the installer
+    fm1b = ROOT / "build" / "felucca.fwsc"
+    if fm1b.is_file() and FL.FI.product_of(fm1b.read_bytes()).startswith("FM-1_79"):
+        product = FL.FI.product_of(fm1b.read_bytes())
+        note = FL.platform_note(fm1b, product, "FM-1_700  [running]  port: Optimist")
+        check("platform: an fm1-base package over an Optimist build is warned about", note and "fm1-base" in note)
+        check("platform: over fm1-base itself, no warning",
+              FL.platform_note(fm1b, product, "FM-1_7900  [running]  port: Optimist") is None)
+        check("platform: over a loader (an install to finish), no warning",
+              FL.platform_note(fm1b, product, "ota-FM-1_700  [update loader (update not finished)]  port: x") is None)
+    plan = FL.Plan(p, "FM-1_7900", "FM-1_700  [running]", None, [], warn="the FM-1 may refuse it")
+    check("platform: the confirmation shows the warning", any(ln.startswith("WARNING") for ln in plan.lines()))
+    got, keep = [], FL.run_tool
+    FL.run_tool = lambda args, capture=True, on_line=None, tool=None: got.append(args) or (0, "")
+    try:
+        FL.install(plan)
+        FL.install(FL.Plan(p, "FM-1_700", "FM-1_700  [running]", None, []))
+    finally:
+        FL.run_tool = keep
+    check("platform: an accepted warning -> --force; none -> never --force",
+          "--force" in got[0] and "--force" not in got[1])
 
 
 # ---- the menu itself (Textual, headless): f goes through stamp.refusal; nothing reaches the device
@@ -179,7 +202,7 @@ def menu_checks():
                       builds == ["test"] and app.flash_after_build and not calls
                       and "then the flash" in app.build_out)
                 check("menu: the build shows its progress bar, not knowing the length yet",
-                      bar_on(app) and "build: starting" in label(app))
+                      bar_on(app) and "starting" in label(app))
                 await asyncio.to_thread(app.build_line, "==> [3/5] app")        # (a worker thread's call)
                 await pilot.pause()
                 check("menu: a stage line moves the bar: 'build 3/5: app', the two short stages before it done "

@@ -14,10 +14,10 @@ import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { dirname, extname, join, normalize } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath as toFsPath } from "node:url";
 import { fakePackage } from "./installer/mock_fm1.js";
 
-const HERE = fileURLToPath(new URL(".", import.meta.url));
+const HERE = toFsPath(import.meta.url).replace(/[^/\\]*$/, "");
 const ROOT = join(HERE, "..");
 const arg = (k) => (process.argv.includes(k) ? process.argv[process.argv.indexOf(k) + 1] : null);
 const shots = arg("--shots"), styleFile = arg("--style");
@@ -25,7 +25,7 @@ const CHROMES = [process.env.CHROME, "/Applications/Google Chrome.app/Contents/M
   "/usr/bin/chromium", "/usr/bin/chromium-browser", "C:/Program Files/Google/Chrome/Application/chrome.exe"].filter(Boolean);
 const chrome = CHROMES.find((p) => existsSync(p));
 if (!chrome) { console.log("e2e: no Chrome found (CHROME=path)"); process.exit(0); }
-const PYTHON = process.env.PYTHON || (process.platform === "win32" ? "python" : "python3");
+const PYTHON = process.env.PYTHON || ["python3", "python"][Number(process.platform === "win32")];
 let failed = 0;
 const ok = (c, what) => { console.log(`${what.padEnd(84)} ${c ? "ok" : "FAIL"}`); if (!c) failed++; };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -134,7 +134,7 @@ const U = `const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 /* the mock behind requestMIDIAccess, before any page script (?nomidi: a browser without Web MIDI) */
 const MOCK = `(() => {
   if (location.search.includes("nomidi")) { Object.defineProperty(Navigator.prototype, "requestMIDIAccess", { configurable: true, value: undefined }); return; }
-  const ready = Promise.all([import("${ORIGIN}/src/installer/mock_fm1.js"), import("${ORIGIN}/src/fm1pkg.js")]).then(([m, p]) => {
+  const ready = Promise.all([import("${ORIGIN}/src/installer/mock_fm1.js"), import("${ORIGIN}/src/fm1base/fm1pkg.js")]).then(([m, p]) => {
     window.__M = m; window.__dev = new m.FakeFM1(p.logicalImage(m.fakePackage("${PRODUCT}")), { plugged: false, identity: "FM-1_015", finalIdentity: "${PRODUCT}", writeBlocks: 127 });
   });
   window.__midiCalls = 0;
@@ -183,6 +183,29 @@ const fd = await run(`${U} D().plug("FM-1_015", "FM-1"); await until(() => $(".o
   return { t: $(".oi-found").textContent, help: vis(".oi-help") };`);
 ok(fd.t === "Found: the official firmware V15 (FM-1_015)" && !fd.help, "step 1: plugged in: found by itself, in words (the official firmware V15)");
 
+/* ---- 2b two FM-1s on the cable: the page lists them and sends nothing to either before the choice; Install asks for it too */
+const two = await run(`${U} const d = D(); const sent = []; let n = 0; const rx = d.rx.bind(d); d.rx = (m) => { n++; return rx(m); };
+  const ids = []; const add = (name) => { const i = { id: "i" + name, name, state: "connected", open: async () => {}, onmidimessage: null };
+    const o = { id: "o" + name, name, state: "connected", open: async () => {}, send: (b) => { sent.push(name); } };
+    d.access.inputs.set(i.id, i); d.access.outputs.set(o.id, o); ids.push(i.id, o.id); };
+  add("FM1-C3D4"); add("Bluetooth FM1-C3D4"); d.access.onstatechange({});
+  await until(() => vis(".oi-pick"), 5000); await sleep(1500);
+  const asked = { text: $(".oi-found").textContent, buttons: [...document.querySelectorAll(".oi-pick li")].map((l) => l.firstChild.textContent), n, sent: sent.length };
+  $(".oi-go").click(); await sleep(500);
+  const go = { dialog: !!$("dialog.oi-ask"), text: $(".oi-found").textContent, n, sent: sent.length };
+  [...document.querySelectorAll(".oi-pick button")][1].click(); await until(() => $(".oi-found").dataset.kind === "err" && $(".oi-found").textContent === "No FM-1 found.", 10000);
+  const other = { sent: sent.length, n };
+  [...document.querySelectorAll(".oi-pick button")][0].click(); await until(() => $(".oi-found").dataset.kind === "ok", 10000);
+  const mine = { text: $(".oi-found").textContent, sent: sent.length, n };
+  ids.forEach((id) => { d.access.inputs.delete(id); d.access.outputs.delete(id); }); d.access.onstatechange({}); await until(() => !vis(".oi-pick"), 5000);
+  d.rx = rx;
+  return { asked, go, other, mine };`);
+ok(two.asked.text === "2 FM-1s found. Choose one:" && JSON.stringify(two.asked.buttons) === JSON.stringify(["FM-1", "FM1-C3D4"]) && two.asked.n === 0 && two.asked.sent === 0,
+  "two FM-1s (and a Bluetooth copy of one): listed as two, nothing sent to either");
+ok(!two.go.dialog && two.go.text === "Choose which FM-1 to use first." && two.go.n === 0 && two.go.sent === 0, "two FM-1s: Install asks to choose first, no dialog, nothing sent");
+ok(two.other.sent > 0 && two.other.n === 0 && two.mine.sent === two.other.sent && two.mine.n > 0 && two.mine.text === "Found: the official firmware V15 (FM-1_015)",
+  "two FM-1s: after the choice only the chosen one is asked (FM1-C3D4 chosen: the other got nothing; then the first: FM1-C3D4 got nothing more)");
+
 /* ---- 3 install: the question first, then the four phases to Done */
 const ask = await run(`${U} $(".oi-go").click(); await until(() => $("dialog.oi-ask[open]"), 3000); const d = $("dialog.oi-ask");
   return { open: !!d && d.open, focusIn: d && d.contains(document.activeElement), text: d && d.textContent };`);
@@ -206,7 +229,8 @@ ok(/^Done\. The FM-1 runs .+ \(FM-1_720\)\./.test(done.ok) && done.st.every((s) 
 await full("installer-desktop-dark-done", 1440);
 
 /* ---- errors: the cable pulled while writing, then Install again resumes; no FM-1 at all */
-const lost = await run(`${U} D().identity = "${PRODUCT}"; D().served = 0; D().unplugAfter = 24; $(".oi-go").click();
+/* (running a Felucca: its loader takes this small test package; Optimist's own takes the MEMORY steps' 0x93000 / 0xB5000 / 0xD0000 flash.bin only) */
+const lost = await run(`${U} D().identity = "FM-1_904"; D().served = 0; D().unplugAfter = 24; $(".oi-go").click();
   await until(() => vis(".oi-err"), 90000);
   return { err: $(".oi-err").textContent, st: [...document.querySelectorAll(".oi-phases li")].map((l) => l.dataset.st), go: $(".oi-go").disabled };`);
 ok(/^The USB connection was lost\. Replug the cable and press Install again/.test(lost.err) && lost.st[2] === "fail" && !lost.go,
@@ -217,8 +241,27 @@ const res = await run(`${U} D().unplugAfter = Infinity; D().served = 0; D().plug
   return { ok: vis(".oi-ok") && $(".oi-ok").textContent, err: vis(".oi-err"), found: $(".oi-found").textContent, bad: D().bad };`);
 ok(res.ok && /FM-1_720/.test(res.ok) && !res.err && res.bad === 0 && /update mode \(ota-FM-1_900\)/.test(res.found),
   "replugged in update mode: found as such, Install again finishes the write and checks the FM-1 comes back");
+/* ---- a package the running firmware's updater refuses (M-VAVE's Open firmware): download mode, said, nothing written */
+const dl = await run(`${U} D().served = 0; D().plug("FM1_OFFICIAL_OPEN", "FM-1"); await sleep(800); $(".oi-go").click();
+  await until(() => vis(".oi-err"), 20000);
+  const soft = $(".oi-softkey"); const shown = !!soft && !soft.hidden;
+  const out = { err: $(".oi-err").textContent, served: D().served, soft: shown, keys: D().softKeys || 0 };
+  $(".oi-err").hidden = true; return out;`);
+ok(/^Not installed\. This install needs the chip's download mode/.test(dl.err) && /M-Flasher/.test(dl.err) && /fm1_install\.py/.test(dl.err)
+  && dl.served === 0 && !dl.soft && dl.keys === 0, "Open firmware running: download mode needed, the next step named (M-Flasher, the command), nothing sent");
 const none = await run(`${U} D().unplug(); await sleep(800); $(".oi-go").click(); await until(() => vis(".oi-err"), 20000); return $(".oi-err").textContent;`);
-ok(/^No FM-1 found\. Check the cable \(see under the Install button\)/.test(none), "no FM-1 at Install: said, pointing at step 1");
+ok(/^No FM-1 found\. Check the cable \(see under the Install button\)/.test(none), `no FM-1 at Install: said, pointing at step 1 (${String(none).slice(0, 90)})`);
+
+/* ---- fm-1-base's discovery: an FM-1 under a name nobody knows is listed with Try, remembered once it answers; m-bootloader is offered */
+const odd = await run(`${U} D().plug("FM-1_015", "Mystery Port"); await sleep(300); $(".oi-conn .o-btn").click(); await until(() => $(".oi-portlist li button"), 10000);
+  const before = [...document.querySelectorAll(".oi-portlist li")].map((l) => l.textContent);
+  const btn = $(".oi-portlist li button"); btn.click(); await until(() => /^Found FM-1_015 on Mystery Port/.test($(".oi-portmsg").textContent), 10000);
+  await until(() => $(".oi-found").dataset.kind === "ok", 10000);
+  return { before, msg: $(".oi-portmsg").textContent, found: $(".oi-found").textContent, kept: localStorage.getItem("fm1-ports"), boot: vis(".oi-bootopt"), line: $(".oi-bootline").textContent };`);
+ok(odd.before.join() === "Mystery PortTry" && /This browser remembers it/.test(odd.msg) && /Found: the official firmware V15/.test(odd.found) && odd.kept === '["Mystery Port"]',
+  "step 1: an FM-1 under an unknown port name: listed with Try, asked, remembered, then found");
+ok(!odd.boot && /^bootloader: keep \(no build setting with this package\)/.test(odd.line),
+  "step 3: the bootloader shown as kept (no build setting); the page never offers to write m-bootloader itself");
 
 /* ---- a file of yours: not a package -> refused in words; a SLOOP package -> ready */
 const doc = await send("DOM.getDocument", { depth: -1 });

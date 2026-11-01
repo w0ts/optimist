@@ -37,21 +37,23 @@ static void lforate_tests(void)
     check(c.gk == GK_BAR && c.gv == 127 && c.gmin == 0, "LFO RATE 127: the bar full, still from 0");
     lr_cell(64, &c);
     check(c.gk == GK_BAR && c.gv == 64 && c.gmin == 0 && c.gmax == 127, "LFO RATE 64: the bar at 64 of 0 .. 127, not shifted by the divisions");
+    lr_cell(-25, &c);
+    check(c.gk == GK_POS && c.gmin == 0 && c.gmax == LSYNC_N - 1 && LSYNC_N == 25 && c.gv == 0 && !strcmp(c.val, "16BAR"),
+          "LFO RATE 16BAR (-25): 25 places, the tick at the first, the division as text");
     lr_cell(-1, &c);
-    check(c.gk == GK_POS && c.gmin == 0 && c.gmax == LSYNC_N - 1 && LSYNC_N == 22 && c.gv == 0 && !strcmp(c.val, "4BAR"),
-          "LFO RATE 4BAR (-1): 22 places, the tick at the first, the division as text");
+    check(c.gk == GK_POS && c.gv == 3 && !strcmp(c.val, "4BAR"), "LFO RATE 4BAR (-1): the tick at place 3 (after 16BAR 8BAR 6BAR)");
     lr_cell(-22, &c);
     check(c.gk == GK_POS && c.gv == LSYNC_N - 1 && !strcmp(c.val, "1/64"), "LFO RATE 1/64 (-22): the tick at the last place");
     lr_cell(-11, &c);
-    check(c.gk == GK_POS && c.gv == 10 && !strcmp(c.val, "1/4"), "LFO RATE 1/4 (-11): the tick at place 10");
+    check(c.gk == GK_POS && c.gv == 13 && !strcmp(c.val, "1/4"), "LFO RATE 1/4 (-11): the tick at place 13");
     ui.force = 1;
     frame();
     ppm("opt-lforate-sync");
     for (r = 1; r <= (uint32_t)LSYNC_N; r++) {         /* every division: its own cell, the graph drawn */
-        lr_cell(-(int32_t)r, &c);
-        ok &= c.gk == GK_POS && c.gv == (int16_t)(r - 1u);
+        lr_cell(-(int32_t)r, &c);                       /* (-1 .. -22 at 3 .. 24, -23 -24 -25 at 2 1 0: by length) */
+        ok &= c.gk == GK_POS && c.gv == (int16_t)(r <= (uint32_t)DUR_N ? r + 2u : (uint32_t)LSYNC_N - r);
     }
-    check(ok, "LFO RATE -1 .. -22: the tick walks 0 .. 21");
+    check(ok, "LFO RATE -1 .. -25: the tick walks by length, 16BAR 8BAR 6BAR 4BAR .. 1/64 at 0 .. 24");
     lr_cell(60, &c);
     ui.force = 1;
     frame();

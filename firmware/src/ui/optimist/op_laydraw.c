@@ -199,11 +199,9 @@ static void tiles_fill(tile_t *tl, char *sub, uint32_t n)
         tile_set(&tl[9], "BAR", fill_bar_on ? C_WHITE : OP_SURF, fill_bar_on ? C_BLACK : C_HI, fill_arm ? C_WHITE : 0);
         str_cpy(sub, "Black 1-4 FX on/off", n);
 #else
-        str_cpy(sub, "Mute solo FX tap", n);
+        str_cpy(sub, "Mute FX", n);
 #endif
-        fmt_int(b, song.g[G_BPM]);
-        tile_set(&tl[15], b, song.playing && clk_pos < BEAT_U / 4u ? C_WHITE : OP_SURF, song.playing && clk_pos < BEAT_U / 4u ? C_BLACK : C_WHITE, 0);
-        tile_set(&tl[14], "TAP >", C_BLACK, C_DIM, 0);
+        /* (no tap tempo here: PLAY held is the TEMPO page, the user 2026-11-01) */
         break;
     default:
         break;
@@ -284,7 +282,7 @@ static void tempo_draw(int32_t h)
         cv_box(bx + (int32_t)i * (bs + 6), 8 + dy, bs, bs, i == beat ? (i ? C_WHITE : C_OK) : C_BLACK);
     if (sy.src) {                                       /* following a clock: the offset OCT- / + move (op_tempo.c) */
         int32_t o = sync_ofs[sync_ofs_ix()];
-        x = cv_texts(bx, (short_ ? 25 : 32) + dy + bs - 16, sync_ofs_ix() ? "BT ofs " : "Ofs ", o ? C_WARN : C_GRAY);
+        x = cv_texts(bx, (short_ ? 25 : 32) + dy + bs - 16, sync_ofs_ix() == 1u ? "BT ofs " : sync_ofs_ix() == 2u ? "Link ofs " : "Ofs ", o ? C_WARN : C_GRAY);
         b[0] = o > 0 ? '+' : 0;
         b[1] = 0;
         fmt_int(b + (o > 0), o);
@@ -301,35 +299,127 @@ static void tempo_draw(int32_t h)
     cv_texts(100, 40 + dy + bs - 16, "RX", sy.src ? C_OK : C_DIM);
 }
 
-/* ---- the PATTERNS row's panel: the 4 x 16 session grid (docs/PATTERNS-DESIGN.md section 4), h rows from the panel's top */
+/* ---- the PATTERNS row's panel (docs/PATTERNS-DESIGN.md section 4): no cards over it (the user, 2026-11-01), the whole panel
+ * from the header down: the pattern numbers 1..16 on two lines (a 2-digit number is 16 px, a column 13.6), the 4 x 16 session grid,
+ * and under it the PREVIEW of the pattern last touched, read from the store without loading it (pat_peek), drawn as the
+ * mixer draws a row: 4 groups of 4 steps (MX_STEP_X), shaded by level, the track's colour; the drums' lanes as rows */
 #if FELUCCA_PATTERNS
+#define PG_X0 21                                        /* the first cell's x: the track's tag and its knob left of it */
+#define PG_CW 11                                        /* a cell's width (12 before the group gaps: 3 x MXL_GG = 6 px had to come from the row) */
+#define PG_PITCH 13                                     /* a column's pitch (cell 11 + 2) */
+#define PG_GG 3                                         /* the extra gap after every 4th column, here and in the preview (the mixer's MXL_GG stays 2; the user, 2026-11-01: a bit bigger) */
+#define PG_X(i) (PG_X0 + (int32_t)(i) * PG_PITCH + (int32_t)((i) / 4u) * PG_GG)   /* column i's x: 4 groups of 4, the last cell ends at 236 */
+#define PG_SX(i) (PG_PVX + (int32_t)(i) * PG_PITCH + (int32_t)((i) / 4u) * PG_GG)   /* the preview's step i: the same groups */
+#define PG_NUMX(i, w) (PG_X(i) + (PG_CW - (w)) / 2 > 240 - (int32_t)(w) ? 240 - (int32_t)(w) : PG_X(i) + (PG_CW - (w)) / 2)   /* a number of width w over column i: centred, the last one kept inside 240 px ("16" was 225..241) */
+#define PG_NUMH 11                                      /* a line of numbers */
+#define PG_LANE 5                                       /* a drum lane's row in the preview */
+#define PG_PVX 12                                       /* the preview's first step (215 px wide: centred) */
+#define PG_PVD (PG_LANE * (int32_t)DRUM_LANES)          /* the preview's steps, drums */
+#define PG_PVT 3                                        /* the preview's top margin under its rule (no label: the track and slot are known, the user, 2026-11-01) */
+#define PG_PVGAP 5                                      /* the space between the last track row (DR) and the preview (the user, 2026-11-01) */
+#define PG_PVH (PG_PVT + PG_PVD)                        /* the preview: the steps (the drums' lanes are the tallest) */
+#define PG_SYH 24                                       /* a synth step's height in the preview */
+static const uint8_t PAT_ROW_KNOB[4] = {0, 1, 2, 3};    /* the knob that cues row k: K1 T1, K2 T2, K3 T3, K4 DR (PAT_KNOB_CELL's inverse) */
+/* the pattern previewed: the selected track's, the slot last touched (pv_touch), else its playing one, its queued one first */
+static uint32_t pv_slot(void)
+{
+    uint32_t t = song.sel % NTRK;
+    if (pv_t == t && pv_s < PAT_N)
+        return pv_s;
+    return pat_req[t] < PAT_N ? pat_req[t] : pat_cur[t];
+}
+static struct {
+    uint32_t gen;
+    uint8_t t, s, ok, has;
+    pat_peek_t d;
+} pvc = {.t = 0xFF};                                    /* the slot as read last: read again only when the slot or the store changed */
+static const pat_peek_t *pv_peek(uint32_t t, uint32_t s, int *has)
+{
+    if (s >= PAT_N) {
+        *has = 0;
+        return 0;
+    }
+    if (pvc.t != t || pvc.s != s || pvc.gen != sec_gen) {
+        pvc.t = (uint8_t)t, pvc.s = (uint8_t)s, pvc.gen = sec_gen;
+        pvc.has = (uint8_t)pat_has(t, s);
+        pvc.ok = (uint8_t)(pvc.has && pat_peek(t, s, &pvc.d));
+    }
+    *has = pvc.has;
+    return pvc.ok ? &pvc.d : 0;
+}
 static uint32_t song_grid_sig(void)
 {
-    uint32_t k, h = 0x51u + lay.pchg * 7u + song.sel;
+    uint32_t k, h = 0x51u + lay.pchg * 7u + song.sel + knob_colors * 977u + settings.palette * 31u, s = pv_slot();
     for (k = 0; k < NTRK; k++)
-        h = h * 31u + pat_cur[k] * 3u + pat_req[k] * 5u;
+        h = h * 31u + pat_cur[k] * 3u + pat_req[k] * 5u + (uint32_t)(lay.pmod == 5u);
     for (k = 0; k < NTRK * PAT_N; k++)
         h = h * 3u + (uint32_t)pat_has(k / PAT_N, k % PAT_N);
-    return h;
+    return (h * 31u + s) * 31u + sec_gen;
+}
+static void pv_steps(uint32_t t, int32_t y, const pat_peek_t *d, uint16_t tc)
+{
+    uint32_t i, l;
+    int32_t x;
+    if (!is_drum(&trk[t])) {                            /* a synth track: one row of 16 steps, as the mixer's channels */
+        for (i = 0; i < 16u; i++) {
+            x = PG_SX(i);
+            cv_box(x, y, 11, PG_SYH, d && ((d->hit[0] >> i) & 1u) ? ((d->mut[0] >> i) & 1u ? mute_col() : lvl_col(tc, (d->lvl[0] >> (2u * i)) & 3u)) : C_BLACK);
+        }
+        return;
+    }
+    for (l = 0; l < DRUM_LANES; l++)                    /* the drums: a row a lane, its hits (as the mixer's lanes: a dot where empty) */
+        for (i = 0; i < 16u; i++) {
+            x = PG_SX(i);
+            if (d && ((d->hit[l] >> i) & 1u))
+                cv_rect(x, y + (int32_t)l * PG_LANE, 11, PG_LANE - 1,
+                        (d->mut[l] >> i) & 1u ? mute_col() : lvl_col(tc, (d->lvl[l] >> (2u * i)) & 3u));
+            else
+                step_dot(x, y + (int32_t)l * PG_LANE, 11, PG_LANE - 1, !(i & 3u));
+        }
+}
+static void pv_draw(int32_t y)                          /* the preview, from y */
+{
+    uint32_t t = song.sel % NTRK, s = pv_slot();
+    int has = 0;
+    const pat_peek_t *d = pv_peek(t, s, &has);
+    uint16_t tc = trk_col(t);
+    cv_hline(y, C_DIM);
+    if (s >= PAT_N)
+        cv_texts(237 - text_ws("NONE"), y + 3, "NONE", C_DIM);
+    else if (!has || !d)
+        cv_texts(237 - text_ws("EMPTY"), y + 3, has ? "?" : "EMPTY", C_DIM);
+    if (s < PAT_N && has && d)
+        pv_steps(t, y + PG_PVT, d, tc);
 }
 static void song_grid_draw(int32_t h)
 {
-    uint32_t k, i;
-    int32_t rh = (h - 4) / (int32_t)NTRK;
+    uint32_t k, i, sel = song.sel % NTRK;
+    int32_t gp = (h - 2 * PG_NUMH - PG_PVH - 8 - PG_PVGAP) / (int32_t)NTRK, ch = gp - 3;
     pat_refresh();
+    for (i = 0; i < PAT_N; i++) {                       /* the pattern numbers: two lines, the odd ones over the even ones, text on the dark panel (no text on
+                                                         * a fill); the selected track's playing one green, its queued amber, the one previewed white */
+        char nb[4];
+        uint16_t nc = pat_cur[sel] == i ? C_OK : pat_req[sel] == i ? C_WARN : pv_slot() == i ? C_WHITE : C_GRAY;
+        fmt_int(nb, (int32_t)i + 1);
+        cv_texts(PG_NUMX(i, text_ws(nb)), (int32_t)(i & 1u) * PG_NUMH, nb, nc);
+    }
     for (k = 0; k < NTRK; k++) {
-        int32_t y = 2 + (int32_t)k * rh;
+        int32_t y = 2 * PG_NUMH + 2 + (int32_t)k * gp;
         uint16_t tc = trk_col(k);
-        if (k == song.sel)
-            cv_hline(y - 2, C_DIM), cv_hline(y + rh - 2, C_DIM);   /* (the selected track, its keys launch: lined) */
-        cv_texts(3, y + (rh - 12) / 2, trk_tag(k), k == song.sel ? C_WHITE : tc);
+        int on = k == sel || lay.pmod == 5u;            /* (the selected track, its keys launch: lined; black 5: every track) */
+        char kn[3] = {'K', (char)('1' + PAT_ROW_KNOB[k]), 0};
+        if (on)
+            cv_hline(y - 2, C_DIM), cv_hline(y + gp - 2, C_DIM);
+        cv_texts(3, y + 1, trk_tag(k), on ? C_WHITE : tc);
+        cv_texts(3, y + 1 + 11, kn, knob_col(PAT_ROW_KNOB[k], C_DIM));   /* (the knob that cues this row: its colour with KNOB COLORS) */
         for (i = 0; i < PAT_N; i++) {
-            int32_t x = 26 + (int32_t)i * 13;
+            int32_t x = PG_X(i);
             uint16_t c = pat_cur[k] == i ? C_OK : pat_req[k] == i ? C_WARN : pat_has(k, i) ? col_shade(tc, 4u) : OP_SURF;
-            cv_box(x, y, 11, rh - 3, c);
+            cv_box(x, y, PG_CW, ch, c);
             if (pat_cur[k] == i && ((lay.pchg >> k) & 1u))
-                cv_rect(x + 4, y + (rh - 3) / 2 - 1, 3, 3, C_WHITE);   /* (changed since its source) */
+                cv_rect(x + 4, y + ch / 2 - 1, 3, 3, C_WHITE);   /* (changed since its source) */
         }
     }
+    pv_draw(2 * PG_NUMH + 2 + (int32_t)NTRK * gp + 2 + PG_PVGAP);
 }
 #endif

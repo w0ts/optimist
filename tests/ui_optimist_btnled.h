@@ -139,11 +139,20 @@ static void btnled_tests(void)
             check(ui.scr == SCR_PROJECT && !op_armed(), "OCT+ with one bank: nothing");
         }
         bk_set(BK_SYN, SCR_SYSTEM);
-        check(led_lvl(B_OCTDN) == 0 && led_lvl(B_OCTUP) == 0, "OCT LEDs, SYSTEM: both dark");
+        check(led_lvl(B_OCTDN) == 1 && led_lvl(B_OCTUP) == 1,
+              "OCT LEDs, SYSTEM: both dim (the keys play the track there since 2026-10-30: their octave, SHIFT / SHIFT2 + a key)");
+        {
+            int32_t o = song.octave;
+            tap(B_OCTUP);
+            check(song.octave == o + 1 && ui.scr == SCR_SYSTEM, "... OCT+ tapped on SYSTEM: the keys' octave up, SYSTEM stays");
+            tap(B_OCTDN);
+            check(song.octave == o, "... OCT- back");
+        }
         bk_set(BK_SYN, SCR_GLOBAL);
         ui.row[SCR_GLOBAL] = (uint8_t)(gl_n(0) - 1u);   /* (the last line: page 0 holds Tempo's lines, and its first section includes TUNE since fx-rework) */
         frames(2);
-        check(led_lvl(B_OCTUP) == 0, "OCT LEDs, GLOBAL (off the tempo line): OCT+ dark");
+        check(led_lvl(B_OCTDN) == 1 && led_lvl(B_OCTUP) == 1,
+              "OCT LEDs, GLOBAL (off the tempo line): both dim (the keys' octave since 2026-10-30; on the tempo line the nudge, ui_optimist_glo.h)");
         bk_set(BK_SYN, SCR_FX);
         check(led_lvl(B_OCTDN) == 1 && led_lvl(B_OCTUP) == 1, "OCT LEDs, the master FX: both dim (back to the track)");
         bk_set(BK_SYN, SCR_SCOPE);

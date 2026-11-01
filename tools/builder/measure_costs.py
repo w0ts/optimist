@@ -29,6 +29,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
+os.environ["OPTIMIST_ALLOW_UNBUILT"] = "1"      # (core.validate would refuse the registry's NOT_BUILT values: this run probes them itself)
 sys.path.insert(0, str(HERE))
 import configure as C  # noqa: E402
 import registry as R  # noqa: E402
@@ -47,15 +48,11 @@ PAIRS = [{"MOTION": 1, "SECTIONS": 4},
          # without live editing the librarian brings the sections and the patterns too, and BACKUP the sample slots and the
          # snapshots (ed_lite.c: the base is the frames, INFO, BUILD, PING)
          {"ED_LIVE": 0, "LIBRARIAN": 0}, {"ED_LIVE": 0, "BACKUP": 0}, {"ED_LIVE": 0, "BACKUP": 0, "LIBRARIAN": 0},
-         # one core with the CDC console (the BLE test builds' set): the second core's code that DUAL=0 leaves out is not
-         # the same with the console's (2026-10-19: user-default+ble-full estimated 840 B of RAMTEXT over from ble-test)
-         {"DUAL": 0, "USB_CONSOLE": 1},   # (motion beside the four project slots vs inside the section records)
          # the reverb's algorithms share their line buffer, the half-rate filters and the code that switches them
          # (the buffer itself is computed: configure.py rev_lines; the automation store: auto_store)
          {"REV_PLATE": 1, "REV_FDN8": 1, "SPRING": 0}, {"REV_PLATE": 1, "REV_FDN8": 1, "SPRING": 1},
          {"REV_ROOM": 0, "REV_PLATE": 0, "REV_FDN8": 1},
-         {"REV_ROOM": 0, "REV_HALF": 1},         # (REV_HALF's half-band filters and half-rate tank are the ROOM's)
-         {"ENG_CZ": 1, "NATIVE_BANKS": 1},       # (the CZ tone collections share the engine's tone code)
+         {"ENG_CZ": R.ENG_ON, "NATIVE_BANKS": 1},       # (the CZ tone collections share the engine's tone code; an engine "on" is ENG_ON (2): the registry's old 1 is no value of it, and a pair named ENG_CZ=1 never held nor built, 2026-10-30)
          # the five sampled kits share the PERC samples: each kit's own delta is ~0, all five off together drop them
          {f"KIT_{k}": 0 for k in ("ACOUSTIC", "DEEP", "TIGHT", "BRIGHT", "DUST")},
          {"DRUM_X0X909": 1, "DRUM_X0X808": 1},   # (the X0X drum voice code and its state, once for both kits)
@@ -69,28 +66,23 @@ PAIRS = [{"MOTION": 1, "SECTIONS": 4},
          # its arrays are computed: configure.py auto_store)
          {"MICRO": 1, "FILLS": 1}, {"MICRO": 1, "PLOCK": 1}, {"FILLS": 1, "PLOCK": 1},
          {"MICRO": 1, "FILLS": 1, "PLOCK": 1},
-         # BLE with the CDC console (USB_CONSOLE): the console's blevm / bletrim commands; with BLE_DIAG blell's printing
-         {"BLE": 1, "USB_CONSOLE": 1}, {"BLE": 1, "BLE_DIAG": 1, "USB_CONSOLE": 1},
+         # BLE with the CDC console (USB_CONSOLE): the console's blevm / bletrim commands
+         {"BLE": 1, "USB_CONSOLE": 1},
          # USB audio + MIDI (with its resampler since 2026-10-15; MIDI only by default since 2026-10-12)
          {"USB_AUDIO": 1},
          # found 2026-10-12 (the "mots" check 4.7 KB under its real build; ~/costs bisection, each pair 0.3-1.6 KB of
          # flash beyond its items' deltas): the CPU guard's parts in the ACID engine and the X0X drums (cpuguard.c,
          # eng_acid.c, drum_x0x.c: built only with both); MACROS with USB_CONSOLE 0 measured
          # so (+1.2 KB), the code behind it not traced
-         {"CPU_GUARD": 1, "ENG_ACID": 1}, {"CPU_GUARD": 1, "DRUM_X0X909": 1}, {"CPU_GUARD": 1, "DRUM_X0X808": 1},
+         {"CPU_GUARD": 1, "ENG_ACID": R.ENG_ON}, {"CPU_GUARD": 1, "DRUM_X0X909": 1}, {"CPU_GUARD": 1, "DRUM_X0X808": 1},
          {"CPU_GUARD": 1, "DRUM_X0X909": 1, "DRUM_X0X808": 1},
          {"MACROS": 1},
-         # BLE's bond and central together share code each one's delta pays (-3.5 KB flash, -0.35 KB RAM); the central
-         # with the diagnostics has more (+1.9 KB, +0.4 KB RAM); and each with the CDC console (the BLE test builds,
-         # tools/optimist.py BLE_FULL_SET: 7 KB under without these)
-         {"BLE": 1, "BLE_BOND": 1, "BLE_CENTRAL": 1}, {"BLE": 1, "BLE_CENTRAL": 1, "BLE_DIAG": 1},
-         {"BLE": 1, "BLE_BOND": 1, "BLE_CENTRAL": 1, "BLE_DIAG": 1},
-         {"BLE": 1, "BLE_BOND": 1, "BLE_CENTRAL": 1, "USB_CONSOLE": 1}, {"BLE": 1, "BLE_CENTRAL": 1, "BLE_DIAG": 1, "USB_CONSOLE": 1},
-         {"BLE": 1, "BLE_BOND": 1, "BLE_CENTRAL": 1, "BLE_DIAG": 1, "USB_CONSOLE": 1},
-         # the central's other levels other level (BLE_CENTRAL 3 no pairing, 2026-10-24): it shares none of SMP, its central block of the
-         # diagnostics is the same as 1's
-         {"BLE": 1, "BLE_BOND": 1, "BLE_CENTRAL": 3}, {"BLE": 1, "BLE_CENTRAL": 3, "BLE_DIAG": 1},
-         {"BLE": 1, "BLE_BOND": 1, "BLE_CENTRAL": 3, "BLE_DIAG": 1},
+         # BLE's bond and central together share code each one's delta pays (-3.5 KB flash, -0.35 KB RAM); and with
+         # the CDC console (the BLE test builds, tools/optimist.py BLE_FULL_SET)
+         {"BLE": 1, "BLE_BOND": 1, "BLE_CENTRAL": 1},
+         {"BLE": 1, "BLE_BOND": 1, "BLE_CENTRAL": 1, "USB_CONSOLE": 1},
+         # the central's other level (BLE_CENTRAL 3 no pairing, 2026-10-24): it shares none of SMP
+         {"BLE": 1, "BLE_BOND": 1, "BLE_CENTRAL": 3},
          # BLE and Bluetooth Classic Audio share the Bluetooth stack (HCI, the controller, L2CAP): with BT_AUDIO on, BLE costs
          # ~11 KB less than its delta from the defaults (2026-10-21, real builds of mots-2: BLE off 582,596, on 600,352 B,
          # the estimate said 611,664; with them both off the delta is 28.8 KB, with BT_AUDIO already built 17.8 KB)
@@ -99,12 +91,8 @@ PAIRS = [{"MOTION": 1, "SECTIONS": 4},
          # the same at the central's MINIMAL level (2026-10-24, synths_USBaudio_BTaudio_BTmidi: BLE_CENTRAL 3 -> 0 freed 10,648 B
          # of flash, the estimate said 12,460)
          {"BLE": 1, "BLE_CENTRAL": 3, "BT_AUDIO": 1},
-         # Bluetooth audio's diagnostics are built with BT_AUDIO only, and their log lines with the CDC console (the
-         # console otherwise leaves the stack silent: 14 KB of flash, mots 2026-10-21)
-         {"BT_AUDIO": 1, "BT_DIAG": 1}, {"BT_AUDIO": 1, "USB_CONSOLE": 1}, {"BT_AUDIO": 1, "BT_DIAG": 1, "USB_CONSOLE": 1},
-         # SLOOP 2.4's guard and import: core.h SL24_AUTO (PROJECT > A24) and project.c's shared reader are built
-         # with both / either, so the two off together save 3.9 KB less than their deltas
-         {"SL24_SAFE": 0, "SL24_IMPORT": 0},
+         # Bluetooth audio with the CDC console (the console leaves the stack's log lines silent)
+         {"BT_AUDIO": 1, "USB_CONSOLE": 1},
          # PLOCK's lock base is motion.c's (pool 292 B with PLOCK alone, none beyond MOTION's 900 with both: measured
          # 2026-10-15, user-default 292 B of pool over)
          {"MOTION": 1, "PLOCK": 1},
@@ -115,11 +103,7 @@ PAIRS = [{"MOTION": 1, "SECTIONS": 4},
          # the FILTER insert's code and state (core.h TFLT_ON) are built with the track FILTER or the master DJ filter
          # (on by default): TRK_FILT's delta is ~0, without FX_DJF it pays them (2026-10-19: drum-machine + TRK_FILT
          # 1,104 B of RAM and 2.4 KB of flash, its delta 96 B of flash)
-         {"FX_DJF": 0, "TRK_FILT": 1},
-         # one core with the FDN8 reverb: DUAL=0 frees 1,008 B less RAM and 1,264 B more RAMTEXT than in the defaults
-         # (2026-10-19, each item of user-default+ble-test beside DUAL on / off: only REV_FDN8 moved it over 100 B;
-         # user-default+ble-full estimated 856 B of RAM under)
-         {"REV_FDN8": 1, "DUAL": 0}]
+         {"FX_DJF": 0, "TRK_FILT": 1},]
 # items off by default that share code and state built with any of them: each one's delta pays it, so the group's
 # shared part is measured (all of them on: (sum of their deltas - what that build adds) / (n - 1)) and counted once
 # (configure.py group_delta). Found 2026-10-14: each insert beyond the first was 0.76 KB of RAM over
@@ -156,21 +140,69 @@ GROUPS = {"INS_FX": _any_of("core/core.h", "INS_FX"),   # (the insert slots)
           "FM6_PACKS": _any_of("core/registry.h", "FM6_NPACKS")}
 # a pair whose values are not valid alone: measured with these set too (their cost is in the estimate it is
 # measured against)
-PAIR_WITH = {"REV_ROOM=0,REV_HALF=1": {"REV_PLATE": 1}, "MICRO=1,FILLS=1": {"SL24_XSTEP": 1},
+PAIR_WITH = {"MICRO=1,FILLS=1": {"SL24_XSTEP": 1},
              "MICRO=1,PLOCK=1": {"SL24_XSTEP": 1}, "FILLS=1,PLOCK=1": {"SL24_XSTEP": 1},
-             "MICRO=1,FILLS=1,PLOCK=1": {"SL24_XSTEP": 1}, "MOTION=1,PLOCK=1": {"SL24_XSTEP": 1},
-             "REV_FDN8=1,DUAL=0": {"REV_ROOM": 0}}   # (FDN8 the only reverb, as the BLE builds have it: beside ROOM its
-                                                     # RAMTEXT part, -1,264 B, did not carry over)
+             "MICRO=1,FILLS=1,PLOCK=1": {"SL24_XSTEP": 1}, "MOTION=1,PLOCK=1": {"SL24_XSTEP": 1}}
 # a value that is not valid alone (the last reverb algorithm off): measured with these set too, less their own deltas
 # (so those are measured first)
 WITH = {("REV_ROOM", 0): {"REV_PLATE": 1},
         ("MICRO", 1): {"SL24_XSTEP": 1}, ("FILLS", 1): {"SL24_XSTEP": 1}, ("PLOCK", 1): {"SL24_XSTEP": 1}}   # (their storage)   # (the Optimist UI's: nothing without it)
+# Wi-Fi needs BLE's radio driver and the console (core.validate): measured beside them, less their own deltas (2026-10-28)
+WITH[("WIFI_LINK", 1)] = {"BLE": 1, "USB_CONSOLE": 1}
+WITH[("WIFI_AP", 1)] = {"BLE": 1, "USB_CONSOLE": 1}   # (and its parent WIFI_LINK, whose delta is taken off too)
 # an item the firmware switches off without the automation store (configure.py NEEDS_AUTO; DRUM_ACCENT was one, 0 B on
 # the defaults, +148 B of flash with the store, until it was retired 2026-10-20): measured with MOTION on, and counted only where the store is built
 for _k in C.NEEDS_AUTO:
     for _v in ([c[0] for c in R.ITEMS[_k].choices] if R.ITEMS[_k].is_choice else [0, 1]):
         if _v != R.ITEMS[_k].default:
             WITH.setdefault((_k, _v), {"MOTION": 1})
+# the SD card mode's items: none is valid on the defaults (2026-10-27: --missing skipped all eleven, so builder_test
+# found them unmeasured): each measured with what configure.validate asks of it, less those items' own deltas. The big
+# layout (LAYOUT 1) wants the sample engine, the user drums and the snapshots out and the patterns in; the card's
+# recorder and rings want LAYOUT 1 (measured first: they subtract it); the rings want SAMPLE and an
+# arena (ARENA on)
+_LAYOUT = {"ENG_SAMPLE": 0, "DRUM_USR": 0, "SNAPSHOTS": 0, "PATTERNS": 1}
+for _k, (_slots, _, _) in R.LAYOUT_STEPS.items():   # (every MEMORY step past normal, core.py validate: no sample slot as
+    if _k:                                           # LAYOUT 1 and S0; with slots, the patterns only)
+        WITH[("LAYOUT", _k)] = dict(_LAYOUT) if not _slots else {"PATTERNS": 1}
+WITH[("BT_PROJ", 1)] = {"BLE": 1, "ED_MIRROR": 1, "PATTERNS": 1}
+for _v in (16, 32, 64):
+    WITH[("SD_REC", _v)] = dict(_LAYOUT, LAYOUT=1)
+for _v in (4, 8, 12, 16):
+    WITH[("SD_RING", _v)] = dict(_LAYOUT, LAYOUT=1, ENG_SAMPLE=R.eng_place("ENG_SAMPLE"), ARENA=1)   # (ARENA is on/off since 2026-10-29, ENG_SAMPLE's 1 is no value of it: the context was refused, the rings unmeasured)
+
+
+def name_of(k, v):
+    return f"m-{k}-{v}"[:16]
+
+
+def with_depth(k):
+    """-> 1 + the deepest chain of WITH items k is measured with that are themselves measured WITH something (they
+    must be measured before k: its delta subtracts theirs)"""
+    deps = {d for (wk, _), w in WITH.items() if wk == k for d in w if d != k and any(x[0] == d for x in WITH)}
+    return 1 + max((with_depth(d) for d in deps), default=0)
+# The release (fm1-base's build of Optimist) was measured from the nearest configuration to the defaults that it built
+# then (the live editor not wired, fm1base/optimist/ui/opt_editor.h; the X0X unit built with neither kit lacked FM_SETUP,
+# opt_fpu_x0x.c): the defaults with these set. Both build since trial/optimist-allbuild (2026-10-28); the start stays so
+# the deltas stay those of costs-fm1base.json (a start of the defaults themselves is a whole new measurement). An item
+# whose default is another value (ED_LIVE 1) is measured from that side, its delta the build without it against the
+# build with it where there is one, else the classic one's (costs-fm1base.json "unbuildable" names them). The deltas
+# stay what costs.json's are, bytes against the defaults; "base" is the defaults' build the model implies (not a real one)
+RELEASE_BASE = {"ED_LIVE": 0, "DRUM_X0X909": 1, "DRUM_X0X808": 1}
+
+
+def start():
+    """-> the configuration every measurement starts from: the defaults, the classic firmware's; the release's, the
+    defaults with RELEASE_BASE (the nearest to them that builds)"""
+    return dict(C.defaults(), **({} if C.classic() else RELEASE_BASE))
+
+
+def moved():
+    """-> [keys] the items start() sets away from their defaults (measured first: the others' deltas subtract theirs)"""
+    d = C.defaults()
+    return [k for k, v in start().items() if v != d[k]]
+
+
 def parent_on(p):
     """the value an option is measured under: a bool parent on; a choice parent at its default, or at its first
     value that builds it when the default leaves it out (DUAL's 0: STOCK_SUPPLY measured 0 B under it)"""
@@ -182,6 +214,7 @@ def parent_on(p):
 # ---- the builds: a plan pass lists them (building nothing), build_all() makes them in parallel, each in its own
 # build directory, and the real pass reads them back (the same code, so it asks for the same configurations)
 _PLAN = None            # a list during the plan pass: (cfg, name, log) of every build the run asks for
+_FULL = {}              # a measurement build's whole sizes.json by name (app_slot too: release_limits)
 _DONE = {}              # the configuration's items -> (ok, sizes, output) of the builds build_all() made
 SLOTS = C.ROOT / "build" / "slots"
 
@@ -193,10 +226,11 @@ def _key(cfg):
 def run_build(cfg, name, log):
     """a measurement build -> (ok, sizes, output): recorded (and faked) in the plan pass, made already by
     build_all(), else made here, in build/"""
-    if _PLAN is not None:
-        _PLAN.append((dict(cfg), name, log))
-        return True, {r: 0 for r in REG}, ""
     got = _DONE.get(_key(cfg))
+    if _PLAN is not None:
+        if got is None:
+            _PLAN.append((dict(cfg), name, log))
+        return got if got is not None else (True, {r: 0 for r in REG}, "")
     return got if got is not None else C.build(cfg, name, measure=True, log=log)
 
 
@@ -269,33 +303,87 @@ def build_all(plan, jobs):
                   f"{dt:.0f} s  |  {clock(el)} so far, ~{clock(el / done * (len(todo) - done))} left", flush=True)
 
 
-MEASURE_POOL = 0x80000          # the pool region of a measurement link (tools/build.py MEASURE: "LENGTH = 0x54000" -> 0x80000)
+MEASURE_SRAM = 0x180000         # the SRAM region of a measurement link (tools/build.py MEASURE_SRAM)
 
 
 def pool_overflow(out):
     """-> how many bytes the link says the pool is over even the measurement link's (an item with a count of big lines:
     XDLY 3 and 4 hold 65 KB a line), None when it failed for another reason"""
-    m = re.search(r"region `POOL' overflowed by (\d+) bytes", out or "")
+    m = re.search(r"region `SRAM' overflowed by (\d+) bytes", out or "")
     return int(m.group(1)) if m else None
 
 
-def measure(cfg, name, log, like=None):
+LAST_ERROR = [""]       # (why the last optional measurement did not build)
+# what the release needs beside an item that does not build alone (the items measured first: their deltas are subtracted):
+# Bluetooth audio and its options want BLE (op_bt.c), the central wants the bond too, the SD card its layout (opt_sd_mmc.c)
+LADDER = ({"BLE": 1}, {"BLE": 1, "BLE_BOND": 1},
+          {"LAYOUT": 1, "ENG_SAMPLE": 0, "DRUM_USR": 0, "SNAPSHOTS": 0, "PATTERNS": 1})
+UNBUILDABLE = {}        # (a run's: "KEY=value" -> "not in this build: why", the registry's NOT_BUILT, probed; costs*.json "unbuildable")
+PAIR_BUILDS = {}        # (a run's: pair name -> (its build's sizes, its configuration): context_pairs measures it again)
+MEASURED_IN = {}        # (a run's: (KEY, value) -> the configuration its delta was measured in, when more than the start and itself)
+FAILED = {}             # (a run's: what should build and does not, "KEY=value" / "pair ..." -> the link error: reported loudly, rc 1)
+
+
+def kind():
+    """-> the build kind being measured: "classic" (Optimist's own firmware) or "release" (the fm1-base app)"""
+    return "classic" if C.classic() else "release"
+
+
+def declared(cfg):
+    """-> [(key, value, why)] the registry's NOT_BUILT values cfg sets, for this build kind"""
+    return [(k, v, R.not_built(k, v, kind())) for k, v in cfg.items() if k in R.ITEMS and R.not_built(k, v, kind())]
+
+
+def record_failure(name):
+    """a measurement that should have built and did not: kept for the loud report at the end"""
+    FAILED[name] = LAST_ERROR[0]
+    print(f"  FAILED {name}: {LAST_ERROR[0]}", flush=True)
+
+
+def last_error(out, log):
+    text = out or (Path(log).read_text(errors="replace") if log and Path(log).exists() else "")
+    lines = [x.strip() for x in text.splitlines() if "error" in x]
+    return (lines[0] if lines else (text.strip().splitlines() or ["failed"])[-1])[:240]
+
+
+def measure(cfg, name, log, like=None, optional=False):
     """the sizes of a measurement build; like: the sizes of the same item's previous value. A value whose lines no
-    pool holds, even the measurement link's (the link is the one thing that fails: "region POOL overflowed by N"),
+    pool holds, even the measurement link's (the link is the one thing that fails: "region SRAM overflowed by N"),
     is its pool exactly (the region and N) and everything else as `like`'s (the lines are the pool: the code is the
     same for 3 lines as for 2), so the estimate knows what a configuration of the item costs, built or not"""
     ok, sizes, out = run_build(cfg, name, log)
+    _FULL[name] = sizes
+    if not (ok and sizes) and optional and not C.classic():
+        LAST_ERROR[0] = last_error(out, log)             # (the release: it does not build: None, the caller says so, and reports it unless the registry marks it)
+        return None
     over = None if ok and sizes else pool_overflow(out)
     if over is None and (not ok or not sizes):
         over = pool_overflow(Path(log).read_text(errors="replace") if log and Path(log).exists() else "")
     if over is not None and like is not None:
         print(f"  {name}: no pool holds it (over by {over} B even in the measurement link): pool counted, the rest as the value before", flush=True)
-        sizes = dict(like, pool=MEASURE_POOL + over)
+        # (the packed SRAM: the pool is what the region holds after the code and data, plus what it is over)
+        sizes = dict(like, pool=MEASURE_SRAM + over - like["ram"] - like["ramtext"])
         ok = True
     if not ok or not sizes:
+        if optional:                                     # (classic: it does not link: None; the caller says so, and reports it unless the registry marks it)
+            LAST_ERROR[0] = last_error(out or (Path(log).read_text(errors="replace") if log and Path(log).exists() else ""), log)
+            return None
         raise SystemExit(f"measure_costs: {name} failed (log {log})\n{out[-1500:]}")
     check_terms(cfg, sizes, name)
     return {r: sizes[r] for r in REG}
+
+
+def release_limits():
+    """-> the slots of the firmware measured, for the costs' "limits" (the web page has no build system to ask): the
+    build system's own (configure.kind_limits: tools/flash_layout.py and tools/build.py for the classic, fm1-base's
+    fm1pkg_make.py app_slot of its app ends for the release, checked against the measurement base's sizes.json
+    app_slot, the slot that build was checked against); None in the plan pass"""
+    if _PLAN is not None:
+        return None
+    if not C.classic():
+        import fm1base
+        return fm1base.limits(_FULL["measure-base"])
+    return C.kind_limits()
 
 
 def measure_part_mem(logd):
@@ -311,7 +399,8 @@ def measure_part_mem(logd):
         if not ok or not sizes or "symbols" not in sizes:
             print(f"measure_costs: part_mem with {k or 'none'}: the build failed (log {logd})")
             return 1
-        out[k or "none"] = sizes["symbols"].get("part_mem", 0)   # (0: not in the image)
+        syms = sizes["symbols"]
+        out[k or "none"] = syms.get("arn_mem") or syms.get("part_mem", 0)   # (the arena holds them now)
     print("PART_MEM = {" + ", ".join(f'"{k}": {n}' for k, n in out.items() if k != "none") + "}")
     print(f"PART_MEM_NONE = {out['none']}")
     return 0
@@ -320,9 +409,10 @@ def measure_part_mem(logd):
 def check_terms(cfg, sizes, name):
     """the computed terms (configure.py model_terms) against the objects' real sizes in this build (sizes.json
     "symbols", tools/build.py SIZED_SYMBOLS): a structure that grew is a wrong estimate everywhere, so it stops here"""
-    real = (sizes.get("symbols") or {}).get("part_mem")
-    if real is not None and not cfg.get("ARENA") and real != C.part_mem(cfg)["pool"]:   # (ARENA: the states are in
-                                                                                        # core/arena.c arn_mem, its size)
+    syms0 = sizes.get("symbols") or {}
+    real = syms0.get("arn_mem") or syms0.get("part_mem")   # (core/arena.c arn_mem holds the states: NPART 8-aligned slots)
+    kb = int(cfg.get("ARENA", 0) or 0)               # (ARENA set: arn_mem is the arena's size, its own)
+    if real is not None and not kb and real != C.part_mem(cfg)["pool"]:
         alone = [k for k in C.PART_MEM if C.built(cfg, k)]
         raise SystemExit(f"measure_costs: {name}: engines.c part_mem is {real} B, configure.py part_mem says "
                          f"{C.part_mem(cfg)['pool']} B (built: {', '.join(alone) or 'none'}): update configure.py "
@@ -357,15 +447,33 @@ PAIRS.append({"GEN_GRIDS": 1, "ED_SEQ": 0})
 _GENS = ({"SEQTOOLS": 1}, {"NOTEGEN": 1}, {"GEN_GRIDS": 1}, {"ED_SEQ": 0})
 for _n in (3, 4):
     PAIRS.extend({k: v for d in _c for k, v in d.items()} for _c in itertools.combinations(_GENS, _n))
-# FM6 off where its tables are in the pool (TAB_IN_POOL): its delta from the defaults frees them from main RAM
-# (2026-10-24, synths_USBaudio_BTaudio_BTmidi: FM6 off freed 16 B of RAM and 608 B of the pool, the estimate said
-# 4,896 B of RAM and 4,260 B more pool; with FM6_SYSEX off too the pair and the triple measured 0: not kept)
-PAIRS.append({"ENG_FM6": 0, "TAB_IN_POOL": 1})
+# the SD card in the big layout is full FatFs, not Petit FatFs (registry.h FELUCCA_SD_FATFS, 2026-10-26): its pair
+# the difference; the console's sd commands reach more of FatFs (open, read, write, seek, list, the link map). Until
+# measured here: costs.json holds local measurement builds on sd-card-mots + SDCARD=1, FatFs against Petit
+_SDM = {"SDCARD": 1, "LAYOUT": 1, "ENG_SAMPLE": 0, "DRUM_USR": 0, "SNAPSHOTS": 0, "PATTERNS": 1}   # (what
+                                                 # the big layout's rule needs from the defaults: a valid configuration)
+PAIRS.append(dict(_SDM))                         # (with the console too it is ~25 KB over SRAM on the defaults: not
+                                                 # measurable as a pair, left out)
+# the console's sd commands (console_sd.c) are built with the card and the console both: 2026-10-30 on the defaults
+# SDCARD=1 +1,108 B of flash, +528 B of RAM; with USB_CONSOLE=1 +3,324 B and +1,116 B (sd-card: SDCARD off freed
+# 3,304 B and 1,148 B, its delta said 1,112 and 528, RAM 620 B over ESTIMATE_NEAR's tolerance from sd-mode-probe)
+PAIRS.append({"SDCARD": 1, "USB_CONSOLE": 1})
+# GRAIN reads a card set through the stream's cache (sd_stream_rc.c, sdcard.c SST_PART_RAND), built where the ring is
+# (FELUCCA_SD_STREAM): SD_RING's delta, measured with GRAIN on (its default), holds GRAIN's part, so GRAIN off frees it
+# beside the ring (2026-10-30, sd-card-mots: ENG_GRAIN=0 -9,432 B of flash, -708 B of RAM; its delta -4,276 and 0)
+for _ring in (4, 8, 12, 16):
+    PAIRS.append({"ENG_GRAIN": 0, "SD_RING": _ring})
+    PAIR_WITH[f"ENG_GRAIN=0,SD_RING={_ring}"] = dict(WITH[("SD_RING", _ring)], SDCARD=1)   # (the ring's own context)
+# (the tables are always in the pool since 2026-10-29: core.tab_pool, a computed term; no pair)
+# the mirror over BLE (ed_mirror.c mbr_q, mbr_cb, mbr_rx, mbr_big: in the pool) is built only with both: 2026-10-27,
+# synths_USBaudio_BTaudio_BTmidi's BLE off freed 8,280 B of pool, the estimate said +4 (BLE's own delta, from the
+# defaults: no mirror there)
+PAIRS.append({"BLE": 1, "ED_MIRROR": 1})
 # with TAB_CODED_ALL, PLAITS' waveshapers (2,570 B) and JUNO's cutoff steps (1,025 B) leave flash for the pool too
 # (gen_tables.py's "plaits" and "juno" groups, 2026-10-24): the base has neither engine, so neither delta sees it
 for _tca in (1, 2):
-    PAIRS.append({"TAB_CODED_ALL": _tca, "ENG_PLAITS": 1})
-    PAIRS.append({"TAB_CODED_ALL": _tca, "ENG_JUNO": 1})
+    PAIRS.append({"TAB_CODED_ALL": _tca, "ENG_PLAITS": R.ENG_ON})
+    PAIRS.append({"TAB_CODED_ALL": _tca, "ENG_JUNO": R.ENG_ON})
 # the reverb off grows RAMTEXT (its delta +1,284 B), which item_delta's clamp of an item switched off counts 0: measured
 # here, beyond the estimate (2026-10-26, cloud build issue 58: estimated 1,752 B of RAMTEXT free, linked 112 B over;
 # from drum-machines~ FX_REVERB=0 really added 2,328 B, the estimate 980)
@@ -409,8 +517,9 @@ def check_configs(probes=False):
     for d in CHECK_DIRS:
         for p in sorted(d.glob("*.config")):
             out[p.stem] = C.parse(p.read_text())[0]
-    import optimist                                     # (tools/: the BLE builds optimist.py test makes)
-    out.update(optimist.ble_test_configs())
+    if C.classic():                                     # (tools/: the BLE builds optimist.py test makes for Optimist's own emulator tests: the release has none)
+        import optimist
+        out.update(optimist.ble_test_configs())
     if probes:
         out.update({f"{n}{PROBE}": probe(n, cfg) for n, cfg in list(out.items())})
     return out
@@ -432,7 +541,7 @@ def probe(name, cfg):
             continue
         alt = [v for v in ([c[0] for c in it.choices] if it.is_choice else [0, 1]) if v != out[k]]
         trial = dict(out, **{k: alt[C.fnv32(f"{name}={k}") % len(alt)]})
-        if C.validate(trial)[0] or not C.distance(trial, out):
+        if C.validate(trial)[0] or declared(trial) or not C.distance(trial, out):
             continue
         out, n = trial, n + 1
         if n == PROBE_ITEMS:
@@ -444,7 +553,8 @@ def missing_checks(costs):
     """-> [name] check configurations (and probes) costs.json has no measurement of (or of an older version)"""
     have = costs.get("checks", {})
     return [n for n, cfg in check_configs(probes=True).items()
-            if have.get(n, {}).get("hash") != f"{C.cfg_hash(cfg):08x}"]
+            if have.get(n, {}).get("hash") != f"{C.cfg_hash(cfg):08x}"
+            or set(have.get(n, {}).get("contexts", {})) != set(context_flips(cfg)) and not declared(cfg)]
 
 
 def measure_checks(logd):
@@ -452,14 +562,55 @@ def measure_checks(logd):
     configuration that does not build, which is the firmware's problem (tools/builder/verify.py), not the estimate's)"""
     out = {}
     for name, cfg in check_configs(probes=True).items():
-        ok, sizes, text = run_build(cfg, f"m-chk-{name}"[:16], logd / f"check-{name}.log")
         out[name] = dict({"hash": f"{C.cfg_hash(cfg):08x}"}, **C.anchor_record(cfg))
+        nb = declared(cfg)
+        if nb:                                          # (a value this build kind cannot build: not a failure, no measurement)
+            out[name]["not_in_this_build"] = "; ".join(f"{k}={v}: {why}" for k, v, why in nb)
+            print(f"  check {name}: not in this build ({out[name]['not_in_this_build'][:120]})", flush=True)
+            continue
+        ok, sizes, text = run_build(cfg, f"m-chk-{name}"[:16], logd / f"check-{name}.log")
         if ok and sizes:
             out[name]["sizes"] = {r: sizes[r] for r in REG}
         else:
             out[name]["failed"] = (text.strip().splitlines() or ["?"])[-1][:200]
-            print(f"  check {name}: the build failed ({out[name]['failed']}; log {logd / f'check-{name}.log'})")
+            FAILED[f"check {name}"] = out[name]["failed"]
+            print(f"  FAILED check {name}: the build failed ({out[name]['failed']}; log {logd / f'check-{name}.log'})")
         print(f"  check {name}: {out[name].get('sizes')}", flush=True)
+        out[name]["contexts"] = measure_contexts(name, cfg, out[name].get("sizes"), logd)
+    return out
+
+
+def context_flips(cfg):
+    """-> {KEY: the configuration with that context item (core.CONTEXT_ITEMS) at its other value}, the valid ones
+    this build kind builds (LAYOUT 1 wants the sample engine out, ...: a check configuration where it is refused has
+    none)"""
+    out = {}
+    for k in C.K.CONTEXT_ITEMS:
+        it = R.ITEMS[k]
+        values = [c[0] for c in it.choices] if it.is_choice else [0, 1]
+        alt = [v for v in values if v != cfg.get(k, it.default)]
+        if len(alt) != 1:
+            continue
+        flip = dict(cfg, **{k: alt[0]})
+        if not C.validate(flip)[0] and not declared(flip):
+            out[k] = flip
+    return out
+
+
+def measure_contexts(name, cfg, sizes, logd):
+    """each context item flipped on a check configuration (context_flips): {KEY: {"from", "to", "delta": the real
+    difference}} for core.context_terms; "delta" None where the flipped build failed (reported)"""
+    out = {}
+    for k, flip in context_flips(cfg).items():
+        ok, fs, text = run_build(flip, f"m-cx-{k[:3]}-{name}"[:16], logd / f"context-{name}-{k}.log")
+        rec = {"from": cfg.get(k, R.ITEMS[k].default), "to": flip[k], "delta": None}
+        if ok and fs and sizes:
+            rec["delta"] = {r: fs[r] - sizes[r] for r in REG}
+        elif not (ok and fs):
+            FAILED[f"context {name} {k}={flip[k]}"] = (text.strip().splitlines() or ["?"])[-1][:200]
+            print(f"  FAILED context {name} {k}={flip[k]}: {FAILED[f'context {name} {k}={flip[k]}']}", flush=True)
+        out[k] = rec
+        print(f"  context {name} {k} {rec['from']}->{rec['to']}: {rec['delta']}", flush=True)
     return out
 
 
@@ -491,7 +642,10 @@ def main(argv=None):
     logd = Path(a.log)
     if a.part_mem:
         return measure_part_mem(logd)
-    old = C.load_costs() or {}
+    old = C.load_costs(C.costs_file(True)) or {}
+    if not C.classic() and not old:                     # (the release's first run: the CPU scale is the emulator's, one for both firmwares)
+        old = {"cpu": (C.load_costs(C.COSTS) or {}).get("cpu", {})}
+        C.K.setup(limits=None)
     if a.check and not a.missing:
         ap.error("--check goes with --missing")
     if a.missing:
@@ -515,32 +669,150 @@ def main(argv=None):
     else:
         new_pairs = set()
     logd.mkdir(parents=True, exist_ok=True)
+    if a.only is None and not a.missing:                # (a full run: from nothing; the budget of a half-written file chooses no BLE builds)
+        C.costs_file(True).unlink(missing_ok=True)
     jobs = a.jobs or default_jobs()
     if jobs > 1:                                        # plan, build them all in parallel, then the real pass
         global _PLAN
-        _PLAN = []
-        try:
-            with contextlib.redirect_stdout(io.StringIO()):
-                run(a, old, logd, new_pairs, write=False)
-            plan = _PLAN
-        finally:
-            _PLAN = None
-        build_all(plan, jobs)
+        for _round in range(6):                         # (what a build says plans the next: a failed one gets its context's builds)
+            _PLAN = []
+            try:
+                with contextlib.redirect_stdout(io.StringIO()):
+                    run(a, old, logd, new_pairs, write=False)
+                plan = _PLAN
+            finally:
+                _PLAN = None
+            if not any(_key(cfg) not in _DONE for cfg, _, _ in plan):
+                break
+            build_all(plan, jobs)
     return run(a, old, logd, new_pairs, write=True)
+
+
+def model_counts(cfg, k):
+    """the sum model counts item k's own delta in cfg: its parent is in the build (core.py sum_items)"""
+    p = R.ITEMS[k].parent
+    return not p or C.built(cfg, p)
+
+
+def dv(out, k, v):
+    """-> the delta measured for item k at value v ({} for its default or what is not measured yet)"""
+    return out["deltas"].get(k, {}).get(str(v), {}) if v != R.ITEMS[k].default else {}
+
+
+_CLASSIC = []
+
+
+def classic_delta(k, v):
+    """-> the classic firmware's measured delta of item k at value v (costs.json), or zeros: the stand-in for what the release
+    does not build (never measurable there: an estimate of a configuration it cannot build is only a guide)"""
+    if not _CLASSIC:
+        try:
+            _CLASSIC.append(json.loads(C.COSTS.read_text()))
+        except (OSError, ValueError):
+            _CLASSIC.append({})
+    got = _CLASSIC[0].get("deltas", {}).get(k, {}).get(str(v))
+    return {r: got.get(r, 0) for r in REG} if got else {r: 0 for r in REG}
+
+
+def with_context(out, cfg, name, log):
+    """-> (sizes, the configuration they are of): the build of cfg, else (the release) of cfg with what LADDER adds, the
+    first that builds; (None, cfg) when none does"""
+    s = measure(cfg, name, log, optional=True)
+    for i, extra in enumerate(LADDER if s is None and not C.classic() else ()):
+        more = dict(cfg, **extra)
+        if more == cfg or C.validate(more)[0]:
+            continue
+        s = measure(more, f"{name}+{i}"[:16], log.with_name(log.stem + f"+{i}.log"), optional=True)
+        if s is not None:
+            return s, more
+    return s, cfg
+
+
+def item_delta_of(out, k, v, cfg, base, logd, prev_sizes, ladder=False):
+    """-> (the delta of item k at value v against the defaults, the build's sizes): from the build of cfg (the start
+    configuration with k = v, its parent on and what it needs), less the deltas of what cfg has beyond the start (its parent
+    and what it was measured with) and the computed terms; where the start itself has k away from its default, against
+    the build of cfg with k at its default (the release: ED_LIVE, the X0X kits). None sizes: the release does not build it
+    (UNBUILDABLE): 0, nothing measured. ladder False: None where the build of cfg itself does not link (the release: it
+    is measured last, with what LADDER adds, once the deltas of those items are known)"""
+    s0, name = start(), f"m-{k}-{v}"[:16]
+    if s0[k] != R.ITEMS[k].default:                     # (measured against itself at its default: the start's other side)
+        ref = dict(cfg, **{k: R.ITEMS[k].default})
+        sv = base if cfg == s0 else measure(cfg, name, logd / f"{k}-{v}.log", like=prev_sizes, optional=True)
+        sr = measure(ref, f"m-{k}-def"[:16], logd / f"{k}-def.log", optional=True) if sv else None
+        if not sv or not sr:
+            bad = R.ITEMS[k].default if sv else v       # (the side that does not build: the one measured against)
+            record_failure(f"{k}={bad}")
+            return classic_delta(k, v), prev_sizes
+        t, tr = C.model_terms(cfg), C.model_terms(ref)
+        return {r: sv[r] - sr[r] - (t[r] - tr[r]) for r in REG}, sv
+    if ladder:
+        s, cfg = with_context(out, cfg, name, logd / f"{k}-{v}.log")
+    else:
+        s = measure(cfg, name, logd / f"{k}-{v}.log", like=prev_sizes, optional=True)
+        if s is None and not C.classic():
+            return None
+    if s is None:
+        record_failure(f"{k}={v}")
+        return classic_delta(k, v), prev_sizes
+    ctx = {r: 0 for r in REG}                           # (what cfg has beyond the start, counted by its own deltas, as the
+    ic, i0 = C.K.image_cfg(cfg), C.K.image_cfg(s0)          # sum model counts them: an item whose parent is off not at all,
+    for j, x in ic.items():                             # so the start's moved items count where k leaves them out too:
+        if j == k:                                      # EDITOR 0 drops ED_LIVE 0's saving, DRUMS 0 the X0X kits' cost;
+            continue                                    # as the image is built: in the SD card mode the sets on the card,
+        a = dv(out, j, x) if model_counts(ic, j) else {}   # 0 B of flash (2026-10-30: SD_RING and SD_REC, measured there,
+        b = dv(out, j, i0[j]) if model_counts(i0, j) else {}   # held the sets' 217 KB, counted again by the sum: -170 KB each)
+        for r in REG:
+            ctx[r] += a.get(r, 0) - b.get(r, 0)
+    terms, t0 = C.model_terms(cfg), C.model_terms(s0)   # (computed, not a delta: the reverb's line buffer, the automation store)
+    if cfg != dict(s0, **{k: v}):
+        MEASURED_IN[(k, v)] = dict(cfg)                 # (measured beside more than itself: context_pairs, once the pairs are known)
+    return {r: s[r] - base[r] - ctx[r] - (terms[r] - t0[r]) for r in REG}, s
+
+
+def context_pairs(out):
+    """the items measured beside others (WITH, a parent on, LADDER: MEASURED_IN): what the pairs and groups that hold
+    in that build's image (and not in the start's) cost is in its sizes and not in their deltas, so it came into the item's
+    delta, and the sum would count it twice; taken off once the pairs are measured. The pairs and groups with the item
+    itself are left: they are measured beyond its delta. 2026-10-30: SD_REC, measured in the SD card mode, held the
+    pair SDCARD=1,LAYOUT=1,.. (+31 KB of flash): a configuration with both counted it twice -> {"KEY=value": delta taken off}"""
+    s0, fixed = C.K.image_cfg(start()), {}
+    for (k, v), cfg in sorted(MEASURED_IN.items()):
+        d = out["deltas"].get(k, {}).get(str(v))
+        if d is None:
+            continue
+        others = dict(out, pairs={n: x for n, x in out.get("pairs", {}).items() if k not in dict(C.pair_conds(n))},
+                      groups={n: g for n, g in out.get("groups", {}).items() if k not in g["members"]})
+        hi, lo = C.pair_delta(C.K.image_cfg(cfg), others), C.pair_delta(s0, others)
+        off = {r: hi[r] - lo[r] for r in REG}
+        if any(off.values()):
+            out["deltas"][k][str(v)] = {r: d[r] - off[r] for r in REG}
+            fixed[f"{k}={v}"] = off
+            print(f"  {k}={v}: {off} of pairs and groups in its measurement build taken off: {out['deltas'][k][str(v)]}", flush=True)
+    for p in PAIRS:                                     # (a pair with such an item was measured beyond its delta before:
+        n = pair_name(p)                                # again, from the same build, beyond the delta as it is now)
+        if n in PAIR_BUILDS and any(kv.split("=")[0] in p for kv in fixed):
+            out["pairs"][n] = beyond(*PAIR_BUILDS[n], out, n)
+            print(f"  {n}: {out['pairs'][n]} beyond the estimate without it, again", flush=True)
+    return fixed
 
 
 def run(a, old, logd, new_pairs, write):
     """measure what a asks for (main's arguments; old: costs.json as it was) -> 0; write: False in the plan pass
     (run_build only records the builds: nothing is written, no CPU model)"""
     t0 = time.time()
-    base = measure(C.defaults(), "measure-base", logd / "base.log")
-    if a.missing:
-        base = refreshed_base(old.get("base"), base)
-    out = {"base": base, "deltas": dict(old.get("deltas", {})) if a.only is not None else {},
+    UNBUILDABLE.clear()
+    MEASURED_IN.clear()
+    PAIR_BUILDS.clear()
+    FAILED.clear()
+    base = measure(start(), "measure-base", logd / "base.log")
+    limits = release_limits()
+    out = {"base": base, **({"limits": limits} if limits else {}), "deltas": dict(old.get("deltas", {})) if a.only is not None else {},
            "measured": time.strftime("%Y-%m-%d %H:%M"), "cpu": old.get("cpu", {}), "checks": old.get("checks", {}),
            "pairs": dict(old.get("pairs", {}))}         # (the interim writes keep the pairs: an aborted run loses none)   # (cpu: the emulator's scale)
-    later = [k for k in R.ITEMS if any(w[0] == k for w in WITH)]
-    for k in [k for k in R.ITEMS if k not in later] + later:
+    later = sorted((k for k in R.ITEMS if any(w[0] == k for w in WITH)), key=with_depth)   # (stable: registry order)
+    first, deferred = moved(), []
+    for k in first + [k for k in R.ITEMS if k not in later and k not in first] + [k for k in later if k not in first]:
         it = R.ITEMS[k]
         if a.only is not None and k not in a.only:
             continue
@@ -553,37 +825,59 @@ def run(a, old, logd, new_pairs, write):
             if it.no_image:                             # (a reserve: nothing in the image, so 0, never built)
                 out["deltas"][k][str(v)] = {r: 0 for r in REG}
                 continue
-            cfg = C.defaults()
+            cfg = start()
             cfg[k] = v
             if it.parent:
                 cfg[it.parent] = parent_on(R.ITEMS[it.parent])
             cfg.update(WITH.get((k, v), {}))
-            err, _, _ = C.validate(cfg)
-            if err:                                     # (e.g. the last FM6 mode: measured with another off)
-                print(f"  {k}={v}: skipped ({'; '.join(err)})")
+            why = R.not_built(k, v, kind())
+            if why:                                     # (the registry: this build kind cannot build it; built once to show the link error)
+                out["deltas"][k][str(v)] = {r: 0 for r in REG}
+                if measure(cfg, name_of(k, v), logd / f"{k}-{v}.log", optional=True) is not None and _PLAN is None:
+                    FAILED[f"{k}={v}"] = f"marked not in this build ({why}) but it LINKS: take the mark off registry.NOT_BUILT"
+                    print(f"  FAILED {k}={v}: {FAILED[f'{k}={v}']}", flush=True)
+                else:
+                    UNBUILDABLE[f"{k}={v}"] = f"not in this build: {why} [link: {LAST_ERROR[0]}]"
+                    print(f"  {k}={v}: not in this build ({kind()}): {LAST_ERROR[0]}", flush=True)
                 continue
-            s = measure(cfg, f"m-{k}-{v}"[:16], logd / f"{k}-{v}.log", like=prev_sizes)
-            prev_sizes = s
-            par = {}                                    # (an option of a parent off by default: its own bytes only)
-            if it.parent and cfg[it.parent] != R.ITEMS[it.parent].default:
-                par = out["deltas"].get(it.parent, {}).get(str(cfg[it.parent]), {})
-            par = dict(par)
-            for wk, wv in WITH.get((k, v), {}).items():      # (the items it was measured with)
-                for r, n in out["deltas"].get(wk, {}).get(str(wv), {}).items():
-                    par[r] = par.get(r, 0) + n
-            terms = C.model_terms(cfg)                  # (computed, not a delta: the reverb's line buffer, the automation store)
-            out["deltas"][k][str(v)] = {r: s[r] - base[r] - par.get(r, 0) - terms[r] for r in REG}
+            err, _, _ = C.validate(cfg)
+            if err:                                     # (the value itself refused in this build kind, USB_HOST in the classic: skipped;
+                print(f"  {k}={v}: skipped ({'; '.join(err)})")   # the context it is measured in refused: a stale WITH, reported)
+                if any(k not in getattr(e, "keys", ()) for e in err):
+                    FAILED[f"{k}={v}"] = "its measurement context is refused: " + "; ".join(err)
+                continue
+            delta = item_delta_of(out, k, v, cfg, base, logd, prev_sizes)
+            if delta is None:                           # (the release: not alone; below, with what it needs)
+                deferred.append((k, v, cfg))
+                continue
+            prev_sizes = delta[1]
+            out["deltas"][k][str(v)] = delta[0]
             print(f"  {k}={v}: {out['deltas'][k][str(v)]}  ({time.time() - t0:.0f} s)", flush=True)
         if write:
-            C.COSTS.write_text(json.dumps(out, indent=1) + "\n")
+            C.costs_file(True).write_text(json.dumps(out, indent=1) + "\n")
+    for k, v, cfg in deferred:                          # (what did not build alone: with the context LADDER names)
+        out["deltas"][k][str(v)], _ = item_delta_of(out, k, v, cfg, base, logd, None, ladder=True)
+        print(f"  {k}={v}: {out['deltas'][k][str(v)]}  (with context, {time.time() - t0:.0f} s)", flush=True)
+    t0r, m = C.model_terms(start()), moved()            # (the base: the defaults' build the model implies; the start's own build less
+    out["base"] = {r: base[r] - t0r[r] - sum(dv(out, j, start()[j]).get(r, 0) for j in m) for r in REG}   # its moved items' deltas)
+    # (--only: the other items' entries kept; those measured again say again whether they build)
+    kept = {n: why for n, why in old.get("unbuildable", {}).items() if n.split("=")[0] not in a.only} \
+        if a.only is not None else {}
+    out["unbuildable"] = dict(kept, **UNBUILDABLE)
+    if a.missing and m == []:
+        refreshed_base(old.get("base"), out["base"])
     out["groups"] = {n: g for n, g in old.get("groups", {}).items() if n.split("|")[0] in GROUPS} \
         if a.only is not None else {}
     for gname, members in GROUPS.items():               # (before the pairs: their builds may hold several members)
         if a.only is not None and gname in out["groups"] and not any(k in a.only for k in members):
             continue
         out["groups"].pop(gname, None)
-        cfg = dict(C.defaults(), **{k: 1 for k in members})
-        s = measure(cfg, f"m-grp-{gname}"[:16], logd / f"group-{gname}.log")
+        cfg = dict(start(), **{k: 1 for k in members})
+        s = measure(cfg, f"m-grp-{gname}"[:16], logd / f"group-{gname}.log", optional=True)
+        if s is None:                                   # (they do not build together: nothing shared to count; reported)
+            record_failure(f"group {gname}")
+            out["groups"][gname] = {"members": list(members), "shared": {r: 0 for r in REG}}
+            continue
         est = C.budget(cfg, dict(out, pairs={}), use_exact=False, anchor=False)["total"]
         out["groups"][gname] = {"members": list(members),
                                 "shared": {r: round((est[r] - s[r]) / (len(members) - 1)) for r in REG}}
@@ -594,17 +888,34 @@ def run(a, old, logd, new_pairs, write):
         name = pair_name(pair)
         if a.only is not None and name not in new_pairs and not any(k in a.only for k in pair):
             continue
-        cfg = dict(C.defaults(), **pair, **PAIR_WITH.get(name, {}))
-        s = measure(cfg, f"m-pair-{PAIRS.index(pair)}", logd / f"pair-{name.replace(',', '-')}.log")
+        cfg = dict(start(), **pair, **PAIR_WITH.get(name, {}))
+        s = measure(cfg, f"m-pair-{PAIRS.index(pair)}", logd / f"pair-{name.replace(',', '-')}.log", optional=True)
+        if s is None:                                   # (they do not build together: nothing beyond to count; reported)
+            record_failure(f"pair {name}")
+            out["pairs"][name] = {r: 0 for r in REG}
+            continue
         out["pairs"][name] = beyond(s, cfg, out, name)
+        PAIR_BUILDS[name] = (s, cfg)
         print(f"  {name}: {out['pairs'][name]} beyond the estimate without it  ({time.time() - t0:.0f} s)", flush=True)
+    context_pairs(out)                                  # (--only: the items measured again; the others' as stored, taken off then)
+    if write:                                           # (the check configurations are chosen by the budget these deltas make:
+        C.costs_file(True).write_text(json.dumps(out, indent=1) + "\n")   # optimist.py ble_test_configs, room.make_room)
     out["checks"] = measure_checks(logd)
+    out["unbuildable"] = dict(kept, **UNBUILDABLE)      # (the checks and groups may have added)
     if not write:                                       # (the plan pass: the builds are listed, nothing is written)
         return 0
-    C.COSTS.write_text(json.dumps(out, indent=1) + "\n")
-    print(f"measure_costs: {C.COSTS} ({time.time() - t0:.0f} s)")
+    C.costs_file(True).write_text(json.dumps(out, indent=1) + "\n")
+    print(f"measure_costs: {C.costs_file(True)} ({time.time() - t0:.0f} s)")
     import cpu_costs                                    # the CPU guard's model follows the CPU baseline (CPU_GUARD)
     cpu_costs.main([])
+    for n, why in UNBUILDABLE.items():
+        print(f"measure_costs: not in this {kind()} build: {n}: {why}")
+    if FAILED:                                          # (real breakage: said last, loudly, and the exit status says it)
+        print("\n" + "!" * 78 + f"\nmeasure_costs: {len(FAILED)} CONFIGURATION(S) THAT SHOULD BUILD ({kind()}) DID NOT:")
+        for n, why in FAILED.items():
+            print(f"  {n}: {why}")
+        print("!" * 78)
+        return 1
 
 
 if __name__ == "__main__":

@@ -38,42 +38,6 @@
       "warning": false
     },
     {
-      "switch": "FELUCCA_KEYLIT",
-      "title": "The keys light the notes the selected synth track plays (sequencer, ARP, held voices)",
-      "default": 1,
-      "group": "ui",
-      "source": {
-        "repo": "https://github.com/hugelton/Felucca",
-        "commit": "20c275e (Felucca 1.0.1, #38)",
-        "author": "Leo Kuroshita (@kurogedelic), Hügelton Instruments",
-        "licence": "GPL-3.0-only",
-        "files": "firmware/src/ui_input.c play_leds"
-      },
-      "also": {
-        "repo": "https://github.com/renebohne/sloop-fm1",
-        "commit": "e2e5099 (Add option to illuminate played notes on synth tracks)",
-        "author": "renebohne",
-        "licence": "GPL-3.0-only",
-        "used": "the held voices of the track light their keys (here without the GLO > SYSTEM NOTES setting: the switch is the choice)"
-      },
-      "files": [
-        "firmware/src/ui/sloop/keylit.c",
-        "hook: ui_input.c keys_lit"
-      ],
-      "cost": {
-        "flash": 224,
-        "ram": 0,
-        "pool": 0,
-        "ramtext": 0,
-        "cpu": "UI frame only: 27 keys x <= 13 notes compares",
-        "project_bytes": 0
-      },
-      "storage": "none",
-      "limits": "with FELUCCA_LIGHTS (SLOOP 2.3), MENU > NOTES turns it off and on at run time (a setting of the FM-1, the settings record; renebohne's NOTES setting) and it also glows under the tile layers; without LIGHTS the switch is the choice",
-      "notice": "Played-note key lights after Felucca 1.0.1 (Leo Kuroshita) and renebohne's SLOOP fork (GPL-3.0).",
-      "warning": false
-    },
-    {
       "switch": "FELUCCA_QNT_SEQ",
       "title": "SCL > QNT SEQ: the sequenced notes snap to the scale as they play",
       "default": 0,
@@ -131,74 +95,6 @@
       "storage": "project_t.rsv[0] bit 0 (reserved bytes, zero in every project written before; bit 1 PLATE, bit 2 FDN8, none ROOM: rev_type.c): FUNB unchanged; a build without SPRING plays its first algorithm, keeps the byte and says MISSING: REVERB SPRING",
       "limits": "mono output to both sides (as a spring); level matched to our ROOM (x2 over Felucca's, measured); the web editor's Reverb popup shows TYPE (INFO tag 0x52)",
       "notice": "Spring reverb after Felucca 1.0 by Leo Kuroshita (GPL-3.0).",
-      "warning": false
-    },
-    {
-      "switch": "FELUCCA_BASSPLUS",
-      "title": "Small-speaker bass: MENU > LOWCUT OFF / LOWCUT / BASS+",
-      "default": 0,
-      "group": "fx",
-      "source": {
-        "repo": "https://github.com/hugelton/Felucca",
-        "commit": "727f272 (Felucca 1.0 source)",
-        "author": "Leo Kuroshita (@kurogedelic), Hügelton Instruments",
-        "licence": "GPL-3.0-only",
-        "files": "firmware/src/fx.c spk_bass, master_out (fx_lowcut 2), ui_menu.c SPEAKER"
-      },
-      "files": [
-        "firmware/src/fx/bassplus/bassplus.c",
-        "hooks: fx.c master_out, ui_menu.c LOWCUT values, panel.c settings_init"
-      ],
-      "cost": {
-        "flash": 244,
-        "ram": 288,
-        "pool": 0,
-        "ramtext": -88,
-        "ram_hot2": 268,
-        "cpu": "only while BASS+ is on: one HOT2 call per sample (4 one-pole filters + the harmonic generator); emulator: 808 BOOM note RMS OFF 0.0285, LOWCUT 0.0076, BASS+ 0.0193",
-        "project_bytes": 0
-      },
-      "storage": "settings.lowcut = 2 (device setting); a build without the switch reads any non-zero value as LOWCUT",
-      "limits": "the harmonics are added to both sides after the limiter's input, before the limiter (as Felucca)",
-      "notice": "BASS+ after Felucca 1.0 by Leo Kuroshita (GPL-3.0).",
-      "warning": false,
-      "fixed": {
-        "repo": "https://github.com/hugelton/Felucca",
-        "commit": "db70550 (Felucca 1.0.2, #42)",
-        "author": "Leo Kuroshita (@kurogedelic), Hügelton Instruments",
-        "licence": "GPL-3.0-only",
-        "what": "the trapezoid built from a 4-pole low-pass (sb_lp3, sb_lp4): the mix's 300..600 Hz no longer cancelled (440 Hz: -5.7 -> -2.2 dB, tests/backports_test.c t_bassplus_response); ours also drops the band-pass residue once the envelope is 0 (the floored steps left -21 of DC)",
-        "cost": "user-default with BASSPLUS=1: RAM +64 B (the HOT2 code runs from RAM), flash -4 B; CPU ~2 multiply-adds a sample more with BASS+ on (est.), none once silent"
-      }
-    },
-    {
-      "switch": "FELUCCA_BRIGHT",
-      "title": "Screen brightness: MENU > BRIGHT 1..8 (software PWM of the backlight)",
-      "default": 1,
-      "group": "ui",
-      "source": {
-        "repo": "https://github.com/charlesvestal/fm1-x0x",
-        "commit": "61654ba (Knob acceleration by speed, screen brightness, ...)",
-        "author": "Charles Vestal",
-        "licence": "GPL-3.0-only",
-        "files": "firmware/hal/fm1_lcd_hw.h fm1_lcd_bl_tick, firmware/src/app/plat_fm1.c plat_brightness (8 steps of duty)"
-      },
-      "files": [
-        "firmware/src/ui/sloop/bright.c",
-        "firmware/hal/fm1_lcd_hw.h fm1_lcd_bl_tick",
-        "hooks: main.c TIMER5 ISR, ui_menu.c BRIGHT item, project.c persist_t.bright (appended)"
-      ],
-      "cost": {
-        "flash": 304,
-        "ram": 0,
-        "pool": 0,
-        "ramtext": 0,
-        "cpu": "TIMER5 (10 kHz): a counter and one port write per tick",
-        "project_bytes": 0
-      },
-      "storage": "a slot appended to the settings record (persist_t.bright), always written 0 (= full) and never applied at boot; a build without the switch reads its own record length",
-      "limits": "It froze a real FM-1 on X0X: BRIGHTNESS 1 (duty 1/16) hung the unit, and the saved level hung it again at every boot until reflashed (X0X issue #2, 2026-10-06; X0X removed it in c6f2bf6; root cause found later: PA2 is also the /OE of the key matrix's 595s, so with the backlight line high nothing reads (Felucca 1.1.5.1, 213df5a). Here the 10 kHz tick drives PA2 low before the matrix scan, so every scan sees the 595s enabled) [R]. Here: every boot starts at full and the level is never saved (always 0 = full), and the lowest step is 4/16, not 1/16",
-      "notice": "This backlight PWM froze an FM-1 at its lowest level on X0X (issue #2; the backlight line also enables the key matrix, which this build keeps enabled during each scan). Optimist boots at full brightness every time, never stores a dim level and never goes below 4/16, so a power-off always brings the screen back at full. Ported from X0X by Charles Vestal (GPL-3.0).",
       "warning": false
     },
     {
@@ -432,38 +328,6 @@
       "warning": false
     },
     {
-      "switch": "FELUCCA_LIGHTS",
-      "title": "Lights for playing in the dark: MENU LIGHTS (every button glows OFF / LOW / MID / HIGH), KEYS (C / white keys), NOTES (KEYLIT on / off)",
-      "default": 0,
-      "group": "ui",
-      "source": {
-        "repo": "https://github.com/isod89/sloop-fm1",
-        "commit": "d691ba7 (SLOOP 2.3)",
-        "author": "isod89 (the dim pulses after Felucca 1.0.1 #35 by Leo Kuroshita; NOTES by renebohne, PR #11)",
-        "licence": "GPL-3.0-only",
-        "files": "firmware/hal/fm1_input.h fm1_input_tick (fm1_led_bg), ui_input.c ui_leds / keys_notes_dim / lights_keys_mask, ui_menu.c, panel.c lights_word"
-      },
-      "files": [
-        "firmware/hal/fm1_input.h fm1_input_tick (glow and backlight pulses timed by TIMER4)",
-        "firmware/src/ui/lights.c",
-        "firmware/src/ui/sloop/ui_input.c ui_leds, keys_lit",
-        "firmware/src/ui/sloop/ui_menu.c",
-        "firmware/src/storage/project.c persist_t.bp23"
-      ],
-      "cost": {
-        "flash": 1576,
-        "ram": 16,
-        "pool": 0,
-        "ramtext": 152,
-        "cpu": "the LED tick: a pulse of 0.5 / 1 / 2 us a frame per lit layer, during the 595 shift (TIMER5 ISR)",
-        "project_bytes": 0
-      },
-      "storage": "the settings record word persist_t.bp23 (bits 0..8); a record without it: OFF / OFF / NOTES ON",
-      "limits": "NOTES needs FELUCCA_KEYLIT (it is KEYLIT at run time); with the switch the landmark glow is a timed pulse (~1/24) instead of one frame in four; the LED brightness itself is not modelled by the emulator",
-      "notice": "Menu LIGHTS / KEYS / NOTES from SLOOP 2.3 by isod89 (after Felucca 1.0.1 by Leo Kuroshita; NOTES by renebohne; GPL-3.0).",
-      "warning": false
-    },
-    {
       "switch": "FELUCCA_DIV_ORDER",
       "title": "Note divisions in length order on the knobs and gauges (1/4 1/8 8T 1/16 16T 1/32)",
       "default": 0,
@@ -655,67 +519,6 @@
       "warning": false
     },
     {
-      "switch": "FELUCCA_DLY_DOT",
-      "title": "Delay TIME 1/8D and 1/16D (dotted)",
-      "default": 1,
-      "group": "fx",
-      "source": {
-        "repo": "https://github.com/isod89/sloop-fm1",
-        "commit": "8d3823f (SLOOP 2.4)",
-        "author": "isod89 (SLOOP), on Felucca by Leo Kuroshita",
-        "licence": "GPL-3.0-only",
-        "files": "firmware/src/core.h dly_units, fx.c delay_samples, params.c N_DLY"
-      },
-      "files": [
-        "firmware/src/core/core.h dly_units",
-        "firmware/src/fx/fx.c delay_samples",
-        "firmware/src/core/params.c N_DLY, DLY_ORDER"
-      ],
-      "cost": {
-        "flash": 28,
-        "ram": 0,
-        "pool": 0,
-        "ramtext": -16,
-        "cpu": "none",
-        "project_bytes": 0
-      },
-      "storage": "G_DTIME values 6, 7 appended; a build without the switch plays them as 1/4, 1/8",
-      "limits": "with the 32768-sample line (user-default) 1/8D fits from 61 BPM up; below, DLY_HALVE halves it to 1/16D (2.4 clamps at the line instead)",
-      "notice": "Dotted delay times from SLOOP 2.4 by isod89 (GPL-3.0).",
-      "warning": false
-    },
-    {
-      "switch": "FELUCCA_SL24_IMPORT",
-      "title": "Import a SLOOP 2.4 project (FUN5) kept in an old slot: LOAD twice, never automatic",
-      "default": 1,
-      "group": "system",
-      "source": {
-        "repo": "https://github.com/isod89/sloop-fm1",
-        "commit": "8d3823f (SLOOP 2.4)",
-        "author": "isod89 (the format: project.c, core.h, eng_fm6.c, drums.c; the importer is ours)",
-        "licence": "GPL-3.0-only",
-        "files": "firmware/src/project.c project_t / proj_trk_t, core.h P_* / G_*, eng_fm6.c (PTCH, fm6_sync: the macros), fm6_bank.c (the bank object), drums.c (kits, USR kits), tools/gen_fm6_patches.py (F1..F8: Leo Kuroshita, Felucca 1.0)"
-      },
-      "files": [
-        "firmware/src/storage/sl24/sl24_import.c sl24_is, proj_from_sl24",
-        "firmware/src/storage/sl24/sl24_guard.c sl24_load, sl24_import_buf, sl24_bank_at, sl24_auto_import",
-        "firmware/src/storage/sl24/sl24_fm6.c, sl24_fm6.h (tools/gen_sl24_fm6.py: 2.4's FM6 patches F1..F8)",
-        "tests/sl24_import_test.c, tests/sl24_fun5.bin (tests/sl24_fun5_gen.c: built with 2.4's own types)"
-      ],
-      "cost": {
-        "flash": 3032,
-        "ram": 0,
-        "pool": 0,
-        "ramtext": 24,
-        "cpu": "none (a LOAD)",
-        "project_bytes": 0
-      },
-      "storage": "none (nothing written: the import is the working project; SAVE puts it in a section)",
-      "limits": "an FM6 part's patch becomes its voice (F1..F8: 2.4's own, tools/gen_sl24_fm6.py; B1..B27: from 2.4's bank in flash, read only; an empty slot: 2.4's INIT) with ALG FB MRAT MEG VMOD put into it, MLVL -> MOD; a USR1..USR3 kit -> the drum lanes on that user slot's zones (FELUCCA_DRUM_USR). Lost: TFLT / STRUM / VLEAD without their switches, FM6's DTUN, a USR4 kit and USR3+4's USR4 half (the default kit), a lock on a USR kit; the step extras need FELUCCA_SL24_XSTEP. 2.4's autosave: PROJECT > A24 (twice)",
-      "notice": "",
-      "warning": false
-    },
-    {
       "switch": "FELUCCA_MICRO",
       "title": "Micro timing: a step held + KNOB 4 nudges it, -32..31 / 64 of a step",
       "default": 0,
@@ -832,68 +635,6 @@
       "storage": "none (RAM only, cleared on STOP)",
       "limits": "16 sections (banks of 4): a tap is the section of the bank shown",
       "notice": "Quick chain from SLOOP 2.4 by isod89 (GPL-3.0).",
-      "warning": false
-    },
-    {
-      "switch": "FELUCCA_SL24_EXPORT",
-      "title": "Export the working project for SLOOP 2.4 (a 2.4 backup file, from the web editor), lossy",
-      "default": 0,
-      "group": "system",
-      "source": {
-        "repo": "https://github.com/isod89/sloop-fm1",
-        "commit": "8d3823f (SLOOP 2.4)",
-        "author": "isod89 (the formats: project.c project_t / persist_t, core.h, panel.c, arranger.h, editor.html's backup file; the exporter is ours)",
-        "licence": "GPL-3.0-only",
-        "files": "firmware/src/project.c project_t / proj_trk_t / persist_t, core.h P_* / G_*, panel.c panel_t lights_word, arranger.h, web/editor.html backupObjects"
-      },
-      "files": [
-        "firmware/src/storage/sl24/sl24_export.c proj_to_sl24, sl24_persist, sl24_word",
-        "firmware/src/io/editor/ed_sl24.c (editor command 78 SL24_GET)",
-        "web/editor.html Projects > Export for SLOOP 2.4 (sl24ReadPart, sl24BackupFile)",
-        "tests/sl24_export_test.c, tests/sl24_export_check24.c (2.4's own types read the export)"
-      ],
-      "cost": {
-        "flash": 2020,
-        "ram": 0,
-        "pool": 0,
-        "ramtext": 0,
-        "cpu": "none (an editor request)",
-        "project_bytes": 0
-      },
-      "storage": "none (nothing written: the editor saves the file)",
-      "limits": "the working project only (not the sections, the song, motion, samples, user presets or kits). FM6: a voice that is one of 2.4's F1..F8 exactly -> that PTCH; with the bank (parts 2 / 3) the others into 2.4's FM6 bank (2.4's own kept in flash, the voices added; a full bank: the closest patch); MOD -> MLVL. Lost: FX OFF, ANALOG 2, PHYS / ACID / CZ parts (their fallback at its defaults), an FM6 voice without the bank (the closest 2.4 factory patch F1..F8), M.TIM C.TIM, an ENGINE other than MARK I, operators switched off, X0X and user kits (808), the drum lanes' record (a USR kit's lanes too), the reverb type and COMP / LIMIT, MIDI channels, locks on what 2.4 has not (FM6's EDIT locks too); TFLT STRUM VLEAD only with their switches. The settings object carries ours (palette, low cut, zoom, panel table, lights word) and 2.4's default song order",
-      "notice": "",
-      "warning": false
-    },
-    {
-      "switch": "FELUCCA_SL24_EDIMPORT",
-      "title": "Import a project of a SLOOP 2.4 backup file (web editor), its FM6 bank patches with it",
-      "default": 0,
-      "group": "system",
-      "source": {
-        "repo": "https://github.com/isod89/sloop-fm1",
-        "commit": "8d3823f (SLOOP 2.4)",
-        "author": "isod89 (the formats: project.c project_t, fm6_bank.c fm6_bank_t, editor.html's backup file; the import is ours)",
-        "licence": "GPL-3.0-only",
-        "files": "firmware/src/project.c project_t, fm6_bank.c fm6_bank_t, web/editor.html backupObjects"
-      },
-      "files": [
-        "firmware/src/io/editor/ed_sl24.c (editor commands 90 SL24_PUT, 91 SL24_BANK)",
-        "firmware/src/storage/sl24/sl24_guard.c sl24_import_buf, sl24_bank_at",
-        "web/editor.html Projects > Import a SLOOP 2.4 backup (sl24ImportDo), FM6 > 2.4's patches into the user bank",
-        "tests/sl24_edimport_test.c"
-      ],
-      "cost": {
-        "flash": 1204,
-        "ram": 16,
-        "pool": 388,
-        "ramtext": 0,
-        "cpu": "none (an editor request)",
-        "project_bytes": 0
-      },
-      "storage": "none (the import is the working project; SAVE puts it in a section). The editor's FM6 user bank write (2.4's patches into free slots) is the bank's usual write",
-      "limits": "needs FELUCCA_SL24_IMPORT (and SL24_SAFE): built without them it is off. One project at a time (the file's working project or A..D); as LOAD twice: what the importer loses (sl24_import.c)",
-      "notice": "",
       "warning": false
     },
     {

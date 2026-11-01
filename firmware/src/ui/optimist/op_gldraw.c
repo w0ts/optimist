@@ -65,15 +65,26 @@ typedef struct {
 } gl_lrow_t;
 /* the name in the large face too, when the name and the value both fit large (Felucca's look: "large fonts are much
  * more enjoyable on screen", a player, 2026-10-25) */
+#define GL_NM_GAP 4                                     /* (the room kept between a large name and its value) */
 static int gl_big_nm(const char *name, const char *v, int32_t uw, uint32_t tog)
 {
-    return 6 + text_w(font_big(), name) + 12 + text_w(font_big(), v) + uw + (tog ? GL_CK + 6 : 0) <= 236;
+    return 6 + text_w(font_big(), name) + GL_NM_GAP + text_w(font_big(), v) + uw + (tog ? GL_CK + 6 : 0) <= 236;
+}
+/* a name's shorter form for a line whose large name would not fit beside its value (the large face everywhere beats the
+ * long name: SYSTEM's KNOB COLORS), or 0 */
+static const char *gl_short_nm(const char *name)
+{
+    return str_eq(name, "KNOB COLORS") ? "COLORS" : 0;
 }
 static void gl_lrow(const cell_t *c, int32_t y, gl_lrow_t *r)
 {
     char lv[14];
     cut(r->nm, nm_card(c->label ? c->label : "", 0, r->nm, sizeof r->nm), 12);
+#if WIFI_UI
+    cut(r->v, gl_text(c, lv), c->wide ? 15u : 13u);
+#else
     cut(r->v, gl_text(c, lv), 13);
+#endif
     r->uw = c->kind != CK_ACT && c->unit[0] ? text_ws(c->unit) : 0;
     r->f = r->nf = &FONT_S;
     r->ty = r->fy = gl_ty(y, GL_BH);                    /* (the text, then the bar, centred in the line) */
@@ -84,6 +95,9 @@ static void gl_lrow(const cell_t *c, int32_t y, gl_lrow_t *r)
         r->fy = y + 1;
         r->ty = r->fy + (int32_t)font_big()->h / 2 - 4;
         r->by = r->fy + (int32_t)font_big()->h - 2;
+        if (!gl_big_nm(r->nm, r->v, r->uw, gl_tog(c)) && gl_short_nm(r->nm) &&
+            gl_big_nm(gl_short_nm(r->nm), r->v, r->uw, gl_tog(c)))
+            str_cpy(r->nm, gl_short_nm(r->nm), sizeof r->nm);
         if (gl_big_nm(r->nm, r->v, r->uw, gl_tog(c)))
             r->nf = font_big();
     }
@@ -99,7 +113,7 @@ static void gl_line_draw(uint32_t k, int32_t y, const cell_t *c, uint32_t on)
     const char *b;
     gl_lrow(c, y, &r);
     uw = r.uw, ty = r.ty, by = r.by, b = r.v;
-    x = text_st(6, r.nf == &FONT_S ? ty : r.fy, r.nf, r.nm, on ? lc : C_WHITE, c->strike);   /* (a muted track's volume: struck, PAGE_LINES) */
+    x = text_st(6, r.nf == &FONT_S ? ty : r.fy, r.nf, r.nm, on ? lc : knob_col_dim(k, C_WHITE), c->strike);   /* (a muted track's volume: struck, PAGE_LINES) */
     if (c->dr)
         cv_texts(x + 8, ty, "DR", C_GRAY);              /* (the drum track's own value, a lane picked: as the cards tag it) */
     x = (tog ? 236 - GL_CK - 6 : 236) - uw - text_w(r.f, b);   /* (a unit right after the number: "90BPM", style guide 5) */
@@ -116,83 +130,98 @@ static void gl_line_draw(uint32_t k, int32_t y, const cell_t *c, uint32_t on)
     }
 }
 /* SYSTEM's first page, INFO: not 4 lines but every read-out at once, compact: the name left, the value right, text
- * only, no bars (the clock, the load of each core, the battery). No knob
- * does anything here and no line is the cursor */
+ * only but the CPU lines' bars (gl_info_bar: the load now and its peaks; the clock, the load of each core, RAM, the battery). No line is the cursor,
+ * no knob does anything */
 #define GL_INFO_PH 26                                   /* a read-out page's line pitch at most */
+#define GL_INFO_PH_MAIN 34                              /* INFO's: five or six lines (the battery is the header's, 2026-10-29) spread over the band */
 static uint32_t gl_sys_item(void)                       /* SYSTEM's page shown is the one whose first line is this item (SI_NONE: not SYSTEM) */
 {
     uint32_t e = gld.s && gld.first < gl_n(1) ? gl_ent(1, gld.first) : 0u;
     return gld.s ? sys_item(e >> 2, e & 3u) : SI_NONE;
 }
-static uint32_t gl_info(void)                           /* 1 + the read-out page shown (op_project.c info_cell: INFO, INTERNALS, USB STATS), 0: none */
+static uint32_t gl_info(void)                           /* 1 + the read-out page shown (op_project.c info_cell: INFO, INTERNALS, USB STATS, CPU TIMES), 0: none */
 {
     uint32_t it = gl_sys_item();
-    return it == SI_INFO ? 1u + INFO_PG_INFO : it == SI_DIAG ? 1u + INFO_PG_DIAG : it == SI_UAINFO ? 1u + INFO_PG_USB : 0u;
+    return it == SI_INFO ? 1u + INFO_PG_INFO : it == SI_DIAG ? 1u + INFO_PG_DIAG : it == SI_UAINFO ? 1u + INFO_PG_USB :
+           it == SI_DUALT ? 1u + INFO_PG_DUAL : 0u;
 }
-/* SYSTEM > CREDITS, after ABOUT: who made what Optimist is built from, as text lines in INFO's style (the name left in
- * grey, the who right, no bars, no knob does anything); the rest, with licences and commits: LICENSING.md.
- * Names only, nominative: JUNO models the Roland Juno-106, Optimist is not affiliated */
-static const char *const CRED[][2] = {
-    {"VERSION", FELUCCA_VERSION},                       /* ("OPTIMIST 0.1"; a release: its own string) */
-    {"FELUCCA", "Leo Kuroshita"},                       /* (the platform: Hugelton Instruments) */
-    {"SLOOP", "isod89"},
-    {"MELODEE", "Kerem Kilic"},
-    {"X0X", "Charles Vestal"},
-    {"FLOWSTATE", "Z. Chowdhury"},
-    {"JANGADA", "zednaked"},
-#if FELUCCA_ENG_DRONE
-    {"CARAVEL", "bonszaimusic"},                        /* (DRONE's network, eng_drone.c) */
-#endif
-    {"JUNO", "fm-106, KR-106"},                         /* (PatttF; Kayrock Screenprinting) */
-    {"ACID", "Open303, TB-3PO"},                        /* (Robin Schmidt, Logarhythm: MIT) */
-    {"SAMPLES", "VSCO, VCSL, Sonic Pi"},
-    {"FONT", "Terminus"},
-    {"THE REST", "LICENSING.md"},
-};
-#define CRED_N (sizeof CRED / sizeof CRED[0])
+/* SYSTEM > CREDITS, the last page: film end titles (op_credits.c: the credits, the crawl, KNOB 1; no cursor, no line) */
 static uint32_t gl_cred(void) { return gl_sys_item() == SI_CREDITS; }
 static uint32_t gl_textpage(void) { return gl_info() || gl_cred(); }   /* (a page drawn whole: no lines, no cursor) */
-static void gl_cred_draw(int32_t y0)
+#define GL_BAND_W (240 - OH_HEAD)                       /* INFO's first page has no help band (the user, 2026-10-29): its room runs to the screen's foot */
+#define GL_END_W (GL_BAND_W - 2)
+static uint32_t gl_info_wide(void)                      /* the page with no foot line (op_help.c hl_pre): from the cursor, not from the last draw (hl_pre runs before gl_draw) */
 {
-    uint32_t i;
-    int32_t ph = (GL_END - y0) / (int32_t)CRED_N, ty;
-    char b[16];
-    for (i = 0; i < CRED_N; i++) {
-        ty = y0 + (int32_t)i * ph + (ph - (int32_t)FONT_S.h) / 2;
-        cv_texts(6, ty, nm_card(CRED[i][0], 0, b, sizeof b), C_GRAY);
-        cv_texts(236 - text_ws(CRED[i][1]), ty, CRED[i][1], i ? C_HI : C_WHITE);
-    }
+    uint32_t e;
+    if (ui.scr != SCR_SYSTEM)
+        return 0u;
+    e = gl_ent(1, gl_first(1, ui.row[SCR_SYSTEM]));
+    return sys_item(e >> 2, e & 3u) == SI_INFO;
 }
 #define GL_INFO_BIG 40                                  /* a read-out page's pitch from which its values take the large face */
+#define GL_INFO_BGAP 4                                  /* a CPU line: its text, this gap, its bar (GL_BH) */
+#define GL_INFO_TK 2                                    /* ... the peak ticks: this wide, standing this far over and under the bar */
+/* a CPU line's bar under its text (op_project.c info_bar; the user, 2026-10-28): the screen's width as the settings' bars,
+ * filled to the load now in the load's colours, the dim tick at the peak since boot, the bright one at the 10 s peak over it; the
+ * text never on it */
+static void gl_info_bar(int32_t by, const cell_t *c)
+{
+    int32_t span = c->gmax - c->gmin, k;
+    cell_t g = *c;
+    draw_gauge(GL_BX, by, GL_BW, GL_BH, &g, load_col(c->gv), C_LINE);
+    if (c->av > c->gv && span > 0)                      /* (the RAM bar: the undo history's borrowed share after the fill,
+                                                         * dimmer: op_project.c info_ram) */
+        cv_rect(GL_BX + (c->gv - c->gmin) * GL_BW / span, by, (c->av - c->gv) * GL_BW / span, GL_BH, col_shade(C_GRAY, 2u));
+    for (k = 1; k >= 0; k--) {
+        int32_t v = c->hold[k], x;
+        if (v <= 0 || span <= 0)
+            continue;
+        x = GL_BX + (v - c->gmin) * (GL_BW - GL_INFO_TK) / span;
+        cv_rect(x, by - GL_INFO_TK, GL_INFO_TK, GL_BH + 2 * GL_INFO_TK, k ? col_shade(load_col(v), 4u) : load_col(v));
+    }
+}
+static int32_t gl_info_pitch(uint32_t pg, uint32_t n, int32_t y0)   /* a read-out page's line pitch: the band shared by its n lines */
+{
+    int32_t ph = ((pg == INFO_PG_INFO ? GL_END_W : GL_END) - y0) / (int32_t)n, cap = ph >= GL_INFO_BIG ? gl_pitch() : pg == INFO_PG_INFO ? GL_INFO_PH_MAIN : GL_INFO_PH;
+    return ph > cap ? cap : ph;                         /* (a short page: a list's pitch, from the top) */
+}
 static void gl_info_draw(int32_t y0)
 {
     uint32_t i, pg = gl_info() - 1u, n = info_lines(pg);
-    int32_t ph = (GL_END - y0) / (int32_t)n, cap = ph >= GL_INFO_BIG ? gl_pitch() : GL_INFO_PH, ty, fy, uw, x;
-    char b[16], lv[14];
+    int32_t ph = gl_info_pitch(pg, n, y0), ty, fy, uw, x;
+    char b[20], lv[14];
     const char *nm;
     cell_t c;
-    if (ph > cap)
-        ph = cap;                                       /* (a short page: a list's pitch, from the top) */
     for (i = 0; i < n; i++) {
-        int32_t y = y0 + (int32_t)i * ph;
+        int32_t y = y0 + (int32_t)i * ph, tp;
         uint16_t vc;
         const felucca_font_t *f = &FONT_S;
         info_cell(pg, i, &c);
+        tp = c.pkbar ? ph - (GL_INFO_BGAP + GL_BH + GL_INFO_TK) : ph;   /* (the text's room: a CPU line's bar under it) */
         vc = c.col ? c.col : C_GRAY;
-        ty = fy = y + (ph - (int32_t)FONT_S.h) / 2;
+        ty = fy = y + (tp - (int32_t)FONT_S.h) / 2;
         uw = c.unit[0] ? text_ws(c.unit) : 0;
         nm = nm_card(c.label, 0, b, sizeof b);
         cut(lv, c.val, 13);
         if (ph >= GL_INFO_BIG && gl_big(nm, lv, uw, 0)) {   /* (few read-outs: the values large, as the settings' lines) */
             f = font_big();
-            fy = y + (ph - (int32_t)font_big()->h) / 2;
+            fy = y + (tp - (int32_t)font_big()->h) / 2;
             ty = fy + (int32_t)font_big()->h / 2 - 4;
         }
-        cv_texts(6, ty, nm, f == &FONT_S ? C_GRAY : C_WHITE);
+        if (f != &FONT_S && gl_big_nm(nm, lv, uw, 0)) {     /* (the name large too where both fit: one size on a row) */
+            cv_text(6, fy, f, nm, c.danger ? C_WARN : C_WHITE);
+        } else if (f != &FONT_S && pg != INFO_PG_INFO) {   /* (else the whole row small, never a large value by a small name; INFO's first page keeps the large value: a small name beside it) */
+            f = &FONT_S;
+            fy = ty = y + (tp - (int32_t)FONT_S.h) / 2;
+            cv_texts(6, ty, nm, c.danger ? C_WARN : C_GRAY);
+        } else
+            cv_texts(6, ty, nm, c.danger ? C_WARN : C_GRAY);
         x = 236 - uw - text_w(f, lv);
         cv_text(x, fy, f, lv, vc);
         if (uw)
             cv_texts(236 - uw, ty, c.unit, C_DIM);
+        if (c.pkbar)
+            gl_info_bar(fy + (int32_t)f->h + GL_INFO_BGAP, &c);
     }
 }
 static void gl_paint(void)
@@ -205,7 +234,7 @@ static void gl_paint(void)
         return;
     }
     if (gl_cred()) {
-        gl_cred_draw(y);
+        gl_cred_draw();
         return;
     }
 #if FELUCCA_BT_UI
@@ -217,6 +246,17 @@ static void gl_paint(void)
                 gl_line_draw(i - gld.first, y, &c, i == gld.cur);
             }
         bt_pg_paint(bt_pg_shown() - 1u, gl_y0() + gl_pitch(), gl_y0() + 3 * gl_pitch(), gld.bar);
+        return;
+    }
+#endif
+#if WIFI_UI
+    if (gld.s && wf_pg_shown()) {                       /* the WI-FI page with nothing joined: the same (op_wifi.c wf_pg_paint) */
+        for (i = gld.first; i < gld.end; i++, y += gl_pitch())
+            if (i == gld.first || i == gld.first + 3u) {
+                gl_cell(gld.s, i, &c);
+                gl_line_draw(i - gld.first, y, &c, i == gld.cur);
+            }
+        wf_pg_paint(gl_y0() + gl_pitch(), gl_y0() + 3 * gl_pitch(), gld.bar);
         return;
     }
 #endif
@@ -237,7 +277,7 @@ static void gl_draw(void)
     gld.first = gl_first(gld.s, gld.cur);
     gld.end = gl_end(gld.s, gld.cur);
     gld.bar = trk_col(song.sel);
-    sig = hu(hu(hu(hu(0x6C15u, gld.s), gld.cur), gld.bar + settings.palette * 65536u), knob_colors);
+    sig = hu(hu(hu(hu(hu(0x6C15u, gld.s), gld.cur), gld.bar + settings.palette * 65536u), knob_colors), gl_info_wide());
     for (i = gld.first; i < gld.end; i++) {
         gl_sect(gld.s, i, nm);
         gl_cell(gld.s, i, &c);
@@ -247,15 +287,27 @@ static void gl_draw(void)
     if (gld.s && bt_pg_shown())
         sig = hu(sig, bt_pg_sig(bt_pg_shown() - 1u));   /* (a Bluetooth page's devices) */
 #endif
+#if WIFI_UI
+    if (gld.s && wf_pg_shown())
+        sig = hu(sig, wf_pg_sig());                     /* (the WI-FI page's networks) */
+#endif
     if (gl_info())
         for (i = 0; i < info_lines(gl_info() - 1u); i++) {   /* (the info pages: their read-outs) */
             info_cell(gl_info() - 1u, i, &c);
-            sig = hc(sig, &c);
+            sig = hu(hc(sig, &c), (uint32_t)(uint16_t)c.hold[0] << 16 ^ (uint16_t)c.hold[1] ^ (uint32_t)c.pkbar << 15);
         }
+    if (gl_cred()) {                                    /* (the credits: the crawl's offset; any other page: it starts at the top next time) */
+        cred_tick();
+        cr.px = (int16_t)cred_px();
+        sig = hu(sig, (uint32_t)(uint16_t)cr.px);
+        if (sig != ui.sig[2])
+            cr.draws++;                                 /* (a paint: the tests count them) */
+    } else
+        cred_off();
     if (sig == ui.sig[2])
         return;
     ui.sig[2] = sig;
-    cv_tall(GL_TOP, GL_BAND, C_BLACK, gl_paint);
+    cv_tall(GL_TOP, gl_info_wide() ? GL_BAND_W : GL_BAND, C_BLACK, gl_paint);
 }
 
 /* PAGE_LINES (op_draw.c pl_on): a screen's cursor row as GLOBAL's lines, value k on line k (its knob), the hot one in the

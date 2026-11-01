@@ -17,7 +17,6 @@
 #include "ble_ll.h"
 #include "ble_midi.h"
 #include "ble_util.h"
-#include "ble_diag.h"
 
 /* the MIDI I/O characteristic 7772E5DB-3868-4112-A1A9-F2669D106BF3, least significant octet first */
 static const uint8_t ATT_UUID_MIDI_IO[16] = {0xF3, 0x6B, 0x10, 0x9D, 0x66, 0xF2, 0xA9, 0xA1,
@@ -52,7 +51,7 @@ static const struct {
     {0, 0, 0, 0},
     {0x2800, A_R | A_SVC, 2, V_GAP},
     {0x2803, A_R, 5, V_NAME_D},
-    {0x2A00, A_R, 1, 0},                 /* (the name in RAM: ble_gap_name, "Optimist XXXX") */
+    {0x2A00, A_R, 1, 0},                 /* (the name in RAM: ble_gap_name, "FM1-XXXX") */
     {0x2803, A_R, 5, V_APP_D},
     {0x2A01, A_R, 2, V_APP},
     {0x2803, A_R, 5, V_PPCP_D},
@@ -299,7 +298,6 @@ static void att_read(const uint8_t *p, uint16_t n)
 
 static void att_midi_in(void *ctx, uint32_t pkt, uint16_t ts)
 {
-    BLE_DIAG_MIDI_KIND(ble_dg, pkt);
     ble_app_midi_in(pkt, ts, *(const uint16_t *)ctx);
 }
 
@@ -307,18 +305,7 @@ static void att_midi_in(void *ctx, uint32_t pkt, uint16_t ts)
 BLE_API void ble_att_midi_packet(const uint8_t *v, uint16_t n)
 {
     uint16_t last = ble_midi_last_ts(v, n);
-#if BLE_DIAG
-    uint32_t i, r = ble_dg.mi_raw_n++ & 3u;
-    for (i = 0; i < 12u; i++)
-        ble_dg.mi_raw[r][i] = i < n ? v[i] : 0u;
-    ble_dg.mi_raw_len[r] = (uint8_t)(n > 255u ? 255u : n);
-    if (ble_midi_dec(&batt.dec, v, n, att_midi_in, &last))
-        ble_dg.mi_pkts++;
-    else
-        ble_dg.mi_bad_hdr++;
-#else
     (void)ble_midi_dec(&batt.dec, v, n, att_midi_in, &last);
-#endif
 }
 
 /* returns an ATT error code, 0 when written */
@@ -359,7 +346,6 @@ BLE_API void ble_att_rx(const uint8_t *p, uint16_t n)
     if (!n)
         return;
     op = p[0];
-    BLE_DG(ble_diag_last(ble_dg.att_rx, &ble_dg.att_rx_n, op));
 #if BLE_CENTRAL
     if (ble_ll_central() && ble_gattc_rx(p, n))
         return;                                /* (a response to our client, a notification: ble_gattc.c) */
@@ -397,13 +383,6 @@ BLE_API void ble_att_rx(const uint8_t *p, uint16_t n)
     case 0x52:                                 /* Write Command */
         if (n < 3u)
             break;
-        if (ble_rd16(p + 1) != H_MIDI_IO) {
-            BLE_DG(ble_dg.mi_w_other++);
-            BLE_DG(ble_dg.mi_w_other_h = ble_rd16(p + 1));
-        } else if (op == 0x52)
-            BLE_DG(ble_dg.mi_wcmd++);
-        else
-            BLE_DG(ble_dg.mi_wreq++);
         err = att_write(ble_rd16(p + 1), p + 3, (uint16_t)(n - 3u));
         if (op == 0x52)
             return;
@@ -460,9 +439,6 @@ static void att_midi_out(void)
         batt.buf[0] = op;                       /* Handle Value Notification / Write Command */
         ble_wr16(batt.buf + 1, h);
         att_send((uint16_t)(3u + len));
-#if BLE_CENTRAL
-        BLE_DG(ble_dgc.gc_wcmd_tx += op == 0x52);
-#endif
     }
 }
 

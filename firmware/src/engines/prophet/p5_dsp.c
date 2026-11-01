@@ -8,18 +8,31 @@
  * clip at the input and the output. Left out (Optimist's track does them): Melodee's native patch and its envelopes,
  * the LFO and wheel, the SSM (Rev 1 / 2) stages, the noise source, the voice drift, the dual-core batching. */
 #include "p5_dsp.h"
+/* PROPHET "on, code in RAM" (the builder, FAST_RAM_prophet; core.h FAST): p5_render in the RAM code's section (.ram_hot;
+ * the release's opt_fpu_p5.c: .app_ram, FAST_SECTION); eng_prophet.c's prophet_render with it */
+#if defined(__PI32V2__) && defined(FAST_RAM_prophet) && FAST_RAM_prophet
+#ifndef FAST_SECTION
+#define FAST_SECTION ".ram_hot"
+#endif
+#define P5_FAST __attribute__((section(FAST_SECTION)))
+/* and its tables (P5_TANH 4 KB, P5_EXP2 2 KB, P5_TPT_G 0.5 KB: read every sample) in RAM, .data: no flash-cache
+ * misses on them, the same values */
+#define P5_TAB __attribute__((section(".data.p5_tab")))
+#else
+#define P5_FAST
+#endif
 #include "p5_tables.h"
 
 typedef union { float f; uint32_t u; int32_t i; } p5_bits_t;
 
-static inline float p5_absf(float x) { return x < 0.0f ? -x : x; }
-static inline float p5_minf(float a, float b) { return a < b ? a : b; }
-static inline float p5_clampf(float x, float lo, float hi) { return x < lo ? lo : x > hi ? hi : x; }
-static inline float p5_ld(const int32_t *s) { p5_bits_t b; b.i = *s; return b.f; }
-static inline void p5_st(int32_t *s, float f) { p5_bits_t b; b.f = f; *s = b.i; }
+static inline P5_FAST float p5_absf(float x) { return x < 0.0f ? -x : x; }
+static inline P5_FAST float p5_minf(float a, float b) { return a < b ? a : b; }
+static inline P5_FAST float p5_clampf(float x, float lo, float hi) { return x < lo ? lo : x > hi ? hi : x; }
+static inline P5_FAST float p5_ld(const int32_t *s) { p5_bits_t b; b.i = *s; return b.f; }
+static inline P5_FAST void p5_st(int32_t *s, float f) { p5_bits_t b; b.f = f; *s = b.i; }
 
 /* Melodee's p5_fast_blep / p5_fast_osc_saw: the integer phase, everything after it normalised float */
-static inline float p5_blep(uint32_t ph, uint32_t inc)
+static inline P5_FAST float p5_blep(uint32_t ph, uint32_t inc)
 {
     if (!inc)
         return 0.0f;
@@ -33,10 +46,10 @@ static inline float p5_blep(uint32_t ph, uint32_t inc)
     }
     return 0.0f;
 }
-static inline float p5_saw(uint32_t ph, uint32_t inc) { return (float)ph * (1.0f / 2147483648.0f) - 1.0f - p5_blep(ph, inc); }
+static inline P5_FAST float p5_saw(uint32_t ph, uint32_t inc) { return (float)ph * (1.0f / 2147483648.0f) - 1.0f - p5_blep(ph, inc); }
 
 /* tanh from P5_TANH (|x| < 8), linearly interpolated */
-static inline float p5_softclip(float x)
+static inline P5_FAST float p5_softclip(float x)
 {
     float a = p5_absf(x) * 128.0f, y;
     uint32_t i;
@@ -48,7 +61,7 @@ static inline float p5_softclip(float x)
 }
 
 /* 2^x for x in -8..6: one octave interpolated, the power of two in the exponent bits */
-static inline float p5_ratio(float x)
+static inline P5_FAST float p5_ratio(float x)
 {
     int32_t oct = (int32_t)x;
     float pos;
@@ -61,7 +74,7 @@ static inline float p5_ratio(float x)
     sc.u = (uint32_t)(oct + 127) << 23;
     return (P5_EXP2[i] + (P5_EXP2[i + 1u] - P5_EXP2[i]) * (pos - (float)i)) * sc.f;
 }
-static inline uint32_t p5_inc(uint32_t base, float x)
+static inline P5_FAST uint32_t p5_inc(uint32_t base, float x)
 {
     if (x == 0.0f)
         return base;
@@ -69,7 +82,7 @@ static inline uint32_t p5_inc(uint32_t base, float x)
 }
 
 /* the Curtis 4-pole (Melodee's p5_filter_core, curtis): z[0..3] the stages */
-static inline float p5_filter(float *z, float in, float cutoff, float k, float gain)
+static inline P5_FAST float p5_filter(float *z, float in, float cutoff, float k, float gain)
 {
     float g, g2, g3, g4, sigma, u, rec;
     uint32_t i, j;
@@ -93,7 +106,7 @@ static inline float p5_filter(float *z, float in, float cutoff, float k, float g
 }
 
 /* one oscillator: saw / pulse / triangle (the triangle integrates the square: tri its state), each half scale */
-static inline float p5_wave(uint32_t ph, uint32_t inc, uint32_t pw, int saw, int pulse, int tri, float *tr)
+static inline P5_FAST float p5_wave(uint32_t ph, uint32_t inc, uint32_t pw, int saw, int pulse, int tri, float *tr)
 {
     float y = 0.0f, a, sq = 0.0f;
     if (!saw && !pulse && !tri)
@@ -114,7 +127,7 @@ static inline float p5_wave(uint32_t ph, uint32_t inc, uint32_t pw, int saw, int
     return y;
 }
 
-void p5_render(int32_t *out, uint32_t n, uint32_t *ph, int32_t *st, const p5_args_t *a)
+P5_FAST void p5_render(int32_t *__restrict out, uint32_t n, uint32_t *ph, int32_t *st, const p5_args_t *a)
 {
     float z[4] = {p5_ld(&st[0]), p5_ld(&st[1]), p5_ld(&st[2]), p5_ld(&st[3])};
     float tr = p5_ld(&st[4]), tail = p5_ld(&st[5]), unused = 0.0f;

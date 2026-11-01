@@ -69,8 +69,8 @@ def _need(cfg, costs):
 
 def candidates(cfg, costs, over):
     """-> [(key, {region: freed})] items built in cfg whose removal alone covers the overflow `over`, sample sets
-    first (smallest first), then the other items, smallest first; BLE itself, its own options (BLE_DIAG, BLE_BOND,
-    BLE_CENTRAL: what was asked for with it, 2026-10-19: x0x-drums + BLE_DIAG had BLE_DIAG removed to make room for BLE)
+    first (smallest first), then the other items, smallest first; BLE itself, its own options (BLE_BOND, BLE_CENTRAL:
+    what was asked for with it, 2026-10-19: x0x-drums + a BLE option had that option removed to make room for BLE)
     and anything that would make the configuration invalid are left out"""
     sav = C.savings_of(cfg, costs)
     out = []
@@ -143,5 +143,8 @@ def after_toggle(before, after, key, room, costs=None):
     """the user toggled `key` (before -> after configurations): -> (cfg, Room). Ticking BLE removes nothing, as any other
     tick (the user, 2026-10-21: "like ANY other tick: the meters go over and it tells you it does not fit"; the rule
     that unticked an item behind the user's back made BLE ON show more free flash than OFF). make_room stays for
-    the headless --ble-drop, which names the item explicitly"""
-    return after, NONE
+    the headless --ble-drop, which names the item explicitly. MEMORY (the front) sets the items it fronts; any other
+    change reads MEMORY back from them"""
+    if key in C.FRONTS:                                 # (MEMORY, SD_MODE, SMP_SLOTS, PROJECTS: core.set_front)
+        return C.set_front(before, key, after[key]), NONE
+    return C.sync_memory(after), NONE

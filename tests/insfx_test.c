@@ -27,7 +27,7 @@ static void check(const char *what, int ok)
     printf("insfx: %-100s %s\n", what, ok ? "ok" : "FAIL");
     fails += !ok;
 }
-static const char *const NAME[FXT_N] = {"", "", "", "", "", "", "", "FOLD", "FUZZ", "PHSR", "FLNG", "FRMT", "WIDE", "CHRS", "ECHO",
+static const char *const NAME[FXT_N] = {"", "", "", "", "", "", "", "FOLD", "FUZZ", "PHSR", "FLNG", "FRMT", "WIDE", "(CHRS)", "ECHO",
                                         "GATER", [FXT_SFLD] = "SFLD", [FXT_WRAP] = "WRAP", [FXT_RECT] = "RECT",
                                         [FXT_HARM] = "HARM", [FXT_RING] = "RING", [FXT_SUBO] = "SUB", [FXT_SLEW] = "SLEW",
                                         [FXT_TAPE] = "TAPE", [FXT_SPIT] = "SPIT"};
@@ -461,8 +461,9 @@ static void t_store(void)
     check("a record without them: every amount 0", ok);
 #if FELUCCA_AUTO
     for (t = FXT_NEW0, ok = 1; t < FXT_NEWN; t++)
-        ok &= mot_sid(FXT_AMT[t]) == P_ENG_END + 4u + (t - FXT_NEW0) && mot_id(P_ENG_END + 4u + (t - FXT_NEW0)) == FXT_AMT[t] &&
-              motion_param(&trk[0], FXT_AMT[t]) && motion_param(TDRUM, FXT_AMT[t]);
+        ok &= FXT_AMT[t] == 0xFFu ||                   /* (CHRS: the CHO insert since 2026-10-29, its MIX P_CHOR) */
+              (mot_sid(FXT_AMT[t]) == P_ENG_END + 4u + (t - FXT_NEW0) && mot_id(P_ENG_END + 4u + (t - FXT_NEW0)) == FXT_AMT[t] &&
+               motion_param(&trk[0], FXT_AMT[t]) && motion_param(TDRUM, FXT_AMT[t]));
     check("motion: FOLD .. WIDE stored as P_ENG_END + 4 .. 9 in every build, both ways; recordable on every track", ok);
 #endif
     d = ins_desc(0, 0, &vp);

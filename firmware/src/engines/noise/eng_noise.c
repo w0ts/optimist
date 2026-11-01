@@ -100,7 +100,7 @@ static void noise_note_on(track_t *t, voice_t *v)
     v->ph[2] = 0;
 }
 
-static void noise_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
+static void noise_render(track_t *t, voice_t *v, int32_t *__restrict out, uint32_t n, const vmod_t *m)
 {
     const int16_t *p = t->p;
     uint32_t mode = (uint32_t)p[P_E0] & 3u, sel = ((uint32_t)p[P_E5] >> 4) & 7u, i;
@@ -230,7 +230,7 @@ static void noise_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const
             }
             y = (int32_t)reg;
         }
-        out[i] += mulq15(mulq15(y, amp_at(m, i)), VOICE_FS);
+        out[i] += VOICE_OUT(y, amp_at(m, i), 0);
     }
     v->s[0] = ic1;
     v->s[1] = ic2;
@@ -267,7 +267,7 @@ static const engine_t ENG_NOISE = {
         PU("DRFT", F_PCT, 0, 127, 0, 0),
         PU("CRSH", F_PCT, 0, 127, 0, 0),           /* LFSR, META: the clock above the key */
     },
-    .presets = NOISE_PRESETS,
+    .presets = PRESETS_PTR(NOISE_PRESETS),
     .npresets = sizeof(NOISE_PRESETS) / sizeof(NOISE_PRESETS[0]),
     .note_on = noise_note_on,
     .render = noise_render,

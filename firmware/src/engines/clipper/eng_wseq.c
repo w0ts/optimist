@@ -199,7 +199,7 @@ static void wseq_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
         x = tsvf_lp(&flt, y * 3 >> 2, &ic1, &ic2);
         if (x > 16000 || x < -16000)
             x = soft_knee(x, 16000);
-        out[i] += mulq15(mulq15(x << 1, amp_at(m, i)), VOICE_FS) << 1;
+        out[i] += VOICE_OUT(x << 1, amp_at(m, i), 1);
     }
     v->ph[0] = pa;
     v->ph[1] = pb;
@@ -245,7 +245,7 @@ static const engine_t ENG_WSEQ = {
         PU("CUT", F_CUTOFF, 0, 127, 110, 0),
         PU("RES", F_PCT, 0, 127, 10, 0),
     },
-    .presets = WSEQ_PRESETS,
+    .presets = PRESETS_PTR(WSEQ_PRESETS),
     .npresets = sizeof(WSEQ_PRESETS) / sizeof(WSEQ_PRESETS[0]),
     .fil_page = 1,
     .note_on = wseq_note_on,

@@ -15,8 +15,9 @@
  *              newer version refused (every LFO off); a longer entry (a newer build's) read, a shorter one with the rest at
  *              the defaults; a bad length refused; out-of-range values brought back. Through a project buffer, a section
  *              (the log), the autosave; a section of an older firmware (no record): every LFO off
- *   2.4        the export says SX24_DLFO (lost2 bit 3; a v11 request: bit 13)
  *   cost       instructions per hit, and per block, on the host
+ *   SLEW       free 127 and synced 1/64: continuous (each value within the glide's steepest move of the last), each cycle
+ *              starting at its S&H value
  *   old        built with -DDLFO_ON=0: kept through the record, never heard, the render as without them, MISS: LANE LFO
  * Exit status: the number of failed checks. Run by tests/run_tests.sh (both builds). */
 #include "lane_host.h"
@@ -336,7 +337,7 @@ static void t_record(void)
     check("a length that is not 4 + lanes x entry: refused, every LFO off", !dlfo_decode(a, n - 1u) && !dlfo_any_live());
     memcpy(b2, a, n);
     b2[4] = 0x80, b2[5] = 9, b2[8] = 12, b2[6] = 200;  /* (rate -128, wave 9, dest 12, phase 200) */
-    check("values out of range brought back (RATE -22, WAVE SIN, PHS 72, DEST OFF)", dlfo_decode(b2, n) && dlfo[0].rate == -(int32_t)LSYNC_N &&
+    check("values out of range brought back (RATE -25, WAVE SIN, PHS 72, DEST OFF)", dlfo_decode(b2, n) && dlfo[0].rate == -(int32_t)LSYNC_N &&
           !dlfo[0].wave && dlfo[0].phase == (200u & 127u) && !dlfo[0].s[0].dest);
     /* through a project buffer, a section, the autosave */
     {
@@ -382,27 +383,12 @@ static void t_record(void)
     }
 }
 
-/* ---- 2.4, MISS */
-static uint32_t get78(uint32_t flag, int withflag, uint32_t *w2)
+/* ---- MISS */
+static void t_miss(void)
 {
-    uint8_t a[5] = {0, 0, 0, 0, (uint8_t)flag};
-    ed_n = 0;
-    (void)ed_sl24(78, a, withflag ? 5u : 4u);
-    *w2 = withflag && ed_n >= 17u ? ed_g7(ed_out + ed_n - 2u, 2) : 0u;
-    return ed_n >= 15u ? ed_g7(ed_out + 10, 2) : 0xFFFFu;
-}
-static void t_sl24_miss(void)
-{
-    uint32_t w1, w2, i, n, has = 0;
+    uint32_t i, n, has = 0;
     reset();
-    set_lfo(3, 50, 0, 0, 0, DE_LEVEL + 1u, 0, 0, 0);    /* (not live) */
-    w1 = get78(1, 1, &w2);
-    check("2.4 export, no LFO acting: no SX24_DLFO", !(w2 & 8u));
     set_lfo(3, 50, 0, 0, 0, DE_LEVEL + 1u, 10, 0, 0);
-    w1 = get78(1, 1, &w2);
-    check("... a lane LFO acting: lost2 bit 3 (SX24_DLFO), bit 13 clear", (w2 & 8u) && !(w1 & SX24_MOTION));
-    w1 = get78(0, 0, &w2);
-    check("... a v11 request: on bit 13 (its motion)", (w1 & SX24_MOTION) != 0u);
     n = miss_scan();
     for (i = 0; i < n; i++)
         has |= miss_m[i] == MS_ITEM(MS_FX, TRK_DRUM, MF_LLFO);
@@ -528,6 +514,56 @@ static void t_mod2(void)
 }
 #endif
 
+#if DLFO_ON
+/* ---- SLEW (issue 129): a lane's LFO on SLEW at the fastest free and synced rates, block after block: each within the
+ * steepest glide of the last (smoothstep's 1.5 x the range a cycle), a cycle's first block at that cycle's S&H value */
+static uint64_t slew_ph(int32_t rate, uint32_t n)       /* (dlfo_now's phase at block n, playing: free, or synced at 240 BPM) */
+{
+    uint32_t kt = LSYNC_KT[DUR_N - 1], u = n * CTL * 240u;   /* (1/64, the shortest) */
+    if (rate >= 0) {
+        song.tick = n;
+        return (uint64_t)n * LFO_INC[rate];
+    }
+    clk_beat = u / BEAT_U, clk_pos = u % BEAT_U;
+    return (uint64_t)clk_beat * (((uint64_t)BEAT_U * kt) >> 16) + (((uint64_t)clk_pos * kt) >> 16);
+}
+static void t_slew(void)
+{
+    static const int8_t RATE[2] = {127, -DUR_N};
+    dlfo_t c = {0, LFO_WAVE_SLEW, 0, 0, {{DE_DECAY + 1u, 40}, {0, 0}}}, h = c;
+    uint32_t r, n, ok = 1, starts = 0;
+    int32_t span = 0;
+    reset();
+    song.playing = 1;
+    h.wave = LFO_WAVE_SH;
+    for (r = 0; r < 2u; r++) {
+        int32_t last, mn = 32767, mx = -32768, b;
+        uint64_t p0 = slew_ph(RATE[r], 0), p1;
+        c.rate = h.rate = RATE[r];
+        last = dlfo_now(&c, L);
+        for (n = 1; n < 20000u; n++) {
+            int32_t v;
+            p1 = slew_ph(RATE[r], n);
+            b = (int32_t)((3ull * 65535u * (p1 - p0)) >> 33) + 3;
+            v = dlfo_now(&c, L);
+            ok &= (v > last ? v - last : last - v) <= b;
+            if ((p1 >> 32) != (p0 >> 32)) {            /* (a cycle's first block) */
+                int32_t sh = dlfo_now(&h, L);
+                ok &= (v > sh ? v - sh : sh - v) <= b;
+                starts++;
+            }
+            last = v, p0 = p1;
+            mn = v < mn ? v : mn, mx = v > mx ? v : mx;
+        }
+        span = r ? (mx - mn < span ? mx - mn : span) : mx - mn;
+    }
+    printf("lfo: SLEW %u cycle starts, the smaller span %d\n", (unsigned)starts, (int)span);
+    check("SLEW: free 127 and 1/64 at 240 BPM: each value within the steepest glide of the last, cycles start at S&H's",
+          ok && starts > 40u && span > 40000);
+    reset();
+}
+#endif
+
 int main(void)
 {
     outbuf = mmap(0, 2u * sizeof *outbuf, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANON, -1, 0);
@@ -543,8 +579,9 @@ int main(void)
     t_record();
 #if DLFO_ON
     t_mod2();
+    t_slew();
 #endif
-    t_sl24_miss();
+    t_miss();
 #if DLFO_ON
     t_cost();
 #endif

@@ -43,7 +43,7 @@ it renders four steps (1 Connect, 2 Choose: a release and its flavours, a cloud 
 the back-up question, the four phases and the bar; 4 When something goes wrong: the rescue paths and the return to V15)
 and returns `{ unmount(), busy }` (`busy` while writing: the host must not unload or hide it). `onNavigate(where)` lets
 the host open its own tab instead of following a link; `midi` replaces `navigator.requestMIDIAccess` (the tests). The
-update itself is `web/fm1ota.js` and `web/fm1pkg.js`. The module's CSS uses only the shared tokens, so it takes the look of
+update itself is fm-1-base's `web/fm1base/fm1ota.js` and `fm1pkg.js` (MPL-2.0, vendored byte for byte, never edited here: `web/fm1base/README.md`) with Optimist's extras in `web/fm1ota_optimist.js` (GPL-3.0-only: the loader identities OFFICIAL_LOADER / OUR_LOADER, the return to the official V15 with `restoreBanks`, `validateStockPackage`, the address of the last read for the bar). From fm-1-base the page has finding the FM-1 under any port name (the list with Try and the remembered ports, key `fm1-ports`), the CRC check before anything is sent, M-VAVE's Open firmware, the resume return check. m-bootloader is no longer written by this page: the build's BOOTLOADER is shown (a cloud build's `.config`, a site package's `bootloader` in site.json from its `PACKAGE.install.json`), with the KEEP-only checkbox; m-bootloader and every switch the running firmware's updater refuses go through the chip's download mode, which a browser cannot reach: the page names the next step (M-Flasher on a computer, the command, the key combo) and can send the soft key (`web/install_route.js`, docs/INSTALL-PATHS.md). The module's CSS uses only the shared tokens, so it takes the look of
 the page that holds it.
 
 ```js
@@ -104,7 +104,7 @@ the menu's views of that code.
 - **Layout:** the item tree on the left; on the right cards that stay in view: **Size** (the gauges), **Your
   configuration** (download, hash and key, import, the canonical form), the ways to fit and the messages, the **Info** card of
   the selected item. At 900 px and narrower the cards stack above the list with the Size card compact at the top.
-- **Gauges:** FLASH, RAM, POOL and RAMTEXT show used / limit in KiB (exact bytes on hover), the overflow in red with the
+- **Gauges:** FLASH and SRAM (RAM code, RAM and pool share it: docs/MEMORY-MAP.md 2.4) show used / limit in KiB (exact bytes on hover), the overflow in red with the
   limit marked on the bar, the UNDO ring, and the configuration's key (a click copies it). It is the estimate
   (`configure.budget`, from the nearest real build in `costs.json`) and only informs: nothing is refused because of it.
 - **Make it fit:** the button exists only while a gauge is over. It opens up to four proposals from `core.proposals` (the
@@ -325,7 +325,7 @@ includes by a relative path, `fm1_usb.h`, `fm1_uart.h`, `fm1_xip.h`, through a c
 - **Panel**: `fm1_in` as the matrix scan leaves it, fed by the page (one change per key per scan frame, ~1.1 ms); knob steps
   added at once; the MASTER pot from the page; the battery reads full.
 
-Switched off whatever the configuration says (`tools/sim.py` `SIM_FORCE` and `SIM_FLAGS`): the second core (`DUAL`),
+Switched off whatever the configuration says (`tools/sim.py` `SIM_FORCE` and `SIM_FLAGS`): the second core (host builds have one),
 Bluetooth (`BLE`, `BT_AUDIO`), the cache RAM, USB audio and the serial console (`USB_CONSOLE=0`), SIMD, the asm kernels
 (their C runs), the stock supply start-up and the bench. No TRS MIDI IN, no CPU clock measured, no watchdog, no crash report
 from a CPU exception (a wasm trap is thrown to the page).
@@ -377,3 +377,7 @@ or a failed build the site goes on without it). It asks again when the simulator
 firmware, `firmware/sim`, `firmware/hal`, the generators, the builder's rules and the configuration: `sim_fingerprint`)
 differs from now, or it was built for another profile; the Simulator tab shows "outdated". `tools/optimist.py web --sim
 [--profile P | --config F]`.
+
+## The release's own site (`make site PKG=...`)
+
+The release (Optimist as an fm1-base app, `fm1base/optimist`) has an install page of its own besides the installer above: fm1-base's `web/installer.html` made for it by fm1-base's `tools/make_site.py`, with Optimist's name, the release package, m-bootloader offered after it, the front page, the manual and the browser emulator. `web/make_site.py --release-site X.Y OUT_DIR PKG` makes it alone, `--release-pkg PKG` beside `--local` or `--flavours` puts it in `OUT_DIR/release/`, and `make site [PKG=release.fwsc] [SITE=build/site] [VERSION=X.Y]` runs the first (`--local`) with it. PKG is a release build (`tools/build.py --release`, identity `FM-1_79` and six digits). The inputs are Optimist's: `fm1base/optimist/fm1.toml` (name, `tagline`, `repo`, licence), `fm1base/optimist/site/landing.md` (the front page), and the manual, which `tools/site_manual.py` builds from `docs/guide/*.md` when the site is made (`tools/fm1base.py site`, which also builds the emulator with Emscripten: `fm1base/tools/build.py optimist --web`); nothing of it is kept twice. `web/e2e_release_installer.mjs` (Chrome, Emscripten) builds it from a simulated package, checks its pages and installs it on a simulated FM-1 (`web/installer/mock_fm1.js` behind `navigator.requestMIDIAccess`: no real MIDI port is opened).

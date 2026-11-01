@@ -61,7 +61,10 @@ static struct {
 /* M-UPGRADE SysEx (ota.c): one received frame at a time (7-bit bytes between
  * F0 and F7; frames arriving while one is pending are dropped, the host
  * retries), and a TX ring of SysEx event packets sent before any MIDI. */
-static uint8_t sx_frame[640];
+#ifndef SX_FRAME_MAX
+#define SX_FRAME_MAX 640u        /* the app (a 512-B response = 605 wire bytes); the update loader takes a 4 KiB one */
+#endif
+static uint8_t sx_frame[SX_FRAME_MAX];
 static uint32_t sx_pos;
 static volatile uint32_t sx_frame_len;
 static volatile uint8_t sx_ready, sx_collect, sx_busy;
@@ -70,51 +73,17 @@ static uint32_t sx_out_q[SXQ];
 static volatile uint32_t so_w, so_r;
 #endif
 
-/* MIDI rings: 4-byte USB-MIDI event packets */
-#define MQ 64u
-static uint32_t midi_in_q[MQ], midi_out_q[MQ];
-static volatile uint32_t mi_w, mi_r, mo_w, mo_r;
-/* The USB rescue (system/recovery.c) has no audio ISR and no events_block: nothing drains the input ring. With
- * midi_in_unread set, channel and clock events are dropped as they arrive and no EP1 packet is held for room, so
- * a DAW's clock or notes cannot fill the ring and NAK the installer's SysEx for ever (Jangada 0835cc4) */
-static uint8_t midi_in_unread;
+/* the MIDI rings (in, out, clock out), their time stamps and sources (MSRC_*): io/midi/midi_rings.c. This driver is
+ * a producer of the input ring (ep1_rx) and the consumer of the output ones (ep1_tx, usb_rx_peek) */
+#include "../midi/midi_rings.c"
+static int midi_out_open(void) { return usb.config; }   /* the outputs take events while a host has configured us */
 
-/* MIDI in, timestamped (after Melodee, Kerem Kilic: clock and transport queued in order with the notes,
- * with their source and arrival time). Time: TIMER4 ticks (SYNC_NOW), so clock_sync.c can follow 24 PPQN
- * to a fraction of a millisecond. Producers: usb_poll and uart_midi_poll, both in the TIMER5 ISR */
-#ifndef SYNC_NOW
-#define SYNC_NOW() fm1_ticks()
-#endif
-#define SYNC_PEEK_HALF (50u * 24u)                      /* half the 10 kHz TIMER5 tick, in TIMER4 ticks */
-enum { MSRC_USB = 1, MSRC_TRS = 2, MSRC_BLE = 3 };      /* = G_SYNC USB / TRS; BLE: io/midi/midi_ble.c (SYNC_BLE) */
-#ifndef OVL_LOST
-#define OVL_LOST(k) ((void)0)            /* (a unit without the overload monitor, system/overload.h: the driver tests) */
-#endif
-static uint32_t midi_in_t[MQ];
-static uint8_t midi_in_src[MQ];
-static int midi_in_enqueue(uint32_t pkt, uint32_t src, uint32_t t)
-{
-    if (midi_in_unread || mi_w - mi_r >= MQ)
-        return 0;
-    midi_in_q[mi_w % MQ] = pkt;
-    midi_in_t[mi_w % MQ] = t;
-    midi_in_src[mi_w % MQ] = (uint8_t)src;
-    RING_PUBLISH();
-    mi_w++;
-    return 1;
-}
-/* channel messages, clock / start / continue / stop (CIN F) and song position (CIN 3, F2) */
+/* channel messages, clock / start / continue / stop (CIN F) and song position (CIN 3, F2); malformed ones ignored
+ * (midi_rx_bad) */
 static void usb_midi_rx_packet(uint32_t pkt, uint32_t t)
 {
-    uint32_t cin = pkt & 15u, st = (pkt >> 8) & 0xFFu;
-    /* malformed (SLOOP 2.3, after Felucca 1.0): a channel message whose status is not its CIN's, or a data
-     * byte with bit 7 (the second only for the 3-byte ones), is ignored, not played as some other note */
-    if (cin >= 8u && cin <= 0xEu && ((st >> 4) != cin || (pkt & 0x800000u) ||
-                                     (cin != 0xCu && cin != 0xDu && (pkt & 0x80000000u)))) {
-        usb.rx_bad++;
-        return;
-    }
-    if (cin == 3u && st == 0xF2u && (pkt & 0x80800000u)) {
+    uint32_t cin = pkt & 15u;
+    if (midi_rx_bad(pkt)) {
         usb.rx_bad++;
         return;
     }
@@ -124,63 +93,9 @@ static void usb_midi_rx_packet(uint32_t pkt, uint32_t t)
         sx_collect = 0;
 #endif
     }
-    if ((cin >= 8u && cin <= 0xEu) || (cin == 0xFu && (st == 0xF8u || (st >= 0xFAu && st <= 0xFCu))) ||
-        (cin == 3u && st == 0xF2u)) {
+    if (midi_rx_wanted(pkt)) {
         if (!midi_in_enqueue(pkt, MSRC_USB, t) && !midi_in_unread)
             OVL_LOST(OVL_MIDI_USB);              /* (the ring full: lost; INFO's UNDERRUNS, system/overload.h) */
-    }
-}
-
-/* MIDI clock out (io/midi/clock_out.c, FELUCCA_MIDI_CLKOUT): USB-MIDI packets (F8, FA, FB, FC: CIN F; F2: CIN 3),
- * each with the TIMER4 time its audio leaves; sent once that time has come, ahead of anything else on the IN
- * endpoint: by usb_rx_peek within a 10 kHz tick (+-0.05 ms), or by the poll. Producer: the audio ISR (events_block);
- * consumer: the TIMER5 ISR, which outranks it. A slot set to 0 was taken back (rt_out_drop_after): skipped */
-#if defined(FELUCCA_MIDI_CLKOUT) && FELUCCA_MIDI_CLKOUT && !defined(FELUCCA_LOADER)
-#define USB_RT_OUT 1
-#define RTQ 16u
-static uint32_t rt_out_pkt[RTQ], rt_out_due[RTQ];
-static volatile uint32_t rt_w, rt_r;
-static void rt_out_push(uint32_t due, uint32_t pkt)
-{
-    if (usb.config && rt_w - rt_r < RTQ) {
-        rt_out_pkt[rt_w % RTQ] = pkt;
-        rt_out_due[rt_w % RTQ] = due;
-        RING_PUBLISH();
-        rt_w++;
-    }
-}
-/* the F8s queued and not yet sent that are due after t: taken back (a start: no stopped clock tick just before
- * the downbeat's). The consumer may take one while this runs: it is then sent, as it would have been */
-static void rt_out_drop_after(uint32_t t, uint32_t pkt)
-{
-    uint32_t i;
-    for (i = rt_r; i != rt_w; i++)
-        if (rt_out_pkt[i % RTQ] == pkt && (int32_t)(rt_out_due[i % RTQ] - t) > 0)
-            rt_out_pkt[i % RTQ] = 0;
-}
-static int rt_out_ready(uint32_t now)                  /* the oldest is due (within half a 10 kHz tick) */
-{
-    while (rt_r != rt_w && !rt_out_pkt[rt_r % RTQ])
-        rt_r++;                                         /* (taken back) */
-    return rt_r != rt_w && (int32_t)(now - rt_out_due[rt_r % RTQ] + SYNC_PEEK_HALF) >= 0;
-}
-#else
-#define USB_RT_OUT 0
-#define rt_out_ready(now) 0
-#endif
-
-#if FELUCCA_BLE
-static void ble_midi_out(uint32_t pkt);             /* (io/midi/midi_ble.c) */
-#endif
-static void midi_out_event(uint32_t pkt)            /* from the audio ISR */
-{
-#if FELUCCA_BLE
-    ble_midi_out(pkt);                              /* the same events to a BLE central that listens */
-#endif
-    if (usb.config && mo_w - mo_r < MQ) {
-        midi_out_q[mo_w % MQ] = pkt;
-        RING_PUBLISH();
-        mo_w++;
     }
 }
 
@@ -267,14 +182,30 @@ static const uint8_t STR1[] = {42, 3, 'H', 0, 0xFC, 0, 'g', 0, 'e', 0, 'l', 0, '
                                'n', 0, 's', 0, 't', 0, 'r', 0, 'u', 0, 'm', 0, 'e', 0, 'n', 0, 't', 0, 's', 0};
 #ifdef FELUCCA_LOADER
 static const uint8_t STR2[] = {32, 3, 'O', 0, 'p', 0, 't', 0, 'i', 0, 'm', 0, 'i', 0, 's', 0, 't', 0, ' ', 0, 'U', 0, 'p', 0, 'd', 0, 'a', 0, 't', 0, 'e', 0};   /* (installers match /optimist|felucca|ota/) */
-#else
-/* "Optimist": the product name, which macOS shows for the MIDI device and its ports (the embedded jacks name it too); editors and tools
- * match /optimist|felucca/i (stock-era "Felucca" and the builds before 2026-10-16 "Optimist (Felucca)" still match too) */
-static const uint8_t STR2[] = {18, 3, 'O', 0, 'p', 0, 't', 0, 'i', 0, 'm', 0, 'i', 0, 's', 0, 't', 0};
+#endif
+/* "FM1-XXXX": the product name (devname.h: the same four hex digits as the Bluetooth name), which macOS shows for the MIDI
+ * device and its ports (the embedded jacks name it too), and with USB audio "FM1-XXXX Out" and "FM1-XXXX In". The strings are
+ * built when a host reads them (EP0 sends one descriptor at a time, so one buffer serves all). The manufacturer (string 1)
+ * stays "Hügelton Instruments". Editors and tools match /^FM1-|optimist|felucca/i (the builds before 2026-10-29 named it
+ * "Optimist", before 2026-10-16 "Optimist (Felucca)"; both still match) */
+#ifndef FELUCCA_LOADER
+static uint8_t usb_str_buf[2 + 2 * 31];
+static int usb_name_str(const char *tail, const uint8_t **d, uint16_t *l)
+{
+    const char *s = dev_name();
+    uint32_t n = 0, k;
+    for (k = 0; s[k] && n < 31u; k++, n++)
+        usb_str_buf[2 + 2 * n] = (uint8_t)s[k], usb_str_buf[3 + 2 * n] = 0;
+    for (k = 0; tail[k] && n < 31u; k++, n++)
+        usb_str_buf[2 + 2 * n] = (uint8_t)tail[k], usb_str_buf[3 + 2 * n] = 0;
+    usb_str_buf[0] = (uint8_t)(2 + 2 * n);
+    usb_str_buf[1] = 3;
+    *d = usb_str_buf;
+    *l = (uint16_t)(2 + 2 * n);
+    return 1;
+}
 #endif
 #if FELUCCA_USB_AUDIO                                   /* the audio functions: host device names */
-static const uint8_t STR3[] = {26, 3, 'O', 0, 'p', 0, 't', 0, 'i', 0, 'm', 0, 'i', 0, 's', 0, 't', 0, ' ', 0, 'O', 0, 'u', 0, 't', 0};
-static const uint8_t STR4[] = {24, 3, 'O', 0, 'p', 0, 't', 0, 'i', 0, 'm', 0, 'i', 0, 's', 0, 't', 0, ' ', 0, 'I', 0, 'n', 0};
 /* the capture channels' names (the recording input terminal's iChannelNames: 5..8), "CH1".."CH4": what each carries is
  * the SYSTEM > USB AUDIO setting, which a host never re-reads */
 static const uint8_t STR_CH[4][8] = {{8, 3, 'C', 0, 'H', 0, '1', 0}, {8, 3, 'C', 0, 'H', 0, '2', 0},
@@ -313,18 +244,18 @@ static int get_desc(uint32_t wvalue, const uint8_t **d, uint16_t *l)
             *l = sizeof STR1;
             return 1;
         case 2:
+#ifdef FELUCCA_LOADER
             *d = STR2;
             *l = sizeof STR2;
             return 1;
+#else
+            return usb_name_str("", d, l);
+#endif
 #if FELUCCA_USB_AUDIO
         case 3:
-            *d = STR3;
-            *l = sizeof STR3;
-            return 1;
+            return usb_name_str(" Out", d, l);
         case 4:
-            *d = STR4;
-            *l = sizeof STR4;
-            return 1;
+            return usb_name_str(" In", d, l);
         case 5: case 6: case 7: case 8:
             *d = STR_CH[(wvalue & 0xFFu) - 5u];
             *l = sizeof STR_CH[0];

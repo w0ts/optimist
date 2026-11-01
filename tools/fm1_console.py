@@ -3,7 +3,7 @@
 """Send read-only commands to a running FM-1's serial console and print the replies (a build with the CDC
 console, FELUCCA_CDC=1; firmware/src/io/console.c).
 
-  tools/builder/venv/bin/python tools/fm1_console.py status dbg blell [--port PORT]
+  tools/builder/venv/bin/python tools/fm1_console.py status dbg [--port PORT]
 
 Only the commands in READ_ONLY are sent; anything else is refused before the port is opened.
 Needs pyserial (tools/requirements-flash.txt, in the builder's venv).
@@ -12,7 +12,14 @@ import argparse
 import sys
 import time
 
-READ_ONLY = ("status", "dbg", "boot", "crash", "help", "keys", "keylog", "bletrim", "blevm", "blell", "blell clear")
+READ_ONLY = ("status", "dbg", "boot", "crash", "help", "keys", "keylog", "bletrim", "blevm",
+             "tabbench", "membench", "far",
+             "sd", "sd pins", "sd pins 7", "sd pins 8", "sd pins 9", "sd pins 10",
+             "sd bench", "sd stream", "sd rec", "sd rec 5000", "sd rec stop",
+             "wifiup", "wifiscan", "wifidata")   # (sd bench, sd rec: they read and write the
+                                                     # SD card only (a bench file, a take in OPTIMIST/RECORD), never the FM-1's flash)   # (sd pins: the LCD's lines held one at a
+                                                     # time for a multimeter; GPIO only, nothing written)   # (far: the far probe reads a constant and calls a function past 0x93000)
+                                                     # (wifiup brings the Wi-Fi side up; wifidata listens after wifijoin)
 FM1_VID = 0x1209                         # usb.c
 QUIET_S = 0.6                            # a reply is over after this long without a byte
 
@@ -37,7 +44,7 @@ def ask(port, cmd):
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description="read-only FM-1 console commands")
-    ap.add_argument("commands", nargs="+", help="one of: " + ", ".join(READ_ONLY) + " (quote 'blell clear')")
+    ap.add_argument("commands", nargs="+", help="one of: " + ", ".join(READ_ONLY) + " (quote the ones with a space: 'sd pins')")
     ap.add_argument("--port", help="the console's serial port (default: the first USB device 0x1209)")
     a = ap.parse_args(argv)
     refused = [c for c in a.commands if c not in READ_ONLY]

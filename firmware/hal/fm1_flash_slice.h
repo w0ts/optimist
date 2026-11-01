@@ -1,5 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only
- * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments */
+/* SPDX-License-Identifier: GPL-3.0-only OR MPL-2.0 */
 /* A 4 KiB sector erase in short interrupts-off windows: the erase is suspended (75h) after FLS_SLICE_US, the
  * interrupts run with the XIP back on, and the erase is resumed (7Ah) in the next window. Without it the whole erase
  * (P25Q80H tSE 8 ms typical, 12 ms max; 17.2 ms measured as SYSTEM > INTERNALS' FLASH IRQS OFF on a dual-core Synth

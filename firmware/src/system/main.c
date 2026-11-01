@@ -25,9 +25,6 @@ void fm1_timer5_irq(void)
 {
     static uint32_t sub;
     fm1_timer5_ack();
-#if FELUCCA_BRIGHT
-    fm1_lcd_bl_scan();                          /* PA2 is the key matrix's /OE too: low before the scan reads the rows */
-#endif
     felucca_dbg.timer_irqs++;
     if (felucca_dbg.in_audio)
         felucca_dbg.nested++;                      /* a tick inside the audio render (it outranks ALNK0) */
@@ -60,8 +57,9 @@ void fm1_timer5_irq(void)
     if (sub % 5u == 4u)
         ble_midi_poll();                        /* 2 kHz: BLE MIDI in -> the router (midi_ble.c) */
 #endif
-#if FELUCCA_BRIGHT
-    fm1_lcd_bl_tick(BL_DUTY[bl_dim & 7u]);      /* MENU > BRIGHT: the backlight PWM (bright.c) */
+#if FELUCCA_WIFI && FELUCCA_CDC && BLE_HW_WL82
+    if (sub % 5u == 3u)
+        wl_midi_poll();                         /* 2 kHz: Link's clock ticks whose time has come -> the router (wifi/wifi_link.c) */
 #endif
     if (++sub == 10u)
         sub = 0;
@@ -169,6 +167,9 @@ static void felucca_init(void)
         }
     }
     part_mem_boot();                          /* (their engines' memories, before the audio: engines.c) */
+    fxi_init();                               /* the limited inserts: every instance free, the own room's units taken
+                                               * while it is in no block (fx/insfx/fxi.c; never run at boot before
+                                               * 2026-10-29: the zeroed pool left every unit free, the FM-1's crash) */
 #if FELUCCA_DRUMS
     TDRUM->p[P_E0] = DRUM_DEFAULT_KIT;        /* the 808 kit */
 #endif
@@ -236,6 +237,9 @@ static __attribute__((noinline)) void master_pot(int32_t *knob, int glide)
     }
 #endif
     k10 = (uint32_t)(*knob / 16);
+#if FELUCCA_ED_MIRROR
+    k10 = mir_master(k10);                              /* (the mirror's client may set MASTER: ed_mirror.c, 108 kind 3) */
+#endif
     song.master_q12 = (k10 * k10) >> 8;                 /* 0 .. ~4096 */
 }
 
@@ -262,6 +266,8 @@ static uint32_t healthy_since, main_m;
 static BOOT_ORDER void fm1_main(void)
 {
     MAIN_VARS
+    stk_boot();                                     /* the stacks below what is live marked: INFO's RAM line reads how deep they go
+                                                     * (system/stackmark.h; fm1_cstart's frame above, its boot decoder's 6.5 KB with it) */
     if (felucca_dbg.magic != DBG_MAGIC) {
         memset(&felucca_dbg, 0, sizeof felucca_dbg);
         felucca_dbg.magic = DBG_MAGIC;
@@ -332,7 +338,16 @@ static BOOT_ORDER void fm1_main(void)
     BOOT_STAGE(SETTINGS);
     settings_init();
     BOOT_STAGE(LCD);
+#if FELUCCA_SDCARD
+    fm1_lcd_hw_init();
+    (void)sd_mount_boot();                              /* the card in SPI mode before the first screen traffic: a card
+                                                         * still in its native mode reads the pixels on CMD (2026-10-25
+                                                         * review); none: a few failed CMD0s, ms */
+#endif
     lcd_init();
+#if FELUCCA_SDCARD
+    sd_lcd_live = 1;
+#endif
     boot_splash();                                      /* the Optimist logo and version (splash.c) */
 #if FELUCCA_SIMD
     sine_pk_init();                                     /* the packed sine of hal/fm1_simd.h (dsp.c) */
@@ -435,6 +450,17 @@ static BOOT_ORDER void fm1_main(void)
             if (b > 0)
                 song.batt_raw = song.batt_raw ? song.batt_raw + (b - song.batt_raw) / 32 : b;
         }
+        {   /* the supply, twice a second (INFO's header: charging; fm1_sys.h fm1_charge_state) */
+            static uint32_t chg_t;
+            if (m - chg_t >= 500u) {
+                uint32_t ie = fm1_icfg() & 0x200u;
+                chg_t = m;
+                fm1_irq_off();
+                song.batt_chg = (uint8_t)fm1_charge_state();
+                if (ie)
+                    fm1_irq_on();
+            }
+        }
         master_pot(&knob, 1);                           /* MASTER */
         {   /* OCT- + OCT+ held 5 s, stopped: enter UBOOT with RAM intact (debug / update); a countdown
              * shows from 2 s, letting go cancels it. Not while playing: on the drum track these are the
@@ -487,6 +513,7 @@ static BOOT_ORDER void fm1_main(void)
         ota_service();                                  /* M-UPGRADE handshake */
         if (usb.ota_req) {                              /* M-UPGRADE upgrade command */
             usb.ota_req = 0;
+            stop_first();                               /* the transport stops before the update touches anything */
             panic_req = (1u << NTRK) - 1u;               /* every track (bit per track) */
 #if FELUCCA_ARRANGER
             persist_flush_now();                        /* an update ends in a reset: RAM-only work first */
@@ -498,6 +525,7 @@ static BOOT_ORDER void fm1_main(void)
         }
 #endif
         if (usb.uboot_req) {                            /* SysEx F0 22 24 35 7D F7 from the host */
+            stop_first();                               /* (the soft key and the console's `uboot yes`) */
             fm1_audio_stop();
 #if FELUCCA_ARRANGER
             persist_flush_now();                    /* (live sections, song, project: RAM-only so far) */
@@ -512,6 +540,13 @@ static BOOT_ORDER void fm1_main(void)
         }
 #if FELUCCA_CDC
         cdc_task();
+#if FELUCCA_WIFI && BLE_HW_WL82
+        wc_poll();                                      /* the Wi-Fi manager: a step a pass (wifi/wifi_conn.c) */
+#if FELUCCA_WIFI_AP
+        wa_poll();                                      /* MODE AP: beacons, the clients' handshakes (wifi/wifi_apd.c) */
+#endif
+        wl_poll();                                      /* Wi-Fi + Link, once a pass (wifi/wifi_link.c; wifilink starts it) */
+#endif
 #endif
 #if FELUCCA_BT_AUDIO
         bti_poll();                                     /* the Classic probe's 1a at boot, its prints (bt/bt_inq.c) */
@@ -548,12 +583,24 @@ static BOOT_ORDER void fm1_main(void)
         felucca_dbg.home = 0;                       /* (SLOOP's HOME screen is gone; the field keeps the layout) */
         felucca_dbg.stage = 1;
         ui_input();
+        fxm_poll();                                     /* the effects' lines in the arena (fx/fx_arena.c; FX_ARENA) */
+        arb_poll();                                     /* the other buffers in it (core/arena_bufs.c) */
         fxi_poll();                                     /* the limited inserts' instances after a change (fx/insfx/fxi.c) */
         felucca_dbg.stage = 2;
         ui_leds();
         ui_draw();
         felucca_dbg.stage = 8;
+#if FELUCCA_SD_STREAM
+        sst_plan_poll();                                /* the card samples' heads and rings in the arena (sd_stream_plan.c) */
+        (void)sst_service();                            /* a run for the stream with the least left (sd_stream.c) */
+#endif
+#if FELUCCA_SD_REC
+        (void)sdr_service();                            /* a recording's next block to the card (sd_rec.c) */
+#endif
         autosave_tick();                                /* the working project into flash, when quiet */
+#if FELUCCA_SD_UI
+        sdm_poll();                                     /* SD card mode: the card after a mount, a save left pending (sd_mode.c) */
+#endif
 #if FELUCCA_BLE
         ble_bond_poll();                                /* a central bonded: saved with the settings (midi_ble.c) */
         ble_devices_poll();                             /* the scan's reports into the DEVICES list (ble_devices.c) */
@@ -582,8 +629,16 @@ static BOOT_ORDER void fm1_main(void)
 #endif
         MAIN_WAIT_BEGIN                                 /* while (fm1_ms - m < 15u): ~60 UI frames/s at most */
             ui_input();
+            fxm_poll();                         /* (an effect picked: its line within a pass) */
+            arb_poll();
             fxi_poll();                         /* (a type picked: its instance within a pass) */
             meter_tap();                        /* (once per audio half: the meters see every one) */
+#if FELUCCA_SD_STREAM
+            (void)sst_service();                /* (the card's runs into the streams' rings while the screen idles) */
+#endif
+#if FELUCCA_SD_REC
+            (void)sdr_service();                /* (a recording's blocks while the screen idles) */
+#endif
 #if FELUCCA_OTA && FELUCCA_EDITOR
             ed_service();                       /* editor replies without waiting for the next frame */
 #endif
@@ -629,6 +684,10 @@ void fm1_cstart(void)
         *d = 0;
     for (d = _pz_start; d < _pool_end; d++)
         *d = 0;
+#if FELUCCA_ED_MIRROR && FELUCCA_FLASH && FELUCCA_OTA && FELUCCA_EDITOR
+    st_blank = mir_test_boot == MIR_TEST_MAGIC;   /* the mirror's client asked for a test session (ed_mirror.c, 108 kind 5) */
+    mir_test_boot = 0;                          /* (once: a crash, a watchdog in the session, and the next start is the user's) */
+#endif
 #if !FELUCCA_SIM
     lzb_init(&lz, (const uint8_t *)_lz_load);
     lzb_expand(&lz, (uint8_t *)_data_start, (uint8_t *)_data_end);   /* .data's initial values */

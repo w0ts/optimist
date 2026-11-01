@@ -348,7 +348,8 @@ static void effv_bar_tests(void)
               "a synth CUT with the LFO: the actual bar moves (its strip redrawn), the number stays the entered 64");
         op_enter(SCR_SOUND);
         tap(B_LFO);
-        tap(B_LFO);                                     /* LFO DEST: PIT FLT SHP AMP */
+        tap(B_LFO);
+        tap(B_LFO);                                     /* LFO DEST (after LFO, LFO PHS): PIT FLT SHP AMP */
         SCR->cell(ui.row[SCR_SOUND], 1, &c);
         effv_take(1, &c);
         {

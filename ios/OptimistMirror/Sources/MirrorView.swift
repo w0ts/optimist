@@ -93,7 +93,7 @@ struct RootView: View {
     @ObservedObject var link: MirrorLink
     @StateObject private var session: EditorSession
     @StateObject private var flash: FlashModel
-    @StateObject private var web = WebEditor()      // (the web editor's own tabs: one page, kept)
+    @StateObject private var web = WebEditor(local: true)      // (the web editor's own tabs: one page, kept; the bundled editor, no network)
     @StateObject private var sim = WebEditor()      // (the Simulator, from the home screen: a page of its own, no FM-1 needed)
     @State private var simSheet = false
     @StateObject private var tilt = Tilt()
@@ -112,6 +112,9 @@ struct RootView: View {
     var body: some View {
         ZStack {                        // (the tabs made once, the welcome screen over them: made again after a USB -> Bluetooth
             tabs                        //  switch, under the Bluetooth sheet, the Mac's tab bar took no click; the user, 2026-10-24)
+            if link.state != .searching, let info = link.companion {   // (an fm1-base app: its own screens over Optimist's tabs)
+                Fm1BaseRoot(link: link, info: info)
+            }
             if link.state != .searching {   // (Disconnect, top right: back to the home page, where the connection is made; the user, 2026-10-25)
                 Button { link.disconnect() } label: {
                     Image(systemName: "eject.fill").font(.body.weight(.semibold)).frame(width: 34, height: 34)
@@ -151,10 +154,18 @@ struct RootView: View {
             sim.follow(port: port, bluetooth: link.bluetooth)
             await session.connect()
         }
-        .onChange(of: link.state == .mirroring && link.bluetooth) { _, on in if on { BluetoothPicker.dismiss() } }   // (connected: the sheet's work is done)
+        .onChange(of: "\(link.state)|\(link.portName)|\(link.bluetooth)") {   // (connected: the sheet's work is done)
+            if BluetoothPicker.isShown, BluetoothPicker.done(picked: BluetoothPicker.picked, port: link.portName,
+                                                             bluetooth: link.bluetooth, state: link.state) {
+                BluetoothPicker.dismiss()
+            }
+        }
+        .onChange(of: "\(link.btDevice != nil)|\(link.btGaveUp)") {   // (Bluetooth: the link's INFO came in: opti_btproj_1 opens the Projects screen)
+            Task { await session.connectIfNeeded() }
+        }
         .onChange(of: link.online) { old, now in   // (a device connected in the sheet: taken afresh, whatever the link did before
-            // (paused, or a port held with a black screen); the sheet closes once the screen comes: the user, 2026-10-24)
-            if BluetoothPicker.isShown, let p = now.first(where: { !old.contains($0) }) { link.resume(p) }
+            // (paused, or a port held with a black screen); the sheet closes once the link has taken it: the user, 2026-10-24, 10-29)
+            if let p = BluetoothPicker.connected(old: old, now: now) { link.resume(p) }
         }
         .sheet(item: $session.export) { ExportView(url: $0.url) }
         .onAppear {
@@ -241,6 +252,8 @@ struct ConnectView: View {
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
             bluetooth.buttonStyle(.bordered).controlSize(.large)
+            Toggle("Use an already connected FM-1 at launch", isOn: $link.takeConnectedAtLaunch)
+                .font(.callout)
             if !link.ports.isEmpty || !link.chosen.isEmpty {
                 Button { choosingPort = true } label: {   // (a Menu on the Mac sized itself to its title: a button, one width)
                     Label(link.chosen.isEmpty ? "Choose MIDI Port" : link.chosen, systemImage: "cable.connector")
@@ -297,6 +310,10 @@ struct MirrorView: View {
     }
     @State private var image: CGImage?
     @FocusState private var keyboard: Bool
+    @Environment(\.scenePhase) private var phase
+    @Environment(\.verticalSizeClass) private var vSize
+    /// iPhone landscape (compact height): denser touch columns and track bar
+    private var dense: Bool { vSize == .compact && UIDevice.current.userInterfaceIdiom == .phone }
     @State private var held: [String: [UInt8]] = [:]   // the keys down, what each pressed
     @State private var seen = 0
     @State private var drag: (knob: Int, across: Bool, sent: Int, per: CGFloat)?   // the knob a drag turns, its axis, the detents sent, points a detent
@@ -318,7 +335,10 @@ struct MirrorView: View {
         .focused($keyboard)
         .onAppear { keyboard = true }
         .onKeyPress(phases: [.down, .repeat, .up]) { k in key(k) }
-        .statusBarHidden()              // (shown, iOS's Bluetooth MIDI sheet laid its table out NaN high: a crash, 2026-10-23)
+        .onChange(of: phase) { _, now in   // (the app left the front: the key-ups of what it holds will not come)
+            if now != .active, !held.isEmpty { link.letGo(Array(held.values)); held.removeAll() }
+        }
+        .statusBarHidden()             // (shown, iOS's Bluetooth MIDI sheet laid its table out NaN high: a crash, 2026-10-23)
         .persistentSystemOverlays(bars ? .automatic : .hidden)
         .task { await draw() }
         .task { await nav.run() }
@@ -334,11 +354,11 @@ struct MirrorView: View {
                 Image(systemName: layout.screenAlone ? "rectangle.split.3x1" : "rectangle.center.inset.filled")
                     .font(.body.weight(.semibold))
                     .foregroundStyle(.white)
-                    .frame(width: 44, height: 44)
+                    .frame(width: dense ? 32 : 44, height: dense ? 32 : 44)
                     .background(.black.opacity(0.6), in: Circle())
             }
             .buttonStyle(.plain)
-            .padding(8)
+            .padding(dense ? 4 : 8)
             .accessibilityLabel(layout.screenAlone ? "Show Buttons" : "Hide Buttons")
             .accessibilityHint(layout.screenAlone ? "Shows the touch buttons around the screen" : "Shows the screen alone, larger")
         }
@@ -366,9 +386,29 @@ struct MirrorView: View {
     /// "invert left and right"), the tracks under the screen; tall, the tracks then the modes and the pages under it; without
     /// it the screen alone
     @ViewBuilder private func laid(_ size: CGSize) -> some View {
+        let room: CGFloat = 0           // (dense: the safe area already holds the tab bar, measured on an iPhone 16 Pro: nothing more to keep free)
+        let high = size.height - room
         let strip = buttons ? NavTracks.height + NavMetrics.gap : 0
-        if buttons && size.width - (size.height - strip) >= 2 * 150 {
-            let side = min(size.height - strip, size.width - 2 * 150 - 4 * NavMetrics.gap)
+        if dense && buttons && size.width > size.height {
+            // iPhone landscape: the screen first, the whole height (it draws at the largest whole pixel scale that fits), the
+            // buttons left (two narrow columns), the pages and the tracks right (narrower still)
+            let colL = 2 * 100 + NavMetrics.gap
+            let colR = max(150, size.width - high - colL - 4 * NavMetrics.gap)
+            HStack(alignment: .top, spacing: NavMetrics.gap) {
+                NavSide(nav: nav, height: high).frame(width: colL, height: high)
+                content.frame(width: high, height: high)
+                VStack(spacing: NavMetrics.gap) {
+                    NavPages(nav: nav, room: high - NavTracksDense.height(nav) - NavMetrics.gap)
+                    NavTracksDense(nav: nav)
+                }
+                .frame(width: colR, height: high)
+            }
+            .padding(.horizontal, NavMetrics.gap)
+            .environment(\.navDense, true)
+            .frame(width: size.width, height: high, alignment: .top)
+            .frame(width: size.width, height: size.height, alignment: .top)
+        } else if buttons && size.width - (high - strip) >= 2 * 150 {
+            let side = min(high - strip, size.width - 2 * 150 - 4 * NavMetrics.gap)
             let col = (size.width - side) / 2 - 2 * NavMetrics.gap
             HStack(alignment: .top, spacing: NavMetrics.gap) {
                 NavSide(nav: nav).frame(width: col)
@@ -380,7 +420,9 @@ struct MirrorView: View {
                 NavPages(nav: nav).frame(width: col)
             }
             .padding(.horizontal, NavMetrics.gap)
-            .frame(width: size.width, height: size.height)
+            .environment(\.navDense, dense)
+            .frame(width: size.width, height: high, alignment: .top)
+            .frame(width: size.width, height: size.height, alignment: .top)
         } else if buttons && size.height - size.width >= 3 * NavMetrics.button {
             VStack(spacing: NavMetrics.gap) {
                 content.frame(width: size.width, height: size.width)
@@ -455,9 +497,7 @@ struct MirrorView: View {
             if roll {
                 ClipView(clip: clip)
             } else if let image {
-                Image(decorative: image, scale: 1)
-                    .resizable()
-                    .interpolation(.none)
+                PixelScreen(image: image)          // (whole device pixels, nearest neighbour: PixelScreen.swift)
                     .aspectRatio(1, contentMode: .fit)
                     .overlay {
                         if buttons {
@@ -466,7 +506,7 @@ struct MirrorView: View {
                             }
                         }
                     }
-                    .padding(8)
+                    .padding(dense ? 0 : 8)
             }
             if link.state != .mirroring {
                 VStack(spacing: 8) {
@@ -500,7 +540,8 @@ struct MirrorView: View {
         switch link.state {
         case .searching: "A USB cable from this \(UIDevice.current.model) to the FM-1 (USB-C, or Lightning with the camera adapter), or Bluetooth: SYSTEM > Bluetooth on the FM-1, then connect it here."
         case .asking: link.bluetooth ? "Waiting for the FM-1 to answer over Bluetooth." : "Waiting for the FM-1 to answer."
-        case .noMirror: "This firmware does not offer the screen mirror."
+        case .noMirror: link.heard ? "This firmware does not offer the screen mirror."
+            : "\(link.portName) answered none of the app's requests\(link.bluetooth ? " over Bluetooth" : ""): still asking."
         case .mirroring: ""
         }
     }

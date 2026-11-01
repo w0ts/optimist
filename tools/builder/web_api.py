@@ -23,6 +23,9 @@ import core as K
 import registry as R
 
 COSTS = None
+# items the web builder holds at a value of its own and does not list (2026-10-29, the user: the console builder offers the
+# compiler, the web builder switches to the one kept): its .config then says COMPILER=0, so a cloud build uses JieLi's
+WEB_FIXED = {"COMPILER": 0}
 
 
 def _configure_shim():
@@ -45,7 +48,7 @@ def init(costs, needs_auto=(), standalone=False):
     around (the page), so room.py gets the stand-in configure module"""
     global COSTS
     COSTS = costs
-    K.setup(needs_auto=needs_auto)
+    K.setup(needs_auto=needs_auto, limits=(costs or {}).get("limits"))
     if standalone and "configure" not in sys.modules:
         sys.modules["configure"] = _configure_shim()
     return {"items": len(R.ITEMS), "costs": bool(COSTS)}
@@ -60,7 +63,9 @@ def registry_view():
     """-> core.describe() plus what the menu lists: per group its top-level items in order, each item's children in
     order (backports.py AFTER), what an EXPERIMENTAL item was tested on, its provenance as one line"""
     d = K.describe()
-    extra = {k: {"children": list(it.children), "tested": it.tested,
+    extra = {k: {"children": list(it.menu_children), "hidden": it.hidden or k in WEB_FIXED, "shown_under": it.shown_under,
+                 "dim_when": it.dim_when,
+                 "tested": it.tested,
                  "provenance_line": it.provenance.line() if it.provenance else ""} for k, it in R.ITEMS.items()}
     for item in d["registry"]["items"]:
         item.update(extra[item["key"]])
@@ -76,7 +81,8 @@ def _cfg(values):
     for k, v in (values or {}).items():
         if k in cfg and isinstance(v, int) and not isinstance(v, bool):
             cfg[k] = v
-    return cfg
+    cfg.update(WEB_FIXED)
+    return K.sync_memory(cfg)
 
 
 def view(values, name="", commit=None):
@@ -88,9 +94,15 @@ def view(values, name="", commit=None):
     over = {r: o for r, (_, _, o) in K.fits(b["total"], cfg).items() if o > 0} if b else {}
     undo = None
     if b and K.built(cfg, "UNDO_HISTORY"):
-        undo = {"ring": K.undo_ring(b["total"])}
-    return {"eval": ev,
+        undo = dict(K.undo_info(cfg, b["total"]), text=K.undo_text(cfg, b["total"]))
+    arena = None
+    if b:                                               # (ARENA on: the free SRAM less the undo's keep, what fits in it)
+        a = K.arena_size(cfg, b["total"], b.get("exact"))
+        arena = dict(a, lines=K.arena_text(cfg, b["total"], b.get("exact")),
+                     rows=[[n, by, c, note] for n, by, c, note in K.arena_fits(cfg)["rows"]]) if a else None
+    return {"eval": ev, "arena": arena,
             "savings": K.savings_of(cfg, COSTS) if COSTS else {},
+            "arena_item": K.arena_items(cfg),   # (bytes of the arena one instance of each item takes; null: unknown)
             "conflicts": {k: [str(e) for e in v] for k, v in K.conflicts(cfg).items()},
             "over": over, "undo": undo,
             "kit_shared": K.kit_shared(COSTS) if COSTS else None,
@@ -111,7 +123,7 @@ def toggle(values, key, value, room=None):
     cfg, new = RM.after_toggle(before, after, key, old, COSTS)
     it = R.ITEMS[key]
     return {"values": cfg, "room": {"dropped": [list(x) for x in new.dropped], "note": new.note},
-            "notice": it.notice if it.notice and cfg[key] else ""}
+            "notice": K.change_notice(key, before, cfg)}
 
 
 def item_info(key):

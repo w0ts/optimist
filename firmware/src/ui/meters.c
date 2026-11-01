@@ -81,6 +81,10 @@ static void meter_tap(void)
     }
 #endif
     if (mt.ui_out) {
+#ifdef AUDIO_HALF_PEAK
+        int32_t pk = AUDIO_HALF_PEAK(fm1_audio_free_half());   /* the half rendered last: its peak as the render took it
+                                                                * (the release: fm1base/optimist/core/opt_half_peak.h) */
+#else
         const int32_t *o = &abuf[fm1_audio_free_half() * HALF_WORDS];   /* the half rendered last */
         int32_t pk = 0;
         for (c = 0; c < HALF_WORDS; c++) {
@@ -88,6 +92,7 @@ static void meter_tap(void)
             if (a > pk)
                 pk = a;
         }
+#endif
         if (pk > mt.out_ui)
             mt.out_ui = pk;
     }

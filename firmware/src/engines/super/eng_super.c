@@ -41,7 +41,7 @@ static uint8_t super_nv;                              /* voices sounding, all pa
 #if DUAL_RENDER
 static uint32_t dual_vbusy;                           /* voices_busy() at the block's start (dual.c): the */
 #endif                                                /* parts render on two cores, in no fixed order */
-static HOT void super_block(track_t *t)
+static FAST(super) void super_block(track_t *t)
 {
     (void)t;
 #if DUAL_RENDER
@@ -66,7 +66,7 @@ AINL uint32_t super_copies(uint32_t want)
 
 /* DRFT: dsp.c super_drift */
 
-static HOT void super_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
+static FAST(super) void super_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
 {
     static const uint32_t COPY_PH[6] = {0x2B7E1516u, 0x9E3779B9u, 0x6A09E667u, 0xBB67AE85u, 0x3C6EF372u, 0xA54FF53Au};
     static const int8_t COPY_AT[6] = {1, -1, 2, -2, 3, -3};   /* spread steps of copy k */
@@ -131,7 +131,7 @@ static HOT void super_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, c
         else if (ftyp == 3)
             y = (s >> 1) - ((kq * bp) >> 12) - y;     /* HP = in - k bp - lp */
         y = soft_knee(y, 16000);                      /* ANALOG's soft knee: only resonance peaks saturate */
-        out[i] += mulq15(mulq15(y << 1, amp_at(m, i)), VOICE_FS) << 1;
+        out[i] += VOICE_OUT(y << 1, amp_at(m, i), 1);
     }
     v->ph[0] = ph0;
     v->ph[2] = spr + dinc * n;
@@ -169,7 +169,7 @@ static const engine_t ENG_SUPER = {
         PU("RES", F_PCT, 0, 127, 20, 0),
         PN("FTYP", F_ENUM, 0, 3, 0, N_SUPER_FTYP),
     },
-    SUPER_PRESETS, sizeof(SUPER_PRESETS) / sizeof(SUPER_PRESETS[0]), 1, super_note_on, super_render,
+    PRESETS_OF(SUPER_PRESETS), 1, super_note_on, super_render,
     0xFD20, {P_E1, P_E5, P_E6, P_REL},
     .block = super_block,
 };

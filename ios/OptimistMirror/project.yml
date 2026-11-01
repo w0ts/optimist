@@ -19,9 +19,25 @@ targets:
   OptimistMirror:
     type: application
     platform: iOS
-    sources: [Sources, Resources]
+    sources:
+      - Sources
+      - path: Resources
+        excludes: [Fm1Base]
+      - path: Resources/Fm1Base      # (fm1-base's pages, MPL-2.0, unchanged: a folder, its sub-folders kept)
+        type: folder
+        buildPhase: resources
+    preBuildScripts:
+      # the web editor and what it loads, from web/ into the bundle's OptimistEditor/ (tools/sync_ios_editor.py): no copy is committed
+      - name: Bundle the web editor
+        script: python3 "$SRCROOT/../../tools/sync_ios_editor.py" "$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/OptimistEditor"
+        basedOnDependencyAnalysis: false
+      # the pinned M-Flasher release (tools/mflasher.py, the one source of truth) as mflasher.json: the Firmware tab's links
+      - name: Bundle the M-Flasher release
+        script: python3 "$SRCROOT/../../tools/sync_mflasher.py" "$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/mflasher.json"
+        basedOnDependencyAnalysis: false
     settings:
       base:
+        ENABLE_USER_SCRIPT_SANDBOXING: NO   # (the script reads ../../web, outside this project's folder)
         PRODUCT_BUNDLE_IDENTIFIER: com.w0ts.optimist.mirror
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         TARGETED_DEVICE_FAMILY: "1,2,6"
@@ -35,6 +51,8 @@ targets:
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription: "Connects to the FM-1 over Bluetooth MIDI to show its screen."
         INFOPLIST_KEY_UIStatusBarHidden: YES
+        INFOPLIST_KEY_UIFileSharingEnabled: YES
+        INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace: YES
         # all four, but the app allows only portrait (Turn) except while iOS's Bluetooth sheet is up: the picture turns itself (Tilt)
         INFOPLIST_KEY_UISupportedInterfaceOrientations: "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortraitUpsideDown"
         INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortraitUpsideDown"

@@ -2,6 +2,10 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """Optimist firmware: one entry point on macOS, Linux and Windows (no sh or make needed; BUILDING.md).
 
+The firmware these commands build is the release: Optimist as an fm1-base app (the submodule fm1base/, tools/fm1base.py;
+docs/BUILDING.md, "The release build"). --classic (before or after the command) builds, packages and tests Optimist's own
+firmware instead (what the main branch still ships).
+
   python tools/optimist.py setup [--check] [--yes]       check and fetch what the build and the emulator need
   python tools/optimist.py builder [--profile P | --config F]   the interactive builder menu
   python tools/optimist.py build [--profile P | --config F] [--set KEY=V ...] [--release X.Y] [--measure]
@@ -20,7 +24,8 @@
                                                          cloud builds or a .fwsc of yours; the local simulator, built
                                                          with --sim or when asked), serves it on 127.0.0.1:8766
   python tools/optimist.py cpu [SECONDS] [--port P] [--csv F]   the audio load of a real FM-1 (its CDC console)
-  python tools/optimist.py test [--python]               the host tests (--python: the Python ones only)
+  python tools/optimist.py test [--python]               the host tests: Optimist's own and fm1-base's (the release's)
+                                                         (--python: Optimist's Python ones only)
   python tools/optimist.py gate [--config F] [--set K=V] [--emu]   the integrator's gate (tools/gate.py --help)
   python tools/optimist.py emu-check [FIRMWARE] [--only C]   the emulator smoke checks (tests/emu/run.py --help)
   python tools/optimist.py toolchain                     which toolchain and SDK a build would use
@@ -53,8 +58,8 @@ import toolchain as TC
 DEFAULT_PROFILE = C.DEFAULT_PROFILE            # synths-USB-BTA-BTM: what build, builder and make use without a profile
 REFERENCE_PROFILE = C.REFERENCE_PROFILE        # synths_USBaudio_BTaudio_BTmidi: the profile the host tests, the gate and the emulator checks build
 PY_TESTS = ("tests/builder_test.py", "tests/builder_core_test.py", "tests/builder_flash_guard_test.py",
-            "tests/builder_progress_test.py", "tests/optimist_cli_test.py", "tests/install_test.py",
-            "tests/rescue_test.py", "tests/rescue_any_test.py",
+            "tests/builder_progress_test.py", "tests/optimist_cli_test.py", "tests/fm1base_test.py", "tests/install_test.py", "tests/port_names_test.py",
+            "tests/rescue_test.py", "tests/rescue_any_test.py", "tests/anyflash_test.py", "tests/mflasher_get_test.py",
             "tests/icons_test.py", "tests/fm1_cpu_test.py", "tests/ble_rf_capture_test.py",
             "tests/emu_driver_once_test.py", "tools/doc_coverage.py")
 
@@ -100,7 +105,7 @@ def cmd_toolchain(_a):
     sdk = TC.sdk_dir()
     missing = TC.sdk_missing(sdk)
     print(f"SDK files  {sdk}" + (f" (missing {', '.join(missing)})" if missing else ""))
-    print(f"Pillow     {'yes' if TC.have_module('PIL') else 'no'} ({sys.executable}); build Python "
+    print(f"Pillow     {'yes' if TC.have_module('PIL.Image') else 'no'} ({sys.executable}); build Python "
           f"{C.build_python()}")
     return 0 if ok and not missing else 1
 
@@ -128,13 +133,20 @@ def run_or_exec(args):
     os.execv(args[0], args)
 
 
+def say_flavour():
+    print("firmware: " + ("classic (Optimist's own build)" if C.classic() else "the release (Optimist on fm1-base, fm1base/)"),
+          flush=True)
+
+
 def cmd_build(a):
     cfg, name = load_config(a)
+    say_flavour()
     started = time.time()
     extra = ["--release", a.release] if a.release else []
     ok, sizes, _ = C.build(cfg, name, measure=a.measure, extra=extra, echo=True)
     if sizes:
-        print("exact:   " + ", ".join(f"{r} {sizes[r]:,} of {C.LIMITS[r]:,}" for r in C.REGIONS))
+        print("exact:   " + ", ".join(f"{b} {u:,} of {cap:,}" for b, (u, cap, _) in C.fits(sizes, cfg).items())
+              + " (" + ", ".join(f"{r} {sizes[r]:,}" for r in C.REGIONS if r != "flash") + ")")
     C._summary(a.summary, {"ok": ok, "name": name, "hash": f"{C.cfg_hash(cfg):08x}", "sizes": sizes,
                            "fwsc": str(named_package(started)) if ok and not a.measure else None})
     return 0 if ok else 1
@@ -150,10 +162,18 @@ def named_package(since=0.0):
 
 def cmd_package(a):
     cfg, name = load_config(a)
+    say_flavour()
     # (a release package is named by its profile's id, optimist-0.1-drum-machines: the site matches releases' files
     # to the published profiles by it, web/make_site.py releases_of; a development package by its name, as before)
     stem = f"optimist-{a.release}-{a.profile}" if a.release and a.profile else None
-    return C.package(cfg, name, Path(a.out).expanduser(), stem=stem, echo=True, summary=a.summary, release=a.release)
+    rc = C.package(cfg, name, Path(a.out).expanduser(), stem=stem, echo=True, summary=a.summary, release=a.release)
+    if not rc and cfg.get("SDCARD") and cfg.get("LAYOUT") == 1:
+        # SD card mode (registry.h FELUCCA_SD_UI) reads its factory presets from the card: the SD card zip beside it
+        # (tools/sd_zip.py; docs/SD-CARD-DESIGN.md 9), unzipped at the card's root
+        sys.path.insert(0, str(ROOT / "tools"))
+        import sd_zip
+        sd_zip.make(Path(a.out).expanduser() / "optimist-sd-card.zip", C.card_set_names(cfg))   # (the ticked sets)
+    return rc
 
 
 def cmd_config(a):
@@ -203,9 +223,11 @@ def build_for_flash(a):
 
 def cmd_flash(a):
     """install a build on the connected FM-1 (tools/flash.py -> tools/fm1_install.py): shows the running identity and
-    the package's, asks (unless --yes), never --force. With no PACKAGE it builds the chosen configuration first
+    the package's, asks (unless --yes; a platform warning, flash.platform_note, needs the question answered: --yes then
+    stops), --force only after that answer. With no PACKAGE it builds the chosen configuration first
     (a build of the tree as it is now, not whatever is newest in build/); --no-build uses the newest file instead"""
     import flash
+    flash.set_flavour(C.classic())
     if a.package:
         pkg = Path(a.package).expanduser()
     elif a.no_build:
@@ -215,20 +237,41 @@ def cmd_flash(a):
         if pkg is None:
             return 1
     try:
-        plan = flash.preflight(pkg, a.port)
+        plan = flash.preflight(pkg, a.port, install_mboot=a.install_mboot)
+        flag = "wipe" if a.wipe_settings else "keep" if a.keep_settings else None
+        if plan.download and plan.settings and plan.settings.ask and flag is None and not a.yes:
+            print(f"{plan.settings.reason}.")
+            try:
+                ans = input("Erase the new firmware's settings and pairings? " +
+                            ("[Y/n] " if plan.settings.default == "wipe" else "[y/N] ")).strip().lower()
+            except EOFError:
+                ans = ""
+            flag = plan.settings.default if not ans else ("wipe" if ans in ("y", "yes") else "keep")
+        plan = flash.with_settings(plan, flag)
         print("\n".join(plan.lines()))
+        if plan.warn and a.yes:
+            print("not flashed: --yes does not accept the warning above (flash without --yes to answer it)")
+            return 1
         if not a.yes:
             try:
-                go = input("Flash it? [y/N] ").strip().lower() in ("y", "yes")
+                go = input("Flash it anyway? [y/N] " if plan.warn or plan.layout_known else "Flash it? [y/N] ").strip().lower() in ("y", "yes")
             except EOFError:
                 go = False
             if not go:
                 print("cancelled; nothing was written")
                 return 1
+        flash.ensure_mflasher(plan, lambda q: not a.yes and ask_yes(q))     # (--yes downloads nothing: setup does)
         return flash.install(plan, capture=False)[0]
     except flash.FlashError as e:
         print(f"flash: {e}", file=sys.stderr)
         return e.code
+
+
+def ask_yes(question):
+    try:
+        return input(question + " [y/N] ").strip().lower() in ("y", "yes")
+    except EOFError:
+        return False
 
 
 def cmd_costs(a):
@@ -250,6 +293,19 @@ WEB_SIM = ROOT / "build" / "sim" / "web" / "optimist-sim.wasm"   # the local sim
 def web_urls(port):
     base = f"http://localhost:{port}/webapp"
     return f"{base}/installer/", f"{base}/editor/"
+
+
+def web_port_taken(port):
+    """the first of 127.0.0.1 / ::1 where something already answers on port, else None: the browser opens
+    localhost, which may be either (2026-10-29: another project's server on *:8766 took localhost's IPv6 one)"""
+    import socket
+    for host in ("127.0.0.1", "::1"):
+        try:
+            with socket.create_connection((host, port), timeout=0.3):
+                return host
+        except OSError:
+            pass
+    return None
 
 
 def web_open(url):
@@ -358,6 +414,11 @@ def cmd_web(a):
     import http.server
     sys.path.insert(0, str(ROOT / "web"))
     import make_site
+    taken = web_port_taken(a.port)                      # (before the site is built: never rewrite a running one's files)
+    if taken:
+        print(f"optimist: something already serves port {a.port} on {taken} (another site, or this one running "
+              f"already): stop it, or use another port (--port N or make web PORT=N)", file=sys.stderr)
+        return 1
     site = Path(a.site) if a.site else WEB_SITE
     sims = web_sim(a)
     try:
@@ -400,15 +461,15 @@ def cmd_cpu(a):
     return fm1_cpu.main(a.rest)
 
 
-BLE_FULL_SET = ("BLE=1", "USB_CONSOLE=1", "USB_AUDIO=0", "BLE_BOND=1", "BLE_CENTRAL=1", "BLE_DIAG=1")   # (the FM-1 build)
-# items the BLE test packages do not exercise, out of them so that BLE_DIAG and the whole option set fit beside
+BLE_FULL_SET = ("BLE=1", "USB_CONSOLE=1", "USB_AUDIO=0", "BLE_BOND=1", "BLE_CENTRAL=1")   # (the FM-1 build)
+# items the BLE test packages do not exercise, out of them so that the whole option set fits beside
 # user-default's store and the flash the queued branches add (the user, 2026-10-10: "remove anything you want from
 # ble test"); the shipped profiles keep all of them. The tests (ble_emu_test.py, ble_emu_central_test.py,
 # ble_emu_boot_test.py) run the BLE link, BLE-MIDI both ways (a panel key out, a note in playing the default
 # synth), the DEVICES list, bonding and boot; none of them touches:
 #  - the automation store (CHANCE, MOTION, SL24_XSTEP, MICRO, FILLS, PLOCK)
 #  - the synth engines GRAIN, TRIO, DRAWBAR, DIGITAL, PHASE (the default patch plays none of them)
-#  - the SLOOP 2.4 project importer and its safety checks (SL24_IMPORT, SL24_SAFE)
+#  - SLOOP's data kept safe (SL24_SAFE)
 #  - the step conditions (COND, 11.4 KB: on in user-default since 2026-10-13 with SEQTOOLS; the full BLE set was 432 B
 #    over the slot after feat/lfo-slots); tests/cond_test.c and the UI tests cover COND in their own builds
 #  - STEP's tools and the note generators (SEQTOOLS, NOTEGEN, apart since 2026-10-22; user-default is UI=1 since 2026-10-17,
@@ -416,20 +477,20 @@ BLE_FULL_SET = ("BLE=1", "USB_CONSOLE=1", "USB_AUDIO=0", "BLE_BOND=1", "BLE_CENT
 # measured 2026-10-11 on user-default with the whole BLE set: flash 560,596 of 581,564 B, 20,968 B free
 BLE_TEST_ROOM = ("CHANCE=0", "MOTION=0", "SL24_XSTEP=0", "MICRO=0", "FILLS=0", "PLOCK=0",
                  "ENG_GRAIN=0", "ENG_TRIO=0", "ENG_DRAWBAR=0", "ENG_DIGITAL=0", "ENG_PHASE=0",
-                 "SL24_IMPORT=0", "SL24_SAFE=0", "COND=0", "INS_FUZZ=0", "ENERGY=0", "NATIVE_BANKS=0", "SEQTOOLS=0", "NOTEGEN=0",
+                 "SL24_SAFE=0", "COND=0", "INS_FUZZ=0", "ENERGY=0", "NATIVE_BANKS=0", "SEQTOOLS=0", "NOTEGEN=0",
                  "BT_AUDIO=0")   # (2026-10-22: the profiles build Bluetooth audio now, 6 KB of RAM: the BLE tests do not use it)
 
 
 def ble_test_configs():
     """-> [(name, cfg)] the two BLE builds prepare_tests makes (the emulator tests' packages): the reference profile with BLE,
-    BLE_DIAG, BLE_CENTRAL (FLUTE dropped where it must) and with the whole option set. Also check configurations of
+    BLE_CENTRAL (FLUTE dropped where it must) and with the whole option set. Also check configurations of
     the size estimate (tools/builder/measure_costs.py check_configs), so they are anchors with a measured build"""
     def load(sets, ble_drop=None):
         with contextlib.redirect_stdout(io.StringIO()):
             return load_config(argparse.Namespace(profile=REFERENCE_PROFILE, config=None, defaults=False, set=list(sets),
                                                   name=None, ble_drop=ble_drop))[0]
-    return [(f"{REFERENCE_PROFILE}+ble-test", load(["BLE=1", "BLE_DIAG=1", "BLE_CENTRAL=1", *BLE_TEST_ROOM], ble_drop="FLUTE")),
-            (f"{REFERENCE_PROFILE}+ble-full", load([*BLE_FULL_SET, *BLE_TEST_ROOM, "PATTERNS=0", "ED_MIX=0", "ED_SEQ=0", "ED_SCREENS=0", "DUAL=0"]))]
+    return [(f"{REFERENCE_PROFILE}+ble-test", load(["BLE=1", "BLE_CENTRAL=1", *BLE_TEST_ROOM], ble_drop="FLUTE")),
+            (f"{REFERENCE_PROFILE}+ble-full", load([*BLE_FULL_SET, *BLE_TEST_ROOM, "PATTERNS=0", "ED_MIX=0", "ED_SEQ=0", "ED_SCREENS=0"]))]
 
 
 def prepare_tests():
@@ -450,7 +511,7 @@ def prepare_tests():
               ("ref", cfg, name, False), ("default", C.defaults(), "default", True)]
     checks = check_todo()
     jobs = int(os.environ.get("JOBS") or 0) or MC.default_jobs()
-    print(f"test: {len(builds)} builds the tests read ({REFERENCE_PROFILE} with BLE, BLE_DIAG and BLE_CENTRAL; with the "
+    print(f"test: {len(builds)} builds the tests read ({REFERENCE_PROFILE} with BLE and BLE_CENTRAL; with the "
           f"whole BLE option set; {REFERENCE_PROFILE}; a measurement build of the defaults) and {len(checks)} "
           f"measurement builds of the builder's check configurations, {jobs} at a time")
     from concurrent.futures import ThreadPoolExecutor
@@ -477,7 +538,7 @@ def prepare_tests():
     ble.mkdir(parents=True, exist_ok=True)
     for tag, stem in (("ble", "felucca-ble"), ("ble-full", "felucca-ble-full")):
         shutil.copy(slots / f"t-{tag}" / "felucca.fwsc", ble / f"{stem}.fwsc")
-        shutil.copy(slots / f"t-{tag}" / "felucca.elf", ble / f"{stem}.elf")     # (its symbols: the blell RAM block)
+        shutil.copy(slots / f"t-{tag}" / "felucca.elf", ble / f"{stem}.elf")     # (its symbols: the emulator tests read RAM by them)
     for tag in ("ref", "default"):                      # (the package's build, then the measurement's over it)
         for f in (slots / f"t-{tag}").iterdir():
             if f.name == "slots":
@@ -504,8 +565,43 @@ def check_todo():
     return [(n, cfg) for n, cfg in MC.check_configs().items() if n not in ble and not C.exact_sizes(cfg)]
 
 
+def fm1base_tests(py, env, python_only):
+    """the release's tests: fm1-base's (fm1base/tests/run_tests.sh) and the app's (fm1base/optimist/run.sh: Optimist's
+    firmware on fm1-base's host simulator, no profile and the dev one) -> failures. OPTIMIST: this checkout. The builder
+    venv's python first on PATH (Pillow for fm1-base's font generator, as Optimist's own tests have it)"""
+    import fm1base
+    try:
+        fm1base.ready()
+    except fm1base.FM1BaseError as e:
+        print(f"test: the release's tests need the submodule: {e}", file=sys.stderr)
+        return 1
+    if python_only or os.name == "nt":
+        print("test: fm1-base's tests are shell scripts; skipped" + (" (--python)" if python_only else " (no sh here)"))
+        return 0
+    fenv = dict(env, OPTIMIST=str(ROOT), PYTHON=py[0])
+    fenv.pop("OPTIMIST_CLASSIC", None)
+    fenv["PATH"] = str(Path(py[0]).parent) + os.pathsep + fenv.get("PATH", "")
+    fails = 0
+    for label, script in (("fm1base/optimist/run.sh (none + dev)", fm1base.APP / "run.sh"),
+                          ("fm1base/tests/run_tests.sh", fm1base.DIR / "tests" / "run_tests.sh")):
+        print(f"== {label}", flush=True)
+        sys.stdout.flush()
+        fails += subprocess.call(["sh", str(script)], cwd=fm1base.DIR, env=fenv) != 0
+    print("FM1-BASE TESTS PASSED" if not fails else f"FM1-BASE TESTS FAILED ({fails})")
+    return fails
+
+
 def cmd_test(a):
-    py = [sys.executable] if TC.have_module("PIL") else [C.build_python()]
+    """Optimist's own tests (they build the classic firmware and test it: as ever), then the release's (fm1base_tests)"""
+    rc = test_classic(a)
+    return 1 if (fm1base_tests([sys.executable if TC.have_module("PIL.Image") else C.build_python()],
+                               dict(os.environ), a.python) or rc) else 0
+
+
+def test_classic(a):
+    C.CLASSIC = True
+    os.environ["OPTIMIST_CLASSIC"] = "1"                     # (the tests' own builds and costs are the classic firmware's)
+    py = [sys.executable] if TC.have_module("PIL.Image") else [C.build_python()]
     env = dict(os.environ, AC79_SDK=str(TC.sdk_dir()))      # (the rescue test reads the SDK's uboot.boot)
     if py[0] != sys.executable:                              # (run_tests.sh calls python3: the one with Pillow first, as CI's runner has none)
         env["PATH"] = str(Path(py[0]).parent) + os.pathsep + env.get("PATH", "")
@@ -543,7 +639,7 @@ def in_docker(argv):
     if not TC.image_present(image):
         print(f"optimist: no image {image}: python tools/optimist.py setup builds it", file=sys.stderr)
         return 1
-    rest = [x for x in argv if x != "--in-docker"]
+    rest = [x for x in argv if x != "--in-docker"] + (["--classic"] if C.classic() else [])
     tty = ["-t"] if sys.stdout.isatty() else []
     # (git in the container: the mounted tree belongs to another user; the -ui.zip's SOURCE.txt names the commit)
     git_ok = ["-e", "GIT_CONFIG_COUNT=1", "-e", "GIT_CONFIG_KEY_0=safe.directory", "-e", "GIT_CONFIG_VALUE_0=*"]
@@ -589,6 +685,12 @@ def parser():
     add_config_args(p)                                   # (what to build when there is no PACKAGE)
     p.add_argument("--port", metavar="NAME", help="MIDI port to use (part of its name)")
     p.add_argument("--yes", action="store_true", help="do not ask for confirmation")
+    p.add_argument("--install-mboot", action="store_true",
+                   help="install m-bootloader (download mode, a full backup first); never done otherwise")
+    p.add_argument("--keep-bootloader", action="store_true", help=argparse.SUPPRESS)   # (the default now; older callers)
+    sg = p.add_mutually_exclusive_group()
+    sg.add_argument("--keep-settings", action="store_true", help="download mode: keep the settings and pairings")
+    sg.add_argument("--wipe-settings", action="store_true", help="download mode: erase the new firmware's settings and pairings")
     p.set_defaults(fn=cmd_flash)
     p = sub.add_parser("config", help="the builder without the menu (configure.py arguments)", add_help=False)
     p.add_argument("rest", nargs=argparse.REMAINDER)
@@ -625,7 +727,7 @@ def parser():
         p = sub.add_parser(n, help=h, add_help=False)
         p.add_argument("rest", nargs=argparse.REMAINDER)
         p.set_defaults(fn=fn)
-    p = sub.add_parser("test", help="the host tests (builds the default configuration first)")
+    p = sub.add_parser("test", help="the host tests: Optimist's (builds the default configuration first) and the release's")
     p.add_argument("--python", action="store_true", help="the Python tests only (any host, no C compiler)")
     p.add_argument("--no-build", action="store_true", help="test the build/ there is (any profile that links)")
     p.add_argument("--in-docker", action="store_true", help="run inside the toolchain image")
@@ -633,11 +735,15 @@ def parser():
     return ap
 
 
-PASSTHROUGH = {"config": cmd_config, "emu": cmd_emu, "cpu": cmd_cpu, "gate": cmd_gate, "emu-check": cmd_emu_check}
+PASSTHROUGH = {"config": cmd_config, "emu": cmd_emu, "cpu": cmd_cpu, "gate": cmd_gate, "emu-check": cmd_emu_check, "costs": cmd_costs}
 
 
 def main(argv=None):
     argv = sys.argv[1:] if argv is None else list(argv)
+    if "--classic" in argv:                 # (Optimist's own firmware instead of the release: any command)
+        argv = [x for x in argv if x != "--classic"]
+        C.CLASSIC = True
+        os.environ["OPTIMIST_CLASSIC"] = "1"
     if argv and argv[0] in PASSTHROUGH:     # (their own parsers: argparse would take their options for ours)
         return PASSTHROUGH[argv[0]](argparse.Namespace(rest=argv[1:]))
     a = parser().parse_args(argv)

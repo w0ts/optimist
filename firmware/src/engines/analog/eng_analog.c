@@ -18,7 +18,7 @@ static void analog_note_on(track_t *t, voice_t *v)
         v->s[2] = 0x1234567 + (int32_t)v->age;        /* noise state */
 }
 
-static HOT void analog_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
+static FAST(analog) void analog_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
 {
     const int16_t *p = t->p;
     uint32_t wave = (uint32_t)p[P_E0], i;
@@ -82,7 +82,7 @@ static HOT void analog_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, 
             }
             s = y << 1;
         }
-        out[i] += mulq15(mulq15(s, amp_at(m, i)), VOICE_FS) << 1;
+        out[i] += VOICE_OUT(s, amp_at(m, i), 1);
     }
     v->ph[0] = ph0;
     v->ph[1] = ph1;
@@ -170,9 +170,9 @@ static const engine_t ENG_ANALOG = {
         PU("DRV", F_PCT, 0, 127, 0, 0),
         PU("KTR", F_PCT, 0, 127, 64, 0),
     },
-    ANALOG_PRESETS, sizeof(ANALOG_PRESETS) / sizeof(ANALOG_PRESETS[0]), 1, analog_note_on, analog_render,
+    PRESETS_OF(ANALOG_PRESETS), 1, analog_note_on, analog_render,
     0xF986, {P_E4, P_E5, P_ATK, P_REL},
 #if FELUCCA_ANALOG2
-    .block = super_block,                             /* (the swarm's CPU cap: voices sounding) */
+    .block = super_block,                     /* (the swarm's CPU cap: voices sounding) */
 #endif
 };

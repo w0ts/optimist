@@ -2,7 +2,7 @@
 
 The wire format between the web editor (`web/editor.html`) and the firmware (`firmware/src/io/editor/`: `editor.c`, `ed_lite.c`
 and one `ed_*.c` per feature). Optimist is based on SLOOP, which is based on Felucca, so the frames keep Felucca's "FL" header
-and the device's MIDI port is still named "Felucca" (USB 1209:0001). The protocol byte in `INFO` is 6; every later addition is
+and the device keeps Felucca's USB ids (1209:0001). Since 2026-10-29 the device names itself FM1-XXXX (XXXX: four hex digits; the USB product and so its MIDI ports, with USB audio "FM1-XXXX Out" / "FM1-XXXX In", and the Bluetooth name); a client finds a device by a port name containing FM1-, and still takes "Optimist" and "Felucca", the names of older firmware. The protocol byte in `INFO` is 6; every later addition is
 an `INFO` tag or a byte appended at the end of a reply, never a new version.
 
 A client offers a command only when the build answers it: the `INFO` tags (below) say which, and a command the build does not
@@ -16,17 +16,19 @@ Every request gets exactly one reply with the same header and `<cmd>`; a request
 - One request at a time: wait for the reply (about 10-50 ms) before the next. The device holds one incoming frame.
 - A request with cmd below 11 is cut at 64 bytes. A reply is at most 640 bytes (`ed_out.h`), so long lists come in pages.
 - While the editor watches (below) the device also pushes frames at any time; match replies by cmd. Pushes are 24, 59..63, 87.
-- Updates of the firmware use the same port with other SysEx (`F0 22 24 35 ...`, `00 59 ...`): never send those from the editor.
+- Updates of the firmware use the same port with other SysEx (`F0 22 24 35 ...`, `00 59 ...`): never send those from the editor,
+  but for fm1-base's companion services (`00 59` cmds 0x60..0x62, below: Optimist's own firmware answers none of them, its
+  `ota.c` acts on 0x11 alone).
 - Only `PROJECT` save, the sample-slot commands, `UP_PUT` / `UP_STORE` / `UP_ERASE`, `UKIT_PUT` / `UKIT_OP`, `SN_OP`
   save / load / clear / rename, `SN_WRITE`, `BK_COMMIT` (and the session's first `BK_BEGIN`, which saves what is in RAM) and the pattern
   commands that store (81, 82, 84) write flash, and only Felucca's own storage areas, never the app or the update area.
 
 ## Values and formats
 
-| Item | Encoding |
-| --- | --- |
+| What | On the wire |
+|:---|:---|
 | v14 value | 2 bytes, LSB first, value + 8192: `value = (lo \| hi << 7) - 8192`, -8192..8191 |
-| string | ASCII bytes, ended by a 0 byte |
+| string | ASCII, terminated by a zero byte |
 | scope | 0 = parameter of the selected track (`P_*`, 0..P_COUNT-1); 1 = global parameter (`G_*`, 0..G_COUNT-1); 9 = the reverb type and MIDI settings (tags 52, 54) |
 | track | 0..2 the synth parts, 3 the drum track (NTRK = 4) |
 | engine byte | 0..NENGINES-1; NENGINES = the drum track (no engine, no presets) |
@@ -40,9 +42,12 @@ VOICES) are not part of a sound; `DESC` names them. Nothing in the editor needs 
 
 `fmt` of a parameter (`firmware/src/core/core.h`): 0 INT, 1 PCT (share of the range), 2 BIPCT, 3 TIME, 4 LFOHZ, 5 CUTOFF, 6 DB,
 7 SEMI, 8 ENUM, 9 BPM, 10 NOTE, 11 ONOFF, 12 OCT, 13 STEPS, 14 SWING (0..100 shown as the MPC swing, 50 % + value / 4), 15 FILT
-(-64..63: below 0 a low-pass, above 0 a high-pass). LFOHZ below 0 is a note value of the tempo, one cycle each: -1 4BAR, -2 2BAR,
--3 1BAR, -4 1/2, -5 1/4, -6 1/8, -7 8T, -8 1/16, -9 16T, -10 1/32. The editor shows the value with its unit; it need not format
-it as the device does.
+(-64..63: below 0 a low-pass, above 0 a high-pass), 16 GATE, 17 DEG (an LFO's PHS 0..127, 1/128 of a cycle, shown in degrees:
+v x 360 / 128). LFOHZ below 0 is a note value of the tempo, one cycle each: -1 4BAR .. -22 1/64 (params.c N_DUR, longest first,
+dotted and triplet values between), then -23 6BAR, -24 8BAR, -25 16BAR (issue 129: stored past 1/64 so that no value moves; a
+knob walks them by length, 16BAR next to the slowest free rate). The editor shows the value with its unit; it need not format
+it as the device does. LFO's TRIG and POL (`P_L1TRIG` `P_L1POL`, part of a sound) and LFO 2's PHS and FADE (`P_L2PHS`
+`P_L2FADE`, the last ids) came with issue 129; TRIG (both LFOs) is NOTE FREE PLAY.
 
 CRC-32 is zlib's everywhere.
 
@@ -52,7 +57,7 @@ The web editor is a set of builder items (`docs/BUILDER.md`). A build that leave
 answer its commands; the page hides what needs them and keeps the rest (its mock device serves any subset, `?off=dlan,scope`).
 
 | Item | Commands | INFO tags |
-| --- | --- | --- |
+|:---|:---|:---|
 | `EDITOR` (base, 212 B) | frames, 1 INFO, 25 PING, 49 BUILD | 64 (lite builds) |
 | `BACKUP` | 43..48 backup; with live editing off also 11..15 sample slots and 54..57 snapshots | 64 |
 | `LIBRARIAN` | 16..21 user presets, 38..41 user kits (`DRUM_KITS`); with live editing off also 9 PROJECT, 42 SMP_READ, 79..84 patterns | 55 (patterns), 64 bit 1 |
@@ -61,9 +66,9 @@ answer its commands; the page hides what needs them and keeps the rest (its mock
 | `ED_SEQ` (needs ED_LIVE) | 97 SONGC (arranger), 98 TOOLS (`SEQTOOLS` or `NOTEGEN`), 105 STEPLANE (automation store) | 5A, 5B, 62 |
 | `ED_SCREENS` (needs ED_LIVE) | 96 SCRN, 99 SCRS, 101 SCOPE | 59, 5C, 5E |
 | `ED_MIRROR` (live editing or not; default off) | 106 MIRROR and its pushes, 108 PANEL, 109 NAV, 111 CLIP | 65, 67 |
+| Wi-Fi (`FELUCCA_WIFI` with `FELUCCA_BLE`; no builder item yet) | 112 WIFI | 67 |
 
-Other switches: 36..42 need the drum lanes (kits: `DRUM_KITS`), 65 `MACROS`, 66 the CZ collection, 78 / 90 `SL24_EXPORT` / `SL24_EDIMPORT`
-(default off), 92 / 93 the automation store, 100 `FAVORITES`, 79..84 `PATTERNS`, 54..57 `SNAPSHOTS`.
+Other switches: 36..42 need the drum lanes (kits: `DRUM_KITS`), 65 `MACROS`, 66 the CZ collection, 92 / 93 the automation store, 100 `FAVORITES`, 79..84 `PATTERNS`, 54..57 `SNAPSHOTS`.
 
 **Live editing off** (`ED_LIVE=0`, `ed_lite.c`): `INFO` is a short header with tag `64` (one byte: bit 0 backup only, bit 1 the
 librarian). Without the librarian it has no engine, parameter or track (`NENGINES` 0, `P_COUNT` 0) and the build answers
@@ -76,8 +81,33 @@ sections, patterns, kits, backup) and the Library tab (user presets).
 The web editor used none of these and no build answers them (the page still carries the numbers for older firmware):
 `STATUS` 53 and its stream `STREAM` 58 (transport, playing steps, meters; `WATCH` bit 3 is never granted), `REC` 107 and its tag 63,
 SLOOP 2.4's step extras 72..77 (`LOCK_*`, `MICRO_*`, `FILL_*`: the automation store 92 / 93 has them), the pushes `CHANGED` 23,
-`STEP_CHANGED` 26 and `TRACK_CHANGED` 32 (and `WATCH` bits 1 and 3), the 2.4 settings and FM6 bank parts of 78 (parts 1..3, rc 1) and
-`SL24_BANK` 91, FM6's user-bank commands. Numbers 34, 35, 85, 88 and 89 are unused (reserved).
+`STEP_CHANGED` 26 and `TRACK_CHANGED` 32 (and `WATCH` bits 1 and 3), FM6's user-bank commands. Numbers 34, 35, 85, 88 and 89 are unused (reserved); 78, 90 and 91 were SLOOP 2.4's file import and export (removed 2026-10-29), never reused.
+
+## fm1-base's companion services
+
+Optimist as an fm1-base app (the trial) and any fm1-base firmware built with `companion = true` answer fm1-base's capability
+query (0x60), files (0x61) and parameters (0x62), in the update's framing `F0 pk(00 59 cmd len24 body ~sum8) F7` (fm1-base
+`docs/COMPANION.md`). The editor asks the capability query first (300 ms, once); no answer: Optimist's own protocol alone,
+as before. An answer whose extras do not say `editor=optimist` is another firmware: the Backup page then shows its
+companion services alone (what it runs, its settings, its files: one zip of them all, written back from one). With
+`editor=optimist` the editor reads INFO as always and shows the companion's settings and files on the Backup page too.
+
+**Optimist's backup as companion files** (`opti_cpfiles_1` in INFO's tag 66, in place of `opti_backup_4`; the trial with
+companion on, `firmware/src/io/editor/ed_comp.c`, `FELUCCA_ED_COMPANION`): cmds 11..15, 42 and 43..48 are not answered;
+the same objects are files, in BK_LIST's order, each named by its tag (a trailing space dropped: `S01`), its size BK_LIST's
+length, read as BK_READ reads it (each file checked whole by the FM-1's CRC-32 of it), written as BK_BEGIN / DATA / COMMIT
+write it (a storage object received whole and checked as a load checks it; a project stream's records written as they
+come); USR1..USR3 are the sample slots (their header page, 512 bytes, then the data; written header last; delete erases
+the slot), read only where their room is 0. After them:
+
+| File | Bytes |
+| --- | --- |
+| `BKINFO` (read only) | BK_LIST's head (version 4, n, switches 2 x 7 bit, the project magic, the chunk 2 x 7 bit, 0, n), each object's kind and flags (bit 0 in this build, 2 written by BEGIN..COMMIT, 3 a slot holding the FM6 bank), then `bk_caps`: 7-bit bytes as BK_LIST has them |
+| `BKCTL` (one byte written; also while playing) | the session: 0 it ends (BK_END 0), 1 it ends and the FM-1 restarts to load what came (BK_END 1), 2 the commits from now on only check (BK_COMMIT i 1: a refused one is the flash refused, status 6), 3 they write again |
+
+A session opens at the first write (what is only in RAM saved first) and ends with BKCTL 0 / 1 or 10 s without a write.
+Writes are refused while the transport plays (status 1). The editor's Backup, Projects and Library pages read and write
+through these files with the same lists (`cpBkList` gives BK_LIST's form).
 
 ## INFO (1) and BUILD (49)
 
@@ -105,8 +135,9 @@ strings, NTRK, the protocol byte (7), each engine slot's UID, then tagged blocks
 | 62 | `03 01 a b` | STEPLANE (below) |
 | 64 | `01 flags` | lite build: bit 0 backup only, bit 1 the librarian |
 | 65 | `01 version` | MIRROR (below, "The screen mirrored"): `MIR_VERSION` (2) |
-| 66 | `n` ASCII | the features by name and version, space-separated (`ed_opti.h`): `opti_backup_4` (43..48, `BK_VERSION`), `opti_mirror_2` (106, `MIR_VERSION`), `opti_panel_1` (108), `opti_nav_1` (109), `opti_mirbt_1` (INFO, 108 and 109 over Bluetooth MIDI too, with `BLE`), `opti_library_1` (16..21), `opti_projects_1` (9), `opti_patterns_1` (79..84), `opti_proj_1` (110). Every Felucca-family firmware answers `INFO` with the same header but numbers its other commands its own way (SLOOP's backup is 34..36; 78 is Melodee's CZ), so a client sends nothing else until it has read this tag, and offers a feature only when its name and a version it reads are listed. A number goes up only when an older client would misread the new form. Over Bluetooth (only 106, `INFO`, 108, 109 and 111 answered) the firmware is also known by its advertised name, "Optimist ..." |
-| 67 | `n` ASCII | more feature names, the same form as 66 (66 is full: one 7-bit length): `opti_clip_1` (111, `ED_MIRROR`); `opti_nodrums_1`: a build without the drum track (the builder's DRUMS off): track 4 is a synth part like 1..3 (its steps, notes and pages a part's, no drum lanes, kits or drum sources), named T4. A client reads both and merges them; one that knows only 66 skips 67 by its length |
+| 66 | `n` ASCII | the features by name and version, space-separated (`ed_opti.h`): `opti_backup_4` (43..48, `BK_VERSION`), `opti_mirror_2` (106, `MIR_VERSION`), `opti_panel_1` (108), `opti_nav_1` (109), `opti_mirbt_1` (INFO, 108 and 109 over Bluetooth MIDI too, with `BLE`), `opti_library_1` (16..21), `opti_projects_1` (9), `opti_patterns_1` (79..84), `opti_proj_1` (110). Every Felucca-family firmware answers `INFO` with the same header but numbers its other commands its own way (SLOOP's backup is 34..36; 78 is Melodee's CZ), so a client sends nothing else until it has read this tag, and offers a feature only when its name and a version it reads are listed. A number goes up only when an older client would misread the new form. Over Bluetooth (only 106, `INFO`, 108, 109 and 111 answered) the firmware is also known by its advertised name, "FM1-XXXX" ("Optimist ..." before 2026-10-29) |
+| 68 | `n` ASCII | the bootloader the FM-1 has, read from its boot area (`system/bootid.h`, 32 bytes as stored: the boot file's container head at 0xA0, m-bootloader's identity `AC79BLID` + `fm1` at 0xF0): `boot=mboot` (m-bootloader for the FM-1), `boot=stock` (M-VAVE's bootloader, the one Felucca, SLOOP and the stock firmware ship), `boot=unknown` (anything else, or a failed read). The installers (`fm1_install.py --info`, the web installer, the Mirror app's Firmware tab) ask it of a running Optimist and take the USB-MIDI update with m-bootloader there instead of download mode; no tag (an older firmware): they choose as before. Built with the flash's own read (felucca.c `st_read`; the release: fm1-base's `plat_boot_read`) |
+| 67 | `n` ASCII | more feature names, the same form as 66 (66 is full: one 7-bit length): `opti_clip_1` (111, `ED_MIRROR`); `opti_wifi_1` (112, the Wi-Fi networks; only a build with Wi-Fi); `opti_nodrums_1`: a build without the drum track (the builder's DRUMS off): track 4 is a synth part like 1..3 (its steps, notes and pages a part's, no drum lanes, kits or drum sources), named T4; `opti_upfm6_1`: an FM6 user preset keeps its own voice (the builder's UP_FM6) and `UP_GET` / `UP_PUT` carry it (17, 18). A client reads both and merges them; one that knows only 66 skips 67 by its length |
 
 `BUILD` (no args): the build's name string (16), its config hash (5 x 7 bit), the item bytes count and bytes (bit n = registry item n
 built, 7 a byte). The backup file records it.
@@ -115,14 +146,14 @@ built, 7 a byte). The backup file records it.
 
 | cmd | Request | Reply |
 | --- | --- | --- |
-| 2 GET | scope, id | scope, id, v14 |
+| 2 GET | scope, id | the same scope, id, then v14 |
 | 3 SET | scope, id, v14 | scope, id, v14 (clamped; a fixed-range value stays). `SET` of `G_ENGSEL` (the global labelled "ENG") changes the engine with its defaults |
 | 4 DUMP | - | engine byte, preset, P_COUNT x v14 (the selected track), G_COUNT x v14 (globals) |
 | 5 DESC | scope, id | scope, id, then the body: fmt, min v14, max v14, def v14, label (8), unit (8), for an enum (fmt 8) one name (8) per value (at most 64) |
 | 6 STEP_GET | index 0..NSTEP-1 | index, then the step (below) |
 | 7 STEP_SET | index, step bytes | as STEP_GET, after the write |
 | 8 PRESET | engine, preset | engine byte, preset. Applies the sound, sends and arp; never the pattern, the mix or the key (`LEVEL PAN MUTE`, `LEN DIV SWG GATE`, `ROOT SCL QNT CHORD` stay) |
-| 9 PROJECT | op (0 load, 1 save, 2 query), slot 0..FELUCCA_SECTIONS-1 (A..P) | op, slot, used (0 empty, 1 used; with `SL24_SAFE` 2 = a SLOOP 2.4 project kept in the slot, 3 = another firmware's; neither is loaded), and a fourth byte 1 when the transport plays and nothing was done (stop first). Save writes flash: allow ~2 s |
+| 9 PROJECT | op (0 load, 1 save, 2 query), slot 0..FELUCCA_SECTIONS-1 (A..P) | op, slot, used (0 empty, 1 used; 2 = a SLOOP project kept in the slot (builds with drums), 3 = another firmware's; neither is loaded), and a fourth byte 1 when the transport plays and nothing was done (stop first). Save writes flash: allow ~2 s |
 | 10 NAMES | engine | engine, count, count preset-name strings (12), the two edit-page titles (8) |
 | 22 WATCH | on (bit 0 on, bit 4 note ends) | the bits granted (below) |
 | 25 PING | - | 0 |
@@ -160,7 +191,7 @@ Lanes (`drums.c` `LANE_NOTE`): one per white key from F3; a black key plays the 
 | --- | --- | --- |
 | 11 SMP_BEGIN | slot 0..2 | slot, rc (0 ok, 3 the transport plays). Erases the slot's header sector: the slot is empty from now on |
 | 12 SMP_WRITE | slot, offset (3 x 7 bit), pack7 data (<= 256 bytes) | slot, offset (3 x 7 bit), rc: 0 ok, 1 arguments, 2 erase, 3 write, 4 slot in use (send `SMP_BEGIN` first), 5 the transport plays. Offset >= 512 and a multiple of 256, in increasing order |
-| 13 SMP_END | slot, pack7 header (480 bytes) | slot, rc: 0 ok, 1 size, 2 header, 3 data CRC, 4 flash, 5 zones |
+| 13 SMP_END | slot, then the 480-byte pack7 header | slot, then rc (0 ok, 1 size, 2 header, 3 data CRC, 4 flash, 5 zones) |
 | 14 SMP_ERASE | slot | slot, rc (0 ok, 3 the transport plays). ~1 s |
 | 15 SMP_INFO | - | slots, slot KiB, per slot: zone count (0 empty), name (8), data KiB; then per slot its capacity in KiB |
 | 42 SMP_READ | slot, offset (3 x 7 bit), count (2 x 7 bit, <= 256) | slot, offset, pack7 bytes of the slot's flash (fewer at its end) |
@@ -176,8 +207,8 @@ Frames stay below 640 bytes.
 | cmd | Request | Reply |
 | --- | --- | --- |
 | 16 UP_LIST | start, count (1..16) | start, count, total slots, per slot: used, engine, name ("" if unused) |
-| 17 UP_GET | slot | slot, used, engine, name, P_COUNT x v14, 16 x (note, flags); an empty slot: used 0, zeros |
-| 18 UP_PUT | slot, engine, name, P_COUNT x v14, 16 x (note, flags) | slot, rc (0 ok, 1 arguments, 2 flash, 3 the transport plays). 1 s |
+| 17 UP_GET | slot | slot, used, engine, name, P_COUNT x v14, 16 x (note, flags); an empty slot: used 0, zeros. `opti_upfm6_1`: an FM6 slot that keeps its own voice then ends with it, 128 bytes (a DX7 packed VMEM voice, 7 bits each); a slot without one (its VOICE value names a built-in voice) ends after the pattern |
+| 18 UP_PUT | slot, engine, name, P_COUNT x v14, 16 x (note, flags) [, 128 voice bytes] | slot, rc (0 ok, 1 arguments, 2 flash, 3 the transport plays). 1 s. Writing a record drops the slot's old FM6 voice; `opti_upfm6_1`: an FM6 record followed by a voice (as UP_GET's) keeps that voice, which UP_LOAD then plays. A firmware without it ignores the bytes: the editor sends a voice only to one that lists it |
 | 19 UP_STORE | slot, name ("" = the automatic name, "ANALOG 07") | slot, rc (as UP_PUT; 1 also for the drum track selected). Stores the current sound |
 | 20 UP_LOAD | slot | slot, rc (0 ok, 1 empty / invalid) |
 | 21 UP_ERASE | slot | slot, rc (0 ok, 1 arguments, 2 flash, 3 the transport plays) |
@@ -318,6 +349,12 @@ A section's file is a backup file holding its one `Snn ` object (written with `B
 | 4 name | p, name | 4, p, rc: project p's name, up to 12 of ` A-Z 0-9 -._/#+` (the NAME page's; trailing spaces dropped, "" none) |
 
 rc: 0 done, 1 arguments (a character the NAME page has not), 3 the transport plays (nothing done), 4 no flash, 7 not written (MEM FULL, flash), 9 a restore holds the log (between `BK_BEGIN` and `BK_COMMIT`).
+**What the clients show (no protocol change):** the projects are `bk_caps`' last bytes: the app slot's end / 4 KiB (2 x 7 bit), then the projects the installed MEMORY layout keeps (2, 4, 16; SD card mode 1). PJ_OP 0 always carries 16 places; the web editor and the Mirror app show the first `projects` (16 when the bytes are missing, an older firmware), and the PJ(n) objects past it have BK_LIST flag bit 0 clear. A user sample slot the layout took away has a `bk_caps` capacity of 0 (and a SMP_INFO capacity of 0): the editor hides it.
+
+**Project file `.fm1proj`** (web editor Projects screen, `web/sim/bk.js` `packProject`, the Mirror app `ProjectFile.swift`: the same bytes). It is one `PJnn` stream, loaded with the commands above (no new command): `FM1P`, format version u8 (1), slot u8 (0-based, where it came from), the firmware family (4 ASCII, BK_LIST's magic `FUNB`), the name (12 ASCII, 0-padded), the stream's length u32 LE, the stream, CRC-32 of everything before it u32 LE. Export: op 1 (when asked, for the open project), `BK_READ` of `PJ(p+1)`, name from op 0. Load into p: op 3, `BK_BEGIN` / `DATA` / `COMMIT` of `PJ(p+1)`, `BK_END 0`, op 4 with the file's name, op 2 when p is the open project. Refused: another magic, format version, CRC or length, another family, a slot past the layout's projects.
+
+**Over Bluetooth** (`opti_btproj_1` in INFO's tag 0x67, builder item BT_PROJ): the same commands (43..48 and 110) over Bluetooth MIDI too, answered there; one long request (a `BK_DATA` chunk) waits at a time, so send the next after its reply. Clients (the Mirror app, the web editor) wait at least 1.5 s for a reply (3 s for `BK_DATA`) and repeat a request that may be sent twice up to twice more; a request that must not be sent twice (`retries` 0, the flash writes) is not repeated. Over Bluetooth only the project slots and the project library work; sections, patterns, the preset bank and the full backup need the cable.
+
 **Moving project a of src into project b of dst:** (send: op 1 a on src, its work saved), `BK_READ` src's `PJ(a+1)`; on dst op 3 b (a stream written over a project leaves the records it does not carry, so clear first), `BK_BEGIN` / `DATA` / `COMMIT` dst's `PJ(b+1)`, `BK_END 0` (no restart), op 4 b with the name, op 2 b when b is dst's open project (its work would be the old project's) or when asked. Records the target build would not load are skipped by its restore, as in a full one. The user sample slots a project plays are not part of it.
 
 ## Snapshots (54..57)
@@ -395,6 +432,7 @@ The page's `autoLane(param)` reads an id. Every write is an undo level (`ED_LIVE
 **FXP (94)** reaches every slot by **owner** and describes each slot and parameter itself (the device's own descriptors), so an editor names no type. Tag 57: `03 01 flags owners` (flags bit 0 the USB input is built; owners = 19).
 Owners: 0..3 tracks T1 T2 T3 DR, 4 the master, 5 the USB input (slots 0 1, and slot 2: its own VOLUME PAN MUTE FX ON REV DLY CHO), 6..8 the returns A B C, 9..18 the drum sounds (lanes 0..9; slots 0 1: only that slot's amount).
 A return's slot 0 is its type; slot 1 holds its **sends to the returns to its right** (A: B C, B: C; 0..127, listed whatever the returns hold; type 0 always; op 1 on it loads nothing; no feedback). With the item `RET_FB` each return also has its two others.
+Slots 2 and 3 (2026-10-30; GET says 4 slots) are the return's **PRE** and **POST** inserts (the device's RET A B C mixer rows): send -> PRE -> its effect -> POST -> RET level -> master. Op 1 loads a type a stage may hold (every type the return's slot 0 may hold but CHO DLY REV's send, which are inserts there where built; never the return's own effect's type, a type the other stage holds swaps them; an empty return: unchanged), one parameter, its amount (EQ3: its six, the amount ON). They belong to the return's send line, as its RET level: re-read the returns after a type change. An editor that reads slot 0 and 1 only is unaffected.
 
 | op | Request args | Reply args |
 | --- | --- | --- |
@@ -516,13 +554,15 @@ Asking sets the ring's source for the next 2 s: ask again about every 80 ms to w
 `ed_mirror.c`, `ed_mirror_enc.h` (`ED_MIRROR`, with live editing or without; the clients are the iPhone app `ios/OptimistMirror` and the editor's Mirror tab). While a client asks, every write to the panel
 (`display/lcd.c` `lcd_fill`, `lcd_blit`) also goes out as it is drawn; a client applying them in order holds the panel's pixels. The device keeps no frame buffer and sends nothing while no client asks; the mixer's meters go 10 times a second over USB, never over Bluetooth.
 
-Request: bits (bit 0 on, bit 1 the whole panel again). Reply: on, version 2, width (2 x 7 bit), height (2 x 7 bit). The pushes go on the link the last request came on:
+Request: bits (bit 0 on, bit 1 the whole panel again, bit 2 the panel's state too: op 4 STATE below, with `opti_mstate_1`; bit 3 checked frames: ops 8..10 below; bit 4: lost seqs lo, hi follow, with `opti_mirfix_1`; bit 5: the client's count of checked frames lost (7 bit, free-running) and the next seq it expects follow, with `opti_miraimd_1`, never to a firmware without it: it drops a 3-argument request without bit 4; bit 6 with bit 5: an ACK alone, no reply, which the app sends about 5 times a second while frames come). Reply: on, version 2, width (2 x 7 bit), height (2 x 7 bit). The pushes go on the link the last request came on:
 USB, or Bluetooth MIDI (with `BLE`; there the FM-1 answers this request, `INFO`, `108 PANEL`, `109 NAV` (`opti_mirbt_1`) and `111 CLIP` (18 arguments at most, 64 bytes of requests waiting, their replies in the mirror's send ring, behind the screen's frames; `ed_mirror.c` `mbr_take`), every other SysEx is ignored).
 Mirroring ends 3 s after the last request of any kind (ask again or `PING` about every 1 s), with `106 0`, and when its link goes (a USB reset; no Bluetooth central listening).
 
 **Catching up.** A first on, bit 1, and a link that fell behind (USB: the host read nothing for 30 ms; Bluetooth: the 8 KB send ring was full, the frame dropped) all end the same way once
 the link is clear: a `FILL` of the whole panel in black, then every band of the panel drawn again (the device's own panel is not cleared). Until then nothing is sent. At most one catch-up every 250 ms,
 and none while PRESETS' popup list is up (the panel under it is not drawn again). A catch-up is 1.65 KB on average, 6.3 KB at most (the UI's host run, version 2). Over Bluetooth only whole frames are sent.
+
+**Bluetooth: paced** (`opti_miraimd_1`, INFO's second tag 67; 2026-11-01, ed_mirror.c `MIR_AIMD`). Over Bluetooth the pushes go out within a budget in bytes a second (the replies count, never held back), the send ring a short queue. A push the budget refuses puts the mirror behind; once the budget has refilled (100 ms of it) the panel is repainted in place, only what the client does not hold going out (the latest pixels: a busy screen updates less often, nothing queues up). The budget starts at 3 KB/s, is halved on a loss (a `106` with bit 4, or bit 5's count risen) and when an ACK comes more than 0.5 s after the frame it acknowledges (a queue in the Mac or on the air: CoreMIDI logged packets up to 2.2 s late), once per 0.4 s, and raised a tenth each second it was spent with no loss, between 1 KB/s and the link's octets a connection event. A loss asked by seq is repainted the same way (no whole panel unless a seq is too old). The Mac's MIDI input loses whole frames when the stream runs at the link's limit (tests/mirror_aimd_test.c models it).
 
 Pushes, cmd 106, by op:
 
@@ -532,6 +572,9 @@ Pushes, cmd 106, by op:
 | 1 BLIT | x, y, w, h, then runs: the rectangle's pixels row by row |
 | 2 MORE | runs: the BLIT before goes on (a BLIT is cut into frames of about 250 bytes) |
 | 3 LINK | Bluetooth only, after the reply: the radio's data length (octets a packet), ATT MTU, interval (x 1.25 ms), the central's LL_LENGTH MaxRxOctets, MaxRxTime, MaxTxOctets, MaxTxTime (us), 2 x 7 bit each |
+| 6 PACE | Bluetooth with checked frames, after STATS (`opti_miraimd_1`): the budget (bytes a second), its cuts, its raises, the pushes it refused, then the last ACK's delay (ms from the frame before its seq going out to the ACK) and the cuts for a delay over 0.5 s; 3 x 7 bit each, free-running |
+| 4 STATE | asked with bit 2 (INFO tag 67 `opti_mstate_1`; after fm1-base's input report): held buttons by label (bit as in 108: 0 FX .. 13 OCT+, 2 x 7 bit), held note keys (bit 0 = F3, 4 x 7 bit), lit buttons (bit 14: PLAY's green lamp; 3 x 7 bit), lit note keys (4 x 7 bit), dim buttons (2 x 7 bit) and keys (4 x 7 bit), the knobs' detents since the last STATE (SELECT, ALGORITHM, PRESETS, KNOB 1..4, + 64 each, 1..127), MASTER's pot (0..1023, 2 x 7 bit), 1 when the client's MASTER plays instead (108 kind 3). Held is the panel's or the client's. Sent when it changed, 20 ms apart at least (Bluetooth 100 ms), every 500 ms anyway; never when the link has no room for it (no catch-up for a STATE) |
+| 8, 9, 10 | checked FILL, BLIT, MORE: asked with bit 3 (2026-11-01; a firmware before ignores the bit and sends 0..2). The same bytes, then seq (7 bit, + 1 each checked frame) and the Fletcher sums A, B of the bytes `7D 46 4C 6A` op .. seq (A the sum, B the sum of A after each byte, both & 127) before F7. A seq-only MORE (no pixels) 0.3 s after frames went out and every second while mirroring. The client drops a frame whose sums fail and a MORE after a gap in seq (its BLIT lost: it would paint into the rectangle before), and asks for the whole panel again (bit 1). Over Bluetooth a Mac's MIDI driver zeroes or loses bytes of long SysEx. With `opti_mirfix_1` (INFO tag 67) the client asks instead for the frames it lost: `106` with bit 4 and two more bytes, seq lo, hi; the FM-1 sends again only those frames' rectangles (the panel repainted in place, what the client holds skipped), or the whole panel when a seq is too old (it keeps the last 64) |
 
 The rectangle's pixels as tokens (version 2), `t = n << 3 | s`. `s` 0..6: the colour in that slot; `s` 7: a colour follows (3 x 7 bit) and
 takes slot k, k going 1, 2 .. 6, 1 ... The slots are reset at each BLIT: all black, slot 0 stays black. A length L is 1 byte below 64, else 2: `(L & 63) | 64`, `L >> 6`.
@@ -550,6 +593,10 @@ The encoder takes a bitmap or the row above only where it is the shorter. Measur
 
 `ed_mirror.c` (`ED_MIRROR`). The mirror's client presses the panel as a finger would (the app's keyboard: the FM-1 Emulator's keys); only while it mirrors, and every key it holds comes up when the mirror ends (`106 0`, or 3 s without a request). The keys go through the panel's own debounce (`hal/fm1_input.h` `fm1_remote_key`), so taps, holds and chords behave as on the panel. Request: kind, id, value. Kind 0 a button by its label (0 FX, 1 SEL, 2 ENV, 3 LFO, 4 EDIT, 5 GLO, 6 HOME, 7 SAVE, 8 ARP, 9 SEQ, 10 PLAY, 11 REC, 12 OCT-, 13 OCT+; a calibrated panel's too), kind 1 a note key (0 = F3 .. 26 = G5), value 1 down / 0 up; kind 2 a knob by its role (0 SELECT, 1 ALGORITHM, 2 PRESETS, 3..6 KNOB 1..4), value its detents + 64 (above: clockwise). Reply: kind, 0 done / 1 refused. Over USB only (Bluetooth answers 106 alone).
 
+With `opti_panelx_1` (INFO tag 67; after fm1-base's remote): kind 3 MASTER, id and value its level 0..1023 as 2 x 7 bit (1024 and up: the pot's again), played instead of the pot's until the mirror ends; kind 4 let go (every key the client holds up, MASTER the pot's). A fourth byte, seq, makes a request safe to send again: one with the seq of the request before is answered again (the same answer) and not done twice; the reply then ends with the seq. A new mirror (106 on after off) forgets the seq.
+
+With `opti_mtest_1` (INFO tag 67; after fm1-base's test session): kind 5, id 1 a test session, id 0 its end; USB only, while mirroring. The FM-1 answers, then restarts as a blank FM-1: Optimist's own data in flash reads erased and nothing is written to it (the radio's calibration and the firmware read as ever; the user's samples, read in place, still sound; sample uploads are refused). Asked again: blank again (another restart). It ends with a restart into the user's own state: asked (id 0), the mirror off (asked, or 3 s without a request), no client mirroring within 15 s of the restart, or a crash. The client asks 106 again after each restart; STATE's last byte has bit 1 set during a session.
+
 ## The touch navigation (109 NAV; INFO tag 66 `opti_nav_1`)
 
 `ed_mirror.c` `ed_nav`, `ui/optimist/op_nav.c` (`ED_MIRROR`). What a touch screen beside the mirror lists (the app's columns: the screen's pages, the tracks and lanes, the modes, favourites kept on the client), and the jumps it makes, each by the panel's own path: a row as SELECT lands on it, a track as ALGORITHM does, a SOUND family as its page button's first tap (never the second tap's next row). Only while the client mirrors; refused while a question, NAME, a held or locked layer, the TEMPO page or a held step is up. Over USB only (Bluetooth answers 106 alone).
@@ -558,12 +605,14 @@ The encoder takes a bitmap or the row above only where it is the shorter. Measur
 | --- | --- | --- |
 | 0 STATE | | nothing |
 | 1 ROW | r | the cursor to row r of the screen's rows |
-| 2 TRACK | p | the walk to mixer row p: 0 MASTER, 1..3 T1..T3, 4 DR, 5.. the drum lanes, then ACCENT; only where ALGORITHM walks |
+| 2 TRACK | p | the walk to place p: 0..2 RET A, RET B, RET C, 3 MASTER, 4..6 T1..T3, 7 DR, 8.. the drum lanes, then ACCENT (the mixer's rows; 2026-10-30: the returns walk as tracks, their own pages; the USB input is no place); only where ALGORITHM walks |
 | 3 OPEN | screen, button | the screen; on SOUND (1) `button` (a page button's label as in 108: 0 FX, 1 SCL, 2 ENV, 3 LFO, 4 EDIT, 8 ARP; 127 every row) narrows it to that family |
 | 4 TRACKS | | nothing |
 
 Screens: 0 MIX, 1 SOUND, 2 MASTER (the master FX), 3 PROJECT, 4 SYSTEM, 5 STEPS, 6 SONG, 7 TEMPO (never opened: PLAY held), 8 SCOPE, 9 GLOBAL, 10 LANE FX (never opened: a drum lane's black key held, FELUCCA_LANE_FX).
-Reply to 0..3: `op, 0 done / 1 refused, screen, button (127: every row, or not SOUND), cursor row, n, n row names (ASCII, 0-terminated, 11 at most), track, knobs [, top, pitch]`. `track` is the walk's mixer row, 127 where ALGORITHM walks nothing (PROJECT, SONG, GLOBAL, SYSTEM). The rows are what SELECT walks: on MIX the selected row's knob sets (MIX, INSERT, SENDS, SOUND; MASTER's RETURNS, A SENDS ...; the tracks themselves are TRACK's), on GLOBAL and SYSTEM their pages of 4 lines by title (20 characters at most; ROW puts the cursor on the page's first line). `knobs` says where KNOB 1..4's values are on the 240 x 240 panel, for a drag there to turn that knob (108 PANEL): 0 nowhere (a layer, STEP, SCOPE, a list, a popup), 1 the 1x4 cards (x 3 + 59 k, y 28, 57 x 45), 2 the 2x2 cards (x 3 or 121, y 28 or 75, 116 x 46), 3 four lines across the panel, the first from `top`, `pitch` apart. Reply to 4: `4, 0, n, n names` (the mixer rows: MASTER, T1, T2, T3, DR, the lanes by their names, ACCENT). A client asks STATE again when the screen changes.
+Reply to 0..3: `op, 0 done / 1 refused, screen, button (127: every row, or not SOUND), cursor row, n, n row names (ASCII, 0-terminated, 11 at most), track, knobs [, top, pitch]`. `track` is the walk's place (as TRACK's p), 127 where ALGORITHM walks nothing (PROJECT, SONG, GLOBAL, SYSTEM). The rows are what SELECT walks: on MIX the selected row's knob sets (MIX, INSERT, SENDS, SOUND; a return's MIX, INSERT, SENDS; the tracks themselves are TRACK's), on MASTER a return's pages while one is shown (MIX, RET REV ..., INSERT, SENDS), on GLOBAL and SYSTEM their pages of 4 lines by title (20 characters at most; ROW puts the cursor on the page's first line). `knobs` says where KNOB 1..4's values are on the 240 x 240 panel, for a drag there to turn that knob (108 PANEL): 0 nowhere (a layer, STEP, SCOPE, a list, a popup), 1 the 1x4 cards (x 3 + 59 k, y 28, 57 x 45), 2 the 2x2 cards (x 3 or 121, y 28 or 75, 116 x 46), 3 four lines across the panel, the first from `top`, `pitch` apart. Reply to 4: `4, 0, n, n names` (the places: RET A, RET B, RET C, MASTER, T1, T2, T3, DR, the lanes by their names, ACCENT). A client asks STATE again when the screen changes.
+
+**The track bar (app and web always aligned, the user, 2026-10-31).** Both clients lay out the `TRACKS` list by one rule: line 1 the drum lanes alone (rows past DR, in order); line 2 T1 T2 T3 DR, then RET A, RET B, RET C next to MASTER; small buttons of one height, wrapping on a narrow screen. The rule is `Nav.bar` (`ios/OptimistMirror/Sources/Nav/NavState.swift`) and `navBar` (`web/editor.html`); both tests read the same cases, `ios/OptimistMirror/Tests/Fixtures/nav_track_bar.json`. Change one, change the other and the cases. The same holds for every other label and layout the app and the web editor share (the Projects page too).
 
 ## The clip (111 CLIP; INFO tag 67 `opti_clip_1`)
 
@@ -581,6 +630,53 @@ own history, as a step key's (writes to one track within 800 ms are one level), 
 note longer than its step goes on through TIE steps (every note sounding at that step's start goes on) or a carry step naming it
 (`SF_CARRY`, hi bit 2: one note of a chord alone), its end inside a step that step's own end (`seq.c` `note_span`); a client
 writes them as the recorder does (`ios/OptimistMirror/Sources/Clip/Clip.swift`).
+
+## Wi-Fi (112 WIFI; INFO tag 67 `opti_wifi_1`)
+
+`ed_wifi.c` (`FELUCCA_WIFI` with `FELUCCA_BLE`; a build without Wi-Fi has none of it and does not answer 112). The saved networks, the
+mode and the connection of the FM-1's Wi-Fi (`wifi/wifi_conn.c`, `wifi/wifi_nets.c`); the web page's Wi-Fi tab. USB only. The FM-1 keeps up
+to 4 networks (SSID and the key made from the password, never the password); **no reply carries a key byte or the password**. An older client
+or the Mirror app does not know the name and sends nothing; the command, its tag and its numbers are additions, no version changes.
+
+| op | Request args | Reply |
+| --- | --- | --- |
+| 0 STATE | | `0, mode, st, fail, joined, ch, ip (5 x 7 bit, host order), n, n x (slot, len, SSID as pack7), len, SSID as pack7, cap [, key, status, clients, channel, len, name as pack7]` |
+| 1 MODE | mode | `1, rc, mode` |
+| 2 FORGET | slot | `2, rc, slot` |
+| 3 JOIN | slen, plen, SSID as pack7 (slen + ceil(slen / 7) bytes), password (plen bytes) | `3, rc` |
+| 4 LEAVE | | `4, rc` |
+| 5 AP KEY | slen, plen, name as pack7, password (plen bytes, 32..126, 8..63; slen 0 = the automatic name) | `5, rc` |
+| 6 AP CHANNEL | channel | `6, rc, channel` |
+| 7 AP CLEAR | | `7, rc` |
+
+- `mode` is the store's number: 0 OFF (the manager stops), 1 AUTO (joins the best saved network heard, at start-up and whenever none is joined),
+  2 MAN (joins when told), 3 AP (MODE AP, only when the state's `cap` is 1; the FM-1 is the network, see below). It is saved with the settings (written once the transport stops).
+- MODE AP's block ends the state, after the network in hand's SSID: `cap` 0 means this build has no MODE AP and nothing follows (a reply from an older
+  firmware has no block at all: read it as cap 0); with `cap` 1: `key` (1: a password typed by the user is kept; 0: the default password, a function of the name, is in use: `wifi_ap_default_key`, two FNV-1a runs over the salts `OPTIMIST-AP-KEY/1:` and `/2:` and the name, five bits a character from `abcdefghjkmnpqrstuvwxyz23456789w`, 8 characters; the page works it out from the name, the FM-1 never sends it), `status` (0 OFF, 1 unused since 2026-10-29 (was NO PASSWORD), 2 STARTING, 3 ACTIVE,
+  4 NO CAL, 5 STOPPED: AP MAN, not started), `clients`, `channel` (the one shown: the store's, else 6), `len` and the `name` as pack7 (the stored one, else FM1- and four digits).
+  Then, in every build, one more byte: `peers`, the Link peers heard (0 when Link is not running; a reply from an older firmware ends before it: read it as 0).
+- MODE (op 1) takes 0 OFF, 1 AUTO, 2 MAN, 5 JAM (the trial's Wi-Fi stack: AUTO that also joins an FM-1 access point FM1-xxxx with its default password when no saved network is heard, and keeps Link on; a station mode: not an access point) and, with `cap` 1, 3 AP AUTO (the access point starts at power-on and stays up) and 4 AP MAN (off at power-on; started by AP RUN or SAVE on the FM-1's page; the switch is never kept). AP RUN (op 8, `on`): start (1) or stop (0) in AP MAN; rc 2 MODE is not AP MAN (3 is no longer returned: the default password is always there). A password typed in AP MAN starts it.
+- AP KEY (op 5): MODE AP's password (and name): the access point stops, the key is derived (a slice a pass), kept and the access point starts again; the
+  state says how it goes. The password is 8..63 printable ASCII characters (32..126, one byte each, after the pack7 name); `slen` 0 is the automatic name,
+  else 1..32 bytes. The password goes to the FM-1 once, becomes a key there and is not kept; the firmware wipes it and the received frame's bytes, and never
+  echoes, logs or stores it. The FM-1 gives out the addresses 192.168.4.2 to 192.168.4.5.
+- AP CHANNEL (op 6): MODE AP's channel 1..13 (the access point restarts when it has rested); the reply carries the channel shown.
+- AP CLEAR (op 7): MODE AP's typed key cleared: the default password of the name again (the access point starts again on it).
+- `st` is the manager's state: 0 OFF, 1 RADIO (starting), 2 IDLE, 3 SCAN, 4 PMK (the key from the password), 5 AUTH, 6 ASSOC, 7 HS (the 4-way
+  handshake), 8 UP, 9 FAIL, 10 LINK (joined, before DHCP), 11 PRE. `fail` says why the last join failed (read with FAIL, 0 otherwise): 1 no radio
+  calibration, 2 no access point of that SSID heard, 3 authentication, 4 association, 5 handshake timed out, 6 wrong password (the key frames
+  failed their check, every attempt). `joined` is 1 + the saved slot joined (0 none); `ch` the channel; `ip` the IPv4 address once DHCP answered
+  (0 before, and unless `st` is 8).
+- The list: `slot` 0..3 (most recently used first; a slot is the index for FORGET, and the slots close up after one), `len` 0..32 SSID bytes, any
+  byte, as pack7. The last pair is the network in hand: the SSID being looked for or joined (`st` 3..7, 10, 11, 8; or a request waiting), `len` 0 none.
+- JOIN: the SSID is 1..32 bytes; the password is 8..63 printable ASCII characters (32..126, one byte each, so it is plain after the pack7 SSID),
+  or `plen` 0 to join a **saved** network of that SSID by its stored key. The manager scans, joins the strongest access point of that SSID and
+  saves the network (SSID and key) only after the 4-way handshake accepted the key. A client reads STATE about once a second while `st` is 1, 3..7,
+  10, or 8 with no address, and stops after UP, FAIL or IDLE. Do not resend a JOIN on a timeout: a second request restarts the scan.
+  The firmware copies the password once into a small buffer for `wc_request`, wipes it and the received frame's bytes, and never echoes, logs or stores it.
+- `rc`: 0 done / accepted, 1 arguments (a mode above 2, or above 3 with no MODE AP, a slot past 3, an SSID or password out of range, a channel out of 1..13, a short
+  frame, or ops 5..7 in a build with no MODE AP), 2 MODE OFF (op 5: MODE is not AP), 3 no password and not a saved network, 4 the radio is not up yet (right after MODE; ask again in a few seconds). FORGET of an empty slot is rc 0. LEAVE does nothing unless `st` is 8 or 10.
+- A bad op (above 7), or MODE / FORGET / JOIN / AP CHANNEL without their arguments: no reply.
 
 ## Undo (102 UNDO; INFO tag 5F)
 
@@ -635,32 +731,6 @@ the page shows the effective value with an M mark. `?mock=1&macros=1` turns the 
 | 66 CZ_BANK | 0 (get), slot 0..25 | 0, slot, rc (0 ok, 1 empty or no such slot), then (rc 0) 288 nibbles |
 | 66 CZ_BANK | 1 (put), slot, 288 nibbles; or 1, slot alone (erase) | 1, slot, rc: 0 written, 1 arguments, 2 flash, 3 the transport plays. Writes flash: allow 1 s |
 
-## SLOOP files (78, 90)
-
-`ed_sl24.c`, `storage/sl24/` (`SL24_EXPORT` / `SL24_EDIMPORT`, default off; no flash is written). The compatibility is SLOOP 2.7's. A firmware without them does not answer: the editor shows no button.
-
-**Export (78 SL24_GET):** request `part, offset (3 x 7 bit) [, flags]`; reply `part, rc (0 ok, 1 arguments, 2 busy: a restore or import holds the buffer), length (3 x 7 bit), CRC-32 of the part (5 x 7 bit), lost (2 x 7 bit), offset, pack7 bytes (<= 256; none at its end) [, lost2 (2 x 7 bit)]`.
-`flags` 1 asks for the second lost word, sent as the reply's last two bytes (any other flags value is rc 1; without the byte the reply ends after the data). **Part 0** (the only part; 1..3 give rc 1) is the working project as a SLOOP FUN5 (3840 bytes, its FNV-1a sum; `sl24_export.c`) which SLOOP 2.7 reads, with the step extras. The editor
-asks for part 0, offset 0 at connect to know the build has the export, and reads a part again when its CRC moved between chunks. The editor saves it as SLOOP 2.7's song file (`{format: "sloop-song", version: 1, name, firmware, date, order: null, objects: [{id: 0, ...}]}`, data base64, CRC-32): in SLOOP's editor, Song & sections > Load a song file.
-The drum lanes go onto SLOOP's 16 sounds by their instruments with 2.7's TUNE / DECAY packing; a synth step's `SF_CARRY` is 2.7's held notes; engines are numbered as SLOOP 2.5 / 2.6 do.
-
-**What was lost** (`SX24_*` in `sl24_export.c`; the page's `S24.LOST`, `S24.LOST2`). Word `lost` (bits 0..13): 0 an engine SLOOP has not (SLICE, ACID, CZ: a fallback), 1 an FM6 voice that is not one of SLOOP's factory patches F1..F8, 2 FX OFF, 3 ANALOG 2, 4 a drum kit past 2.4's 37, 5 locks 2.4 has not, 6 drum lanes beyond SLOOP's,
-7 the reverb type / COMP / LIMIT, (8 retired), 9 an amount of an effect in no slot, 10 COMP, 11 a drum sound's DIST, 12 the drum bus's DST CHO DLY REV, 13 motion (hold events). Word `lost2` (bit n = `SX24_*` bit 14 + n): 0 a step's chance, 1 an LFO RATE synced to the tempo, 2 the drum lanes' motion and locks,
-3 a drum lane's LFO, 4 an FX return below unity, 5 a POLY note's own end, 6 a FILTER before a DIST, 7 a further insert (FOLD .. ECHO, GATER), 8 a step condition, 9 a part's LFO 2 not written as 2.4's LFO, (10 unused), 11 an LFO DEST slot 2.4 has not, 12 the ACCENT lane, 13 the delay filter (not LP 12 dB RES 0).
-A request without the flags byte gets bit 13 of `lost` as "motion or chance".
-
-**Import (90 SL24_PUT):**
-
-| Request | Reply |
-| --- | --- |
-| 0 (begin), length (3 x 7 bit), CRC-32 (5 x 7 bit) | 0, rc |
-| 1 (data), offset (3 x 7 bit), CRC-32 of the chunk (5 x 7 bit), pack7 bytes (<= 256, in order) | 1, offset, rc |
-| 2 (commit) | 2, rc (0: imported, the working project now) |
-
-The object is a SLOOP 2.7 project of a song file (its object 0) or a backup file (object 0, or 2..5 = A..D): a FUN6 (3816 bytes) which the editor makes a FUN5 first (`sl26ToFun5`), or a FUN5 as it is; exactly 3840 bytes. The FM-1 puts SLOOP's 16 drum sounds on our lanes (`sl27_lanes_in`; more than 10 used: the 10 with the most hits, "DRUMS CUT"),
-turns 2.7's held notes into `SF_CARRY`, maps an arp mode we have not to the nearest ("ARP CUT"). The commit imports it as `PROJECT` > LOAD twice does with a 2.4 project in flash (`sl24_import_buf`): the working project; SAVE keeps it.
-rc: 0 ok, 1 arguments / no import begun, 2 CRC, 3 the transport plays, 6 a length other than 3840, 8 not a SLOOP project, 9 busy. A begun import holds the project buffer: 10 s without a command lets it go.
-
 ## FM6 and DX7 SysEx (no command)
 
 `engines/fm6/eng_fm6.c`, `fm6_sysex.c`. FM6 is the DX7 engine with Dexed's MODERN synthesis only. What the device **receives** on any MIDI channel n (it sends nothing and stores nothing in flash):
@@ -671,7 +741,7 @@ rc: 0 ok, 1 arguments / no import begun, 2 CRC, 3 the transport plays, 6 a lengt
 The engine's EDIT value 0 `VOICE` is an enum: `INIT VOICE` then the voice packs the build has (builder items `FM6_PK_KEYS`, `BASS`, `BELLS`, `PADS`, `80S`; 16 voices each); its range and names depend on the build. The editor has no FM6 panel and no bank: a DX7 voice of the library is only auditioned
 (it selects FM6 on the track if needed and sends the single voice).
 
-## Notes for the editor
+## Editor guidance
 
 - **Following the device.** `WATCH` (with bit 4) and `PING` about every 1 s; every change is pushed. Without a reply to `WATCH` the firmware is too old to follow: poll `DUMP` about every 300-500 ms while the page is visible.
 - **Step automation** (Sequence popup): a step of the track shown, written through `AUTO_GET` / `AUTO_SET` (and, with `ED_SEQ`, `STEPLANE`): CHANCE, COND, NUDGE and FILL are the step-only pseudo-parameter events and a default deletes the event; a lock is the step-only event of a `P_*` id or of a drum sound's value (`AUTO_LANE`).

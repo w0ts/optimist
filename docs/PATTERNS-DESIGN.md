@@ -85,7 +85,7 @@ with every track changed. MEM FULL appears when that reserve would not be left.
 The keys are in `docs/guide/shortcuts.md` ("Saving, patterns, scenes and the song"); the code is `op_layers.c`
 `pat_layer_key`. **LFO held** is the patterns layer, the same keys as SONG's PATTERNS row: white n launches (OCT- held:
 the next bar, OCT+ held: now), SAVE + n stores, HOME + n clears (the user, 2026-10-20: HOME clears, as elsewhere); black
-1..4 pick the track, 5 stops it, 9 duplicates, 10 shows the scenes; SEQ held + n stores scene n. Black 6..8 do nothing
+1..4 pick the track, 5 picks ALL TRACKS (the white keys, SAVE + n and HOME + n then act on every track), 6 stops it, 9 duplicates, 10 shows the scenes; SEQ held + n stores scene n; a black key 1..5 held + white n stores that track's (5: every track's) working pattern in slot n. A launch or stop over edits not stored asks "LOSE EDITS?" first (`pat_changed`, YES = SAVE). Black 7 and 8 do nothing
 (store, copy and clear became SAVE + n and HOME + n, the user 2026-10-13). A SONG scene card reads `SCENE B*` when its
 tracks no longer play its patterns as stored (`pat_changed`).
 

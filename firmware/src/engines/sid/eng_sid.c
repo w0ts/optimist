@@ -76,26 +76,38 @@ AINL uint32_t sid_w12(uint32_t mask, uint32_t ph0, uint32_t ph1, uint32_t pw, ui
     }
 }
 
+/* the DC level of the waveform (s[6]): its mean over a cycle, the voice plays around it, as the chip's external filter
+ * would take it out (a narrow pulse is mostly DC). Worked out in the voice's first render (sid_render: on the core that
+ * renders the part, not in the block's events on CPU0), from the values the note started with, kept in s[6] meanwhile:
+ * SID_DCQ (above any level: they are -2048..2047), the wave (EDIT 0 & 7), the pulse width, the model */
+#define SID_DCQ (1 << 30)
+static int32_t sid_dc(int32_t q)
+{
+    uint32_t mask = SID_WMASK[(uint32_t)q & 7u], pw = ((uint32_t)q >> 3) & 0xFFFu, k, sum = 0;
+    const uint8_t (*wt)[4096] = SID_WAVE[((uint32_t)q >> 15) & 1u];
+    for (k = 0; k < 64u; k++)
+        sum += sid_w12(mask, (k << 26) + (1u << 25), 0, pw, 0, 0, wt);
+    return (int32_t)(sum >> 6) - 2048;
+}
 static void sid_note_on(track_t *t, voice_t *v)
 {
     const int16_t *p = t->p;
-    uint32_t mask = SID_WMASK[(uint32_t)p[P_E0] & 7u], pw = (uint32_t)clamp(p[P_E1] * 32, 16, 4080), k, sum = 0;
+    uint32_t e0 = (uint32_t)p[P_E0] & 7u, pw = (uint32_t)clamp(p[P_E1] * 32, 16, 4080);
     v->ph[1] = 0;
     if (!v->s[2])
         v->s[2] = (int32_t)SID_LFSR_INIT;
     v->s[0] = v->s[1] = v->s[4] = v->s[5] = 0;        /* (a retrigger of a sounding voice keeps them: voice.c voice_start) */
-    if (mask != 8u) {                                 /* the waveform's mean over a cycle: the voice plays around it, as the chip's */
-        for (k = 0; k < 64u; k++)                     /* external filter would take it out (a narrow pulse is mostly DC) */
-            sum += sid_w12(mask, (k << 26) + (1u << 25), 0, pw, 0, 0, SID_WAVE[p[P_E7] != 0]);
-        v->s[6] = (int32_t)(sum >> 6) - 2048;
-    } else {
+    if (SID_WMASK[e0] != 8u)                          /* (the noise: no DC level) */
+        v->s[6] = SID_DCQ | (int32_t)(e0 | pw << 3 | (uint32_t)(p[P_E7] != 0) << 15);
+    else
         v->s[6] = 0;
-    }
 }
 
-static void sid_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
+static void sid_render(track_t *t, voice_t *v, int32_t *__restrict out, uint32_t n, const vmod_t *m)
 {
     const int16_t *p = t->p;
+    if (v->s[6] >= SID_DCQ)
+        v->s[6] = sid_dc(v->s[6]);                    /* (a new note: its DC level, sid_note_on) */
     uint32_t mask = SID_WMASK[(uint32_t)p[P_E0] & 7u], md = (uint32_t)p[P_E2] & 3u, fm = (uint32_t)p[P_E4] & 7u, i;
     uint32_t sync = md & 1u, ring = md >> 1, model = p[P_E7] != 0;
     const uint8_t (*wt)[4096] = SID_WAVE[model];
@@ -162,7 +174,7 @@ static void sid_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const v
         }
         y = clamp(y, -20000, 20000);
         ext += (((y << 8) - ext) * SID_EXT_K) >> 16;  /* the external high-pass: the chip's output stage takes the DC out */
-        out[i] += mulq15(mulq15(soft_knee((y - (ext >> 8)) << 3, 32000), amp_at(m, i)), VOICE_FS);
+        out[i] += VOICE_OUT(soft_knee((y - (ext >> 8)) << 3, 32000), amp_at(m, i), 0);
     }
     v->ph[0] = ph0;
     v->ph[1] = ph1;
@@ -190,7 +202,7 @@ static const preset_t SID_PRESETS[] = {
     {"PWM STRINGS", {2, 64, 0, 0, 1, 36, 20, 0}, {70, 90, 110, 85}, 10, 0, FX(0, 55, 20, 60)},
     {"COMBO BITE", {6, 50, 0, 0, 1, 33, 90, 0}, {0, 62, 50, 30}, 35, 1, FX(20, 0, 20, 15)},
     /* the two chips: one patch each. The 6581's filter is lazy and rough, its resonance sings; the 8580's is clean */
-    {"6581 GROWL", {1, 0, 0, 0, 1, 10, 110, 0}, {0, 55, 40, 25}, 70, 1, FX(25, 0, 10, 10)},
+    {"6581 GROWL", {1, 0, 0, 0, 1, 10, 110, 0}, {0, 55, 40, 25}, 63, 1, FX(25, 0, 10, 10)},
     {"8580 ACID", {1, 0, 0, 0, 1, 12, 110, 1}, {0, 55, 40, 25}, 50, 1, FX(25, 0, 10, 10)},
     /* the combined waveforms are samples of real chips, gated by the pulse: the 6581's are rough, the 8580's smooth */
     {"6581 PS REED", {6, 70, 0, 0, 1, 60, 40, 0}, {10, 70, 90, 50}, 20, 0, FX(0, 15, 25, 30)},
@@ -227,7 +239,7 @@ static const engine_t ENG_SID = {
         PU("RES", F_PCT, 0, 127, 40, 0),
         PN("MODEL", F_ENUM, 0, 1, 0, N_SID_MODEL),
     },
-    .presets = SID_PRESETS,
+    .presets = PRESETS_PTR(SID_PRESETS),
     .npresets = sizeof(SID_PRESETS) / sizeof(SID_PRESETS[0]),
     .note_on = sid_note_on,
     .render = sid_render,

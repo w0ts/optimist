@@ -4,6 +4,8 @@
  *               LFO DEST, on the synth tracks only
  *   the cards   each maps to its P_L2* value; RATE shows as LFO's does (the free bar from 0, a synced division as ten
  *               cells), SHIFT held + a knob puts the value back to its default
+ *   SLEW        (issue 129) both WAVE cards read SLEW; the picture (opt-lfo2-slew, opt-lfo-slew) differs from S&H's and
+ *               glides through S&H's steps
  *   the bars    AMT's second bar is the destination's actual value, equal to what the render used (ANALOG 2's cutoff)
  * Included after ui_optimist_inslots.h (ins_row). */
 static void lfo2ui_cell(uint32_t r, uint32_t k, cell_t *c)
@@ -60,8 +62,25 @@ static void lfo2ui_tests(void)
     check(r < SCR->rows() && rd < SCR->rows(), "LFO2 built in: the LFO 2 and LFO2 DEST rows");
     if (r >= SCR->rows() || rd >= SCR->rows())
         return;
-    check(r == rl + 1u && rd == r + 1u && snd_page(r)->fam == FAM_LFO && snd_page(rd)->fam == FAM_LFO,
-          "... right after LFO DEST, in the LFO family: LFO, LFO DEST, LFO 2, LFO2 DEST");
+    check(r == rl + 1u && rd == r + 2u && snd_page(r)->fam == FAM_LFO && snd_page(rd)->fam == FAM_LFO &&
+              !strcmp(snd_page(r + 1u)->title, "LFO2 PHS") && !strcmp(snd_page(rl - 1u)->title, "LFO PHS") &&
+              !strcmp(snd_page(rl - 2u)->title, "LFO"),
+          "... right after LFO DEST, in the LFO family: LFO, LFO PHS, LFO DEST, LFO 2, LFO2 PHS, LFO2 DEST");
+    ok = 1;
+    for (k = 0; k < 4u; k++) {                          /* LFO2 PHS: PHS FADE, two empty cards; LFO's the same (issue 129) */
+        static const uint8_t ID[2][2] = {{P_L2PHS, P_L2FADE}, {P_LPHASE, P_LFADE}};
+        uint32_t j;
+        for (j = 0; j < 2u; j++) {
+            lfo2ui_cell(j ? rl - 1u : r + 1u, k, &c);
+            ok &= k < 2u ? c.vp == &TSEL->p[ID[j][k]] && c.d == &TP[ID[j][k]] : !c.d;
+        }
+        lfo2ui_cell(rl - 2u, k, &c);
+        {
+            static const uint8_t L1[4] = {P_LRATE, P_LWAVE, P_L1TRIG, P_L1POL};
+            ok &= c.vp == &TSEL->p[L1[k]] && c.d == &TP[L1[k]];
+        }
+    }
+    check(ok, "LFO and LFO 2 the same: RATE WAVE TRIG POL, then PHS FADE (two cards)");
     ok = 1;
     for (k = 0; k < 4u; k++) {                          /* LFO 2: RATE WAVE TRIG POL */
         static const uint8_t ID[4] = {P_L2RATE, P_L2WAVE, P_L2TRIG, P_L2POL};
@@ -87,19 +106,19 @@ static void lfo2ui_tests(void)
     TSEL->p[P_L2RATE] = 64;
     lfo2ui_cell(r, 0, &c);
     check(c.gk == GK_BAR && c.gv == 64 && c.gmax == 127, "LFO 2 RATE 64: the free bar at 64 of 0 .. 127");
-    TSEL->p[P_L2RATE] = -1;
+    TSEL->p[P_L2RATE] = -25;
     lfo2ui_cell(r, 0, &c);
-    check(c.gk == GK_POS && c.gmax == LSYNC_N - 1 && c.gv == 0 && !strcmp(c.val, "4BAR"), "LFO 2 RATE -1: 22 places, the tick at the first, 4BAR");
-    TSEL->p[P_L2RATE] = -LSYNC_N;
+    check(c.gk == GK_POS && c.gmax == LSYNC_N - 1 && c.gv == 0 && !strcmp(c.val, "16BAR"), "LFO 2 RATE -25: 25 places, the tick at the first, 16BAR");
+    TSEL->p[P_L2RATE] = -DUR_N;
     lfo2ui_cell(r, 0, &c);
     check(c.gk == GK_POS && c.gv == LSYNC_N - 1 && !strcmp(c.val, "1/64"), "LFO 2 RATE -22: the tick at the last place, 1/64");
     ok = 1;
     for (k = 1; k <= (uint32_t)LSYNC_N; k++) {
         TSEL->p[P_L2RATE] = (int16_t)-(int32_t)k;
         lfo2ui_cell(r, 0, &c);
-        ok &= c.gk == GK_POS && c.gv == (int16_t)(k - 1u);
+        ok &= c.gk == GK_POS && c.gv == (int16_t)(k <= (uint32_t)DUR_N ? k + 2u : (uint32_t)LSYNC_N - k);
     }
-    check(ok, "LFO 2 RATE -1 .. -22: the tick walks 0 .. 21");
+    check(ok, "LFO 2 RATE -1 .. -25: the tick walks by length (16BAR first, 1/64 last)");
     ui.force = 1;
     frame();
     ppm("opt-lfo2-sync");
@@ -110,7 +129,40 @@ static void lfo2ui_tests(void)
     turn(EN_K1, -40);
     check(TSEL->p[P_L2RATE] == 0, "KNOB 1 turned down fast: LFO 2's RATE stops at 0 (as LFO's)");
     turn(EN_K1, -1);
-    check(TSEL->p[P_L2RATE] == -1, "... one more detent: the first division");
+    check(TSEL->p[P_L2RATE] == -25, "... one more detent: the first division, the longest (16BAR)");
+    turn(EN_K1, -1);
+    turn(EN_K1, -1);
+    turn(EN_K1, -1);
+    check(TSEL->p[P_L2RATE] == -1, "... three more: 8BAR 6BAR 4BAR");
+    {   /* PHS (issue 129): a detent 45 degrees on the grid; LFO held + the knob (or PRESETS) by one */
+        TSEL->p[P_L2PHS] = 0;
+        ui.row[SCR_SOUND] = (uint8_t)(r + 1u);
+        frame();
+        turn(EN_K1, 2);
+        ok = TSEL->p[P_L2PHS] == 32;
+        lfo2ui_cell(r + 1u, 0, &c);
+        ok &= !strcmp(c.val, "90") && !strcmp(c.unit ? c.unit : "", "deg");
+        TSEL->p[P_L2PHS] = 40;
+        turn(EN_K1, 1);
+        ok &= TSEL->p[P_L2PHS] == 48;
+        TSEL->p[P_L2PHS] = 40;
+        turn(EN_K1, -1);
+        ok &= TSEL->p[P_L2PHS] == 32;
+        TSEL->p[P_L2PHS] = 112;
+        turn(EN_K1, 3);
+        ok &= TSEL->p[P_L2PHS] == 112;                  /* (315: the last, no wrap) */
+        turn(EN_K1, -40);
+        ok &= TSEL->p[P_L2PHS] == 0;
+        press(B_LFO);
+        turn(EN_K1, 3);
+        release(B_LFO);
+        ok &= TSEL->p[P_L2PHS] == 3;
+        check(ok, "PHS: a detent 45 degrees (32 = 90 deg; off the grid: to the next grid value; 315 the last), LFO held + "
+                  "the knob by one");
+        TSEL->p[P_L2PHS] = 0;
+        ui.row[SCR_SOUND] = (uint8_t)r;
+        frame();
+    }
     /* SHIFT held + a knob: the default */
     TSEL->p[P_L2RATE] = -4, TSEL->p[P_L2WAVE] = 3, TSEL->p[P_L2TRIG] = 1, TSEL->p[P_L2POL] = 1;
     ui.row[SCR_SOUND] = (uint8_t)r;
@@ -147,8 +199,43 @@ static void lfo2ui_tests(void)
     ui.force = 1;
     frames(2);
     ppm("opt-lfo2-dest");
-    check(snd_graph_page(rd) == snd_page(r) && snd_graph_page(rl) != snd_page(r) && snd_graph_page(rl)->graph == GR_LFO,
+    check(snd_graph_page(rd)->graph == GR_LFO2 && snd_graph_page(rl) != snd_page(r) && snd_graph_page(rl)->graph == GR_LFO,
           "the graph: LFO2 DEST shows LFO 2's wave, LFO DEST still LFO's");
+    {   /* SLEW (issue 129): its name on both LFOs' WAVE card; its picture a glide through the S&H picture's steps */
+        static uint16_t shot[240 * 240];
+        uint32_t rw = ins_row("LFO");
+        int32_t x, v, pv = 0, jump = 0, sjump = 0, ps = 0;
+        TSEL->p[P_L2DA] = LT_OFF, TSEL->p[P_L2AA] = 0, TSEL->p[P_L2POL] = 0, TSEL->p[P_L2WAVE] = LFO_WAVE_SLEW;
+        lfo2ui_cell(r, 1, &c);
+        check(!strcmp(c.label, "WAVE") && !strcmp(c.val, "SLEW"), "SLEW: LFO 2's WAVE card reads SLEW");
+        frames(2);
+        ppm("opt-lfo2-slew");
+        memcpy(shot, screen, sizeof shot);
+        TSEL->p[P_L2WAVE] = LFO_WAVE_SH;
+        ui.force = 1;
+        frames(2);
+        check(memcmp(shot, screen, sizeof shot) != 0, "SLEW: LFO 2's picture is not S&H's");
+        TSEL->p[P_LWAVE] = LFO_WAVE_SLEW;
+        check(rw < SCR->rows(), "SLEW: the LFO row");
+        if (rw < SCR->rows()) {
+            lfo2ui_cell(rw, 1, &c);
+            check(!strcmp(c.label, "WAVE") && !strcmp(c.val, "SLEW") && c.vp == &TSEL->p[P_LWAVE], "SLEW: LFO's WAVE card reads SLEW");
+            frames(2);
+            ppm("opt-lfo-slew");
+        }
+        TSEL->p[P_LWAVE] = 0, TSEL->p[P_L2WAVE] = 1;
+        for (x = 0, v = 1; x < 240; x++) {              /* the picture's values (op_graph.c graph_lfo_v) */
+            int32_t a = graph_lfo_v(LFO_WAVE_SLEW, 0, x), b = graph_lfo_v(LFO_WAVE_SH, 0, x);
+            if (x) {
+                jump = a - pv > jump ? a - pv : pv - a > jump ? pv - a : jump;
+                sjump = b - ps > sjump ? b - ps : ps - b > sjump ? ps - b : sjump;
+            }
+            v &= x % 20 || a == b;
+            pv = a, ps = b;
+        }
+        check(v && jump <= 65535 * 3 / 40 + 3 && sjump > 2 * jump,
+              "SLEW: the picture glides (no column further than the steepest glide from the last), meeting each S&H step at its start");
+    }
     /* the drum track has no LFO 2 */
     song.sel = TRK_DRUM;
 #if KLFO_ON

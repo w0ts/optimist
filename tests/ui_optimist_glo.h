@@ -59,12 +59,15 @@ static int glo_sections(uint32_t scr, const char *const *want, uint32_t nw)   /*
 }
 static void glo_list_tests(void)
 {
-    static const char *const GS[] = {"TEMPO", "REC", "MIDI", "CHANNELS"};
+    static const char *const GS[] = {"TEMPO", "REC", "FILTER", "MIDI", "CHANNELS"};   /* (FILTER: FILT RESO, FELUCCA_TRK_FILT builds; skipped else) */
     static const char *const SS[] = {"INFO", "INTERNALS",      /* (INFO split in two, 2026-10-15) */
 #if FELUCCA_USB_AUDIO
                                      "USB STATS",         /* (the USB audio counters) */
 #endif
-                                     "GENERAL", "USB", "KEYS", "BT MIDI", "BT AUDIO", "DEVICES", "USB AUDIO", "CALIBRATE", "ABOUT", "CREDITS"};
+#if OP_DTIMES
+                                     "CPU TIMES",        /* (the dual render's times: DUAL_LOAD builds) */
+#endif
+                                     "GENERAL", "USB", "METERS", "BT MIDI", "BT AUDIO", "WI-FI", "DEVICES", "USB AUDIO", "CALIBRATE", "ABOUT", "CREDITS"};
     cell_t want[GL_MAXL], c;
     char sec[GL_MAXL][12], nm[12];
     uint32_t s, i, n, ok = 1;
@@ -91,8 +94,8 @@ static void glo_list_tests(void)
     i = SCREENS[SCR_GLOBAL].rows() - 1u;
     SCREENS[SCR_GLOBAL].cell(i, gl_kn(SCR_GLOBAL, i), &c);
     check(ok && !strcmp(c.label, "DRUMS"), "GLOBAL's lines: BPM NUDGE SWING first (Tempo), DRUMS last (Channels)");
-    check(glo_sections(SCR_GLOBAL, GS, 4) && glo_sections(SCR_SYSTEM, SS, sizeof SS / sizeof SS[0]) && glo_find(SCR_GLOBAL, "REC 2") == SCREENS[SCR_GLOBAL].rows(),
-          "the sections in order: Tempo Rec (REC 2's QUANT is Rec's) MIDI (CLK OUT on it) Channels; Info General USB Keys Bluetooth Devices USB-audio Calibrate About Credits");
+    check(glo_sections(SCR_GLOBAL, GS, 5) && glo_sections(SCR_SYSTEM, SS, sizeof SS / sizeof SS[0]) && glo_find(SCR_GLOBAL, "REC 2") == SCREENS[SCR_GLOBAL].rows(),
+          "the sections in order: Tempo Rec (REC 2's QUANT is Rec's) Filter (FILT RESO) MIDI (CLK OUT on it) Channels; Info General USB Keys Bluetooth Devices USB-audio Calibrate About Credits");
     {   /* SYSTEM's first page is INFO: one line (the page is drawn whole), its read-outs the page's own (sys_info_cell) */
         cell_t c1, c2;
         char nm1[12];
@@ -104,8 +107,8 @@ static void glo_list_tests(void)
         check(!strcmp(nm, "INFO") && c.kind == CK_RO && !strcmp(c.label, "INFO") && strcmp(nm1, "INFO") && gl_end(1, 0) == 1u &&
                   c1.kind == CK_RO && c2.kind == CK_RO &&
                   (FELUCCA_SYS_DEBUG ? !strcmp(c1.label, "CLOCK") && !strcmp(c2.label, DUAL_LOAD ? "CPU0" : "LOAD")
-                                     : DUAL_LOAD ? !strcmp(c1.label, "CPU0") && !strcmp(c2.label, "CPU1") : !strcmp(c1.label, "CPU LOAD") && !strcmp(c2.label, "UNDERRUNS")),
-              "SYSTEM's first page is INFO, one line: the clock and the load (SYS_DEBUG off: the load, the underruns; DUAL: CPU0, CPU1) are its own, the next section starts page 2");
+                                     : DUAL_LOAD ? !strcmp(c1.label, "CPU0") && !strcmp(c2.label, "CPU1") : !strcmp(c1.label, "CPU LOAD") && !strcmp(c2.label, "RAM")),
+              "SYSTEM's first page is INFO, one line: the clock and the load (SYS_DEBUG off: the load, RAM; DUAL: CPU0, CPU1) are its own, the next section starts page 2");
     }
     for (s = 0, ok = 1; s < 2u; s++)                    /* nothing in GLOBAL or SYSTEM is an empty line */
         for (i = 0; i < SCREENS[s ? SCR_SYSTEM : SCR_GLOBAL].rows(); i++) {
@@ -113,6 +116,44 @@ static void glo_list_tests(void)
             ok &= c.kind != CK_NONE && c.label != 0;
         }
     check(ok, "every line has a name and a value (no empty line)");
+#if FELUCCA_TFLT_RESO && FELUCCA_TRK_FILT
+    {   /* FILT RESO is the project's (2026-10-29): GLOBAL's FILTER section, not SYSTEM's General; General keeps its three and USB SERIAL joins */
+        uint32_t f = glo_find(SCR_GLOBAL, "FILTER"), m = glo_find(SCR_GLOBAL, "MIDI"), g = glo_find(SCR_SYSTEM, "GENERAL");
+        ok = f < SCREENS[SCR_GLOBAL].rows() && f < m;
+        if (ok) {
+            SCREENS[SCR_GLOBAL].cell(f, gl_kn(SCR_GLOBAL, f), &c);
+            ok = c.label && !strcmp(c.label, "FILT RESO") && gl_end(0, f) == f + 1u && gl_first(0, f) == f;   /* (a page of its own) */
+        }
+        for (i = 0; i < SCREENS[SCR_SYSTEM].rows(); i++) {
+            SCREENS[SCR_SYSTEM].cell(i, gl_kn(SCR_SYSTEM, i), &c);
+            ok &= !(c.label && !strcmp(c.label, "FILT RESO"));
+        }
+        check(ok, "FILT RESO: a line of GLOBAL's FILTER section (its own page, before MIDI), none in SYSTEM");
+#if FELUCCA_CDC && !DBG_STATS
+        ok = g + 3u < SCREENS[SCR_SYSTEM].rows() && gl_end(1, g) - gl_first(1, g) == 4u;
+        SCREENS[SCR_SYSTEM].cell(g + 3u, gl_kn(SCR_SYSTEM, g + 3u), &c);
+        check(ok && c.label && !strcmp(c.label, "SERIAL"), "SYSTEM > General: KNOB COLORS, SPK LOWCUT, HPHN BASS and USB SERIAL on one page (GL_JOIN: FILT RESO gone)");
+#endif
+    }
+#endif
+#if DBG_STATS
+    {   /* DEBUG STATS (the release, PLAT_STATS_APP) is General's last line (2026-10-29), no page of its own; General is full, so USB SERIAL has its own */
+        static const char *const GL[4] = {"KNOB COLORS", "SPK LOWCUT", "HPHN BASS", "DEBUG STATS"};
+        uint32_t g = glo_find(SCR_SYSTEM, "GENERAL");
+        ok = g + 3u < SCREENS[SCR_SYSTEM].rows() && gl_end(1, g) - gl_first(1, g) == 4u;
+        for (i = 0; ok && i < 4u; i++) {
+            SCREENS[SCR_SYSTEM].cell(g + i, gl_kn(SCR_SYSTEM, g + i), &c);
+            ok &= c.label && !strcmp(c.label, GL[i]);
+        }
+        check(ok, "SYSTEM > General (DEBUG STATS built): KNOB COLORS, SPK LOWCUT, HPHN BASS, DEBUG STATS on one page");
+        for (i = 0, ok = 1; i < SCREENS[SCR_SYSTEM].rows(); i++) {
+            char nm[24];
+            SCREENS[SCR_SYSTEM].name(i, nm);
+            ok &= strcmp(nm, "Debug") && strcmp(nm, "DEBUG");
+        }
+        check(ok, "SYSTEM has no DEBUG page (DEBUG STATS is on General's)");
+    }
+#endif
 }
 static void glo_draw_tests(void)
 {
@@ -314,7 +355,20 @@ static void glo_tests(void)
     {   /* from another screen, and GLO held */
         tap(B_ENV);
         tap(B_GLO);
-        check(ui.scr == SCR_GLOBAL, "GLO tapped on SOUND: GLOBAL");
+        check(ui.scr == SCR_GLOBAL, "GLO tapped on SOUND: GLOBAL (the one open last: GLOBAL at power-on)");
+        tap(B_GLO);
+        check(ui.scr == SCR_SYSTEM, "... GLO on GLOBAL: SYSTEM");
+        tap(B_HOME);
+        tap(B_GLO);
+        check(ui.scr == SCR_SYSTEM, "SYSTEM, then HOME, then GLO: SYSTEM again (the one open last, 2026-10-29)");
+        tap(B_ENV);
+        tap(B_GLO);
+        check(ui.scr == SCR_SYSTEM, "... and from SOUND: SYSTEM still");
+        tap(B_GLO);
+        check(ui.scr == SCR_GLOBAL, "... GLO on SYSTEM: GLOBAL");
+        tap(B_HOME);
+        tap(B_GLO);
+        check(ui.scr == SCR_GLOBAL, "GLOBAL, then HOME, then GLO: GLOBAL again");
         tap(B_HOME);
         press(B_GLO);
         frames(HOLD_FRAMES);
@@ -327,7 +381,7 @@ static void glo_tests(void)
     {   /* the mixer's MASTER row: GLO opens GLOBAL there too */
         turn(EN_ALGO, -1);
         tap(B_GLO);
-        check(ui.scr == SCR_GLOBAL, "GLO tapped on the mixer's MASTER: GLOBAL");
+        check(ui.scr == SCR_GLOBAL, "GLO tapped on the mixer's MASTER: GLOBAL (the one open last)");
         tap(B_HOME);
     }
     fuzz(2000, 9090);

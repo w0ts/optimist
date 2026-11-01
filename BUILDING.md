@@ -29,7 +29,7 @@ python tools/optimist.py emu        # pick a firmware (build/ or firmwares/) and
 | --- | --- |
 | `setup [--check] [--yes] [--no-emu]` | check the prerequisites; fetch the builder's venv (Textual, Pillow), the three SDK files and the toolchain (Linux x86-64) or its Docker image (elsewhere). `--check` fetches nothing, `--yes` does not ask |
 | `builder [--profile P \| --config F]` | the interactive builder menu (docs/BUILDER.md) |
-| `build [--profile P \| --config F \| --defaults] [--set KEY=V] [--release X.Y] [--measure] [--summary F]` | build without the menu. Default profile: `synths_USBaudio_BTaudio_BTmidi` |
+| `build [--profile P \| --config F \| --defaults] [--set KEY=V] [--release X.Y] [--measure] [--summary F] [--classic]` | build without the menu (the release on fm1-base; `--classic`: Optimist's own firmware, any command). Default profile: `synths_USBaudio_BTaudio_BTmidi` |
 | `package [... the same ...] [--out DIR]` | build, then copy `optimist-<version>-<profile>.fwsc` and its `-ui.zip` to `DIR` (default `firmwares/`) |
 | `flash [PACKAGE.fwsc \| --no-build] [--profile P \| --config F] [--port NAME] [--yes]` | install a build on an FM-1 over USB-MIDI (below, "Install") |
 | `config ...` | the builder without the menu (`--list`, `--budget`, `--fit`, `--write`, `--profiles`, `--publish`, `--share`, `--delete`; `tools/builder/configure.py --help`) |
@@ -48,9 +48,61 @@ files, sizes, the configuration's hash). The same profile and configuration give
 toolchain runs (see "Reproducibility").
 
 On macOS and Linux `make` has the same shortcuts (`make help` lists them): `make builder`, `build`, `package`, `flash`,
-`test`, `setup`, `profiles`, `publish` / `share` / `delete PROFILE=name`, `web` (`PORT=`, `SIM=1`), `emu` (`FW=`,
+`test`, `classic`, `setup`, `profiles`, `publish` / `share` / `delete PROFILE=name`, `web` (`PORT=`, `SIM=1`), `emu` (`FW=`,
 `CPU=`, `FRESH=1`), `emu-list`, `emu-update`, `costs`, `costs-all`, `gate`, `emu-check`; also `tools/menuconfig`,
 `tools/emu.sh` and `./build.sh`.
+
+## The release build (Optimist on fm1-base)
+
+The firmware `make`, `make package`, `optimist.py build|package|builder|flash` and the web builder make is the next
+release: Optimist as an app of fm1-base (the FM-1 platform: its build, its update loader, its USB, its second core), in
+the submodule `fm1base/` (the fork `git@github.com:w0ts/fm1-base.git`; the app is `fm1base/optimist/`, its bsp the nested
+submodule `fm1base/bsp`). Optimist's own firmware, what `main` still ships, stays available as `--classic`.
+
+```
+git submodule update --init --recursive      # once, and after a pull that moves fm1base
+make package [PROFILE=name]                  # the release: firmwares/optimist-<version>-<profile>.fwsc (+ -ui.zip)
+make classic [PROFILE=name]                  # Optimist's own firmware (build/), as `make build` was
+make test                                    # Optimist's tests, then the release's (below)
+make flash PKG=firmwares/optimist-....fwsc   # the user installs it
+```
+
+**The fork must be reachable.** It is not public yet, so the submodule fetch needs access to `w0ts/fm1-base` and to the
+bsp it points at (a commit of the fork's `felucca-bsp`); until the fork and its bsp commits are pushed, a clone cannot
+fetch them and `git submodule update` fails (a checkout that has them locally works). Without the submodule the build says
+so (`fm1base/ is empty: run git submodule update --init --recursive`); `--classic` needs none of it.
+
+How a build goes: the builder's chosen profile or `.config` (`--profile`, `--config`, `--set`: the same items and
+profiles) is written as `build/builder.config`, and `tools/fm1base.py` runs `fm1base/tools/build.py optimist` with
+`OPTIMIST` = this checkout and `OPT_CONFIG` = that file (the app's `gen_optimist.py` makes the configuration header and the
+generated tables from it through the builder's own `configure.py`; Bluetooth, Bluetooth audio and CACHE_RAM are the
+configuration's own, on fm1-base's: `fm1.toml`'s `ble`, `bt_audio` and `cache_ram_ways` follow it). An SD card mode profile (`LAYOUT=1`) builds with `FM1B_APP_END=0xCE000`, fm1-base's bigger app slot,
+by design with fewer flash projects. The toolchain is `JIELI_TOOLCHAIN` (default `~/.jieli/toolchain`), the SDK files
+`AC79_SDK` (`make sdk`). The package lands where Optimist's does (`build/felucca.fwsc`, `build/optimist-<version>.fwsc`,
+`firmwares/` for `package`); `build/sizes.json` comes from fm1-base's `build/sizes.json` (flash against the same 581,564 B
+slot, the packed SRAM). One fm1-base build runs at a time (its build directory is the app's own, `fm1base/optimist/build`).
+
+The builder's size model: `tools/builder/costs-fm1base.json`, measured through this build (`make costs-all`, `JOBS=N` builds
+N at once, each in a copy of the app directory, `fm1base/optimist-<n>`, removed afterwards; on the farm, never `ac79-min`).
+fm1-base has no measurement mode, so a measurement build uses a linker wrapper (`tools/fm1base_ld.py`: room for any
+configuration, native toolchain only) and its `sizes.json` is read although the build then reports it over the slot. The
+release builds not every configuration (not the defaults: `ED_LIVE` is not wired, the X0X unit wants a kit), so the deltas are
+measured from the defaults with `RELEASE_BASE` (`measure_costs.py`); what the release does not build at all is listed in the
+file's `"unbuildable"`. Each kind (classic, release) measures only what it can build: a value the registry marks in `registry.NOT_BUILT` for that kind (with the reason: `ENG_PHYS` "on, code in RAM" in both) is not offered by the menu or accepted by `core.validate`, and is written as `"not in this build: <reason> [link: <the link error>]"` in that kind's costs file (its delta 0; the run still builds it once to show the error, and reports a marked value that links). A configuration that should build and does not fails the run at the end, loudly (`measure_costs.py` prints each with its error, exit status 1). The file's `"limits"` are the release's slots (the app slot of `sizes.json`, the SD card
+mode's bigger one for `LAYOUT 1`, the SRAM of `app.ld`), which the fit checks use (`core.fits`) instead of the classic's. Without
+the file the budget uses `costs.json` (Optimist's classic measurements) and says so; a real build is exact and remembered in
+`build/exact-sizes-fm1base.json`. The web builder's data (`web/builder/data/costs.json`) is whichever of the two the CLI reads.
+
+`make test` runs Optimist's own tests (they build and test the classic firmware, as ever), then the release's:
+`fm1base/optimist/run.sh` (the app on fm1-base's host simulator, with Optimist's source defaults and the dev profile, against
+Optimist's own simulator) and `fm1base/tests/run_tests.sh`, with the builder venv's Python first on `PATH`.
+
+`flash`: Optimist's update tool when the FM-1 runs Optimist; otherwise (none answers) fm1-base's
+`fm1base/tools/fm1_install.py PACKAGE --port FM1-` (`--port Optimist` for an FM-1 on firmware from before 2026-10-29). It shows both identities and asks; never run it unattended.
+
+Cloud builds (`.github/workflows/cloud-build.yml`) build the release: the checkout fetches the submodules, which needs a
+repository secret `FM1BASE_TOKEN` (read access to the fork and its bsp) while the fork is private, and pushed commits for the
+gitlinks.
 
 ## Prerequisites
 
@@ -134,6 +186,39 @@ version 3; `clang`: LLVM 4.0.1) and JieLi publishes no source for its pi32v2 cha
 pass the toolchain on: this repository never contains it, the Docker image is built locally and never pushed, and CI
 downloads it from JieLi's public server on each runner (kept only in the runner's cache), as any user does. If JieLi
 publishes terms, they decide. The AC79 SDK is Apache-2.0; its three files are fetched, not stored here.
+
+### The compiler
+
+The builder's item **COMPILER** (bit 442; the console builder lists it, the web builder holds JieLi for now) picks the C
+compiler for both builds, Optimist's own (`tools/build.py`) and the release (`tools/fm1base.py`):
+
+- **pi32v2-llvm** (default): Julius Vitkauskas's LLVM with a pi32v2 target
+  ([pi32v2-llvm](https://github.com/jvitkauskas/pi32v2-llvm), [pi32v2-isa](https://github.com/jvitkauskas/pi32v2-isa)),
+  used as his *drop-in* for JieLi's toolchain: a directory with the same layout and tool names (`pi32v2/bin/clang`, `ld`,
+  `common/bin/objdump`, ...) whose wrapper needs Python 3.11. Measured 2026-10-29: the same firmware 14 KB (Optimist's
+  own, default profile) to 30 KB (a full release configuration) smaller, the audio's CPU the same; played on an FM-1.
+- **JieLi's clang 4** (`COMPILER=0`): the toolchain above.
+
+`setup` downloads the drop-in into `build/toolchains/pi32v2-llvm-dropin-<version>` of the repository (git-ignored; nothing goes into your home; `PI32V2_LLVM_TOOLCHAIN=<dir>` for another). In a git worktree it is the main checkout's `build/toolchains` (one copy for all), in a plain copy of a tree (the farm's tar copies) `OPTIMIST_TOOLCHAINS=<dir>`, else the nearest `build/toolchains` above the tree (`tools/repo_root.py`; M-Flasher's `build/m-flasher` follows the same rule). An older copy in `~/.jieli/pi32v2-llvm` is still found, with a note to move it: the archive
+`pi32v2-llvm-dropin-<llvm>-<isa>.tar.xz`, a release asset of this repository, its SHA-256 pinned in `tools/toolchain.py`
+(`LLVM_URL`, `LLVM_SHA256`). On Linux x86-64 it runs natively; elsewhere each tool runs in the toolchain image with the
+drop-in mounted at `/opt/jieli` (the image's Python; plain `debian:bookworm-slim` has none), the release build's container
+too (`JIELI_DOCKER_IMAGE`). WSL: not yet (use JieLi there).
+
+The archive is made from pinned commits on Linux x86-64 (about an hour on 8 cores):
+
+```
+git clone --branch pi32v2 https://github.com/jvitkauskas/pi32v2-llvm LLVM && git -C LLVM checkout 4f631b31b
+git clone https://github.com/jvitkauskas/pi32v2-isa ISA && git -C ISA checkout e575321
+sh ISA/tools/llvm/package.sh LLVM build prefix/pi32v2-llvm            # clang, ld.lld, the tools; build/runtime
+sh ISA/tools/dropin/make_dropin.sh --copy prefix/pi32v2-llvm/bin build/runtime pi32v2-llvm-dropin-4f631b31b-e575321
+```
+
+then its licences (`LLVM/LICENSE.TXT`, `ISA/LICENSE`, `ISA/LICENSES/*`) into `licenses/`, a `VERSION` file with the two
+commits, and `tar -cJf` of the directory. Licences: Apache-2.0 WITH LLVM-exception (LLVM), MIT-0 (pi32v2-isa's tools), so
+unlike JieLi's it may be passed on. The build's checks read the disassembly with `-mcpu=r3` (`tools/build.py`
+`OBJDUMP_CPU`: without it the FPU's instructions are not decoded, with either compiler), and the ROM check flags a
+constant only where it is used as an address (`tools/romref.py`).
 
 ## Windows
 
@@ -245,8 +330,10 @@ not set; `tools/optimist.py build` strips `FELUCCA_*` from it, so these are for 
 | `FELUCCA_OTA` | 1 | the update entry and USB rescue (needs `FELUCCA_FLASH`); not a builder item |
 | `FELUCCA_USB_AUDIO` / `FELUCCA_CDC` | 1 / `!USB_AUDIO` | USB audio and the serial console share endpoints (both on is a build error); the builder's `USB_CONSOLE` and `USB_AUDIO` set them |
 | `FELUCCA_ASM_CHECK` | 0 | verification build: every asm loop also runs the C on a copy (not for release) |
+| `FELUCCA_MUL64_CLEAR` | 0 | the asm loops (SVF, PHYS's curved string and sympathetic comb) with no load beside a 64-bit multiply (fm1-base's felucca-bsp docs/CPU.md), the same values, a few instructions more; set with `OPTIMIST_MUL64_CLEAR=1` (either way of building). Optimist as an fm1-base app builds with it |
 | `FELUCCA_UNDO_CAP` | 0 | the undo ring at most this many bytes (0 = all the memory left over) |
-| `FELUCCA_SAMPLES_SKIP` | empty | built-in sample sets left out, comma-separated (the builder's `SET_*` items set it); the sets after one move down a number |
+| `FELUCCA_SAMPLES_SKIP` | empty | built-in sample sets left out, comma-separated (the builder's `SET_*` items set it); a set left out keeps its number (an empty set) |
+| `FELUCCA_SAMPLES_CARD` | 0 | 1: SD card mode, every melodic set on the card (none in the image, their presets kept: docs/SD-CARD-DESIGN.md 9) |
 | `FELUCCA_DUAL_IDLE` | 0 | the second core spins in RAM between jobs, 1 sleeps (`OPTIMIST_DUAL_IDLE=1` through `optimist.py build`; the wake never reached CPU1 on the FM-1, 2026-10-15); `FELUCCA_BENCH` selects the emulator load scenarios (`docs/DUAL-CORE.md`) |
 | `FELUCCA_SIMD` | 0 | keep off: a SIMD build crackles on the real FM-1 (2026-10-12; `firmware/hal/fm1_simd.h`) |
 
@@ -257,7 +344,7 @@ and the string the `.fwsc` marker bytes carry. **Optimist is `FM-1_700`** for de
 `--release X.Y`: 0.1 is `FM-1_721`, 1.0 `FM-1_730`, up to 4.9 `FM-1_769` (`build.py release_product`). Its update
 loader answers `ota-FM-1_700`. `optimist flash` takes only these identities.
 
-- The installers split the identity at `_`: the model before it must be `FM-1` and digits must follow (`fm1ota.js`,
+- The installers split the identity at `_`: the model before it must be `FM-1` and digits must follow (`web/fm1base/fm1ota.js`,
   `fm1_install.py`). The `.fwsc` marker holds at most 20 characters.
 - The stock updater refuses only the identity it is already running; package content is not authenticated. M-VAVE's
   stock is `FM-1_0XX` (V15 is `FM-1_015`), Baud Girl `020`-`09X`, Felucca / SLOOP / X0X `9XX`. 7XX sits between them. In
@@ -266,7 +353,7 @@ loader answers `ota-FM-1_700`. `optimist flash` takes only these identities.
 - The update loader is Felucca's, with the same protocol: the installers resume a device left in update mode when its
   loader is `ota-FM-1_7XX` or `ota-FM-1_9XX`, and refuse any other (`foreign`). The web installer, `fm1_install.py` and
   `make_site.py` accept both ranges.
-- The USB product string is what the editor and installers look for in port names: `felucca`, `optimist` and `FM-1`.
+- The USB product string is what the editor and installers look for in port names: `FM1-XXXX` (the name since 2026-10-29: four upper-case hex digits, the same four as the Bluetooth name "FM1-XXXX", from the BLE address kept in the settings or else the flash part's unique ID; `firmware/src/system/devname.h`; the manufacturer string stays "Hügelton Instruments"), and for an FM-1 on older firmware `optimist`, `felucca` and `FM-1`.
 
 Not verified on hardware: that the stock V15 updater installs a `FM-1_7XX` package, and that M-VAVE's own updater app
 goes back to V15 from one (the same holds for every `9XX` package).
@@ -280,7 +367,7 @@ only the generated drum kit.
 ## Tests
 
 ```
-python tools/optimist.py test             # the builds below, then tests/run_tests.sh
+python tools/optimist.py test             # the builds below, then tests/run_tests.sh, then the release's (fm1base/)
 python tools/optimist.py test --in-docker # the same in the toolchain image (Linux; also from Windows)
 python tools/optimist.py test --python    # the Python tests only (any host, no build, no C compiler)
 ```

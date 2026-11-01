@@ -25,7 +25,7 @@ static const uint16_t CZ_AMP[128] = {
 static const uint32_t CZ_POW16[16] = {65536, 68438, 71468, 74632, 77936, 81386, 84990, 88752,
                                       92682, 96785, 101070, 105545, 110218, 115098, 120194, 125515};
 /* a rate times 2^(-v/16): v > 0 slower (a longer time), v < 0 faster; v -64..63 */
-static uint32_t cz_scale(uint32_t rate, int32_t v)
+static FAST(cz) uint32_t cz_scale(uint32_t rate, int32_t v)
 {
     uint64_t r = rate;
     if (!v)
@@ -40,7 +40,7 @@ static uint32_t cz_scale(uint32_t rate, int32_t v)
     }
     return r > 0x7FFFFFFFu ? 0x7FFFFFFFu : (uint32_t)r;
 }
-static __attribute__((noinline)) uint32_t cz_hw_rate(uint32_t raw, uint32_t e)
+static FAST(cz) __attribute__((noinline)) uint32_t cz_hw_rate(uint32_t raw, uint32_t e)
 {
     uint32_t chip = (8u | (raw & 7u)) << ((raw & 127u) >> 3);
     /* uPD933 at 40 kHz; convert its three different fixed-point domains to
@@ -48,19 +48,19 @@ static __attribute__((noinline)) uint32_t cz_hw_rate(uint32_t raw, uint32_t e)
     uint32_t shift = e == 0u ? 3u : e == 1u ? 2u : 1u;
     return (uint32_t)(((uint64_t)chip * CTL * 40000u / FS) >> shift);
 }
-static int32_t cz_hw_target(uint32_t raw, uint32_t e)
+static FAST(cz) int32_t cz_hw_target(uint32_t raw, uint32_t e)
 {
     raw &= 127u;
     if (e == 0u) return (int32_t)((raw & 63u) << (raw & 64u ? 18 : 13));
     return (int32_t)(raw << 17); /* DCW: 8 units; DCA: 4 units */
 }
 /* the part's envelope points (no key follow: cz_native_render), its DCW and DCA times scaled by W.TIM, A.TIM */
-static __attribute__((noinline)) void cz_part_defs(const uint8_t *b, cz_env_def_t d[2][3], int32_t wtim, int32_t atim)
+static FAST(cz) __attribute__((noinline)) void cz_part_defs(const uint8_t *b, cz_env_def_t d[2][3], int32_t wtim, int32_t atim)
 {
     for (uint32_t l = 0; l < 2u; l++) for (uint32_t e = 0; e < 3u; e++) {
         cz_env_def_t *p = &d[l][e]; uint32_t base = CZ_ENV_BASE[l][e];
         int32_t sc = e == 1u ? wtim : e == 2u ? atim : 0;
-        memset(p, 0, sizeof *p); p->end = b[CZ_ENV_END[l][e]] & 7u; p->sustain = 255;
+        FAST_ZERO(cz, p, sizeof *p); p->end = b[CZ_ENV_END[l][e]] & 7u; p->sustain = 255;
         for (uint32_t k = 0; k < 8u; k++) {
             uint32_t lev = b[base + 2u*k + 1u];
             p->rate[k] = cz_scale(cz_hw_rate(b[base + 2u*k], e), sc);
@@ -69,7 +69,7 @@ static __attribute__((noinline)) void cz_part_defs(const uint8_t *b, cz_env_def_
         }
     }
 }
-static __attribute__((noinline)) int32_t cz_native_amp(int32_t level, uint32_t atten, uint32_t sense, uint32_t vel)
+static FAST(cz) __attribute__((noinline)) int32_t cz_native_amp(int32_t level, uint32_t atten, uint32_t sense, uint32_t vel)
 {
     /* Interpolate the chip's logarithmic amplitude, not a linear percentage. */
     uint32_t x = (uint32_t)clamp(level, 0, 127<<17), i = x >> 17, f = x & 0x1FFFFu;
@@ -80,7 +80,7 @@ static __attribute__((noinline)) int32_t cz_native_amp(int32_t level, uint32_t a
 }
 /* Block-prepared slopes of the chip's 11-bit phase functions. */
 typedef struct { uint32_t wave[2], window, dcw, pivot, k0, k1; } cz_hw_pd_t;
-static __attribute__((noinline)) void cz_native_pd(cz_hw_pd_t *p, uint32_t word, uint32_t dcw)
+static FAST(cz) __attribute__((noinline)) void cz_native_pd(cz_hw_pd_t *p, uint32_t word, uint32_t dcw)
 {
     p->wave[0] = (word >> 13) & 7u;
     p->wave[1] = word & 512u ? (word >> 10) & 7u : p->wave[0];
@@ -89,7 +89,7 @@ static __attribute__((noinline)) void cz_native_pd(cz_hw_pd_t *p, uint32_t word,
     p->k0 = (1024u << 16) / p->pivot;
     p->k1 = (1024u << 16) / (2048u - p->pivot);
 }
-static inline __attribute__((always_inline)) int32_t cz_native_wave(const cz_hw_pd_t *b, uint32_t ph, uint32_t toggle)
+static inline FAST(cz) __attribute__((always_inline)) int32_t cz_native_wave(const cz_hw_pd_t *b, uint32_t ph, uint32_t toggle)
 {
     uint32_t pos = ph >> 21, pivot = b->pivot, phase = 0, window = 0;
     switch (b->wave[toggle & 1u]) {
@@ -116,13 +116,13 @@ static inline __attribute__((always_inline)) int32_t cz_native_wave(const cz_hw_
     return ((carrier * (int32_t)(2048u-window)) >> 10) - 32767;
 }
 /* the vibrato's machine depth of a panel DEPTH 0..99 (Casio p. 85; Melodee cz_legacy.h lcz_sx_vdata) */
-static uint32_t cz_vib_depth(uint32_t n)
+static FAST(cz) uint32_t cz_vib_depth(uint32_t n)
 {
     uint32_t group = n < 32u ? 0u : (n - 16u) / 16u, step = 1u << group;
     uint32_t v = group ? ((n - 16u - 16u * group) * step + ((17u << group) - 1u)) : n;
     return n == 99u ? 0x300u : v + step;
 }
-static __attribute__((noinline)) int32_t cz_native_vibrato(cz_voice_t *c, const uint8_t *b, uint32_t vib)
+static FAST(cz) __attribute__((noinline)) int32_t cz_native_vibrato(cz_voice_t *c, const uint8_t *b, uint32_t vib)
 {
     uint32_t delay = (uint32_t)b[6] | (uint32_t)b[7] << 8, inc = (uint32_t)b[9] | (uint32_t)b[10] << 8;
     uint32_t depth = vib ? cz_vib_depth(vib) : (uint32_t)b[12] | (uint32_t)b[13] << 8;
@@ -143,13 +143,13 @@ static __attribute__((noinline)) int32_t cz_native_vibrato(cz_voice_t *c, const 
     return (wave * (int32_t)depth) / (1 << 19);
 }
 /* LINE (EDIT): 0 the tone's, else 1, 2, 1+1', 1+2' -> the line select bits; MOD: 0 the tone's, OFF, RING, NOISE */
-static uint32_t cz_lines(const uint8_t *b, const cz_ed_t *ed) { return ed->line ? ed->line - 1u : b[0] & 3u; }
-static uint32_t cz_mod(const uint8_t *b, const cz_ed_t *ed)
+static FAST(cz) uint32_t cz_lines(const uint8_t *b, const cz_ed_t *ed) { return ed->line ? ed->line - 1u : b[0] & 3u; }
+static FAST(cz) uint32_t cz_mod(const uint8_t *b, const cz_ed_t *ed)
 {
     static const uint8_t M[4] = {0, 0, 4, 3};
     return ed->mod ? M[ed->mod & 3u] : (b[15] >> 3) & 7u;
 }
-static void cz_native_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
+static FAST(cz) void cz_native_render(track_t *t, voice_t *v, int32_t *__restrict out, uint32_t n, const vmod_t *m)
 {
     uint32_t part = (uint32_t)(t - trk) % NPART;
     const uint8_t *b = cz_tone(part);
@@ -165,9 +165,17 @@ static void cz_native_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, c
         const cz_env_def_t *da = &defs[src][2];
         uint32_t av = 15u-(b[20u+off]>>4), al = b[16u+off]>>4, akf = b[16u+off] & 15u;
         if (akf) {                                       /* Native DCA key-follow is rate scaling; higher keys */
+#if FAST_RAM_cz && defined(__PI32V2__)
+            dca.sustain = da->sustain, dca.end = da->end;   /* run faster (RAM code: field by field, no memcpy from XIP) */
+            for (uint32_t k = 0; k < 8u; k++) {
+                dca.level[k] = da->level[k];
+                dca.rate[k] = da->rate[k] + (uint32_t)(((uint64_t)da->rate[k] * akf * kfnote) / 96u);
+            }
+#else
             dca = *da;                                   /* run faster */
             for (uint32_t k = 0; k < 8u; k++)
                 dca.rate[k] += (uint32_t)(((uint64_t)dca.rate[k] * akf * kfnote) / 96u);
+#endif
             da = &dca;
         }
         amp[l][0] = cz_native_amp(c->eg[l][2].level,al,av,v->vel);
@@ -203,7 +211,7 @@ static void cz_native_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, c
             line[l]=mulq15(raw,amp[l][0]+((step[l]*(int32_t)i)>>8));
         }
         int32_t sample=first==last ? line[first] : (modulation==4u) ? mulq15(line[0],line[1])*2 : (line[0]+line[1])>>1;
-        out[i]+=mulq15(mulq15(sample, amp_at(m, i)), VOICE_FS) << CZ_GAIN;
+        out[i]+=VOICE_OUT(sample, amp_at(m, i), CZ_GAIN);
     }
     v->ph[0]=ph[0];v->ph[1]=ph[1];v->s[0]=(int32_t)tg[0];v->s[1]=(int32_t)tg[1];v->s[2]=dc[0];v->s[3]=dc[1];
 }

@@ -16,16 +16,32 @@ static void clkout_tests(void)
     }
     ui.force = 1;
     frame();
-    turn(LINE_KNOB(w), 1);
-    check(clko_on == 1u && ((bp23_word() >> 26) & 1u) == 1u, "GLOBAL CLK OUT: its knob right: ON (bit 26)");
-    ui.force = 1;
-    frame();
-    frame();
-    ppm("opt-clkout");
-    turn(LINE_KNOB(w), 1);
-    check(clko_on == 1u, "GLOBAL CLK OUT: its knob stops at ON");
-    turn(LINE_KNOB(w), -1);
-    check(clko_on == 0u && ((bp23_word() >> 26) & 1u) == 0u, "GLOBAL CLK OUT: its knob left: OFF");
+#if FELUCCA_BLE
+    static const uint8_t ORD[] = {CLKO_OFF, CLKO_USB, CLKO_BLE, CLKO_BOTH};   /* the list as shown: OFF USB BLE BOTH */
+#else
+    static const uint8_t ORD[] = {CLKO_OFF, CLKO_USB};
+#endif
+    {
+        uint32_t i, ok = 1, bit = 1;
+        for (i = 0; i < sizeof ORD; i++) {
+            ok &= clko_on == ORD[i];
+            bit &= ((bp23_word() >> 26) & 1u) == (ORD[i] != CLKO_OFF);
+            if (i == 1u) {
+                ui.force = 1;
+                frame();
+                frame();
+                ppm("opt-clkout");
+            }
+            turn(LINE_KNOB(w), 1);
+        }
+        check(ok && bit, "GLOBAL CLK OUT: its knob right steps OFF, USB, BLE, BOTH as built (without BLE: OFF, USB); bit 26 = on");
+        check(clko_on == ORD[sizeof ORD - 1u], "GLOBAL CLK OUT: its knob stops at the last");
+        for (i = sizeof ORD; i-- > 0;) {
+            ok &= clko_on == ORD[i];
+            turn(LINE_KNOB(w), -1);
+        }
+        check(ok && clko_on == CLKO_OFF && ((bp23_word() >> 26) & 1u) == 0u, "GLOBAL CLK OUT: its knob left walks back to OFF (bit 26 clear)");
+    }
     clko_on = 0;
     reset_ui();
 #endif

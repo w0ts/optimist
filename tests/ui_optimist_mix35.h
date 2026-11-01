@@ -42,8 +42,8 @@ static void mixer_views_tests(void)
     reset_ui();
     song.sel = 0;
     frames(2);
-    ok = algo_step_inplace(-1) && mx_row() == MXR_MASTER && mxd.first == MXR_MASTER && mxd.last == MXR_T1;
-    check(ok, "ALGORITHM past T1: MASTER alone, drawn in place");
+    ok = algo_step_inplace(-1) && mx_row() == MXR_MASTER && mxd.first == MXR_RET0 && mxd.last == MXR_T1;
+    check(ok, "ALGORITHM past T1: MASTER's screen (the returns above it), drawn in place");
     ok = algo_step_inplace(1) && mx_row() == MXR_T1 && mxd.first == MXR_T1 && mxd.last == MXR_LANE0;
     check(ok, "... back: the four channels, in place");
     while (mx_row() < MXR_DR)

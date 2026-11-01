@@ -311,6 +311,9 @@ static HOT void dual_run(uint32_t mask, uint32_t n, mixacc_t *A)
             }
             t1 = fm1_ticks() - t0;
             dual_cost[p] += t1 - (dual_cost[p] >> 3);
+#if DUAL_TIMES
+            DUAL_TM_JOB(p, t1);                    /* (SYSTEM > CPU TIMES: this block's time of the job) */
+#endif
         }
 }
 
@@ -322,6 +325,9 @@ static HOT void dual_job(uint32_t mask)            /* CPU1: its jobs of the bloc
     dual_run(mask & DUAL_ALLOWED, CTL, A);
     dt = fm1_ticks() - t0;
     dual_c1_ticks += dt;                           /* (before `done`: the caller's csync orders it) */
+#if DUAL_TIMES
+    dual_tm.c1_last = dt;                          /* (INTERNALS' DUAL lines: CPU0 folds it in after the join) */
+#endif
     DUAL_BENCH(0, dt);
     DUAL_BENCH(2, 1u);
 }
@@ -916,7 +922,7 @@ static HOT void dual_lfo_draw(void)
     uint32_t p;
     for (p = 0; p < NPART; p++) {
         const track_t *t = &trk[p];
-        if ((uint32_t)(t->lfo_ph + lfo_inc(t)) < t->lfo_ph)   /* (voice.c: the same step) */
+        if (lfo1_next(t) < t->lfo_ph)                    /* (voice.c track_lfo_tick: the same phase) */
             dual_lfo_rnd[p] = rng();
     }
 }
@@ -926,6 +932,9 @@ static HOT void mix_block_dual(int32_t *out, uint32_t n)
 {
     mixacc_t *A = &dual_acc[0], *B = &dual_acc[1];
     uint32_t i, mask = 0, req = 0, got = 0, post = 0, jobs, sw;
+#if DUAL_TIMES
+    uint32_t tm0 = fm1_ticks(), tmf, tmj0, tmj1;   /* (INTERNALS' DUAL lines: dual_load.h dual_tm_block) */
+#endif
 #if FELUCCA_USB_AUDIO
     capture_clear(n);                              /* the stems (each part writes its own; fx.c) */
 #endif
@@ -998,8 +1007,14 @@ static HOT void mix_block_dual(int32_t *out, uint32_t n)
 #endif
     }
     DSTAGE(0x56);
+#if DUAL_TIMES
+    tmf = fm1_ticks();
+#endif
     dual_run(jobs & ~mask, n, A);                  /* CPU0's jobs: those CPU1 was not given */
     DSTAGE(0x57);
+#if DUAL_TIMES
+    tmj0 = fm1_ticks();
+#endif
     if (post) {
         got = dual_join(req);
         if (!got) {                                /* CPU1 is down: its jobs here (a click, once) */
@@ -1009,6 +1024,9 @@ static HOT void mix_block_dual(int32_t *out, uint32_t n)
             dual_run(mask, n, A);
         }
     }
+#if DUAL_TIMES
+    tmj1 = post ? fm1_ticks() : tmj0;
+#endif
     for (i = 0; i < n; i++) {
         send_c[i] += A->send_c[i];
         send_d[i] += A->send_d[i];
@@ -1035,6 +1053,9 @@ static HOT void mix_block_dual(int32_t *out, uint32_t n)
     DSTAGE(0x5B);
 #if FELUCCA_MACROS
     FAR(mac_post)();
+#endif
+#if DUAL_TIMES
+    dual_tm_block(tm0, tmf, tmj0, tmj1, fm1_ticks(), got ? mask : 0u, jobs, fm1_ms);
 #endif
 }
 #endif

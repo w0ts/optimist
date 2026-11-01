@@ -203,6 +203,54 @@ static int ukit_store(uint32_t u)
     }
 }
 
+#if FELUCCA_SD_UI
+/* SD card mode (storage/sd/sd_mode.c): a kit file's payload, a kit (ukit_t, as a slot of the bank) and its lanes' sends
+ * (DRUM_LANES words). ukit_card_take: the project's lanes -> out (UK_CARD_N bytes), as ukit_store makes a slot;
+ * ukit_card_give: a payload (n bytes) into the project's lanes and kit, as ukit_load: 0 done, -1 not a kit */
+#define UK_CARD_N (sizeof(ukit_t) + sizeof dsend)
+static uint32_t ukit_card_take(uint8_t *out)
+{
+    ukit_t k;
+    uint32_t l;
+    memset(&k, 0, sizeof k);
+    k.used = UK_USED;
+    k.base = (uint8_t)drum_kit();
+    for (l = 0; l < DRUM_LANES; l++)
+        k.src[l] = dl.src[l] == DL_KIT ? (uint8_t)dl_kit_src(dl_kit_of(l, k.base)) : dl.src[l];
+    memcpy(k.ref, dl.ref, sizeof k.ref);
+    memcpy(k.ofs, dl.ofs, sizeof k.ofs);
+    memcpy(k.ins, dl.ins, sizeof k.ins);
+    memcpy(out, &k, sizeof k);
+    memcpy(out + sizeof k, dsend, sizeof dsend);
+    return UK_CARD_N;
+}
+static int ukit_card_give(const uint8_t *in, uint32_t n)
+{
+    ukit_t k;
+    uint32_t l;
+    if (n != UK_CARD_N)
+        return -1;
+    memcpy(&k, in, sizeof k);
+    if (!uk_valid(&k))
+        return -1;
+    fm1_irq_off();
+    for (l = 0; l < DRUM_LANES; l++)
+        dsend[l] = dsend_canon((uint16_t)(in[sizeof k + 2u * l] | in[sizeof k + 2u * l + 1u] << 8));
+    memcpy(dl.ofs, k.ofs, sizeof dl.ofs);
+    memcpy(dl.src, k.src, sizeof dl.src);
+    memcpy(dl.ref, k.ref, sizeof dl.ref);
+    memcpy(dl.ins, k.ins, sizeof dl.ins);
+    memset(dl.name, 0, sizeof dl.name);
+    dl.ukit = 0;                                             /* (no flash slot: the card's) */
+    dl_fix(&dl);
+    TDRUM->p[P_E0] = (int16_t)(k.base < DRUM_KITS ? k.base : DRUM_DEFAULT_KIT);
+    dl_e0 = TDRUM->p[P_E0];
+    fm1_irq_on();
+    MISS_BUMP();
+    return 0;
+}
+#endif
+
 /* the KIT page's SAVE (0) / ERASE (1) */
 static void ukit_ui(uint32_t op, uint32_t u)
 {

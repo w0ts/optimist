@@ -191,7 +191,7 @@ static void edscrs_tests(void)
         }
     }
 #endif
-    {   /* STEPS with a step held (fam 0..63): the held step's card pages are the rows: STEP (NOTE LEVEL RATCHET LENGTH), EXTRA, the p-lock pages; a card turned edits the step */
+    {   /* STEPS with a step held (fam 0..63): the held step's card pages are the rows: STEP (NOTE LEVEL RATCHET GLIDE), EXTRA, the p-lock pages; a card turned edits the step */
         track_t *t = &trk[0];
         step_t keep = t->step[2];
         uint32_t lvl0;
@@ -201,7 +201,7 @@ static void edscrs_tests(void)
         ok = scs_call(0, SCR_STEP, 0, 127, 2, 0, 0, 0, 0) && ed_out[10] >= 1u && ed_out[10] == hpn();
         ok &= scs_call(1, SCR_STEP, 0, 127, 2, 0, 0, 0, 0);
         scs_parse(ed_out, 8, &w);
-        ok &= !strcmp(w.name, "STEP") && !strcmp(w.label[0], "NOTE") && !strcmp(w.text[0], "C4") && !strcmp(w.label[1], "LEVEL") && !strcmp(w.text[1], "NORM") && !strcmp(w.label[3], "LENGTH");
+        ok &= !strcmp(w.name, "STEP") && !strcmp(w.label[0], "NOTE") && !strcmp(w.text[0], "C4") && !strcmp(w.label[1], "LEVEL") && !strcmp(w.text[1], "NORM") && !strcmp(w.label[3], "GLIDE");
         lvl0 = t->step[2].lvl;
         ok &= scs_call(2, SCR_STEP, 0, 127, 2, 0, 1, 1, 1);
         scs_parse(ed_out, 8, &w);
@@ -214,7 +214,7 @@ static void edscrs_tests(void)
         ok &= !scs_call(0, SCR_STEP, 0, 127, 63, 0, 0, 0, 0);      /* (past the pattern's length: no reply) */
         t->step[2] = keep;
         reset_ui();
-        check(ok, "SCRS: STEPS with a step held (fam = the step): its card pages as rows (STEP: NOTE LEVEL RATCHET LENGTH, EXTRA, the lock pages); a turn edits the step; the held state is not left behind");
+        check(ok, "SCRS: STEPS with a step held (fam = the step): its card pages as rows (STEP: NOTE LEVEL RATCHET GLIDE, EXTRA, the lock pages); a turn edits the step; the held state is not left behind");
     }
 #endif
 #if FELUCCA_ED_SCOPE

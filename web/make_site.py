@@ -1,25 +1,26 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-only
 # Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments
-"""Make the site (GitHub Pages):
-
-  index.html                  redirect to the installer
+"""Builds the GitHub Pages site. What OUT_DIR receives:
+  index.html                  a page that forwards to the installer
   firmware/optimist-VER-ID.fwsc  the development packages: one per flavour in web/flavours.json, built from this commit
   firmware/r/TAG/optimist-VER-PROFILE.fwsc  each published release's packages (--releases): its published flavours
   firmware/r/TAG/optimist-VER-PROFILE.wasm  their simulators, when pages.yml built them from the tag's source (the latest
                               release); site.json "latest": {tag, sha, date}, where the builder and the simulator start
   firmware/FM-1_015.fwsc      M-VAVE's official V15, unchanged (web/stock/, Apache-2.0): the installer's return to stock
   icon.svg, favicon.ico, apple-touch-icon.png, icon-*.png, manifest.webmanifest   the icon (assets/logo/)
-  webapp/installer/index.html the standalone installer (web/installer/index.html): the installer module with fm1pkg.js,
-                              fm1ota.js and its CSS, the site's packages (site.json) and the shared style inlined
+  firmware/m-bootloader-X.Y.fwsc  m-bootloader (MIT, web/fm1base/m-bootloader/), which the installer offers after the firmware
+  webapp/installer/index.html the standalone installer (web/installer/index.html): the installer module with fm-1-base's
+                              fm1pkg.js and fm1ota.js (web/fm1base/), fm1ota_optimist.js and its CSS, the site's packages
+                              (site.json) and the shared style inlined
   webapp/installer/installer.js  the same module as one file (mountInstaller), for the one-page app; site.json the packages
   webapp/editor/index.html    editor.html (+ fukiai.ttf, FUKIAI-LICENSE.txt), with a link to the builder; beside it what its Install and Build
-                              tabs import: style/optimist.css, fm1ota.js, fm1pkg.js, installer/ (installer.js, .css, site.json), builder/
+                              tabs import: style/optimist.css, fm1ota_optimist.js, fm1base/, installer/ (installer.js, .css, site.json), builder/
   webapp/builder/             the web builder (web/builder/; data/ exported fresh by tools/export_builder_web.py,
                               build-info.json: the commit for the cloud key, none when the tree is modified)
   LICENSE, LICENSING.md, LICENSES/*.txt            the notices the package needs
-  src/                        not touched
-
+  src/                        left alone
+Usage:
   web/make_site.py --flavours web/flavours.json X.Y OUT_DIR [--releases DIR]
                                                                the packages the manifest lists (each "file" is a glob,
                                                                relative to the repository; the newest match is used), and
@@ -32,33 +33,39 @@
   web/make_site.py --release-sims DIR                          "TAG SHA PROFILE" per package of the latest release in DIR
                                                                (CI builds their simulators from the tag's source)
   web/make_site.py --builder OUT_DIR                           only OUT_DIR/webapp/builder (no package needed)
-
-The package identity (Optimist FM-1_7xx, Felucca / SLOOP FM-1_9xx) is read from the package; the device reports it
-after the install.
+  web/make_site.py --release-site X.Y OUT_DIR PKG              only the release's own site, OUT_DIR (fm1-base's make_site on
+                                                               the app: install page with m-bootloader, manual, emulator; the
+                                                               front page, name, tagline and repo are fm1base/optimist's, the
+                                                               manual is built from docs/guide); PKG: the release build's package
+  --release-pkg PKG                                            with --local or --flavours: also that, in OUT_DIR/release/
+Each package names its own identity (Optimist FM-1_7xx, Felucca / SLOOP FM-1_9xx), read here from its bytes; once
+installed, the device reports the same name.
 """
-import base64
-import glob
-import hashlib
-import json
-import re
-import os
-import shutil
-import subprocess
-import sys
-from pathlib import Path
+import base64, glob, hashlib, json, os, re, shutil, subprocess, sys   # (stdlib only: CI runs it with a bare Python)
+import pathlib
+Path = pathlib.Path
 
-HERE = Path(__file__).resolve().parent
-BLOCKS, BLK, KEEP = 20, 0x30, 0x2F
+HERE = Path(os.path.realpath(__file__)).parent      # web/
+ID_MARKS = 20            # the identity: one character hidden in each of the first 20 blocks of the package
+ID_STRIDE = 0x30         # a block on disk: 0x2F image bytes, then the marker byte
+ID_AT = 0x2F
+ID_NONE = 0x7D           # a marker that carries no character
 
 
-def strip_module(src):
-    src = re.sub(r"^export\s+", "", src, flags=re.M)
-    return re.sub(r"^import .*?;\n", "", src, flags=re.M)
+def as_plain_script(src):
+    """an ES module's text as plain script: no import lines, no export keywords (to inline it in a page)"""
+    without_imports = re.sub(r"^import .*?;\n", "", src, flags=re.M)
+    return re.sub(r"^export\s+", "", without_imports, flags=re.M)
 
 
-def product_of(raw):
-    """the package identity: one marker byte after each of the first 20 blocks (fm1pkg.js productOf)"""
-    return "".join(chr((m - i - 1) & 0xFF) for i in range(BLOCKS) if (m := raw[i * BLK + KEEP]) != 0x7D)
+def package_identity(raw):
+    """the identity a package carries, e.g. FM-1_906 (the same decoding as fm1pkg.js productOf)"""
+    chars = []
+    for k in range(ID_MARKS):
+        mark = raw[k * ID_STRIDE + ID_AT]
+        if mark != ID_NONE:
+            chars.append(chr((mark - (k + 1)) % 256))
+    return "".join(chars)
 
 
 ICONS = ("icon.svg", "favicon.ico", "apple-touch-icon.png", "icon-32.png", "icon-192.png", "icon-512.png")
@@ -83,22 +90,26 @@ def source_ref():
 BUILDER_FILES = ("index.html", "app.html", "logic.js", "ui.js", "builder.js", "cloud.js", "builder.css", "py-worker.js")
 
 
-INSTALLER_IMPORTS = re.compile(r'^import \{[^}]*\} from "\.\./(fm1ota|fm1pkg)\.js";\n', re.M)
+INSTALLER_IMPORTS = re.compile(r'^import \{[^}]*\} from "\.\./(?:fm1base/)?(?:fm1ota|fm1pkg|fm1ota_optimist|install_route)\.js";\n', re.M)
+# fm-1-base's two files (web/fm1base/, MPL-2.0, unchanged), then Optimist's extras: the order they are inlined in
+LIB_FILES = ("fm1base/fm1pkg.js", "fm1base/fm1ota.js", "fm1ota_optimist.js", "install_route.js")
+MBOOT_VERSION = "1.2"                              # web/fm1base/m-bootloader/fm1-uboot-X.Y.fwsc (MIT): the installer's extra choice
+MBOOT_NAME = f"m-bootloader-{MBOOT_VERSION}.fwsc"
 CSS_MARK = "const BUNDLED_CSS = null;"
 
 
 STOCK_NAME = "FM-1_015.fwsc"                       # web/stock/: M-VAVE's FM-1 V15, unchanged (its FM1 Open kit, Apache-2.0)
-STOCK_SHA256 = "db1642b2b6fa5c2cccb11ffd13878068bb28601678d3644049f99dc40e7edb8a"   # (web/fm1pkg.js, tools/fm1_rescue.py)
+STOCK_SHA256 = "db1642b2b6fa5c2cccb11ffd13878068bb28601678d3644049f99dc40e7edb8a"   # (web/fm1base/fm1pkg.js STOCK_FILES, tools/fm1_rescue.py)
 
 
 def installer_module(inline):
-    """web/installer/installer.js as one file: web/fm1pkg.js and web/fm1ota.js in place of its imports (their exports
+    """web/installer/installer.js as one file: web/fm1base/*.js and web/fm1ota_optimist.js in place of its imports (their exports
     dropped), web/installer/installer.css in BUNDLED_CSS. inline=False: a module that still exports mountInstaller and
     its helpers (webapp/installer/installer.js, for the one-page app); inline=True: the page's own <script type=module>"""
     src = (HERE / "installer" / "installer.js").read_text(encoding="utf-8")
-    if len(INSTALLER_IMPORTS.findall(src)) != 2 or src.count(CSS_MARK) != 1:
-        raise SystemExit("web/installer/installer.js: its two imports or BUNDLED_CSS moved; update make_site.py")
-    lib = "".join(strip_module((HERE / f).read_text(encoding="utf-8")) + "\n" for f in ("fm1pkg.js", "fm1ota.js"))
+    if len(INSTALLER_IMPORTS.findall(src)) != 3 or src.count(CSS_MARK) != 1:
+        raise SystemExit("web/installer/installer.js: its three imports or BUNDLED_CSS moved; update make_site.py")
+    lib = "".join(as_plain_script((HERE / f).read_text(encoding="utf-8")) + "\n" for f in LIB_FILES)
     css = (HERE / "installer" / "installer.css").read_text(encoding="utf-8")
     src = INSTALLER_IMPORTS.sub("", src).replace(CSS_MARK, f"const BUNDLED_CSS = {json.dumps(css)};")
     if not inline:
@@ -196,14 +207,17 @@ def builder_site(out, dst=None):
 
 def editor_modules(ed, out, site):
     """what the editor's Install and Build tabs import, next to webapp/editor/index.html (editor.html loads ./style/optimist.css,
-    ./installer/installer.js + installer.css + site.json and ./builder/builder.js on first use; installer.js imports ../fm1ota.js
-    and ../fm1pkg.js): the shared style and its font, fm1ota.js, fm1pkg.js, installer/, builder/ (with its data)"""
+    ./installer/installer.js + installer.css + site.json and ./builder/builder.js on first use; installer.js imports ../fm1base/fm1pkg.js
+    and ../fm1ota_optimist.js): the shared style and its font, fm1ota_optimist.js, fm1base/ (the two files it imports), installer/, builder/
+    (with its data)"""
     (ed / "style").mkdir(parents=True, exist_ok=True)
     (ed / "installer").mkdir(parents=True, exist_ok=True)
     for f in ("optimist.css", "terminus.ttf"):
         shutil.copy(HERE / "style" / f, ed / "style" / f)
-    for f in ("fm1ota.js", "fm1pkg.js"):
+    (ed / "fm1base").mkdir(parents=True, exist_ok=True)
+    for f in LIB_FILES:
         shutil.copy(HERE / f, ed / f)
+    shutil.copy(HERE / "fm1base" / "README.md", ed / "fm1base" / "README.md")
     for f in ("installer.js", "installer.css"):
         shutil.copy(HERE / "installer" / f, ed / "installer" / f)
     (ed / "sim").mkdir(parents=True, exist_ok=True)
@@ -302,17 +316,45 @@ def release_sims(folder):
     return [(latest["tag"], latest["sha"], f["id"]) for f in rs[0]["flavours"]] if latest else []
 
 
+# the identities a site's package may have: Optimist's own (FM-1_7NN), Felucca's (FM-1_9NN), and the release on fm1-base's
+# (FM-1_79NN, FM-1_79NNNNNN: tools/flash.py OPTIMIST_ID; 2026-10-29 the 3-digit check refused the user's FM-1_7900 build)
+SITE_ID = re.compile(r"FM-1_[79]\d\d|FM-1_79\d{2}(\d{4})?")
+
+
+def mflasher_release():
+    """the pinned M-Flasher release (tools/mflasher.py: the one source of truth) for the installer's download-mode help"""
+    sys.path.insert(0, str(HERE.parent / "tools"))
+    import mflasher
+    return mflasher.site_data()
+
+
 def package_entry(path, name, flavour, release="", date=""):
     """one package of the site: checked (an Optimist / Felucca identity, the update loader in it) -> its site.json entry"""
     raw = Path(path).read_bytes()
-    product = product_of(raw)
-    if not re.fullmatch(r"FM-1_[79]\d\d", product):
-        raise SystemExit(f"{path}: identity {product!r} is not an Optimist (FM-1_7xx) or Felucca (FM-1_9xx) package")
-    if b"FELUCCA-LOADER-1" not in raw:                  # marker of firmware/loader
+    product = package_identity(raw)
+    if not SITE_ID.fullmatch(product):
+        raise SystemExit(f"{path}: identity {product!r} is not an Optimist (FM-1_7xx, FM-1_79..) or Felucca (FM-1_9xx) "
+                         "package")
+    if raw.find(b"FELUCCA-LOADER-1") < 0:              # the update loader (firmware/loader) carries this tag
         raise SystemExit(f"{path}: no Felucca update loader in it")
-    return {"id": flavour["id"], "title": flavour["title"], "description": flavour.get("description", ""),
-            "pkg": "../../firmware/" + name, "product": product, "release": release, "date": date,
-            "sha256": hashlib.sha256(raw).hexdigest()}   # the page checks the download against it
+    digest = hashlib.sha256(raw).hexdigest()
+    entry = {"id": flavour["id"], "title": flavour["title"], "description": flavour.get("description", ""),
+             "pkg": "../../firmware/" + name, "product": product, "release": release, "date": date,
+             "sha256": digest}   # the page checks the download against it
+    boot = install_bootloader(path, digest)
+    return {**entry, "bootloader": boot} if boot else entry
+
+
+def install_bootloader(path, digest):
+    """the builder's BOOTLOADER from PACKAGE.install.json beside the package (tools/install_meta.py), when it is for this very
+    package (its SHA-256); None otherwise (the page then shows: no build setting)"""
+    side = Path(path).with_name(Path(path).stem + ".install.json")
+    try:
+        meta = json.loads(side.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    ok = isinstance(meta, dict) and meta.get("sha256") == digest and meta.get("bootloader") in ("keep", "m-bootloader")
+    return meta["bootloader"] if ok else None
 
 
 def main(version, out, flavours=None, releases=None, sims=None):
@@ -344,6 +386,9 @@ def main(version, out, flavours=None, releases=None, sims=None):
     if stock_sha != STOCK_SHA256:
         raise SystemExit(f"{stock}: sha256 {stock_sha}, not M-VAVE's V15 ({STOCK_SHA256})")
     files.append((stock, STOCK_NAME))
+    boot = HERE / "fm1base" / "m-bootloader" / f"fm1-uboot-{MBOOT_VERSION}.fwsc"   # m-bootloader (MIT): offered after the firmware
+    files.append((boot, MBOOT_NAME))
+    files.append((HERE / "fm1base" / "m-bootloader" / "LICENSE", "m-bootloader-LICENSE.txt"))
     sim_list = []
     for x in sims:                                      # (a simulator alone: no firmware to install from it)
         name = f"optimist-sim-{x['id']}.wasm"
@@ -351,23 +396,27 @@ def main(version, out, flavours=None, releases=None, sims=None):
         files.append((Path(x["sim"]), name))
     site = {"version": version, "source": source_ref(), "packages": packages, "sims": sim_list,
             "repo": os.environ.get("GITHUB_REPOSITORY") or "w0ts/optimist",     # (the cloud builds' list: installer.js)
-            "stock": {"pkg": "../../firmware/" + STOCK_NAME, "sha256": stock_sha}}
+            "stock": {"pkg": "../../firmware/" + STOCK_NAME, "sha256": stock_sha},
+            "boot": {"pkg": "../../firmware/" + MBOOT_NAME, "version": MBOOT_VERSION, "sha256": hashlib.sha256(boot.read_bytes()).hexdigest()}}
+    site["mflasher"] = mflasher_release()
     latest = latest_of(releases)
     if latest:                                          # (the builder's and the simulator's default: builder.js, sim.js)
         site["latest"] = latest
     meta = json.dumps(site)
-    for mark in ("/*INSTALLER*/", "/*META*/"):
-        if html.count(mark) != 1:
-            raise SystemExit(f"web/installer/index.html must contain {mark} once; update make_site.py")
+    missing = [m for m in ("/*INSTALLER*/", "/*META*/") if html.count(m) != 1]
+    if missing:          # each placeholder exactly once, or the page and this script disagree
+        raise SystemExit(f"web/installer/index.html must contain {missing[0]} once; update make_site.py")
     html = html.replace("/*INSTALLER*/", installer_module(inline=True)).replace("/*META*/", meta)
     html = styled(html, "installer", "web/installer/index.html")
-    inst, ed, fw = out / "webapp" / "installer", out / "webapp" / "editor", out / "firmware"
-    for d in (inst, ed, fw):
-        d.mkdir(parents=True, exist_ok=True)
-    for old in list(fw.glob("felucca-*.fwsc")) + list(fw.glob("sloop-*.fwsc")) + list(fw.glob("optimist-*.fwsc")) + list(fw.glob("optimist-*.wasm")):   # only the current packages
-        old.unlink()
+    webapp, fw = out / "webapp", out / "firmware"
+    inst, ed = webapp / "installer", webapp / "editor"
+    for folder in (inst, ed, fw):
+        folder.mkdir(parents=True, exist_ok=True)
+    stale = ("felucca-*.fwsc", "sloop-*.fwsc", "optimist-*.fwsc", "optimist-*.wasm")    # only the current packages stay
+    for old in [hit for pattern in stale for hit in fw.glob(pattern)]:
+        os.remove(old)
     shutil.rmtree(fw / "r", ignore_errors=True)
-    (inst / "index.html").write_text(html, encoding="utf-8")
+    (inst / "index.html").write_text(html, encoding="utf-8")   # the standalone installer
     (inst / "installer.js").write_text(installer_module(inline=False), encoding="utf-8")   # for the one-page app
     (inst / "site.json").write_text(json.dumps(site, indent=1) + "\n", encoding="utf-8")
     for src, name in files:
@@ -377,9 +426,9 @@ def main(version, out, flavours=None, releases=None, sims=None):
     builder_site(out)
     editor_modules(ed, out, site)
     shutil.copy(HERE / "TERMINUS-LICENSE.txt", inst / "TERMINUS-LICENSE.txt")      # (the style's font)
-    for f in ("fukiai.ttf", "FUKIAI-LICENSE.txt", "TERMINUS-LICENSE.txt", "JETBRAINSMONO-LICENSE.txt"):
-        if (HERE / f).exists():
-            shutil.copy(HERE / f, ed / f)
+    fonts = ("fukiai.ttf", "FUKIAI-LICENSE.txt", "TERMINUS-LICENSE.txt", "JETBRAINSMONO-LICENSE.txt")
+    for name in filter(lambda n: (HERE / n).exists(), fonts):     # the editor's font files, those present
+        shutil.copy(HERE / name, ed / name)
     for f in ICONS:                                 # the icon: the site root, linked relatively by every page
         shutil.copy(HERE.parent / "assets" / "logo" / f, out / f)
     (out / "manifest.webmanifest").write_text(json.dumps({
@@ -391,17 +440,34 @@ def main(version, out, flavours=None, releases=None, sims=None):
         dst = out / f
         dst.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy(HERE.parent / f, dst)
-    (out / "index.html").write_text(
-        '<!doctype html><meta charset="utf-8"><title>Optimist</title>'
-        '<link rel="icon" href="icon.svg" type="image/svg+xml"><link rel="icon" href="favicon.ico" sizes="32x32">'
-        '<link rel="apple-touch-icon" href="apple-touch-icon.png"><link rel="manifest" href="manifest.webmanifest">'
-        '<meta http-equiv="refresh" content="0; url=webapp/installer/">'
-        '<a href="webapp/installer/">Optimist installer</a>\n', encoding="utf-8")
+    landing = "".join((
+        '<!doctype html><meta charset="utf-8"><title>Optimist</title>',
+        '<link rel="icon" href="icon.svg" type="image/svg+xml"><link rel="icon" href="favicon.ico" sizes="32x32">',
+        '<link rel="apple-touch-icon" href="apple-touch-icon.png"><link rel="manifest" href="manifest.webmanifest">',
+        '<meta http-equiv="refresh" content="0; url=webapp/installer/">',          # straight on to the installer
+        '<a href="webapp/installer/">Optimist installer</a>\n'))
+    (out / "index.html").write_text(landing, encoding="utf-8")
     print(f"site: {out}: webapp/installer, webapp/editor, webapp/builder, " + ", ".join(f"firmware/{n}" for _, n in files))
+
+
+def release_site(version, out, pkg, emu=True):
+    """the release's own site (the release build: Optimist as an fm1-base app) into out: its front page, install page (the
+    package, m-bootloader offered after it), manual, emulator and package (tools/fm1base.py site)"""
+    sys.path.insert(0, str(HERE.parent / "tools"))
+    import fm1base
+    try:
+        print(fm1base.site(pkg, version, out, emu=emu))
+    except fm1base.FM1BaseError as e:
+        raise SystemExit(f"release site: {e}")
 
 
 if __name__ == "__main__":
     args = sys.argv[1:]
+    release_pkg = None
+    if "--release-pkg" in args:                 # (beside --local or --flavours: the release's site under OUT_DIR/release)
+        k = args.index("--release-pkg")
+        release_pkg = args[k + 1] if k + 1 < len(args) else sys.exit(__doc__)
+        del args[k:k + 2]
     if args[:1] == ["--builder"] and len(args) == 2:
         Path(args[1]).mkdir(parents=True, exist_ok=True)
         for f in ICONS:                             # (the page's icon links: ../../icon.svg ...)
@@ -415,5 +481,11 @@ if __name__ == "__main__":
         main(args[2], args[3], flavours_of(args[1]), releases_of(args[5], args[1]) if len(args) == 6 else None)
     elif args[:1] == ["--local"] and len(args) == 3:
         main(args[1], args[2])
+    elif args[:1] == ["--release-site"] and len(args) == 4:
+        release_site(args[1], args[2], args[3])
+        release_pkg = None
     else:
-        sys.exit(__doc__)
+        sys.exit(__doc__)          # a usage error: the docstring is the usage
+    if release_pkg and args[:1] in (["--local"], ["--flavours"]):
+        version = args[1] if args[0] == "--local" else args[2]
+        release_site(version, str(Path(args[-1] if args[0] == "--local" else args[3]) / "release"), release_pkg)

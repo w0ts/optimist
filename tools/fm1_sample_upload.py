@@ -23,7 +23,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import sampleio as sio  # noqa: E402
 
-PORT_RE = re.compile(r"optimist|felucca", re.I)   # the USB product name: "Optimist" (the builds before 2026-10-16: "Optimist (Felucca)")
+PORT_RE = re.compile(r"FM1-[0-9A-F]{4}|optimist|felucca", re.I)   # the USB product name: "FM1-XXXX" (since 2026-10-29), before it "Optimist"
+                                                                  # (the builds before 2026-10-16: "Optimist (Felucca)")
 
 HDR = [0x7D, 0x46, 0x4C]
 RC = {1: "size", 2: "header", 3: "data CRC", 4: "flash", 5: "zones"}
@@ -49,7 +50,7 @@ class Link:
         outs = [n for n in mido.get_output_names() if PORT_RE.search(n)]
         ins = [n for n in mido.get_input_names() if PORT_RE.search(n)]
         if not outs or not ins:
-            sys.exit("no MIDI port named Optimist (or Felucca): connect the FM-1 (running Felucca) by USB")
+            sys.exit("no MIDI port named FM1-XXXX (or Optimist, Felucca: older firmware): connect the FM-1 by USB")
         self.o = mido.open_output(outs[0])
         self.i = mido.open_input(ins[0])
         for _ in range(3):                          # the first frame after opening the port can be lost

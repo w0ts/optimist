@@ -87,19 +87,19 @@ struct { uint32_t magic, palette, lowcut, zoom, view; } settings __attribute__((
 
 #include "../core/hold.h"          /* HOLD: the layer buttons' tap / hold threshold, a setting (HOME menu > SYSTEM) */
 #include "../core/knobcol.h"       /* KNOB COLORS: the coloured knob caps, a setting (HOME menu > SYSTEM) */
+#include "../core/vufloor.h"      /* VU_FLOOR_DB: the dB at the meters' bottom, fixed */
+#include "../core/dbgstats.h"     /* DEBUG STATS: the platform's stats in flash, a setting (SYSTEM > General) */
 
 static void settings_save(void);              /* project.c: flash copy (FELUCCA_FLASH) */
 static uint8_t settings_later;                 /* changed while playing: saved once stopped (project.c) */
-#if FELUCCA_LIGHTS
 #include "lights.c"            /* menu LIGHTS / KEYS / NOTES (SLOOP 2.3) */
-#endif
 
 static void settings_init(void)
 {
     if (settings.magic != SETTINGS_MAGIC || settings.palette >= NPALETTES) {
         settings.magic = SETTINGS_MAGIC;
         settings.palette = 4;                  /* MONO (default) */
-        settings.lowcut = 0;
+        settings.lowcut = oc_word(1u, 0u);     /* SPK LOWCUT ON, HPHN BASS OFF (fx/outcorr.c) */
         settings.zoom = 0;                     /* large readout of the touched value: off */
         settings.view = 1;                     /* the overview pages (ALL) */
     }
@@ -108,11 +108,6 @@ static void settings_init(void)
     settings.palette = 4;                      /* the Optimist UI: MONO, no COLOR setting (the user, 2026-10-18: "white / mono
                                                 * is fine"); SLOOP's UI keeps its HOME-hold COLOR menu */
     palette_set(settings.palette);
-#if FELUCCA_BASSPLUS
-    if (settings.lowcut > 2u)
-        settings.lowcut = 1;
-    fx_lowcut = (uint8_t)settings.lowcut;      /* 0 OFF, 1 LOWCUT, 2 BASS+ (bassplus.c) */
-#else
-    fx_lowcut = (uint8_t)(settings.lowcut != 0);
-#endif
+    settings.lowcut = oc_set_word(settings.lowcut);   /* SPK LOWCUT, HPHN BASS (fx/outcorr.c: an older record's LOWCUT is SPK
+                                                         * LOWCUT's: OFF, ON, BASS+; HPHN BASS OFF) */
 }

@@ -19,9 +19,14 @@ web/builder/data/:
                  (web/flavours.json, without the package globs)
 """
 import json
+import os
 import sys
 from pathlib import Path
 
+# the site's data is the release's (costs-fm1base.json, the release's rules) whatever mode the caller runs in: optimist.py
+# test sets OPTIMIST_CLASSIC=1 for its own builds, and builder_test.py's --check under it compared the data with the
+# classic firmware's costs.json, stale every time
+os.environ.pop("OPTIMIST_CLASSIC", None)
 ROOT = Path(__file__).resolve().parents[1]
 BUILDER = ROOT / "tools" / "builder"
 sys.path.insert(0, str(BUILDER))
@@ -59,7 +64,7 @@ def files():
     py = {"needs_auto": list(C.NEEDS_AUTO),
           "files": {f: (ROOT / f).read_text(encoding="utf-8") for f in PY_FILES}}
     return {"python.json": _json(py), "registry.json": _json(web_api.registry_view()),
-            "costs.json": (BUILDER / "costs.json").read_text(encoding="utf-8"),
+            "costs.json": C.costs_file().read_text(encoding="utf-8"),
             "profiles.json": _json({"profiles": profiles(), "flavours": flavours()})}
 
 

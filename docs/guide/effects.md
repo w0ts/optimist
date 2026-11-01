@@ -34,7 +34,7 @@ The amount is one value per type, kept for the track whatever the slot, so prese
 | FRMT | a vowel filter | 1..127 sweeps the vowels A E I O U | none |
 | WIDE | stereo width | the share of the swept side | none |
 | GATER | a tempo-synced gate (below) | DEPTH, 127 a closed step silent | `GATER` |
-| CHRS | a two-tap chorus around 7 ms | up to 64 its mix, then its depth | none |
+| CHO | the chorus send's chorus as an insert (below) | MIX, 0 dry .. 127 all wet | the chorus's `REV/CHO` (CRT, CDP) |
 | ECHO | a short single repeat, 75 ms | up to 64 its level, then its feedback | none |
 | JUNO | the Juno-106 chorus (below) | MIX, 127 the Juno's chorus on | `JUNO CHO` |
 | EQ3 | a three-band DJ equaliser (below) | ON or OFF | `EQ3`, `EQ3 FREQ` |
@@ -47,6 +47,8 @@ The amount is one value per type, kept for the track whatever the slot, so prese
 | TAPE | a worn tape's tone: the highs rolled off (6.5 kHz down to 1.7 kHz along the amount), the mids wandering at random every couple of seconds | how far it wanders, how dark | none |
 | SPIT | a resonant band jumping at random (180 Hz .. 5.9 kHz, about 2.6 times a second), driven into a soft clip at the sound's own level | the band's sharpness and the drive | none |
 | XDLY | two delay lines modulating each other's time, after the LYRA-8's delay (below) | MIX, 0 dry .. 127 all wet | `XDLY` |
+| DLY | the delay send's delay as an insert (below) | MIX, 0 dry .. 127 all wet | the delay's `DLY`, `DLY F` |
+| REV | the reverb send's ROOM as an insert (below) | MIX, 0 dry .. 127 all wet | the reverb's `REV/CHO` |
 
 A drum lane can hold DIST, DYN (its compressor, with the drum track's RATIO ATK REL and no CEIL), FILT, DUST, FOLD, FUZZ, PHSR, FRMT, EQ3 and the shapers SFLD, RECT, HARM, RING and SLEW. Its amount belongs to the slot, not to the type: changing the type resets the amount to 0.
 
@@ -71,9 +73,9 @@ On the master DYN is the master compressor and the brickwall limiter: THRS (-30.
 
 GATER chops the track's volume in time with the tempo. Page `GATER`: DEPTH (the slot's amount), PAT, RATE and SHAPE. PAT is one of 16 patterns: 16TH, 8TH, 4TH, HALF, OFF8, OFF16, DOT8, DOT4, TRNC1 to TRNC4, GALOP, RVGAL, CLAVE, TRESL (default TRNC1). RATE is the length of a step: 1/8, 1/16, 1/32, 8T, 16T, 32T (default 1/16). SHAPE goes from hard to smooth. The phase follows the transport clock, so the gate starts on step 0 with PLAY at any tempo, nudge or external clock. On the drum track it gates the drum bus. GATER is off by default (`INS_GATER`) and not available on the master.
 
-### CHRS, ECHO, JUNO, FLNG and XDLY: types that share the effects memory
+### CHO, DLY, REV, ECHO, JUNO, FLNG and XDLY: types that keep a line of memory
 
-These keep a line of memory each (CHRS 2 KB, ECHO 8 KB, JUNO 2 KB, FLNG 1 KB, XDLY 64 or 32 KB), taken from one effects memory (builder item `DLY_ARENA`) that also holds the delay's own line. The builder builds each type or not; how many play at once is what the memory holds (the builder says, for the size chosen, up to how many of each). A slot that picks one when there is no room left stays dry until some is given back; the INSERTS list shows how many more fit.
+These keep a line of memory each (CHO 4 KB, ECHO 8 KB, JUNO 4 KB, FLNG 1 KB, XDLY 64 or 32 KB, REV 19 KB, DLY as long as the delay's line: 128 KB at 1.49 s). ECHO, JUNO, FLNG and XDLY take theirs from one effects memory that also holds the delay's own line: the builder builds each type or not and sizes the memory itself (the delay's line and one line of each type built), and says up to how many of each play at once. CHO, DLY and REV as inserts: with the builder item `ARENA` each copy is a block of the free RAM of its own, as many as it holds; without it a copy plays where the effects memory has room (a line another insert leaves free, or a send's line, below). A slot that picks one when there is no room left shows FULL and stays dry until some is given back; the INSERTS list shows how many more fit.
 
 **JUNO** is the Juno-106's chorus (from fm-106, the MN3009 model): page `JUNO CHO` with MIX (127 = fully on) and MODE (I, II, I+II). A mono track comes out in stereo. On the master it is the page `MST JUNO`, shown as `INS JUNO`.
 
@@ -86,7 +88,9 @@ These keep a line of memory each (CHRS 2 KB, ECHO 8 KB, JUNO 2 KB, FLNG 1 KB, XD
 
 A mono track hears the mean of the two lines; the drum bus and the master get line 1 on the left and line 2 on the right. A track keeps playing its repeats after its notes end, until the lines are silent (with FDBK high that is never: turn the MIX down to stop it).
 
-While the delay (DLY) is in none of the master's slots, its line is free and holds inserts beyond the memory's own room (any of the five), and the chorus's line likewise while CHO is in none (CHRS, JUNO, FLNG); put the send back in a slot and they fade out and give it back. A slot whose effect finds no room shows FULL and stays dry until room is given back.
+**CHO**, **DLY** and **REV** are one effect each: a send bus in one of the master's returns, and an insert, with a dry/wet amount like any other insert, in a track's slots, the master's and the USB input's. As an insert each runs the send's own code with the send's settings, each slot its own line or tank: CHO is the chorus (its RATE and DEPTH are the chorus's, CRT and CDP on `REV/CHO`), DLY the delay (its TIME synced to the tempo, FDBK and the filter are the delay's, pages `DLY` and `DLY F`; the delay's own MIX and DLY RET stay the send's), REV the reverb's ROOM (its SIZE and DAMP are the reverb's, page `REV/CHO`; it is the ROOM whatever TYPE the send plays: PLATE, FDN8 and VTINY run at half rate behind the send's filters and FDN8's ring alone is 32 KB). Their pages show while a slot holds them, even with the send in no master slot. The amount is the MIX: 0 dry (the track as it is), 127 all wet, which is what the send would return at 127 with the dry muted. On a track the amount is the track's own CHO, DLY or REV value (the one on `SENDS`): while a slot of the track holds the type, that value is the insert's MIX and the track sends nothing to that bus; take the type out of the slot and it is the send's level again. A mono track gets CHO's and REV's left and right as its centre and a side, so it comes out stereo; the drum bus and the master get left and right. A track keeps its tail or repeats after its notes end. Not on a return (a return holding CHO, DLY or REV is the send) nor a drum lane. A project saved with the insert copies of before loads them as these: CHRS as CHO (its amount up to the middle as the MIX), ROOM as REV, TDLY as DLY.
+
+While the delay (DLY) is in none of the master's slots, its line is free and holds inserts beyond the memory's own room (any of them), and the chorus's line likewise while CHO is in none (a CHO insert, JUNO, FLNG); put the send back in a slot and they fade out and give it back. A slot whose effect finds no room shows FULL and stays dry until room is given back.
 
 ### EQ3: a three-band DJ equaliser
 
@@ -101,7 +105,7 @@ EQ3 splits the sound at two crossover frequencies and sets the gain of each band
 
 ### Master insert slots
 
-The master has two insert slots, S1 and S2, after the returns and PUNCH and before the master volume. Their page is `MST INS`, shown as `INSERTS` on the master FX screen (tap FX on the mixer's MASTER row). They take every type the build has except GATER; CHRS, ECHO, FLNG and JUNO take an instance from the pool, as on a track. Their amounts: FILT is the master's DJ filter (-64..63), DUST the master DUST, DYN the master compressor's THRS.
+The master has two insert slots, S1 and S2, after the returns and PUNCH and before the master volume. Their page is `MST INS`, shown as `INSERTS` on the master FX screen (tap FX on the mixer's MASTER row). They take every type the build has except GATER; CHO, DLY, REV, ECHO, FLNG, JUNO and XDLY take an instance from the pool, as on a track. Their amounts: FILT is the master's DJ filter (-64..63), DUST the master DUST, DYN the master compressor's THRS.
 
 ### The three returns: A, B, C
 
@@ -144,7 +148,8 @@ A synth track's sends are on `SENDS`: REV, DLY, CHO (blank where no return carri
 
 ## What is not there
 
-- GATER cannot go in a master slot. XDLY cannot go in a return or the USB input's slots.
-- FLNG, WIDE, CHRS, ECHO, GATER, JUNO, SUB, TAPE, SPIT and XDLY cannot go in a drum lane's slots; they run on the track or the drum bus.
+- GATER cannot go in a master slot. XDLY cannot go in a return or the USB input's slots; CHO, DLY and REV in a return are the sends.
+- FLNG, WIDE, CHO, DLY, REV, ECHO, GATER, JUNO, SUB, TAPE, SPIT and XDLY cannot go in a drum lane's slots; they run on the track or the drum bus.
+- A track cannot both send to a bus and hold the same effect as an insert: its CHO, DLY or REV value is one or the other.
 - There are three returns and no fourth send bus.
 - No effect has a tap tempo or its own clock: GATER follows the transport, the delay time is a note value.

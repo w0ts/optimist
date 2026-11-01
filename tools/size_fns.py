@@ -12,8 +12,8 @@ optimizer, this script adds 'minsize' to those definitions, and the IR is then c
 (without the edit, that round trip is byte-identical to compiling felucca.c directly).
 
 Never marked, whatever file defines them: functions placed in RAM (a section attribute: HOT,
-.ram_text) and every function the audio side can reach through direct calls, address
-references, or a global whose initializer holds the function (a function pointer table such as
+.ram_text; an engine's hot code, core.h FAST) and every function the audio side can reach through direct
+calls, address references, or a global whose initializer holds the function (a function pointer table such as
 an engine's, or seq_tick's pattern-switch hook). The audio side is the IRQ bodies (*_irq), the RAM code and every function defined in
 AUDIO_FILES.
 
@@ -30,43 +30,44 @@ SRC = _ROOT / "firmware" / "src"
 SIZE_FILES = ["ui/colors.c", "ui/splash.c", "storage/storage.c", "storage/upreset.c", "storage/project.c",
               "seq/arranger_scene.c", "drums/drum_kits.c", "engines/fm6/fm6_sysex.c", "io/editor/editor.c",
               "io/editor/ed_drums.c", "io/editor/ed_backup.c", "io/editor/ed_lite.c", "io/editor/ed_cz.c", "storage/nbank.c",
-              "io/console.c", "io/console_run.c", "storage/sections/sec_log.c", "storage/sections/sections.c",
+              "io/console.c", "io/console_run.c", "io/console_mem.c", "storage/sections/sec_log.c", "storage/sections/sections.c",
               "storage/sections/sec_codec.c", "io/editor/ed_dsend.c", "io/editor/ed_dsrc.c",
               "io/editor/ed_macro.c", "io/editor/ed_pages.c", "io/editor/ed_snap.c",
               "io/editor/ed_steps.c", "io/editor/ed_user.c", "core/bp_set.c",
               "ui/ph_blob.c", "ui/panel.c", "ui/lights.c", "storage/settings_word.c",
               "storage/miss.c", "seq/undo.c", "storage/drum_store.c", "storage/auto_proj.c",
               "storage/sections/stepx_log.c", "storage/sections/pat.c", "storage/snapshots/snapshots.c",
-              "storage/snapshots/snap_store.c", "storage/sl24/sl24_guard.c", "storage/sl24/sl24_import.c", "storage/sl24/sl24_fm6.c",
-              "io/editor/ed_sync9.c", "io/editor/ed_stepx.c", "io/editor/ed_pat.c", "io/editor/ed_sl24.c", "io/editor/ed_fxs.c", "storage/sl24/sl24_export.c",
+              "storage/snapshots/snap_store.c", "storage/sl24/sl24_guard.c", "storage/sl24/sl24_is.c",
+              "io/editor/ed_sync9.c", "io/editor/ed_stepx.c", "io/editor/ed_pat.c", "io/editor/ed_fxs.c",
               "io/editor/ed_fxp.c", "io/editor/ed_dlan.c", "io/editor/ed_scrn.c", "io/editor/ed_song.c", "io/editor/ed_tools.c", "io/editor/ed_scrs.c",
-              "io/editor/ed_fav.c", "io/editor/ed_scope.c", "io/editor/ed_mirror.c", "io/editor/ed_undo.c", "io/editor/ed_note.c", "io/editor/ed_solo.c", "io/editor/ed_steplane.c", "io/editor/ed_proj.c", "io/editor/ed_clip.c",
-              "fx/fx_slots.c", "fx/insfx/fxi.c",
-              "fx/fx_rec.c", "fx/fx_rec_log.c", "storage/dlfo_rec.c", "storage/sections/dlfo_rec_log.c", "seq/auto_lane.c", "core/model.c", "core/favorites.c", "storage/persist_rec.c", "drums/dsnd_desc.c",
+              "io/editor/ed_fav.c", "io/editor/ed_scope.c", "io/editor/ed_mirror.c", "io/editor/ed_undo.c", "io/editor/ed_note.c", "io/editor/ed_solo.c", "io/editor/ed_steplane.c", "io/editor/ed_proj.c", "io/editor/ed_clip.c", "io/editor/ed_comp.c",
+              "fx/fx_slots.c", "fx/insfx/fxi.c", "fx/fx_arena.c", "core/arena_bufs.c", "core/feat_mem.c", "fx/rev_diag.c",
+              "fx/fx_rec.c", "fx/fx_rec_log.c", "storage/dlfo_rec.c", "storage/sections/dlfo_rec_log.c", "seq/auto_lane.c", "core/model.c", "core/favorites.c", "storage/persist_rec.c", "storage/persist_ext.c", "drums/dsnd_desc.c",
               "ui/optimist/optimist.c", "ui/optimist/op_state.c", "ui/optimist/op_cells.c", "ui/optimist/op_screens.c",
-              "ui/optimist/op_step.c", "ui/optimist/op_project.c", "ui/optimist/op_bt.c", "ui/optimist/op_prjflow.c", "ui/optimist/op_graph.c", "ui/optimist/op_draw.c",
-              "ui/optimist/op_stepdraw.c", "ui/optimist/op_input.c", "ui/optimist/op_layers.c", "ui/optimist/op_nav.c",
+              "ui/optimist/op_step.c", "ui/optimist/op_stepentry.c", "ui/optimist/op_project.c", "ui/optimist/op_bt.c", "ui/optimist/op_prjflow.c", "ui/optimist/op_sdcard.c", "ui/optimist/op_graph.c", "ui/optimist/op_draw.c",
+              "ui/optimist/op_stepdraw.c", "ui/optimist/op_input.c", "ui/optimist/op_keep.c", "ui/optimist/op_layers.c", "ui/optimist/op_nav.c",
               "ui/optimist/op_tempo.c", "ui/optimist/op_lanefx.c", "ui/optimist/op_song.c", "ui/optimist/op_combos.c", "ui/optimist/op_laydraw.c",
               "ui/optimist/op_mixer.c", "ui/optimist/op_mixdraw.c", "ui/optimist/op_scope.c",
-              "ui/optimist/op_fm6.c", "ui/optimist/op_fm6draw.c", "ui/optimist/op_name.c", "ui/optimist/op_preset.c",
+              "ui/optimist/op_fm6.c", "ui/optimist/op_fm6draw.c", "ui/optimist/op_name.c", "ui/optimist/op_memlist.c", "ui/optimist/op_preset.c",
               "ui/optimist/op_global.c", "ui/optimist/op_walk.c", "ui/optimist/op_keys.c",
-              "ui/optimist/op_effval.c", "ui/optimist/op_gldraw.c", "ui/optimist/op_tools.c",
+              "ui/optimist/op_effval.c", "ui/optimist/op_gldraw.c", "ui/optimist/op_credits.c", "ui/optimist/op_tools.c",
               "ui/optimist/op_help.c", "ui/optimist/op_edits.c", "ui/optimist/op_names.c", "ui/optimist/op_songtbl.c"]
 # kept at -Os on purpose: boot and main loop, flash / OTA / USB, drawing primitives, libc, sound-side helpers,
 # optional engines and effects (a new main-loop-only file goes in SIZE_FILES: --check, docs SLIM-CODE.md)
 # (boot and the main loop stay at -Os: at minsize the main loop got slower and the emulator boot check saw a late
 # half, the BLE start-up a link stop over its bound, perf/flash-survey 2026-10-15)
-OS_FILES = ["system/main.c", "system/supply.c", "io/usb/usb.c", "io/usb/usb_audio_route.c",
+OS_FILES = ["system/main.c", "system/supply.c", "io/usb/usb.c", "io/midi/midi_rings.c", "io/usb/usb_audio_route.c",
             "io/usb/usb_audio.c", "storage/motion_flash.c", "display/lcd.c", "display/lcd_dirty.c",
-            "display/gfx.c", "system/libc.c", "system/bench.c", "system/simd_probe.c", "system/cpuguard.c",
-            "ui/bright.c", "ui/meters.c", "seq/motion.c", "core/macro.c", "fx/master_comp/master_comp.c",
-            "seq/seq_midi.c", "drums/drum_sends.c", "drums/drum_mix.c", "seq/chance.c", "seq/qnt_seq.c", "fx/bassplus/bassplus.c",
+            "display/gfx.c", "system/libc.c", "system/bench.c", "system/bench_plaits.c", "system/simd_probe.c",
+            "system/cpuguard.c",
+            "ui/meters.c", "seq/motion.c", "core/macro.c", "fx/master_comp/master_comp.c",
+            "seq/seq_midi.c", "drums/drum_sends.c", "drums/drum_mix.c", "seq/chance.c", "seq/qnt_seq.c", "fx/bassplus/bassplus.c", "fx/outcorr.c",
             "fx/spring/spring.c", "fx/reverb/reverb_alt.c", "fx/reverb/rev_type.c", "engines/acid/eng_acid.c",
             "engines/cz/eng_cz.c", "engines/cz/cz_native.c", "engines/phys/eng_phys.c", "engines/phys/phys_dsp.c",
             "engines/phys/phys_symp.c", "fx/reverb/rev_math.c", "fx/reverb/reverb_airwin.c",
             # BLE (FELUCCA_BLE): runs in the BLE interrupts, at -Os
             "ble/ble_prim.c", "ble/ble_aes.c", "ble/ble_ll.c",
-            "ble/ble_stack.c", "ble/ble_hw_stub.c", "ble/ble_diag.c", "ble/ble_smp.c",
+            "ble/ble_stack.c", "ble/ble_hw_stub.c", "ble/ble_smp.c",
             # the DEVICES list (FELUCCA_BLE): the main loop's (the scan table, the one-device store, the menu's glue)
             "ble/ble_scan.c", "ble/ble_store.c", "io/midi/ble_none.c",
             # connecting out (BLE_CENTRAL): the BLE interrupts' (the central LL, driver, GATT client, SMP initiator) and the
@@ -80,7 +81,7 @@ OS_FILES = ["system/main.c", "system/supply.c", "io/usb/usb.c", "io/usb/usb_audi
 SIZE_FILES += ["bt/bt_safer.c", "bt/bt_sha256.c", "bt/uECC.c", "bt/bt_ssp.c"]
 # the firmware update session and the USB rescue (ota.c, recovery.c): a transfer's bytes and the rescue's loop, never the
 # sound or the boot's timing (2026-10-23, -272 B on mots.config; usb.c measured too: -48 B, left at -Os)
-SIZE_FILES += ["system/ota.c", "system/recovery.c"]   # (cpuguard.c measured too: 0 B, the sound side reaches all of it)
+SIZE_FILES += ["system/ota.c", "system/recovery.c", "system/devname.c"]   # (cpuguard.c measured too: 0 B, the sound side reaches all of it)
 # the main-loop side of the BLE and Bluetooth Classic files (the DEVICES list, the scan, bond and connect glue, the
 # radio's start-up, the A2DP stream's main-loop half: bti_poll, bp_print_rx, ble_midi_init, mir_blit ...): minsize;
 # what their interrupts reach (the *_irq roots: the LL, the LMP, the baseband drivers) stays at -Os by the guard below
@@ -89,6 +90,16 @@ SIZE_FILES += ["bt/bt_afh.c", "bt/bta_mem.c", "ble/ble_hw_wl82.c", "bt/bt_inq.c"
                "bt/bt_acl.c", "bt/bt_l2cap.c", "bt/bt_audio.c", "bt/bt_page.c",
                "bt/bt_inq_core.c", "bt/bt_lmp.c", "bt/bt_sdps.c", "ble/ble_att.c", "ble/ble_host.c", "bt/bt_avdtp.c",
                "ble/ble_midi.c", "io/midi/ble_devices.c"]
+# the SD card (SDCARD: storage/sd/; pff.c and fatfs/ their own units, listed so every source is)
+SIZE_FILES += ["storage/sd/sdcard.c", "storage/sd/sd_mmc.c", "storage/sd/pff.c", "io/console_sd.c",
+               "storage/sd/sd_diskio.c", "storage/sd/fatfs/ff.c", "storage/sd/fatfs/ffunicode.c",
+               "storage/sd/sd_layout.c", "storage/sd/sd_hash.c", "storage/sd/sd_alloc.c", "storage/sd/sd_index.c",
+               "storage/sd/sd_stream.c", "storage/sd/sd_stream_rc.c", "storage/sd/sd_slice.c", "storage/sd/sd_stream_plan.c",
+               "storage/sd/sd_browse.c", "storage/sd/sd_save.c", "storage/sd/sd_rec.c", "storage/sd/sd_mode.c"]
+# Wi-Fi + Link (WIFI_LINK, WIFI_AP)
+SIZE_FILES += ["wifi/wifi_crypto.c", "wifi/wifi_sta.c", "wifi/wifi_ip.c", "wifi/wifi_link.c", "link/link.c",
+               "wifi/wifi_conn.c", "wifi/wifi_nets.c", "wifi/wifi_saved.c", "wifi/wifi_ap.c", "wifi/wifi_ap_dhcp.c", "wifi/wifi_apd.c",
+               "io/editor/ed_wifi.c", "ui/optimist/op_wifi.c"]
 # the sound side: what the audio ISR, the second core and the voices run (never minsize)
 AUDIO_FILES = [  # (the A2DP stream's SBC encoder runs in the audio interrupt: bt_audio_feed, bt/bt_sbc.c and AOSP's bt/sbc/)
                "bt/bt_sbc.c", "bt/sbc/sbc_analysis.c", "bt/sbc/sbc_dct.c", "bt/sbc/sbc_dct_coeffs.c",
@@ -97,9 +108,9 @@ AUDIO_FILES = [  # (the A2DP stream's SBC encoder runs in the audio interrupt: b
                "engines/engines.c", "core/arena.c", "dsp/dsp.c", "engines/analog/eng_analog.c", "engines/analog/eng_analog2.c",
                "engines/digital/eng_digital.c", "engines/phase/eng_phase.c", "engines/lofi/eng_lofi.c",
                "engines/sample/eng_sample.c", "engines/formant/eng_formant.c", "engines/trio/eng_trio.c",
-               "engines/drawbar/eng_drawbar.c", "engines/grain/eng_grain.c", "engines/super/eng_super.c",
-               "engines/fm6/eng_fm6.c", "engines/slice/eng_slice.c", "drums/drums.c", "drums/synth/drum_synth.c", "drums/synth/drum_plaits.c",
-               "drums/drum_edit.c", "drums/x0x/drum_x0x.c", "core/params.c", "core/voice.c", "fx/slicer/slicer.c", "fx/insfx/insfx.c", "fx/insfx/fxi_kern.c", "fx/insfx/gater.c", "fx/insfx/eq3.c", "fx/insfx/tapespit.c", "fx/insfx/xdly.c",
+               "engines/drawbar/eng_drawbar.c", "engines/grain/eng_grain.c", "engines/grain/grain_card.c", "engines/super/eng_super.c",
+               "engines/fm6/eng_fm6.c", "engines/slice/eng_slice.c", "drums/drums.c", "drums/lane_card.c", "drums/synth/drum_synth.c", "drums/synth/drum_plaits.c",
+               "drums/drum_edit.c", "drums/x0x/drum_x0x.c", "core/params.c", "core/voice.c", "fx/slicer/slicer.c", "fx/insfx/insfx.c", "fx/insfx/fxi_kern.c", "fx/insfx/gater.c", "fx/insfx/eq3.c", "fx/insfx/tapespit.c", "fx/insfx/xdly.c", "fx/insfx/fxi_send.c",
                "engines/juno/eng_juno.c", "engines/noise/eng_noise.c", "engines/drone/eng_drone.c", "engines/plaits/eng_plaits.c", "engines/clipper/eng_strings.c", "engines/clipper/eng_vps.c",
                "engines/clipper/eng_terrain.c", "engines/clipper/eng_wseq.c", "engines/clipper/eng_vector.c", "engines/sid/eng_sid.c", "engines/prophet/eng_prophet.c", "engines/clipper/eng_wave.c", "engines/cs80/eng_cs80.c", "engines/stretch/eng_stretch.c",
                "fx/fx.c", "fx/punch/punch.c", "system/dual.c", "core/audio.c", "seq/seq.c", "seq/arranger.c",
@@ -184,7 +195,7 @@ def audio_reach(funcs, audio_names, globs=None):
     reach stops at MAIN_CUT (those are not reached)"""
     globs = globs or {}
     roots = {n for n, (head, _) in funcs.items()
-             if n.endswith("_irq") or n in audio_names or re.search(r'section "\.ram', head)}
+             if n.endswith("_irq") or n in audio_names or re.search(r'section "\.(?:ram|ovl\.|ovx\.)', head)}
     seen, todo = set(roots), list(roots)
     while todo:
         n = todo.pop()
@@ -205,7 +216,7 @@ SIDE_OUT = ("system/", "io/usb/", "io/midi/", "storage/", "display/", "ble/", "b
 
 def main_loop_side(funcs, globs):
     """the functions of AUDIO_FILES / OS_FILES (but SIDE_OUT's) that no interrupt / RAM root reaches"""
-    roots = {n for n, (head, _) in funcs.items() if n.endswith("_irq") or re.search(r'section "\.ram', head)}
+    roots = {n for n, (head, _) in funcs.items() if n.endswith("_irq") or re.search(r'section "\.(?:ram|ovl\.|ovx\.)', head)}
     seen, todo = set(roots), list(roots)
     while todo:
         n = todo.pop()

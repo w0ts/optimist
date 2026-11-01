@@ -88,7 +88,7 @@ static void dig_tone_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, co
         pa += ia;
         p1 += ib;
         p2 += ib;
-        out[i] += mulq15(mulq15(mulq15(x, gx) + mulq15(y, gy), amp_at(m, i)), VOICE_FS);
+        out[i] += VOICE_OUT(mulq15(x, gx) + mulq15(y, gy), amp_at(m, i), 0);
     }
     v->ph[0] = pc;
     v->ph[1] = pa;
@@ -111,7 +111,7 @@ static const param_desc_t *digital_desc(const track_t *t, uint32_t k)
 }
 #endif
 
-static HOT void digital_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
+static FAST(digital) void digital_render(track_t *t, voice_t *v, int32_t *__restrict out, uint32_t n, const vmod_t *m)
 {
     const int16_t *p = t->p;
     uint32_t alg = (uint32_t)p[P_E0] & 7u, i;
@@ -192,7 +192,7 @@ static HOT void digital_render(track_t *t, voice_t *v, int32_t *out, uint32_t n,
         ph1 += i2;
         ph2 += i3;
         ph4 += i4;
-        out[i] += mulq15(mulq15(s, amp_at(m, i)), VOICE_FS);   /* full-scale sines: 6 dB below the others */
+        out[i] += VOICE_OUT(s, amp_at(m, i), 0);   /* full-scale sines: 6 dB below the others */
     }
     v->ph[0] = ph0;
     v->ph[1] = ph1;
@@ -247,7 +247,7 @@ static const engine_t ENG_DIGITAL = {
         PU("-", F_INT, 0, 0, 0, 0),
 #endif
     },
-    DIGITAL_PRESETS, sizeof(DIGITAL_PRESETS) / sizeof(DIGITAL_PRESETS[0]), -1, digital_note_on, digital_render,
+    PRESETS_OF(DIGITAL_PRESETS), -1, digital_note_on, digital_render,
     0xFD20, {P_E4, P_E5, P_E6, P_REL},
 #if FELUCCA_DIG_TONE
     0, 0, digital_desc,

@@ -40,6 +40,7 @@ static uint32_t table_check(const slc_src_t *s)
 {
     slc_dec_t d;
     uint32_t pos, k = 0, a = 0, bad = 0;
+    d.dat = slc_dat(s);
     slc_dec_at(&d, 0, 0);
     for (pos = 0; pos < s->len; pos++) {
         while (k < SLC_GRID && slc_gpos(s, k) == pos)
@@ -83,7 +84,7 @@ static int match(const slc_src_t *s, const uint32_t *h, uint32_t nh, uint32_t ea
 /* 3: slice j of DIV div read backwards == forwards reversed */
 static uint32_t rev_check(uint32_t src, uint32_t div, uint32_t j)
 {
-    const slc_src_t *s = slc_get(src);
+    const slc_src_t *s = slc_get(0, src);
     static int32_t fw[1 << 18];
     static int16_t rb[SLC_RB];
     voice_t v;
@@ -91,6 +92,7 @@ static uint32_t rev_check(uint32_t src, uint32_t div, uint32_t j)
     uint32_t a, b, st, i, n, bad = 0;
     int32_t x;
     slc_bounds(s, div, j, &a, &b, &st);
+    d.dat = slc_dat(s);
     slc_dec_at(&d, a, st);
     for (n = 0; d.pos < b && n < (1u << 18); n++)
         fw[n] = slc_dec_next(s, &d);
@@ -98,7 +100,7 @@ static uint32_t rev_check(uint32_t src, uint32_t div, uint32_t j)
     v.ph[0] = b;
     v.ph[2] = a;
     v.s[0] = 0x7FFFFFFF;
-    v.s[4] = (int32_t)(src | (st >> 24) << 2 | 1u << 6 | j << 8 | div << 16);
+    v.s[4] = (int32_t)(src | (st >> 24) << 3 | 1u << 7 | j << 8 | div << 16);
     for (i = 0; i < n; i++)
         bad += !slc_rev(s, &v, rb, 0, &x) || x != fw[n - 1u - i];
     bad += slc_rev(s, &v, rb, 0, &x) != 0;               /* and then it ends */
@@ -251,7 +253,7 @@ int main(int argc, char **argv)
         return 1;
     }
     smp_user_scan(0);
-    check("USR1: valid after smp_user_scan, slice table built", usr_nz[0] && slc_usr[0].len && slc_get(1) != 0,
+    check("USR1: valid after smp_user_scan, slice table built", usr_nz[0] && slc_usr[0].len && slc_get(0, 1) != 0,
           "%u zones, %u samples", usr_nz[0], slc_usr[0].len);
     check("USR1: table == decoder states", !(bad = table_check(&slc_usr[0])), "%u differ", bad);
     {   /* a slot being rescanned (len 0) while a voice fills its buffer: silence, no divide by zero
@@ -271,7 +273,7 @@ int main(int argc, char **argv)
     for (i = 0; i < nh; i++)
         printf(" %.1f", hits[i] * 1000.0 / 22050.0);
     printf("\n");
-    check("USR2 / USR3: empty, no material", !slc_get(2) && !slc_get(3), 0);
+    check("USR2 / USR3: empty, no material", !slc_get(0, 2) && !slc_get(0, 3), 0);
 
     /* 3 */
     for (bad = 0, i = 0; i < 16u; i++)
@@ -316,10 +318,10 @@ int main(int argc, char **argv)
         ok &= (v = voice_of(t, 72)) && slice_of(v) == 12u % SLC_BREAK.nauto && v->ph[0] == SLC_BREAK.apos[12u % SLC_BREAK.nauto];
         t->p[P_E0] = 2;                                    /* USR2: empty -> BREAK */
         trk_note_on(t, 61, 100);
-        ok &= (v = voice_of(t, 61)) && ((uint32_t)v->s[4] & 3u) == 0u && v->ph[0] == SLC_BREAK.apos[1];
+        ok &= (v = voice_of(t, 61)) && ((uint32_t)v->s[4] & 7u) == 0u && v->ph[0] == SLC_BREAK.apos[1];
         t->p[P_E0] = 1;                                    /* USR1 */
         trk_note_on(t, 63, 100);
-        ok &= (v = voice_of(t, 63)) && ((uint32_t)v->s[4] & 3u) == 1u && v->ph[0] == slc_usr[0].apos[3];
+        ok &= (v = voice_of(t, 63)) && ((uint32_t)v->s[4] & 7u) == 1u && v->ph[0] == slc_usr[0].apos[3];
         check("keys: AUTO count, an empty slot plays BREAK, USR1", ok, 0);
         ok = 1;
         song.octave = 0;

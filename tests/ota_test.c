@@ -230,7 +230,8 @@ int main(int argc, char **argv)
     reset_dev();
     rc = ota_session();
     printf("  %u requests\n", requests);
-    bad += check("session commits (flash.bin exactly the app area)", rc == 0 && committed && fl_entry(12) == 0x93000u);
+    bad += check("session commits (flash.bin exactly an app slot: either flash layout)", rc == 0 && committed &&
+                 (fl_entry(12) == FL_APP_HI_NORMAL || fl_entry(12) == FL_APP_HI_BIG));
     bad += check("headers + loader twice + confirm, no head reads", requests >= 10 && requests <= 45);
     {
         uint8_t *h = nor + 0xE0000, *p = committed_parm;
@@ -266,6 +267,33 @@ int main(int argc, char **argv)
             rc = ota_session();
             bad += check(WHAT[k], rc == -15 && !committed && erases == 0 && last_code == -15);
             memcpy(logical, keep, sizeof keep);
+        }
+        /* every MEMORY step's size passes step 1 (fm1_steps.h FL_STEPS, tools/flash_layout.py), whatever step this
+         * build is: the package's own loader writes it; the release's 0xCE000 and a size between two steps do not */
+#define STEP_SIZE_OK(l, e, r)                                                                                    \
+        {                                                                                                        \
+            char what[96];                                                                                       \
+            reset_dev();                                                                                         \
+            set_fl_size(logical, (e));                                                                           \
+            rc = ota_session();                                                                                  \
+            snprintf(what, sizeof what, "step %d's flash.bin (%#x B): past the size check (not -15), the screen's "      \
+                     "layout warning %s", (l), (unsigned)(e), (e) != FL_APP_HI ? "on" : "off");                       \
+            bad += check(what, rc != -15 && last_code != -15 && ota_relayout == ((e) != FL_APP_HI));             \
+            memcpy(logical, keep, sizeof keep);                                                                  \
+        }
+        FL_STEPS(STEP_SIZE_OK)
+#undef STEP_SIZE_OK
+        {
+            static const uint32_t NO[3] = {0xCE000u, 0xB4000u, 0xB6000u};
+            for (k = 0; k < 3u; k++) {
+                char what[96];
+                reset_dev();
+                set_fl_size(logical, NO[k]);
+                rc = ota_session();
+                snprintf(what, sizeof what, "no step's size (%#x B): -15, nothing erased", (unsigned)NO[k]);
+                bad += check(what, rc == -15 && !committed && erases == 0);
+                memcpy(logical, keep, sizeof keep);
+            }
         }
     }
     {
