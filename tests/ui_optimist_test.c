@@ -398,6 +398,32 @@ static void msg_seen(void)
  * the same hash before and after) */
 static uint32_t frame_hash = 2166136261u, frame_n;
 static void frame_hash_print(void) { printf("frame hash %08x over %u frames\n", frame_hash, frame_n); }
+/* UI_FRAME_HASHES=FILE: each frame's screen hashed alone, a line "frame hash" each, and a line "# check" before every
+ * check's result: two builds' files (the whole canvas and CANVAS_STRIP's, a drawing refactor) compared by
+ * tests/frame_hashes_diff.py name the checks whose frames differ. FNV-1a over the screen's pixels */
+static uint64_t draw_ns;
+static uint32_t fh_n_frames;                            /* the frames drawn (frame) */                                /* ui_draw's CPU time over the run (frame) */
+static FILE *fh_out;
+static int fh_on = -1;
+static uint32_t fh_n;
+static void fh_frame(void)
+{
+    uint32_t i, h = 2166136261u;
+    if (fh_on < 0) {
+        const char *f = getenv("UI_FRAME_HASHES");
+        fh_on = f && f[0] && (fh_out = fopen(f, "w")) != NULL;
+    }
+    if (!fh_on)
+        return;
+    for (i = 0; i < 240u * 240u; i++)
+        h = (h ^ screen[i]) * 16777619u;
+    fprintf(fh_out, "%u %08x\n", fh_n++, h);
+}
+static void fh_check(const char *what)
+{
+    if (fh_on > 0)
+        fprintf(fh_out, "# %s\n", what);
+}
 static void frame(void)                                 /* one UI frame (~16 ms): the audio, input, LEDs, draw */
 {
     uint32_t q;
@@ -410,7 +436,13 @@ static void frame(void)                                 /* one UI frame (~16 ms)
     ui_input();
     msg_seen();
     ui_leds();
-    ui_draw();
+    {                                                   /* (the drawing's CPU: printed at the end, the canvas's passes measured) */
+        struct timespec t0, t1;
+        clock_gettime(CLOCK_THREAD_CPUTIME_ID, &t0);
+        ui_draw();
+        clock_gettime(CLOCK_THREAD_CPUTIME_ID, &t1);
+        draw_ns += (uint64_t)(t1.tv_sec - t0.tv_sec) * 1000000000u + (uint64_t)(t1.tv_nsec - t0.tv_nsec);
+    }
     fm1_ms += 16;
     if (hashing < 0 && (hashing = getenv("FRAME_HASH") != NULL))
         atexit(frame_hash_print);
@@ -420,6 +452,8 @@ static void frame(void)                                 /* one UI frame (~16 ms)
             frame_hash = (frame_hash ^ p[q]) * 16777619u;
         frame_n++;
     }
+    fh_frame();
+    fh_n_frames++;
 }
 static void frames(uint32_t n) { while (n--) frame(); }
 #define HOLD_FRAMES (op_hold_ms() / 16u + 3u)            /* a button held past SYSTEM HOLD: its layer shows */
@@ -455,7 +489,7 @@ static void cards_up(void) { if (ui.scr == SCR_STEP && !ui.cards_t && !st.held) 
 static int fails;
 static uint32_t key_led(uint32_t k);                     /* ui_optimist_pages.h */
 static int px_in(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint16_t col);
-static void check(int ok, const char *what) { printf("optimist ui: %-72s %s\n", what, ok ? "ok" : "FAIL"); fails += !ok; }
+static void check(int ok, const char *what) { fh_check(what); printf("optimist ui: %-72s %s\n", what, ok ? "ok" : "FAIL"); fails += !ok; }
 #define RING_FRAMES ((RH_CLEAR_MS + 40u) / 16u + 2u)    /* (a delete's ring held to its end: frames of 16 ms) */
 static void reset_ui(void)
 {
@@ -4611,6 +4645,10 @@ int main(int argc, char **argv)
                mc_fixes, mc_fix_bad, mc_fix_whole, mc_fixes ? mc_fix_sum / mc_fixes : 0u);
     }
 #endif
+    printf("  canvas: %u cut short (gfx.c CV_MAX %u rows; the last asked %u x %u)\n", (unsigned)cv_cuts, (unsigned)(CV_MAX / 240u),
+           (unsigned)cv_cut_w, (unsigned)cv_cut_h);
+    printf("  the drawing: %.0f ms of CPU over %u frames\n", (double)draw_ns / 1e6, (unsigned)fh_n_frames);
+    check(!cv_cuts, "the canvas: nothing drawn taller than it (a band over CV_MAX rows drawn in passes, op_graph.c cv_tall / cv_whole)");
 #if FELUCCA_PATTERNS
     patlive_ui_tests();                                 /* (last: it switches projects) */
 #endif

@@ -698,7 +698,7 @@ static __attribute__((noinline)) void sg_cols(uint32_t w0, uint32_t w1)
 {
     uint32_t r0, n, r, i, h = SG_TOP + SG_H + 1u, x0 = SG_X + w0 * SG_CW - 1u, w = (w1 - w0 + 1u) * SG_CW;
     for (r0 = 0; r0 < h; r0 += n) {
-        n = h - r0 < 120u ? h - r0 : 120u;
+        n = h - r0 < CV_PASS ? h - r0 : CV_PASS;
         cv_begin(240, n, C_BLACK);
         cv_oy = -(int32_t)r0;
         sg_paint();
@@ -792,6 +792,11 @@ static int32_t sg_shift(uint32_t want, uint32_t inf)
     lh = SG_LY0(sel + 1u) - y;
     return y >= top && y + lh <= lim ? 0 : top - y;
 }
+static void sg_info_paint(void)                         /* a held step's two lines (step_frame) */
+{
+    cv_texts(4, 2, sg_info[0], C_HI);
+    cv_texts(4, 2 + SG_INFO_DY, sg_info[1], C_GRAY);
+}
 /* (noinline: a call from op_frame_draw, which is smaller without it inlined) */
 static __attribute__((noinline)) void step_frame(void)
 {
@@ -828,10 +833,7 @@ static __attribute__((noinline)) void step_frame(void)
         draw_cards();
     if (inf && hs(hs(1u, sg_info[0]), sg_info[1]) != isig) {
         isig = hs(hs(1u, sg_info[0]), sg_info[1]);
-        cv_begin(240, SG_INFO_H, C_BLACK);
-        cv_texts(4, 2, sg_info[0], C_HI);
-        cv_texts(4, 2 + SG_INFO_DY, sg_info[1], C_GRAY);
-        cv_blit(0, SP_Y + SG_INFO_Y);
+        cv_whole(SP_Y + SG_INFO_Y, SG_INFO_H, C_BLACK, sg_info_paint);   /* (38 rows: in passes with CANVAS_STRIP 31) */
         if (ui.toast_t)
             ui.sig[4] = 0;                              /* (a toast over it is drawn again) */
     }

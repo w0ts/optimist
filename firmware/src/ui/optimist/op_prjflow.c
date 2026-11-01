@@ -582,7 +582,7 @@ static struct {
     uint16_t used, bar, col1, col2;                     /* a bit a slot used; the track colour; the detail lines' colours */
     char head[28], name[16], d1[28], d2[28];
 } pdp;
-static void cv_tall(uint32_t y, uint32_t h, uint16_t bg, void (*fn)(void));   /* op_draw.c */
+static void cv_tall(uint32_t y, uint32_t h, uint16_t bg, void (*fn)(void));   /* op_graph.c */
 static uint32_t hs(uint32_t h, const char *s);
 static uint32_t hu(uint32_t h, uint32_t v);
 static const felucca_font_t *font_big(void);            /* op_graph.c */

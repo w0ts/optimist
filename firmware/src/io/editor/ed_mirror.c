@@ -606,6 +606,7 @@ static void mir_ask(uint32_t bits, uint32_t l)
     mir.link = (uint8_t)l;
     mir.resets = usb.resets;
 }
+static void mir_fix_ask(uint32_t lo, uint32_t hi);   /* (below; the one above is the Bluetooth build's alone) */
 static void ed_mirror(const uint8_t *a, uint32_t na)
 {
     if (na == 3u && (a[0] & MIR_FIX_BIT))

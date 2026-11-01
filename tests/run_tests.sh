@@ -810,6 +810,13 @@ job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 -o "$OUT/ui_optimist_test" tests/ui_optimist_test.c -lm
     run "Optimist UI: every screen's rows, SELECT / ALGORITHM / PRESETS / knobs, YES / NO, the confirm, undo chords, fuzz" "$OUT/ui_optimist_test" "$OUT/optimist"
 ) >"$U.out" 2>&1 & jobbg
+# the same at the whole canvas (CANVAS_STRIP 0: 240 x 124, 120-row panels; the default is 31 rows) and at 62 rows
+job; ( jobin
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DFELUCCA_CANVAS_STRIP=0 $SEC4 -o "$OUT/ui_optimist_c124_test" tests/ui_optimist_test.c -lm
+    run "Optimist UI at the whole canvas (CANVAS_STRIP 0, 124 rows)" "$OUT/ui_optimist_c124_test" "$OUT/optimist"
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DFELUCCA_CANVAS_STRIP=1 $SEC4 -o "$OUT/ui_optimist_c62_test" tests/ui_optimist_test.c -lm
+    run "Optimist UI at 62 rows (CANVAS_STRIP 1)" "$OUT/ui_optimist_c62_test" "$OUT/optimist"
+) >"$U.out" 2>&1 & jobbg
 # the dual-core build's CPU1 load (system/dual_load.h): none in a single-core build; smoothed as song.cpu_q8, in range,
 # OFF when CPU1 is down; SYSTEM's CPU row with it (DUAL_LOAD alone: the readout without the second core's render)
 job; ( jobin
