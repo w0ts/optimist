@@ -184,8 +184,8 @@ static uint32_t prj_danger(uint32_t kind, uint32_t op, uint32_t s)
     if (op == PO_LOAD && kind == PR_USER)
         return u && !is_drum(TSEL) && snd_edited(song.sel);   /* (a user preset replaces the sound only: asked over edits, ed_ask's rule) */
     if (op == PO_NEW_HERE)
-        return work_changed();                          /* (a free slot: red only when the open work would go) */
-    return op == PO_LOAD ? u && work_changed() : u;
+        return prj_unsaved();                           /* (a free slot: red only when the open work would go) */
+    return op == PO_LOAD ? u && prj_unsaved() : u;
 }
 
 static void prj_cell(uint32_t r, uint32_t k, cell_t *c)
@@ -315,7 +315,7 @@ static void prj_ask(uint32_t r, uint32_t kind, uint32_t op, uint32_t s)
     prj_arm_op = (uint8_t)op;
     prj_arm_slot = (uint8_t)s;
 #if FELUCCA_PATTERNS
-    if (kind == PR_PROJECT && (op == PO_LOAD || op == PO_NEW_HERE) && work_changed() && !song.playing && !transport_req) {
+    if (kind == PR_PROJECT && (op == PO_LOAD || op == PO_NEW_HERE) && prj_unsaved() && !song.playing && !transport_req) {
         fmt_int(l, (int32_t)project_cur() + 1);         /* the open project, whose work changed: "SAVE PROJECT 2?" first */
         str_cpy(t, PRJ_WHAT[kind], sizeof t);
         str_app(t, l, sizeof t);
@@ -365,12 +365,12 @@ static void prj_do(uint32_t kind, uint32_t op, uint32_t s)
 #if SEC_LOGGED
         if (op == PO_DELETE) {
 #if FELUCCA_PATTERNS
+            int rc = song.playing || transport_req ? 1 : project_clear(s);   /* the whole project: its state, scenes, patterns,
+                                                         * live patterns, song (sections.c) */
             if (song.playing || transport_req)
                 ui_message("STOP FIRST");
-            else if (project_clear(s))                  /* the whole project: its state, scenes, patterns, song (sections.c) */
-                ui_message("NOT ALL CLEARED");
-            else
-                ui_message("DELETED");
+            else if (rc != -2)                          /* (-2: refused, said: MEM FULL) */
+                ui_message(rc ? "NOT ALL CLEARED" : "DELETED");
 #else
             (void)sec_scene_clear(s);                   /* (the section log's tombstones: its record, FX, extras and LFO records) */
 #endif
@@ -582,7 +582,7 @@ static struct {
     uint16_t used, bar, col1, col2;                     /* a bit a slot used; the track colour; the detail lines' colours */
     char head[28], name[16], d1[28], d2[28];
 } pdp;
-static void cv_tall(uint32_t y, uint32_t h, uint16_t bg, void (*fn)(void));   /* op_draw.c */
+static void cv_tall(uint32_t y, uint32_t h, uint16_t bg, void (*fn)(void));   /* op_graph.c */
 static uint32_t hs(uint32_t h, const char *s);
 static uint32_t hu(uint32_t h, uint32_t v);
 static const felucca_font_t *font_big(void);            /* op_graph.c */

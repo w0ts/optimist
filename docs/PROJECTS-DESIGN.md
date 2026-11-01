@@ -35,7 +35,7 @@ the oldest sector, tombstones). Format 2 ("SLG2" sector magic) changes the recor
 |---|---|
 | magic u16, id u8, state u8 | as before (`"SE"`, the id, 0xFF written / 0x00 done) |
 | seq u32, len u16 | as before |
-| **proj u8** | 0..15 the project, 0xFF device-wide (the working copy's companions, the project names, the open project) |
+| **proj u8** | 0..15 the project, 0xFF device-wide (the working copy's companions, the project names, the open project); 0x10 \| p project p's **live patterns** (issue 142: the pattern ids 24..87 again, `docs/PATTERNS-DESIGN.md` 9) |
 | **dead u8** | 0xFF live, 0x00 superseded (programmed once a newer record or a tombstone of the same (proj, id) is done) |
 | crc u32 | over id, seq, len, **proj** and the bytes |
 
@@ -44,12 +44,14 @@ the oldest sector, tombstones). Format 2 ("SLG2" sector magic) changes the recor
   as sector << 10 | offset / 4 (16 bits, up to 64 sectors).
 - **Ids** keep today's numbers, scoped to a project: 0..15 scenes, 16 the song chain (whole, no tag: nothing of it in
   the settings record), 17 the tracks' sources, 18 the scenes' BARS, **19 the state** (a plain section record, the
-  steps in it; its extras, FX and LFO records at **139 / 140 / 141**, `SLG_IDS` 142), 24..87 the patterns, 88..103 /
+  steps in it; its extras, FX and LFO records at **139 / 140 / 141**; 142..225 the MIDI tracks', reserved: `SLG_IDS`
+  226), 24..87 the patterns (and, tagged 0x10 | p, their live records), 88..103 /
   105..120 / 122..137 the scenes' extras / FX / drum lane LFO records, 104 / 121 / 138 the working copy's (the device
   autosave's companions, written in the open project's scope). Device-wide (proj 0xFF): **21 the project names** (the
   PROJECT page's; scenes have no names), **20 a save as under way** (from, to; section 3). **Which project is open is the settings record's** (`persist_t.open_proj`,
   appended to PER4; a record from before reads as project 1): opening a project must never need room in the log.
-- **The index holds the open project** (and the device-wide ids): `slg.at / aseq / alen / tomb[SLG_IDS]` as today, so
+- **The index holds the open project** (and the device-wide ids): `slg.at / aseq / alen / tomb[SLG_IX]` (`SLG_IX` =
+  `SLG_IDS` + 1 + 64: the open project's live patterns at `SLG_LV0` + id - 24, `SLG_IDS` itself stays "none"), so
   `sections.c`, `pat.c`, the records' logs and the editor keep their calls. Opening a project walks the sectors again
   with the new filter (a few ms stopped). Boot walks once for the sector order (and which projects hold something:
   `slg.pused`, the PROJECT page's strip), then opens the settings' project.
@@ -58,7 +60,9 @@ the oldest sector, tombstones). Format 2 ("SLG2" sector magic) changes the recor
   them to the open project's. Compacting the oldest sector copies the other projects' live records as they are; a
   record superseded by a newer one in the same sector (its dead byte never programmed: a cut) is found by the sector's
   own records and dropped, so nothing comes back. The open project's stale records found by a walk are marked dead.
-- The pending arena (`sec_pend`, `.noinit`) is the open project's; it is written (or dropped) before another opens.
+- The pending arena (`sec_pend`, `.noinit`) is the open project's; it is written before another opens. Anything the log
+  does not take (MEM FULL) refuses the switch (`proj_quiet`: *MEM FULL: SAVE OR RELOAD* when live patterns wait, else
+  *MEM FULL*); before 2026-11-01 it was cleared all the same.
 - The old log (0x97000, "SLG1", 8 sectors) is neither read nor written by a PATTERNS build. With samples built, user
   sample slot USR1 reads as empty and takes nothing (`eng_sample.c SMP_USER_CAP`); without them, the log also covers
   USR2's room: sample data left there by another build is lost (the user's trade-off, 2026-10-22).
@@ -72,15 +76,18 @@ the oldest sector, tombstones). Format 2 ("SLG2" sector magic) changes the recor
 
 ## 3. Device, editor, tests
 
-- PROJECT page: LOAD opens (the work changed: "SAVE PROJECT n?" first — YES saves the open project then opens, HOME
-  cancels as every question does (the user, 2026-10-22); `op_prjflow.c PO_SAVE_LOAD`), SAVE saves the state (NAME first),
-  DELETE clears the whole project, NEW blanks the work and clears the open project
+- PROJECT page: LOAD opens (the work changed, or live patterns not saved (issue 142, `prj_unsaved`): "SAVE PROJECT n?"
+  first — YES saves the open project then opens, HOME asks the LOAD in red, HOME again cancels (the user, 2026-10-22 /
+  10-25); `op_prjflow.c PO_SAVE_LOAD`; the tracks' edits are kept as the open project's live patterns before the switch,
+  so a LOAD without a save keeps them with their project), SAVE saves **everything** (NAME first; issue 142, the user
+  2026-11-01: the tracks left, every live pattern its saved one, then the state: `project_save_all`),
+  DELETE clears the whole project (its live patterns too), NEW blanks the work and clears the open project
   (stopped). SONG, the pattern layer, the session grid: the open project's. `op_edits.c prj_load_go / prj_save_go`
   are the one way in (the deferred load / save while playing too).
 - **SAVE into another slot is a save as** (the user, 2026-10-25: "copy everything"; `sections.c project_save_as`): every
   record of the open project (its state as saved, scenes, patterns, song, BARS, sources; not the device-wide names: NAME
-  sets the target's) is copied into the target over what it held, the target becomes the open project and the work is
-  saved as its state. The room for the whole copy plus the reserve is checked on the room model first: MEM FULL writes
+  sets the target's; the patterns as they play: a live pattern is copied as the target's saved one, the source keeps it)
+  is copied into the target over what it held, the target becomes the open project and the work is saved as its state. The room for the whole copy plus the reserve is checked on the room model first: MEM FULL writes
   nothing and the target stays as it was (its old records count as live until the copy is in: DELETE it first to make
   room; every id without a record is counted as a clear). Power cuts: a device-wide marker (id 20: from, to) is written
   first; then every record of the target is cleared as DELETE clears it (tombstones, the old records marked dead, so no

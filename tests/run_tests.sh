@@ -147,7 +147,7 @@ t_ble_rf() { python3 tests/ble_rf_capture_test.py; }
 t_ble_emu() { python3 tests/ble_emu_test.py; }
 t_ble_central() { python3 tests/ble_emu_central_test.py; }
 t_ble_boot() { python3 tests/ble_emu_boot_test.py; }
-t_builder() { python3 tests/builder_test.py; r=$?; python3 tests/builder_core_test.py || r=1; return $r; }
+t_builder() { python3 tests/builder_test.py; r=$?; python3 tests/builder_core_test.py || r=1; python3 tests/engine_order_test.py || r=1; return $r; }
 t_web() { node web/test_web.mjs; r=$?; node web/test_builder.mjs || r=1; python3 tests/cloud_build_test.py || r=1; python3 tests/outside_hosts_test.py || r=1; return $r; }
 # the simulator (docs/WEB.md): the default configuration's firmware as WebAssembly, run under node
 t_sim() {
@@ -587,6 +587,13 @@ job; ( jobin   # the undo history after the arena with the cache RAM (CACHE_RAM,
     $CC -O2 -w -I"$HGEN" -Ifirmware/src "-DFELUCCA_ARENA_BYTES=8192u" -DFELUCCA_CACHE_RAM=4 -o "$OUT/undo_cache4_test" tests/undo_cache_test.c -lm
     run "the same with 16 KB of cache RAM: the SRAM part its 1 KB least" "$OUT/undo_cache4_test"
 ) >"$U.out" 2>&1 & jobbg
+job; ( jobin   # the STORAGE reserve (seq/undo.c stg_*: the save / load staging buffers past the arena, the undo history's
+              # third part while nothing stores; ASan: the ring's three parts, the turn)
+    $CC -O2 -g -fsanitize=address,undefined -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal "-DFELUCCA_ARENA_BYTES=8192u" -o "$OUT/stg_lend_test" tests/stg_lend_test.c -lm
+    run "the STORAGE reserve: lent to the undo history when idle, taken back for a save (stopped: turned, only levels past the ring without it dropped; playing: at once while it holds none), 100 saves, the arena full" "$OUT/stg_lend_test"
+    $CC -O2 -g -fsanitize=address,undefined -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal "-DFELUCCA_ARENA_BYTES=8192u" -DFELUCCA_CACHE_RAM=4 -o "$OUT/stg_lend4_test" tests/stg_lend_test.c -lm
+    run "the same with 16 KB of cache RAM (the ring's second part between the SRAM and the reserve)" "$OUT/stg_lend4_test"
+) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/clock_sync_test" tests/clock_sync_test.c -lm
     run "MIDI clock: follow USB / TRS (SYNC AUTO, jitter, ramps, start / stop / continue / SPP), on-time steps" "$OUT/clock_sync_test"
@@ -802,6 +809,13 @@ mkdir -p "$OUT/optimist"
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 -o "$OUT/ui_optimist_test" tests/ui_optimist_test.c -lm
     run "Optimist UI: every screen's rows, SELECT / ALGORITHM / PRESETS / knobs, YES / NO, the confirm, undo chords, fuzz" "$OUT/ui_optimist_test" "$OUT/optimist"
+) >"$U.out" 2>&1 & jobbg
+# the same at the whole canvas (CANVAS_STRIP 0: 240 x 124, 120-row panels; the default is 31 rows) and at 62 rows
+job; ( jobin
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DFELUCCA_CANVAS_STRIP=0 $SEC4 -o "$OUT/ui_optimist_c124_test" tests/ui_optimist_test.c -lm
+    run "Optimist UI at the whole canvas (CANVAS_STRIP 0, 124 rows)" "$OUT/ui_optimist_c124_test" "$OUT/optimist"
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DFELUCCA_CANVAS_STRIP=1 $SEC4 -o "$OUT/ui_optimist_c62_test" tests/ui_optimist_test.c -lm
+    run "Optimist UI at 62 rows (CANVAS_STRIP 1)" "$OUT/ui_optimist_c62_test" "$OUT/optimist"
 ) >"$U.out" 2>&1 & jobbg
 # the dual-core build's CPU1 load (system/dual_load.h): none in a single-core build; smoothed as song.cpu_q8, in range,
 # OFF when CPU1 is down; SYSTEM's CPU row with it (DUAL_LOAD alone: the readout without the second core's render)
@@ -1559,6 +1573,10 @@ for f in "" "-DFELUCCA_MOTION=0" "-DFELUCCA_SL24_XSTEP=1 -DFELUCCA_MICRO=1"; do
         run "pattern launches while playing (${f:-defaults}): end, bar, now, swing, motion, a take, undo, stopped, a live jump, song mode" "$OUT/patterns_seq_test$nu"
     ) >"$U.out" 2>&1 & jobbg
 done
+job; ( jobin   # live patterns (issue 142): each pattern keeps its edits in flash beside its saved version
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/patlive_test" tests/patlive_test.c -lm
+    run "live patterns (issue 142): a launch keeps the edits, SAVE / RELOAD / clear, projects keep their own, PROJECT SAVE saves everything, a save as, stale ones swept, MEM FULL waits (a switch refused), RAM full named, a power cut at every program" "$OUT/patlive_test"
+) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/patterns_ed_test" tests/patterns_ed_test.c -lm
     run "editor cmds 83 / 84 (pattern read / write): chunks of 256 B, checked as the stage decodes, the log or the arena, refused when out of order / of another kind / too long / proj_tmp lent, clear" "$OUT/patterns_ed_test"
@@ -1602,6 +1620,8 @@ for f in 1 2; do                                     # (the log's format 1 and 2
         $CC -O2 -w -I"$HGEN" -Ifirmware/src -DSLG_V2=$((f - 1)) -DSEC_LOG_SECTORS=7u -o "$OUT/sec_log_compat_new$f" tests/sec_log_compat_test.c -lm
         $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/src/storage/sections -DSLG_PREV=1 -DSLG_V2=$((f - 1)) -DSEC_LOG_SECTORS=7u -o "$OUT/sec_log_compat_prev$f" tests/sec_log_compat_test.c -lm
         run "the log, format $f, across firmware versions (MIDI tracks' phase 0): an old log (golden) loads here identically; this build's log, its MIDI ids among the others, read and compacted by the previous firmware (tests/compat/sec_log_142.c) without loss of what it knows" sh tests/sec_log_compat.sh "$OUT/sec_log_compat$f" "$OUT/sec_log_compat_new$f" "$OUT/sec_log_compat_prev$f" $f
+        $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/src/storage/sections -DSLG_PREV=226 -DSLG_V2=$((f - 1)) -DSEC_LOG_SECTORS=7u -o "$OUT/sec_log_compat_p226_$f" tests/sec_log_compat_test.c -lm
+        run "the log, format $f, against main 64c1d915's firmware (tests/compat/sec_log_226.c, the last before the live patterns, issue 142): an old log loads here identically; this build's log, its live patterns among the others, read and compacted there without loss, the live patterns kept byte for byte, its projects strip unchanged" sh tests/sec_log_compat.sh "$OUT/sec_log_compat226_$f" "$OUT/sec_log_compat_new$f" "$OUT/sec_log_compat_p226_$f" $f
     ) >"$U.out" 2>&1 & jobbg
 done
 for s in 6 8 12; do                                  # (SNAPSHOTS 2 / 4 / 8)

@@ -257,7 +257,7 @@ static void pop_drum_kits(uint32_t *list, uint32_t *n, uint32_t *at)   /* the ki
     }
 #endif
 }
-static void cv_tall(uint32_t y, uint32_t h, uint16_t bg, void (*fn)(void));   /* op_draw.c */
+static void cv_tall(uint32_t y, uint32_t h, uint16_t bg, void (*fn)(void));   /* op_graph.c */
 #define POP_RH 28                                       /* a popup row: the large face (the user, 2026-10-21: "bigger font to be more readable") */
 #define POP_HH 36                                       /* the header: the list's title (the sounds: its filter) in the large face, taller (the
                                                          * user, 2026-10-31: "keep the filter at the top of the list, and make it taller") */

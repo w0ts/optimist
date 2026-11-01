@@ -434,14 +434,13 @@ static uint32_t name_sig(void)
     return h;
 }
 #define NM_CX(i) (12 + 18 * (int32_t)(i))              /* cell i: 16 x 22 at y 19 of the band */
-static void name_draw_field(void)
+static void name_draw_field_paint(void)
 {
     char b[NM_LEN + 2u], c[2] = {0, 0};
     uint32_t i, empty = nm.len == 0u;
     uint16_t tc = trk_col(song.sel);
     const char *src = empty ? nm.ph : nm.s;
     str_cpy(b, src, sizeof b);                          /* (the name as it will be stored: never re-cased) */
-    cv_begin(240, OH_CARD, C_BLACK);
     cv_box(3, 0, 234, OH_CARD - 1, OP_SURF);
     {
         char n[8];
@@ -469,16 +468,15 @@ static void name_draw_field(void)
     }
     if (nm.cur >= NM_LEN)                              /* full, the cursor past the end: a bar */
         cv_rect(NM_CX(NM_LEN) - 1, 19, 2, 22, C_WHITE);
-    cv_blit(0, OY_CARD);
 }
-static void name_draw_keys(void)
+static void name_draw_field(void) { cv_whole(OY_CARD, OH_CARD, C_BLACK, name_draw_field_paint); }   /* (in passes: CANVAS_STRIP 31) */
+static void name_draw_keys_paint(void)                 /* (once a pass: name_draw_keys) */
 {
     static const char *const FN[5] = {"F#", "G#", "A#", "C#", "D#"};
     static const char *const DO[5] = {"Left", "Space", "Right", "Del", ""};
     uint16_t tc = trk_col(song.sel);
     uint32_t i;
     char c[2] = {0, 0};
-    cv_begin(240, OH_PANEL, C_BLACK);
     if (nm.key) {                                      /* the cycling key's characters: the one typed lit */
         const char *g = nm_group(nm.key - 1u);
         uint32_t n = str_len(g);
@@ -507,8 +505,8 @@ static void name_draw_keys(void)
         cv_texts(x + 22 - text_ws(FN[i]) / 2, y + 3, FN[i], C_GRAY);
         cv_texts(x + 22 - text_ws(d) / 2, y + 23, d, C_WHITE);
     }
-    cv_blit(0, OY_PANEL);
 }
+static void name_draw_keys(void) { cv_whole(OY_PANEL, OH_PANEL, C_BLACK, name_draw_keys_paint); }
 /* the hints on the help line's place (the audit's #49, style guide 9): the screen's last 18 rows, a rule, the line in the
  * help line's face and colour; the panel ends above them in every build (the keys end at row 76 + 118) */
 #define NM_FOOT_Y (240 - 18)

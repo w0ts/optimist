@@ -13,6 +13,7 @@
  *   - INIT and every preset of every engine: ENV 1 MOD's PIT and moves at 0, ENV2's DEST A the engine's default (the
  *     filter, or its nearest: env1_cards.h) when ENV2 is not used (2026-10-16)
  * The list is the model's (core/model.c preset_pos / preset_at), loaded as the Optimist UI's PRESETS does. */
+#include <ctype.h>
 #define FELUCCA_ARRANGER 1
 #define main hostsim_main
 #include "hostsim.c"
@@ -133,6 +134,66 @@ static void source(const char *name, int built, uint32_t have, uint32_t reach, u
     bad += !ok;
 }
 
+/* case-insensitive, leading punctuation skipped, digit runs by value: tools/gen_bank_order.py sort_key */
+static int nat_cmp(const char *a, const char *b)
+{
+    while (*a && !isalnum((unsigned char)*a))
+        a++;
+    while (*b && !isalnum((unsigned char)*b))
+        b++;
+    while (*a && *b) {
+        if (isdigit((unsigned char)*a) != isdigit((unsigned char)*b))
+            return isdigit((unsigned char)*a) ? -1 : 1;
+        if (isdigit((unsigned char)*a)) {
+            unsigned long x = strtoul(a, (char **)&a, 10), y = strtoul(b, (char **)&b, 10);
+            if (x != y)
+                return x < y ? -1 : 1;
+        } else {
+            int x = tolower((unsigned char)*a++), y = tolower((unsigned char)*b++);
+            if (x != y)
+                return x < y ? -1 : 1;
+        }
+    }
+    return *a ? 1 : *b ? -1 : 0;
+}
+
+/* the PRESETS list is by engine name, then by preset name; the INIT-only engines after the factory sounds, by name; an engine in
+ * one run (2026-11-01: "alpha sorted", at build time: tools/gen_bank_order.py). What the list holds is the stored ids: (engine slot, preset index) */
+static void order_check(void)
+{
+    uint32_t n, k, e, pe = NENGINES, pk = 0, total, seen[NENGINES] = {0};
+    uint32_t init_from = NBANK;
+    preset_pos(&total);
+    for (n = 0; n < NLIST; n++) {
+        e = preset_all_at(n, &k);
+        if (e >= NENGINES)
+            continue;
+        if (e != pe) {
+            if (seen[e]++) {
+                printf("order: engine %s in two runs (list entry %u)\n", ENGINES[e]->name, n);
+                bad++;
+            }
+            if (pe < NENGINES && (n < init_from) == (pk != PRESET_INIT) && nat_cmp(ENGINES[pe]->name, ENGINES[e]->name) > 0) {
+                printf("order: %s before %s\n", ENGINES[pe]->name, ENGINES[e]->name);
+                bad++;
+            }
+        } else if (n < init_from && n > 0u && !PRESETS_CARD) {
+            uint32_t ppk, pen = preset_all_at(n - 1u, &ppk);
+            if (pen == e && nat_cmp(preset_name(e, ppk), preset_name(e, k)) > 0) {
+                printf("order: %s %s before %s\n", ENGINES[e]->name, preset_name(e, ppk), preset_name(e, k));
+                bad++;
+            }
+        }
+        pe = e, pk = k;
+    }
+    for (e = 0; e < NENGINES; e++)                      /* (what a project stores: the UID of the slot, still the name the order was sorted by; a preset: its index in its engine) */
+        if (strcmp(ENGINES[e]->name, ENG_UID_NAME[eng_uid(e)]) || eng_slot(eng_uid(e)) != e || ENG_ALPHA_SLOT[eng_rank_of[e]] != e) {
+            printf("order: engine slot %u: UID %u / name %s / rank do not agree\n", e, eng_uid(e), ENGINES[e]->name);
+            bad++;
+        }
+    printf("order: %u list entries checked\n", NLIST);
+}
+
 int main(void)
 {
     pl_whole = 1;                                       /* (the PRESETS knob's list: every engine's sounds in a row; EDIT's card keeps to one engine) */
@@ -140,6 +201,7 @@ int main(void)
     host_tracks_init();
     song.sel = 0;
     bank_resolve();
+    order_check();
     for (e = 0; e < NENGINES; e++) {
         uint32_t n = loadable(e, &init);
         source(ENG_UID_NAME[eng_uid(e)], 1, ENGINES[e]->npresets, n, init);

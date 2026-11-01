@@ -115,7 +115,7 @@ static void scope_tick(void)
 }
 
 /* ---- the trace */
-#define SC_H (OH_BODY - (cards_2x2() ? 0 : 23))   /* the trace (two canvases: op_draw.c cv_tall); the tabs under it (CARDS
+#define SC_H (OH_BODY - (cards_2x2() ? 0 : 23))   /* the trace (two canvases: op_graph.c cv_tall); the tabs under it (CARDS
                                                  * 2x2: no tabs, the trace to the foot, the header names the source and its n/N) */
 #define SC_TAB_Y (OP_PY + SC_H + 1)
 #define SC_TAB_H (OH_BODY - SC_H - 1)

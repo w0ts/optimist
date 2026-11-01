@@ -5500,6 +5500,47 @@
     "provenance_line": ""
    },
    {
+    "key": "CANVAS_STRIP",
+    "flag": "FELUCCA_CANVAS_STRIP",
+    "label": "the screen's drawing canvas: smaller for RAM",
+    "group": "System",
+    "bit": 452,
+    "default": 2,
+    "parent": null,
+    "desc": "The screen is drawn piece by piece into a canvas and sent to the display. 31 rows (240 x 31 pixels, 14,880 B of RAM) by default (the user, 2026-11-01: on the FM-1 it looks the same as the 124 rows before); 62 rows (29,760 B) and 124 rows (59,520 B, as before) are the other choices. The pieces taller than the canvas (the panels, the questions, the cards, the boot logo) are drawn in more passes: more of the screen's drawing time (the audio is not affected: it runs in interrupts) and more seams where a panel changes on the display a piece at a time. The same pixels at every choice.",
+    "experimental": true,
+    "notice": "",
+    "off_warning": "",
+    "env": "",
+    "target_only": false,
+    "symbols": [],
+    "no_image": false,
+    "fixed": false,
+    "head": false,
+    "choices": [
+     [
+      0,
+      "124 rows (59.5 KB)"
+     ],
+     [
+      1,
+      "62 rows (29.1 KB less)"
+     ],
+     [
+      2,
+      "31 rows (43.6 KB less)"
+     ]
+    ],
+    "not_built": {},
+    "provenance": null,
+    "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
+    "tested": "host tests: every frame of the UI's host run the same pixels at 124, 62 and 31 rows; on the FM-1 (2026-11-01, the user): 62 and 31 rows look the same as 124, so 31 is the default",
+    "provenance_line": ""
+   },
+   {
     "key": "BOOTLOADER",
     "flag": "",
     "label": "bootloader: keep it, or install m-bootloader",
@@ -6935,6 +6976,7 @@
    "COMPILER",
    "SEQ_RAM",
    "INS_RAM",
+   "CANVAS_STRIP",
    "BOOTLOADER",
    "SL24_SAFE"
   ]

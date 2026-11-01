@@ -416,8 +416,9 @@ static void song_grid_draw(int32_t h)
             int32_t x = PG_X(i);
             uint16_t c = pat_cur[k] == i ? C_OK : pat_req[k] == i ? C_WARN : pat_has(k, i) ? col_shade(tc, 4u) : OP_SURF;
             cv_box(x, y, PG_CW, ch, c);
-            if (pat_cur[k] == i && ((lay.pchg >> k) & 1u))
-                cv_rect(x + 4, y + ch / 2 - 1, 3, 3, C_WHITE);   /* (changed since its source) */
+            if ((pat_cur[k] == i && ((lay.pchg >> k) & 1u)) || pat_live_at(k, i))
+                cv_rect(x + 4, y + ch / 2 - 1, 3, 3, C_WHITE);   /* (edits not saved: the one playing changed since its source, or
+                                                         * a slot keeping its live pattern, issue 142: SAVE or RELOAD) */
         }
     }
     pv_draw(2 * PG_NUMH + 2 + (int32_t)NTRK * gp + 2 + PG_PVGAP);

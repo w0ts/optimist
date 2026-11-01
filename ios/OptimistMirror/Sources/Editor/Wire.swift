@@ -379,8 +379,9 @@ struct UpPatch: Equatable {
 struct PatList: Equatable {
     var op = 0, changed = 0
     var tracks: [(cur: Int, req: Int, when: Int)] = []
-    var len: [[Int]]?          // 4 tracks x 16 slots: the stored pattern's LEN, 0 empty (op 0)
+    var len: [[Int]]?          // 4 tracks x 16 slots: the pattern's LEN as it plays, 0 empty (op 0)
     var scenes: [[Int]]?       // 16 scenes x 4 patterns
+    var live: [Int]?           // issue 142: per track the slots with edits not saved (a live pattern), bit s; nil: a firmware before
     static func parse(_ a: [UInt8]) throws -> PatList {
         guard a.count >= 14 else { throw WireError("short reply") }
         var o = PatList(op: Int(a[0]), changed: Int(a[1]))
@@ -388,10 +389,28 @@ struct PatList: Equatable {
         if a[0] == 0 && a.count >= 14 + 64 + 64 {
             o.len = (0..<4).map { k in a[(14 + 16 * k)..<(30 + 16 * k)].map { Int($0) } }
             o.scenes = (0..<16).map { s in a[(78 + 4 * s)..<(82 + 4 * s)].map { Int($0) } }
+            if a.count >= 142 + 12 {                          // (3 bytes a track after the scenes: web/editor.html parse[PAT_LIST])
+                var live: [Int] = []
+                for k in 0..<4 {
+                    let lo = Int(a[142 + 3 * k]), mid = Int(a[143 + 3 * k]), hi = Int(a[144 + 3 * k])
+                    live.append(lo | (mid << 7) | (hi << 14))
+                }
+                o.live = live
+            }
         }
         return o
     }
-    static func == (l: PatList, r: PatList) -> Bool { l.op == r.op && l.changed == r.changed && l.len == r.len && l.scenes == r.scenes }
+    /// slot s of track k keeps edits not saved: its live pattern, or the one playing changed since it was saved (the web's "*")
+    func unsaved(_ k: Int, _ s: Int) -> Bool {
+        guard let live, k < live.count, k < tracks.count else { return false }
+        return (live[k] >> s) & 1 == 1 || (tracks[k].cur == s && (changed >> k) & 1 == 1)
+    }
+    /// a slot's label as the web editor's (patSlotView): its LEN, "*" when it keeps edits not saved, "·" empty
+    func slotText(_ k: Int, _ s: Int) -> String {
+        let n = len?[k][s] ?? 0, star = unsaved(k, s)
+        return n > 0 ? "\(n)\(star ? "*" : "")" : star ? "*" : "·"
+    }
+    static func == (l: PatList, r: PatList) -> Bool { l.op == r.op && l.changed == r.changed && l.len == r.len && l.scenes == r.scenes && l.live == r.live }
 }
 
 struct PatChunk: Equatable {

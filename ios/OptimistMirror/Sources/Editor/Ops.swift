@@ -266,9 +266,9 @@ enum Ops {
         } while off < bytes.count
     }
 
-    /// op 1 copy (k, a) -> (k2, b), 2 clear (k, a)
+    /// op 1 copy (k, a) -> (k2, b), 2 clear (k, a), 4 SAVE (its edits the saved pattern), 5 RELOAD (its edits dropped; issue 142)
     static func patOp(_ t: Transport, op: Int, track k: Int, slot a: Int, track2 k2: Int = 0, slot2 b: Int = 0) async throws {
-        let r = try await t.ask(.patOp, [UInt8(op & 3), UInt8(k & 3), UInt8(a & 15), UInt8(k2 & 3), UInt8(b & 15)], timeout: 1.5, retries: 0)
+        let r = try await t.ask(.patOp, [UInt8(op & 7), UInt8(k & 3), UInt8(a & 15), UInt8(k2 & 3), UInt8(b & 15)], timeout: 1.5, retries: 0)
         guard r.count >= 2 else { throw WireError("short reply") }
         if r[1] != 0 { throw WireError("flash write failed (rc \(r[1]))") }
     }

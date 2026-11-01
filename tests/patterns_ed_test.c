@@ -45,6 +45,8 @@ static uint16_t sec_dirty;
 static uint8_t song_dirty, settings_saved;
 static void settings_save(void) { settings_saved++; }
 static void project_apply(const project_t *p, const dlrec_t *d) { proj_apply(p, d, 1); }
+static void sections_write(void);
+static void persist_flush_now(void) { sections_write(); }   /* (project.c's, not linked here) */
 #include "../firmware/src/storage/sections/sections.c"
 
 /* ---- the editor's reply builder and pack7 (editor.c, ed_drums.c) as doubles; the reply is read back from ed_out */
@@ -169,8 +171,17 @@ int main(void)
     n2 = (int)pat_encode(&proj_tmp.cur, 0, r2);
     check("a pattern record made (12 steps)", n2 > 5 && n2 < n);
     check("PAT_WRITE in chunks of 100 bytes: rc 0, proj_tmp given back", wr(0, 5, r2, (uint32_t)n2, 100u, 0) == 0 && !proj_tmp_busy());
-    ok = pat_get(0, 5, g) == (uint32_t)n2 && !memcmp(g, r2, (size_t)n2) && slg_has(PAT_ID(0, 5)) && !sec_pend_has(pat_pend(0, 5));
-    check("... stored in the log, byte for byte", ok);
+    ok = pat_get(0, 5, g) == (uint32_t)n2 && !memcmp(g, r2, (size_t)n2) && pat_live_at(0, 5) == 2 && !slg_has(PAT_ID(0, 5)) &&
+         !sec_pend_has(pat_lpend(0, 5));
+    check("... written as the slot's live pattern (issue 142: SAVE or RELOAD it later), in the log, byte for byte", ok);
+    check("... PAT_READ + 4 (the saved one): none; PAT_READ: the live one", rd(4, 5, g) == 0 && rd(0, 5, g) == n2);
+    {   /* PAT_LIST: the live patterns' bits after the scenes */
+        uint8_t a[1] = {0};
+        ed_n = 0;
+        ok = ed_pat(ED_PAT_LIST, a, 1) && ed_n == 14u + 64u + 64u + 12u && ed_out[14u + 5u] == 12u &&
+             (ed_out[142] | ed_out[143] << 7 | (uint32_t)ed_out[144] << 14) == 1u << 5;
+        check("PAT_LIST: T1 slot 6's LEN as it plays (12), its live bit (3 bytes a track after the scenes)", ok);
+    }
     steps(0, 64, 30);
     pat_launch(0, 5, PW_NOW);
     check("... launched: the track plays it", trk[0].p[P_SLEN] == 12 && trk[0].step[0].note[0] == 70 && trk[0].step[11].note[0] == 81);
@@ -194,7 +205,7 @@ int main(void)
     proj_tmp_t0 = fm1_ms;
     check("proj_tmp lent to a restore: rc 3, and it stays the restore's", wr(0, 7, g, (uint32_t)n2, 256u, 0) == 3 && proj_tmp_lent == 1);
     fm1_ms += 11000u;
-    check("... a restore left for 10 s gives it back: the write goes", wr(0, 7, g, (uint32_t)n2, 256u, 0) == 0 && slg_has(PAT_ID(0, 7)));
+    check("... a restore left for 10 s gives it back: the write goes", wr(0, 7, g, (uint32_t)n2, 256u, 0) == 0 && pat_live_at(0, 7));
     /* a half-received record: lent, then given back after 10 s; a new record restarts it */
     {
         uint8_t a[6 + 16] = {0, 8, 0, 0, (uint8_t)(n2 & 127), (uint8_t)(n2 >> 7), 0, 1, 2, 3, 4, 5, 6, 7};
@@ -218,7 +229,7 @@ int main(void)
         steps(1, 16, 50);
         (void)sec_capture();
         n2 = (int)pat_encode(&proj_tmp.cur, 1, r2);
-        check("playing: PAT_WRITE (T2, 16 steps): rc 0, the record waits in the arena", wr(1, 3, r2, (uint32_t)n2, 100u, 0) == 0 && sec_pend_has(pat_pend(1, 3)) &&
+        check("playing: PAT_WRITE (T2, 16 steps): rc 0, the live record waits in the arena", wr(1, 3, r2, (uint32_t)n2, 100u, 0) == 0 && sec_pend_has(pat_lpend(1, 3)) &&
               slg.seq == seq && pat_get(1, 3, g) == (uint32_t)n2 && !memcmp(g, r2, (size_t)n2));
         check("playing: a clear (total 0): rc 0, the slot reads as none, its tombstone pending", wr(0, 6, g, 0, 256u, 0) == 0 && !slg_has(PAT_ID(0, 6)) &&
               slg_tombs_any() && slg.seq == seq + 0u);
@@ -228,6 +239,37 @@ int main(void)
     pat_staged |= 2u;
     check("playing: a launch waiting for the slot written: staged again", wr(1, 3, r2, (uint32_t)n2, 256u, 0) == 0 && !(pat_staged & 2u));
     song.playing = 0;
+    sections_write();
+    /* ---- issue 142: + 4 writes the saved one; PAT_OP 4 SAVE, 5 RELOAD */
+    {
+        static uint8_t r3[SEC_REC_MAX], r4[SEC_REC_MAX];
+        uint8_t a[3] = {5, 0, 9};
+        int n3, n4;
+        steps(0, 10, 60);
+        (void)sec_capture();
+        n2 = (int)pat_encode(&proj_tmp.cur, 0, r2);
+        steps(0, 10, 62);
+        (void)sec_capture();
+        n3 = (int)pat_encode(&proj_tmp.cur, 0, r3);
+        steps(0, 10, 64);
+        (void)sec_capture();
+        n4 = (int)pat_encode(&proj_tmp.cur, 0, r4);
+        check("PAT_WRITE + 4: written as the saved pattern (as before), no live one", wr(4, 9, r2, (uint32_t)n2, 256u, 0) == 0 && slg_has(PAT_ID(0, 9)) &&
+              !pat_live_at(0, 9));
+        check("... then PAT_WRITE of an edit: the live one beside it", wr(0, 9, r3, (uint32_t)n3, 256u, 0) == 0 && pat_live_at(0, 9) &&
+              pat_get_saved(0, 9, g) == (uint32_t)n2 && !memcmp(g, r2, (size_t)n2) && pat_get(0, 9, g) == (uint32_t)n3);
+        ed_n = 0;
+        check("PAT_OP 5 (RELOAD) of a slot that does not play: its live one dropped, the saved one plays", ed_pat(ED_PAT_OP, a, 3) && ed_out[1] == 0u &&
+              !pat_live_at(0, 9) && pat_get(0, 9, g) == (uint32_t)n2 && !memcmp(g, r2, (size_t)n2));
+        (void)wr(0, 9, r3, (uint32_t)n3, 256u, 0);
+        a[0] = 4;
+        ed_n = 0;
+        check("PAT_OP 4 (SAVE): its live one the saved one", ed_pat(ED_PAT_OP, a, 3) && ed_out[1] == 0u && !pat_live_at(0, 9) &&
+              pat_get_saved(0, 9, g) == (uint32_t)n3 && !memcmp(g, r3, (size_t)n3));
+        pat_cur[0] = 9;
+        check("PAT_WRITE of the slot T1 plays (stopped): the live one, and the track plays it at once", wr(0, 9, r4, (uint32_t)n4, 256u, 0) == 0 &&
+              pat_live_at(0, 9) && (sec_capture(), pat_encode(&proj_tmp.cur, 0, g) == (uint32_t)n4 && !memcmp(g, r4, (size_t)n4)));
+    }
     printf("patterns editor test %s\n", bad ? "FAILED" : "passed");
     return bad != 0;
 }
