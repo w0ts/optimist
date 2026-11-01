@@ -1065,21 +1065,39 @@ static void t_master(void)
     }
 #endif
 #if TFLT_ON
-    {   /* FILT on the master: the DJ filter of before, sample for sample (fx_rework_ref.h), LP then HP then open */
+    {   /* FILT on the master: the DJ filter of before (fx_rework_ref.h), LP then HP then open; since tflt_tick_e (2026-10-31)
+         * its roundings are carried (silence comes to 0, djfilt_test.c): the same filter, apart by its old rounding only */
         static const int16_t V[6] = {-40, -40, 25, 63, 0, 0};
-        uint32_t same = 1;
+        uint32_t i, same = 1;
+        int32_t dmax = 0, l3[CTL], r3[CTL];
+        double es = 0, ed = 0;
+        tflt_t g;
+        memset(&g, 0, sizeof g);
         song.g[G_CTHR] = song.g[G_CGAIN] = 0, song.g[G_CCEIL] = 0;
         mst_defaults();
         memset(&ref_djf, 0, sizeof ref_djf);
         memset(&tflt[NTRK], 0, sizeof tflt[NTRK]);
         for (k = 0; k < 6u * 40u; k++) {
             song.g[G_FILT] = V[k / 40u];
-            sig(l, r, k), sig(l2, r2, k);
+            sig(l, r, k), sig(l2, r2, k), sig(l3, r3, k);
             ref_djf_process(l2, r2, CTL);
             mst_run(l, r, CTL);
-            same &= !memcmp(l, l2, sizeof l) && !memcmp(r, r2, sizeof r);
+            {
+                tsvf_t c;
+                if (tflt_block(&g, V[k / 40u], &c, TFLT_RESO0))
+                    tflt_run(&g, &c, l3, CTL, 0, 0), tflt_run(&g, &c, r3, CTL, 1, 0);
+            }
+            same &= !memcmp(l, l3, sizeof l) && !memcmp(r, r3, sizeof r);
+            for (i = 0; i < CTL; i++) {
+                int32_t dl = l[i] - l2[i], dr = r[i] - r2[i];
+                dmax = abs(dl) > dmax ? abs(dl) : dmax, dmax = abs(dr) > dmax ? abs(dr) : dmax;
+                es += (double)l2[i] * l2[i] + (double)r2[i] * r2[i], ed += (double)dl * dl + (double)dr * dr;
+            }
         }
-        check("FILT on the master: the DJ filter of before, sample for sample (LP, HP, back open)", same);
+        printf("fx_slots: master FILT against the DJ filter of before: at most %d apart, the difference %.1f dB under the signal\n",
+               (int)dmax, 10.0 * log10(es / (ed + 1e-9)));
+        check("FILT on the master: the track FILTER's kernel on L / R, sample for sample (LP, HP, back open)", same);
+        check("... the DJ filter of before, apart by its old rounding only: the difference 30 dB or more under the signal", ed * 1e3 < es);
         mst_put((const uint8_t[2]){FXT_NONE, FXT_NONE});
         song.g[G_FILT] = -50;
         sig(l, r, 7), sig(l2, r2, 7);

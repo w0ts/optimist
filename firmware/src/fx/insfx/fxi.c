@@ -68,7 +68,7 @@ enum { FXL_SEND, FXL_LENT, FXL_BACK };
  * unit (while handed out), the units in use (a bit each), each send line's units handed out since it was lent (from its
  * start: zeroed when it goes back) */
 static uint8_t fxi_own[FXI_NL][FXI_IMAX] IN_POOL;
-static uint16_t fxa_u[FXI_NL][FXI_IMAX] IN_POOL;
+/* (fxa_u: each instance's first unit, fxi_kern.c: the kernel reads it, FXI_CP_MOVING) */
 static uint32_t fxa_bm[FXA_BMW ? FXA_BMW : 1u] IN_POOL;
 static uint16_t fxa_hi[FXL_NS] IN_POOL;
 static uint16_t fxi_full[FXI_NL];                       /* the owners (a bit each) holding the type with none left */
@@ -266,8 +266,8 @@ static void fxi_clear(uint32_t j, uint32_t i)           /* instance i zeroed, at
 #endif
     (void)i;
 }
-#if FXM_NEED && FXA_I
-/* (fx/fx_arena.c, the interrupts off) the own room's block moved (fxa_ins already the new one): its instances' lines
+#if FXM_NEED && (FXA_I || FXI_LB)
+/* (fx/fx_arena.c, the interrupts off) the own room's block moved (or a copy's block: FXI_LB) (fxa_ins already the new one): its instances' lines
  * where they are now (their units the same) */
 static void fxi_relink(void)
 {
@@ -275,7 +275,7 @@ static void fxi_relink(void)
     for (j = 0; j < FXI_NL; j++)
         for (i = 0; i < FXI_TN[j]; i++) {
             int16_t *ln;
-            if (fxi_own[j][i] == FXI_NONE || fxa_reg(fxa_u[j][i]) != FXL_NS)
+            if (fxi_own[j][i] == FXI_NONE || (fxa_reg(fxa_u[j][i]) != FXL_NS && fxa_reg(fxa_u[j][i]) != FXL_CP))
                 continue;
             ln = fxa_line(fxa_u[j][i]);
 #if INS_CHO
@@ -320,6 +320,18 @@ static int fxi_room_quiet(void)
                 return 0;
     return 1;
 }
+#if FXI_LB
+/* (fx_arena.c arn_can) copy block c's instance is at rest (its wet 0; none: not movable) */
+static int fxi_cp_quiet(uint32_t c)
+{
+    uint32_t j, i;
+    for (j = 0; j < FXI_NL; j++)
+        for (i = 0; i < FXI_TN[j]; i++)
+            if (fxi_own[j][i] != FXI_NONE && fxa_u[j][i] == FXA_T + c)
+                return !ifx_lim_w(FXI_TY(j), fxi_aix(fxi_own[j][i]));
+    return 0;
+}
+#endif
 #endif
 /* a free instance of type FXI_TY(j) and its line placed (fxa_place), its units taken; FXI_NONE: none, or no room */
 static uint32_t fxi_find(uint32_t j)

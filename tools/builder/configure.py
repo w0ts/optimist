@@ -47,7 +47,7 @@ from core import (
     group_delta as group_delta, header as header, is_last_kit as is_last_kit, item_delta as item_delta,
     item_delta_alone as item_delta_alone, kit_keys as kit_keys, kit_shared as kit_shared, model_terms as model_terms,
     pair_conds as pair_conds, pair_delta as pair_delta, parse as parse, part_mem as part_mem,
-    rev_lines as rev_lines, savings_of as savings_of, undo_ring as undo_ring,
+    rev_lines as rev_lines, savings_of as savings_of, undo_ring as undo_ring, undo_text as undo_text,
     arena_fits as arena_fits, arena_size as arena_size, arena_text as arena_text,
     ARENA_UNKNOWN as ARENA_UNKNOWN, arena_items as arena_items, item_arena as item_arena,
     validate as validate, evaluate as evaluate, describe as describe)
@@ -650,11 +650,11 @@ def fmt_budget(cfg, costs):
     rows = []
     for r, (used, cap, over) in fits(b["total"], cfg).items():
         rows.append(f"  {r:8s} {used:9,d} / {cap:9,d}  {'OVER by ' + format(over, ',') if over > 0 else 'free ' + format(-over, ',')}")
-    if built(cfg, "UNDO_HISTORY"):
-        rows.append(f"  undo ring {undo_ring(b['total']):7,d} B")
     ar = arena_size(cfg, b["total"], b.get("exact"))
-    if ar:
+    if ar:                                          # (the arena first: what a project's engines and effects get)
         rows.append(f"  arena {'' if ar['exact'] else '~'}{ar['kb']} KB" + ("" if ar["exact"] else " (estimate)"))
+    if built(cfg, "UNDO_HISTORY"):
+        rows.append(f"  {undo_text(cfg, b['total'])}")
     if b["unmeasured"]:
         rows.append(f"  (not measured: {', '.join(b['unmeasured'])})")
     head = ("exact (the last real build of this configuration from this source):" if b.get("exact")
