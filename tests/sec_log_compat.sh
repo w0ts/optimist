@@ -40,6 +40,17 @@ n=$("$NEW" mdump "$D/e.img" "$D/e2.mdump" | awk '{print $1}')
 k=$("$NEW" load "$D/e.img" "$D/e2.dump" | awk '{print $1}')
 [ "${n:-0}" -gt 10 ] && [ "${k:-0}" -gt 40 ] && r=ok || r=FAIL
 ok "... (this build's log holds $k records of 0..141 and $n of the MIDI ids)" $r
+if [ "$4" = 2 ]; then   # the live patterns (issue 142: ids 24..87 under the tag 0x10 | p): the previous firmware keeps them
+    q "$NEW" ldump "$D/e.img" "$D/e.ldump"
+    q "$NEW" ldump "$D/g.img" "$D/g.ldump"
+    ok "this build's live patterns, compacted by the previous firmware (it never plays them): every one kept, byte for byte" "$(same "$D/e.ldump" "$D/g.ldump")"
+    l=$("$NEW" ldump "$D/e.img" "$D/e3.ldump" | awk '{print $1}')
+    [ "${l:-0}" -gt 10 ] && r=ok || r=FAIL
+    ok "... ($l live patterns in this build's log)" $r
+    a=$("$PREV" pused "$D/e.img") b=$("$NEW" pused "$D/e.img")
+    [ -n "$a" ] && [ "$a" = "$b" ] && r=ok || r=FAIL
+    ok "... the previous firmware's projects strip unchanged by them (pused $a, here $b)" $r
+fi
 rm -rf "$D"
 [ $bad = 0 ] && echo "sec log compat test passed" || echo "sec log compat test FAILED"
 exit $bad

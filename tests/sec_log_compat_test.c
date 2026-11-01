@@ -10,6 +10,11 @@
  *   churn IMG OUT DUMP  booted from IMG, every record of 0..141 stored again (the same bytes) three times in each
  *                       project: compaction after compaction; dumped, the log written to OUT
  *   mdump IMG DUMP      this build: the log booted from IMG, every project's records of the MIDI ids (142..225)
+ *   ldump IMG DUMP      this build, format 2: every project's live patterns (issue 142: ids 24..87 under the tag 0x10 | p),
+ *                       which gen writes between the others; a previous firmware keeps them through its compactions
+ *   pused IMG           the projects strip's bits (format 2), as the build reads them
+ * -DSLG_PREV=226: the previous firmware is main 64c1d915's sec_log.c (tests/compat/sec_log_226.c), the last before the
+ * live patterns.
  * Run by tests/run_tests.sh through tests/sec_log_compat.sh. */
 #define main hostsim_main
 #include "hostsim.c"
@@ -30,7 +35,9 @@ static int st_prog(uint32_t off, const void *src, uint32_t n)
     return 0;
 }
 #include "../firmware/src/storage/storage.c"
-#if SLG_PREV
+#if SLG_PREV == 226
+#include "compat/sec_log_226.c"                        /* (main 64c1d915's: SLG_IDS 226, before the live patterns) */
+#elif SLG_PREV
 #include "compat/sec_log_142.c"                        /* (its flash map include resolves through -I.../sections) */
 #else
 #include "../firmware/src/storage/sections/sec_log.c"
@@ -106,7 +113,7 @@ static int dump_ids(const char *path, uint32_t lo, uint32_t hi)
 static int dump(const char *path) { return dump_ids(path, 0, KNOWN); }
 static int gen(void)
 {
-    uint32_t k, j, id, n, midi = 0;
+    uint32_t k, j, id, n, midi = 0, live = 0;
     int rc;
     memset(nor, 0xFF, sizeof nor);
     slg_boot();
@@ -132,11 +139,30 @@ static int gen(void)
                 return -1;
             midi++;
         }
+#if SLG_V2
+        if (k % 9u == 1u) {                            /* a live pattern (issue 142): its base stamp, then a pattern's bytes */
+            uint32_t b = k * 7u;
+            id = SEC_ID_PAT0 + rnd(SLG_LV_N);
+            n = rnd(5) ? 12u + rnd(40) : 0u;
+            make(n, 70000u + k);
+            if (n) {
+                memmove(data + 4, data, n);
+                memcpy(data, &b, 4);
+            }
+            rc = slg_put(SLG_LVX(id), data, n ? n + 4u : 0u, 0);   /* (never the reserve: the log near full already) */
+            if (rc == 1)
+                rc = slg_put(SLG_LVX(id), data, 0, 0);
+            if (rc)
+                return -1;
+            live++;
+        }
+#endif
 #endif
         if (k % 23u == 0u)
             slg_boot();
     }
-    printf("generated: 900 stores of ids 0..141 in %u projects, %u of the MIDI ids; the gauge %u %%\n", SLG_V2 ? NPROJ : 1u, midi, slg_used_pct());
+    printf("generated: 900 stores of ids 0..141 in %u projects, %u of the MIDI ids, %u live patterns; the gauge %u %%\n",
+           SLG_V2 ? NPROJ : 1u, midi, live, slg_used_pct());
     return 0;
 }
 static int churn(void)
@@ -167,7 +193,19 @@ int main(int argc, char **argv)
 #if !SLG_PREV
     if (argc == 4 && !strcmp(argv[1], "mdump"))
         return img_load(argv[2]) || dump_ids(argv[3], SLG_ID_MPAT0, SLG_IDS);
+#if SLG_V2
+    if (argc == 4 && !strcmp(argv[1], "ldump"))
+        return img_load(argv[2]) || dump_ids(argv[3], SLG_LV0, SLG_IX);
 #endif
+#endif
+    if (argc == 3 && !strcmp(argv[1], "pused")) {
+        if (img_load(argv[2]))
+            return 1;
+#if SLG_V2
+        printf("%u\n", (unsigned)slg.pused);
+#endif
+        return 0;
+    }
     printf("usage: sec_log_compat_test gen IMG DUMP | load IMG DUMP | churn IMG OUT DUMP | mdump IMG DUMP\n");
     return 2;
 }

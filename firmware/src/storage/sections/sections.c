@@ -836,6 +836,13 @@ static void proj_scope_read(void)
     (void)sec_song_get_all(&arrangement);
     sec_sbars_get();
 #endif
+    if (flash_ok && slg.up && !song.playing && !transport_req) {
+        uint8_t skip[SLG_LV_N];                        /* (a saved pattern still in the arena: its live one is judged once it is in) */
+        uint32_t j;
+        for (j = 0; j < SLG_LV_N; j++)
+            skip[j] = (uint8_t)sec_pend_has(SEC_PEND_PAT + j);
+        slg_live_sweep(skip);                          /* (the live patterns made from a saved record since replaced: dropped) */
+    }
 }
 static int proj_quiet(uint32_t p)                      /* (stopped, p a project: the arena into the log, dropped) */
 {
@@ -913,7 +920,7 @@ static int proj_tomb(uint32_t p)                       /* project p opened, ever
     int rc = 0;
     if (slg_open_proj(p))
         return -1;
-    for (i = 0; i < SLG_IDS; i++)                      /* (a clear not written: the others still tried) */
+    for (i = 0; i < SLG_IX; i++)                       /* (a clear not written: the others still tried; the live patterns too) */
         if (!SLG_DEV(i) && slg_has(i) && slg_put(i, sec_rbuf, 0, 0))
             rc = -1;
 #if SLG_V2
