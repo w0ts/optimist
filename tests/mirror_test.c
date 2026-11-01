@@ -1014,6 +1014,87 @@ static void chk_tests(void)
     }
     me.chk = 0;
 }
+/* lost frames asked for by seq (106 bit 4, ed_mirror.c mir_fix): only their rectangles again, the panel repainted in place, the
+ * rest skipped as held (MIR_SKIP); a whole panel only when a seq is no longer known. The client's picture exact after each */
+static void fix_tests(void)
+{
+    static const uint8_t ONC[] = {0xF0, 0x7D, 0x46, 0x4C, 106, 1 | 2 | MIR_CHK_BIT, 0xF7};
+    uint32_t k, d0, fixes = 0, wrong = 0, unknown = 0, fbytes = 0, wbytes = 0, w0 = mfix_whole, n0 = mfix_n, b0;
+    ble_out_on = 1;
+    bt_send(ONC, 7);
+    fm1_ms += MIR_CATCH_MS;
+    MIR_SEEN();
+    mir_poll();
+    radio(~0u);
+    mir_poll();
+    radio(~0u);
+    b0 = bytes;
+    mir.behind = 1, mir.catch_ms = fm1_ms - MIR_CATCH_MS;   /* (a whole panel's bytes, to compare) */
+    mir_poll();
+    radio(~0u);
+    wbytes = bytes - b0;
+    md.have_seq = 0, md.broken = 0, md.fix_have = 0;
+    mt_lossy = 1;
+    for (k = 0; k < 1500u; k++) {
+        uint32_t x = 30u * rnd(8), w = 30u * (1u + rnd(8u - x / 30u)), h = 1u + rnd(60), y = rnd(241u - h);
+        d0 = md.dropped;
+        if (rnd(4) == 0u)               /* (the UI's writes: whole 30-pixel segments mostly, as its bands and cards) */
+            lcd_fill(x, y, w, h, (uint16_t)rnd(0x10000u));
+        else {
+            canvas(w, h, 1u + rnd(4));
+            lcd_blit(x, y, w, h, cv);
+        }
+        radio(~0u);
+        fm1_ms += MIR_MARK_MS;
+        MIR_SEEN();
+        mir_poll();
+        radio(~0u);
+        fm1_ms += MIR_MARK_IDLE_MS;
+        MIR_SEEN();
+        mir_poll();
+        radio(~0u);
+        if (md.dropped != d0 && !md.fix_have) {   /* (a frame damaged, the marks after it lost too: the next mark tells) */
+            mt_lossy = 0;
+            fm1_ms += MIR_MARK_IDLE_MS;
+            MIR_SEEN();
+            mir_poll();
+            radio(~0u);
+            mt_lossy = 1;
+        }
+        if (md.dropped != d0 && md.fix_have) {
+            uint8_t f[9] = {0xF0, 0x7D, 0x46, 0x4C, 106, 1 | MIR_CHK_BIT | MIR_FIX_BIT, (uint8_t)md.fix_lo, (uint8_t)md.fix_hi, 0xF7};
+            md.fix_have = 0;
+            mt_lossy = 0;
+            b0 = bytes;
+            bt_send(f, 9);
+            fm1_ms += MIR_FIX_MS;
+            MIR_SEEN();
+            mir_poll();
+            radio(~0u);
+            mir_poll();                 /* (the repaint, when the reply went first) */
+            radio(~0u);
+            fm1_ms += MIR_CATCH_MS;
+            mir_poll();
+            radio(~0u);
+            fbytes += bytes - b0;
+            fixes++;
+            mt_lossy = 1;
+            if (!same()) {
+                wrong++;
+                printf("  fix wrong at %u: asked %u..%u\n", k, (unsigned)f[6], (unsigned)f[7]);
+            }
+        } else
+            unknown += !same() && md.dropped == d0;
+        if (md.dropped != d0 && !same() && !md.fix_have)
+            wrong++;
+    }
+    mt_lossy = 0;
+    printf("lost frames asked by seq: %u asks, %u repaints, %u whole panels; %u B an ask on average, a whole panel %u B; wrong %u, unknown %u\n",
+           fixes, mfix_n - n0, mfix_whole - w0, fixes ? fbytes / fixes : 0u, wbytes, wrong, unknown);
+    check(fixes > 20u && wrong == 0u && unknown == 0u, "lost frames asked by seq: the picture exact after each ask");
+    check(fixes && fbytes / fixes * 3u < wbytes, "lost frames asked by seq: an ask costs under a third of a whole panel");
+    me.chk = 0;
+}
 int main(void)
 {
     uint32_t k;
@@ -1029,6 +1110,7 @@ int main(void)
     bt_tests();
     bigcatch_tests();
     chk_tests();
+    fix_tests();
     lag_tests();
     nav_tests();
 #if MIR_LEND
