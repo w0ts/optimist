@@ -28,19 +28,25 @@ static int se_on(void)
         return !song.rec;                               /* (a double SEQ tap: on, playing too) */
     return rec_wait && !song.playing && !song.rec && !transport_req;
 }
+static void se_say(const char *m)                       /* a toast in the middle (the header's message hides behind STEP's cards) */
+{
+    ui.toast_next = 1;
+    ui_message(m);
+    ui.toast_next = 0;
+}
 /* the double SEQ tap (op_step.c step_seq_tap): STEP ENTRY on, stopped or playing, or back to the step sequencer; the toast is
  * the mode's name (se_enter's for "on") */
 static void se_toggle(void)
 {
     if (se_on()) {
         st.se_pref = 2, st.follow = 1;                  /* (the window follows the playhead again) */
-        ui_message("STEP SEQ");
+        se_say("STEP SEQ");
         return;
     }
     st.se_pref = 1;
     if (!se_on()) {
         st.se_pref = 0;
-        ui_message("NOT NOW");                          /* (a take is recording, or a step is held) */
+        se_say("NOT NOW");                          /* (a take is recording, or a step is held) */
     }
 }
 static int32_t se_starts(const track_t *t, uint32_t a, uint32_t p)   /* the slot of pitch p among the notes starting at a, -1 none */
@@ -120,7 +126,7 @@ static void se_sync(void)                               /* the cursor's notes ar
     if (st.latch)
         return;
     st.pk = pk_note(tsel(), st.cur) ? st.cur : PK_NONE;
-    st.pk_trk = song.sel, st.nsel = NSEL_ALL, st.snapl = 0;
+    st.pk_trk = song.sel, st.nsel = NSEL_ALL;           /* (st.snapl, LENGTH's snap on touching the next note, lives on between turns) */
 }
 static void se_enter(void)                              /* STEP ENTRY begins: the cursor on the picked note, else the window's first step */
 {
@@ -130,7 +136,7 @@ static void se_enter(void)                              /* STEP ENTRY begins: th
     st.follow = 0;                                      /* (the cursor is its own, the playhead runs on) */
     st.cur = (uint8_t)(pk_ok() ? st.pk : st.page * 16u);
     st.sess = (undo_sess += 4u) | 3u;
-    ui_message("STEP ENTRY");
+    se_say("STEP ENTRY");
 }
 static void se_tick(void)                               /* once a frame (op_step.c step_tick) */
 {
@@ -152,6 +158,8 @@ static void se_hear(void)                               /* the notes starting on
     const step_t *s = &t->step[st.cur];
     uint8_t k[4], nt[4];
     uint32_t i, n = pk_heads(t, st.cur, k);
+    if (song.playing)
+        return;                                         /* (playing: the cursor moves in silence, the sequencer is the sound) */
 #if FELUCCA_AUTO
     if (step_muted(t, st.cur, 0))
         return;                                         /* (a muted step plays as a rest) */
@@ -186,6 +194,7 @@ static void se_key(uint32_t k, uint32_t down)
     for (i = 0; i < n; i++)
         all &= se_starts(t, st.cur, nt[i]) >= 0;
     undo_mark(t, st.se_ksess);
+    st.snapl = 0;
     st.sess = (undo_sess += 4u) | 3u;                   /* (the knobs' edits after it: a level of their own) */
     fm1_irq_off();
     for (i = 0; i < n && !why; i++) {
@@ -216,6 +225,7 @@ static void se_knob(uint32_t k, int32_t s, int shift)
         if (c == (int32_t)st.cur)
             return;
         st.cur = (uint8_t)c;
+        st.snapl = 0;
         st.page = (uint8_t)(c / 16), st.follow = 0;
         st.sess = (undo_sess += 4u) | 3u;               /* (another step: its edits one undo level) */
         se_sync();

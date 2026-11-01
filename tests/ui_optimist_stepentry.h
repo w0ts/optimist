@@ -310,7 +310,7 @@ static void sen_other_tests(void)
 static void sen_dbl_tests(void)                         /* the double SEQ tap: STEP ENTRY on / off, stopped or playing (op_step.c step_seq_tap) */
 {
     track_t *t;
-    uint32_t r0, n0, n1;
+    uint32_t r0, n0, n1, c0;
     sen_open(32);
     sen_rec_off();
     t = TSEL;
@@ -342,6 +342,13 @@ static void sen_dbl_tests(void)                         /* the double SEQ tap: S
     check(an_on_n == 1u && an_on_nt[0] == n1, "step entry dbl: ... heard once");
     key(WK(2));
     check(!step_on(&t->step[3]), "step entry dbl: ... the same key again removes it");
+    key(WK(2));
+    frames(30);
+    turn(EN_K1, -1);
+    frames(30);
+    turn(EN_K1, 1);
+    check(st.cur == 3u && song.playing && an_on_n == 0u && !an_req, "step entry dbl: playing: a cursor move onto a step with notes sounds nothing");
+    key(WK(2));
     frames(30);
     tap(B_SEQ);
     tap(B_SEQ);
@@ -353,6 +360,16 @@ static void sen_dbl_tests(void)                         /* the double SEQ tap: S
     tap(B_PLAY);
     frames(4);
     check(!song.playing && se_on(), "step entry dbl: PLAY stops, STEP ENTRY stays");
+    frames(30);
+    c0 = st.cur;
+    if (!step_on(&t->step[c0]))
+        key(WK(2));
+    pk_cards_down();
+    turn(EN_K1, c0 % 16u ? -1 : 1);
+    frames(30);
+    pk_cards_down();
+    turn(EN_K1, c0 % 16u ? 1 : -1);
+    check(st.cur == c0 && !song.playing && (an_on_n > 0u || an_req), "step entry dbl: stopped: a cursor move onto a step with notes previews it");
     tap(B_SEQ);
     tap(B_SEQ);
     check(!se_on(), "step entry dbl: off again");
@@ -366,8 +383,145 @@ static void sen_dbl_tests(void)                         /* the double SEQ tap: S
     sen_rec_off();
     reset_ui();
 }
+static int sen_toast_drawn(void)                        /* the toast's frame (draw_toast: C_HI, its top row in the middle) is on the screen */
+{
+    return ui.toast_t && px_at(120, (uint32_t)OP_PY + 44u, C_HI);
+}
+static void sen_dbl_toast_tests(void)                   /* the toggle's words are DRAWN over STEP's cards, cards up and down, stopped and playing */
+{
+    uint32_t c, pl;
+    char nm[48];
+    for (pl = 0; pl < 2u; pl++)
+        for (c = 0; c < 2u; c++) {
+            sen_open(32);
+            sen_rec_off();
+            if (pl)
+                tap(B_PLAY), frames(4);
+            if (c)
+                cards_up();
+            else
+                pk_cards_down();
+            frames(100);
+            check(!se_on() && !sen_toast_drawn(), "step entry dbl toast: before, no toast on the screen");
+            tap(B_SEQ);
+            tap(B_SEQ);
+            frames(2);
+            check(se_on() && !strcmp(ui.msg, "STEP ENTRY") && sen_toast_drawn() && !ui.msg_t, "step entry dbl toast: STEP ENTRY drawn as a toast");
+            snprintf(nm, sizeof nm, "stepplay-on-%s-cards%s", pl ? "playing" : "stopped", c ? "up" : "down");
+            ppm(nm);
+            frames(100);
+            check(!sen_toast_drawn(), "step entry dbl toast: ... and gone after its time");
+            tap(B_SEQ);
+            tap(B_SEQ);
+            frames(2);
+            check(!se_on() && !strcmp(ui.msg, "STEP SEQ") && sen_toast_drawn(), "step entry dbl toast: STEP SEQ drawn as a toast");
+            snprintf(nm, sizeof nm, "stepplay-off-%s-cards%s", pl ? "playing" : "stopped", c ? "up" : "down");
+            ppm(nm);
+            sen_rec_off();
+            reset_ui();
+        }
+}
+static void sen_ent_note(uint32_t step, uint32_t k1, uint32_t k2, uint32_t k3, uint32_t k4)   /* the notes of keys k1.. (27: none) entered on a step */
+{
+    uint32_t ks[4] = {k1, k2, k3, k4}, i;
+    pk_cards_down();
+    turn(EN_K1, (int32_t)step - (int32_t)st.cur);
+    for (i = 0; i < 4u; i++)
+        if (ks[i] < 27u)
+            kdown(ks[i]);
+    for (i = 0; i < 4u; i++)
+        if (ks[i] < 27u)
+            kup(ks[i]);
+}
+static void sen_at(uint32_t step)
+{
+    pk_cards_down();
+    turn(EN_K1, (int32_t)step - (int32_t)st.cur);
+}
+static uint32_t sen_ext_at(const track_t *t, uint32_t step, uint32_t note)
+{
+    int32_t k = se_starts(t, step, note);
+    return k < 0 ? 0u : se_ext(t, step, (uint32_t)k);
+}
+static void sen_move_tests(void)                        /* a note moves / lengthens over other pitches; only the same pitch (or a full step) stops it */
+{
+    track_t *t;
+    uint32_t a, b, c, d, e;
+    int32_t k;
+    sen_rec_off();
+    reset_ui();
+    sen_open(16);
+    t = TSEL;
+    a = kb_map(t, WK(0)), b = kb_map(t, WK(2)), c = kb_map(t, WK(4)), d = kb_map(t, WK(5)), e = kb_map(t, WK(7));
+    sen_ent_note(0, WK(0), 27, 27, 27);
+    sen_ent_note(1, WK(2), 27, 27, 27);
+    sen_at(0);
+    turn(EN_K2, 1);
+    check(se_starts(t, 1, a) >= 0 && se_starts(t, 1, b) >= 0 && se_starts(t, 0, a) < 0 && t->step[1].n == 2u, "step entry move: a note onto a step with another pitch: it joins it");
+    /* a chord joins too */
+    sen_rec_off();
+    reset_ui();
+    sen_open(16);
+    t = TSEL;
+    sen_ent_note(0, WK(0), WK(4), 27, 27);
+    sen_ent_note(1, WK(2), 27, 27, 27);
+    sen_at(0);
+    turn(EN_K2, 1);
+    check(t->step[0].n == 0u && t->step[1].n == 3u && se_starts(t, 1, a) >= 0 && se_starts(t, 1, b) >= 0 && se_starts(t, 1, c) >= 0, "step entry move: a chord onto a step with another pitch: all three there");
+    /* the same pitch is passed over (SAME NOTE) */
+    sen_rec_off();
+    reset_ui();
+    sen_open(16);
+    t = TSEL;
+    sen_ent_note(0, WK(0), 27, 27, 27);
+    sen_ent_note(1, WK(0), 27, 27, 27);
+    sen_at(0);
+    turn(EN_K2, 1);
+    check(t->step[1].n == 1u && se_starts(t, 1, a) >= 0 && se_starts(t, 2, a) >= 0 && se_starts(t, 0, a) < 0, "step entry move: the same pitch there: not merged, it goes past");
+    /* a full step refuses */
+    sen_rec_off();
+    reset_ui();
+    sen_open(16);
+    t = TSEL;
+    sen_ent_note(0, WK(0), 27, 27, 27);
+    sen_ent_note(1, WK(2), WK(4), WK(5), WK(7));
+    sen_at(0);
+    turn(EN_K2, 1);
+    check(t->step[1].n == 4u && se_starts(t, 0, a) >= 0 && se_starts(t, 1, a) < 0 && !strcmp(ui.msg, "STEP FULL"), "step entry move: onto a full step (four notes): refused, STEP FULL");
+    (void)d; (void)e;
+    /* LENGTH over a different pitch */
+    sen_rec_off();
+    reset_ui();
+    sen_open(16);
+    t = TSEL;
+    sen_ent_note(0, WK(0), 27, 27, 27);
+    sen_ent_note(2, WK(2), 27, 27, 27);
+    sen_at(0);
+    for (k = 0; k < 4; k++) {
+        pk_cards_down();
+        turn(EN_K4, 1);
+    }
+    check(sen_ext_at(t, 0, a) >= 3u && se_starts(t, 2, b) >= 0, "step entry length: past a note of another pitch (after the touching detent)");
+    /* LENGTH toward the same pitch */
+    sen_rec_off();
+    reset_ui();
+    sen_open(16);
+    t = TSEL;
+    sen_ent_note(0, WK(0), 27, 27, 27);
+    sen_ent_note(2, WK(0), 27, 27, 27);
+    sen_at(0);
+    for (k = 0; k < 5; k++) {
+        pk_cards_down();
+        turn(EN_K4, 1);
+    }
+    check(sen_ext_at(t, 0, a) <= 2u && se_starts(t, 2, a) >= 0, "step entry length: toward the same pitch: it stops before it");
+    sen_rec_off();
+    reset_ui();
+}
 static void stepentry_tests(void)
 {
+    sen_move_tests();
+    sen_dbl_toast_tests();
     sen_dbl_tests();
     sen_toggle_tests();
     sen_cursor_tests();
