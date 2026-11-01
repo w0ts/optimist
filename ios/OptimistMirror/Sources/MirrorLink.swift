@@ -446,7 +446,8 @@ final class MirrorLink: ObservableObject, Transport, CompanionTransport {
         // (bit 3: checked frames, an older firmware ignores it; bit 5 with opti_miraimd_1 over Bluetooth: the losses so far and the
         //  next seq, by which the FM-1 paces its stream; never to a firmware that does not list it: it would drop the request)
         let ack = bluetooth && f?[Feature.miraimd.name] == Feature.miraimd.version ? lock.withLock { $0.decoder.ack } : nil
-        send([MirrorDecoder.cmd, (wantWhole ? 3 : 1) | MirrorDecoder.checkedBit | (ack == nil ? 0 : MirrorDecoder.ackBit)] + (ack ?? []))
+        send([MirrorDecoder.cmd, (wantWhole ? 3 : 1) | MirrorDecoder.checkedBit | (ack == nil ? 0 : MirrorDecoder.ackBit)] + (ack ?? [])
+             + Self.aaTail(f))
         wantWhole = false
         asked += 1
         // opti_mirsum_1: "SUMS wanted" (no band) while none came for 3 s; never to a firmware without it (over USB an older one
@@ -465,6 +466,12 @@ final class MirrorLink: ObservableObject, Transport, CompanionTransport {
     /// 106 bits 112 and the bands, 5 x 7 bit (none: SUMS wanted, opti_mirsum_1)
     static func bandsRequest(_ m: UInt32) -> [UInt8] {
         [MirrorDecoder.cmd, MirrorDecoder.bandsBits] + (0..<5).map { UInt8(truncatingIfNeeded: m >> (7 * $0)) & 127 }
+    }
+
+    /// 106's last byte (opti_miraa_1): the AA token asked for in every request (one without it would switch it off); never to
+    /// a firmware that does not list it (over Bluetooth it would drop the request)
+    static func aaTail(_ features: [String: Int]?) -> [UInt8] {
+        features?[Feature.miraa.name] == Feature.miraa.version ? [MirrorDecoder.aaByte] : []
     }
 
     private func send(_ body: [UInt8]) {
@@ -746,14 +753,14 @@ final class MirrorLink: ObservableObject, Transport, CompanionTransport {
                 guard !runs.isEmpty else { return [] }
                 s.lostSeen = s.decoder.lost
                 s.asksFix += runs.count
-                return runs.map { [MirrorDecoder.cmd, 1 | MirrorDecoder.checkedBit | MirrorDecoder.fixBit, UInt8($0.lo), UInt8($0.hi)] }
+                return runs.map { [MirrorDecoder.cmd, 1 | MirrorDecoder.checkedBit | MirrorDecoder.fixBit, UInt8($0.lo), UInt8($0.hi)] + Self.aaTail(s.features) }
             }
             guard Date().timeIntervalSince(s.lostAsk) > 0.5 else { return [] }
             s.lostSeen = s.decoder.lost
             s.lostAsk = Date()
             _ = s.decoder.takeLost()
             s.asksWhole += 1
-            return [[MirrorDecoder.cmd, 3 | MirrorDecoder.checkedBit]]
+            return [[MirrorDecoder.cmd, 3 | MirrorDecoder.checkedBit] + Self.aaTail(s.features)]
         }
         // Bluetooth with opti_miraimd_1: an ACK alone (no reply) about 5 times a second while frames come, with the next seq: the
         // FM-1 times each frame to it and halves its budget when they arrive late (a queue in the Mac or on the air)

@@ -42,6 +42,7 @@ struct MirrorDecoder {
     static let fixBit: UInt8 = 16     // 106 bit 4: seq lo, hi follow (lost frames, opti_mirfix_1)
     static let ackBit: UInt8 = 32     // 106 bit 5: the losses (7 bit, free-running), the next seq follow (opti_miraimd_1)
     static let quietBit: UInt8 = 64   // 106 bit 6 with bit 5: an ACK alone, the FM-1 sends no reply (about 5 a second)
+    static let aaByte: UInt8 = 1      // 106's second byte, bit 0: the AA token (opti_miraa_1; never with bit 4 or 5)
     /// The keep-alive's report (106 bit 5): checked frames lost so far and the next seq expected, 7 bit each
     var ack: [UInt8] { [UInt8(lost & 127), UInt8(seq & 127)] }
 
@@ -200,6 +201,26 @@ struct MirrorDecoder {
                 next = next < 6 ? next + 1 : 1
                 i += 3
             }
+            if code == 14, i + 2 <= n, f[i] & 7 == 7 {   // the AA token (opti_miraa_1): k << 3 | 7 (the ground's slot), L, L levels
+                guard f[i] >> 3 <= 6, f[i + 1] > 0 else { return false }
+                let fg = slots[s], bg = slots[Int(f[i] >> 3)], count = Int(f[i + 1])
+                i += 2
+                var acc = 0, nb = 0
+                for _ in 0..<count {                    // (a prefix code, 7 bits a byte, bit 6 first: '0' 15, '10' 0, '11' + 4 bits a)
+                    var v = 0, m = 0
+                    while m < 6 && (m != 1 || v == 1) && (m != 2 || v == 3) {
+                        if nb == 0 {
+                            guard i < n else { return false }
+                            acc = Int(f[i]); nb = 7; i += 1
+                        }
+                        nb -= 1
+                        v = v << 1 | (acc >> nb & 1)
+                        m += 1
+                    }
+                    fill(Self.blend(fg, bg, m == 1 ? 15 : m == 2 ? 0 : v & 15), 1)
+                }
+                continue
+            }
             if code == 14 {                             // a bitmap: g << 3 | the 0s' slot, g + 1 bytes of 7 pixels, bit 6 first
                 guard i < n, f[i] & 7 != 7 else { return false }
                 let g = Int(f[i] >> 3) + 1, bg = slots[Int(f[i] & 7)], fg = slots[s]
@@ -213,6 +234,13 @@ struct MirrorDecoder {
             fill(slots[s], len)
         }
         return true
+    }
+
+    /// The AA token's pixel: f over b at level a (0..15), per channel (f * a + b * (15 - a)) / 15 rounded down, as fm1-base
+    /// draws its text (device/gfx.c cv_text)
+    static func blend(_ f: UInt16, _ b: UInt16, _ a: Int) -> UInt16 {
+        func ch(_ sh: Int, _ m: Int) -> Int { ((((Int(f) >> sh) & m) * a + ((Int(b) >> sh) & m) * (15 - a)) / 15) << sh }   // (Swift: << binds before /)
+        return UInt16(ch(11, 31) | ch(5, 63) | ch(0, 31))
     }
 
     /// count pixels each as the one a row up (inside the rectangle: its second row on)

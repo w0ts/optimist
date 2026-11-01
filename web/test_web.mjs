@@ -3607,6 +3607,30 @@ async function editorMirror() {
     ok(!mirrorFrame(chk[k + 1]) && mir.fixLo === sq(chk[k]) && mir.fixHi === sq(chk[k + 1]) && !mirrorFrame(chk[k + 1]),
       "mirror: a lost BLIT and its MORE dropped: their seqs kept to ask for (106 bit 4); the MORE again ignored");
   }
+  {   /* the AA token (opti_miraa_1): 10 pages captured from the FM-1 (fm1-base's anti-aliased text) and the same writes with the
+         token (tests/mirror_pages_test.c, the firmware's encoder): the same pixels page by page; asked only when INFO lists it */
+    const pages = (name) => {
+      const b = readFileSync(new URL(name, fx)), shots = [];
+      mir.img.data.fill(0); mir.haveSeq = false; mir.broken = false;
+      let st = -1, nbad = 0;
+      for (let i = 0; i < b.length; i++) {
+        if (b[i] === 0xF0) st = i;
+        if (b[i] !== 0xF7 || st < 0) continue;
+        const a = Array.from(b.subarray(st + 5, i));
+        if (a[0] === 0 && a.slice(1, 9).join() === "0,0,0,0,112,1,112,1" && st > 0) shots.push(Uint8ClampedArray.from(mir.img.data));
+        if (!mirrorFrame(a)) nbad++;
+        st = -1;
+      }
+      shots.push(Uint8ClampedArray.from(mir.img.data));
+      return { shots, nbad, bytes: b.length };
+    };
+    const v2 = pages("mirror_pages.sysex"), aa = pages("mirror_pages_aa.sysex");
+    const off = aa.shots.map((s, p) => v2.shots[p] ? s.reduce((n, v, k) => n + (v !== v2.shots[p][k]), 0) : -1);
+    ok(v2.shots.length === 10 && aa.shots.length === 10 && !v2.nbad && !aa.nbad && off.every((d) => d === 0),
+      `mirror: the AA token: 10 pages decoded to the same pixels as the FM-1's own frames (${v2.bytes} -> ${aa.bytes} B; ${aa.nbad} bad, values off ${off})`);
+    ok(/if \(opti\("miraa"\)\) args\.push\(1\);/.test(html) && /miraa: 1, panelx/.test(html),
+      "mirror: 106's last byte (the AA token) asked only when INFO lists opti_miraa_1");
+  }
   ok(/f\.cmd === CMD\.MIRROR && !\(f\.a\.length === 6 && f\.a\[0\] <= 1 && f\.a\[1\] >= 1\)\) \{ this\.onMirror\(f\.a\)/.test(html) && /onMirror: \(a\) => mirrorFrame\(a\),/.test(html)
     && /MIRROR: 106/.test(html) && /id === 0x65 && n >= 1 && a\[r\.i\] >= 1\) o\.mirror/.test(html) && /dev\.info\.mirror\.v === MIRROR_V/.test(html)
     && /<button role="tab" data-tab="mirror"[^>]* hidden>/.test(html) && /b\.hidden = !mirrorOn\(\)/.test(html)

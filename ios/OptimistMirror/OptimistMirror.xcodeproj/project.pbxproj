@@ -63,6 +63,7 @@
 		92680155E67A8387D0372ACF /* bt_info_frames.json in Resources */ = {isa = PBXBuildFile; fileRef = E16F3A886BB028B255E823EA /* bt_info_frames.json */; };
 		95315429ACCA74BB4EDB10CE /* LibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F8D6D1D160BEB2BB72F4DDA /* LibraryView.swift */; };
 		9559B90268B5A297C2899EAC /* PixelScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0403BA98824CE186F6CE38C2 /* PixelScreen.swift */; };
+		96194A84913F7F5BB21F7FD3 /* mirror_pages.sysex in Resources */ = {isa = PBXBuildFile; fileRef = 7DC73DED01FEBD08C8E62D1A /* mirror_pages.sysex */; };
 		9A27CB820A2691AF488B847C /* BluetoothPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08CDB3647FD4A337F9737AE8 /* BluetoothPicker.swift */; };
 		9B34ADB402DE0FE0A60F2B6A /* BtRoute.swift in Sources */ = {isa = PBXBuildFile; fileRef = B850D998AA77BE79F5B9BF9B /* BtRoute.swift */; };
 		9D8AE5F505871B9C539F4CD9 /* ProjectLibraryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7DD8C0A3C9962CC0B232C9E2 /* ProjectLibraryTests.swift */; };
@@ -71,6 +72,7 @@
 		AD46B38D1534BD51B9093140 /* web_library.json in Resources */ = {isa = PBXBuildFile; fileRef = 4F9FA8878BB640A9C6EF190C /* web_library.json */; };
 		BA6834D7B3A00D8A4007F620 /* MirrorLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = B44F5DDB3FA5A048A53E14BC /* MirrorLink.swift */; };
 		BF19193839D22CA41D55DCA2 /* PanelKeys.swift in Sources */ = {isa = PBXBuildFile; fileRef = 066FF4357CB7BD08B7F4C23A /* PanelKeys.swift */; };
+		C3F35DC66CFC2D5008AB9EF0 /* mirror_pages_aa.sysex in Resources */ = {isa = PBXBuildFile; fileRef = 88143DBDF9F810C1EC4E9AB1 /* mirror_pages_aa.sysex */; };
 		CB09E667D6EFAA4B66DD6B17 /* EditorSiteTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A10CC038EE36495604EC9B7 /* EditorSiteTests.swift */; };
 		CEA4069D82BBE09DC7A1FDDC /* ClipTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A59E4FFAD11C10777223B51 /* ClipTests.swift */; };
 		D49D71173482047512F84808 /* PatternFile.swift in Sources */ = {isa = PBXBuildFile; fileRef = F35BAB0C19445FAE914889A1 /* PatternFile.swift */; };
@@ -138,8 +140,10 @@
 		750790AD3169CC4AA53C2829 /* Fm1BaseView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Fm1BaseView.swift; sourceTree = "<group>"; };
 		767C19A1A44F5402AAA48323 /* WebTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebTabView.swift; sourceTree = "<group>"; };
 		7A64EF8F12D362FE851E5119 /* NavViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NavViews.swift; sourceTree = "<group>"; };
+		7DC73DED01FEBD08C8E62D1A /* mirror_pages.sysex */ = {isa = PBXFileReference; path = mirror_pages.sysex; sourceTree = "<group>"; };
 		7DD8C0A3C9962CC0B232C9E2 /* ProjectLibraryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectLibraryTests.swift; sourceTree = "<group>"; };
 		80E117300E52E6D293A00964 /* NavModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NavModel.swift; sourceTree = "<group>"; };
+		88143DBDF9F810C1EC4E9AB1 /* mirror_pages_aa.sysex */ = {isa = PBXFileReference; path = mirror_pages_aa.sysex; sourceTree = "<group>"; };
 		966AB47DC696C8582C328253 /* MirrorDecoderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MirrorDecoderTests.swift; sourceTree = "<group>"; };
 		97A7F3D3AAA5E0266A203852 /* FlashModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlashModel.swift; sourceTree = "<group>"; };
 		986DB380F9043690906D7353 /* Fm1BaseWeb.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Fm1BaseWeb.swift; sourceTree = "<group>"; };
@@ -226,6 +230,8 @@
 				E16F3A886BB028B255E823EA /* bt_info_frames.json */,
 				6D6524E410D116F70AB8B845 /* companion_transcript.txt */,
 				B8345EA2BC0DFECA12176351 /* make_fixtures.mjs */,
+				88143DBDF9F810C1EC4E9AB1 /* mirror_pages_aa.sysex */,
+				7DC73DED01FEBD08C8E62D1A /* mirror_pages.sysex */,
 				61EDA40C866B877E0EC4F084 /* nav_track_bar.json */,
 				0EFED5448060093A17041C1E /* screen.rgb565 */,
 				DA90A8827B974067474F2B5C /* screen.sysex */,
@@ -447,6 +453,8 @@
 				92680155E67A8387D0372ACF /* bt_info_frames.json in Resources */,
 				8E85808DE7CFF8BE38BEA1CE /* companion_transcript.txt in Resources */,
 				80B9225874F456E57DCB7836 /* make_fixtures.mjs in Resources */,
+				96194A84913F7F5BB21F7FD3 /* mirror_pages.sysex in Resources */,
+				C3F35DC66CFC2D5008AB9EF0 /* mirror_pages_aa.sysex in Resources */,
 				202AF85544425486000CBDBB /* nav_track_bar.json in Resources */,
 				E006485466AA9D4C7AEAFD0E /* screen.rgb565 in Resources */,
 				33E398F6F55855061D7B3F5B /* screen.sysex in Resources */,
