@@ -2381,9 +2381,58 @@ static void audition_step(const dstep_t *s)            /* every sound of a drum 
             lv |= dstep_lvl(s, l) << (2u * l);
     audition_req(m, lv);
 }
+/* the UI asks to hear a synth track's notes (STEP ENTRY, op_stepentry.c: a key that adds a note, KNOB 1 landing on a step):
+ * up to 4 notes, played here in the audio context for AUD_NOTE_BLOCKS (~200 ms, a keyboard's short note), then let go.
+ * Stopped only, as the drums' audition. A new request ends the notes still sounding first */
+#define AUD_NOTE_BLOCKS (FS / CTL / 5u)
+static volatile uint8_t an_req, an_trk, an_n, an_nt[4], an_vel;
+static uint8_t an_on_trk, an_on_n, an_on_nt[4];         /* (the audio context's: what sounds now) */
+static uint32_t an_left;
+static void audition_notes(uint32_t tr, const uint8_t *nt, uint32_t n, uint32_t vel)
+{
+    uint32_t i;
+    if (song.playing || tr >= NTRK || !n)
+        return;
+    fm1_irq_off();
+    for (i = 0; i < n && i < 4u; i++)
+        an_nt[i] = nt[i];
+    an_n = (uint8_t)(n < 4u ? n : 4u), an_trk = (uint8_t)tr, an_vel = (uint8_t)(vel ? vel : 1u);
+    an_req = 1;
+    fm1_irq_on();
+}
+static void audition_notes_block(void)
+{
+    uint32_t i;
+    if (an_on_n && (an_req || !--an_left)) {            /* (their time over, or new ones asked) */
+        for (i = 0; i < an_on_n; i++)
+            trk_note_off(&trk[an_on_trk % NTRK], an_on_nt[i]);
+        an_on_n = 0;
+    }
+    if (!an_req)
+        return;
+    an_req = 0;
+    an_on_trk = an_trk, an_on_n = an_n, an_left = AUD_NOTE_BLOCKS;
+    for (i = 0; i < an_on_n; i++) {
+        an_on_nt[i] = an_nt[i];
+        trk_note_on(&trk[an_on_trk % NTRK], an_on_nt[i], an_vel);
+    }
+}
+/* key k's notes on synth track t as the keys play them (kb_map: QNT, ROOT, SCALE, TRN and the octave; chord mode: the key's
+ * chord, chord_notes, without CHORD+'s modifiers and voicing); -> how many (0: a silent key). STEP ENTRY's (op_stepentry.c) */
+static uint32_t kb_notes(const track_t *t, uint32_t k, uint8_t *nt)
+{
+    uint32_t n = kb_map(t, k);
+    if (n == KB_SILENT || is_drum(t))
+        return 0;
+    if (t->p[P_CHORD])
+        return chord_notes(t, n, nt);
+    nt[0] = (uint8_t)n;
+    return 1;
+}
 static void audition_block(void)
 {
     uint32_t m = aud_lanes, lv = aud_lvl, l;
+    audition_notes_block();
     if (!m)
         return;
     aud_lanes = 0;

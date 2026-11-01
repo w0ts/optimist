@@ -222,7 +222,7 @@ static void keys_lit(uint32_t *f, uint32_t *d, uint32_t *h)
             *f = mute_mod(fm1_in.buttons) ? fm6_keys_off() : fm6_keys_at(f6_cur_row());
             return;
         }
-        if (ui.scr == SCR_STEP && step_keys(fm1_in.buttons)) {
+        if (ui.scr == SCR_STEP && step_keys(fm1_in.buttons) && !se_on()) {
             *f = step_leds(blink) & keys_white(16);     /* (STEP: its white keys stay its steps) */
             *d = step_dim();
         }
@@ -239,7 +239,7 @@ static void keys_lit(uint32_t *f, uint32_t *d, uint32_t *h)
     }
     if (ui.scr == SCR_STEP) {
         *f = step_leds(blink);
-        *d = step_keys(fm1_in.buttons) ? step_dim() : 0u;
+        *d = step_keys(fm1_in.buttons) && !se_on() ? step_dim() : 0u;   /* (STEP ENTRY: the keys a keyboard, no step dim) */
         if (is_drum(TSEL))
             for (k = 0; k < 27u; k++)                   /* (the lanes' black keys: dim, the selected one full) */
                 *d |= lane_key(k) ? 1u << k : 0u, *f |= lane_key(k) && lane_of(k) == lane_selected() ? 1u << k : 0u;

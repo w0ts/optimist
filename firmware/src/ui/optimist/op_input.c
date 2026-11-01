@@ -352,6 +352,8 @@ static void op_no(void)
 /* ---- transport (as SLOOP's ui_input.c B_PLAY and ui_studio.c rec_toggle) */
 static void op_play(void)
 {
+    if (se_play())
+        return;                                         /* (STEP ENTRY: PLAY arms the take, the first note starts it: op_stepentry.c) */
 #if FELUCCA_ARRANGER
     if (!song.playing && arrangement_enabled && !arr_valid(&arrangement, arrangement_ready())) {
         ui_message("EMPTY SECTION: REC");
@@ -577,7 +579,7 @@ static int mute_mod(uint32_t held) { return shift_alone(held, B_OCTDN, 1); }
 static int sel_mod(uint32_t held) { return shift_alone(held, B_OCTUP, 0); }
 static int shift_step_key(uint32_t k)                   /* STEP's white keys: steps, under the shifts too */
 {
-    return ui.scr == SCR_STEP && step_keys(fm1_in.buttons) && punch_key(k) >= 0 && punch_key(k) < 16;
+    return ui.scr == SCR_STEP && step_keys(fm1_in.buttons) && !se_on() && punch_key(k) >= 0 && punch_key(k) < 16;
 }
 static int32_t ret_in_key(uint32_t k)                   /* the mute mode's return keys: the last three white keys -> A B C (0..2), else -1 */
 {
@@ -1468,6 +1470,8 @@ static uint32_t step_leds(uint32_t blink)
 {
     const track_t *t = tsel();
     uint32_t m = 0, in;
+    if (se_on())
+        return se_leds() | fm1_in.notes;               /* (STEP ENTRY: the keys of the cursor step's notes, op_stepentry.c) */
     if (!step_keys(fm1_in.buttons)) {
         m = fm1_in.notes;
         if (is_drum(t))

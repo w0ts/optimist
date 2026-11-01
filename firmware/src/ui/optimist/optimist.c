@@ -64,6 +64,7 @@
 #include "op_mixer.c"
 #include "op_tools.c"            /* STEP's TOOLS, GEN and GEN OUT pages (FELUCCA_SEQTOOLS, Felucca 1.5.6) */
 #include "op_step.c"
+#include "op_stepentry.c"         /* STEP ENTRY: a synth track's STEP stopped with REC armed (the cursor, the keys toggle notes) */
 #include "op_effval.c"
 #include "op_layers.c"
 #include "op_tempo.c"
