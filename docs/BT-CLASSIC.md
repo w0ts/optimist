@@ -148,11 +148,19 @@ stay (Part B 2.6.4.2). The engine's side as the vendor controller programs it [M
 basic table** (0-39 the even channels, 40-78 the odd), packed in that order, the rest 0; map registers `0x20090 + 12t`
 get the LMP map's bytes 0-3, 4-7 and 8-9, the used count in word 2 [31:24]; then `miscntl` = (`miscntl` & 63) |
 (t+1) << 6 and `format` |= bit6; disabling clears bit6 of both. The vendor does all of it at the instant from a slot
-timer; we write the table and registers at the announcement (harmless, measured) and switch the two bits at the
-instant. A first guess that filled the table with RF channel numbers killed the link at once, three times (2026-10-23),
+timer; so do we since 2026-11-01 (`bt_ltx.c` `blt_afh_alarm`; before, the table and registers were written at the
+announcement, over a hop set still in use from the second switch on). A first guess that filled the table with RF channel numbers killed the link at once, three times (2026-10-23),
 with `afh=6` (table 1 selected, the full map) as the clean proof that the content, not the registers, was wrong.
 `LMP_set_AFH` (the instant an even slot 320 slots ahead, mode 1, the map) is queued and the 18-slot alarm is re-armed
-onto the instant. The PDU's AFH_instant field is the **slot** (CLK[27:1]) as it is: the vendor's slave side compares
+onto the instant. **The instant is set when the PDU goes into a TX buffer, and IRQ 40 does that** (`bt_ltx.c`,
+2026-11-01): before, the instant was fixed when the main loop queued the PDU and only the main loop put signalling
+into a TX buffer, one PDU a pass. With the audio render holding CPU 0 (the user: CPU0 at 100 %, "bt audio was dropping
+connection a few times") the main loop's passes came hundreds of ms apart, the PDU left after its instant, the FM-1
+switched alone and the headset, hopping on the old set, was lost [I: the host model `tests/bt_ltx_test.c` loses 5-11
+of 19 switches that way at 100-200 %, none now; no hardware log, BT_DIAG is gone]. All signalling (LMP, L2CAP) now goes
+from IRQ 40 at each reception and each 18-slot alarm, once the main loop has published it (`blt_publish`, after the
+handler that queued it: an E0 key loaded after its PDU was queued still goes first); the main loop's own hand-over
+stays, IRQ 40 held. The PDU's AFH_instant field is the **slot** (CLK[27:1]) as it is: the vendor's slave side compares
 the four bytes with its slot clock unshifted (`connection_rx_handler` -> `bredr_link_set_afh`), its master side sends
 the slot clock + 200. Sent doubled (the 28-bit CLK), the XM4 planned its switch ~26 s after ours and the link died at
 ours, three times. Why (2026-10-23, logs/xm4-2026-10-23.log): a WH-1000XM4's answers on RF channels 4, 10 and 17 fell
@@ -258,6 +266,7 @@ unit). A second FM-1 on stock V15 is therefore a possible inquiry target (unveri
 | `firmware/src/ble/rf_share.h` | the radio shared with BLE: one start-up, the LE block BLE's (§9.1; host test `tests/bt_coex_test.c`) |
 | `firmware/src/bt/bt_inq_core.c` | portable: sync-word parity, FHS parse/build, EIR name (host test `tests/bt_inq_test.c`) |
 | `firmware/src/bt/bt_page.c`, `bt_lmp.c` | stage 2: the page as master (bp_start), minimal LMP (host test `tests/bt_lmp_test.c`) |
+| `firmware/src/bt/bt_ltx.c`, `hal/fm1_bredr_frame.h` | the link's TX side: signalling and audio queues, the hand-over from IRQ 40, the AFH switch at its instant (host stress test `tests/bt_ltx_test.c`: CPU 0 at 50-200 %) |
 | `firmware/src/bt/bt_acl.c`, `bt_l2cap.c`, `bt_avdtp.c` | stages 3-4: L2CAP over DM1 fragments, an SDP client, an AVDTP initiator (host tests `bt_l2cap_test`, `bt_avdtp_test`) |
 | `firmware/src/bt/bt_safer.c`, `bt_ssp.c`, `uECC.c`, `bt_sha256.c` | SAFER+ (E1/E21/E22/E3), SSP (f1-f3/g, P-192) (host tests `tests/bt_crypto_test.c`, `bt_ssp_test.c`) |
 | `firmware/src/bt/bt_audio.c`, `bt_sbc.c`, `bt_afh.c`, `bt_avrcp.c`, `bt_sdps.c` | the A2DP source, the SBC encoder, AFH, AVRCP, the SDP server |
