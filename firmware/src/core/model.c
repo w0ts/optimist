@@ -532,7 +532,12 @@ static void track_defaults(track_t *t)
         track_defaults_steps(t);
 }
 
-/* the factory presets as one list by kind (basses, keys, organs, pads, leads, plucks and bells, stabs,
+#include "felucca_bank.h"                         /* (ENG_ALPHA_UIDS: the engines by name, fixed at build time; the entries below) */
+static const uint8_t ENG_ALPHA_ALL[] = {ENG_ALPHA_UIDS};
+static uint8_t ENG_ALPHA_SLOT[NENGINES];            /* the engines this build has, by name (slots): ENG_ALPHA_ALL without the ones left out */
+static uint8_t eng_rank_of[NENGINES];               /* slot -> its place in that order (the ENGINE card's gauge) */
+/* the factory presets as one list: by engine name, then preset name (tools/gen_bank_order.py sorts bank_src.h at build time;
+ * the list the user sees changes order, no stored id does: a preset is its engine UID and its index in that engine). Their kinds (basses, keys, organs, pads, leads, plucks and bells, stabs,
  * the rest), then the used user presets: the PRESETS knob and the PRESETS page browse it. By name: an
  * engine's preset table may change order; tests/ui_pages_test.c checks every preset is here once */
 #if !PRESETS_CARD
@@ -546,88 +551,9 @@ static const char *const BANK_KIND[] = {"BASS", "KEYS", "ORGN", "PAD", "LEAD", "
 #define FELUCCA_ENG_SUPER FELUCCA_ENG_ANALOG
 #endif
 static const struct __attribute__((packed)) { uint8_t kind : 3, e : 5; const char *name; } BANK[] = {   /* (5 bytes an entry: an engine UID < 32) */
-    B(ANALOG, BK_BASS, 0, "808 BOOM") B(ANALOG, BK_BASS, 0, "808 DIRTY") B(ANALOG, BK_BASS, 0, "808 SLIDE") B(ANALOG, BK_BASS, 0, "SUB BASS")
-    B(ANALOG, BK_BASS, 0, "PLUGG BASS") B(ANALOG, BK_BASS, 0, "REESE") B(ANALOG, BK_BASS, 0, "WOBBLE") B(ANALOG, BK_BASS, 0, "ACID 303")
-    B(DIGITAL, BK_BASS, 1, "FM BASS") B(PHASE, BK_BASS, 2, "CZ BASS") B(TRIO, BK_BASS, 6, "FAT BASS") B(ANALOG, BK_BASS, 0, "FUNK BASS")
-    B(FORMANT, BK_BASS, 5, "WOW BASS") B(LOFI, BK_BASS, 3, "GB BASS") B(SAMPLE, BK_BASS, 4, "UP BASS") B(SAMPLE, BK_BASS, 4, "DEEP BASS")
-#if FELUCCA_ANALOG2
-    B(ANALOG, BK_BASS, 0, "LP24 BASS")
-#endif
-    B(DIGITAL, BK_KEYS, 1, "RHODES") B(DIGITAL, BK_KEYS, 1, "DX RHODES") B(DIGITAL, BK_KEYS, 1, "WURLI") B(DIGITAL, BK_KEYS, 1, "M1 PIANO")
-    B(DIGITAL, BK_KEYS, 1, "AFRO KEYS") B(SAMPLE, BK_KEYS, 4, "GRAND PNO") B(SAMPLE, BK_KEYS, 4, "DUSTY PNO") B(SAMPLE, BK_KEYS, 4, "LOFI KEYS") B(PHASE, BK_KEYS, 2, "SOFT KEYS")
-    B(DIGITAL, BK_KEYS, 1, "CLAV")
-    B(DRAWBAR, BK_ORGAN, 7, "SOUL ORGAN") B(DRAWBAR, BK_ORGAN, 7, "GOSPEL") B(DRAWBAR, BK_ORGAN, 7, "JAZZ ORGAN") B(DRAWBAR, BK_ORGAN, 7, "DIRTY B3")
-    B(DRAWBAR, BK_ORGAN, 7, "HOUSE ORGN")
-    B(ANALOG, BK_PAD, 0, "WARM PAD") B(TRIO, BK_PAD, 6, "SAW PAD") B(DIGITAL, BK_PAD, 1, "GLASS PAD") B(ANALOG, BK_PAD, 0, "DARK STR")
-    B(PHASE, BK_PAD, 2, "CZ STRING") B(ANALOG, BK_PAD, 0, "ATMOS PAD") B(GRAIN, BK_PAD, 8, "LOFI CLOUD") B(GRAIN, BK_PAD, 8, "VIBE HAZE")
-    B(FORMANT, BK_PAD, 5, "CHOIR AAH") B(FORMANT, BK_PAD, 5, "SOUL OOH") B(SUPER, BK_PAD, ENG_UID_SUPER, "SUPER PAD")
-    B(ANALOG, BK_LEAD, 0, "SUPERSAW") B(SUPER, BK_LEAD, ENG_UID_SUPER, "SUPER LEAD") B(ANALOG, BK_LEAD, 0, "G-FUNK LD") B(TRIO, BK_LEAD, 6, "SYNC LEAD")
-    B(TRIO, BK_LEAD, 6, "HOOVER") B(SUPER, BK_LEAD, ENG_UID_SUPER, "HOOVER SAW")
-#if FELUCCA_ANALOG2
-    B(ANALOG, BK_LEAD, 0, "SYNC SWEEP") B(ANALOG, BK_LEAD, 0, "FIFTH LEAD")
-#endif
-    B(FORMANT, BK_LEAD, 5, "TALKBOX") B(LOFI, BK_LEAD, 3, "GAME LEAD") B(SAMPLE, BK_LEAD, 4, "LOFI FLUTE") B(GRAIN, BK_LEAD, 8, "FLUTE DUST")
-    B(ANALOG, BK_PLUCK, 0, "TRAP PLUCK") B(SUPER, BK_PLUCK, ENG_UID_SUPER, "SUPER PLCK") B(PHASE, BK_PLUCK, 2, "RESO PLUCK") B(DIGITAL, BK_PLUCK, 1, "PLUGG BELL") B(DIGITAL, BK_PLUCK, 1, "TRAP BELL")
-    B(DIGITAL, BK_PLUCK, 1, "MUSIC BOX") B(DIGITAL, BK_PLUCK, 1, "KALIMBA") B(DIGITAL, BK_PLUCK, 1, "MARIMBA") B(SAMPLE, BK_PLUCK, 4, "VIBES")
-    B(LOFI, BK_PLUCK, 3, "8BIT ARP")
-    B(TRIO, BK_STAB, 6, "MIN STAB") B(TRIO, BK_STAB, 6, "MIN7 STAB") B(TRIO, BK_STAB, 6, "RAVE STAB") B(TRIO, BK_STAB, 6, "DUB CHORD") B(SUPER, BK_STAB, ENG_UID_SUPER, "SUPER CHRD")
-    B(ANALOG, BK_STAB, 0, "SYN BRASS") B(PHASE, BK_STAB, 2, "CZ BRASS") B(SAMPLE, BK_STAB, 4, "HORN STAB") B(SAMPLE, BK_STAB, 4, "STRING STB")
-    B(SAMPLE, BK_FX, 4, "SCRATCH") B(SAMPLE, BK_FX, 4, "GM KIT")
-    B(FM6, BK_FX, ENG_UID_FM6, "INIT VOICE") B(FM6, BK_FX, ENG_UID_FM6, "INIT WIDE") B(FM6, BK_FX, ENG_UID_FM6, "INIT MONO")   /* (FM6: the voice packs are nbank.c's) */
-    B(PHYS, BK_PLUCK, ENG_UID_PHYS, "BELL TREE") B(PHYS, BK_PLUCK, ENG_UID_PHYS, "WOOD MRMBA") B(PHYS, BK_PLUCK, ENG_UID_PHYS, "PLUCK")
-    B(PHYS, BK_PLUCK, ENG_UID_PHYS, "THUMB PNO") B(PHYS, BK_PLUCK, ENG_UID_PHYS, "SYMP HARP") B(PHYS, BK_PAD, ENG_UID_PHYS, "BOWED METAL")
-    B(PHYS, BK_PAD, ENG_UID_PHYS, "DRONE STRING") B(PHYS, BK_FX, ENG_UID_PHYS, "HAND DRUM") B(PHYS, BK_FX, ENG_UID_PHYS, "TOMS")
-    B(ACID, BK_BASS, ENG_UID_ACID, "ACID LINE") B(ACID, BK_BASS, ENG_UID_ACID, "ACID SQR") B(ACID, BK_BASS, ENG_UID_ACID, "ACID RAGE")
-    B(ACID, BK_BASS, ENG_UID_ACID, "ACID DUB")
-    B(SLICE, BK_FX, ENG_UID_SLICE, "BREAK 16") B(SLICE, BK_FX, ENG_UID_SLICE, "CHOP 8") B(SLICE, BK_FX, ENG_UID_SLICE, "REVERSE")
-    B(SLICE, BK_FX, ENG_UID_SLICE, "USR SLICE")
-    B(NOISE, BK_FX, ENG_UID_NOISE, "WIND") B(NOISE, BK_FX, ENG_UID_NOISE, "RAIN") B(NOISE, BK_LEAD, ENG_UID_NOISE, "ARCADE")
-    B(NOISE, BK_FX, ENG_UID_NOISE, "METAL")
-    B(DRONE, BK_PAD, ENG_UID_DRONE, "STILL AIR") B(DRONE, BK_PAD, ENG_UID_DRONE, "OPEN FIFTH") B(DRONE, BK_PAD, ENG_UID_DRONE, "SLOW CHAIN")
-    B(DRONE, BK_PAD, ENG_UID_DRONE, "DARK RING") B(DRONE, BK_PAD, ENG_UID_DRONE, "SWARM") B(DRONE, BK_FX, ENG_UID_DRONE, "THETA")
-    B(DRONE, BK_FX, ENG_UID_DRONE, "ALPHA") B(DRONE, BK_FX, ENG_UID_DRONE, "DELTA") B(DRONE, BK_FX, ENG_UID_DRONE, "GAMMA")
-    B(PLAITS, BK_BASS, ENG_UID_PLAITS, "FOLD BASS") B(PLAITS, BK_LEAD, ENG_UID_PLAITS, "TIDES LEAD") B(PLAITS, BK_PLUCK, ENG_UID_PLAITS, "SERGE BELL")
-    B(PLAITS, BK_ORGAN, ENG_UID_PLAITS, "ADD ORGAN") B(PLAITS, BK_PAD, ENG_UID_PLAITS, "SPECTRA") B(PLAITS, BK_PLUCK, ENG_UID_PLAITS, "HARM BELL")
-    B(PLAITS, BK_LEAD, ENG_UID_PLAITS, "VOSIM VOX") B(PLAITS, BK_STAB, ENG_UID_PLAITS, "FORMANT SWP") B(PLAITS, BK_LEAD, ENG_UID_PLAITS, "Z RESO")
-    B(PLAITS, BK_FX, ENG_UID_PLAITS, "DROPLETS") B(PLAITS, BK_FX, ENG_UID_PLAITS, "RAIN GLASS") B(PLAITS, BK_FX, ENG_UID_PLAITS, "GRIT DUST")
-    B(CZ, BK_BASS, ENG_UID_CZ, "PD BASS") B(CZ, BK_LEAD, ENG_UID_CZ, "RESO SWEEP") B(CZ, BK_PLUCK, ENG_UID_CZ, "GLASS BELL")
-    B(CZ, BK_STAB, ENG_UID_CZ, "WIRE BRASS") B(CZ, BK_PAD, ENG_UID_CZ, "SOFT PAD") B(CZ, BK_FX, ENG_UID_CZ, "NOISE BREATH")
-    B(CZ, BK_KEYS, ENG_UID_CZ, "PULSE KEYS") B(CZ, BK_LEAD, ENG_UID_CZ, "CZ INIT")
-    B(JUNO, BK_PAD, ENG_UID_JUNO, "JUNO STRNG") B(JUNO, BK_PAD, ENG_UID_JUNO, "JUNO PWM PD") B(JUNO, BK_STAB, ENG_UID_JUNO, "JUNO BRASS")
-    B(JUNO, BK_BASS, ENG_UID_JUNO, "JUNO BASS") B(JUNO, BK_LEAD, ENG_UID_JUNO, "JUNO SYNCL") B(JUNO, BK_FX, ENG_UID_JUNO, "JUNO HOLLOW")
-    B(JUNO, BK_KEYS, ENG_UID_JUNO, "JUNO ORGAN") B(JUNO, BK_LEAD, ENG_UID_JUNO, "JUNO INIT")
-    B(STRINGS, BK_PAD, ENG_UID_STRINGS, "SOLINA") B(STRINGS, BK_PAD, ENG_UID_STRINGS, "ENSEMBLE") B(STRINGS, BK_PAD, ENG_UID_STRINGS, "CELLOS")
-    B(STRINGS, BK_STAB, ENG_UID_STRINGS, "STR STAB") B(STRINGS, BK_PAD, ENG_UID_STRINGS, "CHOIR STR")
-    B(VPS, BK_LEAD, ENG_UID_VPS, "VPS LEAD") B(VPS, BK_PAD, ENG_UID_VPS, "FORMANT PAD") B(VPS, BK_BASS, ENG_UID_VPS, "VPS BASS")
-    B(VPS, BK_PLUCK, ENG_UID_VPS, "VOX PLUCK") B(VPS, BK_STAB, ENG_UID_VPS, "DIGI BRASS") B(VPS, BK_PLUCK, ENG_UID_VPS, "VPS BELL")
-    B(TERRAIN, BK_PAD, ENG_UID_TERRAIN, "RIPPLE PAD") B(TERRAIN, BK_PLUCK, ENG_UID_TERRAIN, "CRYSTAL") B(TERRAIN, BK_BASS, ENG_UID_TERRAIN, "BUMPY BASS")
-    B(TERRAIN, BK_LEAD, ENG_UID_TERRAIN, "SADDLE LEAD") B(TERRAIN, BK_FX, ENG_UID_TERRAIN, "CHAOS FX") B(TERRAIN, BK_KEYS, ENG_UID_TERRAIN, "ORBIT KEYS")
-    B(WSEQ, BK_LEAD, ENG_UID_WSEQ, "WAVE STEPS") B(WSEQ, BK_PAD, ENG_UID_WSEQ, "SWEEP PAD") B(WSEQ, BK_BASS, ENG_UID_WSEQ, "OCTAVE BASS")
-    B(WSEQ, BK_FX, ENG_UID_WSEQ, "TRANCE GATE") B(WSEQ, BK_PLUCK, ENG_UID_WSEQ, "BELL STEPS") B(WSEQ, BK_PAD, ENG_UID_WSEQ, "MORPH PAD")
-    B(VECTOR, BK_PAD, ENG_UID_VECTOR, "VS PAD") B(VECTOR, BK_STAB, ENG_UID_VECTOR, "VS BRASS") B(VECTOR, BK_PLUCK, ENG_UID_VECTOR, "DIGI BELLS")
-    B(VECTOR, BK_BASS, ENG_UID_VECTOR, "VS BASS") B(VECTOR, BK_LEAD, ENG_UID_VECTOR, "VS LEAD") B(VECTOR, BK_PAD, ENG_UID_VECTOR, "SPACE DRONE")
-    B(SID, BK_LEAD, ENG_UID_SID, "PULSE LEAD") B(SID, BK_BASS, ENG_UID_SID, "SAW BASS") B(SID, BK_LEAD, ENG_UID_SID, "SYNC LEAD")
-    B(SID, BK_PLUCK, ENG_UID_SID, "RING BELL") B(SID, BK_PAD, ENG_UID_SID, "PWM STRINGS") B(SID, BK_BASS, ENG_UID_SID, "8580 ACID")
-    B(SID, BK_FX, ENG_UID_SID, "NOISE ZAP") B(SID, BK_PLUCK, ENG_UID_SID, "C64 ARP")
-    B(PROPHET, BK_STAB, ENG_UID_PROPHET, "P5 BRASS") B(PROPHET, BK_PAD, ENG_UID_PROPHET, "P5 STRINGS") B(PROPHET, BK_LEAD, ENG_UID_PROPHET, "P5 SYNC LEAD")
-    B(PROPHET, BK_PLUCK, ENG_UID_PROPHET, "P5 PMOD BELL") B(PROPHET, BK_BASS, ENG_UID_PROPHET, "P5 BASS") B(PROPHET, BK_PAD, ENG_UID_PROPHET, "P5 PAD")
-    B(PROPHET, BK_KEYS, ENG_UID_PROPHET, "P5 CLAV")
-    B(WAVE, BK_PAD, ENG_UID_WAVE, "PPG PAD") B(WAVE, BK_LEAD, ENG_UID_WAVE, "WT SWEEP") B(WAVE, BK_BASS, ENG_UID_WAVE, "SYNC BASS")
-    B(WAVE, BK_PLUCK, ENG_UID_WAVE, "DIGI BELL") B(WAVE, BK_PAD, ENG_UID_WAVE, "VOCAL PAD") B(WAVE, BK_LEAD, ENG_UID_WAVE, "SYNC SCREAM")
-    B(CS80, BK_STAB, ENG_UID_CS80, "CS BRASS") B(CS80, BK_PAD, ENG_UID_CS80, "CS BLADE") B(CS80, BK_PAD, ENG_UID_CS80, "CS STRINGS")
-    B(CS80, BK_PLUCK, ENG_UID_CS80, "CS BELL") B(CS80, BK_BASS, ENG_UID_CS80, "CS BASS") B(CS80, BK_LEAD, ENG_UID_CS80, "CS LEAD")
-    B(CS80, BK_KEYS, ENG_UID_CS80, "CS CLAV") B(CS80, BK_FX, ENG_UID_CS80, "CS RING")
-    B(STRETCH, BK_PAD, ENG_UID_STRETCH, "GLACIER") B(STRETCH, BK_PAD, ENG_UID_STRETCH, "FROZEN") B(STRETCH, BK_PAD, ENG_UID_STRETCH, "FOG")
-    B(STRETCH, BK_PAD, ENG_UID_STRETCH, "HALO") B(STRETCH, BK_FX, ENG_UID_STRETCH, "DUST")
-#if FELUCCA_DIG_TONE
-    B(DIGITAL, BK_KEYS, 1, "TONE KEYS") B(DIGITAL, BK_PLUCK, 1, "TONE BELL") B(DIGITAL, BK_BASS, 1, "TONE BASS")
-    B(DIGITAL, BK_PAD, 1, "TONE PAD") B(DIGITAL, BK_KEYS, 1, "TONE ORGAN") B(DIGITAL, BK_BASS, 1, "TONE GROWL")
-#endif
-    B(SQUARE, BK_LEAD, ENG_UID_SQUARE, "SQ LEAD") B(SQUARE, BK_BASS, ENG_UID_SQUARE, "SQ BASS")   /* (EX_SQUARE, the example) */
-    B(SQUARE, BK_PLUCK, ENG_UID_SQUARE, "SQ PLUCK")
-#if GR_FALLBACK                                     /* (GRAIN without its presets' sets: eng_grain.c) */
-    B(GRAIN, BK_PAD, 8, "GRAIN PAD")
-#endif
+#define BANK_ENTRIES
+#include "felucca_bank.h"                         /* (the entries by engine and name: tools/gen_bank_order.py from bank_src.h, at build time) */
+#undef BANK_ENTRIES
 };
 #undef B
 _Static_assert(ENG_UID_N <= 32u && BK_FX < 8, "BANK: an entry's kind and engine UID in a byte");
@@ -650,10 +576,14 @@ static uint8_t bank_init[NENGINES], bank_ni;          /* after them: INIT of eac
 static uint8_t bank_ready;
 static void bank_resolve(void)
 {
-    uint32_t i, k;
+    uint32_t i, k, a, n = 0;
     bank_n = bank_ni = 0;
+    for (a = 0; a < sizeof ENG_ALPHA_ALL; a++)        /* the engines by name, the ones this build has */
+        if (eng_built(ENG_ALPHA_ALL[a]) && n < NENGINES)
+            eng_rank_of[eng_slot_built(ENG_ALPHA_ALL[a])] = (uint8_t)n, ENG_ALPHA_SLOT[n++] = (uint8_t)eng_slot_built(ENG_ALPHA_ALL[a]);
 #if PRESETS_CARD
-    for (i = 0; i < NENGINES; i++) {
+    for (a = 0; a < NENGINES; a++) {                  /* (the engines by name; each one's presets as its table has them) */
+        i = ENG_ALPHA_SLOT[a];
         for (k = 0; k < ENGINES[i]->npresets && bank_n < NBANK_ALL; k++) {
             bank_e[bank_n] = (uint8_t)i, bank_pi[bank_n] = (uint8_t)k;
             bank_ix[bank_n] = bank_n;
@@ -675,15 +605,10 @@ static void bank_resolve(void)
         if (bank_pi[i] != 0xFF && preset_playable(e, bank_pi[i]))
             bank_ix[bank_n++] = (uint8_t)i;
     }
-    for (i = 1; i < bank_n; i++) {                   /* the Optimist UI: by instrument, then as BANK has them (the user,
-                                                      * 2026-10-12: "presets should be sorted by instrument") */
-        uint8_t x = bank_ix[i];
-        uint32_t ex = bank_eng(x);
-        for (k = i; k > 0 && bank_eng(bank_ix[k - 1]) > ex; k--)
-            bank_ix[k] = bank_ix[k - 1];
-        bank_ix[k] = x;
-    }
-    for (i = 0; i < NENGINES; i++) {
+    /* (BANK is already by instrument, then by preset name: tools/gen_bank_order.py, at build time; the user, 2026-10-12:
+     * "presets should be sorted by instrument", 2026-11-01: "alpha sorted"; nothing sorts here) */
+    for (a = 0; a < NENGINES; a++) {                  /* the INIT-only engines, by name */
+        i = ENG_ALPHA_SLOT[a];
         for (k = 0; k < bank_n && bank_eng(bank_ix[k]) != i; k++)
             ;
         if (k == bank_n)
@@ -691,6 +616,12 @@ static void bank_resolve(void)
     }
 #endif
     bank_ready = 1;
+}
+static uint32_t eng_rank(uint32_t slot)              /* the engine slot's place in the list by name */
+{
+    if (!bank_ready)
+        bank_resolve();
+    return eng_rank_of[slot % NENGINES];
 }
 #define NBANK ((uint32_t)bank_n)                     /* the factory entries */
 #define NLIST (NBANK + bank_ni)                      /* and the INIT ones: then the user presets */

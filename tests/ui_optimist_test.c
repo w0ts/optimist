@@ -4059,9 +4059,9 @@ static void preset_engine_tests(void)
     {   /* the list by instrument; SHIFT held + PRESETS: the next / previous instrument (the user, 2026-10-12; SHIFT2 2026-10-16, SHIFT since 2026-10-31) */
         uint32_t i, e0, e1, sorted = 1, ok = 1, k, ne = 0, back;
         for (i = 1; i < NBANK; i++)
-            if (preset_at(i, &k) < preset_at(i - 1u, &k))
+            if (eng_rank(preset_at(i, &k)) < eng_rank(preset_at(i - 1u, &k)))
                 sorted = 0;
-        check(sorted, "the preset list: grouped by instrument (engine order)");
+        check(sorted, "the preset list: grouped by instrument (the engines by name)");
         song.sel = 0;
         frame();
         e0 = TSEL->eng_req;
