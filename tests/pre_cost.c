@@ -9,7 +9,8 @@
  *   build/host/pre_cost [KIT_UID]   cc -O2 -w -I$HGEN -Ifirmware/src -Ifirmware/hal $(python3 tools/config_flags.py PROFILE)
  *   (sh: the flags split into words; zsh: ${=F}). env PRE_RUNS=n runs (default 5: the least count a block: the host's
  *   own noise only adds), PRE_LOG=n prints every block whose PRE passes n instructions
- * argv[1] "hash": the mix's FNV-1a over 30 s of the project instead (the bit-exact check of a change). */
+ * argv[1] "hash": the mix's FNV-1a over 30 s of the project instead (the bit-exact check of a change); "heavy": the heavy
+ * project (project_heavy) and the dual render modelled on its counts (dual_model), with and without a Bluetooth stream */
 #define main hostsim_main
 #include "hostsim.c"
 #undef main
@@ -73,9 +74,9 @@ static void project(uint32_t kit)
     }
 }
 
-enum { S_CLR, S_EVT, S_DUCK, S_LFO, S_POLD, S_PRE, S_DRUMS, S_P0, S_P1, S_P2, S_N };
+enum { S_CLR, S_EVT, S_DUCK, S_LFO, S_POLD, S_PRE, S_DRUMS, S_P0, S_P1, S_P2, S_POST, S_N };
 static const char *const SN[S_N] = {"clear", "events", "duck", "busy+lfo", "pold_in", "PRE", "drums", "part 1", "part 2",
-                                    "part 3"};
+                                    "part 3", "POST"};
 
 /* mix_block (fx.c) step by step; c[] each step's count */
 static void block(int32_t *out, uint32_t n, uint64_t *c)
@@ -134,15 +135,132 @@ static void block(int32_t *out, uint32_t n, uint64_t *c)
 #if FELUCCA_USB_AUDIO
     ut_mix(n);
 #endif
+    t = ic();
     mix_finish(out, n);
 #if FELUCCA_MACROS
     mac_post();
 #endif
+    c[S_POST] = ic() - t;
     for (i = 0; i < S_PRE; i++)
         c[i] = c[i] > ic_over ? c[i] - ic_over : 0;
     for (i = S_DRUMS; i < S_N; i++)
         c[i] = c[i] > ic_over ? c[i] - ic_over : 0;
     c[S_PRE] = c[S_CLR] + c[S_EVT] + c[S_DUCK] + c[S_LFO] + c[S_POLD];
+}
+
+/* the heavy project (argv[1] "heavy"): every synth part chords at the voice budget, the profile's heaviest engines:
+ * T1 ANALOG SUPERSAW (the swarm) through FLT 2's LADR model (the FPU filter), T2 DIGITAL RHODES, T3 PHASE's first preset,
+ * each a 3-note chord a bar held 15 steps of 16 (8 voices sounding of the budget's 8: the steals at each bar), their
+ * presets' sends (chorus, delay, reverb); the drums: the 808 kit, 16ths of hats, kick and snare, a clap and toms */
+static void project_heavy(uint32_t kit)
+{
+    static const uint8_t C1[3] = {48, 55, 60}, C2[3] = {63, 67, 70}, C3[3] = {72, 79, 84};
+    static const uint8_t C1b[3] = {46, 53, 58}, C2b[3] = {62, 65, 69}, C3b[3] = {74, 77, 81};
+    uint32_t i, ea = eng_slot_built(0), ed = eng_slot_built(1), ep = eng_slot_built(2);
+    host_tracks_init();
+    host_preset(&trk[0], ea, preset_named(ea, "SUPERSAW"));
+    host_preset(&trk[1], ed, preset_named(ed, "RHODES"));
+    host_preset(&trk[2], ep, 0);
+#if FELUCCA_A2_MODELS
+    trk[0].p[P_A2FTYP] = (int16_t)(A2M_LADR * A2M_MODES + 0u);   /* (LP12 through the ladder model) */
+#endif
+    TDRUM->p[P_E0] = (int16_t)kit;
+    for (i = 0; i < NPART; i++) {
+        trk[i].p[P_VOICE] = V_POLY;
+        trk[i].p[P_SLEN] = 32;
+    }
+    for (i = 0; i < 32u; i++) {
+        uint32_t on = i % 16u == 0u, tie = i % 16u < 15u;
+        put_step(&trk[0], i, on ? 3u : 0u, i < 16u ? C1 : C1b, on ? ST_NOTE : tie ? ST_TIE : ST_REST, 0);
+        put_step(&trk[1], i, on ? 3u : 0u, i < 16u ? C2 : C2b, on ? ST_NOTE : tie ? ST_TIE : ST_REST, 0);
+        put_step(&trk[2], i, on ? 3u : 0u, i < 16u ? C3 : C3b, on ? ST_NOTE : tie ? ST_TIE : ST_REST, 0);
+    }
+    for (i = 0; i < 16u; i++) {
+        uint8_t n[4];
+        uint32_t k = 0;
+        if (i % 4u == 0u || i == 10u)
+            n[k++] = 36;
+        if (i == 4u || i == 12u)
+            n[k++] = 38;
+        if (i == 12u)
+            n[k++] = 39;
+        n[k++] = i == 14u ? 46 : i == 7u ? 45 : 42;
+        put_step(TDRUM, i, k, n, ST_NOTE, i % 4u == 0u ? SF_ACCENT : 0u);
+    }
+    for (i = 0; i < 64u; i++) {
+        int32_t o[2 * CTL];
+        mix_block(o, CTL);
+        host_main_services();
+    }
+}
+
+/* the dual render as dual.c / fm1-base's opt_dual.c run it, on the host's counts: CPU0 = PRE + its jobs + POST, CPU1
+ * its jobs + the wake; the jobs split by dual_split's rule (longest first by the smoothed costs, each onto the core with
+ * less so far, ties CPU0). sbc: the instructions of an SBC frame (0: no Bluetooth stream): the release keeps a half's
+ * two frames (8 blocks) and encodes them as jobs of the next half's first two blocks. Prints CPU0 / CPU1 / PRE / the
+ * SBC job: the average, the largest of 2 s windows (as CPU TIMES' MAX: their mean), the worst block (CPU0's longest), as
+ * instructions and as % of a block at one instruction a cycle at 240 MHz (174 k a block; the FM-1 takes more cycles) */
+static void dual_model(const uint32_t *best, uint32_t nb, uint32_t sbc, uint32_t sil_from)
+{
+    enum { J_P0, J_P1, J_P2, J_DR, J_SBC, J_N };
+    uint32_t cost[J_N] = {0}, b, j, k, wb = 0, wv = 0;
+    double s0 = 0, s1 = 0, spre = 0, ssbc = 0, nsbc = 0, pk0 = 0, pk1 = 0, pkp = 0, wpk0 = 0, wpk1 = 0, wpkp = 0, nwin = 0;
+    uint32_t c0v[1], w0 = 0, w1 = 0, wp = 0, wsbc = 0;
+    const double BLK = 32.0 / 44100.0 * 240e6;
+    (void)c0v;
+    for (b = 1; b < nb; b++) {
+        const uint32_t *c = best + b * S_N;
+        uint32_t t[J_N], ord[J_N], n0 = 0, n1 = 0, cpu0, cpu1, has_sbc = sbc && (b % 8u) < 2u;
+        t[J_P0] = c[S_P0], t[J_P1] = c[S_P1], t[J_P2] = c[S_P2], t[J_DR] = c[S_DRUMS];
+        t[J_SBC] = has_sbc ? (b >= sil_from ? 183u : sbc) : 0u;
+        for (j = 0; j < J_N; j++) {               /* (insertion sort by the smoothed cost, longest first) */
+            for (k = j; k && cost[ord[k - 1u]] < cost[j]; k--)
+                ord[k] = ord[k - 1u];
+            ord[k] = j;
+        }
+        n1 = 72u;                                 /* (CPU1's wake: ~0.3 us) */
+        for (j = 0; j < J_N; j++) {
+            uint32_t q = ord[j];
+            if (q == J_SBC && !has_sbc)
+                continue;
+            if (n1 < n0)
+                n1 += t[q];
+            else
+                n0 += t[q];
+            cost[q] += t[q] - (cost[q] >> 3);      /* (the core that ran it: its time, x 8 smoothed) */
+        }
+        for (j = 0; j < J_N; j++)
+            if (cost[j] && j != J_SBC)
+                (void)0;
+        cpu0 = c[S_PRE] + (n0 > n1 ? n0 : n1) + c[S_POST];   /* (CPU0 waits for CPU1 at the join) */
+        cpu1 = n1 - 72u;
+        s0 += cpu0, s1 += cpu1, spre += c[S_PRE];
+        if (has_sbc)
+            ssbc += t[J_SBC], nsbc++;
+        if (cpu0 > w0) w0 = cpu0;
+        if (cpu1 > w1) w1 = cpu1;
+        if (c[S_PRE] > wp) wp = c[S_PRE];
+        if (cpu0 > wv) wv = cpu0, wb = b;
+        if (b % 2756u == 2755u) {                  /* (a 2 s window: its peaks) */
+            wpk0 += w0, wpk1 += w1, wpkp += wp, nwin++;
+            pk0 = w0 > pk0 ? w0 : pk0, pk1 = w1 > pk1 ? w1 : pk1, pkp = wp > pkp ? wp : pkp;
+            w0 = w1 = wp = 0;
+        }
+        if (has_sbc && t[J_SBC] > wsbc) wsbc = t[J_SBC];
+    }
+    {
+        const uint32_t *c = best + wb * S_N;
+        printf("dual model (instructions; %% of a block at 1 instr / cycle, 240 MHz):\n");
+        printf("  CPU0  avg %6.0f (%4.1f %%)  2 s peak, mean of windows %6.0f (%4.1f %%), largest %6.0f  worst block %u: %u (%4.1f %%)\n",
+               s0 / (nb - 1), 100 * s0 / (nb - 1) / BLK, wpk0 / nwin, 100 * wpk0 / nwin / BLK, pk0, wb, wv, 100 * wv / BLK);
+        printf("  CPU1  avg %6.0f (%4.1f %%)  2 s peak %6.0f (%4.1f %%)\n", s1 / (nb - 1), 100 * s1 / (nb - 1) / BLK, wpk1 / nwin,
+               100 * wpk1 / nwin / BLK);
+        printf("  PRE   avg %6.0f (%4.1f %%)  2 s peak %6.0f (%4.1f %%)  in the worst block %u\n", spre / (nb - 1),
+               100 * spre / (nb - 1) / BLK, wpkp / nwin, 100 * wpkp / nwin / BLK, c[S_PRE]);
+        if (sbc)
+            printf("  SBC   a frame's job avg %6.0f (%4.1f %%), largest %u, in %0.f of %u blocks\n", nsbc ? ssbc / nsbc : 0,
+                   nsbc ? 100 * ssbc / nsbc / BLK : 0, wsbc, nsbc, nb - 1);
+    }
 }
 
 /* a part's note start from rest: trk_note_on (PRE) and the first render (its job), the least of 4 */
@@ -199,7 +317,9 @@ static void drum_start(uint32_t kit, uint32_t note)
 
 int main(int argc, char **argv)
 {
-    uint32_t kit = argc > 1 && argv[1][0] != 'h' ? (uint32_t)atoi(argv[1]) : DRUM_UID_X808, b, i, nb = 30u * FS / CTL;
+    const int hv = argc > 1 && !strcmp(argv[1], "heavy");
+    uint32_t kit = argc > 1 && argv[1][0] >= '0' && argv[1][0] <= '9' ? (uint32_t)atoi(argv[1]) : DRUM_UID_X808, b, i,
+             nb = 30u * FS / CTL;
     uint64_t c[S_N], sum[S_N] = {0}, mx[S_N] = {0}, mxat[S_N] = {0}, worst[S_N] = {0}, wpre = 0, a;
     int32_t o[2 * CTL];
     for (i = 0, ic_over = ~0ull; i < 64u; i++) {
@@ -207,8 +327,11 @@ int main(int argc, char **argv)
         a = ic() - a;
         ic_over = a < ic_over ? a : ic_over;
     }
-    project(kit);
-    if (argc > 1 && argv[1][0] == 'h') {                   /* the mix's hash, 30 s */
+    if (hv)
+        project_heavy(kit);
+    else
+        project(kit);
+    if (argc > 1 && !strcmp(argv[1], "hash")) {                   /* the mix's hash, 30 s */
         uint64_t h = 1469598103934665603ull;
         transport_req = 1;
         for (b = 0; b < nb; b++) {
@@ -276,13 +399,20 @@ int main(int argc, char **argv)
                 memcpy(worst, c, sizeof c);
             }
         }
+        if (hv) {                                  /* the dual model: no stream, a stream, a stream stopped (silence) */
+            uint32_t sbc = getenv("SBC_INSTR") ? (uint32_t)atoi(getenv("SBC_INSTR")) : 28121u;
+            printf("-- heavy project, no Bluetooth stream\n");
+            dual_model(best, nb, 0u, nb);
+            printf("-- heavy project, streaming to Bluetooth (an SBC frame %u instructions, fm1-base bt_sbc_encode, host)\n", sbc);
+            dual_model(best, nb, sbc, nb);
+        }
         free(best), free(got);
     }
     printf("%-9s %10s %10s %8s %10s\n", "step", "avg", "max", "at blk", "in PRE max");
     for (i = 0; i < S_N; i++)
         printf("%-9s %10.0f %10llu %8llu %10llu\n", SN[i], (double)sum[i] / nb, (unsigned long long)mx[i],
                (unsigned long long)mxat[i], (unsigned long long)worst[i]);
-    {
+    if (!hv) {
         uint32_t ea = eng_slot_built(0), ed = eng_slot_built(1);
         note_start("ANALOG 808 BOOM", ea, preset_named(ea, "808 BOOM"), 1);
         note_start("ANALOG 808 BOOM", ea, preset_named(ea, "808 BOOM"), 4);

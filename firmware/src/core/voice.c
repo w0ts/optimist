@@ -955,7 +955,7 @@ static int drone_unlatch(track_t *t, uint32_t note)
 /* a bit per synth track that started a note since the UI last looked (the mute mode's keys flash short and full on
  * each: op_mixer.c mx_tick; the drum track's lanes: drums.hits). Set here (mostly the audio ISR), taken with the IRQ off */
 static volatile uint8_t trk_hits;
-#if DUAL_TIMES                                          /* (SYSTEM > CPU TIMES' NOTE: the note starts in the events) */
+#if DUAL_TIMES && (defined(__PI32V2__) || defined(__EMSCRIPTEN__))   /* (SYSTEM > CPU TIMES' NOTE: the note starts in the events; the host tests: no timer) */
 static void trk_note_on_(track_t *t, uint32_t note, uint32_t vel);
 static void trk_note_on(track_t *t, uint32_t note, uint32_t vel)
 {
@@ -1026,7 +1026,7 @@ static void trk_note_on(track_t *t, uint32_t note, uint32_t vel)
             mono_play(t, want, vel, !sounding, sounding && (t->p[P_GLIDE] != 0 || t->slide_glide));
     }
 }
-#if DUAL_TIMES
+#if DUAL_TIMES && (defined(__PI32V2__) || defined(__EMSCRIPTEN__))
 #undef trk_note_on
 #endif
 /* a sequencer SLIDE on a POLY track (seq.c seq_slide_poly; the user, 2026-10-29: the step's GLIDE): the voice that plays
