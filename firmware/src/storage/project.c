@@ -331,6 +331,15 @@ static int proj_from_va(project_t *q, const void *b, int n)
 }
 #endif
 
+#if FELUCCA_PATTERNS
+/* the tracks whose pattern the audio ISR exchanged with the stage just before proj_apply (issue 142, pat.c pat_swap_isr: the
+ * outgoing pattern kept for the main loop): proj_apply and auto_apply_store leave their steps, LEN DIV SWING GATE and
+ * lists as the swap put them */
+static uint8_t pat_apply_keep;
+#define PAT_KEEPS(k) ((pat_apply_keep >> (k)) & 1u)
+#else
+#define PAT_KEEPS(k) 0
+#endif
 #if FELUCCA_AUTO
 #include "auto_proj.c"         /* each project buffer's automation store (seq/auto.c: motion, locks, nudges, fills) */
 #endif
@@ -1286,8 +1295,9 @@ static void proj_apply(const project_t *p, const dlrec_t *d, int all)
                 fm6_cur[k] = (int16_t)(t->p[P_E0] + 1);
             }
         }
-        steps_load(t, k, s->step);
-        if (!IS_DRUMK(k))
+        if (!PAT_KEEPS(k))
+            steps_load(t, k, s->step);
+        if (!IS_DRUMK(k) && !PAT_KEEPS(k))
             for (i = 0; i < NSTEP; i++) {
                 step_t *st = &t->step[i];
                 uint32_t j;

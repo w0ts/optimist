@@ -311,6 +311,8 @@ static void unit(void)
     song.playing = 1;
     ok = section_cue(10) && sec_stage_id == 10 && !memcmp(pat_bref[1], (uint8_t[]){10, 10, 10, 10}, 4);
     make(0);
+    memset(pat_cur, PAT_NONE, NTRK);                   /* (the tracks from no slot: K applied whole; a track on K's slot keeps
+                                                        * its edits, issue 142: patlive_test.c) */
     arrangement_apply(10);
     proj_capture(&got, &gotd);
     {
