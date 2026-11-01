@@ -40,7 +40,7 @@ AINL int32_t eq_lp(int32_t *z, int32_t x, uint32_t k)
     return lp;
 }
 /* one side: n samples of b, the gains from g0 by dg a sample (Q15, << 5 more), the share from w to `to` */
-static HOT2 __attribute__((noinline)) void eq3_side(eq_ch_t *s, int32_t *b, uint32_t n, uint32_t kl, uint32_t kh,
+static FAST2(ins) __attribute__((noinline)) void eq3_side(eq_ch_t *s, int32_t *b, uint32_t n, uint32_t kl, uint32_t kh,
                                                     const int32_t *g0, const int32_t *dg, int32_t w, int32_t to)
 {
     uint32_t i;
@@ -86,7 +86,7 @@ static void eq3_engage(eq_st_t *s, const int16_t *v)
     s->w = 32768;
 }
 /* owner o's EQ3 on l (a part: r 0) or l and r, on: its amount / in its slot / its FX on. Returns its share after (0: at rest) */
-static HOT2 __attribute__((noinline)) int32_t eq3_run(eq_st_t *s, const int16_t *v, int32_t on, int32_t *l, int32_t *r, uint32_t n)
+static FAST2(ins) __attribute__((noinline)) int32_t eq3_run(eq_st_t *s, const int16_t *v, int32_t on, int32_t *l, int32_t *r, uint32_t n)
 {
     int32_t to = on && !eq3_flat(v) ? 32768 : 0, g0[3], dg[3], w = s->w;
     uint32_t k, kl, kh;

@@ -2415,16 +2415,16 @@ static HOT2 __attribute__((noinline)) void dins_one(uint32_t k, uint32_t s, uint
     case FXT_DUST: dust_run(&st->u, a, b, 0, n); break;
 #endif
 #if FELUCCA_INS_FOLD
-    case FXT_FOLD: ifx_drive(&st->v, 0, a, b, n); break;
+    case FXT_FOLD: FAST_CALL(insx, ifx_drive)(&st->v, 0, a, b, n); break;
 #endif
 #if FELUCCA_INS_FUZZ
-    case FXT_FUZZ: ifx_drive(&st->v, 1, a, b, n); break;
+    case FXT_FUZZ: FAST_CALL(insx, ifx_drive)(&st->v, 1, a, b, n); break;
 #endif
 #if FELUCCA_INS_PHASER
-    case FXT_PHSR: ifx_phaser(&st->p, a, b, n, 3); break;
+    case FXT_PHSR: FAST_CALL(insx, ifx_phaser)(&st->p, a, b, n, 3); break;
 #endif
 #if FELUCCA_INS_FORMANT
-    case FXT_FRMT: ifx_formant(&st->m, a, b, n, 3); break;
+    case FXT_FRMT: FAST_CALL(insx, ifx_formant)(&st->m, a, b, n, 3); break;
 #endif
 #if IFX_DRV || IFX_MOD
     case FXT_SFLD: case FXT_WRAP: case FXT_RECT: case FXT_HARM: case FXT_RING: case FXT_SLEW:
@@ -2432,7 +2432,7 @@ static HOT2 __attribute__((noinline)) void dins_one(uint32_t k, uint32_t s, uint
             ifx_sh_run(&st->v, t, a, b, n);
         break;
 #endif
-    case FXT_EQ3: (void)eq3_run(&st->e, EQ3_VF(TRK_DRUM), a, b, 0, n); break;   /* (the drum track's bands) */
+    case FXT_EQ3: (void)FAST_CALL(insx, eq3_run)(&st->e, EQ3_VF(TRK_DRUM), a, b, 0, n); break;   /* (the drum track's bands) */
     default: break;
     }
     (void)st, (void)b, (void)n;
@@ -2779,23 +2779,23 @@ static HOT void mix_part(track_t *t, uint32_t n MIXACC_PARAM)
         t->peak = pk;
 #if FELUCCA_INS_WIDTH
         if (ifx_sd[(uint32_t)(t - trk) % NPART])        /* WIDE's side (insfx.c): after the level, L+ R- */
-            ifx_side_mix(ifx_side[(uint32_t)(t - trk) % NPART], lvl0, dl, ga, gb, MX(mix_l), MX(mix_r), n);
+            FAST_CALL(insx, ifx_side_mix)(ifx_side[(uint32_t)(t - trk) % NPART], lvl0, dl, ga, gb, MX(mix_l), MX(mix_r), n);
 #endif
 #if FELUCCA_INS_JCHORUS
         if (ifx_jsd[(uint32_t)(t - trk) % NPART])       /* JUNO CHORUS's side (fxi_kern.c): as WIDE's */
-            ifx_side_mix(ifx_jside[(uint32_t)(t - trk) % NPART], lvl0, dl, ga, gb, MX(mix_l), MX(mix_r), n);
+            FAST_CALL(insx, ifx_side_mix)(ifx_jside[(uint32_t)(t - trk) % NPART], lvl0, dl, ga, gb, MX(mix_l), MX(mix_r), n);
 #endif
 #if INS_REV
         if (ifx_rsd[(uint32_t)(t - trk) % NPART])       /* the REV insert's side (fxi_send.c): as WIDE's */
-            ifx_side_mix(ifx_rside[(uint32_t)(t - trk) % NPART], lvl0, dl, ga, gb, MX(mix_l), MX(mix_r), n);
+            FAST_CALL(insx, ifx_side_mix)(ifx_rside[(uint32_t)(t - trk) % NPART], lvl0, dl, ga, gb, MX(mix_l), MX(mix_r), n);
 #endif
 #if INS_CHO
         if (ifx_csd[(uint32_t)(t - trk) % NPART])       /* the CHO insert's side (fxi_send.c): as WIDE's */
-            ifx_side_mix(ifx_cside[(uint32_t)(t - trk) % NPART], lvl0, dl, ga, gb, MX(mix_l), MX(mix_r), n);
+            FAST_CALL(insx, ifx_side_mix)(ifx_cside[(uint32_t)(t - trk) % NPART], lvl0, dl, ga, gb, MX(mix_l), MX(mix_r), n);
 #endif
 #if FELUCCA_ENG_DRONE
         if (ENG_IS(ENGINES[t->engine % NENGINES], DRONE) && drone_sd[(uint32_t)(t - trk) % NPART])   /* DRONE's BEAT: */
-            ifx_side_mix(drone_side[(uint32_t)(t - trk) % NPART], lvl0, dl, ga, gb, MX(mix_l), MX(mix_r), n);   /* the ears' side */
+            FAST_CALL(insx, ifx_side_mix)(drone_side[(uint32_t)(t - trk) % NPART], lvl0, dl, ga, gb, MX(mix_l), MX(mix_r), n);   /* the ears' side */
 #endif
     }
 }

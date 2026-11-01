@@ -1048,6 +1048,22 @@ _add("LCD_BAUD", "LCD_BAUD", "screen data speed (SPI clock)", U, 79, default=1,
             "hardware here.")
 # (bit 68, LCD_DIRTY, retired 2026-10-31: its function cv_blit_dirty had no caller since f1ab07ed, so it changed nothing on the screen; RETIRED above;
 #  never reuse the bit)
+# bit 450 (2026-11-01, the next free after SEQ_RAM's 449): the release's decoded-glyph cache (fm1base/optimist/ui/opt_ui.c
+# APP_FONT_CACHE over fm1-base's device/gfx.c font_cached); Optimist's own firmware draws its fonts unpacked, no cache
+_add("FONT_CACHE", "FELUCCA_FONT_CACHE", "the screen's text: decoded-glyph cache (RAM for UI speed)", U, 450, default=2,
+     target_only=True, choices=((2, "full (7.5 KB of RAM)"), (1, "small (1.9 KB)"), (0, "off")),
+     tested="builds and host only (2026-11-01); the FM-1's UI feel at small and off not tried yet. Measured on mots-config (the "
+            "release, pi32v2-llvm): small 5,760 B of RAM less than full, off 7,684 B of RAM and 304 B of flash less; host, a 30 s "
+            "walk over four pages while playing (the source defaults): full decodes 11 % of the glyph pixels drawn, small 28 %, "
+            "off all of them (each about 4 ns on the Mac, unmeasured on the FM-1)",
+     desc="The release's fonts are stored packed (their pixels Huffman-coded, a third smaller in flash) and decoded as "
+          "they are drawn. The cache keeps the glyphs drawn lately decoded, so the same labels and digits redrawn every "
+          "frame are read instead of decoded again (about 3.5x fewer instructions a glyph). full: 6 KB and 256 glyphs, "
+          "7.5 KB of RAM (what every build had). small: 1.5 KB and 64 glyphs, 1.9 KB: most redraws still hit it, a busy "
+          "page decodes more. off: every glyph decoded each time it is drawn. The RAM freed goes to the free RAM (the "
+          "undo history gets that much bigger). Only the screen's drawing is slower, in the main loop, never the audio; "
+          "the same pixels at every choice. Optimist's own firmware (--classic) draws unpacked fonts: no cache, nothing "
+          "changes there.")
 
 # ---- system
 Y = "System"
@@ -1329,6 +1345,20 @@ _add("SEQ_RAM", "FELUCCA_SEQ_RAM", "the sequencer's code in RAM (CPU peaks at a 
           "core: also what a step runs (seq_step, the note starts, the generators, the locks, the drum lanes' hits). The "
           "RAM is taken from the free RAM (the undo history gets that much smaller). The same sound and behaviour at every "
           "choice.")
+# bit 451 (2026-11-01, after FONT_CACHE's 450): the insert effects' kernels as RAM code (1, as ever) or XIP (0); core.h
+# FAST_RAM_ins / insx (FAST2, FAST_CALL); fm1base/optimist/gen_optimist.py INS_XIP_OUT / INS_XIP_IN for the release's ram_code_allow
+_add("INS_RAM", "FELUCCA_INS_RAM", "the insert effects' code in RAM (8 KB of RAM)", Y, 451, default=1,
+     target_only=True, choices=((1, "in RAM"), (0, "in the flash (XIP)")),
+     tested="builds and host tests only (2026-11-01); the FM-1's CPU TIMES with the kernels in XIP not measured yet. "
+            "Measured on mots-config (the release, pi32v2-llvm): in the flash 7,968 B of RAM code less, 2,148 B of flash more",
+     desc="Where the insert effects' sample loops run: in RAM (as every build had them) or from the XIP flash. 15 "
+          "kernels: X-DELAY, TAPE / SPIT, the shapers (FOLD, FUZZ, SFLD, RECT, HARM; RING, SUBO, SLEW), the limited inserts "
+          "(CHRS, ECHO, FLANGER), EQ3, FORMANT, PHASER, WIDE, GATER. In the flash they free 8 KB of RAM for the undo "
+          "history, and each block an insert runs its code is fetched through the instruction cache, where the engines' "
+          "and the screen's code compete for it: more CPU in the audio interrupt when several inserts are on (unmeasured "
+          "on the FM-1: SYSTEM > CPU TIMES shows it). The dispatchers stay in RAM and call the kernels through a pointer. "
+          "The same sound at both choices.",
+     off_warning="the insert effects' code runs from the flash: more audio CPU with several inserts on, not measured on the FM-1 yet")
 # bit 443 (2026-10-30, the next free after COMPILER's 442): a flash-step setting, not firmware (no_image: nothing in
 # the image, its hash or its costs). tools/build.py writes it beside the package (PACKAGE.install.json,
 # tools/install_meta.py); the installers read it from there and show it (docs/INSTALL-PATHS.md)
