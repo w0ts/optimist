@@ -94,6 +94,8 @@ final class MirrorLink: ObservableObject, Transport, CompanionTransport {
         var token = 0
         var lostSeen = 0          // the decoder's checked frames lost, as last acted on
         var lostAsk = Date.distantPast   // the whole panel last asked for because of them
+        var asksFix = 0, asksWhole = 0   // since the last tick: lost frames asked by seq / whole panels asked (the log)
+        var logged = (sum: 0, gap: 0, more: 0, again: 0)   // the decoder's kinds at the last tick
     }
     private struct Pending {
         var cmd: UInt8
@@ -334,6 +336,18 @@ final class MirrorLink: ObservableObject, Transport, CompanionTransport {
         if state == .mirroring {
             Self.log.info("\(self.bluetooth ? "bluetooth" : "usb", privacy: .public) \(bytes) bytes/s")
             print("\(bluetooth ? "bluetooth" : "usb") \(bytes) bytes/s")
+            let l = lock.withLock { s -> String? in   // (checked frames: losses by kind and what was asked, each second they happened)
+                let d = s.decoder
+                let now = (sum: d.lostSum, gap: d.lostGap, more: d.lostMore, again: d.again)
+                defer { s.logged = now; s.asksFix = 0; s.asksWhole = 0 }
+                guard now != s.logged || s.asksFix + s.asksWhole > 0 else { return nil }
+                return "lost: \(now.sum - s.logged.sum) sum, \(now.gap - s.logged.gap) gap, \(now.more - s.logged.more) more, " +
+                    "\(now.again - s.logged.again) again; asked \(s.asksFix) by seq, \(s.asksWhole) whole"
+            }
+            if let l {
+                Self.log.info("\(l, privacy: .public)")
+                print(l)
+            }
         }
         if asked >= Self.unanswered, state != .mirroring { state = .noMirror }
         if let fb = btFallback, asked >= Self.btInfoFirst, lock.withLock({ $0.features == nil }) {
@@ -623,15 +637,26 @@ final class MirrorLink: ObservableObject, Transport, CompanionTransport {
             return (on, identified, answers, companionInfo, drew, btDev)
         }
         for (c, a) in answers { c.resume(returning: a) }
-        let lostNow = lock.withLock { s -> Bool in   // checked frames lost: the whole panel asked again (at most twice a second)
-            guard s.decoder.lost != s.lostSeen, Date().timeIntervalSince(s.lostAsk) > 0.5 else { return false }
+        // checked frames lost: with opti_mirfix_1 their seqs asked for (only their rectangles come again, nothing held), else the
+        // whole panel (at most twice a second)
+        let lostAsk = lock.withLock { s -> [UInt8]? in
+            guard s.decoder.lost != s.lostSeen else { return nil }
+            if s.features?[Feature.mirfix.name] == Feature.mirfix.version {
+                guard let r = s.decoder.takeLost() else { return nil }   // (a sum failed: its seq shows at the next good frame)
+                s.lostSeen = s.decoder.lost
+                s.asksFix += 1
+                return [MirrorDecoder.cmd, 1 | MirrorDecoder.checkedBit | MirrorDecoder.fixBit, UInt8(r.lo), UInt8(r.hi)]
+            }
+            guard Date().timeIntervalSince(s.lostAsk) > 0.5 else { return nil }
             s.lostSeen = s.decoder.lost
             s.lostAsk = Date()
-            return true
+            _ = s.decoder.takeLost()
+            s.asksWhole += 1
+            return [MirrorDecoder.cmd, 3 | MirrorDecoder.checkedBit]
         }
-        if lostNow {                    // (the request alone: tick's other asks and its rate log keep their pace)
+        if let lostAsk {                // (the request alone: tick's other asks and its rate log keep their pace)
             DispatchQueue.main.async {
-                if self.state == .mirroring, self.destination != 0 { self.send([MirrorDecoder.cmd, 3 | MirrorDecoder.checkedBit]) }
+                if self.state == .mirroring, self.destination != 0 { self.send(lostAsk) }
             }
         }
         if let btDev { DispatchQueue.main.async { if self.btDevice != btDev { self.btDevice = btDev } } }

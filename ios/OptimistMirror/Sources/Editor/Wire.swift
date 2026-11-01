@@ -170,6 +170,7 @@ struct Feature: Equatable {
     static let proj = Feature(name: "opti_proj", version: 1)
     static let btproj = Feature(name: "opti_btproj", version: 1) // the projects' moves (43..48, 110) over Bluetooth too (BT_PROJ; INFO tag 67)
     static let mirbt = Feature(name: "opti_mirbt", version: 1)   // INFO, PANEL and NAV over Bluetooth too (ed_mirror.c)
+    static let mirfix = Feature(name: "opti_mirfix", version: 1)   // 106 bit 4: lost frames asked for by seq (ed_mirror.c mir_fix)
     static let clip = Feature(name: "opti_clip", version: 1)     // 111 CLIP, a synth track's steps (ed_clip.c; INFO tag 67)
     static let panelx = Feature(name: "opti_panelx", version: 1) // 108 PANEL's seq and let go (ed_mirror.c; INFO tag 67)
 }
