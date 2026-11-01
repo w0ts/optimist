@@ -741,6 +741,9 @@ static void oct_tap(uint32_t b)                         /* the keyboard octave, 
 
 /* ---- the input, every main-loop pass */
 static uint32_t op_held;                                /* the buttons down (op_clean: op_combos.c) */
+#if FELUCCA_FILLS
+static uint8_t oct_pend;                                /* OCT pressed with a step held: its octave waits for the let go (SHIFT2 + SAVE is the lock <-> HOLD switch there) */
+#endif
 static const uint8_t JUMP_FAM[NB] = {[B_FX] = FAM_FX, [B_SCL] = FAM_SCL, [B_ENV] = FAM_ENV, [B_LFO] = FAM_LFO,
                                      [B_EDIT] = FAM_EDIT, [B_GLO] = FAM_GLO, [B_ARP] = FAM_ARP, [B_SEQ] = 0xFF,
                                      [B_HOME] = 0xFF, [B_SAVE] = 0xFF, [B_PLAY] = 0xFF, [B_REC] = 0xFF,
@@ -752,6 +755,9 @@ static __attribute__((noinline)) void op_press(uint32_t b, uint32_t held)
 {
     if (b != B_OCTDN && b != B_OCTUP)
         oct_both = 0;                                   /* (another button: the OCT pair is a SHIFT combo, not the toggle) */
+#if FELUCCA_FILLS
+    oct_pend = 0;
+#endif
     if (b < NB && mx_master_dead(b)) {                  /* the mixer's MASTER: no track button (no SHIFT + it either) */
         op_clean &= ~BIT(b);
         return;
@@ -788,9 +794,13 @@ static __attribute__((noinline)) void op_press(uint32_t b, uint32_t held)
     case B_OCTDN:
     case B_OCTUP:
         if (st_holding()) {                             /* a step held: its notes an octave (synths), nothing else */
+#if FELUCCA_FILLS
+            oct_pend = 1;                               /* (when let go with nothing used meanwhile: op_tap) */
+#else
             if (!is_drum(TSEL))
                 held_octave(b == B_OCTDN ? -1 : 1);
             op_clean &= ~BIT(b);
+#endif
         } else if ((held & (BIT(B_OCTDN) | BIT(B_OCTUP))) == (BIT(B_OCTDN) | BIT(B_OCTUP))) {   /* both OCT: the track <-> MASTER toggle when let go */
             oct_both = (uint8_t)(oct_fold_here() || oct_master_ok());
             oct_both_t = op_t0[panel.btn[b] % 14u];
@@ -874,6 +884,13 @@ static void op_tap(uint32_t b, uint32_t id)
         else if (!(mx_quiet() && hold))
             op_no();                                    /* (held alone on the mixer: nothing) */
     } else if (b == B_OCTDN || b == B_OCTUP) {
+#if FELUCCA_FILLS
+        if (oct_pend) {
+            oct_pend = 0;
+            if (!hold && st_holding() && !is_drum(TSEL))
+                held_octave(b == B_OCTDN ? -1 : 1);
+        } else
+#endif
         if (!hold)
             oct_tap(b);                                 /* (a tap: let go with nothing used meanwhile; held long, nothing: the user,
                                                          * 2026-10-26, "pressing oct for long should not change octave") */
