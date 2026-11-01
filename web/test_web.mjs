@@ -2226,8 +2226,31 @@ async function editorPatterns() {
     await E.patWriteAll(rq, 0, 6, rec);
     const got = await E.patReadAll(rq, 0, 6);
     L = await list();
-    ok(eq(Array.from(got), Array.from(rec)) && L.len[0][6] === 12 && E.patSlotView(L, 0, 6).cls === "used" && E.patSlotView(L, 0, 6).text === "12",
-      "patterns: PAT_WRITE of a slot that does not play, PAT_READ gives the bytes back, the list shows its LEN");
+    ok(eq(Array.from(got), Array.from(rec)) && L.len[0][6] === 12 && E.patSlotView(L, 0, 6).cls === "used live" && E.patSlotView(L, 0, 6).text === "12*",
+      "patterns: PAT_WRITE of a slot that does not play, PAT_READ gives the bytes back, the list shows its LEN, kept as its edits not saved (issue 142: 12*)");
+    /* issue 142: the live patterns (edits not saved), the firmware's PAT_LIST bits, SAVE (op 4) and RELOAD (op 5), + 4 the saved one */
+    {
+      const pf = readFileSync(join(HERE, "../firmware/src/storage/sections/pat.c"), "utf8");
+      ok(/op == 4u\)\s*rc = pat_save_slot/.test(ed) && /op == 5u\)\s*rc = pat_reload_slot/.test(ed) && /ed_b3\(m & 127u, \(m >> 7\) & 127u, m >> 14\)/.test(ed) &&
+         /static int pat_live_write/.test(pf) && E.req.patOp(5, 1, 2)[1][0] === 5,
+        "patterns: PAT_OP 4 SAVE / 5 RELOAD and the live bits (3 bytes a track after the scenes) == ed_pat.c");
+      const rec2 = E.patRecBuild(synth(8, () => true), false);
+      await E.patWriteAll(rq, 0, 7, rec2);              /* (a slot that held nothing: its edits, nothing saved) */
+      await rq(E.req.patOp(4, 0, 6)); L = await list();
+      ok(L.live && !((L.live[0] >> 6) & 1) && E.patSlotView(L, 0, 6).text === "12" && E.patSlotView(L, 0, 7).text === "8*",
+        "patterns: SAVE (op 4) of slot 7: its edits the saved pattern, no * (slot 8 still has its own)");
+      await E.patWriteAll(rq, 0, 6, rec2); L = await list();
+      ok(E.patSlotView(L, 0, 6).text === "8*", "... an edit of slot 7 again: 8* (8 steps, not saved)");
+      await rq(E.req.patOp(5, 0, 6)); L = await list();
+      ok(!((L.live[0] >> 6) & 1) && E.patSlotView(L, 0, 6).text === "12", "... RELOAD (op 5): the edit dropped, the saved 12 steps back");
+    }
+    {   /* a firmware before the live patterns: no bits after the scenes, no marks */
+      const old = attachMock({ pat: "old" });
+      await infoOf(old.rq);
+      const Lo = E.parse[C.PAT_LIST](await old.rq(E.req.patList(0)));
+      ok(Lo.live === null && Lo.len && E.patSlotView(Lo, 0, 0).cls === "", "patterns: a firmware before the live patterns: no live bits (null), no marks, nothing offered");
+      old.teardown();
+    }
     const big = E.patRecBuild(synth(64, () => true), false);
     await E.patWriteAll(rq, 1, 7, big);
     ok(big.length > 256 && eq(Array.from(await E.patReadAll(rq, 1, 7)), Array.from(big)), `patterns: a record of ${big.length} bytes goes in chunks of 256 (and comes back)`);

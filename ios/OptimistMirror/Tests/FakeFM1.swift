@@ -32,6 +32,9 @@ final class FakeFM1: Transport {
     let pageSize = 3
     private var open: [Int: (len: Int, crc: Int, data: [UInt8])] = [:]
     private var patOpen: [UInt8] = []
+    var live = [0, 0, 0, 0]                              // the live patterns' bits (issue 142)
+    var saved: [[[UInt8]?]] = Array(repeating: Array(repeating: nil, count: 16), count: 4)
+    var oldPatterns = false                             // a firmware before the live patterns: no bits in PAT_LIST
 
     init(objs: [Obj]) {
         self.objs = objs
@@ -107,7 +110,9 @@ final class FakeFM1: Transport {
         case .patList:
             var r: [UInt8] = [0, 0] + [UInt8](repeating: 0, count: 12)
             for k in 0..<4 { for s in 0..<16 { r.append(UInt8(patterns[k][s]?.count ?? 0) & 0x7F) } }
-            return r + [UInt8](repeating: 127, count: 64)
+            r += [UInt8](repeating: 127, count: 64)
+            if !oldPatterns { for k in 0..<4 { r += [UInt8(live[k] & 127), UInt8((live[k] >> 7) & 127), UInt8(live[k] >> 14)] } }   // (issue 142)
+            return r
         case .patRead:
             let k = Int(a[0]), s = Int(a[1]), off = Int(a[2]) | Int(a[3]) << 7
             let rec = patterns[k][s] ?? []
@@ -118,11 +123,17 @@ final class FakeFM1: Transport {
             if busyOnce { busyOnce = false; return [a[0], a[1], a[2], a[3], 3] }
             if off == 0 { patOpen = [] }
             patOpen += Wire.unpack7(Array(a[6...]))
-            if patOpen.count >= total { patterns[k][s] = patOpen }
+            if patOpen.count >= total {                     // (a write: its live pattern, the saved one kept beside; issue 142)
+                if live[k] >> s & 1 == 0 { saved[k][s] = patterns[k][s] }
+                patterns[k][s] = patOpen
+                live[k] |= 1 << s
+            }
             return [a[0], a[1], a[2], a[3], 0]
         case .patOp:
             let op = a[0], k = Int(a[1]), s = Int(a[2]), k2 = Int(a[3]), s2 = Int(a[4])
-            if op == 1 { patterns[k2][s2] = patterns[k][s] } else if op == 2 { patterns[k][s] = nil }
+            if op == 1 { patterns[k2][s2] = patterns[k][s] } else if op == 2 { patterns[k][s] = nil; live[k] &= ~(1 << s) }
+            else if op == 4 { live[k] &= ~(1 << s) }                                        // SAVE
+            else if op == 5 { if live[k] >> s & 1 == 1 { patterns[k][s] = saved[k][s] }; live[k] &= ~(1 << s) }   // RELOAD
             return [a[0], 0]
         case .upList:
             let start = Int(a[0]), n = min(Int(a[1]), 32 - start)

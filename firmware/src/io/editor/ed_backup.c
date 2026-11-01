@@ -96,6 +96,10 @@ static const bk_obj_t BK_OBJS[] = {
 #define BK_PJ(n) {{'P', 'J', (char)('0' + (n) / 10), (char)('0' + (n) % 10)}, BK_PJS, (n) - 1, (n) <= PROJ_SLOTS}
     BK_PJ(1), BK_PJ(2), BK_PJ(3), BK_PJ(4), BK_PJ(5), BK_PJ(6), BK_PJ(7), BK_PJ(8),   /* each project whole (its state, scenes, */
     BK_PJ(9), BK_PJ(10), BK_PJ(11), BK_PJ(12), BK_PJ(13), BK_PJ(14), BK_PJ(15), BK_PJ(16),   /* patterns, song, records) */
+#define BK_PL(n) {{'P', 'L', (char)('0' + (n) / 10), (char)('0' + (n) % 10)}, BK_PJS, 16u + (n) - 1, (n) <= PROJ_SLOTS}
+    BK_PL(1), BK_PL(2), BK_PL(3), BK_PL(4), BK_PL(5), BK_PL(6), BK_PL(7), BK_PL(8),   /* each project's live patterns (issue 142:
+                                                                                      * after its saved ones; an older firmware */
+    BK_PL(9), BK_PL(10), BK_PL(11), BK_PL(12), BK_PL(13), BK_PL(14), BK_PL(15), BK_PL(16),   /* knows no PL tag: skipped, never saved) */
     {{'P', 'N', 'A', 'M'}, BK_LOG, BK_NMID, 1},           /* the project names (device-wide) */
 #endif                                                    /* (then the objects of before: restored into the open project, never written) */
     BK_P(1), BK_P(2), BK_P(3), BK_P(4), BK_P(5), BK_P(6),   /* (the patterns, before the scenes S01.. name them) */
@@ -431,18 +435,24 @@ static uint32_t bk_fx_commit(const uint8_t *b, uint32_t n, uint32_t lo, uint32_t
  * the project last asked are kept (BK_READ asks each chunk). Restore: the index p's from BK_BEGIN to BK_COMMIT, each
  * record written once whole (checked as a load checks it; one the firmware would not load is skipped, the rest goes on) */
 static struct { uint8_t p, ok; uint32_t len, crc; } bk_pj;      /* (the cache: project p's stream length and CRC) */
-static struct { uint8_t hn, h[3]; uint32_t got, len; } bk_ps;    /* a restore's stream: the header so far, the record's bytes so far */
-static int bk_scope(uint32_t p) { return slg.proj == p ? 0 : slg_open_proj(p); }   /* the index: project p's (0 ok) */
+static struct { uint8_t hn, h[3], live; uint32_t got, len; } bk_ps;   /* a restore's stream: the header so far, the record's bytes
+                                                                    * so far; live: PL01.. (the live patterns) */
+static int bk_scope(uint32_t p) { p &= 15u; return slg.proj == p ? 0 : slg_open_proj(p); }   /* the index: project p's (0 ok; 16 + p:
+                                                                    * its live patterns' stream, PL01..) */
 static void bk_scope_back(void) { (void)bk_scope(open_proj); }
 /* the stream of the project the index holds: its length; with buf, its bytes from off (up to n: those copied); with crc, its CRC */
-static uint32_t bk_pj_walk(uint32_t off, uint8_t *buf, uint32_t n, uint32_t *crc)
+static uint32_t bk_pj_walk(uint32_t off, uint8_t *buf, uint32_t n, uint32_t *crc, int live)
 {
     uint32_t id, pos = 0, got = 0, c = 0xFFFFFFFFu;
     for (id = 0; id < SLG_IDS; id++) {
         uint8_t h[3];
         uint32_t k;
         int rl;
-        if (SLG_GLOBAL(id) || !slg_has(id) || (rl = slg_get(id, sec_rbuf)) <= 0)
+        if (live) {                                        /* PL01..: the live patterns that stand, without their stamps */
+            if (!SLG_LV_ID(id) || !slg_live_ok(id) || (rl = slg_get(SLG_LVX(id), sec_rbuf)) <= 4)
+                continue;
+            memmove(sec_rbuf, sec_rbuf + 4, (uint32_t)(rl -= 4));
+        } else if (SLG_GLOBAL(id) || !slg_has(id) || (rl = slg_get(id, sec_rbuf)) <= 0)
             continue;
         h[0] = (uint8_t)id, h[1] = (uint8_t)rl, h[2] = (uint8_t)((uint32_t)rl >> 8);
         for (k = 0; k < 2u; k++) {                         /* the header, then the record */
@@ -471,7 +481,7 @@ static uint32_t bk_pj_info(uint32_t p, uint32_t *crc)   /* project p's stream: i
             *crc = 0;
             return 0;
         }
-        bk_pj.len = bk_pj_walk(0, 0, 0, &bk_pj.crc);
+        bk_pj.len = bk_pj_walk(0, 0, 0, &bk_pj.crc, p >= 16u);
         bk_pj.p = (uint8_t)p;
         bk_pj.ok = 1;
         bk_scope_back();
@@ -482,7 +492,7 @@ static uint32_t bk_pj_info(uint32_t p, uint32_t *crc)   /* project p's stream: i
 static const uint8_t *bk_pj_chunk(uint32_t p, uint32_t off, uint32_t n)   /* n bytes of project p's stream from off -> st_buf */
 {
     if (!bk_scope(p)) {
-        (void)bk_pj_walk(off, st_buf, n, 0);
+        (void)bk_pj_walk(off, st_buf, n, 0, p >= 16u);
         bk_scope_back();
     }
     return st_buf;
@@ -494,6 +504,16 @@ static uint32_t bk_pj_record(uint32_t id, uint32_t n)
     int ok = 0;
     if (n > SEC_REC_MAX || SLG_GLOBAL(id))
         return 2;
+    if (bk_ps.live) {                                  /* PL01..: a live pattern, stamped with the saved one restored before */
+        uint32_t bs;
+        if (!SLG_LV_ID(id) || n + 4u > SEC_REC_MAX || !pat_decode(BK_BUF, n, (id - SEC_ID_PAT0) / PAT_N, &sec_stage_p.t[0], 0, 0))
+            return sec_stage_id = -1, 2u;
+        sec_stage_id = -1;
+        bs = slg_base_of(id);
+        memmove(BK_BUF + 4, BK_BUF, n);
+        memcpy(BK_BUF, &bs, 4);
+        return slg_put(SLG_LVX(id), BK_BUF, n + 4u, 1) ? 7u : 0u;
+    }
     if (id < SEC_IDS || id == SEC_ID_STATE)
         ok = sec_decode(BK_BUF, n, &sec_stage_p, &sec_stage_d) != 0;
     else if (id >= SEC_ID_PAT0 && id < SEC_ID_PAT0 + NTRK * PAT_N)
@@ -930,6 +950,7 @@ static int ed_backup(uint32_t cmd, const uint8_t *a, uint32_t na)
 #if SEC_LOGGED && FELUCCA_PATTERNS
             if (BK_OBJS[i].kind == BK_PJS) {                   /* the stream's records go into that project as they come */
                 bk_ps.hn = 0;
+                bk_ps.live = (uint8_t)(BK_OBJS[i].id >= 16u);
                 bk.scrc = 0xFFFFFFFFu;
                 bk_pj.ok = 0;
                 if (bk_scope(BK_OBJS[i].id))

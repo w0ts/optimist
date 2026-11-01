@@ -186,7 +186,7 @@ struct ProjectsView: View {
                 let n = len[track][slot]
                 let on = s.patSel?.track == track && s.patSel?.slot == slot
                 Button { s.patSel = (track, slot) } label: {
-                    Text(n > 0 ? "\(n)" : "·").frame(maxWidth: .infinity, minHeight: 34)
+                    Text(l.slotText(track, slot)).italic(l.unsaved(track, slot)).frame(maxWidth: .infinity, minHeight: 34)
                         .background(on ? Color.accentColor.opacity(0.35) : Color.secondary.opacity(n > 0 ? 0.25 : 0.1), in: RoundedRectangle(cornerRadius: 6))
                 }.buttonStyle(.plain)
             }
@@ -212,6 +212,18 @@ struct ProjectsView: View {
             }
             .buttonStyle(.bordered)
             .disabled(!s.idle)
+            if l.live != nil {                                // (issue 142: edits not saved, "*": SAVE or RELOAD, as the web editor)
+                HStack {
+                    Button("Save") { s.savePattern(sel.track, sel.slot) }
+                    Button("Reload") {
+                        ask = Confirmation(title: "RELOAD \(Self.trackName(sel.track)) \(sel.slot + 1)? Its edits not saved go, the saved pattern plays again.") {
+                            s.reloadPattern(sel.track, sel.slot)
+                        }
+                    }
+                }
+                .buttonStyle(.bordered)
+                .disabled(!s.idle || !l.unsaved(sel.track, sel.slot))
+            }
         }
     }
 

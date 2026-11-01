@@ -610,11 +610,13 @@ static uint32_t bk_put(int idx, const uint8_t *d, uint32_t n)   /* COMMIT's rc; 
 /* "projects" (FELUCCA_PATTERNS, docs/PROJECTS-DESIGN.md): PJ01.. (kind 7: a project's records as one stream) and PNAM (the names)
  * backed up, the log wiped, written back: each project's stream byte for byte as it was, each project whole; the objects of
  * before (S01.., PTN1..) listed without data; a restore cut after a chunk leaves the open project's index */
+static uint8_t livepat[SEC_REC_MAX];
+static uint32_t livepat_n;
 static void projects_backup_test(void)
 {
-    static uint8_t p1[16384], p2[16384], nm[256], q[16384];
-    uint32_t l1, l2, l3, ln, k, ok, rc;
-    int i1, i2, i3;
+    static uint8_t p1[16384], p2[16384], nm[256], q[16384], p4[4096];
+    uint32_t l1, l2, l3, l4, ln, k, ok, rc;
+    int i1, i2, i3, i4;
     uint8_t z[1] = {0}, a[320];
     char b[16];
     fresh_flash();
@@ -634,11 +636,24 @@ static void projects_backup_test(void)
             q[j] = (uint8_t)(k * 50u + j);
         ok &= slg_put(id, q, 40u + 30u * k, 0) == 0;
     }
+    {                                                  /* a live pattern of project 1 (issue 142): T1 slot 1 edited, not saved */
+        static uint8_t lr[SEC_REC_MAX];
+        uint32_t bs = slg_base_of(PAT_ID(0, 0)), ln0;
+        make(30);
+        (void)sec_capture();
+        ln0 = pat_encode(&proj_tmp.cur, 0, lr + 4);
+        memcpy(lr, &bs, 4);
+        ok &= ln0 > 5u && slg_put(SLG_LVX(PAT_ID(0, 0)), lr, ln0 + 4u, 0) == 0 && pat_live_at(0, 0) == 2;
+        memcpy(livepat, lr + 4, livepat_n = ln0);
+    }
     ok &= project_scope_set(1) == 0;
     make(24);
     project_save(5);                                   /* scene F of project 2 */
     ok &= sec_name_set(1, "TWO") == 0 && project_scope_set(0) == 0;
-    i1 = bk_find("PJ01"), i2 = bk_find("PJ02"), i3 = bk_find("PNAM");
+    i1 = bk_find("PJ01"), i2 = bk_find("PJ02"), i3 = bk_find("PNAM"), i4 = bk_find("PL01");
+    l4 = i4 >= 0 ? bk_get(i4, p4) : 0u;
+    check("backup: PL01 (project 1's live patterns, issue 142) listed with data: one record, the pattern without its stamp",
+          l4 == 3u + livepat_n && p4[0] == PAT_ID(0, 0) && !memcmp(p4 + 3, livepat, livepat_n) && bk_find("PL02") >= 0 && bk_get(bk_find("PL02"), q) == 0u);
     l1 = i1 >= 0 ? bk_get(i1, p1) : 0u;
     l2 = i2 >= 0 ? bk_get(i2, p2) : 0u;
     l3 = i3 >= 0 ? bk_get(i3, nm) : 0u;
@@ -648,7 +663,7 @@ static void projects_backup_test(void)
     printf("  projects: PJ01 %u B, PJ02 %u B, PNAM %u B\n", l1, l2, l3);
     check("backup: PJ01 and PJ02 (each project's stream) and PNAM listed with data; S01 and PTN1 (the objects of before) without", ok);
     fresh_flash();
-    rc = bk_put(i1, p1, l1) | bk_put(i2, p2, l2) | bk_put(i3, nm, l3);
+    rc = bk_put(i1, p1, l1) | bk_put(i2, p2, l2) | bk_put(i3, nm, l3) | bk_put(i4, p4, l4);
     z[0] = 1;
     ed_n = 0;
     ed_backup(ED_BK_END, z, 1);
@@ -670,6 +685,21 @@ static void projects_backup_test(void)
     ok = slg_get(SLG_ID_MPAT0 + 5u, q) == 40 && q[39] == 39u && slg_get(SLG_ID_MSCN0 + 2u, q) == 70 && q[69] == 50u + 69u &&
          slg_get(SLG_IDS - 1u, q) == 100 && q[99] == 100u + 99u;
     check("... project 1's MIDI tracks' records (ids 142..225, phase 0) restored as they were", ok);
+    ok = pat_live_at(0, 0) == 2 && pat_get(0, 0, q) == livepat_n && !memcmp(q, livepat, livepat_n) &&
+         (pat_get_saved(0, 0, q) != livepat_n || memcmp(q, livepat, livepat_n));
+    check("... its live pattern restored as live (stamped against the saved one restored before it), the saved one as saved", ok);
+    ln = bk_get(bk_find("PL01"), q);
+    check("... PL01 read again byte for byte", ln == l4 && !memcmp(q, p4, l4));
+    {   /* a snapshot carries the live patterns as live (kind 18; an older build skips it) */
+        uint8_t keep[SEC_REC_MAX];
+        uint32_t kn = pat_get_saved(0, 0, keep);
+        ok = sn_save(3, 0) == SNE_OK;
+        pat_live_drop(0, 0);
+        ok &= !pat_live_at(0, 0) && sn_load(3) == SNE_OK;
+        ok &= pat_live_at(0, 0) == 2 && pat_get(0, 0, q) == livepat_n && !memcmp(q, livepat, livepat_n) &&
+              pat_get_saved(0, 0, q) == kn && !memcmp(q, keep, kn);
+        check("snapshot: saved with a live pattern, the live one dropped, loaded: the live one back as live, the saved one as saved", ok);
+    }
     fresh_flash();                                     /* a restore cut after its first chunk: the open project's index again (bk_close) */
     a[0] = (uint8_t)i2;
     put7(a + 1, l2, 3);
