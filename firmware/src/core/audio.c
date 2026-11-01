@@ -101,9 +101,16 @@ static void audio_block(int32_t *out, uint32_t n)       /* mix (fx.c), then Q15 
 #if FELUCCA_BT_AUDIO
     {
         int bt_audio_feed(const int32_t *q15_pcm, uint32_t n);
+#if defined(DUAL_TIMES) && DUAL_TIMES && FELUCCA_DUAL >= 2
+        const uint32_t tb = fm1_ticks();                /* (SYSTEM > TOP's BT SBC: the frames encoded here, dual_load.h) */
+#endif
         const uint32_t muted = (uint32_t)bt_audio_feed(oc_bt_frames(out), n);   /* (streaming to Bluetooth: the FM-1's own output silent,
                                                          * the user 2026-10-19; back as soon as the link stops streaming. A
                                                          * corrected block goes as silence: oc_bt_frames) */
+#if defined(DUAL_TIMES) && DUAL_TIMES && FELUCCA_DUAL >= 2
+        if (muted)
+            DUAL_TM_XJOB(DUAL_JOBS, fm1_ticks() - tb);  /* (the slot after the render's jobs: dual.c DUAL_JOBS) */
+#endif
         bt_streamed = (uint8_t)muted;
         if (muted)
             for (i = 0; i < 2u * n; i++) {

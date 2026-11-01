@@ -781,6 +781,11 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
                                             * second core, drops, guard lines (op_project.c); off, INFO is CPU LOAD,
                                             * UNDERRUNS, BATTERY. The builder's default is 0; the host tests keep them */
 #endif
+#ifndef FELUCCA_SYS_TOP
+#define FELUCCA_SYS_TOP 0                  /* SYSTEM > TOP (op_top.c): what takes the CPU (each job of the render, % of a
+                                            * block) and the RAM (the arena's blocks, the build's own by module), largest
+                                            * first; the render's times as CPU TIMES' (dual_load.h DUAL_TIMES) */
+#endif
 #ifndef FELUCCA_DRUM_ACCENT
 #define FELUCCA_DRUM_ACCENT 1              /* the drum track's ACCENT lane is heard: its steps raise every hit of the step
                                             * by the ACCENT amount (drums.c dacc_vel, seq.c drum_step); off: the lane is

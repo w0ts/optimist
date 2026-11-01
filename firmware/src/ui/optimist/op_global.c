@@ -315,6 +315,13 @@ static int glo_cycle(void) { return gl_scr(ui.scr); }  /* GLOBAL or SYSTEM shown
 static void glo_step(int32_t s)
 {
     uint32_t sc = ui.scr == SCR_SYSTEM, r = ui.row[ui.scr], was = r;
+#if OP_TOP
+    if (sc && gl_n(1)) {                                /* SYSTEM > TOP: SELECT scrolls its lines first (op_top.c) */
+        uint32_t e = gl_ent(1, gl_first(1, r));
+        if (sys_item(e >> 2, e & 3u) == SI_TOP && !(s = top_step(s)))
+            return;
+    }
+#endif
     for (; s > 0 && gl_end(sc, r) < gl_n(sc); s--)
         r = gl_end(sc, r);
     for (; s < 0 && gl_first(sc, r); s++)

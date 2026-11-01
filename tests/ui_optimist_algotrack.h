@@ -167,7 +167,7 @@ static void at_replacement_tests(void)
         ui.row[scr] = 0;
         np = gl_npg(s);
         for (i = 1; i < np && ok; i++) {
-            turn(EN_SELECT, 1);
+            sel_page(scr, 1);                           /* (TOP: its lines first) */
             ok &= ui.row[scr] == gl_pfirst(s, i) && gl_pg(s, ui.row[scr]) == i;
         }
         turn(EN_SELECT, -100);

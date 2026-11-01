@@ -103,6 +103,9 @@ Misread RAM (some units, at the boot loader's supply, seen on X0X, Melodee and J
 (GPL-3.0). The load of each core shows in SYSTEM's CPU row (`dual_load.h`: CLOCK, CPU0 including the wait in `dual_join`,
 CPU1).
 
+SYSTEM > TOP (builder item `SYS_TOP`, `ui/optimist/op_top.c`) reads the same times without the debug pages: CPU0, CPU1
+and each job by its average, largest first, beside the RAM's owners.
+
 Where the time goes (2026-10-30: CPU0 over 100 % at its peaks while CPU1 sat at 25 %): SYSTEM > CPU TIMES (the
 `SYS_DEBUG` pages, dual builds; `op_project.c sys_dt_cell`, `dual_load.h dual_tm`). A table in % of a 32-frame mix
 block (726 us), a row a quantity, four fixed columns: AVG (smoothed over ~8 blocks), MAX (the peak of the last 2 s: a ring

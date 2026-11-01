@@ -974,6 +974,13 @@ def main():
     sync_view(*(p for p in GEN.iterdir() if p.is_file()))     # every generated header, rewritten or not
     mark(3)
     img, syms, dis, rt, hdr = build_app()
+    if CFG_VALUES.get("FELUCCA_SYS_TOP") and not MEASURE:
+        # SYSTEM > TOP's table (op_top.c TOP_RAM): this link's SRAM by module, then linked again with it (the table's
+        # size fixed: the same RAM; a measurement build keeps the empty one, the same size)
+        import ramtop
+        ramtop.write(GEN / ramtop.HEADER, ramtop.parse(syms), "felucca.elf")
+        sync_view(GEN / ramtop.HEADER)
+        img, syms, dis, rt, hdr = build_app()
     (OUT / "sizes.json").write_text(json.dumps(sizes(img, syms, hdr), indent=1) + "\n")
     mark(4)
     errors, notes = check(img, syms, dis, rt)
