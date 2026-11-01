@@ -455,9 +455,8 @@ static void mx_vu_paint(uint32_t r, int32_t x, int32_t y, int32_t w, int32_t h, 
     int32_t px = (int32_t)(pk * (uint32_t)w / MX_LV);
     cv_rect(x, y, w, h, C_BLACK);
     cv_rect(x, y + h - 1, w, 1, C_LINE);                /* the track: a line on black */
-    uint16_t col = mx_is_lane(r) ? mx_col(r) : 0u;      /* (a lane's lit hit: its colour; every level meter: the bands) */
-    mx_vu_fill(x, y, w, h, px, col);
-    mx_vu_mark(x, y, w, h, ph, col);
+    mx_vu_fill(x, y, w, h, px, 0u);                     /* (every meter, a lane's lit hit too, selected or not: the bands' gradient, never the lane's kind colour, which can be red) */
+    mx_vu_mark(x, y, w, h, ph, 0u);
     if (!mx_is_lane(r))                                 /* the CLIP light, over the meter's last px, a black gap before it */
         cv_rect(x + w - MX_CLIP_W - 1, y, 1, h - 1, C_BLACK),
         cv_rect(x + w - MX_CLIP_W, y, MX_CLIP_W, h - 1, mxd.clip[r] ? C_ERR : mx_lerp(C_BLACK, C_ERR, 56u));
