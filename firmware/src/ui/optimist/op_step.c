@@ -618,6 +618,10 @@ static int step_shown(const track_t *t, uint32_t idx)
 {
     if (is_drum(t) && btn_held(B_SEQ))
         return dstep_lanes(&t->dstep[idx]) != 0u;
+#if FELUCCA_AUTO
+    if (step_muted(t, idx, lane_selected()))
+        return 0;                                       /* (a muted note: its key dim, as an empty step's; the user, 2026-11-01) */
+#endif
     return is_drum(t) ? step_has(t, idx) : pk_note(t, idx);
 }
 
@@ -748,6 +752,29 @@ static void step_key(uint32_t k, uint32_t down, uint32_t held)
         step_lvl_cycle(t, idx, (uint32_t)lane_held(k)); /* no tap when let go: the finger is not st.fdown's) */
         return;
     }
+#if FELUCCA_AUTO
+    if (btn_held(B_OCTUP) && !btn_held(B_OCTDN) && step_has(t, idx)) {   /* SHIFT2 + a set step: its mute toggled, the note kept grey (the
+                                                         * user, 2026-11-01: "right shift should also go to muted state"; the same
+                                                         * store event as SAVE held on a picked note, pk_mute; an empty step is the
+                                                         * tap's: a drum hard hit, a synth note) */
+        uint32_t l = lane_selected(), on, ok;
+        if (is_drum(t) && l >= DRUM_LANES) {
+            ui_message("NO MUTE ON ACCENT");
+            return;
+        }
+        on = !step_muted(t, idx, l);
+        undo_mark(t, st.sess);
+        fm1_irq_off();
+        ok = (uint32_t)step_mute_set(t, idx, l, on);
+        fm1_irq_on();
+        sync_reload = 1;
+        if (ok)
+            pk_take(idx, NSEL_ALL);                     /* (the muted note: the picked one, fa644b73) */
+        ui_message(!ok ? "PATTERN FULL" : on ? "MUTED" : "UNMUTED");
+        op_repaint();
+        return;
+    }
+#endif
     if (op_shift(held) && !(is_drum(t) && !step_has(t, idx))) {   /* SHIFT + a step: its p-locks cleared, the step stays (a drum
                                                          * step not hit yet: OCT- is its ghost hit, seq.c) */
         uint32_t n;

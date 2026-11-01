@@ -398,11 +398,12 @@ static void sg_roll(const track_t *t)
             int32_t nt = s->note[i], y = NY(nt), g = (int32_t)ngate_of(s, i), cw = RL_CW - 1;
             uint32_t lv = (s->lvl >> (2u * i)) & 3u;
             uint16_t nc = (int32_t)w == sg_ph ? C_WHITE : op_step_auto(t, idx, 16u) ? lvl_acol(lv) : lvl_col(c, lv);
+            int mut = 0;
 #if FELUCCA_AUTO
             if (!gn && step_muted(t, roll_org(t, idx), 0))
-                nc = col_shade(c, 2u);                  /* (a muted note: kept, dim; its ties too) */
+                nc = col_shade(c, 2u), mut = 1;         /* (a muted note: kept, dim; its ties too; picked it stays grey, its row's lines show the pick) */
 #endif
-            if (sel && roll_selx(t, sat, nt, idx) && (int32_t)w != sg_ph)
+            if (!mut && sel && roll_selx(t, sat, nt, idx) && (int32_t)w != sg_ph)
                 nc = C_NOTE;                            /* (the selected note, its whole length: its own colour) */
             if (!RV(nt))
                 continue;
