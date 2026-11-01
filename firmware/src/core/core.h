@@ -180,6 +180,20 @@ enum { Q_OFF, Q_SNAP, Q_WHITE, Q_ALL, Q_SEQ };   /* P_QUANT (SCL › KEYS): seq.
 #else
 #define FAST_RAM_seqx 0
 #endif
+/* the insert effects' kernels (builder item INS_RAM, FELUCCA_INS_RAM: 1 RAM code, the default, as ever; 0 XIP, 8 KB of RAM
+ * freed). Two marks: ins, the kernels' place (FAST2(ins): HOT2 or the flash: insfx.c, fxi_kern.c, eq3.c, xdly.c, gater.c,
+ * tapespit.c; the kernels call only each other directly); insx, the RAM code's calls into them (FAST_CALL(insx, f): the
+ * dispatchers ifx_run / ifx_part / ifx_bus / ifx_st, fx.c dins_one and mix_part, through FAR while the kernels are XIP) */
+#ifndef FELUCCA_INS_RAM
+#define FELUCCA_INS_RAM 1
+#endif
+#if FELUCCA_INS_RAM
+#define FAST_RAM_ins 1
+#define FAST_RAM_insx 0
+#else
+#define FAST_RAM_ins 0
+#define FAST_RAM_insx 1
+#endif
 /* FASTI(name): a small helper of an engine's render path that the engine's XIP code (its note hooks, the UI) calls too:
  * always inlined while the engine's code is RAM code (each side its own copy), as it was otherwise. FAST_CALL(name, f):
  * a call to f, one of the engine's render path's functions, from its code that stays in XIP: through a pointer while
@@ -241,6 +255,12 @@ static inline __attribute__((always_inline)) void fast_copy(void *d, const void 
 #define FAST_PLACE_1 HOT
 #define FAST_PLACE_0
 #define FAST(n) FAST_PLACE(FAST_RAM_##n)
+/* FAST2(name): FAST's HOT2 twin (the effects' RAM code, linked before .data: app.ld .ram_hot2) or nothing */
+#define FAST2_PLACE(x) FAST2_PLACE_(x)
+#define FAST2_PLACE_(x) FAST2_PLACE_##x
+#define FAST2_PLACE_1 HOT2
+#define FAST2_PLACE_0
+#define FAST2(n) FAST2_PLACE(FAST_RAM_##n)
 /* This compiler inlines a function into a caller in another section only when it is always_inline:
  * AINL marks the small helpers that the HOT code and the rest both use (inlined everywhere). */
 /* IN_POOL: a zeroed buffer of the main loop (no audio loop reads it) in the pool instead of main RAM (app.ld .pool,

@@ -18,6 +18,13 @@
 #endif
 #define RAMFN  __attribute__((section(".ram_text"), noinline, used))
 #define RAMINL static inline __attribute__((always_inline))
+/* RAM code only the update loader calls (fl_status_ram, the erase while it receives): kept in the loader (FELUCCA_LOADER)
+ * as every RAMFN is (used); in an app without used, so the compiler drops it unless the app calls it (1.3 KB of RAM) */
+#ifdef FELUCCA_LOADER
+#define RAMFN_LDR RAMFN
+#else
+#define RAMFN_LDR __attribute__((section(".ram_text"), noinline))
+#endif
 
 /* XIP (0x02xxxxxx) -> RAM (0x01C0xxxx) is beyond the 23-bit call range:
  * call RAM code through a pointer the compiler cannot fold back. */
@@ -162,7 +169,7 @@ static RAMFN int fl_uid_ram(uint8_t *dst)
     return 0;
 }
 
-static RAMFN uint32_t fl_status_ram(void)                /* SR1 | SR2 << 8 */
+static RAMFN_LDR uint32_t fl_status_ram(void)                /* SR1 | SR2 << 8 */
 {
     fl_saved_t s; uint32_t v;
     if (fl_enter(&s)) return 0xFFFFFFFFu;
