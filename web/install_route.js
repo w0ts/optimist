@@ -172,10 +172,10 @@ export function bootloaderChoice(value, installMboot = false) {
   return { choice: "keep", line: "bootloader: keep (no build setting with this package): not touched" };
 }
 
-/** BOOTLOADER in a builder .config: "m-bootloader" / "keep" (an absent line is the default, m-bootloader) */
+/** BOOTLOADER in a builder .config: "m-bootloader" / "keep" (an absent line is the default, keep) */
 export function bootloaderFromConfig(text) {
   const m = /^\s*BOOTLOADER\s*=\s*(-?\d+)\s*$/m.exec(String(text || ""));
-  return m ? (Number(m[1]) === 1 ? "m-bootloader" : "keep") : "m-bootloader";
+  return m && Number(m[1]) === 1 ? "m-bootloader" : "keep";
 }
 
 /** true when the running Optimist's updater may have refused an M-VAVE package (-5: its first 0x4000 bytes, the boot area,
