@@ -234,7 +234,7 @@ static void ml_draw_rows(void)
     }
     cv_blit(0, OY_PANEL);
 }
-#define ML_FOOT_Y (240 - 18)
+#define ML_FOOT_Y (240 - OP_MTR - 18)
 static void ml_draw_foot(void)                         /* the modal's foot: HOME left, SAVE right (dim: no room yet) */
 {
     cv_begin(240, 18, C_BLACK);

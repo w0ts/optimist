@@ -38,7 +38,7 @@
 #include <assert.h>
 static uint16_t screen[240 * 240];
 static void lcd_sync(void) {}
-static uint32_t band_y = 240u, band_hits;               /* the help band's first row (op_graph.c OP_FOOT_Y, set in main), and
+static uint32_t band_y = 240u, band_h, band_hits;               /* the help band's first row (op_graph.c OP_FOOT_Y, set in main), and
                                                          * the blits that reached it besides the line's own (ui_optimist_geometry.h) */
 static uint32_t gl_info_wide(void);                     /* op_gldraw.c: SYSTEM > INFO's first page has no help band: its rows run to the foot */
 static uint32_t probe_hits;                             /* the blits that cover the probe pixel (120, 180): inside PRESETS' popup, a flash when more than one a frame */
@@ -182,7 +182,7 @@ static void lcd_blit(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint1
     if (x <= 120u && 120u < x + w && y <= 180u && 180u < y + h)
         probe_hits++;
     assert(x + w <= 240 && y + h <= 240);
-    if (y + h > band_y && !gl_info_wide() && !(x == 0u && y == band_y && w == 240u && h == 240u - band_y))
+    if (y + h > band_y && !gl_info_wide() && !(x == 0u && y == band_y && w == 240u && h == band_h))   /* (the help line's own; the load lines' rows below it are fills: op_meters.c) */
         band_hits++;
     for (j = 0; j < h; j++)
         for (i = 0; i < w; i++)
@@ -4259,6 +4259,7 @@ static void led_tests(void)
 #include "ui_optimist_hdrnum.h"                     /* the track number in the header badge, the preset after the title */
 #include "ui_optimist_names.h"                      /* the names table: titles never cut, card labels in capitals, list cells whole */
 #include "ui_optimist_layout.h"                     /* batch D: a badge everywhere, one rule for nothing, no one-card page, no DUST unbuilt */
+#include "ui_optimist_meters.h"                     /* the load lines on the last rows: CPUS / MEMORY / BOTH (2026-11-01) */
 #include "ui_optimist_geometry.h"                   /* batch B: the help band, units in the label row, the list's columns, the needles */
 #include "ui_optimist_stepauto.h"                    /* a step with automation: its own colour (STEP grid, roll, mixer strips) */
 #include "ui_optimist_colours.h"                     /* batch C: colour means something (mute tiles, red, dim, REC, SUPER) */
@@ -4296,7 +4297,8 @@ int main(int argc, char **argv)
     sec_boot();
 #endif
     tracks_default();
-    band_y = (uint32_t)OP_FOOT_Y;                       /* (no band without the help line: 240) */
+    band_y = (uint32_t)OP_FOOT_Y;                       /* (no band without the help line: the load lines' first row) */
+    band_h = (uint32_t)OP_FOOT;
     panel = PANEL_DEFAULT;
     settings_init();
     layers_init();
@@ -4475,6 +4477,7 @@ int main(int argc, char **argv)
     ovl_window_tests();                                 /* (the rings' 10 s and 1 min windows, their wrap) */
     stackmark_tests();                                  /* (the stacks' paint and read-back, INFO's RAM line) */
     memline_tests();                                    /* (the memory line over every page) */
+    meters_tests();                                     /* (the load lines at the foot: CPUS, MEMORY, BOTH) */
     headpos_tests();                                    /* (bar.beat alone while playing) */
     hold_tests();
     lane_preview_tests();
