@@ -16,6 +16,7 @@
  * BT work... without vu meters"). Nothing while no client asks.
  *   106 MIRROR  bits -> on, version, w (2 x 7 bit), h (2 x 7 bit)
  *       bits  bit 0 on (0: off), bit 1 the whole panel again
+ *       (opti_miraa_1) a last byte: bit 0 the AA token, after the bits or bit 4's / 5's two bytes (ed_mirror_enc.h MIR_AA; mir_aa_ask)
  * Mirroring ends 3 s after the last request of any kind (ask again or PING about every 1 s), with 106 0, and when its link goes
  * (a USB reset; no Bluetooth central listening). Over Bluetooth 106 is answered, and INFO (1), 108 PANEL, 109 NAV and 111 CLIP
  * (mir_ble_rx: 18 arguments at most, MBR_CB bytes of them waiting; the main loop runs them as USB's, the reply into the Bluetooth ring: ed_send, mir_bt_reply),
@@ -131,6 +132,7 @@ static struct {
     uint32_t base;                      /* the end of the last catch-up's frames: MIR_BLE_LAG counts what came after */
     uint8_t pk, mid;                    /* the radio's side: bytes in the packet peeked; inside a frame (a channel message would end it) */
     volatile uint8_t req;               /* 0x80 | bits: a request came in (mir_ble_rx), for the main loop */
+    volatile uint8_t req_aa;            /* its form << 1 | its second byte's bit 0 (mir_aa_ask), written before req */
     uint16_t rx_n;                      /* the request being received: 7D 46 4C cmd, its arguments (rx) */
     uint8_t big_n;                      /* MBR_PROJ: a request too long for mbr_cb waits in mbr_big (0: none) */
     volatile uint32_t cw, cr;           /* the INFO / PANEL / NAV / CLIP requests waiting (mbr_cb, bytes), for the main loop */
@@ -400,15 +402,18 @@ static void mbr_take(void)
             mbr_acked = 1;
             return;
         }
-        if (mbr.rx_n == 5u || (mbr.rx_n == 7u && (mbr_rx[4] & (MIR_FIX_BIT | MIR_ACK_BIT)))) {
-            if (mbr.rx_n == 7u && (mbr_rx[4] & MIR_FIX_BIT))
+        uint32_t lng = mbr.rx_n == 7u || (MIR_AA && mbr.rx_n == 8u);   /* (bits 4, 5: two bytes follow; opti_miraa_1: and its byte) */
+        if (mbr.rx_n == 5u || (MIR_AA && mbr.rx_n == 6u) || (lng && (mbr_rx[4] & (MIR_FIX_BIT | MIR_ACK_BIT)))) {
+            if (lng && (mbr_rx[4] & MIR_FIX_BIT))
                 mir_fix_ask(mbr_rx[5], mbr_rx[6]);
-            else if (mbr.rx_n == 7u)
+            else if (lng)
                 mba_ack(mbr_rx[5], mbr_rx[6]);   /* (the keep-alive with the client's losses, opti_miraimd_1) */
-            if (mbr.rx_n == 7u && (mbr_rx[4] & MIR_QUIET_BIT) && (mbr_rx[4] & MIR_ACK_BIT))
+            if (lng && (mbr_rx[4] & MIR_QUIET_BIT) && (mbr_rx[4] & MIR_ACK_BIT))
                 mbr_acked = 1;          /* (an ACK alone: kept alive, no reply; mir_poll) */
-            else
+            else {
+                mbr.req_aa = (uint8_t)((mbr.rx_n - 4u) << 1 | (mbr.rx_n == 6u || mbr.rx_n == 8u ? mbr_rx[mbr.rx_n - 1u] & 1u : 0u));
                 mbr.req = (uint8_t)(0x80u | (mbr_rx[4] & ~(MIR_FIX_BIT | MIR_ACK_BIT | MIR_QUIET_BIT)));
+            }
         }
         return;
     }
@@ -601,6 +606,20 @@ static uint32_t mir_meters_off(void)
 {
     return mir.on && mir.link == MIR_BT;
 }
+/* 106's last byte with opti_miraa_1 (2026-11-01): bit 0, the AA token (ed_mirror_enc.h MIR_AA), after the bits (form 2) or after
+ * bit 4's or 5's two bytes (form 4) sets it; a request without it clears it (form 1: an older client gets today's tokens byte for
+ * byte) or, with bits 4, 5 (form 3), keeps it while mirroring. Its pixels are the same either way: nothing is drawn again */
+static void mir_aa_ask(uint32_t form, uint32_t ext)
+{
+#if MIR_AA
+    if (form == 2u || form == 4u)
+        me.aa = (uint8_t)(ext & 1u);
+    else if (form != 3u || !mir.on)
+        me.aa = 0;
+#else
+    (void)form, (void)ext;
+#endif
+}
 /* a request on link l: on / off, the whole panel again (bit 1), the panel's STATE too (bit 2), checked frames (bit 3); a first on
  * catches up */
 static void mir_ask(uint32_t bits, uint32_t l)
@@ -631,8 +650,9 @@ static void ed_mirror(const uint8_t *a, uint32_t na)
         ed_b4(240u & 127u, 240u >> 7, 240u & 127u, 240u >> 7);
         return;
     }
-    if (na == 3u && (a[0] & MIR_FIX_BIT))
+    if ((na == 3u || na == 4u) && (a[0] & MIR_FIX_BIT))
         mir_fix_ask(a[1], a[2]);
+    mir_aa_ask(na, na == 2u || na == 4u ? a[na - 1u] : 0u);
     mir_ask(na ? a[0] & ~(MIR_FIX_BIT | MIR_ACK_BIT | MIR_QUIET_BIT) : 0u, MIR_USB);   /* (bit 5 over USB: nothing, no budget there) */
     ed_b(mir.on);
     ed_b(MIR_VERSION);
@@ -1017,6 +1037,7 @@ static void mir_poll(void)
         mbr.req = 0;
         if (!mir.on || mir.link != MIR_BT)
             mba_reset();                /* (a new Bluetooth session: the budget from its start) */
+        mir_aa_ask(mbr.req_aa >> 1, mbr.req_aa & 1u);
         mir_ask(q & 0x7Fu, MIR_BT);
         mbr_reply = 1;                  /* (the answers below: never held back by the budget) */
         me.ok = 1;                      /* (the reply: F0 7D 46 4C 6A on 1 w w h h F7, as USB's) */

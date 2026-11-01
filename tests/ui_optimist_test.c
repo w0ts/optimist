@@ -4304,6 +4304,7 @@ int main(int argc, char **argv)
     outdir = argc > 1 ? argv[1] : "build/host";
 #ifdef MIRROR_CHECK
     me.chk = 1;                                         /* (checked frames, as the Mirror app asks: ops 8..10, seq; mc_fix_check) */
+    me.aa = getenv("MIRROR_AA") != 0;                  /* (MIRROR_AA=1: the AA token, as a client with opti_miraa_1 asks) */
 #endif
     {
         uint32_t i;
