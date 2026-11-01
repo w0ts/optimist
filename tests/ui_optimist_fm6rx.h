@@ -3,15 +3,15 @@
  * or bank, a whole-screen black fill and redraw each (30 voices, 30 flashes). Now only what shows the voice draws again:
  * no fill of the whole screen, the page shows the new voice. Included after fm6_tests (fm6_slot) */
 
-#if OP_FM6 && FELUCCA_FM6_SYSEX
-#include "../firmware/src/engines/fm6/fm6_sysex.c"
-static uint32_t screen_hash(void)
+static uint32_t screen_hash(void)                       /* (ui_optimist_knobblink.h's too: built without FM6_SYSEX as well) */
 {
     uint32_t i, h = 2166136261u;
     for (i = 0; i < 240u * 240u; i++)
         h = (h ^ screen[i]) * 16777619u;
     return h;
 }
+#if OP_FM6 && FELUCCA_FM6_SYSEX
+#include "../firmware/src/engines/fm6/fm6_sysex.c"
 static void fm6rx_send(uint32_t salt)                    /* one VCED frame through the USB byte path, the main loop's service, one UI frame */
 {
     uint8_t m[163];

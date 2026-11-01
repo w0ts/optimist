@@ -4460,6 +4460,47 @@
     "provenance_line": "X0X (charlesvestal/fm1-x0x) @ d179e03 by Charles Vestal (GPL-3.0-only)"
    },
    {
+    "key": "FONT_CACHE",
+    "flag": "FELUCCA_FONT_CACHE",
+    "label": "the screen's text: decoded-glyph cache (RAM for UI speed)",
+    "group": "UI",
+    "bit": 450,
+    "default": 2,
+    "parent": null,
+    "desc": "The release's fonts are stored packed (their pixels Huffman-coded, a third smaller in flash) and decoded as they are drawn. The cache keeps the glyphs drawn lately decoded, so the same labels and digits redrawn every frame are read instead of decoded again (about 3.5x fewer instructions a glyph). full: 6 KB and 256 glyphs, 7.5 KB of RAM (what every build had). small: 1.5 KB and 64 glyphs, 1.9 KB: most redraws still hit it, a busy page decodes more. off: every glyph decoded each time it is drawn. The RAM freed goes to the free RAM (the undo history gets that much bigger). Only the screen's drawing is slower, in the main loop, never the audio; the same pixels at every choice. Optimist's own firmware (--classic) draws unpacked fonts: no cache, nothing changes there.",
+    "experimental": false,
+    "notice": "",
+    "off_warning": "",
+    "env": "",
+    "target_only": true,
+    "symbols": [],
+    "no_image": false,
+    "fixed": false,
+    "head": false,
+    "choices": [
+     [
+      2,
+      "full (7.5 KB of RAM)"
+     ],
+     [
+      1,
+      "small (1.9 KB)"
+     ],
+     [
+      0,
+      "off"
+     ]
+    ],
+    "not_built": {},
+    "provenance": null,
+    "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
+    "tested": "builds and host only (2026-11-01); the FM-1's UI feel at small and off not tried yet. Measured on mots-config (the release, pi32v2-llvm): small 5,760 B of RAM less than full, off 7,684 B of RAM and 304 B of flash less; host, a 30 s walk over four pages while playing (the source defaults): full decodes 11 % of the glyph pixels drawn, small 28 %, off all of them (each about 4 ns on the Mac, unmeasured on the FM-1)",
+    "provenance_line": ""
+   },
+   {
     "key": "EDITOR",
     "flag": "FELUCCA_EDITOR",
     "label": "web editor (USB SysEx)",
@@ -5419,6 +5460,43 @@
     "shown_under": null,
     "dim_when": null,
     "tested": "builds and host tests only (2026-11-01); the FM-1's CPU TIMES EVT row not measured yet. RAM code measured on mots-config (the release, pi32v2-llvm): events +17,848 B (flash +3.6 KB), events + hot core +28,952 B (flash +1.6 KB)",
+    "provenance_line": ""
+   },
+   {
+    "key": "INS_RAM",
+    "flag": "FELUCCA_INS_RAM",
+    "label": "the insert effects' code in RAM (8 KB of RAM)",
+    "group": "System",
+    "bit": 451,
+    "default": 1,
+    "parent": null,
+    "desc": "Where the insert effects' sample loops run: in RAM (as every build had them) or from the XIP flash. 15 kernels: X-DELAY, TAPE / SPIT, the shapers (FOLD, FUZZ, SFLD, RECT, HARM; RING, SUBO, SLEW), the limited inserts (CHRS, ECHO, FLANGER), EQ3, FORMANT, PHASER, WIDE, GATER. In the flash they free 8 KB of RAM for the undo history, and each block an insert runs its code is fetched through the instruction cache, where the engines' and the screen's code compete for it: more CPU in the audio interrupt when several inserts are on (unmeasured on the FM-1: SYSTEM > CPU TIMES shows it). The dispatchers stay in RAM and call the kernels through a pointer. The same sound at both choices.",
+    "experimental": false,
+    "notice": "",
+    "off_warning": "the insert effects' code runs from the flash: more audio CPU with several inserts on, not measured on the FM-1 yet",
+    "env": "",
+    "target_only": true,
+    "symbols": [],
+    "no_image": false,
+    "fixed": false,
+    "head": false,
+    "choices": [
+     [
+      1,
+      "in RAM"
+     ],
+     [
+      0,
+      "in the flash (XIP)"
+     ]
+    ],
+    "not_built": {},
+    "provenance": null,
+    "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
+    "tested": "builds and host tests only (2026-11-01); the FM-1's CPU TIMES with the kernels in XIP not measured yet. Measured on mots-config (the release, pi32v2-llvm): in the flash 7,968 B of RAM code less, 2,148 B of flash more",
     "provenance_line": ""
    },
    {
@@ -6845,6 +6923,7 @@
    "SYS_DEBUG",
    "KNOB_ACCEL",
    "LCD_BAUD",
+   "FONT_CACHE",
    "DIV_ORDER"
   ],
   "System": [
@@ -6855,6 +6934,7 @@
    "ASM",
    "COMPILER",
    "SEQ_RAM",
+   "INS_RAM",
    "BOOTLOADER",
    "SL24_SAFE"
   ]

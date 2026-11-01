@@ -8,6 +8,8 @@
 #define FS 44100
 static uint32_t fake_ticks;                         /* (the macros of PRE's parts read the timer: fm1_ticks) */
 static uint32_t fm1_ticks(void) { return fake_ticks; }
+#define __attribute__(x)
+#include "core/core.h"
 #include "system/dual_load.h"
 
 static int fails;

@@ -1132,12 +1132,13 @@ static void info_num(cell_t *c, uint32_t v, const char *unit)   /* a read-out's 
  * counters since boot, read only. Playback underruns / overruns, the USB frames missed, bad packets, the packets received, the
  * rate the FM-1 asks of the computer (its feedback, Hz), the ring's lowest fill (frames of 1024, target 512), the longest gap
  * between two USB polls (us) and how many were over 0.9 ms */
-#define INFO_UA 9u
+#define INFO_UA 11u
 static void sys_ua_cell(uint32_t i, cell_t *c)
 {
     static const char *const L[INFO_UA] = {"USB UNDERRUNS", "USB OVERRUNS", "MISSED FRAMES", "BAD PACKETS", "PACKETS IN",
-                                           "RATE ASKED", "LOWEST BUFFER", "LONGEST GAP", "GAPS > 0.9 MS"};
-    static const uint8_t WARN[INFO_UA] = {1, 1, 1, 1, 0, 0, 0, 0, 1};   /* (a counter of trouble: amber once not 0) */
+                                           "RATE ASKED", "LOWEST BUFFER", "LONGEST GAP", "GAPS > 0.9 MS",
+                                           "REC UNDERRUNS", "REC OVERRUNS"};   /* (the recording's: INFO's UNDERRUNS counts them too) */
+    static const uint8_t WARN[INFO_UA] = {1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1};   /* (a counter of trouble: amber once not 0) */
     uint32_t v;
     cell_clear(c);
     c->kind = CK_RO;
@@ -1157,6 +1158,8 @@ static void sys_ua_cell(uint32_t i, cell_t *c)
             cell_val(c, "NONE YET");
         break;
     case 7: v = ua.gap_max / 24u; info_num(c, v, " us"); break;
+    case 9: v = ua.cap_underruns; info_num(c, v, ""); break;
+    case 10: v = ua.cap_overruns; info_num(c, v, ""); break;
     default: v = ua.gap_n; info_num(c, v, ""); break;
     }
     c->col = WARN[i % INFO_UA] && v ? C_WARN : 0;

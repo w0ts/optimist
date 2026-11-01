@@ -306,7 +306,16 @@ static void mir_enc_blit(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const u
 #define IN_POOL                         /* (a host test: no pool section) */
 #endif
 enum { MIR_SEGW = 30, MIR_NSEG = 8 };
+#define MIR_SEG_BYTES (240u * MIR_NSEG * 4u)
+#if defined(MIR_LEND) && MIR_LEND
+/* lent with the mirror's Bluetooth ring (ed_mirror.c mir_lend: after the ring in its block, MIR_LEND_BYTES), 0 while it is
+ * not: nothing known, every segment sent (over USB the skip saves ~1 %; the whole-write cache me_rc stays) */
+static uint32_t (*me_seg)[MIR_NSEG];
+#define ME_SEG_OK() (me_seg != 0)
+#else
 static uint32_t me_seg[240][MIR_NSEG] IN_POOL;
+#define ME_SEG_OK() 1
+#endif
 static uint8_t me_known[240];                       /* bit s: the client holds segment s of the row as me_seg says */
 static uint32_t me_skipped;                          /* the segments not sent again (the host tests' count) */
 static uint32_t me_hash(const uint16_t *p, uint32_t n)   /* FNV-1a over the pixels */
@@ -398,7 +407,7 @@ static void me_learn(const uint16_t *px, uint32_t x, uint32_t y, uint32_t w, uin
     for (j = 0; j < h; j++)
         for (s = s0; s <= s1; s++) {
             uint32_t sx = s * MIR_SEGW;
-            if (sent && sx >= x && sx + MIR_SEGW <= x + w) {
+            if (sent && ME_SEG_OK() && sx >= x && sx + MIR_SEGW <= x + w) {
                 me_seg[y + j][s] = me_hash(px + j * w + (sx - x), MIR_SEGW);
                 me_known[y + j] |= (uint8_t)(1u << s);
             } else
@@ -460,7 +469,7 @@ static void mir_enc_fill_skip(uint32_t x, uint32_t y, uint32_t w, uint32_t h, ui
     for (j = y; j < y + h; j++)
         for (s = s0; s <= s1; s++) {
             uint32_t sx = s * MIR_SEGW;
-            if (me.ok && sx >= x && sx + MIR_SEGW <= x + w)
+            if (me.ok && ME_SEG_OK() && sx >= x && sx + MIR_SEGW <= x + w)
                 me_seg[j][s] = hs, me_known[j] |= (uint8_t)(1u << s);
             else
                 me_known[j] &= (uint8_t)~(1u << s);

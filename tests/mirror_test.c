@@ -213,15 +213,15 @@ static void mt_bt_idle(void);           /* (ed_mirror.c MBR_IDLE: a catch-up wai
 #define MT_POISON(p, n) ((void)(p), (void)(n))
 #define MT_UNPOISON(p, n) ((void)(p), (void)(n))
 #endif
-static uint8_t *mt_block;               /* the arena's stand-in block, MIR_BLE_RING bytes */
+static uint8_t *mt_block;               /* the arena's stand-in block, MIR_LEND_BYTES bytes (the ring and the segment hashes) */
 static void mt_lend(int on)             /* (core/arena_bufs.c arb_set: the interrupts off, then given back poisoned) */
 {
     if (on) {
-        MT_UNPOISON(mt_block, MIR_BLE_RING);
+        MT_UNPOISON(mt_block, MIR_LEND_BYTES);
         mir_lend(mt_block);
     } else {
         mir_lend(0);
-        MT_POISON(mt_block, MIR_BLE_RING);
+        MT_POISON(mt_block, MIR_LEND_BYTES);
     }
 }
 #else
@@ -1112,7 +1112,7 @@ int main(void)
 {
     uint32_t k;
 #if MIR_LEND
-    mt_block = malloc(MIR_BLE_RING);
+    mt_block = malloc(MIR_LEND_BYTES);
     mt_lend(1);                         /* (every test with the ring lent; lend_tests last) */
 #endif
     usb_tests();

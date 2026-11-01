@@ -39,6 +39,12 @@ static void fm6_service(void)                            /* main loop: a DX7 fra
     uint32_t i, kind = fm6_rx_ready;
     char nm[12];
     int p;
+#if FELUCCA_FX_ARENA
+    if (fm6_rx_nomem) {
+        fm6_rx_nomem = 0;
+        ui_message("FM6: NO FM6 TRACK");               /* (a bank: its block is FM6's, core/arena_bufs.c ARB_FM6SIN) */
+    }
+#endif
     if (!kind)
         return;
     RING_PUBLISH();                                      /* read the frame only after the flag */
@@ -59,7 +65,7 @@ static void fm6_service(void)                            /* main loop: a DX7 fra
             fm6_name(nm, fm6_ed[p]);
             ui_say("FM6 VOICE ", nm);
         }
-    } else if (fm6_chk(fm6_pick, 4096) == fm6_pick[4096]) {   /* 32 voices */
+    } else if (FM6_PICK_HAVE() && fm6_chk(fm6_pick, 4096) == fm6_pick[4096]) {   /* 32 voices */
         for (i = 0; i < 4096u; i++)
             fm6_pick[i] &= 0x7Fu;
         fm6_pick_ok = 1;

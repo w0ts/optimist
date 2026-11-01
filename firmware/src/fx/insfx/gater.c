@@ -119,7 +119,7 @@ static __attribute__((noinline)) void igt_block(ifx_gt_t *s, uint32_t shp, uint3
     o->sl = igt_slope(shp, o->inc);
 }
 /* a GATER with values p at depth a on n samples of l (r: a stereo owner's right, 0 a part) */
-static HOT2 __attribute__((noinline)) void ifx_gater(ifx_gt_t *s, const igt_par_t *p, int32_t a, int32_t *l, int32_t *r,
+static FAST2(ins) __attribute__((noinline)) void ifx_gater(ifx_gt_t *s, const igt_par_t *p, int32_t a, int32_t *l, int32_t *r,
                                                      uint32_t n)
 {
     igt_blk_t bk;

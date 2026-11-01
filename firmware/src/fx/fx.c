@@ -2186,6 +2186,21 @@ static uint32_t tcomp_gr_q4(uint32_t k)
 static volatile uint8_t scope_src;
 static __attribute__((noinline)) void vis_tap_block(const int32_t *l, const int32_t *r, uint32_t n);
 #define SCOPE_DR 4u
+/* The visualiser's ring (below, vis_tap_block). With the arena's buffers (FXM_NEED: core/arena_bufs.c ARB_VIS) a block
+ * of it lent only while something draws a trace: SCOPE shown, or the web editor's SCOPE asked in the last 2 s (op_scope.c
+ * scope_tick sets vis_ui); else 0, and the taps keep only each block's left peak (vis_bpk), which the mixer's MASTER
+ * meter reads instead (op_mixdraw.c mx_master_pk: the same peak over the last 736 frames, 23 blocks). The ISR reads the
+ * pointer once a tap; it is set and cleared with the interrupts off and given back two blocks later */
+#define VIS_RING 1024u                                  /* a multiple of CTL */
+#if FXM_NEED
+#define VIS_LEND 1
+static int32_t (*volatile vis_pcm)[VIS_RING];
+static volatile uint8_t vis_ui;                         /* the UI draws a trace (scope_tick): the ring wanted */
+static int32_t vis_bpk[VIS_RING / CTL];                 /* while not lent: block b's largest |left| (b = vis_wr / CTL) */
+#else
+#define VIS_LEND 0
+static int32_t vis_pcm[2][VIS_RING] __attribute__((section(".pool")));   /* (the pool: main RAM keeps the undo history) */
+#endif
 
 /* ---- DUST (an insert type since 2026-10-14, fx-rework: was the master's own): an old sampler and a record. Its amount
  * 0..127 turns up together: drive into a soft clip, a lower sample rate (held samples, 44.1 -> 11 kHz), fewer bits
@@ -2415,16 +2430,16 @@ static HOT2 __attribute__((noinline)) void dins_one(uint32_t k, uint32_t s, uint
     case FXT_DUST: dust_run(&st->u, a, b, 0, n); break;
 #endif
 #if FELUCCA_INS_FOLD
-    case FXT_FOLD: ifx_drive(&st->v, 0, a, b, n); break;
+    case FXT_FOLD: FAST_CALL(insx, ifx_drive)(&st->v, 0, a, b, n); break;
 #endif
 #if FELUCCA_INS_FUZZ
-    case FXT_FUZZ: ifx_drive(&st->v, 1, a, b, n); break;
+    case FXT_FUZZ: FAST_CALL(insx, ifx_drive)(&st->v, 1, a, b, n); break;
 #endif
 #if FELUCCA_INS_PHASER
-    case FXT_PHSR: ifx_phaser(&st->p, a, b, n, 3); break;
+    case FXT_PHSR: FAST_CALL(insx, ifx_phaser)(&st->p, a, b, n, 3); break;
 #endif
 #if FELUCCA_INS_FORMANT
-    case FXT_FRMT: ifx_formant(&st->m, a, b, n, 3); break;
+    case FXT_FRMT: FAST_CALL(insx, ifx_formant)(&st->m, a, b, n, 3); break;
 #endif
 #if IFX_DRV || IFX_MOD
     case FXT_SFLD: case FXT_WRAP: case FXT_RECT: case FXT_HARM: case FXT_RING: case FXT_SLEW:
@@ -2432,7 +2447,7 @@ static HOT2 __attribute__((noinline)) void dins_one(uint32_t k, uint32_t s, uint
             ifx_sh_run(&st->v, t, a, b, n);
         break;
 #endif
-    case FXT_EQ3: (void)eq3_run(&st->e, EQ3_VF(TRK_DRUM), a, b, 0, n); break;   /* (the drum track's bands) */
+    case FXT_EQ3: (void)FAST_CALL(insx, eq3_run)(&st->e, EQ3_VF(TRK_DRUM), a, b, 0, n); break;   /* (the drum track's bands) */
     default: break;
     }
     (void)st, (void)b, (void)n;
@@ -2779,23 +2794,23 @@ static HOT void mix_part(track_t *t, uint32_t n MIXACC_PARAM)
         t->peak = pk;
 #if FELUCCA_INS_WIDTH
         if (ifx_sd[(uint32_t)(t - trk) % NPART])        /* WIDE's side (insfx.c): after the level, L+ R- */
-            ifx_side_mix(ifx_side[(uint32_t)(t - trk) % NPART], lvl0, dl, ga, gb, MX(mix_l), MX(mix_r), n);
+            FAST_CALL(insx, ifx_side_mix)(ifx_side[(uint32_t)(t - trk) % NPART], lvl0, dl, ga, gb, MX(mix_l), MX(mix_r), n);
 #endif
 #if FELUCCA_INS_JCHORUS
         if (ifx_jsd[(uint32_t)(t - trk) % NPART])       /* JUNO CHORUS's side (fxi_kern.c): as WIDE's */
-            ifx_side_mix(ifx_jside[(uint32_t)(t - trk) % NPART], lvl0, dl, ga, gb, MX(mix_l), MX(mix_r), n);
+            FAST_CALL(insx, ifx_side_mix)(ifx_jside[(uint32_t)(t - trk) % NPART], lvl0, dl, ga, gb, MX(mix_l), MX(mix_r), n);
 #endif
 #if INS_REV
         if (ifx_rsd[(uint32_t)(t - trk) % NPART])       /* the REV insert's side (fxi_send.c): as WIDE's */
-            ifx_side_mix(ifx_rside[(uint32_t)(t - trk) % NPART], lvl0, dl, ga, gb, MX(mix_l), MX(mix_r), n);
+            FAST_CALL(insx, ifx_side_mix)(ifx_rside[(uint32_t)(t - trk) % NPART], lvl0, dl, ga, gb, MX(mix_l), MX(mix_r), n);
 #endif
 #if INS_CHO
         if (ifx_csd[(uint32_t)(t - trk) % NPART])       /* the CHO insert's side (fxi_send.c): as WIDE's */
-            ifx_side_mix(ifx_cside[(uint32_t)(t - trk) % NPART], lvl0, dl, ga, gb, MX(mix_l), MX(mix_r), n);
+            FAST_CALL(insx, ifx_side_mix)(ifx_cside[(uint32_t)(t - trk) % NPART], lvl0, dl, ga, gb, MX(mix_l), MX(mix_r), n);
 #endif
 #if FELUCCA_ENG_DRONE
         if (ENG_IS(ENGINES[t->engine % NENGINES], DRONE) && drone_sd[(uint32_t)(t - trk) % NPART])   /* DRONE's BEAT: */
-            ifx_side_mix(drone_side[(uint32_t)(t - trk) % NPART], lvl0, dl, ga, gb, MX(mix_l), MX(mix_r), n);   /* the ears' side */
+            FAST_CALL(insx, ifx_side_mix)(drone_side[(uint32_t)(t - trk) % NPART], lvl0, dl, ga, gb, MX(mix_l), MX(mix_r), n);   /* the ears' side */
 #endif
     }
 }
@@ -3147,15 +3162,26 @@ static int32_t master_cur = -1;                        /* the volume knob, rampe
  * mix, copied whole once a block (a word loop, both sides), as MASTER all the way up: after the buses and the master compressor, before the volume, the limiter and the knee (the
  * UI applies the knee). 1024 frames of each side: 23 ms at 44.1 kHz. In flash: called through FAR from the RAM code.
  * (A reader may see a block half written: a picture, not a measurement.) */
-#define VIS_RING 1024u                                  /* a multiple of CTL */
-static int32_t vis_pcm[2][VIS_RING] __attribute__((section(".pool")));   /* (the pool: main RAM keeps the undo history) */
 static volatile uint32_t vis_wr;
 static __attribute__((noinline)) void vis_tap_block(const int32_t *l, const int32_t *r, uint32_t n)
 {
+    int32_t (*const v)[VIS_RING] = vis_pcm;
     uint32_t i, w = vis_wr & (VIS_RING - 1u);
+#if VIS_LEND
+    if (!v) {                                           /* (no ring: the block's peak for the mixer's MASTER meter) */
+        int32_t pk = 0;
+        for (i = 0; i < n; i++) {
+            int32_t a = l[i] < 0 ? -l[i] : l[i];
+            pk = a > pk ? a : pk;
+        }
+        vis_bpk[(w / CTL) % (VIS_RING / CTL)] = pk;
+        vis_wr += n;
+        return;
+    }
+#endif
     for (i = 0; i < n; i++) {                           /* (words: libc.c's memcpy goes a byte at a time, 4x the cost) */
-        vis_pcm[0][w + i] = l[i];
-        vis_pcm[1][w + i] = r[i];
+        v[0][w + i] = l[i];
+        v[1][w + i] = r[i];
     }
     vis_wr += n;
 }
@@ -3163,34 +3189,42 @@ static __attribute__((noinline)) void vis_tap_block(const int32_t *l, const int3
  * after them less the mix before them; mark before the drums, take after (mix_block; nothing when not chosen) */
 static __attribute__((noinline)) void scope_drums_mark(uint32_t n)
 {
+    int32_t (*const v)[VIS_RING] = vis_pcm;
     uint32_t i, w = vis_wr & (VIS_RING - 1u);
+    if (!v)
+        return;
     for (i = 0; i < n; i++) {
-        vis_pcm[0][w + i] = -mix_l[i];
-        vis_pcm[1][w + i] = -mix_r[i];
+        v[0][w + i] = -mix_l[i];
+        v[1][w + i] = -mix_r[i];
     }
 }
 static __attribute__((noinline)) void scope_drums_take(uint32_t n)
 {
+    int32_t (*const v)[VIS_RING] = vis_pcm;
     uint32_t i, w = vis_wr & (VIS_RING - 1u);
-    for (i = 0; i < n; i++) {
-        vis_pcm[0][w + i] += mix_l[i];
-        vis_pcm[1][w + i] += mix_r[i];
-    }
+    if (v)
+        for (i = 0; i < n; i++) {
+            v[0][w + i] += mix_l[i];
+            v[1][w + i] += mix_r[i];
+        }
     vis_wr += n;
 }
 #define SCOPE_DRUMS(f) do { if (scope_src == SCOPE_DR) FAR(f)(n); } while (0)
 static HOT2 __attribute__((noinline)) void scope_ret_acc(const int32_t *l, const int32_t *r, uint32_t n, int32_t sg)
 {
+    int32_t (*const v)[VIS_RING] = vis_pcm;
     uint32_t i, w = vis_wr & (VIS_RING - 1u);
-    if (sg < 0)                                         /* (the mark: the block before the stage, taken off after it) */
+    if (!v)
+        ;                                               /* (no ring lent: the position alone) */
+    else if (sg < 0)                                    /* (the mark: the block before the stage, taken off after it) */
         for (i = 0; i < n; i++)
-            vis_pcm[0][w + i] = -l[i], vis_pcm[1][w + i] = -r[i];
+            v[0][w + i] = -l[i], v[1][w + i] = -r[i];
     else if (sg > 0)
         for (i = 0; i < n; i++)
-            vis_pcm[0][w + i] += l[i], vis_pcm[1][w + i] += r[i];
+            v[0][w + i] += l[i], v[1][w + i] += r[i];
     else
         for (i = 0; i < n; i++)
-            vis_pcm[0][w + i] = l[i], vis_pcm[1][w + i] = r[i];
+            v[0][w + i] = l[i], v[1][w + i] = r[i];
     if (sg >= 0)
         vis_wr += n;
 }

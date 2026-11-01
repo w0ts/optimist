@@ -74,6 +74,7 @@ static void mir_letgo(void)
     mir.master = 0;
 }
 #define MIR_SEEN() (mir.last_ms = fm1_ms)   /* (editor.c, ed_lite.c: each request that comes in) */
+static void mir_fix_ask(uint32_t lo, uint32_t hi);   /* (below: frames lo .. hi lost, the radio's interrupts or USB; used with and without BLE) */
 static void op_repaint(void);
 
 #if MIR_BLE
@@ -97,6 +98,11 @@ static void ed_handle(const uint8_t *f, uint32_t n);   /* (editor.c / ed_lite.c:
  * off (arb_set): the radio's never see it half there */
 static uint8_t *mbr_q;
 #define MBR_HAVE() (mbr_q != 0)
+#if MIR_SKIP
+#define MIR_LEND_BYTES (MIR_BLE_RING + MIR_SEG_BYTES)   /* (the ring, then the encoder's segment hashes: ed_mirror_enc.h me_seg) */
+#else
+#define MIR_LEND_BYTES MIR_BLE_RING
+#endif
 static uint32_t mbr_seen;               /* fm1_ms of the last request from Bluetooth (mbr_take, the radio's interrupts) */
 static uint8_t mbr_no;                  /* the question answered NO (or the mirror switched off for room): not wanted again
                                          * until the central has gone */
@@ -136,7 +142,6 @@ static int mbr_cmd_ok(uint32_t cmd)       /* the projects' moves: the backup's 4
 #else
 #define mbr_cmd_ok(cmd) 0
 #endif
-static void mir_fix_ask(uint32_t lo, uint32_t hi);   /* (below: frames lo .. hi lost, the radio's interrupts or USB) */
 static volatile uint8_t mbr_acked;       /* an ACK alone came (106 bits 5 and 6): the client is there, mir_poll */
 static uint8_t mbr_reply;                /* a reply being queued (mir_bt_reply): never held back by MIR_BLE_LAG, only a full ring
                                          * stops it (the user, 2026-10-31: INFO, PJ_OP and the library's replies were dropped 1 in 3
@@ -465,6 +470,10 @@ static int mir_lend_want(void)
 static void mir_lend(void *p)
 {
     mbr_q = (uint8_t *)p;
+#if MIR_SKIP
+    memset(me_known, 0, sizeof me_known);     /* (the hashes start again with the block, or are gone with it) */
+    me_seg = p ? (uint32_t (*)[MIR_NSEG])((uint8_t *)p + MIR_BLE_RING) : 0;
+#endif
     mbr.fw = mbr.w = mbr.r;
     mbr.base = mbr.r, mbr.pk = 0, mbr.mid = 0;
     if (mir.on && mir.link == MIR_BT)
