@@ -427,6 +427,47 @@ static void t_extras(void)
 }
 /* step conditions (FELUCCA_COND, Felucca 1.5.6): drum lane 0 on every step of 8, step 2 1:2, step 3 2:4, step 4 3:3,
  * step 5 1:2 + FILL ONLY, step 6 1:2 + chance 0; 24 passes */
+/* a drum lane's own fill condition (auto.h AUTO_LF_FILL / AUTO_LF_NOFILL, the AUTO_MUTE(l) event's value 2 / 3; the SEQ-held fill view): lanes 0 and 1 hit on
+ * every step of 8; lane 0's step 2 FILL ONLY, lane 1's step 2 NO FILL, lane 1's step 4 muted: out of a fill lane 0 skips step 2, in a fill lane 1 does;
+ * the other lane of the step plays as ever, the muted hit never; the condition is no mute (step_muted) */
+static uint32_t lane_hits_on(uint32_t lane, uint32_t step, uint32_t slen)
+{
+    uint32_t i, n = 0;
+    for (i = 0; i < nhits; i++)
+        n += hits[i].note == LANE_NOTE_OF(lane) && (hits[i].pos + slen / 2u) / slen % 8u == step;
+    return n;
+}
+static void t_lane_fill(void)
+{
+    uint32_t i, slen = BEAT_U / 4u, a0, a1, b0, b1, a4, b4;
+    reset();
+    TDRUM->p[P_SLEN] = 8;
+    for (i = 0; i < 8u; i++)
+        dstep_set(&TDRUM->dstep[i], 0, LV_NORM, 0), dstep_set(&TDRUM->dstep[i], 1, LV_NORM, 0);
+    check("lane fill: set, read back: FILL ONLY, NO FILL, normal, never a mute",
+          step_lane_fc_set(TDRUM, 2, 0, FC_FILL) && step_lane_fc(TDRUM, 2, 0) == FC_FILL && step_lane_fc_set(TDRUM, 2, 1, FC_NOFILL) &&
+          step_lane_fc(TDRUM, 2, 1) == FC_NOFILL && step_lane_fc(TDRUM, 3, 0) == FC_NORM && !step_muted(TDRUM, 2, 0) && !step_muted(TDRUM, 2, 1));
+    (void)step_mute_set(TDRUM, 4, 1, 1);
+    check("... a mute is a mute, not a condition; clearing a mute leaves a condition", step_muted(TDRUM, 4, 1) && step_lane_fc(TDRUM, 4, 1) == FC_NORM &&
+          (step_mute_set(TDRUM, 2, 0, 0), step_lane_fc(TDRUM, 2, 0) == FC_FILL));
+    transport_req = 1;
+    while (clk_beat < 16u)                            /* 8 passes, no fill */
+        run_block();
+    a0 = lane_hits_on(0, 2, slen), a1 = lane_hits_on(1, 2, slen), a4 = lane_hits_on(1, 4, slen);
+    seq_stop();
+    nhits = 0;
+    clk_beat = clk_pos = 0;
+    fill_held = 1;
+    transport_req = 1;
+    while (clk_beat < 16u)                            /* 8 passes, a fill held */
+        run_block();
+    b0 = lane_hits_on(0, 2, slen), b1 = lane_hits_on(1, 2, slen), b4 = lane_hits_on(1, 4, slen);
+    fill_held = 0;
+    seq_stop();
+    printf("auto: lane fills: step 2 lane 0 %u/%u lane 1 %u/%u, muted %u/%u\n", a0, b0, a1, b1, a4, b4);
+    check("lane fill: FILL ONLY plays only in a fill, NO FILL only out of one, per lane (the lane next to it plays always), a mute never",
+          a0 == 0u && b0 > 0u && a1 > 0u && b1 == 0u && lane_hits_on(0, 3, slen) > 0u && a4 == 0u && b4 == 0u);
+}
 static void t_cond(void)
 {
     static uint8_t b[AX_ENC_MAX];
@@ -714,6 +755,7 @@ int main(void)
     t_fills();
     t_chance();
     t_cond();
+    t_lane_fill();
     t_motn();
     t_extras();
     t_pattern();

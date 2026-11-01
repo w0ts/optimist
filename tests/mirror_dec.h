@@ -9,7 +9,22 @@ static struct {
     uint32_t x, y, w, h, at;            /* the BLIT's rectangle, the next pixel in it */
     uint16_t slot[7];
     uint32_t rr;
+    uint32_t seq, have_seq, broken;     /* checked frames (ops 8..10): the next seq; one seen; a MORE now would go astray */
+    uint32_t dropped;                   /* checked frames dropped (a bad sum, a MORE after a gap): the client asks a catch-up */
+    uint32_t fix_have, fix_lo[8], fix_hi[8];   /* the runs of seqs lost since the last ask, each asked alone (106 bit 4) */
 } md;
+static void md_lost(uint32_t lo, uint32_t hi)   /* (a run that goes on from the last: that one longer; else a run of its own) */
+{
+    if (md.fix_have && (lo & 127u) == ((md.fix_hi[md.fix_have - 1u] + 1u) & 127u)) {
+        md.fix_hi[md.fix_have - 1u] = hi & 127u;
+        return;
+    }
+    if (md.fix_have == 8u) {            /* (full: the last one reaches over, more than lost) */
+        md.fix_hi[7] = hi & 127u;
+        return;
+    }
+    md.fix_lo[md.fix_have] = lo & 127u, md.fix_hi[md.fix_have] = hi & 127u, md.fix_have++;
+}
 static uint32_t md_2(const uint8_t *p) { return p[0] | (uint32_t)p[1] << 7; }
 static void md_px(uint16_t c, uint32_t n)
 {
@@ -28,6 +43,35 @@ static int md_frame(const uint8_t *f, uint32_t n)
     op = f[5];
     i = 6;
     n--;                                /* (F7) */
+    if (op >= 8u && op <= 10u) {        /* checked: seq and the Fletcher sums A, B before F7 (ed_mirror_enc.h) */
+        uint32_t a = 0, b = 0, k, seq;
+        if (n < 9u) {
+            md.dropped++, md.broken = 1;
+            return 0;
+        }
+        for (k = 1; k < n - 2u; k++)
+            a += f[k], b += a;
+        seq = f[n - 3u];
+        if ((a & 127u) != f[n - 2u] || (b & 127u) != f[n - 1u]) {
+            md.dropped++, md.broken = 1;
+            return 0;
+        }
+        if (md.have_seq && seq != md.seq) {
+            if (((md.seq - seq) & 127u) - 1u < 32u)
+                return 0;               /* (a frame again, already had: nothing) */
+            md.dropped++, md.broken = 1;   /* (frames lost before this one: the picture is not whole) */
+            md_lost(md.seq, seq - 1u);
+        }
+        md.seq = (seq + 1u) & 127u, md.have_seq = 1;
+        if (op == 10u && md.broken) {
+            md.dropped++;
+            md_lost(seq, seq);
+            return 0;                   /* (its BLIT lost: it would paint into another rectangle) */
+        }
+        md.broken = 0;
+        op -= 8u;
+        n -= 3u;
+    }
     if (op <= 1u) {
         if (i + 8u > n)
             return 0;

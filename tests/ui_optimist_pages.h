@@ -570,8 +570,8 @@ static void pages_keys_tests(void)
         uint32_t f = 0, d = 0, h = 0, len = trk_len(TDRUM), w, edim = 0;
         keys_lit(&f, &d, &h);
         for (w = 0; w < 16u && w < len; w++)
-            edim |= (w == 2u || w == 3u) ? 0u : kw(w);
-        check((f & kws(0, 15)) == (kw(2) | kw(3)) && (d & kws(0, 15)) == edim, "STEP, the drum track, SEQ held: the steps with any lane set full (the selected lane's or not), the empty ones dim");
+            edim |= w == 2u ? 0u : kw(w);
+        check((f & kws(0, 15)) == kw(2) && (d & kws(0, 15)) == edim, "STEP, the drum track, SEQ held (the fill view): the selected lane's steps full, the empty ones dim (no more any lane's)");
     }
     release(B_SEQ);
     reset_ui();

@@ -134,7 +134,7 @@ static void tl_unlock_from(track_t *t, uint32_t len, const step_t *was)
 #if DLA_ON
                 (void)lane_step_drop(t, i, l);
 #endif
-                (void)step_mute_set(t, i, l, 0);        /* (the hit gone: its mute too) */
+                (void)step_lev_set(t, i, l, 0);         /* (the hit gone: its mute and fill condition too) */
             }
     }
     (void)l;
