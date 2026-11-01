@@ -22,16 +22,21 @@ struct MirrorDecoder {
     private(set) var lost = 0
     /// The kinds (the link's log): a sum failed, a gap in seq, a MORE dropped after one, a frame had already
     private(set) var lostSum = 0, lostGap = 0, lostMore = 0, again = 0
-    /// The seqs lost since `takeLost` (106 bit 4 with opti_mirfix_1: only their rectangles again)
-    private var fixLo: Int?, fixHi = 0
-    mutating func takeLost() -> (lo: Int, hi: Int)? {
-        guard let lo = fixLo else { return nil }
-        fixLo = nil
-        return (lo, fixHi)
+    /// The runs of seqs lost since `takeLost`, each asked for alone (106 bit 4 with opti_mirfix_1: only their rectangles again;
+    /// merging two runs would ask for the frames between them, which came whole)
+    private var fixRuns: [(lo: Int, hi: Int)] = []
+    mutating func takeLost() -> [(lo: Int, hi: Int)] {
+        defer { fixRuns = [] }
+        return fixRuns
     }
     private mutating func lostRange(_ lo: Int, _ hi: Int) {
-        if fixLo == nil { fixLo = lo & 127 }
-        fixHi = hi & 127
+        if let l = fixRuns.last, lo & 127 == (l.hi + 1) & 127 {
+            fixRuns[fixRuns.count - 1].hi = hi & 127
+        } else if fixRuns.count >= 8 {
+            fixRuns[fixRuns.count - 1].hi = hi & 127   // (many: the last reaches over, more than lost)
+        } else {
+            fixRuns.append((lo & 127, hi & 127))
+        }
     }
     static let checkedBit: UInt8 = 8
     static let fixBit: UInt8 = 16     // 106 bit 4: seq lo, hi follow (lost frames, opti_mirfix_1)
@@ -48,6 +53,18 @@ struct MirrorDecoder {
         guard f.count == 13 || f.count == 21, isMirror(f), f[5] == 3 else { return nil }
         let v = { (i: Int) in Int(f[i]) | Int(f[i + 1]) << 7 }
         return (v(6), v(8), v(10), f.count == 21 ? [v(12), v(14), v(16), v(18)] : [])
+    }
+
+    /// Op 5 STATS, after LINK with checked frames: whole panels for a lag, an ask, a repair's seq no longer known; the UI's pages
+    /// drawn whole; repaints in place for a lag; repairs; bytes sent; bytes within 100 ms of a repair (3 x 7 bit each, free-running)
+    static func stats(_ f: [UInt8]) -> [Int]? {
+        guard f.count == 31, isMirror(f), f[5] == 5 else { return nil }
+        var v: [Int] = []
+        for k in 0..<8 {
+            let lo = Int(f[6 + 3 * k]), mid = Int(f[7 + 3 * k]), hi = Int(f[8 + 3 * k])
+            v.append(lo | mid << 7 | hi << 14)
+        }
+        return v
     }
 
     static func isMirror(_ f: [UInt8]) -> Bool {
@@ -75,7 +92,7 @@ struct MirrorDecoder {
             haveSeq = true
             if op == 10 && broken {                              // (its BLIT lost: it would paint into another rectangle)
                 lost += 1; lostMore += 1
-                lostRange(fixLo ?? q, q)
+                lostRange(q, q)
                 return false
             }
             broken = false
