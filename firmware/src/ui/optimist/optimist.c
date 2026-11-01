@@ -22,11 +22,14 @@
  * op_song.c (SONG), op_combos.c (SAVE / SHIFT + a button), op_prjflow.c (PROJECT), op_project.c (SYSTEM), op_global.c (GLOBAL, GLO
  * tapped; the screen table),
  * op_graph.c (the forms of values, the SOUND graphs, the modal), op_preset.c (a preset named with its engine),
- * op_name.c (NAME: a user preset or a project named on the device), op_draw.c (the renderer, the mixer's strips),
+ * op_name.c (NAME: a user preset or a project named on the device), op_memlist.c (a load that does not fit the
+ * arena: the list of what to drop; page_owned: NAME or it), op_wifi.c (SYSTEM > WI-FI and its password entry; not in this list
+ * of includes: it drives the Wi-Fi manager, so felucca.c includes it after io/console.c; op_pwbuf.h is its pure text buffer), op_draw.c (the renderer, the mixer's strips),
  * op_edits.c (the sound's edits, the work changed: what a load asks),
  * op_gldraw.c (GLOBAL and SYSTEM's settings list), op_help.c (the help line on the screen's foot),
  * op_mixdraw.c (the mixer's rows: meters, steps), op_scope.c (SCOPE), op_stepdraw.c (STEP's
- * grid and roll), op_laydraw.c (a layer's map, the TEMPO and session-grid pictures), op_input.c (the panel, the
+ * grid and roll), op_laydraw.c (a layer's map, the TEMPO and session-grid pictures), op_keep.c (the cursor kept on its page
+ * by what the page is when pages come or go), op_input.c (the panel, the
  * entry points), op_keys.c (the keys' lights: full, dim, dark in every mode). After op_cells.c, op_fm6.c (FM6's operator editor: ENV held, the SOUND family) and after
  * op_laydraw.c its drawing, op_fm6draw.c. */
 #ifndef FELUCCA_BT_AUDIO
@@ -35,10 +38,20 @@
 #ifndef FELUCCA_BT_UI
 #define FELUCCA_BT_UI (FELUCCA_BLE || FELUCCA_BT_AUDIO)   /* SYSTEM > Bluetooth: with either (felucca.c; host tests here) */
 #endif
-#include "../colors.c"                  /* the colour language (engine, kit kind; the web editor's too) */
-#if FELUCCA_BRIGHT
-#include "../bright.c"                  /* the backlight level (main.c reads BL_DUTY, project.c bright_boot) */
+#if defined(FELUCCA_WIFI) && FELUCCA_WIFI && FELUCCA_BLE && ((FELUCCA_CDC && BLE_HW_WL82) || defined(WIFI_ON_FM1B))   /* (the
+                                         * manager is in the console, io/console.c; in the release fm1-base's own Wi-Fi
+                                         * stack: the trial's ui/opt_wifi.h defines WIFI_ON_FM1B) */
+#define WIFI_UI 1                       /* SYSTEM > WI-FI and the password entry (op_wifi.c, included late: felucca.c after the manager, io/console.c) */
+#else
+#define WIFI_UI 0
 #endif
+#if defined(FELUCCA_USB_HOST) && FELUCCA_USB_HOST && defined(OPT_HAS_USBH)   /* (the release: fm1-base's USB host, the trial's
+                                         * ui/opt_usbh.h defines OPT_HAS_USBH; Optimist's own firmware has none) */
+#define USBH_UI 1                       /* SYSTEM > USB: MODE DEVICE / HOST, the DEVICE line (op_project.c, usbh_*) */
+#else
+#define USBH_UI 0
+#endif
+#include "../colors.c"                  /* the colour language (engine, kit kind; the web editor's too) */
 #include "op_state.c"
 #include "op_names.c"             /* the names table: card labels, list cells, titles (one spelling each) */
 #if FELUCCA_MISSING_WARN
@@ -51,6 +64,7 @@
 #include "op_mixer.c"
 #include "op_tools.c"            /* STEP's TOOLS, GEN and GEN OUT pages (FELUCCA_SEQTOOLS, Felucca 1.5.6) */
 #include "op_step.c"
+#include "op_stepentry.c"         /* STEP ENTRY: a synth track's STEP stopped with REC armed (the cursor, the keys toggle notes) */
 #include "op_effval.c"
 #include "op_layers.c"
 #include "op_tempo.c"
@@ -59,12 +73,17 @@
 #include "op_song.c"
 #include "op_combos.c"
 #include "op_prjflow.c"            /* PROJECT: BANK / OPERATION / ITEM, the keys, the info panel */
+#if FELUCCA_SD_UI
+#include "op_sdcard.c"             /* SD card mode: PROJECT's lists of the card, banks of 16 (storage/sd/sd_mode.c) */
+#endif
 #include "op_project.c"
 #include "op_global.c"
 #include "op_graph.c"
 #include "op_preset.c"
 #include "op_name.c"
+#include "op_memlist.c"            /* a load that does not fit: the list of what to drop (docs/SD-MODE-DESIGN.md 6b) */
 #include "op_draw.c"
+#include "op_credits.c"            /* SYSTEM > CREDITS: the end titles, their crawl and KNOB 1 (drawn by op_gldraw.c) */
 #include "op_gldraw.c"
 #include "op_help.c"
 #include "op_mixdraw.c"
@@ -73,6 +92,7 @@
 #include "op_laydraw.c"
 #include "op_songtbl.c"            /* SONG: the scenes table and the parts timeline (the user, 2026-10-21) */
 #include "op_fm6draw.c"
+#include "op_keep.c"                 /* the cursor kept on its page when pages come or go (op_input.c op_rows_fix) */
 #include "op_input.c"
 #include "op_keys.c"
 #include "op_nav.c"                /* the mirror's touch navigation (ED_MIRROR: io/editor/ed_mirror.c 109 NAV) */

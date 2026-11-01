@@ -5,7 +5,7 @@
 #include "../core/knobcol.h"
 #if BP23_SET
 /* the settings SLOOP 2.3 made settings of the FM-1 (not of a project), one word: bit 9 the REC screen's MODE
- * TEMPO, bit 10 its START COUNT (FELUCCA_REC_MODES); bits 0..3 LIGHTS, 4..7 KEYS, 8 NOTES OFF (FELUCCA_LIGHTS).
+ * TEMPO, bit 10 its START COUNT (FELUCCA_REC_MODES); bits 0..3 LIGHTS, 4..7 KEYS, 8 NOTES OFF.
  * 0 = as before (a record without the word reads as 0). A build without a switch keeps its bits as read.
  * Bits 11..12 SYNC (G_SYNC xor SYNC_AUTO: a word with none reads AUTO, the default; the HOME menu's, device-wide, no
  * longer a project's), bit 14 MIDI OUT = SEQ, bit 15 MIDI IN = CLOCK (SLOOP 2.4's bits: FELUCCA_MIDI_OUT,
@@ -14,11 +14,11 @@
  * 2 500; shared with the main UI), bit 23 reserved (it was the Optimist UI's CARDS, 1 = 1x4, until 2026-10-12: no longer read nor written, kept as
  * read; the cards are always 2x2 but on the mixer), bit SETTINGS_BLE_ON_BIT (24) BLUETOOTH ON (ours, FELUCCA_BLE: the HOME menu's; 1 = ON, so a record without it,
  * or one 2.3 / 2.4 wrote, reads OFF, the default), bit 25 KNOB COLORS (core/knobcol.h knob_colors; not in a 2.4 export), bit
- * 26 CLOCK OUT (FELUCCA_MIDI_CLKOUT, io/midi/clock_out.c clko_on: 1 = ON, so a record without it reads OFF, the default;
+ * 26 CLOCK OUT (FELUCCA_MIDI_CLKOUT, io/midi/clock_out.c clko_on: 1 = ON, which of USB / BLE / BOTH is the record's clko_sel (project.c persist_ext_load), so a record without it reads OFF, the default;
  * not in a 2.4 export), bits 27..28 2ND CORE (FELUCCA_DUAL, system/dual_mode.h: 0 AUTO, 1 OFF; a record without them
- * reads AUTO, the default), bit 29 MIDI OUT's keys not sent (MOUT_SEQ, with bit 14; 0 with bit 14 = BOTH, 2.4's SEQ; not in a
+ * reads AUTO, the default), bit 29 MIDI OUT's keys not sent (MOUT_SEQ, with bit 14; 0 with bit 14 = BOTH, 2.4's SEQ; with bit 14 clear: OFF, MOUT_OFF, 2026-10-29; not in a
  * 2.4 export), bit 30 SYNC BLE (SYNC_BLE, past bits 11..12's four: those then read AUTO, so a build before it follows AUTO;
- * not in a 2.4 export), bit 31 free; a build without a switch keeps its bit as read */
+ * not in a 2.4 export), bit 31 free (SYNC LINK is the record's sync_sel, project.c persist_ext_load: 11..12 hold AUTO for it, so a build without Link or from before follows AUTO); a build without a switch keeps its bit as read */
 #ifndef SETTINGS_BLE_ON_BIT
 #define SETTINGS_BLE_ON_BIT 24u                    /* BLUETOOTH ON (FELUCCA_BLE): the one place to change it */
 #endif
@@ -30,18 +30,16 @@ static uint32_t bp23_word(void)
 #if FELUCCA_REC_MODES
     w = (w & ~(3u << 9)) | (uint32_t)(rec_tempo != 0u) << 9 | (uint32_t)(rec_count != 0u) << 10;
 #endif
-#if FELUCCA_LIGHTS
     w = (w & ~0x1FFu) | lights_word();
-#endif
 #if FELUCCA_MIDI_OUT
-    w = (w & ~(1u << 14)) | (uint32_t)(bp_set[BPS_MOUT] != MOUT_KEYS) << 14;   /* (SLOOP 2.4: the same bits: the sequencer out) */
-    w = (w & ~(1u << 29)) | (uint32_t)(bp_set[BPS_MOUT] == MOUT_SEQ) << 29;   /* (ours: the keys not) */
+    w = (w & ~(1u << 14)) | (uint32_t)(bp_set[BPS_MOUT] == MOUT_BOTH || bp_set[BPS_MOUT] == MOUT_SEQ) << 14;   /* (SLOOP 2.4: the same bits: the sequencer out) */
+    w = (w & ~(1u << 29)) | (uint32_t)(bp_set[BPS_MOUT] == MOUT_SEQ || bp_set[BPS_MOUT] == MOUT_OFF) << 29;   /* (ours: the keys not; OFF: bit 14 clear and this set, a build before reads KEYS) */
 #endif
     w &= ~(1u << 15);                               /* (the Optimist UI has no MIDI IN setting any more: the bit is free, notes always play) */
 #if FELUCCA_CDC
     w = (w & ~(1u << 16)) | (uint32_t)(usb_serial != 0u) << 16;
 #endif
-    w = (w & ~(3u << 11 | 1u << 30)) | (song.g[G_SYNC] == SYNC_BLE ? 1u << 30 : (((uint32_t)song.g[G_SYNC] & 3u) ^ SYNC_AUTO) << 11);
+    w = (w & ~(3u << 11 | 1u << 30)) | (song.g[G_SYNC] == SYNC_BLE ? 1u << 30 : (((uint32_t)(song.g[G_SYNC] == SYNC_LINK ? SYNC_AUTO : song.g[G_SYNC]) & 3u) ^ SYNC_AUTO) << 11);   /* (LINK: AUTO here, the record's sync_sel says LINK) */
     w = (w & ~(3u << 21)) | (uint32_t)(hold_sel % HOLD_N) << 21;
     /* bit 23: reserved, kept as read (bp23_kept): the Optimist UI's CARDS 1x4 / 2x2 until 2026-10-12, no longer read */
 #if FELUCCA_BLE
@@ -49,7 +47,7 @@ static uint32_t bp23_word(void)
 #endif
     w = (w & ~(1u << 25)) | (uint32_t)(knob_colors != 0u) << 25;       /* KNOB COLORS (core/knobcol.h) */
 #if FELUCCA_MIDI_CLKOUT
-    w = (w & ~(1u << 26)) | (uint32_t)(clko_on != 0u) << 26;           /* CLOCK OUT (io/midi/clock_out.c) */
+    w = (w & ~(1u << 26)) | (uint32_t)(clko_on != 0u) << 26;   /* (ON: BOTH, USB or BLE) */           /* CLOCK OUT (io/midi/clock_out.c) */
 #endif
 #if FELUCCA_DUAL
     w = dual_mode_out(w, dual_mode);                                   /* 2ND CORE (system/dual_mode.h) */
@@ -63,11 +61,9 @@ static void bp23_from_word(uint32_t w)
     rec_tempo = (uint8_t)((w >> 9) & 1u);
     rec_count = (uint8_t)((w >> 10) & 1u);
 #endif
-#if FELUCCA_LIGHTS
     lights_from_word(w);
-#endif
 #if FELUCCA_MIDI_OUT
-    bp_set[BPS_MOUT] = (int16_t)(!((w >> 14) & 1u) ? MOUT_KEYS : ((w >> 29) & 1u) ? MOUT_SEQ : MOUT_BOTH);   /* (2.4's SEQ: BOTH) */
+    bp_set[BPS_MOUT] = (int16_t)(!((w >> 14) & 1u) ? ((w >> 29) & 1u ? MOUT_OFF : MOUT_KEYS) : ((w >> 29) & 1u) ? MOUT_SEQ : MOUT_BOTH);   /* (2.4's SEQ: BOTH) */
 #endif
 #if FELUCCA_CDC
     usb_serial = (uint8_t)((w >> 16) & 1u);         /* (presented from the next start: usb_start) */

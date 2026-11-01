@@ -24,7 +24,7 @@
  *   the drum track        the lanes' black keys and the last upper key (ACCENT) dim, the selected one full, a lane hit
  *                         (or muted, would be) full ~50 ms (every page)
  *   chord mode (CHORD+)   a synth track with SCL > CHORD on: the 5 modifier black keys dim, the latched ones full
- *   STEP, SEQ held        the drum track: the steps with any lane set full, the empty ones inside LEN dim (SEQ + a step clears it)
+ *   STEP, SEQ held        the fill view (op_step.c step_fillview): the selected track's / lane's steps full, the empty ones inside LEN dim (SEQ + a step edits its fill)
  * Main loop only (ui_leds); nothing here runs in the audio interrupt. After op_input.c (op_t0, pick_mod). */
 static uint32_t keys_white(uint32_t n) { return keys_of(n < 16u ? (1u << n) - 1u : 0xFFFFu); }   /* the first n white keys (the tiles, the steps) */
 static uint32_t key_w(int32_t w) { return w >= 0 && w < 16 ? 1u << white_key((uint32_t)w) : 0u; }
@@ -85,10 +85,10 @@ static void keys_pat(uint32_t *f, uint32_t *d, uint32_t blink)       /* LFO held
         keys_pat_white(f, d, blink);
     for (k = 0; k < 27u; k++) {
         b = pat_black(k);
-        if (b < 1u || b > 10u || (b >= 6u && b <= 8u))
-            continue;                                   /* (6 7 8 were store, copy, clear: now SAVE + n, HOME + n) */
+        if (b < 1u || b > 10u || b == 7u || b == 8u)
+            continue;                                   /* (7 8 were copy, clear: now SAVE + n, HOME + n; 6 stops) */
         *d |= 1u << k;
-        if (b == song.sel % NTRK + 1u || b == lay.pmod)
+        if ((b <= 4u && (b == song.sel % NTRK + 1u || lay.pmod == 5u)) || b == lay.pmod)   /* (all tracks: 1-4 and 5 lit) */
             *f |= 1u << k;
     }
 }
@@ -179,6 +179,10 @@ static void keys_lit(uint32_t *f, uint32_t *d, uint32_t *h)
         *f = name_leds(d);
         return;
     }
+    if (ml_on()) {
+        *f = ml_leds(d);                                /* (the load's memory list: an item's key dim, a dropped one full) */
+        return;
+    }
     if (lay.shown == LY_OPS) {
         *f = fm6_keys_lit();
         *d = FM6_KEYS_FN;
@@ -218,7 +222,7 @@ static void keys_lit(uint32_t *f, uint32_t *d, uint32_t *h)
             *f = mute_mod(fm1_in.buttons) ? fm6_keys_off() : fm6_keys_at(f6_cur_row());
             return;
         }
-        if (ui.scr == SCR_STEP && step_keys(fm1_in.buttons)) {
+        if (ui.scr == SCR_STEP && step_keys(fm1_in.buttons) && !se_on()) {
             *f = step_leds(blink) & keys_white(16);     /* (STEP: its white keys stay its steps) */
             *d = step_dim();
         }
@@ -229,9 +233,13 @@ static void keys_lit(uint32_t *f, uint32_t *d, uint32_t *h)
         prj_keys_lit(f, d, blink);                      /* (the slots: used full, free dim, the selected one blinking) */
         return;
     }
+    if (ui.scr == SCR_STEP && step_save_keys()) {
+        *f = step_save_lit();                           /* (SAVE held, no note picked: the used pattern slots) */
+        return;
+    }
     if (ui.scr == SCR_STEP) {
         *f = step_leds(blink);
-        *d = step_keys(fm1_in.buttons) ? step_dim() : 0u;
+        *d = step_keys(fm1_in.buttons) && !se_on() ? step_dim() : 0u;   /* (STEP ENTRY: the keys a keyboard, no step dim) */
         if (is_drum(TSEL))
             for (k = 0; k < 27u; k++)                   /* (the lanes' black keys: dim, the selected one full) */
                 *d |= lane_key(k) ? 1u << k : 0u, *f |= lane_key(k) && lane_of(k) == lane_selected() ? 1u << k : 0u;
@@ -250,7 +258,7 @@ static void keys_lit(uint32_t *f, uint32_t *d, uint32_t *h)
         return;
     }
     if (keys_none())
-        return;                                         /* (GLOBAL, SYSTEM, MASTER FX, SCOPE: no track, the keys do nothing: dark) */
+        return;                                         /* (PROJECT, SONG: the keys have their own job: dark here) */
     if (is_drum(TSEL) && !master_sel()) {               /* the drum track: the lanes' black keys dim, the selected one full; */
         uint32_t in, on = step_win(blink, &in);         /* the white keys its steps, as on STEP (they are steps on every page) */
         for (k = 0; k < 27u; k++)

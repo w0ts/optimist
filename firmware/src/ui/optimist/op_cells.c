@@ -17,7 +17,7 @@ static int op_global_go(uint32_t id);                  /* op_screens.c: TOOLS' G
 
 typedef struct {
     const char *label;                  /* the card's label (0: an empty cell) */
-    char val[14];                       /* the value as text */
+    char val[WIFI_UI ? 16 : 14];        /* the value as text */
     const char *unit;
     uint8_t kind;                       /* CK_* */
     uint16_t col;                       /* the value's colour, 0 = the palette's */
@@ -28,6 +28,8 @@ typedef struct {
     int16_t gmin, gmax, gv;
     uint8_t ak;                         /* the actual value's bar (op_effval.c, the cards only): its form, GK_NONE none */
     int16_t amin, amax, av;             /* ... over amin..amax, at av */
+    uint8_t pkbar;                      /* 1: a read-out INFO draws with its bar (gmin..gmax at gv) and the peak-hold ticks: */
+    int16_t hold[2];                    /* ... the bright one, the dim one (INFO's CPU lines: the 10 s peak and the one since boot) */
     uint8_t dim;                        /* drawn dim: a slot with no instance left (fxi.c, FULL / in use) */
     const char *hlp;                    /* a help key (op_help.c, ctx INSERTS) before the label's: the limited types */
     const char *obj;                    /* an action's object on its card ("PROJECT"; the user, 2026-10-13: the card shows the verb) */
@@ -35,6 +37,9 @@ typedef struct {
     uint8_t strike;                     /* a muted row's volume card: label and value struck through (op_draw.c) */
     uint8_t big;                        /* a settings line: its value in the large face where it fits (op_gldraw.c) */
     uint8_t dr;                         /* the drum track's own value, shown with a drum lane picked: drawn tagged "DR" (op_draw.c) */
+#if WIFI_UI
+    uint8_t wide;                       /* a settings line's value of up to 15 characters, not 13 (WI-FI's address) */
+#endif
 } cell_t;
 
 static void cell_clear(cell_t *c)
@@ -42,7 +47,7 @@ static void cell_clear(cell_t *c)
     memset(c, 0, sizeof *c);
     c->unit = "";
 }
-static __attribute__((noinline)) void cell_val(cell_t *c, const char *s) { str_cpy(c->val, s, sizeof c->val); }   /* (42 sites) */
+static __attribute__((noinline)) void cell_val(cell_t *c, const char *s) { str_cpy(c->val, s, 14); }   /* (42 sites; 13 characters, the field of a WIFI_UI build too: WI-FI's SIGNAL fills it whole) */
 /* an action's card: the verb is its val when set, else its label (the list's narrow columns draw the label); the small
  * label above is obj, else the label over a val ("PANEL" over CALIBRATE), else none (op_draw.c act_text) */
 static void cell_act(cell_t *c, const char *obj, const char *label, const char *verb, uint32_t danger)
@@ -80,14 +85,15 @@ static void cell_gauge(cell_t *c, uint32_t list, int32_t min, int32_t max, int32
                                         : min < 0 && max > 0 ? GK_BIP : GK_BAR;
 }
 
-/* the gauge of a parameter at v. LFO RATE (-LSYNC_N .. 127): a free rate (0 .. 127) is the bar from 0; a synced value
- * (< 0, a division: 4BAR slowest .. 1/32) is the list form, one of ten cells lit, left to right slow to fast */
+/* the gauge of a parameter at v. LFO RATE (-LSYNC_N .. 127; a drum lane's and the kit's too): a free rate (0 .. 127) is
+ * the bar from 0; a synced value (< 0, a division: 16BAR slowest .. 1/64) is the list form, its place lit, left to right
+ * slow to fast (params.c lrate_rank: the stored order is not the length order past 4BAR) */
 static void cell_gauge_d(cell_t *c, const param_desc_t *d, int32_t v)
 {
-    if (!is_lrate(d) && d != &DLFO_DESC[DLF_RATE])   /* (a drum lane's LFO RATE: the same range, lane_play.c) */
-        cell_gauge(c, d->fmt == F_ENUM || d->fmt == F_ONOFF, d->min, d->max, v);
+    if (!is_lrate(d))
+        cell_gauge(c, d->fmt == F_ENUM || d->fmt == F_ONOFF, d->min, d->max, enum_rank(d, v));   /* (a listed order: the place) */
     else if (v < 0)
-        cell_gauge(c, 1, 0, LSYNC_N - 1, -v - 1);
+        cell_gauge(c, 1, 0, LSYNC_N - 1, lrate_rank(v));
     else
         cell_gauge(c, 0, 0, d->max, v);
 }
@@ -169,7 +175,22 @@ static void cell_param(cell_t *c, const param_desc_t *d, int16_t *vp)
     if (d >= FXS_DESC && d < FXS_DESC + FX_NSLOT) {     /* a master FX slot: its role in the unit's place (the user, */
         uint32_t t = fxs_slot[d - FXS_DESC];            /* 2026-10-12: "slot 1 is insert, right ? it is not clear"): */
         c->unit = t == FXT_CHO || t == FXT_DLY || t == FXT_REV ? "SEND" : t == FXT_NONE ? "" : "INS";   /* by type */
+#if FXM_NEED
+        if (fxm_refused(t)) {                           /* (its line refused by the arena: bypassed, kept, fx_arena.c) */
+            c->unit = "FULL";
+            c->dim = 1;
+            c->strike = 1;
+        }
+#endif
     }
+#if FXM_NEED && FELUCCA_FX_SLICER
+    if (d == &TP[P_SLCR] && arb_sl_refused(vp)) {       /* (STUT's recording refused by the arena: bypassed, kept,
+                                                         * core/arena_bufs.c) */
+        c->unit = "FULL";
+        c->dim = 1;
+        c->strike = 1;
+    }
+#endif
     cell_gauge_d(c, d, *vp);
 }
 
@@ -201,6 +222,9 @@ static int value_long(const param_desc_t *d, int32_t v, char *b)
 static uint32_t nb_kind(const track_t *t);              /* storage/nbank.c */
 static void nb_name(uint32_t kind, uint32_t k, char *nm);
 #endif
+#if FELUCCA_SD_UI
+static const char *sdm_part_name(uint32_t k);           /* (storage/sd/sd_mode.c: a card preset's name) */
+#endif
 static void snd_name(uint32_t c, char *b)
 {
     const track_t *t = &trk[c % NTRK];
@@ -217,6 +241,12 @@ static void snd_name(uint32_t c, char *b)
             nb_name(nb_kind(t), at, b);
             return;
         }
+    }
+#endif
+#if FELUCCA_SD_UI
+    if (!IS_DRUMK(c) && sdm_part_name(c)) {
+        str_cpy(b, sdm_part_name(c), 14);
+        return;
     }
 #endif
     if (IS_DRUMK(c))
@@ -509,6 +539,10 @@ static void op_dsnd_set(uint32_t id, int32_t v, int32_t steps)   /* as ui_drums.
             v = steps > 0 ? 4 : 0;
         if (!FELUCCA_DRUM_KITS && v > 3)
             v = 3;
+#if FELUCCA_SD_LANES
+        if (dl.src[l] == DL_CARD)
+            v = 0;                                      /* (off the card: KIT, dsnd_desc.c DSD_CARD) */
+#endif
         lane_set_src(l, dsnd_idx_src((uint32_t)v));   /* (an X0X voice: the lane takes its name) */
         ui.force = 1;
         break;
@@ -623,9 +657,10 @@ static void cell_lim_note(cell_t *c, uint32_t o, uint32_t t, uint32_t s, uint32_
     const char *v = 0;
     if (a == 0xFFu || cap == FXI_ANY || st == FXI_NA)  /* (a type not built: NA; built, cap 0: no room now, FULL) */
         return;
-    c->hlp = t == FXT_CHRS ? "CHRS" : t == FXT_JUNO ? "JUNO" : t == FXT_FLNG ? "FLNG" : "ECHO";
+    c->hlp = t == FXT_CHO ? "CHO" : t == FXT_JUNO ? "JUNO" : t == FXT_FLNG ? "FLNG" : t == FXT_REV ? "REV" :
+             t == FXT_DLY ? "DLY" : t == FXT_XDLY ? "XDLY" : "ECHO";
     if (st == FXI_OK) {
-        char nm[sizeof c->val];                         /* (the count before the name: "2/4 CHRS") */
+        char nm[sizeof c->val];                         /* (the count before the name: "2/4 CHO") */
         str_cpy(nm, c->val, sizeof nm);
         c->val[0] = (char)('0' + fxi_free(t)), c->val[1] = '/', c->val[2] = (char)('0' + cap), c->val[3] = ' ';
         str_cpy(c->val + 4, nm, sizeof c->val - 4u);
@@ -637,7 +672,8 @@ static void cell_lim_note(cell_t *c, uint32_t o, uint32_t t, uint32_t s, uint32_
         v = c->hlp;                                     /* (the effect's name, struck through like a muted track's text) */
         c->dim = 1;
         c->strike = 1;
-        c->hlp = t == FXT_CHRS ? "FULL CHRS" : t == FXT_JUNO ? "FULL JUNO" : t == FXT_FLNG ? "FULL FLNG" : "FULL ECHO";
+        c->hlp = t == FXT_CHO ? "FULL CHO" : t == FXT_JUNO ? "FULL JUNO" : t == FXT_FLNG ? "FULL FLNG" :
+                 t == FXT_REV ? "FULL REV" : t == FXT_DLY ? "FULL DLY" : t == FXT_XDLY ? "FULL XDLY" : "FULL ECHO";
     }
     str_cpy(lab[s & 1u], s ? "S2 " : "S1 ", sizeof lab[0]);
     str_cpy(lab[s & 1u] + 3, TP[a].label, sizeof lab[0] - 3u);
@@ -764,9 +800,21 @@ static int32_t len_pow2(int32_t v, int32_t s, int32_t min, int32_t max)
     return v;
 }
 static int len_cell(const param_desc_t *d) { return d == &TP[P_SLEN]; }   /* (the PATTERN row's LEN: SOUND, STEP) */
+/* an LFO's PHS (F_DEG: LFO's, LFO 2's, a lane's, the kit's), coarse (issue 129): a detent to the next / previous multiple
+ * of 16 (45 degrees) within 0..max, none past it (a knob does not wrap); from a value off the grid, the next grid value in
+ * the turn's direction (40: up 48, down 32) */
+static int32_t phs_snap(int32_t v, int32_t s, int32_t max)
+{
+    int32_t n;
+    for (; s > 0; s--)
+        v = (n = (v / 16 + 1) * 16) <= max ? n : v;
+    for (; s < 0; s++)
+        v = (n = v % 16 ? v / 16 * 16 : v - 16) >= 0 ? n : v;
+    return v;
+}
 
-/* a knob (fine: PRESETS, one unit a detent) or OP_RESET on page pg's value k. LEN moves in powers of two unless
- * fine or SHIFT (ui.shift, the LFO button held): then by one; every other value as ever */
+/* a knob (fine: PRESETS, one unit a detent) or OP_RESET on page pg's value k. LEN moves in powers of two and an LFO's
+ * PHS by 45 degrees unless fine or SHIFT (ui.shift, the LFO button held): then by one; every other value as ever */
 static void page_turn(const page_t *pg, uint32_t k, int32_t s, int fine)
 {
     int16_t *vp;
@@ -791,6 +839,8 @@ static void page_turn(const page_t *pg, uint32_t k, int32_t s, int fine)
     }
     if (len_cell(d))
         page_set(pg, k, vp, fine || ui.shift ? ui_clamp(*vp + s, d->min, d->max) : len_pow2(*vp, s, d->min, d->max), s);
+    else if (d->fmt == F_DEG)
+        page_set(pg, k, vp, fine || ui.shift ? ui_clamp(*vp + s, d->min, d->max) : phs_snap(*vp, s, d->max), s);
     else
         page_set(pg, k, vp, param_step(d, *vp, fine ? s : k_accel(k, s, d)), s);
 }
@@ -850,10 +900,7 @@ static int page_yes(uint32_t scr, uint32_t row, const page_t *pg, uint32_t k, ui
         uint32_t l = lane_selected();
         if (id == 15u) {                                /* RESET: the sound as the kit has it */
             fm1_irq_off();
-            memset(dl.ofs[l], 0, sizeof dl.ofs[l]);
-            dl.src[l] = DL_KIT;
-            memset(dl.ref[l], 0, sizeof dl.ref[l]);
-            dsend[l] = 0;
+            dsnd_reset(l);
             fm1_irq_on();
             ui_say("RESET ", LANE_NAME_OF(l));
         } else {

@@ -13,7 +13,7 @@
 //     links,      { install }: the installer's href (default ../installer/)
 //   }) -> { activate(), deactivate(), unmount(), busy }
 //
-// simAccess(): a Web MIDI access-like object with one port pair, "Optimist (sim)": the editor connects to it as to an
+// simAccess(): a Web MIDI access-like object with one port pair, "FM1-0000 (sim)": the editor connects to it as to an
 // FM-1 (web/editor.html: the device picker). The firmware's MIDI goes through it both ways, so the editor's pages,
 // Backup and Restore work with the simulator as with the FM-1: a backup made on one restores on the other.
 //
@@ -122,7 +122,7 @@ export async function clearFlash() {
 
 /* ------------------------------------------------------------------ the virtual MIDI device */
 /* one for the page: the editor may connect before or after the simulator starts (its port is "disconnected" then) */
-const PORT_NAME = "Optimist (sim)";
+const PORT_NAME = "FM1-0000 (sim)";
 let engine = null;                       /* the running simulator: { post(msg) } */
 const access = (() => {
   const input = { id: "optimist-sim-in", name: PORT_NAME, manufacturer: "Optimist", type: "input", state: "disconnected", connection: "closed",
@@ -504,7 +504,7 @@ export function mountSim(container, opts = {}) {
     say(TEXT.loadFinding);
     /* (the USB port before the Bluetooth one: an FM-1 paired over Bluetooth MIDI too shows both, the Bluetooth one first
        on a Mac, and only the USB one answers the editor's requests) */
-    const port = (m) => { const c = [...m.values()].filter((p) => /felucca|optimist/i.test(p.name || "") && p.state !== "disconnected");
+    const port = (m) => { const c = [...m.values()].filter((p) => /fm1-[0-9a-f]{4}|felucca|optimist/i.test(p.name || "") && p.state !== "disconnected");
       return c.find((p) => !/bluetooth/i.test(p.name || "")) || c[0]; };
     const input = port(acc.inputs), output = port(acc.outputs);
     if (!input || !output) throw new Error(TEXT.loadNoDevice);
@@ -582,7 +582,7 @@ export function mountSim(container, opts = {}) {
       const fm = await pjList(dev.client), sm = await pjList(sim);
       Object.assign(st.pj, { fm, sm, typed: false });
       if (mode === "get" && !fm.used.some(Boolean)) throw new Error(TEXT.pjNone);
-      el.pjPick.replaceChildren(...Array.from({ length: PJ_N }, (_, k) =>
+      el.pjPick.replaceChildren(...Array.from({ length: fm.count }, (_, k) =>
         h("option", { value: String(k), disabled: mode === "get" && !fm.used[k] }, pjLabel(k, fm.used[k], fm.names[k]))));
       el.pjPick.value = String(mode === "get" ? (fm.used[fm.open] ? fm.open : fm.used.indexOf(true)) : sm.open);
       el.pjPickLabel.textContent = mode === "get" ? TEXT.pjFrom : TEXT.pjTo;

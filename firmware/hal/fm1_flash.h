@@ -147,6 +147,21 @@ static RAMFN uint32_t fl_jedec_ram(void)                 /* expect 0x856014 */
     return id;
 }
 
+/* the part's factory unique ID (0x4B, four dummy bytes; the stock Puya P25Q80 gives 16 bytes, a Winbond-style part 8):
+ * dst (RAM) gets 16 bytes; the same on every read of the same part (the name "FM1-XXXX": system/devname.c). Far code
+ * like fl_jedec_ram: called with the interrupts off */
+static RAMFN int fl_uid_ram(uint8_t *dst)
+{
+    fl_saved_t s; uint32_t i;
+    if (fl_enter(&s)) return -2;
+    fl_cs(0);
+    for (i = 0; i < 5u; i++) fl_tx(i ? 0 : 0x4B);
+    for (i = 0; i < 16u; i++) dst[i] = fl_rx();
+    fl_cs(1);
+    fl_exit(&s);
+    return 0;
+}
+
 static RAMFN uint32_t fl_status_ram(void)                /* SR1 | SR2 << 8 */
 {
     fl_saved_t s; uint32_t v;
@@ -171,6 +186,29 @@ static RAMFN int fl_erase4k_ram(uint32_t off, uint32_t *took_us)
         rc = fl_wait_ready(500000u, took_us);     /* generic NOR max 400 ms */
     }
     fl_exit(&s);
+    return rc;
+}
+/* the loader's erase while it receives (ldr_core.c, the fast install): begin sends 20h and leaves the XIP off, as
+ * fl_erase4k_ram does while it waits; the loader runs from RAM and only polls USB until end, which waits the erase out
+ * and gives the XIP back. Between the two nothing may touch the flash */
+static RAMFN int fl_erase4k_begin_ram(uint32_t off, fl_saved_t *s)
+{
+    if (!FL_RANGE_OK(off, 0x1000u) || FL_SDK_SYS(off, 0x1000u) || (off & 0xFFFu))
+        return -1;
+    if (fl_enter(s)) return -2;
+    fl_wren();
+    if (!(fl_rdsr(0x05) & 2u)) {                  /* WEL did not set */
+        fl_exit(s);
+        return -3;
+    }
+    fl_cs(0); fl_tx(0x20); fl_addr(off); fl_cs(1);
+    fl_inval(off, 4096u);
+    return 0;
+}
+static RAMFN int fl_erase4k_end_ram(const fl_saved_t *s, uint32_t *took_us)
+{
+    int rc = fl_wait_ready(500000u, took_us);     /* generic NOR max 400 ms */
+    fl_exit(s);
     return rc;
 }
 #else
@@ -235,11 +273,11 @@ static RAMFN int fl_read_ram(uint32_t off, uint8_t *dst, uint32_t n)   /* 0x0B f
 static void fl_plain_window_init(void)
 {
     SFCENC_CON &= (uint8_t)~2u;
-    SFCENC_UNENC_L = FL_XIP(0x93000u);            /* 0x0208F000 */
+    SFCENC_UNENC_L = FL_XIP(FL_APP_HI);           /* 0x0208F000 (layout 1: 0x020CC000) */
     SFCENC_UNENC_H = 0x07FFFFFFu;
     SFCENC_CON |= 2u;
     __asm__ volatile("cli" ::: "memory");
-    fl_inval(0x93000u, 0x100000u - 0x93000u);     /* drop any decrypted lines */
+    fl_inval(FL_APP_HI, 0x100000u - FL_APP_HI);   /* drop any decrypted lines */
     __asm__ volatile("csync\n\tsti" ::: "memory");
 }
 
@@ -336,7 +374,7 @@ static int fl_erase4k_sliced(uint32_t off, uint32_t *took_us, int32_t *audio, ui
     FL_ESTAT(fl_erase_nosus += fl_erase_nosus < 0xFFu && j.nosus);
     if (j.held)
         FL_ERASE_HELD();
-    if (!rc && j.windows > 1u && !((SFCENC_CON & 2u) && off >= 0x93000u && fl_blank_xip(off))) {
+    if (!rc && j.windows > 1u && !((SFCENC_CON & 2u) && off >= FL_APP_HI && fl_blank_xip(off))) {
         fls_job_t k = { 0, quiet, quiet_n, 0, 0, 0, 0 };
         FL_ESTAT(fl_erase_redo += fl_erase_redo < 0xFFu);
         FL_ERASE_HELD();

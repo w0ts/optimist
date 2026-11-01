@@ -35,12 +35,22 @@
 #include "../../hal/fm1_flash_map.h"
 _Static_assert(OTA_AREA == FL_OTA_LO && OTA_AREA + OTA_AREA_LEN == FL_OTA_HI && !FL_NEVER(OTA_AREA, OTA_AREA_LEN) &&
                OTA_AREA >= FL_APP_HI, "the update staging: off the app slot and the SDK's sectors");
-#define OTA_FL_LEN FL_APP_HI                     /* flash.bin = [0, the app slot's end): the head and this board's app
-                                                  * area, what the update loader writes (ldr_core.c LDR_APP_HI) */
+/* flash.bin = [0, an app slot's end): the head and this board's app area in one of the MEMORY steps (fm1_steps.h
+ * FL_STEPS, from tools/flash_layout.py: every step's end, whatever step this build is), what the package's own update
+ * loader writes (ldr_core.c LDR_APP_HI) */
+static int ota_step_size(uint32_t n)                /* n is one step's flash.bin size */
+{
+#define OTA_STEP_END(l, e, r) if (n == (e)) return 1;
+    FL_STEPS(OTA_STEP_END)
+#undef OTA_STEP_END
+    return 0;
+}
 #define OTA_LDR_HCRC 0xEBAAu                     /* official update loader (usb_hid_ota.bin) */
 #define OTA_LDR_DCRC 0x5881u
 #define OTA_LDR_LEN 0x4DE1u
-#define OTA_FRAME_MAX 640u                       /* 512-B response = 605 wire bytes */
+#ifndef OTA_FRAME_MAX
+#define OTA_FRAME_MAX 640u                       /* 512-B response = 605 wire bytes (the loader: 4 KiB, OTA_FAST_CHUNK) */
+#endif
 
 static int ota_wire_send(const uint8_t *p, uint32_t n);
 static int ota_frame_get(const uint8_t **p, uint32_t *n);
@@ -179,12 +189,36 @@ static uint32_t ota_take(void)
     return d;
 }
 
-/* main loop, outside a session: answer handshakes */
+#ifdef OTA_FAST_CHUNK
+/* the fast install (the update loader only, docs/INSTALL-SPEED.md): a host that can serve OTA_FAST_CHUNK-byte reads and
+ * the per-sector table says so before the upgrade command, cmd 0x31 [version 1, its largest read, 16-bit LE]; we
+ * answer the same frame with our read size. A host that says nothing (every older one) gets today's protocol: 512-byte
+ * reads of the whole package twice. The word holds for the next session only */
+#define OTA_CMD_FAST 0x31u
+static uint8_t ota_fast;
+static void ota_fast_hello(void)
+{
+    uint8_t r[3];
+    if (ota_dec[6] != 1u || ota_rd16(ota_dec + 7) < OTA_FAST_CHUNK)
+        return;                                     /* another version, or reads too short: today's protocol */
+    ota_fast = 1;
+    r[0] = 1;
+    r[1] = (uint8_t)OTA_FAST_CHUNK;
+    r[2] = (uint8_t)(OTA_FAST_CHUNK >> 8);
+    ota_send_msg(OTA_CMD_FAST, r, 3);
+}
+#endif
+
+/* main loop, outside a session: answer handshakes (and, in the loader, the fast install's word) */
 static void ota_service(void)
 {
     uint32_t d = ota_take();
     if (d == 7u && ota_dec[2] == 0x11)
         ota_reply_identity();
+#ifdef OTA_FAST_CHUNK
+    else if (d == 10u && ota_dec[2] == OTA_CMD_FAST)
+        ota_fast_hello();
+#endif
 }
 
 /* one read request (3 tries x 5 s); data -> dst */
@@ -309,6 +343,8 @@ static int ota_body(uint32_t src, uint32_t len, uint8_t *b, int prog, uint32_t *
 }
 
 static uint8_t ota_staging;                      /* the staging area was erased in this session (ota_session) */
+static uint8_t ota_relayout;                          /* the package is another MEMORY step than this firmware's: the screen
+                                                  * warns (ota_show; the user, 2026-10-31: warn, never refuse) */
 
 static int ota_stage(void)                       /* steps 1..6; 0 = host said success */
 {
@@ -321,8 +357,11 @@ static int ota_stage(void)                       /* steps 1..6; 0 = host said su
         return rc;
     if (!fl_off || !ota_off)
         return -3;
-    if (fl_len != OTA_FL_LEN)
-        return -15;                                         /* another board's package: nothing erased */
+    if (!ota_step_size(fl_len))
+        return -15;                                         /* another board's package: nothing erased (any step's */
+                                                            /* size: the package's own loader writes it) */
+    ota_relayout = fl_len != FL_APP_HI;                     /* (another layout: its loader clears what the two keep */
+    ota_show(1, 0);                                         /* differently, docs/SD-MODE-DESIGN.md 9.3) */
     /* 2. which loader: the official one (known CRCs; it rewrites the whole flash.bin
      *    including the head) or Felucca's own (app area only, checks the chip key) */
     if (ota_read(ota_off, b, 512))
@@ -338,6 +377,8 @@ static int ota_stage(void)                       /* steps 1..6; 0 = host said su
         own = ota_memeq(b + i, (const uint8_t *)"FELUCCA-LOADER-1", 16) && ota_rd32(b + 0x20 + 4) <= 0x14000u;
     if (!official && !own)
         return -7;
+    if (official && fl_len != FL_APP_HI_NORMAL)
+        return -15;                    /* the official loader knows the normal layout only */
     if (official) {                    /* the official loader writes the head: it must equal ours */
         ota_show(2, 0);
         for (i = 0; i < 0x4000u; i += 512u) {
@@ -396,6 +437,7 @@ static int ota_session(void)
     int rc;
     ota_deadline = ota_now_ms() + 120000u;          /* step 1 normally takes ~5 s; a stalled host gives up after 2 min */
     ota_staging = 0;
+    ota_relayout = 0;
     rc = ota_stage();
     if (rc) {
         if (ota_staging)                            /* (refused before staging: nothing to erase) */

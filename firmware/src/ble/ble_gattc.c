@@ -17,7 +17,6 @@
 #include "ble_host.h"
 #include "ble_ll.h"
 #include "ble_util.h"
-#include "ble_diag.h"
 
 enum { G_IDLE, G_MTU, G_SVC, G_SVC_GRP, G_CHR, G_DSC, G_CCCD, G_READY, G_FAIL };
 enum { GE_AUTHEN = 0x05, GE_NOT_SUPP = 0x06, GE_KEY_SIZE = 0x0C, GE_NOT_FOUND = 0x0A, GE_ENC = 0x0F };
@@ -65,14 +64,12 @@ static void gc_req_range(uint8_t op, uint16_t s, uint16_t e, uint16_t type)
 static void gc_fail(uint8_t why, uint8_t code)
 {
     bgc.st = G_FAIL;
-    BLE_DG(ble_dgc.gc_state = G_FAIL);
     ble_central_gattc_fail(why, code);
 }
 
 static void gc_step(uint8_t st)
 {
     bgc.st = st;
-    BLE_DG(ble_dgc.gc_state = st);
 }
 
 static void gc_find_service(void)              /* Find By Type Value: primary service = the BLE-MIDI UUID */
@@ -118,8 +115,6 @@ static void gc_service(uint16_t s, uint16_t e)
 {
     bgc.svc_s = s;
     bgc.svc_e = e;
-    BLE_DG(ble_dgc.gc_svc_s = s);
-    BLE_DG(ble_dgc.gc_svc_e = e);
     bgc.val = 0;
     gc_chars(s);
 }
@@ -140,7 +135,6 @@ static void gc_chars_rsp(const uint8_t *p, uint16_t n)
         }
         if (!bgc.val && el == 21u && ble_eq(p + i + 5, GC_UUID_MIDI_IO, 16) && (p[i + 2] & 0x10u)) {
             bgc.val = v;                       /* (notify among its properties) */
-            BLE_DG(ble_dgc.gc_val = v);
         }
     }
     if (last >= bgc.svc_e || !last) {           /* the service's end */
@@ -163,7 +157,6 @@ static void gc_descs_rsp(const uint8_t *p, uint16_t n)
         last = ble_rd16(p + i);
         if (el == 4u && ble_rd16(p + i + 2) == 0x2902u) {
             bgc.cccd = last;
-            BLE_DG(ble_dgc.gc_cccd = last);
             gc_subscribe();
             return;
         }
@@ -192,12 +185,7 @@ static void gc_groups_rsp(const uint8_t *p, uint16_t n)
 static void gc_error(const uint8_t *p)
 {
     uint8_t code = p[4];
-    BLE_DG(ble_dgc.gc_errs++);
-    BLE_DG(ble_dgc.gc_last_err_op = p[1]);
-    BLE_DG(ble_dgc.gc_last_err_h = ble_rd16(p + 2));
-    BLE_DG(ble_dgc.gc_last_err = code);
     if (code == GE_AUTHEN || code == GE_ENC || code == GE_KEY_SIZE) {
-        BLE_DG(ble_dgc.gc_auth_errs++);
         if (ble_central_gattc_auth(code))
             bgc.wait_sec = 1;                  /* sent again once encrypted (ble_gattc_retry) */
         else
@@ -240,7 +228,6 @@ BLE_API void ble_gattc_reset(void)
 BLE_API void ble_gattc_start(void)
 {
     ble_gattc_reset();
-    BLE_DG(ble_dgc.gc_starts++);
     gc_step(G_MTU);
     bgc.req[0] = 0x02;
     ble_wr16(bgc.req + 1, BLE_ATT_MTU_MAX);
@@ -254,7 +241,6 @@ BLE_API void ble_gattc_retry(void)
     if (!bgc.wait_sec)
         return;
     bgc.wait_sec = 0;
-    BLE_DG(ble_dgc.gc_retries++);
     gc_send();
 }
 
@@ -269,9 +255,7 @@ BLE_API int ble_gattc_rx(const uint8_t *p, uint16_t n)
         if (op == 0x1Du) {
             static const uint8_t conf = 0x1E;
             ble_ll_send(L2CAP_CID_ATT, &conf, 1);
-            BLE_DG(ble_dgc.gc_ind_rx++);
-        } else
-            BLE_DG(ble_dgc.gc_ntf_rx++);
+        }
         if (n >= 3u && bgc.st == G_READY && ble_rd16(p + 1) == bgc.val)
             ble_att_midi_packet(p + 3, (uint16_t)(n - 3u));
         return 1;
@@ -293,7 +277,6 @@ BLE_API int ble_gattc_rx(const uint8_t *p, uint16_t n)
         if (n == 3u) {
             uint16_t m = ble_rd16(p + 1);
             ble_att_set_mtu(m < 23u ? 23u : m);
-            BLE_DG(ble_dgc.gc_mtu = ble_att_mtu());
         }
         gc_find_service();
         return 1;
@@ -317,7 +300,6 @@ BLE_API int ble_gattc_rx(const uint8_t *p, uint16_t n)
         return 1;
     case G_CCCD:                               /* Write Response: subscribed */
         gc_step(G_READY);
-        BLE_DG(ble_dgc.gc_subscribed++);
         ble_central_gattc_ready();
         return 1;
     default:
@@ -335,7 +317,6 @@ BLE_API void ble_gattc_event(uint32_t now)
         return;
     }
     if (bgc.t_req && now - bgc.t_req > BLE_GATTC_TIMEOUT_US) {
-        BLE_DG(ble_dgc.gc_timeouts++);
         gc_fail(BLE_CF_GATT, 0xFF);
     }
 }

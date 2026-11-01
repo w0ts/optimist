@@ -37,8 +37,17 @@ enum Nav {
     static let none = 127
     /// SONG's rows are its three views (Scenes, Song: the parts, Settings); row 3 its PATTERNS row (op_nav.c, a PATTERNS build)
     static let songPatterns = 3
-    /// Mixer row numbers (op_mixer.c MXR_*): 0 MASTER, 1..3 T1..T3, 4 DR, 5.. the drum lanes, then ACCENT
-    static let drumRow = 4
+    /// Mixer row numbers (op_mixer.c MXR_*): 0..2 RET A B C, 3 MASTER, 4..6 T1..T3, 7 DR, 8.. the drum lanes, then ACCENT
+    static let retRow = 0, masterRow = 3, t1Row = 4, drumRow = 7
+
+    /// The track bar from the FM-1's 4 TRACKS list (row numbers, in the order shown): the drum lanes alone on line 1; line 2 T1 T2 T3 DR,
+    /// then RET A B C and MASTER. The web editor's navBar is the same rule, both tested on Tests/Fixtures/nav_track_bar.json
+    static func bar(count n: Int) -> (lanes: [Int], bottom: [Int]) {
+        func rng(_ a: Int, _ z: Int) -> [Int] { a < min(z, n) ? Array(a..<min(z, n)) : [] }
+        return (rng(drumRow + 1, n), rng(t1Row, drumRow + 1) + rng(retRow, masterRow + 1))
+    }
+    /// The drum kit's lane names before the FM-1 has named them (drums.c LANE_DEF_INST)
+    static let defaultLanes = ["KICK", "SNARE", "CLAP", "CLOSED HAT", "OPEN HAT", "LOW TOM", "HI TOM", "RIM", "CRASH", "RIDE"]
 
     enum Op: UInt8 { case state = 0, row, track, open, tracks }
 }

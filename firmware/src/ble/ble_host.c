@@ -5,14 +5,12 @@
  *     signalling channel: our Connection Parameter Update Request and its response, Command Reject for every
  *     request we do not take (Part A 4);
  *   - SMP: ble_smp.c ("Pairing Not Supported", or legacy Just Works with BLE_SMP_LEGACY); the key slot the link
- *     layer's encryption asks (BLE_LL_ENC).
- * Every ATT, signalling and SMP PDU in and out goes into blell's protocol ring (ble_diag.h ble_diag_pdu). */
+ *     layer's encryption asks (BLE_LL_ENC). */
 #include "ble.h"
 #include "ble_host.h"
 #include "ble_ll.h"
 #include "ble_hw.h"
 #include "ble_util.h"
-#include "ble_diag.h"
 
 static struct {
     uint8_t rx[4 + BLE_ATT_MTU_MAX];           /* one L2CAP frame being reassembled */
@@ -25,8 +23,8 @@ static struct {
     uint32_t ask_us;
 } bhs;
 
-/* the advertised name and the GAP Device Name: BLE_DEVICE_NAME, then " XXXX" = the last four hex digits of the device
- * address (its two least significant octets, as an address is written: "Optimist A1B2" for ..:A1:B2; docs/
+/* the advertised name and the GAP Device Name: BLE_DEVICE_NAME BLE_NAME_SEP, then XXXX = the last four hex digits of the
+ * device address (its two least significant octets, as an address is written: "FM1-A1B2" for ..:A1:B2; docs/
  * BLE-DEVICES-DESIGN.md §1) */
 #define BLE_GAP_NAME_MAX 29u
 static struct {
@@ -36,13 +34,12 @@ static struct {
 
 static void gap_name(const uint8_t addr[6])
 {
-    static const char base[] = BLE_DEVICE_NAME, HEX[] = "0123456789ABCDEF";
+    static const char base[] = BLE_DEVICE_NAME BLE_NAME_SEP, HEX[] = "0123456789ABCDEF";
     uint32_t n = sizeof base - 1u;
-    if (n > BLE_GAP_NAME_MAX - (BLE_NAME_HEX ? 5u : 0u))
-        n = BLE_GAP_NAME_MAX - (BLE_NAME_HEX ? 5u : 0u);
+    if (n > BLE_GAP_NAME_MAX - (BLE_NAME_HEX ? 4u : 0u))
+        n = BLE_GAP_NAME_MAX - (BLE_NAME_HEX ? 4u : 0u);
     ble_cpy((uint8_t *)bgap.s, (const uint8_t *)base, n);
 #if BLE_NAME_HEX
-    bgap.s[n++] = ' ';
     bgap.s[n++] = HEX[addr[1] >> 4];
     bgap.s[n++] = HEX[addr[1] & 15u];
     bgap.s[n++] = HEX[addr[0] >> 4];
@@ -161,8 +158,6 @@ BLE_API void ble_sig_audio(int on)
     int sent;
     on = on != 0;
     bhs.audio = (uint8_t)on;
-    BLE_DG(ble_dg.sa_calls++, ble_dg.sa_on += (uint32_t)on, ble_dg.sa_iv = iv, ble_dg.sa_fast = bhs.fast,
-           ble_dg.sa_slow = bhs.slow);
 #if BLE_CENTRAL
     if (ble_ll_central())
         return;
@@ -177,7 +172,6 @@ BLE_API void ble_sig_audio(int on)
             (bhs.asked && ble_hw_time_us() - bhs.ask_us < BLE_SIG_AUDIO_RETRY_US))
             return;
         sent = sig_conn_params(BLE_CONN_AUDIO_MIN, BLE_CONN_AUDIO_MAX, BLE_CONN_AUDIO_TIMEOUT);
-        BLE_DG(ble_dg.sa_sent += (uint32_t)sent, ble_dg.sa_full += (uint32_t)!sent);
         if (!sent)
             return;
         bhs.asked = 1, bhs.ask_us = ble_hw_time_us();
@@ -192,7 +186,6 @@ BLE_API void ble_sig_audio(int on)
         return;
     }
     sent = sig_conn_params(BLE_CONN_MIN, BLE_CONN_MAX, BLE_CONN_TIMEOUT);
-    BLE_DG(ble_dg.sa_sent += (uint32_t)sent, ble_dg.sa_full += (uint32_t)!sent);
     if (sent)
         bhs.slow = 0;
 }
@@ -240,8 +233,6 @@ static void sig_rx(const uint8_t *p, uint16_t n)
 static void l2cap_frame(const uint8_t *f, uint16_t n)
 {
     uint16_t cid = ble_rd16(f + 2);
-    if (cid >= L2CAP_CID_ATT && cid <= L2CAP_CID_SMP)   /* (blell's protocol ring) */
-        ble_diag_pdu((uint8_t)(cid - 3u), f + 4, (uint32_t)(n - 4u));
     if (cid == L2CAP_CID_ATT)
         ble_att_rx(f + 4, (uint16_t)(n - 4u));
     else if (cid == L2CAP_CID_SIG)

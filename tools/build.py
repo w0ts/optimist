@@ -45,7 +45,10 @@ HOST_ENV = {"FELUCCA_SAMPLES_SKIP": "", "FELUCCA_SLICE": "0"}
 LDR = OUT / "loader"
 GEN_REL = GEN.relative_to(SRC).as_posix()       # (the tools run with cwd SRC: build/gen, or a slot's)
 sys.path.insert(0, str(SRC / "tools"))
+import farcalls  # noqa: E402  (RAM <-> XIP direct calls)
+import srcgit  # noqa: E402  (the tree's commit: OPTIMIST_COMMIT, or git when SRC is the repository)
 import fm1pkg_make  # noqa: E402
+import flash_layout  # noqa: E402  (the app slot's end by FELUCCA_LAYOUT: fm1_flash_map.h's numbers)
 import lz4blk  # noqa: E402
 import lzb  # noqa: E402  (the boot stream's coder: the RAM code, the tables and .data in flash)
 import toolchain as TC
@@ -64,6 +67,10 @@ CFLAGS = ["-Os", "-ffunction-sections", "-fno-builtin", "-Wall", "-Wno-unused-fu
 # each other, 111 and up 2-3 KB worse). Measured 2026-10-22: synth 563,608 -> 558,888 B of flash (RAM +112 B),
 # drum-machine 573,832 -> 569,944 (RAM -64 B); the same code, the globals laid out in blocks
 IR_FLAGS = ["-mllvm", "-global-merge-ignore-single-use=false", "-mllvm", "-pi32v2-merge-max-offset=63"]
+# the disassembly the checks read (the CPU1 stack, RAM code's calls, the ROM): the AC79's core with its FPU. Without
+# it the float instructions (3f e5 ..) are not decoded and their halves read as other ones (2026-10-29: 5,208
+# instructions of a JieLi build undecoded; with pi32v2-llvm's, phantom 'sp += -412' frames in the CPU1 stack estimate)
+OBJDUMP_CPU = "-mcpu=r3"
 LINE =re.compile(r"^\s*([0-9a-f]+):\s+((?:[0-9a-f]{2} )+)\s*\t(.*)$")
 
 SDK_SHA256 = TC.SDK_SHA256          # SDK files of AC79NN_SDK_V1.2.1_2023-12-13 (the tested version)
@@ -78,16 +85,18 @@ OPTIMIST_VERSION = (Path(__file__).resolve().parent.parent / "VERSION").read_tex
 MEASURE = False                     # --measure: link past the slot and the pool (sizes only, never a package)
 CFG_FLAGS = set()                   # the switches build/gen/felucca_config.h sets (the env loop below skips them)
 CFG_VALUES = {}                     # ... and their values
-# the budgets (bytes): the app slot, main RAM .data+.bss, the pool (and the spare build.py keeps), RAM code, noinit
-LIMITS = {"flash": 0x8DFBC, "ram": 96 * 1024, "pool": 0x54000, "pool_spare": 8192, "ramtext": 0x7F00,
-          "noinit": 0x3D50}
+INSTALL = {"bootloader": 0, "config": "default", "hash": ""}   # the install settings (no_image items) for the sidecar
+# the budgets (bytes): the app slot, the packed SRAM (app.ld: RAM code, .data/.bss, the pool; the spare build.py keeps
+# below the stacks), noinit
+LIMITS = {"flash": 0x8DFBC, "sram": 0x73F00, "sram_spare": 8192, "noinit": 0x3D50}
+MEASURE_SRAM = 0x180000             # the SRAM of a measurement link (sizes only: a pool of big lines still links)
 
 
 def backend():
     global BACKEND
     if BACKEND is None:
         try:
-            BACKEND = TC.resolve()
+            BACKEND = TC.resolve(compiler=TC.compiler_of(CFG_VALUES))
         except TC.ToolchainError as e:
             raise SystemExit(f"build: {e}")
     return BACKEND
@@ -206,17 +215,25 @@ def ldr_wrap(image):
     return ldr_head(crc16(body), 0x20, len(body), 0x41, LOADER_NAME) + body
 
 
+
+
+def layout():
+    """the build's flash layout (tools/flash_layout.py, the LAYOUT builder item)"""
+    return int(CFG_VALUES.get("FELUCCA_LAYOUT", os.environ.get("FELUCCA_LAYOUT", "0")))
+
+
 def build_loader():
     LDR.mkdir(parents=True, exist_ok=True)
     src = FW / "loader"
-    flags = [*CFLAGS, "-Ifirmware/hal", "-Ifirmware/src"]
+    flags = [*CFLAGS, "-Ifirmware/hal", "-Ifirmware/src", f"-DFELUCCA_LAYOUT={layout()}",   # (it writes that slot)
+             *(["-DFELUCCA_SDCARD=1"] if CFG_VALUES.get("FELUCCA_SDCARD") == 1 else [])]   # (its LCD idles as the app's)
     tc_all(("cc", "-c", src / "crt0_ldr.S", "-o", LDR / "crt0_ldr.o"),
            ("cc", *flags, "-c", src / "loader.c", "-o", LDR / "loader.o"))
     elf = LDR / "loader.elf"
     tc("pi32v2/bin/ld", "--gc-sections", "-e", "_start", "-T", src / "loader.ld",
        LDR / "crt0_ldr.o", LDR / "loader.o", "-o", elf)
     _, dis, hdr, syms = tc_all(("common/bin/objcopy", "-O", "binary", "-j", ".text", elf, LDR / "loader.bin"),
-                               ("common/bin/objdump", "-d", elf),
+                               ("common/bin/objdump", "-d", OBJDUMP_CPU, elf),
                                ("common/bin/objdump", "-h", elf),
                                ("common/bin/objdump", "-t", elf))
     (LDR / "loader.dis").write_text(dis)
@@ -242,8 +259,8 @@ def build_loader():
 ACID_CFLAGS = ["-O2", "-ffunction-sections", "-fno-builtin", "-Wall", "-Wno-unused-function", "-mcpu=r3", "-mfprev1",
                "-ffp-contract=off"]
 # the backported features' switches (firmware/src/core/backports.h; provenance and costs: tools/backports.json)
-BACKPORT_FLAGS = ("FELUCCA_CHANCE", "FELUCCA_KEYLIT", "FELUCCA_QNT_SEQ", "FELUCCA_SPRING", "FELUCCA_BASSPLUS",
-                  "FELUCCA_BRIGHT", "FELUCCA_MOTION", "FELUCCA_ENG_PHYS", "FELUCCA_ENG_ACID", "FELUCCA_ENG_CZ", "FELUCCA_ENG_JUNO",
+BACKPORT_FLAGS = ("FELUCCA_CHANCE", "FELUCCA_QNT_SEQ", "FELUCCA_SPRING",
+                  "FELUCCA_MOTION", "FELUCCA_ENG_PHYS", "FELUCCA_ENG_ACID", "FELUCCA_ENG_CZ", "FELUCCA_ENG_JUNO",
                   "FELUCCA_DRUM_X909", "FELUCCA_DRUM_X808", "FELUCCA_X909_CYM", "FELUCCA_X909_HAT", "FELUCCA_X0X_TANH")
 BACKPORT_FLAGS += ("FELUCCA_ENG_NOISE",)       # (the NOISE engine, engine 15: its own line, beside JUNO's 14)
 
@@ -254,8 +271,8 @@ def build_app():
                  "FELUCCA_ASM", "FELUCCA_ASM_CHECK",
                  "FELUCCA_USB_AUDIO", "FELUCCA_SIMD", "FELUCCA_SIMD_CHECK", "FELUCCA_SIMD_PROBE",
                  "FELUCCA_SIMD_PROBE_TEST", "FELUCCA_DRUM_EDIT", "FELUCCA_DRUM_USR", "FELUCCA_DRUM_KITS",
-                 "FELUCCA_KNOB_ACCEL", "FELUCCA_LCD_DIRTY", "FELUCCA_UNDO_HISTORY",
-                 "FELUCCA_REV_PROFILE", "FELUCCA_BLE", "FELUCCA_BLE_DIAG", "FELUCCA_BLE_BOND", "FELUCCA_BLE_CENTRAL",
+                 "FELUCCA_KNOB_ACCEL", "FELUCCA_UNDO_HISTORY",
+                 "FELUCCA_REV_PROFILE", "FELUCCA_BLE", "FELUCCA_BLE_BOND", "FELUCCA_BLE_CENTRAL",
                  *BACKPORT_FLAGS):
         v = os.environ.get(flag)    # unset: the default in firmware/src/felucca.c
         if v in ("0", "1") and flag not in CFG_FLAGS:
@@ -268,8 +285,21 @@ def build_app():
         flags += ["-DBLE_LL_ENC=1", "-DBLE_SMP_LEGACY=1"]
         flags += {"2": ["-DBLE_SMP_SEC_REQ=1"], "3": ["-DBLE_MIDI_NEED_ENC=1"]}.get(v, [])
     flags += ["-include", f"{GEN_REL}/felucca_config.h"]   # the builder's configuration (tools/builder)
+    # Wi-Fi: the builder item WIFI_LINK sets FELUCCA_WIFI and FELUCCA_LINK in the header (WIFI_AP: FELUCCA_WIFI_AP), no
+    # environment variable needed (2026-10-28). OPTIMIST_WIFI is the dev switch beside it: 2 the same slim build without
+    # the item (3: with MODE AP), 1 (also MODE AP) also the console's wifi test commands and the software CCMP (with the item on or off)
+    if os.environ.get("OPTIMIST_WIFI") in ("1", "2", "3"):
+        flags += ["-DFELUCCA_WIFI=1", "-DFELUCCA_LINK=1"]   # (LINK: SYNC LINK, clock_sync.c follows the session's MIDI clock, wifi/wifi_link.c)
+        if os.environ.get("OPTIMIST_WIFI") == "1":
+            flags += ["-DFELUCCA_WIFI_CON=1", "-DFELUCCA_WIFI_SWCCMP=1"]
+        if os.environ.get("OPTIMIST_WIFI") in ("1", "3"):
+            flags.append("-DFELUCCA_WIFI_AP=1")        # (MODE AP, wifi/wifi_apd.c; 1 = the dev build, 3 = the slim build with it)
     if os.environ.get("OPTIMIST_CDC_FORCE") == "1":   # (a debug build: the CDC console presented without USB SERIAL ON)
         flags.append("-DFELUCCA_CDC_FORCE=1")
+    if os.environ.get("OPTIMIST_MEMBENCH") == "1":    # (a bench build: the console's membench, io/console_mem.c)
+        flags.append("-DFELUCCA_MEMBENCH=1")
+    if os.environ.get("OPTIMIST_MUL64_CLEAR") == "1":   # (not FELUCCA_*: the builder strips those) the asm loops with no
+        flags.append("-DFELUCCA_MUL64_CLEAR=1")          # load beside a 64-bit multiply (hal/fm1_dsp_asm.h); unset: as before
     if os.environ.get("OPTIMIST_DUAL_PARK") in ("0", "1") and os.environ.get("FELUCCA_DUAL_PARK") is None:   # a DUAL build parks CPU1 (never started)
         flags.append(f"-DFELUCCA_DUAL_PARK={os.environ['OPTIMIST_DUAL_PARK']}")   # unless 0: a hardware test build (2026-10-15, dual_mode.h)
     if os.environ.get("OPTIMIST_DUALCFG") == "1":   # (the switchable second-core test image: the console's dualcfg)
@@ -316,15 +346,21 @@ def build_app():
         v = os.environ.get(flag)
         if v and v.isdigit() and int(v) < 128 and os.environ.get("FELUCCA_BENCH", "0") != "0":
             flags.append(f"-D{flag}={v}")
-    if os.environ.get("FELUCCA_BENCH") in ("10", "11", "12", "13", "14", "15", "16"):   # (bench.c scenarios 10..15: two digits, the loop below takes one)
+    if os.environ.get("FELUCCA_BENCH") in ("10", "11", "12", "13", "14", "15", "16", "18"):   # (bench.c scenarios 10..15: two digits, the loop below takes one)
         flags.append(f"-DFELUCCA_BENCH={os.environ['FELUCCA_BENCH']}")
     for flag, ok in (("FELUCCA_DUAL", "012"), ("FELUCCA_BENCH", "0123456789"), ("FELUCCA_BENCH_SAVE", "01"),
+                     ("FELUCCA_BENCH_SWAP", "01"),
                      ("FELUCCA_BENCH_MIX", "01"), ("FELUCCA_BENCH_COMP", "01"), ("FELUCCA_BENCH_REVONLY", "01"),
                      ("DUAL_REV", "01"),
                      ("FELUCCA_DUAL_IDLE", "01"), ("DUAL_PARTS", "01234567"), ("DUAL_FAILTEST", "01234567")):
         v = os.environ.get(flag)    # EXPERIMENTAL second core / emulator scenarios (docs/DUAL-CORE.md)
         if v is not None and len(v) == 1 and v in ok and flag not in CFG_FLAGS:
             flags.append(f"-D{flag}={v}")
+    v = os.environ.get("OPTIMIST_ARENA_BYTES")   # (EXPERIMENTAL, a measurement build, docs/SD-MODE-DESIGN.md 6b: the parts'
+    if v and v.isdigit() and int(v) > 0:         # arena placed by need, bytes; OPTIMIST_FX_ARENA=1 the effects' lines in it)
+        flags.append(f"-DFELUCCA_ARENA_BYTES={int(v)}u")
+        if os.environ.get("OPTIMIST_FX_ARENA") == "1":
+            flags.append("-DFELUCCA_FX_ARENA=1")
     flags.append(f'-DFELUCCA_ID="{PRODUCT}"')
     try:    # the commit the build comes from, for SYSTEM > ABOUT ("" outside a checkout)
         commit = subprocess.run(["git", "rev-parse", "--short=7", "HEAD"], cwd=FW, capture_output=True, text=True, check=True).stdout.strip()
@@ -365,6 +401,7 @@ def build_app():
         # the ACID engine's float DSP (firmware/src/engines/acid/, from X0X): its own unit, with X0X's FPU flags (the rest
         # of the firmware stays integer-only), -O2 as X0X builds it
         units.append(("cc", *ACID_CFLAGS, *(["-DFELUCCA_CPU_GUARD=1"] if CFG_VALUES.get("FELUCCA_CPU_GUARD") == 1 else []),
+                      f"-DFAST_RAM_acid={CFG_VALUES.get('FAST_RAM_acid', 0)}",   # (ACID "on, code in RAM": .ram_hot, core.h)
                       "-c", FW / "src" / "engines" / "acid" / "acid_dsp.c", "-o", OUT / "acid.o"))
         objs.append(OUT / "acid.o")
     (OUT / "a2m.o").unlink(missing_ok=True)
@@ -378,7 +415,8 @@ def build_app():
     (OUT / "p5.o").unlink(missing_ok=True)
     if CFG_VALUES.get("FELUCCA_ENG_PROPHET", 0) == 1 or os.environ.get("FELUCCA_ENG_PROPHET") == "1":
         # the PROPHET engine's voice (firmware/src/engines/prophet/p5_dsp.c, Melodee's): float, its own unit with the FPU flags
-        units.append(("cc", *ACID_CFLAGS, "-c", FW / "src" / "engines" / "prophet" / "p5_dsp.c", "-o", OUT / "p5.o"))
+        units.append(("cc", *ACID_CFLAGS, f"-DFAST_RAM_prophet={CFG_VALUES.get('FAST_RAM_prophet', 0)}", "-c",
+                      FW / "src" / "engines" / "prophet" / "p5_dsp.c", "-o", OUT / "p5.o"))
         objs.append(OUT / "p5.o")
     (OUT / "x0x.o").unlink(missing_ok=True)
     x0x = {f: CFG_VALUES.get(f, int(os.environ.get(f, d))) for f, d in
@@ -387,10 +425,30 @@ def build_app():
     if x0x["FELUCCA_DRUM_X909"] == 1 or x0x["FELUCCA_DRUM_X808"] == 1:
         # the X0X drum kits' float models (firmware/src/drums/x0x/, from X0X): their own unit with X0X's FPU flags, as
         # ACID's; the data headers from tools/gen_x0x_drums.py
+        # (the arena's extras, FX_ARENA: the machines' states placed in it, x0x_mem; as registry.h derives it: every
+        # build with an ARENA, 2026-10-29)
+        fx_arena = (CFG_VALUES.get("FELUCCA_ARENA_KB", 0) and CFG_VALUES.get("FELUCCA_FX_ARENA", 1)) or \
+            (os.environ.get("OPTIMIST_ARENA_BYTES", "").isdigit() and int(os.environ["OPTIMIST_ARENA_BYTES"]) > 0 and
+             os.environ.get("OPTIMIST_FX_ARENA") == "1")
         units.append(("cc", *ACID_CFLAGS, "-I" + GEN_REL, *(f"-D{k}={v}" for k, v in x0x.items()),
-                      *(["-DFELUCCA_CPU_GUARD=1"] if CFG_VALUES.get("FELUCCA_CPU_GUARD") == 1 else []), "-c",
+                      *(["-DFELUCCA_CPU_GUARD=1"] if CFG_VALUES.get("FELUCCA_CPU_GUARD") == 1 else []),
+                      *(["-DFELUCCA_FX_ARENA=1"] if fx_arena else []), "-c",
                       FW / "src" / "drums" / "x0x" / "x0x_drums.c", "-o", OUT / "x0x.o"))
         objs.append(OUT / "x0x.o")
+    for o in ("pff.o", "ff.o", "ffuni.o"):
+        (OUT / o).unlink(missing_ok=True)
+    if CFG_VALUES.get("FELUCCA_SDCARD", 0) == 1 or os.environ.get("FELUCCA_SDCARD") == "1":
+        # the card's filesystem, ChaN's, vendored, its own units at the firmware's flags; the card driver it calls
+        # (disk_*) is in felucca.c (storage/sd/sdcard.c): full FatFs (fatfs/ff.c + the code page's tables, ffunicode.c)
+        # in the big layout (LAYOUT 1: registry.h FELUCCA_SD_FATFS), else Petit FatFs (pff.c)
+        sd = FW / "src" / "storage" / "sd"
+        if layout() == 1:
+            units += [("cc", *flags, "-Os", "-c", sd / "fatfs" / "ff.c", "-o", OUT / "ff.o"),
+                      ("cc", *flags, "-Os", "-c", sd / "fatfs" / "ffunicode.c", "-o", OUT / "ffuni.o")]
+            objs += [OUT / "ff.o", OUT / "ffuni.o"]
+        else:
+            units.append(("cc", *flags, "-Os", "-c", sd / "pff.c", "-o", OUT / "pff.o"))
+            objs.append(OUT / "pff.o")
     tc_all(*units)
     subprocess.run([sys.executable, SRC / "tools" / "size_fns.py",
                     OUT / "felucca.ll", OUT / "felucca_size.ll"], check=True)
@@ -402,21 +460,33 @@ def build_app():
        OUT / "felucca_size.ll", "-o", OUT / "felucca.o")
     elf = OUT / "felucca.elf"
     ld = FW / "app.ld"
-    if MEASURE:                     # a measurement link: XIP and POOL larger than the chip has (not flashable)
+    slot = flash_layout.app_slot(layout())
+    LIMITS["flash"] = slot          # (the whole slot, the code's limit in every step: flash_layout.code_limit; no far
+                                    # probe since 2026-10-30)
+    ld_text = (FW / "app.ld").read_text()
+    normal = f"LENGTH = 0x{flash_layout.app_slot(0):X}"
+    if normal not in ld_text:
+        raise SystemExit(f"build: app.ld's XIP is not the normal slot ({normal}): tools/flash_layout.py and app.ld disagree")
+    if slot != flash_layout.app_slot(0):   # another step (tools/flash_layout.py STEPS): its XIP length, nothing else
+        ld_text = ld_text.replace(normal, f"LENGTH = 0x{slot:X}")
+        ld = OUT / "app_layout.ld"
+        ld.write_text(ld_text)
+        sync_view(ld)
+    if MEASURE:                     # a measurement link: XIP and SRAM larger than the chip has (not flashable)
         ld = OUT / "app_measure.ld"
-        ld.write_text((FW / "app.ld").read_text().replace("LENGTH = 0x8DFBC", "LENGTH = 0xEDFBC")
-                      .replace("ORIGIN = 0x01C00000, LENGTH = 0x7F00", "ORIGIN = 0x01C00000, LENGTH = 0xFF00")
-                      .replace("ORIGIN = 0x01C08000, LENGTH = 96K", "ORIGIN = 0x01C10000, LENGTH = 96K")
-                      .replace("LENGTH = 96K", "LENGTH = 128K")             # (RAM, POOL and NOINIT moved up:
-                      .replace("ORIGIN = 0x01C20000, LENGTH = 0x54000",    # addresses for sizes only)
-                               "ORIGIN = 0x01C30000, LENGTH = 0x80000")
-                      .replace("ORIGIN = 0x01C7C000", "ORIGIN = 0x01CB0000"))
+        meas = (ld_text.replace(f"LENGTH = 0x{slot:X}", f"LENGTH = 0x{slot + 0x60000:X}")
+                .replace("ORIGIN = 0x01C00100, LENGTH = 0x73F00", f"ORIGIN = 0x01C00100, LENGTH = {MEASURE_SRAM:#x}")
+                .replace("ORIGIN = 0x01C7C000", "ORIGIN = 0x01E00000")   # (NOINIT moved up: addresses for sizes only)
+                .replace('ASSERT(ORIGIN(SRAM) + LENGTH(SRAM) == _guard0', 'ASSERT(1'))
+        if meas.count(f"LENGTH = {MEASURE_SRAM:#x}") != 1 or "ORIGIN = 0x01E00000" not in meas:
+            raise SystemExit("build: app.ld changed: the measurement link's SRAM / NOINIT lines no longer match")
+        ld.write_text(meas)
         sync_view(ld)
     # --gc-sections: the units' functions nothing calls go (CFLAGS has -ffunction-sections; the X0X / ACID float
     # units export getters and renders this firmware never calls); crt0, the RAM code and the pool are KEEP in app.ld
     tc("pi32v2/bin/ld", "--gc-sections", "-T", ld, *objs, "-o", elf)
-    for sect in ("text.bin", "data.bin", "ramtext.bin", "ramhot.bin", "ramhot2.bin", "poolinit.bin"):
-        (OUT / sect).unlink(missing_ok=True)
+    for sect in ("text.bin", "data.bin", "ramtext.bin", "ramhot.bin", "ramhot2.bin", "poolinit.bin", "far.bin"):
+        (OUT / sect).unlink(missing_ok=True)     # (far.bin: an older build's far probe, retired 2026-10-30)
     *_, syms, dis, rt, hdr = tc_all(("common/bin/objcopy", "-O", "binary", "-j", ".text", elf, OUT / "text.bin"),
                                ("common/bin/objcopy", "-O", "binary", "-j", ".data", elf, OUT / "data.bin"),
                                ("common/bin/objcopy", "-O", "binary", "-j", ".ram_text", elf, OUT / "ramtext.bin"),
@@ -424,8 +494,8 @@ def build_app():
                                ("common/bin/objcopy", "-O", "binary", "-j", ".ram_hot2", elf, OUT / "ramhot2.bin"),
                                ("common/bin/objcopy", "-O", "binary", "-j", ".pool_init", elf, OUT / "poolinit.bin"),
                                ("common/bin/objdump", "-t", elf),
-                               ("common/bin/objdump", "-d", elf),
-                               ("common/bin/objdump", "-d", "-j", ".ram_text", elf),
+                               ("common/bin/objdump", "-d", OBJDUMP_CPU, elf),
+                               ("common/bin/objdump", "-d", OBJDUMP_CPU, "-j", ".ram_text", elf),
                                ("common/bin/objdump", "-h", elf))
     (OUT / "felucca.dis").write_text(dis)
 
@@ -448,6 +518,8 @@ def build_app():
     img += b"\xff" * (load - APP_XIP - len(img))
     img += stream
     img += b"\xff" * (-len(img) % 4)
+    global CODE_LEN
+    CODE_LEN = len(img)             # (the code and the boot stream: what the builder's flash budget counts)
     (OUT / "felucca.bin").write_bytes(img)
     return bytes(img), syms, dis, rt, hdr
 
@@ -465,9 +537,12 @@ def section_sizes(hdr):
 # objects whose size the builder's estimate computes rather than adds up (tools/builder/configure.py model_terms):
 # their real size goes into sizes.json "symbols" for tools/builder/measure_costs.py
 SIZED_SYMBOLS = ("part_mem",        # (engines.c: the synth parts' engine state, a union of the engines built)
-                 "arn_mem",         # (core/arena.c: the arena, ARENA KB, that holds those states instead)
+                 "arn_mem",         # (core/arena.c: where those states live now, NPART slots 8-aligned, or the ARENA)
                  "fxa_ins", "fxa_bm",   # (fxi_mem.h, fxi.c: the effects memory's own room, its units' bitmap)
-                 "ifx_chrs", "ifx_echo", "ifx_jcho", "ifx_flng", "ifx_xdly")   # (its instance tables)
+                 "ifx_choi", "ifx_echo", "ifx_jcho", "ifx_flng", "ifx_xdly", "ifx_room", "ifx_tdly")   # (its instance tables)
+
+
+CODE_LEN = None                     # (build_app: app.bin's code and boot stream; sizes() reports it)
 
 
 def sizes(img, syms, hdr):
@@ -479,8 +554,11 @@ def sizes(img, syms, hdr):
         mm = re.search(r"\s([0-9a-f]{8})\s+" + name + r"(\.\S+)?$", syms, re.M)
         return int(mm.group(1), 16) if mm else 0
     sec = section_sizes(hdr)
-    return {"flash": len(img), "ram": sym("_bss_end") - (0x01C10000 if MEASURE else 0x01C08000), "pool": sym("_pool_end") - sym("_pool_start"),
+    # (the parts keep their meaning from the fixed regions, costs.json compares them: "ram" = .ram_hot2 + .data + .bss,
+    # "ramtext" = .ram_text + .ram_hot; "sram" = what the packed region holds, alignment included)
+    return {"flash": CODE_LEN if CODE_LEN is not None else len(img), "ram": sym("_bss_end") - sym("_rh2_start"), "pool": sym("_pool_end") - sym("_pool_start"),
             "ramtext": sym("_rt_end") - sym("_rt_start") + sym("_rh_end") - sym("_rh_start"),
+            "sram": sym("_pool_end") - sym("_sram_org"),
             "noinit": sec.get(".noinit", 0), "limits": LIMITS,
             "symbols": {n: size_of(n) for n in SIZED_SYMBOLS}}
 
@@ -575,6 +653,8 @@ def cpu1_stack(dis):
             for part in m.group(1).split(","):
                 r = re.match(r"r(\d+)-r(\d+)", part.strip())
                 frames[fn] += 4 * (abs(int(r.group(1)) - int(r.group(2))) + 1 if r else 1)
+        elif re.search(r"\[--sp\] = rets\b", ln):     # (the one-register form, no braces: 4 B)
+            frames[fn] += 4
         m = re.search(r"\tsp \+= -(\d+)", ln)
         if m:
             frames[fn] += int(m.group(1))
@@ -673,60 +753,42 @@ def check(img, syms, dis, rt):
         errors.append(f".ram_text contains calls: {rt_calls[:3]}")
     else:
         notes.append(f".ram_text: {len([ln for ln in rt.splitlines() if LINE.match(ln)])} insns, no calls")
-    far = []
-    for ln in dis.splitlines():     # nothing may call or load an address in the chip ROM
-        mm = LINE.match(ln)
-        if not mm:
-            continue
-        for v in re.findall(r"= (-?\d+) <|call -?\d+ <[^:>]*: ([0-9a-f]+) >", mm.group(3)):
-            val = (int(v[0]) & 0xFFFFFFFF) if v[0] else int(v[1], 16) & 0xFFFFFFFF
-            if 0xFFC00000 <= val < 0xFFD00000:
-                errors.append(f"reference to ROM address {val:#010x}")
-        # a direct call between RAM code and XIP is out of reach (core.h HOT, FAR): the linker should
-        # refuse it; this catches one that wrapped instead. Target = pc + offset + 4 (also for the
-        # conditional form "if (..) { call N }", whose label is printed on the next line)
-        c = re.search(r"\bcall (-?\d+)\b", mm.group(3))
-        if c:
-            pc = int(mm.group(1), 16)
-            if (pc >= 0x02000000) != ((pc + int(c.group(1)) + 4) & 0xFFFFFFFF >= 0x02000000):
-                far.append(f"{pc:#x} -> {(pc + int(c.group(1)) + 4) & 0xFFFFFFFF:#x}")
+    import romref                   # nothing may call the chip ROM or use its addresses (tools/romref.py: a constant
+    for val in romref.rom_refs(dis):                            # kept as a number, e.g. pi32v2-llvm's, passes)
+        errors.append(f"reference to ROM address {val:#010x}")
+    far = farcalls.far_calls(dis)    # (tools/farcalls.py: a data word that looks like a call is not one)
     if far:
         errors.append(f"direct calls between RAM and XIP code: {far[:4]}")
     over = errors if not MEASURE else OVER       # a measurement build reports the overflow, it never ships
-    if len(img) > APP_SLOT:
+    if len(img) > LIMITS["flash"]:
         over.append(f"image {len(img)} B exceeds the app slot")
 
     def sym(name):
         mm = re.search(r"^([0-9a-f]+) .*\s" + name + r"$", syms, re.M)
         return int(mm.group(1), 16) if mm else 0
-    bss = sym("_bss_end") - (0x01C10000 if MEASURE else 0x01C08000)
-    pool = sym("_pool_end") - sym("_pool_start")
-    notes.append(f"image {len(img)} B; RAM .data+.bss {bss} B of 98304; pool {pool} B of {0x54000}")
-    notes.append(f"RAM code: .ram_text {sym('_rt_end') - sym('_rt_start')} B + .ram_hot "
-                 f"{sym('_rh_end') - sym('_rh_start')} B of {0x7F00}; .ram_hot2 "
-                 f"{sym('_rh2_end') - sym('_rh2_start')} B in RAM (counted in .data+.bss)")
-    rtext = sym("_rt_end") - sym("_rt_start") + sym("_rh_end") - sym("_rh_start")
-    if MEASURE and rtext > 0x7F00:                 # (a measurement link has a larger RAMTEXT)
-        over.append(f"RAMTEXT {rtext} B > {0x7F00} B")
-    if bss > 96 * 1024:
-        over.append("RAM region overflow")
+    used = sym("_pool_end") - sym("_sram_org")      # the packed SRAM (app.ld): RAM code, .data/.bss, the pool
+    sram_cap = LIMITS["sram"] - LIMITS["sram_spare"]
+    notes.append(f"image {len(img)} B; SRAM {used} B of {sram_cap} (+{LIMITS['sram_spare']} spare): RAM code "
+                 f"{sym('_rh2_end') - sym('_rt_start')} B (.ram_text {sym('_rt_end') - sym('_rt_start')}, .ram_hot "
+                 f"{sym('_rh_end') - sym('_rh_start')}, .ram_hot2 {sym('_rh2_end') - sym('_rh2_start')}), "
+                 f".data+.bss {sym('_bss_end') - sym('_data_start')} B, pool {sym('_pool_end') - sym('_pool_start')} B")
     burst = re.search(r"^([0-9a-f]+) .*\sfm1_rf_burst_run$", syms, re.M)   # a BLE build's radio start-up
     if burst and not sym("_rt_start") <= int(burst.group(1), 16) < sym("_rt_end"):
         errors.append("fm1_rf_burst_run is not in .ram_text: rf_init's group-5 burst must not fetch from flash "
                       "(hal/fm1_ble_rf.h FM1_RF_BURST_GROUPS)")
-    if 0x54000 - pool < 8192:                     # keep >= 8 KiB of the pool spare
-        over.append(f"pool headroom {0x54000 - pool} B < 8192 B")
+    if used > sram_cap:                            # keep the 8 KiB spare below the stacks
+        over.append(f"SRAM {used} B > {sram_cap} B (SRAM headroom {LIMITS['sram'] - used} B < {LIMITS['sram_spare']} B)")
     if sym("_undo_pool_lo") and re.search(r"\sundo_h(\.\S+)?$", syms, re.M):   # the undo history (undo.c)
         upool = max(0, sym("_undo_pool_hi") - sym("_undo_pool_lo"))
         uram = max(0, sym("_undo_ram_hi") - sym("_undo_ram_lo"))
         cap = os.environ.get("FELUCCA_UNDO_CAP", "")
         ring = min(upool + uram, int(cap)) if cap.isdigit() and int(cap) else upool + uram
-        notes.append(f"undo history ring {ring} B (pool {upool} B after the 8 KiB spare + main RAM {uram} B"
+        notes.append(f"undo history ring {ring} B (SRAM after the pool, less the 8 KiB spare"
                      + (f", cap {cap} B" if cap.isdigit() and int(cap) else "") + ")")
         if re.search(r"\sfm1_cache_set$", syms, re.M):   # EXPERIMENTAL CACHE_RAM (hal/fm1_cache.h)
             ucache = max(0, sym("_undo_cache_hi") - sym("_undo_cache_lo"))
-            notes.append(f"cache RAM: the undo ring's second part up to {ucache} B (CACHE_RAM ways x 4 KB) instead of main RAM's {uram} B when its "
-                         f"boot test passes (pool {upool} B + {ucache} B); the checks here count the fallback")
+            notes.append(f"cache RAM: the undo ring's second part up to {ucache} B (CACHE_RAM ways x 4 KB) when its "
+                         f"boot test passes ({upool} B + {ucache} B); the checks here count the ring without it")
         if ring < 1408:
             over.append(f"undo history ring {ring} B < 1408 B (FELUCCA_UNDO_HISTORY=0: the single level)")
     return errors, notes
@@ -740,7 +802,10 @@ def check(img, syms, dis, rt):
 #    mailbox, vectors), XIP 0x02000000-0x020FFFFF);
 #  - no inline asm, except the empty compiler barrier RING_PUBLISH() (emits no instruction);
 #  - no HAL register macro (a hal/ #define that is, or expands to, a volatile access).
-# Linker symbols (_bss_start[], _rt_load[], ...) are plain C objects and pass.
+# Linker symbols (_bss_start[], _rt_load[], ...) are plain C objects and pass. ChaN's FatFs (vendored, storage/sd/fatfs/:
+# a filesystem over disk_*, no hardware in it) is held to every rule but the literals: its UTF-16 code is full of 0x10000
+# (the BMP's end), which the literal rule reads as a core SFR (18 places, 2026-10-26)
+MMIO_LIT_VENDORED = ("src/storage/sd/fatfs/ff.c", "src/storage/sd/fatfs/ffunicode.c")
 MMIO_LIT = re.compile(r"\b0x0*(1[0-3][0-9a-f]{3}|4[0-3][0-9a-f]{3}|5[01][0-9a-f]{3}|1ee[0-9a-f]{4}|"
                       r"1c7f[0-9a-f]{3}|20[0-9a-f]{5})u?l?\b", re.I)
 MMIO_CAST = re.compile(r"\(\s*(?:const\s+)?volatile\b[^()]*\*\s*\)(?!\s*&)")
@@ -767,6 +832,8 @@ def mmio_check():
             where = f"{f.relative_to(FW)}:{no}"
             for rx, what in ((MMIO_LIT, "register/window address"), (MMIO_CAST, "volatile pointer cast"),
                              (MMIO_ASM, "inline asm")):
+                if rx is MMIO_LIT and f.relative_to(FW).as_posix() in MMIO_LIT_VENDORED:
+                    continue
                 m = rx.search(ln)
                 if m:
                     errors.append(f"{where}: {what} outside hal/ ({m.group(0).strip()}); add a hal/ helper")
@@ -794,6 +861,7 @@ def setup_config(path):
     CFG_VALUES.update(flags)
     os.environ.update(env)          # gen_samples.py: the sets, PERC, SLICE's BREAK
     print(f"config   {name}: hash {configure.cfg_hash(cfg):08x}")
+    INSTALL.update(bootloader=int(cfg.get("BOOTLOADER", 1)), config=name, hash=f"{configure.cfg_hash(cfg):08x}")
     return cfg, name
 
 
@@ -833,13 +901,8 @@ def ui_sidecar(fwsc):
     emulator's fm1-ui serves it beside the firmware (as rust-emulator/scripts/make-ui-sidecar.sh did by hand)"""
     out = fwsc.with_name(fwsc.stem + "-ui.zip")
     web = SRC / "web"
-    def git(*a):
-        try:                            # (no git: a tree from a zip, or Windows without git)
-            p = subprocess.run(["git", "-C", str(SRC), *a], capture_output=True, text=True)
-        except OSError:
-            return ""
-        return p.stdout.strip() if p.returncode == 0 else ""
-    commit, dirty = git("rev-parse", "HEAD") or "unknown", git("status", "--porcelain", "--", "web", "firmware")
+    commit = srcgit.commit(SRC) or "unknown"
+    dirty = srcgit.modified(SRC, "web", "firmware")
     cfg = (GEN / "felucca_config.h").read_text() if (GEN / "felucca_config.h").exists() else ""
     m = re.search(r'FELUCCA_CFG_NAME "([^"]*)"', cfg)
     h = re.search(r"FELUCCA_CFG_HASH (\d+)u", cfg)
@@ -885,9 +948,10 @@ def main():
 
     mark(1)
     env = dict(os.environ, AC79_SDK=str(a.sdk)) if a.sdk else os.environ
-    BACKEND, sdk = TC.preflight(env)     # Pillow, the toolchain, the SDK files: what is missing and how to get it
-    print(f"toolchain {BACKEND.describe()}")
-    setup_config(a.config)
+    setup_config(a.config)               # (first: its COMPILER item picks the toolchain)
+    compiler = TC.compiler_of(CFG_VALUES)
+    BACKEND, sdk = TC.preflight(env, compiler)     # Pillow, the toolchain, the SDK files: what is missing, how to get it
+    print(f"toolchain {BACKEND.describe()}" + (" (pi32v2-llvm)" if compiler == "llvm" else ""))
     VERSION = f"OPTIMIST {OPTIMIST_VERSION}"     # (the screen's version: ui.c's default says the same)
     name = "felucca.fwsc"                       # (the internal name tests and tools read; see release_name)
     if a.release:
@@ -929,7 +993,7 @@ def main():
         print(f"measure  {OUT / 'sizes.json'} (no package: a measurement build is not flashable)")
         return 0
     mark(5)
-    pkg = fm1pkg_make.ufw(fm1pkg_make.flash_image(img, fm1pkg_make.KEY), ota, PRODUCT)
+    pkg = fm1pkg_make.ufw(fm1pkg_make.flash_image(img, fm1pkg_make.KEY, flash_layout.app_hi(layout())), ota, PRODUCT)
     (OUT / name).write_bytes(pkg)
     att = SRC / "assets" / "samples-cc0" / "ATTRIBUTION.txt"
     if att.exists():
@@ -944,7 +1008,12 @@ def main():
         old.unlink()
     shutil.copy(OUT / name, named)
     shutil.copy(ui, named.with_name(named.stem + "-ui.zip"))
-    print(f"named    {named}  (+ {named.stem}-ui.zip)")
+    for old in OUT.glob("optimist-*.install.json"):
+        old.unlink()
+    import install_meta                           # (PACKAGE.install.json: the builder's BOOTLOADER beside each copy)
+    for pk in (OUT / name, named):
+        side = install_meta.write(pk, INSTALL["bootloader"], INSTALL["config"], INSTALL["hash"])
+    print(f"named    {named}  (+ {named.stem}-ui.zip, {side.name}: bootloader {install_meta.VALUES[INSTALL['bootloader']]})")
     return 0
 
 
@@ -962,14 +1031,8 @@ def release_name(release=None):
     """optimist-X.Y.fwsc for a release build, else optimist-X.Y-dev-<commit>.fwsc (-modified: uncommitted changes)"""
     if release:
         return f"optimist-{release}.fwsc"
-    def git(*args):
-        try:                            # (no git: a tree from a zip, or Windows without git)
-            r = subprocess.run(["git", "-C", str(SRC), *args], capture_output=True, text=True)
-        except OSError:
-            return ""
-        return r.stdout.strip() if r.returncode == 0 else ""
-    commit = git("rev-parse", "--short", "HEAD") or "local"
-    changed = git("status", "--porcelain", "--", "firmware", "tools", "web")
+    commit = srcgit.commit(SRC, short=True) or "unknown"
+    changed = srcgit.modified(SRC, "firmware", "tools", "web")
     return f"optimist-{OPTIMIST_VERSION}-dev-{commit}{'-modified' if changed else ''}.fwsc"
 
 

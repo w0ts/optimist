@@ -26,11 +26,16 @@
 #define FL_HITS(off, n, lo, hi) ((uint32_t)(off) < (hi) && \
                                  ((uint32_t)(n) > (lo) || (uint32_t)(off) > (lo) - (uint32_t)(n)))
 
-#define FL_APP_LO       0x00004000u                /* the app slot (fm1pkg_make.py FLASH_SIZE, ldr_core.c) */
-#define FL_APP_HI       0x00093000u
-#define FL_UPF_LO       0x00095000u                /* FELUCCA_UP_FM6: OBJ_UPFM6, A/B (storage.c, upreset.c) */
-#define FL_UPF_HI       0x00097000u
-#define FL_DATA_LO      0x00097000u                /* Felucca main store */
+/* The layout, the MEMORY step (docs/SD-MODE-DESIGN.md section 9): 0 normal; 1 more flash (L1), the app slot to 0xD0000
+ * over the user samples, the snapshots and the old project slots, the store squeezed into 0xD0000..0xD9FFF (the project
+ * log 0xD0000..0xD6FFF, autosave copy A 0xD7000, the presets' FM6 voices 0xD8000); 3 no user samples (S0), the app slot
+ * to 0xB5000, the FM6 voices 0xB5000, autosave copy A 0xB7000, the project log 0xB8000..0xD7FFF (32 sectors). Kits and
+ * presets where they were in every step. The numbers: fm1_steps.h, generated from tools/flash_layout.py STEPS (the one
+ * table: the build, the package, the loader, the installers). */
+#ifndef FELUCCA_LAYOUT
+#define FELUCCA_LAYOUT 0
+#endif
+#include "fm1_steps.h"
 #define FL_DATA_HI      0x000E0000u
 #define FL_OTA_LO       0x000E0000u                /* M-UPGRADE loader staging, ota.c */
 #define FL_OTA_HI       0x000E5000u

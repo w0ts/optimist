@@ -57,7 +57,7 @@ static void sq_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vm
         if (drv)
             y += (y * drv) >> 5;                           /* DRV: up to x5 into the knee below */
         y = soft_knee(y, 24000);                           /* bounded, whatever RES and DRV do */
-        out[i] += mulq15(mulq15(y, amp_at(m, i)), VOICE_FS);   /* [ENGINE] times the envelope, at a voice's level */
+        out[i] += VOICE_OUT(y, amp_at(m, i), 0);   /* [ENGINE] times the envelope, at a voice's level */
     }
     v->ph[0] = ph0, v->ph[1] = ph1, v->ph[2] = ph2;
     v->s[0] = ic1, v->s[1] = ic2, v->s[2] = rnd;
@@ -88,7 +88,7 @@ static const engine_t ENG_SQUARE = {
         PU("TRK", F_PCT, 0, 127, 64, 0),                /* the cutoff follows the key */
         PU("DRV", F_PCT, 0, 127, 0, 0),                 /* a soft drive after the filter */
     },
-    .presets = SQ_PRESETS,
+    .presets = PRESETS_PTR(SQ_PRESETS),
     .npresets = sizeof(SQ_PRESETS) / sizeof(SQ_PRESETS[0]),
     .note_on = sq_note_on,
     .render = sq_render,

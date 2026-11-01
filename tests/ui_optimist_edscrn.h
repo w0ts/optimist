@@ -6,7 +6,7 @@
  *   op 2   a turn (fine, a unit) moves the setting through the screen's own function; the reply is the line again
  *   op 3   YES on a destructive action asks (ask 1, the device's question) and does nothing until ok
  *   a bad screen or line: no reply
- * With -DEDSCRN_GOLDEN=1 (a build with the SYSTEM rows of LIGHTS, USB SERIAL, BRIGHT) the lines as JSON are compared with
+ * With -DEDSCRN_GOLDEN=1 (a build with the SYSTEM rows of LIGHTS, USB SERIAL) the lines as JSON are compared with
  * tests/scrn_table.json (EDSCRN_WRITE=1 rewrites it): the web editor's mock serves them (tools/gen_fxp_table.py). Included after
  * ui_optimist_glpages.h. */
 static uint8_t ed_out[900];
@@ -163,6 +163,11 @@ static void edtools_tests(void)
     q[0] = 6, q[1] = GT_EUCLID;                         /* (a type the build has not) */
     ed_begin(ED_TOOLS);
     ok &= !ed_tools(ED_TOOLS, q, 2);
+    {   /* (the selected slot's GRIDS at its defaults first, whichever test left it moved) */
+        gen_t g = *ng_cur();
+        g.type = g.type == GT_GRIDS ? (uint8_t)GT_EUCLID : g.type;   /* (op 6: another type than the slot's, its defaults) */
+        ng_put(&g);
+    }
     q[0] = 6, q[1] = GT_GRIDS;
     ed_begin(ED_TOOLS);
     r = ed_tools(ED_TOOLS, q, 2);
@@ -340,6 +345,7 @@ static void edscrn_tests(void)
         char *a = malloc(1u << 20), *b = malloc(1u << 20);
         long na, nb = -1;
         int first = 1;
+        settings.lowcut = oc_set_word(oc_word(1u, 0u));         /* (SPK LOWCUT ON, HPHN BASS OFF, the first start's: a random run before leaves them as its path went, and the mock's value list follows the value) */
         fprintf(f, "{\"lines\": [\n");
         for (s = 0; s < 2u; s++)
             for (i = 0; i < gl_n(s); i++) {

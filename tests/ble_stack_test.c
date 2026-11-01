@@ -18,20 +18,25 @@
  *   channel map   with an instant; an instant already passed: connection lost (0x28)
  *   endings       the central's TERMINATE_IND, ours (acknowledged), supervision timeout, no packet in six
  *                 intervals (0x3E), a 40 s procedure timeout (0x22); advertising again after each
- *   L2CAP         frames over many fragments both ways, Command Reject for unknown signalling; blell's protocol
- *                 ring; SMP (BLE_SMP_LEGACY=1: a Mac-like legacy Just Works pairing, the bond on reconnection), else Pairing Not
- *                 Supported to a Pairing Request */
+ *   L2CAP         frames over many fragments both ways, Command Reject for unknown signalling; a request and
+ *                 its response in order; SMP (BLE_SMP_LEGACY=1: a Mac-like legacy Just Works pairing, the bond on
+ *                 reconnection), else Pairing Not Supported to a Pairing Request */
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 #include "../firmware/src/ble/ble_prim.c"
 #include "../firmware/src/ble/ble_aes.c"
+/* every ending's reason: the link layer's one call up (ll_close -> ble_host_disconnected) goes through the test's
+ * tap_disconnected, which records it and calls the host's own (the macro covers ble_ll.c alone) */
+#include "../firmware/src/ble/ble_ll.h"
+static void tap_disconnected(uint8_t reason);
+#define ble_host_disconnected(reason) tap_disconnected(reason)
 #include "../firmware/src/ble/ble_ll.c"
+#undef ble_host_disconnected
 #include "../firmware/src/ble/ble_smp.c"
 #include "../firmware/src/ble/ble_host.c"
 #include "../firmware/src/ble/ble_att.c"
 #include "../firmware/src/ble/ble_midi.c"
-#include "../firmware/src/ble/ble_diag.c"
 #include "../firmware/src/ble/ble_store.c"   /* (the stack's plain parts: built here too) */
 #if BLE_CENTRAL
 #include "../firmware/src/ble/ble_scan.c"
@@ -44,6 +49,26 @@ static void check(const char *what, int ok)
 {
     printf("%-72s %s\n", what, ok ? "ok" : "FAIL");
     fails += !ok;
+}
+
+/* what the test itself counts over the whole run (never reset by a reconnection): the endings and their reasons,
+ * the CONNECT_INDs connect() made and the stack took, and what the simulated central sent and got by kind */
+static struct {
+    int disc_n;
+    uint8_t disc_why[64];                       /* each ending's reason, in order */
+    int cind_sent, cind_taken;                  /* connect(): CONNECT_INDs given to the stack, taken */
+    int ctl_to_p[256], ctl_from_p[256];         /* LL control PDUs by opcode: the central's (c_ctrl), ours */
+    int ctl_to_n, ctl_from_n;
+    uint8_t ctl_from_last;                      /* the peripheral's last control opcode */
+    int l2_to_p[8], l2_from_p[8];               /* L2CAP frames by CID (4 ATT, 5 signalling, 6 SMP), each way */
+    int att_wcmd_to_p, att_ntf_from_p;          /* of them: the central's Write Commands, our notifications */
+    int pdus_from_p;                            /* every PDU the peripheral sent */
+} tot;
+static void tap_disconnected(uint8_t reason)
+{
+    tot.disc_why[tot.disc_n % 64] = reason;
+    tot.disc_n++;
+    ble_host_disconnected(reason);
 }
 
 /* ------------------------------------------------------------------------------------- the fake driver */
@@ -124,7 +149,6 @@ void ble_hw_set_lengths(uint8_t max_tx, uint8_t max_rx)
 }
 void ble_hw_tx_kick(void) { hw.kicks++; }
 uint32_t ble_hw_time_us(void) { return now_us; }
-uint32_t ble_hw_diag_now(void) { return now_us; }
 uint8_t ble_hw_addr(uint8_t addr[6])
 {
     static const uint8_t a[6] = {0x11, 0x22, 0x33, 0x44, 0x55, 0xC6};
@@ -228,11 +252,18 @@ static void c_pdu(uint8_t llid, const uint8_t *p, int n)
         q[1] = (uint8_t)(n + 4);
     }
 }
-static void c_ctrl(const uint8_t *p, int n) { c_pdu(3, p, n); }
+static void c_ctrl(const uint8_t *p, int n)
+{
+    tot.ctl_to_p[p[0]]++;
+    tot.ctl_to_n++;
+    c_pdu(3, p, n);
+}
 static void c_l2cap(uint16_t cid, const uint8_t *p, int n)
 {
     uint8_t f[600];
     int off = 0;
+    tot.l2_to_p[cid & 7]++;
+    tot.att_wcmd_to_p += cid == 4 && n && p[0] == 0x52;
     f[0] = (uint8_t)n, f[1] = (uint8_t)(n >> 8), f[2] = (uint8_t)cid, f[3] = (uint8_t)(cid >> 8);
     memcpy(f + 4, p, n);
     while (off < n + 4) {
@@ -246,6 +277,7 @@ static void c_take(uint8_t *pdu, int len)
 {
     uint8_t llid = pdu[0] & 3, n = pdu[1], *p = pdu + 2;
     C.pdus++;
+    tot.pdus_from_p++;
     memcpy(C.last_pdu, pdu, len);
     C.last_pdu_len = len;
     if (C.enc && n) {
@@ -259,6 +291,11 @@ static void c_take(uint8_t *pdu, int len)
     if (llid == 3) {
         memcpy(C.ctrl[C.ctrl_n % 64], p, n < 32 ? n : 32);
         C.ctrl_n++;
+        if (n) {
+            tot.ctl_from_p[p[0]]++;
+            tot.ctl_from_n++;
+            tot.ctl_from_last = p[0];
+        }
         return;
     }
     if (llid == 2) {
@@ -274,6 +311,8 @@ static void c_take(uint8_t *pdu, int len)
         C.fr_len[C.fr_n % C_FRAMES] = (uint16_t)C.l2_have;
         C.fr_used[C.fr_n % C_FRAMES] = 0;
         C.fr_n++;
+        tot.l2_from_p[C.l2[2] & 7]++;
+        tot.att_ntf_from_p += C.l2[2] == 4 && C.l2_have > 4 && C.l2[4] == 0x1B;
         C.l2_need = 0;
     }
 }
@@ -392,11 +431,15 @@ static void connect_ind(uint8_t *pdu, uint32_t aa, uint8_t win, uint16_t off, ui
 static int connect(uint16_t iv, uint16_t to)
 {
     uint8_t pdu[36];
+    int taken;
     connect_ind(pdu, 0x50654A6B, 2, 3, iv, 0, to, ALL, 7);
     c_reset();
     C.interval = iv;
     hw.upd_n = hw.chm_n = 0;
-    return ble_ll_hw_connect_ind(pdu, 36);
+    taken = ble_ll_hw_connect_ind(pdu, 36);
+    tot.cind_sent++;
+    tot.cind_taken += taken != 0;
+    return taken;
 }
 
 static void test_advertising(void)
@@ -414,8 +457,8 @@ static void test_advertising(void)
     check("ADV_IND: header (type 0, TxAdd random, ChSel 0), AdvA, flags + MIDI UUID",
           hw.adv[0] == 0x40 && hw.adv[1] == 6 + sizeof ad && !memcmp(hw.adv + 2, ADDR, 6) &&
               !memcmp(hw.adv + 8, ad, sizeof ad));
-    check("SCAN_RSP: 0E 09 \"Optimist 2211\" (the last four hex digits of ..:22:11)",
-          hw.sr[0] == 0x44 && hw.sr[1] == 6 + 15 && hw.sr[8] == 14 && hw.sr[9] == 9 && !memcmp(hw.sr + 10, "Optimist 2211", 13));
+    check("SCAN_RSP: 09 09 \"FM1-2211\" (the last four hex digits of ..:22:11)",
+          hw.sr[0] == 0x44 && hw.sr[1] == 6 + 10 && hw.sr[8] == 9 && hw.sr[9] == 9 && !memcmp(hw.sr + 10, "FM1-2211", 8));
     connect_ind(pdu, 0x50654A6B, 2, 3, 24, 0, 72, ALL, 7);
     pdu[8] ^= 1;
     ok &= !ble_ll_hw_connect_ind(pdu, 36);
@@ -440,11 +483,10 @@ static void test_advertising(void)
     ok &= !ble_ll_hw_connect_ind(pdu, 36);
     check("CONNECT_IND ignored: AdvA, hop 4 / 17, interval 5, window 9, offset > interval, timeout, map, AA, RxAdd",
           ok && hw.adv_on && !hw.conn_on);
-    check("blell: ten CONNECT_INDs seen, ten refused, the last for its RxAdd, its fields kept",
-          ble_dg.cind_rx == 10 && ble_dg.cind_rej == 10 && !ble_dg.cind_ok && ble_dg.cind_rej_why == BDR_RXADD &&
-              ble_dg.cind_aa == 0x50654A6B && ble_dg.cind_crc == 0x123456 && ble_dg.cind_interval == 24 &&
-              ble_dg.cind_win_size == 2 && ble_dg.cind_win_off == 3 && ble_dg.cind_timeout == 72 &&
-              ble_dg.cind_hop == 7 && ble_dg.cind_sca == 1);
+    /* (the last one differs from the first that test_connect_ll's connect() makes, and which is taken, by its RxAdd
+     * alone: the fields the stack takes from it are checked there, on the driver's ble_hw_conn_start argument) */
+    check("ten CONNECT_INDs refused, none taken: the driver never armed, still advertising, no ending",
+          hw.conn_starts == 0 && bll.state == LL_ADV && bll.enabled && tot.cind_taken == 0 && tot.disc_n == 0);
 }
 
 static void test_connect_ll(void)
@@ -604,10 +646,10 @@ static void test_gatt(void)
     check("characteristics: MIDI I/O (read, write w/o rsp, notify) at 14; CCCDs at 11 and 15",
           ok && midi_val == 14 && midi_ccc == 15 && sc_ccc == 11);
     r = c_att((const uint8_t[]){0x0A, 3, 0}, 3, &n);
-    check("Read Device Name: Optimist 2211, the advertised name", r && r[0] == 0x0B && n == 14 && !memcmp(r + 1, "Optimist 2211", 13));
+    check("Read Device Name: FM1-2211, the advertised name", r && r[0] == 0x0B && n == 9 && !memcmp(r + 1, "FM1-2211", 8));
+    r = c_att((const uint8_t[]){0x0C, 3, 0, 4, 0}, 5, &n);
+    check("Read Blob at 4: 2211", r && r[0] == 0x0D && n == 5 && !memcmp(r + 1, "2211", 4));
     r = c_att((const uint8_t[]){0x0C, 3, 0, 9, 0}, 5, &n);
-    check("Read Blob at 9: 2211", r && r[0] == 0x0D && n == 5 && !memcmp(r + 1, "2211", 4));
-    r = c_att((const uint8_t[]){0x0C, 3, 0, 14, 0}, 5, &n);
     check("Read Blob past the end: Invalid Offset", r && r[0] == 0x01 && r[4] == 0x07);
     r = c_att((const uint8_t[]){0x0A, 14, 0}, 3, &n);
     check("Read MIDI I/O: empty", r && r[0] == 0x0B && n == 1);
@@ -616,7 +658,7 @@ static void test_gatt(void)
     r = c_att((const uint8_t[]){0x0A, 16, 0}, 3, &n);
     check("Read handle 16: Invalid Handle", r && r[0] == 0x01 && r[2] == 16 && r[4] == 0x01);
     r = c_att((const uint8_t[]){0x08, 1, 0, 0xFF, 0xFF, 0x00, 0x2A}, 7, &n);
-    check("Read By Type 0x2A00 (name by UUID)", r && r[0] == 0x09 && r[1] == 15 && r[2] == 3 && !memcmp(r + 4, "Optimist 2211", 13));
+    check("Read By Type 0x2A00 (name by UUID)", r && r[0] == 0x09 && r[1] == 10 && r[2] == 3 && !memcmp(r + 4, "FM1-2211", 8));
     r = c_att((const uint8_t[]){0x08, 1, 0, 0xFF, 0xFF, 0xFB, 0x34, 0x9B, 0x5F, 0x80, 0, 0, 0x80, 0, 0x10, 0, 0, 0x04,
                               0x2A, 0, 0}, 21, &n);
     check("Read By Type with a 128-bit base UUID (PPCP): 6, 9, 0, 100",
@@ -852,15 +894,12 @@ static void test_l2cap(void)
 #endif
     {
         static const uint8_t ping[] = {0x0A, 3, 0};
-        int k, before = (int)ble_dg.pdu_n;
-        c_att(ping, 3, &n);
-        k = (int)ble_dg.pdu_n - 1;
-        check("blell's protocol ring: the Read (rx att 0A 03 00) and its response (tx att 0B ...) in order",
-              before + 2 == (int)ble_dg.pdu_n && ble_dg.pdu[(k - 1) & (BLE_DIAG_PDUS - 1)].ch == BDP_ATT &&
-                  ble_dg.pdu[(k - 1) & (BLE_DIAG_PDUS - 1)].b[0] == 0x0A &&
-                  ble_dg.pdu[(k - 1) & (BLE_DIAG_PDUS - 1)].b[1] == 3 && ble_dg.pdu[(k - 1) & (BLE_DIAG_PDUS - 1)].n == 3 &&
-                  ble_dg.pdu[k & (BLE_DIAG_PDUS - 1)].ch == (BDP_ATT | BDP_TX) &&
-                  ble_dg.pdu[k & (BLE_DIAG_PDUS - 1)].b[0] == 0x0B && ble_dg.pdu[k & (BLE_DIAG_PDUS - 1)].n == 14);
+        int before = tot.pdus_from_p, rx_att = tot.l2_to_p[4], tx_att = tot.l2_from_p[4];
+        const uint8_t *rr = c_att(ping, 3, &n);
+        check("the Read (0A 03 00) in, its response (0B + the name, 9) the one ATT frame and PDU out after it",
+              rx_att + 1 == tot.l2_to_p[4] && tx_att + 1 == tot.l2_from_p[4] && before + 1 == tot.pdus_from_p &&
+                  rr && rr[0] == 0x0B && n == 9 && (C.last_pdu[0] & 3) == 2 && C.last_pdu[1] == 4 + 9 &&
+                  C.last_pdu[2 + 4] == 0x0B);
     }
     memset(big, 0, sizeof big);
     big[0] = 0x52, big[1] = 14, big[2] = 0, big[3] = 0x80;
@@ -943,46 +982,29 @@ static void test_endings(void)
     check("ble_enable(1): advertising", hw.adv_on);
 }
 
-/* the console's blell after every ending above (ble_diag.c, the text the FM-1 prints) */
-static char blell_out[32768];
-static size_t blell_n;
-static void blell_put(const char *t)
+/* every connection and ending so far, as the stack's state, the driver stand-in and the test's own counts see them */
+static void test_link_totals(void)
 {
-    size_t n = strlen(t);
-    if (blell_n + n < sizeof blell_out) {
-        memcpy(blell_out + blell_n, t, n + 1);
-        blell_n += n;
-    }
-}
-static int blell_has(const char *line) { return strstr(blell_out, line) != NULL; }
-
-static void test_blell(void)
-{
-    struct ble_diag_regs r = {0};
-    blell_n = 0;
-    blell_out[0] = 0;
-    ble_diag_print(blell_put, &r);
-    check("blell: state, CONNECT_IND counts and the last one's fields",
-          blell_has("ll_state adv\r\n") && blell_has("ll_enabled 1\r\n") && blell_has("cind_rej 10\r\n") &&
-              blell_has("cind_aa 50654A6B\r\n") && blell_has("cind_crc 123456\r\n") &&
-              blell_has("cind_chm 1FFFFFFFFF\r\n") && ble_dg.cind_ok >= 6 && ble_dg.cind_rx == ble_dg.cind_ok + 10);
-    check("blell: the endings by kind (central, supervision 0x08, establishment 0x3E), the last by us (0x16)",
-          ble_dg.peer_terms == 1 && ble_dg.sup_timeouts == 1 && ble_dg.estab_fails == 1 &&
-              blell_has("close_reason 16\r\n") && blell_has("close_by 0\r\n") && ble_dg.closes == ble_dg.cind_ok);
-    check("blell: control opcodes both ways, ATT opcodes, the last 8 of each",
-          blell_has("ctl_rx_last ") && blell_has("ctl_tx_last ") && ble_dg.ctl_rx_n > 8 && ble_dg.ctl_tx_n > 8 &&
-              ble_dg.att_rx_n > 0 && ble_dg.ctl_tx[(ble_dg.ctl_tx_n - 1) & 7] == LL_TERMINATE_IND);
-    check("blell: the event ring (32, oldest first, the last: advertising enabled again)",
-          blell_has("ev ") && ble_dg.ev_n > 32 && strstr(blell_out, "close 0016") &&
-              ble_dg.ev[(ble_dg.ev_n - 1) & 31].code == BDE_ENABLE);
-    check("blell: no engine registers on the host (r.valid 0)", !blell_has("\ncol2 ") && !blell_has("hw_state "));
-    check("blell: the protocol ring (64 \"pdu N: t=.. evt=.. rx|tx att|sig|smp|ll n=..: ..\" lines), MIDI counted",
-          blell_has(" tx att n=") && blell_has(" rx sig n=") && blell_has("\r\npdus ") &&
-              ble_dg.pdu_n > 64 && blell_has("att_ntf ") && ble_dg.att_ntf_n > 0 && ble_dg.att_wcmd_n > 0);
-    ble_diag_clear();
-    check("blell clear: counters and ring zero, the magic kept",
-          !ble_dg.cind_rx && !ble_dg.ev_n && !ble_dg.closes && ble_dg.magic == BLE_DIAG_MAGIC &&
-              ble_dg.first_evt == 0xFFFFu);
+    static const uint8_t why[6] = {BLE_ERR_REMOTE_USER, BLE_ERR_CONN_TIMEOUT, BLE_ERR_CONN_FAILED,
+                                   BLE_ERR_INSTANT_PASSED, BLE_ERR_LL_RSP_TIMEOUT, BLE_ERR_LOCAL_HOST};
+    int i, ok = tot.disc_n == 6;
+    check("state: advertising, enabled; every CONNECT_IND connect() made taken (6), each arming the driver",
+          bll.state == LL_ADV && bll.enabled && hw.adv_on && !hw.conn_on && tot.cind_taken >= 6 &&
+              tot.cind_taken == tot.cind_sent && hw.conn_starts == tot.cind_taken);
+    check("the driver armed with the last one's fields: AA 50654A6B, CRC init 123456, every channel",
+          hw.conn.aa == 0x50654A6B && hw.conn.crc_init == 0x123456 && !memcmp(hw.conn.chm, ALL, 5));
+    for (i = 0; ok && i < 6; i++)
+        ok = tot.disc_why[i] == why[i];
+    check("the endings in order: central 0x13, supervision 0x08, establishment 0x3E, instant 0x28, 40 s 0x22, "
+          "the last by us 0x16; one per connection",
+          ok && tot.disc_n == tot.cind_taken);
+    check("control PDUs both ways (more than 8 each), ATT from the central, the last of ours LL_TERMINATE_IND",
+          tot.ctl_to_n > 8 && tot.ctl_from_n > 8 && tot.l2_to_p[4] > 0 && tot.ctl_from_last == LL_TERMINATE_IND);
+    check("after our ending (0x16) and ble_enable(1): advertising again",
+          hw.adv_on && !hw.conn_on && tot.disc_why[5] == BLE_ERR_LOCAL_HOST);
+    check("the protocol both ways: ATT out, signalling in, more than 64 PDUs out, MIDI notified and written",
+          tot.l2_from_p[4] > 0 && tot.l2_to_p[5] > 0 && tot.pdus_from_p > 64 && tot.att_ntf_from_p > 0 &&
+              tot.att_wcmd_to_p > 0);
 }
 
 #if BLE_LL_ENC
@@ -1045,7 +1067,7 @@ static void test_encryption(void)
     C.enc = 1;
     C.crx.ctr = 2;
     r = c_att((const uint8_t[]){0x0A, 3, 0}, 3, &n);
-    check("encrypted both ways: Read Device Name", r && r[0] == 0x0B && n == 14);
+    check("encrypted both ways: Read Device Name", r && r[0] == 0x0B && n == 9);
     {
         uint8_t bad[2 + 8] = {0x02, 0x05, 1, 2, 3, 4, 5, 6, 7, 8};
         memcpy(C.q[C.qn++], bad, sizeof bad);
@@ -1186,7 +1208,7 @@ static void test_smp(void)
               peer_id.n == 1 && !memcmp(peer_id.irk, k55, 16) && !memcmp(peer_id.addr, k55, 6) && peer_id.rnd == 0);
     }
     r = c_att((const uint8_t[]){0x0A, 3, 0}, 3, &n);
-    check("encrypted with the STK: Read Device Name", r && r[0] == 0x0B && n == 14);
+    check("encrypted with the STK: Read Device Name", r && r[0] == 0x0B && n == 9);
     c_ctrl((const uint8_t[]){LL_TERMINATE_IND, 0x13}, 2);
     c_event();
     C.enc = 0;
@@ -1194,7 +1216,7 @@ static void test_smp(void)
     c_events(2);
     check("a returning central: LL encryption with the bond's LTK (EDIV, Rand)", c_start_enc(ltk, rand, ediv));
     r = c_att((const uint8_t[]){0x0A, 3, 0}, 3, &n);
-    check("encrypted with the LTK: Read Device Name; no SMP", r && r[0] == 0x0B && n == 14 && c_frame(6, &n) == 0);
+    check("encrypted with the LTK: Read Device Name; no SMP", r && r[0] == 0x0B && n == 9 && c_frame(6, &n) == 0);
     c_ctrl((const uint8_t[]){LL_TERMINATE_IND, 0x13}, 2);
     c_event();
     C.enc = 0;
@@ -1224,11 +1246,13 @@ static void test_smp(void)
     check("SMP: a confirm that does not match its random -> Pairing Failed, Confirm Value Failed (0x04)",
           r && n == 2 && r[0] == 0x05 && r[1] == 0x04 && bsmp.st == S_IDLE);
     {
-        int dpdus = 0;
-        for (i = 0; i < BLE_DIAG_PDUS && i < (int)ble_dg.pdu_n; i++)
-            dpdus += (ble_dg.pdu[i].ch & 0x7F) == BDP_SMP || (ble_dg.pdu[i].ch & 0x7F) == BDP_LL;
-        check("blell: SMP and LL encryption PDUs in the protocol ring, ENC_REQs and starts counted",
-              dpdus > 8 && ble_dg.enc_req_n >= 3 && ble_dg.enc_on_n >= 2);
+        static const uint8_t enc_ops[] = {LL_ENC_REQ, LL_ENC_RSP, LL_START_ENC_REQ, LL_START_ENC_RSP, LL_REJECT_IND};
+        int enc_pdus = 0;
+        for (i = 0; i < (int)sizeof enc_ops; i++)
+            enc_pdus += tot.ctl_to_p[enc_ops[i]] + tot.ctl_from_p[enc_ops[i]];
+        check("SMP both ways and LL encryption PDUs, ENC_REQs (3+) and encryption starts (2+: our START_ENC_RSP)",
+              tot.l2_to_p[6] > 0 && tot.l2_from_p[6] > 0 && tot.l2_to_p[6] + tot.l2_from_p[6] + enc_pdus > 8 &&
+                  tot.ctl_to_p[LL_ENC_REQ] >= 3 && tot.ctl_from_p[LL_START_ENC_RSP] >= 2);
     }
 }
 #endif
@@ -1252,6 +1276,7 @@ static void test_scan(void)
 {
     uint8_t p[64], q[64], n, k;
     uint16_t rssi;
+    uint32_t w0, w1;
     int adv0;
     if (ble_ll_connected()) {
         c_ctrl((const uint8_t[]){LL_TERMINATE_IND, 0x13}, 2);
@@ -1267,27 +1292,30 @@ static void test_scan(void)
     ble_ll_hw_adv_report(p, n, 0x0A12, 37);
     n = scan_rep(p, 0x4, 0x01, 12);
     ble_ll_hw_adv_report(p, n, 0x0A13, 38);
+    w0 = bscan.w;                                  /* (the reports' ring: its write index) */
     n = scan_rep(p, 0x3, 0x02, 6);                 /* a SCAN_REQ, an ADV_NONCONN_IND, an ADV_SCAN_IND: dropped */
     ble_ll_hw_adv_report(p, n, 0, 39);
     n = scan_rep(p, 0x2, 0x02, 6);
     ble_ll_hw_adv_report(p, n, 0, 39);
     n = scan_rep(p, 0x6, 0x02, 6);
     ble_ll_hw_adv_report(p, n, 0, 39);
+    w1 = bscan.w;
     n = ble_ll_scan_take(q, &rssi);
     check("scan: the ADV_IND taken first, whole, with its RSSI word", n == 28u && q[0] == 0x40u && q[2] == 0x01u &&
           q[8] == 0x30u && rssi == 0x0A12u);
     n = ble_ll_scan_take(q, &rssi);
     check("scan: then its SCAN_RSP", n == 20u && (q[0] & 15u) == 4u && rssi == 0x0A13u);
-    check("scan: SCAN_REQ / non-connectable reports dropped in the interrupt (counted)",
-          ble_ll_scan_take(q, &rssi) == 0u && ble_dgs.rep_other == 3u && ble_dgs.rep_adv_ind == 1u);
+    check("scan: SCAN_REQ / non-connectable reports dropped in the interrupt (the ring's write index unmoved)",
+          ble_ll_scan_take(q, &rssi) == 0u && w1 == w0 && bscan.r == bscan.w);
+    w0 = bscan.w;
     for (k = 0; k < 20u; k++) {
         n = scan_rep(p, 0x0, (uint8_t)(0x40 + k), 4);
         ble_ll_hw_adv_report(p, n, k, 37);
     }
     for (k = 0; ble_ll_scan_take(q, &rssi); k++)
         ;
-    check("scan: the ring holds 16 (BLE_SCAN_RING); the rest counted lost, the main loop gets them in order", k == 16u &&
-          ble_dgs.ring_full == 4u && q[2] == 0x4Fu);
+    check("scan: the ring holds 16 (BLE_SCAN_RING); the other 4 lost (16 written), the main loop gets them in order",
+          k == 16u && BLE_SCAN_RING == 16u && bscan.w - w0 == 16u && q[2] == 0x4Fu);
     n = scan_rep(p, 0x0, 0x01, 40);
     ble_ll_hw_adv_report(p, (uint8_t)(n > 39u ? 48u : n), 0, 37);
     check("scan: a report longer than an advertising PDU is not taken", ble_ll_scan_take(q, &rssi) == 0u);
@@ -1330,7 +1358,7 @@ int main(void)
     test_audio_interval();
     test_l2cap();
     test_endings();
-    test_blell();
+    test_link_totals();
 #if BLE_LL_ENC
     test_encryption();
 #endif

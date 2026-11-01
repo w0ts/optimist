@@ -76,13 +76,20 @@ static uint32_t ed9_ends_host;                                 /* (WATCH bit 4, 
 static int project_used(uint32_t s) { return s == 1u; }
 #if FELUCCA_SL24_SAFE
 static uint32_t project_state(uint32_t s) { return (uint32_t)project_used(s); }   /* (sl24_guard.c: no slot of 2.4's here) */
-static void sl24_auto_import(void) {}                          /* (sl24_guard.c: no 2.4 autosave here) */
 #endif
 #include "../firmware/src/io/editor/ed_steps.c"
 #include "../firmware/src/io/editor/ed_song.c"
 #include "../firmware/src/io/editor/ed_dlan.c"
 static uint8_t settings_later;                                 /* (model.c: the settings are saved a moment after an edit) */
 static const char *preset_name(uint32_t e, uint32_t k) { return k == 0xFFu || !ENGINES[e]->npresets ? "INIT" : ENGINES[e]->presets[k % ENGINES[e]->npresets].name; }
+/* the preset list's filter (core/model.c: PLF_*, pl_filt; the FAVS list byte is its FAVORITES / ALL) */
+enum { PLF_ALL, PLF_FAV, PLF_FACTORY, PLF_USER, PLF_INIT, PLF_N };
+static uint8_t pl_filt;
+#if FELUCCA_FAVORITES
+#define fav_list (pl_filt == PLF_FAV)
+#else
+#define fav_list 0u
+#endif
 #include "../firmware/src/core/favorites.c"
 #include "../firmware/src/io/editor/ed_fav.c"
 #include "../firmware/src/io/editor/ed_fxp.c"
@@ -400,6 +407,8 @@ int main(void)
                         uint32_t ok = 1;
                         if (t != FXT_NONE && !(fxp_ok(ow) >> t & 1u))
                             continue;
+                        if (FXP_IS_RET(ow) && sl >= 2u && t != FXT_NONE && t == fxp_type(ow, 0))
+                            continue;                   /* (a return's PRE / POST: never its effect's type, a type once a return) */
                         if (!(ow == FXP_USB && sl == 2u) && !(FXP_IS_RET(ow) && sl == 1u))
                             fxp_set_type(ow, sl, t), ok = fxp_type(ow, sl) == t, tried++;
                         for (i = 0; i < fxp_n(ow, sl); i++) {
@@ -407,8 +416,15 @@ int main(void)
                             const param_desc_t *d = fxp_loc(ow, sl, i, &vp);
                             ok = ok && d && vp && d->label && d->label[0] && *vp >= d->min && *vp <= d->max;
                         }
-                        if (!ok)
-                            printf("owner %u slot %u type %u\n", ow, sl, t);
+                        if (!ok) {
+                            printf("owner %u slot %u type %u: reads %u, %u parameters", ow, sl, t, fxp_type(ow, sl), fxp_n(ow, sl));
+                            for (i = 0; i < fxp_n(ow, sl); i++) {
+                                int16_t *vp;
+                                const param_desc_t *d = fxp_loc(ow, sl, i, &vp);
+                                printf(" [%s %d %d..%d]", d && d->label ? d->label : "?", vp ? *vp : -999, d ? d->min : 0, d ? d->max : 0);
+                            }
+                            printf("\n");
+                        }
                         bad += !ok;
                     }
             }
@@ -425,9 +441,23 @@ int main(void)
         {   /* the sends between the returns (2026-10-16): each return's slot 1, A: B C, B: C, C: none; named by the target */
             static const uint8_t LA[] = {0, FXP_RET0}, LC[] = {0, FXP_RET0 + 2}, DA1[] = {2, FXP_RET0, 1, 1}, TA[] = {1, FXP_RET0, 1, FXT_DIST};
             ed_begin(ED_FXP); r = ed_fxp(ED_FXP, LA, sizeof LA);
-            check(r && ed_out[7] == 2u && ed_out[10] == FXT_NONE && ed_out[11] == 2u, "v13 FXP op 0: return A has two slots, slot 1 (its sends) two parameters");
+            check(r && ed_out[7] == 4u && ed_out[10] == FXT_NONE && ed_out[11] == 2u && ed_out[12] == FXT_NONE && ed_out[14] == FXT_NONE,
+                  "v13 FXP op 0: return A has four slots (2026-10-30: its PRE and POST, empty), slot 1 (its sends) two parameters");
             ed_begin(ED_FXP); r = ed_fxp(ED_FXP, LC, sizeof LC);
-            check(r && ed_out[7] == 2u && ed_out[11] == (FELUCCA_RET_FB ? 2u : 0u), "... return C: its slot 1 has none (it sends to no return; RET_FB: two, to A and B)");
+            check(r && ed_out[7] == 4u && ed_out[11] == (FELUCCA_RET_FB ? 2u : 0u), "... return C: its slot 1 has none (it sends to no return; RET_FB: two, to A and B)");
+#if FELUCCA_FX_DIST
+            {   /* a return's PRE and POST (slots 2, 3): loaded, one amount, its line's */
+                static const uint8_t PB[] = {1, FXP_RET0 + 1, 2, FXT_DIST}, PX[] = {1, FXP_RET0 + 1, 3, FXT_DIST};
+                uint32_t ln = fxs_line[2];
+                rp_untlv(0, 0);                         /* (the every-owner walk above left types in the stages) */
+                ed_begin(ED_FXP); r = ed_fxp(ED_FXP, PB, sizeof PB);
+                check(r && ln < 3u && rp_ty[ln][RP_PRE] == FXT_DIST && ed_out[12] == FXT_DIST && ed_out[13] == 1u,
+                      "v13 FXP op 1: return B's slot 2 loads PRE DIST (its line's), one parameter");
+                ed_begin(ED_FXP); r = ed_fxp(ED_FXP, PX, sizeof PX);
+                check(r && rp_ty[ln][RP_PRE] == FXT_NONE && rp_ty[ln][RP_POST] == FXT_DIST, "... DIST into slot 3: POST, swapped from PRE (a type once a return)");
+                rp_untlv(0, 0);
+            }
+#endif
             ed_begin(ED_FXP); r = ed_fxp(ED_FXP, DA1, sizeof DA1);
             check(r && ed_out[9] == F_PCT && ed_n > 12u && !memcmp(ed_out + 5u + 4u + 1u + 6u, "C", 1), "v13 FXP op 2: A's second send, a level, named C");
             q[0] = 4, q[1] = FXP_RET0, q[2] = 1, q[3] = 1, q[4] = (uint8_t)((300 + 8192) & 127), q[5] = (uint8_t)((300 + 8192) >> 7);
@@ -465,7 +495,7 @@ int main(void)
         {
             static const uint8_t RT[] = {1, FXP_RET0 + 1, 0, FXT_EQ3};
             ed_begin(ED_FXP); r = ed_fxp(ED_FXP, RT, sizeof RT); ed9_known_fx();
-            check(r && fxs_slot[2] == FXT_EQ3 && ed_out[8] == FXT_EQ3 && ed_out[9] == 7u && ed_n == 5u + 3u + 2u + 2u + 5u + 1u && ed_out[10] == FXT_NONE && ed_out[11] == (FELUCCA_RET_FB ? 2u : 1u) && ed_out[ed_n - 1u] == fxs_line[2],
+            check(r && fxs_slot[2] == FXT_EQ3 && ed_out[8] == FXT_EQ3 && ed_out[9] == 7u && ed_n == 5u + 3u + 2u * 4u + 5u + 1u && ed_out[10] == FXT_NONE && ed_out[11] == (FELUCCA_RET_FB ? 2u : 1u) && ed_out[ed_n - 1u] == fxs_line[2],
                   "v13 FXP op 1: EQ3 into B: its line's RET and the six; its slot 1 its sends (B -> C; RET_FB: B -> A too); the reply ends with the return's send line");
             q[0] = 4, q[1] = FXP_RET0 + 1, q[2] = 0, q[3] = 5, q[4] = (uint8_t)((10 + 8192) & 127), q[5] = (uint8_t)((10 + 8192) >> 7);
             ed_begin(ED_FXP); r = ed_fxp(ED_FXP, q, 6); ed9_known_fx();
@@ -598,7 +628,7 @@ int main(void)
         int r;
         uint32_t i, c0;
         memset(&fav, 0, sizeof fav);
-        fav_list = 0;
+        pl_filt = PLF_ALL;
         q[0] = 0;
         ed_begin(ED_FAV); r = ed_fav(ED_FAV, q, 1);
         check(r && ed_out[5] == 0u && ed_out[6] == 0u && ed_out[7] == FAV_N && ed_out[8] == 0u && ed_out[9] == 0u, "v13 FAVS op 0: no favorites, FAV_N places, the list is ALL");

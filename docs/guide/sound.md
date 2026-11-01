@@ -4,7 +4,7 @@ What makes a synth track sound the way it does, and where each control is. The b
 
 ## Engines
 
-A synth track plays one engine at a time. PRESETS on a synth track loads another sound of the track's engine; SHIFT2 + PRESETS (or the ENGINE card) steps the engine. Every engine is a builder item (`ENG_*`). A build without an engine plays a track that uses it on a stand-in engine and shows MISSING: DIGITAL stands in for FM6, PHASE for CZ and VPS, SAMPLE for GRAIN and SLICE, LOFI for SID, ANALOG for the others (BUILDER.md names each stand-in).
+A synth track plays one engine at a time. PRESETS on a synth track loads another sound of the track's engine; SHIFT (OCT- held) + PRESETS (or the ENGINE card) steps the engine. Every engine is a builder item (`ENG_*`). A build without an engine plays a track that uses it on a stand-in engine and shows MISSING: DIGITAL stands in for FM6, PHASE for CZ and VPS, SAMPLE for GRAIN and SLICE, LOFI for SID, ANALOG for the others (BUILDER.md names each stand-in).
 
 **EDIT** (tapped) opens the track's sound. Its first row, SOUND, has the ENGINE, PRESET, INIT and SAVE AS cards. Then **MAIN**: the four values that matter most for the engine (CUT and RES first where it has a filter; FM6 has LPF, RES and HPF). Then the engine's own values on **EDIT 1** and **EDIT 2**, four cards each, with the page titles the engine gives them (ANALOG shows OSC and FLT, for example).
 
@@ -149,7 +149,7 @@ The **VOICE** page has four cards: the mode, GLD (glide time), GLMOD and PRIO.
 
 ### LFO 1 and LFO 2
 
-**LFO** has the cards RATE, WAVE (SIN, TRI, SAW, SQR, S&H), PHS (start phase) and FADE (fade-in). **LFO 2** (always on) has RATE, WAVE, TRIG (NOTE restarts it with a new phrase, FREE) and POL (BI or UNI). Turn RATE down past its slowest free rate (0.05 Hz) and it locks to the tempo: one cycle is 4BAR, 2BAR, 1BAR, 1/2, 1/4, 1/8, 8T, 1/16, 16T or 1/32. It follows the tempo and an external MIDI clock.
+**LFO** has the cards RATE, WAVE (SIN, TRI, SAW, SQR, S&H, SLEW: a random value each cycle as S&H, reached by a smooth glide instead of a step), PHS (start phase) and FADE (fade-in). **LFO 2** (always on) has RATE, WAVE, TRIG (NOTE restarts it with a new phrase, FREE) and POL (BI or UNI). Turn RATE down past its slowest free rate (0.05 Hz) and it locks to the tempo: one cycle is 4BAR, 2BAR, 1BAR, 1/2, 1/4, 1/8, 8T, 1/16, 16T or 1/32. It follows the tempo and an external MIDI clock.
 
 ### ENV and ENV 2
 
@@ -210,11 +210,11 @@ An LFO moves the value for the block; an envelope moves it for each voice as tha
 
 ## Presets, favorites, the user bank
 
-**PRESETS** browses the sounds of the track's engine: its factory sounds, INIT, your presets of that engine and its own collections (the FM6 voice packs); SHIFT2 + PRESETS moves to the next engine's sounds. There are 32 user presets; PROJECT > USER lists them, with INIT to start from the engine's defaults. A user preset's LOAD over an edited sound is asked in red. SAVE + a page button (ENV, LFO, EDIT, FX, SCL, ARP) stores the current sound as a user preset (NAME first).
+**PRESETS** browses the sounds of the track's engine: its factory sounds, INIT, your presets of that engine and its own collections (the FM6 voice packs); SHIFT (OCT- held) + PRESETS moves to the next engine's sounds. SHIFT2 (OCT+ held) + PRESETS filters the list, one a detent, round: ALL, FACTORY, USER, FAVORITES, INIT; the popup list names the filter in its header, lit for a moment when it changes. There are 32 user presets; PROJECT > USER lists them, with INIT to start from the engine's defaults. A user preset's LOAD over an edited sound is asked in red. SAVE + a page button (ENV, LFO, EDIT, FX, SCL, ARP) stores the current sound as a user preset (NAME first).
 
 About 90 factory starting points (more with the optional engines), each a full patch on one engine, level-matched. The sampled sets are free recordings (CC0: Versilian Studios VSCO-2 CE and VCSL, Sonic Pi).
 
 **Favorites** (builder item `FAVORITES`) narrow the list to the sounds you use:
 
-- **SAVE + PRESETS** marks the sound that plays (turn right) or clears it (turn left). **SHIFT2 + SELECT** browses only the favorites (right) or every sound (left). On PROJECT > USER, SHIFT2 + the ITEM knob marks a user preset.
+- **SAVE + PRESETS** marks the sound that plays (turn right) or clears it (turn left). The **FAVORITES** filter (SHIFT2 + PRESETS) browses only the favorites. On PROJECT > USER, SHIFT2 + the ITEM knob marks a user preset.
 - A favorite shows a star after its name. Up to 64 factory sounds and any of the 32 user presets can be marked. The FM6 and CZ banks and the drum track have none.

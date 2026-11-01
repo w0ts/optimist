@@ -11,6 +11,7 @@ import subprocess
 import sys
 
 import deps
+import repo_root
 import toolchain as TC
 
 SYSTEM = platform.system()          # Linux, Darwin, Windows
@@ -107,6 +108,37 @@ def check_toolchain(rep, fetch, yes):
     rep.add("toolchain", True, b.describe())
 
 
+def check_llvm(rep, fetch, yes):
+    """pi32v2-llvm (the builder's COMPILER item, its default): its drop-in in the repository's build/toolchains (the main checkout's, in a worktree) on every host (macOS too: mounted
+    into the toolchain image)"""
+    d = TC.llvm_dir()
+    if not TC.has_clang(d) and fetch and confirm(f"download pi32v2-llvm (72 MB) into {repo_root.toolchains_dir()}?", yes):
+        try:
+            deps.fetch_llvm()
+        except deps.FetchError as e:
+            print(f"setup: {e}")
+    ok = TC.has_clang(d)
+    rep.add("pi32v2-llvm", ok, f"{d.resolve() if ok else d}",
+            "python tools/optimist.py setup --yes (downloads it into build/toolchains), or the builder's COMPILER item: JieLi")
+
+
+def check_mflasher(rep, fetch, yes):
+    """M-Flasher (third_party/m-flasher): the installers' download mode (docs/INSTALL-PATHS.md); its pinned release"""
+    import mflasher as MF
+    exe = MF.binary()
+    if exe is None and fetch and MF.asset() and confirm(
+            f"download M-Flasher v{MF.VERSION} for {MF.machine_label()} ({MF.pick()['size'] / 1e6:.1f} MB; MIT, Julius "
+            f"Vitkauskas) into {MF.home()} (download-mode installs)?", yes):
+        try:
+            exe = MF.fetch()
+            for n in MF.notes():
+                print(f"setup: {n}")
+        except MF.MFlasherError as e:
+            print(f"setup: {e}")
+    rep.add("M-Flasher", None if exe is None else True, str(exe) if exe else "not installed (only download-mode installs need it)",
+            "python tools/fm1_anyflash.py setup")
+
+
 def toolchain_fix():
     if TC.is_native_host():
         return "python tools/optimist.py setup --yes (downloads the toolchain into ~/.jieli)"
@@ -152,6 +184,8 @@ def run(fetch=True, yes=False, emulator=True):
     check_venv(rep, fetch, yes)
     check_sdk(rep, fetch, yes)
     check_toolchain(rep, fetch, yes)
+    check_llvm(rep, fetch, yes)
+    check_mflasher(rep, fetch, yes)
     if emulator:
         check_emulator(rep)
     check_host_tests(rep)

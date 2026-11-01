@@ -73,14 +73,11 @@ BLE_API void ble_hw_scan_start(const struct ble_hw_scan *s)
     fm1_ble_col_wr(HW_LINK, 14, 0x8000u);
     drv.state = HW_SCAN;
     drv.gen++;
-    BLE_DG(ble_dgs.starts++);
-    BLE_DG(ble_dgs.ch = 37u);
 }
 
 BLE_API void ble_hw_scan_stop(void)
 {
-    hw_stop(BDS_SCAN, HW_STOP_WAIT_US);                    /* HW §21.2 Stop: column 14 = 0, interrupts off, idle */
-    BLE_DG(ble_dgs.stops++);
+    hw_stop(HWS_SCAN, HW_STOP_WAIT_US);                    /* HW §21.2 Stop: column 14 = 0, interrupts off, idle */
     drv.state = HW_OFF;
     drv.gen++;
 }
@@ -102,7 +99,6 @@ static void hw_scan_backoff(uint8_t type)
                 drv.bo_succ = 0;
                 drv.bo_upper = (uint16_t)(drv.bo_upper > 1u ? drv.bo_upper / 2u : 1u);
             }
-            BLE_DG(ble_dgs.rsp_ok++);
         }
         return;
     }
@@ -111,22 +107,16 @@ static void hw_scan_backoff(uint8_t type)
     if (--drv.bo_count == 0) {
         if (drv.bo_sent) {
             drv.bo_succ = 0;
-            BLE_DG(ble_dgs.req_fail++);
             if (++drv.bo_fail >= 2u) {
                 drv.bo_fail = 0;
                 drv.bo_upper = (uint16_t)(drv.bo_upper < 256u ? drv.bo_upper * 2u : 256u);
             }
         }
         drv.bo_sent = 1;
-        BLE_DG(ble_dgs.req_armed++);
         ble_hw_rand(&r, 1);
         drv.bo_count = (uint8_t)(1u + r % drv.bo_upper);   /* (upper 256: 1..256 as 1..255 + 0 -> a uint8 of 1..255) */
         if (!drv.bo_count)
             drv.bo_count = 1;
-#if BLE_DIAG
-        if (drv.bo_upper > ble_dgs.upper_max)
-            ble_dgs.upper_max = drv.bo_upper;
-#endif
     }
     CB->format = (uint16_t)((CB->format & ~0x100u) | (drv.bo_count == 1u ? 0u : 0x100u));
 }
@@ -137,16 +127,10 @@ static void hw_scan_take(uint32_t b)
     uint16_t ah = CB->rxahdr[b], dh = CB->rxdhdr[b], st = CB->rxstat[b], rssi = CB->rssi[2];
     uint8_t n = (uint8_t)(dh >> 8), type = (uint8_t)(ah & 0x0Fu), ch = (uint8_t)CB->lastchmap, *pdu;
     CB->rxahdr[b] = CB->rxdhdr[b] = CB->rxstat[b] = 0;     /* (a buffer found again by RXTOG alone is a new packet) */
-    BLE_DG(ble_dgs.last_ahdr = ah);
-    BLE_DG(ble_dgs.last_dhdr = dh);
-    BLE_DG(ble_dgs.last_rssi = rssi);
-    BLE_DG(ble_dgs.last_ch = ch);
     if ((st & 0xFu) != 1u) {
-        BLE_DG(ble_dgs.rx_bad_stat++);
         return;
     }
     if (n < 6u || n > 37u) {
-        BLE_DG(ble_dgs.rx_bad_len++);
         return;
     }
     if (type == 0x3u || type == 0x5u)
@@ -161,7 +145,7 @@ static void hw_scan_take(uint32_t b)
 /* the RX interrupt while scanning: the connection path of HW §8 (§21.2): RXTOG read until stable, the RXTOG buffer
  * then the other, each if RXBUFnCNTL bit0 = 1, cleared after it. Whether the engine sets bit0 while scanning is C2;
  * when neither has it, the buffer RXTOG moved past is taken if its header was written since it was last taken (the
- * advertising rule the FM-1 showed, §8.1). Counted: blell scan rxf_cntl / rxf_tog / rxf_none. */
+ * advertising rule the FM-1 showed, §8.1). */
 static void hw_rx_scan(void)
 {
     uint32_t t1, t2, k, took = 0, tries = 0;
@@ -172,24 +156,18 @@ static void hw_rx_scan(void)
         c1 = CB->rxbufcntl[1];
         t2 = CB->rxtog & 1u;
     } while (t1 != t2 && ++tries < 4u);
-    BLE_DG(ble_dgs.last_cntl = (uint8_t)((c0 & 1u) | (c1 & 1u) << 1));
-    BLE_DG(ble_dgs.last_tog = (uint8_t)t2);
     for (k = 0; k < 2u; k++) {
         uint32_t b = t2 ^ k;
         if ((b ? c1 : c0) & 1u) {
-            BLE_DG(ble_dgs.rxf_cntl++);
             hw_scan_take(b);
             CB->rxbufcntl[b] &= (uint8_t)~1u;
             took++;
         }
     }
     if (!took && (CB->rxdhdr[t2 ^ 1u] || CB->rxstat[t2 ^ 1u])) {
-        BLE_DG(ble_dgs.rxf_tog++);
         hw_scan_take(t2 ^ 1u);
         took++;
     }
-    if (!took)
-        BLE_DG(ble_dgs.rxf_none++);
 }
 
 /* the event interrupt while scanning: the next window's channel (HW §21.2 "Each event"), RFPRIO 17, 26 every 6th */
@@ -198,8 +176,6 @@ static void hw_scan_event(void)
     fm1_ble_col_wr(HW_LINK, 6, 0x2100u | drv.scan_ch);
     drv.scan_ch = (uint8_t)(drv.scan_ch >= 39u ? 37u : drv.scan_ch + 1u);
     cb_rfprio(++drv.scan_evts % 6u ? 17u : 26u);
-    BLE_DG(ble_dgs.events++);
-    BLE_DG(ble_dgs.ch = drv.scan_ch);
 }
 
 /* ----------------------------------------------------------------------------------------------- initiating --- */
@@ -278,12 +254,11 @@ BLE_API void ble_hw_init_start(const struct ble_hw_init *in)
     drv.state = HW_INIT;
     drv.gen++;
     drv.init_t0 = fm1_ticks();                             /* (after the start: a packet heard ends later than this) */
-    BLE_DG(ble_dgc.init_last_ch = 37u);
 }
 
 BLE_API void ble_hw_init_stop(void)
 {
-    hw_stop(BDS_INIT, HW_STOP_WAIT_US);                    /* as any link: column 14 = 0, interrupts off, idle */
+    hw_stop(HWS_INIT, HW_STOP_WAIT_US);                    /* as any link: column 14 = 0, interrupts off, idle */
     drv.state = HW_OFF;
     drv.gen++;
 }
@@ -305,14 +280,10 @@ static void hw_init_take(uint32_t b)
     const uint8_t *p = bb.rx[b].buf + HW_SWHDR;
     uint8_t n = (uint8_t)(dh >> 8), type = (uint8_t)(ah & 0x0Fu);
     CB->rxahdr[b] = CB->rxdhdr[b] = CB->rxstat[b] = 0;
-    BLE_DG(ble_dgc.init_last_ahdr = ah);
-    BLE_DG(ble_dgc.init_last_dhdr = dh);
     if ((st & 0xFu) != 1u || n < 6u || n > 37u) {
-        BLE_DG(ble_dgc.init_rx_bad++);
         return;
     }
     if (hw_init_stale(n)) {
-        BLE_DG(ble_dgc.init_rx_stale++);
         return;
     }
     if ((type == 0x0u || (type == 0x1u && n == 12u && ble_eq(p + 6, drv.init_own, 6) &&
@@ -321,12 +292,8 @@ static void hw_init_take(uint32_t b)
         if (!drv.init_hit) {
             drv.init_hit = 1;
             drv.init_t_hit = fm1_ticks();
-            BLE_DG(ble_dgc.init_chsel = (uint8_t)(ah >> 5 & 1u));
-            ble_diag_ev(BDE_INIT_HIT, ah);
         }
-        BLE_DG(ble_dgc.init_rx_target++);
-    } else
-        BLE_DG(ble_dgc.init_rx_other++);
+    }
 }
 
 /* the RX interrupt in state 3: the vendor reads the buffer other than RXTOG's without RXBUFnCNTL (the advertising
@@ -334,16 +301,13 @@ static void hw_init_take(uint32_t b)
 static void hw_rx_init(void)
 {
     uint32_t t = CB->rxtog & 1u, k, took = 0;
-    BLE_DG(ble_dgc.init_rx++);
     for (k = 0; k < 2u; k++)
         if (CB->rxbufcntl[k] & 1u) {
-            BLE_DG(ble_dgc.init_rxf_cntl++);
             hw_init_take(k);
             CB->rxbufcntl[k] &= (uint8_t)~1u;
             took++;
         }
     if (!took && (CB->rxdhdr[t ^ 1u] || CB->rxstat[t ^ 1u])) {
-        BLE_DG(ble_dgc.init_rxf_tog++);
         hw_init_take(t ^ 1u);
     }
 }
@@ -368,14 +332,7 @@ static uint32_t hw_first_anchor(const struct ble_hw_conn *c)   /* -> the anchor 
         adj = (late - HW_ANCHOR_AIM_US + 624u) / 625u;
     if (adj + HW_ANCHOR_MIN_SLOTS > n) {
         adj = n - HW_ANCHOR_MIN_SLOTS;
-        BLE_DG(ble_dgc.m_anchor_late++);
     }
-#if BLE_DIAG
-    ble_dgc.m_setup_us = late;
-    ble_dgc.m_anchor_adj = (uint8_t)adj;
-    if (adj > ble_dgc.m_anchor_adj_max)
-        ble_dgc.m_anchor_adj_max = (uint8_t)adj;
-#endif
     return n - adj - 1u;                                   /* (the counter fires one slot after the value) */
 }
 
@@ -439,19 +396,6 @@ static void hw_master_setup(void)
     drv.sca = c->sca;
     drv.last_evt = 0xFFFFu;
     ble_hw_stat.connects++;
-    hwd.conn_t0 = fm1_ticks();
-    hwd.first_rx = hwd.c3_seen = 0;
-#if BLE_DIAG
-    {
-        uint32_t us = (hwd.conn_t0 - drv.init_t_hit) / FM1_TICKS_PER_US;
-        ble_dgc.c4_rx_to_evt_us = us;
-        if (us > ble_dgc.c4_rx_to_evt_max)
-            ble_dgc.c4_rx_to_evt_max = us;
-        ble_dgc.master_starts++;
-        ble_dgc.m_first_rx_evt = ble_dgc.m_first_evt = 0xFFFFu;
-        ble_dgc.m_first_rx_us = 0;
-    }
-#endif
     ble_ll_hw_master_start();
 }
 
@@ -459,13 +403,11 @@ static void hw_master_setup(void)
  * §21.6) */
 static void hw_init_event(void)
 {
-    BLE_DG(ble_dgc.init_events++);
     if (drv.init_hit) {
         hw_master_setup();
         return;
     }
     fm1_ble_col_wr(HW_LINK, 6, 0x2100u | drv.scan_ch);
-    BLE_DG(ble_dgc.init_last_ch = drv.scan_ch);
     drv.scan_ch = (uint8_t)(drv.scan_ch >= 39u ? 37u : drv.scan_ch + 1u);
     cb_rfprio(++drv.scan_evts % 6u ? 26u : 30u);
 }

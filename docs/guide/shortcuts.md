@@ -34,7 +34,7 @@ Every button, knob and key gesture, grouped by what you want to do, then the one
 | FX tapped | the mixer's MASTER row | the master FX page; again: its next page |
 | FX tapped | the mixer's USB IN row | its insert slots |
 | SEQ tapped | anywhere | STEP; on STEP: its next page (PATTERN, TOOLS [SEQTOOLS], GEN, GEN OUT [NOTEGEN or GEN_GRIDS]) |
-| GLO tapped | anywhere | GLOBAL; on GLOBAL: SYSTEM; on SYSTEM: GLOBAL |
+| GLO tapped | anywhere | the one of GLOBAL / SYSTEM open last (GLOBAL after power-on); on GLOBAL: SYSTEM; on SYSTEM: GLOBAL |
 | HOME tapped | a page | back to the mixer, on its row |
 | HOME tapped | the mixer | SCOPE; HOME again: the mixer |
 | SAVE tapped | where YES has nothing to do (the mixer, most pages) | PROJECT |
@@ -56,10 +56,10 @@ Every button, knob and key gesture, grouped by what you want to do, then the one
 | PRESETS | a synth track | its preset (asks "Discard T1 edits?" over edits) |
 | PRESETS | DR, a lane on the kit | the kit |
 | PRESETS | a lane on its own source | that lane's sound |
-| SHIFT2 + PRESETS | a synth track | the next / previous instrument (engine) |
-| SHIFT2 + PRESETS | a lane on its own source | the next / previous kind (user, sampled, synth, X0X) |
+| SHIFT + PRESETS | a synth track | the next / previous instrument (engine), its first sound |
+| SHIFT2 + PRESETS | a synth track | the preset list's filter, round: ALL, FACTORY, USER, FAVORITES, INIT (the popup's header names it) |
+| SHIFT + PRESETS | a lane on its own source | the next / previous kind (user, sampled, synth, X0X) |
 | SAVE + PRESETS | a synth track | the sound a favorite (right) or not (left) [FAVORITES] |
-| SHIFT2 + SELECT | a synth track | browse the favorites only (right) or every sound (left) [FAVORITES] |
 | SHIFT2 + SELECT | STEP, no step held | the page's cards stay about 30 s after each turn instead of 1.5 s, until STEP is left (a generator tuned while it plays) |
 | SHIFT + ENV | a synth track | INIT the sound (asked over edits) |
 
@@ -79,10 +79,10 @@ Every button, knob and key gesture, grouped by what you want to do, then the one
 | PLAY tapped | anywhere | start / stop (when let go) |
 | PLAY held | anywhere | the TEMPO page while held (BPM, NUDGE, SWING, SYNC; REC: MODE, LENGTH, START, CLICK; QUANT) |
 | PLAY + white keys, or PLAY + HOME | anywhere | tap tempo (two taps or more) |
-| PLAY + OCT- / OCT+ held | TEMPO page, GLOBAL's Tempo lines | nudge the clock 3.9 % slower / faster while held (not on an external clock) |
+| PLAY + OCT- / OCT+ held | TEMPO page, GLOBAL's Tempo lines | nudge the clock 3.9 % slower / faster while held; on a followed clock (USB, TRS, Link, BLE) they move its offset (CLK OFS / BT OFS) 1 ms instead, saved |
 | SHIFT + PLAY | anywhere | stop, every voice off (ALL SOUND OFF) |
 | SEQ + PLAY | anywhere | the song from its start |
-| REC tapped | stopped | arm: the first note starts recording (with START = COUNT, PLAY gives a bar of clicks first) [REC_MODES] |
+| REC tapped | stopped | arm: the first note starts recording (with START = COUNT, PLAY gives a bar of clicks first) [REC_MODES]. On a synth track's STEP: STEP ENTRY (KNOB 1 the cursor, a key toggles its note there, KNOB 2 / 3 / 4 move, transpose, lengthen the step's notes); PLAY then arms the take, the first note starts it |
 | REC tapped | playing | record the selected track; again: REC OFF |
 | REC tapped | a free take (empty project, MODE FREE) | close the take at the next downbeat; PLAY drops it |
 | SEQ + REC tapped | anywhere | SONG REC on / off |
@@ -108,17 +108,18 @@ On STEP the white keys stay steps under the shifts: SHIFT and SHIFT2 with a step
 | SAVE, a note picked | STEP, the cards down | the note's cards, as if its step were held; HOME: they go |
 | SAVE held alone, let go | STEP, a note picked | the note muted / on again: kept, dim, played as a rest (not the ACCENT lane) |
 | HOME held alone, let go | STEP, a note picked | the note deleted (HOME tapped: back, as ever) |
-| a step key held | STEP | the cards are the step's: synth NOTE, LEVEL, RATCHET, LENGTH; drums LEVEL, RATCHET, TUNE, DECAY. Several held steps edit together |
+| a step key held | STEP | the cards are the step's: synth NOTE, LEVEL, RATCHET, GLIDE (the note slides into the next step); drums LEVEL, RATCHET, TUNE, DECAY. Several held steps edit together |
 | step held + a knob | STEP | that value; SHIFT + the knob: back to NORMAL, x1, one step (on a p-lock card: that lock cleared) |
 | step held + PRESETS | STEP | move the step in time (its locks and motion go with it) |
 | step held + ALGORITHM | synth | the selected note a semitone up / down; folded: to the next row shown |
 | step held + ALGORITHM | drums | the hit to the lane above / below |
 | step held + SELECT | STEP | a chord's note to move, then the cards' pages (the step, its extras, its p-lock pages) |
 | step held + OCT- / OCT+ | synth | its notes an octave down / up |
-| step held + SAVE | STEP | on a p-lock card: lock <-> held motion; else the fill condition: NORMAL, FILL ONLY, NO FILL [FILLS] |
+| step held + SAVE | STEP | the fill condition, whatever card: NORMAL, FILL ONLY, NO FILL [FILLS]; without FILLS on a p-lock card: lock <-> held motion |
+| step held + SHIFT2 + SAVE | STEP | on a p-lock card: lock <-> held motion [FILLS] |
 | step held + ENV, LFO, FX, SCL, ARP (drums: EDIT too) | STEP | that page's cards as the step's p-locks; again: its next page [PLOCK] |
-| SEQ + keys | a synth track's STEP | the notes played become the next steps |
-| SEQ held alone, let go | STEP | the keys play with STEP up; again: they are steps |
+| SEQ held | STEP | the fill view of the selected synth track or drum lane, header *FILLS T1* / *FILLS* + lane [FILLS] |
+| SEQ held + a step key | STEP | that track's or lane's fills: empty: a FILL ONLY note / hit; FILL ONLY: removed; a normal note: unchanged, the popup says so. One undo level each [FILLS] |
 | OCT- and OCT+ tapped together (let go within 400 ms) | a synth track's STEP | FOLD on / off: only the rows of the pattern's notes, or the scale's notes when a scale is set |
 | TOOLS: a knob, then SAVE | STEP's TOOLS page | the tool: REVERSE, RANDOM, COOK, DOUBLE, HALF, QNT 1, QNT 1/2, QNT 1/4 (asked) [SEQTOOLS] |
 
@@ -154,7 +155,9 @@ Patterns and scenes share one grammar in the LFO layer (and on SONG's PATTERNS r
 | SAVE + SEQ | a track | the working pattern into its slot (asked over a used one) [PATTERNS] |
 | LFO held + a white key | anywhere | launch the track's pattern n at the end of its pass; OCT- + the key: at the next bar; OCT+ + the key: now [PATTERNS] |
 | LFO held + SAVE + a white key | anywhere | store the working pattern into slot n (asked over a used one) [PATTERNS] |
-| LFO held + black key 1-4 / 5 / 9 | anywhere | pick the track / stop its pattern / duplicate it into a free slot [PATTERNS] |
+| LFO held + black key 1-4 / 5 / 6 / 9 | anywhere | pick the track / ALL TRACKS (the white keys, SAVE + n, HOME + n act on T1..DR; again: the selected track) / stop its pattern / duplicate it into a free slot [PATTERNS] |
+| LFO held + a black key 1-4 held + a white key | anywhere | store that track's working pattern into slot n (black 5 held: every track's), as SAVE + n [PATTERNS] |
+| a launch or stop over edits not stored | the LFO layer, SONG's PATTERNS row | asks "LOSE EDITS? T1 T3" (the tracks with edits): YES (SAVE) goes on, HOME keeps them [PATTERNS] |
 | LFO held + black key 10 | anywhere | **the scenes**: the white keys are scenes A-P until black 10 again or LFO is let go [PATTERNS] |
 | the scenes + a white key | the LFO layer | start that scene at the next bar (stopped: load it, asked over changed work); two or more in one hold while playing: a chain [QCHAIN] |
 | the scenes + SAVE + a white key | the LFO layer | the loop into that scene (asked over a used one) |
@@ -171,7 +174,7 @@ Hold the button: its map shows and the keys and knobs are the layer's. **SHIFT2 
 | **EDIT** (erase) | erase that note / lane as it plays; drum SOUND page: picks that sound | SHIFT (rotate), LENGTH (x2 / half), TRANSPOSE | |
 | **ARP** (roll) | note repeat at the tempo | RATE | |
 | **SCL** (key) | the song's key (root) | CHORD, SCALE, KEYS, TRANSPOSE | |
-| **GLO** (mix) | 1-4 mute T1-DR, 16 tap tempo; with FILLS 9 fill while held, 10 next bar a fill, black 1-4 FX bypass T1-DR (without FILLS: 9-12) | LEVEL of T1, T2, T3, DR | |
+| **GLO** (mix) | 1-4 mute T1-DR (tap tempo: PLAY held); with FILLS 9 fill while held, 10 next bar a fill, black 1-4 FX bypass T1-DR (without FILLS: 9-12) | LEVEL of T1, T2, T3, DR | |
 | **LFO** (patterns, scenes) [PATTERNS] | above, Saving | the page under | OCT+ + a key: launch now; OCT- + a key: at the next bar |
 | **ENV** on an FM6 track (operators) | black keys pick OP1-OP6, PIT, GLO, MONO, POLY; white keys play | the page's four values | previous / next page |
 

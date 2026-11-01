@@ -24,7 +24,6 @@ typedef struct {
 } fav_t;
 _Static_assert(UP_SLOTS <= 32u, "favorites: the user marks are one 32-bit word");
 static fav_t fav IN_POOL;
-static uint8_t fav_list;                     /* PRESETS > LIST: 0 ALL, 1 FAV (not kept over a power cycle) */
 
 static uint16_t fav_hash(uint32_t uid, const char *name)
 {

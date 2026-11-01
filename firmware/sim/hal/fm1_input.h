@@ -59,16 +59,11 @@ static uint8_t fm1_led[FM1_NCOL];
 #endif
 static uint8_t fm1_led_dim[FM1_NCOL];
 static uint8_t fm1_led_half[FM1_NCOL];          /* the half level (the HAL's: lit 2 frames in 3) */
-#ifndef FELUCCA_LIGHTS
-#define FELUCCA_LIGHTS 0
-#endif
-#if FELUCCA_LIGHTS
 #ifndef FM1_GLOW_NS
 #define FM1_GLOW_NS 4000u
 #endif
 static uint8_t fm1_led_bg[FM1_NCOL];
 static volatile uint16_t fm1_led_bg_ns;
-#endif
 
 /* the page's presses and releases, in order: id (0..40) | down << 7 */
 #define SIM_INQ 128u
@@ -141,6 +136,7 @@ static inline void fm1__unlock(uint32_t v) { if (v) fm1_irq_on(); }
 static void fm1_remote_key(uint32_t id, uint32_t down) { sim_inq[sim_inq_w++ % SIM_INQ] = (uint8_t)(id | (down ? 0x80u : 0u)); }
 static void fm1_remote_enc(uint32_t e, int32_t s) { fm1_in.enc_steps[e] = (int16_t)(fm1_in.enc_steps[e] + s); }
 static void fm1_remote_clear(void) {}
+static int16_t fm1_turned[FM1_NENC];      /* the steps taken since the mirror's last STATE (firmware/hal/fm1_input.h's) */
 #endif
 static int32_t fm1_enc_take(uint32_t e)
 {
@@ -148,6 +144,9 @@ static int32_t fm1_enc_take(uint32_t e)
     int32_t s = fm1_in.enc_steps[e];
     fm1_in.enc_steps[e] = 0;
     fm1__unlock(k);
+#if FELUCCA_ED_MIRROR
+    fm1_turned[e] = (int16_t)(fm1_turned[e] + s);
+#endif
     return s;
 }
 

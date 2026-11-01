@@ -19,11 +19,31 @@ enum FlashStep: Equatable {
     case done(String)             // the identity the FM-1 reports now
 }
 
+/// Which FM-1 a MIDI port belongs to (web/install_route.js fm1Key, tools/fm1_install.py fm1_devices): its "FM1-XXXX" (all its ports
+/// share it), else the port's name. Bluetooth ports (the same FM-1 seen twice) and generic names ("USB-MIDI", "composite") are none.
+enum FlashDevices {
+    static func key(_ name: String) -> String? {
+        if name.range(of: "bluetooth", options: .caseInsensitive) != nil { return nil }
+        if let r = name.range(of: "FM1-[0-9A-F]{4}", options: [.regularExpression, .caseInsensitive]) { return name[r].uppercased() }
+        return name.range(of: "fm-1|optimist|felucca", options: [.regularExpression, .caseInsensitive]) != nil ? name : nil
+    }
+
+    /// the FM-1s among the port names, one key each, in the order met
+    static func keys(_ names: [String]) -> [String] {
+        var out: [String] = []
+        for k in names.compactMap(key) where !out.contains(k) { out.append(k) }
+        return out
+    }
+}
+
 final class FlashUpdater {
     private let ports: FlashPorts
+    /// the keys (FlashDevices) of the FM-1s that are not the chosen one: no port of theirs is ever asked
+    var excluded: Set<String> = []
     private let pause: (TimeInterval) async -> Void
     /// the waits of the protocol (the web installer's); tests shrink them
     struct Timing {
+        var afterStop: TimeInterval = 0.1        // after the MIDI STOP, before the upgrade command
         var afterUpgrade: TimeInterval = 2
         var beforeLoader: TimeInterval = 3
         var loaderWait: TimeInterval = 30
@@ -33,6 +53,8 @@ final class FlashUpdater {
         var step1Idle: TimeInterval = 8
         var step2Idle: TimeInterval = 180
         var perRead: TimeInterval = 0.01
+        var fastWord: TimeInterval = 0.5        // the wait for the loader's answer to the fast install's word
+        var afterUpgradeFast: TimeInterval = 0.05
     }
     var timing = Timing()
 
@@ -61,10 +83,19 @@ final class FlashUpdater {
         return nil
     }
 
-    /// The first port that answers the handshake with an identity `filter` takes.
+    /// The FM-1s on the cable by their port names: nothing is sent to any port.
+    func devices() -> [String] {
+        let channels = ports.channels()
+        let keys = FlashDevices.keys(channels.map(\.name))
+        channels.forEach { $0.close() }
+        return keys
+    }
+
+    /// The first port that answers the handshake with an identity `filter` takes (never one of an FM-1 not chosen).
     func find(_ filter: ((FlashProtocol.Identity) -> Bool)? = nil) async -> Found? {
         var found: Found?
         for c in ports.channels() {
+            if let k = FlashDevices.key(c.name), excluded.contains(k) { c.close(); continue }
             if found == nil, let id = await handshake(c, tries: 2), filter?(id) ?? true {
                 found = Found(channel: c, id: id)
             } else {
@@ -88,8 +119,22 @@ final class FlashUpdater {
 
     struct Served { var count = 0; var finished = false; var lost = false }
 
-    /// Answers read requests until the device asks for `finish`; stops early when the port disappears.
-    func serve(_ c: FlashChannel, _ image: [UInt8], finish: UInt32, idle: TimeInterval, progress: (Int, UInt32) -> Void) async throws -> Served {
+    /// The fast install's word (FlashProtocol.fastHello) -> true when the loader answers it; an older loader ignores it.
+    func fastHello(_ c: FlashChannel) async -> Bool {
+        c.drain()
+        guard c.send(FlashProtocol.fastHello) else { return false }
+        let end = Date().addingTimeInterval(timing.fastWord)
+        while Date() < end {
+            guard let p = await c.read(timeout: end.timeIntervalSinceNow) else { return false }
+            if FlashProtocol.fastReply(p) == FlashProtocol.fastChunk { return true }
+        }
+        return false
+    }
+
+    /// Answers read requests until the device asks for `finish`; stops early when the port disappears. `fast`: 4 KiB
+    /// reads and the table, no pause before an answer (the fast install); else today's protocol.
+    func serve(_ c: FlashChannel, _ image: [UInt8], finish: UInt32, idle: TimeInterval, fast: Bool = false,
+               progress: (Int, UInt32) -> Void) async throws -> Served {
         var s = Served()
         var last = Date()
         while true {
@@ -105,14 +150,13 @@ final class FlashUpdater {
                 if r.address == finish { s.finished = true; return s }
                 continue
             }
-            guard r.length <= FlashProtocol.maxData, Int(r.address) + r.length <= image.count else {
+            guard let data = FlashProtocol.answer(image, r, maxData: fast ? FlashProtocol.fastChunk : FlashProtocol.maxData) else {
                 throw FlashError(code: .badRequest, description: "The FM-1 asked for bytes outside the package (\(String(r.address, radix: 16))+\(r.length)).")
             }
-            await pause(timing.perRead)
-            let start = Int(r.address)
-            guard c.send(FlashProtocol.response(r.address, image[start..<(start + r.length)], flags: r.flags)) else { s.lost = true; return s }
+            if !fast { await pause(timing.perRead) }
+            guard c.send(FlashProtocol.response(r.address, data, flags: r.flags)) else { s.lost = true; return s }
             s.count += 1
-            progress(s.count, r.address)
+            if r.address < FlashProtocol.table { progress(s.count, r.address) }
         }
     }
 
@@ -130,6 +174,8 @@ final class FlashUpdater {
             throw FlashError(code: .model, description: "The device is \(dev.id.text), the package is for \(pkg.product).")
         }
         step(.start(dev.id.text))
+        _ = dev.channel.send(FlashProtocol.midiStop)         // the transport stops first (the firmware does it too)
+        await pause(timing.afterStop)
         _ = dev.channel.send(FlashProtocol.upgrade)
         await pause(timing.afterUpgrade)
         let s1 = try await serve(dev.channel, pkg.image, finish: FlashProtocol.step1Done, idle: timing.step1Idle) { n, _ in step(.verify(n)) }
@@ -152,9 +198,10 @@ final class FlashUpdater {
             ota.channel.close()
             throw FlashError(code: .foreign, description: "The FM-1 is in the update mode of another firmware (\(ota.id.text)): finish that update with its own updater.")
         }
+        let fast = await fastHello(ota.channel)
         _ = ota.channel.send(FlashProtocol.upgrade)
-        await pause(timing.afterUpgrade)
-        let s2 = try await serve(ota.channel, pkg.image, finish: FlashProtocol.step2Done, idle: timing.step2Idle) { n, a in step(.write(n, a)) }
+        await pause(fast ? timing.afterUpgradeFast : timing.afterUpgrade)
+        let s2 = try await serve(ota.channel, pkg.image, finish: FlashProtocol.step2Done, idle: timing.step2Idle, fast: fast) { n, a in step(.write(n, a)) }
         ota.channel.close()
         guard s2.finished else {
             throw FlashError(code: s2.lost ? .lost : .stopped,

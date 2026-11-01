@@ -13,6 +13,17 @@ the browser, install it from the browser.</b><br>
 Free software (GPL-3.0-only), built on <a href="https://github.com/isod89/sloop-fm1">SLOOP</a>, Felucca, Melodee, X0X and other
 FM-1 projects (see <a href="#credits">Credits</a>).</p>
 
+> [!WARNING]
+> ## 🚧 `sdcard` branch: WORK IN PROGRESS 🚧
+>
+> **This branch is an experiment, not a release.** The SD card mod (a microSD card on the FM-1's LCD bus, a bigger
+> flash layout, projects and samples on the card) is **not finished and has never run on a modded FM-1**.
+>
+> - **The SD board is an untested prototype**: `hardware/sd-board/` is being ordered for its first bench tests (see
+>   its README); build one only if you are ready to rework it.
+> - **Do not install these builds on an FM-1 you depend on.** Use the releases from the `main` branch.
+> - Anything here may change or be dropped without notice.
+
 > [!CAUTION]
 > **Early access: work in progress, no warranty, use at your own risk.** Optimist runs on real FM-1s, but most features
 > are tested in the emulator and on the host, and formats can change between versions. An install could fail or erase
@@ -54,8 +65,8 @@ Your projects, presets, kits and samples live above the firmware: an install wri
 Optimist cannot read may not be kept, except SLOOP's: SLOOP 2.7 data is kept (below).
 
 **Coming from SLOOP 2.7:** Optimist erases nothing of SLOOP's. Its sections stay in flash and show as *SLOOP* on the
-PROJECT page; LOAD twice imports one (SLOOP IMPORT takes its autosave), SAVE keeps the import. The editor can export the
-working project as a SLOOP 2.7 song file to go the other way.
+PROJECT page and in the editor; Optimist does not read them (LOAD says *SLOOP PROJECT*) and does not export to SLOOP.
+Its own projects live in the sections beside them.
 
 ## Getting back
 
@@ -64,6 +75,9 @@ working project as a SLOOP 2.7 song file to go the other way.
   unchanged) and install it. Or use M-VAVE's own updater, M-UPGRADE. The official firmware does not read Optimist's data: back it up first.
 - **The FM-1 does not start Optimist:** hold **OCT−** alone while switching on (*OPTIMIST USB RESCUE*), then install again.
   After two start-ups that crash, the FM-1 goes there by itself.
+- **Switching between Optimist's own firmware and the release, or from any firmware:** the installer picks the way
+  itself (the running firmware's updater, else the chip's download mode through M-Flasher, a full backup first):
+  [docs/INSTALL-PATHS.md](docs/INSTALL-PATHS.md). No detour through V15.
 - **Nothing starts at all:** hold **OCT− + OCT+** while switching on and keep them held for **3 s**: the chip's own update mode
   (UBOOT; the screen stays dark). Then M-UPGRADE, or `tools/fm1_rescue.py` from this repository (macOS; from X0X: it
   backs up the whole flash first and writes only the firmware area), or
@@ -130,14 +144,14 @@ listed with its licence and commit in [LICENSING.md](LICENSING.md).
 - **[CS-1](https://github.com/twochannels/CS-1)** by twochannels: the CS80 engine's voice design.
 - **[X0X](https://github.com/charlesvestal/fm1-x0x)** by Charles Vestal: the rescue tool, the ACID engine (Open303, TB-3PO), the X0X 909 / 808 kits (9W9, 8W8 by athousanddetails, ER-99 by Matthew Cieplak), the mixer glides, the second core's start.
 - **[Flowstate](https://github.com/zakariachowdhury/flowstate-fm1)** by Zakaria Chowdhury: the performance macros, the CPU guard. **[Jangada](https://github.com/zednaked/jangada)** by zednaked: the SUPER engine, the second core's supply settings. **[Caravel](https://github.com/bonszaimusic/caravel)** by bonszaimusic: the DRONE engine's coupled network. **[fm-106](https://github.com/PatttF/fm-106)** by PatttF, after [Ultramaster KR-106](https://github.com/kayrockscreenprinting/ultramaster_kr106): the JUNO engine and chorus.
-- DaisySP, Rings, Plaits, MAME's uPD933, Airwindows, MSFA and Dexed, sc808; samples from Versilian Studios and Sonic Pi (CC0); fonts Terminus and JetBrains Mono (SIL OFL), Fukiai (MIT); [fm1-emulator](https://github.com/simonjohansson/fm1-emulator) by Simon Johansson; [jl-uboot-tool](https://github.com/kagaimiq/jl-uboot-tool) by kagaimiq.
+- DaisySP, Rings, Plaits, MAME's uPD933, Airwindows, MSFA and Dexed, sc808; samples from Versilian Studios and Sonic Pi (CC0); fonts Terminus and JetBrains Mono (SIL OFL), Fukiai (MIT); [fm1-emulator](https://github.com/simonjohansson/fm1-emulator) by Simon Johansson; [jl-uboot-tool](https://github.com/kagaimiq/jl-uboot-tool) by kagaimiq; [M-Flasher](https://github.com/jvitkauskas/m-flasher) and [m-bootloader](https://github.com/jvitkauskas/m-bootloader) by Julius Vitkauskas: download-mode installs and the open bootloader ([docs/INSTALL-PATHS.md](docs/INSTALL-PATHS.md)).
 
 Unofficial: not made, endorsed or supported by M-VAVE. M-VAVE and FM-1 are trademarks of their owners. Product names
 (Juno-106, TB-303, TR-808, TR-909, DX7, CZ, Prophet-5, Prophet VS, Wavestation, SID) only say what an engine or kit models.
 
 ## Licence and contributing
 
-Code: **GPL-3.0-only** ([LICENSE](LICENSE)), the Bluetooth stack GPL-3.0-only OR MPL-2.0; assets have their own terms ([LICENSING.md](LICENSING.md)). No warranty. If
+Code: **GPL-3.0-only** ([LICENSE](LICENSE)), the Bluetooth stack and the Wi-Fi code GPL-3.0-only OR MPL-2.0 (the Ableton Link port stays GPL-3.0-only); assets have their own terms ([LICENSING.md](LICENSING.md)). No warranty. If
 you distribute a build, give its source under the same licence.
 
 To add an engine, an effect, a note generator or a UI change, read [CONTRIBUTING.md](CONTRIBUTING.md): where the code

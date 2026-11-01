@@ -22,7 +22,7 @@
  * still plays as it is). */
 #define PAT_ID(k, s) (SEC_ID_PAT0 + PAT_N * (k) + (s))
 #define SEC_ID_PSTATE 17u                              /* the working copies' sources (pat_cur), with the autosave */
-_Static_assert(PAT_ID(NTRK - 1u, PAT_N - 1u) < 88u, "the patterns' log ids: 24..87");
+_Static_assert(PAT_ID(NTRK - 1u, PAT_N - 1u) < 88u && PAT_N == SLG_MPAT_N, "the patterns' log ids: 24..87 (the MIDI tracks' 142..205, sec_log.c)");
 enum { PF_MOT = 1, PF_B = 2, PF_DRUM = 4, PF_ON = 8, PF_SX = 16, PF_V1 = 0x20, PF_V2 = 0x40, PF_VER = 0xE0 };
 static uint32_t pat_missing;                           /* patterns a scene named and the log did not have */
 
@@ -192,6 +192,84 @@ static uint32_t pat_encode(const project_t *p, uint32_t k, uint8_t *out)
 /* ---- where patterns are, who uses them */
 static uint32_t pat_pend(uint32_t k, uint32_t s) { return SEC_PEND_PAT + PAT_N * k + s; }
 static int pat_has(uint32_t k, uint32_t s) { return sec_pend_has(pat_pend(k, s)) || slg_has(PAT_ID(k, s)); }
+/* the preview of the stored pattern (k, s) without loading it (the patterns screen, ui/optimist/op_laydraw.c): its LEN and,
+ * per lane (a synth track: lane 0), which of the first 16 steps are on (a bit each) and their dynamics (2 bits each, LV_*;
+ * a synth step's strongest note). Read only (the record is parsed, nothing decoded into a track, nothing written);
+ * 0: nothing readable there */
+static int pat_peek(uint32_t k, uint32_t s, pat_peek_t *o)
+{
+    static const uint8_t RK[4] = {2, 0, 1, 3};         /* (LV_NORM, GHOST, SOFT, HARD: their order of strength) */
+    const uint8_t *a = sec_rbuf, *e, *m;
+    uint32_t n, f, v, len, i, l, c;
+    uint8_t st[10];
+    uint16_t fo[DRUM_LANES] = {0};                       /* (FILL ONLY: a step a bit, per lane; a synth track's lane 0) */
+    memset(o, 0, sizeof *o);
+    if (k >= NTRK || s >= PAT_N || (n = pat_get(k, s, sec_rbuf)) < 5u)
+        return 0;
+    e = a + n, f = a[0], v = f & PF_VER;
+    if (!(v == PF_V1 || (v == PF_V2 && !(f & PF_SX))) || !(f & PF_DRUM) != !IS_DRUMK(k))
+        return 0;
+    len = a[1] < 1u ? 1u : a[1] > NSTEP ? (uint32_t)NSTEP : a[1];
+    a += 5;
+    if (f & PF_MOT) {
+        if (a >= e || (uint32_t)(e - a) < 1u + 3u * (c = *a))
+            return 0;
+#if FELUCCA_AUTO
+        for (i = 0; i < c; i++) {                       /* (the muted notes: AUTO_MUTE / AUTO_SMUTE, this step only, set) */
+            uint32_t pl = a[1u + 3u * i], pr = a[2u + 3u * i];
+            uint32_t pv = a[3u + 3u * i], b = 1u << (pl & AUTO_STEP);
+            if ((pl & AUTO_ONLY) && pv && (pl & AUTO_STEP) < 16u) {
+                if (IS_DRUMK(k) && pr >= AUTO_MUTE0 && pr < AUTO_MUTE0 + DRUM_LANES) {
+                    if (pv == 1u)                       /* (the lane's one state a hit: muted; FILL ONLY: not shown, it plays in a fill only; NO FILL: as any) */
+                        o->mut[pr - AUTO_MUTE0] |= (uint16_t)b;
+                    else if (pv == AUTO_LF_FILL)
+                        fo[pr - AUTO_MUTE0] |= (uint16_t)b;
+                } else if (!IS_DRUMK(k) && pr == AUTO_SMUTE) {
+                    o->mut[0] |= (uint16_t)b;
+                } else if (!IS_DRUMK(k) && pr == AUTO_FILL && pv == FC_FILL) {
+                    fo[0] |= (uint16_t)b;
+                }
+            }
+        }
+#endif
+        a += 1u + 3u * c;
+    }
+    m = a;
+    if ((uint32_t)(e - m) < (len + 7u) / 8u)
+        return 0;
+    a += (len + 7u) / 8u;
+    for (i = 0; i < len && i < 16u; i++) {
+        if (!((m[i >> 3] >> (i & 7u)) & 1u))
+            continue;
+        if (f & PF_B) {
+            if (!sec_unstep_b(&a, e, st))
+                return 0;
+        } else {
+            if ((uint32_t)(e - a) < 10u)
+                return 0;
+            memcpy(st, a, 10), a += 10;
+        }
+        if (IS_DRUMK(k)) {
+            uint32_t mask = ((uint32_t)st[0] | (uint32_t)st[1] << 8) & DRUM_LMASK;
+            for (l = 0; l < DRUM_LANES; l++)
+                if (((mask >> l) & 1u) && !((fo[l] >> i) & 1u)) {
+                    o->hit[l] |= (uint16_t)(1u << i);
+                    o->lvl[l] |= (uint32_t)((st[2u + (l >> 2)] >> ((l & 3u) * 2u)) & 3u) << (2u * i);
+                }
+        } else if (st[5] == ST_NOTE && st[4] && !((fo[0] >> i) & 1u)) {
+            uint32_t best = 0, j;
+            for (j = 0; j < st[4] && j < 4u; j++) {
+                uint32_t lv = (st[8] >> (2u * j)) & 3u;
+                if (j == 0u || RK[lv] > RK[best])
+                    best = lv;
+            }
+            o->hit[0] |= (uint16_t)(1u << i);
+            o->lvl[0] |= best << (2u * i);
+        }
+    }
+    o->len = (uint8_t)len;
+    return 1;
+}
 /* scene i's patterns -> r (NTRK); 1 it is a scene (the arena's record, else the log's) */
 static int pat_scene_refs(uint32_t i, uint8_t *r)
 {

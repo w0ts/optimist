@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// The editor protocol's wire format (web/EDITOR_PROTOCOL.md, web/editor.html "PROTO-BEGIN"): frames, 7-bit values, CRC-32,
+// The editor protocol's wire format (web/EDITOR_PROTOCOL.md, web/editor.html "wire-section:begin"): frames, 7-bit values, CRC-32,
 // the replies the app reads. Pure functions, no CoreMIDI: the tests run them against a fake device.
 import Foundation
 
@@ -51,6 +51,8 @@ enum Wire {
         case .smpWrite, .patRead, .patWrite: return same(4)
         case .clip:                                      // (op 0: 0, 0, ..; 1, 2: op, rc, track, index)
             return args.first == 0 ? same(1) : a.count >= 4 && args.count >= 3 && a[0] == args[0] && a[2] == args[1] && a[3] == args[2]
+        case .panel:                                     // (opti_panelx_1: kind, rc, seq)
+            return args.count < 4 || (a.count >= 3 && a[0] == args[0] && a[2] == args[3])
         default: return true
         }
     }
@@ -166,8 +168,12 @@ struct Feature: Equatable {
     static let panel = Feature(name: "opti_panel", version: 1)
     static let nav = Feature(name: "opti_nav", version: 1)
     static let proj = Feature(name: "opti_proj", version: 1)
+    static let btproj = Feature(name: "opti_btproj", version: 1) // the projects' moves (43..48, 110) over Bluetooth too (BT_PROJ; INFO tag 67)
     static let mirbt = Feature(name: "opti_mirbt", version: 1)   // INFO, PANEL and NAV over Bluetooth too (ed_mirror.c)
+    static let mirfix = Feature(name: "opti_mirfix", version: 1)   // 106 bit 4: lost frames asked for by seq (ed_mirror.c mir_fix)
+    static let miraimd = Feature(name: "opti_miraimd", version: 1)   // 106 bit 5: the losses and next seq in the keep-alive; the FM-1 paces its Bluetooth stream by them (ed_mirror.c MIR_AIMD)
     static let clip = Feature(name: "opti_clip", version: 1)     // 111 CLIP, a synth track's steps (ed_clip.c; INFO tag 67)
+    static let panelx = Feature(name: "opti_panelx", version: 1) // 108 PANEL's seq and let go (ed_mirror.c; INFO tag 67)
 }
 
 struct DeviceInfo: Equatable {
@@ -180,6 +186,14 @@ struct DeviceInfo: Equatable {
     var patSlots = 0, patScenes = 0   // tag 55: the per-track patterns (0: none)
     var hasPatterns: Bool { patSlots > 0 && has(.patterns) }
     var features: [String: Int] = [:]   // tags 66 and 67: "opti_backup_4 opti_mirror_2 ...", name -> version (none: not optimist's way)
+    /// The tagged blocks ended exactly at the reply's end and the feature names are printable. Over Bluetooth an INFO asked
+    /// while the screen streams comes damaged, still F0 .. F7 (measured on the FM-1, 2026-10-31: 18 of 20, a run of bytes
+    /// zeroed in place or bytes lost): its block lengths or its names no longer hold.
+    var intact = true
+
+    /// An INFO the Bluetooth link can trust: whole, and from a firmware that mirrors (over Bluetooth only ed_mirror.c answers
+    /// INFO, so a reply without opti_mirror is a damaged one)
+    var wholeOverBluetooth: Bool { intact && features[Feature.mirror.name] != nil }
 
     /// The firmware offers f in the version this app reads (firmware/src/io/editor/ed_opti.h): every Felucca-family
     /// firmware answers INFO, but numbers its other commands its own way.
@@ -206,12 +220,17 @@ struct DeviceInfo: Equatable {
         if o.proto >= 6 { for _ in 0..<o.nengines where !r.atEnd { _ = try r.b() } }   // v6: each engine's UID
         while o.proto >= 6 && r.i + 2 <= a.count {
             let id = try r.b(), n = Int(try r.b())
-            if r.i + n > a.count { break }
+            if r.i + n > a.count { o.intact = false; break }
             if id == 0x55 && n >= 2 { o.patSlots = Int(a[r.i]); o.patScenes = Int(a[r.i + 1]) }
             if id == 0x64 && n >= 1 { o.lite = a[r.i] & 1 != 0; o.lib = a[r.i] & 2 != 0 }
-            if id == 0x66 || id == 0x67 { o.features.merge(features(a[r.i..<r.i + n])) { $1 } }   // (67: more names, 66 full)
+            if id == 0x66 || id == 0x67 {                // (67: more names, 66 full)
+                let text = a[r.i..<r.i + n]
+                if text.contains(where: { $0 < 0x20 || $0 > 0x7E }) { o.intact = false }   // (names are printable: zeroed bytes are not)
+                o.features.merge(features(text)) { $1 }
+            }
             r.i += n
         }
+        if o.proto >= 6 && r.i != a.count { o.intact = false }   // (a byte left over: a block's length did not hold)
         return o
     }
 }
@@ -268,6 +287,10 @@ struct BkCaps: Equatable {
     var engAt: Int, trk: Int, kitAt: Int, e0At: Int
     var np: Int, pe0: Int, slen: Int
     var bits: [Int]
+    /// the installed MEMORY layout (bk_caps' last three bytes, 2026-10-31 on; nil: an older firmware): the app slot's end and the
+    /// projects the flash keeps (2, 4, 16; SD card mode 1)
+    var appEnd: Int? = nil
+    var projects: Int? = nil
 }
 
 struct BkList: Equatable {
@@ -310,6 +333,8 @@ struct BkList: Equatable {
                             usrCap: [Wire.rd7(a, p + 11, 3), Wire.rd7(a, p + 14, 3), Wire.rd7(a, p + 17, 3)],
                             engAt: Wire.rd7(a, p + 20, 2), trk: Wire.rd7(a, p + 22, 2), kitAt: Wire.rd7(a, p + 24, 2),
                             e0At: Wire.rd7(a, p + 26, 2), np: Int(a[p + 28]), pe0: Int(a[p + 29]), slen: Int(a[p + 30]), bits: bits)
+            let q = p + 32 + Int(a[p + 31])
+            if q + 3 <= a.count { o.caps?.appEnd = Wire.rd7(a, q, 2) * 4096; o.caps?.projects = Int(a[q + 2]) }
         }
         return o
     }

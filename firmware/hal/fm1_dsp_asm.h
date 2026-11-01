@@ -47,6 +47,21 @@
 #if FELUCCA_ASM_CHECK && !FELUCCA_ASM
 #error "FELUCCA_ASM_CHECK needs FELUCCA_ASM"
 #endif
+/* FELUCCA_MUL64_CLEAR: 1 = no load beside a 64-bit multiply in these loops (fm1-base's felucca-bsp docs/CPU.md: on
+ * the FM-1 a 32x32 -> 64 multiply with a load in flight beside it, most of all a 16-bit one, now and then leaves a
+ * register a bit off; fm1-base's tools/build.py lists such code). Each multiply then has no load in the two
+ * instructions before it, and a word of its product is read before the next load: loads moved earlier where a
+ * register is free, else a nop. The same values, a few instructions more (SVF 1 a sample, PHYS's curved string 4
+ * of ~112, its sympathetic comb 5 of 33). 0 (the default): the loops as they were, Optimist's own firmware byte for
+ * byte. Optimist as an fm1-base app (the trial) builds it with 1. */
+#ifndef FELUCCA_MUL64_CLEAR
+#define FELUCCA_MUL64_CLEAR 0
+#endif
+#if FELUCCA_MUL64_CLEAR
+#define ASM_M64_GAP "nop\n\t"                        /* (between a load and a 64-bit multiply) */
+#else
+#define ASM_M64_GAP ""
+#endif
 
 #if FELUCCA_ASM
 /* b[0..31] = 0 */
@@ -323,7 +338,7 @@ static inline __attribute__((always_inline)) void asm_saw2_acc(int32_t *b, uint3
  * 19 (C 23): the load of the next sample and the store ride in parallel bundles (# : an ALU primary and
  * a load or store slot, no register shared), as do the coefficient steps' loads. */
 #define ASM_SVF_HEAD                                                                                    \
-    "%[v] = %[v] - %[ic2]\n\t"                                                                          \
+    "%[v] = %[v] - %[ic2]\n\t" ASM_M64_GAP                                                              \
     "%[p] = %[ic1] * %[a1] (s)\n\t"                                                                     \
     "%[p] += %[v] * %[a2] (s)\n\t"                                                                      \
     "%[p] >>= 13\n\t"                                 /* v1 */                                          \
@@ -348,11 +363,20 @@ static inline __attribute__((always_inline)) void asm_saw2_acc(int32_t *b, uint3
     "if (%[t] > 131072) goto 8f\n\t"                                                                    \
     "if (--%[n] != 0) goto 1b\n\t"                                                                      \
     "8:\n\t"
-#define ASM_SVF_MOVING                                                                                  \
-    ASM_SVF_HEAD                                                                                        \
+#if FELUCCA_MUL64_CLEAR                               /* (d1, d2 one bundle later: after T's word is read) */
+#define ASM_SVF_STEP_LOADS                                                                              \
+    "%[p] >>= 13\n\t"                                 /* T */                                           \
+    "%[y] = %[ic2] + %[p].l # %[t] = [%[d]+0]\n\t"    /* d1 */                                          \
+    "%[ic2] = %[y] + %[p].l # %[v] = [%[d]+4]\n\t"    /* d2 */
+#else
+#define ASM_SVF_STEP_LOADS                                                                              \
     "%[p] >>= 13 # %[t] = [%[d]+0]\n\t"               /* T; d1 */                                       \
     "%[y] = %[ic2] + %[p].l # %[v] = [%[d]+4]\n\t"    /* d2 */                                          \
-    "%[ic2] = %[y] + %[p].l\n\t"                                                                        \
+    "%[ic2] = %[y] + %[p].l\n\t"
+#endif
+#define ASM_SVF_MOVING                                                                                  \
+    ASM_SVF_HEAD                                                                                        \
+    ASM_SVF_STEP_LOADS                                                                                  \
     "%[a1] += %[t] # [%[b]++=4] = %[y]\n\t"                                                             \
     "%[a2] += %[v] # %[t] = [%[d]+8]\n\t"             /* d3 */                                          \
     "%[a3] += %[t] # %[v] = [%[b]+0]\n\t"                                                               \
@@ -564,6 +588,20 @@ static inline __attribute__((always_inline)) void asm_symp_comb(int16_t *l, uint
     int32_t a, t;
     int64_t p;
     __asm__ volatile("1:\n\t"
+#if FELUCCA_MUL64_CLEAR                              /* (two taps loaded first; a word of p read before the third) */
+                     "%[a] = uextra(%[rd], p:0, l:8)\n\t"
+                     "%[a] = h[%[l]+%[a]<<1] (s)\n\t"
+                     "%[t] = %[rd] + 1\n\t"
+                     "%[t] = uextra(%[t], p:0, l:8)\n\t"
+                     "%[t] = h[%[l]+%[t]<<1] (s)\n\t" ASM_M64_GAP ASM_M64_GAP
+                     "%[p] = %[a] * %[h0] (s)\n\t"
+                     "%[a] = %[rd] + 2\n\t"
+                     "%[a] = uextra(%[a], p:0, l:8)\n\t"
+                     "%[p] += %[t] * %[h1] (s)\n\t"
+                     "%[p].h = %[p].h\n\t"
+                     "%[a] = h[%[l]+%[a]<<1] (s)\n\t" ASM_M64_GAP ASM_M64_GAP
+                     "%[p] += %[a] * %[h2] (s)\n\t"
+#else
                      "%[a] = uextra(%[rd], p:0, l:8)\n\t"
                      "%[a] = h[%[l]+%[a]<<1] (s)\n\t"
                      "%[p] = %[a] * %[h0] (s)\n\t"
@@ -575,6 +613,7 @@ static inline __attribute__((always_inline)) void asm_symp_comb(int16_t *l, uint
                      "%[a] = uextra(%[a], p:0, l:8)\n\t"
                      "%[a] = h[%[l]+%[a]<<1] (s)\n\t"
                      "%[p] += %[a] * %[h2] (s)\n\t"
+#endif
                      "%[t] = %[p].l\n\t"
                      "%[t] <<= 8\n\t"
                      "%[p] >>= 24\n\t"
@@ -643,6 +682,18 @@ static inline __attribute__((always_inline)) void asm_px_string_curved(px_srk_t 
                      "%[a] = [%[K]+16]\n\t"
                      "%[sr] += %[a]\n\t"
                      "if (%[sr] <= 1073741824) goto 2f\n\t"
+#if FELUCCA_MUL64_CLEAR
+                     /* dl (dl0 loaded first, into d) */
+                     "%[a] = [%[K]+20]\n\t"
+                     "%[b] = [%[K]+8]\n\t"
+                     "%[d] = [%[K]+4]\n\t"
+                     "%[sr] = %[sr] + 0xC0000000\n\t" ASM_M64_GAP
+                     "%[p] = %[a] * %[b] (s)\n\t"
+                     "%[p] >>= 20\n\t"
+                     "%[a] = %[p].l\n\t"
+                     "%[b] = 0x40000000 - %[a]\n\t"
+                     "%[p] = %[d] * %[b] (u)\n\t"
+#else
                      "%[sr] = %[sr] + 0xC0000000\n\t"
                      /* dl */
                      "%[a] = [%[K]+20]\n\t"
@@ -653,6 +704,7 @@ static inline __attribute__((always_inline)) void asm_px_string_curved(px_srk_t 
                      "%[b] = 0x40000000 - %[a]\n\t"
                      "%[a] = [%[K]+4]\n\t"
                      "%[p] = %[a] * %[b] (u)\n\t"
+#endif
                      "%[p] >>= 30\n\t"
                      "%[d] = %[p].l\n\t"
                      /* the Hermite read at wp + (dl >> 16), its fraction f = dl & 0xFFFF */
@@ -691,7 +743,7 @@ static inline __attribute__((always_inline)) void asm_px_string_curved(px_srk_t 
                      "%[p] >>= 16\n\t"
                      "%[a] = %[p].l\n\t"
                      "%[b] = [%[K]+52]\n\t"
-                     "%[a] += %[b]\n\t"
+                     "%[a] += %[b]\n\t" ASM_M64_GAP
                      "%[p] = %[a] * %[d] (s)\n\t"
                      "%[p] >>= 16\n\t"
                      "%[a] = %[p].l\n\t"
@@ -718,12 +770,21 @@ static inline __attribute__((always_inline)) void asm_px_string_curved(px_srk_t 
                      "%[b] = -20971520\n\t"
                      "%[a] = smax(%[a], %[b])\n\t"
                      /* DcBlock */
+#if FELUCCA_MUL64_CLEAR                                  /* (dce loaded first, into d: free until the one-pole) */
+                     "%[b] = [%[K]+28]\n\t"
+                     "%[d] = [%[K]+32]\n\t"
+                     "%[c] = 1073498345\n\t" ASM_M64_GAP
+                     "%[p] = %[b] * %[c] (s)\n\t"
+                     "%[c] = 1\n\t"
+                     "%[p] += %[d] * %[c] (s)\n\t"
+#else
                      "%[b] = [%[K]+28]\n\t"
                      "%[c] = 1073498345\n\t"
                      "%[p] = %[b] * %[c] (s)\n\t"
                      "%[b] = [%[K]+32]\n\t"
                      "%[c] = 1\n\t"
                      "%[p] += %[b] * %[c] (s)\n\t"
+#endif
                      "%[b] = %[p].l\n\t"
                      "%[b] = %[b] & 0x3FFFFFFF\n\t"
                      "[%[K]+32] = %[b]\n\t"
@@ -735,9 +796,15 @@ static inline __attribute__((always_inline)) void asm_px_string_curved(px_srk_t 
                      "%[b] = %[b] - %[c]\n\t"
                      "[%[K]+28] = %[b]\n\t"
                      /* the one-pole */
+#if FELUCCA_MUL64_CLEAR
+                     "%[c] = [%[K]+36]\n\t"
+                     "%[d] = [%[K]+12]\n\t"
+                     "%[a] = %[b] - %[c]\n\t" ASM_M64_GAP
+#else
                      "%[c] = [%[K]+36]\n\t"
                      "%[a] = %[b] - %[c]\n\t"
                      "%[d] = [%[K]+12]\n\t"
+#endif
                      "%[p] = %[d] * %[a] (s)\n\t"
                      "%[p] >>= 30\n\t"
                      "%[a] = %[p].l\n\t"

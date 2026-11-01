@@ -17,6 +17,11 @@ typedef struct {
     uint16_t z0, nz;
 } smp_set_t;
 #include "felucca_samples.h"
+/* SD card mode's sets (gen_samples.py FELUCCA_SAMPLES_CARD): empty in the flash, their numbers and presets kept, played
+ * from the card's OPTIMIST/SAMPLES/<SET>/ (smp_bank_on); a host test sets its own */
+#ifndef SMP_CARD_SET
+#define SMP_CARD_SET(s) ((SMP_CARD_SETS >> (s)) & 1u)
+#endif
 
 /* (IMA_STEP, IMA_IDX, ima_nibble, lerp16, smp_lp_k: dsp.c) */
 /* 2^(i/192), Q16: pitch ratios in 1/16 semitones, d16 >= -3072 (16 octaves down) */
@@ -32,6 +37,7 @@ AINL uint32_t pow2_q16(int32_t d16)
  * window. Slot = header (magic, count, name, data length, CRC32) + up to 16 zones in the
  * smp_zone_t layout (off relative to the slot's data at +512) + IMA ADPCM data. */
 #include "../../../hal/fm1_xip.h"   /* relative: hostsim includes this file too */
+#include "../../../hal/fm1_flash_map.h"   /* FL_USER_SAMPLES: the step keeps the slots (fm1_steps.h) */
 #define SMP_USER_SLOTS 3
 #define SMP_USER_BASE 0xA0000u
 #define SMP_USER_SIZE 0x14000u
@@ -44,7 +50,17 @@ AINL uint32_t pow2_q16(int32_t d16)
  * that much less (32 KiB with 4 snapshots) */
 #define SMP_BANKS 0xD8000u
 #define SMP_USR3_END (SMP_BANKS - (SN_SECTORS + NB_SECTORS) * 0x1000u)   /* (and the CZ collection: cz_bank.c) */
-#if FELUCCA_PATTERNS
+#if !FL_USER_SAMPLES
+/* a step with no user sample slot (MEMORY SAMPLE SLOTS 0, hal/fm1_steps.h): the slots' flash is the app's or the
+ * relocated store's: no slot holds anything (the editor lists them empty and writes nothing; smp_user_scan reads no
+ * header there); SAMPLE's built-in sets play as ever */
+#define SMP_USER_CAP(k) ((void)(k), 0u)
+#elif FELUCCA_LAYOUT != 0
+/* SAMPLE SLOTS 1 (USR3) or 2 (USR2 + USR3): the slots kept stay where normal has them, the ones below are the app's or
+ * the relocated store's (the project log, autosave copy A, the FM6 voices) */
+#define SMP_USER_CAP(k) ((k) < 3u - FL_USER_SLOTS ? 0u : (k) == 2u ? SMP_USR3_END - (SMP_USER_BASE + 2u * SMP_USER_SIZE) \
+                                                                 : SMP_USER_SIZE)
+#elif FELUCCA_PATTERNS
 /* the section log (format 2, docs/PROJECTS-DESIGN.md) is slot USR1 (0xA0000, 80 KiB: sec_log.c SEC_LOG_BASE): the slot
  * holds nothing (its capacity 0: the editor lists it so and writes nothing there; the log's head is no sample header) */
 #define SMP_USER_CAP(k) ((k) == 0u ? 0u : (k) == 2u ? SMP_USR3_END - (SMP_USER_BASE + 2u * SMP_USER_SIZE) : SMP_USER_SIZE)
@@ -52,6 +68,18 @@ AINL uint32_t pow2_q16(int32_t d16)
 #define SMP_USER_CAP(k) ((k) == 2u ? SMP_USR3_END - (SMP_USER_BASE + 2u * SMP_USER_SIZE) : SMP_USER_SIZE)
 #endif
 #define SMP_NALL (SMP_NSETS + SMP_USER_SLOTS)
+/* SET's last value CARD (FELUCCA_SD_STREAM): the part's sample on the SD card, streamed (storage/sd/sd_stream.h); SAMPLE's
+ * own list only (GRAIN's SRC and the MISSING check number the sets as SMP_NALL) */
+#if FELUCCA_SD_STREAM
+#if FELUCCA_SD_LANES
+#define SST_NLANE ((uint32_t)DRUM_LANES)            /* (the drum lanes' card samples: drums/lane_card.c) */
+#endif
+#include "../../storage/sd/sd_stream.h"
+#define SMP_CARD SMP_NALL
+#define SMP_NSAMPLE (SMP_NALL + 1)
+#else
+#define SMP_NSAMPLE SMP_NALL
+#endif
 typedef struct {
     uint32_t magic;
     uint16_t version;
@@ -71,7 +99,11 @@ static const smp_zone_t SMP_ZONE_NONE;              /* (n 0: a voice given it en
 #define smp_usr_zone(k, z) ((void)(k), (void)(z), &SMP_ZONE_NONE)
 #endif
 static uint8_t usr_nz[SMP_USER_SLOTS];
-static const char *const SMP_ALL_NAMES[SMP_NALL] = {SMP_SET_NAMES_INIT, "USR1", "USR2", "USR3"};
+static const char *const SMP_ALL_NAMES[SMP_NSAMPLE] = {SMP_SET_NAMES_INIT, "USR1", "USR2", "USR3",
+#if FELUCCA_SD_STREAM
+                                                        "CARD"
+#endif
+};
 
 #ifndef SMP_USER_XIP                                /* host tests: a RAM image of the slots */
 #define SMP_USER_XIP(k) fm1_xip_ptr(SMP_USER_BASE + (k) * SMP_USER_SIZE)
@@ -101,6 +133,8 @@ static void smp_user_scan(uint32_t k)
     smp_user_gen++;
     usr_nz[k] = 0;                                  /* (from here no new voice takes the slot) */
     slc_user_scan(k, 0);
+    if (SMP_USER_CAP(k) <= SMP_USER_DATA)
+        return;                                     /* a slot with no room (FELUCCA_LAYOUT 1, USR1 with PATTERNS) */
     if (h->magic != SMP_USER_MAGIC || h->version != 1 || !h->nz || h->nz > 16u ||
         h->data_len > SMP_USER_CAP(k) - SMP_USER_DATA)
         return;
@@ -133,7 +167,7 @@ AINL const smp_zone_t *smp_zone(uint32_t zi)
 
 /* voice: ph[0] position (samples), ph[1] fraction Q16, s[0] predictor, s[1] step
  * index, s[2] previous sample, s[3] current sample, s[4] zone, s[5] step Q16 */
-static inline HOT int32_t sample_next(const smp_zone_t *z, voice_t *v, int loop)
+AINL int32_t sample_next(const smp_zone_t *z, voice_t *v, int loop)   /* (inlined where it is called: SAMPLE's render in the flash (ENG_SAMPLE 2) and the drums in the RAM code, no call between them) */
 {
     uint32_t pos = v->ph[0], b = SMP_DATA[z->off + (pos >> 1)];
     uint32_t code = (pos & 1u) ? (b >> 4) : (b & 15u);
@@ -148,9 +182,186 @@ static inline HOT int32_t sample_next(const smp_zone_t *z, voice_t *v, int loop)
     return v->s[0];
 }
 
+#if FELUCCA_SD_STREAM
+/* CARD: the part's card sample (sst_part_src: sd_stream_plan.c), streamed. The voice: ph[0] the frame, ph[1] the
+ * fraction Q16, s[0] the source, s[1] the sample held while it fades out, s[2] / s[3] the interpolator's two samples,
+ * s[4] SMP_STREAM | the stream, s[5] the fade's samples left (0 none), s[6] ended, s[7] the lo-pass state. A stream
+ * that runs dry (or a source that goes away: a project change) fades out at once over SST_FADE samples from the
+ * sample it was at: no click */
+#define SMP_STREAM 0x5D000000
+#define SST_FADE 64u                                /* 1.5 ms */
+#define SST_UP16 (12 * 16)                          /* a card sample an octave up at most: each octave doubles its reads
+                                                     * (one at half 44.1 kHz or less, a card set's, two: as many reads) */
+
+/* source si (0xFF none: silent) on voice v; bank: a card set's zone, which loops only where its file has a loop (as the
+ * flash zone's looped flag), else LOOP repeats the file's loop or the whole sample */
+static void smp_card_go(track_t *t, voice_t *v, uint32_t si, uint32_t bank)
+{
+    int32_t i;
+    if ((uint32_t)(v->s[4] & 0xFF000000) == SMP_STREAM && (uint32_t)(v->s[4] & 0xFF) < SST_N &&
+        sst[v->s[4] & 0xFF].owner == &v->active)
+        sst_stop((uint32_t)(v->s[4] & 0xFF));        /* (this voice's last note: its stream back) */
+    v->ph[0] = v->ph[1] = 0;
+    v->s[0] = (int32_t)si;
+    v->s[1] = v->s[2] = v->s[3] = v->s[5] = v->s[7] = 0;
+    v->s[4] = (int32_t)(SMP_STREAM | 0xFFu);        /* (no stream: the render ends it) */
+    v->s[6] = 1;
+    if (si >= SST_NSRC || !sst_src[si].ready)
+        return;                                      /* (none, or not loaded yet: silent) */
+    i = sst_start(si, t->p[P_E3] != 0 && (!bank || sst_src[si].lpe),
+                  sst_src[si].lpe ? sst_src[si].lps : 0u,   /* LOOP: the file's loop, or all */
+                  sst_src[si].lpe ? sst_src[si].lpe : sst_src[si].frames - 1u, sst_rate(&sst_src[si], sst_src[si].rate),
+                  &v->active);
+    if (i < 0)
+        return;
+    v->s[4] = (int32_t)(SMP_STREAM | (uint32_t)i);
+    v->s[6] = 0;
+}
+
+static void smp_card_on(track_t *t, voice_t *v)      /* SET CARD: the part's card sample */
+{
+    uint32_t part = (uint32_t)(t - trk);
+    smp_card_go(t, v, part < SST_NPART ? sst_part_src[part] : 0xFFu, 0);
+}
+
+/* a card set (SD card mode): the zone whose keys ("inst") hold the note, the last that does as the flash set's lookup;
+ * none, or the set not placed (not on the card, not loaded yet): silent */
+static void smp_bank_on(track_t *t, voice_t *v)
+{
+    uint32_t part = (uint32_t)(t - trk), k, n = part < SST_NPART ? sst_bank_n[part] : 0u, si = 0xFFu;
+    for (k = 0; k < n; k++) {
+        const sst_src_t *s = &sst_src[(sst_bank_src[part] + k) % SST_NSRC];
+        if (v->note >= s->lo && v->note <= s->hi)
+            si = (sst_bank_src[part] + k) % SST_NSRC;
+    }
+    smp_card_go(t, v, si, 1);
+}
+
+/* a part's card set as zones for GRAIN and STRETCH (eng_grain.c, eng_stretch.c: read as a flash set's, through the
+ * part's cache, sd_stream_rc.h): zone k is source sst_bank_src[part] + k, its frames, rate, root, keys and loop (the
+ * card's loop is ls - 1 .. le - 1: gen_samples.py card_wav), off unused. Made again when the plan's sources change
+ * (sst_bank_gen); smp_cz_stamp + 1 each time it holds zones (a gate leaves the last ones: their grains fade). Audio */
+static smp_zone_t smp_cz[SST_NPART][SST_BANK_Z];
+static uint8_t smp_cz_n[SST_NPART];
+static uint32_t smp_cz_gen[SST_NPART], smp_cz_stamp[SST_NPART];
+static uint32_t smp_cz_sync(uint32_t part)          /* the part's card zones now: their count */
+{
+    uint32_t k, n, g = sst_bank_gen + 1u;
+    if (part >= SST_NPART)
+        return 0;
+    if (smp_cz_gen[part] == g)
+        return smp_cz_n[part];
+    n = sst_bank_n[part] < SST_BANK_Z ? sst_bank_n[part] : SST_BANK_Z;
+    for (k = 0; k < n; k++) {
+        const sst_src_t *s = &sst_src[(sst_bank_src[part] + k) % SST_NSRC];
+        smp_zone_t *z = &smp_cz[part][k];
+        if (!s->ready || !s->frames)
+            break;                                   /* (a zone not loaded: the set's keys up to it) */
+        z->off = 0;
+        z->n = s->frames;
+        z->rate = s->rate;
+        z->root16 = (int16_t)((s->root + 60) * 16);
+        z->lo = s->lo;
+        z->hi = s->hi;
+        z->looped = s->lpe != 0;
+        z->ls = s->lpe ? s->lps + 1u : 0u;
+        z->le = s->lpe ? s->lpe + 1u : 0u;
+        z->pred = 0;
+        z->idx = 0;
+    }
+    smp_cz_n[part] = (uint8_t)k;
+    smp_cz_gen[part] = g;
+    if (k)
+        smp_cz_stamp[part]++;
+    return k;
+}
+/* SRC s of part `part` a card set (SD card mode): its zones are the card's */
+AINL int smp_cz_on(uint32_t s) { return s < SMP_NSETS && SMP_CARD_SET(s); }
+AINL uint32_t smp_cz_src(uint32_t part, uint32_t zl) { return (sst_bank_src[part % SST_NPART] + zl) % SST_NSRC; }
+
+static FAST(sample) void smp_card_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
+{
+    const int16_t *p = t->p;
+    uint32_t k = (uint32_t)(v->s[4] & 0xFF), i, frac = v->ph[1], stepq, r;
+    sst_t *st = &sst[k < SST_N ? k : 0];
+    const sst_src_t *s = &sst_src[(uint32_t)v->s[0] < SST_NSRC ? (uint32_t)v->s[0] : 0];
+    int32_t d16 = clamp(m->pitch16 + p[P_E1] * 16 - (60 + s->root) * 16, -1536,   /* (root: smpl) */
+                        s->rate <= 32768u ? 2 * SST_UP16 : SST_UP16), x;   /* (22.05 kHz: two octaves, the same reads) */
+    int32_t bits = p[P_E2], lp = smp_lp_k((p[P_E4] << 8) + m->cutoff), drv = p[P_E6], sh = bits / 10;
+    if (v->s[6] || k >= SST_N) {
+        v->active = 0;
+        return;
+    }
+    r = fine_inc(pow2_q16(d16), m->fine);
+    stepq = (r >> 8) * (s->rate >> 8);
+    st->bpms = sst_rate(s, stepq);
+    st->beat = st->beat + 1u;
+    if (!v->s[5] && (!s->ready || !st->on)) {        /* (the source went away, or the stream was taken back) */
+        sst_stop(k);
+        v->s[5] = SST_FADE;
+        v->s[1] = v->s[3];
+    }
+    if (v->ph[0] == 0 && frac == 0 && v->s[3] == 0 && !v->s[5]) {   /* prime the interpolator: the head's first frame */
+        if (sst_frame(st, s, 0, &x))
+            v->s[3] = x;
+    }
+    for (i = 0; i < n; i++) {
+        int32_t y;
+        if (v->s[5]) {                               /* fading out: the sample it was at, down to 0 */
+            y = v->s[1] * (int32_t)v->s[5] / (int32_t)SST_FADE;
+            if (!--v->s[5])
+                v->s[6] = 1;                         /* (its last sample: then the voice ends) */
+        } else {
+            frac += stepq;
+            while (frac >= 65536u) {
+                frac -= 65536u;
+                v->s[2] = v->s[3];
+                if (++v->ph[0] >= (st->lpend ? st->lpend >> s->fsh : s->frames)) {   /* (LOOP: its end) */
+                    if (st->lpend)
+                        v->ph[0] = st->lpstart >> s->fsh;
+                    else {                           /* one-shot: its end */
+                        v->s[6] = 1;
+                        v->s[3] = 0;
+                        sst_stop(k);
+                        break;
+                    }
+                }
+                if (!sst_frame(st, s, v->ph[0], &x)) {   /* dry: fade out from here */
+                    sst_ran_dry(k);
+                    v->s[5] = SST_FADE;
+                    v->s[1] = lerp16(v->s[2], v->s[3], frac);
+                    break;
+                }
+                v->s[3] = x;
+            }
+            y = v->s[5] ? v->s[1] : lerp16(v->s[2], v->s[3], frac);
+        }
+        if (sh)
+            y = (y >> sh) << sh;
+        if (drv)
+            y = softclip(y + (((y >> 2) * (drv * 150)) >> 11));
+        v->s[7] += mulq15(y - v->s[7], lp);
+        out[i] += VOICE_OUT(v->s[7], amp_at(m, i), 1);
+        if (v->s[6])
+            break;
+    }
+    v->ph[1] = frac;
+}
+#endif
+
 static void sample_note_on(track_t *t, voice_t *v)
 {
-    uint32_t si = (uint32_t)t->p[P_E0] % SMP_NALL, i, zi = 0xFFFFu;
+    uint32_t si = (uint32_t)t->p[P_E0] % SMP_NSAMPLE, i, zi = 0xFFFFu;
+#if FELUCCA_SD_STREAM
+    if (si == SMP_CARD) {
+        smp_card_on(t, v);
+        return;
+    }
+    if (si < SMP_NSETS && SMP_CARD_SET(si)) {       /* (SD card mode: the set is on the card) */
+        smp_bank_on(t, v);
+        return;
+    }
+#endif
     if (si < SMP_NSETS) {
         const smp_set_t *set = &SMP_SETS[si];
         for (i = 0; i < set->nz; i++)
@@ -175,10 +386,17 @@ static void sample_note_on(track_t *t, voice_t *v)
     v->s[7] = 0;                 /* lo-pass state */
 }
 
-static HOT void sample_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
+static FAST(sample) void sample_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
 {
     const int16_t *p = t->p;
-    const smp_zone_t *z = smp_zone((uint32_t)v->s[4]);
+    const smp_zone_t *z;
+#if FELUCCA_SD_STREAM
+    if ((uint32_t)(v->s[4] & 0xFF000000) == SMP_STREAM) {
+        smp_card_render(t, v, out, n, m);
+        return;
+    }
+#endif
+    z = smp_zone((uint32_t)v->s[4]);
     uint32_t i, frac = v->ph[1];
     int32_t d16 = clamp(m->pitch16 + p[P_E1] * 16 - z->root16, -1536, 576);   /* <= 3 octaves up: bounded decode load */
     uint32_t r = fine_inc(pow2_q16(d16), m->fine), stepq = (r >> 8) * (z->rate >> 8);   /* Q16 samples per output */
@@ -209,7 +427,7 @@ static HOT void sample_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, 
         if (drv)
             s = softclip(s + (((s >> 2) * (drv * 150)) >> 11));   /* = s * drv * 600 / 32768, no overflow */
         v->s[7] += mulq15(s - v->s[7], lp);           /* gentle tone control (CUT) */
-        out[i] += mulq15(mulq15(v->s[7], amp_at(m, i)), VOICE_FS) << 1;
+        out[i] += VOICE_OUT(v->s[7], amp_at(m, i), 1);
         if (v->s[6])
             break;
     }
@@ -220,7 +438,7 @@ static HOT void sample_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, 
 static const engine_t ENG_SAMPLE = {
     "SAMPLE", {"SET", "TONE"},
     {
-        PN("SET", F_ENUM, 0, SMP_NALL - 1, 0, SMP_ALL_NAMES),
+        PN("SET", F_ENUM, 0, SMP_NSAMPLE - 1, 0, SMP_ALL_NAMES),
         PU("TUNE", F_SEMI, -24, 24, 0, 0),
         PU("BITS", F_INT, 0, 127, 0, 0),
         PN("LOOP", F_ENUM, 0, 1, 1, N_ONOFF_E),

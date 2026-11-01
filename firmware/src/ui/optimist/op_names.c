@@ -17,20 +17,23 @@
  * ratios, not FM6's rates). Flash only: const strings, searched in the main loop when a band is drawn. */
 static const char NM_TITLE[] =
     "ENV 1 MOD\0ENV mod\0"       "ENV2 DEST\0ENV2 to\0"       "LFO DEST\0LFO to\0"         "LFO 2\0LFO2\0"
+    "LFO PHS\0Phase\0"          "LFO2 PHS\0Phase 2\0"    /* (issue 129: PHS FADE; "LFO2 phs" does not fit whole) */
     "LFO2 DEST\0LFO2 to\0"       "SCL\0Scale\0"               "SCL 2\0Scale 2\0"           "FLT 2\0Filter 2\0"
     "INSERTS\0Insert\0"         "DR INSERT\0DR ins\0"        "DR SENDS\0DR sends\0"
     "INS DYN #\0Ins dyn #\0"     "RET DELAY\0Delay\0"         "RET REV\0Reverb\0"         "EQ3 FREQ\0EQ3 frq\0"   /* (fits " 5/7", a build without DUST) */
     "OP# TUNE\0OP# tune\0"       "OP# RATES\0OP# rate\0"      "OP# LEVELS\0OP# level\0"    "OP# SENS\0OP# sens\0"     "OP# SCALE\0OP# scale\0"
     "OP# CURVES\0OP# curve\0"    "PIT RATES\0Pit rate\0"      "PIT LVLS\0Pit level\0"
+    "CPU TIMES\0CPU times\0"    /* (SYSTEM > CPU TIMES, the dual render's times: its capitals kept) */
     "\0";
 /* a title's short form, where a header is short of room (op_draw.c head_short, after "Voice 2" -> "Voice2"): bar.beat
- * always stays (the user, 2026-10-14), so the title gives way, by a form chosen here, never a cut */
+ * always stays (the user, 2026-10-14), so the title gives way, by a form chosen here, never a cut; a short form's own
+ * short form when that is still too long (USB AUDIO's pages from 10 of 10 and more: "Audio 10/13") */
 static const char NM_SHORT[] =
     "Pattern\0Pat\0"           "Scale2\0Scl2\0"            "Voice2\0Vox2\0"            "Kit sends\0Kit snd\0"
-    "LFO2 to\0L2 to\0"           "ENV2 to\0E2 to\0"           "ENV mod\0E1 mod\0"           "Slicer\0Slcr\0"
+    "LFO2 to\0L2 to\0"           "Phase\0Phs\0"              "Phase2\0Phs 2\0"             "ENV2 to\0E2 to\0"           "ENV mod\0E1 mod\0"           "Slicer\0Slcr\0"
     "Insert\0Ins\0"            "Internals\0Intern\0"
-    "Calibrate\0Calib\0"         "USB audio\0USB aud\0"       "Credits\0Credit\0"          "Devices\0Devs\0"
-    "USB stats\0Stats\0"        "BT audio\0BT aud\0"
+    "Calibrate\0Calib\0"         "USB audio\0USB aud\0"       "USB aud\0Audio\0"           "Credits\0Credit\0"          "Devices\0Devs\0"
+    "USB stats\0Stats\0"        "BT audio\0BT aud\0"        "CPU times\0Times\0"
     "\0";
 static const char NM_CARD[] =
     "VOLUME\0LEVEL\0"            "LVL\0LEVEL\0"               "DST\0DIST\0"                "DST A\0DEST A\0"

@@ -92,7 +92,25 @@ struct FlashView: View {
                 HStack { Text("A .fwsc File…").foregroundStyle(.primary); Spacer(); mark("file") }
             }
             if let err = flash.listError ?? flash.packageError { Text(err).font(.footnote).foregroundStyle(.red) }
+            if let line = flash.bootLine { Text(line).font(.footnote).foregroundStyle(.secondary) }
+            if flash.package != nil && flash.bootWord != "mboot" {     // (explicit: only this option installs m-bootloader, in download mode)
+                Toggle("Install m-bootloader instead (download mode, a computer, a full backup first)", isOn: $flash.installMboot)
+                    .font(.footnote)
+            }
+            if flash.devices.count > 1 {
+                Text("\(flash.devices.count) FM-1s found. Choose one:").font(.footnote)
+                ForEach(flash.devices, id: \.self) { k in
+                    Button { Task { await flash.pick(k) } } label: {
+                        HStack {
+                            Text(k).font(.callout.monospaced()).foregroundStyle(.primary)
+                            Spacer()
+                            if flash.picked == k { Image(systemName: "checkmark") }
+                        }
+                    }
+                }
+            }
             Button(flash.package.map { "Install \($0.file.isEmpty ? $0.title : $0.file)" } ?? "Install") {
+                if flash.mustChoose() { return }
                 ask = Confirmation(title: "Write \(flash.package.map { $0.file.isEmpty ? $0.title : "\($0.file) (\($0.title), \($0.product))" } ?? "") to the FM-1? Projects, presets, kits and samples stay. Keep the USB cable in until it is done.") {
                     flash.install()
                 }
@@ -103,6 +121,18 @@ struct FlashView: View {
             if !flash.status.isEmpty { Text(flash.status).font(.footnote) }
             if let r = flash.result { Text(r).font(.footnote).foregroundStyle(.green) }
             if let e = flash.error { Text(e).font(.footnote).foregroundStyle(.red) }
+            if flash.keepOffered {             // (m-bootloader asked for, not on the FM-1: the update keeping the bootloader, as good)
+                Button("Install over USB-MIDI instead, keeping this bootloader") { flash.installKeepingBootloader() }.font(.footnote)
+            }
+            if flash.softKeyOffered {
+                Button("Switch the FM-1 to download mode (for M-Flasher)") { Task { await flash.sendSoftKey() } }.font(.footnote)
+            }
+            if flash.needsComputer {
+                let advice = MFlasherRelease.advice(catalyst: MFlasherRelease.isCatalyst)
+                Text(advice.text).font(.footnote)
+                Link(advice.title, destination: advice.link).font(.footnote)
+                if MFlasherRelease.isCatalyst { Link("Other systems", destination: InstallRoute.mflasher).font(.footnote) }
+            }
         } header: {
             Text("Install")
         } footer: {

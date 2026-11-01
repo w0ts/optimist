@@ -99,8 +99,8 @@ An insert type runs on a block of samples in a track's insert slot (INSERTS > S1
 | `firmware/src/io/editor/ed_fxs.c` | its entry in `ED_FX_LID` |
 | `firmware/src/seq/auto.c` | its motion / lock id in `MOT_TAIL2` |
 | `tools/param_help.json` | its help line in each context its knob shows: `FX`, `INSERTS`, `INSERT` |
-| `tools/doc_coverage.py` | `FXT_EXGN` in `FX_NAMES` (the type must be named in a user document) |
-| `web/test_web.mjs`, `web/editor.html` | the test pins the `FXT_*` enum; a real type also gets its name in the editor's `FXT_NAMES` (the example does not: the web editor does not list it) |
+| `tools/doc_coverage.py` | `FXT_EXGN_ID` in `FX_NAMES` (the type must be named in a user document) |
+| `web/test_web.mjs`, `web/editor.html` | the test pins the `FXT_*` enum; a real type also gets its name in the editor's `FXT_NAMES` (the example's id holds a name too, so the types after it keep their place; the editor lists only the types a build has) |
 
 The rules: integers only; no divide by a variable in the audio path (`tools/div_audit.py`, or a line in
 `tools/div_audit.txt` saying why the divisor is never 0); at amount 0 and at rest, the block comes out bit for bit;

@@ -7,6 +7,7 @@ import argparse
 import contextlib
 import io
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -41,6 +42,21 @@ items = R.ITEMS
 check("registry: unique stable bits, one level of options (two under a group's head: DRUMS)",
       len({it.bit for it in items.values()}) == len(items) and
       all(not it.parent or not items[it.parent].parent or items[items[it.parent].parent].head for it in items.values()))
+_om, _ = C.parse("# name: old\nLAYOUT=1\nSDCARD=1\nFAR_OK=0\nRAM_PACKED=1\nMISSING_WARN=0\n")
+_od = C.dump(_om)
+check("memory menu: an old .config with LAYOUT SDCARD RAM_PACKED and a retired FAR_OK=0 loads, MEMORY reads SD card mode, the dump names the two, not MEMORY or FAR_OK",
+      _om["MEMORY"] == 2 and (_om["LAYOUT"], _om["SDCARD"], _om["RAM_PACKED"]) == (1, 1, 1) and "FAR_OK" not in _om
+      and all(f"{k}=1" in _od.splitlines() for k in ("LAYOUT", "SDCARD")) and "MEMORY" not in _od and "FAR_OK" not in _od)
+check("... the menu lists SD CARD MODE, SAMPLE SLOTS, PROJECTS in the group's top level, SD_RING / SD_REC under SD CARD MODE; "
+      "MEMORY and the others are hidden but real items",
+      [it.key for it in R.top_level("Memory management") if it.key in ("MEMORY", "SD_MODE", "SMP_SLOTS", "PROJECTS", "RAM_PACKED",
+                                                                        "SDCARD", "LAYOUT")] == ["SD_MODE", "SMP_SLOTS", "PROJECTS"]
+      and R.ITEMS["SD_MODE"].menu_children == ["SD_RING", "SD_REC"] and R.ITEMS["SDCARD"].menu_children == [] and R.ITEMS["MEMORY"].hidden
+      and all(R.ITEMS[k].hidden for k in ("RAM_PACKED", "SDCARD", "LAYOUT")) and "FAR_OK" not in R.ITEMS and "FAR_OK" in R.RETIRED and R.ITEMS["RAM_PACKED"].bit == 437
+      and R.ITEMS["SD_RING"].parent == "SDCARD" and R.ITEMS["SD_RING"].shown_under == "SD_MODE")
+check("backported items (SPRING, PUNCH_LATCH, UP_FM6, GRIDS_*) are in their parent's menu_children, like any option, in the children's order",
+      all(k in R.ITEMS[R.ITEMS[k].parent].menu_children for k in ("SPRING", "PUNCH_LATCH", "UP_FM6", "GRIDS_EUCLID", "GRIDS_LFO", "GRIDS_VEL"))
+      and [c for c in R.ITEMS["FX_REVERB"].children if c in R.ITEMS["FX_REVERB"].menu_children] == R.ITEMS["FX_REVERB"].menu_children)
 _nd = dict(C.defaults(), DRUMS=0, LANE_FX=1, DRUM_X0X909=1)
 _nf = C.flags(_nd)[0]
 check("DRUMS off: every drum switch 0 (its options' options too), the drum-only items elsewhere left out, no drum source "
@@ -110,6 +126,18 @@ check("LFO2: no item, retired (its bit 91 not reused), counted ON in the configu
       "LFO2" not in R.ITEMS and "LFO2" in R.RETIRED and R.HASH_AS.get("LFO2") == 1 and all(it.bit != 91 for it in R.ITEMS.values()) and
       not [p.name for d in (C.PROFILES, ROOT / "tests" / "profiles") for p in d.glob("*.config")
            if any(ln.startswith("LFO2=") for ln in p.read_text().splitlines())])
+# SLOOP's project import / export (2026-10-29): SL24_IMPORT, SL24_EXPORT, SL24_EDIMPORT are gone; SL24_SAFE (SLOOP's data kept
+# safe) stays, on by default; an old .config naming the three loads, each said dropped, nothing offered
+_w = io.StringIO()
+with contextlib.redirect_stderr(_w):
+    _cfg, _ = C.parse("# name: old\nSL24_IMPORT=0\nSL24_EXPORT=1\nSL24_EDIMPORT=1\nMISSING_WARN=0\n")
+check("SL24_IMPORT, SL24_EXPORT, SL24_EDIMPORT: no item, retired (bits 163, 164, 181 not reused); SL24_SAFE (bit 161) an item, on by default, an old SL24_SAFE=0 kept, an old .config naming them loads, "
+      "each said dropped, its other keys kept",
+      all(k not in R.ITEMS and k in R.RETIRED for k in ("SL24_IMPORT", "SL24_EXPORT", "SL24_EDIMPORT")) and
+      R.ITEMS["SL24_SAFE"].default == 1 and R.ITEMS["SL24_SAFE"].bit == 161 and "SL24_SAFE" not in R.RETIRED and
+      all(it.bit not in (163, 164, 181) for it in R.ITEMS.values()) and _cfg["MISSING_WARN"] == 0 and
+      all(f"{k} was dropped" in _w.getvalue() for k in ("SL24_IMPORT", "SL24_EXPORT", "SL24_EDIMPORT")) and
+      "FELUCCA_SL24_IMPORT" not in C.header(_cfg))
 # BLE_CENTRAL became a choice of levels (2026-10-24; firmware/src/ble/ble_cfg.h): a .config from before says
 # BLE_CENTRAL=1 and loads as level 1 (FULL), unchanged, its header FELUCCA_BLE_CENTRAL 1 as before; 3 (MINIMAL) is taken; 2 (a Just Works
 # level, removed again) and 4 are refused
@@ -510,9 +538,14 @@ check("reverb: one checkbox per algorithm (ROOM, PLATE, FDN8, SPRING) under the 
 check("reverb: the one-tank choice REVERB is gone, its bit 150 not reused; ROOM 151, PLATE 152, FDN8 153",
       "REVERB" not in items and 150 not in {it.bit for it in items.values()} and
       [items[k].bit for k in revs[:3]] == [151, 152, 153])
-check("reverb: REV_POOL and REV_HALF relabelled",
-      items["REV_POOL"].label == "reverb buffers in the pool (saves ~17 KB RAM)" and
-      items["REV_HALF"].label == "half-rate reverb (half the RAM, no top octave)")
+check("reverb: REV_POOL is FDN8's size beside FDN8 (big 32 KB / small 16 KB, the user 2026-10-30), the same key so a profile keeps "
+      "its FDN8; the half-rate reverb (REV_HALF, bit 123) and its steep filter (REV_HB_LONG, bit 430) are dropped, an old .config loads",
+      items["REV_POOL"].label == "reverb: FDN8 size" and dict(items["REV_POOL"].choices) == {1: "big ring (32 KB): the long, lush tail",
+                                                                                            0: "small ring (16 KB)"} and
+      items["REV_POOL"].bit == 122 and
+      C.parse("REV_FDN8=1\nREV_POOL=1\n", warn=lambda m: None)[0]["REV_POOL"] == 1 and
+      all(k not in items and k in R.RETIRED for k in ("REV_HALF", "REV_HB_LONG")) and
+      C.parse("REV_HALF=1\nREV_HB_LONG=1\n", warn=lambda m: None)[0]["REV_POOL"] == C.defaults()["REV_POOL"])
 none = dict(C.defaults(), REV_ROOM=0)
 e = C.validate(none)[0]
 check("reverb: the bus with no algorithm ticked: an error naming the bus and the four",
@@ -552,14 +585,14 @@ if um:
 import measure_costs as MC  # noqa: E402
 check("costs.json: every pair measure_costs.py defines is measured (run measure_costs.py --missing)",
       not MC.missing_pairs(costs))
-# a value whose lines no pool holds (INS_XDLY 3, 4: the link says "region POOL overflowed by N" even in the measurement link) is
+# a value whose lines no pool holds (INS_XDLY 3, 4: the link says "region SRAM overflowed by N" even in the measurement link) is
 # its pool exactly and the rest of the value before it (the lines are the pool: the same code), not a stop of the whole run
 _like = {"flash": 100, "ram": 20, "pool": 300, "ramtext": 5}
-_run_build, MC.run_build = MC.run_build, lambda cfg, name, log: (False, None, "ld: region `POOL' overflowed by 45588 bytes\n")
+_run_build, MC.run_build = MC.run_build, lambda cfg, name, log: (False, None, "ld: region `SRAM' overflowed by 45588 bytes\n")
 try:
     _got = MC.measure({}, "m-fake-3", Path("/nonexistent.log"), like=_like)
-    check("measure_costs: a value no pool holds is its pool (the measurement link's region + the overflow), the rest as the value before",
-          _got["pool"] == MC.MEASURE_POOL + 45588 and all(_got[r] == _like[r] for r in ("flash", "ram", "ramtext")))
+    check("measure_costs: a value no pool holds is its pool (the measurement link's SRAM + the overflow, less RAM and RAM code), the rest as the value before",
+          _got["pool"] == MC.MEASURE_SRAM + 45588 - _like["ram"] - _like["ramtext"] and all(_got[r] == _like[r] for r in ("flash", "ram", "ramtext")))
     _stop = False
     try:
         MC.measure({}, "m-fake-1", Path("/nonexistent.log"))               # (nothing before it to copy: still a failure)
@@ -570,46 +603,133 @@ finally:
     MC.run_build = _run_build
 # the effects memory (fx/insfx/fxi_mem.h, fxi.c, 2026-10-23): a computed term (configure.py dly_arena: the own room, the
 # instance tables, the units' bitmap), exact for every type, line length and size; measure_costs.py holds it against the
-# real fxa_ins, fxa_bm and ifx_chrs .. ifx_xdly of every build it makes
+# real fxa_ins, fxa_bm and ifx_choi .. ifx_tdly of every build it makes
 def _da(**kv):
     return C.dly_arena(dict(C.defaults(), **kv))
 def _fm(**kv):
     return C.fx_memory(dict(C.defaults(), **kv))
-_four = dict(INS_CHORUS=1, INS_DELAY=1, INS_JCHORUS=1, INS_FLANGER=1, DLY_LEN=32768)
-check("the effects memory: auto is the delay's line and one line of each insert built (CHRS 2, ECHO 8, JUNO 2, FLNG 1, "
-      "XDLY 2 lines: 64 or 32 KB); DLY_ARENA is the delay's line plus what it names; nothing without an insert built",
+_four = dict(INS_DELAY=1, INS_JCHORUS=1, INS_FLANGER=1, DLY_LEN=32768)   # (with the chorus, the delay and the reverb: built)
+_none = dict(FX_CHORUS=0, FX_DELAY=0, FX_REVERB=0)
+check("the effects memory: auto is the delay's line and one line of each insert built (ECHO 8, JUNO 4, FLNG 1, XDLY 2 "
+      "lines: 64 or 32 KB; CHO DLY REV none of their own), always (DLY_ARENA is retired); nothing without an insert built",
       _da(INS_DELAY=1)["units"] == 8 and _da(**_four)["units"] == 13 and _da(INS_XDLY=1)["units"] == 64
-      and _da(INS_XDLY=1, XDLY_LEN=8192)["units"] == 32 and _da(INS_DELAY=1, DLY_LEN=32768, DLY_ARENA=96)["units"] == 32
-      and _da(DLY_ARENA=96)["pool"] == 0 and _da(INS_CHORUS=1, DLY_ARENA=160)["units"] == 32)
+      and _da(INS_XDLY=1, XDLY_LEN=8192)["units"] == 32 and _da(INS_DELAY=1, DLY_LEN=32768)["units"] == 8
+      and _da(**_none)["pool"] == 0 and _da()["units"] == 0)
 check("... its pool: the own room, the instance tables (an owner each at most, no more than the memory holds) and the "
-      "bitmap: one XDLY on the delay's 64 KB line alone is its state and 12 B of bitmap",
-      _da(INS_XDLY=1, DLY_LEN=32768, DLY_ARENA=64)["pool"] == C.XD_STATE + 12
-      and _da(INS_XDLY=1, DLY_LEN=32768, DLY_ARENA=64)["tables"] == {"ifx_xdly": C.XD_STATE}
-      and _da(**_four)["tables"]["ifx_chrs"] == 9 * C.FXM_STATE["INS_CHORUS"][1]
-      and _da(**_four)["pool"] == 13 * 1024 + sum(9 * C.FXM_STATE[k][1] for k in _four if k in C.FXM_STATE)
-      + 4 * ((64 + 13 + 4 + 31) // 32))
+      "bitmap: one XDLY beside the delay's 64 KB line: 64 KB of its own, two XDLY states (its own, the delay's line "
+      "lent), the CHO REV DLY copies the room and the delay's line hold, 20 B of bitmap",
+      _da(INS_XDLY=1, DLY_LEN=32768)["pool"] == 64 * 1024 + 2 * C.XD_STATE + 9 * C.FXM_STATE["FX_CHORUS"][1]
+      + 6 * C.FXM_STATE["FX_REVERB"][1] + 2 * C.FXM_STATE["FX_DELAY"][1] + 20
+      and _da(**_four)["tables"]["ifx_choi"] == 9 * C.FXM_STATE["FX_CHORUS"][1])
 _m = _fm(**_four)
 check("... up to N at once in the memory chosen (each type alone, the sends in their master slots: the own room), plus "
-      "what the delay's and the chorus's lines lend while out of the slots, capped at the 9 owners",
-      _m["types"]["INS_CHORUS"] == {"kb": 2, "max": 9, "own": 6, "dly": 32, "cho": 2}
+      "what the delay's and the chorus's lines lend while out of the slots, capped at the 9 owners; DLY and REV: on a "
+      "send's line only",
+      _m["types"]["FX_CHORUS"] == {"kb": 4, "max": 9, "own": 3, "dly": 16, "cho": 1, "arena": 0}
       and _m["types"]["INS_DELAY"]["own"] == 1 and _m["types"]["INS_DELAY"]["dly"] == 8
-      and _m["types"]["INS_FLANGER"]["own"] == 9 and "CHRS up to 6 (+3 while the delay" in C.fx_memory_text(_m)
+      and _m["types"]["INS_FLANGER"]["own"] == 9 and _m["types"]["FX_REVERB"]["own"] == 0
+      and _m["types"]["FX_REVERB"]["max"] == 3 and _m["types"]["FX_DELAY"]["max"] == 1
+      and "CHO up to 3 (+6 while the delay" in C.fx_memory_text(_m)
       and "ECHO up to 1 (+8 while the delay is in no master slot)" in C.fx_memory_text(_m))
+_ma = _fm(ARENA=1, **_four)
+check("... with ARENA: every copy a block of the arena (8 at most), no own room (engines.c FELUCCA_FXI_LINE_BLOCKS)",
+      _ma["own"] == 0 and all(_ma["types"][k]["arena"] == 8 for k in _ma["types"])
+      and _ma["types"]["FX_REVERB"]["max"] == 9 and "more in the arena's free RAM" in C.fx_memory_text(_ma))
+_rn = []
 _e, _w, _n = C.validate(dict(C.defaults(), **_four))
-check("... the builder says so: a notice on the effects memory (DLY_ARENA), no error",
-      not _e and any("DLY_ARENA" in n.keys and "up to" in n for n in _n))
-_e = C.validate(dict(C.defaults(), INS_XDLY=1, FX_DELAY=0, DLY_ARENA=32))[0]
-check("... an effects memory too small for one line of a type built: an error naming the type (XDLY's 64 KB in 32 KB "
-      "with no delay line to lend)", any("XDLY" in e and "INS_XDLY" in e.keys for e in _e))
-check("... under the delay's line: an error; the delay's line alone holds one XDLY (lent): fine",
-      bool(C.validate(dict(C.defaults(), INS_XDLY=1, DLY_ARENA=64))[0])
-      and any("XDLY cannot play while the delay is on the master" in e and "at least 128 KB" in e
-              for e in C.validate(dict(C.defaults(), INS_XDLY=1, DLY_LEN=32768, DLY_ARENA=64))[0])
-      and not C.validate(dict(C.defaults(), INS_XDLY=1, XDLY_LEN=8192, DLY_LEN=16384, DLY_ARENA=64))[0])
-_cfg, _ = C.parse("INS_CHORUS=2\nINS_DELAY=4\nINS_JCHORUS=3\nINS_FLANGER=1\nINS_XDLY=2\n", warn=lambda m: None)
-check("an old .config's instance counts (INS_CHORUS=2 ...) load as built: no setting lost, no error",
-      all(_cfg[k] == 1 for k in C.FXM_TYPES) and not [e for e in C.validate(_cfg)[0] if set(e.keys) & set(C.FXM_TYPES)]
+check("... the builder says so: a notice on the effects memory (on the inserts built), no error; DLY and REV: on the delay's "
+      "line only without ARENA, said",
+      not _e and any("INS_XDLY" not in n.keys and "INS_DELAY" in n.keys and "up to" in n for n in _n)
+      and any("REV plays only while the delay is in no master slot" in n for n in _n)
+      and not any("REV plays only" in n for n in C.validate(dict(C.defaults(), ARENA=1, **_four))[2]))
+check("the insert copies' items retired (the CHO DLY REV inserts built with their effect): INS_CHORUS, INS_REVERB, "
+      "INS_TDELAY gone, in RETIRED; an old .config naming them loads, said, no item",
+      all(k not in R.ITEMS and k in R.RETIRED for k in ("INS_CHORUS", "INS_REVERB", "INS_TDELAY"))
+      and (lambda n, c: not [k for k in ("INS_CHORUS", "INS_REVERB", "INS_TDELAY") if k in c] and
+           sum("dropped" in m for m in n) == 3)(_rn, C.parse("INS_CHORUS=1\nINS_REVERB=1\nINS_TDELAY=1\n", warn=_rn.append)[0]))
+# (the user, 2026-10-29: DLY_ARENA removed, the effects memory always auto) an old .config's DLY_ARENA loads, the number is
+# ignored with a notice; the build gets no FELUCCA_DLY_ARENA (0: auto, fxi_mem.h) whatever it said; the memory is the
+# delay's line and one line of each insert built (the user's screenshot: an old DLY_ARENA=64 with DLY_LEN 65536: just auto)
+_notes = []
+_old, _ = C.parse("INS_XDLY=1\nDLY_LEN=65536\nDLY_ARENA=64\n", warn=_notes.append)
+_e, _w, _n = C.validate(_old)
+check("an old .config's DLY_ARENA=64 (with DLY_LEN 65536) loads: ignored with a notice, no item, no flag, no error; the "
+      "memory is auto (the delay's 128 KB line and one XDLY line, 64 KB)",
+      "DLY_ARENA" not in R.ITEMS and "DLY_ARENA" not in _old and any("DLY_ARENA" in m and "ignored" in m for m in _notes)
+      and not _e and "FELUCCA_DLY_ARENA" not in C.flags(_old)[0] and C.fx_memory(_old)["own"] == 64
+      and C.fx_memory(_old)["send"] == 128 and "DLY_ARENA" in R.RETIRED)
+# the FM-1, 2026-10-28 (the fm1-next release, ARENA 32 in the SD card mode): no reverb, no chorus at all. The arena
+# holds the sends' lines while a project uses them (fx/fx_arena.c), and a new project has all three in its master
+# slots: a 32 KB delay line and a 32 KB reverb line never fit in 32 KB together, the refused ones bypassed (MEM FULL)
+_sd = dict(LAYOUT=1, ENG_SAMPLE=0, DRUM_USR=0, SNAPSHOTS=0, PATTERNS=1, FX_PUNCH=0, DLY_LEN=16384, REV_FDN8=1, REV_POOL=1,
+           REV_ROOM=0)   # (the user's profile's sends; the fake SD mode's needs, no PUNCH ring: its 64 KB block alone)
+# (the user, 2026-10-29: "arena first, undo gets the rest") ARENA is an on/off switch: the arena is the SRAM the link
+# leaves free (engines.c ARN_FREE); its flag 1, an older configuration's size reads as on; no memory error, a notice with
+# what a new project needs of it together (the send lines, the inserts' own room, a part's block, the largest buffer)
+_a = C.arena_need(dict(C.defaults(), ARENA=1, **_sd))
+_e, _w, _n = C.validate(dict(C.defaults(), ARENA=1, **_sd))
+_old, _ = C.parse("ARENA=96\n", warn=lambda m: None)
+check("ARENA on: the free RAM (its flag 1), no error; a notice with what a new project needs of it together (the send "
+      "lines 68 KB and more); an older .config's ARENA=96 loads as on",
+      not _e and C.flags(dict(C.defaults(), ARENA=1, **_sd))[0]["FELUCCA_ARENA_KB"] == 1 and _a["kb"] >= 68
+      and any("ARENA" in n.keys and "needs about %d KB" % _a["kb"] in n for n in _n) and _old["ARENA"] == 1
+      and not R.ITEMS["ARENA"].is_choice)
+check("... outside the SD card mode too (the extras in every ARENA build): the same notice, the send lines in its need",
+      not C.validate(dict(C.defaults(), ARENA=1, **dict(_sd, LAYOUT=0)))[0]
+      and "the delay's line" in C.arena_need(dict(C.defaults(), ARENA=1, **dict(_sd, LAYOUT=0)))["what"])
+check("... its pool: the fixed memories it replaces given back (none of its own: the free SRAM)",
+      K.arena_mem(dict(C.defaults(), ARENA=1, **_sd))["pool"] < 0)
+check("... an arena needing more than the SRAM can give it: the one error left, naming the biggest consumers",
+      any("ARENA" in e.keys and "would need" in e and "the delay's line" in e
+          for e in C.validate(dict(C.defaults(), ARENA=1, **dict(_sd, DLY_LEN=65536, INS_XDLY=1, XDLY_LEN=16384,
+                                                                      INS_DELAY=1, INS_JCHORUS=1,
+                                                                      INS_FLANGER=1, REV_FDN8=1, REV_ROOM=1, REV_PLATE=1, SPRING=1,
+                                                                      REV_AIRWIN=1, ENG_WAVE=1, FX_PUNCH=1, PUNCH_N=65536)))[0]))
+_cfg, _ = C.parse("INS_DELAY=4\nINS_JCHORUS=3\nINS_FLANGER=1\nINS_XDLY=2\n", warn=lambda m: None)
+check("an old .config's instance counts (INS_DELAY=4 ...) load as built: no setting lost, no error",
+      all(_cfg[k] == 1 for k in C.FXM_TYPES if k in R.WAS_COUNT) and not [e for e in C.validate(_cfg)[0] if set(e.keys) & set(C.FXM_TYPES)]
       and all(not R.ITEMS[k].is_choice for k in C.FXM_TYPES))
+# where each engine's hot code runs (registry.py FAST_NAMES, 2026-10-29): its item off / on / on, code in RAM (0 / 2 / 3);
+# an old .config's 1 reads as its place by default; the header's FAST_RAM_<name>; the hash of a default place unchanged
+_d = C.defaults()
+check("engines: each FAST_NAMES item a choice off / on / on code in RAM, its default its place (RAM: ANALOG 2 PHASE "
+      "DIGITAL TRIO FORMANT DRAWBAR LOFI SAMPLE; the rest on, from the flash) or off",
+      all([c[0] for c in R.ITEMS[k].choices] == [R.ENG_OFF, R.ENG_ON, R.ENG_RAM] and
+          R.ITEMS[k].default in (R.ENG_OFF, R.eng_place(k)) for k in R.FAST_NAMES)
+      and {k for k in R.FAST_NAMES if R.eng_place(k) == R.ENG_RAM} == set(R.FAST_RAM)
+      and _d["ENG_ANALOG"] == R.ENG_RAM and _d["ENG_FM6"] == R.ENG_ON)
+for _k in R.FAST_NAMES:
+    _vals = {}
+    for _v in (R.ENG_OFF, R.ENG_ON, R.ENG_RAM):
+        _f = C.flags(dict(_d, **{_k: _v}))[0]
+        _vals[_v] = (_f[R.ITEMS[_k].flag], tuple(_f[f"FAST_RAM_{n}"] for n in R.FAST_NAMES[_k]))
+    check(f"engines: {_k} off / on / code in RAM -> its switch 0 / 1 / 1, FAST_RAM 0 / 0 / 1",
+          _vals[R.ENG_OFF][0] == 0 and _vals[R.ENG_ON] == (1, (0,) * len(R.FAST_NAMES[_k]))
+          and _vals[R.ENG_RAM] == (1, (1,) * len(R.FAST_NAMES[_k])))
+_old, _ = C.parse("ENG_ANALOG=1\nENG_FM6=1\nENG_ACID=1\nENG_PHASE=0\n", warn=lambda m: None)
+check("engines: an old .config's 1 reads as the engine's place (ANALOG in RAM, FM6 and ACID on), 0 stays off",
+      (_old["ENG_ANALOG"], _old["ENG_FM6"], _old["ENG_ACID"], _old["ENG_PHASE"]) == (R.ENG_RAM, R.ENG_ON, R.ENG_ON, 0))
+check("engines: an old .config's hash (and so its image) as before the choice: the defaults' place hashes as 1",
+      C.cfg_hash(_old) == C.cfg_hash(dict(_old, ENG_ANALOG=1, ENG_FM6=1, ENG_ACID=1))
+      and C.cfg_hash(dict(_old, ENG_ANALOG=R.ENG_ON)) != C.cfg_hash(_old))
+_rt, _ = C.parse(C.dump(dict(_d, ENG_ANALOG=R.ENG_ON, ENG_FM6=R.ENG_RAM)), warn=lambda m: None)
+check("engines: a dump round-trips the places (ANALOG on from the flash, FM6 in RAM: 2 and 3 written)",
+      (_rt["ENG_ANALOG"], _rt["ENG_FM6"]) == (R.ENG_ON, R.ENG_RAM))
+_env = C.apply_env(_d, {"FELUCCA_ENG_ANALOG": "1", "FELUCCA_ENG_FM6": "3"})
+check("engines: the old switch FELUCCA_ENG_X=1 in the environment is the place by default, 3 code in RAM",
+      (_env["ENG_ANALOG"], _env["ENG_FM6"]) == (R.ENG_RAM, R.ENG_RAM))
+_co = C.load_costs()
+# (costs.json measures every place now: the estimate's fallback is tried on a copy without the two entries it stands in for)
+_co_nm = dict(_co, deltas=dict(_co["deltas"], ENG_ANALOG={k: v for k, v in _co["deltas"]["ENG_ANALOG"].items() if k != str(R.ENG_ON)},
+                               ENG_FM6={k: v for k, v in _co["deltas"]["ENG_FM6"].items() if k != str(R.ENG_RAM)}))
+_a2, _f3 = K.item_delta(_co_nm, "ENG_ANALOG", R.ENG_ON), K.item_delta(_co_nm, "ENG_FM6", R.ENG_RAM)
+_s = R.FAST_BYTES
+check("engines: the estimate of a place costs.json has not measured: ANALOG on from the flash takes its render path "
+      "out of the RAM code and adds what it saved to the flash (measured, else a third), FM6 in RAM the other way",
+      _a2["ramtext"] == -_s["ENG_ANALOG"] and _a2["flash"] == R.fast_flash_saved("ENG_ANALOG") > 0
+      and _f3["ramtext"] == _s["ENG_FM6"] and _f3["flash"] == -R.fast_flash_saved("ENG_FM6")
+      and R.fast_flash_saved("ENG_TRIO") == round(_s["ENG_TRIO"] * (1 - R.FAST_FLASH_RAM))
+      and K.item_delta(_co_nm, "ENG_ANALOG", R.ENG_RAM) == {r: 0 for r in C.REGIONS})
 _old = {"flash": 1000, "ram": 200, "pool": 50, "ramtext": 400}
 with redirect_stdout(io.StringIO()):
     _moved = MC.refreshed_base(_old, dict(_old, ramtext=488))       # (88 B: under the 256 B fit margin, was kept)
@@ -646,7 +766,7 @@ if shared:
 # item and made BLE on show more free flash than off). `--ble-drop ITEM` is the explicit headless choice: it removes that
 # one item (make_room: the named one, or the smallest single item that frees enough); the checks below hold it to the
 # same figures as before. Nothing here is pinned: every figure comes from costs.json as it is (BLE's measured cost, with
-# and without BLE_DIAG), and the expected item is computed per profile from the budget alone, not from room.py.
+# and without its option BLE_BOND), and the expected item is computed per profile from the budget alone, not from room.py.
 dflt_real, _ = C.load_profile(C.REFERENCE_PROFILE)
 check("BLE, measured cost (costs.json): the reference profile (synths_USBaudio_BTaudio_BTmidi, BLE on) with BLE fits as it is",
       not C.over_any(dict(dflt_real, BLE=1), costs))
@@ -666,14 +786,14 @@ def refused(profile, sets, drop):
     return False
 
 
-def room_scenarios(prof, diag):
-    tag = f"BLE room, {prof}{' + BLE_DIAG' if diag else ''}"
+def room_scenarios(prof, opt):
+    tag = f"BLE room, {prof}{' + BLE_BOND' if opt else ''}"
     base, _ = C.load_profile(prof)
     if base["BLE"]:                                     # (the rule is BLE ticked on a profile without it)
         print(f"{tag}: the profile has BLE on already, not a case")
         return
-    sets = ["BLE=1"] + (["BLE_DIAG=1"] if diag else [])
-    withble = with_ble(base, diag)
+    sets = ["BLE=1"] + (["BLE_BOND=1"] if opt else [])
+    withble = with_ble(base, opt)
     over, order, chosen = expected_room(withble, costs)
     cfg0, rm0 = RM.after_toggle(base, withble, "BLE", RM.NONE, costs)
     check(f"{tag}: BLE ticked in a menu: nothing is removed, no message, whether it fits or not (like any other tick)",
@@ -725,12 +845,12 @@ def room_scenarios(prof, diag):
 
 PROFILES_BLE = tuple(C.profile_names())     # (the ones with BLE on already are no case: synths and synths-2 are)
 for _prof in PROFILES_BLE:
-    for _diag in (0, 1):
-        room_scenarios(_prof, _diag)
+    for _opt in (0, 1):
+        room_scenarios(_prof, _opt)
 _removing = [(p, d) for p in PROFILES_BLE for d in (0, 1)
              if expected_room(with_ble(C.load_profile(p)[0], d), costs)[2]]
 check("BLE room: at least one profile has BLE overflow and a single item that frees enough (the rule is exercised): "
-      + ", ".join(f"{p}{'+diag' if d else ''}" for p, d in _removing), bool(_removing))
+      + ", ".join(f"{p}{'+bond' if d else ''}" for p, d in _removing), bool(_removing))
 try:
     with contextlib.redirect_stdout(io.StringIO()):
         C.resolve_cli(argparse.Namespace(config=None, profile="synths", set=[], name=None, ble_drop="FLUTE"))
@@ -741,7 +861,7 @@ check("--ble-drop with BLE off: refused with a ConfigError", _off)
 check("tools/optimist.py: build and package take --ble-drop, and the BLE test package is made with it",
       O.parser().parse_args(["build", "--set", "BLE=1", "--ble-drop", "FLUTE"]).ble_drop == "FLUTE" and
       'ble_drop="FLUTE"' in (ROOT / "tools" / "optimist.py").read_text() and
-      '"BLE_DIAG=1"' in (ROOT / "tools" / "optimist.py").read_text() and "SET_FLUTE=0" not in
+      '"BLE_CENTRAL=1"' in (ROOT / "tools" / "optimist.py").read_text() and "SET_FLUTE=0" not in
       (ROOT / "tools" / "optimist.py").read_text())
 # the estimate against real builds (docs/BUILDER.md, Budget). configure.py budget: the real build of the nearest
 # configuration whose build is known (an anchor: the defaults, costs.json "checks", a real build from this source)
@@ -828,15 +948,15 @@ if not _have:
 #    cover, and the pairs measured with the Optimist UI against a UI cost that had since grown 10 KB (each "UI=1,ED_X=0"
 #    pair then carried the difference: switching an ED_* item off read 5-7 KB more)
 #    Allowed by name (the user, 2026-10-19, "named allowances"), each measured: the items that move memory between
-#    regions (off, REV_POOL's reverb line and TAB_IN_POOL's tables go back to main RAM; SECTIONS 0 keeps motion in the
+#    regions (off, REV_POOL's reverb line goes back to main RAM; SECTIONS 0 keeps motion in the
 #    project slots, in the pool), DIV_ORDER (its build is 284 B smaller in flash on than off) and FX_DJF (beside
 #    TRK_FILT the FILTER insert's code stays: off saves nothing, +124 B). RAM moves by 16-32 B of alignment as flash does.
-#    With DLY_ARENA set (a fixed effects memory), FX_DELAY off and the shorter XDLY_LEN leave more of it to the limited
-#    inserts, whose instance tables grow (core.dly_arena): measured 2026-10-24 on synths_USBaudio_BTaudio_BTmidi
-#    (DLY_ARENA 64), FX_DELAY off pool +4 B, XDLY_LEN 8192 pool +40 B, as the estimate says. DRUMS off is a fourth
-#    synth track: the parts' array a third larger in the pool (measured 2026-10-26, m-DRUMS-0: engines.c part_mem
-#    28,080 B against 21,060)
-_MONO_MOVES = ("REV_POOL", "TAB_IN_POOL", "SECTIONS")
+#    FX_DELAY off and the shorter XDLY_LEN change the limited inserts' instance tables (core.dly_arena): measured
+#    2026-10-24 on synths_USBaudio_BTaudio_BTmidi (then a fixed DLY_ARENA 64), FX_DELAY off pool +4 B, XDLY_LEN 8192
+#    pool +40 B, as the estimate says. DRUMS off makes track 4 a
+#    4th synth part (bit 424), whose engine state is in the pool: measured 2026-10-27 on synths_USBaudio_BTaudio_BTmidi
+#    (gpufarm, d9a3d172), pool +5,120 B (the estimate +4,168: the part's +12,888 less the X0X machines' states)
+_MONO_MOVES = ("REV_POOL", "SECTIONS")
 _MONO_ALLOW = {"DIV_ORDER": "flash", "FX_DJF": "flash", "FX_DELAY": "pool", "XDLY_LEN": "pool", "DRUMS": "pool"}
 _MONO_NOISE = {"flash": K.ALIGN_NOISE, "ram": 32, "pool": 0}
 _mono_bad = []
@@ -872,9 +992,10 @@ import build as BUILD  # noqa: E402  (its check() is the real build's refusal)
 check("reserve: the retired items are not offered", "RESERVE_UNDO_KB" not in items and "RESERVE_FLASH_KB" not in items and
       "RESERVE_UNDO_KB" in R.RETIRED and "RESERVE_FLASH_KB" in R.RETIRED)
 tot = {"flash": 500000, "ram": 80000, "pool": 300000, "ramtext": 30000}
-ring = (98304 - 80000) + (344064 - 8192 - 300000)
-check("undo ring: the estimate shows it, (98,304 - RAM) + (344,064 - 8,192 - pool)",
-      C.undo_ring(tot) == ring == 54176 and C.undo_ring(dict(tot, ram=100000, pool=400000)) == 0 and
+sram = K.limits_in_use()["sram"]                         # (the SRAM of the firmware the costs are of: 474,880 classic, app.ld's 475,136 the release's)
+ring = sram - 8192 - (80000 + 300000 + 30000)
+check(f"undo ring: the estimate shows it, {sram:,} - 8,192 - (RAM + pool + RAM code): the packed SRAM's rest",
+      C.undo_ring(tot) == ring == sram - 8192 - 410000 and C.undo_ring(dict(tot, ram=100000, pool=400000)) == 0 and
       "undo ring" in C.fmt_budget(C.defaults(), dict(costs, base=dict(costs["base"], **tot))))
 check("a .config naming a retired reserve item still loads (the setting is ignored, with a warning)",
       "RESERVE_UNDO_KB" not in C.parse("RESERVE_UNDO_KB=8\nRESERVE_FLASH_KB=16\n", strict=False)[0])
@@ -948,5 +1069,118 @@ if real.exists() and "dual_job:" in real.read_text():
     d, path = BUILD.cpu1_stack(real.read_text())
     check(f"build.py CPU1 stack: the real DUAL build's ({d} B, {path[-1]}) within {BUILD.CPU1_STACK_ROOM} B",
           0 < d <= BUILD.CPU1_STACK_ROOM)
+
+# Wi-Fi (2026-10-28): WIFI_LINK (bit 434) needs BLE (and the console on the classic firmware), WIFI_AP (bit 435) is its option; FELUCCA_LINK follows
+# FELUCCA_WIFI; both off by default, target only (the host tests keep their own default)
+_wd = K.defaults()
+_wl = dict(_wd, BLE=1, USB_CONSOLE=1, WIFI_LINK=1)
+_wf = K.flags(_wl)[0]
+check("Wi-Fi: WIFI_LINK 434 (FELUCCA_WIFI) and its option WIFI_AP 435 (FELUCCA_WIFI_AP), off by default, target only",
+      items["WIFI_LINK"].bit == 434 and items["WIFI_AP"].bit == 435 and items["WIFI_AP"].parent == "WIFI_LINK" and
+      items["WIFI_LINK"].flag == "FELUCCA_WIFI" and items["WIFI_AP"].flag == "FELUCCA_WIFI_AP" and
+      items["WIFI_LINK"].default == 0 and items["WIFI_AP"].default == 0 and
+      items["WIFI_LINK"].target_only and items["WIFI_AP"].target_only)
+check("Wi-Fi: WIFI_AP is honest about the device: experimental, its description says not tested",
+      items["WIFI_AP"].experimental and "not tested" in items["WIFI_AP"].desc.lower())
+check("Wi-Fi: with BLE and the console it is valid, FELUCCA_WIFI and FELUCCA_LINK 1 in the header, the AP flag 0",
+      not K.validate(_wl)[0] and _wf["FELUCCA_WIFI"] == 1 and _wf["FELUCCA_LINK"] == 1 and _wf["FELUCCA_WIFI_AP"] == 0 and
+      "#define FELUCCA_LINK 1" in K.header(_wl))
+check("Wi-Fi: WIFI_AP on sets FELUCCA_WIFI_AP; with Wi-Fi off its flag stays at the default 0",
+      K.flags(dict(_wl, WIFI_AP=1))[0]["FELUCCA_WIFI_AP"] == 1 and
+      K.flags(dict(_wd, WIFI_AP=1))[0]["FELUCCA_WIFI_AP"] == 0 and K.flags(_wd)[0]["FELUCCA_LINK"] == 0)
+_hook = K.CLASSIC_HOOK
+K.CLASSIC_HOOK = lambda: True
+_classic_no_con = bool(K.validate(dict(_wl, USB_CONSOLE=0))[0])
+K.CLASSIC_HOOK = lambda: False
+_release_no_con = not K.validate(dict(_wl, USB_CONSOLE=0))[0] and bool(K.validate(dict(_wl, BLE=0, USB_CONSOLE=0))[0])
+K.CLASSIC_HOOK = _hook
+check("Wi-Fi: without BLE the build is refused; without the console too on Optimist's own firmware, not in the release "
+      "(fm1-base's own Wi-Fi stack: no console)",
+      bool(K.validate(dict(_wl, BLE=0))[0]) and _classic_no_con and _release_no_con and not K.validate(_wd)[0])
+# the USB MIDI host (2026-10-28): USB_HOST (bit 438, FELUCCA_USB_HOST), Connectivity, off by default, experimental with
+# what it was tested on; the release's only (fm1-base's host): refused on Optimist's own firmware; the trial's host
+# build gets it too (not target only: the flag outside __PI32V2__)
+_uh = items["USB_HOST"]
+_ud = C.defaults()
+check("USB host: USB_HOST 438 (FELUCCA_USB_HOST) in Connectivity, off by default, experimental, its tests said, an "
+      "off warning, not target only",
+      _uh.bit == 438 and _uh.flag == "FELUCCA_USB_HOST" and _uh.group == "Connectivity" and _uh.default == 0 and
+      _uh.experimental and _uh.tested == "host-tested only; USB host IN ran on Melodee, OUT not validated on a device"
+      and _uh.off_warning and not _uh.target_only and not _uh.parent)
+check("USB host: no other item has bit 438", [k for k, it in items.items() if it.bit == 438] == ["USB_HOST"])
+K.CLASSIC_HOOK = lambda: True
+_uh_classic = [e for e in K.validate(dict(_ud, USB_HOST=1))[0] if "USB_HOST" in e.keys]
+K.CLASSIC_HOOK = lambda: False
+_uh_release = [e for e in K.validate(dict(_ud, USB_HOST=1))[0] if "USB_HOST" in e.keys]
+_uh_warn = [w for w in K.validate(dict(_ud, USB_HOST=1))[1] if "USB_HOST" in w.keys]
+K.CLASSIC_HOOK = _hook
+check("USB host: refused on Optimist's own firmware, valid in the release (where it says EXPERIMENTAL and its tests)",
+      bool(_uh_classic) and not _uh_release and any("EXPERIMENTAL" in w for w in _uh_warn))
+check("USB host: on sets FELUCCA_USB_HOST 1 in the header, outside __PI32V2__; off 0",
+      K.flags(dict(_ud, USB_HOST=1))[0]["FELUCCA_USB_HOST"] == 1 and K.flags(_ud)[0]["FELUCCA_USB_HOST"] == 0 and
+      "#ifdef __PI32V2__\n#ifndef FELUCCA_USB_HOST" not in K.header(dict(_ud, USB_HOST=1)))
+# ---- the arena's size and what fits in it (the user's ruling 2026-10-29: the builder shows how much RAM the arena gets)
+# No real ARENA build is recorded in build/exact-sizes.json yet, so the estimate is held against a stand-in real build: a
+# known configuration with sizes whose free SRAM is known (anchor), and a neighbour a few items away
+_ar_cfg = dict(C.defaults(), ARENA=1, **_sd)
+_ar_real = {"flash": 600000, "ram": 90000, "pool": 150000, "ramtext": 30000}     # (a real build's sizes: 475,136 - 8,192 - 270,000 free)
+_ar_free = K.sram_free(_ar_real)
+_ar_a = K.arena_size(_ar_cfg, _ar_real, exact=True)
+check("arena: the real build's free SRAM (no spare: engines.c ARN_SPARE 0) less the undo's 16 KB keep, exact, in whole units (8 B)",
+      _ar_a["free"] == _ar_free == sram - 270000 and _ar_a["keep"] == 16384 and _ar_a["bytes"] == (_ar_free - 16384) & ~7
+      and _ar_a["kb"] == _ar_a["bytes"] // 1024 and _ar_a["exact"] and K.arena_size(dict(_ar_cfg, ARENA=0), _ar_real) is None)
+check("arena: nothing when the sizes leave no free SRAM (never negative)", K.arena_size(_ar_cfg, dict(_ar_real, pool=900000))["bytes"] == 0)
+check("arena: the cache RAM gives the SRAM it frees to the arena (2 ways +8 KB, 4 or 7 ways +15 KB: the undo keeps 1 KB)",
+      [K.arena_undo_keep(dict(_ar_cfg, CACHE_RAM=w)) for w in (0, 2, 4, 7)] == [16384, 8192, 1024, 1024]
+      and K.arena_size(dict(_ar_cfg, CACHE_RAM=4), _ar_real)["bytes"] - _ar_a["bytes"] == 15 * 1024)
+_ar_b = K.budget(_ar_cfg, costs, extra_anchors=[("stand-in", _ar_cfg, _ar_real)])
+_ar_e = K.arena_size(_ar_cfg, _ar_b["total"])
+check(f"arena: the estimate of a configuration whose real build is known as an anchor is that build's (within {K.ARENA_ESTIMATE_KB} KB)",
+      abs(_ar_e["kb"] - _ar_a["kb"]) <= K.ARENA_ESTIMATE_KB and not _ar_e["exact"])
+_ar_n = dict(_ar_cfg, FX_PUNCH=1)
+_ar_nb = K.budget(_ar_n, costs, extra_anchors=[("stand-in", _ar_cfg, _ar_real)])
+check(f"... a neighbour one item away: within {K.ARENA_ESTIMATE_KB} KB of the anchor's arena",
+      abs(K.arena_size(_ar_n, _ar_nb["total"])["kb"] - _ar_a["kb"]) <= K.ARENA_ESTIMATE_KB)
+_ar_f = {n: (b, c) for n, b, c, _ in K.arena_fits(_ar_cfg)["rows"]}
+_ar_bl = K.arena_blocks(_ar_cfg)                    # (as arena_fits takes them: the effects memory always auto, 58568ef9)
+check("arena fits: the three sends together = the builder's send lines; a part's engine state x the parts; the PUNCH ring",
+      _ar_f["the 3 sends' lines"] == (sum(K.arena_sends(_ar_bl).values()), 1)
+      and any(n.startswith("a part's") and c == K.nparts(_ar_cfg) and b == _ar_bl["a part's engine state"] for n, (b, c) in _ar_f.items())
+      and _ar_f.get("the PUNCH ring", (0, 0)) == (2 * _ar_cfg["PUNCH_N"], 1) or "the PUNCH ring" not in _ar_f)
+_ar_w = dict(_ar_cfg, ENG_WAVE=1, DRUM_X0X808=1, FX_SLICER=1)
+_ar_wf = {n: b for n, b, c, _ in K.arena_fits(_ar_w)["rows"]}
+check("arena fits: WAVE's table, the X0X 808 state, a track's SLICER recording are rows",
+      _ar_wf.get("WAVE's table") == K.WAVE_MEM and _ar_wf.get("the X0X 808's state") == K.X808_STATE
+      and _ar_wf.get("a track's SLICER recording") == 2 * K.flags(_ar_w)[0]["FELUCCA_SL_LEN"])
+_ar_sd = dict(_ar_cfg, LAYOUT=1, SDCARD=1, SD_RING=4, ENG_SAMPLE=1, ENG_GRAIN=1, ENG_STRETCH=1)
+_ar_sf = {n: (b, c) for n, b, c, _ in K.arena_fits(_ar_sd)["rows"]}
+check("arena fits, SD card mode: GRAIN 33,280 B and STRETCH 16,640 B a part, the sample heads and the rings; none outside it",
+      _ar_sf["GRAIN's card cache"] == (33280, 3) and _ar_sf["STRETCH's card cache"] == (16640, 3)
+      and "a card sample's head" in _ar_sf and "a card stream's ring" in _ar_sf
+      and not any("card" in n for n in _ar_f))
+_ar_t = K.arena_text(_ar_cfg, _ar_b["total"])
+check("arena text: the size marked as an estimate, a row a line, a verdict, within 78 columns; nothing with ARENA off",
+      _ar_t[0].startswith("arena ~") and "estimate" in _ar_t[0] and all(len(x) <= 78 for x in _ar_t)
+      and any("all at once" in x for x in _ar_t) and any("MEM FULL" in x or "fits" in x for x in _ar_t)
+      and K.arena_text(dict(_ar_cfg, ARENA=0), _ar_real) == [] and K.arena_text(_ar_cfg, _ar_real, True)[0].startswith("arena ")
+      and "~" not in K.arena_text(_ar_cfg, _ar_real, True)[0])
+check("undo with ARENA: its keep and the cache RAM, borrowing the arena's free top; without, its ring",
+      K.undo_text(dict(_ar_cfg, CACHE_RAM=4), _ar_real) == "undo keeps 1.0 KB + cache RAM 16 KB, borrows the arena's free top"
+      and K.undo_text(dict(_ar_cfg, ARENA=0), _ar_real) == f"undo ring {K.undo_ring(_ar_real):,} B"
+      and "borrows the arena" in C.fmt_budget(_ar_cfg, costs))
+check("arena: the budget summary (fmt_budget) names it",
+      "arena ~" in C.fmt_budget(_ar_cfg, costs) and "arena" not in C.fmt_budget(dict(_ar_cfg, ARENA=0), costs))
+import web_api as WA  # noqa: E402
+WA.init(costs)
+_ar_v = WA.view(_ar_cfg)["arena"]
+_ar_pb = K.budget(dict(_ar_cfg, **WA.WEB_FIXED), costs)   # (the page builds with its fixed compiler, JieLi's: counted since 2026-10-30)
+check("web builder: the view carries the arena (kb, free, keep, the panel's lines and the rows) the same as the menu's",
+      _ar_v and _ar_v["kb"] == K.arena_size(_ar_cfg, _ar_pb["total"])["kb"] and _ar_v["lines"] == K.arena_text(_ar_cfg, _ar_pb["total"])
+      and _ar_v["rows"] and WA.view(dict(_ar_cfg, ARENA=0))["arena"] is None)
+_ar_x = subprocess.run([sys.executable, str(ROOT / "tools" / "export_builder_web.py"), "--check"], capture_output=True, text=True)
+check("web builder data export: web/builder/data is what the builder has now (export_builder_web.py --check)",
+      _ar_x.returncode == 0)
+if _ar_x.returncode:
+    print("  " + (_ar_x.stdout + _ar_x.stderr).strip()[-600:])
 print("builder test " + ("FAILED" if fails else "passed"))
 sys.exit(1 if fails else 0)

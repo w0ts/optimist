@@ -202,8 +202,7 @@ int main(void)
     bus(NULL, NULL, CTL);
     check(rsel.type == RT_AIRWIN, "TYPE picks AIRWIN");
 #endif
-    printf("airwin: the ring %u samples (%u KB), the lines %u cells, REV_HALF %d\n", RV_N, RV_N / 512u, RBA_END,
-           FELUCCA_REV_HALF);
+    printf("airwin: the ring %u samples (%u KB), the lines %u cells\n", RV_N, RV_N / 512u, RBA_END);
     t_decay();
     t_level();
     t_stable();

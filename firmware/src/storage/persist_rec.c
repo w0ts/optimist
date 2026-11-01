@@ -7,6 +7,7 @@
  * are the last field: a record of any older length reads whole, with none; a build without them reads ours as its prefix
  * (it saves it back shorter, so it forgets them). Included by project.c after sl24_guard.c (sl_word_in). */
 #include "../core/favorites.c"
+#include "../core/dbgstats.h"                     /* rsv_pj[1]: DEBUG STATS */
 #define PERSIST_UA_SRC 24u                         /* the sources' room in the record: every one ua_tap.h has, and more */
 #if FELUCCA_USB_AUDIO
 _Static_assert(UAS_N <= PERSIST_UA_SRC, "the record holds every USB source");
@@ -18,11 +19,8 @@ typedef struct {
     arr_rec_t arrangement;                         /* (16 parts; a longer song: the log, paired by its tag) */
 #endif
     uint32_t view;                                 /* (appended: a shorter record, saved before it, reads as ALL) */
-#if FELUCCA_BRIGHT || BP23_SET
-    uint32_t bright;                               /* appended (bright.c): 0 = full, now always written 0 and never
-                                                    * applied (a saved dim level froze an FM-1 at every boot: bright.c). A
-                                                    * build with BP23_SET and no BRIGHT keeps it as read (its place) */
-#endif
+    uint32_t spare;                                /* appended: was the backlight level (BRIGHT, removed 2026-10-29: the screen is always
+                                                    * full); written 0, never read (an old record's value is dropped) */
 #if BP23_SET
     uint32_t bp23;                                 /* appended: the SLOOP 2.3 settings of the FM-1 (bp23_word) */
 #endif
@@ -72,9 +70,7 @@ typedef struct {
 _Static_assert(PERSIST3_BLE(ble_rf) == PERSIST3_BLE(ble_addr) + 8 && PERSIST3_BLE(ble_bond) == PERSIST3_BLE(ble_rf) + BLE_RF_COPY_SIZE &&
                PERSIST3_BLE(ble_dev) == PERSIST3_BLE(ble_bond) + BLE_BOND_SIZE, "the settings record's BLE fields in a row");
 #endif
-#if FELUCCA_BRIGHT || BP23_SET
-#define PERSIST_NO_BRIGHT ((int)__builtin_offsetof(persist_v3_t, bright))   /* .. before bright (a build without it) */
-#endif
+#define PERSIST_NO_SPARE ((int)__builtin_offsetof(persist_v3_t, spare))   /* .. before the spare slot (a record without it) */
 #if FELUCCA_ARRANGER
 #define PERSIST_MAGIC 0x50455233u                  /* "PER3": includes the song order */
 #else
@@ -130,8 +126,8 @@ static int persist_upgrade(persist_v3_t *pp, int n)
     if (n < (int)sizeof *pp) {                   /* a shorter record (an older build, one with fewer switches) */
         if (n < PERSIST_NO_VIEW + 4)
             pp->view = 1;                        /* saved before VIEW (or PER2): the overview, as a fresh device */
-        if (n < PERSIST_NO_BRIGHT + 4)
-            pp->bright = 0;                      /* saved without BRIGHT: full */
+        if (n < PERSIST_NO_SPARE + 4)
+            pp->spare = 0;                       /* saved without the slot */
         pp->bp23 = 0;                            /* without the SLOOP 2.3 settings: as before */
 #if FELUCCA_SL24_SAFE
         if (n == PERSIST_NO_VIEW + 4 && pp->magic == PERSIST_MAGIC && pp->view > 1u)
@@ -141,18 +137,16 @@ static int persist_upgrade(persist_v3_t *pp, int n)
             n = (int)sizeof *pp;                 /* (the rest as ours) */
     }
 #if FELUCCA_SL24_SAFE
-    else if (pp->bright == SL25_DSU_MAGIC && pp->magic == PERSIST_MAGIC) {   /* written back by a build that took SLOOP */
-        pp->bright = 0;                          /* 2.5's kits as ours: their header as BRIGHT and the settings */
+    else if (pp->spare == SL25_DSU_MAGIC && pp->magic == PERSIST_MAGIC) {   /* written back by a build that took SLOOP */
+        pp->spare = 0;                           /* 2.5's kits as ours: their header as the spare slot and the settings */
         pp->bp23 = pp->view > 1u ? sl_word_in(pp->view) : 0u;   /* word; the word as 2.4's record gives it */
     }
 #endif
 #else
-#if FELUCCA_BRIGHT
     if (n < (int)sizeof *pp)
-        pp->bright = 0;                          /* saved without BRIGHT: full */
-    if (n == PERSIST_NO_BRIGHT)
-        n = (int)sizeof *pp;                     /* (a build without it: the rest as ours) */
-#endif
+        pp->spare = 0;                           /* saved without the slot */
+    if (n == PERSIST_NO_SPARE)
+        n = (int)sizeof *pp;                     /* (a record without it: the rest as ours) */
     if (n < (int)sizeof *pp)
         pp->view = 1;                            /* saved before VIEW (or PER2): the overview, as a fresh device */
 #endif
@@ -173,13 +167,14 @@ static int persist_upgrade(persist_v3_t *pp, int n)
 #define PERSIST4_FAV 136u                          /* core/favorites.c fav_t (its bytes: the type is the build's) */
 #define PERSIST4_BT_KEPT 120u                      /* ui/optimist/op_bt.c BT_KEPT_SIZE: 3 devices x 40 */
 #define PERSIST4_BLE_KEPT 198u                     /* io/midi/ble_devices.c ble_kept: 3 devices x 66 (struct ble_dev) */
+#define PERSIST4_WIFI_NETS 336u                    /* wifi/wifi_nets.h WN_STORE_SIZE: mode + 4 saved networks (SSID, PMK) + MODE AP's network */
 typedef struct {
     uint32_t magic, palette, lowcut, zoom;
     panel_t panel;
 #if FELUCCA_ARRANGER
     arr_rec_t arrangement;
 #endif
-    uint32_t view, bright, bp23;                   /* (bright: always 0; bp23: the settings word, bp23_word) */
+    uint32_t view, spare, bp23;                    /* (spare: always 0; bp23: the settings word, bp23_word) */
     uint8_t ble_addr[8], ble_rf[PERSIST4_BLE_RF], ble_bond[PERSIST4_BLE_BOND], ble_dev[PERSIST4_BLE_DEV];   /* (in a row) */
     uint8_t fav[PERSIST4_FAV];                     /* (a fav_t when FAVORITES is built: persist_fav_load / _save) */
     uint8_t ua_src[PERSIST4_UA_ROUTE];
@@ -188,13 +183,22 @@ typedef struct {
     uint8_t ua_dst[PERSIST_UA_SRC];
     uint32_t ua_mark3;
     uint8_t bt_rec[32], bt_key[32];
-    uint8_t open_proj, rsv_pj[3];                  /* 2026-10-22: the open project (PATTERNS: sections.c); a record from before: 0 */
+    uint8_t open_proj, rsv_pj[3];                  /* 2026-10-22: the open project (PATTERNS: sections.c); a record from before: 0.
+                                                    * rsv_pj[0]: retired (was VU FLOOR, 2026-10-28; fixed at -40 since 2026-10-31, the byte is ignored and written 0).
+                                                    * rsv_pj[1] bit 0: DEBUG STATS (core/dbgstats.h: 0 = OFF), 2026-10-29 */
     int16_t clk_ofs[2];                            /* 2026-10-24: GLOBAL > MIDI CLK OFS, BT OFS, ms (clock_sync.c sync_ofs);
                                                     * a record from before: 0 */
     uint8_t bt_kept[PERSIST4_BT_KEPT];             /* 2026-10-24: BT AUDIO's other remembered devices (op_bt.c bt_kept_out);
                                                     * a record from before: none */
     uint8_t ble_kept[PERSIST4_BLE_KEPT];           /* 2026-10-24: BT MIDI's other remembered devices (io/midi/ble_devices.c
                                                     * ble_kept, struct ble_dev x 3); a record from before: none */
+    uint8_t wifi_nets[PERSIST4_WIFI_NETS];         /* 2026-10-27: the saved Wi-Fi networks (wifi/wifi_saved.c wn_st: SSID and
+                                                    * the WPA2 key, never the password; MODE AP's name, channel and key at its end);
+                                                    * a record from before (268 octets, or none): none, zeros after; a build
+                                                    * without Wi-Fi keeps it as read */
+    uint8_t ext_ver, clko_sel, link_sel, sync_sel;  /* 2026-10-29: 0 in a record from before (then CLK OUT is the settings word's ON / OFF = BOTH / OFF,
+                                                    * LINK is ON+S/S, LINK OFS is CLK OFS's); 1: CLK OUT's mode (clock_out.c CLKO_*), LINK (clock_sync.c LINK_*), sync_sel = 1: CLK IN is LINK (the settings word holds AUTO then) */
+    int16_t link_ofs;                              /* LINK OFS, ms (clock_sync.c sync_ofs[2]); read only with ext_ver */
 #if FELUCCA_DUAL && FELUCCA_DUALCFG
     dualcfg_t dualcfg;                             /* (the second-core test image only: after everything) */
 #endif
@@ -229,9 +233,7 @@ static void persist_from_v3(persist_t *d, const persist_v3_t *s)
     d->arrangement = s->arrangement;
 #endif
     d->view = s->view;
-#if FELUCCA_BRIGHT || BP23_SET
-    d->bright = s->bright;
-#endif
+    d->spare = s->spare;
 #if BP23_SET
     d->bp23 = s->bp23;
 #endif

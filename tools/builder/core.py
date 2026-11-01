@@ -17,8 +17,10 @@ is built with (an option of an item left out at its default, the retired items a
 value the image is still built as)."""
 import functools
 import hashlib
+import os
 import re
 import sys
+import textwrap
 
 import registry as R
 
@@ -26,20 +28,68 @@ KEY_TAG = "optimist-cloud/1"
 NEEDS_AUTO = ()                 # (setup: the items the firmware switches off without the automation store)
 
 
-def setup(needs_auto=None):
-    """the data the core cannot read itself: needs_auto, the keys of configure._needs_auto (firmware headers)"""
-    global NEEDS_AUTO
+_UNSET = object()
+
+
+def _release():
+    """which firmware the rules are for: configure.py sets CLASSIC_HOOK to its classic() (Optimist's own firmware,
+    OPTIMIST_CLASSIC=1); the default is the release (Optimist as an fm1-base app)"""
+    return False
+
+
+CLASSIC_HOOK = _release
+LIMITS_HOOK = None              # (setup: configure.py's kind_limits, the slots of the firmware built, read from its build system)
+SETUP_LIMITS = None             # (setup: the costs' "limits", where no build system is around: the web page)
+
+
+def setup(needs_auto=None, limits=_UNSET, limits_hook=_UNSET):
+    """the data the core cannot read itself: needs_auto, the keys of configure._needs_auto (firmware headers); limits:
+    the "limits" of the costs in use ({"flash", "sram", "flash_by_layout": {layout: bytes}}: the slots of the firmware
+    they were measured on, measure_costs.py writes them from the build system), the page's; limits_hook: a function -> those
+    slots for the firmware built now (configure.py kind_limits: the build system itself, which wins over the costs' copy),
+    None where it cannot tell"""
+    global NEEDS_AUTO, SETUP_LIMITS, LIMITS_HOOK
     if needs_auto is not None:
         NEEDS_AUTO = tuple(needs_auto)
+    if limits is not _UNSET:
+        SETUP_LIMITS = dict(limits) if limits else None
+    if limits_hook is not _UNSET:
+        LIMITS_HOOK = limits_hook
+
+
+def norm_limits(lim):
+    """a "limits" record (JSON: the layouts as strings) -> {"flash", "sram", "flash_by_layout": {int layout: bytes}}"""
+    return {"flash": int(lim["flash"]), "sram": int(lim["sram"]),
+            "flash_by_layout": {int(k): int(v) for k, v in lim.get("flash_by_layout", {}).items()}}
+
+
+def limits_in_use():
+    """-> {"flash", "sram", "flash_by_layout": {layout: bytes}}: the slots of the firmware built (the hook: its build
+    system), else the costs' (setup); no number of its own (tools/flash_layout.py, tools/build.py, fm1-base's build hold them)"""
+    lim = LIMITS_HOOK() if LIMITS_HOOK else None
+    lim = lim or SETUP_LIMITS
+    if not lim:
+        raise ConfigError("no flash and SRAM limits: the costs carry none and no build system says them (core.setup)")
+    return norm_limits(lim)
 
 
 def _stderr(msg):
     print(f"warning: {msg}", file=sys.stderr)
 
 
-LIMITS = {"flash": 581564, "ram": 98304, "pool": 344064, "ramtext": 32512}
-SPARE = {"flash": 0, "ram": 0, "pool": 8192, "ramtext": 0}   # build.py keeps 8 KiB of the pool spare
+# the budgets: the app slot and the packed SRAM (app.ld: RAM code, .data/.bss and the pool in one region since
+# 2026-10-25, docs/MEMORY-MAP.md 2.3-2.4), their sizes limits_in_use(); build.py keeps 8 KiB of SRAM spare below the stacks
+SPARE = {"flash": 0, "sram": 8192}
+BUDGETS = ("flash", "sram")
+# the measured parts (costs.json, the deltas): "ram" = .ram_hot2 + .data + .bss, "pool", "ramtext" = .ram_text +
+# .ram_hot; the three together fill the SRAM budget
 REGIONS = ("flash", "ram", "pool", "ramtext")
+SRAM_PARTS = ("ram", "pool", "ramtext")
+
+
+def used(total, budget):
+    """what a total (per measured part) puts against a budget: the SRAM budget is the sum of its parts"""
+    return sum(total[r] for r in SRAM_PARTS) if budget == "sram" else total[budget]
 GRAIN_SETS = ("SET_PIANO", "SET_VIBES", "SET_FLUTE")       # the sets of GRAIN's presets (eng_grain.c)
 
 
@@ -50,6 +100,146 @@ class ConfigError(Exception):
 # ---- reading and writing
 def defaults():
     return {k: it.default for k, it in R.ITEMS.items()}
+
+
+# ---- the memory fronts (registry.py SD_MODE, SMP_SLOTS, PROJECTS; MEMORY the old one-row front): views of LAYOUT,
+# SDCARD and PATTERNS, never stored in a .config (docs/SD-MODE-DESIGN.md 9.7)
+FRONTS = ("MEMORY", "SD_MODE", "SMP_SLOTS", "PROJECTS")
+MEMORY_KEYS = FRONTS + ("LAYOUT", "SDCARD")          # (a change of one may move the flash layout: change_notice)
+STREAMS_OFF = {"SDCARD": 0, "SD_RING": 0, "SD_REC": 0}
+
+
+def _grid():
+    """{(sample slots, projects): layout} of every step (registry.py LAYOUT_STEPS)"""
+    return {(s, p): k for k, (s, p, _) in R.LAYOUT_STEPS.items()}
+
+
+def sd_on(cfg):
+    """SD card mode: the card on in the big step (LAYOUT 1 + SDCARD)"""
+    return cfg.get("LAYOUT", 0) == 1 and bool(cfg.get("SDCARD", 0))
+
+
+def derive_memory(cfg):
+    """-> MEMORY's (old) value for these LAYOUT / SDCARD: 2 SD card mode, 1 more flash (LAYOUT 1 otherwise), 4 no user
+    samples (LAYOUT 3), 0 normal (a layout no step has reads normal), 5 another step of the grid"""
+    layout = cfg.get("LAYOUT", 0)
+    if sd_on(cfg):
+        return 2
+    if layout not in R.LAYOUT_STEPS:
+        return 0
+    return R.MEMORY_OF.get(layout, 5)
+
+
+def derive_fronts(cfg):
+    """-> {SD_MODE, SMP_SLOTS, PROJECTS} as these LAYOUT / SDCARD / PATTERNS read: SD card mode on: no slot, the big
+    step's projects; normal with PATTERNS off: 3 slots"""
+    layout = cfg.get("LAYOUT", 0)
+    slots, projects, _ = R.LAYOUT_STEPS.get(layout, R.LAYOUT_STEPS[0])
+    if sd_on(cfg):
+        slots = 0
+    elif layout == 0 and not cfg.get("PATTERNS", 0):
+        slots = 3
+    return {"SD_MODE": int(sd_on(cfg)), "SMP_SLOTS": slots, "PROJECTS": projects}
+
+
+def sync_memory(cfg):
+    """-> cfg with MEMORY and the three fronts read back from the items they front (a copy)"""
+    return dict(cfg, MEMORY=derive_memory(cfg), **derive_fronts(cfg))
+
+
+def set_memory(cfg, mode):
+    """-> cfg with MEMORY = mode and the items it fronts set to match (a copy): 0 normal (LAYOUT, SDCARD and the
+    card's streams off); 4 no user samples (LAYOUT 3, no card); 1 more flash (LAYOUT 1, no card: SDCARD and the card's
+    streams off); 2 SD card mode (LAYOUT 1 and SDCARD on)"""
+    layouts = {m: k for k, m in R.MEMORY_OF.items()}
+    if mode not in layouts and mode != 2:
+        raise ConfigError(f"MEMORY={mode}: one of 0, 4, 1, 2")
+    out = dict(cfg)
+    if mode == 2:
+        out.update(LAYOUT=1, SDCARD=1)
+    else:
+        out.update(LAYOUT=layouts[mode], **STREAMS_OFF)
+    return sync_memory(out)
+
+
+def _near(pairs, want):
+    """the (slots, projects) of pairs closest to want: the same slots first, then the projects nearest (more first)"""
+    return min(pairs, key=lambda sp: (sp[0] != want[0], abs(sp[1] - want[1]), -sp[1], abs(sp[0] - want[0])))
+
+
+def set_front(cfg, key, value):
+    """-> cfg with the front key (MEMORY, SD_MODE, SMP_SLOTS, PROJECTS) at value and LAYOUT / SDCARD / PATTERNS set to
+    match (a copy). SD_MODE off leaves the big step without the card (0 slots, 2 projects); SMP_SLOTS keeps the
+    projects and PROJECTS the slots when the grid has the pair, else the nearest step; SMP_SLOTS 3 is normal with
+    PATTERNS off (no projects: USR1 is a slot again), 0..2 turn PATTERNS on; leaving SD card mode turns the card off"""
+    if key == "MEMORY" and value == 5:                  # (another step, derived: LAYOUT and the fronts say which; a
+        return sync_memory(cfg)                         # config handed in as KEY=value lines names it, not an error)
+    if key == "MEMORY":
+        return set_memory(cfg, value)
+    if key not in FRONTS:
+        raise ConfigError(f"{key}: not a memory front")
+    now = derive_fronts(cfg)
+    out = dict(cfg)
+    if key == "SD_MODE":
+        if value:
+            return set_memory(out, 2)
+        if now["SD_MODE"]:
+            out.update(STREAMS_OFF)
+        return sync_memory(out)
+    if key == "SMP_SLOTS" and value == 3:
+        out.update(LAYOUT=0, PATTERNS=0, **STREAMS_OFF)
+        return sync_memory(out)
+    want = (value, now["PROJECTS"]) if key == "SMP_SLOTS" else (min(now["SMP_SLOTS"], 2), value)
+    grid = _grid()
+    if not any((s if key == "SMP_SLOTS" else p) == value for s, p in grid):
+        raise ConfigError(f"{key}={value}: no flash step has it "
+                          f"({', '.join(str(v) for v, _ in R.ITEMS[key].choices)})")
+    pair = want if want in grid else _near([sp for sp in grid if (sp[0] if key == "SMP_SLOTS" else sp[1]) == value],
+                                           want)
+    out.update(LAYOUT=grid[pair], PATTERNS=1, **STREAMS_OFF)
+    return sync_memory(out)
+
+
+def layout_room(layout):
+    """app.bin's room in the classic build for this step (registry.py LAYOUT_STEPS)"""
+    return R.LAYOUT_STEPS.get(layout, R.LAYOUT_STEPS[0])[2]
+
+
+def switch_loss(old_layout, new_layout):
+    """what installing new_layout's firmware over old_layout's erases (the builder's copy of tools/flash_layout.py
+    switch_loss, checked against it by tests/flash_layout_test.py): () the same step"""
+    if old_layout == new_layout:
+        return ()
+    old = R.LAYOUT_STEPS.get(old_layout, R.LAYOUT_STEPS[0])[0]
+    new = R.LAYOUT_STEPS.get(new_layout, R.LAYOUT_STEPS[0])[0]
+    out = ["the projects in flash", "the FM6 voices of the user presets"]
+    usr2, usr3 = old >= 2 > new, old >= 1 > new
+    if usr2 and usr3:
+        out.append("the user samples (USR2, USR3) and the snapshots")
+    elif usr3:
+        out.append("the user samples in USR3 and the snapshots")
+    elif usr2:
+        out.append("the user samples in USR2")
+    return tuple(out)
+
+
+def change_notice(key, before, after):
+    """the notice the menu and the web builder show when key changed from before to after (both whole, synced): for
+    the memory items the backup warning of a layout change (the user, 2026-10-31: "when we flash a different layout,
+    we warn the user to backup their data first"), with the new code room; "" when the layout stays (SD card mode on
+    or off in the big step: the one project stays). Any other item: its own notice"""
+    it = R.ITEMS[key]
+    if key in MEMORY_KEYS:
+        old, new = before.get("LAYOUT", 0), after.get("LAYOUT", 0)
+        loss = switch_loss(old, new)
+        if not loss:
+            return ""
+        what = ", ".join(loss[:-1]) + " and " + loss[-1]
+        room = layout_room(new)
+        return (f"New memory layout: {room:,} B for code ({room - R.NORMAL_APP:+,} B against normal). Installing it on "
+                f"an FM-1 with the layout of before erases {what}. Back up first: web editor > Backup. The first "
+                f"install of a new layout goes over a normal build of this version.")
+    return it.notice if it.notice and (after[key] or it.notice_on_change and after[key] != before[key]) else ""
 
 
 def parse(text, base=None, strict=True, warn=None, reject_unknown=False):
@@ -73,6 +263,9 @@ def parse(text, base=None, strict=True, warn=None, reject_unknown=False):
         if not m:
             raise ConfigError(f"line {n}: expected KEY=number, got {s!r}")
         k, v = m.group(1), int(m.group(2))
+        if k in FRONTS:                                 # (a front: sets LAYOUT, SDCARD; the lines after it refine)
+            cfg = set_front(cfg, k, v)
+            continue
         if k in R.FORBIDDEN:
             raise ConfigError(f"{k}: never offered ({R.FORBIDDEN[k]})")
         if k in R.MERGED:                               # (merged into another: the survivor is on if either was)
@@ -94,11 +287,14 @@ def parse(text, base=None, strict=True, warn=None, reject_unknown=False):
             continue
         if k in R.WAS_COUNT and v:                      # (a count of instances before the effects memory: built)
             v = 1
+        if k in R.FAST_NAMES and v == R.ENG_LEGACY_ON:  # (an engine "on" before its place was a choice: its place by
+            v = R.eng_place(k)                          # default, registry.py FAST_NAMES: the image it built)
         cfg[k] = v
         named.add(k)
     for k, it in R.ITEMS.items():                      # (a fixed item: what every build has, whatever the text says)
         if it.fixed:
             cfg[k] = it.default
+    cfg = sync_memory(cfg)                              # (MEMORY: read from LAYOUT and SDCARD, whatever the text says)
     for into, on in merged_on.items():                  # (a survivor the text does not set: what its old items were, so
         cfg[into] = cfg[into] | on if into in named else on   # an older .config with all of them off keeps it off)
     return cfg, name
@@ -111,7 +307,7 @@ def dump(cfg, name="", full=False):
     for g in R.GROUPS:
         rows = []
         for k, it in R.ITEMS.items():
-            if it.group == g and (full or cfg[k] != it.default):
+            if it.group == g and k not in FRONTS and (full or cfg[k] != it.default):
                 rows.append(f"{k}={cfg[k]}")
         if rows:
             out.append(f"# {g}")
@@ -155,6 +351,13 @@ def validate(cfg):
             err.append(Issue(f"{k}={v}: one of {[c[0] for c in it.choices]}", [k]))
         elif not it.is_choice and v not in (0, 1):
             err.append(Issue(f"{k}={v}: 0 or 1", [k]))
+    if os.environ.get("OPTIMIST_ALLOW_UNBUILT") != "1":   # (measure_costs.py probes the marked values: it sets this)
+        kind = "classic" if CLASSIC_HOOK() else "release"
+        for k, it in R.ITEMS.items():
+            v = cfg.get(k, it.default)
+            why = R.not_built(k, v, kind)
+            if why:
+                err.append(Issue(f"{k}={v} is not in this build ({kind}): {why}", [k]))
     engines = [k for k, it in R.ITEMS.items() if it.group == "Synth engines" and not it.parent]
     if not any(built(cfg, k) for k in engines):
         err.append(Issue("at least one synth engine", engines))
@@ -171,6 +374,34 @@ def validate(cfg):
                          ["SL24_XSTEP"] + sx_users))
     if cfg.get("PATTERNS") and cfg.get("SECTIONS") == 4:
         err.append(Issue("patterns live in the section log: SECTIONS 8 or 16 (or PATTERNS off)", ["PATTERNS", "SECTIONS"]))
+    layout = cfg.get("LAYOUT", 0)
+    if layout != 0:                                    # (every step but normal: a relocated store, the project log;
+        slots = R.LAYOUT_STEPS.get(layout, (0,))[0]    # SAMPLE SLOTS 0: the slots' flash is the app's or the store's;
+        clash = [] if slots else [k for k in ("DRUM_USR", "SNAPSHOTS") if k in R.ITEMS and built(cfg, k)]   # an unknown
+        if not slots and built(cfg, "NATIVE_BANKS") and built(cfg, "ENG_CZ"):   # layout: the same, validate refuses it)
+            clash.append("NATIVE_BANKS")
+        if clash or not cfg.get("PATTERNS"):
+            err.append(Issue(f"MEMORY: SAMPLE SLOTS {slots} (LAYOUT {layout}) "
+                             + ("keeps no user drum samples, snapshots or CZ collection" if clash else "")
+                             + (" and " if clash and not cfg.get("PATTERNS") else "")
+                             + ("needs PATTERNS (the project log)" if not cfg.get("PATTERNS") else "")
+                             + (": " + ", ".join(clash) if clash else ""),
+                             ["LAYOUT"] + clash + ([] if cfg.get("PATTERNS") else ["PATTERNS"])))
+        if slots and not any(built(cfg, k) for k in ("ENG_SAMPLE", "DRUM_USR", "SNAPSHOTS", "NATIVE_BANKS") if k in R.ITEMS):
+            warn.append(Issue(f"MEMORY: SAMPLE SLOTS {slots} keeps flash for user samples that nothing in this build "
+                              "uses (no SAMPLE, user drum samples, snapshots or CZ collection): SAMPLE SLOTS 0 gives it "
+                              "to the code", ["LAYOUT"]))
+    if cfg.get("BT_PROJ") and not (cfg.get("BLE") and cfg.get("ED_MIRROR") and cfg.get("PATTERNS") and cfg.get("BACKUP")):
+        err.append(Issue("projects over Bluetooth need Bluetooth MIDI (BLE), the Mirror (ED_MIRROR, its Bluetooth link), the "
+                         "projects (PATTERNS) and the backup (BACKUP)", ["BT_PROJ", "BLE", "ED_MIRROR", "PATTERNS", "BACKUP"]))
+    if cfg.get("SD_RING") and not (cfg.get("SDCARD") and cfg.get("LAYOUT") == 1 and
+                                   cfg.get("ARENA") and built(cfg, "ENG_SAMPLE")):
+        err.append(Issue("samples from the card (SD_RING) need the card under full FatFs (SDCARD, LAYOUT 1), "
+                         "SAMPLE (its CARD set) and the arena (ARENA: the heads and the rings)",
+                         ["SD_RING", "SDCARD", "LAYOUT", "ENG_SAMPLE", "ARENA"]))
+    if cfg.get("SD_REC") and not (cfg.get("SDCARD") and cfg.get("LAYOUT") == 1):
+        err.append(Issue("recording to the card (SD_REC) needs the card under full FatFs (SDCARD, LAYOUT 1)",
+                         ["SD_REC", "SDCARD", "LAYOUT"]))
     revs = [k for k in R.REV_ALGOS if k in R.ITEMS]
     if built(cfg, "FX_REVERB") and not any(cfg[k] for k in revs):
         err.append(Issue("the reverb bus needs an algorithm: tick ROOM, PLATE, FDN8, SPRING or VTINY "
@@ -183,7 +414,12 @@ def validate(cfg):
                          "X0X 909, X0X 808) or a sampled kit", synths + ["DRUM_SAMPLED"] + kits))
     if built(cfg, "ENG_STRETCH") and not built(cfg, "ENG_SAMPLE"):
         err.append(Issue("STRETCH stretches SAMPLE's material: it needs SAMPLE", ["ENG_STRETCH", "ENG_SAMPLE"]))
-    sets = [k for k in R.ITEMS if k.startswith("SET_")]
+    sets = set_keys()
+    if card_sets(cfg) and any(cfg[k] for k in sets) and not (cfg.get("SD_RING", 0) and built(cfg, "ENG_SAMPLE") and
+                                                          cfg.get("ARENA", 0)):
+        warn.append(Issue("SD card mode: the sample sets go on the card (the SD card zip), and only SAMPLE streaming "
+                          "from it (SD_RING, ARENA) plays them: without it they are silent",
+                          ["SD_RING", "ENG_SAMPLE", "ARENA"] + [k for k in sets if cfg[k]]))
     if any(cfg[k] for k in sets) and not built(cfg, "ENG_SAMPLE") and not built(cfg, "ENG_GRAIN"):
         warn.append(Issue("sample sets without SAMPLE or GRAIN: nothing plays them (only the drums use PERC)",
                           ["ENG_SAMPLE", "ENG_GRAIN"] + [k for k in sets if cfg[k]]))
@@ -197,30 +433,28 @@ def validate(cfg):
     if built(cfg, "FX_DUCK") and not any(built(cfg, k) for k in DRUM_SYNTHS + ("DRUM_SAMPLED",)):
         warn.append(Issue("DUCK follows the kick", ("FX_DUCK", "DRUM_SYNTH", "DRUM_SAMPLED")))
     mem = fx_memory(cfg)
-    if mem["types"] and cfg.get("DLY_ARENA", 0) and cfg["DLY_ARENA"] < mem["send"]:
-        err.append(Issue(f"the effects memory holds the delay's line: at least {mem['send']} KB (or auto, or a shorter "
-                         "delay)", ["DLY_ARENA", "DLY_LEN"]))
-    else:
+    if mem["types"]:                                    # (the user, 2026-10-29: no red error for a memory too small:
         for k, t in mem["types"].items():
-            if not t["own"]:                            # (borrowing a send's line only: silent while the sends are on
+            if not t["own"] and not t["arena"]:         # (borrowing a send's line only: silent while the sends are on
                                                         # the master, as by default; the FM-1, 2026-10-25: XDLY did
                                                         # nothing, "it should be addressed at the builder stage")
-                err.append(Issue(f"{FXM_NAMES[k]} cannot play while the delay is on the master: its line is "
-                                 f"{t['kb']} KB and the effects memory has {mem['own']} KB beside the delay's "
-                                 f"{mem['send']} KB: DLY_ARENA at least {mem['send'] + t['kb']} KB (or auto), a shorter "
-                                 "DLY_LEN" + (" or XDLY_LEN" if k == "INS_XDLY" else ""),
-                                 ["DLY_ARENA", k] + (["XDLY_LEN"] if k == "INS_XDLY" else []) + ["DLY_LEN"]))
-        if mem["types"]:
-            note.append(Issue(f"{R.ITEMS['DLY_ARENA'].label}: {fx_memory_text(mem)}", ["DLY_ARENA"]))
-    if cfg.get("ARENA", 0):                      # (the engines' arena: one part's largest state must fit it)
-        one, room = part_mem(cfg)["pool"] // nparts(cfg), cfg["ARENA"] * 1024
-        if one > room:
-            err.append(Issue(f"the arena ({cfg['ARENA']} KB) cannot hold a part's engine state ({one // 1024} KB): a "
-                             "larger ARENA, or off", ["ARENA"]))
-        else:
-            note.append(Issue(f"{R.ITEMS['ARENA'].label}: {cfg['ARENA']} KB in place of "
-                              f"{part_mem(cfg)['pool'] // 1024} KB of fixed engine memories; a project using more is "
-                              "refused and offered what to drop", ["ARENA"]))
+                note.append(Issue(f"{FXM_NAMES[k]} plays only while the delay is in no master slot: its line is "
+                                  f"{t['kb']} KB and the effects memory has {mem['own']} KB beside the delay's "
+                                  f"{mem['send']} KB", ["INS_DELAY", k]))
+        note.append(Issue(f"effects memory (the delay's line and one line of each insert built): {fx_memory_text(mem)}",
+                          [k for k in FXM_TYPES if cfg.get(k)]))
+    if cfg.get("ARENA", 0):                             # (the free SRAM: what the link leaves, the estimate's free)
+        need = arena_need(cfg)
+        what = ", ".join(f"{k} {-(-v // 1024)} KB" for k, v in need["what"].items())
+        if need["kb"] > ARENA_MAX_KB:                   # (more than the SRAM can give the arena: the one error left)
+            err.append(Issue(f"the arena would need {need['kb']} KB, more than the {ARENA_MAX_KB} KB the SRAM can give "
+                             f"it ({what}): a shorter DLY_LEN or XDLY_LEN, a smaller reverb, fewer engines, or ARENA off",
+                             ["ARENA", "DLY_LEN"]))
+        held = "the parts' engine states, the effects' lines, the SLICER's recordings, WAVE's table, the X0X machines"
+        note.append(Issue(f"{R.ITEMS['ARENA'].label}: the SRAM the link leaves free (the estimate's free, less the undo "
+                          f"history's 16 KB) holds {held} instead of {-arena_mem(cfg)['pool'] // 1024} KB of fixed "
+                          f"memories; a new project needs about {need['kb']} KB of it together ({what}); a project "
+                          "using more than there is is refused and offered what to drop", ["ARENA"]))
     for k, it in R.ITEMS.items():
         if it.off_warning and not cfg[k] and (not it.parent or built(cfg, it.parent)):
             warn.append(Issue(f"{it.label} off: {it.off_warning}", [k]))
@@ -229,6 +463,15 @@ def validate(cfg):
                 warn.append(Issue(f"{it.label}: EXPERIMENTAL ({it.tested})", [k]))
             if it.notice:
                 note.append(Issue(f"{it.label}: {it.notice}", [k]))
+    if built(cfg, "WIFI_LINK") and not built(cfg, "BLE"):
+        err.append(Issue("Wi-Fi + Link runs on the radio BLE starts: switch on BLE (or Wi-Fi off)", ["WIFI_LINK", "BLE"]))
+    elif built(cfg, "WIFI_LINK") and CLASSIC_HOOK() and not cfg["USB_CONSOLE"]:
+        err.append(Issue("Wi-Fi + Link on Optimist's own firmware runs its manager on the serial console: switch on "
+                         "USB_CONSOLE (or Wi-Fi off; the release runs it on fm1-base's own Wi-Fi stack)",
+                         ["WIFI_LINK", "USB_CONSOLE"]))
+    if built(cfg, "USB_HOST") and CLASSIC_HOOK():
+        err.append(Issue("the USB MIDI host is the release's (fm1-base's USB host): Optimist's own firmware has none "
+                         "(USB_HOST off, or build the release)", ["USB_HOST"]))
     if cfg["USB_CONSOLE"] and cfg["USB_AUDIO"]:
         err.append(Issue("the serial console or USB audio, not both: the USB port has three data endpoints, USB MIDI "
                          "takes one and USB audio the other two", ["USB_CONSOLE", "USB_AUDIO"]))
@@ -262,17 +505,56 @@ def flags(cfg):
             v = it.default                              # (an option of an item left out: its default, ignored)
         if any(R.ITEMS[a].head and not cfg[a] for a in R.ancestors(k)) or (k in R.DRUMS_ONLY and not cfg["DRUMS"]):
             v = 0                                       # (a group's head off: none of its code, registry.h checks it)
+        if k in R.FAST_NAMES:                           # (an engine: built or not, and where its hot code runs: core.h)
+            if v == R.ENG_LEGACY_ON:                    # (a 1 set in code, not parsed: its place by default)
+                v = R.eng_place(k)
+            for nm in R.FAST_NAMES[k]:
+                out[f"FAST_RAM_{nm}"] = int(v == R.ENG_RAM)
+            v = int(v != R.ENG_OFF)
         out[it.flag] = v
+    if cfg.get("ARENA", 0):
+        out[R.ITEMS["ARENA"].flag] = 1                  # (on: the free SRAM, engines.c ARN_FREE; a KB of before too)
+    out.update(R.ALWAYS_ON_TARGET)                  # (the second core and the stock supply: every target build, no item)
+    if os.environ.get("OPTIMIST_ONE_CORE") == "1":
+        out["FELUCCA_DUAL"] = 0   # (emulator packages only: one core runs ~4x faster there; the FM-1 default stays two cores)
     out["FELUCCA_USB_AUDIO"] = cfg["USB_AUDIO"]
     out["FELUCCA_CDC"] = cfg["USB_CONSOLE"]
+    out["FELUCCA_LINK"] = out["FELUCCA_WIFI"]       # (Ableton Link comes with Wi-Fi: SYNC LINK, wifi/wifi_link.c)
     out["FELUCCA_SLICE"] = cfg["ENG_SLICE"]
     if not built(cfg, "DRUM_SAMPLED") or not any(cfg[k] for k in R.ITEMS if k.startswith("KIT_")):
         out["FELUCCA_DRUM_SAMPLED"] = 0
-    skip = [R.ITEMS[k].env for k in R.ITEMS if k.startswith("SET_") and not cfg[k]]
+    card = card_sets(cfg)                           # (SD card mode: every set on the card, none in the image)
+    skip = [R.ITEMS[k].env for k in set_keys() if not cfg[k] and not card]
     if not out.get("FELUCCA_DRUM_SAMPLED", 1):
         skip.append("PERC")
-    env = {"FELUCCA_SAMPLES_SKIP": ",".join(skip), "FELUCCA_SLICE": str(cfg["ENG_SLICE"])}
+    env = {"FELUCCA_SAMPLES_SKIP": ",".join(skip), "FELUCCA_SLICE": str(cfg["ENG_SLICE"]),
+           "FELUCCA_SAMPLES_CARD": "1" if card else "0"}
     return out, env
+
+
+# the arena the build can hold at most
+ARENA_MAX_KB = 320     # (more than this in the arena leaves no SRAM for the rest: the one error left, validate)
+def arena_need(cfg):
+    """-> {"kb": the arena this build needs together, "must": what it must hold at least (KB), "what": {name: bytes}}.
+    What the firmware puts in it (every ARENA build: registry.h FELUCCA_FX_ARENA): the largest part's engine state, the
+    three send lines (a new project has them all in its master slots), the inserts' own room and the largest other
+    buffer. It must hold its largest block and the send lines together"""
+    blocks = arena_blocks(cfg)
+    what = {"a part's engine state": blocks.get("a part's engine state", 0)}
+    must = max(blocks.values(), default=0)
+    sends = arena_sends(blocks)                         # (every ARENA build: the extras, registry.h FELUCCA_FX_ARENA)
+    if sends:
+        what.update(sends)
+        for k in ("the inserts' own room", "the largest limited insert's line"):
+            if blocks.get(k):
+                what[k] = blocks[k]
+        other = {k: v for k, v in blocks.items() if k not in what}
+        if other:
+            k = max(other, key=other.get)
+            what[k] = other[k]
+        must = max(must, sum(sends.values()))
+    what = {k: v for k, v in what.items() if v}
+    return {"kb": -(-sum(what.values()) // 1024), "must": -(-must // 1024), "what": what}
 
 
 def fnv32(text):
@@ -287,6 +569,9 @@ def cfg_hash(cfg):
     retired item the image is still built as (R.HASH_AS) counts at that value, so the hash of a configuration
     does not move when it is retired (the same image: its check builds in costs.json stay valid)"""
     full = dict(R.HASH_AS, **cfg)
+    for k in R.FAST_NAMES:                              # (an engine at its place by default: 1, as before the choice, so
+        if full.get(k) == R.eng_place(k):               # a configuration's hash, its image's, stays what it was)
+            full[k] = 1
     return fnv32("".join(f"{k}={full[k]}\n" for k in sorted(full)
                          if k in R.HASH_AS or not R.ITEMS[k].no_image)) & 0x7FFFFFFF
 
@@ -306,7 +591,7 @@ def header(cfg, name="custom"):
     L = ["/* generated by tools/builder/configure.py: the build's configuration (firmware/src/core/registry.h) */",
          "#pragma once", f'#define FELUCCA_CFG_NAME "{name}"', f"#define FELUCCA_CFG_HASH {cfg_hash(cfg)}u",
          "#define FELUCCA_CFG_BITS {" + ", ".join(map(str, cfg_bits(cfg))) + "}"]
-    target = {R.ITEMS[k].flag for k in R.ITEMS if R.ITEMS[k].target_only}
+    target = {R.ITEMS[k].flag for k in R.ITEMS if R.ITEMS[k].target_only} | {"FELUCCA_LINK"} | set(R.ALWAYS_ON_TARGET)
     for k in sorted(f):
         suffix = "u" if k in ("FELUCCA_DLY_LEN", "FELUCCA_PUNCH_N", "FELUCCA_SL_LEN", "LCD_BAUD") else ""
         body = [f"#ifndef {k}", f"#define {k} {f[k]}{suffix}", "#endif"]
@@ -314,16 +599,43 @@ def header(cfg, name="custom"):
     return "\n".join(L) + "\n"
 
 
+def _eng_delta(costs, key, value):
+    """an engine at a place (registry.py FAST_NAMES), on: what costs.json measured for it, else (its other place, not
+    measured yet) its measured place moved: the render path's bytes (FAST_BYTES) out of or into the RAM code, and the
+    flash that saves (FAST_FLASH_SAVED: measured; else a third of the bytes, the boot stream coding RAM code)"""
+    it, place = R.ITEMS[key], R.eng_place(key)
+    dd = costs.get("deltas", {}).get(key, {})
+    if str(value) in dd:
+        return dd[str(value)]
+    at = {r: 0 for r in REGIONS} if it.default else dd.get(str(R.ENG_LEGACY_ON), dd.get(str(place)))
+    if value == place or at is None:
+        return at
+    s = R.FAST_BYTES.get(key, 0)
+    sign = 1 if value == R.ENG_RAM else -1
+    return dict(at, ramtext=at.get("ramtext", 0) + sign * s, flash=at.get("flash", 0) - sign * R.fast_flash_saved(key))
+
+
 def item_delta(costs, key, value):
     """bytes this item at this value adds to the default build, per region (None: not measured). An item switched
     off or down (a value under its default) never adds: a region it measured as growing counts 0 (the user, 2026-10-19,
     "clamp at 0": FX_DIST, MIDI_NOTEOUT, MISSING_WARN off made the default build 300-700 B larger in flash, the RAM code
     placed again, and the figure grew as a feature went). Not the other way: an item on that saves a region is often
-    real (TAB_IN_POOL's RAM to the pool, X909_CYM=2's smaller cymbals)"""
+    real (X909_CYM=2's smaller cymbals)"""
+    if key in R.FAST_NAMES and value != R.ENG_OFF:   # (an engine on: at its place or the other, _eng_delta)
+        return _eng_delta(costs, key, value)
     d = costs.get("deltas", {}).get(key, {}).get(str(value))
-    if d is None or not value < R.ITEMS[key].default:
+    if d is None and R.ITEMS[key].no_image:             # (a front or a record, MEMORY / RAM_PACKED: nothing in the image)
+        return {r: 0 for r in REGIONS}
+    if d is None or not value < R.ITEMS[key].default or key in NOT_A_FEATURE:
         return d
     return {r: min(0, b) for r, b in d.items()}
+
+
+# items whose lower value is no feature switched off but another way to build the same firmware: their delta counts as
+# measured, both ways. COMPILER 0 (JieLi's clang) under its default 1 (pi32v2-llvm) made the same firmware 12-30 KB
+# bigger (measured 2026-10-30 on every profile, release), and the clamp counted it 0 B: synths-2~ (JieLi) estimated
+# from synths-2 21 KB under its real build
+NOT_A_FEATURE = ("COMPILER",)
 
 
 def item_delta_alone(costs, key, value):
@@ -397,24 +709,23 @@ def group_delta(cfg, costs):
     return out
 
 
-REV_ROOM_LEN = (1559 + 1931 + 2389 + 2791 + 12 + 2, 779 + 967 + 1193 + 1399 + 6 + 2)   # fx.c REV_ROOM_LEN (full, half rate)
+REV_ROOM_LEN = 1559 + 1931 + 2389 + 2791 + 12 + 2   # fx.c REV_ROOM_LEN (the half-rate reverb, REV_HALF, was dropped 2026-10-29)
 
 
 def rev_lines(cfg):
     """-> {region: bytes} of the reverb's shared line buffer (fx.c and reverb_alt.c rev_line): the size of the
-    largest algorithm built (ROOM 8684 samples, 4346 at half rate; PLATE / FDN8 / VTINY RV_N: 8192, 4096 at half
-    rate, FDN8 twice that in the pool; SPRING 4096), in the pool with REV_POOL, else in main RAM. A maximum over
+    largest algorithm built (ROOM 8684 samples; PLATE / FDN8 / VTINY RV_N: 8192, FDN8 twice that in the pool; SPRING 4096), in the pool with REV_POOL, else in main RAM. A maximum over
     several items and a region that REV_POOL picks: no per-item delta adds up to it, so the estimate computes it
     (model_terms) and the measured deltas and pairs leave it out (measure_costs.py)"""
     f, _ = flags(cfg)
 
     def on(key):                                        # (flags: an option of an item left out has its default)
         return int(f.get(R.ITEMS[key].flag, 0) or 0)
-    half, pool = on("REV_HALF"), on("REV_POOL")
-    own = max(REV_ROOM_LEN[half] if on("REV_ROOM") else 0, 4096 * on("SPRING"))
+    pool = on("REV_POOL")
+    own = max(REV_ROOM_LEN if on("REV_ROOM") else 0, 4096 * on("SPRING"))
     n = own
     if on("REV_PLATE") or on("REV_FDN8") or on("REV_AIRWIN"):
-        n = max((4096 if half else 8192) << (1 if on("REV_FDN8") and pool else 0), own)
+        n = max(8192 << (1 if on("REV_FDN8") and pool else 0), own)
     if not on("FX_REVERB") or not n:
         n = 1                                           # (the C array's 1 when the reverb is not built)
     return {"pool" if pool else "ram": 2 * n}
@@ -426,7 +737,6 @@ AUTO_LIST = 1 + 3 * AUTO_MAX                                                 # a
 AUTO_STORE = 4 + 4 + AUTO_NTRK * AUTO_LIST                                   # auto_store_t (seq/auto.c): psum, on + rsv, 4 lists
 AUTO_AUX = 4                                                                 # storage/auto_proj.c AUTO_AUX
 AUTO_ENC_MAX = 3 + AUTO_NTRK * (1 + 3 * AUTO_MAX)                            # auto.h AUTO_ENC_MAX (> the stepx form's)
-SL24_XS = 4 * 176          # storage/project.c sl24_xs: NTRK stepx_t (seq/stepx.h, 176 B) in the pool, with SL24_IMPORT or SL24_EXPORT
 
 
 # items only another item's code includes (the build is the same without it): counted only with that one. Found
@@ -455,24 +765,22 @@ def auto_store(cfg):
     """-> {region: bytes} of the automation store's storage (seq/auto.h, auto.c, storage/auto_proj.c), built with ANY
     of MOTION, CHANCE, SL24_XSTEP (and so MICRO, FILLS, PLOCK: FELUCCA_AUTO): the working store (auto_w) and the
     undo's copy of a list in main RAM; the project buffers' stores (auto_aux x AUTO_AUX, auto_slot x 4 with
-    SECTIONS 4) and the extras record's read buffer (sx_rbuf) in the pool; with SL24_IMPORT or SL24_EXPORT, 2.4's step
-    extras on their way in or out (project.c sl24_xs, pool: found 2026-10-12, 704 B under the estimate). Shared by those
+    SECTIONS 4) and the extras record's read buffer (sx_rbuf) in the pool. Shared by those
     items: the estimate counts it once (model_terms) and the measured deltas and pairs leave it out (measure_costs.py)"""
     f, _ = flags(cfg)
     if not any(f.get(R.ITEMS[k].flag, 0) for k in AUTO_ITEMS):
         return {"ram": 0, "pool": 0}
     slots = 0 if f.get("FELUCCA_SECTIONS", 16) > 4 else 4           # (SEC_LOGGED: the sections live in the log)
     rbuf = (4 + AUTO_ENC_MAX + 3) // 4 * 4 if not slots else (AUTO_ENC_MAX + 3) // 4 * 4   # (stepx_log.c / snapshots.c)
-    export = SL24_XS if f.get(R.ITEMS["SL24_EXPORT"].flag, 0) or f.get(R.ITEMS["SL24_IMPORT"].flag, 0) else 0
-    return {"ram": AUTO_STORE + AUTO_LIST, "pool": (AUTO_AUX + slots) * AUTO_STORE + rbuf + export}
+    return {"ram": AUTO_STORE + AUTO_LIST, "pool": (AUTO_AUX + slots) * AUTO_STORE + rbuf}
 
 
 # engines.c part_mem: NPART engine states in the pool, a union of the engines built that keep one there; bytes of
 # the array with each member alone (sizes.json "symbols", measure_costs.py holds these against every build it makes)
 # (2026-10-26: JUNO, DRAWBAR, CZ and SLICE's states moved in from their static arrays: their measured item costs in
-# costs.json count those arrays as RAM until a re-measure)
-PART_MEM = {"ENG_FM6": 11712, "ENG_PHYS": 38664, "ENG_GRAIN": 21060, "ENG_ACID": 1440, "ENG_PLAITS": 1920,
-            "ENG_JUNO": 1332, "ENG_DRAWBAR": 2496, "ENG_CZ": 3120, "ENG_SLICE": 3072}   # (2026-10-25/26, measured)
+# costs.json still count those arrays as RAM until a re-measure)
+PART_MEM = {"ENG_FM6": 11712, "ENG_PHYS": 38700, "ENG_GRAIN": 21060, "ENG_ACID": 1440, "ENG_PLAITS": 1920,
+            "ENG_JUNO": 1332, "ENG_DRAWBAR": 2496, "ENG_CZ": 3120, "ENG_SLICE": 3072}   # (2026-10-26: part_mem, measured on main)
 PART_MEM_NONE = 0                                   # (none built: not in the image)
 
 
@@ -484,33 +792,24 @@ def part_mem(cfg):
     return {"pool": max(sizes) // NPART * nparts(cfg) if sizes else PART_MEM_NONE}
 
 
-NPART = 3                  # core.h: the synth parts with the drums (PART_MEM's sizes are for NPART states)
-
-
-def nparts(cfg):
-    """-> core.h NPART: 3 synth parts, 4 without the drums (DRUMS off: track 4 a 4th synth part)"""
-    return NPART if "DRUMS" not in R.ITEMS or built(cfg, "DRUMS") else NPART + 1
-
-
-def arena_mem(cfg):
-    """-> {region: bytes} of the arena (ARENA, KB: core/arena.c) against the fixed memories it replaces: its own pool
-    less the parts' engine states (part_mem); {} with ARENA off. The code it adds is its measured delta (costs.json)"""
-    f, _ = flags(cfg)
-    kb = int(f.get(R.ITEMS["ARENA"].flag, 0) or 0)
-    return {"pool": kb * 1024 - part_mem(cfg)["pool"]} if kb else {}
-
-
 NTRK = 4
 # the effects memory (fx/insfx/fxi_mem.h, fxi.c, 2026-10-23): one pool memory in 1 KB units for the delay send's line and
 # every line of the limited inserts; the line of each (KB, by item; XDLY's: two lines of XDLY_LEN samples) and its
 # instance's state on the target (bytes: measure_costs.py holds the tables against the firmware's symbols)
 FXM_UNIT = 1024        # fxi_mem.h FXA_U: 512 samples, bytes
 FXM_OWNERS = 9         # fxi_mem.h FXI_NK: T1 T2 T3 DR, the master, the USB input, the returns A B C
-FXM_TYPES = ("INS_CHORUS", "INS_DELAY", "INS_JCHORUS", "INS_FLANGER", "INS_XDLY")   # (fxi_kern.c's order, j)
-FXM_NAMES = {"INS_CHORUS": "CHRS", "INS_DELAY": "ECHO", "INS_JCHORUS": "JUNO CHORUS", "INS_FLANGER": "FLNG",
-             "INS_XDLY": "XDLY"}
-FXM_STATE = {"INS_CHORUS": ("ifx_chrs", 24), "INS_DELAY": ("ifx_echo", 20), "INS_JCHORUS": ("ifx_jcho", 36),
-             "INS_FLANGER": ("ifx_flng", 24), "INS_XDLY": ("ifx_xdly", 40)}
+# (2026-10-29: CHO DLY REV are inserts wherever their effect is built, fxi_send.c: keyed by the effect's item; the
+# insert copies' items INS_CHORUS INS_REVERB INS_TDELAY are retired)
+FXM_TYPES = ("FX_CHORUS", "INS_DELAY", "INS_JCHORUS", "INS_FLANGER", "INS_XDLY", "FX_REVERB", "FX_DELAY")   # (fxi_kern.c's
+                                                                                                     # order, j)
+FXM_NAMES = {"FX_CHORUS": "CHO", "INS_DELAY": "ECHO", "INS_JCHORUS": "JUNO CHORUS", "INS_FLANGER": "FLNG",
+             "INS_XDLY": "XDLY", "FX_REVERB": "REV", "FX_DELAY": "DLY"}
+FXM_STATE = {"FX_CHORUS": ("ifx_choi", 28), "INS_DELAY": ("ifx_echo", 20), "INS_JCHORUS": ("ifx_jcho", 36),
+             "INS_FLANGER": ("ifx_flng", 24), "INS_XDLY": ("ifx_xdly", 40), "FX_REVERB": ("ifx_room", 52),
+             "FX_DELAY": ("ifx_tdly", 60)}   # (CHO REV DLY: fxi_send.c, their structs on the 32-bit target)
+FXM_COPIES = ("FX_CHORUS", "FX_REVERB", "FX_DELAY")   # (with an arena a block each: fxi_mem.h FXI_IS_CP)
+FXM_CPN = 8            # engines.c FXM_CPN: the arena's blocks for them, at most
+FXM_ROOM_KB = 19       # fxi_send.c IFX_RM_N: the ROOM's four lines and its diffusers, 9681 samples in 19 units
 FXM_SYMBOLS = ("fxa_ins", "fxa_bm") + tuple(v[0] for v in FXM_STATE.values())   # (tools/build.py SIZED_SYMBOLS)
 FXM_CHO_KB = 4         # fx.c CHO_LEN: the chorus send's line, 2048 samples
 XD_STATE = FXM_STATE["INS_XDLY"][1]
@@ -524,28 +823,33 @@ def dly_send_kb(cfg, f=None):
 
 def fx_memory(cfg):
     """-> the effects memory (fx/insfx/fxi_mem.h) of this configuration: {"send", "cho": the send lines' KB, "own": the
-    inserts' own KB (DLY_ARENA less the delay's line; auto: one line of each type built), "types": {item: {"kb": its
-    line, "max": the most at once (an owner each at most, fxi_mem.h FXI_TN), "own": in the own room alone, "dly", "cho":
-    what each send's line adds while it is in no master slot}}} (types: the ones built)"""
+    inserts' own KB (one line of each type built; CHO DLY REV: none, with an arena a block of it each, fxi_mem.h
+    FXA_AUTO), "types": {item: {"kb": its line, "max": the most at once (an owner each at most, fxi_mem.h
+    FXI_TN), "own": in the own room alone, "dly", "cho": what each send's line adds while it is in no master slot,
+    "arena": the arena's blocks it may take besides (FXM_CPN, as many as the free RAM holds)}}} (types: the ones built)"""
     f, _ = flags(cfg)
 
     def on(key):
         return int(f.get(R.ITEMS[key].flag, 0) or 0)
     send, cho = dly_send_kb(cfg, f), FXM_CHO_KB if on("FX_CHORUS") else 0
-    kb = {"INS_CHORUS": 2, "INS_DELAY": 8, "INS_JCHORUS": 4 if on("JUNO_FINE") else 2, "INS_FLANGER": 1,   # (JUNO_FINE:
-          "INS_XDLY": on("XDLY_LEN") // 256}                                                          # its line 32-bit)
+    kb = {"FX_CHORUS": FXM_CHO_KB, "INS_DELAY": 8, "INS_JCHORUS": 4, "INS_FLANGER": 1,   # (JUNO CHORUS: its line 32-bit)
+          "INS_XDLY": on("XDLY_LEN") // 256, "FX_REVERB": FXM_ROOM_KB, "FX_DELAY": send}   # (DLY: the delay's line)
+    arena = bool(cfg.get("ARENA", 0))                    # (engines.c FXM_NEED: every ARENA build)
     types = [k for k in FXM_TYPES if on(k)]
-    own = (max(0, on("DLY_ARENA") - send) if on("DLY_ARENA") else sum(kb[k] for k in types)) if types else 0
+    # (fxi_mem.h FXA_AUTO: CHO DLY REV none of their own; with an arena none at all, every line a block of its own:
+    # engines.c FELUCCA_FXI_LINE_BLOCKS, 2026-10-31)
+    own = 0 if arena else sum(kb[k] for k in types if k not in FXM_COPIES)
     out = {}
     for k in types:
         z = kb[k]
-        out[k] = {"kb": z, "max": min(FXM_OWNERS, own // z + send // z + cho // z),
-                  "own": min(FXM_OWNERS, own // z), "dly": send // z, "cho": cho // z}
+        cp = FXM_CPN if arena else 0
+        out[k] = {"kb": z, "max": min(FXM_OWNERS, own // z + send // z + cho // z + cp),
+                  "own": min(FXM_OWNERS, own // z), "dly": send // z, "cho": cho // z, "arena": cp}
     return {"send": send, "cho": cho, "own": own, "types": out}
 
 
 def fx_memory_text(mem):
-    """the "up to N at once" line of the effects memory (validate's notice on DLY_ARENA, the menu's info)"""
+    """the "up to N at once" line of the effects memory (validate's notice)"""
     parts = []
     for k, t in mem["types"].items():
         more = [f"+{min(t['dly'], FXM_OWNERS - t['own'])} while the delay is in no master slot" if t["dly"] and
@@ -553,6 +857,8 @@ def fx_memory_text(mem):
                 f"+{min(t['cho'], FXM_OWNERS - t['own'])} while the chorus is in none" if t["cho"] and
                 t["own"] < FXM_OWNERS else ""]
         more = ", ".join(m for m in more if m)
+        if t.get("arena"):
+            more = ", ".join(m for m in (more, "more in the arena's free RAM, a block each") if m)
         parts.append(f"{FXM_NAMES[k]} up to {t['own']}" + (f" ({more})" if more else ""))
     return (f"{mem['own']} KB of its own beside the delay's {mem['send']} KB line: at once (each type alone) "
             + "; ".join(parts))
@@ -560,8 +866,8 @@ def fx_memory_text(mem):
 
 def dly_arena(cfg):
     """-> {"units": the own room's KB (fxa_ins), "pool": bytes} of the effects memory (fx/insfx/fxi_mem.h, fxi.c): the
-    own room, the instance tables (ifx_chrs .. ifx_xdly: an owner each at most, no more than the memory holds) and the
-    units' bitmap (fxi.c fxa_bm). Set by the five types, XDLY_LEN, DLY_LEN, FX_DELAY, FX_CHORUS and DLY_ARENA together:
+    own room, the instance tables (ifx_choi .. ifx_tdly: an owner each at most, no more than the memory holds) and the
+    units' bitmap (fxi.c fxa_bm). Set by the five types, XDLY_LEN, DLY_LEN, FX_DELAY and FX_CHORUS together:
     no per-item delta adds up to it, so the estimate computes it (model_terms) and the measured deltas leave it out
     (measure_costs.py)"""
     mem = fx_memory(cfg)
@@ -571,14 +877,342 @@ def dly_arena(cfg):
             "pool": mem["own"] * FXM_UNIT + sum(tables.values()) + bm}
 
 
+NPART = 3                  # core.h: the synth parts with the drums (PART_MEM's sizes are for NPART states)
+
+
+def nparts(cfg):
+    """-> core.h NPART: 3 synth parts, 4 without the drums (DRUMS off: track 4 a 4th synth part)"""
+    return NPART if "DRUMS" not in R.ITEMS or built(cfg, "DRUMS") else NPART + 1
+
+
+REV_AP = 556 + 441   # fx.c REV_A0 + REV_A1, the ROOM's diffusers rev_ap, samples
+WAVE_MEM = 16 * 2032 * 2 + 2 * 1024 * 4   # eng_wave.c WT_MEM_BYTES: the table's copies and the frame builder's scratch
+# the X0X machines' states on the FM-1 (x0x_drums.c x909 x808; build/sizes.json of the default profile, 2026-10-25): the
+# 909's 5,344 B with its 6-bit samples (X909_CYM or X909_HAT 2: a field more in each of its 4 sample voices), 5,328 without
+X909_STATE, X808_STATE = (5328, 5344), 3376
+# FM6's sine table (eng_fm6.c FM6_SIN[1025], int32: 4,100 B; in the arena while a part plays FM6, 2026-10-26): what the
+# pool gives back without it, 4,096 B (its packing; measured 2026-10-26 on sd-card-mots and the reference profile)
+FM6_SIN = 4096
+
+
+def arena_bufs(cfg):
+    """-> {name: bytes} the other buffers the arena holds only while a project uses them (core/arena_bufs.c; in the
+    pool, static, without ARENA): each track's SLICER recording, WAVE's table, the X0X machines' states, the punch's
+    ring (held while the project's PUNCH switch is on), FM6's sine table (while a part plays FM6)"""
+    f, _ = flags(cfg)
+
+    def on(key):
+        return int(f.get(R.ITEMS[key].flag, 0) or 0)
+    out = {"a track's SLICER recording": 2 * on("SL_LEN") if built(cfg, "FX_SLICER") else 0,
+           "WAVE's table": WAVE_MEM if built(cfg, "ENG_WAVE") else 0,
+           "the X0X 909's state": X909_STATE[on("X909_CYM") == 2 or on("X909_HAT") == 2] if built(cfg, "DRUM_X0X909") else 0,
+           "the X0X 808's state": X808_STATE if built(cfg, "DRUM_X0X808") else 0,
+           "the PUNCH ring": 2 * on("PUNCH_N") if built(cfg, "FX_PUNCH") else 0,
+           "FM6's sine table": FM6_SIN if built(cfg, "ENG_FM6") else 0}
+    return {k: v for k, v in out.items() if v}
+
+
+# the tables in the pool (core.h IN_POOL_AUDIO, always since TAB_IN_POOL was retired, 2026-10-29): a layout, not an item.
+# With the arena's extras (FELUCCA_FX_ARENA: the SD card mode with an arena) FM6's sine table is an arena block, not moved; the card's
+# stream tables (sd_stream.h sst[8] and sst_src[16], with FELUCCA_SD_STREAM) move as well. Their sizes from the
+# sd-card-mots build's symbols, 2026-10-27 (sst 800 B, sst_src 832 B; FM6_SIN[1025] int32 4,100 B): that build moved
+# 6,528 B of RAM to the pool where the old TAB_IN_POOL delta said 8,992
+FM6_SIN_RAM, SST_TABLES = 4100, 800 + 832
+
+
+def tab_pool(cfg):
+    """-> {region: bytes} what the always-pooled tables move from RAM to the pool beyond the defaults' set (model_terms)"""
+    fx_arena = cfg.get("ARENA", 0) > 0              # (every ARENA build: the extras)
+    stream = (fx_arena and built(cfg, "SDCARD") and cfg.get("LAYOUT", 0) == 1 and cfg.get("SD_RING", 0) > 0
+              and built(cfg, "ENG_SAMPLE"))
+    moved = (SST_TABLES if stream else 0) - (FM6_SIN_RAM if fx_arena and built(cfg, "ENG_FM6") else 0)
+    return {"ram": -moved, "pool": moved}
+
+
+def card_sets(cfg):
+    """SD card mode (the fake SD mode's layout with the card, MEMORY 2): the sample sets go on the card, never in the
+    flash (the user, 2026-10-29: ticking a set there must not grow the flash). The image holds no set whatever is
+    ticked (gen_samples.py FELUCCA_SAMPLES_CARD: each set empty, its number and presets kept); the ticks choose the sets
+    the SD card zip carries (tools/sd_zip.py, OPTIMIST/SAMPLES/<SET>/), which SAMPLE streams (eng_sample.c
+    smp_bank_on)"""
+    return sd_mode(cfg) and built(cfg, "SDCARD")
+
+
+def set_keys():
+    """the builder's sample sets (registry.py SET_*): the generator's set names by item"""
+    return [k for k in R.ITEMS if k.startswith("SET_")]
+
+
+def image_cfg(cfg):
+    """-> cfg as the image is built: in SD card mode every set off (card_sets: they are on the card), else cfg itself"""
+    if not card_sets(cfg):
+        return cfg
+    return dict(cfg, **{k: 0 for k in set_keys()})
+
+
+def card_set_names(cfg):
+    """-> the generator's names of the sets ticked for the SD card zip (SD card mode), [] otherwise"""
+    return [R.ITEMS[k].env for k in set_keys() if cfg.get(k)] if card_sets(cfg) else []
+
+
+def sd_mode(cfg):
+    """the SD card mode (registry.h FELUCCA_SD_MODE: the fake SD mode's layout, LAYOUT 1, until its own flag): the
+    builds that get the arena's extras (the effects' lines, the other buffers, the load's list page)"""
+    return cfg.get("LAYOUT", 0) == 1
+
+
+def arena_mem(cfg):
+    """-> {region: bytes} of the arena (ARENA: core/arena.c, fx/fx_arena.c, core/arena_bufs.c) against the fixed
+    memories it replaces: none of its own (the free SRAM, taken at boot: engines.c ARN_FREE, the estimate's free shows
+    it), less the parts' engine states (part_mem), the delay and chorus sends' lines, the reverb's line (rev_lines: in
+    main RAM without REV_POOL) and the ROOM's diffusers after it, the inserts' own room (fx_memory), the SLICER's
+    recordings (a track each), WAVE's table and the X0X machines' states (arena_bufs); {} with ARENA off. The code and
+    bookkeeping it adds is its measured delta (costs.json)"""
+    if not cfg.get("ARENA", 0):
+        return {}
+    rev, mem, bufs = rev_lines(cfg), fx_memory(cfg), arena_bufs(cfg)
+    lines = (mem["send"] + mem["cho"] + mem["own"]) * 1024 + rev.get("pool", 0) + rev_ap(cfg)
+    other = sum(v * (NTRK if k.startswith("a track's") else 1) for k, v in bufs.items())
+    return {"pool": -part_mem(cfg)["pool"] - lines - other, "ram": -rev.get("ram", 0)}
+
+
+def rev_ap(cfg):
+    """-> bytes of the ROOM's diffusers (fx.c rev_ap, always in the pool; in the reverb's block with ARENA), as the
+    pool holds them: 4-aligned (the default profile with ROOM, the SLICER and WAVE, 2026-10-25: 1,996 B of pool for
+    the 1,994 B array)"""
+    if not built(cfg, "FX_REVERB") or not built(cfg, "REV_ROOM"):
+        return 0
+    return (2 * REV_AP + 3) & ~3
+
+
+def arena_blocks(cfg):
+    """-> {name: bytes} the blocks the arena places (a part's engine state, each effect's line, the other buffers;
+    validate: each must fit)"""
+    rev, mem = rev_lines(cfg), fx_memory(cfg)
+    out = {"a part's engine state": part_mem(cfg)["pool"] // nparts(cfg), "the delay's line": mem["send"] * 1024,
+           "the chorus send's line": mem["cho"] * 1024,
+           "the reverb's line": sum(rev.values()) + rev_ap(cfg) if built(cfg, "FX_REVERB") else 0,
+           "the inserts' own room": mem["own"] * 1024,
+           "the largest limited insert's line": max((t["kb"] for k, t in mem["types"].items() if k not in FXM_COPIES),
+                                                     default=0) * 1024 if cfg.get("ARENA", 0) else 0, **arena_bufs(cfg)}
+    return {k: v for k, v in out.items() if v}
+
+
+SEND_LINES = ("the delay's line", "the chorus send's line", "the reverb's line")
+
+
+# ---- the arena one instance of an item takes (the user, 2026-10-31: "list the arena ram (assuming one instance) and allow
+# sorting on that"). One instance = one part's engine state, one effect's line, one buffer: the same numbers arena_blocks
+# places (PART_MEM / NPART, fx_memory, arena_bufs), not a second table. A size option (DLY_LEN, XDLY_LEN, SL_LEN, PUNCH_N,
+# the reverb algorithms, the X909 sample widths) shows the block it sizes. 0: the item keeps nothing in the arena.
+# None ("?"): it does, but the size is not defined by a constant in this source: the card streams' block is the project's
+# (sd_stream_plan.c sst_need: its rings, caches and each card sample), and the features lent by the includer (core/feat_mem.c
+# FMEM_FEATS: BT AUDIO, the mirror's Bluetooth ring, Wi-Fi Link, its access point) are sized in fm1-base (plat.h
+# plat_*_mem_bytes), which this checkout does not carry
+ARENA_UNKNOWN = {
+    "ENG_SAMPLE": "its card samples stream through a block sized by the project (sd_stream_plan.c sst_need)",
+    "SD_RING": "the card streams' block: the rings and each card sample, sized by the project (sd_stream_plan.c sst_need)",
+    "BT_AUDIO": "a lent block, sized in fm1-base (plat_bta_mem_bytes), not in this source",
+    "ED_MIRROR": "its Bluetooth ring is lent only by the includer (MIR_LEND; MIR_BLE_RING 8192 B when it is)",
+    "WIFI_LINK": "a lent block, sized in fm1-base (plat_link_mem_bytes), not in this source",
+    "WIFI_AP": "a lent block, sized in fm1-base (plat_wifi_ap_mem_bytes), not in this source",
+}
+
+
+def _reverb_arena(cfg, algo=None):
+    """-> bytes of the reverb send's block (the line and, with ROOM, its diffusers): the algorithms as set, or algo alone"""
+    c = dict(cfg, FX_REVERB=1)
+    if algo:
+        c.update({a: 0 for a in R.REV_ALGOS if a in c}, **{algo: 1})
+    return sum(rev_lines(c).values()) + rev_ap(c)
+
+
+def item_arena(cfg, key):
+    """-> bytes of the arena one instance of the item takes (see above), 0 for none, None when it is not known"""
+    if key in ARENA_UNKNOWN:
+        return None
+    if key in PART_MEM:
+        return PART_MEM[key] // NPART + (FM6_SIN if key == "ENG_FM6" else 0)
+    if key in ("FX_DELAY", "DLY_LEN"):
+        return 2 * cfg["DLY_LEN"]
+    if key in ("INS_XDLY", "XDLY_LEN"):
+        return 4 * cfg["XDLY_LEN"]                      # (two lines of XDLY_LEN samples, 2 B each)
+    if key in ("FX_SLICER", "SL_LEN"):
+        return 2 * cfg["SL_LEN"]
+    if key in ("FX_PUNCH", "PUNCH_N"):
+        return 2 * cfg["PUNCH_N"]
+    if key == "FX_CHORUS":
+        return FXM_CHO_KB * 1024
+    fixed = {"INS_DELAY": 8, "INS_JCHORUS": 4, "INS_FLANGER": 1}   # (fx_memory: KB of a line)
+    if key in fixed:
+        return fixed[key] * 1024
+    if key == "FX_REVERB":
+        return _reverb_arena(cfg)
+    if key in R.REV_ALGOS:
+        return _reverb_arena(cfg, key)
+    if key == "ENG_WAVE":
+        return WAVE_MEM
+    if key in ("DRUM_X0X909", "X909_CYM", "X909_HAT"):
+        return X909_STATE[cfg.get("X909_CYM", 0) == 2 or cfg.get("X909_HAT", 0) == 2]
+    if key == "DRUM_X0X808":
+        return X808_STATE
+    return 0
+
+
+def arena_items(cfg):
+    """-> {key: bytes | None} item_arena of every item, as the configuration sets its sizes (the builder's Arena column)"""
+    return {k: item_arena(cfg, k) for k in R.ITEMS}
+
+
+
+
+def arena_sends(blocks):
+    """-> {name: bytes} the send lines among arena_blocks: a new project has the chorus, the delay and the reverb in
+    its master slots (fx/fx_arena.c places each line while its type is in one), so the arena must hold them together,
+    or the ones that do not fit are refused and their returns stay silent (the FM-1, 2026-10-28: ARENA 32 with a
+    32 KB delay line and a 32 KB reverb line, no reverb and no chorus at all)"""
+    return {k: blocks[k] for k in SEND_LINES if blocks.get(k)}
+
+
+# ---- what the arena will get, and what fits in it (the user, 2026-10-29: the builder shows the arena's size and gives a
+# feel for what fits). On the device the arena is the SRAM the link leaves free (engines.c ARN_BOOT: _pool_end .. _guard0
+# less the 8 KiB spare = undo_ring) less the undo history's least in the SRAM (ARN_UNDO_KEEP)
+ARN_UNDO_LEAST = 16 * 1024      # engines.c ARN_UNDO_LEAST: the undo's least in the SRAM without the cache RAM
+ARN_UNDO_SRAM = 1024            # engines.c ARN_UNDO_SRAM: its SRAM part with the cache RAM, at least
+CACHE_RAM_BYTES = {2: 8192, 4: 16384, 7: 28672}   # hal/fm1_cache.h: the ways as RAM (4 KB each); the tested free part is a little less
+SD_GRAIN_CACHE, SD_STRETCH_CACHE = 33280, 16640   # a part's card cache, with its tags (docs/SD-CARD-DESIGN.md, sd_grain_test)
+SD_PRE_MS = 50                  # sd_stream_plan.c SST_PRE_MS default: the pre-buffer of a card sample
+SD_HEAD_B = SD_PRE_MS * 441 // 10 * 2   # (frames at 44.1 kHz, 16 bit mono: 2 B a frame; the sample's own rate and width decide)
+SD_RINGS_TYPICAL, SD_HEADS_TYPICAL = 4, 8   # a part's rings at most (SST_PART_RINGS); the card samples of a typical project
+ARENA_ESTIMATE_KB = 4           # the estimate's stated tolerance (KB) against a real build of a configuration the anchors know
+
+
+def arena_undo_keep(cfg):
+    """-> bytes the undo history keeps in the SRAM behind the arena (engines.c ARN_UNDO_KEEP): 16 KB, or with the cache
+    RAM (CACHE_RAM, its test passed) 1 KB at least: the arena gets the SRAM the cache RAM frees"""
+    ways = cfg.get("CACHE_RAM", 0)
+    free = CACHE_RAM_BYTES.get(ways, ways * 4096)
+    if not ways:
+        return ARN_UNDO_LEAST
+    return ARN_UNDO_LEAST - free if free + ARN_UNDO_SRAM < ARN_UNDO_LEAST else ARN_UNDO_SRAM
+
+
+ARN_SPARE = 0   # engines.c ARN_SPARE: the arena runs to the stacks' guard band (2026-10-30; the 8 KiB spare is the link's check only)
+
+
+def sram_free(total):
+    """the SRAM the link leaves free (the pool's end to the stacks' guard band, less ARN_SPARE): what the arena is cut from"""
+    return max(0, limits_in_use()["sram"] - ARN_SPARE - used(total, "sram"))
+
+
+def undo_info(cfg, total):
+    """-> {"ring", "arena", "keep", "cache"} the undo history: with ARENA it keeps only ARN_UNDO_KEEP of the SRAM (and the
+    cache RAM's ways, CACHE_RAM) and borrows what the arena does not use, giving it back (seq/undo.c undo_yield): it never
+    takes the arena's room; without, its ring is the free SRAM less the spare (undo_ring)"""
+    if cfg.get("ARENA", 0):
+        ways = cfg.get("CACHE_RAM", 0)
+        return {"ring": undo_ring(total), "arena": True, "keep": arena_undo_keep(cfg),
+                "cache": CACHE_RAM_BYTES.get(ways, ways * 4096) if ways else 0}
+    return {"ring": undo_ring(total), "arena": False, "keep": 0, "cache": 0}
+
+
+def undo_text(cfg, total):
+    """the undo line of the budget (the console's, the menu's): with ARENA its keep and that it borrows the arena's free top"""
+    u = undo_info(cfg, total)
+    if not u["arena"]:
+        return f"undo ring {u['ring']:,} B"
+    cache = f" + cache RAM {u['cache'] // 1024} KB" if u["cache"] else ""
+    return f"undo keeps {_kb1(u['keep'])} KB{cache}, borrows the arena's free top"
+
+
+def arena_size(cfg, total, exact=False):
+    """-> {"bytes", "kb", "free", "keep", "exact"} the arena a build gets: the free SRAM (sram_free of the total) less the
+    undo's keep; exact: the total is a real build's sizes (else the estimate); None with ARENA off"""
+    if not cfg.get("ARENA", 0) or not total:
+        return None
+    free, keep = sram_free(total), arena_undo_keep(cfg)
+    n = max(0, free - keep) & ~7
+    return {"bytes": n, "kb": n // 1024, "free": free, "keep": keep, "exact": bool(exact)}
+
+
+def _kb1(n):
+    return f"{n / 1024:.1f}"
+
+
+def arena_fits(cfg):
+    """-> {"rows": [(name, bytes each, count, note)], "all": bytes of everything at once, "typical": ...} what a project can put in
+    the arena, from the builder's own model (arena_blocks: the parts' engine states, the sends, the inserts' room, the other buffers;
+    the SD card mode's streams). "all" = every row at its count: a project using all of it at once"""
+    c = cfg                                         # (the effects memory is always auto: fx_memory's rule)
+    blocks = arena_blocks(c)
+    rows = []
+    sends = arena_sends(blocks)
+    if sends:
+        rows.append(("the 3 sends' lines" if len(sends) == 3 else "the sends' lines (" + ", ".join(
+            k.split("'")[0].replace("the ", "") for k in sends) + ")", sum(sends.values()), 1,
+            "always placed while the sends are used"))
+    eng = max((k for k in PART_MEM if built(cfg, k)), key=PART_MEM.get, default=None)
+    if blocks.get("a part's engine state"):
+        rows.append(("a part's " + (R.ITEMS[eng].label.split(" (")[0] if eng else "engine") + " state",
+                     blocks["a part's engine state"], nparts(cfg), "the largest engine built, a part each"))
+    if blocks.get("the inserts' own room"):
+        rows.append(("the inserts' room", blocks["the inserts' own room"], 1, "the limited inserts' lines"))
+    if blocks.get("the largest limited insert's line"):
+        rows.append(("a limited insert's line", blocks["the largest limited insert's line"], 1,
+                     "the largest built (ECHO JUNO FLNG XDLY: each copy its own line's size)"))
+    for k, v in arena_bufs(cfg).items():
+        if k == "FM6's sine table":
+            continue                                    # (held with FM6's engine state: a few KB, in the table's note)
+        rows.append((k, v, 1, "a track each" if k.startswith("a track's") else "while the project uses it"))
+    if sd_mode(cfg) and built(cfg, "SDCARD") and cfg.get("SD_RING", 0) > 0 and built(cfg, "ENG_SAMPLE"):
+        rows.append(("a card sample's head", SD_HEAD_B, SD_HEADS_TYPICAL, f"pre-buffer {SD_PRE_MS} ms, typical {SD_HEADS_TYPICAL} samples"))
+        rows.append(("a card stream's ring", cfg["SD_RING"] * 1024, SD_RINGS_TYPICAL, "SD_RING a voice, typical one part"))
+    if sd_mode(cfg) and built(cfg, "SDCARD") and cfg.get("SD_RING", 0) > 0:
+        if built(cfg, "ENG_GRAIN"):
+            rows.append(("GRAIN's card cache", SD_GRAIN_CACHE, nparts(cfg), "a part on GRAIN with a card set"))
+        if built(cfg, "ENG_STRETCH"):
+            rows.append(("STRETCH's card cache", SD_STRETCH_CACHE, nparts(cfg), "a part on STRETCH with a card set"))
+    total = sum(b * n for _, b, n, _ in rows)
+    return {"rows": rows, "all": total}
+
+
+HINT = ("a typical project uses the sends and its parts' engines; WAVE, SLICER, PUNCH, the X0X states and the card caches only when it plays them",)
+
+
+def arena_text(cfg, total, exact=False):
+    """-> [str] (<= 78 columns) the arena panel: its size, what fits, whether all of it at once does; [] with ARENA off"""
+    a = arena_size(cfg, total, exact)
+    if not a:
+        return []
+    f = arena_fits(cfg)
+    how = "from the last real build" if a["exact"] else "estimate"
+    out = [f"arena {'' if a['exact'] else '~'}{a['kb']} KB ({how}: free SRAM {_kb1(a['free'])} KB - undo keep {_kb1(a['keep'])} KB)"]
+    for name, b, n, note in f["rows"]:
+        out.append(f"  {name:30.30s} {(str(n) + ' x ' if n > 1 else '').rjust(4)}{_kb1(b):>6s} KB = {_kb1(b * n):>6s} KB")
+    tot = f["all"] / 1024
+    out.append(f"  {'all at once':30s}{'':4s}{'':>6s}    = {tot:6.1f} KB of {a['kb']} KB")
+    if f["all"] > a["bytes"]:
+        out.append(f"  a project using all of it at once is refused something (MEM FULL) by {(f['all'] - a['bytes']) / 1024:.1f} KB")
+    else:
+        out.append("  all of it at once fits")
+    out.extend(textwrap.wrap(HINT[0], 76, initial_indent="  ", subsequent_indent="  "))
+    return out
+
+
+def ram_engine_code(cfg):
+    """-> bytes of hot code the built engines run from RAM (their place ENG_RAM: registry.py FAST_BYTES)"""
+    fl = flags(cfg)[0]
+    return sum(R.FAST_BYTES.get(k, 0) for k, names in R.FAST_NAMES.items() if fl.get(f"FAST_RAM_{names[0]}") and built(cfg, k))
+
+
 def model_terms(cfg):
     """-> {region: bytes} the computed part of the estimate, against the default build: what is not a sum of
     per-item deltas (the reverb's line buffer, rev_lines; the automation store, auto_store; the engines' part
-    states, part_mem; the delay arena, dly_arena; the engines' arena, arena_mem)"""
+    states, part_mem; the delay arena, dly_arena; the arena for both, arena_mem; the pooled tables' set, tab_pool)"""
     d = defaults()
     arena = ({"pool": dly_arena(cfg)["pool"]}, {"pool": dly_arena(d)["pool"]})
     terms = [(rev_lines(cfg), rev_lines(d)), (auto_store(cfg), auto_store(d)), (part_mem(cfg), part_mem(d)), arena,
-             (arena_mem(cfg), arena_mem(d))]
+             (arena_mem(cfg), arena_mem(d)), (tab_pool(cfg), tab_pool(d))]
     return {r: sum(a.get(r, 0) - b.get(r, 0) for a, b in terms) for r in REGIONS}
 
 
@@ -607,7 +1241,7 @@ def anchor_cfg(rec):
 def effective(cfg):
     """-> {key: value} what the image is built with: every image item, an option of an item left out at its default
     (the build ignores it), so two configurations that build the same image compare equal"""
-    full = dict(defaults(), **cfg)
+    full = image_cfg(dict(defaults(), **cfg))           # (SD card mode: the sets' ticks build the same image)
     return {k: full[k] if not it.parent or built(full, it.parent) else it.default
             for k, it in R.ITEMS.items() if not it.no_image}
 
@@ -655,6 +1289,7 @@ def additive(cfg, costs):
     computed terms. Its error grows with the distance from the defaults (budget anchors it nearer)"""
     total = dict(costs["base"])
     items, missing = {}, []
+    cfg = image_cfg(cfg)                                # (SD card mode: the sets on the card, 0 B of flash each)
     for k, it in R.ITEMS.items():
         if it.parent and not built(cfg, it.parent):
             continue                                    # (the parent's own delta covers its options)
@@ -705,6 +1340,69 @@ def _grown(cfg, acfg, costs):
     return sum(1 for k in ec if ec[k] != ea[k] and ic.get(k, {}).get("flash", 0) - ia.get(k, {}).get("flash", 0) > ALIGN_NOISE)
 
 
+# the context items: what they change depends on most of the rest of the configuration, so no one delta from the
+# defaults stands for them. Each is built flipped on every check configuration too (measure_costs.py measure_checks:
+# costs.json "checks" NAME "contexts" KEY: {"from", "to", "delta"}, the real difference), and an estimate that
+# crosses one from its anchor counts the difference measured on the check configuration nearest to it (among those
+# agreeing on the other context items) in place of the sum model's. Measured 2026-10-30 (release, gpufarm, 3e0c9439):
+#   COMPILER 0 (JieLi's clang): +12.0 KB of flash on the defaults, +19.6 to +30.4 KB on the profiles (synths-2 +20.9,
+#     sd-card-mots +29.8, the user's fm1-next profile +30.4), +4.1 KB of pool on synths-2 and drum-machines only
+#   SDCARD 1: +1.1 KB of flash on the defaults, +3.3 KB with the console (sd-card), +33.2 KB in the big layout
+#     (sd-mode-probe: the full FatFs, the SD card mode)
+#   LAYOUT 1: -0.9 KB on the defaults, +29.1 KB with the card (sd-card: the SD card mode itself)
+CONTEXT_ITEMS = ("COMPILER", "LAYOUT", "SDCARD")
+
+
+def _ctx_class(key, v):
+    """a context item's value as the measures agree on it: LAYOUT is the big step (1) or not: the other steps (normal, the
+    sample-slot x project grid) build the same code, a few hundred bytes apart, so a COMPILER or SDCARD measure made on
+    normal stands for them (a step no check configuration has made 4 projects drop the measured COMPILER +7.9 KB and
+    show less flash than 16 projects)"""
+    return (v == 1) if key == "LAYOUT" else v
+
+
+def _context_measured(key, a, b, near, costs, exclude):
+    """-> {region: bytes} what key going from a to b really changed on the check configuration nearest to near among
+    those that agree with it on the other context items (2026-10-30: LAYOUT measured without the card, +0.8 KB, stood
+    for LAYOUT with it, -29 KB), None when none has it measured (the sum model's then)"""
+    en, best, best_rank = effective(near), None, None
+    for n, e in (costs or {}).get("checks", {}).items():
+        c = e.get("contexts", {}).get(key)
+        if n in exclude or not c or c.get("delta") is None or {c["from"], c["to"]} != {a, b}:
+            continue
+        acfg = anchor_cfg(e)
+        if acfg is None:
+            continue
+        ea = effective(acfg)
+        if any(_ctx_class(k, ea.get(k)) != _ctx_class(k, en.get(k)) for k in CONTEXT_ITEMS if k != key):
+            continue                                    # (measured where another context item differs: no measure of it here)
+        rank = distance(near, acfg)
+        if best_rank is None or rank < best_rank:
+            sign = 1 if (c["from"], c["to"]) == (a, b) else -1
+            best, best_rank = {r: sign * c["delta"].get(r, 0) for r in REGIONS}, rank
+    return best
+
+
+def context_terms(cfg, acfg, costs, exclude=()):
+    """-> {region: bytes} the context items (CONTEXT_ITEMS) cfg sets otherwise than its anchor acfg: each one's real
+    difference measured nearest to cfg (_context_measured) less what the sum model says it changes there (its delta, its
+    pairs, its computed terms), one item at a time from cfg towards the anchor"""
+    out = {r: 0 for r in REGIONS}
+    ec, ea = effective(cfg), effective(acfg)
+    cur = dict(defaults(), **cfg)
+    for k in CONTEXT_ITEMS:
+        if k not in ec or ec[k] == ea[k]:
+            continue
+        nxt = dict(cur, **{k: ea[k]})
+        got = _context_measured(k, ea[k], ec[k], cur, costs, exclude)
+        if got is not None:
+            hi, lo = additive(cur, costs)[0], additive(nxt, costs)[0]
+            for r in REGIONS:
+                out[r] += got[r] - (hi[r] - lo[r])
+        cur = nxt
+    return out
+
+
 def budget(cfg, costs, anchor=True, exclude=(), exact=None, extra_anchors=()):
     """-> {"total": {region: bytes}, "items": {key: {region: delta}}, "unmeasured": [keys], "exact": bool,
     "anchor": name, "distance": items} (None without costs): the total is exact, the sizes of this configuration's
@@ -725,22 +1423,35 @@ def budget(cfg, costs, anchor=True, exclude=(), exact=None, extra_anchors=()):
         name, acfg, real, dist = ref
         at, _, _ = additive(acfg, costs)
         grown = _grown(cfg, acfg, costs)
-        total = {r: real[r] + total[r] - at[r] + ANCHOR_MARGIN[r] * grown for r in REGIONS}
+        ctx = context_terms(cfg, acfg, costs, exclude)
+        total = {r: real[r] + total[r] - at[r] + ctx[r] + ANCHOR_MARGIN[r] * grown for r in REGIONS}
     return {"total": total, "items": items, "unmeasured": missing, "exact": bool(exact),
             "anchor": ref[0] if ref else None, "distance": ref[3] if ref else None}
 
 
 # ---- the undo history's ring (information: what RAM and the pool leave)
 def undo_ring(total):
-    """the undo history's ring a build leaves (app.ld _undo_*): the free main RAM plus the pool beyond its 8 KiB spare
+    """the undo history's ring a build leaves (app.ld _undo_*): the SRAM after the pool, less its 8 KiB spare
     (docs/MEMORY-MAP.md 2.1); never below 0"""
-    return max(0, LIMITS["ram"] - total["ram"]) + max(0, LIMITS["pool"] - SPARE["pool"] - total["pool"])
+    return max(0, limits_in_use()["sram"] - SPARE["sram"] - used(total, "sram"))
 
 
 def fits(total, cfg=None):
-    """-> {region: (used, capacity, over)}: over > 0 overflows (the pool keeps its 8 KiB spare)"""
-    cap = {r: LIMITS[r] - SPARE[r] for r in REGIONS}
-    return {r: (total[r], cap[r], total[r] - cap[r]) for r in REGIONS}
+    """-> {budget: (used, capacity, over)} for flash and the packed SRAM: over > 0 overflows (SRAM keeps its 8 KiB
+    spare); the flash by the configuration's layout (LAYOUT: limits_in_use flash_by_layout). Not a release build's
+    sizes.json app_slot: fm1-base's write_sizes puts its normal APP_SLOT there whatever app_end the build had (an SD card
+    mode build said 581,564 B; its check said "exceeds the app slot (823228 B)")"""
+    out, lim = {}, limits_in_use()
+    for b in BUDGETS:
+        u, cap = used(total, b), lim[b] - SPARE[b]
+        if b == "flash" and cfg and cfg.get("LAYOUT") in lim["flash_by_layout"]:
+            cap = lim["flash_by_layout"][cfg["LAYOUT"]] - SPARE["flash"]
+        elif b == "flash" and cfg and cfg.get("LAYOUT") in R.LAYOUT_STEPS:
+            # a step the build system gives no slot (the release builds only 1 and 3; its other steps' end = the classic
+            # end): the design table's room, not the normal slot, or 4 projects showed no more room than 16
+            cap = layout_room(cfg["LAYOUT"]) - SPARE["flash"]
+        out[b] = (u, cap, u - cap)
+    return out
 
 
 def kit_keys():
@@ -773,8 +1484,8 @@ SMALLEST = {"X909_HAT": 2, "X0X_TANH": 2}
 
 def off_value(key):
     """what switching the item off means: 0 for a switch; for a choice its "off" choice where it has one (BLE_CENTRAL,
-    X909_CYM, SNAPSHOTS, CACHE_RAM, DUAL, ...), else its smallest setting: SMALLEST, else the smallest non-zero value
-    (the sizes, DLY_LEN .. SECTIONS; a 0 that is no "off" is not taken: DLY_ARENA's auto, LCD_BAUD's 60 MHz).
+    X909_CYM, SNAPSHOTS, CACHE_RAM, ...), else its smallest setting: SMALLEST, else the smallest non-zero value
+    (the sizes, DLY_LEN .. SECTIONS; a 0 that is no "off" is not taken: LCD_BAUD's 60 MHz).
     Until 2026-10-24 every choice took the smallest non-zero value: BLE_CENTRAL MINIMAL (3) went to FULL (1), the
     6-bit hats to the 8-bit ones, both bigger"""
     it = R.ITEMS[key]
@@ -802,6 +1513,7 @@ def savings_of(cfg, costs):
             continue
         there, _, _ = additive(dict(cfg, **{k: alt}), costs)
         out[k] = {r: total[r] - there[r] for r in REGIONS}
+        out[k]["sram"] = used(total, "sram") - used(there, "sram")   # (against the SRAM budget's overflow)
     return out
 
 
@@ -810,9 +1522,8 @@ FIT_ORDER = [  # (key, value): least loss first (docs/MEMORY-MAP.md section 3); 
     ("ENG_SLICE", 0), ("DLY_LEN", 32768), ("PUNCH_N", 16384),
     ("SL_LEN", 2048), ("ENG_LOFI", 0), ("ENG_FORMANT", 0), ("ENG_PHASE", 0), ("ENG_DRAWBAR", 0),
     ("SET_SCRCH", 0), ("SET_STRGS", 0), ("SET_HORNS", 0),
-    ("LCD_DIRTY", 0),   # (after the samples: for main RAM, 656 B, the graph strip redrawn whole; the defaults were 52 B over 2026-10-13)
 ]
-FIT_MARGIN = {"flash": 1024, "ram": 448, "pool": 0, "ramtext": 256}   # the estimate's error (~0.5 %; RAM 448: the user, 2026-10-23)
+FIT_MARGIN = {"flash": 1024, "sram": 704}   # the estimate's error (~0.5 %; SRAM: RAM 448, the user 2026-10-23, + RAM code 256)
 
 
 def _measured(b):
@@ -827,7 +1538,7 @@ def over_any(cfg, costs, margin=FIT_MARGIN, budget_fn=budget):
     (2026-10-24: synth, its own build 264 B under the RAM limit, was 184 B "over" and fit() found nothing to drop);
     one item away the whole margin applies again"""
     b = budget_fn(cfg, costs)
-    m = {r: 0 for r in REGIONS} if _measured(b) else margin
+    m = {r: 0 for r in BUDGETS} if _measured(b) else margin
     return {r: o + m[r] for r, (_, _, o) in fits(b["total"], cfg).items() if o + m[r] > 0}
 
 
@@ -843,7 +1554,7 @@ def _fit_run(cfg, costs, keep, order, budget_fn):
         trial = dict(cfg)
         trial[k] = v
         b0, b1 = budget_fn(cfg, costs)["total"], budget_fn(trial, costs)["total"]
-        if not any(b1[r] < b0[r] for r in over):        # (it would not help a region that overflows)
+        if not any(used(b1, r) < used(b0, r) for r in over):   # (it would not help a budget that overflows)
             continue
         cfg = trial
         changes.append(f"{k}={v}")
@@ -989,7 +1700,7 @@ def _proposals(cfg, costs, budget_fn, limit):
             continue
         t = _drop(cfg, k, _off_value(cfg, k))
         if t is not None and not over_any(t, costs, budget_fn=budget_fn):
-            singles.append((sum(sav[k].values()), k, t))
+            singles.append((sum(sav[k][r] for r in REGIONS), k, t))
     for i, (_, k, t) in enumerate(sorted(singles)[:2]):
         add(f"single-{k}", f"Drop only {R.ITEMS[k].label}", "One item alone makes it fit; nothing else changes.", t)
     engines = {k for k, it in R.ITEMS.items() if it.group == "Synth engines"}
@@ -1024,7 +1735,8 @@ def cloud_key(cfg, commit):
 # ---- the JSON API (dict in, dict out): the menu, the CLI, the workflow and a web page alike
 def describe():
     """-> the registry and the constants a front end needs, JSON-serialisable"""
-    return {"key_tag": KEY_TAG, "registry": R.to_json(), "regions": list(REGIONS), "limits": dict(LIMITS),
+    return {"key_tag": KEY_TAG, "registry": R.to_json(), "regions": list(REGIONS), "budgets": list(BUDGETS),
+            "limits": limits_in_use() if (LIMITS_HOOK and LIMITS_HOOK()) or SETUP_LIMITS else None,   # (none before setup)
             "spare": dict(SPARE), "needs_auto": list(NEEDS_AUTO), "fit_order": [list(x) for x in FIT_ORDER]}
 
 

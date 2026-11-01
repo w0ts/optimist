@@ -44,7 +44,7 @@ def main(argv=None):
         key = f.rsplit("/", 1)[0] if a.by == "dir" else f
         code, data = tot.get(key, (0, 0))
         tot[key] = (code + size, data) if sec in (".text", ".ram_text", ".ram_hot", ".ram_hot2") else (code, data + size)
-    print(f"{a.config}: flash {sizes['flash']:,} (limit {C.LIMITS['flash']:,}); in symbols {sum(c + d for c, d in tot.values()):,}")
+    print(f"{a.config}: flash {sizes['flash']:,} (limit {C.limits_in_use()['flash']:,}); in symbols {sum(c + d for c, d in tot.values()):,}")
     print(f"{'code':>9} {'data':>9}  kind   source")
     for k, (c, d) in sorted(tot.items(), key=lambda x: -sum(x[1]))[:a.top]:
         print(f"{c:9,} {d:9,}  {kind(k) if a.by == 'file' else '':5s}  {k}")

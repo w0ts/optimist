@@ -25,7 +25,7 @@ static uint8_t live_save_off;            /* an erase held the audio (no suspend)
 #include "fm1_irq.h"
 #include "fm1_guard.h"
 #include "fm1_cache.h"               /* EXPERIMENTAL cache RAM (FELUCCA_CACHE_RAM): 7 data-cache ways as 28 KiB of RAM */
-#include "core/backports.h"          /* (before the HAL: FELUCCA_LIGHTS, hal/fm1_input.h) */
+#include "core/backports.h"          /* (before the HAL) */
 #include "fm1_input.h"
 #include "fm1_timer.h"
 #include "fm1_audio.h"
@@ -91,6 +91,10 @@ static uint8_t live_save_off;            /* an erase held the audio (no suspend)
 #if FELUCCA_USB_AUDIO && FELUCCA_CDC
 #error "USB audio uses the CDC endpoints; build with FELUCCA_CDC=0"
 #endif
+#include "io/midi/midi_rings.c"        /* the MIDI rings: the sequencer's in / out, the clock out (usb.c is a producer and consumer) */
+#include "system/devname.h"           /* "FM1-XXXX": the name USB (usb.c) and Bluetooth (midi_ble.c) show; the code: system/devname.c, before project.c */
+static int dev_uid_id(void);
+static const char *dev_name(void);
 #include "io/usb/usb.c"
 #ifndef FELUCCA_UART
 #define FELUCCA_UART 1           /* TRS MIDI IN on UART1 (notes, clock); 0 = none (SYNC TRS then hears nothing) */
@@ -103,9 +107,6 @@ static uint8_t live_save_off;            /* an erase held the audio (no suspend)
                                   * baseband driver (ble/ble_hw_wl82.c, hal/fm1_ble.h): host- and emulator-tested, and
                                   * run on an FM-1 with macOS (Audio MIDI Setup) */
 #endif
-#ifndef FELUCCA_BLE_DIAG
-#define FELUCCA_BLE_DIAG 0       /* with BLE: the console's blell and the counters and rings behind it (ble/ble_diag.h) */
-#endif
 #ifndef FELUCCA_BLE_BOND
 #define FELUCCA_BLE_BOND 0       /* with BLE: SMP Just Works bonding and LL encryption (ble/ble_smp.c, ble_cfg.h) */
 #endif
@@ -115,16 +116,10 @@ static uint8_t live_save_off;            /* an erase held the audio (no suspend)
 #ifndef FELUCCA_BT_AUDIO
 #define FELUCCA_BT_AUDIO 0
 #endif
-#ifndef FELUCCA_BT_DIAG
-#define FELUCCA_BT_DIAG 0        /* with BT_AUDIO: the Classic stack's counters, trace and logs, btrx / bttrace, the live
-                                  * btpage pll= / agc= / follow= (bt/bt_inq.c, bt_page.c): a console debug build's */
-#endif
-#ifndef FELUCCA_BT_AFH
-#define FELUCCA_BT_AFH 1         /* with BT_AUDIO: adaptive frequency hopping, the channels the headset fails on dropped
-                                  * from the hop set (bt/bt_afh.c, bt_page.c; the XM4's fixed holes, 2026-10-23) */
-#endif
 #define FELUCCA_BT_UI (FELUCCA_BLE || FELUCCA_BT_AUDIO)   /* SYSTEM > Bluetooth: with either; it shows what is built (op_bt.c) */
 #define MIR_BLE (FELUCCA_ED_MIRROR && FELUCCA_BLE && FELUCCA_OTA && FELUCCA_EDITOR)   /* the screen mirrored over Bluetooth too (io/editor/ed_mirror.c) */
+#define MBR_PROJ (MIR_BLE && FELUCCA_BT_PROJ && FELUCCA_FLASH && FELUCCA_BACKUP && FELUCCA_PATTERNS)   /* the projects' moves
+                                                  * over Bluetooth too (ed_mirror.c: the backup's 43..48 and 110) */
 #if FELUCCA_BLE
 #include "io/midi/midi_ble.c"        /* the stack (ble/ble_stack.c) and its MIDI in / out */
 #elif FELUCCA_BT_AUDIO
@@ -161,9 +156,21 @@ static uint8_t live_save_off;            /* an erase held the audio (no suspend)
 #if FELUCCA_FLASH
 #include "fm1_flash.h"
 static uint8_t flash_ok;                 /* JEDEC id matched at boot (persist_boot) */
+#if FELUCCA_ED_MIRROR
+static uint8_t st_blank;                 /* a test session (ed_mirror.c, 108 kind 5): Optimist's own data reads erased (a blank FM-1),
+                                          * nothing is written; the radio's calibration and the rest read as ever */
+static volatile uint32_t mir_test_boot __attribute__((section(".noinit")));   /* MIR_TEST_MAGIC: the next start is a test session
+                                          * (system/main.c reads and clears it at once: a crash in the session ends it) */
+#else
+#define st_blank 0
+#endif
 static int st_read(uint32_t off, void *dst, uint32_t n)   /* 256-byte IRQ-off windows: audio keeps up */
 {
     uint8_t *d = dst;
+    if (st_blank && FL_STORE_OK(off, n)) {
+        memset(dst, 0xFF, n);
+        return 0;
+    }
     while (n) {
         uint32_t k = n > 256u ? 256u : n, f;
         int rc;
@@ -193,17 +200,25 @@ static int st_erase(uint32_t off)
     uint32_t took;
     if (!FL_STORE_OK(off, 0x1000u))
         return -8;
+    if (st_blank)
+        return 0;                        /* (a test session: done, nothing erased) */
     return fl_erase4k_quiet(off, &took);
 }
 static int st_prog(uint32_t off, const void *src, uint32_t n)
 {
     if (!FL_STORE_OK(off, n))
         return -8;
+    if (st_blank)
+        return 0;                        /* (a test session: done, nothing written) */
     return fl_write(off, src, n);
 }
 #include "storage/storage.c"
 #endif
 #include "storage/upreset.c"          /* user presets (RAM mirror; flash with FELUCCA_FLASH) */
+#if FELUCCA_WIFI
+#include "wifi/wifi_saved.c"          /* the saved Wi-Fi networks (wn_st), before the settings record that keeps them */
+#endif
+#include "system/devname.c"          /* the flash ID read at boot, the name (needs the flash driver and, with BLE, its kept address) */
 #include "storage/project.c"
 #if FELUCCA_DRUM_KITS
 #if !FELUCCA_FLASH
@@ -214,6 +229,12 @@ static int st_prog(uint32_t off, const void *src, uint32_t n)
 #include "engines/fm6/fm6_sysex.c"         /* DX7 SysEx into FM6 (eng_fm6.c) */
 #if FELUCCA_NB_LIST
 #include "storage/nbank.c"             /* the FM6 / CZ native collections in PRESETS, the CZ store (after Melodee 0.12) */
+#endif
+#if FELUCCA_SDCARD
+#include "storage/sd/sdcard.c"         /* a microSD card on the LCD's bus (a hardware mod; Petit FatFs: tools/build.py) */
+#endif
+#if FELUCCA_SD_UI
+#include "storage/sd/sd_mode.c"        /* SD card mode: the boot's card, the projects, presets, kits and samples by name */
 #endif
 #if FELUCCA_OTA
 static uint8_t recovery_active;
@@ -261,6 +282,10 @@ static void ota_show(uint32_t step, int32_t code)
     draw_text_box(0, 92, 240, &FONT_S, "UPDATE", C_WHITE, 1);
     if (step < 9u) {
         draw_text_box(0, 124, 240, &FONT_S, STEP[step < 6u ? step : 0], C_HI, 1);
+        if (ota_relayout) {                     /* (ota.c: another MEMORY step: the data it keeps elsewhere is erased) */
+            draw_text_box(0, 156, 240, &FONT_S, "NEW MEMORY LAYOUT", C_WHITE, 1);
+            draw_text_box(0, 176, 240, &FONT_S, "PROJECTS ERASED", C_WHITE, 1);
+        }
         return;
     }
     if (code == 1)
@@ -287,6 +312,7 @@ static void ota_commit(const uint8_t *parm)
 }
 #endif
 #if FELUCCA_OTA && FELUCCA_EDITOR
+#define ED_BOOT_READ st_read           /* (INFO tag 0x68: the boot area's 32 bytes, read as stored: system/bootid.h) */
 #include "io/editor/editor.c"          /* web editor SysEx (needs the OTA SysEx plumbing) */
 #endif
 #if FELUCCA_ED_MIRROR && !(FELUCCA_OTA && FELUCCA_EDITOR)   /* (no editor: display/lcd.c's calls to the mirror go nowhere) */
@@ -294,9 +320,16 @@ static void mir_fill(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint16_t c)
 static void mir_blit(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint16_t *px) { (void)x, (void)y, (void)w, (void)h, (void)px; }
 static uint32_t mir_meters_due(void) { return 0; }
 static uint32_t mir_meters_off(void) { return 0; }
+static uint32_t mir_master(uint32_t pot) { return pot; }
 #endif
 #if FELUCCA_CDC
 #include "io/console.c"
+#ifdef ED_HAS_WIFI
+#include "io/editor/ed_wifi.c"         /* cmd 112: the Wi-Fi networks for the web editor (needs wifi_conn.c, so after the console) */
+#if WIFI_UI
+#include "ui/optimist/op_wifi.c"         /* SYSTEM > WI-FI: the page and the password entry (drives wifi_conn.c, so after the console) */
+#endif
+#endif
 #elif FELUCCA_BT_AUDIO
 static inline void con_puts(const char *s) { (void)s; }
 static inline void con_putc(char c) { (void)c; }
@@ -312,4 +345,5 @@ static inline void con_hex(uint32_t v, uint32_t d) { (void)v; (void)d; }
 #if FELUCCA_SIMD_PROBE
 #include "system/simd_probe.c"      /* EXPERIMENTAL: the boot test of the packed 16-bit forms (hal/fm1_simd.h) */
 #endif
+#include "system/stop_first.h"        /* an update or UBOOT from the host stops the transport first */
 #include "system/main.c"

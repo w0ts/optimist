@@ -4,7 +4,7 @@
  * "consistency is key in our ui", "when we scroll with algo, we scroll page by page (the selection on the page moves line
  * by line; 2026-10-13: "ALGORITHM moves track - NO. only the track!": no line-by-line encoder any more)", "glo still pages thru pages of glo and then system, it should switch between the two"). Two vertical lists,
  * one setting a line: its name on the left, its value on the right, the lines under small section headers:
- *   GLOBAL   Tempo: BPM NUDGE SWING   Rec: MODE LENGTH START CLICK QUANT   MIDI: CLK IN CLK OUT MIDI IN MIDI OUT (one
+ *   GLOBAL   Tempo: BPM NUDGE SWING   Rec: MODE LENGTH START CLICK QUANT (PUNCH: FELUCCA_PUNCH_SW)   MIDI: CLK IN CLK OUT MIDI IN MIDI OUT (one
  *            page; 3 lines without CLK OUT)   Channels: T1 T2 T3 DR
  *   SYSTEM   CPU: CLOCK LOAD (read-outs)   Screen   Lights   Audio   USB   Bluetooth   Calibrate: PANEL HOLD   About
  * The lines are the cells of the rows below, called through their own functions (TEMPO's tp_*, SYSTEM's sys_*), so each
@@ -14,7 +14,8 @@
  *   SELECT     a page a detent within the screen, stopping at its ends; the cursor on the page's first line
  *   KNOB k     line k of the page: edits it and makes it the cursor (the help line shows it)
  *   ALGORITHM  the cursor, a line a detent across the pages (glo_walk; the user, 2026-10-14: the one exception to ALGORITHM being the track)
- *   GLO        tapped: GLOBAL from any other screen; on GLOBAL, SYSTEM; on SYSTEM, GLOBAL. Each keeps its cursor line
+ *   GLO        tapped: from any other screen the one of GLOBAL / SYSTEM open last (GLOBAL at power-on); on GLOBAL, SYSTEM; on SYSTEM, GLOBAL.
+ *              Each keeps its cursor line
  *   PRESETS    the cursor line's value (HOME held: back to its default); an action line (PANEL, drawn RUN): runs it, as
  *              YES; a read-out: nothing. Never the track or its sound here
  *   SAVE       YES on the cursor line: an action (Calibrate PANEL asks first, About VERSION says it, Bluetooth BLE: the
@@ -58,41 +59,32 @@ static int glo_yes(uint32_t r, uint32_t k, uint32_t ok)
 /* ---- the list: line i of screen s (0 GLOBAL, 1 SYSTEM) is cell k of row u, kept as u << 2 | k (built once: what a row
  * shows depends on the build only) */
 #define GL_PAGE 4u                                      /* the lines on screen, the knobs' */
-/* the lines of a screen, at most: SYSTEM's in this build (11 always, BRIGHT 1, USB audio 5, LIGHTS 2, CDC 1, BLE 5 + 2 with
- * BLE_CENTRAL), never under 24 (GLOBAL's 19 at most); sized from the build so no RAM goes to lines it cannot have */
+/* the lines of a screen, at most: SYSTEM's in this build (12 always, DEBUG STATS 1, USB audio 5, LIGHTS 2, CDC 1, BLE 5 + 2 with
+ * BLE_CENTRAL, WI-FI 4), never under 24 (GLOBAL's 19 at most); sized from the build so no RAM goes to lines it cannot have */
 #if FELUCCA_BT_UI
 #define GL_NBLE (5u + 2u * (BLE_CENTRAL != 0))
 #else
 #define GL_NBLE 0u
-#endif
-#if FELUCCA_BRIGHT
-#define GL_NBRI 1u
-#else
-#define GL_NBRI 0u
 #endif
 #if FELUCCA_USB_AUDIO
 #define GL_NUA (1u + (uint32_t)UAS_N)                   /* (USB STATS, a line a source) */
 #else
 #define GL_NUA 0u
 #endif
-#if FELUCCA_LIGHTS
 #define GL_NLIT 2u
-#else
-#define GL_NLIT 0u
-#endif
 #if FELUCCA_CDC
 #define GL_NCDC 1u
 #else
 #define GL_NCDC 0u
 #endif
-#define GL_NSYSL (11u + GL_NBRI + GL_NUA + GL_NLIT + GL_NCDC + GL_NBLE)
+#define GL_NSYSL (12u + DBG_STATS + GL_NUA + GL_NLIT + GL_NCDC + GL_NBLE + 4u * WIFI_UI + 2u * USBH_UI)   /* (WI-FI: MODE NETWORK SIGNAL STATE; USB: MODE DEVICE) */
 #define GL_MAXL (GL_NSYSL > 24u ? GL_NSYSL : 24u)
 #if FELUCCA_BT_UI
 #define GL_DEV BDV_OPEN                         /* SYSTEM shows the BLE devices list (op_project.c) */
 #else
 #define GL_DEV 0
 #endif
-#define GL_MAXP 16u                                     /* the pages of a screen, at most (gll.cont's bits; USB AUDIO's four) */
+#define GL_MAXP 16u                                     /* the pages of a screen, at most (gll.cont's bits; USB AUDIO's five) */
 static struct {
     uint8_t ok, n[2], np[2];
     uint16_t cont[2];                                   /* bit p: page p goes on with the section page p - 1 ended with */
@@ -124,7 +116,7 @@ static void gl_secname(uint32_t s, uint32_t e, char *b) /* the section of entry 
  * between its rows (REC: MODE LENGTH START CLICK, then QUANT: "REC 1/2" over each page). The pages are made from the lines
  * this build has (gl_build): a section the build lacks moves the rest up, no page number is fixed */
 static uint32_t gl_sid(uint32_t s, uint32_t e)          /* entry e's section: one number each (REC 2's lines are REC's; a SYS row
-                                                         * named as the one before it is that one's: USB AUDIO's four) */
+                                                         * named as the one before it is that one's: USB AUDIO's five) */
 {
     uint32_t u = e >> 2, r;
     if (!s && u < GL_SYS0)
@@ -197,15 +189,19 @@ static uint32_t gl_pg(uint32_t s, uint32_t i) { return gll.pg[s & 1u][i % GL_MAX
 static uint32_t gl_first(uint32_t s, uint32_t i) { return gll.pf[s & 1u][gl_pg(s, i)]; }   /* the first line of line i's page */
 static uint32_t gl_end(uint32_t s, uint32_t i) { return gll.pf[s & 1u][gl_pg(s, i) + 1u]; }   /* one past its last */
 static int gl_scr(uint32_t scr) { return (scr == SCR_GLOBAL || scr == SCR_SYSTEM) && !(scr == SCR_SYSTEM && GL_DEV); }
+static uint32_t info_shown(void)                        /* SYSTEM's INFO page is the one on the screen (its header: the battery, op_draw.c head_make) */
+{
+    uint32_t e;
+    if (ui.scr != SCR_SYSTEM || !gl_scr(SCR_SYSTEM) || ui.row[SCR_SYSTEM] >= gl_n(1))
+        return 0;
+    e = gl_ent(1, ui.row[SCR_SYSTEM]);
+    return sys_item(e >> 2, e & 3u) == SI_INFO;
+}
 /* SHIFT (OCT- held) + YES on SYSTEM's INFO page: DROPS, UNDERRUNS, the CPU lines' MAX and the guard's voices shed from 0 again
  * (the display's baselines; the counters go on). On that page it takes the place of the redo chord (op_combos.c shift_combo). 1: taken */
 static int info_clear(void)
 {
-    uint32_t e;
-    if (ui.scr != SCR_SYSTEM || !gl_scr(SCR_SYSTEM) || op_armed() || ui.row[SCR_SYSTEM] >= gl_n(1))
-        return 0;
-    e = gl_ent(1, ui.row[SCR_SYSTEM]);
-    if (sys_item(e >> 2, e & 3u) != SI_INFO)
+    if (op_armed() || !info_shown())
         return 0;
     info_clear_counts();
     ui_message("COUNTERS CLEARED");
@@ -295,19 +291,6 @@ static void sls_cell(uint32_t r, uint32_t k, cell_t *c)
     else
         gl_cell(1, gl_line(1, r, k), c);
 }
-/* INFO's KNOB 1 (the user, 2026-10-15: "the second encoder should switch between CURRENT, MAX OVER A FEW SECONDS, MAX FOR
- * EVER"; 2026-10-18: KNOB 1, not 2): the CPU lines' measure, NOW -> MAX 5S -> MAX, a detent a step, round. 1: INFO shown and KNOB 1 */
-static int info_knob(uint32_t r, uint32_t k, int32_t s)
-{
-    uint32_t e;
-    if (GL_DEV || k != 0u || r >= gl_n(1))
-        return 0;
-    e = gl_ent(1, gl_first(1, r));
-    if (sys_item(e >> 2, e & 3u) != SI_INFO)
-        return 0;
-    info_mode = (uint8_t)((info_mode + (s < 0 ? OVL_NMODE - 1u : 1u)) % OVL_NMODE);
-    return 1;
-}
 static void sls_turn(uint32_t r, uint32_t k, int32_t s, int fine)
 {
     if (GL_DEV)
@@ -359,8 +342,15 @@ static int gl_on_tempo(void)                            /* GLOBAL's page shows T
 {                                                       /* (Tempo is GLOBAL's first section: its lines are on page 0) */
     return ui.scr == SCR_GLOBAL && gl_n(0) && gl_pg(0, ui.row[SCR_GLOBAL]) == 0u;
 }
-/* GLO tapped: GLOBAL; on GLOBAL, SYSTEM; on SYSTEM (its BLE devices list too: closed), GLOBAL. Each keeps its line */
-static void glo_tap(void) { op_enter(ui.scr == SCR_GLOBAL ? SCR_SYSTEM : SCR_GLOBAL); }
+/* GLO tapped: on GLOBAL, SYSTEM; on SYSTEM (its BLE devices list too: closed), GLOBAL; from any other screen the one of the two
+ * that was open last (the user, 2026-10-29; GLOBAL at power-on: RAM only, the settings record keeps nothing of it). Each keeps its line */
+static uint8_t glo_last = SCR_GLOBAL;
+static void glo_tap(void)
+{
+    uint32_t to = ui.scr == SCR_GLOBAL ? SCR_SYSTEM : ui.scr == SCR_SYSTEM ? SCR_GLOBAL : glo_last;
+    glo_last = (uint8_t)to;
+    op_enter(to);
+}
 #if FELUCCA_BT_UI
 /* SYSTEM's Bluetooth page, whatever line the cursor is on, and its devices list (the user, 2026-10-19): SAVE tapped
  * connects / lets go (op_bt.c bt_save; on the list, the row: sys_yes), SAVE held forgets the last device. HOME is HOME's,

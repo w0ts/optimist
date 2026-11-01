@@ -12,14 +12,14 @@
 import { execFileSync } from "node:child_process";
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath as toFsPath } from "node:url";
 import * as L from "./builder/logic.js";
 
 let failed = 0;
 const ok = (cond, what) => { console.log(`${what.padEnd(78)} ${cond ? "ok" : "FAIL"}`); if (!cond) failed++; };
-const HERE = fileURLToPath(new URL(".", import.meta.url));
+const HERE = toFsPath(import.meta.url).replace(/[^/\\]*$/, "");
 const ROOT = join(HERE, "..");
-const PYTHON = process.env.PYTHON || (process.platform === "win32" ? "python" : "python3");
+const PYTHON = process.env.PYTHON || ["python3", "python"][Number(process.platform === "win32")];
 const run = (args, input) => execFileSync(PYTHON, args, { cwd: ROOT, input, maxBuffer: 1 << 28, encoding: "utf8", stdio: ["pipe", "pipe", "pipe"] });
 const data = (f) => JSON.parse(readFileSync(join(HERE, "builder", "data", f), "utf8"));
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
@@ -94,7 +94,7 @@ ok(same(web.texts, cli.texts), `profiles read alike (${texts.length}: values, na
 let bad = [];
 for (const [i, q] of views.entries()) {
   const w = web.views[i], c = cli.views[i];
-  for (const f of ["eval", "savings", "conflicts", "over", "fit", "dump"]) if (!same(sortObj(w[f]), sortObj(c[f]))) bad.push(`${q.name} ${f}: ${firstDiff(sortObj(w[f]), sortObj(c[f]))}`);
+  for (const f of ["eval", "savings", "arena_item", "conflicts", "over", "fit", "dump"]) if (!same(sortObj(w[f]), sortObj(c[f]))) bad.push(`${q.name} ${f}: ${firstDiff(sortObj(w[f]), sortObj(c[f]))}`);
 }
 ok(!bad.length, `${views.length} configurations: evaluate, budget, fits, key, savings, errors, fit = the CLI's${bad.length ? "\n  " + bad.slice(0, 5).join("\n  ") : ""}`);
 ok(views.some((q, i) => web.views[i].eval.errors.length) && views.some((q, i) => Object.keys(web.views[i].over).length) && views.some((q, i) => web.views[i].eval.key),
@@ -111,16 +111,33 @@ ok(bo.state === "over" && bo.text === "OVER by 18,436 B" && bo.detail === "(600,
   "bars: an overflow reads OVER by N B (used / capacity; one red cell = K KB)");
 ok(bf.state === "ok" && bf.text === "63,660 / 98,304 B" && bf.detail === "34,644 free" && L.barModel("x", 98, 100, -2).state === "tight", "bars: used / capacity B, N free; over 97 % tight");
 ok(L.kDelta(1229) === "+1.2K" && L.kDelta(-512) === "-0.5K" && L.kDelta(0) === "+0.0K", "costs: +1.2K as the menu");
-const sav = { A: { flash: 100, ram: 10, pool: 0, ramtext: 0 }, B: { flash: 900, ram: 0, pool: 70, ramtext: 0 }, C: { flash: 100, ram: 0, pool: 0, ramtext: 0 } };
+const sav = { A: { flash: 100, ram: 10, pool: 0, ramtext: 0, sram: 10 }, B: { flash: 900, ram: 0, pool: 70, ramtext: 0, sram: 70 }, C: { flash: 100, ram: 0, pool: 0, ramtext: 0, sram: 0 } };
 ok(same(L.sortedKeys(["A", "D", "B", "C"], sav, "flash"), ["B", "A", "C", "D"]) && same(L.sortedKeys(["A", "D", "B"], sav, null), ["A", "D", "B"]),
   "sort: largest first, ties in order, unmeasured last; none: the registry order");
-ok(same(L.deltaOf("A", sav, { ram: 5 }), [["flash", 100], ["ram", 10]]) && same(L.deltaOf("B", sav, {}), [["flash", 900], ["pool", 70]]) && same(L.deltaOf("Z", sav, {}), []),
-  "costs shown: the regions it moves by 64 B or more and the overflowing ones it takes");
-ok(L.offFits([["flash", 900]], { flash: 800 }) && !L.offFits([["flash", 900]], { flash: 800, ram: 1 }) && !L.offFits([["flash", 1]], {}), "◀ off = fits: alone it covers every overflow");
+ok(same(L.SORTS, [null, "flash", "ram", "arena"]) && same(L.sortedKeys(["A", "D", "B", "C"], sav, "ram"), ["B", "A", "C", "D"]), "sort: default order, flash, ram, arena (no pool, ramtext); ram sorts by the SRAM total");
+const arn = { A: 8192, B: 131072, C: 0, D: null };   // (core.py item_arena: bytes of one instance, 0 none, null unknown)
+ok(same(L.sortedKeys(["A", "D", "B", "C"], sav, "arena", arn), ["B", "A", "C", "D"]) && same(L.sortedKeys(["C", "A", "E"], sav, "arena", arn), ["A", "C", "E"]) && same(L.sortedKeys(["A", "B"], sav, "arena", undefined), ["A", "B"]),
+  "sort arena: largest first by one instance's arena bytes, 0 after them, unknown (null, missing) last, ties in order");
+ok(L.arenaText(12800) === "12.5K" && L.arenaText(131072) === "128.0K" && L.arenaText(null) === "?" && L.arenaText(0) === "" && L.ARENA_TIP === "RAM taken from the arena by one instance (one part / one effect slot)",
+  "arena column: KB with one decimal, ? unknown, nothing for none; the tooltip text");
+const old = { A: { flash: 0, ram: 30, pool: 50, ramtext: 40 }, B: { flash: 0, ram: 100, pool: 0, ramtext: 0 } };   // (v0.2 data: no sram)
+ok(L.sramOf(old.A) === 120 && L.sramOf({ sram: 5, ram: 1 }) === 5 && L.sramOf(undefined) === undefined && same(L.sortedKeys(["B", "A"], old, "ram"), ["A", "B"]) && same(L.deltaOf("A", old, {}), [["ram", 120]]),
+  "older data: no sram in a savings entry -> ram + pool + ramtext, for the sort and the cost shown");
+ok(same(L.deltaOf("A", sav, { sram: 5 }), [["flash", 100], ["ram", 10]]) && same(L.deltaOf("B", sav, {}), [["flash", 900], ["ram", 70]]) && same(L.deltaOf("Z", sav, {}), []),
+  "costs shown: flash and one ram (never ram, pool, ramtext apart), where it moves 64 B or more or takes an overflowing budget");
+ok(L.offFits([["flash", 900]], { flash: 800 }) && !L.offFits([["flash", 900]], { flash: 800, sram: 1 }) && L.offFits([["ram", 90]], { sram: 80 }) && L.offFits([["ram", 90]], { ram: 50, pool: 30 }) && !L.offFits([["flash", 1]], {}), "◀ off = fits: alone it covers every overflow");
 const t0 = L.treeOf(reg, "", {}, null);
 const tcount = (ns) => ns.reduce((n, i) => n + 1 + tcount(i.children), 0);   /* (a group's head: two levels, DRUMS) */
-ok(same(t0.map((g) => g.group), reg.groups.filter((g) => (reg.top[g] || []).length)) && t0.reduce((n, g) => n + tcount(g.items), 0) === reg.items.length,
-  "list: every group with items, every item once (top level, then its options, a group's head's options' options)");
+ok(same(t0.map((g) => g.group), reg.groups.filter((g) => (reg.top[g] || []).length)) && t0.reduce((n, g) => n + tcount(g.items), 0) === reg.items.filter((i) => !i.hidden).length,
+  "list: every group with items, every item once but the hidden ones (top level, then its options, a group's head's options' options)");
+const kids = reg.items.find((i) => !i.hidden && i.children.length), kk = kids ? kids.children[0] : null;
+const tflat = L.treeOf(reg, "", { [kk]: { flash: 1, sram: 1 }, [kids.key]: { flash: 9, sram: 9 } }, "flash");
+const fk = tflat.length ? tflat[0].items.map((i) => i.key) : [];
+ok(tflat.length === 1 && tflat[0].flat && fk.length === new Set(fk).size && tflat[0].items.every((i) => !i.children.length) && fk.slice(0, 2).join() === `${kids.key},${kk}` && fk.length > t0.reduce((n, g) => n + g.items.length, 0),
+  "sorted list: ONE list of every item once, options and sub-items as their own rows, groups and parents ignored, largest first");
+const tar = L.treeOf(reg, "", {}, "arena", { [kk]: 5, [kids.key]: 9 }), ak = tar.length ? tar[0].items.map((i) => i.key) : [];
+ok(tar.length === 1 && tar[0].flat && ak.slice(0, 2).join() === `${kids.key},${kk}` && ak.length === fk.length, "sorted list by arena: ONE list of every item once, largest arena first");
+ok(L.treeOf(reg, "reverb", {}, "ram").every((g) => g.flat && g.items.every((i) => L.matches(reg.byKey[i.key], "reverb"))), "sorted list: the search filters the rows");
 const tdr = t0.find((g) => g.group === "Drums");
 ok(tdr && tdr.items.length === 1 && tdr.items[0].key === "DRUMS" && tdr.items[0].children.some((c) => c.key === "DRUM_X0X909" && c.children.some((o) => o.key === "X909_CYM")),
   "list: DRUMS heads the drum group, an X0X kit's options under the kit");

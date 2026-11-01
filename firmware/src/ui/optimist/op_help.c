@@ -81,7 +81,7 @@ static uint32_t hl_find(uint32_t scr, uint32_t row, const cell_t *c)
     return o;
 }
 /* a vertical menu: the line always there (GLOBAL and SYSTEM's settings list, PROJECT's rows) */
-static int hl_menu(void) { return (glo_cycle() || ui.scr == SCR_PROJECT) && lay.shown == LY_PLAY && !name_on(); }
+static int hl_menu(void) { return (glo_cycle() || ui.scr == SCR_PROJECT) && lay.shown == LY_PLAY && !page_owned(); }
 /* knob k turned on the cursor row (op_input.c op_knobs): its line for HL_FRAMES */
 static void hl_note(uint32_t k)
 {
@@ -272,6 +272,7 @@ static uint32_t hl_src_synth(uint32_t id, char *b)
     const track_t *t = TSEL;
     uint32_t k = song.sel % NTRK, m = 0, j, s, n;
     int32_t dc = effv_dest(t, 0), ds = effv_dest(t, 1);
+    (void)k;                                            /* (without PLOCK, MOTION and MACROS: unused) */
 #if FELUCCA_PLOCK
     for (j = 0; j < lk_n[k] && j < NLOCK; j++)
         if (lk_param[k][j] == id)
@@ -344,7 +345,7 @@ static uint32_t hl_src(char *b)
                     m |= 4u << j, hl_word(b, SL[j][s]);
             }
 #endif
-        (void)j, (void)s;
+        (void)j, (void)s, (void)l, (void)v;             /* (no drum lane locks, motion or LFOs in the build: unused) */
         return m;
     }
 #endif
@@ -357,12 +358,22 @@ static uint32_t hl_src(char *b)
 static uint8_t hl_nn_only;                              /* shown only for the note played (hl_post: no help text) */
 static void hl_pre(uint32_t ov)
 {
-    int vis = (hl_menu() || lay_hint_t || (hl.t && hl.scr == ui.scr && lay.shown == LY_PLAY && !name_on())) && ov != 1u && ov != 3u && ov != 4u;
+    static uint8_t was_wide;
+    uint32_t wide = gl_info_wide();
+    int vis;
+    if (wide != was_wide) {                             /* (SYSTEM > INFO's first page has no band: its rows run to the foot; leaving it, the band is black again) */
+        was_wide = (uint8_t)wide;
+        hl.on = 0;
+        ui.sig[5] = 0;
+        cv_begin(240, HL_H, C_BLACK);
+        cv_blit(0, HL_Y);
+    }
+    vis = !wide && (hl_menu() || lay_hint_t || (hl.t && hl.scr == ui.scr && lay.shown == LY_PLAY && !page_owned())) && ov != 1u && ov != 3u && ov != 4u;
     if (vis && !hl_menu() && !lay_hint_t && !hl_text()) {
         char w[64];
         vis = hl_src(w) != 0;                           /* (no line: shown still when the value is automated, its sources) */
     }                                        /* (a value with no line: nothing; a menu keeps its empty line) */
-    hl_nn_only = !vis && nn_vis && ov != 1u && ov != 3u && ov != 4u;   /* (the note played on the keys alone: the line shows */
+    hl_nn_only = !wide && !vis && nn_vis && ov != 1u && ov != 3u && ov != 4u;   /* (the note played on the keys alone: the line shows */
     vis |= hl_nn_only;                                                  /* it and nothing else, op_draw.c nn_tick) */
     if (vis == hl.on)
         return;

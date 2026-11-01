@@ -67,6 +67,11 @@ struct BuilderWebView: UIViewRepresentable {
             event(e)
         }
 
+        /// The site is out of reach (offline): a message, not a blank page
+        func webView(_ view: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+            OfflinePage.show(view, feature: "The builder", error: error)
+        }
+
         /// The builder's own pages stay here; any other link (the GitHub issue, the docs) opens in the browser
         func webView(_ view: WKWebView, decidePolicyFor action: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
             guard let url = action.request.url, action.targetFrame?.isMainFrame ?? false || action.targetFrame == nil else {

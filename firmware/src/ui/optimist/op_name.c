@@ -18,7 +18,7 @@
  * sentence case. A user preset's name is its record's (upreset.c up_rec_t.name); a project's is the section log's
  * names record (storage/sections/sections.c sec_name_set): only builds with the log (SECTIONS 8 or
  * 16) name projects, the four RAM slots save as before. */
-enum { NK_NONE, NK_USER, NK_PROJ };
+enum { NK_NONE, NK_USER, NK_PROJ, NK_CARD };            /* (NK_CARD: SD card mode's, nm.slot the list: op_sdcard.c) */
 #define NM_LEN 12u
 #define NM_TAP_MS 800u                                 /* multi-tap: the next letter within this */
 #define NM_REP_MS 450u                                 /* a held arrow / DELETE repeats after this, */
@@ -42,6 +42,9 @@ static struct {
     uint32_t t, rep_t, home_t;                         /* fm1_ms of the last tap; of the next repeat; HOME's press */
     char s[NM_LEN + 1u];
     char ph[NM_LEN + 1u];                              /* the automatic name ("ANALOG 07", "PROJECT 3") */
+#if FELUCCA_SD_UI
+    char was[NM_LEN + 1u];                             /* NK_CARD: the name asked over (its own file may be written over) */
+#endif
 } nm;
 #if SEC_LOGGED
 static void sec_name(uint32_t s, char *b);             /* storage/sections/sections.c */
@@ -50,7 +53,7 @@ static int sec_name_set(uint32_t s, const char *nm);
 static int up_store(uint32_t k, const char *name);     /* storage/upreset.c */
 static void op_play(void);                              /* op_input.c */
 
-static int name_on(void) { return nm.kind != NK_NONE; }
+static int name_on(void) { return nm.kind != NK_NONE || pw_on(); }   /* (the Wi-Fi password entry holds NAME's gates too: op_wifi.c) */
 static void name_close(void)
 {
     nm.kind = NK_NONE;
@@ -94,6 +97,20 @@ static void name_open(uint32_t kind, uint32_t k)
     ui.force = 1;
 }
 static void name_user(uint32_t k) { name_open(NK_USER, k); }
+#if FELUCCA_SD_UI
+/* SD card mode: a project, a preset or a kit named for the card (list: op_sdcard.c SDC_*), prefilled; was: the name of the
+ * slot the SAVE was asked over ("" a new one) */
+static void name_card(uint32_t list, const char *prefill, const char *was)
+{
+    static const char *const PH[SDC_N] = {"PROJECT", "PRESET", "KIT", "SAMPLE"};
+    name_open(NK_CARD, list);
+    str_cpy(nm.ph, list == SDC_PRE && !is_drum(tsel()) ? ENGINES[tsel()->eng_req % NENGINES]->name : PH[list % SDC_N],
+            sizeof nm.ph);
+    str_cpy(nm.s, prefill, sizeof nm.s);
+    str_cpy(nm.was, was, sizeof nm.was);
+    nm.len = nm.cur = (uint8_t)str_len(nm.s);
+}
+#endif
 static void name_user_free(void)                        /* SAVE AS, SAVE + a sound button: the first free slot */
 {
     uint32_t i;
@@ -252,6 +269,15 @@ static void name_ok(void)
         return;
     }
     kind = nm.kind;
+#if FELUCCA_SD_UI
+    if (kind == NK_CARD) {                              /* the card's: a name it cannot take stays on NAME (said) */
+        if (sdm_save(nm.slot, b[0] ? b : nm.ph, nm.was) <= 0)
+            name_close();
+        sdc.stale = 1;
+        sdc.op = 0;                                     /* (after an action: LOAD again, as the slots') */
+        return;
+    }
+#endif
     name_close();
     ui.toast_next = 1;                                  /* (what it says: a toast, as a confirmed action's) */
     if (kind == NK_USER) {
@@ -278,6 +304,12 @@ static void name_frame(uint32_t pressed, uint32_t held)
 {
     uint32_t k, hb = (1u << panel.btn[B_HOME]);
     int32_t s;
+#if WIFI_UI
+    if (pw_on()) {
+        pw_frame(pressed, held);                        /* (a Wi-Fi password, not a name: op_wifi.c) */
+        return;
+    }
+#endif
     if (nm.later && !song.playing && !transport_req) { /* (the save asked while playing, now stopped) */
         nm.later = 0;
         name_ok();
@@ -351,6 +383,10 @@ static void name_frame(uint32_t pressed, uint32_t held)
 static uint32_t name_leds(uint32_t *d)
 {
     uint32_t k, m = 0;
+#if WIFI_UI
+    if (pw_on())
+        return pw_leds(d);
+#endif
     *d = 0;
     for (k = 0; k < 27u; k++) {
         int32_t w = punch_key(k);
@@ -369,6 +405,12 @@ static uint32_t name_leds(uint32_t *d)
 static void name_title(char *t, uint32_t n)
 {
     char l[4];
+#if WIFI_UI
+    if (pw_on()) {
+        pw_title(t, n);
+        return;
+    }
+#endif
     str_cpy(t, "NAME ", n);
     if (nm.kind == NK_USER) {
         up_slot_label(l, nm.slot);
@@ -376,6 +418,10 @@ static void name_title(char *t, uint32_t n)
     } else {
         str_cpy(t + 5, nm.ph, n - 5u);                  /* "Name project 3" */
     }
+#if FELUCCA_SD_UI
+    if (nm.kind == NK_CARD)
+        str_cpy(t + 5, SDC_WHAT[nm.slot % SDC_N], n - 5u);   /* "Name preset" */
+#endif
 }
 static uint32_t name_sig(void)
 {
@@ -475,7 +521,14 @@ static void name_draw_foot(void)
 }
 static void name_draw(void)                             /* the cards' band, the panel, the hints (op_draw.c op_frame_draw) */
 {
-    uint32_t sig = name_sig();
+    uint32_t sig;
+#if WIFI_UI
+    if (pw_on()) {
+        pw_draw();
+        return;
+    }
+#endif
+    sig = name_sig();
     if (sig == ui.sig[1] && sig == ui.sig[2])
         return;
     ui.sig[1] = ui.sig[2] = sig;

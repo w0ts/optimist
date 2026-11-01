@@ -4,7 +4,7 @@
  * four lines and SPRING (FX > REVERB > TYPE picks one at run time: fx.c rev_bus, rev_type.c). Included by fx.c.
  * Both run at 22.05 kHz behind fx.c's half-band filters (rev_half_pair):
  * the same RAM holds twice the delay time, the top octave (> 11 kHz) is gone, and the in-loop damping took it
- * anyway. One ring of int16 for every line and allpass (RV_N, a power of two; REV_HALF: half of it), one write
+ * anyway. One ring of int16 for every line and allpass (RV_N, a power of two), one write
  * index that counts down: line k is written at p + base_k and read d samples later at p + base_k + d
  * (Mutable Instruments' FxEngine layout: one mask per access, no per-line wrap).
  *
@@ -12,11 +12,11 @@
  * allpasses (0.75, 0.75, 0.625, 0.625), then a figure-of-eight tank: each half a modulated allpass (-0.7), a
  * delay, the damping low-pass and the decay gain, an allpass (0.5), a delay, into the other half. The output:
  * seven taps per side across both halves (Dattorro's table, scaled). Lengths: Dattorro's at 29761 Hz, scaled
- * to fill RV_N at 22.05 kHz (0.49 of his plate's time; REV_HALF 0.24), each the nearest unused prime.
+ * to fill RV_N at 22.05 kHz (0.49 of his plate's time), each the nearest unused prime.
  *
  * FDN8 (after J.-M. Jot's feedback delay networks and S. Costello's ReverbSc, all lines modulated), long and
  * lush: a pre-delay, four input allpasses, eight lines (62..117 ms in the pool's 32 KB ring, REV_POOL; 29..57 ms in
- * 16 KB, REV_HALF in the pool or neither; 14..29 ms in 8 KB, REV_HALF in main RAM), each read through a slowly
+ * 16 KB), each read through a slowly
  * moving tap (its own LFO, ~0.6..1.2 Hz, the depth growing with SIZE) whose fraction goes through a first-order
  * allpass (flat: the modulation takes no treble), damped by its own one-pole (Jot: per length), its own decay
  * gain for its length (the same dB per second on every line), mixed by the 8 x 8 Householder matrix (I - 2/8:
@@ -31,13 +31,17 @@
  * low-pass steps at least 1 (fx_step; FDN8's moves toward its input, its allpasses shrink a lone value): a tail
  * with no input reaches exactly 0, and the bus' idle skip (fx.c) works as for the ROOM. */
 #if FELUCCA_REV_FDN8             /* FDN8: twice the ring in the pool (REV_POOL), below */
-#define RV_N ((FELUCCA_REV_HALF ? 4096u : 8192u) << (FELUCCA_REV_POOL ? 1 : 0))
+#define RV_N (8192u << (FELUCCA_REV_POOL ? 1 : 0))
 #else
-#define RV_N (FELUCCA_REV_HALF ? 4096u : 8192u)
+#define RV_N 8192u
 #endif
 #define RV_M (RV_N - 1u)
-static int16_t rev_line[FELUCCA_FX_REVERB ? (RV_N > REV_LINE_OWN ? RV_N : REV_LINE_OWN) : 1] REV_SECTION;   /* (shared:
-                                 * the ROOM's lines and SPRING's loop too, fx.c) */
+#define REV_LINE_N (FELUCCA_FX_REVERB ? (RV_N > REV_LINE_OWN ? RV_N : REV_LINE_OWN) : 1u)   /* (its samples) */
+#if FXM_NEED
+static int16_t *rev_line;       /* (in the arena while the reverb is used: fx/fx_arena.c) */
+#else
+static int16_t rev_line[REV_LINE_N] REV_SECTION;   /* (shared: the ROOM's lines and SPRING's loop too, fx.c) */
+#endif
 static struct {                 /* (one tank runs at a time: PLATE's and FDN8's fields side by side, fx.c's switch clears) */
     uint32_t p;                  /* the write index (counts down, masked on access) */
 #if FELUCCA_REV_FDN8
@@ -177,21 +181,12 @@ static int32_t rv_lpc(int32_t c, uint32_t sc)            /* (32-bit divides only
 #define rv_step rvp_step
 #define RB_END RBP_END
 /* ---------------------------------------------------------------------------------------------- PLATE --- */
-#if FELUCCA_REV_HALF
-#define RV_EXC 4                                         /* the tank allpasses' modulation, +- samples */
-enum { RV_I1 = 29, RV_I2 = 19, RV_I3 = 67, RV_I4 = 53, RV_M1 = 127, RV_D1 = 797, RV_A2 = 331, RV_D2 = 673,
-       RV_M3 = 163, RV_D3 = 757, RV_A4 = 479, RV_D4 = 569 };
-enum { RV_TL0 = 48, RV_TL1 = 535, RV_TL2 = 344, RV_TL3 = 359, RV_TL4 = 358, RV_TL5 = 34, RV_TL6 = 192,
-       RV_TR0 = 63, RV_TR1 = 652, RV_TR2 = 221, RV_TR3 = 481, RV_TR4 = 379, RV_TR5 = 60, RV_TR6 = 22 };
-#define RV_DAMP(d) rv_damp(d, 32686, 27188, 80686, 233)
-#else
 #define RV_EXC 6
 enum { RV_I1 = 53, RV_I2 = 41, RV_I3 = 137, RV_I4 = 101, RV_M1 = 241, RV_D1 = 1607, RV_A2 = 653, RV_D2 = 1327,
        RV_M3 = 331, RV_D3 = 1523, RV_A4 = 953, RV_D4 = 1151 };
 enum { RV_TL0 = 96, RV_TL1 = 1073, RV_TL2 = 691, RV_TL3 = 720, RV_TL4 = 718, RV_TL5 = 67, RV_TL6 = 385,
        RV_TR0 = 127, RV_TR1 = 1309, RV_TR2 = 443, RV_TR3 = 965, RV_TR4 = 762, RV_TR5 = 121, RV_TR6 = 44 };
 #define RV_DAMP(d) rv_damp(d, 32801, 61866, 61770, 499)
-#endif
 /* the ring: each element's base (its length + 1; the modulated two + 2 RV_EXC + 2) */
 enum { RB_I1 = 0, RB_I2 = RB_I1 + RV_I1 + 1, RB_I3 = RB_I2 + RV_I2 + 1, RB_I4 = RB_I3 + RV_I3 + 1,
        RB_M1 = RB_I4 + RV_I4 + 1, RB_D1 = RB_M1 + RV_M1 + 2 * RV_EXC + 2, RB_A2 = RB_D1 + RV_D1 + 1,
@@ -199,7 +194,7 @@ enum { RB_I1 = 0, RB_I2 = RB_I1 + RV_I1 + 1, RB_I3 = RB_I2 + RV_I2 + 1, RB_I4 = 
        RB_A4 = RB_D3 + RV_D3 + 1, RB_D4 = RB_A4 + RV_A4 + 1, RB_END = RB_D4 + RV_D4 + 1 };
 _Static_assert(RB_END <= RV_N, "PLATE: the ring holds every element");
 #define RV_IN 13000              /* the send into the tank, Q15 (the ROOM's) */
-#define RV_OUT (FELUCCA_REV_HALF ? 6760 : 8920)   /* the seven taps' sum, Q17: the wet level as the ROOM's */
+#define RV_OUT 8920   /* the seven taps' sum, Q17: the wet level as the ROOM's */
 
 static __attribute__((noinline)) void rv_params(void)   /* SIZE / DAMP -> the gains, the damping (XIP: rare; FAR) */
 {
@@ -295,15 +290,7 @@ FX_STEP int32_t rv_step(int32_t in, int32_t *yr, int32_t *wr)
 #define RV_RATES 50, 58, 46, 55, 60, 49, 52, 47   /* LFO_INC, a line each: ~0.6 .. 1.2 Hz (RV_EXC: 4.6 cents at most) */
 #define RV_KG 31                 /* the loop gains' share of the decay, / 32 (the low-passes add the rest) */
 #define RV_INSH 3                /* the send above the knee: x 2^(-doublings / 2^RV_INSH) */
-#if RV_N == 4096u                /* 8 KB (REV_HALF in main RAM) */
-#define RV_EXC 6                 /* the deepest modulation, +- samples (SIZE 127) */
-#define RV_FEXC 3                /* up to the knee */
-#define RV_PD 110                /* the longest pre-delay, samples (5 ms) */
-#define RV_LREF 488              /* the mean line the damping's fit was made for */
-enum { RV_IA = 23, RV_IB = 17, RV_IC = 47, RV_ID = 31, RV_L0 = 317, RV_L1 = 353, RV_L2 = 389, RV_L3 = 439, RV_L4 = 479,
-       RV_L5 = 541, RV_L6 = 593, RV_L7 = 631 };
-#define RV_DAMP(d) rv_damp(d, 32831, 10056, -1613, -245)
-#else                            /* 16 KB (main RAM; REV_HALF in the pool) and 32 KB (the pool) */
+/* 16 KB (main RAM) and 32 KB (the pool) */
 #define RV_EXC 8
 #define RV_FEXC 4
 #define RV_PD 220                /* (10 ms) */
@@ -314,7 +301,6 @@ enum { RV_IA = 47, RV_IB = 37, RV_IC = 113, RV_ID = 83 };
 enum { RV_L0 = 647, RV_L1 = 719, RV_L2 = 787, RV_L3 = 877, RV_L4 = 977, RV_L5 = 1087, RV_L6 = 1187, RV_L7 = 1249 };
 #else
 enum { RV_L0 = 1361, RV_L1 = 1499, RV_L2 = 1637, RV_L3 = 1823, RV_L4 = 2039, RV_L5 = 2267, RV_L6 = 2477, RV_L7 = 2579 };
-#endif
 #endif
 #define RV_SP (2 * RV_EXC + 2)   /* a line's span past its length: reads at L .. L + 2 RV_EXC + 1 */
 #define RV_C (RV_EXC + 1)        /* the read's centre past the length */

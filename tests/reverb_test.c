@@ -1,8 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* The ROOM reverb (fx.c rev_step) through fx_buses: decay time, level, the top octave, the idle skip.
- *   build/host/reverb_test REF [WAVDIR]        full rate: checks, writes its numbers to REF
- *   build/host/reverb_test_half REF [WAVDIR]   FELUCCA_REV_HALF=1 (the tank at 22.05 kHz): checks, and
- *                                              compares with REF (written by the full-rate run first)
+ *   build/host/reverb_test REF [WAVDIR]        checks, writes its numbers to REF
  * Numbers: RT60 (T30 of the Schroeder curve) of a noise burst at five SIZE / DAMP settings, the wet RMS of a
  * low-passed noise (the band both rates keep) and of white noise, the wet energy below 8 kHz, 8..11 kHz and
  * above 11 kHz; per sound (a drum hit, a pad chord, a pluck: their send as the mix makes it) the same bands
@@ -40,9 +38,6 @@ static void rev_clear(void)                     /* every line, diffuser and filt
     memset(rev_ap, 0, sizeof rev_ap);
     memset(fx.line_lp, 0, sizeof fx.line_lp);
     fx.rev_q = FX_Q_MAX;
-#if FELUCCA_REV_HALF
-    rev_half_clear();                                   /* (fx.c: either filter, REV_HB_LONG's rhl too) */
-#endif
 }
 
 static int rev_idle(void)                       /* fx_buses would skip the bus on a silent block */
@@ -297,7 +292,7 @@ static void t_sound(uint32_t *k, uint32_t which, const char *wavdir)
         uint32_t m;
         for (m = 0; m < 2u; m++) {
             FILE *fo;
-            snprintf(path, sizeof path, "%s/%s-%s-%s.wav", wavdir, FELUCCA_REV_HALF ? "half" : "full", SND[which],
+            snprintf(path, sizeof path, "%s/%s-%s-%s.wav", wavdir, "full", SND[which],
                      m ? "wet" : "mix");
             if (!(fo = fopen(path, "wb"))) {
                 printf("reverb: cannot write %s\n", path);
@@ -337,8 +332,8 @@ static void treble(int32_t *x, uint32_t n)
 #define RT_LONG_TOL 5
 static void t_long(uint32_t *k)
 {
-    /* before the stretch (optimist 272773f): LSET's first five, full rate and REV_HALF */
-    static const double OLD[2][5] = {{0.496, 0.783, 1.439, 1.535, 1.295}, {0.503, 0.784, 1.439, 1.522, 1.287}};
+    /* before the stretch (optimist 272773f): LSET's first five */
+    static const double OLD[5] = {0.496, 0.783, 1.439, 1.535, 1.295};
     uint32_t s, f, ok_old = 1, ok_mono = 1;
     char nm[32];
     double rt[NLONG], rtt[NLONG];
@@ -362,7 +357,7 @@ static void t_long(uint32_t *k)
         free(out);
     }
     for (s = 0; s < 5u; s++)
-        ok_old &= fabs(rt[s] / OLD[FELUCCA_REV_HALF][s] - 1) <= 0.03;
+        ok_old &= fabs(rt[s] / OLD[s] - 1) <= 0.03;
     ok_mono = rt[2] < rt[5] && rt[5] < rt[6] && rt[6] < rt[8] && rt[8] < rt[10];
     check(ok_old, "long: RT60 at SIZE 0 / 45 / 90 (DAMP 60, 0, 127) within 3 % of before the stretch");
     check(rt[8] >= 5 * RT_OLD_TOP, "long: RT60 at SIZE 126 DAMP 60 at least 5 x the old top (3.68 s)");
@@ -410,48 +405,9 @@ static void t_stable(void)
     }
 }
 
-static int load_ref(const char *path, double *ref)
-{
-    FILE *f = fopen(path, "r");
-    char name[64];
-    double v;
-    uint32_t i, got = 0;
-    if (!f)
-        return 0;
-    while (fscanf(f, "%63s %lf", name, &v) == 2)
-        for (i = 0; i < NKEY; i++)
-            if (KEY[i] && !strcmp(KEY[i], name))
-                ref[i] = v, got++;
-    fclose(f);
-    return got == NKEY;
-}
-
-static void compare(const double *ref)
-{
-    uint32_t i, ok_rt = 1, ok_snd = 1, ok_lo = 1, ok_long = 1;
-    for (i = 0; i < NKEY; i++) {
-        int rt = strstr(KEY[i], "rt60") != 0, lo = strstr(KEY[i], "lo8k") != 0;
-        double d = rt ? (ref[i] > 0 ? 100 * (val[i] / ref[i] - 1) : 1e9) : val[i] - ref[i];
-        printf("reverb: half vs full  %-16s %9.2f  %9.2f  %+7.2f %s\n", KEY[i], ref[i], val[i], d, rt ? "%" : "dB");
-        if (rt && i < NSET)
-            ok_rt &= fabs(d) <= 5;
-        else if (!strncmp(KEY[i], "rt60L", 5))
-            ok_long &= fabs(d) <= RT_LONG_TOL;
-        else if (rt)
-            ok_snd &= fabs(d) <= 5;
-        else if (lo || !strcmp(KEY[i], "rms_lowpassed"))
-            ok_lo &= fabs(d) <= 1;
-    }
-    check(ok_rt, "half rate: the burst's RT60 within 5 % of the full rate's, every SIZE / DAMP");
-    check(ok_snd, "half rate: each sound's tail decays within 5 % of the full rate's");
-    check(ok_long, "half rate: the long tails' RT60 (t_long) within RT_LONG_TOL % of the full rate's");
-    check(ok_lo, "half rate: the wet level below 8 kHz within 1 dB (low-passed noise, every sound)");
-}
-
 int main(int argc, char **argv)
 {
     uint32_t k = 0, which;
-    static double ref[NKEY];
     if (argc < 2) {
         fprintf(stderr, "usage: %s REF [WAVDIR]\n", argv[0]);
         return 2;
@@ -463,23 +419,15 @@ int main(int argc, char **argv)
         t_sound(&k, which, argc > 2 ? argv[2] : 0);
     t_long(&k);
     t_stable();
-    if (FELUCCA_REV_HALF) {
-        if (!load_ref(argv[1], ref)) {
-            printf("reverb: no full-rate numbers in %s (run build/host/reverb_test %s first)\n", argv[1], argv[1]);
-            return 1;
-        }
-        compare(ref);
-    } else {
-        FILE *f = fopen(argv[1], "w");
-        uint32_t i;
-        if (!f) {
-            printf("reverb: cannot write %s\n", argv[1]);
-            return 1;
-        }
-        for (i = 0; i < NKEY; i++)
-            fprintf(f, "%s %.6f\n", KEY[i], val[i]);
-        fclose(f);
+    FILE *f = fopen(argv[1], "w");
+    uint32_t i;
+    if (!f) {
+        printf("reverb: cannot write %s\n", argv[1]);
+        return 1;
     }
+    for (i = 0; i < NKEY; i++)
+        fprintf(f, "%s %.6f\n", KEY[i], val[i]);
+    fclose(f);
     printf("reverb: %u failed\n", fails);
     return fails != 0;
 }

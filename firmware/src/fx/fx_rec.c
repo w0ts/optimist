@@ -21,7 +21,7 @@
 #define FXR_GEN_N 0u
 #endif
 #define FXR_HEAD (2u + FX_NSLOT)
-#define FXR_MAX (427u + FXR_GEN_N)                     /* the stored form at its longest (FXR_HEAD + the TLVs; 120 -> 156
+#define FXR_MAX (461u + FXR_GEN_N)                     /* the stored form at its longest (FXR_HEAD + the TLVs; 120 -> 156
                                                         * 2026-10-13: + the further inserts' TLVs, 6 x (2 + 4), fx_slots.c
                                                         * fxs_tlv, in every build: a record from any build reads whole;
                                                         * 156 -> 168 2026-10-13: CHRS ECHO, 2 x (2 + 4); 168 -> 186
@@ -35,7 +35,12 @@
                                                         * GEN_TLV 2026-10-15, seq/gen.c: 2 + 4 a slot, 20 slots; 352 -> 378 2026-10-18: the shapers' TLVs 7 x (2 + 4), MST_TLV + 7;
                                                         * 378 -> 383: the delay filter's DLYF_TLV 2 + 3; 383 -> 397 2026-10-19:
                                                         * TAPE SPIT, their TLVs 2 x (2 + 4) and the type list's 2 x 2, MST_TLV + 2; 397 -> 398 2026-10-21: DLYF_TLV + FILTER RESO;
-                                                        * 398 -> 427 2026-10-22: XDLY, its TLV 2 + 25 and the type list's 2) */
+                                                        * 398 -> 427 2026-10-22: XDLY, its TLV 2 + 25 and the type list's 2;
+                                                        * 427 -> 447 2026-10-29: ROOM TDLY, their TLVs 2 x (2 + 5), the type
+                                                        * list's 3 x 2: EXGN's id 29 kept in every build; kept 2026-10-29 when
+                                                        * ROOM TDLY became REV DLY, their TLVs read, no longer written, CHO DLY
+                                                        * REV's + 1 each: a record of that day reads whole; 447 -> 461
+                                                        * 2026-10-30: the returns' PRE and POST, RPP_TLV 2 + 12) */
 /* The track insert slots (2026-10-12, fx_slots.c ins_slot): the header's slot[4] holds the master SENDS, its insert
  * places filled, as far as they go, with the inserts the tracks' slots hold (an older build then hears them on the
  * tracks with an amount: best effort); flags bit 0 (FXR_F_INS) says the record is of this model (the drum sounds' DST CMP
@@ -54,11 +59,18 @@
 /* TLV RET_TLV (0x4A, fx-pool 2026-10-15): the returns A B C (fx_slots.c rt_tlv: each slot's type, line and amount), only
  * when one holds a type that is not a send; the header keeps the sends as before. A load's (`all`) */
 #define RET_TLV 0x4Au
-/* TLV RSND_TLV (0x4B, 2026-10-16): the sends between the returns (fx_slots.c rs_tlv: A -> B, A -> C, B -> C, a byte each,
+/* TLV RSND_TLV (0x4D since 2026-10-31; 0x4B from 2026-10-16, the id GEN_TLV already had: with the note generators built a
+ * record's sends were read as theirs. A record of before with sends at 0x4B loads them as none, the user's ruling: no migration):
+ * the sends between the returns (fx_slots.c rs_tlv: A -> B, A -> C, B -> C, a byte each,
  * 0..127; with RET_FB then B -> A, C -> A, C -> B: 6 bytes), only when one is not 0; none: every one at 0, as every project from before. A reader takes the sends it knows
  * (a longer form's further ones skipped). A load's (`all`), as the returns' levels */
-#define RSND_TLV 0x4Bu
-#define UT_TLV_N0 11u                                 /* (the form before 2026-10-15) */
+#define RSND_TLV 0x4Du
+/* TLV RPP_TLV (0x4C, 2026-10-30): the returns' inserts, PRE and POST (fx_slots.c rp_tlv: each line's PRE type, amount, POST
+ * type, amount; 12 bytes), only when one holds a type. None (every project of before): every return without, its level,
+ * mute, effect, amount and sends as they were (FXRET_TLV, the header, RET_TLV, RSND_TLV: the mixer's RET A B C rows show
+ * them). A reader of before skips it. A load's (`all`), after the returns' types */
+#define RPP_TLV 0x4Cu
+#define UT_TLV_N0 11u                                /* (the form before 2026-10-15) */
 #define UT_TLV_N (UT_TLV_N0 + 4u)
 #define INS_TLV 0x42u
 #define INS_TLV_N0 (NTRK * INS_N + 3u * NTRK + 3u)    /* (its form before fx-rework: an older reader takes these) */
@@ -105,8 +117,8 @@ static void dlyf_untlv(const uint8_t *a, uint32_t n)   /* (n 0: none, the defaul
 #define FXRET_TLV 0x41u
 #define FXRET_N 3u
 #define FXRET_TLV_N (FXRET_N + 1u)
-_Static_assert(FXR_HEAD + 2u * (FXT_N - 1u) + FXT_TLV_SUM + 2u + DLM_TLV_N + 2u + FXRET_TLV_N + 2u + INS_TLV_N + 2u + SMUTE_TLV_ACC + 2u + MST_TLV_N + 2u + LIN_TLV_N + 2u + NPART + 2u + UT_TLV_N + 2u + RT_TLV_N + 2u + RS_NMAX + 2u + DLYF_N + FXR_GEN_N <= FXR_MAX, "the FX record: every TLV fits");
-_Static_assert(UT_TLV > VCNT_TLV && RET_TLV > UT_TLV + 1u && RSND_TLV == RET_TLV + 1u, "the USB input's TLV, the returns': ids no other takes (0x49: EQ3's)");
+_Static_assert(FXR_HEAD + 2u * (FXT_N - 1u) + FXT_TLV_SUM + 2u + DLM_TLV_N + 2u + FXRET_TLV_N + 2u + INS_TLV_N + 2u + SMUTE_TLV_ACC + 2u + MST_TLV_N + 2u + LIN_TLV_N + 2u + NPART + 2u + UT_TLV_N + 2u + RT_TLV_N + 2u + RS_NMAX + 2u + DLYF_N + 2u + RP_TLV_N + FXR_GEN_N <= FXR_MAX, "the FX record: every TLV fits");
+_Static_assert(UT_TLV > VCNT_TLV && RET_TLV > UT_TLV + 1u && RPP_TLV == RET_TLV + 2u && RSND_TLV == RET_TLV + 3u, "the USB input's TLV, the returns': ids no other takes (0x49: EQ3's)");
 #if GEN_ON
 _Static_assert(GEN_TLV == RET_TLV + 1u && GEN_TLV_MAX <= 255u, "the note generators' TLV (seq/gen.c): 0x4B, past fx-pool's 0x49 0x4A");
 #endif
@@ -341,10 +353,13 @@ static __attribute__((noinline)) void ut_untlv(const uint8_t *a, uint32_t n)    
     for (k = UTV_N0; n >= UT_TLV_N && k < UTV_N; k++)    /* (an UT_TLV of before: their defaults) */
         ut.v[k] = (int16_t)clamp((int8_t)a[UT_TLV_N0 + k - UTV_N0], ut_vd(k)->min, ut_vd(k)->max);
     for (k = 0; k < INS_N; k++) {
-        uint32_t t = a[UTV_N0 + k];
+        uint32_t t = FXT_LEGACY(a[UTV_N0 + k]);        /* (an old CHRS: CHO, its amount up to 64 its MIX: fxr_legacy) */
+        int32_t v = (int8_t)a[UTV_N0 + 2u + k];
         ut.slot[k] = (uint8_t)(t < FXT_N && (UT_OK >> t & 1u) && (!k || t != ut.slot[0] || t == FXT_NONE) ? t : FXT_NONE);
+        if (a[UTV_N0 + k] == FXT_CHRS && v > 64)
+            v = 64;
         ut.amt[k] = ut.slot[k] != FXT_NONE && FXT_AMT[ut.slot[k]] != 0xFFu ?
-                    (int16_t)clamp((int8_t)a[UTV_N0 + 2u + k], TP[FXT_AMT[ut.slot[k]]].min, TP[FXT_AMT[ut.slot[k]]].max) : 0;
+                    (int16_t)clamp(v, TP[FXT_AMT[ut.slot[k]]].min, TP[FXT_AMT[ut.slot[k]]].max) : 0;
     }
 }
 #endif
@@ -433,6 +448,7 @@ static uint32_t fxr_encode(uint8_t *o)
     n = fxr_tlv(o, n, DLYF_TLV, dlyf_tlv(o + n + 2u));  /* the delay filter (above) */
     n = fxr_tlv(o, n, RET_TLV, rt_tlv(o + n + 2u));    /* the returns holding another type (fx_slots.c rt_tlv) */
     n = fxr_tlv(o, n, RSND_TLV, rs_tlv(o + n + 2u));   /* the sends between the returns (fx_slots.c rs_tlv) */
+    n = fxr_tlv(o, n, RPP_TLV, rp_tlv(o + n + 2u));    /* the returns' PRE and POST inserts (fx_slots.c rp_tlv) */
     (void)mst_map(mm);                                 /* the master's slots (above), as the tracks' */
     n = fxr_tlv(o, n, MST_TLV, mst_tlv(mm, o + n + 2u));
     n = fxr_tlv(o, n, LIN_TLV, lin_tlv(o + n + 2u));   /* the drum lanes' slots (above) */
@@ -441,12 +457,41 @@ static uint32_t fxr_encode(uint8_t *o)
     n = fxr_tlv(o, n, INS_TLV, ins_tlv(map, o + n + 2u));
     return any || n > FXR_HEAD ? n : 0u;
 }
+/* (2026-10-29) an old record's insert copies CHRS ROOM TDLY are CHO REV DLY (fx_slots.c FXT_LEGACY): their amounts
+ * (fx_slots.c leg_amt) to the new type's, a track's P_CHOR P_REV P_DLY (the insert's MIX), the master's mst_amt. A load
+ * (all): each slot the record held a copy in (ia, ma: its stored slots), its amount (0 without the copy's TLV: it was
+ * at 0, not the send's level the track had); a song section (the slots kept): the tracks and the master holding the new
+ * type, when the record has the copy's TLV. CHRS's amount up to 64 was its share of the wet (the MIX's), past 64 its
+ * sweep: 64 */
+static void fxr_legacy(const uint8_t *ia, uint32_t in, const uint8_t *ma, uint32_t mn, int all)
+{
+    uint32_t j, k, s;
+    for (j = 0; j < 3u; j++) {
+        uint32_t lt = LEG_T[j], t = FXT_LEGACY(lt), has = leg_has >> j & 1u, v;
+        for (k = 0; k <= NTRK; k++) {
+            uint32_t held = 0, mc = k == NTRK && lt == FXT_CHRS, h = mc ? mst_amt[FXT_CHRS] != 0 : has;   /* (CHRS's master
+                                                        * amount: MST_TLV's, read above, not its own TLV's) */
+            for (s = 0; s < INS_N; s++)
+                held |= k < NTRK ? (all ? ia && in >= NTRK * INS_N && ia[k * INS_N + s] == lt : h && ins_slot[k][s] == t) :
+                                   (all ? ma && mn >= INS_N && ma[s] == lt : h && mst_slot[s] == t);
+            if (!held)
+                continue;
+            v = mc ? (uint32_t)mst_amt[FXT_CHRS] : has ? leg_amt[j][k] : 0u;
+            v = lt == FXT_CHRS && v > 64u ? 64u : v;
+            if (k < NTRK)
+                trk[k].p[FXT_AMT[t]] = (int16_t)v;
+            else
+                mst_amt[t] = (int16_t)v;
+        }
+    }
+    mst_amt[FXT_CHRS] = 0;                             /* (CHRS's master amount: MST_TLV's, read above) */
+}
 /* n bytes at a (0: none) -> the working FX state; all: the slot layouts too, the master's and the tracks' (a load; a
  * song section keeps them). 0 refused (the defaults) */
 static int fxr_decode(const uint8_t *a, uint32_t n, int all)
 {
-    uint32_t at = FXR_HEAD, in = 0, mn = 0, ln = 0, rn = 0;
-    const uint8_t *ia = 0, *ma = 0, *la = 0, *ra = 0;
+    uint32_t at = FXR_HEAD, in = 0, mn = 0, ln = 0, rn = 0, pn = 0;
+    const uint8_t *ia = 0, *ma = 0, *la = 0, *ra = 0, *pa = 0;
     int ok = n >= FXR_HEAD && n <= FXR_MAX && a[0] == FXR_VER;
     while (ok && at < n)                               /* (the TLVs: checked whole before any is taken) */
         if (at + 2u > n || at + 2u + a[at + 1u] > n)
@@ -506,6 +551,8 @@ static int fxr_decode(const uint8_t *a, uint32_t n, int all)
             la = a + at + 2u, ln = a[at + 1u];
         else if (a[at] == RET_TLV)
             ra = a + at + 2u, rn = a[at + 1u];
+        else if (a[at] == RPP_TLV)
+            pa = a + at + 2u, pn = a[at + 1u];
         else
             fxs_untlv(a[at], a + at + 2u, a[at + 1u], all);   /* (an unknown type: skipped) */
     if (ok && !(a[1] & FXR_F_INS)) {                   /* a record from before the track slots: a drum sound's DST /
@@ -528,9 +575,11 @@ static int fxr_decode(const uint8_t *a, uint32_t n, int all)
         fxs_set(ok ? a + 2 : FXS_OLD);                 /* (the sends; an insert's place: empty) */
         if (ra)
             rt_untlv(ra, rn);                          /* (the returns holding another type) */
+        rp_untlv(pa, pa ? pn : 0u);                    /* (the returns' inserts, after their types: none, every return without) */
         FXI_ASK(2u);                                   /* (a load: every limited instance handed out again in track
                                                         * order, fxi.c: the same project plays the same way) */
     }
+    fxr_legacy(ia, in, ma, mn, all);                   /* (an old record's CHRS ROOM TDLY: their amounts to CHO REV DLY) */
     return ok;
 }
 /* proj_capture, after the sum: the working state into the buffer's store */

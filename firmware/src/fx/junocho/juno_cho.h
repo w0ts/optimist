@@ -23,7 +23,7 @@
 #define JUNO_CHO_LEN 1024u
 #define JUNO_CHO_INL static inline __attribute__((always_inline))
 /* the line's samples: 16 bits (the line holds in >> sh), or with JUNO_CHO_WIDE defined 32 bits at the part's own scale
- * (Optimist's JUNO_FINE: the wet's steps no longer 8 or 4 units, its side no longer rounded apart in each ear; twice the
+ * (Optimist's build, always: the wet's steps no longer 8 or 4 units, its side no longer rounded apart in each ear; twice the
  * memory); the low-pass's products then 64 bits (its states pass 2^17) */
 #ifdef JUNO_CHO_WIDE
 typedef int32_t juno_cho_s;

@@ -94,7 +94,7 @@ _Static_assert(PJ_NP == 69u && PJ_E0 == P_A2ESUS && P_A2WAVE + 3u * PROJ_XW <= P
 /* FUNC (FELUCCA_DRUMS 0, 2026-10-26): FUNB's layout, track 4 a part, and a tail (one flash sector holds it): part 4's FM6
  * voice, switches and functions, then what FUNB keeps in its drum track's free slots, each part's own: the ENV2 extras
  * (pj_x), the macros' positions (MAC_ID), SLOOP 2.4's FILT STRUM VLEAD (px). Not kept: LFO 2 in the drum track's LFO
- * slots (l2_pack: only SLOOP's importer and test branches of before wrote it) */
+ * slots (only test branches of before wrote it) */
 typedef struct {
     uint8_t fm6[128], fm6_on, rsv;
     int8_t fm6_fn[16];
@@ -140,7 +140,7 @@ static struct { uint32_t from, to; } proj_nd;
 #define PJ_FM6(p, k) ((p)->fm6[k])
 #define PJ_FM6ON(p, k) ((p)->fm6_on[k])
 #define PJ_FM6FN(p, k) ((p)->fm6_fn[k])
-#define PJ_L2(q) ((q)->t[TRK_DRUM].p)            /* (the drum track's LFO slots: LFO 2 of before, l2_pack) */
+#define PJ_L2(q) ((q)->t[TRK_DRUM].p)            /* (the drum track's LFO slots: LFO 2 of before) */
 #define PROJ_D_N ((uint32_t)sizeof(project_t))   /* (FUNB's size) */
 #else
 #define PJ_FM6(p, k) ((uint32_t)(k) < PJ_NFM6 ? (p)->fm6[(uint32_t)(k) % PJ_NFM6] : (p)->nd.fm6)
@@ -361,8 +361,7 @@ static void dstep_from8(dstep_sn_t *o, const step8_t *s)
 }
 /* the delay's FREQ (core.h G_DCOLOR) as a project keeps it: + DLY_FREQ_MARK. A value under it is an older project's (or
  * SLOOP 2.4's) COLOR, a one-pole low-pass (2000 + 240 v a step, until 2026-10-18), read as the FREQ nearest its cutoff on
- * the synths' curve (CUTOFF_HZ): DLYC_X -> DLYC_Y interpolated, within 2 steps; SLOOP 2.4 gets the reverse
- * (sl24_export.c sl24_g_out) */
+ * the synths' curve (CUTOFF_HZ): DLYC_X -> DLYC_Y interpolated, within 2 steps */
 #define DLY_FREQ_MARK 128
 #define DLYC_N 10u
 static const uint8_t DLYC_X[DLYC_N] = {0, 8, 16, 24, 35, 50, 70, 85, 100, 115};
@@ -380,10 +379,6 @@ static int16_t dly_map(int32_t v, const uint8_t *a, const uint8_t *b)   /* a -> 
 static int16_t dly_freq_in(int32_t v)                   /* a project's G_DCOLOR -> the FREQ */
 {
     return v >= DLY_FREQ_MARK ? (int16_t)clamp(v - DLY_FREQ_MARK, 0, 127) : dly_map(clamp(v, 0, 127), DLYC_X, DLYC_Y);
-}
-static int16_t dly_color_out(int32_t v)                 /* a project's G_DCOLOR -> SLOOP 2.4's COLOR */
-{
-    return v >= DLY_FREQ_MARK ? dly_map(v - DLY_FREQ_MARK, DLYC_Y, DLYC_X) : (int16_t)clamp(v, 0, 127);
 }
 static int16_t swing_from_v3(int32_t v) { return (int16_t)clamp((v * 4 + 2) / 5, 0, 100); }   /* /250 -> /200 */
 
@@ -830,34 +825,8 @@ static void l2_slots_def(int16_t *v)
         v[L2_W0[k]] = TP[L2_W0[k]].def, v[L2_W1[k]] = 0;
 }
 _Static_assert(P_L2WAVE == P_L2RATE + 1 && P_L2TRIG == P_L2RATE + 2 && P_L2POL == P_L2RATE + 3 && P_L2DA == P_L2RATE + 4 &&
-               P_L2AB == P_L2RATE + 7 && P_E1PIT == P_L2RATE + L2_NV && P_COUNT == P_VOICES + 1,
+               P_L2AB == P_L2RATE + 7 && P_E1PIT == P_L2RATE + L2_NV && P_COUNT == P_L2FADE + 1,
                "LFO 2's values: in a row (the projects of before: l2_get)");
-#if FELUCCA_SL24_SAFE || FELUCCA_SL24_IMPORT
-/* the parts' LFO 2 values x (P_L2RATE ..) into p's drum track, when one is not at its default (AMT B: lfo1_store's
- * spill, written with the part's LFO DEST): the form of before, which only SLOOP's importer still makes (sl24_import.c,
- * the project it hands to proj_apply; never saved so: proj_capture keeps LFO 2 in the modulation record) */
-static void l2_pack(project_t *p, const int16_t (*x)[L2_NV])
-{
-#if !FELUCCA_DRUMS
-    (void)p, (void)x;                                   /* (FUNC keeps no LFO 2 here: SLOOP's importer needs drums) */
-}
-#else
-    int16_t *d = p->t[TRK_DRUM].p;
-    uint32_t k, j, any = 0;
-    for (k = 0; k < NPART; k++)
-        for (j = 0; j < L2_NV; j++)
-            any |= (uint32_t)(x[k][j] != TP[P_L2RATE + j].def);
-    if (!any)
-        return;
-    d[P_LRATE] = (int16_t)L2_TAG;
-    for (k = 0; k < NPART; k++) {
-        d[L2_W0[k]] = (int16_t)(((uint32_t)x[k][0] & 0xFFu) | ((uint32_t)x[k][5] & 0xFFu) << 8);
-        d[L2_W1[k]] = (int16_t)(((uint32_t)x[k][1] & 7u) | ((uint32_t)x[k][2] & 1u) << 3 | ((uint32_t)x[k][3] & 1u) << 4 |
-                                ((uint32_t)x[k][4] & 31u) << 5 | ((uint32_t)x[k][6] & 31u) << 10);
-    }
-}
-#endif
-#endif
 /* -> x, the parts' LFO 2 values (their defaults without a tag, each inside its range); 1 when p has them */
 static int l2_unpack(const project_t *p, int16_t (*x)[L2_NV])
 {
@@ -866,27 +835,8 @@ static int l2_unpack(const project_t *p, int16_t (*x)[L2_NV])
         l2_get(p, k, x[k]);
     return l2_tagged(p);
 }
-#if FELUCCA_SL24_IMPORT || FELUCCA_SL24_EXPORT
-#include "sl24/sl24_fm6.c"         /* SLOOP 2.4's FM6 patches <-> our voices (the importer, the exporter) */
-#endif
-#if FELUCCA_SL24_SAFE || FELUCCA_SL24_IMPORT
-#if FELUCCA_SL24_IMPORT
-#include "../seq/stepx.h"             /* (2.4's step extras) */
-#endif
-#if SL24_TP
-static void px_pack(project_t *p, const int16_t (*x)[3]);   /* (below: SLOOP 2.4's track values) */
-#endif
-#include "sl24/sl24_import.c"       /* SLOOP 2.4's projects: told apart (sl24_is), imported when asked (proj_from_sl24) */
-#endif
-#if FELUCCA_SL24_EXPORT
-#include "../seq/stepx.h"
-#include "sl24/sl24_export.c"       /* ours as a SLOOP 2.4 project (proj_to_sl24): the editor saves it (ed_sl24.c) */
-#endif
-#if FELUCCA_AUTO && ((FELUCCA_SL24_IMPORT && FELUCCA_FLASH) || FELUCCA_SL24_EXPORT)
-/* 2.4's step extras, one scratch for both ways: the import's on their way into the automation store (sl24_guard.c
- * sl24_import_buf) and the export's, the automation as 2.4's extras (ed_sl24.c ed_sl24_make). Each fills it and is
- * done with it inside one main-loop call, and neither calls the other */
-static stepx_t sl24_xs[NTRK] __attribute__((section(".pool")));
+#if FELUCCA_SL24_SAFE
+#include "sl24/sl24_is.c"           /* SLOOP's projects told apart (sl24_is, sl24_any): kept, never read */
 #endif
 
 /* ---- orphans: a part whose engine this build leaves out (registry.h). It plays the fallback engine with that
@@ -999,10 +949,16 @@ static void mc_unpack(const project_t *p)
 
 /* REC QUANTIZE (core.h G_RECQ) in the project's G_INFO slot: the CPU read-out, a value no build stores (0..0: every
  * project so far holds 0 there, and a build from before clamps whatever it finds to 0 on a load, so ON); bit 0 = OFF.
- * The read-outs draw the CPU (cpu_info), never the slot; a SLOOP 2.4 import / export clears it (sl24_import.c,
- * sl24_export.c sl24_g_out) */
+ * The read-outs draw the CPU (cpu_info), never the slot */
 #define RECQ_PACK() ((int16_t)(song.g[G_RECQ] ? 0 : 1))
 #define RECQ_UNPACK(v) ((int16_t)!((v) & 1))
+/* the PUNCH switch (FELUCCA_PUNCH_SW, fx/punch/punch.c) in the same slot, bit 1 = ON: an older project (0) loads with it
+ * off, a build without the switch reads bit 0 only (and saves its projects with it off) */
+#if FELUCCA_PUNCH_SW
+#define PUNCH_PACK() ((int16_t)(punch_sw ? 2 : 0))
+#else
+#define PUNCH_PACK() 0
+#endif
 #if FELUCCA_MIDI_CH
 /* the synth tracks' MIDI channels in the project's G_MIDI slot (a status, never saved before: 0 in every older project,
  * and SLOOP 2.4's MIDI OUT flag 0 / 1 there, which reads as channel 1 for part 1: its own): five bits a track, 0 = the
@@ -1116,7 +1072,7 @@ static void proj_capture(project_t *p, dlrec_t *d)   /* what is playing now, as 
 #else
     p->g[G_MIDI] = 0;                                   /* (G_MIDI: a status, not saved) */
 #endif
-    p->g[G_INFO] = RECQ_PACK();                         /* (G_INFO's slot, the CPU read-out: REC QUANTIZE) */
+    p->g[G_INFO] = (int16_t)(RECQ_PACK() | PUNCH_PACK());   /* (G_INFO's slot, the CPU read-out: REC QUANTIZE, PUNCH) */
     p->g[G_DCOLOR] = (int16_t)(song.g[G_DCOLOR] + DLY_FREQ_MARK);   /* (the delay's FREQ: dly_freq_in) */
     p->sel = song.sel;
     p->rsv[0] = rev_pack();                             /* the reverb's algorithm (rev_type.c; 0 ROOM): bits 0..2 */
@@ -1227,6 +1183,10 @@ static void proj_apply(const project_t *p, const dlrec_t *d, int all)
         mc_unpack(p);                                   /* (older projects: 0, COMP and LIMIT off) */
     if (all)
         song.g[G_RECQ] = RECQ_UNPACK(p->g[G_INFO]);     /* (older projects: 0, ON) */
+#if FELUCCA_PUNCH_SW
+    if (all)
+        punch_sw = (int16_t)(p->g[G_INFO] >> 1 & 1);    /* (older projects: 0, PUNCH off) */
+#endif
 #if FELUCCA_MIDI_CH
     if (all)
         midi_ch_unpack(p->g[G_MIDI]);                   /* the synth tracks' channels (older projects: 0, the defaults) */
@@ -1238,6 +1198,10 @@ static void proj_apply(const project_t *p, const dlrec_t *d, int all)
 #if PART_DROPS
     part_mem_load_begin();                              /* (the refusals of before: replaced by this load's) */
 #endif
+#if PRESETS_CARD
+    for (k = 0; k < NTRK; k++)
+        sdm_factory_drop(k);                            /* (the project's sounds: no factory preset asked before over them) */
+#endif
     for (k = 0; k < NTRK; k++) {
         track_t *t = &trk[k];
         const proj_trk_t *s = &p->t[k];
@@ -1246,8 +1210,8 @@ static void proj_apply(const project_t *p, const dlrec_t *d, int all)
         uint32_t no = k < NPART && part_mem_load(k, e); /* (UID -> slot, not built: its fallback; a silent placeholder) */
         t->silent = (uint8_t)(k < NPART && (s->engine == ENG_UID_SILENT || no));
         t->eng_req = (uint8_t)(no ? eng_silent_slot() : e);   /* no room: a placeholder with the project's sound until
-                                                         * there is room (engines.c part_mem_refused.lmask, model.c
-                                                         * mem_load_next); every part refused is recorded */
+                                                         * the UI's list finds room (engines.c part_mem_refused.lmask,
+                                                         * ui/optimist/op_memlist.c); every part refused is recorded */
 #else
         uint32_t e = k < NPART ? eng_slot(s->engine) : 0u;   /* UID -> slot (not built: its fallback) */
         t->eng_req = (uint8_t)e;
@@ -1308,14 +1272,14 @@ static void proj_apply(const project_t *p, const dlrec_t *d, int all)
         if (k < NPART)
             proj_orph_take(k, p, t);
         if (k < NPART) {                                /* FM6: its saved voice, else its VOICE afresh */
-            fm6_fn_reset(fm6_ed[k]);                    /* its functions (older formats: the defaults) */
+            FAST_CALL(fm6, fm6_fn_reset)(fm6_ed[k]);    /* its functions (older formats: the defaults) */
             if (PJ_FM6FN(p, k)[0] >= 0)
                 for (i = 0; i < FM6_NFN; i++)
                     fm6_set(fm6_ed[k], FN_PBUP + i, PJ_FM6FN(p, k)[i]);
             fm6_fnok[k] = 1;
             fm6_cur[k] = 0;
             if (ENG_IS(ENGINES[e], FM6) && ((p->fm6_has >> k) & 1u)) {
-                fm6_unpack(fm6_ed[k], PJ_FM6(p, k));
+                FAST_CALL(fm6, fm6_unpack)(fm6_ed[k], PJ_FM6(p, k));
                 for (i = 0; i < 6u; i++)
                     fm6_ed[k][FV_ON + i] = (int16_t)((PJ_FM6ON(p, k) >> i) & 1u);
                 fm6_bake_old(fm6_ed[k], v[P_E0 + 1u], v[P_E0 + 2u], v[P_E0 + 3u]);   /* (MOD, M.TIM, C.TIM of before: in the voice) */
@@ -1656,6 +1620,7 @@ static void autosave_resume(void)              /* power-on: the project as it wa
 
 /* settings + learned panel table: one flash object. The flash copy wins at
  * boot (the .noinit copies are garbage after a power-off). */
+#include "../core/dbgstats.h"                /* DEBUG STATS (kept in the settings record: rsv_pj[1]) */
 #include "settings_word.c"                 /* bp23_word / bp23_from_word: the settings word */
 #if BP23_SET
 /* the settings word changed by something that is no menu (a page, the editor): saved as the menu's are, at once when
@@ -1718,22 +1683,7 @@ _Static_assert(sizeof ble_addr_kept == 8u && sizeof ble_rf_kept == BLE_RF_COPY_S
 #if FELUCCA_FLASH
 static persist_t persist_saved IN_POOL;            /* the record as last read or written (persist_boot, settings_save: the
                                                     * main loop only): in the pool, not main RAM (868 B, 2026-10-24) */
-#if FELUCCA_MIDI_CLOCK
-static void persist_ofs_load(const persist_t *p)  /* CLK OFS, BT OFS (clock_sync.c): out of range read as 0 */
-{
-    uint32_t i;
-    for (i = 0; i < 2u; i++)
-        sync_ofs[i] = (int16_t)(p->clk_ofs[i] >= SY_OFS_MIN && p->clk_ofs[i] <= SY_OFS_MAX ? p->clk_ofs[i] : 0);
-}
-static void persist_ofs_save(persist_t *p)
-{
-    p->clk_ofs[0] = sync_ofs[0];
-    p->clk_ofs[1] = sync_ofs[1];
-}
-#else
-#define persist_ofs_load(p) ((void)0)              /* (no clock: the bytes kept as read) */
-#define persist_ofs_save(p) ((void)0)
-#endif
+#include "persist_ext.c"                       /* CLK OUT, LINK, CLK IN LINK, the OFS lines: the record's extension (tests/favorites_test.c too) */
 #endif
 static void persist_boot(void)                    /* before settings_init / panel_init */
 {
@@ -1781,6 +1731,7 @@ static void persist_boot(void)                    /* before settings_init / pane
     irq_restore(f);
     if (!flash_ok)
         return;
+    dev_uid_read();                                /* the part's ID: the name "FM1-XXXX" (devname.c; before USB starts) */
     fl_plain_window_init();                        /* flash above 0x93000 reads as plaintext through XIP
                                                     * (user sample sets are played from there) */
     {
@@ -1825,9 +1776,6 @@ static void persist_boot(void)                    /* before settings_init / pane
 #else
             settings.view = p.view > 1u ? 1u : p.view;
 #endif
-#if FELUCCA_BRIGHT
-            bright_boot();                         /* full at every boot, never the saved level (bright.c) */
-#endif
 #if BP23_SET
             bp23_from_word(p.bp23);
 #endif
@@ -1844,6 +1792,10 @@ static void persist_boot(void)                    /* before settings_init / pane
             bt_key_in(p.bt_key);                   /* our BR/EDR address, the last device's link key (op_bt.c) */
             _Static_assert(sizeof p.bt_kept == BT_KEPT_SIZE, "the record's remembered audio devices: their size");
             bt_kept_in(p.bt_kept);                 /* the other remembered audio devices, their keys (op_bt.c) */
+#endif
+#if FELUCCA_WIFI
+            _Static_assert(sizeof p.wifi_nets == WN_STORE_SIZE, "the record's saved Wi-Fi networks: their size");
+            wifi_nets_in(p.wifi_nets);             /* the saved Wi-Fi networks (wifi/wifi_saved.c) */
 #endif
 #if FELUCCA_DUAL && FELUCCA_DUALCFG
             if (p.dualcfg.magic == DUALCFG_MAGIC)
@@ -1863,9 +1815,11 @@ static void persist_boot(void)                    /* before settings_init / pane
             persist_ble(&p, 0);                    /* (the BLE address, trims, bond, devices) */
 #endif
 #if FELUCCA_PATTERNS
-            open_proj = (uint8_t)(p.open_proj < 16u ? p.open_proj : 0u);   /* (the open project: sections.c) */
+            open_proj = (uint8_t)(p.open_proj < PROJ_SLOTS ? p.open_proj : 0u);   /* (the open project: sections.c) */
 #endif
             persist_ofs_load(&p);
+            persist_ext_load(&p);
+            dbg_stats_set(p.rsv_pj[1] & 1u);         /* (DEBUG STATS, core/dbgstats.h: a record from before reads OFF) */
             persist_saved = p;
         } else if (n == (int)(8u + sizeof(panel_t)) && p3.magic == 0x50455231u) {   /* "PER1": palette, panel */
             const uint32_t *w = (const uint32_t *)&p3;
@@ -1938,11 +1892,7 @@ static void settings_save(void)
 #else
     p.view = settings.view;
 #endif
-#if FELUCCA_BRIGHT
-    p.bright = 0;                                  /* full: a dim level is never stored (bright.c) */
-#elif BP23_SET
-    p.bright = persist_saved.bright;               /* (no BRIGHT here: kept as read) */
-#endif
+    p.spare = 0;                                   /* (the old backlight level's slot: never stored) */
 #if BP23_SET
     p.bp23 = bp23_word();
 #endif
@@ -1954,6 +1904,9 @@ static void settings_save(void)
     p.open_proj = open_proj;                       /* (the open project: sections.c; the chain above is a copy, the log's is read) */
 #endif
     persist_ofs_save(&p);
+    persist_ext_save(&p);
+    p.rsv_pj[0] = 0;                               /* (retired: was VU FLOOR, now fixed at -40; old records' byte is ignored) */
+    p.rsv_pj[1] = (uint8_t)((p.rsv_pj[1] & ~1u) | dbg_stats);   /* (DEBUG STATS: bit 0, the rest kept) */
 #if FELUCCA_FAVORITES
     persist_fav_save(&p);
 #endif
@@ -1966,6 +1919,9 @@ static void settings_save(void)
 #if FELUCCA_BT_AUDIO
     bt_key_out(p.bt_key);
     bt_kept_out(p.bt_kept);
+#endif
+#if FELUCCA_WIFI
+    wifi_nets_out(p.wifi_nets);                    /* (a build without Wi-Fi keeps the field as read: p = persist_saved) */
 #endif
 #if FELUCCA_DUAL && FELUCCA_DUALCFG
     p.dualcfg = dualcfg;

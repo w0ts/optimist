@@ -430,3 +430,29 @@ final class OpsTests: XCTestCase {
         XCTAssertTrue(i.hasPatterns)
     }
 }
+
+/// the .fm1proj file: the web editor's bytes (web/sim/bk.js packProject) read and written byte for byte, and the MEMORY layout's caps
+final class ProjectFileTests: XCTestCase {
+    static let web = "464d3150010146554e4253494d20534f4e4700000000060000001102000506fa10303109"
+
+    func testWebFileRoundTrip() throws {
+        let bytes = stride(from: 0, to: Self.web.count, by: 2).map { i -> UInt8 in
+            let a = Self.web.index(Self.web.startIndex, offsetBy: i)
+            return UInt8(Self.web[a..<Self.web.index(a, offsetBy: 2)], radix: 16)!
+        }
+        let f = try ProjectFile.decode(bytes)
+        XCTAssertEqual(f, ProjectFile.Contents(slot: 1, family: "FUNB", name: "SIM SONG", data: [17, 2, 0, 5, 6, 250]))
+        XCTAssertEqual(ProjectFile.encode(slot: 1, family: "FUNB", name: "SIM SONG", data: f.data), bytes)
+    }
+
+    func testRefusals() {
+        var b = ProjectFile.encode(slot: 0, family: "FUNB", name: "X", data: [1, 2, 3])
+        XCTAssertThrowsError(try ProjectFile.decode(Array(b.dropLast())))
+        XCTAssertThrowsError(try ProjectFile.decode([1, 2, 3]))
+        b[ProjectFile.head] ^= 1
+        XCTAssertThrowsError(try ProjectFile.decode(b))
+        var v = ProjectFile.encode(slot: 0, family: "FUNB", name: "X", data: [])
+        v[4] = 2
+        XCTAssertThrowsError(try ProjectFile.decode(v))
+    }
+}

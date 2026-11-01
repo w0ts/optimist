@@ -81,6 +81,10 @@ typedef struct {
 #endif
 #endif
 #include "../firmware/src/storage/persist_rec.c"
+#if FELUCCA_LINK
+static uint8_t sync_boot = SYNC_AUTO;               /* (storage/settings_word.c's: project.c's flash part, which has it, is not in PROJ_HOST) */
+#endif
+#include "../firmware/src/storage/persist_ext.c"    /* persist_ext_* / persist_ofs_* (project.c includes it outside PROJ_HOST) */
 
 #if FELUCCA_BLE
 void ble_midi_out(uint32_t pkt) { (void)pkt; }   /* (the sequencer's BLE out: the radio is not here) */
@@ -139,7 +143,7 @@ static void fill(persist_v3_t *p, uint32_t seed)
     p->panel.magic = PANEL_MAGIC;
     p->magic = PERSIST_MAGIC;
     p->view = 1;
-    p->bright = 0;                                 /* (as written: never SLOOP's kit header) */
+    p->spare = 0;                                  /* (as written: never SLOOP's kit header) */
     p->bp23 = 0x01A5C3E1u;
     memset(&p->arrangement, 0, sizeof p->arrangement);
 }
@@ -167,7 +171,7 @@ static void t_record(void)
     check("a record from before the favorites reads whole (length = the new record's)", r == (int)sizeof p);
     check("... its settings word, view, palette, panel and magic as saved",
           p.bp23 == q.bp23 && p.view == q.view && p.palette == q.palette && p.magic == q.magic && p.panel.magic == PANEL_MAGIC &&
-          p.zoom == q.zoom && p.lowcut == q.lowcut && p.bright == q.bright);
+          p.zoom == q.zoom && p.lowcut == q.lowcut && p.spare == q.spare);
 #if FELUCCA_BLE
     check("... the BLE address, trims, bond and device store kept as saved",
           !memcmp(p.ble_addr, q.ble_addr, sizeof p.ble_addr) && !memcmp(p.ble_rf, q.ble_rf, sizeof p.ble_rf) &&
@@ -243,25 +247,41 @@ static void t_ua(void)
     r = persist_upgrade(&p, (int)offsetof(persist_v3_t, ua_dst));
     persist_from_v3(&c, &p), persist_ua_load(&c);
     check("USB AUDIO: a UAR2 record reads whole: MAIN L + R on 1, 2 -> MASTER on 1+2, DR10 on 3, DRUMS on 4, T1..T3 none",
-          r == (int)sizeof p && ua_dst[UAS_MAIN] == UAD_12 && ua_dst[UAS_N - 1u] == UAD_3 && ua_dst[UAS_DRUMS] == UAD_4 &&
+          r == (int)sizeof p && ua_dst[UAS_MAIN] == UAD_12 && ua_dst[UAS_RA - 1u] == UAD_3 && ua_dst[UAS_DRUMS] == UAD_4 &&
           ua_dst[UAS_T1] == UAD_NONE && ua_dst[UAS_T3] == UAD_NONE && dlt_mask == 1u << (DRUM_LANES - 1u));
     p.ua_mark = PERSIST_UA_MARK1;
     p.ua_src[0] = 4, p.ua_src[1] = 11, p.ua_src[2] = 13 + 9, p.ua_src[3] = 13 + 10;   /* (M-6, B-3, DR10, out of range: 10 lanes) */
     persist_from_v3(&c, &p), persist_ua_load(&c);
     check("USB AUDIO: a UAR1 record: the -6 dB master on 1 (its sum), the bus on 2, a lane kept, out of range none",
-          ua_dst[UAS_MAIN] == UAD_1 && ua_dst[UAS_DBUS] == UAD_2 && ua_dst[UAS_N - 1u] == UAD_3 && ua_dst[UAS_DRUMS] == UAD_NONE);
+          ua_dst[UAS_MAIN] == UAD_1 && ua_dst[UAS_DBUS] == UAD_2 && ua_dst[UAS_RA - 1u] == UAD_3 && ua_dst[UAS_DRUMS] == UAD_NONE);
     persist_ua_save(&c);
     ua_route_default();
     persist_ua_load(&c);
     check("USB AUDIO: saved as UAR3 (UAR2's mark cleared) and read back", c.ua_mark3 == PERSIST_UA_MARK3 && !c.ua_mark &&
-          ua_dst[UAS_MAIN] == UAD_1 && ua_dst[UAS_N - 1u] == UAD_3 && !ua_ident);
+          ua_dst[UAS_MAIN] == UAD_1 && ua_dst[UAS_RA - 1u] == UAD_3 && !ua_ident);
+    /* a UAR3 record of before RET A B C (2026-10-29: 16 sources, the record's other bytes 0, as persist_ua_save writes
+     * them): read as it was, the returns NONE; one of today's keeps them */
+    memset(c.ua_dst, 0, sizeof c.ua_dst);
+    c.ua_dst[UAS_MAIN] = UAD_12, c.ua_dst[UAS_T1] = UAD_3, c.ua_dst[UAS_DR1 + 9] = UAD_4, c.ua_mark3 = PERSIST_UA_MARK3;
+    ua_dst[UAS_RA] = ua_dst[UAS_RA + 2] = UAD_34;
+    persist_ua_load(&c);
+    check("USB AUDIO: a UAR3 record of 16 sources: as saved, RET A B C NONE (no return tapped)",
+          ua_dst[UAS_MAIN] == UAD_12 && ua_dst[UAS_T1] == UAD_3 && ua_dst[UAS_RA - 1u] == UAD_4 && ua_dst[UAS_RA] == UAD_NONE &&
+          ua_dst[UAS_RA + 1] == UAD_NONE && ua_dst[UAS_RA + 2] == UAD_NONE && !ua_ret_on);
+    ua_dst[UAS_RA + 1] = UAD_12;
+    ua_route_apply();
+    persist_ua_save(&c);
+    ua_route_default();
+    persist_ua_load(&c);
+    check("USB AUDIO: RET B on 1+2 saved and read back", c.ua_dst[UAS_RA + 1] == UAD_12 && ua_dst[UAS_RA + 1] == UAD_12 &&
+          ua_ret_on == 2u && ua_dst[UAS_MAIN] == UAD_12);
     ua_route_default();
 }
 #endif
 
 /* PER4 (2026-10-20): one layout whatever the build's switches; this file is built plain, with USB audio and with BLE
  * (run_tests.sh), and each build checks the same numbers */
-#define PERSIST4_EXPECT ((16u + sizeof(panel_t) + sizeof(arr_rec_t) + 12u + 8u + 100u + 28u + 70u + 136u + 4u + 2u + 4u + 24u + 4u + 64u + 4u + 4u + PERSIST4_BT_KEPT + PERSIST4_BLE_KEPT + 3u) & ~3u)   /* (+ open_proj and its 3 spare, f6b622a1; + clk_ofs 95609113; + the kept BT audio and BT MIDI devices 1f3bf139 / 7e89ec48, the whole rounded to 4) */
+#define PERSIST4_EXPECT ((16u + sizeof(panel_t) + sizeof(arr_rec_t) + 12u + 8u + 100u + 28u + 70u + 136u + 4u + 2u + 4u + 24u + 4u + 64u + 4u + 4u + PERSIST4_BT_KEPT + PERSIST4_BLE_KEPT + PERSIST4_WIFI_NETS + 6u + 3u) & ~3u)   /* (+ ext_ver, CLK OUT's and LINK's modes, LINK OFS, 6 B, 2026-10-29; + the saved Wi-Fi networks and MODE AP's network, 336 B; + open_proj and its 3 spare, f6b622a1; + clk_ofs 95609113; + the kept BT audio and BT MIDI devices 1f3bf139 / 7e89ec48, the whole rounded to 4) */
 static void t_layout(void)
 {
     char w[160];
@@ -279,9 +299,22 @@ static void t_layout(void)
           offsetof(persist_t, bt_rec) == offsetof(persist_t, ua_mark3) + 4u && offsetof(persist_t, bt_key) + 32u == offsetof(persist_t, open_proj) &&
           offsetof(persist_t, open_proj) + 4u == offsetof(persist_t, clk_ofs) && offsetof(persist_t, clk_ofs) + 4u == offsetof(persist_t, bt_kept) &&
           offsetof(persist_t, bt_kept) + PERSIST4_BT_KEPT == offsetof(persist_t, ble_kept) &&
-          offsetof(persist_t, ble_kept) + PERSIST4_BLE_KEPT <= sizeof(persist_t) && sizeof(persist_t) - offsetof(persist_t, ble_kept) - PERSIST4_BLE_KEPT < 4u &&
+          offsetof(persist_t, ble_kept) + PERSIST4_BLE_KEPT == offsetof(persist_t, wifi_nets) &&
+          offsetof(persist_t, wifi_nets) + PERSIST4_WIFI_NETS == offsetof(persist_t, ext_ver) &&      /* (the ext bytes after the Wi-Fi networks: 92c3eb86) */
+          offsetof(persist_t, ext_ver) + 4u == offsetof(persist_t, link_ofs) &&
+          sizeof(persist_t) - offsetof(persist_t, link_ofs) - sizeof(int16_t) < 4u &&
           PERSIST4_LEN0 == (int)offsetof(persist_t, open_proj));
     check("... and it fits a sector and stays below SLOOP 2.5's", sizeof(persist_t) <= ST_PAYLOAD_MAX && sizeof(persist_t) < 88u + 1464u);
+}
+
+/* VU FLOOR is gone (core/vufloor.h: fixed -40 dBFS since 2026-10-31): rsv_pj[0] stays in the record, ignored; a record from before has 0 there */
+static void t_vufloor(void)
+{
+    persist_t p;
+    persist_v3_t old;
+    fill(&old, 21);
+    persist_from_v3(&p, &old);
+    check("VU FLOOR retired: a record converted from an older layout has 0 in its (ignored) byte", p.rsv_pj[0] == 0u);
 }
 
 static void t_flash(void)
@@ -319,11 +352,89 @@ static void t_flash(void)
     check("nothing is written outside the settings object's two sectors", 1);
 }
 
+/* CLK OUT's mode, LINK, LINK OFS and CLK IN = LINK beside the settings word (project.c persist_ext_*; 2026-10-29): a record from before has ext_ver 0 and
+ * reads CLK OUT BOTH (USB without BLE), LINK ON+S/S, LINK OFS = CLK OFS; a newer one reads what was saved */
+static void t_syncext(void)
+{
+    persist_t r;
+    int ok = 1;
+    memset(&r, 0, sizeof r);
+    r.clk_ofs[0] = 17;
+#if FELUCCA_MIDI_CLKOUT
+    clko_on = CLKO_BOTH;                            /* (the word's bit 26 of a record from before) */
+    persist_ext_load(&r);
+#if FELUCCA_BLE
+    ok &= clko_on == CLKO_BOTH;
+#else
+    ok &= clko_on == CLKO_USB;
+#endif
+#endif
+#if FELUCCA_LINK
+    link_mode = LINK_OFF;
+    song.g[G_SYNC] = SYNC_AUTO;
+    persist_ext_load(&r);
+    ok &= link_mode == LINK_ONSS && song.g[G_SYNC] == SYNC_AUTO;   /* (before the setting: Link shared play / stop) */
+#endif
+#if FELUCCA_MIDI_CLOCK
+    sync_ofs[2] = 0;
+    persist_ofs_load(&r);
+    ok &= sync_ofs[2] == 17;                        /* (Link used CLK OFS) */
+    r.ext_ver = 1;
+    r.link_ofs = -42;
+    persist_ofs_load(&r);
+    ok &= sync_ofs[2] == -42 && sync_ofs[0] == 17;  /* (LINK OFS its own; CLK OFS stays the record's clk_ofs[0], 95609113) */
+    sync_ofs[0] = sync_ofs[2] = 0;
+#endif
+    check("settings record ext: an older record reads CLK OUT BOTH, LINK ON+S/S, LINK OFS = CLK OFS; a newer one its own LINK OFS", ok);
+#if FELUCCA_MIDI_CLKOUT && FELUCCA_BLE
+    {
+        static const uint8_t M[] = {CLKO_USB, CLKO_BLE, CLKO_BOTH};
+        unsigned i;
+        ok = 1;
+        for (i = 0; i < sizeof M; i++) {
+            persist_t q;
+            memset(&q, 0, sizeof q);
+            clko_on = M[i];
+            persist_ext_save(&q);
+            clko_on = CLKO_BOTH;                    /* (the word brings ON back; the record says which) */
+            persist_ext_load(&q);
+            ok &= clko_on == M[i];
+        }
+        check("settings record ext: CLK OUT USB / BLE / BOTH each read back as saved", ok);
+    }
+#endif
+#if FELUCCA_LINK
+    {
+        unsigned i;
+        ok = 1;
+        for (i = 0; i <= LINK_ONSS; i++) {
+            persist_t q;
+            memset(&q, 0, sizeof q);
+            link_mode = (uint8_t)i;
+            song.g[G_SYNC] = SYNC_LINK;
+            persist_ext_save(&q);
+            link_mode = LINK_ONSS;
+            song.g[G_SYNC] = SYNC_AUTO;             /* (the word read AUTO for a LINK) */
+            persist_ext_load(&q);
+            ok &= link_mode == i && song.g[G_SYNC] == SYNC_LINK;
+        }
+        song.g[G_SYNC] = SYNC_BLE;
+        ok &= (song.g[G_SYNC] == SYNC_BLE);
+        check("settings record ext: LINK OFF / ON / ON+S/S and CLK IN LINK each read back as saved", ok);
+        link_mode = LINK_ONSS;
+        song.g[G_SYNC] = SYNC_AUTO;
+    }
+#endif
+    clko_on = 0;
+}
+
 int main(void)
 {
     t_store();
     t_layout();
     t_record();
+    t_vufloor();
+    t_syncext();
 #if FELUCCA_USB_AUDIO
     t_ua();
 #endif

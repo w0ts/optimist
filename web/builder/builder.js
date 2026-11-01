@@ -7,7 +7,7 @@
 // tools/builder/web_api.py). The cloud build (where from, the request, its progress): cloud.js. opts.app: the Mirror
 // app's page (web/builder/app.html): the Build card first, without the files and the keys. docs/WEB.md.
 import {
-  MAIN_REF, PYODIDE_VERSION, TURNSTILE_SITEKEY, REGIONS, SORTS, barModel, fmtK, built, cloudConfigUrl, commitOf, latestOf, pickRef, refUrl, repoOf, defaultPreset, defaults, deltaOf, fileName, fmt,
+  MAIN_REF, PYODIDE_VERSION, TURNSTILE_SITEKEY, COSTS, costOf, BUDGETS, budgetsOf, SORTS, ARENA_TIP, arenaText, barModel, fmtK, built, cloudConfigUrl, commitOf, latestOf, pickRef, refUrl, repoOf, defaultPreset, defaults, deltaOf, fileName, fmt,
   changeText, gaugeModel, hasInfo, indexRegistry, kDelta, messagesOf, offFits, oneLine, overflowLines, presets, pyodideBase, savedOf, treeOf,
 } from "./logic.js";
 import { mountCloud } from "./cloud.js";
@@ -33,7 +33,7 @@ const TEMPLATE = `
       <button type="button" id="save" title="Keep this configuration under its name (in this browser, or the app)">Save</button>
       <button type="button" id="unsave" class="quiet" hidden>Delete</button>
       <label class="o-field grow">Search<input id="search" type="search" placeholder="label, key, group" autocomplete="off"></label>
-      <label class="o-field half">Sort<select id="sort"><option value="">default order</option><option value="flash">flash, largest first</option><option value="ram">ram, largest first</option><option value="pool">pool, largest first</option><option value="ramtext">ramtext, largest first</option></select></label>
+      <label class="o-field half">Sort<select id="sort"><option value="">default order</option><option value="flash">flash, largest first</option><option value="ram">ram, largest first</option><option value="arena">arena (one instance), largest first</option></select></label>
       <button type="button" id="expand" class="icon" title="Expand all (x)" aria-label="Expand all">▾▾</button>
       <button type="button" id="collapse" class="icon" title="Collapse all (c)" aria-label="Collapse all">▸▸</button>
       <button type="button" id="reset" disabled>Reset to default</button>
@@ -49,6 +49,7 @@ const TEMPLATE = `
           <div id="bars"></div>
           <div class="side">
             <button type="button" id="fit" class="primary" hidden>Make it fit</button>
+            <span id="arena" class="o-chip"></span>
             <span id="undo" class="o-chip"></span>
             <button type="button" id="keychip" class="o-chip tip-end" data-tip="The cloud key of this configuration" aria-label="Copy the configuration's key">key -</button>
           </div>
@@ -282,7 +283,7 @@ function renderBars() {
   const pv = S.preview && (S.proposals || []).find((p) => p.id === S.preview);
   $("gauges").toggleAttribute("data-preview", !!pv);
   $("previewtag").hidden = !pv;
-  for (const r of REGIONS) {
+  for (const r of budgetsOf(pv ? pv.after : ev.fits)) {
     const f = pv ? pv.after[r] : ev.fits[r];
     const m = gaugeModel(r, f.used, f.capacity, f.over);
     over = over || m.state === "over";
@@ -301,8 +302,12 @@ function renderBars() {
   $("fit").hidden = !overNow;                // (only when the configuration does not fit: nothing in its place otherwise)
   const u = v.undo, ud = $("undo");
   ud.className = "o-chip";
-  ud.textContent = u ? `undo ${fmtKB(u.ring)}` : "";
-  ud.title = u ? `UNDO ring ${fmt(u.ring)} B` : "";
+  ud.textContent = u ? (u.arena ? `undo keeps ${fmtKB(u.keep)}${u.cache ? ` + cache ${fmtKB(u.cache)}` : ""}` : `undo ${fmtKB(u.ring)}`) : "";
+  ud.title = u ? (u.text || `UNDO ring ${fmt(u.ring)} B`) : "";
+  const a = v.arena, ar = $("arena");
+  ar.className = "o-chip";
+  ar.textContent = a ? `arena ${a.exact ? "" : "~"}${a.kb}K` : "";
+  ar.title = a ? `ARENA ${a.exact ? "" : "estimate "}${a.kb} KB: the free SRAM (${fmt(a.free)} B) less the undo keep (${fmt(a.keep)} B)` : "";
   const key = ev.key || ev.cfg_hash || "";
   $("keychip").textContent = key ? `${ev.key ? "key" : "hash"} ${key.slice(0, 10)}` : "key -";
   $("keychip").dataset.tip = ev.key ? `Cloud key ${key} (click: copy)` : key ? `Configuration hash ${key} (the cloud key is computed at build time; click: copy)` : "No key yet";
@@ -345,7 +350,8 @@ function renderMsgs() {
 
 function itemRow(key, hasKids) {
   const it = S.reg.byKey[key], v = S.view, val = S.values[key] ?? it.default;
-  const live = (!it.parent || built(S.reg, S.values, it.parent)) && (!S.reg.drumsOnly.includes(key) || built(S.reg, S.values, "DRUMS"));
+  const live = (!it.parent || built(S.reg, S.values, it.parent)) && (!it.shown_under || built(S.reg, S.values, it.shown_under)) && (!S.reg.drumsOnly.includes(key) || built(S.reg, S.values, "DRUMS"))
+    && !(it.dim_when && built(S.reg, S.values, it.dim_when));   /* (SAMPLE SLOTS, PROJECTS: greyed in SD card mode) */
   const id = `it-${key}`;
   let ctl;
   if (it.choices.length) {
@@ -363,6 +369,8 @@ function itemRow(key, hasKids) {
     const hot = (over[r] || 0) > 0 && n > 0;
     tags.append(el("span", { class: "cost" + (hot ? " hot" : "") + (r === S.sortBy ? " sortby" : ""), text: `${r} ${kDelta(n)}` }));
   }
+  const an = v && v.arena_item ? v.arena_item[key] : undefined;
+  if (an !== undefined && arenaText(an)) tags.append(el("span", { class: "arena" + (S.sortBy === "arena" ? " sortby" : ""), title: ARENA_TIP, text: `arena ${arenaText(an)}` }));
   if (v && offFits(deltas, over)) tags.append(el("span", { class: "fits", text: "◀ off = fits" }));
   if (S.reg.kits.includes(key) && live && v) {
     const sh = v.kit_shared && v.kit_shared.flash;
@@ -396,7 +404,7 @@ function renderTree() {
   const ae = document.activeElement, keepFocus = ae && ae.id, keepFold = ae && ae.dataset && ae.dataset.fold;
   tree.textContent = "";
   const v = S.view;
-  for (const g of treeOf(S.reg, S.filter, v ? v.savings : {}, S.sortBy)) {
+  for (const g of treeOf(S.reg, S.filter, v ? v.savings : {}, S.sortBy, v ? v.arena_item : null)) {
     const gid = "g:" + g.group, open = !S.collapsed.has(gid) || !!S.filter;
     const list = el("ul", { hidden: !open });
     const li = (t) => {
@@ -467,15 +475,16 @@ async function renderInfo(key) {
   const d = S.info[key];
   info.textContent = "";
   info.append(el("h3", { text: it.label }),
-    el("p", { class: "meta", text: `${key}` + (it.flag ? `  (${it.flag})` : "") + `  bit ${it.bit}` + (it.parent ? ` · option of ${S.reg.byKey[it.parent].label}` : "") }));
+    el("p", { class: "meta", text: `${key}` + (it.flag ? `  (${it.flag})` : "") + `  bit ${it.bit}` + (it.parent || it.shown_under ? ` · option of ${S.reg.byKey[it.shown_under || it.parent].label}` : "") }));
   if (it.desc) info.append(el("p", { text: it.desc }));
+  if (key === "ARENA" && S.view && S.view.arena) info.append(el("pre", { class: "arenafit", text: S.view.arena.lines.join("\n") }));
   for (const e of (S.view && S.view.conflicts[key]) || []) info.append(line("err", "Error", e));
   if (d) {
-    const rows = d.values.map(([lab, , dd]) => dd && el("tr", {}, el("td", { text: lab }), REGIONS.map((r) => el("td", { text: (dd[r] >= 0 ? "+" : "") + fmt(dd[r]) }))));
-    const pairs = d.pairs.map(([txt, dd]) => el("tr", {}, el("td", { text: `${txt} adds` }), REGIONS.map((r) => el("td", { text: (dd[r] >= 0 ? "+" : "") + fmt(dd[r]) }))));
+    const rows = d.values.map(([lab, , dd]) => dd && el("tr", {}, el("td", { text: lab }), COSTS.map((r) => el("td", { text: (costOf(dd, r) >= 0 ? "+" : "") + fmt(costOf(dd, r)) }))));
+    const pairs = d.pairs.map(([txt, dd]) => el("tr", {}, el("td", { text: `${txt} adds` }), COSTS.map((r) => el("td", { text: (costOf(dd, r) >= 0 ? "+" : "") + fmt(costOf(dd, r)) }))));
     if (rows.some(Boolean) || pairs.length) {
       info.append(el("div", { class: "tablewrap" }, el("table", {}, el("caption", { class: "o-sr", text: "bytes against the default build" }),
-        el("thead", {}, el("tr", {}, el("th", { text: "alone vs the defaults" }), REGIONS.map((r) => el("th", { text: r })))),
+        el("thead", {}, el("tr", {}, el("th", { text: "alone vs the defaults" }), COSTS.map((r) => el("th", { text: r })))),
         el("tbody", {}, rows.filter(Boolean), pairs))));
     }
   }
@@ -577,11 +586,11 @@ function renderProposals() {
 }
 
 function proposalCard(p) {
-  const rows = REGIONS.map((r) => {
+  const rows = budgetsOf(p.after).map((r) => {
     const f = p.after[r], m = gaugeModel(r, f.used, f.capacity, f.over);
     return el("span", { "data-region": r, "data-state": m.state, title: m.tip }, `${r.toUpperCase()} ${m.text}`, m.overText ? el("span", { class: "go", text: ` ${m.overText}` }) : null);
   });
-  const left = REGIONS.filter((r) => p.after[r].over > 0).map((r) => `${r.toUpperCase()} +${fmtK(p.after[r].over)}`);
+  const left = budgetsOf(p.after).filter((r) => p.after[r].over > 0).map((r) => `${r.toUpperCase()} +${fmtK(p.after[r].over)}`);
   const card = el("article", { class: "prop", "data-id": p.id, "data-fits": String(p.fits), onmouseenter: () => setPreview(p.id), onmouseleave: () => { if (!card.dataset.pinned) setPreview(null); } },
     el("h3", { text: p.title }),
     el("p", { class: "o-small o-dim", text: p.text }),

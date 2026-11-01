@@ -13,14 +13,11 @@
  *              hold of a lockable-only value) stored in the new forms (a V2 pattern record, the extras record's
  *              AUTO_ENC_TAG form) and read equal, refused by an older reader; a scene saved and loaded, the
  *              autosave written and read back
- *   2.4        the store exported as SLOOP 2.4's extras and imported back: nudges, fills and the first 24 locks a
- *              track survive, motion and chance are reported; a lock's value past a signed byte clamped, reported
  *   undo       a step edit of the list undone and redone, byte for byte
  *   editor     AUTO_GET / AUTO_SET (v11), and the older LOCK_SET on the list
- *   sl24 lost  SL24_GET (78): the motion on bit 13, the chance on the second word's bit 0 (v12, the request's flag), the v11 reply as it was
  *   toggle     a lock made a hold event and back (YES on STEP: auto_kind_toggle); not for a value motion refuses
  *   cond       the step conditions (COND, Felucca 1.5.6): 1:2 2:4 3:3 over 24 passes, with FILL and chance, PLAY
- *              again from pass 1; never the old forms (they would drop one), the 2.4 export's lost bit
+ *              again from pass 1; never the old forms (they would drop one)
  * Exit status: the number of failed checks. Run by tests/run_tests.sh. */
 #define FELUCCA_ARRANGER 1
 #define FELUCCA_FLASH 1
@@ -31,7 +28,6 @@
 #define FELUCCA_FILLS 1
 #define FELUCCA_CHANCE 1
 #define FELUCCA_COND 1
-#define FELUCCA_SL24_EXPORT 1
 #define main hostsim_main
 #include "hostsim.c"
 #undef main
@@ -94,16 +90,6 @@ static void ed_pack7(const uint8_t *p, uint32_t n)
         p += k, n -= k;
     }
 }
-/* what ed_sl24.c finds in project.c / panel.c / settings (PROJ_HOST leaves the autosave out; the persist part 1 is not read here) */
-typedef struct { uint8_t palette, lowcut, zoom; } b26_settings_t;
-static b26_settings_t settings;
-typedef struct { uint32_t magic; uint8_t btn[14], enc[7]; int8_t dir[7]; } panel_t;
-static panel_t panel;
-static uint32_t bp23_word(void) { return 0x100u; }
-static project_t autosave_buf;
-static dlrec_t autosave_dl;
-#include "../firmware/src/io/editor/ed_sl24.c"
-
 static int bad;
 static void check(const char *what, int ok)
 {
@@ -441,6 +427,47 @@ static void t_extras(void)
 }
 /* step conditions (FELUCCA_COND, Felucca 1.5.6): drum lane 0 on every step of 8, step 2 1:2, step 3 2:4, step 4 3:3,
  * step 5 1:2 + FILL ONLY, step 6 1:2 + chance 0; 24 passes */
+/* a drum lane's own fill condition (auto.h AUTO_LF_FILL / AUTO_LF_NOFILL, the AUTO_MUTE(l) event's value 2 / 3; the SEQ-held fill view): lanes 0 and 1 hit on
+ * every step of 8; lane 0's step 2 FILL ONLY, lane 1's step 2 NO FILL, lane 1's step 4 muted: out of a fill lane 0 skips step 2, in a fill lane 1 does;
+ * the other lane of the step plays as ever, the muted hit never; the condition is no mute (step_muted) */
+static uint32_t lane_hits_on(uint32_t lane, uint32_t step, uint32_t slen)
+{
+    uint32_t i, n = 0;
+    for (i = 0; i < nhits; i++)
+        n += hits[i].note == LANE_NOTE_OF(lane) && (hits[i].pos + slen / 2u) / slen % 8u == step;
+    return n;
+}
+static void t_lane_fill(void)
+{
+    uint32_t i, slen = BEAT_U / 4u, a0, a1, b0, b1, a4, b4;
+    reset();
+    TDRUM->p[P_SLEN] = 8;
+    for (i = 0; i < 8u; i++)
+        dstep_set(&TDRUM->dstep[i], 0, LV_NORM, 0), dstep_set(&TDRUM->dstep[i], 1, LV_NORM, 0);
+    check("lane fill: set, read back: FILL ONLY, NO FILL, normal, never a mute",
+          step_lane_fc_set(TDRUM, 2, 0, FC_FILL) && step_lane_fc(TDRUM, 2, 0) == FC_FILL && step_lane_fc_set(TDRUM, 2, 1, FC_NOFILL) &&
+          step_lane_fc(TDRUM, 2, 1) == FC_NOFILL && step_lane_fc(TDRUM, 3, 0) == FC_NORM && !step_muted(TDRUM, 2, 0) && !step_muted(TDRUM, 2, 1));
+    (void)step_mute_set(TDRUM, 4, 1, 1);
+    check("... a mute is a mute, not a condition; clearing a mute leaves a condition", step_muted(TDRUM, 4, 1) && step_lane_fc(TDRUM, 4, 1) == FC_NORM &&
+          (step_mute_set(TDRUM, 2, 0, 0), step_lane_fc(TDRUM, 2, 0) == FC_FILL));
+    transport_req = 1;
+    while (clk_beat < 16u)                            /* 8 passes, no fill */
+        run_block();
+    a0 = lane_hits_on(0, 2, slen), a1 = lane_hits_on(1, 2, slen), a4 = lane_hits_on(1, 4, slen);
+    seq_stop();
+    nhits = 0;
+    clk_beat = clk_pos = 0;
+    fill_held = 1;
+    transport_req = 1;
+    while (clk_beat < 16u)                            /* 8 passes, a fill held */
+        run_block();
+    b0 = lane_hits_on(0, 2, slen), b1 = lane_hits_on(1, 2, slen), b4 = lane_hits_on(1, 4, slen);
+    fill_held = 0;
+    seq_stop();
+    printf("auto: lane fills: step 2 lane 0 %u/%u lane 1 %u/%u, muted %u/%u\n", a0, b0, a1, b1, a4, b4);
+    check("lane fill: FILL ONLY plays only in a fill, NO FILL only out of one, per lane (the lane next to it plays always), a mute never",
+          a0 == 0u && b0 > 0u && a1 > 0u && b1 == 0u && lane_hits_on(0, 3, slen) > 0u && a4 == 0u && b4 == 0u);
+}
 static void t_cond(void)
 {
     static uint8_t b[AX_ENC_MAX];
@@ -490,8 +517,6 @@ static void t_cond(void)
     memset(&m2, 0, sizeof m2);
     check("... the extras record: the new form (AUTO_ENC_TAG), read back equal", b[0] == AUTO_ENC_TAG && ax_decode(&m2, b, i) &&
           auto_store_same(&m, &m2));
-    check("... a 2.4 export reports it (SX24_COND, the second word's bit 8)", sl24_auto_out(&x, &m.l[2]) == SX24_COND &&
-          ((SX24_COND >> 14) & 0x3FFFu) == 256u);
     {
         auto_ev_t e = {5u | AUTO_ONLY, AUTO_COND, 0}, f = {5u, AUTO_COND, 6}, g = {5u | AUTO_ONLY, AUTO_COND, 9}, r = {5u, AUTO_COND, 2};
         check("an event a list never holds: COND 0, COND as a hold event past ROLL's x8; COND 9 (4:4) is one, a lane's ROLL x3 too",
@@ -622,57 +647,6 @@ static void t_save(void)
     }
 }
 
-/* ---- SLOOP 2.4 */
-static void t_sl24(void)
-{
-    static uint8_t fun5[SL24_SIZE];
-    static project_t q;
-    static stepx_t x[NTRK], y[NTRK];
-    static auto_store_t back;
-    const stepx_t *xp[NTRK] = {&x[0], &x[1], &x[2], &x[3]};
-    uint32_t k, i, lost = 0, cl;
-    int ok = 1;
-    reset();
-    make_tracks(5);
-    clear_lists();
-    for (k = 0; k < NPART; k++) {
-        (void)step_micro_set(&trk[k], 2, 5);
-        (void)step_fill_set(&trk[k], 4, FC_NOFILL);
-        for (i = 0; i < 26u; i++)                     /* (26 locks: the last two past 2.4's 24) */
-            (void)lock_set(&trk[k], i, P_PAN, (int32_t)i - 13);
-        (void)motion_set_event(&trk[k], 9, P_CHOR, 33);
-        (void)step_chance_set(&trk[k], 5, 50);
-    }
-    (void)lock_set(&trk[0], 30, P_FXOFF, 1);          /* (2.4 has no FX OFF) */
-    proj_capture(&gp, &gd);
-    for (k = 0; k < NTRK; k++)
-        lost |= sl24_auto_out(&x[k], AUTO_L(k));
-    lost |= proj_to_sl24(&gp, xp, fun5);
-    printf("auto: 2.4 export lost 0x%X\n", lost);
-    check("exported for 2.4: motion and chance reported (MOTION NOT IN 2.4), locks past 24 reported",
-          (lost & SX24_MOTION) && (lost & SX24_CHANCE) && (lost & SX24_LOCK));
-    ok = proj_from_sl24(&q, fun5, SL24_SIZE, y);
-    cl = sl24_auto_in(&back, y);
-    for (k = 0; k < NPART; k++) {
-        int32_t v;
-        ok &= auto_pseudo(&back.l[k], 2, AUTO_NUDGE, 0) == 5 && auto_pseudo(&back.l[k], 4, AUTO_FILL, 0) == FC_NOFILL;
-        ok &= auto_count(&back.l[k], AUTO_HOLDS) == 0u && auto_pseudo(&back.l[k], 5, AUTO_CHANCE, 100) == 100;
-        for (i = 0; i < 26u; i++)
-            ok &= auto_get(&back.l[k], i | AUTO_ONLY, P_PAN, &v) == (i < 24u) && (i >= 24u || v == (int32_t)i - 13);
-    }
-    ok &= !auto_get(&back.l[0], 30u | AUTO_ONLY, P_FXOFF, (int32_t[]){0});
-    check("... imported back: the nudges, fills, the first 24 locks a track; no motion, no chance, no FX OFF lock",
-          ok && !cl);
-    stepx_clear(&y[0]);
-    (void)stepx_lock_set(&y[0], 3, P_LEVEL, 300);      /* (a 2.4 lock past a signed byte) */
-    cl = sl24_auto_in(&back, y);
-    {
-        int32_t v;
-        check("a 2.4 lock of 300: clamped to 127, the import says so (AUTO_CLAMP)", cl == AUTO_CLAMP &&
-              auto_get(&back.l[0], 3u | AUTO_ONLY, P_LEVEL, &v) && v == 127);
-    }
-}
-
 /* ---- undo, the editor, the kind toggle */
 static void t_undo(void)
 {
@@ -741,62 +715,6 @@ static void t_toggle(void)
     check("a lock of GATE: HOLD too (one list with the motion, 2026-10-15)", auto_kind_toggle(t, 5, P_SGATE) == 1u && hold_get(t, 5, P_SGATE, &v) && v == 40);
 }
 
-/* SL24_GET (78) lost words: the motion alone on bit 13 of the first word, the chance on bit 0 of the second (protocol v12,
- * asked for with the request's 5th byte, flag 1, sent last); a request without the flag (a v11 editor) gets the reply it
- * always got, the chance on the motion's bit 13 and no byte after the data; a flag with other bits: rc 1 */
-static uint32_t get78(uint32_t flag, int withflag, uint32_t part, uint32_t off, uint32_t *w2)
-{
-    uint8_t a[5] = {(uint8_t)part, (uint8_t)(off & 127u), (uint8_t)(off >> 7 & 127u), (uint8_t)(off >> 14 & 127u), (uint8_t)flag};
-    ed_n = 0;
-    (void)ed_sl24(78, a, withflag ? 5u : 4u);
-    *w2 = withflag && ed_n >= 17u ? ed_g7(ed_out + ed_n - 2u, 2) : 0u;
-    return ed_n >= 15u ? ed_g7(ed_out + 10, 2) : 0xFFFFu;
-}
-static void t_get78(void)
-{
-    uint32_t k, w1, w2, n4, n5, i, v11, v12, len;
-    uint8_t b4[400];
-    reset();
-    make_tracks(5);
-    clear_lists();
-    for (k = 0; k < NPART; k++)
-        (void)step_chance_set(&trk[k], 5, 50);
-    w1 = get78(0, 0, 0, 0, &w2);
-    n4 = ed_n;
-    memcpy(b4, ed_out, n4 < sizeof b4 ? n4 : sizeof b4);
-    v11 = w1;
-    check("78 without the flag, chance only: the first word carries it on bit 13 (a v11 editor's 'motion or chance'), no second word",
-          ed_out[1] == 0 && (w1 & 8192u) && !(w1 & ~0x3FFFu) && n4 > 15u);
-    w1 = get78(1, 1, 0, 0, &w2);
-    n5 = ed_n;
-    v12 = w1;
-    check("78 with the flag, chance only: the first word has no motion bit, the second word is 1", ed_out[1] == 0 && !(w1 & 8192u) && w2 == 1u);
-    check("... the reply is the v11 one plus the two bytes at its end (header, CRC, offset and data identical)",
-          n5 == n4 + 2u && !memcmp(ed_out, b4, 10) && !memcmp(ed_out + 12, b4 + 12, n4 - 12u) && (v11 & 0x1FFFu) == (v12 & 0x1FFFu));
-    for (k = 0; k < NPART; k++)
-        (void)motion_set_event(&trk[k], 9, P_CHOR, 33);
-    w1 = get78(1, 1, 0, 0, &w2);
-    check("78 with the flag, motion and chance: motion on bit 13 of the first word, chance bit 0 of the second", (w1 & 8192u) && w2 == 1u);
-    w1 = get78(0, 0, 0, 0, &w2);
-    check("78 without the flag, motion and chance: bit 13, no second word", (w1 & 8192u) && !(w1 & ~0x3FFFu) && ed_n == n4);
-    clear_lists();
-    w1 = get78(1, 1, 0, 0, &w2);
-    check("78 with the flag, neither: both words clear of them", !(w1 & 8192u) && w2 == 0u);
-    for (k = 0; k < NPART; k++)
-        (void)motion_set_event(&trk[k], 9, P_CHOR, 33);
-    w1 = get78(1, 1, 0, 0, &w2);
-    check("78 with the flag, motion only: bit 13 and the second word 0", (w1 & 8192u) && w2 == 0u);
-    len = ed_g7(ed_out + 2, 3);
-    w1 = get78(1, 1, 0, len - 5u, &w2);
-    for (i = 0, k = 0; i < ed_n; i++)
-        k += ed_out[i] > 127u;
-    check("78 with the flag, the last chunk: the data ends where the length says, the second word after it", !k && ed_n == 15u + 6u + 2u && ed_out[ed_n - 2u] <= 127u);
-    (void)get78(2, 1, 0, 0, &w2);
-    check("78 with a flag of other bits: rc 1 (arguments)", ed_out[1] == 1u);
-    (void)get78(0, 1, 0, 0, &w2);
-    check("78 with 5 bytes and flag 0: rc 1 (only flag 1 is defined)", ed_out[1] == 1u);
-}
-
 /* a capture while a lock is in force (an autosave or a SAVE while playing): the patch under the lock is stored, not the
  * lock's value (auto.c auto_patch, 2026-10-15) */
 static void t_lockcap(void)
@@ -837,15 +755,14 @@ int main(void)
     t_fills();
     t_chance();
     t_cond();
+    t_lane_fill();
     t_motn();
     t_extras();
     t_pattern();
     t_save();
-    t_sl24();
     t_undo();
     t_editor();
     t_toggle();
-    t_get78();
     t_lockcap();
     printf("auto test %s (%d failed)\n", bad ? "FAILED" : "passed", bad);
     return bad;

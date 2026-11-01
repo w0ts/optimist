@@ -111,6 +111,14 @@ final class ClipTests: XCTestCase {
         XCTAssertEqual(Clip.name(0), "C-1")
     }
 
+    func testPanelSeqReplyMatching() throws {
+        XCTAssertEqual(DeviceInfo.features("opti_clip_1 opti_mstate_1 opti_panelx_1 ".utf8.map { $0 }[...])["opti_panelx"], 1)
+        XCTAssertTrue(Wire.replyMatches(108, [0, 3, 1], [0, 0]))            // (no seq: any PANEL reply, as before)
+        XCTAssertTrue(Wire.replyMatches(108, [0, 3, 1, 9], [0, 0, 9]))      // (its seq back)
+        XCTAssertFalse(Wire.replyMatches(108, [0, 3, 1, 9], [0, 0, 8]))     // (the one before's answer)
+        XCTAssertFalse(Wire.replyMatches(108, [4, 0, 0, 9], [0, 0, 9]))     // (another kind)
+    }
+
     func testFeatureFromTag67AndReplyMatching() throws {
         XCTAssertEqual(DeviceInfo.features("opti_clip_1 ".utf8.map { $0 }[...])["opti_clip"], 1)
         XCTAssertTrue(Wire.replyMatches(111, [0], [0, 0, 1, 4]))

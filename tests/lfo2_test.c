@@ -7,7 +7,15 @@
  *   maths     PIT FLT SHP on LFO DEST's scale ((v AMT 3) >> 8, (v AMT) >> 8), AMP 32767 - u AMT 258, < 0 upside down,
  *             never below 0 nor above unity; two slots: their sum; POL UNI one way only (0..+1); the waves (SQR SAW
  *             exact); S&H once a cycle, no rng()
+ *   SLEW      (issue 129) the shape: from one S&H value to the next on a smoothstep, at phase 0 exactly S&H's value; LFO
+ *             and LFO 2 at their fastest free and synced rates: every block within the glide's steepest slope of the
+ *             last (continuous across the wraps), each cycle starting at its S&H value, no extra rng() draw, LFO's S&H
+ *             values the same draws as with S&H; SLEW kept by a project (LFO and LFO 2)
  *   trig      NOTE: a fresh phrase restarts it at 0, a note over a held one does not; FREE: never
+ *   issue129  (2026-10-31) RATE 6BAR 8BAR 16BAR (-23 .. -25) named and walked in length order; PHS in degrees; TRIG PLAY
+ *             (LFO and LFO 2): from PLAY at PHS, synced on the transport's bar; LFO 2's PHS and FADE; LFO's POL UNI and
+ *             TRIG FREE; their defaults: as before; the modulation record's XREC block (round trip, none at the defaults,
+ *             a project without it: the defaults)
  *   render    a part with LFO 2 on AMP / PIT sounds different from off; the render with it off is the render of before
  *   project   capture -> apply round trip (every value, both TRIGs and POLs, synced and free RATE, AMT -128 .. 127, two
  *             slots, AMT B in LFO DEST's words); the drum track's LFO slots hold it only when one is not at its
@@ -55,12 +63,12 @@ static void t_params(void)
     uint32_t i, k;
     int ok;
     ok = r->min == -LSYNC_N && r->max == 127 && r->def == 60 && r->fmt == F_LFOHZ;
-    ok &= TP[P_L2WAVE].max == 4 && TP[P_L2TRIG].max == 1 && TP[P_L2POL].max == 1;
+    ok &= TP[P_L2WAVE].max == LFO_WAVES - 1 && TP[P_LWAVE].max == LFO_WAVES - 1 && TP[P_L2TRIG].max == 2 && TP[P_L2POL].max == 1;
     for (k = 0; k < 2u; k++)
         ok &= TP[P_L2DA + 2u * k].max == LT_N - 1 && TP[P_L2AA + 2u * k].min == -128 && TP[P_L2AA + 2u * k].max == 127 &&
               !TP[P_L2DA + 2u * k].def && !TP[P_L2AA + 2u * k].def;
     ok &= !TP[P_L2WAVE].def && !TP[P_L2TRIG].def && !TP[P_L2POL].def;
-    check(ok, "params: RATE -22..127 (60), WAVE 5, TRIG NOTE/FREE, POL BI/UNI, two slots (DEST LT_N, AMT -128..127); all off");
+    check(ok, "params: RATE -25..127 (60), WAVE 6 (both LFOs), TRIG NOTE/FREE/PLAY, POL BI/UNI, two slots (DEST LT_N, AMT -128..127); all off");
     for (i = 0, ok = 1; i < 5u; i++) {
         param_format(&TP[P_L2DA], (int32_t)i, v, &u);
         ok &= !strcmp(v, D[i]);
@@ -86,9 +94,15 @@ static void t_params(void)
     param_format(&TP[P_L2AA], 64, v, &u);
     ok &= !strcmp(v, "+50");
     check(ok, "names: DEST OFF PIT FLT SHP AMP .. L1 RT / L1 AMT on LFO 2 (L2 RT on LFO), TRIG FREE, POL UNI, RATE -11 = 1/4, AMT -128 = -100 %, 64 = +50 %");
-    ok = param_step(r, 60, -8) == 52 && param_step(r, 5, -8) == 0 && param_step(r, 0, -8) == -1 && param_step(r, -22, -3) == -22;
-    check(ok, "knob: RATE turns as LFO's (stops at 0 first, then a note value a detent)");
-    check(P_L2RATE > P_E7 && P_E1PIT == P_L2AB + 1 && P_VOICES > P_E1PIT && P_COUNT == P_VOICES + 1 && P_COUNT < 128, "ids: after P_E7, before ENV 1 MOD's values, ENV2's slots and VOICES (no id before moves)");
+    ok = param_step(r, 60, -8) == 52 && param_step(r, 5, -8) == 0 && param_step(r, 0, -8) == -25 && param_step(r, -22, -3) == -22;
+    ok &= param_step(r, -25, -1) == -24 && param_step(r, -24, -1) == -23 && param_step(r, -23, -1) == -1 &&
+          param_step(r, -1, 1) == -23 && param_step(r, -25, 1) == 0 && param_step(r, -1, -1) == -2;
+    ok &= param_step(&TP[P_LRATE], 0, -1) == -25 && param_step(&TP[P_LRATE], -23, -9) == -1;
+    check(ok, "knob: RATE turns as LFO's (stops at 0 first, then a note value a detent: 16BAR 8BAR 6BAR 4BAR .. 1/64)");
+    check(P_L2RATE > P_E7 && P_E1PIT == P_L2AB + 1 && P_VOICES > P_E1PIT && P_L1POL == P_L1TRIG + 1 && P_SLAST == P_L1POL &&
+              P_VOICES == P_L1POL + 1 && P_L2PHS == P_VOICES + 1 && P_L2FADE == P_L2PHS + 1 && P_COUNT == P_L2FADE + 1,
+          "ids: after P_E7, before ENV 1 MOD's values, ENV2's slots and VOICES (no id before moves); LFO's TRIG POL the "
+          "sound's last, LFO 2's PHS FADE the last");
 }
 
 /* one tick of part k's LFO 2 at phase ph (the step: LFO_INC[0] at RATE 0) -> its block's offsets */
@@ -138,7 +152,7 @@ static void t_off_rate(void)
         lfo2_tick(t, &o);
         ok &= lfo2[0].ph - ph == lfo_inc(t) && lfo_inc(t) != 0u;
     }
-    check(ok, "rate: synced -1..-22 step as LFO's at the same RATE (the transport clock)");
+    check(ok, "rate: synced -1..-25 step as LFO's at the same RATE (the transport clock)");
 }
 
 static void t_maths(void)
@@ -173,7 +187,7 @@ static void t_maths(void)
         ok &= o.m[1] == ((((int32_t)(ph >> 16)) - 32768) * 126) >> 8;
     }
     check(ok, "maths: SAW exact over the cycle");
-    for (w = 0; w < 5u; w++) {                         /* POL: BI both ways, UNI 0..+1 */
+    for (w = 0; w < LFO_WAVES; w++) {                  /* POL: BI both ways, UNI 0..+1 */
         int32_t blo = 0, bhi = 0, ulo = 0;
         for (ph = 0; ph < 0xFFF00000u; ph += 0x00F00000u) {
             l2_set(t, 0, (int32_t)w, 0, 0, LT_FLT, 126);
@@ -229,6 +243,127 @@ static void t_maths(void)
         }
         check(ok && changes >= wraps && wraps > 10u && rng_state == r0,
               "S&H: a new value at a wrap only, every wrap (a hash of the last: no rng(), either core)");
+    }
+}
+
+/* SLEW's steepest move over a phase step inc: smoothstep's slope 1.5 x the full range 65535, plus the rounding */
+static int32_t slew_bound(uint32_t inc) { return (int32_t)((3ull * 65535u * inc) >> 33) + 3; }
+static int32_t iabs(int32_t x) { return x < 0 ? -x : x; }
+/* LFO 2 of part 0 at RATE rate on SLEW for n blocks: each block's move within slew_bound, each wrap's value S&H's of the new
+ * cycle (within a block's move), no rng() -> 1 when so; *span: its max - min */
+static int slew_lfo2(int32_t rate, uint32_t n, int32_t *span)
+{
+    track_t *t = &trk[0];
+    lfo_mod_t o;
+    uint32_t i, old, inc = lfo_inc_of(rate), r0 = rng_state, wraps = 0;
+    int32_t last, mn = 32767, mx = -32768, b = slew_bound(inc);
+    int ok = 1;
+    l2_set(t, rate, LFO_WAVE_SLEW, 0, 0, LT_FLT, 126);
+    lfo2[0].ph = 0, lfo2[0].rnd = 0x80000000u;
+    o = (lfo_mod_t){{0, 0, 0}, -1, -1};
+    lfo2_tick(t, &o);
+    last = lfo2[0].v;
+    for (i = 0; i < n; i++) {
+        old = lfo2[0].ph;
+        lfo2_tick(t, &o);
+        ok &= iabs(lfo2[0].v - last) <= b;
+        if (lfo2[0].ph < old) {
+            wraps++;
+            ok &= iabs(lfo2[0].v - lfo_shape(LFO_WAVE_SH, 0, lfo2[0].rnd)) <= b;
+        }
+        last = lfo2[0].v;
+        mn = last < mn ? last : mn, mx = last > mx ? last : mx;
+    }
+    *span = mx - mn;
+    return ok && wraps > 20u && rng_state == r0;
+}
+/* LFO of part 0 at RATE rate, WAVE wave for n blocks (track_lfo_tick) -> the hash of its S&H values (lfo_rnd's top 16 bits at
+ * each wrap); SLEW: *ok cleared on a move past slew_bound or a cycle not starting at the S&H value before it */
+static uint32_t slew_lfo1(int32_t rate, uint32_t wave, uint32_t n, int *ok, int32_t *span)
+{
+    track_t *t = &trk[0];
+    uint32_t i, old, h = 2166136261u, prev = 0, inc;
+    int32_t last, mn = 32767, mx = -32768, b;
+    rng_state = 0x1234567u;
+    t->p[P_LRATE] = (int16_t)rate, t->p[P_LWAVE] = (int16_t)wave, t->p[P_LFADE] = 0;
+    t->lfo_ph = 0, t->lfo_rnd = 0, t->lfo_fade = 32767;
+    inc = lfo_inc(t), b = slew_bound(inc);
+    track_lfo_tick(t);
+    last = t->lfo_val;
+    for (i = 0; i < n; i++) {
+        old = t->lfo_ph;
+        prev = t->lfo_rnd;
+        track_lfo_tick(t);
+        if (t->lfo_ph < old) {
+            h = (h ^ (t->lfo_rnd >> 16)) * 16777619u;
+            if (wave == LFO_WAVE_SLEW)                 /* (LFO's draw is rng(): SLEW starts at the value drawn before) */
+                *ok &= iabs(t->lfo_val - lfo_shape(LFO_WAVE_SH, 0, prev)) <= b;
+        }
+        if (wave == LFO_WAVE_SLEW)
+            *ok &= iabs(t->lfo_val - last) <= b;
+        last = t->lfo_val;
+        mn = last < mn ? last : mn, mx = last > mx ? last : mx;
+    }
+    *span = mx - mn;
+    return h ^ rng_state;
+}
+static void t_slew(void)
+{
+    uint32_t i, j, ph;
+    int ok = 1;
+    int32_t span, span2, span3;
+    uint32_t keep_blk = clk_blk;
+    init();
+    for (i = 0; i < 4000u; i++) {                       /* the shape alone */
+        uint32_t a = lfo_rnd_of(i, 7u), b = lfo_rnd_of(i + 1u, 7u), r = lfo_slew_pair(a, b);
+        int32_t last = lfo_shape(LFO_WAVE_SLEW, 0, r), v, lo = lfo_shape(LFO_WAVE_SH, 0, a), hi = lfo_shape(LFO_WAVE_SH, 0, b);
+        ok &= last == lo && iabs(lfo_shape(LFO_WAVE_SLEW, 0xFFFFFFFFu, r) - hi) <= 2;
+        for (j = 1; j <= 256u; j++) {
+            ph = j == 256u ? 0xFFFFFFFFu : j << 24;
+            v = lfo_shape(LFO_WAVE_SLEW, ph, r);
+            ok &= iabs(v - last) <= slew_bound(1u << 24) &&   /* (one way: within the Q15 rounding, 8) */
+                  (hi >= lo ? v >= last - 8 && v <= hi + 2 : v <= last + 8 && v >= hi - 2);
+            last = v;
+        }
+    }
+    check(ok, "SLEW: the shape goes from one S&H value (exactly, at phase 0) to the next (at the wrap, within 2), one way, never "
+              "steeper than 1.5 x the range a cycle");
+    ok = slew_lfo2(127, 20000u, &span);                 /* (the fastest free rate) */
+    clk_blk = CTL * 240u;                               /* (the fastest synced: 1/64 at 240 BPM) */
+    ok &= slew_lfo2(-DUR_N, 20000u, &span2);
+    clk_blk = CTL * 120u;
+    ok &= slew_lfo2(-11, 20000u, &span3);               /* (1/4 at 120) */
+    clk_blk = keep_blk;
+    printf("SLEW LFO 2: spans %d %d %d, block steps <= %d (free 127) %d (1/64 at 240 BPM)\n", (int)span, (int)span2, (int)span3,
+           (int)slew_bound(LFO_INC[127]), (int)slew_bound((uint32_t)(((uint64_t)CTL * 240u * LSYNC_KT[DUR_N - 1]) >> 16)));
+    check(ok && span > 40000 && span2 > 40000 && span3 > 40000,
+          "SLEW LFO 2: at free 127, 1/64 at 240 BPM and 1/4: each block within the steepest glide of the last (continuous at "
+          "the wraps), each cycle starting at its S&H value, the whole range covered, no rng()");
+    {
+        int ok1 = 1, ok0 = 1;
+        uint32_t h4, h5;
+        h4 = slew_lfo1(127, LFO_WAVE_SH, 20000u, &ok0, &span);
+        h5 = slew_lfo1(127, LFO_WAVE_SLEW, 20000u, &ok1, &span2);
+        clk_blk = CTL * 240u;
+        ok1 &= slew_lfo1(-DUR_N, LFO_WAVE_SH, 20000u, &ok0, &span) == slew_lfo1(-DUR_N, LFO_WAVE_SLEW, 20000u, &ok1, &span3);
+        clk_blk = keep_blk;
+        check(ok1 && h4 == h5 && span2 > 40000 && span3 > 40000,
+              "SLEW LFO: at free 127 and 1/64 at 240 BPM each block within the steepest glide (continuous at the wraps), each "
+              "cycle starting at the S&H value drawn before; the same rng() draws and S&H values as S&H");
+    }
+    {                                                   /* a project keeps SLEW on both LFOs */
+        uint32_t k;
+        init();
+        for (k = 0; k < NPART; k++) {
+            trk[k].p[P_LWAVE] = LFO_WAVE_SLEW;
+            l2_set(&trk[k], -11, LFO_WAVE_SLEW, 1, 1, LT_FLT, 50);
+        }
+        proj_capture(&q, &tdl);
+        init();
+        proj_apply(&q, &tdl, 1);
+        for (k = 0, ok = 1; k < NPART; k++)
+            ok &= trk[k].p[P_LWAVE] == LFO_WAVE_SLEW && trk[k].p[P_L2WAVE] == LFO_WAVE_SLEW && trk[k].p[P_L2DA] == LT_FLT;
+        check(ok, "SLEW: a project keeps it (LFO and LFO 2 WAVE 5 back after capture -> apply)");
     }
 }
 
@@ -368,14 +503,158 @@ static void t_project(void)
     (void)k;
 }
 
+/* the transport at beat b, u units into it, playing (or not), t blocks since PLAY */
+static void at_pos(uint32_t b, uint32_t u, uint32_t t, uint32_t play)
+{
+    clk_beat = b, clk_pos = u, song.tick = t, song.playing = (uint8_t)play;
+}
+static uint32_t ph_dist(uint32_t a, uint32_t b) { return a - b < b - a ? a - b : b - a; }
+static void t_issue129(void)
+{
+    static const char *const N[3] = {"6BAR", "8BAR", "16BAR"};
+    track_t *t = &trk[0];
+    lfo_mod_t o;
+    char v[8];
+    const char *u;
+    uint32_t i, ph, ok = 1, keep = clk_blk;
+    init();
+    for (i = 0; i < 3u; i++) {                          /* names and lengths */
+        param_format(&TP[P_LRATE], -23 - (int32_t)i, v, &u);
+        ok &= !strcmp(v, N[i]);
+        ok &= LSYNC_KT[DUR_N + i] < LSYNC_KT[i ? DUR_N + i - 1u : 0u];   /* (each longer: a smaller step) */
+    }
+    ok &= LSYNC_KT[DUR_N + 2u] * 4u + 4u >= LSYNC_KT[0] && LSYNC_KT[DUR_N + 2u] * 4u <= LSYNC_KT[0] + 4u;   /* (16BAR: 4BAR / 4) */
+    param_format(&TP[P_LPHASE], 32, v, &u);
+    ok &= !strcmp(v, "90") && !strcmp(u, "deg");
+    param_format(&TP[P_L2PHS], 127, v, &u);
+    ok &= !strcmp(v, "357");
+    param_format(&TP[P_L1TRIG], 2, v, &u);
+    ok &= !strcmp(v, "PLAY");
+    check(ok, "issue129: RATE -23 -24 -25 = 6BAR 8BAR 16BAR (16BAR a quarter of 4BAR's step), PHS 32 = 90 deg, TRIG 2 PLAY");
+    ok = !TP[P_L1TRIG].def && !TP[P_L1POL].def && !TP[P_L2PHS].def && !TP[P_L2FADE].def && TP[P_L1TRIG].max == 2 &&
+         TP[P_L2PHS].fmt == F_DEG && TP[P_LPHASE].fmt == F_DEG;
+    check(ok, "issue129: LFO's TRIG POL and LFO 2's PHS FADE at NOTE BI 0 0 by default (as before)");
+    /* LFO 2 TRIG PLAY: from PLAY at PHS; synced, on the bar */
+    l2_set(t, -5, 0, LTRIG_PLAY, 0, LT_FLT, 60);        /* (1BAR) */
+    t->p[P_L2PHS] = 32;
+    at_pos(0, 0, 0, 1);
+    o = (lfo_mod_t){{0, 0, 0}, -1, -1};
+    lfo2_tick(t, &o);
+    ok = lfo2[0].ph == 32u << 25;
+    at_pos(2, 0, 100, 1);                               /* (half a bar in) */
+    lfo2_tick(t, &o);
+    ok &= ph_dist(lfo2[0].ph, (32u << 25) + 0x80000000u) < 4096u;
+    at_pos(4, 0, 200, 1);                               /* (a bar in: PHS again) */
+    lfo2_tick(t, &o);
+    ok &= ph_dist(lfo2[0].ph, 32u << 25) < 4096u;
+    at_pos(4, 0, 200, 0);                               /* (stopped: it runs on, as FREE) */
+    ph = lfo2[0].ph;
+    clk_blk = CTL * 120u;
+    lfo2_tick(t, &o);
+    ok &= lfo2[0].ph == ph + lfo_inc_of(-5);
+    t->p[P_L2RATE] = 50;                                /* (free: from PLAY at its rate) */
+    at_pos(0, 0, 10, 1);
+    lfo2_tick(t, &o);
+    ok &= lfo2[0].ph == (32u << 25) + 10u * LFO_INC[50];
+    check(ok, "issue129: LFO 2 TRIG PLAY: at PLAY its PHS; synced 1BAR: half a cycle at beat 2, PHS again at the bar; stopped "
+              "it steps on as FREE; free: PHS + the blocks since PLAY at its rate");
+    /* LFO 2 TRIG NOTE at PHS, its FADE */
+    at_pos(0, 0, 0, 0);
+    l2_set(t, 100, 0, LTRIG_NOTE, 0, LT_FLT, 60);
+    t->p[P_L2PHS] = 64, t->p[P_L2FADE] = 60;
+    host_preset(t, 0, 0);
+    trk_all_off(t);
+    mix_block(o_, CTL);
+    trk_note_on(t, 60, 100);
+    ok = lfo2[0].ph == 64u << 25 && lfo2[0].fade == 0;
+    {
+        int32_t mx = 0, mx_end = 0, w;
+        for (i = 0; i < 400u; i++) {
+            o = (lfo_mod_t){{0, 0, 0}, -1, -1};
+            lfo2_tick(t, &o);
+            w = lfo2[0].v < 0 ? -lfo2[0].v : lfo2[0].v;
+            if (i < 3u)
+                mx = w > mx ? w : mx;
+            else if (i > 380u)
+                mx_end = w > mx_end ? w : mx_end;
+        }
+        ok &= mx < 2000 && mx_end > 20000 && lfo2[0].fade == 32767;
+    }
+    trk_all_off(t);
+    check(ok, "issue129: LFO 2 TRIG NOTE: a fresh phrase restarts it at PHS, FADE in from 0 to full");
+    /* LFO: POL UNI, TRIG FREE, TRIG PLAY */
+    t->p[P_LRATE] = 100, t->p[P_LWAVE] = 0, t->p[P_L1POL] = 1, t->p[P_LFADE] = 0, t->p[P_L1TRIG] = LTRIG_NOTE;
+    for (i = 0, ok = 1; i < 300u; i++) {
+        int32_t w;
+        track_lfo_tick(t);
+        w = lfo_wave(t, t->lfo_ph);
+        ok &= t->lfo_val >= 0 && t->lfo_val == (w + 32768) >> 1;
+    }
+    check(ok, "issue129: LFO POL UNI: one way only, (v + 1) / 2 as LFO 2's");
+    t->p[P_L1POL] = 0, t->p[P_L1TRIG] = LTRIG_FREE;
+    trk_all_off(t);
+    mix_block(o_, CTL);
+    t->lfo_ph = 0x12345678u;
+    trk_note_on(t, 60, 100);
+    ok = t->lfo_ph == 0x12345678u;
+    trk_all_off(t);
+    t->p[P_L1TRIG] = LTRIG_PLAY, t->p[P_LRATE] = -5, t->p[P_LPHASE] = 96, t->p[P_LFADE] = 40;
+    at_pos(0, 0, 0, 1);
+    track_lfo_tick(t);
+    ok &= t->lfo_ph == 96u << 25 && t->lfo_fade < 32767;
+    at_pos(6, 0, 300, 1);                               /* (a bar and a half in) */
+    track_lfo_tick(t);
+    ok &= ph_dist(t->lfo_ph, (96u << 25) + 0x80000000u) < 4096u && t->lfo_fade == 32767;
+    ok &= lfo1_next(t) == t->lfo_ph;                    /* (dual.c: the same phase, no step on) */
+    t->p[P_L1TRIG] = LTRIG_NOTE, t->p[P_LRATE] = 100, t->p[P_LPHASE] = 0, t->p[P_LFADE] = 0;
+    at_pos(0, 0, 0, 0);
+    clk_blk = keep;
+    check(ok, "issue129: LFO TRIG FREE: a fresh phrase leaves it; TRIG PLAY: at PLAY its PHS (FADE from PLAY), on the bar "
+              "after");
+    /* the project: XREC */
+    init();
+    proj_capture(&q, &tdl);
+    {
+        const dlr_store_t *m = dlr_of(&q);
+        ok = !m || !m->n;
+    }
+    trk[0].p[P_L1TRIG] = 2, trk[1].p[P_L1POL] = 1, trk[2].p[P_L2PHS] = 112, trk[0].p[P_L2FADE] = 90, trk[1].p[P_L2TRIG] = 2;
+    proj_capture(&q, &tdl);
+    init();
+    for (i = 0; i < NPART; i++)
+        trk[i].p[P_L1TRIG] = 1, trk[i].p[P_L2PHS] = 5;
+    proj_apply(&q, &tdl, 1);
+    ok &= trk[0].p[P_L1TRIG] == 2 && trk[1].p[P_L1POL] == 1 && trk[2].p[P_L2PHS] == 112 && trk[0].p[P_L2FADE] == 90 &&
+          trk[1].p[P_L2TRIG] == 2 && trk[1].p[P_L1TRIG] == 0 && trk[0].p[P_L2PHS] == 0 && !trk[2].p[P_L1POL];
+    check(ok, "issue129: a project keeps LFO's TRIG POL and LFO 2's PHS FADE (XREC); at their defaults no record at all");
+    proj_capture(&q2, &tdl);
+    init();
+    for (i = 0; i < NPART; i++)
+        trk[i].p[P_L1TRIG] = 1, trk[i].p[P_L2PHS] = 5, trk[i].p[P_L1POL] = 1, trk[i].p[P_L2FADE] = 9;
+    {
+        project_t old;
+        memset(&old, 0, sizeof old);
+        init();
+        proj_capture(&old, &tdl);                       /* (a project of before: no record) */
+        for (i = 0; i < NPART; i++)
+            trk[i].p[P_L1TRIG] = 1, trk[i].p[P_L2PHS] = 5, trk[i].p[P_L1POL] = 1, trk[i].p[P_L2FADE] = 9;
+        proj_apply(&old, &tdl, 1);
+        for (i = 0, ok = 1; i < NPART; i++)
+            ok &= !trk[i].p[P_L1TRIG] && !trk[i].p[P_L2PHS] && !trk[i].p[P_L1POL] && !trk[i].p[P_L2FADE];
+    }
+    check(ok, "issue129: a project without the block (of before): LFO's TRIG POL, LFO 2's PHS FADE at their defaults");
+}
+
 int main(void)
 {
     t_params();
     t_off_rate();
     t_maths();
+    t_slew();
     t_trig();
     t_render();
     t_project();
+    t_issue129();
     printf("lfo2_test: %d failed\n", fails);
     return fails;
 }

@@ -15,12 +15,20 @@ static void project_load(uint32_t slot);
 static int project_used(uint32_t slot);
 #if FELUCCA_SL24_SAFE
 static uint32_t project_state(uint32_t s);   /* project.c sl24_guard.c */
-#if SL24_AUTO
-static void sl24_auto_import(void);
-#endif
 #endif
 #define FAV_SAVE_LATER() (settings_later = 1)       /* (panel.c: written once the audio is quiet, project.c sections_flush) */
-#include "favorites.c"                      /* FELUCCA_FAVORITES: the marked sounds (fav, fav_list) */
+#include "favorites.c"                      /* FELUCCA_FAVORITES: the marked sounds (fav) */
+/* the preset list's filter (the user, 2026-10-31: "Right shift should cycle thru (filter) types of preset. Factory, user,
+ * favorites/init etc."): SHIFT2 + PRESETS steps it in PLF_ORDER (op_screens.c op_pl_filter_step), the popup list's header
+ * names it (op_preset.c). PLF_FAV is 1 and PLF_ALL 0: the editor's FAVS "list" byte (io/editor/ed_fav.c, protocol v13) is
+ * this with the other filters read as ALL. Not kept over a power cycle */
+enum { PLF_ALL, PLF_FAV, PLF_FACTORY, PLF_USER, PLF_INIT, PLF_N };
+static uint8_t pl_filt;
+#if FELUCCA_FAVORITES
+#define fav_list (pl_filt == PLF_FAV)        /* (the favorites only: the filter FAVORITES) */
+#else
+#define fav_list 0u
+#endif
 static int up_used(uint32_t k);              /* user presets: upreset.c */
 static int up_load(uint32_t k);
 static uint32_t up_count(void);
@@ -35,6 +43,7 @@ static uint32_t nb_list(uint32_t *rank, uint32_t n, uint32_t *at);
 static uint32_t nb_list_of(uint32_t kind, uint32_t *rank, uint32_t n, uint32_t *at);
 static uint32_t nb_kind_at(uint32_t i);
 static uint32_t nb_engine_slot(uint32_t kind);
+static int nb_factory(uint32_t kind, uint32_t slot);
 #define NB_NK 2u
 static void nb_row(uint32_t k, char *tag, char *nm);
 static void nb_load(uint32_t k);
@@ -59,8 +68,15 @@ static uint8_t sync_reload;                  /* engine / preset / project / user
 /* LIVE: no factory sequence patterns. Loading a sound (factory or user preset) never
  * writes the sequencer: every pattern is the one the player records or enters. */
 
-/* the parts' sounds at power-on (engine, preset): bass, pad, lead */
-static const uint8_t TRK_DEF[NPART][2] = {{0, 0}, {1, 0}, {4, 5},   /* ANALOG 808 BOOM, DIGITAL RHODES, SAMPLE LOFI FLUTE */
+/* the parts' sounds at power-on (engine, preset): bass, pad, lead. LOFI FLUTE plays SAMPLE's FLUTE set (5); a build
+ * without it (SD card mode: no set in flash, SMP_SET_MASK 0) starts T3 on ANALOG G-FUNK LD instead, never a MISSING at
+ * power-on (the user, 2026-10-26) */
+#if FELUCCA_ENG_SAMPLE && defined(SMP_SET_MASK) && !((SMP_SET_MASK >> 5) & 1u)
+#define TRK_DEF_LEAD {0, 9}
+#else
+#define TRK_DEF_LEAD {4, 5}
+#endif
+static const uint8_t TRK_DEF[NPART][2] = {{0, 0}, {1, 0}, TRK_DEF_LEAD,   /* ANALOG 808 BOOM, DIGITAL RHODES, the lead */
 #if NPART > 3
                                           {0, 13},  /* (no drums: track 4, ANALOG WARM PAD) */
 #endif
@@ -109,6 +125,10 @@ static int param_kept(uint32_t i)
  * built) has this one entry on the PRESETS list, and in the web editor's list: the engine's defaults, as a fresh
  * track on it. No data: made from the engine's and the track's defaults */
 #define PRESET_INIT 0xFFu
+#if PRESETS_CARD
+static void sdm_factory_ask(track_t *t, uint32_t pi);   /* storage/sd/sd_mode.c: the card's preset file, next pass */
+static void sdm_factory_drop(uint32_t k);               /* .. none asked for track k any more (a sound loaded over) */
+#endif
 static uint32_t eng_first_playable(const engine_t *e)    /* its first playable preset, else PRESET_INIT */
 {
     uint32_t k;
@@ -145,6 +165,17 @@ static void apply_preset_to(track_t *t, uint32_t pi)
     }
     pi %= e->npresets;
     t->preset = (uint8_t)pi;
+#if PRESETS_CARD
+    {   /* SD card mode: the engine's defaults now (the interrupts may be off here), the card's preset file on the main
+         * loop's next pass (sd_mode.c sdm_factory_poll: the record as a user preset loads it, the preset index kept) */
+        for (i = 0; i < 8u; i++)
+            t->p[P_E0 + i] = e->edit[i].def;
+        for (i = P_E1PIT; i <= P_SLAST; i++)
+            t->p[i] = TP[i].def;
+        env2_dest_def(t->p, t->eng_req);
+        sdm_factory_ask(t, pi);
+    }
+#else
     if (ENG_IS(e, FM6))
         fm6_cur[trk_index(t) % NPART] = 0;           /* its VOICE afresh: edits of the buffer go */
     for (i = 0; i < 8u; i++)
@@ -172,6 +203,7 @@ static void apply_preset_to(track_t *t, uint32_t pi)
         (void)env_load(t->p);                        /* ENV2's depths of the tables -> its slots */
         env2_dest_def(t->p, t->eng_req);
     }
+#endif
 }
 
 /* the engine's defaults and its first preset. With the audio IRQ off: the ISR sees the old engine with
@@ -196,8 +228,9 @@ static void part_drop(track_t *t)
 /* What to drop when memory is short (the user, 2026-10-25: refuse, and propose what to drop; the UI asks with its one
  * confirm, op_input.c mem_tick). mem_offer: the next part to propose, first those whose memory alone would make room
  * (engines.c part_mem_frees: one drop at a time, each dropped part free when the next is proposed), then any other part
- * whose engine keeps memory, never one already asked; 0 none left. mem_drop: that part a silent placeholder (its memory free once its
- * switch is done),. mem_retry, each frame: 0 nothing to do or still waiting for a dropped part's switch,
+ * whose engine keeps memory, never one already asked, then (FELUCCA_FX_ARENA) the effects' lines placed, the largest
+ * first (NPART + fx_arena.c FXM_*); 0 none left. mem_drop: that part a silent placeholder (its memory free once its
+ * switch is done), or that effect bypassed as when refused (its line given back two blocks later). mem_retry, each frame: 0 nothing to do or still waiting for a dropped part's switch,
  * 1 the change went through, -1 still no room (offer the next) */
 static int mem_offer(uint32_t *out)
 {
@@ -211,13 +244,28 @@ static int mem_offer(uint32_t *out)
             part_mem_refused.asked |= (uint8_t)(1u << k);
             return 1;
         }
+#if FXM_NEED                                          /* every part offered: then the effects' lines (the user, 2026-10-25) */
+    if (fxm_offer(part_mem_refused.asked >> NPART, &k)) {
+        *out = NPART + k;                             /* (NPART + fx_arena.c's FXM_*: "DROP REV 32 KB") */
+        part_mem_refused.asked |= (uint8_t)(1u << (NPART + k));
+        return 1;
+    }
+#endif
     return 0;
 }
 
 static void part_drop(track_t *t);
 
+#define MEM_W_FX 0x80u                                /* (part_mem_refused.waiting: an effect's line going back) */
 static void mem_drop(uint32_t k)
 {
+#if FXM_NEED
+    if (k >= NPART) {                                 /* an effect's line: bypassed as when refused, its block back */
+        fxm_drop(k - NPART);
+        part_mem_refused.waiting |= MEM_W_FX;         /* (mem_retry waits while it goes back: fxm_pending) */
+        return;
+    }
+#endif
     if (k >= NPART)
         return;
     part_drop(&trk[k]);
@@ -229,6 +277,21 @@ static void set_engine_of(track_t *t, uint32_t ei);
 static int mem_retry(void)
 {
     uint32_t k, p = part_mem_refused.part, e = part_mem_refused.eng;
+    if (part_mem_refused.on && fxm_pending()) {        /* (an effect's line no longer used, on its way back: wait */
+        part_mem_refused.waiting |= MEM_W_FX;           /* for it, then try again: fx/fx_arena.c) */
+        return 0;
+    }
+    if (part_mem_refused.on && arn_busy()) {            /* (the arena's blocks moving: then try again) */
+        part_mem_refused.waiting |= MEM_W_FX;
+        return 0;
+    }
+    if (part_mem_refused.on && !part_mem_refused.waiting && !part_mem_refused.packed) {
+        part_mem_refused.packed = 1;                    /* (once: the parts' blocks moved together when the free room */
+        if (part_mem_pack(p, e)) {                      /* holds it, before any drop is proposed: core/arena.c) */
+            part_mem_refused.waiting |= MEM_W_FX;
+            return 0;
+        }
+    }
     if (!part_mem_refused.on || !part_mem_refused.waiting)
         return 0;
     for (k = 0; k < NPART; k++)
@@ -250,8 +313,157 @@ static int mem_retry(void)
     return 1;
 }
 
-/* A load's refusals (engines.c part_mem_refused.lmask): every part a project's load could not place is a silent
- * placeholder with the project's sound, its engine wanted (leng). Each frame (op_input.c mem_tick), the load's first
+/* A load's refusals (engines.c part_mem_refused.lmask; the user, 2026-10-25: "the list page as designed"): every part a
+ * project's load could not place is a silent placeholder with the project's sound, its engine wanted (leng). The UI's
+ * list (ui/optimist/op_memlist.c, MEM_LIST: the arena's extras; the core alone: mem_load_next, below) shows them and what can be dropped: the parts that hold memory, then the effects' lines
+ * placed (FELUCCA_FX_ARENA; the parts first, the user, 2026-10-25). An item is a part k (k < NPART) or an effect's line
+ * NPART + fx_arena.c FXM_*; a set of them a bit mask by item. A refused part is an item too (first; the user,
+ * 2026-10-25, the night's ruling): picked, it is left silent (a placeholder, not placed), so the others can fit.
+ *   mem_load_settle   each frame: 0 waiting (a switch or an effect's line on its way back), 1 nothing refused (any part
+ *                     that finds room now on its engine: the other parts' old blocks free once they switched), -1
+ *                     still short: the list
+ *   mem_load_items    the items that can be dropped, in the list's order (parts, then REV DLY CHO): how many
+ *   mem_item_bytes    what dropping an item gives back
+ *   mem_load_fits     1: with the items of sel dropped, every refused part placed: a trial on the arena itself (the
+ *                     dropped parts' blocks idle as after their switch, the lines given back, then the reservations
+ *                     the settle makes, in its order), put back as it was: FITS on the screen is the commit's outcome
+ *   mem_load_commit   the items of sel dropped (parts placeholders, lines bypassed as when refused); the settle places
+ *                     the refused parts once their memory is free
+ *   mem_load_cancel   HOME: the refused parts stay placeholders (an engine picked later ends one) */
+#if MEM_LIST                                          /* (the list page: the arena's extras, the SD card mode) */
+static int mem_load_settle(void)
+{
+    uint32_t k;
+    if (!part_mem_refused.lmask)
+        return 1;
+    if (fxm_pending() || arn_busy())
+        return 0;                                     /* (an effect's line on its way back, the arena packing: after) */
+    for (k = 0; k < NPART; k++)
+        if (trk[k].engine != trk[k].eng_req || trk[k].xf_on)
+            return 0;                                 /* (a part still switching: its old block not free yet) */
+    fm1_irq_off();
+    for (k = 0; k < NPART; k++)                       /* (each that fits now, by part: the rest stay refused) */
+        if ((part_mem_refused.lmask >> k & 1u) && !part_mem_aside(k, part_mem_refused.leng[k])) {
+            part_mem_refused.lmask &= (uint8_t)~(1u << k);
+            trk[k].eng_req = part_mem_refused.leng[k];    /* (the project's sound as loaded, now on its engine) */
+            trk[k].silent = 0;
+        }
+    fm1_irq_on();
+    for (k = 0; k < NPART && !part_mem_refused.packed; k++)   /* (the first still refused: the parts' blocks moved */
+        if (part_mem_refused.lmask >> k & 1u) {               /* together when the free room holds it, once a load) */
+            part_mem_refused.packed = 1;
+            if (part_mem_pack(k, part_mem_refused.leng[k]))
+                return 0;
+        }
+    return part_mem_refused.lmask ? -1 : 1;
+}
+static uint32_t mem_load_part(uint32_t k)             /* part k can be dropped: it plays an engine that holds memory */
+{
+    return k < NPART && !(part_mem_refused.lmask >> k & 1u) && !trk[k].silent && part_mem_bytes(trk[k].engine) &&
+           arn_ptr(k) && !arn_cur[k].idle;
+}
+static uint32_t mem_item_bytes(uint32_t it)          /* (a refused part: what it wants) */
+{
+#if FXM_NEED
+    if (it >= NPART)
+        return it - NPART < 3u ? arn_cur[FXM_K(it - NPART)].len : 0u;
+#endif
+    if (it < NPART && (part_mem_refused.lmask >> it & 1u))
+        return part_mem_need(part_mem_refused.leng[it]);   /* (WAVE: its table, engines.c part_tab_bytes) */
+    return it < NPART ? arn_cur[it].len : 0u;
+}
+static uint32_t mem_load_items(uint8_t *it)
+{
+    uint32_t k, n = 0;
+#if FXM_NEED
+    static const uint8_t SEND_ORD[3] = {FXM_REV, FXM_DLY, FXM_CHO};   /* (one send order everywhere: REV DLY CHO) */
+#endif
+    for (k = 0; k < NPART; k++)                       /* the refused parts (picked: left silent) */
+        if (part_mem_refused.lmask >> k & 1u)
+            it[n++] = (uint8_t)k;
+    for (k = 0; k < NPART; k++)
+        if (mem_load_part(k))
+            it[n++] = (uint8_t)k;
+#if FXM_NEED
+    for (k = 0; k < 3u; k++)                          /* (fxm_offer's: a send line placed, its bus' own) */
+        if (FXM_BYTES[SEND_ORD[k]] && fxm_st[SEND_ORD[k]] == FXM_ON && fxm_heard(SEND_ORD[k]))
+            it[n++] = (uint8_t)(NPART + SEND_ORD[k]);
+#endif
+    return n;
+}
+static uint32_t mem_load_need(uint32_t sel)           /* the bytes the refused parts want, but those left silent in sel */
+{
+    uint32_t k, n = 0, tabs = 0;
+    for (k = 0; k < NPART; k++)
+        if ((part_mem_refused.lmask & ~sel) >> k & 1u) {
+            uint32_t e = part_mem_refused.leng[k], t = part_tab_bytes(e), c = part_tab_k(e);
+            n += part_mem_bytes(e);
+            if (t && !(tabs >> c & 1u))                 /* (a table: one for every part on its engine) */
+                n += t, tabs |= 1u << c;
+        }
+    return n;
+}
+static uint32_t mem_load_free(void)                   /* the arena's room now, every gap (the idle blocks free) */
+{
+    uint32_t k, used = 0;
+    for (k = 0; k < ARN_PARTS; k++) {
+        uint32_t c = arn_cur[k].idle ? 0u : arn_cur[k].len, x = arn_has_next[k] ? arn_next[k].len : 0u;
+        used += arn_has_next[k] && arn_next[k].off == arn_cur[k].off ? (c > x ? c : x) : c + x;
+    }
+    return used < ARN_BYTES ? ARN_BYTES - used : 0u;
+}
+static int mem_load_place(uint32_t sel)               /* the refused parts' reservations (but those left silent in sel),
+                                                       * by part; 0 every one placed */
+{
+    uint32_t k;
+    int r = 0;
+    for (k = 0; k < NPART; k++)
+        if (((part_mem_refused.lmask & ~sel) >> k & 1u) && part_mem_aside(k, part_mem_refused.leng[k]))
+            r = -1;
+    return r;
+}
+static int mem_load_fits(uint32_t sel)
+{
+    arn_st_t was;
+    uint32_t k;
+    int ok;
+    fm1_irq_off();
+    was = arn;
+    for (k = 0; k < ARN_PARTS; k++)
+        if ((sel & ~(uint32_t)part_mem_refused.lmask) >> k & 1u) {
+            if (k < NPART)
+                arn_cur[k].idle = 1, arn_has_next[k] = 0;    /* (a part dropped: arn_rest at its switch) */
+            else
+                arn_cur[k].len = 0, arn_has_next[k] = 0;     /* (a line dropped: arn_give two blocks later) */
+        }
+    ok = !mem_load_place(sel);
+    arn = was;
+    fm1_irq_on();
+    return ok;
+}
+static void mem_load_commit(uint32_t sel)
+{
+    uint32_t k;
+    fm1_irq_off();
+    part_mem_refused.lmask &= (uint8_t)~sel;          /* (the refused parts picked: left silent, placeholders) */
+    fm1_irq_on();
+    for (k = 0; k < NPART; k++)
+        if ((sel >> k & 1u) && mem_load_part(k))
+            part_drop(&trk[k]);                       /* (a placeholder: its block idle at its switch) */
+#if FXM_NEED
+    for (k = 0; k < 3u; k++)
+        if (sel >> (NPART + k) & 1u)
+            fxm_drop(k);                              /* (bypassed as when refused, given back two blocks later) */
+#endif
+}
+static void mem_load_cancel(void)
+{
+    fm1_irq_off();
+    part_mem_refused.lmask = 0;
+    fm1_irq_on();
+}
+#else
+/* the core alone (no list page, MEM_LIST off): each frame (op_input.c mem_tick, in the list's place), the load's first
  * part still refused becomes the edit's refusal with the project's sound kept (keep): mem_retry waits for every part's
  * switch (the old blocks free after), then places it with that sound if it fits now; else the one confirm proposes what
  * to drop ("DROP T2 FM6"); a placeholder still when nothing is dropped (MEM FULL); then the next. 0: the edit's flow
@@ -272,6 +484,7 @@ static int mem_load_next(void)
     part_mem_refused.waiting = (uint8_t)((1u << NPART) - 1u);   /* (every part's switch first: mem_retry) */
     return 0;
 }
+#endif
 #endif
 
 static void set_engine_of(track_t *t, uint32_t ei)
@@ -322,6 +535,7 @@ static void track_defaults(track_t *t)
 /* the factory presets as one list by kind (basses, keys, organs, pads, leads, plucks and bells, stabs,
  * the rest), then the used user presets: the PRESETS knob and the PRESETS page browse it. By name: an
  * engine's preset table may change order; tests/ui_pages_test.c checks every preset is here once */
+#if !PRESETS_CARD
 enum { BK_BASS, BK_KEYS, BK_ORGAN, BK_PAD, BK_LEAD, BK_PLUCK, BK_STAB, BK_FX };
 static const char *const BANK_KIND[] = {"BASS", "KEYS", "ORGN", "PAD", "LEAD", "PLCK", "STAB", "FX"};
 /* B(N, kind, uid, name): an entry of engine N (its UID): nothing when the engine is not built, so a reduced build keeps
@@ -419,16 +633,36 @@ static const struct __attribute__((packed)) { uint8_t kind : 3, e : 5; const cha
 _Static_assert(ENG_UID_N <= 32u && BK_FX < 8, "BANK: an entry's kind and engine UID in a byte");
 #define NBANK_ALL (sizeof BANK / sizeof BANK[0])
 static uint32_t bank_eng(uint32_t i) { return eng_slot_built(BANK[i].e); }   /* entry i's engine slot */
+typedef uint8_t bank_i_t;
+#else
+/* SD card mode (PRESETS_CARD): no BANK (its names are the card's): the list is every engine's presets in their table's
+ * order, the names from the card (sd_mode.c sdm_factory_name) */
+#define NBANK_ALL 320u                               /* (every engine's presets: 256 with all of them, 2026-10-26) */
+static uint8_t bank_e[NBANK_ALL];
+static uint32_t bank_eng(uint32_t i) { return bank_e[i]; }
+typedef uint16_t bank_i_t;
+#endif
 /* the list as this build has it: the entries whose engine is built and whose preset exists (a reduced build:
  * registry.h; a sample set left out takes its presets along). bank_ix: list position -> BANK entry */
 static uint8_t bank_pi[NBANK_ALL];                   /* the preset index of each entry in its engine */
-static uint8_t bank_ix[NBANK_ALL], bank_n;
+static bank_i_t bank_ix[NBANK_ALL], bank_n;
 static uint8_t bank_init[NENGINES], bank_ni;          /* after them: INIT of each engine with no entry (slots) */
 static uint8_t bank_ready;
 static void bank_resolve(void)
 {
     uint32_t i, k;
     bank_n = bank_ni = 0;
+#if PRESETS_CARD
+    for (i = 0; i < NENGINES; i++) {
+        for (k = 0; k < ENGINES[i]->npresets && bank_n < NBANK_ALL; k++) {
+            bank_e[bank_n] = (uint8_t)i, bank_pi[bank_n] = (uint8_t)k;
+            bank_ix[bank_n] = bank_n;
+            bank_n++;
+        }
+        if (!ENGINES[i]->npresets)
+            bank_init[bank_ni++] = (uint8_t)i;
+    }
+#else
     for (i = 0; i < NBANK_ALL; i++) {
         const engine_t *e;
         bank_pi[i] = 0xFF;
@@ -455,13 +689,14 @@ static void bank_resolve(void)
         if (k == bank_n)
             bank_init[bank_ni++] = (uint8_t)i;
     }
+#endif
     bank_ready = 1;
 }
 #define NBANK ((uint32_t)bank_n)                     /* the factory entries */
 #define NLIST (NBANK + bank_ni)                      /* and the INIT ones: then the user presets */
 static uint32_t preset_all_pos(uint32_t *total)      /* list index of the selected track's preset, in the whole list */
 {
-    uint32_t i, j, cur = 0;
+    uint32_t i, cur = 0;
     if (!bank_ready)
         bank_resolve();
     for (i = 0; i < NBANK; i++)
@@ -474,11 +709,14 @@ static uint32_t preset_all_pos(uint32_t *total)      /* list index of the select
         cur = NLIST + up_rank(user_of(TSEL));
     *total = NLIST + up_count();
 #if FELUCCA_NB_LIST
-    for (j = 0; j < NB_NK; j++) {                        /* (every engine's own collection: nbank.c) */
-        uint32_t at, n = nb_list_of(nb_kind_at(j), &i, ~0u, &at);
-        if (i < n)
-            cur = *total + i;
-        *total += n;
+    {
+        uint32_t j;
+        for (j = 0; j < NB_NK; j++) {                    /* (every engine's own collection: nbank.c) */
+            uint32_t at, n = nb_list_of(nb_kind_at(j), &i, ~0u, &at);
+            if (i < n)
+                cur = *total + i;
+            *total += n;
+        }
     }
 #endif
     return cur;
@@ -520,11 +758,20 @@ static uint32_t preset_all_at(uint32_t n, uint32_t *k)
 /* the whole list's name of a sound as the lists show it, below; the favorites' view of the list (core/favorites.c):
  * with LIST FAV the list is the marked sounds only. preset_pos / preset_at / preset_go's index are the list as shown;
  * preset_src maps it to the whole list's (preset_kind labels the whole list's) */
+#if PRESETS_CARD
+static const char *preset_kind(uint32_t n) { return n < NBANK ? ENGINES[bank_eng(n)]->name : n < NLIST ? "INIT" : "USER"; }
+static const char *sdm_factory_name(uint32_t e, uint32_t k);   /* storage/sd/sd_mode.c */
+#else
 static const char *preset_kind(uint32_t n) { return n < NBANK ? BANK_KIND[BANK[bank_ix[n]].kind] : n < NLIST ? "INIT" : "USER"; }
+#endif
 /* the name of preset k of engine slot e as the lists show it */
 static const char *preset_name(uint32_t e, uint32_t k)
 {
+#if PRESETS_CARD
+    return k == PRESET_INIT || !ENGINES[e]->npresets ? "INIT" : sdm_factory_name(e, k % ENGINES[e]->npresets);
+#else
     return k == PRESET_INIT || !ENGINES[e]->npresets ? "INIT" : ENGINES[e]->presets[k % ENGINES[e]->npresets].name;
+#endif
 }
 #if FELUCCA_FAVORITES
 /* list entry (e, k) of preset_all_at: marked? The engines' own collections (NB_LIST) have no mark */
@@ -534,15 +781,26 @@ static int fav_entry(uint32_t e, uint32_t k)
         return fav_user_has(k);
     return e < NENGINES && fav_has(eng_uid(e), preset_name(e, k));
 }
-#else
-#define fav_list 0u
 #endif
 static uint32_t up_engine_slot(uint32_t k);                 /* storage/upreset.c: a user preset's engine slot */
+/* list entry (e, k) of preset_all_at by its source: PLF_FACTORY (a factory sound; an engine's own collection's built-in
+ * voices, the FM6 packs), PLF_INIT (an engine's INIT) or PLF_USER (a user preset; a collection's slots the player fills:
+ * the DX7 bank received, the CZ tones) */
+static uint32_t pl_source(uint32_t e, uint32_t k)
+{
+    if (e == NENGINES)
+        return PLF_USER;
+#if FELUCCA_NB_LIST
+    if (e == NB_LIST)
+        return nb_factory(k >> 8, k & 255u) ? PLF_FACTORY : PLF_USER;
+#endif
+    return k == PRESET_INIT ? PLF_INIT : PLF_FACTORY;
+}
 /* the browsing view of the whole list: EDIT's PRESET card (the user, 2026-10-21: "I would expect to see all the presets
  * of the current engine, and not be able to switch engine") the selected track's engine's sounds only (its factory ones,
  * INIT, its user presets, its own collection); the PRESETS knob ("one big list of everything", pl_whole) every engine's;
- * with LIST FAV the marked sounds of every engine. The engine step (SHIFT2 + PRESETS, the ENGINE card) walks the whole
- * list: preset_all_* */
+ * with a filter (pl_filt: FACTORY, USER, FAVORITES, INIT) that filter's sounds of every engine. The engine step (SHIFT +
+ * PRESETS since 2026-10-31, the ENGINE card) walks the whole list's engines whatever the filter: preset_all_* */
 static uint8_t pl_whole;                             /* the browsing list: 1 every engine's sounds in a row (the PRESETS knob), 0 the track's engine's (EDIT's PRESET card): set by whoever last browsed */
 static int pl_keep(uint32_t e, uint32_t k)
 {
@@ -554,6 +812,8 @@ static int pl_keep(uint32_t e, uint32_t k)
     if (fav_list)
         return fav_entry(e, k);
 #endif
+    if (pl_filt != PLF_ALL)
+        return pl_source(e, k) == pl_filt;              /* (a filter: its sounds of every engine, as FAVORITES always listed them) */
     if (is_drum(TSEL) || pl_whole)
         return 1;
     if (e == NENGINES)
@@ -564,9 +824,50 @@ static int pl_keep(uint32_t e, uint32_t k)
 #endif
     return e == TSEL->eng_req % NENGINES;
 }
+/* the INIT filter's list: every engine of the whole list once, in its order, each its INIT (the whole list holds an INIT only
+ * for an engine with no factory sound: the filter lists them all, "init" in the user's words). l[] its engines: the count */
+static uint32_t pl_init_list(uint8_t *l)
+{
+    uint8_t seen[NENGINES];
+    uint32_t i, k, e, c = 0;
+    if (!bank_ready)
+        bank_resolve();
+    memset(seen, 0, sizeof seen);
+    for (i = 0; i < NLIST; i++) {
+        e = preset_all_at(i, &k);
+        if (e < NENGINES && !seen[e]) {
+            seen[e] = 1;
+            l[c++] = (uint8_t)e;
+        }
+    }
+    return c;
+}
+/* the selected track plays its engine's INIT (apply_preset_to: the engine's values at their defaults; not a user preset): an
+ * INIT edited since reads as not (the list then shows it as outside, PRESETS goes to the first) */
+static int pl_on_init(void)
+{
+    const engine_t *e = ENGINES[TSEL->eng_req % NENGINES];
+    uint32_t i;
+    if (user_of(TSEL) < UP_SLOTS)
+        return 0;
+    for (i = 0; i < 8u; i++)
+        if (TSEL->p[P_E0 + i] != e->edit[i].def)
+            return 0;
+    return 1;
+}
 static uint32_t preset_pos(uint32_t *total)          /* list index of the selected track's preset; >= *total: not in the list */
 {
-    uint32_t all, cur = preset_all_pos(&all), i, n = 0, pos = 0xFFFFFFFFu;
+    uint32_t all, cur, i, n = 0, pos = 0xFFFFFFFFu;
+    if (pl_filt == PLF_INIT && !is_drum(TSEL)) {
+        uint8_t l[NENGINES];
+        n = pl_init_list(l);
+        for (i = 0; i < n && pl_on_init(); i++)
+            if (l[i] == TSEL->eng_req % NENGINES)
+                pos = i;
+        *total = n;
+        return pos == 0xFFFFFFFFu ? n : pos;
+    }
+    cur = preset_all_pos(&all);
     for (i = 0; i < all; i++) {
         uint32_t k, e = preset_all_at(i, &k);
         if (!pl_keep(e, k))
@@ -589,7 +890,16 @@ static uint32_t preset_src(uint32_t n)               /* list index n -> the whol
     }
     return all;
 }
-static uint32_t preset_at(uint32_t n, uint32_t *k) { return preset_all_at(preset_src(n), k); }
+static uint32_t preset_at(uint32_t n, uint32_t *k)
+{
+    if (pl_filt == PLF_INIT && !is_drum(TSEL)) {     /* (the INIT filter: engine n's INIT) */
+        uint8_t l[NENGINES];
+        uint32_t c = pl_init_list(l);
+        *k = PRESET_INIT;
+        return n < c ? l[n] : (c ? l[c - 1u] : 0u);
+    }
+    return preset_all_at(preset_src(n), k);
+}
 #if FELUCCA_FAVORITES
 /* the selected track's sound as a list entry (e = engine slot, or NENGINES: user preset k): 0 if it has none to mark
  * (the drum track, the engines' own collections, a factory sound the list does not hold) */

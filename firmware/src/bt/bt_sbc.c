@@ -11,7 +11,15 @@
 #include "sbc/sbc_enc_bit_alloc_mono.c"
 #include "sbc/sbc_enc_bit_alloc_ste.c"
 #include "sbc/sbc_enc_coeffs.c"
+/* the stream is always 8 subbands and two channels in stereo or joint stereo (bt_sbc_init): the encoder's calls of
+ * the 4-subband filter and of the mono / dual channel bit allocation are its others, never taken, so they name the
+ * ones taken and those two functions (with the 4-subband DCT) are not linked: 1.5 KB of flash, the same frames */
+_Static_assert(BT_SBC_SUBBANDS == 8 && BT_SBC_CHANNELS == 2, "bt_sbc.c: the encoder's 4-subband and mono paths left out");
+#define SbcAnalysisFilter4 SbcAnalysisFilter8
+#define sbc_enc_bit_alloc_mono sbc_enc_bit_alloc_ste
 #include "sbc/sbc_encoder.c"
+#undef SbcAnalysisFilter4
+#undef sbc_enc_bit_alloc_mono
 #include "sbc/sbc_packing.c"
 
 uint32_t bt_sbc_frame_len(uint8_t bitpool, uint8_t joint_stereo)

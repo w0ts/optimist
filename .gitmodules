@@ -1,0 +1,9 @@
+[submodule "fm1base"]
+	path = fm1base
+	url = git@github.com:w0ts/fm1-base.git
+[submodule "third_party/m-flasher"]
+	path = third_party/m-flasher
+	url = https://github.com/jvitkauskas/m-flasher
+[submodule "third_party/m-bootloader"]
+	path = third_party/m-bootloader
+	url = https://github.com/jvitkauskas/m-bootloader

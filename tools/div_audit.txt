@@ -19,6 +19,7 @@
 #   PARAM  a parameter clamped to its descriptor range by every writer (UI, editor, project load).
 
 hal/fm1_clock.h:fm1_cpu_khz:best | returns 0 before the divide when best is 0 (or never measured)
+src/io/editor/ed_mirror_enc.h:me_at:me.w | divides only when me.sw != me.w, a part of a blit: mir_enc_rect sets me.w to the part's width, b - a > 0 (me_span returns a span only when lo < hi), before the first pixel is read; a whole blit has sw == w and never divides
 src/io/midi/clock_sync.c:sy_tick:d | d = n(n+1) or n(n+1)(n+2) with n = sy.nm >= 2: sy_tick runs the filter only after sy_restart (nm = 2, have = 2); nm only grows, or halves from >= 8; the cubic form is guarded by nm >= 3
 src/core/core.h:dly_samples:(uint32_t)song.g[G_BPM] | BPM (>= 40)
 src/system/cpuguard.c:cg_pre:cg.ips | returns before any divide while cg.ips is 0 (set once from cpu_khz; 0 until the clock is known)
@@ -45,8 +46,10 @@ src/engines/formant/eng_formant.c:formant_render:((tp>>16)|1u) | "| 1"
 src/engines/formant/eng_formant.c:formant_render:f | guarded: "f > 0" in the same condition
 src/engines/grain/eng_grain.c:gr_run:(int32_t)m | guarded: "m ? ... : 0"
 src/engines/grain/eng_grain.c:gr_spawn:(iv?iv:1u) | "iv ? iv : 1"
-src/engines/grain/eng_grain.c:gr_spawn:(step>>8) | step is clamped to >= 256 just before
-src/engines/grain/eng_grain.c:gr_spawn:len | returns when len < 16 before this divide
+src/engines/grain/eng_grain.c:gr_geom:(step>>8) | step is clamped to >= 256 just before (both fits: a short zone, the card's cap)
+src/engines/grain/eng_grain.c:gr_spawn:o.len | gr_geom returns 0 (no grain) when len < 16
+src/engines/grain/grain_card.c:gr_card_run:(int32_t)m | guarded: "m ? ... : 0" (as gr_run)
+src/engines/grain/grain_card.c:gr_plan:nact | guarded: "nact > 1 ?" (as grain_render)
 src/engines/grain/eng_grain.c:grain_render:nact | guarded: "nact > 1 ?"
 src/engines/phase/eng_phase.c:pd_slope:(len?len:1u) | "len ? len : 1"
 src/engines/sample/eng_sample.c:pow2_q16:(pitch_inc(1600)>>16) | constant table entry (pitch_inc(1600) >> 16 = 102)
@@ -57,7 +60,7 @@ src/engines/trio/eng_trio.c:trio_frac:d | returns 0 before the divide when d is 
 src/engines/trio/eng_trio.c:trio_render:(int32_t)(base>>12) | guarded: "(base >> 12) ? ... : 0"
 src/engines/trio/eng_trio.c:trio_render:(uint32_t)(4096+((g*(g+k))>>12)) | k = 8192 - reso * 7168 / 127 >= 1024 (PARAM), g >= 0: >= 4096
 src/fx/fx.c:duck_block:(len>>5) | len = BEAT_U / 2, a constant
-src/fx/fx.c:master_out:(uint32_t)lim_env | inside "if (lim_env > LIM_T)", LIM_T > 0
+src/fx/fx.c:master_lim:(uint32_t)e | inside "if (e > LIM_T)" (e: the state's lim_env), LIM_T > 0
 src/fx/fx.c:mix_part:((xmax>r?xmax:r)|1) | "| 1"
 src/fx/fx.c:__attribute__:(mx|1) | "| 1" (ut_mix: the USB input's largest send over the block)
 src/display/gfx.c:cv_begin:w | only when w * h > CV_MAX, which needs w != 0
@@ -99,6 +102,7 @@ src/seq/seq.c:seq_step:hits | hits starts at 1 and only grows
 src/seq/seq.c:seq_step:trk_len(t) | TLEN
 src/fx/slicer/slicer.c:sl_enter:(uint32_t)song.g[G_BPM] | BPM
 src/fx/slicer/slicer.c:slicer_track:bpm | bpm = song.g[G_BPM]: BPM
+src/core/arena.c:arn_plan:m | m >= 1: the loop over 3 m passes runs only while i < 3 m (m 0: no pass)
 src/core/model.c:apply_preset_to:e->npresets | npresets 0: eng_first_playable gives PRESET_INIT, INIT returns first
 src/core/model.c:preset_name:ENGINES[e]->npresets | guarded: "k == PRESET_INIT || !ENGINES[e]->npresets ? "INIT" : ..."
 src/ui/optimist/op_state.c:scroll_bar:n | its callers (list_paint, dev_paint) draw it only when n > shown >= 0, so n >= 1
@@ -108,7 +112,8 @@ src/ui/optimist/op_graph.c:eg_seg:n | only in its loop (i = 1..n: never run for 
 src/ui/optimist/op_graph.c:page_frac:(c.gmax-c.gmin) | guarded "c.gmax <= c.gmin ? 0 :"
 src/ui/optimist/op_bt.c:bt_pg_paint:(int32_t)n | only under "if (n > BT_PG_ROWS)" (BT_PG_ROWS 4): n >= 5 (built where BLE_CENTRAL is, the reference profile since 2026-10-24)
 src/ui/optimist/op_bt.c:bt_pg_paint:(int32_t)(n-BT_PG_ROWS) | the same guard: n - BT_PG_ROWS >= 1
-src/ui/optimist/op_gldraw.c:gl_info_draw:(int32_t)n | n = info_lines(pg) >= 1: INFO_N >= 3 (6 with SYS_DEBUG), INFO_DIAG >= 1 (FLASH IRQS OFF in every build), INFO_UA 9; gl_info() != 0 on that path (gl_paint)
+src/ui/optimist/op_wifi.c:wf_q_text:wfq.tx | only after "if (!wfq.tx) return" (frames sent in the window, from plat_wifi_quality): wfq.tx >= 1
+src/ui/optimist/op_gldraw.c:gl_info_pitch:(int32_t)n | n = info_lines(pg) >= 1: INFO_N >= 3 (6 with SYS_DEBUG), INFO_DIAG >= 1 (FLASH IRQS OFF in every build), INFO_UA 9; gl_info() != 0 on that path (gl_paint, gl_info_draw)
 src/ui/optimist/op_mixdraw.c:mx_steps:len | TLEN: "clamp(t->p[P_SLEN], 1, NSTEP)"
 src/ui/optimist/op_mixdraw.c:mx_steps_paint:len | TLEN: "clamp(t->p[P_SLEN], 1, NSTEP)"
 src/ui/optimist/op_mixdraw.c:mx_steps_paint:np | guarded "if (np > 1u)"
@@ -117,6 +122,11 @@ src/ui/optimist/op_input.c:step_win:slen | seq.c trk_grid -> grid_at: a step of 
 src/ui/optimist/op_step.c:olp_len:trk_len(t) | TLEN
 src/ui/optimist/op_layers.c:tap_tempo_at:sum | guarded "if (sum)"
 src/ui/optimist/op_draw.c:draw_list:(int32_t)n | inside "else if (n && n <= shown)": n >= 1
+src/ui/optimist/op_draw.c:meter_h:(1u<<sh) | inside "if (lg >= 4u)": sh = lg - 3 >= 1, so 1u << sh >= 2
+src/ui/optimist/op_draw.c:meter_h:d | d = -vuf_db(vu_floor_i) + 6: vuf_db is -80 .. -20 for any index (core/vufloor.h, out of range: the default), so d is 26 .. 86
+src/ui/optimist/op_mixdraw.c:mx_db_x:(uint32_t)w | w = -vuf_db(vu_floor_i) + 6: 26 .. 86, as op_draw.c meter_h's d
+src/ui/optimist/op_mixdraw.c:mx_vu_colat:(uint32_t)(e-k-1>0?e-k-1:1) | the divisor is e - k - 1 when that is > 0, else 1: >= 1
+src/ui/optimist/op_gldraw.c:gl_info_bar:span | guarded "if (v <= 0 || span <= 0) continue"
 src/ui/optimist/op_graph.c:graph_arp:(int32_t)steps | only inside "for (i = 0; i < steps; i++)": never run with steps 0 (steps = 192 / DUR_48[rate] is 0 for the values longer than a bar: 768, 576, 384, 288 48ths)
 src/ui/optimist/op_graph.c:graph_arp:DUR_48[(uint32_t)t->p[P_ARATE] | TABLE DUR_48 (core.h DUR_LIST, 768 .. 3), index % DUR_N: >= 3
 src/ui/optimist/op_graph.c:graph_arp:(int32_t)(steps?steps:1u) | "steps ? steps : 1"
@@ -130,7 +140,6 @@ src/ui/optimist/op_graph.c:graph_arp:len | len = cnt * oct with cnt >= 1 (as abo
 src/ui/optimist/op_graph.c:graph_steps:rows | rows = len > 32 ? 2 : 1
 src/ui/optimist/op_step.c:step_note_len:len | TLEN
 src/ui/optimist/op_step.c:step_note_resize:len | TLEN
-src/ui/optimist/op_step.c:step_note_len10:trk_len(t) | TLEN
 src/ui/optimist/op_step.c:step_tick:trk_len(t) | TLEN
 src/ui/optimist/op_stepdraw.c:draw_step_panel:len | TLEN
 src/ui/optimist/op_stepdraw.c:sg_notches:(int32_t)(rat+1u) | rat is a 2-bit ratchet, so rat + 1 is 1..4
@@ -145,6 +154,7 @@ src/ui/optimist/op_fm6draw.c:f6_alg_draw:cols | guarded "cols ? ... : cmax"
 src/ui/optimist/op_fm6draw.c:f6_alg_draw:rows | guarded "rows ? ... : rmax"
 src/ui/optimist/op_name.c:nm_knob:n | n = sizeof NM_SET - 1, a constant (43)
 src/ui/optimist/op_name.c:nm_white:n | n = str_len(nm_group(p)): NM_ABC's 16 entries have 2 or 3 characters, the digits' group 1 (one[0] from NM_NUM, never 0)
+src/ui/optimist/op_memlist.c:ml_draw_gauge:need | need = mem_load_need(): the page is up only while a part is refused (part_mem_refused.lmask), each wanting an engine that keeps memory (> 0); the divide is guarded by need ? .. : 230 too
 src/ui/optimist/op_preset.c:pre_draw:total | used only when cur < total, so total >= 1
 src/ui/optimist/op_graph.c:denv_x0x:(1024+x*1024/(w>1?w:1)) | the X0X sketch (graph_dsnd's, copied): x >= 0 and the inner divisor >= 1, so >= 1024
 src/ui/optimist/op_graph.c:denv_x0x:(w>1?w:1) | "w > 1 ? w : 1"
@@ -163,9 +173,8 @@ src/core/voice.c:voice_alloc:np | np = trk_nvoice() = poly in 1..NPOLY-1, else N
 src/engines/acid/eng_acid.c:acid_generate:len | len = P_SLEN if > 0, else 1 (as trk_len): >= 1
 src/seq/motion.c:motion_knob:trk_len(t) | TLEN
 src/seq/auto_lane.c:lane_knob:trk_len(t) | TLEN
-src/engines/phys/phys_dsp.c:px_svf_coef:q8 | every caller passes q8 >= 179: 179 / 384 (exciter) or 256 + a non-negative term (modes)
-src/engines/phys/phys_dsp.c:px_svf_coef:d24 | d24 = (den + 15) >> 4 with den >= 2^28: >= 2^24
-src/engines/phys/phys_dsp.c:px_csvf_coef:(uint32_t)fr | guarded: "if (fr > 0)"
+src/engines/phys/phys_dsp.c:__attribute__:v | px_udiv's divisor, never 0 at any caller (every 64-bit divide of PHYS goes through it, 2026-10-30): px_svf_coef q8 >= 179 (179 / 384 for the exciter, 256 + a non-negative term for the modes) and d24 = (den + 15) >> 4 with den >= 2^28; px_csvf_coef fr guarded by "if (fr > 0)"; Dust's dust_thr = df * 19661, df >= 3 (both sites); the strike's cut clamped to 65536 .. 2143260078 just before; NthHarmonicCompensation 65536 + stiff + stiff * 0.93 >= 57,631 (px_stiff >= -4096); MEMB's r = IDEAL + harm (LOADED - IDEAL) >= 65536 (both TABLEs >= 65536); px_period f >= 2^16 (every caller clamps it); src_ratio only below 1 << 30, = delay * f >> 18 >= 65536; the OnePole's sin + cos of df / 2 < 0.25 turn: >= 1; 2^(dcut / 12) with dcut >= 12 st: >= 2; 9830 + nl with nl made non-negative; phys_symp.c f[k] >= 65536 (smaller ones continue the loop)
+src/engines/phys/phys_dsp.c:__attribute__:vn1 | px_udiv: v (> 0) is shifted left by its leading zeros, so its top bit is set and vn1 = v >> 16 >= 32768 (both sites)
 src/engines/plaits/eng_plaits.c:pl_wsh:((pw>>16)|1u) | an or with 1: >= 1
 src/engines/plaits/eng_plaits.c:pl_wsh:(65536u-(pw>>16)) | pw <= 0xFFFFFFFF - 2 f0 < 2^32, so pw >> 16 <= 65535: >= 1
 src/engines/plaits/eng_plaits.c:pl_spectrum:(sh?sh:1u) | guarded: sh ? sh : 1
@@ -176,15 +185,6 @@ src/engines/plaits/eng_plaits.c:pl_grn:(uint32_t)(65536-c.bp) | c.bp <= 66 + 327
 src/engines/plaits/eng_plaits.c:pl_prt:(uint32_t)q16 | q16 = 32768 + a square (0.5 + q_sqrt^2): >= 32768
 src/engines/plaits/eng_plaits.c:pl_prt:(s16?s16:1u) | guarded: s16 ? s16 : 1
 src/engines/plaits/eng_plaits.c:plaits_render:(uint32_t)(4096+g) | g is an SVF_G entry (>= 0) or between two: >= 4096
-src/engines/phys/phys_dsp.c:__attribute__:B->dust_thr | dust_thr = df * 19661 with df = 3 + a non-negative product: >= 58,983 (both sites)
-src/engines/phys/phys_dsp.c:__attribute__:cut | cut is clamped to 65536 .. 2143260078 just before (the exciter's cutoff)
-src/engines/phys/phys_dsp.c:__attribute__:r | r = PX_MEMB_IDEAL[i] + harm (LOADED - IDEAL), both TABLEs >= 65536 and harm 0..1 Q16: >= 65536
-src/engines/phys/phys_dsp.c:px_period:f | f >= 2^16: every caller clamps it (the comment, px_string_blk callers)
-src/engines/phys/phys_dsp.c:__attribute__:(uint32_t)B->src_ratio | only below 1 << 30, where src_ratio = delay * f >> 18 with delay >= 4 << 16 and f >= 2^16: >= 65536
-src/engines/phys/phys_dsp.c:__attribute__:(s+c) | sin + cos of df / 2 with df < 0.497 (clamped just before): both >= 0 and their sum >= 1 (Q30 sin)
-src/engines/phys/phys_dsp.c:__attribute__:px_exp2(dcut/12) | dcut = 12 st + non-negative terms (>= 786432 Q16, at most 84 st): 2^(dcut / 12) >= 2
-src/engines/phys/phys_dsp.c:__attribute__:(9830+nl) | nl is |nl| (made non-negative just before): >= 9830
-src/engines/phys/phys_symp.c:__attribute__:f[k] | guarded: f[k] < 65536 continues the loop
 src/storage/sections/sec_log.c:sm_more:SEC_ALIGN(SEC_HEAD+n) | SEC_ALIGN(SEC_HEAD + n) >= 16 (SEC_HEAD is 16)
 src/engines/cz/cz_native.c:__attribute__:p->pivot | cz_native_pd: pivot = 1024 - dcw with dcw clamped to 0..1023 by its only caller (cz_native_render): >= 1
 src/engines/cz/cz_native.c:__attribute__:(2048u-p->pivot) | pivot <= 1024 (as above): >= 1024
@@ -234,7 +234,6 @@ src/seq/auto_slot.c:sa_knob:trk_len(t) | trk_len (seq.c) returns P_SLEN when abo
 src/storage/project.c:dly_map:(a[i+1u]-a[i]) | a is DLYC_X or DLYC_Y (dly_freq_in / dly_freq_out), both strictly rising: neighbouring entries differ
 src/drums/lane_play.c:denv_fix:c->atk | guarded on the same line (c->atk ? 32768u / c->atk : 0u)
 src/drums/lane_play.c:denv_fix:c->dec | guarded on the same line (c->dec ? 32768u / c->dec : 0u)
-src/bt/bt_inq_con.c:bti_clk_print:ms | guarded on the same line (ms ? ... : 0): a 1a run that has not lasted a millisecond prints 0
 src/fx/insfx/tapespit.c:__attribute__:(20+3*a) | ifx_ts_block: a is the amount, 0 .. 127 (uint8_t s->a): 20 .. 401
 src/fx/insfx/tapespit.c:__attribute__:(uint32_t)(s->env>256?s->env:256) | ifx_ts_block: at least 256 by the ternary on the same line
 src/ui/optimist/op_tools.c:tl_quantize:(int32_t)(div==2u||div==4u?div:1u) | 2, 4, or 1 by the ternary on the same line
@@ -260,7 +259,6 @@ src/engines/clipper/eng_wave.c:wt_build_frame:(H+1u-h0) | H = 128 >> l >= 2, h0 
 src/engines/clipper/eng_wave.c:wt_ifft:len | starts at 2 and doubles: >= 2
 src/engines/clipper/eng_wave.c:wt_level:inc | guarded: inc ? .. : 1000
 # 2026-10-23: the durations table (DUR_48), the ANALOG 2 filter models, the effects memory, BT diagnostics
-src/bt/bt_page.c:bp_print_sec:n | guarded: each of the three divides is inside "if (n)" (the RSSI and the rxbit averages, n read with the IRQs held)
 src/core/voice.c:lfo_wave:(DUR_U48*(d)) | the LSYNC_KE macro (LSYNC_KT's const initializer; the scanner names the function after it): d is a DUR_LIST entry (768 .. 3) and DUR_U48 = BEAT_U / 48 a constant: a compile-time constant >= 3 x BEAT_U / 48
 src/engines/analog/a2_models.c:__attribute__:(27.f+9.f*x2) | a2m_tanh (float): x2 = x * x >= 0, so >= 27
 src/engines/analog/a2_models.c:__attribute__:(1.f+g) | a2m_ladder (float): g = a2m_g() = tan(pi fc / FS) with fc = 30 x 2^(cut ...) > 0 and at most 0.45 FS (cut clamped 0 .. 127 << 8 by analog_render): g > 0, so > 1
@@ -269,6 +267,7 @@ src/engines/analog/a2_models.c:a2m_diod:(1.f+k*q[3]) | float: k = RES x 22 / 127
 src/engines/analog/a2_models.c:a2m_diod_coef:M[i][i] | float: M = I - g A is tridiagonal, its diagonal 1 + 2 g (1 + g in the last row) exceeds its row's off-diagonal sum (g or 2 g) by at least 1 with g > 0: strictly diagonally dominant, so Gauss-Jordan without pivoting meets no zero pivot
 src/engines/analog/a2_models.c:a2m_ms20:(1.f+g) | float: g > 0 (a2m_g, as the ladder's): > 1
 src/engines/analog/a2_models.c:a2m_ms20:(1.f-k*G*(1.f-G)) | float: G = g / (1 + g) in (0, 1), so G (1 - G) <= 1/4, and k = RES x 2.3 / 127 <= 2.3 (PARAM 0..127): >= 1 - 0.575 = 0.425
+src/fx/insfx/fxi.c:fxa_room:n | n = FXA_SZ(j): TABLE FXA_SZS (FXA_Z0..Z4 = 2, 8, 2, 1 and 2 x FELUCCA_XDLY_LEN / 512, every one >= 1); only built with FELUCCA_FX_ARENA (the own room not placed yet)
 src/fx/insfx/fxi_mem.h:-:(z) | FXI_MX(z), a compile-time constant expression: z is FXA_Z0..Z4 = 2, 8, 2, 1 and 2 x FELUCCA_XDLY_LEN / 512 (64 at the default 16384; fx_slots.c asserts 16384 or 8192 with XDLY built)
 src/fx/insfx/gater.c:-:((uint64_t)DUR_U48*(d)) | the IGT_KE macro (IGT_KC's const initializer): d a DUR_LIST entry (768 .. 3), DUR_U48 = BEAT_U / 48: a compile-time constant >= 3 x BEAT_U / 48
 src/fx/insfx/gater.c:igt_phase:d | d = DUR_48[r % DUR_N]: TABLE DUR_48 (768 .. 3), so >= 3
@@ -283,10 +282,69 @@ src/seq/lane_fx.c:lfx_sound:(2u*(uint32_t)x+1u) | >= 1 (x a VRAND 1..64; the div
 src/seq/lane_fx.c:lfx_sound:(int32_t)(n-1u) | guarded: "r && n > 1u"
 src/seq/lane_fx.c:lfx_time:lfx_hits(s,l) | lfx_hits >= 1 + dstep_rat >= 1 (LFX_HITS >= 1 too)
 src/ui/optimist/op_preset.c:pop_paint:(int32_t)pop.total | pop_paint runs only from draw_pop's cv_tall, after "if (!pop.total || pop.cur >= pop.total) return"
+src/ui/optimist/op_project.c:info_ram:total | a constant > 0: ARN_BYTES + ARN_UNDO_KEEP (16 KB) with an arena, INFO_SRAM without
+src/ui/optimist/op_project.c:info_ram_pct:total | a constant > 0: ARN_BYTES + ARN_UNDO_KEEP (16 KB) with an arena, INFO_SRAM without
 src/ui/optimist/op_project.c:sys_batt_pct:(uint32_t)(MV[i]-MV[i-1u]) | TABLE MV {3300, 3500, 3700, 3800, 3900, 4000, 4150}, strictly rising: each difference >= 100
 src/ui/optimist/op_songtbl.c:stb_paint:(int32_t)nl | nl = 5 (SCENE) or 2
 # 2026-10-24: BT AUDIO remembers up to 4 devices
 src/bt/bta_mem.c:bta_next:bta.nmem | guarded: returns 0 first when nmem < 2, so the modulo sees 2 or more
 src/io/midi/ble_connect.c:rc_try:(1u+ble_kept_n()) | 1 + a count: never 0
+src/io/console_sd.c:con_sd_kbs:ticks | the console's sd bench / write: "ticks ? ... : 0" (a 0-tick run prints 0 KB/s, no divide)
+src/io/console_sd.c:con_sd_row:i | the console's sd bench row: "if (!i) { ... return; }" before the three per-block divides
+src/storage/sd/pff.c:pf_mount:fs->csize | pf_mount returns FR_NO_FILESYSTEM before the divide when the boot record's sectors per cluster is 0 (Optimist's guard)
+src/storage/sd/pff.c:pf_lseek:bcs | bcs = csize x 512: pf_lseek needs a mounted filesystem (FR_NOT_ENABLED else), and a mount refuses csize 0
+# the SD card under full FatFs (storage/sd/fatfs/ ChaN R0.16, scanned without its #if: many are in code not built; storage/sd/ the layout on it), 2026-10-26
+src/storage/sd/fatfs/ff.c:change_bitmap:SS(fs) | exFAT only, not built (FF_FS_EXFAT 0); SS(fs) is FF_MAX_SS, the constant 512 (ffconf.h FF_MIN_SS == FF_MAX_SS: ff.c defines SS(fs) as it)
+src/storage/sd/fatfs/ff.c:clmt_clust:SS(fs) | SS(fs) is FF_MAX_SS, the constant 512 (ffconf.h FF_MIN_SS == FF_MAX_SS: ff.c defines SS(fs) as it)
+src/storage/sd/fatfs/ff.c:clmt_clust:fs->csize | a mounted volume's sectors per cluster (or x 512): mount_volume returns FR_NO_FILESYSTEM for csize 0 (and not a power of 2) before any use; every call needs a mounted volume
+src/storage/sd/fatfs/ff.c:create_partition:n_hd | not built (FF_USE_MKFS 0)
+src/storage/sd/fatfs/ff.c:create_partition:n_sc | not built (FF_USE_MKFS 0)
+src/storage/sd/fatfs/ff.c:create_partition:ss | not built (FF_USE_MKFS 0)
+src/storage/sd/fatfs/ff.c:dir_clear:SS(fs) | SS(fs) is FF_MAX_SS, the constant 512 (ffconf.h FF_MIN_SS == FF_MAX_SS: ff.c defines SS(fs) as it)
+src/storage/sd/fatfs/ff.c:dir_next:SS(fs) | SS(fs) is FF_MAX_SS, the constant 512 (ffconf.h FF_MIN_SS == FF_MAX_SS: ff.c defines SS(fs) as it)
+src/storage/sd/fatfs/ff.c:dir_sdi:SS(fs) | SS(fs) is FF_MAX_SS, the constant 512 (ffconf.h FF_MIN_SS == FF_MAX_SS: ff.c defines SS(fs) as it)
+src/storage/sd/fatfs/ff.c:f_expand:n | a mounted volume's sectors per cluster (or x 512): mount_volume returns FR_NO_FILESYSTEM for csize 0 (and not a power of 2) before any use; every call needs a mounted volume
+src/storage/sd/fatfs/ff.c:f_forward:SS(fs) | not built (FF_USE_FORWARD 0); SS(fs) is FF_MAX_SS, the constant 512 (ffconf.h FF_MIN_SS == FF_MAX_SS: ff.c defines SS(fs) as it)
+src/storage/sd/fatfs/ff.c:f_getfree:SS(fs) | SS(fs) is FF_MAX_SS, the constant 512 (ffconf.h FF_MIN_SS == FF_MAX_SS: ff.c defines SS(fs) as it)
+src/storage/sd/fatfs/ff.c:f_lseek:SS(fs) | SS(fs) is FF_MAX_SS, the constant 512 (ffconf.h FF_MIN_SS == FF_MAX_SS: ff.c defines SS(fs) as it)
+src/storage/sd/fatfs/ff.c:f_lseek:bcs | a mounted volume's sectors per cluster (or x 512): mount_volume returns FR_NO_FILESYSTEM for csize 0 (and not a power of 2) before any use; every call needs a mounted volume
+src/storage/sd/fatfs/ff.c:f_mkfs:(ss/SZDIRE) | not built (FF_USE_MKFS 0)
+src/storage/sd/fatfs/ff.c:f_mkfs:(sz_au*ss) | not built (FF_USE_MKFS 0)
+src/storage/sd/fatfs/ff.c:f_mkfs:n_fat | not built (FF_USE_MKFS 0)
+src/storage/sd/fatfs/ff.c:f_mkfs:pau | not built (FF_USE_MKFS 0)
+src/storage/sd/fatfs/ff.c:f_mkfs:ss | not built (FF_USE_MKFS 0)
+src/storage/sd/fatfs/ff.c:f_mkfs:sz_au | not built (FF_USE_MKFS 0)
+src/storage/sd/fatfs/ff.c:f_open:SS(fs) | SS(fs) is FF_MAX_SS, the constant 512 (ffconf.h FF_MIN_SS == FF_MAX_SS: ff.c defines SS(fs) as it)
+src/storage/sd/fatfs/ff.c:f_printf:radix | not built (FF_USE_STRFUNC 0)
+src/storage/sd/fatfs/ff.c:f_read:SS(fs) | SS(fs) is FF_MAX_SS, the constant 512 (ffconf.h FF_MIN_SS == FF_MAX_SS: ff.c defines SS(fs) as it)
+src/storage/sd/fatfs/ff.c:f_write:SS(fs) | SS(fs) is FF_MAX_SS, the constant 512 (ffconf.h FF_MIN_SS == FF_MAX_SS: ff.c defines SS(fs) as it)
+src/storage/sd/fatfs/ff.c:find_bitmap:SS(fs) | exFAT only, not built (FF_FS_EXFAT 0); SS(fs) is FF_MAX_SS, the constant 512 (ffconf.h FF_MIN_SS == FF_MAX_SS: ff.c defines SS(fs) as it)
+src/storage/sd/fatfs/ff.c:find_volume:SS(fs) | SS(fs) is FF_MAX_SS, the constant 512 (ffconf.h FF_MIN_SS == FF_MAX_SS: ff.c defines SS(fs) as it)
+src/storage/sd/fatfs/ff.c:follow_path:SS(fs) | SS(fs) is FF_MAX_SS, the constant 512 (ffconf.h FF_MIN_SS == FF_MAX_SS: ff.c defines SS(fs) as it)
+src/storage/sd/fatfs/ff.c:ftoa:i10x(exp) | not built (FF_USE_STRFUNC 0)
+src/storage/sd/fatfs/ff.c:ftoa:w | not built (FF_USE_STRFUNC 0)
+src/storage/sd/fatfs/ff.c:get_fat:(SS(fs)/2) | SS(fs) is FF_MAX_SS, the constant 512 (ffconf.h FF_MIN_SS == FF_MAX_SS: ff.c defines SS(fs) as it) (/2, /4, /SZDIRE 32: 256, 128, 16)
+src/storage/sd/fatfs/ff.c:get_fat:(SS(fs)/4) | SS(fs) is FF_MAX_SS, the constant 512 (ffconf.h FF_MIN_SS == FF_MAX_SS: ff.c defines SS(fs) as it) (/2, /4, /SZDIRE 32: 256, 128, 16)
+src/storage/sd/fatfs/ff.c:get_fat:SS(fs) | SS(fs) is FF_MAX_SS, the constant 512 (ffconf.h FF_MIN_SS == FF_MAX_SS: ff.c defines SS(fs) as it)
+src/storage/sd/fatfs/ff.c:get_fat:fs->csize | exFAT only, not built (FF_FS_EXFAT 0); a mounted volume's sectors per cluster (or x 512): mount_volume returns FR_NO_FILESYSTEM for csize 0 (and not a power of 2) before any use; every call needs a mounted volume
+src/storage/sd/fatfs/ff.c:mount_volume:(SS(fs)/4) | SS(fs) is FF_MAX_SS, the constant 512 (ffconf.h FF_MIN_SS == FF_MAX_SS: ff.c defines SS(fs) as it) (/2, /4, /SZDIRE 32: 256, 128, 16)
+src/storage/sd/fatfs/ff.c:mount_volume:(SS(fs)/SZDIRE) | SS(fs) is FF_MAX_SS, the constant 512 (ffconf.h FF_MIN_SS == FF_MAX_SS: ff.c defines SS(fs) as it) (/2, /4, /SZDIRE 32: 256, 128, 16)
+src/storage/sd/fatfs/ff.c:mount_volume:SS(fs) | SS(fs) is FF_MAX_SS, the constant 512 (ffconf.h FF_MIN_SS == FF_MAX_SS: ff.c defines SS(fs) as it)
+src/storage/sd/fatfs/ff.c:mount_volume:fs->csize | a mounted volume's sectors per cluster (or x 512): mount_volume returns FR_NO_FILESYSTEM for csize 0 (and not a power of 2) before any use; every call needs a mounted volume
+src/storage/sd/fatfs/ff.c:put_fat:(SS(fs)/2) | SS(fs) is FF_MAX_SS, the constant 512 (ffconf.h FF_MIN_SS == FF_MAX_SS: ff.c defines SS(fs) as it) (/2, /4, /SZDIRE 32: 256, 128, 16)
+src/storage/sd/fatfs/ff.c:put_fat:(SS(fs)/4) | SS(fs) is FF_MAX_SS, the constant 512 (ffconf.h FF_MIN_SS == FF_MAX_SS: ff.c defines SS(fs) as it) (/2, /4, /SZDIRE 32: 256, 128, 16)
+src/storage/sd/fatfs/ff.c:put_fat:SS(fs) | SS(fs) is FF_MAX_SS, the constant 512 (ffconf.h FF_MIN_SS == FF_MAX_SS: ff.c defines SS(fs) as it)
+src/storage/sd/fatfs/ff.c:sync_fs:(fs->n_fatent-2) | exFAT only, not built (FF_FS_EXFAT 0); a mounted volume has n_fatent - 2 >= 1 cluster
+src/storage/sd/sd_alloc.c:sda_round:cl | a mounted volume's sectors per cluster (or x 512): mount_volume returns FR_NO_FILESYSTEM for csize 0 (and not a power of 2) before any use; every call needs a mounted volume
+src/storage/sd/sd_diskio.c:sd_map_run:cs | a mounted volume's sectors per cluster (or x 512): mount_volume returns FR_NO_FILESYSTEM for csize 0 (and not a power of 2) before any use; every call needs a mounted volume
+src/storage/sd/sd_index.c:sdx_scan_path:count | only in the loop over count records (count > 0 there); its one caller passes oldn when oldn is not 0
+src/storage/sd/sd_stream.c:sst_kbs:ms | only when ms is not 0 (the test before it)
+src/storage/sd/sd_stream.c:sst_lead:(st->bpms?st->bpms:1u) | 1 when bpms is 0
 # 2026-10-26: STRETCH (PaulStretch-style), once a frame
 src/engines/stretch/eng_stretch.c:pst_adv_q16:pow2_q16 | pow2_q16 of 0..1586 (1/16 semitone) is 2^0 .. 2^8.3 in Q16: 65536 or more, never 0
+# 2026-10-26: Wi-Fi + Link test service
+src/wifi/wifi_link.c:wl_start:(song.g[G_BPM]>20?song.g[G_BPM]:20) | clamped to 20 or more
+src/wifi/wifi_link.c:wl_start_ap:(song.g[G_BPM]>20?song.g[G_BPM]:20) | clamped to 20 or more
+src/wifi/wifi_link.c:con_wifilink:mpb | guarded: the division runs only when mpb > 0
+src/wifi/wifi_link.c:wl_push_own:(song.g[G_BPM]>20?song.g[G_BPM]:20) | clamped to 20 or more
+src/fx/fx_arena.c:fxm_cp_room:b | b = FXM_CP_BYTES(j) = FXA_SZ(j) x FXA_U x 2: FXA_SZS of CHO DLY REV (4, FELUCCA_DLY_LEN / 512, 19) every one >= 1, FXA_U 512; only built with FELUCCA_FX_ARENA

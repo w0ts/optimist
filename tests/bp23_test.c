@@ -18,16 +18,24 @@ static void check(int ok, const char *what)
     printf("bp23: %-74s %s\n", what, ok ? "ok" : "FAIL");
     fails += !ok;
 }
+static uint32_t peak;                                /* the largest |sample| of the blocks run */
 static uint32_t clicks;                              /* the click's wood blocks (76, 77) started */
+static uint32_t sig;                                 /* a hash of every output sample of the blocks run */
 static void run_block(void)
 {
     int32_t out[CTL * 2];
-    uint32_t a = drums.age, k;
+    uint32_t k, a = (uint32_t)clk_v.a;
     mix_block(out, CTL);
-    if (drums.age != a)
-        for (k = 0; k < NDRUM; k++)
-            if (drums.v[k].age > a && (drums.v[k].note == 76u || drums.v[k].note == 77u))
-                clicks++;
+    for (k = 0; k < CTL * 2u; k++) {
+        uint32_t m = (uint32_t)(out[k] < 0 ? -out[k] : out[k]);
+        (void)m;
+    }
+    sig = sig * 31u + (uint32_t)clk_v.a + clk_v.ph + clk_v.inc;   /* (the click voice's own state) */
+    if ((uint32_t)clk_v.a > a) {                      /* the click voice was struck in this block */
+        uint32_t pk = (uint32_t)(clk_v.a / pow(127.0 / 128.0, CTL));   /* (its amplitude = its peak sample, undone the block's decay) */
+        peak = pk > peak ? pk : peak;
+        clicks++;
+    }
 }
 static void run_ms(uint32_t ms)
 {
@@ -175,6 +183,39 @@ static void t_recmode(void)
     rec_wait = 0;
     rec_tempo = 0, rec_count = 0;
 }
+/* CLICK AUTO (the user, 2026-10-31: "auto click should only trigger when record mode is on. and the volume is way too
+ * loud"): silent while playing without record mode, clicks while recording or armed; the click is 12 dB under the old
+ * one (a 660 / 396 triangle blip against the wood block 2689 at velocity 120). "when i use the kit kawa, the click sound
+ * changes to something strange": the click is its own voice, the same output with kit 0 and KAWA (47) */
+static uint32_t click_run(uint32_t kit, int rec)
+{
+    uint32_t k, bpb = (uint32_t)((double)FS * 60.0 / 120.0 / CTL + 0.5);
+    rec_reset(120);
+    memset(&drums, 0, sizeof drums);
+    memset(&clk_v, 0, sizeof clk_v);
+    TDRUM->p[P_E0] = (int16_t)kit;
+    song.g[G_CLOCK] = 3;                               /* AUTO */
+    seq_start();
+    song.rec = (uint8_t)(rec ? 1u : 0u);
+    clicks = 0, peak = 0, sig = 0;
+    for (k = 0; k < 6u * bpb; k++) run_block();
+    song.rec = 0;
+    seq_stop();
+    return sig;
+}
+static void t_click_auto(void)
+{
+    uint32_t s0, s47, pk;
+    click_run(0, 0);
+    check(clicks == 0 && peak == 0, "CLICK AUTO: playing, not in record mode: no click");
+    s0 = click_run(0, 1);
+    pk = peak;
+    check(clicks >= 4u, "CLICK AUTO: recording: the click sounds");
+    printf("bp23:   click peak %u (the old wood block: 2689, so %.1f dB)\n", pk, 20.0 * log10((double)pk / 2689.0));
+    check(pk > 0 && pk * 100u <= 2689u * 27u, "CLICK: the peak is at least 11.4 dB under the old level");
+    s47 = click_run(47, 1);
+    check(s0 == s47, "CLICK: the same output with kit 0 and with KAWA (47)");
+}
 /* SLOOP 2.4 (isod89/sloop-fm1 v2.4, 8d3823f, tests/seq2_test.c t_fixes24): a MIDI START from a DAW during the
  * count-in starts and records at once (the master counts), not after the bar of clicks. Ours needed no change:
  * clock_sync.c starts the transport at the first F8 and the count-in stops when it sees it playing */
@@ -293,6 +334,7 @@ int main(void)
     t_glide();
 #if FELUCCA_REC_MODES
     t_recmode();
+    t_click_auto();
     t_count_in_start();
 #endif
     t_shed();

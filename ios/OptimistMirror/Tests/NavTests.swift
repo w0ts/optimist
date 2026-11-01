@@ -18,7 +18,35 @@ final class NavTests: XCTestCase {
     }
 
     func testTracksParsed() throws {
-        XCTAssertEqual(try NavState.parseTracks(FakeFM1.nav([4])), ["MASTER", "T1", "T2", "T3", "DR", "KICK", "SNARE"])
+        XCTAssertEqual(try NavState.parseTracks(FakeFM1.nav([4])), ["RET A", "RET B", "RET C", "MASTER", "T1", "T2", "T3", "DR", "KICK", "SNARE"])
+    }
+
+    func testLaneButtonsAlwaysThereGreyedOffTheDrumTrack() {
+        let kit = ["RET A", "RET B", "RET C", "MASTER", "T1", "T2", "T3", "DR", "KICK", "SNARE"]
+        let on = NavTracks.lanes(tracks: kit, current: Nav.drumRow + 1)
+        XCTAssertEqual(on.names, ["KICK", "SNARE"])
+        XCTAssertTrue(on.available)
+        XCTAssertTrue(NavTracks.lanes(tracks: kit, current: Nav.drumRow).available)
+        let off = NavTracks.lanes(tracks: kit, current: Nav.t1Row + 1)           // (T2: the lanes stay, greyed)
+        XCTAssertEqual(off.names, ["KICK", "SNARE"])
+        XCTAssertFalse(off.available)
+        XCTAssertFalse(NavTracks.lanes(tracks: kit, current: Nav.none).available)
+        let bare = NavTracks.lanes(tracks: [], current: Nav.none)    // (no names yet: the default lanes)
+        XCTAssertEqual(bare.names, Nav.defaultLanes)
+        XCTAssertFalse(bare.available)
+    }
+
+    /// The same cases the web editor's navBar is tested on (Tests/Fixtures/nav_track_bar.json): the app and the web always aligned
+    func testTrackBarMatchesTheSharedCases() throws {
+        let url = Bundle(for: Self.self).url(forResource: "nav_track_bar", withExtension: "json", subdirectory: "Fixtures")
+            ?? Bundle(for: Self.self).url(forResource: "nav_track_bar", withExtension: "json")
+        let json = try JSONSerialization.jsonObject(with: Data(contentsOf: try XCTUnwrap(url))) as! [String: Any]
+        for c in json["cases"] as! [[String: Any]] {
+            let names = c["names"] as! [String]
+            let bar = Nav.bar(count: names.count)
+            XCTAssertEqual(bar.lanes.map { names[$0] }, c["lanes"] as! [String])
+            XCTAssertEqual(bar.bottom.map { names[$0] }, c["bottom"] as! [String])
+        }
     }
 
     func testShortReplyThrows() {

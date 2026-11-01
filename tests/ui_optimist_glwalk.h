@@ -21,6 +21,7 @@ static uint32_t glw_state(void)                        /* every setting a GLOBAL
     h = glw_mix(h, &settings.palette, sizeof settings.palette);
     h = glw_mix(h, &settings.lowcut, sizeof settings.lowcut);
     h = glw_mix(h, &knob_colors, 1);
+    h = glw_mix(h, &dbg_stats, 1);                      /* (SYSTEM > General > DEBUG STATS: core/dbgstats.h) */
     h = glw_mix(h, &hold_sel, 1);
     h = glw_mix(h, &TSEL->p[P_SLEN], sizeof TSEL->p[P_SLEN]);
     h = glw_mix(h, sync_ofs, sizeof sync_ofs);      /* (CLK OFS, BT OFS: clock_sync.c) */
@@ -28,13 +29,6 @@ static uint32_t glw_state(void)                        /* every setting a GLOBAL
 #if FELUCCA_REC_MODES
     h = glw_mix(h, &rec_tempo, 1);
     h = glw_mix(h, &rec_count, 1);
-#endif
-#if FELUCCA_BRIGHT
-    h ^= bright_level() * 0x9E3779B1u;
-#endif
-#if FELUCCA_LIGHTS
-    h = glw_mix(h, &lights_lvl, 1);
-    h = glw_mix(h, &lights_keys, 1);
 #endif
 #if FELUCCA_CDC
     h = glw_mix(h, &usb_serial, 1);
@@ -45,8 +39,14 @@ static uint32_t glw_state(void)                        /* every setting a GLOBAL
 #if FELUCCA_BT_AUDIO
     h = glw_mix(h, &bt.mode, 1);                        /* (BT AUDIO's MODE: op_bt.c) */
 #endif
+#if WIFI_UI
+    h = glw_mix(h, &wn_st.mode, 1);                     /* (WI-FI's MODE: wn_st) */
+#endif
 #if FELUCCA_MIDI_CLKOUT
     h = glw_mix(h, &clko_on, 1);
+#endif
+#if FELUCCA_LINK
+    h = glw_mix(h, &link_mode, 1);                  /* (LINK on the MIDI page: clock_sync.c) */
 #endif
 #if DUAL_LOAD
     h = glw_mix(h, &dual_mode, 1);
@@ -68,7 +68,7 @@ static int glw_moves(uint32_t scr, uint32_t i, uint32_t role)
 {
     cell_t c;
     char v0[16], v1[16];
-    uint32_t h0 = glw_state(), h1, n = 0;
+    uint32_t h0 = glw_state(), h1, n = 0, det;
     int32_t s = 1;
     glw_line(scr, i, &c, v0);
     turn(role, s);
@@ -78,9 +78,21 @@ static int glw_moves(uint32_t scr, uint32_t i, uint32_t role)
     }
     for (n = 1, glw_line(scr, i, &c, v1); !strcmp(v0, v1) && n < 4u; n++, glw_line(scr, i, &c, v1))
         turn(role, s);
+    if (!strcmp(v0, v1)) {                              /* still the same text after four turns: a value at its end (LINK's default, ON+S/S, is the top
+                                                         * of its list): those turns stopped there and moved nothing, so no undo; the other way */
+        s = -s;
+        for (n = 0; !strcmp(v0, v1) && n < 4u; ) {
+            turn(role, s);
+            n++;
+            glw_line(scr, i, &c, v1);
+        }
+    }
     h1 = glw_state();
+    det = n;
     while (n--)
         turn(role, -s);
+    if (!(h1 != h0 && strcmp(v0, v1) != 0 && ui.row[scr] == i))
+        printf("  glwalk: %s moved %s -> %s (turning %d, %u detents), state %s, row %u of %u\n", c.label ? c.label : "-", v0, v1, (int)s, det, h1 != h0 ? "changed" : "same", ui.row[scr], i);
     return h1 != h0 && strcmp(v0, v1) != 0 && ui.row[scr] == i;   /* (back: an accelerated knob may land near) */
 }
 static int glw_still(uint32_t role)                     /* a control turned both ways: no setting changed */
@@ -98,7 +110,7 @@ static int glw_walk_line(uint32_t scr, uint32_t i)
     line_at(scr, i);
     glw_line(scr, i, &c, v);
     ok = ui.scr == scr && ui.row[scr] == i && c.label && (c.label[0] || c.unit[0]) && (v[0] || c.unit[0] || !strcmp(c.label, "INFO") ||
-                                                                                                      !strcmp(c.label, "INTERNALS") || !strcmp(c.label, "USB STATS") || !strcmp(c.label, "CREDITS"));   /* (the read-out pages, REPO: text in the unit, or the page itself) */
+                                                                                                      !strcmp(c.label, "INTERNALS") || !strcmp(c.label, "USB STATS") || !strcmp(c.label, "CPU TIMES") || !strcmp(c.label, "CREDITS"));   /* (the read-out pages, REPO: text in the unit, or the page itself) */
     if (c.kind == CK_VAL) {
         ok &= glw_moves(scr, i, LINE_KNOB(i));
         ok &= glw_still(EN_PRESET);
@@ -134,13 +146,14 @@ static int glw_walk_line(uint32_t scr, uint32_t i)
     return ok;
 }
 /* SHIFT held + PRESETS on a line with no descriptor: its FACTORY value, what a blank FM-1 / an empty settings record gives
- * (the user, 2026-10-13; panel.c settings_init, bright.c bright_boot, settings_word.c read as 0); BLE is never reset */
+ * (the user, 2026-10-13; panel.c settings_init, settings_word.c read as 0); BLE is never reset */
 static const struct { const char *label, *val; } GLW_FACTORY[] = {
-    {"MODE", "FREE"}, {"NUDGE", "0"}, {"LENGTH", "1"}, {"START", "NOTE"}, {"CLK OUT", "OFF"}, {"BRIGHT", "8"},
-    {"KNOB COLORS", "OFF"}, {"BUTTONS", "OFF"}, {"KEYS", "OFF"}, {"LOWCUT", "OFF"}, {"SERIAL", "OFF"}, {"HOLD", "350"},
+    {"MODE", "FREE"}, {"NUDGE", "0"}, {"LENGTH", "1"}, {"START", "NOTE"}, {"CLK OUT", "OFF"}, {"LINK", "ON+S/S"},
+    {"KNOB COLORS", "OFF"}, {"SPK LOWCUT", "ON"}, {"HPHN BASS", "OFF"}, {"DEBUG STATS", "OFF"}, {"SERIAL", "OFF"}, {"HOLD", "350"},
     {"MASTER", "NONE"}, {"T1", "1"}, {"T2", "2"}, {"T3", "3"}, {"DRUMS", "4"}, {"DRUM BUS", "NONE"}, {"DR1", "NONE"},
     {"DR2", "NONE"}, {"DR3", "NONE"}, {"DR4", "NONE"}, {"DR5", "NONE"}, {"DR6", "NONE"}, {"DR7", "NONE"}, {"DR8", "NONE"},
-    {"DR9", "NONE"}, {"DR10", "NONE"}};                 /* (SYSTEM > USB AUDIO: the routing before the setting) */
+    {"DR9", "NONE"}, {"DR10", "NONE"}, {"RET A", "NONE"}, {"RET B", "NONE"},
+    {"RET C", "NONE"}};                                 /* (SYSTEM > USB AUDIO: the routing before the setting) */
 static const char *glw_factory(const char *label)      /* its factory text, 0: none in the table */
 {
     uint32_t i;
@@ -176,6 +189,19 @@ static void glw_factory_tests(void)
                 release(B_OCTDN);
                 ble_ok &= ble_on == 1u && bt_mode(BT_MIDI) == 1u;
                 bt_enter(BT_MIDI, was);
+                continue;
+            }
+#endif
+#if WIFI_UI
+            if (scr == SCR_SYSTEM && i < gl_n(1) && sys_item(gl_ent(1, i) >> 2, gl_ent(1, i) & 3u) == SI_WFMODE) {   /* WI-FI's
+                                                         * MODE: never reset (a network joined stays) */
+                uint8_t was = wn_st.mode;
+                wn_st.mode = WN_MODE_MAN;
+                press(B_OCTDN);
+                turn(LINE_KNOB(i), 1);
+                release(B_OCTDN);
+                ble_ok &= wn_st.mode == WN_MODE_MAN;
+                wn_st.mode = was;
                 continue;
             }
 #endif
@@ -251,12 +277,12 @@ static void glw_sync_long_tests(void)
     check(ok, "SYNC AUTO: the GLOBAL list draws Auto: Int / Auto: USB / Auto: TRS, the cards A:INT ..., a fixed SYNC Int / USB / TRS (the cards INT / USB / TRS)");
     check(fit, "SYNC AUTO: the long form fits the list's value field beside the label");
     {   /* GLOBAL's MIDI page: OUT IN SYNC CLK OUT on one page, in this order (3 lines without CLK OUT); SYNC no longer on Tempo */
-        static const char *const ML[4] = {"CLK IN", "CLK OUT", "", "MIDI OUT"};   /* (no MIDI IN: 2026-10-14) */
+        static const char *const ML[4] = {"CLK IN", "CLK OUT", "LINK", "MIDI OUT"};   /* (LINK: Link builds) */   /* (no MIDI IN: 2026-10-14) */
         uint32_t first = line_named(SCR_GLOBAL, FELUCCA_MIDI_CLOCK ? "CLK IN" : FELUCCA_MIDI_CLKOUT ? "CLK OUT" : "MIDI IN"), n = 0, j, pg_ok = 1;
-        n = (FELUCCA_MIDI_CLOCK ? 1u : 0u) + (FELUCCA_MIDI_CLKOUT ? 1u : 0u) + (0u) + (FELUCCA_MIDI_OUT ? 1u : 0u);
+        n = (FELUCCA_MIDI_CLOCK ? 1u : 0u) + (FELUCCA_MIDI_CLKOUT ? 1u : 0u) + (FELUCCA_LINK ? 1u : 0u) + (FELUCCA_MIDI_OUT ? 1u : 0u);
         for (j = 0, k = 0; j < 4u; j++) {
             char nm[12];
-            if (!(j == 0u ? FELUCCA_MIDI_CLOCK : j == 1u ? FELUCCA_MIDI_CLKOUT : j == 2u ? 0 : FELUCCA_MIDI_OUT))
+            if (!(j == 0u ? FELUCCA_MIDI_CLOCK : j == 1u ? FELUCCA_MIDI_CLKOUT : j == 2u ? FELUCCA_LINK : FELUCCA_MIDI_OUT))
                 continue;
             SCREENS[SCR_GLOBAL].cell(first + k, gl_kn(SCR_GLOBAL, first + k), &c);
             SCREENS[SCR_GLOBAL].name(first + k, nm);
@@ -424,6 +450,15 @@ static void glwalk_tests(void)
     memcpy(b0, bp_set, sizeof b0);
     reset_ui();
     song.sel = 0;
+#if FELUCCA_BLE
+    bt_enter(BT_MIDI, 0);                               /* (the radios off, as a power-on has them: a random run before leaves them where its path went, */
+#if FELUCCA_BT_AUDIO                                    /*  and DEVICE / NETWORK move only from the MODE the walk turns on itself) */
+    bt_enter(BT_AUD, 0);
+#endif
+#endif
+#if WIFI_UI
+    wn_st.mode = WN_MODE_OFF;
+#endif
     for (s = 0; s < 2u; s++) {
         uint32_t scr = s ? SCR_SYSTEM : SCR_GLOBAL;
         op_enter(scr);
@@ -463,7 +498,8 @@ static void glwalk_tests(void)
     memcpy(bp_set, b0, sizeof b0);
     settings.palette = pal;
     palette_set(pal);
-    settings.lowcut = low;
+    settings.lowcut = oc_set_word(low);                 /* (SPK LOWCUT, HPHN BASS back: fx/outcorr.c) */
+    dbg_stats_set(0);                                   /* (DEBUG STATS back OFF) */
     t0->p[P_SLEN] = len;
     reset_ui();
 }

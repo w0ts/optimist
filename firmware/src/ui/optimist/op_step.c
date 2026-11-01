@@ -13,19 +13,20 @@
  *                         (the user, 2026-10-11: "long press on step to open plock, should not toggle the step")
  *   a step key held       the cards are the step's (an empty step held: its cards, no note made): drums LEVEL RATCHET, synths NOTE LEVEL RATCHET LENGTH (its
  *                         ties); several held edit together. SELECT pages the cards: the step, its extras (CHANCE NUDGE FILL COND, as
- *                         built), then the track's sound pages as p-locks; PRESETS is the sound as everywhere, SAVE the fill condition (FELUCCA_FILLS),
+ *                         built), then the track's sound pages as p-locks; PRESETS is the sound as everywhere, SAVE the fill condition (FELUCCA_FILLS; always, whatever card),
  *                         HOME the clear
  *   + a page button       ENV LFO FX SCL ARP: that page's cells become the steps' events (FELUCCA_PLOCK; the
  *                         automation store, seq/auto.h): a turn writes a step-only event (a lock; a hold event there:
  *                         its value), a cell with one shows a mark (a padlock; a hold event: an arrow); YES toggles
- *                         the hot cell's between step-only and HOLD; SHIFT + the knob clears it; the button again: the
+ *                         the hot cell's between step-only and HOLD (FELUCCA_FILLS: SHIFT2 + YES, YES alone is the fill; OCT then waits for its let go); SHIFT + the knob clears it; the button again: the
  *                         family's next page, past the last the first
  *   SHIFT held + a step   the step's p-locks cleared (the notes, nudge, fill, chance and motion stay; SHIFT is OCT- held,
  *                         and SHIFT + the knob its default). A step held, HOME tapped: the step cleared (held_clear).
- *                         Drum track: SEQ + a step clears it, SHIFT + a key is the pick below
+ *                         SHIFT + a key is the pick below
  *   SHIFT held + keys     the drum track's pick: the keys play (ly_lock is let go while SHIFT is down, the sound only
  *                         stopped); a key picks its lane (lane_sel), the last upper key the ACCENT lane
- *   SEQ held + keys       a synth's notes become the next steps' (the core's pen: seq.c key_down)
+ *   SEQ held + keys       the FILL view of the selected synth track / drum lane (FELUCCA_FILLS): a step key adds a FILL ONLY note / hit,
+ *                         removes a FILL ONLY one, leaves a normal one (popup); step_fill_key
  *   SEQ tapped again      the keys play with the screen up (the window keeps following); again: steps
  * With no step held the cards are the track's PATTERN row (and TOOLS, GEN, GEN OUT). Every step key pressed opens an undo level (undo_mark), as SLOOP's step entry. The logic
  * of the edits is SLOOP's (ui/sloop/ui_layers.c step_down / steps_held_*), copied: nothing in ui/sloop is called. */
@@ -40,7 +41,8 @@ static struct {
     uint16_t held;                      /* the step keys down (white key w: step 16 page + w) */
     uint16_t fdown;                     /* the physical step keys down (a bit per white key: its finger) */
     uint8_t fabs[16];                   /* the step each finger holds (absolute: a held step moved by PRESETS leaves its key) */
-    uint8_t nsel;                       /* a held step of several notes: the note SELECT picked (ALGORITHM moves that one) */
+    uint8_t nsel;                       /* a step of several notes: the note SELECT (held) or KNOB 1 (picked) selected, the one
+                                         * ALGORITHM, PRESETS and the cards edit; NSEL_ALL every note that starts there */
     uint16_t pend;                      /* the step keys down that toggle their step when let go: a short press, nothing edited */
     uint32_t sess;                      /* the undo session of the step key pressed last */
     uint32_t t_down;                    /* fm1_ms when the first of the keys held went down (step_held_long) */
@@ -49,18 +51,31 @@ static struct {
     uint8_t pk;                         /* the note picker: the step picked (KNOB 1, the cards down), PK_NONE none */
     uint8_t pk_trk;                     /* ... on this track */
     uint8_t latch;                      /* SAVE on a picked note: its step held as by a finger (its cards); HOME lets go */
-    uint8_t snap;                       /* a synth note moved to touch another: the detent that reached it (the step it
-                                         * touches + 1, | 0x80 moving left), the next one goes past; 0 none */
-    uint8_t snapl;                      /* ... grown by LENGTH to touch another: the step it touches + 1; 0 none */
+    uint8_t snapl;                      /* a synth note grown by LENGTH to touch another: the step it touches + 1; 0 none */
+    uint8_t cur;                        /* STEP ENTRY (op_stepentry.c): the cursor step */
+    uint8_t se_len;                     /* ... the length new notes take (KNOB 4's last), 0: one step */
+    uint8_t se_park;                    /* ... PLAY pressed: the take armed, the keys play until it starts or REC goes off */
+    uint8_t se_was;                     /* ... on last frame */
+    uint32_t se_down;                   /* ... its keys down (a bit per key: a chord's keys one undo level) */
+    uint32_t se_ksess;                  /* ... the undo session of the keys down together */
 } st = {.follow = 1, .lock_pg = 0xFF, .ph_drawn = 0xFF, .pk = 0xFF};
 static int st_holding(void) { return ui.scr == SCR_STEP && st.held; }   /* STEP, a step held */
 #define LOCK_NONE 0xFFu
 #define PK_NONE 0xFFu
+#define NSEL_ALL 0xFFu
 static void hp_sync(void);
+static uint32_t pk_heads(const track_t *t, uint32_t idx, uint8_t *k);
+static int pk_note(const track_t *t, uint32_t idx);
+static int roll_carried(const track_t *t, const step_t *s, uint32_t idx, uint32_t i);   /* op_stepdraw.c */
 static void hp_save(void);
 static void hp_reopen(void);
 static void pk_unlatch(void);
+static void pk_take(uint32_t idx, uint32_t slot);       /* the note entered / edited: the picked one */
 static int pk_ok(void);
+static int se_on(void);                                 /* op_stepentry.c: STEP ENTRY (a synth track, stopped, REC armed) */
+static void se_key(uint32_t k, uint32_t down);
+static void se_knob(uint32_t k, int32_t s, int shift);
+static void se_tick(void);
 
 static const uint8_t LV_UP[4] = {LV_GHOST, LV_SOFT, LV_NORM, LV_HARD};   /* the levels, softest first */
 static uint32_t lvl_rank(uint32_t lvl) { return lvl == LV_GHOST ? 0u : lvl == LV_SOFT ? 1u : lvl == LV_NORM ? 2u : 3u; }
@@ -79,22 +94,77 @@ static int step_pick(uint32_t held)
     (void)held;
     return 0;
 }
-/* the keys are steps now: STEP shown, not toggled to playing, and not a pick: the drum track's HOME (step_pick), a
- * synth track's SEQ (the pen). The drum track's SEQ + a step clears it (step_key) */
+/* REC on, STEP's keys play (the user, 2026-10-31: "in SEQ mode, we need to hold SEQ to record notes with the keyboard. just
+ * change that, if REC is on the keyboard acts as midi keyboard, off it acts as step seq. more logical"): armed or
+ * recording, they sound and record as on every other page (the pen: a synth's notes set the pick); off, they are steps */
+static int step_rec_keys(void) { return song.rec != 0u || rec_wait != 0u; }
+/* the drum track on STEP, REC on (the user, 2026-11-01: "on SEQ, drums if REC is on black keys also record notes"): the black
+ * keys play their lane and record the hit (seq.c key_down, the pads' path: quantize, swing, the take started when armed) and
+ * pick the lane (step_played); the white keys stay steps. Not with a step held (its black keys pick as ever, a level cycle:
+ * a black key held + a step). Combos kept: black key held + a step = that lane's level, a black key held = LANE FX, SHIFT /
+ * SHIFT2 + a black key = mute / select, HOME + ... */
+static int step_save_keys(void);                        /* below */
+static int step_drum_rec(void)
+{
+    return ui.scr == SCR_STEP && is_drum(TSEL) && !st.play && !st.held && step_rec_keys() && !step_save_keys();
+}
+/* the keys are steps now: STEP shown, REC off, and not a pick (the drum track's HOME, step_pick: none now). SEQ held: the fill view's keys */
+static int step_save_keys(void);                        /* below: SAVE held, no note picked: the keys are slots */
+static void step_save_key(uint32_t w);
 static int step_keys(uint32_t held)
 {
-    if (ui.scr != SCR_STEP || st.play)
+    if (ui.scr == SCR_STEP && step_save_keys())
+        return 1;
+    if (se_on())
+        return 1;                                       /* (STEP ENTRY: the keys reach the UI, they toggle notes and sound only there) */
+    if (ui.scr != SCR_STEP || st.play || (!is_drum(TSEL) && step_rec_keys()))
         return 0;
-    return is_drum(TSEL) ? !step_pick(held) : !(held & (1u << panel.btn[B_SEQ]));
+    return is_drum(TSEL) ? !step_pick(held) : 1;
 }
+
+/* SEQ held on STEP, the keys steps: the FILL view of the selected track (synth) or drum lane (the user, 2026-11-01: "the SEQ held will be the
+ * fills", "edit the fills for that lane/track"); the white keys edit its fills, step_fill_key. STEP_FILLS: FELUCCA_FILLS on the automation store */
+#define STEP_FILLS (FELUCCA_FILLS && FELUCCA_AUTO)
+#if STEP_FILLS
+static int step_fillview(void)
+{
+    return ui.scr == SCR_STEP && btn_held(B_SEQ) && !st.play && !st.held && !step_save_keys() && (is_drum(TSEL) || !step_rec_keys());
+}
+#else
+#define step_fillview() 0
+#endif
 
 /* ---- the window */
 static void step_tick(void)                             /* once a frame: FOLLOW, the window inside LEN */
 {
     const track_t *t = tsel();
     uint32_t n = step_pages(t);
+    static uint8_t rec_seen;
+    if (rec_seen != rec_last_n) {                       /* a note recorded on the selected track: the picked one */
+        const step_t *s = &t->step[rec_last_at % NSTEP];
+        uint32_t k;
+        rec_seen = rec_last_n;
+        for (k = 0; k < s->n && k < 4u && s->note[k] != rec_last_note; k++)
+            ;
+        if (rec_last_trk == song.sel && !st.held && (is_drum(t) ? rec_last_note == lane_selected() : k < s->n && k < 4u))
+            pk_take(rec_last_at, is_drum(t) ? 0u : k);
+    }
+#if STEP_FILLS
+    {
+        static uint16_t fv_seen;                        /* the fill view's toast: "FILLS T1" / "FILLS SNARE", when it opens or its lane changes */
+        uint32_t id = step_fillview() ? 1u + (is_drum(t) ? lane_selected() : 32u + song.sel) : 0u;
+        if (id != fv_seen && id) {
+            char m[24];
+            str_cpy(m, "FILLS ", sizeof m);
+            str_app(m, is_drum(t) ? lane_name(lane_selected()) : trk_tag((uint32_t)song.sel), sizeof m);
+            ui_message(m);
+        }
+        fv_seen = (uint16_t)id;
+    }
+#endif
     if (st.latch && (ui.scr != SCR_STEP || !pk_ok()))
         pk_unlatch();                                   /* (the picked note's cards: another track, lane or screen lets go) */
+    se_tick();                                          /* (STEP ENTRY: the cursor, the pick on it, PLAY's arm let go) */
     if (st.follow && song.playing && !st.held)
         st.page = (uint8_t)((t->seq_idx % trk_len(t)) / 16u);
     if (st.page >= n)
@@ -183,7 +253,7 @@ static uint32_t step_note_len(const track_t *t, uint32_t start)   /* a note and 
  * some snapping that helps feel when the note touches"). A note sounds on through its TIEs and through the carry steps that
  * name it (SF_CARRY, seq.c note_span), so two notes overlap: the steps where both sound are carry steps (or TIEs while
  * nothing starts and nothing ends there). LENGTH grows a note through the next one this way, and back (olp_len); the
- * detent where it reaches the next note does nothing (the snap, st.snap). Within the pattern: no wrap */
+ * detent where it reaches the next note does nothing (the snap, st.snapl). Within the pattern: no wrap */
 typedef struct {
     uint8_t n, note[4];
 } olp_set_t;
@@ -285,21 +355,85 @@ static const char *olp_build(const step_t *o, const olp_set_t *start, const olp_
     }
     return 0;
 }
-/* the notes starting at a (x: they) sound L steps; the steps after a written again so the others sound as before. wr 0:
- * only checked. -> 0 fine, else why not (the toast) */
-static const char *olp_pass(track_t *t, uint32_t a, uint32_t L, uint32_t end, int wr)
+/* the notes of x that sound on out of a in the steps as they are (end: the steps x sounded, for a note no longer in a) */
+static void olp_xon(const step_t *h, const olp_set_t *x, uint32_t end, olp_set_t *xon)
+{
+    uint32_t k, i;
+    xon->n = 0;
+    for (k = 0; k < x->n; k++) {
+        for (i = 0; h->time == ST_NOTE && i < h->n && i < 4u && h->note[i] != x->note[k]; i++)
+            ;
+        if (h->time == ST_NOTE && i < h->n && i < 4u ? !ngate_of(h, i) : end > 1u)
+            (void)olp_add(xon, x->note[k]);
+    }
+}
+/* x's own notes in step o (xon: x sounding on into it): a TIE's, a carry step's that names them; xon then what goes on
+ * out of it. A note of x's pitch that starts in o is another note (the user, 2026-10-31: "if i move a note on the right
+ * and there is another note, it is erased": the pass took it for x's own and wrote it away) */
+static void olp_xown(const step_t *o, olp_set_t *xon, olp_set_t *xc)
+{
+    olp_set_t nx = {0};
+    uint32_t k;
+    xc->n = 0;
+    if (o->time == ST_TIE) {
+        *xc = *xon;
+        return;
+    }
+    for (k = 0; o->time == ST_NOTE && (o->flags & SF_CARRY) && !o->rat && k < o->n && k < 4u; k++)
+        if (olp_has(xon, o->note[k])) {
+            (void)olp_add(xc, o->note[k]);
+            if (!ngate_of(o, k))
+                (void)olp_add(&nx, o->note[k]);
+        }
+    *xon = nx;
+}
+/* step p (the one before, as written; pd what goes on out of it) ends the notes r at its own end (127: the step's end, as
+ * recording does in a long note's step, seq.c rec_note): a note struck again in a carry step after it is struck there, not
+ * held on (the user, 2026-10-31: G lengthened over E struck again at step 9 said SAME NOTE). A TIE becomes the carry step
+ * of what sounds through it. -> 0 fine, else why not */
+static const char *olp_cut(step_t *p, const olp_set_t *pd, const olp_set_t *r)
+{
+    uint32_t k;
+    if (p->time == ST_TIE) {
+        memset(p, 0, sizeof *p);
+        p->time = ST_NOTE, p->flags = SF_CARRY, p->vel = 100;
+        for (k = 0; k < pd->n; k++)
+            p->note[p->n++] = pd->note[k];              /* (LV_NORM: 0) */
+    }
+    if (p->time != ST_NOTE || p->rat)
+        return "RATCHET HERE";
+    for (k = 0; k < p->n && k < 4u; k++)
+        if (olp_has(r, p->note[k]))
+            p->ngate[k] = 127u;
+    return 0;
+}
+/* the notes starting at a (x: they; xs 0: every note of a) sound L steps; the steps after a written again so the others
+ * sound as before (xs: one note of a chord, or one no longer in a at all: the others of a go on as they do). wr 0: only
+ * checked. -> 0 fine, else why not (the toast) */
+static const char *olp_pass(track_t *t, uint32_t a, const olp_set_t *xs, uint32_t L, uint32_t end, int wr)
 {
     const step_t *h = &t->step[a];
-    olp_set_t x = {0}, prev = {0}, snd, start, out, pd, d;
+    olp_set_t x = {0}, prev = {0}, snd, start, out, pd, d, xon, xc, r;
+    step_t lw = *h;                                     /* (the step before as written: a, then each nw) */
     uint32_t j, k, own;
     for (k = 0; k < h->n && k < 4u; k++)
-        (void)olp_add(&x, h->note[k]);
-    pd = x;                                             /* (what goes on out of a: x, unless it ends in it) */
+        if (!xs)
+            (void)olp_add(&x, h->note[k]);
+    if (xs)
+        x = *xs;
+    olp_xon(h, &x, end, &xon);
+    pd = prev;
+    for (k = 0; h->time == ST_NOTE && k < h->n && k < 4u; k++)
+        if (olp_has(&x, h->note[k]))
+            (void)olp_add(&pd, h->note[k]);             /* (what goes on out of a: x, unless it ends in it) */
+        else if (!ngate_of(h, k))
+            (void)olp_add(&prev, h->note[k]), (void)olp_add(&pd, h->note[k]);   /* (the others of a that go on) */
     for (j = a + 1u; j <= a + end && j < trk_len(t); j++) {
         step_t o = t->step[j], nw;
         const char *why;
         olp_set_t carry = {0};
-        olp_step(&o, &prev, &x, &snd, &start, &out);
+        olp_xown(&o, &xon, &xc);
+        olp_step(&o, &prev, &xc, &snd, &start, &out);
         d = snd;
         for (k = 0; j < a + L && k < x.n; k++) {
             if (olp_has(&snd, x.note[k]))
@@ -320,11 +454,20 @@ static const char *olp_pass(track_t *t, uint32_t a, uint32_t L, uint32_t end, in
         } else if (!start.n && !carry.n) {
             memset(&nw, 0, sizeof nw);
             nw.time = ST_REST;                          /* (what sounded ends here) */
-        } else if ((why = olp_build(&o, &start, &carry, &nw)) != 0) {
-            return why;
+        } else {
+            for (k = 0, r.n = 0; carry.n && k < start.n; k++)
+                if (olp_has(&pd, start.note[k]))
+                    (void)olp_add(&r, start.note[k]);   /* (a carry step would hold it on: it ends in the step before) */
+            if (r.n && (why = olp_cut(&lw, &pd, &r)) != 0)
+                return why;
+            if (r.n && wr)
+                t->step[j - 1u] = lw;
+            if ((why = olp_build(&o, &start, &carry, &nw)) != 0)
+                return why;
         }
         if (wr)
             t->step[j] = nw;
+        lw = nw;
         prev = out;
         pd.n = 0;                                       /* (what goes on out of the step as written) */
         for (k = 0; nw.time == ST_TIE && k < d.n; k++)
@@ -335,45 +478,72 @@ static const char *olp_pass(track_t *t, uint32_t a, uint32_t L, uint32_t end, in
     }
     return 0;
 }
-static const char *olp_len(track_t *t, uint32_t a, uint32_t L)   /* the notes at a sound L steps (IRQ off) */
+static uint32_t olp_ext_m(const track_t *t, uint32_t a, uint32_t m)   /* the steps the notes m of a sound (the longest) */
 {
-    uint32_t old = olp_ext(t, a), end = old > L ? old : L;
-    const char *why = olp_pass(t, a, L, end, 0);
+    uint32_t k, e, x = 1;
+    for (k = 0; k < t->step[a].n && k < 4u; k++)
+        if ((m >> k) & 1u) {
+            e = (note_span(t, a, k) + 127u) / 128u;
+            x = e > x ? e : x;
+        }
+    return x;
+}
+static const char *olp_len(track_t *t, uint32_t a, uint32_t m, uint32_t L)   /* the notes m of a sound L steps (IRQ off) */
+{
+    olp_set_t xs = {0};
+    step_t *h = &t->step[a];
+    uint32_t old = olp_ext_m(t, a, m), end = old > L ? old : L, k;
+    const char *why;
+    for (k = 0; k < h->n && k < 4u; k++)
+        if ((m >> k) & 1u)
+            (void)olp_add(&xs, h->note[k]);
+    why = olp_pass(t, a, &xs, L, end, 0);
     if (why)
         return why;
-    if (L != old) {                                     /* (whole steps now: the own ends of the notes at a go) */
-        memset(t->step[a].ngate, 0, sizeof t->step[a].ngate);
+    if (L != old) {                                     /* (whole steps now: the own ends of the notes m at a go) */
+        for (k = 0; k < 4u; k++)
+            if ((m >> k) & 1u)
+                h->ngate[k] = 0;
 #if FELUCCA_PLOCK
         lock_drop(t, (a + old - 1u) % trk_len(t), P_SGATE);
 #endif
     }
-    (void)olp_pass(t, a, L, end, 1);
+    (void)olp_pass(t, a, &xs, L, end, 1);
     return 0;
 }
-/* LENGTH over the next note: ext the steps the note at a sounds now, limit those it can have before the next note; the
- * detent that would take it into the next note does nothing (st.snapl), the next one goes in */
-static void olp_resize(track_t *t, uint32_t a, int32_t d, uint32_t ext, uint32_t limit)
+/* LENGTH over the next note: ext the steps the notes m at a sound now, limit those they can have before the next note;
+ * the detent that would take them into the next note does nothing (st.snapl), the next one goes in */
+static void olp_resize(track_t *t, uint32_t a, uint32_t m, int32_t d, uint32_t ext, uint32_t limit)
 {
     int32_t L = (int32_t)ext + d;
     const char *why;
     if (d > 0 && ext <= limit && L > (int32_t)limit) {
         if (st.snapl != a + limit + 1u) {
-            st.snapl = (uint8_t)(a + limit + 1u);       /* (touching it: the snap) */
-            L--;
+            st.snapl = (uint8_t)(a + limit + 1u);       /* (touching it: the snap, a fast turn too) */
+            L = (int32_t)limit;
         } else {
             st.snapl = 0;
         }
     }
-    why = olp_len(t, a, (uint32_t)ui_clamp(L, 1, (int32_t)(trk_len(t) - a)));
+    why = olp_len(t, a, m, (uint32_t)ui_clamp(L, 1, (int32_t)(trk_len(t) - a)));
     if (why)
         ui_message(why);
 }
-/* the length of the note at start d steps longer / shorter, as TIE steps after it (from Melodee 0dbe626, Kerem
- * Kilic, as SLOOP's ui_layers.c): longer through empty steps up to the next note or tie, shorter clears its ties; past the
- * next note (a snap first) or back from over it: olp_resize */
-static void step_note_resize(track_t *t, uint32_t start, int32_t d)
+/* the length of the selected notes m of the note at start d steps longer / shorter, as TIE steps after it (from Melodee
+ * 0dbe626, Kerem Kilic, as SLOOP's ui_layers.c): longer through empty steps up to the next note or tie, shorter clears its
+ * ties; past the next note (a snap first) or back from over it: olp_resize. Some notes of a chord selected, or a step
+ * that carries notes on: those notes alone, the others sound as they did (the user, 2026-10-31: "i extended the lowest
+ * note, it created the gap": LENGTH on the lowest of a chord lengthened the whole step) */
+static void step_note_resize(track_t *t, uint32_t start, int32_t d, uint32_t m)
 {
     uint32_t len = trk_len(t), old = step_note_len(t, start), limit = old, n, i, ext;
+    uint8_t hk[4];
+    if (m != (1u << t->step[start].n) - 1u || (t->step[start].flags & SF_CARRY)) {
+        for (limit = 1; start + limit < len && !pk_heads(t, start + limit, hk); limit++)
+            ;                                           /* (the steps before the next note starts) */
+        olp_resize(t, start, m, d, olp_ext_m(t, start, m), limit);
+        return;
+    }
     while (limit < len) {
         const step_t *s = &t->step[(start + limit) % len];
         if (step_on(s) || s->time == ST_TIE || t->step[(start + limit + 1u) % len].time == ST_TIE)
@@ -382,7 +552,7 @@ static void step_note_resize(track_t *t, uint32_t start, int32_t d)
     }
     ext = olp_ext(t, start);
     if (ext > old || (d > 0 && old + (uint32_t)d > limit && start + limit < len && t->step[start + limit].time != ST_REST)) {
-        olp_resize(t, start, d, ext, limit);
+        olp_resize(t, start, m, d, ext, limit);
         return;
     }
     n = (uint32_t)ui_clamp((int32_t)old + d, 1, (int32_t)limit);
@@ -398,20 +568,6 @@ static void step_note_resize(track_t *t, uint32_t start, int32_t d)
 #endif
     if (n != old && t->step[(start + old - 1u) % len].time == ST_NOTE)   /* (and the notes' own ends there) */
         memset(t->step[(start + old - 1u) % len].ngate, 0, sizeof t->step[0].ngate);
-}
-/* the note at start (n steps with its ties) as it plays, in tenths of a step, when its last step has a GATE lock (a
- * live-recorded length: seq.c rec_len_end; a TIE ends half a step + GATE in), else -1 */
-static int32_t step_note_len10(const track_t *t, uint32_t start, uint32_t n)
-{
-#if FELUCCA_PLOCK
-    int32_t g;
-    if (lock_get(t, (start + n - 1u) % trk_len(t), P_SGATE, &g))
-        return (int32_t)(n - 1u) * 10 + (n > 1u ? 5 : 0) + (g * 10 + 64) / 128;
-#endif
-    (void)t;
-    (void)start;
-    (void)n;
-    return -1;
 }
 static void step_set(track_t *t, uint32_t idx)          /* an empty step takes the pick (IRQ off) */
 {
@@ -448,14 +604,14 @@ static void step_wipe(track_t *t, uint32_t idx, int32_t all)
             (void)lane_step_drop(t, idx, lane_selected());   /* (the lane's hit gone: its locks there, D4) */
 #endif
 #if FELUCCA_AUTO
-            (void)step_mute_set(t, idx, lane_selected(), 0);   /* (and its mute) */
+            (void)step_lev_set(t, idx, lane_selected(), 0);   /* (and its mute, its fill condition) */
 #endif
         }
         if (dstep_lanes(d))
             return;                                 /* (the ACCENT lane's hit is a hit of the step) */
     } else {
         if (step_on(&t->step[idx]))
-            step_note_resize(t, idx, -(int32_t)NSTEP);
+            step_note_resize(t, idx, -(int32_t)NSTEP, (1u << t->step[idx].n) - 1u);
         step_clear(&t->step[idx]);
     }
 #if FELUCCA_AUTO
@@ -491,12 +647,30 @@ static int step_has(const track_t *t, uint32_t idx)     /* a tap would clear it:
 {
     return is_drum(t) ? dstep_has(&t->dstep[idx], lane_selected()) : step_on(&t->step[idx]);
 }
-/* the keys' view of a step: the selected lane's hit; the drum track with SEQ held (SEQ + a key clears the whole step): any lane's */
+/* a FILL ONLY note / hit (drum lane l): stored and played in a fill, never drawn or lit but while SEQ is held on STEP, the fill view (the user,
+ * 2026-11-01: "fills should only be displayed on screen when SEQ is held"); a NO FILL one looks like any other */
+static uint32_t fill_only(const track_t *t, uint32_t idx, uint32_t l)
+{
+#if FELUCCA_FILLS && FELUCCA_AUTO
+    return is_drum(t) ? step_lane_fc(t, idx % NSTEP, l) == FC_FILL : step_fill(t, idx % NSTEP) == FC_FILL;
+#else
+    (void)t, (void)idx, (void)l;
+    return 0;
+#endif
+}
+/* the keys' view of a step: the selected lane's hit (SEQ held, the fill view: the same; the old "SEQ + a key clears the step's lanes" is gone);
+ * a synth step where a note starts (pk_note), not a carry step that only holds notes on, as a TIE (the user, 2026-10-31:
+ * "when i extend a note, the keyboard lit up on the end of the note, but not all the time": LENGTH over another note
+ * writes a carry step where the other note goes on alone, and it lit) */
 static int step_shown(const track_t *t, uint32_t idx)
 {
-    if (is_drum(t) && btn_held(B_SEQ))
-        return dstep_lanes(&t->dstep[idx]) != 0u;
-    return step_has(t, idx);
+#if FELUCCA_AUTO
+    if (step_muted(t, idx, lane_selected()))
+        return 0;                                       /* (a muted note: its key dim, as an empty step's; the user, 2026-11-01) */
+#endif
+    if (!step_fillview() && fill_only(t, idx, is_drum(t) ? lane_selected() : 0u))
+        return 0;                                       /* (a FILL ONLY note: its key dark but with SEQ held, the fill view) */
+    return is_drum(t) ? step_has(t, idx) : pk_note(t, idx);
 }
 
 /* step idx's p-locks go (IRQ off): the step-only events of a parameter, a drum lane's values included; the step's notes,
@@ -537,9 +711,10 @@ static int32_t lane_held(uint32_t k)                    /* a lane's black key do
 /* a lane's black key held + a step pressed: that lane's hit there NORM -> HARD -> GHOST -> NORM (an empty step: NORM; SOFT: NORM),
  * the level said (the user, 2026-10-22: "hold instrument key plus step to cycle, and notif popup"); the ACCENT lane, no level: on /
  * off. The step's LEVEL card is the same value (held step, step_cell) */
+static const char *const LV_SAY[4] = {" NORM", " GHOST", " SOFT", " HARD"};   /* (LV_NORM, LV_GHOST, LV_SOFT, LV_HARD) */
+static uint32_t lvl_next(uint32_t lv) { return lv == LV_NORM ? LV_HARD : lv == LV_HARD ? LV_GHOST : LV_NORM; }   /* (SOFT: NORM) */
 static void step_lvl_cycle(track_t *t, uint32_t idx, uint32_t l)
 {
-    static const char *const LV_SAY[4] = {" NORM", " GHOST", " SOFT", " HARD"};   /* (LV_NORM, LV_GHOST, LV_SOFT, LV_HARD) */
     dstep_t *d = &t->dstep[idx];
     uint32_t has = dstep_has(d, l), lv = dstep_lvl(d, l), nv;
     undo_mark(t, st.sess);
@@ -547,7 +722,7 @@ static void step_lvl_cycle(track_t *t, uint32_t idx, uint32_t l)
     if (l == DRUM_ACC && has) {
         step_wipe(t, idx, 0);
     } else {
-        nv = l == DRUM_ACC || !has ? LV_NORM : lv == LV_NORM ? LV_HARD : lv == LV_HARD ? LV_GHOST : LV_NORM;
+        nv = l == DRUM_ACC || !has ? LV_NORM : lvl_next(lv);
         dstep_set(d, l, nv, has ? dstep_rat(d, l) : 0u);
         t->seq_active = 1;
     }
@@ -557,11 +732,140 @@ static void step_lvl_cycle(track_t *t, uint32_t idx, uint32_t l)
     ui_say(lane_short(l), l == DRUM_ACC ? (has ? " OFF" : " ON") : LV_SAY[dstep_lvl(d, l) & 3u]);
     ui.toast_next = 0;
 }
+#if FELUCCA_AUTO
+/* SHIFT2 + a set step: NORM -> HARD -> GHOST -> MUTED -> NORM (SOFT: NORM). A synth step: the notes that START there take the level (the lowest's
+ * is the step's; notes carried through it are never touched), a drum step the selected lane's hit; MUTED is the store's mute event (pk_mute's, AUTO_SMUTE / AUTO_MUTE: the note
+ * kept, grey, its key dim, a rest). One undo level, the step's note the picked one, a popup names the state: "DR HARD" with the
+ * lane's code, "T1 STEP 5 HARD" */
+static void step_shift_cycle(track_t *t, uint32_t idx)
+{
+    uint32_t l = lane_selected(), drum = is_drum(t), mut, lv, nv, i, ok = 1, q, nh = 0;
+    uint8_t hk[4];
+    char say[16];
+    if (drum && l >= DRUM_LANES) {
+        ui_message("NO MUTE ON ACCENT");
+        return;
+    }
+    if (!drum && !(nh = pk_heads(t, idx, hk))) {        /* (only notes carried through: none starts here, nothing is touched) */
+        ui_message("NO NOTE STARTS HERE");
+        return;
+    }
+    mut = (uint32_t)step_muted(t, idx, drum ? l : 0u);
+    lv = drum ? dstep_lvl(&t->dstep[idx], l) : (uint32_t)((t->step[idx].lvl >> (2u * hk[0])) & 3u);
+    nv = mut || lv != LV_GHOST ? (mut ? LV_NORM : lvl_next(lv)) : LV_GHOST;
+    undo_mark(t, st.sess);
+    fm1_irq_off();
+    if (drum) {
+        dstep_set(&t->dstep[idx], l, nv, dstep_rat(&t->dstep[idx], l));
+    } else {
+        step_t *s = &t->step[idx];
+        for (i = 0; i < nh; i++)                        /* (the notes that start here only; carried ones keep theirs) */
+            s->lvl = (uint8_t)((s->lvl & ~(3u << (2u * hk[i]))) | nv << (2u * hk[i]));
+    }
+    if (!mut && lv == LV_GHOST)
+        ok = (uint32_t)step_mute_set(t, idx, drum ? l : 0u, 1u);       /* (GHOST -> MUTED) */
+    else if (mut)
+        ok = (uint32_t)step_mute_set(t, idx, drum ? l : 0u, 0u);       /* (MUTED -> NORM) */
+    t->seq_active = 1;
+    fm1_irq_on();
+    sync_reload = 1;
+    if (ok)
+        pk_take(idx, NSEL_ALL);                         /* (the step's note: the picked one, fa644b73) */
+    ui.toast_next = 1;
+    if (!ok) {
+        ui_message("PATTERN FULL");
+    } else if (drum) {
+        ui_say(lane_short(l), !mut && lv == LV_GHOST ? " MUTED" : LV_SAY[nv & 3u]);
+    } else {
+        const char *tg = trk_tag((uint32_t)song.sel);
+        q = 0;
+        say[q++] = tg[0], say[q++] = tg[1], say[q++] = ' ';
+        say[q++] = 'S', say[q++] = 'T', say[q++] = 'E', say[q++] = 'P', say[q++] = ' ';
+        if ((idx + 1u) >= 10u)
+            say[q++] = (char)('0' + (idx + 1u) / 10u % 10u);
+        say[q++] = (char)('0' + (idx + 1u) % 10u);
+        say[q] = 0;
+        ui_say(say, !mut && lv == LV_GHOST ? " MUTED" : LV_SAY[nv & 3u]);
+    }
+    ui.toast_next = 0;
+    op_repaint();
+}
+#endif
+#if STEP_FILLS
+/* SEQ held + a step key (the fill view): the selected track's (synth) or lane's (drums: that lane's hit only, its AUTO_MUTE event's value
+ * keeps its condition) fills, each press one undo level and a popup. An empty step: a note / hit there, FILL ONLY; a FILL ONLY step: removed;
+ * a normal or NO FILL note: left as it is, the popup says so (NO FILL is SAVE on a held step) */
+static void step_fill_key(track_t *t, uint32_t idx)
+{
+    uint32_t drum = is_drum(t), l = lane_selected(), has, fc, ok = 1, add = 0, gone = 0;
+    const char *say;
+    char who[16];
+    if (drum && l >= DRUM_LANES) {
+        ui_message("NO FILL ON ACCENT");
+        return;
+    }
+    has = drum ? dstep_has(&t->dstep[idx], l) : step_on(&t->step[idx]);
+    fc = !has ? FC_NORM : drum ? step_lane_fc(t, idx, l) : step_fill(t, idx);
+    if (has && fc != FC_FILL) {                         /* (a normal or NO FILL note: the gesture leaves it, SAVE on a held step sets NO FILL) */
+        ui.toast_next = 1;
+        if (drum) {
+            ui_say(lane_short(l), fc == FC_NOFILL ? " NO FILL HIT" : " NORMAL HIT");
+        } else {
+            str_cpy(who, trk_tag((uint32_t)song.sel), sizeof who);
+            str_app(who, " STEP ", sizeof who);
+            fmt_app(who, (int32_t)idx + 1);
+            ui_say(who, fc == FC_NOFILL ? " NO FILL NOTE" : " NORMAL NOTE");
+        }
+        ui.toast_next = 0;
+        return;
+    }
+    undo_mark(t, st.sess);
+    fm1_irq_off();
+    if (!has) {
+        if (step_kept(t, idx))
+            step_back(t, idx);
+        else
+            step_set(t, idx);
+        ok = (uint32_t)(drum ? step_lane_fc_set(t, idx, l, FC_FILL) : step_fill_set(t, idx, FC_FILL));
+        add = 1, say = " FILL ONLY";
+    } else if (fc == FC_FILL) {
+        if (drum)
+            step_wipe(t, idx, 0);
+        else
+            step_off_keep(t, idx);
+        gone = 1, say = " REMOVED";
+    }
+    fm1_irq_on();
+    sync_reload = 1;
+    if (gone && st.pk == idx && st.pk_trk == song.sel)
+        st.pk = PK_NONE;
+    if (add)
+        pk_take(idx, NSEL_ALL);                         /* (a note set: the picked one, as a tap) */
+    ui.toast_next = 1;
+    if (!ok) {
+        ui_message("PATTERN FULL");
+    } else if (drum) {
+        ui_say(lane_short(l), say);
+    } else {
+        str_cpy(who, trk_tag((uint32_t)song.sel), sizeof who);
+        str_app(who, " STEP ", sizeof who);
+        fmt_app(who, (int32_t)idx + 1);
+        ui_say(who, say);
+    }
+    ui.toast_next = 0;
+    op_repaint();
+}
+#endif
 static void step_key(uint32_t k, uint32_t down, uint32_t held)
 {
     track_t *t = tsel();
     int32_t w = punch_key(k);
     uint32_t idx, bit;
+    if (se_on() && !(w >= 0 && w < 16 && ((st.fdown >> w) & 1u)) && !(down && step_save_keys())) {
+        se_key(k, down);                                /* (STEP ENTRY: a key toggles its notes on the cursor step; a step key
+                                                         * held from before goes on as a step) */
+        return;
+    }
     if (w < 0 && down && is_drum(t) && lane_key(k)) {
         lane_pick_from(lane_of(k), 1);
         if (lane_of(k) != DRUM_ACC && !song.playing && !transport_req)
@@ -571,6 +875,10 @@ static void step_key(uint32_t k, uint32_t down, uint32_t held)
     }
     if (w < 0 || w > 15)
         return;
+    if (down && step_save_keys()) {
+        step_save_key((uint32_t)w);                     /* (SAVE + white key n: slot n, never a step) */
+        return;
+    }
     if (down && ui.scr != SCR_STEP)
         step_tick();                                    /* (off STEP: the window FOLLOW keeps, inside LEN) */
     bit = 1u << w;
@@ -596,7 +904,12 @@ static void step_key(uint32_t k, uint32_t down, uint32_t held)
                 step_set(t, idx);
             fm1_irq_on();
             sync_reload = 1;
+            if (!pk_note(t, idx) && st.pk == idx && st.pk_trk == song.sel)
+                st.pk = PK_NONE;                        /* (the picked note tapped off: nothing picked) */
+            pk_take(idx, NSEL_ALL);                     /* (a note set: the picked one) */
         }
+        else if (pk_note(t, idx) && st.pk_trk == song.sel && st.pk != PK_NONE && !st.latch)
+            st.pk = (uint8_t)idx;                       /* (held, moved by PRESETS: the selection where it went) */
         st.pend &= (uint16_t)~bit;
         if (!st.held) {
             hp_save();                                  /* (the last step let go: its page is the next hold's) */
@@ -613,10 +926,24 @@ static void step_key(uint32_t k, uint32_t down, uint32_t held)
     if (st.latch)
         pk_unlatch();                                   /* (a step key: the picked note's cards let go, the fingers' own) */
     st.sess = (undo_sess += 4u) | 3u;                   /* every step key: an undo level */
+#if STEP_FILLS
+    if (step_fillview()) {                              /* SEQ held: the fills of the track / lane, at the press (no hold, no tap when let go) */
+        step_fill_key(t, idx);
+        return;
+    }
+#endif
     if (is_drum(t) && lane_held(k) >= 0) {              /* a black key held + the step: its lane's level, at the press (no hold, */
         step_lvl_cycle(t, idx, (uint32_t)lane_held(k)); /* no tap when let go: the finger is not st.fdown's) */
         return;
     }
+#if FELUCCA_AUTO
+    if (btn_held(B_OCTUP) && !btn_held(B_OCTDN) && step_has(t, idx)) {   /* SHIFT2 + a set step: its level and mute cycled (the user,
+                                                         * 2026-11-01: "it should cycle velocities and mute. with visual feedback";
+                                                         * an empty step is the tap's: a drum hard hit, a synth note) */
+        step_shift_cycle(t, idx);
+        return;
+    }
+#endif
     if (op_shift(held) && !(is_drum(t) && !step_has(t, idx))) {   /* SHIFT + a step: its p-locks cleared, the step stays (a drum
                                                          * step not hit yet: OCT- is its ghost hit, seq.c) */
         uint32_t n;
@@ -630,13 +957,16 @@ static void step_key(uint32_t k, uint32_t down, uint32_t held)
     }
     if (!st.held) {
         st.t_down = lk_ev_ms;                           /* (the press that may become a hold) */
-        st.nsel = 0;
+        st.nsel = NSEL_ALL;                             /* (a chord: all its notes first, SELECT then each) */
         hp_reopen();                                    /* (its cards open on the page last used on this track) */
+        if (pk_note(t, idx))                            /* a note held (its p-locks): the selected note, the picker's (the user,
+                                                         * 2026-10-29: "when we plock hold a note it should become selected") */
+            st.pk = (uint8_t)idx, st.pk_trk = song.sel, st.snapl = 0;
     }
     st.held |= (uint16_t)bit;
     st.fdown |= (uint16_t)bit;
     st.fabs[w] = (uint8_t)idx;
-    st.snap = st.snapl = 0;                             /* (a new hold: no snap pending) */
+    st.snapl = 0;                             /* (a new hold: no snap pending) */
     st.t_key[w] = lk_ev_ms;                             /* (when the key went down, not when this frame got to it) */
     st.pend |= (uint16_t)bit;                           /* toggled when let go, if a tap (nothing changes on the press) */
 }
@@ -653,10 +983,15 @@ static track_t *held_open(void)                         /* an edit of the steps 
     fm1_irq_off();
     return t;
 }
-static void held_shut(void)                             /* ... done: IRQ on, the sequencer told */
+static void pk_take(uint32_t idx, uint32_t slot);       /* below: the note edited, picked */
+static int32_t held_first(void);
+static void held_shut(void)                             /* ... done: IRQ on, the sequencer told; the step edited, picked */
 {
+    int32_t i = held_first();
     fm1_irq_on();
     sync_reload = 1;
+    if (i >= 0 && (st.pk != (uint32_t)i || st.pk_trk != song.sel))
+        pk_take((uint32_t)i, st.nsel);
 }
 /* the steps held, one by one: f(t, idx) for each within LEN (IRQ off, one undo level, edited: kept when let go); -> how many */
 static uint32_t held_each(void (*f)(track_t *t, uint32_t idx, int32_t s), int32_t s)
@@ -696,7 +1031,52 @@ static void held_clear(void)                            /* a step held, HOME tap
     ui_message(held_each(step_wipe, 1) > 1u ? "STEPS CLEARED" : "STEP CLEARED");   /* (the keys down stay no tap: pend) */
 }
 
-/* ---- the held steps' values: KNOB k (drums: 0 LEVEL, 1 RATCHET; synths: 0 NOTE, 1 LEVEL, 2 RATCHET, 3 LENGTH);
+/* the notes selected in a synth step (the user, 2026-10-29: "if there are few notes that start at the same time, we first
+ * select them all, and the lowest one, the one above, etc."): st.nsel NSEL_ALL every note that starts there (a held step,
+ * a picked chord: the first pick), else one note's slot. sel_mask: bit k = slot k selected; sel_one: the one the roll's
+ * rows follow and the NOTE card names (all: the lowest) */
+static uint32_t nsel_of(const step_t *s) { return st.nsel < s->n ? st.nsel : s->n - 1u; }   /* one note's slot (a note on) */
+static uint32_t sel_mask(const track_t *t, uint32_t idx)
+{
+    const step_t *s = &t->step[idx % NSTEP];
+    uint8_t k[4];
+    uint32_t n, i, m = 0;
+    if (!step_on(s))
+        return 0;
+    if (st.nsel != NSEL_ALL)
+        return 1u << nsel_of(s);
+    for (i = 0, n = pk_heads(t, idx % NSTEP, k); i < n; i++)
+        m |= 1u << k[i];
+    return m ? m : 1u;                                  /* (only notes carried on: the first, as before) */
+}
+static uint32_t sel_one(const track_t *t, uint32_t idx)
+{
+    uint32_t m = sel_mask(t, idx), k, lo = 0;
+    const step_t *s = &t->step[idx % NSTEP];
+    for (k = 0; k < s->n && k < 4u; k++)
+        if (((m >> k) & 1u) && (!((m >> lo) & 1u) || s->note[k] < s->note[lo]))
+            lo = k;
+    return lo;
+}
+static int held_note_sel(uint32_t idx)                  /* the held synth step idx of several notes: the note SELECT picked, else -1 */
+{
+    const step_t *s;
+    if (is_drum(TSEL) || ui.scr != SCR_STEP || idx / 16u != st.page || !((st.held >> (idx % 16u)) & 1u))
+        return -1;
+    s = &tsel()->step[idx % NSTEP];
+    return step_on(s) && s->n > 1u ? (int)sel_one(tsel(), idx) : -1;
+}
+static int32_t held_note(void)                          /* the note being edited on the first step held (synth), -1 none */
+{
+    int32_t i = held_first();
+    const step_t *s;
+    if (i < 0 || is_drum(TSEL))
+        return -1;
+    s = &tsel()->step[i];
+    return step_on(s) ? s->note[sel_one(tsel(), (uint32_t)i)] : -1;
+}
+static int32_t roll_fold_step(const track_t *t, int32_t note, int32_t s);   /* op_stepdraw.c: FOLD's next row */
+/* ---- the held steps' values: KNOB k (drums: 0 LEVEL, 1 RATCHET; synths: 0 NOTE, 1 LEVEL, 2 RATCHET, 3 GLIDE);
  * s OP_RESET: back to normal (NORM, x1, one step) */
 /* a step's level (lvl 1: the next of LV_UP's ranks) or ratchet (0..3) turned by s; OP_RESET: the default */
 static uint32_t lr_turn(int lvl, uint32_t v, int32_t s)
@@ -718,22 +1098,147 @@ static void edit_drum(track_t *t, uint32_t idx, int32_t s)
         rt = lr_turn(0, rt, s);
     dstep_set(d, l, lv, rt);
 }
+/* note slot k of step idx to pitch nt: the carry steps that name it go with it, so it still sounds on through them (over
+ * another note) */
+static void note_repitch(track_t *t, uint32_t idx, uint32_t k, uint32_t nt)
+{
+    step_t *x = &t->step[idx];
+    uint32_t was = x->note[k], ext = (note_span(t, idx, k) + 127u) / 128u, j, c;
+    x->note[k] = (uint8_t)nt;
+    for (j = idx + 1u; j < idx + ext && j < trk_len(t); j++) {
+        step_t *q = &t->step[j];
+        if (q->time != ST_NOTE || !(q->flags & SF_CARRY))
+            continue;
+        for (c = 0; c < q->n && c < 4u && q->note[c] != was; c++)
+            ;
+        if (c < q->n && c < 4u)
+            q->note[c] = (uint8_t)nt;
+    }
+}
+/* ---- a note moved in pitch never breaks another (the user, 2026-10-31: "if i have note on A and B that have a common
+ * portion of their duration overlapping, if i move the B down, it should not destroy the A, it should skip past it"). The
+ * notes m of step a go one row on (d +-1 a semitone, +-12 an octave; fold: FOLD's next row) and on past every pitch where
+ * a note of it sounds in their time (one pitch never sounds twice at once: its carry steps would join the two), to the
+ * first that leaves every other note as it was (nt_sum, the same before and after); none (the keyboard's end): they stay,
+ * "NO ROOM". A chord moves whole, its shape kept */
+static uint32_t nt_sum(const track_t *t, uint32_t a, uint32_t m)   /* every note that starts: its step, pitch (m of a: none), length */
+{
+    uint32_t i, j, n, h = 0;
+    uint8_t k[4];
+    for (i = 0; i < trk_len(t); i++)
+        for (j = 0, n = pk_heads(t, i, k); j < n; j++) {   /* (a sum: the order a step lists its notes in, lowest first, may
+                                                         * change with the moved pitch) */
+            uint32_t p = i == a && ((m >> k[j]) & 1u) ? 255u : t->step[i].note[k[j]];
+            uint32_t x = (i << 24 | p << 16 | note_span(t, i, k[j])) * 2654435761u;
+            h += (x ^ x >> 15) * 2246822519u + 1u;
+        }
+    return h;
+}
+static int nt_clash(const track_t *t, uint32_t a, uint32_t m, uint32_t q, uint32_t sp)   /* another note of pitch q sounds in [a, a + sp) */
+{
+    uint32_t i, j, n, lo = a * 128u, hi = a * 128u + sp;
+    uint8_t k[4];
+    for (i = 0; i < trk_len(t); i++)
+        for (j = 0, n = pk_heads(t, i, k); j < n; j++) {
+            uint32_t s0 = i * 128u, s1 = s0 + note_span(t, i, k[j]);
+            if ((i == a && ((m >> k[j]) & 1u)) || t->step[i].note[k[j]] != q)
+                continue;
+            if (s0 < hi && lo < s1)
+                return 1;
+        }
+    return 0;
+}
+static const char *pitch_move(track_t *t, uint32_t a, uint32_t m, int32_t d, int fold)   /* (IRQ off) -> 0 moved, else why not */
+{
+    step_t sv[NSTEP];                                   /* (the steps back when a pitch does not leave the others as they were) */
+    step_t *s = &t->step[a];
+    int32_t o[4], q[4];
+    uint32_t k, j, len = trk_len(t), h = nt_sum(t, a, m), tries;
+    m &= (1u << (s->n < 4u ? s->n : 4u)) - 1u;
+    if (!m || !step_on(s))
+        return 0;
+    for (k = 0; k < 4u; k++)
+        o[k] = q[k] = k < s->n ? s->note[k] : 0;
+    memcpy(sv, t->step, len * sizeof(step_t));
+    for (tries = 0; tries < 128u; tries++) {
+        int ok = 1;
+        for (k = 0; k < s->n && k < 4u; k++) {
+            int32_t x;
+            if (!((m >> k) & 1u))
+                continue;
+            x = ui_clamp(fold ? roll_fold_step(t, q[k], d) : q[k] + d, 0, 127);
+            if (x == q[k] || (d > 0 ? x < q[k] : x > q[k]))
+                return "NO ROOM";                       /* (the keyboard's end) */
+            q[k] = x;
+        }
+        for (k = 0; k < s->n && k < 4u && ok; k++)
+            if ((m >> k) & 1u) {
+                ok = !nt_clash(t, a, m, (uint32_t)q[k], note_span(t, a, k));
+                for (j = 0; j < k && ok; j++)
+                    ok = !((m >> j) & 1u) || q[j] != q[k];
+            }
+        if (!ok)
+            continue;
+        for (j = 0; j < 4u; j++) {                      /* (the highest first going up, the lowest down: no name met twice) */
+            int32_t b = -1;
+            for (k = 0; k < s->n && k < 4u; k++)
+                if (((m >> k) & 1u) && s->note[k] == (uint8_t)o[k] && o[k] != q[k] && (b < 0 || (d > 0 ? o[k] > o[b] : o[k] < o[b])))
+                    b = (int32_t)k;
+            if (b < 0)
+                break;
+            note_repitch(t, a, (uint32_t)b, (uint32_t)q[b]);
+        }
+        if (nt_sum(t, a, m) == h)
+            return 0;
+        memcpy(t->step, sv, len * sizeof(step_t));      /* (another note changed: on to the next pitch) */
+    }
+    return "NO ROOM";
+}
+static void pitch_moves(track_t *t, uint32_t a, uint32_t m, int32_t s, int32_t row, int fold)   /* |s| moves of row (+-1, +-12) */
+{
+    const char *why = 0;
+    int32_t n = s > 0 ? s : -s;
+    while (n-- > 0 && !why)
+        why = pitch_move(t, a, m, s > 0 ? row : -row, fold);
+    if (why)
+        ui_message(why);
+}
+/* GLIDE (the user, 2026-10-29: "where did we put the glide? i think it should be on the first page of the PLOCK, we can
+ * remove length"): the step's SLIDE (SF_SLIDE, stored with the step since SLOOP: seq.c seq_step holds its notes into the
+ * next step, which then plays legato with a glide, voice.c; GLIDE 0 glides in SLIDE_T). OFF / ON, right on, left off */
+static void edit_glide(step_t *s, int32_t v)
+{
+    s->flags = (uint8_t)(v == OP_RESET || v < 0 ? s->flags & ~SF_SLIDE : s->flags | SF_SLIDE);
+}
+/* k 0 NOTE, 1 LEVEL, 2 RATCHET: the selected notes (sel_mask; all: every note that starts there); 3 GLIDE (the step's);
+ * 4 LENGTH (the note picker's KNOB 4: the step's notes and ties) */
 static void edit_synth(track_t *t, uint32_t idx, int32_t s)
 {
     step_t *st_ = &t->step[idx];
-    uint32_t i, k = (uint32_t)s >> 16;
+    uint32_t i, k = (uint32_t)s >> 16, m = sel_mask(t, idx);
     s = (int16_t)(s & 0xFFFF);
     if (!step_on(st_))
         return;
     if (k == 3u) {
-        step_note_resize(t, idx, s == OP_RESET ? -(int32_t)NSTEP : s);
+        edit_glide(st_, s);
+        return;
+    }
+    if (k == 4u) {
+        step_note_resize(t, idx, s == OP_RESET ? -(int32_t)NSTEP : s, m);
+        return;
+    }
+    if (k == 0u || k == 5u) {                           /* (NOTE: semitones; 5: OCT- / OCT+, octaves; past a pitch sounding there) */
+        if (s != OP_RESET)
+            pitch_moves(t, idx, m, s, k == 5u ? 12 : 1, 0);
         return;
     }
     for (i = 0; i < st_->n && i < 4u; i++) {
         uint32_t sh = 2u * i, lv = (st_->lvl >> sh) & 3u, rt = (st_->rat >> sh) & 3u;
+        if (!((m >> i) & 1u))
+            continue;                                   /* (another note of the chord: not selected) */
         if (k == 0u) {
             if (s != OP_RESET)
-                st_->note[i] = (uint8_t)ui_clamp(st_->note[i] + s, 0, 127);
+                note_repitch(t, idx, i, (uint32_t)ui_clamp(st_->note[i] + s, 0, 127));
             continue;
         }
         if (k == 1u)
@@ -764,55 +1269,20 @@ static void held_notes(void (*f)(track_t *t, uint32_t idx, int32_t s), int32_t s
 }
 /* a step held + OCT- / OCT+ (the user, 2026-10-11): every note of the steps held an octave down / up, each clamped
  * to 0..127; the keyboard octave and FM6's paging stay (a synth track's: edit_synth's NOTE, held_edit's packing) */
-static void held_octave(int32_t d) { held_notes(edit_synth, (uint16_t)(int16_t)(12 * d)); }
+static void held_octave(int32_t d) { held_notes(edit_synth, (int32_t)(5u << 16) | (uint16_t)(int16_t)d); }
 
 /* ---- a held step moved (the user, 2026-10-16): PRESETS moves it left / right in time, ALGORITHM up / down (a synth step's
  * note a semitone, a drum hit to the lane above / below as drawn). The events of the step (its locks, motion, nudge,
  * chance, condition, fill) go with it; the neighbour it passes takes its place (a swap), nothing is lost. A held step that
  * would pass the pattern's first or last step, or a tied note's tie, stays and says so; the held keys follow their steps
  * (st.fabs), the window pages when they cross its edge. Several held: they move together, in one undo level. */
-static uint32_t nsel_of(const step_t *s) { return st.nsel < s->n ? st.nsel : s->n - 1u; }   /* the note SELECT picked (a note on) */
-static int held_note_sel(uint32_t idx)                  /* the held synth step idx of several notes: the note SELECT picked, else -1 */
-{
-    const step_t *s;
-    if (is_drum(TSEL) || ui.scr != SCR_STEP || idx / 16u != st.page || !((st.held >> (idx % 16u)) & 1u))
-        return -1;
-    s = &tsel()->step[idx % NSTEP];
-    return step_on(s) && s->n > 1u ? (int)nsel_of(s) : -1;
-}
-static int32_t held_note(void)                          /* the note being edited on the first step held (synth), -1 none */
-{
-    int32_t i = held_first();
-    const step_t *s;
-    if (i < 0 || is_drum(TSEL))
-        return -1;
-    s = &tsel()->step[i];
-    return step_on(s) ? s->note[nsel_of(s)] : -1;
-}
-static int32_t roll_fold_step(const track_t *t, int32_t note, int32_t s);   /* op_stepdraw.c: FOLD's next row */
 static void held_pitch_one(track_t *t, uint32_t idx, int32_t s)
 {
-    step_t *x = &t->step[idx];
-    uint32_t k;
-    if (!step_on(x))
+    if (!step_on(&t->step[idx]))
         return;
-    k = nsel_of(x);
-    {
-        uint32_t was = x->note[k], ext = (note_span(t, idx, k) + 127u) / 128u, j, c;
-        x->note[k] = (uint8_t)ui_clamp(roll_fold_step(t, x->note[k], s), 0, 127);   /* (folded: row to row) */
-        for (j = idx + 1u; j < idx + ext && j < trk_len(t); j++) {   /* (over another note: the carry steps that name it
-                                                         * go with it, so it still sounds on through them) */
-            step_t *q = &t->step[j];
-            if (q->time != ST_NOTE || !(q->flags & SF_CARRY))
-                continue;
-            for (c = 0; c < q->n && c < 4u && q->note[c] != was; c++)
-                ;
-            if (c < q->n && c < 4u)
-                q->note[c] = x->note[k];
-        }
-    }
+    pitch_moves(t, idx, sel_mask(t, idx), s, 1, 1);     /* (folded: row to row; past a pitch sounding there) */
 }
-static void held_pitch(int32_t s) { held_notes(held_pitch_one, s); }   /* ALGORITHM on a held synth step: the selected note (the only one) up / down */
+static void held_pitch(int32_t s) { held_notes(held_pitch_one, s); }   /* ALGORITHM on a held synth step: the selected notes up / down */
 #if FELUCCA_AUTO
 static void ev_block_shift(track_t *t, uint32_t a, uint32_t n, int32_t d)   /* the events of steps a .. a+n-1 move d (+-1), the step passed takes the vacated one */
 {
@@ -873,9 +1343,9 @@ static void dlane_swap(track_t *t, uint32_t a, uint32_t b, uint32_t l)   /* lane
 #endif
 #if FELUCCA_AUTO
     if (l < DRUM_LANES) {                               /* (a muted hit stays muted where it goes) */
-        int mx = step_muted(t, a, l), my = step_muted(t, b, l);
+        uint32_t mx = step_lev(t, a, l), my = step_lev(t, b, l);
         if (mx != my)
-            (void)step_mute_set(t, a, l, (uint32_t)my), (void)step_mute_set(t, b, l, (uint32_t)mx);
+            (void)step_lev_set(t, a, l, my), (void)step_lev_set(t, b, l, mx);
     }
 #endif
 }
@@ -920,79 +1390,163 @@ static const char *held_move_refused(const track_t *t, int32_t d, const uint8_t 
     }
     return lo / 16 != hi / 16 ? "PAGE EDGE" : 0;
 }
-/* steps a .. a+n-1 and a+n .. a+n+m-1 exchanged (each keeps its order; IRQ off): by three reversals, no copy of a block */
-static void step_rev(track_t *t, uint32_t a, uint32_t b)   /* steps a .. b-1 reversed */
+/* ---- the selected notes of a step moved alone (the user, 2026-10-29: "when i move a note left, it splits it in two. and it
+ * moves the note above it (of the same length), we should only move the selected note"). The step moves whole (step_rotate:
+ * its events with it) only when it is one block going into an empty step: every note of it selected, none carried in, none
+ * sounding on past its ties (note_span; held_free). Else each selected note leaves its step (the others of the chord, and
+ * a note it sounded over, stay as they sound: olp_pass) and starts d steps on, its whole length (its own end too when its
+ * last step can hold one), over whatever is there (a chord, a carry step: both sound). Within the pattern: no wrap, at the
+ * first / last step it stays ("FIRST STEP", "LAST STEP"); the same pitch sounding there, a fifth note, a ratchet a carry
+ * would cross: it goes on past (note_move) */
+typedef struct {
+    uint8_t note, lv, rt, g;                            /* its pitch, level, ratchet, own end (/128 into its last step, 0 none) */
+    uint8_t vel, fl;                                    /* its step's velocity, ACCENT and SLIDE (a step it starts alone takes them) */
+    uint32_t L;                                         /* the steps it sounds */
+} nmv_t;
+/* the held step a moves d as one block (step_rotate, its TIEs' events with it): every note of it selected, none carried in,
+ * none sounding on past its ties, and the step it goes into empty; else its selected notes alone (note_move) */
+static int held_free(const track_t *t, uint32_t a, int32_t d)
 {
-    while (a + 1u < b) {
-        step_t x = t->step[a];
-        t->step[a++] = t->step[--b];
-        t->step[b] = x;
-    }
+    const step_t *s = &t->step[a];
+    uint32_t n = step_note_len(t, a), b = d > 0 ? a + n : a - 1u;
+    if (sel_mask(t, a) != (1u << s->n) - 1u || (s->flags & SF_CARRY) || olp_ext(t, a) > n)
+        return 0;
+    if (d > 0 ? b >= trk_len(t) : a == 0u)
+        return 1;                                       /* (the ends: held_move_refused says so) */
+    return t->step[b].time == ST_REST && !(d > 0 && b + 1u < trk_len(t) && t->step[b + 1u].time == ST_TIE);
 }
-static void blocks_swap(track_t *t, uint32_t a, uint32_t n, uint32_t m)
+static void olp_into(const track_t *t, uint32_t b, olp_set_t *on)   /* the notes going on into step b (from b - 1) */
 {
-    step_rev(t, a, a + n);
-    step_rev(t, a + n, a + n + m);
-    step_rev(t, a, a + n + m);
+    uint32_t q = b, k;
+    const step_t *s;
+    on->n = 0;
+    while (q > 0u && t->step[q - 1u].time == ST_TIE)
+        q--;
+    if (q == 0u)
+        return;                                         /* (within the pattern: nothing comes in from its end) */
+    s = &t->step[q - 1u];
+    for (k = 0; s->time == ST_NOTE && k < s->n && k < 4u; k++)
+        if (!ngate_of(s, k))
+            (void)olp_add(on, s->note[k]);
+}
+/* (note_move keeps a copy of the steps: a pass cut short by a step it cannot write leaves them half written, put back) */
+static const char *nmv_out(track_t *t, uint32_t a, const nmv_t *x)   /* note x leaves step a (the others sound on) */
+{
+    olp_set_t xs = {1, {x->note}};
+    step_t *s = &t->step[a];
+    step_del(s, x->note);
+    if (!s->n)
+        step_clear(s);
+    return olp_pass(t, a, &xs, 1, x->L, 1);
+}
+static const char *nmv_in(track_t *t, uint32_t b, const nmv_t *x)   /* note x starts at step b, its L steps */
+{
+    olp_set_t xs = {1, {x->note}}, on;
+    step_t *s = &t->step[b];
+    uint32_t k, i;
+    const char *why;
+    olp_into(t, b, &on);
+    if (b + x->L > trk_len(t))
+        return "LAST STEP";
+    if (!step_on(s)) {                                  /* a TIE: a carry step of the notes sounding on (and x); empty: x
+                                                         * alone, with its step's ACCENT and SLIDE */
+        uint32_t tie = s->time == ST_TIE;
+        step_clear(s);
+        s->time = ST_NOTE;
+        s->vel = x->vel;
+        s->flags = tie ? (on.n ? SF_CARRY : 0u) : x->fl;
+        for (k = 0; tie && k < on.n; k++)
+            s->note[s->n++] = on.note[k];               /* (LV_NORM: 0) */
+    }
+    for (k = 0; k < s->n && s->note[k] != x->note; k++)
+        ;
+    if (k < s->n || ((s->flags & SF_CARRY) && olp_has(&on, x->note)))
+        return "SAME NOTE";                             /* (in a carry step it would be the one sounding on) */
+    if (s->n >= 4u)
+        return "STEP FULL";
+    if (x->rt && (s->flags & SF_CARRY))
+        return "RATCHET HERE";                          /* (a ratcheted step carries nothing on) */
+    i = s->n++;
+    s->note[i] = x->note, s->ngate[i] = 0;
+    s->lvl = (uint8_t)((s->lvl & ~(3u << (2u * i))) | (uint32_t)x->lv << (2u * i));
+    s->rat = (uint8_t)((s->rat & ~(3u << (2u * i))) | (uint32_t)x->rt << (2u * i));
+    why = olp_pass(t, b, &xs, x->L, x->L, 1);
+    s = &t->step[b + x->L - 1u];                        /* (its own end: in its last step, when that one names it) */
+    for (k = 0; !why && x->g && s->time == ST_NOTE && !s->rat && k < s->n && k < 4u; k++)
+        if (s->note[k] == x->note)
+            s->ngate[k] = x->g;
+    return why;
+}
 #if FELUCCA_AUTO
-    {
-        auto_list_t *l = AL(t);
-        uint32_t i;
-        for (i = 0; i < l->n && i < AUTO_MAX; i++) {    /* (the events go with their steps) */
-            uint32_t s = l->ev[i].place & AUTO_STEP, ns = s;
-            if (AUTO_IS_LFX(&l->ev[i]))
-                continue;                               /* (a lane's FX: no step's) */
-            if (s >= a && s < a + n)
-                ns = s + m;
-            else if (s >= a + n && s < a + n + m)
-                ns = s - n;
-            l->ev[i].place = (uint8_t)((l->ev[i].place & ~AUTO_STEP) | ns);
-        }
-        auto_touch(trk_index(t));
-    }
-#endif
-}
-/* PRESETS on one held synth note next to another (the user, 2026-10-17: "move a note past another one"): the detent that
- * reaches it does nothing (the snap: st.snap), the next one puts it past the whole note, ties and all (they swap places,
- * each with its events). -> the held note's new first step, -1 not this case (an empty step next: as before), -2 refused (said) */
-static int32_t held_jump(track_t *t, uint32_t a, int32_t d)
+static void ev_swap(track_t *t, uint32_t a, uint32_t b)   /* the events of steps a and b exchanged */
 {
-    uint32_t len = trk_len(t), n = step_note_len(t, a), b, m, key;
-    if (t->step[a].time != ST_NOTE || a + n > len)
-        return -1;
-    if (d > 0) {
-        b = a + n;
-        if (b >= len || t->step[b].time == ST_REST)
-            return -1;
-        key = b + 1u;
-    } else {
-        if (!a || t->step[a - 1u].time == ST_REST)
-            return -1;
-        for (b = a - 1u; b && t->step[b].time == ST_TIE; b--)
-            ;
-        key = 0x80u | (b + 1u);
+    auto_list_t *l = AL(t);
+    uint32_t i;
+    for (i = 0; i < l->n && i < AUTO_MAX; i++) {
+        uint32_t s = l->ev[i].place & AUTO_STEP;
+        if (!AUTO_IS_LFX(&l->ev[i]) && (s == a || s == b))
+            l->ev[i].place = (uint8_t)((l->ev[i].place & ~AUTO_STEP) | (s == a ? b : a));
     }
-    if (!step_on(&t->step[b]) || (t->step[b].flags & SF_CARRY) || (t->step[a].flags & SF_CARRY) || olp_ext(t, a) > n ||
-        olp_ext(t, b) > step_note_len(t, b)) {
-        ui_message("NOTES OVERLAP");                    /* (a note sounding over another: LENGTH them apart first) */
-        return -2;
+    auto_touch(trk_index(t));
+}
+#endif
+/* a note's pitch there (SAME NOTE), a full step (STEP FULL), a ratchet a carry would cross (RATCHET HERE): it cannot start at
+ * that step, the move goes past; the pattern's ends (FIRST STEP, LAST STEP) stop it */
+static int nmv_past(const char *why) { return why[0] != 'F' && why[0] != 'L'; }
+/* the notes of slots m of step a, d (+-1) steps on (IRQ off): -> 0 moved (*to: their step now), else why not (the steps
+ * as they were). Where they cannot start (the same pitch sounding there, a full step) they go on past it to the first
+ * step they fit, the notes there stay where they are (the user, 2026-10-31: "if i move a note on the right and there is
+ * another note, it is erased. move past it :)"); only the pattern's first / last step stops them */
+static const char *note_move(track_t *t, uint32_t a, uint32_t m, int32_t d, uint32_t *to)
+{
+    step_t sv[NSTEP];                                   /* (896 B on the stack: the steps back when one note cannot go) */
+    nmv_t x[4];
+    uint8_t hd[4];
+    const step_t *s = &t->step[a];
+    uint32_t n = 0, k, len = trk_len(t), L = 1, had = 0;
+    int32_t b;
+    const char *why = 0;
+    for (k = 0; k < s->n && k < 4u; k++) {
+        uint32_t sp = note_span(t, a, k);
+        if (!((m >> k) & 1u))
+            continue;
+        x[n].note = s->note[k], x[n].lv = (uint8_t)((s->lvl >> (2u * k)) & 3u), x[n].rt = (uint8_t)((s->rat >> (2u * k)) & 3u);
+        x[n].g = (uint8_t)(sp % 128u), x[n].L = (sp + 127u) / 128u, x[n].vel = s->vel;
+        x[n].fl = (uint8_t)(s->flags & (SF_ACCENT | SF_SLIDE));
+        L = x[n].L > L ? x[n].L : L;
+        n++;
     }
-    m = step_note_len(t, b);
-    if (d > 0 ? b + m > len : b + m != a) {
-        ui_message(d > 0 ? "LAST STEP" : "FIRST STEP");
-        return -2;
+    memcpy(sv, t->step, len * sizeof(step_t));
+    for (b = (int32_t)a + d;; b += d) {
+        if (b < 0 || (uint32_t)b + L > len) {
+            why = b != (int32_t)a + d ? "NO ROOM" : d < 0 ? "FIRST STEP" : "LAST STEP";   /* (past a note: nowhere it fits) */
+            break;
+        }
+        had = pk_heads(t, (uint32_t)b, hd);
+        if (n > 1u && had)
+            continue;                                   /* (a chord moved whole passes a step where others start: it stays
+                                                         * one chord of its own) */
+        for (k = 0, why = 0; k < n && !why; k++)
+            why = nmv_out(t, a, &x[k]);
+        for (k = 0; k < n && !why; k++)
+            why = nmv_in(t, (uint32_t)b, &x[k]);
+        if (!why)
+            break;
+        memcpy(t->step, sv, len * sizeof(step_t));
+        if (!nmv_past(why))
+            return why;
     }
-    if (st.snap != key) {                               /* (touching: this detent is the snap) */
-        st.snap = (uint8_t)key;
-        return (int32_t)a;
+    if (why) {
+        memcpy(t->step, sv, len * sizeof(step_t));
+        return why;
     }
-    st.snap = 0;
-    if (d > 0) {
-        blocks_swap(t, a, n, m);
-        return (int32_t)(a + m);
-    }
-    blocks_swap(t, b, m, n);
-    return (int32_t)b;
+#if FELUCCA_AUTO
+    if (!had && !pk_heads(t, a, hd))
+        ev_swap(t, a, (uint32_t)b);                     /* (no note starts at a now, none started at b: the step's events with it) */
+#endif
+    (void)had;
+    *to = (uint32_t)b;
+    return 0;
 }
 static int held_move(int32_t d)                         /* every step held one step left (-1) / right (+1); 1 moved */
 {
@@ -1002,25 +1556,32 @@ static int held_move(int32_t d)                         /* every step held one s
     const char *why;
     if (!k)
         return 0;
-    if (k == 1u && !is_drum(t)) {                       /* one synth note next to another: the snap, then past it */
-        int32_t at;
-        undo_mark(t, st.sess);
+    if (k == 1u && !is_drum(t) && step_on(&t->step[st.fabs[w[0]]]) && !held_free(t, st.fabs[w[0]], d)) {
+        uint32_t a = st.fabs[w[0]], m = sel_mask(t, a), nt = t->step[a].note[nsel_of(&t->step[a])], to = a;
+        undo_mark(t, st.sess);                          /* (the selected notes alone, past what is there: note_move) */
+        st.pend &= (uint16_t)~st.held;
         fm1_irq_off();
-        at = held_jump(t, st.fabs[w[0]], d);
+        why = note_move(t, a, m, d, &to);
         fm1_irq_on();
-        if (at == -2)
+        if (why) {
+            ui_message(why);
             return 0;
-        if (at >= 0) {
-            d = at - (int32_t)st.fabs[w[0]];            /* (where it went: the hold follows below) */
-            goto moved;
         }
+        d = (int32_t)to - (int32_t)a;                   /* (where it went: the hold follows below) */
+        if (st.nsel != NSEL_ALL || (t->step[to].n > 1u && (m & (m - 1u)) == 0u)) {   /* (the note it was: its slot in the
+                                                                                       * step it joined) */
+            const step_t *s = &t->step[to];
+            for (i = 0; i < s->n && i < 4u && s->note[i] != nt; i++)
+                ;
+            st.nsel = (uint8_t)(i < s->n ? i : 0u);
+        }
+        goto moved;
     }
     why = held_move_refused(t, d, w, k);
     if (why) {
         ui_message(why);
         return 0;
     }
-    st.snap = 0;
     (void)held_open();
     for (i = 0; i < k; i++) {
         uint32_t a = st.fabs[w[i]], bl = held_block(t, a);
@@ -1034,7 +1595,7 @@ static int held_move(int32_t d)                         /* every step held one s
         }
     }
     fm1_irq_on();
-moved:                                                  /* (held_jump's: d where the note went, 0 the snap) */
+moved:                                                  /* (note_move's: d where the note went) */
     st.pend = 0;
     st.held = 0;
     for (i = 0; i < k; i++) {
@@ -1088,8 +1649,8 @@ static int held_lane_one(track_t *t, uint32_t idx, uint32_t l, uint32_t l2)   /*
     dstep_clr(x, l);
     dstep_set(x, l2, lv, rt);
 #if FELUCCA_AUTO
-    if (step_muted(t, idx, l))                          /* (a muted hit: muted on its new lane; the ACCENT lane has no mute) */
-        (void)step_mute_set(t, idx, l, 0), (void)step_mute_set(t, idx, l2, 1);
+    if (step_lev(t, idx, l))                            /* (a muted hit, a fill condition: on its new lane; the ACCENT lane has none) */
+        (void)step_lev_set(t, idx, l2, step_lev(t, idx, l)), (void)step_lev_set(t, idx, l, 0);
 #endif
 #if DLA_ON
     lane_events_move(t, idx, l, l2);
@@ -1215,7 +1776,6 @@ static void edit_chance(track_t *t, uint32_t idx, int32_t s)
  * its lane), KNOB 4 its length (the drum track: its level); SAVE its cards as if its step were held (the step, its
  * extras, its p-locks; HOME lets go), SAVE held muted / not (seq/auto.h AUTO_MUTE), HOME held deleted. The edits are the
  * held step's (held_*), run on the picked step; it is drawn framed (op_stepdraw.c) */
-static int roll_carried(const track_t *t, const step_t *s, uint32_t idx, uint32_t i);   /* op_stepdraw.c */
 /* the notes that start at synth step idx (not carried on from the step before), lowest first, into k[] (their slots in
  * the step); -> how many. KNOB 1 walks these one by one (the user, 2026-10-19: "not step by step but note by note. most
  * left note first and in case of equality, the lowest one") */
@@ -1235,7 +1795,7 @@ static __attribute__((noinline)) uint32_t pk_heads(const track_t *t, uint32_t id
     }
     return n;
 }
-static int pk_note(const track_t *t, uint32_t idx)       /* a note starts at idx (what KNOB 1 walks) */
+static __attribute__((noinline)) int pk_note(const track_t *t, uint32_t idx)   /* a note starts at idx (what KNOB 1 walks; once) */
 {
     uint8_t k[4];
     if (idx >= trk_len(t))
@@ -1262,52 +1822,94 @@ static void pk_free(const uint32_t *sv)                 /* ... let go: the pick 
     ui.cards_t = 0;                                     /* (the held edits show the cards: the picker's are the grid) */
     op_repaint();
 }
+/* KNOB 1's stops in a step of m notes starting there (k[], lowest first): r = -1 all of them (a chord: the first stop,
+ * NSEL_ALL), then 0 .. m - 1 each alone, lowest up (the user, 2026-10-29: "we first select them all, and the lowest one, the
+ * one above, etc."); past the highest the next step's notes, all first; back the other way: the highest .. the lowest, all,
+ * the step before's highest. One note: one stop. At the first / last note it stays */
+static int32_t pk_lo(int32_t m) { return m > 1 ? -1 : 0; }   /* the first stop of a step of m notes */
+static void pk_none(void)                               /* KNOB 1's stop before the first note: nothing picked, said */
+{
+    if (st.latch)
+        pk_unlatch();
+    st.pk = PK_NONE, st.snapl = 0;
+    ui_message("NO NOTE");
+    op_repaint();
+}
+/* the note just entered or edited is the picked one (the user, 2026-10-31: "the last note entered/edited in the step seq
+ * must be selected"): a step key's note, a held step's, a recorded one (seq.c rec_last), a moved one; KNOB 1 goes on from
+ * it. slot: its slot in the step (NSEL_ALL: every note starting there) */
+static void pk_take(uint32_t idx, uint32_t slot)
+{
+    const track_t *t = tsel();
+    uint8_t k[4];
+    if (ui.scr != SCR_STEP || st.latch || idx >= trk_len(t) || !pk_note(t, idx))
+        return;
+    if (st.pk != idx || st.pk_trk != song.sel)
+        st.snapl = 0;
+    st.pk = (uint8_t)idx, st.pk_trk = song.sel;
+    if (!is_drum(t) && pk_heads(t, idx, k) == 1u)
+        slot = k[0];                                    /* (one note: its slot, KNOB 1's one stop there) */
+    st.nsel = is_drum(t) ? 0u : (uint8_t)slot;
+}
 static __attribute__((noinline)) void pk_walk(int32_t s)   /* KNOB 1: s notes on, stopping at the first / last (once:
                                                             * inlined into ui_input it cost 950 B) */
 {
     const track_t *t = tsel();
     int32_t len = (int32_t)trk_len(t), d = s > 0 ? 1 : -1, n = s > 0 ? s : -s, i, j, r = -1, m = 0, drum = is_drum(t);
-    uint32_t was = st.pk_trk == song.sel ? st.pk * 4u + st.nsel : 0xFFFFu;
+    uint32_t was = st.pk_trk == song.sel ? st.pk * 256u + st.nsel : 0xFFFFu;
     uint8_t k[4];
     if (st.pk != PK_NONE && st.pk_trk == song.sel && st.pk < (uint32_t)len) {
         i = st.pk;                                      /* (from the pick, picked or deleted: its notes first) */
         m = drum ? 1 : (int32_t)pk_heads(t, (uint32_t)i, k);
         for (r = 0; r < m && !drum && k[r] != st.nsel; r++)
             ;
-        if (r == m)
-            r = d > 0 ? -1 : m;                         /* (its note gone: from the step's edge) */
+        if (!drum && m > 1 && st.nsel == NSEL_ALL)
+            r = -1;                                     /* (the chord picked whole) */
+        else if (r == m)
+            r = d > 0 ? pk_lo(m) - 1 : m;               /* (its note gone: from the step's edge) */
+    } else if (d < 0) {
+        pk_none();                                      /* (none: the stop before the first note, the left end) */
+        return;
     } else {
-        i = d > 0 ? (int32_t)st.page * 16 - 1 : (int32_t)st.page * 16 + 16;   /* (none: from the window's edge) */
+        i = (int32_t)st.page * 16 - 1;                  /* (none: from the window's edge, the first note after it) */
     }
     while (n-- > 0) {
-        if (r + d >= 0 && r + d < m && !drum) {
-            r += d;                                     /* (the next note of the same step, higher / lower) */
+        if (r + d >= pk_lo(m) && r + d < m && !drum) {
+            r += d;                                     /* (the next stop of the same step: all, then each note up) */
             continue;
         }
         for (j = i + d; j >= 0 && j < len && !pk_note(t, (uint32_t)j); j += d)
             ;
+        if (j < 0 && pk_note(t, (uint32_t)i)) {
+            pk_none();                                  /* (left past the first note: no note picked, the user, 2026-10-31: "we
+                                                         * need a way to select no note") */
+            return;
+        }
         if (j < 0 || j >= len)
             break;
         i = j;
         m = drum ? 1 : (int32_t)pk_heads(t, (uint32_t)i, k);
-        r = d > 0 ? 0 : m - 1;                          /* (its lowest, back: its highest) */
+        r = d > 0 ? pk_lo(m) : m - 1;                   /* (all of it first, back: its highest) */
     }
     if (i < 0 || i >= len || !pk_note(t, (uint32_t)i)) {
         ui_message(drum ? "NO HITS ON THIS LANE" : "NO NOTES");
         return;
     }
-    r = r < 0 ? 0 : r >= m ? m - 1 : r;
-    st.pk = (uint8_t)i, st.pk_trk = song.sel, st.snap = st.snapl = 0;
-    st.nsel = drum ? 0u : k[r];                         /* (the note in its step: what KNOB 3 and the cards edit) */
-    if (st.pk * 4u + st.nsel != was)
+    r = r < pk_lo(m) ? pk_lo(m) : r >= m ? m - 1 : r;
+    st.pk = (uint8_t)i, st.pk_trk = song.sel, st.snapl = 0;
+    st.nsel = drum ? 0u : r < 0 ? NSEL_ALL : k[r];      /* (the notes in its step: what KNOB 2, 3 and the cards edit) */
+    if (st.pk * 256u + st.nsel != was)
         st.sess = (undo_sess += 4u) | 3u;               /* (a note picked: its edits one undo level) */
     st.page = (uint8_t)(i / 16), st.follow = 0;
     op_repaint();
 }
+static void pk_edit(uint32_t k, int32_t s, int shift);   /* below */
 static void pk_knob(uint32_t k, int32_t s, int shift)   /* a knob turned on STEP with its cards down */
 {
-    uint32_t sv[4];
-    int32_t d = s > 0 ? 1 : -1, n = s > 0 ? s : -s;
+    if (se_on() && !st.latch) {
+        se_knob(k, s, shift);                           /* (STEP ENTRY: KNOB 1 the cursor, 2 3 4 the notes starting there) */
+        return;
+    }
     if (k == 0u || !pk_ok()) {
         if (k == 0u)
             pk_walk(s);
@@ -1315,6 +1917,12 @@ static void pk_knob(uint32_t k, int32_t s, int shift)   /* a knob turned on STEP
             ui_message("PICK A NOTE: KNOB 1");
         return;
     }
+    pk_edit(k, s, shift);
+}
+static void pk_edit(uint32_t k, int32_t s, int shift)   /* KNOB 2 3 4 on the picked note(s): moved, pitch (lane), length (level) */
+{
+    uint32_t sv[4];
+    int32_t d = s > 0 ? 1 : -1, n = s > 0 ? s : -s;
     pk_hold(sv);
     if (k == 1u && shift) {
 #if FELUCCA_MICRO
@@ -1331,9 +1939,66 @@ static void pk_knob(uint32_t k, int32_t s, int shift)   /* a knob turned on STEP
     } else if (k == 2u) {
         held_each(held_pitch_one, ui_clamp(s, -12, 12));
     } else {
-        held_edit(is_drum(TSEL) ? 0u : 3u, s);          /* (drums: LEVEL; synths: LENGTH) */
+        held_edit(is_drum(TSEL) ? 0u : 4u, s);          /* (drums: LEVEL; synths: LENGTH, edit_synth 4) */
     }
     pk_free(sv);
+}
+/* ---- SAVE with no note picked (the user, 2026-10-31): tapped, the working pattern into the slot it came from, unasked
+ * (its own: "STORED T1 5"; none yet: the first free one), on release and not when HOME joined in (SAVE then HOME is undo);
+ * held, the white keys light the selected track's used slots; SAVE + white key n stores into slot n, asked over a used one
+ * (the LFO layer's SAVE + n, pat_store_ask). While SAVE is held the white keys are slots, never steps (step_keys). A note
+ * picked: SAVE is the note's (tapped its cards, held its mute) */
+#if FELUCCA_PATTERNS
+static int pat_has(uint32_t k, uint32_t s);             /* storage/sections/pat.c, later in the unit */
+static uint32_t pat_free(uint32_t k);
+static int pat_store_slot(uint32_t k, uint32_t s);
+static void pat_store_ask(uint32_t t, uint32_t s);      /* op_layers.c */
+static void pat_name(char *b, uint32_t k, uint32_t s);
+#endif
+static uint32_t keys_of(uint32_t m);                    /* op_input.c: a window's steps as white keys */
+static int step_save_keys(void)                         /* SAVE held, no note picked, nothing held: the keys are slots */
+{
+    return FELUCCA_PATTERNS && ui.scr == SCR_STEP && btn_held(B_SAVE) && !pk_ok() && !st.held && !op_armed();
+}
+static int step_save_own(void)                          /* SAVE tapped, no note picked: 1 done */
+{
+#if FELUCCA_PATTERNS
+    uint32_t t = song.sel % NTRK, s;
+    char nm[8];
+    if (ui.scr != SCR_STEP || pk_ok() || st.held || op_armed())
+        return 0;
+    s = pat_cur[t] < PAT_N ? pat_cur[t] : pat_free(t);
+    if (s >= PAT_N) {
+        ui_message("NO FREE PATTERN");
+    } else if (!pat_store_slot(t, s)) {
+        pat_name(nm, t, s);
+        ui.toast_next = 1;                              /* (a toast in the middle, as a confirmed store) */
+        ui_say("STORED ", nm);
+        ui.toast_next = 0;
+    }
+    return 1;
+#else
+    return 0;
+#endif
+}
+static void step_save_key(uint32_t w)                   /* SAVE + white key w: the working pattern into slot w (asked over a used one) */
+{
+#if FELUCCA_PATTERNS
+    if (w < PAT_N)                                      /* (SAVE let go after: no tap, the key used it, op_input.c) */
+        pat_store_ask(song.sel % NTRK, w);
+#else
+    (void)w;
+#endif
+}
+static uint32_t step_save_lit(void)                     /* SAVE held: the used slots' white keys */
+{
+    uint32_t m = 0;
+#if FELUCCA_PATTERNS
+    uint32_t w;
+    for (w = 0; w < 16u && w < PAT_N; w++)
+        m |= pat_has(song.sel % NTRK, w) ? 1u << w : 0u;
+#endif
+    return keys_of(m);
 }
 static int pk_save(void)                                /* SAVE tapped: the picked note's cards; 1 done */
 {
@@ -1404,7 +2069,8 @@ static int pk_delete(void)                              /* HOME held alone: the 
     step_wipe(t, st.pk, 0);                             /* (the drum track: the lane's hit; a synth: the note and its ties) */
     fm1_irq_on();
     sync_reload = 1;
-    ui_message("NOTE DELETED");                         /* (the pick stays there: KNOB 1 goes on from it) */
+    st.pk = PK_NONE;                                    /* (nothing picked: KNOB 1's "no note", the user, 2026-10-31) */
+    ui_message("NOTE DELETED");
     op_repaint();
     return 1;
 }
@@ -1666,14 +2332,21 @@ static int32_t held_lane_param(uint32_t k, const param_desc_t **d)
 #endif
 }
 #endif
-/* YES with a step held: the lock page's hot cell (the held drum step's TUNE, DECAY too), its event's kind on every step
- * held (step-only <-> HOLD); without a lock page, or no event there: the fill condition (FELUCCA_FILLS) */
+/* YES with a step held: with FILLS built always the fill condition (the user, 2026-11-01: "SAVE = fill always"); the lock page's
+ * hot cell (the held drum step's TUNE, DECAY too), its event's kind on every step held (step-only <-> HOLD), is then SHIFT2 + YES;
+ * without FILLS, YES alone; without a lock page, or no event there: the fill condition */
 static void held_yes(void)
 {
     step_cards_show();
 #if FELUCCA_PLOCK
     const param_desc_t *d;
     int32_t id = -1, v, i = held_first();
+#if FELUCCA_FILLS
+    if (!btn_held(B_OCTUP)) {
+        held_fill();
+        return;
+    }
+#endif
     if (st.lock_pg != LOCK_NONE)
         id = lock_param(&PAGES[st.lock_pg], ui.hot & 3u, &d);
     else if (st.hp == 0u && is_drum(TSEL) && (ui.hot & 3u) >= 2u)
@@ -1948,36 +2621,27 @@ static void held_cell(uint32_t k, cell_t *c)            /* the first step held: 
             c->kind = CK_NONE;
     } else {
         const step_t *s = &t->step[i];
-        lv = s->lvl & 3u;
-        rt = s->rat & 3u;
+        uint32_t o = sel_one(t, (uint32_t)i), m = sel_mask(t, (uint32_t)i);   /* (the selected note; all: the lowest) */
+        lv = (s->lvl >> (2u * o)) & 3u;
+        rt = (s->rat >> (2u * o)) & 3u;
         if (!step_on(s))
             c->kind = CK_NONE;
-        if (k == 0u || k == 3u) {                       /* (an empty step: NOTE and LENGTH say "-", no value: audit #7) */
-            c->label = k ? "LENGTH" : "NOTE";
+        if (k == 0u || k == 3u) {                       /* (an empty step: NOTE and GLIDE say "-", no value: audit #7) */
+            c->label = k ? "GLIDE" : "NOTE";
             if (c->kind == CK_NONE) {
                 cell_val(c, "-");
                 return;
             }
         }
         if (k == 0u) {
-            note_name(c->val, s->note[0]);
-            if (s->n > 1u)
-                str_app(c->val, "+", sizeof c->val);
-            cell_gauge(c, 0, 0, 127, s->note[0]);
+            note_name(c->val, s->note[o]);
+            if (m & (m - 1u))
+                str_app(c->val, "+", sizeof c->val);   /* (all the chord's notes selected: its lowest and a +) */
+            cell_gauge(c, 0, 0, 127, s->note[o]);
             return;
         }
-        if (k == 3u) {
-            uint32_t n = step_note_len(t, (uint32_t)i), sp = note_span(t, (uint32_t)i, 0);
-            int32_t f = step_note_len10(t, (uint32_t)i, n);   /* (a recorded length: 1.8) */
-            if (sp != n * 128u)                         /* (its own end, or on through carry steps: seq.c note_span) */
-                f = (int32_t)((sp * 10u + 64u) / 128u);
-            fmt_int(c->val, f < 0 ? (int32_t)n : f / 10);
-            if (f >= 0) {
-                char d[3] = {'.', (char)('0' + f % 10), 0};
-                str_app(c->val, d, sizeof c->val);
-            }
-            c->unit = "steps";
-            cell_gauge(c, 0, 0, (int32_t)trk_len(t) * 10, f < 0 ? (int32_t)n * 10 : f);
+        if (k == 3u) {                                  /* (the step's SLIDE: LENGTH is the note picker's KNOB 4) */
+            cell_list(c, "GLIDE", s->flags & SF_SLIDE ? "ON" : "OFF", 1, (s->flags & SF_SLIDE) != 0);
             return;
         }
         k--;
@@ -2061,11 +2725,18 @@ static int step_knobs(void)                             /* a step held: SELECT i
     if (ui.scr != SCR_STEP || !st.held)
         return 0;
     if ((s = panel_enc(EN_SELECT)) != 0) {
+        uint8_t k[4];
+        int32_t i = held_first(), n = held_note_sel((uint32_t)i) >= 0 ? (int32_t)pk_heads(tsel(), (uint32_t)i, k) : 0, v;
         turned = 1;
-        int32_t n = held_note_sel((uint32_t)held_first()) >= 0 ? (int32_t)tsel()->step[held_first()].n : 0;
-        int32_t v = (int32_t)(st.nsel < n ? st.nsel : n - 1) + s;
-        if (n && st.hp == 0u && v < n) {                /* a step of several notes: SELECT picks the note ALGORITHM moves; past */
-            st.nsel = (uint8_t)ui_clamp(v, 0, n - 1);      /* the last one it pages the cards, back from them the last note again */
+        for (v = 0; v < n && k[v] != st.nsel; v++)
+            ;
+        v = (st.nsel == NSEL_ALL || v == n ? -1 : v) + s;
+        if (n > 1 && st.hp == 0u && v < n) {            /* a step of several notes: SELECT picks the notes ALGORITHM and PRESETS
+                                                         * move, all of them, then the lowest alone up to the highest (pk_walk's
+                                                         * order); past the last it pages the cards, back from them the last
+                                                         * note again */
+            v = ui_clamp(v, -1, n - 1);
+            st.nsel = v < 0 ? NSEL_ALL : k[v];
             st.pend &= (uint16_t)~st.held;
             step_cards_show();
             ui.force = 1;
@@ -2105,6 +2776,9 @@ static void step_seq_tap(uint32_t lng)
         op_row_pick(ui.row[SCR_STEP] + 1u < n ? ui.row[SCR_STEP] + 1u : 0u);   /* (past the last: the first) */
         return;
     }
+    if (lng)
+        return;                                         /* (SEQ held long on STEP: nothing; the keys play with REC on, step_keys.
+                                                         * It toggled them to playing before, 2026-10-31) */
     st.play = (uint8_t)!st.play;
     if (st.held)
         hp_save();
@@ -2145,6 +2819,8 @@ static void step_foot(char *h, char *k, uint32_t n)
 #endif
         str_cpy(k, "Step ", n);
         fmt_int(k + 5, i + 1);
+        if (!is_drum(TSEL) && (tsel()->step[i].flags & SF_SLIDE))
+            str_app(k, "  Glide", n);                   /* (it slides into the next step: its GLIDE card) */
 #if FELUCCA_FILLS
         {
             static const char *const F[3] = {"", "  Fill only", "  No fill"};
@@ -2159,18 +2835,12 @@ static void step_foot(char *h, char *k, uint32_t n)
 #endif
         return;
     }
-    str_cpy(h, st.play ? "Seq steps  Home back" : "Seq play  Home back", n);
-    if (is_drum(TSEL) && btn_held(B_SEQ) && !st.play) {
-        str_cpy(k, "Keys clear steps", n);              /* (the drum track: SEQ + a key clears its step) */
-        return;
-    }
-    str_cpy(k, step_pick(fm1_in.buttons) || (!is_drum(TSEL) && btn_held(B_SEQ)) ? "Pick "
-              : st.play ? "Keys play " : "Keys steps ", n);
+    str_cpy(h, step_rec_keys() ? "Rec off steps  Home back" : "Rec on play  Home back", n);
+    str_cpy(k, step_pick(fm1_in.buttons) ? "Pick " : !step_keys(fm1_in.buttons) ? "Keys play " : "Keys steps ", n);
     step_pick_name(b, sizeof b);
     str_app(k, b, n);
 }
 
-#if FELUCCA_KEYLIT
 /* the keys of the notes a synth track sounds now: its steps', its ARP note, its voices held (the logic of Felucca
  * 1.0.1's play_leds and renebohne's voices, as ui/sloop/keylit.c keylit_play, copied): the lowest key of each */
 static uint32_t op_keys_sounding(const track_t *t)
@@ -2198,4 +2868,3 @@ static uint32_t op_keys_sounding(const track_t *t)
             }
     return m;
 }
-#endif

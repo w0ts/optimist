@@ -126,11 +126,11 @@ static void lane_held_tests(void)
     frame();
     ppm("opt-lane-held");
     ui.hot = 3;
-    tap(B_SAVE);                                        /* YES: DECAY a hold event */
+    tap_lock();                                        /* YES: DECAY a hold event */
     step_cell(0, 3, &c);
     check(lane_hold_get(t, 2, 4, DE_DECAY, &x) && !lane_lock_get(t, 2, 4, DE_DECAY, &x) && c.mark == 2u &&
               str_eq(ui.msg, "HOLD: UNTIL THE NEXT"), "YES on DECAY: a hold event (the arrow)");
-    tap(B_SAVE);
+    tap_lock();
     step_cell(0, 3, &c);
     check(lane_lock_get(t, 2, 4, DE_DECAY, &x) && c.mark == 1u, "YES again: this step only (the padlock)");
     press(B_ENV);                                       /* the lane's ENV values as locks */

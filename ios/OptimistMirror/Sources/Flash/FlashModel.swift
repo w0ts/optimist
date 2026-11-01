@@ -27,6 +27,20 @@ final class FlashModel: ObservableObject {
     @Published private(set) var status = ""
     @Published private(set) var result: String?
     @Published private(set) var error: String?
+    /// m-bootloader asked for, for one install (download mode; docs/INSTALL-PATHS.md); off: USB-MIDI, the bootloader kept
+    @Published var installMboot = false
+    /// the bootloader the FM-1 says it has (INFO tag 0x68): "mboot" | "stock" | "unknown", nil: not said (an older firmware)
+    @Published private(set) var bootWord: String?
+    /// the last install needs download mode only for the build's m-bootloader: the update that keeps the bootloader is offered
+    @Published private(set) var keepOffered = false
+    /// the last install needs download mode (M-Flasher on a computer); true: the soft key may help there
+    @Published private(set) var softKeyOffered = false
+    /// the last install needs download mode: the tab says it needs a computer (M-Flasher) and links the release
+    @Published private(set) var needsComputer = false
+
+    /// the FM-1s on USB when there are two or more (their keys), and the one chosen: with several the app asks and sends nothing to any
+    @Published private(set) var devices: [String] = []
+    @Published private(set) var picked: String?
 
     private let link: MirrorLink
     private let updater: FlashUpdater
@@ -51,8 +65,40 @@ final class FlashModel: ObservableObject {
         listsLoaded = listError == nil
     }
 
+    /// the build's BOOTLOADER as this install takes it, the line shown
+    var bootLine: String? {
+        guard let p = package else { return nil }
+        return InstallRoute.bootloaderChoice(p.bootloader, install: installMboot).1
+            + (["mboot": ". The FM-1 has m-bootloader already (it says so).", "stock": ". The FM-1 has M-VAVE's bootloader (it says so)."][bootWord ?? ""] ?? "")
+    }
+
+    /// the way for the package onto the FM-1 that answered (tools/fm1_route.py, web/install_route.js)
+    func route(for pkg: FlashPackage, running: String, port: String, boot: String? = nil) -> InstallRoute.Route {
+        let info = InstallRoute.packageKind(product: pkg.product, sha256: pkg.sha256, flashLen: InstallRoute.flashLen(pkg.image))
+        let choice = InstallRoute.bootloaderChoice(pkg.bootloader, install: installMboot).0
+        return InstallRoute.choose(InstallRoute.runningKind(running, port: port), info, bootloader: choice, runningText: running,
+                                   mbootPresent: InstallRoute.mbootPresent(boot))
+    }
+
+    /// the update over USB-MIDI that keeps the bootloader, after download mode was said for the build's m-bootloader
+    func installKeepingBootloader() {
+        installMboot = false
+        install()
+    }
+
+    /// the soft key (F0 22 24 35 7D F7): the FM-1 restarts in the chip's download mode, for M-Flasher on a computer
+    func sendSoftKey() async {
+        guard !busy else { return }
+        if mustChoose() { status = "Choose which FM-1 to use first."; return }
+        guard let f = await updater.find() else { status = "No FM-1 found."; return }
+        let sent = f.channel.send(InstallRoute.softKey)
+        f.channel.close()
+        status = sent ? "Sent: the FM-1 restarts in download mode (its screen stays as it was). Switch it off and on to leave it." : "Could not send it."
+    }
+
     func choose(_ e: FlashEntry) {
         guard !busy else { return }
+        installMboot = false
         chosen = e.id
         package = nil
         packageError = nil
@@ -143,10 +189,28 @@ final class FlashModel: ObservableObject {
         }
     }
 
+    /// true: two or more FM-1s and none chosen (the list is shown, nothing was sent)
+    func mustChoose() -> Bool {
+        let keys = updater.devices()
+        guard keys.count > 1 else { picked = nil; devices = []; updater.excluded = []; return false }
+        devices = keys
+        if let p = picked, keys.contains(p) { updater.excluded = Set(keys.filter { $0 != p }); return false }
+        picked = nil
+        updater.excluded = []
+        return true
+    }
+
+    func pick(_ key: String) async {
+        guard !busy else { return }
+        picked = key
+        await find()
+    }
+
     func find() async {
         guard !busy, !finding else { return }
         finding = true
         defer { finding = false }
+        if mustChoose() { device = nil; return }
         if let f = await updater.find() {
             f.channel.close()
             device = f.id.text
@@ -157,23 +221,49 @@ final class FlashModel: ObservableObject {
 
     func install() {
         guard let pkg = package, !busy else { return }
+        if mustChoose() { error = "Choose which FM-1 to use first."; return }
         busy = true
         result = nil
         error = nil
+        softKeyOffered = false
+        needsComputer = false
+        keepOffered = false
 
         progress = 0
         status = "Looking for the FM-1…"
         link.hold()
         Task {
             defer { busy = false; link.release() }
+            var runningText = ""
+            if let f = await updater.find() {             // (the route first: download mode is said, never attempted)
+                runningText = InstallRoute.runningKind(f.id.text, port: f.channel.name)
+                bootWord = await InstallRoute.askBoot(f.channel, identity: f.id.text)   // (a running Optimist says which bootloader it has)
+                let r = route(for: pkg, running: f.id.text, port: f.channel.name, boot: bootWord)
+                f.channel.close()
+                if r.method == "download" {
+                    status = ""
+                    progress = nil
+                    self.error = "Not installed. " + InstallRoute.nextStep(r, file: pkg.file)
+                    softKeyOffered = r.softKey
+                    needsComputer = true
+                    keepOffered = r.wantsMboot
+                    return
+                }
+            }
             do {
                 let back = try await updater.install(pkg) { [weak self] s in Task { @MainActor in self?.show(s, pkg) } }
                 progress = 1
                 status = ""
                 device = back
-                result = "Installed \(pkg.title) (\(back))."
+                result = "Installed \(pkg.title) (\(back))." + ""
             } catch {
-                self.error = message(error)
+                let info = InstallRoute.packageKind(product: pkg.product, sha256: pkg.sha256, flashLen: InstallRoute.flashLen(pkg.image))
+                if let fe = error as? FlashError, InstallRoute.headRefused(runningText, info, code: fe.code.rawValue) {
+                    self.error = InstallRoute.refusedStep(file: pkg.file)
+                    needsComputer = true
+                } else {
+                    self.error = message(error)
+                }
                 status = ""
                 append("error: \(self.error ?? "")")
             }

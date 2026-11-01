@@ -43,20 +43,37 @@ enum { OBJ_SETTINGS, OBJ_PROJECT0, OBJ_UPRESET0 = OBJ_PROJECT0 + 4, OBJ_AUTOSAVE
 #define ST_DLANES_SECTOR 0xE5000u              /* FL_DLANE_LO */
 #define ST_UPF_SECTOR FL_UPF_LO                /* 0x95000: OBJ_UPFM6 (until fix/upfm6-off-vm 0xE7000 / 0xE8000: st_upf_move) */
 #define ST_UPF_OLD FL_OLD_UPF_LO               /* 0xE7000: the old copy A; B at 0xE8000 (read only, never written) */
+#if FELUCCA_LAYOUT != 0 && (!FELUCCA_PATTERNS || \
+                            (!FL_USER_SAMPLES && (FELUCCA_DRUM_USR || FELUCCA_SNAPSHOTS || CZ_NUSER)))
+/* (SAMPLE with no slot: its built-in sets, its slots hold nothing, eng_sample.c SMP_USER_CAP; the user, 2026-10-31) */
+#error "MEMORY SAMPLE SLOTS 0 (hal/fm1_steps.h): no user drum samples, no SNAPSHOTS, no CZ collection; every step but normal: PATTERNS on (docs/SD-MODE-DESIGN.md 9.7)"
+#endif
+#define ST_AUTOSAVE_A FL_AUTOSAVE_A            /* by the step (fm1_steps.h): normal 0x9F000, L1 0xD7000, S0 0xB7000 */
+#if FELUCCA_LAYOUT != 0                        /* a relocated store (fm1_flash_map.h): the old slots are the app's */
+#define ST_PROJECTS 0u                         /* no old project slots: nothing to read, migrate or write */
+#else
+#define ST_PROJECTS 0x97000u                   /* the old project slots A/B x 4 (sections.c migrates them) */
+#endif
 /* the flash map, checked when the firmware builds: every fixed object sector is Optimist's own, none the SDK's */
-_Static_assert(FL_STORE_OK(0xFC000u, 2u * ST_SECTOR) && FL_STORE_OK(0x9F000u, ST_SECTOR) &&
+_Static_assert(FL_STORE_OK(0xFC000u, 2u * ST_SECTOR) && FL_STORE_OK(ST_AUTOSAVE_A, ST_SECTOR) &&
                FL_STORE_OK(0xFE000u, ST_SECTOR) && FL_STORE_OK(ST_UKIT_SECTOR, 2u * ST_SECTOR) &&
-               FL_STORE_OK(ST_DLANES_SECTOR, 2u * ST_SECTOR) && FL_STORE_OK(0x97000u, 8u * ST_SECTOR) &&
+               FL_STORE_OK(ST_DLANES_SECTOR, 2u * ST_SECTOR) && (!ST_PROJECTS || FL_STORE_OK(ST_PROJECTS, 8u * ST_SECTOR)) &&
                FL_STORE_OK(0xDC000u, 4u * ST_SECTOR), "storage objects: inside the store's allow-list");
 #if FELUCCA_UP_FM6
 _Static_assert(FL_STORE_OK(ST_UPF_SECTOR, 2u * ST_SECTOR), "fm1_flash_map.h included before FELUCCA_UP_FM6 was set");
 #endif
-#ifdef SMP_USER_BASE                             /* (eng_sample.c before: the user sample slots, the banks) */
-_Static_assert(FL_STORE_OK(SMP_USER_BASE, SMP_USER_SLOTS * SMP_USER_SIZE), "user sample slots: in the store");
+#if defined(SMP_USER_BASE) && FL_USER_SAMPLES   /* (eng_sample.c before: the user sample slots the step keeps) */
+#define ST_SMP_KEPT (FELUCCA_LAYOUT == 0 ? SMP_USER_SLOTS : FL_USER_SLOTS)
+_Static_assert(FL_STORE_OK(SMP_USER_BASE + (SMP_USER_SLOTS - ST_SMP_KEPT) * SMP_USER_SIZE, ST_SMP_KEPT * SMP_USER_SIZE) &&
+               (FELUCCA_LAYOUT == 0 || SMP_USER_BASE + (SMP_USER_SLOTS - ST_SMP_KEPT) * SMP_USER_SIZE >= FL_RELOC_HI),
+               "user sample slots: in the store, above the step's relocated store");
 #endif
 _Static_assert(FL_IN(ST_UPF_SECTOR, 2u * ST_SECTOR, FL_UPF_LO, FL_UPF_HI) && !FL_NEVER(ST_UPF_SECTOR, 2u * ST_SECTOR) &&
-               ST_UPF_SECTOR >= FL_APP_HI + 2u * ST_SECTOR,
-               "OBJ_UPFM6: past the app slot and its 8 KiB of room to grow, off the SDK's sectors");
+               ST_UPF_SECTOR >= FL_APP_HI + (FELUCCA_LAYOUT == 0 ? 2u * ST_SECTOR : 0u),
+               "OBJ_UPFM6: past the app slot (normal: and its 8 KiB of room to grow), off the SDK's sectors");
+_Static_assert(FELUCCA_LAYOUT == 0 || (ST_AUTOSAVE_A >= FL_APP_HI && ST_AUTOSAVE_A + ST_SECTOR <= FL_RELOC_HI &&
+               !FL_HITS(ST_AUTOSAVE_A, ST_SECTOR, FL_UPF_LO, FL_UPF_HI)),
+               "autosave copy A: in the step's relocated store, off the FM6 voices");
 
 typedef struct {
     uint32_t magic;
@@ -91,7 +108,7 @@ static uint32_t st_sector(uint32_t obj, uint32_t copy)  /* flash offset of copy 
     if (obj == OBJ_SETTINGS)
         return 0xFC000u + copy * ST_SECTOR;
     if (obj == OBJ_AUTOSAVE)
-        return copy ? 0xFE000u : 0x9F000u;
+        return copy ? 0xFE000u : ST_AUTOSAVE_A;
     if (obj == OBJ_UKIT)
         return ST_UKIT_SECTOR + copy * ST_SECTOR;
     if (obj == OBJ_DLANES)
@@ -106,7 +123,7 @@ static uint32_t st_sector(uint32_t obj, uint32_t copy)  /* flash offset of copy 
 #endif
     if (obj >= OBJ_UPRESET0 && obj < OBJ_AUTOSAVE)
         return 0xDC000u + (obj - OBJ_UPRESET0) * 2u * ST_SECTOR + copy * ST_SECTOR;
-    return 0x97000u + (obj - OBJ_PROJECT0) * 2u * ST_SECTOR + copy * ST_SECTOR;
+    return ST_PROJECTS + (obj - OBJ_PROJECT0) * 2u * ST_SECTOR + copy * ST_SECTOR;   /* (layout 1: never asked, st_head) */
 }
 
 #ifndef IN_POOL
@@ -128,6 +145,10 @@ static uint8_t st_buf[ST_PAYLOAD_MAX] __attribute__((aligned(4))) IN_POOL;
  * bank, up_put's bank with ST_XIP) */
 #define ST_SRC_BUF (FELUCCA_UP_FM6 || CZ_NUSER || (FELUCCA_ANALOG2 && FELUCCA_SL24_SAFE) || ST_XIP)
 #define ST_E_MAP (-8)                                  /* a sector outside the store's allow-list (st_save) */
+#define ST_E_READ (-9)                                 /* a copy could not be read (an I/O error, not a bad CRC): its seq is
+                                                        * unknown, so st_save refuses (written, it could land under that copy,
+                                                        * or over the newest); after fm1-base's device/storage.c */
+static uint8_t st_ioerr;                               /* a read of a copy failed since st_save cleared it */
 
 #if FELUCCA_SL24_SAFE
 /* Sectors Optimist never erases (backports24.h): another firmware's data it cannot read, found at boot. SLOOP 2.4
@@ -198,8 +219,14 @@ static int st_head(uint32_t obj, uint32_t copy, st_hdr_t *h)   /* commit record 
 {
     if (obj >= OBJ_COUNT || copy > 1u)
         return -1;
-    if (st_read(st_sector(obj, copy), h, sizeof *h))
+#if FELUCCA_LAYOUT != 0
+    if (obj >= OBJ_PROJECT0 && obj < OBJ_PROJECT0 + 4u)
+        return -1;                                  /* no old project slots in this layout: absent, never read */
+#endif
+    if (st_read(st_sector(obj, copy), h, sizeof *h)) {
+        st_ioerr = 1;
         return -1;
+    }
     if (h->magic != ST_MAGIC || h->type != obj || h->len > ST_PAYLOAD_MAX ||
         h->slot != copy ||                       /* the copy it was written to (SLOOP 2.3, after Felucca 1.0) */
         h->hcrc != st_crc32(h, sizeof *h - 4u))
@@ -209,7 +236,11 @@ static int st_head(uint32_t obj, uint32_t copy, st_hdr_t *h)   /* commit record 
 
 static int st_body(uint32_t obj, uint32_t copy, const st_hdr_t *h)   /* payload -> st_buf, CRC ok: 0 */
 {
-    if (st_read(st_sector(obj, copy) + ST_PAYLOAD_OFF, st_buf, h->len) || st_crc32(st_buf, h->len) != h->crc)
+    if (st_read(st_sector(obj, copy) + ST_PAYLOAD_OFF, st_buf, h->len)) {
+        st_ioerr = 1;
+        return -1;
+    }
+    if (st_crc32(st_buf, h->len) != h->crc)
         return -1;
     return 0;
 }
@@ -271,8 +302,13 @@ static int st_off_limits(uint32_t obj, uint32_t c)
 {
     uint32_t off = st_sector(obj, c);
     st_hdr_t h;
-    return st_kept(off) || (!st_read(off, &h, sizeof h) && h.magic == ST_MAGIC && h.type != obj &&
-                            h.hcrc == st_crc32(&h, sizeof h - 4u));
+    if (st_kept(off))
+        return 1;
+    if (st_read(off, &h, sizeof h)) {
+        st_ioerr = 1;                                 /* (unread: never erased; st_save refuses) */
+        return 1;
+    }
+    return h.magic == ST_MAGIC && h.type != obj && h.hcrc == st_crc32(&h, sizeof h - 4u);
 }
 #endif
 
@@ -283,6 +319,7 @@ static int st_save(uint32_t obj, const void *src, uint32_t len)
     st_hdr_t h;
     if (obj >= OBJ_COUNT || len > ST_PAYLOAD_MAX)
         return -1;
+    st_ioerr = 0;
 #if ST_SRC_BUF
     if (src == st_buf) {                              /* (built in st_buf: st_current would read over it) the newest */
         st_hdr_t b;                                   /* valid header is the current copy */
@@ -293,6 +330,8 @@ static int st_save(uint32_t obj, const void *src, uint32_t len)
     } else
 #endif
     cur = st_current(obj, &h);
+    if (st_ioerr)
+        return ST_E_READ;                             /* (a copy unread: nothing erased or written) */
     seq = cur < 0 ? 0u : h.seq;
     c = cur == 0 ? 1u : 0u;                           /* write the other copy */
 #if FELUCCA_SL24_SAFE
@@ -304,8 +343,10 @@ static int st_save(uint32_t obj, const void *src, uint32_t len)
     } else if (st_off_limits(obj, c)) {               /* (another firmware's there: our current copy, written over in */
         c ^= 1u;                                      /* place, a cut loses it; none: the other empty copy) */
         if (st_off_limits(obj, c))
-            return ST_E_KEPT;
+            return st_ioerr ? ST_E_READ : ST_E_KEPT;
     }
+    if (st_ioerr)
+        return ST_E_READ;                             /* (a sector unread there: not erased) */
 #endif
     base = st_sector(obj, c);
     if (!FL_STORE_OK(base, ST_SECTOR))                /* the flash map (hal/fm1_flash_map.h): never the SDK's sectors */

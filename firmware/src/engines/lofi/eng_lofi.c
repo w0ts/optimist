@@ -114,7 +114,7 @@ static int32_t lofi_amp(track_t *t, voice_t *v, int32_t adsr)
     return vol * Q4;
 }
 
-static HOT void lofi_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
+static FAST(lofi) void lofi_render(track_t *t, voice_t *v, int32_t *__restrict out, uint32_t n, const vmod_t *m)
 {
     static const uint8_t STEP_DUTY[4] = {1, 2, 4, 6};   /* eighths: 12.5 / 25 / 50 / 75 % */
     const int16_t *p = t->p;
@@ -194,7 +194,7 @@ static HOT void lofi_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, co
         }
         ph0 += inc;
         lp += mulq15(clamp(held - lp, -65535, 65535), lpk);   /* (a WAVE / CHIP change mid-note: no wrap) */
-        out[i] += mulq15(mulq15(lp, amp_at(m, i)), VOICE_FS);
+        out[i] += VOICE_OUT(lp, amp_at(m, i), 0);
     }
     v->ph[0] = ph0;
     v->s[0] = held;
@@ -221,6 +221,6 @@ static const engine_t ENG_LOFI = {
         PN("ARP", F_ENUM, 0, 3, 0, N_RARP),
         PU("TONE", F_PCT, 0, 127, 127, 0),
     },
-    LOFI_PRESETS, sizeof(LOFI_PRESETS) / sizeof(LOFI_PRESETS[0]), 1, lofi_note_on, lofi_render,
+    PRESETS_OF(LOFI_PRESETS), 1, lofi_note_on, lofi_render,
     0x3F2C, {P_E1, P_E2, P_E3, P_REL}, 0, lofi_amp, lofi_desc,
 };

@@ -699,6 +699,13 @@ static void rec_restart(track_t *t, uint32_t idx, uint32_t abs, uint32_t own)
     t->rh_nudge = 0;
     t->rh_drop = 0;
 }
+/* the last note recorded (the UI's STEP picks it, op_step.c step_tick): its track, step and pitch; rec_last_n counts */
+static volatile uint8_t rec_last_n, rec_last_trk, rec_last_at, rec_last_note;
+static void rec_last_set(const track_t *t, uint32_t idx, uint32_t note)
+{
+    rec_last_trk = (uint8_t)(t - trk), rec_last_at = (uint8_t)idx, rec_last_note = (uint8_t)note;
+    rec_last_n++;
+}
 static void rec_note(track_t *t, uint32_t note, uint32_t vel, uint32_t rat, int hold)
 {
     uint32_t len = trk_len(t), later, abs = rec_target(t, &later), idx = TRK_IDX(t, abs, len), k;
@@ -708,6 +715,7 @@ static void rec_note(track_t *t, uint32_t note, uint32_t vel, uint32_t rat, int 
     if (over && t->rh_ties && abs == t->rh_start_abs + t->rh_ties)
         t->rh_ties--;                               /* (this one goes into their last TIE: the step before is) */
     step_add(t, idx, note, vel, vel_lvl(vel), rat);
+    rec_last_set(t, idx, note);
     if (over)
         carry = (uint32_t)rec_carry(t, idx, abs, (int)later);   /* POLY: they go on through this one's step */
     if (over && !carry && ENGINES[t->engine]->legato) {   /* played over a held note: live it slid (ACID's legato), */
@@ -747,6 +755,7 @@ static void rec_hit(track_t *t, uint32_t lane, uint32_t lvl, uint32_t rat)
     uint32_t later, abs = rec_target(t, &later);
     undo_mark(t, UNDO_REC(t));
     dstep_set(&t->dstep[TRK_IDX(t, abs, trk_len(t))], lane, lvl, rat);
+    rec_last_set(t, TRK_IDX(t, abs, trk_len(t)), lane);
     t->seq_active = 1;
     if (later) {
         if (t->rskip_abs != abs)
@@ -1841,6 +1850,9 @@ static void arm_start(track_t *t)
     }
 }
 
+/* the velocity of the panel's keys (SHIFT2 + SELECT, op_input.c kvel_turn; the user, issue #134: "set the velocity of the keyboard while
+ * playing"): played and recorded as the keys' note velocity. 100 is what the keys always gave. Not saved: 100 at power on */
+static uint8_t key_vel = 100;
 static void drum_input(uint32_t lane, uint32_t lvl, uint32_t rat, int rec);
 #if FELUCCA_CHORDPLUS
 static const uint8_t *in_chord;                    /* input_on's note is note in_chord_i of in_chord (CHORD+: STRUM) */
@@ -2100,9 +2112,9 @@ static void chord_revoice(uint32_t sel)
                 ;
             if (i == kb_n[k]) {
                 in_key = (uint8_t)(k + 1u);         /* (a chord's new note: of this key, #191) */
-                input_on(t, nw[j], 100);
+                input_on(t, nw[j], key_vel);
                 in_key = 0;
-                midi_key_out(mc, nw[j], 100u);
+                midi_key_out(mc, nw[j], key_vel);
             }
         }
         memcpy(kb_nt[k], nw, nn);
@@ -2116,6 +2128,11 @@ static void chord_revoice(uint32_t sel)
  * the pattern (the user, 2026-10-21); stopped or recording they sound as ever, SHIFT2 + the key sounds the lane (the UI's audition) */
 static volatile uint8_t pick_quiet;
 static void seq_pick_quiet(uint32_t on) { pick_quiet = (uint8_t)(on != 0u); }
+/* STEP, the drum track, REC on (the UI sets it every frame, op_step.c step_drum_rec): the black keys play their lane and
+ * record the hit as the pads of every other page do (the user, 2026-11-01: "on SEQ, drums if REC is on black keys also
+ * record notes"); the white keys stay steps */
+static volatile uint8_t step_rec_blk;
+static void seq_step_rec_black(uint32_t on) { step_rec_blk = (uint8_t)(on != 0u); }
 static void key_down(uint32_t k)
 {
     uint32_t layer = layer_now(), sel = song.sel % NTRK, i, mc;
@@ -2123,6 +2140,8 @@ static void key_down(uint32_t k)
     kb_kind[k] = KS_NONE;
     kb_trk[k] = (uint8_t)sel;
     kb_n[k] = 0;
+    if (layer == LY_STEP && step_rec_blk && is_drum(t) && punch_key(k) < 0)
+        layer = LY_PLAY;                              /* (STEP, REC on: a black key plays its lane and records, as on the other pages) */
     switch (layer) {
     case LY_FX: {                                     /* FX held: the white keys pick a punch-in effect */
         int32_t fx = punch_key(k);
@@ -2266,12 +2285,12 @@ static void key_down(uint32_t k)
             in_chord = kb_n[k] > 1u ? kb_nt[k] : 0;   /* (STRUM: the sound; MIDI out gets the chord at once) */
             in_chord_n = kb_n[k];
             in_chord_i = i;
-            input_on(t, kb_nt[k][i], 100);
+            input_on(t, kb_nt[k][i], key_vel);
             in_chord = 0;
 #else
-            input_on(t, kb_nt[k][i], 100);
+            input_on(t, kb_nt[k][i], key_vel);
 #endif
-            midi_key_out(mc, kb_nt[k][i], 100u);
+            midi_key_out(mc, kb_nt[k][i], key_vel);
         }
         in_key = 0;
         kb_shown = kb_nt[k][0];
@@ -2362,9 +2381,58 @@ static void audition_step(const dstep_t *s)            /* every sound of a drum 
             lv |= dstep_lvl(s, l) << (2u * l);
     audition_req(m, lv);
 }
+/* the UI asks to hear a synth track's notes (STEP ENTRY, op_stepentry.c: a key that adds a note, KNOB 1 landing on a step):
+ * up to 4 notes, played here in the audio context for AUD_NOTE_BLOCKS (~200 ms, a keyboard's short note), then let go.
+ * Stopped only, as the drums' audition. A new request ends the notes still sounding first */
+#define AUD_NOTE_BLOCKS (FS / CTL / 5u)
+static volatile uint8_t an_req, an_trk, an_n, an_nt[4], an_vel;
+static uint8_t an_on_trk, an_on_n, an_on_nt[4];         /* (the audio context's: what sounds now) */
+static uint32_t an_left;
+static void audition_notes(uint32_t tr, const uint8_t *nt, uint32_t n, uint32_t vel)
+{
+    uint32_t i;
+    if (song.playing || tr >= NTRK || !n)
+        return;
+    fm1_irq_off();
+    for (i = 0; i < n && i < 4u; i++)
+        an_nt[i] = nt[i];
+    an_n = (uint8_t)(n < 4u ? n : 4u), an_trk = (uint8_t)tr, an_vel = (uint8_t)(vel ? vel : 1u);
+    an_req = 1;
+    fm1_irq_on();
+}
+static void audition_notes_block(void)
+{
+    uint32_t i;
+    if (an_on_n && (an_req || !--an_left)) {            /* (their time over, or new ones asked) */
+        for (i = 0; i < an_on_n; i++)
+            trk_note_off(&trk[an_on_trk % NTRK], an_on_nt[i]);
+        an_on_n = 0;
+    }
+    if (!an_req)
+        return;
+    an_req = 0;
+    an_on_trk = an_trk, an_on_n = an_n, an_left = AUD_NOTE_BLOCKS;
+    for (i = 0; i < an_on_n; i++) {
+        an_on_nt[i] = an_nt[i];
+        trk_note_on(&trk[an_on_trk % NTRK], an_on_nt[i], an_vel);
+    }
+}
+/* key k's notes on synth track t as the keys play them (kb_map: QNT, ROOT, SCALE, TRN and the octave; chord mode: the key's
+ * chord, chord_notes, without CHORD+'s modifiers and voicing); -> how many (0: a silent key). STEP ENTRY's (op_stepentry.c) */
+static uint32_t kb_notes(const track_t *t, uint32_t k, uint8_t *nt)
+{
+    uint32_t n = kb_map(t, k);
+    if (n == KB_SILENT || is_drum(t))
+        return 0;
+    if (t->p[P_CHORD])
+        return chord_notes(t, n, nt);
+    nt[0] = (uint8_t)n;
+    return 1;
+}
 static void audition_block(void)
 {
     uint32_t m = aud_lanes, lv = aud_lvl, l;
+    audition_notes_block();
     if (!m)
         return;
     aud_lanes = 0;
@@ -2407,37 +2475,29 @@ static void rec_follow(uint32_t sel)
 }
 
 /* -------------------------------------------------------- metronome --- */
-/* A wood block on every beat, louder on the first of the bar, from the drum kit's voices
- * (not recorded, not muted with the drum track; GLO > DRUMS LVL sets its level).
+/* A wood block on every beat, louder on the first of the bar, its own
+ * fixed voice (fx.c click_note: the same with any kit; not recorded, not muted with the drum track).
  * GLO > GLOBAL CLICK: OFF (0, default: LIVE needs none), REC = while a track records,
- * ON = while playing, AUTO = while nothing else plays (the user, 2026-10-17: "on only if nothing is playing, and then
- * stop the click after the first loop if something is playing now"): decided as playing starts and each time the
- * selected track's loop comes round (its step back to the start): every track empty, it clicks. */
+ * ON = while playing, AUTO = only in record mode (armed or recording; the count-in clicks are its own; the user,
+ * 2026-10-31: "auto click should only trigger when record mode is on. and the volume is way too loud"). Level: 12 dB
+ * under the old 120 / 72 velocities (the user, same day). */
 #define CLICK_REC 1
 #define CLICK_ON 2
 #define CLICK_AUTO 3
+#define CLICK_VEL_BAR 30u                       /* the bar's first beat (was 120) */
+#define CLICK_VEL_BEAT 18u                      /* the other beats (was 72): both 12 dB down */
 static uint32_t click_last = SEQ_NONE;          /* the beat it last played */
-static uint32_t click_idx = SEQ_NONE;           /* AUTO: the selected track's step at the last block (SEQ_NONE: not playing) */
-static uint8_t click_auto;                      /* AUTO: clicking (project_empty when decided) */
 static void click_tick(void)
 {
     uint32_t mode = (uint32_t)song.g[G_CLOCK];
-    if (!song.playing) {
-        click_idx = SEQ_NONE;
+    if (!song.playing)
         return;
-    }
-    if (mode == CLICK_AUTO) {
-        uint32_t idx = TSEL->seq_idx;
-        if (click_idx == SEQ_NONE || idx < click_idx)   /* (the start, or the loop came round) */
-            click_auto = (uint8_t)project_empty();
-        click_idx = idx;
-    }
     if (clk_beat == click_last)
         return;
     click_last = clk_beat;
     ev_at(clk_pos);
-    if (mode == CLICK_ON || (mode == CLICK_REC && song.rec) || (mode == CLICK_AUTO && click_auto))
-        click_note(clk_beat % 4u ? 76u : 77u, clk_beat % 4u ? 72u : 120u);
+    if (mode == CLICK_ON || (mode == CLICK_REC && song.rec) || (mode == CLICK_AUTO && (song.rec || rec_wait)))
+        click_note(clk_beat % 4u ? 76u : 77u, clk_beat % 4u ? CLICK_VEL_BEAT : CLICK_VEL_BAR);
 }
 
 /* -------------------------------------------------------- sequencer --- */
@@ -2589,7 +2649,6 @@ static void seq_reset_tracks(uint32_t pos)
     fill_last_bar = 0xFFFFFFFFu;                   /* (the same for an armed fill bar: a section's bar 0) */
 #endif
     click_last = SEQ_NONE;
-    click_idx = SEQ_NONE;                          /* (CLICK AUTO: decided again from here) */
     song.tick = 0;
 #if FELUCCA_MOTION || FELUCCA_PLOCK
     motion_begin();                                /* (auto_base.c: every track from its patch) */
@@ -2772,13 +2831,14 @@ static uint32_t seq_goes_on(const track_t *t, const step_t *s)
     return 0;
 }
 /* a carry step s (SF_CARRY): its notes sounding go on (-> bit k: note k), the other notes sounding end. skip: its
- * notes not played here */
+ * notes not played here. A note with an end of its own still to come (seq_nm: an ngate in the step before) does not go
+ * on: the carry step strikes it again, as note_span and the editor read it (its end a block late must not hold it on) */
 static uint32_t seq_carry(track_t *t, const step_t *s, uint32_t skip)
 {
     uint32_t i, k, n = 0, keep = 0;
     for (i = 0; i < t->seq_n; i++) {
         uint32_t x = t->seq_notes[i];
-        for (k = 0; k < s->n && (s->note[k] != x || (((skip | keep) >> k) & 1u)); k++)
+        for (k = 0; k < s->n && (s->note[k] != x || (((skip | keep) >> k) & 1u) || ((t->seq_nm >> i) & 1u)); k++)
             ;
         if (k < s->n) {
             keep |= 1u << k;
@@ -2791,6 +2851,28 @@ static uint32_t seq_carry(track_t *t, const step_t *s, uint32_t skip)
     return keep;
 }
 
+/* a slide into step s on a POLY track (MONO / LEGATO glide in voice.c mono_play): note i of s, not sounding yet, takes the
+ * voice of the nearest note still sounding from the step before that s does not hold on (used: those taken already) and
+ * glides there; -> 1 done (voice.c trk_note_glide; no such voice: 0, the note starts as ever) */
+static __attribute__((noinline)) int seq_slide_poly(track_t *t, const step_t *s, uint32_t i, uint32_t *used)   /* (rare: kept out of seq_step) */
+{
+    uint32_t j, k, best = 4u, bd = 128u, x = s->note[i];
+    if (t->p[P_VOICE] != V_POLY)
+        return 0;
+    for (j = 0; j < t->seq_n && j < 4u; j++) {
+        uint32_t o = t->seq_notes[j], dd = o > x ? o - x : x - o;
+        for (k = 0; k < s->n && s->note[k] != o; k++)
+            ;
+        if (o == x)
+            return 0;                                   /* (it sounds already: as ever) */
+        if (k == s->n && !((*used >> j) & 1u) && dd < bd)
+            best = j, bd = dd;
+    }
+    if (best == 4u || !trk_note_glide(t, t->seq_notes[best], x, step_vel(s, i)))
+        return 0;
+    *used |= 1u << best;
+    return 1;
+}
 /* play one synth step: TIE extends, REST releases, NOTE (re)triggers; a SLIDE on the previous
  * step makes this one legato with a glide (acid style). skip: bit k = note k already sounds
  * from live recording (not triggered, not released here). len: the step's length (units). */
@@ -2803,9 +2885,11 @@ static void seq_step(track_t *t, const step_t *s, uint32_t slen, uint32_t skip)
         s = &qs;
     }
 #endif
-    uint32_t i, j, gate = slen * (uint32_t)t->p[P_SGATE] / 128u, keep = 0;
+    uint32_t i, j, gate = slen * (uint32_t)t->p[P_SGATE] / 128u, keep = 0, slid = 0;
     uint32_t slide_in = t->seq_hold && t->seq_n;
-    step_t nxs;
+#if GEN_ON
+    step_t nxs;                                     /* (the generator's merged step: GEN_NEXT's out without one unused) */
+#endif
     const step_t *nx = GEN_NEXT(t, (t->seq_idx + 1u) % trk_len(t), &nxs);   /* (the next step as it plays: a TIE or a
                                                                              * carry keeps them) */
     if (s->time == ST_TIE) {
@@ -2849,12 +2933,14 @@ static void seq_step(track_t *t, const step_t *s, uint32_t slen, uint32_t skip)
                 arp_seq_on(t, s->note[i]);
                 continue;
             }
+            if (slide_in && seq_slide_poly(t, s, i, &slid))
+                ;                                   /* (POLY: a voice of the step before glides there) */
 #if FELUCCA_CHORDPLUS
-            if (!slide_in)                          /* (STRUM: a chord step's notes one after the other) */
+            else if (!slide_in)                     /* (STRUM: a chord step's notes one after the other) */
                 trk_note_chord(t, s->note, s->n, i, step_vel(s, i));
-            else
 #endif
-            trk_note_on(t, s->note[i], step_vel(s, i));
+            else
+                trk_note_on(t, s->note[i], step_vel(s, i));
             if (!slide_in || !seq_out_held(t, s->note[i]))
                 seq_out_on(t, s->note[i], step_vel(s, i));   /* (a slide into the same note: one MIDI note) */
         }
@@ -2873,6 +2959,21 @@ static void seq_step(track_t *t, const step_t *s, uint32_t slen, uint32_t skip)
     t->seq_off = gate;
     t->seq_hold = !s->rat && ((s->flags & SF_SLIDE) != 0 || seq_goes_on(t, nx));   /* next a TIE: keep the notes to it */
     seq_own_ends(t, s, slen);                       /* (a note with an end of its own: seq_noffs) */
+}
+/* a muted synth step (auto.h AUTO_SMUTE): a rest for the notes it strikes, but the notes a carry step (SF_CARRY) holds through it, sounding already,
+ * go on (the user, 2026-11-01: muting a step must not cut the notes that began before it) */
+static void seq_muted_step(track_t *t, const step_t *s, uint32_t slen)
+{
+    uint32_t i, k, hold = 0;
+    if ((s->flags & SF_CARRY) && !s->rat)
+        for (k = 0; k < s->n && k < 4u; k++)
+            for (i = 0; i < t->seq_n; i++)
+                if (t->seq_notes[i] == s->note[k])
+                    hold |= 1u << k;
+    if (hold)
+        seq_step(t, s, slen, ~hold & 0xFu);         /* (only the held notes: the struck ones skipped) */
+    else
+        seq_release(t);
 }
 
 #if !FELUCCA_ENERGY
@@ -2900,7 +3001,7 @@ static void drum_step(track_t *t, const dstep_t *s, uint32_t skip)
     smute_lhits |= dstep_mask(s) & ~skip & (uint32_t)smute_lane;   /* (a muted lane's key flashes: something to unmute) */
     seq_out_track_off(t);                           /* the last step's hits end here */
 #if FELUCCA_LANE_FX
-    m = lfx_step(t, m);                             /* (its lanes' FX: silent, late, early, rolled) */
+    m = lfx_step(t, s, m);                             /* (its lanes' FX: silent, late, early, rolled) */
 #endif
     for (l = 0; m; l++, m >>= 1)
         if (m & 1u) {
@@ -3120,7 +3221,7 @@ static void seq_tick(track_t *t, uint32_t adv)
                             skip |= 1u << i;
             t->rskip_n = 0;
             if (STEP_MUTED_SYN(t))
-                seq_release(t);                     /* (a muted note: the step a rest, auto.h AUTO_SMUTE) */
+                seq_muted_step(t, s, slen);         /* (a muted note: the step a rest, auto.h AUTO_SMUTE; the notes carried through it go on) */
             else
                 seq_step(t, s, slen, skip);
         }
@@ -3192,7 +3293,7 @@ static void seq_tick(track_t *t, uint32_t adv)
                             skip |= 1u << i;
             t->rskip_n = 0;
             if (STEP_MUTED_SYN(t))
-                seq_release(t);                     /* (a muted note: the step a rest, auto.h AUTO_SMUTE) */
+                seq_muted_step(t, s, slen);         /* (a muted note: the step a rest, auto.h AUTO_SMUTE; the notes carried through it go on) */
             else
                 seq_step(t, s, slen, skip);
         }
@@ -3254,7 +3355,7 @@ static void events_block(uint32_t n)
             ci_on = 1;                              /* COUNT: one bar of clicks first (below) */
             ci_u = 0;
             ci_beat = 0;
-            click_note(77u, 120u);
+            click_note(77u, CLICK_VEL_BAR);
 #endif
         } else {
             seq_start();
@@ -3286,7 +3387,7 @@ static void events_block(uint32_t n)
                     rec_begin();
             } else if (b != ci_beat) {
                 ci_beat = (uint8_t)b;
-                click_note(76u, 72u);
+                click_note(76u, CLICK_VEL_BEAT);
             }
         }
     }

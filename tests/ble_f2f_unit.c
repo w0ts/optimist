@@ -18,7 +18,6 @@
 #include "../firmware/src/ble/ble_host.c"
 #include "../firmware/src/ble/ble_att.c"
 #include "../firmware/src/ble/ble_midi.c"
-#include "../firmware/src/ble/ble_diag.c"
 #include "../firmware/src/ble/ble_store.c"
 #include "../firmware/src/ble/ble_scan.c"
 #include "../firmware/src/ble/ble_gattc.c"
@@ -50,7 +49,6 @@ BLE_API void ble_hw_chmap_update(const uint8_t chm[5], uint16_t instant) { (void
 BLE_API void ble_hw_set_lengths(uint8_t max_tx, uint8_t max_rx) { (void)max_tx, (void)max_rx; }
 BLE_API void ble_hw_tx_kick(void) {}
 BLE_API uint32_t ble_hw_time_us(void) { return now_us; }
-BLE_API uint32_t ble_hw_diag_now(void) { return now_us; }
 static uint8_t own_addr[6];
 BLE_API uint8_t ble_hw_addr(uint8_t addr[6]) { memcpy(addr, own_addr, 6); return 1; }
 BLE_API void ble_hw_rand(uint8_t *out, uint8_t n)
@@ -106,7 +104,41 @@ void F2F(master_start)(void)
     hw.conn_on = 1;
 }
 int F2F(conn_on)(void) { return hw.conn_on; }
-uint8_t F2F(tx)(uint8_t *pdu) { return hw.conn_on ? ble_ll_hw_tx(pdu) : 0u; }
+/* our Pairing Requests on the air, as the other side gets them (an encrypted PDU read through a copy of the LL's
+ * cipher state taken before it was sealed); those of a pairing that demands MITM (our initiator's bsmp.mitm: Just
+ * Works refused) apart. (The PDU's AuthReq always carries the MITM bit: the demand is ours, not on the air.) */
+#define F2F_PAIR_REQ 0x01u                       /* SMP Pairing Request (Vol 3 Part H 3.5.1) */
+static uint32_t pair_req_n, mitm_req_n;
+static void count_pair_req(const uint8_t *pdu, uint8_t n)
+{
+    if (n >= 7u && (pdu[0] & 3u) == 2u && pdu[4] == 6u && pdu[5] == 0u && pdu[6] == F2F_PAIR_REQ) {
+        pair_req_n++;
+#if BLE_CEN_PAIR
+        mitm_req_n += bsmp.mitm != 0u;
+#endif
+    }
+}
+uint8_t F2F(tx)(uint8_t *pdu)
+{
+    uint8_t n;
+#if BLE_LL_ENC
+    struct ble_ccm c = bll.ccm_tx;
+    int sealed = bll.enc_tx;
+#endif
+    if (!hw.conn_on || (n = ble_ll_hw_tx(pdu)) == 0u)
+        return 0u;
+#if BLE_LL_ENC
+    if (sealed) {
+        uint8_t clear[2u + BLE_LL_MAX_OCTETS + 4u];
+        memcpy(clear, pdu, n);
+        if (ble_ccm_decrypt(&c, clear[0], clear + 2, clear[1]))
+            count_pair_req(clear, (uint8_t)(n - 4u));
+        return n;
+    }
+#endif
+    count_pair_req(pdu, n);
+    return n;
+}
 void F2F(acked)(void) { ble_ll_hw_tx_acked(); }
 void F2F(rx)(const uint8_t *pdu, uint8_t n)
 {
@@ -129,8 +161,8 @@ uint32_t F2F(passkey)(void) { return BLE_NO_PASSKEY; }   /* (BLE_CENTRAL 3: none
 int F2F(midi_ready)(void) { return ble_midi_ready(); }
 int F2F(connected)(void) { return ble_connected(); }
 int F2F(encrypted)(void) { return ble_ll_encrypted(); }
-uint32_t F2F(pairings)(void) { return ble_dgc.si_pair_req; }
-uint32_t F2F(mitm_pairings)(void) { return ble_dgc.si_mitm_req; }
+uint32_t F2F(pairings)(void) { return pair_req_n; }
+uint32_t F2F(mitm_pairings)(void) { return mitm_req_n; }
 uint32_t F2F(keys)(void) { return keys_n; }
 void F2F(midi_out)(uint32_t pkt) { out_q[out_w++ % 64u] = pkt; }
 uint32_t F2F(midi_in_n)(void) { return in_n; }

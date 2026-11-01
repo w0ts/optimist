@@ -55,7 +55,7 @@ enum { PLM_WSH, PLM_ADD, PLM_GRN, PLM_PRT, PLM_N };
 
 typedef struct {
     uint8_t model;                                       /* PLM_* the state belongs to */
-    uint8_t spare;
+    uint8_t fresh;                                       /* a note from rest: plaits_render resets the state first (model, rng) */
     uint8_t trig;                                        /* PRTCL: strike every particle (a new note) */
     uint8_t alive;                                       /* PRTCL: the particles still ringing, bit j */
     int32_t lp;                                          /* TONE's one-pole */
@@ -86,7 +86,7 @@ static const char *const N_PLAITS_MODEL[] = {"WAVSH", "ADDTV", "GRFMT", "PRTCL"}
 /* the output level of each model, Q12 (the presets' level near ANALOG's: tests/plaits_test.c) */
 static const int16_t PL_GAIN[PLM_N] = {4096, 4505, 5120, 4096};
 
-static pl_voice_t *pl_voice(track_t *t, voice_t *v)
+static FASTI(plaits) pl_voice_t *pl_voice(track_t *t, voice_t *v)
 {
     uint32_t i;
     if (t < &trk[0] || t >= &trk[NPART])
@@ -95,9 +95,9 @@ static pl_voice_t *pl_voice(track_t *t, voice_t *v)
     return i < PL_POLY ? &pl_mem((uint32_t)(t - trk))[i] : 0;
 }
 
-static void pl_reset(pl_voice_t *S, uint32_t md, uint32_t seed)
+static FASTI(plaits) void pl_reset(pl_voice_t *S, uint32_t md, uint32_t seed)
 {
-    memset(S, 0, sizeof *S);
+    FAST_ZERO(plaits, S, sizeof *S);
     S->model = (uint8_t)md;
     S->rng = seed | 1u;
 }
@@ -107,14 +107,17 @@ static void plaits_note_on(track_t *t, voice_t *v)
     pl_voice_t *S = pl_voice(t, v);
     if (!S)
         return;
-    if (!v->env || S->model != (uint32_t)t->p[P_E0] % PLM_N)   /* silent: afresh (sounding: its phases kept) */
-        pl_reset(S, (uint32_t)t->p[P_E0] % PLM_N, (v->note + 1u) * 0x9E3779B9u ^ (uint32_t)v->fine * 0x85EBCA6Bu);
+    if (!v->env || S->model != (uint32_t)t->p[P_E0] % PLM_N) {   /* silent: afresh (sounding: its phases kept), */
+        S->model = (uint8_t)((uint32_t)t->p[P_E0] % PLM_N);       /* reset in its first render (on the core that */
+        S->rng = (v->note + 1u) * 0x9E3779B9u ^ (uint32_t)v->fine * 0x85EBCA6Bu;   /* renders the part, not here in */
+        S->fresh = 1;                                              /* the block's events on CPU0): its model, seed */
+    }
     S->trig = 1;
 }
 
 /* ---- helpers */
 /* 2^x, x Q16 (-16 .. 14 octaves), Q16: the octaves a shift, the fraction a cubic (minimax, 1e-4) */
-AINL uint32_t pl_exp2(int32_t x)
+FAST(plaits) AINL uint32_t pl_exp2(int32_t x)
 {
     int32_t n = x >> 16;
     uint32_t f = (uint32_t)x & 0xFFFFu;
@@ -122,7 +125,7 @@ AINL uint32_t pl_exp2(int32_t x)
     return n >= 0 ? y << n : y >> -n;
 }
 /* the increment of pitch p (1/16 semitone), past the table's top by octaves (up to MIDI ~140) */
-static uint32_t pl_inc_raw(int32_t p)
+static FAST(plaits) uint32_t pl_inc_raw(int32_t p)
 {
     uint32_t sh = 0;
     while (p > 2047 && sh < 2u) {
@@ -131,12 +134,12 @@ static uint32_t pl_inc_raw(int32_t p)
     }
     return pitch_inc(clamp(p, 0, 2047)) << sh;
 }
-AINL uint32_t pl_inc(int32_t p)
+FAST(plaits) AINL uint32_t pl_inc(int32_t p)
 {
     uint32_t i = pl_inc_raw(p);
     return i > PL_FMAX ? PL_FMAX : i;
 }
-static uint32_t pl_isqrt64(uint64_t x)
+static FAST(plaits) uint32_t pl_isqrt64(uint64_t x)
 {
     uint64_t r = 0, b = 1ull << 62;
     while (b > x)
@@ -152,16 +155,16 @@ static uint32_t pl_isqrt64(uint64_t x)
     }
     return (uint32_t)r;
 }
-AINL int32_t pl_abs(int32_t x) { return x < 0 ? -x : x; }   /* (the firmware links no libc abs) */
+FAST(plaits) AINL int32_t pl_abs(int32_t x) { return x < 0 ? -x : x; }   /* (the firmware links no libc abs) */
 /* a 257-point Q15 table at t (Q15, 0..32767), linear */
-AINL int32_t pl_lut(const int16_t *tab, int32_t t)
+FAST(plaits) AINL int32_t pl_lut(const int16_t *tab, int32_t t)
 {
     int32_t j = t >> 7, a = tab[j];
     return a + (((tab[j + 1] - a) * ((t & 127) << 8)) >> 15);
 }
 /* Plaits' Tame(f0, mult, order): (1 - (f0 mult - mf) / (0.5 - mf))^3 clamped to 0..1, Q15; f0 Q24, mult Q12, mf =
  * 0.5 / order (Q24) and k16 = 2^40 / (2^23 - mf) given as constants */
-AINL int32_t pl_tame(uint32_t f24, int32_t m12, int32_t mf, int64_t k16)
+FAST(plaits) AINL int32_t pl_tame(uint32_t f24, int32_t m12, int32_t mf, int64_t k16)
 {
     int64_t fh = ((int64_t)f24 * m12) >> 12, a = 32768 - (((fh - mf) * k16) >> 25);
     int32_t x = a < 0 ? 0 : a > 32768 ? 32768 : (int32_t)a;
@@ -171,7 +174,7 @@ AINL int32_t pl_tame(uint32_t f24, int32_t m12, int32_t mf, int64_t k16)
 #define PL_T12 699051, 142987                            /* order 12 */
 
 /* ---- WAVSH (waveshaping_engine.cc) */
-static void pl_wsh(pl_voice_t *S, const vmod_t *m, int32_t h, int32_t tb, int32_t mo, int32_t ax, int32_t *y, uint32_t n)
+static FAST(plaits) void pl_wsh(pl_voice_t *S, const vmod_t *m, int32_t h, int32_t tb, int32_t mo, int32_t ax, int32_t *y, uint32_t n)
 {
     uint32_t f0 = m->inc > PL_FMAX ? PL_FMAX : m->inc, f24 = f0 >> 8, pw, ph = S->u.w.ph, i;
     int32_t slope, sa, saa, inner, waa, sh, si, sf, wfg, og, ru, rd;
@@ -221,7 +224,7 @@ static void pl_wsh(pl_voice_t *S, const vmod_t *m, int32_t h, int32_t tb, int32_
 /* ---- ADDTV (additive_engine.cc, harmonic_oscillator.h) */
 /* n / d in 64 bits, d > 0, shift and subtract over the quotient's bits only (n < d 2^31 at every caller: at most 31
  * steps): the target has no 64-bit divide (no __divdi3 / __udivdi3 in the link). Only when the margin changes */
-static uint32_t pl_udiv64(uint64_t n, uint64_t d)
+static FAST(plaits) uint32_t pl_udiv64(uint64_t n, uint64_t d)
 {
     uint32_t q = 0;
     int32_t b;
@@ -234,7 +237,7 @@ static uint32_t pl_udiv64(uint64_t n, uint64_t d)
 }
 /* the bump spectrum's margin (1 / slope - 1) / (1 + bumps), Q24, for slope24 (Q24, 0.01 .. 2) and bumps16 (Q16, 0 ..
  * 16): kept with its inputs (S->u.a), so a block that keeps HARMONICS and MORPH divides nothing */
-static int32_t pl_margin(pl_voice_t *S, int32_t slope24, int32_t bumps16)
+static FAST(plaits) int32_t pl_margin(pl_voice_t *S, int32_t slope24, int32_t bumps16)
 {
     if (S->u.a.mslope != slope24 || S->u.a.mbumps != bumps16) {
         int64_t inv = pl_udiv64(1ull << 48, (uint64_t)slope24);   /* 1 / slope, Q24 (< 2^31: slope >= 0.01) */
@@ -250,7 +253,7 @@ static int32_t pl_margin(pl_voice_t *S, int32_t slope24, int32_t bumps16)
  * and the set normalized with Plaits' 0.001 (Q24). In Q24 with 64-bit products: a peaked spectrum sits where a
  * (1 + sine) nears 0, so a small error in the order is a large one in the gain (Q16 was 10 % off). From zeros (a new
  * note, AUX raised): the set installed at once (its rest), not faded in. slope24 Q24, bumps16 Q16, margin Q24 */
-static void pl_spectrum(int32_t *amp, uint32_t num, int32_t cen, int64_t slope24, int64_t bumps16, int64_t margin)
+static FAST(plaits) void pl_spectrum(int32_t *amp, uint32_t num, int32_t cen, int64_t slope24, int64_t bumps16, int64_t margin)
 {
     int64_t center, sum = 0, g24[PL_NH];
     uint32_t i, fresh = 1, r, sh;
@@ -286,7 +289,7 @@ static void pl_spectrum(int32_t *amp, uint32_t num, int32_t cen, int64_t slope24
 }
 static const uint8_t PL_ORG[PL_NO] = {0, 1, 2, 3, 5, 7, 9, 11};   /* the organ's harmonics (Plaits' organ_harmonics) */
 
-static void pl_add(pl_voice_t *S, const vmod_t *m, int32_t h, int32_t tb, int32_t mo, int32_t ax, int32_t *y, uint32_t n)
+static FAST(plaits) void pl_add(pl_voice_t *S, const vmod_t *m, int32_t h, int32_t tb, int32_t mo, int32_t ax, int32_t *y, uint32_t n)
 {
     uint32_t f0 = m->inc > PL_FMAX ? PL_FMAX : m->inc, ph = S->u.a.ph, i, k, nh = 0;
     int64_t rs = ((int64_t)(163840 - 3 * h) * mo * 858993459) >> 32, rs3, slope, bumps;   /* (1 - 0.6 HARMONICS)
@@ -333,7 +336,7 @@ static void pl_add(pl_voice_t *S, const vmod_t *m, int32_t h, int32_t tb, int32_
 /* ---- GRFMT (grain_engine.cc, grainlet_oscillator.h, z_oscillator.h) */
 typedef struct { int32_t ci, k8, bp, r1, r2; } pl_car_t;
 /* the grainlet's window at phase p (Q16 turns, 0 .. 65536), Q15 0 .. 16384 (Carrier()) */
-AINL int32_t pl_carrier(const pl_car_t *c, uint32_t p)
+FAST(plaits) AINL int32_t pl_carrier(const pl_car_t *c, uint32_t p)
 {
     uint32_t q;
     if (c->ci == 0) {
@@ -349,16 +352,16 @@ AINL int32_t pl_carrier(const pl_car_t *c, uint32_t p)
     return (sine_i(q << 16) + 32768) >> 2;
 }
 /* a one-pole DC blocker (Q18 state), g Q15 */
-AINL int32_t pl_dc(int32_t *st, int32_t x, int32_t g)
+FAST(plaits) AINL int32_t pl_dc(int32_t *st, int32_t x, int32_t g)
 {
     int32_t x18 = x * 8;
     *st += (int32_t)(((int64_t)(x18 - *st) * g) >> 15);
     return (x18 - *st) >> 3;
 }
 /* the reset's fraction of a sample (Q15): the phase past the wrap over the increment */
-AINL int32_t pl_rt(uint32_t past, uint32_t inc) { return (int32_t)(((past >> 14) << 15) / ((inc >> 14) | 1u)); }
+FAST(plaits) AINL int32_t pl_rt(uint32_t past, uint32_t inc) { return (int32_t)(((past >> 14) << 15) / ((inc >> 14) | 1u)); }
 /* the Z oscillator's value: c, d, f in Q16 turns (65536 = 1.0, apart from 0), sh MORPH, ps / off its mode's */
-AINL int32_t pl_z(int32_t c, int32_t d, int32_t f, int32_t sh, int32_t ps, int32_t off)
+FAST(plaits) AINL int32_t pl_z(int32_t c, int32_t d, int32_t f, int32_t sh, int32_t ps, int32_t off)
 {
     int32_t rd = (32768 + sine_i((uint32_t)(d / 2 + 16384) << 16)) >> 1, ds = sine_i((uint32_t)(f + ps) << 16), ct;
     if (sh < 16384) {
@@ -372,7 +375,7 @@ AINL int32_t pl_z(int32_t c, int32_t d, int32_t f, int32_t sh, int32_t ps, int32
     return ((((rd * (off + ds)) >> 15) - off) * ct) >> 15;
 }
 
-static void pl_grn(pl_voice_t *S, const vmod_t *m, int32_t h, int32_t tb, int32_t mo, int32_t ax, int32_t *y, uint32_t n)
+static FAST(plaits) void pl_grn(pl_voice_t *S, const vmod_t *m, int32_t h, int32_t tb, int32_t mo, int32_t ax, int32_t *y, uint32_t n)
 {
     uint32_t f0 = m->inc > PL_FMAX / 2u ? PL_FMAX / 2u : m->inc, f1, f2, fz, i;
     int32_t bl = h < 16384 ? 32768 - 2 * h : 0, bf, nrm, att, cs, s3, t, t3, after, gdc, ps, off;
@@ -454,7 +457,7 @@ static void pl_grn(pl_voice_t *S, const vmod_t *m, int32_t h, int32_t tb, int32_
 /* ---- PRTCL (particle_engine.cc, particle.h) */
 /* particle j struck by an impulse of s15 at pitch p16: its band-pass and gain (pre_gain = 0.5 / sqrt(q f sqrt(density)),
  * from the block's pg0 at the note by the pitch's offset d16: f^-1/2) */
-static void pl_strike(pl_voice_t *S, uint32_t j, int32_t p16, int32_t d16, int32_t k12, int32_t pg0)
+static FAST(plaits) void pl_strike(pl_voice_t *S, uint32_t j, int32_t p16, int32_t d16, int32_t k12, int32_t pg0)
 {
     int32_t cut, pg = (int32_t)(((int64_t)pg0 * pl_exp2(-(d16 * 512) / 3)) >> 16), sh = 12;
     p16 = clamp(p16 + d16, 0, 1996);                     /* (at most 0.25 of FS: 11 kHz) */
@@ -467,7 +470,7 @@ static void pl_strike(pl_voice_t *S, uint32_t j, int32_t p16, int32_t d16, int32
     S->alive |= (uint8_t)(1u << j);
 }
 
-static void pl_prt(pl_voice_t *S, const vmod_t *m, int32_t h, int32_t tb, int32_t mo, int32_t ax, int32_t *y, uint32_t n)
+static FAST(plaits) void pl_prt(pl_voice_t *S, const vmod_t *m, int32_t h, int32_t tb, int32_t mo, int32_t ax, int32_t *y, uint32_t n)
 {
     uint32_t dinc = pl_inc_raw(960 + ((1152 * ((tb * tb) >> 15)) >> 15)), thr, f0, sd, i, j;
     int32_t spr = (768 * ((h * h) >> 15)) >> 15, k12, pg0;
@@ -524,7 +527,7 @@ static void pl_prt(pl_voice_t *S, const vmod_t *m, int32_t h, int32_t tb, int32_
         }
 }
 
-static void plaits_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
+static FAST(plaits) void plaits_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
 {
     const int16_t *p = t->p;
     pl_voice_t *S = pl_voice(t, v);
@@ -534,6 +537,10 @@ static void plaits_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, cons
         return;
     if (n > CTL)
         n = CTL;
+    if (S->fresh) {                                      /* a note from rest (plaits_note_on): the state afresh, struck */
+        pl_reset(S, S->model, S->rng);
+        S->trig = 1;
+    }
     if (S->model != md) {                                /* MODEL changed under the note: that model afresh */
         uint8_t tr = S->trig;
         pl_reset(S, md, S->rng);
@@ -567,7 +574,7 @@ static void plaits_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, cons
             S->lp = x;
         }
         x = soft_knee((x * gain) >> 12, 24000);
-        out[i] += mulq15(mulq15(x, amp_at(m, i)), VOICE_FS);
+        out[i] += VOICE_OUT(x, amp_at(m, i), 0);
     }
 }
 
@@ -600,7 +607,7 @@ static const engine_t ENG_PLAITS = {
         PU("LPG", F_PCT, 0, 127, 0, 0),
         PU("VEL", F_PCT, 0, 127, 0, 0),
     },
-    .presets = PLAITS_PRESETS,
+    .presets = PRESETS_PTR(PLAITS_PRESETS),
     .npresets = sizeof(PLAITS_PRESETS) / sizeof(PLAITS_PRESETS[0]),
     .note_on = plaits_note_on,
     .render = plaits_render,

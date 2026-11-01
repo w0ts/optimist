@@ -28,14 +28,27 @@
 #define WT_LEVELS 7u
 #define WT_PTS (1024u + 512u + 256u + 128u + 64u + 32u + 16u)   /* a frame's band-limited copies, 2032 points */
 static const uint16_t WT_OFF[WT_LEVELS] = {0, 1024, 1536, 1792, 1920, 1984, 2016};
+#if FELUCCA_FX_ARENA
+/* in the arena (core/arena_bufs.c): the copies and the frame builder's scratch, one block held while a track plays WAVE;
+ * 0 not placed: no table (the voices silent, as while one is built), placed by itself once there is room */
+#define WT_MEM_BYTES (WT_NF * WT_PTS * 2u + 2u * 1024u * 4u)
+static int16_t (*wt_mip)[WT_PTS];
+#define WT_PLACED (wt_mip != 0)
+#else
+#define WT_PLACED 1
 static int16_t wt_mip[WT_NF][WT_PTS] __attribute__((section(".pool")));   /* 64 KB */
+#endif
 static volatile int16_t wt_have = -1;            /* the table in wt_mip, complete (-1: none, or being built) */
 static int16_t wt_building = -1;                 /* the table being built, frame by frame */
 static uint8_t wt_next;                          /* its next frame */
 #define WT_NALL WT_NFACTORY
 static const int16_t (*wt_spec(uint32_t table, uint32_t f))[2] { return WT_SPEC[table % WT_NFACTORY][f]; }
 
+#if FELUCCA_FX_ARENA
+static int32_t *wt_fr, *wt_fi;                   /* (after the copies, in their block) */
+#else
 static int32_t wt_fr[1024] __attribute__((section(".pool"))), wt_fi[1024] __attribute__((section(".pool")));
+#endif
 static const int32_t WT_QSIN[257] = {   /* sin(pi / 2 x i / 256), Q30: the FFT's twiddles (Q15 ones add noise) */
     0, 6588356, 13176464, 19764076, 26350943, 32936819, 39521455, 46104602,
     52686014, 59265442, 65842639, 72417357, 78989349, 85558366, 92124163, 98686491,
@@ -149,8 +162,8 @@ static void wt_service(void)
 {
     int32_t want = wt_wanted();
     uint32_t k;
-    if (want < 0)
-        return;
+    if (want < 0 || !WT_PLACED)
+        return;                                          /* (no WAVE track, or its table not placed: arena_bufs.c) */
     if (want != wt_have && want != wt_building) {        /* a new table: start over */
         wt_have = -1;
         wt_building = (int16_t)want;
@@ -263,7 +276,7 @@ static void wave_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
             }
             s = y << 1;
         }
-        out[i] += mulq15(mulq15(s, amp_at(m, i)), VOICE_FS) << 1;
+        out[i] += VOICE_OUT(s, amp_at(m, i), 1);
     }
     v->s[0] = sv[0];
     v->s[1] = sv[1];
@@ -306,7 +319,7 @@ static const engine_t ENG_WAVE = {
         PU("DRV", F_PCT, 0, 127, 0, 0),
         PU("KTR", F_PCT, 0, 127, 64, 0),
     },
-    .presets = WAVE_PRESETS,
+    .presets = PRESETS_PTR(WAVE_PRESETS),
     .npresets = sizeof(WAVE_PRESETS) / sizeof(WAVE_PRESETS[0]),
     .fil_page = 1,
     .note_on = wave_note_on,

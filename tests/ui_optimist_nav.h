@@ -52,6 +52,9 @@ static void nav_tests(void)
     ok = nav_walk(MXR_MASTER);
     frames(1);
     check(ok && ui.scr == SCR_FX && nav_track() == MXR_MASTER, "nav: MASTER walked to: the master FX, as ALGORITHM");
+    ok = nav_walk(MXR_RET0 + 1u);
+    frames(1);
+    check(ok && ui.scr == SCR_FX && ui.fxo == 2u && nav_track() == MXR_RET0 + 1u, "nav: RET B walked to: its pages, as ALGORITHM (2026-10-30)");
     nav_open(SCR_HOME, NAV_NONE);
     nav_walk(MXR_MASTER);
     frames(1);

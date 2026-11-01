@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """The firmware builder's interactive menu (Textual). Start it with tools/menuconfig.
 
-Keys: space / enter toggle (a choice: next value) | / search | p profiles | s save (mine or stock)
+Keys: space / enter toggle (a choice: next value; shift+space or backspace: the previous) | / search | p profiles | s save (mine or stock)
       | u publish this profile or not (CI builds the published ones; one of mine is shared first)
       | d delete a profile (asks first; never the default profile, synths_USBaudio_BTaudio_BTmidi)
       | w write a .config file | l load | b build | e build and run it in the emulator
@@ -13,6 +13,7 @@ Keys: space / enter toggle (a choice: next value) | / search | p profiles | s sa
 Everything it does goes through configure.py (the plain module the tests use)."""
 import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
 
@@ -146,11 +147,16 @@ class Builder(App):
     #prog.on { display: block; }
     #prog_label { width: 48; }
     #prog_bar { width: 1fr; }
-    #modal { width: 70; height: auto; max-height: 24; border: thick $accent; background: $surface; padding: 1; }
+    #modal { width: 90%; max-width: 120; height: auto; max-height: 90%; border: thick $accent; background: $surface; padding: 1; }
+    #modal Label { width: 100%; }
     Pick, Ask { align: center middle; }
     """
     BINDINGS = [
-        Binding("space", "toggle", "toggle", priority=True), Binding("slash", "search", "search"),
+        Binding("space", "toggle", "toggle", priority=True),
+        # (shift+space: a choice's previous value; a terminal without the kitty keyboard protocol sends it as a space,
+        # backspace does the same there; shift+space before the tree's own, expand all: priority, as space)
+        Binding("shift+space", "toggle_back", "previous value", show=False, priority=True),
+        Binding("backspace", "toggle_back", "previous value", show=False), Binding("slash", "search", "search"),
         Binding("p", "profiles", "profiles"), Binding("s", "save", "save profile"),
         Binding("u", "publish", "publish"), Binding("d", "delete", "delete profile"), Binding("w", "write", "write .config", show=False),
         Binding("l", "load", "load"),
@@ -174,14 +180,20 @@ class Builder(App):
         self.built = None                                # ST.Stamp of the last successful build (f flashes only it)
         self.flash_after_build = False                   # f found no current build: build, then go on to the flash
         self.flash_track = PG.FlashTracker()
+        self.cancel_build = threading.Event()            # set by q / ctrl+c: the running build is killed, its thread ends
+        self.building = False                            # a build is running (b again is refused until it ends)
+        self.build_t0 = 0.0                              # when it started, and the last thing it printed (the bar's label)
+        self.build_last = ""
+        self.build_stage = None                          # (n, total, label) of the last stage line, if the build prints them
+        self.build_shown = 0.0                           # when the bar was last moved by an output line (throttle)
         self.flashing = False                            # the FM-1 is being written: q and ctrl+c are refused (action_quit)
         self.code0 = ST.code_fingerprint()               # the builder's code as it started (changed: f refuses)
         self.source = ST.source_line(C.ROOT)             # the checkout and commit a build compiles
-        self.over, self.savings = {}, {}
+        self.over, self.savings, self.arena_item = {}, {}, {}
         self.exact = None                                # (cfg_hash, sizes) of the last build, measurement builds too
         self.conflicts = {}
         self.room = RM.NONE                              # what BLE removed to make room (room.py)
-        self.sort_by = None                              # o cycles: None (registry order), flash, ram, pool, ramtext (per session)
+        self.sort_by = None                              # o cycles: None (registry order), flash, ram (the SRAM total) (per session)
         self.update_budget()
 
     # ---- layout
@@ -200,6 +212,7 @@ class Builder(App):
         yield Footer()
 
     def on_mount(self):
+        self.set_interval(1.0, self.build_tick)
         tree = self.query_one("#tree")
         tree.show_root = False
         self.rebuild()
@@ -210,12 +223,15 @@ class Builder(App):
     def node_label(self, key):
         it = R.ITEMS[key]
         v = self.cfg[key]
-        live = (not it.parent or C.built(self.cfg, it.parent)) and (key not in R.DRUMS_ONLY or C.built(self.cfg, "DRUMS"))
+        live = (not it.parent or C.built(self.cfg, it.parent)) and (not it.shown_under or C.built(self.cfg, it.shown_under)) and (key not in R.DRUMS_ONLY or C.built(self.cfg, "DRUMS")) and not (it.dim_when and C.built(self.cfg, it.dim_when))
         if it.is_choice:
             lab = dict(it.choices).get(v, str(v))
             box = f"<{lab}>"
         else:
             box = "[x]" if v else "[ ]"
+        n = self.subtree_count(key) if self.sort_by else 0   # (the flat sort: a head's cost holds its whole subtree)
+        if n:
+            box += f" ({n})"
         t = Text(f"{box} {it.label}", style="" if live and not it.fixed else "dim")
         if it.experimental:
             t.append("  EXPERIMENTAL", style="bold magenta")
@@ -224,8 +240,14 @@ class Builder(App):
         deltas = self.delta_of(key)
         for r, n in deltas:
             hot = self.over.get(r, 0) > 0 and n > 0     # it holds part of an overflowing region
-            t.append(f"  {r} {n / 1024:+.1f}K",
-                     style="bold red" if hot else ("bold reverse cyan" if r == self.sort_by else "cyan"))
+            name = "ram" if r == "sram" else r            # (one RAM, as the bars count it)
+            t.append(f"  {name} {n / 1024:+.1f}K",
+                     style="bold red" if hot else ("bold reverse cyan" if name == self.sort_by else "cyan"))
+        ar = self.arena_item.get(key, 0)                 # (the arena one instance takes, whatever the item's state: "?" unknown)
+        if ar is None or ar:
+            t.append(f"  arena {self.arena_text(ar)}", style="bold reverse cyan" if self.sort_by == "arena" else "cyan")
+        if key.startswith("SET_") and C.card_sets(self.cfg):   # (SD card mode: 0 B of flash, the SD card zip holds it)
+            t.append("  on the card" if v else "  not on the card", style="cyan" if v else "dim")
         took = dict(deltas)
         if self.over and all(took.get(r, 0) >= o for r, o in self.over.items()):  # alone, it fits all
             t.append("  ◀ off = fits", style="bold red")
@@ -235,10 +257,19 @@ class Builder(App):
             t.append(f"  shares PERC samples{size} with the other sampled kits", style="dim")
             if C.is_last_kit(self.cfg, key):
                 t.append("  last kit: off drops the samples", style="bold")
+        if key == "ARENA" and v:                          # (what the arena will get, an estimate unless a build backs it)
+            ar = self.arena()
+            if ar:
+                t.append(f"  arena {'' if ar['exact'] else '~'}{ar['kb']} KB", style="bold green")
         errs = self.conflicts.get(key)
         if errs:                                         # an error of validate() names this item: live, in red
             t.append(f"  ✗ {errs[0]}" + (f" (+{len(errs) - 1})" if len(errs) > 1 else ""), style="bold red")
         return t
+
+    @staticmethod
+    def arena_text(n):
+        """the Arena column: KB of the arena one instance takes, "?" when not known (core.item_arena)"""
+        return "?" if n is None else f"{n / 1024:.1f}K"
 
     def delta_of(self, key):
         """what the item costs as set now (vs off / its smallest choice) per region, from costs.json:
@@ -248,8 +279,9 @@ class Builder(App):
         s = (self.savings or {}).get(key)
         if not s:
             return []
-        return [(r, s[r]) for r in C.REGIONS
-                if abs(s[r]) >= 64 or (self.over.get(r, 0) > 0 and s[r] > 0)]
+        sram = s.get("sram", sum(s.get(r, 0) for r in self.SORT_PARTS["ram"]))   # (the RAM as one: ram + pool + ramtext)
+        return [(r, n) for r, n in (("flash", s.get("flash", 0)), ("sram", sram))
+                if abs(n) >= 64 or (self.over.get(r, 0) > 0 and n > 0)]
 
     def budget(self, cfg=None):
         """the estimate, or the last build's exact sizes when that build was of this very selection (a measurement
@@ -262,6 +294,11 @@ class Builder(App):
             b = dict(b, total=dict(self.exact[1]), exact=True)
         return b
 
+    def arena(self):
+        """-> core.arena_size of the selection (None with ARENA off): exact when the last build was of this selection"""
+        b = self.budget()
+        return C.arena_size(self.cfg, b["total"], b.get("exact")) if b else None
+
     def update_budget(self):
         """the estimate, the overflow per region, every item's savings and the items validate() errors name, once
         per change"""
@@ -269,6 +306,7 @@ class Builder(App):
         b = self.budget()
         self.over = {r: o for r, (_, _, o) in C.fits(b["total"], self.cfg).items() if o > 0} if b else {}
         self.savings = C.savings_of(self.cfg, self.costs) if self.costs else {}
+        self.arena_item = C.arena_items(self.cfg)
 
     def matches(self, key):
         if not self.filter:
@@ -283,16 +321,60 @@ class Builder(App):
         keys = list(keys)
         if not self.sort_by:
             return keys
-        cost = lambda k: (self.savings or {}).get(k, {}).get(self.sort_by)
+        cost = self.sort_cost
         return sorted(keys, key=lambda k: (cost(k) is None, -(cost(k) or 0)))     # (sorted() is stable)
+
+    SORT_PARTS = {"flash": ("flash",), "ram": ("ram", "pool", "ramtext"), "arena": ()}   # (ram: the SRAM budget's parts, one sum;
+                                                                                         # arena: one instance's, core.item_arena)
+
+    @staticmethod
+    def subtree_count(key):
+        """how many items sit under key in the tree, at every depth (its options' options too)"""
+        seen, todo = set(), list(R.ITEMS[key].menu_children)
+        while todo:
+            k = todo.pop()
+            if k not in seen:
+                seen.add(k)
+                todo.extend(R.ITEMS[k].menu_children)
+        return len(seen)
+
+    def sort_cost(self, k):
+        """what item k costs in the sort's budget (flash; or ram: its ram + pool + ramtext; or arena: one instance's),
+        None when unmeasured"""
+        if self.sort_by == "arena":                      # (0: takes none; None: unknown, last)
+            return self.arena_item.get(k)
+        s = (self.savings or {}).get(k) or {}
+        if self.sort_by == "ram" and s.get("sram") is not None:
+            return s["sram"]
+        parts = [s[r] for r in self.SORT_PARTS.get(self.sort_by, ()) if s.get(r) is not None]
+        return sum(parts) if parts else None
 
     def rebuild(self):
         tree = self.query_one("#tree")
         collapsed = {n.data for n in self.walk(tree.root) if n.children and not n.is_expanded and n.data}
         tree.clear()
         self.nodes = {}
+        if self.sort_by:                                 # (a size sort: one list over every group, largest first)
+            keys, seen = [], set()
+
+            def visit(k):
+                if k not in seen:
+                    seen.add(k)
+                    keys.append(k)
+                    for c in R.ITEMS[k].menu_children:
+                        visit(c)
+            for g in R.GROUPS:
+                for it in R.top_level(g):
+                    visit(it.key)
+            keys = self.sorted_keys(k for k in keys if self.matches(k))
+            if keys:
+                gn = tree.root.add(Text(f"all items by {self.sort_by}, largest first", style="bold"),
+                                   data=("group", "sorted"), expand=True)
+                for k in keys:
+                    self.nodes[k] = gn.add_leaf(self.node_label(k), data=k)
+            return
         for g in R.GROUPS:
-            items = [it for it in R.top_level(g) if self.matches(it.key) or any(self.matches(c) for c in it.children)]
+            items = [it for it in R.top_level(g) if self.matches(it.key) or any(self.matches(c) for c in it.menu_children)]
             items = [R.ITEMS[k] for k in self.sorted_keys(it.key for it in items)]
             if not items:
                 continue
@@ -303,10 +385,10 @@ class Builder(App):
     def add_node(self, parent, key, collapsed, top):
         """key under parent, its options under it (a group's head: two levels, DRUMS > DRUM_X0X909 > X909_CYM)"""
         it = R.ITEMS[key]
-        if it.children:
+        if it.menu_children:
             n = parent.add(self.node_label(key), data=key, expand=bool(self.filter) or key not in collapsed)
-            for c in self.sorted_keys(it.children):
-                if self.matches(c) or self.matches(top) or any(self.matches(g) for g in R.ITEMS[c].children):
+            for c in self.sorted_keys(it.menu_children):
+                if self.matches(c) or self.matches(top) or any(self.matches(g) for g in R.ITEMS[c].menu_children):
                     self.add_node(n, c, collapsed, top)
         else:
             n = parent.add_leaf(self.node_label(key), data=key)
@@ -343,8 +425,13 @@ class Builder(App):
         for r, (used, cap, over) in C.fits(b["total"], self.cfg).items():
             lines.append(bar(r, used, cap, over))
             lines.append("\n")
-        if C.built(self.cfg, "UNDO_HISTORY"):               # (what RAM and pool leave: the undo history's ring)
-            lines.append(Text(f"{'UNDO':8s} ring {C.undo_ring(b['total']):,} B"))
+        ar = self.arena()
+        if ar:                                           # (the arena first: the free SRAM less the undo's keep)
+            lines.append(Text(f"{'ARENA':8s} {'' if ar['exact'] else '~'}{ar['kb']} KB" + ("" if ar["exact"] else " (estimate)"),
+                              style="bold"))
+            lines.append("\n")
+        if C.built(self.cfg, "UNDO_HISTORY"):               # (with ARENA its keep: it borrows the arena's free top)
+            lines.append(Text(f"{'UNDO':8s} " + C.undo_text(self.cfg, b["total"]).removeprefix("undo ")))
             lines.append("\n")
         w.update(lines)
 
@@ -385,25 +472,31 @@ class Builder(App):
         tree = self.query_one("#tree")
         key = tree.cursor_node.data if tree.cursor_node else None
         if not isinstance(key, str):
-            self.query_one("#info_t").update(Text("space: toggle, /: search, b: build", style="dim"))
+            self.query_one("#info_t").update(Text("space: toggle (shift+space: back), /: search, b: build", style="dim"))
             return
         it = R.ITEMS[key]
         t = Text(it.label + "\n", style="bold")
         t.append(f"{key}" + (f"  ({it.flag})" if it.flag else "") + f"  bit {it.bit}\n", style="dim")
-        if it.parent:
-            t.append(f"option of {R.ITEMS[it.parent].label}\n", style="dim")
+        if it.parent or it.shown_under:
+            t.append(f"option of {R.ITEMS[it.shown_under or it.parent].label}\n", style="dim")
         if it.desc:
             t.append(it.desc + "\n")
-        if key == "DLY_ARENA":                           # (the effects memory: up to how many of each insert at once)
+        if key in C.FXM_TYPES:                           # (the effects memory: up to how many of each insert at once)
             mem = C.fx_memory(self.cfg)
             if mem["types"]:
                 t.append(C.fx_memory_text(mem) + "\n", style="cyan")
+        if key == "ARENA" and self.cfg.get("ARENA") and self.costs:   # (its size and what fits in it)
+            b = self.budget()
+            t.append("\n".join(C.arena_text(self.cfg, b["total"], b.get("exact"))) + "\n", style="cyan")
         for e in self.conflicts.get(key, []):
             t.append(f"ERROR  {e}\n", style="bold red")
         if self.costs:
             for v in ([c[0] for c in it.choices] if it.is_choice else [0, 1]):
                 d = C.item_delta_alone(self.costs, key, v) if v != it.default else {r: 0 for r in C.REGIONS}
-                if d is not None:
+                why = R.not_built(key, v, "classic" if C.classic() else "release")
+                if why:
+                    t.append(f"  {dict(it.choices).get(v, 'on' if v else 'off'):24s} not in this build: {why}\n", style="yellow")
+                elif d is not None:
                     lab = dict(it.choices).get(v, "on" if v else "off")
                     t.append(f"  {lab:24s} " + "  ".join(f"{r} {d[r]:+,}" for r in C.REGIONS) + "\n", style="cyan")
             for name, d in self.costs.get("pairs", {}).items():   # (a cost that depends on another item's value)
@@ -425,11 +518,16 @@ class Builder(App):
         self.refresh_info()
 
     def on_tree_node_selected(self, ev):
-        if isinstance(ev.node.data, str) and not R.ITEMS[ev.node.data].children:
+        if isinstance(ev.node.data, str) and not R.ITEMS[ev.node.data].menu_children:
             self.action_toggle()
 
     # ---- actions
-    def action_toggle(self):
+    def action_toggle_back(self):
+        """shift+space (backspace): a choice one value back, an on/off item toggled as space does"""
+        if not isinstance(self.focused, Input):
+            self.action_toggle(-1)
+
+    def action_toggle(self, step=1):
         if isinstance(self.focused, Input):              # (a space typed in the search box)
             self.focused.insert_text_at_cursor(" ")
             return
@@ -443,22 +541,25 @@ class Builder(App):
             return
         before = dict(self.cfg)
         if it.is_choice:
-            vals = [c[0] for c in it.choices]
-            self.cfg[key] = vals[(vals.index(self.cfg[key]) + 1) % len(vals)] if self.cfg[key] in vals else vals[0]
+            kind = "classic" if C.classic() else "release"
+            vals = [c[0] for c in it.choices if not R.not_built(key, c[0], kind)]   # (a value this build cannot build is not offered)
+            self.cfg[key] = vals[(vals.index(self.cfg[key]) + step) % len(vals)] if self.cfg[key] in vals else vals[0]
         else:
             self.cfg[key] = 0 if self.cfg[key] else 1
-        if it.notice and self.cfg[key]:
-            self.notify(it.notice, title=it.label, severity="warning", timeout=8)
         old = self.room
         self.cfg, self.room = RM.after_toggle(before, self.cfg, key, old)      # (BLE replaces samples)
+        notice = C.change_notice(key, before, self.cfg)                   # (a memory item: the layout's backup warning)
+        if notice:
+            self.notify(notice, title=it.label, severity="warning", timeout=12)
         if self.room.note and self.room.note != old.note:
             self.notify(self.room.note, title="BLE", severity="warning", timeout=12)
         self.refresh_all()
 
 
     def action_sort(self):
-        """o: default order -> flash -> ram -> pool -> ramtext, within each group (children stay under their parent)"""
-        order = [None, *C.REGIONS]
+        """o: default order -> flash -> ram (the SRAM: ram + pool + ramtext) -> arena (one instance), within each group (children stay under
+        their parent)"""
+        order = [None, *self.SORT_PARTS]
         self.sort_by = order[(order.index(self.sort_by) + 1) % len(order)]
         self.rebuild()
         self.refresh_all()
@@ -630,20 +731,36 @@ class Builder(App):
         self.query_one("#prog").remove_class("on")
 
     def build_line(self, ln):
-        """each line of a running build (from its worker thread): a stage line moves the bar"""
+        """each line of a running build (from its worker thread): a stage line (the classic build) moves the bar; any
+        other line (the release build prints none) becomes the bar's label, with the time, on a bar that only moves"""
         st = PG.parse_stage(ln)
         if st:
-            n, total, label = st
-            self.call_from_thread(self.progress_show, f"build {n}/{total}: {label}", PG.build_percent(n, total))
+            self.build_stage = st
+            self.call_from_thread(self.build_tick)
+            return
+        label = PG.build_label(ln)
+        now = time.monotonic()
+        if label and now - self.build_shown >= 0.1:      # (a burst of lines is not worth a redraw each)
+            self.build_last, self.build_shown = label, now
+            self.call_from_thread(self.build_tick)
+
+    def build_tick(self):
+        """once a second and on each output line, while building: the bar's label (elapsed time, stage or last line)"""
+        if not self.building:
+            return
+        secs = int(time.time() - self.build_t0)
+        if self.build_stage:
+            n, total, label = self.build_stage
+            self.progress_show(f"build {n}/{total}: {label} ({secs} s)", PG.build_percent(n, total))
+        else:
+            self.progress_show(f"build ({secs} s): {self.build_last or 'starting'}", None)
 
     def flash_line(self, ln):
         """each line of the running install (from its worker thread): the tool's progress moves the bar"""
         ev = PG.parse_flash(ln)
         if ev:
             pct = self.flash_track.feed(ev)
-            what = {"check": "checking the package", "switch": "switching to update mode",
-                    "write": "writing, do not unplug", "restart": "restarting"}[ev[0]]
-            self.call_from_thread(self.progress_show, f"flash: {what} {pct}%", pct)
+            self.call_from_thread(self.progress_show, f"flash: {self.flash_track.label} {pct}%", pct)
 
     def action_build(self, then_emu=False):
         """b: build. -> True when a build started (False: the configuration cannot be built, said in the panel)"""
@@ -658,7 +775,12 @@ class Builder(App):
                           (", then the flash (it asks before it writes)" if self.flash_after_build else "") +
                           f"\n  {self.source}")
         self.refresh_msgs()
-        self.progress_show("build: starting", None)
+        if self.building:
+            self.notify("already building", title="build", timeout=4)
+            return False
+        self.cancel_build.clear()
+        self.building, self.build_t0, self.build_last, self.build_stage = True, time.time(), "", None
+        self.progress_show("build (0 s): starting", None)
         self.run_build(dict(self.cfg), self.cfg_name, then_emu)
         return True
 
@@ -668,18 +790,40 @@ class Builder(App):
 
     @work(thread=True, exclusive=True)
     def run_build(self, cfg, name, then_emu=False):
+        """the build step, in a worker thread. However it ends (done, failed, an exception, quit) it ends: the menu is
+        told once (show_build), never left on a bar that does not move"""
+        try:
+            text, sizes, built = self.build_steps(cfg, name, then_emu)
+        except Exception as e:                           # (a bug here must show, not leave the bar running)
+            text, sizes, built = f"BUILD FAILED: the builder itself broke: {type(e).__name__}: {e}", None, None
+        if self.cancel_build.is_set():                   # (quitting: the app is going away; nothing to show)
+            return
+        try:
+            self.call_from_thread(self.show_build, text, sizes, built, C.cfg_hash(cfg))
+        except Exception:                                # (the app ended while this ran)
+            pass
+
+    def build_steps(self, cfg, name, then_emu):
+        """-> (the panel's text, sizes or None, the Stamp of a package that fits or None)"""
         b = self.budget(cfg)
         fit = b and all(o <= 0 for _, _, o in C.fits(b["total"], cfg).values())
         started = time.time()
-        ok, sizes, out = C.build(cfg, name, measure=not fit, on_line=self.build_line)
-        if not ok and fit:                               # (the estimate fitted, the exact build did not)
-            ok, sizes, out = C.build(cfg, name, measure=True, on_line=self.build_line)
+        go = lambda measure: C.build(cfg, name, measure=measure, on_line=self.build_line, cancel=self.cancel_build)
+        ok, sizes, out = go(not fit)
+        if not ok and fit and not self.cancel_build.is_set():    # (the estimate fitted, the exact build did not)
+            rok, rout = ok, out
+            ok, sizes, out = go(True)
             fit = False
+            if ok and sizes and self.sizes_fit(sizes, cfg):      # (the measurement fits: the real build's own failure,
+                ok, out = rok, rout                              #  e.g. a check after the link, is the answer, not
+                                                                 #  "does not fit"; the measurement's sizes stay for the bars)
         elif ok and not fit and sizes and self.sizes_fit(sizes, cfg):   # (the estimate overflowed, the build fits)
-            ok, sizes, out = C.build(cfg, name, measure=False, on_line=self.build_line)
+            msizes = sizes
+            ok, sizes, out = go(False)
             fit = ok
-            if not ok:                                   # (the real link refused what the measurement fitted)
-                ok, sizes, out = C.build(cfg, name, measure=True, on_line=self.build_line)
+            if not ok:                                   # (the real link refused what the measurement fitted: its own
+                sizes = sizes or msizes                  #  failure is the answer, e.g. a check after the link, not "does
+                                                         #  not fit"; the measurement's sizes stay for the bars)
         lines = []
         if sizes:
             for r, (used, cap, over) in C.fits({k: sizes[k] for k in C.REGIONS}, cfg).items():
@@ -687,9 +831,22 @@ class Builder(App):
                              (f"OVER by {over:,}" if over > 0 else f"{-over:,} free"))
         pkg = C.build_dir() / "felucca.fwsc"
         keep = ("over", "FAIL", "package", "error", "Error", "ld:", "overflowed", "undefined reference")
-        tail = [ln for ln in out.splitlines() if ln.strip().startswith(keep) or any(k in ln for k in keep[3:])]
-        tail = tail[-12:] if ok else tail[-20:]          # a failure keeps the compiler's own lines
-        res = ("BUILD OK" if ok else "BUILD FAILED") + (" (measurement build: does not fit)" if ok and not fit else "")
+        log = C.build_dir() / "builder-last.log"
+        try:
+            log.write_text(out)
+        except OSError:
+            log = None
+        if ok:
+            tail = [ln for ln in out.splitlines() if ln.strip().startswith(keep) or any(k in ln for k in keep[3:])][-12:]
+        else:                                            # a failure: the raw lines it ended on (a filter hid ld's own)
+            tail = [ln for ln in out.splitlines() if ln.strip() and not ln.startswith("size: kept at")][-25:]
+            if log:
+                tail.append(f"  full output: {log}")
+        if ok:
+            res = "BUILD OK" + (" (measurement build: does not fit)" if not fit else "")
+        else:
+            code = PG.exit_status(out)
+            res = f"BUILD FAILED: {PG.failure_reason(out)}" + (f" (exit status {code})" if code is not None else "")
         text = res + "\n" + "\n".join(lines + tail) + f"\n  {self.source}"
         built = None
         if ok and fit and pkg.exists():
@@ -705,7 +862,7 @@ class Builder(App):
         stale = ST.changed_code(self.code0)
         if stale:
             text += f"\n  WARNING: the builder's own code changed since it started ({', '.join(stale)}): {ST.RESTART}"
-        self.call_from_thread(self.show_build, text, sizes, built, C.cfg_hash(cfg))
+        return text, sizes, built
 
     def launch_emu(self):
         """the newest named package of this build in the emulator, in the background -> one line for the panel"""
@@ -726,6 +883,7 @@ class Builder(App):
         return all(o <= 0 for _, _, o in C.fits({k: sizes[k] for k in C.REGIONS}, cfg).values())
 
     def show_build(self, text, sizes, built=None, cfg_hash=None):
+        self.building = False
         self.progress_hide()
         if sizes and cfg_hash is not None:               # the panel's bars and overflow lines: this build's sizes now
             self.exact = (cfg_hash, {k: sizes[k] for k in C.REGIONS})
@@ -749,6 +907,7 @@ class Builder(App):
             self.notify("flashing: not quitting until the write is done (do not unplug the FM-1)", title="quit refused",
                         severity="warning", timeout=6)
             return
+        self.cancel_build.set()                          # (a running build is killed; its thread ends with it)
         self.exit()
 
     def action_flash(self):
@@ -792,13 +951,60 @@ class Builder(App):
         self.build_out = "flash: waiting for your answer"
         self.refresh_msgs()
         title = "Flash to FM-1\n\n" + "\n".join(plan.lines())
-        self.push_screen(Pick(title, ["Cancel", "Flash to FM-1 (writes the firmware)"],
-                              lambda choice: self.flash_answer(plan, choice.startswith("Flash"))))
+        mboot = "Install m-bootloader instead: download mode (M-Flasher, a full backup first)"
+        go = ("Flash anyway (the FM-1 may refuse it)" if plan.warn else
+              "Flash anyway (a new memory layout: backed up first?)" if plan.layout_known else
+              "Flash with m-bootloader: download mode (M-Flasher, a full backup first)" if plan.download and plan.wants_mboot
+              else "Flash through download mode (a full backup first)" if plan.download else "Flash over USB-MIDI")
+        offer_mboot = not plan.download and plan.boot != "mboot"   # (USB-MIDI first: m-bootloader only as its own, explicit entry)
+        ask = plan.download and plan.settings is not None and plan.settings.ask   # (keep or erase the settings: asked)
+        wipe_first = ask and plan.settings.default == "wipe"
+        sets = ([f"{go}, erase settings and pairings" + (" (suggested)" if wipe_first else ""),
+                 f"{go}, keep settings and pairings" + ("" if wipe_first else " (suggested)")] if ask else [go])
+        if wipe_first is False and ask:
+            sets.reverse()
+
+        def answer(choice):
+            p = F.install_mboot(plan) if choice == mboot else plan
+            if "erase settings" in choice:
+                p = F.with_settings(p, "wipe")
+            elif "keep settings" in choice:
+                p = F.with_settings(p, "keep")
+            self.flash_answer(p, choice.startswith(("Flash", "Install")))
+        self.push_screen(Pick(title, ["Cancel", *sets, *([mboot] if offer_mboot else [])], answer))
 
     def flash_answer(self, plan, yes):
         if not yes:
             self.flash_done("flash cancelled; nothing was written", False)
             return
+        try:
+            question = F.mflasher_question(plan)
+        except F.FlashError as e:
+            self.flash_done(f"FLASH REFUSED\n  {e}", True)
+            return
+        if question:       # download mode and no M-Flasher here: asked once, fetched, then on
+            def fetch_answer(choice):
+                if choice.startswith("Download"):
+                    self.fetch_mflasher(plan)
+                else:
+                    self.flash_done("flash cancelled; M-Flasher was not downloaded, nothing was written", False)
+            self.push_screen(Pick(question, ["Download it, then go on with the flash", "Cancel"], fetch_answer))
+            return
+        self.flash_go(plan)
+
+    @work(thread=True, exclusive=True, group="mfget")
+    def fetch_mflasher(self, plan):
+        self.call_from_thread(self.progress_show, "downloading M-Flasher", None)
+        lines = []
+        try:
+            F.ensure_mflasher(plan, lambda _q: True, lines.append)
+        except F.FlashError as e:
+            self.call_from_thread(self.flash_done, f"FLASH REFUSED\n  {e}", True)
+            return
+        self.call_from_thread(self.notify, "\n".join(lines), title="M-Flasher", timeout=30)
+        self.call_from_thread(self.flash_go, plan)
+
+    def flash_go(self, plan):
         self.flashing = True
         self.build_out = "flashing... do not unplug the FM-1 (about a minute)"
         self.refresh_msgs()

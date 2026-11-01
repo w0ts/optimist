@@ -16,6 +16,34 @@ struct MirrorDecoder {
     private var at = 0
     private var slots = [UInt16](repeating: 0, count: 7)
     private var next = 1
+    /// Checked frames (ops 8, 9, 10: asked with 106 bit 3, ed_mirror_enc.h): the next seq, one seen, a MORE now would go astray
+    private var seq = 0, haveSeq = false, broken = false
+    /// Checked frames dropped or lost (a sum failed, a gap in seq): the picture is not whole, the link asks for it again
+    private(set) var lost = 0
+    /// The kinds (the link's log): a sum failed, a gap in seq, a MORE dropped after one, a frame had already
+    private(set) var lostSum = 0, lostGap = 0, lostMore = 0, again = 0
+    /// The runs of seqs lost since `takeLost`, each asked for alone (106 bit 4 with opti_mirfix_1: only their rectangles again;
+    /// merging two runs would ask for the frames between them, which came whole)
+    private var fixRuns: [(lo: Int, hi: Int)] = []
+    mutating func takeLost() -> [(lo: Int, hi: Int)] {
+        defer { fixRuns = [] }
+        return fixRuns
+    }
+    private mutating func lostRange(_ lo: Int, _ hi: Int) {
+        if let l = fixRuns.last, lo & 127 == (l.hi + 1) & 127 {
+            fixRuns[fixRuns.count - 1].hi = hi & 127
+        } else if fixRuns.count >= 8 {
+            fixRuns[fixRuns.count - 1].hi = hi & 127   // (many: the last reaches over, more than lost)
+        } else {
+            fixRuns.append((lo & 127, hi & 127))
+        }
+    }
+    static let checkedBit: UInt8 = 8
+    static let fixBit: UInt8 = 16     // 106 bit 4: seq lo, hi follow (lost frames, opti_mirfix_1)
+    static let ackBit: UInt8 = 32     // 106 bit 5: the losses (7 bit, free-running), the next seq follow (opti_miraimd_1)
+    static let quietBit: UInt8 = 64   // 106 bit 6 with bit 5: an ACK alone, the FM-1 sends no reply (about 5 a second)
+    /// The keep-alive's report (106 bit 5): checked frames lost so far and the next seq expected, 7 bit each
+    var ack: [UInt8] { [UInt8(lost & 127), UInt8(seq & 127)] }
 
     /// The reply to a MIRROR request (F0 7D 46 4C 6A on version w w h h F7), or nil for anything else.
     static func reply(_ f: [UInt8]) -> (on: Bool, version: Int)? {
@@ -31,6 +59,31 @@ struct MirrorDecoder {
         return (v(6), v(8), v(10), f.count == 21 ? [v(12), v(14), v(16), v(18)] : [])
     }
 
+    /// Op 5 STATS, after LINK with checked frames: whole panels for a lag, an ask, a repair's seq no longer known; the UI's pages
+    /// drawn whole; repaints in place for a lag; repairs; bytes sent; bytes within 100 ms of a repair (3 x 7 bit each, free-running)
+    static func stats(_ f: [UInt8]) -> [Int]? {
+        guard f.count == 31, isMirror(f), f[5] == 5 else { return nil }
+        var v: [Int] = []
+        for k in 0..<8 {
+            let lo = Int(f[6 + 3 * k]), mid = Int(f[7 + 3 * k]), hi = Int(f[8 + 3 * k])
+            v.append(lo | mid << 7 | hi << 14)
+        }
+        return v
+    }
+
+    /// Op 6 PACE, after STATS with opti_miraimd_1: the FM-1's budget for the Bluetooth stream (bytes a second), its cuts (a
+    /// loss: halved), its raises, the frames it refused (the screen repainted in place later instead), then (since the ACK's
+    /// delay) the last ACK's delay in ms and the cuts for a delay; 3 x 7 bit each, free-running
+    static func pace(_ f: [UInt8]) -> [Int]? {
+        guard f.count == 19 || f.count == 25, isMirror(f), f[5] == 6 else { return nil }
+        var v: [Int] = []
+        for k in 0..<(f.count - 7) / 3 {
+            let lo = Int(f[6 + 3 * k]), mid = Int(f[7 + 3 * k]), hi = Int(f[8 + 3 * k])
+            v.append(lo | mid << 7 | hi << 14)
+        }
+        return v
+    }
+
     static func isMirror(_ f: [UInt8]) -> Bool {
         f.count >= 7 && f[0] == 0xF0 && f[1] == 0x7D && f[2] == 0x46 && f[3] == 0x4C && f[4] == cmd && f.last == 0xF7
     }
@@ -39,8 +92,30 @@ struct MirrorDecoder {
     @discardableResult
     mutating func apply(_ f: [UInt8]) -> Bool {
         guard Self.isMirror(f), Self.reply(f) == nil else { return false }
-        let n = f.count - 1
-        let op = f[5]
+        var n = f.count - 1
+        var op = f[5]
+        if op >= 8 && op <= 10 {        // checked: seq, then Fletcher sums A and B of 7D .. seq, before F7
+            guard n >= 9 else { lost += 1; lostSum += 1; broken = true; return false }
+            var a = 0, b = 0
+            for k in 1..<(n - 2) { a += Int(f[k]); b += a }
+            guard a & 127 == Int(f[n - 2]), b & 127 == Int(f[n - 1]) else { lost += 1; lostSum += 1; broken = true; return false }
+            let q = Int(f[n - 3])
+            if haveSeq && q != seq {
+                if ((seq - q) & 127) - 1 < 32 { again += 1; return false }   // (a frame again, already had: nothing)
+                lost += 1; lostGap += 1; broken = true                         // (frames lost before this one)
+                lostRange(seq, q - 1)
+            }
+            seq = (q + 1) & 127
+            haveSeq = true
+            if op == 10 && broken {                              // (its BLIT lost: it would paint into another rectangle)
+                lost += 1; lostMore += 1
+                lostRange(q, q)
+                return false
+            }
+            broken = false
+            op -= 8
+            n -= 3
+        }
         var i = 6
         func two(_ k: Int) -> Int { Int(f[k]) | Int(f[k + 1]) << 7 }
         func colour(_ k: Int) -> UInt16 { UInt16(truncatingIfNeeded: two(k) | Int(f[k + 2]) << 14) }

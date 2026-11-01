@@ -125,7 +125,7 @@ static void vector_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, cons
         y = tsvf_lp(&flt, y, &st[0], &st[1]);
         if (y > 16000 || y < -16000)
             y = soft_knee(y, 16000);
-        out[i] += mulq15(mulq15(y << 1, amp_at(m, i)), VOICE_FS) << 1;
+        out[i] += VOICE_OUT(y << 1, amp_at(m, i), 1);
     }
     v->ph[0] = ph;
     v->s[0] = st[0], v->s[1] = st[1];
@@ -170,7 +170,7 @@ static const engine_t ENG_VECTOR = {
         PN("MOVE", F_ENUM, 0, VM_N - 1, VM_CIRC, N_VMOVE),
         PU("CUT", F_CUTOFF, 0, 127, 100, 0),
     },
-    .presets = VECTOR_PRESETS,
+    .presets = PRESETS_PTR(VECTOR_PRESETS),
     .npresets = sizeof(VECTOR_PRESETS) / sizeof(VECTOR_PRESETS[0]),
     .fil_page = 1,
     .note_on = vector_note_on,

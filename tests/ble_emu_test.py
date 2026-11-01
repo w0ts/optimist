@@ -4,7 +4,7 @@
 
 Runs a BLE build (FELUCCA_BLE=1) in the emulator's `diagnose` with its BLE engine model and virtual central
 (fm1-emulator, branch feat/ble-engine: rust-emulator/README.md "Bluetooth LE (BLE MIDI) model") and checks:
-advertising ("Optimist XXXX" from the address, the BLE-MIDI UUID), connect, version / features, MTU, discovery (GAP, GATT with Service
+advertising ("FM1-XXXX" from the address, the BLE-MIDI UUID), connect, version / features, MTU, discovery (GAP, GATT with Service
 Changed, BLE-MIDI), the CCCD, our L2CAP parameter request and the update it leads to, a BLE-MIDI note from the
 central playing the synth (against a run without it), a key press reaching the central as a BLE-MIDI notification
 with a real timestamp, a channel-map update, an interval update, terminate, advertising again; the same with
@@ -45,9 +45,9 @@ MIDI_UUID = "00 c7 c4 4e e3 6c 51 a7 33 4b e8 ed 5a 0e b8 03"      # 03B80E5A-ED
 
 
 def name_ad(addr):
-    """the scan response's Complete Local Name for an address (LSB first): "Optimist XXXX", XXXX = its last four hex
+    """the scan response's Complete Local Name for an address (LSB first): "FM1-XXXX", XXXX = its last four hex
     digits (docs/BLE-DEVICES-DESIGN.md §1, "Name")"""
-    name = f"Optimist {int(addr[1], 16):02X}{int(addr[0], 16):02X}".encode()
+    name = f"FM1-{int(addr[1], 16):02X}{int(addr[0], 16):02X}".encode()
     return " ".join(f"{b:02x}" for b in bytes([len(name) + 1, 0x09]) + name)
 MHZ = "96"
 PRESS = "144000000:3:4:9600000"        # a note key held 0.1 s from 1.5 s (matrix column 3, row 4)
@@ -392,146 +392,86 @@ def isr_line(out, irq):
     return m.groups() if m else None
 
 
-class RxSnap(ctypes.Structure):
-    """firmware/src/ble/ble_diag.h struct ble_diag_rxs (an advertising RX as the driver's ISR saw it)"""
-    u8, u16, u32 = ctypes.c_uint8, ctypes.c_uint16, ctypes.c_uint32
-    _fields_ = [("t_us", u32), ("rxtog", u16), ("ifscnt", u16), ("stat", u16 * 2), ("ahdr", u16 * 2), ("dhdr", u16 * 2),
-                ("cntl", u8 * 2), ("b", (u8 * 4) * 2), ("where", u8), ("found", u8), ("rx_next", u8), ("layout", u8),
-                ("wait_us", u16)]
+class HwStats(ctypes.Structure):
+    """firmware/src/ble/ble_hw_wl82.c struct ble_hw_stats (the WL82 driver's own counters, kept in every BLE build)"""
+    u32 = ctypes.c_uint32
+    _fields_ = [("events", u32), ("rx", u32), ("rx_repeat", u32), ("rx_error", u32), ("tx", u32), ("acked", u32),
+                ("connects", u32), ("late_instant", u32), ("isr_max_ticks", u32)]
 
 
-class TxSnap(ctypes.Structure):
-    """firmware/src/ble/ble_diag.h struct ble_diag_txs (a TX decision in a connection)"""
-    u8, u16, u32 = ctypes.c_uint8, ctypes.c_uint16, ctypes.c_uint32
-    _fields_ = [("t_us", u32), ("evt", u16), ("txtog", u16), ("txdhdr", u16 * 2), ("intframe", u16),
-                ("txptr", u16 * 2), ("rxdhdr", u16), ("cntl", u8 * 2), ("what", u8), ("b", u8), ("n", u8), ("snap", u8)]
+def air_records(air):
+    """(time s, who, event or None, pdu bytes) for each packet line of the air log (fm1-emulator ble_air.rs AirRecord:
+    'TIME WHO chNN evEVENT DESCRIBE HEX [note]')"""
+    recs = []
+    for line in air.splitlines():
+        m = re.match(r"\s*([\d.]+) (P->C|C->P|A->S|M->S|S->M) ch\d+ ev\s*(\d+|-)\s+(.*?)((?: [0-9a-f]{2})+)(?:  \[.*\])?$",
+                     line)
+        if m:
+            recs.append((float(m.group(1)), m.group(2), None if m.group(3) == "-" else int(m.group(3)),
+                         bytes(int(b, 16) for b in m.group(5).split())))
+    return recs
 
 
-class PduRec(ctypes.Structure):
-    """firmware/src/ble/ble_diag.h struct ble_diag_pdu (one ATT / signalling / SMP / LL encryption PDU, either way)"""
-    u8, u16, u32 = ctypes.c_uint8, ctypes.c_uint16, ctypes.c_uint32
-    _fields_ = [("t_us", u32), ("evt", u16), ("ch", u8), ("n", u8), ("b", u8 * 8)]
+def att_op(pdu):
+    """an L2CAP start fragment on the ATT channel (LLID 2, CID 4) -> its ATT opcode, else None"""
+    if len(pdu) >= 7 and pdu[0] & 3 == 2 and pdu[4] | pdu[5] << 8 == 4:
+        return pdu[6]
+    return None
 
 
-class BleDiag(ctypes.Structure):
-    """firmware/src/ble/ble_diag.h struct ble_diag, field for field (the console's blell prints it)"""
-    u8, u16, u32 = ctypes.c_uint8, ctypes.c_uint16, ctypes.c_uint32
-    _fields_ = [("magic", u32),
-                ("adv_starts", u32), ("adv_events", u32), ("adv_rx", u32), ("scan_req", u32), ("adv_drop", u32),
-                ("adv_drop_stat", u16), ("adv_drop_hdr", u16), ("busy_max", u16), ("busy_timeouts", u32),
-                ("cind_rx", u32), ("cind_ok", u32), ("cind_rej", u32),
-                ("cind_rej_why", u8), ("cind_hdr", u8), ("cind_win_size", u8), ("cind_hop", u8), ("cind_sca", u8),
-                ("cind_chm", u8 * 5), ("cind_aa", u32), ("cind_crc", u32),
-                ("cind_win_off", u16), ("cind_interval", u16), ("cind_latency", u16), ("cind_timeout", u16),
-                ("cind_isr_us", u32), ("first_rx_us", u32),
-                ("first_rx_evt", u16), ("first_evt", u16),
-                ("evt_irqs", u32), ("rx_irqs", u32), ("conn_events", u32), ("c3_zero", u32), ("evt_same", u32),
-                ("rx_good", u32), ("rx_crc_bad", u32), ("rx_repeat", u32), ("rx_empty", u32), ("rx_nothing", u32),
-                ("rx_desync", u32), ("rx_bad_stat", u16), ("last_evt", u16),
-                ("tx_queued", u32), ("tx_acked", u32), ("tx_none", u32), ("clk_step_max", u32),
-                ("ctl_rx_n", u32), ("ctl_tx_n", u32), ("att_rx_n", u32),
-                ("ctl_rx", u8 * 8), ("ctl_tx", u8 * 8), ("att_rx", u8 * 8),
-                ("closes", u32), ("sup_timeouts", u32), ("estab_fails", u32), ("peer_terms", u32),
-                ("close_reason", u8), ("close_by", u8), ("close_evt", u16),
-                ("close_since_rx_us", u32), ("close_since_start_us", u32),
-                ("now_us", u32), ("ev_n", u32), ("ev", (u32 * 2) * 32),
-                ("rxf_cntl", u32), ("rxf_cntl_other", u32), ("rxf_tog_prev", u32), ("rxf_tog_cur", u32),
-                ("rxf_wait", u32), ("rxf_late", u32), ("rxf_none", u32),
-                ("rxl_cb", u32), ("rxl_buf", u32), ("rxl_none", u32), ("rxh_synth", u32),
-                ("rx_stat_zero", u32), ("rx_stat_bad_valid", u32), ("rx_wait_us_max", u32), ("rxs_n", u32),
-                ("rxs", RxSnap * 8), ("rxs_first", RxSnap),
-                ("rxc_tog_past", u32), ("rxc_tog_at", u32),
-                ("tx_eng_held", u32), ("tx_ack_evt_max", u32),
-                ("txs_n", u32), ("txs", TxSnap * 8), ("txs_first", TxSnap),
-                ("pdu_n", u32), ("att_ntf_n", u32), ("att_wcmd_n", u32), ("enc_req_n", u32), ("enc_on_n", u32),
-                ("isr_max_us", u32), ("pdu", PduRec * 64),
-                ("mi_wcmd", u32), ("mi_wreq", u32), ("mi_w_other", u32), ("mi_pkts", u32), ("mi_bad_hdr", u32),
-                ("mi_on", u32), ("mi_off", u32), ("mi_cc", u32), ("mi_clock", u32), ("mi_sense", u32),
-                ("mi_other", u32), ("mi_w_other_h", ctypes.c_uint16), ("mi_pad", ctypes.c_uint16),
-                ("mi_raw_n", u32), ("mi_msg_n", u32), ("mi_raw", (ctypes.c_uint8 * 12) * 4),
-                ("mi_raw_len", ctypes.c_uint8 * 4), ("mi_msg", u32 * 4),
-                ("stop_n", u32 * 5), ("stop_busy", u32 * 5), ("stop_us_max", u16 * 5),
-                ("stop_last", u8), ("stop_pad", u8)]
-
-
-def diag_symbol(fwsc):
-    """(address, size) of ble_dg in the package's ELF (build/ble/felucca-ble.elf beside it), else None"""
-    elf = fwsc.with_suffix(".elf")
-    nm = shutil.which("nm") or shutil.which("llvm-nm")
-    if not elf.is_file() or not nm:
-        return None
-    p = subprocess.run([nm, "-S", str(elf)], capture_output=True, text=True)
-    m = re.search(r"^([0-9a-f]+) ([0-9a-f]+) [bBdD] ble_dg$", p.stdout, re.M)
-    return (int(m.group(1), 16), int(m.group(2), 16)) if m else None
-
-
-def diag_read(out, addr, size):
-    """the FM1_DUMP of ble_dg at the end of a run -> BleDiag, or None"""
-    data = bytearray()
-    for line in re.findall(rf"^  ([0-9a-f]{{8}}): ((?:[0-9a-f?]{{2}} ?)+)$", out, re.M):
-        a = int(line[0], 16)
-        if addr <= a < addr + size and a == addr + len(data):
-            data += bytes(int(b, 16) if b != "??" else 0 for b in line[1].split())
-    return BleDiag.from_buffer_copy(bytes(data[:ctypes.sizeof(BleDiag)])) if len(data) >= ctypes.sizeof(BleDiag) else None
-
-
-def blell_checks(diag, fwsc, tmp):
-    """blell's RAM block (what the console prints) after an emulated connection that ends in a supervision timeout"""
-    sym = diag_symbol(fwsc)
-    if not sym:
-        print(f"== blell: skipped (no {fwsc.with_suffix('.elf')} or no nm: python tools/optimist.py test copies it)")
+def link_checks(diag, fwsc, tmp):
+    """an emulated connection that ends in a supervision timeout, read from the air (what the virtual central saw) and
+    from the driver's own counters (ble_hw_stat; the console's blell and its RAM block went with the BLE_DIAG item,
+    2026-10-29)"""
+    syms = elf_symbols(fwsc, ("ble_hw_stat",))
+    if "ble_hw_stat" not in syms:
+        print(f"== link: skipped (no {fwsc.with_suffix('.elf')}, no nm, or no ble_hw_stat in it: python tools/optimist.py "
+              "test copies the ELF)")
         return
-    addr, size = sym
-    check("blell: ble_dg's layout in the ELF is the one this test reads", size == ctypes.sizeof(BleDiag),
-          f"ELF {size} B, test {ctypes.sizeof(BleDiag)} B")
-    out, _ = run(diag, fwsc, tmp, "blell", VANISH, FM1_DUMP=f"{addr:x}:{size}")
-    d = diag_read(out, addr, size)
-    check("blell: the block read back (its magic)", d is not None and d.magic == 0x4C454C42, out[-1500:])
-    if d is None or d.magic != 0x4C454C42:
+    addr, size = syms["ble_hw_stat"]
+    check("link: ble_hw_stat's layout in the ELF is the one this test reads", size == ctypes.sizeof(HwStats),
+          f"ELF {size} B, test {ctypes.sizeof(HwStats)} B")
+    out, air = run(diag, fwsc, tmp, "link", VANISH, FM1_DUMP=f"{addr:x}:{size}")
+    st = dump_read(out, addr, size, HwStats)
+    recs = air_records(air)
+    check("link: the driver's counters read back, the air log parsed", st is not None and bool(recs), out[-1500:])
+    if st is None or not recs:
         return
-    summary = (f"adv {d.adv_starts}/{d.adv_events} cind {d.cind_rx}/{d.cind_ok}/{d.cind_rej} "
-               f"isr {d.cind_isr_us} us first_rx {d.first_rx_us} us evt {d.first_rx_evt} events {d.conn_events} "
-               f"rx {d.rx_good}/{d.rx_crc_bad}/{d.rx_repeat}/{d.rx_empty} desync {d.rx_desync} tx {d.tx_queued}/"
-               f"{d.tx_acked}/{d.tx_none} ctl {d.ctl_rx_n}/{d.ctl_tx_n} att {d.att_rx_n} close {d.close_reason:#x}/"
-               f"{d.close_by} sup {d.sup_timeouts} busy {d.busy_max}/{d.busy_timeouts} ring {d.ev_n}")
-    print("    blell: " + summary)
-    check("blell: advertising twice (boot, after the timeout), advertising events counted",
-          d.adv_starts == 2 and d.adv_events > 0 and d.adv_drop == 0, summary)
-    check("blell: one CONNECT_IND taken, its fields (interval, AA not the advertising one, hop 5..16)",
-          d.cind_rx == 1 and d.cind_ok == 1 and d.cind_rej == 0 and d.cind_interval >= 6 and
-          d.cind_aa != 0x8E89BED6 and 5 <= d.cind_hop <= 16, summary)
-    check("blell: state 7 written well inside 1.25 ms; the first packet within the first window",
-          d.cind_isr_us < 1250 and 0 < d.first_rx_us < 1250 * (2 + d.cind_win_off + d.cind_win_size) and
-          d.first_rx_evt == 0, summary)
-    check("blell: events, good packets, acknowledged TX, control and ATT opcodes; no CRC errors or desync",
-          d.conn_events > 10 and d.rx_good > 10 and d.tx_acked > 5 and d.ctl_rx_n > 0 and d.ctl_tx_n > 0 and
-          d.att_rx_n > 0 and d.rx_crc_bad == 0 and d.rx_desync == 0 and d.c3_zero < 5, summary)
-    recs = [d.pdu[i % 64] for i in range(max(0, d.pdu_n - 64), d.pdu_n)]
-    ops = [(r.ch, r.b[0]) for r in recs]
-    check("blell: the protocol ring: the central's Read By Group Type and our answer, the CCCD write and our Write "
-          "Response, in order, no SMP", (1, 0x10) in ops and (0x81, 0x11) in ops and (1, 0x12) in ops and
-          (0x81, 0x13) in ops and ops.index((1, 0x12)) < ops.index((0x81, 0x13)) and
-          not any(c & 0x7F == 3 for c, _ in ops), f"{d.pdu_n} PDUs: {ops}")
-    print(f"    blell rx (advertising): cntl {d.rxf_cntl}/{d.rxf_cntl_other} tog {d.rxf_tog_prev}/{d.rxf_tog_cur} "
-          f"wait {d.rxf_wait} late {d.rxf_late} none {d.rxf_none} layout {d.rxl_cb}/{d.rxl_buf}/{d.rxl_none} "
-          f"synth {d.rxh_synth} stat0 {d.rx_stat_zero} statbad {d.rx_stat_bad_valid} snaps {d.rxs_n}")
-    # The FM-1's rule (blell3, 2026-10-08): the packet is in the buffer RXTOG moved past, RXBUFnCNTL stays 0 while
-    # advertising; the driver tries that first. The model sets CNTL as well, so either rule may find it here.
-    # TODO(model): the engine model should leave RXBUFnCNTL 0 while advertising, as the FM-1 does.
-    check("blell: the CONNECT_IND found (RXTOG moved past it, or the model's RXBUFnCNTL bit0), payload at RXPTR, "
-          "RXAHDR written, a snapshot of it kept",
-          d.rxf_cntl + d.rxf_tog_prev >= 1 and d.rxl_cb >= 1 and d.rxl_buf == 0 and d.rxh_synth == 0 and
-          d.rx_stat_bad_valid == 0 and d.rxs_n >= 1 and d.rxs_first.found in (1, 3), summary)
-    # TX (docs/BLE-HW-FACTS.md §8.2): TXBUFnCNTL bit0 1 = empty, software clears it to hand a PDU over, the engine
-    # sets it back when the PDU is acknowledged; the model follows that contract, as stock V15 does.
-    print(f"    blell tx: held {d.tx_eng_held} ack_evt_max {d.tx_ack_evt_max} snaps {d.txs_n} first "
-          f"{d.txs_first.what}/{d.txs_first.b} snap {d.txs_first.snap} rxc tog {d.rxc_tog_past}/{d.rxc_tog_at}")
-    check("blell: TX by §8.2: the first snapshot a load into an empty buffer, PDUs acknowledged within a few events",
-          d.txs_n >= 1 and d.txs_first.what == 2 and d.txs_first.snap >> (1 + d.txs_first.b) & 1 and
-          d.txs_first.cntl[d.txs_first.b] & 1 == 0 and 0 < d.tx_ack_evt_max <= 8, summary)
-    check("blell: the central vanished: one close, supervision timeout 0x08, advertising again (ring holds it)",
-          d.closes == 1 and d.sup_timeouts == 1 and d.close_reason == 0x08 and d.close_by == 2 and
-          d.busy_timeouts == 0 and d.ev_n > 5, summary)
+    cind = [(t, p) for t, who, _, p in recs if who == "C->P" and len(p) == 2 + 34 and p[0] & 15 == 5]
+    adv = [t for t, who, ev, p in recs if who == "P->C" and ev is None and len(p) >= 2 and p[0] & 15 == 0]
+    data = [(t, who, ev, p) for t, who, ev, p in recs if ev is not None and who in ("P->C", "C->P")]
+    summary = (f"hw events {st.events} rx {st.rx}/{st.rx_repeat}/{st.rx_error} tx {st.tx}/{st.acked} connects "
+               f"{st.connects}; air: {len(adv)} ADV_IND, {len(cind)} CONNECT_IND, {len(data)} data packets")
+    print("    link: " + summary)
+    check("link: one CONNECT_IND taken (the driver's one connection, the FM-1 answered on the data channels)",
+          len(cind) == 1 and st.connects == 1 and any(who == "P->C" for _, who, _, _ in data), summary)
+    if len(cind) != 1 or not data:
+        return
+    t_cind, p = cind[0]
+    ll = p[14:]                                    # (header 2, InitA 6, AdvA 6, then LLData: Core Vol 6 Part B 2.3.3.1)
+    aa, interval, timeout, hop = int.from_bytes(ll[0:4], "little"), ll[10] | ll[11] << 8, ll[14] | ll[15] << 8, ll[21] & 31
+    check("link: the CONNECT_IND's fields (interval, AA not the advertising one, hop 5..16)",
+          interval >= 6 and aa != 0x8E89BED6 and 5 <= hop <= 16, f"interval {interval} AA {aa:#x} hop {hop}")
+    first = next((ev for _, who, ev, _ in data if who == "P->C"), None)
+    check("link: the FM-1 answered in the connection's first event (state 7 written in time, the first packet in the "
+          "first window)", first == 0, f"first answer in event {first}")
+    check("link: advertising before the connection and again after the central vanished",
+          any(t < t_cind for t in adv) and any(t > data[-1][0] for t in adv), summary)
+    ctl = {who for _, who, _, p in data if p[0] & 3 == 3 and len(p) > 2}
+    att = [(who, att_op(p)) for _, who, _, p in data if att_op(p) is not None]
+    check("link: connection events, good packets and acknowledged TX (the driver's counters); LL control and ATT both "
+          "ways; no CRC error", st.events > 10 and st.rx > 10 and st.acked > 5 and 0 <= st.tx - st.acked <= 2 and
+          st.rx_error == 0 and ctl == {"P->C", "C->P"} and {w for w, _ in att} == {"P->C", "C->P"}, summary)
+    check("link: the protocol on the air: the central's Read By Group Type and our answer, the CCCD write and our Write "
+          "Response after it, no SMP", ("C->P", 0x10) in att and ("P->C", 0x11) in att and ("C->P", 0x12) in att and
+          ("P->C", 0x13) in att and att.index(("C->P", 0x12)) < att.index(("P->C", 0x13)) and
+          not any(len(p) >= 6 and p[0] & 3 == 2 and p[4] | p[5] << 8 == 6 for _, _, _, p in data), str(att))
+    t_last = max(t for t, who, _, _ in data if who == "C->P")
+    t_adv = min((t for t in adv if t > t_last), default=None)
+    check("link: the central vanished: no LL_TERMINATE_IND of ours, advertising again after the supervision timeout "
+          "the CONNECT_IND set", t_adv is not None and t_adv - t_last >= timeout * 0.01 * 0.9 and
+          not any(who == "P->C" and p[0] & 3 == 3 and len(p) > 2 and p[2] == 0x02 for _, who, _, p in data),
+          f"last central packet {t_last:.3f} s, advertising at {t_adv}, timeout {timeout * 10} ms")
 
 
 class Found(ctypes.Structure):
@@ -546,16 +486,6 @@ class ScanTab(ctypes.Structure):
     u32 = ctypes.c_uint32
     _fields_ = [("e", Found * 8), ("next_order", u32), ("gen", u32), ("reports", u32), ("kept", u32),
                 ("dropped_full", u32), ("ignored_type", u32), ("bad_ad", u32)]
-
-
-class ScanDiag(ctypes.Structure):
-    """firmware/src/ble/ble_diag.h struct ble_diag_scan (blell's scan counters)"""
-    u8, u16, u32 = ctypes.c_uint8, ctypes.c_uint16, ctypes.c_uint32
-    _fields_ = [("magic", u32), ("starts", u32), ("stops", u32), ("events", u32), ("rx_irqs", u32),
-                ("rxf_cntl", u32), ("rxf_tog", u32), ("rxf_none", u32), ("rx_bad_stat", u32), ("rx_bad_len", u32),
-                ("rep_adv_ind", u32), ("rep_scan_rsp", u32), ("rep_other", u32), ("ring_full", u32),
-                ("req_armed", u32), ("req_fail", u32), ("rsp_ok", u32), ("upper_max", u16), ("last_rssi", u16),
-                ("last_ahdr", u16), ("last_dhdr", u16), ("ch", u8), ("last_ch", u8), ("last_cntl", u8), ("last_tog", u8)]
 
 
 def elf_symbols(fwsc, names):
@@ -602,7 +532,7 @@ def scan_checks(diag, fwsc, tmp):
     air (fm1-emulator FM1_BLE_ADVERTISERS=default: KeyStep 37 with its name in the scan response, WIDI with it in the
     ADV_IND, another FM-1, an iPad app behind a resolvable private address, a beacon, a non-connectable BLE-MIDI
     advertiser); then the list's table read back from RAM, a screenshot, the menu closed (advertising again)"""
-    syms = elf_symbols(fwsc, ("ble_found", "ble_dgs"))
+    syms = elf_symbols(fwsc, ("ble_found",))
     if "ble_found" not in syms:
         print("== scan: skipped (the package has no scanner: build with BLE_CENTRAL=1)")
         return
@@ -610,7 +540,7 @@ def scan_checks(diag, fwsc, tmp):
     scan_end = open_at + 260_000_000                 # ~2.7 s of scanning at 96 MHz
     close_pr = home_double(scan_end)
     a, n = syms["ble_found"]
-    dumps = f"{a:x}:{n}" + (f",{syms['ble_dgs'][0]:x}:{syms['ble_dgs'][1]}" if "ble_dgs" in syms else "")
+    dumps = f"{a:x}:{n}"
     png = Path(tmp) / "scan-devices.png"
     out, air = run(diag, fwsc, tmp, "scan", "wait 1\n", steps=str(scan_end), FM1_BLE_CENTRAL="off",
                    FM1_BLE_ADVERTISERS="default", FM1_PRESS=",".join(pr), FM1_DUMP=dumps, FM1_PNG=str(png))
@@ -647,16 +577,11 @@ def scan_checks(diag, fwsc, tmp):
               by["FM-1 B00B"].kind == 3 and by["iPad AUM"].addr_rand == 1 and by["iPad AUM"].addr[5] >> 6 == 1)
         check("scan: the RSSI word kept per device (the model's: KeyStep 0x0805, FM-1 0x2A30)",
               by["KeyStep 37"].rssi == 0x0805 and by["FM-1 B00B"].rssi == 0x2A30)
-    if "ble_dgs" in syms:
-        d = dump_read(out, *syms["ble_dgs"], ScanDiag)
-        if d is not None:
-            print(f"    blell scan: starts {d.starts} events {d.events} rx_irqs {d.rx_irqs} cntl {d.rxf_cntl} tog "
-                  f"{d.rxf_tog} none {d.rxf_none} adv_ind {d.rep_adv_ind} scan_rsp {d.rep_scan_rsp} other "
-                  f"{d.rep_other} full {d.ring_full} req {d.req_armed}/{d.req_fail} rsp_ok {d.rsp_ok}")
-            check("blell scan: one start, events, reports found by RXBUFnCNTL bit0 (the model's C2), SCAN_RSPs, "
-                  "the non-connectable one dropped early, no ring overflow",
-                  d.magic == 0x4E414353 and d.starts == 1 and d.events > 10 and d.rxf_cntl > 10 and
-                  d.rep_scan_rsp > 3 and d.rep_other > 0 and d.ring_full == 0 and d.rx_bad_stat == 0)
+    # (the scan's own counters block, blell's, went with BLE_DIAG, 2026-10-29: the table's counters and the air say it)
+    check("scan: reports reached the table all through the scan, none lost to a full table, the "
+          "advertisers' SCAN_RSPs among the air's packets",
+          t.reports > 10 and t.kept > 3 and t.dropped_full == 0 and len(rsps) > 3,
+          f"reports {t.reports} kept {t.kept} full {t.dropped_full}, {len(rsps)} SCAN_RSP")
     for irq in (29, 45):
         st = isr_line(out, irq)
         check(f"scan: IRQ {irq} under 100 us at {MHZ} MHz while scanning", bool(st) and float(st[4]) < 100.0, str(st))
@@ -724,7 +649,7 @@ def main():
         addr = adv.group(1).split(", ") if adv else ["0"]
         check("advertising: a random static address (top bits 11)", int(addr[-1], 16) >> 6 == 3, str(addr))
         rsp = re.search(r"first SCAN_RSP: addr \[[0-9a-f, ]+\] data \[([0-9a-f, ]+)\]", out)
-        check("SCAN_RSP: the name Optimist XXXX (the last four hex digits of the address)",
+        check("SCAN_RSP: the name FM1-XXXX (the last four hex digits of the address)",
               bool(rsp) and len(addr) == 6 and rsp.group(1).replace(",", "") == name_ad(addr),
               (rsp.group(1) if rsp else "") + " / " + str(addr))
         check("connect: state 7 programmed before the transmit window",
@@ -777,7 +702,7 @@ def main():
         m = re.search(r"advertising again (\d+) ms after the central vanished", out)
         check("the central vanishes: supervision timeout (1 s), advertising again", bool(m) and 900 <= int(m.group(1)) <= 1300,
               m.group(0) if m else out[-2000:])
-        blell_checks(diag, fwsc, tmp)
+        link_checks(diag, fwsc, tmp)
         menu_checks(diag, fwsc, tmp)
         scan_checks(diag, fwsc, tmp)
         rf_checks(diag, fwsc, tmp)

@@ -151,18 +151,167 @@ typedef union {
 #define PART_MEM_ANY (FELUCCA_ENG_FM6 || FELUCCA_ENG_PHYS || FELUCCA_ENG_GRAIN || FELUCCA_ENG_ACID || FELUCCA_ENG_PLAITS || \
                       FELUCCA_ENG_JUNO || FELUCCA_ENG_DRAWBAR || FELUCCA_ENG_CZ || FELUCCA_ENG_SLICE)
 /* Without an ARENA size: NPART memories at fixed places, each the largest (part_mem). With one (FELUCCA_ARENA_BYTES,
- * docs/ARENA.md): placed by need in the arena (core/arena.c), a change that does not fit refused (part_mem_reserve) */
+ * docs/ARENA.md, docs/SD-MODE-DESIGN.md 6b): placed by need in the arena (core/arena.c), a change that does not fit
+ * refused (part_mem_reserve) */
 #define ENG_UID_SILENT 0xFEu                             /* a project's engine byte for a silent placeholder (project.c) */
-#define ARN_SLOT (PART_MEM_ANY ? (sizeof(part_mem_t) + 7u) & ~7u : 8u)
-#if !PART_DROPS
-static part_mem_t part_mem[PART_MEM_ANY ? NPART : 1] __attribute__((section(".pool"), aligned(8)));
-#define PART_MEM_AT(p) ((void *)&part_mem[p])
+#ifndef ARN_ALIGN
+#define ARN_ALIGN 256u                                   /* the unit of every size and place (tests/arena_frag_test.c:
+                                                          * 256 B against 8, 64 and 1024, docs/SD-MODE-DESIGN.md 6b) */
+#endif
+/* a part's largest block (the tests' arenas): its memory in whole units (the fixed memories: 8 B) */
+#define ARN_SLOT_U (PART_DROPS ? ARN_ALIGN : 8u)
+#define ARN_SLOT (PART_MEM_ANY ? (sizeof(part_mem_t) + ARN_SLOT_U - 1u) & ~(ARN_SLOT_U - 1u) : ARN_SLOT_U)
+#if PART_DROPS && defined(__PI32V2__)
+#define ARN_FREE 1                                       /* (the device: the arena is the free SRAM, core/arena.c arn_boot) */
+#define ARN_BYTES arn_size
+#elif PART_DROPS
+#define ARN_BYTES FELUCCA_ARENA_BYTES                    /* (the host: a stand-in) */
+#endif
+/* FELUCCA_FX_ARENA with an arena placed by need: the effects' lines (the chorus, delay and reverb sends', the inserts'
+ * own room) are blocks of it too, after the parts' (fx/fx_arena.c: a line placed while its effect is used); proposed
+ * to drop only after every part (model.c mem_offer). Else the lines stay where they were (fx.c) */
+#if FELUCCA_FX_ARENA && !defined(FELUCCA_ARENA_BYTES)
+#error "FELUCCA_FX_ARENA: the effects' lines in an arena placed by need, which needs FELUCCA_ARENA_BYTES"
+#endif
+#ifdef FELUCCA_ARENA_BYTES
+#define FXM_NEED (FELUCCA_FX_ARENA != 0)
+#define MEM_LIST (FELUCCA_MEM_LIST != 0)                 /* a load's refusals on the list page (op_memlist.c), else
+                                                         * offered one by one on the edit's confirm (model.c) */
 #else
-#define ARN_BYTES FELUCCA_ARENA_BYTES
+#define FXM_NEED 0
+#define MEM_LIST 0
+#endif
+#if FXM_NEED
+#define FXM_NC 4u                                        /* the effects' blocks (fx_arena.c FXM_CHO DLY REV INS) */
+/* the other buffers a project holds only while it uses their feature (core/arena_bufs.c), after the effects' lines: the
+ * SLICER's recording of each track (STUT), WAVE's table, the X0X machines' states, the punch's ring (its project's PUNCH
+ * switch on), FM6's sine table (a part on FM6); only those built */
+#ifndef FELUCCA_BTA_LEND                                 /* Bluetooth audio's buffers lent while an AUDIO mode is on (fm1-base's
+                                                         * fm1.toml bt_audio_mem = "app": plat.h plat_bta_mem; core/feat_mem.c) */
+#if defined(FM1B_BTA_MEM) && FM1B_BTA_MEM && FELUCCA_BT_AUDIO
+#define FELUCCA_BTA_LEND 1
+#else
+#define FELUCCA_BTA_LEND 0
+#endif
+#endif
+#ifndef FMEM_NLEND                                       /* the switchable features' blocks the arena lends (core/feat_mem.c):
+                                                         * the includer's (fm1base/optimist/core/opt_lend.h: Bluetooth audio's,
+                                                         * the mirror's ring ..); else Bluetooth audio's alone, when built */
+#define FMEM_NLEND FELUCCA_BTA_LEND
+#endif
+enum {
+    ARB_SL0,
+    ARB_WAVE = ARB_SL0 + (FELUCCA_FX_SLICER ? NTRK : 0),
+    ARB_X909 = ARB_WAVE + (FELUCCA_ENG_WAVE ? 1 : 0),
+    ARB_X808 = ARB_X909 + (FELUCCA_DRUM_X909 ? 1 : 0),
+    ARB_PUNCH = ARB_X808 + (FELUCCA_DRUM_X808 ? 1 : 0),
+    ARB_FM6SIN = ARB_PUNCH + (FELUCCA_PUNCH_SW ? 1 : 0),
+    ARB_LEND0 = ARB_FM6SIN + (FELUCCA_ENG_FM6 ? 1 : 0),   /* the switchable features' blocks (FMEM_NLEND) */
+    ARB_BTA = ARB_LEND0,                                /* (Bluetooth audio's the first, when built) */
+    ARB_NC = ARB_LEND0 + FMEM_NLEND
+};
+#define ARB_ANY ((FELUCCA_FX_SLICER ? NTRK : 0) + FELUCCA_ENG_WAVE + FELUCCA_DRUM_X909 + FELUCCA_DRUM_X808 + \
+                 FELUCCA_PUNCH_SW + FELUCCA_ENG_FM6 + FMEM_NLEND)             /* (#if) */
+#define SST_ARN_K (NPART + FXM_NC + (uint32_t)ARB_NC)   /* the card streams' block, after them (FELUCCA_SD_STREAM:
+                                                         * storage/sd/sd_stream_plan.c, the heads and the rings) */
+/* the CHO DLY REV inserts' lines (2026-10-29, the user: "each copy in an insert slot takes its memory from the arena, as
+ * many as it holds"): a block each, placed when an owner takes the type and given back when it lets go (fx/fx_arena.c
+ * fxm_cp_*, fxi.c fxa_place), after every other client; never moved (as the other buffers) */
+/* (2026-10-31, ramaudit) the limited inserts' lines too (ECHO, JUNO CHORUS, FLNG, XDLY: FELUCCA_FXI_LINE_BLOCKS, fxi_mem.h):
+ * each copy a block of its own size, instead of the whole own room (every type's line, 77 KB on the user's build) placed
+ * for the first one held: a FLNG then takes 1 KB of the arena, not 77 */
+#ifndef FELUCCA_FXI_LINE_BLOCKS
+#define FELUCCA_FXI_LINE_BLOCKS 1
+#endif
+#if !defined(FELUCCA_FXM_IDLE_FREE) && defined(__PI32V2__)
+#define FELUCCA_FXM_IDLE_FREE 1                          /* (the device: a send line only while its bus is heard, fx_arena.c;
+                                                         * the host tests keep 0 unless they ask) */
+#endif
+#ifndef FXM_CPN_MAX
+#define FXM_CPN_MAX 8u                                   /* (the copies' blocks at most: ARN_PARTS <= 32) */
+#endif
+#define FXM_CPN ((INS_CHO || INS_REV || INS_DLY || (FELUCCA_FXI_LINE_BLOCKS && (FELUCCA_INS_DELAY || FELUCCA_INS_JCHORUS || \
+                  FELUCCA_INS_FLANGER || FELUCCA_INS_XDLY))) ? FXM_CPN_MAX : 0u)
+#define FXM_CP_K0 (SST_ARN_K + (FELUCCA_SD_STREAM ? 1u : 0u))
+#define ARN_PARTS (FXM_CP_K0 + FXM_CPN)
+#define ARN_TOPS (((1u << (ARN_PARTS - NPART)) - 1u) << NPART)   /* (the lines and buffers from the top, best fit:
+                                                                 * core/arena.c) */
+#else
 #define ARN_PARTS NPART
-#include "../core/arena.c"
+#define FXM_CPN 0u
+#endif
+#if PART_DROPS
 static void *part_mem_p[NPART];                          /* placed by need: where its switch took it (0 before) */
 #define PART_MEM_AT(p) part_mem_p[p]
+/* the arena's packing (core/arena.c arn_pack): what moves (nothing in it points into it: a copy and its pointer), gated
+ * while it does; only while it is quiet, or at a project load (arn_can, fx/fx_arena.c; the user, 2026-10-29: never a
+ * drop-out while it plays): the parts' blocks (part_mem_p; voice.c PART_MOVING), the send lines (their buses gated
+ * two blocks before, fx_arena.c fxm_mv_ready; moved up, to the top) and the inserts' room (fx/insfx/fxi.c fxr_moved;
+ * moved up) */
+static int arn_can(uint32_t k);                           /* (fx/fx_arena.c: client k's block may move now) */
+#define ARN_CAN(k) arn_can(k)
+#if FXM_NEED
+static void fxm_moved(uint32_t k, void *p);
+static int fxm_mv_ready(uint32_t k);
+static void fxm_sync(void);
+/* (FELUCCA_FXI_LINE_BLOCKS: the inserts' copies' blocks move too, each while its instance is at rest, up as the room did:
+ * fx/fx_arena.c arn_can, fxm_moved; the kernel skips the one moving, fxi_kern.c FXI_CP_MOVING) */
+#define FXM_CP_MOVES ((FELUCCA_FXI_LINE_BLOCKS && FXM_CPN) ? ((1u << FXM_CPN) - 1u) << FXM_CP_K0 : 0u)
+#define ARN_MOVES (((1u << NPART) - 1u) | 0xFu << NPART | FXM_CP_MOVES)   /* (the parts, CHO DLY REV, the inserts' room) */
+#define ARN_UPS (0xFu << NPART | FXM_CP_MOVES)
+#define ARN_UP_ALIGN 1024u                               /* (the room's units: the arena's 1 KB, fxi_mem.h) */
+#define ARN_MV_MOVED(k, p) ((k) < NPART ? (void)(part_mem_p[k] = (p)) : fxm_moved(k, p))
+#define ARN_MV_READY(k) ((k) < NPART || fxm_mv_ready(k))
+#define ARN_MV_SYNC() fxm_sync()
+#else
+#define ARN_MOVES ((1u << NPART) - 1u)
+#define ARN_MV_MOVED(k, p) ((k) < NPART ? (void)(part_mem_p[k] = (p)) : (void)0)
+#endif
+#ifdef FM1_TICKS_PER_US
+#define ARN_US() (fm1_ticks() / FM1_TICKS_PER_US)
+#endif
+/* the undo history (seq/undo.c) after the arena: its least (ARN_UNDO_LEAST: a dozen levels at the largest record, 1,353 B,
+ * far more of the usual step edits), and whatever the arena does not use; a block placed past the history's start
+ * makes it give way, its oldest levels first (undo_yield): the arena is never refused for it. With the cache RAM
+ * (CACHE_RAM, its test passed at the start: hal/fm1_cache.h; the user, 2026-10-29: "more memory from the data cache"
+ * for the arena) the history's second segment is the cache RAM, and its least in the SRAM (ARN_UNDO_KEEP) is that much
+ * less, ARN_UNDO_SRAM at least: the arena gets the SRAM it frees (8 KB with 2 ways; 15 KB with 4 or 7, the rest the
+ * history's). The arena's blocks stay in the SRAM (the second core and the audio read them; whether the second core
+ * and DMA read the cache's ways has not been measured) */
+#define ARN_UNDO_LEAST (16u * 1024u)
+#if FELUCCA_CACHE_RAM
+#define ARN_UNDO_SRAM 1024u                              /* (a SRAM part always: undo_regrow's room comes back to it) */
+#define ARN_UNDO_KEEP (fm1_cache_ram_free() + ARN_UNDO_SRAM < ARN_UNDO_LEAST ? ARN_UNDO_LEAST - fm1_cache_ram_free() \
+                                                                             : ARN_UNDO_SRAM)
+#define ARN_UNDO_ROOM ARN_UNDO_LEAST                     /* (the host's arena array: the most it can be) */
+#else
+#define ARN_UNDO_KEEP ARN_UNDO_LEAST
+#endif
+#ifndef ARN_SPARE
+#define ARN_SPARE 0u                                     /* the SRAM under the stacks the arena leaves unused at run time: none
+                                                         * (2026-10-30, was 8192, the build's spare, tools/build.py's check,
+                                                         * which stays a check of the link). Nothing else uses the free SRAM
+                                                         * once the arena has it (the undo history is after the arena, in it);
+                                                         * a stack that goes past its bottom traps in its 256-byte guard band
+                                                         * (fm1_guard_enable FM1_GUARD_STACK | FM1_GUARD_WRITE at boot: system/
+                                                         * main.c, fm1-base's device/main_fm1.c), never into the arena: the
+                                                         * 8 KB were a margin nothing read. +8 KB for the engines and effects */
+#endif
+static void undo_yield(uint8_t *lo);
+#define ARN_GREW(end) undo_yield(arn_mem + (end))
+#include "../core/arena.c"
+#ifdef ARN_FREE
+#include "../../hal/fm1_stack.h"                   /* (the linker scripts' _pool_end and _guard0) */
+/* the arena taken from the free SRAM before its first use (the power-on's first engine, main.c felucca_init) */
+#define ARN_BOOT() (arn_mem ? (void)0 : arn_boot(fm1_stk_pool_end, fm1_stk_guard0 - ARN_SPARE))
+#else
+#define ARN_BOOT() ((void)0)
+#endif
+#define PART_MOVING(t) ((uint32_t)((t) - trk) < NPART && arn_moving((uint32_t)((t) - trk)))
+#else
+static part_mem_t part_mem[PART_MEM_ANY ? NPART : 1] __attribute__((section(".pool"), aligned(8)));
+#define PART_MEM_AT(p) ((void *)&part_mem[p])
+#define PART_MOVING(t) ((void)(t), 0)
 #endif
 static uint8_t part_mem_owner[NPART];                    /* the engine slot + 1 whose state it holds, 0 = none */
 AINL fm6_mem_t *fm6_mem(uint32_t p)
@@ -187,7 +336,7 @@ AINL gr_part_t *gr_mem(uint32_t p)
 AINL phys_slot_t *phys_mem(uint32_t p) { return (phys_slot_t *)PART_MEM_AT(p); }
 #endif
 #if FELUCCA_ENG_ACID
-void *acid_mem(int k) { return PART_MEM_AT((uint32_t)k % NPART); }
+FAST(acid) void *acid_mem(int k) { return PART_MEM_AT((uint32_t)k % NPART); }
 #endif
 #if FELUCCA_ENG_PLAITS
 AINL pl_voice_t *pl_mem(uint32_t p) { return (pl_voice_t *)PART_MEM_AT(p); }
@@ -222,8 +371,8 @@ static int eng_free(uint32_t e) { (void)e; return 0; }   /* (registry.h: no stan
 static int preset_playable(const engine_t *e, uint32_t pi)
 {
     uint32_t s;
-    if (!ENG_IS(e, SAMPLE) && !ENG_IS(e, GRAIN))
-        return 1;
+    if (PRESETS_CARD || (!ENG_IS(e, SAMPLE) && !ENG_IS(e, GRAIN)))
+        return 1;                                        /* (SD card mode: the card's files, every one listed) */
     s = (uint32_t)e->presets[pi].e[0];
     return s >= SMP_NSETS || SMP_SETS[s].nz != 0;
 }
@@ -231,6 +380,7 @@ static int preset_playable(const engine_t *e, uint32_t pi)
 /* every factory sound as loud as the others: a level trim per preset, 1/2 dB, measured on a phrase
  * that fits the sound (tools/level_presets.py writes preset_trim.h, a row per engine UID, every engine);
  * a track keeps it in P_ED_FX */
+#if !PRESETS_CARD                                        /* (SD card mode: the card's records hold it) */
 #include "preset_trim.h"
 static int16_t preset_trim(uint32_t uid, uint32_t pi)    /* by engine UID */
 {
@@ -240,6 +390,7 @@ static int16_t preset_trim(uint32_t uid, uint32_t pi)    /* by engine UID */
 #endif
     return uid < PT_ENGINES && pi < PT_MAX ? PRESET_TRIM[uid][pi] : 0;
 }
+#endif
 
 /* the bytes engine slot e keeps in its part's memory (0: none) */
 static uint32_t part_mem_bytes(uint32_t e)
@@ -288,16 +439,82 @@ static uint32_t part_mem_bytes(uint32_t e)
 /* a refused change (the user, 2026-10-25: refuse, and propose what to drop; the UI shows it and offers the drops).
  * An edit's (one part: the engine it asked for; the UI's one confirm, op_input.c mem_tick), and
  * a load's apart (every part a project's load could not place, lmask, with the engine each wants, leng: each a silent
- * placeholder meanwhile, offered one by one, model.c mem_load_next; one load's refusals never overwrite each other) */
+ * placeholder meanwhile, the UI's list of what to drop, op_memlist.c; one load's refusals never overwrite each other) */
 static struct {
     uint8_t on, part, eng;
     uint8_t asked;                                       /* the parts already proposed (model.c mem_offer: never twice) */
     uint8_t waiting;                                     /* the parts dropped, their switch to the placeholder not done yet */
     uint8_t lmask;                                       /* a load's parts refused (a bit by part): placeholders, waiting */
+    uint8_t lseq;                                        /* + 1 at each load (the UI's list starts afresh) */
     uint8_t leng[NPART];                                 /* .. the engine slot each wants */
     uint8_t keep;                                        /* the edit's refusal is a load's (model.c mem_load_next): the
                                                           * project's sound kept once placed */
+    uint8_t packed;                                      /* the arena packed for it once (model.c mem_retry, arn_pack) */
 } part_mem_refused;
+#define PART_MEM_SHORT() (part_mem_refused.on || part_mem_refused.lmask)   /* (the effects wait: a part's sound first) */
+
+#define PART_TAB (FXM_NEED && (FELUCCA_ENG_WAVE || FELUCCA_ENG_FM6))
+#if PART_TAB
+/* an engine's shared table (core/arena_bufs.c): WAVE's (ARB_WAVE; WAVE keeps nothing in the part's memory) and FM6's
+ * sine (ARB_FM6SIN, beside each FM6 part's own memory): a part's change to that engine when no block holds the table or
+ * is set aside for it sets the table's aside too, and is refused like any other engine change when they do not fit
+ * (the night's ruling for WAVE, 2026-10-25: the drop proposal, parts first, then the effects; on a load the list page) */
+static uint32_t part_tab_k(uint32_t e)                   /* engine e's table: its arena client, ARN_PARTS none */
+{
+    e %= NENGINES;
+#if FELUCCA_ENG_WAVE
+    if (e == (uint32_t)ENG_SLOT_WAVE)
+        return NPART + FXM_NC + (uint32_t)ARB_WAVE;
+#endif
+#if FELUCCA_ENG_FM6
+    if (e == (uint32_t)ENG_SLOT_FM6)
+        return NPART + FXM_NC + (uint32_t)ARB_FM6SIN;
+#endif
+    return ARN_PARTS;
+}
+static uint32_t part_tab_bytes(uint32_t e)               /* engine e's table: its bytes when nothing holds it */
+{
+    uint32_t c = part_tab_k(e);
+    if (c >= ARN_PARTS || arn_cur[c].len || (arn_has_next[c] && arn_next[c].len))
+        return 0;
+#if FELUCCA_ENG_WAVE
+    if (e % NENGINES == (uint32_t)ENG_SLOT_WAVE)
+        return WT_MEM_BYTES;
+#endif
+    return FM6_SIN_BYTES;
+}
+#else
+#define part_tab_k(e) ((void)(e), (uint32_t)ARN_PARTS)
+#define part_tab_bytes(e) ((void)(e), 0u)
+#endif
+/* the arena's bytes engine e needs for a part: its own memory, and its table when nothing holds it (the UI's counts) */
+static uint32_t part_mem_need(uint32_t e) { return part_mem_bytes(e) + part_tab_bytes(e); }
+/* (the interrupts off) part k switching back to the engine whose state its idle (parked) block still holds: that block
+ * set aside for the switch as its own reservation, so no other reservation takes it back meanwhile (core/arena.c
+ * arn_idle_of: an idle block with a reservation is not free; the user, 2026-10-29: "keep a part's parked block for
+ * it": an other buffer, an effect's line or the packing is refused instead) */
+static void part_mem_park(uint32_t k)
+{
+    if (arn_cur[k].len && arn_cur[k].idle) {
+        arn_next[k] = arn_cur[k];
+        arn_next[k].idle = 0;
+        arn_has_next[k] = 1;
+    }
+}
+/* (the interrupts off) part k's memory for engine e, and its table, set aside as they are: 0 ok, -1 no room (neither) */
+static int part_mem_aside(uint32_t k, uint32_t e)
+{
+    uint32_t t = part_tab_bytes(e), n = part_mem_bytes(e), c = part_tab_k(e);
+    if (!t)
+        return arn_reserve(k, n);
+    if (arn_reserve(c, t))
+        return -1;
+    if (n && part_mem_owner[k] == e % NENGINES + 1u && arn_ptr(k))
+        part_mem_park(k);                                /* (its own state: kept for the switch back) */
+    else if (n && arn_reserve(k, n))
+        return arn_has_next[c] = 0, -1;                  /* (the table's let go with it; its own state kept: as is) */
+    return 0;
+}
 
 /* part k's memory for engine e set aside (the interrupts off: a section applied inside the audio ISR reaches here
  * through the project's apply); 0 ok or none needed, -1 no room. Nothing recorded */
@@ -305,10 +522,23 @@ static int part_mem_try(uint32_t k, uint32_t e)
 {
     uint32_t n = part_mem_bytes(e);
     int r;
-    if (k >= NPART || !n || (part_mem_owner[k] == e % NENGINES + 1u && arn_ptr(k)))
-        return 0;                                        /* (none needed, or its own state still there; an idle one
-                                                          * another reservation takes back first: the switch finds no
-                                                          * room, part_mem_unplaced) */
+    ARN_BOOT();
+#if PART_TAB
+    if (k < NPART && part_tab_bytes(e)) {                /* (its table, and its own memory) */
+        IRQ_SAVE(ie);
+        r = part_mem_aside(k, e);
+        IRQ_RESTORE(ie);
+        return r;
+    }
+#endif
+    if (k < NPART && n && part_mem_owner[k] == e % NENGINES + 1u && arn_ptr(k)) {
+        IRQ_SAVE(ie);
+        part_mem_park(k);                                /* (its own state still there: kept for the switch back) */
+        IRQ_RESTORE(ie);
+        return 0;
+    }
+    if (k >= NPART || !n)
+        return 0;                                        /* (none needed) */
     {
         IRQ_SAVE(ie);
         r = arn_reserve(k, n);
@@ -324,7 +554,7 @@ static int part_mem_reserve(uint32_t k, uint32_t e)
     int r = part_mem_try(k, e);
     if (r) {
         if (!part_mem_refused.on || part_mem_refused.part != k)   /* (a new refusal: nothing asked yet) */
-            part_mem_refused.asked = part_mem_refused.waiting = part_mem_refused.keep = 0;
+            part_mem_refused.asked = part_mem_refused.waiting = part_mem_refused.keep = part_mem_refused.packed = 0;
         part_mem_refused.on = 1, part_mem_refused.part = (uint8_t)k, part_mem_refused.eng = (uint8_t)(e % NENGINES);
     }
     return r;
@@ -335,7 +565,22 @@ static int part_mem_reserve(uint32_t k, uint32_t e)
 static int part_mem_frees(uint32_t j)
 {
     uint32_t e = part_mem_refused.eng;
+#if PART_TAB
+    uint32_t t = part_tab_bytes(e);
+    if (t && !arn_fits(part_tab_k(e), t, 1u << j))      /* (its table: what makes it room, and its own memory) */
+        return 0;
+#endif
     return arn_fits(part_mem_refused.part, part_mem_bytes(e), 1u << j);
+}
+
+/* part k's change to engine e refused, the free room enough: the parts' blocks moved so it fits (core/arena.c arn_pack;
+ * its table first when that is what does not fit). 1 planned (model.c mem_retry waits for arn_busy, then tries again) */
+static int part_mem_pack(uint32_t k, uint32_t e)
+{
+    uint32_t t = part_tab_bytes(e), c = part_tab_k(e), n = part_mem_bytes(e);
+    if (t && !arn_fits(c, t, 0))
+        return arn_pack(c, t, ARN_BYTES);
+    return n && !arn_fits(k, n, 0) && arn_pack(k, n, ARN_BYTES);
 }
 
 /* a project's load (storage/project.c, before its tracks): the refusals of before forgotten (an edit's change waiting
@@ -343,10 +588,14 @@ static int part_mem_frees(uint32_t j)
 static void part_mem_load_begin(void)
 {
     part_mem_refused.on = part_mem_refused.asked = part_mem_refused.waiting = part_mem_refused.keep = 0;
+    part_mem_refused.packed = 0;
     part_mem_refused.lmask = 0;
+    arn_pack_all();                                      /* (every block packed once its parts have switched: the audio
+                                                          * released, core/arena.c) */
+    part_mem_refused.lseq++;
 }
 /* .. part k's engine e on that load: 0 placed (or none needed); -1 refused, recorded with the others (the caller makes
- * the part a placeholder until there is room, model.c mem_load_next) */
+ * the part a placeholder until the UI's list finds it room, op_memlist.c) */
 static int part_mem_load(uint32_t k, uint32_t e)
 {
     if (part_mem_try(k, e))
@@ -370,7 +619,7 @@ static uint32_t eng_silent_slot(void)
 
 /* (the audio, voice.c engine_block) part k's switch to engine e found no room: nobody reserved for it, or its own idle
  * state was taken back by another part's reservation since. The part a silent placeholder, recorded as a load's
- * refusal (the UI offers what to drop; it never keeps its old engine with the new sound's values) */
+ * refusal (the UI's list offers what to drop; it never keeps its old engine with the new sound's values) */
 static void part_mem_unplaced(track_t *t, uint32_t e)
 {
     uint32_t k = (uint32_t)(t - trk);
@@ -388,6 +637,7 @@ static void part_mem_unplaced(track_t *t, uint32_t e)
 static void part_mem_boot(void)
 {
     uint32_t k;
+    ARN_BOOT();
     for (k = 0; k < NPART; k++)
         if (part_mem_bytes(trk[k].engine))
             (void)part_mem_claim(k, trk[k].engine);
@@ -399,6 +649,7 @@ static void part_mem_boot(void)
 static int part_mem_claim(uint32_t k, uint32_t e)
 {
     uint32_t n, i, *w;
+    ARN_BOOT();
     e %= NENGINES;
     n = part_mem_bytes(e);
     if (k >= NPART)
@@ -407,8 +658,9 @@ static int part_mem_claim(uint32_t k, uint32_t e)
         arn_rest(k);
         return 0;
     }
-    if (part_mem_owner[k] == e + 1u && arn_ptr(k) && !arn_has_next[k]) {
-        (void)arn_take(k);                               /* (its own state, as it was) */
+    if (part_mem_owner[k] == e + 1u && arn_ptr(k) &&
+        (!arn_has_next[k] || (arn_next[k].off == arn_cur[k].off && arn_next[k].len == arn_cur[k].len))) {
+        (void)arn_take(k);                               /* (its own state, as it was: parked or not) */
         return 0;
     }
     if (!arn_has_next[k] && arn_reserve(k, n))           /* (a switch nobody reserved for: here; the default arena */

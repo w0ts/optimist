@@ -5,8 +5,8 @@
   python3 tools/config_flags.py tests/profiles/mots-like.config
 
 The flags are the ones the firmware build gets (builder configure.flags(): every FELUCCA_* macro of the configuration),
-less the target-only items (registry target_only: as felucca_config.h, the host keeps its defaults); the second core
-(FELUCCA_DUAL, system/dual.c) is replaced by DUAL_LOAD=1 (its readout, system/dual_load.h) when the configuration builds it (DUAL 2). Prints one line.
+less the target-only items (registry target_only, ALWAYS_ON_TARGET: as felucca_config.h, the host keeps its defaults); the second core
+(FELUCCA_DUAL, system/dual.c, in every target build) is replaced by DUAL_LOAD=1 (its readout, system/dual_load.h). Prints one line.
 """
 import sys
 from pathlib import Path
@@ -16,7 +16,7 @@ import configure as C  # noqa: E402
 
 def target_only():
     """the macros the generated felucca_config.h gives the target alone (#ifdef __PI32V2__; the host keeps its defaults)"""
-    return {C.R.ITEMS[k].flag for k in C.R.ITEMS if C.R.ITEMS[k].target_only}
+    return {C.R.ITEMS[k].flag for k in C.R.ITEMS if C.R.ITEMS[k].target_only} | set(C.R.ALWAYS_ON_TARGET)
 
 
 def host_flags(path):

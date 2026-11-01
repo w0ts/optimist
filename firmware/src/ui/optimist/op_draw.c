@@ -17,7 +17,7 @@
 #define ROW_H (OP_FOOT ? 19 : 20)       /* a list row: 5 under the 2x2 cards, over the help band too (99 rows: 19 each) */
 #define OH_BODY OP_PH                 /* the panel to the help band (or the screen's foot): no footer (the user, 2026-10-08) */
 #define ROWS_SHOWN ((uint32_t)OH_BODY / ROW_H)   /* 5 rows under the 2x2 cards (draw_list) */
-#define METER_H 90                      /* meter_h's scale (op_mixdraw.c scales it to a row's meter) */
+#define METER_H 704                     /* meter_h's scale (op_mixdraw.c scales it to a row's meter) */
 static int draw_step_panel(void);                      /* op_stepdraw.c: STEP's grid / roll */
 static void step_frame(void);
 static void lay_title(char *t, uint32_t n);             /* op_laydraw.c: a performance layer's map */
@@ -285,13 +285,13 @@ static void draw_head_flash(uint16_t tc)                /* the header while tf.t
     cv_texts(x + 8, 4, cut(b, c, room < 14u ? room : 14u), C_WHITE);   /* (b holds 16) */
 }
 /* the title's room in pixels: right of the title's x (lead: the badge and its gap, or the bare margin), left of the loop
- * position r and the tempo bpm */
+ * position r (no tempo: it is on PLAY held, the user 2026-10-31) */
 #define HEAD_PAD 2                      /* the badge: its text's inset */
 #define HEAD_GAP 5                      /* the badge to the title */
 #define HEAD_END 1                      /* the title's end to the REC mark (the title's room: op_names.c's titles fit it) */
-static int32_t head_room(int32_t lead, const char *bpm, const char *r)
+static int32_t head_room(int32_t lead, const char *r)
 {
-    return 236 - text_ws(bpm) - 16 - HEAD_END - (r[0] ? text_ws(r) : 0) - lead;
+    return 236 - 16 - HEAD_END - (r[0] ? text_ws(r) : 0) - lead;
 }
 /* ... and per layer (HEAD_TRK_SCR above) */
 static const uint8_t HEAD_TRK_LY[LY_COUNT] = {
@@ -304,13 +304,13 @@ static const uint8_t HEAD_TRK_LY[LY_COUNT] = {
 };
 static uint32_t head_has_track(void)
 {
-    if (name_on())
+    if (page_owned())
         return 0;
     if (lay.shown != LY_PLAY)
         return HEAD_TRK_LY[lay.shown % LY_COUNT] && !ui.master;
     if (ui.scr == SCR_HOME)                             /* the mixer: the badge names the row's track or lane (the user, 2026-10-14: "it says mix on
                                                          * drum main and sub tracks"), MASTER its own */
-        return mx_row() != MXR_MASTER && !mx_is_usb(mx_row()) && !ui.master;
+        return mx_row() != MXR_MASTER && !mx_is_usb(mx_row()) && !mx_is_ret(mx_row()) && !ui.master;
     return HEAD_TRK_SCR[ui.scr % SCR_N] && !ui.master;
 }
 /* the title t (32 bytes, as drawn) with the n/N pos, cut to the room only where the names table failed (losing the
@@ -322,21 +322,34 @@ static int head_finish(char *t, const char *pos, int32_t room)
     return (int32_t)str_len(t) * 8 > room;
 }
 /* the header as drawn (draw_head; the tests read it): the badge, the title and its n/N fitted, the preset, the loop
- * position and the tempo, their places */
+ * position, their places (no tempo: PLAY held) */
 typedef struct {
-    char t[32], r[16], bpm[8], pos[12], bt[24], pr[16];
+    char t[32], r[16], pos[12], bt[24], pr[16];
     const char *eng;                    /* the badge's text, "" none */
     uint16_t tc, mc;                    /* the badge's colour, the title's */
     uint8_t badge, cut, muted;               /* a badge drawn; the title cut to its room (never, on a track page) */
     uint8_t batt;                       /* the battery icon at the right (head_batt), 0 none */
+    uint8_t ib, ipct, ichg;             /* INFO's header (head_info): 0 not INFO, 1 no reading, 2 the battery; its percentage; the supply (sys_batt_chg) */
     int32_t bw, tx, room;               /* the badge's width, the title's x and room (px) */
 } head_t;
 /* the battery in the header of GLOBAL and SYSTEM (the user, 2026-10-17: "battery icon in title bar in glo and system"):
  * SLOOP's 3 bars (op_project.c sys_batt_bars), right of the tempo. 0: none here, 1: no reading yet, 2 + the bars */
 #define HEAD_BATT_W 16                  /* the icon (13) and its gap to the tempo */
+/* SYSTEM > INFO's header (the user, 2026-10-29): no tempo and no loop position, a bigger battery instead and whether the FM-1 is
+ * charging (head_info_draw); the other pages keep theirs. 0: not INFO; 1: no battery reading yet; 2: the battery */
+#define HEAD_IC_W 28                    /* the big icon: its body (26) and its tip (2) */
+#define HEAD_IC_H 14
+#define HEAD_BOLT_W 8                   /* the charging bolt, left of the icon */
+#define HEAD_IB_W (HEAD_IC_W + 3 + HEAD_BOLT_W + 4 + 32)   /* what INFO's header keeps for the battery: icon, bolt, "100%" */
+static uint32_t head_info(void)
+{
+    if (ui.msg_t || lay.shown != LY_PLAY || page_owned() || !info_shown())
+        return 0;
+    return song.batt_raw ? 2u : 1u;
+}
 static uint32_t head_batt(void)
 {
-    if (ui.msg_t || lay.shown != LY_PLAY || name_on() || (ui.scr != SCR_GLOBAL && ui.scr != SCR_SYSTEM))
+    if (ui.msg_t || lay.shown != LY_PLAY || page_owned() || (ui.scr != SCR_GLOBAL && ui.scr != SCR_SYSTEM) || info_shown())
         return 0;
     return song.batt_raw ? 2u + sys_batt_bars() : 1u;
 }
@@ -357,11 +370,22 @@ static void head_batt_draw(int32_t x, uint32_t st)     /* the icon at x: an outl
 static int head_other(head_t *h)
 {
     h->tc = C_HI;
+    if (ml_on()) {                                      /* the load's memory list (op_memlist.c) */
+        h->eng = "MEMORY";
+        str_cpy(h->t, "Load", sizeof h->t);
+        return 1;
+    }
     if (name_on()) {
         char b[32];
         h->eng = "NAME";
         name_title(b, sizeof b);                        /* ("NAME U03": the slot after the screen's word) */
         nm_title(b + 5, h->t, sizeof h->t);
+#if WIFI_UI
+        if (pw_on()) {
+            h->eng = "WI-FI";
+            str_cpy(h->t, b + 5, sizeof h->t);          /* (the network's name as it is: never re-cased) */
+        }
+#endif
         return 1;
     }
     if (lay.shown != LY_PLAY) {
@@ -376,8 +400,12 @@ static int head_other(head_t *h)
         }
         return 1;
     }
-    h->eng = ui.scr == SCR_FX || ui.master || mx_on_master() ? "MASTER" : mx_on_usb() ? "5 USB" : SCR_NAME[ui.scr % SCR_N];
-    h->muted = (uint8_t)(mx_on_usb() && mx_muted(mx_row()));   /* (the USB input muted: its badge struck through) */
+    {
+        static const char *const RB[3] = {"RET A", "RET B", "RET C"};   /* (a return's row: its badge, 2026-10-30) */
+        h->eng = ui.scr == SCR_FX && ui.fxo ? RB[(ui.fxo - 1u) % 3u] : ui.scr == SCR_FX || ui.master || mx_on_master() ? "MASTER" :
+                 mx_on_usb() ? "5 USB" : mx_on_ret() ? RB[(mx_row() - MXR_RET0) % 3u] : SCR_NAME[ui.scr % SCR_N];
+    }
+    h->muted = (uint8_t)((mx_on_usb() || mx_on_ret()) && mx_muted(mx_row()));   /* (the USB input, a return muted: its badge struck through) */
     if (!gl_scr(ui.scr))
         return 0;
     {
@@ -390,17 +418,17 @@ static int head_other(head_t *h)
 }
 /* a title's deliberate short form, for a header short of room (the user's ruling, 2026-10-14: bar.beat always stays, the
  * title shortens, never a cut mid-word, the n/N whole): a continuation's number joins its word ("Voice 2" -> "Voice2"),
- * then the names table's short title (op_names.c NM_SHORT) */
+ * then the names table's short title (op_names.c NM_SHORT), and its own short one when that is still too long */
 static void head_short(char *t, uint32_t n, uint32_t room)   /* room: the title's characters (its n/N's taken off) */
 {
-    uint32_t l = str_len(t);
+    uint32_t l = str_len(t), k;
     char b[16];
     if (l >= 3u && t[l - 1u] >= '0' && t[l - 1u] <= '9' && t[l - 2u] == ' ') {
         t[l - 2u] = t[l - 1u];
         t[l - 1u] = 0;
     }
-    if (str_len(t) > room && nm_find(NM_SHORT, t, 0, b, sizeof b))
-        str_cpy(t, b, n);
+    for (k = 0; k < 2u && str_len(t) > room && nm_find(NM_SHORT, t, 0, b, sizeof b); k++)
+        str_cpy(t, b, n);                               /* (a short form may have a shorter one: USB aud -> Audio) */
 }
 static void head_make(head_t *h)
 {
@@ -436,10 +464,15 @@ static void head_make(head_t *h)
         head_title(ui.scr, ui.row[ui.scr], h->t, sizeof h->t);
     }
     loop_pos(TSEL, h->r);                               /* (STEP too: bar.beat on every screen, style guide 1) */
-    fmt_int(h->bpm, song.g[G_BPM]);
     h->batt = (uint8_t)head_batt();
+    h->ib = (uint8_t)head_info();
+    if (h->ib) {                                        /* INFO: the battery in place of the loop position */
+        h->r[0] = 0;
+        h->ipct = (uint8_t)(h->ib == 2u ? sys_batt_pct() : 0u);
+        h->ichg = (uint8_t)sys_batt_chg();
+    }
     h->tx = 2 + h->bw + HEAD_GAP;                       /* the title's room, left of the position and the tempo */
-    h->room = head_room(h->tx, h->bpm, h->r) - (h->batt ? HEAD_BATT_W : 0);
+    h->room = head_room(h->tx, h->r) - (h->batt ? HEAD_BATT_W : 0) - (h->ib ? HEAD_IB_W : 0);
     if ((int32_t)(str_len(h->t) + str_len(h->pos)) * 8 > h->room)
         head_short(h->t, sizeof h->t, h->room > 8 * (int32_t)str_len(h->pos) ? (uint32_t)(h->room / 8 - (int32_t)str_len(h->pos)) : 0u);                  /* (short of room: the title's short form; bar.beat always stays, the
                                                          * user, 2026-10-14) */
@@ -459,6 +492,95 @@ static int32_t head_draw_title(const head_t *h, char *c)
     x = cv_texts(h->tx, 4, c, h->mc);
     return cv_texts(x, 4, h->pos, C_GRAY);
 }
+/* INFO's battery, right-aligned: the icon (an outline, its tip, the fill to the percentage in green, amber under 40 %, red under
+ * 20 %; no text on it), the bolt left of it while charging, the percentage, and the supply in words where the title leaves room
+ * (CHARGING in green where it fits, else the bolt alone; POWER in grey: 5 V is there and the charger is not known to run). tend: where the title ends */
+static void head_bolt(int32_t x, int32_t y, uint16_t c)
+{
+    static const uint8_t R[12][2] = {{4, 3}, {4, 3}, {3, 3}, {3, 3}, {2, 3}, {1, 6}, {4, 3}, {3, 3}, {3, 2}, {2, 2}, {2, 1}, {1, 1}};
+    uint32_t r;
+    for (r = 0; r < 12u; r++)
+        cv_rect(x + R[r][0], y + (int32_t)r, R[r][1], 1, c);
+}
+static void head_info_draw(const head_t *h, int32_t tend)
+{
+    int32_t x = 236 - HEAD_IC_W, y = 5, w;
+    char b[8];
+    const char *word = 0;
+    uint16_t wc = h->ichg == 2u ? C_OK : C_GRAY;
+    b[0] = 0;
+    cv_frame(x, y, HEAD_IC_W - 2, HEAD_IC_H, h->ib == 2u ? C_GRAY : C_DIM);
+    cv_rect(x + HEAD_IC_W - 2, y + 4, 2, HEAD_IC_H - 8, h->ib == 2u ? C_GRAY : C_DIM);
+    if (h->ib == 2u) {
+        w = ((HEAD_IC_W - 6) * (int32_t)h->ipct + 50) / 100;
+        if (w < 1 && h->ipct)
+            w = 1;
+        cv_rect(x + 2, y + 2, w, HEAD_IC_H - 4, sys_batt_col(h->ipct));
+        fmt_int(b, (int32_t)h->ipct);
+        str_app(b, "%", sizeof b);
+    }
+    x -= 3;
+    if (h->ichg == 2u) {
+        x -= HEAD_BOLT_W;
+        head_bolt(x, y + 1, C_OK);
+    }
+    x -= 4;
+    if (h->ib == 2u) {
+        x -= text_ws(b);
+        cv_texts(x, 4, b, C_HI);
+    }
+    if (h->ichg == 2u)
+        word = x - 6 - text_ws("CHARGING") >= tend + 6 ? "CHARGING" : 0;
+    else if (h->ichg)
+        word = x - 6 - text_ws("POWER") >= tend + 6 ? "POWER" : 0;
+    if (word)
+        cv_texts(x - 6 - text_ws(word), 4, word, wc);
+}
+/* ---- the memory line (the user, 2026-10-29): the topmost 2 rows of every page, filled left to right by the arena's fill, the
+ * quantity of SYSTEM > INFO's RAM bar (op_project.c info_ram_pct; without an arena the fixed SRAM's use at link). Dim below
+ * MEM_RED percent, red from it, the rest dark; no text. Painted into the header's canvas (rows 0-1 of its 25), so a header
+ * drawn again sends the line as it is in the same transfer; on its own (memline_draw, after the header) only when its pixel
+ * width or colour changes and the header did not draw. Never black first and the line after: the header's canvas was black
+ * on rows 0-1 and the line followed in a second write, and the FM-1's panel showed the gap between the two (the user,
+ * 2026-10-31: "the memory bar flashes", at every header redraw: the loop position's beat while playing, a drop-out's mark,
+ * the help line's end) */
+#define MEM_RED 80u                                     /* the percent from which the line is red */
+#define MEM_H 2
+static uint32_t memline_sig;                            /* the line as on the screen (memline_key), 0 not known */
+static uint32_t memline_px(uint32_t pct) { return pct * 12u / 5u; }   /* (240 px = 100 %) */
+static uint16_t memline_col(uint32_t pct) { return pct >= MEM_RED ? C_ERR : C_DIM; }
+static uint32_t memline_key(uint32_t pct) { return hu(hu(1u, memline_px(pct)), pct >= MEM_RED); }
+static void memline_paint(void)                         /* into the header's canvas (rows 0-1), as memline_draw draws it */
+{
+    uint32_t pct = info_ram_pct(), px = memline_px(pct);
+    if (px)
+        cv_rect(0, 0, (int32_t)px, MEM_H, memline_col(pct));
+    if (px < 240u)
+        cv_rect((int32_t)px, 0, (int32_t)(240u - px), MEM_H, C_LINE);
+    memline_sig = memline_key(pct);
+}
+/* The loop position (bar.beat) alone changed: only its text drawn again, not the header's 240 x 25 (the user, 2026-10-31:
+ * the mirror over Bluetooth "DEAD SLOW": measured on the FM-1 playing, the header drawn whole at every beat was 2.4 KB/s of
+ * the 4.6 KB/s its Bluetooth link carried (850 B each, 2.8 a second): the mirror's ring always behind, so a catch-up after
+ * another and the replies dropped). The same width only (the recording mark left of it stays put); a message, INFO's mark
+ * or the track's flash shows no position: nothing to draw. 1: the header is as it should be */
+#define HEAD_R_Y 2                                      /* the text's rows only: the memory line (0-1) and the rule stay */
+static struct { uint32_t sig; uint8_t w; } head_r;      /* the position as drawn: its text's signature, its width */
+static int head_pos_only(const head_t *h, uint32_t fl)
+{
+    uint32_t rs = hs(1u, h->r);
+    int32_t bx;
+    if (rs == head_r.sig || fl || ui.msg_t || h->ib)
+        return 1;                                       /* (unchanged, or not shown: the rest's signature decides) */
+    if (text_ws(h->r) != (int32_t)head_r.w || !h->r[0])
+        return 0;                                       /* (another width: drawn whole) */
+    head_r.sig = rs;
+    bx = 236 - (h->batt ? HEAD_BATT_W : 0) - 8 - head_r.w;
+    cv_begin(head_r.w, OH_HEAD - 2 - HEAD_R_Y, C_BLACK);
+    cv_texts(0, 4 - HEAD_R_Y, h->r, song.playing ? C_OK : C_DIM);
+    cv_blit((uint32_t)bx, OY_HEAD + HEAD_R_Y);
+    return 1;
+}
 /* (noinline: a call from op_frame_draw, which is smaller without it inlined) */
 static __attribute__((noinline)) void draw_head(void)
 {
@@ -472,20 +594,23 @@ static __attribute__((noinline)) void draw_head(void)
     drop = ovl_recent(fm1_ms, OVL_MARK_MS) ? 2u : xr && fm1_ms - ovl.xrun_ms < OVL_MARK_MS ? 1u : 0u;
     mk = drop == 2u ? C_ERR : C_WARN;                   /* (the mark: red a drop-out, amber another underrun) */
     head_make(&h);
-    bx = 236 - text_ws(h.bpm) - (h.batt ? HEAD_BATT_W : 0);
-    sig = hs(hs(hs(hs(hu(hu(hu(1u, h.tc), h.mc), rec * 2u + song.playing), ui.msg_t ? ui.msg : h.t), h.r), h.bpm), h.eng);
+    bx = 236 - (h.batt ? HEAD_BATT_W : 0);
+    sig = hs(hs(hu(hu(hu(1u, h.tc), h.mc), rec * 2u + song.playing), ui.msg_t ? ui.msg : h.t), h.eng);   /* (the loop
+                                                         * position apart: head_pos_only) */
     sig = hs(sig, h.pr);
     sig = hu(hu(sig, h.muted), h.batt);
+    sig = hu(sig, (uint32_t)h.ib | (uint32_t)h.ipct << 8 | (uint32_t)h.ichg << 16);
     sig = hu(sig, (uint32_t)(ui.msg_t != 0) + settings.palette * 8u + drop * 2u);
     tflash_tick();
-    fl = tf.t && !ui.msg_t && !name_on() && !master_sel();   /* (MASTER: its own badge, no track flash: #8) */
+    fl = tf.t && !ui.msg_t && !page_owned() && !master_sel();   /* (MASTER: its own badge, no track flash: #8) */
     if (fl) {
         snd_name(song.sel, c);
         sig = hs(hu(hu(sig, 0x7F1u), TSEL->eng_req), c);
     }
-    if (sig == ui.sig[0])
+    if (sig == ui.sig[0] && head_pos_only(&h, fl))
         return;
     ui.sig[0] = sig;
+    head_r.sig = hs(1u, h.r), head_r.w = (uint8_t)text_ws(h.r);
     cv_begin(240, OH_HEAD, C_BLACK);
     if (fl) {
         draw_head_flash(trk_col(song.sel));             /* (the track's colour, whatever the page's badge) */
@@ -501,16 +626,21 @@ static __attribute__((noinline)) void draw_head(void)
         tw = head_draw_title(&h, c);
         if (h.pr[0] && tw + 8 + text_ws(h.pr) <= h.tx + h.room)   /* (the preset, if it fits whole) */
             cv_texts(tw + 8, 4, h.pr, h.tc);
-        cv_texts(bx, 4, h.bpm, C_HI);
-        if (h.batt)
-            head_batt_draw(238 - 13, h.batt);
-        bx -= 8 + text_ws(h.r);                 /* (the loop position's x, "" none) */
-        cv_texts(bx, 4, h.r, song.playing ? C_OK : C_DIM);
+        if (h.ib) {
+            head_info_draw(&h, tw);
+            bx = 236 - HEAD_IB_W;               /* (INFO: the mark left of the battery's room) */
+        } else {
+            if (h.batt)
+                head_batt_draw(238 - 13, h.batt);
+            bx -= 8 + text_ws(h.r);             /* (the loop position's x, "" none) */
+            cv_texts(bx, 4, h.r, song.playing ? C_OK : C_DIM);
+        }
         if (rec)
             cv_rect(bx - 8, 9, 6, 6, rec_col(song.rec || ft_on, rec_wait));   /* recording: green; armed: amber */
     }
     cv_rect(0, OH_HEAD - 1 - (drop != 0u), 240, 1 + (drop != 0u), drop ? mk : C_LINE);   /* (a drop-out (red) or an underrun
                                                          * (amber) in the last second: the header's rule, 2 px) */
+    memline_paint();                                    /* (rows 0-1: the memory line, in this transfer) */
     cv_blit(0, OY_HEAD);
 }
 
@@ -931,10 +1061,11 @@ static void list_paint(void)
 }
 /* PAGE_LINES: a SOUND page's graph is worth the 2x2 cards over it (the user, 2026-10-18: "use the 2*2 card layout only
  * when there is something useful to display below it"): a shape (ENV, LFO, ARP, SCL, the steps, the gater), not the FX
- * slots' needles (faders repeating the cards' values: an insert's had them, a lane's not), nor a lane's name and kit */
+ * slots' needles (faders repeating the cards' values: an insert's had them, a lane's not), nor a lane's name and kit; but the
+ * lane's ENV is its envelope (graph_denv): the ENV family always shows its picture (the user, 2026-10-31) */
 static int pic_useful(const page_t *gp)
 {
-    return has_graph(gp) && gp->graph != GR_FX && gp->graph != GR_INS && gp->graph != GR_DSND;
+    return has_graph(gp) && gp->graph != GR_FX && gp->graph != GR_INS && (gp->graph != GR_DSND || gp->fam == FAM_ENV);
 }
 /* the picture row cur of the screen shows over its rows: 0 none, 1 SOUND's graph, 2 the session grid (SONG's PATTERNS
  * row), 3 the tempo, 4 FM6's algorithm, 5 the SOUND row's presets */
@@ -960,7 +1091,7 @@ static uint32_t row_pic(uint32_t cur)
 static int pl_on(void)
 {
 #if FELUCCA_PAGE_LINES
-    return lay.shown == LY_PLAY && !name_on() && ui.scr != SCR_HOME && ui.scr != SCR_STEP && ui.scr != SCR_SCOPE && ui.scr != SCR_LFX &&
+    return lay.shown == LY_PLAY && !page_owned() && ui.scr != SCR_HOME && ui.scr != SCR_STEP && ui.scr != SCR_SCOPE && ui.scr != SCR_LFX &&
            !song_tbl_on() &&
            !glo_cycle() && !prj_listing() && SCR->rows() && !row_pic(ui.row[ui.scr])
 #if FELUCCA_BT_UI
@@ -981,7 +1112,7 @@ static void draw_list(void)
     uint32_t pic = row_pic(cur);                        /* the picture over the rows (row_pic) */
     char nm[12];
     cell_t c;
-    if (pic && ui.scr != SCR_SONG) {                    /* a picture: alone, the whole panel (the user, 2026-10-12: "Keep the
+    if (pic && (ui.scr != SCR_SONG || pic == 2u)) {                    /* a picture: alone, the whole panel (the user, 2026-10-12: "Keep the
                                                          * graph"; ARP "is the same as lfo/env. no list"); the header names
                                                          * the row and its n/N, SELECT walks them. SONG keeps its rows under
                                                          * the session grid: its list is the content */
@@ -991,8 +1122,6 @@ static void draw_list(void)
     } else if (pic) {                                   /* the picture takes the height the rows leave: they sit at the foot */
         uint32_t fit = (uint32_t)(LIST_H - GRAPH_MIN - 3) / ROW_H;
         shown = n < fit ? n : fit;
-        if (ui.scr == SCR_SONG && pic == 2u)
-            shown = 1;                                  /* (the PATTERNS row alone: no scene or mode row beside it, the grid taller; the user, 2026-10-21) */
         top = LIST_H - (int32_t)shown * ROW_H;
         gr_h = top - 3;
     } else if (n && n <= shown) {                       /* no picture (EDIT, VOICE, PROJECT, SYSTEM, GLOBAL, the master FX: the
@@ -1031,7 +1160,7 @@ static void draw_list(void)
     if (pic == 2u)
         sig = hu(sig, song_grid_sig());
 #endif
-    sig = hu(sig, (uint32_t)(top * 256 + rh));
+    sig = hu(sig, (uint32_t)(top * 256 + rh) + (uint32_t)OP_PY * 65536u);
     if (ui.scr == SCR_SONG)
         for (i = first; i < n && i < first + shown; i++)
             sig = hu(sig, song_row_col(i));
@@ -1044,17 +1173,38 @@ static void draw_list(void)
 }
 
 /* ---- pieces of the mixer's rows (op_mixdraw.c) */
-static uint32_t meter_h(int32_t pk)                     /* a peak (32767 = 0 dBFS) as a height: 6 dB a step */
+/* a peak (32767 = 0 dBFS) as a height 0 .. METER_H, linear in dB: 64 units a 6 dB step (a tick each, at 4/44 of METER_H with
+ * the floor -60), the step from the leading bit, the place inside it from the next 3 mantissa bits (METER_T: 64 * log2(1 +
+ * k/8), the rest interpolated linearly: within 0.05 dB). 2^14 is the -6 tick, 2^13 the -12 tick, 32767 the end.
+ * The floor (VU_FLOOR_DB, -40, fixed; the user, 2026-10-31: "we are a groovebox, not a DAW"): a peak under it draws nothing; the scale is the
+ * floor + 6 dB wide (46 dB), so the floor's own tick stands 6 / 46 in. A peak
+ * of 1 .. 7 has fewer than 3 mantissa bits: the table's index is the bits it has */
+static const uint8_t METER_T[9] = {0, 11, 21, 29, 37, 45, 52, 58, 64};
+static uint32_t meter_h(int32_t pk)
 {
-    uint32_t lg = 0, a = pk > 0 ? (uint32_t)pk : 0u;
-    while (a >>= 1)
-        lg++;
-    return lg < 5u ? 0u : (uint32_t)ui_clamp(((int32_t)(lg - 5u) * 4 + 4) * METER_H / 44, 0, METER_H);
+    uint32_t a = pk > 0 ? (uint32_t)pk : 0u, lg, rem, idx, r, sh;
+    int32_t fl = -VU_FLOOR_DB, d = fl + 6, f, l;     /* (l: 64 a 6 dB step, 960 = 0 dBFS) */
+    if (a == 0u)
+        return 0u;
+    lg = 31u - (uint32_t)__builtin_clz(a);
+    rem = a - (1u << lg);
+    if (lg >= 4u) {
+        sh = lg - 3u;
+        idx = rem >> sh;
+        r = rem & ((1u << sh) - 1u);
+        f = (int32_t)(METER_T[idx] + (((uint32_t)METER_T[idx + 1u] - METER_T[idx]) * r + (1u << (sh - 1u))) / (1u << sh));
+    } else {
+        f = METER_T[rem << (3u - lg)];
+    }
+    l = (int32_t)lg * 64 + f;
+    if (l < 960 - fl * 32 / 3)
+        return 0u;
+    return (uint32_t)ui_clamp(METER_H - ((960 - l) * 66 + d / 2) / d, 0, METER_H);
 }
 /* ---- the note played on the keys, at the screen's bottom left (the user, 2026-10-24, after Melodee): its name (A#4; a
  * chord's lowest) while a note key is down and NN_FRAMES after the last one is let go. A build with the help band: the
  * help line shows it at its left end (op_help.c hl_pre / hl_post: the band is the line's alone); without the band, it is
- * drawn last each frame over the panel's corner, and when it goes the screen is drawn again whole */
+ * drawn last each frame over the panel's corner, and when it goes the cards and the panel are drawn again over it */
 #define NN_FRAMES 60u                   /* ~1 s at 60 frames a second */
 #define NN_W 38u
 #define NN_Y 224u                       /* the help band's text rows (op_help.c HL_Y + 2), the panel's last 16 without it */
@@ -1078,7 +1228,8 @@ static void nn_post(void)               /* last, after the frame's force is spen
     if (OP_FOOT)
         return;                                         /* (the help band: the help line draws it) */
     if (nn_gone) {
-        ui.force = 1;                                   /* (gone: the corner drawn again by whatever is under it) */
+        ui.redraw = 1;                                  /* (gone: the corner drawn again by whatever is under it; the cards and the panel over
+                                                         * what is there, next frame: no black fill of the screen, that blinked ~1 s after a key, #121) */
         return;
     }
     if (!nn_vis)
@@ -1144,7 +1295,7 @@ static void draw_overlay(uint32_t ov)
 {
     uint32_t sig = ov == 4u ? hu(hu(5u, ble_code_sig()), settings.palette)
                  : ov == 3u ? hu(hu(hu(0x71u, (fm1_ms - rh.t1) * 64u / RH_CLEAR_MS), (rh.trk * 16u + settings.palette) * 32u + (uint32_t)(rh.lane + 1)), rh.motion)
-                 : ov == 1u ? hs(hs(hu(hu(3u, ui.arm_danger), settings.palette + (ui.arm_ring ? (fm1_ms - ui.arm_ms) * 64u / RH_CLEAR_MS * 256u : 0u)), ui.arm_verb), ui.arm_arg)
+                 : ov == 1u ? hs(hs(hu(hu(3u, ui.arm_danger + ui.arm_stop * 2u), settings.palette + (ui.arm_ring ? (fm1_ms - ui.arm_ms) * 64u / RH_CLEAR_MS * 256u : 0u)), ui.arm_verb), ui.arm_arg)
                  : ov == 5u ? hu(hu(0x505u, pre_sig()), pop_kind)
                            : hs(hu(4u, ui.msg_st), ui.msg);
     if (sig == ui.sig[4])
@@ -1164,6 +1315,19 @@ static void draw_overlay(uint32_t ov)
         draw_toast();
 }
 
+/* ---- the memory line (op_draw.c memline_*, above draw_head): its own writes, when the fill moved and the header did not draw */
+static void memline_draw(void)
+{
+    uint32_t pct = info_ram_pct(), px = memline_px(pct), sig = memline_key(pct);
+    if (sig == memline_sig)
+        return;                                         /* (as on the screen: the header's canvas carried it, or this did) */
+    memline_sig = sig;
+    if (px)
+        lcd_fill(0, 0, (int32_t)px, MEM_H, memline_col(pct));
+    if (px < 240u)
+        lcd_fill((int32_t)px, 0, (int32_t)(240u - px), MEM_H, C_LINE);
+}
+
 static void pl_draw(void);                              /* op_gldraw.c */
 static void op_frame_draw(void)
 {
@@ -1173,6 +1337,11 @@ static void op_frame_draw(void)
     if (ui.force) {
         lcd_fill(0, 0, 240, 240, C_BLACK);
         memset(ui.sig, 0, sizeof ui.sig);
+    }
+    if (ui.redraw) {                                    /* the cards and the panel again, over what they drew (a DX7 voice shows, the note's corner goes) */
+        ui.redraw = 0;
+        ui.sig[1] = ui.sig[2] = ui.sig[4] = 0;
+        mx_redraw();
     }
     if (ov != ui.overlay || ui.force) {                 /* the panel under the overlay: again when it goes */
         if (ui.overlay == 5u)                           /* (the popup list covers the cards too: every band again, drawn over it; no black
@@ -1186,7 +1355,7 @@ static void op_frame_draw(void)
     {                                                   /* STEP's grid takes the panel from y 25 (no cards): the band again whole when
                                                          * that changes (a layer on STEP, the NAME screen) */
         static uint8_t was_full;
-        uint32_t full = (ui.scr == SCR_STEP || glo_cycle() || pl_on() || song_tbl_on()) && lay.shown == LY_PLAY && !name_on();   /* (GLOBAL and
+        uint32_t full = (ui.scr == SCR_STEP || glo_cycle() || pl_on() || song_tbl_on()) && lay.shown == LY_PLAY && !page_owned();   /* (GLOBAL and
                                                          * SYSTEM's list too: no cards, op_gldraw.c) */
         if (full != was_full && !ui.force) {
             lcd_fill(0, OH_HEAD, 240, 240 - OH_HEAD, C_BLACK);
@@ -1198,13 +1367,26 @@ static void op_frame_draw(void)
     nn_tick();                                          /* (the note played: before the help line, which shows it) */
     hl_pre(ov);                                         /* (the help line: its rows kept from the bands, op_help.c) */
     draw_head();
+    memline_draw();                                     /* (last on the header's rows 0-1: every page, the early returns below too) */
+    if (ml_on() && ov != 4u) {                          /* the load's memory list: the gauge, the rows, SAVE / HOME */
+        ml_draw();
+        ui.force = 0;
+        return;
+    }
     if (name_on() && ov != 4u) {                        /* NAME: the field, the keyboard, the hints (op_name.c) */
         name_draw();
         ui.force = 0;
         return;
     }
-    if (lay.shown != LY_PLAY)
-        lay_draw_cards();                               /* a layer: its knobs' cards, its tiles (op_laydraw.c) */
+    if (ov == 5u)
+        ;                                               /* (PRESETS' popup list covers the cards band whole, op_preset.c POP_Y: the cards are not
+                                                         * drawn under it; every band again when it closes. A sound changed at a detent changed
+                                                         * the cards, they were sent, then the box over their rows: the list's top flashed, the
+                                                         * user 2026-10-31: "when scrolling the top of the list flash") */
+    else if (lay.shown != LY_PLAY)
+        lay_draw_cards();                              /* a layer: its knobs' cards, its tiles (op_laydraw.c) */
+    else if (pat_view())
+        ui.sig[1] = 0;                                 /* (the patterns screen: its panel takes the cards' band; the cards drawn again when it closes) */
     else if (ui.scr != SCR_STEP && !glo_cycle() && !pl_on() && !song_tbl_on()
 #if FELUCCA_BT_UI
              && !dev_listing()                          /* (the BLE devices: no cards, the list the whole panel, the user 2026-10-19) */

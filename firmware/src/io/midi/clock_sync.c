@@ -88,7 +88,18 @@
 /* G_SYNC: SYNC_INT .. SYNC_BLE (core.h) */
 #define SY_OFS_MIN (-100)                                  /* CLK OFS / BT OFS, ms (op_project.c's lines) */
 #define SY_OFS_MAX 250
-static int16_t sync_ofs[2];                                /* [0] CLK OFS, [1] BT OFS, ms (the settings record) */
+#ifndef FELUCCA_LINK
+#define FELUCCA_LINK 0                                     /* (params.c: LINK offered only in builds with it) */
+#endif
+static int16_t sync_ofs[3];                                /* [0] CLK OFS, [1] BT OFS, [2] LINK OFS (Link builds), ms (the settings record) */
+#if FELUCCA_LINK || (defined(FELUCCA_WIFI) && FELUCCA_WIFI)
+/* Ableton Link over Wi-Fi (wifi/wifi_link.c): LINK_OFF no session, LINK_ON tempo and beat shared, LINK_ONSS also play / stop (the default,
+ * what Link did before the setting; stored as 0 in the record's ext bytes: persist_rec.c link_sel). The list reads OFF, ON, ON+S/S */
+enum { LINK_OFF, LINK_ON, LINK_ONSS };
+static uint8_t link_mode = LINK_ONSS;
+static uint8_t link_jam;                                   /* MODE JAM (the Wi-Fi page) is on: Link runs whatever LINK says (set by ui/opt_wifi.h every pass; never stored) */
+#define link_eff() ((uint8_t)(link_jam && link_mode == LINK_OFF ? LINK_ON : link_mode))   /* the LINK in force: OFF is ON while JAM; the stored link_mode is untouched */
+#endif
 static int32_t sy_lead;                                    /* this block's offset, TIMER4 ticks (sync_follow) */
 #if FELUCCA_BT_AUDIO
 static int32_t bta_lat_t(void);
@@ -98,8 +109,9 @@ static int32_t bta_lat_t(void);
 #else
 #define SY_BT_OFS 0
 #endif
-static const param_desc_t SY_OFS_D[2] = {PU("CLK OFS", F_INT, SY_OFS_MIN, SY_OFS_MAX, 0, "ms"),
-                                         PU("BT OFS", F_INT, SY_OFS_MIN, SY_OFS_MAX, 0, "ms")};
+static const param_desc_t SY_OFS_D[3] = {PU("CLK OFS", F_INT, SY_OFS_MIN, SY_OFS_MAX, 0, "ms"),
+                                         PU("BT OFS", F_INT, SY_OFS_MIN, SY_OFS_MAX, 0, "ms"),
+                                         PU("LINK OFS", F_INT, SY_OFS_MIN, SY_OFS_MAX, 0, "ms")};
 
 static volatile uint32_t sync_out_t;   /* TIMER4 time the block being rendered starts to leave the DMA (audio.c) */
 static struct {
@@ -122,8 +134,8 @@ static struct {
     uint8_t src;           /* the source followed: MSRC_USB / MSRC_TRS / MSRC_BLE, 0 = none (internal tempo) */
 } sy;
 /* the offset of the clock followed (the user, 2026-10-25: "one for usb, one for BLE ... like the name implies"): BT OFS
- * for a Bluetooth (BLE) clock, CLK OFS for a wired one (USB, TRS); TEMPO's nudge sets it (op_tempo.c) */
-static uint32_t sync_ofs_ix(void) { return sy.src == MSRC_BLE; }
+ * for a Bluetooth (BLE) clock, LINK OFS for Link, CLK OFS for a wired one (USB, TRS); TEMPO's nudge sets it (op_tempo.c) */
+static uint32_t sync_ofs_ix(void) { return sy.src == MSRC_BLE ? 1u : FELUCCA_LINK && sy.src == MSRC_LINK ? 2u : 0u; }   /* (LINK OFS: its own since 2026-10-29) */
 static int32_t sync_lead_t(void)                           /* the offset now: the source's, and the Bluetooth audio's own
                                                           * delay on top while it streams (bt/bt_acl.c bta_lat_t) */
 {
@@ -136,7 +148,20 @@ static int32_t sync_lead_t(void)                           /* the offset now: th
     return t;
 }
 #define SY_STEADY 4u                                       /* F8s a steady period apart: a source is present */
-static struct { uint32_t last, dt; uint8_t cnt; } sy_pr[4];   /* per source (MSRC_*): presence */
+#ifndef FELUCCA_USB_HOST
+#define FELUCCA_USB_HOST 0                                 /* the USB MIDI host (the release: fm1-base's; MSRC_USBH) */
+#endif
+#if FELUCCA_USB_HOST
+#define SY_SRC_LAST MSRC_USBH                              /* the last source sync_select looks at */
+#elif FELUCCA_LINK
+#define SY_SRC_LAST MSRC_LINK
+#else
+#define SY_SRC_LAST MSRC_BLE
+#endif
+/* a USB host's device (MSRC_USBH) is the USB port's clock: SYNC USB follows it, AUTO ranks it as USB, CLK shows USB */
+#define SY_USB(s) ((s) == MSRC_USB || (FELUCCA_USB_HOST && (s) == MSRC_USBH))
+#define SY_SHOWN(s) (FELUCCA_USB_HOST && (s) == MSRC_USBH ? (uint32_t)MSRC_USB : (uint32_t)(s))
+static struct { uint32_t last, dt; uint8_t cnt; } sy_pr[SY_SRC_LAST + 1];   /* per source (MSRC_*): presence */
 
 static uint32_t sy_div(uint64_t n, uint32_t d)            /* n / d (no 64-bit division in the runtime) */
 {
@@ -185,12 +210,28 @@ static int sy_present(uint32_t s, uint32_t now)
 static uint32_t sy_allowed(uint32_t s)
 {
     uint32_t m = (uint32_t)song.g[G_SYNC];
-    return m == SYNC_AUTO || (m == SYNC_USB && s == MSRC_USB) || (m == SYNC_TRS && s == MSRC_TRS) ||
+    return m == SYNC_AUTO || (m == SYNC_USB && SY_USB(s)) || (m == SYNC_TRS && s == MSRC_TRS) ||
+#if FELUCCA_LINK
+           (m == SYNC_LINK && s == MSRC_LINK) ||
+#endif
            (m == SYNC_BLE && s == MSRC_BLE);
 }
 
+#if FELUCCA_LINK
+/* AUTO's preference: LINK 5 (a session the user joined on purpose wins over any cable clock, 2026-10-27), TRS 4,
+ * USB 3, BLE 1 (the most jitter last), none 0 */
+static uint32_t sy_rank(uint32_t s)
+{
+    if (s == MSRC_LINK) return 5u;
+    if (s == MSRC_TRS) return 4u;
+    if (SY_USB(s)) return 3u;
+    if (s == MSRC_BLE) return 1u;
+    return 0u;
+}
+#else
 /* AUTO's preference: TRS 3, USB 2, BLE 1 (the most jitter last), none 0 */
-static uint32_t sy_rank(uint32_t s) { return s == MSRC_BLE ? 1u : s; }
+static uint32_t sy_rank(uint32_t s) { return s == MSRC_BLE ? 1u : SY_USB(s) ? (uint32_t)MSRC_USB : s; }
+#endif
 
 static void sy_follow_src(uint32_t s)                     /* a new source: its clock from scratch */
 {
@@ -200,7 +241,7 @@ static void sy_follow_src(uint32_t s)                     /* a new source: its c
     sy.stop = 0;
 }
 
-/* once a block, stopped: the source to follow (TRS, USB, BLE, or none); never while playing */
+/* once a block, stopped: the source to follow (TRS, USB, LINK, BLE, or none); never while playing */
 static void sync_select(uint32_t now)
 {
     uint32_t s, best = 0;
@@ -211,17 +252,17 @@ static void sync_select(uint32_t now)
         else
             sy_follow_src(0);
     }
-    if (song.g[G_MIDI] != sy.src)
-        song.g[G_MIDI] = (int16_t)sy.src;                  /* (read-only: the source shown, the editor) */
+    if (song.g[G_MIDI] != (int16_t)SY_SHOWN(sy.src))
+        song.g[G_MIDI] = (int16_t)SY_SHOWN(sy.src);        /* (read-only: the source shown, the editor) */
     if (song.playing || sy.arm)
         return;
-    for (s = MSRC_USB; s <= MSRC_BLE; s++)
+    for (s = MSRC_USB; s <= SY_SRC_LAST; s++)
         if (sy_allowed(s) && sy_present(s, now) && sy_rank(s) > sy_rank(best))
             best = s;
     if (best != sy.src)
         sy_follow_src(best);
-    if (song.g[G_MIDI] != sy.src)
-        song.g[G_MIDI] = (int16_t)sy.src;                  /* (read-only: the source shown, the editor) */
+    if (song.g[G_MIDI] != (int16_t)SY_SHOWN(sy.src))
+        song.g[G_MIDI] = (int16_t)SY_SHOWN(sy.src);        /* (read-only: the source shown, the editor) */
 }
 
 /* an F8 of the source followed */

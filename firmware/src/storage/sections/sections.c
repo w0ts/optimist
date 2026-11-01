@@ -839,7 +839,7 @@ static void proj_scope_read(void)
 }
 static int proj_quiet(uint32_t p)                      /* (stopped, p a project: the arena into the log, dropped) */
 {
-    if (p >= 16u || !flash_ok)
+    if (p >= PROJ_SLOTS || !flash_ok)
         return -1;
     persist_flush_now();
     sec_pend_clear();
@@ -916,6 +916,10 @@ static int proj_tomb(uint32_t p)                       /* project p opened, ever
     for (i = 0; i < SLG_IDS; i++)                      /* (a clear not written: the others still tried) */
         if (!SLG_DEV(i) && slg_has(i) && slg_put(i, sec_rbuf, 0, 0))
             rc = -1;
+#if SLG_V2
+    if (slg_unk_clear(p))                              /* (a later firmware's ids: MIDI tracks' phase 0) */
+        rc = -1;
+#endif
     if (!rc)
         slg.pused &= (uint16_t)~(1u << p);
     return rc;
@@ -956,6 +960,10 @@ static int proj_copy(void)
         if (!SLG_DEV(i) && (n = slg_get(i, sec_rbuf)) != 0 && (n < 0 ||
             slg_make_room(SEC_ALIGN(SEC_HEAD + (uint32_t)n), SLG_IDS) || slg_append_rawp(i, t, slg.seq++, sec_rbuf, (uint32_t)n)))
             return -1;
+#if SLG_V2
+    if (slg_unk_copy(f, t))                            /* (a later firmware's ids too: "copy everything") */
+        return -1;
+#endif
     return slg_put(SEC_ID_SAVEAS, sec_rbuf, 0, 1);
 }
 /* PROJECT page SAVE into another slot t (the user, 2026-10-25: a save as, "copy everything"): the open project's records
@@ -974,6 +982,19 @@ static int project_save_as(uint32_t t)
     for (i = 0; i < SLG_IDS; i++)                      /* an id without a record counted as a clear) */
         if (!sm_put(&sm, SLG_IDS, slg.alen[i]))
             return 1;
+#if SLG_V2
+    {
+        slg_unk_t u;                                   /* (a later firmware's records: t's cleared, the open one's copied) */
+        slg_unk_scan(t, &u);
+        for (i = 0; i < SLG_NUNK; i++)
+            if (u.at[i] && u.len[i] && !sm_put(&sm, SLG_IDS, 0))
+                return 1;
+        slg_unk_scan(open_proj, &u);
+        for (i = 0; i < SLG_NUNK; i++)
+            if (u.at[i] && u.len[i] && !sm_put(&sm, SLG_IDS, u.len[i]))
+                return 1;
+    }
+#endif
     if (!sm_keep(&sm))
         return 1;
     m[0] = open_proj, m[1] = (uint8_t)t;
@@ -983,7 +1004,7 @@ static int project_save_as(uint32_t t)
     return project_scope_set(i ? open_proj : t) | (int)i;
 }
 /* project p holds something (a live record of its: a state, a scene, a pattern, a chain): the PROJECT page's strip */
-static int project_slot_used(uint32_t p) { return p < 16u && ((slg.pused >> p) & 1u); }
+static int project_slot_used(uint32_t p) { return p < PROJ_SLOTS && ((slg.pused >> p) & 1u); }
 static uint32_t project_cur(void) { return open_proj; }   /* the open project (the UI) */
 #endif
 static void proj_slots_drop(void)                      /* a restore done: nothing in RAM goes back to flash */

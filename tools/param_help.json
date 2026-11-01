@@ -27,15 +27,18 @@
       "DST A": "What ENV 2 moves (slot A)", "AMT A": "How much ENV 2 moves A", "DST B": "What ENV 2 moves (slot B)",
       "AMT B": "How much ENV 2 moves B"}},
     {"kind": "page", "ctx": "LFO", "params": {
-      "RATE": "LFO rate, left end: in tempo", "WAVE": "LFO waveform", "PHS": "LFO start phase", "FADE": "LFO fade-in time"}},
+      "RATE": "LFO rate, left end: in tempo", "WAVE": "LFO waveform", "PHS": "LFO start phase", "FADE": "LFO fade-in time",
+      "TRIG": "LFO restart: NOTE FREE PLAY", "POL": "LFO: both ways or up only"}},
+    {"kind": "page", "ctx": "LFO PHS", "params": {
+      "PHS": "LFO start phase (LFO: fine)", "FADE": "LFO fade-in after restart"}},
     {"kind": "page", "ctx": "LFO DEST", "params": {
       "DST A": "What LFO moves (slot A)", "AMT A": "How much LFO moves A", "DST B": "What LFO moves (slot B)",
       "AMT B": "How much LFO moves B"}},
     {"kind": "page", "ctx": "FX", "params": {
       "DST": {"text": "Distortion insert (drive)", "if": "FELUCCA_FX_DIST"},
-      "CHO": {"text": "Chorus send", "if": "FELUCCA_FX_CHORUS"},
-      "DLY": {"text": "Delay send", "if": "FELUCCA_FX_DELAY"},
-      "REV": {"text": "Reverb send", "if": "FELUCCA_FX_REVERB"},
+      "CHO": {"text": "Chorus: send / insert mix", "if": "FELUCCA_FX_CHORUS"},
+      "DLY": {"text": "Delay: send / insert mix", "if": "FELUCCA_FX_DELAY"},
+      "REV": {"text": "Reverb: send / insert mix", "if": "FELUCCA_FX_REVERB"},
       "DYN": {"text": "Comp + limiter insert", "if": "FELUCCA_MASTER_COMP"},
       "FILT": {"text": "Filter insert: low/high cut", "if": "TFLT_ON"},
       "DUST": {"text": "Vinyl dust / lo-fi insert", "if": "FELUCCA_FX_DUST"},
@@ -56,7 +59,6 @@
       "XDLY": {"text": "Lyra dual delay: its mix", "if": "FELUCCA_INS_XDLY"},
       "EXGN": {"text": "Example gain insert (dB)", "if": "FELUCCA_EX_GAIN"},
       "WIDE": {"text": "Stereo width insert", "if": "FELUCCA_INS_WIDTH"},
-      "CHRS": {"text": "Chorus: mix, then depth", "if": "FELUCCA_INS_CHORUS"},
       "ECHO": {"text": "Slapback: level, then repeats", "if": "FELUCCA_INS_DELAY"},
       "GATER": {"text": "Trance gate depth (in tempo)", "if": "FELUCCA_INS_GATER"},
       "JUNO": {"text": "Juno-106 chorus: its mix", "if": "FELUCCA_INS_JCHORUS"}}},
@@ -82,9 +84,11 @@
       "TAPE": {"text": "Tape tone: dark, wandering", "if": "FELUCCA_INS_TAPE"},
       "SPIT": {"text": "Spit: random band, driven", "if": "FELUCCA_INS_SPIT"},
       "XDLY": {"text": "Lyra dual delay: its mix", "if": "FELUCCA_INS_XDLY"},
+      "REV": {"text": "Reverb insert: dry/wet", "if": "FELUCCA_FX_REVERB"},
+      "DLY": {"text": "Delay insert: dry/wet", "if": "FELUCCA_FX_DELAY"},
       "EXGN": {"text": "Example gain insert (dB)", "if": "FELUCCA_EX_GAIN"},
       "WIDE": {"text": "Stereo width insert", "if": "FELUCCA_INS_WIDTH"},
-      "CHRS": {"text": "Chorus: mix, then depth", "if": "FELUCCA_INS_CHORUS"},
+      "CHO": {"text": "Chorus insert: dry/wet", "if": "FELUCCA_FX_CHORUS"},
       "ECHO": {"text": "Slapback: level, then repeats", "if": "FELUCCA_INS_DELAY"},
       "GATER": {"text": "Trance gate depth (in tempo)", "if": "FELUCCA_INS_GATER"},
       "JUNO": {"text": "Juno-106 chorus: its mix", "if": "FELUCCA_INS_JCHORUS"}}},
@@ -141,8 +145,10 @@
       "TAPE": {"text": "Tape tone: dark, wandering", "if": "FELUCCA_INS_TAPE"},
       "SPIT": {"text": "Spit: random band, driven", "if": "FELUCCA_INS_SPIT"},
       "XDLY": {"text": "Lyra dual delay: its mix", "if": "FELUCCA_INS_XDLY"},
+      "REV": {"text": "Reverb insert: dry/wet", "if": "FELUCCA_FX_REVERB"},
+      "DLY": {"text": "Delay insert: dry/wet", "if": "FELUCCA_FX_DELAY"},
       "WIDE": {"text": "Stereo width insert", "if": "FELUCCA_INS_WIDTH"},
-      "CHRS": {"text": "Chorus: mix, then depth", "if": "FELUCCA_INS_CHORUS"},
+      "CHO": {"text": "Chorus insert: dry/wet", "if": "FELUCCA_FX_CHORUS"},
       "ECHO": {"text": "Slapback: level, then repeats", "if": "FELUCCA_INS_DELAY"},
       "JUNO": {"text": "Juno-106 chorus: its mix", "if": "FELUCCA_INS_JCHORUS"},
       "EQ3": {"text": "3-band EQ on or off"}}},
@@ -186,7 +192,6 @@
       "TAPE": {"text": "Return tape tone", "if": "FELUCCA_INS_TAPE"},
       "SPIT": {"text": "Return spitting band", "if": "FELUCCA_INS_SPIT"},
       "WIDE": {"text": "Return stereo width", "if": "FELUCCA_INS_WIDTH"},
-      "CHRS": {"text": "Return chorus: mix, depth", "if": "FELUCCA_INS_CHORUS"},
       "ECHO": {"text": "Return slapback: level, rep.", "if": "FELUCCA_INS_DELAY"},
       "JUNO": {"text": "Return Juno chorus mix", "if": "FELUCCA_INS_JCHORUS"},
       "EQ3": {"text": "Return EQ on or off"}}},
@@ -265,7 +270,7 @@
     {"kind": "page", "ctx": "DRUMS", "params": {
       "CH": "Drum MIDI channel (0: off)", "LVL": "Drum level"}},
     {"kind": "page", "ctx": "PROJECT", "params": {
-      "SLOT": "Project slot", "A24": {"text": "2.4 autosave (twice)", "if": "FELUCCA_SL24_SAFE && FELUCCA_SL24_IMPORT"},
+      "SLOT": "Project slot",
       "LOAD": "Load project (twice)", "SAVE": "Save project (twice)"}},
     {"kind": "page", "ctx": "TOOLS", "params": {
       "CLRSQ": "Clear the pattern (twice)", "INIT": "Reset the sound (twice)",
@@ -428,15 +433,19 @@
       "porta": "Portamento mode", "time": "Portamento time", "gliss": "Glissando", "dxvel": "DX7 velocity range"}},
 
 
-    {"kind": "op", "ctx": "INSERTS", "if": "FELUCCA_INS_CHORUS || FELUCCA_INS_DELAY || FELUCCA_INS_JCHORUS || FELUCCA_INS_FLANGER || FELUCCA_INS_XDLY", "params": {
+    {"kind": "op", "ctx": "INSERTS", "if": "FELUCCA_INS_DELAY || FELUCCA_INS_JCHORUS || FELUCCA_INS_FLANGER || FELUCCA_INS_XDLY || FELUCCA_FX_CHORUS || FELUCCA_FX_DELAY || FELUCCA_FX_REVERB", "params": {
+      "REV": {"text": "Reverb, shared: free/avail", "if": "FELUCCA_FX_REVERB"},
+      "FULL REV": {"text": "No free reverb: bypassed", "if": "FELUCCA_FX_REVERB"},
+      "DLY": {"text": "Delay, shared: free/avail", "if": "FELUCCA_FX_DELAY"},
+      "FULL DLY": {"text": "No free delay: bypassed", "if": "FELUCCA_FX_DELAY"},
       "XDLY": {"text": "Dual delay shared: free/avail", "if": "FELUCCA_INS_XDLY"},
       "FULL XDLY": {"text": "No free dual delay: bypassed", "if": "FELUCCA_INS_XDLY"},
       "FLNG": {"text": "Flanger, shared: free/avail", "if": "FELUCCA_INS_FLANGER"},
       "FULL FLNG": {"text": "No free flanger: bypassed", "if": "FELUCCA_INS_FLANGER"},
       "JUNO": {"text": "Juno chorus: free/avail", "if": "FELUCCA_INS_JCHORUS"},
       "FULL JUNO": {"text": "No free Juno chorus: off", "if": "FELUCCA_INS_JCHORUS"},
-      "CHRS": {"text": "Chorus, shared: free/avail", "if": "FELUCCA_INS_CHORUS"},
-      "FULL CHRS": {"text": "No free chorus: bypassed", "if": "FELUCCA_INS_CHORUS"},
+      "CHO": {"text": "Chorus, shared: free/avail", "if": "FELUCCA_FX_CHORUS"},
+      "FULL CHO": {"text": "No free chorus: bypassed", "if": "FELUCCA_FX_CHORUS"},
       "ECHO": {"text": "Echo, shared: free/avail", "if": "FELUCCA_INS_DELAY"},
       "FULL ECHO": {"text": "No free echo: bypassed", "if": "FELUCCA_INS_DELAY"}}},
     {"kind": "op", "ctx": "TEMPO", "params": {
@@ -451,26 +460,30 @@
       "CLK IN": {"text": "MIDI clock to follow", "if": "FELUCCA_MIDI_CLOCK"},
       "CLK OFS": {"text": "USB/TRS clock: steps earlier", "if": "FELUCCA_MIDI_CLOCK"},
       "BT OFS": {"text": "BLE clock: steps earlier (+)", "if": "FELUCCA_BLE"},
-      "CLK OUT": {"text": "Send MIDI clock out", "if": "FELUCCA_MIDI_CLKOUT"},
+      "CLK OUT": {"text": "Clock out: USB, BLE or both", "if": "FELUCCA_MIDI_CLKOUT"},
+      "LINK": {"text": "Link: off, tempo, tempo+play", "if": "FELUCCA_LINK"},
+      "LINK OFS": {"text": "Link clock: steps earlier", "if": "FELUCCA_LINK"},
       "MIDI IN": {"text": "MIDI in: notes or clock", "if": "FELUCCA_MIDI_INCLK"},
-      "MIDI OUT": {"text": "MIDI out: keys, both or seq", "if": "FELUCCA_MIDI_OUT"}}},
+      "MIDI OUT": {"text": "MIDI out: off/keys/seq/both", "if": "FELUCCA_MIDI_OUT"}}},
     {"kind": "op", "ctx": "CHANNELS", "params": {
       "TRK 1": "MIDI channel of track 1", "TRK 2": "MIDI channel of track 2", "TRK 3": "MIDI channel of track 3",
       "DRUMS": "MIDI channel of the drums"}},
     {"kind": "op", "ctx": "INFO", "params": {
-      "INFO": "K1: load now, max 5 s, max",
       "DROPS": "Late audio halves (gaps)", "UNDERRUNS": "USB audio, MIDI in lost",
       "GUARD": {"text": "What the CPU guard eases now", "if": "FELUCCA_CPU_GUARD"},
       "CLOCK": "CPU clock", "LOAD": "Audio load of the CPU", "CPU0": "Audio load of the first core",
       "CPU1": {"text": "2nd core's load, or why off", "if": "DUAL_LOAD"}}},
     {"kind": "op", "ctx": "INTERNALS", "params": {"INTERNALS": "Last reset, flash, 2nd core"}},
+    {"kind": "op", "ctx": "CPU TIMES", "if": "FELUCCA_SYS_DEBUG && DUAL_LOAD", "params": {"CPU TIMES": "Each core's time per block"}},
     {"kind": "op", "ctx": "USB STATS", "if": "FELUCCA_USB_AUDIO", "params": {"USB STATS": "USB audio glitch counters"}},
     {"kind": "op", "ctx": "GENERAL", "params": {
-      "BRIGHT": {"text": "Backlight (8: full)", "if": "FELUCCA_BRIGHT"},
       "KNOB COLORS": "Knob numbers in cap colours",
-      "LOWCUT": "Output low cut or bass boost", "FILT RESO": "Track filter resonance"}},
-    {"kind": "op", "ctx": "KEYS", "if": "FELUCCA_LIGHTS", "params": {
-      "BUTTONS": "Buttons glow in the dark", "KEYS": "Which keys glow"}},
+      "SPK LOWCUT": "Speaker's low cut, jack empty",
+      "HPHN BASS": "Bass boost, headphones in",
+      "DEBUG STATS": {"text": "Load, stacks to flash, 5 min", "if": "defined(PLAT_STATS_APP)"}}},
+    {"kind": "op", "ctx": "FILTER", "params": {"FILT RESO": "Track filter resonance"}},
+    {"kind": "op", "ctx": "USB", "if": "FELUCCA_USB_HOST", "params": {
+      "MODE": "HOST until power-off: no PC", "DEVICE": "The USB-MIDI device on it"}},
     {"kind": "op", "ctx": "USB", "if": "FELUCCA_CDC", "params": {"SERIAL": "USB serial console (restart)"}},
     {"kind": "op", "ctx": "BT MIDI", "if": "FELUCCA_BLE", "params": {
       "MODE": "AUTO: last device at start", "DEVICE": "SAVE connects / lets go",
@@ -484,13 +497,14 @@
       "DR1": "Drum lane 1 to USB inputs", "DR2": "Drum lane 2 to USB inputs", "DR3": "Drum lane 3 to USB inputs",
       "DR4": "Drum lane 4 to USB inputs", "DR5": "Drum lane 5 to USB inputs", "DR6": "Drum lane 6 to USB inputs",
       "DR7": "Drum lane 7 to USB inputs", "DR8": "Drum lane 8 to USB inputs", "DR9": "Drum lane 9 to USB inputs",
-      "DR10": "Drum lane 10 to USB inputs"}},
+      "DR10": "Drum lane 10 to USB inputs", "RET A": "FX return A to USB inputs",
+      "RET B": "FX return B to USB inputs", "RET C": "FX return C to USB inputs"}},
     {"kind": "op", "ctx": "CALIBRATE", "params": {
       "PANEL": "Teach buttons, knobs -> SAVE", "HOLD": "Time a press becomes a hold"}},
     {"kind": "op", "ctx": "ABOUT", "params": {
       "VERSION": "Firmware version and commit", "BUILD": "When this firmware was built",
       " ": "Source code on GitHub"}},
-    {"kind": "op", "ctx": "CREDITS", "params": {"CREDITS": "Whose work Optimist uses"}},
+    {"kind": "op", "ctx": "CREDITS", "params": {"CREDITS": "K1 scrolls"}},
     {"kind": "op", "ctx": "PROJECT", "params": {
       "ACTION": "Load or save, then a key", "ITEM": "Slot: turn or key (dim: free)",
       "NEW": "Blank project (slots kept)"}},
@@ -503,7 +517,6 @@
       "CLRSQ": "Clear the pattern -> SAVE", "INIT": "Reset the sound -> SAVE",
       "MISS": {"text": "What this build is missing", "if": "FELUCCA_MISSING_WARN"},
       "NEW": "New project: clears -> SAVE"}},
-    {"kind": "op", "ctx": "SLOOP", "if": "SL24_AUTO", "params": {"IMPORT": "Import SLOOP autosave -> SAVE"}},
     {"kind": "op", "ctx": "MEMORY", "if": "SEC_LOGGED", "params": {
       "USED": "Project memory used", "FREE": "Sections that still fit"}},
     {"kind": "op", "ctx": "KIT", "if": "DL_ANY", "params": {
@@ -527,15 +540,19 @@
       "ACCENT LANE": "Raises every hit of its step",
       "ACCENT LEVEL": "Accent amount added to hits"}},
     {"kind": "op", "ctx": "INSERTS", "params": {
-      "RET SEND": "Send this return into that"}},
+      "RET SEND": "Send this return into that", "RET LEVEL": "Return level into master",
+      "RET FX": "The effect this return plays", "RET PRE": "Insert before the effect",
+      "RET POST": "Insert after the effect"}},
     {"kind": "page", "ctx": "LFO 2", "params": {
-      "RATE": "LFO 2 rate (left: synced)", "WAVE": "LFO 2 wave", "TRIG": "LFO 2 restarts: note or free",
+      "RATE": "LFO 2 rate (left: synced)", "WAVE": "LFO 2 wave", "TRIG": "LFO 2 restart: NOTE FREE PLAY",
       "POL": "LFO 2: both ways or up only"}},
+    {"kind": "page", "ctx": "LFO2 PHS", "params": {
+      "PHS": "LFO 2 start phase (LFO: fine)", "FADE": "LFO 2 fade-in after restart"}},
     {"kind": "page", "ctx": "LFO2 DEST", "params": {
       "DST A": "What LFO 2 moves (slot A)", "AMT A": "How much LFO 2 moves A",
       "DST B": "What LFO 2 moves (slot B)", "AMT B": "How much LFO 2 moves B"}},
     {"kind": "op", "ctx": "LFO 2", "params": {
-      "RATE": "LFO 2 rate (left: synced)", "WAVE": "LFO 2 wave", "TRIG": "LFO 2 restarts: note or free",
+      "RATE": "LFO 2 rate (left: synced)", "WAVE": "LFO 2 wave", "TRIG": "LFO 2 restart: NOTE FREE PLAY",
       "POL": "LFO 2: both ways or up only"}},
     {"kind": "op", "ctx": "LFO2 DEST", "params": {
       "DST A": "What LFO 2 moves (slot A)", "AMT A": "How much LFO 2 moves A",
@@ -623,9 +640,11 @@
       "TAPE": {"text": "Tape tone: dark, wandering", "if": "FELUCCA_INS_TAPE"},
       "SPIT": {"text": "Spit: random band, driven", "if": "FELUCCA_INS_SPIT"},
       "XDLY": {"text": "Lyra dual delay: its mix", "if": "FELUCCA_INS_XDLY"},
+      "REV": {"text": "Reverb insert: dry/wet", "if": "FELUCCA_FX_REVERB"},
+      "DLY": {"text": "Delay insert: dry/wet", "if": "FELUCCA_FX_DELAY"},
       "EXGN": {"text": "Example gain insert (dB)", "if": "FELUCCA_EX_GAIN"},
       "WIDE": {"text": "Stereo width insert", "if": "FELUCCA_INS_WIDTH"},
-      "CHRS": {"text": "Chorus: mix, then depth", "if": "FELUCCA_INS_CHORUS"},
+      "CHO": {"text": "Chorus insert: dry/wet", "if": "FELUCCA_FX_CHORUS"},
       "ECHO": {"text": "Slapback: level, then repeats", "if": "FELUCCA_INS_DELAY"},
       "GATER": {"text": "Trance gate depth (in tempo)", "if": "FELUCCA_INS_GATER"},
       "JUNO": {"text": "Juno-106 chorus: its mix", "if": "FELUCCA_INS_JCHORUS"},

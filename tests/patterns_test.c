@@ -25,7 +25,9 @@
 #ifndef FELUCCA_MOTION
 #define FELUCCA_MOTION 1
 #endif
+#ifndef SEC_LOG_SECTORS
 #define SEC_LOG_SECTORS 8u                             /* (the log as the counts here assume: 8 sectors; a PATTERNS build has 32 / 20) */
+#endif   /* (-DSEC_LOG_SECTORS=7u: the fake SD mode's log, FELUCCA_LAYOUT 1) */
 #define main hostsim_main
 #include "hostsim.c"
 #undef main

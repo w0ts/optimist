@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* tests/ui_optimist_test.c, the USB input's insert slots on the mixer (op_mixer.c, fx_slots.c ut). Included by
  * ui_optimist_test.c after ui_optimist_mixer.h. */
-#if FELUCCA_USB_AUDIO && FELUCCA_INS_GATER && FELUCCA_INS_CHORUS
+#if FELUCCA_USB_AUDIO && FELUCCA_INS_GATER && INS_CHO
 /* the USB input's insert slots take every insert type (2026-10-15, the user: "any FX insert on the USB IN track, like any
  * other track"): its TYPE cards list them all; EQ3 in a slot: the row's USB EQ3 and USB EQ3 F sets (the input's own bands),
  * GATER: USB GATER (its own PAT RATE SHAPE), JUNO CHORUS: USB JUNO (its MODE); a pooled type with none free: the card's FULL,
@@ -32,10 +32,10 @@ static void usbfx_tests(void)
     go_home();
     ui.row[SCR_HOME] = MXR_USB;
     for (t = 1; t < FXT_N; t++)
-        n += (FXT_BUILT & FXT_INSERT) >> t & 1u;
+        n += (FXT_BUILT & FXT_INSLOT) >> t & 1u;
     d = ut_desc(UT_ID_TY, &vp);
     for (t = 0; d && t <= (uint32_t)d->max; t++)
-        ok &= ut_list[t] == FXT_NONE || ((FXT_BUILT & FXT_INSERT) >> ut_list[t] & 1u);
+        ok &= ut_list[t] == FXT_NONE || ((FXT_BUILT & FXT_INSLOT) >> ut_list[t] & 1u);
     check(d && (uint32_t)d->max == n && ok, "USB input: its S1 TYPE lists ---- and every insert type a track's does");
     ut_load(0, FXT_EQ3);
     ut_load(1, FXT_GATE);
@@ -92,26 +92,26 @@ static void usbfx_tests(void)
     check(s >= 0 && mx_labels(MXR_USB, (uint32_t)s, "MODE", 0, 0, 0) && ut_set_of("USB GATER") < 0,
           "... JUNO CHORUS on S2 (GATER out): the set USB JUNO (MODE), no USB GATER");
 #endif
-    {   /* the pool: CHRS on every track (the effects memory's own 8 KB hold 4 lines: run_tests.sh INSFX_ON), then on the
+    {   /* the pool: CHO on every track (the effects memory's own 8 KB hold 2 lines: run_tests.sh INSFX_ON), then on the
          * input's S1: FULL (dim), as a track's card */
-        static const uint8_t C2[2] = {FXT_CHRS, FXT_NONE};
+        static const uint8_t C2[2] = {FXT_CHO, FXT_NONE};
         for (k = 0; k < NTRK; k++)
             ins_put(k, C2);
         fxi_poll(), frame();                            /* (the main loop's pass: fxi.c) */
-        ut_load(0, FXT_CHRS);
+        ut_load(0, FXT_CHO);
         ut.amt[0] = 100;
         fxi_poll(), fxi_poll(), frame();
         s = ut_set_of("INSERT");
         mx.set = (uint8_t)(s < 0 ? 0 : s);
         mix_cell(MXR_USB, 0, &c);
-        check(s >= 0 && c.label && !strcmp(c.label, "S1 CHRS") && !strcmp(c.val, "CHRS") && c.strike && c.dim,
-              "... CHRS on S1 with every instance taken: the card S1 CHRS, the name struck through, dim (as a track's)");
+        check(s >= 0 && c.label && !strcmp(c.label, "S1 CHO") && !strcmp(c.val, "CHO") && c.strike && c.dim,
+              "... CHO on S1 with every instance taken: the card S1 CHO, the name struck through, dim (as a track's)");
         ui.force = 1, frame(), ppm("opt-usbfx-full");
         ins_defaults();
         for (k = 0; k < 30u; k++)
             fxi_poll(), frame();                        /* (the tracks' fade out, then theirs back, the input's handed out) */
         mix_cell(MXR_USB, 0, &c);
-        check(!c.strike && !c.dim, "... a track's CHRS gone: the input's card heard again (not struck)");
+        check(!c.strike && !c.dim, "... a track's CHO gone: the input's card heard again (not struck)");
     }
     ut_defaults();
     eq3_defaults();

@@ -5,7 +5,7 @@
 # Exports BASE_REV into build/ab/base, then builds the same host renders from it (A) and from this tree (B) and
 # compares what they print:
 #   - tests/regress.c in several configurations (the default, the X0X kits, every backported engine and effect,
-#     the SLOOP 2.3 switches, SLICE, REV_HALF, the original ANALOG/SUPER of ANALOG2=0): every golden render's
+#     the SLOOP 2.3 switches, SLICE, the original ANALOG/SUPER of ANALOG2=0): every golden render's
 #     hash (GOLDEN_UPDATE into a scratch file) must be the same;
 #   - tests/skip_test.c (the FX buses, gain ramps, flips mid-sound) in the same configurations: the same hashes;
 #   - tests/x0x_drums_test.c: every X0X 909 / 808 note's WAV, byte for byte.
@@ -20,7 +20,7 @@ mkdir -p "$AB/base" "$AB/out"
 git archive "$BASE" | tar -x -C "$AB/base"
 CC="${CC:-cc} -O2 -w"
 X0X_ON="-DFELUCCA_DRUM_X909=1 -DFELUCCA_DRUM_X808=1"
-BP_ON="-DFELUCCA_CHANCE=1 -DFELUCCA_KEYLIT=1 -DFELUCCA_QNT_SEQ=1 -DFELUCCA_SPRING=1 -DFELUCCA_BASSPLUS=1 -DFELUCCA_BRIGHT=1 -DFELUCCA_MOTION=1 -DFELUCCA_ENG_PHYS=1 -DFELUCCA_ENG_ACID=1 -DFELUCCA_ENG_CZ=1 -DFELUCCA_SECTIONS=4"
+BP_ON="-DFELUCCA_CHANCE=1 -DFELUCCA_QNT_SEQ=1 -DFELUCCA_SPRING=1 -DFELUCCA_MOTION=1 -DFELUCCA_ENG_PHYS=1 -DFELUCCA_ENG_ACID=1 -DFELUCCA_ENG_CZ=1 -DFELUCCA_SECTIONS=4"
 fail=0
 for side in base this; do
     root=$AB/base; [ $side = this ] && root=.
@@ -28,7 +28,7 @@ for side in base this; do
 done
 n=0
 for cfg in "" "$X0X_ON" "$BP_ON" "$X0X_ON -DFELUCCA_ENG_ACID=1" "-DFELUCCA_ENG_SLICE=1" \
-           "-DFELUCCA_REV_HALF=1 -DFELUCCA_SPRING=1" "-DFELUCCA_ANALOG2=0" "-DFELUCCA_USB_AUDIO=1"; do
+           "-DFELUCCA_SPRING=1" "-DFELUCCA_ANALOG2=0" "-DFELUCCA_USB_AUDIO=1"; do
     n=$((n + 1))
     for side in base this; do
         root=$AB/base; [ $side = this ] && root=.

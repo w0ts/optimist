@@ -110,7 +110,8 @@ static const uint8_t MOT_TAIL[MOT_NTAIL] = {
 #endif
 };
 /* the stored tail's second range (2026-10-18: the first was full at AUTO_MUTE0), auto.h AUTO_TAIL2 .. (0xCC ..): the
- * track's DYN settings RATIO ATK REL GAIN CEIL (fx_slots.c: track values since), XDLY's MIX (2026-10-22: +5) */
+ * track's DYN settings RATIO ATK REL GAIN CEIL (fx_slots.c: track values since), XDLY's MIX (2026-10-22: +5), ROOM's and
+ * TDLY's (2026-10-29: +9, +10) */
 static const uint8_t MOT_TAIL2[] = {
 #if FELUCCA_MASTER_COMP
     P_TDRAT, P_TDATK, P_TDREL, P_TDGAIN, P_TDCEIL,
@@ -127,8 +128,11 @@ static const uint8_t MOT_TAIL2[] = {
 #else
     P_COUNT, P_COUNT, P_COUNT,
 #endif
+    P_COUNT, P_COUNT,                                        /* (ROOM's and TDLY's MIX, +9 +10, 2026-10-29: the REV and DLY
+                                                              * inserts' MIX is P_REV P_DLY since, their own ids; kept
+                                                              * here as none so EXGN's stays +11) */
 #if FELUCCA_EX_GAIN
-    P_TEXGN,                                                 /* (EXGN's GAIN, the example insert: +9, only in its builds; a
+    P_TEXGN,                                                 /* (EXGN's GAIN, the example insert: +11, only in its builds; a
                                                               * value added for good goes before it, as P_COUNT where not built) */
 #endif
 };
@@ -240,7 +244,7 @@ static uint8_t seq_skip[NTRK];           /* the step playing failed its conditio
 #if FELUCCA_LANE_FX
 /* the drum lanes' FX in force (auto.h AUTO_IS_LFX; i = page x 4 + the value on it), read from the list at each drum step (auto_step), so an
  * edit, a load or a pattern switch is heard at the next step: [lane][param - AUTO_COND] ROLL NUDGE FILL CHANCE */
-enum { LFX_I_ROLL, LFX_I_NUDGE, LFX_I_FILL, LFX_I_CHANCE, LFX_I_VRND, LFX_I_FLAM, LFX_I_RAMP, LFX_I_EVERY, LFX_N };
+enum { LFX_I_ROLL, LFX_I_NUDGE, LFX_I_FILL, LFX_I_CHANCE, LFX_I_VRND, LFX_I_FLAM, LFX_I_RAMP, LFX_I_EVERY, LFX_I_CHACC, LFX_I_X1, LFX_I_X2, LFX_I_X3, LFX_N };
 _Static_assert(LFX_N == 4u * LFX_PAGES, "four values a page");
 static int8_t lfx_v[LFX_LANES][LFX_N];
 static uint32_t lfx_eabs = SEQ_NONE;    /* the step (seq_abs) the early lanes were decided for (lane_fx.c; STOP: none) */
@@ -355,8 +359,15 @@ static uint32_t auto_step(track_t *t, uint32_t idx)
             continue;
         }
         if (AUTO_IS_MUTE(e->param)) {                /* (a muted note: before the lanes and mot_id, which have no such id) */
-            if ((e->place & AUTO_ONLY) && e->value)
-                auto_muted[k] |= (uint16_t)(e->param == AUTO_SMUTE ? AUTO_MUTED_SYN : 1u << (e->param - AUTO_MUTE0));
+            if ((e->place & AUTO_ONLY) && e->value) {
+                uint32_t v = (uint32_t)(uint8_t)e->value, drop = e->param == AUTO_SMUTE || v < AUTO_LF_FILL;   /* (a lane's value 2 / 3: its fill condition,
+                                                         * the hit is dropped in a fill or out of one; a synth step's fill is the step's own) */
+#if FELUCCA_FILLS
+                drop = drop || (v == AUTO_LF_FILL && !fill_now) || (v == AUTO_LF_NOFILL && fill_now);
+#endif
+                if (drop)
+                    auto_muted[k] |= (uint16_t)(e->param == AUTO_SMUTE ? AUTO_MUTED_SYN : 1u << (e->param - AUTO_MUTE0));
+            }
             continue;
         }
 #if DLA_ON
@@ -573,7 +584,41 @@ static int step_muted(const track_t *t, uint32_t idx, uint32_t l)
 {
     int32_t v;
     uint32_t id = is_drum(t) ? AUTO_MUTE(l) : AUTO_SMUTE;
-    return (is_drum(t) ? l < DRUM_LANES : 1) && auto_get(AL(t), (idx % NSTEP) | AUTO_ONLY, id, &v) && v;
+    return (is_drum(t) ? l < DRUM_LANES : 1) && auto_get(AL(t), (idx % NSTEP) | AUTO_ONLY, id, &v) && (is_drum(t) ? v == 1 : v != 0);
+}
+/* drum lane l's hit in step idx, as its AUTO_MUTE(l) event keeps it: 0 none, 1 muted, AUTO_LF_FILL (FILL ONLY), AUTO_LF_NOFILL (NO FILL) */
+static uint32_t step_lev(const track_t *t, uint32_t idx, uint32_t l)
+{
+    int32_t v;
+    return is_drum(t) && l < DRUM_LANES && auto_get(AL(t), (idx % NSTEP) | AUTO_ONLY, AUTO_MUTE(l), &v) && v > 0 && v <= (int32_t)AUTO_LF_NOFILL ? (uint32_t)v : 0u;
+}
+/* ... set (0: no event); 0 the list is full (the IRQ off) */
+static int step_lev_set(track_t *t, uint32_t idx, uint32_t l, uint32_t v)
+{
+    uint32_t pl = (idx % NSTEP) | AUTO_ONLY;
+    int i;
+    if (!is_drum(t) || l >= DRUM_LANES)
+        return 0;
+    if (v) {
+        if (auto_put(AL(t), pl, AUTO_MUTE(l), (int32_t)v) < 0)
+            return 0;
+    } else if ((i = auto_find(AL(t), pl, AUTO_MUTE(l))) >= 0) {
+        auto_del(AL(t), (uint32_t)i);
+    }
+    auto_touch(trk_index(t));
+    return 1;
+}
+/* lane l's fill condition in step idx (FC_NORM, FC_FILL, FC_NOFILL; a muted hit: NORM) and set it (a muted hit takes it in the mute's place) */
+static uint32_t step_lane_fc(const track_t *t, uint32_t idx, uint32_t l)
+{
+    uint32_t v = step_lev(t, idx, l);
+    return v >= AUTO_LF_FILL ? v - 1u : FC_NORM;
+}
+static int step_lane_fc_set(track_t *t, uint32_t idx, uint32_t l, uint32_t fc)
+{
+    if (fc == FC_NORM)
+        return step_lev(t, idx, l) == 1u ? 1 : step_lev_set(t, idx, l, 0);   /* (a mute stays) */
+    return step_lev_set(t, idx, l, fc + 1u);
 }
 /* mute it (1) or not (0); -> 0 the list is full (the IRQ off) */
 static int step_mute_set(track_t *t, uint32_t idx, uint32_t l, uint32_t on)
@@ -585,8 +630,8 @@ static int step_mute_set(track_t *t, uint32_t idx, uint32_t l, uint32_t on)
     if (on) {
         if (auto_put(AL(t), pl, id, 1) < 0)
             return 0;
-    } else if ((i = auto_find(AL(t), pl, id)) >= 0) {
-        auto_del(AL(t), (uint32_t)i);
+    } else if ((i = auto_find(AL(t), pl, id)) >= 0 && (!is_drum(t) || step_lev(t, idx, l) == 1u)) {
+        auto_del(AL(t), (uint32_t)i);                /* (a lane's fill condition is no mute: it stays) */
     }
     auto_touch(trk_index(t));
     return 1;

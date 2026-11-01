@@ -18,11 +18,16 @@
 #define FELUCCA_ARRANGER 1
 #ifdef MIRROR_CHECK
 #define FELUCCA_ED_MIRROR 1             /* (the mixer's meters to the client at most every 100 ms: op_mixdraw.c mx_vu_at) */
+#define MIR_SKIP 1                      /* (the segment skip: off in the firmware by default, checked here on the whole run) */
 #endif
 #define STP_PAT 0u                      /* STEP's first row, PATTERN (no LANE page after it since 2026-10-14) */
 #define STP_DR_TL (STP_TL + (STP_TL && FELUCCA_GEN_GRIDS ? 1u : 0u))   /* DR itself (no lane picked): GRIDS and DENSITY in GEN's place */
 #if FELUCCA_PATTERNS
 #define FELUCCA_FLASH 1                 /* (the section log: phase 4's switch set) */
+#endif
+#if UI_FMEM                                              /* (the switchable features' build: BT AUDIO lent by the arena) */
+#define FELUCCA_BTA_LEND 1
+#include "fmem_fake.h"
 #endif
 #define main hostsim_main
 #include "hostsim.c"
@@ -35,14 +40,64 @@ static uint16_t screen[240 * 240];
 static void lcd_sync(void) {}
 static uint32_t band_y = 240u, band_hits;               /* the help band's first row (op_graph.c OP_FOOT_Y, set in main), and
                                                          * the blits that reached it besides the line's own (ui_optimist_geometry.h) */
+static uint32_t gl_info_wide(void);                     /* op_gldraw.c: SYSTEM > INFO's first page has no help band: its rows run to the foot */
 static uint32_t probe_hits;                             /* the blits that cover the probe pixel (120, 180): inside PRESETS' popup, a flash when more than one a frame */
 static uint32_t blit_px;                                /* the pixels sent (ui_optimist_slowframe.h: a step press sends its column) */
+/* the memory line's rows (0-1, ui_optimist_memline.h): while top_on, every pixel any write puts there is held against top_want
+ * (the line as it must stay, swapped as the screen holds it); top_bad counts the writes that put another colour there, a
+ * flash on the FM-1 even when a later write puts the line back the same frame. top_head: the header's transfers (y 0, 25 rows) */
+static uint8_t top_on;
+static uint16_t top_want[240];
+static uint32_t top_bad, top_head;
+static void top_see(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint16_t *p, uint16_t c)
+{
+    uint32_t i, j, bad = 0;
+    if (!top_on || y >= 2u)
+        return;
+    top_head += x == 0u && y == 0u && w == 240u && h == 25u;
+    for (j = y; j < 2u && j < y + h; j++)
+        for (i = 0; i < w; i++)
+            bad |= (p ? p[(j - y) * w + i] : c) != top_want[x + i];
+    top_bad += bad;
+}
+/* a flash (ui_optimist_prefilter.h): while fl_on, a pixel under the header (y >= fl_y0) that one frame writes with two different
+ * colours, shown one then the other on the FM-1's panel (it sees every transfer); fl_bad counts such pixels, fl_ylo / fl_yhi
+ * the rows they are in. Each frame starts afresh (frame) */
+static uint8_t fl_on, fl_n[240u * 240u];
+static uint16_t fl_v[240u * 240u];
+static uint32_t fl_bad, fl_y0 = 25u, fl_ylo = 240u, fl_yhi;
+static void fl_see(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint16_t *p, uint16_t c)
+{
+    uint32_t i, j, a;
+    uint16_t v;
+    if (!fl_on)
+        return;
+    for (j = 0; j < h; j++) {
+        if (y + j < fl_y0)
+            continue;
+        for (i = 0; i < w; i++) {
+            a = (y + j) * 240u + x + i;
+            v = p ? p[j * w + i] : c;
+            if (fl_n[a] == 1u && fl_v[a] != v) {
+                fl_n[a] = 2u;                           /* (counted once) */
+                fl_bad++;
+                fl_ylo = y + j < fl_ylo ? y + j : fl_ylo;
+                fl_yhi = y + j > fl_yhi ? y + j : fl_yhi;
+            } else if (!fl_n[a]) {
+                fl_n[a] = 1u;
+                fl_v[a] = v;
+            }
+        }
+    }
+}
 #ifdef MIRROR_CHECK
 /* MIRROR_CHECK: every write also through the mirror's encoder (io/editor/ed_mirror_enc.h) and the client's decoder (mirror_dec.h):
  * at the end the decoded screen is this one (tests/run_tests.sh, ED_MIRROR) */
 #include "mirror_dec.h"
 static uint8_t mc_f[512];
+static uint32_t mc_drop, mc_in_fix;                                /* checked frames still to lose on the way (mc_fix_check) */
 static uint32_t mc_n, mc_frames, mc_bytes, mc_bad;
+static int mc_trace_off;                                /* (a catch-up: not recorded, its bytes not counted in the comparison) */
 static int mir_wire(uint32_t b)
 {
     if (mc_n < sizeof mc_f)
@@ -51,36 +106,83 @@ static int mir_wire(uint32_t b)
 }
 static void mir_wire_end(void)
 {
-    mc_bad += !md_frame(mc_f, mc_n);
+    static FILE *wf;
+    static int wtried;
+    if (!wtried) {                                      /* MIRROR_WIRE=FILE: the frames as sent, F0 .. F7 each (to measure a coding on them) */
+        const char *path = getenv("MIRROR_WIRE");
+        wtried = 1;
+        wf = path ? fopen(path, "wb") : 0;
+    }
+    if (wf && !mc_trace_off)
+        fwrite(mc_f, 1, mc_n, wf);
+    if (getenv("FIX_WHERE") && mc_in_fix && mc_n > 14u && (mc_f[5] == 8u || mc_f[5] == 9u))
+        fprintf(stderr, "FIXW op%u %u,%u %ux%u len%u\n", mc_f[5], mc_f[6] | mc_f[7] << 7, mc_f[8] | mc_f[9] << 7, mc_f[10] | mc_f[11] << 7,
+                mc_f[12] | mc_f[13] << 7, mc_n);
+    if (mc_drop && mc_n > 9u && mc_f[5] >= 8u) {
+        mc_drop--;                                      /* (lost on the way: never decoded) */
+    } else {
+        uint32_t d0 = md.dropped;
+        int ok = md_frame(mc_f, mc_n);
+        mc_bad += !ok && md.dropped == d0;              /* (a MORE dropped after a gap: the client's own rule, not bad) */
+    }
     mc_frames++, mc_bytes += mc_n;
     mc_n = 0;
 }
 #include "../firmware/src/io/editor/ed_mirror_enc.h"
 static uint8_t mir_mute;                                /* (display/lcd.c's: a meter not due) */
 static uint32_t mc_meter_ms, mc_meter_sends, mc_meter_now;
+static int mc_bt = -1;                                  /* MIRROR_BT=1: the client over Bluetooth (no meters: ed_mirror.c) */
+static int mc_is_bt(void) { if (mc_bt < 0) mc_bt = getenv("MIRROR_BT") != 0; return mc_bt; }
 static uint32_t mir_meters_due(void)                    /* (ed_mirror.c's, the client always there; mc_meter_now: a window now) */
 {
+    if (mc_is_bt())
+        return 0;
     if (fm1_ms - mc_meter_ms < 100u && !mc_meter_now)
         return 0;
     mc_meter_ms = fm1_ms;
     mc_meter_sends++;
     return 1;
 }
-static uint32_t mir_meters_off(void) { return 0; }    /* (USB here: Bluetooth's empty meters, mirror_test.c) */
-static void mir_blit(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint16_t *p) { mir_enc_blit(x, y, w, h, p); }   /* (gfx.c cv_mirror) */
+static uint32_t mir_meters_off(void) { return (uint32_t)mc_is_bt(); }   /* (USB unless MIRROR_BT: Bluetooth's empty meters, mirror_test.c) */
+static void mir_blit(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint16_t *p) { mir_enc_blit_skip(x, y, w, h, p); }   /* (gfx.c cv_mirror) */
+/* MIRROR_TRACE=FILE: every write the mirror sends, recorded (B x y w h, the pixels; F x y w h c; u16 each) to replay it
+ * through another encoder and compare the bytes */
+static void mc_trace(uint16_t op, uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint16_t *p, uint16_t c)
+{
+    static FILE *f;
+    static int tried;
+    uint16_t hd[6] = {op, (uint16_t)x, (uint16_t)y, (uint16_t)w, (uint16_t)h, c};
+    if (!tried) {
+        const char *path = getenv("MIRROR_TRACE");
+        tried = 1;
+        f = path ? fopen(path, "wb") : 0;
+    }
+    if (!f || mc_trace_off)
+        return;
+    fwrite(hd, sizeof hd, 1, f);
+    if (p)
+        fwrite(p, 2, w * h, f);
+}
 #endif
+static uint32_t hp_head_px, hp_head_full;               /* (ui_optimist_headpos.h) */
 static void lcd_blit(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint16_t *p)
 {
     uint32_t i, j;
 #ifdef MIRROR_CHECK
-    if (!mir_mute)
-        mir_enc_blit(x, y, w, h, p);
+    if (!mir_mute) {
+        mir_enc_blit_skip(x, y, w, h, p);
+        mc_trace('B', x, y, w, h, p, 0);
+    }
 #endif
     blit_px += w * h;
+    hp_head_px += y < 25u ? w * (y + h > 25u ? 25u - y : h) : 0u;
+    hp_head_full += y < 25u && w == 240u;
+    top_see(x, y, w, h, p, 0);
+    fl_see(x, y, w, h, p, 0);
     if (x <= 120u && 120u < x + w && y <= 180u && 180u < y + h)
         probe_hits++;
     assert(x + w <= 240 && y + h <= 240);
-    if (y + h > band_y && !(x == 0u && y == band_y && w == 240u && h == 240u - band_y))
+    if (y + h > band_y && !gl_info_wide() && !(x == 0u && y == band_y && w == 240u && h == 240u - band_y))
         band_hits++;
     for (j = 0; j < h; j++)
         for (i = 0; i < w; i++)
@@ -93,9 +195,12 @@ static void lcd_fill(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint16_t c)
     uint32_t i, j;
     assert(x + w <= 240 && y + h <= 240);
 #ifdef MIRROR_CHECK
-    mir_enc_fill(x, y, w, h, c);
+    mir_enc_fill_skip(x, y, w, h, c);
+    mc_trace('F', x, y, w, h, 0, c);
 #endif
     full_fills += w == 240u && h == 240u;
+    top_see(x, y, w, h, 0, swap16(c));
+    fl_see(x, y, w, h, 0, swap16(c));
     for (j = 0; j < h; j++)
         for (i = 0; i < w; i++)
             screen[(y + j) * 240 + x + i] = swap16(c);
@@ -105,10 +210,8 @@ static uint32_t fm1_ticks(void) { return fm1_ms * 1000u * 24u; }
 #define FM1_TICKS_PER_US 24u
 static int32_t fm1_enc_take(uint32_t e) { int32_t s = encs[e]; encs[e] = 0; return s; }
 static uint8_t fm1_led[16], fm1_led_dim[16], fm1_led_half[16];
-#if FELUCCA_LIGHTS
 static uint8_t fm1_led_bg[16];
 static uint16_t fm1_led_bg_ns;
-#endif
 #define FM1_NCOL 16u
 static int8_t FM1_KEYMAP[5][16];                      /* (filled in main: every button and key one LED place) */
 static void fm1_led_key(uint32_t id, int on) { (void)id; (void)on; }
@@ -136,6 +239,9 @@ static uint8_t dual_mode;                      /* the 2ND CORE setting */
 static struct { uint8_t up, why, boot_mode; } dual;   /* up, DUAL_* why it is down, the setting this boot started with */
 #endif
 #include "../firmware/src/ui/optimist/optimist.c"
+#if WIFI_UI
+#include "wifi_ui_stubs.h"                    /* the Wi-Fi manager's stand-ins, then ui/optimist/op_wifi.c (felucca.c includes it after the console) */
+#endif
 /* the stores the UI calls. With FELUCCA_PATTERNS (phase 4's switch set: SONG, the scenes, the patterns) the real
  * section log on a simulated NOR (as tests/patterns_ui_test.c), else doubles that count */
 static uint32_t saves, loads, up_ops[3];
@@ -184,8 +290,6 @@ static uint32_t section_bars(uint32_t s) { (void)s; return 1; }
 #endif
 #if FELUCCA_SL24_SAFE
 static uint32_t project_state(uint32_t s) { return (uint32_t)project_used(s); }
-static uint32_t a24_imports;
-static void sl24_auto_import(void) { a24_imports++; }
 #endif
 static void project_save(uint32_t i) { (void)i; saves++; ui_message("SAVED"); }
 static void project_load(uint32_t i) { (void)i; loads++; ui_message("LOADED"); }
@@ -227,6 +331,7 @@ static uint32_t nb_list_of(uint32_t kind, uint32_t *rank, uint32_t n, uint32_t *
 }
 static uint32_t nb_kind_at(uint32_t i) { return i + 1u; }
 static uint32_t nb_engine_slot(uint32_t kind) { return kind == 1u ? 0u : 1u; }
+static int nb_factory(uint32_t kind, uint32_t k) { return kind == 1u && k < 2u; }   /* (kind 1: two built-in slots, the third filled, for the filters) */
 #endif
 #if !FELUCCA_PATTERNS                                    /* (project.c is in the TU with the section log only: NEW PROJECT's blank load of the FX and the automation) */
 static int fxr_decode(const uint8_t *a, uint32_t n, int all) { (void)a; (void)n; (void)all; return 0; }
@@ -249,6 +354,10 @@ static uint32_t kit_tmp[4096 / 4];
 #define UK_HOST 1
 #define UK_TMP ((ukit_bank_t *)(void *)kit_tmp)
 #include "../firmware/src/drums/drum_kits.c"
+#endif
+
+#if UI_SDCARD
+#include "ui_optimist_sdcard_env.h"                     /* SD card mode: the card model under the card's modules and sd_mode.c */
 #endif
 
 static const char *outdir;
@@ -294,6 +403,8 @@ static void frame(void)                                 /* one UI frame (~16 ms)
     uint32_t q;
     static int32_t o[CTL * 2];
     static int hashing = -1;
+    if (fl_on)
+        memset(fl_n, 0, sizeof fl_n);                   /* (a flash is within one frame) */
     for (q = 0; q < 22u; q++)
         mix_block(o, CTL);
     ui_input();
@@ -316,6 +427,17 @@ static uint32_t BT(uint32_t b) { return 1u << panel.btn[b]; }
 static void press(uint32_t b) { fm1_btn_t[0][panel.btn[b]] = fm1_ticks(); edges_btn |= BT(b); fm1_in.buttons |= BT(b); frame(); }
 static void release(uint32_t b) { fm1_btn_t[1][panel.btn[b]] = fm1_ticks(); fm1_in.buttons &= ~BT(b); frame(); }
 static void tap(uint32_t b) { press(b); release(b); }
+/* YES on a held step's lock cell: with FILLS built SHIFT2 (OCT+) + SAVE (SAVE alone is the fill condition) */
+static void tap_lock(void)
+{
+#if FELUCCA_FILLS
+    press(B_OCTUP);
+#endif
+    tap(B_SAVE);
+#if FELUCCA_FILLS
+    release(B_OCTUP);
+#endif
+}
 /* a turn of s detents: slow (80 ms a detent) when the knobs accelerate (FELUCCA_KNOB_ACCEL, a build such as the user's):
  * the tests count detents, the acceleration has its own (knob_accel_test.c). The time since the knob's last detent is set,
  * the clock does not move. */
@@ -337,11 +459,11 @@ static void check(int ok, const char *what) { printf("optimist ui: %-72s %s\n", 
 #define RING_FRAMES ((RH_CLEAR_MS + 40u) / 16u + 2u)    /* (a delete's ring held to its end: frames of 16 ms) */
 static void reset_ui(void)
 {
-#if FELUCCA_FAVORITES
-    fav_list = 0;                                       /* (LIST ALL: a favorites test leaves the list filtered otherwise) */
-#endif
+    pl_filt = PLF_ALL;                                  /* (the list unfiltered: a filter's test leaves it filtered otherwise) */
+    memset(rt_mem, 0, sizeof rt_mem);                  /* (the returns' pages open on their first, op_mixer.c) */
     fm1_in.buttons = 0;
     fm1_in.notes = 0;
+    glo_last = SCR_GLOBAL;                              /* (a power-on's: GLO opens GLOBAL first, op_global.c) */
     op_disarm();
     ui.msg_t = 0;
     st.pk = PK_NONE;                                    /* (no note picked: its selection colour would show on the next roll) */
@@ -404,7 +526,7 @@ static void forms_of(uint32_t scr)
             name = (c.label && !strcmp(c.label, "PRESET")) ||
                    (scr == SCR_HOME && c.label && (!strcmp(c.label, "SOUND") || !strcmp(c.label, "KIT"))) ||
                    (c.d && c.d->max == c.d->min) ||
-                   (scr == SCR_SYSTEM && c.kind == CK_RO && c.label && (!strcmp(c.label, "VERSION") || !strcmp(c.label, "INFO") || !strcmp(c.label, "INTERNALS") || !strcmp(c.label, "USB STATS") || !strcmp(c.label, "CREDITS") ||
+                   (scr == SCR_SYSTEM && c.kind == CK_RO && c.label && (!strcmp(c.label, "VERSION") || !strcmp(c.label, "INFO") || !strcmp(c.label, "INTERNALS") || !strcmp(c.label, "USB STATS") || !strcmp(c.label, "CPU TIMES") || !strcmp(c.label, "CREDITS") ||
                                                                  !strcmp(c.label, "BUILD") || !strcmp(c.label, "STATE") ||
                                                                  !strcmp(c.label, "DEVICE") || !strcmp(c.label, "ACTIVITY") ||
                                                                  !strcmp(c.label, "FORMAT") ||
@@ -413,6 +535,9 @@ static void forms_of(uint32_t scr)
                                                          * names, text only) */
                    (scr == SCR_SYSTEM && (sys_item_of(r, k) == SI_BLE || sys_item_of(r, k) == SI_BTA)) ||   /* (BT MIDI's and BT
                                                          * AUDIO's MODE: OFF, MAN, AUTO, words) */
+#if WIFI_UI
+                   (scr == SCR_SYSTEM && sys_item_of(r, k) >= SI_WFMODE && sys_item_of(r, k) <= SI_WFSIG) ||   /* (WI-FI's MODE, NETWORK, SIGNAL: words) */
+#endif
                    (scr == SCR_SONG && !(c.val[0] >= '0' && c.val[0] <= '9'));   /* (SONG: "KEEP", "--", "SEC") */
             if ((c.kind == CK_VAL || c.kind == CK_RO) && !name && c.gk == GK_NONE) {
                 printf("  no form: screen %u row %u cell %u '%s'\n", scr, r, k, c.label ? c.label : "");
@@ -476,15 +601,30 @@ static void fxpool_tests(void)
     go_home();
     ui.row[SCR_HOME] = MXR_MASTER;
     tap(B_FX);
-    check(ui.scr == SCR_FX && fx_row_of("SLOTS") >= 0 && fx_row_of("RET AMT") >= 0 && fx_row_of("RET EQ3") >= 0 &&
-          fx_row_of("RET EQ3 F") >= 0, "fx-pool: EQ3 on A, PHSR on C: the master FX screen has SLOTS, RET AMT, RET EQ3, RET EQ3 F");
-    ui.row[SCR_FX] = (uint8_t)fx_row_of("SLOTS"), ui.force = 1, frame(), ppm("opt-fxpool-slots");
-    ui.row[SCR_FX] = (uint8_t)fx_row_of("RET AMT"), ui.force = 1, frame(), ppm("opt-fxpool-retamt");
-    ui.row[SCR_FX] = (uint8_t)fx_row_of("RET EQ3"), ui.force = 1, frame(), ppm("opt-fxpool-reteq3");
-    r = fx_row_of("RETURNS");
-    ui.row[SCR_FX] = (uint8_t)(r < 0 ? 0 : r), ui.force = 1, frame(), ppm("opt-fxpool-returns");
-    fxs_cell((uint32_t)ui.row[SCR_FX], 2, &c);
-    check(r >= 0 && c.label && !strcmp(c.label, "PHSR RT"), "... RETURNS' card 3 (C, line 0) named PHSR RT (the return's type)");
+    check(ui.scr == SCR_FX && !ui.fxo && fx_row_of("SLOTS") < 0 && fx_row_of("RET AMT") < 0 && fx_row_of("RET EQ3") < 0,
+          "fx-pool: EQ3 on A, PHSR on C: the master FX screen has none of the returns' pages (their own, 2026-10-30)");
+    go_home();
+    mx_apply(MXR_RET0);
+    tap(B_EDIT);                                        /* RET A (EQ3): its EDIT pages, FX then RET EQ3, RET EQ3 F */
+    {
+        uint32_t k, n = SCR->rows(), eq = 0;
+        char nm[16];
+        for (k = 0; k < n; k++) {
+            SCR->name(k, nm);
+            eq += !strcmp(nm, "RET EQ3") || !strcmp(nm, "RET EQ3 F");
+            if (!strcmp(nm, "RET EQ3"))
+                ui.row[SCR_FX] = (uint8_t)k, ui.force = 1, frame(), ppm("opt-fxpool-reteq3");
+        }
+        check(ui.scr == SCR_FX && ui.fxo == 1u && eq == 2u, "... RET A's EDIT pages: RET EQ3 and RET EQ3 F (its effect EQ3)");
+    }
+    go_home();
+    mx_apply(MXR_RET0 + 2u);
+    tap(B_EDIT);                                        /* RET C (PHSR): its FX row, TYPE and the amount */
+    ui.force = 1, frame(), ppm("opt-fxpool-retamt");
+    SCR->cell(0, 0, &c);
+    r = !strcmp(c.val, "PHSR");
+    SCR->cell(0, 1, &c);
+    check(ui.fxo == 3u && r && c.d != 0, "... RET C's FX row: PHSR, then its amount (a type not a send)");
     ins_put(0, s);
     song.sel = 0;
     go_home();
@@ -800,7 +940,7 @@ static void key_tests(void)
     tap(B_HOME);
     check(ui.scr == SCR_HOME, "HOME tapped: NO, back to the mixer");
     tap(B_HOME);
-    check(ui.scr == SCR_SCOPE, "HOME at the root: the scope [P]");
+    check(ui.scr == SCR_SCOPE, "HOME at the root: the scope [P] (2026-10-31: for any row)");
     tap(B_HOME);
     check(ui.scr == SCR_HOME, "HOME on the scope: the mixer again");
     ui.row[SCR_HOME] = MXR_MASTER;
@@ -814,7 +954,7 @@ static void key_tests(void)
     ui.force = 1;
     frame();
     ppm("opt-fx");
-    {   /* FX tapped, then ALGORITHM left past T1: the global FX screen, and back */
+    {   /* FX tapped, then ALGORITHM left past T1: the global FX screen (MASTER), on: the returns' FX pages, and back */
         char h[40];
         uint32_t n, r;
         reset_ui();
@@ -827,7 +967,7 @@ static void key_tests(void)
         turn(EN_ALGO, -1);
         check(song.sel == 0 && ui.scr == SCR_SOUND, "... and back to T1");
         turn(EN_ALGO, -1);
-        check(ui.scr == SCR_FX, "ALGORITHM left past T1: the global FX screen");
+        check(ui.scr == SCR_FX && !ui.fxo, "ALGORITHM left past T1: the global FX screen (MASTER)");
         head_title(SCR_FX, ui.row[SCR_FX], h, sizeof h);
         check(!strcmp(h, "Insert"), "its header names it (Insert under the MASTER badge, the first page: the inserts)");
         n = SCR->rows();
@@ -837,7 +977,12 @@ static void key_tests(void)
         tap(B_FX);
         check(ui.scr == SCR_FX && ui.row[SCR_FX] == 0u, "... past the last: the first again (a button again wraps)");
         turn(EN_ALGO, -1);
-        check(ui.scr == SCR_FX, "ALGORITHM left on it: stays (nothing wraps)");
+        check(ui.scr == SCR_FX && ui.fxo == 3u && rt_fam == RF_FX && walk_pos(0) == MXR_RET0 + 2u,
+              "ALGORITHM left on it: RET C's FX pages (a return a track, 2026-10-30: its PRE POST inserts and its sends)");
+        turn(EN_ALGO, -5);
+        check(ui.scr == SCR_FX && ui.fxo == 1u && rt_fam == RF_FX, "... RET A's, stopping there (nothing wraps)");
+        turn(EN_ALGO, 3);
+        check(ui.scr == SCR_FX && !ui.fxo, "... right: MASTER again");
         turn(EN_ALGO, 1);
         check(ui.scr == SCR_SOUND && snd_fam == FAM_FX && song.sel == 0, "ALGORITHM right: T1's FX pages again");
     }
@@ -975,7 +1120,6 @@ static void confirm_tests(void)
     release(B_OCTDN);
     frames(2);
     check(!rh.ring && trk[0].step[0].n == 1, "... let go before it closed: nothing cleared");
-    check(!strcmp(PRJ_NAME[PR_A24], "SLOOP"), "PROJECT: SLOOP 2.4 .. 2.6's autosave row named SLOOP");
     op_enter(SCR_PROJECT);
     ui.row[SCR_PROJECT] = 0;
     frame();
@@ -1300,11 +1444,13 @@ static void step_keys_tests(void)
     kup(WK(4));                                         /* (cleared again, as the following tests expect) */
     check(!dstep_mask(&t->dstep[4]), "drums: ... a step held + HOME clears it");
     seq_long();
-    check(st.play && ly_lock == LY_PLAY && ui.scr == SCR_STEP, "SEQ held alone on STEP (past HOLD): the keys play, STEP stays");
+    check(!st.play && ly_lock == LY_STEP && ui.scr == SCR_STEP, "SEQ held alone on STEP (past HOLD): nothing, the keys stay steps (REC on plays them, 2026-10-31)");
     key(BK(7));
-    check(!dstep_mask(&t->dstep[7]) && lane_selected() == 7, "the keys playing: a black key, no step set, the lane is the last hit");
-    seq_long();
-    check(!st.play && ly_lock == LY_STEP, "SEQ held again: the keys are steps");
+    check(!dstep_mask(&t->dstep[7]) && lane_selected() == 7, "drums: a black key on STEP: no step set, the lane is the last hit");
+    tap(B_REC);
+    check(rec_wait && ly_lock == LY_STEP, "drums, REC armed on STEP: the white keys stay steps (as on every page of the drum track)");
+    tap(B_REC);
+    check(!rec_wait && !song.rec, "... REC again: off");
     turn(EN_SELECT, 9);
     turn(EN_SELECT, -(int32_t)STP_TL);                 /* (past LANE: TOOLS, EUCLID, op_tools.c) */
     check(lane_selected() == 7 && ui.row[SCR_STEP] == STP_PAT, "drums, no step held: SELECT walks PATTERN, then the tools (the lane stays 8)");
@@ -1402,13 +1548,13 @@ static void step_synth_tests(void)
     pen_note[0] = 64;
     key(WK(3));
     check(step_on(&t->step[3]) && t->step[3].note[0] == 64 && t->step[3].n == 1, "synth: a step tapped: the pen's note");
-    press(B_SEQ);
+    tap(B_EDIT);                                        /* (the pick: the keys played on a sound page; on STEP REC on plays them) */
     fm1_in.notes |= 1u << WK(0) | 1u << WK(2) | 1u << WK(4);   /* a chord, the keys held together */
     frame();
     fm1_in.notes = 0;
     frame();
-    release(B_SEQ);
-    check(pen_n == 3 && !st.play && ui.scr == SCR_STEP, "synth: SEQ held + keys: they play, the chord is the pick");
+    tap(B_SEQ);
+    check(pen_n == 3 && !st.play && ui.scr == SCR_STEP, "synth: keys played on a sound page: the chord is the pick, back on STEP");
     key(WK(5));
     check(t->step[5].n == 3 && t->step[5].note[0] == pen_note[0] && t->step[5].note[2] == pen_note[2],
           "synth: the next tapped step takes the chord");
@@ -1416,17 +1562,17 @@ static void step_synth_tests(void)
         uint8_t c[4];
         uint32_t m, j, same;
         t->p[P_CHORD] = 1;                              /* TRIAD */
-        press(B_SEQ);
+        tap(B_EDIT);
         fm1_in.notes |= 1u << WK(2);                    /* one key */
         frame();
         fm1_in.notes = 0;
         frame();
-        release(B_SEQ);
+        tap(B_SEQ);
         m = chord_notes(t, kb_map(t, WK(2)), c);
         same = pen_n == m && m == 3u;
         for (j = 0; same && j < m; j++)
             same = pen_note[j] == c[j];
-        check(same, "synth, chord mode: SEQ held + one key: the pick is the whole chord");
+        check(same, "synth, chord mode: one key played: the pick is the whole chord");
         memset(&t->step[7], 0, sizeof t->step[7]);
         key(WK(7));
         same = t->step[7].n == 3u;
@@ -1444,37 +1590,37 @@ static void step_synth_tests(void)
     {
         cell_t c;
         step_cell(0, 3, &c);
-        check(c.label && !strcmp(c.label, "LENGTH") && !strcmp(c.val, "2"), "synth: a step held: NOTE LEVEL RATCHET LENGTH cards");
+        check(c.label && !strcmp(c.label, "GLIDE") && !strcmp(c.val, "ON"), "synth: a step held: NOTE LEVEL RATCHET GLIDE cards (GLIDE on)");
         ui.force = 1;
         frame();
         ppm("opt-step-synth-held");
     }
     kup(WK(3));
-    check(t->step[3].note[0] == vlast + 2 && (t->step[3].rat & 3u) == 1u && t->step[4].time == ST_TIE &&
-          t->step[5].n == 3 && step_on(&t->step[3]), "synth: held + KNOB 1 / 3 / 4: the note, the ratchet, ties (to the next note)");
+    check(t->step[3].note[0] == vlast + 2 && (t->step[3].rat & 3u) == 1u && (t->step[3].flags & SF_SLIDE) &&
+          t->step[4].time != ST_TIE && step_on(&t->step[3]), "synth: held + KNOB 1 / 3 / 4: the note, the ratchet, its GLIDE (no LENGTH there)");
+    kdown(WK(3));
+    turn(EN_K4, -1);
+    kup(WK(3));
+    check(!(t->step[3].flags & SF_SLIDE), "synth: KNOB 4 back: GLIDE off");
+    frames(OP_CARDS_FRAMES + 5u);                       /* (the cards down: the note picker; the held step is the picked note) */
+    check(st.pk == 3u && pk_ok(), "synth: the step held and let go: its note the picked one");
+    turn(EN_K4, 2);
+    check(t->step[4].time == ST_TIE && t->step[5].n == 3, "synth: LENGTH (the picker's KNOB 4): ties, to the next note");
     t->step[5].n = 0;
     t->step[5].time = ST_REST;
-    kdown(WK(3));
     turn(EN_K4, 2);
-    kup(WK(3));
     check(t->step[4].time == ST_TIE && t->step[5].time == ST_TIE, "synth: LENGTH through empty steps");
     ui.force = 1;
     frame();
     ppm("opt-step-roll");
 #if FELUCCA_PLOCK
-    {   /* a live-recorded length (seq.c rec_len_end: a GATE lock on the last step): LENGTH shows it; KNOB 4 whole steps */
-        cell_t c;
+    {   /* a live-recorded length (seq.c rec_len_end: a GATE lock on the last step): KNOB 4 whole steps */
         int32_t v;
         (void)lock_set(t, 6, P_SGATE, 39);           /* 3 NOTE, 4 .. 6 TIE: 6 ends 0.5 + 39 / 128 in, 3.8 steps */
-        kdown(WK(3));
-        step_cell(0, 3, &c);
-        check(!strcmp(c.val, "3.8"), "synth: LENGTH of a recorded note: the fraction (3.8)");
         turn(EN_K4, -1);
-        step_cell(0, 3, &c);
-        check(!strcmp(c.val, "3") && !lock_get(t, 6, P_SGATE, &v) && t->step[6].time != ST_TIE,
+        check(step_note_len(t, 3) == 3u && !lock_get(t, 6, P_SGATE, &v) && t->step[6].time != ST_TIE,
               "synth: KNOB 4 on it: whole steps, the fraction goes");
         turn(EN_K4, 1);
-        kup(WK(3));
     }
 #endif
     kdown(WK(8));
@@ -1678,7 +1824,7 @@ static void layer_tests(void)
     key(WK(15));
     frames(30);                                         /* (two taps 0.5 s apart: 120 BPM) */
     key(WK(15));
-    check(song.g[G_BPM] >= 115 && song.g[G_BPM] <= 125, "GLO + key 16, tapped twice: the tempo");
+    check(song.g[G_BPM] == 90, "GLO + key 16: no tap tempo on GLO any more (PLAY held is the TEMPO page, 2026-11-01)");
     {
         int16_t lv = trk[2].p[P_LEVEL], dl = song.g[G_DRLVL];
         turn(EN_K3, -2);
@@ -1756,9 +1902,13 @@ static void layer_tests(void)
     }
     for (k = 0; k < 8u; k++)
         t->step[k].time = ST_NOTE, t->step[k].n = 1, t->step[k].note[0] = (uint8_t)(48 + k);
-    fm1_in.notes |= 1u << 13;                           /* black key 6 was the store modifier: nothing now */
+    fm1_in.notes |= 1u << 13;                           /* black key 6 stops (was black 5): asked over the edits just made, no store either way */
     frame();
-    key(WK(1));
+    if (op_armed())
+        tap(B_HOME);
+    key(WK(1));                                          /* (white 2 over the edits: asked now, the question let go) */
+    if (op_armed())
+        tap(B_HOME);
     fm1_in.notes &= ~(1u << 13);
     frame();
     check(!pat_has(0, 1), "LFO + black 6 + white 2: no store any more (the upper-key modifiers are gone)");
@@ -1815,9 +1965,41 @@ static void layer_tests(void)
     tap(B_LFO);
     frames(2);
     check(lay.lock == LY_PAT && ui.scr == SCR_SONG && !op_armed(), "... locked: LFO alone does nothing (no LFO pages)");
+    {   /* the user, 2026-10-31: "when i click on pattern mode (shift lfo) it select should not switch between pattern and song modes/pages" */
+        uint8_t r0 = ui.row[SCR_SONG];
+        turn(EN_SELECT, 1);
+        frames(2);
+        check(lay.lock == LY_PAT && ui.scr == SCR_SONG && song_on_pat_row() && ui.row[SCR_SONG] == r0, "... locked: SELECT + stays in pattern mode (no SONG)");
+        turn(EN_SELECT, -1);
+        frames(2);
+        check(lay.lock == LY_PAT && ui.scr == SCR_SONG && song_on_pat_row() && ui.row[SCR_SONG] == r0, "... locked: SELECT - stays in pattern mode (no SONG)");
+    }
     tap(B_HOME);
     frames(2);
-    check(lay.lock == LY_PLAY && ui.scr != SCR_SONG, "... HOME alone: the page let go, back to the screen under it");
+    check(lay.lock == LY_PLAY && ui.scr == SCR_HOME, "... HOME alone: the page let go, HOME (the mixer), not the screen under it (2026-11-01)");
+    tap(B_HOME);
+    check(ui.scr == SCR_SCOPE, "... and the next HOME: the scope, as from any normal page");
+    op_enter(SCR_SOUND);
+    hold2(B_OCTUP, B_LFO);
+    frames(2);
+    check(lay.lock == LY_PAT && ui.scr == SCR_SONG, "... locked again from SOUND");
+    press(B_HOME);
+    key(WK(1));
+    release(B_HOME);
+    check(op_armed() && lay.lock == LY_PAT, "... HOME + key is still the clear's question, not HOME");
+    tap(B_HOME);
+    check(!op_armed() && lay.lock == LY_PAT && ui.scr == SCR_SONG, "... its NO still answers the question and stays");
+    tap(B_HOME);
+    frames(2);
+    check(lay.lock == LY_PLAY && ui.scr == SCR_HOME, "... then HOME alone: HOME, from SOUND too");
+    op_enter(SCR_PROJECT);
+    press(B_SAVE);
+    frames(HOLD_FRAMES);
+    release(B_SAVE);
+    check(ui.scr == SCR_SONG, "SONG visited (SAVE held on PROJECT)");
+    tap(B_HOME);
+    frames(2);
+    check(ui.scr == SCR_HOME, "HOME on SONG: HOME (the mixer), not PROJECT (2026-11-01)");
     hold2(B_OCTUP, B_LFO);
     frames(2);
     tap(B_ENV);
@@ -1832,8 +2014,20 @@ static void layer_tests(void)
          * at once (before the hold) is SHIFT and keeps the screen under it (ui_optimist_len.h: LEN by one) */
         check(lpk.on && ui.scr == SCR_SONG, "LFO held: the patterns screen (SONG's PATTERNS row)");
         turn(EN_K2, 1);
-        check(song.sel == 1u && lay.shown == LY_PLAY, "LFO held + KNOB 2 on the patterns screen: T2 selected");
-        turn(EN_K1, 1);
+        check(song.sel == 1u && lay.shown == LY_PLAY, "LFO held + KNOB 2 on the patterns screen: T2 selected (the knobs are the rows in order, 2026-11-01)");
+        {   /* (a knob turned makes the hold SHIFT's: each knob in a hold of its own) K1 T1, K3 T3, K4 DR */
+            static const uint8_t KN[3] = {EN_K1, EN_K3, EN_K4}, WANT[3] = {0, 2, 3};
+            uint32_t i;
+            for (i = 0; i < 3u; i++) {
+                release(B_LFO);
+                frames(2);
+                song.sel = 2;
+                press(B_LFO);
+                frames(HOLD_FRAMES);
+                turn(KN[i], 1);
+                check(song.sel == WANT[i], i == 0 ? "... KNOB 1: T1" : i == 1 ? "... KNOB 3: T3" : "... KNOB 4: DR");
+            }
+        }
         song.sel = 0;
     }
     release(B_LFO);
@@ -1904,11 +2098,11 @@ static void layer_tests(void)
             check(!left, "EDIT's PRESET card: 150 detents on, the engine never changes");
             (void)preset_pos(&total);
             check(total > 0u && total < all, "... its list is the engine's part of the whole list");
-            press(B_OCTUP);
+            press(B_OCTDN);
             turn(EN_PRESET, 1);
-            release(B_OCTUP);
+            release(B_OCTDN);
             frames(2);
-            check(tsel()->eng_req != e0, "SHIFT2 + PRESETS: the engine step still changes the engine");
+            check(tsel()->eng_req != e0, "SHIFT + PRESETS: the engine step still changes the engine");
             op_enter(SCR_SOUND);
             ui.row[SCR_SOUND] = 0;
             ui.force = 1;
@@ -2016,11 +2210,11 @@ static void layer_tests(void)
             }
             check(worst <= 1u, "PRESETS scrolled with the popup up: one blit over its box a detent (no flash from the panel under it)");
         }
-        press(B_OCTUP);
+        press(B_OCTDN);
         turn(EN_PRESET, 1);
-        release(B_OCTUP);
+        release(B_OCTDN);
         frames(3);
-        check(op_overlay() == 5u, "SHIFT2 + PRESETS (the engine step): the popup list too");
+        check(op_overlay() == 5u, "SHIFT + PRESETS (the engine step): the popup list too");
         ppm("opt-engine-popup");
         frames(OP_TOAST_FRAMES + 5u);
         check(op_overlay() == 0u, "... gone with the toast, ~1.5 s after the last turn");
@@ -2938,8 +3132,8 @@ static void song_tests(void)
         song.sel = 0;
         turn(EN_ALGO, 2);
         check(song.sel == 0u && ui.scr == SCR_SONG && !ui.master, "PATTERNS row: ALGORITHM does nothing (a global screen)");
-        turn(EN_K3, 1);
-        check(song.sel == 2u, "PATTERNS row: KNOB 3 selects T3 (the keys then launch its patterns)");
+        turn(EN_K2, 1);
+        check(song.sel == 1u, "PATTERNS row: KNOB 2 selects T2 (the rows in order, 2026-11-01; the keys then launch its patterns)");
         turn(EN_K1, 1);
         check(song.sel == 0u, "... KNOB 1 selects T1");
         press(B_SEQ);
@@ -3073,13 +3267,19 @@ static void song_tests(void)
     }
     ui.row[SCR_SONG] = (uint8_t)song_row_of(SG_SCENE, 2);
     frame();
-    {   /* the SCENES table (op_songtbl.c): KNOB 1..4 the values of T1..DR, PRESETS the BARS, SELECT the cursor, ALGORITHM the lane */
+    {   /* the SCENES table (op_songtbl.c): KNOB 1..4 = T1 T2 T3 DR of the cursor's scene, PRESETS the BARS, SELECT and ALGORITHM the cursor along the scenes */
         scene_bars[2] = 0;
         ui.row[SCR_SONG] = (uint8_t)song_row_of(SG_SCENE, 2);
         frame();
         check(song_tbl_on(), "SONG, a scene row: the SCENES table");
-        turn(EN_ALGO, 9);
-        check(stb_lane == 4u, "SCENES: ALGORITHM down the lanes to BARS (the last)");
+        ui.row[SCR_SONG] = (uint8_t)song_row_of(SG_SCENE, 2);
+        turn(EN_ALGO, 1);
+        check(ui.row[SCR_SONG] == song_row_of(SG_SCENE, 3), "... ALGORITHM +1: the next scene");
+        turn(EN_ALGO, -1);
+        check(ui.row[SCR_SONG] == song_row_of(SG_SCENE, 2), "... ALGORITHM -1: back");
+        turn(EN_SELECT, 1);
+        check(ui.row[SCR_SONG] == song_row_of(SG_SCENE, 3), "... SELECT moves the cursor too");
+        turn(EN_SELECT, -1);
         turn(EN_PRESET, 3);
         check(scene_bars[2] == 3u && !strcmp(ui.msg, "SCENE C: 3 BARS") && sg.dirty, "... PRESETS: the scene's BARS 3, said, the song to be saved");
         turn(EN_PRESET, -9);
@@ -3096,20 +3296,36 @@ static void song_tests(void)
             song_cell(song_row_of(SG_PART, 0), 4, &sc5);
             check(sc5.label == 0, "... no 5th cell on the other rows");
         }
-        turn(EN_SELECT, 1);
-        check(ui.row[SCR_SONG] == song_row_of(SG_SCENE, 3) && stb_lane == 4u, "SCENES: SELECT the cursor to the next scene, the lane kept");
-        turn(EN_SELECT, -1);
-        turn(EN_ALGO, -9);
-        check(stb_lane == 0u, "... ALGORITHM up the lanes");
-        turn(EN_K2, 1);
-        check(stb_lane == 0u, "... KNOB 2 edits the next scene's value in that lane (the lane stays)");
-        {   /* KNOB 2: the scene after the cursor's, the same lane: its BARS lane too */
-            uint32_t b3 = scene_bars[3];
-            turn(EN_ALGO, 9);
-            turn(EN_K2, 2);
-            check(scene_bars[3] == b3 + 2u && scene_bars[2] == 0u, "... on the BARS lane KNOB 2 sets the next scene's BARS (the current stays)");
-            scene_bars[3] = b3;
-            turn(EN_ALGO, -9);
+        {   /* KNOB 1..4 = T1 T2 T3 DR of the scene under the cursor (C): a turn edits that track's cell there, in that column only */
+            static const uint8_t KN[4] = {EN_K1, EN_K2, EN_K3, EN_K4};
+            uint32_t k;
+            for (k = 0; k < 4u; k++) {
+#if FELUCCA_PATTERNS
+                sg.scn |= 1u << 2;
+                sg.ed_s = 0xFF;
+#endif
+                turn(KN[k], 1);
+#if FELUCCA_PATTERNS
+                check(ui.row[SCR_SONG] == song_row_of(SG_SCENE, 2) && sg.ed_s == 2u && sg.ed_k == k, k == 0 ? "SCENES: KNOB 1 edits T1 of the cursor's scene" : k == 1 ? "SCENES: KNOB 2 edits T2 of the cursor's scene" : k == 2 ? "SCENES: KNOB 3 edits T3 of the cursor's scene" : "SCENES: KNOB 4 edits DR of the cursor's scene");
+#else
+                check(ui.row[SCR_SONG] == song_row_of(SG_SCENE, 2), "SCENES: a knob turn leaves the cursor on its scene");
+#endif
+            }
+            turn(EN_ALGO, 1);
+            turn(KN[2], 1);
+#if FELUCCA_PATTERNS
+            check(sg.ed_s == 3u || !((sg.scn >> 3) & 1u), "... after ALGORITHM the knobs edit the next scene's tracks");
+#endif
+            turn(EN_ALGO, -1);
+        }
+        {   /* BARS stays on its row: PRESETS edits the cursor scene's BARS, the knobs never */
+            uint32_t b2 = scene_bars[2], b3 = scene_bars[3];
+            turn(EN_K1, 3);
+            turn(EN_K4, 3);
+            check(scene_bars[2] == b2 && scene_bars[3] == b3, "SCENES: KNOBS 1..4 leave every BARS alone");
+            turn(EN_PRESET, 2);
+            check(scene_bars[2] == b2 + 2u && scene_bars[3] == b3, "... PRESETS sets the cursor scene's BARS alone");
+            scene_bars[2] = b2;
         }
         ui.force = 1;
         frames(2);
@@ -3121,12 +3337,11 @@ static void song_tests(void)
     {   /* the PARTS timeline: two lanes (the scene, the bars: S the scene's, A the longest pattern, a number) */
         uint32_t bars = arrangement.entry[0].bars, cnt = arrangement.count;
         cell_t bc;
-        stb_lane = 0;
         arrangement.entry[0].bars = 0;
         song_cell(song_row_of(SG_PART, 0), 1, &bc);
         check(song_tbl_on() && !strcmp(bc.val, "SCENE"), "PARTS table: BARS 0 is S (it follows its scene's BARS)");
         turn(EN_ALGO, 1);
-        check(stb_lane == 0u, "PARTS: ALGORITHM does nothing (the scene lane only)");
+        check(ui.row[SCR_SONG] == song_row_of(SG_PART, 0), "PARTS: ALGORITHM does nothing");
         turn(EN_PRESET, 2);
         check(arrangement.entry[0].bars == 2u, "PARTS: PRESETS the bars (from S up: 1, 2)");
         turn(EN_PRESET, -5);
@@ -3191,13 +3406,16 @@ static uint32_t mc_resyncs, mc_resync_bad, mc_resync_max, mc_resync_sum;
 static void mc_resync(void)
 {
     uint32_t i, b0 = mc_bytes, n, diff = 0;
-    mir_enc_fill(0, 0, 240, 240, C_BLACK);
+    mc_trace_off = 1;
+    mir_enc_forget_all();
+    mir_enc_fill_skip(0, 0, 240, 240, C_BLACK);
     op_repaint();
     frames(7);                                          /* (SCOPE draws its trace every other frame) */
     mc_meter_now = 1;                                   /* (the meters lag the panel by up to 100 ms: compared in a window, nothing */
     frame();                                            /* left stale) */
     mc_meter_now = 0;
     n = mc_bytes - b0;
+    mc_trace_off = 0;
     for (i = 0; i < 240u * 240u; i++)
         diff += md_fb[i] != swap16(screen[i]);
     mc_resyncs++, mc_resync_sum += n, mc_resync_bad += diff != 0u;
@@ -3214,6 +3432,64 @@ static void mc_resync(void)
     mc_resync_max = n > mc_resync_max ? n : mc_resync_max;
     for (i = 0; diff && i < 240u * 240u; i++)
         md_fb[i] = swap16(screen[i]);              /* (in step again for the next one) */
+}
+/* lost frames repaired by seq (ed_mirror.c mir_fix: 106 bit 4): the client's lost range, those rectangles forgotten (me_rr,
+ * MIR_SKIP), the panel repainted in place, nothing black first; the client's screen is the panel's again */
+static uint32_t mc_fixes, mc_fix_bad, mc_fix_whole, mc_fix_sum;
+static void mc_fix_check(void)
+{
+    uint32_t i, k, n, r, b0 = mc_bytes, diff = 0, whole = 0;
+    if (!md.fix_have) {
+        mc_trace_off = 1;
+        frames(2);                                      /* (the loss shows at the next frame's seq) */
+        mc_trace_off = 0;
+        if (!md.fix_have)
+            return;
+    }
+    for (r = 0; r < md.fix_have && !whole; r++) {
+        n = ((md.fix_hi[r] - md.fix_lo[r]) & 127u) + 1u;
+        for (k = 0; k < n && !whole; k++) {
+            uint32_t sq = (md.fix_lo[r] + k) & 127u, e = sq & (MIR_RR - 1u);
+            if (n > MIR_RR || me_rr[e].seq != (sq | 0x80u))
+                whole = 1;
+            else {
+                if (getenv("FIX_WHERE"))
+                    fprintf(stderr, "FORGET %u: %u,%u %ux%u\n", sq, me_rr[e].x, me_rr[e].y, me_rr[e].w, me_rr[e].h);
+                mir_enc_forget(me_rr[e].x, me_rr[e].y, me_rr[e].w, me_rr[e].h);
+            }
+        }
+    }
+    md.fix_have = 0;
+    if (whole) {
+        mc_fix_whole++;
+        mc_resync();
+        return;
+    }
+    mc_trace_off = 1;
+    mc_in_fix = 1;
+    if (getenv("FIX_WHERE"))
+        fprintf(stderr, "FIX scr %u lost %u runs\n", ui.scr, md.fix_have);
+    op_repaint();
+    frames(7);
+    mc_in_fix = 0;
+    mc_meter_now = 1;
+    frame();
+    mc_meter_now = 0;
+    mc_trace_off = 0;
+    for (i = 0; i < 240u * 240u; i++)
+        diff += md_fb[i] != swap16(screen[i]);
+    mc_fixes++, mc_fix_bad += diff != 0u, mc_fix_sum += mc_bytes - b0;
+    if (diff && getenv("MIRROR_WHERE")) {
+        uint32_t x0 = 240, y0 = 240, x1 = 0, y1 = 0;
+        for (i = 0; i < 240u * 240u; i++)
+            if (md_fb[i] != swap16(screen[i])) {
+                uint32_t x = i % 240u, y = i / 240u;
+                x0 = x < x0 ? x : x0, y0 = y < y0 ? y : y0, x1 = x > x1 ? x : x1, y1 = y > y1 ? y : y1;
+            }
+        printf("  fix off: %u px in x %u..%u y %u..%u; scr %u layer %u overlay %u\n", diff, x0, x1, y0, y1, ui.scr, lay.shown, ui.overlay);
+    }
+    for (i = 0; diff && i < 240u * 240u; i++)
+        md_fb[i] = swap16(screen[i]);
 }
 #endif
 static void fuzz(uint32_t nf, uint32_t seed)            /* random use: every draw stays on the screen */
@@ -3239,6 +3515,12 @@ static void fuzz(uint32_t nf, uint32_t seed)            /* random use: every dra
 #ifdef MIRROR_CHECK
         if (f % 50u == 49u && ui.overlay != 5u)
             mc_resync();
+        if (f % 50u == 20u && ui.overlay != 5u)
+            mc_drop = 1u + R(3);                        /* (frames lost on the way from here) */
+        if (f % 50u == 23u && ui.overlay != 5u) {
+            mc_drop = 0;
+            mc_fix_check();
+        }
 #endif
     }
     fm1_in.buttons = 0;
@@ -3256,6 +3538,18 @@ static void tracks_default(void)
         set_engine_of(&trk[i], trk_def_engine(i));
         apply_preset_to(&trk[i], trk_def_preset(i));
         trk[i].engine = trk[i].eng_req;
+    }
+    {   /* the returns as the defaults (the walk reaches their pages since 2026-10-30: random use turns their TYPE, PRE, POST) */
+        uint32_t k, s;
+        for (k = 1; k < FX_NSLOT; k++)
+            fxs_load(k, FXT_NONE);
+        for (k = 1; k < FX_NSLOT; k++)
+            fxs_load(k, FXS_DEF[k]);
+        for (k = 0; k < 3u; k++)
+            for (s = 0; s < RP_N; s++)
+                rp_load(k, s, FXT_NONE);
+        fx_rmute = fx_imute = 0;
+        fxs_lm_apply();
     }
     memset(&dl, 0, sizeof dl);
     lane_select(0);
@@ -3385,17 +3679,28 @@ static void auto_step_tests(void)
         id = PAGES[st.lock_pg].id[0];
         turn(EN_K1, 4);                                 /* a lock on step 4 */
         ui.hot = 0;
-        tap(B_SAVE);                                    /* YES: HOLD */
+        tap_lock();                                    /* YES: HOLD */
         step_cell(0, 0, &c);
         check(hold_get(t, 3, id, &v) && !lock_get(t, 3, id, &v) && c.mark == 2u && (auto_w.on & 1u) && str_eq(ui.msg, "HOLD: UNTIL THE NEXT"),
               "a step held + ENV, YES: the hot cell's lock becomes a hold event, its card's mark an arrow, its motion plays");
         ui.force = 1;
         frame();
         ppm("opt-step-hold");
-        tap(B_SAVE);
+        tap_lock();
         step_cell(0, 0, &c);
         check(lock_get(t, 3, id, &v) && !hold_get(t, 3, id, &v) && c.mark == 1u, "... YES again: this step only (a padlock)");
-        tap(B_SAVE);                                    /* (a hold again, for the marks) */
+#if FELUCCA_FILLS
+        {
+            uint32_t f0 = step_fill(t, 3);
+            tap(B_SAVE);                                /* SAVE alone: the fill condition, the lock cell notwithstanding */
+            check(step_fill(t, 3) == (f0 + 1u) % 3u && lock_get(t, 3, id, &v) && !hold_get(t, 3, id, &v) && str_eq(ui.msg, "FILL ONLY"),
+                  "a step held + a lock cell selected, SAVE: the fill condition cycles (the user, 2026-11-01), the lock stays as it was");
+            tap(B_SAVE);
+            tap(B_SAVE);
+            check(step_fill(t, 3) == f0 && lock_get(t, 3, id, &v) && !hold_get(t, 3, id, &v), "... three SAVEs: round, the lock untouched");
+        }
+#endif
+        tap_lock();                                    /* (a hold again, for the marks) */
         release(B_ENV);
         kup(WK(3));
         ui.force = 1;
@@ -3746,7 +4051,7 @@ static void preset_engine_tests(void)
           "the mixer's PRESETS: a toast with the preset's engine, framed in its colour");
     turn(EN_PRESET, -1);
     reset_ui();
-    {   /* the list by instrument; SHIFT2 held + PRESETS: the next / previous instrument (the user, 2026-10-12; SHIFT2 since 2026-10-16) */
+    {   /* the list by instrument; SHIFT held + PRESETS: the next / previous instrument (the user, 2026-10-12; SHIFT2 2026-10-16, SHIFT since 2026-10-31) */
         uint32_t i, e0, e1, sorted = 1, ok = 1, k, ne = 0, back;
         for (i = 1; i < NBANK; i++)
             if (preset_at(i, &k) < preset_at(i - 1u, &k))
@@ -3758,17 +4063,17 @@ static void preset_engine_tests(void)
         for (i = 0; i < NBANK; i++)                     /* (the instruments in the list: eng_built takes a UID, not the slot i) */
             if (!i || preset_at(i, &k) != preset_at(i - 1u, &k))
                 ne++;
-        press(B_OCTUP);
+        press(B_OCTDN);
         turn(EN_PRESET, 1);
         e1 = TSEL->eng_req;
         cur = preset_pos(&total);
         check(e1 != e0 && (cur == 0u || preset_at(cur - 1u, &k) != e1),
-              "SHIFT2 held + PRESETS: the next instrument, its first sound");
+              "SHIFT held + PRESETS: the next instrument, its first sound");
         turn(EN_PRESET, -1);
         back = TSEL->eng_req;
-        release(B_OCTUP);
-        check(back == e0 && ui.scr == SCR_HOME && !op_armed(), "... and back; OCT+ let go: nothing else (no octave, no SYSTEM)");
-        press(B_OCTUP);
+        release(B_OCTDN);
+        check(back == e0 && ui.scr == SCR_HOME && !op_armed(), "... and back; OCT- let go: nothing else (no octave, no SYSTEM)");
+        press(B_OCTDN);
         for (i = 0; i < ne + 1u; i++)
             turn(EN_PRESET, -1);                        /* (down to the first instrument: the list stops there, no wrap) */
         for (i = 0, ok = 0; i < ne + 2u; i++) {
@@ -3776,7 +4081,7 @@ static void preset_engine_tests(void)
             turn(EN_PRESET, 1);
             ok += TSEL->eng_req != was;
         }
-        release(B_OCTUP);
+        release(B_OCTDN);
         check(ne <= 1u || ok == ne - 1u, "... every turn a new instrument up to the last, which stays (no wrap round)");
         set_engine_of(TSEL, e0);                        /* (the track as it was) */
         snd_mark(song.sel);
@@ -3811,18 +4116,36 @@ static void preset_engine_tests(void)
 #include "ui_optimist_picker.h"                   /* STEP: the note picker (the cards down) */
 #include "ui_optimist_master.h"                    /* PRESETS = the sound only; ALGORITHM to MASTER */
 #include "ui_optimist_knobcol.h"                   /* SYSTEM > SCREEN > KNOB COLORS */
+#include "ui_optimist_vumeter.h"                   /* the fixed -40 dBFS floor: meter_h, the peak-hold marker, the MASTER scale */
+#include "ui_optimist_vucolor.h"                   /* the VU colour bands (green / amber / red by dBFS) and the CLIP light */
+#include "ui_optimist_syncorder.h"                 /* CLK IN / SYNC: AUTO first, the sources in its order, INT last */
+#include "ui_optimist_syncnudge.h"                /* PLAY held > NUDGE: the sync offset while following a clock */
 #include "ui_optimist_clkout.h"                    /* SYSTEM > CLOCK OUT */
 #include "ui_optimist_uasel.h"                     /* SYSTEM > USB AUDIO */
 #include "ui_optimist_core.h"                       /* SYSTEM > CPU > 2ND CORE (DUAL builds), the CPU1 cell's reason */
+#include "ui_optimist_dtimes.h"                     /* SYSTEM > CPU TIMES (DUAL_LOAD builds with the debug pages) */
 #include "ui_optimist_sysdbg.h"                     /* builder item SYS_DEBUG off: INFO is CPU LOAD, UNDERRUNS, BATTERY */
+#include "ui_optimist_stack.h"                      /* SYSTEM > INFO: the CPU bars and their peaks, the RAM line, the stacks' marks */
+#include "ui_optimist_mirload.h"                     /* the mirror's workload (MIRROR_WORKLOAD: tests/mirror_aimd_test.c) */
+#include "ui_optimist_headpos.h"                    /* the loop position drawn alone while playing (the mirror's bytes) */
+#include "ui_optimist_memline.h"                    /* the memory line: the top 2 rows of every page, the arena's fill, red from 80 % */
 #include "ui_optimist_hold.h"                      /* SYSTEM HOLD: a click is a tap, a hold the layer */
 #include "ui_optimist_lane.h"                      /* the lane: preview when stopped, the pick silent playing */
 #include "ui_optimist_step35.h"                     /* STEP: entry follows OCT, a held step transposed */
+#include "ui_optimist_keyvel.h"                   /* the keys' velocity: SHIFT2 + SELECT, played and recorded (issue #134) */
 #include "ui_optimist_rechold.h"                   /* REC held: the track cleared */
 #include "ui_optimist_drenv.h"                     /* the drum track's ENV: the lane's envelope values */
 #include "ui_optimist_ble.h"                        /* with FELUCCA_BLE: SYSTEM > BLUETOOTH, the settings word's bits */
+#include "ui_optimist_wifi.h"                       /* with FELUCCA_WIFI: SYSTEM > WI-FI and the password entry */
 #include "ui_optimist_stepmove.h"                  /* a held step moved: PRESETS in time, ALGORITHM in pitch / lane; REC held on a lane */
 #include "ui_optimist_overlap.h"                   /* a synth note past another: the picked note seen, moved past (snap), LENGTH over */
+#include "ui_optimist_seqglide.h"                  /* 2026-10-29 (#104): GLIDE on the held step, a held note picked, a chord all first, a note moved alone */
+#include "ui_optimist_stepedit.h"                  /* 2026-10-31: a note moved past another, the move not stopped, LENGTH only lengthens */
+#include "ui_optimist_stepsave.h"
+#include "ui_optimist_stepentry.h"                 /* 2026-11-01: STEP ENTRY, a synth track stopped with REC armed: the cursor, the keys toggle notes, PLAY arms */
+#include "ui_optimist_shiftcycle.h"                  /* 2026-10-31: REC on = the keys play, the last note entered picked, SAVE with no note picked */
+#include "ui_optimist_drumph.h"                    /* the drum playhead column, fills only with SEQ held, the automation dot */
+#include "ui_optimist_seqfill.h"                    /* SEQ held on STEP: the fill view, FILL ONLY / NO FILL per synth track and drum lane */
 #include "ui_optimist_stephold.h"                  /* STEP: a tap toggles the step, a hold opens its cards only */
 #include "ui_optimist_lforate.h"                  /* LFO RATE: the free bar from 0, a synced value as a division */
 #include "ui_optimist_mix35.h"                      /* batch 35: the mixer's three views, its knob sets, the title flash */
@@ -3833,12 +4156,16 @@ static void preset_engine_tests(void)
 #include "ui_optimist_edscrn.h"                     /* the editor's SCRN (cmd 96): GLOBAL and SYSTEM as the UI's lines */
 #include "ui_optimist_edscrs.h"                     /* the editor's SCRS (cmd 99): the other screens as rows of cards */
 #include "ui_optimist_edv14.h"                      /* the editor's STEPLANE (cmd 105): a step in a lane's context, the device's lockable list */
+#include "ui_optimist_credits.h"                  /* 2026-10-29: SYSTEM > CREDITS as end titles: the crawl, KNOB 1, the loop, the cost */
 #include "ui_optimist_glstyle.h"                    /* 2026-10-14: the look of the lists (title, full-width bars, toggles, joined pages, INFO, About) */
 #include "ui_optimist_curline.h"                    /* 2026-10-14: the cursor row: the line's colour at full strength, white text */
 #include "ui_optimist_help.h"                       /* 2026-10-13: the help line on the screen's foot (PARAM_HELP) */
 #include "ui_optimist_risk.h"                       /* 2026-10-13: every risky action asks, HOME changes nothing */
 #include "ui_optimist_actcards.h"                    /* 2026-10-13: action cards: the verb, always asked; PROJECT's keys pick the slot */
 #include "ui_optimist_prjflow.h"                      /* 2026-10-14: PROJECT: BANK, OPERATION, ITEM, the keys run it */
+#if UI_SDCARD
+#include "ui_optimist_sdcard.h"                       /* SD card mode: the card's lists, banks of 16, saves by name */
+#endif
 #include "ui_optimist_algo.h"                       /* 2026-10-12: ALGORITHM's walk, a lane's PRESETS, the ARP picture */
 #include "ui_optimist_mute.h"                       /* 2026-10-12: the mixer's MUTE card */
 #include "ui_optimist_solo.h"                       /* 2026-10-16: no solo (the mixer, GLO, a project's lane solo) */
@@ -3850,6 +4177,11 @@ static void preset_engine_tests(void)
 #include "ui_optimist_uniform.h"                   /* 2026-10-13: the uniform-UI rulings (docs/UI-OPTIMIST-DESIGN.md 2.3) */
 #include "ui_optimist_pagemem.h"                    /* 2026-10-13: every screen remembers its page (SOUND per track, the held step) */
 #include "ui_optimist_nav.h"                        /* 2026-10-24: the mirror's touch navigation (op_nav.c, 109 NAV) */
+#include "ui_optimist_memlist.h"                    /* 2026-10-25: a load that does not fit: the list of what to drop */
+#if UI_FMEM
+#include "fmem_fake_post.h"
+#include "ui_optimist_fmem.h"                       /* 2026-10-30: BT AUDIO's block in the arena, on the memory line */
+#endif
 /* ---- the buttons' half light: what has a function glows dim, the active button full, what has nothing is dark */
 static uint32_t led_lvl(uint32_t b)                     /* 2 full, 1 dim, 0 dark: the LED of panel button b */
 {
@@ -3910,12 +4242,17 @@ static void led_tests(void)
 #include "ui_optimist_inslots.h"                    /* 2026-10-12: the track insert slots: INSERTS, CMP, SENDS, DR's levels */
 #include "ui_optimist_noswap.h"                     /* 2026-10-18: a TYPE turn skips the other slot's type (master, lanes) */
 #include "ui_optimist_fxi.h"                         /* 2026-10-13: the limited insert types: free count, FULL, WAIT, hidden */
+#include "ui_optimist_pagekeep.h"                    /* 2026-10-29: the page kept when pages come or go (op_keep.c) */
+#include "ui_optimist_rettrk.h"                      /* 2026-10-30: the returns as tracks: their pages, HOME, the keys, both OCT */
 #include "ui_optimist_gater.h"                      /* GATER (INS_GATER): its FX row, the cards, the picture and its playhead, the help lines */
 #include "ui_optimist_lfo2.h"                      /* LFO 2: the LFO 2 and LFO2 DEST rows, RATE, SHIFT + a knob, the AMT bar */
+#include "ui_optimist_wavepics.h"                  /* ENV / LFO families: every row draws its picture */
 #include "ui_optimist_plocks.h"
 #include "ui_optimist_seqtools.h"                   /* Felucca 1.5.6: STEP's TOOLS and EUCLID, the COND card */
 #include "ui_optimist_missline.h"                   /* the MISSING line stays until HOME */
 #include "ui_optimist_premiss.h"                    /* a user preset of an engine not built: not in PRESETS */
+#include "ui_optimist_fm6rx.h"                     /* a DX7 voice over SysEx: no whole-screen fill (#133) */
+#include "ui_optimist_knobblink.h"                  /* KNOB COLORS: no whole-screen fill */
 #include "ui_optimist_notename.h"                   /* the note played on the keys, bottom left (Melodee's) */
 #include "ui_optimist_stepdots.h"                   /* the drum steps as dots (Melodee's): STEP and the mixer */
 #include "ui_optimist_accent.h"                     /* the drum track's ACCENT lane: key 1, STEP's 17th row, the amount, the walk */
@@ -3928,6 +4265,10 @@ static void led_tests(void)
 #include "ui_optimist_colours.h"                     /* batch C: colour means something (mute tiles, red, dim, REC, SUPER) */
 #include "ui_optimist_plines.h"                      /* PAGE_LINES: the rows with no picture as GLOBAL's lines */
 #include "ui_optimist_screens.h"                     /* batch E: per-screen oddities (titles, STEP, drums, names, pictures) */
+#include "ui_optimist_patwarn.h"                     /* pattern mode: the unsaved warning, black 5 = all tracks, black 6 = stop, a black key held + n stores, the numbers */
+#include "ui_optimist_patview.h"                     /* the patterns screen: no cards, the taller grid, the numbers on two lines, the knob rows, the preview */
+#include "ui_optimist_mutegrey.h"                    /* muted = one grey in every view (roll, drum grid, mixer, preview) */
+#include "ui_optimist_prefilter.h"                   /* the preset list's filter (SHIFT2 + PRESETS), SHIFT + PRESETS the engines, the popup's header, no flash */
 #include "ui_optimist_favorites.h"                   /* FELUCCA_FAVORITES: the FAVORITES row under the SOUND row (docs/UI-OPTIMIST-DESIGN.md 13 Favorites) */
 
 #ifndef UIO_NO_MAIN                                     /* (tests/audio_hang_stress.c: its own main) */
@@ -3936,6 +4277,9 @@ static void led_tests(void)
 int main(int argc, char **argv)
 {
     outdir = argc > 1 ? argv[1] : "build/host";
+#ifdef MIRROR_CHECK
+    me.chk = 1;                                         /* (checked frames, as the Mirror app asks: ops 8..10, seq; mc_fix_check) */
+#endif
     {
         uint32_t i;
         for (i = 0; i < 5u * 16u; i++)
@@ -3959,6 +4303,12 @@ int main(int argc, char **argv)
     layers_init();
     go_home();
     frames(3);
+#ifdef MIRROR_CHECK
+    if (getenv("MIRROR_WORKLOAD")) {                  /* (the mirror's workload alone: ui_optimist_mirload.h) */
+        mirror_workload();
+        return 0;
+    }
+#endif
 #if FELUCCA_GRIDS_EUCLID
     {   /* OUT EUCL: one click, one step of a length or one hit (op_tools.c gr_eu_turn), both ways, the ends held */
         uint32_t p, ok = 1, n0, h0;
@@ -3985,9 +4335,49 @@ int main(int argc, char **argv)
         gr_out = GRO_DRUMS;
     }
 #endif
+#if UI_SDCARD                                           /* (SD card mode's build, run_tests.sh: its tests alone, on the FAT32 image) */
+    if (argc < 3) {
+        printf("usage: ui_optimist_sdcard_test OUTDIR FAT32.img\n");
+        return 2;
+    }
+    sdu_img = load(argv[2], &sdu_sectors);
+#if PRESETS_CARD                                        /* (the card presets' build: its tests alone; the others read the tables) */
+    sdu_factory_tests();
+    printf(fails ? "optimist ui test FAILED (%d)\n" : "optimist ui test passed\n", fails);
+    return fails != 0;
+#endif
+    sdcard_tests();
+#if FELUCCA_SD_REC
+    sdu_rec_tests();
+#endif
+#if FELUCCA_ENG_FM6
+    sdu_dx7_tests();
+#endif
+    sdu_settings_tests();
+#if FELUCCA_ENG_CZ
+    sdu_cz_tests();
+#endif
+#if FELUCCA_PATTERNS
+    sdu_unknown_tests();
+#endif
+    sdcard_cut_tests();
+    printf(fails ? "optimist ui test FAILED (%d)\n" : "optimist ui test passed\n", fails);
+    return fails != 0;
+#endif
+#if UI_FMEM                                              /* (the switchable features' build: their tests alone) */
+    fmem_ui_tests();
+    printf(fails ? "optimist ui test FAILED (%d)\n" : "optimist ui test passed\n", fails);
+    return fails != 0;
+#endif
+#if UI_MEMLIST                                           /* (the arena's build, run_tests.sh: the list's tests alone) */
+    memlist_tests();
+    printf(fails ? "optimist ui test FAILED (%d)\n" : "optimist ui test passed\n", fails);
+    return fails != 0;
+#endif
 #if FELUCCA_PAGE_LINES
     plines_tests();                                     /* (the lines build: the rest of the suite assumes the 2x2 cards) */
     lane_fx_lines_tests();                              /* (LANE FX: the 2x2 cards in the lines build too) */
+    wavepics_tests();                                   /* (the lines build: the pictures stay on every ENV / LFO row) */
     fuzz(5000, 4242);
     check(!band_hits, "PAGE_LINES: 5000 random frames, no blit in the help band but the help line's");
     printf(fails ? "optimist ui test FAILED (%d)\n" : "optimist ui test passed\n", fails);
@@ -4001,7 +4391,7 @@ int main(int argc, char **argv)
 #if FELUCCA_INS_PHASER
     fxpool_tests();
 #endif
-#if FELUCCA_USB_AUDIO && FELUCCA_INS_GATER && FELUCCA_INS_CHORUS
+#if FELUCCA_USB_AUDIO && FELUCCA_INS_GATER && INS_CHO
     usbfx_tests();
 #endif
     key_tests();
@@ -4036,6 +4426,7 @@ int main(int argc, char **argv)
     auto_step_tests();
     name_tests();
     fm6_tests();
+    fm6rx_tests();
     graph_family_tests();
     preset_engine_tests();
     len_tests();
@@ -4046,6 +4437,15 @@ int main(int argc, char **argv)
     slowframe_tests();
     picker_tests();
     overlap_tests();
+    seqglide_tests();
+    stepedit_tests();
+    stepsave_tests();
+    stepentry_tests();
+#if FELUCCA_AUTO
+    shiftcycle_tests();
+#endif
+    seqfill_tests();
+    drumph_tests();
     step_cards_leak_tests();
     s35_entry_tests();
     s35_transpose_tests();
@@ -4055,19 +4455,34 @@ int main(int argc, char **argv)
     master_tests();
     algo_inplace_tests();
     knobcol_tests();
+    vumeter_tests();
+    vucolor_tests();
     clkout_tests();
+    syncnudge_tests();
+#if FELUCCA_MIDI_CLOCK
+    syncorder_tests();
+    midi_lists_tests();
+#endif
     uasel_tests();
     newproj_tests();
 #if FELUCCA_SYS_DEBUG
     core_row_tests();                                   /* (INFO's every line, INTERNALS, USB STATS: the debug pages) */
+#if OP_DTIMES
+    dtimes_tests();                                     /* (SYSTEM > CPU TIMES: its table) */
+#endif
     overload_tests();
 #else
     sysdbg_off_tests();
 #endif
+    ovl_window_tests();                                 /* (the rings' 10 s and 1 min windows, their wrap) */
+    stackmark_tests();                                  /* (the stacks' paint and read-back, INFO's RAM line) */
+    memline_tests();                                    /* (the memory line over every page) */
+    headpos_tests();                                    /* (bar.beat alone while playing) */
     hold_tests();
     lane_preview_tests();
     step_pages_tests();
     rec_hold_tests();
+    keyvel_tests();
     drum_env_tests();
     mix35_tests();
     c2_master_tests();
@@ -4097,10 +4512,20 @@ int main(int argc, char **argv)
     strike_tests();
     smute_tests();
     pagemem_tests();
+    pagekeep_tests();
+    rettrk_tests();
 #if FELUCCA_ED_MIRROR
     nav_tests();
 #endif
     favorites_tests();
+    prefilter_tests();
+#if FELUCCA_PATTERNS
+    patwarn_tests();
+    patview_tests();
+#if FELUCCA_AUTO
+    mutegrey_tests();
+#endif
+#endif
     algotrack_tests();
     uniform_tests();
     lforate_tests();
@@ -4127,6 +4552,7 @@ int main(int argc, char **argv)
     gater_ui_tests();
 #endif
     lfo2ui_tests();
+    wavepics_tests();
 #if FELUCCA_PLOCK
     plock_audit_tests();
 #endif
@@ -4142,9 +4568,18 @@ int main(int argc, char **argv)
 #if FELUCCA_BLE
     ble_tests();
 #endif
+#if WIFI_UI
+    wf_ui_tests();
+    wf_pw_tests();
+#if FELUCCA_WIFI_AP
+    wf_ap_tests();
+#endif
+#endif
     premiss_tests();
     missline_tests();
     notename_tests();                                   /* (late: the note it plays moves the master's meters, SCRS's golden) */
+    notename_blink_tests();
+    knobcolors_blink_tests();
     fuzz(20000, 12345);
     check(1, "20000 frames of random use: every draw on the screen");
     if (band_hits)
@@ -4159,12 +4594,15 @@ int main(int argc, char **argv)
         for (i = 0; i < 240u * 240u; i++)
             diff += md_fb[i] != swap16(screen[i]);
         printf("  mirror: %u frames, %u bytes, the screen drawn %u px; %u bad frames, %u px differ\n", mc_frames, mc_bytes, blit_px, mc_bad, diff);
+        printf("  mirror: %u bytes without the %u catch-ups (%u bytes); %u segments not sent again\n", mc_bytes - mc_resync_sum, mc_resyncs, mc_resync_sum, (unsigned)me_skipped);
         printf("  mirror catch-up (black to the client, op_repaint): %u, %u not the panel after; %u bytes each on average, %u at most\n",
                mc_resyncs, mc_resync_bad, mc_resyncs ? mc_resync_sum / mc_resyncs : 0u, mc_resync_max);
         check(!mc_bad && !diff, "the screen mirrored: every write decoded, the same pixels");
         printf("  mirror meters: %u windows of 100 ms\n", mc_meter_sends);
         check(mc_meter_sends > 100u, "the screen mirrored: the mixer's meters sent in their windows");
         check(mc_resyncs > 100u && !mc_resync_bad, "the screen mirrored: every catch-up (black to the client, every band again in place) is the panel");
+        printf("  mirror lost frames repaired by seq: %u, %u not the panel after, %u whole panels instead; %u bytes each on average\n",
+               mc_fixes, mc_fix_bad, mc_fix_whole, mc_fixes ? mc_fix_sum / mc_fixes : 0u);
     }
 #endif
     printf(fails ? "optimist ui test FAILED (%d)\n" : "optimist ui test passed\n", fails);

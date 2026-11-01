@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* The silent placeholder (docs/ARENA.md; the user, 2026-10-25): a part dropped to make memory room keeps
+/* The silent placeholder (docs/SD-MODE-DESIGN.md 6b; the user, 2026-10-25): a part dropped to make memory room keeps
  * its sequence, plays nothing, shows NONE in grey, its arena memory idle (taken back when another part needs it), and
  * stays so through a save and a load (the engine byte ENG_UID_SILENT) until an engine is picked.
  *   placeholder_test */
@@ -53,10 +53,10 @@ static void blocks(uint32_t n)
     }
 }
 
-#ifndef PH_FLOW
-#define PH_FLOW 0                                       /* (1: built with an arena of one part's memory, run_tests.sh) */
+#ifndef PH_PLAIN
+#define PH_PLAIN 0                                      /* (1: an arena of every part's memory: nothing refused, run_tests.sh) */
 #endif
-#if PH_FLOW
+#if !PH_PLAIN && !MEM_LIST
 /* op_input.c mem_tick's steps without the UI: 1 a part proposed to drop (*k), 2 nothing left to propose (MEM FULL), 0
  * else (waiting, done, nothing refused) */
 static int core_tick(uint32_t *k)
@@ -117,7 +117,45 @@ int main(void)
     proj_apply(&back, &dl, 1);
     blocks(64);
     CHECK(t->silent && t->engine == eng_silent_slot(), "a load of the saved project: the placeholder again");
-#if PH_FLOW                                     /* (built with an arena of one part's memory: the drop flow) */
+#if FELUCCA_PUNCH_SW                                    /* (built with the arena's extras: the PUNCH switch, a project's) */
+    punch_sw = 1;
+    proj_capture(&pj, &dl);
+    CHECK(pj.g[G_INFO] >> 1 & 1, "a project saved with PUNCH on: bit 1 of its G_INFO slot");
+    punch_sw = 0;
+    proj_apply(&pj, &dl, 1);
+    CHECK(punch_sw == 1 && song.g[G_RECQ] == 1, "... loaded: PUNCH on, REC QUANTIZE as it was (bit 0)");
+    pj.g[G_INFO] = 0;                                   /* (an older project) */
+    proj_apply(&pj, &dl, 1);
+    CHECK(punch_sw == 0, "an older project (0 there): PUNCH off");
+    blocks(64);
+#endif
+#if !PH_PLAIN && !FELUCCA_FX_ARENA                   /* (built with an arena of one part's memory: the drop flow) */
+    {   /* a part's parked block kept for its switch back (the user, 2026-10-29: "keep a part's parked block for it"; the
+         * ovlfix agent's arena_bufs seed 16 step 345): part 1 on FM6, then on an engine that keeps nothing (its block idle),
+         * then back to FM6 while another reservation asks for the arena: refused, part 1 back on FM6 with its own block */
+        track_t *u = &trk[1];
+        uint32_t off;
+        set_engine_of(t, ENG_IX_FM6);
+        blocks(64);
+        off = (uint32_t)((uint8_t *)arn_ptr(0) - arn_mem);
+        ((uint8_t *)arn_ptr(0))[8] = 0x5A;              /* (a byte of its state, to find it again) */
+        set_engine_of(t, eng_silent_slot());
+        blocks(64);
+        CHECK(arn_cur[0].idle && arn_ptr(0), "parked: part 1 on an engine that keeps nothing: its FM6 block idle");
+        set_engine_of(t, ENG_IX_FM6);                   /* (back: its own state, the switch to come) */
+        CHECK(arn_has_next[0] && arn_next[0].off == off && !(arn_idle() & 1u),
+              "parked: part 1 back to FM6: its idle block set aside for the switch, not free for another");
+        set_engine_of(u, ENG_IX_FM6);                   /* (another reservation before the switch: an other buffer's case) */
+        CHECK(part_mem_refused.on && part_mem_refused.part == 1u && u->eng_req != ENG_IX_FM6 && arn_cur[0].len,
+              "parked: another part's FM6 meanwhile: refused (MEM FULL, the drop proposal), the parked block kept");
+        part_mem_refused.on = 0;
+        blocks(64);
+        CHECK(t->engine == ENG_IX_FM6 && !t->silent && (uint32_t)((uint8_t *)arn_ptr(0) - arn_mem) == off &&
+              ((uint8_t *)arn_ptr(0))[8] == 0x5A && !arn_cur[0].idle,
+              "parked: the switch: part 1 on FM6 in its own block, its state as it was");
+        set_engine_of(t, eng_silent_slot());
+        blocks(64);
+    }
     {
         track_t *u = &trk[1];
         uint32_t k = 0, f;
@@ -141,8 +179,9 @@ int main(void)
         CHECK(active(u) > 0, "flow: part 2's FM6 plays");
         trk_note_off(u, 60);
         blocks(4u * FS / CTL);
-        /* a load's refusals: every part refused collected (two parts on one load once overwrote each other: the first
-         * kept its old engine with the new sound), each a silent placeholder with the project's sound until there is room */
+        /* a load's refusals (the user, 2026-10-25: the list page): every part refused collected (two parts on one load
+         * once overwrote each other: the first kept its old engine with the new sound), each a silent placeholder with
+         * the project's sound until the list (ui/optimist/op_memlist.c) finds it room; HOME leaves them so */
         proj_capture(&pj, &dl);                         /* FM6 on all three parts: room for one */
         pj.t[0].engine = pj.t[2].engine = (uint8_t)eng_uid(ENG_IX_FM6);
         proj_apply(&pj, &dl, 1);
@@ -150,7 +189,8 @@ int main(void)
         CHECK(part_mem_refused.lmask == 5u && part_mem_refused.leng[0] == ENG_IX_FM6 && part_mem_refused.leng[2] == ENG_IX_FM6 &&
               trk[0].silent && trk[2].silent && trk[0].eng_req == eng_silent_slot() && trk[2].eng_req == eng_silent_slot() &&
               !part_mem_refused.on, "load: FM6 on parts 1 and 3 refused on one load: both recorded, both placeholders");
-        /* each refused part in turn the edit's refusal with the project's sound kept, the
+#if !MEM_LIST
+        /* the core alone (no list page): each refused part in turn the edit's refusal with the project's sound kept, the
          * one confirm proposing what to drop (op_input.c mem_tick's steps, core_tick) */
         for (f = 0; f < 200u && core_tick(&k) == 0; f++)
             blocks(8);
@@ -174,6 +214,56 @@ int main(void)
         CHECK(active(&trk[0]) > 0, "core load: part 1's FM6 plays");
         trk_note_off(&trk[0], 60);
         blocks(4u * FS / CTL);
+#else
+        for (f = 0; f < 200u && mem_load_settle() == 0; f++)
+            blocks(8);                                  /* (the parts' switches: their old blocks free after) */
+        {
+            uint8_t it[NPART + 3u];
+            uint32_t m;
+            int st = mem_load_settle();
+            m = mem_load_items(it);
+            CHECK(st < 0 && m == 3u && it[0] == 0u && it[1] == 2u && it[2] == 1u && !mem_load_fits(0) && !mem_load_fits(2u) &&
+                  !mem_load_fits(1u) && mem_load_fits(1u | 2u) && mem_load_fits(5u),
+                  "load: settled, still short: the items parts 1 and 3 (refused), then part 2; with or without part 2 the two do "
+                  "not fit; part 1 left silent and part 2 dropped: part 3 fits; both left silent: fits");
+            mem_load_cancel();                          /* (HOME) */
+            blocks(64);
+            CHECK(!part_mem_refused.lmask && trk[0].silent && trk[2].silent && !strcmp(trk_eng_name(&trk[0]), "NONE") &&
+                  !strcmp(trk_eng_name(&trk[2]), "NONE") && trk[1].engine == ENG_IX_FM6 && mem_load_settle() > 0,
+                  "load: HOME: parts 1 and 3 stay placeholders (NONE), part 2 on FM6");
+            pj.t[1].engine = (uint8_t)eng_uid(eng_silent_slot());
+            pj.t[2].engine = (uint8_t)eng_uid(eng_silent_slot());
+            proj_apply(&pj, &dl, 1);                    /* FM6 on part 1, part 2 off FM6: no room until part 2 switched */
+            CHECK(part_mem_refused.lmask == 1u && trk[0].silent, "load: FM6 on part 1 while part 2's FM6 still plays: refused");
+            trk[0].p[P_E0] = 77;                        /* (the loaded sound's own value: kept through) */
+            for (f = 0; f < 200u && mem_load_settle() == 0; f++)
+                blocks(8);
+            blocks(64);
+            CHECK(!part_mem_refused.lmask && trk[0].engine == ENG_IX_FM6 && !trk[0].silent && trk[0].p[P_E0] == 77,
+                  "load: once part 2 switched: part 1 on FM6 by itself, the project's sound, no list");
+            pj.t[0].engine = pj.t[1].engine = (uint8_t)eng_uid(ENG_IX_FM6);
+            proj_apply(&pj, &dl, 1);                    /* FM6 on parts 1 and 2: part 2 refused */
+            trk[1].p[P_E0] = 77;
+            for (f = 0; f < 200u && (st = mem_load_settle()) == 0; f++)
+                blocks(8);
+            m = mem_load_items(it);
+            CHECK(st < 0 && part_mem_refused.lmask == 2u && m == 2u && it[0] == 1u && it[1] == 0u && !mem_load_fits(0) && mem_load_fits(1u) &&
+                  mem_load_free() < part_mem_bytes(ENG_IX_FM6) && mem_load_free() + mem_item_bytes(0) >= part_mem_bytes(ENG_IX_FM6),
+                  "load: FM6 on parts 1 and 2: part 2 refused; part 1 the item, FITS with it dropped (the gauge's room enough)");
+            mem_load_commit(1u);                        /* (part 1's key, SAVE) */
+            for (f = 0; f < 200u && (st = mem_load_settle()) == 0; f++)
+                blocks(8);
+            blocks(64);
+            CHECK(st > 0 && !part_mem_refused.lmask && trk[1].engine == ENG_IX_FM6 && !trk[1].silent && trk[1].p[P_E0] == 77 &&
+                  trk[0].silent && trk[0].engine == eng_silent_slot(),
+                  "load: SAVE: part 1 a placeholder, part 2 on FM6 with the project's sound");
+            trk_note_on(&trk[1], 60, 100);
+            blocks(4);
+            CHECK(active(&trk[1]) > 0, "load: part 2's FM6 plays");
+            trk_note_off(&trk[1], 60);
+            blocks(4u * FS / CTL);
+        }
+#endif
     }
 #endif
     printf("placeholder test: %d checks, %d failed\n", checks, bad);

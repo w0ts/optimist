@@ -19,7 +19,15 @@
 #ifndef SLG_V2
 #define SLG_V2 FELUCCA_PATTERNS
 #endif
-#if SLG_V2
+#include "../../../hal/fm1_flash_map.h"
+#if SLG_V2 && FELUCCA_LAYOUT != 0                     /* a relocated store (fm1_steps.h, tools/flash_layout.py STEPS) */
+#ifndef SEC_LOG_BASE
+#define SEC_LOG_BASE FL_LOG_LO                         /* L1 0xD0000, S0 0xB8000 */
+#endif
+#ifndef SEC_LOG_SECTORS
+#define SEC_LOG_SECTORS FL_LOG_SECTORS                 /* L1 7 (28 KiB: the one project), S0 32 (128 KiB) */
+#endif
+#elif SLG_V2
 #ifndef SEC_LOG_BASE
 #define SEC_LOG_BASE 0xA0000u                          /* (user sample slot 1, which the samples lose: eng_sample.c) */
 #endif
@@ -41,7 +49,12 @@
 #ifndef SEC_IDS
 #define SEC_IDS 16u
 #endif
-#include "../../../hal/fm1_flash_map.h"
+#if SLG_V2 && FELUCCA_LAYOUT != 0
+_Static_assert(SEC_LOG_BASE >= FL_APP_HI && SEC_LOG_BASE + SEC_LOG_SECTORS * 0x1000u <= FL_RELOC_HI &&
+               !FL_HITS(SEC_LOG_BASE, SEC_LOG_SECTORS * 0x1000u, FL_AUTOSAVE_A, FL_AUTOSAVE_A + 0x1000u) &&
+               !FL_HITS(SEC_LOG_BASE, SEC_LOG_SECTORS * 0x1000u, FL_UPF_LO, FL_UPF_HI),
+               "the section log: in the step's relocated store, off autosave copy A and the FM6 voices (storage.c)");
+#endif
 _Static_assert(FL_IN(SEC_LOG_BASE, SEC_LOG_SECTORS * 0x1000u, FL_DATA_LO, FL_DATA_HI) &&
                !FL_NEVER(SEC_LOG_BASE, SEC_LOG_SECTORS * 0x1000u), "the section log: in the store, off the SDK's sectors");
 /* the log's ids, the same in every build: 0..15 the sections A..P, 16..23 the songs (SEC_ID_SONG: the song chain
@@ -50,13 +63,29 @@ _Static_assert(FL_IN(SEC_LOG_BASE, SEC_LOG_SECTORS * 0x1000u, FL_DATA_LO, FL_DAT
  * records of every id here, whether it uses them or not: switching FELUCCA_SECTIONS 16 -> 8 -> 16, or a PATTERNS
  * build -> this one -> back, loses nothing (phase 0: this must ship long before patterns are written; a firmware
  * from before it seals a sector at an id past 23 and its compaction drops the rest). A record of an id past these
- * (a later firmware's) is skipped and the sector read on; not indexed, a compaction does not keep it. */
-#define SLG_IDS 142u                                   /* 88..103 the sections' step extras, 104 the autosave's (stepx_log.c,
+ * (a later firmware's) is not indexed: format 1 skips it and reads the sector on, its compaction drops it; format 2
+ * keeps it (MIDI tracks' phase 0, docs/MIDI-TRACKS-DESIGN.md): counted with the other projects' records (fliv) and
+ * copied through as it is by a compaction (its id, project, sequence number and bytes), cleared with its project
+ * (proj_tomb) and copied by a save as (proj_copy). Before phase 0 (SLG_IDS 142) a build indexed 0..141 and dropped
+ * the rest. */
+#define SLG_IDS 226u                                   /* 88..103 the sections' step extras, 104 the autosave's (stepx_log.c,
                                                         * kept by every build); 105..120 the sections' FX records, 121 the
                                                         * autosave's (fx_rec_log.c); 122..137 the sections' drum lane LFO
                                                         * records, 138 the autosave's (dlfo_rec_log.c); format 2: 19 the
                                                         * project's state (sections.c SEC_ID_STATE), 139..141 its extras, FX
-                                                        * and LFO records */
+                                                        * and LFO records; 142..225 the MIDI tracks' (below: reserved, read,
+                                                        * counted and kept, nothing writes them yet) */
+/* the MIDI tracks M1..M4 (docs/MIDI-TRACKS-DESIGN.md 3; phase 0: the ids reserved and kept, nothing writes them): 16
+ * pattern slots a track as the synth tracks' (142 + 16 x M + slot: 142..205), each scene's four MIDI pattern refs in a
+ * record of their own (206 + scene: 206..221; the scene record's last 4 bytes stay the synth tracks' refs an older build
+ * reads), the tracks' working copies for the autosave (222 + M: 222..225) */
+#define SLG_MTRK 4u
+#define SLG_MPAT_N 16u
+#define SLG_ID_MPAT0 142u
+#define SLG_ID_MSCN0 (SLG_ID_MPAT0 + SLG_MTRK * SLG_MPAT_N)
+#define SLG_ID_MWORK0 (SLG_ID_MSCN0 + 16u)             /* (16: the scenes A..P in every build, whatever SEC_IDS is) */
+_Static_assert(SLG_ID_MPAT0 == 142u && SLG_ID_MSCN0 == 206u && SLG_ID_MWORK0 == 222u &&
+               SLG_ID_MWORK0 + SLG_MTRK == SLG_IDS && SLG_IDS < 0xFFu, "the MIDI tracks' log ids: 142..225, a u8");
 #define SEC_ID_SONG 16u
 #define SEC_ID_PAT0 24u                                /* the first pattern record (track 0, slot 0) */
 _Static_assert(SEC_IDS <= SEC_ID_SONG, "the sections' ids come before the songs'");
@@ -67,11 +96,21 @@ _Static_assert(SEC_LOG_SECTORS <= 64u, "the index keeps where a record is as sec
  * (project.c), not the log's: opening one must never need room in the log */
 #define SEC_ID_PNAMES 21u
 #define SEC_ID_SAVEAS 20u                              /* a save as under way (sections.c project_save_as: from, to) */
+#if FELUCCA_SD_UI
+#define SEC_ID_SDCARD 22u                              /* SD card mode's device record (storage/sd/sd_mode.c: the card's settings,
+                                                        * a card save pending): device-wide as the names */
+#define SEC_ID_SDSMP 23u                               /* the project's samples on the card (sd_mode.c: hash, size, name hint) */
+#define SLG_GLOBAL(id) ((id) == SEC_ID_PNAMES || (id) == SEC_ID_SDCARD)
+#define SLG_DEV(id) (((id) | 1u) == SEC_ID_PNAMES || (id) == SEC_ID_SDCARD)
+#else
 #define SLG_GLOBAL(id) ((id) == SEC_ID_PNAMES)         /* (the names: no project's record, never copied, cleared or streamed) */
 #define SLG_DEV(id) (((id) | 1u) == SEC_ID_PNAMES)     /* the device-wide records, tagged 0xFF: the names and the marker (20) */
+#endif
 #define SLG_PROJ_GLOBAL 0xFFu
 #define SLG_PROJ_NONE 0xFEu                            /* (slg.proj while booting: the device-wide ids alone) */
 #define SLG_MINE(pr, id) ((pr) == SLG_PROJ_GLOBAL || (pr) == slg.proj)
+#define SLG_UNK(id) ((id) >= SLG_IDS)                  /* a later firmware's id: never indexed (format 2: kept as it is) */
+#define SLG_OUT(pr, id) (!SLG_MINE(pr, id) || SLG_UNK(id))   /* a record the index does not hold (format 2: fliv) */
 #if SLG_V2
 #define SEC_MAGIC 0x32474C53u                          /* "SLG2" */
 #else
@@ -108,7 +147,8 @@ static struct {
     uint32_t sorder[SEC_LOG_SECTORS];                  /* each sector's sequence number, 0 = erased */
     uint32_t tomb[(SLG_IDS + 31u) / 32u];              /* ids cleared while playing, the flash not written yet (slg_clear_pending) */
 #if SLG_V2
-    uint32_t fliv[SEC_LOG_SECTORS];                    /* each sector's live bytes of the other projects' records (with heads) */
+    uint32_t fliv[SEC_LOG_SECTORS];                    /* each sector's live bytes of the other projects' records and of the ids
+                                                        * past SLG_IDS (SLG_UNK; with heads) */
     uint16_t pused;                                    /* the projects with a live record (a bit each; sections.c project_slot_used) */
 #endif
     uint8_t up;
@@ -195,8 +235,8 @@ static uint32_t slg_walk(uint32_t s, int ix)
 #if SLG_V2
             if (h.len && h.dead == 0xFFu && h.proj < 16u)
                 slg.pused |= (uint16_t)(1u << h.proj);
-            if (!SLG_MINE(h.proj, h.id)) {         /* another project's: counted where it is (its tombstones not: */
-                if (h.dead == 0xFFu && h.len)      /* the index counts none either), never indexed */
+            if (SLG_OUT(h.proj, h.id)) {           /* another project's, or a later firmware's id: counted where it is */
+                if (h.dead == 0xFFu && h.len)      /* (its tombstones not: the index counts none either), never indexed */
                     slg.fliv[s] += SEC_ALIGN(SEC_HEAD + h.len);
             } else
 #endif
@@ -332,11 +372,15 @@ static int slg_append_rawp(uint32_t id, uint32_t proj, uint32_t seq, const uint8
 #if SLG_V2
     if (len && proj < 16u)
         slg.pused |= (uint16_t)(1u << proj);
-    if (!SLG_MINE(proj, id)) {                         /* (a compaction's copy of another project's record) */
+    if (SLG_OUT(proj, id)) {                           /* (a compaction's copy of another project's record, or of a later
+                                                        * firmware's id; such an id's clear, proj_tomb) */
         if (len)
             slg.fliv[slg.head] += SEC_ALIGN(SEC_HEAD + len);
         return 0;
     }
+#else
+    if (SLG_UNK(id))
+        return 0;                                      /* (format 1: never written; not indexed) */
 #endif
     if (!slg.at[id] || seq >= slg.aseq[id]) {
 #if SLG_V2
@@ -408,6 +452,7 @@ static uint32_t slg_copy_of(uint32_t s, uint32_t i)
 static int slg_copy_foreign(uint32_t s, int oldest, int dry)
 {
     uint32_t p = SEC_HEAD, t, n = 0;
+    int unk;
     if (!slg.sorder[s] || (!slg.fliv[s] && oldest))   /* (not the oldest: its tombstones, uncounted, move too) */
         return 0;
     while (p + SEC_HEAD <= SEC_SECT) {
@@ -416,9 +461,14 @@ static int slg_copy_foreign(uint32_t s, int oldest, int dry)
             return -1;
         if (h.magic != SEC_RMAGIC || h.len > SEC_REC_MAX || p + SEC_HEAD + h.len > SEC_SECT)
             break;
-        if (h.state == 0x00u && h.dead == 0xFFu && !SLG_MINE(h.proj, h.id) && h.proj < SLG_PROJ_NONE && !(oldest && !h.len) &&
-            !slg_findp(s, h.proj, h.id, h.seq, 1)) {
-            for (t = 0; t < SEC_LOG_SECTORS && (t == s || !slg_findp(t, h.proj, h.id, h.seq, 0)); t++)
+        unk = SLG_UNK(h.id);                           /* (a later firmware's id, any project's: never indexed here, so
+                                                        * never marked dead here; one a newer record of its key anywhere
+                                                        * supersedes is not copied, so a clear dropped later cannot bring
+                                                        * it back) */
+        if (h.state == 0x00u && h.dead == 0xFFu && (unk || (!SLG_MINE(h.proj, h.id) && h.proj < SLG_PROJ_NONE)) &&
+            !(oldest && !h.len) && !slg_findp(s, h.proj, h.id, h.seq, 1)) {
+            for (t = 0; t < SEC_LOG_SECTORS && (t == s || (!slg_findp(t, h.proj, h.id, h.seq, 0) &&
+                                                             !(unk && slg_findp(t, h.proj, h.id, h.seq, 1)))); t++)
                 ;
             if (t >= SEC_LOG_SECTORS && (!h.len || !st_read(slg_off(s) + p + SEC_HEAD, slg_buf, h.len)) &&
                 slg_rcrc(&h, slg_buf) == h.crc) {
@@ -801,6 +851,96 @@ static int slg_open_proj(uint32_t p)
     for (s = 0; s < SEC_LOG_SECTORS; s++)
         if (slg.sorder[s])
             (void)slg_walk(s, 1);
+    return 0;
+}
+
+/* ---- a later firmware's ids (SLG_UNK: SLG_IDS..255) of a project: never indexed, so found by walking the area. A
+ * project's DELETE clears them and its save as copies them (sections.c proj_tomb, proj_copy) as it does the ids it
+ * knows; a compaction keeps them (slg_copy_foreign) */
+#define SLG_NUNK (256u - SLG_IDS)
+typedef struct {                                       /* (on the stack: kept narrow) */
+    uint32_t at[SLG_NUNK];                             /* where (p, SLG_IDS + i)'s newest valid record is, 0 none */
+    uint32_t seq[SLG_NUNK];                            /* its sequence number */
+    uint16_t len[SLG_NUNK];                            /* its length (0: a clear) */
+} slg_unk_t;
+/* fn on every done record of project p with a later firmware's id (its offset, its head) */
+static void slg_unk_walk(uint32_t p, void (*fn)(uint32_t off, const sec_rhead_t *h, void *c), void *c)
+{
+    uint32_t s, q;
+    sec_rhead_t h;
+    for (s = 0; s < SEC_LOG_SECTORS; s++) {
+        if (!slg.sorder[s])
+            continue;
+        for (q = SEC_HEAD; q + SEC_HEAD <= SEC_SECT; q += SEC_ALIGN(SEC_HEAD + h.len)) {
+            if (st_read(slg_off(s) + q, &h, sizeof h) || h.magic != SEC_RMAGIC || h.len > SEC_REC_MAX ||
+                q + SEC_HEAD + h.len > SEC_SECT)
+                break;                                 /* (the end, or a torn head: as slg_walk) */
+            if (SLG_UNK(h.id) && h.proj == p && h.state == 0x00u)
+                fn(slg_off(s) + q, &h, c);
+        }
+    }
+}
+static void slg_unk_newer(uint32_t off, const sec_rhead_t *h, void *c)
+{
+    slg_unk_t *u = (slg_unk_t *)c;
+    uint32_t i = h->id - SLG_IDS;
+    if ((!u->at[i] || h->seq > u->seq[i]) && (!h->len || !st_read(off + SEC_HEAD, slg_buf, h->len)) &&
+        slg_rcrc(h, slg_buf) == h->crc)
+        u->at[i] = off, u->seq[i] = h->seq, u->len[i] = h->len;
+}
+static void slg_unk_scan(uint32_t p, slg_unk_t *u)     /* project p's newest record of each later firmware's id */
+{
+    memset(u, 0, sizeof *u);
+    slg_unk_walk(p, slg_unk_newer, u);
+}
+static void slg_unk_bury(uint32_t off, const sec_rhead_t *h, void *c)
+{
+    const slg_unk_t *u = (const slg_unk_t *)c;         /* (u: the clears just written) */
+    uint32_t i = h->id - SLG_IDS;
+    if (u->at[i] && h->len && h->dead == 0xFFu && h->seq < u->seq[i])
+        slg_mark_dead(off);
+}
+/* every later firmware's id of project p cleared: a tombstone each, then each older record of its marked dead (a
+ * compaction copies none of them again). 0 ok, -1 not all (MEM FULL, flash: the next clear tries again) */
+static int slg_unk_clear(uint32_t p)
+{
+    slg_unk_t u, t;
+    uint32_t i;
+    int rc = 0;
+    slg_unk_scan(p, &u);
+    memset(&t, 0, sizeof t);
+    for (i = 0; i < SLG_NUNK; i++) {
+        if (!u.at[i] || !u.len[i])
+            continue;
+        if (slg_make_room(SEC_HEAD, SLG_IDS)) {
+            rc = -1;
+            continue;
+        }
+        t.at[i] = slg_off(slg.head) + slg.fill, t.seq[i] = slg.seq;
+        if (slg_append_rawp(SLG_IDS + i, p, slg.seq++, slg_buf, 0))
+            t.at[i] = 0, rc = -1;
+    }
+    slg_unk_walk(p, slg_unk_bury, &t);
+    return rc;
+}
+/* project f's later firmware's records copied into project t (cleared before: slg_unk_clear), as they are but their
+ * project and sequence number. 0 ok, 1 MEM FULL, -1 flash */
+static int slg_unk_copy(uint32_t f, uint32_t t)
+{
+    slg_unk_t u;
+    uint32_t i;
+    int rc;
+    slg_unk_scan(f, &u);
+    for (i = 0; i < SLG_NUNK; i++) {
+        if (!u.at[i] || !u.len[i])
+            continue;
+        if ((rc = slg_make_room(SEC_ALIGN(SEC_HEAD + u.len[i]), SLG_IDS)) != 0)
+            return rc == -2 ? 1 : -1;
+        slg_unk_scan(f, &u);                           /* (where it is now: a compaction moves records) */
+        if (!u.at[i] || !u.len[i] || st_read(u.at[i] + SEC_HEAD, slg_buf, u.len[i]) ||
+            slg_append_rawp(SLG_IDS + i, t, slg.seq++, slg_buf, u.len[i]))
+            return -1;
+    }
     return 0;
 }
 #endif

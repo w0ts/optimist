@@ -59,6 +59,8 @@ static struct { uint32_t magic, halves, max_us, nested, in_audio, late, timer_ir
 static struct { uint32_t magic, count, vec, pc; } fm1_crash;
 static void lcd_sync(void) {}
 static void usb_start(void) {}
+static uint32_t dev_uid_reads;
+static void dev_uid_read(void) { dev_uid_reads++; }   /* (system/devname.c: the flash ID, for the name FM1-XXXX) */
 #include "../firmware/src/system/recovery.c"
 
 int main(void)
@@ -132,7 +134,7 @@ int main(void)
     assert(strlen(drawn[0]) <= 30 && strlen(drawn[2]) <= 30);   /* (30 characters: the screen's width in FONT_S) */
     assert(recovery_active && bootguard.pending == 2 && flash_ok);
     assert(midi_in_unread);                  /* nothing drains the MIDI ring in rescue: events are dropped (usb.c) */
-    assert(jedec_reads == 1 && lcd_calls == 1);
+    assert(jedec_reads == 1 && lcd_calls == 1 && dev_uid_reads == 1);   /* (the flash ID read once, for the name FM1-XXXX) */
     assert(services == 7 && sessions == 2);  /* idle startup starts no update */
     assert(bootguard_begin(&bootguard) == BOOT_ROM);
     puts("recovery: boot failures, manual key, timer wrap, polled USB during OTA, retry, flash refusal, ROM fallback and the failed start-ups' breadcrumbs on the screen passed");

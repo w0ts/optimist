@@ -45,8 +45,17 @@ MERGED = {
 
 # Dropped items: a .config naming one still loads; the setting is ignored with a warning (configure.py parse)
 RETIRED = {
-    "MIX_FINE": "a part into the mix is always at full resolution (retired 2026-10-29, bit 426, with MIX_EXACT)",
-    "MIX_EXACT": "a part into the mix and the master volume are always 64-bit products, the 7 bits under the Q15 out to the DAC (retired 2026-10-29, bit 439, issue 107; the user: \"on by default. remove the setting\")",
+    "MIX_FINE": "a part goes into the mix as a 64-bit product, no bit dropped (fx.c MIX_PAN; retired 2026-10-31, bit 426; the user, after weeks on the FM-1: \"tested? then make it default and remove option\"); any old MIX_FINE value is ignored",
+    "MIX_EXACT": "the parts reach the mix and the mix reaches the master volume as 64-bit products, the master's 7 bits under the output kept for the DAC (fx.c MIX_PAN MASTER_VOL; retired 2026-10-31, bit 439, with MIX_FINE; the user: \"tested? then make it default and remove option\"); any old MIX_EXACT value is ignored",
+    "MIX_ROUND": "a voice into its part and a part into the mix are always one product rounded to the nearest, no floor: clean fades at MASTER max (issue 132; retired 2026-10-31, bit 444, the day it came; the user: \"no need for an option. Bug fix is permanent\"); any old MIX_ROUND value is ignored",
+    "BASSPLUS": "BASS+ (Felucca 1.0, Leo Kuroshita) is always built: SYSTEM's speaker low cut always offers it (retired 2026-10-29, bit 73; the user: \"remove the entry from the builder config now and keep it working automatically\")",
+    "FAR_OK": "the fake SD mode layout (LAYOUT 1) always has its whole slot; the far probe's answer is no longer asked for (retired 2026-10-29, bit 413; the user: \"drop the far probe, we don't need it\")",
+    "KEYLIT": "the keys always light the notes the selected track plays (retired 2026-10-29, bit 65; the user: \"this flag just does not make sense: remove\"; the settings record keeps a NOTES-off bit that no menu line sets yet)",
+    "LIGHTS": "the button and key glow (SYSTEM > KEYS: BUTTONS, KEYS) is always built (retired 2026-10-29, bit 106; the user: \"this flag just does not make sense: remove\")",
+    "BRIGHT": "the screen's backlight is always full: the BRIGHT setting is gone (retired 2026-10-29, bit 74; the user: \"it is at the max, and we leave it like that\")",
+    "SL24_IMPORT": "Optimist no longer imports SLOOP projects (LOAD twice; removed 2026-10-29, bit 163, never reuse it)",
+    "SL24_EXPORT": "Optimist no longer exports a project for SLOOP (web editor; removed 2026-10-29, bit 164, never reuse it)",
+    "SL24_EDIMPORT": "Optimist no longer imports a SLOOP song or backup in the web editor (removed 2026-10-29, bit 181, never reuse it)",
     "RESERVE_UNDO_KB": "the builder's reserve entries were useless and not working (retired 2026-10-21, bit 59: the user: \"remove the reserve entry from console and web builder\"); the budget shows the undo ring as information",
     "RESERVE_FLASH_KB": "the builder's reserve entries were useless and not working (retired 2026-10-21, bit 60)",
     "PAGE_LINES": "the screens of rows with no picture are always GLOBAL's four lines, not 2x2 cards over a row list (retired 2026-10-21, bit 342; the user: \"remove the entry of the builder and turn it on by default\")",
@@ -99,6 +108,25 @@ RETIRED = {
     "FM6_ALL": "FM6's operator editor in VIEW ALL is gone (retired 2026-10-18, bit 80)",
     "FM6_ALGO": "FM6's algorithm full screen is gone (retired 2026-10-18, bit 81)",
     "VIS": "the SLOOP 2.4 visualiser was dropped from the builder for now (2026-10-10); HOME on TRACKS flips the mixer dial page",
+    "TAB_IN_POOL": "the sound tables, FM6's buffers and the card's stream tables are always in the pool, the RAM being one packed "
+                   "region (retired 2026-10-29, bit 300; the user: \"always on\"; any old TAB_IN_POOL value is ignored)",
+    "VOICE_OWN": "at the voice budget a part always restarts its own released voice before fading another part's (retired 2026-10-29, bit 369; the user: \"default on: remove it\"; any old VOICE_OWN value is ignored)",
+    "DLY_DOT": "the delay TIME's 1/8D and 1/16D (SLOOP 2.4, appended values, stored numbers unchanged) are always built (retired 2026-10-29, backport bit 176; any old DLY_DOT value is ignored)",
+    "CHO_EXACT": "the chorus send's read points are always ramped exactly over a block (fx.c CHO_RAMP; retired 2026-10-29, bit 425; the user: \"by default, remove the option\"; any old CHO_EXACT value is ignored)",
+    "JUNO_FINE": "JUNO CHORUS's line is always 32 bits, 4 KB of the effects memory an instance (retired 2026-10-29, bit 429; the user: \"always on\"; any old JUNO_FINE value is ignored)",
+    "DUAL": "the second CPU core renders parts 2-3 in every build for the FM-1 (retired 2026-10-29, bit 58; the user: \"remove, always on\"; any old DUAL value is ignored, a DUAL=0 line builds the same as DUAL=2; the sim and the host tests keep one core)",
+    "STOCK_SUPPLY": "the core rails are raised to the FM-1's stock values at start-up in every build for the FM-1 (retired 2026-10-29, bit 62; any old STOCK_SUPPLY value is ignored)",
+    "REV_HALF": "the half-rate reverb (the ROOM at 22.05 kHz, a half-size ring for PLATE / FDN8 / VTINY) was dropped (2026-10-29, bit 123; the user: \"drop those\"): an old .config with REV_HALF=1 builds the full-rate reverb",
+    "REV_HB_LONG": "the steep 63-tap filter of the half-rate reverbs was dropped (2026-10-29, bit 430; the user: \"drop those\"): the reverbs keep the 15-tap half-band",
+    "LCD_DIRTY": "the dirty-rectangle screen update (cv_blit_dirty, after X0X 201b95c) had no caller since the old graph strip went with f1ab07ed (2026-10-19), so the item changed nothing on the screen; the code is removed (retired 2026-10-31, bit 68, never reuse it; any old LCD_DIRTY value is ignored)",
+    "BT_AFH": "Bluetooth audio always hops adaptively, the channels the headset fails on skipped (bt/bt_afh.c; retired 2026-10-29, bit 395; the user: \"always on\"; any old BT_AFH value is ignored)",
+    "BLE_DIAG": "the BLE diagnostics (the console's blell, the link layer's counters and rings) were removed (retired 2026-10-29, bit 253; the user: \"we can remove the diagnostics\"): BLE works the same without them; any old BLE_DIAG value is ignored",
+    "BT_DIAG": "the Bluetooth audio diagnostics (the console's btinq / btscan / btpage / btclk / btrx / bttrace, the status histograms, receive logs and per-second counters) were removed (retired 2026-10-29, bit 363; the user: \"we can remove the diagnostics\"): the audio works the same without them; any old BT_DIAG value is ignored",
+    "INS_CHORUS": "the chorus insert CHRS is the chorus itself: CHO goes in any track's or the master's insert slot wherever FX_CHORUS is built, with the send's RATE and DEPTH and a dry/wet MIX (retired 2026-10-29, bit 270; the user: \"can't they be just one effect like any other? why complexify just for these two?\"); an old project's CHRS loads as CHO; any old INS_CHORUS value is ignored",
+    "INS_REVERB": "the reverb insert ROOM is the reverb itself: REV goes in any track's or the master's insert slot wherever FX_REVERB is built, the ROOM tank with the send's SIZE and DAMP and a dry/wet MIX (retired 2026-10-29, bit 440, the day it came); an old project's ROOM loads as REV; any old INS_REVERB value is ignored",
+    "INS_TDELAY": "the delay insert TDLY is the delay itself: DLY goes in any track's or the master's insert slot wherever FX_DELAY is built, with the send's TIME, FDBK and filter and a dry/wet MIX (retired 2026-10-29, bit 441, the day it came); an old project's TDLY loads as DLY; any old INS_TDELAY value is ignored",
+    "DLY_ARENA": "the effects memory (the delay send's line and the limited inserts' lines) is always sized automatically: the delay's line and one line of each limited insert type built, in the arena (ARENA on) and as the fixed memory (off) alike (retired 2026-10-29, bit 378; the user: \"remove the item, always auto\"): the number of an old DLY_ARENA setting is ignored",
+    "OVERLAY": "the engines' fast code is no longer loaded per part (the RAMTEXT overlays, bit 412, retired 2026-10-30: the packed SRAM runs all its code at one speed and gives what is free to the arena, the slots cost each engine's code three times in flash, and the release build never linked them; the user: \"retire it\")",
     "KNOB_ONEREST": "the knobs are always read with Felucca 1.6's decoder (one rest state a detent, fast turns counted; "
                     "retired 2026-10-14, released in Felucca 1.1.5 #126 and unchanged since)",
 }
@@ -108,9 +136,11 @@ RETIRED = {
 # counted ON (the image every build is now; a build that had it off is a different image).
 # items that were a count before the effects memory (2026-10-23) and are built or not since: a .config's count reads as
 # built (core.py parse: any non-zero is 1)
-WAS_COUNT = frozenset({"INS_CHORUS", "INS_DELAY", "INS_JCHORUS", "INS_FLANGER", "INS_XDLY"})
+WAS_COUNT = frozenset({"INS_DELAY", "INS_JCHORUS", "INS_FLANGER", "INS_XDLY",
+                       "ARENA"})   # (ARENA: its KB until 2026-10-29, the free RAM since: on)
 
-HASH_AS = {"SIMD": 0, "KNOB_ONEREST": 1, "MONO_RELEASE": 1, "ST_STRICT": 1, "USB_FLOW": 1, "SHED_FADE": 1, "KEYS_FAST": 1, "TRS_NOISE": 1, "BK_CHECK": 1, "LAYER_QUIET": 1, "DLY_HALVE": 1, "LFO2": 1, "GLIDE": 1, "UI": 1, "ICONS": 0, "OVERVIEW": 0, "OV_ARP": 1, "DRUM_STEP": 1, "CHORD_NAMES": 1, "BPM_LOCK": 0, "MOTION_MARK": 1, "SEL_PAGES": 0, "BIGVALS": 0, "DRUM_ACCENT": 1, "PAGE_LINES": 1}   # (each was its default in every profile)
+ALWAYS_ON_TARGET = {"FELUCCA_DUAL": 2, "FELUCCA_STOCK_SUPPLY": 1}   # (target builds only, no item: system/dual.c, system/supply.c; 2026-10-29)
+HASH_AS = {"MIX_FINE": 1, "MIX_EXACT": 1, "BASSPLUS": 1, "KEYLIT": 1, "LIGHTS": 1, "BRIGHT": 0, "SIMD": 0, "KNOB_ONEREST": 1, "MONO_RELEASE": 1, "ST_STRICT": 1, "USB_FLOW": 1, "SHED_FADE": 1, "KEYS_FAST": 1, "TRS_NOISE": 1, "BK_CHECK": 1, "LAYER_QUIET": 1, "DLY_HALVE": 1, "LFO2": 1, "GLIDE": 1, "UI": 1, "ICONS": 0, "OVERVIEW": 0, "OV_ARP": 1, "DRUM_STEP": 1, "CHORD_NAMES": 1, "BPM_LOCK": 0, "MOTION_MARK": 1, "SEL_PAGES": 0, "BIGVALS": 0, "DRUM_ACCENT": 1, "PAGE_LINES": 1, "TAB_IN_POOL": 1, "VOICE_OWN": 1, "DLY_DOT": 1, "CHO_EXACT": 1, "JUNO_FINE": 1, "DUAL": 2, "STOCK_SUPPLY": 1, "REV_HALF": 0, "REV_HB_LONG": 0, "BT_AFH": 1, "LCD_DIRTY": 1, "BLE_DIAG": 0, "BT_DIAG": 0, "OVERLAY": 0}   # (each was its default in every profile)
 
 # Never offered: used by X0X only by permission of its author, no licence
 FORBIDDEN = {
@@ -139,8 +169,6 @@ MELODEE_FM6 = Provenance("Melodee (keremimo/melodee)", "Kerem Kilic", "GPL-3.0-o
 MELODEE_MIDI = Provenance("Melodee (keremimo/melodee)", "ChanceTheMaker, Kerem Kilic", "GPL-3.0-only", "670193c",
                           MELODEE_URL)
 MELODEE_USB = Provenance("Melodee (keremimo/melodee)", "Kerem Kilic", "GPL-3.0-only", "", MELODEE_URL)
-MELODEE_SUPPLY = Provenance("Melodee (keremimo/melodee)", "Kerem Kilic", "GPL-3.0-only", "7a51700",
-                            MELODEE_URL)   # (its port of the stock V15 supply start-up, hal/fm1_power.h, 1.3.6)
 FELUCCA = Provenance("Felucca (hugelton/Felucca)", "Leo Kuroshita (Hügelton)", "GPL-3.0-only", "", FELUCCA_URL)
 PR45 = Provenance("SLOOP 8-track PR (isod89/sloop-fm1 #45)", "Erick Buendia Barrientos (Erbubar23)", "GPL-3.0-only",
                   "8d9623f", "https://github.com/isod89/sloop-fm1/pull/45")
@@ -164,6 +192,7 @@ class Item:
     experimental: bool = False
     provenance: Optional[Provenance] = None
     notice: str = ""                 # shown when selected (X0X items: required)
+    notice_on_change: bool = False   # the notice also when changed back to its default (MEMORY: any change moves the layout)
     off_warning: str = ""            # shown when switched off
     env: str = ""                    # generator environment (sample sets: FELUCCA_SAMPLES_SKIP)
     target_only: bool = False        # only for the target build (the host tests keep their own default)
@@ -173,29 +202,30 @@ class Item:
     head: bool = False               # the head of its group (DRUMS): the group's items are its options, two levels
     no_image: bool = False           # a build setting, not firmware: nothing in the image (not in the hash or the BUILD
                                      # bits), its costs.json deltas are 0 (written, never built)
+    hidden: bool = False             # a real item the menu and the web builder do not list (a front sets it; configs and
+                                     # profiles keep loading and dumping it, the checks still name it)
+    shown_under: Optional[str] = None   # listed under this item instead of its parent (display only: core.built goes by parent)
+    dim_when: Optional[str] = None   # greyed (not live) while this item is on (SAMPLE SLOTS, PROJECTS under SD card mode)
     children: list = field(default_factory=list)
+    menu_children: list = field(default_factory=list)   # what the menu lists under it: children + shown_under, less hidden
 
     @property
     def is_choice(self):
         return bool(self.choices)
 
 
-# The FX in two groups (2026-10-13): those every track (and slot) can run at once, their state small and sized for every
-# track (CPU the only limit), and those that run once (the master, the chorus, delay and reverb) or as many times as the build gives
-# them instances (the insert copies of the chorus and a short delay: a pool line each; fx/insfx/fxi.c hands them out).
-# The items are declared with group "FX" and sorted into the two by key (fx_group), the backports' too.
-FX_ANY = "FX: any number (each track its own)"
-FX_ONCE = "FX: limited instances (once, or a set count)"
-FX_ONCE_KEYS = {"FX_CHORUS", "FX_DELAY", "FX_REVERB", "FX_PUNCH", "FX_DUCK", "BASSPLUS",
-                "INS_CHORUS", "INS_DELAY", "INS_JCHORUS", "INS_FLANGER", "INS_XDLY", "DLY_ARENA"}
+# The FX in one group (the user, 2026-10-29: "one FX group, no any number / limited instances split"; two since
+# 2026-10-13). Each effect's label starts with where it goes: [send+insert] the chorus, the delay and the reverb (a send
+# on the master's returns, and the same type as a track's or the master's insert: CHO, DLY, REV), [master] what runs on the whole
+# mix only (PUNCH, DUCK, the returns' feedback sends), [insert] every other effect (a track's or the master's insert
+# slots). A sub-item is an option of the item above it; the mix's resolution options are no effect: no tag.
+FX = "FX"
 
+MEM = "Memory management"
+GROUPS = [MEM, "Reserve", "Synth engines", "Drums", "Sample sets", FX, "Sequencer", "Connectivity", "UI", "System"]
 
-def fx_group(key, parent=None):
-    """the group of an FX item ("FX" when declared): by its own key, a child by its parent's"""
-    return FX_ONCE if (parent or key) in FX_ONCE_KEYS else FX_ANY
-
-
-GROUPS = ["Reserve", "Synth engines", "Drums", "Sample sets", FX_ANY, FX_ONCE, "Sequencer", "USB & BT & MIDI", "UI", "System"]
+LEGACY_GROUPS = ("USB & BT & MIDI",   # (a group renamed: the old .config files still carry its "# header")
+                 "FX: any number (each track its own)", "FX: limited instances (once, or a set count)")   # (FX, 2026-10-29)
 
 _ITEMS = []
 
@@ -570,28 +600,31 @@ for i, (k, n) in enumerate((("PIANO", "PIANO (Steinway, 44 KB)"), ("BASS", "BASS
                             ("SCRCH", "SCRATCH (23 KB)"))):
     _add(f"SET_{k}", "", n, S, 28 + i, env=k,
          desc=_SET_DESC[k] + " Played by the SAMPLE and GRAIN engines (and their presets); leaving it out frees its "
-              "flash, and it can still be uploaded to a USR slot.")
+              "flash, and it can still be uploaded to a USR slot. In SD card mode no set is in the flash (0 B, ticked or not): a ticked "
+              "set goes on the card in the SD card zip (OPTIMIST/SAMPLES/<SET>/) and SAMPLE streams it from there; GRAIN "
+              "cannot (its grains jump through the set): GRAIN on a set is silent there, said MISSING.")
 
 # ---- FX
 F = "FX"
-_add("FX_DIST", "FELUCCA_FX_DIST", "DIST (per-track drive)", F, 35,
+_add("FX_DIST", "FELUCCA_FX_DIST", "[insert] DIST (per-track drive)", F, 35,
      desc="A distortion on each synth track: low cut, drive from 1x to 8x into an asymmetric soft clip, and a tone "
           "filter that closes as the drive rises. About 0.4 KB of flash; off: the DIST controls disappear.")
-_add("FX_CHORUS", "FELUCCA_FX_CHORUS", "chorus", F, 36,
+_add("FX_CHORUS", "FELUCCA_FX_CHORUS", "[send+insert] chorus", F, 36,
      desc="The chorus effect, fed by each track's CHO send. About 0.4 KB of flash and 4 KB of pool; off: the CHO "
-          "sends and the chorus settings disappear.")
-_add("FX_DELAY", "FELUCCA_FX_DELAY", "delay", F, 37,
+          "sends and the chorus settings disappear." + " In a track's insert slot or the master's (INSERTS > S1 / S2) it is an insert like any other, its amount the dry/wet MIX (0 dry, 127 all wet: the send's return at unity): a track's CHO value is then the MIX and the track sends nothing to the bus. It runs the send's own code with the send's settings (RATE and DEPTH, FX > REV/CHO). Each copy needs a 4 KB line: with ARENA a block of the free RAM each, as many as it holds; without, a copy plays where the effects memory has room: room another insert leaves free, or the chorus's or the delay's line while that send is in no master slot; a slot left without room shows FULL and stays dry.")
+_add("FX_DELAY", "FELUCCA_FX_DELAY", "[send+insert] delay", F, 37,
      desc="The tempo-synced delay (echo), fed by each track's DLY send. Costs 128 KB of the pool at the full "
-          "length: shorten it with the length option, or leave it out.")
+          "length: shorten it with the length option, or leave it out." + " In a track's insert slot or the master's (INSERTS > S1 / S2) it is an insert like any other, its amount the dry/wet MIX (0 dry, 127 all wet: the send's return at unity): a track's DLY value is then the MIX and the track sends nothing to the bus. It runs the send's own code with the send's settings (TIME, FDBK and the filter, FX > DLY and DLY F). Each copy needs a line as long as the delay's (the length below): with ARENA a block of the free RAM each, as many as it holds; without, a copy plays on the delay's own line while the delay is in no master slot, or on room another insert leaves free; a slot left without room shows FULL and stays dry.")
 _add("DLY_LEN", "FELUCCA_DLY_LEN", "delay length (how long an echo can be)", F, 38, default=65536, parent="FX_DELAY",
      choices=((65536, "1.49 s (128 KB pool)"), (32768, "0.74 s (64 KB)"), (16384, "0.37 s (32 KB)")),
      desc="The longest delay time, which sets the pool memory the delay takes. A time longer than the line is "
           "halved until it fits, so it stays on the beat; shorter lines suit fast tempos only.")
-_add("FX_REVERB", "FELUCCA_FX_REVERB", "reverb", F, 39,
+_add("FX_REVERB", "FELUCCA_FX_REVERB", "[send+insert] reverb", F, 39,
      desc="The reverb, fed by each track's REV send and the drums' reverb, with its algorithms below (tick at least "
           "one). Each one ticked is on the device's FX > REVERB > TYPE and in the web editor's Reverb popup, switched "
           "while it plays; with one ticked there is no TYPE. They share one line buffer, sized to the largest. The "
-          "biggest user of RAM among the FX (about 17 KB with ROOM); off: the REV sends and reverb settings disappear.")
+          "biggest user of RAM among the FX (about 17 KB with ROOM); off: the REV sends and reverb settings disappear."
+          + " In a track's insert slot or the master's (INSERTS > S1 / S2) it is an insert like any other, its amount the dry/wet MIX (0 dry, 127 all wet: the send's return at unity): a track's REV value is then the MIX and the track sends nothing to the bus. It runs the send's own code with the send's settings (SIZE and DAMP, FX > REV/CHO; the insert is always the ROOM, whatever TYPE the send plays: about 280 host instructions a sample a copy). Each copy needs 19 KB: with ARENA a block of the free RAM each, as many as it holds; without, a copy plays on the delay's line while the delay is in no master slot, or on room another insert leaves free; a slot left without room shows FULL and stays dry.")
 # the reverb's algorithms (firmware/src/fx/reverb/rev_type.c): one checkbox each (bit 150, the one-tank choice REVERB, is retired)
 _add("REV_ROOM", "FELUCCA_REV_ROOM", "reverb: ROOM", F, 151, parent="FX_REVERB", symbols=("rev_ap",),
      desc="Four delay lines at 44.1 kHz, the reverb as it always was: sparse for its first ~300 ms (separate echoes, "
@@ -611,6 +644,11 @@ _add("REV_FDN8", "FELUCCA_REV_FDN8", "reverb: FDN8 (long, lush)", F, 153, defaul
           "of RAM (with PLATE too, 1.1 KB of flash and 1.8 KB of RAM are shared). Experimental: measured on the host "
           "and in the emulator only, not yet heard on an FM-1.",
      notice="FDN8: measured on the host and in the emulator only; not yet heard on an FM-1.", symbols=("rvf_params",))
+_add("REV_POOL", "FELUCCA_REV_POOL", "reverb: FDN8 size", F, 122, default=0, parent="FX_REVERB",
+     choices=((1, "big ring (32 KB): the long, lush tail"), (0, "small ring (16 KB)")),
+     desc="FDN8's ring: big (32 KB) gives its eight lines twice the length, the long and lush FDN8; small (16 KB) the "
+          "shorter one. The key's old name (the reverb's buffers in the pool) is kept so profiles keep their sound: since "
+          "the RAM is one region (2026-10-25) where the buffer sits saves nothing, only the ring's size counts.")
 _add("REV_AIRWIN", "FELUCCA_REV_AIRWIN", "reverb: VTINY (Airwindows VerbTiny)", F, 230, default=0, parent="FX_REVERB",
      desc="Airwindows' VerbTiny (Chris Johnson, MIT): sixteen lines in four 4 x 4 Householder stages, left and right "
           "in one loop, at 22.05 kHz. A plain early-digital texture: peakier and grainier than FDN8 (it is not "
@@ -621,28 +659,18 @@ _add("REV_AIRWIN", "FELUCCA_REV_AIRWIN", "reverb: VTINY (Airwindows VerbTiny)", 
           "from RAM), no pool past the shared ring (user-default has no flash left for it). "
           "Experimental: measured on the host only, not yet heard on an FM-1.",
      notice="VTINY: measured on the host only; not yet heard on an FM-1.", symbols=("rva_params",))
-_add("REV_POOL", "FELUCCA_REV_POOL", "reverb buffers in the pool (saves ~17 KB RAM)", F, 122, default=0,
-     parent="FX_REVERB",
-     desc="Keeps the reverb's shared line buffer (17 KB with ROOM, 8.7 KB at half rate; PLATE and FDN8 without ROOM "
-          "16 KB, 8 KB at half rate; SPRING alone 8 KB) in the pool instead of main RAM: main RAM is the scarcer, and "
-          "the sound and the code stay the same. Needs that much pool free (the undo history shrinks by it in the "
-          "pool and grows by it in RAM).")
-_add("REV_HALF", "FELUCCA_REV_HALF", "half-rate reverb (half the RAM, no top octave)", F, 123, default=0,
-     parent="FX_REVERB",
-     desc="Runs the ROOM reverb at half the sample rate (22.05 kHz) behind a half-band filter: its memory takes half "
-          "the RAM (-8.7 KB) and it costs less CPU, with the same decay and room size. PLATE and FDN8 already run at "
-          "22.05 kHz; here they get half the ring (8 KB), a smaller tank with more audible modes. The reverb loses "
-          "its top octave (above ~11 kHz); the dry sound and the other buses are untouched.", symbols=("rev_half",))
+# (bit 123, REV_HALF, retired 2026-10-29: the half-rate reverb (the ROOM and the ring of PLATE / FDN8 / VTINY at half the RAM) was
+#  dropped; RETIRED above; never reuse the bit)
 # the effects' finer arithmetic (2026-10-26, a Reddit report: the send chorus, JUNO CHORUS, WIDE and the reverbs grainy on
 # in-ear headphones, smooth on Felucca): each measured on the host against the old arithmetic, which stays the default
 _FINE_TESTED = "host-measured only (a sine through the firmware's own code, 2026-10-26); not yet heard on an FM-1"
-_add("CHO_EXACT", "FELUCCA_CHO_EXACT", "chorus: exact modulation ramp (less grit)", F, 425, default=0,
-     parent="FX_CHORUS", experimental=True, tested=_FINE_TESTED,
-     desc="The chorus send moves its two read points by exactly 1/32 of the block's change each sample, as the CHRS "
-          "insert does, instead of a step rounded down once a block. The old way left the read point up to 0.12 sample "
-          "behind by each block's end and snapped it back 1378 times a second: a faint grit around every note, heard "
-          "on headphones. Measured: 12-15 dB less of it from 220 Hz to 1 kHz, about 5 dB at 3 kHz. A few bytes of "
-          "flash, no RAM, two shifts a sample.")
+# (bit 425, CHO_EXACT, retired 2026-10-29: the chorus send's read points are always ramped exactly over the block
+#  (fx.c CHO_RAMP); RETIRED above; never reuse the bit)
+# (bit 426, MIX_FINE and bit 439, MIX_EXACT, retired 2026-10-31: a part goes into the mix, and the mix into the master volume, as
+#  64-bit products with no bit dropped, the master's 7 bits under the output kept for the DAC (fx.c MIX_PAN MASTER_VOL, audio.c,
+#  master_comp.c); RETIRED above; never reuse the bits)
+# (bit 444, MIX_ROUND, retired 2026-10-31: a voice into its part and a part into the mix are always one rounded product
+#  each (dsp.c VOICE_OUT, fx.c mix_lg, MIX_PAN); RETIRED above; never reuse the bit)
 _add("WIDE_FINE", "FELUCCA_WIDE_FINE", "WIDE: all-pass at full resolution", F, 427, default=0, parent="INS_WIDTH",
      experimental=True, tested=_FINE_TESTED,
      desc="WIDE's all-pass runs at the part's own scale with 64-bit products instead of 4 bits down (the drum bus's "
@@ -655,28 +683,19 @@ _add("TFLT_FINE", "FELUCCA_TFLT_FINE", "track FILTER: full resolution (quiet hig
           "down (the drum bus: 2), with the same headroom. As a high-pass at a low cutoff the old rounding came out of "
           "x - y as loud as a quiet part (FILT +10: -18 dB); measured: 18-20 dB lower. A few dozen bytes of flash; "
           "the filter's multiplies become 64-bit ones.")
-_add("JUNO_FINE", "FELUCCA_JUNO_FINE", "JUNO CHORUS: 32-bit line (less grit, twice the memory)", F, 429, default=0,
-     parent="INS_JCHORUS", experimental=True, tested=_FINE_TESTED,
-     desc="JUNO CHORUS keeps its line at 32 bits at the owner's own scale instead of 16 bits 3 bits down (a bus: 2): "
-          "its wet no longer moves in steps of 8, and its side, different in each ear, no longer carries that "
-          "rounding. Measured with the shift gone: 6-12 dB less noise. Each instance takes 4 KB of the effects memory "
-          "instead of 2 (fewer instances fit); more headroom than before (+-3 M, was +-0.26 M on a part).")
-_add("REV_HB_LONG", "FELUCCA_REV_HB_LONG", "half-rate reverbs: steep 63-tap filter (no aliasing)", F, 430, default=0,
-     parent="FX_REVERB", experimental=True, tested=_FINE_TESTED,
-     desc="The reverbs that run at 22.05 kHz (FDN8, PLATE, VTINY, ROOM with REV_HALF) sit behind a 63-tap low-pass "
-          "(9.8 kHz) instead of the 15-tap half-band. The half-band let 9-11 kHz come back mirrored to 11-13 kHz only "
-          "6-20 dB down, the grainy 'lower bitrate' top of these reverbs; the low-pass is -45 dB at the fold (11 kHz) "
-          "and -74 dB at 12 kHz, -0.6 dB at 9 kHz, -9 dB at 10 kHz. About 48 multiplies a sample more, 1 KB of pool, "
-          "0.7 ms of latency (pre-delay) instead of 0.3.")
+# (bit 429, JUNO_FINE, retired 2026-10-29: JUNO CHORUS's line is always 32 bits, 4 KB of the effects memory an
+#  instance (fxi_mem.h FXA_Z2); RETIRED above; never reuse the bit)
+# (bit 430, REV_HB_LONG, retired 2026-10-29: the steep 63-tap filter of the half-rate reverbs was dropped, the 15-tap half-band
+#  stays; RETIRED above; never reuse the bit)
 REV_ALGOS =("REV_ROOM", "REV_PLATE", "REV_FDN8", "SPRING", "REV_AIRWIN")   # at least one with FX_REVERB (configure.py validate)
-_add("FX_SLICER", "FELUCCA_FX_SLICER", "SLICER (stutter / gate insert)", F, 40,
+_add("FX_SLICER", "FELUCCA_FX_SLICER", "[insert] SLICER (stutter / gate on each track)", F, 40,
      desc="A tempo-synced 16-step gate or stutter on each track (not the sample slicer engine): chops the sound "
           "to a pattern. About 1.2 KB of flash and 32 KB of pool at the full capture length.")
 _add("SL_LEN", "FELUCCA_SL_LEN", "SLICER capture length (stutter memory)", F, 41, default=4096, parent="FX_SLICER",
      choices=((4096, "186 ms (32 KB pool)"), (2048, "93 ms (16 KB)")),
      desc="How much sound each track's stutter records to repeat: the shorter capture saves 16 KB of pool and "
           "limits how long a repeated chunk can be (the gate mode is unaffected).")
-_add("FX_PUNCH", "FELUCCA_FX_PUNCH", "PUNCH (16 punch-in FX)", F, 42,
+_add("FX_PUNCH", "FELUCCA_FX_PUNCH", "[master] PUNCH (16 punch-in FX)", F, 42,
      desc="Hold FX and press a white key to put the whole mix through one of 16 effects while it is held (loops, "
           "reverse, tape stop, half speed, wobble, echo, filters, crush, gate), beat-synced. About 2.3 KB of "
           "flash and 64 KB of pool at the full ring.")
@@ -684,22 +703,22 @@ _add("PUNCH_N", "FELUCCA_PUNCH_N", "PUNCH memory length (how much mix it can loo
      choices=((32768, "0.74 s (64 KB pool)"), (16384, "0.37 s (32 KB)")),
      desc="How much of the mix the loop, reverse, tape-stop and echo effects can capture; the shorter ring "
           "saves 32 KB of pool and cuts the longest loop in half.")
-_add("FX_DJF", "FELUCCA_FX_DJF", "DJ filter (MASTER FILT)", F, 44,
+_add("FX_DJF", "FELUCCA_FX_DJF", "[insert] DJ filter (MASTER FILT)", F, 44,
      desc="One knob on the master (MASTER > FILT): turn left for a low-pass closing, right for a high-pass opening, "
           "centre is off. About 0.7 KB of flash.")
-_add("FX_DUST", "FELUCCA_FX_DUST", "DUST (vinyl / lo-fi master)", F, 45,
+_add("FX_DUST", "FELUCCA_FX_DUST", "[insert] DUST (vinyl / lo-fi)", F, 45,
      desc="One knob on the master (MASTER > DUST) that runs the mix through an old sampler and a record: drive, "
           "lower sample rate, fewer bits, a darker tone, hiss and crackle while playing. About 0.7 KB of flash.")
-_add("FX_DUCK", "FELUCCA_FX_DUCK", "DUCK (kick ducks the parts)", F, 46,
+_add("FX_DUCK", "FELUCCA_FX_DUCK", "[master] DUCK (kick ducks the parts)", F, 46,
      desc="Pumping sidechain effect (MASTER > DUCK): every kick from the drum track dips the synth parts, which "
           "swell back over an eighth note. About 0.1 KB of flash; has no effect without a drum kick.")
-_add("MASTER_COMP", "FELUCCA_MASTER_COMP", "COMP + LIMIT (master compressor, brickwall limiter)", F, 155,
+_add("MASTER_COMP", "FELUCCA_MASTER_COMP", "[insert] COMP + LIMIT (DYN: compressor, brickwall limiter)", F, 155,
      desc="A compressor and a brickwall limiter on the master (GLO > COMP: THRS, RATIO, ATK, REL; GLO > LIMIT: "
           "GAIN, CEIL and a GR readout) to glue the mix and keep its peaks under a ceiling; a Comp button and a GR "
           "meter in the web mixer. A new project limits at CEIL -3.0 dB (a look-ahead limiter in place of the old "
           "one); saved projects keep their own CEIL (OFF: as before). About 2 KB of flash and 2.5 KB of RAM.",
      symbols=("mc", "mlim"))
-_add("TRK_FILT", "FELUCCA_TRK_FILT", "track FILTER (LP <- off -> HP on each track)", F, 205, default=0, provenance=SLOOP_24,
+_add("TRK_FILT", "FELUCCA_TRK_FILT", "[insert] track FILTER (LP <- off -> HP on each track)", F, 205, default=0, provenance=SLOOP_24,
      desc="A DJ-style filter on each track: FX > FILTER (one knob, FILT: left low-pass, right high-pass, centre off) and "
           "FX held + KNOB 4 for the selected track. On the drum track it filters the summed drums and all their sends. "
           "Saved with the project, kept when the sound changes, recordable with motion. Costs nothing at the centre; "
@@ -712,57 +731,57 @@ FELUCCA_156 = Provenance("Felucca 1.5.6 (hugelton/Felucca)", "Leo Kuroshita (Hü
                          FELUCCA_URL)
 MELODEE_131 = Provenance("Melodee 1.3.1 (keremimo/melodee)", "Kerem Kilic", "GPL-3.0-only", "next 757b65b", MELODEE_URL)
 _INS_NOTE = " Tested in the host tests and the emulator only, not on a device."
-_add("TFLT_RESO", "FELUCCA_TFLT_RESO", "track FILTER: resonance setting (HOME > AUDIO > FILT RESO)", F, 367, parent="TRK_FILT",
+_add("TFLT_RESO", "FELUCCA_TFLT_RESO", "track FILTER: resonance setting (GLOBAL > FILTER > FILT RESO)", F, 367, parent="TRK_FILT",
      provenance=SLOOP_28,
-     desc="One setting for every track's FILTER (and the drum track's and the drum lanes'): HOME > AUDIO > FILT RESO, 0 (clean, "
+     desc="One setting for every track's FILTER (and the drum track's and the drum lanes'): GLOBAL > FILTER > FILT RESO, 0 (clean, "
           "as before) to 10 (a resonant peak at the cutoff, never self-oscillating). Saved with the project. A few hundred "
           "bytes. The master's DJ filter stays clean.",
      notice="From SLOOP 2.8's FILTER RESO by isod89 (isod89/sloop-fm1 b77bf55, GPL-3.0). Tested in the host tests only, "
             "not on a device.")
-_add("INS_FOLD", "FELUCCA_INS_FOLD", "FOLD insert (wavefolder)", F, 256, default=0, provenance=FELUCCA_156,
+_add("INS_FOLD", "FELUCCA_INS_FOLD", "[insert] FOLD (wavefolder)", F, 256, default=0, provenance=FELUCCA_156,
      desc="A wavefolder type for the tracks' insert slots (INSERTS > S1 / S2: FOLD): the sound driven past full scale "
           "folds back, more folds and harmonics as FOLD rises; the drive follows the track's level as DIST's does, the "
           "bass stays dry. 0 is off.", symbols=("ifx_fold",),
      notice="From Felucca 1.5.6's track INSERT FOLD by Leo Kuroshita (GPL-3.0)." + _INS_NOTE)
-_add("INS_FUZZ", "FELUCCA_INS_FUZZ", "FUZZ insert", F, 257, default=0, provenance=FELUCCA_156,
+_add("INS_FUZZ", "FELUCCA_INS_FUZZ", "[insert] FUZZ", F, 257, default=0, provenance=FELUCCA_156,
      desc="A fuzz type for the tracks' insert slots (INSERTS > S1 / S2: FUZZ): a hard-clipped top and a soft, halved "
           "bottom (lopsided, buzzy), the drive with FUZZ. 0 is off.", symbols=("ifx_fuzz",),
      notice="From Felucca 1.5.6's track INSERT FUZZ by Leo Kuroshita (GPL-3.0)." + _INS_NOTE)
-_add("INS_PHASER", "FELUCCA_INS_PHASER", "PHSR insert (phaser)", F, 258, default=0, provenance=FELUCCA_156,
+_add("INS_PHASER", "FELUCCA_INS_PHASER", "[insert] PHSR (phaser)", F, 258, default=0, provenance=FELUCCA_156,
      desc="A phaser type for the tracks' insert slots (INSERTS > S1 / S2: PHSR): four all-pass stages swept slowly "
           "(~0.5 Hz); PHSR up to the middle mixes it in, past the middle adds feedback. 0 is off.",
      symbols=("ifx_phsr",), notice="From Felucca 1.5.6's track INSERT PHASR by Leo Kuroshita (GPL-3.0)." + _INS_NOTE)
 
-_add("INS_FORMANT", "FELUCCA_INS_FORMANT", "FRMT insert (vowel filter)", F, 260, default=0, provenance=MELODEE_131,
+_add("INS_FORMANT", "FELUCCA_INS_FORMANT", "[insert] FRMT (vowel filter)", F, 260, default=0, provenance=MELODEE_131,
      desc="A vowel filter type for the tracks' insert slots (INSERTS > S1 / S2: FRMT): three formant peaks over the "
           "sound; FRMT moves the vowel from A (low) through E, I, O to U (high). 0 is off.", symbols=("ifx_frmt",),
      notice="From Melodee 1.3.1's FORMANT insert by Kerem Kilic (GPL-3.0); its vowel table, fixed point here."
             + _INS_NOTE)
-_add("INS_WIDTH", "FELUCCA_INS_WIDTH", "WIDE insert (stereo width)", F, 261, default=0, provenance=MELODEE_131,
+_add("INS_WIDTH", "FELUCCA_INS_WIDTH", "[insert] WIDE (stereo width)", F, 261, default=0, provenance=MELODEE_131,
      desc="A stereo width type for the tracks' insert slots (INSERTS > S1 / S2: WIDE): one side through slowly swept "
           "all-pass filters, the other dry, so a centred mono track spreads out; WIDE sets how much. 0 is off.",
      symbols=("ifx_wide",), notice="From Melodee 1.3.1's WIDTH insert by Kerem Kilic (GPL-3.0)." + _INS_NOTE)
 # the shapers (2026-10-18, fx/insfx/insfx.c ifx_drive ifx_mod): FOLD's state (24 B an instance, 15 instances), any slot
 _SH_NOTE = " On any insert slot (tracks, drum sounds but SUB, drum bus, master, returns). Tested in the host tests only, not on a device."
-_add("INS_SFOLD", "FELUCCA_INS_SFOLD", "SFLD insert (sine wavefolder)", F, 343, default=0,
+_add("INS_SFOLD", "FELUCCA_INS_SFOLD", "[insert] SFLD (sine wavefolder)", F, 343, default=0,
      desc="A sine wavefolder type (SFLD): like FOLD but the folds are round (a sine of the drive), so it sings and "
           "aliases less; soft saturation at first, then more and more folds as SFLD rises. 0 is off.",
      symbols=("ifx_sfld",), notice="The shape of Felucca 1.5.5's PHASE FOLD by Leo Kuroshita (GPL-3.0)." + _SH_NOTE)
-_add("INS_RECT", "FELUCCA_INS_RECT", "RECT insert (rectifier, octave up)", F, 345, default=0,
+_add("INS_RECT", "FELUCCA_INS_RECT", "[insert] RECT (rectifier, octave up)", F, 345, default=0,
      desc="A rectifier type (RECT): up to the middle the wave's lower half is folded up (half-wave, then full-wave: the "
           "octave up of an Octavia), past the middle it is driven into a soft clip. 0 is off.",
      symbols=("ifx_rect",), notice=_SH_NOTE.strip())
-_add("INS_HARM", "FELUCCA_INS_HARM", "HARM insert (harmonic exciter)", F, 346, default=0,
+_add("INS_HARM", "FELUCCA_INS_HARM", "[insert] HARM (harmonic exciter)", F, 346, default=0,
      desc="A harmonic exciter type (HARM): adds the octave and the twelfth over each note, warm rather than buzzy, "
           "more as HARM rises. 0 is off.", symbols=("ifx_harm",), notice=_SH_NOTE.strip())
-_add("INS_RING", "FELUCCA_INS_RING", "RING insert (ring modulator)", F, 347, default=0,
+_add("INS_RING", "FELUCCA_INS_RING", "[insert] RING (ring modulator)", F, 347, default=0,
      desc="A ring modulator type (RING): the sound times a sine from 26 Hz (a rough tremolo) to 2.6 kHz (bells, "
           "metal), RING picks its pitch. 0 is off.", symbols=("ifx_ring",), notice=_SH_NOTE.strip())
-_add("INS_SUBOCT", "FELUCCA_INS_SUBOCT", "SUB insert (octave down)", F, 348, default=0,
+_add("INS_SUBOCT", "FELUCCA_INS_SUBOCT", "[insert] SUB (octave down)", F, 348, default=0,
      desc="An octave-down type (SUB): a square an octave under the note, following its level, added as SUB rises. "
           "For single-note lines (bass, leads): chords give a rough sub. Not on drum sounds. 0 is off.",
      symbols=("ifx_subo",), notice=_SH_NOTE.replace("drum sounds but SUB, ", "").strip())
-_add("INS_SLEW", "FELUCCA_INS_SLEW", "SLEW insert (slew-rate crunch)", F, 349, default=0,
+_add("INS_SLEW", "FELUCCA_INS_SLEW", "[insert] SLEW (slew-rate crunch)", F, 349, default=0,
      desc="A slew limiter type (SLEW): the wave can only move so fast, so edges round into ramps, a slow op-amp's "
           "dull crunch; light at 1, heavy (muffled, gritty) at 127. 0 is off.", symbols=("ifx_slew",),
      notice=_SH_NOTE.strip())
@@ -770,52 +789,48 @@ _add("INS_SLEW", "FELUCCA_INS_SLEW", "SLEW insert (slew-rate crunch)", F, 349, d
 MELODEE_144 = Provenance("Melodee 1.4.4 (keremimo/melodee)", "Kerem Kilic", "GPL-3.0-only", "v1.4.4 4f5fb6d", MELODEE_URL)
 _TS_NOTE = (" On the tracks' slots, the drum bus, master, returns and USB input; not on drum sounds (their list is full)."
             " Tested in the host tests only, not on a device.")
-_add("INS_TAPE", "FELUCCA_INS_TAPE", "TAPE insert (tape tone)", F, 356, default=0, provenance=MELODEE_144,
+_add("INS_TAPE", "FELUCCA_INS_TAPE", "[insert] TAPE (tape tone)", F, 356, default=0, provenance=MELODEE_144,
      desc="A tape tone type (TAPE): the highs rolled off (from 6.5 kHz at 1 to 1.7 kHz at 127) and the mids moved "
           "around at random every couple of seconds, at times inverted against the lows and highs, as a worn tape "
           "plays. TAPE sets how far it wanders and how dark it gets. 0 is off.", symbols=("ifx_tape",),
      notice="From Melodee 1.3.0's TAPE insert by Kerem Kilic (GPL-3.0); fixed point here, its RATE and MIX fixed."
             + _TS_NOTE)
-_add("INS_SPIT", "FELUCCA_INS_SPIT", "SPIT insert (random resonant band, driven)", F, 357, default=0,
+_add("INS_SPIT", "FELUCCA_INS_SPIT", "[insert] SPIT (random resonant band, driven)", F, 357, default=0,
      provenance=MELODEE_144,
      desc="A spitting band type (SPIT): one resonant band jumping at random between 180 Hz and 5.9 kHz a few times a "
           "second, driven into a soft clip at the sound's own level and mixed over it. SPIT sharpens the band and "
           "the drive. 0 is off.", symbols=("ifx_spit",),
      notice="From Melodee 1.3.0's SPIT insert by Kerem Kilic (GPL-3.0); fixed point here, the clip follows the "
             "input's level (Melodee's has a fixed ceiling)." + _TS_NOTE)
-_add("EX_GAIN", "FELUCCA_EX_GAIN", "EXGN insert: the example effect (a gain in dB)", F, 421, default=0,
+_add("EX_GAIN", "FELUCCA_EX_GAIN", "[insert] EXGN: the example effect (a gain in dB)", F, 421, default=0,
      experimental=True, tested=_EX_TESTED, notice=_EX_NOTE, symbols=("ifx_exgn",),
      desc="The worked example of CONTRIBUTING.md for a new insert effect (fx/insfx/exgain.c, FX type 29): EXGN on the "
           "tracks' insert slots (INSERTS > S1 / S2) and the drum bus's, one amount, its GAIN: OFF (bypassed), then "
           "-55.5 dB to +7.5 dB (112 is 0 dB), LEVEL's curve, gliding without a click. Not on the master, the returns, "
           "the USB input or a drum sound. Off in every profile: a build without it is the build from before.")
 # the insert copies of the "once" effects (fx/insfx/fxi_kern.c, fxi.c, 2026-10-13): built or not; how many play at once
-# is what the effects memory holds (DLY_ARENA, fxi_mem.h, 2026-10-23: they were a count each until then, WAS_COUNT); a
+# is what the effects memory holds (fxi_mem.h, 2026-10-23: they were a count each until then, WAS_COUNT); a
 # slot picking one with no room left is bypassed (the INSERTS list says FULL)
-_INS_LIM = (" Its line is in the effects memory (below): as many play at once as it holds; a slot that picks it when "
+_INS_LIM = (" Its line is in the effects memory, sized by the builder: the delay's line and one line of each limited insert type built, "
+            "so each type built plays once at the same time (more while the delay or the chorus is in no master slot: a send in none lends its line); a slot that picks it when "
             "there is no room left stays dry until some is free (the INSERTS list shows how many more fit). A saved "
             "project keeps the type, not the room: on load the slots get it in order T1 T2 T3 DR, the master, the USB "
             "input, the returns.")
-_add("INS_CHORUS", "FELUCCA_INS_CHORUS", "CHRS insert (chorus copies for the tracks)", F, 270, default=0,
-     desc="A chorus type for the tracks' insert slots (INSERTS > S1 / S2: CHRS), beside the chorus send: two taps "
-          "around 7 ms swept apart at ~0.8 Hz; CHRS up to the middle mixes it in, past the middle widens the sweep. "
-          "On the drum track it turns the drums' mid into a stereo chorus. 2 KB of the effects memory an instance."
-          + _INS_LIM,
-     symbols=("ifx_chrs",), notice="Tested in the host tests only, not on a device.")
-_add("INS_DELAY", "FELUCCA_INS_DELAY", "ECHO insert (short delay copies for the tracks)", F, 271, default=0,
+# (bit 270, INS_CHORUS, CHRS: retired 2026-10-29, the CHO insert is built with FX_CHORUS; RETIRED above, never reuse the bit)
+_add("INS_DELAY", "FELUCCA_INS_DELAY", "[insert] ECHO (short delay copies for the tracks)", F, 271, default=0,
      desc="A slapback type for the tracks' insert slots (INSERTS > S1 / S2: ECHO), beside the delay send: one repeat "
           "75 ms after the sound; ECHO up to the middle sets its level, past the middle adds repeats (feedback up to "
           "60 %). Up to 93 ms of line an instance (the long, tempo-synced delay stays the send's): 8 KB of the effects "
           "memory." + _INS_LIM, symbols=("ifx_echo",), notice="Tested in the host tests only, not on a device.")
 FM106 = Provenance("fm-106 (PatttF/fm-106)", "PatttF", "GPL-3.0-only", "be74757", "https://github.com/PatttF/fm-106")
-_add("INS_JCHORUS", "FELUCCA_INS_JCHORUS", "JUNO CHORUS insert (the Juno-106 chorus)", F, 142, default=0, provenance=FM106,
+_add("INS_JCHORUS", "FELUCCA_INS_JCHORUS", "[insert] JUNO CHORUS (the Juno-106 chorus)", F, 142, default=0, provenance=FM106,
      desc="The Juno-106's chorus as an insert type (INSERTS > S1 / S2, and the master's insert slots: JUNO): the "
           "MN3009 BBD model of fm-106, MODE I, II or I+II, JUNO its mix (127: the Juno's chorus on). A mono track "
           "comes out stereo. About 130 host instructions a sample an instance; 2 KB of the effects memory." + _INS_LIM,
      symbols=("ifx_jcho",), notice="From fm-106 by PatttF (GPL-3.0), after Ultramaster KR-106 (GPL-3.0). Tested in the "
                                    "host tests only, not on a device.")
 # the returns' feedback sends (2026-10-16): B -> A, C -> A, C -> B, a block late (fx.c rs_fbv). Bit 167 (reserved 2026-10-16: the next free one after the web editor v14's 158, 159, 165, 166)
-_add("RET_FB", "FELUCCA_RET_FB", "return feedback sends (B to A, C to A, C to B)", F, 167, default=1,
+_add("RET_FB", "FELUCCA_RET_FB", "[master] return feedback sends (B to A, C to A, C to B)", F, 167, default=1,
      desc="The master's returns send to the returns on their left too (MASTER > A SENDS, B SENDS, C SENDS: each "
           "return to the other two), for feedback between the effects: a delay into a reverb and back. Each such "
           "send takes its return's output of the block before (a loop of 32 samples, 0.73 ms), DC-blocked, limited "
@@ -825,14 +840,14 @@ _add("RET_FB", "FELUCCA_RET_FB", "return feedback sends (B to A, C to A, C to B)
      symbols=("rs_fbv",), notice="Tested in the host tests only, not on a device.")
 # FLNG (2026-10-15, fx-pool): its lines in the effects memory as the copies above (was one line a track, 5.3 KB in every
 # build of it)
-_add("INS_FLANGER", "FELUCCA_INS_FLANGER", "FLNG insert (flanger)", F, 259, default=0, provenance=FELUCCA_156,
+_add("INS_FLANGER", "FELUCCA_INS_FLANGER", "[insert] FLNG (flanger)", F, 259, default=0, provenance=FELUCCA_156,
      desc="A flanger type for any insert slot (a track's, the master's, the USB input's) and the returns (FLNG): a short "
           "delay swept 0.25 .. 5 ms (~0.25 Hz); FLNG up to the middle mixes it in, past the middle adds feedback. 1 KB "
           "of the effects memory an instance." + _INS_LIM, symbols=("ifx_flng",),
      notice="From Felucca 1.5.6's track INSERT FLANG by Leo Kuroshita (GPL-3.0)." + _INS_NOTE)
 # XDLY (fx/insfx/xdly.c, 2026-10-22): the LYRA-8 style cross-modulated dual delay, its lines in the effects memory as the
 # copies above
-_add("INS_XDLY", "FELUCCA_INS_XDLY", "XDLY insert (LYRA-8 style cross-modulated dual delay)", F, 376, default=0,
+_add("INS_XDLY", "FELUCCA_INS_XDLY", "[insert] XDLY (LYRA-8 style cross-modulated dual delay)", F, 376, default=0,
      desc="Two delay lines whose outputs move each other's time at the audio rate, as the SOMA LYRA-8's modulated delay "
           "does (its idea, no code): an insert type for the tracks' slots and the master's (XDLY). Its page has TIME 1 "
           "and TIME 2 (each line, 1 ms up to the line's length; turning one bends the repeats), MOD (how far each "
@@ -847,24 +862,12 @@ _add("XDLY_LEN", "FELUCCA_XDLY_LEN", "XDLY line length (its longest TIME)", F, 3
      choices=((16384, "0.37 s (64 KB pool an instance)"), (8192, "0.19 s (32 KB)")),
      desc="How long each of XDLY's two lines is: TIME's top end. The shorter line halves every TIME and takes 32 KB "
           "less of the effects memory an instance.")
-# the effects memory (fx/insfx/fxi_mem.h, fxi.c; the delay arena of 2026-10-22, the user: "a delay line is just a delay
-# line"; every line-owning insert since 2026-10-23): one pool memory for the delay send's line and every insert line; its
-# size computed by the estimate (configure.py dly_arena), how many of each type it holds by configure.py fx_memory
-_add("DLY_ARENA", "FELUCCA_DLY_ARENA", "effects memory (shared by the delay and every insert with a line)", F, 378,
-     default=0,
-     choices=((0, "auto: the delay's line and one line of each insert"), (32, "32 KB"), (48, "48 KB"), (64, "64 KB"),
-              (96, "96 KB"), (128, "128 KB"), (160, "160 KB"), (192, "192 KB"), (256, "256 KB"), (320, "320 KB")),
-     desc="One pool memory, in 1 KB units, for the delay send's line (its length above) and the line of every insert "
-          "that has one: CHRS 2 KB, ECHO 8 KB, JUNO CHORUS 2 KB, FLNG 1 KB, XDLY 2 lines of its length. An insert takes "
-          "its room when a slot picks it and gives it back when the slot lets go; with no room left the slot shows FULL "
-          "and stays dry. How many of each play at once is what this memory holds: the builder's notice says, for each "
-          "type built, up to how many at once (alone) in the size chosen, and how many more while the delay or the "
-          "chorus is in no master slot: a send in none lends its line to the inserts (as many as fit; taken back, "
-          "faded out, when the send is put back). Auto: the delay's line plus one line of each insert built, so every "
-          "insert built can play at least once at the same time. Larger: more at once. At least the delay's line, and "
-          "room for one line of each insert built (an error names the one that does not fit).")
+# (bits 440 441, INS_REVERB INS_TDELAY, ROOM TDLY: came and went 2026-10-29, the REV and DLY inserts are built with
+#  FX_REVERB and FX_DELAY; RETIRED above, never reuse the bits)
+# (bit 378, DLY_ARENA, retired 2026-10-29: the effects memory (fx/insfx/fxi_mem.h, fxi.c) is always sized automatically,
+#  configure.py fx_memory / dly_arena; RETIRED above; never reuse the bit)
 # GATER (fx/insfx/gater.c, 2026-10-14): a further insert type, any number (a few bytes a track)
-_add("INS_GATER", "FELUCCA_INS_GATER", "GATER insert (tempo-synced trance gate)", F, 330, default=0,
+_add("INS_GATER", "FELUCCA_INS_GATER", "[insert] GATER (tempo-synced trance gate)", F, 330, default=0,
      desc="A rhythmic volume gate type for the tracks' insert slots (INSERTS > S1 / S2: GATER), locked to the tempo "
           "and the sequencer's steps (it restarts with PLAY, follows the swing): one of 16 built-in 16-step patterns "
           "(trance gates, 1/8 and 1/16 chops, offbeats, dotted, clave), a RATE of 1/8, 1/16, 1/32 or their triplets, "
@@ -922,7 +925,8 @@ _add("LANE_FX", "FELUCCA_LANE_FX", "drum lane FX: hold a black key (ROLL, CHANCE
           "FILL (the lane plays always, only in a fill or never in one: GLO + 9 / 10) and NUDGE (the whole lane early "
           "or late, up to half a step); SELECT, the second page: VRAND (each hit's velocity at random, up to 64 either "
           "way), FLAM (a grace note 5 to 40 ms before the hit), RAMP (a roll's hits fade in or out) and EVERY (the lane "
-          "plays on loop 1:2 .. 4:4 only; with COND). KNOB 1-4 turn them, SHIFT + a knob resets. Saved with the pattern, "
+          "plays on loop 1:2 .. 4:4 only; with COND) and CH ACC (the chance of an accented hit, one the ACCENT lane accents or a "
+          "HARD one: 0 to 100 %, or =NORM, the default, which uses CHANCE). KNOB 1-4 turn them, SHIFT + a knob resets. Saved with the pattern, "
           "as events of its automation (an older build refuses a drum pattern that has them). Not on STEP (a lane key "
           "held + a step sets its level there). Needs the automation store.")
 
@@ -950,11 +954,11 @@ _add("EX_NOTEGEN", "FELUCCA_EX_NOTEGEN", "note generators: the examples WALK and
           "over RANGE degrees, HOP degrees a note, a note every RATE steps. On a drum lane they give hits only. Off in "
           "every profile: a build without it is the build from before.")
 
-# ---- USB & BT & MIDI (the user, 2026-10-20). USB MIDI (notes, clock, the editor and updates) is in every build. The USB
+# ---- Connectivity (was "USB & BT & MIDI"; Wi-Fi + Link since 2026-10-28) (the user, 2026-10-20). USB MIDI (notes, clock, the editor and updates) is in every build. The USB
 # port's two extras, each a checkbox, not both: the controller has three data endpoints (hal/fm1_usb.h EP1..3), USB MIDI
 # takes EP1, USB audio EP2 both ways and EP3 IN, the console EP2 and EP3 (io/usb/usb.c). (bit 47, USB_MODE, the one
 # choice before: MIGRATE reads it; never reuse the bit)
-M = "USB & BT & MIDI"
+M = "Connectivity"
 _add("USB_MIDI", "", "USB MIDI (always: notes, clock, the editor, updates)", M, 362, default=1, no_image=True,
      fixed=True,
      desc="USB MIDI is in every build: notes and clock both ways, the web editor, and firmware updates (the installer "
@@ -1009,8 +1013,8 @@ _add("MISSING_WARN", "FELUCCA_MISSING_WARN", "say what a project uses and this b
           "engine, kit, sample set or FX this build leaves out (once per item until power-off; never stalls the "
           "audio); PROJECT > TOOLS > MISSING lists them again. Off: they play their stand-ins silently (saves 1.5 KB of flash)")
 _add("FAVORITES", "FELUCCA_FAVORITES", "favorites: mark sounds, browse only them", U, 141, provenance=FELUCCA,
-     desc="With the presets: SHIFT2 (OCT+ held) + PRESETS marks the sound playing, SHIFT2 + SELECT "
-          "browses only the favorites, a star after a favorite's name in the toast and in PROJECT > USER (SHIFT2 + ITEM marks a slot). Up to 64 factory sounds (kept by engine and name: they stay marked over builds that leave engines "
+     desc="With the presets: SAVE held + PRESETS marks the sound playing, the FAVORITES filter of the preset list (SHIFT2 + "
+          "PRESETS) browses only the favorites, a star after a favorite's name in the toast and in PROJECT > USER (SHIFT2 + ITEM marks a slot). Up to 64 factory sounds (kept by engine and name: they stay marked over builds that leave engines "
           "out) and any of the 32 user presets (an erased preset loses its mark); the FM6 / CZ banks and the drum track have "
           "none. Kept with the settings (136 B at the end of the settings record: an older record reads whole with none; "
           "a build without this item keeps the rest and forgets them on its next save). About 1 KB of flash, 136 B of pool. "
@@ -1042,12 +1046,8 @@ _add("LCD_BAUD", "LCD_BAUD", "screen data speed (SPI clock)", U, 79, default=1,
           "hardware.", provenance=x0x("d179e03"),
      notice="Ported from X0X by Charles Vestal (GPL-3.0): the faster LCD clock ran on X0X's FM-1; untested on "
             "hardware here.")
-_add("LCD_DIRTY", "FELUCCA_LCD_DIRTY", "screen: send only the changed rectangle", U, 68,
-     desc="Redraws only the part of the graph strip that changed instead of the whole strip: less data per frame and "
-          "less tearing (with the 30 MHz screen clock). Costs about 1.5 KB of flash and 0.6 KB of RAM.",
-     provenance=x0x("201b95c"),
-     notice="Ported from X0X by Charles Vestal (GPL-3.0): dirty-rectangle screen updates. Not yet tried on "
-            "hardware here.")
+# (bit 68, LCD_DIRTY, retired 2026-10-31: its function cv_blit_dirty had no caller since f1ab07ed, so it changed nothing on the screen; RETIRED above;
+#  never reuse the bit)
 
 # ---- system
 Y = "System"
@@ -1108,14 +1108,13 @@ _add("ED_MIRROR", "FELUCCA_ED_MIRROR", "web editor: the screen mirrored (the Mir
           "live editing (ED_LIVE) or without.")
 # (bit 70, SIZE, retired 2026-10: the UI, storage and editor code is always built minsize, tools/size_fns.py keeps the
 #  audio path out of it; never reuse the bit)
-_add("TAB_IN_POOL", "FELUCCA_TAB_IN_POOL", "sound tables and FM6 buffers in the pool, not main RAM", Y, 300, default=0,
-     tested="on the FM-1: in daily use for days, all good (the user, 2026-10-25); emulator-tested",
-     desc="Moves what the sound loops read from main RAM to the pool: the sine, soft-clip and GRAIN window tables (about 2.5 KB, copied there from flash at start-up) and FM6's sine table, operator buses and voices (about 5.9 KB), so builder items get that much more main RAM. Unverified on hardware: both are the same SRAM as far as is known and the emulator cannot tell a speed difference, so on the FM-1 it may be slower; compare the console's TABBENCH figures and the CPU meter with it off and on. The sound is the same.")
+# (bit 300, TAB_IN_POOL, retired 2026-10-29: the sound tables and FM6's buffers are always in the pool, the RAM being one
+#  packed region; RETIRED above; never reuse the bit)
 _add("TAB_CODED_ALL", "FELUCCA_TAB_CODED_ALL", "tables unpacked into RAM (flash for pool)", F, 386, default=0,
      choices=((0, "off"), (1, "the small tables and the small font; PLAITS' waveshapers, JUNO's tables, the compressor's and XDLY's curves when built (5.8 KB of pool, up to 11.4 with every one)"),
               (2, "every table, FM6's five too (3 KB of pool more)")),
      experimental=True, tested="host-tested only (tests/tab_coded_test.c: every table decoded byte for byte), not on a device",
-     desc="Trades flash for pool: smooth lookup tables the sound and the UI read are kept in flash as the differences between neighbours and unpacked at start-up into the pool, always the pool whether or not TAB_IN_POOL is on (main RAM pays nothing); the undo history ring, which takes what the pool has left, is that much shorter. The same values: the sound and the screens are unchanged; the tables read a little faster from RAM than from flash. The eleven small tables (pitch, envelope and LFO rates, cutoff, levels, decay): 4.3 KB of pool for about 2.2 KB of flash; every table adds FM6's five (fine, detune, LFO and portamento): 7.3 KB of pool for about 3.1 KB of flash (measured on the synth profile and the user's). With PLAITS built, either choice also unpacks its five waveshapers: 2.5 KB more of pool for about 1.9 KB more of flash. Either choice also moves the small font's bitmaps to the pool as they are (1.5 KB of pool for 1.0 KB of flash: they travel in the start-up stream like the rest) and, when built, JUNO's eleven small tables, the master compressor's 2^x curve and XDLY's TIME curve, delta-coded like the small tables (together 2.0 KB of pool for 1.3 KB of flash on the user's configuration, 2026-10-24).")
+     desc="Trades flash for pool: smooth lookup tables the sound and the UI read are kept in flash as the differences between neighbours and unpacked at start-up into the pool, always the pool (main RAM pays nothing); the undo history ring, which takes what the pool has left, is that much shorter. The same values: the sound and the screens are unchanged; the tables read a little faster from RAM than from flash. The eleven small tables (pitch, envelope and LFO rates, cutoff, levels, decay): 4.3 KB of pool for about 2.2 KB of flash; every table adds FM6's five (fine, detune, LFO and portamento): 7.3 KB of pool for about 3.1 KB of flash (measured on the synth profile and the user's). With PLAITS built, either choice also unpacks its five waveshapers: 2.5 KB more of pool for about 1.9 KB more of flash. Either choice also moves the small font's bitmaps to the pool as they are (1.5 KB of pool for 1.0 KB of flash: they travel in the start-up stream like the rest) and, when built, JUNO's eleven small tables, the master compressor's 2^x curve and XDLY's TIME curve, delta-coded like the small tables (together 2.0 KB of pool for 1.3 KB of flash on the user's configuration, 2026-10-24).")
 _add("LIVE_SAVE", "FELUCCA_LIVE_SAVE", "save while playing (flash writes in short windows)", Y, 380, default=0,
      tested="on the FM-1: saving while playing works (the user, 2026-10-25); host-tested",
      desc="Saving no longer stops or waits for the transport: SAVE on a user preset, a kit, a project, a name or the song "
@@ -1128,6 +1127,158 @@ _add("LIVE_SAVE", "FELUCCA_LIVE_SAVE", "save while playing (flash writes in shor
           "for the stop again until the next start. Snapshots, backup restores, sample uploads, the web editor's writes "
           "and the working project's autosave still wait for the stop. About 240 B of flash, 1 byte of RAM.",
      off_warning="saves refused (STOP BEFORE SAVE) or held until the transport stops, as before")
+# ---- Memory management (the user, 2026-10-28; three choices 2026-10-31): the first group. The real items are LAYOUT
+# (the flash step, FELUCCA_LAYOUT) and SDCARD, both hidden; the menu and the web builder show three fronts instead (the
+# user, 2026-10-31: "one switch for SDCard mode (on/off) and when off, two options: number of sample slot and numbe of
+# projects"): SD_MODE, SMP_SLOTS and PROJECTS (docs/SD-MODE-DESIGN.md 9.7). A front has no firmware switch and no image
+# of its own (no_image): core.sync_memory reads it back from LAYOUT / SDCARD / PATTERNS, core.set_front writes them when
+# one is picked (room.after_toggle), dump() leaves it out, an old .config's LAYOUT / SDCARD / MEMORY lines keep loading.
+# MEMORY (bit 436, the one-row front of 2026-10-28..31) stays a hidden front for those lines. Bits 447..: the next free (444 is MIX_ROUND, retired).
+# The steps: tools/flash_layout.py STEPS is the one table; this is the builder's copy of what it needs (the web builder
+# runs without tools/ on its path), checked by tests/flash_layout_test.py.
+# layout -> (user sample slots kept, projects, app.bin's room in the classic build); normal: 2 slots (3 with PATTERNS off)
+LAYOUT_STEPS = {0: (2, 16, 581564), 2: (1, 16, 655292), 6: (2, 4, 659388), 7: (2, 2, 675772), 3: (0, 16, 720828), 4: (1, 4, 741308), 5: (1, 2, 757692), 8: (0, 4, 806844), 1: (0, 2, 831420)}
+NORMAL_APP = LAYOUT_STEPS[0][2]
+# MEMORY's old values (derived, never stored): normal 0, more flash 1, SD card mode 2, no user samples 4; 5 any other step
+MEMORY_OF = {0: 0, 3: 4, 1: 1}
+MEMORY_CHOICES = ((0, "normal"),
+                  (4, "no user samples: 16 projects, more flash"),
+                  (1, "more flash: two projects in flash"),
+                  (2, "SD card mode"),
+                  (5, "another step: see SAMPLE SLOTS and PROJECTS"))
+SLOT_WORDS = ((0, "0: none (SAMPLE's built-in sets still play)"), (1, "1: USR3 (64 KiB, the snapshots)"),
+              (2, "2: USR2 + USR3 (144 KiB, as normal)"), (3, "3: USR1..USR3, no projects (PATTERNS off)"))
+_add("MEMORY", "", "memory: the one-row choice of before (an old .config's MEMORY line)", MEM, 436, default=0,
+     choices=MEMORY_CHOICES, no_image=True, hidden=True, target_only=True,
+     desc="The single MEMORY row of 2026-10-28..31, kept so that an old .config's MEMORY= line and --set MEMORY= still "
+          "work: 0 normal, 4 no user samples, 1 more flash, 2 SD card mode. The menu shows SD CARD MODE, SAMPLE SLOTS "
+          "and PROJECTS instead.")
+_add("SD_MODE", "", "SD card mode: user data on an SD card (a hardware mod)", MEM, 445, default=0, no_image=True,
+     experimental=True, target_only=True, tested="host-tested only (docs/SD-CARD-DESIGN.md); no FM-1 has the card yet",
+     desc="On: the biggest flash for code (831,420 B, the release 823,228 B) with the user data on a microSD card wired "
+          "to the LCD bus (docs/SD-CARD-DESIGN.md): one project in flash, the others, the samples and the recordings "
+          "on the card; SD_RING and SD_REC under it. SAMPLE SLOTS and PROJECTS are greyed while it is on. Off: the "
+          "flash keeps the user data, as SAMPLE SLOTS and PROJECTS choose.")
+_add("SMP_SLOTS", "", "sample slots: user samples kept in flash", MEM, 446, default=3, no_image=True,
+     choices=tuple((v, w) for v, w in SLOT_WORDS if v == 3 or any(s == v for s, _, _ in LAYOUT_STEPS.values())),
+     dim_when="SD_MODE", target_only=True,
+     desc="How many user-sample slots the flash keeps; each slot given up is code room (docs/SD-MODE-DESIGN.md 9.7). "
+          "2: USR2 and USR3 where normal keeps them (and the snapshots, the CZ collection at USR3's top); 1: USR3 "
+          "alone; 0: none (no user drum samples, snapshots or CZ collection; SAMPLE plays its built-in sets). 3: the "
+          "projects off (PATTERNS off): USR1 too, the old song sections. With PROJECTS, the pair is the flash layout.")
+_add("PROJECTS", "", "projects kept in flash", MEM, 447, default=16, no_image=True,
+     choices=tuple((p, str(p)) for p in sorted({p for _, p, _ in LAYOUT_STEPS.values()})),
+     dim_when="SD_MODE", target_only=True,
+     desc="How many projects the flash keeps (the user, 2026-10-31: 2, 4 or 16); fewer projects is a smaller project "
+          "log, more code room. The log's room (MEM FULL past it; a busy project is about 6-8 KB, an estimate): 16: "
+          "128 KiB with no sample slot (about 13-17 busy projects), 80 KiB in normal (7-10); 4: 44 KiB (3-5); 2: 28 KiB. "
+          "The web editor's backup keeps the projects a smaller choice has no room for.")
+# RAM_PACKED (bit 437, retired from the menu 2026-10-29, never reused): hidden, not removed, so a .config or profile that
+# names it keeps loading and dumping as before.
+_add("RAM_PACKED", "", "RAM: one packed region, always", MEM, 437, default=1, no_image=True, fixed=True, hidden=True,
+     desc="The RAM is one packed region in every build (the code RAM, the data and the pool share it: docs/MEMORY-MAP.md), "
+          "so there is no switch for it. Shown for the record, it cannot be switched off.")
+
+# bit 409 (2026-10-25): the first free one after the reverted font items' 399..408 (never reused)
+_add("SDCARD", "FELUCCA_SDCARD", "SD card on the LCD bus (a hardware mod)", MEM, 409, default=0, hidden=True,
+     experimental=True, target_only=True, tested="host-tested only (a card model on real FAT16 / FAT32 images); no FM-1 "
+     "has the mod yet",
+     desc="Reads and writes a microSD card wired to the LCD's SPI bus: the card's clock and data in on the LCD's, its data "
+          "out on the LCD's D/C line through 1 kOhm, its chip select the LCD's through one inverter (74LVC1G04), so the "
+          "card is selected whenever the screen is not (docs/SD-CARD-DESIGN.md has the wiring and the parts). FAT16 or "
+          "FAT32 (cards up to 32 GB as sold; larger ones reformatted FAT32). In the normal layout 8.3 names, files made "
+          "on a computer that the FM-1 reads and writes inside (Petit FatFs: no new files, no growing); with LAYOUT "
+          "1 full FatFs: long names, files created and grown, the card's own OPTIMIST folder (about 1 KB of "
+          "flash more while only the console uses it, about 20 KB once the card's pages use all of it). For now the "
+          "serial console's sd commands only (USB_CONSOLE): mount, list, dump, speed test, write test. Without the mod "
+          "it finds no card and changes nothing. 5,032 B of flash, 20 B of RAM and 556 B of pool with the console "
+          "(measured 2026-10-25, Petit FatFs).",
+     off_warning="no SD card")
+# bit 410 (2026-10-25): the next free one after SDCARD's 409
+_add("LAYOUT", "FELUCCA_LAYOUT", "flash layout: the MEMORY step (set by SD CARD MODE, SAMPLE SLOTS and PROJECTS)", MEM, 410,
+     default=0, hidden=True,
+     choices=tuple((k, f"{s} sample slot{'' if s == 1 else 's'}, {p} projects: {room:,} B for code") for k, (s, p, room)
+                   in sorted(LAYOUT_STEPS.items(), key=lambda kv: kv[1][2])),
+     experimental=True, target_only=True, tested="host-tested only; on an FM-1 whose flash runs the release image's 820 KB (docs/SD-MODE-DESIGN.md)",
+     desc="The flash step (docs/SD-MODE-DESIGN.md 9.7, tools/flash_layout.py STEPS): each pair of SAMPLE SLOTS and "
+          "PROJECTS is one; the user sample slots given up and the smaller project log become code space (code runs in "
+          "place from flash: no RAM). 0 normal (2 slots, 16 projects, 581,564 B of code); 1 (0 slots, 2 projects, "
+          "831,420 B; the SD card mode's with SDCARD); 3 (0 slots, 16 projects, 720,828 B). Installing another step "
+          "ERASES what the two keep in different places (the projects in flash always; the update loader clears the "
+          "other step's sectors first): back up with the web editor before. The first install of a step needs a normal "
+          "build of this version first (an older updater refuses its size).")
+# bit 411 (2026-10-25): the next free one after LAYOUT's 410; the arena (core/arena.c, fx/fx_arena.c, docs/SD-MODE-DESIGN.md
+# 6b): KB, 0 the fixed memories as before. The core (every build it is set in): the parts' engine states placed by need,
+# the edit's one confirm for what to drop, a load's refusals on it one by one; the extras only in the SD card mode
+# (registry.h FELUCCA_SD_MODE: LAYOUT 1 until its own flag): the effects' lines, the other buffers, the load's list page
+# (FELUCCA_FX_ARENA, FELUCCA_MEM_LIST). The pool estimate: core.py arena_mem (sd_mode)
+_add("ARENA", "FELUCCA_ARENA_KB", "memory per project (the free RAM: one arena for the engines and the effects' lines)",
+     MEM, 411, default=0,
+     experimental=True, tested="host-tested (tests/fx_arena_test.c, arena_bufs_test.c, arena_test.c, arena_frag_test.c, placeholder_test.c); "
+                          "on the user's FM-1 since 2026-10-29 (the fm1-next test packages)",
+     desc="Instead of reserving every engine's memory whether a project uses it or not, the RAM the firmware leaves free "
+          "is one arena that holds what the project uses (the user, 2026-10-29: arena first, undo gets the rest): each "
+          "synth part's engine state (FM6, PHYS, GRAIN, ACID, PLAITS, JUNO, DRAWBAR, CZ, SLICE), placed when an engine "
+          "is picked, its room free for the others once the part plays an engine that keeps nothing there; the "
+          "effects' lines (the delay, chorus and reverb sends' lines, the limited inserts' own room: one line of each type built) and the other buffers only some projects use (each track's SLICER "
+          "recording while it is on STUT, WAVE's table while a part plays WAVE, the X0X 909's and 808's states while the "
+          "kit or a lane plays them, the PUNCH ring while the project's PUNCH switch is on: GLOBAL > Rec, FM6's sine "
+          "table while a part plays FM6). The undo history keeps 16 KB and borrows what the arena does not use, giving "
+          "it back, its oldest levels first, as soon as the arena needs it. A change that does not fit is refused and "
+          "the device proposes what to drop (DROP T2 FM6, then the effects' lines: DROP REV 32 KB); a project load that "
+          "does not fit opens a list of what to drop. Before anything is refused the memories are moved together when "
+          "the free room would hold it, and a project load packs them all; nothing that sounds is moved (a part only "
+          "while it plays nothing, a send line while its tail is silent), what sounds is packed once it is quiet "
+          "(SYSTEM > INFO's RAM bar shows the arena in use and the undo history's share). A dropped or refused effect "
+          "is bypassed and dimmed (FULL), kept in the project, and comes back by itself once there is room. Off: every "
+          "memory reserved as before, nothing ever refused. An older configuration's size (ARENA=96) reads as on.")
+# bit 414 (2026-10-26): the next free one after the retired FAR_OK's 413; the fm-1 session's handover (projects off the device)
+_add("BT_PROJ", "FELUCCA_BT_PROJ", "projects to and from the phone over Bluetooth", Y, 414, default=0,
+     parent="EDITOR", experimental=True, tested="host-tested only (tests/mirror_test.c); no client sends it yet",
+     desc="The web editor's and the phone's project moves (a project read from the FM-1, or one written into it: the "
+          "backup's project streams and the project command) over Bluetooth MIDI too, not only over the USB cable, so "
+          "with one project on the FM-1 the phone keeps the others without a cable. Over Bluetooth a project moves at "
+          "the link's few KB a second (a dense project in a few seconds). About 640 B of the pool (a request's room for "
+          "the stream's chunks).",
+     off_warning="projects move over the USB cable only")
+# bit 413 (FAR_OK, retired 2026-10-29, never reused): the big slot waited for the far probe's answer on an FM-1; the user:
+# "drop the far probe, we don't need it", the fake SD mode layout always has the whole slot (RETIRED below)
+# bit 415 (2026-10-26): the next free one after BT_PROJ's 414; samples streamed from the SD card (storage/sd/sd_stream.c,
+# sd_stream_plan.c, docs/SD-CARD-DESIGN.md 7): the ring's KB a voice, 0 off (registry.h FELUCCA_SD_RING_KB -> SD_STREAM:
+# full FatFs, SAMPLE and the arena too, else it builds nothing)
+_add("SD_RING", "FELUCCA_SD_RING_KB", "samples streamed from the SD card (SAMPLE's CARD set): each voice's lookahead", MEM,
+     415, default=0, parent="SDCARD", shown_under="SD_MODE",
+     choices=((0, "off"), (4, "4 KB a voice (46 ms of 44.1 kHz 16-bit mono)"), (8, "8 KB a voice (93 ms)"),
+              (12, "12 KB a voice (139 ms)"), (16, "16 KB a voice (186 ms)")),
+     experimental=True, target_only=True, tested="host-tested only (tests/sd_stream_test.c, sd_stream_plan_test.c: "
+     "a card model with stalls, an interrupt-driven audio clock); no FM-1 has the card yet",
+     desc="SAMPLE's SET gets a last value, CARD: the part plays its sample from the SD card (a WAV of 8 or 16 bits, mono "
+          "or stereo, up to 176 kHz), streamed, not loaded. Each sample's first moments are kept in memory (the "
+          "pre-buffer, one setting: 25, 50, 100 or 200 ms, 50 by default; 50 ms of 44.1 kHz 16-bit mono is 4.4 KB a "
+          "sample) so a note starts at once while the card's first block comes; each playing voice reads ahead "
+          "into a ring of this size, filled in short bursts of 4 KB between the screen's strips (the screen and the "
+          "card share a bus). A card that stalls longer than the ring holds makes the voice fade out at once (no "
+          "click; the console's sd stream counts it). 8 voices take 8 x this of the arena while the project plays "
+          "card samples, with the heads; a project whose samples do not fit is refused and the device proposes what "
+          "to drop (a part's engine, or a shorter pre-buffer). A card sample plays at most an octave up (each octave "
+          "doubles what it reads). Needs LAYOUT (full FatFs) and SDCARD, SAMPLE and ARENA.",
+     off_warning="no samples from the card")
+# bit 416 (2026-10-26): the next free one after SD_RING's 415; the master recorded to the SD card (storage/sd/sd_rec.c,
+# docs/SD-CARD-DESIGN.md 7): the ring's KB, 0 off (registry.h FELUCCA_SD_REC_KB -> SD_REC with full FatFs)
+_add("SD_REC", "FELUCCA_SD_REC_KB", "record the master output to the SD card: the buffer for the card's stalls", MEM,
+     416, default=0, parent="SDCARD", shown_under="SD_MODE",
+     choices=((0, "off"), (16, "16 KB (93 ms of 44.1 kHz 16-bit stereo)"), (32, "32 KB (186 ms)"), (64, "64 KB (372 ms)")),
+     experimental=True, target_only=True, tested="host-tested only (tests/sd_wr_test.c, sd_rec_test.c: a card model with "
+     "stalls, an interrupt-driven audio clock); no FM-1 has the card yet; for now started from the console (sd rec)",
+     desc="Records what the FM-1 plays (the master, 16-bit stereo at 44.1 kHz) into a WAV on the SD card, "
+          "RECORD/REC-0001.WAV and on. The audio goes into a buffer of this size and the card takes it a block at a "
+          "time between the screen's strips (the screen and the card share a bus); a card that stalls longer than the "
+          "buffer holds loses frames (counted), never writes noise. The file is one contiguous run sized for the "
+          "length asked (a minute when none): a take that reaches its end stops there. While it records, the card "
+          "does nothing else: samples from the card wait, the card's lists and saves say the card is busy. "
+          "Needs LAYOUT (full FatFs) and SDCARD. The buffer is RAM of the pool for as long as the build has it.",
+     off_warning="no recording to the card")
+# (bit 412, OVERLAY, retired 2026-10-30: RETIRED; never reuse it)
 _add("CPU_GUARD", "FELUCCA_CPU_GUARD", "predictive CPU guard (ease back before shedding)", Y, 61, default=0,
      provenance=FLOWSTATE_GUARD,
      desc="Avoids audio dropouts under heavy load by easing quality back step by step before cutting notes. Under "
@@ -1136,16 +1287,8 @@ _add("CPU_GUARD", "FELUCCA_CPU_GUARD", "predictive CPU guard (ease back before s
           "voices, then voices shed, never the bass or the lead (MONO / LEGATO / UNISON parts) nor the drums; back "
           "after 2 s under 80 % counting what each step saved; SYSTEM > INFO's GUARD line (SYS_DEBUG) shows the step. Weights: "
           "tools/builder/cpu_costs.py from tests/cpu_baseline.txt (docs/CPU-GUARD.md)")
-JIANT_CPU3 = Provenance("JIANT 0.9.9 cpu3 (juanjiant-bit/JIANT)", "juanjiant-bit", "GPL-3.0-only", "da61bc62",
-                        "https://github.com/juanjiant-bit/JIANT")
-_add("VOICE_OWN", "FELUCCA_VOICE_OWN", "voices: reuse a track's own released voice before taking another's", Y, 369,
-     provenance=JIANT_CPU3,
-     desc="When every voice is in use and a track plays a new note, it first restarts one of its own voices that is "
-          "already releasing, instead of fading out another track's tail. The other tracks keep their tails, and no "
-          "extra fading voice runs for a moment over the budget. When the track has no releasing voice, the voice is "
-          "taken from another track as before. A few dozen bytes.",
-     notice="From JIANT 0.9.9 cpu3 by juanjiant-bit (juanjiant-bit/JIANT da61bc62, GPL-3.0). Tested in the host tests "
-            "only, not on a device.")
+# (bit 369, VOICE_OWN, retired 2026-10-29: a part at the voice budget always restarts its own released voice before
+#  fading another part's (core/voice.c, JIANT 0.9.9 cpu3 da61bc62, GPL-3.0); RETIRED above; never reuse the bit)
 _add("CACHE_RAM", "FELUCCA_CACHE_RAM", "more memory from the data cache (for the undo history)", Y, 92, default=0,
      choices=((0, "off"), (2, "8 KB (6 cache ways kept)"), (4, "16 KB (4 kept)"), (7, "28 KB (1 kept, as V15)")),
      target_only=True,
@@ -1160,22 +1303,35 @@ _add("ASM", "FELUCCA_ASM", "hand-written assembly speed-ups (FM6, ANALOG 2)", Y,
      desc="The hottest loops of FM6 and ANALOG 2 written in the processor's assembly: the same sound, about 8 to 19 % "
           "less audio CPU (emulator), for about 0.6 KB of flash and 0.7 KB of fast RAM code. Keep on; off only to "
           "compare with the plain C.")
-# bit 411 (2026-10-25, the sdcard branch's; free on main): the arena (core/arena.c, docs/ARENA.md): KB, 0 the fixed
-# memories as before (no arena code built). The parts' engine states placed by need, the edit's one confirm for what to
-# drop, a load's refusals on it one by one. The pool estimate: core.py arena_mem
-_add("ARENA", "FELUCCA_ARENA_KB", "memory per project (an arena for the synth engines)",
-     Y, 411, default=0,
-     choices=((0, "off: every engine's memory reserved, as before"), (24, "24 KB"), (32, "32 KB"), (40, "40 KB"),
-              (48, "48 KB"), (64, "64 KB"), (96, "96 KB")),
-     experimental=True, tested="host-tested only (tests/arena_test.c, placeholder_test.c, backports_test.c); not on an FM-1",
-     desc="Instead of reserving the largest engine's memory for each synth part whether a project uses it or not, one "
-          "pool memory of this size holds what the project uses: each part's engine state (FM6, PHYS, GRAIN, ACID, "
-          "PLAITS, JUNO, DRAWBAR, CZ, SLICE), placed when an engine is picked, its room free for the others once the "
-          "part plays an engine that keeps nothing there. What the arena does not need goes to the undo history. A "
-          "change that does not fit is refused and the device proposes a part to drop (DROP T2 FM6); a dropped part "
-          "plays nothing (NONE) until an engine is picked for it; a project load that does not fit offers its refused "
-          "parts the same way, one at a time, the project's sound kept. Off: every memory reserved as before, nothing "
-          "ever refused, no arena code.")
+# bit 442 (2026-10-29): the compiler (tools/toolchain.py: COMPILERS, LLVM_URL; the release build through tools/fm1base.py)
+PI32V2_LLVM = Provenance("pi32v2-llvm (jvitkauskas/pi32v2-llvm, pi32v2-isa)", "Julius Vitkauskas",
+                         "Apache-2.0 WITH LLVM-exception, MIT-0", "4f631b31b",
+                         "https://github.com/jvitkauskas/pi32v2-llvm")
+_add("COMPILER", "FELUCCA_COMPILER", "compiler: pi32v2-llvm or JieLi's clang", Y, 442, default=1, target_only=True,
+     choices=((1, "pi32v2-llvm (smaller)"), (0, "JieLi clang 4")), provenance=PI32V2_LLVM,
+     tested="on the FM-1 (2026-10-29): Optimist's own and the release build with pi32v2-llvm 4f631b31b, the user's "
+            "project played and saved, no drop, no crash; the same sound as JieLi's in an A/B",
+     desc="The C compiler the firmware is built with. pi32v2-llvm (Julius Vitkauskas's LLVM with a pi32v2 target) makes "
+          "the same firmware 14 to 30 KB smaller than JieLi's own clang 4 (measured on the default profile and a full "
+          "release configuration), the audio's CPU the same. JieLi's is the compiler the stock firmware and every "
+          "earlier Optimist were built with. costs-all measures with the default (pi32v2-llvm); this item's cost at JieLi is "
+          "how much bigger JieLi's makes the same firmware.")
+# bit 443 (2026-10-30, the next free after COMPILER's 442): a flash-step setting, not firmware (no_image: nothing in
+# the image, its hash or its costs). tools/build.py writes it beside the package (PACKAGE.install.json,
+# tools/install_meta.py); the installers read it from there and show it (docs/INSTALL-PATHS.md)
+M_BOOTLOADER = Provenance("m-bootloader (jvitkauskas/m-bootloader)", "Julius Vitkauskas", "MIT", "v1.2 22e2559",
+                          "https://github.com/jvitkauskas/m-bootloader")
+_add("BOOTLOADER", "", "bootloader: keep it, or install m-bootloader", Y, 443, default=1, no_image=True,
+     choices=((0, "keep (as it is)"), (1, "m-bootloader")), provenance=M_BOOTLOADER,
+     tested="host-tested only (the installers' choice and display); m-bootloader itself on FM-1s (its author's tests)",
+     desc="What installing this build does to the FM-1's bootloader. Keep: it is never touched (the stock one, or "
+          "m-bootloader if it is there already). m-bootloader (the default, set in every profile): an open bootloader by Julius Vitkauskas (MIT): hold REC "
+          "while switching on for the chip's download mode, PLAY for a recovery menu, even when a firmware does not "
+          "start; it stays through firmware updates. The installers (make flash, the builder's f, "
+          "tools/fm1_install.py) use USB-MIDI whenever the running firmware takes the package and leave the bootloader "
+          "as it is, whatever this says; they install m-bootloader only when asked (--install-mboot, the builder's "
+          "entry, the web button), through download mode with M-Flasher, after a full flash backup and your yes. "
+          "Nothing in the firmware changes.")
 # (bit 57, SIMD, withdrawn 2026-10-12: the packed 16-bit forms compute something else on the real FM-1 than the emulator
 #  assumes, a build with them crackles; the code stays (hal/fm1_simd.h, FELUCCA_SIMD default 0, the boot probe
 #  FELUCCA_SIMD_PROBE through tools/build.py); RETIRED below; never reuse the bit)
@@ -1185,51 +1341,23 @@ _add("ARENA", "FELUCCA_ARENA_KB", "memory per project (an arena for the synth en
 X = Y
 JANGADA = Provenance("Jangada (zednaked/jangada)", "zednaked", "GPL-3.0-only", "07cce38",
                      "https://github.com/zednaked/jangada")
-_add("DUAL", "FELUCCA_DUAL", "second CPU core renders parts 2-3", X, 58, default=2,
-     choices=((0, "off"), (2, "on")), target_only=True, provenance=x0x("47f8e4c"),
-     notice="Its guard against misread RAM is ported from X0X by Charles Vestal (GPL-3.0): the second core runs only "
-            "the next job, with a matching check word, and is held at the first one it refuses.",
-     desc="The FM-1's second CPU core renders synth parts 2 and 3 while the first renders the rest, "
-          "cutting the first core's load by 40 to 44 % in the emulator, with the same sound. It costs about 3.3 KB of "
-          "flash, 3.7 KB of RAM and 6 KB of pool. On some FM-1s the second core misreads RAM at the boot loader's "
-          "supply: it then runs nothing it misread, is held for the session and the FM-1 goes on with one core "
-          "(the message CPU1 OFF MISREAD); a boot after one that crashed in its first 30 s stays on one core.",
-     tested="on the FM-1: the default since 2026-10-16")
-_add("STOCK_SUPPLY", "FELUCCA_STOCK_SUPPLY", "raise the core rails to the FM-1's stock values at start-up (for the second core)",
-     X, 62, default=1, parent="DUAL", target_only=True, provenance=MELODEE_SUPPLY,
-     notice="At your own risk: the FM-1's own firmware raises its rails this way, every custom firmware "
-            "leaves them at the boot loader's lower levels. 1.38 V core and 1.60 V on the 1.4 V rail are above the "
-            "AC79 datasheet's table (the chip's absolute limits are not public); chips vary from unit to unit; the "
-            "effect on heat and battery life has not been measured.",
-     desc="At start-up, before the second core, the audio and Bluetooth, the FM-1's rails are set as its own M-VAVE "
-          "firmware sets them: the 1.4 V rail moved from its LDO to the DC-DC, then raised to 1.60 V (VDC14 7), "
-          "then the core rail to 1.38 V (SYSVDD 15), a step at a time, never lowered (the boot loader leaves 1.40 V "
-          "and 1.26 V). Read back after: if a value is wrong, the second core stays off (2ND CORE OFF SUPPLY) and "
-          "the FM-1 runs on one core. SYSTEM > INTERNALS shows the rails (SUPPLY). Second-core builds only; it "
-          "replaces the earlier DUAL_BOOST (1.50 V / 1.38 V on the LDO). On the second core's test unit both cores "
-          "crashed within seconds at the boot loader's rails and ran 3 x 3 minutes with 1.50 V / 1.38 V; the stock "
-          "sequence itself is still being measured.",
-     tested="the sequence emulator- and host-tested; 1.50 V / 1.38 V measured on one FM-1 (2026-10-16)")
+# (bit 58, DUAL, and bit 62, STOCK_SUPPLY, retired 2026-10-29: the second core renders parts 2-3 and the rails are raised to
+#  the FM-1's stock values at start-up in every target build, ALWAYS_ON_TARGET below; RETIRED above; never reuse the bits.
+#  Attribution kept: the second core's guard against misread RAM is ported from X0X by Charles Vestal (GPL-3.0, 47f8e4c), the
+#  supply start-up from Melodee by Kerem Kilic (GPL-3.0, 7a51700), LICENSING.md and system/dual.c, system/supply.c)
 _add("BLE", "FELUCCA_BLE", "Bluetooth LE MIDI, our own stack", M, 252, default=0,
      target_only=True,
-     desc="BLE MIDI as the stock firmware offers it (named Optimist XXXX, the BLE-MIDI service), from a stack written "
+     desc="BLE MIDI as the stock firmware offers it (named FM1-XXXX, the BLE-MIDI service), from a stack written "
           "for Optimist (docs/BLE-STACK.md): BLE in plays the synth, the FM-1's own notes go out with real timestamps. "
           "Tested on an FM-1 with macOS Audio MIDI Setup (not yet with iOS or Windows). "
           "The radio's start-up tables, captured from the stock V15 firmware, are included: no V15 file is needed "
           "(FM1_STOCK_FWSC makes a fresh capture instead, with the same result). "
           "Bluetooth starts OFF: switch it on in SYSTEM > Bluetooth. About 32 KB of flash and 6.5 KB of RAM (the menu "
-          "shows the measured figures; BLE_DIAG below adds more); where "
+          "shows the measured figures); where "
           "the build then overflows, ticking it removes the smallest single item that frees enough (sample sets "
           "first, then other items), or the one you pick instead.", symbols=("ble_in_q",),
      tested="tested on an FM-1 with macOS Audio MIDI Setup, not yet with iOS or Windows")
-_add("BLE_DIAG", "FELUCCA_BLE_DIAG", "BLE diagnostics: the console's blell, counters and rings", M, 253, default=0,
-     parent="BLE", target_only=True,
-     desc="For finding BLE faults: the console's blell command (needs the serial console, USB_CONSOLE) "
-          "and the counters and rings behind it (link-layer events, the radio's receive and transmit state, the "
-          "protocol packets, BLE-MIDI in). About 6 KB of flash and 2.3 KB of RAM, and 6 KB of flash more with the "
-          "console (USB_CONSOLE) for blell itself. Leave it off for normal use: BLE works the same without it; "
-          "bletrim and blevm stay, and so does the boot breadcrumb.",
-     symbols=("con_blell",))
+# (bit 253, BLE_DIAG, retired 2026-10-29: the BLE diagnostics removed; RETIRED above; never reuse the bit)
 _add("BLE_BOND", "FELUCCA_BLE_BOND", "BLE pairing when a Mac or phone connects to the FM-1 (Just Works, encrypted, remembered)", M, 254, default=0,
      parent="BLE", target_only=True,
      desc="LE legacy pairing with Just Works (no passkey, as the FM-1 has no screen keypad for it) and "
@@ -1263,27 +1391,104 @@ _add("BT_AUDIO", "FELUCCA_BT_AUDIO", "Bluetooth Classic Audio (A2DP Source, SBC)
           "e Simple Pairing (Just Works), E0 encryption, L2CAP, AVDTP and a fixed-point SBC encoder. Streams on "
           "the FM-1 to AirPods, a Sony WH-1000XM4 and a Bose SoundLink Mini (2026-10-23).",
      symbols=("ba_sbc", "bt_sbc_encode"))
-_add("BT_AFH", "FELUCCA_BT_AFH", "Bluetooth audio: adaptive frequency hopping (the channels the headset fails on skipped)", M,
-     395, default=1, parent="BT_AUDIO", target_only=True,
-     desc="What every phone's Bluetooth controller does: the FM-1 counts the headset's answers per radio channel "
-          "(79 of them) every 30 s and takes the channels it fails on out of the hopping (LMP_set_AFH; at least 20 "
-          "stay), so a few bad channels no longer stall the stream. Measured need and result (2026-10-23, a "
-          "WH-1000XM4): as the FM-1 warmed, channels 7 MHz apart went deaf (a clock harmonic's comb) and the stream "
-          "stalled and crackled on them; with this on, 6 channels dropped over 6 minutes, every switch held and not "
-          "one audio packet was lost. A console build (BT_DIAG) switches only when told (btpage afh=0 / 1 / 3).",
-     symbols=("bt_afh_classify",))
-_add("BT_DIAG", "FELUCCA_BT_DIAG", "Bluetooth audio diagnostics: the console's btrx / bttrace, counters and logs", M,
-     363, default=0, parent="BT_AUDIO", target_only=True,
-     desc="For finding Bluetooth audio faults on a console build (USB_CONSOLE): the btrx and bttrace logs, the "
-          "status histograms and the per-second counters (receive status bits, signal level, gain), and the live "
-          "btpage pll= / agc= / follow= commands, and every line the Bluetooth stack writes to the console (btinq, "
-          "btpage). About 14 KB of flash and 6.4 KB of RAM with the console. Leave it off for normal use: the audio "
-          "works the same without it.",
-     symbols=("con_btrx",))
+# (bit 395, BT_AFH, retired 2026-10-29: Bluetooth audio always skips the channels the headset fails on, bt/bt_afh.c; RETIRED above;
+#  never reuse the bit)
+# (bit 363, BT_DIAG, retired 2026-10-29: the Bluetooth audio diagnostics removed; RETIRED above; never reuse the bit)
+# Wi-Fi (2026-10-28; docs/WIFI-UI-DESIGN.md, docs/WIFI-LINK-HANDOVER.md). Needs BLE (the Wi-Fi driver is the BLE
+# driver's radio, BLE_HW_WL82); on the classic firmware the USB console build too (the manager and the web editor's
+# Wi-Fi command run through the CDC console; the release has them on fm1-base's own stack): core.validate says so. FELUCCA_LINK follows FELUCCA_WIFI (core.flags). The console's Wi-Fi test
+# commands and the software CCMP (FELUCCA_WIFI_CON, FELUCCA_WIFI_SWCCMP) are not items: OPTIMIST_WIFI=1 (tools/build.py).
+_add("WIFI_LINK", "FELUCCA_WIFI", "Wi-Fi + Link: join a network, Ableton Link as a clock", M, 434,
+     default=0, target_only=True, experimental=True,
+     tested="on an FM-1 as far as receive and decrypt (docs/WIFI-LINK-HANDOVER.md); DHCP and a Link session not through yet",
+     desc="The FM-1 joins a Wi-Fi network (WPA2-PSK with CCMP) on the radio BLE already uses: SYSTEM > WI-FI scans, lists "
+          "the access points heard, keeps the saved networks and joins one (the password typed on the keys), and the web "
+          "editor has a Wi-Fi tab. Ableton Link is a clock source: SYNC gets LINK (AUTO ranks it first), the session's "
+          "tempo and beat are the MIDI clock. Needs BLE (the same radio, the on-chip driver). On Optimist's own "
+          "firmware it needs the serial console (USB_CONSOLE) too: the Wi-Fi manager and the editor's Wi-Fi command run "
+          "on it; the release runs them on fm1-base's own Wi-Fi stack (wifi_stack = own), with no console. Off by default. Measured 2026-10-28 on the bt-debug configuration, with and without it: "
+          "26.6 KB of flash, 1.9 KB of RAM and 3.7 KB of the pool. Open and WPA3-only networks, TKIP and networks "
+          "that need protected management frames are shown grey and cannot be joined. The console's Wi-Fi test "
+          "commands and the software CCMP are not part of it (the OPTIMIST_WIFI=1 dev build, +9.9 KB of flash).",
+     symbols=("lk_poll",))
+_add("WIFI_AP", "FELUCCA_WIFI_AP", "Wi-Fi AP: the FM-1 as an access point (MODE AP)", M, 435,
+     default=0, parent="WIFI_LINK", target_only=True, experimental=True,
+     tested="host-tested (the authenticator against our own station, the daemon over a stand-in radio, the page, the web command); the radio side is not tested on an FM-1 yet",
+     desc="MODE AP on the SYSTEM > WI-FI page: the FM-1 is the Wi-Fi access point, so a phone, a laptop or Ableton Live joins "
+          "it directly, with no router (a gig). MODE gets two more values, AP AUTO (starts at power-on) and AP MAN (started and stopped with SAVE): the page shows the network's name (FM1- and "
+          "four digits of the radio's address, or one set from the web editor), the channel (1 to 13) and the state; "
+          "SAVE types the password (8 to 63 characters, the same entry as a network's), SAVE held clears the key. No access "
+          "point runs without a password; only the key made from it is kept. WPA2 personal (AES), up to 4 stations, "
+          "addresses 192.168.4.2 to .5 from the FM-1's own DHCP server, Link runs on that network. The web editor's Wi-Fi "
+          "tab gets the same. Needs Wi-Fi + Link. Not tested on the device yet (host-tested only): the radio side may need "
+          "changes. Off by default. Measured 2026-10-28 on the bt-debug configuration, with and without it (Wi-Fi + Link "
+          "on in both): 8.1 KB of flash, no RAM and 1.8 KB of the pool.")
+# USB MIDI host (2026-10-28): fm1-base's (fm1.toml usb_host = true, felucca-bsp's chip/usb_host.c, ported from Melodee
+# with its authors' permission); the release only: Optimist's own firmware has no USB host (core.validate says so).
+# Bit 438 (436 / 437: MEMORY / RAM_PACKED, retired).
+_add("USB_HOST", "FELUCCA_USB_HOST", "USB MIDI host: a USB-MIDI keyboard, controller or synth plugged into the FM-1", M, 438,
+     default=0, experimental=True,
+     tested="host-tested only; USB host IN ran on Melodee, OUT not validated on a device",
+     off_warning="no USB-MIDI keyboard or synth on the FM-1's own USB port (a computer's USB MIDI works as always)",
+     desc="The FM-1's USB port as a MIDI host: a class-compliant USB-MIDI keyboard, controller or synth plugged into "
+          "the FM-1, directly or behind one powered hub. The FM-1 gives the port no power: a powered hub or a powered "
+          "USB adapter is needed. SYSTEM > USB: MODE DEVICE or HOST, and DEVICE, the device's name as it gives it (else "
+          "CONNECTED, NONE, NO MIDI). Its notes play the tracks on their channels as any MIDI input, its clock can be "
+          "followed (CLK IN USB or AUTO), and the FM-1's notes and CLOCK OUT go to it. HOST is the port's only use "
+          "meanwhile: no computer (no USB MIDI to a Mac, no USB audio, no web editor or installer over USB) until MODE "
+          "is DEVICE again or the FM-1 is switched off. HOST is never remembered: the FM-1 always starts as a device, "
+          "so it is never locked out of its computer. The release only (Optimist as an fm1-base app: fm1-base's USB "
+          "host, from Melodee); Optimist's own firmware has none. Off by default. Host-tested only (the host "
+          "simulator's USB device, felucca-bsp's model of the USB controller): USB host input ran on Melodee, output "
+          "is not validated on a device yet.")
+
+# Where each engine's hot code runs (the user, 2026-10-29): the engine's item is a choice, off / on (its render path
+# from the XIP flash, through the flash cache) / on, code in RAM (RAM code: out of the cache's way, its bytes taken from
+# the free RAM, about two thirds of them in flash: the boot stream codes RAM code). The firmware's switch per engine
+# (core.h FAST_RAM_<name>, through FAST): FAST_NAMES. Defaults: where each ran until then (FAST_RAM:
+# ANALOG 2 with SUPER, PHASE, DIGITAL, TRIO, FORMANT, DRAWBAR, LOFI, SAMPLE; the rest from the flash). The values are
+# 0 / 2 / 3: a .config's 1 (an engine "on" before) reads as the engine's place by default (core.parse), so an old
+# profile builds what it built. FAST_BYTES: the render path's code, bytes (the release's ELF, fm1-next 0efe7cd6, jam
+# configuration, each engine moved alone; tools/builder/core.py's estimate for a place costs.json has not measured)
+ENG_OFF, ENG_ON, ENG_RAM = 0, 2, 3
+ENG_LEGACY_ON = 1
+FAST_NAMES = {"ENG_ANALOG": ("analog", "super"), "ENG_PHASE": ("phase",), "ENG_DIGITAL": ("digital",),
+              "ENG_TRIO": ("trio",), "ENG_FORMANT": ("formant",), "ENG_DRAWBAR": ("drawbar",), "ENG_LOFI": ("lofi",),
+              "ENG_SAMPLE": ("sample",), "ENG_FM6": ("fm6",), "ENG_ACID": ("acid",), "ENG_PLAITS": ("plaits",),
+              "ENG_PHYS": ("phys",), "ENG_PROPHET": ("prophet",), "ENG_JUNO": ("juno",), "ENG_CZ": ("cz",),
+              "ENG_STRINGS": ("strings",)}
+FAST_RAM = frozenset({"ENG_ANALOG", "ENG_PHASE", "ENG_DIGITAL", "ENG_TRIO", "ENG_FORMANT", "ENG_DRAWBAR", "ENG_LOFI",
+                      "ENG_SAMPLE"})
+FAST_BYTES = {"ENG_ANALOG": 5132, "ENG_PHASE": 2260, "ENG_DIGITAL": 1314, "ENG_TRIO": 2812, "ENG_FORMANT": 2412,
+              "ENG_DRAWBAR": 1512, "ENG_LOFI": 956, "ENG_SAMPLE": 644, "ENG_FM6": 8000, "ENG_ACID": 12816,
+              "ENG_PLAITS": 6408, "ENG_PHYS": 8904, "ENG_PROPHET": 3344, "ENG_JUNO": 2596, "ENG_CZ": 3832,
+              "ENG_STRINGS": 1552}
+# the flash an engine's render path in RAM saves over the same in XIP, measured where FAST_BYTES was (release builds of
+# the jam configuration, fm1-next 0efe7cd6 + this branch, the engine moved alone); else FAST_FLASH_RAM's model
+FAST_FLASH_SAVED = {"ENG_ANALOG": 1776, "ENG_FM6": 600, "ENG_ACID": 4616, "ENG_PLAITS": 1572, "ENG_PHYS": 2444,
+                    "ENG_PROPHET": 1160, "ENG_JUNO": 664, "ENG_CZ": 876, "ENG_STRINGS": 488}
+FAST_FLASH_RAM = 0.67    # flash a RAM-code byte takes (the boot stream's coding; measured 0.665 and 0.705, probe B, D)
+
+
+def fast_flash_saved(key):
+    """the flash this engine's render path saves in RAM (measured, else the model)"""
+    return FAST_FLASH_SAVED.get(key, round(FAST_BYTES.get(key, 0) * (1 - FAST_FLASH_RAM)))
+
+
+def eng_place(key):
+    """an engine item's place when on by default (ENG_ON / ENG_RAM)"""
+    return ENG_RAM if key in FAST_RAM else ENG_ON
+
+
+def _eng_fast(it):
+    """an engine item of FAST_NAMES as its three-way choice (its default: off, or on at its place)"""
+    if it.key in FAST_NAMES and not it.choices:
+        it.choices = ((ENG_OFF, "off"), (ENG_ON, "on"), (ENG_RAM, "on, code in RAM"))
+        it.default = eng_place(it.key) if it.default else ENG_OFF
+
 
 for _it in _ITEMS:
-    if _it.group == "FX":
-        _it.group = fx_group(_it.key, _it.parent)
+    _eng_fast(_it)
 ITEMS = {it.key: it for it in _ITEMS}
 
 
@@ -1297,6 +1502,11 @@ for _it in _ITEMS:
     if _it.parent:
         assert _level_ok(_it), f"{_it.key}: one level only (two under a group's head)"
         ITEMS[_it.parent].children.append(_it.key)
+for _it in _ITEMS:                                   # the menu's tree: shown_under over parent, hidden items left out
+    _up = _it.shown_under or _it.parent
+    if _up and not _it.hidden:
+        assert _it.shown_under is None or _it.shown_under in ITEMS, f"{_it.key}: shown_under names no item"
+        ITEMS[_up].menu_children.append(_it.key)
 assert len({it.bit for it in _ITEMS}) == len(_ITEMS), "registry: duplicate bit"
 assert all(k not in ITEMS for k in FORBIDDEN), "registry: a forbidden item is registered"
 for _it in _ITEMS:
@@ -1306,7 +1516,7 @@ for _it in _ITEMS:
 
 # the items of other groups that only drums use: left out with DRUMS (core.built), their switches 0 (core.flags)
 DRUMS_ONLY = ("FX_DUCK", "ENERGY", "LANE_FX", "GRIDS_EUCLID", "GRIDS_LFO", "GRIDS_VEL",
-              "SL24_SAFE", "SL24_IMPORT", "SL24_EXPORT", "SL24_EDIMPORT")   # (SLOOP's formats: a drum track)
+              "SL24_SAFE")   # (SLOOP's data kept safe: a drum track)
 
 
 def ancestors(key):
@@ -1319,7 +1529,7 @@ def ancestors(key):
 
 
 def top_level(group=None):
-    return [it for it in _ITEMS if not it.parent and (group is None or it.group == group)]
+    return [it for it in _ITEMS if not it.parent and not it.hidden and (group is None or it.group == group)]
 
 
 def add_item(item):
@@ -1328,13 +1538,40 @@ def add_item(item):
     assert item.bit not in {it.bit for it in _ITEMS}, f"{item.key}: bit {item.bit} taken"
     if item.provenance and "fm1-x0x" in item.provenance.project + item.provenance.url:
         assert item.notice, f"{item.key}: an X0X item needs its notice"
-    if item.group in ("FX", FX_ANY, FX_ONCE):
-        item.group = fx_group(item.key, item.parent)
+    _eng_fast(item)
     _ITEMS.append(item)
     ITEMS[item.key] = item
     if item.parent:
         assert _level_ok(item), f"{item.key}: one level only (two under a group's head)"
         ITEMS[item.parent].children.append(item.key)
+    _up = item.shown_under or item.parent
+    if _up and not item.hidden:
+        ITEMS[_up].menu_children.append(item.key)   # (the menu's tree, as the loop above makes it for the registry's own items)
+
+
+# Values a build kind cannot build (the registry's fact, read by core.validate, the menu, and measure_costs.py, which records them as
+# "not in this build" in that kind's costs file and probes them: a mark whose value links again is reported). Key: (item, value);
+# value: {"classic" (Optimist's own firmware) / "release" (the fm1-base app): why}. Not a failure of the measuring: a value
+# that SHOULD build and does not is (measure_costs.py reports it loudly)
+_S0_RELEASE = ("not for the release yet: fm1-base's own update loader and app_end do not take the MEMORY steps' table "
+               "(its slot switch would leave the old step's log sectors in the new one's; docs/SD-MODE-DESIGN.md 9.4, "
+               "the proposed fm1-base branch pr/app-end-table)")
+# (PHYS in RAM was a NOT_BUILT entry until its render stopped calling libgcc's __udivdi3: phys_dsp.c px_udiv, 2026-10-30)
+NOT_BUILT = {
+    ("MEMORY", 4): {"release": _S0_RELEASE},
+    ("LAYOUT", 2): {"release": _S0_RELEASE},
+    ("LAYOUT", 3): {"release": _S0_RELEASE},
+    ("LAYOUT", 4): {"release": _S0_RELEASE},
+    ("LAYOUT", 5): {"release": _S0_RELEASE},
+    ("LAYOUT", 6): {"release": _S0_RELEASE},
+    ("LAYOUT", 7): {"release": _S0_RELEASE},
+    ("LAYOUT", 8): {"release": _S0_RELEASE},
+}
+
+
+def not_built(key, value, kind):
+    """-> why this build kind ("classic" / "release") cannot build item key at value, else an empty string"""
+    return NOT_BUILT.get((key, value), {}).get(kind, "")
 
 
 def to_json():
@@ -1344,6 +1581,7 @@ def to_json():
                                           "experimental", "notice", "off_warning", "env", "target_only", "symbols", "no_image",
                                           "fixed", "head")}
         d["choices"] = [list(c) for c in it.choices]
+        d["not_built"] = {str(v): why for (k, v), why in NOT_BUILT.items() if k == it.key}
         d["provenance"] = it.provenance.__dict__ if it.provenance else None
         out.append(d)
     return {"groups": GROUPS, "items": out, "forbidden": FORBIDDEN, "drums_only": list(DRUMS_ONLY)}

@@ -37,8 +37,30 @@ static void pf_key(uint32_t w)                          /* white key w down and 
     kdown(k);
     kup(k);
 }
+static void prjflow_slotmsg_tests(void)                 /* a key past the last slot: a toast, never silence (2026-11-01) */
+{
+    char want[32];
+    uint32_t n = prj_slot_n(PR_PROJECT), w;
+    (void)pf_row(PR_PROJECT);
+    if (n >= 16u)
+        return;                                         /* (16 projects: no key falls past the end) */
+    ui.toast_t = 0;
+    ui.msg[0] = 0;
+    pf_key(n);                                          /* (the first key past the end) */
+    snprintf(want, sizeof want, "ONLY %u PROJECT%s: SEE MEMORY", (unsigned)n, n == 1u ? "" : "S");
+    check(!op_armed() && ui.toast_t && !strcmp(ui.msg, want), "PROJECT: a key past the last slot: toast \"Only n projects: see memory\", no question");
+    for (w = 0; w < 16u; w++) {
+        ui.toast_t = 0;
+        pf_key(w);
+        check(w < n ? (ui.toast_t == 0 || strncmp(ui.msg, "ONLY", 4)) : (ui.toast_t && !strncmp(ui.msg, "ONLY", 4) && !op_armed()),
+              "PROJECT: keys 1..n act as before, every key past n gives the toast");
+        if (op_armed())
+            tap(B_HOME);
+    }
+}
 static void prjflow_tests(void)
 {
+    prjflow_slotmsg_tests();
     uint32_t r, r2, h0, kind, kinds[3] = {PR_PROJECT, PR_SNAP, PR_USER};
     cell_t c;
     /* every store: LOAD at first, the knob walks the operations, the BANK card exists only past 16 slots */
@@ -208,6 +230,67 @@ static void prjflow_tests(void)
     } else
         check(0, "LOAD with the work changed: project 2 stored for the test");
 #endif
+    /* LOAD of a free PROJECT slot offers a new project there (the user, 2026-11-01): YES = a clean project, open and stored in
+     * that slot; HOME = nothing changed; with the work changed the discard question comes first (PATTERNS) */
+    {
+        uint32_t n = prj_slot_n(PR_PROJECT), f1 = n, f2 = n, i;
+        char q[24], toast[24];
+        for (i = n; i-- > 0;)
+            if (!prj_slot_used(PR_PROJECT, i)) {
+                f2 = f1;
+                f1 = i;
+            }
+        /* f1 the lowest free slot, f2 the next free one (or n: none) */
+        if (f1 >= n || f1 >= 16u) {
+            check(0, "empty project slot: a free slot to try");
+        } else {
+            pf_row(PR_PROJECT);
+            fmt_int(q, (int32_t)f1 + 1);
+            str_cpy(toast, "NEW PROJECT ", sizeof toast);
+            str_app(toast, q, sizeof toast);
+            str_cpy(q, toast, sizeof q);
+            str_app(q, "?", sizeof q);
+            edt.work_ok = 1;
+            edt.work = work_sig();
+            ui.toast_t = 0;
+            h0 = loads + saves;
+            pf_key(f1);
+            check(op_armed() && !strcmp(ui.arm_q, q) && !ui.arm_danger && !ui.toast_t, "LOAD of a free project slot: \"New project n?\" asked, no toast, not red");
+            tap(B_HOME);
+            check(!op_armed() && !prj_slot_used(PR_PROJECT, f1) && loads + saves == h0, "... HOME: nothing changed, the slot still free");
+            pf_key(f1);
+            h0 = saves;
+            tap(B_SAVE);
+            check(!op_armed() && (prj_slot_used(PR_PROJECT, f1) || saves > h0) && prj_cur == (int8_t)f1 && !work_changed(), "... YES: a new project open and stored in that slot");
+            check(ui.toast_t && !strcmp(ui.msg, toast), "... the toast \"New project n\"");
+#if FELUCCA_PATTERNS
+            check(project_cur() == f1, "... the open project is that slot");
+#endif
+            if (f2 < n && f2 < 16u) {
+                pf_row(PR_PROJECT);
+                edt.work_ok = 1;
+                edt.work = work_sig() ^ 1u;
+                pf_key(f2);
+#if FELUCCA_PATTERNS
+                check(op_armed() && !strncmp(ui.arm_q, "SAVE PROJECT", 12) && prj_arm_op == PO_SAVE_LOAD, "free slot with the work changed: \"Save project?\" first");
+                tap(B_HOME);
+#endif
+                check(op_armed() && ui.arm_danger && !strncmp(ui.arm_q, "NEW PROJECT", 11) && !prj_slot_used(PR_PROJECT, f2),
+                      "... then \"New project n?\" (red: the edits go), the slot still free");
+                tap(B_HOME);
+                check(!op_armed() && !prj_slot_used(PR_PROJECT, f2) && work_changed(), "... HOME again: cancelled, the edits kept, the slot free");
+                pf_key(f2);
+#if FELUCCA_PATTERNS
+                tap(B_HOME);
+#endif
+                h0 = saves;
+                tap(B_SAVE);
+                check(!op_armed() && (prj_slot_used(PR_PROJECT, f2) || saves > h0) && !work_changed(), "... YES: a new project in that slot, the edits dropped");
+            }
+            frames(3);                                  /* (NEW stopped the transport and silenced the tracks: settled before the rest) */
+            transport_req = 0;
+        }
+    }
     ui.toast_t = 0;
     pf_key(3);
     check(song.g[G_SLOT] == 4 && (op_armed() != (ui.toast_t != 0u)), "PROJECT: key 4 selects slot 4: a question when used, a toast when free");

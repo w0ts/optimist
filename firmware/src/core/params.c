@@ -1,18 +1,25 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments */
 /* Parameter descriptors, formatting and the page table. */
-static const char *const N_LWAVE[] = {"SIN", "TRI", "SAW", "SQR", "S&H"};
+static const char *const N_LWAVE[] = {"SIN", "TRI", "SAW", "SQR", "S&H", "SLEW"};   /* (SLEW last: a saved index keeps its wave, lfo_slot.h) */
 /* the note values of the tempo (core.h DUR_48), longest first: every duration there is is an index into this list (the arp's RATE,
  * SEQ DIV, the delay's TIME, an LFO's synced RATE -(i + 1), the slicer's and the gater's step, ROLL). T a triplet, D dotted */
 static const char *const N_DUR[DUR_N] = {"4BAR", "3BAR", "2BAR", "1BARD", "1BAR", "1/2D", "1T", "1/2", "1/4D", "2T", "1/4",
                                          "1/8D", "4T", "1/8", "1/16D", "8T", "1/16", "1/32D", "16T", "1/32", "32T", "1/64"};
-#define N_LSYNC N_DUR
 #define N_DIV N_DUR
 #define N_SDIV N_DUR
 #define N_DLY N_DUR
 #define N_SLDIV N_DUR
 #define N_ROLL N_DUR
-static const char *const N_L2TRIG[] = {"NOTE", "FREE"};   /* LFO 2 (SLOOP 2.6's LFO 2 TRIG, POL) */
+/* an LFO's synced RATE past the DUR values (core.h LSYNC_LIST: -23 .. -25, issue 129): its name, any synced RATE's */
+static const char *const N_LSX[LSYNC_N - DUR_N] = {"6BAR", "8BAR", "16BAR"};
+static const char *lsync_name(int32_t v)               /* v < 0: RATE v */
+{
+    uint32_t i = (uint32_t)(-v - 1);
+    return i < DUR_N ? N_DUR[i] : i < LSYNC_N ? N_LSX[i - DUR_N] : N_DUR[0];
+}
+/* LFO's and LFO 2's TRIG (core.h LTRIG_*: PLAY appended, issue 129), POL (SLOOP 2.6's LFO 2 TRIG, POL) */
+static const char *const N_L2TRIG[] = {"NOTE", "FREE", "PLAY"};
 static const char *const N_L2POL[] = {"BI", "UNI"};
 /* a modulation slot's DEST (core.h LT_*: LFO's, LFO 2's, ENV's, ENV2's) */
 static const char *const N_LT[LT_N] = {"OFF", "PIT", "FLT", "SHP", "AMP", "RES", "PAN", "LVL", "ATK", "DEC",
@@ -32,7 +39,8 @@ static const char *const N_LT[LT_N] = {"OFF", "PIT", "FLT", "SHP", "AMP", "RES",
                                        "VOICE", "GLIDE", "GL MOD", "PRIO", "ALLOC", "DETUNE", "VOICES", "DROP",
                                        "ARP", "AR RT", "AR OCT", "AR GT", "AR SWG", "AR PRB", "AR HLD", "AR ORD",
                                        "LEN", "DIV", "SWING", "GATE",
-                                       "MUTE", "FX OFF"};
+                                       "MUTE", "FX OFF",
+                                       "L1 TRG", "L1 POL", "L2 PHS", "L2 FAD"};
 static const char *const N_AMODE[] = {"OFF", "UP", "DN", "UPDN", "RND", "ORD", "BASS"};   /* (BASS appended: the lowest, then the others in turn) */
 static const char *const N_SCALE[] = {"CHR", "MAJ", "MIN", "DOR", "MIX", "PEN", "MPEN", "HARM",
                                     "PHRY", "LYD", "LOC", "MEL", "BLUES", "WHOLE", "DIMHW", "DIMWH"};
@@ -51,15 +59,22 @@ static const char *const N_GLMODE[] = {"RATE", "TIME"};
 static const char *const N_PRIO[] = {"LAST", "LOW", "HIGH"};
 static const char *const N_ALLOC[] = {"ROT", "REUSE"};
 static const char *const N_ORDER[] = {"NOTE", "PLAY"};
-static const char *const N_CLICK[] = {"OFF", "REC", "ON", "AUTO"};   /* G_CLOCK is the metronome (seq.c click_tick; AUTO: while nothing else plays) */
+static const char *const N_CLICK[] = {"OFF", "REC", "ON", "AUTO"};   /* G_CLOCK is the metronome (seq.c click_tick; AUTO: only in record mode, REC armed or recording) */
 static const char *const N_NOTE[] = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
 static const char *const N_DASH[] = {"--"};
-#if defined(FELUCCA_BLE) && FELUCCA_BLE
-static const char *const N_SYNC[] = {"INT", "USB", "TRS", "AUTO", "BLE"};   /* SYNC_* (core.h); AUTO: TRS, USB, BLE, INT */
-#else
-static const char *const N_SYNC[] = {"INT", "USB", "TRS", "AUTO"};          /* (no BLE MIDI: no SYNC BLE) */
+#ifndef FELUCCA_LINK
+#define FELUCCA_LINK 0                       /* Ableton Link over Wi-Fi (src/link/, docs/LINK-DESIGN.md): no builder item yet */
 #endif
+#if defined(FELUCCA_BLE) && FELUCCA_BLE && FELUCCA_LINK
+static const char *const N_SYNC[] = {"INT", "USB", "TRS", "AUTO", "BLE", "LINK"};   /* SYNC_* (core.h); AUTO: TRS, USB, LINK, BLE, INT */
+static const char *const N_CLKSRC[] = {"INT", "USB", "TRS", "BLE", "LINK"};         /* G_MIDI: the clock followed (MSRC_*) */
+#elif defined(FELUCCA_BLE) && FELUCCA_BLE
+static const char *const N_SYNC[] = {"INT", "USB", "TRS", "AUTO", "BLE"};   /* SYNC_* (core.h); AUTO: TRS, USB, BLE, INT */
 static const char *const N_CLKSRC[] = {"INT", "USB", "TRS", "BLE"};         /* G_MIDI: the clock followed (MSRC_*) */
+#else
+static const char *const N_SYNC[] = {"INT", "USB", "TRS", "AUTO"};          /* (no BLE MIDI: no SYNC BLE, no LINK: Wi-Fi needs the BLE radio code) */
+static const char *const N_CLKSRC[] = {"INT", "USB", "TRS", "BLE"};         /* G_MIDI: the clock followed (MSRC_*) */
+#endif
 static const char *const N_GO[] = {"--", "GO"};
 static const char *const N_SLCR[] = {"OFF", "GATE", "STUT"};             /* SL_OFF .. SL_STUT (slicer.c) */
 #if INS_FX || FELUCCA_USB_AUDIO                      /* (fx_slots.c UT_DESC, the USB input slots, names them too) */
@@ -135,7 +150,7 @@ static const param_desc_t TP[P_COUNT] = {
     [P_ED_FX] = PD("TRIM", F_INT, -64, 63, 0),   /* the sound's level trim, 1/2 dB (presets set it) */
     [P_LRATE] = PD("RATE", F_LFOHZ, -LSYNC_N, 127, 60),   /* (< 0: synced, N_LSYNC) */
     [P_LWAVE] = PE("WAVE", N_LWAVE, 0),
-    [P_LPHASE] = PD("PHS", F_INT, 0, 127, 0),
+    [P_LPHASE] = PD("PHS", F_DEG, 0, 127, 0),   /* (shown in degrees; a detent 45: op_cells.c phs_turn) */
     [P_LFADE] = PD("FADE", F_TIME, 0, 127, 0),
     [P_L1DA] = PN("DST A", F_ENUM, 0, LT_NB - 1, 0, N_LT),   /* LFO DEST: two slots (core.h LT_*) */
     [P_L1AA] = PD("AMT A", F_BIPCT, LFO_AMT_LO, LFO_AMT_HI, 0),   /* (2 = a depth of 1 of before; AMP: 1) */
@@ -219,7 +234,7 @@ static const param_desc_t TP[P_COUNT] = {
     [P_TFLNG] = PD("FLNG", F_PCT, 0, 127, 0),      /* the flanger: its mix to 64, then its feedback */
     [P_TFRMT] = PD("FRMT", F_PCT, 0, 127, 0),      /* the vowel: A E I O U from 1 to 127 */
     [P_TWIDE] = PD("WIDE", F_PCT, 0, 127, 0),      /* the width: the swept side's share */
-    [P_TCHRS] = PD("CHRS", F_PCT, 0, 127, 0),      /* the chorus insert (fxi.c): its mix to 64, then its depth */
+    [P_TCHRS] = PD("CHRS", F_PCT, 0, 127, 0),      /* (unused since 2026-10-29: CHRS is the CHO insert, its MIX P_CHOR) */
     [P_TECHO] = PD("ECHO", F_PCT, 0, 127, 0),      /* the slapback insert (fxi.c): its level to 64, then its feedback */
     [P_TGATE] = PD("GATER", F_PCT, 0, 127, 0),     /* GATER (insfx/gater.c): its DEPTH, 127 a closed step silent */
     [P_TGPAT] = PE("PAT", N_TGPAT, 8),             /*   its pattern (gater.c IGT_PAT), TRNC1 */
@@ -251,6 +266,10 @@ static const param_desc_t TP[P_COUNT] = {
     [P_L2WAVE] = PE("WAVE", N_LWAVE, 0),
     [P_L2TRIG] = PE("TRIG", N_L2TRIG, 0),
     [P_L2POL] = PE("POL", N_L2POL, 0),
+    [P_L2PHS] = PD("PHS", F_DEG, 0, 127, 0),       /* (issue 129: LFO 2's as LFO's) */
+    [P_L2FADE] = PD("FADE", F_TIME, 0, 127, 0),
+    [P_L1TRIG] = PE("TRIG", N_L2TRIG, 0),           /* (issue 129: LFO's as LFO 2's; NOTE BI: LFO as before) */
+    [P_L1POL] = PE("POL", N_L2POL, 0),
     [P_L2DA] = PN("DST A", F_ENUM, 0, LT_NB - 1, 0, N_LT),   /* its two slots, as LFO's */
     [P_L2AA] = PD("AMT A", F_BIPCT, LFO_AMT_LO, LFO_AMT_HI, 0),
     [P_L2DB] = PN("DST B", F_ENUM, 0, LT_NB - 1, 0, N_LT),
@@ -348,6 +367,9 @@ static void preset_extras(int16_t *p, const preset_t *pr)
 }
 #if FELUCCA_ANALOG2
 /* ANALOG 2's values of ANALOG preset pi (eng_analog.c A2_PX) into p, clamped; after preset_extras */
+#if PRESETS_CARD
+#define analog2_extras(p, e, pi) ((void)0)               /* (SD card mode: the card's preset records hold them) */
+#else
 static void analog2_extras(int16_t *p, const engine_t *e, uint32_t pi)
 {
     uint32_t i;
@@ -356,6 +378,7 @@ static void analog2_extras(int16_t *p, const engine_t *e, uint32_t pi)
             if ((uint32_t)A2_PX[i][0] == pi)
                 p[A2_PX[i][1]] = (int16_t)clamp(A2_PX[i][2], TP[A2_PX[i][1]].min, TP[A2_PX[i][1]].max);
 }
+#endif
 /* SUPER's presets 0..4 are ANALOG's 16..20 now, in the same order (eng_analog.c; tests/project_test.c) */
 #define A2_SUPER0 16u
 /* a sound that played SUPER (p: today's layout, SUPER's eight values in P_E0..P_E7; spi: its SUPER preset)
@@ -365,15 +388,19 @@ static void analog2_extras(int16_t *p, const engine_t *e, uint32_t pi)
 static uint32_t analog2_from_super(int16_t *p, uint32_t spi)
 {
     int16_t sv[8];
-    uint32_t k, pi = A2_SUPER0 + (spi < 5u ? spi : 0u);
-    const preset_t *pr;
+    uint32_t pi = A2_SUPER0 + (spi < 5u ? spi : 0u);
     if (!ENG_HAS(ANALOG))                       /* (ANALOG not built: the part keeps SUPER's values, ANALOG's UID) */
         return pi;
-    pr = &ENG_ANALOG.presets[pi];
     memcpy(sv, &p[P_E0], sizeof sv);
-    for (k = 0; k < 8u; k++)
-        p[P_E0 + k] = pr->e[k];
-    analog2_extras(p, &ENG_ANALOG, pi);
+#if !PRESETS_CARD                               /* (SD card mode: no tables; the SUPER values below on ANALOG's defaults) */
+    {
+        const preset_t *pr = &ENG_ANALOG.presets[pi];
+        uint32_t k;
+        for (k = 0; k < 8u; k++)
+            p[P_E0 + k] = pr->e[k];
+        analog2_extras(p, &ENG_ANALOG, pi);
+    }
+#endif
     p[P_A2SWRM] = sv[0];
     p[P_A2SDTN] = sv[1];
     p[P_A2DRFT] = sv[3];
@@ -498,26 +525,57 @@ static int param_hidden(const param_desc_t *d)          /* one of FM6's EDIT val
 #define param_step0(d, v, steps) clamp((v) + (steps), (d)->min, (d)->max)
 #endif
 
-#define is_lrate(d) ((d) == &TP[P_LRATE] || (d) == &TP[P_L2RATE])   /* an LFO's RATE (LFO 2's too) */
+/* an LFO's RATE (LFO's, LFO 2's, a drum lane's or the kit's: a free rate 0..127 and the synced ones below 0) */
+#define is_lrate(d) ((d)->fmt == F_LFOHZ && (d)->min < 0)
+/* RATE v's place on the knob (issue 129): the free rates as they are (0..127), the synced ones below in length order,
+ * -1 the longest (16BAR) .. -LSYNC_N the shortest (1/64), as stored: -1 4BAR .. -22 1/64 (DUR), then -23 6BAR -24 8BAR
+ * -25 16BAR (core.h LSYNC_LIST, appended so that no stored value moves) */
+#define LSYNC_X (LSYNC_N - DUR_N)                      /* the synced values past the DUR ones */
+static int32_t lrate_pos(int32_t v) { return v >= 0 ? v : v >= -DUR_N ? v - LSYNC_X : -(LSYNC_N + 1) - v; }
+static int32_t lrate_val(int32_t x) { return x >= 0 ? x : x >= -LSYNC_X ? -(LSYNC_N + 1) - x : x + LSYNC_X; }
+/* a synced RATE v's rank, 0 the longest .. LSYNC_N - 1 the shortest (its gauge, op_cells.c) */
+static int32_t lrate_rank(int32_t v) { return -lrate_pos(v) - 1; }
 /* the LFO's RATE turned (steps detents, accelerated): a fast turn down stops at 0 first, the slowest free rate; below 0
- * (the synced note values, N_LSYNC) one value a detent, whatever the speed; above 0 as every value */
+ * (the synced note values, lsync_name) one value a detent, whatever the speed, in length order; above 0 as every value */
 static int32_t lrate_step(const param_desc_t *d, int32_t v, int32_t steps)
 {
-    if (!steps || (v >= 0 && v + steps >= 0))
-        return clamp(v + steps, d->min, d->max);
-    return v > 0 ? 0 : clamp(v + (steps < 0 ? -1 : 1), d->min, d->max);
+    int32_t x = lrate_pos(clamp(v, d->min, d->max));
+    if (!steps || (x >= 0 && x + steps >= 0))
+        return lrate_val(clamp(x + steps, d->min, d->max));
+    return x > 0 ? 0 : lrate_val(clamp(x + (steps < 0 ? -1 : 1), d->min, d->max));
 }
 
-#if FELUCCA_DIV_ORDER
-/* #48 (after Felucca 1.0.2, hugelton/Felucca db70550, params.c DIV_ORDER / enum_rank / param_turn, by Leo
- * Kuroshita, GPL-3.0-only): the note divisions in the order of their length on the knobs and the gauges. Since 2026-10-22 N_DUR is in
- * that order already (core.h DUR_48), so there is no order table: the value is the place */
+#if BP_SET_ANY
+static const char *const N_MOUT[] = {"KEYS", "BOTH", "SEQ", "OFF"};           /* MIDI OUT: what goes out: the keys, the keys and
+                                                                               * the sequencer (SLOOP 2.4's SEQ, value 1), the
+                                                                               * sequencer alone (the user, 2026-10-17), nothing
+                                                                               * (OFF, 2026-10-29: value 3, a record from before has none) */
+enum { MOUT_KEYS, MOUT_BOTH, MOUT_SEQ, MOUT_OFF };
+#endif
+
+/* The order a list shows and a knob steps through, apart from the stored values (G_SYNC's are in projects, settings and the
+ * editor protocol): o[place] = the value at that place (- min); 0 = the stored order. #48 (after Felucca 1.0.2, hugelton/
+ * Felucca db70550, params.c DIV_ORDER / enum_rank / param_turn, by Leo Kuroshita, GPL-3.0-only) did it for the note
+ * divisions; since 2026-10-22 N_DUR is in length order already (core.h DUR_48), so those need no table */
+#if defined(FELUCCA_BLE) && FELUCCA_BLE && FELUCCA_LINK
+static const uint8_t SYNC_ORDER[] = {SYNC_AUTO, SYNC_LINK, SYNC_TRS, SYNC_USB, SYNC_BLE, SYNC_INT};   /* = clock_sync.c sy_rank, INT last */
+#elif defined(FELUCCA_BLE) && FELUCCA_BLE
+static const uint8_t SYNC_ORDER[] = {SYNC_AUTO, SYNC_TRS, SYNC_USB, SYNC_BLE, SYNC_INT};
+#else
+static const uint8_t SYNC_ORDER[] = {SYNC_AUTO, SYNC_TRS, SYNC_USB, SYNC_INT};
+#endif
+#if BP_SET_ANY && FELUCCA_MIDI_OUT
+static const uint8_t MOUT_ORDER[] = {MOUT_OFF, MOUT_KEYS, MOUT_SEQ, MOUT_BOTH};   /* MIDI OUT as listed: nothing, the keys, the sequencer, both */
+#endif
 static const uint8_t *enum_order(const param_desc_t *d)
 {
-    (void)d;
-    return 0;
+#if BP_SET_ANY && FELUCCA_MIDI_OUT
+    if (pd_names(d) == N_MOUT)
+        return MOUT_ORDER;
+#endif
+    return d == &GP[G_SYNC] ? SYNC_ORDER : 0;
 }
-static int32_t enum_rank(const param_desc_t *d, int32_t v)   /* v's place in the order shown (+ min): the gauges */
+static int32_t enum_rank(const param_desc_t *d, int32_t v)   /* v's place in the order shown (+ min): the gauges, the popup */
 {
     const uint8_t *o = enum_order(d);
     int32_t r;
@@ -531,18 +589,13 @@ static int32_t enum_at(const param_desc_t *d, int32_t p)     /* the value shown 
     const uint8_t *o = enum_order(d);
     return o ? o[clamp(p - d->min, 0, d->max - d->min)] + d->min : p;
 }
-static int32_t param_step(const param_desc_t *d, int32_t v, int32_t steps)   /* (a division: over the order) */
+static int32_t param_step(const param_desc_t *d, int32_t v, int32_t steps)   /* (a listed order: over its places) */
 {
     const uint8_t *o = enum_order(d);
     if (o)
         return o[clamp(enum_rank(d, v) - d->min + steps, 0, d->max - d->min)] + d->min;
     return is_lrate(d) ? lrate_step(d, v, steps) : param_step0(d, v, steps);
 }
-#else
-#define enum_rank(d, v) (v)
-#define enum_at(d, p) (p)
-#define param_step(d, v, steps) (is_lrate(d) ? lrate_step(d, v, steps) : param_step0(d, v, steps))
-#endif
 
 static uint32_t ins_amt(uint32_t k, uint32_t s);     /* (fx_slots.c, included below) */
 /* a slot's DEST v (LT_E1 ..: not a plain name) as val (<= 6 chars): INS1 INS2 the type the selected track's slot S1 / S2
@@ -592,6 +645,10 @@ static void param_format(const param_desc_t *d, int32_t v, char *val, const char
     case F_PCT:                                       /* of the range: 0 .. 100 % */
         fmt_int(val, d->max > 0 ? (v * 100 + d->max / 2) / d->max : v);
         *unit = "%";
+        break;
+    case F_DEG:                                       /* an LFO's PHS: 1/128 of a cycle, in degrees */
+        fmt_int(val, (clamp(v, 0, 127) * 360 + 64) / 128);
+        *unit = "deg";
         break;
     case F_GATE:                                      /* 1/64 of the step: 64 is 100 %, 127 about 200 % */
         fmt_int(val, (v * 100 + 32) / 64);
@@ -643,7 +700,7 @@ static void param_format(const param_desc_t *d, int32_t v, char *val, const char
     case F_LFOHZ: {
         uint32_t h = LFO_HZ_X100[v & 127];
         if (v < 0) {                                  /* (RATE: a note value of the tempo) */
-            str_cpy(val, N_LSYNC[(uint32_t)(-v - 1) < LSYNC_N ? (uint32_t)(-v - 1) : 0u], 6);
+            str_cpy(val, lsync_name(v), 6);
             break;
         }
         if (h < 1000u)
@@ -781,10 +838,13 @@ static const page_t PAGES[] = {
      * drum track's only ENV page, in place of the synth's; the user, 2026-10-11) */
     {"ENV", FAM_ENV, SC_DSND, GR_DSND, {DE_CLICK, DE_DECAY, DE_BEND, DE_LEVEL}},
 #endif
-    {"LFO", FAM_LFO, SC_TRACK, GR_LFO, {P_LRATE, P_LWAVE, P_LPHASE, P_LFADE}},
+    /* LFO and LFO 2 the same (issue 129, the user 2026-10-31: "both lfo are the same"): RATE WAVE TRIG POL, then PHS FADE,
+     * then DEST (voice.c track_lfo_tick, lfo2_tick; the synth tracks' only: page_for_drum) */
+    {"LFO", FAM_LFO, SC_TRACK, GR_LFO, {P_LRATE, P_LWAVE, P_L1TRIG, P_L1POL}},
+    {"LFO PHS", FAM_LFO, SC_TRACK, GR_LFO, {P_LPHASE, P_LFADE, 0xFF, 0xFF}},
     {"LFO DEST", FAM_LFO, SC_TRACK, GR_NONE, {P_L1DA, P_L1AA, P_L1DB, P_L1AB}},   /* DEST A, AMT A, DEST B, AMT B */
-    /* LFO 2 (voice.c lfo2_tick; the synth tracks' only: page_for_drum). DEST AMT leave two cards for a second pair */
     {"LFO 2", FAM_LFO, SC_TRACK, GR_LFO2, {P_L2RATE, P_L2WAVE, P_L2TRIG, P_L2POL}},
+    {"LFO2 PHS", FAM_LFO, SC_TRACK, GR_LFO2, {P_L2PHS, P_L2FADE, 0xFF, 0xFF}},
     {"LFO2 DEST", FAM_LFO, SC_TRACK, GR_NONE, {P_L2DA, P_L2AA, P_L2DB, P_L2AB}},
     /* the track's two insert slots: S1 TYPE, its amount, S2 TYPE, its amount (fx_slots.c; the ids: page_id) */
     {"INSERTS", FAM_FX, SC_TRACK, GR_INS, {PID_INST, 0xFF, PID_INST + 1, 0xFF}},
@@ -879,11 +939,7 @@ static const page_t PAGES[] = {
     {"DRUMS", FAM_GLO, SC_GLOBAL, GR_NONE, {G_DRLVL, 0xFF, 0xFF, 0xFF}},   /* (its MIDI channel: HOME menu > SYSTEM; REV: each sound's) */
     {"PRESETS", FAM_SAVE, SC_GLOBAL, GR_BROWSE, {0xFF, 0xFF, 0xFF, 0xFF}},   /* browser: PRESETS knob / KNOB 1 */
     {"USER", FAM_SAVE, SC_GLOBAL, GR_USER, {0xFF, 0xFF, 0xFF, 0xFF}},       /* user presets: SLOT LOAD ERASE SAVE */
-#if SL24_AUTO
-    {"PROJECT", FAM_SAVE, SC_GLOBAL, GR_SLOTS, {G_SLOT, G_A24, G_LOAD, G_SAVE}},   /* A24: SLOOP 2.4's autosave */
-#else
     {"PROJECT", FAM_SAVE, SC_GLOBAL, GR_SLOTS, {G_SLOT, 0xFF, G_LOAD, G_SAVE}},
-#endif
 #if FELUCCA_SNAPSHOTS
     {"SNAPSHOT", FAM_SAVE, SC_GLOBAL, GR_SNAP, {0xFF, 0xFF, 0xFF, 0xFF}},   /* whole-state slots: SLOT LOAD CLEAR SAVE */
 #endif
@@ -1008,10 +1064,12 @@ static int page_shown(const page_t *pg)
 {
     if (!FELUCCA_DRUMS && (pg->scope == SC_DRUM || (pg->scope == SC_GLOBAL && pg->id[0] == G_DRLVL)))
         return 0;                                     /* (no drums: GLO > DRUMS, the drum track's pages) */
-    if ((pg->graph == GR_SLCR && !FELUCCA_FX_SLICER) || ((pg->id[0] == G_DTIME || pg->id[0] == G_DFTYPE) && pg->scope == SC_GLOBAL && !FXS_HAS(FXT_DLY)) ||
+    if ((pg->graph == GR_SLCR && !FELUCCA_FX_SLICER) ||
+        ((pg->id[0] == G_DTIME || pg->id[0] == G_DFTYPE) && pg->scope == SC_GLOBAL && !FXS_HAS(FXT_DLY) && !ins_any(FXT_DLY)) ||   /* (the DLY insert:
+                                                       * the delay's settings, fxi_send.c) */
         ((pg->id[0] == G_CTHR || pg->id[0] == G_CGAIN) && pg->scope == SC_GLOBAL && !MST_ON(FXT_DYN)) ||   /* (COMP LIMIT:
                                                        * the master's DYN, while one of its slots holds it) */
-        (pg->id[0] == G_RSIZE && pg->scope == SC_GLOBAL && !FXS_HAS(FXT_REV) && !FXS_HAS(FXT_CHO)))
+        (pg->id[0] == G_RSIZE && pg->scope == SC_GLOBAL && !FXS_HAS(FXT_REV) && !FXS_HAS(FXT_CHO) && !ins_any(FXT_REV) && !ins_any(FXT_CHO)))
         return 0;                                     /* the pages of an FX this build leaves out (registry.h), or in no
                                                        * FX slot (fx_slots.c) */
 #if REV_MULTI
@@ -1049,7 +1107,7 @@ static int page_shown(const page_t *pg)
         return INS_ON(song.sel, FXT_JUNO);            /* JUNO CHO: while one of the track's slots holds it */
 #endif
     if (pg->graph == GR_INS)
-        return (FXT_BUILT & FXT_INSERT) != 0u;        /* INSERTS: any insert built */
+        return (FXT_BUILT & FXT_INSLOT) != 0u;        /* INSERTS: any insert built */
 #if FELUCCA_ENG_ACID
     if (pg->scope == SC_BPSET && pg->id[0] == BPS_GDENS)
         return !is_drum(TSEL) && ENG_IS(ENGINES[TSEL->eng_req % NENGINES], ACID);   /* ACID GEN: ACID tracks only */
@@ -1094,8 +1152,9 @@ static int cell_built(const page_t *pg, uint32_t id)
     if (pg->scope == SC_GLOBAL)
         return id == G_DUST ? FELUCCA_FX_DUST : id == G_DUCK ? FELUCCA_FX_DUCK : id == G_FILT ? FELUCCA_FX_DJF :
                (id >= G_CTHR && id <= G_CCEIL) || id == G_CGR ? FELUCCA_MASTER_COMP :
-               id == G_RSIZE || id == G_RDAMP ? FXS_HAS(FXT_REV) :   /* (in a slot: fx_slots.c) */
-               id == G_CRATE || id == G_CDEPTH ? FXS_HAS(FXT_CHO) : id == G_SYNC ? FELUCCA_MIDI_CLOCK : id == G_VIEW ? 0 : id == G_A24 ? SL24_AUTO : 1;
+               id == G_RSIZE || id == G_RDAMP ? FXS_HAS(FXT_REV) || ins_any(FXT_REV) :   /* (in a slot: fx_slots.c; an
+                                                       * insert's settings are the send's, fxi_send.c) */
+               id == G_CRATE || id == G_CDEPTH ? FXS_HAS(FXT_CHO) || ins_any(FXT_CHO) : id == G_SYNC ? FELUCCA_MIDI_CLOCK : id == G_VIEW ? 0 : 1;
     return 1;
 }
 #if FELUCCA_MISSING_WARN
@@ -1201,14 +1260,6 @@ static const param_desc_t *page_desc(const page_t *pg, uint32_t slot, int16_t **
             static const param_desc_t GR_DESC = PU("GR", F_INT, 0, 0, 0, "dB");
             *valp = &mc_gr_view;
             return &GR_DESC;
-        }
-#endif
-#if SL24_AUTO
-        if (id == G_A24) {                            /* PROJECT > A24: a GO button, no stored value (sl24_guard.c) */
-            static const param_desc_t A24_DESC = PE("A24", N_GO, 0);
-            static int16_t a24_go;
-            *valp = &a24_go;
-            return &A24_DESC;
         }
 #endif
         *valp = &song.g[id];
