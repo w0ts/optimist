@@ -44,6 +44,11 @@ SYSTEM > BT MIDI > MODE to MAN or AUTO on the FM-1 and tap **Connect with Blueto
 **Install Firmware** (the home screen): an official release (version, flavour), your last build or a .fwsc
 file, installed over the USB cable; Build Your Own opens the web builder.
 
+**Open a .fwsc with the app** (Finder double-click or Open With, Files, AirDrop, Mail): the app declares the package type
+(`com.w0ts.optimist.fwsc`, Info.plist from `project.yml`), checks the file and keeps a copy in Documents/Firmware (visible in Files), opens
+Install Firmware with it ready (file, identity, size). Nothing is written to the FM-1 until Install is tapped and confirmed; an invalid file
+gets an error and is not kept. The kept packages are listed under Install to pick again.
+
 Over Bluetooth the FM-1 answers the screen, the buttons and knobs, the navigation and the clip only (`ed_mirror.c`
 `mbr_take`): Projects, Presets and Backup need the USB cable. The mixer's meters come over USB only.
 
