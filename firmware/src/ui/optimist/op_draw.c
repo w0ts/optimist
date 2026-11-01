@@ -821,12 +821,14 @@ static int card_wide(const cell_t *c, uint32_t k)
     return k < 3u && c[k].label && c[k].kind != CK_ACT && str_len(c[k].val) > 6u && !c[k + 1u].label;
 }
 /* the cards' band: the four cells c, hot the one white (4: none), 2x2 but on the mixer (op_layers.c cards_2x2) */
-static void draw_card_band(const cell_t *c, uint32_t hot)
+static struct {
+    const cell_t *c;
+    uint32_t hot;
+} cbd;                                                  /* what card_paint draws (draw_card_band) */
+static void card_paint(void)                            /* (once a pass: 2x2, 95 rows, in passes with CANVAS_STRIP) */
 {
-    uint32_t k;
-    cv_begin(240, OP_PY - OY_CARD, C_BLACK);            /* (down to the panel: the rows between the cards and the panel too,
-                                                         * which the other layout's panel covers; the FM-1, 2026-10-25: T1's
-                                                         * rows left under MASTER's DYN) */
+    const cell_t *c = cbd.c;
+    uint32_t k, hot = cbd.hot;
     for (k = 0; k < 4u; k++) {
         if (cards_2x2()) {
             draw_big(k, &c[k], k == hot);
@@ -837,7 +839,14 @@ static void draw_card_band(const cell_t *c, uint32_t hot)
             draw_card(k, CARD_X(k), CARD_W, &c[k], k == hot);
         }
     }
-    cv_blit(0, OY_CARD);
+}
+static void draw_card_band(const cell_t *c, uint32_t hot)
+{
+    cbd.c = c;
+    cbd.hot = hot;
+    cv_whole(OY_CARD, OP_PY - OY_CARD, C_BLACK, card_paint);   /* (down to the panel: the rows between the cards and the panel
+                                                         * too, which the other layout's panel covers; the FM-1, 2026-10-25:
+                                                         * T1's rows left under MASTER's DYN) */
 }
 /* the actual values' bars (op_effval.c): computed every frame for the four cards shown; the band is drawn again only when
  * what it shows besides them changes (a bar appearing or going is such a change), a moving bar alone is its own 2 px
@@ -1016,20 +1025,6 @@ static __attribute__((noinline)) void draw_row(uint32_t i, int32_t y, uint32_t o
             cv_texts(x, y + 1, L.t[k], on ? cur_ink(bar) : c[k].kind == CK_ACT ? C_GRAY : C_HI);   /* (an action: its verb, grey: dim is free / unused only) */
         draw_gauge(x, y + 16, gw > LC_P - 2 && k == 3u ? LC_P - 2 : gw, gh, &c[k], on ? cur_ink(bar) : c[k].col ? c[k].col : C_AMB,
                    on ? cur_trough(bar) : C_LINE);
-    }
-}
-/* a band taller than a canvas (gfx.c CV_MAX: 240 x 124): drawn in passes of 120 rows, fn painting the whole band in
- * its own coordinates each time (gfx.c cv_oy shifts and clips every primitive) */
-static void cv_tall(uint32_t y, uint32_t h, uint16_t bg, void (*fn)(void))
-{
-    uint32_t r0, n;
-    for (r0 = 0; r0 < h; r0 += n) {
-        n = h - r0 < 120u ? h - r0 : 120u;
-        cv_begin(240, n, bg);
-        cv_oy = -(int32_t)r0;
-        fn();
-        cv_oy = 0;
-        cv_blit(0, y + r0);
     }
 }
 static struct {
@@ -1249,10 +1244,8 @@ static void draw_under(void)
     if ((op_overlay() != 1u && op_overlay() != 3u && op_overlay() != 4u) || ui.sig[3] == 1u)
         return;
     ui.sig[3] = 1u;
-    if (OP_PH > MODAL_H) {                              /* (2x2: the modal takes the whole panel) */
-        cv_begin(240, (uint32_t)(OP_PH - MODAL_H), C_BLACK);
-        cv_blit(0, (uint32_t)(OP_PY + MODAL_H));
-    }
+    if (OP_PH > MODAL_H)                                /* (2x2: the modal takes the whole panel) */
+        cv_whole((uint32_t)(OP_PY + MODAL_H), (uint32_t)(OP_PH - MODAL_H), C_BLACK, cv_none);   /* (up to 71 rows) */
 }
 
 /* ---- the overlay: the modal (a question) or the toast (a result) over the panel */
@@ -1262,10 +1255,16 @@ static uint32_t op_overlay(void) { return op_code_on() ? 4u : rh.ring ? 3u : op_
 #define RING_R (MODAL_H >= 117 ? 36 : 28)               /* the ring's outer radius: smaller over the help band's shorter panel */
 #define RING_CY ((MODAL_H - (2 * RING_R + 36)) / 2 + RING_R)   /* its centre: the ring and its two lines in the panel's middle */
 /* the ring: el ms into its RH_CLEAR_MS, in colour tc, the label under it (the REC hold's, and every delete asked from a held key) */
-static void draw_ring_of(uint32_t el, uint16_t tc, const char *label)
+static struct {
+    int32_t end;
+    uint16_t tc;
+    const char *label;
+} rgo;                                                  /* what ring_paint draws (draw_ring_of) */
+static void ring_paint(void)
 {
-    int32_t a, rr, end = el >= RH_CLEAR_MS ? 1024 : (int32_t)(el * 1024u / RH_CLEAR_MS), cy = RING_CY;
-    cv_begin(240, MODAL_H, C_BLACK);
+    int32_t a, rr, end = rgo.end, cy = RING_CY;
+    uint16_t tc = rgo.tc;
+    const char *label = rgo.label;
     for (a = 0; a < 1024; a += 2) {
         int32_t co = SINE[((uint32_t)a + 768u) & 1023u], si = SINE[(uint32_t)a & 1023u];   /* from 12 o'clock */
         uint16_t c = a <= end ? tc : C_LINE;
@@ -1275,7 +1274,13 @@ static void draw_ring_of(uint32_t el, uint16_t tc, const char *label)
     }
     cv_text_mid(cy + RING_R + 4, &FONT_S, label, tc);
     cv_text_mid(cy + RING_R + 20, &FONT_S, "Keep holding", C_GRAY);
-    cv_blit(0, OP_PY);
+}
+static void draw_ring_of(uint32_t el, uint16_t tc, const char *label)
+{
+    rgo.end = el >= RH_CLEAR_MS ? 1024 : (int32_t)(el * 1024u / RH_CLEAR_MS);
+    rgo.tc = tc;
+    rgo.label = label;                                  /* (the caller's buffer: drawn before it returns) */
+    cv_whole(OP_PY, MODAL_H, C_BLACK, ring_paint);
 }
 static void draw_ring(void)                             /* the REC hold */
 {
