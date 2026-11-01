@@ -221,6 +221,48 @@ static void op_preset_step(int32_t s);                  /* op_screens.c, op_walk
 static void op_engine_step(int32_t s);
 static void lane_sound_step(int32_t s);
 static void lane_kind_step(int32_t s);
+/* The engine / sound list's NO (the user, 2026-11-01: "when I go to a slot that needs more RAM and it asks me a question, using
+ * the same encoder again means 'no, go to the next item'"). A list step (op_screens.c op_preset_step, op_engine_step) whose change
+ * the arena refused notes the list entry it stopped on (lst_note); the make-room question that follows (SHRINK, OFF, DROP:
+ * op_input.c mem_tick) is answered NO by the next turn of the encoder that moves that list (PRESETS, SHIFT + PRESETS, EDIT's
+ * ENGINE and PRESET knobs: ed_ask): the refusal is let go (nothing taken, nothing dropped, the part never left its sound) and
+ * the step goes on from the entry it stopped on, in the turn's direction (lst_take); that entry may be refused and asked again.
+ * YES, HOME and every other encoder are as before. lno.on: entry idx of list kind (0 PRESETS' list, 1 the engines') was
+ * refused for track trk; lno.go: the question was just answered NO by a turn, the step in hand starts from it */
+#if PART_DROPS
+static struct { uint8_t on, go, kind, trk; uint16_t idx; } lno;
+static int lst_q(void)                                  /* an engine list's make-room question is up for the selected track */
+{
+    return op_armed() && ui.arm_scr == ARM_OP && (ui.arm_row == OA_FXZ || ui.arm_row == OA_FMOFF || ui.arm_row == OA_DROP) &&
+           lno.on && lno.trk == song.sel && part_mem_refused.on && part_mem_refused.part == song.sel;
+}
+static void lst_note(uint32_t kind, uint32_t idx)       /* the step went to list entry idx: refused (the question follows) or not */
+{
+    lno.on = (uint8_t)(part_mem_refused.on && part_mem_refused.part == song.sel);
+    lno.kind = (uint8_t)kind, lno.trk = (uint8_t)song.sel, lno.idx = (uint16_t)idx;
+}
+static int lst_take(uint32_t kind, uint32_t *idx)       /* the step in hand starts from the entry a NO left: 1, its index */
+{
+    int ok = lno.go && lno.on && lno.kind == kind && lno.trk == song.sel;
+    *idx = lno.idx;
+    lno.go = lno.on = 0;
+    return ok;
+}
+static void fxz_asked_reset(void);                      /* op_fxmem.c */
+static void lst_no(void)                                /* the refusal let go: the question gone, no size taken, nothing dropped */
+{
+    op_disarm();
+    part_mem_refused.on = part_mem_refused.asked = part_mem_refused.waiting = 0;
+    fxz_asked_reset();                                  /* (the next refusal, a frame away, is offered everything again) */
+#if FMEM_ANY
+    fmem_offer_reset();
+#endif
+    lno.go = 1;
+}
+#else
+static int lst_q(void) { return 0; }
+static void lst_note(uint32_t kind, uint32_t idx) { (void)kind, (void)idx; }
+#endif
 /* before a change of kind on the selected track's sound: 1 = asked ("Discard T2 edits?"), the caller does nothing now
  * (YES runs it: ed_run). 0: go on (unedited, or confirmed) */
 static int ed_ask(uint32_t kind, int32_t s)
@@ -228,6 +270,11 @@ static int ed_ask(uint32_t kind, int32_t s)
     char a[10];
     if (edt.go)
         return 0;
+#if PART_DROPS
+    lno.go = 0;
+    if (lst_q() && (kind == EK_PRESET || kind == EK_ENGINE))
+        lst_no();                                       /* (the list's own turn under its make-room question: NO, on) */
+#endif
     if (op_armed())
         return 1;                                       /* (a question up: the turn is drained) */
     if (!snd_edited(song.sel))

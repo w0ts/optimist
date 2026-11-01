@@ -732,6 +732,8 @@ static int fxz_ins_mem(uint32_t k, uint32_t s, uint32_t t);   /* op_fxmem.c: a t
 static void fxz_yes(uint32_t a, uint32_t k);            /* op_fxmem.c: the make-room question's YES */
 #endif
 static void fxz_ins_pick(uint32_t k, uint32_t s, uint32_t prev, uint32_t t);
+static int fxz_ins_q(uint32_t k, uint32_t s);            /* op_fxmem.c: this slot's type question is up */
+static uint32_t fxz_ins_no(uint32_t k, uint32_t s, uint32_t prev);
 /* ins_skip on the INSERTS card (2026-11-01, the user: "Some are greyed out, hard to know why"): a type with no room is
  * a stop too (its memory mark in the list, op_preset.c): picked, the message says what it needs and the make-room
  * question asks (op_fxmem.c fxz_ins_pick); the other slot's type is still skipped */
@@ -767,6 +769,9 @@ static void page_set(const page_t *pg, uint32_t k, int16_t *vp, int32_t v, int32
         uint32_t prev = ins_slot[song.sel % NTRK][(id - PID_INST) & 1u];
         v = ins_skip_mem(song.sel, id - PID_INST, was, v);
         *vp = (int16_t)v;
+        if (v == was && fxz_ins_q(song.sel, id - PID_INST))
+            return;                                     /* (the end of the list under its question: nothing further, it stays) */
+        prev = fxz_ins_no(song.sel, id - PID_INST, prev);   /* (the same encoder under that question: NO, on: the slot to go back to is the first's) */
         if (fxz_ins_mem(song.sel, id - PID_INST, ins_list[v % INS_NLIST])) {
             ins_load(song.sel, id - PID_INST, ins_list[v % INS_NLIST]);
             fxz_ins_pick(song.sel, id - PID_INST, prev, ins_list[v % INS_NLIST]);   /* (no room: said, asked) */
