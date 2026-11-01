@@ -1559,6 +1559,10 @@ for f in "" "-DFELUCCA_MOTION=0" "-DFELUCCA_SL24_XSTEP=1 -DFELUCCA_MICRO=1"; do
         run "pattern launches while playing (${f:-defaults}): end, bar, now, swing, motion, a take, undo, stopped, a live jump, song mode" "$OUT/patterns_seq_test$nu"
     ) >"$U.out" 2>&1 & jobbg
 done
+job; ( jobin   # live patterns (issue 142): each pattern keeps its edits in flash beside its saved version
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/patlive_test" tests/patlive_test.c -lm
+    run "live patterns (issue 142): a launch keeps the edits, SAVE / RELOAD / clear, projects keep their own, PROJECT SAVE saves everything, a save as, stale ones swept, MEM FULL waits (a switch refused), RAM full named, a power cut at every program" "$OUT/patlive_test"
+) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/patterns_ed_test" tests/patterns_ed_test.c -lm
     run "editor cmds 83 / 84 (pattern read / write): chunks of 256 B, checked as the stage decodes, the log or the arena, refused when out of order / of another kind / too long / proj_tmp lent, clear" "$OUT/patterns_ed_test"

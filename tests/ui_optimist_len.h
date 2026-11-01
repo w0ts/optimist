@@ -97,9 +97,7 @@ static void len_tests(void)
         check(!lpk.on && ly_lock == LY_PLAY && pat_req[0] == rq && t->p[P_SLEN] == 17 && ui.scr == SCR_STEP,
               "LFO held + KNOB 1 at once: SHIFT (LEN by one), no pattern cued, the screen under stays (no patterns screen)");
         key(WK(1));
-        check(op_armed() && !strcmp(ui.arm_q, "LOSE EDITS T1?"), "... the LEN edit is unsaved: asked before the launch (2026-10-31)");
-        tap(B_SAVE);
-        check(pat_req[0] == 1 || pat_cur[0] == 1, "... and LFO still held + white 2: T1's pattern 2 launches");
+        check(!op_armed() && pat_cur[0] == 1 && pat_live_at(0, 2), "... and LFO still held + white 2: T1's pattern 2 launches, the LEN edit kept as slot 3's live pattern (issue 142)");
         release(B_LFO);
         check(ui.scr == SCR_STEP, "LFO let go after that: no tap (no LFO rows)");
         frames(4);

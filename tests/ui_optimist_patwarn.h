@@ -1,9 +1,9 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* Pattern mode (LFO held, SONG's PATTERNS row), the user 2026-10-31, included by ui_optimist_test.c:
- *   warning    a white key that would replace a track's pattern with edits not stored asks "LOSE EDITS? T1 T3" first
- *              (YES = SAVE launches, NO = HOME keeps the edits); a clean track launches at once
+ *   warning    stopped (issue 142, 2026-11-01): no question any more, the outgoing pattern's edits are kept as its live
+ *              pattern and come back with it (playing: ui_optimist_patlive.h)
  *   black 5    ALL TRACKS: the white keys launch on T1..DR (one ask naming the tracks with edits); again: the selected track
- *   black 6    STOP (was black 5), asked over edits too
+ *   black 6    STOP (was black 5), the edits kept too
  *   black held a black key 1-4 held + white n stores that track's working pattern in slot n, black 5 held: every track's
  *   numbers    the pattern numbers 1..16 over the grid's columns, on the dark panel (no text on a fill); the screen itself: ui_optimist_patview.h */
 #if FELUCCA_PATTERNS
@@ -40,14 +40,13 @@ static void patwarn_tests(void)
     check(!op_armed() && pat_cur[0] == 3u && !(pat_changed() & 1u), "... white 4 again: back, still clean");
     pw_edit(0, 60);
     key(WK(5));
-    check(op_armed() && !strcmp(ui.arm_q, "LOSE EDITS T1?") && pat_cur[0] == 3u, "T1 edited, white 6: \"LOSE EDITS T1?\", nothing launched yet");
-    tap(B_HOME);
-    check(!op_armed() && pat_cur[0] == 3u && trk[0].step[0].note[0] == 60u, "... NO (HOME): cancelled, the edit is still there");
-    key(WK(5));
-    tap(B_SAVE);
-    check(!op_armed() && pat_cur[0] == 5u && !trk[0].step[0].n, "... YES (SAVE): slot 6 launched, the edit gone with the old pattern");
+    check(!op_armed() && pat_cur[0] == 5u && !trk[0].step[0].n && pat_live_at(0, 3), "T1 edited, white 6 (stopped): launched at once, no question, the edit kept as slot 4's live pattern");
     key(WK(3));
-    check(!op_armed() && pat_cur[0] == 3u, "... the stored slot 4 back, clean");
+    check(!op_armed() && pat_cur[0] == 3u && trk[0].step[0].note[0] == 60u && (pat_changed() & 1u), "... slot 4 again: it plays its edit (not saved: \"*\")");
+    pw_edit(0, 48u);
+    key(WK(5));
+    key(WK(3));
+    check(!pat_live_at(0, 3) && !(pat_changed() & 1u), "... edited back to the saved pattern and left: the live one dropped, clean");
     pw_edit(1, 70);
     key(WK(7));
     check(!op_armed() && pat_cur[0] == 7u, "T2 edited, T1 selected: T1 launches at once (T2's edit is not on the line)");
@@ -59,22 +58,20 @@ static void patwarn_tests(void)
     pw_edit(0, 61);
     pw_edit(2, 62);
     key(WK(6));
-    check(op_armed() && !strcmp(ui.arm_q, "LOSE EDITS T1 T3?") && pat_cur[0] == 3u && pat_cur[2] == 3u, "... T1 and T3 edited, white 7: one question naming T1 T3");
-    tap(B_HOME);
-    check(!op_armed() && pw_all(3u), "... NO: nothing launched");
-    key(WK(6));
-    tap(B_SAVE);
-    check(!op_armed() && pw_all(6u), "... YES: slot 7 on all four tracks");
+    check(!op_armed() && pw_all(6u) && pat_live_at(0, 3) && pat_live_at(2, 3) && !pat_live_at(1, 3), "... T1 and T3 edited, white 7: slot 7 on all four at once, T1's and T3's edits kept");
     key(WK(3));
-    check(!op_armed() && pw_all(3u) && lay.pmod == 5u, "... clean: slot 4 on all four at once, no question");
+    check(!op_armed() && pw_all(3u) && lay.pmod == 5u && trk[0].step[0].note[0] == 61u && trk[2].step[0].note[0] == 62u, "... slot 4 on all four: the edits back");
+    pw_edit(0, 48u);
+    pw_edit(2, 50u);
     /* black 6: stop */
     key(BK(5));
     check(!op_armed() && pw_all(PAT_NONE) && !strcmp(ui.msg, "STOPPED"), "black 6 (all tracks picked): every track stopped");
     key(WK(3));
     pw_edit(3, 80);
     key(BK(5));
-    check(op_armed() && !strcmp(ui.arm_q, "LOSE EDITS DR?") && pat_cur[3] == 3u, "... DR edited, black 6: asked before the stop");
-    tap(B_HOME);
+    check(!op_armed() && pat_cur[3] == PAT_NONE && pat_live_at(3, 3), "... DR edited, black 6: stopped at once, the edit kept");
+    key(WK(3));
+    pw_edit(3, 48u + 3u);
     key(BK(4));
     check(lay.pmod == 0u && !strcmp(ui.msg, "PATTERNS") && pw_all(3u), "black 5 again: the selected track only, black 5 does not stop any more");
     for (k = 0; k < NTRK; k++)
