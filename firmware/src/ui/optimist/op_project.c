@@ -390,7 +390,6 @@ static int ble_forget_yes(uint32_t r, uint32_t k, uint32_t ok)   /* FORGET LAST:
  * these. Without WIFI_UI each folds to nothing and the pages are as they were. */
 static void wf_cell(uint32_t it, cell_t *c);            /* a WI-FI line: MODE, NETWORK, SIGNAL, STATE */
 static void wf_mode_set(int32_t s);
-static void wf_tune_set(uint32_t it, int32_t s);        /* a tuning line (the trial's stack): its switch, a detent ON / OFF */
 static int wf_turn(int32_t s);                          /* NETWORK's knob: the list's cursor -> 1 when the list is shown */
 static int wf_ch_turn(int32_t s);                       /* CHANNEL's knob in MODE AP -> 1 taken */
 static void wf_save(void);                              /* SAVE tapped on the page */
@@ -414,8 +413,8 @@ static uint32_t pw_leds(uint32_t *d);
 #include "../../system/dual_mode.h"                     /* 2ND CORE: DUALM_*, dual_why_name, and the INFO text helpers dual_cat / dual_cnum / dual_chex (LAST RESET: every UI=1 build; pure, no state) */
 #include "../../system/stackmark.h"                     /* INFO's RAM line: how deep the stacks went (painted at boot: stk_boot) */
 /* ---- SYSTEM: SLOOP's HOME-held menu as rows (ui/sloop/ui_menu.c) */
-enum { SI_NONE, SI_LOWCUT, SI_OUT, SI_SYNC, SI_CH1, SI_CH2,
-       SI_CH3, SI_CHD, SI_USB, SI_CPU, SI_MHZ, SI_CALIB, SI_ABOUT, SI_HOLD, SI_BLE, SI_KCOL, SI_DBGST, SI_CLKOUT, SI_CPU1, SI_INFO, SI_BUILD, SI_REPO,
+enum { SI_NONE, SI_TUNE, SI_RECQ, SI_PUNCH, SI_OUT, SI_SYNC, SI_CH1, SI_CH2,
+       SI_CH3, SI_CHD, SI_USB, SI_CPU, SI_MHZ, SI_ABOUT, SI_BLE, SI_KCOL, SI_DBGST, SI_CLKOUT, SI_CPU1, SI_INFO, SI_BUILD, SI_REPO,
        SI_DROPS, SI_GUARD, SI_UAINFO, SI_XRUN, SI_DIAG, SI_CREDITS, SI_BLEST, SI_BLEPEER, SI_BLEMIDI, SI_BLELIST, SI_BLEAUTO,
        SI_BLEFGT, SI_FRESO, SI_HPBASS, SI_BTA, SI_BTAPEER, SI_BTAFMT, SI_BTAST, SI_CLKOFS, SI_BTOFS, SI_LINK, SI_LINKOFS,
 #if FELUCCA_SD_UI
@@ -424,7 +423,6 @@ enum { SI_NONE, SI_LOWCUT, SI_OUT, SI_SYNC, SI_CH1, SI_CH2,
        SI_SDBACK, SI_SDREST,                            /* SETTINGS: BACKUP to the card, RESTORE from it (sd_mode.c) */
 #endif
        SI_WFMODE, SI_WFNET, SI_WFSIG, SI_WFST,           /* SYSTEM > WI-FI (op_wifi.c): MODE, NETWORK, SIGNAL, STATE */
-       SI_WFCAL, SI_WFFLT, SI_WFAGC, SI_WFRATE,         /* .. its second page on the trial's stack: the tuning's four switches */
        SI_RAM,                                          /* INFO: the SRAM free at link, the stacks' least room left (stackmark.h) */
        SI_UHMODE, SI_UHDEV,                             /* SYSTEM > USB (USB_HOST, the release): MODE DEVICE / HOST, DEVICE */
        SI_ARN,                                          /* INFO: the arena's longest move and interrupts-off window (us) */
@@ -507,11 +505,11 @@ static const struct { const char *name; uint8_t it[4]; } SYS[] = {
 #endif
     /* the screen and the sound in one section (the user, 2026-10-25: KNOB COLORS was on a page read as "audio", "group and
      * make it logical"): KNOB COLORS (the knob caps' colours; COLOR gone 2026-10-18: the palette is MONO, panel.c),
-     * SPK LOWCUT and HPHN BASS (the output's correction by the headphone jack: fx/outcorr.c); FILT RESO went to GLOBAL's FILTER
+     * SPK LOWCUT and HPHN BASS (the output's correction by the headphone jack: fx/outcorr.c); FILT RESO went to GLOBAL's TUNE page
      * (the user, 2026-10-29: it is a project's, not the device's), so USB SERIAL joins this page (GL_JOIN) when it fits. DEBUG STATS is the last row, after HPHN BASS, where the platform keeps them
      * (DBG_STATS: the release; it had a page alone, SYSTEM > DEBUG, until 2026-10-29): General is then 4 lines, full, and USB SERIAL
      * keeps its own page (the join holds 4 lines at most) */
-    {"GENERAL", {SI_KCOL, SI_LOWCUT, SI_HPBASS, DBG_STATS ? SI_DBGST : SI_NONE}},
+    {"GENERAL", {SI_KCOL, SI_HPBASS, DBG_STATS ? SI_DBGST : SI_NONE, SI_NONE}},
 #if USBH_UI
     {"USB", {SI_UHMODE, SI_UHDEV, SI_NONE, SI_NONE}},   /* the port as a MIDI host or the computer's device (USB_HOST: the trial's
                                                          * ui/opt_usbh.h on fm1-base's; USB SERIAL below it, one section) */
@@ -535,10 +533,6 @@ static const struct { const char *name; uint8_t it[4]; } SYS[] = {
 #endif
 #if WIFI_UI
     {"WI-FI", {SI_WFMODE, SI_WFNET, SI_WFSIG, SI_WFST}},   /* the same pattern as the Bluetooth pages (the user, 2026-10-27: "it should be very similar") */
-#ifdef WIFI_ON_FM1B
-    {"WI-FI", {SI_WFCAL, SI_WFFLT, SI_WFAGC, SI_WFRATE}},   /* the tuning, for the user's A/B (2026-10-30: fm1-base's wifi_tune.h): FACT CAL,
-                                                         * RX FILTER, AGC, TX RATE, each ON / OFF and what it does now */
-#endif
 #endif
 #if FELUCCA_USB_AUDIO
     /* where each source goes (the user, 2026-10-17: "each track, including master, can be assigned to none, 1, 2, 1+2, 3, 4,
@@ -551,13 +545,13 @@ static const struct { const char *name; uint8_t it[4]; } SYS[] = {
     {"USB AUDIO", {UA_IT(12), UA_IT(13), UA_IT(14), UA_IT(15)}},
     {"USB AUDIO", {UA_RT(0), UA_RT(1), UA_RT(2), SI_NONE}},
 #endif
-    {"CALIBRATE", {SI_CALIB, SI_HOLD, SI_NONE, SI_NONE}},   /* (SI_HOLD: a button's hold, 250 / 350 / 500 ms) */
     {"ABOUT", {SI_ABOUT, SI_BUILD, SI_REPO, SI_NONE}},
     {"CREDITS", {SI_CREDITS, SI_NONE, SI_NONE, SI_NONE}},   /* after ABOUT: one text page, the end titles (op_credits.c) */
     /* the global rows, last: GLOBAL's (GLO tapped, op_global.c), not SYSTEM's (the user, 2026-10-12: GLO "the page
      * where we have bpm, nudge, midi track settings etc"); defined here once, SYSTEM shows the rows above them */
-    {"FILTER", {SI_IF(FELUCCA_TFLT_RESO && FELUCCA_TRK_FILT, SI_FRESO), SI_NONE, SI_NONE, SI_NONE}},   /* (FILT RESO: SLOOP 2.8's FILTER RESO, every track's
-                            * FILTER resonance, saved with the PROJECT: core.h G_TFRES; its own page, the project's sound beside its clock) */
+    {"TUNE", {SI_TUNE, SI_RECQ, SI_IF(FELUCCA_TFLT_RESO && FELUCCA_TRK_FILT, SI_FRESO), SI_IF(FELUCCA_PUNCH_SW && !FELUCCA_REC_MODES, SI_PUNCH)}},   /* GLOBAL's first page (the user, 2026-11-01: the PLAY-held page
+                            * has the rest): TUNE, QUANT (the record quantise, also on PLAY's REC rows), FILT RESO (SLOOP 2.8's FILTER RESO, every track's
+                            * FILTER resonance, saved with the PROJECT: core.h G_TFRES) */
     {"MIDI", {SI_IF(FELUCCA_MIDI_CLOCK, SI_SYNC), SI_IF(FELUCCA_MIDI_CLKOUT, SI_CLKOUT),
               FELUCCA_LINK ? (uint8_t)SI_LINK : SI_IF(FELUCCA_MIDI_OUT, SI_OUT), FELUCCA_LINK ? SI_IF(FELUCCA_MIDI_OUT, SI_OUT) : (uint8_t)SI_NONE}},   /* (LINK, Link builds, between CLK OUT and MIDI OUT) */   /* (CLK IN, CLK OUT, MIDI OUT: no MIDI IN since 2026-10-14, the user: notes come in through the track channels,
                             * the clock through CLK IN; settings word bit 15 is free; CLKOUT: the clock sent, io/midi/clock_out.c) */
@@ -568,7 +562,7 @@ static const struct { const char *name; uint8_t it[4]; } SYS[] = {
     {"CHANNELS", {SI_CH1, SI_CH2, SI_CH3, SI_CHD}},
 };
 #define NSYS (sizeof SYS / sizeof SYS[0])
-#define NSYS_GLO (3u + FELUCCA_MIDI_CLOCK)              /* the global rows at SYS's end: FILTER, MIDI (and its offsets), CHANNELS */
+#define NSYS_GLO (3u + FELUCCA_MIDI_CLOCK)              /* the global rows at SYS's end: TUNE, MIDI (and its offsets), CHANNELS */
 #define NSYS_SETUP (NSYS - NSYS_GLO)                    /* SYSTEM's rows: the setup (SCREEN, AUDIO, BLUETOOTH ...) */
 static uint8_t sys_dirty;                               /* a setting changed: saved when SYSTEM or GLOBAL is left */
 static uint32_t sys_rows(void)
@@ -596,10 +590,17 @@ static const param_desc_t *sys_desc(uint32_t it, int16_t **vp)
 {
     static const uint8_t BPS[] = {BPS_MOUT, 0, BPS_CH0, BPS_CH1, BPS_CH2, BPS_CHD};
     *vp = 0;
-    if (it == SI_SYNC || it == SI_FRESO) {
-        *vp = &song.g[it == SI_SYNC ? G_SYNC : G_TFRES];
-        return &GP[it == SI_SYNC ? G_SYNC : G_TFRES];
+    if (it == SI_SYNC || it == SI_FRESO || it == SI_TUNE || it == SI_RECQ) {
+        const uint32_t g = it == SI_SYNC ? G_SYNC : it == SI_FRESO ? G_TFRES : it == SI_TUNE ? G_TUNE : G_RECQ;
+        *vp = &song.g[g];
+        return &GP[g];
     }
+#if FELUCCA_PUNCH_SW
+    if (it == SI_PUNCH) {                               /* (without REC MODES the PLAY-held page has no REC 2: PUNCH is here) */
+        *vp = &punch_sw;
+        return &PUNCH_SW_D;
+    }
+#endif
     if (it >= SI_OUT && it <= SI_CHD)
         return bps_desc(BPS[it - SI_OUT], vp);
 #if FELUCCA_MIDI_CLOCK
@@ -753,7 +754,6 @@ static int32_t cko_pos(void)
 #endif
 static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
 {
-    static const char *const LC[3] = {"OFF", "ON", "BASS+"};
     static const char *const HB[3] = {"OFF", "+3 dB", "+6 dB"};
     int16_t *vp;
     const param_desc_t *d;
@@ -776,9 +776,6 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
     }
 #endif
     switch (it) {
-    case SI_LOWCUT:
-        cell_list(c, "SPK LOWCUT", LC[spk_lc % 3u], 2, (int32_t)(spk_lc % 3u));   /* (the speaker: nothing in the jack) */
-        break;
     case SI_HPBASS:
         cell_list(c, "HPHN BASS", HB[hp_bass % 3u], 2, (int32_t)(hp_bass % 3u));     /* (headphones in the jack) */
         break;
@@ -835,10 +832,6 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
     case SI_WFNET:
     case SI_WFSIG:
     case SI_WFST:
-    case SI_WFCAL:
-    case SI_WFFLT:
-    case SI_WFAGC:
-    case SI_WFRATE:
         wf_cell(it, c);
         break;
 #endif
@@ -1025,12 +1018,6 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
         cell_gauge(c, 0, 0, 240, (int32_t)((cpu_khz + 500u) / 1000u));
         break;
 #endif
-    case SI_HOLD:                                       /* a button held this long is a hold (op_state.c op_hold_ms) */
-        c->label = "HOLD";
-        fmt_int(c->val, (int32_t)op_hold_ms());
-        c->unit = "ms";
-        cell_gauge(c, 1, 0, HOLD_N - 1, OP_HOLD_POS[hold_sel % HOLD_N]);
-        break;
     case SI_KCOL:                                       /* the knob caps' colours on dials, labels, cards (core/knobcol.h) */
         sys_onoff(c, "KNOB COLORS", knob_colors);       /* (the settings list has the room: op_gldraw.c) */
         break;
@@ -1053,9 +1040,6 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
         break;
     }
 #endif
-    case SI_CALIB:
-        cell_act(c, 0, "PANEL", "CALIBRATE", 0);    /* (the action's word, the user 2026-10-13; the list's small face) */
-        break;
 #if FELUCCA_SD_UI
     case SI_SDCARD: {                                   /* the card: READY and its size, else what is wrong (YES: mounted again) */
         static const char *const ST[4] = {"NONE", "NOT FAT", "PREPARING", "READY"};
@@ -1560,9 +1544,6 @@ static void sys_set(uint32_t it, int32_t s)
         sdm_set(it - SI_SDVERS - (it == SI_SDPRE), s ? s : 1);
         break;
 #endif
-    case SI_HOLD:                                       /* (kept in the settings word: settings_word.c) */
-        hold_sel = OP_HOLD_SEL[sys_step(OP_HOLD_POS[hold_sel % HOLD_N], s, HOLD_N - 1)];
-        break;
     case SI_KCOL:                                       /* (kept in the settings word: settings_word.c) */
         knob_colors = (uint8_t)sys_step(knob_colors, s, 1);
         ui.redraw = 1;                                   /* (every band's colours move: the bands again over themselves, no black fill) */
@@ -1580,9 +1561,6 @@ static void sys_set(uint32_t it, int32_t s)
         link_mode = (uint8_t)sys_step(link_mode, s, LINK_ONSS);
         break;
 #endif
-    case SI_LOWCUT:
-        settings.lowcut = oc_set_word(oc_word((uint32_t)sys_step((int32_t)(spk_lc % 3u), s, 2), hp_bass));   /* OFF / ON / BASS+ */
-        break;
     case SI_HPBASS:
         settings.lowcut = oc_set_word(oc_word(spk_lc, (uint32_t)sys_step((int32_t)(hp_bass % 3u), s, 2)));   /* OFF / +3 / +6 dB */
         break;
@@ -1602,12 +1580,6 @@ static void sys_set(uint32_t it, int32_t s)
 #if WIFI_UI
     case SI_WFMODE:                                     /* WI-FI's MODE: OFF, MAN, AUTO (kept in the settings record, wn_st.mode) */
         wf_mode_set(s);
-        break;
-    case SI_WFCAL:
-    case SI_WFFLT:
-    case SI_WFAGC:
-    case SI_WFRATE:                                     /* the tuning's switches (the trial's stack), YES round */
-        wf_tune_set(it, s);
         break;
 #endif
 #if BLE_CENTRAL
@@ -1645,9 +1617,6 @@ static int sys_factory(uint32_t it)
         sdm_set(it - SI_SDVERS - (it == SI_SDPRE), 0);   /* (8 versions, 100 %, 50 ms) */
         return 1;
 #endif
-    case SI_LOWCUT:
-        settings.lowcut = oc_set_word(oc_word(1u, hp_bass));   /* (ON: outcorr.c) */
-        break;
     case SI_HPBASS:
         settings.lowcut = oc_set_word(oc_word(spk_lc, 0u));
         break;
@@ -1656,9 +1625,6 @@ static int sys_factory(uint32_t it)
         usb_serial = 0;
         break;
 #endif
-    case SI_HOLD:
-        hold_sel = 0;                                   /* (core/hold.h: 0 is 350 ms) */
-        break;
     case SI_KCOL:
         knob_colors = 0;
         ui.redraw = 1;
@@ -1713,7 +1679,7 @@ static void sys_turn(uint32_t r, uint32_t k, int32_t s, int fine)
     }
     if (d) {
         val_turn(d, vp, k, s, fine);
-        sys_dirty = 1;
+        sys_dirty |= it != SI_TUNE && it != SI_RECQ && it != SI_PUNCH;   /* (TUNE, QUANT, PUNCH: the project's, not the settings record's) */
         return;
     }
     sys_set(it, s);
@@ -1762,13 +1728,6 @@ static int sys_yes(uint32_t r, uint32_t k, uint32_t ok)
         return 1;
     }
 #endif
-    if (it == SI_CALIB) {                               /* PANEL: asked first (it takes every button until the end) */
-        if (!ok)
-            op_arm(SCR_SYSTEM, r, k, "CALIBRATE", "PANEL", 0);
-        else
-            panel_setup();                              /* (op_input.c: teach each button and knob) */
-        return 1;
-    }
     if (it == SI_ABOUT) {
         ui_say(FELUCCA_VERSION, " OPTIMIST UI");
         return 1;
@@ -1793,7 +1752,7 @@ static int sys_yes(uint32_t r, uint32_t k, uint32_t ok)
     if (d) {
         if (!val_toggle(d, vp))
             return 0;
-        sys_dirty = 1;
+        sys_dirty |= it != SI_TUNE && it != SI_RECQ && it != SI_PUNCH;
         return 1;
     }
     if (it == SI_NONE || (it >= SI_INFO && !si_ua(it)) || it == SI_CPU || it == SI_MHZ || it == SI_CPU1)
