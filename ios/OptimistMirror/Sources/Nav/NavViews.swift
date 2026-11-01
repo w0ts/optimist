@@ -10,8 +10,15 @@ import UIKit
 enum NavMetrics {
     static let button: CGFloat = 52
     static let compact: CGFloat = 30             // the track bar's smaller buttons, all one height
+    static let denseButton: CGFloat = 38         // iPhone landscape
     static let gap: CGFloat = 8
     static let corner: CGFloat = 10
+}
+
+private struct NavDenseKey: EnvironmentKey { static let defaultValue = false }
+extension EnvironmentValues {
+    /// iPhone landscape (compact height): the touch buttons shrink so the columns, the screen and the track bar share ~390 points
+    var navDense: Bool { get { self[NavDenseKey.self] } set { self[NavDenseKey.self] = newValue } }
 }
 
 /// One touch button: lit (the place the FM-1 is now), dim (nothing to do there now)
@@ -23,6 +30,9 @@ struct NavButton: View {
     var dim = false
     var star = false
     let action: () -> Void
+    @Environment(\.navDense) private var dense
+
+    private var minHeight: CGFloat { compact || dense ? (compact ? NavMetrics.compact : NavMetrics.denseButton) : NavMetrics.button }
 
     var body: some View {
         Button {
@@ -33,20 +43,20 @@ struct NavButton: View {
                 if star { Image(systemName: "star.fill").font(.caption) }
                 VStack(spacing: 0) {
                     Text(title)
-                        .font(.system(size: compact ? 11 : 17, weight: lit ? .bold : .semibold, design: .rounded))
+                        .font(.system(size: compact ? 11 : dense ? 14 : 17, weight: lit ? .bold : .semibold, design: .rounded))
                         .lineLimit(1)
-                        .minimumScaleFactor(compact ? 0.7 : 0.6)
+                        .minimumScaleFactor(compact || dense ? 0.5 : 0.6)
                     if let caption {
                         Text(caption)
-                            .font(.system(size: 11, weight: .medium, design: .rounded))
+                            .font(.system(size: dense ? 9 : 11, weight: .medium, design: .rounded))
                             .lineLimit(1)
                             .minimumScaleFactor(0.6)
                             .opacity(0.65)
                     }
                 }
             }
-            .frame(maxWidth: .infinity, minHeight: compact ? NavMetrics.compact : NavMetrics.button, maxHeight: compact ? NavMetrics.compact : nil)
-            .padding(.horizontal, compact ? 3 : 8)
+            .frame(maxWidth: .infinity, minHeight: minHeight, maxHeight: compact ? NavMetrics.compact : nil)
+            .padding(.horizontal, dense ? 1 : compact ? 3 : 8)
             .foregroundStyle(lit ? Color(.systemBackground) : dim ? Color.primary.opacity(0.35) : Color.primary)   // (the system's theme)
             .background(lit ? Color.primary : Color.primary.opacity(dim ? 0.05 : 0.12),
                         in: RoundedRectangle(cornerRadius: NavMetrics.corner, style: .continuous))
@@ -60,12 +70,15 @@ struct NavButton: View {
 
 private struct Heading: View {
     let text: String
+    @Environment(\.navDense) private var dense
     var body: some View {
         Text(text)
             .font(.caption.weight(.semibold))
             .foregroundStyle(.secondary)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.top, 4)
+            .frame(maxWidth: .infinity, minHeight: dense ? 34 : nil, alignment: .leading)
+            .padding(.leading, dense && text == "BUTTONS" ? 40 : 0)   // (the layout button sits left of it, the app's Disconnect right of the pages' heading)
+            .padding(.trailing, dense && text != "BUTTONS" && text != "FAVORITES" ? 40 : 0)
+            .padding(.top, dense ? 0 : 4)
     }
 }
 
@@ -196,9 +209,11 @@ struct NavSide: View {
 /// ALGORITHM walks nothing (PROJECT, SONG, GLOBAL, SYSTEM)
 struct NavTracks: View {
     @ObservedObject var nav: NavModel
+    @Environment(\.navDense) private var dense
 
     /// Always room for the lanes' line (the user, 2026-10-24: the screen must not change size between T1..T3 and DR)
     static let height = NavMetrics.button * 2 + NavMetrics.gap
+    static let denseHeight = NavMetrics.compact * 2 + 4
 
     /// The lanes' buttons: always drawn (the kit's names, else the default lanes'), available only while the drum track or a lane
     /// is the selection (the user, 2026-10-29: "the buttons that are not available should be greyed out")
@@ -211,23 +226,24 @@ struct NavTracks: View {
         let cur = nav.state?.track ?? Nav.none, dim = cur == Nav.none
         let lanes = Self.lanes(tracks: nav.tracks, current: cur)
         let bar = Nav.bar(count: nav.tracks.count)
-        VStack(spacing: NavMetrics.gap) {
-            HStack(spacing: 4) {
+        let rowH = dense ? NavMetrics.compact : NavMetrics.button
+        VStack(spacing: dense ? 4 : NavMetrics.gap) {
+            HStack(spacing: dense ? 2 : 4) {
                 ForEach(Array(lanes.names.enumerated()), id: \.offset) { k, name in
                     NavButton(title: name, lit: lanes.available && Nav.drumRow + 1 + k == cur, dim: !lanes.available) { nav.pick(track: Nav.drumRow + 1 + k) }
                 }
             }
-            .frame(height: NavMetrics.button)
+            .frame(height: rowH)
             // (T1 T2 T3 DR and MASTER at the full touch size as before 2026-10-31; only the returns RET A B C are the smaller buttons)
-            HStack(spacing: 4) {
+            HStack(spacing: dense ? 2 : 4) {
                 ForEach(bar.bottom, id: \.self) { p in
-                    NavButton(title: nav.tracks[p], compact: p <= Nav.retRow + 2, lit: p == cur || (p == Nav.drumRow && cur > Nav.drumRow && cur != Nav.none), dim: dim) {
+                    NavButton(title: nav.tracks[p], compact: dense || p <= Nav.retRow + 2, lit: p == cur || (p == Nav.drumRow && cur > Nav.drumRow && cur != Nav.none), dim: dim) {
                         nav.pick(track: p)
                     }
                 }
             }
-            .frame(height: NavMetrics.button)
+            .frame(height: rowH)
         }
-        .frame(height: Self.height, alignment: .bottom)
+        .frame(height: dense ? Self.denseHeight : Self.height, alignment: .bottom)
     }
 }
