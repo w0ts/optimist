@@ -59,6 +59,11 @@
 #ifndef ED_OPTI_AIMD
 #define ED_OPTI_AIMD ""
 #endif
+#if FELUCCA_ED_MIRROR && (defined(MIR_BLE) && MIR_BLE)
+#define ED_OPTI_SUM "opti_mirsum_1 "  /* (tag 0x67, the second: 106 op 7 SUMS, the bands request 106 bits 112; ed_mirror_sum.h, with MIR_SKIP) */
+#else
+#define ED_OPTI_SUM ""
+#endif
 #if defined(FELUCCA_WIFI) && FELUCCA_WIFI && FELUCCA_BLE && ((BLE_HW_WL82 && FELUCCA_CDC) || defined(WIFI_ON_FM1B))   /* (the
                                          * release: fm1-base's own Wi-Fi stack, the trial's ui/opt_wifi.h) */
 #define ED_OPTI_WIFI "opti_wifi_1 "     /* (tag 0x67: 112 the Wi-Fi networks, ed_wifi.c, included by felucca.c after console.c) */
@@ -131,7 +136,7 @@ static void ed_opti_info(void)
         ed_b((uint8_t)S[i]);
     ed_opti_list(0x67, M, sizeof M);   /* (tag 0x67: more names, the same form; a client that knows none skips it) */
     {
-        static const char A[] = ED_OPTI_AIMD;
+        static const char A[] = ED_OPTI_AIMD ED_OPTI_SUM;
         ed_opti_list(0x67, A, sizeof A);   /* (0x67 again: the clients merge every 0x66 / 0x67 they read) */
     }
     ed_boot_info();                    /* (tag 0x68: the bootloader, a client that knows none skips it) */
