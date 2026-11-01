@@ -4142,6 +4142,7 @@ static void preset_engine_tests(void)
 #include "ui_optimist_seqglide.h"                  /* 2026-10-29 (#104): GLIDE on the held step, a held note picked, a chord all first, a note moved alone */
 #include "ui_optimist_stepedit.h"                  /* 2026-10-31: a note moved past another, the move not stopped, LENGTH only lengthens */
 #include "ui_optimist_stepsave.h"
+#include "ui_optimist_stepentry.h"                 /* 2026-11-01: STEP ENTRY, a synth track stopped with REC armed: the cursor, the keys toggle notes, PLAY arms */
 #include "ui_optimist_shiftcycle.h"                  /* 2026-10-31: REC on = the keys play, the last note entered picked, SAVE with no note picked */
 #include "ui_optimist_drumph.h"                    /* the drum playhead column, fills only with SEQ held, the automation dot */
 #include "ui_optimist_seqfill.h"                    /* SEQ held on STEP: the fill view, FILL ONLY / NO FILL per synth track and drum lane */
@@ -4439,6 +4440,7 @@ int main(int argc, char **argv)
     seqglide_tests();
     stepedit_tests();
     stepsave_tests();
+    stepentry_tests();
 #if FELUCCA_AUTO
     shiftcycle_tests();
 #endif
