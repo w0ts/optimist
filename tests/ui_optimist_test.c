@@ -4218,6 +4218,7 @@ static void led_tests(void)
 #include "ui_optimist_screens.h"                     /* batch E: per-screen oddities (titles, STEP, drums, names, pictures) */
 #include "ui_optimist_patwarn.h"                     /* pattern mode: the unsaved warning, black 5 = all tracks, black 6 = stop, a black key held + n stores, the numbers */
 #include "ui_optimist_patview.h"                     /* the patterns screen: no cards, the taller grid, the numbers on two lines, the knob rows, the preview */
+#include "ui_optimist_mutegrey.h"                    /* muted = one grey in every view (roll, drum grid, mixer, preview) */
 #include "ui_optimist_prefilter.h"                   /* the preset list's filter (SHIFT2 + PRESETS), SHIFT + PRESETS the engines, the popup's header, no flash */
 #include "ui_optimist_favorites.h"                   /* FELUCCA_FAVORITES: the FAVORITES row under the SOUND row (docs/UI-OPTIMIST-DESIGN.md 13 Favorites) */
 
@@ -4463,6 +4464,9 @@ int main(int argc, char **argv)
 #if FELUCCA_PATTERNS
     patwarn_tests();
     patview_tests();
+#if FELUCCA_AUTO
+    mutegrey_tests();
+#endif
 #endif
     algotrack_tests();
     uniform_tests();
