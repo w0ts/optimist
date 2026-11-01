@@ -6,6 +6,8 @@
 #include <stdio.h>
 #define HALF_FRAMES 256
 #define FS 44100
+static uint32_t fake_ticks;                         /* (the macros of PRE's parts read the timer: fm1_ticks) */
+static uint32_t fm1_ticks(void) { return fake_ticks; }
 #include "system/dual_load.h"
 
 static int fails;
@@ -96,6 +98,39 @@ int main(void)
                   dual_tm.worst[DTQ_J0 + 1u] == 0u,
               "CPU TIMES: nothing posted: no wait, no CPU1 time; a block past 65535 ticks held there; a job not run: 0");
         check(DUAL_TM_BLK == 17414u, "CPU TIMES: a block of 32 frames at 44.1 kHz: 17414 ticks (726 us)");
+        {   /* PRE's parts: EVT the events (events_block's wrapper), NOTE the note starts in them (trk_note_on's, nested
+             * ones counted once); a note start outside the events (the main loop's) not counted; both folded into the
+             * block and cleared */
+            uint32_t e0, n0, n1, m0;
+            fake_ticks = 1000u;
+            m0 = DUAL_TM_NS_IN();                       /* (the main loop's note start: not in the events) */
+            fake_ticks += 500u;
+            DUAL_TM_NS_OUT(m0);
+            e0 = DUAL_TM_EVT_IN();
+            fake_ticks += P(4u);
+            n0 = DUAL_TM_NS_IN();
+            fake_ticks += P(3u);
+            n1 = DUAL_TM_NS_IN();                       /* (a note start inside one: a chord's) */
+            fake_ticks += P(2u);
+            DUAL_TM_NS_OUT(n1);
+            fake_ticks += P(1u);
+            DUAL_TM_NS_OUT(n0);
+            n0 = DUAL_TM_NS_IN();
+            fake_ticks += P(5u);
+            DUAL_TM_NS_OUT(n0);
+            fake_ticks += P(5u);
+            DUAL_TM_EVT_OUT(e0);
+            check(dual_tm.evt == P(4u) + P(3u) + P(2u) + P(1u) + P(5u) + P(5u) && dual_tm.ns == P(3u) + P(2u) + P(1u) + P(5u) && !dual_tm.in_evt && !dual_tm.ns_depth,
+                  "CPU TIMES: EVT the events' 20 %, NOTE their note starts' 11 % (a nested one once, the main loop's not)");
+            dual_tm.wreset = 1;
+            t = 3000u * DUAL_TM_BLK;
+            dual_tm_block(t, t + P(25u), t + P(60u), t + P(75u), t + P(95u), 0x2u, 0x3u, ms);
+            check(dual_tm_pct_t(dual_tm.worst[DTQ_EVT]) == 20u && dual_tm_pct_t(dual_tm.worst[DTQ_NS]) == 11u && dual_tm_pct_t(dual_tm_peak(DTQ_EVT)) == 20u &&
+                      !dual_tm.evt && !dual_tm.ns,
+                  "CPU TIMES: EVT and NOTE folded into the block (MAX, WST), cleared for the next");
+            dual_tm_block(t, t + P(10u), t + P(60u), t + P(75u), t + P(95u), 0x2u, 0x3u, ms);
+            check(dual_tm_pct_t(dual_tm.worst[DTQ_EVT]) == 20u, "CPU TIMES: a block without events: EVT 0 in it, the worst block's kept");
+        }
 #undef P
     }
 #endif

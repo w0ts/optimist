@@ -3328,6 +3328,16 @@ static void midi_cc_fm6(uint32_t ch, uint32_t cc, uint32_t v)
 /* everything that happens between two rendered blocks: transport, input, the steps of every
  * track at the clock, the click, the rolls and the arps; then the clock moves on by n samples
  * (following an external clock: the clock is set to it after the MIDI input, clock_sync.c) */
+#if DUAL_TIMES                                        /* (SYSTEM > CPU TIMES' EVT: the events' time) */
+static void events_block_(uint32_t n);
+static void events_block(uint32_t n)
+{
+    uint32_t t0 = DUAL_TM_EVT_IN();
+    events_block_(n);
+    DUAL_TM_EVT_OUT(t0);
+}
+#define events_block events_block_
+#endif
 static void events_block(uint32_t n)
 {
     uint32_t i, pr, adv = n * (uint32_t)song.g[G_BPM], ext;
@@ -3525,3 +3535,6 @@ static void events_block(uint32_t n)
     undo_isr = 0;
     ASTAGE(0x2F);
 }
+#if DUAL_TIMES
+#undef events_block
+#endif
