@@ -34,9 +34,13 @@ static volatile uint8_t sx_busy;
 static struct { uint8_t config; uint32_t resets; } usb = {1, 0};
 static volatile uint32_t fm1_ms;
 static volatile uint8_t ble_out_on;
-static uint8_t ble_ll_tx_octets(void) { return 251; }     /* (the radio's: ble/ble_ll.c, ble_att.c) */
+#ifndef MT_OCTETS
+#define MT_OCTETS 251                   /* (tests/mirror_aimd_test.c: the Mac's 50 octets at 7.5 ms) */
+#define MT_INTERVAL 9
+#endif
+static uint8_t ble_ll_tx_octets(void) { return MT_OCTETS; }   /* (the radio's: ble/ble_ll.c, ble_att.c) */
 static uint16_t ble_att_mtu(void) { return 185; }
-static uint16_t ble_ll_interval(void) { return 9; }
+static uint16_t ble_ll_interval(void) { return MT_INTERVAL; }
 static uint16_t ble_ll_peer_len(uint32_t i) { static const uint16_t V[4] = {251, 2120, 50, 512}; return V[i & 3u]; }
 static struct { uint8_t overlay, scr; } ui;
 static uint8_t mir_mute;
