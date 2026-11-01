@@ -188,8 +188,8 @@ static uint32_t op_step_auto(const track_t *t, uint32_t step, uint32_t lane)
     uint32_t i;
     for (i = 0; i < l->n; i++) {
         const auto_ev_t *e = &l->ev[i];
-        if ((e->place & AUTO_STEP) != (step & AUTO_STEP) || AUTO_PSEUDO(e->param))
-            continue;
+        if ((e->place & AUTO_STEP) != (step & AUTO_STEP) || AUTO_PSEUDO(e->param) || AUTO_IS_MUTE(e->param))
+            continue;                           /* (a mute is no automation: a lane's mute marked every lane's cell of the step) */
         if (!AUTO_IS_LANE(e->param) || AUTO_LANE_L(e->param) == lane || lane == 0xFFu)
             return 1;
     }
