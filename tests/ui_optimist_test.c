@@ -95,6 +95,7 @@ static void fl_see(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint16_
  * at the end the decoded screen is this one (tests/run_tests.sh, ED_MIRROR) */
 #include "mirror_dec.h"
 static uint8_t mc_f[512];
+static uint32_t mc_drop;                                /* checked frames still to lose on the way (mc_fix_check) */
 static uint32_t mc_n, mc_frames, mc_bytes, mc_bad;
 static int mc_trace_off;                                /* (a catch-up: not recorded, its bytes not counted in the comparison) */
 static int mir_wire(uint32_t b)
@@ -114,7 +115,13 @@ static void mir_wire_end(void)
     }
     if (wf && !mc_trace_off)
         fwrite(mc_f, 1, mc_n, wf);
-    mc_bad += !md_frame(mc_f, mc_n);
+    if (mc_drop && mc_n > 9u && mc_f[5] >= 8u) {
+        mc_drop--;                                      /* (lost on the way: never decoded) */
+    } else {
+        uint32_t d0 = md.dropped;
+        int ok = md_frame(mc_f, mc_n);
+        mc_bad += !ok && md.dropped == d0;              /* (a MORE dropped after a gap: the client's own rule, not bad) */
+    }
     mc_frames++, mc_bytes += mc_n;
     mc_n = 0;
 }
@@ -3389,6 +3396,55 @@ static void mc_resync(void)
     for (i = 0; diff && i < 240u * 240u; i++)
         md_fb[i] = swap16(screen[i]);              /* (in step again for the next one) */
 }
+/* lost frames repaired by seq (ed_mirror.c mir_fix: 106 bit 4): the client's lost range, those rectangles forgotten (me_rr,
+ * MIR_SKIP), the panel repainted in place, nothing black first; the client's screen is the panel's again */
+static uint32_t mc_fixes, mc_fix_bad, mc_fix_whole, mc_fix_sum;
+static void mc_fix_check(void)
+{
+    uint32_t i, k, n, b0 = mc_bytes, diff = 0, whole = 0;
+    if (!md.fix_have) {
+        mc_trace_off = 1;
+        frames(2);                                      /* (the loss shows at the next frame's seq) */
+        mc_trace_off = 0;
+        if (!md.fix_have)
+            return;
+    }
+    n = ((md.fix_hi - md.fix_lo) & 127u) + 1u;
+    for (k = 0; k < n && !whole; k++) {
+        uint32_t sq = (md.fix_lo + k) & 127u, e = sq & (MIR_RR - 1u);
+        if (n > MIR_RR || me_rr[e].seq != (sq | 0x80u))
+            whole = 1;
+        else
+            mir_enc_forget(me_rr[e].x, me_rr[e].y, me_rr[e].w, me_rr[e].h);
+    }
+    md.fix_have = 0;
+    if (whole) {
+        mc_fix_whole++;
+        mc_resync();
+        return;
+    }
+    mc_trace_off = 1;
+    op_repaint();
+    frames(7);
+    mc_meter_now = 1;
+    frame();
+    mc_meter_now = 0;
+    mc_trace_off = 0;
+    for (i = 0; i < 240u * 240u; i++)
+        diff += md_fb[i] != swap16(screen[i]);
+    mc_fixes++, mc_fix_bad += diff != 0u, mc_fix_sum += mc_bytes - b0;
+    if (diff && getenv("MIRROR_WHERE")) {
+        uint32_t x0 = 240, y0 = 240, x1 = 0, y1 = 0;
+        for (i = 0; i < 240u * 240u; i++)
+            if (md_fb[i] != swap16(screen[i])) {
+                uint32_t x = i % 240u, y = i / 240u;
+                x0 = x < x0 ? x : x0, y0 = y < y0 ? y : y0, x1 = x > x1 ? x : x1, y1 = y > y1 ? y : y1;
+            }
+        printf("  fix off: %u px in x %u..%u y %u..%u; scr %u layer %u overlay %u\n", diff, x0, x1, y0, y1, ui.scr, lay.shown, ui.overlay);
+    }
+    for (i = 0; diff && i < 240u * 240u; i++)
+        md_fb[i] = swap16(screen[i]);
+}
 #endif
 static void fuzz(uint32_t nf, uint32_t seed)            /* random use: every draw stays on the screen */
 {
@@ -3413,6 +3469,12 @@ static void fuzz(uint32_t nf, uint32_t seed)            /* random use: every dra
 #ifdef MIRROR_CHECK
         if (f % 50u == 49u && ui.overlay != 5u)
             mc_resync();
+        if (f % 50u == 20u && ui.overlay != 5u)
+            mc_drop = 1u + R(3);                        /* (frames lost on the way from here) */
+        if (f % 50u == 23u && ui.overlay != 5u) {
+            mc_drop = 0;
+            mc_fix_check();
+        }
 #endif
     }
     fm1_in.buttons = 0;
@@ -4151,6 +4213,9 @@ static void led_tests(void)
 int main(int argc, char **argv)
 {
     outdir = argc > 1 ? argv[1] : "build/host";
+#ifdef MIRROR_CHECK
+    me.chk = 1;                                         /* (checked frames, as the Mirror app asks: ops 8..10, seq; mc_fix_check) */
+#endif
     {
         uint32_t i;
         for (i = 0; i < 5u * 16u; i++)
@@ -4456,6 +4521,8 @@ int main(int argc, char **argv)
         printf("  mirror meters: %u windows of 100 ms\n", mc_meter_sends);
         check(mc_meter_sends > 100u, "the screen mirrored: the mixer's meters sent in their windows");
         check(mc_resyncs > 100u && !mc_resync_bad, "the screen mirrored: every catch-up (black to the client, every band again in place) is the panel");
+        printf("  mirror lost frames repaired by seq: %u, %u not the panel after, %u whole panels instead; %u bytes each on average\n",
+               mc_fixes, mc_fix_bad, mc_fix_whole, mc_fixes ? mc_fix_sum / mc_fixes : 0u);
     }
 #endif
     printf(fails ? "optimist ui test FAILED (%d)\n" : "optimist ui test passed\n", fails);
