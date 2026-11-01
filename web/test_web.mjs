@@ -3547,6 +3547,28 @@ async function editorMirror() {
   }
   ok(frames > 50 && !bad && !diff, `mirror: ${frames} frames decoded to the fixture's screen (${bad} bad, ${diff} pixels off)`);
   ok(!mirrorFrame([3, 0, 0]) && !mirrorFrame([1, 0, 0]), "mirror: an unknown op or a short BLIT refused");
+  {   /* SUMS (opti_mirsum_1, ed_mirror_sum.h): the fixture's band hashes made here (the murmur3 finaliser written again), the
+       picture compared: none differ; a pixel of band 3 changed: band 3 asked; a damaged SUMS ignored */
+    const fm = (p, c) => { let h = ((p << 16) | c) >>> 0; h ^= h >>> 16; h = Math.imul(h, 0x85EBCA6B); h ^= h >>> 13; h = Math.imul(h, 0xC2B2AE35); return (h ^ (h >>> 16)) >>> 0; };
+    const g = [7, 9, 127, 127, 127, 127, 3];
+    for (let b = 0; b < 30; b++) {
+      let h = 0;
+      for (let k = b * 1920; k < (b + 1) * 1920; k++) h = (h + fm(k, px[2 * k] | (px[2 * k + 1] << 8))) >>> 0;
+      g.push(h & 127, (h >>> 7) & 127, (h >>> 14) & 127);
+    }
+    let x = 0, y = 0;
+    for (const b of [0x7D, 0x46, 0x4C, 106, ...g]) { x += b; y += x; }
+    const sums = [...g, x & 127, y & 127];
+    mir.haveSeq = true; mir.seq = 9; mir.broken = false; mir.fixLo = -1; mir.bands = 0;
+    const same = mirrorFrame(sums) && mir.bands === 0;
+    mir.fb[3 * 1920 + 77] ^= 1;
+    mirrorFrame(sums);
+    const one = mir.bands === 8;
+    mir.bands = 0;
+    const bad = sums.slice(); bad[20] ^= 1; mirrorFrame(bad);
+    mir.fb[3 * 1920 + 77] ^= 1;
+    ok(same && one && mir.bands === 0 && /opti\("mirsum"\) && \(mir\.bands/.test(html), "mirror: SUMS (opti_mirsum_1): the fixture's bands match, a changed pixel's band asked again, a damaged SUMS ignored");
+  }
   {   /* checked frames (106 bit 3; ed_mirror_enc.h ops 8..10, 2026-11-01): the fixture's pushes as the firmware sends them checked */
     const pushes = [];
     for (let i = 0, st = -1; i < sx.length; i++) {
