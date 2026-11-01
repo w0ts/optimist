@@ -24,7 +24,7 @@
  *   the drum track        the lanes' black keys and the last upper key (ACCENT) dim, the selected one full, a lane hit
  *                         (or muted, would be) full ~50 ms (every page)
  *   chord mode (CHORD+)   a synth track with SCL > CHORD on: the 5 modifier black keys dim, the latched ones full
- *   STEP, SEQ held        the drum track: the steps with any lane set full, the empty ones inside LEN dim (SEQ + a step clears it)
+ *   STEP, SEQ held        the fill view (op_step.c step_fillview): the selected track's / lane's steps full, the empty ones inside LEN dim (SEQ + a step edits its fill)
  * Main loop only (ui_leds); nothing here runs in the audio interrupt. After op_input.c (op_t0, pick_mod). */
 static uint32_t keys_white(uint32_t n) { return keys_of(n < 16u ? (1u << n) - 1u : 0xFFFFu); }   /* the first n white keys (the tiles, the steps) */
 static uint32_t key_w(int32_t w) { return w >= 0 && w < 16 ? 1u << white_key((uint32_t)w) : 0u; }

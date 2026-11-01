@@ -74,6 +74,11 @@ _Static_assert(AUTO_ACC + 1u == AUTO_NGATE0, "the ACCENT lane: just below the no
  * MOT_TAIL_END), below the ACCENT lane's: an older build keeps them and plays none (mot_id: P_COUNT, no lock) */
 #define AUTO_MUTE0 0x6Cu
 #define AUTO_MUTE(l) (AUTO_MUTE0 + (uint32_t)(l))
+/* a drum lane's AUTO_MUTE(l) event also keeps the hit's fill condition (the user, 2026-11-01: SEQ held edits the fills of a lane): value 1 muted,
+ * AUTO_LF_FILL FILL ONLY (the hit plays in a fill only), AUTO_LF_NOFILL NO FILL (silent in a fill); one state a hit. An older build mutes the hit
+ * for any of them (auto.c reads the event as a mute) */
+#define AUTO_LF_FILL 2u
+#define AUTO_LF_NOFILL 3u
 #define AUTO_SMUTE (AUTO_MUTE0 + 10u)
 #define AUTO_IS_MUTE(p) ((uint32_t)(p) - AUTO_MUTE0 <= 10u)
 _Static_assert(AUTO_SMUTE + 1u == AUTO_ACC, "the mutes: just below the ACCENT lane's id");
