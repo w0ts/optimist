@@ -244,3 +244,19 @@ export function mflasherFor(data, platform) {
   mine.sort((a, b) => (a.arch === b.arch ? 0 : a.arch === "x86_64" ? -1 : 1) || order[a.kind] - order[b.kind]);
   return { mobile, os, files: mine, version: data && data.version, page: (data && data.page) || MFLASHER_URL };
 }
+
+/* ---- which FM-1 (tools/fm1_install.py fm1_devices; the Mirror app's FlashDevices.swift): with two on the cable the page asks, it never picks one */
+const FM1_TOKEN = /FM1-[0-9A-F]{4}/i;
+const FM1_NAME = /FM1-[0-9A-F]{4}|fm-1|optimist|felucca/i;   // (an FM-1 for sure: not "usb-midi" / "composite")
+/** the key of the FM-1 a MIDI port belongs to: its FM1-XXXX (all its ports share it), else the port's name; "" for a Bluetooth port
+ * (the same FM-1 seen twice) or a name that is no FM-1's */
+export function fm1Key(name) {
+  const n = name || "";
+  if (/bluetooth/i.test(n) || !FM1_NAME.test(n)) return "";
+  const m = FM1_TOKEN.exec(n);
+  return m ? m[0].toUpperCase() : n;
+}
+/** the FM-1s among the port names, one key each, in the order met */
+export function fm1Devices(names) {
+  return [...new Set(names.map(fm1Key).filter(Boolean))];
+}

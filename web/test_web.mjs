@@ -3681,6 +3681,15 @@ e = list(L.known_ends()); print(json.dumps({f"{o}/{n}": L.switch_warning(None if
      "install: the installed layout from bk_caps: its app end; an older normal build by its LAYOUT bit off; else not known");
 }
 {
+  /* which FM-1 (tools/fm1_install.py fm1_devices): one key per unit, Bluetooth and generic names left out */
+  const IR = await import("./install_route.js");
+  const d = IR.fm1Devices;
+  ok(JSON.stringify(d(["FM1-A1B2", "FM1-A1B2 MIDI 2", "FM1-C3D4"])) === JSON.stringify(["FM1-A1B2", "FM1-C3D4"]), "pick: two units (several ports each) are two devices, by their FM1-XXXX");
+  ok(d(["fm1-a1b2", "FM1-A1B2 Port 2"]).length === 1 && d(["FM1-A1B2", "Bluetooth FM1-A1B2"]).length === 1 && d(["FM1-A1B2", "FM1-A1B2 Bluetooth"]).length === 1, "pick: a Bluetooth port of the same unit counts as one");
+  ok(d(["USB-MIDI", "composite", "Bluetooth FM1-C3D4", "IAC Driver Bus 1"]).length === 0 && d(["FM-1", "USB-MIDI"]).length === 1 && d(["Optimist"]).length === 1, "pick: generic names and Bluetooth alone are no FM-1; one FM-1 stays one");
+  ok(d(["FM-1", "Optimist"]).length === 2 && IR.fm1Key("Felucca Update") === "Felucca Update" && IR.fm1Key("USB-MIDI") === "", "pick: without a token the port name is the key");
+}
+{
   /* a -5 from Optimist's updater (m-bootloader installed, an M-VAVE package): the installer falls back to download mode */
   const IR = await import("./install_route.js");
   const v15 = { kind: "v15" }, own = { kind: "optimist" };

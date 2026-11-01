@@ -97,7 +97,20 @@ struct FlashView: View {
                 Toggle("Install m-bootloader instead (download mode, a computer, a full backup first)", isOn: $flash.installMboot)
                     .font(.footnote)
             }
+            if flash.devices.count > 1 {
+                Text("\(flash.devices.count) FM-1s found. Choose one:").font(.footnote)
+                ForEach(flash.devices, id: \.self) { k in
+                    Button { Task { await flash.pick(k) } } label: {
+                        HStack {
+                            Text(k).font(.callout.monospaced()).foregroundStyle(.primary)
+                            Spacer()
+                            if flash.picked == k { Image(systemName: "checkmark") }
+                        }
+                    }
+                }
+            }
             Button(flash.package.map { "Install \($0.file.isEmpty ? $0.title : $0.file)" } ?? "Install") {
+                if flash.mustChoose() { return }
                 ask = Confirmation(title: "Write \(flash.package.map { $0.file.isEmpty ? $0.title : "\($0.file) (\($0.title), \($0.product))" } ?? "") to the FM-1? Projects, presets, kits and samples stay. Keep the USB cable in until it is done.") {
                     flash.install()
                 }

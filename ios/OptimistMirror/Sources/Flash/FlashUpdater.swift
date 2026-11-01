@@ -19,8 +19,27 @@ enum FlashStep: Equatable {
     case done(String)             // the identity the FM-1 reports now
 }
 
+/// Which FM-1 a MIDI port belongs to (web/install_route.js fm1Key, tools/fm1_install.py fm1_devices): its "FM1-XXXX" (all its ports
+/// share it), else the port's name. Bluetooth ports (the same FM-1 seen twice) and generic names ("USB-MIDI", "composite") are none.
+enum FlashDevices {
+    static func key(_ name: String) -> String? {
+        if name.range(of: "bluetooth", options: .caseInsensitive) != nil { return nil }
+        if let r = name.range(of: "FM1-[0-9A-F]{4}", options: [.regularExpression, .caseInsensitive]) { return name[r].uppercased() }
+        return name.range(of: "fm-1|optimist|felucca", options: [.regularExpression, .caseInsensitive]) != nil ? name : nil
+    }
+
+    /// the FM-1s among the port names, one key each, in the order met
+    static func keys(_ names: [String]) -> [String] {
+        var out: [String] = []
+        for k in names.compactMap(key) where !out.contains(k) { out.append(k) }
+        return out
+    }
+}
+
 final class FlashUpdater {
     private let ports: FlashPorts
+    /// the keys (FlashDevices) of the FM-1s that are not the chosen one: no port of theirs is ever asked
+    var excluded: Set<String> = []
     private let pause: (TimeInterval) async -> Void
     /// the waits of the protocol (the web installer's); tests shrink them
     struct Timing {
@@ -63,10 +82,19 @@ final class FlashUpdater {
         return nil
     }
 
-    /// The first port that answers the handshake with an identity `filter` takes.
+    /// The FM-1s on the cable by their port names: nothing is sent to any port.
+    func devices() -> [String] {
+        let channels = ports.channels()
+        let keys = FlashDevices.keys(channels.map(\.name))
+        channels.forEach { $0.close() }
+        return keys
+    }
+
+    /// The first port that answers the handshake with an identity `filter` takes (never one of an FM-1 not chosen).
     func find(_ filter: ((FlashProtocol.Identity) -> Bool)? = nil) async -> Found? {
         var found: Found?
         for c in ports.channels() {
+            if let k = FlashDevices.key(c.name), excluded.contains(k) { c.close(); continue }
             if found == nil, let id = await handshake(c, tries: 2), filter?(id) ?? true {
                 found = Found(channel: c, id: id)
             } else {
