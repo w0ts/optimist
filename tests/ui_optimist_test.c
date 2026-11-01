@@ -95,7 +95,7 @@ static void fl_see(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint16_
  * at the end the decoded screen is this one (tests/run_tests.sh, ED_MIRROR) */
 #include "mirror_dec.h"
 static uint8_t mc_f[512];
-static uint32_t mc_drop;                                /* checked frames still to lose on the way (mc_fix_check) */
+static uint32_t mc_drop, mc_in_fix;                                /* checked frames still to lose on the way (mc_fix_check) */
 static uint32_t mc_n, mc_frames, mc_bytes, mc_bad;
 static int mc_trace_off;                                /* (a catch-up: not recorded, its bytes not counted in the comparison) */
 static int mir_wire(uint32_t b)
@@ -115,6 +115,9 @@ static void mir_wire_end(void)
     }
     if (wf && !mc_trace_off)
         fwrite(mc_f, 1, mc_n, wf);
+    if (getenv("FIX_WHERE") && mc_in_fix && mc_n > 14u && (mc_f[5] == 8u || mc_f[5] == 9u))
+        fprintf(stderr, "FIXW op%u %u,%u %ux%u len%u\n", mc_f[5], mc_f[6] | mc_f[7] << 7, mc_f[8] | mc_f[9] << 7, mc_f[10] | mc_f[11] << 7,
+                mc_f[12] | mc_f[13] << 7, mc_n);
     if (mc_drop && mc_n > 9u && mc_f[5] >= 8u) {
         mc_drop--;                                      /* (lost on the way: never decoded) */
     } else {
@@ -3401,7 +3404,7 @@ static void mc_resync(void)
 static uint32_t mc_fixes, mc_fix_bad, mc_fix_whole, mc_fix_sum;
 static void mc_fix_check(void)
 {
-    uint32_t i, k, n, b0 = mc_bytes, diff = 0, whole = 0;
+    uint32_t i, k, n, r, b0 = mc_bytes, diff = 0, whole = 0;
     if (!md.fix_have) {
         mc_trace_off = 1;
         frames(2);                                      /* (the loss shows at the next frame's seq) */
@@ -3409,13 +3412,18 @@ static void mc_fix_check(void)
         if (!md.fix_have)
             return;
     }
-    n = ((md.fix_hi - md.fix_lo) & 127u) + 1u;
-    for (k = 0; k < n && !whole; k++) {
-        uint32_t sq = (md.fix_lo + k) & 127u, e = sq & (MIR_RR - 1u);
-        if (n > MIR_RR || me_rr[e].seq != (sq | 0x80u))
-            whole = 1;
-        else
-            mir_enc_forget(me_rr[e].x, me_rr[e].y, me_rr[e].w, me_rr[e].h);
+    for (r = 0; r < md.fix_have && !whole; r++) {
+        n = ((md.fix_hi[r] - md.fix_lo[r]) & 127u) + 1u;
+        for (k = 0; k < n && !whole; k++) {
+            uint32_t sq = (md.fix_lo[r] + k) & 127u, e = sq & (MIR_RR - 1u);
+            if (n > MIR_RR || me_rr[e].seq != (sq | 0x80u))
+                whole = 1;
+            else {
+                if (getenv("FIX_WHERE"))
+                    fprintf(stderr, "FORGET %u: %u,%u %ux%u\n", sq, me_rr[e].x, me_rr[e].y, me_rr[e].w, me_rr[e].h);
+                mir_enc_forget(me_rr[e].x, me_rr[e].y, me_rr[e].w, me_rr[e].h);
+            }
+        }
     }
     md.fix_have = 0;
     if (whole) {
@@ -3424,8 +3432,12 @@ static void mc_fix_check(void)
         return;
     }
     mc_trace_off = 1;
+    mc_in_fix = 1;
+    if (getenv("FIX_WHERE"))
+        fprintf(stderr, "FIX scr %u lost %u runs\n", ui.scr, md.fix_have);
     op_repaint();
     frames(7);
+    mc_in_fix = 0;
     mc_meter_now = 1;
     frame();
     mc_meter_now = 0;

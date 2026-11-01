@@ -33,10 +33,13 @@ static struct {
     uint16_t w, sw;                     /* the rectangle's width; its rows' stride (pixels): wider when it is a part of a blit */
     uint8_t chk, chk_f, seq, sa, sb;    /* checked frames asked for; this frame is one; the next seq; the frame's sums so far */
     uint8_t rx, ry, rw, rh;             /* the rectangle the frame being sent draws in (a MORE: its BLIT's; w 0: none, a mark) */
+    uint32_t pi, p0;                    /* BLIT: the next pixel of the rectangle to code; the frame's first (me_rr keeps its rows) */
+    uint8_t blit;                       /* the rectangle is a BLIT's (its frames cover rows p0 / w .. (pi - 1) / w), 0 a FILL's */
 } me;
 /* the rectangles of the last MIR_RR checked frames by seq (entry seq & (MIR_RR - 1), seq | 0x80 when valid): a client that lost
- * frames a .. b asks for them (106 bit 4, ed_mirror.c mir_fix) and only those rectangles go again */
-enum { MIR_RR = 64, MIR_FIX_BIT = 16 };
+ * frames a .. b asks for them (106 bit 4, ed_mirror.c mir_fix) and only those rectangles go again. 128: every 7-bit seq (was 64:
+ * a burst of losses older than 64 frames fell back to a whole panel) */
+enum { MIR_RR = 128, MIR_FIX_BIT = 16 };
 static struct { uint8_t seq, x, y, w, h; } me_rr[MIR_RR];
 /* the rectangle's pixel i (row by row, me.w a row), in a buffer of rows me.sw apart */
 static uint32_t me_at(const uint16_t *px, uint32_t i) { return me.sw == me.w ? px[i] : px[i / me.w * me.sw + i % me.w]; }
@@ -64,6 +67,7 @@ static void me_open(uint32_t op)
 }
 static void me_open_px(uint32_t op)     /* a panel write's frame: FILL, BLIT, MORE (checked when asked) */
 {
+    me.p0 = op == 2u ? me.pi : 0u;
     me_open(me.chk ? op + MIR_CHK_OP : op);
     me.chk_f = me.chk;
 }
@@ -83,6 +87,10 @@ static void me_close(void)
             uint32_t k = me.seq & (MIR_RR - 1u);
             me_rr[k].seq = (uint8_t)(me.seq | 0x80u);
             me_rr[k].x = me.rx, me_rr[k].y = me.ry, me_rr[k].w = me.rw, me_rr[k].h = me.rh;
+            if (me.blit && me.w && me.pi > me.p0) {   /* (a BLIT's frame: only the rows its pixels are in) */
+                uint32_t r0 = me.p0 / me.w, r1 = (me.pi - 1u) / me.w;
+                me_rr[k].y = (uint8_t)(me.ry + r0), me_rr[k].h = (uint8_t)(r1 - r0 + 1u);
+            }
             me.seq = (uint8_t)((me.seq + 1u) & 127u);
         }
     }
@@ -102,6 +110,7 @@ static void me_col(uint32_t c)
 }
 static void mir_enc_fill(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint32_t c)
 {
+    me.blit = 0;
     me_rect(0, x, y, w, h);
     me_col(c);
     me_close();
@@ -157,6 +166,7 @@ static void me_run(uint32_t c, uint32_t n)
             me_len(k - 14u);
         me_lit(s, c);
         n -= k;
+        me.pi += k;                     /* (a long run cut between frames: each frame's rows, me_rr) */
     }
 }
 /* the pixels above from i (n in all, w a row): how many, and whether they are shorter than the runs they replace */
@@ -236,13 +246,17 @@ static void me_bits(const uint16_t *px, uint32_t i, uint32_t g, uint32_t f, uint
 static void mir_enc_rect(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint16_t *px, uint32_t sw)
 {
     uint32_t i = 0, n = w * h, r, c;
-    me_rect(1, x, y, w, h);
+    me.pi = 0;
+    me.blit = 1;
     me.w = (uint16_t)w, me.sw = (uint16_t)sw;
+    me_rect(1, x, y, w, h);
     for (r = 0; r < MIR_SLOTS; r++)
         me.slot[r] = 0;
     me.rr = 1;
     while (i < n && me.ok) {
-        uint32_t f, b, g, u = me_up_at(px, i, n, w);
+        uint32_t f, b, g, u;
+        me.pi = i;
+        u = me_up_at(px, i, n, w);
         if (u) {
             me_up(u);
             i += u;
@@ -260,6 +274,7 @@ static void mir_enc_rect(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const u
         me_run((c >> 8 | c << 8) & 0xFFFFu, r - i);
         i = r;
     }
+    me.pi = n;                          /* (the last frame's rows reach the end) */
     me_close();
 }
 static void mir_enc_blit(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint16_t *px) { mir_enc_rect(x, y, w, h, px, w); }
@@ -294,7 +309,51 @@ static uint32_t me_hash(const uint16_t *p, uint32_t n)   /* FNV-1a over the pixe
         h = (h ^ *p++) * 16777619u;
     return h;
 }
-static void mir_enc_forget_all(void) { memset(me_known, 0, sizeof me_known); }
+/* What the client holds, by whole write (2026-11-01): the UI draws the same rectangles again with the same pixels (a card, a
+ * row, a band), so a write whose rectangle and pixels are those of one the client already holds whole goes nowhere. The segment
+ * hashes alone resent every part segment (text and cards start between segments): a repair (mir_fix) sent 963 B on average, half
+ * a panel, the user seeing "the whole screen again" after each loss. An entry is good until a write that overlaps it goes out
+ * (or fails), or its rectangle is lost (mir_enc_forget); MIR_RC of them, the oldest replaced */
+enum { MIR_RC = 64 };
+static struct { uint8_t x, y, w, h, ok; uint32_t hash; } me_rc[MIR_RC];
+static uint32_t me_rc_next, me_rc_hits;
+static uint32_t me_rc_hash(const uint16_t *px, uint32_t n, uint32_t seed)
+{
+    uint32_t h = 2166136261u ^ seed;
+    while (n--)
+        h = (h ^ *px++) * 16777619u;
+    return h;
+}
+static int me_rc_held(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint32_t hash)
+{
+    uint32_t i;
+    for (i = 0; i < MIR_RC; i++)
+        if (me_rc[i].ok && me_rc[i].x == x && me_rc[i].y == y && me_rc[i].w == w && me_rc[i].h == h)
+            return me_rc[i].hash == hash;
+    return 0;
+}
+static void me_rc_drop(uint32_t x, uint32_t y, uint32_t w, uint32_t h)   /* every entry this rectangle overlaps */
+{
+    uint32_t i;
+    for (i = 0; i < MIR_RC; i++)
+        if (me_rc[i].ok && me_rc[i].x < x + w && x < (uint32_t)me_rc[i].x + me_rc[i].w && me_rc[i].y < y + h &&
+            y < (uint32_t)me_rc[i].y + me_rc[i].h)
+            me_rc[i].ok = 0;
+}
+static void me_rc_sent(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint32_t hash, int whole)
+{
+    me_rc_drop(x, y, w, h);
+    if (!whole || w > 255u || h > 255u)
+        return;
+    me_rc[me_rc_next].x = (uint8_t)x, me_rc[me_rc_next].y = (uint8_t)y, me_rc[me_rc_next].w = (uint8_t)w;
+    me_rc[me_rc_next].h = (uint8_t)h, me_rc[me_rc_next].hash = hash, me_rc[me_rc_next].ok = 1;
+    me_rc_next = (me_rc_next + 1u) % MIR_RC;
+}
+static void mir_enc_forget_all(void)
+{
+    memset(me_known, 0, sizeof me_known);
+    memset(me_rc, 0, sizeof me_rc);
+}
 static void mir_enc_forget(uint32_t x, uint32_t y, uint32_t w, uint32_t h)   /* the client may not hold this rectangle */
 {
     uint32_t j, s, s0 = x / MIR_SEGW, s1 = (x + w - 1u) / MIR_SEGW;
@@ -303,6 +362,7 @@ static void mir_enc_forget(uint32_t x, uint32_t y, uint32_t w, uint32_t h)   /* 
     for (j = y; j < y + h && j < 240u; j++)
         for (s = s0; s <= s1 && s < MIR_NSEG; s++)
             me_known[j] &= (uint8_t)~(1u << s);
+    me_rc_drop(x, y, w, h);
 }
 /* row ry, pixels x .. x + w of p: the changed span [*a, *b) in pixels from x; 0: nothing changed. new: the whole segments' hashes */
 static int me_span(const uint16_t *p, uint32_t x, uint32_t w, uint32_t ry, uint32_t *a, uint32_t *b, uint32_t *nh)
@@ -340,7 +400,11 @@ static void me_learn(const uint16_t *px, uint32_t x, uint32_t y, uint32_t w, uin
 }
 static void mir_enc_blit_skip(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint16_t *px)
 {
-    uint32_t r = 0, nh[MIR_NSEG];
+    uint32_t r = 0, nh[MIR_NSEG], hash = me_rc_hash(px, w * h, 1u), whole = 1;
+    if (me_rc_held(x, y, w, h, hash)) {
+        me_rc_hits++;
+        return;                         /* (this very write the client holds: nothing) */
+    }
     while (r < h) {
         uint32_t a, b, a2, b2, k;
         if (!me_span(px + r * w, x, w, y + r, &a, &b, nh)) {
@@ -352,14 +416,20 @@ static void mir_enc_blit_skip(uint32_t x, uint32_t y, uint32_t w, uint32_t h, co
         me.ok = 1;
         mir_enc_rect(x + a, y + r, b - a, k - r, px + r * w + a, w);
         me_learn(px + r * w, x, y + r, w, k - r, me.ok);
+        whole &= me.ok;
         r = k;
     }
+    me_rc_sent(x, y, w, h, hash, (int)whole);
 }
 static void mir_enc_fill_skip(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint32_t c)
 {
     uint32_t j, s, s0 = x / MIR_SEGW, s1 = (x + w - 1u) / MIR_SEGW, hs = 2166136261u, pc = (c >> 8 | c << 8) & 0xFFFFu;
     for (j = 0; j < MIR_SEGW; j++)
         hs = (hs ^ pc) * 16777619u;
+    if (me_rc_held(x, y, w, h, c ^ 0x5A5A0000u)) {
+        me_rc_hits++;
+        return;                         /* (this very fill the client holds) */
+    }
     if (w && h && x % MIR_SEGW == 0u && w % MIR_SEGW == 0u) {   /* (whole segments the client holds in this colour: not again) */
         uint32_t all = 1;
         for (j = y; j < y + h && all; j++)
@@ -372,6 +442,7 @@ static void mir_enc_fill_skip(uint32_t x, uint32_t y, uint32_t w, uint32_t h, ui
     }
     me.ok = 1;
     mir_enc_fill(x, y, w, h, c);
+    me_rc_sent(x, y, w, h, c ^ 0x5A5A0000u, me.ok);
     for (j = y; j < y + h; j++)
         for (s = s0; s <= s1; s++) {
             uint32_t sx = s * MIR_SEGW;
