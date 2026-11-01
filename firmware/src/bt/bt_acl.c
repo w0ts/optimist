@@ -312,6 +312,7 @@ _Static_assert(4u + 12u + 1u + BA_MFRAMES * (12u + (8u + 16u * BA_BITPOOL + 7u) 
                "bt_page.c BP_MQB: the longest audio packet");
 static uint8_t ba_mbuf[BA_MFRAMES * 128u];
 static uint32_t ba_mlen, ba_mn;
+#include "bt_sbc_job.h"                            /* the frame's encoding as a job of the dual render (BA_SBC_JOB) */
 static uint8_t ba_live;                            /* bt_audio_feed streams (the audio ISR's) */
 static uint32_t ba_qavg;                           /* the audio packets queued (bt_ltx.c bp_mq), mean over ~0.7 s, Q8 */
 
@@ -356,6 +357,45 @@ static void ba_media_send(const uint8_t *sbc_frame, uint32_t sbc_len, uint32_t f
     (void)bp_media_queue(pkt, 4u + payload_len);   /* (whole, one DH5; full: dropped whole, never cut) */
 }
 
+static void ba_sbc_out(const uint8_t *frame, uint32_t slen)   /* an encoded frame into the packet, sent when full */
+{
+    uint32_t k;
+    for (k = 0; k < slen && ba_mlen + k < sizeof ba_mbuf; k++)
+        ba_mbuf[ba_mlen + k] = frame[k];
+    ba_mlen += k;
+    if (++ba_mn == (bp.slots5 == 2u ? BA_MFRAMES : 1u)) {   /* (DH5: BA_MFRAMES frames; DH3: one) */
+        ba_media_send(ba_mbuf, ba_mlen, ba_mn);
+        ba_mlen = ba_mn = 0;
+    }
+}
+#if BA_SBC_JOB
+static void ba_sbc_job(void)                       /* the kept frame encoded (either core: dual.c dual_run; or here) */
+{
+    sbcj.len = bt_sbc_encode(&ba_sbc, ba_pcm_acc, sbcj.frame);
+    sbcj.done = 1;
+}
+#endif
+#if BA_SBC_JOB && FELUCCA_BENCH && FELUCCA_BENCH_SBC
+static void ba_sbc_bench(uint32_t blk)            /* (a bench build, dual.c: a frame kept every fourth block, as a stream's) */
+{
+    uint32_t i;
+    if (!ba_sbc_init_done) {
+        bt_sbc_init(&ba_sbc, 44100, BA_BITPOOL, 1);
+        ba_sbc_init_done = 1;
+    }
+    if (blk & 3u)
+        return;
+    for (i = 0; i < 2u * BT_SBC_SAMPLES_PER_FRAME; i++)
+        ba_pcm_acc[i] = (int16_t)(mix_l[i & (CTL - 1u)] >> 2);   /* (some music: the last block's mix) */
+    if (FELUCCA_BENCH_SBC == 2) {                  /* (2: encoded here, on CPU0 before the fork: as inline before) */
+        ba_sbc_job();
+        return;
+    }
+    sbcj.done = 0;
+    sbcj.pend = 1;
+}
+#endif
+
 int bt_audio_feed(const int32_t *q15_pcm, uint32_t n)   /* 1: it streams (audio.c mutes the FM-1's own output). q15_pcm
                                                          * 0: n frames of silence (fx/outcorr.c oc_bt_frames) */
 {
@@ -366,8 +406,20 @@ int bt_audio_feed(const int32_t *q15_pcm, uint32_t n)   /* 1: it streams (audio.
                                                     * disconnect, the user 2026-10-20) */
         ba_pcm_cnt = 0;
         ba_live = 0;
+#if BA_SBC_JOB
+        sbcj.pend = 0;                             /* (a kept frame of a stream that stopped: not sent) */
+#endif
         return 0;
     }
+#if BA_SBC_JOB
+    if (sbcj.pend) {                               /* the frame the last block kept: encoded by now (a job), sent */
+        if (!sbcj.done)                            /* (CPU1 went down before it ran: here) */
+            ba_sbc_job();
+        ba_sbc_out(sbcj.frame, sbcj.len);
+        sbcj.pend = 0;
+        ba_pcm_cnt = 0;
+    }
+#endif
     if (!ba_live)
         ba_qavg = (bp_mq.w - bp_mq.r) << 8;        /* (the mean from the depth now) */
     ba_live = 1;
@@ -387,14 +439,15 @@ int bt_audio_feed(const int32_t *q15_pcm, uint32_t n)   /* 1: it streams (audio.
         ba_pcm_cnt++;
         if (ba_pcm_cnt >= BT_SBC_SAMPLES_PER_FRAME) {
             uint8_t frame[128];
-            uint32_t slen = bt_sbc_encode(&ba_sbc, ba_pcm_acc, frame), k;
-            for (k = 0; k < slen && ba_mlen + k < sizeof ba_mbuf; k++)
-                ba_mbuf[ba_mlen + k] = frame[k];
-            ba_mlen += k;
-            if (++ba_mn == (bp.slots5 == 2u ? BA_MFRAMES : 1u)) {   /* (DH5: BA_MFRAMES frames; DH3: one) */
-                ba_media_send(ba_mbuf, ba_mlen, ba_mn);
-                ba_mlen = ba_mn = 0;
+#if BA_SBC_JOB
+            if (sbcj.late && i + 1u == n) {        /* (a frame that ends with the block: kept for the next block's
+                                                    * render, ba_pcm_acc untouched until then) */
+                sbcj.done = 0;
+                sbcj.pend = 1;
+                return 1;
             }
+#endif
+            ba_sbc_out(frame, bt_sbc_encode(&ba_sbc, ba_pcm_acc, frame));
             ba_pcm_cnt = 0;
         }
     }
