@@ -428,6 +428,7 @@ enum { SI_NONE, SI_TUNE, SI_RECQ, SI_PUNCH, SI_OUT, SI_SYNC, SI_CH1, SI_CH2,
        SI_ARN,                                          /* INFO: the arena's longest move and interrupts-off window (us) */
        SI_RAMUSE,                                       /* INFO: the arena's use, parts / features / free (core/feat_mem.c) */
        SI_DUALT,                                        /* SYSTEM > CPU TIMES: the dual render's times (SYS_DEBUG, the second core) */
+       SI_BTSTAT,                                       /* SYSTEM > BT STATS: the Bluetooth audio stream's counters (SYS_DEBUG) */
        SI_UAS0 };                                       /* SI_UAS0 + s: USB AUDIO's line of source s (ua_tap.h UAS_*), last */
 /* a core's load number (% of the audio budget) in its colour: green under 60, amber 60..85, red over 85 (the predictive guard's
  * ceiling, system/cpuguard.c CG_CEIL = 85 %: above it the guard sheds quality / voices); INFO's bars and ticks the same. */
@@ -489,6 +490,11 @@ static int si_ua(uint32_t it) { return it >= SI_UAS0 && it < SI_UAS0 + UAS_N; }
 #else
 #define OP_DTIMES 0
 #endif
+#if FELUCCA_SYS_DEBUG && FELUCCA_BT_AUDIO && defined(PLAT_BTA_STATS)   /* (fm1-base's plat_bta_stats: the release) */
+#define OP_BTSTATS 1                                    /* SYSTEM > BT STATS (sys_bts_cell) */
+#else
+#define OP_BTSTATS 0
+#endif
 static const struct { const char *name; uint8_t it[4]; } SYS[] = {
     {"INFO", {SI_INFO, SI_NONE, SI_NONE, SI_NONE}},      /* first: one dense read-only page, not 4 lines (op_gldraw.c gl_info_draw): the clock, the
                                                          * load of each core, the memory (the user, 2026-10-14). The second core is always on:
@@ -501,6 +507,9 @@ static const struct { const char *name; uint8_t it[4]; } SYS[] = {
 #endif
 #if OP_DTIMES
     {"CPU TIMES", {SI_DUALT, SI_NONE, SI_NONE, SI_NONE}},   /* the dual render's times per mix block, after USB STATS (2026-10-30: sys_dt_cell) */
+#endif
+#if OP_BTSTATS
+    {"BT STATS", {SI_BTSTAT, SI_NONE, SI_NONE, SI_NONE}},   /* the Bluetooth audio stream's counters (2026-11-01: sys_bts_cell) */
 #endif
 #endif
     /* the screen and the sound in one section (the user, 2026-10-25: KNOB COLORS was on a page read as "audio", "group and
@@ -998,6 +1007,9 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
     case SI_DUALT:                                      /* the CPU TIMES page's one line (op_gldraw.c draws the page itself) */
         sys_ro(c, "CPU TIMES");
         break;
+    case SI_BTSTAT:                                     /* the BT STATS page's one line (op_gldraw.c draws the page itself) */
+        sys_ro(c, "BT STATS");
+        break;
     case SI_CREDITS:                                    /* the credits page's one line (op_credits.c gl_cred_draw draws the page) */
         sys_ro(c, "CREDITS");
         break;
@@ -1162,6 +1174,83 @@ static void sys_ua_cell(uint32_t i, cell_t *c)
 }
 #else
 #define INFO_UA 0u
+#endif
+#if OP_BTSTATS
+/* SYSTEM's BT STATS page (2026-11-01, the user: short drops on the AirPods, the link up, DROPS 0): the Bluetooth audio
+ * stream since the link came up (fm1-base's plat_bta_stats, bt/br/bt_stat.h), each line one place the sound can be late.
+ * PACKETS/S acknowledged (the stream needs 114.8); DROPPED the queue full; QUEUE MAX/NOW (packets of 8.7 ms); WAIT MAX
+ * the longest a packet waited for its acknowledgment (and when), then the device's answers good / bad and the BLE
+ * interrupts during it; SLOW/BLE packets over 20 ms, of them with BLE meanwhile; AIR a packet's mean slots (6: sent once);
+ * SINK DRAIN the most the device's buffer lost (and when); FEED GAP the longest between two packets made (the render);
+ * AFH the channels hopped, the switches (the last when); BLE its connection interval now (0: none). A table on
+ * plat_bta_stats' fields (all uint32_t): up to three numbers a line "a/b/c", the first in tenths where BT_T, its unit, the
+ * time since ("12s ago"); amber (DROPPED red) from a line's first number at its BW */
+#define INFO_BTN 11u
+#define BT_F(m) ((uint8_t)(__builtin_offsetof(struct plat_bta_stats, m) / 4u))
+#define BT_T 0x80u                                      /* (n's flag: the first number in tenths) */
+static const char *const BTU[] = {"", " pk", " ms", " slots"};   /* (the units: BTR's u) */
+static const struct {
+    const char *l;
+    uint8_t n, f[3], ago, bw, u;                        /* (bw: amber from this; 0 never) */
+} BTR[INFO_BTN] = {
+    {"PACKETS/S", 1 | BT_T, {BT_F(rate_x10)}, 0, 0, 0},
+    {"DROPPED", 1, {BT_F(dropped)}, 0, 1, 0},
+    {"QUEUE MAX/NOW", 2, {BT_F(qmax), BT_F(qnow)}, 0, 11, 1},
+    {"WAIT MAX", 1, {BT_F(wait_ms)}, BT_F(wait_ago), 50, 2},
+    {"GOOD/BAD/BLE", 3, {BT_F(wait_good), BT_F(wait_bad), BT_F(wait_ble)}, 0, 0, 0},
+    {"SLOW/BLE", 2, {BT_F(slow), BT_F(slow_ble)}, 0, 1, 0},
+    {"AIR", 1 | BT_T, {BT_F(slots_x10)}, 0, 0, 3},
+    {"SINK DRAIN", 1, {BT_F(drain_ms)}, BT_F(drain_ago), 100, 2},
+    {"FEED GAP", 1, {BT_F(feed_gap_ms)}, 0, 21, 2},
+    {"AFH CH/SW", 2, {BT_F(afh_ch), BT_F(afh_sw)}, BT_F(afh_ago), 0, 0},
+    {"BLE", 1 | BT_T, {BT_F(ble_ivl_x10)}, 0, 0, 2},
+};
+_Static_assert(sizeof(struct plat_bta_stats) % 4u == 0u && sizeof(struct plat_bta_stats) / 4u < 64u, "BTR: fields as uint32_t");
+static void sys_bts_cell(uint32_t i, cell_t *c)
+{
+    static struct plat_bta_stats s;
+    static int on;
+    static char u[16];
+    const uint32_t *w = (const uint32_t *)(const void *)&s;
+    char *v = c->val;
+    uint32_t k, x, n;
+    i %= INFO_BTN;
+    if (!i)
+        on = plat_bta_stats(&s);                        /* (a copy a frame, at its first line) */
+    cell_clear(c);
+    c->kind = CK_RO;
+    c->label = BTR[i].l;
+    v[0] = u[0] = 0;
+    c->unit = u;
+    if (!on) {
+        dual_cat(v, i ? "-" : "NO LINK");
+        return;
+    }
+    n = BTR[i].n;
+    for (k = 0; k < (n & 3u); k++) {
+        x = w[BTR[i].f[k]];
+        if (k)
+            dual_cat(v, "/");
+        dual_cnum(v, !k && (n & BT_T) ? x / 10u : x);
+        if (!k && (n & BT_T)) {
+            dual_cat(v, ".");
+            dual_cnum(v, x % 10u);
+        }
+    }
+    dual_cat(u, BTU[BTR[i].u & 3u]);
+    x = BTR[i].ago ? w[BTR[i].ago] : 0u;
+    if (x) {                                            /* (" 12s ago") */
+        dual_cat(u, " ");
+        dual_cnum(u, x / 1000u);
+        dual_cat(u, "s ago");
+    }
+    x = BTR[i].bw;
+    c->col = x && w[BTR[i].f[0]] >= x ? (i == 1u ? C_ERR : C_WARN) : 0;
+}
+#undef BT_F
+#undef BT_T
+#else
+#define INFO_BTN 0u
 #endif
 #if defined(FELUCCA_DUAL) && FELUCCA_DUAL >= 2
 /* the second core's lines on SYSTEM's INTERNALS page (2026-10-14/15: TIMEOUT on the FM-1, cause not known; dual.c, dual_mode.h;
@@ -1397,6 +1486,7 @@ static void sys_rst_cell(cell_t *c)
 #endif
 #else
 #define INFO_UA 0u                                      /* (no INTERNALS, no USB STATS) */
+#define INFO_BTN 0u
 #define INFO_DTN 0u
 #define INFO_C1 0u
 #define INFO_RST 0u
@@ -1505,10 +1595,10 @@ static void sys_diag_cell(uint32_t i, cell_t *c)        /* INTERNALS' line i */
 }
 #endif
 /* the read-out pages (op_gldraw.c gl_info): 0 INFO, 1 INTERNALS, 2 USB STATS; their lines */
-enum { INFO_PG_INFO, INFO_PG_DIAG, INFO_PG_USB, INFO_PG_DUAL };
+enum { INFO_PG_INFO, INFO_PG_DIAG, INFO_PG_USB, INFO_PG_DUAL, INFO_PG_BT };
 static uint32_t info_lines(uint32_t pg)
 {
-    return !FELUCCA_SYS_DEBUG ? INFO_N : pg == INFO_PG_USB ? INFO_UA : pg == INFO_PG_DIAG ? INFO_DIAG : pg == INFO_PG_DUAL ? INFO_DTN : INFO_N;
+    return !FELUCCA_SYS_DEBUG ? INFO_N : pg == INFO_PG_USB ? INFO_UA : pg == INFO_PG_DIAG ? INFO_DIAG : pg == INFO_PG_DUAL ? INFO_DTN : pg == INFO_PG_BT ? INFO_BTN : INFO_N;
 }
 static void info_cell(uint32_t pg, uint32_t i, cell_t *c)
 {
@@ -1527,6 +1617,12 @@ static void info_cell(uint32_t pg, uint32_t i, cell_t *c)
 #if OP_DTIMES
     if (pg == INFO_PG_DUAL) {
         sys_dt_cell(i % INFO_DTN, c);
+        return;
+    }
+#endif
+#if OP_BTSTATS
+    if (pg == INFO_PG_BT) {
+        sys_bts_cell(i, c);
         return;
     }
 #endif
