@@ -50,6 +50,20 @@ static struct {
                                          * test_had: the mirror was on in this test session */
     uint32_t test_ms;                   /* fm1_ms of the kind 5 request */
 } mir;
+/* Why the mirror fell behind, for its catch-up (2026-11-01: the user saw "the whole screen again" often): LAG, frames the
+ * device itself dropped (the lag rule, a full ring), only repaints in place (the client holds all it was sent: MIR_SKIP and the
+ * write cache send what changed); the others do not know what the client holds and send the whole panel, black first */
+enum { MIR_WHY_NONE, MIR_WHY_LAG, MIR_WHY_ASK, MIR_WHY_FIX, MIR_WHY_N };
+static uint8_t mir_why;
+static void mir_behind(uint32_t why)
+{
+    mir.behind = 1;
+    if (why > mir_why)
+        mir_why = (uint8_t)why;
+}
+/* the counts the client logs (106 op 5 STATS, after LINK, with checked frames): whole panels by why (+ the UI's own whole-panel
+ * fills: a page drawn whole), repaints in place for a lag, repairs of lost frames, the bytes sent, those within 100 ms of a repair */
+static struct { uint32_t whole[MIR_WHY_N], page, soft, bytes, fix_bytes, fix_b0, fix_ms; uint8_t fix_open; } mst;
 #define MIR_TEST_MAGIC 0x5453544Du      /* "MTST" in felucca.c mir_test_boot: the next start is a test session */
 enum { MIR_TEST_REPLY_MS = 100,         /* the restart this long after the request: its answer out first */
        MIR_TEST_WAIT_MS = 15000 };      /* a test session no client mirrors this long after its start: ended */
@@ -316,7 +330,7 @@ static void mir_lend(void *p)
     mbr.fw = mbr.w = mbr.r;
     mbr.base = mbr.r, mbr.pk = 0, mbr.mid = 0;
     if (mir.on && mir.link == MIR_BT)
-        mir.behind = 1;                 /* (what went before is gone: the screen sent whole again) */
+        mir_behind(MIR_WHY_ASK);        /* (what went before is gone: the screen sent whole again) */
 }
 static void mir_lend_off(void)          /* (its question's NO, or the offer's YES: the Bluetooth mirror ends) */
 {
@@ -365,15 +379,18 @@ static int mir_pkt(uint32_t cin)
 static int mir_wire(uint32_t b)
 {
     if (mir.link == MIR_BT) {
-        if (mbr_put(b))
+        if (mbr_put(b)) {
+            mst.bytes++;
             return 1;
-        mir.behind = 1;
+        }
+        mir_behind(MIR_WHY_LAG);
         return 0;
     }
+    mst.bytes++;
     if (b == 0xF0u)
         sx_busy = 1, mir.k = 0;         /* (no other MIDI out inside the frame: usb.c ep1_tx) */
     if (mir.k == 3u && !mir_pkt(4)) {   /* (a full packet goes when the next byte comes: the last one carries F7) */
-        mir.behind = 1;                 /* (the host's next F0 drops the frame cut here) */
+        mir_behind(MIR_WHY_LAG);        /* (the host's next F0 drops the frame cut here) */
         return 0;
     }
     mir.acc[mir.k++] = (uint8_t)b;
@@ -389,14 +406,16 @@ static void mir_wire_end(void)
     mir.acc[1] = k > 1u ? mir.acc[1] : 0u;
     mir.acc[2] = k > 2u ? mir.acc[2] : 0u;
     if (!mir_pkt(4u + k))
-        mir.behind = 1;
+        mir_behind(MIR_WHY_LAG);
     sx_busy = 0;
 }
 /* display/lcd.c: what it drew (the colour as given, the pixels as the panel takes them) */
 static void mir_fill(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint16_t c)
 {
-    if (mir_live())
+    if (mir_live()) {
+        mst.page += w == 240u && h == 240u;  /* (the UI drew a page whole: ui.force) */
         mir_enc_fill_skip(x, y, w, h, c);
+    }
 }
 static void mir_blit(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint16_t *px)
 {
@@ -423,7 +442,7 @@ static void mir_ask(uint32_t bits, uint32_t l)
     MIR_SEEN();
     mir_live();                         /* (a mirror that ended: this is a first on again) */
     if ((bits & 1u) && (!mir.on || mir.link != l || (bits & 2u)))
-        mir.behind = 1, mir.catch_ms = fm1_ms - MIR_CATCH_MS;   /* (asked: at once) */
+        mir_behind(MIR_WHY_ASK), mir.catch_ms = fm1_ms - MIR_CATCH_MS;   /* (asked: at once) */
     if ((bits & 1u) && !mir.on)
         mir.phave = 0;                  /* (a new client: no PANEL seq known) */
     if ((bits & 4u) && !mir.state)
@@ -635,26 +654,30 @@ static void mir_test(void)
  * (ed_mirror_enc.h me_rr, MIR_SKIP's knowledge) and the panel repainted in place with no black first: only what the client may
  * lack goes out, the rest is skipped as held. A seq no longer in me_rr, or a range over MIR_RR: the whole panel (a catch-up).
  * The client draws on meanwhile (no whole fill: nothing held). At most one repaint every MIR_FIX_MS, the ranges merged */
-enum { MIR_FIX_MS = 60 };
-static volatile uint8_t mfix_req, mfix_lo, mfix_hi;      /* asked (the radio's interrupts write them; the main loop takes them) */
+enum { MIR_FIX_MS = 60, MIR_FIXQ = 8 };
+static struct { uint8_t lo, hi; } mfix_q[MIR_FIXQ];      /* the runs asked, each alone (merging two would forget what came whole) */
+static volatile uint8_t mfix_w, mfix_r, mfix_over;       /* (the radio's interrupts write; the main loop reads); over: the whole panel */
 static uint8_t mfix_due;                                 /* rectangles forgotten, the repaint not yet done */
 static uint32_t mfix_ms, mfix_n, mfix_whole;            /* the last repaint; repaints done; whole panels instead (the tests') */
 static void mir_fix_ask(uint32_t lo, uint32_t hi)
 {
-    if (mfix_req && ((hi - mfix_lo) & 127u) < MIR_RR)
-        mfix_hi = (uint8_t)(hi & 127u);                  /* (one range: from the earlier lo) */
-    else if (mfix_req)
-        mfix_lo = (uint8_t)(lo & 127u), mfix_hi = (uint8_t)(hi & 127u), mfix_req = 2;   /* (too far apart: the whole panel) */
-    else
-        mfix_lo = (uint8_t)(lo & 127u), mfix_hi = (uint8_t)(hi & 127u), mfix_req = 1;
+    if ((uint8_t)(mfix_w - mfix_r) >= MIR_FIXQ) {
+        mfix_over = 1;
+        return;
+    }
+    mfix_q[mfix_w % MIR_FIXQ].lo = (uint8_t)(lo & 127u), mfix_q[mfix_w % MIR_FIXQ].hi = (uint8_t)(hi & 127u);
+    RING_PUBLISH();
+    mfix_w++;
 }
 static void mir_fix(void)
 {
-    uint32_t lo, hi, n, k, whole;
-    if (mfix_req) {
+    uint32_t whole = mfix_over;
+    mfix_over = 0;
+    while (mfix_r != mfix_w) {
+        uint32_t lo, hi, n, k;
         RING_PUBLISH();
-        lo = mfix_lo, hi = mfix_hi, whole = mfix_req == 2u;
-        mfix_req = 0;
+        lo = mfix_q[mfix_r % MIR_FIXQ].lo, hi = mfix_q[mfix_r % MIR_FIXQ].hi;
+        mfix_r++;
         n = ((hi - lo) & 127u) + 1u;
         if (n > MIR_RR || !MIR_SKIP)
             whole = 1;
@@ -665,18 +688,22 @@ static void mir_fix(void)
             else
                 mir_enc_forget(me_rr[e].x, me_rr[e].y, me_rr[e].w, me_rr[e].h);
         }
-        if (whole) {
-            mfix_whole++;
-            mir.behind = 1, mir.catch_ms = fm1_ms - MIR_CATCH_MS;
-            mfix_due = 0;
-            return;
-        }
-        mfix_due = 1;
+        if (!whole)
+            mfix_due = 1;
+    }
+    if (whole) {
+        mfix_whole++;
+        mir_behind(MIR_WHY_FIX), mir.catch_ms = fm1_ms - MIR_CATCH_MS;
+        mfix_due = 0;
+        return;
     }
     if (mfix_due && mir_live() && fm1_ms - mfix_ms >= MIR_FIX_MS) {
         mfix_due = 0;
         mfix_ms = fm1_ms;
         mfix_n++;
+        if (!mst.fix_open)
+            mst.fix_open = 1, mst.fix_b0 = mst.bytes;
+        mst.fix_ms = fm1_ms;
         op_repaint();                                    /* (in place: what the client holds is skipped) */
     }
 }
@@ -726,6 +753,16 @@ static void mir_poll(void)
                 me_b2(v[i]);
             me_close();
         }
+        if (me.chk) {   /* then op 5 STATS (the app logs each second's change): whole panels for a lag, an ask (bit 1, a first on), a
+                         * repair's seq no longer known; the UI's pages drawn whole; repaints in place for a lag; repairs; the bytes
+                         * sent; the bytes within 100 ms of a repair. 3 x 7 bit each, free-running (mod 2^21) */
+            uint32_t v[8] = {mst.whole[MIR_WHY_LAG], mst.whole[MIR_WHY_ASK], mst.whole[MIR_WHY_FIX], mst.page, mst.soft, mfix_n,
+                             mst.bytes, mst.fix_bytes};
+            me_open(5);
+            for (i = 0; i < 8u; i++)
+                me_col(v[i] & 0x1FFFFFu);
+            me_close();
+        }
     }
     while (mbr.cr != mbr.cw && mir_bt_up()) {   /* INFO, PANEL, NAV, CLIP from Bluetooth: run as USB's, answered there */
         uint8_t f[MBR_RXN];
@@ -761,6 +798,8 @@ static void mir_poll(void)
     mir_test();
     mir_state();
     mir_fix();
+    if (mst.fix_open && fm1_ms - mst.fix_ms >= 100u)
+        mst.fix_open = 0, mst.fix_bytes += mst.bytes - mst.fix_b0;   /* (a repair's bytes: those within 100 ms of it) */
     mir_mark();
     if (!mir.on || !mir.behind || ui.overlay == 5u || (mir.link == MIR_BT ? !mir_bt_clear() : so_w != so_r) ||
         fm1_ms - mir.catch_ms < MIR_CATCH_MS)
@@ -770,6 +809,14 @@ static void mir_poll(void)
 #if MIR_BLE
     mbr_wait_ms = 0;
 #endif
+    if (mir_why == MIR_WHY_LAG && MIR_SKIP) {   /* (only what the device dropped: the client holds the rest, repainted in place) */
+        mir_why = MIR_WHY_NONE;
+        mst.soft++;
+        op_repaint();
+        return;
+    }
+    mst.whole[mir_why]++;
+    mir_why = MIR_WHY_NONE;
     mir_enc_forget_all();               /* (a frame may have been lost: nothing known; the black makes every row known black) */
     mir_enc_fill_skip(0, 0, 240, 240, 0);   /* (black to the client only: the panel is not cleared) */
     op_repaint();

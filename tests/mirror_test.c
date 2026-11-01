@@ -649,11 +649,17 @@ static void bt_tests(void)
     }
     check(k < 100u, "never caught up");
     check(lost > 10u && same(), "a slow radio: behind %u times, caught up, the panel (%u bytes sent)", lost, sent);
+    check(mst.soft > 10u && mst.whole[MIR_WHY_LAG] == 0u, "... each catch-up for a lag in place, no whole panel (%u repaints in place)",
+          mst.soft);
     check(bad == 0u, "%u frames not decoded", bad);
     /* a link slower than a catch-up (the iPad scanning in its Bluetooth sheet) with small writes going on: one catch-up, not one
      * after the other (its own bytes are not the lag) */
     for (k = 0; k < 60u; k++)
         random_write();
+    for (k = 0; k < 20u; k++) {         /* (busy enough that its catch-up is over the lag, whatever MIR_BLE_LAG is built) */
+        canvas(240, 12, 16);
+        lcd_blit(0, 12u * k, 240, 12, cv);
+    }
     radio(~0u);
     mir.behind = 1, mir.catch_ms = fm1_ms - MIR_CATCH_MS;
     MIR_SEEN();
@@ -1062,11 +1068,14 @@ static void fix_tests(void)
             mt_lossy = 1;
         }
         if (md.dropped != d0 && md.fix_have) {
-            uint8_t f[9] = {0xF0, 0x7D, 0x46, 0x4C, 106, 1 | MIR_CHK_BIT | MIR_FIX_BIT, (uint8_t)md.fix_lo, (uint8_t)md.fix_hi, 0xF7};
-            md.fix_have = 0;
+            uint32_t q;
             mt_lossy = 0;
             b0 = bytes;
-            bt_send(f, 9);
+            for (q = 0; q < md.fix_have; q++) {   /* (each run of lost seqs asked alone) */
+                uint8_t f[9] = {0xF0, 0x7D, 0x46, 0x4C, 106, 1 | MIR_CHK_BIT | MIR_FIX_BIT, (uint8_t)md.fix_lo[q], (uint8_t)md.fix_hi[q], 0xF7};
+                bt_send(f, 9);
+            }
+            md.fix_have = 0;
             fm1_ms += MIR_FIX_MS;
             MIR_SEEN();
             mir_poll();
@@ -1081,7 +1090,7 @@ static void fix_tests(void)
             mt_lossy = 1;
             if (!same()) {
                 wrong++;
-                printf("  fix wrong at %u: asked %u..%u\n", k, (unsigned)f[6], (unsigned)f[7]);
+                printf("  fix wrong at %u\n", k);
             }
         } else
             unknown += !same() && md.dropped == d0;

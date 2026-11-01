@@ -145,14 +145,39 @@ final class MirrorDecoderTests: XCTestCase {
         for f in fs[..<k] { dec.apply(f) }
         let seqOf = { (f: [UInt8]) -> Int in Int(f[f.count - 4]) }
         XCTAssertFalse(dec.apply(fs[k + 1]))             // (the BLIT lost: its MORE dropped)
-        let r = try XCTUnwrap(dec.takeLost())
-        XCTAssertEqual(r.lo, seqOf(fs[k]))
-        XCTAssertEqual(r.hi, seqOf(fs[k + 1]))
-        XCTAssertNil(dec.takeLost())
+        let runs = dec.takeLost()
+        XCTAssertEqual(runs.count, 1)
+        XCTAssertEqual(runs.first?.lo, seqOf(fs[k]))
+        XCTAssertEqual(runs.first?.hi, seqOf(fs[k + 1]))
+        XCTAssertTrue(dec.takeLost().isEmpty)
         XCTAssertFalse(dec.apply(fs[k + 1]))             // (the same frame again: nothing, no loss)
         XCTAssertEqual(dec.again, 1)
         XCTAssertEqual(dec.lostGap, 1)
         XCTAssertEqual(dec.lostMore, 1)
+    }
+
+    func testLostRunsKeptApart() throws {
+        let fs = checked(frames(try fixture("sysex")))
+        let px = fs.indices.filter { fs[$0][5] == 9 || fs[$0][5] == 8 }
+        XCTAssertGreaterThan(px.count, 6)
+        let a = px[2], b = px[5]                        // (two BLIT / FILL frames lost, frames between them come whole)
+        var dec = MirrorDecoder()
+        for i in fs.indices where i != a && i != b && !(i > a && i < px[3] && fs[i][5] == 10) && !(i > b && i < px[6] && fs[i][5] == 10) {
+            dec.apply(fs[i])
+        }
+        let runs = dec.takeLost()
+        XCTAssertEqual(runs.count, 2)
+        XCTAssertEqual(runs.first?.lo, Int(fs[a][fs[a].count - 4]))
+        XCTAssertEqual(runs.last?.lo, Int(fs[b][fs[b].count - 4]))
+    }
+
+    func testStatsParsed() {
+        var f: [UInt8] = [0xF0, 0x7D, 0x46, 0x4C, 106, 5]
+        for v in [1, 2, 3, 4, 5, 6, 70000, 9] { f += [UInt8(v & 127), UInt8(v >> 7 & 127), UInt8(v >> 14 & 127)] }
+        f.append(0xF7)
+        XCTAssertEqual(MirrorDecoder.stats(f), [1, 2, 3, 4, 5, 6, 70000, 9])
+        var dec = MirrorDecoder()
+        XCTAssertFalse(dec.apply(f))
     }
 
     func testUncheckedFramesStillRead() throws {
