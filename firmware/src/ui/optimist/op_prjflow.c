@@ -45,7 +45,8 @@ static const char *const PRJ_NAME[] = {"PROJECT", "SNAPSHOT", "USER", "TOOLS", "
 static const char *const PRJ_NAME[] = {"PROJECT", "SNAPSHOT", "USER", "TOOLS", "MEMORY"};
 #endif
 enum { PO_LOAD, PO_SAVE, PO_DELETE,                      /* the operations, in the knob's order */
-       PO_SAVE_LOAD };                                  /* (FELUCCA_PATTERNS: a LOAD while the work changed asks "SAVE <the open project>?":
+       PO_SAVE_LOAD,
+       PO_NEW_HERE };                                   /* (LOAD of a free PROJECT slot: "NEW PROJECT n?", op_edits.c prj_new_here; never a card's op) */                                  /* (FELUCCA_PATTERNS: a LOAD while the work changed asks "SAVE <the open project>?":
                                                          * YES saves it then loads, HOME cancels as every question (the user, 2026-10-22);
                                                          * never a card's op) */
 static const char *const PO_NAME[3] = {"LOAD", "SAVE", "DELETE"};
@@ -182,6 +183,8 @@ static uint32_t prj_danger(uint32_t kind, uint32_t op, uint32_t s)
     uint32_t u = prj_slot_used(kind, s);
     if (op == PO_LOAD && kind == PR_USER)
         return u && !is_drum(TSEL) && snd_edited(song.sel);   /* (a user preset replaces the sound only: asked over edits, ed_ask's rule) */
+    if (op == PO_NEW_HERE)
+        return work_changed();                          /* (a free slot: red only when the open work would go) */
     return op == PO_LOAD ? u && work_changed() : u;
 }
 
@@ -297,7 +300,9 @@ static void prj_ask(uint32_t r, uint32_t kind, uint32_t op, uint32_t s)
 {
     char l[8], t[16], m[16];
     prj_slot_label(kind, s, l);
-    if (op != PO_SAVE && !prj_slot_used(kind, s)) {
+    if (kind == PR_PROJECT && op == PO_LOAD && !prj_slot_used(kind, s))
+        op = PO_NEW_HERE;                               /* a free project slot: offer a new project there */
+    if (op != PO_SAVE && op != PO_NEW_HERE && !prj_slot_used(kind, s)) {
         str_cpy(m, l, sizeof m);
         str_app(m, " IS EMPTY", sizeof m);
         ui.toast_next = 1;
@@ -310,7 +315,7 @@ static void prj_ask(uint32_t r, uint32_t kind, uint32_t op, uint32_t s)
     prj_arm_op = (uint8_t)op;
     prj_arm_slot = (uint8_t)s;
 #if FELUCCA_PATTERNS
-    if (kind == PR_PROJECT && op == PO_LOAD && work_changed() && !song.playing && !transport_req) {
+    if (kind == PR_PROJECT && (op == PO_LOAD || op == PO_NEW_HERE) && work_changed() && !song.playing && !transport_req) {
         fmt_int(l, (int32_t)project_cur() + 1);         /* the open project, whose work changed: "SAVE PROJECT 2?" first */
         str_cpy(t, PRJ_WHAT[kind], sizeof t);
         str_app(t, l, sizeof t);
@@ -319,6 +324,11 @@ static void prj_ask(uint32_t r, uint32_t kind, uint32_t op, uint32_t s)
         return;
     }
 #endif
+    if (op == PO_NEW_HERE) {
+        op_arm(SCR_PROJECT, r, 0, "NEW", t, prj_danger(kind, op, s));
+        ui.arm_stop = (uint8_t)(song.playing || transport_req);
+        return;
+    }
     op_arm(SCR_PROJECT, r, 0, PO_NAME[op], t, prj_danger(kind, op, s));
     ui.arm_stop = (uint8_t)(kind == PR_PROJECT && op == PO_LOAD && (song.playing || transport_req));
 }
@@ -337,6 +347,11 @@ static int prj_no(void)
     prj_slot_label(PR_PROJECT, prj_arm_slot, l);
     str_cpy(t, PRJ_WHAT[PR_PROJECT], sizeof t);
     str_app(t, l, sizeof t);
+    if (!prj_slot_used(PR_PROJECT, prj_arm_slot)) {     /* (a free slot: the new project asked instead of the load) */
+        prj_arm_op = PO_NEW_HERE;
+        op_arm(SCR_PROJECT, ui.arm_row, 0, "NEW", t, 1);
+        return 1;
+    }
     prj_arm_op = PO_LOAD;
     op_arm(SCR_PROJECT, ui.arm_row, 0, PO_NAME[PO_LOAD], t, 1);
     return 1;
@@ -364,14 +379,22 @@ static void prj_do(uint32_t kind, uint32_t op, uint32_t s)
             return;
         }
 #endif
-        if (op == PO_LOAD && (song.playing || transport_req)) {
+        if (op == PO_NEW_HERE && (song.playing || transport_req)) {
+            pj_defer(4, s);                             /* (stopped, the new project made and saved, played again) */
+        } else if (op == PO_NEW_HERE) {
+            prj_new_here(s);                            /* (op_edits.c) */
+        } else if (op == PO_LOAD && (song.playing || transport_req)) {
             pj_defer(1, s);                             /* (stopped, loaded, played again: pj_tick) */
         } else if (op == PO_LOAD) {
             prj_load_go(s);                             /* (op_edits.c: loaded, the work as loaded) */
 #if FELUCCA_PATTERNS
         } else if (op == PO_SAVE_LOAD) {                /* YES to "SAVE <open>?": saved, then loaded (a save refused: nothing loaded) */
-            if (!prj_save_go(project_cur()))
-                prj_load_go(s);
+            if (!prj_save_go(project_cur())) {
+                if (prj_slot_used(PR_PROJECT, s))
+                    prj_load_go(s);
+                else
+                    prj_new_here(s);
+            }
 #endif
         } else {
             name_project(s);                            /* (NAME first, with the section log: op_name.c) */
