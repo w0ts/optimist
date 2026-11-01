@@ -217,7 +217,21 @@ enum {
 /* the CHO DLY REV inserts' lines (2026-10-29, the user: "each copy in an insert slot takes its memory from the arena, as
  * many as it holds"): a block each, placed when an owner takes the type and given back when it lets go (fx/fx_arena.c
  * fxm_cp_*, fxi.c fxa_place), after every other client; never moved (as the other buffers) */
-#define FXM_CPN ((INS_CHO || INS_REV || INS_DLY) ? 8u : 0u)
+/* (2026-10-31, ramaudit) the limited inserts' lines too (ECHO, JUNO CHORUS, FLNG, XDLY: FELUCCA_FXI_LINE_BLOCKS, fxi_mem.h):
+ * each copy a block of its own size, instead of the whole own room (every type's line, 77 KB on the user's build) placed
+ * for the first one held: a FLNG then takes 1 KB of the arena, not 77 */
+#ifndef FELUCCA_FXI_LINE_BLOCKS
+#define FELUCCA_FXI_LINE_BLOCKS 1
+#endif
+#if !defined(FELUCCA_FXM_IDLE_FREE) && defined(__PI32V2__)
+#define FELUCCA_FXM_IDLE_FREE 1                          /* (the device: a send line only while its bus is heard, fx_arena.c;
+                                                         * the host tests keep 0 unless they ask) */
+#endif
+#ifndef FXM_CPN_MAX
+#define FXM_CPN_MAX 8u                                   /* (the copies' blocks at most: ARN_PARTS <= 32) */
+#endif
+#define FXM_CPN ((INS_CHO || INS_REV || INS_DLY || (FELUCCA_FXI_LINE_BLOCKS && (FELUCCA_INS_DELAY || FELUCCA_INS_JCHORUS || \
+                  FELUCCA_INS_FLANGER || FELUCCA_INS_XDLY))) ? FXM_CPN_MAX : 0u)
 #define FXM_CP_K0 (SST_ARN_K + (FELUCCA_SD_STREAM ? 1u : 0u))
 #define ARN_PARTS (FXM_CP_K0 + FXM_CPN)
 #define ARN_TOPS (((1u << (ARN_PARTS - NPART)) - 1u) << NPART)   /* (the lines and buffers from the top, best fit:
@@ -240,8 +254,11 @@ static int arn_can(uint32_t k);                           /* (fx/fx_arena.c: cli
 static void fxm_moved(uint32_t k, void *p);
 static int fxm_mv_ready(uint32_t k);
 static void fxm_sync(void);
-#define ARN_MOVES (((1u << NPART) - 1u) | 0xFu << NPART)   /* (the parts, CHO DLY REV, the inserts' room) */
-#define ARN_UPS (0xFu << NPART)
+/* (FELUCCA_FXI_LINE_BLOCKS: the inserts' copies' blocks move too, each while its instance is at rest, up as the room did:
+ * fx/fx_arena.c arn_can, fxm_moved; the kernel skips the one moving, fxi_kern.c FXI_CP_MOVING) */
+#define FXM_CP_MOVES ((FELUCCA_FXI_LINE_BLOCKS && FXM_CPN) ? ((1u << FXM_CPN) - 1u) << FXM_CP_K0 : 0u)
+#define ARN_MOVES (((1u << NPART) - 1u) | 0xFu << NPART | FXM_CP_MOVES)   /* (the parts, CHO DLY REV, the inserts' room) */
+#define ARN_UPS (0xFu << NPART | FXM_CP_MOVES)
 #define ARN_UP_ALIGN 1024u                               /* (the room's units: the arena's 1 KB, fxi_mem.h) */
 #define ARN_MV_MOVED(k, p) ((k) < NPART ? (void)(part_mem_p[k] = (p)) : fxm_moved(k, p))
 #define ARN_MV_READY(k) ((k) < NPART || fxm_mv_ready(k))

@@ -284,6 +284,10 @@ job; ( jobin
     run "master COMP / LIMIT: the static curve (+-0.5 dB), attack / release / AUTO, bit-exact when off, no sample past CEIL, the project's bytes" "$OUT/master_comp_test"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/djfilt_test" tests/djfilt_test.c -lm
+    run "master DJ FILTER: silence stays silent at every setting (from rest, after a sine, after a move, a constant input), the response its double-precision twin's" "$OUT/djfilt_test"
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_TFLT_FINE=1 -o "$OUT/djfilt_fine_test" tests/djfilt_test.c -lm
+    run "master DJ FILTER with TFLT_FINE (64-bit products): the same" "$OUT/djfilt_fine_test"
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_TRK_FILT=1 -o "$OUT/trk_filt_test" tests/trk_filt_test.c -lm
     run "track FILTER (SLOOP 2.4): LP / HP on a part, the drum bus and its sends, the project, cost" "$OUT/trk_filt_test"
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_CHORDPLUS=1 -o "$OUT/chordplus_test" tests/chordplus_test.c -lm
@@ -1142,29 +1146,33 @@ job; ( jobin   # the arena's fragmentation (tests/arena_frag_test.c): the jam pr
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin   # the effects' lines in the arena (fx/fx_arena.c, docs/SD-MODE-DESIGN.md 6b phase 3b; FELUCCA_FX_ARENA)
     FXA="-DFELUCCA_ENG_FM6=1 -DFELUCCA_FX_ARENA=1 -DFELUCCA_INS_DELAY=1 -DFELUCCA_INS_FLANGER=1 -DFELUCCA_DLY_LEN=16384u"   # (FLNG: the own room's other type since CHRS became the CHO insert, its copies arena blocks of their own, 2026-10-29)
-    $CC -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $FXA "-DFELUCCA_ARENA_BYTES=73984u" -o "$OUT/fx_arena_test" tests/fx_arena_test.c -lm
+    $CC -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $FXA -DFELUCCA_FXI_LINE_BLOCKS=0 "-DFELUCCA_ARENA_BYTES=73984u" -o "$OUT/fx_arena_test" tests/fx_arena_test.c -lm   # (the own room: FELUCCA_FXI_LINE_BLOCKS 0, the builds before 2026-10-31)
     run "effects' lines in the arena (ROOM): at their fixed places while used, zeroed, gated and given back, refused (bypassed, kept, said once) and restored (a part's block there reclaimed), a part's change waits for a line going back, the inserts' room grown and given back, lent instead; random switches" "$OUT/fx_arena_test"
-    $CC -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $FXA -DFELUCCA_REV_FDN8=1 -DFELUCCA_REV_POOL=1 -DFELUCCA_SPRING=1 "-DFELUCCA_ARENA_BYTES=89344u" -o "$OUT/fx_arena_rev_test" tests/fx_arena_test.c -lm
+    $CC -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 -DFELUCCA_ENG_FM6=1 -DFELUCCA_FX_ARENA=1 -DFELUCCA_INS_DELAY=1 -DFELUCCA_INS_FLANGER=1 -DFELUCCA_INS_XDLY=1 -DFELUCCA_INS_JCHORUS=1 -DFELUCCA_DLY_LEN=16384u "-DFELUCCA_ARENA_BYTES=(160u * 1024u)" -o "$OUT/fx_lineblk_test" tests/fx_lineblk_test.c -lm
+    run "the limited inserts' lines as arena blocks of their own (FELUCCA_FXI_LINE_BLOCKS): a FLNG takes 1 KB, an ECHO 8, an XDLY its two lines, not the whole own room; moved in a pack with their contents; given back" "$OUT/fx_lineblk_test"
+    $CC -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 -DFELUCCA_ENG_FM6=1 -DFELUCCA_FX_ARENA=1 -DFELUCCA_INS_DELAY=1 -DFELUCCA_INS_FLANGER=1 -DFELUCCA_INS_XDLY=1 -DFELUCCA_INS_JCHORUS=1 -DFELUCCA_DLY_LEN=16384u -DFELUCCA_FXM_IDLE_FREE=1 -DFXM_IDLE_S=2u "-DFELUCCA_ARENA_BYTES=(160u * 1024u)" -o "$OUT/fx_lineblk_idle_test" tests/fx_lineblk_test.c -lm
+    run "... and the send lines only while their bus is heard (FELUCCA_FXM_IDLE_FREE, the device's): none placed while nothing is sent, placed at a send's first input, given back after the tail and FXM_IDLE_S of nothing" "$OUT/fx_lineblk_idle_test"
+    $CC -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $FXA -DFELUCCA_FXI_LINE_BLOCKS=0 -DFELUCCA_REV_FDN8=1 -DFELUCCA_REV_POOL=1 -DFELUCCA_SPRING=1 "-DFELUCCA_ARENA_BYTES=89344u" -o "$OUT/fx_arena_rev_test" tests/fx_arena_test.c -lm
     run "the same with ROOM, FDN8 and SPRING (the reverb's TYPE switched, its line 32 KB)" "$OUT/fx_arena_rev_test"
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $FXA -DUI_MEMLIST=1 "-DFELUCCA_ARENA_BYTES=65536u" -o "$OUT/ui_optimist_memlist_test" tests/ui_optimist_test.c -lm
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $FXA -DUI_FMEM=1 "-DFELUCCA_ARENA_BYTES=131072u" -o "$OUT/ui_optimist_fmem_test" tests/ui_optimist_test.c -lm
     run "the switchable features on the screen: the memory line follows BT AUDIO's block on the frame after each pass, through a PAUSE question, its YES, the pack and the placement; INFO's RAM USE line" "$OUT/ui_optimist_fmem_test"
     run "a load that does not fit (ui/optimist/op_memlist.c): the refused parts listed, then the parts and the effects' lines on the keys, the gauge and FITS the arena's trial, SAVE drops and places, HOME leaves placeholders, an edit's one confirm" "$OUT/ui_optimist_memlist_test" "$OUT/optimist"
-    $CC -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $FXA -DFELUCCA_FX_SLICER=0 "-DFELUCCA_ARENA_BYTES=73984u" -o "$OUT/fx_arena_nobufs_test" tests/fx_arena_test.c -lm
+    $CC -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $FXA -DFELUCCA_FXI_LINE_BLOCKS=0 -DFELUCCA_FX_SLICER=0 "-DFELUCCA_ARENA_BYTES=73984u" -o "$OUT/fx_arena_nobufs_test" tests/fx_arena_test.c -lm
     run "the same without the SLICER (no other buffer in the arena: core/arena_bufs.c's stubs)" "$OUT/fx_arena_nobufs_test"
     # (the FM-1's crash 2026-10-29: a limited insert's line placed in the own room while it was in no block; ASan / UBSan
     #  where the compiler has them: the write at fxa_ins 0 a fault)
     FXB_SAN="-fsanitize=address,null,pointer-overflow,bounds -fno-sanitize-recover=all"   # (UBSan's pointer checks: the firmware shifts negative values on purpose, -fwrapv)
     echo 'int main(void) { return 0; }' > "$OUT/fxi_boot_san_probe.c"
     $CC $FXB_SAN -o "$OUT/fxi_boot_san_probe" "$OUT/fxi_boot_san_probe.c" 2>/dev/null || FXB_SAN=""
-    $CC -g $FXB_SAN -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $FXA "-DFELUCCA_ARENA_BYTES=73984u" -o "$OUT/fxi_boot_test" tests/fxi_boot_test.c -lm
+    $CC -g $FXB_SAN -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $FXA "-DFELUCCA_ARENA_BYTES=73984u" -DFELUCCA_FXI_LINE_BLOCKS=0 -o "$OUT/fxi_boot_test" tests/fxi_boot_test.c -lm
     run "the limited inserts at power-on (no fxi_init, the pool zeroed) with the own room in no block: REV and FLNG FULL or in a block, never at fxa_ins 0; a FULL REV insert leaves its track dry (no fallback to the send: nothing reaches the reverb bus); fxi_init at boot marks the room's units taken" "$OUT/fxi_boot_test"
-    $CC -g $FXB_SAN -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $FXA -DFELUCCA_REV_FDN8=1 -DFELUCCA_REV_POOL=1 -DFELUCCA_SPRING=1 "-DFELUCCA_ARENA_BYTES=89344u" -o "$OUT/fxi_boot_rev_test" tests/fxi_boot_test.c -lm
+    $CC -g $FXB_SAN -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $FXA -DFELUCCA_REV_FDN8=1 -DFELUCCA_REV_POOL=1 -DFELUCCA_SPRING=1 "-DFELUCCA_ARENA_BYTES=89344u" -DFELUCCA_FXI_LINE_BLOCKS=0 -o "$OUT/fxi_boot_rev_test" tests/fxi_boot_test.c -lm
     run "the same with FDN8, REV_POOL and SPRING (the user's reverb build)" "$OUT/fxi_boot_rev_test"
     # (the arenas in whole KB, every block in 256 B units (core/arena.c ARN_ALIGN): one FM6 4096 and its sine table 4352,
     #  the send lines 56320 (ROOM; with FDN8 and SPRING 71680), the inserts' own room 9216 (ECHO FLNG: one line each; a CHO DLY REV copy a block of its own);
     #  arena_bufs: WAVE's table 73216, one SLICER recording 8192, the 909 5376 and the 808 3584 on the host too)
-    $CC -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $FXA -DFELUCCA_ENG_WAVE=1 -DFELUCCA_DRUM_X909=1 -DFELUCCA_DRUM_X808=1 "-DFELUCCA_ARENA_BYTES=164352u" -o "$OUT/arena_bufs_test" tests/arena_bufs_test.c -lm
+    $CC -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $FXA -DFELUCCA_FXI_LINE_BLOCKS=0 -DFELUCCA_ENG_WAVE=1 -DFELUCCA_DRUM_X909=1 -DFELUCCA_DRUM_X808=1 "-DFELUCCA_ARENA_BYTES=164352u" -o "$OUT/arena_bufs_test" tests/arena_bufs_test.c -lm
     run "other buffers in the arena (SLICER recordings, WAVE's table, the X0X machines, the PUNCH ring while its switch is on): placed while used, given back, refused (bypassed, FULL, said once) and placed by themselves; a change to WAVE refused as an engine change, on a load the list page; a part's change waits; random switches" "$OUT/arena_bufs_test"
     # (the switchable features' memory, core/feat_mem.c: Bluetooth audio's buffers lent by the arena on a stand-in radio;
     #  ASan where the compiler has it, as fxi_boot: a block given back poisoned, the radio's write after it a failure)
