@@ -3327,6 +3327,8 @@ async function updater() {   /* every outcome of install() and resume() */
   ok(product === "FM-1_900" && !run.bad && progress.includes("write") && progress[progress.length - 1] === "done",
     `fm1ota.js: install goes running firmware -> loader -> Felucca (${run.served} reads)`);
 
+  ok(run.stopsFirst === 1 && run.stops === 1, "fm1ota.js: one MIDI STOP (0xFC) goes out before the first update command");
+
   const fromRecovery = new FakeFM1(image);
   fromRecovery.boot("FM-1_000", "Felucca");
   const recovered = await new OptimistUpdater(fromRecovery.access).install(image, "FM-1_900");

@@ -347,4 +347,5 @@ static inline void con_hex(uint32_t v, uint32_t d) { (void)v; (void)d; }
 #if FELUCCA_SIMD_PROBE
 #include "system/simd_probe.c"      /* EXPERIMENTAL: the boot test of the packed 16-bit forms (hal/fm1_simd.h) */
 #endif
+#include "system/stop_first.h"        /* an update or UBOOT from the host stops the transport first */
 #include "system/main.c"

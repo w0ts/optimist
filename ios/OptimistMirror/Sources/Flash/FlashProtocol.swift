@@ -7,6 +7,8 @@ import Foundation
 enum FlashProtocol {
     static let handshake: [UInt8] = [0xF0, 0x00, 0x32, 0x45, 0x00, 0x00, 0x00, 0x40, 0x7F, 0xF7]
     static let upgrade: [UInt8] = [0xF0, 0x22, 0x24, 0x35, 0x7F, 0xF7]
+    /// real-time STOP: the transport stops before an update starts (the firmware does it too; harmless there)
+    static let midiStop: [UInt8] = [0xFC]
     static let maxData = 512
     /// the read addresses that end step 1 and step 2: answered "success"
     static let step1Done: UInt32 = 0xE000_0000

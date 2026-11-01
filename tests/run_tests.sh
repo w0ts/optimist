@@ -237,6 +237,8 @@ job; ( jobin
 job; ( jobin
     $CC -o "$OUT/recovery_test" tests/recovery_test.c
     run "application USB recovery and boot-loop guard" "$OUT/recovery_test"
+    $CC -o "$OUT/stop_first_test" tests/stop_first_test.c
+    run "update start stops the transport first" "$OUT/stop_first_test"
 ) >"$U.out" 2>&1 & jobbg
 
 job; ( jobin

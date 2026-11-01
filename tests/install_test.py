@@ -74,6 +74,7 @@ class FakeFM1:
         self.stall_after, self.bad_addr = stall_after, bad_addr
         self.fast, self.fast_on, self.fast_words = fast, False, 0     # (the fast install: docs/INSTALL-SPEED.md)
         self.served = self.bad = self.upgrades = 0
+        self.stops = self.stops_before_upgrade = 0      # (MIDI STOP 0xFC received; how many came before the first upgrade command)
         self.soft_keys = 0                              # (the download-mode soft key F0 22 24 35 7D F7 received)
         self.sent, self.links, self.gen, self.lock = [], [], 0, threading.Lock()
         self.boot(identity, name)
@@ -102,7 +103,10 @@ class FakeFM1:
                 link.q.put(bytes(pkt))
 
     def rx(self, d):
-        if d == bytes([0xF0, 0x22, 0x24, 0x35, 0x7D, 0xF7]):
+        if d == I.MIDI_STOP:
+            self.stops += 1
+            self.stops_before_upgrade += not self.upgrades
+        elif d == bytes([0xF0, 0x22, 0x24, 0x35, 0x7D, 0xF7]):
             self.soft_keys += 1
         elif d == I.ED_INFO:
             self.infos += 1
@@ -253,6 +257,10 @@ def installs():
     dev = FakeFM1(I.logical_image(raw7), after_write="FM-1_712")
     rc, out, err = cli([pkgfile("optimist.fwsc", raw7), "--yes"], dev)
     ok(rc == 0 and "done: the FM-1 runs FM-1_712" in out, "install: an Optimist package (FM-1_712) from stock V15")
+
+    dev = FakeFM1(image)
+    rc, out, err = cli([p, "--yes"], dev)
+    ok(rc == 0 and dev.stops_before_upgrade == 1 and dev.stops == 1, "install: one MIDI STOP (0xFC) before the update command")
 
     dev = FakeFM1(image)
     rc, out, err = cli([p], dev, answer=False)
