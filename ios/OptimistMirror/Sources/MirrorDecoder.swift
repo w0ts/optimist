@@ -40,6 +40,9 @@ struct MirrorDecoder {
     }
     static let checkedBit: UInt8 = 8
     static let fixBit: UInt8 = 16     // 106 bit 4: seq lo, hi follow (lost frames, opti_mirfix_1)
+    static let ackBit: UInt8 = 32     // 106 bit 5: the losses (7 bit, free-running), the next seq follow (opti_miraimd_1)
+    /// The keep-alive's report (106 bit 5): checked frames lost so far and the next seq expected, 7 bit each
+    var ack: [UInt8] { [UInt8(lost & 127), UInt8(seq & 127)] }
 
     /// The reply to a MIRROR request (F0 7D 46 4C 6A on version w w h h F7), or nil for anything else.
     static func reply(_ f: [UInt8]) -> (on: Bool, version: Int)? {
@@ -61,6 +64,18 @@ struct MirrorDecoder {
         guard f.count == 31, isMirror(f), f[5] == 5 else { return nil }
         var v: [Int] = []
         for k in 0..<8 {
+            let lo = Int(f[6 + 3 * k]), mid = Int(f[7 + 3 * k]), hi = Int(f[8 + 3 * k])
+            v.append(lo | mid << 7 | hi << 14)
+        }
+        return v
+    }
+
+    /// Op 6 PACE, after STATS with opti_miraimd_1: the FM-1's budget for the Bluetooth stream (bytes a second), its cuts (a
+    /// loss: halved), its raises, the frames it refused (the screen repainted in place later instead); 3 x 7 bit each, free-running
+    static func pace(_ f: [UInt8]) -> [Int]? {
+        guard f.count == 19, isMirror(f), f[5] == 6 else { return nil }
+        var v: [Int] = []
+        for k in 0..<4 {
             let lo = Int(f[6 + 3 * k]), mid = Int(f[7 + 3 * k]), hi = Int(f[8 + 3 * k])
             v.append(lo | mid << 7 | hi << 14)
         }

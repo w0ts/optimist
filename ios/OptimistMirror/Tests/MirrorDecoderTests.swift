@@ -180,6 +180,18 @@ final class MirrorDecoderTests: XCTestCase {
         XCTAssertFalse(dec.apply(f))
     }
 
+    /// op 6 PACE (opti_miraimd_1): the budget and its counts, never a write; the keep-alive's report starts at 0, seq 0
+    func testPaceParsedAndAck() {
+        var f: [UInt8] = [0xF0, 0x7D, 0x46, 0x4C, 106, 6]
+        for v in [5219, 2, 21, 311] { f += [UInt8(v & 127), UInt8(v >> 7 & 127), UInt8(v >> 14 & 127)] }
+        f.append(0xF7)
+        XCTAssertEqual(MirrorDecoder.pace(f), [5219, 2, 21, 311])
+        XCTAssertNil(MirrorDecoder.stats(f))
+        var dec = MirrorDecoder()
+        XCTAssertFalse(dec.apply(f))
+        XCTAssertEqual(dec.ack, [0, 0])
+    }
+
     func testUncheckedFramesStillRead() throws {
         var dec = MirrorDecoder()
         XCTAssertTrue(dec.apply([0xF0, 0x7D, 0x46, 0x4C, 106, 0, 0, 0, 0, 0, 112, 1, 112, 1, 127, 127, 3, 0xF7]))
