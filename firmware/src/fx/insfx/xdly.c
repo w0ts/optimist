@@ -60,7 +60,7 @@ AINL int32_t xd_in(int32_t x, int32_t *f, int32_t y, int32_t g)
     return clamp(soft_knee(x + mul_tz(*f, g), 20000), -32767, 32767);
 }
 /* instance s of owner k (the audio's index) at MIX a: a part's b (r 0), a stereo owner's l and r; sh: the headroom */
-static HOT2 __attribute__((noinline)) void ifx_xdly_run(ifx_xd_t *s, uint32_t k, int32_t a, int32_t *l, int32_t *r,
+static FAST2(ins) __attribute__((noinline)) void ifx_xdly_run(ifx_xd_t *s, uint32_t k, int32_t a, int32_t *l, int32_t *r,
                                                         uint32_t n, uint32_t sh)
 {
     int16_t *const ln[2] = {s->line, s->line + XD_LEN};
