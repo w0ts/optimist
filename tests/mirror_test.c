@@ -87,6 +87,8 @@ static uint8_t state[29];
 static FILE *fix;
 static uint32_t mt_lossy, mt_lost, mt_zeroed, mt_twice, mt_rs = 7;   /* the lossy transport (chk_tests) */
 static uint32_t mt_rnd(uint32_t n) { mt_rs = mt_rs * 1103515245u + 12345u; return (mt_rs >> 8) % n; }
+static void (*mt_sums)(const uint8_t *f, uint32_t n);   /* (two_tests: a client's SUMS handler; none: SUMS ignored) */
+static int mt_lose_whole;               /* (two_tests: the next whole-panel fill lost on the way) */
 static void host_byte(uint8_t b)
 {
     if (b == 0xF0u)
@@ -96,7 +98,13 @@ static void host_byte(uint8_t b)
     if (b == 0xF7u) {
         frames++, bytes += hn;
         max_frame = hn > max_frame ? hn : max_frame;
-        if (hn >= 6u && hf[4] != 106u)
+        static const uint8_t WHOLE[8] = {0, 0, 0, 0, 112, 1, 112, 1};
+        if (mt_lose_whole && hn >= 15u && hf[4] == 106u && (hf[5] == 0u || hf[5] == 8u) && !memcmp(hf + 6, WHOLE, 8)) {
+            mt_lose_whole = 0;          /* (a page's clear lost on the way: two_tests) */
+        } else if (hn == 6u + 1u + 5u + 3u * 30u + 2u + 1u && hf[4] == 106u && hf[5] == 7u) {   /* (op 7 SUMS: the client compares, two_tests) */
+            if (mt_sums)
+                mt_sums(hf, hn);
+        } else if (hn >= 6u && hf[4] != 106u)
             ed_replies++, ed_last[0] = hf[4], ed_last[1] = hn > 5u ? hf[5] : 0u, ed_last[2] = hn > 6u ? hf[6] : 0u;   /* (an editor reply: Bluetooth's PANEL, NAV, INFO) */
         else if (hn == 6u + 29u + 1u && hf[5] == 4u)     /* (op 4 STATE) */
             states++, memcpy(state, hf + 6, 29);
@@ -141,10 +149,15 @@ static void host_pkt(uint32_t p)
         host_byte(b);
     }
 }
+static void (*mt_usb_side)(int in);    /* (two_tests: the USB client's decoder in while USB's packets are read) */
 static void host_drain(void)
 {
+    if (mt_usb_side)
+        mt_usb_side(1);
     while (so_r != so_w)
         host_pkt(sx_out_q[so_r++ % SXQ]);
+    if (mt_usb_side)
+        mt_usb_side(0);
 }
 static void ota_idle(void)
 {
@@ -290,9 +303,14 @@ static void lcd_blit(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint1
             panel[(y + j) * 240u + x + i] = sw16(px[j * w + i]);
     mir_blit(x, y, w, h, px);
 }
+static int mt_defer, mt_due;            /* (two_tests: the repaint drawn by the next UI frame, as the UI does: ui_frame) */
 static void op_repaint(void)            /* the UI's: every band again, in place (here: the panel as it is, in two bands) */
 {
     uint32_t i;
+    if (mt_defer) {
+        mt_due = 1;
+        return;
+    }
     repaints++;
     for (i = 0; i < 240u * 240u; i++)
         cv[i] = sw16(panel[i]);
@@ -1163,6 +1181,7 @@ static void fix_tests(void)
     check(fixes && fbytes / fixes * 3u < wbytes, "lost frames asked by seq: an ask costs under a third of a whole panel");
     me.chk = 0;
 }
+#include "mirror_two.h"                 /* two clients at once, USB and Bluetooth */
 int main(void)
 {
     uint32_t k;
@@ -1181,6 +1200,7 @@ int main(void)
     fix_tests();
     lag_tests();
     nav_tests();
+    two_tests();
 #if MIR_AA
     aa_ask_tests();
 #endif

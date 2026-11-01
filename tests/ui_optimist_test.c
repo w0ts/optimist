@@ -4151,6 +4151,7 @@ static void preset_engine_tests(void)
 #include "ui_optimist_stack.h"                      /* SYSTEM > INFO: the CPU bars and their peaks, the RAM line, the stacks' marks */
 #include "ui_optimist_mirload.h"                     /* the mirror's workload (MIRROR_WORKLOAD: tests/mirror_aimd_test.c) */
 #include "ui_optimist_mirsum_run.h"                  /* the mirror's self-check over a lossy link (MIRROR_SUMS) */
+#include "ui_optimist_mirrows.h"                   /* every row drawn again by a repaint (MIRROR_ROWS) */
 #include "ui_optimist_headpos.h"                    /* the loop position drawn alone while playing (the mirror's bytes) */
 #include "ui_optimist_memline.h"                    /* the memory line: the top 2 rows of every page, the arena's fill, red from 80 % */
 #include "ui_optimist_hold.h"                      /* SYSTEM HOLD: a click is a tap, a hold the layer */
@@ -4337,6 +4338,11 @@ int main(int argc, char **argv)
     }
     if (getenv("MIRROR_SUMS"))                         /* (the self-check over a lossy link alone: ui_optimist_mirsum_run.h) */
         return mirsum_run();
+    if (getenv("MIRROR_ROWS")) {                       /* (every screen's repaint draws every row alone: ui_optimist_mirrows.h) */
+        mirror_rows_tests();
+        printf(fails ? "optimist ui mirror rows test FAILED (%d)\n" : "optimist ui mirror rows test passed\n", fails);
+        return fails != 0;
+    }
 #endif
 #if FELUCCA_GRIDS_EUCLID
     {   /* OUT EUCL: one click, one step of a length or one hit (op_tools.c gr_eu_turn), both ways, the ends held */
