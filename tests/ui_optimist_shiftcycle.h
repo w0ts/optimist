@@ -172,11 +172,104 @@ static void shc_carry_tests(void)
     check(!memcmp(&t->step[1], &s1, sizeof s1) && !memcmp(&t->step[0], &s0, sizeof s0) && !step_muted(t, 1, 0) && strstr(ui.msg, "NO NOTE STARTS HERE"),
           "shift cycle, carried: no note starts at the step: nothing touched, 'NO NOTE STARTS HERE'");
 }
+/* the user's case (2026-11-01: "if i right shift a note on kick, the snare for the same step becomes yellow... it should modify only the kick...
+ * and put it grey when mute"): lane a and lane b both hit on a step, lane a cycled through the four states by SHIFT2 (or by its black key held
+ * + the step): lane b's hit byte-identical, drawn unchanged (no automation colour: a mute is not automation), lane a grey when muted, b sounds */
+static uint32_t shc_lanes(uint32_t n)                   /* the drum lanes that hit over n frames of playing (one bit a lane) */
+{
+    uint32_t m = 0;
+    uint32_t i;
+    tap(B_PLAY);
+    while (n--) {
+        frame();
+        for (i = 0; i < DRUM_LANES; i++)                /* (the mixer's tick takes drums.hits each frame: a lane lit at the full level just hit) */
+            m |= (uint32_t)(mx.lit[i] == MX_LIT) << i;
+    }
+    tap(B_PLAY);
+    frames(4);
+    return m;
+}
+static void shc_cell(uint32_t l, uint32_t w, uint16_t *out)     /* the pixels of lane l's cell at step key w on the screen */
+{
+    int32_t x = SG_X + (int32_t)w * SG_CW, y = SP_Y + SG_LY0(l), r, c;
+    for (r = 0; r < SG_LH - 1; r++)
+        for (c = 0; c < SG_CW - 2; c++)
+            out[r * SG_CW + c] = screen[(y + r) * 240 + x + c];
+}
+static void shc_pair(uint32_t a, uint32_t b, uint32_t via_key)
+{
+    track_t *t;
+    dstep_t was;
+    uint16_t cb0[SG_CW * 20] = {0}, cb[SG_CW * 20] = {0};
+    static const uint32_t WANT[4] = {LV_HARD, LV_GHOST, LV_GHOST, LV_NORM}, WANTK[4] = {LV_HARD, LV_GHOST, LV_NORM, LV_HARD};
+    uint32_t i, ok = 1, bk = 0, sound;
+    se_open(16);
+    song.sel = TRK_DRUM;
+    t = TSEL;
+    track_defaults_steps(t);
+    t->p[P_SLEN] = 16;
+    fm1_irq_off();
+    memset(t->dstep, 0, sizeof t->dstep);
+    dstep_set(&t->dstep[2], a, LV_NORM, 0);
+    dstep_set(&t->dstep[2], b, LV_NORM, 0);
+    fm1_irq_on();
+    lane_select(a);
+    ui.scr = SCR_STEP;
+    frames(4);
+    st.pk = PK_NONE;
+    was = t->dstep[2];
+    shc_cell(b, 2, cb0);
+    for (i = 0; i < 4u && ok; i++) {
+        if (via_key) {                                  /* the black key of lane a held + the step (cycle NORM -> HARD -> GHOST -> NORM) */
+            uint32_t k = 0;
+            while (k < 27u && !(lane_key(k) && lane_of(k) == a))
+                k++;
+            kdown(k);
+            kdown(WK(2));
+            kup(WK(2));
+            kup(k);
+        } else {
+            shc_key(2);
+        }
+        frames(4);
+        shc_cell(b, 2, cb);
+        ok &= dstep_lvl(&t->dstep[2], b) == dstep_lvl(&was, b) && dstep_has(&t->dstep[2], b) && !step_muted(t, 2, b);
+        ok &= !memcmp(cb, cb0, sizeof cb) && !px_in(SG_X + 2 * SG_CW, SP_Y + SG_LY0(b), SG_CW - 2, SG_LH - 1, lvl_acol(LV_NORM))
+              && !px_in(SG_X + 2 * SG_CW, SP_Y + SG_LY0(b), SG_CW - 2, SG_LH - 1, C_AUTO);
+        ok &= dstep_lvl(&t->dstep[2], a) == (via_key ? WANTK[i] : WANT[i]) && dstep_has(&t->dstep[2], a) && (via_key ? !step_muted(t, 2, a) : step_muted(t, 2, a) == (i == 2u));
+        if (!via_key && i == 2u) {                      /* MUTED: grey on its own lane, its sound off, b still sounds */
+            sound = shc_lanes(90);
+            ok &= step_muted(t, 2, a) && dstep_has(&t->dstep[2], a) && (sound >> b & 1u) && !(sound >> a & 1u);
+            ok &= px_in(SG_X + 2 * SG_CW, SP_Y + SG_LY0(a), SG_CW - 2, SG_LH - 1, col_shade(C_WHITE, 3u))
+                  && !px_in(SG_X + 2 * SG_CW, SP_Y + SG_LY0(a), SG_CW - 2, SG_LH - 1, lvl_acol(LV_GHOST));
+            fm1_irq_off();
+            dstep_clr(&t->dstep[2], b);                 /* (alone, muted: a rest) */
+            fm1_irq_on();
+            ok &= shc_lanes(90) == 0u;
+            fm1_irq_off();
+            dstep_set(&t->dstep[2], b, LV_NORM, 0);
+            fm1_irq_on();
+        }
+        if (via_key)
+            bk = 1;
+    }
+    check(ok && !!bk == !!via_key, via_key ? "shift cycle, two lanes: a black key held + the step cycles only that lane, the other's hit and drawing unchanged"
+                                           : "shift cycle, two lanes: SHIFT2 cycles NORM/HARD/GHOST/MUTED on the selected lane only, the other's hit byte-identical and drawn unchanged, the muted one grey, the other still sounds");
+}
+static void shc_lane_tests(void)
+{
+    shc_pair(0, 1, 0);                                  /* kick + snare, the user's case */
+    shc_pair(2, 3, 0);
+    shc_pair(5, 0, 0);
+    shc_pair(0, 1, 1);
+    shc_pair(4, 2, 1);
+}
 static void shiftcycle_tests(void)
 {
     shc_synth_tests();
     shc_carry_tests();
     shc_drum_tests();
+    shc_lane_tests();
     se_open(16);
     tap(B_HOME);
     reset_ui();

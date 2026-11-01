@@ -9,7 +9,7 @@
 static int32_t pvt_gp(void) { return (OP_PH - 2 * PG_NUMH - PG_PVH - 8) / (int32_t)NTRK; }   /* the grid's row pitch */
 static uint32_t pvt_row_y(uint32_t k) { return (uint32_t)(OP_PY + 2 * PG_NUMH + 2 + (int32_t)k * pvt_gp()); }
 static uint32_t pvt_pv_y(void) { return (uint32_t)(OP_PY + 2 * PG_NUMH + 2 + (int32_t)NTRK * pvt_gp() + 2); }
-static uint32_t pvt_step_x(uint32_t i) { return (uint32_t)(PG_PVX + MX_STEP_X(i, 13)); }
+static uint32_t pvt_step_x(uint32_t i) { return (uint32_t)PG_SX(i); }
 static void patview_tests(void)
 {
     uint32_t k, i, w, y;
@@ -34,11 +34,23 @@ static void patview_tests(void)
     for (i = 0, w = 1; i + 2u < PAT_N; i++)
         w &= (uint32_t)(PG_X(i + 2u) - PG_X(i)) >= 16u;
     check(w, "numbers: two numbers on a line are 16 px apart or more (a 2-digit number is 16 px wide): 10..16 do not crowd");
-    for (i = 4, w = 1; i < PAT_N; i += 4)               /* columns 4/5, 8/9, 12/13 (0-based 3/4, 7/8, 11/12): MXL_GG wider than the plain pitch; inside a group none */
-        w &= (uint32_t)((PG_X(i) - PG_X(i - 1u)) - (int32_t)((i * 40u / 3u) - ((i - 1u) * 40u / 3u))) == (uint32_t)MXL_GG && PG_X(i + 1u) - PG_X(i) <= 14 && PG_X(i) - PG_X(i - 1u) >= PG_CW + 2 + MXL_GG;
-    check(w, "groups: a gap of MXL_GG more after every 4th column (4/5, 8/9, 12/13), the cells inside a group unchanged, a 2 px space between cells still");
+    for (i = 1, w = 1; i < PAT_N; i++)                  /* the gap after every 4th column (3/4, 7/8, 11/12 0-based): PG_GG more than the plain pitch; inside a group none */
+        w &= (uint32_t)(PG_X(i) - PG_X(i - 1u)) == (uint32_t)(PG_PITCH + (i % 4u ? 0 : PG_GG)) && (i % 4u || PG_X(i) - PG_X(i - 1u) >= PG_CW + 2 + PG_GG);
+    check(w && PG_GG == 3 && MXL_GG == 2, "groups: a gap of PG_GG (3 px, the mixer keeps its 2) more after every 4th column, the cells inside a group a 2 px space apart");
     check(PG_X(15) + PG_CW <= 240, "... the last cell inside 240 px");
-    check(PG_X(15) + (PG_CW + 16) / 2 <= 240 && PG_X(0) + (PG_CW - 8) / 2 >= 0, "... the first and the last number inside the screen");
+    for (i = 0, w = 1; i < PAT_N; i++) {                /* every number's ink, as drawn (PG_NUMX): inside 0..240, and on its own column (never past the next number) */
+        char nb[4];
+        int32_t nw, nx;
+        fmt_int(nb, (int32_t)i + 1);
+        nw = text_ws(nb), nx = PG_NUMX(i, nw);
+        w &= nx >= 0 && nx + nw <= 240 && nx + nw > PG_X(i) && (i + 2u >= PAT_N || nx + nw <= PG_X(i + 2u));
+    }
+    check(w, "... every number (1..16) fully inside 240 px, the last ('16') too");
+    {
+        int32_t nw = text_ws("16");
+        check(px_in((uint32_t)(240 - nw), (uint32_t)OP_PY + PG_NUMH, (uint32_t)nw, PG_NUMH, C_GRAY) || px_in((uint32_t)(240 - nw), (uint32_t)OP_PY + PG_NUMH, (uint32_t)nw, PG_NUMH, C_OK),
+              "... '16' is drawn on the lower line, ending at 240");
+    }
     check(px_in((uint32_t)PG_X(4) - 2u, (uint32_t)OP_PY, 16, PG_NUMH, C_OK) && px_in((uint32_t)PG_X(9) - 2u, (uint32_t)OP_PY + PG_NUMH, 16, PG_NUMH, C_GRAY),
           "... 5 (playing, green) on the upper line, 10 (grey) on the lower line");
     check(!px_in(0, (uint32_t)OP_PY + 2u * PG_NUMH, 240, 1, C_OK) && !px_in(0, (uint32_t)OP_PY + 2u * PG_NUMH, 240, 1, C_GRAY), "... no number reaches the grid's top rule");
@@ -59,13 +71,13 @@ static void patview_tests(void)
     ui.force = 1;
     frame();
     y = pvt_pv_y();
-    check(pat_cur[0] == 4u && px_in(3, y + 3u, 32, 12, trk_col(0)), "preview: T1 slot 5 touched: its label \"T1 5\" in the track's colour");
-    check(px_in(pvt_step_x(0) + 1u, y + 17u, 9, 12, lvl_col(trk_col(0), LV_NORM)) && px_in(pvt_step_x(4) + 1u, y + 17u, 9, 12, lvl_col(trk_col(0), LV_NORM)) &&
-              px_in(pvt_step_x(8) + 1u, y + 17u, 9, 12, lvl_col(trk_col(0), LV_HARD)),
+    check(pat_cur[0] == 4u && !px_in(0, y + 1u, PG_PVX - 1, PG_PVT + 14, trk_col(0)) && !px_in(0, y + 1u, 240, PG_PVT - 1, trk_col(0)), "preview: T1 slot 5 touched: no label (\"T1 5\" is gone: the track and slot are known), the steps start right under the rule");
+    check(px_in(pvt_step_x(0) + 1u, y + PG_PVT, 9, 12, lvl_col(trk_col(0), LV_NORM)) && px_in(pvt_step_x(4) + 1u, y + PG_PVT, 9, 12, lvl_col(trk_col(0), LV_NORM)) &&
+              px_in(pvt_step_x(8) + 1u, y + PG_PVT, 9, 12, lvl_col(trk_col(0), LV_HARD)),
           "... its steps 1, 5, 9 filled in the track's colour, the hard one brighter");
-    check(!px_in(pvt_step_x(1) + 1u, y + 17u, 9, 12, lvl_col(trk_col(0), LV_NORM)) && !px_in(pvt_step_x(1) + 1u, y + 17u, 9, 12, lvl_col(trk_col(0), LV_HARD)),
+    check(!px_in(pvt_step_x(1) + 1u, y + PG_PVT, 9, 12, lvl_col(trk_col(0), LV_NORM)) && !px_in(pvt_step_x(1) + 1u, y + PG_PVT, 9, 12, lvl_col(trk_col(0), LV_HARD)),
           "... the steps between empty outlines");
-    check(pvt_step_x(4) - pvt_step_x(3) == 13u + MXL_GG && pvt_step_x(5) - pvt_step_x(4) == 13u, "... 4 groups of 4 with the mixer's bigger gap");
+    check(pvt_step_x(4) - pvt_step_x(3) == 13u + PG_GG && pvt_step_x(5) - pvt_step_x(4) == 13u && pvt_step_x(15) + 11u <= 240u && pvt_step_x(0) >= 0u, "... 4 groups of 4 with the grid's gap, all 16 steps inside 240 px");
     ppm("opt-patterns-gap");
     /* read, not loaded */
     trk[0].step[0].n = 0, trk[0].step[0].time = ST_REST;
@@ -80,7 +92,7 @@ static void patview_tests(void)
     y = pvt_pv_y();
     ppm("opt-patterns-empty");
     check(!pat_has(0, 7) && px_in(237u - (uint32_t)text_ws("EMPTY"), y + 3u, (uint32_t)text_ws("EMPTY"), 12, C_DIM), "preview: an empty slot says EMPTY");
-    check(!px_in(PG_PVX, y + 17u, 213, 14, lvl_col(trk_col(0), LV_NORM)) && !px_in(PG_PVX, y + 17u, 213, 14, lvl_col(trk_col(0), LV_HARD)), "... and draws no steps");
+    check(!px_in(PG_PVX, y + PG_PVT, 215, PG_SYH, lvl_col(trk_col(0), LV_NORM)) && !px_in(PG_PVX, y + PG_PVT, 215, PG_SYH, lvl_col(trk_col(0), LV_HARD)), "... and draws no steps");
     /* a drum slot */
     if (is_drum(&trk[3])) {
         key(BK(3));
@@ -94,9 +106,9 @@ static void patview_tests(void)
         frame();
         y = pvt_pv_y();
         check(pat_peek(3, 6, &d) && d.hit[2] == 1u && d.hit[0] == (uint16_t)(1u << 5), "the drum slot read: lane 3's hit on step 1, lane 1's on step 6");
-        check(px_in(pvt_step_x(0), y + 16u + 2u * PG_LANE, 11, PG_LANE - 1, lvl_col(trk_col(3), LV_HARD)) && px_in(pvt_step_x(5), y + 16u, 11, PG_LANE - 1, lvl_col(trk_col(3), LV_NORM)),
+        check(px_in(pvt_step_x(0), y + PG_PVT + 2u * PG_LANE, 11, PG_LANE - 1, lvl_col(trk_col(3), LV_HARD)) && px_in(pvt_step_x(5), y + PG_PVT, 11, PG_LANE - 1, lvl_col(trk_col(3), LV_NORM)),
               "... drawn a row a lane: each hit in the drum colour at its lane's row");
-        check(!px_in(pvt_step_x(0), y + 16u, 11, PG_LANE - 1, lvl_col(trk_col(3), LV_HARD)) && !px_in(pvt_step_x(1), y + 16u + 2u * PG_LANE, 11, PG_LANE - 1, lvl_col(trk_col(3), LV_HARD)),
+        check(!px_in(pvt_step_x(0), y + PG_PVT, 11, PG_LANE - 1, lvl_col(trk_col(3), LV_HARD)) && !px_in(pvt_step_x(1), y + PG_PVT + 2u * PG_LANE, 11, PG_LANE - 1, lvl_col(trk_col(3), LV_HARD)),
               "... and no hit where the lane has none");
     }
     ui.force = 1;

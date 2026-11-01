@@ -308,12 +308,18 @@ static void tempo_draw(int32_t h)
 #if FELUCCA_PATTERNS
 #define PG_X0 21                                        /* the first cell's x: the track's tag and its knob left of it */
 #define PG_CW 11                                        /* a cell's width (12 before the group gaps: 3 x MXL_GG = 6 px had to come from the row) */
-#define PG_X(i) (PG_X0 + (int32_t)(i) * 40 / 3 + (int32_t)((i) / 4u) * MXL_GG)   /* column i's x: pitch 13..14, the mixer's bigger gap after every 4th (the user, 2026-11-01) */
+#define PG_PITCH 13                                     /* a column's pitch (cell 11 + 2) */
+#define PG_GG 3                                         /* the extra gap after every 4th column, here and in the preview (the mixer's MXL_GG stays 2; the user, 2026-11-01: a bit bigger) */
+#define PG_X(i) (PG_X0 + (int32_t)(i) * PG_PITCH + (int32_t)((i) / 4u) * PG_GG)   /* column i's x: 4 groups of 4, the last cell ends at 236 */
+#define PG_SX(i) (PG_PVX + (int32_t)(i) * PG_PITCH + (int32_t)((i) / 4u) * PG_GG)   /* the preview's step i: the same groups */
+#define PG_NUMX(i, w) (PG_X(i) + (PG_CW - (w)) / 2 > 240 - (int32_t)(w) ? 240 - (int32_t)(w) : PG_X(i) + (PG_CW - (w)) / 2)   /* a number of width w over column i: centred, the last one kept inside 240 px ("16" was 225..241) */
 #define PG_NUMH 11                                      /* a line of numbers */
-#define PG_LANE 4                                       /* a drum lane's row in the preview */
-#define PG_PVX 13                                       /* the preview's first step (213 px wide: centred) */
+#define PG_LANE 5                                       /* a drum lane's row in the preview */
+#define PG_PVX 12                                       /* the preview's first step (215 px wide: centred) */
 #define PG_PVD (PG_LANE * (int32_t)DRUM_LANES)          /* the preview's steps, drums */
-#define PG_PVH (12 + 4 + PG_PVD)                        /* the preview: its label, the steps (the drums' lanes are the tallest) */
+#define PG_PVT 3                                        /* the preview's top margin under its rule (no label: the track and slot are known, the user, 2026-11-01) */
+#define PG_PVH (PG_PVT + PG_PVD)                        /* the preview: the steps (the drums' lanes are the tallest) */
+#define PG_SYH 24                                       /* a synth step's height in the preview */
 static const uint8_t PAT_ROW_KNOB[4] = {0, 1, 2, 3};    /* the knob that cues row k: K1 T1, K2 T2, K3 T3, K4 DR (PAT_KNOB_CELL's inverse) */
 /* the pattern previewed: the selected track's, the slot last touched (pv_touch), else its playing one, its queued one first */
 static uint32_t pv_slot(void)
@@ -357,14 +363,14 @@ static void pv_steps(uint32_t t, int32_t y, const pat_peek_t *d, uint16_t tc)
     int32_t x;
     if (!is_drum(&trk[t])) {                            /* a synth track: one row of 16 steps, as the mixer's channels */
         for (i = 0; i < 16u; i++) {
-            x = PG_PVX + MX_STEP_X(i, 13);
-            cv_box(x, y, 11, 14, d && ((d->hit[0] >> i) & 1u) ? lvl_col(tc, (d->lvl[0] >> (2u * i)) & 3u) : C_BLACK);
+            x = PG_SX(i);
+            cv_box(x, y, 11, PG_SYH, d && ((d->hit[0] >> i) & 1u) ? lvl_col(tc, (d->lvl[0] >> (2u * i)) & 3u) : C_BLACK);
         }
         return;
     }
     for (l = 0; l < DRUM_LANES; l++)                    /* the drums: a row a lane, its hits (as the mixer's lanes: a dot where empty) */
         for (i = 0; i < 16u; i++) {
-            x = PG_PVX + MX_STEP_X(i, 13);
+            x = PG_SX(i);
             if (d && ((d->hit[l] >> i) & 1u))
                 cv_rect(x, y + (int32_t)l * PG_LANE, 11, PG_LANE - 1, lvl_col(tc, (d->lvl[l] >> (2u * i)) & 3u));
             else
@@ -377,28 +383,13 @@ static void pv_draw(int32_t y)                          /* the preview, from y *
     int has = 0;
     const pat_peek_t *d = pv_peek(t, s, &has);
     uint16_t tc = trk_col(t);
-    char b[12];
     cv_hline(y, C_DIM);
-    str_cpy(b, trk_tag(t), 4);
-    if (s < PAT_N) {
-        b[2] = ' ';
-        fmt_int(b + 3, (int32_t)s + 1);
-    } else {
-        b[2] = 0;
-    }
-    cv_texts(3, y + 3, b, tc);
     if (s >= PAT_N)
         cv_texts(237 - text_ws("NONE"), y + 3, "NONE", C_DIM);
     else if (!has || !d)
         cv_texts(237 - text_ws("EMPTY"), y + 3, has ? "?" : "EMPTY", C_DIM);
-    else if (d->len > 16u) {
-        char n[12];
-        str_cpy(n, "LEN ", sizeof n);
-        fmt_int(n + 4, d->len);
-        cv_texts(237 - text_ws(n), y + 3, n, C_GRAY);
-    }
     if (s < PAT_N && has && d)
-        pv_steps(t, y + 12 + 4, d, tc);
+        pv_steps(t, y + PG_PVT, d, tc);
 }
 static void song_grid_draw(int32_t h)
 {
@@ -410,7 +401,7 @@ static void song_grid_draw(int32_t h)
         char nb[4];
         uint16_t nc = pat_cur[sel] == i ? C_OK : pat_req[sel] == i ? C_WARN : pv_slot() == i ? C_WHITE : C_GRAY;
         fmt_int(nb, (int32_t)i + 1);
-        cv_texts(PG_X(i) + (PG_CW - text_ws(nb)) / 2, (int32_t)(i & 1u) * PG_NUMH, nb, nc);
+        cv_texts(PG_NUMX(i, text_ws(nb)), (int32_t)(i & 1u) * PG_NUMH, nb, nc);
     }
     for (k = 0; k < NTRK; k++) {
         int32_t y = 2 * PG_NUMH + 2 + (int32_t)k * gp;

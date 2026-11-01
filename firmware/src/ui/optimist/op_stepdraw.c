@@ -104,9 +104,9 @@ static __attribute__((noinline)) void sg_drums(const track_t *t)
                 continue;
             }
 #if FELUCCA_AUTO
-            if (step_muted(t, idx, l)) {                /* (a muted hit: kept, dim, an outline of its colour) */
-                cv_rect(x, y, SG_CW - 2, lh - 1, col_shade(c, 2u));
-                cv_frame(x, y, SG_CW - 2, lh - 1, col_shade(c, 5u));
+            if (step_muted(t, idx, l)) {                /* (a muted hit: kept, grey) */
+                cv_rect(x, y, SG_CW - 2, lh - 1, col_shade(C_WHITE, 3u));    /* (grey, whatever the lane's colour or level) */
+                cv_frame(x, y, SG_CW - 2, lh - 1, col_shade(C_WHITE, 5u));
                 continue;
             }
 #endif
