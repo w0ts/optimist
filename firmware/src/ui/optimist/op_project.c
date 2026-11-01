@@ -1178,28 +1178,32 @@ static void sys_ua_cell(uint32_t i, cell_t *c)
 #if OP_BTSTATS
 /* SYSTEM's BT STATS page (2026-11-01, the user: short drops on the AirPods, the link up, DROPS 0): the Bluetooth audio
  * stream since the link came up (fm1-base's plat_bta_stats, bt/br/bt_stat.h), each line one place the sound can be late.
- * PACKETS/S acknowledged (the stream needs 114.8); DROPPED the queue full; QUEUE MAX/NOW (packets of 8.7 ms); WAIT MAX
- * the longest a packet waited for its acknowledgment (and when), then the device's answers good / bad and the BLE
- * interrupts during it; SLOW/BLE packets over 20 ms, of them with BLE meanwhile; AIR a packet's mean slots (6: sent once);
- * SINK DRAIN the most the device's buffer lost (and when); FEED GAP the longest between two packets made (the render);
- * AFH the channels hopped, the switches (the last when); BLE its connection interval now (0: none). A table on
- * plat_bta_stats' fields (all uint32_t): up to three numbers a line "a/b/c", the first in tenths where BT_T, its unit, the
- * time since ("12s ago"); amber (DROPPED red) from a line's first number at its BW */
-#define INFO_BTN 11u
+ * DROPPED the queue full; QUEUE MAX/NOW (packets of 8.7 ms); WAIT MAX the longest a packet waited for its acknowledgment
+ * (and when), then the device's answers good / bad and the BLE interrupts during it; SLOW/BLE packets over 20 ms, of them
+ * with BLE meanwhile; WAIT RX AND/OR the status bits all / any of the device's answers had during that wait, LINK RX the
+ * same over the link (a bit in all of the wait's and not all of the link's: its stop or NAK, rxstat bits not documented);
+ * L2CAP STOPS its payloads that said stop; SINK DRAIN the most the device's buffer lost (and when); FEED GAP the longest
+ * between two packets made (the render); AFH the channels hopped, the switches (the last when); BLE its connection
+ * interval now (0: none). PACKETS/S and AIR (mean slots) gave way to the RX lines (btdrop-2: flash). A table on
+ * plat_bta_stats' fields (all uint32_t): up to three numbers a line "a/b/c" (decimal, the first in tenths where BT_T, or
+ * hex where BT_H), its unit, the time since ("12s ago"); amber (DROPPED red) from a line's first number at its BW */
+#define INFO_BTN 12u
 #define BT_F(m) ((uint8_t)(__builtin_offsetof(struct plat_bta_stats, m) / 4u))
 #define BT_T 0x80u                                      /* (n's flag: the first number in tenths) */
-static const char *const BTU[] = {"", " pk", " ms", " slots"};   /* (the units: BTR's u) */
+#define BT_H 0x40u                                      /* (n's flag: the numbers in hex, 4 digits: status words) */
+static const char *const BTU[] = {"", " pk", " ms"};   /* (the units: BTR's u) */
 static const struct {
     const char *l;
     uint8_t n, f[3], ago, bw, u;                        /* (bw: amber from this; 0 never) */
 } BTR[INFO_BTN] = {
-    {"PACKETS/S", 1 | BT_T, {BT_F(rate_x10)}, 0, 0, 0},
     {"DROPPED", 1, {BT_F(dropped)}, 0, 1, 0},
     {"QUEUE MAX/NOW", 2, {BT_F(qmax), BT_F(qnow)}, 0, 11, 1},
     {"WAIT MAX", 1, {BT_F(wait_ms)}, BT_F(wait_ago), 50, 2},
     {"GOOD/BAD/BLE", 3, {BT_F(wait_good), BT_F(wait_bad), BT_F(wait_ble)}, 0, 0, 0},
     {"SLOW/BLE", 2, {BT_F(slow), BT_F(slow_ble)}, 0, 1, 0},
-    {"AIR", 1 | BT_T, {BT_F(slots_x10)}, 0, 0, 3},
+    {"WAIT RX AND/OR", 2 | BT_H, {BT_F(wait_and), BT_F(wait_or)}, 0, 0, 0},
+    {"LINK RX AND/OR", 2 | BT_H, {BT_F(link_and), BT_F(link_or)}, 0, 0, 0},
+    {"L2CAP STOPS", 1, {BT_F(flow0)}, 0, 1, 0},
     {"SINK DRAIN", 1, {BT_F(drain_ms)}, BT_F(drain_ago), 100, 2},
     {"FEED GAP", 1, {BT_F(feed_gap_ms)}, 0, 21, 2},
     {"AFH CH/SW", 2, {BT_F(afh_ch), BT_F(afh_sw)}, BT_F(afh_ago), 0, 0},
@@ -1231,13 +1235,16 @@ static void sys_bts_cell(uint32_t i, cell_t *c)
         x = w[BTR[i].f[k]];
         if (k)
             dual_cat(v, "/");
-        dual_cnum(v, !k && (n & BT_T) ? x / 10u : x);
+        if (n & BT_H)
+            dual_chex(v, x, 4);
+        else
+            dual_cnum(v, !k && (n & BT_T) ? x / 10u : x);
         if (!k && (n & BT_T)) {
             dual_cat(v, ".");
             dual_cnum(v, x % 10u);
         }
     }
-    dual_cat(u, BTU[BTR[i].u & 3u]);
+    dual_cat(u, BTU[BTR[i].u % 3u]);
     x = BTR[i].ago ? w[BTR[i].ago] : 0u;
     if (x) {                                            /* (" 12s ago") */
         dual_cat(u, " ");
@@ -1245,10 +1252,11 @@ static void sys_bts_cell(uint32_t i, cell_t *c)
         dual_cat(u, "s ago");
     }
     x = BTR[i].bw;
-    c->col = x && w[BTR[i].f[0]] >= x ? (i == 1u ? C_ERR : C_WARN) : 0;
+    c->col = x && w[BTR[i].f[0]] >= x ? (i == 0u ? C_ERR : C_WARN) : 0;
 }
 #undef BT_F
 #undef BT_T
+#undef BT_H
 #else
 #define INFO_BTN 0u
 #endif
