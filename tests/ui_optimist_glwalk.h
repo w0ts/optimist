@@ -240,7 +240,7 @@ static void glw_factory_tests(void)
             seen++;
         }
     }
-    check(ok && seen >= 3u && ble_ok, "SHIFT + a line's knob: every setting line without a default back to its FACTORY value; BLE never");
+    check(ok && seen >= 2u && ble_ok, "SHIFT + a line's knob: every setting line without a default back to its FACTORY value; BLE never");
     settings.palette = 4;
     palette_set(4);
 }
@@ -295,8 +295,8 @@ static void glw_sync_long_tests(void)
             n += 1u + (FELUCCA_BT_AUDIO ? 1u : 0u);
         }
         pg_ok &= gl_end(0, first) - gl_first(0, first) == (SY_BT_OFS ? k : n) && first == gl_first(0, first);   /* (BT OFS too: the second row on the next page) */
-        glo_cell(TPR_TEMPO, 3, &c);
-        check(pg_ok && c.vp == &song.g[G_TUNE], "GLOBAL: the MIDI page is CLK IN, CLK OUT, MIDI OUT, then CLK OFS (BT OFS) (no MIDI IN, no CLK read-out); GLOBAL's Tempo's fourth line is TUNE, not SYNC");
+        glo_cell(0, 0, &c);
+        check(pg_ok && c.vp == &song.g[G_TUNE], "GLOBAL: the MIDI page is CLK IN, CLK OUT, MIDI OUT, then CLK OFS (BT OFS) (no MIDI IN, no CLK read-out); GLOBAL's first line is TUNE");
         if (FELUCCA_MIDI_CLOCK) {                       /* CLK OFS below 0 by its knob, and by the editor's SCRN turn (fine, steps) */
             uint32_t l = line_named(SCR_GLOBAL, "CLK OFS"), j;
             int32_t v1, v2, v3;

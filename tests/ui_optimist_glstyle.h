@@ -403,7 +403,7 @@ static int gls_info_page(void)
     frame();
     ppm("opt-info-cpu70");
     song.cpu_q8 = 0;
-    frame();
+    frames(NN_FRAMES + 5u);                             /* (a key's note name, drawn in the foot for a second after the last one, gone) */
     for (i = 0; i < INFO_BASE; i++) {                   /* the page draws text only, no bar under any line but the CPU lines' */
         int32_t a, b, y = OH_HEAD + gl_y0() + (int32_t)i * ph, ty = y + (ph - (int32_t)FONT_S.h) / 2, by = ty + (int32_t)FONT_S.h + 2;
         sys_info_cell(i, &c);
@@ -425,11 +425,11 @@ static void glstyle_tests(void)
     check(gls_fit(), "GLOBAL, SYSTEM: the 4 lines fill the room between the header and the help line");
     {
         int fo = gls_forms(&bars, &toggles);
-        if (getenv("GLSTYLE_DUMP") || !fo || bars <= 8u || toggles == 0u)
+        if (getenv("GLSTYLE_DUMP") || !fo || bars <= 5u || toggles == 0u)
             printf("  glstyle: forms %d, %u bars, %u toggles\n", fo, bars, toggles);
         bars = fo ? bars : 0u;
     }
-    check(bars > 8u && toggles > 0u,
+    check(bars > 5u && toggles > 0u,
           "GLOBAL, SYSTEM: a ranged value's bar spans the screen's width, an on / off value has the square mark and no bar");
     check(gls_joined(), "SYSTEM: Screen & audio and USB + Bluetooth (Connections) share a page when they fit 4 lines together, else they stay apart");
 #if BT_OVL

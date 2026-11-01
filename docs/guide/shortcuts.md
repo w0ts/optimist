@@ -79,7 +79,7 @@ Every button, knob and key gesture, grouped by what you want to do, then the one
 | PLAY tapped | anywhere | start / stop (when let go) |
 | PLAY held | anywhere | the TEMPO page while held (BPM, NUDGE, SWING, SYNC; REC: MODE, LENGTH, START, CLICK; QUANT) |
 | PLAY + white keys, or PLAY + HOME | anywhere | tap tempo (two taps or more) |
-| PLAY + OCT- / OCT+ held | TEMPO page, GLOBAL's Tempo lines | nudge the clock 3.9 % slower / faster while held; on a followed clock (USB, TRS, Link, BLE) they move its offset (CLK OFS / BT OFS) 1 ms instead, saved |
+| PLAY + OCT- / OCT+ held | TEMPO page | nudge the clock 3.9 % slower / faster while held; on a followed clock (USB, TRS, Link, BLE) they move its offset (CLK OFS / BT OFS) 1 ms instead, saved |
 | SHIFT + PLAY | anywhere | stop, every voice off (ALL SOUND OFF) |
 | SEQ + PLAY | anywhere | the song from its start |
 | REC tapped | stopped | arm: the first note starts recording (with START = COUNT, PLAY gives a bar of clicks first) [REC_MODES]. On a synth track's STEP: STEP ENTRY (KNOB 1 the cursor, a key toggles its note there, KNOB 2 / 3 / 4 move, transpose, lengthen the step's notes); PLAY then arms the take, the first note starts it |

@@ -274,9 +274,9 @@ static void pages_master_tests(void)
     check(!strcmp(SCR_NAME[SCR_FX], "MASTER") && !strcmp(h, "Insert"), "D3: the screen is MASTER (its badge), the title \"Insert\"");
     check(!pg_has_g(SCR_FX, G_BPM) && !pg_has_g(SCR_FX, G_SWING) && !pg_has_g(SCR_FX, G_CLOCK) && !pg_has_g(SCR_FX, G_DRLVL),
           "D3: no GLOBAL or DRUMS page: BPM SWING CLICK and the drum level are not on MASTER");
-    check(pg_has_g(SCR_GLOBAL, G_BPM) && pg_has_g(SCR_GLOBAL, G_SWING) && pg_has_g(SCR_GLOBAL, G_CLOCK),
-          "D3: BPM, SWING and CLICK are on GLOBAL (TEMPO, REC)");
-    check(!pg_has_g(SCR_FX, G_TUNE) && pg_has_g(SCR_GLOBAL, G_TUNE), "D3: TUNE is on GLOBAL (Tempo's fourth line; fx-rework: not on the master)");
+    check(!pg_has_g(SCR_GLOBAL, G_BPM) && !pg_has_g(SCR_GLOBAL, G_SWING) && !pg_has_g(SCR_GLOBAL, G_CLOCK) && pg_has_g(SCR_GLOBAL, G_RECQ),
+          "D3: BPM, SWING and CLICK are not on GLOBAL (the PLAY-held page's), QUANT is");
+    check(!pg_has_g(SCR_FX, G_TUNE) && pg_has_g(SCR_GLOBAL, G_TUNE), "D3: TUNE is on GLOBAL (its first line; fx-rework: not on the master)");
     ui.scr = SCR_GLOBAL;
     row = line_named(SCR_GLOBAL, "TUNE");
     turn(EN_K1 + gl_kn(SCR_GLOBAL, row), 3);
@@ -781,12 +781,7 @@ static void pages_head_tests(void)
         op_enter(SCR_GLOBAL);
         ui.row[SCR_GLOBAL] = 0;
         head_now(t);
-        check(!strncmp(t, "Tempo 1/", 8) && hd_badge_is("GLOBAL"), "D11: GLOBAL's header: the badge GLOBAL, \"Tempo 1/N\"");
-#if FELUCCA_REC_MODES
-        line_named(SCR_GLOBAL, "QUANT");
-        head_now(t);
-        check(!strncmp(t, "Rec 2 ", 6) && hd_badge_is("GLOBAL"), "D11: GLOBAL's QUANT line (REC 2): the badge GLOBAL, \"Rec 2 n/N\"");
-#endif
+        check(!strncmp(t, "Tune 1/", 7) && hd_badge_is("GLOBAL"), "D11: GLOBAL's header: the badge GLOBAL, \"Tune 1/N\"");
         line_named(SCR_SYSTEM, "KNOB COLORS");          /* (COLOR, which this read, is gone: 2026-10-18) */
         head_now(t);
         check(!strncmp(t, "General ", 8) && hd_badge_is("SYSTEM"), "D11: SYSTEM's KNOB COLORS line: the badge SYSTEM, \"General n/N\"");
