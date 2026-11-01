@@ -997,11 +997,10 @@ static uint32_t pw_sig(void)
     return hu(hu(hu(hu(hu(0x9A57u + pws.b.len, pws.b.cur), pws.b.fam * 64u + pws.b.idx[pws.b.fam % PW_NFAM]), pws.rev),
                  settings.palette + 256u * song.sel), pws.first);
 }
-static void pw_draw_field(void)
+static void pw_draw_field_paint(void)
 {
     uint32_t i;
     uint16_t tc = trk_col(song.sel);
-    cv_begin(240, OH_CARD, C_BLACK);
     for (i = 0; i < PW_CELLS; i++) {
         int32_t x = 8 + PW_CW * (int32_t)i;
         uint32_t j = pws.first + i;
@@ -1020,13 +1019,12 @@ static void pw_draw_field(void)
     if (pws.first + PW_CELLS < pws.b.len)
         cv_texts(232, 14, ">", C_DIM);
     cv_rect(7 + PW_CW * (int32_t)(pws.b.cur - pws.first), 4, 2, 36, tc);   /* the cursor: before the character an add would push right */
-    cv_blit(0, OY_CARD);
 }
-static void pw_draw_panel(void)
+static void pw_draw_field(void) { cv_whole(OY_CARD, OH_CARD, C_BLACK, pw_draw_field_paint); }   /* (in passes: CANVAS_STRIP 31) */
+static void pw_draw_panel_paint(void)                 /* (once a pass: pw_draw_panel) */
 {
     uint32_t i, f = pws.b.fam % PW_NFAM, n = pw_fam_n(f);
     uint16_t tc = trk_col(song.sel);
-    cv_begin(240, OH_PANEL, C_BLACK);
     for (i = 0; i < PW_NFAM; i++) {                     /* the families: the tabs, the one chosen lit */
         int32_t x = 60 * (int32_t)i + 30 - text_ws(PW_FAM_TAG[i]) / 2;
         cv_texts(x, 2, PW_FAM_TAG[i], i == f ? tc : C_GRAY);
@@ -1046,8 +1044,8 @@ static void pw_draw_panel(void)
     }
     cv_texts(6, 92, "Hold Save: join", C_GRAY);
     cv_texts(6, 107, "Hold Home: cancel", C_GRAY);
-    cv_blit(0, OY_PANEL);
 }
+static void pw_draw_panel(void) { cv_whole(OY_PANEL, OH_PANEL, C_BLACK, pw_draw_panel_paint); }
 static void pw_draw_foot(void)
 {
     char n[8];
