@@ -228,19 +228,34 @@ ok(/^Done\. The FM-1 runs .+ \(FM-1_720\)\./.test(done.ok) && done.st.every((s) 
   `done: the four phases ticked, the bar full, the identity checked, every read answered right (${done.ok})`);
 await full("installer-desktop-dark-done", 1440);
 
-/* ---- errors: the cable pulled while writing, then Install again resumes; no FM-1 at all */
+/* ---- errors: the cable pulled while writing: "Connection dropped" with Resume and Cancel (the user, 2026-11-01); Cancel, then
+   Install again resumes; Resume before the FM-1 is back asks again, then finishes; no FM-1 at all */
 /* (running a Felucca: its loader takes this small test package; Optimist's own takes the MEMORY steps' 0x93000 / 0xB5000 / 0xD0000 flash.bin only) */
 const lost = await run(`${U} D().identity = "FM-1_904"; D().served = 0; D().unplugAfter = 24; $(".oi-go").click();
-  await until(() => vis(".oi-err"), 90000);
-  return { err: $(".oi-err").textContent, st: [...document.querySelectorAll(".oi-phases li")].map((l) => l.dataset.st), go: $(".oi-go").disabled };`);
-ok(/^The USB connection was lost\. Replug the cable and press Install again/.test(lost.err) && lost.st[2] === "fail" && !lost.go,
-  `cable pulled while writing: said plainly, the phase marked, Install on again (${lost.st.join(" ")})`);
+  await until(() => vis(".oi-drop"), 90000);
+  const out = { drop: $(".oi-dropmsg").textContent, buttons: [...document.querySelectorAll(".oi-drop button")].map((b) => b.textContent),
+    st: [...document.querySelectorAll(".oi-phases li")].map((l) => l.dataset.st), err: vis(".oi-err"), busy: window.optimistInstaller.busy };
+  $(".oi-dropcancel").click(); await until(() => vis(".oi-err"), 20000);
+  return { ...out, after: $(".oi-err").textContent, gone: !vis(".oi-drop"), go: $(".oi-go").disabled };`);
+ok(lost.drop === "Connection dropped. Check the cable, then press Resume." && lost.buttons.join() === "Resume,Cancel" && lost.st[2] === "fail" && !lost.err && lost.busy,
+  `cable pulled while writing: "Connection dropped. Check the cable, then press Resume.", Resume and Cancel, the phase marked (${lost.st.join(" ")})`);
+ok(/^Cancelled\. Nothing more was sent\. The FM-1 stays in update mode: press Install again, it finishes\.$/.test(lost.after) && lost.gone && !lost.go,
+  "... Cancel: said plainly, Install on again");
 await full("installer-desktop-dark-error", 1440);
 const res = await run(`${U} D().unplugAfter = Infinity; D().served = 0; D().plug("ota-FM-1_900", "Felucca Update"); await sleep(800); $(".oi-go").click();
   await until(() => vis(".oi-ok") || ($(".oi-err") && !$(".oi-err").hidden && D().served > 0), 90000);
   return { ok: vis(".oi-ok") && $(".oi-ok").textContent, err: vis(".oi-err"), found: $(".oi-found").textContent, bad: D().bad };`);
 ok(res.ok && /FM-1_720/.test(res.ok) && !res.err && res.bad === 0 && /update mode \(ota-FM-1_900\)/.test(res.found),
   "replugged in update mode: found as such, Install again finishes the write and checks the FM-1 comes back");
+const resumed = await run(`${U} D().identity = "FM-1_904"; D().plug("FM-1_904", "Felucca"); await sleep(800); D().served = 0; D().unplugAfter = 24; $(".oi-go").click();
+  await until(() => vis(".oi-drop"), 90000);
+  $(".oi-resume").click(); await sleep(300); await until(() => vis(".oi-drop"), 30000);
+  const again = $(".oi-dropmsg").textContent;
+  D().unplugAfter = Infinity; D().plug("ota-FM-1_900", "Felucca Update"); await sleep(300); $(".oi-resume").click();
+  await until(() => vis(".oi-ok") || vis(".oi-err"), 90000);
+  return { again, ok: vis(".oi-ok") && $(".oi-ok").textContent, err: vis(".oi-err") && $(".oi-err").textContent, bad: D().bad, drop: vis(".oi-drop") };`);
+ok(/^Connection dropped\. Check the cable, then press Resume\. The FM-1 was not found yet/.test(resumed.again) && resumed.ok && /FM-1_720/.test(resumed.ok)
+  && !resumed.err && !resumed.drop && resumed.bad === 0, `Resume before the FM-1 is back: asked again; back in update mode, Resume finishes the write (${resumed.err || ""})`);
 /* ---- a package the running firmware's updater refuses (M-VAVE's Open firmware): download mode, said, nothing written */
 const dl = await run(`${U} D().served = 0; D().plug("FM1_OFFICIAL_OPEN", "FM-1"); await sleep(800); $(".oi-go").click();
   await until(() => vis(".oi-err"), 20000);

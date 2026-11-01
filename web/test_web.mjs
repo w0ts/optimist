@@ -3458,6 +3458,74 @@ async function updater() {   /* every outcome of install() and resume() */
   ok(cs.stock && cs.banks && cs.banks.length === STOCK_BANKS_SIZE, "installer: checkStock: the V15 with its voice banks (the restore after the install)");
 }
 
+/* the cable dropped mid-install (2026-11-01): resumable() asks (Resume / Cancel), finds the FM-1 again and goes on: step 2
+   on the loader (only the sectors left), step 1 again on the same running firmware; anything else stops (tools/fm1_install.py
+   install_resumable, the app's FlashUpdater.installResumable) */
+async function dropped() {
+  const IR = await import("./install_route.js");
+  const big = Uint8Array.from({ length: 0x6000 }, (_, i) => (i * 7) & 0xFF), n = big.length / 4096;
+  const failure = (p) => p.then(() => null, (err) => err);
+  const P = IR.resumePlan, L = { text: "ota-FM-1_900" };
+  ok(P("write", null, "FM-1_900", "FM-1_015") === "absent" && P("write", L, "FM-1_900", "FM-1_015") === "write" && P("check", L, "FM-1_900", "FM-1_015") === "write"
+     && P("check", { text: "FM-1_015" }, "FM-1_900", "FM-1_015") === "restart" && P("write", { text: "FM-1_015" }, "FM-1_900", "FM-1_015") === "unexpected"
+     && P("write", { text: "FM-1_900" }, "FM-1_900", "FM-1_015") === "done" && P("check", { text: "FM-1_905" }, "FM-1_900", "FM-1_015") === "unexpected"
+     && P("write", { text: "ota-FM-1_015" }, "FM-1_900", "FM-1_015") === "foreign" && P("write", { text: "XY-9_001" }, "FM-1_900", "FM-1_015") === "unexpected",
+     "drop: resumePlan (fm1_install.py resume_plan): loader -> write, same firmware after step 1 -> restart, the package after step 2 -> done, else stop");
+  ok(IR.DROPPED === "Connection dropped. Check the cable, then press Resume.", "drop: the sentence (the user's words, with the Resume button)");
+  ok(INST.errorText({ code: "unexpected", detail: "FM-1_015" }) === "The FM-1 came back as FM-1_015, not the one being updated: nothing more was sent. Check which FM-1 this is, then press Install again."
+     && INST.errorText({ code: "cancelled", detail: "write" }) === "Cancelled. Nothing more was sent. The FM-1 stays in update mode: press Install again, it finishes."
+     && INST.errorText({ code: "cancelled", detail: "check" }) === "Cancelled. Nothing was written." && INST.TEXT.dropped === IR.DROPPED
+     && INST.TEXT.notBack === "The FM-1 was not found yet: check the cable, wait a few seconds, then press Resume.",
+     "drop: the page's words (the Mirror app's FlashResume / FlashError: the same sentences)");
+  const go = (dev, onDrop, running = "FM-1_015") => {
+    const up = new OptimistUpdater(dev.access);
+    return { up, p: up.resumable(() => up.install(big, "FM-1_900"), onDrop, { image: big, product: "FM-1_900", running, plan: IR.resumePlan, waitMs: 2500 }) };
+  };
+  const replug = (dev, identity = "ota-FM-1_900", name = "Felucca Update", next = []) => {
+    const asked = [];
+    return { asked, onDrop: async (e, again) => { asked.push([e.code, again]); dev.unplugAfter = next.length ? dev.served + next.shift() : Infinity; dev.plug(identity, name); return true; } };
+  };
+  let dev = new FakeFM1(big, { fast: true, unplugAfter: 4 + 1 + 2 }), r = replug(dev);
+  let back = await go(dev, r.onDrop).p;
+  ok(back === "FM-1_900" && r.asked.length === 1 && r.asked[0][0] === "lost" && dev.sectorReads === n && !dev.bad && dev.upgradesSeen === 3,
+    `drop in step 2: asked once, Resume: the loader writes on, only the ${n - 2} sectors left (${dev.sectorReads} of ${n} in all), step 1 once`);
+  dev = new FakeFM1(big, { fast: true, unplugAfter: 6 }); r = replug(dev, undefined, undefined, [2]);
+  back = await go(dev, r.onDrop).p;
+  ok(back === "FM-1_900" && r.asked.length === 2 && dev.sectorReads === n && !dev.bad, "two drops: asked each time, then done");
+  dev = new FakeFM1(big, { fast: true, unplugAfter: 6 });
+  const cancel = await failure(go(dev, async () => false).p);
+  ok(cancel?.code === "cancelled" && cancel.detail === "write" && dev.upgradesSeen === 2, "drop, Cancel: 'cancelled' (in step 2: the FM-1 stays in update mode), nothing more sent");
+  dev = new FakeFM1(big, { unplugAfter: 2 }); r = replug(dev, "FM-1_015", "FM-1");
+  back = await go(dev, r.onDrop).p;
+  ok(back === "FM-1_900" && r.asked.length === 1 && dev.upgradesSeen === 3 && !dev.bad, "drop in step 1, back running: step 1 again, then done");
+  dev = new FakeFM1(big, { fast: true, unplugAfter: 6 }); r = replug(dev, "FM-1_015", "FM-1");
+  const odd = await failure(go(dev, r.onDrop).p);
+  ok(odd?.code === "unexpected" && odd.detail === "FM-1_015" && dev.upgradesSeen === 2, "drop in step 2, back running the old firmware: stops ('unexpected'), nothing sent");
+  dev = new FakeFM1(big, { fast: true, unplugAfter: 6 }); r = replug(dev, "ota-FM-1_015", "FM-1 Update");
+  const theirs = await failure(go(dev, r.onDrop).p);
+  ok(theirs?.code === "foreign" && dev.upgradesSeen === 2, "drop, back as another firmware's loader: stops ('foreign'), nothing sent");
+  dev = new FakeFM1(big, { fast: true, unplugAfter: 6 }); r = replug(dev, "FM-1_900", "Felucca");
+  back = await go(dev, r.onDrop).p;
+  ok(back === "FM-1_900" && dev.upgradesSeen === 2, "drop as the loader finished (back running the package): done, nothing sent");
+  dev = new FakeFM1(big, { fast: true, unplugAfter: 6 });
+  const tries = [];
+  back = await go(dev, async (e, again) => { tries.push(again); if (tries.length === 2) { dev.unplugAfter = Infinity; dev.plug("ota-FM-1_900", "Felucca Update"); } return true; }).p;
+  ok(back === "FM-1_900" && tries.join() === "false,true", "Resume with the FM-1 not back yet: asked again (again: true)");
+  /* two FM-1s: the page's view without the others (installer.js viewOf, notChosen) */
+  ok(IR.notChosen("FM1-9C0D", "FM1-1A2B", new Set(["FM1-9C0D"])) && IR.notChosen("FM1-9C0D Update", "FM1-1A2B", new Set())
+     && IR.notChosen("FM-1", "FM1-1A2B", new Set(["FM-1"])) && !IR.notChosen("Felucca Update", "FM1-1A2B", new Set(["FM-1"]))
+     && !IR.notChosen("FM1-1A2B Update", "FM1-1A2B", new Set(["FM-1"])), "two FM-1s: notChosen: the others' keys, another FM1-XXXX; a port without a token stays");
+  const a = new FakeFM1(big, { fast: true, unplugAfter: 6, name: "FM1-1A2B" }), b = new FakeFM1(big, { identity: "ota-FM-1_900", name: "FM-1" });
+  const others = new Set(["FM-1"]), keep = (m) => new Map([...m].filter(([, p]) => !IR.notChosen(p.name, "FM1-1A2B", others)));
+  const both = (k) => new Map([...a.access[k], ...b.access[k]]);
+  const view = { get inputs() { return keep(both("inputs")); }, get outputs() { return keep(both("outputs")); } };
+  r = replug(a);
+  const upAB = new OptimistUpdater(view);
+  let bAsked = 0; const rxB = b.rx.bind(b); b.rx = (m) => { bAsked++; return rxB(m); };
+  back = await upAB.resumable(() => upAB.install(big, "FM-1_900"), r.onDrop, { image: big, product: "FM-1_900", running: "FM-1_015", plan: IR.resumePlan, waitMs: 2500 });
+  ok(back === "FM-1_900" && r.asked.length === 1 && a.sectorReads === n && bAsked === 0, "two FM-1s: resumed on the chosen one, the other (in update mode too) never asked");
+}
+
 /* ------------------------------------------- the installer module (web/installer/installer.js) --- */
 async function installerModule() {
   const T = INST.TEXT;
@@ -3489,7 +3557,7 @@ async function installerModule() {
   const phases = ["start", "verify", "loader", "write", "reboot", "done"].map((k) => INST.progressOf(k, 1, 0, 0x10000, 0).phase);
   ok(seq.every((v, i) => i === 0 || v >= seq[i - 1]) && seq[2] === 10 && seq.at(-1) === 100 && seq[7] === 95 && JSON.stringify(phases) === "[0,0,1,2,3,4]",
     `installer: the bar only goes forward, the write fills 15-95 by address (${seq.join(" ")})`);
-  const codes = ["notfound", "model", "stopped", "noloader", "lost", "noreturn", "mismatch", "badreq", "foreign", "denied", "badpkg", "notours", "noloaderpkg", "open", "bootrefused"];
+  const codes = ["notfound", "model", "stopped", "noloader", "lost", "noreturn", "mismatch", "badreq", "foreign", "denied", "badpkg", "notours", "noloaderpkg", "open", "bootrefused", "cancelled", "unexpected"];
   const ota = readFileSync(join(HERE, "fm1base", "fm1ota.js"), "utf8") + readFileSync(join(HERE, "fm1ota_optimist.js"), "utf8").replaceAll("optFail(", "fail(");
   const thrown = [...new Set([...ota.matchAll(/fail\("(\w+)"/g), ...ota.matchAll(/fail\(s\d?\.lost \? "(\w+)" : "(\w+)"/g)].flatMap((m) => m.slice(1)).filter(Boolean))];
   ok(thrown.length >= 8 && thrown.every((c) => codes.includes(c)) && codes.every((c) => typeof T[c] === "string" && !INST.errorText({ code: c }).startsWith(T.error)),
@@ -3717,7 +3785,7 @@ const SUITE = [
   editorV13Optional, editorMacro, editorAuto, editorWifi, editorV14, editorStepx, editorDaw, editorBackup,
   editorSnapshots, editorPatterns, editorV9, editorNoteEnds,
   editorTabs, editorKeys, editorSetGate, masterStrip, reverbType, midiSettings, editorUiPass,
-  editorPianoRoll, editorIcons, editorParamHelp, samplesMatch, chopTests, packages, updater,
+  editorPianoRoll, editorIcons, editorParamHelp, samplesMatch, chopTests, packages, updater, dropped,
   installerModule,
 ];
 for (const check of SUITE) await check();

@@ -29,6 +29,9 @@ final class FlashModel: ObservableObject {
     @Published private(set) var status = ""
     @Published private(set) var result: String?
     @Published private(set) var error: String?
+    /// the cable dropped mid-install: the sentence shown with Resume and Cancel (nil: none); FlashResume
+    @Published private(set) var dropped: String?
+    private var dropAnswer: CheckedContinuation<Bool, Never>?
     /// m-bootloader asked for, for one install (download mode; docs/INSTALL-PATHS.md); off: USB-MIDI, the bootloader kept
     @Published var installMboot = false
     /// the bootloader the FM-1 says it has (INFO tag 0x68): "mboot" | "stock" | "unknown", nil: not said (an older firmware)
@@ -194,11 +197,12 @@ final class FlashModel: ObservableObject {
     /// true: two or more FM-1s and none chosen (the list is shown, nothing was sent)
     func mustChoose() -> Bool {
         let keys = updater.devices()
-        guard keys.count > 1 else { picked = nil; devices = []; updater.excluded = []; return false }
+        guard keys.count > 1 else { picked = nil; devices = []; updater.excluded = []; updater.chosen = nil; return false }
         devices = keys
-        if let p = picked, keys.contains(p) { updater.excluded = Set(keys.filter { $0 != p }); return false }
+        if let p = picked, keys.contains(p) { updater.excluded = Set(keys.filter { $0 != p }); updater.chosen = p; return false }
         picked = nil
         updater.excluded = []
+        updater.chosen = nil
         return true
     }
 
@@ -270,9 +274,10 @@ final class FlashModel: ObservableObject {
         link.hold()
         Task {
             defer { busy = false; link.release() }
-            var runningText = ""
+            var runningText = "", runningID = ""
             if let f = await updater.find() {             // (the route first: download mode is said, never attempted)
                 runningText = InstallRoute.runningKind(f.id.text, port: f.channel.name)
+                runningID = f.id.isLoader ? "" : f.id.text
                 bootWord = await InstallRoute.askBoot(f.channel, identity: f.id.text)   // (a running Optimist says which bootloader it has)
                 let r = route(for: pkg, running: f.id.text, port: f.channel.name, boot: bootWord)
                 f.channel.close()
@@ -287,7 +292,8 @@ final class FlashModel: ObservableObject {
                 }
             }
             do {
-                let back = try await updater.install(pkg) { [weak self] s in Task { @MainActor in self?.show(s, pkg) } }
+                let back = try await updater.installResumable(pkg, running: runningID, step: { [weak self] s in Task { @MainActor in self?.show(s, pkg) } },
+                                                              onDrop: { [weak self] _, again in await self?.askResume(again: again) ?? false })
                 progress = 1
                 status = ""
                 device = back
@@ -304,6 +310,24 @@ final class FlashModel: ObservableObject {
                 append("error: \(self.error ?? "")")
             }
         }
+    }
+
+    /// the cable dropped: the sentence with Resume and Cancel, until one is pressed (again: not found after the last Resume)
+    func askResume(again: Bool) async -> Bool {
+        dropAnswer?.resume(returning: false)
+        status = ""
+        dropped = again ? "\(FlashResume.dropped) \(FlashResume.notBack)" : FlashResume.dropped
+        append("dropped")
+        return await withCheckedContinuation { dropAnswer = $0 }
+    }
+
+    /// Resume (true) or Cancel (false) after a dropped connection
+    func answerDrop(_ resume: Bool) {
+        guard let c = dropAnswer else { return }
+        dropAnswer = nil
+        dropped = nil
+        if resume { status = "Looking for the FM-1…" }
+        c.resume(returning: resume)
     }
 
     private func show(_ s: FlashStep, _ pkg: FlashPackage) {
@@ -327,6 +351,9 @@ final class FlashModel: ObservableObject {
             progress = 0.97
         case .done(let id):
             append("done \(id)")
+        case .found(let id):
+            append("found again \(id)")
+            status = "Found \(id) again: resuming…"
         }
     }
 

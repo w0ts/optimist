@@ -24,6 +24,8 @@ export class FakeFM1 {
     Object.assign(this, { image, unplugAfter, finalIdentity, loaderIdentity, writeBlocks, name, identity, fast });
     this.fastWords = 0;
     this.fastOn = false;
+    this.written = new Set();   /* the fast loader's sectors already right: a resumed write skips them (sectorReads: 4 KiB reads answered) */
+    this.sectorReads = 0;
     this.served = 0;
     this.bad = 0;
     this.access = { inputs: new Map(), outputs: new Map(), onstatechange: null };
@@ -72,7 +74,7 @@ export class FakeFM1 {
   readPlan() {
     if (this.identity.startsWith("ota-") && this.fastOn) {
       const n = Math.floor(this.image.length / 4096), plan = [[0xD0000000, n * 6]];
-      for (let k = 0; k < n; k++) plan.push([k * 4096, 4096]);
+      for (let k = 0; k < n; k++) if (!this.written.has(k * 4096)) plan.push([k * 4096, 4096]);
       return [...plan, [0xF0000000, 8]];
     }
     if (this.identity.startsWith("ota-")) {
@@ -113,6 +115,7 @@ export class FakeFM1 {
     if (!sameBytes(got, expected)) this.bad++;
     this.waiting = null;
     this.served++;
+    if (this.fastOn && addr < 0xD0000000 && len === 4096) { this.sectorReads++; this.written.add(addr); }
     if (this.served >= this.unplugAfter) {
       this.input.state = "disconnected";
       this.output.state = "disconnected";
