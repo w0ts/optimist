@@ -17,6 +17,7 @@ static void sf_step_setup(void)
     reset_ui();
     song.sel = 0;
     memset(trk[0].step, 0, sizeof trk[0].step);
+    trk[0].p[P_SLEN] = 16;                              /* (LEN 16: the random walks before may have left it short, a step past it is no step) */
     op_enter(SCR_STEP);
     st.page = 0;
     st.follow = 0;
