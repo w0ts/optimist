@@ -85,6 +85,7 @@
 #include "op_credits.c"            /* SYSTEM > CREDITS: the end titles, their crawl and KNOB 1 (drawn by op_gldraw.c) */
 #include "op_gldraw.c"
 #include "op_help.c"
+#include "op_meters.c"            /* the load lines on the screen's last rows (SYSTEM > METERS, core/meters.h) */
 #include "op_mixdraw.c"
 #include "op_scope.c"
 #include "op_stepdraw.c"

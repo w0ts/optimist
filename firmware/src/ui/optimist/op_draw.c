@@ -3,12 +3,13 @@
  *   y   0..24   the header: the selected track's engine (in its colour), the screen and row, the loop position, the
  *               tempo; a passive message (2.5 s: MISSING, RECORDING) takes it over
  *   y  28..72   four cards: the cursor row's cells, KNOB 1..4 (label, value, unit, its form; the hot cell white)
- *   y 76..221   the panel (no footer, the user, 2026-10-08; to the screen's foot without the help line): the list of rows (each value a number over its form; the cursor row a bar in the track's
+ *   y 76..218   the panel (no footer, the user, 2026-10-08; to the screen's foot without the help line): the list of rows (each value a number over its form; the cursor row a bar in the track's
  *               colour; on SOUND the cursor row's graph above it), or STEP's grid / roll (op_stepdraw.c), or the
  *               scope (op_scope.c); a question covers it with the modal, the result of a confirmed action shows as a
  *               toast in its middle
  *               the mixer's panel: a row a track, MASTER above T1, the drum lanes after DR (op_mixdraw.c)
- *   y 222..239  the help band (a build with the help line, op_graph.c OP_FOOT): the help line's alone, black without it
+ *   y 219..236  the help band (a build with the help line, op_graph.c OP_FOOT): the help line's alone, black without it
+ *   y 237..239  the load lines (SYSTEM > METERS, op_meters.c, OP_MTR): theirs alone, black when METERS is OFF
  * What the footer said went elsewhere: STEP's window to the grid's strip, its pick to the grid (the audit's #17), a held step's values under its grid,
  * a layer's "Home locks it" to the help line once (the audit's #24).
  * Lazy: each band remembers a signature of what it drew and is drawn again only when that changes; the meters
@@ -1207,7 +1208,7 @@ static uint32_t meter_h(int32_t pk)
  * drawn last each frame over the panel's corner, and when it goes the cards and the panel are drawn again over it */
 #define NN_FRAMES 60u                   /* ~1 s at 60 frames a second */
 #define NN_W 38u
-#define NN_Y 224u                       /* the help band's text rows (op_help.c HL_Y + 2), the panel's last 16 without it */
+#define NN_Y (OP_FOOT ? OP_FOOT_Y + 2u : OP_FOOT_Y - 16u)   /* the help band's text rows (op_help.c HL_Y + 2), the panel's last 16 without it */
 static uint8_t nn_vis, nn_gone;         /* the note shown + 1 (0: none); it went this frame */
 static void nn_tick(void)               /* each frame, first (the help line reads nn_vis) */
 {
@@ -1235,7 +1236,7 @@ static void nn_post(void)               /* last, after the frame's force is spen
     if (!nn_vis)
         return;
     note_name(b, nn_vis - 1u);
-    cv_begin(NN_W, 240u - NN_Y, C_BLACK);
+    cv_begin(NN_W, 16u, C_BLACK);
     cv_texts(4, 0, b, C_WHITE);
     cv_blit(0, NN_Y);
 }
@@ -1329,6 +1330,7 @@ static void memline_draw(void)
 }
 
 static void pl_draw(void);                              /* op_gldraw.c */
+static void mtr_draw(void);                             /* op_meters.c */
 static void op_frame_draw(void)
 {
     uint32_t ov = op_overlay(), gap;
@@ -1358,7 +1360,7 @@ static void op_frame_draw(void)
         uint32_t full = (ui.scr == SCR_STEP || glo_cycle() || pl_on() || song_tbl_on()) && lay.shown == LY_PLAY && !page_owned();   /* (GLOBAL and
                                                          * SYSTEM's list too: no cards, op_gldraw.c) */
         if (full != was_full && !ui.force) {
-            lcd_fill(0, OH_HEAD, 240, 240 - OH_HEAD, C_BLACK);
+            lcd_fill(0, OH_HEAD, 240, 240 - OP_MTR - OH_HEAD, C_BLACK);   /* (the load lines' rows stay: op_meters.c) */
             memset(ui.sig + 1, 0, sizeof ui.sig - sizeof ui.sig[0]);   /* (the help line's too) */
             mx_redraw();
         }
@@ -1380,6 +1382,7 @@ static void op_frame_draw(void)
         lcd_fill(0, OH_HEAD, 240, (uint32_t)((ov == 5u ? OY_CARD - 2 : OY_CARD) - OH_HEAD), C_BLACK);   /* (under the popup
                                                          * list: to its box, op_preset.c POP_Y) */
     memline_draw();                                     /* (last on the header's rows 0-1: every page, the early returns below too) */
+    mtr_draw();                                         /* (the load lines on the last rows, every page: op_meters.c; ui.force still set here) */
     if (ml_on() && ov != 4u) {                          /* the load's memory list: the gauge, the rows, SAVE / HOME */
         ml_draw();
         ui.force = 0;

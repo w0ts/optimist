@@ -45,6 +45,8 @@ REC's own LED is red: lit while a take records, blinking while armed and waiting
 
 **The memory line.** The topmost 2 pixel rows of every page are a thin bar filled from the left in proportion to how full the memory is (the same quantity as SYSTEM > INFO's RAM bar: the project's parts and the effects' lines in the arena; a build without an arena shows the fixed memory's use). It is dim below 80 % and red from 80 %. The splash and the other full-screen screens do not show it.
 
+**The load lines.** SYSTEM > METERS puts thin lines on the very bottom rows of every page: **OFF**, **CPUS** (at first), **MEMORY** or **BOTH**. CPUS draws two 1-pixel lines, the first core's above the second's; MEMORY one 2-pixel line for how full the memory is; BOTH the memory line (1 pixel) above the two CPU lines. A line grows from the left across the screen with the load, green below 60 %, amber from 60 %, red above 85 %, and a peak stays a moment so a spike can be read. The three bottom rows are kept free of everything else, whatever the setting is, so nothing on a page moves when you change it. With a single core (a build without the second one) the second CPU line stays dark.
+
 ## The mixer
 
 The mixer is the first screen. The rows are tracks: MASTER above T1, then T1, T2, T3, DR, the drum track's 10 lanes plus the ACCENT lane, and, in a USB audio build, a USB IN row after them. ALGORITHM walks the rows; the panel shows the selected row's group. Each row has its meter and its sequence. SELECT pages the knob sets of the row, in the same order on every row:
@@ -96,6 +98,7 @@ GLOBAL and SYSTEM are settings lists: one setting on a line, the name left and t
 - **INFO:** the read-out below. Always the first page.
 - **SCREEN:** KNOB COLORS (ON / OFF). The backlight is always full.
 - **AUDIO:** the output's correction, chosen by the headphone jack and applied to the FM-1's own output only (never to Bluetooth, USB or a recording on the card): SPK LOWCUT (OFF, ON or BASS+; ON at first) while nothing is plugged in, the speaker's ~110 Hz low cut, or BASS+ (the bass heard through its harmonics); HPHN BASS (OFF, +3 dB or +6 dB; OFF at first) while headphones are in, a bass shelf below ~110 Hz.
+- **METERS:** OFF, CPUS, MEMORY or BOTH (CPUS at first): the thin load lines at the screen's foot (see "The load lines" above); the page *Meters*, after USB.
 - **DEBUG STATS** (the release build; the last line of the General page, after HPHN BASS): ON or OFF, OFF at first. While ON the FM-1 keeps its load, late audio halves and stack depths in flash every 5 minutes, for a unit that misbehaves only after hours of play.
 - **USB:** SERIAL, ON or OFF; amber until a restart applies it (builds with the USB console).
 - **BT MIDI** (builds with `BLE`): MODE, DEVICE, ACTIVITY, STATE. **BT AUDIO** (builds with `BT_AUDIO`): MODE, DEVICE, FORMAT, STATE. Both can be on at once; MODE, the devices list and SAVE: [midi-usb.md](midi-usb.md#bluetooth-midi-and-bluetooth-audio). A connect not up in 30 s says NO ANSWER.
