@@ -520,6 +520,29 @@ static int32_t prj_key_slot(uint32_t kind, int32_t w)
     uint32_t s = (prj_slots_row(kind) ? prj_slot_cur(kind) & ~15u : 0u) + (uint32_t)w;
     return prj_slots_row(kind) && w >= 0 && w < 16 && s < prj_slot_n(kind) ? (int32_t)s : -1;
 }
+/* a key past the last slot: a toast "ONLY 2 PROJECTS: SEE MEMORY" (the project count is MEMORY's; 27 of the 29 characters),
+ * "ONLY 3 SNAPSHOTS" (the snapshots' count is the flash's room, no setting), "NO SNAPSHOTS" at none */
+static void prj_only(uint32_t kind)
+{
+    static const char *const ONE[3] = {"PROJECT", "SNAPSHOT", "USER PRESET"};
+    char m[32];
+    uint32_t n = prj_slot_n(kind);
+    if (n == 0u) {
+        str_cpy(m, "NO ", sizeof m);
+    } else {
+        str_cpy(m, "ONLY ", sizeof m);
+        fmt_app(m, (int32_t)n);
+        str_app(m, " ", sizeof m);
+    }
+    str_app(m, ONE[kind], sizeof m);
+    if (n != 1u)
+        str_app(m, "S", sizeof m);
+    if (kind == PR_PROJECT)
+        str_app(m, ": SEE MEMORY", sizeof m);
+    ui.toast_next = 1;
+    ui_message(m);
+    ui.toast_next = 0;
+}
 static void prj_key(uint32_t k, uint32_t down)           /* op_input.c op_drain: a key of PROJECT */
 {
     uint32_t kind = prj_kind(ui.row[SCR_PROJECT]);
@@ -532,8 +555,11 @@ static void prj_key(uint32_t k, uint32_t down)           /* op_input.c op_drain:
     }
 #endif
     s = down && !op_armed() ? prj_key_slot(kind, punch_key(k)) : -1;
-    if (s < 0)
+    if (s < 0) {
+        if (down && !op_armed() && prj_slots_row(kind) && punch_key(k) >= 0 && punch_key(k) < 16)
+            prj_only(kind);                             /* (a white key past the last slot: say how many there are) */
         return;
+    }
     prj_slot_set(kind, (uint32_t)s);                    /* (the ITEM follows the key) */
     ui.hot = 2;
     ui.hot_lit = 1;
