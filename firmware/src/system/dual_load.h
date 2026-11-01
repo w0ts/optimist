@@ -53,7 +53,8 @@ static int32_t dual_c1_pct(void)
  * after the join; the main loop only reads (and sets wreset) */
 #if defined(FELUCCA_SYS_DEBUG) && FELUCCA_SYS_DEBUG
 #define DUAL_TIMES 1
-#define DUAL_TM_NJ 6u                              /* jobs: the parts (NPART <= 4), the drums, the reverb's kept block */
+#define DUAL_TM_NJ 7u                              /* jobs: the parts (NPART <= 4), the drums, the reverb's kept block,
+                                                    * the Bluetooth stream's SBC frame (bt/bt_sbc_job.h) */
 #define DUAL_TM_WIN 4u                             /* the peaks' windows of 512 ms: the last 2 s */
 enum { DTQ_PRE, DTQ_OWN, DTQ_WAIT, DTQ_POST, DTQ_BLK, DTQ_C1, DTQ_J0, DTQ_N = DTQ_J0 + DUAL_TM_NJ };
 typedef struct {
@@ -67,6 +68,10 @@ typedef struct {
     uint8_t w_c1, w_ran;                           /* the worst block's: the jobs CPU1 ran, the jobs that ran */
     uint8_t win;                                   /* the window written now (ms >> 9, of DUAL_TM_WIN) */
     volatile uint8_t wreset;                       /* the main loop: a new worst block from now (the page opened) */
+#if FELUCCA_BENCH
+    uint32_t bsum[DTQ_N], bmax[DTQ_N], blocks;     /* (bench builds: each quantity's sum and largest since boot, the
+                                                    * blocks counted: the emulator reads them, tools/cpubal_emu.py) */
+#endif
 } dual_tm_t;
 static dual_tm_t dual_tm;
 #define DUAL_TM_JOB(p, t) ((p) < DUAL_TM_NJ ? (void)(dual_tm.jt[p] = (t)) : (void)0)   /* (dual_run: a job's time) */
@@ -74,6 +79,11 @@ static inline __attribute__((always_inline)) void dual_tm_q(uint32_t q, uint32_t
 {
     uint16_t c = (uint16_t)(t < 0xFFFFu ? t : 0xFFFFu);
     dual_tm.avg[q] += t - (dual_tm.avg[q] >> 3);
+#if FELUCCA_BENCH
+    dual_tm.bsum[q] += t;
+    if (t > dual_tm.bmax[q])
+        dual_tm.bmax[q] = t;
+#endif
     if (c > pk[q])
         pk[q] = c;
     v[q] = c;
@@ -103,6 +113,9 @@ static inline __attribute__((always_inline)) void dual_tm_block(uint32_t t0, uin
             v[DTQ_J0 + p] = 0;
     dual_tm.c1_mask = (uint8_t)c1;
     dual_tm.ran = (uint8_t)ran;
+#if FELUCCA_BENCH
+    dual_tm.blocks++;
+#endif
     if (dual_tm.wreset) {                          /* (the page opened: the worst block from now) */
         dual_tm.wreset = 0;
         dual_tm.worst[DTQ_BLK] = 0;
