@@ -297,6 +297,25 @@ static int roll_carried(const track_t *t, const step_t *s, uint32_t idx, uint32_
         ;
     return step_on(q) && k < q->n && k < 4u && !ngate_of(q, k);
 }
+/* the step where note slot i of step idx started: a note carried through (or tied to) idx takes its level and mute from the step that struck it,
+ * never from the carry step (the user, 2026-11-01: a cycle on a step must not recolour the notes only held through it); *oi: its slot there */
+static uint32_t roll_head(const track_t *t, uint32_t idx, uint32_t i, uint32_t *oi)
+{
+    uint32_t len = trk_len(t), n, k;
+    idx = roll_org(t, idx);
+    for (n = 0; n < len; n++) {
+        const step_t *s = &SGS(t)[idx % NSTEP], *q;
+        uint32_t o = roll_org(t, (idx + len - 1u) % len);
+        if (!roll_carried(t, s, idx, i))
+            break;
+        q = &SGS(t)[o % NSTEP];
+        for (k = 0; k < q->n && k < 4u && q->note[k] != s->note[i]; k++)
+            ;
+        idx = o, i = k;
+    }
+    *oi = i;
+    return idx;
+}
 static void roll_label(int32_t n, uint16_t c)           /* a row's name, "C4" for a C, in the gutter */
 {
     char b[6];
@@ -359,6 +378,20 @@ static void roll_ground(const track_t *t, uint32_t len)  /* the rows, the octave
     if (end)
         RR(xe, SG_TOP, 1, ye - SG_TOP, end < 16u || st.page * 16u + 16u >= len ? C_DIM : C_LINE);   /* LEN's end */
 }
+/* the selected note's frame over its bar in this column: C_NOTE top and bottom, a cap at its head and at its last column (the fill, its level shade
+ * or grey, shows between; a bar under 3 px high: caps only) */
+static void roll_outline(const track_t *t, uint32_t at, int32_t nt, uint32_t idx, int32_t x, int32_t y, int32_t w, int32_t h)
+{
+    int head = idx == at || !roll_selx(t, at, nt, idx - 1u), last = !roll_selx(t, at, nt, idx + 1u);
+    if (h >= 3) {
+        RR(x, y, w, 1, C_NOTE);
+        RR(x, y + h - 1, w, 1, C_NOTE);
+    }
+    if (head)
+        RR(x, y, 1, h, C_NOTE);
+    if (last)
+        RR(x + w - 1, y, 1, h, C_NOTE);
+}
 static void sg_roll(const track_t *t)
 {
     uint32_t w, i, len = trk_len(t), gn, sat = 0, sext = 0, sel;
@@ -396,15 +429,14 @@ static void sg_roll(const track_t *t)
             continue;
         for (i = 0; i < s->n && i < 4u; i++) {
             int32_t nt = s->note[i], y = NY(nt), g = (int32_t)ngate_of(s, i), cw = RL_CW - 1;
-            uint32_t lv = (s->lvl >> (2u * i)) & 3u;
+            uint32_t oi, hd = roll_head(t, idx, i, &oi), lv = (SGS(t)[hd % NSTEP].lvl >> (2u * oi)) & 3u;
             uint16_t nc = (int32_t)w == sg_ph ? C_WHITE : op_step_auto(t, idx, 16u) ? lvl_acol(lv) : lvl_col(c, lv);
-            int mut = 0;
+            int mut = 0, sx;
 #if FELUCCA_AUTO
-            if (!gn && step_muted(t, roll_org(t, idx), 0))
+            if (!gn && step_muted(t, hd, 0))
                 nc = col_shade(c, 2u), mut = 1;         /* (a muted note: kept, dim; its ties too; picked it stays grey, its row's lines show the pick) */
 #endif
-            if (!mut && sel && roll_selx(t, sat, nt, idx) && (int32_t)w != sg_ph)
-                nc = C_NOTE;                            /* (the selected note, its whole length: its own colour) */
+            sx = sel && roll_selx(t, sat, nt, idx) && (int32_t)w != sg_ph;   /* (the selected note: its level shade stays, an outline in C_NOTE) */
             if (!RV(nt))
                 continue;
             if (g) {                                    /* (its own end: in this step, or one before a TIE here) */
@@ -416,6 +448,8 @@ static void sg_roll(const track_t *t)
             used |= (uint64_t)1u << rg.row[nt];
             if (tie || roll_carried(t, s, idx, i)) {    /* (a tie, a note carried on: the bar on, over the gap) */
                 RR(x - 1, y + m, cw + 1, h, nc);
+                if (sx)
+                    roll_outline(t, sat, nt, idx, x - 1, y + m, cw + 1, h);
                 continue;
             }
             if (gn) {                                   /* (a generator's note: outlined) */
@@ -423,6 +457,8 @@ static void sg_roll(const track_t *t)
                 continue;
             }
             RR(x, y + m, cw, h, nc);                    /* (a note: its head, a gap from the note before) */
+            if (sx)
+                roll_outline(t, sat, nt, idx, x, y + m, cw, h);
             if ((s->flags & SF_ACCENT) && h > 2)
                 RR(x, y + m, RL_CW - 1, 1, C_WHITE);
             if ((s->rat >> (2u * i)) & 3u)

@@ -112,9 +112,70 @@ static void shc_drum_tests(void)
     check(dstep_has(&t->dstep[6], 2) && dstep_lvl(&t->dstep[6], 2) == LV_HARD && !step_muted(t, 6, 2),
           "shift cycle: SHIFT2 + an empty drum step: still the hard hit");
 }
+/* the photo's case (the user, 2026-11-01, IMG_4585): B and A struck at step 1 and carried through step 2, an E struck at step 2 */
+static void shc_photo(track_t *t, uint32_t with_carry)
+{
+    fm1_irq_off();
+    memset(&t->step[0], 0, sizeof t->step[0]);
+    memset(&t->step[1], 0, sizeof t->step[1]);
+    t->step[0].time = ST_NOTE, t->step[0].n = 2, t->step[0].note[0] = 71, t->step[0].note[1] = 69, t->step[0].vel = 100;
+    t->step[1].time = ST_NOTE, t->step[1].vel = 100;
+    if (with_carry)
+        t->step[1].n = 3, t->step[1].flags = SF_CARRY, t->step[1].note[0] = 71, t->step[1].note[1] = 69, t->step[1].note[2] = 64;
+    else
+        t->step[1].n = 1, t->step[1].note[0] = 64;
+    fm1_irq_on();
+}
+static void shc_carry_tests(void)
+{
+    track_t *t;
+    step_t s0, s1;
+    uint32_t grey, g1, g2, hard, c;
+    sv_open();
+    t = TSEL;
+    c = trk_col(0);
+    grey = col_shade(c, 2u);
+    shc_photo(t, 1);
+    st.pk = PK_NONE;
+    frames(2);
+    s0 = t->step[0], s1 = t->step[1];
+    shc_key(1);
+    check(!memcmp(&t->step[0], &s0, sizeof s0), "shift cycle, carried: B and A's own step byte-identical");
+    check(shc_slv(t, 1, 0) == (uint32_t)((s1.lvl >> 0) & 3u) && shc_slv(t, 1, 1) == (uint32_t)((s1.lvl >> 2) & 3u) && shc_slv(t, 1, 2) == LV_HARD
+          && t->step[1].n == 3 && t->step[1].flags == s1.flags && !step_muted(t, 1, 0),
+          "shift cycle, carried: only the note that starts there (E) takes HARD, the carried B and A keep their level");
+    check(pk_ok() && st.pk == 1u && st.nsel == 2u, "shift cycle, carried: ... E is the picked note");
+    frames(4);
+    hard = lvl_col(c, LV_HARD);
+    check(sm_count(hard) > 0 && sm_count(C_NOTE) > 0, "shift cycle, carried: the selected E shows its level shade and a C_NOTE outline");
+    shc_key(1);
+    shc_key(1);
+    check(step_muted(t, 1, 0) && shc_slv(t, 1, 0) == (uint32_t)(s1.lvl & 3u), "shift cycle, carried: GHOST then MUTED on the step, the carried slots still untouched");
+    frames(4);
+    g1 = sm_count(grey);
+    shc_photo(t, 0);
+    frames(4);
+    g2 = sm_count(grey);
+    check(g1 == g2 && g1 > 0, "shift cycle, carried: muted, only E is drawn grey (B and A carried through it keep their shade, picked E grey too)");
+    check(sm_count(C_NOTE) > 0, "shift cycle, carried: ... the muted selected E keeps its outline");
+    shc_photo(t, 1);
+    st.pk = PK_NONE;
+    shc_key(1);
+    check(!step_muted(t, 1, 0) && shc_slv(t, 1, 2) == LV_NORM, "shift cycle, carried: again: unmuted, E back to NORM");
+    /* no note starts there: a carry step of B and A only */
+    fm1_irq_off();
+    t->step[1].n = 2, t->step[1].lvl = 0, memset(&t->step[2], 0, sizeof t->step[2]);
+    fm1_irq_on();
+    s1 = t->step[1];
+    st.pk = PK_NONE;
+    shc_key(1);
+    check(!memcmp(&t->step[1], &s1, sizeof s1) && !memcmp(&t->step[0], &s0, sizeof s0) && !step_muted(t, 1, 0) && strstr(ui.msg, "NO NOTE STARTS HERE"),
+          "shift cycle, carried: no note starts at the step: nothing touched, 'NO NOTE STARTS HERE'");
+}
 static void shiftcycle_tests(void)
 {
     shc_synth_tests();
+    shc_carry_tests();
     shc_drum_tests();
     se_open(16);
     tap(B_HOME);
