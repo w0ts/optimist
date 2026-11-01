@@ -31,21 +31,14 @@ static void hold_tests(void)
     check(map && tapped, "a 420 ms press: the map shows; let go within HOLD + 150 ms it is still a tap");
     hold_fx(600, &map, &tapped);
     check(map && !tapped, "a 600 ms hold: the map, no tap");
-    reset_ui();
-    w = line_named(SCR_SYSTEM, "HOLD");               /* Calibrate's HOLD line, its knob */
-    frame();
-    turn(LINE_KNOB(w), 1);
-    check(op_hold_ms() == 500u, "SYSTEM Calibrate: the HOLD line's knob to 500 ms");
-    hold_fx(420, &map, &tapped);
-    check(!map && tapped, "... a 420 ms press is then a tap, no map");
     w = bp23_word();
     bp23_from_word(w & ~(3u << 21));
     check(op_hold_ms() == 350u, "HOLD in the settings word: a word without the bits reads 350 ms");
     bp23_from_word(w);
-    check(op_hold_ms() == 500u, "... read back: 500 ms");
+    check(op_hold_ms() == 350u, "... read back with 500 ms stored: ignored, 350 ms (SYSTEM's HOLD is gone)");
     hold_sel = 1u;
     hold_fx(300, &map, &tapped);
-    check(map && tapped, "HOLD 250: a 300 ms press shows the map, still a tap");
+    check(!map && tapped, "a stored 250: ignored, a 300 ms press is a tap, no map");
     hold_sel = 0u;
     {   /* PLAY: the TEMPO page at the same threshold */
         uint32_t t0;

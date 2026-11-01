@@ -199,13 +199,12 @@ static uint32_t op_step_auto(const track_t *t, uint32_t step, uint32_t lane)
     return 0;
 }
 
-/* SYSTEM > CALIBRATE > HOLD (the user, 2026-10-08, on the FM-1: a click showed the layer's map one time out of two at
- * SLOOP's 140 ms): a button held this long is a hold (a layer's map, PLAY's TEMPO page); a page button let go within
- * HOLD + OP_TAP_GAP still counts as a tap (a slow click). The setting is main's shared one (core/hold.h hold_sel: 0 350 ms,
- * 1 250, 2 500; the settings word's bits 21..22), the same as the HOME menu's */
-static const uint8_t OP_HOLD_POS[HOLD_N] = {1, 0, 2}, OP_HOLD_SEL[HOLD_N] = {1, 0, 2};   /* (the knob's order 250 350 500) */
+/* A button held this long is a hold (a layer's map, PLAY's TEMPO page); a page button let go within HOLD + OP_TAP_GAP still counts
+ * as a tap (a slow click). Fixed at 350 ms (the user, 2026-11-01: SYSTEM's HOLD setting is gone); a settings word's stored 250 / 500
+ * (core/hold.h hold_sel, bits 21..22, still kept as read so the record stays compatible) is ignored */
 #define OP_TAP_GAP 150u
-static uint32_t op_hold_ms(void) { return HOLD_MS; }
+#define OP_HOLD_MS 350u
+static uint32_t op_hold_ms(void) { return OP_HOLD_MS; }
 static uint32_t op_t0[14];                              /* each button's press (fm1_ms), by panel id (op_input.c; op_combos.c: HOME's tap) */
 static uint32_t lk_ev_ms;                               /* fm1_ms of the key event being handled (op_drain: its queued time, seq.c lk_t) */
 /* the buttons' own times (the user, 2026-10-22: a slow frame turned taps into holds): the HAL stamps each press and release as

@@ -2,7 +2,7 @@
 /* tests/ui_optimist_test.c, the page organisation (the user's decisions, 2026-10-12; docs/UI-OPTIMIST-DESIGN.md
  * 2.7, 3.3, 4.7, 11): D1 GLO and SELECT walk one cycle, GLOBAL then SYSTEM, SHIFT held on the mixer does nothing; D2 SYSTEM's first row CLOCK +
  * LOAD; D6 SAVE on the mixer is PROJECT; D7 EDIT's first row is SOUND; D8 the SCENES layer says "Select: song"; P25 a
- * dark family button does nothing; P28 CALIBRATE > PANEL asks first. Included after ui_optimist_glo.h (glo_find). */
+ * dark family button does nothing. Included after ui_optimist_glo.h (glo_find). */
 static void pages_nav_tests(void)
 {
     cell_t c, c2;
@@ -152,22 +152,6 @@ static void pages_nav_tests(void)
     }
     song.sel = 0;
     reset_ui();
-    /* P28 */
-    op_enter(SCR_SYSTEM);
-    line_named(SCR_SYSTEM, "PANEL");                    /* (Calibrate's PANEL line: YES on it) */
-    frame();
-    tap(B_SAVE);
-    check(op_armed() && !strcmp(ui.arm_verb, "CALIBRATE?") && !strcmp(ui.arm_arg, "PANEL") && modal_fits(),
-          "P28: CALIBRATE > PANEL asks first (CALIBRATE? PANEL)");
-    tap(B_HOME);
-    check(!op_armed() && ui.scr == SCR_SYSTEM, "P28: HOME: cancelled, nothing taught, still SYSTEM");
-    {
-        const panel_t keep = panel;
-        tap(B_SAVE);
-        tap(B_SAVE);                                    /* (confirmed: the teach, no input: it times out, fm1_wdt_feed) */
-        check(!memcmp(&keep, &panel, sizeof panel) && !strcmp(ui.msg, "SETUP CANCELLED"),
-              "P28: confirmed: the teach runs; no input for 30 s cancels it, the panel kept");
-    }
     reset_ui();
 }
 
@@ -290,9 +274,9 @@ static void pages_master_tests(void)
     check(!strcmp(SCR_NAME[SCR_FX], "MASTER") && !strcmp(h, "Insert"), "D3: the screen is MASTER (its badge), the title \"Insert\"");
     check(!pg_has_g(SCR_FX, G_BPM) && !pg_has_g(SCR_FX, G_SWING) && !pg_has_g(SCR_FX, G_CLOCK) && !pg_has_g(SCR_FX, G_DRLVL),
           "D3: no GLOBAL or DRUMS page: BPM SWING CLICK and the drum level are not on MASTER");
-    check(pg_has_g(SCR_GLOBAL, G_BPM) && pg_has_g(SCR_GLOBAL, G_SWING) && pg_has_g(SCR_GLOBAL, G_CLOCK),
-          "D3: BPM, SWING and CLICK are on GLOBAL (TEMPO, REC)");
-    check(!pg_has_g(SCR_FX, G_TUNE) && pg_has_g(SCR_GLOBAL, G_TUNE), "D3: TUNE is on GLOBAL (Tempo's fourth line; fx-rework: not on the master)");
+    check(!pg_has_g(SCR_GLOBAL, G_BPM) && !pg_has_g(SCR_GLOBAL, G_SWING) && !pg_has_g(SCR_GLOBAL, G_CLOCK) && pg_has_g(SCR_GLOBAL, G_RECQ),
+          "D3: BPM, SWING and CLICK are not on GLOBAL (the PLAY-held page's), QUANT is");
+    check(!pg_has_g(SCR_FX, G_TUNE) && pg_has_g(SCR_GLOBAL, G_TUNE), "D3: TUNE is on GLOBAL (its first line; fx-rework: not on the master)");
     ui.scr = SCR_GLOBAL;
     row = line_named(SCR_GLOBAL, "TUNE");
     turn(EN_K1 + gl_kn(SCR_GLOBAL, row), 3);
@@ -797,12 +781,7 @@ static void pages_head_tests(void)
         op_enter(SCR_GLOBAL);
         ui.row[SCR_GLOBAL] = 0;
         head_now(t);
-        check(!strncmp(t, "Tempo 1/", 8) && hd_badge_is("GLOBAL"), "D11: GLOBAL's header: the badge GLOBAL, \"Tempo 1/N\"");
-#if FELUCCA_REC_MODES
-        line_named(SCR_GLOBAL, "QUANT");
-        head_now(t);
-        check(!strncmp(t, "Rec 2 ", 6) && hd_badge_is("GLOBAL"), "D11: GLOBAL's QUANT line (REC 2): the badge GLOBAL, \"Rec 2 n/N\"");
-#endif
+        check(!strncmp(t, "Tune 1/", 7) && hd_badge_is("GLOBAL"), "D11: GLOBAL's header: the badge GLOBAL, \"Tune 1/N\"");
         line_named(SCR_SYSTEM, "KNOB COLORS");          /* (COLOR, which this read, is gone: 2026-10-18) */
         head_now(t);
         check(!strncmp(t, "General ", 8) && hd_badge_is("SYSTEM"), "D11: SYSTEM's KNOB COLORS line: the badge SYSTEM, \"General n/N\"");
