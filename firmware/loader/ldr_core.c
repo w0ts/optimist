@@ -28,6 +28,8 @@
  *      power cycle) and the host can resume.
  * Power loss during 3: the record is still there, the SPL runs the loader
  * again on the next power-on and the host can resume.
+ * The fast install (OTA_FAST_CHUNK, when the host says it can: ldr_pass_fast below) replaces 2b and 3 by one pass
+ * over a per-sector CRC table: only the sectors that differ are sent, 4 KiB at a time, each erased while it comes in.
  *
  * Hooks from the platform (loader.c, tests/ldr_test.c):
  *   ldr_fread(off, p, n)  ldr_erase(off)  ldr_prog(off, p, n)   flash, 0 = ok
@@ -36,6 +38,7 @@
  *                         written: the update records go and the old firmware starts again)
  *   ldr_checking(done, total)   the package check (2b), every 32 KB
  *   ldr_progress(done, total)
+ *   ldr_erase_begin(off) ldr_erase_end()   the fast install's erase while a sector comes in (no flash access between)
  * plus the ota.c hooks (frames, time, idle). */
 #define LDR_APP_LO 0x4000u
 #define LDR_APP_HI FL_APP_HI                   /* fm1_flash_map.h: by FELUCCA_LAYOUT (docs/SD-MODE-DESIGN.md) */
@@ -207,33 +210,73 @@ static int ldr_check(uint32_t fl_off, uint32_t fl_size, uint32_t want, uint16_t 
     return crc == want ? 0 : LDR_EBADPKG;
 }
 
-static int ldr_pass(void)
+/* 1. and 2.: the UFW header, flash.bin exactly this board's app area, the chip key, a known flash chip */
+static int ldr_head(uint8_t *hdr, uint8_t *b, uint32_t *fl_off, uint32_t *want, uint32_t *key)
 {
-    static uint8_t hdr[0x400], sec[0x1000], cur[0x1000];
-    static uint16_t sc[LDR_NSEC];
-    uint32_t i, k, fl_off, fl_size, ota_off, ota_len, key, s, want, done = 0;
+    uint32_t fl_size, ota_off, ota_len;
     int rc;
-    /* 1. UFW header + entry list (ota.c) */
-    if ((rc = ota_ufw(hdr, &fl_off, &fl_size, &ota_off, &ota_len, &want)) != 0)
+    if ((rc = ota_ufw(hdr, fl_off, &fl_size, &ota_off, &ota_len, want)) != 0)
         return rc;
-    if (!fl_off)
+    if (!*fl_off)
         return -3;
     if (fl_size != LDR_APP_HI)
         return LDR_EBOARD;                               /* another board's package: refused before any erase */
     /* 2. the package's app area must decrypt with this chip's key */
-    if ((rc = ldr_chip_key(&key)) != 0)
+    if ((rc = ldr_chip_key(key)) != 0)
         return -40 + rc;
-    if (ota_read(fl_off + LDR_APP_LO, sec, 32))
+    if (ota_read(*fl_off + LDR_APP_LO, b, 32))
         return -5;
-    ldr_sfc(sec, 32, 0, key);
-    if (ota_crc16(sec + 2, 30, 0) != ota_rd16(sec))
+    ldr_sfc(b, 32, 0, *key);
+    if (ota_crc16(b + 2, 30, 0) != ota_rd16(b))
         return -6;                                       /* package for another chip key */
     if (!ldr_flash_known()) {                            /* SLOOP would run without its storage and could not */
         ldr_records_drop();                              /* be updated again: keep the firmware there is */
         return LDR_EFLASH;
     }
+    return 0;
+}
+
+/* 4. finish: the host confirms, the record goes, the SPL boots the app */
+static int ldr_finish(uint8_t *b)
+{
+    uint32_t i;
+    for (i = 0; i < 4u; i++)
+        if (!ota_read(0xF0000000u, b, 8))
+            break;
+    if (i == 4u)
+        return LDR_ENOFIN;
+    ldr_records_drop();
+    return 0;
+}
+
+/* erase (unless erased already: the first try of the fast install's), program, verify: twice at most */
+static int ldr_write_sector(uint32_t s, const uint8_t *sec, uint8_t *cur, uint32_t erased)
+{
+    uint32_t tries, k;
+    for (tries = 0; tries < 2u; tries++) {
+        if (!(erased && !tries) && ldr_erase(s))
+            return -9;
+        for (k = 0; k < 0x1000u; k += 256u)
+            if (ldr_prog(s + k, sec + k, 256))
+                return -10;
+        if (ldr_fread(s, cur, 0x1000u))
+            return -8;
+        if (ota_memeq(sec, cur, 0x1000u))
+            return 0;
+    }
+    return -11;                                          /* verify failed twice */
+}
+
+static int ldr_pass(void)
+{
+    static uint8_t hdr[0x400], sec[0x1000], cur[0x1000];
+    static uint16_t sc[LDR_NSEC];
+    uint32_t k, fl_off, key, s, want, done = 0;
+    int rc;
+    if ((rc = ldr_head(hdr, sec, &fl_off, &want, &key)) != 0)
+        return rc;
     /* 2b. the whole package first: nothing is erased for a damaged one (the head is never written, but is checked) */
-    if ((rc = ldr_check(fl_off, fl_size, want, sc, sec)) != 0)
+    if ((rc = ldr_check(fl_off, LDR_APP_HI, want, sc, sec)) != 0)
         return rc;
     if ((rc = ldr_layout_switch(key, cur)) != 0)     /* 2c. another layout before: its other sectors cleared */
         return rc;
@@ -251,34 +294,97 @@ static int ldr_pass(void)
         }
         if (ldr_fread(s, cur, 0x1000u))
             return -8;
-        if (!ota_memeq(sec, cur, 0x1000u)) {
-            uint32_t tries;
-            for (tries = 0; tries < 2u; tries++) {
-                if (ldr_erase(s))
-                    return -9;
-                for (k = 0; k < 0x1000u; k += 256u)
-                    if (ldr_prog(s + k, sec + k, 256))
-                        return -10;
-                if (ldr_fread(s, cur, 0x1000u))
-                    return -8;
-                if (ota_memeq(sec, cur, 0x1000u))
-                    break;
-            }
-            if (tries == 2u)
-                return -11;                              /* verify failed twice */
+        if (!ota_memeq(sec, cur, 0x1000u) && (rc = ldr_write_sector(s, sec, cur, 0)) != 0)
+            return rc;
+        done += 0x1000u;
+        ldr_progress(done, LDR_APP_HI - LDR_APP_LO);
+    }
+    return ldr_finish(sec);
+}
+
+#ifdef OTA_FAST_CHUNK
+/* The fast install (the host said so before the upgrade: ota.c ota_fast_hello; docs/INSTALL-SPEED.md). One pass instead
+ * of two, 4 KiB reads instead of 512 B, and only the sectors that differ come over the wire:
+ *   2b'. the host's table of flash.bin, one entry per 4 KiB sector [CRC16 (the UFW's), CRC-32 (zlib's)], read at
+ *        LDR_TBL + flash.bin's offset; the CRC16s combined must give the UFW entry's CRC16 of the whole flash.bin, so
+ *        the table is the package's (a damaged package or table is refused before anything is erased, as 2b);
+ *   3'.  a sector whose flash already has both CRCs is kept and never sent; any other one is erased while it comes in
+ *        (one 4 KiB read), checked against both CRCs (three tries: never written otherwise), programmed and verified
+ *        byte for byte. A cut-off install resumes the same way: what was written already is skipped.
+ * The CRC16 of a sector carried in the table is the same check as 2b's per-sector one; the CRC-32 next to it makes
+ * "already there" a 48-bit match */
+#define LDR_TBL 0xD0000000u
+#define LDR_NALL (LDR_APP_HI >> 12)                      /* flash.bin's sectors, the head's included */
+_Static_assert(OTA_FAST_CHUNK == 0x1000u && LDR_NALL * 6u <= OTA_FAST_CHUNK, "one read per sector, the table in one");
+
+static int ldr_table_ok(const uint8_t *t, uint32_t want, uint8_t *zero)
+{
+    uint32_t k, i, c = 0;
+    for (k = 0; k < 0x200u; k++)
+        zero[k] = 0;
+    for (k = 0; k < LDR_NALL; k++) {                     /* crc(A || B) = crc(A shifted over |B| zeros) ^ crc(B) */
+        for (i = 0; i < 0x1000u; i += 0x200u)
+            c = ota_crc16(zero, 0x200u, c);
+        c ^= ota_rd16(t + k * 6u);
+        if (!(k & 31u))
+            ota_idle();                                  /* (the watchdog, USB) */
+    }
+    return c == want;
+}
+
+static int ldr_same(const uint8_t *b, const uint8_t *t)
+{
+    return ota_crc16(b, 0x1000u, 0) == ota_rd16(t) && ldr_crc32(b, 0x1000u) == ota_rd32(t + 2);
+}
+
+/* one sector from the host, as the table says, while its erase runs */
+static int ldr_fetch(uint32_t src, uint8_t *b, const uint8_t *t)
+{
+    uint32_t again;
+    for (again = 0; again < 3u; again++) {
+        if (ota_read(src, b, 0x1000u))
+            return -7;
+        if (ldr_same(b, t))
+            return 0;
+    }
+    return LDR_EBADPKG;                                  /* it came in different three times: not written */
+}
+
+static int ldr_pass_fast(void)
+{
+    static uint8_t hdr[0x400], sec[0x1000], cur[0x1000], tbl[LDR_NALL * 6u];
+    uint32_t fl_off, key, s, want, done = 0;
+    int rc;
+    if ((rc = ldr_head(hdr, sec, &fl_off, &want, &key)) != 0)
+        return rc;
+    if (ota_read(LDR_TBL + fl_off, tbl, sizeof tbl))
+        return -7;
+    if (!ldr_table_ok(tbl, want, sec))
+        return LDR_EBADPKG;                              /* nothing erased */
+    ldr_checking(1, 1);
+    if ((rc = ldr_layout_switch(key, cur)) != 0)
+        return rc;
+    for (s = LDR_APP_LO; s < LDR_APP_HI; s += 0x1000u) {
+        const uint8_t *t = tbl + (s >> 12) * 6u;
+        if (ldr_fread(s, cur, 0x1000u))
+            return -8;
+        if (!ldr_same(cur, t)) {
+            if (ldr_erase_begin(s))
+                return -9;
+            rc = ldr_fetch(fl_off + s, sec, t);
+            if (ldr_erase_end())
+                return -9;
+            if (rc)
+                return rc;
+            if ((rc = ldr_write_sector(s, sec, cur, 1)) != 0)
+                return rc;
         }
         done += 0x1000u;
         ldr_progress(done, LDR_APP_HI - LDR_APP_LO);
     }
-    /* 4. finish: the host confirms, the record goes, the SPL boots the app */
-    for (i = 0; i < 4u; i++)
-        if (!ota_read(0xF0000000u, sec, 8))
-            break;
-    if (i == 4u)
-        return LDR_ENOFIN;
-    ldr_records_drop();
-    return 0;
+    return ldr_finish(sec);
 }
+#endif
 
 /* a pass that does not add up (a byte damaged on the way) is run again: the host answers any read, so it
  * just serves the image once more and the sectors that differ are rewritten; a package that is damaged
@@ -287,7 +393,14 @@ static int ldr_session(void)
 {
     int rc = LDR_EBADPKG;
     uint32_t pass;
+#ifdef OTA_FAST_CHUNK
+    const uint32_t fast = ota_fast;
+    ota_fast = 0;                                        /* (the word holds for this session only) */
+    for (pass = 0; pass < 3u && rc == LDR_EBADPKG; pass++)
+        rc = fast ? ldr_pass_fast() : ldr_pass();
+#else
     for (pass = 0; pass < 3u && rc == LDR_EBADPKG; pass++)
         rc = ldr_pass();
+#endif
     return rc;
 }

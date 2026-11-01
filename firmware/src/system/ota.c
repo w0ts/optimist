@@ -48,7 +48,9 @@ static int ota_step_size(uint32_t n)                /* n is one step's flash.bin
 #define OTA_LDR_HCRC 0xEBAAu                     /* official update loader (usb_hid_ota.bin) */
 #define OTA_LDR_DCRC 0x5881u
 #define OTA_LDR_LEN 0x4DE1u
-#define OTA_FRAME_MAX 640u                       /* 512-B response = 605 wire bytes */
+#ifndef OTA_FRAME_MAX
+#define OTA_FRAME_MAX 640u                       /* 512-B response = 605 wire bytes (the loader: 4 KiB, OTA_FAST_CHUNK) */
+#endif
 
 static int ota_wire_send(const uint8_t *p, uint32_t n);
 static int ota_frame_get(const uint8_t **p, uint32_t *n);
@@ -187,12 +189,36 @@ static uint32_t ota_take(void)
     return d;
 }
 
-/* main loop, outside a session: answer handshakes */
+#ifdef OTA_FAST_CHUNK
+/* the fast install (the update loader only, docs/INSTALL-SPEED.md): a host that can serve OTA_FAST_CHUNK-byte reads and
+ * the per-sector table says so before the upgrade command, cmd 0x31 [version 1, its largest read, 16-bit LE]; we
+ * answer the same frame with our read size. A host that says nothing (every older one) gets today's protocol: 512-byte
+ * reads of the whole package twice. The word holds for the next session only */
+#define OTA_CMD_FAST 0x31u
+static uint8_t ota_fast;
+static void ota_fast_hello(void)
+{
+    uint8_t r[3];
+    if (ota_dec[6] != 1u || ota_rd16(ota_dec + 7) < OTA_FAST_CHUNK)
+        return;                                     /* another version, or reads too short: today's protocol */
+    ota_fast = 1;
+    r[0] = 1;
+    r[1] = (uint8_t)OTA_FAST_CHUNK;
+    r[2] = (uint8_t)(OTA_FAST_CHUNK >> 8);
+    ota_send_msg(OTA_CMD_FAST, r, 3);
+}
+#endif
+
+/* main loop, outside a session: answer handshakes (and, in the loader, the fast install's word) */
 static void ota_service(void)
 {
     uint32_t d = ota_take();
     if (d == 7u && ota_dec[2] == 0x11)
         ota_reply_identity();
+#ifdef OTA_FAST_CHUNK
+    else if (d == 10u && ota_dec[2] == OTA_CMD_FAST)
+        ota_fast_hello();
+#endif
 }
 
 /* one read request (3 tries x 5 s); data -> dst */

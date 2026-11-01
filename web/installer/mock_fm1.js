@@ -16,11 +16,14 @@ const FLASH_TOP = 0xE0000000;   // addresses from here on are the loader's "succ
 export class FakeFM1 {
   // identity: what the running firmware reports; loaderIdentity / finalIdentity: after step 1 / step 2.
   // unplugAfter: the port disappears after that many answered reads. writeBlocks: the 512 B reads of step 2 (default 6).
-  // plugged: false starts with no port (plug() adds it).
+  // plugged: false starts with no port (plug() adds it). fast: the loader answers the fast install's word and reads the
+  // table, then every whole 4 KiB sector (docs/INSTALL-SPEED.md); fastWords counts the words it heard.
   constructor(image, opts = {}) {
     const { unplugAfter = Infinity, finalIdentity = "FM-1_900", identity = "FM-1_015", loaderIdentity = "ota-FM-1_900",
-            writeBlocks = 6, plugged = true, name = "FM-1" } = opts;
-    Object.assign(this, { image, unplugAfter, finalIdentity, loaderIdentity, writeBlocks, name, identity });
+            writeBlocks = 6, plugged = true, name = "FM-1", fast = false } = opts;
+    Object.assign(this, { image, unplugAfter, finalIdentity, loaderIdentity, writeBlocks, name, identity, fast });
+    this.fastWords = 0;
+    this.fastOn = false;
     this.served = 0;
     this.bad = 0;
     this.access = { inputs: new Map(), outputs: new Map(), onstatechange: null };
@@ -67,6 +70,11 @@ export class FakeFM1 {
     this.sysex([0, 0x59, 0x11, 0, 0, 0, ...padded]);
   }
   readPlan() {
+    if (this.identity.startsWith("ota-") && this.fastOn) {
+      const n = Math.floor(this.image.length / 4096), plan = [[0xD0000000, n * 6]];
+      for (let k = 0; k < n; k++) plan.push([k * 4096, 4096]);
+      return [...plan, [0xF0000000, 8]];
+    }
     if (this.identity.startsWith("ota-")) {
       const blocks = [];
       for (let k = 0; k < this.writeBlocks; k++) blocks.push([k * 512, 512]);
@@ -82,7 +90,14 @@ export class FakeFM1 {
       return this.next();
     }
     const payload = unpack7(msg.slice(1, -1));
-    if (!this.waiting && this.identity === "FM-1_015" && (payload[2] === 33 || payload[2] === 34)) return this.bankCmd(payload);
+    if (payload.length === 10 && payload[2] === 0x31) {          /* the fast install's word: a fast loader answers */
+      this.fastWords++;
+      if (this.fast && this.identity.startsWith("ota-")) {
+        this.fastOn = true;
+        this.sysex([0, 0x59, 0x31, 3, 0, 0, 1, 0, 16, ~17 & 0xFF]);
+      }
+      return;
+    }    if (!this.waiting && this.identity === "FM-1_015" && (payload[2] === 33 || payload[2] === 34)) return this.bankCmd(payload);
     if (this.waiting) this.checkAnswer(payload);
   }
   checkAnswer(payload) {
@@ -91,6 +106,7 @@ export class FakeFM1 {
     const got = payload.slice(14, 14 + (isToken ? 8 : len));
     const expected = isToken
       ? [...new TextEncoder().encode("success"), 0]
+      : addr >= 0xD0000000 ? fakeTable(this.image, addr - 0xD0000000, len / 6)
       : Array.from(this.image.subarray(addr, addr + len));
     if (!sameBytes(got, expected)) this.bad++;
     this.waiting = null;
@@ -126,6 +142,17 @@ export class FakeFM1 {
     frame.push(~sum & 0xFF);
     this.sysex(frame);
   }
+}
+
+/* the fast install's table as a loader expects it: per 4 KiB sector CRC16 (XMODEM) and CRC-32 (zlib), little-endian */
+function fakeTable(image, off, n) {
+  const c32 = (d) => { let c = 0xFFFFFFFF; for (const b of d) { c ^= b; for (let k = 0; k < 8; k++) c = c & 1 ? (c >>> 1) ^ 0xEDB88320 : c >>> 1; } return (c ^ 0xFFFFFFFF) >>> 0; };
+  const out = [];
+  for (let k = 0; k < n; k++) {
+    const s = image.subarray(off + k * 4096, off + (k + 1) * 4096), a = crc16(s), b = c32(s);
+    out.push(a & 0xFF, a >> 8, b & 0xFF, (b >>> 8) & 0xFF, (b >>> 16) & 0xFF, b >>> 24);
+  }
+  return out;
 }
 
 /* a .fwsc that make_site.py and checkPackage accept: the identity in the 20 marker bytes, the loader's marker, filler, and

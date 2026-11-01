@@ -1982,6 +1982,7 @@ typedef struct {
     int8_t mode;                                        /* -1 LP, 1 HP, 0 off */
     uint8_t seed;                                       /* bit per state: the LP starts from its next input (tflt_run) */
     int32_t z[5][2];                                    /* the SVF states: a part's [0]; the drums' L R REV DLY CHO */
+    uint8_t e[5][2];                                    /* their roundings left over, the top 8 of 13 bits (tflt_run) */
 } tflt_t;
 static tflt_t tflt[NTRK + 2];                           /* (the tracks', then the master's: its DJ filter, fx-rework; the USB
                                                          * input's, stage 3) */
@@ -1991,7 +1992,7 @@ static HOT void tflt_clear(tflt_t *f)
 {
     uint32_t i;
     for (i = 0; i < 5; i++)
-        f->z[i][0] = f->z[i][1] = 0;
+        f->z[i][0] = f->z[i][1] = 0, f->e[i][0] = f->e[i][1] = 0;
 }
 
 /* FILTER RESO (SLOOP 2.8 fx.c tflt_reso, GPL-3.0-only; builder item TFLT_RESO): the SVF resonance of the tracks', the drum
@@ -2030,30 +2031,43 @@ static HOT int tflt_block(tflt_t *f, int32_t v, tsvf_t *c, int32_t reso)
     tsvf_coef(c, f->cut, reso);
     return 1;
 }
+/* one step of dsp.c tsvf_tick (the low-pass out) with its two roundings carried (first-order error feedback): the bits the
+ * >> 13 drops are added back into the next sample's sum (*r: v1's, v2's, 0 .. 8191 each; between blocks their top 8 bits).
+ * Truncated alone, with the small coefficients of a low cutoff (a3 of 0 at the bottom) the states stopped short of rest:
+ * the low-pass's held a value, the high-pass (x - LP) gave it out as a DC on silence (G_FILT 1: 726, -33 dBFS, after the
+ * music stopped; the vumeter test found it 2026-10-31). Carried, silence comes to 0 (+-1) and a closed low-pass's stop
+ * band follows its slope instead of a rounding floor (~-35 dB at FILT -64); the coefficients and the response are the
+ * same (tests/djfilt_test.c). TFLT_FINE: at the samples' own scale, the products 64 bits, the states' range 150000 << sh
+ * (the same headroom as at 2^sh below, without its rounding; a high-pass at a low cutoff: x - y left that rounding as
+ * loud as a quiet part, 18-20 dB lower, measured on the host 2026-10-26) */
 #if FELUCCA_TFLT_FINE
-/* TFLT_FINE: dsp.c tsvf_tick at the samples' own scale, the products 64 bits, the states' range 150000 << sh: the same
- * headroom as at 2^sh below, without its rounding (a high-pass at a low cutoff: x - y left that rounding as loud as a quiet
- * part; 18-20 dB lower, measured on the host 2026-10-26) */
-AINL int32_t tflt_tick_w(const tsvf_t *c, int32_t in, int32_t *ic1, int32_t *ic2, int32_t lim)
+typedef int64_t tflt_acc_t;
+#else
+typedef int32_t tflt_acc_t;
+#endif
+AINL int32_t tflt_tick_e(const tsvf_t *c, int32_t in, int32_t *ic1, int32_t *ic2, int32_t *r1, int32_t *r2, int32_t lim)
 {
     int32_t v3 = in - *ic2;
-    int32_t v1 = (int32_t)(((int64_t)c->a1 * *ic1 + (int64_t)c->a2 * v3) >> 13);
-    int32_t v2 = *ic2 + (int32_t)(((int64_t)c->a2 * *ic1 + (int64_t)c->a3 * v3) >> 13);
+    tflt_acc_t s1 = (tflt_acc_t)c->a1 * *ic1 + (tflt_acc_t)c->a2 * v3 + *r1;
+    tflt_acc_t s2 = (tflt_acc_t)c->a2 * *ic1 + (tflt_acc_t)c->a3 * v3 + *r2;
+    int32_t v1 = (int32_t)(s1 >> 13), v2 = *ic2 + (int32_t)(s2 >> 13);
+    *r1 = (int32_t)s1 & 8191;
+    *r2 = (int32_t)s2 & 8191;
     *ic1 = clamp(2 * v1 - *ic1, -lim, lim);
     *ic2 = clamp(2 * v2 - *ic2, -lim, lim);
     return v2;
 }
-#endif
 /* n samples of b through state ch, at 2^sh below their level (the SVF's range: +-140000; TFLT_FINE: at their level, the
  * range 140000 << sh) */
 static HOT void tflt_run(tflt_t *f, const tsvf_t *c, int32_t *b, uint32_t n, uint32_t ch, uint32_t sh)
 {
     uint32_t i;
-    int32_t *z = f->z[ch], lp = f->mode < 0;
+    int32_t *z = f->z[ch], lp = f->mode < 0, z0, z1, r1 = f->e[ch][0] << 5, r2 = f->e[ch][1] << 5;
 #if FELUCCA_TFLT_FINE
     int32_t in_max = 140000 << sh, st_max = 150000 << sh;   /* (an owner always runs at its own sh: its states at that scale) */
 #define TFLT_IN(v) clamp(v, -in_max, in_max)
 #else
+    const int32_t st_max = 150000;
 #define TFLT_IN(v) clamp((v) >> sh, -140000, 140000)
 #endif
     if ((f->seed >> ch) & 1u) {                         /* (SLOOP 2.6 d30d655 fx.c djf_run, GPL-3.0-only) the LP's first */
@@ -2061,17 +2075,20 @@ static HOT void tflt_run(tflt_t *f, const tsvf_t *c, int32_t *b, uint32_t n, uin
         if (lp && n) {                                  /* exact), not 0 */
             z[0] = 0;
             z[1] = TFLT_IN(b[0]);
+            r1 = r2 = 0;
         }
     }
+    z0 = z[0], z1 = z[1];
     for (i = 0; i < n; i++) {
+        int32_t x = TFLT_IN(b[i]), y = tflt_tick_e(c, x, &z0, &z1, &r1, &r2, st_max);
 #if FELUCCA_TFLT_FINE
-        int32_t x = TFLT_IN(b[i]), y = tflt_tick_w(c, x, &z[0], &z[1], st_max);
         b[i] = lp ? y : x - y;
 #else
-        int32_t x = TFLT_IN(b[i]), y = tsvf_lp(c, x, &z[0], &z[1]);
         b[i] = (lp ? y : x - y) << sh;
 #endif
     }
+    z[0] = z0, z[1] = z1;
+    f->e[ch][0] = (uint8_t)(r1 >> 5), f->e[ch][1] = (uint8_t)(r2 >> 5);
 #undef TFLT_IN
 }
 /* a part's (b: before its level, up to +-884000: 3 bits down) at amount v (0: it opens, then off) */
