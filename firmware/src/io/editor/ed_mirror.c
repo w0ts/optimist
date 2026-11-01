@@ -167,6 +167,121 @@ static uint32_t mbr_lag(void)
 #else
 #define mbr_lag() MIR_BLE_LAG
 #endif
+/* The Bluetooth stream paced to a budget (2026-11-01, AIMD): pushed at the link's limit (the lag rule above: 2.5-4 KB waiting) the
+ * Mac's MIDI input lost whole frames in bursts, 1-4 a second, each answered by repairs that pushed more. Now the frames go out
+ * only within a budget in bytes a second (a token bucket: the replies count too, never held back), and the ring is a short
+ * transmit queue (MBA_Q_MS of the budget). A frame the budget refuses puts the mirror behind (MIR_WHY_LAG): nothing drawn is
+ * queued meanwhile, and once the budget has refilled the panel is repainted in place, MIR_SKIP sending only what the client
+ * does not hold (the encoder's segment hashes and whole writes are the dirty map: a write dropped never reached them, a frame
+ * lost is forgotten there by mir_fix). The latest pixels win, nothing falls behind: a busy screen just updates less often.
+ * The budget: from MBA_START x1.5 each MBA_SS_MS it was spent until the first loss (slow start), then halved on a loss (a repair asked, 106 bit 4, or the client's loss count risen, 106 bit 5; once per MBA_HOLD_MS:
+ * the losses of frames sent before the cut are not counted twice), raised a tenth each second it was spent and nothing was
+ * lost, between MBA_FLOOR and the link's octets a connection event (MBA_CEIL at most) */
+#ifndef MIR_AIMD
+#define MIR_AIMD 1
+#endif
+#if MIR_AIMD
+enum { MBA_FLOOR = 1000, MBA_CEIL = 20000, MBA_START = 3000, MBA_SS_MS = 250, MBA_BURST_MS = 200, MBA_RESUME_MS = 100, MBA_Q_MS = 80,
+       MBA_Q_MIN = 1024, MBA_HOLD_MS = 400, MBA_INC_MS = 1000, MBA_CATCH_MS = 100 };
+static struct {
+    uint32_t rate, t, inc_ms, cut_ms;   /* bytes a second; tokens last added; the last raise or its check; the last cut */
+    int32_t tok;                        /* the budget left, in thousandths of a byte */
+    uint8_t limited, ack_have, ack_lost;   /* a frame refused since the last raise; the client's loss count, as last read */
+    uint8_t ss;                         /* slow start: until the first loss, x1.5 each MBA_SS_MS it was spent */
+    volatile uint8_t loss;              /* (the radio's interrupts) a loss reported, for mba_poll */
+    uint32_t cuts, ups, refused;        /* the counts the client logs (106 op 6) */
+} mba;
+static int mba_on(void) { return mir.link == MIR_BT; }
+/* the ceiling: a quarter over the link's pace as measured (mbr_lag), MBA_CEIL until it is. The link's own pace is not known ahead (one 50-octet packet an event, 5 KB/s, with a Mac's 7.5 ms;
+ * 13-19 KB/s with the refill within an event, fm1base BLE_LL_REFILL), so the queue's limit stops what the link does not take
+ * (mba_q: a refusal, no loss) and the losses stop what the Mac does not */
+static uint32_t mba_ceil(void)
+{
+#if MIR_LAG_ADAPT
+    uint32_t c;
+    mbr_lag();                          /* (the drain measured while frames waited at both ends of a window: the link's pace) */
+    c = mbl.rate * 5u / 4u;
+    if (mbl.rate)
+        return c < 2u * MBA_FLOOR ? 2u * MBA_FLOOR : c > MBA_CEIL ? MBA_CEIL : c;
+#endif
+    return MBA_CEIL;
+}
+static void mba_fill(void)
+{
+    uint32_t dt = fm1_ms - mba.t;
+    int32_t cap = (int32_t)(mba.rate * MBA_BURST_MS);
+    if (!mba.rate) {                    /* (a new session: the start) */
+        mba.rate = MBA_START < mba_ceil() ? MBA_START : mba_ceil();
+        mba.t = mba.inc_ms = fm1_ms, mba.cut_ms = fm1_ms - MBA_HOLD_MS, mba.tok = 0, mba.ss = 1;
+        return;
+    }
+    mba.t = fm1_ms;
+    mba.tok += (int32_t)(mba.rate * (dt < 1000u ? dt : 1000u));
+    cap = cap < 600000 ? 600000 : cap;  /* (600 B at least: two cut frames) */
+    if (mba.tok > cap)
+        mba.tok = cap;
+}
+static uint32_t mba_q(void) { uint32_t q = mba.rate * MBA_Q_MS / 1000u; return q < MBA_Q_MIN ? MBA_Q_MIN : q; }
+/* a frame may start now (else refused: the mirror falls behind, the repaint sends what changed) */
+static int mba_admit(void)
+{
+    mba_fill();
+    if (mba.tok >= 0 && mbr.w - mbr.r <= mba_q())
+        return 1;
+    if (mba.tok < 0)
+        mba.limited = 1;                /* (the budget held it back: a raise may follow, up to the link's pace, mba_ceil) */
+    mba.refused++;
+    return 0;
+}
+/* the repaint may start: the budget refilled for MBA_RESUME_MS (300 B at least), the queue half empty */
+static int mba_ready(void)
+{
+    int32_t want = (int32_t)(mba.rate * MBA_RESUME_MS);
+    mba_fill();
+    return mba.tok >= (want < 300000 ? 300000 : want) && mbr.w - mbr.r <= mba_q() / 2u;
+}
+static void mba_ack(uint32_t lost)      /* (the radio's interrupts: 106 bit 5) */
+{
+    if (mba.ack_have && (lost & 127u) != mba.ack_lost)
+        mba.loss = 1;
+    mba.ack_lost = (uint8_t)(lost & 127u), mba.ack_have = 1;
+}
+static void mba_poll(void)              /* (mir_poll: the cut and the raise) */
+{
+    if (!mba_on() || !mir.on)
+        return;
+    mba_fill();
+    if (mba.loss) {
+        mba.loss = 0;
+        if (fm1_ms - mba.cut_ms >= MBA_HOLD_MS) {
+            mba.rate = mba.rate / 2u < MBA_FLOOR ? MBA_FLOOR : mba.rate / 2u;
+            mba.cut_ms = mba.inc_ms = fm1_ms;
+            mba.tok = mba.tok > 0 ? 0 : mba.tok;
+            mba.cuts++;
+            mba.ss = 0;
+        }
+    }
+    if (fm1_ms - mba.inc_ms >= (mba.ss ? (uint32_t)MBA_SS_MS : (uint32_t)MBA_INC_MS)) {
+        uint32_t up = mba.ss ? mba.rate / 2u : mba.rate / 10u < 50u ? 50u : mba.rate / 10u, c = mba_ceil();
+        if (mba.limited && mba.rate < c) {
+            mba.rate = mba.rate + up > c ? c : mba.rate + up;
+            mba.ups++;
+        }
+        mba.limited = 0;
+        mba.inc_ms = fm1_ms;
+    }
+}
+#define MBA_ON() mba_on()
+static void mba_reset(void) { uint32_t c = mba.cuts, u = mba.ups, r = mba.refused; memset(&mba, 0, sizeof mba); mba.cuts = c, mba.ups = u, mba.refused = r; }
+#else
+#define mba_reset() ((void)0)
+#define MBA_ON() 0
+enum { MBA_CATCH_MS = MIR_CATCH_MS };
+#define mba_admit() 1
+#define mba_ready() 1
+#define mba_ack(l) ((void)(l))
+#define mba_poll() ((void)0)
+#endif
 /* A catch-up larger than the ring (2026-11-01, measured on the FM-1 from the Mac: the mixer of mots-config, 8.7-9.5 KB a catch-up,
  * the ring 8 KB) was cut at its last band every time: behind again, the next catch-up cut the same, 2 a second for ever, the
  * client showing the top of the screen only ("stuck there, not updating"). Inside a catch-up a full ring is now waited on while
@@ -177,7 +292,8 @@ static uint32_t mbr_lag(void)
 #endif
 static uint32_t mbr_wait_ms;
 static int mir_bt_up(void);
-static int mbr_in_catch(void) { return fm1_ms - mir.catch_ms < MIR_CATCH_MS + mbr_wait_ms; }
+static int mbr_in_catch(void) { return !MBA_ON() && fm1_ms - mir.catch_ms < MIR_CATCH_MS + mbr_wait_ms; }   /* (paced: a catch-up
+                                         * is budgeted as all else, never waited on) */
 static void mbr_wait_room(void)
 {
     uint32_t t0 = fm1_ms, r = mbr.r, start = fm1_ms;
@@ -194,7 +310,10 @@ static int mbr_put(uint32_t b)
 {
     if (b == 0xF0u) {
         mbr.fw = mbr.w;
-        if (!mbr_reply && !mbr_in_catch() && mbr.w - ((int32_t)(mbr.base - mbr.r) > 0 ? mbr.base : mbr.r) > mbr_lag())
+        if (MBA_ON()) {
+            if (!mbr_reply && !mba_admit())
+                return 0;               /* (over the budget: behind, the repaint sends what changed meanwhile) */
+        } else if (!mbr_reply && !mbr_in_catch() && mbr.w - ((int32_t)(mbr.base - mbr.r) > 0 ? mbr.base : mbr.r) > mbr_lag())
             return 0;                   /* (behind: the catch-up sends the screen as it is then) */
     }
     if (mbr.fw - mbr.r >= MIR_BLE_RING && mbr_in_catch())
@@ -202,6 +321,10 @@ static int mbr_put(uint32_t b)
     if (mbr.fw - mbr.r >= MIR_BLE_RING || !MBR_HAVE())
         return 0;                       /* (full, or no ring: this frame is dropped, mbr.w never saw it) */
     mbr_q[mbr.fw++ % MIR_BLE_RING] = (uint8_t)b;
+#if MIR_AIMD
+    if (MBA_ON())
+        mba.tok -= 1000;                /* (every byte spends the budget, a reply's too) */
+#endif
     return 1;
 }
 static void mbr_end(void)
@@ -251,10 +374,12 @@ static void mbr_take(void)
     mbr_seen = fm1_ms;                  /* (a reply follows: the ring wanted, mir_lend_want) */
 #endif
     if (cmd == ED_MIRROR) {
-        if (mbr.rx_n == 5u || (mbr.rx_n == 7u && (mbr_rx[4] & MIR_FIX_BIT))) {
-            if (mbr.rx_n == 7u)
+        if (mbr.rx_n == 5u || (mbr.rx_n == 7u && (mbr_rx[4] & (MIR_FIX_BIT | MIR_ACK_BIT)))) {
+            if (mbr.rx_n == 7u && (mbr_rx[4] & MIR_FIX_BIT))
                 mir_fix_ask(mbr_rx[5], mbr_rx[6]);
-            mbr.req = (uint8_t)(0x80u | (mbr_rx[4] & ~MIR_FIX_BIT));
+            else if (mbr.rx_n == 7u)
+                mba_ack(mbr_rx[5]);     /* (the keep-alive with the client's losses, opti_miraimd_1) */
+            mbr.req = (uint8_t)(0x80u | (mbr_rx[4] & ~(MIR_FIX_BIT | MIR_ACK_BIT)));
         }
         return;
     }
@@ -341,6 +466,10 @@ static void mir_lend_off(void)          /* (its question's NO, or the offer's YE
 static int mir_lend_on(void) { return mir_lend_want(); }   /* (core/feat_mem.c FMEM_ON: a client wants it) */
 #endif
 #else
+#define MBA_ON() 0
+enum { MBA_CATCH_MS = MIR_CATCH_MS };
+#define mba_ready() 1
+#define mba_poll() ((void)0)
 static int mbr_put(uint32_t b) { (void)b; return 0; }
 static void mbr_end(void) {}
 static int mir_bt_up(void) { return 0; }
@@ -459,7 +588,7 @@ static void ed_mirror(const uint8_t *a, uint32_t na)
 {
     if (na == 3u && (a[0] & MIR_FIX_BIT))
         mir_fix_ask(a[1], a[2]);
-    mir_ask(na ? a[0] & ~MIR_FIX_BIT : 0u, MIR_USB);
+    mir_ask(na ? a[0] & ~(MIR_FIX_BIT | MIR_ACK_BIT) : 0u, MIR_USB);   /* (bit 5 over USB: nothing, no budget there) */
     ed_b(mir.on);
     ed_b(MIR_VERSION);
     ed_b4(240u & 127u, 240u >> 7, 240u & 127u, 240u >> 7);
@@ -554,7 +683,7 @@ static int mir_state_room(void)
 {
 #if MIR_BLE
     if (mir.link == MIR_BT)
-        return MIR_BLE_RING - (mbr.fw - mbr.r) >= 64u;
+        return MIR_BLE_RING - (mbr.fw - mbr.r) >= 64u && (!MBA_ON() || mba_ready());   /* (paced: within the budget) */
 #endif
     return mir.link == MIR_USB && SXQ - (so_w - so_r) >= 16u;
 }
@@ -661,6 +790,9 @@ static uint8_t mfix_due;                                 /* rectangles forgotten
 static uint32_t mfix_ms, mfix_n, mfix_whole;            /* the last repaint; repaints done; whole panels instead (the tests') */
 static void mir_fix_ask(uint32_t lo, uint32_t hi)
 {
+#if MIR_BLE && MIR_AIMD
+    mba.loss = 1;                       /* (a loss: the budget halved, mba_poll) */
+#endif
     if ((uint8_t)(mfix_w - mfix_r) >= MIR_FIXQ) {
         mfix_over = 1;
         return;
@@ -697,6 +829,14 @@ static void mir_fix(void)
         mfix_due = 0;
         return;
     }
+#if MIR_BLE
+    if (mfix_due && MBA_ON()) {         /* (paced: the rectangles forgotten are repainted with the rest, within the budget) */
+        mfix_due = 0;
+        mfix_n++;
+        mir_behind(MIR_WHY_LAG);
+        return;
+    }
+#endif
     if (mfix_due && mir_live() && fm1_ms - mfix_ms >= MIR_FIX_MS) {
         mfix_due = 0;
         mfix_ms = fm1_ms;
@@ -719,7 +859,7 @@ static void mir_mark(void)
     if (!me.chk || !mir_live() || fm1_ms - mmark.ms < (me.seq == mmark.seq ? MIR_MARK_IDLE_MS : MIR_MARK_MS))
         return;
 #if MIR_BLE
-    if (mir.link == MIR_BT && MIR_BLE_RING - (mbr.fw - mbr.r) < 64u)
+    if (mir.link == MIR_BT && (MIR_BLE_RING - (mbr.fw - mbr.r) < 64u || (MBA_ON() && !mba_admit())))
         return;
 #endif
     me.ok = 1;
@@ -738,7 +878,10 @@ static void mir_poll(void)
         static const uint8_t R[6] = {1, MIR_VERSION, 240u & 127u, 240u >> 7, 240u & 127u, 240u >> 7};
         uint32_t i;
         mbr.req = 0;
+        if (!mir.on || mir.link != MIR_BT)
+            mba_reset();                /* (a new Bluetooth session: the budget from its start) */
         mir_ask(q & 0x7Fu, MIR_BT);
+        mbr_reply = 1;                  /* (the answers below: never held back by the budget) */
         me.ok = 1;                      /* (the reply: F0 7D 46 4C 6A on 1 w w h h F7, as USB's) */
         me_open(mir.on);
         for (i = 1; i < 6u; i++)
@@ -763,6 +906,17 @@ static void mir_poll(void)
                 me_col(v[i] & 0x1FFFFFu);
             me_close();
         }
+#if MIR_AIMD
+        if (me.chk) {   /* then op 6 PACE (opti_miraimd_1; the app logs each second's change): the budget now (bytes a second), its
+                         * cuts, its raises, the frames it refused; 3 x 7 bit each, free-running */
+            uint32_t v[4] = {mba.rate, mba.cuts, mba.ups, mba.refused};
+            me_open(6);
+            for (i = 0; i < 4u; i++)
+                me_col(v[i] & 0x1FFFFFu);
+            me_close();
+        }
+#endif
+        mbr_reply = 0;
     }
     while (mbr.cr != mbr.cw && mir_bt_up()) {   /* INFO, PANEL, NAV, CLIP from Bluetooth: run as USB's, answered there */
         uint8_t f[MBR_RXN];
@@ -798,11 +952,13 @@ static void mir_poll(void)
     mir_test();
     mir_state();
     mir_fix();
+    mba_poll();
     if (mst.fix_open && fm1_ms - mst.fix_ms >= 100u)
         mst.fix_open = 0, mst.fix_bytes += mst.bytes - mst.fix_b0;   /* (a repair's bytes: those within 100 ms of it) */
     mir_mark();
-    if (!mir.on || !mir.behind || ui.overlay == 5u || (mir.link == MIR_BT ? !mir_bt_clear() : so_w != so_r) ||
-        fm1_ms - mir.catch_ms < MIR_CATCH_MS)
+    if (!mir.on || !mir.behind || ui.overlay == 5u ||
+        (mir.link == MIR_BT ? (MBA_ON() ? !mba_ready() : !mir_bt_clear()) : so_w != so_r) ||
+        fm1_ms - mir.catch_ms < (MBA_ON() ? (uint32_t)MBA_CATCH_MS : (uint32_t)MIR_CATCH_MS))
         return;
     mir.behind = 0;
     mir.catch_ms = fm1_ms;

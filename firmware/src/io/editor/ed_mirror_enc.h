@@ -35,11 +35,13 @@ static struct {
     uint8_t rx, ry, rw, rh;             /* the rectangle the frame being sent draws in (a MORE: its BLIT's; w 0: none, a mark) */
     uint32_t pi, p0;                    /* BLIT: the next pixel of the rectangle to code; the frame's first (me_rr keeps its rows) */
     uint8_t blit;                       /* the rectangle is a BLIT's (its frames cover rows p0 / w .. (pi - 1) / w), 0 a FILL's */
+    uint32_t done;                      /* BLIT: its pixels before this went out in whole frames (a write cut short: those rows held) */
 } me;
 /* the rectangles of the last MIR_RR checked frames by seq (entry seq & (MIR_RR - 1), seq | 0x80 when valid): a client that lost
  * frames a .. b asks for them (106 bit 4, ed_mirror.c mir_fix) and only those rectangles go again. 128: every 7-bit seq (was 64:
  * a burst of losses older than 64 frames fell back to a whole panel) */
-enum { MIR_RR = 128, MIR_FIX_BIT = 16 };
+enum { MIR_RR = 128, MIR_FIX_BIT = 16,
+       MIR_ACK_BIT = 32 };              /* 106 bit 5 (opti_miraimd_1): the client's losses (7 bit, free-running), its next seq */
 static struct { uint8_t seq, x, y, w, h; } me_rr[MIR_RR];
 /* the rectangle's pixel i (row by row, me.w a row), in a buffer of rows me.sw apart */
 static uint32_t me_at(const uint16_t *px, uint32_t i) { return me.sw == me.w ? px[i] : px[i / me.w * me.sw + i % me.w]; }
@@ -83,6 +85,8 @@ static void me_close(void)
     me_b(0xF7);
     if (me.ok) {
         mir_wire_end();
+        if (me.blit)
+            me.done = me.pi;
         if (me.chk_f) {
             uint32_t k = me.seq & (MIR_RR - 1u);
             me_rr[k].seq = (uint8_t)(me.seq | 0x80u);
@@ -247,6 +251,7 @@ static void mir_enc_rect(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const u
 {
     uint32_t i = 0, n = w * h, r, c;
     me.pi = 0;
+    me.done = 0;
     me.blit = 1;
     me.w = (uint16_t)w, me.sw = (uint16_t)sw;
     me_rect(1, x, y, w, h);
@@ -415,7 +420,14 @@ static void mir_enc_blit_skip(uint32_t x, uint32_t y, uint32_t w, uint32_t h, co
             ;                           /* (rows whose change lies inside this one's span: the same rectangle) */
         me.ok = 1;
         mir_enc_rect(x + a, y + r, b - a, k - r, px + r * w + a, w);
-        me_learn(px + r * w, x, y + r, w, k - r, me.ok);
+        {   /* (cut short: the rows its whole frames carried are held, the rest not; 2026-11-01, a budget refusing the rest of a
+             * tall rectangle each time would otherwise send its top again and again) */
+            uint32_t held = me.ok ? k - r : me.done / (b - a);
+            if (held)
+                me_learn(px + r * w, x, y + r, w, held, 1);
+            if (r + held < k)
+                me_learn(px + (r + held) * w, x, y + r + held, w, k - r - held, 0);
+        }
         whole &= me.ok;
         r = k;
     }
