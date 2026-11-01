@@ -62,7 +62,7 @@ DELAY = {"info": 1.0, "open": 0.3, "stop": 0.1, "start": 2.0, "start_fast": 0.05
          "poll": 1.0, "hs": 1.0, "idle_check": 8.0, "idle_write": 180.0,
          "wait_loader": 30.0, "wait_reboot": 40.0}
 
-EXIT = {"nomf": 8, "refused": 7, "cancel": 1, "usage": 2, "badpkg": 2, "notfound": 3, "model": 6, "lost": 4, "stopped": 4, "badreq": 4,
+EXIT = {"nomf": 8, "refused": 7, "cancel": 1, "usage": 2, "badpkg": 2, "notfound": 3, "several": 3, "model": 6, "lost": 4, "stopped": 4, "badreq": 4,
         "noloader": 5, "noreturn": 5, "mismatch": 6, "foreign": 6}
 
 
@@ -576,6 +576,35 @@ def platform_warning(running, product, image):
             "The way over: M-VAVE's V15 first (fm1base/tools/fm1_install.py web/stock/FM-1_015.fwsc), then this package")
 
 
+FM1_TOKEN = re.compile(r"FM1-[0-9A-F]{4}", re.I)
+FM1_NAME = re.compile(r"FM1-[0-9A-F]{4}|fm-1|optimist|felucca", re.I)   # (an FM-1 for sure: not "usb-midi" / "composite")
+
+
+def fm1_devices(names):
+    """the FM-1s among MIDI port names, one key each: its FM1-XXXX (all its ports share it), else the port's name;
+    Bluetooth's ports left out (the same FM-1 seen twice)"""
+    keys = []
+    for n in names:
+        if "bluetooth" in n.lower() or not FM1_NAME.search(n):
+            continue
+        m = FM1_TOKEN.search(n)
+        k = m.group(0).upper() if m else n
+        if k not in keys:
+            keys.append(k)
+    return keys
+
+
+def several(up):
+    """more than one FM-1 on the cable and no --port: an install must not pick one by itself (2 FM-1s, 2026-11-01)"""
+    if up.port or up.backend is None:                      # (no MIDI at all: a dry run, the download route)
+        return None
+    devs = fm1_devices(up.backend.input_names())
+    if len(devs) < 2:
+        return None
+    return InstallError("several", f"{len(devs)} FM-1s are connected ({', '.join(devs)}): name the one to use with "
+                                   f"--port (a part of its port's name)")
+
+
 def not_found(up):
     names = up.backend.input_names()
     where = f"no MIDI port matching {up.port!r} answered" if up.port else "FM-1 not found"
@@ -638,6 +667,9 @@ def no_interrupt(out=None):
 def run(a, backend, out, ask, ask_text=None):
     _route_modules()
     up = Updater(backend, a.port)
+    err = several(up)
+    if err:
+        raise err
     if a.info:
         dev = up.find()
         if not dev:
