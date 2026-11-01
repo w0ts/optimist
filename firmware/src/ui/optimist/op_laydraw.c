@@ -307,8 +307,8 @@ static void tempo_draw(int32_t h)
  * mixer draws a row: 4 groups of 4 steps (MX_STEP_X), shaded by level, the track's colour; the drums' lanes as rows */
 #if FELUCCA_PATTERNS
 #define PG_X0 21                                        /* the first cell's x: the track's tag and its knob left of it */
-#define PG_CW 12                                        /* a cell's width */
-#define PG_X(i) (PG_X0 + (int32_t)(i) * 217 / 16)       /* column i's x: pitch 13..14 */
+#define PG_CW 11                                        /* a cell's width (12 before the group gaps: 3 x MXL_GG = 6 px had to come from the row) */
+#define PG_X(i) (PG_X0 + (int32_t)(i) * 40 / 3 + (int32_t)((i) / 4u) * MXL_GG)   /* column i's x: pitch 13..14, the mixer's bigger gap after every 4th (the user, 2026-11-01) */
 #define PG_NUMH 11                                      /* a line of numbers */
 #define PG_LANE 4                                       /* a drum lane's row in the preview */
 #define PG_PVX 13                                       /* the preview's first step (213 px wide: centred) */
