@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* STEP ENTRY (the user, 2026-11-01; docs/UI-OPTIMIST-DESIGN.md 4.2 "STEP ENTRY"): a synth track's STEP, the transport stopped
- * and REC on (armed: rec_wait). A cursor step instead of the playhead:
+ * and REC on (armed: rec_wait), or on / off by a double SEQ tap (st.se_pref, se_toggle), playing too. A cursor step instead of the playhead:
  *   KNOB 1        the cursor, a step a detent (stops at the first / last); the window follows it; the notes that start on the
  *                 step it lands on sound (audition_notes, ~200 ms)
  *   KNOB 2 3 4    as the note picker's (op_step.c pk_edit), on every note that starts on the cursor step (all selected, a chord
@@ -18,12 +18,30 @@
  * deletes them, as the picker's. Main loop only; the sound is seq.c's (audition_notes, the audio context). */
 static int se_on(void)
 {
-    return ui.scr == SCR_STEP && !is_drum(TSEL) && rec_wait && !song.playing && !song.rec && !transport_req && !ft_on &&
-           !st.se_park && !st.play && (!st.held || st.latch)
+    if (ui.scr != SCR_STEP || is_drum(TSEL) || ft_on || st.se_park || st.play || (st.held && !st.latch) || st.se_pref == 2)
+        return 0;
 #if FELUCCA_REC_MODES
-           && !ci_on
+    if (ci_on)
+        return 0;
 #endif
-        ;
+    if (st.se_pref == 1)
+        return !song.rec;                               /* (a double SEQ tap: on, playing too) */
+    return rec_wait && !song.playing && !song.rec && !transport_req;
+}
+/* the double SEQ tap (op_step.c step_seq_tap): STEP ENTRY on, stopped or playing, or back to the step sequencer; the toast is
+ * the mode's name (se_enter's for "on") */
+static void se_toggle(void)
+{
+    if (se_on()) {
+        st.se_pref = 2, st.follow = 1;                  /* (the window follows the playhead again) */
+        ui_message("STEP SEQ");
+        return;
+    }
+    st.se_pref = 1;
+    if (!se_on()) {
+        st.se_pref = 0;
+        ui_message("NOT NOW");                          /* (a take is recording, or a step is held) */
+    }
 }
 static int32_t se_starts(const track_t *t, uint32_t a, uint32_t p)   /* the slot of pitch p among the notes starting at a, -1 none */
 {
@@ -109,6 +127,7 @@ static void se_enter(void)                              /* STEP ENTRY begins: th
     if (st.se_was)
         return;
     st.se_was = 1;
+    st.follow = 0;                                      /* (the cursor is its own, the playhead runs on) */
     st.cur = (uint8_t)(pk_ok() ? st.pk : st.page * 16u);
     st.sess = (undo_sess += 4u) | 3u;
     ui_message("STEP ENTRY");
@@ -241,8 +260,8 @@ static uint32_t se_leds(void)
 }
 static int se_play(void)                                /* PLAY in STEP ENTRY: the take armed, the transport stays; 1 done */
 {
-    if (!se_on())
-        return 0;
+    if (!se_on() || !rec_wait || song.playing)
+        return 0;                                       /* (playing, or REC off: PLAY is the transport's) */
 #if FELUCCA_REC_MODES
     if (rec_count)
         return 0;                                       /* (START COUNT: PLAY counts in, as before) */
