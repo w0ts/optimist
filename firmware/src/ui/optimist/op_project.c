@@ -1183,13 +1183,11 @@ static void sys_ua_cell(uint32_t i, cell_t *c)
  * with BLE meanwhile; WAIT RX AND/OR the status bits all / any of the device's answers had during that wait, LINK RX the
  * same over the link (a bit in all of the wait's and not all of the link's: its stop or NAK, rxstat bits not documented);
  * L2CAP STOPS its payloads that said stop; SINK DRAIN the most the device's buffer lost (and when); FEED GAP the longest
- * between two packets made (the render); AFH the channels hopped, the switches (the last when); BLE its connection
- * interval now (0: none). PACKETS/S and AIR (mean slots) gave way to the RX lines (btdrop-2: flash). A table on
- * plat_bta_stats' fields (all uint32_t): up to three numbers a line "a/b/c" (decimal, the first in tenths where BT_T, or
- * hex where BT_H), its unit, the time since ("12s ago"); amber (DROPPED red) from a line's first number at its BW */
-#define INFO_BTN 12u
+ * between two packets made (the render). PACKETS/S, AIR (mean slots), AFH (channels, switches) and BLE (its interval)
+ * gave way to the RX lines (btdrop-2: flash; btdrop-1 on the user's FM-1 showed them normal at the drop). A table on
+ * plat_bta_stats' fields (all uint32_t): up to three numbers a line "a/b/c" (decimal, or hex where BT_H), its unit, the time since ("12s ago"); amber (DROPPED red) from a line's first number at its BW */
+#define INFO_BTN 10u
 #define BT_F(m) ((uint8_t)(__builtin_offsetof(struct plat_bta_stats, m) / 4u))
-#define BT_T 0x80u                                      /* (n's flag: the first number in tenths) */
 #define BT_H 0x40u                                      /* (n's flag: the numbers in hex, 4 digits: status words) */
 static const char *const BTU[] = {"", " pk", " ms"};   /* (the units: BTR's u) */
 static const struct {
@@ -1206,8 +1204,6 @@ static const struct {
     {"L2CAP STOPS", 1, {BT_F(flow0)}, 0, 1, 0},
     {"SINK DRAIN", 1, {BT_F(drain_ms)}, BT_F(drain_ago), 100, 2},
     {"FEED GAP", 1, {BT_F(feed_gap_ms)}, 0, 21, 2},
-    {"AFH CH/SW", 2, {BT_F(afh_ch), BT_F(afh_sw)}, BT_F(afh_ago), 0, 0},
-    {"BLE", 1 | BT_T, {BT_F(ble_ivl_x10)}, 0, 0, 2},
 };
 _Static_assert(sizeof(struct plat_bta_stats) % 4u == 0u && sizeof(struct plat_bta_stats) / 4u < 64u, "BTR: fields as uint32_t");
 static void sys_bts_cell(uint32_t i, cell_t *c)
@@ -1238,11 +1234,7 @@ static void sys_bts_cell(uint32_t i, cell_t *c)
         if (n & BT_H)
             dual_chex(v, x, 4);
         else
-            dual_cnum(v, !k && (n & BT_T) ? x / 10u : x);
-        if (!k && (n & BT_T)) {
-            dual_cat(v, ".");
-            dual_cnum(v, x % 10u);
-        }
+            dual_cnum(v, x);
     }
     dual_cat(u, BTU[BTR[i].u % 3u]);
     x = BTR[i].ago ? w[BTR[i].ago] : 0u;
@@ -1255,7 +1247,6 @@ static void sys_bts_cell(uint32_t i, cell_t *c)
     c->col = x && w[BTR[i].f[0]] >= x ? (i == 0u ? C_ERR : C_WARN) : 0;
 }
 #undef BT_F
-#undef BT_T
 #undef BT_H
 #else
 #define INFO_BTN 0u
