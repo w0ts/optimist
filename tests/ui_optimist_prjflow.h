@@ -37,8 +37,30 @@ static void pf_key(uint32_t w)                          /* white key w down and 
     kdown(k);
     kup(k);
 }
+static void prjflow_slotmsg_tests(void)                 /* a key past the last slot: a toast, never silence (2026-11-01) */
+{
+    char want[32];
+    uint32_t n = prj_slot_n(PR_PROJECT), w;
+    (void)pf_row(PR_PROJECT);
+    if (n >= 16u)
+        return;                                         /* (16 projects: no key falls past the end) */
+    ui.toast_t = 0;
+    ui.msg[0] = 0;
+    pf_key(n);                                          /* (the first key past the end) */
+    snprintf(want, sizeof want, "ONLY %u PROJECT%s: SEE MEMORY", (unsigned)n, n == 1u ? "" : "S");
+    check(!op_armed() && ui.toast_t && !strcmp(ui.msg, want), "PROJECT: a key past the last slot: toast \"Only n projects: see memory\", no question");
+    for (w = 0; w < 16u; w++) {
+        ui.toast_t = 0;
+        pf_key(w);
+        check(w < n ? (ui.toast_t == 0 || strncmp(ui.msg, "ONLY", 4)) : (ui.toast_t && !strncmp(ui.msg, "ONLY", 4) && !op_armed()),
+              "PROJECT: keys 1..n act as before, every key past n gives the toast");
+        if (op_armed())
+            tap(B_HOME);
+    }
+}
 static void prjflow_tests(void)
 {
+    prjflow_slotmsg_tests();
     uint32_t r, r2, h0, kind, kinds[3] = {PR_PROJECT, PR_SNAP, PR_USER};
     cell_t c;
     /* every store: LOAD at first, the knob walks the operations, the BANK card exists only past 16 slots */
