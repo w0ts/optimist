@@ -955,6 +955,16 @@ static int drone_unlatch(track_t *t, uint32_t note)
 /* a bit per synth track that started a note since the UI last looked (the mute mode's keys flash short and full on
  * each: op_mixer.c mx_tick; the drum track's lanes: drums.hits). Set here (mostly the audio ISR), taken with the IRQ off */
 static volatile uint8_t trk_hits;
+#if DUAL_TIMES                                          /* (SYSTEM > CPU TIMES' NOTE: the note starts in the events) */
+static void trk_note_on_(track_t *t, uint32_t note, uint32_t vel);
+static void trk_note_on(track_t *t, uint32_t note, uint32_t vel)
+{
+    uint32_t t0 = DUAL_TM_NS_IN();
+    trk_note_on_(t, note, vel);
+    DUAL_TM_NS_OUT(t0);
+}
+#define trk_note_on trk_note_on_
+#endif
 static void trk_note_on(track_t *t, uint32_t note, uint32_t vel)
 {
     if (T_SILENT(t))
@@ -1016,6 +1026,9 @@ static void trk_note_on(track_t *t, uint32_t note, uint32_t vel)
             mono_play(t, want, vel, !sounding, sounding && (t->p[P_GLIDE] != 0 || t->slide_glide));
     }
 }
+#if DUAL_TIMES
+#undef trk_note_on
+#endif
 /* a sequencer SLIDE on a POLY track (seq.c seq_slide_poly; the user, 2026-10-29: the step's GLIDE): the voice that plays
  * from goes on to note to, its envelope going on, gliding there as MONO's legato does (GLIDE's time, 0: SLIDE_T). An
  * engine that allocates its own voices (FM6), a track not ready to play: not here (-> 0, the note starts as ever) */

@@ -56,7 +56,7 @@ static int32_t dual_c1_pct(void)
 #define DUAL_TM_NJ 7u                              /* jobs: the parts (NPART <= 4), the drums, the reverb's kept block,
                                                     * the Bluetooth stream's SBC frame (bt/bt_sbc_job.h) */
 #define DUAL_TM_WIN 4u                             /* the peaks' windows of 512 ms: the last 2 s */
-enum { DTQ_PRE, DTQ_OWN, DTQ_WAIT, DTQ_POST, DTQ_BLK, DTQ_C1, DTQ_J0, DTQ_N = DTQ_J0 + DUAL_TM_NJ };
+enum { DTQ_PRE, DTQ_OWN, DTQ_WAIT, DTQ_POST, DTQ_BLK, DTQ_C1, DTQ_J0, DTQ_EVT = DTQ_J0 + DUAL_TM_NJ, DTQ_NS, DTQ_N };   /* (EVT, NS last: the older ones keep their places) */
 typedef struct {
     uint32_t avg[DTQ_N];                           /* ticks x 8, smoothed */
     uint16_t pk[DUAL_TM_WIN][DTQ_N];               /* each window's peak, ticks (held to 65535) */
@@ -72,9 +72,20 @@ typedef struct {
     uint32_t bsum[DTQ_N], bmax[DTQ_N], blocks;     /* (bench builds: each quantity's sum and largest since boot, the
                                                     * blocks counted: the emulator reads them, tools/cpubal_emu.py) */
 #endif
+    uint8_t in_evt, ns_depth;                      /* (CPU0: inside events_block; inside a timed trk_note_on) */
+    uint32_t evt, ns;                              /* this block's ticks in events_block, in its note starts (PRE's parts) */
 } dual_tm_t;
 static dual_tm_t dual_tm;
 #define DUAL_TM_JOB(p, t) ((p) < DUAL_TM_NJ ? (void)(dual_tm.jt[p] = (t)) : (void)0)   /* (dual_run: a job's time) */
+/* PRE's two parts (2026-11-01, PRE at 37..60 % of a block on the user's FM-1 while the host counts 9 k instructions at
+ * most: which of PRE): EVT the sequencer's events (seq.c events_block, from its XIP code), NOTE the note starts inside
+ * them (voice.c trk_note_on: the parts' notes and the drum hits, whatever started them in events_block; a note start
+ * the main loop makes is not counted). CPU0 only, in XIP code: fm1_ticks there. A block's sums, folded in by
+ * dual_tm_block (no events_block in a block: 0) */
+#define DUAL_TM_EVT_IN() (dual_tm.in_evt = 1, fm1_ticks())
+#define DUAL_TM_EVT_OUT(t0) (dual_tm.evt += fm1_ticks() - (t0), dual_tm.in_evt = 0)
+#define DUAL_TM_NS_IN() (dual_tm.in_evt && !dual_tm.ns_depth++ ? fm1_ticks() : 0u)
+#define DUAL_TM_NS_OUT(t0) (dual_tm.in_evt && !--dual_tm.ns_depth ? (void)(dual_tm.ns += fm1_ticks() - (t0)) : (void)0)
 static inline __attribute__((always_inline)) void dual_tm_q(uint32_t q, uint32_t t, uint16_t *pk, uint16_t *v)
 {
     uint16_t c = (uint16_t)(t < 0xFFFFu ? t : 0xFFFFu);
@@ -106,6 +117,9 @@ static inline __attribute__((always_inline)) void dual_tm_block(uint32_t t0, uin
     dual_tm_q(DTQ_POST, te - tj1, pk, v);
     dual_tm_q(DTQ_BLK, te - t0, pk, v);
     dual_tm_q(DTQ_C1, c1 ? dual_tm.c1_last : 0u, pk, v);
+    dual_tm_q(DTQ_EVT, dual_tm.evt, pk, v);
+    dual_tm_q(DTQ_NS, dual_tm.ns, pk, v);
+    dual_tm.evt = dual_tm.ns = 0;
     for (p = 0; p < DUAL_TM_NJ; p++)
         if ((ran >> p) & 1u)
             dual_tm_q(DTQ_J0 + p, dual_tm.jt[p], pk, v);
