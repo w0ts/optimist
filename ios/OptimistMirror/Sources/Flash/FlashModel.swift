@@ -19,6 +19,8 @@ final class FlashModel: ObservableObject {
     @Published private(set) var package: FlashPackage?
     @Published private(set) var packageError: String?
     @Published private(set) var loadingPackage = false
+    /// the packages kept from what came to the app (Documents/Firmware), newest first
+    @Published private(set) var received: [URL] = FlashInbox.list()
 
     @Published private(set) var device: String?          // the FM-1's identity, as the handshake gave it
     @Published private(set) var finding = false
@@ -183,6 +185,40 @@ final class FlashModel: ObservableObject {
         }
     }
 
+    /// A package that came to the app (opened from Finder, Files, AirDrop or Mail): checked, kept in Documents/Firmware and
+    /// shown ready; nothing is installed. Returns false when it could not be taken (an install is running).
+    @discardableResult
+    func receive(_ url: URL, into dir: URL = FlashInbox.folder) -> Bool {
+        guard !busy else { return false }
+        installMboot = false
+        chosen = "file"
+        package = nil
+        packageError = nil
+        do {
+            let r = try FlashInbox.receive(url, into: dir)
+            package = r.package
+            chosen = "received:\(r.url.lastPathComponent)"
+        } catch {
+            packageError = message(error)
+        }
+        received = FlashInbox.list(in: dir)
+        return true
+    }
+
+    /// One of the kept packages, picked again.
+    func choose(received url: URL) {
+        guard !busy else { return }
+        installMboot = false
+        chosen = "received:\(url.lastPathComponent)"
+        package = nil
+        packageError = nil
+        do {
+            package = try FlashPackage.check([UInt8](try Data(contentsOf: url)), title: url.lastPathComponent, file: url.lastPathComponent)
+        } catch {
+            packageError = message(error)
+        }
+    }
+
     func find() async {
         guard !busy, !finding else { return }
         finding = true
@@ -276,6 +312,7 @@ final class FlashModel: ObservableObject {
         case let e as FlashError: return e.description
         case let e as FlashPackage.Problem: return e.description
         case let e as FlashCatalog.NetError: return e.description
+        case let e as FlashInbox.Problem: return e.description
         default: return e.localizedDescription
         }
     }

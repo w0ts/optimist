@@ -92,6 +92,7 @@ struct FlashView: View {
                 HStack { Text("A .fwsc File…").foregroundStyle(.primary); Spacer(); mark("file") }
             }
             if let err = flash.listError ?? flash.packageError { Text(err).font(.footnote).foregroundStyle(.red) }
+            if let p = flash.package { Text("Ready: \(p.summary)").font(.footnote).foregroundStyle(.secondary).textSelection(.enabled) }
             if let line = flash.bootLine { Text(line).font(.footnote).foregroundStyle(.secondary) }
             if flash.package != nil && flash.bootWord != "mboot" {     // (explicit: only this option installs m-bootloader, in download mode)
                 Toggle("Install m-bootloader instead (download mode, a computer, a full backup first)", isOn: $flash.installMboot)
@@ -119,6 +120,15 @@ struct FlashView: View {
                 Text(advice.text).font(.footnote)
                 Link(advice.title, destination: advice.link).font(.footnote)
                 if MFlasherRelease.isCatalyst { Link("Other systems", destination: InstallRoute.mflasher).font(.footnote) }
+            }
+            ForEach(flash.received, id: \.self) { u in
+                Button { flash.choose(received: u) } label: {
+                    HStack {
+                        Text(u.lastPathComponent).foregroundStyle(.primary).lineLimit(1).truncationMode(.middle)
+                        Spacer()
+                        if flash.chosen == "received:\(u.lastPathComponent)", flash.package != nil { Image(systemName: "checkmark") }
+                    }
+                }
             }
         } header: {
             Text("Install")
