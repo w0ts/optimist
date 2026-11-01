@@ -51,7 +51,7 @@ static void shc_synth_tests(void)
     shc_key(0);
     check(shc_slv(t, 0, 0) == LV_GHOST && shc_slv(t, 0, 1) == LV_GHOST && !step_muted(t, 0, 0) && strstr(ui.msg, "GHOST"),
           "shift cycle: again: GHOST, popup says GHOST");
-    grey = col_shade(trk_col(0), 2u);
+    grey = mute_col();
     before = sm_count(grey);
     shc_key(0);
     check(step_muted(t, 0, 0) && step_on(&t->step[0]) && t->step[0].n == 2 && strstr(ui.msg, "STEP 1 MUTED"),
@@ -134,7 +134,7 @@ static void shc_carry_tests(void)
     sv_open();
     t = TSEL;
     c = trk_col(0);
-    grey = col_shade(c, 2u);
+    grey = mute_col();
     shc_photo(t, 1);
     st.pk = PK_NONE;
     frames(2);
@@ -240,7 +240,7 @@ static void shc_pair(uint32_t a, uint32_t b, uint32_t via_key)
         if (!via_key && i == 2u) {                      /* MUTED: grey on its own lane, its sound off, b still sounds */
             sound = shc_lanes(90);
             ok &= step_muted(t, 2, a) && dstep_has(&t->dstep[2], a) && (sound >> b & 1u) && !(sound >> a & 1u);
-            ok &= px_in(SG_X + 2 * SG_CW, SP_Y + SG_LY0(a), SG_CW - 2, SG_LH - 1, col_shade(C_WHITE, 3u))
+            ok &= px_in(SG_X + 2 * SG_CW, SP_Y + SG_LY0(a), SG_CW - 2, SG_LH - 1, mute_col())
                   && !px_in(SG_X + 2 * SG_CW, SP_Y + SG_LY0(a), SG_CW - 2, SG_LH - 1, lvl_acol(LV_GHOST));
             fm1_irq_off();
             dstep_clr(&t->dstep[2], b);                 /* (alone, muted: a rest) */
