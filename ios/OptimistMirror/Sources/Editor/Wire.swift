@@ -175,6 +175,7 @@ struct Feature: Equatable {
     static let mirsum = Feature(name: "opti_mirsum", version: 1)   // 106 op 7 SUMS, the bands request 106 bits 112: the picture checked once a second (ed_mirror_sum.h)
     static let clip = Feature(name: "opti_clip", version: 1)     // 111 CLIP, a synth track's steps (ed_clip.c; INFO tag 67)
     static let panelx = Feature(name: "opti_panelx", version: 1) // 108 PANEL's seq and let go (ed_mirror.c; INFO tag 67)
+    static let miraa = Feature(name: "opti_miraa", version: 1)   // 106's last byte: the AA token (fm1-base's anti-aliased text; ed_mirror_enc.h MIR_AA)
 }
 
 struct DeviceInfo: Equatable {
