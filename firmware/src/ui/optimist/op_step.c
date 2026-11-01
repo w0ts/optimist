@@ -87,6 +87,16 @@ static int step_pick(uint32_t held)
  * change that, if REC is on the keyboard acts as midi keyboard, off it acts as step seq. more logical"): armed or
  * recording, they sound and record as on every other page (the pen: a synth's notes set the pick); off, they are steps */
 static int step_rec_keys(void) { return song.rec != 0u || rec_wait != 0u; }
+/* the drum track on STEP, REC on (the user, 2026-11-01: "on SEQ, drums if REC is on black keys also record notes"): the black
+ * keys play their lane and record the hit (seq.c key_down, the pads' path: quantize, swing, the take started when armed) and
+ * pick the lane (step_played); the white keys stay steps. Not with a step held (its black keys pick as ever, a level cycle:
+ * a black key held + a step). Combos kept: black key held + a step = that lane's level, a black key held = LANE FX, SHIFT /
+ * SHIFT2 + a black key = mute / select, HOME + ... */
+static int step_save_keys(void);                        /* below */
+static int step_drum_rec(void)
+{
+    return ui.scr == SCR_STEP && is_drum(TSEL) && !st.play && !st.held && step_rec_keys() && !step_save_keys();
+}
 /* the keys are steps now: STEP shown, REC off, and not a pick (the drum track's HOME, step_pick: none now). The drum
  * track's SEQ + a step clears it (step_key); a synth track's SEQ held is nothing to the keys any more (it was the pen:
  * REC on is) */
