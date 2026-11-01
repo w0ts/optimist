@@ -365,11 +365,12 @@
   .mirx { background: color-mix(in srgb, var(--fg) 8%, var(--bg)); color: var(--dim); border: 0; border-radius: 8px; padding: 0 10px; }
   .mirx:hover { color: var(--fg); }
   .mirtracks { display: flex; flex-direction: column; gap: 6px; }
-  .mirlanes { display: grid; grid-template-columns: repeat(auto-fill, minmax(54px, 1fr)); gap: 4px; }
-  .mirlanes { min-height: 60px; }   /* (two rows of drum lanes kept free under the screen, empty or not: the screen one size, the user 2026-10-29) */
-  .mirlanes .mirb, .mirtrk .mirb { min-height: 28px; font-size: 11px; padding: 2px 4px; }
-  .mirtrk { display: flex; flex-wrap: wrap; gap: 4px; }   /* (T1 T2 T3 DR RET A B C MASTER: small buttons, wrapping on a narrow screen) */
-  .mirtrk .mirb { flex: 0 1 auto; min-width: 40px; }
+  .mirlanes { display: grid; grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); gap: 4px; }
+  .mirlanes { min-height: 68px; }   /* (two rows of drum lanes kept free under the screen, empty or not: the screen one size, the user 2026-10-29) */
+  .mirlanes .mirb { min-height: 32px; font-size: 12px; }
+  .mirtrk { display: flex; gap: 4px; align-items: center; }   /* (T1 T2 T3 DR MASTER full size; only the returns RET A B C are smaller) */
+  .mirtrk .mirb { flex: 1; padding: 2px; }
+  .mirtrk .mirb.mirret { min-height: 28px; font-size: 11px; }
   @media (max-width: 760px) {
     .mirwrap, #p-mirror:fullscreen .mirwrap { grid-template-columns: 1fr 1fr; }
     .mirwrap.alone, #p-mirror:fullscreen .mirwrap.alone { grid-template-columns: 1fr; }
@@ -7072,6 +7073,7 @@ function navParse(a) {
 /* the track bar from a 4 TRACKS list: the SAME rule as the iOS app's Nav.bar (ios/OptimistMirror/Sources/Nav/NavState.swift), checked
    against the same cases (ios/OptimistMirror/Tests/Fixtures/nav_track_bar.json): the drum lanes (rows past DR) on their own line; the
    second line T1 T2 T3 DR, then RET A B C and MASTER. Row numbers, in the order shown. */
+const RET_NAMES = new Set(["RET A", "RET B", "RET C"]);
 function navBar(names) {
   const n = names.length, R = MNAV.ROW_RET, D = MNAV.DRUM_ROW, T = MNAV.ROW_T1;
   const rng = (a, z) => Array.from({ length: Math.max(0, Math.min(z, n) - a) }, (_, k) => a + k);
@@ -13055,6 +13057,7 @@ function mirRender(force = false) {
     el("div", { class: "mirlanes" }, ...laneNames.map((nm, k) => mirButton(nm, { lit: lanes && cur === MNAV.DRUM_ROW + 1 + k, dim: !lanes, on: () => navTrack(MNAV.DRUM_ROW + 1 + k) }))),
     el("div", { class: "mirtrk" }, ...bar.bottom.map((p) =>
       mirButton(mnav.tracks[p], { lit: p === cur || (p === MNAV.DRUM_ROW && cur > MNAV.DRUM_ROW && !dimT), dim: dimT, on: () => navTrack(p) }))));
+  for (const b of $("mirtracks").querySelectorAll(".mirtrk .mirb")) if (RET_NAMES.has(b.textContent)) b.classList.add("mirret");   /* (RET A B C: the smaller buttons) */
 }
 /* over the screen: the buttons on or off, full screen, on STEPS of a synth track its piano roll (the editor's Sequence) */
 /* the corner's icons (stroked 24 x 24 paths) */

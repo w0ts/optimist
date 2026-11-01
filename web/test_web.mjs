@@ -3594,7 +3594,7 @@ async function editorMirror() {
   ok(/dim: !lanes/.test(mr) && /laneNames = n > MNAV\.DRUM_ROW \+ 1 \? mnav\.tracks\.slice\(MNAV\.DRUM_ROW \+ 1\) : DRUM_LANES\.map/.test(mr) && !/\.\.\.\(lanes \?/.test(mr)
     && /disabled: dim/.test(/function mirButton[\s\S]*?\n\}/.exec(html)[0]) && /\.mirb:disabled \{ opacity/.test(html) && /disabled: !onTrack/.test(mr) && /dim: dimT/.test(mr),
     "mirror: the lanes' buttons always built (the kit's names, else the default lanes'), disabled and dimmed off the drum track; the tracks too with no track; the favourite on a track");
-  ok(!/classList\.toggle\("lanes"/.test(html) && !/\.mirwrap\.lanes/.test(html) && /\.mirlanes \{ min-height: 60px; \}/.test(html) && !/\.mirlanes[^{]*\{[^}]*display: none/.test(html)
+  ok(!/classList\.toggle\("lanes"/.test(html) && !/\.mirwrap\.lanes/.test(html) && /\.mirlanes \{ min-height: 68px; \}/.test(html) && !/\.mirlanes[^{]*\{[^}]*display: none/.test(html)
     && /\.mirwrap \{ --ms: calc\(100vh - var\(--menubar-h, 48px\) - 210px\)/.test(html) && /#p-mirror:fullscreen \.mirwrap \{ --ms: calc\(100vh - 220px\)/.test(html),
     "mirror: the screen one size with or without the lanes (their rows always reserved, no .lanes class)");
 }
