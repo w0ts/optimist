@@ -44,6 +44,8 @@ static uint8_t pat_live_full;                          /* a live pattern waits i
 static int pat_leave(const project_t *p, uint32_t k);
 static void persist_flush_now(void);                   /* (project.c) */
 static int proj_tmp_busy(void);
+static int pat_store_slot(uint32_t k, uint32_t s);
+static int pat_write(uint32_t k, uint32_t s, uint32_t n);
 /* where (k, s)'s live pattern stands: 1 the arena (newer than anything in the log), 2 the log (made from the saved
  * record there now, which does not wait in the arena), 0 none */
 static int pat_live_at(uint32_t k, uint32_t s)
@@ -76,6 +78,7 @@ static uint32_t pat_get(uint32_t k, uint32_t s, uint8_t *buf)
 /* the live pattern dropped (the arena's, the log's: a tombstone, playing a pending clear) */
 static void pat_live_drop(uint32_t k, uint32_t s)
 {
+    sec_gen++;                                         /* (the grid's marks, a staged scene: read again) */
     sec_pend_del(pat_lpend(k, s));
     if (slg_has(PAT_LIX(k, s))) {
         if (song.playing || transport_req || !flash_ok)
@@ -929,6 +932,54 @@ static int pat_reload(uint32_t k)
         return 1;
     pat_live_drop(k, s);
     pat_launch_keep(k, s, PW_END, 0);
+    sec_gen++;
+    return 0;
+}
+/* the editor (ed_pat.c, issue 142 decision 4): record (n bytes in sec_rbuf, n > 0) as pattern (k, s)'s live one (the saved
+ * one again: the live one dropped); the slot playing on track k takes it (stopped at once, playing at the pattern's end,
+ * nothing kept: what plays is replaced, as a RELOAD would). -> 0 done (in the log, or waiting in RAM: MEM FULL said), 3 lost */
+static int pat_live_write(uint32_t k, uint32_t s, uint32_t n)
+{
+    int rc;
+    memmove(sec_rbuf + 4, sec_rbuf, n);
+    rc = pat_leave_rec(k, s, n);
+    if (!rc && pat_cur[k] == s)
+        pat_launch_keep(k, s, PW_END, 0);
+    else if (!rc && pat_req[k] == s)
+        pat_staged &= (uint8_t)~(1u << k);             /* (a launch waiting for it: decoded again) */
+    sec_gen++;
+    return rc;
+}
+/* the editor's SAVE of slot (k, s): the slot track k plays: its working copy saved there (SAVE + SEQ); another: its live
+ * pattern the saved one. -> 0 done (nothing to save too), 1 MEM FULL, else said */
+static int pat_save_slot(uint32_t k, uint32_t s)
+{
+    uint32_t n;
+    int rc;
+    if (pat_cur[k] == s)
+        return pat_store_slot(k, s);
+    if (!pat_live_at(k, s))
+        return 0;
+    if (song.playing || transport_req || !flash_ok) {
+        n = pat_get_live(k, s, sec_rbuf);
+        return pat_write(k, s, n);                     /* (playing: the arena; its live record dropped: pat_put) */
+    }
+    persist_flush_now();
+    if (sec_pend_has(pat_lpend(k, s)))
+        return 1;                                      /* (still in RAM: the log full) */
+    n = pat_get_live(k, s, sec_rbuf);
+    rc = slg_put(PAT_ID(k, s), sec_rbuf, n, 1);
+    if (!rc)
+        pat_live_drop(k, s);
+    sec_gen++;
+    return rc;
+}
+/* the editor's RELOAD of slot (k, s): its live pattern dropped; the slot track k plays: RELOAD (pat_reload) */
+static int pat_reload_slot(uint32_t k, uint32_t s)
+{
+    if (pat_cur[k] == s)
+        return pat_reload(k);
+    pat_live_drop(k, s);
     sec_gen++;
     return 0;
 }
