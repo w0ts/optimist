@@ -170,6 +170,7 @@ def generate(gen=GEN, env=None):
             [tools / "gen_x0x_drums.py", gen / "x0x_drum_samples.h"],
             [tools / "gen_param_help.py", gen / "felucca_param_help.h"],   # (+ web/editor.html's copy)
             [tools / "gen_wavetables.py", gen / "felucca_wavetables.h"],   # (the WAVE engine: Clipper's, 8 tables)
+            [tools / "gen_bank_order.py", gen / "felucca_bank.h"],          # (the engines and factory presets by name)
             [tools / "lzb.py", gen / "lzb_vectors.h"]]                     # (tests/lzb_test.c: the boot stream's decoder)
     penv = {**os.environ, **(env or {})}
     py = generator_python()

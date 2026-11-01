@@ -8364,9 +8364,15 @@ async function fetchSteps() {
 }
 
 /* ==================================================================== views === */
+/* alphabetical, as the device lists them (tools/gen_bank_order.py sort_key: case-insensitive, leading punctuation skipped, digit runs by value); [{name, i}] -> a sorted copy, i is the stored id */
+function byName(list) {
+  const key = (s) => s.replace(/^[^0-9A-Za-z]+/, "").toLowerCase().match(/\d+|\D+/g) || [];
+  const cmp = (a, b) => { const x = key(a.name), y = key(b.name); for (let k = 0; k < Math.min(x.length, y.length); k++) { const dx = /^\d/.test(x[k]), dy = /^\d/.test(y[k]); if (dx !== dy) return dx ? -1 : 1; const d = dx ? Number(x[k]) - Number(y[k]) : (x[k] < y[k] ? -1 : x[k] > y[k] ? 1 : 0); if (d) return d; } return x.length - y.length || a.i - b.i; };
+  return [...list].sort(cmp);
+}
 /* after a connect: the engine list, the parameter groups, the browser, the slots, the samples, the device facts */
 function assembleUI() {
-  const options = dev.info.engines.map((name, i) => el("option", { value: i, text: name }));
+  const options = byName(dev.info.engines.map((name, i) => ({ name, i }))).map(({ name, i }) => el("option", { value: i, text: name }));   /* (by name; the value stays the slot) */
   $("engine").replaceChildren(...options);
   Object.assign(dev, { mix: null });
   for (const draw of [assembleGroups, refreshBrowser, drawSlots, drawSamples, drawSysinfo]) draw();
@@ -8457,7 +8463,7 @@ function refreshBrowser() {
   if (focused !== sel) sel.value = drum ? "" : String(e);
   const presets = $("preset");
   if (presets.dataset.engine !== String(e)) {         /* the preset names are rebuilt only for another engine */
-    presets.replaceChildren(...(dev.names[e] || []).map((name, i) => el("option", { value: i, text: name })));
+    presets.replaceChildren(...byName((dev.names[e] || []).map((name, i) => ({ name, i }))).map(({ name, i }) => el("option", { value: i, text: name })));   /* (by name; the value stays the preset index) */
     presets.dataset.engine = String(e);
   }
   if (focused !== presets) presets.value = String(dev.dump.preset);
