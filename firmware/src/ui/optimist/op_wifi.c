@@ -577,63 +577,20 @@ static void wf_state_cell(cell_t *c)
     c->col = col;
 }
 #ifdef WIFI_ON_FM1B
-/* The second page, the tuning of fm1-base's stack (its wifi/wifi_tune.h: each switch and the JieLi SDK's code it follows),
- * for the user's A/B (2026-10-30) against the STATE line's numbers: FACT CAL (a: the FM-1's stored calibration, VM 187),
- * RX FILTER (b: the station's receive filter once joined), AGC (c: the receiver's gain from the AP's signal), TX RATE (f:
- * data at 2 Mb/s). Each line ON / OFF (a detent, YES round), kept with the Wi-Fi networks, acting at once; beside ON what
- * it does now: 187 (in) or NO 187 (none found: as OFF), STA (the filter in), the gain (66: the start's), 2M or 1M (fallen
- * back) */
-static void wf_tune_cell(uint32_t k, cell_t *c)
+/* The Wi-Fi tuning of fm1-base's stack (wifi/wifi_tune.h: FACT CAL, RX FILTER, AGC, TX RATE) is fixed: all four ON, the
+ * stack's own default (no A/B measurement was recorded). The page of switches for the user's A/B (2026-10-30) is gone
+ * (2026-11-01). A choice saved by that page is overridden when found; the record's spare byte keeps its format. */
+static void wf_tune_pin(void)
 {
-    static const char *const L[4] = {"FACT CAL", "RX FILTER", "AGC", "TX RATE"};
-    struct plat_wifi_tune t;
-    char b[16];
-    (void)plat_wifi_tune_info(&t);
-    c->kind = CK_VAL;
-    c->label = L[k];
-    c->big = 1;
-    c->col = 0;
-    if (!(t.on >> k & 1u)) {
-        cell_val(c, "OFF");
-        return;
-    }
-    str_cpy(b, "ON", sizeof b);
-    if (k == 0u && t.cal == 2u) {
-        str_app(b, " NO 187", sizeof b);
-        c->col = C_WARN;
-    } else if (k == 0u && t.cal_in) {
-        str_app(b, " 187", sizeof b);
-    } else if (k == 1u && t.filt_sta) {
-        str_app(b, " STA", sizeof b);
-    } else if (k == 2u && t.agc_gain && t.agc_gain != 66u) {
-        str_app(b, " ", sizeof b);
-        fmt_app(b, t.agc_gain);
-    } else if (k == 3u && wc.st == WC_UP) {
-        str_app(b, t.rate_slow ? " 1M" : " 2M", sizeof b);
-        c->col = t.rate_slow ? C_WARN : 0;
-    }
-    cell_val(c, b);
-}
-static void wf_tune_set(uint32_t it, int32_t s)
-{
-    uint32_t k = it - SI_WFCAL, m = plat_wifi_tune_get(), on = m >> k & 1u;
-    on = (uint32_t)sys_step((int32_t)on, s, 1);
-    plat_wifi_tune_set(on ? m | 1u << k : m & ~(1u << k));   /* (kept: fm1-base marks the Wi-Fi record, saved with the settings) */
+    if ((wn_st.rsv & 0x80u) && (wn_st.rsv & 15u) != 15u)   /* (a stored choice, once the record is loaded: not before) */
+        plat_wifi_tune_set(15u);                        /* (WT_ALL: a, b, c, f) */
 }
 #else
-static void wf_tune_set(uint32_t it, int32_t s) { (void)it, (void)s; }   /* (Optimist's own stack: no such switches) */
+static void wf_tune_pin(void) {}
 #endif
 static void wf_cell(uint32_t it, cell_t *c)
 {
     switch (it) {
-#ifdef WIFI_ON_FM1B
-    case SI_WFCAL:
-    case SI_WFFLT:
-    case SI_WFAGC:
-    case SI_WFRATE:
-        wf_tune_cell(it - SI_WFCAL, c);
-        break;
-#endif
     case SI_WFMODE:
         wf_mode_cell(c);
         break;
@@ -825,6 +782,7 @@ static int wf_key(uint32_t b, int held)                 /* op_input.c: SAVE on t
  * for the manager's own tries (AUTO retries every 20 s: said anywhere they would be noise). A join completed is said once */
 static void wf_poll(void)
 {
+    wf_tune_pin();
     static const char *const WHY[7] = {"JOIN FAILED", "NO RADIO CAL", "NO ACCESS POINT", "AUTH FAILED", "ASSOC FAILED",
                                        "HANDSHAKE FAILED", "WRONG PASSWORD"};   /* (wifi_conn.c WCF_*) */
     int shown = wf_page() && !pws.on, want = shown && wf_pg_on(), up = wc.st == WC_UP;
