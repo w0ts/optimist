@@ -175,18 +175,18 @@ def sidecar():
     IM.write(pkg, 1)
     pkg.write_bytes(pkg.read_bytes() + b"x")
     ok(IM.read(pkg)[0] is None and "another package" in IM.read(pkg)[1], "a sidecar for another package (SHA-256): ignored")
-    ok(IM.from_config_text("# x\nBOOTLOADER=1\n") == "m-bootloader" and IM.from_config_text("ENG_FM6=1\n") == "m-bootloader" and IM.from_config_text("BOOTLOADER=0\n") == "keep",
-       ".config text: BOOTLOADER=1 -> m-bootloader, absent -> m-bootloader (the default), 0 -> keep")
+    ok(IM.from_config_text("# x\nBOOTLOADER=1\n") == "m-bootloader" and IM.from_config_text("ENG_FM6=1\n") == "keep" and IM.from_config_text("BOOTLOADER=0\n") == "keep",
+       ".config text: BOOTLOADER=1 -> m-bootloader, absent -> keep (the default), 0 -> keep")
     import registry as REG
     it = REG.ITEMS["BOOTLOADER"]
-    ok(it.bit == 443 and it.no_image and it.default == 1 and dict(it.choices) == {0: "keep (as it is)", 1: "m-bootloader"}
-       and it.group == "System", "registry: BOOTLOADER, bit 443, no image, m-bootloader by default, two choices")
+    ok(it.bit == 443 and it.no_image and it.default == 0 and dict(it.choices) == {0: "keep (as it is)", 1: "m-bootloader"}
+       and it.group == "System", "registry: BOOTLOADER, bit 443, no image, keep by default, two choices")
     ok(len({i.bit for i in REG.ITEMS.values()}) == len(REG.ITEMS), "registry: no bit used twice")
     import core as C
-    cfg = dict(C.defaults(), BOOTLOADER=0)
+    cfg = dict(C.defaults(), BOOTLOADER=1)
     ok(C.cfg_hash(cfg) == C.cfg_hash(C.defaults()), "BOOTLOADER changes no image hash")
-    ok("BOOTLOADER=0" in C.dump(cfg) and C.parse(C.dump(cfg), warn=lambda _m: None)[0]["BOOTLOADER"] == 0,
-       ".config: BOOTLOADER=0 (not the default) dumped and parsed back")
+    ok("BOOTLOADER=1" in C.dump(cfg) and C.parse(C.dump(cfg), warn=lambda _m: None)[0]["BOOTLOADER"] == 1,
+       ".config: BOOTLOADER=1 (not the default) dumped and parsed back")
     web = json.loads((ROOT / "web" / "builder" / "data" / "registry.json").read_text()) \
         if (ROOT / "web" / "builder" / "data" / "registry.json").exists() else None
     if web is not None:
