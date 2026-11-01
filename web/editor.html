@@ -7817,7 +7817,7 @@ $("about").addEventListener("mousedown", (e) => { if (e.target === $("about")) $
 $("popx").addEventListener("click", () => closePop());
 $("pop").addEventListener("cancel", (e) => { e.preventDefault(); closePop(); });   /* Escape */
 $("pop").addEventListener("mousedown", (e) => { if (e.target === $("pop")) closePop(); });   /* a click outside (the backdrop) */
-const OPTI = { backup: 4, mirror: 2, library: 1, projects: 1, proj: 1, btproj: 1, panel: 1, nav: 1, mirbt: 1, wifi: 1, mirfix: 1, panelx: 1 };   /* (the versions this page reads) */
+const OPTI = { backup: 4, mirror: 2, library: 1, projects: 1, proj: 1, btproj: 1, panel: 1, nav: 1, mirbt: 1, wifi: 1, mirfix: 1, miraimd: 1, panelx: 1 };   /* (the versions this page reads) */
 const opti = (f) => !!dev && !!dev.info && !!dev.info.opti && dev.info.opti["opti_" + f] === OPTI[f];
 const hasKitPage = () => !!dev && !!dev.dl && !!dev.smp;   /* the build has drum lanes (36..) and sample slots */
 const hasSnaps = () => !!dev && !!dev.sn;            /* the firmware has snapshots (protocol v8, commands 54..57) */
@@ -12848,6 +12848,7 @@ function mirrorStart() {
       try {
         let args = [bits | MIR_CHK];
         if (bits === 1 && mir.fixLo >= 0 && opti("mirfix")) { args = [1 | MIR_CHK | 16, mir.fixLo, mir.fixHi]; mir.fixLo = -1; mir.lostAsked = mir.lost; }
+        else if (bits === 1 && opti("miraimd")) args = [1 | MIR_CHK | 32, mir.lost & 127, mir.seq & 127];   /* (106 bit 5: the losses so far, the next seq: the FM-1 paces its Bluetooth stream by them, ed_mirror.c MIR_AIMD) */
         const r = await rq([CMD.MIRROR, args], { key: "mirror", timeout: mirWait(600), retries: 0, quiet: true });
         bits = r && r[0] === 1 ? 1 : 3;           /* (not on: ask for all of it again) */
         if (mir.lost !== mir.lostAsked) { mir.lostAsked = mir.lost; if (!opti("mirfix")) { bits = 3; mir.fixLo = -1; } }   /* (lost: their seqs next time, or the whole panel) */
