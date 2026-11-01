@@ -95,7 +95,7 @@ static void ac_key_tests(void)
     op_disarm();                                        /* (a key now asks or toasts: the question goes) */
     k = WK(12);
     kdown(k);
-    check(song.g[G_SLOT] == (FELUCCA_SECTIONS > 12 ? 13 : 3), "... a key past the slots: nothing (4 here)");
+    check(song.g[G_SLOT] == (FELUCCA_SECTIONS > 12 ? 13 : 3) && (FELUCCA_SECTIONS > 12 || (ui.toast_t && !strncmp(ui.msg, "ONLY ", 5))), "... a key past the slots: the slot stays, and a toast says how many there are (4 here)");
     kup(k);
     op_disarm();                                        /* (a key now asks or toasts: the question goes) */
     k = WK(2);
