@@ -414,7 +414,7 @@ static uint32_t pw_leds(uint32_t *d);
 #include "../../system/dual_mode.h"                     /* 2ND CORE: DUALM_*, dual_why_name, and the INFO text helpers dual_cat / dual_cnum / dual_chex (LAST RESET: every UI=1 build; pure, no state) */
 #include "../../system/stackmark.h"                     /* INFO's RAM line: how deep the stacks went (painted at boot: stk_boot) */
 /* ---- SYSTEM: SLOOP's HOME-held menu as rows (ui/sloop/ui_menu.c) */
-enum { SI_NONE, SI_LOWCUT, SI_OUT, SI_SYNC, SI_CH1, SI_CH2,
+enum { SI_NONE, SI_OUT, SI_SYNC, SI_CH1, SI_CH2,
        SI_CH3, SI_CHD, SI_USB, SI_CPU, SI_MHZ, SI_CALIB, SI_ABOUT, SI_HOLD, SI_BLE, SI_KCOL, SI_DBGST, SI_CLKOUT, SI_CPU1, SI_INFO, SI_BUILD, SI_REPO,
        SI_DROPS, SI_GUARD, SI_UAINFO, SI_XRUN, SI_DIAG, SI_CREDITS, SI_BLEST, SI_BLEPEER, SI_BLEMIDI, SI_BLELIST, SI_BLEAUTO,
        SI_BLEFGT, SI_FRESO, SI_HPBASS, SI_BTA, SI_BTAPEER, SI_BTAFMT, SI_BTAST, SI_CLKOFS, SI_BTOFS, SI_LINK, SI_LINKOFS,
@@ -511,7 +511,7 @@ static const struct { const char *name; uint8_t it[4]; } SYS[] = {
      * (the user, 2026-10-29: it is a project's, not the device's), so USB SERIAL joins this page (GL_JOIN) when it fits. DEBUG STATS is the last row, after HPHN BASS, where the platform keeps them
      * (DBG_STATS: the release; it had a page alone, SYSTEM > DEBUG, until 2026-10-29): General is then 4 lines, full, and USB SERIAL
      * keeps its own page (the join holds 4 lines at most) */
-    {"GENERAL", {SI_KCOL, SI_LOWCUT, SI_HPBASS, DBG_STATS ? SI_DBGST : SI_NONE}},
+    {"GENERAL", {SI_KCOL, SI_HPBASS, DBG_STATS ? SI_DBGST : SI_NONE, SI_NONE}},
 #if USBH_UI
     {"USB", {SI_UHMODE, SI_UHDEV, SI_NONE, SI_NONE}},   /* the port as a MIDI host or the computer's device (USB_HOST: the trial's
                                                          * ui/opt_usbh.h on fm1-base's; USB SERIAL below it, one section) */
@@ -753,7 +753,6 @@ static int32_t cko_pos(void)
 #endif
 static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
 {
-    static const char *const LC[3] = {"OFF", "ON", "BASS+"};
     static const char *const HB[3] = {"OFF", "+3 dB", "+6 dB"};
     int16_t *vp;
     const param_desc_t *d;
@@ -776,9 +775,6 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
     }
 #endif
     switch (it) {
-    case SI_LOWCUT:
-        cell_list(c, "SPK LOWCUT", LC[spk_lc % 3u], 2, (int32_t)(spk_lc % 3u));   /* (the speaker: nothing in the jack) */
-        break;
     case SI_HPBASS:
         cell_list(c, "HPHN BASS", HB[hp_bass % 3u], 2, (int32_t)(hp_bass % 3u));     /* (headphones in the jack) */
         break;
@@ -1577,9 +1573,6 @@ static void sys_set(uint32_t it, int32_t s)
         link_mode = (uint8_t)sys_step(link_mode, s, LINK_ONSS);
         break;
 #endif
-    case SI_LOWCUT:
-        settings.lowcut = oc_set_word(oc_word((uint32_t)sys_step((int32_t)(spk_lc % 3u), s, 2), hp_bass));   /* OFF / ON / BASS+ */
-        break;
     case SI_HPBASS:
         settings.lowcut = oc_set_word(oc_word(spk_lc, (uint32_t)sys_step((int32_t)(hp_bass % 3u), s, 2)));   /* OFF / +3 / +6 dB */
         break;
@@ -1642,9 +1635,6 @@ static int sys_factory(uint32_t it)
         sdm_set(it - SI_SDVERS - (it == SI_SDPRE), 0);   /* (8 versions, 100 %, 50 ms) */
         return 1;
 #endif
-    case SI_LOWCUT:
-        settings.lowcut = oc_set_word(oc_word(1u, hp_bass));   /* (ON: outcorr.c) */
-        break;
     case SI_HPBASS:
         settings.lowcut = oc_set_word(oc_word(spk_lc, 0u));
         break;

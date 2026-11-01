@@ -132,20 +132,20 @@ static void glo_list_tests(void)
 #if FELUCCA_CDC && !DBG_STATS
         ok = g + 3u < SCREENS[SCR_SYSTEM].rows() && gl_end(1, g) - gl_first(1, g) == 4u;
         SCREENS[SCR_SYSTEM].cell(g + 3u, gl_kn(SCR_SYSTEM, g + 3u), &c);
-        check(ok && c.label && !strcmp(c.label, "SERIAL"), "SYSTEM > General: KNOB COLORS, SPK LOWCUT, HPHN BASS and USB SERIAL on one page (GL_JOIN: FILT RESO gone)");
+        check(ok && c.label && !strcmp(c.label, "SERIAL"), "SYSTEM > General: KNOB COLORS, HPHN BASS and USB SERIAL on one page (GL_JOIN: FILT RESO gone)");
 #endif
     }
 #endif
 #if DBG_STATS
     {   /* DEBUG STATS (the release, PLAT_STATS_APP) is General's last line (2026-10-29), no page of its own; General is full, so USB SERIAL has its own */
-        static const char *const GL[4] = {"KNOB COLORS", "SPK LOWCUT", "HPHN BASS", "DEBUG STATS"};
+        static const char *const GL[4] = {"KNOB COLORS", "HPHN BASS", "DEBUG STATS", "SERIAL"};
         uint32_t g = glo_find(SCR_SYSTEM, "GENERAL");
         ok = g + 3u < SCREENS[SCR_SYSTEM].rows() && gl_end(1, g) - gl_first(1, g) == 4u;
         for (i = 0; ok && i < 4u; i++) {
             SCREENS[SCR_SYSTEM].cell(g + i, gl_kn(SCR_SYSTEM, g + i), &c);
             ok &= c.label && !strcmp(c.label, GL[i]);
         }
-        check(ok, "SYSTEM > General (DEBUG STATS built): KNOB COLORS, SPK LOWCUT, HPHN BASS, DEBUG STATS on one page");
+        check(ok, "SYSTEM > General (DEBUG STATS built): KNOB COLORS, HPHN BASS, DEBUG STATS, USB SERIAL on one page");
         for (i = 0, ok = 1; i < SCREENS[SCR_SYSTEM].rows(); i++) {
             char nm[24];
             SCREENS[SCR_SYSTEM].name(i, nm);

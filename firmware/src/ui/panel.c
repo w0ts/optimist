@@ -108,6 +108,6 @@ static void settings_init(void)
     settings.palette = 4;                      /* the Optimist UI: MONO, no COLOR setting (the user, 2026-10-18: "white / mono
                                                 * is fine"); SLOOP's UI keeps its HOME-hold COLOR menu */
     palette_set(settings.palette);
-    settings.lowcut = oc_set_word(settings.lowcut);   /* SPK LOWCUT, HPHN BASS (fx/outcorr.c: an older record's LOWCUT is SPK
+    settings.lowcut = oc_set_word(settings.lowcut);   /* SPK LOWCUT, HPHN BASS (fx/outcorr.c: the speaker low cut is always ON, a stored OFF or BASS+ too;
                                                          * LOWCUT's: OFF, ON, BASS+; HPHN BASS OFF) */
 }

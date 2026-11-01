@@ -95,7 +95,7 @@ GLOBAL and SYSTEM are settings lists: one setting on a line, the name left and t
 **SYSTEM**
 - **INFO:** the read-out below. Always the first page.
 - **SCREEN:** KNOB COLORS (ON / OFF). The backlight is always full.
-- **AUDIO:** the output's correction, chosen by the headphone jack and applied to the FM-1's own output only (never to Bluetooth, USB or a recording on the card): SPK LOWCUT (OFF, ON or BASS+; ON at first) while nothing is plugged in, the speaker's ~110 Hz low cut, or BASS+ (the bass heard through its harmonics); HPHN BASS (OFF, +3 dB or +6 dB; OFF at first) while headphones are in, a bass shelf below ~110 Hz.
+- **AUDIO:** the output's correction, chosen by the headphone jack and applied to the FM-1's own output only (never to Bluetooth, USB or a recording on the card): the speaker's ~110 Hz low cut, always on while nothing is plugged in (no setting); HPHN BASS (OFF, +3 dB or +6 dB; OFF at first) while headphones are in, a bass shelf below ~110 Hz.
 - **DEBUG STATS** (the release build; the last line of the General page, after HPHN BASS): ON or OFF, OFF at first. While ON the FM-1 keeps its load, late audio halves and stack depths in flash every 5 minutes, for a unit that misbehaves only after hours of play.
 - **USB:** SERIAL, ON or OFF; amber until a restart applies it (builds with the USB console).
 - **BT MIDI** (builds with `BLE`): MODE, DEVICE, ACTIVITY, STATE. **BT AUDIO** (builds with `BT_AUDIO`): MODE, DEVICE, FORMAT, STATE. Both can be on at once; MODE, the devices list and SAVE: [midi-usb.md](midi-usb.md#bluetooth-midi-and-bluetooth-audio). A connect not up in 30 s says NO ANSWER.
