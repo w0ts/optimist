@@ -71,28 +71,28 @@ static void pages_nav_tests(void)
     SCREENS[SCR_SYSTEM].name(0, nm);
     sys_info_cell(0, &c);
     sys_info_cell(1, &c2);
-    check(!strcmp(nm, "INFO") && c.kind == CK_RO && !strcmp(c.label, "CLOCK") && !strcmp(c.unit, "MHz") &&
-          c2.kind == CK_RO && !strcmp(c2.label, DUAL_LOAD ? "CPU0" : "LOAD") && !strcmp(c2.unit, "%"),
-          "D2: SYSTEM's first page INFO: CLOCK (MHz) and the load (%), read-outs");
+    check(!strcmp(nm, "INFO") && c.kind == CK_RO && !strcmp(c.label, DUAL_LOAD ? "CPU0" : "LOAD") && !strcmp(c.unit, "%") &&
+          c2.kind == CK_RO,
+          "D2: SYSTEM's first page INFO: the load (%) first, read-outs (no CLOCK line: the clock is fixed)");
 #if DUAL_LOAD
     {   /* CPU1's load (dual_load.h), the reason when the core is down; a read-out */
         uint32_t q = dual_c1_q8;
         dual_c1_q8 = 128u;
         memset(&c2, 0, sizeof c2);
-        sys_info_cell(2, &c2);
+        sys_info_cell(1, &c2);
         check(c2.kind == CK_RO && !strcmp(c2.label, "2ND CORE ON") && !strcmp(c2.val, "50") && !strcmp(c2.unit, "%"),
-              "DUAL: INFO's third line: 2ND CORE ON, 50 %, a read-out");
+              "DUAL: INFO's second line: 2ND CORE ON, 50 %, a read-out");
         dual_c1_q8 = DUAL_C1_OFF;
         memset(&c2, 0, sizeof c2);
-        sys_info_cell(2, &c2);
+        sys_info_cell(1, &c2);
         check(c2.kind == CK_RO && !strcmp(c2.label, "2ND CORE OFF") && !strcmp(c2.val, "NO REASON"),
               "DUAL: CPU1 down, no reason: 2ND CORE OFF");
         dual_c1_q8 = q;
     }
 #else
     memset(&c2, 0, sizeof c2);
-    sys_info_cell(2, &c2);
-    check(!strcmp(c2.label, "2ND CORE") && !strcmp(c2.val, "NOT IN BUILD"), "D2: a single-core build: INFO's third line says NOT IN BUILD");
+    sys_info_cell(1, &c2);
+    check(!strcmp(c2.label, "2ND CORE") && !strcmp(c2.val, "NOT IN BUILD"), "D2: a single-core build: INFO's second line says NOT IN BUILD");
 #endif
 #endif
     /* D6 */

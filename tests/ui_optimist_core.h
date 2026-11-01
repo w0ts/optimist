@@ -18,29 +18,29 @@ static void core_row_tests(void)
         check(dual_mode == DUALM_AUTO, "2ND CORE: a misread's self-disable is not kept in the setting (the next boot starts CPU1 again)");
         dual_c1_q8 = 128u;
         dual.why = DUAL_UP;
-        sys_info_cell(2, &c);
+        sys_info_cell(1, &c);
         check(!strcmp(c.label, "2ND CORE ON") && !strcmp(c.val, "50") && !strcmp(c.unit, "%") && c.col == C_OK, "2ND CORE ON: the CPU1 load, 50 %, green (under 60)");
         dual_c1_q8 = DUAL_C1_OFF;
         dual.why = DUAL_MISREAD;
-        sys_info_cell(2, &c);
+        sys_info_cell(1, &c);
         check(!strcmp(c.label, "2ND CORE OFF") && !strcmp(c.val, "MISREAD") && !strcmp(c.unit, "") && c.col == C_WARN, "2ND CORE OFF on a misread: MISREAD, amber (C_WARN)");
         dual.why = DUAL_CANARY;
-        sys_info_cell(2, &c);
+        sys_info_cell(1, &c);
         check(!strcmp(c.val, "CANARY"), "CPU1 down on the canary: CANARY");
         dual.why = DUAL_EARLY;
-        sys_info_cell(2, &c);
+        sys_info_cell(1, &c);
         check(!strcmp(c.val, "AFTER CRASH") && strlen(c.val) < sizeof c.val, "CPU1 held after a crash: AFTER CRASH (it fits the cell)");
         dual.why = DUAL_SETOFF;
-        sys_info_cell(2, &c);
+        sys_info_cell(1, &c);
         check(!strcmp(c.val, "SETTING"), "CPU1 down by a stored OFF: SETTING");
         dual.why = DUAL_UP;
-        sys_info_cell(2, &c);
+        sys_info_cell(1, &c);
         check(!strcmp(c.label, "2ND CORE OFF") && !strcmp(c.val, "NO REASON"), "2ND CORE OFF with no reason: NO REASON");
         {
             uint32_t i, ok = 1;
             for (i = 1; i < DUAL_WHY_N; i++) {
                 dual.why = (uint8_t)i;
-                sys_info_cell(2, &c);
+                sys_info_cell(1, &c);
                 ok &= !strcmp(c.label, "2ND CORE OFF") && !strcmp(c.val, dual_why_name(i)) && strlen(c.val) < sizeof c.val;
             }
             check(ok, "CPU1 down: every reason's name is its cell's value");
@@ -50,9 +50,9 @@ static void core_row_tests(void)
         dual_mode = DUALM_AUTO;
     }
 #else
-    sys_info_cell(2, &c);
+    sys_info_cell(1, &c);
     check(!strcmp(c.label, "2ND CORE") && !strcmp(c.val, "NOT IN BUILD") && !strcmp(c.unit, "") && c.gk != GK_NONE, "a single-core build: 2ND CORE, NOT IN BUILD");
-    check(INFO_N == 6u + FELUCCA_CPU_GUARD, "the INFO page: clock, CPU, 2ND CORE, RAM, DROPS, UNDERRUNS, [GUARD] in every build (no battery line: the header's) (the internals: DIAGNOSTICS)");
+    check(INFO_N == 5u + FELUCCA_CPU_GUARD, "the INFO page: CPU, 2ND CORE, RAM, DROPS, UNDERRUNS, [GUARD] in every build (no battery line: the header's) (the internals: DIAGNOSTICS)");
 #endif
     reset_ui();
 }
@@ -91,7 +91,7 @@ static void overload_tests(void)
     op_enter(SCR_SYSTEM);
     ui.row[SCR_SYSTEM] = 0;
     frame();
-    sys_info_cell(1, &c);
+    sys_info_cell(0, &c);
     check(!strcmp(c.label, cpu) && !strcmp(c.val, "50") && c.col == C_OK, "the CPU line: NOW, the load (50 %, green)");
     check(c.pkbar && c.gk == GK_BAR && c.gv == 50 && c.hold[0] == 70 && c.hold[1] == 70,
           "the CPU line's bar: filled to the load now (50), both peak ticks at the longest half (70)");
@@ -101,24 +101,24 @@ static void overload_tests(void)
         ui.force = 1;
         frame();
         memcpy(before, screen, sizeof before);
-        sys_info_cell(1, &c0);
+        sys_info_cell(0, &c0);
         turn(EN_K1, 1);
         turn(EN_K1, -1);
         ui.force = 1;
         frame();
-        sys_info_cell(1, &c);
+        sys_info_cell(0, &c);
         check(!memcmp(before, screen, sizeof before) && !strcmp(c.label, c0.label) && !strcmp(c.val, c0.val) && c.hold[0] == c0.hold[0] &&
               c.hold[1] == c0.hold[1] && ui.scr == SCR_SYSTEM, "KNOB 1 on INFO changes nothing: the screen, the CPU line's label and number, the ticks");
     }
     ovl_half(half * 133u / 100u, 1, t + 1500u);         /* (the user's log: 7,693 us, 133 % of a half) */
     fm1_ms = t + 1600u;
-    sys_info_cell(1, &c);
+    sys_info_cell(0, &c);
     check(!strcmp(c.val, "50") && c.hold[0] == 100 && c.hold[1] == 100,
           "a late half: the number stays the load now (50), the ticks at the bar's end");
     for (i = 1; i <= 11u; i++)
         ovl_half(half / 2u, 0, t + 1500u + i * 1024u);  /* (11 s of light halves: the 133 % ages out of the 10 s window) */
     fm1_ms = t + 1500u + 11u * 1024u;
-    sys_info_cell(1, &c);
+    sys_info_cell(0, &c);
     check(!strcmp(c.val, "50") && c.col == C_OK && c.hold[0] == 50 && c.hold[1] == 100,
           "~10 s later the 10 s window forgets it: the bright tick follows (50), the since-boot tick holds 100");
     sys_info_cell(dr, &c);
@@ -153,7 +153,7 @@ static void overload_tests(void)
     check(!strcmp(c.val, "0") && c.col == C_OK && ovl.drops == 2u, "SHIFT + YES on INFO: DROPS from 0 (the counter itself goes on)");
     sys_info_cell(xr, &c);
     check(!strcmp(c.val, "0") && ovl_midi_lost() == 2u, "... UNDERRUNS from 0");
-    sys_info_cell(1, &c);
+    sys_info_cell(0, &c);
     check(c.hold[1] == 0, "... the CPU line's since-boot tick from 0");
     check(c.hold[1] == 0, "... and the since-boot tick (the 10 s tick is the window's: it ages out by itself)");
     check(ui.scr == SCR_SYSTEM && !lay.chord, "... and no redo, no PROJECT");

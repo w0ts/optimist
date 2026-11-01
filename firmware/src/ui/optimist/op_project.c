@@ -1017,14 +1017,6 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
         c->kind = CK_RO;
         c->unit = "github.com/w0ts/optimist";
         break;
-#if FELUCCA_SYS_DEBUG
-    case SI_MHZ:
-        sys_ro(c, "CLOCK");
-        fmt_int(c->val, (int32_t)((cpu_khz + 500u) / 1000u));
-        c->unit = "MHz";
-        cell_gauge(c, 0, 0, 240, (int32_t)((cpu_khz + 500u) / 1000u));
-        break;
-#endif
     case SI_HOLD:                                       /* a button held this long is a hold (op_state.c op_hold_ms) */
         c->label = "HOLD";
         fmt_int(c->val, (int32_t)op_hold_ms());
@@ -1382,7 +1374,8 @@ static void sys_rst_cell(cell_t *c)
  *   INTERNALS (page 1): LAST RESET, the longest flash interrupts-off time, the second core's internals (DUAL builds)
  *   USB STATS (page 2, USB audio builds): the USB audio counters */
 #if FELUCCA_SYS_DEBUG
-#define INFO_BASE (6u + (uint32_t)FELUCCA_CPU_GUARD + (uint32_t)PART_DROPS + (uint32_t)FMEM_ANY)
+#define INFO_BASE (5u + (uint32_t)FELUCCA_CPU_GUARD + (uint32_t)PART_DROPS + (uint32_t)FMEM_ANY)   /* (no CLOCK line since 2026-11-01:
+                                                         * the clock is fixed; cpu_khz stays in the console and the CPU guard) */
 #else
 #define INFO_BASE (3u + (uint32_t)DUAL_LOAD + (uint32_t)PART_DROPS + (uint32_t)FMEM_ANY)   /* (without the debug pages: CPU LOAD (CPU0, CPU1),
                                                          * RAM, ARENA MOVE with an arena, UNDERRUNS) */
@@ -1396,7 +1389,7 @@ static void sys_rst_cell(cell_t *c)
 static void sys_info_cell(uint32_t i, cell_t *c)        /* INFO's line i */
 {
 #if FELUCCA_SYS_DEBUG
-    static const uint8_t INFO[INFO_BASE] = {SI_MHZ, SI_CPU, SI_CPU1, SI_RAM,
+    static const uint8_t INFO[INFO_BASE] = {SI_CPU, SI_CPU1, SI_RAM,
 #if FMEM_ANY
                                             SI_RAMUSE,
 #endif
@@ -1759,7 +1752,7 @@ static int sys_yes(uint32_t r, uint32_t k, uint32_t ok)
         sys_dirty = 1;
         return 1;
     }
-    if (it == SI_NONE || (it >= SI_INFO && !si_ua(it)) || it == SI_CPU || it == SI_MHZ || it == SI_CPU1)
+    if (it == SI_NONE || (it >= SI_INFO && !si_ua(it)) || it == SI_CPU || it == SI_CPU1)
         return 0;                                       /* (the read-outs; USB AUDIO's lines, last, are settings) */
     sys_set(it, 0);
     return 1;

@@ -1030,7 +1030,7 @@ _add("PARAM_HELP", "FELUCCA_PARAM_HELP", "help line: what the knob changes, in w
 _add("SYS_DEBUG", "FELUCCA_SYS_DEBUG", "SYSTEM's debug pages (internals, USB stats)", U, 341, default=0,
      desc="SYSTEM keeps its pages for finding faults: INTERNALS (the last reset, the flash's "
           "interrupts-off time, the second core's internals), USB STATS (the USB audio glitch counters) and on INFO the "
-          "clock, the second core, the drops and the CPU guard apart. Off: INFO shows what a player wants, CPU LOAD, "
+          "second core, the drops and the CPU guard apart. Off: INFO shows what a player wants, CPU LOAD, "
           "UNDERRUNS (the drop-outs counted in) and BATTERY, in the large face, and the code of the rest is left out "
           "(about 2.9 KB less flash, measured on a USB-audio build). The red / amber mark on the header's rule after a "
           "drop-out stays either way.")
