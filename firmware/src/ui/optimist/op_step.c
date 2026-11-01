@@ -663,9 +663,10 @@ static int32_t lane_held(uint32_t k)                    /* a lane's black key do
 /* a lane's black key held + a step pressed: that lane's hit there NORM -> HARD -> GHOST -> NORM (an empty step: NORM; SOFT: NORM),
  * the level said (the user, 2026-10-22: "hold instrument key plus step to cycle, and notif popup"); the ACCENT lane, no level: on /
  * off. The step's LEVEL card is the same value (held step, step_cell) */
+static const char *const LV_SAY[4] = {" NORM", " GHOST", " SOFT", " HARD"};   /* (LV_NORM, LV_GHOST, LV_SOFT, LV_HARD) */
+static uint32_t lvl_next(uint32_t lv) { return lv == LV_NORM ? LV_HARD : lv == LV_HARD ? LV_GHOST : LV_NORM; }   /* (SOFT: NORM) */
 static void step_lvl_cycle(track_t *t, uint32_t idx, uint32_t l)
 {
-    static const char *const LV_SAY[4] = {" NORM", " GHOST", " SOFT", " HARD"};   /* (LV_NORM, LV_GHOST, LV_SOFT, LV_HARD) */
     dstep_t *d = &t->dstep[idx];
     uint32_t has = dstep_has(d, l), lv = dstep_lvl(d, l), nv;
     undo_mark(t, st.sess);
@@ -673,7 +674,7 @@ static void step_lvl_cycle(track_t *t, uint32_t idx, uint32_t l)
     if (l == DRUM_ACC && has) {
         step_wipe(t, idx, 0);
     } else {
-        nv = l == DRUM_ACC || !has ? LV_NORM : lv == LV_NORM ? LV_HARD : lv == LV_HARD ? LV_GHOST : LV_NORM;
+        nv = l == DRUM_ACC || !has ? LV_NORM : lvl_next(lv);
         dstep_set(d, l, nv, has ? dstep_rat(d, l) : 0u);
         t->seq_active = 1;
     }
@@ -683,6 +684,60 @@ static void step_lvl_cycle(track_t *t, uint32_t idx, uint32_t l)
     ui_say(lane_short(l), l == DRUM_ACC ? (has ? " OFF" : " ON") : LV_SAY[dstep_lvl(d, l) & 3u]);
     ui.toast_next = 0;
 }
+#if FELUCCA_AUTO
+/* SHIFT2 + a set step: NORM -> HARD -> GHOST -> MUTED -> NORM (SOFT: NORM). A synth step: all its notes take the level (the first note's
+ * is the step's), a drum step the selected lane's hit; MUTED is the store's mute event (pk_mute's, AUTO_SMUTE / AUTO_MUTE: the note
+ * kept, grey, its key dim, a rest). One undo level, the step's note the picked one, a popup names the state: "DR HARD" with the
+ * lane's code, "T1 STEP 5 HARD" */
+static void step_shift_cycle(track_t *t, uint32_t idx)
+{
+    uint32_t l = lane_selected(), drum = is_drum(t), mut, lv, nv, i, ok = 1, q;
+    char say[16];
+    if (drum && l >= DRUM_LANES) {
+        ui_message("NO MUTE ON ACCENT");
+        return;
+    }
+    mut = (uint32_t)step_muted(t, idx, drum ? l : 0u);
+    lv = drum ? dstep_lvl(&t->dstep[idx], l) : (uint32_t)(t->step[idx].lvl & 3u);
+    nv = mut || lv != LV_GHOST ? (mut ? LV_NORM : lvl_next(lv)) : LV_GHOST;
+    undo_mark(t, st.sess);
+    fm1_irq_off();
+    if (drum) {
+        dstep_set(&t->dstep[idx], l, nv, dstep_rat(&t->dstep[idx], l));
+    } else {
+        step_t *s = &t->step[idx];
+        for (i = 0; i < s->n && i < 4u; i++)
+            s->lvl = (uint8_t)((s->lvl & ~(3u << (2u * i))) | nv << (2u * i));
+    }
+    if (!mut && lv == LV_GHOST)
+        ok = (uint32_t)step_mute_set(t, idx, drum ? l : 0u, 1u);       /* (GHOST -> MUTED) */
+    else if (mut)
+        ok = (uint32_t)step_mute_set(t, idx, drum ? l : 0u, 0u);       /* (MUTED -> NORM) */
+    t->seq_active = 1;
+    fm1_irq_on();
+    sync_reload = 1;
+    if (ok)
+        pk_take(idx, NSEL_ALL);                         /* (the step's note: the picked one, fa644b73) */
+    ui.toast_next = 1;
+    if (!ok) {
+        ui_message("PATTERN FULL");
+    } else if (drum) {
+        ui_say(lane_short(l), !mut && lv == LV_GHOST ? " MUTED" : LV_SAY[nv & 3u]);
+    } else {
+        const char *tg = trk_tag((uint32_t)song.sel);
+        q = 0;
+        say[q++] = tg[0], say[q++] = tg[1], say[q++] = ' ';
+        say[q++] = 'S', say[q++] = 'T', say[q++] = 'E', say[q++] = 'P', say[q++] = ' ';
+        if ((idx + 1u) >= 10u)
+            say[q++] = (char)('0' + (idx + 1u) / 10u % 10u);
+        say[q++] = (char)('0' + (idx + 1u) % 10u);
+        say[q] = 0;
+        ui_say(say, !mut && lv == LV_GHOST ? " MUTED" : LV_SAY[nv & 3u]);
+    }
+    ui.toast_next = 0;
+    op_repaint();
+}
+#endif
 static void step_key(uint32_t k, uint32_t down, uint32_t held)
 {
     track_t *t = tsel();
@@ -753,25 +808,10 @@ static void step_key(uint32_t k, uint32_t down, uint32_t held)
         return;
     }
 #if FELUCCA_AUTO
-    if (btn_held(B_OCTUP) && !btn_held(B_OCTDN) && step_has(t, idx)) {   /* SHIFT2 + a set step: its mute toggled, the note kept grey (the
-                                                         * user, 2026-11-01: "right shift should also go to muted state"; the same
-                                                         * store event as SAVE held on a picked note, pk_mute; an empty step is the
-                                                         * tap's: a drum hard hit, a synth note) */
-        uint32_t l = lane_selected(), on, ok;
-        if (is_drum(t) && l >= DRUM_LANES) {
-            ui_message("NO MUTE ON ACCENT");
-            return;
-        }
-        on = !step_muted(t, idx, l);
-        undo_mark(t, st.sess);
-        fm1_irq_off();
-        ok = (uint32_t)step_mute_set(t, idx, l, on);
-        fm1_irq_on();
-        sync_reload = 1;
-        if (ok)
-            pk_take(idx, NSEL_ALL);                     /* (the muted note: the picked one, fa644b73) */
-        ui_message(!ok ? "PATTERN FULL" : on ? "MUTED" : "UNMUTED");
-        op_repaint();
+    if (btn_held(B_OCTUP) && !btn_held(B_OCTDN) && step_has(t, idx)) {   /* SHIFT2 + a set step: its level and mute cycled (the user,
+                                                         * 2026-11-01: "it should cycle velocities and mute. with visual feedback";
+                                                         * an empty step is the tap's: a drum hard hit, a synth note) */
+        step_shift_cycle(t, idx);
         return;
     }
 #endif
