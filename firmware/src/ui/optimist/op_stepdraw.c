@@ -80,6 +80,27 @@ static void fv_cell(int32_t x, int32_t y, int32_t w, int32_t h, uint16_t c, uint
 #else
 #define FVIEW() 0
 #endif
+#define FILL_HID(t, idx, l) (!FVIEW() && fill_only((t), (idx), (l)))   /* (a FILL ONLY note or hit: drawn in the fill view only) */
+static int32_t sg_ph = -1;              /* the playhead's column as painted, roll or drums (-1 none) */
+/* a step with automation: a dot inside its cell or note bar, a white 6 x 6 ring with a black 4 x 4 centre (the ring shows on dark cells, the centre on
+ * light and white ones, the grey muted too); the largest that fits (w x h) when the cell is smaller, under 3 a white and a black pixel. Drawn last,
+ * over the playhead's white and the selected note's outline (the user, 2026-11-01: "put it inside the drum step ... in a visible colour") */
+static void au_dot(int32_t x, int32_t y, int32_t w, int32_t h)
+{
+    int32_t s = w < h ? w : h;
+    s = s > 6 ? 6 : s;
+    if (s < 1)
+        return;
+    x += w > s + 1 ? 1 : 0;
+    y += (h - s) / 2;
+    cv_rect(x, y, s, s, C_WHITE);
+    cv_rect(x + (s >= 3 ? 1 : 0), y + (s >= 3 ? 1 : 0), s >= 3 ? s - 2 : 1, s >= 3 ? s - 2 : 1, C_BLACK);
+}
+/* a drum lane's cell has automation (a lane's own event, or the track's on a cell with a hit) */
+static int au_cell(const track_t *t, uint32_t idx, uint32_t l, int hit)
+{
+    return hit ? op_step_auto(t, idx, l) : op_step_auto(t, idx, l) && !op_step_auto(t, idx, 0xFEu);
+}
 static void sg_ground(const track_t *t)                 /* the beats, the steps past LEN, the columns held */
 {
     uint32_t w, len = trk_len(t);
@@ -99,6 +120,8 @@ static __attribute__((noinline)) void sg_drums(const track_t *t)
 {
     uint32_t l, w, sel = lane_selected(), len = trk_len(t);
     sg_prep(t);
+    if (sg_ph >= 0)                                     /* the playing column: a faint white ground under the cells (its hits framed white below) */
+        cv_rect(SG_X + sg_ph * SG_CW - 1, SG_TOP, SG_CW, SG_H, col_shade(C_WHITE, 2u));
     cv_hline(SG_LY(sel) - 1, C_DIM);          /* the selected lane's row: lined above and below */
     cv_hline(SG_LY(sel + 1u) - 1, C_DIM);
     sg_ground(t);
@@ -115,6 +138,12 @@ static __attribute__((noinline)) void sg_drums(const track_t *t)
             int32_t x = SG_X + (int32_t)w * SG_CW, own = dstep_has(&t->dstep[idx % NSTEP], l);
             if (idx >= len)
                 continue;
+            if (own && FILL_HID(t, idx, l)) {           /* (a FILL ONLY hit, the fill view down: not there) */
+                step_dot(x, y, SG_CW - 2, lh - 1, !(w & 3u));
+                continue;
+            }
+            if ((int32_t)w == sg_ph && dstep_has(d, l))    /* (the playhead's hit: framed white, its level shade or grey kept inside) */
+                cv_frame(x - 1, y - 1, SG_CW, lh + 1, C_WHITE);
             if (!dstep_has(d, l)) {
                 if (own)                                /* (silenced by a generator: a dim stub) */
                     cv_rect(x, y + lh - 3, SG_CW - 2, 2, col_shade(c, 2u));
@@ -142,6 +171,12 @@ static __attribute__((noinline)) void sg_drums(const track_t *t)
                     op_step_auto(t, idx, l) ? lvl_acol(dstep_lvl(d, l)) : lvl_col(c, dstep_lvl(d, l)));   /* (automated: its own colour) */
             sg_notches(x, y, SG_CW - 2, lh - 1, dstep_rat(d, l));
         }
+        for (w = 0; w < 16u; w++) {                     /* the automation dots, over the cells (the playhead's, the muted's, a stub's too) */
+            uint32_t idx = st.page * 16u + w;
+            int own = dstep_has(&t->dstep[idx % NSTEP], l) && !FILL_HID(t, idx, l);
+            if (idx < len && au_cell(t, idx, l, own || dstep_has(&SGD(t)[idx % NSTEP], l)))
+                au_dot(SG_X + (int32_t)w * SG_CW, y, SG_CW - 2, lh - 1);
+        }
     }
 }
 /* ---- the synth roll (the user, 2026-10-11: "looks a bit sad compared to sloop. could we have the note names on the
@@ -154,7 +189,6 @@ static __attribute__((noinline)) void sg_drums(const track_t *t)
 #define RL_X SG_X                       /* the roll's columns: the drum grid's */
 #define RL_CW SG_CW
 static int32_t sg_ox;                   /* the x the canvas starts at: 0 the band, a column's for its own canvas */
-static int32_t sg_ph = -1;              /* the roll's playhead column as painted (-1 none) */
 #define RR(x, y, w, h, c) cv_rect((x)-sg_ox, y, w, h, c)
 static int is_black(int32_t n) { return (0x54Au >> (n % 12)) & 1; }   /* C# D# F# G# A# */
 static struct {
@@ -471,7 +505,7 @@ static void sg_roll(const track_t *t)
                 nc = mute_col(), mut = 1;               /* (a muted note: kept, grey; its ties too; picked it stays grey, its row's lines show the pick) */
 #endif
             sx = sel && roll_selx(t, sat, nt, idx) && (int32_t)w != sg_ph;   /* (the selected note: its level shade stays, an outline in C_NOTE) */
-            if (!RV(nt))
+            if (!RV(nt) || FILL_HID(t, hd, 0))
                 continue;
             if (g) {                                    /* (its own end: in this step, or one before a TIE here) */
                 if (tie)
@@ -522,6 +556,28 @@ static void sg_roll(const track_t *t)
     for (w = 0; w < 16u; w++)                           /* the steps held: framed white */
         if (((st.held >> w) & 1u) && st.page * 16u + w < len)
             cv_frame(RL_X + (int32_t)w * RL_CW - 1 - sg_ox, SG_TOP - 1, RL_CW, ye - SG_TOP + 2, C_WHITE);
+    for (w = 0; w < 16u; w++) {                         /* the steps with automation: a dot in the bar of the picked note, else the lowest; a step
+                                                         * with no note (or only a FILL ONLY one): on the roll's bottom row */
+        uint32_t idx = st.page * 16u + w, oi = roll_org(t, idx) % NSTEP;
+        const step_t *s = &SGS(t)[oi];
+        int32_t y = ye - rg.rh + m, bw = RL_CW - 1, pn = pk_ok() ? (int32_t)pick_note(0) : -2, lo = -1;
+        if (idx >= len)
+            break;
+        if (!op_step_auto(t, idx, 16u))
+            continue;
+        if (step_on(s) && !FILL_HID(t, oi, 0))
+            for (i = 0; i < s->n && i < 4u; i++) {
+                int32_t nt = s->note[i];
+                if (RV(nt) && lo != pn && (nt == pn || lo < 0 || nt < lo)) {
+                    lo = nt;
+                    bw = ngate_of(s, i) ? (RL_CW - 1) * (int32_t)ngate_of(s, i) / 128 : RL_CW - 1;
+                    bw = bw < 2 ? 2 : bw;
+                }
+            }
+        if (lo >= 0)
+            y = NY(lo) + m;
+        au_dot(RL_X + (int32_t)w * RL_CW - sg_ox, y, bw, h);
+    }
 }
 #undef NY
 static void roll_col(int32_t w)                         /* column w of the roll again, on a canvas of its own */
@@ -560,8 +616,7 @@ static void sg_marks(const track_t *t)
                 cv_rect(GX + (int32_t)(a - lo) * GCW + (s >= lo ? (GCW - 2) / 2 : -2), SG_MK_Y + 1,
                         (int32_t)(b - a) * GCW - (s >= lo ? (GCW - 2) / 2 : -2) - 2, 1, col_shade(c, 5u));
         }
-        if (s >= lo && s < hi)
-            cv_rect(GX + (int32_t)(s - lo) * GCW + (GCW - 2) / 2 - 1, SG_MK_Y, 3, 3, c);
+        (void)c;                                        /* (no dot here: a step's automation is the dot inside its cell or note bar, au_dot) */
     }
 }
 #endif
@@ -682,13 +737,21 @@ static int draw_step_panel(void)                       /* 1: the whole grid pain
         return full;
     st.ph_drawn = (uint8_t)key;
     step_strip(key);
-    if (!is_drum(t) && col != sg_ph && !ui.cards_t) {   /* the roll: the columns the playhead left and reached */
-        int32_t old = sg_ph;                            /* (not under the cards: the band again when they go) */
+    if (col != sg_ph && !ui.cards_t) {                  /* the columns the playhead left and reached (the roll's own canvases, the drums'
+                                                         * one column each, sg_cols); not under the cards: the band again when they go */
+        int32_t old = sg_ph;
         sg_ph = col;
-        if (old >= 0)
-            roll_col(old);
-        if (col >= 0)
-            roll_col(col);
+        if (is_drum(t)) {
+            if (old >= 0)
+                sg_cols((uint32_t)old, (uint32_t)old);
+            if (col >= 0)
+                sg_cols((uint32_t)col, (uint32_t)col);
+        } else {
+            if (old >= 0)
+                roll_col(old);
+            if (col >= 0)
+                roll_col(col);
+        }
     }
     return full;
 }

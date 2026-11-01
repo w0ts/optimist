@@ -202,6 +202,7 @@ static int pat_peek(uint32_t k, uint32_t s, pat_peek_t *o)
     const uint8_t *a = sec_rbuf, *e, *m;
     uint32_t n, f, v, len, i, l, c;
     uint8_t st[10];
+    uint16_t fo[DRUM_LANES] = {0};                       /* (FILL ONLY: a step a bit, per lane; a synth track's lane 0) */
     memset(o, 0, sizeof *o);
     if (k >= NTRK || s >= PAT_N || (n = pat_get(k, s, sec_rbuf)) < 5u)
         return 0;
@@ -216,11 +217,18 @@ static int pat_peek(uint32_t k, uint32_t s, pat_peek_t *o)
 #if FELUCCA_AUTO
         for (i = 0; i < c; i++) {                       /* (the muted notes: AUTO_MUTE / AUTO_SMUTE, this step only, set) */
             uint32_t pl = a[1u + 3u * i], pr = a[2u + 3u * i];
-            if ((pl & AUTO_ONLY) && a[3u + 3u * i] && (pl & AUTO_STEP) < 16u) {
-                if (IS_DRUMK(k) && pr >= AUTO_MUTE0 && pr < AUTO_MUTE0 + DRUM_LANES)
-                    o->mut[pr - AUTO_MUTE0] |= (uint16_t)(1u << (pl & AUTO_STEP));
-                else if (!IS_DRUMK(k) && pr == AUTO_SMUTE)
-                    o->mut[0] |= (uint16_t)(1u << (pl & AUTO_STEP));
+            uint32_t pv = a[3u + 3u * i], b = 1u << (pl & AUTO_STEP);
+            if ((pl & AUTO_ONLY) && pv && (pl & AUTO_STEP) < 16u) {
+                if (IS_DRUMK(k) && pr >= AUTO_MUTE0 && pr < AUTO_MUTE0 + DRUM_LANES) {
+                    if (pv == 1u)                       /* (the lane's one state a hit: muted; FILL ONLY: not shown, it plays in a fill only; NO FILL: as any) */
+                        o->mut[pr - AUTO_MUTE0] |= (uint16_t)b;
+                    else if (pv == AUTO_LF_FILL)
+                        fo[pr - AUTO_MUTE0] |= (uint16_t)b;
+                } else if (!IS_DRUMK(k) && pr == AUTO_SMUTE) {
+                    o->mut[0] |= (uint16_t)b;
+                } else if (!IS_DRUMK(k) && pr == AUTO_FILL && pv == FC_FILL) {
+                    fo[0] |= (uint16_t)b;
+                }
             }
         }
 #endif
@@ -244,11 +252,11 @@ static int pat_peek(uint32_t k, uint32_t s, pat_peek_t *o)
         if (IS_DRUMK(k)) {
             uint32_t mask = ((uint32_t)st[0] | (uint32_t)st[1] << 8) & DRUM_LMASK;
             for (l = 0; l < DRUM_LANES; l++)
-                if ((mask >> l) & 1u) {
+                if (((mask >> l) & 1u) && !((fo[l] >> i) & 1u)) {
                     o->hit[l] |= (uint16_t)(1u << i);
                     o->lvl[l] |= (uint32_t)((st[2u + (l >> 2)] >> ((l & 3u) * 2u)) & 3u) << (2u * i);
                 }
-        } else if (st[5] == ST_NOTE && st[4]) {
+        } else if (st[5] == ST_NOTE && st[4] && !((fo[0] >> i) & 1u)) {
             uint32_t best = 0, j;
             for (j = 0; j < st[4] && j < 4u; j++) {
                 uint32_t lv = (st[8] >> (2u * j)) & 3u;

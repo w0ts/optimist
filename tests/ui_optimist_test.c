@@ -4143,6 +4143,7 @@ static void preset_engine_tests(void)
 #include "ui_optimist_stepedit.h"                  /* 2026-10-31: a note moved past another, the move not stopped, LENGTH only lengthens */
 #include "ui_optimist_stepsave.h"
 #include "ui_optimist_shiftcycle.h"                  /* 2026-10-31: REC on = the keys play, the last note entered picked, SAVE with no note picked */
+#include "ui_optimist_drumph.h"                    /* the drum playhead column, fills only with SEQ held, the automation dot */
 #include "ui_optimist_seqfill.h"                    /* SEQ held on STEP: the fill view, FILL ONLY / NO FILL per synth track and drum lane */
 #include "ui_optimist_stephold.h"                  /* STEP: a tap toggles the step, a hold opens its cards only */
 #include "ui_optimist_lforate.h"                  /* LFO RATE: the free bar from 0, a synced value as a division */
@@ -4442,6 +4443,7 @@ int main(int argc, char **argv)
     shiftcycle_tests();
 #endif
     seqfill_tests();
+    drumph_tests();
     step_cards_leak_tests();
     s35_entry_tests();
     s35_transpose_tests();

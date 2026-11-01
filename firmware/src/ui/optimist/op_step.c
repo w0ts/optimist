@@ -634,6 +634,17 @@ static int step_has(const track_t *t, uint32_t idx)     /* a tap would clear it:
 {
     return is_drum(t) ? dstep_has(&t->dstep[idx], lane_selected()) : step_on(&t->step[idx]);
 }
+/* a FILL ONLY note / hit (drum lane l): stored and played in a fill, never drawn or lit but while SEQ is held on STEP, the fill view (the user,
+ * 2026-11-01: "fills should only be displayed on screen when SEQ is held"); a NO FILL one looks like any other */
+static uint32_t fill_only(const track_t *t, uint32_t idx, uint32_t l)
+{
+#if FELUCCA_FILLS && FELUCCA_AUTO
+    return is_drum(t) ? step_lane_fc(t, idx % NSTEP, l) == FC_FILL : step_fill(t, idx % NSTEP) == FC_FILL;
+#else
+    (void)t, (void)idx, (void)l;
+    return 0;
+#endif
+}
 /* the keys' view of a step: the selected lane's hit (SEQ held, the fill view: the same; the old "SEQ + a key clears the step's lanes" is gone);
  * a synth step where a note starts (pk_note), not a carry step that only holds notes on, as a TIE (the user, 2026-10-31:
  * "when i extend a note, the keyboard lit up on the end of the note, but not all the time": LENGTH over another note
@@ -644,6 +655,8 @@ static int step_shown(const track_t *t, uint32_t idx)
     if (step_muted(t, idx, lane_selected()))
         return 0;                                       /* (a muted note: its key dim, as an empty step's; the user, 2026-11-01) */
 #endif
+    if (!step_fillview() && fill_only(t, idx, is_drum(t) ? lane_selected() : 0u))
+        return 0;                                       /* (a FILL ONLY note: its key dark but with SEQ held, the fill view) */
     return is_drum(t) ? step_has(t, idx) : pk_note(t, idx);
 }
 
