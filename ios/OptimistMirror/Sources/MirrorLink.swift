@@ -99,6 +99,7 @@ final class MirrorLink: ObservableObject, Transport, CompanionTransport {
         var fmStats: [Int]?, fmLogged: [Int]?   // the FM-1's op 5 STATS: the last, and the one logged
         var fmPace: [Int]?, paceLogged: [Int]?  // the FM-1's op 6 PACE (opti_miraimd_1): the last, and the one logged
         var tm = Timing()         // the app's own timing, logged each second ("app: ...")
+        var ackAt = Date.distantPast   // the last ACK alone sent (106 bits 5 and 6, opti_miraimd_1)
     }
     /// What the app itself does with the frames, each second (2026-11-01: a whole screen 3-4 s on the Mac, is it the app?): panel
     /// writes applied, CoreMIDI callbacks, the longest pause between two writes, the longest a write waited to be on screen (the
@@ -389,10 +390,11 @@ final class MirrorLink: ObservableObject, Transport, CompanionTransport {
             }
             let pace = lock.withLock { s -> String? in   // (the FM-1's budget: logged when it changed)
                 guard let now = s.fmPace, now != s.paceLogged else { return nil }
-                let was = s.paceLogged ?? now
+                let was = s.paceLogged.flatMap { $0.count == now.count ? $0 : nil } ?? now
                 s.paceLogged = now
                 let d = zip(now, was).map { ($0 - $1) & 0x1FFFFF }
-                return "fm1 pace: budget \(now[0]) B/s; \(d[1]) cuts, \(d[2]) raises, \(d[3]) frames refused"
+                let late = now.count >= 6 ? "; last ACK \(now[4]) ms after its frame, \(d[5]) cuts for a delay" : ""
+                return "fm1 pace: budget \(now[0]) B/s; \(d[1]) cuts, \(d[2]) raises, \(d[3]) frames refused" + late
             }
             if let pace {
                 Self.log.info("\(pace, privacy: .public)")
@@ -721,6 +723,16 @@ final class MirrorLink: ObservableObject, Transport, CompanionTransport {
             _ = s.decoder.takeLost()
             s.asksWhole += 1
             return [[MirrorDecoder.cmd, 3 | MirrorDecoder.checkedBit]]
+        }
+        // Bluetooth with opti_miraimd_1: an ACK alone (no reply) about 5 times a second while frames come, with the next seq: the
+        // FM-1 times each frame to it and halves its budget when they arrive late (a queue in the Mac or on the air)
+        let ackNow = lock.withLock { s -> [UInt8]? in
+            guard drew, s.bt, s.features?[Feature.miraimd.name] == Feature.miraimd.version, Date().timeIntervalSince(s.ackAt) >= 0.2 else { return nil }
+            s.ackAt = Date()
+            return [MirrorDecoder.cmd, 1 | MirrorDecoder.checkedBit | MirrorDecoder.ackBit | MirrorDecoder.quietBit] + s.decoder.ack
+        }
+        if let ackNow {
+            DispatchQueue.main.async { if self.state == .mirroring, self.destination != 0 { self.send(ackNow) } }
         }
         if !lostAsks.isEmpty {          // (the requests alone: tick's other asks and its rate log keep their pace)
             DispatchQueue.main.async {

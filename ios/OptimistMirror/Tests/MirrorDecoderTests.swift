@@ -192,6 +192,15 @@ final class MirrorDecoderTests: XCTestCase {
         XCTAssertEqual(dec.ack, [0, 0])
     }
 
+    /// op 6 PACE with the ACK's delay (6 values): read whole; the quiet bit is bit 6
+    func testPaceWithDelay() {
+        var f: [UInt8] = [0xF0, 0x7D, 0x46, 0x4C, 106, 6]
+        for v in [5000, 1, 9, 248, 640, 1] { f += [UInt8(v & 127), UInt8(v >> 7 & 127), UInt8(v >> 14 & 127)] }
+        f.append(0xF7)
+        XCTAssertEqual(MirrorDecoder.pace(f), [5000, 1, 9, 248, 640, 1])
+        XCTAssertEqual(MirrorDecoder.quietBit, 64)
+    }
+
     func testUncheckedFramesStillRead() throws {
         var dec = MirrorDecoder()
         XCTAssertTrue(dec.apply([0xF0, 0x7D, 0x46, 0x4C, 106, 0, 0, 0, 0, 0, 112, 1, 112, 1, 127, 127, 3, 0xF7]))

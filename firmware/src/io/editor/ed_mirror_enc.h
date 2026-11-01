@@ -41,8 +41,9 @@ static struct {
  * frames a .. b asks for them (106 bit 4, ed_mirror.c mir_fix) and only those rectangles go again. 128: every 7-bit seq (was 64:
  * a burst of losses older than 64 frames fell back to a whole panel) */
 enum { MIR_RR = 128, MIR_FIX_BIT = 16,
-       MIR_ACK_BIT = 32 };              /* 106 bit 5 (opti_miraimd_1): the client's losses (7 bit, free-running), its next seq */
-static struct { uint8_t seq, x, y, w, h; } me_rr[MIR_RR];
+       MIR_ACK_BIT = 32,                /* 106 bit 5 (opti_miraimd_1): the client's losses (7 bit, free-running), its next seq */
+       MIR_QUIET_BIT = 64 };            /* 106 bit 6 with bit 5: an ACK alone, no reply (the client sends it ~5 times a second) */
+static struct { uint8_t seq, x, y, w, h; uint16_t ms; } me_rr[MIR_RR];   /* (ms: fm1_ms when it went out, the delay an ACK shows) */
 /* the rectangle's pixel i (row by row, me.w a row), in a buffer of rows me.sw apart */
 static uint32_t me_at(const uint16_t *px, uint32_t i) { return me.sw == me.w ? px[i] : px[i / me.w * me.sw + i % me.w]; }
 static int mir_wire(uint32_t b);
@@ -91,6 +92,7 @@ static void me_close(void)
             uint32_t k = me.seq & (MIR_RR - 1u);
             me_rr[k].seq = (uint8_t)(me.seq | 0x80u);
             me_rr[k].x = me.rx, me_rr[k].y = me.ry, me_rr[k].w = me.rw, me_rr[k].h = me.rh;
+            me_rr[k].ms = (uint16_t)fm1_ms;
             if (me.blit && me.w && me.pi > me.p0) {   /* (a BLIT's frame: only the rows its pixels are in) */
                 uint32_t r0 = me.p0 / me.w, r1 = (me.pi - 1u) / me.w;
                 me_rr[k].y = (uint8_t)(me.ry + r0), me_rr[k].h = (uint8_t)(r1 - r0 + 1u);

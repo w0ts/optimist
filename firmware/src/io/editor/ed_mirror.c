@@ -137,6 +137,7 @@ static int mbr_cmd_ok(uint32_t cmd)       /* the projects' moves: the backup's 4
 #define mbr_cmd_ok(cmd) 0
 #endif
 static void mir_fix_ask(uint32_t lo, uint32_t hi);   /* (below: frames lo .. hi lost, the radio's interrupts or USB) */
+static volatile uint8_t mbr_acked;       /* an ACK alone came (106 bits 5 and 6): the client is there, mir_poll */
 static uint8_t mbr_reply;                /* a reply being queued (mir_bt_reply): never held back by MIR_BLE_LAG, only a full ring
                                          * stops it (the user, 2026-10-31: INFO, PJ_OP and the library's replies were dropped 1 in 3
                                          * while the screen streamed: the client asked again and again, Projects never answered) */
@@ -182,13 +183,17 @@ static uint32_t mbr_lag(void)
 #endif
 #if MIR_AIMD
 enum { MBA_FLOOR = 1000, MBA_CEIL = 20000, MBA_START = 3000, MBA_SS_MS = 250, MBA_BURST_MS = 200, MBA_RESUME_MS = 100, MBA_Q_MS = 80,
-       MBA_Q_MIN = 1024, MBA_HOLD_MS = 400, MBA_INC_MS = 1000, MBA_CATCH_MS = 100 };
+       MBA_Q_MIN = 1024, MBA_HOLD_MS = 400, MBA_DELAY_MS = 500, MBA_INC_MS = 1000, MBA_CATCH_MS = 100 };
 static struct {
     uint32_t rate, t, inc_ms, cut_ms;   /* bytes a second; tokens last added; the last raise or its check; the last cut */
     int32_t tok;                        /* the budget left, in thousandths of a byte */
     uint8_t limited, ack_have, ack_lost;   /* a frame refused since the last raise; the client's loss count, as last read */
     uint8_t ss;                         /* slow start: until the first loss, x1.5 each MBA_SS_MS it was spent */
     volatile uint8_t loss;              /* (the radio's interrupts) a loss reported, for mba_poll */
+    volatile uint8_t ack_seq, ack_new;  /* (the radio's interrupts) the client's next seq, an ACK not yet read */
+    uint8_t ack_last;                   /* the next seq the last ACK read had (the delay measured only when it moved: an idle
+                                         * screen's last frame grows old, it is not late) */
+    uint32_t delay, delays;             /* the last ACK's delay (ms, the frame before ack_seq: sent to acknowledged); cuts for it */
     uint32_t cuts, ups, refused;        /* the counts the client logs (106 op 6) */
 } mba;
 static int mba_on(void) { return mir.link == MIR_BT; }
@@ -240,8 +245,9 @@ static int mba_ready(void)
     mba_fill();
     return mba.tok >= (want < 300000 ? 300000 : want) && mbr.w - mbr.r <= mba_q() / 2u;
 }
-static void mba_ack(uint32_t lost)      /* (the radio's interrupts: 106 bit 5) */
+static void mba_ack(uint32_t lost, uint32_t seq)   /* (the radio's interrupts: 106 bit 5) */
 {
+    mba.ack_seq = (uint8_t)(seq & 127u), mba.ack_new = 1;
     if (mba.ack_have && (lost & 127u) != mba.ack_lost)
         mba.loss = 1;
     mba.ack_lost = (uint8_t)(lost & 127u), mba.ack_have = 1;
@@ -251,6 +257,17 @@ static void mba_poll(void)              /* (mir_poll: the cut and the raise) */
     if (!mba_on() || !mir.on)
         return;
     mba_fill();
+    if (mba.ack_new) {                  /* (the time the client's last frame took: a queue past the FM-1, in the Mac or on the
+                                         * air, shows here long before a loss does; 2026-11-01: CoreMIDI saw packets 2.2 s late) */
+        uint32_t k = (mba.ack_seq - 1u) & (MIR_RR - 1u);
+        mba.ack_new = 0;
+        if (mba.ack_seq != mba.ack_last && me_rr[k].seq == (((mba.ack_seq - 1u) & 127u) | 0x80u)) {
+            mba.delay = (uint16_t)((uint16_t)fm1_ms - me_rr[k].ms);
+            if (mba.delay > MBA_DELAY_MS && fm1_ms - mba.cut_ms >= MBA_HOLD_MS)
+                mba.loss = 1, mba.delays++;   /* (late: as a loss, the budget halved) */
+        }
+        mba.ack_last = mba.ack_seq;
+    }
     if (mba.loss) {
         mba.loss = 0;
         if (fm1_ms - mba.cut_ms >= MBA_HOLD_MS) {
@@ -279,7 +296,7 @@ static void mba_reset(void) { uint32_t c = mba.cuts, u = mba.ups, r = mba.refuse
 enum { MBA_CATCH_MS = MIR_CATCH_MS };
 #define mba_admit() 1
 #define mba_ready() 1
-#define mba_ack(l) ((void)(l))
+#define mba_ack(l, q) ((void)(l), (void)(q))
 #define mba_poll() ((void)0)
 #endif
 /* A catch-up larger than the ring (2026-11-01, measured on the FM-1 from the Mac: the mixer of mots-config, 8.7-9.5 KB a catch-up,
@@ -378,8 +395,11 @@ static void mbr_take(void)
             if (mbr.rx_n == 7u && (mbr_rx[4] & MIR_FIX_BIT))
                 mir_fix_ask(mbr_rx[5], mbr_rx[6]);
             else if (mbr.rx_n == 7u)
-                mba_ack(mbr_rx[5]);     /* (the keep-alive with the client's losses, opti_miraimd_1) */
-            mbr.req = (uint8_t)(0x80u | (mbr_rx[4] & ~(MIR_FIX_BIT | MIR_ACK_BIT)));
+                mba_ack(mbr_rx[5], mbr_rx[6]);   /* (the keep-alive with the client's losses, opti_miraimd_1) */
+            if (mbr.rx_n == 7u && (mbr_rx[4] & MIR_QUIET_BIT) && (mbr_rx[4] & MIR_ACK_BIT))
+                mbr_acked = 1;          /* (an ACK alone: kept alive, no reply; mir_poll) */
+            else
+                mbr.req = (uint8_t)(0x80u | (mbr_rx[4] & ~(MIR_FIX_BIT | MIR_ACK_BIT | MIR_QUIET_BIT)));
         }
         return;
     }
@@ -588,7 +608,7 @@ static void ed_mirror(const uint8_t *a, uint32_t na)
 {
     if (na == 3u && (a[0] & MIR_FIX_BIT))
         mir_fix_ask(a[1], a[2]);
-    mir_ask(na ? a[0] & ~(MIR_FIX_BIT | MIR_ACK_BIT) : 0u, MIR_USB);   /* (bit 5 over USB: nothing, no budget there) */
+    mir_ask(na ? a[0] & ~(MIR_FIX_BIT | MIR_ACK_BIT | MIR_QUIET_BIT) : 0u, MIR_USB);   /* (bit 5 over USB: nothing, no budget there) */
     ed_b(mir.on);
     ed_b(MIR_VERSION);
     ed_b4(240u & 127u, 240u >> 7, 240u & 127u, 240u >> 7);
@@ -874,6 +894,11 @@ static void mir_poll(void)
 {
 #if MIR_BLE
     uint32_t q = mbr.req;
+    if (mbr_acked) {
+        mbr_acked = 0;
+        if (mir.on && mir.link == MIR_BT)
+            MIR_SEEN();                 /* (an ACK keeps the mirror alive as a request does) */
+    }
     if (q && mir_bt_up()) {
         static const uint8_t R[6] = {1, MIR_VERSION, 240u & 127u, 240u >> 7, 240u & 127u, 240u >> 7};
         uint32_t i;
@@ -908,10 +933,11 @@ static void mir_poll(void)
         }
 #if MIR_AIMD
         if (me.chk) {   /* then op 6 PACE (opti_miraimd_1; the app logs each second's change): the budget now (bytes a second), its
-                         * cuts, its raises, the frames it refused; 3 x 7 bit each, free-running */
-            uint32_t v[4] = {mba.rate, mba.cuts, mba.ups, mba.refused};
+                         * cuts, its raises, the frames it refused, the last
+                         * ACK's delay (ms), the cuts for a delay over MBA_DELAY_MS; 3 x 7 bit each, free-running */
+            uint32_t v[6] = {mba.rate, mba.cuts, mba.ups, mba.refused, mba.delay, mba.delays};
             me_open(6);
-            for (i = 0; i < 4u; i++)
+            for (i = 0; i < 6u; i++)
                 me_col(v[i] & 0x1FFFFFu);
             me_close();
         }
