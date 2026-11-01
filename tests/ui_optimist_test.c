@@ -484,7 +484,7 @@ static void turn(uint32_t role, int32_t s)
     frame();
 }
 static void key(uint32_t k) { fm1_in.notes |= 1u << k; frame(); fm1_in.notes &= ~(1u << k); frame(); }
-static void cards_up(void) { if (ui.scr == SCR_STEP && !ui.cards_t && !st.held) tap(B_SEQ); }   /* STEP: SEQ brings the
+static void cards_up(void) { if (ui.scr == SCR_STEP && !ui.cards_t && !st.held) tap(B_SEQ), frames(SEQ_DBL_MS / 16u + 2u); }   /* STEP: SEQ brings the
                                                          * cards back (the page kept), the knobs edit only under them */
 static int fails;
 static uint32_t key_led(uint32_t k);                     /* ui_optimist_pages.h */

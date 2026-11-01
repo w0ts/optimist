@@ -518,8 +518,51 @@ static void sen_move_tests(void)                        /* a note moves / length
     sen_rec_off();
     reset_ui();
 }
+static void sen_dbl_cards_tests(void)                   /* a single SEQ tap's cards change waits for the double-tap window; a double tap never shows it */
+{
+    uint32_t r0, i, ok;
+    sen_rec_off();
+    reset_ui();
+    sen_open(32);
+    sen_rec_off();
+    pk_cards_down();
+    r0 = ui.row[SCR_STEP];
+    tap(B_SEQ);
+    for (ok = 1, i = 0; i < 15u; i++)
+        frames(1), ok &= ui.cards_t == 0u && ui.row[SCR_STEP] == r0;
+    check(ok && !se_on(), "step entry dbl cards: one SEQ tap, cards down: nothing shown inside the window");
+    frames(12);
+    check(ui.cards_t > 0u && !se_on(), "step entry dbl cards: ... the cards come back once the window has passed");
+    pk_cards_down();
+    tap(B_SEQ);
+    tap(B_SEQ);
+    for (ok = 1, i = 0; i < 40u; i++)
+        frames(1), ok &= ui.cards_t == 0u && ui.row[SCR_STEP] == r0;
+    check(ok && se_on(), "step entry dbl cards: two SEQ taps, cards down: the cards never show, STEP ENTRY on");
+    sen_rec_off();
+    reset_ui();
+    sen_open(32);
+    sen_rec_off();
+    cards_up();
+    r0 = ui.row[SCR_STEP];
+    tap(B_SEQ);
+    tap(B_SEQ);
+    for (ok = 1, i = 0; i < 40u; i++)
+        frames(1), ok &= ui.row[SCR_STEP] == r0 && (i > 1u || ui.toast_t);
+    check(ok && se_on() && ui.toast_t, "step entry dbl cards: two SEQ taps, cards up: the row stays, the toast is shown");
+    cards_up();
+    tap(B_SEQ);
+    for (ok = 1, i = 0; i < 15u; i++)
+        frames(1), ok &= ui.row[SCR_STEP] == r0;
+    check(ok, "step entry dbl cards: one SEQ tap, cards up: the row waits");
+    frames(12);
+    check(step_rows() < 2u || ui.row[SCR_STEP] != r0, "step entry dbl cards: ... the next row after the window");
+    sen_rec_off();
+    reset_ui();
+}
 static void stepentry_tests(void)
 {
+    sen_dbl_cards_tests();
     sen_move_tests();
     sen_dbl_toast_tests();
     sen_dbl_tests();
