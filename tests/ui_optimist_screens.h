@@ -115,23 +115,10 @@ static void se_header_tests(void)
         }
 #endif
     }
-#if FELUCCA_REC_MODES
-    {   /* GLOBAL's QUANT page: "Rec 2 n/N" */
-        uint32_t i, n = gl_n(0);
-        char sn[24];
-        for (i = 0; i < n; i++) {
-            gl_sect(0, i, sn);
-            if (gl_ent(0, i) >> 2 == TPR_REC2)
-                break;
-        }
-        gl_ptitle(0, i < n ? i : 0, t, sizeof t);
-        check(i < n && !strcmp(t, "Rec 2"), "#2: GLOBAL's REC 2 page: \"Rec 2 3/5\" (was \"Rec 3/5\")");
-    }
-#endif
-    {   /* GLOBAL's LENGTH: the number and its unit */
+    {   /* the PLAY-held page's LENGTH: the number and its unit */
         cell_t c;
         tp_cell(TPR_REC, 1, &c);
-        check(!strcmp(c.val, "1") && !strcmp(c.unit, "bar"), "GLOBAL's REC LENGTH: \"1\" and the unit bar (was \"1 BAR\")");
+        check(!strcmp(c.val, "1") && !strcmp(c.unit, "bar"), "PLAY's REC LENGTH: \"1\" and the unit bar (was \"1 BAR\")");
     }
 }
 static void se_step_tests(void)

@@ -28,13 +28,10 @@ static uint32_t glo_expect(uint32_t s, cell_t *out, char (*sec)[12], uint32_t ma
                 sys_cell(u, k, &c);
             else
                 glo_cell(u, k, &c);
-            if (c.kind == CK_NONE || n >= max)          /* (Tempo's fourth line: TUNE, glo_cell; SYNC is PLAY's TEMPO page's) */
+            if (c.kind == CK_NONE || n >= max)          /* (GLOBAL's first page: TUNE QUANT FILT RESO) */
                 continue;
             out[n] = c;
-            if (s || u >= GL_SYS0)
-                str_cpy(sec[n], SYS[(s ? u : glo_sys(u)) % NSYS].name, 12);
-            else
-                tp_name(u == TPR_REC2 ? TPR_REC : u, sec[n]);
+            str_cpy(sec[n], SYS[(s ? u : glo_sys(u)) % NSYS].name, 12);
             n++;
         }
     return n;
@@ -59,7 +56,7 @@ static int glo_sections(uint32_t scr, const char *const *want, uint32_t nw)   /*
 }
 static void glo_list_tests(void)
 {
-    static const char *const GS[] = {"TEMPO", "REC", "FILTER", "MIDI", "CHANNELS"};   /* (FILTER: FILT RESO, FELUCCA_TRK_FILT builds; skipped else) */
+    static const char *const GS[] = {"TUNE", "MIDI", "CHANNELS"};
     static const char *const SS[] = {"INFO", "INTERNALS",      /* (INFO split in two, 2026-10-15) */
 #if FELUCCA_USB_AUDIO
                                      "USB STATS",         /* (the USB audio counters) */
@@ -86,16 +83,14 @@ static void glo_list_tests(void)
     }
     check(ok, "the list: a line a cell of TEMPO's / SYSTEM's rows, in order, empty cells left out (one place each value)");
     SCREENS[SCR_GLOBAL].cell(0, 0, &c);
-    ok = !strcmp(c.label, "BPM");
+    ok = !strcmp(c.label, "TUNE");
     SCREENS[SCR_GLOBAL].cell(1, 1, &c);
-    ok &= !strcmp(c.label, "NUDGE") && c.kind == CK_VAL;   /* (its knob: the clock 1 ms a click) */
-    SCREENS[SCR_GLOBAL].cell(2, 2, &c);
-    ok &= !strcmp(c.label, "SWING");
+    ok &= !strcmp(c.label, "QUANT") && c.kind == CK_VAL;
     i = SCREENS[SCR_GLOBAL].rows() - 1u;
     SCREENS[SCR_GLOBAL].cell(i, gl_kn(SCR_GLOBAL, i), &c);
-    check(ok && !strcmp(c.label, "DRUMS"), "GLOBAL's lines: BPM NUDGE SWING first (Tempo), DRUMS last (Channels)");
-    check(glo_sections(SCR_GLOBAL, GS, 5) && glo_sections(SCR_SYSTEM, SS, sizeof SS / sizeof SS[0]) && glo_find(SCR_GLOBAL, "REC 2") == SCREENS[SCR_GLOBAL].rows(),
-          "the sections in order: Tempo Rec (REC 2's QUANT is Rec's) Filter (FILT RESO) MIDI (CLK OUT on it) Channels; Info General USB Keys Bluetooth Devices USB-audio About Credits");
+    check(ok && !strcmp(c.label, "DRUMS"), "GLOBAL's lines: TUNE QUANT first (Tune), DRUMS last (Channels)");
+    check(glo_sections(SCR_GLOBAL, GS, 3) && glo_sections(SCR_SYSTEM, SS, sizeof SS / sizeof SS[0]) && glo_find(SCR_GLOBAL, "REC 2") == SCREENS[SCR_GLOBAL].rows(),
+          "the sections in order: Tune (TUNE QUANT FILT RESO) MIDI (CLK OUT on it) Channels; Info General USB Keys Bluetooth Devices USB-audio About Credits");
     {   /* SYSTEM's first page is INFO: one line (the page is drawn whole), its read-outs the page's own (sys_info_cell) */
         cell_t c1, c2;
         char nm1[12];
@@ -118,34 +113,34 @@ static void glo_list_tests(void)
     check(ok, "every line has a name and a value (no empty line)");
 #if FELUCCA_TFLT_RESO && FELUCCA_TRK_FILT
     {   /* FILT RESO is the project's (2026-10-29): GLOBAL's FILTER section, not SYSTEM's General; General keeps its three and USB SERIAL joins */
-        uint32_t f = glo_find(SCR_GLOBAL, "FILTER"), m = glo_find(SCR_GLOBAL, "MIDI"), g = glo_find(SCR_SYSTEM, "GENERAL");
+        uint32_t f = glo_find(SCR_GLOBAL, "TUNE") + 2u, m = glo_find(SCR_GLOBAL, "MIDI"), g = glo_find(SCR_SYSTEM, "GENERAL");
         ok = f < SCREENS[SCR_GLOBAL].rows() && f < m;
         if (ok) {
             SCREENS[SCR_GLOBAL].cell(f, gl_kn(SCR_GLOBAL, f), &c);
-            ok = c.label && !strcmp(c.label, "FILT RESO") && gl_end(0, f) == f + 1u && gl_first(0, f) == f;   /* (a page of its own) */
+            ok = c.label && !strcmp(c.label, "FILT RESO") && gl_end(0, f) == f + 1u && gl_first(0, f) == f - 2u;   /* (the third line of GLOBAL's first page) */
         }
         for (i = 0; i < SCREENS[SCR_SYSTEM].rows(); i++) {
             SCREENS[SCR_SYSTEM].cell(i, gl_kn(SCR_SYSTEM, i), &c);
             ok &= !(c.label && !strcmp(c.label, "FILT RESO"));
         }
-        check(ok, "FILT RESO: a line of GLOBAL's FILTER section (its own page, before MIDI), none in SYSTEM");
+        check(ok, "FILT RESO: a line of GLOBAL's first page (TUNE, QUANT, FILT RESO), none in SYSTEM");
 #if FELUCCA_CDC && !DBG_STATS
-        ok = g + 3u < SCREENS[SCR_SYSTEM].rows() && gl_end(1, g) - gl_first(1, g) == 4u;
-        SCREENS[SCR_SYSTEM].cell(g + 3u, gl_kn(SCR_SYSTEM, g + 3u), &c);
+        ok = g + 2u < SCREENS[SCR_SYSTEM].rows() && gl_end(1, g) - gl_first(1, g) == 3u;
+        SCREENS[SCR_SYSTEM].cell(g + 2u, gl_kn(SCR_SYSTEM, g + 2u), &c);
         check(ok && c.label && !strcmp(c.label, "SERIAL"), "SYSTEM > General: KNOB COLORS, HPHN BASS and USB SERIAL on one page (GL_JOIN: FILT RESO gone)");
 #endif
     }
 #endif
 #if DBG_STATS
-    {   /* DEBUG STATS (the release, PLAT_STATS_APP) is General's last line (2026-10-29), no page of its own; General is full, so USB SERIAL has its own */
+    {   /* DEBUG STATS (the release, PLAT_STATS_APP) is General's last line (2026-10-29), no page of its own; USB SERIAL joins them (CDC builds) */
         static const char *const GL[4] = {"KNOB COLORS", "HPHN BASS", "DEBUG STATS", "SERIAL"};
         uint32_t g = glo_find(SCR_SYSTEM, "GENERAL");
-        ok = g + 3u < SCREENS[SCR_SYSTEM].rows() && gl_end(1, g) - gl_first(1, g) == 4u;
-        for (i = 0; ok && i < 4u; i++) {
+        ok = g + 2u < SCREENS[SCR_SYSTEM].rows() && gl_end(1, g) - gl_first(1, g) == 3u + FELUCCA_CDC;
+        for (i = 0; ok && i < 3u + FELUCCA_CDC; i++) {
             SCREENS[SCR_SYSTEM].cell(g + i, gl_kn(SCR_SYSTEM, g + i), &c);
             ok &= c.label && !strcmp(c.label, GL[i]);
         }
-        check(ok, "SYSTEM > General (DEBUG STATS built): KNOB COLORS, HPHN BASS, DEBUG STATS, USB SERIAL on one page");
+        check(ok, "SYSTEM > General (DEBUG STATS built): KNOB COLORS, HPHN BASS, DEBUG STATS (USB SERIAL in CDC builds) on one page");
         for (i = 0, ok = 1; i < SCREENS[SCR_SYSTEM].rows(); i++) {
             char nm[24];
             SCREENS[SCR_SYSTEM].name(i, nm);
@@ -223,19 +218,13 @@ static void glo_tests(void)
     tap(B_GLO);
     check(ui.scr == SCR_GLOBAL && ui.row[SCR_GLOBAL] == 0u, "GLO tapped on the mixer: GLOBAL, its first line");
     {   /* the knobs: KNOB k the page's line k; the turn makes it the cursor */
-        int16_t bpm = song.g[G_BPM], sw = song.g[G_SWING];
+        int16_t tune = song.g[G_TUNE], rq = song.g[G_RECQ];
         turn(EN_K1, 3);
-        ok = song.g[G_BPM] > bpm && ui.row[SCR_GLOBAL] == 0u;
-        turn(EN_K3, 2);
-        check(ok && song.g[G_SWING] != sw && ui.row[SCR_GLOBAL] == 2u, "Tempo page: KNOB 1 the BPM, KNOB 3 the SWING (its line the cursor)");
-        tp_cell(TPR_TEMPO, 0, &a);
-        {
-            cell_t b;
-            SCR->cell(0, 0, &b);
-            check(!strcmp(a.val, b.val), "... the same value the TEMPO page shows");
-        }
-        song.g[G_BPM] = bpm;
-        song.g[G_SWING] = sw;
+        ok = song.g[G_TUNE] > tune && ui.row[SCR_GLOBAL] == 0u;
+        turn(EN_K2, 1);
+        check(ok && ui.row[SCR_GLOBAL] == 1u, "GLOBAL's first page: KNOB 1 the TUNE, KNOB 2 the QUANT (its line the cursor)");
+        song.g[G_TUNE] = tune;
+        song.g[G_RECQ] = rq;
         w = line_named(SCR_GLOBAL, "TRK 2");
         turn(EN_SELECT, (int32_t)gl_pg(0, w) - (int32_t)gl_pg(0, ui.row[SCR_GLOBAL]));   /* (SELECT: to its page) */
         {
@@ -256,20 +245,20 @@ static void glo_tests(void)
         static track_t keep[NTRK];
         uint32_t sel = song.sel, cur = preset_pos(&tot);
         memcpy(keep, trk, sizeof keep);
-        w = line_named(SCR_GLOBAL, "SWING");
-        v = song.g[G_SWING];
+        w = line_named(SCR_GLOBAL, "TUNE");
+        v = song.g[G_TUNE];
         turn(EN_PRESET, 2);
-        check(song.g[G_SWING] == v && ui.row[SCR_GLOBAL] == w, "PRESETS on GLOBAL: the cursor line's value is not touched (SWING)");
-        song.g[G_SWING] = (int16_t)(GP[G_SWING].def + 3);
+        check(song.g[G_TUNE] == v && ui.row[SCR_GLOBAL] == w, "PRESETS on GLOBAL: the cursor line's value is not touched (TUNE)");
+        song.g[G_TUNE] = (int16_t)(GP[G_TUNE].def + 3);
         press(B_OCTDN);
         turn(EN_PRESET, 1);
         release(B_OCTDN);
-        check(song.g[G_SWING] == GP[G_SWING].def + 3 && ui.scr == SCR_GLOBAL, "SHIFT held + PRESETS: nothing either (HOME no NO)");
+        check(song.g[G_TUNE] == GP[G_TUNE].def + 3 && ui.scr == SCR_GLOBAL, "SHIFT held + PRESETS: nothing either (HOME no NO)");
         press(B_OCTDN);
         turn(LINE_KNOB(w), 1);
         release(B_OCTDN);
-        check(song.g[G_SWING] == GP[G_SWING].def && ui.scr == SCR_GLOBAL, "SHIFT held + the line's knob: its default");
-        song.g[G_SWING] = v;
+        check(song.g[G_TUNE] == GP[G_TUNE].def && ui.scr == SCR_GLOBAL, "SHIFT held + the line's knob: its default");
+        song.g[G_TUNE] = v;
         turn(EN_PRESET, -1);
         line_named(SCR_SYSTEM, "INFO");
         turn(EN_PRESET, 1);                             /* (a read-out: nothing) */
@@ -313,21 +302,15 @@ static void glo_tests(void)
     song.sel = 0;
     ui.row[SCR_GLOBAL] = 0;
     tap(B_GLO);
-    {   /* OCT on a page with Tempo's lines: the nudge, the keyboard octave untouched; another page: the octave */
+    {   /* OCT on GLOBAL (no Tempo lines any more): never the nudge, the keyboard octave */
         int8_t o = song.octave;
-        press(B_OCTUP);
-        frames(2);
-        check(clk_nudge > 0 && song.octave == o, "GLOBAL's Tempo page: OCT+ held nudges the clock, the octave untouched");
-        release(B_OCTUP);
-        frames(2);
-        check(clk_nudge == 0, "... let go: no nudge");
-        turn(EN_SELECT, 1);                             /* (page 2: Rec's lines) */
         tap(B_OCTUP);
-        check(clk_nudge == 0 && song.octave == o + 1, "GLOBAL page 2: OCT+ is the keyboard octave again");
+        check(clk_nudge == 0 && song.octave == o + 1, "GLOBAL's first page: OCT+ is the keyboard octave (the nudge is the PLAY-held page's)");
         song.octave = o;
+        frames(120);                                    /* (the octave's toast away) */
     }
     {   /* GLO tapped: GLOBAL and SYSTEM in turn, each on its own line */
-        line_named(SCR_SYSTEM, "HOLD");
+        line_named(SCR_SYSTEM, "KNOB COLORS");
         w = ui.row[SCR_SYSTEM];
         line_named(SCR_GLOBAL, "QUANT");
         i = ui.row[SCR_GLOBAL];

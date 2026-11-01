@@ -4,10 +4,10 @@
  * "consistency is key in our ui", "when we scroll with algo, we scroll page by page (the selection on the page moves line
  * by line; 2026-10-13: "ALGORITHM moves track - NO. only the track!": no line-by-line encoder any more)", "glo still pages thru pages of glo and then system, it should switch between the two"). Two vertical lists,
  * one setting a line: its name on the left, its value on the right, the lines under small section headers:
- *   GLOBAL   Tempo: BPM NUDGE SWING   Rec: MODE LENGTH START CLICK QUANT (PUNCH: FELUCCA_PUNCH_SW)   MIDI: CLK IN CLK OUT MIDI IN MIDI OUT (one
+ *   GLOBAL   Tune: TUNE QUANT FILTER RESO (one page; BPM, NUDGE, SWING and the REC rows are on the PLAY-held page only)   MIDI: CLK IN CLK OUT MIDI OUT (one
  *            page; 3 lines without CLK OUT)   Channels: T1 T2 T3 DR
  *   SYSTEM   CPU: CLOCK LOAD (read-outs)   Screen   Lights   Audio   USB   Bluetooth   About
- * The lines are the cells of the rows below, called through their own functions (TEMPO's tp_*, SYSTEM's sys_*), so each
+ * The lines are the cells of the rows below, called through their own functions (SYSTEM's sys_*), so each
  * value lives in one place and keeps its format; a row's empty cells are no line (what this build lacks is not shown).
  *   pages      fixed blocks of 4 lines, numbered within the screen (the header: "Tempo 2/5"); the 4 lines on screen are
  *              marked 1..4 at their left: KNOB k edits line k. A knob turned makes its line the cursor
@@ -20,41 +20,15 @@
  *              YES; a read-out: nothing. Never the track or its sound here
  *   SAVE       YES on the cursor line: an action (About VERSION says it, Bluetooth BLE: the
  *              devices), an on / off value toggled
- * On a page with Tempo's lines OCT- / OCT+ held nudge the clock (op_tempo.c tempo_nudging). The BLE devices list
+ * The BLE devices list
  * (op_project.c dev_*) keeps its own rows and cards. GLO held is the performance layer, unchanged (op_layers.c).
  * After it, the screen table. Drawn by op_gldraw.c. */
-#define GL_SYS0 ((uint32_t)TPR_N)                       /* GLOBAL's rows: TEMPO's three, then SYSTEM's global rows */
-#define GL_NSYS ((uint32_t)NSYS_GLO)
-static uint32_t glo_rows(void) { return GL_SYS0 + GL_NSYS; }
-static uint32_t glo_sys(uint32_t r) { return NSYS_SETUP + (r - GL_SYS0); }   /* its SYS row */
-/* Tempo's fourth line: TUNE (fx-rework 2026-10-14: it sat on the master's LIMIT page; SYNC, PLAY's TEMPO page's fourth
- * card, is CLK IN on the MIDI page here) */
-#define GL_TUNE(r, k) ((r) == TPR_TEMPO && (k) == 3u)
-static void glo_cell(uint32_t r, uint32_t k, cell_t *c)
-{
-    if (GL_TUNE(r, k)) {
-        cell_clear(c);
-        cell_param(c, &GP[G_TUNE], &song.g[G_TUNE]);
-        return;
-    }
-    if (r < GL_SYS0)
-        tp_cell(r, k, c);
-    else
-        sys_cell(glo_sys(r), k, c);
-}
-static void glo_turn(uint32_t r, uint32_t k, int32_t s, int fine)
-{
-    if (GL_TUNE(r, k))
-        val_turn(&GP[G_TUNE], &song.g[G_TUNE], k, s, fine);
-    else if (r < GL_SYS0)
-        tp_turn(r, k, s, fine);
-    else
-        sys_turn(glo_sys(r), k, s, fine);
-}
-static int glo_yes(uint32_t r, uint32_t k, uint32_t ok)
-{
-    return GL_TUNE(r, k) ? 0 : r < GL_SYS0 ? tp_yes(r, k, ok) : sys_yes(glo_sys(r), k, ok);
-}
+#define GL_NSYS ((uint32_t)NSYS_GLO)                    /* GLOBAL's rows: SYSTEM's global rows (op_project.c SYS's end: TUNE (TUNE QUANT FILT RESO), MIDI, CHANNELS) */
+static uint32_t glo_rows(void) { return GL_NSYS; }
+static uint32_t glo_sys(uint32_t r) { return NSYS_SETUP + r; }   /* its SYS row */
+static void glo_cell(uint32_t r, uint32_t k, cell_t *c) { sys_cell(glo_sys(r), k, c); }
+static void glo_turn(uint32_t r, uint32_t k, int32_t s, int fine) { sys_turn(glo_sys(r), k, s, fine); }
+static int glo_yes(uint32_t r, uint32_t k, uint32_t ok) { return sys_yes(glo_sys(r), k, ok); }
 
 /* ---- the list: line i of screen s (0 GLOBAL, 1 SYSTEM) is cell k of row u, kept as u << 2 | k (built once: what a row
  * shows depends on the build only) */
@@ -93,21 +67,12 @@ static struct {
 } gll;
 static int gl_has(uint32_t s, uint32_t u, uint32_t k)   /* row u's cell k is a line */
 {
-    cell_t c;
-    if (s || u >= GL_SYS0)
-        return sys_item(s ? u : glo_sys(u), k) != SI_NONE;
-    if (u == TPR_TEMPO && k == 3u)                      /* (SYNC: PLAY's TEMPO page has it, CLK IN here; its line here is TUNE) */
-        return 1;
-    tp_cell(u, k, &c);
-    return c.kind != CK_NONE;
+    return sys_item(s ? u : glo_sys(u), k) != SI_NONE;
 }
 static void gl_secname(uint32_t s, uint32_t e, char *b) /* the section of entry e (row << 2 | cell): its row's name (REC 2's lines are REC's) */
 {
     uint32_t u = e >> 2;
-    if (s || u >= GL_SYS0)
-        str_cpy(b, SYS[(s ? u : glo_sys(u)) % NSYS].name, 12);
-    else
-        tp_name(u == TPR_REC2 ? TPR_REC : u, b);
+    str_cpy(b, SYS[(s ? u : glo_sys(u)) % NSYS].name, 12);
 }
 /* ---- the pages (the user, 2026-10-13: "the global and system screen should be grouped in logical pages, dont cut a page
  * in the middle if possible", "i prefer two pages with 2 items than messy pages", "the midi channels for the tracks should
@@ -119,8 +84,6 @@ static uint32_t gl_sid(uint32_t s, uint32_t e)          /* entry e's section: on
                                                          * named as the one before it is that one's: USB AUDIO's five) */
 {
     uint32_t u = e >> 2, r;
-    if (!s && u < GL_SYS0)
-        return u == TPR_REC2 ? (uint32_t)TPR_REC : u;
     for (r = s ? u : glo_sys(u); r && str_eq(SYS[r % NSYS].name, SYS[(r - 1u) % NSYS].name); r--)
         ;
     return 8u + r;
@@ -251,9 +214,6 @@ static void gl_ptitle(uint32_t s, uint32_t i, char *b, uint32_t n)
     char t[24];
     uint32_t f = gl_first(s, i), z = gl_end(s, i) - 1u, j;
     gl_sect(s, f, t);
-    if (!s && gl_ent(s, f) >> 2 == TPR_REC2)
-        tp_name(TPR_REC2, t);                           /* (REC's second page is the row's own name, "Rec 2 3/5": the
-                                                         * audit's #2, a continuation keeps its number) */
     op_case(b, t, n);
     if (s && gl_sid(s, gl_ent(s, f)) != gl_sid(s, gl_ent(s, z)))
         for (j = 0; j < GL_NJOIN; j++)
@@ -337,10 +297,6 @@ static void glo_walk(int32_t s)
     uint32_t sc = ui.scr == SCR_SYSTEM, n = gl_n(sc);
     if (n)
         gl_at((uint32_t)step_in(ui.row[ui.scr], s, n));
-}
-static int gl_on_tempo(void)                            /* GLOBAL's page shows Tempo's lines: OCT nudges (op_tempo.c) */
-{                                                       /* (Tempo is GLOBAL's first section: its lines are on page 0) */
-    return ui.scr == SCR_GLOBAL && gl_n(0) && gl_pg(0, ui.row[SCR_GLOBAL]) == 0u;
 }
 /* GLO tapped: on GLOBAL, SYSTEM; on SYSTEM (its BLE devices list too: closed), GLOBAL; from any other screen the one of the two
  * that was open last (the user, 2026-10-29; GLOBAL at power-on: RAM only, the settings record keeps nothing of it). Each keeps its line */

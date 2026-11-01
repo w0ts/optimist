@@ -414,7 +414,7 @@ static uint32_t pw_leds(uint32_t *d);
 #include "../../system/dual_mode.h"                     /* 2ND CORE: DUALM_*, dual_why_name, and the INFO text helpers dual_cat / dual_cnum / dual_chex (LAST RESET: every UI=1 build; pure, no state) */
 #include "../../system/stackmark.h"                     /* INFO's RAM line: how deep the stacks went (painted at boot: stk_boot) */
 /* ---- SYSTEM: SLOOP's HOME-held menu as rows (ui/sloop/ui_menu.c) */
-enum { SI_NONE, SI_OUT, SI_SYNC, SI_CH1, SI_CH2,
+enum { SI_NONE, SI_TUNE, SI_RECQ, SI_PUNCH, SI_OUT, SI_SYNC, SI_CH1, SI_CH2,
        SI_CH3, SI_CHD, SI_USB, SI_CPU, SI_MHZ, SI_ABOUT, SI_BLE, SI_KCOL, SI_DBGST, SI_CLKOUT, SI_CPU1, SI_INFO, SI_BUILD, SI_REPO,
        SI_DROPS, SI_GUARD, SI_UAINFO, SI_XRUN, SI_DIAG, SI_CREDITS, SI_BLEST, SI_BLEPEER, SI_BLEMIDI, SI_BLELIST, SI_BLEAUTO,
        SI_BLEFGT, SI_FRESO, SI_HPBASS, SI_BTA, SI_BTAPEER, SI_BTAFMT, SI_BTAST, SI_CLKOFS, SI_BTOFS, SI_LINK, SI_LINKOFS,
@@ -507,7 +507,7 @@ static const struct { const char *name; uint8_t it[4]; } SYS[] = {
 #endif
     /* the screen and the sound in one section (the user, 2026-10-25: KNOB COLORS was on a page read as "audio", "group and
      * make it logical"): KNOB COLORS (the knob caps' colours; COLOR gone 2026-10-18: the palette is MONO, panel.c),
-     * SPK LOWCUT and HPHN BASS (the output's correction by the headphone jack: fx/outcorr.c); FILT RESO went to GLOBAL's FILTER
+     * SPK LOWCUT and HPHN BASS (the output's correction by the headphone jack: fx/outcorr.c); FILT RESO went to GLOBAL's TUNE page
      * (the user, 2026-10-29: it is a project's, not the device's), so USB SERIAL joins this page (GL_JOIN) when it fits. DEBUG STATS is the last row, after HPHN BASS, where the platform keeps them
      * (DBG_STATS: the release; it had a page alone, SYSTEM > DEBUG, until 2026-10-29): General is then 4 lines, full, and USB SERIAL
      * keeps its own page (the join holds 4 lines at most) */
@@ -555,8 +555,9 @@ static const struct { const char *name; uint8_t it[4]; } SYS[] = {
     {"CREDITS", {SI_CREDITS, SI_NONE, SI_NONE, SI_NONE}},   /* after ABOUT: one text page, the end titles (op_credits.c) */
     /* the global rows, last: GLOBAL's (GLO tapped, op_global.c), not SYSTEM's (the user, 2026-10-12: GLO "the page
      * where we have bpm, nudge, midi track settings etc"); defined here once, SYSTEM shows the rows above them */
-    {"FILTER", {SI_IF(FELUCCA_TFLT_RESO && FELUCCA_TRK_FILT, SI_FRESO), SI_NONE, SI_NONE, SI_NONE}},   /* (FILT RESO: SLOOP 2.8's FILTER RESO, every track's
-                            * FILTER resonance, saved with the PROJECT: core.h G_TFRES; its own page, the project's sound beside its clock) */
+    {"TUNE", {SI_TUNE, SI_RECQ, SI_IF(FELUCCA_TFLT_RESO && FELUCCA_TRK_FILT, SI_FRESO), SI_IF(FELUCCA_PUNCH_SW && !FELUCCA_REC_MODES, SI_PUNCH)}},   /* GLOBAL's first page (the user, 2026-11-01: the PLAY-held page
+                            * has the rest): TUNE, QUANT (the record quantise, also on PLAY's REC rows), FILT RESO (SLOOP 2.8's FILTER RESO, every track's
+                            * FILTER resonance, saved with the PROJECT: core.h G_TFRES) */
     {"MIDI", {SI_IF(FELUCCA_MIDI_CLOCK, SI_SYNC), SI_IF(FELUCCA_MIDI_CLKOUT, SI_CLKOUT),
               FELUCCA_LINK ? (uint8_t)SI_LINK : SI_IF(FELUCCA_MIDI_OUT, SI_OUT), FELUCCA_LINK ? SI_IF(FELUCCA_MIDI_OUT, SI_OUT) : (uint8_t)SI_NONE}},   /* (LINK, Link builds, between CLK OUT and MIDI OUT) */   /* (CLK IN, CLK OUT, MIDI OUT: no MIDI IN since 2026-10-14, the user: notes come in through the track channels,
                             * the clock through CLK IN; settings word bit 15 is free; CLKOUT: the clock sent, io/midi/clock_out.c) */
@@ -567,7 +568,7 @@ static const struct { const char *name; uint8_t it[4]; } SYS[] = {
     {"CHANNELS", {SI_CH1, SI_CH2, SI_CH3, SI_CHD}},
 };
 #define NSYS (sizeof SYS / sizeof SYS[0])
-#define NSYS_GLO (3u + FELUCCA_MIDI_CLOCK)              /* the global rows at SYS's end: FILTER, MIDI (and its offsets), CHANNELS */
+#define NSYS_GLO (3u + FELUCCA_MIDI_CLOCK)              /* the global rows at SYS's end: TUNE, MIDI (and its offsets), CHANNELS */
 #define NSYS_SETUP (NSYS - NSYS_GLO)                    /* SYSTEM's rows: the setup (SCREEN, AUDIO, BLUETOOTH ...) */
 static uint8_t sys_dirty;                               /* a setting changed: saved when SYSTEM or GLOBAL is left */
 static uint32_t sys_rows(void)
@@ -595,10 +596,17 @@ static const param_desc_t *sys_desc(uint32_t it, int16_t **vp)
 {
     static const uint8_t BPS[] = {BPS_MOUT, 0, BPS_CH0, BPS_CH1, BPS_CH2, BPS_CHD};
     *vp = 0;
-    if (it == SI_SYNC || it == SI_FRESO) {
-        *vp = &song.g[it == SI_SYNC ? G_SYNC : G_TFRES];
-        return &GP[it == SI_SYNC ? G_SYNC : G_TFRES];
+    if (it == SI_SYNC || it == SI_FRESO || it == SI_TUNE || it == SI_RECQ) {
+        const uint32_t g = it == SI_SYNC ? G_SYNC : it == SI_FRESO ? G_TFRES : it == SI_TUNE ? G_TUNE : G_RECQ;
+        *vp = &song.g[g];
+        return &GP[g];
     }
+#if FELUCCA_PUNCH_SW
+    if (it == SI_PUNCH) {                               /* (without REC MODES the PLAY-held page has no REC 2: PUNCH is here) */
+        *vp = &punch_sw;
+        return &PUNCH_SW_D;
+    }
+#endif
     if (it >= SI_OUT && it <= SI_CHD)
         return bps_desc(BPS[it - SI_OUT], vp);
 #if FELUCCA_MIDI_CLOCK
@@ -1684,7 +1692,7 @@ static void sys_turn(uint32_t r, uint32_t k, int32_t s, int fine)
     }
     if (d) {
         val_turn(d, vp, k, s, fine);
-        sys_dirty = 1;
+        sys_dirty |= it != SI_TUNE && it != SI_RECQ && it != SI_PUNCH;   /* (TUNE, QUANT, PUNCH: the project's, not the settings record's) */
         return;
     }
     sys_set(it, s);
@@ -1757,7 +1765,7 @@ static int sys_yes(uint32_t r, uint32_t k, uint32_t ok)
     if (d) {
         if (!val_toggle(d, vp))
             return 0;
-        sys_dirty = 1;
+        sys_dirty |= it != SI_TUNE && it != SI_RECQ && it != SI_PUNCH;
         return 1;
     }
     if (it == SI_NONE || (it >= SI_INFO && !si_ua(it)) || it == SI_CPU || it == SI_MHZ || it == SI_CPU1)
