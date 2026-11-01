@@ -247,6 +247,18 @@ def installs():
     for nm in ("FM1-1A2B", "Optimist"):                  # (the port name of Optimist's firmware: FM1-XXXX since 2026-10-29, "Optimist" before)
         rc, out, err = cli(["--info"], FakeFM1(image, name=nm))
         ok(rc == 0 and "FM-1" in out, f"the port {nm!r} is found without --port")
+    # two FM-1s on the cable (2026-11-01): without --port nothing is probed or written; with it, that one
+    ok(I.fm1_devices(["FM1-1A2B", "FM1-1A2B Bluetooth", "FM-1", "IAC Bus 1", "USB-MIDI", "fm1-1a2b"]) == ["FM1-1A2B", "FM-1"],
+       "fm1_devices: one key per FM-1 (its FM1-XXXX), Bluetooth and other gear left out")
+    two = FakeFM1(image, name="FM1-1A2B")
+    two.input_names = two.output_names = lambda: ["FM1-1A2B", "FM1-9C0D"]
+    rc, out, err = cli([p, "--yes"], two)
+    ok(rc == 3 and two.sent == [] and two.upgrades == 0 and "--port" in err, "two FM-1s, no --port: refused, nothing sent")
+    two = FakeFM1(image, name="FM1-1A2B")
+    names = two.input_names
+    two.input_names = two.output_names = lambda: names() + ["FM1-9C0D"]
+    rc, out, err = cli(["--info", "--port", "1A2B"], two)
+    ok(rc == 0 and "FM-1" in out, "two FM-1s, --port 1A2B: that one answers")
     dev = FakeFM1(image, name="Launchkey Mini MK3")
     rc, out, err = cli(["--info"], dev)
     ok(rc == 3 and dev.sent == [], "other gear is never probed")
