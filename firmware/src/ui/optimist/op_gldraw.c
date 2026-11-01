@@ -148,7 +148,7 @@ static uint32_t gl_info(void)                           /* 1 + the read-out page
 /* SYSTEM > CREDITS, the last page: film end titles (op_credits.c: the credits, the crawl, KNOB 1; no cursor, no line) */
 static uint32_t gl_cred(void) { return gl_sys_item() == SI_CREDITS; }
 static uint32_t gl_textpage(void) { return gl_info() || gl_cred(); }   /* (a page drawn whole: no lines, no cursor) */
-#define GL_BAND_W (240 - OH_HEAD)                       /* INFO's first page has no help band (the user, 2026-10-29): its room runs to the screen's foot */
+#define GL_BAND_W (240 - OP_MTR - OH_HEAD)                       /* INFO's first page has no help band (the user, 2026-10-29): its room runs to the screen's foot */
 #define GL_END_W (GL_BAND_W - 2)
 static uint32_t gl_info_wide(void)                      /* the page with no foot line (op_help.c hl_pre): from the cursor, not from the last draw (hl_pre runs before gl_draw) */
 {
