@@ -26,7 +26,7 @@ BUILD_WEIGHTS = (1, 18, 72, 7, 2)
 STAGE_RE = re.compile(r"^==> \[(\d+)/(\d+)\] (.+)$")
 ANSI_RE = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
 CHECK_RE = re.compile(r"^checking the package \((\d+) reads\)$")
-WRITE_RE = re.compile(r"^writing +(\d{1,3})%$")
+WRITE_RE = re.compile(r"^writing +(\d{1,3})%(?: +\(do not power off the FM-1\))?$")   # (fm1_install.py Progress)
 
 
 def stage_line(n, total, label):
@@ -66,7 +66,7 @@ def parse_flash(line):
     package is read back, ("switch", 0), ("write", percent 0..100), ("restart", 100). The download-mode route:
     ("enter", 0), ("mf", M-Flasher's command), ("pct", its percent). Both: ("done", 100)"""
     s = ANSI_RE.sub("", line).strip()
-    if s == "switching to update mode":
+    if s == "switching to update mode" or s.startswith("switching to update mode:"):
         return ("switch", 0)
     if s == "restarting":
         return ("restart", 100)
@@ -89,12 +89,12 @@ def parse_flash(line):
     return None
 
 
-FLASH_LABELS = {"check": "checking the package", "switch": "switching to update mode", "write": "writing, do not unplug",
+FLASH_LABELS = {"check": "checking the package", "switch": "switching to update mode", "write": "writing, do not unplug or power off",
                 "restart": "restarting", "done": "done", "enter": "entering download mode"}
 MF_LABELS = {"find": "looking for download mode", "info": "reading the FM-1", "backup": "full backup",
              "bootloader": "installing m-bootloader, do not unplug", "firmware": "M-Flasher plans the write",
-             "restore": "M-Flasher plans the write", "firmware2": "writing, do not unplug",
-             "restore2": "writing, do not unplug", "restart": "restarting"}
+             "restore": "M-Flasher plans the write", "firmware2": "writing, do not unplug or power off",
+             "restore2": "writing, do not unplug or power off", "restart": "restarting"}
 
 
 class FlashTracker:
