@@ -1278,6 +1278,7 @@ static void ui_input(void)
     sp_frame(held);                                     /* a step held on a drum page: its cards (op_lanefx.c) */
     seq_pick_quiet(is_drum(TSEL) && song.playing && !((song.rec >> TRK_DRUM) & 1u) &&
                    !(held & (1u << panel.btn[B_OCTUP])));   /* (the drum keys only pick the lane while it plays) */
+    seq_step_rec_black(step_drum_rec());                /* (STEP, the drum track, REC on: the black keys play and record) */
     save_clear_tick(held);                              /* SAVE held on a scene row: its clear, the ring */
     arm_ring_tick();                                    /* a delete asked from a held key: the ring */
     wipe_frame(held);                                   /* SHIFT2 + REC: the wipe */
@@ -1302,6 +1303,8 @@ static void ui_input(void)
     } else if (notes && keys_none()) {                  /* PROJECT, SONG: the keys have their own job here */
         op_clean &= ~held;
     } else if (notes && ui.scr == SCR_STEP && step_keys(held)) {   /* the keys are steps: what they do came from lk_q */
+        if (step_drum_rec())
+            step_played(notes);                         /* (REC on: a black key played and recorded, it picks its lane) */
         op_clean &= ~held;
     } else if (notes && ui.scr == SCR_STEP && !op_shift(held)) {   /* SEQ held (the pick) or the keys play */
         step_played(notes);
