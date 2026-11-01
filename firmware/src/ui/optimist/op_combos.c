@@ -13,6 +13,8 @@
  *                                                                             row: the scene cleared (asked)
  *   SEQ + PLAY    the song from its start                                      SHIFT + PLAY  stop, every voice off
  *   SAVE then HOME: undo                                                      HOME then SAVE: redo
+ *   HOME + SEQ    RELOAD: the working pattern back to its saved one (asked; issue 142), when SEQ or HOME is let go
+ *                 with no key used
  *                                                                             both OCT: track <-> MASTER (op_walk.c)
  * The undo and redo act when one of the two is let go (a key or a knob meanwhile: nothing). */
 #if DL_UI && FELUCCA_DRUM_KITS
@@ -201,6 +203,14 @@ static int op_combo(uint32_t b, uint32_t held)
         op_eat(op_combo_bit(B_HOME) | op_combo_bit(B_PLAY));
         return 1;
     }
+#if FELUCCA_PATTERNS
+    if (b == B_SEQ && (others & op_combo_bit(B_HOME)) && !op_armed()) {
+        lay.chord = 3;                                  /* HOME then SEQ: RELOAD, when one of them is let go with no key used
+                                                         * (SEQ + HOME + a key on the pattern page clears a scene) */
+        op_eat(op_combo_bit(B_SEQ) | op_combo_bit(B_HOME));
+        return 1;
+    }
+#endif
     if (lay.lock != LY_PLAY && b != B_PLAY && b != B_REC && b != B_OCTDN && b != B_OCTUP
         FIF(FELUCCA_PATTERNS)(&& !(lay.lock == LY_PAT && (b == B_SAVE || b == B_HOME || b == B_LFO)))) {
         lay_unlock();                                   /* locked: any other button lets it go, and does only that (the pattern page
@@ -245,6 +255,13 @@ static int op_combo(uint32_t b, uint32_t held)
 /* buttons let go (op_input.c): the undo / redo chord, SEQ + REC's SONG REC, PLAY's tap and the TEMPO page */
 static void op_released(uint32_t rel)
 {
+#if FELUCCA_PATTERNS
+    if (lay.chord == 3u && (rel & (op_combo_bit(B_SEQ) | op_combo_bit(B_HOME)))) {
+        lay.chord = 0;
+        if (!op_armed())
+            pat_reload_ask();                           /* RELOAD (op_layers.c) */
+    }
+#endif
     if (lay.chord && (rel & (op_combo_bit(B_SAVE) | op_combo_bit(B_HOME)))) {
         op_undo(lay.chord == 2u);
         lay.chord = 0;

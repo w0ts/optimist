@@ -285,11 +285,19 @@ static void risk_tests(void)
         TSEL->step[5].time = ST_NOTE, TSEL->step[5].n = 1, TSEL->step[5].note[0] = 61;   /* (a pattern changed: only that is asked) */
         h0 = rk_state();
         tap(B_SAVE);
+#if FELUCCA_PATTERNS
+        if (op_armed() || live_sec != 1) {             /* (issue 142: the edits kept as the pattern's live one, nothing asked) */
+            printf("  risk: scene load over a changed pattern: %s\n", op_armed() ? "asked" : "not loaded");
+            rk_ok = 0;
+        }
+        (void)h0;
+#else
         if (!op_armed() || strcmp(ui.arm_q, "LOAD SCENE B?")) {
             printf("  risk: scene load: no \"Load scene B?\" (%s)\n", op_armed() ? ui.arm_q : "none");
             rk_ok = 0;
         }
         rk_after("a scene loaded stopped over a changed work", h0);
+#endif
         TSEL->step[5] = sv5;                            /* (the pattern as it was: a sound tweak alone asks nothing) */
 #if FELUCCA_PATTERNS
         {

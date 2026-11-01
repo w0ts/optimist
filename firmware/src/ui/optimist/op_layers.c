@@ -36,6 +36,9 @@ static int pat_store_slot(uint32_t k, uint32_t s);
 static int pat_write(uint32_t k, uint32_t s, uint32_t n);
 static uint32_t pat_changed(void);
 static int pat_scene_refs(uint32_t i, uint8_t *r);
+static int pat_reload(uint32_t k);                      /* pat.c: the live patterns (issue 142) */
+static int pat_unsaved_trk(uint32_t k, uint32_t chg);
+static int pat_live_at(uint32_t k, uint32_t s);
 static int proj_tmp_busy(void);
 #endif
 static int song_on_pat_row(void);                      /* op_song.c */
@@ -70,7 +73,8 @@ static struct {
     uint8_t used;                       /* the held layer did something: a key, a knob */
     uint8_t quiet;                      /* a combination took its button (SAVE + FX: a save): no map */
     uint8_t hot;                        /* the layer's hot knob (the last one turned) */
-    uint8_t chord;                      /* SAVE then HOME (1: undo) / HOME then SAVE (2: redo) waiting for a release */
+    uint8_t chord;                      /* SAVE then HOME (1: undo) / HOME then SAVE (2: redo) / HOME then SEQ (3: RELOAD) waiting
+                                         * for a release */
     uint8_t rec_pend;                   /* SEQ + REC: SONG REC at REC's release */
     uint8_t song_go;                    /* SEQ + PLAY while playing: stopped, the song starts once stopped */
     uint32_t t0;                        /* the held layer's press */
@@ -309,7 +313,8 @@ static uint32_t pat_changed(void);                      /* pat.c: the tracks who
 static int scene_unsaved(void)
 {
 #if FELUCCA_PATTERNS
-    return pat_changed() != 0u;
+    return 0;                                           /* (issue 142: the tracks' edits are kept as their live patterns, nothing
+                                                         * is lost; the scene's sound and mix replace the work's, as ever) */
 #else
     return work_changed();
 #endif
@@ -596,7 +601,8 @@ static int pat_go_ask(uint32_t mask, uint32_t w, uint32_t when)   /* 1: asked, 0
 {
     uint32_t lost = pat_unsaved(mask), k;
     char a[17];
-    if (!lost) {
+    if (!lost || !song.playing) {                       /* (stopped: the edits are kept as the live pattern, issue 142; asked
+                                                         * no more) */
         pat_go(mask, w, when);
         return 0;
     }
@@ -611,6 +617,25 @@ static int pat_go_ask(uint32_t mask, uint32_t w, uint32_t when)   /* 1: asked, 0
     pat_pend_when = (uint8_t)when;
     op_arm(ARM_OP, w < PAT_N ? OA_PAT_GO : OA_PAT_STOP, (mask << 4 | (w < PAT_N ? w : 0u)), "LOSE EDITS", a, 1);
     return 1;
+}
+/* RELOAD (HOME + SEQ, the user 2026-11-01; issue 142): the selected track's pattern back to its saved one, its edits dropped
+ * (on the pattern page with ALL TRACKS: every track); asked. Tracks without a slot or without edits: said, nothing asked */
+static void pat_reload_ask(void)
+{
+    uint32_t m = lay_is(LY_PAT) && lay.pmod == 5u ? PAT_ALLM : 1u << (song.sel % NTRK), k, chg, has = 0;
+    if (proj_tmp_busy()) {
+        ui_message("BUSY");
+        return;
+    }
+    chg = pat_changed();
+    for (k = 0; k < NTRK; k++)
+        if (((m >> k) & 1u) && pat_cur[k] < PAT_N && pat_unsaved_trk(k, chg))
+            has |= 1u << k;
+    if (!has) {
+        ui_message(m == PAT_ALLM ? "NO EDITS" : pat_cur[song.sel % NTRK] < PAT_N ? "NO EDITS" : "NO PATTERN");
+        return;
+    }
+    op_arm(ARM_OP, OA_PAT_RELOAD, has, "RELOAD", has == PAT_ALLM || m == PAT_ALLM ? "ALL" : trk_tag(__builtin_ctz(has)), 1);
 }
 static void pat_launch_key(uint32_t t, uint32_t w)      /* white n: launch (OCT- held: next bar, OCT+ held: now) */
 {
@@ -778,6 +803,14 @@ static void op_act(uint32_t a, uint32_t k)
         pat_go(k >> 4, PAT_NONE, PW_END);
         ui_message(song.playing ? "STOP AT END" : "STOPPED");
         break;
+    case OA_PAT_RELOAD: {                               /* "RELOAD T1?" YES: the tracks' edits dropped, their saved patterns back */
+        uint32_t i;
+        for (i = 0; i < NTRK; i++)
+            if ((k >> i) & 1u)
+                (void)pat_reload(i);
+        ui_say(song.playing ? "RELOAD AT END " : "RELOADED ", k == PAT_ALLM ? "ALL" : trk_tag(__builtin_ctz(k)));
+        break;
+    }
 #endif
     case OA_SCN_LOAD:
         scene_load_now(k);

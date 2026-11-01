@@ -41,7 +41,13 @@
 #define SEC_PEND_FX SEC_PEND_PAT
 #endif
 #define SEC_PEND_DL (SEC_PEND_FX + SEC_IDS)            /* (and each section's FX record: SEC_PEND_FX + id, fx_rec_log.c) */
+#if FELUCCA_PATTERNS
+#define SEC_PEND_LV (SEC_PEND_DL + SEC_IDS)            /* (and its drum lane LFO record: SEC_PEND_DL + id, dlfo_rec_log.c) */
+#define SEC_PEND_N (SEC_PEND_LV + 64u)                 /* (and the live patterns: SEC_PEND_LV + 16 x track + slot, their base stamp
+                                                        * first, written when the record goes into the log; pat.c) */
+#else
 #define SEC_PEND_N (SEC_PEND_DL + SEC_IDS)             /* (and its drum lane LFO record: SEC_PEND_DL + id, dlfo_rec_log.c) */
+#endif
 typedef struct {
     uint32_t magic, sum;
     uint16_t len[SEC_PEND_N], off[SEC_PEND_N];         /* per section: its pending record (len 0: none) */
@@ -323,7 +329,11 @@ static uint32_t sec_capture(void)
 static uint32_t sec_pend_at(uint32_t j, uint32_t *lid)
 {
     uint32_t i = (j + SEC_PEND_PAT) % SEC_PEND_N;
-    *lid = !sec_pend_has(i) ? SLG_IDS : i < SEC_IDS ? i : i >= SEC_PEND_DL ? DLR_ID0 + i - SEC_PEND_DL :
+    *lid = !sec_pend_has(i) ? SLG_IDS : i < SEC_IDS ? i :
+#if FELUCCA_PATTERNS
+           i >= SEC_PEND_LV ? SLG_LV0 + i - SEC_PEND_LV :
+#endif
+           i >= SEC_PEND_DL ? DLR_ID0 + i - SEC_PEND_DL :
            i >= SEC_PEND_FX ? FXR_ID0 + i - SEC_PEND_FX :
            i >= SEC_PEND_PAT ? SEC_ID_PAT0 + i - SEC_PEND_PAT : SLG_IDS;
     return i;
@@ -449,6 +459,11 @@ static void section_store(uint32_t s)
 static void section_load(uint32_t s)                   /* stopped: the section is the loop now */
 {
     s %= SEC_IDS;
+#if FELUCCA_PATTERNS
+    if (!project_used(s))
+        return;
+    (void)pat_leave_all();                             /* (the tracks' edits kept as their live patterns first: issue 142) */
+#endif
     if (!sec_read(s, &proj_tmp.cur, &sec_tmp_dl))
         return;
     project_apply(&proj_tmp.cur, &sec_tmp_dl);
@@ -584,6 +599,17 @@ static void sections_write(void)                       /* the pending sections a
             one = 1;
 #endif
         }
+    for (i = 0; flash_ok && i < 64u && !LIVE_DONE(); i++)    /* then the live patterns (stamped by the saved ones now in) */
+        if (sec_pend_has(SEC_PEND_LV + i) && !sec_pend_has(SEC_PEND_PAT + i)) {
+            int rc = pat_live_log(i);
+            if (!rc) {
+#if FELUCCA_LIVE_SAVE
+                one = 1;
+#endif
+            } else if (rc == 1) {
+                pat_live_full = 1;                     /* (the log full: it waits in RAM, said; the song never waits) */
+            }
+        }
 #endif
     if (flash_ok)
         for (i = 0; i < SEC_IDS && !LIVE_DONE(); i++)
@@ -618,8 +644,10 @@ static void sections_write(void)                       /* the pending sections a
         sec_dirty |= 0x8000u;                          /* (a clear still waits) */
 #if FELUCCA_PATTERNS
     for (i = SEC_PEND_PAT; i < SEC_PEND_FX; i++)
-        if (sec_pend_has(i))
-            sec_dirty |= 0x8000u;                      /* (a pattern still waits: written with the sections) */
+        if (sec_pend_has(i) || sec_pend_has(SEC_PEND_LV + i - SEC_PEND_PAT))
+            sec_dirty |= 0x8000u;                      /* (a pattern still waits: written with the sections; a live one too) */
+    if (pat_live_full)
+        pat_full_say();
 #endif
     if (song_dirty && !LIVE_DONE()) {
         song_dirty = 0;
@@ -844,11 +872,21 @@ static void proj_scope_read(void)
         slg_live_sweep(skip);                          /* (the live patterns made from a saved record since replaced: dropped) */
     }
 }
-static int proj_quiet(uint32_t p)                      /* (stopped, p a project: the arena into the log, dropped) */
+/* stopped, p a project: the arena into the log. Something left in it (the log full: a live pattern, a scene stored while
+ * playing) refuses the switch, said (-2): it would be lost (before 2026-11-01 the arena was cleared all the same) */
+static int proj_quiet(uint32_t p)
 {
+    uint32_t i, lv = 0, any = 0;
     if (p >= PROJ_SLOTS || !flash_ok)
         return -1;
     persist_flush_now();
+    for (i = 0; i < SEC_PEND_N; i++)
+        if (sec_pend_has(i) && (i < SEC_IDS || i >= SEC_PEND_PAT))   /* (a section's step extras go with it) */
+            any = 1, lv |= i >= SEC_PEND_LV;
+    if (any || slg_tombs_any()) {
+        ui_message(lv ? "MEM FULL: SAVE OR RELOAD" : "MEM FULL");
+        return -2;
+    }
     sec_pend_clear();
     sec_dirty = 0;
     return 0;
@@ -858,7 +896,10 @@ static int proj_quiet(uint32_t p)                      /* (stopped, p a project:
  * work). 0 ok, -1 flash */
 static int project_scope_set(uint32_t p)
 {
-    if (proj_quiet(p) || slg_open_proj(p))
+    int rc = proj_quiet(p);
+    if (rc)
+        return rc;
+    if (slg_open_proj(p))
         return -1;
     open_proj = (uint8_t)p;
     proj_scope_read();
@@ -888,6 +929,21 @@ static int state_save(void)
     }
     return rc;
 }
+/* PROJECT page SAVE into slot s (stopped; issue 142, the user 2026-11-01: SAVE saves everything, Elektron's way): the tracks'
+ * edits kept as live patterns, then (another slot: a save as, the patterns as they play copied) every live pattern of the open
+ * project its saved one, then the work as its state. RELOAD goes back to this. 0 ok, 1 MEM FULL, -1 flash, -2 refused (said) */
+static int project_save_as(uint32_t t);
+static int project_save_all(uint32_t s)
+{
+    int rc = pat_leave_all();
+    if (!rc && s != open_proj)
+        rc = project_save_as(s);
+    if (!rc)
+        rc = pat_promote_all();
+    if (!rc)
+        rc = state_save();
+    return rc;
+}
 /* the open project's state into the work: 1 loaded, 0 none (the work left as it is) */
 static int state_load(void)
 {
@@ -907,11 +963,16 @@ static int state_load(void)
     return 1;
 }
 /* PROJECT page LOAD: project p opened, its state into the work: 1 loaded, 0 opened with no state (the caller blanks the
- * work), -1 flash */
+ * work), -1 flash, -2 refused (said: MEM FULL). The tracks' edits are kept first as the open project's live patterns
+ * (issue 142: they stay that project's, played again when it opens) */
 static int project_open(uint32_t p)
 {
-    if (project_scope_set(p))
-        return -1;
+    int rc = pat_leave_all();
+    if (rc)
+        return rc < 0 ? rc : -2;
+    rc = project_scope_set(p);
+    if (rc)
+        return rc;
     return state_load();
 }
 static int proj_tomb(uint32_t p)                       /* project p opened, every record of its cleared: 0 ok, -1 not all */
@@ -936,9 +997,9 @@ static int proj_tomb(uint32_t p)                       /* project p opened, ever
 static int project_clear(uint32_t p)
 {
     uint32_t was = open_proj;
-    int rc;
-    if (proj_quiet(p))
-        return -1;
+    int rc = proj_quiet(p);
+    if (rc)
+        return rc;
     rc = proj_tomb(p);
     if (slg_open_proj(was))
         return -1;
@@ -963,10 +1024,20 @@ static int proj_copy(void)
     f = sec_rbuf[0], t = sec_rbuf[1];
     if (proj_tomb(t) || slg_open_proj(f))
         return -1;
-    for (i = 0; i < SLG_IDS; i++)                      /* (slg_make_room moves records, never sec_rbuf's bytes) */
-        if (!SLG_DEV(i) && (n = slg_get(i, sec_rbuf)) != 0 && (n < 0 ||
-            slg_make_room(SEC_ALIGN(SEC_HEAD + (uint32_t)n), SLG_IDS) || slg_append_rawp(i, t, slg.seq++, sec_rbuf, (uint32_t)n)))
+    for (i = 0; i < SLG_IDS; i++) {                    /* (slg_make_room moves records, never sec_rbuf's bytes) */
+        uint32_t o = 0;
+        if (SLG_DEV(i))
+            continue;
+        if (SLG_LV_ID(i) && slg_live_ok(i))            /* a pattern as it plays: its live record (issue 142: a save as saves */
+            n = slg_get(SLG_LVX(i), sec_rbuf), o = 4;  /*  everything, the target holds no live pattern) */
+        else
+            n = slg_get(i, sec_rbuf);
+        if (n > 0 && (uint32_t)n <= o)
+            continue;                                  /* (live: the slot played empty) */
+        if (n != 0 && (n < 0 || slg_make_room(SEC_ALIGN(SEC_HEAD + (uint32_t)n - o), SLG_IDS) ||
+                       slg_append_rawp(i, t, slg.seq++, sec_rbuf + o, (uint32_t)n - o)))
             return -1;
+    }
 #if SLG_V2
     if (slg_unk_copy(f, t))                            /* (a later firmware's ids too: "copy everything") */
         return -1;
@@ -983,8 +1054,9 @@ static int project_save_as(uint32_t t)
     uint8_t m[2];
     uint32_t i;
     slg_model_t sm;
-    if (proj_quiet(t))                                 /* (the arena into the open project first: it is copied too) */
-        return -1;
+    i = (uint32_t)proj_quiet(t);                       /* (the arena into the open project first: it is copied too) */
+    if (i)
+        return (int)i;
     sm_init(&sm);                                      /* (t's old records counted as live, though its clears drop them; */
     for (i = 0; i < SLG_IDS; i++)                      /* an id without a record counted as a clear) */
         if (!sm_put(&sm, SLG_IDS, slg.alen[i]))
