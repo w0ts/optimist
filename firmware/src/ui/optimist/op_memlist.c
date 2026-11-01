@@ -174,14 +174,13 @@ static uint32_t ml_sig(void)
         h = (h ^ part_mem_refused.leng[i] ^ (uint32_t)trk[i].engine << 8) * 16777619u;
     return h;
 }
-static void ml_draw_gauge(void)                        /* the room against the need, FITS */
+static void ml_draw_gauge_paint(void)                        /* the room against the need, FITS */
 {
     char b[24], t[12];
     uint32_t need = mem_load_need(ml.sel), room = ml_room();
     int32_t w = need ? (int32_t)((room >= need ? need : room) * 230u / need) : 230;   /* (every refused part left
                                                          * silent: nothing needed, a full bar) */
     uint16_t c = ml.fits ? C_OK : C_WARN;
-    cv_begin(240, OH_CARD, C_BLACK);
     ml_kb(t, room);
     str_cpy(b, t, sizeof b);
     str_app(b, " / ", sizeof b);
@@ -191,8 +190,8 @@ static void ml_draw_gauge(void)                        /* the room against the n
     cv_texts(236 - text_ws(ml.fits ? "FITS" : "SHORT"), 2, ml.fits ? "FITS" : "SHORT", c);
     cv_frame(4, 24, 232, 14, C_LINE);
     cv_rect(5, 25, w, 12, c);
-    cv_blit(0, OY_CARD);
 }
+static void ml_draw_gauge(void) { cv_whole(OY_CARD, OH_CARD, C_BLACK, ml_draw_gauge_paint); }   /* (in passes: CANVAS_STRIP 31) */
 #define ML_RH 19                                       /* a row */
 /* row i (white key i + 1) at y: a refused part (its engine in its colour, the KB it wants amber; picked: left silent,
  * dim with NONE), else what can be dropped (picked: red with DROP) */
@@ -219,11 +218,10 @@ static void ml_draw_row(uint32_t i, int32_t y)
     if (on)
         cv_texts(236 - text_ws(tag), y, tag, ref ? C_GRAY : C_ERR);
 }
-static void ml_draw_rows(void)
+static void ml_draw_rows_paint(void)                 /* (once a pass: ml_draw_rows) */
 {
     uint32_t i;
     int32_t y = 2;
-    cv_begin(240, OH_PANEL, C_BLACK);
     for (i = 0; i < ml.n && y + ML_RH <= OH_PANEL; i++, y += ML_RH) {
         uint32_t ref = ml.it[i] < NPART && (part_mem_refused.lmask >> ml.it[i] & 1u);
         if (!ref && i && ml.it[i - 1u] < NPART && (part_mem_refused.lmask >> ml.it[i - 1u] & 1u)) {
@@ -232,8 +230,8 @@ static void ml_draw_rows(void)
         }
         ml_draw_row(i, y);
     }
-    cv_blit(0, OY_PANEL);
 }
+static void ml_draw_rows(void) { cv_whole(OY_PANEL, OH_PANEL, C_BLACK, ml_draw_rows_paint); }
 #define ML_FOOT_Y (240 - 18)
 static void ml_draw_foot(void)                         /* the modal's foot: HOME left, SAVE right (dim: no room yet) */
 {

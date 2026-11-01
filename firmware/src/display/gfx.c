@@ -16,8 +16,16 @@ typedef struct {               /* monospace, see tools/gen_font.py */
 } felucca_font_t;
 #include "felucca_font.h"
 
-#define CV_MAX (240u * 124u)      /* the graph strip is 240 x 124 */
+/* the graph strip is 240 x 124; CANVAS_STRIP (builder item, FELUCCA_CANVAS_STRIP: 0 124 rows, 1 62, 2 31) makes it 240 x 62
+ * (29,760 B of the pool less) or 240 x 31 (44,640 B less): the bands taller than that are drawn in passes (ui/optimist/op_graph.c cv_tall, cv_whole), each pass the same paint clipped */
+#ifndef FELUCCA_CANVAS_STRIP
+#define FELUCCA_CANVAS_STRIP 0
+#endif
+#define CV_ROWS (FELUCCA_CANVAS_STRIP == 2 ? 31u : FELUCCA_CANVAS_STRIP == 1 ? 62u : 124u)
+#define CV_MAX (240u * CV_ROWS)
 static uint16_t cv_px[CV_MAX] __attribute__((section(".pool")));
+static uint32_t cv_cuts, cv_cut_w, cv_cut_h;   /* the canvases asked taller than CV_MAX, cut short by cv_begin (the host tests:
+                                                 * none), the last one asked */
 static uint32_t cv_w, cv_h;
 static int32_t cv_oy;            /* y offset for graph drawing */
 
@@ -79,8 +87,11 @@ static inline uint16_t swap16(uint32_t c) { return (uint16_t)(((c >> 8) & 0xFFu)
 static void cv_begin(uint32_t w, uint32_t h, uint16_t bg)
 {
     uint32_t i, n;
-    if (w * h > CV_MAX)
+    if (w * h > CV_MAX) {
+        cv_cuts++;                  /* (a band drawn whole that must be drawn in passes: its foot missing) */
+        cv_cut_w = w, cv_cut_h = h;
         h = CV_MAX / w;
+    }
     lcd_sync();                     /* the last blit may still read cv_px */
     cv_w = w;
     cv_h = h;
@@ -249,13 +260,19 @@ static void draw_text_box(uint32_t x, uint32_t y, uint32_t w, const felucca_font
                           uint16_t c, int align)
 {
     int32_t tw = text_w(f, s), tx = 0;
-    cv_begin(w, f->h, C_BLACK);
+    uint32_t r0, n, rows = CV_MAX / w;
     if (align == 1)
         tx = ((int32_t)w - tw) / 2;
     else if (align == 2)
         tx = (int32_t)w - tw;
-    cv_text(tx, 0, f, s, c);
-    cv_blit(x, y);
+    for (r0 = 0; r0 < f->h; r0 += n) {      /* (in passes when the face is taller than the canvas: CANVAS_STRIP 31) */
+        n = f->h - r0 < rows ? f->h - r0 : rows;
+        cv_begin(w, n, C_BLACK);
+        cv_oy = -(int32_t)r0;
+        cv_text(tx, 0, f, s, c);
+        cv_oy = 0;
+        cv_blit(x, y + r0);
+    }
     lcd_sync();                     /* one-shots (boot, crash, UBOOT, update) finish here */
 }
 

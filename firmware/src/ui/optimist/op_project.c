@@ -52,7 +52,7 @@ static struct {
     uint32_t key;                                       /* the passkey (BLE_NO_PASSKEY: none) */
 #endif
 } bdp;
-static void cv_tall(uint32_t y, uint32_t h, uint16_t bg, void (*fn)(void));   /* op_draw.c */
+static void cv_tall(uint32_t y, uint32_t h, uint16_t bg, void (*fn)(void));   /* op_graph.c */
 static uint32_t hs(uint32_t h, const char *s);          /* (signatures: op_draw.c) */
 static uint32_t hu(uint32_t h, uint32_t v);
 static const char *cut(char *b, const char *s, uint32_t n);

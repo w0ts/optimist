@@ -1329,6 +1329,19 @@ _add("SEQ_RAM", "FELUCCA_SEQ_RAM", "the sequencer's code in RAM (CPU peaks at a 
           "core: also what a step runs (seq_step, the note starts, the generators, the locks, the drum lanes' hits). The "
           "RAM is taken from the free RAM (the undo history gets that much smaller). The same sound and behaviour at every "
           "choice.")
+# bit 452 (2026-11-01, the next free: FONT_CACHE 450 and INS_RAM 451 on branch rammoves): the screen's canvas 240 x 124
+# (0), 62 (1) or 31 rows (2), the tall bands drawn in passes (display/gfx.c CV_ROWS, op_graph.c cv_tall / cv_whole; fm1base
+# app.h APP_CANVAS_PX via gen_optimist.py opt_dim.h OPT_CANVAS_ROWS); worktrees/canvas-plan/PLAN.md
+_add("CANVAS_STRIP", "FELUCCA_CANVAS_STRIP", "the screen's drawing canvas: smaller for RAM", Y, 452, default=0,
+     experimental=True,
+     choices=((0, "124 rows (59.5 KB)"), (1, "62 rows (29.1 KB less)"), (2, "31 rows (43.6 KB less)")),
+     tested="host tests only (2026-11-01): every frame of the UI's host run the same pixels at 124, 62 and 31 rows; the FM-1's "
+            "tearing and frame time not looked at yet",
+     desc="The screen is drawn piece by piece into a canvas and sent to the display. 124 rows (240 x 124 pixels, 59,520 B of "
+          "RAM) as ever; 62 rows frees 29,760 B, 31 rows 44,640 B. The pieces taller than the canvas (the panels, the "
+          "questions, the cards, the boot logo) are drawn in more passes: more of the screen's drawing time (the audio is "
+          "not affected: it runs in interrupts) and more seams where a panel changes on the display a piece at a time. "
+          "The same pixels at every choice.")
 # bit 443 (2026-10-30, the next free after COMPILER's 442): a flash-step setting, not firmware (no_image: nothing in
 # the image, its hash or its costs). tools/build.py writes it beside the package (PACKAGE.install.json,
 # tools/install_meta.py); the installers read it from there and show it (docs/INSTALL-PATHS.md)

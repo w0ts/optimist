@@ -35,6 +35,30 @@
 #define OP_SURF C_BLACK                 /* the cards' and tiles' surface: black, outlined (gfx.c cv_box; no grey fills) */
 
 static void cv_hline(int32_t y, uint16_t c) { cv_rect(0, y, 240, 1, c); }   /* a rule across the screen */
+/* a band taller than a canvas (gfx.c CV_MAX: 240 x 124, 240 x 62 or 31 with CANVAS_STRIP): drawn in passes of at most rows,
+ * fn painting the whole band in its own coordinates each time (gfx.c cv_oy shifts and clips every primitive), each pass
+ * blitted as it is done. fn must only draw: it runs once a pass */
+static void cv_tall_w(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint32_t rows, uint16_t bg, void (*fn)(void))
+{
+    uint32_t r0, n;
+    for (r0 = 0; r0 < h; r0 += n) {
+        n = h - r0 < rows ? h - r0 : rows;
+        cv_begin(w, n, bg);
+        cv_oy = -(int32_t)r0;
+        fn();
+        cv_oy = 0;
+        cv_blit(x, y + r0);
+    }
+}
+/* the panels' passes: 120 rows (as ever) on the whole canvas, the canvas's rows on a smaller one */
+#define CV_PASS (FELUCCA_CANVAS_STRIP ? CV_ROWS : 120u)
+static void cv_tall(uint32_t y, uint32_t h, uint16_t bg, void (*fn)(void)) { cv_tall_w(0, y, 240, h, CV_PASS, bg, fn); }
+/* a band drawn whole on the whole canvas (one pass, as before), in passes on a smaller one: the modal, the 2x2 cards, the
+ * NAME / memory list / Wi-Fi panels */
+static void cv_whole(uint32_t y, uint32_t h, uint16_t bg, void (*fn)(void)) { cv_tall_w(0, y, 240, h, CV_ROWS, bg, fn); }
+/* ... at x, w wide: as many rows a pass as the canvas holds at that width */
+static void cv_whole_w(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint16_t bg, void (*fn)(void)) { cv_tall_w(x, y, w, h, CV_MAX / w, bg, fn); }
+static void cv_none(void) {}                            /* (an empty band: cv_whole's fn) */
 static uint32_t trk_on_step(uint32_t c, uint32_t i)    /* step i of track c has something to play normally (a fill-only one: not) */
 {
     const track_t *t = &trk[c % NTRK];
@@ -707,13 +731,12 @@ static void modal_words(char *v, char *a, char *q)      /* the verb, its target 
         op_case(q, ui.arm_q, sizeof ui.arm_q);
     }
 }
-static void modal_frame(uint16_t fr)                    /* the modal's box over the panel, framed in fr */
+static void modal_frame(uint16_t fr)                    /* the modal's box over the panel, framed in fr (a paint: cv_whole) */
 {
-    cv_begin(240, MODAL_H, C_BLACK);
     cv_rect(8, 1, 224, MODAL_H - 2, fr);
     cv_rect(11, 4, 218, MODAL_H - 8, OP_SURF);
 }
-static void draw_modal(void)
+static void modal_paint(void)                           /* (once a pass: draw_modal) */
 {
     char v[sizeof ui.arm_verb], a[sizeof ui.arm_arg], q[sizeof ui.arm_q];
     const felucca_font_t *fl = font_big(), *ft;
@@ -737,24 +760,33 @@ static void draw_modal(void)
         cv_texts(120 - text_ws("Audio stops shortly") / 2, MODAL_H - 44, "Audio stops shortly", C_WARN);
     cv_texts(24, MODAL_H - 21, "Home no", C_GRAY);   /* (as the panel: HOME left of SAVE; over the box's foot) */
     cv_texts(216 - text_ws("Save yes"), MODAL_H - 21, "Save yes", C_WHITE);
-    cv_blit(0, OP_PY);
+}
+static void draw_modal(void) { cv_whole(OP_PY, MODAL_H, C_BLACK, modal_paint); }
+static struct {
+    char m[sizeof ui.msg];
+    int32_t w;
+    uint16_t col;
+} tst;                                                  /* what toast_paint draws (draw_toast) */
+static void toast_paint(void)
+{
+    cv_rect(0, 0, tst.w, 36, tst.col);
+    cv_rect(2, 2, tst.w - 4, 32, OP_SURF);
+    cv_texts(12, 10, tst.m, C_WHITE);
 }
 static void draw_toast(void)                             /* the result of a confirmed action: small, in the middle */
 {
-    char m[sizeof ui.msg];
+    char *m = tst.m;
     int32_t w;
     if (ui.toast_col)                                   /* a preset, a kit, a lane's sound: its name as stored */
-        str_cpy(m, ui.msg, sizeof m);
+        str_cpy(m, ui.msg, sizeof tst.m);
     else
-        op_case(m, ui.msg, sizeof m);                   /* our words: "T1 cleared" */
+        op_case(m, ui.msg, sizeof tst.m);               /* our words: "T1 cleared" */
     w = text_ws(m) + 24;
     uint32_t st = ui.msg_st ? ui.msg_st : msg_status(ui.msg);   /* (the whole message: "DR CLEARED" is green) */
     w = w > 236 ? 236 : w;
-    cv_begin((uint32_t)w, 36, C_BLACK);
-    cv_rect(0, 0, w, 36, ui.toast_col ? ui.toast_col : st ? C_STATUS[st & 3u] : C_HI);   /* (a preset: its engine's) */
-    cv_rect(2, 2, w - 4, 32, OP_SURF);
-    cv_texts(12, 10, m, C_WHITE);
-    cv_blit((uint32_t)(120 - w / 2), OP_PY + 44u);
+    tst.w = w;
+    tst.col = ui.toast_col ? ui.toast_col : st ? C_STATUS[st & 3u] : C_HI;   /* (a preset: its engine's) */
+    cv_whole_w((uint32_t)(120 - w / 2), OP_PY + 44u, (uint32_t)w, 36, C_BLACK, toast_paint);   /* (36 rows: in passes at 31) */
 }
 #if FELUCCA_BLE && BLE_CEN_PAIR
 /* a Bluetooth pairing waiting for the other device's user to type the code, the devices list not on screen (the search
@@ -763,7 +795,7 @@ static void draw_toast(void)                             /* the result of a conf
  * The user's report of 2026-10-18: the Mac asked for a PIN, nothing showed on the FM-1 */
 static int op_code_on(void) { return ble_connect_passkey() != BLE_NO_PASSKEY && !dev_listing(); }
 static uint32_t ble_code_sig(void) { return ble_connect_passkey(); }   /* (draw_overlay: drawn again for a new code) */
-static void draw_code(void)
+static void code_paint(void)                            /* (once a pass: draw_code) */
 {
     char d[7], nm[BLE_NAME_MAX + 12u];
     const felucca_font_t *fl = font_big();
@@ -776,8 +808,8 @@ static void draw_code(void)
     cv_text_mid(12, &FONT_S, "Bluetooth code", C_GRAY);
     cv_text_mid((int32_t)MODAL_H / 2 - 10, fl, d, C_WHITE);
     cv_text_mid(MODAL_H - 26, &FONT_S, nm, C_GRAY);
-    cv_blit(0, OP_PY);
 }
+static void draw_code(void) { cv_whole(OP_PY, MODAL_H, C_BLACK, code_paint); }
 #else
 #define op_code_on() 0
 #define ble_code_sig() 0u
