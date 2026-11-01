@@ -23,7 +23,7 @@ static const uint8_t DS_XKIT_STANDIN[DS_NXKITS] = {DS_XKIT_STANDIN_LIST};  /* th
 #endif
 /* a synthesised kit's table by its UID (DRUM_IS_SYNTH; built: drum_kit_of). Without the 32 kits only 47.. are built:
  * their table alone, so DS_KITS is left out of the image (KAWA or PLAITS alone) */
-static const dkit_t *ds_kit(uint32_t k)
+static FASTI(seq) const dkit_t *ds_kit(uint32_t k)
 {
 #if DS_NXKITS
     if (!FELUCCA_DRUM_SYNTH || k >= DRUM_UID_XKIT)
@@ -76,7 +76,7 @@ _Static_assert(sizeof DRUM_SRC_NAMES / sizeof DRUM_SRC_NAMES[0] ==
 #define DRUM_XFIRST (FELUCCA_DRUM_X909 ? DRUM_UID_X909 : DRUM_UID_X808)   /* (an X0X-only build's kit) */
 #define DRUM_XKFIRST (DRUM_UID_XKIT + DS_XKIT_FIRST)   /* (the first of 47.. built: a KAWA- or PLAITS-only build's kit) */
 #define DRUM_OTHER (DRUM_SMASK ? DRUM_SFIRST : FELUCCA_DRUM_SYNTH ? DRUM_SAMPLED : DRUM_X0X ? DRUM_XFIRST : DRUM_XKFIRST)   /* a kit not built: this */
-static int drum_kit_built(uint32_t k)
+static FASTI(seq) int drum_kit_built(uint32_t k)
 {
     if (k < DRUM_SAMPLED)
         return (DRUM_SMASK >> k) & 1;
@@ -103,7 +103,7 @@ static __attribute__((noinline)) uint32_t drum_kit_of(int32_t v)   /* (one copy:
         return k;
     return k < DRUM_SAMPLED && FELUCCA_DRUM_SYNTH ? DRUM_SAMPLED : DRUM_OTHER;
 }
-static uint32_t drum_kit(void) { return drum_kit_of(TDRUM->p[P_E0]); }
+static FASTI(seq) uint32_t drum_kit(void) { return FAST_CALL(seqev, drum_kit_of)(TDRUM->p[P_E0]); }
 #define DRUM_DEFAULT_KIT (FELUCCA_DRUM_SYNTH ? DRUM_SAMPLED : DRUM_SMASK ? DRUM_SFIRST : DRUM_X0X ? DRUM_XFIRST : \
                           DRUM_XKFIRST)   /* power-on: 808; without the 32 kits, the first kit built */
 
@@ -125,13 +125,13 @@ static int16_t drums_set = -2;   /* SMP_SETS index of "PERC" (GM map), -1 = none
 
 static int32_t ds_buf[CTL];
 
-static int32_t drum_set(void)
+static FASTI(seq) int32_t drum_set(void)
 {
     uint32_t i;
     if (drums_set == -2) {
         drums_set = -1;
         for (i = 0; i < SMP_NSETS; i++)
-            if (str_eq(SMP_SETS[i].name, "PERC") && SMP_SETS[i].nz)   /* (a set left out: nz 0) */
+            if (FAST_CALL(seqev, str_eq)(SMP_SETS[i].name, "PERC") && SMP_SETS[i].nz)   /* (a set left out: nz 0) */
                 drums_set = (int16_t)i;
     }
     return drums_set;
@@ -251,19 +251,19 @@ static uint32_t white_key(uint32_t w)
 #define DACC_ON 1u
 #define DACC_LVL(a) (((uint32_t)(a) >> 1) & 3u)
 #define DACC_RAT(a) (((uint32_t)(a) >> 3) & 3u)
-static int dstep_has(const dstep_t *s, uint32_t l)
+static FASTI(seqev) int dstep_has(const dstep_t *s, uint32_t l)
 {
     return l == DRUM_ACC ? (int)(s->acc & DACC_ON) : (s->on[(l >> 3) & 1u] >> (l & 7u)) & 1u;
 }
-static uint32_t dstep_lvl(const dstep_t *s, uint32_t l)
+static FASTI(seqev) uint32_t dstep_lvl(const dstep_t *s, uint32_t l)
 {
     return l == DRUM_ACC ? DACC_LVL(s->acc) : (s->lvl[(l >> 2) & 3u] >> ((l & 3u) * 2u)) & 3u;
 }
-static uint32_t dstep_rat(const dstep_t *s, uint32_t l)
+static FASTI(seqev) uint32_t dstep_rat(const dstep_t *s, uint32_t l)
 {
     return l == DRUM_ACC ? DACC_RAT(s->acc) : (s->rat[(l >> 2) & 3u] >> ((l & 3u) * 2u)) & 3u;
 }
-static uint32_t dstep_mask(const dstep_t *s) { return ((uint32_t)s->on[0] | (uint32_t)s->on[1] << 8) & DRUM_LMASK; }
+static FASTI(seqev) uint32_t dstep_mask(const dstep_t *s) { return ((uint32_t)s->on[0] | (uint32_t)s->on[1] << 8) & DRUM_LMASK; }
 static uint32_t dstep_lanes(const dstep_t *s) { return dstep_mask(s) | (uint32_t)(s->acc & DACC_ON) << DRUM_ACC; }
 static void dstep_set(dstep_t *s, uint32_t l, uint32_t lvl, uint32_t rat)   /* lane on, with its level and ratchet */
 {
@@ -295,7 +295,7 @@ static void dstep_clr(dstep_t *s, uint32_t l)                                /* 
  * ACCENT amount amt (0..DACC_MAX) added, scaled by the accent step's own level as a hit's velocity is (lvl_vel:
  * NORM x1, GHOST x0.42, SOFT x0.72, HARD x1.27; Q7), at most 127. No accent, amount 0: vel as it was (the ISR: no
  * division) */
-static uint32_t dacc_vel(uint32_t vel, uint32_t acc, int32_t amt)
+static FASTI(seqev) uint32_t dacc_vel(uint32_t vel, uint32_t acc, int32_t amt)
 {
     static const uint8_t F[4] = {128, 54, 92, 163};
     uint32_t a;
@@ -412,7 +412,7 @@ static void drum_on(uint32_t note, uint32_t vel)
         if (lane >= DRUM_LANES)
             return;
         note = LANE_NOTE_OF(lane);
-    } else if (note == 76u || note == 77u || (lane = lane_of_note(note)) >= DRUM_LANES) {
+    } else if (note == 76u || note == 77u || (lane = FAST_CALL(seqev, lane_of_note)(note)) >= DRUM_LANES) {
         lane = DRUM_LANES;                          /* (the click's wood block; a GM note no lane is near: the kit's sound for
                                                      * it, no lane's edits, mix or sends, as the click) */
     }

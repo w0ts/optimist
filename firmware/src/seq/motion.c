@@ -44,24 +44,24 @@ static uint32_t motion_count(const track_t *t) { return auto_count(AL(t), AUTO_H
 static void motion_pass(track_t *t, uint32_t step)
 {
     if (!step)
-        motion_restore(t);                                   /* (auto_base.c: the locks let go too) */
+        FAST_CALL(seqev, motion_restore)(t);                                   /* (auto_base.c: the locks let go too) */
 }
 /* hold event e of track t's step (track k) applies (auto_step, the ISR) */
 static void motion_put(track_t *t, uint32_t k, uint32_t id, int32_t val);
 static void motion_hold(track_t *t, uint32_t k, const auto_ev_t *e)
 {
-    uint32_t id = mot_id(e->param), did, taken = 0;
+    uint32_t id = FAST_CALL(seqev, mot_id)(e->param), did, taken = 0;
     int32_t val = e->value;
     if (!is_drum(t) && LEG_ID(id)) {
         uint32_t dest;
-        if ((id = lfo_leg_ev(t, id, &val, &taken, &did, &dest)) >= P_COUNT)
+        if ((id = FAST_CALL(seqev, lfo_leg_ev)(t, id, &val, &taken, &did, &dest)) >= P_COUNT)
             return;                                          /* (a depth of before: no slot free for it) */
         if (did < P_COUNT)
-            motion_put(t, k, did, (int32_t)dest);            /* (a free slot put on its destination) */
-    } else if (!motion_param(t, id)) {
+            FAST_CALL(seqev, motion_put)(t, k, did, (int32_t)dest);            /* (a free slot put on its destination) */
+    } else if (!FAST_CALL(seqev, auto_param)(t, id)) {
         return;                                              /* (a value this build lacks) */
     }
-    motion_put(t, k, id, val);
+    FAST_CALL(seqev, motion_put)(t, k, id, val);
 }
 /* track t's (track k) value id held at val by its motion (the base kept; a lock in force on it lets go to val) */
 static void motion_put(track_t *t, uint32_t k, uint32_t id, int32_t val)

@@ -53,7 +53,7 @@ static inline void steps_load(track_t *t, uint32_t k, const pstep_t *s)
     }
 }
 /* note k of step s plays its own end (the step's notes: a NOTE step, no ratchet) */
-static inline uint32_t ngate_of(const step_t *s, uint32_t k)
+static inline FASTI(seq) uint32_t ngate_of(const step_t *s, uint32_t k)
 {
     return s->time == ST_NOTE && k < s->n && k < 4u && !s->rat ? s->ngate[k] : 0u;
 }

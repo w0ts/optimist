@@ -28,7 +28,7 @@
 /* the sequencer's notes go out: BOTH or SEQ (KEYS: the keys alone; OFF: nothing, 2026-10-29) */
 static int mout_seq(void) { return bp_set[BPS_MOUT] == MOUT_BOTH || bp_set[BPS_MOUT] == MOUT_SEQ; }
 
-static uint32_t trk_midi_ch(uint32_t i)
+static FASTI(seqev) uint32_t trk_midi_ch(uint32_t i)
 {
 #if FELUCCA_MIDI_CH
     uint32_t c = i < 3u ? (uint32_t)bp_set[BPS_CH0 + i] : (uint32_t)song.g[G_DRCH];   /* (track 4: G_DRCH, drums or not) */
@@ -89,21 +89,21 @@ static void seq_out_off(const track_t *t, uint32_t note)
     mo_set[i][note >> 5] &= ~(1u << (note & 31u));
     midi_note_out(mo_ch[i], note, 0u);
 }
-static void seq_out_track_off(const track_t *t)    /* every note of the track still on */
+static FASTI(seqev) void seq_out_track_off(const track_t *t)    /* every note of the track still on */
 {
     uint32_t i = trk_index(t) % NTRK, w, b;
     for (w = 0; w < 4u; w++)
         for (b = 0; mo_set[i][w]; b++)
             if (mo_set[i][w] & (1u << b)) {
                 mo_set[i][w] &= ~(1u << b);
-                midi_note_out(mo_ch[i], w * 32u + b, 0u);
+                FAST_CALL(seqev, midi_note_out)(mo_ch[i], w * 32u + b, 0u);
             }
 }
 static int seq_out_held(const track_t *t, uint32_t note)    /* its note is on (a slide into it: one MIDI note) */
 {
     return note < 128u && (mo_set[trk_index(t) % NTRK][note >> 5] & (1u << (note & 31u))) != 0u;
 }
-static void seq_out_on(const track_t *t, uint32_t note, uint32_t vel)
+static FAST(seq) void seq_out_on(const track_t *t, uint32_t note, uint32_t vel)
 {
     uint32_t i = trk_index(t) % NTRK, ch = trk_midi_ch(i), w;
     if (!mout_seq() || note > 127u || ch == MCH_OFF)
@@ -112,11 +112,11 @@ static void seq_out_on(const track_t *t, uint32_t note, uint32_t vel)
         ;
     if (w < 4u && mo_ch[i] != ch)
         seq_out_track_off(t);                  /* its channel changed under the notes: they end where they began */
-    seq_out_off(t, note);                      /* played again while on: off first */
+    FAST_CALL(seqev, seq_out_off)(t, note);                      /* played again while on: off first */
     mo_ch[i] = (uint8_t)ch;
     mo_set[i][note >> 5] |= 1u << (note & 31u);
     mo_any = 1;
-    midi_note_out(ch, note, vel ? vel & 127u : 1u);
+    FAST_CALL(seqev, midi_note_out)(ch, note, vel ? vel & 127u : 1u);
 }
 static void seq_out_all_off(void)
 {
@@ -150,6 +150,12 @@ static void seq_out_check(void)
 #define seq_out_track_off(t) ((void)0)
 #define seq_out_all_off() ((void)0)
 #define seq_out_check() ((void)0)
+#if FELUCCA_SEQ_RAM                    /* (FAST_CALL(seqev, f) takes a function's address: functions, not macros) */
+#undef seq_out_on
+#undef seq_out_off
+static void seq_out_on(const track_t *t, uint32_t n, uint32_t v) { (void)t, (void)n, (void)v; }
+static void seq_out_off(const track_t *t, uint32_t n) { (void)t, (void)n; }
+#endif
 #endif
 
 /* MIDI in with IN = CLOCK: a note on is dropped (the note offs still end what was held) */
