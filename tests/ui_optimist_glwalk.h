@@ -478,14 +478,7 @@ static void glwalk_tests(void)
             glw_line(s ? SCR_SYSTEM : SCR_GLOBAL, i, &c, v);
             ok &= strcmp(v, "YES") != 0;
         }
-    i = line_named(SCR_SYSTEM, "PANEL");
-    glw_line(SCR_SYSTEM, i, &c, v);
-    {
-        uint32_t want = 1u;                             /* (Calibrate's PANEL: the Bluetooth page has no action line, SAVE acts
-                                                         * on any of its lines, op_bt.c) */
-        check(ok && acts == want && c.kind == CK_ACT && !strcmp(v, "CALIBRATE"),
-              "no GLOBAL / SYSTEM line draws YES; the action (Calibrate's PANEL) draws its verb");
-    }
+    check(ok, "no GLOBAL / SYSTEM line draws YES");
     glw_factory_tests();
     glw_sync_long_tests();
     glw_midi_long_tests();

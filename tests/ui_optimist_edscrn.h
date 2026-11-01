@@ -310,26 +310,6 @@ static void edscrn_tests(void)
         song.g[G_BPM] = (int16_t)b0;
         check(ok, "SCRN op 2: a fine turn moves BPM by units through the screen's own turn; mode 2 its default");
     }
-    /* YES on an action that destroys: SYSTEM > CALIBRATE > PANEL asks first */
-    {
-        uint32_t line = 0xFFu;
-        for (i = 0; i < gl_n(1); i++) {
-            cell_t d;
-            gl_cell(1, i, &d);
-            if (d.kind == CK_ACT && d.label && !strcmp(d.label, "PANEL"))
-                line = i;
-        }
-        ok = 1;
-        if (line != 0xFFu) {
-            q[0] = 3, q[1] = 1, q[2] = (uint8_t)line, q[3] = 0;
-            ed_begin(ED_SCRN);
-            ok = (uint32_t)ed_scrn(ED_SCRN, q, 4) && ed_out[5] == 3u && ed_out[8] == 1u;
-            scl_parse(ed_out, 9, &c);
-            ok &= c.ask == 1u && op_armed();
-            op_disarm();
-        }
-        check(ok, "SCRN op 3: YES on CALIBRATE > PANEL (ok 0) asks the device's question and does nothing");
-    }
     ok = 1;
     q[0] = 1, q[1] = 2, q[2] = 0;
     ed_begin(ED_SCRN);

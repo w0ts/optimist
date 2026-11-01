@@ -2,7 +2,7 @@
 /* tests/ui_optimist_test.c, the page organisation (the user's decisions, 2026-10-12; docs/UI-OPTIMIST-DESIGN.md
  * 2.7, 3.3, 4.7, 11): D1 GLO and SELECT walk one cycle, GLOBAL then SYSTEM, SHIFT held on the mixer does nothing; D2 SYSTEM's first row CLOCK +
  * LOAD; D6 SAVE on the mixer is PROJECT; D7 EDIT's first row is SOUND; D8 the SCENES layer says "Select: song"; P25 a
- * dark family button does nothing; P28 CALIBRATE > PANEL asks first. Included after ui_optimist_glo.h (glo_find). */
+ * dark family button does nothing. Included after ui_optimist_glo.h (glo_find). */
 static void pages_nav_tests(void)
 {
     cell_t c, c2;
@@ -152,22 +152,6 @@ static void pages_nav_tests(void)
     }
     song.sel = 0;
     reset_ui();
-    /* P28 */
-    op_enter(SCR_SYSTEM);
-    line_named(SCR_SYSTEM, "PANEL");                    /* (Calibrate's PANEL line: YES on it) */
-    frame();
-    tap(B_SAVE);
-    check(op_armed() && !strcmp(ui.arm_verb, "CALIBRATE?") && !strcmp(ui.arm_arg, "PANEL") && modal_fits(),
-          "P28: CALIBRATE > PANEL asks first (CALIBRATE? PANEL)");
-    tap(B_HOME);
-    check(!op_armed() && ui.scr == SCR_SYSTEM, "P28: HOME: cancelled, nothing taught, still SYSTEM");
-    {
-        const panel_t keep = panel;
-        tap(B_SAVE);
-        tap(B_SAVE);                                    /* (confirmed: the teach, no input: it times out, fm1_wdt_feed) */
-        check(!memcmp(&keep, &panel, sizeof panel) && !strcmp(ui.msg, "SETUP CANCELLED"),
-              "P28: confirmed: the teach runs; no input for 30 s cancels it, the panel kept");
-    }
     reset_ui();
 }
 

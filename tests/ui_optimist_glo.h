@@ -67,7 +67,7 @@ static void glo_list_tests(void)
 #if OP_DTIMES
                                      "CPU TIMES",        /* (the dual render's times: DUAL_LOAD builds) */
 #endif
-                                     "GENERAL", "USB", "METERS", "BT MIDI", "BT AUDIO", "WI-FI", "DEVICES", "USB AUDIO", "CALIBRATE", "ABOUT", "CREDITS"};
+                                     "GENERAL", "USB", "METERS", "BT MIDI", "BT AUDIO", "WI-FI", "DEVICES", "USB AUDIO", "ABOUT", "CREDITS"};
     cell_t want[GL_MAXL], c;
     char sec[GL_MAXL][12], nm[12];
     uint32_t s, i, n, ok = 1;
@@ -95,7 +95,7 @@ static void glo_list_tests(void)
     SCREENS[SCR_GLOBAL].cell(i, gl_kn(SCR_GLOBAL, i), &c);
     check(ok && !strcmp(c.label, "DRUMS"), "GLOBAL's lines: BPM NUDGE SWING first (Tempo), DRUMS last (Channels)");
     check(glo_sections(SCR_GLOBAL, GS, 5) && glo_sections(SCR_SYSTEM, SS, sizeof SS / sizeof SS[0]) && glo_find(SCR_GLOBAL, "REC 2") == SCREENS[SCR_GLOBAL].rows(),
-          "the sections in order: Tempo Rec (REC 2's QUANT is Rec's) Filter (FILT RESO) MIDI (CLK OUT on it) Channels; Info General USB Keys Bluetooth Devices USB-audio Calibrate About Credits");
+          "the sections in order: Tempo Rec (REC 2's QUANT is Rec's) Filter (FILT RESO) MIDI (CLK OUT on it) Channels; Info General USB Keys Bluetooth Devices USB-audio About Credits");
     {   /* SYSTEM's first page is INFO: one line (the page is drawn whole), its read-outs the page's own (sys_info_cell) */
         cell_t c1, c2;
         char nm1[12];
@@ -287,18 +287,11 @@ static void glo_tests(void)
         check(a.kind == CK_RO && ui.scr == SCR_PROJECT && !op_armed(), "SYSTEM INFO: a read-out page: its knobs do nothing, SAVE (YES with nothing to do) opens PROJECT (2026-10-15)");
         op_enter(SCR_SYSTEM);
     }
-    {   /* the actions: About's VERSION says it; Calibrate's PANEL asks first (ui_optimist_pages.h P28) */
+    {   /* the actions: About's VERSION says it */
         line_named(SCR_SYSTEM, "VERSION");
         frame();
         tap(B_SAVE);
         check(strstr(ui.msg, "OPTIMIST UI") != 0, "About: YES on VERSION says the version");
-        line_named(SCR_SYSTEM, "PANEL");
-        frame();
-        tap(B_SAVE);
-        check(op_armed() && ui.arm_scr == SCR_SYSTEM && ui.arm_row == ui.row[SCR_SYSTEM] && !strcmp(ui.arm_arg, "PANEL"),
-              "Calibrate: YES on PANEL asks first (the question on its line)");
-        tap(B_HOME);
-        check(!op_armed() && ui.scr == SCR_SYSTEM, "... HOME: cancelled");
 #if BT_OVL
         bt.boot = 1;
         ble_store_reset(&ble_store);

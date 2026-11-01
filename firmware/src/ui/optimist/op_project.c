@@ -415,7 +415,7 @@ static uint32_t pw_leds(uint32_t *d);
 #include "../../system/stackmark.h"                     /* INFO's RAM line: how deep the stacks went (painted at boot: stk_boot) */
 /* ---- SYSTEM: SLOOP's HOME-held menu as rows (ui/sloop/ui_menu.c) */
 enum { SI_NONE, SI_OUT, SI_SYNC, SI_CH1, SI_CH2,
-       SI_CH3, SI_CHD, SI_USB, SI_CPU, SI_MHZ, SI_CALIB, SI_ABOUT, SI_HOLD, SI_BLE, SI_KCOL, SI_DBGST, SI_CLKOUT, SI_CPU1, SI_INFO, SI_BUILD, SI_REPO,
+       SI_CH3, SI_CHD, SI_USB, SI_CPU, SI_MHZ, SI_ABOUT, SI_BLE, SI_KCOL, SI_DBGST, SI_CLKOUT, SI_CPU1, SI_INFO, SI_BUILD, SI_REPO,
        SI_DROPS, SI_GUARD, SI_UAINFO, SI_XRUN, SI_DIAG, SI_CREDITS, SI_BLEST, SI_BLEPEER, SI_BLEMIDI, SI_BLELIST, SI_BLEAUTO,
        SI_BLEFGT, SI_FRESO, SI_HPBASS, SI_BTA, SI_BTAPEER, SI_BTAFMT, SI_BTAST, SI_CLKOFS, SI_BTOFS, SI_LINK, SI_LINKOFS,
 #if FELUCCA_SD_UI
@@ -551,7 +551,6 @@ static const struct { const char *name; uint8_t it[4]; } SYS[] = {
     {"USB AUDIO", {UA_IT(12), UA_IT(13), UA_IT(14), UA_IT(15)}},
     {"USB AUDIO", {UA_RT(0), UA_RT(1), UA_RT(2), SI_NONE}},
 #endif
-    {"CALIBRATE", {SI_CALIB, SI_HOLD, SI_NONE, SI_NONE}},   /* (SI_HOLD: a button's hold, 250 / 350 / 500 ms) */
     {"ABOUT", {SI_ABOUT, SI_BUILD, SI_REPO, SI_NONE}},
     {"CREDITS", {SI_CREDITS, SI_NONE, SI_NONE, SI_NONE}},   /* after ABOUT: one text page, the end titles (op_credits.c) */
     /* the global rows, last: GLOBAL's (GLO tapped, op_global.c), not SYSTEM's (the user, 2026-10-12: GLO "the page
@@ -1021,12 +1020,6 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
         cell_gauge(c, 0, 0, 240, (int32_t)((cpu_khz + 500u) / 1000u));
         break;
 #endif
-    case SI_HOLD:                                       /* a button held this long is a hold (op_state.c op_hold_ms) */
-        c->label = "HOLD";
-        fmt_int(c->val, (int32_t)op_hold_ms());
-        c->unit = "ms";
-        cell_gauge(c, 1, 0, HOLD_N - 1, OP_HOLD_POS[hold_sel % HOLD_N]);
-        break;
     case SI_KCOL:                                       /* the knob caps' colours on dials, labels, cards (core/knobcol.h) */
         sys_onoff(c, "KNOB COLORS", knob_colors);       /* (the settings list has the room: op_gldraw.c) */
         break;
@@ -1049,9 +1042,6 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
         break;
     }
 #endif
-    case SI_CALIB:
-        cell_act(c, 0, "PANEL", "CALIBRATE", 0);    /* (the action's word, the user 2026-10-13; the list's small face) */
-        break;
 #if FELUCCA_SD_UI
     case SI_SDCARD: {                                   /* the card: READY and its size, else what is wrong (YES: mounted again) */
         static const char *const ST[4] = {"NONE", "NOT FAT", "PREPARING", "READY"};
@@ -1553,9 +1543,6 @@ static void sys_set(uint32_t it, int32_t s)
         sdm_set(it - SI_SDVERS - (it == SI_SDPRE), s ? s : 1);
         break;
 #endif
-    case SI_HOLD:                                       /* (kept in the settings word: settings_word.c) */
-        hold_sel = OP_HOLD_SEL[sys_step(OP_HOLD_POS[hold_sel % HOLD_N], s, HOLD_N - 1)];
-        break;
     case SI_KCOL:                                       /* (kept in the settings word: settings_word.c) */
         knob_colors = (uint8_t)sys_step(knob_colors, s, 1);
         ui.redraw = 1;                                   /* (every band's colours move: the bands again over themselves, no black fill) */
@@ -1643,9 +1630,6 @@ static int sys_factory(uint32_t it)
         usb_serial = 0;
         break;
 #endif
-    case SI_HOLD:
-        hold_sel = 0;                                   /* (core/hold.h: 0 is 350 ms) */
-        break;
     case SI_KCOL:
         knob_colors = 0;
         ui.redraw = 1;
@@ -1749,13 +1733,6 @@ static int sys_yes(uint32_t r, uint32_t k, uint32_t ok)
         return 1;
     }
 #endif
-    if (it == SI_CALIB) {                               /* PANEL: asked first (it takes every button until the end) */
-        if (!ok)
-            op_arm(SCR_SYSTEM, r, k, "CALIBRATE", "PANEL", 0);
-        else
-            panel_setup();                              /* (op_input.c: teach each button and knob) */
-        return 1;
-    }
     if (it == SI_ABOUT) {
         ui_say(FELUCCA_VERSION, " OPTIMIST UI");
         return 1;
