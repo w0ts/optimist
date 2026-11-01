@@ -3577,6 +3577,11 @@ async function editorMirror() {
       "mirror: a checked BLIT with bytes zeroed dropped, its MORE after it dropped too, nothing drawn (the whole panel asked again)");
     mir.haveSeq = false; mir.broken = false;
     ok(mirrorFrame(chk[k]) && mirrorFrame(chk[k + 1]), "mirror: ... the same frames whole drawn");
+    mir.haveSeq = false; mir.broken = false; mir.fixLo = -1;
+    chk.slice(0, k).forEach((a) => mirrorFrame(a));
+    const sq = (a) => a[a.length - 3];
+    ok(!mirrorFrame(chk[k + 1]) && mir.fixLo === sq(chk[k]) && mir.fixHi === sq(chk[k + 1]) && !mirrorFrame(chk[k + 1]),
+      "mirror: a lost BLIT and its MORE dropped: their seqs kept to ask for (106 bit 4); the MORE again ignored");
   }
   ok(/f\.cmd === CMD\.MIRROR && !\(f\.a\.length === 6 && f\.a\[0\] <= 1 && f\.a\[1\] >= 1\)\) \{ this\.onMirror\(f\.a\)/.test(html) && /onMirror: \(a\) => mirrorFrame\(a\),/.test(html)
     && /MIRROR: 106/.test(html) && /id === 0x65 && n >= 1 && a\[r\.i\] >= 1\) o\.mirror/.test(html) && /dev\.info\.mirror\.v === MIRROR_V/.test(html)

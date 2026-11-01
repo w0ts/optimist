@@ -20,7 +20,21 @@ struct MirrorDecoder {
     private var seq = 0, haveSeq = false, broken = false
     /// Checked frames dropped or lost (a sum failed, a gap in seq): the picture is not whole, the link asks for it again
     private(set) var lost = 0
+    /// The kinds (the link's log): a sum failed, a gap in seq, a MORE dropped after one, a frame had already
+    private(set) var lostSum = 0, lostGap = 0, lostMore = 0, again = 0
+    /// The seqs lost since `takeLost` (106 bit 4 with opti_mirfix_1: only their rectangles again)
+    private var fixLo: Int?, fixHi = 0
+    mutating func takeLost() -> (lo: Int, hi: Int)? {
+        guard let lo = fixLo else { return nil }
+        fixLo = nil
+        return (lo, fixHi)
+    }
+    private mutating func lostRange(_ lo: Int, _ hi: Int) {
+        if fixLo == nil { fixLo = lo & 127 }
+        fixHi = hi & 127
+    }
     static let checkedBit: UInt8 = 8
+    static let fixBit: UInt8 = 16     // 106 bit 4: seq lo, hi follow (lost frames, opti_mirfix_1)
 
     /// The reply to a MIRROR request (F0 7D 46 4C 6A on version w w h h F7), or nil for anything else.
     static func reply(_ f: [UInt8]) -> (on: Bool, version: Int)? {
@@ -47,15 +61,23 @@ struct MirrorDecoder {
         var n = f.count - 1
         var op = f[5]
         if op >= 8 && op <= 10 {        // checked: seq, then Fletcher sums A and B of 7D .. seq, before F7
-            guard n >= 9 else { lost += 1; broken = true; return false }
+            guard n >= 9 else { lost += 1; lostSum += 1; broken = true; return false }
             var a = 0, b = 0
             for k in 1..<(n - 2) { a += Int(f[k]); b += a }
-            guard a & 127 == Int(f[n - 2]), b & 127 == Int(f[n - 1]) else { lost += 1; broken = true; return false }
+            guard a & 127 == Int(f[n - 2]), b & 127 == Int(f[n - 1]) else { lost += 1; lostSum += 1; broken = true; return false }
             let q = Int(f[n - 3])
-            if haveSeq && q != seq { lost += 1; broken = true }   // (frames lost or repeated before this one)
+            if haveSeq && q != seq {
+                if ((seq - q) & 127) - 1 < 32 { again += 1; return false }   // (a frame again, already had: nothing)
+                lost += 1; lostGap += 1; broken = true                         // (frames lost before this one)
+                lostRange(seq, q - 1)
+            }
             seq = (q + 1) & 127
             haveSeq = true
-            if op == 10 && broken { lost += 1; return false }    // (its BLIT lost: it would paint into another rectangle)
+            if op == 10 && broken {                              // (its BLIT lost: it would paint into another rectangle)
+                lost += 1; lostMore += 1
+                lostRange(fixLo ?? q, q)
+                return false
+            }
             broken = false
             op -= 8
             n -= 3

@@ -138,6 +138,23 @@ final class MirrorDecoderTests: XCTestCase {
         XCTAssertGreaterThan(dec.lost, 0)
     }
 
+    func testLostSeqsTold() throws {
+        let fs = checked(frames(try fixture("sysex")))
+        let k: Int = try XCTUnwrap(fs.indices.first { (i: Int) -> Bool in i + 2 < fs.count && fs[i][5] == 9 && fs[i + 1][5] == 10 })
+        var dec = MirrorDecoder()
+        for f in fs[..<k] { dec.apply(f) }
+        let seqOf = { (f: [UInt8]) -> Int in Int(f[f.count - 4]) }
+        XCTAssertFalse(dec.apply(fs[k + 1]))             // (the BLIT lost: its MORE dropped)
+        let r = try XCTUnwrap(dec.takeLost())
+        XCTAssertEqual(r.lo, seqOf(fs[k]))
+        XCTAssertEqual(r.hi, seqOf(fs[k + 1]))
+        XCTAssertNil(dec.takeLost())
+        XCTAssertFalse(dec.apply(fs[k + 1]))             // (the same frame again: nothing, no loss)
+        XCTAssertEqual(dec.again, 1)
+        XCTAssertEqual(dec.lostGap, 1)
+        XCTAssertEqual(dec.lostMore, 1)
+    }
+
     func testUncheckedFramesStillRead() throws {
         var dec = MirrorDecoder()
         XCTAssertTrue(dec.apply([0xF0, 0x7D, 0x46, 0x4C, 106, 0, 0, 0, 0, 0, 112, 1, 112, 1, 127, 127, 3, 0xF7]))
