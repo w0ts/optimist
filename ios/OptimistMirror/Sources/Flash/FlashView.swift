@@ -53,16 +53,13 @@ struct FlashView: View {
         .task { await flash.find() }
     }
 
-    /// the cable dropped mid-install (the web installer's box): the sentence, Resume and Cancel; out of the Install section,
+    /// the cable dropped mid-install (the web installer's box): the sentence and Cancel (the install goes on by itself when
+    /// the FM-1 is back); out of the Install section,
     /// which is disabled while the install runs
     private func droppedSection(_ text: String) -> some View {
         Section {
             Label(text, systemImage: "cable.connector.slash").foregroundStyle(.orange)
-            HStack {
-                Button("Resume") { flash.answerDrop(true) }.bold().buttonStyle(.borderedProminent)
-                Spacer()
-                Button("Cancel", role: .cancel) { flash.answerDrop(false) }.buttonStyle(.bordered)
-            }
+            Button("Cancel", role: .cancel) { flash.cancelDrop() }.buttonStyle(.bordered)
         }
     }
 

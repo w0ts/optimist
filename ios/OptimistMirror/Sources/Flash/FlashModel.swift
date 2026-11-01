@@ -29,9 +29,9 @@ final class FlashModel: ObservableObject {
     @Published private(set) var status = ""
     @Published private(set) var result: String?
     @Published private(set) var error: String?
-    /// the cable dropped mid-install: the sentence shown with Resume and Cancel (nil: none); FlashResume
+    /// the cable dropped mid-install: the sentence shown with Cancel while the FM-1 is looked for by itself (nil: none)
     @Published private(set) var dropped: String?
-    private var dropAnswer: CheckedContinuation<Bool, Never>?
+    private let dropCancel = FlashCancel()
     /// m-bootloader asked for, for one install (download mode; docs/INSTALL-PATHS.md); off: USB-MIDI, the bootloader kept
     @Published var installMboot = false
     /// the bootloader the FM-1 says it has (INFO tag 0x68): "mboot" | "stock" | "unknown", nil: not said (an older firmware)
@@ -293,7 +293,8 @@ final class FlashModel: ObservableObject {
             }
             do {
                 let back = try await updater.installResumable(pkg, running: runningID, step: { [weak self] s in Task { @MainActor in self?.show(s, pkg) } },
-                                                              onDrop: { [weak self] _, again in await self?.askResume(again: again) ?? false })
+                                                              onDrop: { [weak self] _ in Task { @MainActor in self?.showDrop() } },
+                                                              cancelled: { [dropCancel] in dropCancel.isSet })
                 progress = 1
                 status = ""
                 device = back
@@ -312,25 +313,26 @@ final class FlashModel: ObservableObject {
         }
     }
 
-    /// the cable dropped: the sentence with Resume and Cancel, until one is pressed (again: not found after the last Resume)
-    func askResume(again: Bool) async -> Bool {
-        dropAnswer?.resume(returning: false)
+    /// the cable dropped: the sentence with Cancel; the install goes on by itself when the FM-1 is back
+    func showDrop() {
         status = ""
-        dropped = again ? "\(FlashResume.dropped) \(FlashResume.notBack)" : FlashResume.dropped
+        dropCancel.set(false)
+        dropped = FlashResume.dropped
         append("dropped")
-        return await withCheckedContinuation { dropAnswer = $0 }
     }
 
-    /// Resume (true) or Cancel (false) after a dropped connection
-    func answerDrop(_ resume: Bool) {
-        guard let c = dropAnswer else { return }
-        dropAnswer = nil
+    /// Cancel while the FM-1 is looked for after a drop
+    func cancelDrop() {
+        guard dropped != nil else { return }
+        dropCancel.set(true)
         dropped = nil
-        if resume { status = "Looking for the FM-1…" }
-        c.resume(returning: resume)
     }
+
+    /// from step 2 on, until done (the user, 2026-11-01): never power off
+    private func step2(_ text: String) -> String { "\(text) \(FlashResume.noPowerOff)" }
 
     private func show(_ s: FlashStep, _ pkg: FlashPackage) {
+        if dropped != nil { dropped = nil }                      // (the FM-1 is back: going on)
         switch s {
         case .start(let id):
             append("start \(id)")
@@ -339,21 +341,26 @@ final class FlashModel: ObservableObject {
             progress = min(1, Double(n) / Self.step1Reads) * 0.1
         case .loader:
             append("loader")
-            status = "Waiting for the update loader…"
+            status = step2("Waiting for the update loader…")
             progress = 0.1
         case .write(let n, let addr):
             if n == 1 { append("write") }
-            status = "Writing… Keep the cable in."
+            status = step2("Writing… Keep the cable in.")
             progress = max(progress ?? 0, 0.1 + 0.85 * Double(addr) / Double(max(1, pkg.image.count)))
         case .reboot:
             append("reboot")
-            status = "Restarting the FM-1…"
+            status = step2("Restarting the FM-1…")
             progress = 0.97
         case .done(let id):
             append("done \(id)")
         case .found(let id):
             append("found again \(id)")
-            status = "Found \(id) again: resuming…"
+            status = step2("Found \(id) again: resuming…")
+        case .checking(let p):
+            status = step2("Checking what is already on the FM-1…")
+            progress = max(progress ?? 0, 0.1 + 0.85 * Double(p) / 100)
+        case .kept:
+            append("the loader kept its fast session over the replug")
         }
     }
 
