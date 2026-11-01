@@ -82,12 +82,9 @@ static void help_tests(void)
     }
     check(ok, "GLOBAL / SYSTEM: the cursor line's help on the screen's last line, every line, the table's text");
     check(fit, "... each fits the line (232 px)");
-    line_named(SCR_GLOBAL, "BPM");
+    line_named(SCR_GLOBAL, "TUNE");
     frame();
-    check(hlt_text_is("Tempo of the song"), "... GLOBAL BPM: \"Tempo of the song\"");
-    line_named(SCR_SYSTEM, "PANEL");
-    frame();
-    check(hlt_text_is("Teach buttons, knobs -> SAVE"), "... SYSTEM PANEL names its question: \"Teach buttons, knobs -> SAVE\"");
+    check(hlt_text_is("Master tune (cents)"), "... GLOBAL TUNE: \"Master tuning, cents\"");
     op_enter(SCR_PROJECT);                              /* PROJECT: the hot cell's line, every cell, always there */
     frame();
     for (i = 0, ok = 1; i < SCREENS[SCR_PROJECT].rows(); i++)

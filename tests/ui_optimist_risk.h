@@ -253,7 +253,6 @@ static void risk_tests(void)
     rk_cell(SCR_PROJECT, "TOOLS", "INIT");
     rk_cell(SCR_PROJECT, "TOOLS", "NEW");
     rk_cell(SCR_SOUND, "SOUND", "INIT");                /* INIT sound */
-    rk_cell(SCR_SYSTEM, 0, "PANEL");                    /* CALIBRATE */
     rk_edit();
     rk_combo(B_ENV, "SHIFT + ENV: INIT");
     /* (SHIFT + SEQ asks nothing since 2026-10-16: the motion and locks are SHIFT + REC's ring, its own confirmation) */

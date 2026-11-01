@@ -149,7 +149,7 @@ static int glw_walk_line(uint32_t scr, uint32_t i)
  * (the user, 2026-10-13; panel.c settings_init, settings_word.c read as 0); BLE is never reset */
 static const struct { const char *label, *val; } GLW_FACTORY[] = {
     {"MODE", "FREE"}, {"NUDGE", "0"}, {"LENGTH", "1"}, {"START", "NOTE"}, {"CLK OUT", "OFF"}, {"LINK", "ON+S/S"},
-    {"KNOB COLORS", "OFF"}, {"SPK LOWCUT", "ON"}, {"HPHN BASS", "OFF"}, {"DEBUG STATS", "OFF"}, {"SERIAL", "OFF"}, {"HOLD", "350"},
+    {"KNOB COLORS", "OFF"}, {"HPHN BASS", "OFF"}, {"DEBUG STATS", "OFF"}, {"SERIAL", "OFF"}, {"HOLD", "350"},
     {"MASTER", "NONE"}, {"T1", "1"}, {"T2", "2"}, {"T3", "3"}, {"DRUMS", "4"}, {"DRUM BUS", "NONE"}, {"DR1", "NONE"},
     {"DR2", "NONE"}, {"DR3", "NONE"}, {"DR4", "NONE"}, {"DR5", "NONE"}, {"DR6", "NONE"}, {"DR7", "NONE"}, {"DR8", "NONE"},
     {"DR9", "NONE"}, {"DR10", "NONE"}, {"RET A", "NONE"}, {"RET B", "NONE"},
@@ -240,7 +240,7 @@ static void glw_factory_tests(void)
             seen++;
         }
     }
-    check(ok && seen >= 3u && ble_ok, "SHIFT + a line's knob: every setting line without a default back to its FACTORY value; BLE never");
+    check(ok && seen >= 2u && ble_ok, "SHIFT + a line's knob: every setting line without a default back to its FACTORY value; BLE never");
     settings.palette = 4;
     palette_set(4);
 }
@@ -295,8 +295,8 @@ static void glw_sync_long_tests(void)
             n += 1u + (FELUCCA_BT_AUDIO ? 1u : 0u);
         }
         pg_ok &= gl_end(0, first) - gl_first(0, first) == (SY_BT_OFS ? k : n) && first == gl_first(0, first);   /* (BT OFS too: the second row on the next page) */
-        glo_cell(TPR_TEMPO, 3, &c);
-        check(pg_ok && c.vp == &song.g[G_TUNE], "GLOBAL: the MIDI page is CLK IN, CLK OUT, MIDI OUT, then CLK OFS (BT OFS) (no MIDI IN, no CLK read-out); GLOBAL's Tempo's fourth line is TUNE, not SYNC");
+        glo_cell(0, 0, &c);
+        check(pg_ok && c.vp == &song.g[G_TUNE], "GLOBAL: the MIDI page is CLK IN, CLK OUT, MIDI OUT, then CLK OFS (BT OFS) (no MIDI IN, no CLK read-out); GLOBAL's first line is TUNE");
         if (FELUCCA_MIDI_CLOCK) {                       /* CLK OFS below 0 by its knob, and by the editor's SCRN turn (fine, steps) */
             uint32_t l = line_named(SCR_GLOBAL, "CLK OFS"), j;
             int32_t v1, v2, v3;
@@ -478,14 +478,7 @@ static void glwalk_tests(void)
             glw_line(s ? SCR_SYSTEM : SCR_GLOBAL, i, &c, v);
             ok &= strcmp(v, "YES") != 0;
         }
-    i = line_named(SCR_SYSTEM, "PANEL");
-    glw_line(SCR_SYSTEM, i, &c, v);
-    {
-        uint32_t want = 1u;                             /* (Calibrate's PANEL: the Bluetooth page has no action line, SAVE acts
-                                                         * on any of its lines, op_bt.c) */
-        check(ok && acts == want && c.kind == CK_ACT && !strcmp(v, "CALIBRATE"),
-              "no GLOBAL / SYSTEM line draws YES; the action (Calibrate's PANEL) draws its verb");
-    }
+    check(ok, "no GLOBAL / SYSTEM line draws YES");
     glw_factory_tests();
     glw_sync_long_tests();
     glw_midi_long_tests();

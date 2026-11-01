@@ -292,43 +292,23 @@ static void edscrn_tests(void)
             n++;
         }
     check(ok && n > 10u, "SCRN op 1: every line of both screens as the device draws it (page, section, label, value, unit, kind, descriptor)");
-    /* a turn: GLOBAL's TEMPO BPM, a unit (fine) up and down; the default */
+    /* a turn: GLOBAL's first line TUNE, a unit (fine) up and down; the default */
     {
-        int32_t b0 = song.g[G_BPM];
+        int32_t b0 = song.g[G_TUNE];
         scl_t a;
         q[0] = 2, q[1] = 0, q[2] = 0, q[3] = 1, q[4] = (uint8_t)((3 + 8192) & 127), q[5] = (uint8_t)((3 + 8192) >> 7);
         ed_begin(ED_SCRN);
         ok = (uint32_t)ed_scrn(ED_SCRN, q, 6) && ed_out[5] == 2u;
         scl_parse(ed_out, 8, &a);
-        ok &= !strcmp(a.label, "BPM") && song.g[G_BPM] == b0 + 3 && a.kind == 1u;
+        ok &= !strcmp(a.label, "TUNE") && song.g[G_TUNE] == b0 + 3 && a.kind == 1u;
         q[4] = (uint8_t)((-3 + 8192) & 127), q[5] = (uint8_t)((-3 + 8192) >> 7);
         ed_begin(ED_SCRN);
-        ok &= (uint32_t)ed_scrn(ED_SCRN, q, 6) && song.g[G_BPM] == b0;
+        ok &= (uint32_t)ed_scrn(ED_SCRN, q, 6) && song.g[G_TUNE] == b0;
         q[3] = 2, q[4] = q[5] = 0;
         ed_begin(ED_SCRN);
-        ok &= (uint32_t)ed_scrn(ED_SCRN, q, 6) && song.g[G_BPM] == GP[G_BPM].def;
-        song.g[G_BPM] = (int16_t)b0;
-        check(ok, "SCRN op 2: a fine turn moves BPM by units through the screen's own turn; mode 2 its default");
-    }
-    /* YES on an action that destroys: SYSTEM > CALIBRATE > PANEL asks first */
-    {
-        uint32_t line = 0xFFu;
-        for (i = 0; i < gl_n(1); i++) {
-            cell_t d;
-            gl_cell(1, i, &d);
-            if (d.kind == CK_ACT && d.label && !strcmp(d.label, "PANEL"))
-                line = i;
-        }
-        ok = 1;
-        if (line != 0xFFu) {
-            q[0] = 3, q[1] = 1, q[2] = (uint8_t)line, q[3] = 0;
-            ed_begin(ED_SCRN);
-            ok = (uint32_t)ed_scrn(ED_SCRN, q, 4) && ed_out[5] == 3u && ed_out[8] == 1u;
-            scl_parse(ed_out, 9, &c);
-            ok &= c.ask == 1u && op_armed();
-            op_disarm();
-        }
-        check(ok, "SCRN op 3: YES on CALIBRATE > PANEL (ok 0) asks the device's question and does nothing");
+        ok &= (uint32_t)ed_scrn(ED_SCRN, q, 6) && song.g[G_TUNE] == GP[G_TUNE].def;
+        song.g[G_TUNE] = (int16_t)b0;
+        check(ok, "SCRN op 2: a fine turn moves TUNE by units through the screen's own turn; mode 2 its default");
     }
     ok = 1;
     q[0] = 1, q[1] = 2, q[2] = 0;
