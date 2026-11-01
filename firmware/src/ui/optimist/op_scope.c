@@ -99,9 +99,16 @@ static void scope_tick(void)
         uint32_t j = mx_ret_ln(MXR_RET0 + s - SCOPE_RET0);
         s = j < 3u ? SCOPE_RET0 + j : 0xFFu;
     }
+#if VIS_LEND
+    vis_ui = (uint8_t)(ui.scr == SCR_SCOPE);            /* (a trace drawn: the ring lent, core/arena_bufs.c ARB_VIS) */
+#endif
 #if FELUCCA_ED_SCOPE
-    if (scope_ed_ms && fm1_ms - scope_ed_ms < 2000u)    /* (the editor looks: its source, as the panel's SCOPE would) */
+    if (scope_ed_ms && fm1_ms - scope_ed_ms < 2000u) {  /* (the editor looks: its source, as the panel's SCOPE would) */
         s = scope_ed_src;
+#if VIS_LEND
+        vis_ui = 1;
+#endif
+    }
 #endif
     if (scope_src != s)
         scope_src = (uint8_t)s;
@@ -123,8 +130,9 @@ static struct {
 } sc = {.tabs_row = 0xFF};
 static int32_t sc_at(uint32_t w, uint32_t i)            /* frame i of the ring from w (its oldest): mono */
 {
+    int32_t (*const v)[VIS_RING] = vis_pcm;
     uint32_t j = (w + i) & (VIS_RING - 1u);
-    return (vis_pcm[0][j] >> 1) + (vis_pcm[1][j] >> 1);
+    return v ? (v[0][j] >> 1) + (v[1][j] >> 1) : 0;     /* (no ring lent yet: flat) */
 }
 /* the start of the trace: the latest rising zero crossing, after a swing below -thr, that leaves SC_N points */
 static uint32_t sc_trigger(uint32_t w, int32_t thr)
