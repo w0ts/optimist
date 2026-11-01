@@ -4083,7 +4083,8 @@ static void preset_engine_tests(void)
 #include "ui_optimist_overlap.h"                   /* a synth note past another: the picked note seen, moved past (snap), LENGTH over */
 #include "ui_optimist_seqglide.h"                  /* 2026-10-29 (#104): GLIDE on the held step, a held note picked, a chord all first, a note moved alone */
 #include "ui_optimist_stepedit.h"                  /* 2026-10-31: a note moved past another, the move not stopped, LENGTH only lengthens */
-#include "ui_optimist_stepsave.h"                  /* 2026-10-31: REC on = the keys play, the last note entered picked, SAVE with no note picked */
+#include "ui_optimist_stepsave.h"
+#include "ui_optimist_shiftmute.h"                  /* 2026-10-31: REC on = the keys play, the last note entered picked, SAVE with no note picked */
 #include "ui_optimist_stephold.h"                  /* STEP: a tap toggles the step, a hold opens its cards only */
 #include "ui_optimist_lforate.h"                  /* LFO RATE: the free bar from 0, a synced value as a division */
 #include "ui_optimist_mix35.h"                      /* batch 35: the mixer's three views, its knob sets, the title flash */
@@ -4370,6 +4371,9 @@ int main(int argc, char **argv)
     seqglide_tests();
     stepedit_tests();
     stepsave_tests();
+#if FELUCCA_AUTO
+    shiftmute_tests();
+#endif
     step_cards_leak_tests();
     s35_entry_tests();
     s35_transpose_tests();
