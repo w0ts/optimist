@@ -213,11 +213,23 @@ _Static_assert(C1S_LOOP == 3u, "hal/fm1_dual.h fm1_dual_sleep_ram writes 3 as C1
 #define DUAL_JOB_DRUMS (1u << NPART)               /* a job's bit: the drum track (slicer_drums, dbus_run) */
 #if REV_LATE
 #define DUAL_JOB_REV (1u << (NPART + 1u))          /* the reverb's kept block (fx.c rev_job) */
-#define DUAL_JOBS (NPART + 2u)
+#define DUAL_JOBS_R (NPART + 2u)
 #else
 #define DUAL_JOB_REV 0u
-#define DUAL_JOBS (NPART + 1u)
+#define DUAL_JOBS_R (NPART + 1u)
 #endif
+#include "../bt/bt_sbc_job.h"                     /* the Bluetooth stream's kept SBC frame (BA_SBC_JOB) */
+#if BA_SBC_JOB && FELUCCA_BENCH && FELUCCA_BENCH_SBC
+static void ba_sbc_bench(uint32_t blk);            /* bt_acl.c */
+#endif
+#if BA_SBC_JOB
+#define DUAL_JOB_SBC (1u << DUAL_JOBS_R)           /* its encoding (bt/bt_acl.c ba_sbc_job), the last job */
+#define DUAL_JOBS (DUAL_JOBS_R + 1u)
+#else
+#define DUAL_JOB_SBC 0u
+#define DUAL_JOBS DUAL_JOBS_R
+#endif
+_Static_assert(DUAL_JOBS <= DUAL_JOBS_MAX, "dual.first_post: DUAL_JOBS_MAX jobs at most");
 #if DUAL_BALANCE
 #define DUAL_ALLOWED ((1u << DUAL_JOBS) - 1u)      /* the job bits CPU1 may be given (fm1_dual_take): any */
 #else
@@ -302,6 +314,11 @@ static HOT void dual_run(uint32_t mask, uint32_t n, mixacc_t *A)
                 slicer_drums(mix_l, mix_r, send_r, n);
                 dbus_run(n);                       /* the drum bus's inserts and sends (fx.c; the drums alone) */
                 SCOPE_DRUMS(scope_drums_take);
+#endif
+            } else if (DUAL_JOB_SBC && p == DUAL_JOBS - 1u) {
+#if BA_SBC_JOB
+                if (!sbcj.done)                    /* (CPU1 down after it ran it: not twice) */
+                    FAR(ba_sbc_job)();             /* the Bluetooth stream's kept frame (bt/bt_acl.c; XIP) */
 #endif
             } else {
 #if REV_LATE
@@ -942,6 +959,7 @@ static HOT void mix_block_dual(int32_t *out, uint32_t n)
         send_c[i] = send_d[i] = send_r[i] = mix_l[i] = mix_r[i] = 0;
     dual_clear(A, n);
     DSTAGE(0x12);
+    BPT0();
     {
         uint32_t sq = lfo_seq_any() ? FAR(lfo_seq_in)() : 0u;   /* (the modulators on what the sequencer reads) */
         FAR(events_block)(n);                      /* (the sequencer stays in XIP) */
@@ -949,6 +967,7 @@ static HOT void mix_block_dual(int32_t *out, uint32_t n)
             FAR(lfo_seq_out)();
     }
     DSTAGE(0x50);
+    BPT(BPT_EVENTS);
     BENCH_BLOCK();
 #if FELUCCA_MACROS
     FAR(mac_pre)();                                /* the macros' values in (macro.c), for both cores */
@@ -959,6 +978,7 @@ static HOT void mix_block_dual(int32_t *out, uint32_t n)
     dual_vbusy = voices_busy();                    /* the swarm's copies: the same on both cores */
     dual_lfo_draw();                               /* the LFOs' random values (the render draws none) */
     DSTAGE(0x54);
+    BPT(BPT_PREREST);
     sw = pold_any() ? FAR(pold_in)() : 0u;         /* (SLOOP 2.6) the parts fading after a sound load: their old
                                                     * sound for this block, on both cores (voice.c sound_change) */
 #if FELUCCA_DRUMS
@@ -971,6 +991,16 @@ static HOT void mix_block_dual(int32_t *out, uint32_t n)
 #if REV_LATE
     rev_late = (uint8_t)(dual.up && n == CTL);     /* CPU1 up: the reverb one block late (fx.c fx_buses) */
     jobs |= rvj.pend ? DUAL_JOB_REV : 0u;          /* (its kept block, on either core) */
+#endif
+#if BA_SBC_JOB && FELUCCA_BENCH && FELUCCA_BENCH_SBC
+    {
+        static uint32_t sbc_blk;
+        FAR(ba_sbc_bench)(sbc_blk++);              /* (a bench build: a stream's SBC frames, bt_acl.c) */
+    }
+#endif
+#if BA_SBC_JOB
+    sbcj.late = (uint8_t)(dual.up && n == CTL);    /* CPU1 up: the next complete SBC frame kept for a job */
+    jobs |= sbcj.pend && !sbcj.done ? DUAL_JOB_SBC : 0u;   /* (the kept one, on either core) */
 #endif
     if (dual_starve_req && dual.up) {
         dual_starve_req = 0;
@@ -1007,6 +1037,7 @@ static HOT void mix_block_dual(int32_t *out, uint32_t n)
 #endif
     }
     DSTAGE(0x56);
+    BPT(BPT_POLD);
 #if DUAL_TIMES
     tmf = fm1_ticks();
 #endif
@@ -1027,6 +1058,7 @@ static HOT void mix_block_dual(int32_t *out, uint32_t n)
 #if DUAL_TIMES
     tmj1 = post ? fm1_ticks() : tmj0;
 #endif
+    BPT0();
     for (i = 0; i < n; i++) {
         send_c[i] += A->send_c[i];
         send_d[i] += A->send_d[i];
@@ -1045,9 +1077,11 @@ static HOT void mix_block_dual(int32_t *out, uint32_t n)
     DSTAGE(0x59);
     if (sw)
         FAR(pold_out)(sw);                         /* (and the new one back) */
+    BPT(BPT_MERGE);
 #if FELUCCA_USB_AUDIO
     ut_mix(n);                                     /* the USB input, a track (fx.c) */
 #endif
+    BPT(BPT_UT);
     DSTAGE(0x5A);
     mix_finish(out, n);
     DSTAGE(0x5B);
