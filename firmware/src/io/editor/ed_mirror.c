@@ -74,6 +74,7 @@ static void mir_letgo(void)
     mir.master = 0;
 }
 #define MIR_SEEN() (mir.last_ms = fm1_ms)   /* (editor.c, ed_lite.c: each request that comes in) */
+static void mir_fix_ask(uint32_t lo, uint32_t hi);   /* (below: frames lo .. hi lost, the radio's interrupts or USB; used with and without BLE) */
 static void op_repaint(void);
 
 #if MIR_BLE
@@ -496,7 +497,6 @@ static void mbr_end(void) {}
 static int mir_bt_up(void) { return 0; }
 static int mir_bt_clear(void) { return 1; }
 #endif
-static void mir_fix_ask(uint32_t lo, uint32_t hi);   /* (below: frames lo .. hi lost, the radio's interrupts or USB) */
 
 static int mir_link_up(void)
 {
