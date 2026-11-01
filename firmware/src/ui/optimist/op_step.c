@@ -685,20 +685,25 @@ static void step_lvl_cycle(track_t *t, uint32_t idx, uint32_t l)
     ui.toast_next = 0;
 }
 #if FELUCCA_AUTO
-/* SHIFT2 + a set step: NORM -> HARD -> GHOST -> MUTED -> NORM (SOFT: NORM). A synth step: all its notes take the level (the first note's
- * is the step's), a drum step the selected lane's hit; MUTED is the store's mute event (pk_mute's, AUTO_SMUTE / AUTO_MUTE: the note
+/* SHIFT2 + a set step: NORM -> HARD -> GHOST -> MUTED -> NORM (SOFT: NORM). A synth step: the notes that START there take the level (the lowest's
+ * is the step's; notes carried through it are never touched), a drum step the selected lane's hit; MUTED is the store's mute event (pk_mute's, AUTO_SMUTE / AUTO_MUTE: the note
  * kept, grey, its key dim, a rest). One undo level, the step's note the picked one, a popup names the state: "DR HARD" with the
  * lane's code, "T1 STEP 5 HARD" */
 static void step_shift_cycle(track_t *t, uint32_t idx)
 {
-    uint32_t l = lane_selected(), drum = is_drum(t), mut, lv, nv, i, ok = 1, q;
+    uint32_t l = lane_selected(), drum = is_drum(t), mut, lv, nv, i, ok = 1, q, nh = 0;
+    uint8_t hk[4];
     char say[16];
     if (drum && l >= DRUM_LANES) {
         ui_message("NO MUTE ON ACCENT");
         return;
     }
+    if (!drum && !(nh = pk_heads(t, idx, hk))) {        /* (only notes carried through: none starts here, nothing is touched) */
+        ui_message("NO NOTE STARTS HERE");
+        return;
+    }
     mut = (uint32_t)step_muted(t, idx, drum ? l : 0u);
-    lv = drum ? dstep_lvl(&t->dstep[idx], l) : (uint32_t)(t->step[idx].lvl & 3u);
+    lv = drum ? dstep_lvl(&t->dstep[idx], l) : (uint32_t)((t->step[idx].lvl >> (2u * hk[0])) & 3u);
     nv = mut || lv != LV_GHOST ? (mut ? LV_NORM : lvl_next(lv)) : LV_GHOST;
     undo_mark(t, st.sess);
     fm1_irq_off();
@@ -706,8 +711,8 @@ static void step_shift_cycle(track_t *t, uint32_t idx)
         dstep_set(&t->dstep[idx], l, nv, dstep_rat(&t->dstep[idx], l));
     } else {
         step_t *s = &t->step[idx];
-        for (i = 0; i < s->n && i < 4u; i++)
-            s->lvl = (uint8_t)((s->lvl & ~(3u << (2u * i))) | nv << (2u * i));
+        for (i = 0; i < nh; i++)                        /* (the notes that start here only; carried ones keep theirs) */
+            s->lvl = (uint8_t)((s->lvl & ~(3u << (2u * hk[i]))) | nv << (2u * hk[i]));
     }
     if (!mut && lv == LV_GHOST)
         ok = (uint32_t)step_mute_set(t, idx, drum ? l : 0u, 1u);       /* (GHOST -> MUTED) */
