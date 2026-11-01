@@ -1602,6 +1602,8 @@ for f in 1 2; do                                     # (the log's format 1 and 2
         $CC -O2 -w -I"$HGEN" -Ifirmware/src -DSLG_V2=$((f - 1)) -DSEC_LOG_SECTORS=7u -o "$OUT/sec_log_compat_new$f" tests/sec_log_compat_test.c -lm
         $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/src/storage/sections -DSLG_PREV=1 -DSLG_V2=$((f - 1)) -DSEC_LOG_SECTORS=7u -o "$OUT/sec_log_compat_prev$f" tests/sec_log_compat_test.c -lm
         run "the log, format $f, across firmware versions (MIDI tracks' phase 0): an old log (golden) loads here identically; this build's log, its MIDI ids among the others, read and compacted by the previous firmware (tests/compat/sec_log_142.c) without loss of what it knows" sh tests/sec_log_compat.sh "$OUT/sec_log_compat$f" "$OUT/sec_log_compat_new$f" "$OUT/sec_log_compat_prev$f" $f
+        $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/src/storage/sections -DSLG_PREV=226 -DSLG_V2=$((f - 1)) -DSEC_LOG_SECTORS=7u -o "$OUT/sec_log_compat_p226_$f" tests/sec_log_compat_test.c -lm
+        run "the log, format $f, against main 64c1d915's firmware (tests/compat/sec_log_226.c, the last before the live patterns, issue 142): an old log loads here identically; this build's log, its live patterns among the others, read and compacted there without loss, the live patterns kept byte for byte, its projects strip unchanged" sh tests/sec_log_compat.sh "$OUT/sec_log_compat226_$f" "$OUT/sec_log_compat_new$f" "$OUT/sec_log_compat_p226_$f" $f
     ) >"$U.out" 2>&1 & jobbg
 done
 for s in 6 8 12; do                                  # (SNAPSHOTS 2 / 4 / 8)
