@@ -217,6 +217,7 @@ static void op_undo(int redo)
  * confirm let go without YES (NO, another row, 3 s) passes to the next part; none left: MEM FULL, given up */
 static void mem_tick(void)
 {
+    fxz_tick();                                         /* (FX MEMORY: a TIME halved to fit a short DLY MEM, op_fxmem.c) */
 #if PART_DROPS
     uint32_t k;
     char a[24];
