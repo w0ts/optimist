@@ -19,7 +19,14 @@
 #define SX_ID_AUTO (SX_ID0 + 16u)
 #define SX_ID_STATE 139u                               /* the project's state's (sections.c SEC_ID_STATE; format 2) */
 _Static_assert(SX_ID_STATE < SLG_IDS && SEC_IDS <= 16u, "the extras' log ids");
+#if STG_LEND
+#define STG_O_SX STG_E_RB                              /* in the STORAGE reserve (seq/undo.c stg_p) */
+#define STG_E_SX (STG_O_SX + STG_AL(4u + AX_ENC_MAX))
+typedef uint8_t sx_rbuf_t[4u + AX_ENC_MAX];
+#define sx_rbuf (*(sx_rbuf_t *)stg_p(STG_O_SX))
+#else
 static uint8_t sx_rbuf[4u + AX_ENC_MAX] __attribute__((section(".pool"), aligned(4)));
+#endif
 _Static_assert(sizeof sx_rbuf <= SEC_REC_MAX, "an extras record is never longer than a section record");
 
 /* the record for key and store m -> sx_rbuf, its length; 0: nothing to keep */

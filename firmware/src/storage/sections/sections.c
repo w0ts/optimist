@@ -57,10 +57,18 @@ static dlrec_t sec_stage_d;
  * (autosave_tick, persist_flush_now, sn_write, sn_load, the editor's SL24 export; a section's store, read, staging, a
  * backup's chunk), never across one, and no path with the work captured reads or writes a record here (they use
  * SN_REC = proj_tmp, sx_rbuf, fxr_rbuf, dlr_rbuf, st_buf). Neither the audio ISR nor CPU1 touches either */
-static union {
+typedef union {
     uint8_t rec[SEC_REC_MAX];
     project_t work;
-} sec_rb __attribute__((section(".pool"), aligned(4)));
+} sec_rb_t;
+#if STG_LEND
+#define STG_O_RB STG_E_TMP                             /* in the STORAGE reserve (seq/undo.c stg_p) */
+#define STG_E_RB (STG_O_RB + STG_AL(sizeof(sec_rb_t)))
+#define sec_rb (*(sec_rb_t *)stg_p(STG_O_RB))
+#define SEC_RB_AT ((const project_t *)stg_a(STG_O_RB))  /* (the autosave's buffer, its address alone: nothing taken) */
+#else
+static sec_rb_t sec_rb __attribute__((section(".pool"), aligned(4)));
+#endif
 #define sec_rbuf (sec_rb.rec)
 #define SEC_RB_WORK sec_rb.work                        /* (project.c autosave_buf) */
 _Static_assert(sizeof proj_tmp >= SEC_REC_MAX, "a section record is received into proj_tmp (ed_backup.c)");

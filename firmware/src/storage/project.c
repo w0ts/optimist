@@ -1359,9 +1359,17 @@ static uint8_t song_dirty;                      /* the song: in RAM, not yet in 
 #else
 #define AUTO_HASH() 0u
 #endif
+#if STG_LEND
+#ifndef STG_E_AU
+#define STG_E_AU STG_E_ST                      /* (no automation stores: auto_proj.c) */
+#endif
+#if !FELUCCA_FLASH
+#define STG_E_TMP STG_E_AU                     /* (no flash: no proj_tmp) */
+#endif
+#endif
 #if FELUCCA_FLASH
 /* slot from flash into RAM (format 4, or an old one converted) */
-static union {
+typedef union {
     project_t cur;                             /* (today's format: FUNA; FUN6 without ANALOG 2) */
 #if FELUCCA_ANALOG2
     uint8_t v8[PROJ_V8_N];                     /* FUN8 / FUN9 (the lanes inline) */
@@ -1376,7 +1384,16 @@ static union {
 #if SEC_LOGGED || FELUCCA_SNAPSHOTS
     uint8_t rec[SEC_REC_N];                    /* a section record, its motion too (sec_codec.c; ed_backup.c; snapshots.c) */
 #endif
-} proj_tmp IN_POOL;
+} proj_tmp_t;
+#if STG_LEND
+#define STG_O_TMP STG_E_AU                     /* in the STORAGE reserve (seq/undo.c stg_p) */
+#define STG_E_TMP (STG_O_TMP + STG_AL(sizeof(proj_tmp_t)))
+#define proj_tmp (*(proj_tmp_t *)stg_p(STG_O_TMP))
+#define PROJ_TMP_AT ((const project_t *)stg_a(STG_O_TMP))   /* (its address alone: nothing taken) */
+#else
+static proj_tmp_t proj_tmp IN_POOL;
+#define PROJ_TMP_AT (&proj_tmp.cur)
+#endif
 #include "drum_store.c"        /* the drum records' own flash record; proj_put / proj_get */
 #if !SEC_LOGGED
 static void proj_fetch(uint32_t slot)
@@ -1442,6 +1459,31 @@ static void sl24_load(uint32_t slot);         /* sl24_guard.c: a slot of another
 #if SEC_LOGGED
 static void settings_save(void);
 #include "sections/sections.c"          /* FELUCCA_SECTIONS 8 / 16: the sections in a log (A..P), staged for the ISR */
+#if STG_LEND
+/* the STORAGE reserve's bytes (seq/undo.c stg_p): the buffers laid out one after the other (STG_O_* .. STG_E_*) */
+#ifdef STG_E_SX
+#define STG_END STG_E_SX
+#else
+#define STG_END STG_E_RB
+#endif
+#ifdef STG_HOST
+_Static_assert(STG_END <= STG_HOST, "the host's STORAGE reserve holds the buffers");
+#endif
+static uint32_t stg_bytes(void) { return STG_END; }
+/* the transport stopped: the audio places no part's block (a song's section is applied only while it plays), so the
+ * undo history's bytes may be turned with the interrupts on */
+static int stg_quiet(void) { return !song.playing && !transport_req; }
+#if FELUCCA_FLASH
+static int stg_pinned(void) { return proj_tmp_busy(); } /* (a restore, an editor write: proj_tmp across passes) */
+#define STG_TMP_IS(p) ((p) == PROJ_TMP_AT)
+#else
+static int stg_pinned(void) { return 0; }
+#define STG_TMP_IS(p) 0
+#endif
+#if FELUCCA_AUTO
+static int stg_au_of(const project_t *p) { return STG_TMP_IS(p) ? 0 : p == SEC_RB_AT ? 1 : -1; }
+#endif
+#endif
 #else
 static void project_load(uint32_t slot)
 {
@@ -1550,6 +1592,9 @@ static void autosave_tick(void)                /* main loop */
 #if FELUCCA_FLASH
     uint32_t h, now = fm1_ms;
     int settled, overdue;
+#if STG_LEND
+    stg_poll();                                         /* (the STORAGE reserve back to the undo history when idle) */
+#endif
     if (!flash_ok || song.playing || transport_req || rec_wait || ft_on || ui.menu || now - autosave_checked < 1000u)
         return;
 #if FELUCCA_PATTERNS
@@ -1687,7 +1732,7 @@ static persist_t persist_saved IN_POOL;            /* the record as last read or
 #endif
 static void persist_boot(void)                    /* before settings_init / panel_init */
 {
-    static const project_t *const BOUND[] = {&proj_tmp.cur, &autosave_buf,
+    const project_t *const BOUND[] = {&proj_tmp.cur, &autosave_buf,
 #if SEC_LOGGED
                                              &sec_stage_p,
 #endif
