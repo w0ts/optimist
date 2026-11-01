@@ -1509,13 +1509,14 @@ job; ( jobin   # the SD card (SDCARD): ChaN's driver + Petit FatFs, then full Fa
 # the screen mirrored (ED_MIRROR, io/editor/ed_mirror.c): the stream through a stand-in USB ring decoded back to the panel after
 # every write, a stalled host, the keep-alive; then the Optimist UI's whole run through the encoder, the decoded screen its own
 job; ( jobin
-    $CC -O2 -w -o "$OUT/mirror_test" tests/mirror_test.c
-    $CC -O2 -w -DMBR_PROJ=1 -o "$OUT/mirror_proj_test" tests/mirror_test.c
-    $CC -O2 -w -DMIR_BLE_LAG=4096 -o "$OUT/mirror_lag_test" tests/mirror_test.c
+    # (these drain the ring at once, no clock: the lag rule's tests, MIR_AIMD=0; the budget has its model below)
+    $CC -O2 -w -DMIR_AIMD=0 -o "$OUT/mirror_test" tests/mirror_test.c
+    $CC -O2 -w -DMIR_AIMD=0 -DMBR_PROJ=1 -o "$OUT/mirror_proj_test" tests/mirror_test.c
+    $CC -O2 -w -DMIR_AIMD=0 -DMIR_BLE_LAG=4096 -o "$OUT/mirror_lag_test" tests/mirror_test.c
     run "the screen mirrored with the firmware's 4 KB lag: the lag rule follows the link's drain (2.5 KB at 4.6 KB/s, 4 KB from 8 KB/s), every mirror test" "$OUT/mirror_lag_test"
     # (the Bluetooth ring lent by the arena, MIR_LEND: under ASan where the compiler has it, a touch of it once given back fails)
-    $CC -O1 -g -fsanitize=address -fno-sanitize-recover=all -w -DMIR_LEND=1 -o "$OUT/mirror_lend_test" tests/mirror_test.c 2>/dev/null ||
-        $CC -O1 -g -w -DMIR_LEND=1 -o "$OUT/mirror_lend_test" tests/mirror_test.c
+    $CC -O1 -g -fsanitize=address -fno-sanitize-recover=all -w -DMIR_AIMD=0 -DMIR_LEND=1 -o "$OUT/mirror_lend_test" tests/mirror_test.c 2>/dev/null ||
+        $CC -O1 -g -w -DMIR_AIMD=0 -DMIR_LEND=1 -o "$OUT/mirror_lend_test" tests/mirror_test.c
     run "the mirror's Bluetooth ring lent by the arena (MIR_LEND, ASan): wanted only while a Bluetooth client uses it, nothing queued or sent without it, 50 lends and give-backs caught up each time, never touched once given back; every mirror test with it lent" "$OUT/mirror_lend_test"
     run "the projects' moves over Bluetooth (BT_PROJ): the backup's commands and PJ_OP queued, a BK_DATA chunk in its own slot" "$OUT/mirror_proj_test"
     run "the screen mirrored, USB and Bluetooth: 3000 random writes decoded to the same panel, long runs, a stalled host falls behind and catches up, the Bluetooth request, a slow radio, the ring overflowing, the keep-alive, a muted write not sent, the meters over USB only; STATE, MASTER, let go, seq, the test session; what the client has not sent again" "$OUT/mirror_test"
@@ -1523,6 +1524,14 @@ job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 -DMIRROR_CHECK -o "$OUT/ui_optimist_mirror_test" tests/ui_optimist_test.c -lm
     mkdir -p "$OUT/optimist_mirror"
     run "the screen mirrored: the Optimist UI's whole run (every test, 20000 random frames) encoded and decoded, the same pixels; every catch-up the panel" "$OUT/ui_optimist_mirror_test" "$OUT/optimist_mirror"
+    # the Bluetooth stream to a Mac, a transport model (tests/mirror_aimd_test.c): the real UI's workload through the real ed_mirror.c,
+    # the link 5.6 KB/s, the Mac's input 5 KB/s losing whole frames over 1 KB waiting; the budget (MIR_AIMD) checked, the lag rule before printed
+    MIRROR_BT=1 MIRROR_WORKLOAD=1 MIRROR_TRACE="$OUT/mirror_workload.bin" "$OUT/ui_optimist_mirror_test" "$OUT/optimist_mirror"
+    $CC -O2 -w -Itests -DMIR_AIMD=1 -o "$OUT/mirror_aimd_test" tests/mirror_aimd_test.c
+    $CC -O2 -w -Itests -DMIR_AIMD=0 -o "$OUT/mirror_aimd_before" tests/mirror_aimd_test.c
+    "$OUT/mirror_aimd_before" "$OUT/mirror_workload.bin"
+    run "the screen mirrored over Bluetooth to a Mac that loses whole frames when flooded (a model, the UI's 44 s workload): paced to a budget (AIMD) and coalesced, at most 1 % frames lost (the lag rule: 5 %), no whole panel, a detent's pixels within 1.5 s at p90, the picture the panel 3 s after" "$OUT/mirror_aimd_test" "$OUT/mirror_workload.bin"
+    rm -f "$OUT/mirror_workload.bin"
 ) >"$U.out" 2>&1 & jobbg
 for x in 0 1; do   # per-track patterns and scenes (FELUCCA_PATTERNS): unit; then a PATTERNS -> no PATTERNS -> PATTERNS round trip
     job; ( jobin
