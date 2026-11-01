@@ -1258,16 +1258,31 @@ static void sys_c1_cell(uint32_t i, cell_t *c)
  * dual_load.h dual_tm): a table, a row a quantity, in % of a 32-frame mix block (726 us). Its columns, in the monospace
  * face, fixed width so that they line up under the first row and never touch the name: AVG the average over ~8 blocks,
  * MAX the peak of the last 2 s, WST its value in the worst block (CPU0's longest) since the page was opened, C the core:
- *   T1 T2 T3 DR REV  each job's render time (the parts, the drums with their bus, the reverb's kept block); C: the core
+ *   T1 T2 T3 DR REV  each job's render time (the parts, the drums with their bus, the reverb's kept block; BT: the
+ *   BT               Bluetooth stream's SBC frame, a block in four while it streams, bt/bt_sbc_job.h); C: the core
  *                    that ran it in the last block (0 / 1, - not run); WST "-": not run in that block
  *   PRE              CPU0 alone before the fork: the events, the macros, the duck, the LFOs' draws, the split
+ *   EVT, NOTE        PRE's parts (2026-11-01): EVT the sequencer's events (events_block), NOTE the note starts in them
+ *                    (trk_note_on: the parts' notes, the drum hits); PRE less EVT is the rest of PRE
  *   JOBS             CPU0's own jobs
  *   WAIT             CPU0 idle at the join, waiting for CPU1
  *   POST             after the join: the merge, the USB input, mix_finish (the buses, the master chain), the macros' post
- *   CPU0 / CPU1      each core's whole block (CPU0: PRE + JOBS + WAIT + POST; CPU1: its jobs): its room is 100 less it */
-#define INFO_DTN (1u + NPART + 8u)                      /* the names' row, the jobs, PRE JOBS WAIT POST CPU0 CPU1 */
+ *   CPU0 / CPU1      each core's whole block (CPU0: PRE + JOBS + WAIT + POST; CPU1: its jobs): its room is 100 less it
+ *   SBC              (Bluetooth audio's frame as a job, DT_SBC; 2026-11-01) where the frames went since the page opened, in
+ *                    % of them: AVG early on CPU1 (handed over before the events), MAX at the split on CPU1, WST on CPU0
+ *                    (at the split, or at the platform's feed after the render); C the frames' count, its last digit
+ * A job row's C is the core of the last block it ran in ("-": not yet; a frame runs in 2 blocks of 8) */
+#ifdef DUAL_JOBS
+#define DT_NJ DUAL_JOBS                                 /* the jobs' rows: the parts, DR, REV, BT (the SBC frame; dual.c) */
+#define DT_SBC DUAL_JOB_SBC
+#else
+#define DT_NJ (NPART + 2u)                              /* (a host test without dual.c: the parts, DR, REV) */
+#define DT_SBC 0u
+#endif
+#define INFO_DTN (1u + DT_NJ + 8u + (DT_SBC ? 1u : 0u))   /* the names' row, the jobs, PRE EVT NOTE JOBS WAIT POST CPU0 CPU1,
+                                                                * SBC */
 _Static_assert(DUAL_TM_BLK == (uint32_t)CTL * 1000000u * FM1_TICKS_PER_US / FS, "dual_load.h DUAL_TM_BLK: a mix block (CTL frames) in ticks");
-_Static_assert(NPART + 2u <= DUAL_TM_NJ, "dual_load.h DUAL_TM_NJ: the parts, the drums, the reverb");
+_Static_assert(DT_NJ <= DUAL_TM_NJ, "dual_load.h DUAL_TM_NJ: the parts, the drums, the reverb, the SBC frame");
 #define DT_COLW 3u                                      /* a column's digits: 0..999 (held there) */
 static void dt_col(char *v, int32_t pct)                /* " nnn" (right-aligned in DT_COLW), "-" for pct < 0 */
 {
@@ -1287,10 +1302,10 @@ static void dt_col(char *v, int32_t pct)                /* " nnn" (right-aligned
 }
 static void sys_dt_cell(uint32_t i, cell_t *c)
 {
-    static const char *const NM[] = {"PRE", "JOBS", "WAIT", "POST", "CPU0", "CPU1"};
+    static const char *const NM[] = {"PRE", "EVT", "NOTE", "JOBS", "WAIT", "POST", "CPU0", "CPU1"};
     static const char *const JN[] = {"T1", "T2", "T3", "T4"};
     static uint32_t seen;
-    uint32_t q, j = 0, ran = dual_tm.ran, wran = dual_tm.w_ran, jobrow = i >= 1u && i < 1u + NPART + 2u;
+    uint32_t q, j = 0, ran = dual_tm.ran, wran = dual_tm.w_ran, jobrow = i >= 1u && i < 1u + DT_NJ;
     char *v = c->val, core;
     cell_clear(c);
     c->kind = CK_RO;
@@ -1304,14 +1319,33 @@ static void sys_dt_cell(uint32_t i, cell_t *c)
         dual_cat(v, "AVG MAX WST C");
         return;
     }
+    if (DT_SBC && i == INFO_DTN - 1u) {                 /* SBC: where the frames went since the page opened */
+        static uint32_t base[4], sseen;
+        uint32_t now[4], k, tot = 0;
+        now[0] = dual_tm.sbc_n[0], now[1] = dual_tm.sbc_n[1], now[2] = dual_tm.sbc_n[2], now[3] = DUAL_TM_SBC_FEED();
+        if (fm1_ms - sseen > 1000u)                     /* (the page just opened: from now) */
+            for (k = 0; k < 4u; k++)
+                base[k] = now[k];
+        sseen = fm1_ms;
+        for (k = 0; k < 4u; k++)
+            now[k] -= base[k], tot += now[k];
+        c->label = "SBC";
+        dt_col(v, tot ? (int32_t)(now[0] * 100u / tot) : -1);
+        dt_col(v, tot ? (int32_t)(now[1] * 100u / tot) : -1);
+        dt_col(v, tot ? (int32_t)((now[2] + now[3]) * 100u / tot) : -1);
+        j = str_len(v);
+        v[j] = ' ', v[j + 1u] = (char)('0' + tot % 10u), v[j + 2u] = 0;
+        return;
+    }
     if (jobrow) {
         j = i - 1u;
         q = DTQ_J0 + j;
-        c->label = j < NPART ? JN[j % 4u] : j == NPART ? "DR" : "REV";
-        core = !((ran >> j) & 1u) ? '-' : ((dual_tm.c1_mask >> j) & 1u) ? '1' : '0';
+        c->label = j < NPART ? JN[j % 4u] : j == NPART ? "DR" : j < DT_NJ - 1u || !DT_SBC ? "REV" : "BT";
+        core = dual_tm.lastc[j] ? (char)('0' + dual_tm.lastc[j] - 1u) : '-';   /* (the core of the last block it ran in) */
+        (void)ran;
     } else {
-        static const uint8_t Q[] = {DTQ_PRE, DTQ_OWN, DTQ_WAIT, DTQ_POST, DTQ_BLK, DTQ_C1};
-        uint32_t r = (i - 1u - NPART - 2u) % 6u;
+        static const uint8_t Q[] = {DTQ_PRE, DTQ_EVT, DTQ_NS, DTQ_OWN, DTQ_WAIT, DTQ_POST, DTQ_BLK, DTQ_C1};
+        uint32_t r = (i - 1u - DT_NJ) % 8u;
         q = Q[r];
         c->label = NM[r];
         core = q == DTQ_C1 ? '1' : '0';

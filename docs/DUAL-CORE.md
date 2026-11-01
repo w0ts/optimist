@@ -17,7 +17,8 @@ CPU1's sums, then runs the buses and master (`mix_block_dual`, `firmware/src/sys
 
 - All sums are 32-bit integer additions, so the order does not matter: **the output is bit-identical to one core
   rendering everything**, as long as no job touches another job's state.
-- `dual_split` assigns jobs (the three parts, the drum track, the reverb's kept block) each block by their measured
+- `dual_split` assigns jobs (the three parts, the drum track, the reverb's kept block, the Bluetooth stream's kept SBC
+  frame: `bt/bt_sbc_job.h`; in the release, fm1-base's `plat_bta_job`, a half's two frames in the next half) each block by their measured
   render time, longest first onto the core with less load. A build with `DUAL_PARTS` set keeps a fixed split (the
   emulator's references).
 - **The reverb runs one block (0.73 ms) late** while CPU1 is up (`REV_LATE`, `fx.c`; `DUAL_REV=0` builds without it).
