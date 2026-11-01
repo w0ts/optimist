@@ -539,9 +539,14 @@ static uint32_t mx_on(uint32_t r, uint32_t i)           /* step i is set on row 
 {
     const track_t *t = &trk[mx_trk_of(r)];
     if (r >= MXR_LANE0)
-        return dstep_has(&t->dstep[i % NSTEP], r - MXR_LANE0);
-    if (is_drum(t))                                     /* (DR: the sounds' hits only; the ACCENT lane's own row shows */
-        return dstep_mask(&t->dstep[i % NSTEP]) != 0u;  /* the accents, the user 2026-10-23) */
+        return dstep_has(&t->dstep[i % NSTEP], r - MXR_LANE0) && !fill_only(t, i, r - MXR_LANE0);
+    if (is_drum(t)) {                                   /* (DR: the sounds' hits only; the ACCENT lane's own row shows */
+        uint32_t n;                                     /* the accents, the user 2026-10-23; a FILL ONLY hit: not, it plays in a fill only) */
+        for (n = 0; n < DRUM_LANES; n++)
+            if (dstep_has(&t->dstep[i % NSTEP], n) && !fill_only(t, i, n))
+                return 1;
+        return 0;
+    }
     return trk_on_step(mx_trk_of(r), i);
 }
 /* the level step i of row r is shaded by, as STEP shades it (lvl_col): a lane's hit's own, a channel's strongest note,
@@ -556,7 +561,7 @@ static uint32_t mx_lvl(uint32_t r, uint32_t i)
     if (is_drum(t)) {
         const dstep_t *d = &t->dstep[i % NSTEP];
         for (n = 0; n < DRUM_LANES; n++)
-            if (dstep_has(d, n) && lvl_rank(dstep_lvl(d, n)) > lvl_rank(lv))
+            if (dstep_has(d, n) && !fill_only(t, i, n) && lvl_rank(dstep_lvl(d, n)) > lvl_rank(lv))
                 lv = dstep_lvl(d, n);
         return lv;
     }
@@ -578,7 +583,7 @@ static uint32_t mx_nmuted(uint32_t r, const track_t *t, uint32_t s)
     if (!is_drum(t))
         return (uint32_t)step_muted(t, s, 0);
     for (n = 0; n < DRUM_LANES; n++)
-        if (dstep_has(&t->dstep[s % NSTEP], n)) {
+        if (dstep_has(&t->dstep[s % NSTEP], n) && !fill_only(t, s, n)) {
             if (!step_muted(t, s, n))
                 return 0;
             any = 1;
