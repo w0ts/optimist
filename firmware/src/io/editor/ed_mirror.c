@@ -179,7 +179,7 @@ static uint32_t mbr_lag(void)
  * the losses of frames sent before the cut are not counted twice), raised a tenth each second it was spent and nothing was
  * lost, between MBA_FLOOR and the link's octets a connection event (MBA_CEIL at most) */
 #ifndef MIR_AIMD
-#define MIR_AIMD 1
+#define MIR_AIMD 0                              /* (2026-11-01: off on the FM-1: the budget throttled a healthy link, 10 s a screen; the user) */
 #endif
 #if MIR_AIMD
 enum { MBA_FLOOR = 1000, MBA_CEIL = 20000, MBA_START = 3000, MBA_SS_MS = 250, MBA_BURST_MS = 200, MBA_RESUME_MS = 100, MBA_Q_MS = 80,
