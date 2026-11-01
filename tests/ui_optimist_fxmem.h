@@ -24,20 +24,30 @@ static uint32_t fz_row(void)                            /* PROJECT's FX MEM row 
             return r;
     return 0;
 }
-static uint32_t fz_fill_k = 2u;                        /* (a silent part's client holds the filler: the arena all but full) */
+static const uint8_t FZ_FILL_K[3] = {2, 0, 3};          /* (a fragmented arena: the room may take more than one block) */
 static void fz_fill(uint32_t leave)                     /* the arena's room down to leave bytes */
 {
-    uint32_t r = arn_room();
+    uint32_t r, i, x;
     fm1_irq_off();
-    arn_give(fz_fill_k);
-    if (r > leave)
-        (void)arn_reserve(fz_fill_k, r - leave), (void)arn_take(fz_fill_k);
+    for (i = 0; i < 3u; i++)
+        arn_give(FZ_FILL_K[i]);
+    for (i = 0; i < 3u; i++) {
+        uint32_t c = FZ_FILL_K[i];
+        r = arn_room();
+        for (x = r > leave ? r - leave : 0u; x >= 256u; x -= 256u)
+            if (arn_reserve(c, x) == 0) {
+                (void)arn_take(c);
+                break;
+            }
+    }
     fm1_irq_on();
 }
 static void fz_unfill(void)
 {
+    uint32_t i;
     fm1_irq_off();
-    arn_give(fz_fill_k);
+    for (i = 0; i < 3u; i++)
+        arn_give(FZ_FILL_K[i]);
     fm1_irq_on();
 }
 static void fz_question_tests(void)
@@ -127,6 +137,191 @@ static void fz_question_tests(void)
     (void)room;
     reset_ui();
 }
+
+/* the list's NO (the user, 2026-11-01: "when I go to a slot that needs more RAM and it asks me a question, using the same encoder
+ * again means 'no, go to the next item'"): the encoder that moves the list, turned under its make-room question, answers NO and
+ * goes on to the next item in its direction (that one may ask again); YES still answers; every other encoder as before */
+static uint32_t fz_qeng(void)                           /* the engine the make-room question up asks for, 0xFF none */
+{
+    return op_armed() && ui.arm_scr == ARM_OP && ui.arm_row == OA_FXZ && part_mem_refused.on ? part_mem_refused.eng : 0xFFu;
+}
+static void fz_shift_turn(int32_t s)                    /* SHIFT (OCT-) + PRESETS: the next / previous engine */
+{
+    press(B_OCTDN);
+    turn(EN_PRESET, s);
+    release(B_OCTDN);
+}
+static void fz_ins_goto(uint32_t idx)                   /* INSERTS S1 TYPE (KNOB 1) turned from where it is to list entry idx */
+{
+    uint32_t i;
+    for (i = 0; i < INS_NLIST && ins_list[i] != ins_slot[1][0]; i++)
+        ;
+    turn(EN_K1, (int32_t)idx - (int32_t)i);
+    frame();
+}
+static void fz_squeeze(void)                            /* T2 on WHEEL (1 KB), the arena's room 1 KB: GRAIN (7 KB) and FM6 (4 KB) do not fit */
+{
+    set_engine_of(&trk[1], eng_silent_slot());
+    fz_unfill();
+    fz_frames(40);
+    fz_fill(2048u);
+    set_engine_of(&trk[1], 7u);
+    fz_frames(20);
+}
+static void fz_list_no_tests(void)
+{
+    uint32_t k, t = FXT_XDLY, r, prev, n, e, g0 = 0, room;
+    reset_ui();
+    (void)preset_all_pos(&n);                            /* (the list built) */
+    for (k = 0; k < NPART; k++)
+        set_engine_of(&trk[k], eng_silent_slot());
+    ins_defaults();
+    fxs_set(FXS_DEF);
+    song.g[G_FXZ_DLY] = song.g[G_FXZ_REV] = song.g[G_FXZ_XDL] = 0;
+    trk[1].p[P_CHOR] = trk[1].p[P_DLY] = trk[1].p[P_REV] = 90;
+    fz_frames(20);
+    /* A. the engine list (SHIFT + PRESETS): WHEEL fits, GRAIN and FM6 do not */
+    song.sel = 1;
+    op_enter(SCR_SOUND);
+    fz_squeeze();
+    room = arn_room();
+    fz_shift_turn(1);
+    fz_frames(6);
+    check(fz_qeng() == 8u && !strcmp(ui.arm_q, "SHRINK REV SMALL?") && trk[1].eng_req == 7u,
+          "list NO engines: WHEEL > GRAIN refused: SHRINK REV SMALL?, the part still on WHEEL");
+    fz_shift_turn(1);
+    fz_frames(6);
+    check(fz_qeng() == 9u && trk[1].eng_req == 7u && !song.g[G_FXZ_REV] && arn_room() == room,
+          "list NO engines: the same encoder again: NO, on to FM6, which asks (SHRINK again), nothing taken");
+    fz_shift_turn(-1);
+    fz_frames(6);
+    check(fz_qeng() == 8u && trk[1].eng_req == 7u, "list NO engines: turned back: GRAIN asks again");
+    fz_shift_turn(-1);
+    fz_frames(6);
+    check(!op_armed() && !part_mem_refused.on && trk[1].eng_req == 7u && trk[1].engine == 7u && !song.g[G_FXZ_REV],
+          "list NO engines: back on WHEEL: no question, the part never left it, no size taken");
+    fz_shift_turn(1);
+    fz_frames(6);
+    fz_shift_turn(1);
+    fz_frames(6);
+    check(fz_qeng() == 9u, "list NO engines: GRAIN, FM6 again");
+    turn(EN_K4, 1);
+    fz_frames(2);
+    check(fz_qeng() == 9u && trk[1].eng_req == 7u, "list NO engines: another encoder (KNOB 4): the question stays");
+    tap(B_SAVE);
+    fz_frames(60);
+    check(song.g[G_FXZ_REV] == 1 && trk[1].engine == 9u && !part_mem_refused.on, "list NO engines: YES: REV SMALL taken, FM6 plays");
+    song.g[G_FXZ_REV] = 0;
+    /* the end of the list: FM6 is the last engine: NO, nothing further, the part as it was */
+    fz_squeeze();
+    fz_shift_turn(1);
+    fz_frames(6);
+    fz_shift_turn(1);
+    fz_frames(6);
+    check(fz_qeng() == 9u, "list NO engines: FM6 asks");
+    fz_shift_turn(1);
+    fz_frames(6);
+    check(!op_armed() && !part_mem_refused.on && trk[1].eng_req == 7u && trk[1].engine == 7u && !song.g[G_FXZ_REV],
+          "list NO engines: past the last engine: NO, no question left, the part as it was");
+    /* B. PRESETS' own list (the sounds): the next sound is the next item, GRAIN's first and second ask each */
+    fz_squeeze();
+    pl_whole = 1;
+    for (n = 0; n < NLIST && preset_at(n, &k) != 8u; n++)
+        ;
+    g0 = n;
+    op_preset_go(g0 - 1u);                               /* (WHEEL's last sound) */
+    fz_frames(4);
+    turn(EN_PRESET, 1);
+    fz_frames(6);
+    check(fz_qeng() == 8u && trk[1].eng_req == 7u, "list NO sounds: WHEEL's last > GRAIN's first: refused, asks");
+    turn(EN_PRESET, 1);
+    fz_frames(6);
+    check(fz_qeng() == 8u && trk[1].eng_req == 7u && !song.g[G_FXZ_REV],
+          "list NO sounds: PRESETS again: NO, on to GRAIN's second sound, which asks again");
+    turn(EN_PRESET, -1);
+    fz_frames(6);
+    turn(EN_PRESET, -1);
+    fz_frames(6);
+    check(!op_armed() && !part_mem_refused.on && trk[1].eng_req == 7u && preset_pos(&n) == g0 - 1u,
+          "list NO sounds: back to WHEEL's last: no question, that sound");
+    fz_unfill();
+    set_engine_of(&trk[1], eng_silent_slot());
+    fz_frames(40);
+    /* C. an FX type's slot list: INSERTS S1 TYPE (the first and the last entry with no room: ins_list's 3rd and 13th) */
+    fz_fill(30u * 1024u);
+    r = ins_row("INSERTS");
+    song.sel = 1;
+    ui.row[SCR_SOUND] = (uint8_t)r;
+    ins_load(1, 0, FXT_NONE);
+    fz_frames(4);
+    for (k = 0, e = INS_NLIST, n = INS_NLIST; k < INS_NLIST; k++)
+        if (fxz_ins_mem(1, 0, ins_list[k])) {
+            e = e == INS_NLIST ? k : e;
+            n = k;
+        }
+    check(e < n && e > 1u && n + 1u == INS_NLIST, "list NO inserts: two entries with no room, one near the top, one the last");
+    prev = ins_slot[1][0];
+    room = arn_room();
+    fz_ins_goto(e);
+    fz_frames(1);
+    check(ins_slot[1][0] == ins_list[e] && op_armed() && ui.arm_row == OA_FXZI, "list NO inserts: the first picked: the question");
+    turn(EN_K1, 1);
+    fz_frames(10);
+    check(ins_slot[1][0] == ins_list[e + 1u] && !op_armed() && !fxq.on && !song.g[G_FXZ_DLY] && !song.g[G_FXZ_REV] &&
+          strcmp(ui.msg, "NOT CHANGED"),
+          "list NO inserts: the same encoder: NO, on to the next entry, which fits: placed, no question, nothing taken");
+    turn(EN_K1, -1);                                     /* (back up: the first stop again) */
+    fz_frames(1);
+    check(ins_slot[1][0] == ins_list[e] && op_armed() && ui.arm_row == OA_FXZI && fxq.prev == ins_list[e + 1u],
+          "list NO inserts: turned back to the first: it asks again");
+    turn(EN_K1, -1);
+    fz_frames(1);
+    check(ins_slot[1][0] == ins_list[e - 1u] && !op_armed() && !fxq.on && strcmp(ui.msg, "NOT CHANGED"),
+          "list NO inserts: on up: NO, the entry above, which fits");
+    ins_load(1, 0, FXT_NONE);
+    fz_frames(4);
+    prev = ins_slot[1][0];
+    fz_ins_goto(e);
+    fz_frames(1);
+    fz_ins_goto(n);                                      /* (the list has no two stops side by side: one turn of several detents to the last) */
+    fz_frames(1);
+    check(ins_slot[1][0] == ins_list[n] && op_armed() && ui.arm_row == OA_FXZI && fxq.on && fxq.prev == prev,
+          "list NO inserts: the next entry has no room either: asks again, the slot to go back to still the one before the first");
+    turn(EN_K1, 0);
+    check(op_armed() && ui.arm_row == OA_FXZI, "list NO inserts: a turn of nothing: the question stays");
+    tap(B_HOME);
+    fz_frames(4);
+    check(ins_slot[1][0] == prev && !strcmp(ui.msg, "NOT CHANGED") && !song.g[G_FXZ_DLY] && !song.g[G_FXZ_REV],
+          "list NO inserts: HOME: the slot back to what it held before the first, nothing lost");
+    fz_ins_goto(n);
+    fz_frames(1);
+    check(ins_slot[1][0] == ins_list[n] && op_armed() && ui.arm_row == OA_FXZI, "list NO inserts: the last entry asks");
+    turn(EN_K1, 1);
+    fz_frames(1);
+    check(ins_slot[1][0] == ins_list[n] && op_armed() && ui.arm_row == OA_FXZI && fxq.on,
+          "list NO inserts: the end of the list: nothing further, the question stays");
+    tap(B_HOME);
+    fz_frames(4);
+    ins_load(1, 0, FXT_NONE);
+    fz_frames(4);
+    fz_ins_goto(e);
+    fz_frames(1);
+    turn(EN_K2, 1);
+    fz_frames(1);
+    check(ins_slot[1][0] == ins_list[e] && op_armed() && ui.arm_row == OA_FXZI && fxq.on,
+          "list NO inserts: another encoder (KNOB 2): the question stays");
+    tap(B_SAVE);
+    fz_frames(60);
+    check(ins_slot[1][0] == ins_list[e] && fxi_state(1, 0) == FXI_OK && (song.g[G_FXZ_DLY] || song.g[G_FXZ_REV]),
+          "list NO inserts: YES still answers yes: the sizes taken, the type placed");
+    for (k = 0; k < NTRK; k++)
+        ins_load(k, 0, FXT_NONE);
+    song.g[G_FXZ_DLY] = song.g[G_FXZ_REV] = song.g[G_FXZ_XDL] = 0;
+    fz_unfill();
+    fz_frames(40);
+    (void)room;
+    reset_ui();
+}
 static void fxmem_ui_tests(void)
 {
     cell_t c;
@@ -165,6 +360,7 @@ static void fxmem_ui_tests(void)
     check(arn_room() == room0 && !song.g[G_FXZ_DLY] && !song.g[G_FXZ_REV], "FX MEM: back to FULL: the room as before");
     reset_ui();
     fz_question_tests();
+    fz_list_no_tests();
 }
 #else
 static void fxmem_ui_tests(void) {}

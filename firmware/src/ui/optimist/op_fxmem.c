@@ -291,6 +291,23 @@ static const char *fxz_type_name(uint32_t t)
     return t == FXT_CHO ? "CHO" : t == FXT_JUNO ? "JUNO" : t == FXT_FLNG ? "FLNG" : t == FXT_REV ? "REV" : t == FXT_DLY ? "DLY" :
            t == FXT_XDLY ? "XDLY" : "ECHO";
 }
+/* (op_cells.c page_set) the INSERTS slot's TYPE knob turned under its own question (the user, 2026-11-01: "using the same encoder
+ * again means 'no, go to the next item'"): fxz_ins_q: this slot's question is up; fxz_ins_no: NO, the question ends with the slot
+ * left as the turn sets it (the next entry; if that has no room it asks again, fxz_ins_pick), and the type to give back at a
+ * HOME is the one the slot held before the first question */
+static int fxz_ins_q(uint32_t k, uint32_t s)
+{
+    return fxq.on && op_armed() && ui.arm_scr == ARM_OP && ui.arm_row == OA_FXZI && fxq.k == (uint8_t)(k % NTRK) && fxq.s == (uint8_t)(s & 1u);
+}
+static uint32_t fxz_ins_no(uint32_t k, uint32_t s, uint32_t prev)
+{
+    if (!fxz_ins_q(k, s))
+        return prev;
+    prev = fxq.prev;
+    op_disarm();
+    fxq.on = 0;
+    return prev;
+}
 /* (op_cells.c page_set) track k's slot s took type t over prev with no room for it: said, and asked when sizes free it */
 static void fxz_ins_pick(uint32_t k, uint32_t s, uint32_t prev, uint32_t t)
 {
@@ -323,7 +340,15 @@ static void fxz_yes(uint32_t a, uint32_t k)
 #else
 static int fxz_ins_mem(uint32_t k, uint32_t s, uint32_t t) { (void)k, (void)s, (void)t; return 0; }
 static void fxz_ins_pick(uint32_t k, uint32_t s, uint32_t prev, uint32_t t) { (void)k, (void)s, (void)prev, (void)t; }
+static int fxz_ins_q(uint32_t k, uint32_t s) { (void)k, (void)s; return 0; }
+static uint32_t fxz_ins_no(uint32_t k, uint32_t s, uint32_t prev) { (void)k, (void)s; return prev; }
 #endif
+static void fxz_asked_reset(void)
+{
+#if FXZ_ANY
+    fxq.asked = 0;
+#endif
+}
 static void fxz_tick(void)                              /* (op_input.c mem_tick, every frame) */
 {
     fxz_cut_tick();

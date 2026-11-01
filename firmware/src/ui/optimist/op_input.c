@@ -221,6 +221,8 @@ static void mem_tick(void)
 #if PART_DROPS
     uint32_t k;
     char a[24];
+    if (!part_mem_refused.on)
+        lno.on = 0;                                     /* (the list entry that was refused: settled, op_edits.c) */
 #if FXM_NEED
     if (fxm_news && !op_armed()) {                      /* an effect refused (fx/fx_arena.c): bypassed until there is room */
         ui_message(fxm_news & 1u ? "MEM FULL CHO" : fxm_news & 2u ? "MEM FULL DLY" : fxm_news & 4u ? "MEM FULL REV" :
@@ -920,6 +922,8 @@ static void op_tap(uint32_t b, uint32_t id)
 
 /* PRESETS free to act: no question, no REC ring, not the NAME screen, not MASTER (the mixer's either) */
 static int pre_free(void) { return !op_armed() && !rh.ring && !page_owned() && ui.scr != SCR_FX && !ui.master && !mx_on_master(); }
+/* ... or under an engine list's make-room question, which PRESETS' own turn answers NO (op_edits.c lst_no) */
+static int pre_free_list(void) { return (!op_armed() || lst_q()) && !rh.ring && !page_owned() && ui.scr != SCR_FX && !ui.master && !mx_on_master(); }
 #if FELUCCA_FAVORITES
 /* FAVORITES (docs/UI-OPTIMIST-DESIGN.md 13 Favorites) are marked and browsed where presets are picked, not on a SOUND row (the user, 2026-10-14: "we have a
  * preset button, that is enough"): SAVE held + PRESETS marks the sound playing a favorite (right: saved into the favorites, 2026-10-16)
@@ -947,7 +951,7 @@ static int op_presets_turn(void)
     if (sys_scr(ui.scr)) {                              /* GLOBAL, SYSTEM: PRESETS does nothing (the user, 2026-10-13): a knob k is
                                                          * line k */
     } else if (btn_held(B_OCTDN)) {                     /* SHIFT + PRESETS: the instruments (STEP, a step held: nothing, the turn drained) */
-        if (ui.scr != SCR_STEP && pre_free() && !st_holding()) {
+        if (ui.scr != SCR_STEP && pre_free_list() && !st_holding()) {
             if (lane_presets())
                 lane_kind_step(s);                      /* (a lane off KIT: its sound's next / previous kind, op_walk.c) */
             else
@@ -976,7 +980,7 @@ static int op_presets_turn(void)
                                                          * the window's) */
         if (!op_armed() && !rh.ring && !st.held)
             step_scroll(s > 0 ? 1 : -1);
-    } else if (pre_free()) {   /* (MASTER, the mixer's too: nothing) */
+    } else if (pre_free_list()) {   /* (MASTER, the mixer's too: nothing) */
         if (lane_presets())
             lane_sound_step(s);                         /* a lane off KIT: its own sound, the kit and the other lanes stay */
         else {
