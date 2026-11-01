@@ -545,6 +545,9 @@ static void sg_roll(const track_t *t)
     if (sel && !st.held && sat / 16u == st.page) {      /* the picked note's step: framed in C_NOTE (a held one: white, below) */
         int32_t x = RL_X + (int32_t)(sat % 16u) * RL_CW;
         cv_frame(x - 1 - sg_ox, SG_TOP - 1, RL_CW, ye - SG_TOP + 2, C_NOTE);
+    } else if (se_on() && st.cur / 16u == st.page) {   /* STEP ENTRY: the cursor step framed in C_NOTE, a note on it or none */
+        int32_t x = RL_X + (int32_t)(st.cur % 16u) * RL_CW;
+        cv_frame(x - 1 - sg_ox, SG_TOP - 1, RL_CW, ye - SG_TOP + 2, C_NOTE);
     }
     for (i = 0; i < (pen_n ? (uint32_t)pen_n : 1u) && i < 4u; i++) {   /* the pick (what a tapped step takes): a white
                                                          * mark at the gutter's edge on its rows (the audit's #17: no
@@ -653,6 +656,7 @@ static uint32_t step_sig(void)
         h = hu(hu(hu(hu(hu(h, pick_note(0)), pick_note(1)), pick_note(2) * 128u + pick_note(3)), pen_n),
                (uint32_t)(song.octave + 16) + song.sel * 64u + roll_fold * 4096u);   /* (the roll's view: OCT, FOLD; the pick's marks) */
     h = hu(h, (uint32_t)st.pk + (pk_ok() ? 256u : 0u));   /* (the note picker's frame) */
+    h = hu(h, se_on() ? st.cur + 1u : 0u);              /* (STEP ENTRY's cursor) */
     return hu(hu(h, settings.palette), (uint32_t)(sg_dy + 512));
 }
 /* a held step's two lines, over the grid's foot while the overlay is up, "Step 6  Fill only" and "Nudge +4  Chance 85%" (op_step.c step_foot's,

@@ -52,6 +52,12 @@ static struct {
     uint8_t pk_trk;                     /* ... on this track */
     uint8_t latch;                      /* SAVE on a picked note: its step held as by a finger (its cards); HOME lets go */
     uint8_t snapl;                      /* a synth note grown by LENGTH to touch another: the step it touches + 1; 0 none */
+    uint8_t cur;                        /* STEP ENTRY (op_stepentry.c): the cursor step */
+    uint8_t se_len;                     /* ... the length new notes take (KNOB 4's last), 0: one step */
+    uint8_t se_park;                    /* ... PLAY pressed: the take armed, the keys play until it starts or REC goes off */
+    uint8_t se_was;                     /* ... on last frame */
+    uint32_t se_down;                   /* ... its keys down (a bit per key: a chord's keys one undo level) */
+    uint32_t se_ksess;                  /* ... the undo session of the keys down together */
 } st = {.follow = 1, .lock_pg = 0xFF, .ph_drawn = 0xFF, .pk = 0xFF};
 static int st_holding(void) { return ui.scr == SCR_STEP && st.held; }   /* STEP, a step held */
 #define LOCK_NONE 0xFFu
@@ -66,6 +72,10 @@ static void hp_reopen(void);
 static void pk_unlatch(void);
 static void pk_take(uint32_t idx, uint32_t slot);       /* the note entered / edited: the picked one */
 static int pk_ok(void);
+static int se_on(void);                                 /* op_stepentry.c: STEP ENTRY (a synth track, stopped, REC armed) */
+static void se_key(uint32_t k, uint32_t down);
+static void se_knob(uint32_t k, int32_t s, int shift);
+static void se_tick(void);
 
 static const uint8_t LV_UP[4] = {LV_GHOST, LV_SOFT, LV_NORM, LV_HARD};   /* the levels, softest first */
 static uint32_t lvl_rank(uint32_t lvl) { return lvl == LV_GHOST ? 0u : lvl == LV_SOFT ? 1u : lvl == LV_NORM ? 2u : 3u; }
@@ -105,6 +115,8 @@ static int step_keys(uint32_t held)
 {
     if (ui.scr == SCR_STEP && step_save_keys())
         return 1;
+    if (se_on())
+        return 1;                                       /* (STEP ENTRY: the keys reach the UI, they toggle notes and sound only there) */
     if (ui.scr != SCR_STEP || st.play || (!is_drum(TSEL) && step_rec_keys()))
         return 0;
     return is_drum(TSEL) ? !step_pick(held) : 1;
@@ -152,6 +164,7 @@ static void step_tick(void)                             /* once a frame: FOLLOW,
 #endif
     if (st.latch && (ui.scr != SCR_STEP || !pk_ok()))
         pk_unlatch();                                   /* (the picked note's cards: another track, lane or screen lets go) */
+    se_tick();                                          /* (STEP ENTRY: the cursor, the pick on it, PLAY's arm let go) */
     if (st.follow && song.playing && !st.held)
         st.page = (uint8_t)((t->seq_idx % trk_len(t)) / 16u);
     if (st.page >= n)
@@ -848,6 +861,11 @@ static void step_key(uint32_t k, uint32_t down, uint32_t held)
     track_t *t = tsel();
     int32_t w = punch_key(k);
     uint32_t idx, bit;
+    if (se_on() && !(w >= 0 && w < 16 && ((st.fdown >> w) & 1u)) && !(down && step_save_keys())) {
+        se_key(k, down);                                /* (STEP ENTRY: a key toggles its notes on the cursor step; a step key
+                                                         * held from before goes on as a step) */
+        return;
+    }
     if (w < 0 && down && is_drum(t) && lane_key(k)) {
         lane_pick_from(lane_of(k), 1);
         if (lane_of(k) != DRUM_ACC && !song.playing && !transport_req)
@@ -1885,10 +1903,13 @@ static __attribute__((noinline)) void pk_walk(int32_t s)   /* KNOB 1: s notes on
     st.page = (uint8_t)(i / 16), st.follow = 0;
     op_repaint();
 }
+static void pk_edit(uint32_t k, int32_t s, int shift);   /* below */
 static void pk_knob(uint32_t k, int32_t s, int shift)   /* a knob turned on STEP with its cards down */
 {
-    uint32_t sv[4];
-    int32_t d = s > 0 ? 1 : -1, n = s > 0 ? s : -s;
+    if (se_on() && !st.latch) {
+        se_knob(k, s, shift);                           /* (STEP ENTRY: KNOB 1 the cursor, 2 3 4 the notes starting there) */
+        return;
+    }
     if (k == 0u || !pk_ok()) {
         if (k == 0u)
             pk_walk(s);
@@ -1896,6 +1917,12 @@ static void pk_knob(uint32_t k, int32_t s, int shift)   /* a knob turned on STEP
             ui_message("PICK A NOTE: KNOB 1");
         return;
     }
+    pk_edit(k, s, shift);
+}
+static void pk_edit(uint32_t k, int32_t s, int shift)   /* KNOB 2 3 4 on the picked note(s): moved, pitch (lane), length (level) */
+{
+    uint32_t sv[4];
+    int32_t d = s > 0 ? 1 : -1, n = s > 0 ? s : -s;
     pk_hold(sv);
     if (k == 1u && shift) {
 #if FELUCCA_MICRO

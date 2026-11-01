@@ -540,7 +540,8 @@ static void pages_keys_tests(void)
     song.sel = 0;                                       /* the keys light the notes the track sounds (always built since 2026-10-29) */
     op_enter(SCR_STEP);
     frames(2);
-    tap(B_REC);                                         /* (REC on: STEP's keys are the keyboard, 2026-10-31) */
+    tap(B_REC);                                         /* (REC on: STEP's keys are the keyboard, 2026-10-31; stopped it is STEP ENTRY */
+    tap(B_PLAY);                                        /* since 2026-11-01, PLAY arms the take: the keys the keyboard again) */
     frames(2);
     {
         uint32_t f = 0, d = 0, h = 0, k = 6, was;
@@ -553,6 +554,7 @@ static void pages_keys_tests(void)
         trk[0].seq_n = 0;
     }
     tap(B_REC);
+    frames(2);
     reset_ui();
     song.sel = TRK_DRUM;
     op_enter(SCR_STEP);

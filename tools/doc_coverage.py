@@ -45,6 +45,7 @@ CONCEPTS = [
     ("sequencer", "step conditions (COND)", [r"(?i)condition", r"(?i)1:2|every other|fill"]),
     ("sequencer", "nudge and micro timing", [r"(?i)nudge", r"(?i)micro"]),
     ("sequencer", "fills", [r"(?i)\bfills?\b"]),
+    ("sequencer", "STEP ENTRY: the cursor, keys toggle notes, PLAY arms the take", [r"STEP ENTRY", r"(?i)cursor", r"(?i)PLAY.{0,40}arms"]),
     ("sequencer", "EUCLID note generator with keep / restore", [r"EUCLID", r"(?i)keep", r"(?i)restore"]),
     ("sequencer", "pattern tools (TOOLS: copy, rotate, ...)", [r"(?i)pattern tools|\bTOOLS\b"]),
     ("sequencer", "arpeggiator (modes, rate, order)", [r"(?i)arp", r"(?i)order"]),
