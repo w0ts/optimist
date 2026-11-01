@@ -312,9 +312,8 @@ struct MirrorView: View {
     @FocusState private var keyboard: Bool
     @Environment(\.scenePhase) private var phase
     @Environment(\.verticalSizeClass) private var vSize
-    /// iPhone landscape (compact height): denser touch columns and track bar, room kept for the floating tab bar
+    /// iPhone landscape (compact height): denser touch columns and track bar
     private var dense: Bool { vSize == .compact && UIDevice.current.userInterfaceIdiom == .phone }
-    private static let tabBarRoom: CGFloat = 60
     @State private var held: [String: [UInt8]] = [:]   // the keys down, what each pressed
     @State private var seen = 0
     @State private var drag: (knob: Int, across: Bool, sent: Int, per: CGFloat)?   // the knob a drag turns, its axis, the detents sent, points a detent
@@ -387,10 +386,28 @@ struct MirrorView: View {
     /// "invert left and right"), the tracks under the screen; tall, the tracks then the modes and the pages under it; without
     /// it the screen alone
     @ViewBuilder private func laid(_ size: CGSize) -> some View {
-        let room = dense && bars ? Self.tabBarRoom : 0           // (the tab bar floats over the page: its room is kept free)
+        let room: CGFloat = 0           // (dense: the safe area already holds the tab bar, measured on an iPhone 16 Pro: nothing more to keep free)
         let high = size.height - room
-        let strip = buttons ? (dense ? NavTracks.denseHeight : NavTracks.height) + NavMetrics.gap : 0
-        if buttons && size.width - (high - strip) >= 2 * 150 {
+        let strip = buttons ? NavTracks.height + NavMetrics.gap : 0
+        if dense && buttons && size.width > size.height {
+            // iPhone landscape: the screen first, the whole height (it draws at the largest whole pixel scale that fits), the
+            // buttons left (two narrow columns), the pages and the tracks right (narrower still)
+            let colL = 2 * 100 + NavMetrics.gap
+            let colR = max(150, size.width - high - colL - 4 * NavMetrics.gap)
+            HStack(alignment: .top, spacing: NavMetrics.gap) {
+                NavSide(nav: nav, height: high).frame(width: colL, height: high)
+                content.frame(width: high, height: high)
+                VStack(spacing: NavMetrics.gap) {
+                    NavPages(nav: nav, room: high - NavTracksDense.height(nav) - NavMetrics.gap)
+                    NavTracksDense(nav: nav)
+                }
+                .frame(width: colR, height: high)
+            }
+            .padding(.horizontal, NavMetrics.gap)
+            .environment(\.navDense, true)
+            .frame(width: size.width, height: high, alignment: .top)
+            .frame(width: size.width, height: size.height, alignment: .top)
+        } else if buttons && size.width - (high - strip) >= 2 * 150 {
             let side = min(high - strip, size.width - 2 * 150 - 4 * NavMetrics.gap)
             let col = (size.width - side) / 2 - 2 * NavMetrics.gap
             HStack(alignment: .top, spacing: NavMetrics.gap) {
@@ -489,7 +506,7 @@ struct MirrorView: View {
                             }
                         }
                     }
-                    .padding(dense ? 2 : 8)
+                    .padding(dense ? 0 : 8)
             }
             if link.state != .mirroring {
                 VStack(spacing: 8) {
