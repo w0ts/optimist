@@ -1279,7 +1279,8 @@ static void sys_c1_cell(uint32_t i, cell_t *c)
 #define DT_NJ (NPART + 2u)                              /* (a host test without dual.c: the parts, DR, REV) */
 #define DT_SBC 0u
 #endif
-#define INFO_DTN (1u + DT_NJ + 8u)                      /* the names' row, the jobs, PRE EVT NOTE JOBS WAIT POST CPU0 CPU1 */
+#define INFO_DTN (1u + DT_NJ + 8u + (DT_SBC ? 1u : 0u))   /* the names' row, the jobs, PRE EVT NOTE JOBS WAIT POST CPU0 CPU1,
+                                                                * SBC */
 _Static_assert(DUAL_TM_BLK == (uint32_t)CTL * 1000000u * FM1_TICKS_PER_US / FS, "dual_load.h DUAL_TM_BLK: a mix block (CTL frames) in ticks");
 _Static_assert(DT_NJ <= DUAL_TM_NJ, "dual_load.h DUAL_TM_NJ: the parts, the drums, the reverb, the SBC frame");
 #define DT_COLW 3u                                      /* a column's digits: 0..999 (held there) */
@@ -1316,6 +1317,24 @@ static void sys_dt_cell(uint32_t i, cell_t *c)
     if (!i) {                                           /* the columns' names, in the columns' places */
         c->label = "% OF A BLOCK";
         dual_cat(v, "AVG MAX WST C");
+        return;
+    }
+    if (DT_SBC && i == INFO_DTN - 1u) {                 /* SBC: where the frames went since the page opened */
+        static uint32_t base[4], sseen;
+        uint32_t now[4], k, tot = 0;
+        now[0] = dual_tm.sbc_n[0], now[1] = dual_tm.sbc_n[1], now[2] = dual_tm.sbc_n[2], now[3] = DUAL_TM_SBC_FEED();
+        if (fm1_ms - sseen > 1000u)                     /* (the page just opened: from now) */
+            for (k = 0; k < 4u; k++)
+                base[k] = now[k];
+        sseen = fm1_ms;
+        for (k = 0; k < 4u; k++)
+            now[k] -= base[k], tot += now[k];
+        c->label = "SBC";
+        dt_col(v, tot ? (int32_t)(now[0] * 100u / tot) : -1);
+        dt_col(v, tot ? (int32_t)(now[1] * 100u / tot) : -1);
+        dt_col(v, tot ? (int32_t)((now[2] + now[3]) * 100u / tot) : -1);
+        j = str_len(v);
+        v[j] = ' ', v[j + 1u] = (char)('0' + tot % 10u), v[j + 2u] = 0;
         return;
     }
     if (jobrow) {
