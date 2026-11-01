@@ -335,7 +335,7 @@ A page button held shows the layer's map (16 tiles for the white keys, the knobs
 | FX | the 16 punch-in effects | FILTER DUST DUCK, the track's FILT |
 | ARP | note repeat | RATE |
 | SCL | the song's key | CHORD SCALE QUANT TRANSPOSE |
-| GLO (mix) | 1-4 sequencer mute T1..DR; with FILLS 9 a fill held, 10 the next bar, black 1-4 FX bypass (without FILLS 9-12); 16 tap tempo | the four levels |
+| GLO (mix) | 1-4 sequencer mute T1..DR; with FILLS 9 a fill held, 10 the next bar, black 1-4 FX bypass (without FILLS 9-12); no tap tempo (PLAY held is the TEMPO page, 2026-11-01) | the four levels |
 | EDIT | erase as it plays | SHIFT LENGTH TRANSPOSE |
 | (SOUND's first row, EDIT) | PRESETS, SHIFT + PRESETS | four lines (ENGINE, PRESET, INIT, SAVE AS) and the popup list below, no picture (the drum track keeps its kit picture) |
 | PRESETS, SHIFT + PRESETS, SHIFT2 + PRESETS | a popup list of the sounds over the panel (the drum track: its kits; SHIFT + PRESETS: the engines): the one playing lit in the middle, in its engine's colour, scrolling as you turn, gone ~1.5 s after the last turn. Its header (36 px, `op_preset.c POP_HH`) names the filter in the large face with the place (*12/120*) at the right and a mark a filter under it, the one shown lit: it changes name with SHIFT2 + PRESETS and is lit ~0.6 s after (a white frame round the header and the name white; outlines only, no text on a fill). The box starts at y 26 and covers the whole cards band (1x4 and 2x2), which is not drawn while it is up: the cards drawn under the box's top at each detent, then the box over them, were the flash at the top of the list (fixed 2026-10-31; `tests/ui_optimist_prefilter.h` holds every pixel under the header to one colour a frame) |
