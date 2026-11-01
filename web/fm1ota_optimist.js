@@ -95,6 +95,8 @@ const OPT_FAST_CMD = 0x31, OPT_FAST_CHUNK = 4096, OPT_SECTOR = 4096, OPT_TABLE =
 const optUpgrade = [0xF0, 0x22, 0x24, 0x35, 0x7F, 0xF7];
 export const OPT_MIDI_STOP = [0xFC];                 /* real-time STOP, sent before an update starts */
 export const OPT_STOP_WAIT_MS = 100;
+const optIsOta = (id) => /^ota-/i.test(id.model);    /* (fm1base's IS_OTA, not exported) */
+export const OPT_LOADER = { waitMs: 33000, pollMs: 200 };   /* after step 1: the loader looked for every 200 ms, 3 + 30 s in all */
 const optSleep = (ms) => new Promise((r) => setTimeout(r, ms));
 export const OPT_FAST_HELLO = optFrame(OPT_FAST_CMD, [1, OPT_FAST_CHUNK & 0xFF, OPT_FAST_CHUNK >> 8]);
 // the loader's answer to OPT_FAST_HELLO -> its read size, or 0
@@ -115,6 +117,36 @@ export function optSectorTable(image, off, n) {
     out.set([c16 & 0xFF, c16 >> 8, c32 & 0xFF, (c32 >>> 8) & 0xFF, (c32 >>> 16) & 0xFF, c32 >>> 24], k * 6);
   }
   return out;
+}
+// the fast loader's check (docs/INSTALL-SPEED.md): while it compares the sectors already on the FM-1 with the table it says
+// cmd 0x32 [checked LE16, total LE16] (no opt-in: only a host that sent the fast hello gets it, and every such host skips
+// frames that are no read request) -> { checked, total } or null
+const OPT_CHECK_CMD = 0x32;
+export function optParseCheck(pkt) {
+  if (!pkt || pkt[0] !== 0xF0 || pkt[pkt.length - 1] !== 0xF7) return null;
+  const r = optParseReply(pkt);
+  if (!r || r.cmd !== OPT_CHECK_CMD || r.data.length !== 4) return null;
+  const checked = r.data[0] | (r.data[1] << 8), total = r.data[2] | (r.data[3] << 8);
+  return total > 0 && checked <= total ? { checked, total } : null;
+}
+// the waits of the check's bar (tests shrink them): its frames looked for framesMs after the upgrade command, else an
+// estimate by time at sectorMs per 4 KiB sector (a bitwise CRC16 and CRC-32 over a sector read from flash: ~7 ms on the FM-1,
+// as a resumed install took ~1 s for ~147 sectors, 2026-11-01, not measured per sector; 12 ms is slower on purpose, so the
+// estimate stays behind the loader and the first read's address is ahead of it); tickMs between two looks
+export const OPT_CHECK = { framesMs: 500, tickMs: 100, sectorMs: 12 };
+// the bar while a fast loader checks, in percent of the image, never going back (tools/fm1_install.py CheckBar, the app's
+// FlashCheckBar): its 0x32 frames, else the estimate; report(pct) until the first read request (the write's own progress after)
+export class OptCheckBar {
+  constructor(imageLength, sectors, report, now = () => Date.now()) {
+    Object.assign(this, { len: imageLength, sectors: Math.max(1, sectors), report, now, t0: now(), pct: 0, frames: false, asked: false });
+  }
+  set(pct) { const v = Math.floor(Math.min(99, pct)); if (v > this.pct && !this.asked) { this.pct = v; this.report(v); } }
+  tick() {
+    const t = this.now() - this.t0;
+    if (!this.frames && t > OPT_CHECK.framesMs) this.set(Math.min(95, (t * 100) / (this.sectors * OPT_CHECK.sectorMs)));
+  }
+  frame(checked, total) { this.frames = true; this.set((checked * 100) / total); }
+  request() { this.asked = true; }
 }
 // the answer to a read request (cmd 0x30): fm1base's response, any length
 export function optResponse(addr, data, fl = 0) {
@@ -176,11 +208,44 @@ function optRequestAddr(pkt) {
 export class OptimistUpdater extends Updater {
   // step 1 (fm1base's stages, as it is): the transport stops first. A MIDI STOP (0xFC) and 100 ms, before the upgrade command;
   // the firmware stops it itself too, so this is harmless there (tools/fm1_install.py and the Mirror app do the same)
+  // fm1base's stages, with the loader looked for at once after step 1, every OPT_LOADER.pollMs within the same time as
+  // fm1base's (its 3 s blind wait + 30 s), instead of the blind wait (2026-11-01); a running firmware that still answers
+  // before it restarts is not the loader. The rest as fm1base's (its words, its codes)
   async stages(dev, image, product, step) {
     this.phase = "check";                               /* (where a dropped connection happened: resumable) */
     dev.link.send(OPT_MIDI_STOP);
     await optSleep(OPT_STOP_WAIT_MS);
-    return super.stages(dev, image, product, step);
+    this.watch();
+    step("start", dev.id.text);
+    dev.link.send(optUpgrade);
+    await optSleep(2000);
+    const s1 = await this.serve(dev.link, image, 0xE0000000, 8000, (n, b) => step("verify", n, b));
+    dev.link.close();
+    if (!s1.finished) throw optFail(s1.lost ? "lost" : "stopped", `the device ${s1.lost ? "was disconnected" : "stopped"} after ${s1.served} requests: nothing was written`);
+    step("loader");
+    const ota = await this.pollFor(optIsOta, OPT_LOADER.waitMs, OPT_LOADER.pollMs);
+    if (!ota) throw optFail("noloader", "the update loader did not appear. Replug the USB cable and press Install again: the device stays in update mode until it is finished.");
+    const s2 = await this.write(ota, image, step);
+    if (!s2.finished) throw optFail(s2.lost ? "lost" : "stopped", `the loader ${s2.lost ? "was disconnected" : "stopped"} after ${s2.served} requests. Replug and press Install again to resume.`);
+    step("reboot");
+    await optSleep(3000);
+    const back = await this.waitFor((id) => !optIsOta(id), 40000);
+    if (!back) throw optFail("noreturn", "the device did not come back: power-cycle it");
+    back.link.close();
+    if (back.id.text !== product) throw optFail("mismatch", `installed, but the device reports ${back.id.text}`, back.id.text);
+    step("done", back.id.text);
+    return back.id.text;
+  }
+
+  // find(filter) every pollMs until ms have passed -> the device, or null
+  async pollFor(filter, ms, pollMs) {
+    const end = Date.now() + ms;
+    while (Date.now() < end) {
+      const dev = await this.find(filter);
+      if (dev) return dev;
+      await optSleep(pollMs);
+    }
+    return null;
   }
 
   // step 2: the fast install when the loader answers the word (docs/INSTALL-SPEED.md), else fm1base's write. this.fast says
@@ -188,10 +253,22 @@ export class OptimistUpdater extends Updater {
   async write(ota, image, step) {
     this.phase = "write";
     this.fast = await optFastHello(ota.link);
-    if (!this.fast) return (this.lastWrite = await super.write(ota, image, step));
+    this.kept = false;
     ota.link.send(optUpgrade);
+    if (!this.fast) {
+      /* no answer: an older loader (today's protocol: 512-byte reads, 10 ms before each answer), or one still in its fast
+         session over a replug (the FM-1, 2026-11-01: it never hears the new hello and asks its 4 KiB reads on): served on
+         in the fast install's way from its first 4 KiB or table read (this.kept) */
+      await optSleep(2000);
+      const s1 = await this.serveFast(ota.link, image, 0xF0000000, 180000, (n, b) => step && step("write", n, b), null,
+        () => { this.kept = true; if (step) step("kept"); });
+      ota.link.close();
+      return (this.lastWrite = s1);
+    }
     await optSleep(50);
-    const s2 = await this.serveFast(ota.link, image, 0xF0000000, 180000, (n, b) => step && step("write", n, b));
+    const bar = new OptCheckBar(image.length, Math.floor(image.length / OPT_SECTOR), (pct) => step && step("checking", pct));
+    if (step) step("checking", 0);
+    const s2 = await this.serveFast(ota.link, image, 0xF0000000, 180000, (n, b) => step && step("write", n, b), bar);
     ota.link.close();
     return (this.lastWrite = s2);
   }
@@ -206,31 +283,33 @@ export class OptimistUpdater extends Updater {
     throw optFail("lost", w ? `the loader was disconnected after ${w.served} requests` : "the update loader was not found");
   }
 
-  // an install that survives the cable dropping (the user, 2026-11-01): first() runs it (install or resume); when the
-  // connection drops ("lost"), onDrop(error, again) -> true to look for the FM-1 again (again: it was not there the last
-  // time), false to stop ("cancelled"). Found again, plan(phase, id, product, running) (install_route.js resumePlan) says
-  // what it is: our loader -> step 2 again (the fast loader skips every sector already right), the same running firmware
-  // after step 1 -> the install again from step 1, the package running after step 2 -> done; anything else stops with
-  // nothing more sent. opts: { image, product, sha256, running, onStep, plan, waitMs }
+  // an install that survives the cable dropping (the user, 2026-11-01: "the flasher should automatically resume"): first()
+  // runs it (install or resume); when the connection drops ("lost"), onDrop(error) says so, then the FM-1 is looked for
+  // every pollMs (500) by itself, until opts.cancelled() (Cancel: "cancelled"), with no time limit. Found again,
+  // plan(phase, id, product, running) (install_route.js resumePlan) says what it is: our loader -> step 2 again (the fast
+  // loader skips every sector already right), the same running firmware after step 1 -> the install again from step 1, the
+  // package running after step 2 -> done; anything else stops with nothing more sent.
+  // opts: { image, product, sha256, running, onStep, plan, cancelled, pollMs }
   async resumable(first, onDrop, opts) {
     const { image, product, sha256, running, plan } = opts;
-    const onStep = opts.onStep || (() => {});
+    const onStep = opts.onStep || (() => {}), cancelled = opts.cancelled || (() => false);
     let attempt = first;
     for (;;) {
       try { return await attempt(); }
       catch (e) {
         if (!e || e.code !== "lost") throw e;
         const phase = this.phase || "write";
+        onDrop(e);
         this.watch();                                   /* (the ports now, without the FM-1: whatever comes back is asked) */
-        let again = false, dev = null, what = "absent";
+        let dev = null, what = "absent";
         try {
           for (;;) {
-            if (!(await onDrop(e, again))) throw optFail("cancelled", "cancelled", phase);
-            dev = await this.waitFor(() => true, opts.waitMs ?? 10000);
+            if (cancelled()) throw optFail("cancelled", "cancelled", phase);
+            dev = await this.find(() => true);
             if (dev) dev.link.close();
             what = plan(phase, dev && dev.id, product, running);
             if (what !== "absent") break;
-            again = true;
+            await optSleep(opts.pollMs ?? 500);
           }
         } finally { this.unwatch(); }
         if (what === "done") { onStep("done", dev.id.text); return dev.id.text; }
@@ -243,25 +322,40 @@ export class OptimistUpdater extends Updater {
   }
 
   // fm1base's serve for the fast install: 4 KiB reads and the table, no pause before an answer
-  async serveFast(link, image, finishAddr, idleMs, onProgress) {
-    let served = 0, bytes = 0, last = Date.now();
+  // bar (OptCheckBar): the check's frames and the estimate before the first read
+  // onKept: classic until a 4 KiB or table read comes (then onKept() once, and the fast install's way: no pause)
+  async serveFast(link, image, finishAddr, idleMs, onProgress, bar = null, onKept = null) {
+    let served = 0, bytes = 0, last = Date.now(), classic = !!onKept;
     for (;;) {
-      const pkt = await link.read(1000);
+      const pkt = await link.read(bar && !bar.asked ? OPT_CHECK.tickMs : 1000);
+      if (bar) bar.tick();
       if (!pkt) {
         if (link.lost) return { served, finished: false, lost: true };
         if (Date.now() - last > idleMs) return { served, finished: false };
         continue;
       }
       const r = optRequest(pkt);
-      if (!r) continue;
+      if (!r) {
+        const c = bar && optParseCheck(pkt);
+        if (c) bar.frame(c.checked, c.total);
+        continue;
+      }
       last = Date.now();
       if (r.addr === 0xE0000000 || r.addr === 0xF0000000) {
         link.send(optResponse(r.addr, [...new TextEncoder().encode("success"), 0]));
         if (r.addr === finishAddr) return { served, finished: true };
         continue;
       }
+      if (classic && (r.len > 512 || (r.addr >= OPT_TABLE && r.addr < 0xE0000000))) { classic = false; onKept(); }
+      if (classic && (r.len > 512 || r.addr + r.len > image.length)) throw optFail("badreq", `bad request ${r.addr.toString(16)}+${r.len}`);
       const data = optFastData(image, r.addr, r.len);
+      if (classic) await optSleep(10);                /* (today's protocol: fm1base's pause before each answer) */
       if (!data) throw optFail("badreq", `bad request ${r.addr.toString(16)}+${r.len}`);
+      if (bar && !bar.asked && r.addr < OPT_TABLE) {   /* the first read: the sectors before it are right, the bar there at once */
+        bar.request();
+        this.lastAddr = r.addr;
+        if (onProgress) onProgress(served, bytes);
+      }
       if (!link.send(optResponse(r.addr, data, r.fl))) return { served, finished: false, lost: true };
       served++;
       if (r.addr < OPT_TABLE) {

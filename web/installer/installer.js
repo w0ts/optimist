@@ -95,8 +95,8 @@ export const TEXT = {
   noloader: "The FM-1 did not come back in update mode. Replug the USB cable and press Install again: it stays in update mode until it is finished.",
   noreturn: "The FM-1 did not come back after writing. Switch it off and on.",
   /* the cable dropped mid-install (install_route.js DROPPED, the app's and fm1_install.py's sentence): Resume / Cancel */
-  dropped: DROPPED, resume: "Resume", dropCancel: "Cancel", notBack: "The FM-1 was not found yet: check the cable, wait a few seconds, then press Resume.",
-  cancelled: "Cancelled. Nothing more was sent. The FM-1 stays in update mode: press Install again, it finishes.", cancelledCheck: "Cancelled. Nothing was written.",
+  dropped: DROPPED, dropCancel: "Cancel", checking: "Checking what is already on the FM-1…", noPowerOff: "Do not power off the FM-1.",
+  cancelled: "Cancelled. Nothing more was sent. The FM-1 stays in update mode: keep it on and press Install again to finish.", cancelledCheck: "Cancelled. Nothing was written.",
   unexpected: "The FM-1 came back as {id}, not the one being updated: nothing more was sent. Check which FM-1 this is, then press Install again.",
   mismatch: "Written, but the FM-1 reports another firmware: ",
   rescueBack: "Written, but the FM-1 started in USB rescue: the new firmware did not start. Install again, or choose another package.",
@@ -194,6 +194,7 @@ export function progressOf(k, a, addr, imageLength, prev = 0) {
   if (k === "start") { phase = 0; pct = Math.max(prev, 1); }
   else if (k === "verify") { phase = 0; pct = Math.min(10, (a / STEP1_READS) * 10); }
   else if (k === "loader") { phase = 1; pct = 12; }
+  else if (k === "checking") { phase = 2; pct = 15 + Math.min(80, (a || 0) * 0.8); }   /* (the fast loader's check, as the write's scale) */
   else if (k === "write") { phase = 2; pct = 15 + Math.min(80, (Math.min(imageLength, (addr || 0) + 512) / Math.max(1, imageLength)) * 80); }
   else if (k === "reboot") { phase = 3; pct = 96; }
   else if (k === "done") { phase = 4; pct = 100; }
@@ -392,9 +393,8 @@ export function mountInstaller(container, opts = {}) {
   el.status = h("p.oi-status", { role: "status", "aria-live": "polite" });
   el.err = h("p.o-msg.err.oi-err", { role: "alert", hidden: true });
   el.dropMsg = h("p.oi-dropmsg", {}, TEXT.dropped);
-  el.resume = h("button.o-btn.primary.oi-resume", { type: "button" }, TEXT.resume);
-  el.dropCancel = h("button.o-btn.quiet.oi-dropcancel", { type: "button" }, TEXT.dropCancel);
-  el.drop = h("div.o-msg.warn.oi-drop", { role: "alert", hidden: true }, el.dropMsg, h("div.oi-row", {}, el.resume, el.dropCancel));
+  el.dropCancel = h("button.o-btn.oi-dropcancel", { type: "button", onclick: () => { st.dropCancel = true; el.dropCancel.disabled = true; } }, TEXT.dropCancel);
+  el.drop = h("div.o-msg.warn.oi-drop", { role: "alert", hidden: true }, el.dropMsg, h("div.oi-row", {}, el.dropCancel));
   el.ok = h("div.o-msg.ok.oi-ok", { hidden: true });
   el.log = h("pre.oi-log");
   el.stockWarn = h("p.o-msg.warn", { hidden: true }, TEXT.stockNote);
@@ -689,11 +689,13 @@ export function mountInstaller(container, opts = {}) {
     let pct = 0, phase = -1, maxAddr = 0;
     const step = (k, a, addr) => {
       log(`${k} ${a ?? ""}`);
+      if (!el.drop.hidden) { el.drop.hidden = true; if (phase >= 0) setPhase(Math.min(phase, 3)); }   /* (the FM-1 is back: going on) */
       if (k === "write" && addr !== undefined) maxAddr = Math.max(maxAddr, addr);
       const r = progressOf(k, a, maxAddr, pkg.image.length, pct);
       pct = r.pct; el.bar.value = pct;
       if (r.phase >= 0 && r.phase !== phase) { phase = r.phase; setPhase(Math.min(phase, 3), phase > 3 ? "done" : "on"); }
-      if (r.phase >= 0 && r.phase <= 3) say(el.status, TEXT.phases[r.phase] + "…");
+      /* (from step 2 on, until done: never power off; the user, 2026-11-01) */
+      if (r.phase >= 0 && r.phase <= 3) say(el.status, (k === "checking" ? TEXT.checking : TEXT.phases[r.phase] + "…") + (r.phase >= 1 ? " " + TEXT.noPowerOff : ""));
     };
     let midi;
     try { midi = await access(); }
@@ -709,11 +711,13 @@ export function mountInstaller(container, opts = {}) {
       const onStep = (k, a) => step(k, a, k === "write" ? up.lastAddr : undefined);
       const ota = await up.find(isOta);
       if (ota) ota.link.close();
-      /* an interrupted install (or return to V15): finish it; else the whole install. A dropped cable: asked (Resume) */
+      /* an interrupted install (or return to V15): finish it; else the whole install. A dropped cable: said, and the install
+         goes on by itself when the FM-1 is back (Cancel stops it) */
       const first = ota ? async () => { setPhase(2); return up.resumeOrThrow(pkg.image, onStep, pkg.product); }
         : () => up.install(pkg.image, pkg.product, onStep, pkg.sha256);
-      const back = await up.resumable(first, (e, again) => askResume(e, again, phase),
-        { image: pkg.image, product: pkg.product, sha256: pkg.sha256, running: dev ? dev.id.text : "", onStep, plan: resumePlan });
+      const back = await up.resumable(first, (e) => showDrop(e, phase),
+        { image: pkg.image, product: pkg.product, sha256: pkg.sha256, running: dev ? dev.id.text : "", onStep, plan: resumePlan,
+          cancelled: () => st.dropCancel });
       setPhase(4, "done");
       el.bar.value = 100;
       say(el.status, "");
@@ -724,6 +728,7 @@ export function mountInstaller(container, opts = {}) {
       el.ok.hidden = false;
       el.go.textContent = TEXT.installAgain;
     } catch (e) {
+      el.drop.hidden = true;
       showError(e, phase);
       if (st.head && headRefused(st.head.running, { kind: st.head.kind }, e && e.code)) { el.err.textContent = refusedStep(pkg.file || "PACKAGE.fwsc"); st.head = null; }
       if (e && e.code === "notfound") showPorts(viewOf(midi));
@@ -732,26 +737,16 @@ export function mountInstaller(container, opts = {}) {
     st.busy = false; syncChoice(); render();
     if (!el.ok.hidden) el.go.textContent = TEXT.installAgain;
   }
-  /* the cable dropped (the user, 2026-11-01): "Connection dropped. Check the cable, then press Resume." with Resume and
-     Cancel; again: the FM-1 was not found after the last Resume -> true to look again, false to stop */
-  function askResume(e, again, phase) {
+  /* the cable dropped (the user, 2026-11-01: "the flasher should automatically resume"): "Connection dropped. Check the
+     cable: the install continues by itself when the FM-1 is back." with Cancel; the next step hides it */
+  function showDrop(e, phase) {
     log(`dropped: ${e && e.message || e}`);
     if (phase >= 0) setPhase(Math.min(phase, 3), "fail");
     say(el.status, "");
-    el.dropMsg.textContent = again ? `${TEXT.dropped} ${TEXT.notBack}` : TEXT.dropped;
+    st.dropCancel = false;
+    el.dropCancel.disabled = false;
+    el.dropMsg.textContent = TEXT.dropped;
     el.drop.hidden = false;
-    el.resume.focus?.();
-    return new Promise((resolve) => {
-      const done = (v) => {
-        el.resume.onclick = el.dropCancel.onclick = null;
-        el.drop.hidden = true;
-        if (v && phase >= 0) setPhase(Math.min(phase, 3));
-        if (v) say(el.status, TEXT.looking);
-        resolve(v);
-      };
-      el.resume.onclick = () => done(true);
-      el.dropCancel.onclick = () => done(false);
-    });
   }
   /* the way for this package (web/install_route.js, as tools/fm1_route.py): the running firmware's loader, or the
      chip's download mode, which a browser cannot reach. dev: the FM-1 found now (closed here) */
