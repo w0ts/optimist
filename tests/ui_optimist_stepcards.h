@@ -151,6 +151,7 @@ static void step_cards_tests(void)
         turn(EN_K1, 1);
         check(ui.cards_t == 0u && !card0_up(), "STEP overlay: a synth track, a knob turned with the cards down: none");
         tap(B_SEQ);
+        frames(SEQ_DBL_MS / 16u + 2u);                  /* (the cards wait for the double-tap window) */
         turn(EN_K1, 1);
         check(ui.cards_t > 0u && card0_up(), "STEP overlay: a synth track, SEQ then a knob turned: the cards");
         frames(OP_CARDS_FRAMES + 5u);
