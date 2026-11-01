@@ -74,7 +74,15 @@ typedef struct {
 #endif
     uint8_t in_evt, ns_depth;                      /* (CPU0: inside events_block; inside a timed trk_note_on) */
     uint32_t evt, ns;                              /* this block's ticks in events_block, in its note starts (PRE's parts) */
+    uint8_t lastc[DUAL_TM_NJ];                     /* each job's core the last block it ran: 1 CPU0, 2 CPU1 (0: never) */
+    volatile uint32_t sbc_n[3];                    /* the Bluetooth stream's SBC frames encoded as render jobs, counted since
+                                                    * boot: [0] early on CPU1 (before the events), [1] at the split on CPU1,
+                                                    * [2] at the split on CPU0 (fm1-base opt_dual.c; each core its own word) */
 } dual_tm_t;
+#ifndef DUAL_TM_SBC_FEED
+#define DUAL_TM_SBC_FEED() 0u                      /* the frames the platform encoded at its feed, on CPU0 after the render
+                                                    * (fm1-base: plat_bta_job_inline; none here) */
+#endif
 static dual_tm_t dual_tm;
 #define DUAL_TM_JOB(p, t) ((p) < DUAL_TM_NJ ? (void)(dual_tm.jt[p] = (t)) : (void)0)   /* (dual_run: a job's time) */
 /* PRE's two parts (2026-11-01, PRE at 37..60 % of a block on the user's FM-1 while the host counts 9 k instructions at
@@ -122,7 +130,7 @@ static inline __attribute__((always_inline)) void dual_tm_block(uint32_t t0, uin
     dual_tm.evt = dual_tm.ns = 0;
     for (p = 0; p < DUAL_TM_NJ; p++)
         if ((ran >> p) & 1u)
-            dual_tm_q(DTQ_J0 + p, dual_tm.jt[p], pk, v);
+            dual_tm_q(DTQ_J0 + p, dual_tm.jt[p], pk, v), dual_tm.lastc[p] = (uint8_t)(1u + ((c1 >> p) & 1u));
         else
             v[DTQ_J0 + p] = 0;
     dual_tm.c1_mask = (uint8_t)c1;

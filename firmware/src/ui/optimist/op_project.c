@@ -1267,7 +1267,11 @@ static void sys_c1_cell(uint32_t i, cell_t *c)
  *   JOBS             CPU0's own jobs
  *   WAIT             CPU0 idle at the join, waiting for CPU1
  *   POST             after the join: the merge, the USB input, mix_finish (the buses, the master chain), the macros' post
- *   CPU0 / CPU1      each core's whole block (CPU0: PRE + JOBS + WAIT + POST; CPU1: its jobs): its room is 100 less it */
+ *   CPU0 / CPU1      each core's whole block (CPU0: PRE + JOBS + WAIT + POST; CPU1: its jobs): its room is 100 less it
+ *   SBC              (Bluetooth audio's frame as a job, DT_SBC; 2026-11-01) where the frames went since the page opened, in
+ *                    % of them: AVG early on CPU1 (handed over before the events), MAX at the split on CPU1, WST on CPU0
+ *                    (at the split, or at the platform's feed after the render); C the frames' count, its last digit
+ * A job row's C is the core of the last block it ran in ("-": not yet; a frame runs in 2 blocks of 8) */
 #ifdef DUAL_JOBS
 #define DT_NJ DUAL_JOBS                                 /* the jobs' rows: the parts, DR, REV, BT (the SBC frame; dual.c) */
 #define DT_SBC DUAL_JOB_SBC
@@ -1318,10 +1322,11 @@ static void sys_dt_cell(uint32_t i, cell_t *c)
         j = i - 1u;
         q = DTQ_J0 + j;
         c->label = j < NPART ? JN[j % 4u] : j == NPART ? "DR" : j < DT_NJ - 1u || !DT_SBC ? "REV" : "BT";
-        core = !((ran >> j) & 1u) ? '-' : ((dual_tm.c1_mask >> j) & 1u) ? '1' : '0';
+        core = dual_tm.lastc[j] ? (char)('0' + dual_tm.lastc[j] - 1u) : '-';   /* (the core of the last block it ran in) */
+        (void)ran;
     } else {
         static const uint8_t Q[] = {DTQ_PRE, DTQ_EVT, DTQ_NS, DTQ_OWN, DTQ_WAIT, DTQ_POST, DTQ_BLK, DTQ_C1};
-        uint32_t r = (i - 1u - NPART - 2u) % 8u;
+        uint32_t r = (i - 1u - DT_NJ) % 8u;
         q = Q[r];
         c->label = NM[r];
         core = q == DTQ_C1 ? '1' : '0';

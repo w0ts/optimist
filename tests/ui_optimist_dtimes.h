@@ -92,10 +92,10 @@ static void dtimes_tests(void)
     k = dtt_row("REV");
     info_cell(INFO_PG_DUAL, k, &c);
     check(k < INFO_DTN && !strcmp(c.val, "  8   8   8 0"), "CPU TIMES: the reverb's kept block, 8 %, on CPU0");
-    dtt_blocks(1, A, c1, ran & ~(1u << 2));              /* (T3 not run in a block: - for its core) */
+    dtt_blocks(1, A, c1, ran & ~(1u << 2));              /* (T3 not run in a block: still the core it ran on last) */
     k = dtt_row("T3");
     info_cell(INFO_PG_DUAL, k, &c);
-    check(c.val[12] == '-', "CPU TIMES: a job not run in the last block: its core -");
+    check(c.val[12] == '0', "CPU TIMES: a job not run in the last block: the core of the last block it ran in (0)");
     for (k = 0; k < 2u * 1000u / 16u + 10u; k++)        /* (2 s more of the steady blocks: the spike leaves MAX) */
         dtt_blocks(2, A, c1, ran), frame();
     k = dtt_row("CPU0");
