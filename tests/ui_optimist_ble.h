@@ -673,6 +673,25 @@ static void bt_rec_tests(void)
     frames(1);
     check(bt.boot && bt_mode(BT_MIDI) == BT_OFF && bt_mode(BT_AUD) == (BT_AUDIO_BUILT ? BT_MAN : BT_OFF) && !ble_on,
           "boot from an old AUDIO MAN record: AUDIO MAN, MIDI OFF (as before the split)");
+#if !FELUCCA_BT_AUDIO
+    {   /* a record a BT AUDIO build wrote (the last device, AUDIO AUTO), saved by this build (BLE, no BT AUDIO: the Wi-Fi build of
+         * 2026-11-01) and read by the next BT AUDIO build: the device and AUDIO's mode must still be there */
+        uint8_t was[BT_REC_SIZE], now[BT_REC_SIZE];
+        memset(was, 0, sizeof was);
+        memcpy(was, &mk, 4);
+        was[4] = 4u, was[5] = 1u;
+        memcpy(was + 6, "\x11\x22\x33\x44\x55\x66", 6);
+        memcpy(was + 12, "BOSE QC", 8);
+        was[BT_REC_MODES] = BT_REC_OK | BT_MAN | BT_AUTO << 2;
+        memcpy(now, was, sizeof now);
+        bt.mode = BT_MAN;                               /* (this build: MIDI MAN, no AUDIO) */
+        bt_rec_out(now);
+        check(!memcmp(now, was, sizeof now), "a build without BT AUDIO saves the record: AUDIO's last device, name and mode as read");
+        memset(now, 0, sizeof now);
+        bt_rec_out(now);
+        check(now[5] == 0u && now[BT_REC_MODES] == (BT_REC_OK | BT_MAN), "... a record that had none: none");
+    }
+#endif
     bt_fresh(0);
 }
 #if FELUCCA_BT_AUDIO
