@@ -175,7 +175,7 @@ static int cmp_u32(const void *a, const void *b) { uint32_t x = *(const uint32_t
 int main(int argc, char **argv)
 {
     FILE *f = argc > 1 ? fopen(argv[1], "rb") : 0;
-    uint32_t t, next_frame = 0, next_ev_us = 0, end = 0, whole, b_end, same_end;
+    uint32_t acked_at = 0, t, next_frame = 0, next_ev_us = 0, end = 0, whole, b_end, same_end;
     int more = 1, ack = MIR_AIMD;
     if (!f) {
         printf("usage: mirror_aimd_test WORKLOAD.bin [MAC_BPS [MAC_Q]] (tests/ui_optimist_test.c MIRROR_WORKLOAD)\n");
@@ -216,6 +216,10 @@ int main(int argc, char **argv)
             mac_tick();
         if (t % 1000u == 0u)
             app_mirror(1 | MIR_CHK_BIT, ack);
+        else if (ack && t % 200u == 0u && mac_frames != acked_at) {   /* (MirrorLink: an ACK alone ~5 times a second, frames came) */
+            acked_at = mac_frames;
+            app_mirror(1 | MIR_CHK_BIT | MIR_QUIET_BIT, 1);
+        }
         if (end && t >= end + 3000u)
             break;
     }
@@ -234,8 +238,8 @@ int main(int argc, char **argv)
            (unsigned)nev, nlat ? (unsigned)lat[nlat / 2u] : 0u, nlat ? (unsigned)lat[nlat * 9u / 10u] : 0u,
            nlat ? (unsigned)lat[nlat - 1u] : 0u, (unsigned)(nev - nlat), (unsigned)mac_peak);
 #if MIR_AIMD
-    printf("  the budget at the end %u B/s, %u cuts, %u raises, %u frames refused\n", (unsigned)mba.rate, (unsigned)mba.cuts,
-           (unsigned)mba.ups, (unsigned)mba.refused);
+    printf("  the budget at the end %u B/s, %u cuts (%u for a delay over %u ms), %u raises, %u frames refused\n", (unsigned)mba.rate,
+           (unsigned)mba.cuts, (unsigned)mba.delays, (unsigned)MBA_DELAY_MS, (unsigned)mba.ups, (unsigned)mba.refused);
     check(same_end, "paced: 3 s after the workload the client's picture is the panel");
     check(nlat == nev, "paced: every detent's pixels reached the client (%u of %u)", (unsigned)nlat, (unsigned)nev);
     check(whole == 0u, "paced: no whole panel after the first (%u)", (unsigned)whole);

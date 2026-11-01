@@ -1531,6 +1531,8 @@ job; ( jobin
     $CC -O2 -w -Itests -DMIR_AIMD=0 -o "$OUT/mirror_aimd_before" tests/mirror_aimd_test.c
     "$OUT/mirror_aimd_before" "$OUT/mirror_workload.bin"
     run "the screen mirrored over Bluetooth to a Mac that loses whole frames when flooded (a model, the UI's 44 s workload): paced to a budget (AIMD) and coalesced, at most 1 % frames lost (the lag rule: 5 %), no whole panel, a detent's pixels within 1.5 s at p90, the picture the panel 3 s after" "$OUT/mirror_aimd_test" "$OUT/mirror_workload.bin"
+    "$OUT/mirror_aimd_before" "$OUT/mirror_workload.bin" 3000 16384
+    run "the same to a Mac that queues instead of losing (3 KB/s, 16 KB of buffer, CoreMIDI's logs saw packets 2.2 s late): the ACK's delay over 0.5 s halves the budget, nothing waits seconds" "$OUT/mirror_aimd_test" "$OUT/mirror_workload.bin" 3000 16384
     rm -f "$OUT/mirror_workload.bin"
 ) >"$U.out" 2>&1 & jobbg
 for x in 0 1; do   # per-track patterns and scenes (FELUCCA_PATTERNS): unit; then a PATTERNS -> no PATTERNS -> PATTERNS round trip
