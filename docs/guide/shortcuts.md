@@ -173,7 +173,7 @@ Hold the button: its map shows and the keys and knobs are the layer's. **SHIFT2 
 | **EDIT** (erase) | erase that note / lane as it plays; drum SOUND page: picks that sound | SHIFT (rotate), LENGTH (x2 / half), TRANSPOSE | |
 | **ARP** (roll) | note repeat at the tempo | RATE | |
 | **SCL** (key) | the song's key (root) | CHORD, SCALE, KEYS, TRANSPOSE | |
-| **GLO** (mix) | 1-4 mute T1-DR, 16 tap tempo; with FILLS 9 fill while held, 10 next bar a fill, black 1-4 FX bypass T1-DR (without FILLS: 9-12) | LEVEL of T1, T2, T3, DR | |
+| **GLO** (mix) | 1-4 mute T1-DR (tap tempo: PLAY held); with FILLS 9 fill while held, 10 next bar a fill, black 1-4 FX bypass T1-DR (without FILLS: 9-12) | LEVEL of T1, T2, T3, DR | |
 | **LFO** (patterns, scenes) [PATTERNS] | above, Saving | the page under | OCT+ + a key: launch now; OCT- + a key: at the next bar |
 | **ENV** on an FM6 track (operators) | black keys pick OP1-OP6, PIT, GLO, MONO, POLY; white keys play | the page's four values | previous / next page |
 

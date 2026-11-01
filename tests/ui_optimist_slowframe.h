@@ -123,7 +123,7 @@ static void slowframe_tests(void)
     reset_ui();
     op_enter(SCR_HOME);
     frames(2);
-    press(B_GLO);
+    press(B_PLAY);                                      /* (PLAY held: the TEMPO page, its keys tap) */
     song.g[G_BPM] = 90;
     k = WK(15);
     for (q = 0; q < 2u; q++) {                          /* (two taps 0.5 s apart, one frame sees both) */
@@ -135,8 +135,8 @@ static void slowframe_tests(void)
         fm1_ms += 470;
     }
     frame();
-    check(song.g[G_BPM] >= 115 && song.g[G_BPM] <= 125, "slow frame: GLO + key 16 tapped twice 0.5 s apart, one frame: 120 BPM");
-    release(B_GLO);
+    check(song.g[G_BPM] >= 115 && song.g[G_BPM] <= 125, "slow frame: PLAY held + key 16 tapped twice 0.5 s apart, one frame: 120 BPM");
+    release(B_PLAY);
     frames(2);
     song.g[G_BPM] = 120;
     /* 7. a full key queue: the lost release mended */

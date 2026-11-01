@@ -199,11 +199,9 @@ static void tiles_fill(tile_t *tl, char *sub, uint32_t n)
         tile_set(&tl[9], "BAR", fill_bar_on ? C_WHITE : OP_SURF, fill_bar_on ? C_BLACK : C_HI, fill_arm ? C_WHITE : 0);
         str_cpy(sub, "Black 1-4 FX on/off", n);
 #else
-        str_cpy(sub, "Mute solo FX tap", n);
+        str_cpy(sub, "Mute FX", n);
 #endif
-        fmt_int(b, song.g[G_BPM]);
-        tile_set(&tl[15], b, song.playing && clk_pos < BEAT_U / 4u ? C_WHITE : OP_SURF, song.playing && clk_pos < BEAT_U / 4u ? C_BLACK : C_WHITE, 0);
-        tile_set(&tl[14], "TAP >", C_BLACK, C_DIM, 0);
+        /* (no tap tempo here: PLAY held is the TEMPO page, the user 2026-11-01) */
         break;
     default:
         break;

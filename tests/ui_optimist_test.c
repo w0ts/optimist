@@ -1813,7 +1813,7 @@ static void layer_tests(void)
     key(WK(15));
     frames(30);                                         /* (two taps 0.5 s apart: 120 BPM) */
     key(WK(15));
-    check(song.g[G_BPM] >= 115 && song.g[G_BPM] <= 125, "GLO + key 16, tapped twice: the tempo");
+    check(song.g[G_BPM] == 90, "GLO + key 16: no tap tempo on GLO any more (PLAY held is the TEMPO page, 2026-11-01)");
     {
         int16_t lv = trk[2].p[P_LEVEL], dl = song.g[G_DRLVL];
         turn(EN_K3, -2);

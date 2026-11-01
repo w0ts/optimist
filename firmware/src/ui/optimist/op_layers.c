@@ -7,7 +7,7 @@
  *   ARP   note repeat on the keys               KNOB  RATE
  *   SCL   a key: the key of the song             KNOB  CHORD SCALE KEYS TRANSPOSE
  *   GLO   1-4 mute (the sequencer's, op_mixer.c), 9-12 FX on / off (FILLS: 9 a fill held, 10 the next bar, FX on
- *         the black keys 1-4), 16 tap tempo      KNOB  the four levels
+ *         the black keys 1-4; tap tempo is PLAY held)  KNOB  the four levels
  *   EDIT  erase as it plays                      KNOB  SHIFT LENGTH TRANSPOSE (undo: SAVE then HOME)
  *   LFO   the patterns and the scenes (PATTERNS): ui/sloop's ui_pat.c, copied: white n launches the selected track's
  *         pattern n at its end (OCT+ held: now; OCT- held is SHIFT, the clear), SAVE + n stores the working pattern into slot n
@@ -279,8 +279,6 @@ static void glo_key(uint32_t k, int32_t w)
     } else if (w >= 8 && w < 12) {
         fx_bypass_toggle((uint32_t)w - 8u);
 #endif
-    } else if (w == 15) {
-        tap_tempo();
     }
     (void)k;
 }
