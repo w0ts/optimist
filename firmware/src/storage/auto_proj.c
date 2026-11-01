@@ -145,6 +145,19 @@ static void auto_apply_store(const project_t *p)
 #if FELUCCA_MOTION
     motion_full = 0;
 #endif
+#if FELUCCA_PATTERNS
+    if (pat_apply_keep) {                             /* (tracks the ISR swapped: their lists stay, pat.c pat_swap_isr) */
+        uint32_t j;
+        for (j = 0; j < NTRK; j++)
+            if (!PAT_KEEPS(j)) {
+                if (m)
+                    auto_w.l[j] = m->l[j];
+                else
+                    auto_w.l[j].n = 0;
+                auto_w.on = (uint8_t)((auto_w.on & ~(1u << j)) | (m ? m->on & (1u << j) : 0u));
+            }
+    } else
+#endif
     if (m)
         auto_w = *m;
     else

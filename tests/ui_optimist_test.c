@@ -1912,6 +1912,9 @@ static void layer_tests(void)
     fm1_in.notes &= ~(1u << 13);
     frame();
     check(!pat_has(0, 1), "LFO + black 6 + white 2: no store any more (the upper-key modifiers are gone)");
+    check(pat_cur[0] == 1u && pat_live_at(0, 0) && !pat_live_at(0, 1), "... stopped, no question (issue 142): the stop and the launch went, the edits kept as slot 1's live pattern");
+    pat_launch(0, 0, PW_END);                           /* (back to slot 1, its edits: as before the questions went) */
+    check(pat_cur[0] == 0u && t->step[7].note[0] == 55u, "... slot 1 again: its edits back");
     for (k = 0; k < 8u; k++)                            /* (the key above launched the empty slot 2: the working copy again) */
         t->step[k].time = ST_NOTE, t->step[k].n = 1, t->step[k].note[0] = (uint8_t)(48 + k);
     press(B_SAVE);                                      /* LFO held, then SAVE + n: store into slot n */
@@ -3015,6 +3018,8 @@ static void song_tests(void)
             t->step[r * 4u].time = ST_NOTE, t->step[r * 4u].n = 1, t->step[r * 4u].note[0] = 60;
         ui.row[SCR_SONG] = (uint8_t)c;
         frame();
+        if (pat_cur[1] >= PAT_N && pat_has(1, 0))
+            pat_launch(1, 0, PW_END);                   /* (T2 plays its slot 1: a scene loaded stopped no longer asks first, issue 142) */
         tap(B_REC);
         check(project_used(2) && pat_scene_refs(2, refs) && refs[0] < PAT_N, "SONG scene C, REC: the loop stored into it");
         tap(B_REC);
@@ -4266,6 +4271,7 @@ static void led_tests(void)
 #include "ui_optimist_plines.h"                      /* PAGE_LINES: the rows with no picture as GLOBAL's lines */
 #include "ui_optimist_screens.h"                     /* batch E: per-screen oddities (titles, STEP, drums, names, pictures) */
 #include "ui_optimist_patwarn.h"                     /* pattern mode: the unsaved warning, black 5 = all tracks, black 6 = stop, a black key held + n stores, the numbers */
+#include "ui_optimist_patlive.h"                     /* live patterns (issue 142): RELOAD = HOME + SEQ, a project LOAD asks to save live edits */
 #include "ui_optimist_patview.h"                     /* the patterns screen: no cards, the taller grid, the numbers on two lines, the knob rows, the preview */
 #include "ui_optimist_mutegrey.h"                    /* muted = one grey in every view (roll, drum grid, mixer, preview) */
 #include "ui_optimist_prefilter.h"                   /* the preset list's filter (SHIFT2 + PRESETS), SHIFT + PRESETS the engines, the popup's header, no flash */
@@ -4604,6 +4610,9 @@ int main(int argc, char **argv)
         printf("  mirror lost frames repaired by seq: %u, %u not the panel after, %u whole panels instead; %u bytes each on average\n",
                mc_fixes, mc_fix_bad, mc_fix_whole, mc_fixes ? mc_fix_sum / mc_fixes : 0u);
     }
+#endif
+#if FELUCCA_PATTERNS
+    patlive_ui_tests();                                 /* (last: it switches projects) */
 #endif
     printf(fails ? "optimist ui test FAILED (%d)\n" : "optimist ui test passed\n", fails);
     return fails != 0;

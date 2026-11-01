@@ -420,7 +420,7 @@ static void t_patterns(void)
     setup_store();
     check("the drum track's pattern stored in slot 2", !pat_store_slot(TRK_DRUM, 1));
     steps_clear(TDRUM);
-    pat_launch(TRK_DRUM, 1, PW_NOW);
+    (void)pat_reload(TRK_DRUM);                        /* (RELOAD: the stored pattern back; a launch of it keeps the edit, issue 142) */
     {
         uint32_t i, n = 0;
         for (i = 0; i < NSTEP; i++)

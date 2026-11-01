@@ -115,6 +115,8 @@ static void op_project_new(void);                       /* op_screens.c */
 #if FELUCCA_PATTERNS
 static int project_open(uint32_t p);                    /* storage/sections/sections.c: the projects (docs/PROJECTS-DESIGN.md) */
 static int project_save_as(uint32_t t);
+static int project_save_all(uint32_t s);
+static uint32_t pat_live_count(void);
 static int state_save(void);
 static int project_clear(uint32_t p);
 static int project_slot_used(uint32_t p);
@@ -127,7 +129,8 @@ static void prj_load_go(uint32_t s)
 #if FELUCCA_PATTERNS
     int rc = project_open(s);                           /* sections.c */
     if (rc < 0) {
-        ui_message("LOAD ERROR");
+        if (rc != -2)                                   /* (-2: refused, said: MEM FULL) */
+            ui_message("LOAD ERROR");
         return;
     }
     if (!rc)
@@ -145,10 +148,9 @@ static void prj_load_go(uint32_t s)
 static int prj_save_go(uint32_t s)
 {
 #if FELUCCA_PATTERNS
-    int rc = s != project_cur() ? project_save_as(s) : 0;
-    if (!rc)
-        rc = state_save();
-    ui_message(rc == 1 ? "MEM FULL" : rc ? "SAVE ERROR" : "SAVED");
+    int rc = project_save_all(s);                       /* (everything: the state and every live pattern as saved, issue 142) */
+    if (rc != -2)                                       /* (-2: refused, said) */
+        ui_message(rc == 1 ? "MEM FULL" : rc ? "SAVE ERROR" : "SAVED");
     if (rc)
         return rc;
 #else
@@ -196,6 +198,15 @@ static void pj_tick(void)                               /* once a frame (lay_fra
     transport_req = 1;
 }
 static int work_changed(void) { return edt.work_ok && edt.work != work_sig(); }
+/* the open project has edits not saved: the work changed, or a pattern keeps live edits (issue 142: PROJECT SAVE saves them) */
+static int prj_unsaved(void)
+{
+#if FELUCCA_PATTERNS
+    if (pat_live_count())
+        return 1;
+#endif
+    return work_changed();
+}
 static void ed_tick(void)                               /* once a frame: another sound is a fresh one (no hash) */
 {
     uint32_t i;

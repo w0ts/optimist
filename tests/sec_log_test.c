@@ -267,8 +267,9 @@ static void busy_sections(void)
 #if SLG_V2
 /* ---- format 2 (docs/PROJECTS-DESIGN.md): every record tagged with its project, the index holding the open one */
 static const uint32_t PJ[2] = {3u, 5u};
-static uint8_t pmodel[2][SLG_IDS][SEC_REC_MAX];   /* what each id holds in project PJ[j] (a device-wide id: in both) */
-static uint32_t pmlen[2][SLG_IDS];
+static uint8_t pmodel[2][SLG_IX][SEC_REC_MAX];    /* what each id holds in project PJ[j] (a device-wide id: in both; past
+                                                   * SLG_IDS: the live patterns, SLG_LV0 + id - 24) */
+static uint32_t pmlen[2][SLG_IX];
 static int pput(uint32_t j, uint32_t id, uint32_t n, int playing)   /* project PJ[j] open: id := data */
 {
     int rc;
@@ -290,7 +291,7 @@ static int psame(uint32_t j)                          /* project PJ[j] opened: e
     uint32_t i;
     if (slg_open_proj(PJ[j]))
         return 0;
-    for (i = 0; i < SLG_IDS; i++) {
+    for (i = 0; i < SLG_IX; i++) {
         int n = slg_get(i, got);
         if (n != (int)pmlen[j][i] || (n > 0 && memcmp(got, pmodel[j][i], (uint32_t)n)))
             return 0;
@@ -518,8 +519,9 @@ static void scoped_log(void)
     make(192, 9005);
     ok &= pput(0, 21, 192, 0) == 0 && psame(1) && psame(0);
     check("a device-wide id (21 the project names) written in one project is seen in every project", ok);
-    for (k = 0, ok = 1; k < 400u; k++) {              /* random writes in both, compactions, restarts */
-        uint32_t j = rnd(2), id = rnd(SLG_IDS);
+    for (k = 0, ok = 1; k < 400u; k++) {              /* random writes in both, compactions, restarts (the live patterns too) */
+        uint32_t j = rnd(2), id = rnd(SLG_IX);
+        id = id == SLG_IDS ? SLG_LV0 + 7u : id;
         n = rnd(4) ? 100u + rnd(900) : 0u;
         make(n, 9100 + k);
         rc = pput(j, id, n, 0);
@@ -541,8 +543,9 @@ static void scoped_log(void)
     if (n != before)
         printf("gauge: %u B seen from project %u, %u B from project %u\n", before, PJ[1], n, PJ[0]);
     check("... the gauge the same from either project", n == before);
-    for (k = 0, ok = 1; k < 300u; k++) {              /* writes cut at a random program, in either project */
-        uint32_t j = rnd(2), id = rnd(SLG_IDS), p0;
+    for (k = 0, ok = 1; k < 300u; k++) {              /* writes cut at a random program, in either project (live patterns too) */
+        uint32_t j = rnd(2), id = rnd(SLG_IX), p0;
+        id = id == SLG_IDS ? SLG_LV0 + 9u : id;
         n = 300u + rnd(1200);
         make(n, 9600 + k);
         if (k % 5u == 0u)
@@ -614,6 +617,90 @@ static void scoped_log(void)
         check("... both cleared: room again", slg_used_pct() == 0u && slg_more(500) >= 30u);
     }
     printf("format 2: %u sectors at 0x%X, room %u B; 500-byte records: %u fit\n", SEC_LOG_SECTORS, SEC_LOG_BASE, SEC_ROOM, slg_more(500));
+}
+/* ---- the live patterns (issue 142, docs/PATTERNS-DESIGN.md 9): ids 24..87 again under the tag 0x10 | p */
+static int lput(uint32_t j, uint32_t id, uint32_t base, uint32_t n)   /* project PJ[j]: id's live record, base stamp + n bytes */
+{
+    memcpy(data + 4, data, n);
+    memcpy(data, &base, 4);
+    return pput(j, SLG_LVX(id), n ? n + 4u : 0u, 0);
+}
+static void live_scope(void)
+{
+    uint32_t ok, k, j, b, s, f0;
+    int rc;
+    memset(nor, 0xFF, sizeof nor);
+    memset(pmlen, 0, sizeof pmlen);
+    slg_boot();
+    make(300, 7000);
+    ok = pput(0, 30, 300, 0) == 0;                     /* saved (PJ0, 30) */
+    b = slg.aseq[30];
+    make(200, 7001);
+    ok &= lput(0, 30, b, 200) == 0;                    /* its live record beside it */
+    ok &= slg_get(30, got) == 300 && slg_get(SLG_LVX(30), got) == 204 && slg_live_ok(30) && pcount(PJ[0] | 0x10u, 30) == 1u &&
+          pcount(PJ[0], 30) == 1u;
+    check("a live pattern (tag 0x10 | p) beside its saved one (the same id): both kept, each its own record", ok);
+    ok = slg_open_proj(PJ[1]) == 0 && !slg_has(SLG_LVX(30)) && !slg_has(30);
+    for (s = 0, f0 = 0; s < SEC_LOG_SECTORS; s++)
+        f0 += slg.fliv[s];
+    check("... another project sees neither, the live one counted with the other projects' bytes", ok && f0 >= 2u * 220u);
+    slg_boot();
+    ok = slg_open_proj(PJ[0]) == 0 && psame(0) && psame(1);
+    check("... after a restart: as written", ok);
+    make(250, 7002);
+    ok = lput(0, 30, b, 250) == 0 && pcount(PJ[0] | 0x10u, 30) == 1u && psame(0);
+    check("... a newer live record supersedes the older (marked dead), the saved one stays", ok);
+    for (k = 0, ok = 1; k < 300u; k++) {              /* the other project fills and compacts the log */
+        make(900, 7100 + k);
+        rc = pput(1, k % 15u, 900, 0);
+        if (rc == 1)
+            pput(1, k % 15u, 0, 0);
+        ok &= rc != -1;
+    }
+    check("... 300 stores of the other project (compactions): the live and saved records of the first kept", ok && psame(1) && psame(0) &&
+          slg_live_ok(30));
+    memset(nor, 0xFF, sizeof nor);                     /* the projects strip: a project with only live patterns is used */
+    memset(pmlen, 0, sizeof pmlen);
+    slg_boot();
+    make(100, 7200);
+    ok = lput(1, 40, 0, 100) == 0 && slg_open_proj(0) == 0;
+    slg_boot();
+    check("a project with only a live pattern counts as used (pused)", ok && ((slg.pused >> PJ[1]) & 1u) && !((slg.pused >> PJ[0]) & 1u));
+    /* the stale sweep: a live record whose base is not the saved record's sequence now (saved again since, here or by an
+     * older firmware, or cleared) is dropped at the next project open; one that stands stays */
+    memset(nor, 0xFF, sizeof nor);
+    memset(pmlen, 0, sizeof pmlen);
+    slg_boot();
+    ok = slg_open_proj(PJ[0]) == 0;
+    for (j = 0; j < 4u; j++) {
+        make(120, 7300 + j);
+        ok &= pput(0, 24u + j, 120, 0) == 0;
+        make(80, 7310 + j);
+        ok &= lput(0, 24u + j, slg.aseq[24u + j], 80) == 0;
+    }
+    make(60, 7320);
+    ok &= lput(0, 60, 0, 60) == 0;                     /* (no saved record: base 0) */
+    make(60, 7321);
+    ok &= lput(0, 61, 12345u, 60) == 0;               /* (base names a saved record that is not there) */
+    make(120, 7330);
+    ok &= pput(0, 25, 120, 0) == 0;                    /* saved again (an older firmware's pattern save) */
+    ok &= pput(0, 26, 0, 0) == 0;                      /* cleared (an older firmware's clear) */
+    slg_live_sweep(0);
+    pmlen[0][SLG_LVX(25)] = pmlen[0][SLG_LVX(26)] = pmlen[0][SLG_LVX(61)] = 0;
+    slg_boot();
+    ok &= slg_open_proj(PJ[0]) == 0 && psame(0) && slg_live_ok(24) && slg_live_ok(27) && slg_live_ok(60) && !slg_has(SLG_LVX(25)) &&
+          !slg_has(SLG_LVX(26)) && !slg_has(SLG_LVX(61));
+    check("the stale sweep: live patterns made from a saved record since replaced or cleared dropped, the others kept", ok);
+    {   /* a sweep's skip: the slot whose saved record waits elsewhere is left for later */
+        uint8_t sk[SLG_LV_N] = {0};
+        make(120, 7340);
+        ok = pput(0, 24, 120, 0) == 0 && slg_has(SLG_LVX(24)) && !slg_live_ok(24);
+        sk[0] = 1;
+        slg_live_sweep(sk);
+        ok &= slg_has(SLG_LVX(24));
+        slg_live_sweep(0);
+        check("... a slot skipped (its saved record waits in the arena): left; swept once not skipped", ok && !slg_has(SLG_LVX(24)));
+    }
 }
 #endif
 
@@ -754,6 +841,7 @@ int main(void)
 #if SLG_V2
     scoped_log();
     future_ids();
+    live_scope();
 #endif
     printf("sec log test %s\n", bad ? "FAILED" : "passed");
     return bad != 0;

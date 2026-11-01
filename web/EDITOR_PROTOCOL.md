@@ -386,12 +386,12 @@ The editor shows the slots in its mixer strips and the scenes on the MASTER stri
 
 | cmd | Request | Reply |
 | --- | --- | --- |
-| 79 PAT_LIST | op (0 all, 1 the tracks only) | op, changed (bit k: track k's working copy differs from its source), per track: the slot it plays, the launch waiting, when (0 pattern end, 1 next bar, 2 now); op 0 then 4 x 16 LEN (0 empty slot), 16 scenes x 4 slots (127 x 4 no scene; 125 x 4 a plain section) |
+| 79 PAT_LIST | op (0 all, 1 the tracks only) | op, changed (bit k: track k's working copy differs from its source), per track: the slot it plays, the launch waiting, when (0 pattern end, 1 next bar, 2 now); op 0 then 4 x 16 LEN as it plays (0 empty slot), 16 scenes x 4 slots (127 x 4 no scene; 125 x 4 a plain section), then (issue 142) per track 3 bytes: the slots with a live pattern (edits not saved), bits 0..6, 7..13, 14..15; an older firmware sends none |
 | 80 PAT_LAUNCH | track, slot (127 stop), when | track, slot, rc (0 ok, 1 arguments). Stopped: loaded at once |
 | 81 SCENE | op (0 launch, 1 store what the tracks play), scene | op, scene, rc (0 ok, 1 arguments or empty, 2 not stored: MEM FULL) |
-| 82 PAT_OP | op (0 store the working copy into a, 1 copy a to track2's b, 2 clear a, 3 duplicate into the first free slot), track, a, track2, b | op, rc (0 ok, 1 arguments, 2 not done: MEM FULL, a clear while playing) |
-| 83 PAT_READ | track, slot, offset (2 x 7 bit) | track, slot, offset, total (2 x 7 bit: the record's bytes, 0 = empty), pack7 bytes from offset (<= 256) |
-| 84 PAT_WRITE | track, slot, offset, total, pack7 bytes (<= 256) | track, slot, offset, rc |
+| 82 PAT_OP | op (0 store the working copy into a, 1 copy a to track2's b, 2 clear a, 3 duplicate into the first free slot, 4 SAVE a's live pattern as its saved one (the slot playing: the working copy), 5 RELOAD a: its live pattern dropped (the slot playing: its saved one plays again)), track, a, track2, b | op, rc (0 ok, 1 arguments, 2 not done: MEM FULL, a clear while playing) |
+| 83 PAT_READ | track (+ 4: the saved version), slot, offset (2 x 7 bit) | track, slot, offset, total (2 x 7 bit: the record's bytes, 0 = empty), pack7 bytes from offset (<= 256): the pattern as it plays (its live one, else its saved one) |
+| 84 PAT_WRITE | track (+ 4: as the saved version), slot, offset, total, pack7 bytes (<= 256) | track, slot, offset, rc; the record is the slot's live pattern (issue 142: edits not saved, SAVE / RELOAD later; the slot a track plays takes it, at its end while playing); + 4 writes the saved one as before |
 
 `PAT_READ` / `PAT_WRITE` edit a pattern that does not play. The record is the section log's (`storage/sections/pat.c`; the page's `patRecParse` / `patRecBuild`): a flags byte (1 a motion chunk follows the header, 2 codec B steps, 4 the drum track, 8 the motion plays, 16 the step extras close the record,
 the version in bits 5..7: 0x20 V1, 0x40 V2), LEN DIV SWING GATE, the motion chunk (count, count x 3 bytes), the step bitmap (LEN bits) and the steps it marks, the extras. A V2 record's chunk is the automation store's list (up to 128 events, the place with STEP-ONLY) and has no extras.

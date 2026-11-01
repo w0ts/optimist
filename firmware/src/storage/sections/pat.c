@@ -26,11 +26,125 @@ _Static_assert(PAT_ID(NTRK - 1u, PAT_N - 1u) < 88u && PAT_N == SLG_MPAT_N, "the 
 enum { PF_MOT = 1, PF_B = 2, PF_DRUM = 4, PF_ON = 8, PF_SX = 16, PF_V1 = 0x20, PF_V2 = 0x40, PF_VER = 0xE0 };
 static uint32_t pat_missing;                           /* patterns a scene named and the log did not have */
 
-/* pattern (k, s)'s record -> buf (SEC_REC_MAX), its length; 0 none */
-static uint32_t pat_get(uint32_t k, uint32_t s, uint8_t *buf)
+/* pattern (k, s)'s saved record -> buf (SEC_REC_MAX), its length; 0 none */
+static uint32_t pat_get_saved(uint32_t k, uint32_t s, uint8_t *buf)
 {
     return sec_fetch(FELUCCA_PATTERNS ? SEC_PEND_PAT + PAT_N * k + s : SEC_PEND_N, PAT_ID(k, s), buf, SEC_REC_MAX);
 }
+#if FELUCCA_PATTERNS
+/* ---- the live patterns (issue 142, docs/PATTERNS-DESIGN.md 9): each pattern keeps its edits not saved as a live record
+ * (sec_log.c: the id again under the tag 0x10 | p), its base stamp first (the saved record's sequence number it was made
+ * from). One that stands is what the pattern plays (a launch, a scene, the song); the saved one is what RELOAD goes back to.
+ * Written when the edited pattern is left (a launch, a stop, a scene, the song's next part, another project), into the
+ * arena (SEC_PEND_LV) and, stopped, into the log at once; playing, by sections_write (LIVE_SAVE) */
+#define PAT_LIX(k, s) SLG_LVX(PAT_ID(k, s))
+static uint32_t pat_pend(uint32_t k, uint32_t s) { return SEC_PEND_PAT + PAT_N * k + s; }
+static uint32_t pat_lpend(uint32_t k, uint32_t s) { return SEC_PEND_LV + PAT_N * k + s; }
+static uint8_t pat_live_full;                          /* a live pattern waits in RAM: the log was full (pat_full_say) */
+static int pat_leave(const project_t *p, uint32_t k);
+static void persist_flush_now(void);                   /* (project.c) */
+static int proj_tmp_busy(void);
+static int pat_store_slot(uint32_t k, uint32_t s);
+static int pat_write(uint32_t k, uint32_t s, uint32_t n);
+/* where (k, s)'s live pattern stands: 1 the arena (newer than anything in the log), 2 the log (made from the saved
+ * record there now, which does not wait in the arena), 0 none */
+static int pat_live_at(uint32_t k, uint32_t s)
+{
+    if (k >= NTRK || s >= PAT_N)
+        return 0;
+    if (sec_pend_has(pat_lpend(k, s)))
+        return 1;
+    return flash_ok && !sec_pend_has(pat_pend(k, s)) && slg_live_ok(PAT_ID(k, s)) ? 2 : 0;
+}
+/* its bytes (the stamp left out) -> buf, their length (0: the pattern plays empty, or none: pat_live_at) */
+static uint32_t pat_get_live(uint32_t k, uint32_t s, uint8_t *buf)
+{
+    uint32_t i = pat_lpend(k, s), n;
+    int w = pat_live_at(k, s);
+    if (w == 1) {
+        n = sec_pend.len[i] > 4u ? sec_pend.len[i] - 4u : 0u;
+        memcpy(buf, sec_pend.data + sec_pend.off[i] + 4, n);
+        return n;
+    }
+    if (w == 2 && (n = slg.alen[PAT_LIX(k, s)]) > 4u && !st_read(slg_at(PAT_LIX(k, s)) + SEC_HEAD + 4u, buf, n - 4u))
+        return n - 4u;
+    return 0;
+}
+/* pattern (k, s) as it plays (its live pattern, else its saved one) -> buf, its length; 0 none */
+static uint32_t pat_get(uint32_t k, uint32_t s, uint8_t *buf)
+{
+    return pat_live_at(k, s) ? pat_get_live(k, s, buf) : pat_get_saved(k, s, buf);
+}
+/* the live pattern dropped (the arena's, the log's: a tombstone, playing a pending clear) */
+static void pat_live_drop(uint32_t k, uint32_t s)
+{
+    sec_gen++;                                         /* (the grid's marks, a staged scene: read again) */
+    sec_pend_del(pat_lpend(k, s));
+    if (slg_has(PAT_LIX(k, s))) {
+        if (song.playing || transport_req || !flash_ok)
+            (void)slg_clear_pending(PAT_LIX(k, s)), sec_dirty |= 0x8000u;
+        else
+            (void)slg_put(PAT_LIX(k, s), sec_rbuf, 0, 1);
+    }
+}
+/* "T2 5", "DR 16" -> b, its length (5 at most, no 0 written) */
+static uint32_t pat_name_of(char *b, uint32_t k, uint32_t s)
+{
+    uint32_t n = 3;
+    b[0] = IS_DRUMK(k) ? 'D' : 'T';
+    b[1] = IS_DRUMK(k) ? 'R' : (char)('1' + k);
+    b[2] = ' ';
+    if (s >= 9u)
+        b[n++] = (char)('0' + (s + 1u) / 10u);
+    b[n++] = (char)('0' + (s + 1u) % 10u);
+    return n;
+}
+static void pat_full_say(void)                         /* a live pattern waits in RAM (the log full): said, once a write */
+{
+    pat_live_full = 0;
+    ui_message("MEM FULL: SAVE OR RELOAD");
+}
+/* the arena's live pattern i (16 x track + slot) into the log, its base stamp now (the saved record in the log: sections_write
+ * writes the saved ones first). Never the reserve. 0 written, 1 MEM FULL (it waits), -1 flash */
+static int pat_live_log(uint32_t i)
+{
+    uint32_t pi = SEC_PEND_LV + i, b = slg_base_of(SEC_ID_PAT0 + i);
+    int rc;
+    memcpy(sec_pend.data + sec_pend.off[pi], &b, 4);
+    sec_pend_seal();
+    rc = slg_put(SLG_LV0 + i, sec_pend.data + sec_pend.off[pi], sec_pend.len[pi], 0);
+    if (!rc)
+        sec_pend_del(pi);
+    return rc;
+}
+/* the live pattern (k, s) := n bytes at sec_rbuf + 4: into the arena, stopped into the log at once. 0 kept (in the log, or
+ * waiting in RAM: MEM FULL said), 3 lost (the RAM full too: named) */
+static int pat_live_put(uint32_t k, uint32_t s, uint32_t n)
+{
+    static char msg[] = "T1 16 EDITS LOST";
+    uint32_t z = 0;
+    memcpy(sec_rbuf, &z, 4);
+    if (sec_pend_put(pat_lpend(k, s), sec_rbuf, n + 4u)) {
+        memcpy(msg + pat_name_of(msg, k, s), " EDITS LOST", 12);
+        ui_message(msg);
+        return 3;
+    }
+    if (slg_has(PAT_LIX(k, s)))
+        slg.tomb[PAT_LIX(k, s) >> 5] &= ~(1u << (PAT_LIX(k, s) & 31u));   /* (a clear pending: this record replaces it) */
+    sec_gen++;                                         /* (a staged scene naming the slot: read again, it plays this) */
+    if (song.playing || transport_req || !flash_ok || sec_pend_has(pat_pend(k, s))) {
+        sec_dirty |= 0x8000u;                          /* (sections_write, when the log may be written) */
+        return 0;
+    }
+    if (pat_live_log(PAT_N * k + s) == 1) {
+        sec_dirty |= 0x8000u;
+        pat_full_say();
+    }
+    return 0;
+}
+#else
+#define pat_get pat_get_saved
+#endif
 
 /* a pattern record (n bytes) of track k -> t's steps and its LEN DIV SWING GATE, its automation into l (0: none) and
  * its PLAY bit into *on; 0 not a pattern this build reads (l then empty). A V1 record's motion chunk holds hold events
@@ -162,13 +276,13 @@ static void pat_mark(const project_t *p, int apply)
 
 /* the record of track k of project p -> out (SEC_REC_MAX room), its length; 0: an empty pattern (no step, motion
  * or extras: the scene says none). V2 when it has automation (a list or a PLAY bit), else V1 (no chunk: the same bytes) */
-static uint32_t pat_encode(const project_t *p, uint32_t k, uint8_t *out)
+static uint32_t pat_encode_m(const project_t *p, const void *mv, uint32_t k, uint8_t *out)
 {
     const proj_trk_t *t = &p->t[k];
     uint8_t *o = out + 5;
     uint32_t i, f = PF_V1 | (IS_DRUMK(k) ? PF_DRUM : 0u), b = !sec_test_a && sec_b_gain(t, k) > 0;
 #if FELUCCA_AUTO
-    const auto_store_t *m = auto_of(p);
+    const auto_store_t *m = (const auto_store_t *)mv;
     const auto_list_t *l = m ? &m->l[k] : 0;
     if (l && l->n) {                                   /* V2: the list (V1's motion chunk and 2.4 extras: read only) */
         f = (f & ~(uint32_t)PF_VER) | PF_V2 | PF_MOT;
@@ -189,12 +303,25 @@ static uint32_t pat_encode(const project_t *p, uint32_t k, uint8_t *out)
     if ((f & 0x100u) && !(f & (PF_MOT | PF_ON | PF_SX)))
         return 0;
     out[0] = (uint8_t)f;
+    (void)mv;
     return (uint32_t)(o - out);
 }
+#if FELUCCA_AUTO
+#define pat_encode(p, k, out) pat_encode_m(p, auto_of(p), k, out)
+#else
+#define pat_encode(p, k, out) pat_encode_m(p, 0, k, out)
+#endif
 
 /* ---- where patterns are, who uses them */
-static uint32_t pat_pend(uint32_t k, uint32_t s) { return SEC_PEND_PAT + PAT_N * k + s; }
-static int pat_has(uint32_t k, uint32_t s) { return sec_pend_has(pat_pend(k, s)) || slg_has(PAT_ID(k, s)); }
+/* a pattern there (saved, or a live one with steps) */
+static int pat_has_saved(uint32_t k, uint32_t s) { return sec_pend_has(pat_pend(k, s)) || slg_has(PAT_ID(k, s)); }
+static int pat_has(uint32_t k, uint32_t s)
+{
+    int w = pat_live_at(k, s);
+    if (w == 1)
+        return sec_pend.len[pat_lpend(k, s)] > 4u;
+    return w == 2 ? slg.alen[PAT_LIX(k, s)] > 4u : pat_has_saved(k, s);
+}
 /* the preview of the stored pattern (k, s) without loading it (the patterns screen, ui/optimist/op_laydraw.c): its LEN and,
  * per lane (a synth track: lane 0), which of the first 16 steps are on (a bit each) and their dynamics (2 bits each, LV_*;
  * a synth step's strongest note). Read only (the record is parsed, nothing decoded into a track, nothing written);
@@ -297,7 +424,26 @@ static uint32_t pat_users(uint32_t k, uint32_t s, uint32_t but)
             m |= 1u << i;
     return m;
 }
-/* pattern (k, s) holds the record r (n bytes)? */
+/* the log's bytes at off (n) are r's? */
+static int pat_flash_same(uint32_t off, const uint8_t *r, uint32_t n)
+{
+    uint32_t o, c;
+    uint8_t b[32];
+    for (o = 0; o < n; o += c)
+        if (c = n - o < sizeof b ? n - o : (uint32_t)sizeof b, st_read(off + o, b, c) || memcmp(b, r + o, c))
+            return 0;
+    return 1;
+}
+/* (k, s)'s live pattern stands and holds r (n bytes)? */
+static int pat_live_same(uint32_t k, uint32_t s, const uint8_t *r, uint32_t n)
+{
+    uint32_t i = pat_lpend(k, s);
+    int w = pat_live_at(k, s);
+    if (w == 1)
+        return sec_pend.len[i] == n + 4u && !memcmp(sec_pend.data + sec_pend.off[i] + 4, r, n);
+    return w == 2 && slg.alen[PAT_LIX(k, s)] == n + 4u && pat_flash_same(slg_at(PAT_LIX(k, s)) + SEC_HEAD + 4u, r, n);
+}
+/* pattern (k, s)'s saved record is r (n bytes)? */
 static int pat_same(uint32_t k, uint32_t s, const uint8_t *r, uint32_t n)
 {
     uint32_t i = pat_pend(k, s), id = PAT_ID(k, s), o, c;
@@ -306,10 +452,8 @@ static int pat_same(uint32_t k, uint32_t s, const uint8_t *r, uint32_t n)
         return sec_pend.len[i] == n && !memcmp(sec_pend.data + sec_pend.off[i], r, n);
     if (!slg_has(id) || slg.alen[id] != n)
         return 0;
-    for (o = 0; o < n; o += c)
-        if (c = n - o < sizeof b ? n - o : (uint32_t)sizeof b, st_read(slg_at(id) + SEC_HEAD + o, b, c) || memcmp(b, r + o, c))
-            return 0;
-    return 1;
+    (void)o, (void)c, (void)b;
+    return pat_flash_same(slg_at(id) + SEC_HEAD, r, n);
 }
 /* the slot a changed pattern of track k (from slot src) goes to when scene s is stored: its source when no other
  * scene plays it, else slot s, else the lowest; a slot qualifies when no other scene plays it and it is empty, the
@@ -341,6 +485,9 @@ static int pat_put(uint32_t id, uint32_t pi, const uint8_t *r, uint32_t n, int a
     int rc = arena ? sec_pend_put(pi, r, n) ? 3 : 0 : slg_put(id, r, n, 1);
     if (!rc && !arena)
         sec_pend_del(pi);                              /* (an older one waiting in the arena: gone) */
+    if (!rc && SLG_LV_ID(id))
+        pat_live_drop((id - SEC_ID_PAT0) / PAT_N, (id - SEC_ID_PAT0) % PAT_N);   /* (a pattern saved: its edits are the saved
+                                                        * record now, no live one; issue 142) */
     return rc;
 }
 /* project p (in proj_tmp.cur: its drum record d, its tracks' sources src) stored as scene s: the changed patterns
@@ -518,13 +665,77 @@ static void pat_take(track_t *t, uint32_t k, const project_t *p)
     auto_touch(k);
 #endif
 }
-/* launch pattern s (PAT_NONE: none, the track stops) on track k, when (PW_*); stopped: at once */
-static void pat_launch(uint32_t k, uint32_t s, uint32_t when)
+/* ---- playing (issue 142, phase 2): the outgoing pattern of a switch is kept without a buffer of its own. The audio ISR
+ * exchanges the working track k with the stage's track k (pat_swap_isr) instead of copying the stage over it: the incoming
+ * pattern plays, the stage holds the outgoing one, and the main loop (pat_left_service, before anything stages again)
+ * writes it as its slot's live pattern (pat_leave_rec: into the arena, the log by sections_write: LIVE_SAVE while playing) */
+static uint8_t pat_left;                               /* the tracks whose outgoing pattern waits in the stage (the ISR sets) */
+static uint8_t pat_left_s[NTRK];                       /* each one's slot */
+static uint8_t pat_noleave;                            /* the tracks whose next switch keeps nothing (RELOAD) */
+static void pat_swap_isr(uint32_t k, int fold)
+{
+    track_t *t = &trk[k];
+    proj_trk_t *s = &sec_stage_p.t[k];
+    uint32_t i;
+    pstep_t x;
+#if FELUCCA_AUTO
+    auto_store_t *m = auto_for(&sec_stage_p, 0);
+    if (m) {                                           /* the lists and PLAY bits exchanged (the outgoing's own note ends */
+        auto_list_t *a = &auto_w.l[k], *b = &m->l[k];  /*  into its list first, as a capture puts them) */
+        uint32_t n, on = auto_w.on;
+        (void)ngate_unfold(a, t->step, k);
+        n = a->n > b->n ? a->n : b->n;
+        for (i = 0; i < n; i++) {
+            auto_ev_t e = a->ev[i];
+            a->ev[i] = b->ev[i];
+            b->ev[i] = e;
+        }
+        n = a->n, a->n = b->n, b->n = (uint8_t)n;
+        auto_w.on = (uint8_t)((auto_w.on & ~(1u << k)) | (m->on & (1u << k)));
+        m->on = (uint8_t)((m->on & ~(1u << k)) | (on & (1u << k)));
+    }
+#endif
+    for (i = 0; i < NSTEP; i++) {                      /* the steps, one at a time through one temporary */
+        if (IS_DRUMK(k)) {
+            memcpy(&x, &t->dstep[i], DSTEP_SN);
+            memcpy(&t->dstep[i], &s->step[i], DSTEP_SN);
+        } else {
+            memcpy(&x, &t->step[i], STEP_SN);
+            memcpy(&t->step[i], &s->step[i], STEP_SN);
+            memset(t->step[i].ngate, 0, sizeof t->step[i].ngate);
+        }
+        memcpy(&s->step[i], &x, sizeof x);
+    }
+    if (IS_DRUMK(k))
+        memset(t->step, 0, sizeof t->step);            /* (the ACCENT lane: its events fold back, as steps_load) */
+    for (i = 0; i < 4u; i++) {
+        int16_t v = s->p[P_SLEN + i];
+        s->p[P_SLEN + i] = t->p[P_SLEN + i];
+        t->p[P_SLEN + i] = (int16_t)clamp(v, TP[P_SLEN + i].min, TP[P_SLEN + i].max);
+    }
+#if FELUCCA_MOTION
+    motion_restore(t);
+#endif
+#if FELUCCA_AUTO
+    if (fold) {                                        /* (a scene: proj_apply folds every track) */
+        ngate_apply_trk(k);
+        auto_touch(k);
+    }
+#endif
+    (void)fold;
+}
+/* launch pattern s (PAT_NONE: none, the track stops) on track k, when (PW_*); stopped: at once. keep: the outgoing
+ * pattern's edits kept as its live pattern (issue 142; RELOAD: not) */
+static void pat_launch_keep(uint32_t k, uint32_t s, uint32_t when, int keep)
 {
     k %= NTRK;
     if (!song.playing && !transport_req) {
         if (proj_tmp_busy())
             return;
+        if (keep) {
+            (void)sec_capture();
+            (void)pat_leave(&proj_tmp.cur, k);
+        }
         pat_load_trk(k, s, &proj_tmp.cur);
         fm1_irq_off();
         undo_mark(&trk[k], (undo_sess += 4u) | 3u);
@@ -540,8 +751,10 @@ static void pat_launch(uint32_t k, uint32_t s, uint32_t when)
     pat_when[k] = (uint8_t)when;
     pat_bar[k] = clk_beat >> 2;
     pat_staged &= (uint8_t)~(1u << k);                 /* (staged again by pat_service) */
+    pat_noleave = (uint8_t)(keep ? pat_noleave & ~(1u << k) : pat_noleave | 1u << k);
     fm1_irq_on();
 }
+static void pat_launch(uint32_t k, uint32_t s, uint32_t when) { pat_launch_keep(k, s, when, 1); }
 /* main loop: each launch waiting, decoded into the stage */
 static void pat_service(void)
 {
@@ -571,7 +784,14 @@ static uint32_t pat_switch_isr(track_t *t, uint32_t abs, uint32_t len)
         (w == PW_BAR && ((clk_beat & 3u) || (clk_beat >> 2) == pat_bar[k])))
         return len;
     FAST_CALL(seqev, undo_mark)(t, (undo_sess += 4u) | 3u);
-    FAST_CALL(seqev, pat_take)(t, k, &sec_stage_p);
+    if (((pat_noleave >> k) & 1u) || pat_cur[k] >= PAT_N)
+        FAST_CALL(seqev, pat_take)(t, k, &sec_stage_p);  /* (RELOAD, or a track from no slot: nothing to keep) */
+    else if (pat_req[k] != pat_cur[k]) {
+        pat_left_s[k] = pat_cur[k];                    /* (the outgoing kept: the stage holds it now) */
+        pat_swap_isr(k, 1);
+        pat_left |= (uint8_t)(1u << k);
+    }                                                  /* (the slot playing launched again: its edits play on, from step 1) */
+    pat_noleave &= (uint8_t)~(1u << k);
     if (w != PW_NOW)
         t->org = abs;                                  /* (from its step 1) */
 #if FELUCCA_COND
@@ -586,13 +806,18 @@ static uint32_t pat_switch_isr(track_t *t, uint32_t abs, uint32_t len)
     return trk_len(t);
 }
 static uint32_t (*pat_switch)(track_t *t, uint32_t abs, uint32_t len) = pat_switch_isr;   /* (seq.c calls it) */
-/* the ISR applies a scene (arrangement_apply), before: a track the scene keeps takes what it plays into the stage;
- * after (applied 1): the launches the stage held are played now */
-static void pat_scene_apply(int applied)
+/* the ISR applies a scene (arrangement_apply), before: a track the scene keeps takes what it plays into the stage, as does
+ * a track whose incoming slot is the one it plays (issue 142: its edits play on, from step 1); -> the tracks that leave a
+ * slot (to be swapped, pat_swap_isr). After (applied 1): the launches the stage held are played now */
+static uint32_t pat_scene_apply(int applied)
 {
-    uint32_t k;
-    for (k = 0; k < NTRK; k++)
-        if (!applied && pat_bref[1][k] == PAT_KEEP) {
+    uint32_t k, sw = 0;
+    for (k = 0; k < NTRK; k++) {
+        uint32_t in = (pat_staged >> k) & 1u ? (pat_req[k] == PAT_STOP ? PAT_NONE : pat_req[k]) : pat_bref[1][k];
+        int nl = (pat_noleave >> k) & 1u;
+        if (!applied && in != PAT_KEEP && !nl && pat_cur[k] < PAT_N && in != pat_cur[k])
+            sw |= 1u << k;
+        if (!applied && (in == PAT_KEEP || (!nl && in < PAT_N && in == pat_cur[k]))) {
             uint32_t i;
             steps_store(sec_stage_p.t[k].step, &trk[k], k);
             for (i = 0; i < 4u; i++)
@@ -606,9 +831,165 @@ static void pat_scene_apply(int applied)
         } else if (applied && ((pat_staged >> k) & 1u)) {
             pat_cur[k] = pat_req[k] == PAT_STOP ? PAT_NONE : pat_req[k];
             pat_req[k] = PAT_NONE;
+            pat_noleave &= (uint8_t)~(1u << k);
         }
+    }
     if (applied)
         pat_staged = 0;
+    return sw;
+}
+
+/* ---- leaving a pattern (issue 142): the working copy of track k (encoded from p) goes back to its slot pat_cur[k]: as
+ * that slot's live pattern when it differs from what the slot plays, nothing when it is the same, the live one dropped when it
+ * is the saved one again. -> 0 kept (or nothing to keep), 3 lost (said) */
+static int pat_leave_rec(uint32_t k, uint32_t s, uint32_t n)   /* (the record: n bytes at sec_rbuf + 4) */
+{
+    if (s >= PAT_N)
+        return 0;                                      /* (a track from no slot: nothing to go back to) */
+    if (n ? pat_same(k, s, sec_rbuf + 4, n) : !pat_has_saved(k, s)) {
+        if (pat_live_at(k, s))
+            pat_live_drop(k, s);                       /* (edited back to the saved one) */
+        return 0;
+    }
+    if (pat_live_same(k, s, sec_rbuf + 4, n))
+        return 0;                                      /* (as it was left before) */
+    return pat_live_put(k, s, n);
+}
+static int pat_leave(const project_t *p, uint32_t k)
+{
+    if (pat_cur[k] >= PAT_N)
+        return 0;
+    return pat_leave_rec(k, pat_cur[k], pat_encode(p, k, sec_rbuf + 4));
+}
+/* main loop, before anything stages again (sec_service, sec_read of the stage): the outgoing patterns the ISR left in the
+ * stage written as their slots' live patterns (playing: into the arena; sections_write takes them to the log) */
+static void pat_left_service(void)
+{
+    uint32_t k, n;
+    for (k = 0; k < NTRK; k++)
+        if ((pat_left >> k) & 1u) {
+#if FELUCCA_AUTO
+            n = pat_encode_m(&sec_stage_p, auto_for(&sec_stage_p, 0), k, sec_rbuf + 4);
+#else
+            n = pat_encode_m(&sec_stage_p, 0, k, sec_rbuf + 4);
+#endif
+            (void)pat_leave_rec(k, pat_left_s[k], n);
+            fm1_irq_off();
+            pat_left &= (uint8_t)~(1u << k);
+            fm1_irq_on();
+        }
+}
+/* stopped (or the IRQ's capture: sec_capture): every track's edits kept as its live pattern -> 0, 3 one lost (said) */
+static int pat_leave_all(void)
+{
+    uint32_t k;
+    int rc = 0;
+    if (proj_tmp_busy())
+        return 0;
+    (void)sec_capture();
+    for (k = 0; k < NTRK; k++)
+        rc |= pat_leave(&proj_tmp.cur, k);
+    return rc;
+}
+/* how many live patterns the open project holds (the arena's and the log's that stand) */
+static uint32_t pat_live_count(void)
+{
+    uint32_t k, s, n = 0;
+    for (k = 0; k < NTRK; k++)
+        for (s = 0; s < PAT_N; s++)
+            n += pat_live_at(k, s) != 0;
+    return n;
+}
+/* PROJECT SAVE (stopped, the arena written: proj_quiet): every live pattern of the open project its saved one, then the live
+ * one cleared (a cut between: the live one is stale by its stamp, dropped at the next open; the saved one holds the same).
+ * 0 ok, 1 MEM FULL, -1 flash */
+static int pat_promote_all(void)
+{
+    uint32_t i, k, s, n;
+    int rc;
+    persist_flush_now();                               /* (the arena's patterns into the log first) */
+    for (i = 0; i < NTRK * PAT_N; i++) {
+        k = i / PAT_N, s = i % PAT_N;
+        if (!pat_live_at(k, s))
+            continue;
+        if (sec_pend_has(pat_lpend(k, s)) || sec_pend_has(pat_pend(k, s)))
+            return 1;                                  /* (still in RAM: the log full) */
+        n = pat_get_live(k, s, sec_rbuf);
+        rc = slg_put(PAT_ID(k, s), sec_rbuf, n, 1);    /* (the reserve too: its live record goes right after) */
+        if (rc)
+            return rc;
+        if (slg_put(PAT_LIX(k, s), sec_rbuf, 0, 1))
+            return -1;
+    }
+    sec_gen++;
+    return 0;
+}
+/* RELOAD (HOME + SEQ; issue 142): track k's edits dropped, its slot's saved pattern back in the working copy. Stopped: at
+ * once (an undo level); playing: as a launch of the slot at the end of the pattern (pat_launch, nothing kept). -> 0 done,
+ * 1 nothing to reload (no slot) */
+static void pat_launch_keep(uint32_t k, uint32_t s, uint32_t when, int keep);
+static int pat_reload(uint32_t k)
+{
+    uint32_t s = pat_cur[k % NTRK];
+    if (s >= PAT_N)
+        return 1;
+    pat_live_drop(k, s);
+    pat_launch_keep(k, s, PW_END, 0);
+    sec_gen++;
+    return 0;
+}
+/* the editor (ed_pat.c, issue 142 decision 4): record (n bytes in sec_rbuf, n > 0) as pattern (k, s)'s live one (the saved
+ * one again: the live one dropped); the slot playing on track k takes it (stopped at once, playing at the pattern's end,
+ * nothing kept: what plays is replaced, as a RELOAD would). -> 0 done (in the log, or waiting in RAM: MEM FULL said), 3 lost */
+static int pat_live_write(uint32_t k, uint32_t s, uint32_t n)
+{
+    int rc;
+    memmove(sec_rbuf + 4, sec_rbuf, n);
+    rc = pat_leave_rec(k, s, n);
+    if (!rc && pat_cur[k] == s)
+        pat_launch_keep(k, s, PW_END, 0);
+    else if (!rc && pat_req[k] == s)
+        pat_staged &= (uint8_t)~(1u << k);             /* (a launch waiting for it: decoded again) */
+    sec_gen++;
+    return rc;
+}
+/* the editor's SAVE of slot (k, s): the slot track k plays: its working copy saved there (SAVE + SEQ); another: its live
+ * pattern the saved one. -> 0 done (nothing to save too), 1 MEM FULL, else said */
+static int pat_save_slot(uint32_t k, uint32_t s)
+{
+    uint32_t n;
+    int rc;
+    if (pat_cur[k] == s)
+        return pat_store_slot(k, s);
+    if (!pat_live_at(k, s))
+        return 0;
+    if (song.playing || transport_req || !flash_ok) {
+        n = pat_get_live(k, s, sec_rbuf);
+        return pat_write(k, s, n);                     /* (playing: the arena; its live record dropped: pat_put) */
+    }
+    persist_flush_now();
+    if (sec_pend_has(pat_lpend(k, s)))
+        return 1;                                      /* (still in RAM: the log full) */
+    n = pat_get_live(k, s, sec_rbuf);
+    rc = slg_put(PAT_ID(k, s), sec_rbuf, n, 1);
+    if (!rc)
+        pat_live_drop(k, s);
+    sec_gen++;
+    return rc;
+}
+/* the editor's RELOAD of slot (k, s): its live pattern dropped; the slot track k plays: RELOAD (pat_reload) */
+static int pat_reload_slot(uint32_t k, uint32_t s)
+{
+    if (pat_cur[k] == s)
+        return pat_reload(k);
+    pat_live_drop(k, s);
+    sec_gen++;
+    return 0;
+}
+/* track k has edits not saved: its working copy is not its slot's saved pattern, or the slot has a live one */
+static int pat_unsaved_trk(uint32_t k, uint32_t chg)
+{
+    return ((chg >> k) & 1u) || (pat_cur[k] < PAT_N && pat_live_at(k, pat_cur[k]));
 }
 
 /* ---- the PATTERN layer's operations (ui/sloop/ui_pat.c; the editor's later). Stopped: the log; playing: the
@@ -623,6 +1004,7 @@ static int pat_write(uint32_t k, uint32_t s, uint32_t n)   /* sec_rbuf (n bytes;
     else if (!n && song.playing) {
         sec_pend_del(pat_pend(k, s));                  /* (cleared while playing: a store waiting in the arena goes, the log's record */
         (void)slg_clear_pending(id);                   /*  reads as none now, its tombstone is written when quiet) */
+        pat_live_drop(k, s);                           /* (and its live one: a clear clears both) */
         rc = 0;
     } else
         rc = pat_put(id, pat_pend(k, s), sec_rbuf, n, song.playing || !flash_ok);

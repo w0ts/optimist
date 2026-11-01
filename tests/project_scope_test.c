@@ -366,11 +366,23 @@ int main(void)
     rc = state_save();
     project_save(1);
     check("project 2: a state and scene B stored", ok && rc == 0 && !strcmp(last_msg, "SAVED") && scene_is(1, 10));
+    {   /* a live pattern of project 1 (issue 142: tag 0x10 | p), made from its saved record: kept across opens, cleared by DELETE */
+        uint8_t lr[40];
+        uint32_t b;
+        ok = open_p(0);
+        b = slg_base_of(SEC_ID_PAT0 + 3u);
+        memset(lr, 0x5A, sizeof lr);
+        memcpy(lr, &b, 4);
+        ok &= slg_put(SLG_LVX(SEC_ID_PAT0 + 3u), lr, sizeof lr, 0) == 0 && open_p(1) && !slg_has(SLG_LVX(SEC_ID_PAT0 + 3u)) && open_p(0) &&
+              slg_live_ok(SEC_ID_PAT0 + 3u) && open_p(1);
+        check("a live pattern of project 1: kept across another project's open, not seen there", ok);
+    }
     rc = project_clear(0);
     check("DELETE of project 1 from project 2: done, project 2 still open and whole", rc == 0 && open_proj == 1u && scene_is(1, 10) && state_is(10));
     ok = open_p(0);
     check("... project 1 opened: empty (no scene, pattern, state or chain)", ok && !project_used(0) && !project_used(5) && npat() == 0u &&
           !slg_has(SEC_ID_STATE) && !slg_has(SEC_ID_SONG) && arrangement.count == 0u);
+    check("... its live pattern cleared too", !slg_has(SLG_LVX(SEC_ID_PAT0 + 3u)) && !project_slot_used(0));
     /* ---- SAVE into another slot: a save as (the user, 2026-10-25: "copy everything") */
     fresh();
     make(11), take(11);

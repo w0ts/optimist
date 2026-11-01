@@ -85,8 +85,7 @@ static void patview_tests(void)
           "the store read without loading: the slot's steps and levels, its LEN");
     check(trk[0].step[0].n == 0u && pat_cur[0] == 4u && !pat_peek(0, 5, &d) && d.hit[0] == 0u, "... the working pattern untouched, an empty slot reads as nothing");
     /* an empty slot */
-    key(WK(7));
-    tap(B_SAVE);                                        /* (the cleared step is an edit: LOSE EDITS? yes) */
+    key(WK(7));                                         /* (the cleared step is an edit: kept as slot 5's live pattern, no question) */
     ui.force = 1;
     frame();
     y = pvt_pv_y();

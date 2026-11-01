@@ -1566,6 +1566,10 @@ for f in "" "-DFELUCCA_MOTION=0" "-DFELUCCA_SL24_XSTEP=1 -DFELUCCA_MICRO=1"; do
         run "pattern launches while playing (${f:-defaults}): end, bar, now, swing, motion, a take, undo, stopped, a live jump, song mode" "$OUT/patterns_seq_test$nu"
     ) >"$U.out" 2>&1 & jobbg
 done
+job; ( jobin   # live patterns (issue 142): each pattern keeps its edits in flash beside its saved version
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/patlive_test" tests/patlive_test.c -lm
+    run "live patterns (issue 142): a launch keeps the edits, SAVE / RELOAD / clear, projects keep their own, PROJECT SAVE saves everything, a save as, stale ones swept, MEM FULL waits (a switch refused), RAM full named, a power cut at every program" "$OUT/patlive_test"
+) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/patterns_ed_test" tests/patterns_ed_test.c -lm
     run "editor cmds 83 / 84 (pattern read / write): chunks of 256 B, checked as the stage decodes, the log or the arena, refused when out of order / of another kind / too long / proj_tmp lent, clear" "$OUT/patterns_ed_test"
@@ -1609,6 +1613,8 @@ for f in 1 2; do                                     # (the log's format 1 and 2
         $CC -O2 -w -I"$HGEN" -Ifirmware/src -DSLG_V2=$((f - 1)) -DSEC_LOG_SECTORS=7u -o "$OUT/sec_log_compat_new$f" tests/sec_log_compat_test.c -lm
         $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/src/storage/sections -DSLG_PREV=1 -DSLG_V2=$((f - 1)) -DSEC_LOG_SECTORS=7u -o "$OUT/sec_log_compat_prev$f" tests/sec_log_compat_test.c -lm
         run "the log, format $f, across firmware versions (MIDI tracks' phase 0): an old log (golden) loads here identically; this build's log, its MIDI ids among the others, read and compacted by the previous firmware (tests/compat/sec_log_142.c) without loss of what it knows" sh tests/sec_log_compat.sh "$OUT/sec_log_compat$f" "$OUT/sec_log_compat_new$f" "$OUT/sec_log_compat_prev$f" $f
+        $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/src/storage/sections -DSLG_PREV=226 -DSLG_V2=$((f - 1)) -DSEC_LOG_SECTORS=7u -o "$OUT/sec_log_compat_p226_$f" tests/sec_log_compat_test.c -lm
+        run "the log, format $f, against main 64c1d915's firmware (tests/compat/sec_log_226.c, the last before the live patterns, issue 142): an old log loads here identically; this build's log, its live patterns among the others, read and compacted there without loss, the live patterns kept byte for byte, its projects strip unchanged" sh tests/sec_log_compat.sh "$OUT/sec_log_compat226_$f" "$OUT/sec_log_compat_new$f" "$OUT/sec_log_compat_p226_$f" $f
     ) >"$U.out" 2>&1 & jobbg
 done
 for s in 6 8 12; do                                  # (SNAPSHOTS 2 / 4 / 8)
