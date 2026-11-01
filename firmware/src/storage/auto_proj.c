@@ -20,22 +20,37 @@
 #if !SEC_LOGGED
 static auto_store_t auto_slot[4] __attribute__((section(".pool")));
 #endif
-static auto_store_t auto_aux[AUTO_AUX] __attribute__((section(".pool")));
-static const project_t *auto_aux_p[AUTO_AUX];
+#if STG_LEND
+/* proj_tmp's store and the autosave's in the STORAGE reserve (seq/undo.c stg_p), with the buffers they belong to; the
+ * stage's and the song's backup's here (the audio reads them) */
+#define STG_O_AU STG_E_ST
+#define STG_E_AU (STG_O_AU + 2u * STG_AL(sizeof(auto_store_t)))
+#define AUTO_AUX_N (AUTO_AUX - 2u)
+static int stg_au_of(const project_t *p);               /* (project.c: 0 proj_tmp's, 1 the autosave's, -1 neither) */
+#else
+#define AUTO_AUX_N AUTO_AUX
+#endif
+static auto_store_t auto_aux[AUTO_AUX_N] __attribute__((section(".pool")));
+static const project_t *auto_aux_p[AUTO_AUX_N];
 
 /* the store of a project buffer; mk: take a free one for a buffer that has none (0: none) */
 static auto_store_t *auto_for(const project_t *p, int mk)
 {
     uint32_t i;
+#if STG_LEND
+    int b = stg_au_of(p);
+    if (b >= 0)
+        return (auto_store_t *)stg_p(STG_O_AU + (uint32_t)b * STG_AL(sizeof(auto_store_t)));
+#endif
 #if !SEC_LOGGED
     if (p >= proj_slot && p < proj_slot + 4)
         return &auto_slot[p - proj_slot];
 #endif
-    for (i = 0; i < AUTO_AUX; i++)
+    for (i = 0; i < AUTO_AUX_N; i++)
         if (auto_aux_p[i] == p)
             return &auto_aux[i];
     if (mk)
-        for (i = 0; i < AUTO_AUX; i++)
+        for (i = 0; i < AUTO_AUX_N; i++)
             if (!auto_aux_p[i]) {
                 auto_aux_p[i] = p;
                 return &auto_aux[i];
@@ -129,6 +144,19 @@ static void auto_apply_store(const project_t *p)
 #endif
 #if FELUCCA_MOTION
     motion_full = 0;
+#endif
+#if FELUCCA_PATTERNS
+    if (pat_apply_keep) {                             /* (tracks the ISR swapped: their lists stay, pat.c pat_swap_isr) */
+        uint32_t j;
+        for (j = 0; j < NTRK; j++)
+            if (!PAT_KEEPS(j)) {
+                if (m)
+                    auto_w.l[j] = m->l[j];
+                else
+                    auto_w.l[j].n = 0;
+                auto_w.on = (uint8_t)((auto_w.on & ~(1u << j)) | (m ? m->on & (1u << j) : 0u));
+            }
+    } else
 #endif
     if (m)
         auto_w = *m;

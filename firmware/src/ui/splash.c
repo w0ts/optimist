@@ -82,10 +82,16 @@ static uint32_t lg_isqrt(uint32_t v)
     return r;
 }
 
-/* keep the larger coverage at (x, y) of the canvas */
+/* the box's rows in the canvas now (a pass of optimist_logo: the whole box when the canvas holds it, two passes with
+ * CANVAS_STRIP's 240 x 62, three of 240 x 31): lg_y0 .. lg_y0 + lg_n - 1 */
+static uint32_t lg_y0, lg_n;
+/* keep the larger coverage at (x, y) of the box (nothing outside this pass's rows: the canvas ends there) */
 static void lg_max(uint32_t x, uint32_t y, int32_t k)
 {
-    uint16_t *p = &cv_px[y * LOGO_W + x];
+    uint16_t *p;
+    if (y < lg_y0 || y - lg_y0 >= lg_n || x >= LOGO_W)
+        return;
+    p = &cv_px[(y - lg_y0) * LOGO_W + x];
     if (k > (int32_t)*p)
         *p = (uint16_t)k;
 }
@@ -110,35 +116,43 @@ static void lg_seg(const uint8_t *s)
 /* the logo into the canvas (LOGO_W x LOGO_H): the coverage of each part, then its colour; then onto the screen */
 static void optimist_logo(uint32_t x0, uint32_t y0)
 {
-    uint32_t x, y, i;
-    cv_begin(LOGO_W, LOGO_H, C_BLACK);
-    for (i = 0; i < LG_NSEGS; i++)
-        lg_seg(LG_SEGS[i]);
-    for (y = LG_QY - LOGO_R - 1; y <= LG_QY + LOGO_R * 1360 / 1000 + 1; y++)
-        for (x = LG_QX - LOGO_R - 1; x <= LG_QX + LOGO_R + 1; x++)
-            lg_max(x, y, lg_cover(((int32_t)x - LG_QX) * 256, ((int32_t)y - LG_QY) * 256));
-    for (i = 0; i < LOGO_W * LOGO_H; i++) {
-        uint32_t k = cv_px[i], c = LOGO_C;
-        if (k)
-            cv_px[i] = swap16((((c >> 11) * k >> 8) << 11) | ((((c >> 5) & 63u) * k >> 8) << 5) |
-                              ((c & 31u) * k >> 8));
+    uint32_t x, y, i, rows = CV_MAX / LOGO_W;           /* (the box's rows a pass: all 151 on the whole canvas) */
+    for (lg_y0 = 0; lg_y0 < LOGO_H; lg_y0 += lg_n) {
+        lg_n = LOGO_H - lg_y0 < rows ? LOGO_H - lg_y0 : rows;
+        cv_begin(LOGO_W, lg_n, C_BLACK);
+        for (i = 0; i < LG_NSEGS; i++)
+            lg_seg(LG_SEGS[i]);
+        for (y = LG_QY - LOGO_R - 1; y <= LG_QY + LOGO_R * 1360 / 1000 + 1; y++)
+            for (x = LG_QX - LOGO_R - 1; x <= LG_QX + LOGO_R + 1; x++)
+                lg_max(x, y, lg_cover(((int32_t)x - LG_QX) * 256, ((int32_t)y - LG_QY) * 256));
+        for (i = 0; i < LOGO_W * lg_n; i++) {
+            uint32_t k = cv_px[i], c = LOGO_C;
+            if (k)
+                cv_px[i] = swap16((((c >> 11) * k >> 8) << 11) | ((((c >> 5) & 63u) * k >> 8) << 5) |
+                                  ((c & 31u) * k >> 8));
+        }
+        cv_blit(x0, y0 + lg_y0);
     }
-    cv_blit(x0, y0);
 }
 
 /* the boot screen: the logo, the name in the theme's colour, the version from the build (VERSION) */
 static void boot_splash(void)
 {
     const char *v = FELUCCA_VERSION, *p = "OPTIMIST ";
-    uint32_t i = 0;
+    uint32_t i = 0, r0, n;
     while (p[i] && v[i] == p[i])
         i++;
     if (!p[i])
         v += i;                                          /* "OPTIMIST 0.2" -> "0.2" (a release says "0.2 BETA") */
     lcd_fill(0, 0, 240, 240, C_BLACK);
     optimist_logo((240u - LOGO_W) / 2u, LOGO_Y);
-    cv_begin(240, 56, C_BLACK);
-    cv_text(120 - text_w(&FONT_L, "OPTIMIST") / 2, 0, &FONT_L, "OPTIMIST", C_HI);
-    cv_text(120 - text_w(&FONT_S, v) / 2, 40, &FONT_S, v, C_AMB);
-    cv_blit(0, LOGO_TEXT_Y);
+    for (r0 = 0; r0 < 56u; r0 += n) {                  /* the name, the version: 56 rows, in passes on a smaller canvas */
+        n = 56u - r0 < CV_MAX / 240u ? 56u - r0 : CV_MAX / 240u;
+        cv_begin(240, n, C_BLACK);
+        cv_oy = -(int32_t)r0;
+        cv_text(120 - text_w(&FONT_L, "OPTIMIST") / 2, 0, &FONT_L, "OPTIMIST", C_HI);
+        cv_text(120 - text_w(&FONT_S, v) / 2, 40, &FONT_S, v, C_AMB);
+        cv_oy = 0;
+        cv_blit(0, LOGO_TEXT_Y + r0);
+    }
 }

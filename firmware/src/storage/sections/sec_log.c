@@ -88,6 +88,22 @@ _Static_assert(SLG_ID_MPAT0 == 142u && SLG_ID_MSCN0 == 206u && SLG_ID_MWORK0 == 
                SLG_ID_MWORK0 + SLG_MTRK == SLG_IDS && SLG_IDS < 0xFFu, "the MIDI tracks' log ids: 142..225, a u8");
 #define SEC_ID_SONG 16u
 #define SEC_ID_PAT0 24u                                /* the first pattern record (track 0, slot 0) */
+/* format 2: the open project's live patterns (docs/PATTERNS-DESIGN.md 9, issue 142): every pattern keeps its edits not
+ * saved as a record of its own, the pattern ids 24..87 again under the project tag SLG_LIVE | p (16..31; the record
+ * format is the same). A build before them counts such a record with the other projects' (fliv), copies it through a
+ * compaction as it is and never indexes it (its tag is no project of its). Indexed here past the ids: SLG_LV0 + id - 24
+ * (SLG_IDS itself stays "none" for every caller). A live record's first 4 bytes: the sequence number of the saved
+ * record it was made from (0: none; pat.c: a saved record written since makes it stale, dropped) */
+#if SLG_V2
+#define SLG_LIVE 0x10u
+#define SLG_LV_N 64u
+#define SLG_LV0 (SLG_IDS + 1u)
+#define SLG_IX (SLG_LV0 + SLG_LV_N)                    /* the index's entries */
+#define SLG_LV_ID(id) ((id) >= SEC_ID_PAT0 && (id) < SEC_ID_PAT0 + SLG_LV_N)   /* an id with a live scope */
+#else
+#define SLG_IX SLG_IDS
+#endif
+#define SLG_KNOWN(i) ((i) < SLG_IX && (i) != SLG_IDS)  /* an entry of the index */
 _Static_assert(SEC_IDS <= SEC_ID_SONG, "the sections' ids come before the songs'");
 #define SEC_SECT 4096u
 _Static_assert(SEC_LOG_SECTORS <= 64u, "the index keeps where a record is as sector << 10 | offset / 4 (16 bits)");
@@ -110,7 +126,6 @@ _Static_assert(SEC_LOG_SECTORS <= 64u, "the index keeps where a record is as sec
 #define SLG_PROJ_NONE 0xFEu                            /* (slg.proj while booting: the device-wide ids alone) */
 #define SLG_MINE(pr, id) ((pr) == SLG_PROJ_GLOBAL || (pr) == slg.proj)
 #define SLG_UNK(id) ((id) >= SLG_IDS)                  /* a later firmware's id: never indexed (format 2: kept as it is) */
-#define SLG_OUT(pr, id) (!SLG_MINE(pr, id) || SLG_UNK(id))   /* a record the index does not hold (format 2: fliv) */
 #if SLG_V2
 #define SEC_MAGIC 0x32474C53u                          /* "SLG2" */
 #else
@@ -139,17 +154,18 @@ _Static_assert(sizeof(sec_shead_t) == SEC_HEAD && sizeof(sec_rhead_t) == SEC_HEA
 static struct {
     uint32_t seq;                                      /* the next record's sequence number */
     uint32_t sseq;                                     /* the next sector's */
-    uint32_t aseq[SLG_IDS];                            /* the sequence number of id's newest record */
-    uint16_t at[SLG_IDS];                              /* where it is, from SEC_LOG_BASE (0: none; slg_at) */
-    uint16_t alen[SLG_IDS];                            /* its length */
+    uint32_t aseq[SLG_IX];                             /* the sequence number of id's newest record (format 2: the live */
+    uint16_t at[SLG_IX];                               /* where it is, from SEC_LOG_BASE (0: none; slg_at)   patterns' */
+    uint16_t alen[SLG_IX];                             /* its length                                         past) */
     uint32_t head;                                     /* the sector written now (index) */
     uint32_t fill;                                     /* where in it the next record goes */
     uint32_t sorder[SEC_LOG_SECTORS];                  /* each sector's sequence number, 0 = erased */
-    uint32_t tomb[(SLG_IDS + 31u) / 32u];              /* ids cleared while playing, the flash not written yet (slg_clear_pending) */
+    uint32_t tomb[(SLG_IX + 31u) / 32u];              /* ids cleared while playing, the flash not written yet (slg_clear_pending) */
 #if SLG_V2
     uint32_t fliv[SEC_LOG_SECTORS];                    /* each sector's live bytes of the other projects' records and of the ids
                                                         * past SLG_IDS (SLG_UNK; with heads) */
-    uint16_t pused;                                    /* the projects with a live record (a bit each; sections.c project_slot_used) */
+    uint16_t pused;                                    /* the projects with a live record (a bit each; sections.c project_slot_used;
+                                                        * a live pattern counts) */
 #endif
     uint8_t up;
     uint8_t proj;                                      /* the open project (format 2; SLG_PROJ_NONE while booting) */
@@ -179,7 +195,50 @@ static uint32_t slg_rcrc(const sec_rhead_t *h, const uint8_t *data)
     c = st_crc32(b, SLG_V2 ? 8u : 7u);
     return c ^ (h->len ? st_crc32(data, h->len) : 0x5A5A5A5Au);
 }
+/* index entry i's record: its id and project tag in the log */
+static uint32_t slg_fid(uint32_t i)
+{
 #if SLG_V2
+    if (i >= SLG_LV0)
+        return SEC_ID_PAT0 + i - SLG_LV0;
+#endif
+    return i;
+}
+static uint32_t slg_fproj(uint32_t i)
+{
+#if SLG_V2
+    if (i >= SLG_LV0)
+        return SLG_LIVE | slg.proj;
+    return SLG_DEV(i) ? SLG_PROJ_GLOBAL : slg.proj;
+#else
+    (void)i;
+    return SLG_PROJ_GLOBAL;
+#endif
+}
+/* the index entry of a record (its project tag, its id), SLG_IDS: not in the index (another project's, a later firmware's) */
+static uint32_t slg_ix(uint32_t pr, uint32_t id)
+{
+    if (SLG_UNK(id))
+        return SLG_IDS;
+#if SLG_V2
+    if (SLG_MINE(pr, id))
+        return id;
+    if (slg.proj < 16u && pr == (SLG_LIVE | slg.proj) && SLG_LV_ID(id))
+        return SLG_LV0 + id - SEC_ID_PAT0;
+    return SLG_IDS;
+#else
+    (void)pr;
+    return id;
+#endif
+}
+#if SLG_V2
+/* a record no project's index of this build ever holds (a later firmware's id, or a tag / scope it does not know):
+ * superseded only by a newer record of its key, found by walking (slg_copy_foreign) */
+static int slg_noix(uint32_t pr, uint32_t id)
+{
+    return SLG_UNK(id) || (pr >= 16u && pr < SLG_PROJ_NONE && !(pr < (SLG_LIVE + 16u) && SLG_LV_ID(id)));
+}
+#define SLG_PUSED(pr) ((pr) < (SLG_LIVE + 16u))       /* a tag that counts its project used (its saved or live records) */
 /* the record at off: superseded (its dead byte to 0x00; a failure is left alone: a compaction finds the newer one) */
 static void slg_mark_dead(uint32_t off)
 {
@@ -232,24 +291,25 @@ static uint32_t slg_walk(uint32_t s, int ix)
             slg_rcrc(&h, slg_buf) == h.crc) {
             if (h.seq >= slg.seq)
                 slg.seq = h.seq + 1u;              /* (an id past SLG_IDS too: its number stays used) */
+            uint32_t x = slg_ix(h.proj, h.id);
 #if SLG_V2
-            if (h.len && h.dead == 0xFFu && h.proj < 16u)
-                slg.pused |= (uint16_t)(1u << h.proj);
-            if (SLG_OUT(h.proj, h.id)) {           /* another project's, or a later firmware's id: counted where it is */
+            if (h.len && h.dead == 0xFFu && SLG_PUSED(h.proj))
+                slg.pused |= (uint16_t)(1u << (h.proj & 15u));
+            if (x == SLG_IDS) {                   /* another project's, or a later firmware's id: counted where it is */
                 if (h.dead == 0xFFu && h.len)      /* (its tombstones not: the index counts none either), never indexed */
                     slg.fliv[s] += SEC_ALIGN(SEC_HEAD + h.len);
             } else
 #endif
-            if (h.id < SLG_IDS) {
-                if (!slg.at[h.id] || h.seq >= slg.aseq[h.id]) {   /* (a compaction copy has its original's */
+            if (x != SLG_IDS) {
+                if (!slg.at[x] || h.seq >= slg.aseq[x]) {   /* (a compaction copy has its original's */
 #if SLG_V2                                             /*  number: the same record) */
-                    if (slg.at[h.id] && h.seq > slg.aseq[h.id])
-                        slg_mark_dead(slg_at(h.id));   /* (the one indexed before: older) */
+                    if (slg.at[x] && h.seq > slg.aseq[x])
+                        slg_mark_dead(slg_at(x));     /* (the one indexed before: older) */
 #endif
-                    slg_index(h.id, slg_off(s) + p, h.seq, h.len);
+                    slg_index(x, slg_off(s) + p, h.seq, h.len);
                 }
 #if SLG_V2
-                else if (h.seq < slg.aseq[h.id])
+                else if (h.seq < slg.aseq[x])
                     slg_mark_dead(slg_off(s) + p);     /* (older than the one indexed: its mark was cut) */
 #endif
             }
@@ -325,7 +385,7 @@ static uint32_t slg_free_in_head(void) { return slg.fill >= SEC_SECT ? 0u : SEC_
 static uint32_t slg_live_bytes(void)                    /* the newest records, with their heads (every project's) */
 {
     uint32_t i, n = 0;
-    for (i = 0; i < SLG_IDS; i++)
+    for (i = 0; i < SLG_IX; i++)
         if (slg.at[i] && slg.alen[i])
             n += SEC_ALIGN(SEC_HEAD + slg.alen[i]);
 #if SLG_V2
@@ -357,6 +417,7 @@ static int slg_append_rawp(uint32_t id, uint32_t proj, uint32_t seq, const uint8
     sec_rhead_t h;
     uint32_t off = slg_off(slg.head) + slg.fill;
     uint8_t done = 0;
+    uint32_t ix;
     h.magic = SEC_RMAGIC;
     h.id = (uint8_t)id;
     h.state = 0xFFu;
@@ -369,31 +430,32 @@ static int slg_append_rawp(uint32_t id, uint32_t proj, uint32_t seq, const uint8
         st_prog(off + 3u, &done, 1))              /* (the state byte: the record counts from here) */
         return -1;
     slg.fill += SEC_ALIGN(SEC_HEAD + len);
+    ix = slg_ix(proj, id);
 #if SLG_V2
-    if (len && proj < 16u)
-        slg.pused |= (uint16_t)(1u << proj);
-    if (SLG_OUT(proj, id)) {                           /* (a compaction's copy of another project's record, or of a later
+    if (len && SLG_PUSED(proj))
+        slg.pused |= (uint16_t)(1u << (proj & 15u));
+    if (ix == SLG_IDS) {                               /* (a compaction's copy of another project's record, or of a later
                                                         * firmware's id; such an id's clear, proj_tomb) */
         if (len)
             slg.fliv[slg.head] += SEC_ALIGN(SEC_HEAD + len);
         return 0;
     }
 #else
-    if (SLG_UNK(id))
+    if (ix == SLG_IDS)
         return 0;                                      /* (format 1: never written; not indexed) */
 #endif
-    if (!slg.at[id] || seq >= slg.aseq[id]) {
+    if (!slg.at[ix] || seq >= slg.aseq[ix]) {
 #if SLG_V2
-        if (slg.at[id] && seq > slg.aseq[id])
-            slg_mark_dead(slg_at(id));
+        if (slg.at[ix] && seq > slg.aseq[ix])
+            slg_mark_dead(slg_at(ix));
 #endif
-        slg_index(id, off, seq, len);
+        slg_index(ix, off, seq, len);
     }
     return 0;
 }
-static int slg_append_raw(uint32_t id, uint32_t seq, const uint8_t *data, uint32_t len)
+static int slg_append_raw(uint32_t i, uint32_t seq, const uint8_t *data, uint32_t len)   /* (i: an entry of the index) */
 {
-    return slg_append_rawp(id, SLG_V2 && !SLG_DEV(id) ? slg.proj : SLG_PROJ_GLOBAL, seq, data, len);
+    return slg_append_rawp(slg_fid(i), slg_fproj(i), seq, data, len);
 }
 
 /* the oldest sector (not the head) */
@@ -431,9 +493,9 @@ static uint32_t slg_findp(uint32_t t, uint32_t proj, uint32_t id, uint32_t seq, 
     }
     return 0;
 }
-static uint32_t slg_find(uint32_t t, uint32_t id, uint32_t seq)
+static uint32_t slg_find(uint32_t t, uint32_t i, uint32_t seq)   /* (i: an entry of the index) */
 {
-    return slg_findp(t, SLG_V2 && !SLG_DEV(id) ? slg.proj : SLG_PROJ_GLOBAL, id, seq, 0);
+    return slg_findp(t, slg_fproj(i), slg_fid(i), seq, 0);
 }
 /* id i's newest record (in sector s) as a valid copy in another sector: where (0: none) */
 static uint32_t slg_copy_of(uint32_t s, uint32_t i)
@@ -461,11 +523,11 @@ static int slg_copy_foreign(uint32_t s, int oldest, int dry)
             return -1;
         if (h.magic != SEC_RMAGIC || h.len > SEC_REC_MAX || p + SEC_HEAD + h.len > SEC_SECT)
             break;
-        unk = SLG_UNK(h.id);                           /* (a later firmware's id, any project's: never indexed here, so
-                                                        * never marked dead here; one a newer record of its key anywhere
+        unk = slg_noix(h.proj, h.id);                  /* (a later firmware's id or scope, any project's: never indexed here,
+                                                        * so never marked dead here; one a newer record of its key anywhere
                                                         * supersedes is not copied, so a clear dropped later cannot bring
                                                         * it back) */
-        if (h.state == 0x00u && h.dead == 0xFFu && (unk || (!SLG_MINE(h.proj, h.id) && h.proj < SLG_PROJ_NONE)) &&
+        if (h.state == 0x00u && h.dead == 0xFFu && slg_ix(h.proj, h.id) == SLG_IDS && (unk || h.proj < SLG_PROJ_NONE) &&
             !(oldest && !h.len) && !slg_findp(s, h.proj, h.id, h.seq, 1)) {
             for (t = 0; t < SEC_LOG_SECTORS && (t == s || (!slg_findp(t, h.proj, h.id, h.seq, 0) &&
                                                              !(unk && slg_findp(t, h.proj, h.id, h.seq, 1)))); t++)
@@ -492,7 +554,7 @@ static int slg_copy_foreign(uint32_t s, int oldest, int dry)
 static uint32_t slg_heal_need(uint32_t s, int tombs)
 {
     uint32_t i, n = 0;
-    for (i = 0; i < SLG_IDS; i++)
+    for (i = 0; i < SLG_IX; i++)
         if (slg_at_in(i, s))
             n += !slg.alen[i] ? (tombs ? SEC_HEAD : 0u) : slg_copy_of(s, i) ? 0u : SEC_ALIGN(SEC_HEAD + slg.alen[i]);
     return n + (uint32_t)slg_copy_foreign(s, !tombs, 1);
@@ -504,7 +566,7 @@ static uint32_t slg_heal_need(uint32_t s, int tombs)
 static int slg_unopen(void)
 {
     uint32_t h = slg.head, i, s, best = SEC_LOG_SECTORS;
-    for (i = 0; i < SLG_IDS; i++)
+    for (i = 0; i < SLG_IX; i++)
         if (slg_at_in(i, h) && !slg_copy_of(h, i))
             return -2;
     if (slg_copy_foreign(h, 0, 1))                     /* (another project's record only there) */
@@ -514,7 +576,7 @@ static int slg_unopen(void)
             best = s;
     if (best >= SEC_LOG_SECTORS)
         return -2;
-    for (i = 0; i < SLG_IDS; i++)
+    for (i = 0; i < SLG_IX; i++)
         if (slg_at_in(i, h))
             slg_index(i, slg_copy_of(h, i), slg.aseq[i], slg.alen[i]);
     if (st_erase(slg_off(h)))
@@ -539,7 +601,7 @@ static int slg_heal(void)
             best = n, s = t;
     if (s >= SEC_LOG_SECTORS)
         return slg_unopen();
-    for (i = 0; i < SLG_IDS; i++) {
+    for (i = 0; i < SLG_IX; i++) {
         uint32_t c;
         if (!slg_at_in(i, s))
             continue;
@@ -599,7 +661,7 @@ static int slg_make_room(uint32_t need, uint32_t drop)
                 return -2;                             /* (no room: every sector holds live records) */
             if (slg_open(e))
                 return -1;
-            for (i = 0; i < SLG_IDS; i++)
+            for (i = 0; i < SLG_IX; i++)
                 if (slg_at_in(i, o)) {
                     uint32_t len = slg.alen[i];
                     if (i == drop) {
@@ -639,8 +701,8 @@ static int slg_make_room(uint32_t need, uint32_t drop)
  * make room harder (a compaction copies less, the decisions are the same), so the playing section, whose old
  * record is copied like any other until the new one is in, can then always be saved. */
 typedef struct {                                       /* (on the stack, three in sm_more: kept narrow) */
-    uint8_t in[SLG_IDS];                               /* the sector of id's newest record with bytes, 0xFF none */
-    uint16_t sz[SLG_IDS];                              /* its bytes in the log, with its head */
+    uint8_t in[SLG_IX];                                /* the sector of id's newest record with bytes, 0xFF none */
+    uint16_t sz[SLG_IX];                               /* its bytes in the log, with its head */
     uint32_t live[SEC_LOG_SECTORS];                    /* each sector's live records, with their heads (bytes) */
     uint32_t sorder[SEC_LOG_SECTORS], head, fill, sseq;
 } slg_model_t;
@@ -649,7 +711,7 @@ static void sm_init(slg_model_t *m)
 {
     uint32_t i;
     memset(m->live, 0, sizeof m->live);
-    for (i = 0; i < SLG_IDS; i++) {
+    for (i = 0; i < SLG_IX; i++) {
         m->in[i] = 0xFFu;
         if (slg.at[i] && slg.alen[i]) {                /* (a tombstone is not copied: nothing to model) */
             m->in[i] = (uint8_t)(slg.at[i] >> 10);
@@ -697,28 +759,28 @@ static int sm_room(slg_model_t *m, uint32_t need)
         m->fill += m->live[o];
         m->live[e] = m->live[o];
         m->live[o] = 0;
-        for (i = 0; i < SLG_IDS; i++)
+        for (i = 0; i < SLG_IX; i++)
             if (m->in[i] == o)
                 m->in[i] = (uint8_t)e;
         m->sorder[o] = 0;
     }
     return sm_free(m) >= need;
 }
-/* a record of len bytes (0: a tombstone) for id (>= SLG_IDS: a new one) on the model: 1 it went in */
+/* a record of len bytes (0: a tombstone) for id (SLG_IDS: a new one) on the model: 1 it went in */
 static int sm_put(slg_model_t *m, uint32_t id, uint32_t len)
 {
     uint32_t need = SEC_ALIGN(SEC_HEAD + len);
-    if (!len && id < SLG_IDS && m->in[id] != 0xFFu) {  /* (a clear: its record dropped by a compaction, slg_make_room) */
+    if (!len && SLG_KNOWN(id) && m->in[id] != 0xFFu) {  /* (a clear: its record dropped by a compaction, slg_make_room) */
         m->live[m->in[id]] -= m->sz[id];
         m->in[id] = 0xFFu;
     }
     if (!sm_room(m, need))
         return 0;
-    if (id < SLG_IDS && m->in[id] != 0xFFu) {          /* (its old record: dead now) */
+    if (SLG_KNOWN(id) && m->in[id] != 0xFFu) {         /* (its old record: dead now) */
         m->live[m->in[id]] -= m->sz[id];
         m->in[id] = 0xFFu;
     }
-    if (id < SLG_IDS && len)
+    if (SLG_KNOWN(id) && len)
         m->in[id] = (uint8_t)m->head, m->sz[id] = (uint16_t)need;
     if (len)
         m->live[m->head] += need;
@@ -776,7 +838,7 @@ static uint32_t slg_more(uint32_t n)
 static int slg_put(uint32_t id, const uint8_t *data, uint32_t len, int playing)
 {
     uint32_t need = SEC_ALIGN(SEC_HEAD + len);
-    if (!slg.up || id >= SLG_IDS)
+    if (!slg.up || !SLG_KNOWN(id))
         return -1;
     if (!len && !slg.at[id])
         return 0;                                      /* (empty and nothing stored: nothing to write) */
@@ -800,7 +862,7 @@ static int slg_put(uint32_t id, const uint8_t *data, uint32_t len, int playing)
  * written when quiet (slg_tombs_write). A record put again meanwhile is written, and the clear is gone. 1: pending */
 static int slg_clear_pending(uint32_t id)
 {
-    if (!slg.up || id >= SLG_IDS || !slg.at[id] || !slg.alen[id])
+    if (!slg.up || !SLG_KNOWN(id) || !slg.at[id] || !slg.alen[id])
         return 0;
     slg.tomb[id >> 5] |= 1u << (id & 31u);
     return 1;
@@ -818,7 +880,7 @@ static int slg_tombs_write(void)
 {
     uint32_t id;
     int left = 0;
-    for (id = 0; id < SLG_IDS; id++)
+    for (id = 0; id < SLG_IX; id++)
         if (SLG_TOMB(id) && slg_put(id, 0, 0, 1))
             left = 1;
     return left;
@@ -826,11 +888,32 @@ static int slg_tombs_write(void)
 /* section id -> buf (SEC_REC_MAX), -> its length; 0 none (empty), -1 unreadable */
 static int slg_get(uint32_t id, uint8_t *buf)
 {
-    if (id >= SLG_IDS || !slg.at[id] || !slg.alen[id] || SLG_TOMB(id))
+    if (!SLG_KNOWN(id) || !slg.at[id] || !slg.alen[id] || SLG_TOMB(id))
         return 0;
     return st_read(slg_at(id) + SEC_HEAD, buf, slg.alen[id]) ? -1 : (int)slg.alen[id];
 }
-static int slg_has(uint32_t id) { return id < SLG_IDS && slg.at[id] && slg.alen[id] && !SLG_TOMB(id); }
+static int slg_has(uint32_t id) { return SLG_KNOWN(id) && slg.at[id] && slg.alen[id] && !SLG_TOMB(id); }
+#if SLG_V2
+/* the live pattern of saved id (24..87): its entry; it stands when it was made from the saved record there now (its base
+ * stamp: the saved record's sequence number, 0 none), else it is stale (that record was saved, cleared or replaced since,
+ * here or by another firmware) */
+#define SLG_LVX(id) (SLG_LV0 + (id) - SEC_ID_PAT0)
+static uint32_t slg_base_of(uint32_t id) { return slg_has(id) ? slg.aseq[id] : 0u; }
+static int slg_live_ok(uint32_t id)
+{
+    uint32_t j = SLG_LVX(id), b;
+    return slg_has(j) && slg.alen[j] >= 4u && !st_read(slg_at(j) + SEC_HEAD, &b, 4) && b == slg_base_of(id);
+}
+/* stopped, the open project: its stale live patterns cleared (a tombstone each; a failure is tried at the next open). The
+ * live entries that stand stay; skip: a mask of slots whose saved record waits elsewhere (the arena: pat.c) */
+static void slg_live_sweep(const uint8_t *skip)
+{
+    uint32_t i;
+    for (i = 0; i < SLG_LV_N; i++)
+        if (slg_has(SLG_LV0 + i) && !(skip && skip[i]) && !slg_live_ok(SEC_ID_PAT0 + i))
+            (void)slg_put(SLG_LV0 + i, slg_buf, 0, 1);
+}
+#endif
 #if SLG_V2
 /* project p opened: the pending clears of the one before written, then the index holds p's records and the
  * device-wide ones (the area walked again; the sectors' order, the head and the sequence numbers stay). Stopped,

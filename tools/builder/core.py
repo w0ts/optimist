@@ -1085,6 +1085,14 @@ SD_PRE_MS = 50                  # sd_stream_plan.c SST_PRE_MS default: the pre-b
 SD_HEAD_B = SD_PRE_MS * 441 // 10 * 2   # (frames at 44.1 kHz, 16 bit mono: 2 B a frame; the sample's own rate and width decide)
 SD_RINGS_TYPICAL, SD_HEADS_TYPICAL = 4, 8   # a part's rings at most (SST_PART_RINGS); the card samples of a typical project
 ARENA_ESTIMATE_KB = 4           # the estimate's stated tolerance (KB) against a real build of a configuration the anchors know
+STG_RESERVE = 16600             # seq/undo.c, engines.c STG_MEM: the save / load staging buffers past the arena and its undo keep
+                                # (the undo history's while nothing stores), with the section log (SECTIONS 8, 16); measured on
+                                # the user's mots-config (st_buf, proj_tmp, sec_rb, sx_rbuf, two automation stores)
+
+
+def stg_reserve(cfg):
+    """-> bytes of the STORAGE reserve a build keeps after the arena (0: its buffers in the pool, no arena or no log)"""
+    return STG_RESERVE if cfg.get("ARENA", 0) and cfg.get("SECTIONS", 16) > 4 else 0
 
 
 def arena_undo_keep(cfg):
@@ -1130,9 +1138,9 @@ def arena_size(cfg, total, exact=False):
     undo's keep; exact: the total is a real build's sizes (else the estimate); None with ARENA off"""
     if not cfg.get("ARENA", 0) or not total:
         return None
-    free, keep = sram_free(total), arena_undo_keep(cfg)
-    n = max(0, free - keep) & ~7
-    return {"bytes": n, "kb": n // 1024, "free": free, "keep": keep, "exact": bool(exact)}
+    free, keep, stg = sram_free(total), arena_undo_keep(cfg), stg_reserve(cfg)
+    n = max(0, free - keep - stg) & ~7
+    return {"bytes": n, "kb": n // 1024, "free": free, "keep": keep, "stg": stg, "exact": bool(exact)}
 
 
 def _kb1(n):
@@ -1186,7 +1194,8 @@ def arena_text(cfg, total, exact=False):
         return []
     f = arena_fits(cfg)
     how = "from the last real build" if a["exact"] else "estimate"
-    out = [f"arena {'' if a['exact'] else '~'}{a['kb']} KB ({how}: free SRAM {_kb1(a['free'])} KB - undo keep {_kb1(a['keep'])} KB)"]
+    less = f"undo {_kb1(a['keep'])} + staging {_kb1(a['stg'])} KB" if a["stg"] else f"undo keep {_kb1(a['keep'])} KB"
+    out = [f"arena {'' if a['exact'] else '~'}{a['kb']} KB ({how}: free SRAM {_kb1(a['free'])} KB - {less})"]
     for name, b, n, note in f["rows"]:
         out.append(f"  {name:30.30s} {(str(n) + ' x ' if n > 1 else '').rjust(4)}{_kb1(b):>6s} KB = {_kb1(b * n):>6s} KB")
     tot = f["all"] / 1024

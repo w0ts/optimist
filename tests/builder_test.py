@@ -1126,8 +1126,9 @@ _ar_cfg = dict(C.defaults(), ARENA=1, **_sd)
 _ar_real = {"flash": 600000, "ram": 90000, "pool": 150000, "ramtext": 30000}     # (a real build's sizes: 475,136 - 8,192 - 270,000 free)
 _ar_free = K.sram_free(_ar_real)
 _ar_a = K.arena_size(_ar_cfg, _ar_real, exact=True)
-check("arena: the real build's free SRAM (no spare: engines.c ARN_SPARE 0) less the undo's 16 KB keep, exact, in whole units (8 B)",
-      _ar_a["free"] == _ar_free == sram - 270000 and _ar_a["keep"] == 16384 and _ar_a["bytes"] == (_ar_free - 16384) & ~7
+check("arena: the real build's free SRAM (no spare: engines.c ARN_SPARE 0) less the undo's 16 KB keep and the staging reserve, exact, in whole units (8 B)",
+      _ar_a["free"] == _ar_free == sram - 270000 and _ar_a["keep"] == 16384 and _ar_a["stg"] == K.STG_RESERVE and
+      _ar_a["bytes"] == (_ar_free - 16384 - K.STG_RESERVE) & ~7
       and _ar_a["kb"] == _ar_a["bytes"] // 1024 and _ar_a["exact"] and K.arena_size(dict(_ar_cfg, ARENA=0), _ar_real) is None)
 check("arena: nothing when the sizes leave no free SRAM (never negative)", K.arena_size(_ar_cfg, dict(_ar_real, pool=900000))["bytes"] == 0)
 check("arena: the cache RAM gives the SRAM it frees to the arena (2 ways +8 KB, 4 or 7 ways +15 KB: the undo keeps 1 KB)",

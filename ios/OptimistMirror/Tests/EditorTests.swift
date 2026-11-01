@@ -384,6 +384,35 @@ final class OpsTests: XCTestCase {
         XCTAssertEqual(try PatternFile.decode(data).bytes, rec)
     }
 
+    /// issue 142: a write keeps the slot's edits as its live pattern ("*"), SAVE makes them the saved one, RELOAD drops them;
+    /// the same labels and wording as the web editor (web/test_web.mjs "patterns: SAVE (op 4)...")
+    func testPatternsLiveSaveReload() async throws {
+        let d = fake()
+        let a = Array((0..<12).map { UInt8($0 + 1) }), b = Array((0..<8).map { UInt8($0 + 40) })
+        try await Ops.patWrite(d, track: 0, slot: 6, bytes: a)
+        var l = try await Ops.patList(d)
+        XCTAssertNotNil(l.live)
+        XCTAssertTrue(l.unsaved(0, 6))
+        XCTAssertEqual(l.slotText(0, 6), "12*")
+        try await Ops.patOp(d, op: 4, track: 0, slot: 6)                     // SAVE
+        l = try await Ops.patList(d)
+        XCTAssertFalse(l.unsaved(0, 6))
+        XCTAssertEqual(l.slotText(0, 6), "12")
+        try await Ops.patWrite(d, track: 0, slot: 6, bytes: b)
+        l = try await Ops.patList(d)
+        XCTAssertEqual(l.slotText(0, 6), "8*")
+        try await Ops.patOp(d, op: 5, track: 0, slot: 6)                     // RELOAD
+        l = try await Ops.patList(d)
+        XCTAssertEqual(l.slotText(0, 6), "12")
+        XCTAssertEqual(d.patterns[0][6], a)
+        XCTAssertEqual(l.slotText(0, 0), "·")
+        let old = fake()
+        old.oldPatterns = true
+        let lo = try await Ops.patList(old)
+        XCTAssertNil(lo.live)                                                // (a firmware before: no marks, nothing offered)
+        XCTAssertFalse(lo.unsaved(0, 0))
+    }
+
     func testUserPresetBank() async throws {
         let d = fake()
         let b0 = try await Ops.bankList(d)

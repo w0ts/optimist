@@ -456,7 +456,7 @@ static void snd_synth_cell(uint32_t k, cell_t *c)
         c->kind = CK_VAL;
         cell_val(c, ENGINES[e]->name);
         c->col = ENG_COL[e];
-        cell_gauge(c, 1, 0, NENGINES - 1, (int32_t)e);
+        cell_gauge(c, 1, 0, NENGINES - 1, (int32_t)eng_rank(e));   /* (the place in the list by name) */
     } else if (k == 1u) {
         c->label = "PRESET";
         c->kind = CK_VAL;

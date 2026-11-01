@@ -37,7 +37,8 @@ document reads "the open project".
 | the sequencer side | `seq/seq.c` (`TRK_IDX`, `pat_switch`, the `PAT_*` and `PW_*` constants), `track_t.org` in `core/core.h` |
 | device keys | `ui/optimist/op_layers.c` (`pat_layer_key`, `pat_knob`), `op_song.c` (SONG), `op_keys.c` (lights), `op_laydraw.c` (the 4 x 16 grid) |
 | editor commands 79..84 | `io/editor/ed_pat.c`, `web/editor.html`, `web/EDITOR_PROTOCOL.md` "Patterns and scenes" |
-| snapshots and backup | `snapshots.c` (log records, kind `SNR_LOG`), `ed_backup.c` (objects `PTN1`..`PTN6`) |
+| snapshots and backup | `snapshots.c` (log records, kind `SNR_LOG`; the live patterns kind `SNR_LIVE` 18), `ed_backup.c` (objects `PTN1`..`PTN6`; each project's live patterns `PL01`..`PL16`) |
+| live patterns (issue 142) | `pat.c` (`pat_leave`, `pat_get` / `pat_get_saved`, `pat_swap_isr`, `pat_left_service`, `pat_reload`, `pat_promote_all`), `sec_log.c` (the live scope, `slg_live_ok`, `slg_live_sweep`): section 9 |
 | missing patterns | `storage/miss.c`: `MISSING: PAT T2 5` |
 
 ### Log ids (the same in every build)
@@ -45,9 +46,10 @@ document reads "the open project".
 0..15 scenes / sections, 16 the song, 17 the working copies' sources (`SEC_ID_PSTATE`, written with the autosave),
 **24..87 the patterns** (`PAT_ID(track, slot)` = 24 + 16 x track + slot). Other ids: 88..104 the sections' and the
 autosave's step extras, 105..121 FX records, 122..138 drum lane LFO records; format 2 adds 19 (a project's state), 21
-(the project names) and 139..141 (the state's extras, FX and LFO records), `SLG_IDS` 142. A build keeps the
-records of every id it knows, used or not, so switching `PATTERNS` or `SECTIONS` loses nothing. A record of an id past
-the known ones is skipped and not kept by a compaction.
+(the project names) and 139..141 (the state's extras, FX and LFO records); 142..225 the MIDI tracks' (reserved),
+`SLG_IDS` 226. A build keeps the records of every id it knows, used or not, so switching `PATTERNS` or `SECTIONS` loses
+nothing. Format 2 keeps (and never indexes) a record of an id past the known ones; format 1 skips it. **The live
+patterns** (section 9) use the pattern ids 24..87 again under the project tag `0x10 | p`.
 
 ### Pattern record (`pat.c`)
 
@@ -85,20 +87,25 @@ with every track changed. MEM FULL appears when that reserve would not be left.
 The keys are in `docs/guide/shortcuts.md` ("Saving, patterns, scenes and the song"); the code is `op_layers.c`
 `pat_layer_key`. **LFO held** is the patterns layer, the same keys as SONG's PATTERNS row: white n launches (OCT- held:
 the next bar, OCT+ held: now), SAVE + n stores, HOME + n clears (the user, 2026-10-20: HOME clears, as elsewhere); black
-1..4 pick the track, 5 picks ALL TRACKS (the white keys, SAVE + n and HOME + n then act on every track), 6 stops it, 9 duplicates, 10 shows the scenes; SEQ held + n stores scene n; a black key 1..5 held + white n stores that track's (5: every track's) working pattern in slot n. A launch or stop over edits not stored asks "LOSE EDITS?" first (`pat_changed`, YES = SAVE). Black 7 and 8 do nothing
+1..4 pick the track, 5 picks ALL TRACKS (the white keys, SAVE + n and HOME + n then act on every track), 6 stops it, 9 duplicates, 10 shows the scenes; SEQ held + n stores scene n; a black key 1..5 held + white n stores that track's (5: every track's) working pattern in slot n. A launch or stop keeps the outgoing pattern's edits (section 9; *LOSE EDITS?* of 2026-10-31 is gone), the toast says *T1 T3 KEPT*. **HOME + SEQ is RELOAD** (asked: *RELOAD T1?*; the pattern page with ALL TRACKS: *RELOAD ALL?*). Black 7 and 8 do nothing
 (store, copy and clear became SAVE + n and HOME + n, the user 2026-10-13). A SONG scene card reads `SCENE B*` when its
-tracks no longer play its patterns as stored (`pat_changed`).
+tracks no longer play its patterns as saved (`pat_changed`); the grid marks every slot that keeps edits not saved (a
+small white square, as the playing one changed).
 
 ## 5. Web editor
 
 With INFO tag 0x55 the mixer strips show the 16 slots of a track above the instrument row and the MASTER strip shows
 scenes A..P in the same rows. Click launches (after 300 ms, so a double click is a different gesture), shift-click
 launches now, alt-click at the next bar; double click opens the slot in the Sequence popup (the playing pattern edits
-the working copy, any other edits the record through PAT_READ / PAT_WRITE); drag copies; Delete clears (confirm). The
-editor polls PAT_LIST every 500 ms while the mixer shows. Commands: 79 PAT_LIST, 80 PAT_LAUNCH, 81 SCENE, 82 PAT_OP
-(store, copy, clear, duplicate), 83 PAT_READ, 84 PAT_WRITE (chunks of 256 B into `proj_tmp`, the last one commits via
-`pat_decode` + `pat_write`; stopped: the log, playing: the pending arena). 85 is free. No protocol version bump; the
-details are in `web/EDITOR_PROTOCOL.md`.
+the working copy, any other edits the record through PAT_READ / PAT_WRITE); drag copies; Delete clears (confirm); S
+saves a slot's edits, R reloads it (confirm). A slot that keeps edits not saved reads `12*` (its LEN as it plays). The
+editor polls PAT_LIST every 500 ms while the mixer shows. Commands: 79 PAT_LIST (op 0 ends with the live patterns' bits,
+3 bytes a track), 80 PAT_LAUNCH, 81 SCENE, 82 PAT_OP (store, copy, clear, duplicate, 4 SAVE, 5 RELOAD), 83 PAT_READ (the
+pattern as it plays; track + 4: the saved one), 84 PAT_WRITE (chunks of 256 B into `proj_tmp`, the last one commits via
+`pat_decode`: the slot's live pattern (issue 142 decision 4; the slot a track plays takes it, at its end while playing),
+track + 4 the saved one (`pat_write`); stopped: the log, playing: the pending arena). 85 is free. No protocol version
+bump: an older firmware sends no live bits and the editors offer no SAVE / RELOAD. The Mirror app's Projects tab shows the
+same marks and offers Save / Reload with the same question. Details: `web/EDITOR_PROTOCOL.md`.
 
 ## 6. Numbers that matter
 
@@ -114,8 +121,12 @@ details are in `web/EDITOR_PROTOCOL.md`.
 
 `tests/patterns_test.c` (store, sharing, copy-on-write, migration cut at every flash program, the arena, the reserve,
 across builds), `tests/patterns_seq_test.c` (END / BAR / NOW, odd lengths, swing phase, automation per track, undo,
-song mode), `tests/patterns_ed_test.c` (editor commands), `tests/sec_log_test.c` and `tests/sec_codec_test.c` (ids 24..87,
-codec B), `web/test_web.mjs` `editorPatterns`, `web/e2e_daw.mjs`.
+song mode; the live patterns while playing, the ISR's exchange timed), `tests/patterns_ed_test.c` (editor commands, the
+live writes, SAVE / RELOAD), `tests/patlive_test.c` (the live patterns stopped, projects, PROJECT SAVE, stale records,
+MEM FULL, a power cut at every program), `tests/sec_log_test.c` (the live scope) and `tests/sec_log_compat_test.c` (main
+64c1d915's log keeps live records), `tests/sec_codec_test.c` (ids 24..87, codec B), `tests/snapshots_test.c projects`
+(PL01, a snapshot's live patterns), `tests/ui_optimist_patlive.h` (RELOAD, the project LOAD question), `web/test_web.mjs`
+`editorPatterns`, the Mirror app's `testPatternsLiveSaveReload`, `web/e2e_daw.mjs`.
 
 ## 8. Open limits
 
@@ -123,3 +134,56 @@ codec B), `web/test_web.mjs` `editorPatterns`, `web/e2e_daw.mjs`.
 - Copy between slots has no device key now (the editor's PAT_OP 1 does it; the drum pattern copies only to itself).
 - A non-PATTERNS build does not print "PATTERNS: PLAYED AS SECTIONS" or "MOTION CUT" (never built).
 - The editor shows a slot's LEN only, not a step map.
+
+## 9. Live patterns: every pattern keeps its own edits (issue w0ts/optimist#142, 2026-11-01)
+
+Elektron's way: editing a pattern changes the pattern, and its edits stay with it until it is saved or reloaded, in
+flash, across launches, the song, projects and power cycles. The plan: `worktrees/pattern-live-plan/PLAN.md` of
+2026-11-01; the user's decisions of 2026-11-01 replace it where they differ (marked "decision").
+
+- **Three versions.** The *working* one (what plays: `trk[k]`, the autosave keeps it), the **live** one (a log record,
+  the pattern's id under the tag `0x10 | p`: the edits not saved), the **saved** one (the record of before). A slot plays
+  its live record when one stands, else its saved one: `pat_get` (launches, scenes, the song, the preview, the editor's
+  PAT_READ); `pat_get_saved` for the `*` marks, a copy's source, snapshots and the PJ backup streams.
+- **Leaving a pattern** (a launch, a stop, a scene, the song's next part, another project) writes the outgoing working
+  copy as its slot's live record when it differs from what the slot plays (`pat_leave`), drops it when it is the saved
+  one again, writes nothing when nothing changed. Stopped: at once (the arena, then the log). Playing: the audio ISR
+  **exchanges** the working track with the stage's (`pat_swap_isr`: steps one at a time through one temporary, LEN DIV
+  SWING GATE, the list and PLAY bit, the notes' own ends) instead of copying the stage over it, so the stage holds the
+  outgoing pattern with no buffer of its own; the main loop writes it (`pat_left_service`, before anything stages again)
+  into the arena, and `sections_write` takes it to the log (LIVE_SAVE: one record a call while playing; without it, when
+  quiet). For a song part, the leaving tracks are exchanged before `proj_apply`, which leaves their steps, LEN.. and
+  lists alone (`pat_apply_keep`). A part or a launch naming the slot a track already plays keeps its edits playing, from
+  step 1. A live record put reads a staged scene again (`sec_gen`), so the song reaching a pattern plays its edits.
+- **Base stamp.** A live record starts with the sequence number of the saved record it was made from (0: none). One whose
+  stamp is not the saved record's now is stale (that slot was saved, cleared or replaced since, here or by an older
+  firmware) and is not played; `slg_live_sweep` drops it when the project opens. Every saved write of a slot (SAVE + SEQ,
+  SAVE + n, a scene's store, a clear, the editor) drops its live record.
+- **RELOAD = HOME + SEQ** (decision 1; HOME held, SEQ pressed, acting when either is let go with no key used, so SEQ +
+  HOME + a key stays the scene's clear on the pattern page; checked against every SEQ and HOME path of `op_combos.c`,
+  `op_input.c`, `op_layers.c`, `op_song.c`: free). Asked *RELOAD T1?* (ALL TRACKS: *RELOAD ALL?*); nothing to reload: *NO
+  EDITS*. Stopped: the saved pattern at once (an undo level); playing: at the pattern's end, nothing kept.
+- **Projects** (decision 2): the live records belong to their project (the tag); another project opened keeps them, and
+  they play again when it opens. A LOAD of another project with live edits or a changed work asks *SAVE PROJECT n?*
+  first (YES saves everything, then opens; HOME asks the LOAD in red, HOME again cancels: `op_prjflow.c`). **PROJECT SAVE
+  saves everything** (decision 3): the tracks left, every live record promoted (the saved record first, then the live
+  tombstone: a cut between leaves a stale live record, swept), then the state; RELOAD goes back to that. A save as copies
+  the patterns as they play into the target as saved, the source keeps its live ones. DELETE clears the live scope.
+- **MEM FULL** (decision 5): a live record never takes the reserve; the log full, it waits in RAM (the arena,
+  *MEM FULL: SAVE OR RELOAD*) and is written when room appears; the song never waits; the arena full too: *T1 4 EDITS
+  LOST*. A project switch (open, DELETE, save as) with anything left in the arena is refused (*MEM FULL: SAVE OR
+  RELOAD*): before 2026-11-01 `proj_quiet` cleared the arena after a failed flush, a silent loss.
+- **Backups and snapshots** (decision 6) carry the live patterns as live: `PL01`..`PL16` (kind 7, id 16 + p: a stream of
+  (id, length, record without its stamp), restored after the PJ streams, stamped against the saved records then); an
+  older firmware knows no PL tag and skips it. A snapshot's kind `SNR_LIVE` (18) after its saved patterns; an older
+  build skips it.
+- **Compatibility.** An older format-2 build (main 64c1d915 and before) sees a record tagged 16..31 as another project's:
+  counted, copied through every compaction as it is, never indexed, never counted in its projects strip
+  (`tests/sec_log_compat.sh` against `tests/compat/sec_log_226.c`). Its DELETE or save as leaves the live records
+  behind and its pattern saves make them stale: the base stamp drops them here.
+- **Out of scope** (decision 7): a scene still sets the sound and the mix.
+- **Costs and timing.** RAM: the index's 65 more entries (~520 B pool), the arena's 64 more entries (256 B `.noinit`), the
+  room model on the stack (~200 B each). ISR: one track's exchange is 2.3-2.9x the copy it replaces on the host (~207 vs
+  73 ns, `tests/patterns_seq_test.c`); on the FM-1 (360 MHz) about 18 us a track, ~70 us with four tracks switching at one
+  bar, against an audio half of 5.8 ms: an estimate, not measured on hardware. Flash: a live record is written only when
+  an edited pattern is left (page programs, LIVE_SAVE's windows), erases only by compaction.

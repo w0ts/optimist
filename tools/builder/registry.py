@@ -1359,6 +1359,19 @@ _add("INS_RAM", "FELUCCA_INS_RAM", "the insert effects' code in RAM (8 KB of RAM
           "on the FM-1: SYSTEM > CPU TIMES shows it). The dispatchers stay in RAM and call the kernels through a pointer. "
           "The same sound at both choices.",
      off_warning="the insert effects' code runs from the flash: more audio CPU with several inserts on, not measured on the FM-1 yet")
+# bit 452 (2026-11-01, the next free: FONT_CACHE 450 and INS_RAM 451 on branch rammoves): the screen's canvas 240 x 124
+# (0), 62 (1) or 31 rows (2), the tall bands drawn in passes (display/gfx.c CV_ROWS, op_graph.c cv_tall / cv_whole; fm1base
+# app.h APP_CANVAS_PX via gen_optimist.py opt_dim.h OPT_CANVAS_ROWS); worktrees/canvas-plan/PLAN.md
+_add("CANVAS_STRIP", "FELUCCA_CANVAS_STRIP", "the screen's drawing canvas: smaller for RAM", Y, 452, default=2,
+     experimental=True,
+     choices=((0, "124 rows (59.5 KB)"), (1, "62 rows (29.1 KB less)"), (2, "31 rows (43.6 KB less)")),
+     tested="host tests: every frame of the UI's host run the same pixels at 124, 62 and 31 rows; on the FM-1 (2026-11-01, the "
+            "user): 62 and 31 rows look the same as 124, so 31 is the default",
+     desc="The screen is drawn piece by piece into a canvas and sent to the display. 31 rows (240 x 31 pixels, 14,880 B of "
+          "RAM) by default (the user, 2026-11-01: on the FM-1 it looks the same as the 124 rows before); 62 rows (29,760 B) and 124 rows (59,520 B, as before) are the other choices. The pieces taller than the canvas (the panels, the "
+          "questions, the cards, the boot logo) are drawn in more passes: more of the screen's drawing time (the audio is "
+          "not affected: it runs in interrupts) and more seams where a panel changes on the display a piece at a time. "
+          "The same pixels at every choice.")
 # bit 443 (2026-10-30, the next free after COMPILER's 442): a flash-step setting, not firmware (no_image: nothing in
 # the image, its hash or its costs). tools/build.py writes it beside the package (PACKAGE.install.json,
 # tools/install_meta.py); the installers read it from there and show it (docs/INSTALL-PATHS.md)

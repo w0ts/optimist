@@ -25,6 +25,9 @@
 enum { SNR_WORK = 1, SNR_SEC, SNR_SONG, SNR_TAIL, SNR_XSTEP, SNR_LOG };   /* XSTEP: SLOOP 2.4's step extras; LOG: another record of the log (below) */
 #define SNR_FXR 16u                                    /* the FX slots' record (below; a kind kept clear of others') */
 #define SNR_DLFO 17u                                   /* the drum lanes' LFO record (below; an older build skips it) */
+#define SNR_LIVE 18u                                   /* a live pattern (issue 142: its edits not saved), id its pattern's log id,
+                                                        * the record without its base stamp; an older build skips it (it never
+                                                        * plays them as saved) */
 #define SN_TAIL_WORK 0x80u                             /* a TAIL / XSTEP record's id: the work's (else the section's) */
 typedef struct {
     uint32_t magic;
@@ -116,7 +119,7 @@ static uint32_t sn_log_rec(uint32_t id)
     }
 #endif
     if (id >= SEC_ID_PAT0)
-        return pat_get((id - SEC_ID_PAT0) / PAT_N, (id - SEC_ID_PAT0) % PAT_N, SN_REC);
+        return pat_get_saved((id - SEC_ID_PAT0) / PAT_N, (id - SEC_ID_PAT0) % PAT_N, SN_REC);
     n = flash_ok ? slg_get(id, SN_REC) : 0;
     return n > 0 ? (uint32_t)n : 0u;
 }
@@ -395,6 +398,16 @@ static int sn_recs(sn_wr_t *w, sn_plan_t *pl)
             else
                 pl->total += 4u + n, pl->nrec++;
         }
+#if FELUCCA_PATTERNS
+    for (i = SEC_ID_PAT0; !rc && i < SN_LOG1; i++)     /* (the live patterns, after the saved ones: issue 142) */
+        if (pat_live_at((i - SEC_ID_PAT0) / PAT_N, (i - SEC_ID_PAT0) % PAT_N)) {
+            n = pat_get_live((i - SEC_ID_PAT0) / PAT_N, (i - SEC_ID_PAT0) % PAT_N, SN_REC);
+            if (w)
+                rc = sn_put_rec(w, SNR_LIVE, i, SN_REC, n);
+            else
+                pl->total += 4u + n, pl->nrec++;
+        }
+#endif
 #endif
     pl->at = SN_RECS - 1u;
     return rc || sn_emit(w, pl, SNR_SONG, 0, SN_REC, sn_song(SN_REC));
@@ -526,8 +539,13 @@ static void sn_apply_secs(const sn_slot_t *e, uint32_t at0)
         (void)fxr_sec_put(i, SN_REC, 0);               /* (and their FX records) */
         (void)dlr_sec_put(i, SN_REC, 0);               /* (and their LFO records) */
     }
-    for (i = SN_LOG0; i < SN_LOG1; i++)                /* (the patterns, their state: the snapshot's, or none) */
+    for (i = SN_LOG0; i < SN_LOG1; i++) {              /* (the patterns, their state: the snapshot's, or none) */
         (void)slg_put(i, SN_REC, 0, 0);
+#if FELUCCA_PATTERNS
+        if (i >= SEC_ID_PAT0)
+            (void)slg_put(SLG_LVX(i), SN_REC, 0, 0);   /* (and their live ones) */
+#endif
+    }
     while (sn_next(e, &at, &kind, &id, &n, &b) > 0)
         if (kind == SNR_SEC && id < SN_SECS) {
             if (!n || n > SEC_REC_MAX || sn_read_e(e, b, SN_REC, n) || slg_put(id, SN_REC, n, 1))
@@ -544,6 +562,14 @@ static void sn_apply_secs(const sn_slot_t *e, uint32_t at0)
             if (!n || n > SEC_REC_MAX || sn_read_e(e, b, SN_REC, n) || slg_put(id, SN_REC, n, 1))
                 sn_note |= SNN_FAIL;
         }
+#if FELUCCA_PATTERNS
+        else if (kind == SNR_LIVE && id >= SEC_ID_PAT0 && id < SN_LOG1) {   /* (after the saved ones: stamped with them) */
+            uint32_t bs = slg_base_of(id);
+            memcpy(SN_REC, &bs, 4);
+            if (n + 4u > SEC_REC_MAX || sn_read_e(e, b, SN_REC + 4, n) || slg_put(SLG_LVX(id), SN_REC, n + 4u, 1))
+                sn_note |= SNN_FAIL;
+        }
+#endif
         else if (kind == SNR_FXR && id < SN_SECS && ((fxh >> id) & 1u)) {   /* (after its section's record) */
             if (n > sizeof fxr_rbuf || sn_read_e(e, b, fxr_rbuf, n) || fxr_sec_put(id, fxr_rbuf, n))
                 sn_note |= SNN_FAIL;
