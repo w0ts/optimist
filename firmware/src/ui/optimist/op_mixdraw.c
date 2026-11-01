@@ -11,7 +11,7 @@
  *              fx.c fx_ret_tap, after its POST and level; a muted one struck, its code amber). MASTER under them: M MASTER,
  *              its VU meter (the level from the left, its peak falling) over a dB scale, the compressor's gain reduction as an
  *              amber bar from the right with its dB (THRS or CEIL set: mc_gr_view)
- *   CHANNELS   T1 T2 T3 DR, the four rows of 41 px (the mixer keeps the 1x4 cards, op_layers.c
+ *   CHANNELS   T1 T2 T3 DR, the four rows of 40 px (the mixer keeps the 1x4 cards, op_layers.c
  *              cards_2x2):
  *                x 0..21    a colour chip and the row's code (T1 T2 T3 DR), its M / S badge under it; the selected
  *                           row's full name is the header's ("T2 mix", op_draw.c head_title)
@@ -32,8 +32,8 @@
  * The selected row framed in its colour, its ground tinted. No pan, send or insert forms on the rows: the cards show the
  * selected row's values. Each row's meter and steps are canvases of their own, drawn again only when they change. */
 #define MXL_N 4u                        /* the channels a screen */
-#define MXL_H ((int32_t)OP_PH / (int32_t)MXL_N)   /* a channel's row: 41 px (the panel 164, the mixer's cards 1x4; over the
-                                         * help band 36: the panel 146) */
+#define MXL_H ((int32_t)OP_PH / (int32_t)MXL_N)   /* a channel's row: 40 px (the panel 161, the load lines' 3 rows under it, the mixer's cards 1x4; over the
+                                         * help band 35: the panel 143) */
 #define MXL_VX 27                       /* a channel's meter and steps: the width left of the code (27: the 4 groups of steps end at 239) */
 #define MXL_VW 210
 #define MXL_TY 1                        /* the text line: the engine, then the preset (the user: "each track shows the synth
