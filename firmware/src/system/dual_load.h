@@ -53,9 +53,10 @@ static int32_t dual_c1_pct(void)
  * after the join; the main loop only reads (and sets wreset) */
 #if defined(FELUCCA_SYS_DEBUG) && FELUCCA_SYS_DEBUG
 #define DUAL_TIMES 1
-#define DUAL_TM_NJ 6u                              /* jobs: the parts (NPART <= 4), the drums, the reverb's kept block */
+#define DUAL_TM_NJ 7u                              /* jobs: the parts (NPART <= 4), the drums, the reverb's kept block,
+                                                    * the Bluetooth stream's SBC frame (bt/bt_sbc_job.h) */
 #define DUAL_TM_WIN 4u                             /* the peaks' windows of 512 ms: the last 2 s */
-enum { DTQ_PRE, DTQ_OWN, DTQ_WAIT, DTQ_POST, DTQ_BLK, DTQ_C1, DTQ_J0, DTQ_N = DTQ_J0 + DUAL_TM_NJ };
+enum { DTQ_PRE, DTQ_OWN, DTQ_WAIT, DTQ_POST, DTQ_BLK, DTQ_C1, DTQ_J0, DTQ_EVT = DTQ_J0 + DUAL_TM_NJ, DTQ_NS, DTQ_N };   /* (EVT, NS last: the older ones keep their places) */
 typedef struct {
     uint32_t avg[DTQ_N];                           /* ticks x 8, smoothed */
     uint16_t pk[DUAL_TM_WIN][DTQ_N];               /* each window's peak, ticks (held to 65535) */
@@ -67,13 +68,41 @@ typedef struct {
     uint8_t w_c1, w_ran;                           /* the worst block's: the jobs CPU1 ran, the jobs that ran */
     uint8_t win;                                   /* the window written now (ms >> 9, of DUAL_TM_WIN) */
     volatile uint8_t wreset;                       /* the main loop: a new worst block from now (the page opened) */
+#if FELUCCA_BENCH
+    uint32_t bsum[DTQ_N], bmax[DTQ_N], blocks;     /* (bench builds: each quantity's sum and largest since boot, the
+                                                    * blocks counted: the emulator reads them, tools/cpubal_emu.py) */
+#endif
+    uint8_t in_evt, ns_depth;                      /* (CPU0: inside events_block; inside a timed trk_note_on) */
+    uint32_t evt, ns;                              /* this block's ticks in events_block, in its note starts (PRE's parts) */
+    uint8_t lastc[DUAL_TM_NJ];                     /* each job's core the last block it ran: 1 CPU0, 2 CPU1 (0: never) */
+    volatile uint32_t sbc_n[3];                    /* the Bluetooth stream's SBC frames encoded as render jobs, counted since
+                                                    * boot: [0] early on CPU1 (before the events), [1] at the split on CPU1,
+                                                    * [2] at the split on CPU0 (fm1-base opt_dual.c; each core its own word) */
 } dual_tm_t;
+#ifndef DUAL_TM_SBC_FEED
+#define DUAL_TM_SBC_FEED() 0u                      /* the frames the platform encoded at its feed, on CPU0 after the render
+                                                    * (fm1-base: plat_bta_job_inline; none here) */
+#endif
 static dual_tm_t dual_tm;
 #define DUAL_TM_JOB(p, t) ((p) < DUAL_TM_NJ ? (void)(dual_tm.jt[p] = (t)) : (void)0)   /* (dual_run: a job's time) */
+/* PRE's two parts (2026-11-01, PRE at 37..60 % of a block on the user's FM-1 while the host counts 9 k instructions at
+ * most: which of PRE): EVT the sequencer's events (seq.c events_block, from its XIP code), NOTE the note starts inside
+ * them (voice.c trk_note_on: the parts' notes and the drum hits, whatever started them in events_block; a note start
+ * the main loop makes is not counted). CPU0 only, in XIP code: fm1_ticks there. A block's sums, folded in by
+ * dual_tm_block (no events_block in a block: 0) */
+#define DUAL_TM_EVT_IN() (dual_tm.in_evt = 1, fm1_ticks())
+#define DUAL_TM_EVT_OUT(t0) (dual_tm.evt += fm1_ticks() - (t0), dual_tm.in_evt = 0)
+#define DUAL_TM_NS_IN() (dual_tm.in_evt && !dual_tm.ns_depth++ ? fm1_ticks() : 0u)
+#define DUAL_TM_NS_OUT(t0) (dual_tm.in_evt && !--dual_tm.ns_depth ? (void)(dual_tm.ns += fm1_ticks() - (t0)) : (void)0)
 static inline __attribute__((always_inline)) void dual_tm_q(uint32_t q, uint32_t t, uint16_t *pk, uint16_t *v)
 {
     uint16_t c = (uint16_t)(t < 0xFFFFu ? t : 0xFFFFu);
     dual_tm.avg[q] += t - (dual_tm.avg[q] >> 3);
+#if FELUCCA_BENCH
+    dual_tm.bsum[q] += t;
+    if (t > dual_tm.bmax[q])
+        dual_tm.bmax[q] = t;
+#endif
     if (c > pk[q])
         pk[q] = c;
     v[q] = c;
@@ -96,13 +125,19 @@ static inline __attribute__((always_inline)) void dual_tm_block(uint32_t t0, uin
     dual_tm_q(DTQ_POST, te - tj1, pk, v);
     dual_tm_q(DTQ_BLK, te - t0, pk, v);
     dual_tm_q(DTQ_C1, c1 ? dual_tm.c1_last : 0u, pk, v);
+    dual_tm_q(DTQ_EVT, dual_tm.evt, pk, v);
+    dual_tm_q(DTQ_NS, dual_tm.ns, pk, v);
+    dual_tm.evt = dual_tm.ns = 0;
     for (p = 0; p < DUAL_TM_NJ; p++)
         if ((ran >> p) & 1u)
-            dual_tm_q(DTQ_J0 + p, dual_tm.jt[p], pk, v);
+            dual_tm_q(DTQ_J0 + p, dual_tm.jt[p], pk, v), dual_tm.lastc[p] = (uint8_t)(1u + ((c1 >> p) & 1u));
         else
             v[DTQ_J0 + p] = 0;
     dual_tm.c1_mask = (uint8_t)c1;
     dual_tm.ran = (uint8_t)ran;
+#if FELUCCA_BENCH
+    dual_tm.blocks++;
+#endif
     if (dual_tm.wreset) {                          /* (the page opened: the worst block from now) */
         dual_tm.wreset = 0;
         dual_tm.worst[DTQ_BLK] = 0;
