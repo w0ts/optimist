@@ -89,9 +89,12 @@ static void sv_rec_tests(void)
     check(st.pk == 5u && pk_ok(), "pick: the note a step key set is the picked one");
     tap(B_REC);
     frames(2);
+    check(rec_wait && se_on() && step_keys(fm1_in.buttons) && ly_lock == LY_STEP, "keys: REC on (armed), stopped: STEP ENTRY, the keys reach the UI");
+    tap(B_PLAY);                                        /* (2026-11-01: PLAY in STEP ENTRY arms the take, the keys play) */
+    frames(2);
     keys_lit(&f, &d, &h);
-    check(rec_wait && !step_keys(fm1_in.buttons) && ly_lock == LY_PLAY && !(d & sv_whites()) && !(f & sv_kw(5)),
-          "keys: REC on (armed): the keys play, no step lit or dim");
+    check(rec_wait && !song.playing && !se_on() && !step_keys(fm1_in.buttons) && ly_lock == LY_PLAY && !(d & sv_whites()) && !(f & sv_kw(5)),
+          "keys: REC on, PLAY armed: the keys play, no step lit or dim, the transport stopped");
     kdown(WK(9));
     n = pen_note[0];
     frames(2);
