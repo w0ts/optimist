@@ -256,7 +256,32 @@ export function fm1Key(name) {
   const m = FM1_TOKEN.exec(n);
   return m ? m[0].toUpperCase() : n;
 }
+/** true when a port belongs to an FM-1 that was not chosen: one of the others' keys, or another FM1-XXXX than the chosen one's
+ * (a loader's port may carry another name than the chosen FM-1's running firmware: a port without a token stays askable) */
+export function notChosen(name, chosen, others) {
+  const k = fm1Key(name), m = FM1_TOKEN.exec(name || "");
+  return (!!k && others.has(k)) || (!!chosen && FM1_TOKEN.test(chosen) && !!m && m[0].toUpperCase() !== chosen.toUpperCase());
+}
 /** the FM-1s among the port names, one key each, in the order met */
 export function fm1Devices(names) {
   return [...new Set(names.map(fm1Key).filter(Boolean))];
+}
+
+/* ---- the cable dropped mid-install (tools/fm1_install.py resume_plan; the Mirror app's FlashResume.plan): the user, 2026-11-01,
+   "There should be a user warning 'connection dropped, verify cable and enter to resume'" */
+export const DROPPED = "Connection dropped. Check the cable, then press Resume.";
+const OUR_LOADER_TEXT = /^ota-FM-1_[79]\d\d$/i;
+const dropModelOf = (text) => String(text || "").split("_")[0].replace(/^ota-/i, "");
+/** what the FM-1 found again after a drop means. phase: "check" (step 1 was cut off) or "write" (step 2); id: its identity
+ * ({ text }) or null; running: the firmware it ran before step 1. -> "absent" (ask again), "write" (our loader: step 2 again,
+ * the fast loader skips the sectors already right), "restart" (the same firmware after step 1: it gave the update up, step 1
+ * again), "done" (the package running after step 2: the loader had finished), "foreign" (another firmware's loader),
+ * "unexpected" (anything else: stop, nothing more is sent) */
+export function resumePlan(phase, id, product, running) {
+  if (!id) return "absent";
+  if (dropModelOf(id.text) !== dropModelOf(product)) return "unexpected";
+  if (/^ota-/i.test(id.text)) return OUR_LOADER_TEXT.test(id.text) ? "write" : "foreign";
+  if (phase === "check" && id.text === running) return "restart";
+  if (phase === "write" && id.text === product) return "done";
+  return "unexpected";
 }

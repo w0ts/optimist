@@ -231,6 +231,169 @@ final class FlashTests: XCTestCase {
             XCTFail("\(error)")
         }
     }
+    // MARK: - the cable dropped mid-install (2026-11-01; tools/fm1_install.py install_resumable, web/fm1ota_optimist.js resumable)
+
+    private final class Drops { var asked: [Bool] = [] }
+
+    private func dropUpdater(_ ports: FlashPorts) -> FlashUpdater {
+        let u = FlashUpdater(ports: ports, pause: { _ in await Task.yield() })
+        u.timing.loaderWait = 2
+        u.timing.returnWait = 2
+        u.timing.step1Idle = 2
+        u.timing.step2Idle = 2
+        u.timing.resumeWait = 1
+        return u
+    }
+
+    /// step 1: 3 reads; the fast loader: the table, then the sectors. 6 = the table and 2 sectors, then the cable goes
+    private func dropDevice(after: Int = 6) throws -> (FlashPackage, FakeFlashDevice, Int) {
+        let pkg = try FlashPackage.check(FakeFlashDevice.package("FM-1_700", size: 0x6000), title: "t")
+        let dev = FakeFlashDevice(.firmware("FM-1_904"), image: pkg.image.count, finalIdentity: "FM-1_700", fast: true)
+        dev.unplugAfter = after
+        return (pkg, dev, pkg.image.count / FlashProtocol.sector)
+    }
+
+    func testDropWordsAndPlan() {
+        XCTAssertEqual(FlashResume.dropped, "Connection dropped. Check the cable, then press Resume.")   // (the web's DROPPED)
+        XCTAssertEqual(FlashResume.notBack, "The FM-1 was not found yet: check the cable, wait a few seconds, then press Resume.")
+        let id = { (t: String) in FlashProtocol.Identity(text: t, model: String(t.split(separator: "_")[0]), version: 0) }
+        XCTAssertEqual(FlashResume.plan(.write, nil, product: "FM-1_900", running: "FM-1_015"), .absent)
+        XCTAssertEqual(FlashResume.plan(.write, id("ota-FM-1_900"), product: "FM-1_900", running: "FM-1_015"), .write)
+        XCTAssertEqual(FlashResume.plan(.check, id("ota-FM-1_900"), product: "FM-1_900", running: "FM-1_015"), .write)
+        XCTAssertEqual(FlashResume.plan(.check, id("FM-1_015"), product: "FM-1_900", running: "FM-1_015"), .restart)
+        XCTAssertEqual(FlashResume.plan(.write, id("FM-1_015"), product: "FM-1_900", running: "FM-1_015"), .unexpected)
+        XCTAssertEqual(FlashResume.plan(.write, id("FM-1_900"), product: "FM-1_900", running: "FM-1_015"), .done)
+        XCTAssertEqual(FlashResume.plan(.check, id("FM-1_905"), product: "FM-1_900", running: "FM-1_015"), .unexpected)
+        XCTAssertEqual(FlashResume.plan(.write, id("ota-FM-1_015"), product: "FM-1_900", running: "FM-1_015"), .foreign)
+        XCTAssertEqual(FlashResume.plan(.write, id("XY-9_001"), product: "FM-1_900", running: "FM-1_015"), .unexpected)
+    }
+
+    func testDropInStep2ResumesWithTheSectorsLeft() async throws {
+        let (pkg, dev, n) = try dropDevice()
+        let d = Drops()
+        var steps: [FlashStep] = []
+        let back = try await dropUpdater(dev).installResumable(pkg, running: "FM-1_904", step: { steps.append($0) }) { e, again in
+            XCTAssertEqual(e.code, .lost)
+            d.asked.append(again)
+            dev.replug(.loader("ota-FM-1_700"))
+            return true
+        }
+        XCTAssertEqual(back, "FM-1_700")
+        XCTAssertEqual(d.asked, [false])
+        XCTAssertEqual(dev.sectorReads, n)                 // (2 before the drop, the rest after: none twice)
+        XCTAssertEqual(dev.upgrades, 3)                    // (step 1 once, step 2 twice: never the running firmware twice)
+        XCTAssertTrue(steps.contains(.found("ota-FM-1_700")))
+    }
+
+    func testTwoDrops() async throws {
+        let (pkg, dev, n) = try dropDevice(after: 5)
+        let d = Drops()
+        let back = try await dropUpdater(dev).installResumable(pkg, running: "FM-1_904", step: { _ in }) { _, again in
+            d.asked.append(again)
+            dev.replug(.loader("ota-FM-1_700"), unplugAfter: d.asked.count == 1 ? 2 : nil)
+            return true
+        }
+        XCTAssertEqual(back, "FM-1_700")
+        XCTAssertEqual(d.asked.count, 2)
+        XCTAssertEqual(dev.sectorReads, n)
+    }
+
+    func testDropThenCancel() async throws {
+        let (pkg, dev, _) = try dropDevice()
+        do {
+            _ = try await dropUpdater(dev).installResumable(pkg, running: "FM-1_904", step: { _ in }) { _, _ in false }
+            XCTFail("went on after Cancel")
+        } catch let e as FlashError {
+            XCTAssertEqual(e.code, .cancelled)
+            XCTAssertEqual(e.description, "Cancelled. Nothing more was sent. The FM-1 stays in update mode: press Install again, it finishes.")
+        }
+        XCTAssertEqual(dev.upgrades, 2)
+    }
+
+    func testDropInStep1StartsOverOnTheSameFirmware() async throws {
+        let (pkg, dev, _) = try dropDevice(after: 2)
+        let back = try await dropUpdater(dev).installResumable(pkg, running: "FM-1_904", step: { _ in }) { _, _ in
+            dev.replug(.firmware("FM-1_904"))              // (it gave the update up: the old firmware runs on)
+            return true
+        }
+        XCTAssertEqual(back, "FM-1_700")
+        XCTAssertEqual(dev.upgrades, 3)
+    }
+
+    func testDropThenSomethingElseStops() async throws {
+        for (mode, code) in [(FakeFlashDevice.Mode.firmware("FM-1_904"), FlashError.Code.unexpected), (.loader("ota-FM-1_015"), .foreign)] {
+            let (pkg, dev, _) = try dropDevice()
+            do {
+                _ = try await dropUpdater(dev).installResumable(pkg, running: "FM-1_904", step: { _ in }) { _, _ in dev.replug(mode); return true }
+                XCTFail("went on with \(mode)")
+            } catch let e as FlashError {
+                XCTAssertEqual(e.code, code)
+            }
+            XCTAssertEqual(dev.upgrades, 2, "nothing more sent to \(mode)")
+        }
+        let (pkg, dev, _) = try dropDevice()
+        let back = try await dropUpdater(dev).installResumable(pkg, running: "FM-1_904", step: { _ in }) { _, _ in
+            dev.replug(.firmware("FM-1_700"))              // (the loader had finished: the package runs)
+            return true
+        }
+        XCTAssertEqual(back, "FM-1_700")
+        XCTAssertEqual(dev.upgrades, 2)
+    }
+
+    func testResumeBeforeTheFM1IsBackAsksAgain() async throws {
+        let (pkg, dev, _) = try dropDevice()
+        let d = Drops()
+        let back = try await dropUpdater(dev).installResumable(pkg, running: "FM-1_904", step: { _ in }) { _, again in
+            d.asked.append(again)
+            if d.asked.count == 2 { dev.replug(.loader("ota-FM-1_700")) }
+            return true
+        }
+        XCTAssertEqual(back, "FM-1_700")
+        XCTAssertEqual(d.asked, [false, true])
+    }
+
+    private struct TwoUnits: FlashPorts {
+        let dev: FakeFlashDevice
+        let other: FakeUSBPort
+        func channels() -> [FlashChannel] { dev.channels() + [other] }
+    }
+
+    func testTwoFM1sResumeOnTheChosenOne() async throws {
+        let (pkg, dev, n) = try dropDevice()
+        dev.portName = "FM1-1A2B"
+        let other = FakeUSBPort("FM-1", identity: "ota-FM-1_700")      // (another FM-1, in update mode too, a port without a token)
+        let u = dropUpdater(TwoUnits(dev: dev, other: other))
+        u.excluded = ["FM-1"]
+        u.chosen = "FM1-1A2B"
+        XCTAssertTrue(u.notChosen("FM1-9C0D Update"))
+        XCTAssertFalse(u.notChosen("Felucca Update"))
+        let back = try await u.installResumable(pkg, running: "FM-1_904", step: { _ in }) { _, _ in
+            dev.replug(.loader("ota-FM-1_700"), name: "Felucca Update")
+            return true
+        }
+        XCTAssertEqual(back, "FM-1_700")
+        XCTAssertEqual(dev.sectorReads, n)
+        XCTAssertEqual(other.sent, 0)
+    }
+
+    @MainActor
+    func testModelAsksResumeOrCancel() async {
+        let model = FlashModel(link: MirrorLink(), ports: FakeUSBPorts([]))
+        let resumed = Task { await model.askResume(again: false) }
+        while model.dropped == nil { await Task.yield() }
+        XCTAssertEqual(model.dropped, FlashResume.dropped)
+        model.answerDrop(true)
+        let r = await resumed.value
+        XCTAssertTrue(r)
+        XCTAssertNil(model.dropped)
+        let cancelled = Task { await model.askResume(again: true) }
+        while model.dropped == nil { await Task.yield() }
+        XCTAssertEqual(model.dropped, FlashResume.dropped + " " + FlashResume.notBack)
+        model.answerDrop(false)
+        let c = await cancelled.value
+        XCTAssertFalse(c)
+    }
+
     // MARK: - the route and the build's BOOTLOADER (docs/INSTALL-PATHS.md; the same pairs as tools/fm1_route.py)
 
     func testRouteMatrix() {
@@ -367,6 +530,20 @@ final class FakeFlashDevice: FlashPorts, FlashChannel {
     private var pending: (UInt32, Int)?
     private(set) var table: [UInt8] = []
     private let queue = SysExQueue()
+    /// the cable: gone (.absent) after that many answers; replug() brings the FM-1 back
+    var unplugAfter: Int?
+    private(set) var answers = 0
+    private(set) var upgrades = 0
+    private(set) var sectorReads = 0          // 4 KiB reads answered (the table not counted)
+    private var sectorsRight = Set<UInt32>()  // the fast loader's sectors already right: a resumed write skips them
+    var portName = "Optimist"
+
+    func replug(_ m: Mode, name: String? = nil, unplugAfter: Int? = nil) {
+        mode = m
+        if let name { portName = name }
+        self.unplugAfter = unplugAfter.map { answers + $0 }
+        queue.drain()
+    }
 
     init(_ mode: Mode, image: Int, finalIdentity: String, fast: Bool = false) {
         self.mode = mode
@@ -387,8 +564,13 @@ final class FakeFlashDevice: FlashPorts, FlashChannel {
     }
 
     // FlashChannel
-    var name: String { "Optimist" }
-    var lost: Bool { if case .restarting = mode { return true }; return false }
+    var name: String { portName }
+    var lost: Bool {
+        switch mode {
+        case .restarting, .absent: return true
+        default: return false
+        }
+    }
     func drain() { queue.drain() }
     func read(timeout: TimeInterval) async -> [UInt8]? { await queue.read(timeout: min(timeout, 0.5)) }
     func close() {}
@@ -409,6 +591,7 @@ final class FakeFlashDevice: FlashPorts, FlashChannel {
             }
         } else if bytes == FlashProtocol.upgrade {
             upgraded = true
+            upgrades += 1
             switch mode {
             case .firmware:
                 reads = [(0, 512), (1024, 300), (UInt32(imageSize - 64), 64)]
@@ -416,6 +599,7 @@ final class FakeFlashDevice: FlashPorts, FlashChannel {
             case .loader where fastOn:
                 let n = imageSize / FlashProtocol.sector
                 reads = [(FlashProtocol.table, n * 6)] + (0..<n).map { (UInt32($0 * FlashProtocol.sector), FlashProtocol.sector) }
+                    .filter { !sectorsRight.contains($0.0) }
                 written = []
                 finish = FlashProtocol.step2Done
             case .loader:
@@ -433,6 +617,9 @@ final class FakeFlashDevice: FlashPorts, FlashChannel {
             guard let p = pending, p.0 == addr, p.1 == data.count else { return true }
             if finish == FlashProtocol.step2Done, addr < FlashProtocol.table { written += data }
             if addr == FlashProtocol.table { table = data }
+            answers += 1
+            if fastOn, addr < FlashProtocol.table, data.count == FlashProtocol.sector { sectorReads += 1; sectorsRight.insert(addr) }
+            if let u = unplugAfter, answers >= u { mode = .absent; return true }   // (the cable pulled)
             next()
         }
         return true

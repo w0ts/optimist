@@ -21,6 +21,7 @@ struct FlashView: View {
     var body: some View {
         NavigationStack {
             List {
+                if let d = flash.dropped { droppedSection(d) }
                 installSection
                 buildSection
             }
@@ -50,6 +51,19 @@ struct FlashView: View {
             if flash.chosen == nil, flash.myBuild != nil { flash.chooseMyBuild() }   // (one's own build, when there is one, picked)
         }
         .task { await flash.find() }
+    }
+
+    /// the cable dropped mid-install (the web installer's box): the sentence, Resume and Cancel; out of the Install section,
+    /// which is disabled while the install runs
+    private func droppedSection(_ text: String) -> some View {
+        Section {
+            Label(text, systemImage: "cable.connector.slash").foregroundStyle(.orange)
+            HStack {
+                Button("Resume") { flash.answerDrop(true) }.bold().buttonStyle(.borderedProminent)
+                Spacer()
+                Button("Cancel", role: .cancel) { flash.answerDrop(false) }.buttonStyle(.bordered)
+            }
+        }
     }
 
     private var releases: [(group: String, entries: [FlashEntry])] { FlashCatalog.grouped(flash.site) }

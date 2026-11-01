@@ -177,21 +177,69 @@ export class OptimistUpdater extends Updater {
   // step 1 (fm1base's stages, as it is): the transport stops first. A MIDI STOP (0xFC) and 100 ms, before the upgrade command;
   // the firmware stops it itself too, so this is harmless there (tools/fm1_install.py and the Mirror app do the same)
   async stages(dev, image, product, step) {
+    this.phase = "check";                               /* (where a dropped connection happened: resumable) */
     dev.link.send(OPT_MIDI_STOP);
     await optSleep(OPT_STOP_WAIT_MS);
     return super.stages(dev, image, product, step);
   }
 
   // step 2: the fast install when the loader answers the word (docs/INSTALL-SPEED.md), else fm1base's write. this.fast says
-  // which one ran
+  // which one ran; this.lastWrite what it ended with (fm1base's resume says only false)
   async write(ota, image, step) {
+    this.phase = "write";
     this.fast = await optFastHello(ota.link);
-    if (!this.fast) return super.write(ota, image, step);
+    if (!this.fast) return (this.lastWrite = await super.write(ota, image, step));
     ota.link.send(optUpgrade);
     await optSleep(50);
     const s2 = await this.serveFast(ota.link, image, 0xF0000000, 180000, (n, b) => step && step("write", n, b));
     ota.link.close();
-    return s2;
+    return (this.lastWrite = s2);
+  }
+
+  // fm1base's resume as one that throws: "lost" when the loader went away (or was not found again), "stopped" when it
+  // stopped answering -> the product
+  async resumeOrThrow(image, onStep, product) {
+    this.lastWrite = null;
+    if (await this.resume(image, onStep, product)) return product;
+    const w = this.lastWrite;
+    if (w && !w.lost) throw optFail("stopped", `the loader stopped after ${w.served} requests`);
+    throw optFail("lost", w ? `the loader was disconnected after ${w.served} requests` : "the update loader was not found");
+  }
+
+  // an install that survives the cable dropping (the user, 2026-11-01): first() runs it (install or resume); when the
+  // connection drops ("lost"), onDrop(error, again) -> true to look for the FM-1 again (again: it was not there the last
+  // time), false to stop ("cancelled"). Found again, plan(phase, id, product, running) (install_route.js resumePlan) says
+  // what it is: our loader -> step 2 again (the fast loader skips every sector already right), the same running firmware
+  // after step 1 -> the install again from step 1, the package running after step 2 -> done; anything else stops with
+  // nothing more sent. opts: { image, product, sha256, running, onStep, plan, waitMs }
+  async resumable(first, onDrop, opts) {
+    const { image, product, sha256, running, plan } = opts;
+    const onStep = opts.onStep || (() => {});
+    let attempt = first;
+    for (;;) {
+      try { return await attempt(); }
+      catch (e) {
+        if (!e || e.code !== "lost") throw e;
+        const phase = this.phase || "write";
+        this.watch();                                   /* (the ports now, without the FM-1: whatever comes back is asked) */
+        let again = false, dev = null, what = "absent";
+        try {
+          for (;;) {
+            if (!(await onDrop(e, again))) throw optFail("cancelled", "cancelled", phase);
+            dev = await this.waitFor(() => true, opts.waitMs ?? 10000);
+            if (dev) dev.link.close();
+            what = plan(phase, dev && dev.id, product, running);
+            if (what !== "absent") break;
+            again = true;
+          }
+        } finally { this.unwatch(); }
+        if (what === "done") { onStep("done", dev.id.text); return dev.id.text; }
+        if (what === "foreign") throw optFail("foreign", `the FM-1 came back in the update mode of another firmware (${dev.id.text})`, dev.id.text);
+        if (what !== "write" && what !== "restart") throw optFail("unexpected", `the FM-1 came back as ${dev.id.text}, not the one being updated`, dev.id.text);
+        onStep("found", dev.id.text);
+        attempt = what === "write" ? () => this.resumeOrThrow(image, onStep, product) : () => this.install(image, product, onStep, sha256);
+      }
+    }
   }
 
   // fm1base's serve for the fast install: 4 KiB reads and the table, no pause before an answer
