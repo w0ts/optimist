@@ -198,7 +198,7 @@ struct NavTracks: View {
     @ObservedObject var nav: NavModel
 
     /// Always room for the lanes' line (the user, 2026-10-24: the screen must not change size between T1..T3 and DR)
-    static let height = NavMetrics.compact * 3 + 4 + NavMetrics.gap
+    static let height = NavMetrics.button * 2 + NavMetrics.gap
 
     /// The lanes' buttons: always drawn (the kit's names, else the default lanes'), available only while the drum track or a lane
     /// is the selection (the user, 2026-10-29: "the buttons that are not available should be greyed out")
@@ -211,22 +211,22 @@ struct NavTracks: View {
         let cur = nav.state?.track ?? Nav.none, dim = cur == Nav.none
         let lanes = Self.lanes(tracks: nav.tracks, current: cur)
         let bar = Nav.bar(count: nav.tracks.count)
-        let cols = [GridItem(.adaptive(minimum: 44), spacing: 4)]
         VStack(spacing: NavMetrics.gap) {
-            LazyVGrid(columns: cols, spacing: 4) {
+            HStack(spacing: 4) {
                 ForEach(Array(lanes.names.enumerated()), id: \.offset) { k, name in
-                    NavButton(title: name, compact: true, lit: lanes.available && Nav.drumRow + 1 + k == cur, dim: !lanes.available) { nav.pick(track: Nav.drumRow + 1 + k) }
+                    NavButton(title: name, lit: lanes.available && Nav.drumRow + 1 + k == cur, dim: !lanes.available) { nav.pick(track: Nav.drumRow + 1 + k) }
                 }
             }
-            .frame(height: NavMetrics.compact * 2 + 4, alignment: .top)
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 40), spacing: 4)], alignment: .leading, spacing: 4) {
+            .frame(height: NavMetrics.button)
+            // (T1 T2 T3 DR and MASTER at the full touch size as before 2026-10-31; only the returns RET A B C are the smaller buttons)
+            HStack(spacing: 4) {
                 ForEach(bar.bottom, id: \.self) { p in
-                    NavButton(title: nav.tracks[p], compact: true, lit: p == cur || (p == Nav.drumRow && cur > Nav.drumRow && cur != Nav.none), dim: dim) {
+                    NavButton(title: nav.tracks[p], compact: p <= Nav.retRow + 2, lit: p == cur || (p == Nav.drumRow && cur > Nav.drumRow && cur != Nav.none), dim: dim) {
                         nav.pick(track: p)
                     }
                 }
             }
-            .frame(height: NavMetrics.compact, alignment: .top)
+            .frame(height: NavMetrics.button)
         }
         .frame(height: Self.height, alignment: .bottom)
     }
