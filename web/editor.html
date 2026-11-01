@@ -480,6 +480,7 @@
   #mixer .pslot.used { background: var(--s2); color: var(--fg); box-shadow: inset 3px 0 var(--eng, var(--tc)); }
   #mixer .pslot.on { background: var(--ok, #3c3); color: var(--on); }
   #mixer .pslot.q { background: var(--warn, #d93); color: var(--on); }
+  #mixer .pslot.live { font-style: italic; }
   #mixer .pslot.ref { outline: 2px solid var(--fg); outline-offset: -2px; }
   #mixer .pslot.scn { text-align: center; font-weight: 700; }
   #mixer .strip .snd { height: 34px; min-height: 0; overflow: hidden; align-self: stretch; }
@@ -973,6 +974,7 @@
   #mixer .pslot.used { background: var(--s2); color: var(--fg); box-shadow: inset 3px 0 var(--eng, var(--tc)); }
   #mixer .pslot.on { background: var(--ok, #3c3); color: var(--on); }
   #mixer .pslot.q { background: var(--warn, #d93); color: var(--on); }
+  #mixer .pslot.live { font-style: italic; }
   #mixer .pslot.ref { outline: 2px solid var(--fg); outline-offset: -2px; }
   #mixer .pslot.scn { text-align: center; font-weight: 700; }
   #mixer .strip .snd { height: 34px; min-height: 0; overflow: hidden; align-self: stretch; }
@@ -1766,11 +1768,14 @@ const autoLane = (param) => (param >= AUTO.LANE0 && param < AUTO.LANE0 + AUTO.LA
 /* the patterns' 7-bit slot values (ed_pat.c): 0..15 a slot, NONE none, KEEP a scene keeps the track, STOP a launch stops it /
    a scene there is a plain section */
 const PAT = { N: 16, NONE: 127, KEEP: 126, STOP: 125 };
-/* a slot's look in its mixer strip (L: PAT_LIST op 0): cls "on" playing, "q" queued, "used" stored, "" empty; its text: the
-   pattern's LEN, "*" when the one playing has changed since it was stored */
+/* a slot's look in its mixer strip (L: PAT_LIST op 0): cls "on" playing, "q" queued, "used" stored, "" empty, plus " live" when
+   it keeps edits not saved (issue 142: its live pattern); its text: the pattern's LEN as it plays, "*" when it keeps edits not
+   saved (a live pattern, or the one playing changed since it was saved) - as the FM-1's grid */
+const patLive = (L, k, s) => !!L.live && ((L.live[k] >> s) & 1) === 1;
 function patSlotView(L, k, s) {
-  const tr = L.tracks[k], n = L.len ? L.len[k][s] : 0, on = tr.cur === s;
-  return { cls: on ? "on" : tr.req === s ? "q" : n ? "used" : "", text: n ? `${n}${on && (L.changed >> k) & 1 ? "*" : ""}` : "" };
+  const tr = L.tracks[k], n = L.len ? L.len[k][s] : 0, on = tr.cur === s, live = patLive(L, k, s);
+  const star = live || (on && (L.changed >> k) & 1);
+  return { cls: (on ? "on" : tr.req === s ? "q" : n ? "used" : "") + (live ? " live" : ""), text: n ? `${n}${star ? "*" : ""}` : live ? "*" : "" };
 }
 /* the scenes that play pattern s of track k (L: PAT_LIST op 0): their letters */
 const patUsers = (L, k, s) => (L.scenes || []).map((r, i) => (r[k] === s ? String.fromCharCode(65 + i) : "")).join("");
@@ -3152,11 +3157,13 @@ const parse = {   /* the replies' readers, by command */
      the launch waiting and when (0 end, 1 next bar, 2 now); op 0 also each track's 16 slots' LEN (0 empty) and the 16
      scenes' 4 patterns. A slot: 0..15, PAT.NONE none, PAT.KEEP keep, PAT.STOP stop / a plain section (a scene's) */
   [CMD.PAT_LIST](a) {
-    const o = { op: a[0], changed: a[1], tracks: [], len: null, scenes: null };
+    const o = { op: a[0], changed: a[1], tracks: [], len: null, scenes: null, live: null };
     for (let k = 0; k < 4; k++) o.tracks.push({ cur: a[2 + 3 * k], req: a[3 + 3 * k], when: a[4 + 3 * k] });
     if (a[0] === 0 && a.length >= 14 + 64 + 64) {
       o.len = [0, 1, 2, 3].map((k) => Array.from(a.slice(14 + 16 * k, 30 + 16 * k)));
       o.scenes = Array.from({ length: 16 }, (_, s) => Array.from(a.slice(78 + 4 * s, 82 + 4 * s)));
+      /* (issue 142: the live patterns, 3 bytes a track; an older firmware sends none: no marks, no SAVE / RELOAD) */
+      if (a.length >= 142 + 12) o.live = [0, 1, 2, 3].map((k) => a[142 + 3 * k] | (a[143 + 3 * k] << 7) | (a[144 + 3 * k] << 14));
     }
     return o;
   },
@@ -3369,7 +3376,7 @@ const req = {                                       /* each: (arguments) -> [cmd
   patList: (op) => [CMD.PAT_LIST, [op & 1]],
   patLaunch: (k, s, when) => [CMD.PAT_LAUNCH, [k & 3, s & 0x7F, when & 3]],
   scene: (op, s) => [CMD.SCENE, [op & 1, s & 15]],
-  patOp: (op, k, a, k2 = 0, b = 0) => [CMD.PAT_OP, [op & 3, k & 3, a & 15, k2 & 3, b & 15]],
+  patOp: (op, k, a, k2 = 0, b = 0) => [CMD.PAT_OP, [op & 7, k & 3, a & 15, k2 & 3, b & 15]],   /* (4 SAVE, 5 RELOAD: issue 142) */
   czPut: (k, b) => [CMD.CZ_BANK, [1, k & 0x7F, ...(b ? b.flatMap((v) => [v & 15, v >> 4]) : [])]],   /* b null: erase */
   /* a pattern's record (a slot that does not play; ed_pat.c): read from an offset (chunks of PATREC.CHUNK bytes); written
      in order from offset 0, `total` bytes (0: clear the slot), the chunk that completes it stores it */
@@ -6519,7 +6526,7 @@ function makeMockDevice(opt = {}) {                /* (opt: see above) */
       /* the per-track patterns (ed_pat.c); opt.pat: a build with them (default off: no reply). A store writes 16 steps */
       case CMD.PAT_LIST: case CMD.PAT_LAUNCH: case CMD.SCENE: case CMD.PAT_OP: case CMD.PAT_READ: case CMD.PAT_WRITE: {
         if (!opt.pat || !a.length) return null;
-        const P = st.pat || (st.pat = { cur: [127, 127, 127, 127], req: [127, 127, 127, 127], when: [0, 0, 0, 0], changed: 0, rec: {}, wr: null,
+        const P = st.pat || (st.pat = { cur: [127, 127, 127, 127], req: [127, 127, 127, 127], when: [0, 0, 0, 0], changed: 0, rec: {}, wr: null, live: [0, 0, 0, 0], saved: {},
           len: [0, 1, 2, 3].map(() => new Array(PAT.N).fill(0)), scenes: Array.from({ length: 16 }, () => [127, 127, 127, 127]) });
         const free = (k) => P.len[k].findIndex((n, s) => !n && !P.scenes.some((r) => r[k] === s));
         let rc = 1;
@@ -6533,31 +6540,34 @@ function makeMockDevice(opt = {}) {                /* (opt: see above) */
           return patRecBuild(o, k === 3);
         };
         if (cmd === CMD.PAT_READ || cmd === CMD.PAT_WRITE) {
-          const w = cmd === CMD.PAT_WRITE;
-          if (a.length < 4 + 2 * w || a[0] > 3 || a[1] > 15) return null;
+          const w = cmd === CMD.PAT_WRITE, sv = (a[0] >> 2) & 1, tk = a[0] & 3;   /* (+ 4: the saved one; issue 142) */
+          if (a.length < 4 + 2 * w || a[0] > 7 || a[1] > 15) return null;
           const off = a[2] | (a[3] << 7);
           b(a[0]); b(a[1]); b(a[2]); b(a[3]);
           if (!w) {
-            const r = recOf(a[0], a[1]);
+            const r = sv && P.saved[tk + ":" + a[1]] ? P.saved[tk + ":" + a[1]] : recOf(tk, a[1]);
             b(r.length); b(r.length >> 7);
             if (off < r.length) out.push(...pack7(r.subarray(off, off + 256)));
             break;
           }
           const total = a[4] | (a[5] << 7);
-          if (off === 0 && total <= PATREC.MAX && !st.patBusy) P.wr = { k: a[0], s: a[1], total, got: [] };
+          if (off === 0 && total <= PATREC.MAX && !st.patBusy) P.wr = { k: tk, s: a[1], total, got: [] };
           const q = P.wr;
           if (st.patBusy) rc = 3;
-          else if (q && q.k === a[0] && q.s === a[1] && q.total === total && q.got.length === off) {
+          else if (q && q.k === tk && q.s === a[1] && q.total === total && q.got.length === off) {
             q.got.push(...unpack7(a.slice(6)).subarray(0, Math.min(256, total - off)));
             rc = 0;
             if (q.got.length === total) {
-              const bytes = Uint8Array.from(q.got), k = a[0], s = a[1];
+              const bytes = Uint8Array.from(q.got), k = tk, s = a[1], key = k + ":" + s;
               P.wr = null;
               if (total && !patRecParse(bytes, k === 3)) rc = 2;
               else if (!total && st.playing) rc = 4;
               else {
-                if (total) { P.rec[k + ":" + s] = bytes; P.len[k][s] = bytes[1]; } else { delete P.rec[k + ":" + s]; P.len[k][s] = 0; }
-                if (P.cur[k] === s) P.changed |= 1 << k;
+                if (total && !sv && !(P.live[k] >> s & 1) && P.len[k][s]) P.saved[key] = recOf(k, s);   /* (the saved one kept beside) */
+                if (total) { P.rec[key] = bytes; P.len[k][s] = bytes[1]; } else { delete P.rec[key]; delete P.saved[key]; P.len[k][s] = 0; }
+                P.live[k] = total && !sv ? P.live[k] | (1 << s) : P.live[k] & ~(1 << s);   /* (a write: the live one; + 4 or a clear: saved) */
+                if (sv) delete P.saved[key];
+                if (P.cur[k] === s && sv) P.changed |= 1 << k;
               }
             }
           }
@@ -6566,7 +6576,10 @@ function makeMockDevice(opt = {}) {                /* (opt: see above) */
         }
         if (cmd === CMD.PAT_LIST) {
           b(a[0]); b(P.changed); for (let k = 0; k < 4; k++) { b(P.cur[k]); b(P.req[k]); b(P.when[k]); }
-          if (a[0] === 0) { P.len.forEach((l) => l.forEach(b)); P.scenes.forEach((r) => r.forEach(b)); }
+          if (a[0] === 0) {
+            P.len.forEach((l) => l.forEach(b)); P.scenes.forEach((r) => r.forEach(b));
+            if (opt.pat !== "old") P.live.forEach((m) => { b(m & 127); b((m >> 7) & 127); b(m >> 14); });   /* (issue 142; "old": a firmware before) */
+          }
           break;
         }
         if (cmd === CMD.PAT_LAUNCH) {                  /* stopped: at once; playing: waits (sim.patTick plays it) */
@@ -6594,6 +6607,13 @@ function makeMockDevice(opt = {}) {                /* (opt: see above) */
           else if (op === 1 && P.len[k][x] && (k === 3) === (k2 === 3)) { P.len[k2][y] = P.len[k][x]; P.rec[k2 + ":" + y] = recOf(k, x); rc = 0; }
           else if (op === 2) { if (st.playing) rc = 2; else { P.len[k][x] = 0; delete P.rec[k + ":" + x]; rc = 0; } }
           else if (op === 3) { const f = free(k); if (f >= 0) { P.len[k][f] = 16; P.cur[k] = f; rc = 0; } else rc = 2; }
+          else if (op === 4 && opt.pat !== "old") {   /* SAVE: the live one the saved one (the slot playing: the working copy) */
+            delete P.saved[k + ":" + x]; P.live[k] &= ~(1 << x); if (P.cur[k] === x) P.changed &= ~(1 << k); rc = 0;
+          } else if (op === 5 && opt.pat !== "old") {   /* RELOAD: the live one dropped, the saved one back */
+            const sv = P.saved[k + ":" + x];
+            if (sv) { P.rec[k + ":" + x] = sv; P.len[k][x] = sv[1]; delete P.saved[k + ":" + x]; }
+            P.live[k] &= ~(1 << x); if (P.cur[k] === x) P.changed &= ~(1 << k); rc = 0;
+          }
           b(op); b(rc);
         }
         break;
@@ -7327,11 +7347,12 @@ const TEXT = {                                      /* the page's words, by key 
   keysTitle: "Keyboard shortcuts", keyTrack: "Select the previous / next track", keyClose: "Close the open editor (or press its key again)",
   keyLanes: "Select drum sound 1\u201310 (its sends on the strip); again: open it", keyLaneOpen: "Open the selected drum sound",
   keysNote: "On the mixer, when no editor is open and not while typing. The element keys act on the selected track.", popSound: "Sound", popSeq: "Sequence", pattern: "Pattern", patterns: "Patterns", scene: "Scene", scenes: "Scenes",
-  patHelp: "click: launch at the end of the pattern playing (shift: now, alt: next bar); double click: its steps (a stored pattern that does not play too: it is written back as you edit); drag: copy; Delete: clear",
+  patHelp: "click: launch at the end of the pattern playing (shift: now, alt: next bar); double click: its steps (a stored pattern that does not play too: it is written back as you edit, kept as its edits not saved: *); drag: copy; Delete: clear; S: SAVE its edits; R: RELOAD (drop its edits)",
   patEditing: "Editing a stored pattern: every change is written to the FM-1", patNew: "An empty slot: the first change stores a pattern", patSaving: "Writing...", patSaved: "Written to the FM-1",
   patSaveErr: "Not written (MEM FULL, or the FM-1 was busy)", patBad: "This pattern could not be read",
   sceneHelp: "click: launch; shift-click: store what the tracks play", patOver: "Pattern {p} holds a pattern: replace it?",
   patClear: "Clear pattern {p}?", patClearUsed: "Clear pattern {p}? Scenes {u} play it: they will play the track empty.",
+  patReload: "RELOAD {t} {p}? Its edits not saved go, the saved pattern plays again.",
   sceneOver: "Scene {s} is stored: replace it with what plays now?", popLoad: "Load preset", popSave: "Save preset", popKit: "Kit", popDelay: "Delay", popReverb: "Reverb", revType: "Type", popChorus: "Chorus", popComp: "Comp + limiter", grMeter: "Gain reduction",
   popLoadHelp: "Click to load it on this track (each engine in its colour).", popSaveHelp: "Store this track's sound in a user preset slot, with a name.",
   popKitHelp: "The kits by kind (SYN drum synth, SMP sampled, X0X models, your kits). * not in this build (a stand-in plays).",
@@ -14038,7 +14059,7 @@ function patColumn(i) {
     ondragstart: scene ? null : (e) => e.dataTransfer.setData("text/plain", `${i},${s}`),
     ondragover: scene ? null : (e) => e.preventDefault(),
     ondrop: scene ? null : (e) => { e.preventDefault(); const [k, a] = e.dataTransfer.getData("text/plain").split(",").map(Number); patCopy(k, a, i, s); },
-    onkeydown: scene ? null : (e) => { if (e.key === "Delete" || e.key === "Backspace") patClear(i, s); } }));
+    onkeydown: scene ? null : (e) => { if (e.key === "Delete" || e.key === "Backspace") patClear(i, s); else if (e.key === "s") patSave(i, s); else if (e.key === "r") patReload(i, s); } }));
   patUi.cols[scene ? 4 : i] = bs;
   return [el("div", { class: "clipcol" }, el("span", { class: "kl", text: t(scene ? "scenes" : "clips") }), el("div", { class: "pslots", role: "group", "aria-label": t(scene ? "scenes" : "patterns") }, ...bs))];
 }
@@ -14068,6 +14089,16 @@ function patCopy(k, a, k2, b) {
 function patClear(k, s) {
   const L = patUi.list, u = L ? patUsers(L, k, s) : "";
   if (L && L.len[k][s] && confirm(t(u ? "patClearUsed" : "patClear").replace("{p}", s + 1).replace("{u}", u.split("").join(" ")))) patDo(req.patOp(2, k, s));
+}
+/* SAVE (s) and RELOAD (r) of a slot with edits not saved (issue 142, the FM-1's SAVE + SEQ / HOME + SEQ): SAVE makes them the saved
+   pattern; RELOAD drops them, the saved pattern plays again (asked: the edits are gone) */
+function patSave(k, s) {
+  const L = patUi.list;
+  if (L && L.live && (patLive(L, k, s) || (L.tracks[k].cur === s && (L.changed >> k) & 1))) patDo(req.patOp(4, k, s));
+}
+function patReload(k, s) {
+  const L = patUi.list;
+  if (L && L.live && (patLive(L, k, s) || (L.tracks[k].cur === s && (L.changed >> k) & 1)) && confirm(t("patReload").replace("{t}", trkName(k)).replace("{p}", s + 1))) patDo(req.patOp(5, k, s));
 }
 function patScene(s, store) {
   const L = patUi.list;

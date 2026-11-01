@@ -347,6 +347,23 @@ final class EditorSession: ObservableObject {
         }
     }
 
+    /// SAVE (op 4) / RELOAD (op 5) of a slot with edits not saved (issue 142; the FM-1's SAVE + SEQ / HOME + SEQ, the web's S / R)
+    func savePattern(_ k: Int, _ s: Int) {
+        run("Saving…") { [self] in
+            try await Ops.patOp(link, op: 4, track: k, slot: s)
+            patList = try await Ops.patList(link)
+            say("Saved: \(ProjectsView.trackName(k)) · pattern \(s + 1).")
+        }
+    }
+
+    func reloadPattern(_ k: Int, _ s: Int) {
+        run("Reloading…") { [self] in
+            try await Ops.patOp(link, op: 5, track: k, slot: s)
+            patList = try await Ops.patList(link)
+            say("Reloaded: \(ProjectsView.trackName(k)) · pattern \(s + 1).")
+        }
+    }
+
     func clearPattern(_ k: Int, _ s: Int) {
         run("Clearing…") { [self] in
             try await Ops.patOp(link, op: 2, track: k, slot: s)

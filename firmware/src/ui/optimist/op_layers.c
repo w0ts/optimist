@@ -36,6 +36,9 @@ static int pat_store_slot(uint32_t k, uint32_t s);
 static int pat_write(uint32_t k, uint32_t s, uint32_t n);
 static uint32_t pat_changed(void);
 static int pat_scene_refs(uint32_t i, uint8_t *r);
+static int pat_reload(uint32_t k);                      /* pat.c: the live patterns (issue 142) */
+static int pat_unsaved_trk(uint32_t k, uint32_t chg);
+static int pat_live_at(uint32_t k, uint32_t s);
 static int proj_tmp_busy(void);
 #endif
 static int song_on_pat_row(void);                      /* op_song.c */
@@ -70,7 +73,8 @@ static struct {
     uint8_t used;                       /* the held layer did something: a key, a knob */
     uint8_t quiet;                      /* a combination took its button (SAVE + FX: a save): no map */
     uint8_t hot;                        /* the layer's hot knob (the last one turned) */
-    uint8_t chord;                      /* SAVE then HOME (1: undo) / HOME then SAVE (2: redo) waiting for a release */
+    uint8_t chord;                      /* SAVE then HOME (1: undo) / HOME then SAVE (2: redo) / HOME then SEQ (3: RELOAD) waiting
+                                         * for a release */
     uint8_t rec_pend;                   /* SEQ + REC: SONG REC at REC's release */
     uint8_t song_go;                    /* SEQ + PLAY while playing: stopped, the song starts once stopped */
     uint32_t t0;                        /* the held layer's press */
@@ -309,7 +313,8 @@ static uint32_t pat_changed(void);                      /* pat.c: the tracks who
 static int scene_unsaved(void)
 {
 #if FELUCCA_PATTERNS
-    return pat_changed() != 0u;
+    return 0;                                           /* (issue 142: the tracks' edits are kept as their live patterns, nothing
+                                                         * is lost; the scene's sound and mix replace the work's, as ever) */
 #else
     return work_changed();
 #endif
@@ -577,10 +582,9 @@ static void pat_clear_ask(uint32_t t, uint32_t s)
     else
         op_arm(ARM_OP, OA_PAT_CLR, t << 4 | s, used ? "CLEAR USED" : "CLEAR", nm, 1);
 }
-/* a launch (or a stop) replaces the tracks' working patterns: those with edits not stored (pat_changed) are asked first
- * (the user, 2026-10-31: "when we load a pattern and will lose the current pattern (not saved) we should have a warning"),
- * "LOSE EDITS? T1 T3"; YES (SAVE) launches, HOME cancels. The launch's timing waits in pat_pend_when */
-static uint8_t pat_pend_when;
+/* a launch (or a stop) replaces the tracks' working patterns. Their edits are kept as the outgoing patterns' live records
+ * (issue 142, the user 2026-11-01: "LOSE EDITS?" of 2026-10-31 is gone, nothing is lost): the toast names the tracks whose
+ * edits were kept, "T1 T3 KEPT" */
 static uint32_t pat_unsaved(uint32_t mask)
 {
     return (proj_tmp_busy() ? lay.pchg : pat_changed()) & mask;
@@ -592,25 +596,45 @@ static void pat_go(uint32_t mask, uint32_t w, uint32_t when)   /* w: a slot, PAT
         if ((mask >> k) & 1u)
             pat_launch(k, w, when);
 }
-static int pat_go_ask(uint32_t mask, uint32_t w, uint32_t when)   /* 1: asked, 0: launched */
+static int pat_go_ask(uint32_t mask, uint32_t w, uint32_t when)   /* 1: said (the edits kept), 0: launched */
 {
-    uint32_t lost = pat_unsaved(mask), k;
-    char a[17];
-    if (!lost) {
-        pat_go(mask, w, when);
+    uint32_t kept = pat_unsaved(mask), k;
+    char a[20];
+    pat_go(mask, w, when);
+    if (!kept)
         return 0;
-    }
     a[0] = 0;
     for (k = 0; k < NTRK; k++) {
-        if (!((lost >> k) & 1u))
+        if (!((kept >> k) & 1u) || pat_cur[k] >= PAT_N)
             continue;
         if (a[0])
             str_app(a, " ", sizeof a);
         str_app(a, trk_tag(k), sizeof a);
     }
-    pat_pend_when = (uint8_t)when;
-    op_arm(ARM_OP, w < PAT_N ? OA_PAT_GO : OA_PAT_STOP, (mask << 4 | (w < PAT_N ? w : 0u)), "LOSE EDITS", a, 1);
+    if (!a[0])
+        return 0;
+    str_app(a, " KEPT", sizeof a);
+    ui_message(a);                                      /* ("T1 T3 KEPT": their edits are their patterns' live ones now) */
     return 1;
+}
+/* RELOAD (HOME + SEQ, the user 2026-11-01; issue 142): the selected track's pattern back to its saved one, its edits dropped
+ * (on the pattern page with ALL TRACKS: every track); asked. Tracks without a slot or without edits: said, nothing asked */
+static void pat_reload_ask(void)
+{
+    uint32_t m = lay_is(LY_PAT) && lay.pmod == 5u ? PAT_ALLM : 1u << (song.sel % NTRK), k, chg, has = 0;
+    if (proj_tmp_busy()) {
+        ui_message("BUSY");
+        return;
+    }
+    chg = pat_changed();
+    for (k = 0; k < NTRK; k++)
+        if (((m >> k) & 1u) && pat_cur[k] < PAT_N && pat_unsaved_trk(k, chg))
+            has |= 1u << k;
+    if (!has) {
+        ui_message(m == PAT_ALLM ? "NO EDITS" : pat_cur[song.sel % NTRK] < PAT_N ? "NO EDITS" : "NO PATTERN");
+        return;
+    }
+    op_arm(ARM_OP, OA_PAT_RELOAD, has, "RELOAD", has == PAT_ALLM || m == PAT_ALLM ? "ALL" : trk_tag(__builtin_ctz(has)), 1);
 }
 static void pat_launch_key(uint32_t t, uint32_t w)      /* white n: launch (OCT- held: next bar, OCT+ held: now) */
 {
@@ -770,14 +794,14 @@ static void op_act(uint32_t a, uint32_t k)
         ui_say(a == OA_PAT_STORE ? "STORED " : "CLEARED ", nm);
         break;
     }
-    case OA_PAT_GO:                                     /* "Lose edits?" YES: the launch asked for (pat_go_ask) */
-        pat_go(k >> 4, k & 15u, pat_pend_when);
-        ui_say(song.playing ? "LAUNCHED " : "LOADED ", (k >> 4) == PAT_ALLM ? "ALL" : "PATTERN");
+    case OA_PAT_RELOAD: {                               /* "RELOAD T1?" YES: the tracks' edits dropped, their saved patterns back */
+        uint32_t i;
+        for (i = 0; i < NTRK; i++)
+            if ((k >> i) & 1u)
+                (void)pat_reload(i);
+        ui_say(song.playing ? "RELOAD AT END " : "RELOADED ", k == PAT_ALLM ? "ALL" : trk_tag(__builtin_ctz(k)));
         break;
-    case OA_PAT_STOP:
-        pat_go(k >> 4, PAT_NONE, PW_END);
-        ui_message(song.playing ? "STOP AT END" : "STOPPED");
-        break;
+    }
 #endif
     case OA_SCN_LOAD:
         scene_load_now(k);

@@ -10,6 +10,9 @@
  *   stopped  a launch while stopped loads at once
  *   scene    a live jump staged after a launch takes the launched pattern with it ("scene B with T1's 1")
  *   song     a launch in song mode plays until the next part, which brings its own pattern
+ *   live     issue 142: a switch keeps the outgoing pattern's edits as its live record (the ISR exchanges it with the
+ *            stage, the main loop writes it); the song's parts play them; a part naming the slot playing keeps them;
+ *            RELOAD at the end; the ISR's exchange timed against the copy it replaces
  * Run by tests/run_tests.sh. */
 #define FELUCCA_ARRANGER 1
 #define FELUCCA_FLASH 1
@@ -84,6 +87,8 @@ static void t1(uint32_t n, uint32_t base)
 static void setup(void)
 {
     uint32_t s, i;
+    song.playing = 0;                                  /* (stopped: the scenes stored at once) */
+    transport_req = 0;
     memset(nor, 0xFF, sizeof nor);
     sec_pend_clear();
     sec_boot();
@@ -144,6 +149,110 @@ static int seq_is(uint32_t from, const uint8_t *w, uint32_t n)
     return 1;
 }
 
+/* ---- issue 142, playing: the outgoing pattern's edits kept at the switch (the ISR exchanges it with the stage, the main
+ * loop writes it as the slot's live record), the song's parts play them, the slot named again keeps them, RELOAD */
+static uint8_t lb[SEC_REC_MAX];
+static uint32_t live_note0(uint32_t k, uint32_t s)    /* (k, s) as it plays: its step 1's note (0: none) */
+{
+    proj_trk_t t;
+    uint32_t n = pat_get(k, s, lb);
+    return n && pat_decode(lb, n, k, &t, 0, 0) ? t.step[0].note[0] : 0u;
+}
+static void song_of(uint32_t a, uint32_t b)            /* a song of two parts of 2 bars, looped */
+{
+    song.playing = 0;
+    arr_defaults(&arrangement);
+    arrangement.count = 2, arrangement.loop = 1;
+    arrangement.entry[0] = (arr_entry_t){(uint8_t)a, 2};
+    arrangement.entry[1] = (arr_entry_t){(uint8_t)b, 2};
+    arrangement_enabled = 1;
+    project_load(a);
+    sec_service();
+    clk_beat = clk_pos = 0;
+    nplayed = 0;
+    seq_start();
+}
+static void to_part(uint32_t i)
+{
+    uint32_t g;
+    for (g = 0; g < 80000u && arrangement_clock.index != i; g++)
+        run_block(), sec_service();
+}
+static void live_tests(void)
+{
+    uint32_t ok, i;
+    setup();
+    /* a launch at the end: the edit kept */
+    play_from(0);
+    run_steps(2);
+    trk[0].step[0].note[0] = 99;                       /* (an edit while A plays) */
+    pat_launch(0, 1, PW_END);
+    run_steps(20);
+    ok = pat_cur[0] == 1u && trk[0].step[0].note[0] == 80u;
+    check("playing: T1 edited, B launched at the end: B plays", ok);
+    check("... A's edit kept as its live record (in RAM while playing), A plays it", pat_live_at(0, 0) == 1 && live_note0(0, 0) == 99u);
+    pat_launch(0, 0, PW_NOW);
+    run_steps(2);
+    check("... A launched again: its edit plays", pat_cur[0] == 0u && trk[0].step[0].note[0] == 99u && !pat_live_at(0, 1));
+    song.playing = 0;
+    sections_write();
+    check("... stopped: written to the log (its base stamp the saved A's)", pat_live_at(0, 0) == 2 && live_note0(0, 0) == 99u);
+    /* the song: A, C, A again */
+    setup();
+    song_of(0, 2);
+    run_steps(2);
+    trk[0].step[0].note[0] = 98;
+    to_part(1);
+    run_steps(1);
+    ok = trk[0].p[P_SLEN] == 3 && pat_cur[0] == 2u;
+    check("song: T1 edited in part 1 (A), part 2 (C) comes: C plays", ok && sec_misses == 0u);
+    check("... A's edit kept at the part's switch", pat_live_at(0, 0) != 0 && live_note0(0, 0) == 98u);
+    to_part(0);
+    run_steps(1);
+    check("... the song back at A: it plays the edit (the staged scene read again)", pat_cur[0] == 0u && trk[0].step[0].note[0] == 98u && sec_misses == 0u);
+    arrangement_enabled = 0;
+    /* the next part names the slot playing: the edits play on */
+    setup();
+    song_of(0, 0);
+    run_steps(2);
+    trk[0].step[3].note[0] = 97;
+    to_part(1);
+    run_steps(1);
+    check("song: a part naming the slot T1 plays (A again): the edit plays on, nothing written", trk[0].step[3].note[0] == 97u &&
+          !pat_live_at(0, 0) && pat_cur[0] == 0u);
+    arrangement_enabled = 0;
+    /* RELOAD while playing: at the end, the saved pattern, nothing kept */
+    play_from(0);
+    run_steps(2);
+    trk[0].step[0].note[0] = 96;
+    (void)pat_reload(0);
+    run_steps(20);
+    check("RELOAD while playing: at the end the saved A plays again, nothing kept", trk[0].step[0].note[0] == 40u && !pat_live_at(0, 0) && pat_cur[0] == 0u);
+    /* the same slot launched again: its edits play on from step 1 */
+    trk[0].step[0].note[0] = 95;
+    pat_launch(0, 0, PW_END);
+    run_steps(20);
+    check("A launched while A plays: from its step 1 at the end, the edit plays on", trk[0].step[0].note[0] == 95u && pat_cur[0] == 0u);
+    song.playing = 0;
+    /* the ISR's cost: the copy (before) and the exchange (now) of one track, timed on the host */
+    {
+        struct timespec t0, t1;
+        double c, x;
+        uint32_t n = 200000u;
+        (void)sec_read(1, &sec_stage_p, &sec_stage_d);
+        clock_gettime(CLOCK_MONOTONIC, &t0);
+        for (i = 0; i < n; i++)
+            pat_take(&trk[0], 0, &sec_stage_p);
+        clock_gettime(CLOCK_MONOTONIC, &t1);
+        c = ((double)(t1.tv_sec - t0.tv_sec) * 1e9 + (double)(t1.tv_nsec - t0.tv_nsec)) / n;
+        clock_gettime(CLOCK_MONOTONIC, &t0);
+        for (i = 0; i < n; i++)
+            pat_swap_isr(0, 1);
+        clock_gettime(CLOCK_MONOTONIC, &t1);
+        x = ((double)(t1.tv_sec - t0.tv_sec) * 1e9 + (double)(t1.tv_nsec - t0.tv_nsec)) / n;
+        printf("  ISR, one track's switch on the host: the copy %.0f ns, the exchange %.0f ns (x%.2f)\n", c, x, x / c);
+    }
+}
 #if FELUCCA_AUTO
 #define IFM_BIND() ((void)auto_for(&proj_tmp.cur, 1), (void)auto_for(&sec_stage_p, 1))   /* (persist_boot) */
 #else
@@ -260,6 +369,7 @@ int main(void)
     check("song mode: B launched in part 1 plays there; part 2 (C) brings its own T1",
           ok && arrangement_clock.index == 1u && trk[0].p[P_SLEN] == 3 && sec_misses == 0u);
     arrangement_enabled = 0;
+    live_tests();
     printf("patterns seq test %s\n", bad ? "FAILED" : "passed");
     return bad != 0;
 }
