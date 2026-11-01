@@ -478,7 +478,6 @@
     {"kind": "op", "ctx": "USB STATS", "if": "FELUCCA_USB_AUDIO", "params": {"USB STATS": "USB audio glitch counters"}},
     {"kind": "op", "ctx": "GENERAL", "params": {
       "KNOB COLORS": "Knob numbers in cap colours",
-      "SPK LOWCUT": "Speaker's low cut, jack empty",
       "HPHN BASS": "Bass boost, headphones in",
       "DEBUG STATS": {"text": "Load, stacks to flash, 5 min", "if": "defined(PLAT_STATS_APP)"}}},
     {"kind": "op", "ctx": "FILTER", "params": {"FILT RESO": "Track filter resonance"}},

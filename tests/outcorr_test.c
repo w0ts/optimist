@@ -95,7 +95,7 @@ static run_t *run_case(const case_t *c)                  /* the case in a child,
         track_capture_on = 1;
         ua_dst[UAS_MAIN] = UAD_12;                       /* (MASTER on 1 2: ua_mst made every block) */
         ua_route_apply();
-        (void)oc_set_word(oc_word(c->spk, c->hp));
+        (void)oc_set_word(oc_word(1u, c->hp));  spk_lc = c->spk;   /* (the mechanism keeps OFF and BASS+: the settings only ever set ON) */
         hp_in = c->jack;
         for (uint32_t b = 0; b < NBLK; b++) {
             if (c->flip && b == c->flip)
@@ -262,9 +262,9 @@ static void t_debounce(void)
 
 static void t_settings(void)
 {
-    check(oc_set_word(0) == oc_word(0, 0) && spk_lc == 0u && hp_bass == 0u, "an old record's LOWCUT OFF: SPK LOWCUT OFF, HPHN BASS OFF");
+    check(oc_set_word(0) == oc_word(1, 0) && spk_lc == 1u && hp_bass == 0u, "a stored SPK LOWCUT OFF: ignored, ON (the row is gone), HPHN BASS OFF");
     check(oc_set_word(1) == 1u && spk_lc == 1u && hp_bass == 0u, "an old record's LOWCUT: SPK LOWCUT ON");
-    check(oc_set_word(2) == 2u && spk_lc == 2u && hp_bass == 0u, "an old record's BASS+: SPK LOWCUT BASS+");
+    check(oc_set_word(2) == 1u && spk_lc == 1u && hp_bass == 0u, "a stored BASS+: ignored, SPK LOWCUT ON");
     check(oc_set_word(oc_word(1, 2)) == 0x21u && spk_lc == 1u && hp_bass == 2u, "both kept in the record's word");
     check(oc_set_word(0x33u) == oc_word(1, 0), "out of range: the defaults (SPK LOWCUT ON, HPHN BASS OFF)");
 }
