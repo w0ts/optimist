@@ -213,6 +213,17 @@ static int pat_peek(uint32_t k, uint32_t s, pat_peek_t *o)
     if (f & PF_MOT) {
         if (a >= e || (uint32_t)(e - a) < 1u + 3u * (c = *a))
             return 0;
+#if FELUCCA_AUTO
+        for (i = 0; i < c; i++) {                       /* (the muted notes: AUTO_MUTE / AUTO_SMUTE, this step only, set) */
+            uint32_t pl = a[1u + 3u * i], pr = a[2u + 3u * i];
+            if ((pl & AUTO_ONLY) && a[3u + 3u * i] && (pl & AUTO_STEP) < 16u) {
+                if (IS_DRUMK(k) && pr >= AUTO_MUTE0 && pr < AUTO_MUTE0 + DRUM_LANES)
+                    o->mut[pr - AUTO_MUTE0] |= (uint16_t)(1u << (pl & AUTO_STEP));
+                else if (!IS_DRUMK(k) && pr == AUTO_SMUTE)
+                    o->mut[0] |= (uint16_t)(1u << (pl & AUTO_STEP));
+            }
+        }
+#endif
         a += 1u + 3u * c;
     }
     m = a;

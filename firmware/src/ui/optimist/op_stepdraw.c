@@ -105,8 +105,7 @@ static __attribute__((noinline)) void sg_drums(const track_t *t)
             }
 #if FELUCCA_AUTO
             if (step_muted(t, idx, l)) {                /* (a muted hit: kept, grey) */
-                cv_rect(x, y, SG_CW - 2, lh - 1, col_shade(C_WHITE, 3u));    /* (grey, whatever the lane's colour or level) */
-                cv_frame(x, y, SG_CW - 2, lh - 1, col_shade(C_WHITE, 5u));
+                cv_rect(x, y, SG_CW - 2, lh - 1, mute_col());    /* (grey, whatever the lane's colour or level) */
                 continue;
             }
 #endif
@@ -434,7 +433,7 @@ static void sg_roll(const track_t *t)
             int mut = 0, sx;
 #if FELUCCA_AUTO
             if (!gn && step_muted(t, hd, 0))
-                nc = col_shade(c, 2u), mut = 1;         /* (a muted note: kept, dim; its ties too; picked it stays grey, its row's lines show the pick) */
+                nc = mute_col(), mut = 1;               /* (a muted note: kept, grey; its ties too; picked it stays grey, its row's lines show the pick) */
 #endif
             sx = sel && roll_selx(t, sat, nt, idx) && (int32_t)w != sg_ph;   /* (the selected note: its level shade stays, an outline in C_NOTE) */
             if (!RV(nt))
