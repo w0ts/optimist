@@ -129,7 +129,19 @@ static uint32_t st_sector(uint32_t obj, uint32_t copy)  /* flash offset of copy 
 #ifndef IN_POOL
 #define IN_POOL                                         /* (core.h; a host test that includes this file alone) */
 #endif
+#ifndef STG_LEND
+#define STG_LEND 0
+#endif
+#if STG_LEND
+/* in the STORAGE reserve (seq/undo.c stg_p): taken from the undo history at its first use, given back when idle */
+#define STG_AL(n) (((uint32_t)(n) + 7u) & ~7u)
+#define STG_O_ST 0u
+#define STG_E_ST STG_AL(ST_PAYLOAD_MAX)
+typedef uint8_t st_buf_t[ST_PAYLOAD_MAX];
+#define st_buf (*(st_buf_t *)stg_p(STG_O_ST))
+#else
 static uint8_t st_buf[ST_PAYLOAD_MAX] __attribute__((aligned(4))) IN_POOL;
+#endif
 /* an object read where it is in flash (st_xip): on the target through the XIP window (fl_plain_window_init maps the
  * data area past the app as plaintext; cached as the code is; the driver's erase and program drop the lines, fl_inval);
  * a host test gives ST_XIP_PTR(off) a pointer into its flash image */
