@@ -102,7 +102,7 @@ int main(void)
     }
     settle(8);
     room0 = arn_room();
-    CHECK(FXA_I == 0u && FXM_BYTES[FXM_INS] == 0u, "no own room (FXA_I %u)", (unsigned)FXA_I);
+    CHECK(FXA_I == 0u && fxm_bytes(FXM_INS) == 0u, "no own room (FXA_I %u)", (unsigned)FXA_I);
     put(0, FXT_FLNG);
     settle(4);
     b = cp_bytes(&n);

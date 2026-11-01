@@ -217,6 +217,7 @@ static void op_undo(int redo)
  * confirm let go without YES (NO, another row, 3 s) passes to the next part; none left: MEM FULL, given up */
 static void mem_tick(void)
 {
+    fxz_tick();                                         /* (FX MEMORY: a TIME halved to fit a short DLY MEM, op_fxmem.c) */
 #if PART_DROPS
     uint32_t k;
     char a[24];
@@ -250,6 +251,10 @@ static void mem_tick(void)
         return;
     if (mem_retry() >= 0 && (!part_mem_refused.on || part_mem_refused.waiting))
         return;                                         /* (done, or a dropped part still switching) */
+#if FXZ_ANY
+    if (fxz_offer_engine())
+        return;                                         /* (first: smaller FX lines, when they free it; op_fxmem.c) */
+#endif
 #if FMEM_ANY
     {                                                   /* before any part: the features on but idle, all at once */
         uint32_t m = fmem_offer();
@@ -272,7 +277,7 @@ static void mem_tick(void)
         str_cpy(a, FXN[(k - NPART) % 3u], sizeof a);
         str_app(a, " ", sizeof a);
         n = str_len(a);
-        fmt_int(a + n, (int32_t)(FXM_BYTES[(k - NPART) % 3u] / 1024u));
+        fmt_int(a + n, (int32_t)(fxm_bytes((k - NPART) % 3u) / 1024u));
         str_app(a, " KB", sizeof a);
         op_arm(ARM_OP, OA_DROP, k, "DROP", a, 1);
         return;

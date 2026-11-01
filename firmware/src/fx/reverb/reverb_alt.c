@@ -62,6 +62,11 @@ static struct {                 /* (one tank runs at a time: PLATE's and FDN8's 
     uint16_t kl[8];              /* the damping low-pass' memory per line, Q15 (0: none) */
     uint32_t rq;                 /* the random rounding's generator */
     int32_t in, g1, g2, pd, dq;  /* the send, the diffusers' coefficients, the pre-delay, the depth (Q8) */
+#if FXZ_REV_N > 1u
+    uint32_t m;                  /* FX MEMORY: the ring's mask, the eight lines' bases, the wet level (rvf_layout) */
+    uint16_t rb[8];
+    int32_t out;
+#endif
 #endif
     int32_t size, damp;          /* the SIZE / DAMP the gains are for (-1: not yet) */
 #if FELUCCA_REV_FDN8             /* (FDN8's LFOs start apart: no two lines move together) */
@@ -187,12 +192,16 @@ enum { RV_I1 = 53, RV_I2 = 41, RV_I3 = 137, RV_I4 = 101, RV_M1 = 241, RV_D1 = 16
 enum { RV_TL0 = 96, RV_TL1 = 1073, RV_TL2 = 691, RV_TL3 = 720, RV_TL4 = 718, RV_TL5 = 67, RV_TL6 = 385,
        RV_TR0 = 127, RV_TR1 = 1309, RV_TR2 = 443, RV_TR3 = 965, RV_TR4 = 762, RV_TR5 = 121, RV_TR6 = 44 };
 #define RV_DAMP(d) rv_damp(d, 32801, 61866, 61770, 499)
+#if FXZ_REV_N > 1u              /* (FX MEMORY: PLATE fits the 16 KB ring, so it masks to it in either; the same samples) */
+#undef RV_M
+#define RV_M 8191u
+#endif
 /* the ring: each element's base (its length + 1; the modulated two + 2 RV_EXC + 2) */
 enum { RB_I1 = 0, RB_I2 = RB_I1 + RV_I1 + 1, RB_I3 = RB_I2 + RV_I2 + 1, RB_I4 = RB_I3 + RV_I3 + 1,
        RB_M1 = RB_I4 + RV_I4 + 1, RB_D1 = RB_M1 + RV_M1 + 2 * RV_EXC + 2, RB_A2 = RB_D1 + RV_D1 + 1,
        RB_D2 = RB_A2 + RV_A2 + 1, RB_M3 = RB_D2 + RV_D2 + 1, RB_D3 = RB_M3 + RV_M3 + 2 * RV_EXC + 2,
        RB_A4 = RB_D3 + RV_D3 + 1, RB_D4 = RB_A4 + RV_A4 + 1, RB_END = RB_D4 + RV_D4 + 1 };
-_Static_assert(RB_END <= RV_N, "PLATE: the ring holds every element");
+_Static_assert(RB_END <= RV_N && (FXZ_REV_N < 2u || RB_END <= 8192), "PLATE: the ring holds every element");
 #define RV_IN 13000              /* the send into the tank, Q15 (the ROOM's) */
 #define RV_OUT 8920   /* the seven taps' sum, Q17: the wet level as the ROOM's */
 
@@ -256,6 +265,8 @@ FX_STEP int32_t rv_step(int32_t in, int32_t *yr, int32_t *wr)
 #undef RV_IN
 #undef RV_OUT
 #undef RV_EXC
+#undef RV_M
+#define RV_M (RV_N - 1u)
 #endif
 
 #if FELUCCA_REV_FDN8
@@ -297,29 +308,59 @@ FX_STEP int32_t rv_step(int32_t in, int32_t *yr, int32_t *wr)
 #define RV_LREF 978
 #define RV_DAMP(d) rv_damp(d, 32779, 15872, 28161, -150)
 enum { RV_IA = 47, RV_IB = 37, RV_IC = 113, RV_ID = 83 };
+#define RV_SP (2 * RV_EXC + 2)   /* a line's span past its length: reads at L .. L + 2 RV_EXC + 1 */
+#define RV_C (RV_EXC + 1)        /* the read's centre past the length */
+#ifndef RV_OUT32
+#define RV_OUT32 7670
+#endif
+#define RV_OUT16 6020            /* the four lines' sum per side, Q17: the wet level as the ROOM's (per ring) */
+#define RVL_S 647, 719, 787, 877, 977, 1087, 1187, 1249            /* (the 16 KB ring's lines) */
+#define RVL_B 1361, 1499, 1637, 1823, 2039, 2267, 2477, 2579       /* (the 32 KB ring's) */
+enum { RB_PD = 0, RB_IA = RV_PD + 1, RB_IB = RB_IA + RV_IA + 1, RB_IC = RB_IB + RV_IB + 1, RB_ID = RB_IC + RV_IC + 1,
+       RB_0 = RB_ID + RV_ID + 1 };
+#if FXZ_REV_N > 1u
+/* FX MEMORY's REV MEM (fx/fx_memsz.h): either ring at run time, its lines, bases, mask and wet level picked by rv_params
+ * (rv.m, rv.rb, rv.out: fx_arena.c sets fxsz_rev only while the ring is not placed, and the next block's rv_params
+ * sees rv.size -1). The same samples as the build of that ring */
+static const uint16_t RV_LT[2][8] = {{RVL_B}, {RVL_S}};
+#define RV_L (RV_LT[fxsz_rev & 1u])
+#undef RV_M
+#define RV_M rv.m
+#define RV_OUT rv.out
+#define RVB(k) rv.rb[k]
+_Static_assert(RB_0 + 1361 + 1499 + 1637 + 1823 + 2039 + 2267 + 2477 + 2579 + 8 * RV_SP <= 16384 &&
+               RB_0 + 647 + 719 + 787 + 877 + 977 + 1087 + 1187 + 1249 + 8 * RV_SP <= 8192, "FDN8: each ring holds every line");
+static void rvf_layout(void)     /* the ring FX MEMORY picked: its mask, the lines' bases, the wet level */
+{
+    uint32_t k, b = RB_0, sm = fxsz_rev & 1u;
+    rv.m = sm ? 8191u : RV_N - 1u;
+    rv.out = sm ? RV_OUT16 : RV_OUT32;
+    for (k = 0; k < 8u; k++) {
+        rv.rb[k] = (uint16_t)b;
+        b += RV_LT[sm][k] + RV_SP;
+    }
+}
+#else
 #if RV_N == 8192u
 enum { RV_L0 = 647, RV_L1 = 719, RV_L2 = 787, RV_L3 = 877, RV_L4 = 977, RV_L5 = 1087, RV_L6 = 1187, RV_L7 = 1249 };
 #else
 enum { RV_L0 = 1361, RV_L1 = 1499, RV_L2 = 1637, RV_L3 = 1823, RV_L4 = 2039, RV_L5 = 2267, RV_L6 = 2477, RV_L7 = 2579 };
 #endif
-#define RV_SP (2 * RV_EXC + 2)   /* a line's span past its length: reads at L .. L + 2 RV_EXC + 1 */
-#define RV_C (RV_EXC + 1)        /* the read's centre past the length */
-enum { RB_PD = 0, RB_IA = RV_PD + 1, RB_IB = RB_IA + RV_IA + 1, RB_IC = RB_IB + RV_IB + 1, RB_ID = RB_IC + RV_IC + 1,
-       RB_0 = RB_ID + RV_ID + 1, RB_1 = RB_0 + RV_L0 + RV_SP, RB_2 = RB_1 + RV_L1 + RV_SP, RB_3 = RB_2 + RV_L2 + RV_SP,
+enum { RB_1 = RB_0 + RV_L0 + RV_SP, RB_2 = RB_1 + RV_L1 + RV_SP, RB_3 = RB_2 + RV_L2 + RV_SP,
        RB_4 = RB_3 + RV_L3 + RV_SP, RB_5 = RB_4 + RV_L4 + RV_SP, RB_6 = RB_5 + RV_L5 + RV_SP,
        RB_7 = RB_6 + RV_L6 + RV_SP, RB_END = RB_7 + RV_L7 + RV_SP };
 _Static_assert(RB_END <= RV_N, "FDN8: the ring holds every line");
 static const uint16_t RV_L[8] = {RV_L0, RV_L1, RV_L2, RV_L3, RV_L4, RV_L5, RV_L6, RV_L7};
-#ifndef RV_OUT32
-#define RV_OUT32 7670
+#define RV_OUT (RV_N == 4096u ? 4770 : RV_N == 8192u ? RV_OUT16 : RV_OUT32)
+#define RVB(k) RB_##k
+#define rvf_layout() ((void)0)
 #endif
-#define RV_OUT (RV_N == 4096u ? 4770 : RV_N == 8192u ? 6020 : RV_OUT32)   /* the four lines' sum per side, Q17: the wet
-                                                                            * level as the ROOM's (per ring) */
 
 static __attribute__((noinline)) void rv_params(void)   /* (XIP: rare; fx.c calls it FAR) */
 {
     int32_t s = song.g[G_RSIZE], d = song.g[G_RDAMP], y = s > RV_KNEE ? s - RV_KNEE : 0, rho = 32768, a;
     uint32_t kt, e = 0, i;
+    rvf_layout();
     rv.size = s, rv.damp = d;
     kt = rv_kt(s - y);
     if (y) {                                             /* above the knee: the decay time x 2^(e / 2^24) */
@@ -373,7 +414,7 @@ FX_STEP int32_t rv_step(int32_t in, int32_t *yr, int32_t *wr)
      * Few values live at once (2026-10-12, revcrack: the eight o and eight f held to the end spilled ~140 words a
      * sample to the stack on the target): each line adds its o to the outputs and its f to the sum at once, the
      * f kept in a small array for the writes. The same sums, the same samples */
-#define RV_LN(k, ol) { int32_t d_ = rv.mod[k], u0_ = RV_RD(RB_##k, d_), u1_ = RV_RD(RB_##k, d_ + 1), o_, lp_; \
+#define RV_LN(k, ol) { int32_t d_ = rv.mod[k], u0_ = RV_RD(RVB(k), d_), u1_ = RV_RD(RVB(k), d_ + 1), o_, lp_; \
                        o_ = rv.ap[k] = rv_sat(u1_ + ((rv.eta[k] * (u0_ - rv.ap[k]) + 0x4000) >> 15)); \
                        rq = rq * 1664525u + 1013904223u; \
                        lp_ = rv.lp[k] = o_ + rv_rnd(rv.lp[k] - o_, rv.kl[k], (int32_t)(rq >> 17)); \
@@ -384,7 +425,7 @@ FX_STEP int32_t rv_step(int32_t in, int32_t *yr, int32_t *wr)
 #undef RV_LN
     s = (s + ((s >> 31) & 3)) >> 2;                      /* 2/8 of the sum, toward 0 */
     rv.rq = rq;
-#define RV_WL(k, v) w = rv_sat(s - f[k] + (v)); RV_WR(RB_##k, w); any |= w
+#define RV_WL(k, v) w = rv_sat(s - f[k] + (v)); RV_WR(RVB(k), w); any |= w
     RV_WL(0, x); RV_WL(1, -x); RV_WL(2, x); RV_WL(3, -x); RV_WL(4, x); RV_WL(5, -x); RV_WL(6, x); RV_WL(7, -x);
 #undef RV_WL
     *wr |= any;
@@ -399,6 +440,11 @@ FX_STEP int32_t rv_step(int32_t in, int32_t *yr, int32_t *wr)
 #undef RV_DAMP
 #undef RV_IN
 #undef RV_OUT
+#if FXZ_REV_N > 1u
+#undef RV_L
+#endif
+#undef RV_M
+#define RV_M (RV_N - 1u)
 #endif
 
 static void rv_cells_clear(void)                         /* the filters to 0, not the ring (fx.c rev_cells_clear) */

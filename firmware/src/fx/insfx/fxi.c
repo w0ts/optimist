@@ -92,6 +92,10 @@ _Static_assert(FXI_TN0 <= FXI_IMAX && FXI_TN1 <= FXI_IMAX && FXI_TN2 <= FXI_IMAX
 
 AINL uint32_t fxi_holds(uint32_t k, uint32_t ty)        /* owner k holds type ty in a slot (and it is built) */
 {
+#if FXZ_XDL_N > 1u
+    if (ty == FXT_XDLY && fxsz_xoff)
+        return 0;                                       /* (FX MEMORY: XDLY MEM changing, every owner lets go meanwhile) */
+#endif
     if (k == FXI_MST)
         return (mst_slot[0] == ty || mst_slot[1] == ty) && (MST_OK >> ty & 1u);
 #if FELUCCA_USB_AUDIO
