@@ -27,7 +27,7 @@
 #endif
 #define OP_FOOT_Y (240 - OP_FOOT)       /* the band's first row: no band draws from here down but the help line's */
 #define OP_CH (cards_2x2() ? OH_CARD_2X2 : OH_CARD)   /* the cards' band and the panel: 2x2, the mixer 1x4 */
-#define OP_PY (cards_2x2() ? OY_PANEL_2X2 : OY_PANEL)
+#define OP_PY (pat_view() ? OY_CARD : cards_2x2() ? OY_PANEL_2X2 : OY_PANEL)   /* (the patterns screen: no cards, the panel from the header down) */
 #define OP_PH (OP_FOOT_Y - OP_PY)
 #define MODAL_H (OP_PH < OH_PANEL ? OP_PH : OH_PANEL)   /* the modal's box over the panel */
 #define CARD_X(k) (3 + 59 * (int32_t)(k))
@@ -35,10 +35,16 @@
 #define OP_SURF C_BLACK                 /* the cards' and tiles' surface: black, outlined (gfx.c cv_box; no grey fills) */
 
 static void cv_hline(int32_t y, uint16_t c) { cv_rect(0, y, 240, 1, c); }   /* a rule across the screen */
-static uint32_t trk_on_step(uint32_t c, uint32_t i)    /* step i of track c has something to play */
+static uint32_t trk_on_step(uint32_t c, uint32_t i)    /* step i of track c has something to play normally (a fill-only one: not) */
 {
     const track_t *t = &trk[c % NTRK];
-    return is_drum(t) ? dstep_lanes(&t->dstep[i % NSTEP]) != 0u : t->step[i % NSTEP].time == ST_NOTE && t->step[i % NSTEP].n;   /* (the ACCENT lane's steps too) */
+    uint32_t l;
+    if (!is_drum(t))
+        return t->step[i % NSTEP].time == ST_NOTE && t->step[i % NSTEP].n && !fill_only(t, i, 0);
+    for (l = 0; l < DRUM_UILANES; l++)                  /* (the ACCENT lane's steps too) */
+        if (dstep_has(&t->dstep[i % NSTEP], l) && !fill_only(t, i, l))
+            return 1;
+    return 0;
 }
 /* an empty drum step in its cell at x, y, w x h: a very small dot at the centre, a beat's first step's a little bigger
  * (1 x 1, 2 x 2; the user, 2026-10-24, after Melodee: STEP's drum grid and the mixer's drum rows) */
@@ -51,6 +57,10 @@ static uint16_t lvl_col(uint16_t c, uint32_t lv)        /* a hit's colour by its
 {
     static const uint8_t SH[4] = {3, 5, 7, 8};
     return col_shade(c, SH[lvl_rank(lv)]);
+}
+static uint16_t mute_col(void)                          /* a muted note or hit, in every view: one neutral grey (never the track's colour or level; the user, 2026-11-01) */
+{
+    return col_shade(C_WHITE, 4u);
 }
 static uint16_t lvl_acol(uint32_t lv)                   /* ... a step with automation: the automation colour, its level 5/8 .. full */
 {

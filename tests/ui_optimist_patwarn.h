@@ -5,7 +5,7 @@
  *   black 5    ALL TRACKS: the white keys launch on T1..DR (one ask naming the tracks with edits); again: the selected track
  *   black 6    STOP (was black 5), asked over edits too
  *   black held a black key 1-4 held + white n stores that track's working pattern in slot n, black 5 held: every track's
- *   numbers    the pattern numbers 1..16 over the grid's columns, on the dark panel (no text on a fill) */
+ *   numbers    the pattern numbers 1..16 over the grid's columns, on the dark panel (no text on a fill); the screen itself: ui_optimist_patview.h */
 #if FELUCCA_PATTERNS
 static void pw_edit(uint32_t k, uint32_t n)             /* track k's first step: a note (an edit of the working pattern) */
 {
@@ -103,8 +103,8 @@ static void patwarn_tests(void)
     ui.force = 1;
     frame();
     ppm("opt-patterns-numbers");
-    check(px_in(26u + 2u * 13u, 122, 11, 11, C_OK), "the numbers: the playing pattern's number lit over its column");
-    check(px_in(26, 122, 11, 11, C_GRAY), "... the others grey, text on the dark panel above the blocks");
+    check(px_in((uint32_t)PG_X(2), OP_PY, PG_CW, PG_NUMH, C_OK), "the numbers: the playing pattern's number lit over its column (the odd ones on the upper line)");
+    check(px_in((uint32_t)PG_X(0), OP_PY, PG_CW, PG_NUMH, C_GRAY), "... the others grey, text on the dark panel above the blocks");
     release(B_LFO);
     reset_ui();
 }

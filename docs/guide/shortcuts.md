@@ -115,10 +115,11 @@ On STEP the white keys stay steps under the shifts: SHIFT and SHIFT2 with a step
 | step held + ALGORITHM | drums | the hit to the lane above / below |
 | step held + SELECT | STEP | a chord's note to move, then the cards' pages (the step, its extras, its p-lock pages) |
 | step held + OCT- / OCT+ | synth | its notes an octave down / up |
-| step held + SAVE | STEP | on a p-lock card: lock <-> held motion; else the fill condition: NORMAL, FILL ONLY, NO FILL [FILLS] |
+| step held + SAVE | STEP | the fill condition, whatever card: NORMAL, FILL ONLY, NO FILL [FILLS]; without FILLS on a p-lock card: lock <-> held motion |
+| step held + SHIFT2 + SAVE | STEP | on a p-lock card: lock <-> held motion [FILLS] |
 | step held + ENV, LFO, FX, SCL, ARP (drums: EDIT too) | STEP | that page's cards as the step's p-locks; again: its next page [PLOCK] |
-| SEQ + keys | a synth track's STEP | the notes played become the next steps |
-| SEQ held alone, let go | STEP | the keys play with STEP up; again: they are steps |
+| SEQ held | STEP | the fill view of the selected synth track or drum lane, header *FILLS T1* / *FILLS* + lane [FILLS] |
+| SEQ held + a step key | STEP | that track's or lane's fills: empty: a FILL ONLY note / hit; FILL ONLY: removed; a normal note: unchanged, the popup says so. One undo level each [FILLS] |
 | OCT- and OCT+ tapped together (let go within 400 ms) | a synth track's STEP | FOLD on / off: only the rows of the pattern's notes, or the scale's notes when a scale is set |
 | TOOLS: a knob, then SAVE | STEP's TOOLS page | the tool: REVERSE, RANDOM, COOK, DOUBLE, HALF, QNT 1, QNT 1/2, QNT 1/4 (asked) [SEQTOOLS] |
 
@@ -173,7 +174,7 @@ Hold the button: its map shows and the keys and knobs are the layer's. **SHIFT2 
 | **EDIT** (erase) | erase that note / lane as it plays; drum SOUND page: picks that sound | SHIFT (rotate), LENGTH (x2 / half), TRANSPOSE | |
 | **ARP** (roll) | note repeat at the tempo | RATE | |
 | **SCL** (key) | the song's key (root) | CHORD, SCALE, KEYS, TRANSPOSE | |
-| **GLO** (mix) | 1-4 mute T1-DR, 16 tap tempo; with FILLS 9 fill while held, 10 next bar a fill, black 1-4 FX bypass T1-DR (without FILLS: 9-12) | LEVEL of T1, T2, T3, DR | |
+| **GLO** (mix) | 1-4 mute T1-DR (tap tempo: PLAY held); with FILLS 9 fill while held, 10 next bar a fill, black 1-4 FX bypass T1-DR (without FILLS: 9-12) | LEVEL of T1, T2, T3, DR | |
 | **LFO** (patterns, scenes) [PATTERNS] | above, Saving | the page under | OCT+ + a key: launch now; OCT- + a key: at the next bar |
 | **ENV** on an FM6 track (operators) | black keys pick OP1-OP6, PIT, GLO, MONO, POLY; white keys play | the page's four values | previous / next page |
 

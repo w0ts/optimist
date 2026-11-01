@@ -34,9 +34,13 @@ static volatile uint8_t sx_busy;
 static struct { uint8_t config; uint32_t resets; } usb = {1, 0};
 static volatile uint32_t fm1_ms;
 static volatile uint8_t ble_out_on;
-static uint8_t ble_ll_tx_octets(void) { return 251; }     /* (the radio's: ble/ble_ll.c, ble_att.c) */
+#ifndef MT_OCTETS
+#define MT_OCTETS 251                   /* (tests/mirror_aimd_test.c: the Mac's 50 octets at 7.5 ms) */
+#define MT_INTERVAL 9
+#endif
+static uint8_t ble_ll_tx_octets(void) { return MT_OCTETS; }   /* (the radio's: ble/ble_ll.c, ble_att.c) */
 static uint16_t ble_att_mtu(void) { return 185; }
-static uint16_t ble_ll_interval(void) { return 9; }
+static uint16_t ble_ll_interval(void) { return MT_INTERVAL; }
 static uint16_t ble_ll_peer_len(uint32_t i) { static const uint16_t V[4] = {251, 2120, 50, 512}; return V[i & 3u]; }
 static struct { uint8_t overlay, scr; } ui;
 static uint8_t mir_mute;
@@ -81,6 +85,8 @@ static int stalled;                     /* 1: the USB host reads nothing (the ri
 static uint32_t states;                 /* op 4 STATE frames received; the last one's bytes */
 static uint8_t state[29];
 static FILE *fix;
+static uint32_t mt_lossy, mt_lost, mt_zeroed, mt_twice, mt_rs = 7;   /* the lossy transport (chk_tests) */
+static uint32_t mt_rnd(uint32_t n) { mt_rs = mt_rs * 1103515245u + 12345u; return (mt_rs >> 8) % n; }
 static void host_byte(uint8_t b)
 {
     if (b == 0xF0u)
@@ -102,7 +108,22 @@ static void host_byte(uint8_t b)
             for (i = 0; i < 7u; i++)
                 link[i] = hf[6u + 2u * i] | hf[7u + 2u * i] << 7;
         }
-        else
+        else if (mt_lossy && hn > 9u && hf[5] <= 10u) {   /* (a Mac's MIDI driver: a frame lost, bytes zeroed, one twice) */
+            uint32_t r = mt_rnd(100), i, at, len;
+            if (r < 4u) {
+                mt_lost++;
+            } else if (r < 8u) {
+                at = 6u + mt_rnd(hn - 8u), len = 1u + mt_rnd(12);
+                for (i = at; i < at + len && i < hn - 1u; i++)
+                    hf[i] = 0;
+                mt_zeroed++;
+                md_frame(hf, hn);
+            } else {
+                md_frame(hf, hn);
+                if (r < 10u)
+                    md_frame(hf, hn), mt_twice++;
+            }
+        } else
             bad += !md_frame(hf, hn);
         if (fix)
             fwrite(hf, 1, hn, fix);
@@ -169,7 +190,11 @@ static uint32_t reboots;
 static void fm1_reboot(void) { reboots++; }
 static uint8_t ed_bt;                  /* (editor.c's: the request came over Bluetooth) */
 #define panel panel_tab
+#ifndef MIR_BLE_LAG
 #define MIR_BLE_LAG 1536u               /* (smaller than the firmware's: the random screens here catch up in less than its 4 KB) */
+#endif
+static void mt_bt_idle(void);           /* (ed_mirror.c MBR_IDLE: a catch-up waiting on a full ring; the radio below) */
+#define MBR_IDLE() mt_bt_idle()
 #include "../firmware/src/io/editor/ed_mirror.c"
 #if MIR_LEND
 #if defined(__has_feature)
@@ -237,6 +262,13 @@ static uint32_t radio(uint32_t n)
     return got;
 }
 
+static uint32_t mt_radio_rate;          /* bytes the radio drains while a catch-up waits, each wait (0: none, time goes on) */
+static void mt_bt_idle(void)
+{
+    if (mt_radio_rate)
+        radio(mt_radio_rate);
+    fm1_ms++;
+}
 /* ---- the panel itself, as display/lcd.c sends it (pixels byte-swapped) */
 static uint16_t panel[240 * 240];
 static uint32_t repaints;
@@ -621,11 +653,17 @@ static void bt_tests(void)
     }
     check(k < 100u, "never caught up");
     check(lost > 10u && same(), "a slow radio: behind %u times, caught up, the panel (%u bytes sent)", lost, sent);
+    check(mst.soft > 10u && mst.whole[MIR_WHY_LAG] == 0u, "... each catch-up for a lag in place, no whole panel (%u repaints in place)",
+          mst.soft);
     check(bad == 0u, "%u frames not decoded", bad);
     /* a link slower than a catch-up (the iPad scanning in its Bluetooth sheet) with small writes going on: one catch-up, not one
      * after the other (its own bytes are not the lag) */
     for (k = 0; k < 60u; k++)
         random_write();
+    for (k = 0; k < 20u; k++) {         /* (busy enough that its catch-up is over the lag, whatever MIR_BLE_LAG is built) */
+        canvas(240, 12, 16);
+        lcd_blit(0, 12u * k, 240, 12, cv);
+    }
     radio(~0u);
     mir.behind = 1, mir.catch_ms = fm1_ms - MIR_CATCH_MS;
     MIR_SEEN();
@@ -838,6 +876,238 @@ static void lend_tests(void)
 }
 #endif
 
+/* the lag rule follows the link (ed_mirror.c mbr_lag): no rate yet MIR_BLE_LAG; a full link's drain gives MIR_LAG_MS of it,
+ * between MIR_LAG_MIN and MIR_BLE_LAG; a window the ring went empty in is not counted */
+static void lag_tests(void)
+{
+#if MIR_LAG_ADAPT
+    uint32_t r0 = mbr.r, w0 = mbr.w, k, lo = MIR_LAG_MIN < MIR_BLE_LAG ? MIR_LAG_MIN : MIR_BLE_LAG;
+    memset(&mbl, 0, sizeof mbl);
+    mbl.t = fm1_ms;
+    check(mbr_lag() == MIR_BLE_LAG, "lag: no rate measured yet: MIR_BLE_LAG");
+    mbr.w = mbr.r + 100000u;               /* (frames waiting) */
+    mbl.busy = 1, mbl.r = mbr.r, mbl.t = fm1_ms;
+    fm1_ms += MIR_LAG_WIN_MS, mbr.r += 1150u;   /* 4.6 KB/s */
+    k = mbr_lag();
+    check(mbl.rate == 4600u && k == (2300u < lo ? lo : 2300u > MIR_BLE_LAG ? MIR_BLE_LAG : 2300u),
+          "lag: 4.6 KB/s full: %u bytes (half a second, not under %u)", k, lo);
+    for (k = 0; k < 20u; k++)
+        fm1_ms += MIR_LAG_WIN_MS, mbr.r += 5000u, (void)mbr_lag();   /* 20 KB/s */
+    check(mbl.rate > 19000u && mbr_lag() == MIR_BLE_LAG, "lag: 20 KB/s: MIR_BLE_LAG (%u B/s)", mbl.rate);
+    k = mbl.rate;
+    mbr.w = mbr.r;                         /* (nothing waiting: the link not full) */
+    fm1_ms += MIR_LAG_WIN_MS, (void)mbr_lag();
+    fm1_ms += MIR_LAG_WIN_MS, (void)mbr_lag();
+    check(mbl.rate == k, "lag: windows with nothing waiting leave the rate as it was");
+    mbr.r = r0, mbr.w = w0, mbr.fw = w0;
+    memset(&mbl, 0, sizeof mbl);
+#endif
+}
+/* a catch-up larger than the Bluetooth ring (2026-11-01 on the FM-1: the mixer of mots-config, 8.7-9.5 KB, the ring 8 KB): it
+ * was cut at its last band every time and caught up again twice a second for ever, the client showing the top of the screen.
+ * Now a catch-up waits on a full ring while the radio drains it, and goes out whole; with no radio reading it gives up */
+static void bigcatch_tests(void)
+{
+    static const uint8_t ON[] = {0xF0, 0x7D, 0x46, 0x4C, 106, 1, 0xF7};
+    uint32_t k, w0, r0, sent, q = quiet;
+    ble_out_on = 1;
+    bt_send(ON, sizeof ON);
+    mir_poll();
+    radio(~0u);
+    quiet = 0;
+    for (k = 0; k < 4u; k++) {                  /* (a busy panel: its catch-up well over 8 KB) */
+        canvas(240, 60, 12);
+        lcd_blit(0, 60u * k, 240, 60, cv);
+        radio(~0u);
+    }
+    quiet = (uint8_t)q;
+    mir.behind = 1, mir.catch_ms = fm1_ms - MIR_CATCH_MS;
+    mt_radio_rate = 0;                          /* (no radio reading while it waits) */
+    MIR_SEEN();
+    mir_poll();
+    check(mir.behind && mbr.w - mbr.r <= MIR_BLE_RING, "a catch-up over the ring, nothing read: given up, behind (%u queued)",
+          mbr.w - mbr.r);
+    radio(~0u);
+    fm1_ms += MIR_CATCH_MS;
+    mt_radio_rate = 96;                         /* (the radio draining while the catch-up waits) */
+    r0 = repaints;
+    w0 = mbr.w;
+    sent = 0;
+    MIR_SEEN();
+    mir_poll();
+    sent = mbr.w - w0;
+    radio(~0u);
+    check(repaints == r0 + 1u && !mir.behind && sent > MIR_BLE_RING && same(),
+          "a catch-up of %u bytes over the %u-byte ring, the radio draining: out whole, not behind, the panel", sent, MIR_BLE_RING);
+    for (k = 0; k < 20u; k++) {
+        fm1_ms += 16u;
+        MIR_SEEN();
+        mir_poll();
+        radio(~0u);
+    }
+    check(repaints == r0 + 1u && !mir.behind, "... and no catch-up after it");
+    mt_radio_rate = 0;
+    lcd_fill(0, 0, 240, 240, 0);
+    radio(~0u);
+}
+/* checked frames (106 bit 3; ed_mirror_enc.h ops 8..10) over a lossy transport (2026-11-01 on the FM-1 from a Mac: the cards at
+ * another x, fragments of other rectangles: a lost BLIT's MOREs painted into the rectangle before, zeroed bytes drawn as pixels).
+ * The client's picture is either exact, or it knows it lost something (and asks for the whole panel again): never garbage it
+ * believes. Without checks the same transport leaves wrong pixels the client cannot know about */
+static void chk_tests(void)
+{
+    static const uint8_t ONC[] = {0xF0, 0x7D, 0x46, 0x4C, 106, 1 | 2 | MIR_CHK_BIT, 0xF7},
+                         ON[] = {0xF0, 0x7D, 0x46, 0x4C, 106, 1 | 2, 0xF7};
+    uint32_t k, d0, asks = 0, wrong_known = 0, wrong_unknown = 0, pass;
+    for (pass = 0; pass < 2u; pass++) {   /* 0: checked, 1: as before */
+        ble_out_on = 1;
+        bt_send(pass ? ON : ONC, 7);
+        fm1_ms += MIR_CATCH_MS;
+        MIR_SEEN();
+        mir_poll();
+        radio(~0u);
+        mir_poll();
+        radio(~0u);
+        check(same() && (pass || me.chk), "checked frames (%u): on, caught up, the panel", pass);
+        md.have_seq = 0, md.broken = 0;
+        wrong_known = wrong_unknown = asks = 0;
+        mt_lossy = 1;
+        for (k = 0; k < 1500u; k++) {
+            d0 = md.dropped;
+            random_write();
+            radio(~0u);
+            fm1_ms += MIR_MARK_MS;      /* (the mark after the frames: seq alone; again a second later) */
+            MIR_SEEN();
+            mir_poll();
+            radio(~0u);
+            fm1_ms += MIR_MARK_IDLE_MS;
+            MIR_SEEN();
+            mir_poll();
+            radio(~0u);
+            if (md.dropped != d0) {     /* (it knows: the whole panel asked for, which comes whole here) */
+                wrong_known += !same();
+                mt_lossy = 0;
+                bt_send(pass ? ON : ONC, 7);
+                fm1_ms += MIR_CATCH_MS;
+                MIR_SEEN();
+                mir_poll();
+                radio(~0u);
+                mir_poll();
+                radio(~0u);
+                mt_lossy = 1;
+                asks++;
+                check(same(), "checked frames: the whole panel asked again, the panel");
+            } else if (!same()) {
+                wrong_unknown++;
+                mt_lossy = 0;           /* (as before: wrong until something else repaints it; resync for the next write) */
+                bt_send(pass ? ON : ONC, 7);
+                fm1_ms += MIR_CATCH_MS;
+                MIR_SEEN();
+                mir_poll();
+                radio(~0u);
+                mir_poll();
+                radio(~0u);
+                mt_lossy = 1;
+            }
+            MIR_SEEN();
+            mir_poll();
+            radio(~0u);
+        }
+        mt_lossy = 0;
+        printf("checked frames %s: %u lost, %u zeroed, %u twice; %u catch-ups asked, wrong %u known / %u unknown\n",
+               pass ? "off" : "on", mt_lost, mt_zeroed, mt_twice, asks, wrong_known, wrong_unknown);
+        if (!pass)
+            check(wrong_unknown == 0u && asks > 20u, "checked frames: a lossy link never leaves a picture the client believes wrong");
+        else
+            check(wrong_unknown > 20u, "as before (no checks): the same link leaves wrong pictures the client cannot see");
+        mt_lost = mt_zeroed = mt_twice = 0;
+    }
+    me.chk = 0;
+}
+/* lost frames asked for by seq (106 bit 4, ed_mirror.c mir_fix): only their rectangles again, the panel repainted in place, the
+ * rest skipped as held (MIR_SKIP); a whole panel only when a seq is no longer known. The client's picture exact after each */
+static void fix_tests(void)
+{
+    static const uint8_t ONC[] = {0xF0, 0x7D, 0x46, 0x4C, 106, 1 | 2 | MIR_CHK_BIT, 0xF7};
+    uint32_t k, d0, fixes = 0, wrong = 0, unknown = 0, fbytes = 0, wbytes = 0, w0 = mfix_whole, n0 = mfix_n, b0;
+    ble_out_on = 1;
+    bt_send(ONC, 7);
+    fm1_ms += MIR_CATCH_MS;
+    MIR_SEEN();
+    mir_poll();
+    radio(~0u);
+    mir_poll();
+    radio(~0u);
+    b0 = bytes;
+    mir.behind = 1, mir.catch_ms = fm1_ms - MIR_CATCH_MS;   /* (a whole panel's bytes, to compare) */
+    mir_poll();
+    radio(~0u);
+    wbytes = bytes - b0;
+    md.have_seq = 0, md.broken = 0, md.fix_have = 0;
+    mt_lossy = 1;
+    for (k = 0; k < 1500u; k++) {
+        uint32_t x = 30u * rnd(8), w = 30u * (1u + rnd(8u - x / 30u)), h = 1u + rnd(60), y = rnd(241u - h);
+        d0 = md.dropped;
+        if (rnd(4) == 0u)               /* (the UI's writes: whole 30-pixel segments mostly, as its bands and cards) */
+            lcd_fill(x, y, w, h, (uint16_t)rnd(0x10000u));
+        else {
+            canvas(w, h, 1u + rnd(4));
+            lcd_blit(x, y, w, h, cv);
+        }
+        radio(~0u);
+        fm1_ms += MIR_MARK_MS;
+        MIR_SEEN();
+        mir_poll();
+        radio(~0u);
+        fm1_ms += MIR_MARK_IDLE_MS;
+        MIR_SEEN();
+        mir_poll();
+        radio(~0u);
+        if (md.dropped != d0 && !md.fix_have) {   /* (a frame damaged, the marks after it lost too: the next mark tells) */
+            mt_lossy = 0;
+            fm1_ms += MIR_MARK_IDLE_MS;
+            MIR_SEEN();
+            mir_poll();
+            radio(~0u);
+            mt_lossy = 1;
+        }
+        if (md.dropped != d0 && md.fix_have) {
+            uint32_t q;
+            mt_lossy = 0;
+            b0 = bytes;
+            for (q = 0; q < md.fix_have; q++) {   /* (each run of lost seqs asked alone) */
+                uint8_t f[9] = {0xF0, 0x7D, 0x46, 0x4C, 106, 1 | MIR_CHK_BIT | MIR_FIX_BIT, (uint8_t)md.fix_lo[q], (uint8_t)md.fix_hi[q], 0xF7};
+                bt_send(f, 9);
+            }
+            md.fix_have = 0;
+            fm1_ms += MIR_FIX_MS;
+            MIR_SEEN();
+            mir_poll();
+            radio(~0u);
+            mir_poll();                 /* (the repaint, when the reply went first) */
+            radio(~0u);
+            fm1_ms += MIR_CATCH_MS;
+            mir_poll();
+            radio(~0u);
+            fbytes += bytes - b0;
+            fixes++;
+            mt_lossy = 1;
+            if (!same()) {
+                wrong++;
+                printf("  fix wrong at %u\n", k);
+            }
+        } else
+            unknown += !same() && md.dropped == d0;
+        if (md.dropped != d0 && !same() && !md.fix_have)
+            wrong++;
+    }
+    mt_lossy = 0;
+    printf("lost frames asked by seq: %u asks, %u repaints, %u whole panels; %u B an ask on average, a whole panel %u B; wrong %u, unknown %u\n",
+           fixes, mfix_n - n0, mfix_whole - w0, fixes ? fbytes / fixes : 0u, wbytes, wrong, unknown);
+    check(fixes > 20u && wrong == 0u && unknown == 0u, "lost frames asked by seq: the picture exact after each ask");
+    check(fixes && fbytes / fixes * 3u < wbytes, "lost frames asked by seq: an ask costs under a third of a whole panel");
+    me.chk = 0;
+}
 int main(void)
 {
     uint32_t k;
@@ -851,6 +1121,10 @@ int main(void)
     state_tests();
     test_session_tests();
     bt_tests();
+    bigcatch_tests();
+    chk_tests();
+    fix_tests();
+    lag_tests();
     nav_tests();
 #if MIR_LEND
     lend_tests();

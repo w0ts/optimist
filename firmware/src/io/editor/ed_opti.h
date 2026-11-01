@@ -40,16 +40,24 @@
 #define ED_OPTI_PJ ""
 #endif
 #if FELUCCA_ED_MIRROR && MBR_PROJ
-#define ED_OPTI_MORE "opti_clip_1 opti_btproj_1 opti_mstate_1 opti_panelx_1 opti_mtest_1 "   /* (tag 0x67, 0x66 being full: 111
+#if !defined(MIR_AIMD) || MIR_AIMD
+#define ED_OPTI_AIMD "opti_miraimd_1 " /* (a second tag 0x67, the first being full: 106 bit 5 the client's loss count and next seq,
+                                       * the Bluetooth stream paced to a budget, ed_mirror.c MIR_AIMD) */
+#endif
+#define ED_OPTI_MORE "opti_clip_1 opti_btproj_1 opti_mstate_1 opti_panelx_1 opti_mtest_1 opti_mirfix_1 "   /* (tag 0x67, 0x66 being full: 111
                                                    * the clip, ed_clip.c; opti_btproj_1: the projects' moves over Bluetooth too,
                                                    * ed_mirror.c MBR_PROJ; 106 op 4 STATE, 108 kinds 3 MASTER and 4 let go, its
-                                                   * seq, 108 kind 5 the test session: ed_mirror.c) */
+                                                   * seq, 108 kind 5 the test session: ed_mirror.c; opti_mirfix_1: 106 bit 4,
+                                                   * lost frames by seq, ed_mirror.c mir_fix) */
 #elif FELUCCA_ED_MIRROR
 #define ED_OPTI_MORE "opti_clip_1 opti_mstate_1 opti_panelx_1 opti_mtest_1 "   /* (tag 0x67, 0x66 being full: 111 the clip,
                                                                      * ed_clip.c; 106 op 4 STATE, 108 kinds 3 MASTER and 4 let go, its
                                                                      * seq, 108 kind 5 the test session: ed_mirror.c) */
 #else
 #define ED_OPTI_MORE ""
+#endif
+#ifndef ED_OPTI_AIMD
+#define ED_OPTI_AIMD ""
 #endif
 #if defined(FELUCCA_WIFI) && FELUCCA_WIFI && FELUCCA_BLE && ((BLE_HW_WL82 && FELUCCA_CDC) || defined(WIFI_ON_FM1B))   /* (the
                                          * release: fm1-base's own Wi-Fi stack, the trial's ui/opt_wifi.h) */
@@ -122,6 +130,10 @@ static void ed_opti_info(void)
     for (i = 0; i + 1u < sizeof S; i++)
         ed_b((uint8_t)S[i]);
     ed_opti_list(0x67, M, sizeof M);   /* (tag 0x67: more names, the same form; a client that knows none skips it) */
+    {
+        static const char A[] = ED_OPTI_AIMD;
+        ed_opti_list(0x67, A, sizeof A);   /* (0x67 again: the clients merge every 0x66 / 0x67 they read) */
+    }
     ed_boot_info();                    /* (tag 0x68: the bootloader, a client that knows none skips it) */
 }
 #endif

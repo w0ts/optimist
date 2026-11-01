@@ -2911,6 +2911,21 @@ static void seq_step(track_t *t, const step_t *s, uint32_t slen, uint32_t skip)
     t->seq_hold = !s->rat && ((s->flags & SF_SLIDE) != 0 || seq_goes_on(t, nx));   /* next a TIE: keep the notes to it */
     seq_own_ends(t, s, slen);                       /* (a note with an end of its own: seq_noffs) */
 }
+/* a muted synth step (auto.h AUTO_SMUTE): a rest for the notes it strikes, but the notes a carry step (SF_CARRY) holds through it, sounding already,
+ * go on (the user, 2026-11-01: muting a step must not cut the notes that began before it) */
+static void seq_muted_step(track_t *t, const step_t *s, uint32_t slen)
+{
+    uint32_t i, k, hold = 0;
+    if ((s->flags & SF_CARRY) && !s->rat)
+        for (k = 0; k < s->n && k < 4u; k++)
+            for (i = 0; i < t->seq_n; i++)
+                if (t->seq_notes[i] == s->note[k])
+                    hold |= 1u << k;
+    if (hold)
+        seq_step(t, s, slen, ~hold & 0xFu);         /* (only the held notes: the struck ones skipped) */
+    else
+        seq_release(t);
+}
 
 #if !FELUCCA_ENERGY
 #define EN_STEP(t, s, idx) (s)                       /* (the step as ENERGY's band plays it: macro.c) */
@@ -3157,7 +3172,7 @@ static void seq_tick(track_t *t, uint32_t adv)
                             skip |= 1u << i;
             t->rskip_n = 0;
             if (STEP_MUTED_SYN(t))
-                seq_release(t);                     /* (a muted note: the step a rest, auto.h AUTO_SMUTE) */
+                seq_muted_step(t, s, slen);         /* (a muted note: the step a rest, auto.h AUTO_SMUTE; the notes carried through it go on) */
             else
                 seq_step(t, s, slen, skip);
         }
@@ -3229,7 +3244,7 @@ static void seq_tick(track_t *t, uint32_t adv)
                             skip |= 1u << i;
             t->rskip_n = 0;
             if (STEP_MUTED_SYN(t))
-                seq_release(t);                     /* (a muted note: the step a rest, auto.h AUTO_SMUTE) */
+                seq_muted_step(t, s, slen);         /* (a muted note: the step a rest, auto.h AUTO_SMUTE; the notes carried through it go on) */
             else
                 seq_step(t, s, slen, skip);
         }

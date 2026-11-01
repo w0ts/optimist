@@ -662,8 +662,8 @@ static void shift_keys(uint32_t notes, int mute)
  * Not where the keys mean something else (STEP's steps, a layer's tiles, NAME, the FM6 layer: ui_input's other
  * branches), not on MASTER, and not while a value is being turned (a knob in the last 300 ms: the cards stay). On a
  * key down, from the main loop's note edges: nothing in seq.c's key ISR. The lowest key of a chord wins */
-/* the patterns screen (LFO layer, SONG's PATTERNS row): K1 T1 (top left), K2 T3 (bottom left), K3 T2 (top right), K4 DR (bottom right) */
-static const uint8_t PAT_KNOB_CELL[4] = {0, 2, 1, 3};
+/* the patterns screen (LFO layer, SONG's PATTERNS row): K1..K4 = T1 T2 T3 DR, the grid's rows top to bottom (the user, 2026-11-01: "k2 should control t2"; the 2x2 cards are gone) */
+static const uint8_t PAT_KNOB_CELL[4] = {0, 1, 2, 3};
 #define HIT_KNOB_MS 300u
 static void drum_hit_pick(uint32_t notes)
 {
@@ -741,6 +741,9 @@ static void oct_tap(uint32_t b)                         /* the keyboard octave, 
 
 /* ---- the input, every main-loop pass */
 static uint32_t op_held;                                /* the buttons down (op_clean: op_combos.c) */
+#if FELUCCA_FILLS
+static uint8_t oct_pend;                                /* OCT pressed with a step held: its octave waits for the let go (SHIFT2 + SAVE is the lock <-> HOLD switch there) */
+#endif
 static const uint8_t JUMP_FAM[NB] = {[B_FX] = FAM_FX, [B_SCL] = FAM_SCL, [B_ENV] = FAM_ENV, [B_LFO] = FAM_LFO,
                                      [B_EDIT] = FAM_EDIT, [B_GLO] = FAM_GLO, [B_ARP] = FAM_ARP, [B_SEQ] = 0xFF,
                                      [B_HOME] = 0xFF, [B_SAVE] = 0xFF, [B_PLAY] = 0xFF, [B_REC] = 0xFF,
@@ -752,6 +755,9 @@ static __attribute__((noinline)) void op_press(uint32_t b, uint32_t held)
 {
     if (b != B_OCTDN && b != B_OCTUP)
         oct_both = 0;                                   /* (another button: the OCT pair is a SHIFT combo, not the toggle) */
+#if FELUCCA_FILLS
+    oct_pend = 0;
+#endif
     if (b < NB && mx_master_dead(b)) {                  /* the mixer's MASTER: no track button (no SHIFT + it either) */
         op_clean &= ~BIT(b);
         return;
@@ -788,9 +794,13 @@ static __attribute__((noinline)) void op_press(uint32_t b, uint32_t held)
     case B_OCTDN:
     case B_OCTUP:
         if (st_holding()) {                             /* a step held: its notes an octave (synths), nothing else */
+#if FELUCCA_FILLS
+            oct_pend = 1;                               /* (when let go with nothing used meanwhile: op_tap) */
+#else
             if (!is_drum(TSEL))
                 held_octave(b == B_OCTDN ? -1 : 1);
             op_clean &= ~BIT(b);
+#endif
         } else if ((held & (BIT(B_OCTDN) | BIT(B_OCTUP))) == (BIT(B_OCTDN) | BIT(B_OCTUP))) {   /* both OCT: the track <-> MASTER toggle when let go */
             oct_both = (uint8_t)(oct_fold_here() || oct_master_ok());
             oct_both_t = op_t0[panel.btn[b] % 14u];
@@ -867,13 +877,22 @@ static void op_tap(uint32_t b, uint32_t id)
         if (hold && pk_delete())
             ;                                           /* (held alone on STEP, a note picked: deleted, op_step.c) */
 #if FELUCCA_PATTERNS
-        else if (lay.lock == LY_PAT && !op_armed())
-            lay_unlock();                               /* the pattern page locked open (SHIFT2 + LFO): HOME alone leaves it (HOME + key
-                                                         * clears a slot, SAVE + key stores: op_combos.c) */
+        else if (lay.lock == LY_PAT && !op_armed()) {
+            lay_pat_home();                             /* the pattern page locked open (SHIFT2 + LFO): HOME alone goes HOME, the mixer (HOME
+                                                         * + key clears a slot, SAVE + key stores: op_combos.c) */
+            home_in();
+        }
 #endif
         else if (!(mx_quiet() && hold))
             op_no();                                    /* (held alone on the mixer: nothing) */
     } else if (b == B_OCTDN || b == B_OCTUP) {
+#if FELUCCA_FILLS
+        if (oct_pend) {
+            oct_pend = 0;
+            if (!hold && st_holding() && !is_drum(TSEL))
+                held_octave(b == B_OCTDN ? -1 : 1);
+        } else
+#endif
         if (!hold)
             oct_tap(b);                                 /* (a tap: let go with nothing used meanwhile; held long, nothing: the user,
                                                          * 2026-10-26, "pressing oct for long should not change octave") */
@@ -1115,7 +1134,7 @@ static void op_knobs(uint32_t shift)
             continue;
         }
         step_cards_show();                              /* (STEP: a value edited) */
-        ck = song_on_pat_row() ? PAT_KNOB_CELL[k] : k;   /* (the patterns screen: the knobs read the 2x2 cards by columns, the user 2026-10-31) */
+        ck = song_on_pat_row() ? PAT_KNOB_CELL[k] : k;   /* (the patterns screen: the rows in order, the user 2026-11-01) */
         SCR->cell(row, ck, &c);
         if (c.kind == CK_NONE)
             continue;

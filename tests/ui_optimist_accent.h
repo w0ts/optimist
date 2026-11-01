@@ -310,11 +310,11 @@ static void acc_step_tests(void)
         check(!lock_get(t, 6, P_DACC, &x), "SHIFT + KNOB 3: the lock dropped");
         turn(EN_K3, 6);
         ui.hot = 2;
-        tap(B_SAVE);
+        tap_lock();
 #if FELUCCA_MOTION
         check(hold_get(t, 6, P_DACC, &x) && !lock_get(t, 6, P_DACC, &x),
               "YES: the amount is a motion value like any lane's: the lock becomes a hold (until the next)");
-        tap(B_SAVE);
+        tap_lock();
         check(lock_get(t, 6, P_DACC, &x) && !hold_get(t, 6, P_DACC, &x), "YES again: this step only");
 #else
         check(lock_get(t, 6, P_DACC, &x) && !hold_get(t, 6, P_DACC, &x) && str_eq(ui.msg, "NO HOLD HERE"),
