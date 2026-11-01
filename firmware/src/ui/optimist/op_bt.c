@@ -673,16 +673,30 @@ static int bt_vol_hold(int32_t knob)
 #define BT_REC_SIZE 32u
 static void bt_rec_out(uint8_t r[BT_REC_SIZE])
 {
-    uint32_t mk = BT_REC_MARK, am = bt_mode(BT_AUD);
+    uint32_t mk = BT_REC_MARK, am = bt_mode(BT_AUD), had;
+    uint8_t old[BT_REC_SIZE];
+    memcpy(old, r, BT_REC_SIZE);                        /* (r: the record as last read or written, settings_save) */
+    memcpy(&had, old, 4);
     memset(r, 0, BT_REC_SIZE);
     memcpy(r, &mk, 4);
-    r[4] = (uint8_t)(am ? 2u + am : bt_mode(BT_MIDI));
 #if FELUCCA_BT_AUDIO
+    r[4] = (uint8_t)(am ? 2u + am : bt_mode(BT_MIDI));
     r[5] = (uint8_t)(bta.nmem != 0u);
     memcpy(r + 6, bta.mem[0].addr, 6);
     str_cpy((char *)r + 12, bta.mem[0].name, 17);
-#endif
     r[BT_REC_MODES] = (uint8_t)(BT_REC_OK | bt.mode);
+#else
+    if (had == BT_REC_MARK) {                           /* a build without BT AUDIO keeps AUDIO's last device (bytes 5..28) and AUDIO's
+                                                         * mode as it read them: the remembered devices (bt_key, bt_kept) are kept the
+                                                         * same way, and without this the next BT AUDIO build found "none" in the
+                                                         * record and its first save erased every key (2026-11-01) */
+        memcpy(r + 5, old + 5, BT_REC_MODES - 5u);
+        if (old[BT_REC_MODES] & BT_REC_OK)
+            am = (old[BT_REC_MODES] >> 2) & 3u;
+    }
+    r[4] = (uint8_t)(am ? 2u + am : bt_mode(BT_MIDI));
+    r[BT_REC_MODES] = (uint8_t)(BT_REC_OK | (bt.mode & 3u) | am << 2);
+#endif
 }
 static void bt_rec_in(const uint8_t r[BT_REC_SIZE])
 {
