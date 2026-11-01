@@ -783,6 +783,10 @@ static void main_page_tests(void)
         char b[64];
         uint32_t m;
         memset(snd_mem, 0, sizeof snd_mem);             /* (EDIT on MAIN again: the SOUND row was the last shown) */
+        set_engine_of(TSEL, eng_slot(0u));              /* (an ANALOG sound with no ENV 1 FLT move on its CUT: 808 BOOM; the default T1,
+                                                         * ACID 303, has its filter envelope: its CUT does have a source) */
+        apply_preset_to(TSEL, 0u);
+        TSEL->engine = TSEL->eng_req;
         go_home();
         tap(B_EDIT);
         hl.k = 0;
@@ -922,13 +926,14 @@ static void key_tests(void)
     tap(B_ENV);
     check(snd_page(ui.row[SCR_SOUND])->fam == FAM_ENV && snd_page(ui.row[SCR_SOUND])->id[0] != P_ATK, "ENV again: the family's next row");
     {
-        int16_t a = TSEL->p[P_ATK];
         uint32_t p2 = TSEL->preset;
         while (snd_page(ui.row[SCR_SOUND])->id[0] != P_ATK)
             turn(EN_SELECT, -1);                        /* (back by SELECT: the button stops at the family's last row) */
         ui.hot = 0;
         turn(EN_PRESET, 2);
-        check(TSEL->p[P_ATK] == a && TSEL->preset != p2, "ENV row: PRESETS the sound (the next preset), ATK stays (2026-10-10)");
+        check(TSEL->preset != p2 && TSEL->preset < ENGINES[TSEL->eng_req % NENGINES]->npresets &&
+                  TSEL->p[P_ATK] == ENGINES[TSEL->eng_req % NENGINES]->presets[TSEL->preset].env[0],
+              "ENV row: PRESETS the sound (the next preset), ATK the new sound's own, not turned by the knob (2026-10-10)");
         fm1_in.buttons |= BT(B_OCTDN);
         turn(EN_K1, 1);
         fm1_in.buttons &= ~BT(B_OCTDN);
@@ -3536,7 +3541,7 @@ static void tracks_default(void)
     uint32_t i;
     for (i = 0; i < NPART; i++) {
         set_engine_of(&trk[i], trk_def_engine(i));
-        apply_preset_to(&trk[i], trk_def_preset(i));
+        trk_def_sound(&trk[i], i);
         trk[i].engine = trk[i].eng_req;
     }
     {   /* the returns as the defaults (the walk reaches their pages since 2026-10-30: random use turns their TYPE, PRE, POST) */

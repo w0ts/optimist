@@ -1440,6 +1440,14 @@ job; ( jobin
     run "missing on this build: full -> reduced project, song section, user kit; the message once per item, TOOLS > MISS" sh -c \
         "'$OUT/miss_full' write '$OUT/miss/A.bin' '$OUT/miss/B.bin' '$OUT/miss/K.bin' && '$OUT/miss_red' reduce '$OUT/miss/A.bin' '$OUT/miss/B.bin' '$OUT/miss/K.bin' '$OUT/miss'"
 ) >"$U.out" 2>&1 & jobbg
+# the default project's sounds (tests/defproj_test.c): T1 ANALOG ACID 303, T2 FM6 GLASS EP, T3 DIGITAL GLASS PAD, by name, and the
+# fallbacks (no KEYS pack, FM6 off, DIGITAL off, ANALOG off)
+job; ( jobin
+    for c in "" "$FM6_PACKS_ON" "$FM6_PACKS_ON -DFELUCCA_ENG_FM6=0" "$FM6_PACKS_ON -DFELUCCA_ENG_DIGITAL=0" "-DFELUCCA_FM6_PK_BASS=1 -DFELUCCA_FM6_PK_PADS=1" "-DFELUCCA_ENG_ANALOG=0"; do
+        $CC -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $c -o "$OUT/defproj_test" tests/defproj_test.c -lm
+        run "the default project's sounds by name ($c)" "$OUT/defproj_test"
+    done
+) >"$U.out" 2>&1 & jobbg
 # every engine built has a preset on the PRESETS list, every drum source built a kit (tests/preset_cover_test.c; the
 # builder's random configurations: tests/builder_test.py): sample headers without any set, without GRAIN's sets
 mkdir -p "$OUT/gen_noset" "$OUT/gen_nogr"
