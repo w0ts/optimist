@@ -141,7 +141,6 @@ static int mbr_cmd_ok(uint32_t cmd)       /* the projects' moves: the backup's 4
 #else
 #define mbr_cmd_ok(cmd) 0
 #endif
-static void mir_fix_ask(uint32_t lo, uint32_t hi);   /* (below: frames lo .. hi lost, the radio's interrupts or USB) */
 static volatile uint8_t mbr_acked;       /* an ACK alone came (106 bits 5 and 6): the client is there, mir_poll */
 static uint8_t mbr_reply;                /* a reply being queued (mir_bt_reply): never held back by MIR_BLE_LAG, only a full ring
                                          * stops it (the user, 2026-10-31: INFO, PJ_OP and the library's replies were dropped 1 in 3
@@ -497,6 +496,7 @@ static void mbr_end(void) {}
 static int mir_bt_up(void) { return 0; }
 static int mir_bt_clear(void) { return 1; }
 #endif
+static void mir_fix_ask(uint32_t lo, uint32_t hi);   /* (below: frames lo .. hi lost, the radio's interrupts or USB) */
 
 static int mir_link_up(void)
 {
