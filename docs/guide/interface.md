@@ -27,7 +27,7 @@ SAVE then HOME is undo, HOME then SAVE is redo. SHIFT and SHIFT2 are not buttons
 
 - **The octave.** OCT- or OCT+ tapped (let go with nothing else used meanwhile) changes the keyboard octave by one, between -3 and +3, with the toast "OCTAVE: n". It acts on release, so holding either is a SHIFT, not an octave change. On STEP the piano roll follows the octave. On the drum track a tap does nothing.
 - **Both OCT** tapped together: the track and MASTER toggle (back to the track you came from). Not on NAME, under a question, in a layer, or on pages with no track (GLOBAL, SYSTEM, PROJECT, SONG). On a synth track's STEP a quick tap (within 400 ms) toggles **FOLD** instead: the piano roll shows only the rows of the notes the pattern plays, or the scale's notes when a scale is set.
-- On PROJECT a tap is the previous or next bank. On a held step OCT- / OCT+ move the step's notes an octave (synth tracks). On the tempo page and GLOBAL's Tempo lines they nudge the clock.
+- On PROJECT a tap is the previous or next bank. On a held step OCT- / OCT+ move the step's notes an octave (synth tracks). On the tempo page they nudge the clock.
 
 ### The LEDs
 
@@ -86,20 +86,17 @@ PROJECT is where storage lives. A storage row (PROJECT, SNAPSHOT, USER) has up t
 GLOBAL and SYSTEM are settings lists: one setting on a line, the name left and the value right, in pages of 4. SELECT moves a page at a time; knob k edits line k and makes it the cursor; ALGORITHM moves the cursor a line; SAVE is YES on the cursor line (an on / off value toggles, an action line runs); SHIFT + a knob returns a value to its default.
 
 **GLOBAL**
-- **Tempo:** BPM, NUDGE (as on the tempo page: the clock's offset while a clock is followed), SWING, TUNE (the master tuning, -50 to 50 cents).
-- **Rec:** MODE, LENGTH, START, CLICK, QUANT.
-- **Filter:** FILT RESO, the resonance of every track's FILTER, 0 (clean) to 10, saved with the project (builds with the track FILTER; `TFLT_RESO`).
+- **Tune:** TUNE (the master tuning, -50 to 50 cents), QUANT (ON snaps a recorded note to the grid) and FILT RESO, the resonance of every track's FILTER, 0 (clean) to 10, saved with the project (builds with the track FILTER; `TFLT_RESO`). BPM, NUDGE, SWING and the REC settings are on the tempo page (PLAY held) only.
 - **MIDI:** CLK IN (the clock to follow: AUTO, LINK, TRS, USB, BLE, INT), CLK OUT (OFF, USB, BLE or BOTH; amber when the chosen port cannot send), LINK (Link builds: OFF, ON, ON+S/S), MIDI OUT (OFF, KEYS, SEQ, BOTH); CLK OFS, BT OFS and LINK OFS ([midi-usb.md](midi-usb.md#midi-clock)). There is no MIDI IN line: notes come in through the track channels.
 - **Channels:** T1, T2, T3, DR (the MIDI channel of each track).
 
 **SYSTEM**
 - **INFO:** the read-out below. Always the first page.
 - **SCREEN:** KNOB COLORS (ON / OFF). The backlight is always full.
-- **AUDIO:** the output's correction, chosen by the headphone jack and applied to the FM-1's own output only (never to Bluetooth, USB or a recording on the card): SPK LOWCUT (OFF, ON or BASS+; ON at first) while nothing is plugged in, the speaker's ~110 Hz low cut, or BASS+ (the bass heard through its harmonics); HPHN BASS (OFF, +3 dB or +6 dB; OFF at first) while headphones are in, a bass shelf below ~110 Hz.
+- **AUDIO:** the output's correction, chosen by the headphone jack and applied to the FM-1's own output only (never to Bluetooth, USB or a recording on the card): the speaker's ~110 Hz low cut, always on while nothing is plugged in (no setting); HPHN BASS (OFF, +3 dB or +6 dB; OFF at first) while headphones are in, a bass shelf below ~110 Hz.
 - **DEBUG STATS** (the release build; the last line of the General page, after HPHN BASS): ON or OFF, OFF at first. While ON the FM-1 keeps its load, late audio halves and stack depths in flash every 5 minutes, for a unit that misbehaves only after hours of play.
 - **USB:** SERIAL, ON or OFF; amber until a restart applies it (builds with the USB console).
 - **BT MIDI** (builds with `BLE`): MODE, DEVICE, ACTIVITY, STATE. **BT AUDIO** (builds with `BT_AUDIO`): MODE, DEVICE, FORMAT, STATE. Both can be on at once; MODE, the devices list and SAVE: [midi-usb.md](midi-usb.md#bluetooth-midi-and-bluetooth-audio). A connect not up in 30 s says NO ANSWER.
-- **CALIBRATE:** PANEL (teaches the panel's buttons and knobs, asked first) and HOLD (a button's hold time: 250, 350 or 500 ms).
 - **USB AUDIO:** (USB audio builds) one line a source: MASTER, T1 to T3, DRUMS, DRUM BUS, DR1 to DR10, RET A to RET C (the FX returns). Each goes to NONE, 1, 2, 1+2, 3, 4 or 3+4 of the four capture channels sent to the computer. See [midi-usb.md](midi-usb.md).
 - **ABOUT:** VERSION (and the commit it was built from), BUILD (date and time) and the repository address. **CREDITS** follows, the last page: whose work Optimist is built from, as end titles that rise by themselves and loop; turn KNOB 1 to scroll by hand, either way (the crawl resumes 3 s after the last turn). LICENSING.md has the licences.
 

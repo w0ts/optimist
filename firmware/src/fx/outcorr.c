@@ -23,7 +23,7 @@
  * CPU: today's low cut, behind the choice (none while the setting of the jack's side is OFF); HPHN BASS one one-pole a
  * side and a multiply. fx_lowcut (fx.c) is the block's correction before the limiter (OC_*; the tests set it). */
 enum { OC_NONE, OC_LC, OC_BP, OC_HP3, OC_HP6 };
-static volatile uint8_t spk_lc = 1;     /* SYSTEM > SPK LOWCUT: 0 OFF, 1 ON, 2 BASS+ (settings, panel.c) */
+static volatile uint8_t spk_lc = 1;     /* the speaker's low cut: always 1 (ON; no SYSTEM row since 2026-11-01, the user: "put it to low cut on, and remove the line") */
 static volatile uint8_t hp_bass;        /* SYSTEM > HPHN BASS: 0 OFF, 1 +3 dB, 2 +6 dB (settings) */
 static volatile uint8_t hp_in;          /* the jack: 1 headphones in (debounced by the main loop: system/hpjack.h) */
 static uint8_t oc_last, oc_rec;         /* (the audio interrupt's: the correction of the last block; the recorder takes
@@ -34,7 +34,7 @@ AINL uint32_t oc_want(void)             /* the correction the jack's side asks f
 {
     if (hp_in)
         return hp_bass ? OC_HP3 - 1u + (hp_bass > 2u ? 2u : hp_bass) : OC_NONE;
-    return spk_lc > 2u ? OC_LC : spk_lc;                /* (OC_LC 1, OC_BP 2: the setting's values) */
+    return spk_lc > 2u ? OC_LC : spk_lc;                /* (OC_LC 1, OC_BP 2; oc_set_word only ever sets 1: the low cut, always) */
 }
 static void oc_reset(void)              /* the filters from rest (a correction turned on: no old state's step) */
 {
@@ -50,7 +50,8 @@ AINL uint32_t oc_word(uint32_t spk, uint32_t hp) { return (spk & 3u) | (hp & 3u)
 static uint32_t oc_set_word(uint32_t w)   /* the word into the settings -> the word as kept (out of range: the default) */
 {
     uint32_t s = w & 3u, h = w >> 4 & 3u;
-    spk_lc = (uint8_t)(s > 2u ? 1u : s);
+    (void)s;                                            /* (the stored SPK LOWCUT, OFF or BASS+ too, is ignored: always ON) */
+    spk_lc = 1u;
     hp_bass = (uint8_t)(h > 2u ? 0u : h);
     return oc_word(spk_lc, hp_bass);
 }

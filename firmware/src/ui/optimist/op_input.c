@@ -940,7 +940,7 @@ static int op_presets_turn(void)
     if (btn_held(B_OCTDN) || btn_held(B_OCTUP))
         op_clean &= ~(BIT(B_OCTDN) | BIT(B_OCTUP));     /* (a shift with PRESETS: no octave, no NO when let go) */
     if (sys_scr(ui.scr)) {                              /* GLOBAL, SYSTEM: PRESETS does nothing (the user, 2026-10-13): a knob k is
-                                                         * line k, CALIBRATE runs from YES */
+                                                         * line k */
     } else if (btn_held(B_OCTDN)) {                     /* SHIFT + PRESETS: the instruments (STEP, a step held: nothing, the turn drained) */
         if (ui.scr != SCR_STEP && pre_free() && !st_holding()) {
             if (lane_presets())
@@ -1679,7 +1679,7 @@ static void ui_draw(void)
     op_frame_draw();
 }
 
-/* ---- panel setup: OCT- + OCT+ held at power-on, or SYSTEM > CALIBRATE (as SLOOP's ui_input.c panel_setup) */
+/* ---- panel setup: OCT- + OCT+ held at power-on only (no SYSTEM row; as SLOOP's ui_input.c panel_setup) */
 #define SETUP_IDLE_MS 30000u                            /* 30 s without input: the old table stays */
 static void panel_setup(void)
 {

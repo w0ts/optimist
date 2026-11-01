@@ -478,10 +478,9 @@
     {"kind": "op", "ctx": "USB STATS", "if": "FELUCCA_USB_AUDIO", "params": {"USB STATS": "USB audio glitch counters"}},
     {"kind": "op", "ctx": "GENERAL", "params": {
       "KNOB COLORS": "Knob numbers in cap colours",
-      "SPK LOWCUT": "Speaker's low cut, jack empty",
       "HPHN BASS": "Bass boost, headphones in",
       "DEBUG STATS": {"text": "Load, stacks to flash, 5 min", "if": "defined(PLAT_STATS_APP)"}}},
-    {"kind": "op", "ctx": "FILTER", "params": {"FILT RESO": "Track filter resonance"}},
+    {"kind": "op", "ctx": "TUNE", "params": {"TUNE": "Master tune (cents)", "QUANT": "Snap recorded notes to steps", "FILT RESO": "Track filter resonance"}},
     {"kind": "op", "ctx": "USB", "if": "FELUCCA_USB_HOST", "params": {
       "MODE": "HOST until power-off: no PC", "DEVICE": "The USB-MIDI device on it"}},
     {"kind": "op", "ctx": "USB", "if": "FELUCCA_CDC", "params": {"SERIAL": "USB serial console (restart)"}},
@@ -499,8 +498,6 @@
       "DR7": "Drum lane 7 to USB inputs", "DR8": "Drum lane 8 to USB inputs", "DR9": "Drum lane 9 to USB inputs",
       "DR10": "Drum lane 10 to USB inputs", "RET A": "FX return A to USB inputs",
       "RET B": "FX return B to USB inputs", "RET C": "FX return C to USB inputs"}},
-    {"kind": "op", "ctx": "CALIBRATE", "params": {
-      "PANEL": "Teach buttons, knobs -> SAVE", "HOLD": "Time a press becomes a hold"}},
     {"kind": "op", "ctx": "ABOUT", "params": {
       "VERSION": "Firmware version and commit", "BUILD": "When this firmware was built",
       " ": "Source code on GitHub"}},

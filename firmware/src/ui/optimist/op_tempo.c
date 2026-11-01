@@ -28,7 +28,7 @@ static struct {
     int16_t jog;                        /* the NUDGE knob's ms since the page opened (the card's value) */
 } tp;
 static const uint8_t REC_LENS[3] = {16u, 32u, 64u};    /* LENGTH: 1, 2, 4 bars of 1/16 */
-enum { TPR_TEMPO, TPR_REC, TPR_REC2, TPR_N };          /* the page's rows (GLOBAL's first three too: op_global.c) */
+enum { TPR_TEMPO, TPR_REC, TPR_REC2, TPR_N };          /* the page's rows */
 
 static void tempo_open(void)
 {
@@ -62,8 +62,7 @@ static void tempo_key(int32_t w)                        /* a key while PLAY is h
         tap_tempo();
 }
 /* OCT- / OCT+ nudge the clock: on the TEMPO page, and on GLOBAL's page with Tempo's lines (its NUDGE line, op_global.c) */
-static int gl_on_tempo(void);
-static int tempo_nudging(void) { return tp.on || gl_on_tempo(); }
+static int tempo_nudging(void) { return tp.on; }   /* (GLOBAL has no Tempo lines since 2026-11-01) */
 /* once a frame (op_input.c): the page after the hold, the nudge while OCT- / OCT+ are held */
 static void tempo_frame(uint32_t held)
 {
@@ -94,8 +93,7 @@ static uint32_t rec_len_ix(void)                        /* the selected track's 
     return len > 32 ? 2u : len > 16 ? 1u : 0u;
 }
 static void tp_name(uint32_t r, char *b) { str_cpy(b, r == TPR_REC2 ? "REC 2" : r ? "REC" : "TEMPO", 12); }
-/* row r's card k when it is a global value (G_*): BPM SWING SYNC (GLOBAL's list leaves SYNC out: CLK IN is on its MIDI
- * page, op_global.c gl_has), CLICK, QUANT; -1 none */
+/* row r's card k when it is a global value (G_*): BPM SWING SYNC (GLOBAL's MIDI page has SYNC as CLK IN, and its first page QUANT: op_project.c), CLICK, QUANT; -1 none */
 static int32_t tp_g(uint32_t r, uint32_t k)
 {
     if (r == TPR_REC2)
@@ -226,7 +224,7 @@ static int tp_yes(uint32_t r, uint32_t k, uint32_t ok)
     return 1;
 }
 
-/* the TEMPO screen's rows (GLOBAL keeps tp_* whole, its lines: op_global.c). Without REC MODES the REC row's MODE and START
+/* the TEMPO screen's rows. Without REC MODES the REC row's MODE and START
  * cards are empty: QUANT, REC 2's one value, sits on MODE's card and REC 2 goes (the audit's #21: no one-card page). With
  * them the two pages are full (BPM NUDGE SWING SYNC, MODE LENGTH START CLICK): QUANT keeps its page */
 #define TPS_N (FELUCCA_REC_MODES ? (uint32_t)TPR_N : (uint32_t)TPR_REC2)

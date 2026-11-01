@@ -203,9 +203,6 @@ static void actcards_tests(void)
     ui.force = 1;
     frame();
     check(ac_band_has(C_ERR), "USER row: INIT drawn in the alarm colour");
-    rk_at(SCR_SYSTEM, 0, "PANEL");
-    SCREENS[SCR_SYSTEM].cell(ui.row[SCR_SYSTEM], 0, &c);
-    check(!strcmp(act_verb(&c), "CALIBRATE") && !strcmp(act_small(&c), "PANEL"), "SYSTEM PANEL: CALIBRATE over PANEL");
     reset_ui();
     ac_key_tests();
 }

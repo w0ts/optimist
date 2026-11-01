@@ -329,7 +329,7 @@ split so that every build can have it and only the SD card mode pays for the res
 
 **The PUNCH switch (3a, 2026-10-26; an extra).** The punch-in FX records the mix all the time (a punch needs the past),
 so its ring cannot wait for the key: a project setting says the project uses it. `FELUCCA_PUNCH_SW` (registry.h: PUNCH
-built and the arena's extras): `punch_sw`, GLOBAL > Rec's PUNCH (TEMPO's REC 2 page with REC MODES), OFF in a new project;
+built and the arena's extras): `punch_sw`, GLOBAL > Tune's PUNCH (TEMPO's REC 2 page with REC MODES), OFF in a new project;
 saved in the project's G_INFO slot, bit 1 = ON (bit 0 stays REC QUANTIZE's). The ring is the arena buffer `ARB_PUNCH`
 (`core/arena_bufs.c`), held while the switch is on or an effect still fades out; not placed, `punch_process` leaves the
 mix as it is and the main loop lets go of FX + a key (`punch_asked`): PUNCH OFF said with the switch off, MEM FULL PUNCH
