@@ -510,7 +510,7 @@ static void denv_synth(uint32_t l, uint32_t kit, const int8_t *o, int32_t y0, in
 #if FELUCCA_DRUM_EDIT
     dsnd_t ed;
 #endif
-    ds_unpack(&snd, DS_SND(ds_kit(kit), ds_lane(LANE_NOTE_OF(l), &semi)));
+    FAST_CALL(seq, ds_unpack)(&snd, DS_SND(ds_kit(kit), ds_lane(LANE_NOTE_OF(l), &semi)));
 #if FELUCCA_DRUM_EDIT
     if (o) {
         de_synth(&ed, d, o);
@@ -555,7 +555,7 @@ static const char *denv_syn_tag(uint32_t l, uint32_t kit)
     int32_t semi;
     dsnd_t snd;
     uint32_t w;
-    ds_unpack(&snd, DS_SND(ds_kit(kit), ds_lane(LANE_NOTE_OF(l), &semi)));   /* (the sound is packed: drum_synth.c) */
+    FAST_CALL(seq, ds_unpack)(&snd, DS_SND(ds_kit(kit), ds_lane(LANE_NOTE_OF(l), &semi)));   /* (the sound is packed: drum_synth.c) */
     w = snd.wave;
     return w == DW_PKICK ? "KPUNC" : w == DW_PSNARE ? "SCRAK" : "SYN";
 }

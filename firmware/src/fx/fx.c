@@ -2308,7 +2308,7 @@ static uint32_t dins_ran[DINS_N];                         /* the types (a bit ea
                                                          * (cpuguard.c), and this block's */
 static uint32_t dins_now[DINS_N];
 /* voice k's slot s at rest for type t (as a new voice: a hit starts clean), wet at once at amount a (no fade in) */
-static __attribute__((noinline)) void dins_rest(uint32_t k, uint32_t s, uint32_t t, int32_t a)
+static __attribute__((noinline)) FAST(seq) void dins_rest(uint32_t k, uint32_t s, uint32_t t, int32_t a)
 {
     dins_st_t *st = &dins_st[k % DINS_N][s & 1u];
     uint32_t i;

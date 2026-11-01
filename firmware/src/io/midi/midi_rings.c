@@ -28,7 +28,11 @@ static int midi_out_open(void);                 /* the outputs take events (usb.
  * with their source and arrival time). Time: TIMER4 ticks (SYNC_NOW), so clock_sync.c can follow 24 PPQN
  * to a fraction of a millisecond. Producers: usb_poll and uart_midi_poll, both in the TIMER5 ISR */
 #ifndef SYNC_NOW
+#ifdef FAST_CALL                                     /* (the sequencer reads it from RAM code with SEQ_RAM: core.h) */
+#define SYNC_NOW() FAST_CALL(seqev, fm1_ticks)()
+#else                                               /* (the loader: no core.h) */
 #define SYNC_NOW() fm1_ticks()
+#endif
 #endif
 #define SYNC_PEEK_HALF (50u * 24u)                      /* half the 10 kHz TIMER5 tick, in TIMER4 ticks */
 enum { MSRC_USB = 1, MSRC_TRS = 2, MSRC_BLE = 3, MSRC_LINK = 4, MSRC_USBH = 5 };   /* = G_SYNC USB / TRS; BLE: io/midi/midi_ble.c (SYNC_BLE); LINK:

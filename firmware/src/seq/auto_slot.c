@@ -70,13 +70,13 @@ SA_NI void sa_event(uint32_t k, const auto_ev_t *e, uint32_t mo)
     *vp = (int16_t)x;
 }
 /* the last step's locks let go (auto_step, the ISR): to the hold's value, else the base */
-SA_NI void sa_locks_off(uint32_t k)
+SA_NI FAST(seq) void sa_locks_off(uint32_t k)
 {
     const param_desc_t *d;
     uint32_t m = sa_lm[k], b;
     for (b = 0; m; b++, m >>= 1) {
         int16_t *vp;
-        if (!(m & 1u) || !(vp = sa_vp(k, b >> 4, b & 15u, &d)))
+        if (!(m & 1u) || !(vp = FAST_CALL(seqev, sa_vp)(k, b >> 4, b & 15u, &d)))
             continue;
         *vp = (sa_hm[k] >> b) & 1u ? sa_hv[k][b] : sa_base[k][b];
     }

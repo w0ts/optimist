@@ -46,7 +46,7 @@ static int chance_drop(const track_t *t, const step_t *s)
     if (c >= 100u) {
         if (!((uint32_t)s->flags & SF_CH_MASK))
             return 0;
-        c = step_chance(s);
+        c = FAST_CALL(seqev, step_chance)(s);
     }
     return !c || rng() % 100u >= c;
 }

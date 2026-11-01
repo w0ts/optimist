@@ -166,7 +166,7 @@ static uint32_t gr_level(uint32_t part, uint32_t i, uint32_t x, uint32_t y)
 static void gr_gfit(gen_t *g, uint32_t len) { (void)g, (void)len; }
 static int gr_gstep(const gen_t *g, uint32_t i, uint32_t len, uint32_t seed, gen_ev_t *e)
 {
-    uint32_t slot = (uint32_t)(g - gen), x = gr_u7(g->p[0]), y = gr_u7(g->p[1]), th = 255u - gr_u7(g->p[2]), p, lv;
+    uint32_t slot = (uint32_t)(g - gen), x = FAST_CALL(seqev, gr_u7)(g->p[0]), y = FAST_CALL(seqev, gr_u7)(g->p[1]), th = 255u - FAST_CALL(seqev, gr_u7)(g->p[2]), p, lv;
     (void)len, (void)seed;                               /* (gen_hit's g is gen[slot]) */
     if (slot < NPART) {
         p = slot % GR_PARTS;
@@ -221,10 +221,10 @@ static void gr_kit_vals(const int16_t *p, int16_t *g)
 #endif
 static uint32_t gr_kit_level(uint32_t part, uint32_t i, uint32_t len, uint32_t pass, const int16_t *g)
 {
-    uint32_t lv = gr_level(part, i, gr_u7(g[0]), gr_u7(g[1])), ch = gr_u7(g[2]) >> 2;
+    uint32_t lv = FAST_CALL(seqev, gr_level)(part, i, FAST_CALL(seqev, gr_u7)(g[0]), FAST_CALL(seqev, gr_u7)(g[1])), ch = FAST_CALL(seqev, gr_u7)(g[2]) >> 2;
     if (ch) {
         uint32_t bar = pass * ((len + 15u) / 16u) + i / 16u;
-        lv += ((gen_mix(bar * 0x9E3779B1u + part + 1u) & 255u) * ch) >> 8;
+        lv += ((FAST_CALL(seqev, gen_mix)(bar * 0x9E3779B1u + part + 1u) & 255u) * ch) >> 8;
     }
     return lv > 255u ? 255u : lv;
 }
@@ -270,7 +270,7 @@ static uint32_t gr_eu_mask(uint32_t k, uint32_t n)
     return mask;
 }
 /* part p's length (1..32) and hits from GRIDS' six values g (gr_kit_vals: X Y CHAOS the lengths, BD SD HH the fills) */
-static uint32_t gr_eu_len(const int16_t *g, uint32_t p) { return (gr_u7(g[p]) >> 3) + 1u; }
+static uint32_t gr_eu_len(const int16_t *g, uint32_t p) { return (FAST_CALL(seqev, gr_u7)(g[p]) >> 3) + 1u; }
 static uint32_t gr_eu_hits(const int16_t *g, uint32_t p)
 {
     return (2u * (gr_u7(g[3u + p]) >> 3) * gr_eu_len(g, p) + 31u) / 62u;   /* (Python 2's round: halves up) */
@@ -279,7 +279,7 @@ static uint32_t gr_eu_hits(const int16_t *g, uint32_t p)
 static int gr_eu_hit(const int16_t *v, uint32_t p, uint32_t i, uint32_t len, uint32_t pass)
 {
     static struct { uint8_t n, k; uint32_t mask; } cache[GR_PARTS];   /* (the last pattern of each part) */
-    uint32_t n = gr_eu_len(v, p), k = gr_eu_hits(v, p);
+    uint32_t n = FAST_CALL(seqev, gr_eu_len)(v, p), k = FAST_CALL(seqev, gr_eu_hits)(v, p);
     if (cache[p].n != n || cache[p].k != k)
         cache[p].n = (uint8_t)n, cache[p].k = (uint8_t)k, cache[p].mask = gr_eu_mask(k, n);
     return (int)((cache[p].mask >> ((pass * len + i) % n)) & 1u);
@@ -315,23 +315,23 @@ static void gr_kit_merge(const track_t *t, uint32_t i, uint32_t len, const dstep
             hit = (uint32_t)gr_eu_hit(g, p, i, len, t->pass);
         } else if (p < GR_PARTS) {
             uint32_t lv = gr_kit_level(p, i, len, t->pass, g);
-            hit = lv > 255u - gr_u7(g[3u + p]);
+            hit = lv > 255u - FAST_CALL(seqev, gr_u7)(g[3u + p]);
             hard = hit && lv > 192u;
             acc |= hard;
             if (!gr_vel_off)
-                lvl = vel_lvl(gr_lv_vel(lv));            /* (GRIDS_VEL: the level's dynamic, 4: none) */
+                lvl = FAST_CALL(seqev, vel_lvl)(gr_lv_vel(lv));            /* (GRIDS_VEL: the level's dynamic, 4: none) */
         }
         if (l >= DRUM_SLANES || ((own >> l) & 1u))
             continue;
         has = (uint32_t)dstep_has(s, l);
         if (!hit) {
             if (mode != GM_ADD)
-                dstep_clr(o, l);
+                FAST_CALL(seqev, dstep_clr)(o, l);
             continue;
         }
         if (!has && mode == GM_MASK)
             continue;
-        dstep_set(o, l, lvl < 4u ? lvl : hard ? LV_HARD : has ? dstep_lvl(s, l) : LV_NORM, has ? dstep_rat(s, l) : 0u);
+        FAST_CALL(seqev, dstep_set)(o, l, lvl < 4u ? lvl : hard ? LV_HARD : has ? dstep_lvl(s, l) : LV_NORM, has ? dstep_rat(s, l) : 0u);
     }
 }
 #endif
@@ -487,7 +487,7 @@ static uint32_t gen_kind(const track_t *t, uint32_t slot, uint32_t i, uint32_t l
 /* the lane's or the note's level / ratchet laid over: 2 bits a note */
 static uint8_t gen_rep(uint32_t v) { return (uint8_t)((v & 3u) * 0x55u); }
 /* step i of synth track t as it plays (o: room for a step made here) */
-static const step_t *gen_eff(const track_t *t, uint32_t i, step_t *o)
+static FAST(seq) const step_t *gen_eff(const track_t *t, uint32_t i, step_t *o)
 {
     uint32_t k = trk_index(t), len, slot;
     const step_t *s = &t->step[i % NSTEP];
@@ -498,11 +498,11 @@ static const step_t *gen_eff(const track_t *t, uint32_t i, step_t *o)
     len = trk_len(t), slot = k;
     if (i >= len)
         return s;
-    h = gen_hit(slot, i, len, &e);
-    if (h && (gen[slot].mode != GM_MASK || gen_gate(s))) {
-        if (gen_gate(s)) {
-            *o = *s;
-            if (i && !gen_kind(t, slot, i - 1u, len))
+    h = FAST_CALL(seqev, gen_hit)(slot, i, len, &e);
+    if (h && (gen[slot].mode != GM_MASK || FAST_CALL(seqev, gen_gate)(s))) {
+        if (FAST_CALL(seqev, gen_gate)(s)) {
+            FAST_SET(seqev, *o, *s);
+            if (i && !FAST_CALL(seqev, gen_kind)(t, slot, i - 1u, len))
                 o->flags &= (uint8_t)~SF_CARRY;          /* (nothing to go on from: struck) */
         } else {
             uint32_t j = i;
@@ -512,8 +512,8 @@ static const step_t *gen_eff(const track_t *t, uint32_t i, step_t *o)
             memset(o, 0, sizeof *o);
             o->time = ST_NOTE;
             o->vel = 100;
-            if (s->time == ST_TIE && gen_gate(&t->step[j]))   /* (a TIE: the note it holds) */
-                memcpy(o->note, t->step[j].note, sizeof o->note), o->n = t->step[j].n;
+            if (s->time == ST_TIE && FAST_CALL(seqev, gen_gate)(&t->step[j]))   /* (a TIE: the note it holds) */
+                FAST_COPY(seqev, o->note, t->step[j].note, sizeof o->note), o->n = t->step[j].n;
             else
                 o->note[0] = (uint8_t)(r > 66 ? r - 12 : r), o->n = 1;
         }
@@ -529,7 +529,7 @@ static const step_t *gen_eff(const track_t *t, uint32_t i, step_t *o)
     }
     if (gen[slot].mode == GM_ADD)
         return s;
-    if (s->time == ST_TIE && i && gen_kind(t, slot, i - 1u, len))
+    if (s->time == ST_TIE && i && FAST_CALL(seqev, gen_kind)(t, slot, i - 1u, len))
         return s;
     memset(o, 0, sizeof *o);
     o->time = ST_REST;
@@ -537,7 +537,7 @@ static const step_t *gen_eff(const track_t *t, uint32_t i, step_t *o)
 }
 /* step i of the drum track as it plays: each lane with a generator on merged (of the lanes in `lanes`; bit DRUM_SLANES:
  * the kit's GRIDS, after them, on the lanes without one) */
-static const dstep_t *gen_deff_of(const track_t *t, uint32_t i, dstep_t *o, uint32_t lanes)
+static FAST(seq) const dstep_t *gen_deff_of(const track_t *t, uint32_t i, dstep_t *o, uint32_t lanes)
 {
     uint32_t m = gen_lanes & lanes, l, len;
     const dstep_t *s = &t->dstep[i % NSTEP];
@@ -546,22 +546,22 @@ static const dstep_t *gen_deff_of(const track_t *t, uint32_t i, dstep_t *o, uint
     len = trk_len(t);
     if (i >= len)
         return s;
-    *o = *s;
+    FAST_SET(seqev, *o, *s);
     for (l = 0; l < DRUM_SLANES && (m >> l); l++) {
         gen_ev_t e;
         uint32_t mode = gen[NPART + l].mode, has = (uint32_t)dstep_has(s, l);
         int h;
         if (!((m >> l) & 1u))
             continue;
-        h = gen_hit(NPART + l, i, len, &e);
+        h = FAST_CALL(seqev, gen_hit)(NPART + l, i, len, &e);
         if (!h) {
             if (mode != GM_ADD)
-                dstep_clr(o, l);
+                FAST_CALL(seqev, dstep_clr)(o, l);
             continue;
         }
         if (!has && mode == GM_MASK)
             continue;
-        dstep_set(o, l, e.lvl ? e.lvl : has ? dstep_lvl(s, l) : LV_NORM, e.rat ? e.rat : has ? dstep_rat(s, l) : 0u);
+        FAST_CALL(seqev, dstep_set)(o, l, e.lvl ? e.lvl : has ? dstep_lvl(s, l) : LV_NORM, e.rat ? e.rat : has ? dstep_rat(s, l) : 0u);
     }
 #if FELUCCA_GEN_GRIDS
     if ((m >> DRUM_SLANES) & 1u)
@@ -569,7 +569,7 @@ static const dstep_t *gen_deff_of(const track_t *t, uint32_t i, dstep_t *o, uint
 #endif
     return o;
 }
-static const dstep_t *gen_deff(const track_t *t, uint32_t i, dstep_t *o) { return gen_deff_of(t, i, o, ~0u); }
+static const dstep_t *gen_deff(const track_t *t, uint32_t i, dstep_t *o) { return FAST_CALL(seqx, gen_deff_of)(t, i, o, ~0u); }
 /* the steps as they play now (the ISR: seq_tick fires one, the ratchets play on from it) */
 static step_t gen_cur[NPART];
 static dstep_t gen_dcur;
@@ -577,7 +577,7 @@ static uint8_t gen_cv;                                   /* bit k: track k's ste
 static const step_t *gen_fire(const track_t *t, uint32_t idx)
 {
     uint32_t k = trk_index(t) % NPART;
-    const step_t *s = gen_eff(t, idx, &gen_cur[k]);
+    const step_t *s = FAST_CALL(seqx, gen_eff)(t, idx, &gen_cur[k]);
     gen_cv = (uint8_t)((gen_cv & ~(1u << k)) | (uint32_t)(s == &gen_cur[k]) << k);
     return s;
 }
@@ -611,12 +611,12 @@ static void gen_render(const track_t *t, step_t *o, uint32_t lanes)
     if (is_drum(t)) {
         dstep_t *d = (dstep_t *)(void *)o, x;
         for (i = 0; i < NSTEP; i++)
-            d[i] = *gen_deff_of(t, i, &x, lanes);
+            d[i] = *FAST_CALL(seq, gen_deff_of)(t, i, &x, lanes);
         return;
     }
     for (i = 0; i < NSTEP; i++) {
         step_t x;
-        o[i] = *gen_eff(t, i, &x);
+        o[i] = *FAST_CALL(seq, gen_eff)(t, i, &x);
     }
 }
 /* WRITE, in two halves so that the interrupts are off only for the copy (the render is O(LEN x a walk back) of

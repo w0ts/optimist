@@ -411,7 +411,7 @@ static void klfo_apply(const int16_t *p, int16_t *g)
         int32_t lv;
         if (!((klfo_on >> j) & 1u))
             continue;
-        lv = dlfo_now(&klfo[j], DRUM_LANES + j);         /* (S&H's draw: an id no lane has) */
+        lv = FAST_CALL(seqev, dlfo_now)(&klfo[j], DRUM_LANES + j);         /* (S&H's draw: an id no lane has) */
         for (k = 0; k < LFO_NSLOT; k++)
             if (lfo_slot_live(&klfo[j].s[k]) && klfo[j].s[k].dest <= GR_KIT_N)
                 g[klfo[j].s[k].dest - 1u] = (int16_t)(g[klfo[j].s[k].dest - 1u] + lfo_slot_mod(lv, klfo[j].s[k].amt, 127));
@@ -464,7 +464,7 @@ AINL uint32_t dl_play_ofs(uint32_t l, uint32_t *w)
             uint32_t d[LFO_NSLOT], n = 0, k;
             if (!lfo_slots_on(sl))
                 continue;
-            m = g == 2u ? denv_now(l) : dlfo_now(g ? &dlfo2[l] : &dlfo[l], l);
+            m = g == 2u ? FAST_CALL(seqev, denv_now)(l) : FAST_CALL(seqev, dlfo_now)(g ? &dlfo2[l] : &dlfo[l], l);
             n = m ? lfo_slots_pairs(sl, d, a) : 0u;
             for (k = 0; k < n; k++) {
                 int32_t x;

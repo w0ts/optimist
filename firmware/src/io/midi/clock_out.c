@@ -81,11 +81,11 @@ static int32_t clko_start(uint32_t beat, uint32_t pos, uint32_t due, uint32_t pe
     ble_rt_drop_after(due - per / 2u, CO_F8);
 #endif
     if (!q) {
-        clko_emit(due, CO_RT(0xFAu));
+        FAST_CALL(seqev, clko_emit)(due, CO_RT(0xFAu));
     } else {
         q = q < 16383u ? q : 16383u;                      /* (the song position's 14 bits) */
-        clko_emit(due, 0x03u | 0xF2u << 8 | (q & 127u) << 16 | (q >> 7) << 24);
-        clko_emit(due, CO_RT(0xFBu));
+        FAST_CALL(seqev, clko_emit)(due, 0x03u | 0xF2u << 8 | (q & 127u) << 16 | (q >> 7) << 24);
+        FAST_CALL(seqev, clko_emit)(due, CO_RT(0xFBu));
     }
     return k0;
 }
@@ -128,22 +128,22 @@ static void clko_block(uint32_t n, uint32_t adv, uint32_t ext)
         co.play = song.playing;                           /* (switched ON: the clock from here, no start or stop) */
     }
     if (song.playing && (clko_started || !co.play)) {
-        uint32_t per = (uint32_t)(((uint64_t)sy_div((uint64_t)SY_TICK_U * n << 8, span) * SY_TPS_Q8) >> 16);
+        uint32_t per = (uint32_t)(((uint64_t)FAST_CALL(seqev, sy_div)((uint64_t)SY_TICK_U * n << 8, span) * SY_TPS_Q8) >> 16);
         int32_t k0 = clko_start(beat, pos, base, per);
         if (k0 <= 0)
             k = k0;                                       /* (the first F8 just behind: at the block's start) */
         co.skip = k0 > 0 ? (uint32_t)k0 : 0u;             /* (ahead: none before it) */
     } else if (!song.playing && co.play) {
-        clko_emit(base, CO_RT(0xFCu));
+        FAST_CALL(seqev, clko_emit)(base, CO_RT(0xFCu));
         co.skip = 0;
     }
     clko_started = 0;
     co.play = song.playing;
     for (; k < (int32_t)adv; k += (int32_t)SY_TICK_U) {
         int32_t d = k + lead;                             /* units after the block's first sample */
-        uint32_t q8 = lead_q8 + (d > 0 ? sy_div((uint64_t)(uint32_t)d * n << 8, span) : 0u);
+        uint32_t q8 = lead_q8 + (d > 0 ? FAST_CALL(seqev, sy_div)((uint64_t)(uint32_t)d * n << 8, span) : 0u);
         if (!co.skip || k >= (int32_t)co.skip)
-            clko_emit(base + (uint32_t)(((uint64_t)q8 * SY_TPS_Q8) >> 16), CO_F8);
+            FAST_CALL(seqev, clko_emit)(base + (uint32_t)(((uint64_t)q8 * SY_TPS_Q8) >> 16), CO_F8);
     }
     co.skip = co.skip > adv ? co.skip - adv : 0u;
     co.ph = (ph + adv) % SY_TICK_U;

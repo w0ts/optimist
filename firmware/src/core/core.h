@@ -156,6 +156,30 @@ enum { Q_OFF, Q_SNAP, Q_WHITE, Q_ALL, Q_SEQ };   /* P_QUANT (SCL › KEYS): seq.
 #ifndef FAST_RAM_strings
 #define FAST_RAM_strings 0
 #endif
+/* the sequencer's step code (builder item SEQ_RAM, FELUCCA_SEQ_RAM: 0 off, the default; 1 the events, events_block and
+ * the helpers it runs every block; 2 the events and the hot core, what a step runs: seq_step, the note starts, the generators,
+ * the locks, the drum lanes' hits). Three marks: seqev, RAM code from level 1 (FAST(seqev) events_block, FASTI(seqev) its
+ * helpers; FAST_CALL(seqev, f) the RAM code's calls into XIP, and its byte copies FAST_COPY / FAST_SET); seq, RAM code at
+ * level 2 (FAST(seq) the hot core, FASTI(seq) its helpers; FAST_CALL(seq, f) the XIP code's calls into it); seqx, the line
+ * between the two at level 1 only (FAST_CALL(seqx, f): events_block's calls into the hot core, then in XIP) */
+#ifndef FELUCCA_SEQ_RAM
+#define FELUCCA_SEQ_RAM 0
+#endif
+#if FELUCCA_SEQ_RAM >= 1
+#define FAST_RAM_seqev 1
+#else
+#define FAST_RAM_seqev 0
+#endif
+#if FELUCCA_SEQ_RAM >= 2
+#define FAST_RAM_seq 1
+#else
+#define FAST_RAM_seq 0
+#endif
+#if FELUCCA_SEQ_RAM == 1
+#define FAST_RAM_seqx 1
+#else
+#define FAST_RAM_seqx 0
+#endif
 /* FASTI(name): a small helper of an engine's render path that the engine's XIP code (its note hooks, the UI) calls too:
  * always inlined while the engine's code is RAM code (each side its own copy), as it was otherwise. FAST_CALL(name, f):
  * a call to f, one of the engine's render path's functions, from its code that stays in XIP: through a pointer while
@@ -188,6 +212,28 @@ static inline __attribute__((always_inline)) void fast_zero(void *p, uint32_t n)
     for (b = (uint8_t *)(w + i), i *= 4u; i < n; i++) {
         *b++ = 0;
         __asm__ volatile("" ::: "memory");
+    }
+}
+/* FAST_COPY(name, d, s, n): memcpy(d, s, n) in RAM code (libc.c's memcpy is XIP code): byte by byte while the code is RAM
+ * code, the call otherwise. FAST_SET(name, a, b): the struct assignment a = b (the compiler's own memcpy call), the same */
+#define FAST_COPY(n, d, s, sz) FAST_COPY_(FAST_RAM_##n, d, s, sz)
+#define FAST_COPY_(x, d, s, sz) FAST_COPY__(x, d, s, sz)
+#define FAST_COPY__(x, d, s, sz) FAST_COPY_##x(d, s, sz)
+#define FAST_COPY_1(d, s, sz) fast_copy(d, s, sz)
+#define FAST_COPY_0(d, s, sz) memcpy(d, s, sz)
+#define FAST_SET(n, a, b) FAST_SET_(FAST_RAM_##n, a, b)
+#define FAST_SET_(x, a, b) FAST_SET__(x, a, b)
+#define FAST_SET__(x, a, b) FAST_SET_##x(a, b)
+#define FAST_SET_1(a, b) fast_copy(&(a), &(b), sizeof(a))
+#define FAST_SET_0(a, b) ((a) = (b))
+static inline __attribute__((always_inline)) void fast_copy(void *d, const void *s, uint32_t n)
+{
+    uint8_t *o = (uint8_t *)d;
+    const uint8_t *p = (const uint8_t *)s;
+    uint32_t i;
+    for (i = 0; i < n; i++) {
+        o[i] = p[i];
+        __asm__ volatile("" ::: "memory");           /* (a barrier: the loop stays a loop, not a call to memcpy) */
     }
 }
 #define FAST_PLACE(x) FAST_PLACE_(x)
@@ -933,7 +979,7 @@ static int32_t sloop_dur_out(const uint8_t *tab, uint32_t n, int32_t dur)
  * the clock -> ev_ofs, read by voice_start / drum_on (the voice renders from that sample). 0 otherwise. */
 static struct { uint8_t on, n; int32_t d, adv; } ev_map;     /* d: clock - position at the block's start */
 static uint8_t ev_ofs;
-static void ev_at(uint32_t ago)
+static FASTI(seqev) void ev_at(uint32_t ago)
 {
     int32_t x = ev_map.d - (int32_t)ago;
     uint32_t j;

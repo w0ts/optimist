@@ -567,8 +567,8 @@ static uint32_t pat_switch_isr(track_t *t, uint32_t abs, uint32_t len)
     if (live_req >= 0 || (w == PW_END && TRK_IDX(t, abs, len)) ||
         (w == PW_BAR && ((clk_beat & 3u) || (clk_beat >> 2) == pat_bar[k])))
         return len;
-    undo_mark(t, (undo_sess += 4u) | 3u);
-    pat_take(t, k, &sec_stage_p);
+    FAST_CALL(seqev, undo_mark)(t, (undo_sess += 4u) | 3u);
+    FAST_CALL(seqev, pat_take)(t, k, &sec_stage_p);
     if (w != PW_NOW)
         t->org = abs;                                  /* (from its step 1) */
 #if FELUCCA_COND

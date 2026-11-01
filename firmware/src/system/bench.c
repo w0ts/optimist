@@ -118,7 +118,7 @@ static void bench_px_chord(uint32_t p)                     /* part p: its chord 
             trk_note_off(&trk[p], bench_px_held[p][i]);
     for (i = 0; i < 3u; i++) {
         bench_px_held[p][i] = (uint8_t)(r + (i == 0u ? 0u : i == 1u ? 4u + bench_rnd(4u) : 7u + bench_rnd(6u)));
-        trk_note_on(&trk[p], bench_px_held[p][i], 127);
+        FAST_CALL(seq, trk_note_on)(&trk[p], bench_px_held[p][i], 127);
     }
 }
 #endif
@@ -274,7 +274,7 @@ static void bench_notes(int on)
 #if BENCH_FM6C
     for (i = 0; i < 8u; i++)
         if (on)
-            trk_note_on(&trk[0], BENCH_CLUSTER[i], 100);
+            FAST_CALL(seq, trk_note_on)(&trk[0], BENCH_CLUSTER[i], 100);
         else
             trk_note_off(&trk[0], BENCH_CLUSTER[i]);
     (void)p;
@@ -284,7 +284,7 @@ static void bench_notes(int on)
         for (i = 0; i < 3u; i++)
             if (BENCH_NOTES[p][i]) {
                 if (on)
-                    trk_note_on(&trk[p], BENCH_NOTES[p][i], 100);
+                    FAST_CALL(seq, trk_note_on)(&trk[p], BENCH_NOTES[p][i], 100);
                 else
                     trk_note_off(&trk[p], BENCH_NOTES[p][i]);
             }
@@ -311,10 +311,10 @@ static void bench_block(void)                              /* audio interrupt, a
     {
         uint32_t i;
         if (FELUCCA_BENCH_NOTE && b % (BENCH_SIXTEENTH * 2u) == 0u)
-            trk_note_on(TDRUM, FELUCCA_BENCH_NOTE, 100);
+            FAST_CALL(seq, trk_note_on)(TDRUM, FELUCCA_BENCH_NOTE, 100);
         if (!FELUCCA_BENCH_NOTE && b % BENCH_SIXTEENTH == 0u)
             for (i = 0; i < 4u && BENCH_GROOVE[(b / BENCH_SIXTEENTH) % 16u][i]; i++)
-                trk_note_on(TDRUM, BENCH_GROOVE[(b / BENCH_SIXTEENTH) % 16u][i], i ? 90u : 110u);
+                FAST_CALL(seq, trk_note_on)(TDRUM, BENCH_GROOVE[(b / BENCH_SIXTEENTH) % 16u][i], i ? 90u : 110u);
         if ((FELUCCA_BENCH == 9 || FELUCCA_BENCH == 13 || BENCH_MOTS) && b % BENCH_PHRASE == 0u) {
             if (b)
                 bench_notes(0);
@@ -332,7 +332,7 @@ static void bench_block(void)                              /* audio interrupt, a
         for (p = BENCH_ACID_P0; p < BENCH_ACID_PARTS; p++) {
             uint32_t n = BENCH_ACID_N[k] ? BENCH_ACID_N[k] + 7u * p : 0u, old = bench_acid_held[p];
             if (ph == 0u && n) {
-                trk_note_on(&trk[p], n, BENCH_ACID_F[k] & 1u ? 127u : 100u);
+                FAST_CALL(seq, trk_note_on)(&trk[p], n, BENCH_ACID_F[k] & 1u ? 127u : 100u);
                 bench_acid_held[p] = (uint8_t)n;
                 if (old && old != n)
                     trk_note_off(&trk[p], old);
@@ -367,11 +367,11 @@ static void bench_block(void)                              /* audio interrupt, a
     }
 #endif
     if (b % BENCH_EIGHTH == 0u) {
-        trk_note_on(TDRUM, 42, 90);                        /* hat */
+        FAST_CALL(seq, trk_note_on)(TDRUM, 42, 90);                        /* hat */
         if (e % 4u == 0u)
-            trk_note_on(TDRUM, 36, 110);                   /* kick on the beat */
+            FAST_CALL(seq, trk_note_on)(TDRUM, 36, 110);                   /* kick on the beat */
         if (e % 4u == 2u)
-            trk_note_on(TDRUM, 38, 100);                   /* snare on 2 and 4 */
+            FAST_CALL(seq, trk_note_on)(TDRUM, 38, 100);                   /* snare on 2 and 4 */
     }
 #if FELUCCA_BENCH_SAVE
     if (b == 2067u)

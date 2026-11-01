@@ -40,7 +40,7 @@ static int auto_param(const track_t *t, uint32_t id)
 }
 #define motion_param auto_param                             /* (the names motion.c and seq24.c had) */
 #define lock_ok auto_param
-#define p_lockable(id) auto_param(&trk[0], (id))           /* (a synth track's list: tests/auto_int8_check.c) */
+#define p_lockable(id) FAST_CALL(seqev, auto_param)(&trk[0], (id))           /* (a synth track's list: tests/auto_int8_check.c) */
 
 #define MOTION_WORDS ((P_COUNT + 31u) / 32u)
 static int16_t motion_base[NTRK][P_COUNT] __attribute__((section(".pool")));   /* the patch under the automation */

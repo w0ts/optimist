@@ -85,7 +85,7 @@ typedef struct {
 #define DS_KX(a, b, c)
 #endif
 #include "felucca_drumkits.h"    /* DS_SNDS[], DS_RARE[], DS_KITS[], DS_NKITS; DS_XKITS[], DS_XSNDS[], DS_NXKITS (tools/gen_drumkits.py) */
-static void ds_unpack(dsnd_t *o, const dsndc_t *c)
+static FAST(seq) void ds_unpack(dsnd_t *o, const dsndc_t *c)
 {
     const dsrare_t *r = &DS_RARE[c->rare];
     const uint8_t *s = c->p;
@@ -125,7 +125,7 @@ static const struct { uint8_t lane; int8_t semi; } DS_MAP[128 - 35] = {
     /* 75 */ {13, 0}, {13, 4}, {13, -1}, {10, 12}, {10, 8}, {8, 24}, {8, 20}, {9, 2},
     /* 83..127: shaker */
 };
-static uint32_t ds_lane(uint32_t note, int32_t *semi)
+static FASTI(seq) uint32_t ds_lane(uint32_t note, int32_t *semi)
 {
     *semi = 0;
     if (note < 35u)
@@ -188,7 +188,7 @@ static int32_t ds_onepole(uint32_t cut)                 /* CUTOFF_HZ index -> a 
 }
 /* a lane's sound edits at its hit (drum_edit.c, drum_x0x.c: the same lines): CUT- as a one-pole coefficient
  * (>= ~80 Hz), LEVEL in dB (-24..6) as a Q12 gain 2^(dB / 6.02), 0 = no edit */
-AINL int32_t dl_cut_k(int32_t cut) { return ds_onepole((uint32_t)clamp(127 + 2 * cut, 20, 127)); }
+AINL int32_t dl_cut_k(int32_t cut) { return FAST_CALL(seqev, ds_onepole)((uint32_t)clamp(127 + 2 * cut, 20, 127)); }
 AINL int32_t dl_lvl_g(int32_t db) { return db ? (int32_t)(pow2_q16(db * 32) >> 4) : 0; }
 AINL uint32_t ds_inc(int32_t p16) { return pitch_inc(clamp(p16, 0, 127 * 16 + 15)); }
 AINL uint16_t ds_blocks(uint32_t units2ms) { return (uint16_t)(units2ms * 2u * FS / 1000u / CTL); }
@@ -278,7 +278,7 @@ static void ds_start(dsv_t *s)
     s->cut = ((int32_t)d->fcut << 8) + ((int32_t)vel - 110) * 40;
     if (s->fmode & 3u)
         ds_filter(s);
-    s->ahp = d->hpf ? ds_onepole(d->hpf) : 0;
+    s->ahp = d->hpf ? FAST_CALL(seqev, ds_onepole)(d->hpf) : 0;
     s->rnd = rnd;
     s->lfsr = 0x4001u;
     {   /* CHIP clock: 8x that note; saturated (the top notes would wrap 32 bits: a dull noise) */
@@ -303,9 +303,9 @@ static void ds_start(dsv_t *s)
  * what the start needs is kept (d may be a caller's temporary: ds_unpack, de_synth), the noise's seed drawn here (rng():
  * the same draws in the same order); ds_start does the rest in the hit's first render. A voice hit again (stolen) before
  * that render: this hit replaces the one waiting, as its start replaced the state before */
-static void ds_on_snd(dsv_t *s, const dsnd_t *d, uint32_t crush, int32_t semi, uint32_t note, uint32_t vel)
+static FASTI(seq) void ds_on_snd(dsv_t *s, const dsnd_t *d, uint32_t crush, int32_t semi, uint32_t note, uint32_t vel)
 {
-    s->snd = *d;
+    FAST_SET(seqev, s->snd, *d);
     s->d = &s->snd;
     s->crush = (uint8_t)crush;
     s->base16 = semi;

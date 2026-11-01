@@ -125,7 +125,7 @@ static int arr_next(arr_clock_t *r, const arr_config_t *c, uint32_t sample_rate)
                 continue;
             }
         }
-        uint32_t bars = arr_eff_bars(&c->entry[r->index], r);
+        uint32_t bars = FAST_CALL(seqev, arr_eff_bars)(&c->entry[r->index], r);
         if (++r->bar < bars) continue;
         r->bar = 0;
         if (++r->index >= c->count) {
