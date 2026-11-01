@@ -210,6 +210,18 @@ async def memory_menu_test():
         await toggle(app, pilot, "SMP_SLOTS")             # (3 -> 0: no user samples, 16 projects)
         c = app.cfg
         check("... SAMPLE SLOTS 0: S0 (LAYOUT 3), PATTERNS on", (c["SMP_SLOTS"], c["LAYOUT"], c["PATTERNS"]) == (0, 3, 1))
+        app.cfg = dict(C.defaults(), PATTERNS=1, SECTIONS=8)
+        app.refresh_all()
+        await toggle(app, pilot, "SECTIONS")
+        a = app.cfg["SECTIONS"]
+        await toggle(app, pilot, "SECTIONS")
+        check("SECTIONS with PATTERNS on: the value round is 16, 8 (4 is greyed, never reached)", (a, app.cfg["SECTIONS"]) == (16, 8))
+        app.cfg = dict(C.defaults(), PATTERNS=0, SECTIONS=8)
+        app.refresh_all()
+        await toggle(app, pilot, "SECTIONS")
+        check("... PATTERNS off: 4 is offered again", app.cfg["SECTIONS"] == 4)
+        app.cfg = C.sync_memory(dict(C.defaults(), PATTERNS=1))
+        app.refresh_all()
         await toggle(app, pilot, "SD_MODE")
         c = app.cfg
         check("... SD CARD MODE on: LAYOUT 1 + SDCARD; SD_RING / SD_REC live, SAMPLE SLOTS / PROJECTS greyed",

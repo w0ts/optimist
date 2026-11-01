@@ -488,6 +488,8 @@ class Builder(App):
         if key == "ARENA" and self.cfg.get("ARENA") and self.costs:   # (its size and what fits in it)
             b = self.budget()
             t.append("\n".join(C.arena_text(self.cfg, b["total"], b.get("exact"))) + "\n", style="cyan")
+        for v, why in C.dimmed_choices(self.cfg, key).items():   # (a choice greyed by another item, with its reason)
+            t.append(f"  {dict(it.choices).get(v, str(v)):24s} greyed: {why}\n", style="yellow")
         for e in self.conflicts.get(key, []):
             t.append(f"ERROR  {e}\n", style="bold red")
         if self.costs:
@@ -542,7 +544,8 @@ class Builder(App):
         before = dict(self.cfg)
         if it.is_choice:
             kind = "classic" if C.classic() else "release"
-            vals = [c[0] for c in it.choices if not R.not_built(key, c[0], kind)]   # (a value this build cannot build is not offered)
+            grey = C.dimmed_choices(self.cfg, key)
+            vals = [c[0] for c in it.choices if not R.not_built(key, c[0], kind) and c[0] not in grey]   # (a value this build cannot build, or that is greyed, is not offered)
             self.cfg[key] = vals[(vals.index(self.cfg[key]) + step) % len(vals)] if self.cfg[key] in vals else vals[0]
         else:
             self.cfg[key] = 0 if self.cfg[key] else 1
