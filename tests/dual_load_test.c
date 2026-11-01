@@ -78,6 +78,8 @@ int main(void)
         ok &= dual_tm_pct(dual_tm.avg[DTQ_J0]) == 30u && dual_tm_pct(dual_tm.avg[DTQ_J0 + 1u]) == 60u;
         check(ok, "CPU TIMES: the averages: PRE 10, JOBS 50, WAIT 15, POST 20, CPU0 95, CPU1 60, the jobs 30 / 60 %");
         check(dual_tm.c1_mask == 0x2u && dual_tm.ran == 0x3u, "CPU TIMES: the last block's CPU1 jobs and the jobs that ran");
+        check(dual_tm.lastc[0] == 1u && dual_tm.lastc[1] == 2u && !dual_tm.lastc[2],
+              "CPU TIMES: each job's core the last block it ran (job 0 CPU0, job 1 CPU1, job 2 never: C '-')");
         t = 200u * DUAL_TM_BLK;                          /* one block of 180 %: CPU0's own jobs 135 % */
         dual_tm_block(t, t + P(10u), t + P(145u), t + P(160u), t + P(180u), 0x2u, 0x3u, ms);
         ok = dual_tm_pct_t(dual_tm_peak(DTQ_BLK)) == 180u && dual_tm_pct_t(dual_tm_peak(DTQ_OWN)) == 135u;
