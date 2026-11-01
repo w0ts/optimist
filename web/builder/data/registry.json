@@ -4379,6 +4379,37 @@
     "provenance_line": ""
    },
    {
+    "key": "SYS_TOP",
+    "flag": "FELUCCA_SYS_TOP",
+    "label": "SYSTEM > TOP: what takes the CPU and the RAM",
+    "group": "UI",
+    "bit": 448,
+    "default": 0,
+    "parent": null,
+    "desc": "SYSTEM gets a TOP page, after INFO (after CPU TIMES with SYS_DEBUG): the CPU0 and CPU1 load, then each job of the audio render (each track with its engine, the drums, the reverb, Bluetooth's SBC, CPU0's own steps before and after the render) in % of a mix block, its average, its peak of the last 2 s and its core, largest first; then the SRAM used of the total and what holds it, largest first: the arena's blocks as they are now (a track's engine, the delay, reverb and chorus lines, the inserts' lines, Bluetooth audio's buffers ...) and the build's own RAM by module, from its link (the 12 largest and OTHER). SELECT scrolls it; it updates every half second. The render's times are the ones CPU TIMES reads (a few timer reads a block), without SYS_DEBUG's other pages. The build links twice (the second time with the table of the first link's symbols). Measured 2026-11-01: about 2.3 KB of flash, 0.4 KB of RAM and 0.5 KB of RAM code (the release's defaults; on mots-config 3.1 KB, 0.4 KB and 0.5 KB).",
+    "experimental": false,
+    "notice": "",
+    "off_warning": "",
+    "env": "",
+    "target_only": false,
+    "symbols": [
+     "top_take",
+     "TOP_RAM"
+    ],
+    "no_image": false,
+    "fixed": false,
+    "head": false,
+    "choices": [],
+    "not_built": {},
+    "provenance": null,
+    "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
+    "tested": "emulator-tested only",
+    "provenance_line": ""
+   },
+   {
     "key": "KNOB_ACCEL",
     "flag": "FELUCCA_KNOB_ACCEL",
     "label": "knob acceleration by turn speed",
@@ -6802,6 +6833,7 @@
    "FAVORITES",
    "PARAM_HELP",
    "SYS_DEBUG",
+   "SYS_TOP",
    "KNOB_ACCEL",
    "LCD_BAUD",
    "DIV_ORDER"

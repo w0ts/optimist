@@ -139,11 +139,11 @@ static uint32_t gl_sys_item(void)                       /* SYSTEM's page shown i
     uint32_t e = gld.s && gld.first < gl_n(1) ? gl_ent(1, gld.first) : 0u;
     return gld.s ? sys_item(e >> 2, e & 3u) : SI_NONE;
 }
-static uint32_t gl_info(void)                           /* 1 + the read-out page shown (op_project.c info_cell: INFO, INTERNALS, USB STATS, CPU TIMES), 0: none */
+static uint32_t gl_info(void)                           /* 1 + the read-out page shown (op_project.c info_cell: INFO, INTERNALS, USB STATS, CPU TIMES, TOP), 0: none */
 {
     uint32_t it = gl_sys_item();
     return it == SI_INFO ? 1u + INFO_PG_INFO : it == SI_DIAG ? 1u + INFO_PG_DIAG : it == SI_UAINFO ? 1u + INFO_PG_USB :
-           it == SI_DUALT ? 1u + INFO_PG_DUAL : 0u;
+           it == SI_DUALT ? 1u + INFO_PG_DUAL : it == SI_TOP ? 1u + INFO_PG_TOP : 0u;
 }
 /* SYSTEM > CREDITS, the last page: film end titles (op_credits.c: the credits, the crawl, KNOB 1; no cursor, no line) */
 static uint32_t gl_cred(void) { return gl_sys_item() == SI_CREDITS; }

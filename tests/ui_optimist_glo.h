@@ -67,6 +67,7 @@ static void glo_list_tests(void)
 #if OP_DTIMES
                                      "CPU TIMES",        /* (the dual render's times: DUAL_LOAD builds) */
 #endif
+                                     "TOP",              /* (the CPU's jobs and the RAM's owners: SYS_TOP builds) */
                                      "GENERAL", "USB", "METERS", "BT MIDI", "BT AUDIO", "WI-FI", "DEVICES", "USB AUDIO", "CALIBRATE", "ABOUT", "CREDITS"};
     cell_t want[GL_MAXL], c;
     char sec[GL_MAXL][12], nm[12];

@@ -430,6 +430,7 @@ enum { SI_NONE, SI_LOWCUT, SI_OUT, SI_SYNC, SI_CH1, SI_CH2,
        SI_ARN,                                          /* INFO: the arena's longest move and interrupts-off window (us) */
        SI_RAMUSE,                                       /* INFO: the arena's use, parts / features / free (core/feat_mem.c) */
        SI_DUALT,                                        /* SYSTEM > CPU TIMES: the dual render's times (SYS_DEBUG, the second core) */
+       SI_TOP,                                          /* SYSTEM > TOP: what takes the CPU and the RAM (SYS_TOP: op_top.c) */
        SI_UAS0 };                                       /* SI_UAS0 + s: USB AUDIO's line of source s (ua_tap.h UAS_*), last */
 /* a core's load number (% of the audio budget) in its colour: green under 60, amber 60..85, red over 85 (the predictive guard's
  * ceiling, system/cpuguard.c CG_CEIL = 85 %: above it the guard sheds quality / voices); INFO's bars and ticks the same. */
@@ -491,6 +492,10 @@ static int si_ua(uint32_t it) { return it >= SI_UAS0 && it < SI_UAS0 + UAS_N; }
 #else
 #define OP_DTIMES 0
 #endif
+#ifndef FELUCCA_SYS_TOP
+#define FELUCCA_SYS_TOP 0                               /* (core/registry.h's: the host tests include this file alone) */
+#endif
+#define OP_TOP FELUCCA_SYS_TOP                          /* SYSTEM > TOP (op_top.c): the CPU's jobs and the RAM's owners, largest first */
 static const struct { const char *name; uint8_t it[4]; } SYS[] = {
     {"INFO", {SI_INFO, SI_NONE, SI_NONE, SI_NONE}},      /* first: one dense read-only page, not 4 lines (op_gldraw.c gl_info_draw): the clock, the
                                                          * load of each core, the memory (the user, 2026-10-14). The second core is always on:
@@ -504,6 +509,9 @@ static const struct { const char *name; uint8_t it[4]; } SYS[] = {
 #if OP_DTIMES
     {"CPU TIMES", {SI_DUALT, SI_NONE, SI_NONE, SI_NONE}},   /* the dual render's times per mix block, after USB STATS (2026-10-30: sys_dt_cell) */
 #endif
+#endif
+#if OP_TOP
+    {"TOP", {SI_TOP, SI_NONE, SI_NONE, SI_NONE}},       /* after CPU TIMES, or INFO without the debug pages (2026-11-01: op_top.c) */
 #endif
     /* the screen and the sound in one section (the user, 2026-10-25: KNOB COLORS was on a page read as "audio", "group and
      * make it logical"): KNOB COLORS (the knob caps' colours; COLOR gone 2026-10-18: the palette is MONO, panel.c),
@@ -1004,6 +1012,9 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
     case SI_DUALT:                                      /* the CPU TIMES page's one line (op_gldraw.c draws the page itself) */
         sys_ro(c, "CPU TIMES");
         break;
+    case SI_TOP:                                        /* the TOP page's one line (op_gldraw.c draws the page, op_top.c its lines) */
+        sys_ro(c, "TOP");
+        break;
     case SI_CREDITS:                                    /* the credits page's one line (op_credits.c gl_cred_draw draws the page) */
         sys_ro(c, "CREDITS");
         break;
@@ -1477,10 +1488,17 @@ static void sys_diag_cell(uint32_t i, cell_t *c)        /* INTERNALS' line i */
 #endif
 }
 #endif
-/* the read-out pages (op_gldraw.c gl_info): 0 INFO, 1 INTERNALS, 2 USB STATS; their lines */
-enum { INFO_PG_INFO, INFO_PG_DIAG, INFO_PG_USB, INFO_PG_DUAL };
+#if OP_TOP
+#include "op_top.c"                                    /* SYSTEM > TOP: its lines (top_lines, top_cell), SELECT's scroll (top_step) */
+#endif
+/* the read-out pages (op_gldraw.c gl_info): 0 INFO, 1 INTERNALS, 2 USB STATS, 3 CPU TIMES, 4 TOP; their lines */
+enum { INFO_PG_INFO, INFO_PG_DIAG, INFO_PG_USB, INFO_PG_DUAL, INFO_PG_TOP };
 static uint32_t info_lines(uint32_t pg)
 {
+#if OP_TOP
+    if (pg == INFO_PG_TOP)
+        return top_lines();
+#endif
     return !FELUCCA_SYS_DEBUG ? INFO_N : pg == INFO_PG_USB ? INFO_UA : pg == INFO_PG_DIAG ? INFO_DIAG : pg == INFO_PG_DUAL ? INFO_DTN : INFO_N;
 }
 static void info_cell(uint32_t pg, uint32_t i, cell_t *c)
@@ -1500,6 +1518,12 @@ static void info_cell(uint32_t pg, uint32_t i, cell_t *c)
 #if OP_DTIMES
     if (pg == INFO_PG_DUAL) {
         sys_dt_cell(i % INFO_DTN, c);
+        return;
+    }
+#endif
+#if OP_TOP
+    if (pg == INFO_PG_TOP) {
+        top_cell(i, c);
         return;
     }
 #endif

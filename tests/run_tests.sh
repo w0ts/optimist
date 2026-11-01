@@ -810,6 +810,8 @@ job; ( jobin
     run "CPU1 load, DUAL=2: smoothed per audio half as song.cpu_q8, 0..100 %, OFF when down" "$OUT/dual_load_test"
     $CC -Ifirmware/src -DFELUCCA_DUAL=2 -DFELUCCA_SYS_DEBUG=1 -o "$OUT/dual_times_test" tests/dual_load_test.c
     run "CPU1 load and SYSTEM > CPU TIMES (SYS_DEBUG): the dual render's times per block, smoothed, in % of a block" "$OUT/dual_times_test"
+    $CC -Ifirmware/src -DFELUCCA_DUAL=2 -DFELUCCA_SYS_DEBUG=0 -DFELUCCA_SYS_TOP=1 -o "$OUT/dual_times_top_test" tests/dual_load_test.c
+    run "the same times for SYSTEM > TOP (SYS_TOP without SYS_DEBUG), a job timed after the block folded in" "$OUT/dual_times_top_test"
 ) >"$U.out" 2>&1 & jobbg
 mkdir -p "$OUT/optimist-dual"
 job; ( jobin
@@ -945,6 +947,15 @@ job; ( jobin
     run "Optimist UI without the SYSTEM debug pages (SYS_DEBUG=0): no INTERNALS / USB STATS, INFO = CPU LOAD, UNDERRUNS (drops in), BATTERY, large values" "$OUT/ui_optimist_nodbg_test" "$OUT/optimist-nodbg"
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DFELUCCA_PARAM_HELP=1 -DFELUCCA_USB_AUDIO=1 -DFELUCCA_SYS_DEBUG=0 -DDUAL_LOAD=1 $SEC4 -o "$OUT/ui_optimist_nodbg_dual_test" tests/ui_optimist_test.c -lm
     run "Optimist UI without the SYSTEM debug pages, DUAL (SYS_DEBUG=0, DUAL_LOAD): INFO = CPU0, CPU1, UNDERRUNS, BATTERY; KNOB 1 the measure of both" "$OUT/ui_optimist_nodbg_dual_test" "$OUT/optimist-nodbg-dual"
+) >"$U.out" 2>&1 & jobbg
+# SYSTEM > TOP (builder item SYS_TOP, tests/ui_optimist_top.h): the whole suite with the page (no debug pages, the CPU1 load,
+# the generator's table tests/top_ram_test.h), then its tests alone with an arena (its blocks live on the page)
+job; ( jobin
+    mkdir -p "$OUT/optimist-top"
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -Itests -DFELUCCA_PARAM_HELP=1 -DFELUCCA_USB_AUDIO=1 -DFELUCCA_SYS_DEBUG=0 -DDUAL_LOAD=1 -DFELUCCA_SYS_TOP=1 '-DTOP_RAM_H="top_ram_test.h"' $SEC4 -o "$OUT/ui_optimist_top_test" tests/ui_optimist_test.c -lm
+    run "Optimist UI with SYSTEM > TOP (SYS_TOP=1, SYS_DEBUG=0, DUAL_LOAD): after INFO, CPU0 CPU1 and the jobs by average, the RAM's owners by size, SELECT scrolls then pages" "$OUT/ui_optimist_top_test" "$OUT/optimist-top"
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -Itests $SEC4 -DFELUCCA_ENG_FM6=1 -DFELUCCA_FX_ARENA=1 -DFELUCCA_INS_DELAY=1 -DFELUCCA_INS_FLANGER=1 -DFELUCCA_DLY_LEN=16384u -DUI_TOP=1 -DFELUCCA_SYS_TOP=1 -DDUAL_LOAD=1 '-DTOP_RAM_H="top_ram_test.h"' "-DFELUCCA_ARENA_BYTES=131072u" -o "$OUT/ui_optimist_toparena_test" tests/ui_optimist_test.c -lm
+    run "SYSTEM > TOP with an arena: every block of the arena a line, a block placed shows within 0.5 s in its place by size, given back goes" "$OUT/ui_optimist_toparena_test" "$OUT/optimist-top"
 ) >"$U.out" 2>&1 & jobbg
 # the release's DEBUG STATS (PLAT_STATS_APP; tests/dbgstats_stub.h stands in for fm1-base's plat_stats_enable): the last line of SYSTEM > General, no DEBUG page
 job; ( jobin
@@ -1183,6 +1194,7 @@ job; ( jobin   # the effects' lines in the arena (fx/fx_arena.c, docs/SD-MODE-DE
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin   # the SRAM read-out and the stacks' guard band
     run "ramsize: an ELF's SRAM by section and owner (each byte once, padding, gaps, the stacks)" python3 tests/ramsize_test.py
+    run "ramtop: SYSTEM > TOP's build-time table, the SRAM by module from the link's symbols (12 largest and OTHER, 13 entries)" python3 tests/ramtop_test.py
     run "the arena to the stacks' guard band, no spare at run time: the guard armed at boot, nothing else in the free SRAM" python3 tests/arena_spare_test.py
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin   # the flash layouts (docs/SD-MODE-DESIGN.md): the numbers agree; the fake SD mode's 7-sector log

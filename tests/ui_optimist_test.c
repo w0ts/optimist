@@ -526,7 +526,7 @@ static void forms_of(uint32_t scr)
             name = (c.label && !strcmp(c.label, "PRESET")) ||
                    (scr == SCR_HOME && c.label && (!strcmp(c.label, "SOUND") || !strcmp(c.label, "KIT"))) ||
                    (c.d && c.d->max == c.d->min) ||
-                   (scr == SCR_SYSTEM && c.kind == CK_RO && c.label && (!strcmp(c.label, "VERSION") || !strcmp(c.label, "INFO") || !strcmp(c.label, "INTERNALS") || !strcmp(c.label, "USB STATS") || !strcmp(c.label, "CPU TIMES") || !strcmp(c.label, "CREDITS") ||
+                   (scr == SCR_SYSTEM && c.kind == CK_RO && c.label && (!strcmp(c.label, "VERSION") || !strcmp(c.label, "INFO") || !strcmp(c.label, "INTERNALS") || !strcmp(c.label, "USB STATS") || !strcmp(c.label, "CPU TIMES") || !strcmp(c.label, "TOP") || !strcmp(c.label, "CREDITS") ||
                                                                  !strcmp(c.label, "BUILD") || !strcmp(c.label, "STATE") ||
                                                                  !strcmp(c.label, "DEVICE") || !strcmp(c.label, "ACTIVITY") ||
                                                                  !strcmp(c.label, "FORMAT") ||
@@ -890,6 +890,14 @@ static void line_at(uint32_t scr, uint32_t i)            /* the cursor on line i
         op_enter(scr);
     ui.row[scr] = (uint8_t)i;
     ui.hot = (uint8_t)gl_kn(scr, i);
+}
+/* SELECT a page on (s 1) or back (-1) on GLOBAL / SYSTEM: a detent, or as many as a page that scrolls its lines first takes
+ * (SYSTEM > TOP: op_top.c top_step) */
+static void sel_page(uint32_t scr, int32_t s)
+{
+    uint32_t was = ui.row[scr], k;
+    for (k = 0; k < 100u && ui.row[scr] == was; k++)
+        turn(EN_SELECT, s);
 }
 #define LINE_KNOB(i) (EN_K1 + gl_kn(ui.scr, (i)))     /* the knob of line i: its place on its page */
 /* ---- keys and knobs */
@@ -4124,6 +4132,7 @@ static void preset_engine_tests(void)
 #include "ui_optimist_uasel.h"                     /* SYSTEM > USB AUDIO */
 #include "ui_optimist_core.h"                       /* SYSTEM > CPU > 2ND CORE (DUAL builds), the CPU1 cell's reason */
 #include "ui_optimist_dtimes.h"                     /* SYSTEM > CPU TIMES (DUAL_LOAD builds with the debug pages) */
+#include "ui_optimist_top.h"                        /* SYSTEM > TOP (builder item SYS_TOP); off: no page */
 #include "ui_optimist_sysdbg.h"                     /* builder item SYS_DEBUG off: INFO is CPU LOAD, UNDERRUNS, BATTERY */
 #include "ui_optimist_stack.h"                      /* SYSTEM > INFO: the CPU bars and their peaks, the RAM line, the stacks' marks */
 #include "ui_optimist_mirload.h"                     /* the mirror's workload (MIRROR_WORKLOAD: tests/mirror_aimd_test.c) */
@@ -4368,6 +4377,11 @@ int main(int argc, char **argv)
     printf(fails ? "optimist ui test FAILED (%d)\n" : "optimist ui test passed\n", fails);
     return fails != 0;
 #endif
+#if UI_TOP                                               /* (SYSTEM > TOP with an arena, run_tests.sh: its tests alone) */
+    top_tests();
+    printf(fails ? "optimist ui test FAILED (%d)\n" : "optimist ui test passed\n", fails);
+    return fails != 0;
+#endif
 #if UI_MEMLIST                                           /* (the arena's build, run_tests.sh: the list's tests alone) */
     memlist_tests();
     printf(fails ? "optimist ui test FAILED (%d)\n" : "optimist ui test passed\n", fails);
@@ -4472,6 +4486,7 @@ int main(int argc, char **argv)
 #else
     sysdbg_off_tests();
 #endif
+    top_tests();                                        /* (SYSTEM > TOP: the CPU's jobs and the RAM's owners; off: none) */
     ovl_window_tests();                                 /* (the rings' 10 s and 1 min windows, their wrap) */
     stackmark_tests();                                  /* (the stacks' paint and read-back, INFO's RAM line) */
     memline_tests();                                    /* (the memory line over every page) */
