@@ -93,6 +93,8 @@ export async function stockBanks(fwsc) {
 // says nothing and gets fm1base's write (today's protocol: 512-byte reads of the whole package, twice).
 const OPT_FAST_CMD = 0x31, OPT_FAST_CHUNK = 4096, OPT_SECTOR = 4096, OPT_TABLE = 0xD0000000;
 const optUpgrade = [0xF0, 0x22, 0x24, 0x35, 0x7F, 0xF7];
+export const OPT_MIDI_STOP = [0xFC];                 /* real-time STOP, sent before an update starts */
+export const OPT_STOP_WAIT_MS = 100;
 const optSleep = (ms) => new Promise((r) => setTimeout(r, ms));
 export const OPT_FAST_HELLO = optFrame(OPT_FAST_CMD, [1, OPT_FAST_CHUNK & 0xFF, OPT_FAST_CHUNK >> 8]);
 // the loader's answer to OPT_FAST_HELLO -> its read size, or 0
@@ -172,6 +174,14 @@ function optRequestAddr(pkt) {
 //  - resume(image, onStep, product, accept): a loader `accept` does not name is refused (foreign) before anything is written
 //  - restoreBanks: the official voice banks back into a running V15
 export class OptimistUpdater extends Updater {
+  // step 1 (fm1base's stages, as it is): the transport stops first. A MIDI STOP (0xFC) and 100 ms, before the upgrade command;
+  // the firmware stops it itself too, so this is harmless there (tools/fm1_install.py and the Mirror app do the same)
+  async stages(dev, image, product, step) {
+    dev.link.send(OPT_MIDI_STOP);
+    await optSleep(OPT_STOP_WAIT_MS);
+    return super.stages(dev, image, product, step);
+  }
+
   // step 2: the fast install when the loader answers the word (docs/INSTALL-SPEED.md), else fm1base's write. this.fast says
   // which one ran
   async write(ota, image, step) {

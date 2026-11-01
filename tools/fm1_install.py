@@ -35,6 +35,7 @@ import flash_layout                  # (tools/: the MEMORY steps' one table)
 
 HS_QUERY = bytes([0xF0, 0x00, 0x32, 0x45, 0x00, 0x00, 0x00, 0x40, 0x7F, 0xF7])
 UPGRADE = bytes([0xF0, 0x22, 0x24, 0x35, 0x7F, 0xF7])
+MIDI_STOP = bytes([0xFC])      # real-time STOP: the running firmware stops its transport before an update (harmless if it already does)
 ED_INFO = bytes([0xF0, 0x7D, 0x46, 0x4C, 0x01, 0xF7])   # the editor's INFO (web/EDITOR_PROTOCOL.md): its tag 0x68 says which
                                                         # bootloader the FM-1 has (an Optimist since 2026-10-31)
 ASKS_BOOT = re.compile(r"FM-1_(7(00|[2-6]\d)|000|79\d{2,})")   # (Optimist's identities, its release's: only these are asked)
@@ -56,7 +57,7 @@ PORT_RE = re.compile(r"fm-?1|felucca|optimist|smk-37|ota|composite|sinco|usb-mid
                                                                                       # Optimist's name since 2026-10-29; "optimist": older firmware)
 
 # seconds; the tests shorten them
-DELAY = {"info": 1.0, "open": 0.3, "start": 2.0, "start_fast": 0.05, "fast": 0.5, "reply": 0.01, "loader": 3.0,
+DELAY = {"info": 1.0, "open": 0.3, "stop": 0.1, "start": 2.0, "start_fast": 0.05, "fast": 0.5, "reply": 0.01, "loader": 3.0,
          "reboot": 3.0, "retry": 1.0,
          "poll": 1.0, "hs": 1.0, "idle_check": 8.0, "idle_write": 180.0,
          "wait_loader": 30.0, "wait_reboot": 40.0}
@@ -230,7 +231,10 @@ class MidoLink:
 
     def send(self, pkt):
         try:
-            self.out.send(self.mido.Message("sysex", data=pkt[1:-1]))
+            if pkt == MIDI_STOP:
+                self.out.send(self.mido.Message("stop"))
+            else:
+                self.out.send(self.mido.Message("sysex", data=pkt[1:-1]))
             return True
         except Exception:
             return False
@@ -398,6 +402,8 @@ class Updater:
     def check(self, dev, image, step):
         """step 1: the running firmware checks the package and starts the loader"""
         step("start", dev.id.text)
+        dev.link.send(MIDI_STOP)        # the transport stops before the update starts (the firmware does it too)
+        time.sleep(DELAY["stop"])
         dev.link.send(UPGRADE)
         time.sleep(DELAY["start"])
         served, finished, lost = self.serve(dev.link, image, FINISH_CHECK, DELAY["idle_check"],

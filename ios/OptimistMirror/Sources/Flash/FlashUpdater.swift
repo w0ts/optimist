@@ -24,6 +24,7 @@ final class FlashUpdater {
     private let pause: (TimeInterval) async -> Void
     /// the waits of the protocol (the web installer's); tests shrink them
     struct Timing {
+        var afterStop: TimeInterval = 0.1        // after the MIDI STOP, before the upgrade command
         var afterUpgrade: TimeInterval = 2
         var beforeLoader: TimeInterval = 3
         var loaderWait: TimeInterval = 30
@@ -145,6 +146,8 @@ final class FlashUpdater {
             throw FlashError(code: .model, description: "The device is \(dev.id.text), the package is for \(pkg.product).")
         }
         step(.start(dev.id.text))
+        _ = dev.channel.send(FlashProtocol.midiStop)         // the transport stops first (the firmware does it too)
+        await pause(timing.afterStop)
         _ = dev.channel.send(FlashProtocol.upgrade)
         await pause(timing.afterUpgrade)
         let s1 = try await serve(dev.channel, pkg.image, finish: FlashProtocol.step1Done, idle: timing.step1Idle) { n, _ in step(.verify(n)) }
