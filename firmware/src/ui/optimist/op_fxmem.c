@@ -211,7 +211,7 @@ static void fxz_draw(uint32_t y, uint32_t h)            /* op_prjflow.c prj_draw
 #endif
 
 /* ---- the send's TIME halved to fit a short DLY MEM (fx.c dly_run): said once a change of TIME, tempo or size */
-static void fxz_tick(void)
+static void fxz_cut_tick(void)
 {
 #if FXZ_DLY_N > 1u
     static uint32_t said;
@@ -228,5 +228,113 @@ static void fxz_tick(void)
     fxz_secs(b, DLY_CUR);
     str_app(b, ": TIME /2", sizeof b);
     ui_message(b);
+#endif
+}
+
+/* ---- The make-room question (2026-11-01, the user: "Sometimes when I switch synth engine I get a memory-related message,
+ * but I cannot do anything about it. It should ask me to proceed or cancel? (Or offer to reduce memory for some fx?)"),
+ * the standard question (YES = SAVE, NO = HOME), "SHRINK REV SMALL DLY 1/2?", the message line saying what is needed:
+ *   a part's engine change refused (op_input.c mem_tick): asked first, before the idle features (OA_FMOFF) and the
+ *   drops (OA_DROP), once a refusal, when smaller FX sizes free what the change needs. YES takes them (the lines given
+ *   back and placed again smaller) and the change goes through (model.c mem_retry waits for the lines); HOME: the next
+ *   way to make room, as before, nothing changed by this one
+ *   an FX type picked in a slot with no room (op_cells.c page_set: the list now stops on it, the memory mark beside it,
+ *   op_preset.c): "ECHO NEEDS 8 KB, 3 KB FREE" and, when smaller sizes free it, the question. YES: the sizes taken, the
+ *   type placed as soon as its room is there (fxi.c, every pass); HOME or no answer: the slot back to what it held
+ *   (nothing changed). No size frees it: the message alone, the slot FULL (bypassed) as before */
+#if FXZ_ANY
+static struct {
+    uint8_t on, k, s, prev;                             /* an FX type's question up: track k's slot s held prev before */
+    uint32_t asked;                                     /* the engine refusal already offered the sizes (part | eng << 8 | on) */
+} fxq;
+static uint32_t fxz_pack(const uint8_t *w) { return (uint32_t)w[0] | (uint32_t)w[1] << 2 | (uint32_t)w[2] << 3; }
+static void fxz_unpack(uint32_t k, uint8_t *w) { w[0] = (uint8_t)(k & 3u), w[1] = (uint8_t)(k >> 2 & 1u), w[2] = (uint8_t)(k >> 3 & 1u); }
+static void fxz_needs_text(char *b, uint32_t n, const char *what, uint32_t need, uint32_t room)   /* "ECHO NEEDS 8 KB, 3 KB FREE" */
+{
+    str_cpy(b, what, n);
+    str_app(b, " NEEDS ", n);
+    fmt_app(b, (int32_t)((need + 1023u) >> 10));
+    str_app(b, " KB, ", n);
+    fmt_app(b, (int32_t)(room >> 10));
+    str_app(b, " KB FREE", n);
+}
+/* a part's engine change refused (part_mem_refused): the sizes offered once; 1 asked */
+static int fxz_offer_engine(void)
+{
+    uint32_t key = (uint32_t)part_mem_refused.part | (uint32_t)part_mem_refused.eng << 8 | 1u << 16, need, room, got;
+    uint8_t w[3];
+    char q[24], m[40];
+    if (!part_mem_refused.on || fxq.asked == key || op_armed())
+        return 0;
+    fxq.asked = key;
+    room = arn_room();
+    need = part_mem_need(part_mem_refused.eng);
+    if (!fxz_plan(need > room ? need - room : 1u, w, &got))
+        return 0;
+    fxz_plan_text(w, q, sizeof q);
+    fxz_needs_text(m, sizeof m, ENGINES[part_mem_refused.eng % NENGINES]->name, need, room);
+    op_arm(ARM_OP, OA_FXZ, fxz_pack(w), "SHRINK", q, 0);
+    ui_message(m);                                      /* (the message line: what it is for) */
+    return 1;
+}
+/* track k's slot s: type t has no room, its list may stop on it (op_cells.c ins_skip_mem): built, limited, not the
+ * other slot's, no instance the arena can place now */
+static int fxz_ins_mem(uint32_t k, uint32_t s, uint32_t t)
+{
+    k %= NTRK;
+    return t < FXT_N && t != FXT_NONE && (FXT_BUILT >> t & 1u) && FXT_AMT[t] != 0xFFu && fxi_cap(t) != FXI_ANY &&
+           t != ins_slot[k][(s & 1u) ^ 1u] && !fxi_can(k, t);
+}
+static uint32_t fxz_type_bytes(uint32_t t) { return t < FXT_N ? FXA_SZ(FXI_J(t)) * FXA_U * 2u : 0u; }
+static const char *fxz_type_name(uint32_t t)
+{
+    return t == FXT_CHO ? "CHO" : t == FXT_JUNO ? "JUNO" : t == FXT_FLNG ? "FLNG" : t == FXT_REV ? "REV" : t == FXT_DLY ? "DLY" :
+           t == FXT_XDLY ? "XDLY" : "ECHO";
+}
+/* (op_cells.c page_set) track k's slot s took type t over prev with no room for it: said, and asked when sizes free it */
+static void fxz_ins_pick(uint32_t k, uint32_t s, uint32_t prev, uint32_t t)
+{
+    uint32_t need = fxz_type_bytes(t), room = arn_room(), got;
+    uint8_t w[3];
+    char q[24], m[40];
+    if (!fxz_ins_mem(k, s, t) && fxi_can(k % NTRK, t))
+        return;
+    fxz_needs_text(m, sizeof m, fxz_type_name(t), need, room);
+    if (fxz_plan(need > room ? need - room : 1u, w, &got)) {
+        fxz_plan_text(w, q, sizeof q);
+        fxq.on = 1, fxq.k = (uint8_t)(k % NTRK), fxq.s = (uint8_t)(s & 1u), fxq.prev = (uint8_t)prev;
+        op_arm(ARM_OP, OA_FXZI, fxz_pack(w), "SHRINK", q, 0);
+    }
+    ui_message(m);
+}
+/* (op_layers.c op_act) YES */
+static void fxz_yes(uint32_t a, uint32_t k)
+{
+    uint8_t w[3];
+    char b[24];
+    fxz_unpack(k, w);
+    fxz_plan_text(w, b, sizeof b);
+    fxz_apply(w);
+    fxq.on = 0;
+    if (a == OA_FXZ)
+        part_mem_refused.waiting |= MEM_W_FX;           /* (mem_retry waits for the lines going back: fxm_pending) */
+    ui_say("FX MEM: ", b);
+}
+#else
+static int fxz_ins_mem(uint32_t k, uint32_t s, uint32_t t) { (void)k, (void)s, (void)t; return 0; }
+static void fxz_ins_pick(uint32_t k, uint32_t s, uint32_t prev, uint32_t t) { (void)k, (void)s, (void)prev, (void)t; }
+#endif
+static void fxz_tick(void)                              /* (op_input.c mem_tick, every frame) */
+{
+    fxz_cut_tick();
+#if FXZ_ANY
+    if (!part_mem_refused.on)
+        fxq.asked = 0;                                  /* (a new refusal is offered the sizes again) */
+    if (fxq.on && !op_armed()) {                        /* an FX type's question gone, not by YES: the slot as it was */
+        fxq.on = 0;
+        ins_load(fxq.k, fxq.s, fxq.prev);
+        ui_message("NOT CHANGED");
+        ui.force = 1;
+    }
 #endif
 }

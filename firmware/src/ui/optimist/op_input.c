@@ -251,6 +251,10 @@ static void mem_tick(void)
         return;
     if (mem_retry() >= 0 && (!part_mem_refused.on || part_mem_refused.waiting))
         return;                                         /* (done, or a dropped part still switching) */
+#if FXZ_ANY
+    if (fxz_offer_engine())
+        return;                                         /* (first: smaller FX lines, when they free it; op_fxmem.c) */
+#endif
 #if FMEM_ANY
     {                                                   /* before any part: the features on but idle, all at once */
         uint32_t m = fmem_offer();
