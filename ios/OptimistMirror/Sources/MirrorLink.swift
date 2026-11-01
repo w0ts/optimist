@@ -97,6 +97,19 @@ final class MirrorLink: ObservableObject, Transport, CompanionTransport {
         var asksFix = 0, asksWhole = 0   // since the last tick: lost frames asked by seq / whole panels asked (the log)
         var logged = (sum: 0, gap: 0, more: 0, again: 0)   // the decoder's kinds at the last tick
         var fmStats: [Int]?, fmLogged: [Int]?   // the FM-1's op 5 STATS: the last, and the one logged
+        var fmPace: [Int]?, paceLogged: [Int]?  // the FM-1's op 6 PACE (opti_miraimd_1): the last, and the one logged
+        var tm = Timing()         // the app's own timing, logged each second ("app: ...")
+        var ackAt = Date.distantPast   // the last ACK alone sent (106 bits 5 and 6, opti_miraimd_1)
+    }
+    /// What the app itself does with the frames, each second (2026-11-01: a whole screen 3-4 s on the Mac, is it the app?): panel
+    /// writes applied, CoreMIDI callbacks, the longest pause between two writes, the longest a write waited to be on screen (the
+    /// picture held during a catch-up included), the time held, each whole panel from its black fill to its last row
+    struct Timing {
+        var frames = 0, calls = 0
+        var last: Date?, maxGap: TimeInterval = 0
+        var unshown: Date?, maxLag: TimeInterval = 0
+        var heldFor: TimeInterval = 0, heldSince: Date?
+        var wholeAt: Date?, wholes: [Int] = []
     }
     private struct Pending {
         var cmd: UInt8
@@ -174,11 +187,15 @@ final class MirrorLink: ObservableObject, Transport, CompanionTransport {
         lock.withLock { s in
             if let h = s.held {
                 let now = Date()
+                if s.tm.heldSince == nil { s.tm.heldSince = now }
                 let most = bluetooth ? Self.catchMax : Self.catchMaxUSB
                 if s.rowsLeft > Self.rowsSpare && now.timeIntervalSince(s.lastFrame) < Self.catchQuiet && now.timeIntervalSince(h) < most { return nil }
                 s.held = nil
             }
-            return s.generation == seen ? nil : (s.decoder.pixels, s.generation)
+            if let hs = s.tm.heldSince { s.tm.heldFor += Date().timeIntervalSince(hs); s.tm.heldSince = nil }
+            guard s.generation != seen else { return nil }
+            if let u = s.tm.unshown { s.tm.maxLag = max(s.tm.maxLag, Date().timeIntervalSince(u)); s.tm.unshown = nil }
+            return (s.decoder.pixels, s.generation)
         }
     }
     /// A catch-up or a page drawn whole (the FM-1 fills the whole panel black, then draws it all again: ed_mirror.c mir_poll,
@@ -361,6 +378,28 @@ final class MirrorLink: ObservableObject, Transport, CompanionTransport {
                 Self.log.info("\(fm, privacy: .public)")
                 print(fm)
             }
+            let app = lock.withLock { s -> String? in   // (the app's own timing, each second frames came)
+                defer { s.tm = Timing(last: s.tm.last, unshown: s.tm.unshown, heldSince: s.tm.heldSince, wholeAt: s.tm.wholeAt) }
+                guard s.tm.frames > 0 || !s.tm.wholes.isEmpty else { return nil }
+                return "app: \(s.tm.frames) writes in \(s.tm.calls) callbacks; longest pause \(Int(s.tm.maxGap * 1000)) ms, " +
+                    "write to screen at most \(Int(s.tm.maxLag * 1000)) ms, held \(Int(s.tm.heldFor * 1000)) ms; whole panels \(s.tm.wholes) ms"
+            }
+            if let app {
+                Self.log.info("\(app, privacy: .public)")
+                print(app)
+            }
+            let pace = lock.withLock { s -> String? in   // (the FM-1's budget: logged when it changed)
+                guard let now = s.fmPace, now != s.paceLogged else { return nil }
+                let was = s.paceLogged.flatMap { $0.count == now.count ? $0 : nil } ?? now
+                s.paceLogged = now
+                let d = zip(now, was).map { ($0 - $1) & 0x1FFFFF }
+                let late = now.count >= 6 ? "; last ACK \(now[4]) ms after its frame, \(d[5]) cuts for a delay" : ""
+                return "fm1 pace: budget \(now[0]) B/s; \(d[1]) cuts, \(d[2]) raises, \(d[3]) frames refused" + late
+            }
+            if let pace {
+                Self.log.info("\(pace, privacy: .public)")
+                print(pace)
+            }
         }
         if asked >= Self.unanswered, state != .mirroring { state = .noMirror }
         if let fb = btFallback, asked >= Self.btInfoFirst, lock.withLock({ $0.features == nil }) {
@@ -392,7 +431,10 @@ final class MirrorLink: ObservableObject, Transport, CompanionTransport {
             if ask == .ask { send([1]) }
             if ask == .gaveUp, !btGaveUp { btGaveUp = true }
         }
-        send([MirrorDecoder.cmd, (wantWhole ? 3 : 1) | MirrorDecoder.checkedBit])   // (bit 3: checked frames; an older firmware ignores it)
+        // (bit 3: checked frames, an older firmware ignores it; bit 5 with opti_miraimd_1 over Bluetooth: the losses so far and the
+        //  next seq, by which the FM-1 paces its stream; never to a firmware that does not list it: it would drop the request)
+        let ack = bluetooth && f?[Feature.miraimd.name] == Feature.miraimd.version ? lock.withLock { $0.decoder.ack } : nil
+        send([MirrorDecoder.cmd, (wantWhole ? 3 : 1) | MirrorDecoder.checkedBit | (ack == nil ? 0 : MirrorDecoder.ackBit)] + (ack ?? []))
         wantWhole = false
         asked += 1
     }
@@ -602,6 +644,7 @@ final class MirrorLink: ObservableObject, Transport, CompanionTransport {
         }
         guard !frames.isEmpty else { return }
         let got = frames
+        lock.withLock { $0.tm.calls += 1 }
         let (replied, identified, answers, companionInfo, drew, btDev) = lock.withLock { s -> (Bool, Bool, [(CheckedContinuation<[UInt8], Error>, [UInt8])], CompanionInfo?, Bool, DeviceInfo?) in
             var identified = false, drew = false
             var btDev: DeviceInfo?
@@ -628,6 +671,8 @@ final class MirrorLink: ObservableObject, Transport, CompanionTransport {
                     }
                 } else if let st = MirrorDecoder.stats(f) {
                     s.fmStats = st
+                } else if let p = MirrorDecoder.pace(f) {
+                    s.fmPace = p
                 } else if let l = MirrorDecoder.link(f) {
                     Self.log.info("bluetooth link: \(l.octets) octets a packet, MTU \(l.mtu), interval \(Double(l.interval) * 1.25) ms, central rx/tx \(l.central)")
                     print("bluetooth link: \(l.octets) octets a packet, MTU \(l.mtu), interval \(Double(l.interval) * 1.25) ms, central rx/tx \(l.central)")   // (devicectl --console)
@@ -636,13 +681,22 @@ final class MirrorLink: ObservableObject, Transport, CompanionTransport {
                     on = on || (r.on && s.known)
                     s.replies += 1
                 } else if s.known, s.decoder.apply(f) {
+                    let now = Date()
+                    s.tm.frames += 1
+                    if let l = s.tm.last { s.tm.maxGap = max(s.tm.maxGap, now.timeIntervalSince(l)) }
+                    s.tm.last = now
+                    if s.tm.unshown == nil { s.tm.unshown = now }
                     if Self.wholeFill(f) {
+                        s.tm.wholeAt = now
                         s.held = Date()
                         s.rows = [Bool](repeating: false, count: 240)
                         s.rowsLeft = 240
                     } else if s.rowsLeft > 0, f.count >= 14, f[5] <= 1 || f[5] == 8 || f[5] == 9 {   // (FILL, BLIT: their rows; MORE goes on in them)
                         let y = Int(f[8]) | Int(f[9]) << 7, h = Int(f[12]) | Int(f[13]) << 7
                         for r in max(0, y)..<min(240, y + h) where !s.rows[r] { s.rows[r] = true; s.rowsLeft -= 1 }
+                        if s.rowsLeft <= Self.rowsSpare, let w = s.tm.wholeAt {
+                            s.tm.wholes.append(Int(now.timeIntervalSince(w) * 1000)); s.tm.wholeAt = nil
+                        }
                     }
                     s.lastFrame = Date()
                     s.generation += 1
@@ -669,6 +723,16 @@ final class MirrorLink: ObservableObject, Transport, CompanionTransport {
             _ = s.decoder.takeLost()
             s.asksWhole += 1
             return [[MirrorDecoder.cmd, 3 | MirrorDecoder.checkedBit]]
+        }
+        // Bluetooth with opti_miraimd_1: an ACK alone (no reply) about 5 times a second while frames come, with the next seq: the
+        // FM-1 times each frame to it and halves its budget when they arrive late (a queue in the Mac or on the air)
+        let ackNow = lock.withLock { s -> [UInt8]? in
+            guard drew, s.bt, s.features?[Feature.miraimd.name] == Feature.miraimd.version, Date().timeIntervalSince(s.ackAt) >= 0.2 else { return nil }
+            s.ackAt = Date()
+            return [MirrorDecoder.cmd, 1 | MirrorDecoder.checkedBit | MirrorDecoder.ackBit | MirrorDecoder.quietBit] + s.decoder.ack
+        }
+        if let ackNow {
+            DispatchQueue.main.async { if self.state == .mirroring, self.destination != 0 { self.send(ackNow) } }
         }
         if !lostAsks.isEmpty {          // (the requests alone: tick's other asks and its rate log keep their pace)
             DispatchQueue.main.async {

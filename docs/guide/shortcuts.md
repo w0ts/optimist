@@ -115,7 +115,8 @@ On STEP the white keys stay steps under the shifts: SHIFT and SHIFT2 with a step
 | step held + ALGORITHM | drums | the hit to the lane above / below |
 | step held + SELECT | STEP | a chord's note to move, then the cards' pages (the step, its extras, its p-lock pages) |
 | step held + OCT- / OCT+ | synth | its notes an octave down / up |
-| step held + SAVE | STEP | on a p-lock card: lock <-> held motion; else the fill condition: NORMAL, FILL ONLY, NO FILL [FILLS] |
+| step held + SAVE | STEP | the fill condition, whatever card: NORMAL, FILL ONLY, NO FILL [FILLS]; without FILLS on a p-lock card: lock <-> held motion |
+| step held + SHIFT2 + SAVE | STEP | on a p-lock card: lock <-> held motion [FILLS] |
 | step held + ENV, LFO, FX, SCL, ARP (drums: EDIT too) | STEP | that page's cards as the step's p-locks; again: its next page [PLOCK] |
 | SEQ held | STEP | the fill view of the selected synth track or drum lane, header *FILLS T1* / *FILLS* + lane [FILLS] |
 | SEQ held + a step key | STEP | that track's or lane's fills: empty: a FILL ONLY note / hit; FILL ONLY: removed; a normal note: unchanged, the popup says so. One undo level each [FILLS] |

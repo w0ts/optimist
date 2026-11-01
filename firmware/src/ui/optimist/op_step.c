@@ -13,12 +13,12 @@
  *                         (the user, 2026-10-11: "long press on step to open plock, should not toggle the step")
  *   a step key held       the cards are the step's (an empty step held: its cards, no note made): drums LEVEL RATCHET, synths NOTE LEVEL RATCHET LENGTH (its
  *                         ties); several held edit together. SELECT pages the cards: the step, its extras (CHANCE NUDGE FILL COND, as
- *                         built), then the track's sound pages as p-locks; PRESETS is the sound as everywhere, SAVE the fill condition (FELUCCA_FILLS),
+ *                         built), then the track's sound pages as p-locks; PRESETS is the sound as everywhere, SAVE the fill condition (FELUCCA_FILLS; always, whatever card),
  *                         HOME the clear
  *   + a page button       ENV LFO FX SCL ARP: that page's cells become the steps' events (FELUCCA_PLOCK; the
  *                         automation store, seq/auto.h): a turn writes a step-only event (a lock; a hold event there:
  *                         its value), a cell with one shows a mark (a padlock; a hold event: an arrow); YES toggles
- *                         the hot cell's between step-only and HOLD; SHIFT + the knob clears it; the button again: the
+ *                         the hot cell's between step-only and HOLD (FELUCCA_FILLS: SHIFT2 + YES, YES alone is the fill; OCT then waits for its let go); SHIFT + the knob clears it; the button again: the
  *                         family's next page, past the last the first
  *   SHIFT held + a step   the step's p-locks cleared (the notes, nudge, fill, chance and motion stay; SHIFT is OCT- held,
  *                         and SHIFT + the knob its default). A step held, HOME tapped: the step cleared (held_clear).
@@ -2292,14 +2292,21 @@ static int32_t held_lane_param(uint32_t k, const param_desc_t **d)
 #endif
 }
 #endif
-/* YES with a step held: the lock page's hot cell (the held drum step's TUNE, DECAY too), its event's kind on every step
- * held (step-only <-> HOLD); without a lock page, or no event there: the fill condition (FELUCCA_FILLS) */
+/* YES with a step held: with FILLS built always the fill condition (the user, 2026-11-01: "SAVE = fill always"); the lock page's
+ * hot cell (the held drum step's TUNE, DECAY too), its event's kind on every step held (step-only <-> HOLD), is then SHIFT2 + YES;
+ * without FILLS, YES alone; without a lock page, or no event there: the fill condition */
 static void held_yes(void)
 {
     step_cards_show();
 #if FELUCCA_PLOCK
     const param_desc_t *d;
     int32_t id = -1, v, i = held_first();
+#if FELUCCA_FILLS
+    if (!btn_held(B_OCTUP)) {
+        held_fill();
+        return;
+    }
+#endif
     if (st.lock_pg != LOCK_NONE)
         id = lock_param(&PAGES[st.lock_pg], ui.hot & 3u, &d);
     else if (st.hp == 0u && is_drum(TSEL) && (ui.hot & 3u) >= 2u)
