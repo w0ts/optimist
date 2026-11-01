@@ -51,7 +51,7 @@ static int lfx_accented(const dstep_t *s, uint32_t l)
 #endif
     return dstep_lvl(s, l) == LV_HARD;
 }
-static int lfx_drop(const track_t *t, const dstep_t *s, uint32_t l, int next)
+static FAST(seq) int lfx_drop(const track_t *t, const dstep_t *s, uint32_t l, int next)
 {
     int32_t c = lfx_v[l][LFX_I_CHANCE];
     if (lfx_v[l][LFX_I_CHACC] <= 100 && lfx_accented(s, l))
@@ -68,7 +68,7 @@ static int lfx_drop(const track_t *t, const dstep_t *s, uint32_t l, int next)
     (void)t, (void)next;
     return c < 100 && (c <= 0 || (int32_t)(rng() % 100u) >= c);
 }
-static int lfx_managed(uint32_t l)
+static FASTI(seqev) int lfx_managed(uint32_t l)
 {
     const int8_t *v = lfx_v[l];
     return v[LFX_I_ROLL] || v[LFX_I_NUDGE] || v[LFX_I_VRND] || v[LFX_I_FLAM] || v[LFX_I_RAMP];
@@ -108,8 +108,8 @@ static void lfx_sound(track_t *t, const dstep_t *s, uint32_t l, uint32_t e)
     if (x)
         v += (int32_t)(rng() % (2u * (uint32_t)x + 1u)) - x;
     v = clamp(v, 1, 127);
-    trk_note_on(t, DLANE_NOTE(l), (uint32_t)v);
-    seq_out_on(t, LANE_NOTE_OF(l), (uint32_t)v);
+    FAST_CALL(seq, trk_note_on)(t, DLANE_NOTE(l), (uint32_t)v);
+    FAST_CALL(seq, seq_out_on)(t, LANE_NOTE_OF(l), (uint32_t)v);
 }
 
 /* a drum step fires with lanes m to hit (drum_step): -> those it plays now. The others: silent (lfx_out), or played
@@ -125,7 +125,7 @@ static uint32_t lfx_step(const track_t *t, const dstep_t *s, uint32_t m)
         lfx_pre[l] = 0;
         if (!(m & b))
             continue;
-        if (wout & b || (!(was & b) && lfx_drop(t, s, l, 0))) {   /* (decided in the step before, or now) */
+        if (wout & b || (!(was & b) && FAST_CALL(seqx, lfx_drop)(t, s, l, 0))) {   /* (decided in the step before, or now) */
             m &= ~b;
             lfx_out |= b;
         } else if ((was & b) || lfx_managed(l)) {
@@ -144,9 +144,9 @@ static void lfx_tick(track_t *t, const dstep_t *s, uint32_t into, uint32_t slen)
         int32_t at;
         if (!(m & 1u))
             continue;
-        for (n = lfx_sounds(s, l); lfx_done[l] < n && (at = lfx_time(s, l, lfx_done[l], slen)) <= (int32_t)into; lfx_done[l]++) {
+        for (n = FAST_CALL(seqev, lfx_sounds)(s, l); lfx_done[l] < n && (at = FAST_CALL(seqev, lfx_time)(s, l, lfx_done[l], slen)) <= (int32_t)into; lfx_done[l]++) {
             ev_at(into - (uint32_t)(at > 0 ? at : 0));
-            lfx_sound(t, s, l, lfx_done[l]);
+            FAST_CALL(seqev, lfx_sound)(t, s, l, lfx_done[l]);
         }
     }
 }
@@ -167,19 +167,19 @@ static void lfx_ahead(track_t *t, uint32_t idx, uint32_t len, uint32_t into, uin
     for (l = 0; l < LFX_LANES; l++) {
         uint32_t b = 1u << l, e;
         int32_t at;
-        if ((lfx_eout & b) || !dstep_has(n, l) || !lfx_managed(l) || (at = lfx_time(n, l, lfx_pre[l], slen)) >= 0 ||
+        if ((lfx_eout & b) || !dstep_has(n, l) || !lfx_managed(l) || (at = FAST_CALL(seqev, lfx_time)(n, l, lfx_pre[l], slen)) >= 0 ||
             (int32_t)into < (int32_t)slen + at)
             continue;
         if (!(lfx_early & b)) {                         /* (its first sound due: decided now, for the step to come) */
-            if (smute_lane_on(l) || lfx_drop(t, n, l, (int)wrap)) {
+            if (smute_lane_on(l) || FAST_CALL(seqx, lfx_drop)(t, n, l, (int)wrap)) {
                 lfx_eout |= b;
                 continue;
             }
             lfx_early |= b;
         }
-        for (e = lfx_pre[l]; e < lfx_sounds(n, l) && (at = lfx_time(n, l, e, slen)) < 0 && (int32_t)into >= (int32_t)slen + at; e++) {
+        for (e = lfx_pre[l]; e < FAST_CALL(seqev, lfx_sounds)(n, l) && (at = FAST_CALL(seqev, lfx_time)(n, l, e, slen)) < 0 && (int32_t)into >= (int32_t)slen + at; e++) {
             ev_at(into - (uint32_t)((int32_t)slen + at));
-            lfx_sound(t, n, l, e);
+            FAST_CALL(seqev, lfx_sound)(t, n, l, e);
         }
         lfx_pre[l] = (uint8_t)e;
     }

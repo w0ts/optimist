@@ -322,7 +322,7 @@ static uint32_t leg_first(uint32_t id, uint32_t *d)
 #endif
     return P_COUNT;
 }
-#define LEG_ID(id) ({ uint32_t d_; leg_first((id), &d_) < P_COUNT; })
+#define LEG_ID(id) ({ uint32_t d_; FAST_CALL(seqev, leg_first)((id), &d_) < P_COUNT; })
 /* such an event of part t at *v -> the AMT of t's slot on that destination (of the modulator it went to), *v in AMT units
  * (2 x; LFO's AMP as it is). No slot on it: a slot that does nothing (OFF or at 0; not one in *taken, the slots this
  * step's events took: bits 0 1 LFO's, 2 3 ENV's, 4 5 ENV2's) is put on that destination for the event (*did: its DEST id,

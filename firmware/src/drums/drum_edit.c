@@ -24,7 +24,7 @@ enum { DE_TUNE, DE_DECAY, DE_SNAP, DE_CLICK, DE_BEND, DE_CUT, DE_DRIVE, DE_LEVEL
 #define DL_X808_N 16u
 #define DL_XKIT0 96u             /* src 96 + k: kit UID 47 + k's sound (the kits after the X0X ones: 64.. was taken) */
 /* a source's kit UID (DL_KIT0 + k, DL_XKIT0 + k), DRUM_KITS: none (not a kit's sound); a kit UID's source */
-static uint32_t dl_src_kit(uint32_t s)
+static FASTI(seq) uint32_t dl_src_kit(uint32_t s)
 {
     if (s >= DL_KIT0 && s < DL_KIT0 + DRUM_UID_XKIT && s < DL_X909)
         return s - DL_KIT0;
@@ -48,7 +48,7 @@ static volatile uint8_t dl_ui_pick;         /* a SOUND page is up (ui_drums.c): 
 static int16_t dl_e0 = -1;                  /* the kit (P_E0) they were set for: another kit drops a user kit */
 
 /* lane l's instrument (drums.c INST_*): its own, else its default */
-static uint32_t lane_inst(uint32_t l)
+static FASTI(seqev) uint32_t lane_inst(uint32_t l)
 {
     uint32_t i;
     if (l >= DRUM_LANES)
@@ -100,13 +100,13 @@ static void dl_set_ref(uint8_t *r, uint32_t z, uint32_t st, uint32_t len)
 }
 
 /* the kit lane l plays (DL_KIT0 + k: kit k; else the project's) */
-static uint32_t dl_kit_of(uint32_t l, uint32_t kit)
+static FASTI(seq) uint32_t dl_kit_of(uint32_t l, uint32_t kit)
 {
 #if FELUCCA_DRUM_KITS
     if (l < DRUM_LANES && dl_src_kit(dl.src[l]) < DRUM_KITS)
-        return drum_kit_of((int32_t)dl_src_kit(dl.src[l]));   /* (a kit not built: registry.h) */
+        return FAST_CALL(seqev, drum_kit_of)((int32_t)dl_src_kit(dl.src[l]));   /* (a kit not built: registry.h) */
     if (l < DRUM_LANES && dl.src[l] >= DL_X909 && dl.src[l] < DL_X808 + DL_X808_N)   /* an X0X voice: its machine */
-        return drum_kit_of(dl.src[l] < DL_X909 + DL_X909_N ? (int32_t)DRUM_UID_X909
+        return FAST_CALL(seqev, drum_kit_of)(dl.src[l] < DL_X909 + DL_X909_N ? (int32_t)DRUM_UID_X909
                            : dl.src[l] >= DL_X808 ? (int32_t)DRUM_UID_X808 : (int32_t)kit);
 #endif
     (void)l;
@@ -123,7 +123,7 @@ static uint32_t dl_usr_of(uint32_t l)
     return 0;
 }
 /* lane l's offsets, 0 = none (or no editor in this build) */
-static const int8_t *dl_ofs(uint32_t l)
+static FASTI(seq) const int8_t *dl_ofs(uint32_t l)
 {
 #if FELUCCA_DRUM_EDIT
     uint32_t i;
@@ -190,7 +190,7 @@ static void dla_holds_off(void)
     dla.any &= (uint8_t)~1u;
     dlp_l = 0xFFu;
 }
-static void dla_locks_off(void)
+static FASTI(seqev) void dla_locks_off(void)
 {
     if (dla.any & 2u)
         memset(dla.lm, 0, sizeof dla.lm);
@@ -210,7 +210,7 @@ static void dla_locks_off(void)
 #define DL_PLAY_HIT(l) ((void)0)
 #endif
 /* the offsets lane l plays at this hit (0: none, the kit as it is) */
-static const int8_t *dl_ofs_play(uint32_t l)
+static FASTI(seq) const int8_t *dl_ofs_play(uint32_t l)
 {
 #if DLA_ON || DLFO_ON
     if (l == dlp_l)
@@ -302,7 +302,7 @@ static void dl_ds_on(dsv_t *s, uint32_t vi, const dkit_t *k, uint32_t note, uint
         int32_t semi;
         dsnd_t d, e;
         ds_unpack(&d, DS_SND(k, ds_lane(note, &semi)));
-        de_synth(&e, &d, x);
+        FAST_CALL(seqev, de_synth)(&e, &d, x);
         ds_on_snd(s, &e, k->crush, semi, note, vel);
         dl_smp_fx(vi, l);                                      /* (CUT -: a low-pass on its output) */
         dv.dec[vi] = 0;

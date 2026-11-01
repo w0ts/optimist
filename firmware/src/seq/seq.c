@@ -123,7 +123,7 @@ static uint8_t dyn_off;                  /* the TEMPO page is up (ui_tempo.c): O
 /* a layer locked open (its button held + HOME tapped: ui_input.c), LY_PLAY = none: the keys and knobs
  * stay in it with the button let go, as if it were held */
 static volatile uint8_t ly_lock = LY_PLAY;
-static uint32_t layer_buttons(void) { return fm1_in.buttons | (ly_lock != LY_PLAY ? ly_bit[ly_lock % LY_COUNT] : 0u); }
+static FASTI(seqev) uint32_t layer_buttons(void) { return fm1_in.buttons | (ly_lock != LY_PLAY ? ly_bit[ly_lock % LY_COUNT] : 0u); }
 /* the layer the keys are in: the held function button (FX, EDIT, ARP, SEQ, SCL, GLO in that order),
  * else the locked one */
 static uint32_t layer_now(void)
@@ -251,7 +251,7 @@ static uint32_t kb_map(const track_t *t, uint32_t k)
 static int kb_scaled(const track_t *t) { return !is_drum(t) && !kb_raw(t); }
 /* key k's note on a scaled track with the octave buttons at oct (KB_SILENT: none): QNT, ROOT, SCALE, TRN as they are
  * now. The keys (kb_map) and the notes a held or latched arp plays (arp_next, #191) */
-static uint32_t kb_pitch(const track_t *t, uint32_t k, int32_t oct) { return scale_map(t, 53 + (int32_t)k, 12 * oct); }
+static uint32_t kb_pitch(const track_t *t, uint32_t k, int32_t oct) { return FAST_CALL(seqev, scale_map)(t, 53 + (int32_t)k, 12 * oct); }
 
 /* MIDI in -> note on a synth part: through the track's layout as the keys (note 60 = C4 = the root in
  * WHITE), without the panel's octave; OFF (no chord): the note as received (no TRANSPOSE, as before) */
@@ -416,7 +416,7 @@ static uint32_t swing_units(int32_t pct, uint32_t u)
 }
 /* the clock on the grid of DUR index div (core.h DUR_48: a step is that many 48ths of a beat, counted from the first beat, so a
  * dotted one keeps its place from one beat to the next), odd steps sw late: the step, units into it, its length */
-static uint32_t grid_at(uint32_t div, uint32_t sw, uint32_t *into, uint32_t *len)
+static FASTI(seqev) uint32_t grid_at(uint32_t div, uint32_t sw, uint32_t *into, uint32_t *len)
 {
     uint32_t d = DUR_48[div % DUR_N], tot = clk_beat * 48u + clk_pos / DUR_U48, abs = tot / d;
     uint32_t u = DUR_U48 * d, frac = (tot % d) * DUR_U48 + clk_pos % DUR_U48;
@@ -439,7 +439,7 @@ static uint32_t grid_at(uint32_t div, uint32_t sw, uint32_t *into, uint32_t *len
  * would change from one beat to the next, and on the long ones */
 static uint32_t swings(uint32_t div) { return (DUR_SWING >> (div % DUR_N)) & 1u; }
 static uint32_t trk_div(const track_t *t) { return (uint32_t)t->p[P_SDIV] % NDIV_STEP; }
-static uint32_t trk_grid(const track_t *t, uint32_t *into, uint32_t *len)
+static FASTI(seqev) uint32_t trk_grid(const track_t *t, uint32_t *into, uint32_t *len)
 {
     uint32_t div = trk_div(t);
     return grid_at(div, swings(div) ? swing_units(t->p[P_SSWING] + song.g[G_SWING], div_units(div)) : 0u, into, len);
@@ -766,7 +766,7 @@ static void rec_hit(track_t *t, uint32_t lane, uint32_t lvl, uint32_t rat)
 }
 
 /* the sequencer enters step idx (before playing it): a recorded note still held ties into it */
-static void rec_hold(track_t *t, uint32_t idx, uint32_t len, uint32_t abs)
+static FAST(seq) void rec_hold(track_t *t, uint32_t idx, uint32_t len, uint32_t abs)
 {
     step_t *s;
     uint32_t had, k;
@@ -778,7 +778,7 @@ static void rec_hold(track_t *t, uint32_t idx, uint32_t len, uint32_t abs)
         {
             uint32_t into, slen;
             (void)trk_grid(t, &into, &slen);
-            rec_len_end(t, (int32_t)slen, slen, 0); /* (held through its last step) */
+            FAST_CALL(seqev, rec_len_end)(t, (int32_t)slen, slen, 0); /* (held through its last step) */
         }
 #endif
         return;
@@ -792,22 +792,22 @@ static void rec_hold(track_t *t, uint32_t idx, uint32_t len, uint32_t abs)
     if (k < t->rh_n) {                              /* (round the pattern to where one of them started) */
         t->rh_n = 0;
 #if FELUCCA_PLOCK
-        rec_len_end(t, 0, 0, 1);
+        FAST_CALL(seqev, rec_len_end)(t, 0, 0, 1);
 #endif
         return;
     }
-    if ((t->rh_drop || had) && rec_carry(t, idx, abs, 1)) {
+    if ((t->rh_drop || had) && FAST_CALL(seqev, rec_carry)(t, idx, abs, 1)) {
         rec_restart(t, idx, abs, !had);             /* POLY: one went up (rec_drop), or a step with notes: */
         return;                                     /* they go on through it (its notes struck, theirs not) */
     }
     if (had) {
         t->rh_n = 0;                                /* a step with notes: the hold ends before it */
 #if FELUCCA_PLOCK
-        rec_len_end(t, 0, 0, 1);                    /* (and joins that note) */
+        FAST_CALL(seqev, rec_len_end)(t, 0, 0, 1);                    /* (and joins that note) */
 #endif
         return;
     }
-    t->rh_bak = *s;
+    FAST_SET(seqev, t->rh_bak, *s);
     t->rh_last = (uint8_t)idx;
     t->rh_last_abs = abs;
     t->rh_ties++;
@@ -1474,7 +1474,7 @@ static void ft_block(void)
         ft_close_ms = fm1_ms;
         ft_closed = 1;
     } else if ((press & ft_btn_mask) || ft_t >= FT_BLOCKS) {
-        ft_close();
+        FAST_CALL(seqev, ft_close)();
     }
 }
 
@@ -1535,7 +1535,7 @@ static void erase_now(track_t *t)             /* a key just went down */
             erase_step(t, i);
     }
 }
-static int erasing(const track_t *t) { return trk_index(t) == er_trk && (er_lanes || er_notes[0] || er_notes[1] || er_notes[2] || er_notes[3]); }
+static FASTI(seqev) int erasing(const track_t *t) { return trk_index(t) == er_trk && (er_lanes || er_notes[0] || er_notes[1] || er_notes[2] || er_notes[3]); }
 /* the wipe (the user, 2026-10-21): SHIFT2 + REC held while playing, every note of the selected track the sequencer
  * enters is erased, as EDIT + every key at once would: the erase masks on, one undo level for the whole hold
  * (undo_erase_sess), the step playing now goes too. lanes: a drum track's lanes wiped (a picked lane's alone, the user
@@ -1656,7 +1656,7 @@ static void arp_remove(track_t *t, uint32_t note)
 }
 /* the sequencer's side: a step's note while it would sound -> held by the arp, which plays it; its end -> 1 when the
  * arp had it from the sequencer (dropped there), 0 when it did not (it sounds as it is: ARP turned on while it played) */
-static void arp_seq_on(track_t *t, uint32_t note) { arp_hold(t, note, 1); }
+static void arp_seq_on(track_t *t, uint32_t note) { FAST_CALL(seqev, arp_hold)(t, note, 1); }
 static uint32_t arp_seq_off(track_t *t, uint32_t note)
 {
     uint32_t i, ti = trk_index(t) % NTRK;
@@ -1689,7 +1689,7 @@ static uint32_t arp_next(track_t *t)
     }
     if (!cnt)
         return KB_SILENT;                           /* (every key silent now) */
-    memcpy(play, list, cnt * sizeof play[0]);       /* (as played: BASS's others) */
+    FAST_COPY(seqev, play, list, cnt * sizeof play[0]);       /* (as played: BASS's others) */
     if (!t->p[P_AORDER])
         for (i = 1; i < cnt; i++)
             for (j = i; j > 0 && list[j - 1] > list[j]; j--) {
@@ -1735,11 +1735,11 @@ static uint32_t arp_next(track_t *t)
 /* the arp, once per block: on the transport's grid of RATE (with its SWING) while playing, from the
  * first key while stopped. A new chord starts at once unless the grid is just ahead. While recording,
  * each note it plays is recorded (what you hear) */
-static void arp_prev_off(track_t *t)           /* the note GATE past 100 % kept sounding ends */
+static FASTI(seqev) void arp_prev_off(track_t *t)           /* the note GATE past 100 % kept sounding ends */
 {
     if (t->arp_prev) {
-        trk_note_off(t, t->arp_prev);
-        seq_out_off(t, t->arp_prev);
+        FAST_CALL(seqev, trk_note_off)(t, t->arp_prev);
+        FAST_CALL(seqev, seq_out_off)(t, t->arp_prev);
     }
     t->arp_prev = 0;
 }
@@ -1754,8 +1754,8 @@ static void arp_tick(track_t *t, uint32_t adv)
     }
     if (t->arp_note) {
         if (t->arp_off <= adv) {
-            trk_note_off(t, t->arp_note);
-            seq_out_off(t, t->arp_note);
+            FAST_CALL(seqev, trk_note_off)(t, t->arp_note);
+            FAST_CALL(seqev, seq_out_off)(t, t->arp_note);
             t->arp_note = 0;
         } else {
             t->arp_off -= adv;
@@ -1764,8 +1764,8 @@ static void arp_tick(track_t *t, uint32_t adv)
     if (!t->p[P_AMODE] || !t->nheld) {
         arp_prev_off(t);
         if (!t->nheld && t->arp_note) {
-            trk_note_off(t, t->arp_note);
-            seq_out_off(t, t->arp_note);
+            FAST_CALL(seqev, trk_note_off)(t, t->arp_note);
+            FAST_CALL(seqev, seq_out_off)(t, t->arp_note);
             t->arp_note = 0;
         }
         t->arp_new = 0;
@@ -1803,8 +1803,8 @@ static void arp_tick(track_t *t, uint32_t adv)
         t->arp_prev = t->arp_note;
         t->arp_poff = t->arp_off;
     } else if (t->arp_note) {
-        trk_note_off(t, t->arp_note);
-        seq_out_off(t, t->arp_note);
+        FAST_CALL(seqev, trk_note_off)(t, t->arp_note);
+        FAST_CALL(seqev, seq_out_off)(t, t->arp_note);
     }
     t->arp_note = 0;
     if ((uint32_t)(rng() & 127u) <= (uint32_t)t->p[P_APROB]) {
@@ -1816,8 +1816,8 @@ static void arp_tick(track_t *t, uint32_t adv)
         ev_at(song.playing ? into : 0u);
         t->arp_note = (uint8_t)n;
         t->arp_off = slen * (uint32_t)t->p[P_AGATE] / 64u;
-        trk_note_on(t, n, 100);
-        seq_out_on(t, n, 100);
+        FAST_CALL(seqx, trk_note_on)(t, n, 100);
+        FAST_CALL(seqx, seq_out_on)(t, n, 100);
     }                                               /* (the arped notes are not recorded: the keys are, input_on) */
 }
 
@@ -1865,7 +1865,7 @@ static void input_on(track_t *t, uint32_t note, uint32_t vel)
         if (lane_of_note(note) < DRUM_LANES)
             drum_input(lane_of_note(note), vel_lvl(vel), 0, 1);
         else
-            trk_note_on(t, note, vel);
+            FAST_CALL(seq, trk_note_on)(t, note, vel);
         return;
     }
     last_note = (uint8_t)note;
@@ -1880,11 +1880,11 @@ static void input_on(track_t *t, uint32_t note, uint32_t vel)
     }
 #if FELUCCA_CHORDPLUS
     if (in_chord) {                               /* a chord from the keys: maybe strummed (voice.c) */
-        trk_note_chord(t, in_chord, in_chord_n, in_chord_i, vel);
+        FAST_CALL(seq, trk_note_chord)(t, in_chord, in_chord_n, in_chord_i, vel);
         return;
     }
 #endif
-    trk_note_on(t, note, vel);
+    FAST_CALL(seq, trk_note_on)(t, note, vel);
 }
 
 static void input_off(track_t *t, uint32_t note)
@@ -1915,7 +1915,7 @@ static void drum_input(uint32_t lane, uint32_t lvl, uint32_t rat, int rec)
     if (rec && ((song.rec >> TRK_DRUM) & 1u) && song.playing)
         rec_hit(t, lane, lvl, rat);
     if (lane != DRUM_ACC)                           /* (the ACCENT lane: recorded, no sound of its own) */
-        trk_note_on(t, DLANE_NOTE(lane), lvl_vel(lvl, 100));
+        FAST_CALL(seq, trk_note_on)(t, DLANE_NOTE(lane), lvl_vel(lvl, 100));
 }
 
 /* -------------------------------------------------------------- roll --- */
@@ -1932,7 +1932,7 @@ static struct {
 static uint32_t roll_div(void) { return (uint32_t)clamp(song.g[G_ROLL], 0, (int32_t)DUR_N - 1); }
 /* the lanes / notes a roll plays live on track t: the pattern does not play them meanwhile (no flam
  * with what was recorded, nor with what this roll is recording) */
-static uint32_t roll_lanes(const track_t *t)
+static FASTI(seqev) uint32_t roll_lanes(const track_t *t)
 {
     uint32_t r, m = 0;
     for (r = 0; r < NROLL; r++)
@@ -1940,7 +1940,7 @@ static uint32_t roll_lanes(const track_t *t)
             m |= roll[r].note == DRUM_ACC ? 0u : 1u << (roll[r].note & 15u);   /* (an ACCENT roll: the hits play on) */
     return m;
 }
-static int roll_has(const track_t *t, uint32_t note)
+static FASTI(seqev) int roll_has(const track_t *t, uint32_t note)
 {
     uint32_t r;
     for (r = 0; r < NROLL; r++)
@@ -1963,14 +1963,14 @@ static void roll_hit(uint32_t r)
     if (is_drum(t)) {
         drum_input(roll[r].note, roll[r].lvl, rat, rec || !armed);
         if (roll[r].note != DRUM_ACC)
-            seq_out_on(t, LANE_NOTE_OF(roll[r].note), lvl_vel(roll[r].lvl, 100));
+            FAST_CALL(seq, seq_out_on)(t, LANE_NOTE_OF(roll[r].note), lvl_vel(roll[r].lvl, 100));
         return;
     }
     arm_start(t);
     if (roll[r].off)
         trk_note_off(t, roll[r].note);
-    trk_note_on(t, roll[r].note, lvl_vel(roll[r].lvl, 100));
-    seq_out_on(t, roll[r].note, lvl_vel(roll[r].lvl, 100));
+    FAST_CALL(seq, trk_note_on)(t, roll[r].note, lvl_vel(roll[r].lvl, 100));
+    FAST_CALL(seq, seq_out_on)(t, roll[r].note, lvl_vel(roll[r].lvl, 100));
     roll[r].off = u / 2u;
     if (rec)
         rec_note(t, roll[r].note, 100, rat, 0);
@@ -2022,8 +2022,8 @@ static void roll_block(uint32_t adv)
             continue;
         if (roll[r].off) {
             if (roll[r].off <= adv) {
-                trk_note_off(&trk[roll[r].trk % NTRK], roll[r].note);
-                seq_out_off(&trk[roll[r].trk % NTRK], roll[r].note);
+                FAST_CALL(seqev, trk_note_off)(&trk[roll[r].trk % NTRK], roll[r].note);
+                FAST_CALL(seqev, seq_out_off)(&trk[roll[r].trk % NTRK], roll[r].note);
                 roll[r].off = 0;
             } else {
                 roll[r].off -= adv;
@@ -2034,13 +2034,13 @@ static void roll_block(uint32_t adv)
             if (abs != roll[r].last) {
                 roll[r].last = abs;
                 ev_at(into);
-                roll_hit(r);
+                FAST_CALL(seqev, roll_hit)(r);
             }
         } else {
             roll[r].last += adv;
             if (roll[r].last >= u) {
                 roll[r].last = roll[r].last - u < u ? roll[r].last - u : 0;
-                roll_hit(r);
+                FAST_CALL(seqev, roll_hit)(r);
             }
         }
     }
@@ -2065,13 +2065,13 @@ static uint32_t chord_locked(uint32_t sel) { return cm_lock[sel % NTRK]; }
 static void chord_tap(uint32_t k, uint32_t sel)        /* a modifier key went down: a second tap latches it */
 {
     kb_nt[k][0] = 0;                                    /* (1: its release unlatches it, key_up) */
-    if (cm_lock[sel % NTRK] & chord_mod_of_key(k)) {
+    if (cm_lock[sel % NTRK] & FAST_CALL(seqev, chord_mod_of_key)(k)) {
         kb_nt[k][0] = 1;
         cm_tap_key = 0;
         return;
     }
     if (cm_tap_key == k + 1u && fm1_ms - cm_tap_ms < CM_DTAP_MS) {
-        cm_lock[sel % NTRK] |= (uint8_t)chord_mod_of_key(k);
+        cm_lock[sel % NTRK] |= (uint8_t)FAST_CALL(seqev, chord_mod_of_key)(k);
         cm_tap_key = 0;                                 /* (a third tap starts a new pair) */
         return;
     }
@@ -2140,11 +2140,11 @@ static void key_down(uint32_t k)
     kb_kind[k] = KS_NONE;
     kb_trk[k] = (uint8_t)sel;
     kb_n[k] = 0;
-    if (layer == LY_STEP && step_rec_blk && is_drum(t) && punch_key(k) < 0)
+    if (layer == LY_STEP && step_rec_blk && is_drum(t) && FAST_CALL(seqev, punch_key)(k) < 0)
         layer = LY_PLAY;                              /* (STEP, REC on: a black key plays its lane and records, as on the other pages) */
     switch (layer) {
     case LY_FX: {                                     /* FX held: the white keys pick a punch-in effect */
-        int32_t fx = punch_key(k);
+        int32_t fx = FAST_CALL(seqev, punch_key)(k);
         kb_kind[k] = KS_FX;
         if (fx >= 0 && fx < (int32_t)PUNCH_NFX) {
 #if FELUCCA_PUNCH_LATCH
@@ -2166,13 +2166,13 @@ static void key_down(uint32_t k)
     case LY_SONG:                                     /* the UI's: steps, the key, the mix, the sections */
         kb_kind[k] = KS_UI;
         kb_nt[k][0] = (uint8_t)layer;                 /* (its key-up goes to the same layer) */
-        lk_push(layer, k, 1);
+        FAST_CALL(seqev, lk_push)(layer, k, 1);
         return;
     case LY_OPS:                                      /* ENV held on FM6: a black key picks what to edit (the UI's), */
-        if (punch_key(k) < 0) {                       /* the white keys play (audition while editing) */
+        if (FAST_CALL(seqev, punch_key)(k) < 0) {                       /* the white keys play (audition while editing) */
             kb_kind[k] = KS_UI;
             kb_nt[k][0] = (uint8_t)layer;
-            lk_push(layer, k, 1);
+            FAST_CALL(seqev, lk_push)(layer, k, 1);
             return;
         }
         break;
@@ -2181,7 +2181,7 @@ static void key_down(uint32_t k)
         if (is_drum(t) && dl_ui_pick) {               /* a SOUND page up: EDIT + a key picks that sound (ui_drums.c) */
             kb_kind[k] = KS_UI;
             kb_nt[k][0] = (uint8_t)layer;
-            lk_push(layer, k, 1);
+            FAST_CALL(seqev, lk_push)(layer, k, 1);
             return;
         }
 #endif
@@ -2194,37 +2194,37 @@ static void key_down(uint32_t k)
             er_trk = (uint8_t)sel;
         }
         if (is_drum(t)) {
-            if (kb_drum_lane(k) == DLANE_NONE) {
+            if (FAST_CALL(seqev, kb_drum_lane)(k) == DLANE_NONE) {
                 kb_kind[k] = KS_NONE;                 /* (a key with no lane erases nothing) */
                 return;
             }
-            kb_nt[k][0] = (uint8_t)kb_drum_lane(k);
+            kb_nt[k][0] = (uint8_t)FAST_CALL(seqev, kb_drum_lane)(k);
             kb_n[k] = 1;
             er_lanes |= 1u << kb_nt[k][0];
         } else {
-            uint32_t n = kb_map(t, k);
+            uint32_t n = FAST_CALL(seqev, kb_map)(t, k);
             if (n == KB_SILENT)
                 return;
-            kb_n[k] = (uint8_t)(t->p[P_CHORD] ? chord_notes(t, n, kb_nt[k]) : 1u);
+            kb_n[k] = (uint8_t)(t->p[P_CHORD] ? FAST_CALL(seqev, chord_notes)(t, n, kb_nt[k]) : 1u);
             if (!t->p[P_CHORD])
                 kb_nt[k][0] = (uint8_t)n;
             for (i = 0; i < kb_n[k]; i++)
                 er_notes[(kb_nt[k][i] >> 5) & 3u] |= 1u << (kb_nt[k][i] & 31u);
         }
-        erase_now(t);
+        FAST_CALL(seqev, erase_now)(t);
         return;
     default:
         break;
     }
     if (is_drum(t)) {                                 /* the drum track: the key's lane */
-        uint32_t lane = kb_drum_lane(k), lvl = key_lvl();
+        uint32_t lane = FAST_CALL(seqev, kb_drum_lane)(k), lvl = key_lvl();
         if (layer != LY_ROLL)
             lvl = LV_NORM;                            /* (the Optimist UI: OCT- / OCT+ held are SHIFT / SHIFT2, mute and select;
                                                        * a ghost or hard hit is entered on STEP; the ARP layer keeps its rolls') */
-        if (punch_key(k) >= 0 && layer == LY_PLAY) {  /* the Optimist UI: a white key is a step on every page (the user, */
+        if (FAST_CALL(seqev, punch_key)(k) >= 0 && layer == LY_PLAY) {  /* the Optimist UI: a white key is a step on every page (the user, */
             kb_kind[k] = KS_UI;                       /* 2026-10-16: "while in drum mode they are always the step seq"): */
             kb_nt[k][0] = (uint8_t)LY_STEP;           /* the UI's (op_step.c step_key), as STEP's */
-            lk_push(LY_STEP, k, 1);
+            FAST_CALL(seqev, lk_push)(LY_STEP, k, 1);
             return;
         }
         if (lane == DLANE_NONE)
@@ -2233,26 +2233,26 @@ static void key_down(uint32_t k)
         kb_n[k] = 1;
         if (layer == LY_ROLL) {
             kb_kind[k] = KS_ROLL;
-            roll_start(k, t, lane, lvl);
+            FAST_CALL(seqev, roll_start)(k, t, lane, lvl);
             return;
         }
         if (pick_quiet && lane != DRUM_ACC && layer == LY_PLAY)
             return;                                   /* (a pick while playing: select only; kb_kind stays NONE) */
         kb_kind[k] = KS_DRUM;
-        drum_input(lane, lvl, 0, 1);
+        FAST_CALL(seqev, drum_input)(lane, lvl, 0, 1);
         mc = trk_midi_ch(sel);
         if (lane != DRUM_ACC)
-            midi_key_out(mc, LANE_NOTE_OF(lane), lvl_vel(lvl, 100));
+            FAST_CALL(seqev, midi_key_out)(mc, LANE_NOTE_OF(lane), lvl_vel(lvl, 100));
         return;
     }
     {
-        uint32_t n = kb_map(t, k);
+        uint32_t n = FAST_CALL(seqev, kb_map)(t, k);
         if (n == KB_SILENT) {
 #if FELUCCA_CHORDPLUS
-            if (t->p[P_CHORD] && layer == LY_PLAY && chord_mod_of_key(k)) {   /* CHORD+: a modifier key */
+            if (t->p[P_CHORD] && layer == LY_PLAY && FAST_CALL(seqev, chord_mod_of_key)(k)) {   /* CHORD+: a modifier key */
                 kb_kind[k] = KS_MOD;
                 chord_tap(k, sel);
-                chord_revoice(sel);
+                FAST_CALL(seqev, chord_revoice)(sel);
             }
 #endif
             return;
@@ -2261,7 +2261,7 @@ static void key_down(uint32_t k)
             kb_kind[k] = KS_ROLL;
             kb_nt[k][0] = (uint8_t)n;
             kb_n[k] = 1;
-            roll_start(k, t, n, LV_NORM);
+            FAST_CALL(seqev, roll_start)(k, t, n, LV_NORM);
             return;
         }
         kb_kind[k] = KS_NOTE;
@@ -2269,10 +2269,10 @@ static void key_down(uint32_t k)
         kb_oct[k] = (int8_t)song.octave;
 #if FELUCCA_CHORDPLUS
         if (t->p[P_CHORD]) {
-            kb_n[k] = (uint8_t)chord_play_notes(t, n, chord_mods(sel), kb_nt[k]);   /* (the modifiers held or latched, voiced) */
+            kb_n[k] = (uint8_t)FAST_CALL(seqev, chord_play_notes)(t, n, FAST_CALL(seqev, chord_mods)(sel), kb_nt[k]);   /* (the modifiers held or latched, voiced) */
 #else
         if (t->p[P_CHORD]) {
-            kb_n[k] = (uint8_t)chord_notes(t, n, kb_nt[k]);
+            kb_n[k] = (uint8_t)FAST_CALL(seqev, chord_notes)(t, n, kb_nt[k]);
 #endif
         } else {
             kb_nt[k][0] = (uint8_t)n;
@@ -2285,12 +2285,12 @@ static void key_down(uint32_t k)
             in_chord = kb_n[k] > 1u ? kb_nt[k] : 0;   /* (STRUM: the sound; MIDI out gets the chord at once) */
             in_chord_n = kb_n[k];
             in_chord_i = i;
-            input_on(t, kb_nt[k][i], key_vel);
+            FAST_CALL(seqev, input_on)(t, kb_nt[k][i], key_vel);
             in_chord = 0;
 #else
-            input_on(t, kb_nt[k][i], key_vel);
+            FAST_CALL(seqev, input_on)(t, kb_nt[k][i], key_vel);
 #endif
-            midi_key_out(mc, kb_nt[k][i], key_vel);
+            FAST_CALL(seqev, midi_key_out)(mc, kb_nt[k][i], key_vel);
         }
         in_key = 0;
         kb_shown = kb_nt[k][0];
@@ -2319,13 +2319,13 @@ static void key_up(uint32_t k)
         }
         return;
     case KS_UI:
-        lk_push(kb_nt[k][0], k, 0);
+        FAST_CALL(seqev, lk_push)(kb_nt[k][0], k, 0);
         return;
 #if FELUCCA_CHORDPLUS
     case KS_MOD:                                    /* a CHORD+ modifier let go: the chords held change back */
         if (kb_nt[k][0])                            /* (pressed while latched: released now) */
-            cm_lock[kb_trk[k] % NTRK] &= (uint8_t)~chord_mod_of_key(k);
-        chord_revoice(kb_trk[k]);
+            cm_lock[kb_trk[k] % NTRK] &= (uint8_t)~FAST_CALL(seqev, chord_mod_of_key)(k);
+        FAST_CALL(seqev, chord_revoice)(kb_trk[k]);
         return;
 #endif
     case KS_ERASE:
@@ -2338,22 +2338,22 @@ static void key_up(uint32_t k)
     case KS_ROLL:
         for (i = 0; i < NROLL; i++)
             if (roll[i].on && roll[i].key == k)
-                roll_end(i);
+                FAST_CALL(seqev, roll_end)(i);
         return;
     case KS_NOTE:
         mc = trk_midi_ch(kb_trk[k] % NTRK);
         for (i = 0; i < kb_n[k]; i++) {
-            input_off(t, kb_nt[k][i]);
-            midi_key_out(mc, kb_nt[k][i], 0u);
+            FAST_CALL(seqev, input_off)(t, kb_nt[k][i]);
+            FAST_CALL(seqev, midi_key_out)(mc, kb_nt[k][i], 0u);
         }
         return;
     case KS_DRUM:
         if (kb_nt[k][0] == DRUM_ACC)
             return;                                 /* (the ACCENT lane: no note was sent) */
         if (ft_on && IS_DRUMK(ft_trk))
-            ft_note_off(kb_nt[k][0]);
+            FAST_CALL(seqev, ft_note_off)(kb_nt[k][0]);
         mc = trk_midi_ch(TRK_DRUM);
-        midi_key_out(mc, LANE_NOTE_OF(kb_nt[k][0]), 0u);
+        FAST_CALL(seqev, midi_key_out)(mc, LANE_NOTE_OF(kb_nt[k][0]), 0u);
         return;
     default:
         return;
@@ -2405,7 +2405,7 @@ static void audition_notes_block(void)
     uint32_t i;
     if (an_on_n && (an_req || !--an_left)) {            /* (their time over, or new ones asked) */
         for (i = 0; i < an_on_n; i++)
-            trk_note_off(&trk[an_on_trk % NTRK], an_on_nt[i]);
+            FAST_CALL(seqev, trk_note_off)(&trk[an_on_trk % NTRK], an_on_nt[i]);
         an_on_n = 0;
     }
     if (!an_req)
@@ -2414,7 +2414,7 @@ static void audition_notes_block(void)
     an_on_trk = an_trk, an_on_n = an_n, an_left = AUD_NOTE_BLOCKS;
     for (i = 0; i < an_on_n; i++) {
         an_on_nt[i] = an_nt[i];
-        trk_note_on(&trk[an_on_trk % NTRK], an_on_nt[i], an_vel);
+        FAST_CALL(seqx, trk_note_on)(&trk[an_on_trk % NTRK], an_on_nt[i], an_vel);
     }
 }
 /* key k's notes on synth track t as the keys play them (kb_map: QNT, ROOT, SCALE, TRN and the octave; chord mode: the key's
@@ -2438,7 +2438,7 @@ static void audition_block(void)
     aud_lanes = 0;
     for (l = 0; m; l++, m >>= 1)
         if (m & 1u)
-            trk_note_on(TDRUM, DLANE_NOTE(l), lvl_vel((lv >> (2u * l)) & 3u, 100));
+            FAST_CALL(seqx, trk_note_on)(TDRUM, DLANE_NOTE(l), lvl_vel((lv >> (2u * l)) & 3u, 100));
 }
 
 static void keyboard_block(void)
@@ -2448,7 +2448,7 @@ static void keyboard_block(void)
     if (!(layer_buttons() & ly_bit[LY_ROLL]))         /* ARP up (and not locked): the rolls end (the keys stay silent) */
         for (r = 0; r < NROLL; r++)
             if (roll[r].on)
-                roll_end(r);
+                FAST_CALL(seqev, roll_end)(r);
     if (!ch)
         return;
     if (kb_boot_hold) {                                 /* #137: under the splash (their release: KS_NONE, silent too) */
@@ -2575,7 +2575,7 @@ static void live_block(void)                       /* once a block while playing
         if (e->bars < 64u) {
             e->bars++;
         } else {                                    /* (64 bars of one section: it goes on in the next entry) */
-            srec_add(e->scene);
+            FAST_CALL(seqev, srec_add)(e->scene);
             if (srec == 2u)
                 srec_e[srec_n - 1u].bars = 1;
         }
@@ -2593,19 +2593,19 @@ static void live_block(void)                       /* once a block while playing
         live_now = 0;
         live_nbar = 0;
         {                                           /* (the UI asked for a section it checked: no hash here) */
-            arrangement_apply(s);
+            FAST_CALL(seqev, arrangement_apply)(s);
             song.rec = 0;                           /* (a take does not run on into another section) */
             live_sec = (int8_t)s;
-            seq_reset_tracks(clk_pos);              /* on the bar: every track from its step 0 */
+            FAST_CALL(seqev, seq_reset_tracks)(clk_pos);              /* on the bar: every track from its step 0 */
             live_bar = 0;
             if (srec == 2u)
-                srec_add(s);
+                FAST_CALL(seqev, srec_add)(s);
         }
     }
     if (srec == 1u && live_sec >= 0) {
         srec = 2;
         srec_n = 0;
-        srec_add((uint32_t)live_sec);
+        FAST_CALL(seqev, srec_add)((uint32_t)live_sec);
     }
 }
 #endif
@@ -2690,11 +2690,11 @@ static void seq_note_end(track_t *t, uint32_t note)
     trk_note_off(t, note);
     seq_out_off(t, note);
 }
-static void seq_release(track_t *t)
+static FASTI(seqev) void seq_release(track_t *t)
 {
     uint32_t i;
     for (i = 0; i < t->seq_n; i++)
-        seq_note_end(t, t->seq_notes[i]);
+        FAST_CALL(seqev, seq_note_end)(t, t->seq_notes[i]);
     if (is_drum(t))
         seq_out_track_off(t);                       /* the drum hits of the step: ended with it */
     t->seq_n = 0;
@@ -2733,7 +2733,7 @@ static void seq_noffs(track_t *t, uint32_t adv)
                 t->seq_noff[i] -= adv;
         }
     if (gone)
-        seq_end_notes(t, gone);
+        FAST_CALL(seqev, seq_end_notes)(t, gone);
 }
 /* the step's GATE is up (seq_off): the notes sounding end, but those with an end of their own */
 static void seq_gate_end(track_t *t)
@@ -2742,7 +2742,7 @@ static void seq_gate_end(track_t *t)
         seq_release(t);
         return;
     }
-    seq_end_notes(t, ((1u << t->seq_n) - 1u) & ~(uint32_t)t->seq_nm);
+    FAST_CALL(seqev, seq_end_notes)(t, ((1u << t->seq_n) - 1u) & ~(uint32_t)t->seq_nm);
     t->seq_off = 0xFFFFFFFFu;                       /* (the rest: their own ends) */
 }
 /* step s (as it plays) has just set the notes sounding: each one's own end from it (ngate), slen its length */
@@ -2810,14 +2810,14 @@ static void seq_stop(void)
 #include "gen.c"               /* the note generators: a layer played over the pattern (STEP > GEN) */
 
 /* the velocity of note i of synth step s */
-static uint32_t step_vel(const step_t *s, uint32_t i)
+static FASTI(seqev) uint32_t step_vel(const step_t *s, uint32_t i)
 {
     uint32_t base = (s->flags & SF_ACCENT) ? 127u : (s->vel ? s->vel : 96u);
     return lvl_vel((s->lvl >> (2u * i)) & 3u, base);
 }
 
 /* the notes sounding go on into step s: a TIE, or a carry step (SF_CARRY) that holds one of them */
-static uint32_t seq_goes_on(const track_t *t, const step_t *s)
+static FASTI(seq) uint32_t seq_goes_on(const track_t *t, const step_t *s)
 {
     uint32_t i, k;
     if (s->time == ST_TIE)
@@ -2844,7 +2844,7 @@ static uint32_t seq_carry(track_t *t, const step_t *s, uint32_t skip)
             keep |= 1u << k;
             t->seq_notes[n++] = (uint8_t)x;
         } else {
-            seq_note_end(t, x);
+            FAST_CALL(seqev, seq_note_end)(t, x);
         }
     }
     t->seq_n = n;
@@ -2876,12 +2876,12 @@ static __attribute__((noinline)) int seq_slide_poly(track_t *t, const step_t *s,
 /* play one synth step: TIE extends, REST releases, NOTE (re)triggers; a SLIDE on the previous
  * step makes this one legato with a glide (acid style). skip: bit k = note k already sounds
  * from live recording (not triggered, not released here). len: the step's length (units). */
-static void seq_step(track_t *t, const step_t *s, uint32_t slen, uint32_t skip)
+static FAST(seq) void seq_step(track_t *t, const step_t *s, uint32_t slen, uint32_t skip)
 {
 #if FELUCCA_QNT_SEQ
     step_t qs;                                      /* QNT SEQ: the step as it plays, snapped to the scale */
     if (qseq_on(t) && s->time == ST_NOTE && s->n) {
-        skip |= qseq_step(t, s, &qs);               /* (two notes snapping together: once) */
+        skip |= FAST_CALL(seqev, qseq_step)(t, s, &qs);               /* (two notes snapping together: once) */
         s = &qs;
     }
 #endif
@@ -2933,7 +2933,7 @@ static void seq_step(track_t *t, const step_t *s, uint32_t slen, uint32_t skip)
                 arp_seq_on(t, s->note[i]);
                 continue;
             }
-            if (slide_in && seq_slide_poly(t, s, i, &slid))
+            if (slide_in && FAST_CALL(seqev, seq_slide_poly)(t, s, i, &slid))
                 ;                                   /* (POLY: a voice of the step before glides there) */
 #if FELUCCA_CHORDPLUS
             else if (!slide_in)                     /* (STRUM: a chord step's notes one after the other) */
@@ -2949,7 +2949,7 @@ static void seq_step(track_t *t, const step_t *s, uint32_t slen, uint32_t skip)
             for (j = 0; j < s->n && s->note[j] != t->seq_notes[i]; j++)
                 ;
             if (j == s->n)
-                seq_note_end(t, t->seq_notes[i]);
+                FAST_CALL(seqev, seq_note_end)(t, t->seq_notes[i]);
         }
     if (!keep)
         t->seq_n = 0;                               /* (seq_carry kept the ones going on) */
@@ -2971,7 +2971,7 @@ static void seq_muted_step(track_t *t, const step_t *s, uint32_t slen)
                 if (t->seq_notes[i] == s->note[k])
                     hold |= 1u << k;
     if (hold)
-        seq_step(t, s, slen, ~hold & 0xFu);         /* (only the held notes: the struck ones skipped) */
+        FAST_CALL(seqx, seq_step)(t, s, slen, ~hold & 0xFu);         /* (only the held notes: the struck ones skipped) */
     else
         seq_release(t);
 }
@@ -3006,8 +3006,8 @@ static void drum_step(track_t *t, const dstep_t *s, uint32_t skip)
     for (l = 0; m; l++, m >>= 1)
         if (m & 1u) {
             uint32_t v = DACC_VEL(lvl_vel(dstep_lvl(s, l), 100), s);   /* (the ACCENT lane's step: every hit raised) */
-            trk_note_on(t, DLANE_NOTE(l), v);
-            seq_out_on(t, LANE_NOTE_OF(l), v);
+            FAST_CALL(seqx, trk_note_on)(t, DLANE_NOTE(l), v);
+            FAST_CALL(seqx, seq_out_on)(t, LANE_NOTE_OF(l), v);
         }
 }
 
@@ -3044,8 +3044,8 @@ static void seq_ratchets(track_t *t, uint32_t into, uint32_t slen)
             if (h > done && h < hits) {
                 t->rat_lanes = (t->rat_lanes & ~(3u << (2u * i))) | h << (2u * i);
                 ev_at(into - h * slen / hits);
-                trk_note_on(t, DLANE_NOTE(i), DACC_VEL(lvl_vel(dstep_lvl(s, i), 100), s));
-                seq_out_on(t, LANE_NOTE_OF(i), DACC_VEL(lvl_vel(dstep_lvl(s, i), 100), s));
+                FAST_CALL(seqx, trk_note_on)(t, DLANE_NOTE(i), DACC_VEL(lvl_vel(dstep_lvl(s, i), 100), s));
+                FAST_CALL(seqx, seq_out_on)(t, LANE_NOTE_OF(i), DACC_VEL(lvl_vel(dstep_lvl(s, i), 100), s));
             }
         }
         return;
@@ -3060,7 +3060,7 @@ static void seq_ratchets(track_t *t, uint32_t into, uint32_t slen)
             return;                                 /* (a muted note: no further hit either) */
 #if FELUCCA_QNT_SEQ
         if (qseq_on(t)) {
-            dup = qseq_step(t, s, &qs);
+            dup = FAST_CALL(seqev, qseq_step)(t, s, &qs);
             s = &qs;
         }
 #endif
@@ -3073,9 +3073,9 @@ static void seq_ratchets(track_t *t, uint32_t into, uint32_t slen)
                 uint32_t j;
                 t->rat_done[i] = (uint8_t)h;
                 ev_at(into - h * slen / hits);
-                trk_note_off(t, s->note[i]);
-                trk_note_on(t, s->note[i], step_vel(s, i));
-                seq_out_on(t, s->note[i], step_vel(s, i));
+                FAST_CALL(seqev, trk_note_off)(t, s->note[i]);
+                FAST_CALL(seqx, trk_note_on)(t, s->note[i], step_vel(s, i));
+                FAST_CALL(seqx, seq_out_on)(t, s->note[i], step_vel(s, i));
                 t->seq_off = slen / hits * (uint32_t)t->p[P_SGATE] / 128u;
                 for (j = 0; j < t->seq_n && t->seq_notes[j] != s->note[i]; j++)
                     ;
@@ -3100,7 +3100,7 @@ static void smute_step(track_t *t, uint32_t idx, uint32_t len, uint32_t abs)
     }
     if (t->step[idx].time == ST_NOTE && t->step[idx].n)
         smute_thits |= (uint8_t)(1u << trk_index(t));
-    rec_hold(t, idx, len, abs);
+    FAST_CALL(seqx, rec_hold)(t, idx, len, abs);
     t->seq_hold = 0;
 }
 
@@ -3187,7 +3187,7 @@ static void seq_tick(track_t *t, uint32_t adv)
 #endif
         }
         if (erasing(t))
-            erase_step(t, idx);                      /* EDIT + key held: gone as it passes */
+            FAST_CALL(seqev, erase_step)(t, idx);                      /* EDIT + key held: gone as it passes */
         ev_at((uint32_t)rel);                        /* (following a clock: its sample in the block) */
 #if !SEQ_SKIP
         (void)auto_step(t, idx);                     /* (auto.c: its events before its notes) */
@@ -3197,7 +3197,7 @@ static void seq_tick(track_t *t, uint32_t adv)
             t->rskip_lanes = 0;
             t->rskip_n = 0;
             if (!is_drum(t)) {
-                rec_hold(t, idx, len, nabs);
+                FAST_CALL(seqx, rec_hold)(t, idx, len, nabs);
                 seq_release(t);
             }
         } else
@@ -3213,7 +3213,7 @@ static void seq_tick(track_t *t, uint32_t adv)
         } else {
             const step_t *s = GEN_FIRE(t, idx);     /* (the step as it plays: a generator over it, gen.c) */
             uint32_t skip = 0, i, k;
-            rec_hold(t, idx, len, nabs);
+            FAST_CALL(seqx, rec_hold)(t, idx, len, nabs);
             if (t->rskip_n && t->rskip_abs == nabs)
                 for (i = 0; i < s->n; i++)
                     for (k = 0; k < t->rskip_n; k++)
@@ -3223,7 +3223,7 @@ static void seq_tick(track_t *t, uint32_t adv)
             if (STEP_MUTED_SYN(t))
                 seq_muted_step(t, s, slen);         /* (a muted note: the step a rest, auto.h AUTO_SMUTE; the notes carried through it go on) */
             else
-                seq_step(t, s, slen, skip);
+                FAST_CALL(seqx, seq_step)(t, s, slen, skip);
         }
     }
     if (t->seq_abs != SEQ_NONE)
@@ -3269,7 +3269,7 @@ static void seq_tick(track_t *t, uint32_t adv)
 #endif
         }
         if (erasing(t))
-            erase_step(t, idx);                      /* EDIT + key held: gone as it passes */
+            FAST_CALL(seqev, erase_step)(t, idx);                      /* EDIT + key held: gone as it passes */
 #if FELUCCA_AUTO
         (void)auto_step(t, idx);                     /* (auto.c: its events before its notes) */
 #endif
@@ -3285,7 +3285,7 @@ static void seq_tick(track_t *t, uint32_t adv)
         } else {
             const step_t *s = GEN_FIRE(t, idx);     /* (the step as it plays: a generator over it, gen.c) */
             uint32_t skip = 0, i, k;
-            rec_hold(t, idx, len, abs);
+            FAST_CALL(seqx, rec_hold)(t, idx, len, abs);
             if (t->rskip_n && t->rskip_abs == abs)
                 for (i = 0; i < s->n; i++)
                     for (k = 0; k < t->rskip_n; k++)
@@ -3295,7 +3295,7 @@ static void seq_tick(track_t *t, uint32_t adv)
             if (STEP_MUTED_SYN(t))
                 seq_muted_step(t, s, slen);         /* (a muted note: the step a rest, auto.h AUTO_SMUTE; the notes carried through it go on) */
             else
-                seq_step(t, s, slen, skip);
+                FAST_CALL(seqx, seq_step)(t, s, slen, skip);
         }
     }
     seq_ratchets(t, into, slen);
@@ -3330,7 +3330,7 @@ static void midi_cc_fm6(uint32_t ch, uint32_t cc, uint32_t v)
  * (following an external clock: the clock is set to it after the MIDI input, clock_sync.c) */
 #if DUAL_TIMES && (defined(__PI32V2__) || defined(__EMSCRIPTEN__))   /* (SYSTEM > CPU TIMES' EVT: the events' time; the host tests: no timer) */
 static void events_block_(uint32_t n);
-static void events_block(uint32_t n)
+static FAST(seqev) void events_block(uint32_t n)
 {
     uint32_t t0 = DUAL_TM_EVT_IN();
     events_block_(n);
@@ -3338,7 +3338,7 @@ static void events_block(uint32_t n)
 }
 #define events_block events_block_
 #endif
-static void events_block(uint32_t n)
+static FAST(seqev) void events_block(uint32_t n)
 {
     uint32_t i, pr, adv = n * (uint32_t)song.g[G_BPM], ext;
     if (clk_nudge)                                    /* (the TEMPO page's nudge: an external clock overrides adv below) */
@@ -3357,23 +3357,23 @@ static void events_block(uint32_t n)
     if (transport_req == 1u) {
         transport_req = 0;
         if (ft_on) {
-            ft_close();                             /* (PLAY from elsewhere: the editor) */
+            FAST_CALL(seqev, ft_close)();                             /* (PLAY from elsewhere: the editor) */
 #if FELUCCA_REC_MODES
         } else if (ci_on) {
             ci_on = 0;                              /* PLAY again during the count-in: back to armed */
-        } else if (rec_wait && rec_count && !song.playing && !ext && !(project_empty() && !rec_tempo)) {
+        } else if (rec_wait && rec_count && !song.playing && !ext && !(FAST_CALL(seqev, project_empty)() && !rec_tempo)) {
             ci_on = 1;                              /* COUNT: one bar of clicks first (below) */
             ci_u = 0;
             ci_beat = 0;
             click_note(77u, CLICK_VEL_BAR);
 #endif
         } else {
-            seq_start();
+            FAST_CALL(seqev, seq_start)();
             if (rec_wait && song.playing)
-                rec_begin();                        /* PLAY while armed: record from the top */
+                FAST_CALL(seqev, rec_begin)();                        /* PLAY while armed: record from the top */
         }
     } else if (transport_req == 2u) {
-        seq_stop();
+        FAST_CALL(seqev, seq_stop)();
         transport_req = 0;
         song.rec = 0;                               /* STOP ends the take (and the wait) */
         rec_wait = 0;
@@ -3392,9 +3392,9 @@ static void events_block(uint32_t n)
             b = ci_u / BEAT_U;
             if (b >= 4u) {
                 ci_on = 0;
-                seq_start();
+                FAST_CALL(seqev, seq_start)();
                 if (song.playing)
-                    rec_begin();
+                    FAST_CALL(seqev, rec_begin)();
             } else if (b != ci_beat) {
                 ci_beat = (uint8_t)b;
                 click_note(76u, CLICK_VEL_BEAT);
@@ -3403,22 +3403,22 @@ static void events_block(uint32_t n)
     }
 #endif
     if (rec_wait && song.playing)
-        rec_begin();                                /* started some other way: record now */
+        FAST_CALL(seqev, rec_begin)();                                /* started some other way: record now */
     ft_block();
 #if FELUCCA_ARRANGER
     if (song.playing && arrangement_clock.running) {
         int scene = arr_next(&arrangement_clock, &arrangement, FS);
         if (scene == ARR_DONE) {
             arrangement_clock.running = 1;          /* (arr_next cleared it: seq_stop brings the loop back) */
-            seq_stop();
+            FAST_CALL(seqev, seq_stop)();
         }
         else if (scene >= 0) {
-            arrangement_apply((uint32_t)scene);
+            FAST_CALL(seqev, arrangement_apply)((uint32_t)scene);
             if (live_req == (int8_t)scene) {
                 live_req = -1;                      /* (a part key's jump: its scene was staged by the UI, now played) */
                 live_now = 0;
             }
-            seq_reset_tracks(arrangement_clock.phase);   /* (the remainder: exactly on the bar) */
+            FAST_CALL(seqev, seq_reset_tracks)(arrangement_clock.phase);   /* (the remainder: exactly on the bar) */
         }
     } else if (song.playing) {
         live_block();
@@ -3432,14 +3432,14 @@ static void events_block(uint32_t n)
     for (i = 0; i < NTRK; i++) {
         track_t *t = &trk[i];
         if ((pr >> i) & 1u) {
-            midi_forget_track(i);
+            FAST_CALL(seqev, midi_forget_track)(i);
             if (t->pold) {                            /* (SLOOP 2.6) a sound loaded: the notes keep sounding as they */
 #if FELUCCA_CHORDPLUS                                 /* are and fade out with the old sound (voice.c sound_change): */
-                strum_cancel(t, 0, 1);                /* no release cut short or played with the new sound's */
+                FAST_CALL(seqev, strum_cancel)(t, 0, 1);                /* no release cut short or played with the new sound's */
 #endif
                 t->nmono = 0, t->mono_note = 0, t->xp_n = 0;
             } else {
-                trk_all_off(t);
+                FAST_CALL(seqev, trk_all_off)(t);
             }
             seq_out_track_off(t);                     /* (MIDI OUT: what this track sent ends too) */
             t->bend_target = t->bend_q8 = t->wheel_target = t->wheel_q8 = 0;
@@ -3456,8 +3456,8 @@ static void events_block(uint32_t n)
             if (!t->p[P_AMODE])
                 t->arp_phys = 0;
             if (t->arp_note) {
-                trk_note_off(t, t->arp_note);
-                seq_out_off(t, t->arp_note);
+                FAST_CALL(seqev, trk_note_off)(t, t->arp_note);
+                FAST_CALL(seqev, seq_out_off)(t, t->arp_note);
                 t->arp_note = 0;
             }
         }
@@ -3483,7 +3483,7 @@ static void events_block(uint32_t n)
         mi_r++;
         if (midi_in_dropped(st, d2))
             continue;                                 /* IN = CLOCK: no notes (the note offs still end what was held) */
-        midi_event(st, ch, d1, d2);
+        FAST_CALL(seqev, midi_event)(st, ch, d1, d2);
     }
     }
     ext = FELUCCA_MIDI_CLOCK && sy.src != 0u;         /* (a START may have chosen it) */

@@ -1316,6 +1316,19 @@ _add("COMPILER", "FELUCCA_COMPILER", "compiler: pi32v2-llvm or JieLi's clang", Y
           "release configuration), the audio's CPU the same. JieLi's is the compiler the stock firmware and every "
           "earlier Optimist were built with. costs-all measures with the default (pi32v2-llvm); this item's cost at JieLi is "
           "how much bigger JieLi's makes the same firmware.")
+# bit 449 (2026-11-01, the next free: SYS_TOP took 448 on branch systop): the sequencer's code as RAM code, 0 / 1 / 2
+# (core.h FAST_RAM_seqev / seq / seqx: FAST, FASTI, FAST_CALL, FAST_COPY, FAST_SET); worktrees/seqram-plan/PLAN.md, sets a0 and a
+_add("SEQ_RAM", "FELUCCA_SEQ_RAM", "the sequencer's code in RAM (CPU peaks at a step)", Y, 449, default=0,
+     target_only=True, experimental=True,
+     choices=((0, "off"), (1, "events (17.4 KB of RAM)"), (2, "events + hot core (28.3 KB of RAM)")),
+     tested="builds and host tests only (2026-11-01); the FM-1's CPU TIMES EVT row not measured yet. RAM code measured on mots-config (the release, pi32v2-llvm): events +17,848 B (flash +3.6 KB), events + hot core +28,952 B (flash +1.6 KB)",
+     desc="Runs the sequencer's code from RAM instead of the XIP flash. A step's code runs once every 16th, so between two "
+          "steps the screen's and the engines' code push it out of the instruction cache and each step fetches it again "
+          "from the flash: SYSTEM > CPU TIMES' EVT row peaks there; in RAM it is never fetched. events: seq.c events_block "
+          "and the helpers it runs every block (its cold paths, the steps' own functions stay in the flash). events + hot "
+          "core: also what a step runs (seq_step, the note starts, the generators, the locks, the drum lanes' hits). The "
+          "RAM is taken from the free RAM (the undo history gets that much smaller). The same sound and behaviour at every "
+          "choice.")
 # bit 443 (2026-10-30, the next free after COMPILER's 442): a flash-step setting, not firmware (no_image: nothing in
 # the image, its hash or its costs). tools/build.py writes it beside the package (PACKAGE.install.json,
 # tools/install_meta.py); the installers read it from there and show it (docs/INSTALL-PATHS.md)

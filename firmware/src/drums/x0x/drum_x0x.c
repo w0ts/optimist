@@ -103,7 +103,7 @@ static uint32_t x0x_note(uint32_t k, uint32_t note)
 }
 /* Optimist: lane l's X0X sound on machine k: the voice its source names (DL_X909 / DL_X808: any voice on any lane,
  * as it is, no variant), else the kit's sound for note */
-static uint32_t x0x_code(uint32_t k, uint32_t l, uint32_t note)
+static FAST(seq) uint32_t x0x_code(uint32_t k, uint32_t l, uint32_t note)
 {
     k = DRUM_UID_XMACH(k);
 #if FELUCCA_DRUM_KITS
@@ -118,7 +118,7 @@ static uint32_t x0x_code(uint32_t k, uint32_t l, uint32_t note)
 }
 /* the kit that plays the notes an X0X kit lacks: the synthesised 909 / 808, else the first sampled kit, else KAWA or
  * PLAITS (the first built), else none (DRUM_KITS: an X0X-only build, those notes silent) */
-static uint32_t x0x_standin(uint32_t k)
+static FASTI(seq) uint32_t x0x_standin(uint32_t k)
 {
     k = DRUM_UID_XMACH(k);
     if (FELUCCA_DRUM_SYNTH)
@@ -128,7 +128,7 @@ static uint32_t x0x_standin(uint32_t k)
 /* what lane l shows on the SOUND pages when it plays X0X kit k (XS_*), 0 = not an X0X sound */
 static uint32_t x0x_show(uint32_t k, uint32_t l)
 {
-    uint32_t c = x0x_code(k, l, l < DRUM_LANES ? LANE_NOTE_OF(l) : 0u);
+    uint32_t c = FAST_CALL(seq, x0x_code)(k, l, l < DRUM_LANES ? LANE_NOTE_OF(l) : 0u);
     k = DRUM_UID_XMACH(k);
     if (c == XN_NONE)
         return 0;
@@ -205,13 +205,13 @@ static void x0x_style_all(uint32_t k, uint32_t in, int32_t *o)
 }
 static int32_t x0x_var_decay(uint32_t k, uint32_t l)    /* the DECAY its variant and style add (the graph) */
 {
-    uint32_t c = x0x_code(k, l, l < DRUM_LANES ? LANE_NOTE_OF(l) : 0u);
+    uint32_t c = FAST_CALL(seq, x0x_code)(k, l, l < DRUM_LANES ? LANE_NOTE_OF(l) : 0u);
     return c == XN_NONE ? 0 : (DRUM_UID_XMACH(k) == DRUM_UID_X909 ? X9_VAR : X8_VAR)[c >> 5][DE_DECAY] +
                                   x0x_style(k, l < DRUM_LANES ? lane_inst(l) : INST_N, DE_DECAY);
 }
 static const char *x0x_snd_name(uint32_t k, uint32_t l)
 {
-    uint32_t c = x0x_code(k, l, l < DRUM_LANES ? LANE_NOTE_OF(l) : 0u);
+    uint32_t c = FAST_CALL(seq, x0x_code)(k, l, l < DRUM_LANES ? LANE_NOTE_OF(l) : 0u);
     k = DRUM_UID_XMACH(k);
     return c == XN_NONE ? "" : k == DRUM_UID_X909 ? X9_SND_NAME[c & 31u] : X8_SND_NAME[c & 15u];
 }
@@ -240,7 +240,7 @@ static int x0x_on(uint32_t k, uint32_t note, uint32_t vel, uint32_t l)
     if (c == XN_NONE)
         return 0;
     k = DRUM_UID_XMACH(k);                          /* (a style kit: its machine, its offsets in x0x_due) */
-    ch = x0x_hit(k == DRUM_UID_X909 ? (c & 31u) : 16u + (c & 15u), vel, dl_ofs_play(l), ev_ofs < CTL ? ev_ofs : 0u);
+    ch = FAST_CALL(seqev, x0x_hit)(k == DRUM_UID_X909 ? (c & 31u) : 16u + (c & 15u), vel, dl_ofs_play(l), ev_ofs < CTL ? ev_ofs : 0u);
     if (ch >= X0X_NCH)
         return 0;
     xc.note[ch] = (uint8_t)note;

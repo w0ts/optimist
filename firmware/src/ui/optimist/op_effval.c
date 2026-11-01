@@ -54,7 +54,7 @@ static uint32_t effv_lane(uint32_t l, uint32_t v, int32_t *val, int32_t *mn, int
         const dsndc_t *c = effv_dsnd(l);
         dsnd_t d, s;
         if (c) {
-            ds_unpack(&d, c);
+            FAST_CALL(seq, ds_unpack)(&d, c);
             de_synth(&s, &d, o);
             *val = v == DE_DECAY ? s.decay : v == DE_CLICK ? s.click : v == DE_BEND ? s.bend : s.drive;
             *mn = 0;

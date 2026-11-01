@@ -338,10 +338,10 @@ static uint32_t auto_step(track_t *t, uint32_t idx)
         dla_locks_off();                             /* (the last step's lane locks let go) */
 #endif
 #if SLOT_AUTO
-    sa_locks_off(k);                                 /* (the last step's slot locks let go: auto_slot.c) */
+    FAST_CALL(seqx, sa_locks_off)(k);                                 /* (the last step's slot locks let go: auto_slot.c) */
 #if FELUCCA_MOTION
     if (mo && idx == 0u)
-        sa_restore(k);                               /* (each pass from the devices' values, as motion_pass) */
+        FAST_CALL(seqev, sa_restore)(k);                               /* (each pass from the devices' values, as motion_pass) */
 #endif
 #endif
 #if FELUCCA_LANE_FX
@@ -384,9 +384,9 @@ static uint32_t auto_step(track_t *t, uint32_t idx)
 #if SLOT_AUTO
         if (AUTO_IS_SLOTP(e->param)) {               /* (a slot's parameter: auto_slot.c, before mot_id, which has none) */
 #if FELUCCA_MOTION
-            sa_event(k, e, mo);
+            FAST_CALL(seqev, sa_event)(k, e, mo);
 #else
-            sa_event(k, e, 0);
+            FAST_CALL(seqev, sa_event)(k, e, 0);
 #endif
             continue;
         }
@@ -408,13 +408,13 @@ static uint32_t auto_step(track_t *t, uint32_t idx)
 #endif
 #if FELUCCA_PLOCK
         else if (!AUTO_PSEUDO(e->param) && m < NLOCK) {
-            uint32_t id = mot_id(e->param), did = P_COUNT, dest = 0;
+            uint32_t id = FAST_CALL(seqev, mot_id)(e->param), did = P_COUNT, dest = 0;
             int32_t val = e->value;
             if (!is_drum(t) && LEG_ID(id)) {
-                id = m + 1u < NLOCK ? lfo_leg_ev(t, id, &val, &ltaken, &did, &dest) : P_COUNT;   /* (a depth of before: */
+                id = m + 1u < NLOCK ? FAST_CALL(seqev, lfo_leg_ev)(t, id, &val, &ltaken, &did, &dest) : P_COUNT;   /* (a depth of before: */
                 if (did < P_COUNT)                     /* the slot on it, AMT units; a free slot put on it for the step) */
                     lp[m] = (uint8_t)did, lv[m++] = (int8_t)dest;
-            } else if (!lock_ok(t, id)) {
+            } else if (!FAST_CALL(seqev, auto_param)(t, id)) {
                 id = P_COUNT;
             }
             if (id < P_COUNT)
@@ -434,7 +434,7 @@ static uint32_t auto_step(track_t *t, uint32_t idx)
 #endif
     (void)cond;
 #if FELUCCA_PLOCK
-    lock_apply(t, lp, lv, plays && !smute_trk_on(k) ? m : 0u);   /* (a fill-skipped step, a track muted: its locks do not apply) */
+    FAST_CALL(seqx, lock_apply)(t, lp, lv, plays && !smute_trk_on(k) ? m : 0u);   /* (a fill-skipped step, a track muted: its locks do not apply) */
 #endif
 #if DLA_ON
     if ((!plays || smute_trk_on(k)) && IS_DRUMK(k))

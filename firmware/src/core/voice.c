@@ -649,16 +649,16 @@ static void voice_kill(voice_t *v)                      /* fade out over the nex
 }
 
 /* the budget is full: free a voice for part t. 0 = nothing to take (soft) */
-static int voice_room(track_t *t, int soft)
+static FASTI(seq) int voice_room(track_t *t, int soft)
 {
     track_t *vp = 0;
     uint32_t k;
     if (voices_busy() < CG_VBUDGET)                     /* (the CPU guard's cap while it reacts: cpuguard.h) */
         return 1;
-    k = voice_victim(t, soft, &vp);
+    k = FAST_CALL(seqev, voice_victim)(t, soft, &vp);
     if (k == NVOICE)
         return !soft;                                   /* hard: over the budget (cannot happen with 3 parts) */
-    voice_kill(&vp->v[k]);
+    FAST_CALL(seqev, voice_kill)(&vp->v[k]);
     return 1;
 }
 
@@ -672,7 +672,7 @@ static int voice_room(track_t *t, int soft)
 static voice_t *voice_alloc(track_t *t, uint32_t note)
 {
     const engine_t *e = ENGINES[t->engine];
-    uint32_t i, np = trk_nvoice(t), best = np, low = np, nfree = 0;
+    uint32_t i, np = FAST_CALL(seqev, trk_nvoice)(t), best = np, low = np, nfree = 0;
     int32_t bd = 0x7FFFFFFF;
     if (e->alloc) {                                     /* the engine's own choice (FM6: Dexed's) */
         voice_t *v = &t->v[e->alloc(t, note) % np];
@@ -696,11 +696,11 @@ static voice_t *voice_alloc(track_t *t, uint32_t note)
                 k = i;
         if (k < np)
             return &t->v[k];
-        k = voice_victim(t, 0, &vp);
+        k = FAST_CALL(seqev, voice_victim)(t, 0, &vp);
         if (k < np && vp == t)
             return &t->v[k];                            /* our own: restart it in place (no click) */
         if (k < NVOICE)
-            voice_kill(&vp->v[k]);
+            FAST_CALL(seqev, voice_kill)(&vp->v[k]);
     }
     if (t->p[P_ALLOC] || t->p[P_GLIDE]) {
         for (i = 0; i < np; i++) {
@@ -747,7 +747,7 @@ static int32_t glide_ticks(int32_t g)                    /* control ticks of TIM
     int32_t k = (int32_t)ENV_LIN[g & 127];
     return k ? (int32_t)((1u << 24) / (uint32_t)k) : 1;
 }
-static void glide_set(track_t *t, voice_t *v, int glide)
+static FASTI(seq) void glide_set(track_t *t, voice_t *v, int glide)
 {
     int32_t d, ticks;
     if (!glide || !v->pitch_cur) {
@@ -766,7 +766,7 @@ static void glide_set(track_t *t, voice_t *v, int glide)
     }
 }
 
-static void voice_start(track_t *t, voice_t *v, uint32_t note, uint32_t vel, int glide)
+static FAST(seq) void voice_start(track_t *t, voice_t *v, uint32_t note, uint32_t vel, int glide)
 {
     const engine_t *e = ENGINES[t->engine];
     int sounding = v->active && v->stage != 0;
@@ -854,9 +854,9 @@ static void voice_start(track_t *t, voice_t *v, uint32_t note, uint32_t vel, int
 
 /* MONO / LEGATO / UNISON: one note on one voice (eight for UNISON, or the
  * engine's voice cap, spread by DETUNE over the same width) */
-static void mono_play(track_t *t, uint32_t note, uint32_t vel, int retrig, int glide)
+static FAST(seq) void mono_play(track_t *t, uint32_t note, uint32_t vel, int retrig, int glide)
 {
-    uint32_t mode = (uint32_t)t->p[P_VOICE], nv = mode == V_UNISON ? CG_UNI(trk_nvoice(t)) : 1u, i;   /* (CPU guard) */
+    uint32_t mode = (uint32_t)t->p[P_VOICE], nv = mode == V_UNISON ? CG_UNI(FAST_CALL(seqev, trk_nvoice)(t)) : 1u, i;   /* (CPU guard) */
     if (PART_MOVING(t))
         return;                                         /* (a key let go while its memory moves, core/arena.c: the
                                                          * held note it falls back to is not started) */
@@ -892,7 +892,7 @@ static void mono_play(track_t *t, uint32_t note, uint32_t vel, int retrig, int g
 }
 
 /* the note the mono stack asks for (PRIO: LAST / LOW / HIGH), 0 = none */
-static uint32_t mono_pick(const track_t *t)
+static FASTI(seq) uint32_t mono_pick(const track_t *t)
 {
     uint32_t i, n;
     if (!t->nmono)
@@ -907,7 +907,7 @@ static uint32_t mono_pick(const track_t *t)
     return n;
 }
 
-static void mono_remove(track_t *t, uint32_t note)
+static FASTI(seq) void mono_remove(track_t *t, uint32_t note)
 {
     uint32_t j, k = 0;
     for (j = 0; j < t->nmono; j++)
@@ -924,7 +924,7 @@ static volatile uint32_t note_hits[NPART][4];
 #if FELUCCA_ENG_DRONE
 /* DRONE's HOLD (eng_drone.c): a key latches its note (trk_note_off keeps it: drone_latch_off marks its voices); the
  * same key on a sounding note lets it go (its release). drone_unlatch: 1 the note was sounding and is let go now */
-static int drone_latch(const track_t *t) { return ENG_IS(ENGINES[t->engine % NENGINES], DRONE) && t->p[P_E7] != 0; }
+static FASTI(seq) int drone_latch(const track_t *t) { return ENG_IS(ENGINES[t->engine % NENGINES], DRONE) && t->p[P_E7] != 0; }
 static void drone_latch_off(const track_t *t, uint32_t note)
 {
     uint32_t i;
@@ -957,7 +957,7 @@ static int drone_unlatch(track_t *t, uint32_t note)
 static volatile uint8_t trk_hits;
 #if DUAL_TIMES && (defined(__PI32V2__) || defined(__EMSCRIPTEN__))   /* (SYSTEM > CPU TIMES' NOTE: the note starts in the events; the host tests: no timer) */
 static void trk_note_on_(track_t *t, uint32_t note, uint32_t vel);
-static void trk_note_on(track_t *t, uint32_t note, uint32_t vel)
+static FAST(seq) void trk_note_on(track_t *t, uint32_t note, uint32_t vel)
 {
     uint32_t t0 = DUAL_TM_NS_IN();
     trk_note_on_(t, note, vel);
@@ -965,7 +965,7 @@ static void trk_note_on(track_t *t, uint32_t note, uint32_t vel)
 }
 #define trk_note_on trk_note_on_
 #endif
-static void trk_note_on(track_t *t, uint32_t note, uint32_t vel)
+static FAST(seq) void trk_note_on(track_t *t, uint32_t note, uint32_t vel)
 {
     if (T_SILENT(t))
         return;                                         /* a silent placeholder plays nothing (core.h) */
@@ -1098,7 +1098,7 @@ static void trk_note_off(track_t *t, uint32_t note)
         if (t->mono_note == note) {
             uint32_t next = mono_pick(t);
             if (next) {                                 /* fall back to a held note, legato */
-                mono_play(t, next, t->v[0].vel, 0, t->p[P_GLIDE] != 0);
+                FAST_CALL(seq, mono_play)(t, next, t->v[0].vel, 0, t->p[P_GLIDE] != 0);
             } else {
                 for (i = 0; i < nv; i++)
                     if (t->v[i].gate) {
@@ -1134,7 +1134,7 @@ static void trk_all_off(track_t *t)
 
 #if FELUCCA_CHORDPLUS
 /* note i of a chord of n (notes[]): at once, or strummed (its rank: its place from the lowest, or the highest) */
-static void trk_note_chord(track_t *t, const uint8_t *notes, uint32_t n, uint32_t i, uint32_t vel)
+static FAST(seq) void trk_note_chord(track_t *t, const uint8_t *notes, uint32_t n, uint32_t i, uint32_t vel)
 {
     int32_t s = t->p[P_STRUM];
     uint32_t rank = 0, j, q;
@@ -1150,7 +1150,7 @@ static void trk_note_chord(track_t *t, const uint8_t *notes, uint32_t n, uint32_
         trk_note_on(t, notes[i], vel);
         return;
     }
-    strum_cancel(t, notes[i], 0);
+    FAST_CALL(seqev, strum_cancel)(t, notes[i], 0);
     for (q = 0; q < STQ && stq[q].on; q++)
         ;
     if (q == STQ) {                                     /* (full: at once) */
@@ -1171,11 +1171,17 @@ static void strum_block(uint32_t n)
         if (stq[i].on) {
             if (stq[i].left <= n) {
                 stq[i].on = 0;
-                trk_note_on(&trk[stq[i].trk % NTRK], stq[i].note, stq[i].vel);
+                FAST_CALL(seqx, trk_note_on)(&trk[stq[i].trk % NTRK], stq[i].note, stq[i].vel);
             } else {
                 stq[i].left -= n;
             }
         }
+}
+#elif FELUCCA_SEQ_RAM                  /* (FAST_CALL(seq, trk_note_chord) takes a function's address) */
+static FAST(seq) void trk_note_chord(track_t *t, const uint8_t *notes, uint32_t n, uint32_t i, uint32_t vel)
+{
+    (void)n;
+    trk_note_on(t, notes[i], vel);
 }
 #else
 #define trk_note_chord(t, notes, n, i, vel) trk_note_on(t, (notes)[i], vel)
@@ -1261,7 +1267,7 @@ static void engine_block(track_t *t)
 #if PART_DROPS                                          /* (an arena placed by need: the engine a part starts with, or
                                                          * one a load put there without a switch, gets its memory) */
     if ((uint32_t)(t - trk) < NPART && !part_mem_p[t - trk] && part_mem_bytes(t->engine))
-        (void)part_mem_claim((uint32_t)(t - trk), t->engine);
+        (void)FAST_CALL(seqev, part_mem_claim)((uint32_t)(t - trk), t->engine);
 #endif
     if (t->xf_on || t->eng_req != t->engine || t->pold) {
         if (!t->xf_on) {
@@ -1283,11 +1289,11 @@ static void engine_block(track_t *t)
         }
         t->engine = t->eng_req % NENGINES;
 #if PART_DROPS
-        if (part_mem_claim((uint32_t)(t - trk), t->engine))     /* its engine memory (engines.c); no room (an arena */
+        if (FAST_CALL(seqev, part_mem_claim)((uint32_t)(t - trk), t->engine))     /* its engine memory (engines.c); no room (an arena */
             part_mem_unplaced(t, t->engine);                     /* placed by need, nobody reserved): a placeholder,
                                                                   * the UI's list offers what to drop */
 #else
-        part_mem_claim((uint32_t)(t - trk), t->engine);   /* its engine memory (engines.c) */
+        FAST_CALL(seqev, part_mem_claim)((uint32_t)(t - trk), t->engine);   /* its engine memory (engines.c) */
 #endif
         t->xf_on = 0;
         t->pold = 0;
@@ -1299,7 +1305,7 @@ static void engine_block(track_t *t)
         uint32_t n = t->xp_n;
         t->xp_n = 0;
         for (i = 0; i < n; i++)
-            trk_note_on(t, t->xp_note[i], t->xp_vel[i]);
+            FAST_CALL(seqx, trk_note_on)(t, t->xp_note[i], t->xp_vel[i]);
     }
     for (i = 0; i < 8u; i++)                            /* the engine's own values, for a later fade */
         t->pe_old[i] = t->p[P_E0 + i];

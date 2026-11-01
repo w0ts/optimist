@@ -11,7 +11,7 @@
 #if FELUCCA_MICRO
 /* the nudge of grid step abs of track t, in units of a step slen long: where in its own step it fires
  * (micro >= 0), or how far before its step (micro < 0, as a negative number) */
-static int32_t micro_units(const track_t *t, uint32_t abs, uint32_t slen)
+static FASTI(seqev) int32_t micro_units(const track_t *t, uint32_t abs, uint32_t slen)
 {
     int32_t m = auto_nudge[trk_index(t) % NTRK][TRK_IDX(t, abs, trk_len(t)) % NSTEP];
     return (int32_t)(slen / 64u) * m;                    /* |m| <= 32: fits */
@@ -69,7 +69,7 @@ static void locks_restore(track_t *t)        /* every lock in force let go (a cl
 }
 /* the sequencer enters a step (auto_step, the ISR) whose step-only events set our ids lp[] to lv[] (m of them; a
  * fill-skipped step: none): they take hold, the last step's that it does not share let go */
-static void lock_apply(track_t *t, const uint8_t *lp, const int8_t *lv, uint32_t m)
+static FAST(seq) void lock_apply(track_t *t, const uint8_t *lp, const int8_t *lv, uint32_t m)
 {
     uint32_t i, j, n = 0, k = trk_index(t) % NTRK;
     for (i = 0; i < lk_n[k] && i < NLOCK; i++) {     /* in force, no lock here: back */
@@ -79,7 +79,7 @@ static void lock_apply(track_t *t, const uint8_t *lp, const int8_t *lv, uint32_t
         if (has)
             lk_param[k][n] = (uint8_t)p, lk_ret[k][n++] = lk_ret[k][i];
         else
-            lock_write(t, p, lk_ret[k][i]);
+            FAST_CALL(seqev, lock_write)(t, p, lk_ret[k][i]);
     }
     lk_n[k] = (uint8_t)n;
     for (j = 0; j < m; j++) {                        /* this step's locks */
@@ -89,12 +89,12 @@ static void lock_apply(track_t *t, const uint8_t *lp, const int8_t *lv, uint32_t
         if (i == lk_n[k]) {
             if (i >= NLOCK)
                 continue;
-            auto_take(t, k, p);                      /* (the base, the first time the automation changes it) */
+            FAST_CALL(seqev, auto_take)(t, k, p);                      /* (the base, the first time the automation changes it) */
             lk_param[k][i] = (uint8_t)p;
-            lk_ret[k][i] = lo_base(k, p, t->p[p]);   /* (not a modulator's move: voice.c lo_base) */
+            lk_ret[k][i] = FAST_CALL(seqev, lo_base)(k, p, t->p[p]);   /* (not a modulator's move: voice.c lo_base) */
             lk_n[k]++;
         }
-        lock_write(t, p, lv[j]);
+        FAST_CALL(seqev, lock_write)(t, p, lv[j]);
     }
 }
 /* set (or make) the step-only event of (step, our id param) at v, clamped to its range; 0 = the list is full or it is
