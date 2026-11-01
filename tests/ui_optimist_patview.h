@@ -6,9 +6,9 @@
  *   preview     the pattern last touched, drawn as the mixer draws a row (4 groups of 4 steps, shaded by level, the track's
  *               colour; the drums' lanes as rows), read from the store without loading it; an empty slot says EMPTY */
 #if FELUCCA_PATTERNS
-static int32_t pvt_gp(void) { return (OP_PH - 2 * PG_NUMH - PG_PVH - 8) / (int32_t)NTRK; }   /* the grid's row pitch */
+static int32_t pvt_gp(void) { return (OP_PH - 2 * PG_NUMH - PG_PVH - 8 - PG_PVGAP) / (int32_t)NTRK; }   /* the grid's row pitch */
 static uint32_t pvt_row_y(uint32_t k) { return (uint32_t)(OP_PY + 2 * PG_NUMH + 2 + (int32_t)k * pvt_gp()); }
-static uint32_t pvt_pv_y(void) { return (uint32_t)(OP_PY + 2 * PG_NUMH + 2 + (int32_t)NTRK * pvt_gp() + 2); }
+static uint32_t pvt_pv_y(void) { return (uint32_t)(OP_PY + 2 * PG_NUMH + 2 + (int32_t)NTRK * pvt_gp() + 2 + PG_PVGAP); }
 static uint32_t pvt_step_x(uint32_t i) { return (uint32_t)PG_SX(i); }
 static void patview_tests(void)
 {

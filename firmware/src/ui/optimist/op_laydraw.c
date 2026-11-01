@@ -318,6 +318,7 @@ static void tempo_draw(int32_t h)
 #define PG_PVX 12                                       /* the preview's first step (215 px wide: centred) */
 #define PG_PVD (PG_LANE * (int32_t)DRUM_LANES)          /* the preview's steps, drums */
 #define PG_PVT 3                                        /* the preview's top margin under its rule (no label: the track and slot are known, the user, 2026-11-01) */
+#define PG_PVGAP 5                                      /* the space between the last track row (DR) and the preview (the user, 2026-11-01) */
 #define PG_PVH (PG_PVT + PG_PVD)                        /* the preview: the steps (the drums' lanes are the tallest) */
 #define PG_SYH 24                                       /* a synth step's height in the preview */
 static const uint8_t PAT_ROW_KNOB[4] = {0, 1, 2, 3};    /* the knob that cues row k: K1 T1, K2 T2, K3 T3, K4 DR (PAT_KNOB_CELL's inverse) */
@@ -364,7 +365,7 @@ static void pv_steps(uint32_t t, int32_t y, const pat_peek_t *d, uint16_t tc)
     if (!is_drum(&trk[t])) {                            /* a synth track: one row of 16 steps, as the mixer's channels */
         for (i = 0; i < 16u; i++) {
             x = PG_SX(i);
-            cv_box(x, y, 11, PG_SYH, d && ((d->hit[0] >> i) & 1u) ? lvl_col(tc, (d->lvl[0] >> (2u * i)) & 3u) : C_BLACK);
+            cv_box(x, y, 11, PG_SYH, d && ((d->hit[0] >> i) & 1u) ? ((d->mut[0] >> i) & 1u ? mute_col() : lvl_col(tc, (d->lvl[0] >> (2u * i)) & 3u)) : C_BLACK);
         }
         return;
     }
@@ -372,7 +373,8 @@ static void pv_steps(uint32_t t, int32_t y, const pat_peek_t *d, uint16_t tc)
         for (i = 0; i < 16u; i++) {
             x = PG_SX(i);
             if (d && ((d->hit[l] >> i) & 1u))
-                cv_rect(x, y + (int32_t)l * PG_LANE, 11, PG_LANE - 1, lvl_col(tc, (d->lvl[l] >> (2u * i)) & 3u));
+                cv_rect(x, y + (int32_t)l * PG_LANE, 11, PG_LANE - 1,
+                        (d->mut[l] >> i) & 1u ? mute_col() : lvl_col(tc, (d->lvl[l] >> (2u * i)) & 3u));
             else
                 step_dot(x, y + (int32_t)l * PG_LANE, 11, PG_LANE - 1, !(i & 3u));
         }
@@ -394,7 +396,7 @@ static void pv_draw(int32_t y)                          /* the preview, from y *
 static void song_grid_draw(int32_t h)
 {
     uint32_t k, i, sel = song.sel % NTRK;
-    int32_t gp = (h - 2 * PG_NUMH - PG_PVH - 8) / (int32_t)NTRK, ch = gp - 3;
+    int32_t gp = (h - 2 * PG_NUMH - PG_PVH - 8 - PG_PVGAP) / (int32_t)NTRK, ch = gp - 3;
     pat_refresh();
     for (i = 0; i < PAT_N; i++) {                       /* the pattern numbers: two lines, the odd ones over the even ones, text on the dark panel (no text on
                                                          * a fill); the selected track's playing one green, its queued amber, the one previewed white */
@@ -420,6 +422,6 @@ static void song_grid_draw(int32_t h)
                 cv_rect(x + 4, y + ch / 2 - 1, 3, 3, C_WHITE);   /* (changed since its source) */
         }
     }
-    pv_draw(2 * PG_NUMH + 2 + (int32_t)NTRK * gp + 2);
+    pv_draw(2 * PG_NUMH + 2 + (int32_t)NTRK * gp + 2 + PG_PVGAP);
 }
 #endif

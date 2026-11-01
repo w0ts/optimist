@@ -749,7 +749,7 @@ typedef struct {                 /* a step of the drum track (in RAM; stored: it
 } dstep_t;
 #define DSTEP_SN 10u             /* a drum step's stored bytes (on, lvl, rat) */
 typedef struct { uint8_t on[2], lvl[4], rat[4]; } dstep_sn_t;   /* a drum step as stored (dstep_t without its acc) */
-typedef struct { uint8_t len; uint16_t hit[DRUM_LANES]; uint32_t lvl[DRUM_LANES]; } pat_peek_t;   /* a stored pattern as the patterns screen previews it (sections/pat.c pat_peek) */
+typedef struct { uint8_t len; uint16_t hit[DRUM_LANES]; uint32_t lvl[DRUM_LANES]; uint16_t mut[DRUM_LANES]; } pat_peek_t;   /* a stored pattern as the patterns screen previews it (sections/pat.c pat_peek) */
 _Static_assert(sizeof(pstep_t) == 10 && sizeof(dstep_t) == DSTEP_SN + 1u && sizeof(dstep_sn_t) == DSTEP_SN && sizeof(step_t) == 14 &&
                __builtin_offsetof(dstep_t, acc) == DSTEP_SN && NSTEP * sizeof(dstep_t) <= NSTEP * sizeof(step_t) &&
                __builtin_offsetof(step_t, ngate) == sizeof(pstep_t), "a stored step is 10 bytes on every track");

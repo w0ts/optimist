@@ -52,6 +52,10 @@ static uint16_t lvl_col(uint16_t c, uint32_t lv)        /* a hit's colour by its
     static const uint8_t SH[4] = {3, 5, 7, 8};
     return col_shade(c, SH[lvl_rank(lv)]);
 }
+static uint16_t mute_col(void)                          /* a muted note or hit, in every view: one neutral grey (never the track's colour or level; the user, 2026-11-01) */
+{
+    return col_shade(C_WHITE, 4u);
+}
 static uint16_t lvl_acol(uint32_t lv)                   /* ... a step with automation: the automation colour, its level 5/8 .. full */
 {
     static const uint8_t SH[4] = {5, 6, 7, 8};
