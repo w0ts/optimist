@@ -135,7 +135,7 @@ AINL int ifx_drv_idle(ifx_drv_t *s, int32_t a, const int32_t *b, uint32_t n)
 #define IFX_FOLD_D(a) (1 + ((((a) - 1) * 183) >> 8))   /* FOLD's DST: 1 .. 91 (0.5x .. 12.8x, Felucca's 1x .. 12.8x) */
 #define IFX_RECT_D(a) ((a) <= 64 ? 19 : 19 + ((((a) - 64) * 236) >> 8))   /* RECT's DST: 1x to 64, then .. 77 (7.8x) */
 enum { IFX_FOLD, IFX_FUZZ, IFX_SFLD, IFX_RECT, IFX_HARM };   /* ifx_drive's shapes */
-static HOT2 __attribute__((noinline)) void ifx_drive(ifx_drv_t *s, uint32_t shp, int32_t a, int32_t *b, uint32_t n)
+static FAST2(ins) __attribute__((noinline)) void ifx_drive(ifx_drv_t *s, uint32_t shp, int32_t a, int32_t *b, uint32_t n)
 {
     dist_g_t g;
     int32_t i, m = 0, lo, l1, dc, w, to = a ? 32768 : 0, r;
@@ -193,7 +193,7 @@ enum { IFX_RING, IFX_SUBO, IFX_SLEW };                  /* ifx_mod's effects */
 static const uint16_t IFX_EXPN[16] = {65535, 62757, 60097, 57549, 55109, 52773, 50535, 48393,
                                       46341, 44376, 42495, 40693, 38968, 37316, 35734, 34219};
 /* RING SUB SLEW at amount a on n samples of b (the whole band: no drive, no low band apart) */
-static HOT2 __attribute__((noinline)) void ifx_mod(ifx_drv_t *s, uint32_t fx, int32_t a, int32_t *b, uint32_t n)
+static FAST2(ins) __attribute__((noinline)) void ifx_mod(ifx_drv_t *s, uint32_t fx, int32_t a, int32_t *b, uint32_t n)
 {
     int32_t i, w, to = a ? 32768 : 0, lp, l1, e, z, lim = 0;
     uint32_t ph, inc = 0, k = 0;
@@ -279,12 +279,12 @@ AINL void ifx_sh_run(ifx_drv_t *s, uint32_t ty, int32_t a, int32_t *b, uint32_t 
 {
 #if IFX_MOD
     if (ty == FXT_RING || ty == FXT_SUBO || ty == FXT_SLEW) {
-        ifx_mod(s, ty == FXT_RING ? IFX_RING : ty == FXT_SUBO ? IFX_SUBO : IFX_SLEW, a, b, n);
+        FAST_CALL(insx, ifx_mod)(s, ty == FXT_RING ? IFX_RING : ty == FXT_SUBO ? IFX_SUBO : IFX_SLEW, a, b, n);
         return;
     }
 #endif
 #if IFX_DRV
-    ifx_drive(s, ty == FXT_SFLD ? IFX_SFLD : ty == FXT_RECT ? IFX_RECT : IFX_HARM, a, b, n);
+    FAST_CALL(insx, ifx_drive)(s, ty == FXT_SFLD ? IFX_SFLD : ty == FXT_RECT ? IFX_RECT : IFX_HARM, a, b, n);
 #endif
     (void)s, (void)ty, (void)a, (void)b, (void)n;
 }
@@ -323,7 +323,7 @@ typedef struct {
 } ifx_ph_t;
 static ifx_ph_t ifx_phsr[IFX_NI];
 #define IFX_PH_RATE 44                                  /* ~0.5 Hz */
-static HOT2 __attribute__((noinline)) void ifx_phaser(ifx_ph_t *s, int32_t a, int32_t *b, uint32_t n, uint32_t sh)
+static FAST2(ins) __attribute__((noinline)) void ifx_phaser(ifx_ph_t *s, int32_t a, int32_t *b, uint32_t n, uint32_t sh)
 {
     uint32_t i, inc = IFX_INC(IFX_PH_RATE);
     int32_t c, fbk, to, w = s->w;
@@ -377,7 +377,7 @@ _Static_assert(2u * IFX_FL_LEN == FXA_Z3 * FXA_U, "FLNG: its two lines a unit of
 static ifx_fl_t ifx_flng[FXI_TN3] __attribute__((section(".pool"), aligned(4)));
 #define IFX_FL_RATE 31                                  /* ~0.25 Hz */
 /* one side c of the block: from the block's first sweep, share and write place (*ph, *w, *wp: its last, out) */
-static HOT2 __attribute__((noinline)) void ifx_fl_side(ifx_fl_t *s, uint32_t c, int32_t *b, uint32_t n, uint32_t sh, int32_t to,
+static FAST2(ins) __attribute__((noinline)) void ifx_fl_side(ifx_fl_t *s, uint32_t c, int32_t *b, uint32_t n, uint32_t sh, int32_t to,
                                                        int32_t fbk, uint32_t *php, int32_t *wq, uint32_t *wpp)
 {
     uint32_t i, inc = IFX_INC(IFX_FL_RATE), wp = *wpp, ph = *php;
@@ -402,7 +402,7 @@ static HOT2 __attribute__((noinline)) void ifx_fl_side(ifx_fl_t *s, uint32_t c, 
     *php = ph, *wq = w, *wpp = wp;
 }
 /* l (a part: r 0), or l and r (a stereo owner) */
-static HOT2 __attribute__((noinline)) void ifx_flanger(ifx_fl_t *s, int32_t a, int32_t *l, int32_t *r, uint32_t n, uint32_t sh)
+static FAST2(ins) __attribute__((noinline)) void ifx_flanger(ifx_fl_t *s, int32_t a, int32_t *l, int32_t *r, uint32_t n, uint32_t sh)
 {
     uint32_t ph, wp;
     int32_t fbk, to, w = s->w;
@@ -460,7 +460,7 @@ static const int16_t IFX_FMT[33][9] = {
     {8136, 202, 5, 8083, 372, 17, 7540, 1467, 285},
 };
 #define IFX_FMT_GK 9175                                 /* the band-passes' share: (3.24 - 1) / 2 x k (0.25), Q15 */
-static HOT2 __attribute__((noinline)) void ifx_formant(ifx_fm_t *s, int32_t a, int32_t *b, uint32_t n, uint32_t sh)
+static FAST2(ins) __attribute__((noinline)) void ifx_formant(ifx_fm_t *s, int32_t a, int32_t *b, uint32_t n, uint32_t sh)
 {
     tsvf_t c[3];
     uint32_t i, k, p, j, f;
@@ -533,7 +533,7 @@ AINL int32_t ifx_ap_w(int32_t *px, int32_t *py, int32_t c, int32_t u)
 #define IFX_WD_AP(px, py, c, x, sh) (ifx_ap(px, py, c, clamp((x) >> (sh), -32767, 32767)) << (sh))
 #endif
 /* the difference into d (n samples of b; 0: none, nothing written) */
-static HOT2 __attribute__((noinline)) int ifx_width(ifx_wd_t *s, int32_t a, const int32_t *b, int32_t *d, uint32_t n,
+static FAST2(ins) __attribute__((noinline)) int ifx_width(ifx_wd_t *s, int32_t a, const int32_t *b, int32_t *d, uint32_t n,
                                                      uint32_t sh)
 {
     uint32_t i, inc = IFX_INC(IFX_WD_RATE);
@@ -561,7 +561,7 @@ static HOT2 __attribute__((noinline)) int ifx_width(ifx_wd_t *s, int32_t a, cons
 #if FELUCCA_INS_WIDTH || FELUCCA_INS_JCHORUS || FELUCCA_ENG_DRONE || INS_REV || INS_CHO
 /* a part's side (WIDE's, JUNO CHORUS's, DRONE's BEAT: sd) into the mix after its level and gain (fx.c mix_part: the same lvl0 + dl i and ga .. gb ramps as its
  * dry; to the left, from the right: the pan law's centre, 4096 each) */
-static HOT2 __attribute__((noinline)) void ifx_side_mix(const int32_t *sd, int32_t lvl0, int32_t dl, int32_t ga, int32_t gb,
+static FAST2(ins) __attribute__((noinline)) void ifx_side_mix(const int32_t *sd, int32_t lvl0, int32_t dl, int32_t ga, int32_t gb,
                                                         int32_t *ml, int32_t *mr, uint32_t n)
 {
     uint32_t i;
@@ -676,26 +676,26 @@ static HOT2 __attribute__((noinline)) void ifx_run(uint32_t ty, uint32_t i, int3
 {
     switch (ty) {
 #if FELUCCA_INS_FOLD
-    case FXT_FOLD: ifx_drive(&ifx_fold[i], 0, a, b, n); break;
+    case FXT_FOLD: FAST_CALL(insx, ifx_drive)(&ifx_fold[i], 0, a, b, n); break;
 #endif
 #if FELUCCA_INS_FUZZ
-    case FXT_FUZZ: ifx_drive(&ifx_fuzz[i], 1, a, b, n); break;
+    case FXT_FUZZ: FAST_CALL(insx, ifx_drive)(&ifx_fuzz[i], 1, a, b, n); break;
 #endif
 #if FELUCCA_INS_PHASER
-    case FXT_PHSR: ifx_phaser(&ifx_phsr[i], a, b, n, sh + 1u); break;
+    case FXT_PHSR: FAST_CALL(insx, ifx_phaser)(&ifx_phsr[i], a, b, n, sh + 1u); break;
 #endif
 #if FELUCCA_INS_FORMANT
-    case FXT_FRMT: ifx_formant(&ifx_frmt[i], a, b, n, sh + 1u); break;
+    case FXT_FRMT: FAST_CALL(insx, ifx_formant)(&ifx_frmt[i], a, b, n, sh + 1u); break;
 #endif
 #if FELUCCA_INS_GATER
     case FXT_GATE: {
         igt_par_t p;
         igt_par_trk(&trk[i % NTRK], &p);
-        ifx_gater(&ifx_gate[i % NTRK], &p, a, b, 0, n);
+        FAST_CALL(insx, ifx_gater)(&ifx_gate[i % NTRK], &p, a, b, 0, n);
         break;
     }
 #endif
-    case FXT_EQ3: (void)eq3_run(&eq3_st[ifx_owner(i)], EQ3_VF(ifx_owner(i)), a, b, 0, n); break;   /* (a part: mono) */
+    case FXT_EQ3: (void)FAST_CALL(insx, eq3_run)(&eq3_st[ifx_owner(i)], EQ3_VF(ifx_owner(i)), a, b, 0, n); break;   /* (a part: mono) */
 #if IFX_DRV || IFX_MOD
     case FXT_SFLD: case FXT_WRAP: case FXT_RECT: case FXT_HARM: case FXT_RING: case FXT_SUBO: case FXT_SLEW: {
         ifx_drv_t *s = ifx_sh_st(ty, i);
@@ -710,7 +710,7 @@ static HOT2 __attribute__((noinline)) void ifx_run(uint32_t ty, uint32_t i, int3
         if (s && !s->rnd)                               /* (a stereo owner's L and R one seed: their places move together) */
             s->rnd = (int32_t)(0x2545F491u + 2654435761u * (i < NPART ? i + 16u : (i - NPART) >> 1));
         if (s)
-            ifx_ts_run(s, ty == FXT_SPIT, a, b, n, sh);
+            FAST_CALL(insx, ifx_ts_run)(s, ty == FXT_SPIT, a, b, n, sh);
         break;
     }
 #endif
@@ -726,7 +726,7 @@ AINL void ifx_part_run(uint32_t ty, uint32_t k, int32_t a, int32_t *b, uint32_t 
 {
 #if INS_LIM
     if (FXT_IS_LIM(ty)) {                               /* (CHRS ECHO: the track's instance, none: bypassed) */
-        ifx_lim_run(ty, k % NPART, a, b, 0, n, 3);
+        FAST_CALL(insx, ifx_lim_run)(ty, k % NPART, a, b, 0, n, 3);
         return;
     }
 #endif
@@ -734,7 +734,7 @@ AINL void ifx_part_run(uint32_t ty, uint32_t k, int32_t a, int32_t *b, uint32_t 
     if (ty == FXT_WIDE) {
         int32_t *sd = ifx_side[k % NPART];
         uint32_t i;
-        ifx_sd[k % NPART] = (uint8_t)ifx_width(&ifx_wide[k % NPART], a, b, sd, n, 4);
+        ifx_sd[k % NPART] = (uint8_t)FAST_CALL(insx, ifx_width)(&ifx_wide[k % NPART], a, b, sd, n, 4);
         for (i = 0; ifx_sd[k % NPART] && i < n; i++)
             sd[i] >>= 1, b[i] += sd[i];
         return;
@@ -815,7 +815,7 @@ AINL void ifx_st_run(uint32_t ty, uint32_t i0, int32_t a, int32_t *l, int32_t *r
 {
 #if INS_LIM
     if (FXT_IS_LIM(ty)) {                               /* (the owner's instance, fxi.c; none: bypassed) */
-        ifx_lim_run(ty, i0, a, l, r, n, 2);
+        FAST_CALL(insx, ifx_lim_run)(ty, i0, a, l, r, n, 2);
         return;
     }
 #endif
@@ -826,21 +826,21 @@ AINL void ifx_st_run(uint32_t ty, uint32_t i0, int32_t a, int32_t *l, int32_t *r
         if (i0 == IFX_UT) {
             igt_par_t p;
             igt_par_ut(&p);
-            ifx_gater(&ifx_gate_ut, &p, a, l, r, n);
+            FAST_CALL(insx, ifx_gater)(&ifx_gate_ut, &p, a, l, r, n);
         }
 #endif
         return;
     }
 #endif
     if (ty == FXT_EQ3) {                                /* (a stereo owner: its state's two sides) */
-        (void)eq3_run(&eq3_st[ifx_owner(i0)], EQ3_VF(ifx_owner(i0)), a, l, r, n);
+        (void)FAST_CALL(insx, eq3_run)(&eq3_st[ifx_owner(i0)], EQ3_VF(ifx_owner(i0)), a, l, r, n);
         return;
     }
 #if FELUCCA_INS_WIDTH
     if (ty == FXT_WIDE) {
         int32_t d[CTL];
         uint32_t i;
-        if (ifx_width(&ifx_wide[ifx_wix(i0)], a, l, d, n, 3))
+        if (FAST_CALL(insx, ifx_width)(&ifx_wide[ifx_wix(i0)], a, l, d, n, 3))
             for (i = 0; i < n; i++)
                 l[i] += d[i];
         return;
@@ -853,7 +853,7 @@ AINL void ifx_bus_run(uint32_t ty, int32_t a, int32_t *l, int32_t *r, uint32_t n
 {
 #if INS_LIM
     if (FXT_IS_LIM(ty)) {                               /* (CHRS ECHO: one instance on the bus's mid, out to L and R) */
-        ifx_lim_run(ty, TRK_DRUM, a, l, r, n, 2);
+        FAST_CALL(insx, ifx_lim_run)(ty, TRK_DRUM, a, l, r, n, 2);
         return;
     }
 #endif
@@ -861,7 +861,7 @@ AINL void ifx_bus_run(uint32_t ty, int32_t a, int32_t *l, int32_t *r, uint32_t n
     if (ty == FXT_GATE) {                               /* (one gain on L and R: the bus's one instance) */
         igt_par_t p;
         igt_par_trk(TDRUM, &p);
-        ifx_gater(&ifx_gate[IFX_BUS], &p, a, l, r, n);
+        FAST_CALL(insx, ifx_gater)(&ifx_gate[IFX_BUS], &p, a, l, r, n);
         return;
     }
 #endif
