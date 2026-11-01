@@ -321,6 +321,8 @@ static void mir_blit(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint1
 static uint32_t mir_meters_due(void) { return 0; }
 static uint32_t mir_meters_off(void) { return 0; }
 static uint32_t mir_master(uint32_t pot) { return pot; }
+static void mir_draw_begin(void) {}
+static void mir_draw_end(void) {}
 #endif
 #if FELUCCA_CDC
 #include "io/console.c"

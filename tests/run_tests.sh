@@ -1524,6 +1524,10 @@ job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 -DMIRROR_CHECK -o "$OUT/ui_optimist_mirror_test" tests/ui_optimist_test.c -lm
     mkdir -p "$OUT/optimist_mirror"
     run "the screen mirrored: the Optimist UI's whole run (every test, 20000 random frames) encoded and decoded, the same pixels; every catch-up the panel" "$OUT/ui_optimist_mirror_test" "$OUT/optimist_mirror"
+    # the self-check (SUMS, ed_mirror_sum.h): the real UI over a lossy link (9 KB/s, ~2 frames lost and ~1 bad sum each 9 KB, the
+    # lag rule, repairs by seq) with a wrong put in the client's picture every 5 s; without SUMS printed (wrongs stay)
+    MIRROR_SUMS=off "$OUT/ui_optimist_mirror_test" "$OUT/optimist_mirror"
+    run "the screen mirrored over a lossy link with SUMS: every band hashed once a second, the client's differing bands sent again; no pixel wrong on the client over 3 s, none at the end" env MIRROR_SUMS=1 "$OUT/ui_optimist_mirror_test" "$OUT/optimist_mirror"
     # the Bluetooth stream to a Mac, a transport model (tests/mirror_aimd_test.c): the real UI's workload through the real ed_mirror.c,
     # the link 5.6 KB/s, the Mac's input 5 KB/s losing whole frames over 1 KB waiting; the budget (MIR_AIMD) checked, the lag rule before printed
     MIRROR_BT=1 MIRROR_WORKLOAD=1 MIRROR_TRACE="$OUT/mirror_workload.bin" "$OUT/ui_optimist_mirror_test" "$OUT/optimist_mirror"

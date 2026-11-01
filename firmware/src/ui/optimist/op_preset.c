@@ -403,6 +403,10 @@ static void draw_pop(void)
         pop.cur = pop.half;                             /* (the first rows in place: the list's top in the box's top rows) */
     pop.h = (int32_t)(pop.half * 2u + 1u) * POP_RH + POP_HH + 10;
     cv_tall((uint32_t)POP_Y, (uint32_t)pop.h, C_BLACK, pop_paint);
+    if (POP_Y + pop.h < OP_FOOT_Y)                      /* the rows under the box, to the help band: black. Nothing draws them while the
+                                                         * list is open (the panel waits under it), so a mirror's repair then never sent
+                                                         * them again: the client kept a lost frame's rows there (2026-11-01) */
+        lcd_fill(0, (uint32_t)(POP_Y + pop.h), 240, (uint32_t)(OP_FOOT_Y - POP_Y - pop.h), C_BLACK);
 }
 /* the SOUND row's picture (GRAPH_H rows): the preset before, the one playing (white, its engine big in colour), the
  * one after; a favorite has a star after its name; LIST FAV with the sound playing not in the list: it stays in the middle,

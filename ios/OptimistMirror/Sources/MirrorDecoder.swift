@@ -84,6 +84,45 @@ struct MirrorDecoder {
         return v
     }
 
+    /// Op 7 SUMS (opti_mirsum_1, firmware/src/io/editor/ed_mirror_sum.h): ref (the next checked frame's seq), the valid bands (5 x
+    /// 7 bit), 30 band hashes (3 x 7 bit), the Fletcher sums of 7D .. the last hash byte; nil for anything else or a damaged one
+    static let bands = 30
+    static let sumsLen = 6 + 1 + 5 + 3 * bands + 2 + 1
+    static let bandsBits: UInt8 = 112 // 106 bits 4, 5 and 6 together: the bands request (5 x 7 bit follow, bit b band b; none: SUMS wanted)
+    static func sums(_ f: [UInt8]) -> (ref: Int, valid: UInt32, hashes: [UInt32])? {
+        guard f.count == sumsLen, isMirror(f), f[5] == 7 else { return nil }
+        var a = 0, b = 0
+        for k in 1..<(f.count - 3) { a += Int(f[k]); b += a }
+        guard a & 127 == Int(f[f.count - 3]), b & 127 == Int(f[f.count - 2]) else { return nil }
+        var valid: UInt32 = 0
+        for k in 0..<5 { valid |= UInt32(f[7 + k]) << (7 * k) }
+        let hashes = (0..<bands).map { i -> UInt32 in
+            let q = 12 + 3 * i
+            return UInt32(f[q]) | UInt32(f[q + 1]) << 7 | UInt32(f[q + 2]) << 14
+        }
+        return (Int(f[6]), valid, hashes)
+    }
+    /// A pixel's share of its band's hash: murmur3's finaliser of p << 16 | c (the FM-1's msum_mix)
+    static func mix(_ p: Int, _ c: UInt16) -> UInt32 {
+        var h = UInt32(truncatingIfNeeded: p) << 16 | UInt32(c)
+        h ^= h >> 16; h = h &* 0x85EB_CA6B; h ^= h >> 13; h = h &* 0xC2B2_AE35; h ^= h >> 16
+        return h
+    }
+    /// The bands of this picture that differ from a SUMS (bit b band b), or nil when it cannot be compared: frames before it
+    /// missing (the next seq is not its ref, a repair pending)
+    func differs(_ s: (ref: Int, valid: UInt32, hashes: [UInt32])) -> UInt32? {
+        guard haveSeq, s.ref == seq, !broken, fixRuns.isEmpty else { return nil }
+        var diff: UInt32 = 0
+        pixels.withUnsafeBufferPointer { fb in
+            for b in 0..<Self.bands where s.valid >> b & 1 == 1 {
+                var h: UInt32 = 0
+                for p in (b * 1920)..<((b + 1) * 1920) { h = h &+ Self.mix(p, fb[p]) }
+                if h & 0x1F_FFFF != s.hashes[b] { diff |= 1 << b }
+            }
+        }
+        return diff
+    }
+
     static func isMirror(_ f: [UInt8]) -> Bool {
         f.count >= 7 && f[0] == 0xF0 && f[1] == 0x7D && f[2] == 0x46 && f[3] == 0x4C && f[4] == cmd && f.last == 0xF7
     }
