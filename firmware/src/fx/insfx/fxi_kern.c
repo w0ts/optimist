@@ -59,7 +59,7 @@ typedef struct {
 } ifx_ec_t;
 _Static_assert(IFX_EC_LEN == FXA_Z1 * FXA_U, "ECHO: its line in units of the effects memory");
 static ifx_ec_t ifx_echo[FXI_TN1] __attribute__((section(".pool")));
-static HOT2 __attribute__((noinline)) void ifx_echo_run(ifx_ec_t *s, int32_t a, int32_t *l, int32_t *r, uint32_t n, uint32_t sh)
+static FAST2(ins) __attribute__((noinline)) void ifx_echo_run(ifx_ec_t *s, int32_t a, int32_t *l, int32_t *r, uint32_t n, uint32_t sh)
 {
     uint32_t i, wp, fill, q;
     int32_t w = s->w, to, fb;
@@ -294,7 +294,7 @@ AINL void ifx_lim_rest(uint32_t ty, uint32_t k)
 #endif
 }
 /* type ty on track k at amount a: a part's b (r 0), the drum bus's l and r; no instance: nothing (bypassed) */
-static HOT2 __attribute__((noinline)) void ifx_lim_run(uint32_t ty, uint32_t k, int32_t a, int32_t *l, int32_t *r,
+static FAST2(ins) __attribute__((noinline)) void ifx_lim_run(uint32_t ty, uint32_t k, int32_t a, int32_t *l, int32_t *r,
                                                        uint32_t n, uint32_t sh)
 {
     uint32_t i = ifx_lim_at(ty, k);
