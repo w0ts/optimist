@@ -5381,6 +5381,47 @@
     "provenance_line": "pi32v2-llvm (jvitkauskas/pi32v2-llvm, pi32v2-isa) @ 4f631b31b by Julius Vitkauskas (Apache-2.0 WITH LLVM-exception, MIT-0)"
    },
    {
+    "key": "SEQ_RAM",
+    "flag": "FELUCCA_SEQ_RAM",
+    "label": "the sequencer's code in RAM (CPU peaks at a step)",
+    "group": "System",
+    "bit": 449,
+    "default": 0,
+    "parent": null,
+    "desc": "Runs the sequencer's code from RAM instead of the XIP flash. A step's code runs once every 16th, so between two steps the screen's and the engines' code push it out of the instruction cache and each step fetches it again from the flash: SYSTEM > CPU TIMES' EVT row peaks there; in RAM it is never fetched. events: seq.c events_block and the helpers it runs every block (its cold paths, the steps' own functions stay in the flash). events + hot core: also what a step runs (seq_step, the note starts, the generators, the locks, the drum lanes' hits). The RAM is taken from the free RAM (the undo history gets that much smaller). The same sound and behaviour at every choice.",
+    "experimental": true,
+    "notice": "",
+    "off_warning": "",
+    "env": "",
+    "target_only": true,
+    "symbols": [],
+    "no_image": false,
+    "fixed": false,
+    "head": false,
+    "choices": [
+     [
+      0,
+      "off"
+     ],
+     [
+      1,
+      "events (17.4 KB of RAM)"
+     ],
+     [
+      2,
+      "events + hot core (28.3 KB of RAM)"
+     ]
+    ],
+    "not_built": {},
+    "provenance": null,
+    "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
+    "tested": "builds and host tests only (2026-11-01); the FM-1's CPU TIMES EVT row not measured yet. RAM code measured on mots-config (the release, pi32v2-llvm): events +17,848 B (flash +3.6 KB), events + hot core +28,952 B (flash +1.6 KB)",
+    "provenance_line": ""
+   },
+   {
     "key": "BOOTLOADER",
     "flag": "",
     "label": "bootloader: keep it, or install m-bootloader",
@@ -6813,6 +6854,7 @@
    "CACHE_RAM",
    "ASM",
    "COMPILER",
+   "SEQ_RAM",
    "BOOTLOADER",
    "SL24_SAFE"
   ]

@@ -393,7 +393,7 @@ static int16_t preset_trim(uint32_t uid, uint32_t pi)    /* by engine UID */
 #endif
 
 /* the bytes engine slot e keeps in its part's memory (0: none) */
-static uint32_t part_mem_bytes(uint32_t e)
+static FASTI(seqev) uint32_t part_mem_bytes(uint32_t e)
 {
     e %= NENGINES;
 #if FELUCCA_ENG_FM6
@@ -629,7 +629,7 @@ static void part_mem_unplaced(track_t *t, uint32_t e)
     part_mem_refused.leng[k] = (uint8_t)(e % NENGINES);
     t->engine = t->eng_req = (uint8_t)eng_silent_slot();
     t->silent = 1;
-    (void)part_mem_claim(k, t->engine);                  /* (its block idle: free for the others) */
+    (void)FAST_CALL(seqev, part_mem_claim)(k, t->engine);                  /* (its block idle: free for the others) */
 }
 
 /* at power-on, before the audio (main.c felucca_init): each part's first engine gets its memory (an arena placed by

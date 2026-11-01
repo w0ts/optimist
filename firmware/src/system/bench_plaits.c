@@ -53,7 +53,7 @@ static void bpl_part(uint32_t k, uint32_t ei, uint32_t pi, uint32_t nn)
         bpl_quiet_part(t);
         t0 = fm1_ticks();
         for (i = 0; i < nn; i++)
-            trk_note_on(t, 48u + 7u * i, 100u);
+            FAST_CALL(seq, trk_note_on)(t, 48u + 7u * i, 100u);
         ts = fm1_ticks() - t0;
         best_on = ts < best_on ? ts : best_on;
         t0 = fm1_ticks();
@@ -83,7 +83,7 @@ static void bpl_drum(uint32_t k, uint32_t uid, uint32_t note)
     for (r = 0; r < BPL_REP; r++) {
         bpl_quiet_drums();
         t0 = fm1_ticks();
-        trk_note_on(TDRUM, note, 100u);
+        FAST_CALL(seq, trk_note_on)(TDRUM, note, 100u);
         ts = fm1_ticks() - t0;
         best_on = ts < best_on ? ts : best_on;
         t0 = fm1_ticks();

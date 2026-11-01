@@ -71,36 +71,36 @@ static void edn_on(uint32_t track, uint32_t note, uint32_t vel)
     track_t *t = &trk[track % NTRK];
     edn_held_t *h;
     uint32_t k, mapped, mc;
-    int i = edn_find(track, note);
+    int i = FAST_CALL(seqev, edn_find)(track, note);
     if (is_drum(t)) {                               /* a one-shot: the lane's hit, as the lane's key plays it */
-        uint32_t lane = note, lvl = vel_lvl(vel);
+        uint32_t lane = note, lvl = FAST_CALL(seqev, vel_lvl)(vel);
         if (lane < DRUM_LANES || lane == DRUM_ACC) {
-            drum_input(lane, lvl, 0, 1);
+            FAST_CALL(seqev, drum_input)(lane, lvl, 0, 1);
             if (lane != DRUM_ACC)
-                midi_key_out(trk_midi_ch(TRK_DRUM), LANE_NOTE_OF(lane), lvl_vel(lvl, 100));
+                FAST_CALL(seqev, midi_key_out)(trk_midi_ch(TRK_DRUM), LANE_NOTE_OF(lane), lvl_vel(lvl, 100));
         }
         return;
     }
     if (i >= 0)
-        edn_release_at((uint32_t)i);                /* a repeated note replaces its press */
-    mapped = midi_map(t, note);
+        FAST_CALL(seqev, edn_release_at)((uint32_t)i);                /* a repeated note replaces its press */
+    mapped = FAST_CALL(seqev, midi_map)(t, note);
     if (mapped == KB_SILENT)
         return;
     if (edn_nh == EDN_HELD)
-        edn_release_at(0);
+        FAST_CALL(seqev, edn_release_at)(0);
     h = &edn_h[edn_nh++];
     h->trk = (uint8_t)track;
     h->src = (uint8_t)note;
     if (t->p[P_CHORD])
-        h->n = (uint8_t)chord_notes(t, mapped, h->nt);
+        h->n = (uint8_t)FAST_CALL(seqev, chord_notes)(t, mapped, h->nt);
     else {
         h->n = 1;
         h->nt[0] = (uint8_t)mapped;
     }
     mc = trk_midi_ch(track % NTRK);
     for (k = 0; k < h->n; k++) {
-        input_on(t, h->nt[k], vel);
-        midi_key_out(mc, h->nt[k], vel);
+        FAST_CALL(seqev, input_on)(t, h->nt[k], vel);
+        FAST_CALL(seqev, midi_key_out)(mc, h->nt[k], vel);
     }
 }
 /* events_block (the audio interrupt): the editor's notes due */
@@ -112,11 +112,11 @@ static void ednote_block(void)
         if (op == EDN_OP_ON)
             edn_on(track, note, vel);
         else if (op == EDN_OP_OFF) {
-            int i = edn_find(track, note);
+            int i = FAST_CALL(seqev, edn_find)(track, note);
             if (i >= 0)
-                edn_release_at((uint32_t)i);
+                FAST_CALL(seqev, edn_release_at)((uint32_t)i);
         } else
-            edn_forget(track);
+            FAST_CALL(seqev, edn_forget)(track);
     }
 }
 #else

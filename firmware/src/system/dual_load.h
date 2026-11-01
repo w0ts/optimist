@@ -90,10 +90,10 @@ static dual_tm_t dual_tm;
  * them (voice.c trk_note_on: the parts' notes and the drum hits, whatever started them in events_block; a note start
  * the main loop makes is not counted). CPU0 only, in XIP code: fm1_ticks there. A block's sums, folded in by
  * dual_tm_block (no events_block in a block: 0) */
-#define DUAL_TM_EVT_IN() (dual_tm.in_evt = 1, fm1_ticks())
-#define DUAL_TM_EVT_OUT(t0) (dual_tm.evt += fm1_ticks() - (t0), dual_tm.in_evt = 0)
-#define DUAL_TM_NS_IN() (dual_tm.in_evt && !dual_tm.ns_depth++ ? fm1_ticks() : 0u)
-#define DUAL_TM_NS_OUT(t0) (dual_tm.in_evt && !--dual_tm.ns_depth ? (void)(dual_tm.ns += fm1_ticks() - (t0)) : (void)0)
+#define DUAL_TM_EVT_IN() (dual_tm.in_evt = 1, FAST_CALL(seqev, fm1_ticks)())
+#define DUAL_TM_EVT_OUT(t0) (dual_tm.evt += FAST_CALL(seqev, fm1_ticks)() - (t0), dual_tm.in_evt = 0)
+#define DUAL_TM_NS_IN() (dual_tm.in_evt && !dual_tm.ns_depth++ ? FAST_CALL(seqev, fm1_ticks)() : 0u)
+#define DUAL_TM_NS_OUT(t0) (dual_tm.in_evt && !--dual_tm.ns_depth ? (void)(dual_tm.ns += FAST_CALL(seqev, fm1_ticks)() - (t0)) : (void)0)
 static inline __attribute__((always_inline)) void dual_tm_q(uint32_t q, uint32_t t, uint16_t *pk, uint16_t *v)
 {
     uint16_t c = (uint16_t)(t < 0xFFFFu ? t : 0xFFFFu);

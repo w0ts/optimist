@@ -139,9 +139,9 @@ static uint32_t sync_ofs_ix(void) { return sy.src == MSRC_BLE ? 1u : FELUCCA_LIN
 static int32_t sync_lead_t(void)                           /* the offset now: the source's, and the Bluetooth audio's own
                                                           * delay on top while it streams (bt/bt_acl.c bta_lat_t) */
 {
-    int32_t t = sync_ofs[sync_ofs_ix()] * 1000 * (int32_t)FM1_TICKS_PER_US;
+    int32_t t = sync_ofs[FAST_CALL(seqev, sync_ofs_ix)()] * 1000 * (int32_t)FM1_TICKS_PER_US;
 #if FELUCCA_BT_AUDIO
-    int32_t bt = bta_lat_t();
+    int32_t bt = FAST_CALL(seqev, bta_lat_t)();
     if (bt >= 0)
         t += bt;
 #endif
@@ -257,7 +257,7 @@ static void sync_select(uint32_t now)
     if (song.playing || sy.arm)
         return;
     for (s = MSRC_USB; s <= SY_SRC_LAST; s++)
-        if (sy_allowed(s) && sy_present(s, now) && sy_rank(s) > sy_rank(best))
+        if (FAST_CALL(seqev, sy_allowed)(s) && FAST_CALL(seqev, sy_present)(s, now) && FAST_CALL(seqev, sy_rank)(s) > FAST_CALL(seqev, sy_rank)(best))
             best = s;
     if (best != sy.src)
         sy_follow_src(best);
@@ -274,7 +274,7 @@ static void sy_tick(uint32_t t)
     sy.n++;
     if (sy.have < 2u) {
         if (sy.have && dt >= SY_PMIN && dt < SY_PMAX) {
-            sy_restart(t, dt << 8);
+            FAST_CALL(seqev, sy_restart)(t, dt << 8);
         } else {
             sy.have = 1;
         }
@@ -282,16 +282,16 @@ static void sy_tick(uint32_t t)
     }
     sy.tq += sy.p;                                         /* the prediction: one period on */
     sy.tq += (uint64_t)(sy.acc >> 17);                     /* (and the ramp's) */
-    sy_period((uint32_t)((int32_t)sy.p + (int32_t)(sy.acc >> 16)));
+    FAST_CALL(seqev, sy_period)((uint32_t)((int32_t)sy.p + (int32_t)(sy.acc >> 16)));
     pred = (uint32_t)(sy.tq >> 8);
     e = (int32_t)(t - pred);
     ae = e < 0 ? -e : e;
 #if !SY_FILTER
     if ((uint32_t)ae > (sy.p >> 9)) {
-        sy_restart(t, dt << 8);
+        FAST_CALL(seqev, sy_restart)(t, dt << 8);
     } else {
         sy.tq += (uint64_t)(((int64_t)e * 9) << 3);
-        sy_period((uint32_t)((int32_t)sy.p + e * 11));
+        FAST_CALL(seqev, sy_period)((uint32_t)((int32_t)sy.p + e * 11));
     }
     return;
 #endif
@@ -309,7 +309,7 @@ static void sy_tick(uint32_t t)
             return;
         }
         if (dt >= SY_PMIN && dt < SY_PMAX)                 /* off twice: the tempo jumped */
-            sy_restart(t, dt << 8);
+            FAST_CALL(seqev, sy_restart)(t, dt << 8);
         else
             sy.tq = (uint64_t)t << 8;
         return;
@@ -317,11 +317,11 @@ static void sy_tick(uint32_t t)
     sy.suspect = 0;
     if (sy.nm >= 3u && sy.man) {                           /* a ramp: the quadratic through the last N */
         uint32_t n = sy.nm, d = n * (n + 1u) * (n + 2u);
-        int32_t g = (int32_t)sy_div((uint64_t)(3u * (3u * n * n - 3u * n + 2u)) << 16, d);
-        int32_t h = (int32_t)sy_div((uint64_t)(18u * (2u * n - 1u)) << 16, d);
-        int64_t k2 = (int64_t)sy_div((uint64_t)60u << 32, d);   /* Q32 */
+        int32_t g = (int32_t)FAST_CALL(seqev, sy_div)((uint64_t)(3u * (3u * n * n - 3u * n + 2u)) << 16, d);
+        int32_t h = (int32_t)FAST_CALL(seqev, sy_div)((uint64_t)(18u * (2u * n - 1u)) << 16, d);
+        int64_t k2 = (int64_t)FAST_CALL(seqev, sy_div)((uint64_t)60u << 32, d);   /* Q32 */
         sy.tq += (uint64_t)(((int64_t)e * g) >> 8);
-        sy_period((uint32_t)((int32_t)sy.p + (int32_t)(((int64_t)e * h) >> 8)));
+        FAST_CALL(seqev, sy_period)((uint32_t)((int32_t)sy.p + (int32_t)(((int64_t)e * h) >> 8)));
         sy.acc += (e * k2) >> 8;                           /* Q24 */
         sy.man--;
     } else {
@@ -329,7 +329,7 @@ static void sy_tick(uint32_t t)
         uint32_t n = sy.nm, d = n * (n + 1u);
         int32_t a = (int32_t)((2u * (2u * n - 1u) << 16) / d), b = (int32_t)((6u << 16) / d);
         sy.tq += (uint64_t)(((int64_t)e * a) >> 8);
-        sy_period((uint32_t)((int32_t)sy.p + (int32_t)(((int64_t)e * b) >> 8)));
+        FAST_CALL(seqev, sy_period)((uint32_t)((int32_t)sy.p + (int32_t)(((int64_t)e * b) >> 8)));
     }
     {
         int32_t dv = e - sy.bias;                          /* the noise: around the mean, not the lag */
@@ -364,8 +364,8 @@ static void sync_msg(uint32_t st, uint32_t d1, uint32_t d2, uint32_t t, uint32_t
         sy_pr[s].last = t;
     }
     if (s != sy.src) {                                     /* START / CONTINUE stopped: from a source to prefer */
-        if ((st != 0xFAu && st != 0xFBu) || song.playing || sy.arm || !sy_allowed(s) ||
-            (sy.src && sy_rank(sy.src) > sy_rank(s) && sy_present(sy.src, t)))
+        if ((st != 0xFAu && st != 0xFBu) || song.playing || sy.arm || !FAST_CALL(seqev, sy_allowed)(s) ||
+            (sy.src && FAST_CALL(seqev, sy_rank)(sy.src) > FAST_CALL(seqev, sy_rank)(s) && FAST_CALL(seqev, sy_present)(sy.src, t)))
             return;
         sy_follow_src(s);
     }
@@ -425,46 +425,46 @@ static uint32_t sync_follow(uint32_t n)
     if (sy.stop) {
         sy.stop = 0;
         if (song.playing)
-            seq_stop();
+            FAST_CALL(seqev, seq_stop)();
     }
     if (sy.have < 2u) {                                    /* no period yet: the downbeat F8 starts it */
         if (song.playing && (uint32_t)(SYNC_NOW() - sy.last) > SY_LOST)
-            seq_stop();
+            FAST_CALL(seqev, seq_stop)();
         else if (sy.arm && sy.have && (int32_t)(sy.n - sy.n0) >= (int32_t)sy.pos) {
             sy.arm = 0;
-            seq_start();
+            FAST_CALL(seqev, seq_start)();
             if (song.playing)
-                clk_set((int64_t)sy.pos * SY_TICK_U);       /* (it holds there until the next F8) */
+                FAST_CALL(seqev, clk_set)((int64_t)sy.pos * SY_TICK_U);       /* (it holds there until the next F8) */
         }
         return 0;
     }
 #if SY_EXACT
-    p0 = sy_at(t0);
-    p1 = sy_at(t0 + ((n * SY_TPS_Q8) >> 8));
+    p0 = FAST_CALL(seqev, sy_at)(t0);
+    p1 = FAST_CALL(seqev, sy_at)(t0 + ((n * SY_TPS_Q8) >> 8));
 #else
-    p0 = p1 = sy_at(t0 + ((n / 2u * SY_TPS_Q8) >> 8));
+    p0 = p1 = FAST_CALL(seqev, sy_at)(t0 + ((n / 2u * SY_TPS_Q8) >> 8));
 #endif
     if (sy.arm) {                                          /* armed: start when the clock reaches pos */
         int64_t at = (int64_t)sy.pos * SY_TICK_U;
         if (p1 < at || (!SY_PREDICT && (int32_t)(sy.n - sy.n0) < (int32_t)sy.pos))
             return 0;
         sy.arm = 0;
-        seq_start();
+        FAST_CALL(seqev, seq_start)();
         if (!song.playing)
             return 0;
-        clk_set(p0 > at ? p0 : at);                        /* late (no warning): from where it is now */
+        FAST_CALL(seqev, clk_set)(p0 > at ? p0 : at);                        /* late (no warning): from where it is now */
     } else if (!song.playing) {
         return 0;
     }
     if ((uint32_t)(SYNC_NOW() - sy.last) > SY_LOST) {
-        seq_stop();                                        /* the clock is gone */
+        FAST_CALL(seqev, seq_stop)();                                        /* the clock is gone */
         sy.have = 0;
         return 0;
     }
-    c = clk_abs();
+    c = FAST_CALL(seqev, clk_abs)();
     if (p1 - c > (int64_t)BEAT_U || c - p1 > (int64_t)BEAT_U) {   /* far off (a relock): there at once */
         if (p1 > c)
-            clk_set(p1);
+            FAST_CALL(seqev, clk_set)(p1);
         return 0;
     }
     ev_map.on = 1;
@@ -473,7 +473,7 @@ static uint32_t sync_follow(uint32_t n)
     ev_map.d = (int32_t)((p1 > c ? p1 : c) - p0);
     if (p1 <= c)
         return 0;                                          /* ahead: wait */
-    clk_set(p1);
+    FAST_CALL(seqev, clk_set)(p1);
     return (uint32_t)(p1 - c);
 }
 
