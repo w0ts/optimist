@@ -172,8 +172,10 @@ static int sec_read(uint32_t s, project_t *p, dlrec_t *d)
     int n;
     s %= SEC_IDS;
 #if FELUCCA_PATTERNS
-    if (p == &sec_stage_p)
+    if (p == &sec_stage_p) {
+        pat_left_service();                            /* (an outgoing pattern still in the stage: kept first) */
         pat_staged = 0;                                /* (the launches staged there: again, pat_service) */
+    }
 #endif
     if (sec_pend_has(s))
         r = sec_pend.data + sec_pend.off[s], n = sec_pend.len[s];
@@ -679,11 +681,30 @@ static void arrangement_apply(uint32_t scene)
         t->rskip_lanes = 0;
     }
 #if FELUCCA_PATTERNS
-    pat_scene_apply(0);                                /* (a track the scene keeps: what it plays) */
-#endif
+    {   /* a track the scene keeps (or whose slot it names again): what it plays; a track leaving its slot: exchanged with the
+         * stage (issue 142: its outgoing pattern kept there for the main loop, pat_left_service), its steps and lists left
+         * alone by proj_apply (pat_apply_keep) */
+        uint32_t sw = pat_scene_apply(0), j, i;
+        int16_t v[NTRK][4];
+        for (k = 0; k < NTRK; k++)
+            if ((sw >> k) & 1u) {
+                pat_left_s[k] = pat_cur[k];
+                pat_swap_isr(k, 0);
+                for (i = 0; i < 4u; i++)
+                    v[k][i] = trk[k].p[P_SLEN + i];
+            }
+        pat_apply_keep = (uint8_t)sw;
+        proj_apply(&sec_stage_p, &sec_stage_d, 0);
+        pat_apply_keep = 0;
+        for (j = 0; j < NTRK; j++)
+            if ((sw >> j) & 1u)
+                for (i = 0; i < 4u; i++)
+                    trk[j].p[P_SLEN + i] = v[j][i];
+        pat_left |= (uint8_t)sw;
+        pat_scene_apply(1);                            /* (the launches the stage held: played now) */
+    }
+#else
     proj_apply(&sec_stage_p, &sec_stage_d, 0);
-#if FELUCCA_PATTERNS
-    pat_scene_apply(1);                                /* (the launches the stage held: played now) */
 #endif
     sec_stage_id = -1;                                 /* (used: the main loop stages the next) */
     sync_reload = 1;
@@ -696,6 +717,7 @@ static void sec_service(void)
 {
     int want = -1;
 #if FELUCCA_PATTERNS
+    pat_left_service();                                /* the patterns the ISR left in the stage: kept (issue 142) */
     pat_service();                                     /* the launched patterns into the stage (pat.c) */
 #endif
 #if FELUCCA_QCHAIN

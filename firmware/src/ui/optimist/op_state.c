@@ -55,7 +55,6 @@ static const char *const SCR_NAME[SCR_N] = {"MIX", "SOUND", "MASTER", "PROJECT",
 #define ARM_OP 0xFDu                  /* arm_scr: an action of no screen cell, arm_row its OA_*, arm_k its argument */
 enum { OA_SCN_STORE, OA_SCN_CLR, OA_PAT_STORE, OA_PAT_CLR, OA_INIT, OA_EXTRAS, OA_DISCARD, OA_SREC,
        OA_SCN_LOAD, OA_PART_CUT, OA_DROP, OA_MISSING,   /* (OA_MISSING: the popup after a load, miss.c; YES or HOME closes it) */
-       OA_PAT_GO, OA_PAT_STOP,        /* (a pattern launch / stop over edits not stored, op_layers.c pat_go_ask) */
        OA_PAT_RELOAD,                 /* (RELOAD: HOME + SEQ, the tracks' edits dropped, op_combos.c; issue 142) */
        OA_FMEM, OA_FMOFF,             /* (a switchable feature's room: its question, the idle ones offered; core/feat_mem.c) */
 #if FELUCCA_SD_STREAM
