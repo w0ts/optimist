@@ -200,17 +200,10 @@ static int mba_on(void) { return mir.link == MIR_BT; }
 /* the ceiling: a quarter over the link's pace as measured (mbr_lag), MBA_CEIL until it is. The link's own pace is not known ahead (one 50-octet packet an event, 5 KB/s, with a Mac's 7.5 ms;
  * 13-19 KB/s with the refill within an event, fm1base BLE_LL_REFILL), so the queue's limit stops what the link does not take
  * (mba_q: a refusal, no loss) and the losses stop what the Mac does not */
-static uint32_t mba_ceil(void)
-{
-#if MIR_LAG_ADAPT
-    uint32_t c;
-    mbr_lag();                          /* (the drain measured while frames waited at both ends of a window: the link's pace) */
-    c = mbl.rate * 5u / 4u;
-    if (mbl.rate)
-        return c < 2u * MBA_FLOOR ? 2u * MBA_FLOOR : c > MBA_CEIL ? MBA_CEIL : c;
-#endif
-    return MBA_CEIL;
-}
+/* (2026-11-01, on the FM-1: the measured pace, ~2.6 KB/s, held the budget at 3280 B/s with 0 raises while the client's ACKs came
+ * 28-150 ms after their frames and nothing was lost: a 9 KB screen took 3 s. The losses and the ACK delay are the signals; the
+ * pace measured is no ceiling) */
+static uint32_t mba_ceil(void) { return MBA_CEIL; }
 static void mba_fill(void)
 {
     uint32_t dt = fm1_ms - mba.t;
