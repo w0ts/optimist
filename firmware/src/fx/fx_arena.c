@@ -40,8 +40,22 @@ enum { FXM_NONE, FXM_ON, FXM_GOING };                   /* a send line's: not pl
 #else
 #define FXM_REV_AP 0u
 #endif
-static const uint32_t FXM_BYTES[FXM_NC] = {FELUCCA_FX_CHORUS ? CHO_LEN * 2u : 0u, FELUCCA_FX_DELAY ? DLY_LEN * 2u : 0u,
-                                           FELUCCA_FX_REVERB ? REV_LINE_N * 2u + FXM_REV_AP : 0u, FXM_INS_BYTES};
+static const uint32_t FXM_BYTES0[FXM_NC] = {FELUCCA_FX_CHORUS ? CHO_LEN * 2u : 0u, FELUCCA_FX_DELAY ? DLY_LEN * 2u : 0u,
+                                            FELUCCA_FX_REVERB ? REV_LINE_N * 2u + FXM_REV_AP : 0u, FXM_INS_BYTES};
+/* client c's block, bytes: the build's, the delay's and the reverb's as the project's FX MEMORY has them now (fx_memsz.h:
+ * changed only while the line is not placed, fxz_poll) */
+static uint32_t fxm_bytes(uint32_t c)
+{
+#if FXZ_DLY_N > 1u
+    if (c == FXM_DLY)
+        return DLY_CUR * 2u;
+#endif
+#if FXZ_REV_N > 1u
+    if (c == FXM_REV)
+        return REV_CUR * 2u + FXM_REV_AP;
+#endif
+    return FXM_BYTES0[c % FXM_NC];
+}
 static const uint8_t FXM_TY[3] = {FXT_CHO, FXT_DLY, FXT_REV};
 static uint8_t fxm_st[3];                               /* FXM_NONE .. FXM_GOING, by send line */
 static uint8_t fxm_t0[3];                               /* fxm_tick when it was gated */
@@ -71,7 +85,7 @@ static void fxm_set(uint32_t c, void *p)                /* the line's pointer (t
     else if (c == FXM_REV) {
         rev_line = (int16_t *)p;
 #if FELUCCA_REV_ROOM
-        rev_ap = p ? (int16_t *)p + REV_LINE_N : 0;     /* (the diffusers after the line: one block) */
+        rev_ap = p ? (int16_t *)p + REV_CUR : 0;        /* (the diffusers after the line: one block) */
 #endif
     }
 #if INS_LIM && FXA_I
@@ -87,13 +101,13 @@ static int fxm_place(uint32_t c, int *wait)
     int r;
     uint32_t room;
     fm1_irq_off();
-    r = arn_reserve(FXM_K(c), FXM_BYTES[c]);
+    r = arn_reserve(FXM_K(c), fxm_bytes(c));
     if (!r)
         p = arn_take(FXM_K(c));
     fm1_irq_on();
     if (r) {
         room = arn_room() + 1u;
-        if (arn_busy() || (fxm_pk[c] != room && (fxm_pk[c] = room, arn_pack(FXM_K(c), FXM_BYTES[c], ARN_BYTES))))
+        if (arn_busy() || (fxm_pk[c] != room && (fxm_pk[c] = room, arn_pack(FXM_K(c), fxm_bytes(c), ARN_BYTES))))
             *wait = 1;                                  /* (the blocks moved together first: again after) */
         return 0;
     }
@@ -157,7 +171,7 @@ static uint32_t fxm_hear_poll(void)                     /* (the main loop, a pas
 }
 static uint32_t fxm_want(uint32_t c)                    /* send line c is used now */
 {
-    if (!FXM_BYTES[c])
+    if (!fxm_bytes(c))
         return 0;
     return (FXS_HAS(FXM_TY[c]) && fxm_used(c)) || (c < FXM_REV && fxm_lent(c));
 }
@@ -181,7 +195,7 @@ static void fxm_open(uint32_t c)
 #endif
 #endif
     } else {
-        memset(c == FXM_CHO ? cho_buf : dly_buf, 0, FXM_BYTES[c]);
+        memset(c == FXM_CHO ? cho_buf : dly_buf, 0, fxm_bytes(c));
     }
     fm1_irq_off();
     if (c == FXM_CHO) {
@@ -345,11 +359,11 @@ static uint32_t fxm_cp_room(uint32_t j)                /* the UI's count: how ma
 /* client c wants a block it has not: a send line not placed and used, the own room not placed and a type held */
 static uint32_t fxm_needs(uint32_t c)
 {
-    if (!FXM_BYTES[c])
+    if (!fxm_bytes(c))
         return 0;
     if (c == FXM_INS)
         return FXM_INS_NEEDS();
-    return fxm_st[c] == FXM_NONE && fxm_want(c);
+    return fxm_st[c] == FXM_NONE && fxm_want(c) && !(fxz_hold >> c & 1u);   /* (FX MEMORY: its size first, fxz_poll) */
 }
 static void fxm_placed(uint32_t c)                      /* client c's block just placed: in use */
 {
@@ -369,7 +383,7 @@ static void fxm_ord(uint8_t *o)                         /* the clients, the larg
     for (i = 0; i < FXM_NC; i++)
         o[i] = (uint8_t)i;
     for (i = 1; i < FXM_NC; i++)
-        for (j = i; j > 0 && FXM_BYTES[o[j - 1u]] < FXM_BYTES[o[j]]; j--) {
+        for (j = i; j > 0 && fxm_bytes(o[j - 1u]) < fxm_bytes(o[j]); j--) {
             uint8_t t = o[j];
             o[j] = o[j - 1u], o[j - 1u] = t;
         }
@@ -379,6 +393,71 @@ static void fxm_ord(uint8_t *o)                         /* the clients, the larg
  * finds no room waits while the blocks that may move are moved together (arn_pack), else is refused (bypassed, tried
  * again every pass) */
 static uint32_t fxm_seen = 0xFFFFFFFFu;                 /* fxs_live at the last pass (a change of the master slots) */
+#if FXZ_ANY
+static uint32_t fxm_heard(uint32_t c);
+/* FX MEMORY (fx_memsz.h): send line c's size *cur toward the project's w. Placed: given back (gated, two blocks: the
+ * effect silent meanwhile; not while lent to the inserts or moving), then w taken while it is not placed, and the poll
+ * places it again at the new size (or refuses it: MEM FULL, as any line). 1: still changing */
+static uint32_t fxz_line(uint32_t c, uint8_t *cur, uint32_t w)
+{
+    fxz_hold &= (uint8_t)~(1u << c);
+    if (*cur == w)
+        return 0;
+    fxz_hold |= (uint8_t)(1u << c);
+    if (arn_moving(FXM_K(c)))
+        return 1;
+    if (fxm_st[c] == FXM_NONE) {
+        *cur = (uint8_t)w;                              /* (not placed: the audio does not run it) */
+        fxm_pk[c] = 0;
+        fxm_full &= (uint8_t)~(1u << c);
+        fxm_news &= (uint8_t)~(1u << c);
+        fxz_hold &= (uint8_t)~(1u << c);                /* (placed at the new size, this pass) */
+        return 1;
+    }
+    if (fxm_st[c] == FXM_ON && fxm_heard(c)) {
+        fxm_mv |= (uint8_t)(1u << c);                   /* (at the gate's end: given back, not opened again) */
+        fxm_gate(c);
+    }
+    return 1;
+}
+static uint32_t fxz_want(uint32_t id, uint32_t n)      /* the project's value of G_FXZ_*, inside the build's choices */
+{
+    int32_t v = song.g[id];
+    return v < 0 ? 0u : (uint32_t)v >= n ? n - 1u : (uint32_t)v;
+}
+/* every pass, before the lines: 1 while a size is changing (the poll then runs in full) */
+static uint32_t fxz_poll(void)
+{
+    uint32_t busy = 0;
+#if FXZ_DLY_N > 1u
+    busy |= fxz_line(FXM_DLY, &fxsz_dly, fxz_want(G_FXZ_DLY, FXZ_DLY_N));
+#endif
+#if FXZ_REV_N > 1u
+    busy |= fxz_line(FXM_REV, &fxsz_rev, fxz_want(G_FXZ_REV, FXZ_REV_N));
+#endif
+#if FXZ_XDL_N > 1u
+    {                                                   /* XDLY: its owners let go (fxi_holds), the instances fade and are given
+                                                         * back (fxi_sync), then the new size, the owners take theirs again */
+        uint32_t w = fxz_want(G_FXZ_XDL, FXZ_XDL_N), i, held = 0;
+        if (w == fxsz_xdl) {
+            if (fxsz_xoff)
+                fxsz_xoff = 0, fxi_dirty |= 1u;
+        } else if (!fxsz_xoff) {
+            fxsz_xoff = 1, fxi_dirty |= 1u, busy = 1;
+        } else {
+            for (i = 0; i < FXI_TN[4]; i++)
+                held |= fxi_own[4][i] != FXI_NONE;
+            if (!held)
+                fxsz_xdl = (uint8_t)w, fxsz_xoff = 0, fxi_dirty |= 1u;
+            busy = 1;
+        }
+    }
+#endif
+    return busy;
+}
+#else
+#define fxz_poll() 0u
+#endif
 static void fxm_poll(void)
 {
     uint8_t o[FXM_NC];
@@ -386,7 +465,7 @@ static void fxm_poll(void)
     int wait;
     uint32_t hw = fxm_hear_poll();
     arn_poll();
-    if (fxs_live == fxm_seen && hw == fxm_hw_seen && !fxm_full && fxm_st[0] != FXM_GOING && fxm_st[1] != FXM_GOING &&
+    if (!fxz_poll() && fxs_live == fxm_seen && hw == fxm_hw_seen && !fxm_full && fxm_st[0] != FXM_GOING && fxm_st[1] != FXM_GOING &&
         fxm_st[2] != FXM_GOING
 #if INS_LIM
         && !fxi_dirty && !fxi_pend
@@ -396,7 +475,7 @@ static void fxm_poll(void)
     fxm_seen = fxs_live;
     fxm_hw_seen = (uint8_t)hw;
     for (c = 0; c < 3u; c++)
-        if (FXM_BYTES[c])
+        if (fxm_bytes(c))
             fxm_send(c);
     if (!fxm_ins_want())
         fxm_full &= (uint8_t)~(1u << FXM_INS);          /* (refused, then let go) */

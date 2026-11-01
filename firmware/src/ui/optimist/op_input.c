@@ -272,7 +272,7 @@ static void mem_tick(void)
         str_cpy(a, FXN[(k - NPART) % 3u], sizeof a);
         str_app(a, " ", sizeof a);
         n = str_len(a);
-        fmt_int(a + n, (int32_t)(FXM_BYTES[(k - NPART) % 3u] / 1024u));
+        fmt_int(a + n, (int32_t)(fxm_bytes((k - NPART) % 3u) / 1024u));
         str_app(a, " KB", sizeof a);
         op_arm(ARM_OP, OA_DROP, k, "DROP", a, 1);
         return;
