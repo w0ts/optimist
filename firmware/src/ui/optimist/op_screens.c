@@ -40,7 +40,7 @@ static void op_project_new(void)
         track_defaults(t);
         if (i < NPART) {
             set_engine_of(t, trk_def_engine(i));
-            apply_preset_to(t, trk_def_preset(i));
+            trk_def_sound(t, i);
             t->p[P_REV] = 0;                            /* (a new project: no reverb send, the preset's other sends kept) */
         }
         fm1_irq_on();

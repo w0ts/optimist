@@ -1429,7 +1429,7 @@ static void project_apply(const project_t *p, const dlrec_t *d)
     fm1_irq_on();
     for (k = 0; k < NPART; k++)                         /* a format 1 project: the default sounds of tracks 2, 3 */
         if (p->t[k].preset == 0xFFu) {
-            apply_preset_to(&trk[k], trk_def_preset(k));
+            trk_def_sound(&trk[k], k);
             steps_clear(&trk[k]);
         }
     sync_reload = 1;
