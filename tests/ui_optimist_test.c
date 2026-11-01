@@ -427,6 +427,17 @@ static uint32_t BT(uint32_t b) { return 1u << panel.btn[b]; }
 static void press(uint32_t b) { fm1_btn_t[0][panel.btn[b]] = fm1_ticks(); edges_btn |= BT(b); fm1_in.buttons |= BT(b); frame(); }
 static void release(uint32_t b) { fm1_btn_t[1][panel.btn[b]] = fm1_ticks(); fm1_in.buttons &= ~BT(b); frame(); }
 static void tap(uint32_t b) { press(b); release(b); }
+/* YES on a held step's lock cell: with FILLS built SHIFT2 (OCT+) + SAVE (SAVE alone is the fill condition) */
+static void tap_lock(void)
+{
+#if FELUCCA_FILLS
+    press(B_OCTUP);
+#endif
+    tap(B_SAVE);
+#if FELUCCA_FILLS
+    release(B_OCTUP);
+#endif
+}
 /* a turn of s detents: slow (80 ms a detent) when the knobs accelerate (FELUCCA_KNOB_ACCEL, a build such as the user's):
  * the tests count detents, the acceleration has its own (knob_accel_test.c). The time since the knob's last detent is set,
  * the clock does not move. */
@@ -3645,17 +3656,28 @@ static void auto_step_tests(void)
         id = PAGES[st.lock_pg].id[0];
         turn(EN_K1, 4);                                 /* a lock on step 4 */
         ui.hot = 0;
-        tap(B_SAVE);                                    /* YES: HOLD */
+        tap_lock();                                    /* YES: HOLD */
         step_cell(0, 0, &c);
         check(hold_get(t, 3, id, &v) && !lock_get(t, 3, id, &v) && c.mark == 2u && (auto_w.on & 1u) && str_eq(ui.msg, "HOLD: UNTIL THE NEXT"),
               "a step held + ENV, YES: the hot cell's lock becomes a hold event, its card's mark an arrow, its motion plays");
         ui.force = 1;
         frame();
         ppm("opt-step-hold");
-        tap(B_SAVE);
+        tap_lock();
         step_cell(0, 0, &c);
         check(lock_get(t, 3, id, &v) && !hold_get(t, 3, id, &v) && c.mark == 1u, "... YES again: this step only (a padlock)");
-        tap(B_SAVE);                                    /* (a hold again, for the marks) */
+#if FELUCCA_FILLS
+        {
+            uint32_t f0 = step_fill(t, 3);
+            tap(B_SAVE);                                /* SAVE alone: the fill condition, the lock cell notwithstanding */
+            check(step_fill(t, 3) == (f0 + 1u) % 3u && lock_get(t, 3, id, &v) && !hold_get(t, 3, id, &v) && str_eq(ui.msg, "FILL ONLY"),
+                  "a step held + a lock cell selected, SAVE: the fill condition cycles (the user, 2026-11-01), the lock stays as it was");
+            tap(B_SAVE);
+            tap(B_SAVE);
+            check(step_fill(t, 3) == f0 && lock_get(t, 3, id, &v) && !hold_get(t, 3, id, &v), "... three SAVEs: round, the lock untouched");
+        }
+#endif
+        tap_lock();                                    /* (a hold again, for the marks) */
         release(B_ENV);
         kup(WK(3));
         ui.force = 1;
@@ -4081,6 +4103,7 @@ static void preset_engine_tests(void)
 #include "ui_optimist_dtimes.h"                     /* SYSTEM > CPU TIMES (DUAL_LOAD builds with the debug pages) */
 #include "ui_optimist_sysdbg.h"                     /* builder item SYS_DEBUG off: INFO is CPU LOAD, UNDERRUNS, BATTERY */
 #include "ui_optimist_stack.h"                      /* SYSTEM > INFO: the CPU bars and their peaks, the RAM line, the stacks' marks */
+#include "ui_optimist_mirload.h"                     /* the mirror's workload (MIRROR_WORKLOAD: tests/mirror_aimd_test.c) */
 #include "ui_optimist_headpos.h"                    /* the loop position drawn alone while playing (the mirror's bytes) */
 #include "ui_optimist_memline.h"                    /* the memory line: the top 2 rows of every page, the arena's fill, red from 80 % */
 #include "ui_optimist_hold.h"                      /* SYSTEM HOLD: a click is a tap, a hold the layer */
@@ -4255,6 +4278,12 @@ int main(int argc, char **argv)
     layers_init();
     go_home();
     frames(3);
+#ifdef MIRROR_CHECK
+    if (getenv("MIRROR_WORKLOAD")) {                  /* (the mirror's workload alone: ui_optimist_mirload.h) */
+        mirror_workload();
+        return 0;
+    }
+#endif
 #if FELUCCA_GRIDS_EUCLID
     {   /* OUT EUCL: one click, one step of a length or one hit (op_tools.c gr_eu_turn), both ways, the ends held */
         uint32_t p, ok = 1, n0, h0;
