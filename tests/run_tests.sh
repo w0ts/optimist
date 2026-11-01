@@ -1147,7 +1147,7 @@ job; ( jobin   # the arena's fragmentation (tests/arena_frag_test.c): the jam pr
     run "the same, a move's window a pass (the audio between two): the moving part skipped, no overlap" "$OUT/arena_frag_step_test"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin   # the effects' lines in the arena (fx/fx_arena.c, docs/SD-MODE-DESIGN.md 6b phase 3b; FELUCCA_FX_ARENA)
-    FXA="-DFELUCCA_ENG_FM6=1 -DFELUCCA_FX_ARENA=1 -DFELUCCA_INS_DELAY=1 -DFELUCCA_INS_FLANGER=1 -DFELUCCA_DLY_LEN=16384u"   # (FLNG: the own room's other type since CHRS became the CHO insert, its copies arena blocks of their own, 2026-10-29)
+    FXA="-DFELUCCA_ENG_FM6=1 -DFELUCCA_FM6_SYSEX=0 -DFELUCCA_FX_ARENA=1 -DFELUCCA_INS_DELAY=1 -DFELUCCA_INS_FLANGER=1 -DFELUCCA_DLY_LEN=16384u"   # (FLNG: the own room's other type since CHRS became the CHO insert, its copies arena blocks of their own, 2026-10-29; FM6_SYSEX 0: FM6's block its sine table alone, as these arenas are sized, ramlend: arena_bufs_test has the bank's room)
     $CC -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $FXA -DFELUCCA_FXI_LINE_BLOCKS=0 "-DFELUCCA_ARENA_BYTES=73984u" -o "$OUT/fx_arena_test" tests/fx_arena_test.c -lm   # (the own room: FELUCCA_FXI_LINE_BLOCKS 0, the builds before 2026-10-31)
     run "effects' lines in the arena (ROOM): at their fixed places while used, zeroed, gated and given back, refused (bypassed, kept, said once) and restored (a part's block there reclaimed), a part's change waits for a line going back, the inserts' room grown and given back, lent instead; random switches" "$OUT/fx_arena_test"
     $CC -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 -DFELUCCA_ENG_FM6=1 -DFELUCCA_FX_ARENA=1 -DFELUCCA_INS_DELAY=1 -DFELUCCA_INS_FLANGER=1 -DFELUCCA_INS_XDLY=1 -DFELUCCA_INS_JCHORUS=1 -DFELUCCA_DLY_LEN=16384u "-DFELUCCA_ARENA_BYTES=(160u * 1024u)" -o "$OUT/fx_lineblk_test" tests/fx_lineblk_test.c -lm
@@ -1172,9 +1172,9 @@ job; ( jobin   # the effects' lines in the arena (fx/fx_arena.c, docs/SD-MODE-DE
     $CC -g $FXB_SAN -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $FXA -DFELUCCA_REV_FDN8=1 -DFELUCCA_REV_POOL=1 -DFELUCCA_SPRING=1 "-DFELUCCA_ARENA_BYTES=89344u" -DFELUCCA_FXI_LINE_BLOCKS=0 -o "$OUT/fxi_boot_rev_test" tests/fxi_boot_test.c -lm
     run "the same with FDN8, REV_POOL and SPRING (the user's reverb build)" "$OUT/fxi_boot_rev_test"
     # (the arenas in whole KB, every block in 256 B units (core/arena.c ARN_ALIGN): one FM6 4096 and its sine table 4352,
-    #  the send lines 56320 (ROOM; with FDN8 and SPRING 71680), the inserts' own room 9216 (ECHO FLNG: one line each; a CHO DLY REV copy a block of its own);
+    #  (FM6's block 8448 since ramlend: the sine table and the DX7 bank's room) the send lines 56320 (ROOM; with FDN8 and SPRING 71680), the inserts' own room 9216 (ECHO FLNG: one line each; a CHO DLY REV copy a block of its own);
     #  arena_bufs: WAVE's table 73216, one SLICER recording 8192, the 909 5376 and the 808 3584 on the host too)
-    $CC -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $FXA -DFELUCCA_FXI_LINE_BLOCKS=0 -DFELUCCA_ENG_WAVE=1 -DFELUCCA_DRUM_X909=1 -DFELUCCA_DRUM_X808=1 "-DFELUCCA_ARENA_BYTES=164352u" -o "$OUT/arena_bufs_test" tests/arena_bufs_test.c -lm
+    $CC -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $FXA -DFELUCCA_FXI_LINE_BLOCKS=0 -DFELUCCA_ENG_WAVE=1 -DFELUCCA_DRUM_X909=1 -DFELUCCA_DRUM_X808=1 -UFELUCCA_FM6_SYSEX -DFELUCCA_FM6_SYSEX=1 "-DFELUCCA_ARENA_BYTES=168448u" -o "$OUT/arena_bufs_test" tests/arena_bufs_test.c -lm
     run "other buffers in the arena (SLICER recordings, WAVE's table, the X0X machines, the PUNCH ring while its switch is on): placed while used, given back, refused (bypassed, FULL, said once) and placed by themselves; a change to WAVE refused as an engine change, on a load the list page; a part's change waits; random switches" "$OUT/arena_bufs_test"
     # (the switchable features' memory, core/feat_mem.c: Bluetooth audio's buffers lent by the arena on a stand-in radio;
     #  ASan where the compiler has it, as fxi_boot: a block given back poisoned, the radio's write after it a failure)

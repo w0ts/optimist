@@ -21,7 +21,7 @@
 #define main hostsim_main
 #include "hostsim.c"
 #undef main
-static struct { char msg[40]; uint32_t msg_t; uint8_t layer, hold_kind; int force; } ui;
+static struct { char msg[40]; uint32_t msg_t; uint8_t layer, hold_kind, redraw; int force; } ui;
 static uint8_t settings_later;
 static void ui_message(const char *m) { str_cpy(ui.msg, m, sizeof ui.msg); ui.msg_t = 40; }
 static void ui_say(const char *a, const char *b) { (void)b; ui_message(a); }
@@ -43,6 +43,7 @@ static uint32_t up_nth(uint32_t n) { return n; }
 static uint32_t up_rank(uint32_t s) { return s; }
 static void up_name(uint32_t k, char *b) { (void)k; b[0] = 0; }
 #include "../firmware/src/core/model.c"
+#include "../firmware/src/engines/fm6/fm6_sysex.c"   /* (fm6_service: the DX7 bank's test, 9) */
 #if !FXM_NEED || !FELUCCA_ENG_FM6 || !FELUCCA_ENG_WAVE || !FELUCCA_DRUM_X909 || !FELUCCA_DRUM_X808 || !FELUCCA_FX_SLICER
 #error "arena_bufs_test: built with FELUCCA_FX_ARENA, FELUCCA_ARENA_BYTES, FM6, WAVE, the X0X kits and the SLICER"
 #endif
@@ -111,6 +112,8 @@ static void *arb_ptr(uint32_t c)                        /* client c's pointer as
 #endif
     if (c == (uint32_t)ARB_FM6SIN)
         return FM6_SIN;
+    if (c == (uint32_t)ARB_VIS)
+        return vis_pcm;
     return x808_p;
 }
 static int zeros(const void *p, uint32_t n)
@@ -217,14 +220,14 @@ int main(void)
 {
     uint32_t c, f, k, SL = SL_LEN * 2u, FM = arn_round(part_mem_bytes(ENG_IX_FM6)), lines = 0;
     uint32_t X9 = arn_round(x0x_mem_bytes(0)), X8 = arn_round(x0x_mem_bytes(1)), WT = arn_round(WT_MEM_BYTES);
-    uint32_t SN = arn_round(FM6_SIN_BYTES);
+    uint32_t SN = arn_round(FM6_SIN_BYTES + FM6_PICK_LEND);   /* (and the DX7 bank's room: ramlend) */
     int64_t e_off, e_on;
     track_t *t0 = &trk[0], *t1 = &trk[1], *t2 = &trk[2];
     host_tracks_init();
     fxi_init();
     for (c = 0; c < FXM_NC; c++)
         lines += arn_round(FXM_BYTES[c]);
-    CHECK(ARB_NC == NTRK + 4u + FELUCCA_PUNCH_SW && ARN_BYTES >= FM + SN + lines + WT + SL + X9 + X8 &&
+    CHECK(ARB_NC == NTRK + 5u + FELUCCA_PUNCH_SW && ARN_BYTES >= FM + SN + lines + WT + SL + X9 + X8 &&
           ARN_BYTES <= FM + SN + lines + WT + SL + X9 + X8 + 256u,
           "the premise: one FM6 and its sine table, the lines, WAVE's table, one SLICER recording and both X0X machines fit "
           "(arena %u B: FM6 %u + %u, lines %u, WAVE %u, SLICER %u, 909 %u, 808 %u)", (unsigned)ARN_BYTES, (unsigned)FM,
@@ -585,6 +588,94 @@ int main(void)
             f &= arb_st[c] == FXM_NONE && !arb_ptr(c) && !arn_cur[ARB_K(c)].len;
         CHECK(f && !arb_full && !arb_pending() && arena_ok(), "... everything let go: every buffer given back");
     }
+    /* 8. the SCOPE's ring (ARB_VIS, ramlend): lent only while a trace is drawn (vis_ui); meanwhile the taps keep each
+     *    block's left peak, which gives the mixer's MASTER meter the same number as the ring did; 50 on/off cycles
+     *    under a held note: nothing leaked, the output as without them */
+    quiet();
+    settle(8);
+    {
+        uint32_t room0, n, okc = 1, i, w;
+        int32_t sig[CTL], pk_ring = 0, pk_blk = 0;
+        CHECK(!vis_pcm && !arn_cur[ARB_K(ARB_VIS)].len && arena_ok(), "SCOPE's ring: not lent while no trace is drawn");
+        vis_ui = 1;
+        pass();
+        CHECK(vis_pcm && arb_st[ARB_VIS] == FXM_ON && zeros(vis_pcm, 2u * VIS_RING * 4u) && arena_ok(),
+              "SCOPE shown: the ring lent at the next pass, zeroed");
+        for (i = 0; i < CTL; i++)
+            sig[i] = (int32_t)(i * 997u % 2000u) - 1000;
+        for (n = 0; n < 40u; n++)
+            vis_tap_block(sig, sig, CTL);
+        w = vis_wr;
+        for (i = VIS_RING - 736u; i < VIS_RING; i++) {
+            int32_t x = vis_pcm[0][(w + i) & (VIS_RING - 1u)];
+            x = x < 0 ? -x : x;
+            pk_ring = x > pk_ring ? x : pk_ring;
+        }
+        vis_ui = 0;
+        pass();
+        CHECK(!vis_pcm && arb_st[ARB_VIS] == FXM_GOING && arn_cur[ARB_K(ARB_VIS)].len,
+              "SCOPE left: the pointer 0 at once, the block held two blocks more");
+        settle(2);
+        CHECK(arb_st[ARB_VIS] == FXM_NONE && !arn_cur[ARB_K(ARB_VIS)].len && arena_ok(), "... then given back");
+        for (n = 0; n < 40u; n++)
+            vis_tap_block(sig, sig, CTL);
+        w = vis_wr;
+        for (i = 1; i <= 736u / CTL; i++) {
+            int32_t a = vis_bpk[((w / CTL) + VIS_RING / CTL - i) % (VIS_RING / CTL)];
+            pk_blk = a > pk_blk ? a : pk_blk;
+        }
+        CHECK(pk_ring == pk_blk && pk_blk == 1000, "the MASTER meter's peak without the ring: %d, with it %d", (int)pk_blk,
+              (int)pk_ring);
+        room0 = arn_room();
+        trk_note_on(t0, 60, 100);
+        for (n = 0; n < 50u; n++) {
+            vis_ui = (uint8_t)(n & 1u ? 0u : 1u);
+            settle(3);
+            okc &= arena_ok() && (vis_ui ? vis_pcm != 0 : vis_pcm == 0);
+        }
+        vis_ui = 0;
+        settle(4);
+        trk_note_off(t0, 60);
+        CHECK(okc && !vis_pcm && arn_room() == room0 && arena_ok(),
+              "50 SCOPE on/off cycles under a held note: lent each time, nothing leaked (room %u B as before)",
+              (unsigned)arn_room());
+    }
+#if FELUCCA_FM6_SYSEX
+    /* 9. the DX7 bank received (eng_fm6.c fm6_pick, ramlend): in FM6's block, after its sine table; a bank sent while no
+     *    part plays FM6: let go, "FM6: NO FM6 TRACK"; with an FM6 part: kept, and the block held while it is, even once
+     *    no part plays FM6 */
+    quiet();
+    settle(8);
+    {
+        static uint8_t bank[4104];
+        uint32_t i, sum = 0;
+        bank[0] = 0xF0, bank[1] = 0x43, bank[2] = 0x00, bank[3] = 0x09, bank[4] = 0x20, bank[5] = 0x00;
+        for (i = 0; i < 4096u; i++)
+            bank[6 + i] = (uint8_t)((i * 7u) & 0x7Fu), sum += bank[6 + i];
+        bank[4102] = (uint8_t)((128u - (sum & 127u)) & 127u);
+        bank[4103] = 0xF7;
+        CHECK(!fm6_pick && !FM6_SIN, "FM6's bank: no block while no part plays FM6");
+        for (i = 0; i < sizeof bank; i++)
+            fm6_sx_byte(bank[i]);
+        fm6_service();
+        CHECK(!fm6_pick_ok && !strcmp(ui.msg, "FM6: NO FM6 TRACK"), "a bank sent then: let go, said (%s)", ui.msg);
+        set_engine_of(t1, ENG_IX_FM6);
+        settle(6);
+        CHECK(fm6_pick && (uint8_t *)fm6_pick == (uint8_t *)FM6_SIN + FM6_SIN_BYTES && arena_ok(),
+              "a part on FM6: the bank's room after the sine table");
+        for (i = 0; i < sizeof bank; i++)
+            fm6_sx_byte(bank[i]);
+        fm6_service();
+        CHECK(fm6_pick_ok && fm6_pick[7] == bank[13], "the bank received into it (%s)", ui.msg);
+        set_engine_of(t1, 0);
+        settle(8);
+        CHECK(fm6_pick && fm6_pick_ok && FM6_SIN && fm6_pick[7] == bank[13] && arena_ok(),
+              "no part on FM6 any more: the block held while the bank is");
+        fm6_pick_ok = 0;                                /* (a new bank starting, or power-off) */
+        settle(8);
+        CHECK(!fm6_pick && !FM6_SIN && !arn_cur[ARB_K(ARB_FM6SIN)].len && arena_ok(), "the bank let go: the block given back");
+    }
+#endif
     printf("arena bufs test: %d checks, %d failed\n", checks, bad);
     return bad ? 1 : 0;
 }
