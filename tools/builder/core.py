@@ -326,6 +326,11 @@ def built(cfg, key):
     return cfg[key] != 0
 
 
+def dimmed_choices(cfg, key):
+    """-> {choice value: reason} of the item's choices greyed in this configuration (registry dim_choice: not offered)"""
+    return {v: why for v, (item, why) in R.ITEMS[key].dim_choice.items() if built(cfg, item)}
+
+
 # the drum synths, each a drum source on its own (no parent: the user, 2026-10-22, "3 drum synths, independent of each
 # other"): the 32 synthesised kits, KAWA, PLAITS (their shared voice built with any of them: registry.h DRUM_DS), the X0X kits
 DRUM_SYNTHS = ("DRUM_SYNTH", "DS_KAWA", "DS_PLAITS", "DRUM_X0X909", "DRUM_X0X808")

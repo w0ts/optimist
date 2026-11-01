@@ -141,6 +141,8 @@ ok(L.treeOf(reg, "reverb", {}, "ram").every((g) => g.flat && g.items.every((i) =
 const tdr = t0.find((g) => g.group === "Drums");
 ok(tdr && tdr.items.length === 1 && tdr.items[0].key === "DRUMS" && tdr.items[0].children.some((c) => c.key === "DRUM_X0X909" && c.children.some((o) => o.key === "X909_CYM")),
   "list: DRUMS heads the drum group, an X0X kit's options under the kit");
+ok(JSON.stringify(L.dimmedChoices(reg, { PATTERNS: 1 }, "SECTIONS")) === JSON.stringify({ 4: "PATTERNS: scenes live in the log, 8 or 16" }) && Object.keys(L.dimmedChoices(reg, { PATTERNS: 0 }, "SECTIONS")).length === 0
+  && Object.keys(L.dimmedChoices(reg, { PATTERNS: 1 }, "SNAPSHOTS")).length === 0, "SECTIONS 4 is greyed with its reason while PATTERNS is on (the web builder greys the option, as the menu skips it)");
 ok(!L.built(reg, { DRUMS: 0, LANE_FX: 1 }, "LANE_FX") && !L.built(reg, { DRUMS: 0 }, "X909_CYM") && L.built(reg, { LANE_FX: 1 }, "LANE_FX"),
   "built: DRUMS off leaves out its options' options and the drum-only items of other groups (core.built)");
 const tq = L.treeOf(reg, "reverb", {}, null);
