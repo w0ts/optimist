@@ -185,6 +185,8 @@ struct DeviceInfo: Equatable {
     var lib = false           // tag 64 bit 1: and the librarian
     var patSlots = 0, patScenes = 0   // tag 55: the per-track patterns (0: none)
     var hasPatterns: Bool { patSlots > 0 && has(.patterns) }
+    /// the section lists (Projects screen): only on firmware without PATTERNS; with them a project owns its scenes (the web editor's sectionsShown)
+    var showsSections: Bool { !hasPatterns }
     var features: [String: Int] = [:]   // tags 66 and 67: "opti_backup_4 opti_mirror_2 ...", name -> version (none: not optimist's way)
     /// The tagged blocks ended exactly at the reply's end and the feature names are printable. Over Bluetooth an INFO asked
     /// while the screen streams comes damaged, still F0 .. F7 (measured on the FM-1, 2026-10-31: 18 of 20, a run of bytes

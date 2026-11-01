@@ -196,7 +196,7 @@ final class EditorSession: ObservableObject {
         if ready(.projects) {
             bkList = try? await Ops.bkListAll(link)
             var used: [Int?] = []
-            for k in 0..<sectionCount {
+            for k in 0..<(info?.showsSections ?? true ? sectionCount : 0) {
                 do { used.append(try await Ops.project(link, op: 2, slot: k).used) }
                 catch let e as WireError where e.isTimeout { used.append(nil) }
             }
