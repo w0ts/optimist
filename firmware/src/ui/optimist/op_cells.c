@@ -769,8 +769,10 @@ static void page_set(const page_t *pg, uint32_t k, int16_t *vp, int32_t v, int32
         uint32_t prev = ins_slot[song.sel % NTRK][(id - PID_INST) & 1u];
         v = ins_skip_mem(song.sel, id - PID_INST, was, v);
         *vp = (int16_t)v;
-        if (v == was && fxz_ins_q(song.sel, id - PID_INST))
-            return;                                     /* (the end of the list under its question: nothing further, it stays) */
+        if (v == was && fxz_ins_q(song.sel, id - PID_INST)) {
+            op_disarm();                                /* (the end of the list under its question: NO, nothing further: the question gone, */
+            return;                                     /* fxz_tick gives the slot back to what it held before, as the engine list's end) */
+        }
         prev = fxz_ins_no(song.sel, id - PID_INST, prev);   /* (the same encoder under that question: NO, on: the slot to go back to is the first's) */
         if (fxz_ins_mem(song.sel, id - PID_INST, ins_list[v % INS_NLIST])) {
             ins_load(song.sel, id - PID_INST, ins_list[v % INS_NLIST]);

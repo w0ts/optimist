@@ -170,7 +170,7 @@ static void fz_squeeze(void)                            /* T2 on WHEEL (1 KB), t
 }
 static void fz_list_no_tests(void)
 {
-    uint32_t k, t = FXT_XDLY, r, prev, n, e, g0 = 0, room;
+    uint32_t k, t = FXT_XDLY, r, prev, prev0, n, e, g0 = 0, room;
     reset_ui();
     (void)preset_all_pos(&n);                            /* (the list built) */
     for (k = 0; k < NPART; k++)
@@ -293,15 +293,15 @@ static void fz_list_no_tests(void)
     fz_frames(4);
     check(ins_slot[1][0] == prev && !strcmp(ui.msg, "NOT CHANGED") && !song.g[G_FXZ_DLY] && !song.g[G_FXZ_REV],
           "list NO inserts: HOME: the slot back to what it held before the first, nothing lost");
+    prev0 = ins_slot[1][0];
     fz_ins_goto(n);
     fz_frames(1);
     check(ins_slot[1][0] == ins_list[n] && op_armed() && ui.arm_row == OA_FXZI, "list NO inserts: the last entry asks");
     turn(EN_K1, 1);
     fz_frames(1);
-    check(ins_slot[1][0] == ins_list[n] && op_armed() && ui.arm_row == OA_FXZI && fxq.on,
-          "list NO inserts: the end of the list: nothing further, the question stays");
-    tap(B_HOME);
     fz_frames(4);
+    check(ins_slot[1][0] == prev0 && !op_armed() && !fxq.on && !song.g[G_FXZ_DLY] && !song.g[G_FXZ_REV],
+          "list NO inserts: the end of the list: NO, the question gone quietly, the original type kept");
     ins_load(1, 0, FXT_NONE);
     fz_frames(4);
     fz_ins_goto(e);

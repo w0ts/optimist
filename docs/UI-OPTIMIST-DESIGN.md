@@ -395,7 +395,7 @@ step at a time, counting only lines placed.
   kb, 30 kb free* and the question asks when smaller sizes free it. YES takes them and the type is placed as soon as its room
   is there; HOME, or no answer, puts the slot back to what it held (*Not changed*). When no size frees it, the message alone
   and the slot FULL (bypassed), as before.
-- In the lists (the engine and sound list on PRESETS, SHIFT + PRESETS and EDIT's ENGINE and PRESET knobs; an INSERTS slot's TYPE knob) the same encoder turned under the question answers NO and goes on to the next entry in its direction, which may ask again (nothing is taken or dropped, the first entry's sound or type is the one HOME gives back, the list's end leaves an engine question cancelled and an insert question up); YES and every other encoder are as before.
+- In the lists (the engine and sound list on PRESETS, SHIFT + PRESETS and EDIT's ENGINE and PRESET knobs; an INSERTS slot's TYPE knob) the same encoder turned under the question answers NO and goes on to the next entry in its direction, which may ask again (nothing is taken or dropped, the first entry's sound or type is the one HOME gives back, the list's end cancels the question and leaves the sound or type as it was); YES and every other encoder are as before.
 
 The web editor shows the row through SCRS (the device's PROJECT cards, `ed_scrs.c`), not the panel.
 
