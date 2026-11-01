@@ -26,6 +26,24 @@ targets:
       - path: Resources/Fm1Base      # (fm1-base's pages, MPL-2.0, unchanged: a folder, its sub-folders kept)
         type: folder
         buildPhase: resources
+    info:                              # (Info.plist, written by xcodegen; the rest of the keys are INFOPLIST_KEY_* below)
+      path: Info.plist
+      properties:
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        # the FM-1 firmware package (.fwsc, what the builder makes): this app opens it (Finder, Files, AirDrop, Mail) and shows it
+        # ready to install in the Firmware screen; nothing is written until Install is tapped
+        UTExportedTypeDeclarations:
+          - UTTypeIdentifier: com.w0ts.optimist.fwsc
+            UTTypeDescription: FM-1 Firmware Package
+            UTTypeConformsTo: [public.data]
+            UTTypeTagSpecification:
+              public.filename-extension: [fwsc]
+        CFBundleDocumentTypes:
+          - CFBundleTypeName: FM-1 Firmware Package
+            CFBundleTypeRole: Viewer
+            LSHandlerRank: Owner
+            LSItemContentTypes: [com.w0ts.optimist.fwsc]
     preBuildScripts:
       # the web editor and what it loads, from web/ into the bundle's OptimistEditor/ (tools/sync_ios_editor.py): no copy is committed
       - name: Bundle the web editor
