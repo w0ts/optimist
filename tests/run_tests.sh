@@ -1368,6 +1368,8 @@ job; ( jobin
     run "BT Classic probe LMP: the master's link set-up PDUs and the answers to a slave's requests (Core spec Vol 2 Part C)" "$OUT/bt_lmp_test"
     $CC -Wextra $BLE_SAN -o "$OUT/bt_afh_test" tests/bt_afh_test.c
     run "BT Classic audio AFH (bt_afh.c): the channels a headset fails on leave the map (half the mean, 20 stay), the engine's table and map words" "$OUT/bt_afh_test"
+    $CC -Wextra $BLE_SAN -Ifirmware/hal -o "$OUT/bt_ltx_test" tests/bt_ltx_test.c
+    run "BT audio under CPU load (bt_ltx.c): CPU0 at 50/100/130/200 %, the main loop starved: signalling handed over by IRQ 40 within 36 slots, every AFH instant set at the hand-over and met by both sides, no 4 s silence; the old TX side loses switches" "$OUT/bt_ltx_test"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     $CC -Wextra $BLE_SAN -o "$OUT/bt_l2cap_test" tests/bt_l2cap_test.c
