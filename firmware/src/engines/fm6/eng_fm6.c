@@ -1732,13 +1732,28 @@ static const engine_t ENG_FM6 = {
 #define FM6_VOXN 163u
 #if FELUCCA_FM6_SYSEX
 static uint8_t fm6_vox[FM6_VOXN] IN_POOL;               /* the voice frame; the header of a bank */
+#define FM6_PICK_BYTES 4100u                            /* (4,097: 32 packed voices and their checksum, 4-aligned) */
+#if FELUCCA_FX_ARENA
+/* the bank in the arena, after FM6's sine table in its block (core/arena_bufs.c ARB_FM6SIN: held while a part plays FM6,
+ * a bank is held or one is coming in), 0 while it is not: a bank sent then is let go, "FM6: NO FM6 TRACK" (as a voice) */
+static uint8_t *volatile fm6_pick;
+static volatile uint8_t fm6_rx_nomem;                   /* a bank let go for want of the block: said by fm6_service */
+#define FM6_PICK_HAVE() (fm6_pick != 0)
+#else
 static uint8_t fm6_pick[4097] IN_POOL;                  /* the bank: 32 packed voices and their checksum */
+#define FM6_PICK_HAVE() 1
+#endif
 static volatile uint8_t fm6_pick_ok;                    /* fm6_pick holds a bank whose checksum was right */
 static volatile uint8_t fm6_rx_ready;                   /* 1 a voice, 2 a bank waits for the main loop */
 static uint8_t fm6_rx_on, fm6_rx_kind;
 static uint32_t fm6_rx_n;
 #else
 #define fm6_pick_ok 0
+#endif
+#if FELUCCA_FM6_SYSEX && FELUCCA_FX_ARENA
+#define FM6_PICK_LEND FM6_PICK_BYTES                    /* (the bank's share of ARB_FM6SIN's block) */
+#else
+#define FM6_PICK_LEND 0u
 #endif
 
 static void fm6_sx_byte(uint8_t b)
@@ -1762,6 +1777,10 @@ static void fm6_sx_byte(uint8_t b)
             fm6_rx_on = fm6_rx_kind != 0;
             if (fm6_rx_kind == 2u)
                 fm6_pick_ok = 0;                         /* (the old list goes when a new bank starts) */
+#if FELUCCA_FX_ARENA
+            if (fm6_rx_kind == 2u && !fm6_pick)
+                fm6_rx_on = 0, fm6_rx_nomem = 1;         /* (no block: no FM6 part) */
+#endif
         }
         return;
     }
@@ -1775,7 +1794,7 @@ static void fm6_sx_byte(uint8_t b)
     }
     if (fm6_rx_kind == 1u && fm6_rx_n < FM6_VOXN - 1u)
         fm6_vox[fm6_rx_n++] = b;
-    else if (fm6_rx_kind == 2u && fm6_rx_n < FM6_RX - 1u)
+    else if (fm6_rx_kind == 2u && fm6_rx_n < FM6_RX - 1u && FM6_PICK_HAVE())
         fm6_pick[fm6_rx_n++ - 6u] = b;
     else
         fm6_rx_on = 0;                                   /* too long */

@@ -300,9 +300,19 @@ static uint32_t mx_vu_lv(int32_t pk)                    /* a peak (32767 = 0 dBF
 }
 static int32_t mx_master_pk(void)                       /* the master's last frame (the scope's ring, MASTER up) */
 {
+    int32_t (*const v)[VIS_RING] = vis_pcm;
     uint32_t i, w = vis_wr, pk = 0;
+#if VIS_LEND
+    if (!v) {                                           /* (the ring not lent: the taps' block peaks, the same 23 blocks) */
+        for (i = 1; i <= 736u / CTL; i++) {
+            uint32_t a = (uint32_t)vis_bpk[((w / CTL) + VIS_RING / CTL - i) % (VIS_RING / CTL)];
+            pk = a > pk ? a : pk;
+        }
+        return knee((int32_t)(pk > 0x7FFFFFF ? 0x7FFFFFF : pk));
+    }
+#endif
     for (i = VIS_RING - 736u; i < VIS_RING; i++) {
-        int32_t x = vis_pcm[0][(w + i) & (VIS_RING - 1u)];
+        int32_t x = v[0][(w + i) & (VIS_RING - 1u)];
         uint32_t a = (uint32_t)(x < 0 ? -x : x);
         pk = a > pk ? a : pk;
     }
