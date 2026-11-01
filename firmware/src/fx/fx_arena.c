@@ -455,8 +455,16 @@ static uint32_t fxz_poll(void)
 #endif
     return busy;
 }
+/* a size the project wants differs from the one playing (fxz_poll on its way): a part's refused change waits for it */
+static uint32_t fxz_changing(void)
+{
+    return fxz_hold || fxsz_xoff || (FXZ_DLY_N > 1u && fxz_want(G_FXZ_DLY, FXZ_DLY_N) != fxsz_dly) ||
+           (FXZ_REV_N > 1u && fxz_want(G_FXZ_REV, FXZ_REV_N) != fxsz_rev) ||
+           (FXZ_XDL_N > 1u && fxz_want(G_FXZ_XDL, FXZ_XDL_N) != fxsz_xdl);
+}
 #else
 #define fxz_poll() 0u
+#define fxz_changing() 0u
 #endif
 static void fxm_poll(void)
 {
@@ -479,8 +487,10 @@ static void fxm_poll(void)
             fxm_send(c);
     if (!fxm_ins_want())
         fxm_full &= (uint8_t)~(1u << FXM_INS);          /* (refused, then let go) */
-    if (PART_MEM_SHORT())
+    if (PART_MEM_SHORT()) {
+        fxm_seen = 0xFFFFFFFFu;                         /* (a full pass again after it: a line it held back placed) */
         return;                                         /* (a part's refused change first, a load's too) */
+    }
     fxm_ord(o);
     for (i = 0; i < FXM_NC; i++)
         if (fxm_needs(o[i])) {
@@ -499,8 +509,8 @@ static int arb_pending(void);                           /* (core/arena_bufs.c: t
 static int fxm_pending(void)
 {
     uint32_t c;
-    if (arb_pending())
-        return 1;
+    if (arb_pending() || fxz_changing())
+        return 1;                                       /* (FX MEMORY: a size changing, fxz_poll) */
     for (c = 0; c < 3u; c++)
         if (fxm_st[c] == FXM_GOING || (fxm_st[c] == FXM_ON && !fxm_want(c)))
             return 1;
