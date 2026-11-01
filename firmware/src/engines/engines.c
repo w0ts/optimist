@@ -301,15 +301,38 @@ static void fxm_sync(void);
 static void undo_yield(uint8_t *lo);
 #define ARN_GREW(end) undo_yield(arn_mem + (end))
 #include "../core/arena.c"
+/* the STORAGE reserve (seq/undo.c stg_*, 2026-11-01, the user: "lend the save/load staging"): the save / load staging
+ * buffers (storage.c st_buf, project.c proj_tmp, sections.c sec_rb, stepx_log.c sx_rbuf, the
+ * automation stores of proj_tmp and of the autosave) out of the pool, in a block past the arena and its undo keep: the
+ * undo history's while nothing stores, storage's while it does (never the arena's: a save never finds it taken) */
+#if !defined(FELUCCA_STG_LEND)
+#if SEC_LOGGED && (!defined(FELUCCA_UNDO_HISTORY) || FELUCCA_UNDO_HISTORY) && defined(__PI32V2__)   /* (the device; a host test
+                                                         * asks for it: tests/stg_lend_test.c) */
+#define FELUCCA_STG_LEND 1
+#else
+#define FELUCCA_STG_LEND 0
+#endif
+#endif
+#define STG_LEND FELUCCA_STG_LEND
+#if STG_LEND
+static uint32_t stg_bytes(void);                         /* (storage/project.c: the buffers' sizes, known there) */
+#endif
 #ifdef ARN_FREE
 #include "../../hal/fm1_stack.h"                   /* (the linker scripts' _pool_end and _guard0) */
+#if STG_LEND
+/* the reserve: the free SRAM's last bytes (before the stacks' guard band); the arena and its undo keep before it */
+#define STG_MEM ((uint8_t *)(((uintptr_t)(fm1_stk_guard0 - ARN_SPARE) - stg_bytes()) & ~(uintptr_t)7u))
+#define ARN_BOOT() (arn_mem ? (void)0 : arn_boot(fm1_stk_pool_end, STG_MEM))
+#else
 /* the arena taken from the free SRAM before its first use (the power-on's first engine, main.c felucca_init) */
 #define ARN_BOOT() (arn_mem ? (void)0 : arn_boot(fm1_stk_pool_end, fm1_stk_guard0 - ARN_SPARE))
+#endif
 #else
 #define ARN_BOOT() ((void)0)
 #endif
 #define PART_MOVING(t) ((uint32_t)((t) - trk) < NPART && arn_moving((uint32_t)((t) - trk)))
 #else
+#define STG_LEND 0                                       /* (no arena: the staging buffers stay in the pool) */
 static part_mem_t part_mem[PART_MEM_ANY ? NPART : 1] __attribute__((section(".pool"), aligned(8)));
 #define PART_MEM_AT(p) ((void *)&part_mem[p])
 #define PART_MOVING(t) ((void)(t), 0)

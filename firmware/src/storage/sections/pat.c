@@ -132,9 +132,12 @@ static void pat_flatten(project_t *p, const uint8_t *refs)
  * passes through (proj_capture writes pat_cur into a buffer's, proj_apply takes it back; a scene read sets its
  * references) */
 static uint8_t pat_bref[3][NTRK];                      /* proj_tmp, the stage, the song's backup of the loop */
+#ifndef PROJ_TMP_AT
+#define PROJ_TMP_AT (&proj_tmp.cur)                    /* (a host test's own proj_tmp) */
+#endif
 static uint8_t *pat_refs_of(const project_t *p)
 {
-    if (p == &proj_tmp.cur)
+    if (p == PROJ_TMP_AT)                              /* (an address: the audio's apply asks too) */
         return pat_bref[0];
     if (p == &sec_stage_p)
         return pat_bref[1];

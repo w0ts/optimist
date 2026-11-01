@@ -59,6 +59,16 @@ static struct {
 } undo IN_POOL;
 static uint32_t undo_sess = 1;           /* UI sessions (seq.c: recording passes use the track's pass) */
 static volatile uint8_t undo_isr;        /* events_block is running (the audio ISR): IRQs stay as they are */
+#ifndef STG_LEND
+#define STG_LEND 0
+#endif
+#if STG_LEND && FELUCCA_UNDO_HISTORY
+static volatile uint8_t undo_frozen;     /* the main loop moves the ring's bytes (the STORAGE reserve, below): the audio's
+                                          * marks, undos and clears wait (none: they are skipped, the transport stopped) */
+#define UNDO_FROZEN() undo_frozen
+#else
+#define UNDO_FROZEN() 0
+#endif
 #define UNDO_REC(t) (((t)->pass << 2) | 1u)      /* a recording pass of track t */
 static uint32_t undo_erase_sess;
 
@@ -162,8 +172,9 @@ static void undo_yield(uint8_t *lo) { (void)lo; }       /* (one level: no ring t
 #endif
 _Static_assert(UREC_MAX <= UNDO_MIN, "undo: the smallest ring holds a record");
 static struct {
-    uint8_t *seg[2];                     /* the ring: pool's leftover, then main RAM's (one after the other) */
-    uint32_t len[2];
+    uint8_t *seg[3];                     /* the ring: pool's leftover, then main RAM's (one after the other); the third the
+                                          * STORAGE reserve while storage lends it (STG_LEND), else empty */
+    uint32_t len[3];
     uint32_t size;                       /* bytes, 0 = none */
     uint8_t ready;                       /* the ring was set up (undo_ready) */
     uint8_t last_trk;                    /* the track of the last undo / redo (its message) */
@@ -189,6 +200,8 @@ static uint32_t undo_arena_set(uint8_t *plo, uint8_t *phi, uint8_t *rlo, uint8_t
     undo_h.len[0] = a ? a : b;
     undo_h.seg[1] = rlo;
     undo_h.len[1] = a ? b : 0u;
+    undo_h.seg[2] = 0;
+    undo_h.len[2] = 0;
     undo_h.size = a + b;
     undo_h.ready = 1;
     undo_h.head = undo_h.cur = undo_h.tail = 0;
@@ -276,10 +289,17 @@ extern uint8_t _undo_pool_lo[], _undo_pool_hi[], _undo_ram_lo[], _undo_ram_hi[];
 static uint8_t undo_host_arena[UNDO_HOST_ARENA];
 #define UNDO_ARENA() undo_arena_set(undo_host_arena, undo_host_arena + sizeof undo_host_arena, 0, 0, FELUCCA_UNDO_CAP)
 #endif
+#if STG_LEND
+static void stg_ring_init(void);
+#endif
 static void undo_ready(void)
 {
-    if (!undo_h.ready)
+    if (!undo_h.ready) {
         UNDO_ARENA();
+#if STG_LEND
+        stg_ring_init();                                /* (the STORAGE reserve, while the history holds it) */
+#endif
+    }
 }
 
 /* the ring's byte at offset o (< 2 x size) */
@@ -287,7 +307,14 @@ static uint8_t *ub(uint32_t o)
 {
     if (o >= undo_h.size)
         o -= undo_h.size;
-    return o < undo_h.len[0] ? undo_h.seg[0] + o : undo_h.seg[1] + (o - undo_h.len[0]);
+    if (o < undo_h.len[0])
+        return undo_h.seg[0] + o;
+    o -= undo_h.len[0];
+#if STG_LEND
+    if (o >= undo_h.len[1])
+        return undo_h.seg[2] + (o - undo_h.len[1]);
+#endif
+    return undo_h.seg[1] + o;
 }
 static uint32_t uwrap(uint32_t o) { return o >= undo_h.size ? o - undo_h.size : o; }
 static uint32_t uback(uint32_t o, uint32_t n) { return o >= n ? o - n : o + undo_h.size - n; }
@@ -338,6 +365,147 @@ static void undo_forget(void)            /* the history is empty (its records st
     undo_h.run_ok = 0;
 }
 
+#if STG_LEND
+/* ---- The STORAGE reserve (2026-11-01, the user: "lend the save/load staging"). The buffers a save, a load, the autosave,
+ * a compaction, a backup or a restore, a snapshot or an editor write stage records in (storage.c st_buf, project.c
+ * proj_tmp, sections.c sec_rb, stepx_log.c sx_rbuf, the automation stores of proj_tmp and of the
+ * autosave: stg_bytes) are one block past the arena and its undo keep (the device: the free SRAM's last bytes, engines.c
+ * STG_MEM; the host: stg_host), never the arena's: a save never finds it taken, whatever the project holds. While
+ * nothing stores it is the undo history's third segment (its last bytes); the first use of a buffer takes it back
+ * (stg_p, the main loop only):
+ *   stopped (stg_quiet)  the ring turned so its newest byte ends where the reserve starts: only its oldest levels in the
+ *                        reserve are dropped (none while the history fits the ring without it);
+ *   playing              not turned (the audio may place a part's block over the ring's start meanwhile): the oldest
+ *                        levels in the way dropped, every level when the newest are in it.
+ * It goes back to the undo history once storage has not used it for STG_LINGER_MS, the transport stopped, nothing
+ * holding a buffer across passes (proj_tmp_lent: a restore, an editor write): stg_poll, from autosave_tick every pass,
+ * which also takes it back as soon as the transport plays while the history has nothing in it (so only a history that
+ * grew past the ring without it while stopped can lose levels to a use while playing).
+ * A buffer taken back is zeroed (as the pool's were at power-on); none keeps its bytes across a give-back. */
+#ifndef STG_LINGER_MS
+#define STG_LINGER_MS 3000u
+#endif
+static uint8_t *stg_mem;                                /* (the reserve: set at the first use) */
+static uint8_t stg_out;                                 /* 1: the undo history holds it */
+static uint32_t stg_ms;                                 /* the last use */
+static int stg_quiet(void);                             /* (storage/project.c: the transport stopped, nothing staged) */
+static int stg_pinned(void);                            /* (storage/project.c: a buffer held across passes) */
+#ifdef STG_MEM
+#define STG_BASE() STG_MEM
+#else
+#ifndef STG_HOST
+#define STG_HOST 24576u                                 /* (the host's stand-in: stg_bytes at most) */
+#endif
+static uint8_t stg_host[STG_HOST] __attribute__((aligned(8)));
+#define STG_BASE() stg_host
+#endif
+static void ur_rev(uint32_t a, uint32_t b)              /* the ring's bytes a .. b - 1 in the opposite order */
+{
+    while (a + 1u < b) {
+        uint8_t *x = ub(a), *y = ub(--b), t = *x;
+        *x = *y, *y = t;
+        a++;
+    }
+}
+static void ur_turn(uint32_t r)                         /* every byte of the ring r places on (the main loop, stopped) */
+{
+    if (!r || r >= undo_h.size)
+        return;
+    undo_frozen = 1;
+    ur_rev(0, undo_h.size), ur_rev(0, r), ur_rev(r, undo_h.size);
+    undo_h.head = uwrap(undo_h.head + r), undo_h.cur = uwrap(undo_h.cur + r), undo_h.tail = uwrap(undo_h.tail + r);
+    undo_frozen = 0;
+}
+static void ur_ends(void)                               /* cur and tail again from head (the ring not wrapped) */
+{
+    if (!undo_h.all_b) {
+        undo_h.head = undo_h.cur = undo_h.tail = 0;
+        return;
+    }
+    undo_h.cur = uwrap(undo_h.head + undo_h.done_b);
+    undo_h.tail = uwrap(undo_h.head + undo_h.all_b);
+}
+/* the reserve out of the ring (its last len[2] bytes): the oldest levels in the way dropped (quiet: turned first) */
+static void stg_vacate(int quiet)
+{
+    uint32_t n = undo_h.len[2], r;
+    if (!undo_h.ready || !n)
+        return;
+    r = undo_h.size - n;                                /* (where the reserve starts in the ring) */
+    if (quiet && undo_h.all_b && undo_h.head + undo_h.all_b > r)
+        ur_turn(r >= undo_h.tail ? r - undo_h.tail : r + undo_h.size - undo_h.tail);   /* (the newest byte ends at r) */
+    IRQ_SAVE(ie);
+    while (undo_h.all_b && undo_h.head + undo_h.all_b > r) {
+        if (undo_h.n_done && undo_h.done_b) {
+            undo_drop_oldest();
+        } else {
+            undo_forget();
+            break;
+        }
+    }
+    undo_h.size = r;
+    undo_h.len[2] = 0;
+    ur_ends();
+    IRQ_RESTORE(ie);
+}
+/* the reserve to the ring again, its last bytes (the main loop, stopped): a wrapped ring turned to start at 0 first */
+static void stg_lend_undo(void)
+{
+    uint32_t n = stg_bytes();
+    if (undo_h.ready) {
+        if (undo_h.all_b && undo_h.head + undo_h.all_b > undo_h.size)
+            ur_turn(undo_h.size - undo_h.head);
+        IRQ_SAVE(ie);
+        undo_h.seg[2] = stg_mem;
+        undo_h.len[2] = n;
+        undo_h.size += n;
+        ur_ends();
+        IRQ_RESTORE(ie);
+    }
+    stg_out = 1;
+}
+static void stg_ring_init(void)                         /* (undo_ready, after UNDO_ARENA) the reserve in the ring, if lent */
+{
+    if (stg_out) {
+        undo_h.seg[2] = stg_mem;
+        undo_h.len[2] = stg_bytes();
+        undo_h.size += undo_h.len[2];
+    }
+}
+/* the reserve's byte off, storage's (taken back from the undo history now if it holds it, zeroed) */
+static uint8_t *stg_a(uint32_t off)                    /* the reserve's byte off, where it is (an address: nothing taken) */
+{
+    if (!stg_mem)
+        stg_mem = STG_BASE();
+    return stg_mem + off;
+}
+static uint8_t *stg_p(uint32_t off)
+{
+    if (!stg_mem)
+        stg_mem = STG_BASE();
+    if (undo_isr)
+        return stg_mem + off;                           /* (the audio compares a buffer's address: never taken there) */
+    if (stg_out) {
+        stg_vacate(stg_quiet());
+        stg_out = 0;
+        memset(stg_mem, 0, stg_bytes());
+    }
+    stg_ms = fm1_ms;
+    return stg_mem + off;
+}
+/* (every main-loop pass) the reserve back to the undo history once storage is done with it */
+static void stg_poll(void)
+{
+    if (!stg_out && stg_mem && fm1_ms - stg_ms >= STG_LINGER_MS && stg_quiet() && !stg_pinned()) {
+        stg_lend_undo();
+    } else if (stg_out && !stg_quiet() &&
+               !(undo_h.ready && undo_h.all_b && undo_h.head + undo_h.all_b > undo_h.size - undo_h.len[2])) {
+        (void)stg_p(0);                                 /* (playing, nothing of the history in it: storage's again at no
+                                                         * cost, so a launch or a song's part never drops a level) */
+    }
+}
+static int stg_lent(void) { return stg_out; }           /* (the tests, INFO: the undo history holds it) */
+#endif
 /* the open session into the history: the steps and parameters that differ from the track now */
 static void undo_commit(void)
 {
@@ -467,6 +635,8 @@ static void rec_swap(uint32_t o)
 static void undo_mark(const track_t *t, uint32_t sess)
 {
     uint32_t i = (uint32_t)(t - trk), run;
+    if (UNDO_FROZEN())
+        return;                                          /* (the ring moving: this change keeps no level) */
     UNDO_LOCK();
     if (!(undo.valid && undo.trk == i && undo.sess == sess)) {    /* (else: this session is marked already) */
         run = undo_h.run_ok && undo_h.run_sess == sess && undo.valid;
@@ -483,6 +653,8 @@ static void undo_mark(const track_t *t, uint32_t sess)
 }
 static void undo_close(void)             /* the open session is complete */
 {
+    if (UNDO_FROZEN())
+        return;
     UNDO_LOCK();
     undo_ready();
     undo_commit();
@@ -491,6 +663,8 @@ static void undo_close(void)             /* the open session is complete */
 }
 static void undo_end(uint32_t sess)      /* session sess is complete (a held layer let go): its level now */
 {
+    if (UNDO_FROZEN())
+        return;
     UNDO_LOCK();
     if (undo.valid && undo.sess == sess) {
         undo_ready();
@@ -501,6 +675,10 @@ static void undo_end(uint32_t sess)      /* session sess is complete (a held lay
 }
 static void undo_clear(void)             /* a project / song section loaded: no history */
 {
+    if (UNDO_FROZEN()) {
+        undo.valid = 0;                                  /* (the ring is emptied after the move: stg_vacate's caller) */
+        return;
+    }
     UNDO_LOCK();
     undo_ready();
     undo.valid = 0;
@@ -511,6 +689,8 @@ static void undo_clear(void)             /* a project / song section loaded: no 
 static int undo_apply(int redo)
 {
     int done = 0;
+    if (UNDO_FROZEN())
+        return 0;
     UNDO_LOCK();
     undo_ready();
     undo_commit();
