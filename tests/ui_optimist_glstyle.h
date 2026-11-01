@@ -385,7 +385,7 @@ static int gls_info_page(void)
         for (i = 0; i < 7u; i++) {
             char num[8];
             song.cpu_q8 = (uint32_t)(pc[i] * 256 + 255) / 100u;
-            sys_info_cell(1, &c);
+            sys_info_cell(0, &c);
             snprintf(num, sizeof num, "%d", (int)pc[i]);
             ok &= !strcmp(c.val, num) && c.col == want[i];
             if (c.col != want[i] || strcmp(c.val, num))
