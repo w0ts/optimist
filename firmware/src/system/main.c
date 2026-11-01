@@ -513,6 +513,7 @@ static BOOT_ORDER void fm1_main(void)
         ota_service();                                  /* M-UPGRADE handshake */
         if (usb.ota_req) {                              /* M-UPGRADE upgrade command */
             usb.ota_req = 0;
+            stop_first();                               /* the transport stops before the update touches anything */
             panic_req = (1u << NTRK) - 1u;               /* every track (bit per track) */
 #if FELUCCA_ARRANGER
             persist_flush_now();                        /* an update ends in a reset: RAM-only work first */
@@ -524,6 +525,7 @@ static BOOT_ORDER void fm1_main(void)
         }
 #endif
         if (usb.uboot_req) {                            /* SysEx F0 22 24 35 7D F7 from the host */
+            stop_first();                               /* (the soft key and the console's `uboot yes`) */
             fm1_audio_stop();
 #if FELUCCA_ARRANGER
             persist_flush_now();                    /* (live sections, song, project: RAM-only so far) */
