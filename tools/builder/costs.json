@@ -1661,14 +1661,6 @@
     "ramtext": -4
    }
   },
-  "BT_PROJ": {
-   "1": {
-    "flash": 296,
-    "ram": -84,
-    "pool": 620,
-    "ramtext": -4
-   }
-  },
   "WIFI_LINK": {
    "1": {
     "flash": 27700,

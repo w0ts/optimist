@@ -119,6 +119,7 @@ RETIRED = {
     "REV_HALF": "the half-rate reverb (the ROOM at 22.05 kHz, a half-size ring for PLATE / FDN8 / VTINY) was dropped (2026-10-29, bit 123; the user: \"drop those\"): an old .config with REV_HALF=1 builds the full-rate reverb",
     "REV_HB_LONG": "the steep 63-tap filter of the half-rate reverbs was dropped (2026-10-29, bit 430; the user: \"drop those\"): the reverbs keep the 15-tap half-band",
     "LCD_DIRTY": "the dirty-rectangle screen update (cv_blit_dirty, after X0X 201b95c) had no caller since the old graph strip went with f1ab07ed (2026-10-19), so the item changed nothing on the screen; the code is removed (retired 2026-10-31, bit 68, never reuse it; any old LCD_DIRTY value is ignored)",
+    "BT_PROJ": "the projects' moves (a project read from the FM-1 or written into it: the backup's project streams and the project command) over Bluetooth MIDI are part of the web editor (EDITOR) in every build that has Bluetooth MIDI (BLE) and the Mirror's link (ED_MIRROR), the backup (BACKUP) and the projects (PATTERNS); retired 2026-11-01, bit 414, never reuse it; the user: \"this is so small, include it in the base web editor feature\"; any old BT_PROJ value is ignored",
     "BT_AFH": "Bluetooth audio always hops adaptively, the channels the headset fails on skipped (bt/bt_afh.c; retired 2026-10-29, bit 395; the user: \"always on\"; any old BT_AFH value is ignored)",
     "BLE_DIAG": "the BLE diagnostics (the console's blell, the link layer's counters and rings) were removed (retired 2026-10-29, bit 253; the user: \"we can remove the diagnostics\"): BLE works the same without them; any old BLE_DIAG value is ignored",
     "BT_DIAG": "the Bluetooth audio diagnostics (the console's btinq / btscan / btpage / btclk / btrx / bttrace, the status histograms, receive logs and per-second counters) were removed (retired 2026-10-29, bit 363; the user: \"we can remove the diagnostics\"): the audio works the same without them; any old BT_DIAG value is ignored",
@@ -1053,7 +1054,8 @@ _add("LCD_BAUD", "LCD_BAUD", "screen data speed (SPI clock)", U, 79, default=1,
 Y = "System"
 _add("EDITOR", "FELUCCA_EDITOR", "web editor (USB SysEx)", Y, 54,
      desc="The web editor's communication layer: the frames and INFO, BUILD, PING. What it can do comes with its "
-          "options: BACKUP, LIBRARIAN, live editing (ED_LIVE) and its features. Firmware updates (the installer, "
+          "options: BACKUP, LIBRARIAN, live editing (ED_LIVE) and its features. With Bluetooth MIDI built (BLE, with the "
+          "Mirror and the backup) the projects move to and from the phone over Bluetooth too. Firmware updates (the installer, "
           "M-UPGRADE) and the USB rescue are not part of it: every build has them.",
      off_warning="without it there is no web editor (so no backup / restore from it); installing and the USB rescue "
                  "still work")
@@ -1232,18 +1234,11 @@ _add("ARENA", "FELUCCA_ARENA_KB", "memory per project (the free RAM: one arena f
           "(SYSTEM > INFO's RAM bar shows the arena in use and the undo history's share). A dropped or refused effect "
           "is bypassed and dimmed (FULL), kept in the project, and comes back by itself once there is room. Off: every "
           "memory reserved as before, nothing ever refused. An older configuration's size (ARENA=96) reads as on.")
-# bit 414 (2026-10-26): the next free one after the retired FAR_OK's 413; the fm-1 session's handover (projects off the device)
-_add("BT_PROJ", "FELUCCA_BT_PROJ", "projects to and from the phone over Bluetooth", Y, 414, default=0,
-     parent="EDITOR", experimental=True, tested="host-tested only (tests/mirror_test.c); no client sends it yet",
-     desc="The web editor's and the phone's project moves (a project read from the FM-1, or one written into it: the "
-          "backup's project streams and the project command) over Bluetooth MIDI too, not only over the USB cable, so "
-          "with one project on the FM-1 the phone keeps the others without a cable. Over Bluetooth a project moves at "
-          "the link's few KB a second (a dense project in a few seconds). About 640 B of the pool (a request's room for "
-          "the stream's chunks).",
-     off_warning="projects move over the USB cable only")
+# (bit 414, BT_PROJ, retired 2026-11-01: the projects' moves over Bluetooth MIDI are part of the web editor (EDITOR) in every build that
+#  has the Mirror's Bluetooth link, felucca.c MBR_PROJ; RETIRED above; never reuse the bit)
 # bit 413 (FAR_OK, retired 2026-10-29, never reused): the big slot waited for the far probe's answer on an FM-1; the user:
 # "drop the far probe, we don't need it", the fake SD mode layout always has the whole slot (RETIRED below)
-# bit 415 (2026-10-26): the next free one after BT_PROJ's 414; samples streamed from the SD card (storage/sd/sd_stream.c,
+# bit 415 (2026-10-26): the next free one after the retired BT_PROJ's 414; samples streamed from the SD card (storage/sd/sd_stream.c,
 # sd_stream_plan.c, docs/SD-CARD-DESIGN.md 7): the ring's KB a voice, 0 off (registry.h FELUCCA_SD_RING_KB -> SD_STREAM:
 # full FatFs, SAMPLE and the arena too, else it builds nothing)
 _add("SD_RING", "FELUCCA_SD_RING_KB", "samples streamed from the SD card (SAMPLE's CARD set): each voice's lookahead", MEM,
