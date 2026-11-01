@@ -989,6 +989,14 @@ static void lay_pat_peek(int want)
         op_enter(lpk.scr);
     }
 }
+/* HOME tapped on the locked pattern page: a normal screen, so HOME goes HOME (the mixer), not back to the screen the lock took
+ * it from (the user, 2026-11-01). The peek is dropped first so its end does not re-enter that screen; LFO held (not locked)
+ * still returns to it when let go */
+static void lay_pat_home(void)
+{
+    lay_unlock();
+    lpk.on = 0;
+}
 #endif
 /* ---- once a frame (op_input.c): the layer held, shown, its end */
 static void lay_frame(uint32_t held)

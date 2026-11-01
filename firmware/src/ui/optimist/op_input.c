@@ -877,9 +877,11 @@ static void op_tap(uint32_t b, uint32_t id)
         if (hold && pk_delete())
             ;                                           /* (held alone on STEP, a note picked: deleted, op_step.c) */
 #if FELUCCA_PATTERNS
-        else if (lay.lock == LY_PAT && !op_armed())
-            lay_unlock();                               /* the pattern page locked open (SHIFT2 + LFO): HOME alone leaves it (HOME + key
-                                                         * clears a slot, SAVE + key stores: op_combos.c) */
+        else if (lay.lock == LY_PAT && !op_armed()) {
+            lay_pat_home();                             /* the pattern page locked open (SHIFT2 + LFO): HOME alone goes HOME, the mixer (HOME
+                                                         * + key clears a slot, SAVE + key stores: op_combos.c) */
+            home_in();
+        }
 #endif
         else if (!(mx_quiet() && hold))
             op_no();                                    /* (held alone on the mixer: nothing) */
