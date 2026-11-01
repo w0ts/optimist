@@ -1496,20 +1496,29 @@ static void ev_swap(track_t *t, uint32_t a, uint32_t b)   /* the events of steps
     auto_touch(trk_index(t));
 }
 #endif
-/* a note's pitch there (SAME NOTE), a full step (STEP FULL), a ratchet a carry would cross (RATCHET HERE): it cannot start at
- * that step, the move goes past; the pattern's ends (FIRST STEP, LAST STEP) stop it */
-static int nmv_past(const char *why) { return why[0] != 'F' && why[0] != 'L'; }
+/* a note's pitch there (SAME NOTE), a ratchet a carry would cross (RATCHET HERE): it cannot start at that step, the move goes
+ * past; the pattern's ends (FIRST STEP, LAST STEP) and a full step (STEP FULL: four notes there already; the user, 2026-11-01:
+ * a different pitch joins the step, only the same pitch passes) stop it */
+static int nmv_past(const char *why) { return why[0] != 'F' && why[0] != 'L' && !str_eq(why, "STEP FULL"); }
 /* the notes of slots m of step a, d (+-1) steps on (IRQ off): -> 0 moved (*to: their step now), else why not (the steps
  * as they were). Where they cannot start (the same pitch sounding there, a full step) they go on past it to the first
  * step they fit, the notes there stay where they are (the user, 2026-10-31: "if i move a note on the right and there is
  * another note, it is erased. move past it :)"); only the pattern's first / last step stops them */
+static uint32_t nmv_starts(const track_t *t)              /* the notes that start anywhere in the pattern */
+{
+    uint8_t hd[4];
+    uint32_t i, n = 0;
+    for (i = 0; i < trk_len(t); i++)
+        n += pk_heads(t, i, hd);
+    return n;
+}
 static const char *note_move(track_t *t, uint32_t a, uint32_t m, int32_t d, uint32_t *to)
 {
     step_t sv[NSTEP];                                   /* (896 B on the stack: the steps back when one note cannot go) */
     nmv_t x[4];
     uint8_t hd[4];
     const step_t *s = &t->step[a];
-    uint32_t n = 0, k, len = trk_len(t), L = 1, had = 0;
+    uint32_t n = 0, k, len = trk_len(t), L = 1, had = 0, cnt = nmv_starts(t);
     int32_t b;
     const char *why = 0;
     for (k = 0; k < s->n && k < 4u; k++) {
@@ -1528,14 +1537,13 @@ static const char *note_move(track_t *t, uint32_t a, uint32_t m, int32_t d, uint
             why = b != (int32_t)a + d ? "NO ROOM" : d < 0 ? "FIRST STEP" : "LAST STEP";   /* (past a note: nowhere it fits) */
             break;
         }
-        had = pk_heads(t, (uint32_t)b, hd);
-        if (n > 1u && had)
-            continue;                                   /* (a chord moved whole passes a step where others start: it stays
-                                                         * one chord of its own) */
+        had = pk_heads(t, (uint32_t)b, hd);             /* (a chord joins the notes starting there: up to four) */
         for (k = 0, why = 0; k < n && !why; k++)
             why = nmv_out(t, a, &x[k]);
         for (k = 0; k < n && !why; k++)
             why = nmv_in(t, (uint32_t)b, &x[k]);
+        if (!why && nmv_starts(t) != cnt)
+            why = "SAME NOTE";                         /* (a note of the same pitch started inside a moved note's span, and went with it: past) */
         if (!why)
             break;
         memcpy(t->step, sv, len * sizeof(step_t));

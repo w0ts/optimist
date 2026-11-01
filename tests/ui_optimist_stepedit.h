@@ -133,8 +133,8 @@ static uint32_t se_fuzz(int knob, uint32_t runs)
                 turn(EN_K2, 1);
         }
         nb = se_list(t, b);
-        for (i = 0; i < na; i++)
-            if (!(ns == NSEL_ALL ? a[i].s == ps : (a[i].s == ps && a[i].p == pp)) && !se_has(b, nb, a[i].s, a[i].p, a[i].l))
+        for (i = 0; i < na; i++)                        /* (a whole step moved by several detents takes the notes it joined along: only its own count is kept) */
+            if (!(knob == 2 && ns == NSEL_ALL) && !(ns == NSEL_ALL ? a[i].s == ps : (a[i].s == ps && a[i].p == pp)) && !se_has(b, nb, a[i].s, a[i].p, a[i].l))
                 ok = 0;                                 /* (another note moved, changed or gone) */
         if (nb != na)
             ok = 0;
@@ -142,8 +142,8 @@ static uint32_t se_fuzz(int knob, uint32_t runs)
             ok = 0;
         if (knob == 2 && ns != NSEL_ALL && !se_has(b, nb, st.pk, pp, pl))
             ok = 0;                                     /* (the note moved whole) */
-        if (knob == 2 && ns != NSEL_ALL && st.pk + pl < 16u && strcmp(ui.msg, "LAST STEP") && strcmp(ui.msg, "NO ROOM"))
-            ok = 0;                                     /* (moved right until it stops: only at the pattern's end) */
+        if (knob == 2 && ns != NSEL_ALL && st.pk + pl < 16u && strcmp(ui.msg, "LAST STEP") && strcmp(ui.msg, "NO ROOM") && strcmp(ui.msg, "STEP FULL"))
+            ok = 0;                                     /* (moved right until it stops: at the pattern's end, or a step of four notes: the chord that grew by joining) */
         bad += !ok;
     }
     return bad;
