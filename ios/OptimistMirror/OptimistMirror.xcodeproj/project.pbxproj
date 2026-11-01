@@ -59,6 +59,7 @@
 		82B767B76579F258BBF4BD4E /* Ops.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0AE84B2EF5EC5BA03F190291 /* Ops.swift */; };
 		82FA6A443EE98741CA5713E0 /* Fm1BaseWeb.swift in Sources */ = {isa = PBXBuildFile; fileRef = 986DB380F9043690906D7353 /* Fm1BaseWeb.swift */; };
 		86C2DCA34E6A498375CE0BDE /* CompanionClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 446FFEB8234575701CC5F6FD /* CompanionClient.swift */; };
+		8E24C4A5226DD28449BEDC27 /* BluetoothWatch.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3858382FEA79711EA685A017 /* BluetoothWatch.swift */; };
 		8E85808DE7CFF8BE38BEA1CE /* companion_transcript.txt in Resources */ = {isa = PBXBuildFile; fileRef = 6D6524E410D116F70AB8B845 /* companion_transcript.txt */; };
 		92680155E67A8387D0372ACF /* bt_info_frames.json in Resources */ = {isa = PBXBuildFile; fileRef = E16F3A886BB028B255E823EA /* bt_info_frames.json */; };
 		95315429ACCA74BB4EDB10CE /* LibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F8D6D1D160BEB2BB72F4DDA /* LibraryView.swift */; };
@@ -71,6 +72,7 @@
 		A89EBD425D402C149A4A2D33 /* NavState.swift in Sources */ = {isa = PBXBuildFile; fileRef = A56F2B4C2834D8062355F8B0 /* NavState.swift */; };
 		AD46B38D1534BD51B9093140 /* web_library.json in Resources */ = {isa = PBXBuildFile; fileRef = 4F9FA8878BB640A9C6EF190C /* web_library.json */; };
 		BA6834D7B3A00D8A4007F620 /* MirrorLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = B44F5DDB3FA5A048A53E14BC /* MirrorLink.swift */; };
+		BB6015DB14078DBEBE420FF1 /* BtStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BDEB1B11BA1C688FE6E0394D /* BtStateTests.swift */; };
 		BF19193839D22CA41D55DCA2 /* PanelKeys.swift in Sources */ = {isa = PBXBuildFile; fileRef = 066FF4357CB7BD08B7F4C23A /* PanelKeys.swift */; };
 		C3F35DC66CFC2D5008AB9EF0 /* mirror_pages_aa.sysex in Resources */ = {isa = PBXBuildFile; fileRef = 88143DBDF9F810C1EC4E9AB1 /* mirror_pages_aa.sysex */; };
 		CB09E667D6EFAA4B66DD6B17 /* EditorSiteTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A10CC038EE36495604EC9B7 /* EditorSiteTests.swift */; };
@@ -78,6 +80,7 @@
 		D49D71173482047512F84808 /* PatternFile.swift in Sources */ = {isa = PBXBuildFile; fileRef = F35BAB0C19445FAE914889A1 /* PatternFile.swift */; };
 		D53FDA0428DCB2AA7D257362 /* EditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE24BDBA9F4261637806D42E /* EditorView.swift */; };
 		DB5365102B4235E1D0BBD403 /* EditorSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69FC05011ED5286C56AEC8F9 /* EditorSession.swift */; };
+		DBB5039D2F9342A24FEE6D6E /* BluetoothState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 961FDA5D33C467115D1CEE2D /* BluetoothState.swift */; };
 		E006485466AA9D4C7AEAFD0E /* screen.rgb565 in Resources */ = {isa = PBXBuildFile; fileRef = 0EFED5448060093A17041C1E /* screen.rgb565 */; };
 		E158BFA9D71B23AB36B7442C /* web_backup.optimist-backup in Resources */ = {isa = PBXBuildFile; fileRef = F69672169B84190D40265EA6 /* web_backup.optimist-backup */; };
 		E5AA9C28DDBCD932D70D5713 /* ProjectsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D997030CC4F53B83CBC034D4 /* ProjectsView.swift */; };
@@ -116,6 +119,7 @@
 		2CC99639629FA0CBF1CF327E /* InstallRoute.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstallRoute.swift; sourceTree = "<group>"; };
 		3379525767B548F895665DF5 /* FlashTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlashTests.swift; sourceTree = "<group>"; };
 		34E710CCCF17D4997B15C34F /* ProjectFile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectFile.swift; sourceTree = "<group>"; };
+		3858382FEA79711EA685A017 /* BluetoothWatch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BluetoothWatch.swift; sourceTree = "<group>"; };
 		3F8D6D1D160BEB2BB72F4DDA /* LibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryView.swift; sourceTree = "<group>"; };
 		427F479D77D594F69B2686BD /* LibraryStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryStore.swift; sourceTree = "<group>"; };
 		446FFEB8234575701CC5F6FD /* CompanionClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompanionClient.swift; sourceTree = "<group>"; };
@@ -144,6 +148,7 @@
 		7DD8C0A3C9962CC0B232C9E2 /* ProjectLibraryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectLibraryTests.swift; sourceTree = "<group>"; };
 		80E117300E52E6D293A00964 /* NavModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NavModel.swift; sourceTree = "<group>"; };
 		88143DBDF9F810C1EC4E9AB1 /* mirror_pages_aa.sysex */ = {isa = PBXFileReference; path = mirror_pages_aa.sysex; sourceTree = "<group>"; };
+		961FDA5D33C467115D1CEE2D /* BluetoothState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BluetoothState.swift; sourceTree = "<group>"; };
 		966AB47DC696C8582C328253 /* MirrorDecoderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MirrorDecoderTests.swift; sourceTree = "<group>"; };
 		97A7F3D3AAA5E0266A203852 /* FlashModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlashModel.swift; sourceTree = "<group>"; };
 		986DB380F9043690906D7353 /* Fm1BaseWeb.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Fm1BaseWeb.swift; sourceTree = "<group>"; };
@@ -159,6 +164,7 @@
 		B850D998AA77BE79F5B9BF9B /* BtRoute.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BtRoute.swift; sourceTree = "<group>"; };
 		B863C7AA9D1164281B82F9E5 /* Clip.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Clip.swift; sourceTree = "<group>"; };
 		BC918D1CB71D2C0601F37E2A /* web_pattern.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = web_pattern.json; sourceTree = "<group>"; };
+		BDEB1B11BA1C688FE6E0394D /* BtStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BtStateTests.swift; sourceTree = "<group>"; };
 		BF1536AAC1FE62449D4969F6 /* MFlasherRelease.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MFlasherRelease.swift; sourceTree = "<group>"; };
 		C0846C9A6195130B751E2FAA /* FlashPackage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlashPackage.swift; sourceTree = "<group>"; };
 		C6DB3C9BC847B2147F9C8CDD /* BtRouteTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BtRouteTests.swift; sourceTree = "<group>"; };
@@ -278,6 +284,7 @@
 			children = (
 				1F928314626D269ED26B394A /* BtInfoTests.swift */,
 				C6DB3C9BC847B2147F9C8CDD /* BtRouteTests.swift */,
+				BDEB1B11BA1C688FE6E0394D /* BtStateTests.swift */,
 				0A59E4FFAD11C10777223B51 /* ClipTests.swift */,
 				5553986B930F156D7B258AE6 /* CompanionTests.swift */,
 				6A10CC038EE36495604EC9B7 /* EditorSiteTests.swift */,
@@ -308,6 +315,8 @@
 			isa = PBXGroup;
 			children = (
 				08CDB3647FD4A337F9737AE8 /* BluetoothPicker.swift */,
+				961FDA5D33C467115D1CEE2D /* BluetoothState.swift */,
+				3858382FEA79711EA685A017 /* BluetoothWatch.swift */,
 				D6F31FA3CF326B87F5453721 /* MirrorDecoder.swift */,
 				B44F5DDB3FA5A048A53E14BC /* MirrorLink.swift */,
 				5D8D6024DF9B95CFFEEF0783 /* MirrorView.swift */,
@@ -526,6 +535,8 @@
 				7120E28F5671FFE5CE09098A /* BackupFile.swift in Sources */,
 				37367570A53B64A9A7333401 /* BackupView.swift in Sources */,
 				9A27CB820A2691AF488B847C /* BluetoothPicker.swift in Sources */,
+				DBB5039D2F9342A24FEE6D6E /* BluetoothState.swift in Sources */,
+				8E24C4A5226DD28449BEDC27 /* BluetoothWatch.swift in Sources */,
 				9B34ADB402DE0FE0A60F2B6A /* BtRoute.swift in Sources */,
 				32D047AA5565625887A2CB9F /* BuilderWebView.swift in Sources */,
 				2B092C4BA428EF74970B4EF0 /* Clip.swift in Sources */,
@@ -582,6 +593,7 @@
 			files = (
 				E617ECB32DB568495FAE2DBE /* BtInfoTests.swift in Sources */,
 				3946F00FDB10705D15E8BCF7 /* BtRouteTests.swift in Sources */,
+				BB6015DB14078DBEBE420FF1 /* BtStateTests.swift in Sources */,
 				CEA4069D82BBE09DC7A1FDDC /* ClipTests.swift in Sources */,
 				828D34323595A3890E13137E /* CompanionTests.swift in Sources */,
 				CB09E667D6EFAA4B66DD6B17 /* EditorSiteTests.swift in Sources */,

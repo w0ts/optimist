@@ -3691,7 +3691,9 @@ async function editorMirror() {
   const bi = JSON.parse(readFileSync(join(HERE, "../ios/OptimistMirror/Tests/Fixtures/bt_info_frames.json"), "utf8"));
   const biParse = (hex) => E.parse[E.CMD.INFO](Array.from(Buffer.from(hex, "hex")).slice(5, -1));
   const biWhole = biParse(bi.whole[0]), biBad = bi.damaged.map(biParse);
-  ok(E.btInfoOk(biWhole) && biWhole.opti.opti_btproj === 1 && biWhole.opti.opti_mirror === 2
+  ok(html.includes('nodevicebt: "No FM-1 found over Bluetooth. Is SYSTEM > BT MIDI on, and the FM-1 close by?"'),
+   "editor: the no-FM-1-over-Bluetooth line is the Mirror app's (BluetoothState.swift, BtAdvice.noFM1): same words");
+ok(E.btInfoOk(biWhole) && biWhole.opti.opti_btproj === 1 && biWhole.opti.opti_mirror === 2
     && biBad.every((i) => !E.btInfoOk(i) || JSON.stringify(i.opti) === JSON.stringify(biWhole.opti)) && biBad.filter((i) => !E.btInfoOk(i)).length > biBad.length / 2,
     "bluetooth: a whole INFO taken (opti_btproj_1), a damaged one (bytes zeroed or lost while the screen streams) refused, as the app");
   ok(/for \(let k = 0; k < BT_INFO_TRIES && !btInfoOk\(info\); k\+\+\)/.test(html), "bluetooth: loadBt asks INFO again until a whole one comes (BT_INFO_TRIES)");
