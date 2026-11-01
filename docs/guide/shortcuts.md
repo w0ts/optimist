@@ -118,7 +118,7 @@ On STEP the white keys stay steps under the shifts: SHIFT and SHIFT2 with a step
 | step held + SAVE | STEP | on a p-lock card: lock <-> held motion; else the fill condition: NORMAL, FILL ONLY, NO FILL [FILLS] |
 | step held + ENV, LFO, FX, SCL, ARP (drums: EDIT too) | STEP | that page's cards as the step's p-locks; again: its next page [PLOCK] |
 | SEQ held | STEP | the fill view of the selected synth track or drum lane, header *FILLS T1* / *FILLS* + lane [FILLS] |
-| SEQ held + a step key | STEP | that track's or lane's fills: empty: a FILL ONLY note / hit; FILL ONLY: removed; normal: NO FILL; NO FILL: normal. One undo level each [FILLS] |
+| SEQ held + a step key | STEP | that track's or lane's fills: empty: a FILL ONLY note / hit; FILL ONLY: removed; a normal note: unchanged, the popup says so. One undo level each [FILLS] |
 | OCT- and OCT+ tapped together (let go within 400 ms) | a synth track's STEP | FOLD on / off: only the rows of the pattern's notes, or the scale's notes when a scale is set |
 | TOOLS: a knob, then SAVE | STEP's TOOLS page | the tool: REVERSE, RANDOM, COOK, DOUBLE, HALF, QNT 1, QNT 1/2, QNT 1/4 (asked) [SEQTOOLS] |
 
