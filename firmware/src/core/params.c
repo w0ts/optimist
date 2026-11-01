@@ -47,6 +47,28 @@ static const char *const N_SCALE[] = {"CHR", "MAJ", "MIN", "DOR", "MIX", "PEN", 
 static const char *const N_ONOFF[] = {"OFF", "ON"};
 static const char *const N_DLYF[] = {"LP", "HP", "BP", "PEAK"};   /* (core.h DLYF_*) */
 static const char *const N_SLOPE[] = {"12dB", "24dB"};
+#include "../fx/fx_memsz.h"                             /* FX MEMORY: the sizes each build offers (FXZ_*_N) */
+static const char *const N_FXZD[FXZ_DLY_N] = {"FULL",
+#if FXZ_DLY_N > 1
+                                             "1/2",
+#endif
+#if FXZ_DLY_N > 2
+                                             "1/4",
+#endif
+#if FXZ_DLY_N > 3
+                                             "1/8",
+#endif
+};
+static const char *const N_FXZR[FXZ_REV_N] = {"FULL",
+#if FXZ_REV_N > 1
+                                             "SMALL",
+#endif
+};
+static const char *const N_FXZX[FXZ_XDL_N] = {"FULL",
+#if FXZ_XDL_N > 1
+                                             "HALF",
+#endif
+};
 #if FELUCCA_QNT_SEQ
 static const char *const N_QUANT[] = {"OFF", "SNAP", "WHITE", "ALL", "SEQ"};   /* .. Q_SEQ (qnt_seq.c) */
 #define Q_LAST Q_SEQ
@@ -467,6 +489,9 @@ static const param_desc_t GP[G_COUNT] = {
     [G_DFSLOPE] = PE("SLOPE", N_SLOPE, 0),
     [G_DFRES] = PD("RES", F_PCT, 0, 127, 0),
     [G_TFRES] = PD("FILT RESO", F_INT, 0, 10, 0),   /* (core.h G_TFRES; fx.c tflt_reso) */
+    [G_FXZ_DLY] = PE("DLY MEM", N_FXZD, 0),             /* FX MEMORY (fx/fx_memsz.h): PROJECT > FX MEM */
+    [G_FXZ_REV] = PE("REV MEM", N_FXZR, 0),
+    [G_FXZ_XDL] = PE("XDLY MEM", N_FXZX, 0),
 };
 
 static const param_desc_t DRUM_KIT_DESC = PN("KIT", F_ENUM, 0, (int16_t)(DRUM_KITS - 1u), 0, DRUM_KIT_NAMES);   /* (drums.c) */

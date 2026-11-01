@@ -31,7 +31,11 @@ static const uint8_t FXI_TYS[FXI_NL] = {FXT_CHO, FXT_ECHO, FXT_JUNO, FXT_FLNG, F
  * units (by j) */
 static const uint8_t FXI_TN[FXI_NL] = {FXI_TN0, FXI_TN1, FXI_TN2, FXI_TN3, FXI_TN4, FXI_TN5, FXI_TN6};
 static const uint8_t FXA_SZS[FXI_NL] = {FXA_Z0, FXA_Z1, FXA_Z2, FXA_Z3, FXA_Z4, FXA_Z5, FXA_Z6};
+#if FXZ_XDL_N > 1u                                       /* (XDLY: FX MEMORY HALF, fx_memsz.h) */
+#define FXA_SZ(j) ((j) % FXI_NL == 4u ? FXA_Z4 >> fxsz_xdl : (uint32_t)FXA_SZS[(j) % FXI_NL])
+#else
 #define FXA_SZ(j) ((uint32_t)FXA_SZS[(j) % FXI_NL])
+#endif
 _Static_assert(FXA_Z4 <= 255u, "FXA_SZS: a byte");
 #define FXI_IMAX FXI_NK                                 /* (the most instances of a type) */
 static uint16_t fxa_u[FXI_NL][FXI_IMAX] IN_POOL;      /* each instance's first unit (fxi.c; the main loop writes it) */
