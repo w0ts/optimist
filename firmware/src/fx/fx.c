@@ -1914,6 +1914,21 @@ static void bench_sig(uint32_t k, const int32_t *b, uint32_t n);   /* bench.c */
 #else
 #define BENCH_SIG(k, b, n) ((void)0)
 #endif
+#if FELUCCA_BENCH && FELUCCA_DUAL >= 2
+/* (bench builds: CPU0's ticks in each stage of the dual block, summed since boot: the emulator reads bpt_sum) */
+enum { BPT_EVENTS, BPT_PREREST, BPT_POLD, BPT_MERGE, BPT_UT, BPT_RETS, BPT_MST, BPT_OUT, BPT_N };
+static uint32_t bpt_sum[BPT_N], bpt_t;
+#define BPT0() (bpt_t = fm1_ticks())
+#define BPT(k)                                                                                                         \
+    do {                                                                                                               \
+        uint32_t bpt_n = fm1_ticks();                                                                                  \
+        bpt_sum[k] += bpt_n - bpt_t;                                                                                   \
+        bpt_t = bpt_n;                                                                                                 \
+    } while (0)
+#else
+#define BPT0() ((void)0)
+#define BPT(k) ((void)0)
+#endif
 #if DUAL_RENDER
 /* dual core (dual.c): each core mixes its parts into its own accumulators; MX(x) names them */
 typedef struct { int32_t send_c[CTL], send_d[CTL], send_r[CTL], mix_l[CTL], mix_r[CTL], part_buf[CTL]; } mixacc_t;
@@ -3226,10 +3241,12 @@ static inline __attribute__((always_inline)) void mix_finish(int32_t *out, uint3
     BENCH_SIG(4, mix_l, n);
     BENCH_SIG(5, send_r, n);
     rets_mix(n);
+    BPT(BPT_RETS);
     click_mix(n);                                       /* (the click: before the master, as the rest of the mix) */
     if (FELUCCA_FX_PUNCH)
         punch_process(mix_l, mix_r, n);
     mst_run(mix_l, mix_r, n);                           /* the master's insert slots (above) */
+    BPT(BPT_MST);
     if (!scope_src)                                     /* the SCOPE on the master, the mixer's master column */
         FAR(vis_tap_block)(mix_l, mix_r, n);
 #if FELUCCA_USB_AUDIO
@@ -3250,10 +3267,12 @@ static inline __attribute__((always_inline)) void mix_finish(int32_t *out, uint3
 #if FELUCCA_MASTER_COMP
     if (mlim.on) {                                      /* LIMIT > CEIL: the volume, master_pre, the lookahead brickwall */
         mlim_block(&mlim, &mo, mix_l, mix_r, out, n, m0, m1, 1u);   /* instead of the limiter and the knee (master_comp.c) */
+        BPT(BPT_OUT);
         return;
     }
 #endif
     mout_block(&mo, mix_l, mix_r, out, n, m0, m1, 1u);  /* the volume, the limiter and the knee (above) */
+    BPT(BPT_OUT);
 }
 
 #if FELUCCA_BENCH
