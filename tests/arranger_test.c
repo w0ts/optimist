@@ -1,6 +1,8 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 #include <assert.h>
 #include <stdio.h>
+#define __attribute__(x)
+#include "../firmware/src/core/core.h"
 #include "../firmware/src/seq/arranger.h"
 
 int main(void)
