@@ -206,12 +206,13 @@ enum {
     ARB_X808 = ARB_X909 + (FELUCCA_DRUM_X909 ? 1 : 0),
     ARB_PUNCH = ARB_X808 + (FELUCCA_DRUM_X808 ? 1 : 0),
     ARB_FM6SIN = ARB_PUNCH + (FELUCCA_PUNCH_SW ? 1 : 0),
-    ARB_LEND0 = ARB_FM6SIN + (FELUCCA_ENG_FM6 ? 1 : 0),   /* the switchable features' blocks (FMEM_NLEND) */
+    ARB_VIS = ARB_FM6SIN + (FELUCCA_ENG_FM6 ? 1 : 0),     /* the SCOPE's ring while a trace is drawn (fx.c vis_pcm) */
+    ARB_LEND0 = ARB_VIS + 1,                            /* the switchable features' blocks (FMEM_NLEND) */
     ARB_BTA = ARB_LEND0,                                /* (Bluetooth audio's the first, when built) */
     ARB_NC = ARB_LEND0 + FMEM_NLEND
 };
 #define ARB_ANY ((FELUCCA_FX_SLICER ? NTRK : 0) + FELUCCA_ENG_WAVE + FELUCCA_DRUM_X909 + FELUCCA_DRUM_X808 + \
-                 FELUCCA_PUNCH_SW + FELUCCA_ENG_FM6 + FMEM_NLEND)             /* (#if) */
+                 FELUCCA_PUNCH_SW + FELUCCA_ENG_FM6 + 1 + FMEM_NLEND)         /* (#if; 1: the SCOPE's ring) */
 #define SST_ARN_K (NPART + FXM_NC + (uint32_t)ARB_NC)   /* the card streams' block, after them (FELUCCA_SD_STREAM:
                                                          * storage/sd/sd_stream_plan.c, the heads and the rings) */
 /* the CHO DLY REV inserts' lines (2026-10-29, the user: "each copy in an insert slot takes its memory from the arena, as
@@ -481,7 +482,7 @@ static uint32_t part_tab_bytes(uint32_t e)               /* engine e's table: it
     if (e % NENGINES == (uint32_t)ENG_SLOT_WAVE)
         return WT_MEM_BYTES;
 #endif
-    return FM6_SIN_BYTES;
+    return FM6_SIN_BYTES + FM6_PICK_LEND;               /* (FM6's block: the sine table and the DX7 bank's room) */
 }
 #else
 #define part_tab_k(e) ((void)(e), (uint32_t)ARN_PARTS)

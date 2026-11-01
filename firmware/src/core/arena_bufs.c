@@ -11,6 +11,8 @@
  *   - ARB_FM6SIN (ENG_FM6): FM6's sine table (eng_fm6.c FM6_SIN, 4,100 B), built here before its pointer is set
  *     (arb_fill), while a part plays FM6 or is switching to it (set aside with the part's own memory: engines.c
  *     part_mem_aside, as WAVE's table);
+ *   - ARB_VIS: the SCOPE's ring (fx.c vis_pcm, 8 KB), while a trace is drawn (SCOPE shown, the web editor's SCOPE asked:
+ *     vis_ui); else the taps keep a block peak for the mixer's MASTER meter. Refused: the trace flat, MEM FULL SCOPE;
  *   - ARB_PUNCH (FELUCCA_PUNCH_SW): the punch-in FX's ring of the mix (fx/punch/punch.c), while the project's PUNCH switch
  *     is on (GLOBAL > Rec; a punch needs the past, so the ring records from the switch on, not from the key), or an
  *     effect still fades out. FX + a key while it is not placed: let go, PUNCH OFF said (the switch off; refused: the
@@ -92,8 +94,10 @@ static uint32_t arb_bytes(uint32_t c)                   /* client c's block */
 #endif
 #if FELUCCA_ENG_FM6
     if (c == (uint32_t)ARB_FM6SIN)
-        return FM6_SIN_BYTES;
+        return FM6_SIN_BYTES + FM6_PICK_LEND;           /* (and the DX7 bank received: eng_fm6.c fm6_pick) */
 #endif
+    if (c == (uint32_t)ARB_VIS)
+        return 2u * VIS_RING * 4u;
 #if FMEM_NLEND
     if (ARB_LENT(c))
         return FMEM_LEND_BYTES(c - (uint32_t)ARB_LEND0);
@@ -158,9 +162,15 @@ static uint32_t arb_want(uint32_t c)                    /* client c's feature is
         for (k = 0; k < NPART; k++)
             if (trk[k].eng_req == (uint8_t)ENG_SLOT_FM6 || trk[k].engine == (uint8_t)ENG_SLOT_FM6)
                 return 1;
+#if FELUCCA_FM6_SYSEX
+        if (fm6_pick_ok || (fm6_rx_on && fm6_rx_kind == 2u) || fm6_rx_ready == 2u)
+            return 1;                                   /* (a bank held, coming in, or waiting for its check) */
+#endif
         return 0;
     }
 #endif
+    if (c == (uint32_t)ARB_VIS)
+        return vis_ui != 0;
 #if FMEM_NLEND
     if (ARB_LENT(c))
         return (uint32_t)(FMEM_LEND_WANT(c - (uint32_t)ARB_LEND0) != 0);
@@ -205,9 +215,15 @@ static void arb_set(uint32_t c, void *p)
         punch_mem(p);
 #endif
 #if FELUCCA_ENG_FM6
-    if (c == (uint32_t)ARB_FM6SIN)
+    if (c == (uint32_t)ARB_FM6SIN) {
         FM6_SIN = (int32_t *)p;                         /* (built before: arb_open) */
+#if FELUCCA_FM6_SYSEX
+        fm6_pick = p ? (uint8_t *)p + FM6_SIN_BYTES : 0;
 #endif
+    }
+#endif
+    if (c == (uint32_t)ARB_VIS)
+        vis_pcm = (int32_t (*)[VIS_RING])p;              /* (zeroed: a flat trace until the next blocks) */
 #if FMEM_NLEND
     if (ARB_LENT(c))
         FMEM_LEND_SET(c - (uint32_t)ARB_LEND0, p);      /* (its interrupts see it whole, or not at all) */
@@ -354,6 +370,8 @@ static const char *arb_said(void)
         if (c == (uint32_t)ARB_FM6SIN)
             return "MEM FULL FM6";
 #endif
+        if (c == (uint32_t)ARB_VIS)
+            return "MEM FULL SCOPE";
         return "MEM FULL X0X";
     }
     return 0;
