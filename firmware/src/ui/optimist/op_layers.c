@@ -28,6 +28,8 @@ static const uint8_t LAYER_BTN[LY_COUNT] = {NB, B_FX, B_EDIT, B_ARP, NB, B_SCL, 
 #if FELUCCA_PATTERNS
 static void pat_launch(uint32_t k, uint32_t s, uint32_t when);   /* storage/sections/pat.c, later in the unit */
 static int pat_has(uint32_t k, uint32_t s);
+static int pat_peek(uint32_t k, uint32_t s, pat_peek_t *o);   /* pat.c: a stored pattern read, not loaded */
+static uint32_t sec_gen;                                /* sections.c: a store changes it */
 static uint32_t pat_users(uint32_t k, uint32_t s, uint32_t but);
 static uint32_t pat_free(uint32_t k);
 static int pat_store_slot(uint32_t k, uint32_t s);
@@ -91,6 +93,16 @@ static int cards_2x2(void) { return (ui.scr != SCR_HOME || lay.shown != LY_PLAY 
 #else
 static int cards_2x2(void) { return ui.scr != SCR_HOME || lay.shown != LY_PLAY || mx_row() <= MXR_MASTER; }   /* (the master screen: MASTER and the returns) */
 #endif
+/* the patterns screen (SONG's PATTERNS row; LFO held or locked): no 2x2 cards, its panel from the header down (the user,
+ * 2026-11-01: "the top 2*2 cards are not very useful"); op_laydraw.c song_grid_draw */
+static int pat_view(void)
+{
+#if FELUCCA_PATTERNS
+    return song_on_pat_row();
+#else
+    return 0;
+#endif
+}
 
 static uint32_t lay_now(void) { return lay.lock != LY_PLAY ? lay.lock : lay.held; }   /* the layer at work */
 static int lay_is(uint32_t l) { return lay_now() == l; }
@@ -500,6 +512,14 @@ static uint32_t pat_black(uint32_t k)                   /* black key k -> 1.. (F
     static const uint8_t B[12] = {0, 1, 0, 2, 0, 3, 0, 0, 4, 0, 5, 0};
     return B[k % 12u] ? (k / 12u) * 5u + B[k % 12u] : 0u;
 }
+/* the pattern the patterns screen previews: the one last touched (cued, launched, stored, cleared) on the selected track;
+ * else the selected track's playing (or queued) one */
+static uint8_t pv_t = 0xFF, pv_s = PAT_NONE;
+static void pv_touch(uint32_t t, uint32_t s)
+{
+    pv_t = (uint8_t)(t < NTRK ? t : song.sel % NTRK);
+    pv_s = (uint8_t)s;
+}
 static void pat_name(char *b, uint32_t k, uint32_t s)   /* "T2 5", "DR 16" */
 {
     str_cpy(b, trk_tag(k), 4);
@@ -664,6 +684,8 @@ static void pat_layer_key(uint32_t k, int32_t w)
     }
     if (w < 0 || w >= (int32_t)PAT_N)
         return;
+    if (!(lay.pmod == 10u || btn_held(B_SEQ)))
+        pv_touch(t, (uint32_t)w);                       /* (the preview follows the slot a key touches) */
     if (lay.pmod == 10u || btn_held(B_SEQ)) {           /* the scenes (black 10, or SEQ held; the user, 2026-10-20): SEQ + n stores the four
                                                          * patterns as scene n (SAVE + n too), HOME + n clears, n alone (black 10's view) launches */
         if (w >= LAY_NSCN)
@@ -677,6 +699,7 @@ static void pat_layer_key(uint32_t k, int32_t w)
     } else if (pat_held_black(k)) {                     /* a black key 1-4 held + n: that track's working pattern into slot n, black 5 held: every track's
                                                          * (the user, 2026-10-31: the same as SAVE + n, asked over a used slot) */
         b = pat_held_black(k);
+        pv_touch(b == 5u ? sel : b - 1u, (uint32_t)w);
         pat_store_ask(b == 5u ? PAT_ALLT : b - 1u, (uint32_t)w);
     } else if (pat_save_held()) {    /* SAVE + n (the page locked open: LFO + n too): the working pattern into slot n (asked) */
         pat_store_ask(t, (uint32_t)w);
@@ -692,6 +715,7 @@ static void pat_knob(uint32_t k, int32_t s)             /* track k's next / prev
     for (i = 1; i <= PAT_N; i++) {
         uint32_t n = (c + (s > 0 ? i : PAT_N - i)) % PAT_N;
         if (pat_has(k, n)) {
+            pv_touch(k, n);
             pat_launch(k, n, PW_END);
             return;
         }
