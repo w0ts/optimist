@@ -30,6 +30,12 @@ BUTTONS = ["FX", "SCL", "ENV", "LFO", "EDIT", "GLO", "HOME", "SAVE", "ARP", "SEQ
 KNOBS = ["SELECT", "ALGORITHM", "PRESETS", "KNOB 1", "KNOB 2", "KNOB 3", "KNOB 4"]
 
 
+def aa_blend(f: int, b: int, a: int) -> int:
+    """the AA token's pixel: f over b at level a (0..15), per channel (f * a + b * (15 - a)) / 15 rounded down (fm1-base's text)"""
+    return (((f >> 11) * a + (b >> 11) * (15 - a)) // 15 << 11 | (((f >> 5) & 63) * a + ((b >> 5) & 63) * (15 - a)) // 15 << 5
+            | ((f & 31) * a + (b & 31) * (15 - a)) // 15)
+
+
 class Decoder:
     """the client's side of 106: FILL, BLIT, MORE applied to fb (RGB565, row by row); STATE kept"""
 
@@ -111,6 +117,25 @@ class Decoder:
                 self.slot[self.rr] = v2(i) | f[i + 2] << 14
                 s, self.rr = self.rr, self.rr + 1 if self.rr < 6 else 1
                 i += 3
+            if code == 14 and i + 2 <= n and (f[i] & 7) == 7:   # the AA token (opti_miraa_1): k << 3 | 7, L, L levels
+                if (f[i] >> 3) > 6 or not f[i + 1]:
+                    return False
+                fg, bg, ln = self.slot[s], self.slot[f[i] >> 3], f[i + 1]
+                i += 2
+                acc = nb = 0
+                for _ in range(ln):         # (a prefix code, 7 bits a byte, bit 6 first: '0' 15, '10' 0, '11' + 4 bits a)
+                    v = m = 0
+                    while m < 6 and (m != 1 or v == 1) and (m != 2 or v == 3):
+                        if not nb:
+                            if i >= n:
+                                return False
+                            acc, nb = f[i], 7
+                            i += 1
+                        nb -= 1
+                        v = v << 1 | (acc >> nb & 1)
+                        m += 1
+                    self._px(aa_blend(fg, bg, 15 if m == 1 else 0 if m == 2 else v & 15), 1)
+                continue
             if code == 14:          # a bitmap: g << 3 | the 0s' slot, then g + 1 bytes of 7 pixels, bit 6 first
                 if i >= n or (f[i] & 7) == 7:
                     return False
@@ -196,6 +221,10 @@ def shot(out: Path, want_state: bool, off: bool = True) -> None:
     if not pi or not po:
         sys.exit("no MIDI port named FM1-XXXX (Optimist on older firmware): connect the FM-1 by USB")
     dec = Decoder()
+    mi.ignore_types(sysex=False, timing=True, active_sense=True)
+    mi.open_port(pi[0])
+    mo.open_port(po[0])
+    aa = takes_aa(request(mi, mo, INFO, []))      # (the AA token only to a firmware that lists it: INFO first)
     got: deque = deque()                           # (filled by rtmidi's thread as messages come: polled, its queue overflows
                                                    # under a catch-up and a lost MORE frame puts pixels in the wrong place)
 
@@ -204,12 +233,9 @@ def shot(out: Path, want_state: bool, off: bool = True) -> None:
         if m and m[0] == 0xF0:                     # rtmidi leaves it in, Chrome takes it out; mido's parser broke the frames)
             got.append([b for b in m if b < 0xF8 or b == 0xF7])
 
-    mi.ignore_types(sysex=False, timing=True, active_sense=True)
     mi.set_callback(take)
-    mi.open_port(pi[0])
-    mo.open_port(po[0])
     try:
-        ask = [0xF0, *HDR, MIRROR, 3 | (4 if want_state else 0), 0xF7]
+        ask = [0xF0, *HDR, MIRROR, 3 | (4 if want_state else 0), *([1] if aa else []), 0xF7]
         t0 = last = time.monotonic()
         asked = 0.0
         began, began_at = False, 0.0
@@ -246,6 +272,17 @@ def shot(out: Path, want_state: bool, off: bool = True) -> None:
     print(f"wrote {out}" + (f" ({bad} mirror frames not decoded: the picture may be wrong there)" if bad else ""))
     if want_state and dec.state is not None:
         print(state_text(dec.state))
+
+
+INFO = 1
+
+
+def takes_aa(info: list[int] | None) -> bool:
+    """INFO's names (tags 66, 67: space-separated, each list ending in a space, ed_opti.h) list opti_miraa_1: 106's second
+    byte, the AA token (web/EDITOR_PROTOCOL.md). Never sent to a firmware without it (over Bluetooth it drops the request)"""
+    b = bytes(info or [])
+    k = b.find(b"opti_miraa_1 ")
+    return k >= 0 and (k == 0 or not (0x21 <= b[k - 1] <= 0x7E))
 
 
 PANEL = 108
