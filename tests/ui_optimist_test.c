@@ -1977,9 +1977,9 @@ static void layer_tests(void)
          * at once (before the hold) is SHIFT and keeps the screen under it (ui_optimist_len.h: LEN by one) */
         check(lpk.on && ui.scr == SCR_SONG, "LFO held: the patterns screen (SONG's PATTERNS row)");
         turn(EN_K2, 1);
-        check(song.sel == 2u && lay.shown == LY_PLAY, "LFO held + KNOB 2 on the patterns screen: T3 selected (the knobs read the cards by columns, 2026-10-31)");
-        {   /* (a knob turned makes the hold SHIFT's: each knob in a hold of its own) K1 T1, K3 T2, K4 DR */
-            static const uint8_t KN[3] = {EN_K1, EN_K3, EN_K4}, WANT[3] = {0, 1, 3};
+        check(song.sel == 1u && lay.shown == LY_PLAY, "LFO held + KNOB 2 on the patterns screen: T2 selected (the knobs are the rows in order, 2026-11-01)");
+        {   /* (a knob turned makes the hold SHIFT's: each knob in a hold of its own) K1 T1, K3 T3, K4 DR */
+            static const uint8_t KN[3] = {EN_K1, EN_K3, EN_K4}, WANT[3] = {0, 2, 3};
             uint32_t i;
             for (i = 0; i < 3u; i++) {
                 release(B_LFO);
@@ -1988,7 +1988,7 @@ static void layer_tests(void)
                 press(B_LFO);
                 frames(HOLD_FRAMES);
                 turn(KN[i], 1);
-                check(song.sel == WANT[i], i == 0 ? "... KNOB 1: T1 (top left)" : i == 1 ? "... KNOB 3: T2 (top right)" : "... KNOB 4: DR (bottom right)");
+                check(song.sel == WANT[i], i == 0 ? "... KNOB 1: T1" : i == 1 ? "... KNOB 3: T3" : "... KNOB 4: DR");
             }
         }
         song.sel = 0;

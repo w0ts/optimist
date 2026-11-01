@@ -314,7 +314,7 @@ static void tempo_draw(int32_t h)
 #define PG_PVX 13                                       /* the preview's first step (213 px wide: centred) */
 #define PG_PVD (PG_LANE * (int32_t)DRUM_LANES)          /* the preview's steps, drums */
 #define PG_PVH (12 + 4 + PG_PVD)                        /* the preview: its label, the steps (the drums' lanes are the tallest) */
-static const uint8_t PAT_ROW_KNOB[4] = {0, 2, 1, 3};    /* the knob that cues row k: K1 T1, K3 T2, K2 T3, K4 DR (PAT_KNOB_CELL's inverse) */
+static const uint8_t PAT_ROW_KNOB[4] = {0, 1, 2, 3};    /* the knob that cues row k: K1 T1, K2 T2, K3 T3, K4 DR (PAT_KNOB_CELL's inverse) */
 /* the pattern previewed: the selected track's, the slot last touched (pv_touch), else its playing one, its queued one first */
 static uint32_t pv_slot(void)
 {

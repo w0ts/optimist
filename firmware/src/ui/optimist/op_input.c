@@ -662,8 +662,8 @@ static void shift_keys(uint32_t notes, int mute)
  * Not where the keys mean something else (STEP's steps, a layer's tiles, NAME, the FM6 layer: ui_input's other
  * branches), not on MASTER, and not while a value is being turned (a knob in the last 300 ms: the cards stay). On a
  * key down, from the main loop's note edges: nothing in seq.c's key ISR. The lowest key of a chord wins */
-/* the patterns screen (LFO layer, SONG's PATTERNS row): K1 T1 (top left), K2 T3 (bottom left), K3 T2 (top right), K4 DR (bottom right) */
-static const uint8_t PAT_KNOB_CELL[4] = {0, 2, 1, 3};
+/* the patterns screen (LFO layer, SONG's PATTERNS row): K1..K4 = T1 T2 T3 DR, the grid's rows top to bottom (the user, 2026-11-01: "k2 should control t2"; the 2x2 cards are gone) */
+static const uint8_t PAT_KNOB_CELL[4] = {0, 1, 2, 3};
 #define HIT_KNOB_MS 300u
 static void drum_hit_pick(uint32_t notes)
 {
@@ -1115,7 +1115,7 @@ static void op_knobs(uint32_t shift)
             continue;
         }
         step_cards_show();                              /* (STEP: a value edited) */
-        ck = song_on_pat_row() ? PAT_KNOB_CELL[k] : k;   /* (the patterns screen: the knobs read the 2x2 cards by columns, the user 2026-10-31) */
+        ck = song_on_pat_row() ? PAT_KNOB_CELL[k] : k;   /* (the patterns screen: the rows in order, the user 2026-11-01) */
         SCR->cell(row, ck, &c);
         if (c.kind == CK_NONE)
             continue;

@@ -2,7 +2,7 @@
 /* The patterns screen (LFO held, SONG's PATTERNS row), the user 2026-11-01, included by ui_optimist_test.c:
  *   no cards    the 2x2 cards are gone: the panel starts under the header (OY_CARD), the grid is taller, the numbers 1..16 on two
  *               lines so 10..16 do not crowd
- *   rows        each row names the knob that cues it (K1 T1, K3 T2, K2 T3, K4 DR), in the knob's colour with KNOB COLORS
+ *   rows        each row names the knob that cues it (K1 T1, K2 T2, K3 T3, K4 DR), in the knob's colour with KNOB COLORS
  *   preview     the pattern last touched, drawn as the mixer draws a row (4 groups of 4 steps, shaded by level, the track's
  *               colour; the drums' lanes as rows), read from the store without loading it; an empty slot says EMPTY */
 #if FELUCCA_PATTERNS
@@ -39,8 +39,8 @@ static void patview_tests(void)
           "... 5 (playing, green) on the upper line, 10 (grey) on the lower line");
     check(!px_in(0, (uint32_t)OP_PY + 2u * PG_NUMH, 240, 1, C_OK) && !px_in(0, (uint32_t)OP_PY + 2u * PG_NUMH, 240, 1, C_GRAY), "... no number reaches the grid's top rule");
     check(pat_view() && PAT_KNOB_CELL[PAT_ROW_KNOB[0]] == 0u && PAT_KNOB_CELL[PAT_ROW_KNOB[1]] == 1u && PAT_KNOB_CELL[PAT_ROW_KNOB[2]] == 2u && PAT_KNOB_CELL[PAT_ROW_KNOB[3]] == 3u &&
-              PAT_KNOB_CELL[0] == 0u && PAT_KNOB_CELL[1] == 2u && PAT_KNOB_CELL[2] == 1u && PAT_KNOB_CELL[3] == 3u,
-          "knobs: the mapping is as before (K1 T1, K2 T3, K3 T2, K4 DR) and each row names its own knob");
+              PAT_KNOB_CELL[0] == 0u && PAT_KNOB_CELL[1] == 1u && PAT_KNOB_CELL[2] == 2u && PAT_KNOB_CELL[3] == 3u,
+          "knobs: the rows in order (K1 T1, K2 T2, K3 T3, K4 DR) and each row names its own knob");
     for (k = 0; k < NTRK; k++)
         check(px_in(3, pvt_row_y(k) + 12u, 16, 12, C_DIM), "... without KNOB COLORS the row's knob (K1 .. K4) is in dim grey under its tag");
     knob_colors = 1;
