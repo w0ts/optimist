@@ -268,8 +268,9 @@ export function fm1Devices(names) {
 }
 
 /* ---- the cable dropped mid-install (tools/fm1_install.py resume_plan; the Mirror app's FlashResume.plan): the user, 2026-11-01,
-   "There should be a user warning 'connection dropped, verify cable and enter to resume'" */
-export const DROPPED = "Connection dropped. Check the cable, then press Resume.";
+   "There should be a user warning 'connection dropped, verify cable and enter to resume'"; then "the flasher should
+   automatically resume" */
+export const DROPPED = "Connection dropped. Check the cable: the install continues by itself when the FM-1 is back. Do not power off the FM-1.";
 const OUR_LOADER_TEXT = /^ota-FM-1_[79]\d\d$/i;
 const dropModelOf = (text) => String(text || "").split("_")[0].replace(/^ota-/i, "");
 /** what the FM-1 found again after a drop means. phase: "check" (step 1 was cut off) or "write" (step 2); id: its identity

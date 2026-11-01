@@ -3458,9 +3458,9 @@ async function updater() {   /* every outcome of install() and resume() */
   ok(cs.stock && cs.banks && cs.banks.length === STOCK_BANKS_SIZE, "installer: checkStock: the V15 with its voice banks (the restore after the install)");
 }
 
-/* the cable dropped mid-install (2026-11-01): resumable() asks (Resume / Cancel), finds the FM-1 again and goes on: step 2
-   on the loader (only the sectors left), step 1 again on the same running firmware; anything else stops (tools/fm1_install.py
-   install_resumable, the app's FlashUpdater.installResumable) */
+/* the cable dropped mid-install (2026-11-01): resumable() says so, then looks for the FM-1 BY ITSELF (the user: "the flasher
+   should automatically resume") and goes on: step 2 on the loader (only the sectors left), step 1 again on the same running
+   firmware; Cancel stops it; anything else stops (tools/fm1_install.py install_resumable, the app's installResumable) */
 async function dropped() {
   const IR = await import("./install_route.js");
   const big = Uint8Array.from({ length: 0x6000 }, (_, i) => (i * 7) & 0xFF), n = big.length / 4096;
@@ -3471,59 +3471,101 @@ async function dropped() {
      && P("write", { text: "FM-1_900" }, "FM-1_900", "FM-1_015") === "done" && P("check", { text: "FM-1_905" }, "FM-1_900", "FM-1_015") === "unexpected"
      && P("write", { text: "ota-FM-1_015" }, "FM-1_900", "FM-1_015") === "foreign" && P("write", { text: "XY-9_001" }, "FM-1_900", "FM-1_015") === "unexpected",
      "drop: resumePlan (fm1_install.py resume_plan): loader -> write, same firmware after step 1 -> restart, the package after step 2 -> done, else stop");
-  ok(IR.DROPPED === "Connection dropped. Check the cable, then press Resume.", "drop: the sentence (the user's words, with the Resume button)");
+  ok(IR.DROPPED === "Connection dropped. Check the cable: the install continues by itself when the FM-1 is back. Do not power off the FM-1.", "drop: the sentence (no Resume to press; do not power off)");
   ok(INST.errorText({ code: "unexpected", detail: "FM-1_015" }) === "The FM-1 came back as FM-1_015, not the one being updated: nothing more was sent. Check which FM-1 this is, then press Install again."
-     && INST.errorText({ code: "cancelled", detail: "write" }) === "Cancelled. Nothing more was sent. The FM-1 stays in update mode: press Install again, it finishes."
+     && INST.errorText({ code: "cancelled", detail: "write" }) === "Cancelled. Nothing more was sent. The FM-1 stays in update mode: keep it on and press Install again to finish."
      && INST.errorText({ code: "cancelled", detail: "check" }) === "Cancelled. Nothing was written." && INST.TEXT.dropped === IR.DROPPED
-     && INST.TEXT.notBack === "The FM-1 was not found yet: check the cable, wait a few seconds, then press Resume.",
+     && INST.TEXT.checking === "Checking what is already on the FM-1…" && INST.TEXT.noPowerOff === "Do not power off the FM-1.",
      "drop: the page's words (the Mirror app's FlashResume / FlashError: the same sentences)");
-  const go = (dev, onDrop, running = "FM-1_015") => {
-    const up = new OptimistUpdater(dev.access);
-    return { up, p: up.resumable(() => up.install(big, "FM-1_900"), onDrop, { image: big, product: "FM-1_900", running, plan: IR.resumePlan, waitMs: 2500 }) };
+  const back = (identity = "ota-FM-1_900", name = "Felucca Update", ms = 300, more = 0) => [identity, name, ms, more];
+  const go = (dev, cancelled = () => false, running = "FM-1_015") => {
+    const up = new OptimistUpdater(dev.access), drops = [];
+    const p = up.resumable(() => up.install(big, "FM-1_900"), (e) => drops.push(e.code),
+      { image: big, product: "FM-1_900", running, plan: IR.resumePlan, pollMs: 50, cancelled });
+    return { up, drops, p };
   };
-  const replug = (dev, identity = "ota-FM-1_900", name = "Felucca Update", next = []) => {
-    const asked = [];
-    return { asked, onDrop: async (e, again) => { asked.push([e.code, again]); dev.unplugAfter = next.length ? dev.served + next.shift() : Infinity; dev.plug(identity, name); return true; } };
-  };
-  let dev = new FakeFM1(big, { fast: true, unplugAfter: 4 + 1 + 2 }), r = replug(dev);
-  let back = await go(dev, r.onDrop).p;
-  ok(back === "FM-1_900" && r.asked.length === 1 && r.asked[0][0] === "lost" && dev.sectorReads === n && !dev.bad && dev.upgradesSeen === 3,
-    `drop in step 2: asked once, Resume: the loader writes on, only the ${n - 2} sectors left (${dev.sectorReads} of ${n} in all), step 1 once`);
-  dev = new FakeFM1(big, { fast: true, unplugAfter: 6 }); r = replug(dev, undefined, undefined, [2]);
-  back = await go(dev, r.onDrop).p;
-  ok(back === "FM-1_900" && r.asked.length === 2 && dev.sectorReads === n && !dev.bad, "two drops: asked each time, then done");
+  let dev = new FakeFM1(big, { fast: true, unplugAfter: 4 + 1 + 2, comesBack: [back()] }), r = go(dev);
+  let got = await r.p;
+  ok(got === "FM-1_900" && r.drops.join() === "lost" && dev.sectorReads === n && !dev.bad && dev.upgradesSeen === 3,
+    `drop in step 2: said once, back by itself: the loader writes on, only the ${n - 2} sectors left (${dev.sectorReads} of ${n} in all), step 1 once`);
+  dev = new FakeFM1(big, { fast: true, unplugAfter: 6, comesBack: [back(undefined, undefined, 300, 2), back()] }); r = go(dev);
+  got = await r.p;
+  ok(got === "FM-1_900" && r.drops.length === 2 && dev.sectorReads === n && !dev.bad, "two drops: said each time, back by itself each time, done");
   dev = new FakeFM1(big, { fast: true, unplugAfter: 6 });
-  const cancel = await failure(go(dev, async () => false).p);
-  ok(cancel?.code === "cancelled" && cancel.detail === "write" && dev.upgradesSeen === 2, "drop, Cancel: 'cancelled' (in step 2: the FM-1 stays in update mode), nothing more sent");
-  dev = new FakeFM1(big, { unplugAfter: 2 }); r = replug(dev, "FM-1_015", "FM-1");
-  back = await go(dev, r.onDrop).p;
-  ok(back === "FM-1_900" && r.asked.length === 1 && dev.upgradesSeen === 3 && !dev.bad, "drop in step 1, back running: step 1 again, then done");
-  dev = new FakeFM1(big, { fast: true, unplugAfter: 6 }); r = replug(dev, "FM-1_015", "FM-1");
-  const odd = await failure(go(dev, r.onDrop).p);
+  let looks = 0;
+  const cancel = await failure(go(dev, () => ++looks > 3).p);
+  ok(cancel?.code === "cancelled" && cancel.detail === "write" && looks === 4 && dev.upgradesSeen === 2, "drop, Cancel while it waits: 'cancelled' (in step 2: the FM-1 stays in update mode), nothing more sent");
+  dev = new FakeFM1(big, { unplugAfter: 2, comesBack: [back("FM-1_015", "FM-1")] });
+  got = await go(dev).p;
+  ok(got === "FM-1_900" && dev.upgradesSeen === 3 && !dev.bad, "drop in step 1, back running: step 1 again by itself, then done");
+  dev = new FakeFM1(big, { fast: true, unplugAfter: 6, comesBack: [back("FM-1_015", "FM-1")] });
+  const odd = await failure(go(dev).p);
   ok(odd?.code === "unexpected" && odd.detail === "FM-1_015" && dev.upgradesSeen === 2, "drop in step 2, back running the old firmware: stops ('unexpected'), nothing sent");
-  dev = new FakeFM1(big, { fast: true, unplugAfter: 6 }); r = replug(dev, "ota-FM-1_015", "FM-1 Update");
-  const theirs = await failure(go(dev, r.onDrop).p);
+  dev = new FakeFM1(big, { fast: true, unplugAfter: 6, comesBack: [back("ota-FM-1_015", "FM-1 Update")] });
+  const theirs = await failure(go(dev).p);
   ok(theirs?.code === "foreign" && dev.upgradesSeen === 2, "drop, back as another firmware's loader: stops ('foreign'), nothing sent");
-  dev = new FakeFM1(big, { fast: true, unplugAfter: 6 }); r = replug(dev, "FM-1_900", "Felucca");
-  back = await go(dev, r.onDrop).p;
-  ok(back === "FM-1_900" && dev.upgradesSeen === 2, "drop as the loader finished (back running the package): done, nothing sent");
-  dev = new FakeFM1(big, { fast: true, unplugAfter: 6 });
-  const tries = [];
-  back = await go(dev, async (e, again) => { tries.push(again); if (tries.length === 2) { dev.unplugAfter = Infinity; dev.plug("ota-FM-1_900", "Felucca Update"); } return true; }).p;
-  ok(back === "FM-1_900" && tries.join() === "false,true", "Resume with the FM-1 not back yet: asked again (again: true)");
+  dev = new FakeFM1(big, { fast: true, unplugAfter: 6, comesBack: [back("FM-1_900", "Felucca")] });
+  got = await go(dev).p;
+  ok(got === "FM-1_900" && dev.upgradesSeen === 2, "drop as the loader finished (back running the package): done, nothing sent");
+  /* the FM-1 on 2026-11-01: the loader kept its fast session over the replug, never heard the new hello, asked its 4 KiB reads on */
+  dev = new FakeFM1(big, { fast: true, unplugAfter: 6, comesBack: [back()], keepsSession: true });
+  const steps = [];
+  r = (() => { const up = new OptimistUpdater(dev.access); return { up, p: up.resumable(() => up.install(big, "FM-1_900", (k) => steps.push(k)), () => {},
+    { image: big, product: "FM-1_900", running: "FM-1_015", plan: IR.resumePlan, pollMs: 50, onStep: (k) => steps.push(k) }) }; })();
+  got = await failure(r.p).then((e) => e || "FM-1_900");
+  ok(got === "FM-1_900" && dev.unheard === 2 && r.up.kept && steps.includes("kept") && dev.sectorReads === n && !dev.bad,
+    `drop, the loader still in its fast session (the new hello unheard): served on in 4 KiB reads, done (${got?.code || got})`);
   /* two FM-1s: the page's view without the others (installer.js viewOf, notChosen) */
   ok(IR.notChosen("FM1-9C0D", "FM1-1A2B", new Set(["FM1-9C0D"])) && IR.notChosen("FM1-9C0D Update", "FM1-1A2B", new Set())
      && IR.notChosen("FM-1", "FM1-1A2B", new Set(["FM-1"])) && !IR.notChosen("Felucca Update", "FM1-1A2B", new Set(["FM-1"]))
      && !IR.notChosen("FM1-1A2B Update", "FM1-1A2B", new Set(["FM-1"])), "two FM-1s: notChosen: the others' keys, another FM1-XXXX; a port without a token stays");
-  const a = new FakeFM1(big, { fast: true, unplugAfter: 6, name: "FM1-1A2B" }), b = new FakeFM1(big, { identity: "ota-FM-1_900", name: "FM-1" });
+  const a = new FakeFM1(big, { fast: true, unplugAfter: 6, name: "FM1-1A2B", comesBack: [back()] }), b = new FakeFM1(big, { identity: "ota-FM-1_900", name: "FM-1" });
   const others = new Set(["FM-1"]), keep = (m) => new Map([...m].filter(([, p]) => !IR.notChosen(p.name, "FM1-1A2B", others)));
   const both = (k) => new Map([...a.access[k], ...b.access[k]]);
   const view = { get inputs() { return keep(both("inputs")); }, get outputs() { return keep(both("outputs")); } };
-  r = replug(a);
   const upAB = new OptimistUpdater(view);
   let bAsked = 0; const rxB = b.rx.bind(b); b.rx = (m) => { bAsked++; return rxB(m); };
-  back = await upAB.resumable(() => upAB.install(big, "FM-1_900"), r.onDrop, { image: big, product: "FM-1_900", running: "FM-1_015", plan: IR.resumePlan, waitMs: 2500 });
-  ok(back === "FM-1_900" && r.asked.length === 1 && a.sectorReads === n && bAsked === 0, "two FM-1s: resumed on the chosen one, the other (in update mode too) never asked");
+  got = await upAB.resumable(() => upAB.install(big, "FM-1_900"), () => {}, { image: big, product: "FM-1_900", running: "FM-1_015", plan: IR.resumePlan, pollMs: 50 });
+  ok(got === "FM-1_900" && a.sectorReads === n && bAsked === 0, "two FM-1s: resumed on the chosen one, the other (in update mode too) never asked");
+}
+
+/* after step 1 the loader is looked for at once, every OPT_LOADER.pollMs (no blind 3 s wait, 2026-11-01) */
+async function loaderPoll() {
+  const M = await import("./fm1ota_optimist.js");
+  const img = new Uint8Array(0x2000).map((_, k) => (7 * k) % 256), dev = new FakeFM1(img, { fast: true }), t = {};   /* (fast: the loader's first step comes at once) */
+  const got = await new OptimistUpdater(dev.access).install(img, "FM-1_900", (k) => { t[k] = t[k] || Date.now(); });
+  ok(got === "FM-1_900" && t.checking - t.loader < 1000 && M.OPT_LOADER.pollMs === 200 && M.OPT_LOADER.waitMs === 33000,
+    `after step 1 the loader is looked for at once, every 200 ms (its first step ${t.checking - t.loader} ms after; fm1base waited 3 s blind)`);
+}
+
+/* step 2 of a fast install: the bar moves while the loader checks what is on the FM-1 (its 0x32 frames, else an estimate by
+   time behind it), then the first read's address at once, then the write; never back (installer.js progressOf's scale) */
+async function checkBar() {
+  const M = await import("./fm1ota_optimist.js");
+  const img = Uint8Array.from({ length: 0x10000 }, (_, i) => (i * 5) & 0xFF), n = img.length / 4096;
+  const fr = (body) => [0xF0, ...otaPack7([0, 0x59, 0x32, 4, 0, 0, ...body, ~body.reduce((x, y) => x + y, 0) & 0xFF]), 0xF7];
+  ok(JSON.stringify(M.optParseCheck(fr([3, 0, 16, 0]))) === '{"checked":3,"total":16}' && M.optParseCheck(fr([17, 0, 16, 0])) === null
+     && M.optParseCheck(OPT_FAST_HELLO) === null, "check bar: the 0x32 frame [checked, total] read (fm1_install.py parse_check); others not");
+  const saved = { ...M.OPT_CHECK };
+  Object.assign(M.OPT_CHECK, { framesMs: 150, tickMs: 20, sectorMs: 60 });
+  const run = async (checkFrames) => {
+    const dev = new FakeFM1(img, { identity: "ota-FM-1_900", name: "Felucca Update", fast: true, checkFrames, checkTime: 30, finalIdentity: "FM-1_900" });
+    for (let k = 0; k < 10; k++) dev.written.add(k * 4096);           /* 10 sectors right already: the first read is sector 10 */
+    const up = new OptimistUpdater(dev.access), seen = [];
+    let pct = 0;
+    await up.resume(img, (k, a) => { const r = INST.progressOf(k, a, up.lastAddr, img.length, pct); pct = r.pct; seen.push([k, pct]); }, "FM-1_900");
+    return { dev, seen, checking: seen.filter(([k]) => k === "checking").map(([, p]) => p), bars: seen.filter(([k]) => k === "checking" || k === "write").map(([, p]) => p) };
+  };
+  const firstReal = 15 + (10 * 4096 / img.length) * 80;
+  let r = await run(true);
+  const firstWrite = r.seen.find(([k]) => k === "write");
+  ok(r.dev.checkSeen.length && r.checking.length > 3 && r.bars.every((v, i) => !i || v >= r.bars[i - 1]) && r.checking.at(-1) >= firstReal - 8,
+    `check bar, a loader with 0x32 frames: the bar moves while it checks (${r.checking.map(Math.round).join(" ")}), never back`);
+  ok(firstWrite && firstWrite[1] >= firstReal && r.bars.at(-1) >= 90 && !r.dev.bad, `... at the first read (sector 10 of ${n}) the bar is there at once (${Math.round(firstWrite?.[1])}), then the write`);
+  r = await run(false);
+  ok(!r.dev.checkSeen.length && r.checking.length > 3 && r.bars.every((v, i) => !i || v >= r.bars[i - 1]) && Math.max(...r.checking) < firstReal,
+    `check bar, an older loader (no frames): an estimate by time moves (${r.checking.map(Math.round).join(" ")}), behind the loader, never back`);
+  Object.assign(M.OPT_CHECK, saved);
 }
 
 /* ------------------------------------------- the installer module (web/installer/installer.js) --- */
@@ -3785,7 +3827,7 @@ const SUITE = [
   editorV13Optional, editorMacro, editorAuto, editorWifi, editorV14, editorStepx, editorDaw, editorBackup,
   editorSnapshots, editorPatterns, editorV9, editorNoteEnds,
   editorTabs, editorKeys, editorSetGate, masterStrip, reverbType, midiSettings, editorUiPass,
-  editorPianoRoll, editorIcons, editorParamHelp, samplesMatch, chopTests, packages, updater, dropped,
+  editorPianoRoll, editorIcons, editorParamHelp, samplesMatch, chopTests, packages, updater, dropped, checkBar, loaderPoll,
   installerModule,
 ];
 for (const check of SUITE) await check();
