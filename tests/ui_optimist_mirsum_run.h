@@ -137,10 +137,57 @@ static void ms_tick(void)                               /* each frame: the devic
     ms_link_tick();
     ms_compare();
 }
+/* MIRROR_SUMS=page: SYSTEM > INFO, then HOME with the page's clear lost on the way (nothing else lost: the client asks that
+ * frame again by seq, the panel repainted in place), or with the page drawn while the link is behind (the lag rule refused
+ * its frames: the catch-up repaints in place; a ring left full by another client's catch-ups, 106 from USB and Bluetooth in
+ * turn). INFO's list runs over the help band's rows (its first page has none),
+ * so they must come again from HOME's repaint, or SUMS must see them (2026-11-01, the user over Bluetooth: "GUARD OFF" stayed at
+ * the foot of HOME on the mirror, the self-check did not heal it). The client's picture is the panel's within 3 s */
+static int mirsum_page_run(void)
+{
+    uint32_t i, k, diff = 0, worst = 0, t;
+    mc_bt = 1;
+    ms.seed = 20261101u;
+    ms.nolose = 1;
+    for (k = 0; k < 8u; k++) {
+        meters_mode = (uint8_t)(k / 2u % MTR_N);
+        line_named(SCR_SYSTEM, "INFO");
+        ui.force = 1;
+        frames(8);
+        memcpy(md_fb, mt_fb, sizeof md_fb);             /* (in step on INFO) */
+        md.seq = me.seq, md.have_seq = 1, md.broken = 0, md.fix_have = 0;
+        ms.on = 1;
+        if (k & 1u)
+            ms.behind = 1, ms.refused++;                /* (behind: nothing drawn goes out until the catch-up) */
+        else
+            ms.lose_clear = 1;
+        tap(B_HOME);
+        for (t = 0; t < 190u; t++)                     /* (3 s) */
+            frame();
+        for (i = 0, diff = 0; i < 240u * 240u; i++)
+            diff += md_fb[i] != mt_fb[i];
+        worst = diff > worst ? diff : worst;
+        {
+            char b[160];
+            snprintf(b, sizeof b, "the mirror, SYSTEM > INFO then HOME, %s (METERS %u): the client's picture the panel's within 3 s (%u px wrong)",
+                     k & 1u ? "drawn while behind" : "its clear lost", (unsigned)meters_mode, diff);
+            check(!diff && ui.scr == SCR_HOME && !ms.lose_clear, b);
+        }
+        ms.on = 0;
+        go_home();
+        frames(4);
+    }
+    printf("  mirror SUMS, a page's clear lost: %u px wrong at most after 3 s; %u SUMS, %u asks for %u bands, %u repairs\n", worst,
+           ms.sums, ms.asks, ms.ask_bands, ms.fixes);
+    printf(fails ? "optimist ui mirror SUMS page test FAILED (%d)\n" : "optimist ui mirror SUMS page test passed\n", fails);
+    return fails != 0;
+}
 static int mirsum_run(void)
 {
     uint32_t i, diff = 0, b0, s, open = 0;
     const char *e = getenv("MIRROR_SUMS");
+    if (e && !strcmp(e, "page"))
+        return mirsum_page_run();
     mc_bt = 1;                                          /* (Bluetooth: no meters) */
     ms.nosum = e && !strcmp(e, "off");
     ms.seed = 20261101u;

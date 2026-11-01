@@ -1532,7 +1532,7 @@ job; ( jobin
         $CC -O1 -g -w -DMIR_AIMD=0 -DMIR_LEND=1 -o "$OUT/mirror_lend_test" tests/mirror_test.c
     run "the mirror's Bluetooth ring lent by the arena (MIR_LEND, ASan): wanted only while a Bluetooth client uses it, nothing queued or sent without it, 50 lends and give-backs caught up each time, never touched once given back; every mirror test with it lent" "$OUT/mirror_lend_test"
     run "the projects' moves over Bluetooth (BT_PROJ): the backup's commands and PJ_OP queued, a BK_DATA chunk in its own slot" "$OUT/mirror_proj_test"
-    run "the screen mirrored, USB and Bluetooth: 3000 random writes decoded to the same panel, long runs, a stalled host falls behind and catches up, the Bluetooth request, a slow radio, the ring overflowing, the keep-alive, a muted write not sent, the meters over USB only; STATE, MASTER, let go, seq, the test session; what the client has not sent again" "$OUT/mirror_test"
+    run "the screen mirrored, USB and Bluetooth: 3000 random writes decoded to the same panel, long runs, a stalled host falls behind and catches up, the Bluetooth request, a slow radio, the ring overflowing, the keep-alive, a muted write not sent, the meters over USB only; STATE, MASTER, let go, seq, the test session; what the client has not sent again; two clients at once (USB and Bluetooth: USB's 106 0 leaves Bluetooth's mirror on, a page's clear missed sends the panel whole)" "$OUT/mirror_test"
     run "the screen mirrored with the AA token (opti_miraa_1, 106's second byte): every mirror test, the 3000 random writes with shaded text decoded to the same panel" "$OUT/mirror_aa_test"
     run "the AA token on 10 pages captured from the FM-1 (fm1-base's anti-aliased text): without it the encoder gives the FM-1's very bytes; with it the same pixels page by page, the bytes per page old -> new" "$OUT/mirror_pages_test"
     run "the AA token in Python (tools/fm1_mirror.py, tools/mirror_enc.py): the 10 pages decoded, encoded with the token byte for byte the firmware's, decoded back to the same pixels" python3 tests/mirror_aa_test.py
@@ -1546,6 +1546,12 @@ job; ( jobin
     MIRROR_SUMS=off "$OUT/ui_optimist_mirror_test" "$OUT/optimist_mirror"
     run "the screen mirrored over a lossy link with SUMS: every band hashed once a second, the client's differing bands sent again; no pixel wrong on the client over 3 s, none at the end" env MIRROR_SUMS=1 "$OUT/ui_optimist_mirror_test" "$OUT/optimist_mirror"
     run "the same with the AA token (opti_miraa_1)" env MIRROR_AA=1 "$OUT/ui_optimist_mirror_test" "$OUT/optimist_mirror"
+    # every row drawn again by a repaint (the help band, the load lines' strip: a client that missed a page's clear gets them, SUMS
+    # checks every band); with the help line and SYSTEM > INFO's GUARD line, as the user's FM-1 (2026-11-01: "GUARD OFF" stayed on HOME)
+    run "the screen mirrored: every screen's repaint in place draws every row, every METERS mode; every band checkable by SUMS on HOME" env MIRROR_ROWS=1 "$OUT/ui_optimist_mirror_test" "$OUT/optimist_mirror"
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 -DFELUCCA_PARAM_HELP=1 -DFELUCCA_CPU_GUARD=1 -DFELUCCA_SYS_DEBUG=1 -DMIRROR_CHECK -o "$OUT/ui_optimist_mirror_help_test" tests/ui_optimist_test.c -lm
+    run "the same with the help line (PARAM_HELP): its band drawn again (black without its line)" env MIRROR_ROWS=1 "$OUT/ui_optimist_mirror_help_test" "$OUT/optimist_mirror"
+    run "the mirror, SYSTEM > INFO then HOME with the page's clear lost or drawn while behind: the client's picture the panel's within 3 s (INFO's GUARD line gone)" env MIRROR_SUMS=page "$OUT/ui_optimist_mirror_help_test" "$OUT/optimist_mirror"
     # the Bluetooth stream to a Mac, a transport model (tests/mirror_aimd_test.c): the real UI's workload through the real ed_mirror.c,
     # the link 5.6 KB/s, the Mac's input 5 KB/s losing whole frames over 1 KB waiting; the budget (MIR_AIMD) checked, the lag rule before printed
     MIRROR_BT=1 MIRROR_WORKLOAD=1 MIRROR_TRACE="$OUT/mirror_workload.bin" "$OUT/ui_optimist_mirror_test" "$OUT/optimist_mirror"

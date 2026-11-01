@@ -80,6 +80,25 @@ static void mtr_clear(void)                             /* the strip black, ever
     for (l = 0; l < ML_N; l++)
         mtr.px[l] = -1;
 }
+/* a repaint (op_state.c op_repaint): every row of the strip drawn again as it is, a line's (its width and colour as shown) or
+ * black, nothing looked at anew (a mirror's repair or self-check gets the same rectangles frame after frame) */
+static void mtr_again(void)
+{
+    uint32_t l, r, own = 0;
+    int32_t y, h, px;
+    for (l = 0; l < ML_N; l++) {
+        mtr_rows(l, &y, &h);
+        if (!h || mtr.px[l] < 0)
+            continue;
+        own |= ((1u << h) - 1u) << (y - (240 - OP_MTR));
+        px = mtr.px[l];
+        mtr.px[l] = -1;                                 /* (drawn whole: mtr_line's first draw) */
+        mtr_line(l, px, mtr.col[l]);
+    }
+    for (r = 0; r < OP_MTR; r++)
+        if (!(own >> r & 1u))
+            lcd_fill(0, 240 - OP_MTR + r, 240, 1, C_BLACK);
+}
 static void mtr_draw(void)
 {
     uint32_t l, now = (uint32_t)meters_mode + 1u, changed = 0;
@@ -89,7 +108,9 @@ static void mtr_draw(void)
         mtr.mode = (uint8_t)now;
         mtr_clear();
         mtr.t = (uint8_t)MTR_PERIOD;
-    }
+    } else if (op_again & OPA_MTR)                      /* (a repaint, op_state.c op_repaint: the strip drawn again as it is) */
+        mtr_again();
+    op_again &= (uint8_t)~OPA_MTR;
     if (meters_mode == MTR_OFF)
         return;
     if (++mtr.t < MTR_PERIOD)

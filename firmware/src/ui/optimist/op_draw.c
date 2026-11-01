@@ -467,6 +467,8 @@ static void head_make(head_t *h)
     loop_pos(TSEL, h->r);                               /* (STEP too: bar.beat on every screen, style guide 1) */
     h->batt = (uint8_t)head_batt();
     h->ib = (uint8_t)head_info();
+    h->ipct = 0, h->ichg = 0;                           /* (in the header's signature: never the stack's leftovers, which drew the
+                                                         * header whole at every frame they changed, 2026-11-01) */
     if (h->ib) {                                        /* INFO: the battery in place of the loop position */
         h->r[0] = 0;
         h->ipct = (uint8_t)(h->ib == 2u ? sys_batt_pct() : 0u);
