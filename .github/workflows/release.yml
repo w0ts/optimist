@@ -83,6 +83,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      id-token: write                          # (the attestation's signing identity: this workflow run)
+      attestations: write                      # (stored on the repository: `gh attestation verify <file> --repo <owner/repo>`)
     steps:
       - uses: actions/download-artifact@v4
         with:
@@ -90,6 +92,14 @@ jobs:
           merge-multiple: true
       - name: Checksums
         run: cd dist && sha256sum ./*.fwsc ./*-ui.zip > SHA256SUMS.txt && cat SHA256SUMS.txt
+      # Build provenance (2026-11-01, as fm1-build's releases): GitHub signs "this file, by its sha256, was built from this
+      # repository at this commit by this workflow", so the Firmware Hub (or anyone) can check where a package came from.
+      - name: Attest the packages' provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: |
+            dist/*.fwsc
+            dist/*-ui.zip
       - name: Draft the release
         env:
           GH_TOKEN: ${{ github.token }}
