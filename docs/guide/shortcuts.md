@@ -8,7 +8,7 @@ Every button, knob and key gesture, grouped by what you want to do, then the one
 |---|---|
 | **SHIFT** | OCT- held. It turns things **off, down, away**: a mute, a clear, a value back to its default, a ghost hit, the panic, INIT |
 | **SHIFT2** | OCT+ held. It **picks, turns on, adds**: a track or lane selected, a layer locked open, a hard hit, launch now, the next instrument |
-| **tap** | press and let go before the hold time (350 ms; SYSTEM > CALIBRATE > HOLD: 250, 350 or 500 ms) with nothing else used meanwhile. SAVE, HOME, the page buttons and the OCT buttons act **when let go** |
+| **tap** | press and let go before the hold time (350 ms, fixed) with nothing else used meanwhile. SAVE, HOME, the page buttons and the OCT buttons act **when let go** |
 | **held** | kept down past the hold time: a layer's key map shows (it works from the press) |
 | **A + B** | A held, then B pressed or turned. The order matters only for SAVE and HOME together (undo, redo) |
 | **YES / NO** | SAVE / HOME. A question ("Store scene B?") waits 3 s: YES does it, NO or anything else cancels it |
@@ -208,4 +208,4 @@ What only one page has; everything above works there too.
 
 ## At power-on
 
-OCT- + OCT+ held while switching on and let go soon: SYSTEM > CALIBRATE's panel teaching. Kept held for 3 s: the chip's own update mode (UBOOT). OCT- alone: the USB rescue. With the FM-1 running and stopped, OCT- + OCT+ held 5 s (a countdown shows from 2 s): update mode.
+OCT- + OCT+ held while switching on and let go soon: the panel teaching (the only way in: no SYSTEM row). Kept held for 3 s: the chip's own update mode (UBOOT). OCT- alone: the USB rescue. With the FM-1 running and stopped, OCT- + OCT+ held 5 s (a countdown shows from 2 s): update mode.

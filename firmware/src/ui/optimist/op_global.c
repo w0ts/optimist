@@ -6,7 +6,7 @@
  * one setting a line: its name on the left, its value on the right, the lines under small section headers:
  *   GLOBAL   Tempo: BPM NUDGE SWING   Rec: MODE LENGTH START CLICK QUANT (PUNCH: FELUCCA_PUNCH_SW)   MIDI: CLK IN CLK OUT MIDI IN MIDI OUT (one
  *            page; 3 lines without CLK OUT)   Channels: T1 T2 T3 DR
- *   SYSTEM   CPU: CLOCK LOAD (read-outs)   Screen   Lights   Audio   USB   Bluetooth   Calibrate: PANEL HOLD   About
+ *   SYSTEM   CPU: CLOCK LOAD (read-outs)   Screen   Lights   Audio   USB   Bluetooth   About
  * The lines are the cells of the rows below, called through their own functions (TEMPO's tp_*, SYSTEM's sys_*), so each
  * value lives in one place and keeps its format; a row's empty cells are no line (what this build lacks is not shown).
  *   pages      fixed blocks of 4 lines, numbered within the screen (the header: "Tempo 2/5"); the 4 lines on screen are
@@ -18,7 +18,7 @@
  *              Each keeps its cursor line
  *   PRESETS    the cursor line's value (HOME held: back to its default); an action line (PANEL, drawn RUN): runs it, as
  *              YES; a read-out: nothing. Never the track or its sound here
- *   SAVE       YES on the cursor line: an action (Calibrate PANEL asks first, About VERSION says it, Bluetooth BLE: the
+ *   SAVE       YES on the cursor line: an action (About VERSION says it, Bluetooth BLE: the
  *              devices), an on / off value toggled
  * On a page with Tempo's lines OCT- / OCT+ held nudge the clock (op_tempo.c tempo_nudging). The BLE devices list
  * (op_project.c dev_*) keeps its own rows and cards. GLO held is the performance layer, unchanged (op_layers.c).
