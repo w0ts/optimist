@@ -26,7 +26,7 @@
 //   }) -> { unmount(), busy }    busy: true while writing (the host must not unload or hide the page then)
 import { checkUfw, logicalImage, productOf, sha256hex, ufwEntries } from "../fm1base/fm1pkg.js";
 import { STOCK_V15_SHA256, OptimistUpdater, stockBanks, validateStockPackage } from "../fm1ota_optimist.js";
-import { SOFT_KEY, askBoot, mbootPresentOf, bootloaderChoice, bootloaderFromConfig, chooseRoute, detectPlatform, headRefused, refusedStep, flashLenOf, installedEndOf, mflasherFor, nextStep, packageKind, runningKind, switchWarning } from "../install_route.js";
+import { SOFT_KEY, fm1Devices, fm1Key, askBoot, mbootPresentOf, bootloaderChoice, bootloaderFromConfig, chooseRoute, detectPlatform, headRefused, refusedStep, flashLenOf, installedEndOf, mflasherFor, nextStep, packageKind, runningKind, switchWarning } from "../install_route.js";
 
 const STYLE_ID = "optimist-installer-style";
 const BUNDLED_CSS = null;                           /* make_site.py puts web/installer/installer.css here */
@@ -103,6 +103,7 @@ export const TEXT = {
   /* other MIDI ports, when no FM-1 answered: the user picks one to try (a name that is none of the usual ones) */
   portsHead: "Other MIDI ports on this computer. If one is your FM-1, try it:",
   tryPort: "Try", portsWait: "Asking…", portsEmpty: "No other MIDI ports.",
+  pickHead: "{n} FM-1s found. Choose one:", pickNeed: "Choose which FM-1 to use first.",
   portNone: "No FM-1 answered on {port}.", portOk: "Found {id} on {port}. This browser remembers it. Press the button again.",
   /* m-bootloader: the build's BOOTLOADER, shown; the page never writes it (its full backup first is M-Flasher's) */
   bootOpt: "Install m-bootloader instead (download mode on a computer, a full backup first). Off: the firmware goes over USB-MIDI and the bootloader stays.",
@@ -331,9 +332,11 @@ export function mountInstaller(container, opts = {}) {
   el.browser = h("p.o-msg.err.oi-browser", { hidden: true, role: "alert" });
   el.portsList = h("ul.oi-portlist");
   el.portsMsg = h("p.oi-portmsg", { role: "status", "aria-live": "polite" });
+  el.pickList = h("ul.oi-portlist");
+  el.pick = h("div.oi-ports.oi-pick", { hidden: true }, el.pickList);
   el.ports = h("div.oi-ports", { hidden: true }, h("p.o-dim", {}, TEXT.portsHead), el.portsList, el.portsMsg);
   /* (the FM-1 found, under the Install button: the Mirror app's footer) */
-  const connectBox = h("div.oi-conn", {}, el.browser, h("div.oi-row", {}, el.found, el.find), h("p.o-dim.oi-how", {}, TEXT.connectHow), el.help, el.ports);
+  const connectBox = h("div.oi-conn", {}, el.browser, h("div.oi-row", {}, el.found, el.find), el.pick, h("p.o-dim.oi-how", {}, TEXT.connectHow), el.help, el.ports);
 
   /* ---- 2 Choose */
   /* a release: its version, then its flavour (two menus in one row, as the Mirror app); st.choice is the package's index */
@@ -551,6 +554,29 @@ export function mountInstaller(container, opts = {}) {
     st.access.onstatechange = () => { if (!st.busy) { clearTimeout(st.recheck); st.recheck = setTimeout(() => detect(false), 600); } };
     return st.access;
   }
+  /* which FM-1 (web/install_route.js fm1Devices): with two or more on the cable the page asks and sends nothing before the
+     answer; st.others: the keys of the ones not chosen, kept from the choice on (a loader's port may carry another name) */
+  const liveNames = (midi) => [...midi.inputs.values()].filter((p) => p.state !== "disconnected").map((p) => p.name || "");
+  function needChoice(midi) {
+    const keys = fm1Devices(liveNames(midi));
+    if (keys.length < 2) { st.chosen = null; st.others = new Set(); showPick([]); return false; }
+    if (st.chosen && keys.includes(st.chosen)) { st.others = new Set(keys.filter((k) => k !== st.chosen)); showPick(keys); return false; }
+    st.chosen = null; st.others = new Set();
+    showPick(keys);
+    return true;
+  }
+  /* the ports the updater may ask: all, or without the FM-1s not chosen */
+  function viewOf(midi) {
+    if (!st.chosen) return midi;
+    const keep = (m) => new Map([...m].filter(([, p]) => !st.others.has(fm1Key(p.name))));
+    return { get inputs() { return keep(midi.inputs); }, get outputs() { return keep(midi.outputs); } };
+  }
+  function showPick(keys) {
+    el.pickList.replaceChildren(...keys.map((k) => h("li", {}, h("span", {}, k),
+      h("button.o-btn.sm", { type: "button", "aria-pressed": String(k === st.chosen), "aria-label": `${k}${k === st.chosen ? " (chosen)" : ""}`, disabled: st.busy,
+        onclick: () => { st.chosen = k; detect(true); } }, k === st.chosen ? "Chosen" : "Use"))));
+    el.pick.hidden = keys.length < 2;
+  }
   function detect(user) {
     if (st.busy || st.detecting) return st.detecting;
     st.detecting = detectNow(user).finally(() => { st.detecting = null; });
@@ -561,9 +587,14 @@ export function mountInstaller(container, opts = {}) {
     el.help.hidden = true;
     try {
       const midi = await access();
-      const dev = await newUpdater(midi, log).find();
+      if (needChoice(midi)) {
+        say(el.found, TEXT.pickHead.replace("{n}", String(fm1Devices(liveNames(midi)).length)), "err");
+        el.ports.hidden = true; el.find.textContent = TEXT.findAgain;
+        return;
+      }
+      const dev = await newUpdater(viewOf(midi), log).find();
       if (dev) { dev.link.close(); st.running = { text: dev.id.text, port: dev.name || "" }; say(el.found, TEXT.found + describeIdentity(dev.id), "ok"); el.ports.hidden = true; }
-      else { say(el.found, TEXT.notfoundShort, "err"); el.help.hidden = false; showPorts(midi); }
+      else { say(el.found, TEXT.notfoundShort, "err"); el.help.hidden = false; showPorts(viewOf(midi)); }
       el.find.textContent = TEXT.findAgain;
     } catch (e) {
       if (user || e.code !== "denied") say(el.found, errorText(e), "err");
@@ -632,6 +663,9 @@ export function mountInstaller(container, opts = {}) {
   async function install() {
     const pkg = st.pkg;
     if (!pkg || st.busy) return;
+    try {
+      if (needChoice(await access())) { say(el.found, TEXT.pickNeed, "err"); el.pick.scrollIntoView?.({ block: "nearest" }); return; }
+    } catch (_) { /* denied: the steps below say so */ }
     const answer = await ask(pkg.stock, layoutWarning(pkg));
     if (answer === "backup") {
       if (opts.onNavigate) opts.onNavigate("backup"); else window.open(links.backup, "_blank", "noopener");
@@ -658,7 +692,7 @@ export function mountInstaller(container, opts = {}) {
     el.ports.hidden = true;
     if (st.detecting) await st.detecting;            /* (one handshake at a time on the port) */
     try {
-      const up = newUpdater(midi, log);
+      const up = newUpdater(viewOf(midi), log);
       const dev = await up.find();                  /* (none: the steps below say so, as before) */
       const route = dev ? await routeOf(pkg, dev) : { method: "loader" };
       if (route.method === "download") { needsDownload(route, pkg); st.busy = false; syncChoice(); render(); return; }
@@ -686,7 +720,7 @@ export function mountInstaller(container, opts = {}) {
     } catch (e) {
       showError(e, phase);
       if (st.head && headRefused(st.head.running, { kind: st.head.kind }, e && e.code)) { el.err.textContent = refusedStep(pkg.file || "PACKAGE.fwsc"); st.head = null; }
-      if (e && e.code === "notfound") showPorts(midi);
+      if (e && e.code === "notfound") showPorts(viewOf(midi));
       log(String(e && e.stack || e));
     }
     st.busy = false; syncChoice(); render();
@@ -753,7 +787,7 @@ export function mountInstaller(container, opts = {}) {
     const btn = el.ok.querySelector(".oi-banksgo");
     if (btn) btn.disabled = true;
     try {
-      await new Updater(midi, log).restoreBanks(banks, (n) => {
+      await new Updater(viewOf(midi), log).restoreBanks(banks, (n) => {
         el.bar.value = Math.round(n / banks.length * 100);
         say(el.status, `${TEXT.banksDoing}${Math.round(n / banks.length * 100)} %`);
       });

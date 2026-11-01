@@ -284,6 +284,50 @@ final class FlashTests: XCTestCase {
         XCTAssertEqual(InstallRoute.bootloader(config: "ENG_FM6=1\n"), "keep")
     }
 
+    /// Which FM-1 (tools/fm1_install.py fm1_devices, web/install_route.js fm1Devices): one key per unit; Bluetooth and generic names none.
+    func testFlashDeviceKeys() {
+        XCTAssertEqual(FlashDevices.keys(["FM1-A1B2", "FM1-A1B2 MIDI 2", "FM1-C3D4"]), ["FM1-A1B2", "FM1-C3D4"])
+        XCTAssertEqual(FlashDevices.keys(["fm1-a1b2", "FM1-A1B2 Port 2", "Bluetooth FM1-A1B2", "FM1-A1B2 Bluetooth"]), ["FM1-A1B2"])
+        XCTAssertEqual(FlashDevices.keys(["USB-MIDI", "composite", "Bluetooth FM1-C3D4", "IAC Driver Bus 1"]), [])
+        XCTAssertEqual(FlashDevices.keys(["FM-1", "USB-MIDI"]), ["FM-1"])
+        XCTAssertEqual(FlashDevices.keys(["FM-1", "Optimist"]).count, 2)
+        XCTAssertNil(FlashDevices.key("USB-MIDI"))
+        XCTAssertEqual(FlashDevices.key("Felucca Update"), "Felucca Update")
+    }
+
+    /// Two FM-1s: the app lists them and sends nothing to either before the choice; after it only the chosen one is asked.
+    @MainActor
+    func testTwoFM1sAreChosenNotPicked() async {
+        let a = FakeUSBPort("FM1-A1B2", identity: "FM-1_7900"), a2 = FakeUSBPort("FM1-A1B2", identity: "FM-1_7900")
+        let b = FakeUSBPort("FM1-C3D4", identity: "FM-1_7900"), bt = FakeUSBPort("Bluetooth FM1-C3D4", identity: "FM-1_7900")
+        let model = FlashModel(link: MirrorLink(), ports: FakeUSBPorts([a, a2, b, bt]))
+        await model.find()
+        XCTAssertEqual(model.devices, ["FM1-A1B2", "FM1-C3D4"])
+        XCTAssertNil(model.device)
+        XCTAssertNil(model.picked)
+        XCTAssertTrue(model.mustChoose())
+        await model.sendSoftKey()
+        XCTAssertEqual(model.status, "Choose which FM-1 to use first.")
+        XCTAssertEqual([a, a2, b, bt].map(\.sent), [0, 0, 0, 0])             // (not even a handshake)
+        await model.pick("FM1-C3D4")
+        XCTAssertEqual(model.device, "FM-1_7900")
+        XCTAssertFalse(model.mustChoose())
+        XCTAssertEqual([a.sent, a2.sent, bt.sent], [0, 0, 0])                // (the other unit and the Bluetooth copy never asked)
+        XCTAssertGreaterThan(b.sent, 0)
+    }
+
+    /// One FM-1 (its several ports, a Bluetooth copy): nothing to choose, found as before.
+    @MainActor
+    func testOneFM1IsUnchanged() async {
+        let a = FakeUSBPort("FM1-A1B2", identity: "FM-1_7900"), bt = FakeUSBPort("FM1-A1B2 Bluetooth", identity: "FM-1_7900")
+        let model = FlashModel(link: MirrorLink(), ports: FakeUSBPorts([a, bt]))
+        await model.find()
+        XCTAssertEqual(model.device, "FM-1_7900")
+        XCTAssertTrue(model.devices.isEmpty)
+        XCTAssertFalse(model.mustChoose())
+        XCTAssertEqual(bt.sent, 0)
+    }
+
     @MainActor
     func testDownloadModeIsSaidNeverWritten() async throws {
         var pkg = try FlashPackage.check(FakeFlashDevice.package("FM-1_700", size: 3000), title: "t", file: "p.fwsc")
@@ -469,4 +513,28 @@ final class FakeFlashDevice: FlashPorts, FlashChannel {
         XCTAssertEqual(a.link, InstallRoute.mflasher)
         XCTAssertNil(a.sha256)
     }
+}
+
+/// Ports with names, for the choice between FM-1s: answers the handshake, counts what it was sent.
+final class FakeUSBPort: FlashChannel {
+    let name: String
+    private let identity: String
+    private(set) var sent = 0
+    private let queue = SysExQueue()
+    init(_ name: String, identity: String) { self.name = name; self.identity = identity }
+    var lost: Bool { false }
+    func drain() { queue.drain() }
+    func read(timeout: TimeInterval) async -> [UInt8]? { await queue.read(timeout: min(timeout, 0.2)) }
+    func close() {}
+    func send(_ bytes: [UInt8]) -> Bool {
+        sent += 1
+        if bytes == FlashProtocol.handshake { queue.push(FakeFlashDevice.identity(identity)) }
+        return true
+    }
+}
+
+struct FakeUSBPorts: FlashPorts {
+    let list: [FakeUSBPort]
+    init(_ list: [FakeUSBPort]) { self.list = list }
+    func channels() -> [FlashChannel] { list.filter { !$0.name.lowercased().contains("bluetooth") } }   // (as CoreMIDIFlashPorts: never Bluetooth)
 }

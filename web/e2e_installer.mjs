@@ -183,6 +183,29 @@ const fd = await run(`${U} D().plug("FM-1_015", "FM-1"); await until(() => $(".o
   return { t: $(".oi-found").textContent, help: vis(".oi-help") };`);
 ok(fd.t === "Found: the official firmware V15 (FM-1_015)" && !fd.help, "step 1: plugged in: found by itself, in words (the official firmware V15)");
 
+/* ---- 2b two FM-1s on the cable: the page lists them and sends nothing to either before the choice; Install asks for it too */
+const two = await run(`${U} const d = D(); const sent = []; let n = 0; const rx = d.rx.bind(d); d.rx = (m) => { n++; return rx(m); };
+  const ids = []; const add = (name) => { const i = { id: "i" + name, name, state: "connected", open: async () => {}, onmidimessage: null };
+    const o = { id: "o" + name, name, state: "connected", open: async () => {}, send: (b) => { sent.push(name); } };
+    d.access.inputs.set(i.id, i); d.access.outputs.set(o.id, o); ids.push(i.id, o.id); };
+  add("FM1-C3D4"); add("Bluetooth FM1-C3D4"); d.access.onstatechange({});
+  await until(() => vis(".oi-pick"), 5000); await sleep(1500);
+  const asked = { text: $(".oi-found").textContent, buttons: [...document.querySelectorAll(".oi-pick li")].map((l) => l.firstChild.textContent), n, sent: sent.length };
+  $(".oi-go").click(); await sleep(500);
+  const go = { dialog: !!$("dialog.oi-ask"), text: $(".oi-found").textContent, n, sent: sent.length };
+  [...document.querySelectorAll(".oi-pick button")][1].click(); await until(() => $(".oi-found").dataset.kind === "err" && $(".oi-found").textContent === "No FM-1 found.", 10000);
+  const other = { sent: sent.length, n };
+  [...document.querySelectorAll(".oi-pick button")][0].click(); await until(() => $(".oi-found").dataset.kind === "ok", 10000);
+  const mine = { text: $(".oi-found").textContent, sent: sent.length, n };
+  ids.forEach((id) => { d.access.inputs.delete(id); d.access.outputs.delete(id); }); d.access.onstatechange({}); await until(() => !vis(".oi-pick"), 5000);
+  d.rx = rx;
+  return { asked, go, other, mine };`);
+ok(two.asked.text === "2 FM-1s found. Choose one:" && JSON.stringify(two.asked.buttons) === JSON.stringify(["FM-1", "FM1-C3D4"]) && two.asked.n === 0 && two.asked.sent === 0,
+  "two FM-1s (and a Bluetooth copy of one): listed as two, nothing sent to either");
+ok(!two.go.dialog && two.go.text === "Choose which FM-1 to use first." && two.go.n === 0 && two.go.sent === 0, "two FM-1s: Install asks to choose first, no dialog, nothing sent");
+ok(two.other.sent > 0 && two.other.n === 0 && two.mine.sent === two.other.sent && two.mine.n > 0 && two.mine.text === "Found: the official firmware V15 (FM-1_015)",
+  "two FM-1s: after the choice only the chosen one is asked (FM1-C3D4 chosen: the other got nothing; then the first: FM1-C3D4 got nothing more)");
+
 /* ---- 3 install: the question first, then the four phases to Done */
 const ask = await run(`${U} $(".oi-go").click(); await until(() => $("dialog.oi-ask[open]"), 3000); const d = $("dialog.oi-ask");
   return { open: !!d && d.open, focusIn: d && d.contains(document.activeElement), text: d && d.textContent };`);

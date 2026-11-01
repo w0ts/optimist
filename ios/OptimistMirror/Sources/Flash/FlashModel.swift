@@ -38,6 +38,10 @@ final class FlashModel: ObservableObject {
     /// the last install needs download mode: the tab says it needs a computer (M-Flasher) and links the release
     @Published private(set) var needsComputer = false
 
+    /// the FM-1s on USB when there are two or more (their keys), and the one chosen: with several the app asks and sends nothing to any
+    @Published private(set) var devices: [String] = []
+    @Published private(set) var picked: String?
+
     private let link: MirrorLink
     private let updater: FlashUpdater
     private var listsLoaded = false
@@ -84,7 +88,9 @@ final class FlashModel: ObservableObject {
 
     /// the soft key (F0 22 24 35 7D F7): the FM-1 restarts in the chip's download mode, for M-Flasher on a computer
     func sendSoftKey() async {
-        guard !busy, let f = await updater.find() else { status = "No FM-1 found."; return }
+        guard !busy else { return }
+        if mustChoose() { status = "Choose which FM-1 to use first."; return }
+        guard let f = await updater.find() else { status = "No FM-1 found."; return }
         let sent = f.channel.send(InstallRoute.softKey)
         f.channel.close()
         status = sent ? "Sent: the FM-1 restarts in download mode (its screen stays as it was). Switch it off and on to leave it." : "Could not send it."
@@ -183,10 +189,28 @@ final class FlashModel: ObservableObject {
         }
     }
 
+    /// true: two or more FM-1s and none chosen (the list is shown, nothing was sent)
+    func mustChoose() -> Bool {
+        let keys = updater.devices()
+        guard keys.count > 1 else { picked = nil; devices = []; updater.excluded = []; return false }
+        devices = keys
+        if let p = picked, keys.contains(p) { updater.excluded = Set(keys.filter { $0 != p }); return false }
+        picked = nil
+        updater.excluded = []
+        return true
+    }
+
+    func pick(_ key: String) async {
+        guard !busy else { return }
+        picked = key
+        await find()
+    }
+
     func find() async {
         guard !busy, !finding else { return }
         finding = true
         defer { finding = false }
+        if mustChoose() { device = nil; return }
         if let f = await updater.find() {
             f.channel.close()
             device = f.id.text
@@ -197,6 +221,7 @@ final class FlashModel: ObservableObject {
 
     func install() {
         guard let pkg = package, !busy else { return }
+        if mustChoose() { error = "Choose which FM-1 to use first."; return }
         busy = true
         result = nil
         error = nil
