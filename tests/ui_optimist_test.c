@@ -3099,7 +3099,7 @@ static void song_tests(void)
         turn(EN_ALGO, 2);
         check(song.sel == 0u && ui.scr == SCR_SONG && !ui.master, "PATTERNS row: ALGORITHM does nothing (a global screen)");
         turn(EN_K2, 1);
-        check(song.sel == 2u, "PATTERNS row: KNOB 2 selects T3 (the cards by columns; the keys then launch its patterns)");
+        check(song.sel == 1u, "PATTERNS row: KNOB 2 selects T2 (the rows in order, 2026-11-01; the keys then launch its patterns)");
         turn(EN_K1, 1);
         check(song.sel == 0u, "... KNOB 1 selects T1");
         press(B_SEQ);
