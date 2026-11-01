@@ -1522,6 +1522,8 @@ job; ( jobin   # the SD card (SDCARD): ChaN's driver + Petit FatFs, then full Fa
 job; ( jobin
     # (these drain the ring at once, no clock: the lag rule's tests, MIR_AIMD=0; the budget has its model below)
     $CC -O2 -w -DMIR_AIMD=0 -o "$OUT/mirror_test" tests/mirror_test.c
+    $CC -O2 -w -DMIR_AIMD=0 -DMT_AA=1 -o "$OUT/mirror_aa_test" tests/mirror_test.c
+    $CC -O2 -w -o "$OUT/mirror_pages_test" tests/mirror_pages_test.c
     $CC -O2 -w -DMIR_AIMD=0 -DMBR_PROJ=1 -o "$OUT/mirror_proj_test" tests/mirror_test.c
     $CC -O2 -w -DMIR_AIMD=0 -DMIR_BLE_LAG=4096 -o "$OUT/mirror_lag_test" tests/mirror_test.c
     run "the screen mirrored with the firmware's 4 KB lag: the lag rule follows the link's drain (2.5 KB at 4.6 KB/s, 4 KB from 8 KB/s), every mirror test" "$OUT/mirror_lag_test"
@@ -1531,6 +1533,9 @@ job; ( jobin
     run "the mirror's Bluetooth ring lent by the arena (MIR_LEND, ASan): wanted only while a Bluetooth client uses it, nothing queued or sent without it, 50 lends and give-backs caught up each time, never touched once given back; every mirror test with it lent" "$OUT/mirror_lend_test"
     run "the projects' moves over Bluetooth (BT_PROJ): the backup's commands and PJ_OP queued, a BK_DATA chunk in its own slot" "$OUT/mirror_proj_test"
     run "the screen mirrored, USB and Bluetooth: 3000 random writes decoded to the same panel, long runs, a stalled host falls behind and catches up, the Bluetooth request, a slow radio, the ring overflowing, the keep-alive, a muted write not sent, the meters over USB only; STATE, MASTER, let go, seq, the test session; what the client has not sent again" "$OUT/mirror_test"
+    run "the screen mirrored with the AA token (opti_miraa_1, 106's second byte): every mirror test, the 3000 random writes with shaded text decoded to the same panel" "$OUT/mirror_aa_test"
+    run "the AA token on 10 pages captured from the FM-1 (fm1-base's anti-aliased text): without it the encoder gives the FM-1's very bytes; with it the same pixels page by page, the bytes per page old -> new" "$OUT/mirror_pages_test"
+    run "the AA token in Python (tools/fm1_mirror.py, tools/mirror_enc.py): the 10 pages decoded, encoded with the token byte for byte the firmware's, decoded back to the same pixels" python3 tests/mirror_aa_test.py
     run "the screen as a PNG (tools/fm1_mirror.py): the fixture's frames decoded to its pixels, the PNG read back, STATE in words" python3 tests/fm1_mirror_test.py "$OUT/mirror_test"
     run "the panel driven from the Mac (tools/fm1_drive.py): steps to 108 PANEL ids, large turns in parts, an FM-1 picked by --port" python3 tests/fm1_drive_test.py
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 -DMIRROR_CHECK -o "$OUT/ui_optimist_mirror_test" tests/ui_optimist_test.c -lm
@@ -1540,6 +1545,7 @@ job; ( jobin
     # lag rule, repairs by seq) with a wrong put in the client's picture every 5 s; without SUMS printed (wrongs stay)
     MIRROR_SUMS=off "$OUT/ui_optimist_mirror_test" "$OUT/optimist_mirror"
     run "the screen mirrored over a lossy link with SUMS: every band hashed once a second, the client's differing bands sent again; no pixel wrong on the client over 3 s, none at the end" env MIRROR_SUMS=1 "$OUT/ui_optimist_mirror_test" "$OUT/optimist_mirror"
+    run "the same with the AA token (opti_miraa_1)" env MIRROR_AA=1 "$OUT/ui_optimist_mirror_test" "$OUT/optimist_mirror"
     # the Bluetooth stream to a Mac, a transport model (tests/mirror_aimd_test.c): the real UI's workload through the real ed_mirror.c,
     # the link 5.6 KB/s, the Mac's input 5 KB/s losing whole frames over 1 KB waiting; the budget (MIR_AIMD) checked, the lag rule before printed
     MIRROR_BT=1 MIRROR_WORKLOAD=1 MIRROR_TRACE="$OUT/mirror_workload.bin" "$OUT/ui_optimist_mirror_test" "$OUT/optimist_mirror"
