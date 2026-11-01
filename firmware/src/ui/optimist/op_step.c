@@ -58,6 +58,10 @@ static struct {
     uint8_t se_was;                     /* ... on last frame */
     uint32_t se_down;                   /* ... its keys down (a bit per key: a chord's keys one undo level) */
     uint32_t se_ksess;                  /* ... the undo session of the keys down together */
+    uint8_t se_pref;                    /* ... 0 as REC and the transport say (stopped + REC armed), 1 on (a double SEQ tap: playing too), 2 off */
+    uint8_t sq_on;                      /* the last SEQ tap (a double tap's first) is live: */
+    uint8_t sq_row;                     /* ... the row STEP showed before it */
+    uint32_t sq_ms;                     /* ... and when it was let go (fm1_ms) */
 } st = {.follow = 1, .lock_pg = 0xFF, .ph_drawn = 0xFF, .pk = 0xFF};
 static int st_holding(void) { return ui.scr == SCR_STEP && st.held; }   /* STEP, a step held */
 #define LOCK_NONE 0xFFu
@@ -76,6 +80,7 @@ static int se_on(void);                                 /* op_stepentry.c: STEP 
 static void se_key(uint32_t k, uint32_t down);
 static void se_knob(uint32_t k, int32_t s, int shift);
 static void se_tick(void);
+static void se_toggle(void);                            /* op_stepentry.c: the double SEQ tap */
 
 static const uint8_t LV_UP[4] = {LV_GHOST, LV_SOFT, LV_NORM, LV_HARD};   /* the levels, softest first */
 static uint32_t lvl_rank(uint32_t lvl) { return lvl == LV_GHOST ? 0u : lvl == LV_SOFT ? 1u : lvl == LV_NORM ? 2u : 3u; }
@@ -182,6 +187,7 @@ static void step_reset(void)                            /* STEP entered or left:
         hp_save();                                      /* (left with a step held: its page is the one to reopen) */
     st.held = st.pend = st.fdown = 0;
     st.play = 0;
+    st.se_pref = 0, st.sq_on = 0;                       /* (STEP entered or left: STEP ENTRY as REC and the transport say) */
     st.lock_pg = LOCK_NONE, st.hp = 0;
     st.pk = PK_NONE, st.latch = 0;                      /* (the picker starts with nothing picked) */
 }
@@ -2761,8 +2767,18 @@ static void op_row_pick(uint32_t r);                    /* op_input.c */
  * paging rule); held alone past HOLD (long), the keys between steps and playing */
 /* STEP with its cards down (no step held): the knobs are the grid's, a SEQ tap or a SELECT turn only brings the cards back */
 static int step_cards_down(void) { return ui.scr == SCR_STEP && !ui.cards_t && !st.held; }
+#define SEQ_DBL_MS 350u                                 /* a second SEQ tap within this of the first: STEP ENTRY on / off */
 static void step_seq_tap(uint32_t lng)
 {
+    const uint32_t row = ui.row[SCR_STEP];
+    if (!lng && st.sq_on && fm1_ms - st.sq_ms < SEQ_DBL_MS && ui.scr == SCR_STEP && !is_drum(TSEL) && !op_armed()) {
+        st.sq_on = 0;                                   /* (a double tap: the first tap acted as ever; its page / row is put back, STEP ENTRY toggled) */
+        if (row != st.sq_row)
+            op_row_pick(st.sq_row);
+        se_toggle();
+        return;
+    }
+    st.sq_on = (uint8_t)!lng, st.sq_ms = fm1_ms, st.sq_row = (uint8_t)row;
     if (ui.scr != SCR_STEP) {
         op_enter(SCR_STEP);
         return;
