@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 #include <assert.h>
 #include <stdio.h>
+#define FAST_CALL(n, f) f   /* (core.h's: the engine's code in XIP, a plain call; arranger.h's arr_eff_bars is called through it) */
 #include "../firmware/src/seq/arranger.h"
 
 int main(void)
