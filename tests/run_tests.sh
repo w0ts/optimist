@@ -587,6 +587,13 @@ job; ( jobin   # the undo history after the arena with the cache RAM (CACHE_RAM,
     $CC -O2 -w -I"$HGEN" -Ifirmware/src "-DFELUCCA_ARENA_BYTES=8192u" -DFELUCCA_CACHE_RAM=4 -o "$OUT/undo_cache4_test" tests/undo_cache_test.c -lm
     run "the same with 16 KB of cache RAM: the SRAM part its 1 KB least" "$OUT/undo_cache4_test"
 ) >"$U.out" 2>&1 & jobbg
+job; ( jobin   # the STORAGE reserve (seq/undo.c stg_*: the save / load staging buffers past the arena, the undo history's
+              # third part while nothing stores; ASan: the ring's three parts, the turn)
+    $CC -O2 -g -fsanitize=address,undefined -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal "-DFELUCCA_ARENA_BYTES=8192u" -o "$OUT/stg_lend_test" tests/stg_lend_test.c -lm
+    run "the STORAGE reserve: lent to the undo history when idle, taken back for a save (stopped: turned, only levels past the ring without it dropped; playing: at once while it holds none), 100 saves, the arena full" "$OUT/stg_lend_test"
+    $CC -O2 -g -fsanitize=address,undefined -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal "-DFELUCCA_ARENA_BYTES=8192u" -DFELUCCA_CACHE_RAM=4 -o "$OUT/stg_lend4_test" tests/stg_lend_test.c -lm
+    run "the same with 16 KB of cache RAM (the ring's second part between the SRAM and the reserve)" "$OUT/stg_lend4_test"
+) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/clock_sync_test" tests/clock_sync_test.c -lm
     run "MIDI clock: follow USB / TRS (SYNC AUTO, jitter, ramps, start / stop / continue / SPP), on-time steps" "$OUT/clock_sync_test"
