@@ -100,6 +100,9 @@ final class MirrorLink: ObservableObject, Transport, CompanionTransport {
         var fmPace: [Int]?, paceLogged: [Int]?  // the FM-1's op 6 PACE (opti_miraimd_1): the last, and the one logged
         var tm = Timing()         // the app's own timing, logged each second ("app: ...")
         var ackAt = Date.distantPast   // the last ACK alone sent (106 bits 5 and 6, opti_miraimd_1)
+        var sumAt = Date.distantPast, optAt = Date.distantPast   // the last SUMS (opti_mirsum_1); the last "SUMS wanted" sent
+        var bandsAsk: UInt32 = 0  // bands that differ, to ask again
+        var sums = 0, sumsUnfit = 0, bandsAsked = 0   // since the last tick: SUMS compared, not comparable; bands asked (the log)
     }
     /// What the app itself does with the frames, each second (2026-11-01: a whole screen 3-4 s on the Mac, is it the app?): panel
     /// writes applied, CoreMIDI callbacks, the longest pause between two writes, the longest a write waited to be on screen (the
@@ -400,6 +403,15 @@ final class MirrorLink: ObservableObject, Transport, CompanionTransport {
                 Self.log.info("\(pace, privacy: .public)")
                 print(pace)
             }
+            let sum = lock.withLock { s -> String? in   // (the picture checked: SUMS compared, bands asked again)
+                defer { s.sums = 0; s.sumsUnfit = 0; s.bandsAsked = 0 }
+                guard s.bandsAsked > 0 || s.sumsUnfit > 0 else { return nil }
+                return "sums: \(s.sums) compared, \(s.sumsUnfit) with frames missing; \(s.bandsAsked) bands asked again"
+            }
+            if let sum {
+                Self.log.info("\(sum, privacy: .public)")
+                print(sum)
+            }
         }
         if asked >= Self.unanswered, state != .mirroring { state = .noMirror }
         if let fb = btFallback, asked >= Self.btInfoFirst, lock.withLock({ $0.features == nil }) {
@@ -437,6 +449,22 @@ final class MirrorLink: ObservableObject, Transport, CompanionTransport {
         send([MirrorDecoder.cmd, (wantWhole ? 3 : 1) | MirrorDecoder.checkedBit | (ack == nil ? 0 : MirrorDecoder.ackBit)] + (ack ?? []))
         wantWhole = false
         asked += 1
+        // opti_mirsum_1: "SUMS wanted" (no band) while none came for 3 s; never to a firmware without it (over USB an older one
+        // reads 106 bits 112 as off)
+        if state == .mirroring, f?[Feature.mirsum.name] == Feature.mirsum.version,
+           lock.withLock({ s -> Bool in
+               let now = Date()
+               guard now.timeIntervalSince(s.sumAt) > 3, now.timeIntervalSince(s.optAt) > 3 else { return false }
+               s.optAt = now
+               return true
+           }) {
+            send(Self.bandsRequest(0))
+        }
+    }
+
+    /// 106 bits 112 and the bands, 5 x 7 bit (none: SUMS wanted, opti_mirsum_1)
+    static func bandsRequest(_ m: UInt32) -> [UInt8] {
+        [MirrorDecoder.cmd, MirrorDecoder.bandsBits] + (0..<5).map { UInt8(truncatingIfNeeded: m >> (7 * $0)) & 127 }
     }
 
     private func send(_ body: [UInt8]) {
@@ -669,6 +697,9 @@ final class MirrorLink: ObservableObject, Transport, CompanionTransport {
                         s.pending = nil
                         answers.append((p.continuation, u.args))
                     }
+                } else if let sm = MirrorDecoder.sums(f) {   // the picture checked (opti_mirsum_1): its bands that differ asked again
+                    s.sumAt = Date()
+                    if let d = s.decoder.differs(sm) { s.sums += 1; s.bandsAsk |= d } else { s.sumsUnfit += 1 }
                 } else if let st = MirrorDecoder.stats(f) {
                     s.fmStats = st
                 } else if let p = MirrorDecoder.pace(f) {
@@ -733,6 +764,15 @@ final class MirrorLink: ObservableObject, Transport, CompanionTransport {
         }
         if let ackNow {
             DispatchQueue.main.async { if self.state == .mirroring, self.destination != 0 { self.send(ackNow) } }
+        }
+        let bandsNow = lock.withLock { s -> [UInt8]? in   // (the bands that differ: asked at once, those rows come again)
+            guard s.bandsAsk != 0, s.features?[Feature.mirsum.name] == Feature.mirsum.version else { return nil }
+            defer { s.bandsAsk = 0; s.optAt = Date() }
+            s.bandsAsked += s.bandsAsk.nonzeroBitCount
+            return Self.bandsRequest(s.bandsAsk)
+        }
+        if let bandsNow {
+            DispatchQueue.main.async { if self.state == .mirroring, self.destination != 0 { self.send(bandsNow) } }
         }
         if !lostAsks.isEmpty {          // (the requests alone: tick's other asks and its rate log keep their pace)
             DispatchQueue.main.async {
