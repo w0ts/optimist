@@ -1502,6 +1502,10 @@ static uint32_t op_fam_mask(void)                       /* a bit per family the 
  * (page_owned), PROJECT (but its banks), SONG */
 #if FELUCCA_BT_UI
 static int dev_listing(void);                           /* op_project.c: the BLE devices list is open */
+#if FELUCCA_ED_MIRROR
+static void mir_draw_begin(void);                       /* io/editor/ed_mirror.c: the frame the mirror's self-check hashes */
+static void mir_draw_end(void);
+#endif
 #endif
 static uint32_t op_oct_avail(void)
 {
@@ -1672,7 +1676,13 @@ static void ui_draw(void)
     miss_tick();                                        /* a load used what this build lacks: say so (miss.c) */
 #endif
     mem_tick();                                         /* memory short for an engine: propose what to drop (above) */
+#if FELUCCA_ED_MIRROR
+    mir_draw_begin();                                   /* (a frame the mirror's self-check hashes: io/editor/ed_mirror_sum.h) */
+#endif
     op_frame_draw();
+#if FELUCCA_ED_MIRROR
+    mir_draw_end();
+#endif
 }
 
 /* ---- panel setup: OCT- + OCT+ held at power-on, or SYSTEM > CALIBRATE (as SLOOP's ui_input.c panel_setup) */

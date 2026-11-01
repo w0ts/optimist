@@ -1331,7 +1331,7 @@ static void memline_draw(void)
 static void pl_draw(void);                              /* op_gldraw.c */
 static void op_frame_draw(void)
 {
-    uint32_t ov = op_overlay();
+    uint32_t ov = op_overlay(), gap;
     if ((ov == 4u) != (ui.overlay == 4u))
         ui.force = 1;                                   /* (a Bluetooth code comes or goes: over any screen, NAME too) */
     if (ui.force) {
@@ -1363,10 +1363,22 @@ static void op_frame_draw(void)
             mx_redraw();
         }
         was_full = (uint8_t)full;
+        gap = !ui.sig[0] && !ui.force && !full
+#if FELUCCA_BT_UI
+              && !dev_listing()
+#endif
+            ;
     }
     nn_tick();                                          /* (the note played: before the help line, which shows it) */
     hl_pre(ov);                                         /* (the help line: its rows kept from the bands, op_help.c) */
     draw_head();
+    if (gap)                                            /* the rows between the header and the cards (OH_HEAD .. OY_CARD): no band's but
+                                                         * PRESETS' popup list (POP_Y) and the full screens' draw there, so with the header
+                                                         * drawn whole (a repaint, the list closed) they are black again. Before, the list's
+                                                         * top rows stayed on the panel after it closed, and a mirror catch-up or repair
+                                                         * (op_repaint) never sent them (2026-11-01: the client's rows 26..27 wrong) */
+        lcd_fill(0, OH_HEAD, 240, (uint32_t)((ov == 5u ? OY_CARD - 2 : OY_CARD) - OH_HEAD), C_BLACK);   /* (under the popup
+                                                         * list: to its box, op_preset.c POP_Y) */
     memline_draw();                                     /* (last on the header's rows 0-1: every page, the early returns below too) */
     if (ml_on() && ov != 4u) {                          /* the load's memory list: the gauge, the rows, SAVE / HOME */
         ml_draw();

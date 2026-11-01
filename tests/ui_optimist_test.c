@@ -98,8 +98,13 @@ static uint8_t mc_f[512];
 static uint32_t mc_drop, mc_in_fix;                                /* checked frames still to lose on the way (mc_fix_check) */
 static uint32_t mc_n, mc_frames, mc_bytes, mc_bad;
 static int mc_trace_off;                                /* (a catch-up: not recorded, its bytes not counted in the comparison) */
+static int ms_link(void);                               /* (ui_optimist_mirsum.h: the lossy link of MIRROR_SUMS) */
+static int ms_refuse(void);
+static void ms_out(const uint8_t *f, uint32_t n);
 static int mir_wire(uint32_t b)
 {
+    if (b == 0xF0u && ms_link() && ms_refuse())
+        return 0;                                       /* (past the lag: the frame refused, ed_mirror.c mbr_put) */
     if (mc_n < sizeof mc_f)
         mc_f[mc_n++] = (uint8_t)b;
     return 1;
@@ -118,7 +123,9 @@ static void mir_wire_end(void)
     if (getenv("FIX_WHERE") && mc_in_fix && mc_n > 14u && (mc_f[5] == 8u || mc_f[5] == 9u))
         fprintf(stderr, "FIXW op%u %u,%u %ux%u len%u\n", mc_f[5], mc_f[6] | mc_f[7] << 7, mc_f[8] | mc_f[9] << 7, mc_f[10] | mc_f[11] << 7,
                 mc_f[12] | mc_f[13] << 7, mc_n);
-    if (mc_drop && mc_n > 9u && mc_f[5] >= 8u) {
+    if (ms_link()) {
+        ms_out(mc_f, mc_n);                             /* (the lossy link: decoded when it gets there) */
+    } else if (mc_drop && mc_n > 9u && mc_f[5] >= 8u) {
         mc_drop--;                                      /* (lost on the way: never decoded) */
     } else {
         uint32_t d0 = md.dropped;
@@ -129,6 +136,7 @@ static void mir_wire_end(void)
     mc_n = 0;
 }
 #include "../firmware/src/io/editor/ed_mirror_enc.h"
+#include "ui_optimist_mirsum.h"                         /* the mirror's self-check (SUMS), the lossy link */
 static uint8_t mir_mute;                                /* (display/lcd.c's: a meter not due) */
 static uint32_t mc_meter_ms, mc_meter_sends, mc_meter_now;
 static int mc_bt = -1;                                  /* MIRROR_BT=1: the client over Bluetooth (no meters: ed_mirror.c) */
@@ -144,7 +152,12 @@ static uint32_t mir_meters_due(void)                    /* (ed_mirror.c's, the c
     return 1;
 }
 static uint32_t mir_meters_off(void) { return (uint32_t)mc_is_bt(); }   /* (USB unless MIRROR_BT: Bluetooth's empty meters, mirror_test.c) */
-static void mir_blit(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint16_t *p) { mir_enc_blit_skip(x, y, w, h, p); }   /* (gfx.c cv_mirror) */
+static void mir_blit(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint16_t *p)
+{
+    ms_truth(x, y, w, h, p, 0);
+    if (!ms.behind)
+        mir_enc_blit_skip(x, y, w, h, p);
+}   /* (gfx.c cv_mirror) */
 /* MIRROR_TRACE=FILE: every write the mirror sends, recorded (B x y w h, the pixels; F x y w h c; u16 each) to replay it
  * through another encoder and compare the bytes */
 static void mc_trace(uint16_t op, uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint16_t *p, uint16_t c)
@@ -170,7 +183,9 @@ static void lcd_blit(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint1
     uint32_t i, j;
 #ifdef MIRROR_CHECK
     if (!mir_mute) {
-        mir_enc_blit_skip(x, y, w, h, p);
+        ms_truth(x, y, w, h, p, 0);
+        if (!ms.behind)
+            mir_enc_blit_skip(x, y, w, h, p);
         mc_trace('B', x, y, w, h, p, 0);
     }
 #endif
@@ -195,7 +210,9 @@ static void lcd_fill(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint16_t c)
     uint32_t i, j;
     assert(x + w <= 240 && y + h <= 240);
 #ifdef MIRROR_CHECK
-    mir_enc_fill_skip(x, y, w, h, c);
+    ms_truth(x, y, w, h, 0, c);
+    if (!ms.behind)
+        mir_enc_fill_skip(x, y, w, h, c);
     mc_trace('F', x, y, w, h, 0, c);
 #endif
     full_fills += w == 240u && h == 240u;
@@ -412,6 +429,10 @@ static void frame(void)                                 /* one UI frame (~16 ms)
     ui_leds();
     ui_draw();
     fm1_ms += 16;
+#ifdef MIRROR_CHECK
+    if (ms.on)
+        ms_tick();                                      /* (MIRROR_SUMS: the link carries, both ends answer) */
+#endif
     if (hashing < 0 && (hashing = getenv("FRAME_HASH") != NULL))
         atexit(frame_hash_print);
     if (hashing) {
@@ -3513,11 +3534,13 @@ static void fuzz(uint32_t nf, uint32_t seed)            /* random use: every dra
         fm1_in.notes = R(10) == 0 ? (1u << R(27)) : (R(3) ? fm1_in.notes : 0);
         frame();
 #ifdef MIRROR_CHECK
-        if (f % 50u == 49u && ui.overlay != 5u)
+        if (ms.on)
+            ;                                           /* (MIRROR_SUMS: the lossy link loses and repairs on its own) */
+        else if (f % 50u == 49u && ui.overlay != 5u)
             mc_resync();
-        if (f % 50u == 20u && ui.overlay != 5u)
+        if (!ms.on && f % 50u == 20u && ui.overlay != 5u)
             mc_drop = 1u + R(3);                        /* (frames lost on the way from here) */
-        if (f % 50u == 23u && ui.overlay != 5u) {
+        if (!ms.on && f % 50u == 23u && ui.overlay != 5u) {
             mc_drop = 0;
             mc_fix_check();
         }
@@ -4127,6 +4150,7 @@ static void preset_engine_tests(void)
 #include "ui_optimist_sysdbg.h"                     /* builder item SYS_DEBUG off: INFO is CPU LOAD, UNDERRUNS, BATTERY */
 #include "ui_optimist_stack.h"                      /* SYSTEM > INFO: the CPU bars and their peaks, the RAM line, the stacks' marks */
 #include "ui_optimist_mirload.h"                     /* the mirror's workload (MIRROR_WORKLOAD: tests/mirror_aimd_test.c) */
+#include "ui_optimist_mirsum_run.h"                  /* the mirror's self-check over a lossy link (MIRROR_SUMS) */
 #include "ui_optimist_headpos.h"                    /* the loop position drawn alone while playing (the mirror's bytes) */
 #include "ui_optimist_memline.h"                    /* the memory line: the top 2 rows of every page, the arena's fill, red from 80 % */
 #include "ui_optimist_hold.h"                      /* SYSTEM HOLD: a click is a tap, a hold the layer */
@@ -4306,6 +4330,8 @@ int main(int argc, char **argv)
         mirror_workload();
         return 0;
     }
+    if (getenv("MIRROR_SUMS"))                         /* (the self-check over a lossy link alone: ui_optimist_mirsum_run.h) */
+        return mirsum_run();
 #endif
 #if FELUCCA_GRIDS_EUCLID
     {   /* OUT EUCL: one click, one step of a length or one hit (op_tools.c gr_eu_turn), both ways, the ends held */

@@ -24,6 +24,17 @@
  * INFO tag 0x65: 1 byte, the version; 0x66's opti_mirbt_1: PANEL and NAV over Bluetooth too (0x63 was REC's: retired,
  * not reused). */
 #include "ed_mirror_enc.h"
+#if MIR_SKIP
+#define MIR_SUMS 1                      /* the self-check (SUMS, opti_mirsum_1): needs what the client holds (MIR_SKIP) to send a band again alone */
+#include "ed_mirror_sum.h"
+#define MSUM_CAP() (msum.cap)
+#else
+#define MIR_SUMS 0
+#define MSUM_CAP() 0
+#endif
+#define MSUM_ASK_ 112u                  /* (ed_mirror_sum.h MSUM_ASK, MSUM_MASKN: the bands request's bits and mask bytes, any build) */
+#define MSUM_MASKN_ 5u
+static void msum_ask(const uint8_t *m); /* (below: the client's bands request, 106 bits 112) */
 #if !MIR_BLE
 #define ed_bt 0                         /* (editor.c's flag exists with Bluetooth only: every request came over USB) */
 #endif
@@ -384,6 +395,11 @@ static void mbr_take(void)
     mbr_seen = fm1_ms;                  /* (a reply follows: the ring wanted, mir_lend_want) */
 #endif
     if (cmd == ED_MIRROR) {
+        if (mbr.rx_n == 5u + MSUM_MASKN_ && (mbr_rx[4] & MSUM_ASK_) == MSUM_ASK_) {
+            msum_ask(mbr_rx + 5);       /* (the bands that differ, or none: SUMS wanted; keeps the mirror alive as an ACK) */
+            mbr_acked = 1;
+            return;
+        }
         if (mbr.rx_n == 5u || (mbr.rx_n == 7u && (mbr_rx[4] & (MIR_FIX_BIT | MIR_ACK_BIT)))) {
             if (mbr.rx_n == 7u && (mbr_rx[4] & MIR_FIX_BIT))
                 mir_fix_ask(mbr_rx[5], mbr_rx[6]);
@@ -554,6 +570,10 @@ static void mir_wire_end(void)
 /* display/lcd.c: what it drew (the colour as given, the pixels as the panel takes them) */
 static void mir_fill(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint16_t c)
 {
+#if MIR_SUMS
+    if (msum.cap && !mir_mute)
+        msum_see(x, y, w, h, 0, c);     /* (a frame the self-check hashes: ed_mirror_sum.h) */
+#endif
     if (mir_live()) {
         mst.page += w == 240u && h == 240u;  /* (the UI drew a page whole: ui.force) */
         mir_enc_fill_skip(x, y, w, h, c);
@@ -561,14 +581,18 @@ static void mir_fill(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint16_t c)
 }
 static void mir_blit(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint16_t *px)
 {
+#if MIR_SUMS
+    if (msum.cap && !mir_mute)
+        msum_see(x, y, w, h, px, 0);
+#endif
     if (mir_live())
         mir_enc_blit_skip(x, y, w, h, px);   /* (what the client already has: not again) */
 }
 /* op_mixdraw.c, once a mixer frame: the meters may go to the client this frame (USB only) */
 static uint32_t mir_meters_due(void)
 {
-    if (mir.link != MIR_USB || !mir_live() || fm1_ms - mir.meter_ms < MIR_METER_MS)
-        return 0;
+    if (mir.link != MIR_USB || !mir_live() || (fm1_ms - mir.meter_ms < MIR_METER_MS && !MSUM_CAP()))
+        return 0;                       /* (a frame the self-check hashes: its meters go too, the client holds what is hashed) */
     mir.meter_ms = fm1_ms;
     return 1;
 }
@@ -599,6 +623,14 @@ static void mir_ask(uint32_t bits, uint32_t l)
 }
 static void ed_mirror(const uint8_t *a, uint32_t na)
 {
+    if (na == 1u + MSUM_MASKN_ && (a[0] & MSUM_ASK_) == MSUM_ASK_) {   /* the bands request (opti_mirsum_1): no on / off in it */
+        MIR_SEEN();
+        msum_ask(a + 1);
+        ed_b(mir.on);
+        ed_b(MIR_VERSION);
+        ed_b4(240u & 127u, 240u >> 7, 240u & 127u, 240u >> 7);
+        return;
+    }
     if (na == 3u && (a[0] & MIR_FIX_BIT))
         mir_fix_ask(a[1], a[2]);
     mir_ask(na ? a[0] & ~(MIR_FIX_BIT | MIR_ACK_BIT | MIR_QUIET_BIT) : 0u, MIR_USB);   /* (bit 5 over USB: nothing, no budget there) */
@@ -861,6 +893,93 @@ static void mir_fix(void)
     }
 }
 
+/* The self-check (ed_mirror_sum.h, opti_mirsum_1): about once a second (MSUM_MS), and soon (MSUM_SOON_MS) after a page drawn
+ * whole, a repair or a catch-up (MSUM_GAP_MS apart at least), while a client that takes SUMS mirrors with checked frames and the
+ * link is not behind: the panel repainted in place (op_repaint) and the next UI frame hashed as it goes out (mir_draw_begin, end),
+ * then SUMS (never held back by the lag rule or the budget: 101 bytes). A frame that is not the last check's (its rectangles)
+ * proves nothing: the next is checked, MSUM_TRIES at most. The client's bands request: those rows forgotten (MIR_SKIP) and the
+ * panel repainted as a repair (mir_fix), only they going out */
+#if MIR_SUMS
+enum { MSUM_MS = 1000, MSUM_SOON_MS = 300, MSUM_GAP_MS = 500, MSUM_TRIES = 3 };
+static struct {
+    uint8_t want, arm, tries, soon;     /* the client takes SUMS; the next frame hashed; checks again; a check soon */
+    uint32_t ms, soon_ms, page, fixes, sent, bands;   /* the last check; what asked one soon; mst.page, mfix_n as last seen; counts */
+} msc;
+static volatile uint32_t msum_mask;     /* (the radio's interrupts or USB) bands asked, for mir_poll */
+static volatile uint8_t msum_asked;
+static void msum_ask(const uint8_t *m)
+{
+    uint32_t k, v = 0;
+    for (k = 0; k < MSUM_MASKN; k++)
+        v |= (uint32_t)(m[k] & 127u) << (7u * k);
+    msum_mask |= v & ((1u << MSUM_BANDS) - 1u);
+    msum_asked = 1;
+}
+static void msum_soon(void) { msc.soon = 1, msc.soon_ms = fm1_ms; }
+static void msum_poll(void)
+{
+    if (!mir.on) {
+        msc.want = 0, msc.arm = 0, msum_mask = 0, msum_asked = 0;
+        return;
+    }
+    if (msum_asked) {
+        uint32_t m = msum_mask, b;
+        msum_asked = 0, msum_mask = 0, msc.want = 1;
+        for (b = 0; b < MSUM_BANDS; b++)
+            if (m >> b & 1u)
+                mir_enc_forget(0, b * MSUM_ROWS, 240, MSUM_ROWS), msc.bands++;
+        if (m)
+            mfix_due = 1;               /* (repainted as a repair: only the rows forgotten go out) */
+    }
+    if (mst.page != msc.page || mfix_n != msc.fixes)
+        msc.page = mst.page, msc.fixes = mfix_n, msum_soon();
+    if (!msc.want || !me.chk || msc.arm || msum.cap || mfix_due || mfix_r != mfix_w || !mir_live() ||
+        (MBA_ON() && !mba_ready()))
+        return;
+    if (fm1_ms - msc.ms < MSUM_MS && !(msc.soon && fm1_ms - msc.soon_ms >= MSUM_SOON_MS && fm1_ms - msc.ms >= MSUM_GAP_MS))
+        return;
+    msc.ms = fm1_ms, msc.soon = 0, msc.tries = 0, msc.arm = 1;
+    op_repaint();                       /* (the next frame drawn whole: hashed) */
+}
+static void mir_draw_begin(void)        /* (op_input.c: before the UI frame's drawing) */
+{
+    if (!msc.arm)
+        return;
+    msc.arm = 0;
+    if (mir_live())
+        msum_begin();
+}
+static void mir_draw_end(void)
+{
+    uint32_t valid, i;
+    uint8_t f[MSUM_LEN];
+    if (!msum.cap)
+        return;
+    if (!msum_end(&valid) || !mir_live()) {
+        if (mir_live() && ++msc.tries < MSUM_TRIES)
+            msc.arm = 1, op_repaint();  /* (another frame than the last check's: the next one) */
+        return;
+    }
+    msum_frame(f, me.seq, valid);
+#if MIR_BLE
+    mbr_reply = 1;                      /* (as a reply: never held back) */
+#endif
+    for (i = 0; i < MSUM_LEN && mir_wire(f[i]); i++)
+        ;
+#if MIR_BLE
+    mbr_reply = 0;
+#endif
+    if (i == MSUM_LEN)
+        mir_wire_end(), msc.sent++;
+}
+#else
+static void msum_ask(const uint8_t *m) { (void)m; }
+#define msum_poll() ((void)0)
+#define msum_soon() ((void)0)
+static void mir_draw_begin(void) {}
+static void mir_draw_end(void) {}
+#endif
+
 /* Checked frames: a lost frame shows as a gap in seq at the next one, which may come late (an idle screen). So after frames went
  * out, an empty checked MORE (no pixels: seq only) follows within MIR_MARK_MS, and every MIR_MARK_IDLE_MS while the client
  * mirrors: a client that lost the last of them knows */
@@ -971,6 +1090,7 @@ static void mir_poll(void)
     mir_test();
     mir_state();
     mir_fix();
+    msum_poll();
     mba_poll();
     if (mst.fix_open && fm1_ms - mst.fix_ms >= 100u)
         mst.fix_open = 0, mst.fix_bytes += mst.bytes - mst.fix_b0;   /* (a repair's bytes: those within 100 ms of it) */
@@ -984,6 +1104,7 @@ static void mir_poll(void)
 #if MIR_BLE
     mbr_wait_ms = 0;
 #endif
+    msum_soon();                        /* (a catch-up: checked soon after) */
     if (mir_why == MIR_WHY_LAG && MIR_SKIP) {   /* (only what the device dropped: the client holds the rest, repainted in place) */
         mir_why = MIR_WHY_NONE;
         mst.soft++;
