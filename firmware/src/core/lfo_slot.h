@@ -94,7 +94,7 @@ static inline lfo_slot_t lfo_slot_fix(uint32_t dest, int32_t amt, uint32_t ndest
 static inline int32_t lfo_slot_mod(int32_t lfo, int32_t amt, int32_t span) { return (lfo * amt * span) >> 22; }
 
 /* SLEW's rnd for a cycle from S&H's value a to b (each its top 16 bits) */
-static inline uint32_t lfo_slew_pair(uint32_t a, uint32_t b) { return (b & 0xFFFF0000u) | (a >> 16); }
+static inline __attribute__((always_inline)) uint32_t lfo_slew_pair(uint32_t a, uint32_t b) { return (b & 0xFFFF0000u) | (a >> 16); }
 /* SLEW at phase ph: from rnd's low 16 bits (phase 0) to its top 16 bits (the wrap), on smoothstep(ph) (Q15, unsigned:
  * x^2 (<= 32766) x (3 - 2x) (<= 98304) fits 32 bits); (b - a) x s: 65535 x 32767 < 2^31 */
 static inline int32_t lfo_slew(uint32_t ph, uint32_t rnd)
