@@ -57,6 +57,29 @@ static void sg_notches(int32_t x, int32_t y, int32_t w, int32_t h, uint32_t rat)
     for (i = 1; i <= rat; i++)
         cv_rect(x + (int32_t)i * w / (int32_t)(rat + 1u), y, 1, h, C_BLACK);
 }
+#if STEP_FILLS
+/* the fill view (SEQ held, op_step.c step_fillview): a cell by its fill condition. FILL ONLY: full colour, hatched, framed white; NO FILL: hollow,
+ * struck through (dropped in a fill); normal: dim. No text on a fill. ox: the canvas's x origin (the roll's column canvas) */
+static void fv_cell(int32_t x, int32_t y, int32_t w, int32_t h, uint16_t c, uint32_t fc, int32_t ox)
+{
+    int32_t i;
+    x -= ox;
+    if (fc == FC_FILL) {
+        cv_rect(x, y, w, h, c);
+        for (i = 2; h >= 3 && i < w - 1; i += 3)
+            cv_rect(x + i, y + 1, 1, h - 2, C_BLACK);
+        cv_frame(x, y, w, h, C_WHITE);
+    } else if (fc == FC_NOFILL) {
+        cv_frame(x, y, w, h, c);
+        cv_rect(x + 1, y + h / 2, w - 2, 1, c);
+    } else {
+        cv_rect(x, y, w, h, col_shade(c, 2u));
+    }
+}
+#define FVIEW() step_fillview()
+#else
+#define FVIEW() 0
+#endif
 static void sg_ground(const track_t *t)                 /* the beats, the steps past LEN, the columns held */
 {
     uint32_t w, len = trk_len(t);
@@ -106,6 +129,12 @@ static __attribute__((noinline)) void sg_drums(const track_t *t)
 #if FELUCCA_AUTO
             if (step_muted(t, idx, l)) {                /* (a muted hit: kept, grey) */
                 cv_rect(x, y, SG_CW - 2, lh - 1, mute_col());    /* (grey, whatever the lane's colour or level) */
+                continue;
+            }
+#endif
+#if STEP_FILLS
+            if (FVIEW()) {                              /* (the fill view: the selected lane's hits by their condition, the other lanes dim) */
+                fv_cell(x, y, SG_CW - 2, lh - 1, c, l == sel ? step_lane_fc(t, idx, l) : FC_NORM, 0);
                 continue;
             }
 #endif
@@ -431,6 +460,12 @@ static void sg_roll(const track_t *t)
             uint32_t oi, hd = roll_head(t, idx, i, &oi), lv = (SGS(t)[hd % NSTEP].lvl >> (2u * oi)) & 3u;
             uint16_t nc = (int32_t)w == sg_ph ? C_WHITE : op_step_auto(t, idx, 16u) ? lvl_acol(lv) : lvl_col(c, lv);
             int mut = 0, sx;
+#if STEP_FILLS
+            int fvw = FVIEW();                          /* (the fill view: the notes by the step's condition) */
+            uint32_t fc = fvw ? step_fill(t, hd) : FC_NORM;
+            if (fvw)
+                nc = col_shade(c, fc == FC_FILL ? 8u : 2u);
+#endif
 #if FELUCCA_AUTO
             if (!gn && step_muted(t, hd, 0))
                 nc = mute_col(), mut = 1;               /* (a muted note: kept, grey; its ties too; picked it stays grey, its row's lines show the pick) */
@@ -455,6 +490,12 @@ static void sg_roll(const track_t *t)
                 cv_frame(x - sg_ox, y + m, cw, h, nc);
                 continue;
             }
+#if STEP_FILLS
+            if (fvw && !mut) {
+                fv_cell(x, y + m, cw, h, c, fc, sg_ox);
+                continue;
+            }
+#endif
             RR(x, y + m, cw, h, nc);                    /* (a note: its head, a gap from the note before) */
             if (sx)
                 roll_outline(t, sat, nt, idx, x, y + m, cw, h);
@@ -535,6 +576,7 @@ static uint32_t step_sig(void)
         int32_t f = held_first();
         h = hu(hu(h, f >= 0 && step_on(&t->step[f]) ? (uint32_t)f + 1u : 0u), (uint32_t)(held_note() + 1));
     }
+    h = hu(h, (uint32_t)FVIEW());                       /* (SEQ held: the fill view) */
     h = hbytes(h, is_drum(t) ? (const void *)t->dstep : (const void *)t->step, NSTEP * sizeof(step_t));
 #if FELUCCA_AUTO
     h = hbytes(h, AL(t), 1u + 3u * AL(t)->n);           /* (the events' marks) */
