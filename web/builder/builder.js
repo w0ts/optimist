@@ -7,7 +7,7 @@
 // tools/builder/web_api.py). The cloud build (where from, the request, its progress): cloud.js. opts.app: the Mirror
 // app's page (web/builder/app.html): the Build card first, without the files and the keys. docs/WEB.md.
 import {
-  MAIN_REF, PYODIDE_VERSION, TURNSTILE_SITEKEY, COSTS, costOf, BUDGETS, budgetsOf, SORTS, ARENA_TIP, arenaText, barModel, fmtK, built, dimmedChoices, cloudConfigUrl, commitOf, latestOf, pickRef, refUrl, repoOf, defaultPreset, defaults, deltaOf, fileName, fmt,
+  MAIN_REF, PYODIDE_VERSION, TURNSTILE_SITEKEY, COSTS, costOf, sramParts, sramSplit, BUDGETS, budgetsOf, SORTS, ARENA_TIP, arenaText, barModel, fmtK, built, dimmedChoices, cloudConfigUrl, commitOf, latestOf, pickRef, refUrl, repoOf, defaultPreset, defaults, deltaOf, fileName, fmt,
   changeText, gaugeModel, hasInfo, indexRegistry, kDelta, messagesOf, offFits, oneLine, overflowLines, presets, pyodideBase, savedOf, treeOf,
 } from "./logic.js";
 import { mountCloud } from "./cloud.js";
@@ -293,6 +293,9 @@ function renderBars() {
       el("span", { class: "gl", text: r.toUpperCase() }),
       el("span", { class: "gn" }, el("span", { class: "gu", text: m.text }), m.overText ? el("span", { class: "go", text: m.overText }) : null), bar));
   }
+  const parts = pv ? [] : sramParts(v.eval.budget && v.eval.budget.total);   /* (a previewed proposal has its gauges only) */
+  bars.append(el("div", { class: "o-parts", id: "sramparts", title: "The SRAM is one packed region: its three parts add up to the SRAM gauge, whose limit is the region less the 8 KiB spare" },
+    parts.map(([nm, b]) => el("span", { class: "pt" }, el("span", { class: "pn", text: nm }), el("span", { class: "pv", text: fmtK(b) })))));
   const overNow = Object.keys(v.over).length > 0;
   /* the card's marker: its head line green when it all fits, red when a region is over (the preview's, while previewed),
      with the word for who cannot tell the colours apart */
@@ -368,7 +371,9 @@ function itemRow(key, hasKids) {
   const deltas = v ? deltaOf(key, v.savings, over) : [];
   for (const [r, n] of deltas) {
     const hot = (over[r] || 0) > 0 && n > 0;
-    tags.append(el("span", { class: "cost" + (hot ? " hot" : "") + (r === S.sortBy ? " sortby" : ""), text: `${r} ${kDelta(n)}` }));
+    const split = r === "ram" ? sramSplit((v.savings || {})[key]) : [];   /* (the ram figure is the SRAM: its pool and ram code shown, never hidden) */
+    tags.append(el("span", { class: "cost" + (hot ? " hot" : "") + (split.length ? " split" : "") + (r === S.sortBy ? " sortby" : ""), title: split.length ? "SRAM = ram + pool + ram code" : "",
+      text: `${r} ${kDelta(n)}` + (split.length ? ` (${split.map(([nm, b]) => `${nm} ${kDelta(b)}`).join(", ")})` : "") }));
   }
   const an = v && v.arena_item ? v.arena_item[key] : undefined;
   if (an !== undefined && arenaText(an)) tags.append(el("span", { class: "arena" + (S.sortBy === "arena" ? " sortby" : ""), title: ARENA_TIP, text: `arena ${arenaText(an)}` }));
