@@ -241,7 +241,10 @@ class Builder(App):
         for r, n in deltas:
             hot = self.over.get(r, 0) > 0 and n > 0     # it holds part of an overflowing region
             name = "ram" if r == "sram" else r            # (one RAM, as the bars count it)
-            t.append(f"  {name} {n / 1024:+.1f}K",
+            sv = (self.savings or {}).get(key) or {}
+            split = ", ".join(f"{lab} {sv[k] / 1024:+.1f}K" for k, lab in (("pool", "pool"), ("ramtext", "ram code"))
+                              if abs(sv.get(k, 0)) >= 64) if r == "sram" else ""   # (the SRAM's pool and ram code, never hidden in it)
+            t.append(f"  {name} {n / 1024:+.1f}K" + (f" ({split})" if split else ""),
                      style="bold red" if hot else ("bold reverse cyan" if name == self.sort_by else "cyan"))
         ar = self.arena_item.get(key, 0)                 # (the arena one instance takes, whatever the item's state: "?" unknown)
         if ar is None or ar:
@@ -425,6 +428,9 @@ class Builder(App):
         for r, (used, cap, over) in C.fits(b["total"], self.cfg).items():
             lines.append(bar(r, used, cap, over))
             lines.append("\n")
+            if r == "sram":                              # (its parts: the ram, the pool and the ram code add up to the bar)
+                lines.append(Text(f"{'':8s} " + C.sram_parts_text(b["total"]), style="dim"))
+                lines.append("\n")
         ar = self.arena()
         if ar:                                           # (the arena first: the free SRAM less the undo's keep)
             lines.append(Text(f"{'ARENA':8s} {'' if ar['exact'] else '~'}{ar['kb']} KB" + ("" if ar["exact"] else " (estimate)"),
@@ -832,6 +838,8 @@ class Builder(App):
             for r, (used, cap, over) in C.fits({k: sizes[k] for k in C.REGIONS}, cfg).items():
                 lines.append(f"  exact {r:8s} {used:9,d} / {cap:9,d}  " +
                              (f"OVER by {over:,}" if over > 0 else f"{-over:,} free"))
+                if r == "sram":
+                    lines.append(f"  {'':14s} {C.sram_parts_text(sizes)}")
         pkg = C.build_dir() / "felucca.fwsc"
         keep = ("over", "FAIL", "package", "error", "Error", "ld:", "overflowed", "undefined reference")
         log = C.build_dir() / "builder-last.log"

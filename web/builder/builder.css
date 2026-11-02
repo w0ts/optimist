@@ -37,6 +37,9 @@
   .ob-root #gauges[data-fit="ok"] #fitmark { background: var(--fit-ok); color: #fff; border-color: transparent; }
   .ob-root #gauges[data-fit="over"] #fitmark { background: var(--err); color: #fff; border-color: transparent; }
   .ob-root #bars { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--sp-3); min-width: 0; }
+  .ob-root .o-parts { display: flex; flex-wrap: wrap; gap: var(--sp-1) var(--sp-3); font-size: var(--fs-1); color: var(--text-dim); font-variant-numeric: tabular-nums; grid-column: 1 / -1; }
+  .ob-root .o-parts .pn { margin-right: var(--sp-1); }
+  .ob-root .o-parts .pv { color: var(--text); }
   .ob-root #bars:empty::before { content: "The size estimate appears once Python has started."; color: var(--text-dim); font-size: var(--fs-2); }
   .ob-root #gauges .side { display: flex; align-items: center; flex-wrap: wrap; gap: var(--sp-2); margin-top: var(--sp-3); min-width: 0; }
   .ob-root #keychip { cursor: pointer; font-family: var(--font-mono); }
@@ -105,6 +108,7 @@
   .ob-root .cost { font-family: var(--font-mono); color: var(--text-dim); white-space: nowrap; font-variant-numeric: tabular-nums; }
   .ob-root .arena { font-family: var(--font-mono); color: var(--text-dim); white-space: nowrap; font-variant-numeric: tabular-nums; }
   .ob-root .arena.sortby { color: var(--text); text-decoration: underline; text-underline-offset: 2px; }
+  .ob-root .cost.split { white-space: normal; min-width: 0; }
   .ob-root .cost.hot { color: var(--err); font-weight: 700; }
   .ob-root .cost.sortby { color: var(--text); text-decoration: underline; text-underline-offset: 2px; }
   .ob-root .fits { color: var(--accent); font-weight: 700; white-space: nowrap; }
