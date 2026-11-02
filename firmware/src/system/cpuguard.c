@@ -29,8 +29,9 @@
 #define CG_COST_JUNO 140u   /* JUNO CHORUS while it runs, an instance: ~130 host instructions a sample (tests/juno_cho_test.c)
                              * x 1.04, not yet a cpu_costs.py entry */
 #endif
+
 #if CG_REV
-#define REV_LIVE() ((int)rev_live)
+#define REV_LIVE() ((int)rev_live)                    /* (the reverb runs: rev_diag, the tests; the guard no longer takes it) */
 #else
 #define REV_LIVE() 0
 #endif
@@ -489,8 +490,10 @@ static int cg_useful(uint32_t level)
         return cg_sheddable();
     if (level == CG_L_QUALITY && (cg_tails() || (FELUCCA_DRUMS && cg_bus_w())))
         return 1;                                     /* (a drum tail, or the drum bus's DIST / FILTER: L / R only) */
-    if (level == CG_L_REVERB)                         /* the reverb bus runs (or would: fx.c rev_live) */
-        return REV_LIVE();
+    if (level == CG_L_REVERB)                         /* never (the user, 2026-11-03: "fix the reverb dying"): a reaction took it
+                                                         * at a steady load and gave it back only on play / stop (rcap); a late
+                                                         * half with nothing else to ease is now a click, not the reverb gone */
+        return 0;
     for (p = 0; p < NPART; p++) {
         const track_t *t = &trk[p];
         const engine_t *e = ENGINES[t->engine];
