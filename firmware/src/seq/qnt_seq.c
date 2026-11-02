@@ -11,7 +11,7 @@
  * (3) when it loads it: such a build plays those keys one degree per key (tools/backports.json: limits). */
 
 /* a part whose sequence snaps */
-static int qseq_on(const track_t *t)
+static FASTI(seqev) int qseq_on(const track_t *t)   /* (events_block, seq_step: RAM code with SEQ_RAM) */
 {
     return t->p[P_QUANT] == Q_SEQ && !kb_raw(t);
 }

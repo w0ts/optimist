@@ -52,7 +52,7 @@ static void dlc_hit(uint32_t l, uint32_t note, uint32_t vel)
             dlc_let_go(&drums.v[i]);
         }
     stepq = (pow2_q16(clamp(dl_tune_play(l) * 16, -1536, SST_UP16)) >> 8) * (s->rate >> 8);
-    v = drum_voice(note, vel, l);
+    v = FAST_CALL(seq, drum_voice)(note, vel, l);   /* (flash code: the RAM code's with SEQ_RAM 2) */
     k = sst_start(si, 0, 0, 0, sst_rate(s, stepq), &v->active);
     if (k < 0) {
         v->active = 0;                               /* (no ring free: counted) */
@@ -60,7 +60,7 @@ static void dlc_hit(uint32_t l, uint32_t note, uint32_t vel)
     }
     vi = (uint32_t)(v - drums.v);
 #if DINS
-    dins_restart(vi);
+    FAST_CALL(seq, dins_restart)(vi);
 #endif
     v->s[4] = (int32_t)(SMP_STREAM | (uint32_t)k);
     v->s[0] = (int32_t)si;
@@ -73,5 +73,5 @@ static void dlc_hit(uint32_t l, uint32_t note, uint32_t vel)
     drums.synth[vi] = 0;
     drums.filter[vi] = 0;
     drums.env[vi] = 32767;
-    dl_smp_fx(vi, l);
+    FAST_CALL(seq, dl_smp_fx)(vi, l);
 }

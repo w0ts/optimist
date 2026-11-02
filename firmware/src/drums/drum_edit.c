@@ -87,9 +87,9 @@ static void lane_set_src(uint32_t l, uint32_t src)    /* lane l's source; an X0X
 }
 
 /* the reference: hit z, start / length in 1/1024 of the hit (length 0 = 1024: to its end) */
-static uint32_t dl_hit(const uint8_t *r) { return r[0] >> 4; }
-static uint32_t dl_start(const uint8_t *r) { return (uint32_t)(r[0] & 15u) << 6 | r[1] >> 2; }
-static uint32_t dl_len(const uint8_t *r) { uint32_t n = (uint32_t)(r[1] & 3u) << 8 | r[2]; return n ? n : 1024u; }
+static FASTI(seq) uint32_t dl_hit(const uint8_t *r) { return r[0] >> 4; }
+static FASTI(seq) uint32_t dl_start(const uint8_t *r) { return (uint32_t)(r[0] & 15u) << 6 | r[1] >> 2; }
+static FASTI(seq) uint32_t dl_len(const uint8_t *r) { uint32_t n = (uint32_t)(r[1] & 3u) << 8 | r[2]; return n ? n : 1024u; }
 static void dl_set_ref(uint8_t *r, uint32_t z, uint32_t st, uint32_t len)
 {
     st = st > 1023u ? 1023u : st;
@@ -113,7 +113,7 @@ static FASTI(seq) uint32_t dl_kit_of(uint32_t l, uint32_t kit)
     return kit;
 }
 /* the user slot + 1 lane l plays, 0 = none */
-static uint32_t dl_usr_of(uint32_t l)
+static FASTI(seq) uint32_t dl_usr_of(uint32_t l)
 {
 #if FELUCCA_DRUM_USR
     if (l < DRUM_LANES && dl.src[l] >= DL_USR && dl.src[l] < DL_USR + SMP_USER_SLOTS)
@@ -218,7 +218,7 @@ static FASTI(seq) const int8_t *dl_ofs_play(uint32_t l)
 #endif
     return dl_ofs(l);
 }
-static int32_t dl_tune_play(uint32_t l) { const int8_t *x = dl_ofs_play(l); return x ? x[DE_TUNE] : 0; }
+static FASTI(seq) int32_t dl_tune_play(uint32_t l) { const int8_t *x = dl_ofs_play(l); return x ? x[DE_TUNE] : 0; }
 
 /* ---- synthesised sounds: the offsets on a copy of the kit's dsnd_t */
 #if FELUCCA_DRUM_EDIT
@@ -281,7 +281,7 @@ static struct {                  /* (the edited synth sound itself is the voice'
     uint8_t on[NDRUM];           /* any of them */
 } dv;
 
-static void dl_smp_fx(uint32_t vi, uint32_t l)
+static FAST(seq) void dl_smp_fx(uint32_t vi, uint32_t l)
 {
     const int8_t *x = dl_ofs_play(l);
     dv.on[vi] = 0;
@@ -341,12 +341,12 @@ static struct {
     int16_t pred;
     uint8_t idx;
 } dl_seek[DRUM_LANES];
-static uint32_t dl_seek_key(uint32_t l)
+static FASTI(seq) uint32_t dl_seek_key(uint32_t l)
 {
     return (dl.src[l] << 24 | (uint32_t)dl.ref[l][0] << 8 | (dl.ref[l][1] & 0xFCu)) ^ (smp_user_gen * 2654435761u);
 }
 /* where lane l's hit starts and ends (samples of zone *z), 0 = no hit there */
-static const smp_zone_t *dl_usr_zone(uint32_t l, uint32_t usr, uint32_t *pos, uint32_t *end)
+static FASTI(seq) const smp_zone_t *dl_usr_zone(uint32_t l, uint32_t usr, uint32_t *pos, uint32_t *end)
 {
     uint32_t k = usr - 1u, z = dl_hit(dl.ref[l]), n;
     const smp_zone_t *zp;
@@ -387,7 +387,7 @@ static void dl_tick(void)                       /* main loop: the start states o
 }
 
 /* lane l on user slot usr - 1: a hit of it from its start (stopped there: the state dl_tick decoded) */
-static void dl_usr_hit(uint32_t l, uint32_t usr, uint32_t note, uint32_t vel)
+static FASTI(seq) void dl_usr_hit(uint32_t l, uint32_t usr, uint32_t note, uint32_t vel)
 {
     uint32_t pos, end, vi;
     const smp_zone_t *zp = dl_usr_zone(l, usr, &pos, &end);
