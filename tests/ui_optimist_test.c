@@ -4321,6 +4321,7 @@ static void led_tests(void)
 #include "ui_optimist_patwarn.h"                     /* pattern mode: the unsaved warning, black 5 = all tracks, black 6 = stop, a black key held + n stores, the numbers */
 #include "ui_optimist_patlive.h"
 #include "ui_optimist_patnew.h"                      /* a new pattern (issue 142): CLONE or EMPTY on SAVE + n, SONG scenes created by the knob */                     /* live patterns (issue 142): RELOAD = HOME + SEQ, a project LOAD asks to save live edits */
+#include "ui_optimist_songnav.h"                     /* SONG / the pattern page: SEQ flashes, SHIFT2 + a button leaves them */
 #include "ui_optimist_patview.h"                     /* the patterns screen: no cards, the taller grid, the numbers on two lines, the knob rows, the preview */
 #include "ui_optimist_mutegrey.h"                    /* muted = one grey in every view (roll, drum grid, mixer, preview) */
 #include "ui_optimist_prefilter.h"                   /* the preset list's filter (SHIFT2 + PRESETS), SHIFT + PRESETS the engines, the popup's header, no flash */
@@ -4666,6 +4667,7 @@ int main(int argc, char **argv)
     check(!cv_cuts, "the canvas: nothing drawn taller than it (a band over CV_MAX rows drawn in passes, op_graph.c cv_tall / cv_whole)");
 #if FELUCCA_PATTERNS
     patnew_ui_tests();
+    songnav_ui_tests();
     patlive_ui_tests();                                 /* (last: it switches projects) */
 #endif
     printf(fails ? "optimist ui test FAILED (%d)\n" : "optimist ui test passed\n", fails);
