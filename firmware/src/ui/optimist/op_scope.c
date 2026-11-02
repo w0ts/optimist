@@ -194,15 +194,13 @@ static void scope_tabs(void)                            /* the sources under the
     if (sc.tabs_row == cur || cards_2x2())
         return;
     sc.tabs_row = (uint8_t)cur;
-    cv_begin(240, SC_TAB_H, C_BLACK);
-    for (r = 0; r <= NTRK; r++) {
+    CV_BANDS(0, SC_TAB_Y, 240, SC_TAB_H, C_BLACK) for (r = 0; r <= NTRK; r++) {
         int32_t x = (int32_t)r * 48;
         scope_src_name(r, nm);
         if (r == cur)
             cv_rect(x + 1, 0, 46, SC_TAB_H, scope_col(r));
         cv_texts(x + (48 - text_ws(op_case(b, nm, sizeof b))) / 2, 1, b, r == cur ? ink_on(scope_col(r)) : scope_col(r));
     }
-    cv_blit(0, SC_TAB_Y);
 }
 static void scope_draw(void)
 {

@@ -16,12 +16,12 @@ typedef struct {               /* monospace, see tools/gen_font.py */
 } felucca_font_t;
 #include "felucca_font.h"
 
-/* the graph strip is 240 x 124; CANVAS_STRIP (builder item, FELUCCA_CANVAS_STRIP: 0 124 rows, 1 62, 2 31) makes it 240 x 62
+/* the graph strip is 240 x 124; CANVAS_STRIP (builder item, FELUCCA_CANVAS_STRIP: 0 124 rows, 1 62, 2 31, 3 16) makes it 240 x 62
  * (29,760 B of the pool less) or 240 x 31 (44,640 B less): the bands taller than that are drawn in passes (ui/optimist/op_graph.c cv_tall, cv_whole), each pass the same paint clipped */
 #ifndef FELUCCA_CANVAS_STRIP
 #define FELUCCA_CANVAS_STRIP 2
 #endif
-#define CV_ROWS (FELUCCA_CANVAS_STRIP == 2 ? 31u : FELUCCA_CANVAS_STRIP == 1 ? 62u : 124u)
+#define CV_ROWS (FELUCCA_CANVAS_STRIP == 3 ? 16u : FELUCCA_CANVAS_STRIP == 2 ? 31u : FELUCCA_CANVAS_STRIP == 1 ? 62u : 124u)
 #define CV_MAX (240u * CV_ROWS)
 static uint16_t cv_px[CV_MAX] __attribute__((section(".pool")));
 static uint32_t cv_cuts, cv_cut_w, cv_cut_h;   /* the canvases asked taller than CV_MAX, cut short by cv_begin (the host tests:
