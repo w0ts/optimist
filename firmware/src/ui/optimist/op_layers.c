@@ -36,6 +36,8 @@ static int pat_store_slot(uint32_t k, uint32_t s);
 static int pat_write(uint32_t k, uint32_t s, uint32_t n);
 static uint32_t pat_changed(void);
 static int pat_scene_refs(uint32_t i, uint8_t *r);
+static int pat_scene_ref_set(uint32_t s, uint32_t k, uint32_t v);   /* pat.c */
+static int pat_go_ask(uint32_t mask, uint32_t w, uint32_t when);   /* below */
 static int pat_reload(uint32_t k);                      /* pat.c: the live patterns (issue 142) */
 static int pat_unsaved_trk(uint32_t k, uint32_t chg);
 static int pat_live_at(uint32_t k, uint32_t s);
@@ -553,6 +555,7 @@ static uint32_t pat_any_has(uint32_t t, uint32_t s)     /* t's slot s holds a pa
         n |= ((m >> k) & 1u) && pat_has(k, s);
     return n;
 }
+static void pat_new_ask(uint32_t t, uint32_t s, uint32_t scene);   /* below */
 static int pat_store_all(uint32_t t, uint32_t s)        /* the working copy of t (all tracks: each) into slot s; 0 done */
 {
     uint32_t k, m = pat_mask(t);
@@ -567,8 +570,57 @@ static void pat_store_ask(uint32_t t, uint32_t s)       /* the working copy into
     pat_name_t(nm, t, s);
     if (pat_any_has(t, s))
         op_arm(ARM_OP, OA_PAT_STORE, t << 4 | s, "STORE", nm, 1);
-    else if (!pat_store_all(t, s))
-        ui_say("STORED ", nm);
+    else if (t < NTRK && pat_cur[t] == s) {
+        if (!pat_store_all(t, s))                       /* (its own, still empty slot: saved, nothing new) */
+            ui_say("STORED ", nm);
+    } else
+        pat_new_ask(t, s, 0xFFu);                       /* (a pattern that does not exist yet: CLONE or EMPTY, asked) */
+}
+/* a new pattern (issue 142, the user 2026-11-02: "explicitly creating a pattern offers to clone the current one or start empty"):
+ * one question for the pattern page's SAVE + n, SAVE + SEQ and the SONG scenes' picking a slot that is not filled yet. "CLONE T1 5?"
+ * (YES = SAVE: the working copy stored there; the default), HOME asks "EMPTY T1 5?" (YES: an empty pattern, the track plays it; from a
+ * scene's cell only the scene's reference is set), HOME again or 3 s: nothing created. pn_scene: the scene whose reference gets the slot, else 0xFF */
+static uint8_t pn_scene = 0xFF;
+static void pat_new_ask(uint32_t t, uint32_t s, uint32_t scene)
+{
+    char nm[8];
+    pat_name_t(nm, t, s);
+    pn_scene = (uint8_t)scene;
+    op_arm(ARM_OP, OA_PAT_CLONE, t << 4 | s, "CLONE", nm, 0);
+}
+static int pat_new_no(void)                             /* HOME on "CLONE ...?": the EMPTY question instead; 0: not that question */
+{
+    char nm[sizeof ui.arm_arg];
+    if (ui.arm_scr != ARM_OP || ui.arm_row != OA_PAT_CLONE)
+        return 0;
+    str_cpy(nm, ui.arm_arg, sizeof nm);
+    op_arm(ARM_OP, OA_PAT_EMPTY, ui.arm_k, "EMPTY", nm, 0);
+    return 1;
+}
+static void pat_new_do(uint32_t k, int empty)           /* the answer: k = track << 4 | slot */
+{
+    char nm[8];
+    uint32_t t = k >> 4, s = k & 15u, i, m = pat_mask(t);
+    uint32_t sc = pn_scene;
+    int scene = sc != 0xFFu && t < NTRK;
+    pn_scene = 0xFFu;
+    pat_name_t(nm, t, s);
+    if (!empty) {
+        for (i = 0; i < NTRK; i++) {
+            uint8_t was = pat_cur[i];
+            if (!((m >> i) & 1u))
+                continue;
+            if (pat_store_slot(i, s))
+                return;                                 /* (MEM FULL ...: said) */
+            if (scene)
+                pat_cur[i] = was;                       /* (a scene's cell: the track's own source stays) */
+        }
+    }
+    if (scene && pat_scene_ref_set(sc, t, s))
+        return;
+    if (!scene && empty && pat_go_ask(m, s, PW_END))
+        return;                                         /* (said: its edits kept) */
+    ui_say(empty ? "NEW " : "CLONED ", nm);
 }
 static void pat_clear_ask(uint32_t t, uint32_t s)
 {
@@ -794,6 +846,10 @@ static void op_act(uint32_t a, uint32_t k)
         ui_say(a == OA_PAT_STORE ? "STORED " : "CLEARED ", nm);
         break;
     }
+    case OA_PAT_CLONE:
+    case OA_PAT_EMPTY:
+        pat_new_do(k, a == OA_PAT_EMPTY);
+        break;
     case OA_PAT_RELOAD: {                               /* "RELOAD T1?" YES: the tracks' edits dropped, their saved patterns back */
         uint32_t i;
         for (i = 0; i < NTRK; i++)

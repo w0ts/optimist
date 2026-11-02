@@ -192,12 +192,14 @@ static void un_pat_tests(void)                          /* #15: the patterns lay
     press(B_SAVE);
     key(WK(0));
     release(B_SAVE);
+    clone_yes();
     check(pat_has(0, 0), "LFO held, SAVE + key 1: stored into slot 1");
     key(WK(0));                                         /* launch slot 1 (stopped: loaded) */
     check(pat_cur[0] == 0, "LFO held + key 1: slot 1 launched");
     press(B_SAVE);
     key(WK(3));
     release(B_SAVE);
+    clone_yes();
     check(pat_has(0, 3) && !op_armed(), "COPY = launch the source, then SAVE + the target key: slot 4 holds the copy");
     press(B_SAVE);
     key(WK(3));                                         /* over a used slot: asked */

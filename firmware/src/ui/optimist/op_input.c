@@ -321,6 +321,10 @@ static void op_yes(void)
 static void op_no(void)
 {
     if (op_armed()) {
+#if FELUCCA_PATTERNS
+        if (pat_new_no())
+            return;                                     /* ("CLONE T1 5?" -> "EMPTY T1 5?") */
+#endif
         if (!prj_no())
             op_disarm();                                /* cancel (op_prjflow.c: "SAVE <open>?" asks the LOAD instead) */
         return;
