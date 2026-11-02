@@ -83,6 +83,14 @@ static void songnav_scenes_tests(void)
     check(!strncmp(ui.msg, "STORED E", 8) && project_used(4), "songnav: SAVE with the cursor on B: the loop stored into E, the current scene (\"STORED E\")");
     check(live_sec == 4 && ui.row[SCR_SONG] == 1u, "... E stays current, the cursor stays on B");
     check(!op_armed(), "... nothing asked");
+    ui.row[SCR_SONG] = 2;
+    frames(2);
+    {
+        uint32_t used = (uint32_t)project_used(2);
+        tap(B_REC);
+        check(!op_armed() && !song.rec && !rec_wait && (uint32_t)project_used(2) == used,
+              "songnav: REC tapped on a scene: nothing stored, nothing asked, not the transport's record");
+    }
     /* the marker */
     stb.mk_on = 0;
     ui.force = 1;
