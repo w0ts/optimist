@@ -419,6 +419,8 @@ static void scene_store_now(uint32_t s)
         prj_cur = (int8_t)s;
 #endif
         work_mark();
+        scene_tag(b, s);
+        ui_say("STORED ", b + 6);                       /* (stopped too: SAVE on SONG says it) */
     }
     ui.force = 1;
 }

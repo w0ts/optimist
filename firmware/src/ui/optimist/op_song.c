@@ -5,8 +5,8 @@
  * and KNOB 3 the lane, KNOB 4 the value, KNOB 2 moves a part), SETTINGS the MODE row's four lines. This file keeps the rows,
  * cells and turns underneath, the keys (scenes white, parts black), the holds and the chain edits:
  *   SCENE A .. P  T1 T2 T3 DR: the pattern each track plays in it ("3", "KEEP", "-" none; a plain section "SEC"), and its BARS
- *                 (AUTO or 1..64); the value written once it rests (pat.c pat_scene_ref_set); YES launches it (playing: when
- *                 the scene playing has played its bars, stopped: loads it); REC stores the loop into it; SHIFT + REC clears it
+ *                 (AUTO or 1..64); the value written once it rests (pat.c pat_scene_ref_set); SAVE stores the loop into the current
+ *                 scene (the keys launch); REC stores the loop into the cursor's one; SHIFT + REC clears it
  *   PATTERNS      the hidden row LFO's screen shows (op_layers.c lay_pat_peek): the 4 x 16 session grid, the keys launch patterns
  *   MODE          LOOP / SONG, SONG REC (an action card: YES arms it), the MEM gauge, SAVE (the chain into flash)
  *   PART 1 .. 64  the chain: SCENE, BARS (S its scene's, A its longest pattern, 1..64), INSERT (a copy after it); the part playing white
@@ -424,7 +424,11 @@ static int song_yes(uint32_t r, uint32_t k, uint32_t ok)
     uint32_t a, kind = song_kind(r, &a);
     switch (kind) {
     case SG_SCENE:
-        scene_launch(a);                                /* playing: the next bar; stopped: loaded */
+        if (live_sec >= 0 && (uint32_t)live_sec < song_nscn())
+            scene_store_now((uint32_t)live_sec);        /* SAVE: the loop, sound and mix into the current scene (the loaded / playing one, not the
+                                                         * cursor's; the user, 2026-11-02), "STORED C"; the scenes' keys launch (song_key_fire) */
+        else
+            scene_store(a);                             /* (none current: the cursor's, asked over a used one, as REC) */
         song_refresh(1);
         return 1;
 #if FELUCCA_PATTERNS
