@@ -62,6 +62,18 @@
 #else
 #define ASM_M64_GAP ""
 #endif
+/* FELUCCA_ASM_MULPAIR: 1 = a multiply and a load in one parallel bundle (x *= g # y = [b]) in asm_saw_acc,
+ * asm_saw2_acc and asm_a2_out, as before 2026-11-02; 0 (the default): never, the load one instruction after the
+ * multiply's product is read (+1 instruction a sample in each). Those three bundles were the only multiply + load
+ * pairs in the whole firmware (the compiler never pairs them: the scenerec build's disassembly, 2026-11-02), and the
+ * FM-1's crash of 2026-11-02 (a2_saw2, vector 1, no EMU / DBG cause) had exactly that bundle's two registers wrong:
+ * the load's base 0 (r0 4 after the last store) and its destination a value b never held (b zeroed, g 0). Inferred,
+ * not measured: such a pair misexecutes now and then, as docs/CPU.md (fm1-base's felucca-bsp) found for loads beside
+ * 64-bit multiplies. 1 only for an A/B against the old kernels (the classic build: OPTIMIST_ASM_MULPAIR=1, tools/build.py;
+ * the fm1-base app: this default) */
+#ifndef FELUCCA_ASM_MULPAIR
+#define FELUCCA_ASM_MULPAIR 0
+#endif
 
 #if FELUCCA_ASM
 /* b[0..31] = 0 */
@@ -261,7 +273,8 @@ static inline __attribute__((always_inline)) int32_t asm_saw_lim(uint32_t inc)
 
 /* Software-pipelined: the store of sample i rides in the bundle (#: a parallel pair, an ALU primary and
  * a load or store slot, no register shared between the two) of sample i + 1's phase step, the load in
- * the multiply's: 7 instructions a sample. The first sample enters past the store, the last stores
+ * the multiply's with FELUCCA_ASM_MULPAIR (7 instructions a sample; 8 without: the load after the product). The first
+ * sample enters past the store, the last stores
  * after the loop. */
 static inline __attribute__((always_inline)) void asm_saw_acc(int32_t *b, uint32_t ph, uint32_t inc, int32_t g,
                                                               uint32_t n)
@@ -275,8 +288,14 @@ static inline __attribute__((always_inline)) void asm_saw_acc(int32_t *b, uint32
                      "%[q] += %[inc] # [%[b]++=4] = %[y]\n\t"
                      "ifs (%[q] < %[lim]) goto 3f\n\t"
                      "2:\n\t"
+#if FELUCCA_ASM_MULPAIR
                      "%[x] *= %[g] # %[y] = [%[b]+0]\n\t"
                      "%[x] = %[x] >>> 15\n\t"
+#else
+                     "%[x] *= %[g]\n\t"
+                     "%[x] = %[x] >>> 15\n\t"
+                     "%[y] = [%[b]+0]\n\t"
+#endif
                      "%[y] += %[x]\n\t"
                      "if (--%[n] != 0) goto 1b\n\t"
                      "[%[b]++=4] = %[y]\n\t"
@@ -291,7 +310,7 @@ static inline __attribute__((always_inline)) void asm_saw_acc(int32_t *b, uint32
 
 /* Two saws of the same gain into b (two copies of the swarm): b[i] += saw1 * g >> 15, then
  * += saw2 * g >> 15, per sample (the same integer sums as one copy after the other). One load and one
- * store a sample for both: 13 instructions a sample, 6.5 a copy. The SIMD slot: lanes 1 and 2 are the
+ * store a sample for both: 13 instructions a sample, 6.5 a copy (14 without FELUCCA_ASM_MULPAIR). The SIMD slot: lanes 1 and 2 are the
  * two 16-bit halves a packed multiply would take at once. */
 static inline __attribute__((always_inline)) void asm_saw2_acc(int32_t *b, uint32_t ph1, uint32_t inc1,
                                                                uint32_t ph2, uint32_t inc2, int32_t g,
@@ -306,8 +325,14 @@ static inline __attribute__((always_inline)) void asm_saw2_acc(int32_t *b, uint3
                      "%[q1] += %[inc1] # [%[b]++=4] = %[y]\n\t"
                      "ifs (%[q1] < %[lim1]) goto 3f\n\t"
                      "2:\n\t"                       /* lane 1 */
+#if FELUCCA_ASM_MULPAIR
                      "%[x] *= %[g] # %[y] = [%[b]+0]\n\t"
                      "%[x] = %[x] >>> 15\n\t"
+#else
+                     "%[x] *= %[g]\n\t"
+                     "%[x] = %[x] >>> 15\n\t"
+                     "%[y] = [%[b]+0]\n\t"
+#endif
                      "%[y] += %[x]\n\t" ASM_SAW_LANE("q2", "inc2", "lim2", "x", "5f")
                      "6:\n\t"                       /* lane 2 */
                      "%[x] *= %[g]\n\t"
@@ -426,7 +451,7 @@ static inline __attribute__((always_inline)) uint32_t asm_svf_lp(int32_t **pb, i
  *   out[i] += mulq15(mulq15(y << 1, acc >> 5), fs) << 1;  acc += d
  * mulq15(y << 1, g) is bits 14..30 of y g, sign-extended (sextra p:14 l:17), as clang compiles it.
  * softclip of a positive t: TANH_Q15[t >> 8] interpolated over t & 255, TANH_Q15[256] from t >= 65536.
- * The knee leaves the loop and comes back (y kneed in place). 11 instructions a sample (clang's C 15):
+ * The knee leaves the loop and comes back (y kneed in place). 11 instructions a sample (12 without FELUCCA_ASM_MULPAIR; clang's C 15):
  * b's next sample loads, out's sample loads and stores in parallel bundles (operands in r0..r3). */
 static inline __attribute__((always_inline)) void asm_a2_out(int32_t *out_, const int32_t *b_, int32_t acc,
                                                              int32_t d, int32_t fs, const int16_t *tanh,
@@ -445,8 +470,14 @@ static inline __attribute__((always_inline)) void asm_a2_out(int32_t *out_, cons
                      "%[g] = %[acc] >>> 5\n\t"
                      "%[y] = %[x] * %[g]\n\t"
                      "%[y] = sextra(%[y], p:14, l:17)\n\t"
+#if FELUCCA_ASM_MULPAIR
                      "%[y] *= %[fs] # %[x] = [%[b]++=4]\n\t"
                      "%[y] = %[y] >>> 15\n\t"
+#else
+                     "%[y] *= %[fs]\n\t"
+                     "%[y] = %[y] >>> 15\n\t"
+                     "%[x] = [%[b]++=4]\n\t"
+#endif
                      "%[y] = %[y] << 1\n\t"
                      "%[o] += %[y]\n\t"
                      "%[acc] += %[d] # [%[out]++=4] = %[o]\n\t"
