@@ -96,6 +96,20 @@ enum FlashProtocol {
 
     static let fastHello = frame(fastCommand, [1, UInt8(fastChunk & 0xFF), UInt8(fastChunk >> 8)])
 
+    /// the fast loader's check (docs/INSTALL-SPEED.md): while it compares the sectors already on the FM-1 with the table it
+    /// says cmd 0x32 [checked LE16, total LE16] (no opt-in: only a host that sent the fast hello gets it, and every such host
+    /// skips frames that are no read request) -> (checked, total) sectors
+    static let checkCommand: UInt8 = 0x32
+    static func checkProgress(_ pkt: [UInt8]) -> (checked: Int, total: Int)? {
+        guard pkt.count >= 2, pkt.first == 0xF0, pkt.last == 0xF7 else { return nil }
+        let u = unpack7(pkt[1..<(pkt.count - 1)])
+        guard u.count == 11, Array(u[0..<6]) == [0, 0x59, checkCommand, 4, 0, 0] else { return nil }
+        let s = u[6..<10].reduce(0) { $0 + Int($1) }
+        guard UInt8(~s & 0xFF) == u[10] else { return nil }
+        let checked = Int(u[6]) | Int(u[7]) << 8, total = Int(u[8]) | Int(u[9]) << 8
+        return total > 0 && checked <= total ? (checked, total) : nil
+    }
+
     /// the loader's answer to `fastHello` -> its read size
     static func fastReply(_ pkt: [UInt8]) -> Int? {
         guard pkt.count >= 2, pkt.first == 0xF0, pkt.last == 0xF7 else { return nil }

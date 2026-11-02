@@ -161,7 +161,7 @@ static void felucca_init(void)
                                                * a sound never writes the sequencer) */
         if (i < NPART) {
             set_engine_of(t, trk_def_engine(i));
-            apply_preset_to(t, trk_def_preset(i));   /* with its sends, but no reverb (a new project: op_project_new) */
+            trk_def_sound(t, i);   /* with its sends, but no reverb (a new project: op_project_new) */
             t->p[P_REV] = 0;
             t->engine = t->eng_req;
         }

@@ -38,7 +38,7 @@
 #include <assert.h>
 static uint16_t screen[240 * 240];
 static void lcd_sync(void) {}
-static uint32_t band_y = 240u, band_hits;               /* the help band's first row (op_graph.c OP_FOOT_Y, set in main), and
+static uint32_t band_y = 240u, band_h, band_hits;               /* the help band's first row (op_graph.c OP_FOOT_Y, set in main), and
                                                          * the blits that reached it besides the line's own (ui_optimist_geometry.h) */
 static uint32_t gl_info_wide(void);                     /* op_gldraw.c: SYSTEM > INFO's first page has no help band: its rows run to the foot */
 static uint32_t probe_hits;                             /* the blits that cover the probe pixel (120, 180): inside PRESETS' popup, a flash when more than one a frame */
@@ -98,8 +98,13 @@ static uint8_t mc_f[512];
 static uint32_t mc_drop, mc_in_fix;                                /* checked frames still to lose on the way (mc_fix_check) */
 static uint32_t mc_n, mc_frames, mc_bytes, mc_bad;
 static int mc_trace_off;                                /* (a catch-up: not recorded, its bytes not counted in the comparison) */
+static int ms_link(void);                               /* (ui_optimist_mirsum.h: the lossy link of MIRROR_SUMS) */
+static int ms_refuse(void);
+static void ms_out(const uint8_t *f, uint32_t n);
 static int mir_wire(uint32_t b)
 {
+    if (b == 0xF0u && ms_link() && ms_refuse())
+        return 0;                                       /* (past the lag: the frame refused, ed_mirror.c mbr_put) */
     if (mc_n < sizeof mc_f)
         mc_f[mc_n++] = (uint8_t)b;
     return 1;
@@ -118,7 +123,9 @@ static void mir_wire_end(void)
     if (getenv("FIX_WHERE") && mc_in_fix && mc_n > 14u && (mc_f[5] == 8u || mc_f[5] == 9u))
         fprintf(stderr, "FIXW op%u %u,%u %ux%u len%u\n", mc_f[5], mc_f[6] | mc_f[7] << 7, mc_f[8] | mc_f[9] << 7, mc_f[10] | mc_f[11] << 7,
                 mc_f[12] | mc_f[13] << 7, mc_n);
-    if (mc_drop && mc_n > 9u && mc_f[5] >= 8u) {
+    if (ms_link()) {
+        ms_out(mc_f, mc_n);                             /* (the lossy link: decoded when it gets there) */
+    } else if (mc_drop && mc_n > 9u && mc_f[5] >= 8u) {
         mc_drop--;                                      /* (lost on the way: never decoded) */
     } else {
         uint32_t d0 = md.dropped;
@@ -129,6 +136,7 @@ static void mir_wire_end(void)
     mc_n = 0;
 }
 #include "../firmware/src/io/editor/ed_mirror_enc.h"
+#include "ui_optimist_mirsum.h"                         /* the mirror's self-check (SUMS), the lossy link */
 static uint8_t mir_mute;                                /* (display/lcd.c's: a meter not due) */
 static uint32_t mc_meter_ms, mc_meter_sends, mc_meter_now;
 static int mc_bt = -1;                                  /* MIRROR_BT=1: the client over Bluetooth (no meters: ed_mirror.c) */
@@ -144,7 +152,12 @@ static uint32_t mir_meters_due(void)                    /* (ed_mirror.c's, the c
     return 1;
 }
 static uint32_t mir_meters_off(void) { return (uint32_t)mc_is_bt(); }   /* (USB unless MIRROR_BT: Bluetooth's empty meters, mirror_test.c) */
-static void mir_blit(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint16_t *p) { mir_enc_blit_skip(x, y, w, h, p); }   /* (gfx.c cv_mirror) */
+static void mir_blit(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint16_t *p)
+{
+    ms_truth(x, y, w, h, p, 0);
+    if (!ms.behind)
+        mir_enc_blit_skip(x, y, w, h, p);
+}   /* (gfx.c cv_mirror) */
 /* MIRROR_TRACE=FILE: every write the mirror sends, recorded (B x y w h, the pixels; F x y w h c; u16 each) to replay it
  * through another encoder and compare the bytes */
 static void mc_trace(uint16_t op, uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint16_t *p, uint16_t c)
@@ -170,7 +183,9 @@ static void lcd_blit(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint1
     uint32_t i, j;
 #ifdef MIRROR_CHECK
     if (!mir_mute) {
-        mir_enc_blit_skip(x, y, w, h, p);
+        ms_truth(x, y, w, h, p, 0);
+        if (!ms.behind)
+            mir_enc_blit_skip(x, y, w, h, p);
         mc_trace('B', x, y, w, h, p, 0);
     }
 #endif
@@ -182,7 +197,7 @@ static void lcd_blit(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint1
     if (x <= 120u && 120u < x + w && y <= 180u && 180u < y + h)
         probe_hits++;
     assert(x + w <= 240 && y + h <= 240);
-    if (y + h > band_y && !gl_info_wide() && !(x == 0u && y == band_y && w == 240u && h == 240u - band_y))
+    if (y + h > band_y && !gl_info_wide() && !(x == 0u && y == band_y && w == 240u && h == band_h))   /* (the help line's own; the load lines' rows below it are fills: op_meters.c) */
         band_hits++;
     for (j = 0; j < h; j++)
         for (i = 0; i < w; i++)
@@ -195,7 +210,9 @@ static void lcd_fill(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint16_t c)
     uint32_t i, j;
     assert(x + w <= 240 && y + h <= 240);
 #ifdef MIRROR_CHECK
-    mir_enc_fill_skip(x, y, w, h, c);
+    ms_truth(x, y, w, h, 0, c);
+    if (!ms.behind)
+        mir_enc_fill_skip(x, y, w, h, c);
     mc_trace('F', x, y, w, h, 0, c);
 #endif
     full_fills += w == 240u && h == 240u;
@@ -444,6 +461,10 @@ static void frame(void)                                 /* one UI frame (~16 ms)
         draw_ns += (uint64_t)(t1.tv_sec - t0.tv_sec) * 1000000000u + (uint64_t)(t1.tv_nsec - t0.tv_nsec);
     }
     fm1_ms += 16;
+#ifdef MIRROR_CHECK
+    if (ms.on)
+        ms_tick();                                      /* (MIRROR_SUMS: the link carries, both ends answer) */
+#endif
     if (hashing < 0 && (hashing = getenv("FRAME_HASH") != NULL))
         atexit(frame_hash_print);
     if (hashing) {
@@ -566,7 +587,7 @@ static void forms_of(uint32_t scr)
             name = (c.label && !strcmp(c.label, "PRESET")) ||
                    (scr == SCR_HOME && c.label && (!strcmp(c.label, "SOUND") || !strcmp(c.label, "KIT"))) ||
                    (c.d && c.d->max == c.d->min) ||
-                   (scr == SCR_SYSTEM && c.kind == CK_RO && c.label && (!strcmp(c.label, "VERSION") || !strcmp(c.label, "INFO") || !strcmp(c.label, "INTERNALS") || !strcmp(c.label, "USB STATS") || !strcmp(c.label, "CPU TIMES") || !strcmp(c.label, "CREDITS") ||
+                   (scr == SCR_SYSTEM && c.kind == CK_RO && c.label && (!strcmp(c.label, "VERSION") || !strcmp(c.label, "INFO") || !strcmp(c.label, "INTERNALS") || !strcmp(c.label, "USB STATS") || !strcmp(c.label, "CPU TIMES") || !strcmp(c.label, "TOP") || !strcmp(c.label, "CREDITS") ||
                                                                  !strcmp(c.label, "BUILD") || !strcmp(c.label, "STATE") ||
                                                                  !strcmp(c.label, "DEVICE") || !strcmp(c.label, "ACTIVITY") ||
                                                                  !strcmp(c.label, "FORMAT") ||
@@ -823,6 +844,10 @@ static void main_page_tests(void)
         char b[64];
         uint32_t m;
         memset(snd_mem, 0, sizeof snd_mem);             /* (EDIT on MAIN again: the SOUND row was the last shown) */
+        set_engine_of(TSEL, eng_slot(0u));              /* (an ANALOG sound with no ENV 1 FLT move on its CUT: 808 BOOM; the default T1,
+                                                         * ACID 303, has its filter envelope: its CUT does have a source) */
+        apply_preset_to(TSEL, 0u);
+        TSEL->engine = TSEL->eng_req;
         go_home();
         tap(B_EDIT);
         hl.k = 0;
@@ -931,6 +956,14 @@ static void line_at(uint32_t scr, uint32_t i)            /* the cursor on line i
     ui.row[scr] = (uint8_t)i;
     ui.hot = (uint8_t)gl_kn(scr, i);
 }
+/* SELECT a page on (s 1) or back (-1) on GLOBAL / SYSTEM: a detent, or as many as a page that scrolls its lines first takes
+ * (SYSTEM > TOP: op_top.c top_step) */
+static void sel_page(uint32_t scr, int32_t s)
+{
+    uint32_t was = ui.row[scr], k;
+    for (k = 0; k < 100u && ui.row[scr] == was; k++)
+        turn(EN_SELECT, s);
+}
 #define LINE_KNOB(i) (EN_K1 + gl_kn(ui.scr, (i)))     /* the knob of line i: its place on its page */
 /* ---- keys and knobs */
 static void key_tests(void)
@@ -962,13 +995,14 @@ static void key_tests(void)
     tap(B_ENV);
     check(snd_page(ui.row[SCR_SOUND])->fam == FAM_ENV && snd_page(ui.row[SCR_SOUND])->id[0] != P_ATK, "ENV again: the family's next row");
     {
-        int16_t a = TSEL->p[P_ATK];
         uint32_t p2 = TSEL->preset;
         while (snd_page(ui.row[SCR_SOUND])->id[0] != P_ATK)
             turn(EN_SELECT, -1);                        /* (back by SELECT: the button stops at the family's last row) */
         ui.hot = 0;
         turn(EN_PRESET, 2);
-        check(TSEL->p[P_ATK] == a && TSEL->preset != p2, "ENV row: PRESETS the sound (the next preset), ATK stays (2026-10-10)");
+        check(TSEL->preset != p2 && TSEL->preset < ENGINES[TSEL->eng_req % NENGINES]->npresets &&
+                  TSEL->p[P_ATK] == ENGINES[TSEL->eng_req % NENGINES]->presets[TSEL->preset].env[0],
+              "ENV row: PRESETS the sound (the next preset), ATK the new sound's own, not turned by the knob (2026-10-10)");
         fm1_in.buttons |= BT(B_OCTDN);
         turn(EN_K1, 1);
         fm1_in.buttons &= ~BT(B_OCTDN);
@@ -3566,11 +3600,13 @@ static void fuzz(uint32_t nf, uint32_t seed)            /* random use: every dra
         fm1_in.notes = R(10) == 0 ? (1u << R(27)) : (R(3) ? fm1_in.notes : 0);
         frame();
 #ifdef MIRROR_CHECK
-        if (f % 50u == 49u && ui.overlay != 5u)
+        if (ms.on)
+            ;                                           /* (MIRROR_SUMS: the lossy link loses and repairs on its own) */
+        else if (f % 50u == 49u && ui.overlay != 5u)
             mc_resync();
-        if (f % 50u == 20u && ui.overlay != 5u)
+        if (!ms.on && f % 50u == 20u && ui.overlay != 5u)
             mc_drop = 1u + R(3);                        /* (frames lost on the way from here) */
-        if (f % 50u == 23u && ui.overlay != 5u) {
+        if (!ms.on && f % 50u == 23u && ui.overlay != 5u) {
             mc_drop = 0;
             mc_fix_check();
         }
@@ -3589,7 +3625,7 @@ static void tracks_default(void)
     uint32_t i;
     for (i = 0; i < NPART; i++) {
         set_engine_of(&trk[i], trk_def_engine(i));
-        apply_preset_to(&trk[i], trk_def_preset(i));
+        trk_def_sound(&trk[i], i);
         trk[i].engine = trk[i].eng_req;
     }
     {   /* the returns as the defaults (the walk reaches their pages since 2026-10-30: random use turns their TYPE, PRE, POST) */
@@ -4177,9 +4213,12 @@ static void preset_engine_tests(void)
 #include "ui_optimist_uasel.h"                     /* SYSTEM > USB AUDIO */
 #include "ui_optimist_core.h"                       /* SYSTEM > CPU > 2ND CORE (DUAL builds), the CPU1 cell's reason */
 #include "ui_optimist_dtimes.h"                     /* SYSTEM > CPU TIMES (DUAL_LOAD builds with the debug pages) */
+#include "ui_optimist_top.h"                        /* SYSTEM > TOP (builder item SYS_TOP); off: no page */
 #include "ui_optimist_sysdbg.h"                     /* builder item SYS_DEBUG off: INFO is CPU LOAD, UNDERRUNS, BATTERY */
 #include "ui_optimist_stack.h"                      /* SYSTEM > INFO: the CPU bars and their peaks, the RAM line, the stacks' marks */
 #include "ui_optimist_mirload.h"                     /* the mirror's workload (MIRROR_WORKLOAD: tests/mirror_aimd_test.c) */
+#include "ui_optimist_mirsum_run.h"                  /* the mirror's self-check over a lossy link (MIRROR_SUMS) */
+#include "ui_optimist_mirrows.h"                   /* every row drawn again by a repaint (MIRROR_ROWS) */
 #include "ui_optimist_headpos.h"                    /* the loop position drawn alone while playing (the mirror's bytes) */
 #include "ui_optimist_memline.h"                    /* the memory line: the top 2 rows of every page, the arena's fill, red from 80 % */
 #include "ui_optimist_hold.h"                      /* SYSTEM HOLD: a click is a tap, a hold the layer */
@@ -4231,6 +4270,7 @@ static void preset_engine_tests(void)
 #include "ui_optimist_pagemem.h"                    /* 2026-10-13: every screen remembers its page (SOUND per track, the held step) */
 #include "ui_optimist_nav.h"                        /* 2026-10-24: the mirror's touch navigation (op_nav.c, 109 NAV) */
 #include "ui_optimist_memlist.h"                    /* 2026-10-25: a load that does not fit: the list of what to drop */
+#include "ui_optimist_fxmem.h"                     /* 2026-11-01: PROJECT > FX MEM, the make-room question */
 #if UI_FMEM
 #include "fmem_fake_post.h"
 #include "ui_optimist_fmem.h"                       /* 2026-10-30: BT AUDIO's block in the arena, on the memory line */
@@ -4313,6 +4353,7 @@ static void led_tests(void)
 #include "ui_optimist_hdrnum.h"                     /* the track number in the header badge, the preset after the title */
 #include "ui_optimist_names.h"                      /* the names table: titles never cut, card labels in capitals, list cells whole */
 #include "ui_optimist_layout.h"                     /* batch D: a badge everywhere, one rule for nothing, no one-card page, no DUST unbuilt */
+#include "ui_optimist_meters.h"                     /* the load lines on the last rows: CPUS / MEMORY / BOTH (2026-11-01) */
 #include "ui_optimist_geometry.h"                   /* batch B: the help band, units in the label row, the list's columns, the needles */
 #include "ui_optimist_stepauto.h"                    /* a step with automation: its own colour (STEP grid, roll, mixer strips) */
 #include "ui_optimist_colours.h"                     /* batch C: colour means something (mute tiles, red, dim, REC, SUPER) */
@@ -4334,6 +4375,7 @@ int main(int argc, char **argv)
     outdir = argc > 1 ? argv[1] : "build/host";
 #ifdef MIRROR_CHECK
     me.chk = 1;                                         /* (checked frames, as the Mirror app asks: ops 8..10, seq; mc_fix_check) */
+    me.aa = getenv("MIRROR_AA") != 0;                  /* (MIRROR_AA=1: the AA token, as a client with opti_miraa_1 asks) */
 #endif
     {
         uint32_t i;
@@ -4352,7 +4394,8 @@ int main(int argc, char **argv)
     sec_boot();
 #endif
     tracks_default();
-    band_y = (uint32_t)OP_FOOT_Y;                       /* (no band without the help line: 240) */
+    band_y = (uint32_t)OP_FOOT_Y;                       /* (no band without the help line: the load lines' first row) */
+    band_h = (uint32_t)OP_FOOT;
     panel = PANEL_DEFAULT;
     settings_init();
     layers_init();
@@ -4362,6 +4405,13 @@ int main(int argc, char **argv)
     if (getenv("MIRROR_WORKLOAD")) {                  /* (the mirror's workload alone: ui_optimist_mirload.h) */
         mirror_workload();
         return 0;
+    }
+    if (getenv("MIRROR_SUMS"))                         /* (the self-check over a lossy link alone: ui_optimist_mirsum_run.h) */
+        return mirsum_run();
+    if (getenv("MIRROR_ROWS")) {                       /* (every screen's repaint draws every row alone: ui_optimist_mirrows.h) */
+        mirror_rows_tests();
+        printf(fails ? "optimist ui mirror rows test FAILED (%d)\n" : "optimist ui mirror rows test passed\n", fails);
+        return fails != 0;
     }
 #endif
 #if FELUCCA_GRIDS_EUCLID
@@ -4421,6 +4471,16 @@ int main(int argc, char **argv)
 #endif
 #if UI_FMEM                                              /* (the switchable features' build: their tests alone) */
     fmem_ui_tests();
+    printf(fails ? "optimist ui test FAILED (%d)\n" : "optimist ui test passed\n", fails);
+    return fails != 0;
+#endif
+#if UI_FXZ                                               /* (FX MEMORY's build, run_tests.sh: its tests alone) */
+    fxmem_ui_tests();
+    printf(fails ? "optimist ui test FAILED (%d)\n" : "optimist ui test passed\n", fails);
+    return fails != 0;
+#endif
+#if UI_TOP                                               /* (SYSTEM > TOP with an arena, run_tests.sh: its tests alone) */
+    top_tests();
     printf(fails ? "optimist ui test FAILED (%d)\n" : "optimist ui test passed\n", fails);
     return fails != 0;
 #endif
@@ -4529,9 +4589,11 @@ int main(int argc, char **argv)
 #else
     sysdbg_off_tests();
 #endif
+    top_tests();                                        /* (SYSTEM > TOP: the CPU's jobs and the RAM's owners; off: none) */
     ovl_window_tests();                                 /* (the rings' 10 s and 1 min windows, their wrap) */
     stackmark_tests();                                  /* (the stacks' paint and read-back, INFO's RAM line) */
     memline_tests();                                    /* (the memory line over every page) */
+    meters_tests();                                     /* (the load lines at the foot: CPUS, MEMORY, BOTH) */
     headpos_tests();                                    /* (bar.beat alone while playing) */
     hold_tests();
     lane_preview_tests();

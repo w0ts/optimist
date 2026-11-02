@@ -44,12 +44,25 @@ enum BluetoothPicker {
         return (!picked.isEmpty && port == picked) || (bluetooth && state == .mirroring)
     }
 
-    /// ports: the MIDI ports online now (MirrorLink.online)
-    @MainActor static func present(ports: [String] = []) {
+    /// The user pressed a Bluetooth connect button. ports: the MIDI ports online now (MirrorLink.online). The sheet opens when the
+    /// device's Bluetooth is on and allowed, else BluetoothWatch says why not (BluetoothState.swift has the words).
+    @MainActor static func present(ports: [String] = []) { BluetoothWatch.shared.connect(ports: ports) }
+
+    /// the line under the sheet's title: the Bluetooth hint (nil: none)
+    @MainActor static func setPrompt(_ text: String?) {
+        guard let c = central, c.navigationItem.prompt != text else { return }
+        c.navigationItem.prompt = text
+    }
+
+    @MainActor private static weak var central: UIViewController?
+
+    /// the sheet itself (BluetoothWatch: Bluetooth is on)
+    @MainActor static func showSheet(ports: [String]) {
         guard let scene = UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }).first,
               var top = scene.keyWindow?.rootViewController else { return }
         while let p = top.presentedViewController { top = p }
         let central = Central()
+        self.central = central
         let nav = Sheet(rootViewController: central)
         // (on the left: the sheet puts its Edit button on the right, and on the Mac that hid a Done there)
         central.navigationItem.leftBarButtonItem = UIBarButtonItem(systemItem: .done, primaryAction: UIAction { _ in dismiss() })

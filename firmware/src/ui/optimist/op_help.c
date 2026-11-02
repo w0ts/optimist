@@ -375,6 +375,13 @@ static void hl_pre(uint32_t ov)
     }                                        /* (a value with no line: nothing; a menu keeps its empty line) */
     hl_nn_only = !wide && !vis && nn_vis && ov != 1u && ov != 3u && ov != 4u;   /* (the note played on the keys alone: the line shows */
     vis |= hl_nn_only;                                                  /* it and nothing else, op_draw.c nn_tick) */
+    if (op_again & OPA_HELP) {                          /* (a repaint: the band drawn again, the line by hl_post, else black) */
+        op_again &= (uint8_t)~OPA_HELP;
+        if (!wide && !vis && !hl.on) {
+            cv_begin(240, HL_H, C_BLACK);
+            cv_blit(0, HL_Y);
+        }
+    }
     if (vis == hl.on)
         return;
     hl.on = (uint8_t)vis;

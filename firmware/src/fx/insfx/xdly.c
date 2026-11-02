@@ -16,7 +16,13 @@
  * From rest nothing the lines held is read (fill, as ECHO's); once both hold only zeros and the input is silent the block
  * is skipped. No divide, no packed SIMD */
 #if FELUCCA_INS_XDLY
+#if FXZ_XDL_N > 1u
+/* FX MEMORY's XDLY MEM (fx/fx_memsz.h): HALF, two lines of 8192 (every TIME half, as an XDLY_LEN 8192 build); changed only
+ * while no instance holds a line (fx_arena.c fxz_poll: every owner lets go meanwhile, fxi_holds) */
+#define XD_LEN ((uint32_t)FELUCCA_XDLY_LEN >> fxsz_xdl)
+#else
 #define XD_LEN ((uint32_t)FELUCCA_XDLY_LEN)
+#endif
 #define XD_M (XD_LEN - 1u)
 #define XD_LPK 20600                                    /* the loops' one-pole, Q15: ~7 kHz */
 /* the CPU guard's cost (cpuguard.c): an instance running, host instructions a sample (tests/xdly_test.c measures it and
@@ -34,7 +40,7 @@ typedef struct {
     int16_t *line;                                      /* its two lines, one after the other: units of the effects
                                                          * memory (fxi_mem.h), fxi.c sets it before it hands it out */
 } ifx_xd_t;
-_Static_assert(2u * XD_LEN == FXA_Z4 * FXA_U, "XDLY: its lines in units of the effects memory");
+_Static_assert(2u * FELUCCA_XDLY_LEN == FXA_Z4 * FXA_U, "XDLY: its lines in units of the effects memory");
 static ifx_xd_t ifx_xdly[FXI_TN4] __attribute__((section(".pool")));
 /* line ln's sample d (Q8) back from wp (the one just written: 0), linear between two; 0 past what was written (fill:
  * the samples written, wp's among them) */

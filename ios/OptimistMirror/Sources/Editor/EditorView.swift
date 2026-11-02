@@ -20,7 +20,7 @@ struct LinkStatus: View {
 
     var body: some View {
         if s.route == .needsUSB {
-            Label("This needs the USB cable. Over Bluetooth this firmware answers only the screen mirror (the project slots and library need a build with BT_PROJ).", systemImage: "cable.connector")
+            Label("This needs the USB cable. Over Bluetooth this firmware answers only the screen mirror (the project slots and library need a firmware with the web editor and Bluetooth MIDI).", systemImage: "cable.connector")
         } else if s.route == .bluetooth, !s.route.carries(feature) {
             Label("This needs the USB cable. Over Bluetooth only the project slots and the project library work.", systemImage: "cable.connector")
         } else if s.route == .none {

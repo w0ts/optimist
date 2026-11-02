@@ -40,7 +40,7 @@ static void op_project_new(void)
         track_defaults(t);
         if (i < NPART) {
             set_engine_of(t, trk_def_engine(i));
-            apply_preset_to(t, trk_def_preset(i));
+            trk_def_sound(t, i);
             t->p[P_REV] = 0;                            /* (a new project: no reverb send, the preset's other sends kept) */
         }
         fm1_irq_on();
@@ -264,14 +264,25 @@ static void op_preset_step(int32_t s)                   /* the next / previous s
     }
     cur = preset_pos(&total);
     t = (int32_t)total;
+#if PART_DROPS
+    {
+        uint32_t from;
+        if (lst_take(0u, &from) && from < total)
+            cur = from;                                 /* (a make-room question answered NO by this turn: on from the entry it asked for) */
+    }
+#endif
     if (!total) {
         ;                                               /* (a filter that holds nothing: the sound stays, the popup says so) */
     } else if (cur >= total) {                          /* (a filter, the sound playing not in it: the first / last it holds) */
-        op_preset_go(s > 0 ? (uint32_t)((s - 1) % t) : (uint32_t)(t - 1 - (-s - 1) % t));
+        uint32_t to = s > 0 ? (uint32_t)((s - 1) % t) : (uint32_t)(t - 1 - (-s - 1) % t);
+        op_preset_go(to);
+        lst_note(0u, to);
     } else {
         int32_t to = ui_clamp((int32_t)cur + s, 0, t - 1);   /* (a list stops at its ends: no wrap round) */
-        if ((uint32_t)to != cur)
+        if ((uint32_t)to != cur) {
             op_preset_go((uint32_t)to);
+            lst_note(0u, (uint32_t)to);
+        }
     }
     ed_done();
 }
@@ -295,10 +306,17 @@ static void op_engine_step(int32_t s)
         op_preset_step(s);
         return;
     }
-    i = preset_all_pos(&total);                         /* (the whole list: browsing keeps to one engine, this step is what leaves it) */
-    if (i >= n)                                         /* (a user sound: from its engine's group, or the top) */
-        for (i = 0; i < n - 1u && list_eng(i) != e0; i++)
-            ;
+#if PART_DROPS
+    if (lst_take(1u, &i) && i < n) {
+        e0 = list_eng(i);                               /* (a make-room question answered NO by this turn: on from the engine it asked for) */
+    } else
+#endif
+    {
+        i = preset_all_pos(&total);                     /* (the whole list: browsing keeps to one engine, this step is what leaves it) */
+        if (i >= n)                                     /* (a user sound: from its engine's group, or the top) */
+            for (i = 0; i < n - 1u && list_eng(i) != e0; i++)
+                ;
+    }
     for (j = 0; j < n && list_eng(i) == e0; j++) {      /* past the selected engine's group (no wrap: the first and last engines stop) */
         if ((s > 0 && i + 1u >= n) || (s < 0 && i == 0u)) {
             ed_done();
@@ -311,6 +329,7 @@ static void op_engine_step(int32_t s)
         i--;                                            /* (back to that group's first sound) */
     e = preset_all_at(i, &k);
     op_preset_load(e, k);
+    lst_note(1u, i);
     ed_done();
 }
 /* a value of descriptor d at vp: a knob (accelerated), PRESETS (fine), or OP_RESET */

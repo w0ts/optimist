@@ -20,18 +20,30 @@ export class FakeFM1 {
   // table, then every whole 4 KiB sector (docs/INSTALL-SPEED.md); fastWords counts the words it heard.
   constructor(image, opts = {}) {
     const { unplugAfter = Infinity, finalIdentity = "FM-1_900", identity = "FM-1_015", loaderIdentity = "ota-FM-1_900",
-            writeBlocks = 6, plugged = true, name = "FM-1", fast = false } = opts;
+            writeBlocks = 6, plugged = true, name = "FM-1", fast = false, comesBack = [], checkFrames = false, checkTime = 0,
+            keepsSession = false } = opts;
     Object.assign(this, { image, unplugAfter, finalIdentity, loaderIdentity, writeBlocks, name, identity, fast });
+    /* comesBack: [[identity, name, ms, more reads before the next drop or 0]], one per drop: the cable back by itself.
+       checkTime: ms the fast loader checks each sector before it asks one (or the end); checkFrames: it says so with 0x32
+       frames [checked, total] (checkSeen). keepsSession: the loader stays in its fast session over a replug (the FM-1,
+       2026-11-01): a new hello and upgrade command mid-session go unheard (unheard), it asks its read again */
+    Object.assign(this, { comesBack: [...comesBack], checkFrames, checkTime, keepsSession, inSession: false, unheard: 0, checked: 0, checkSeen: [] });
     this.fastWords = 0;
     this.fastOn = false;
+    this.written = new Set();   /* the fast loader's sectors already right: a resumed write skips them (sectorReads: 4 KiB reads answered) */
+    this.sectorReads = 0;
     this.served = 0;
     this.bad = 0;
     this.access = { inputs: new Map(), outputs: new Map(), onstatechange: null };
     if (plugged) this.boot(identity, name);
   }
   boot(identity, name) {
+    Object.assign(this, { waiting: null, queue: [] });
+    this.ports(identity, name);
+  }
+  ports(identity, name) {
     this.unplug(false);
-    Object.assign(this, { identity, waiting: null, queue: [] });
+    this.identity = identity;
     const tag = Math.random().toString(36).slice(2);
     const connected = (prefix) => ({ id: prefix + tag, name, state: "connected", open: async () => {} });
     this.input = { ...connected("i"), onmidimessage: null };
@@ -72,7 +84,7 @@ export class FakeFM1 {
   readPlan() {
     if (this.identity.startsWith("ota-") && this.fastOn) {
       const n = Math.floor(this.image.length / 4096), plan = [[0xD0000000, n * 6]];
-      for (let k = 0; k < n; k++) plan.push([k * 4096, 4096]);
+      for (let k = 0; k < n; k++) if (!this.written.has(k * 4096)) plan.push([k * 4096, 4096]);
       return [...plan, [0xF0000000, 8]];
     }
     if (this.identity.startsWith("ota-")) {
@@ -86,8 +98,12 @@ export class FakeFM1 {
     if (sameBytes(msg, [0xFC])) { this.stops = (this.stops || 0) + 1; if (!this.upgradesSeen) this.stopsFirst = (this.stopsFirst || 0) + 1; return; }   /* MIDI STOP: counted, and whether it came before the first upgrade command */
     if (sameBytes(msg, [0xF0, 0x22, 0x24, 0x35, 0x7D, 0xF7])) { this.softKeys = (this.softKeys || 0) + 1; return; }   /* the download-mode soft key: counted, nothing else */
     if (sameBytes(msg, HANDSHAKE)) return this.reportIdentity();
+    const word = msg.length > 2 && unpack7(msg.slice(1, -1));
+    if (this.inSession && this.keepsSession && (sameBytes(msg, UPGRADE_REQ) || (word.length === 10 && word[2] === 0x31))) { this.unheard++; return; }
     if (sameBytes(msg, UPGRADE_REQ)) {
       this.upgradesSeen = (this.upgradesSeen || 0) + 1;
+      this.checked = 0;
+      this.inSession = this.identity.startsWith("ota-") && this.fastOn;
       this.queue = this.readPlan();
       return this.next();
     }
@@ -104,6 +120,7 @@ export class FakeFM1 {
   }
   checkAnswer(payload) {
     const [addr, len] = this.waiting;
+    if (payload[2] === 0x30 && payload.length > 11 && ((payload[7] | (payload[8] << 8) | (payload[9] << 16) | (payload[10] << 24)) >>> 0) !== addr) return;   /* (an answer to a read asked before: ignored, as ota_read does) */
     const isToken = addr >= FLASH_TOP;
     const got = payload.slice(14, 14 + (isToken ? 8 : len));
     const expected = isToken
@@ -113,14 +130,48 @@ export class FakeFM1 {
     if (!sameBytes(got, expected)) this.bad++;
     this.waiting = null;
     this.served++;
+    if (this.fastOn && addr < 0xD0000000 && len === 4096) { this.sectorReads++; this.written.add(addr); }
     if (this.served >= this.unplugAfter) {
       this.input.state = "disconnected";
       this.output.state = "disconnected";
+      const b = this.comesBack.shift();
+      if (b) later(() => this.back(...b), b[2]);
       return;
     }
     if (addr === FLASH_TOP) later(() => this.boot(this.loaderIdentity, "Felucca Update"), LOADER_WAIT_MS);
-    else if (addr === 0xF0000000) later(() => this.boot(this.finalIdentity, "Felucca"), LOADER_WAIT_MS);
-    else this.next();
+    else if (addr === 0xF0000000) { this.inSession = false; later(() => this.boot(this.finalIdentity, "Felucca"), LOADER_WAIT_MS); }
+    else this.advance();
+  }
+  // the cable back by itself; a loader that keeps its session asks its read again (ota_read's tries), else it starts afresh
+  back(identity, name, ms, more) {
+    this.unplugAfter = more ? this.served + more : Infinity;
+    if (!(this.keepsSession && this.inSession)) return this.boot(identity, name);
+    this.ports(identity, name);
+    this.reask(null, 0);
+  }
+  reask(req, tries) {
+    if (!this.inSession || tries > 40 || this.input.state !== "connected") return;
+    if (req === null && !this.waiting) this.advance();
+    else if (req !== null && this.waiting === req) this.request(req);
+    else if (req !== null) return;
+    later(() => this.reask(this.waiting, tries + 1), 200);
+  }
+  // the fast loader checks the sectors up to the next one it asks (all of them before the end), then asks
+  advance() {
+    if (!(this.fastOn && this.identity.startsWith("ota-") && this.queue.length && (this.checkTime || this.checkFrames))) return this.next();
+    const addr = this.queue[0][0], total = Math.floor(this.image.length / 4096);
+    const upto = addr < 0xD0000000 ? Math.floor(addr / 4096) : total, port = this.input;
+    const step = (c) => {
+      if (port.state !== "connected") return;
+      if (c >= upto) { this.checked = upto + 1; this.next(); return; }
+      if (this.checkFrames) {
+        this.checkSeen.push(c + 1);
+        const body = [(c + 1) & 0xFF, (c + 1) >> 8, total & 0xFF, total >> 8];
+        this.sysex([0, 0x59, 0x32, 4, 0, 0, ...body, ~body.reduce((x, y) => x + y, 0) & 0xFF]);
+      }
+      later(() => step(c + 1), this.checkTime);
+    };
+    later(() => step(this.checked), this.checkTime);
   }
   // the stock V15's voice-bank commands (fm1ota.js restoreBanks): 33 erases a 4 KiB bank (0xFF), 34 writes 512 B;
   // each acknowledged with command 0, data 0. banks: the 16 KiB as written; bankOps: the commands in order
@@ -137,6 +188,9 @@ export class FakeFM1 {
     const req = this.queue.shift();
     if (!req) return;
     this.waiting = req;
+    this.request(req);
+  }
+  request(req) {
     const [addr, len] = req;
     const addrBytes = [0, 8, 16, 24].map((sh) => (addr >>> sh) & 0xFF);
     const frame = [0, 0x59, 0x30, 0, 0, 0, 0, ...addrBytes, len & 0xFF, len >> 8, 0];

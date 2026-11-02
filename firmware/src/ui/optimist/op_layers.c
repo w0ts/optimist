@@ -812,6 +812,12 @@ static void op_act(uint32_t a, uint32_t k)
         ui_say("ON AGAIN: ", fmem_where(k));          /* (where they are switched back on) */
         return;
 #endif
+#if FXZ_ANY
+    case OA_FXZ:                                        /* the make-room question: the FX sizes taken (op_fxmem.c) */
+    case OA_FXZI:
+        fxz_yes(a, k);
+        return;
+#endif
 #if PART_DROPS
     case OA_DROP:                                       /* memory short: this part a silent placeholder (op_input.c mem_tick) */
         mem_drop(k);
