@@ -350,3 +350,4 @@ src/wifi/wifi_link.c:wl_push_own:(song.g[G_BPM]>20?song.g[G_BPM]:20) | clamped t
 src/fx/fx_arena.c:fxm_cp_room:b | b = FXM_CP_BYTES(j) = FXA_SZ(j) x FXA_U x 2: FXA_SZS of CHO DLY REV (4, FELUCCA_DLY_LEN / 512, 19) every one >= 1, FXA_U 512; only built with FELUCCA_FX_ARENA
 src/display/gfx.c:draw_text_box:w | w is the box's width: every caller passes a constant or the text's width (> 0); CV_MAX / w is the rows a pass holds
 src/ui/optimist/op_graph.c:cv_whole_w:w | w is the toast's width (its text's width + 24, at most 236), never 0; CV_MAX / w is the rows a pass holds
+src/ui/optimist/op_fxmem.c:fxz_paint:s | s = the arena size when it is not 0, else 1: >= 1
