@@ -391,9 +391,6 @@ def validate(cfg):
             warn.append(Issue(f"MEMORY: SAMPLE SLOTS {slots} keeps flash for user samples that nothing in this build "
                               "uses (no SAMPLE, user drum samples, snapshots or CZ collection): SAMPLE SLOTS 0 gives it "
                               "to the code", ["LAYOUT"]))
-    if cfg.get("BT_PROJ") and not (cfg.get("BLE") and cfg.get("ED_MIRROR") and cfg.get("PATTERNS") and cfg.get("BACKUP")):
-        err.append(Issue("projects over Bluetooth need Bluetooth MIDI (BLE), the Mirror (ED_MIRROR, its Bluetooth link), the "
-                         "projects (PATTERNS) and the backup (BACKUP)", ["BT_PROJ", "BLE", "ED_MIRROR", "PATTERNS", "BACKUP"]))
     if cfg.get("SD_RING") and not (cfg.get("SDCARD") and cfg.get("LAYOUT") == 1 and
                                    cfg.get("ARENA") and built(cfg, "ENG_SAMPLE")):
         err.append(Issue("samples from the card (SD_RING) need the card under full FatFs (SDCARD, LAYOUT 1), "
