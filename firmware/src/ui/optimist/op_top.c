@@ -154,6 +154,14 @@ static void top_add(uint32_t k, uint32_t b)             /* a RAM line, in its pl
     top.rk[i] = (uint8_t)k;
 }
 #if PART_DROPS
+/* a feature's arena block is its lent buffers, not the feature's own RAM (the build's table has "BT AUDIO", "WI-FI": the
+ * statics of the same code): its own label, "BT AUD BUF" ("BT AUDIO 18 KB" and "BT AUDIO 3 KB" were two rows alike, the user 2026-11-02) */
+static void top_buf(char *b)
+{
+    if (str_len(b) > 7u)
+        b[6] = 0;
+    str_app(b, " BUF", 12);
+}
 static void top_arb(uint32_t c, char *b)                /* an arena buffer's name (core/arena_bufs.c ARB_*) */
 {
 #if FXM_NEED
@@ -167,12 +175,14 @@ static void top_arb(uint32_t c, char *b)                /* an arena buffer's nam
     str_cpy(b, FELUCCA_ENG_WAVE && c == (uint32_t)ARB_WAVE ? "WAVE TABLE" : FELUCCA_DRUM_X909 && c == (uint32_t)ARB_X909 ? "X0X 909" :
                FELUCCA_DRUM_X808 && c == (uint32_t)ARB_X808 ? "X0X 808" : FELUCCA_PUNCH_SW && c == (uint32_t)ARB_PUNCH ? "PUNCH" :
                FELUCCA_ENG_FM6 && c == (uint32_t)ARB_FM6SIN ? "FM6 SINE" : "BT AUDIO", 12);   /* (the features' blocks: BT AUDIO first) */
+    if (str_eq(b, "BT AUDIO"))
+        top_buf(b);
 #if FMEM_ANY
     {
         uint32_t f;
         for (f = 0; f < FMEM_N; f++)                    /* (a feature's block: its name, core/feat_mem.c) */
             if (FMEM[f].k == NPART + FXM_NC + c)
-                str_cpy(b, FMEM[f].name, 12);
+                str_cpy(b, FMEM[f].name, 12), top_buf(b);
     }
 #endif
 #else
@@ -332,7 +342,7 @@ static void top_cell(uint32_t i, cell_t *c)             /* the line i on screen:
     if (top.rk[r] >= TOP_TAB)
         str_cpy(lb, TOP_RAM[(top.rk[r] - TOP_TAB) % TOP_RAM_N].nm, 12);
     else if (top.rk[r] == TOP_UNDO)
-        str_cpy(lb, "UNDO", 12);
+        str_cpy(lb, "UNDO HIST", 12);                   /* (not "UNDO": the build's table has the undo code's statics under that name) */
 #if PART_DROPS
     else
         top_arn_name(top.rk[r], lb);
