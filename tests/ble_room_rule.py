@@ -5,6 +5,7 @@ overflows, ONE item goes, the smallest single item that frees enough of every re
 first and then the other items (FLUTE, the default choice, when it alone is enough). Nothing is pinned: the figures
 are costs.json's as they are. The importing test imports builder_path first, which puts tools/builder on sys.path."""
 import configure as C
+import core as K
 import registry as R
 
 DEFAULT = "SET_FLUTE"
@@ -12,7 +13,12 @@ DEFAULT = "SET_FLUTE"
 
 def off_value(key):
     it = R.ITEMS[key]
-    return min((c[0] for c in it.choices), key=lambda v: v if v else 1 << 30) if it.is_choice else 0
+    if not it.is_choice:
+        return 0
+    off = [v for v, label in it.choices if label == "off" or label.startswith("off:")]     # (core.off_value: a choice's own "off"
+    if off:                                                                                  # first, since 2026-10-24; X909_CYM 0)
+        return off[0]
+    return K.SMALLEST.get(key, min((c[0] for c in it.choices), key=lambda v: v if v else 1 << 30))
 
 
 def expected_room(cfg, costs):
