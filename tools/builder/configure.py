@@ -31,6 +31,7 @@ from pathlib import Path
 import core as K
 from core import (
     derive_memory as derive_memory, set_memory as set_memory, sync_memory as sync_memory, set_front as set_front,
+    sram_parts_text as sram_parts_text,
     FRONTS as FRONTS, change_notice as change_notice,
     ANCHOR_MARGIN as ANCHOR_MARGIN, AUTO_AUX as AUTO_AUX, AUTO_ENC_MAX as AUTO_ENC_MAX, AUTO_ITEMS as AUTO_ITEMS,
     AUTO_LIST as AUTO_LIST, AUTO_MAX as AUTO_MAX, AUTO_NTRK as AUTO_NTRK, AUTO_STORE as AUTO_STORE,
