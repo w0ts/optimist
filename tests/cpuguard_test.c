@@ -489,30 +489,15 @@ static void test_reverb(void)
     CHECK(pk > 1000, "the reverb's tail sounds (%d)", pk);
     half(US(101));                                    /* late halves: nothing sounds but the tail */
     half(US(101));
-    CHECK(cg.level == CG_L_REVERB, "a reverb tail and nothing else: late halves ease the reverb (the top since "
-          "2026-10-30), NOTES passed with no voice to shed (level %u)", cg.level);
-    rv_run(RV_BLOCKS(1), 0, &step1);                  /* (the half after the step: the fade) */
-    for (i = 0; i < 40u; i++) {                       /* the reverb off: the load as the rest of the mix */
+    CHECK(cg.level != CG_L_REVERB, "a reverb tail and nothing else: late halves never take the reverb (the user, "
+          "2026-11-03: \"fix the reverb dying\"; level %u)", cg.level);
+    for (i = 0; i < 40u; i++) {                       /* the load as the rest of the mix */
         half(US(60));
         rv_run(RV_BLOCKS(1), 0, 0);
     }
-    CHECK(cg.level == CG_L_REVERB && cg.steps == 1u, "60 %% once the reverb is off: no further step (level %u)", cg.level);
-    pk = rv_run(RV_BLOCKS(1), 0, 0);
-    CHECK(pk == 0, "the reverb's wet faded out to exactly 0 (%d)", pk);
-    CHECK(step1 <= step0 + 64, "the fade-out: no step bigger than the tail's own (%d, the tail %d)", step1, step0);
     pk = rv_run(RV_BLOCKS(8), 1, 0);
-    CHECK(pk == 0, "at the level the send is not heard (%d)", pk);
-    for (i = 0; i < sizeof rev_line / 2u && !rev_line[i]; i++)
-        ;
-    CHECK(i == sizeof rev_line / 2u, "the line cleared while off (a cell %u of %u not 0)", i, (unsigned)(sizeof rev_line / 2u));
-    for (i = 0; i < 4u * CG_RELEASE; i++) {           /* a light load: the reverb's saving fits again */
-        half(US(20));
-        if (i % 64u == 0u)
-            rv_run(RV_BLOCKS(1), 1, 0);
-    }
-    CHECK(cg.level == CG_L_OFF, "the load fits again: the guard off (level %u)", cg.level);
-    pk = rv_run(RV_BLOCKS(8), 1, 0);
-    CHECK(pk > 1000, "the reverb heard again (%d)", pk);
+    CHECK(pk > 1000 && rgd.st == RG_ON, "... the send heard all along, the reverb on (%d, %u)", pk, rgd.st);
+    (void)step0, (void)step1;
 }
 
 
@@ -707,41 +692,17 @@ static void test_reverb_late_light(void)
         late_half(rl_load(56));
         rv_run(RV_BLOCKS(1), 1, 0);
     }
-    CHECK(cg.level == CG_L_REVERB && cg.reacts == 1u, "late halves at 66 %% with only the reverb to ease: a reaction, the "
-          "reverb off (level %u, reacts %u)", cg.level, cg.reacts);
-    for (i = 0; i < 2u * 172u; i++) {                 /* the same music 2 s more, the reverb off (its saving measured) */
+    pk = rv_run(RV_BLOCKS(1), 1, 0);
+    CHECK(cg.level != CG_L_REVERB && pk > 1000, "late halves at 66 %% with only the reverb to ease: the reverb kept, heard "
+          "(the user, 2026-11-03; level %u, wet %d)", cg.level, pk);
+    for (i = 0; i < 2u * 172u; i++) {                 /* the same music 2 s more */
         half(US(rl_load(56)));
-        rv_run(RV_BLOCKS(1), 1, 0);
-    }
-    CHECK(cg.level == CG_L_REVERB, "... and kept off while the music the drop-outs came in plays on (level %u)", cg.level);
-    sheds = cg.steps;
-    for (i = 0; i < 60u * 172u && !back; i++) {      /* a minute lighter (25 %), a lone late half every ~100 halves */
-        rl_seed = rl_seed * 1664525u + 1013904223u;
-        if ((rl_seed >> 8) % 100u == 0u)
-            late_half(rl_load(25));
-        else
-            half(US(rl_load(25)));
         pk = rv_run(RV_BLOCKS(1), 1, 0);
-        if (cg.level < CG_L_REVERB && pk > 1000)
-            back = i + 1u;
+        back |= pk <= 1000;
     }
-    CHECK(back && back <= 3u * 172u, "at 25 %% with a lone late half now and then (USB, a flash write): the reverb heard "
-          "again within 3 s (after %u halves, level %u, wet %d)", back, cg.level, pk);
-    CHECK(cg.steps == sheds, "... and not shed again meanwhile (%u steps, %u before)", cg.steps, sheds);
-    /* a late half at a load the reactive path counts (60 %, over CG_RFLOOR) still holds the release back: the drop-outs
-     * may be the music's there */
-    reset();
-    song.g[G_RSIZE] = 90, song.g[G_RDAMP] = 60;
-    cg.level = CG_L_REVERB;
-    cg.avg = 154;                                     /* (60 %: the reactive path's mean) */
-    for (i = 0; i < 4u * CG_RELEASE; i++) {
-        if (i % 200u == 100u)
-            late_half(60);
-        else
-            half(US(60));
-        rv_run(RV_BLOCKS(1), 1, 0);
-    }
-    CHECK(cg.level == CG_L_REVERB, "at 60 %% with a late half every 200 halves: the reverb stays off (level %u)", cg.level);
+    CHECK(!back && cg.level != CG_L_REVERB, "... and never silent while the music the drop-outs came in plays on (level %u)",
+          cg.level);
+    (void)sheds;
 }
 
 /* 12. voices before the reverb (the user, 2026-10-30: cap and shed the voices first, the reverb off only if that is not
@@ -762,26 +723,17 @@ static void test_order(void)
     host_preset(&trk[0], ENG_IX_FM6, 0);
     trk[0].p[P_VOICE] = V_POLY;
     hold(&trk[0], 4);
-    CHECK(REV_LIVE() && cg_useful(CG_L_NOTES) && cg_useful(CG_L_REVERB), "voices to shed, the reverb running");
+    CHECK(REV_LIVE() && cg_useful(CG_L_NOTES) && !cg_useful(CG_L_REVERB), "voices to shed, the reverb running (never the guard's to take)");
     rv_half(90);
     rv_half(101);                                     /* (a late half after one over the ceiling: a step) */
     CHECK(cg.level == CG_L_NOTES && rgd.st == RG_ON, "the first step: NOTES, the reverb on (level %u, reverb %u)", cg.level,
           rgd.st);
     for (i = 0; i < 40u && cg.level == CG_L_NOTES; i++)
         rv_half(90);
-    CHECK(cg.level == CG_L_REVERB && sounding(&trk[0], 1) == 1u && cg.sheds >= 3u && i > CG_HOLD,
-          "over at NOTES: the voices shed down to the last held one, then, CG_HOLD halves over with none left, the reverb "
+    CHECK(cg.level == CG_L_NOTES && sounding(&trk[0], 1) == 1u && cg.sheds >= 3u && i == 40u,
+          "over at NOTES: the voices shed down to the last held one, then, with none left, no further step: the reverb kept "
           "(level %u, held %u, sheds %u, after %u halves)", cg.level, sounding(&trk[0], 1), cg.sheds, i);
-    CHECK(rgd.st != RG_ON, "... the reverb going off (%u)", rgd.st);
-    for (i = 0; i < CG_HOLD; i++)
-        rv_half(80);                                  /* (its saving measured: ~90 % before, 80 % after) */
-    for (i = 0; i < 4u * CG_RELEASE && cg.level == CG_L_REVERB; i++)
-        rv_half(30);
-    CHECK(cg.level < CG_L_REVERB && i <= CG_RELEASE + 1u, "the load fits again: the reverb's level off first (level %u, after %u "
-          "halves)", cg.level, i);
-    for (i = 0; i < 400u && rgd.st != RG_ON; i++)
-        rv_half(30);
-    CHECK(rgd.st == RG_ON, "... the reverb on again (%u)", rgd.st);
+    CHECK(rgd.st == RG_ON, "... the reverb on (%u)", rgd.st);
     /* the reactive path: NOTES with nothing left to cut, the reverb running: three late halves at 66 % turn it off */
     reset();
     song.g[G_RSIZE] = 90, song.g[G_RDAMP] = 60;
@@ -795,9 +747,9 @@ static void test_order(void)
         late_half(66);
         rv_run(RV_BLOCKS(1), 1, 0);
     }
-    CHECK(cg.level == CG_L_REVERB && cg.reacts == 1u && cg.rcap[CG_L_REVERB] > 0u && cg.vcap == 0u,
-          "a reaction at NOTES with no voice to cut: the reverb off, its rcap set, no cap (level %u, reacts %u, rcap %u, cap %u)",
-          cg.level, cg.reacts, cg.rcap[CG_L_REVERB], cg.vcap);
+    CHECK(cg.level == CG_L_NOTES && rgd.st == RG_ON, "a reaction at NOTES with no voice to cut: the reverb kept (level %u, "
+          "reverb %u)", cg.level, rgd.st);
+    (void)k;
 }
 
 int main(void)
