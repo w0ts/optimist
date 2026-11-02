@@ -826,11 +826,13 @@ job; ( jobin
     run "CPU1 load, DUAL=2: smoothed per audio half as song.cpu_q8, 0..100 %, OFF when down" "$OUT/dual_load_test"
     $CC -Ifirmware/src -DFELUCCA_DUAL=2 -DFELUCCA_SYS_DEBUG=1 -o "$OUT/dual_times_test" tests/dual_load_test.c
     run "CPU1 load and SYSTEM > CPU TIMES (SYS_DEBUG): the dual render's times per block, smoothed, in % of a block" "$OUT/dual_times_test"
+    $CC -Ifirmware/src -DFELUCCA_DUAL=2 -DFELUCCA_SYS_DEBUG=0 -DFELUCCA_SYS_TOP=1 -o "$OUT/dual_times_top_test" tests/dual_load_test.c
+    run "the same times for SYSTEM > TOP (SYS_TOP without SYS_DEBUG), a job timed after the block folded in" "$OUT/dual_times_top_test"
 ) >"$U.out" 2>&1 & jobbg
 mkdir -p "$OUT/optimist-dual"
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DDUAL_LOAD=1 $SEC4 -o "$OUT/ui_optimist_dual_test" tests/ui_optimist_test.c -lm
-    run "Optimist UI with the CPU1 load: SYSTEM's CPU row CLOCK, CPU0, CPU1 (OFF when down)" "$OUT/ui_optimist_dual_test" "$OUT/optimist-dual"
+    run "Optimist UI with the CPU1 load: SYSTEM's CPU row CPU0, CPU1 (OFF when down)" "$OUT/ui_optimist_dual_test" "$OUT/optimist-dual"
 ) >"$U.out" 2>&1 & jobbg
 mkdir -p "$OUT/optimist-x0x"
 job; ( jobin
@@ -961,6 +963,15 @@ job; ( jobin
     run "Optimist UI without the SYSTEM debug pages (SYS_DEBUG=0): no INTERNALS / USB STATS, INFO = CPU LOAD, UNDERRUNS (drops in), BATTERY, large values" "$OUT/ui_optimist_nodbg_test" "$OUT/optimist-nodbg"
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DFELUCCA_PARAM_HELP=1 -DFELUCCA_USB_AUDIO=1 -DFELUCCA_SYS_DEBUG=0 -DDUAL_LOAD=1 $SEC4 -o "$OUT/ui_optimist_nodbg_dual_test" tests/ui_optimist_test.c -lm
     run "Optimist UI without the SYSTEM debug pages, DUAL (SYS_DEBUG=0, DUAL_LOAD): INFO = CPU0, CPU1, UNDERRUNS, BATTERY; KNOB 1 the measure of both" "$OUT/ui_optimist_nodbg_dual_test" "$OUT/optimist-nodbg-dual"
+) >"$U.out" 2>&1 & jobbg
+# SYSTEM > TOP (builder item SYS_TOP, tests/ui_optimist_top.h): the whole suite with the page (no debug pages, the CPU1 load,
+# the generator's table tests/top_ram_test.h), then its tests alone with an arena (its blocks live on the page)
+job; ( jobin
+    mkdir -p "$OUT/optimist-top"
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -Itests -DFELUCCA_PARAM_HELP=1 -DFELUCCA_USB_AUDIO=1 -DFELUCCA_SYS_DEBUG=0 -DDUAL_LOAD=1 -DFELUCCA_SYS_TOP=1 '-DTOP_RAM_H="top_ram_test.h"' $SEC4 -o "$OUT/ui_optimist_top_test" tests/ui_optimist_test.c -lm
+    run "Optimist UI with SYSTEM > TOP (SYS_TOP=1, SYS_DEBUG=0, DUAL_LOAD): after INFO, CPU0 CPU1 and the jobs by average, the RAM's owners by size, SELECT scrolls then pages" "$OUT/ui_optimist_top_test" "$OUT/optimist-top"
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -Itests $SEC4 -DFELUCCA_ENG_FM6=1 -DFELUCCA_FX_ARENA=1 -DFELUCCA_INS_DELAY=1 -DFELUCCA_INS_FLANGER=1 -DFELUCCA_DLY_LEN=16384u -DUI_TOP=1 -DFELUCCA_SYS_TOP=1 -DDUAL_LOAD=1 '-DTOP_RAM_H="top_ram_test.h"' "-DFELUCCA_ARENA_BYTES=131072u" -o "$OUT/ui_optimist_toparena_test" tests/ui_optimist_test.c -lm
+    run "SYSTEM > TOP with an arena: every block of the arena a line, a block placed shows within 0.5 s in its place by size, given back goes" "$OUT/ui_optimist_toparena_test" "$OUT/optimist-top"
 ) >"$U.out" 2>&1 & jobbg
 # the release's DEBUG STATS (PLAT_STATS_APP; tests/dbgstats_stub.h stands in for fm1-base's plat_stats_enable): the last line of SYSTEM > General, no DEBUG page
 job; ( jobin
@@ -1168,6 +1179,13 @@ job; ( jobin   # the effects' lines in the arena (fx/fx_arena.c, docs/SD-MODE-DE
     run "the limited inserts' lines as arena blocks of their own (FELUCCA_FXI_LINE_BLOCKS): a FLNG takes 1 KB, an ECHO 8, an XDLY its two lines, not the whole own room; moved in a pack with their contents; given back" "$OUT/fx_lineblk_test"
     $CC -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 -DFELUCCA_ENG_FM6=1 -DFELUCCA_FX_ARENA=1 -DFELUCCA_INS_DELAY=1 -DFELUCCA_INS_FLANGER=1 -DFELUCCA_INS_XDLY=1 -DFELUCCA_INS_JCHORUS=1 -DFELUCCA_DLY_LEN=16384u -DFELUCCA_FXM_IDLE_FREE=1 -DFXM_IDLE_S=2u "-DFELUCCA_ARENA_BYTES=(160u * 1024u)" -o "$OUT/fx_lineblk_idle_test" tests/fx_lineblk_test.c -lm
     run "... and the send lines only while their bus is heard (FELUCCA_FXM_IDLE_FREE, the device's): none placed while nothing is sent, placed at a send's first input, given back after the tail and FXM_IDLE_S of nothing" "$OUT/fx_lineblk_idle_test"
+    FXZ="-DFELUCCA_ENG_FM6=1 -DFELUCCA_FX_ARENA=1 -DFELUCCA_INS_DELAY=1 -DFELUCCA_INS_FLANGER=1 -DFELUCCA_INS_XDLY=1 -DFELUCCA_INS_JCHORUS=1 -DFELUCCA_REV_PLATE=1 -DFELUCCA_REV_FDN8=1 -DFELUCCA_REV_POOL=1 -DFELUCCA_DLY_LEN=32768u"   # (FX MEMORY: the user's build's lines)
+    $CC -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $FXZ "-DFELUCCA_ARENA_BYTES=(170u * 1024u)" -o "$OUT/fx_mem_test" tests/fx_mem_test.c -lm
+    run "FX MEMORY (fx/fx_memsz.h): DLY MEM halves the delay's block each step, REV MEM SMALL 16 KB less (FDN8 in the 8192 ring, sounding), XDLY MEM HALF an insert's 32 KB; a too-long TIME halved and said; a heavy project MEM FULL at FULL placed at smaller sizes" "$OUT/fx_mem_test"
+    $CC -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $FXZ "-DFELUCCA_ARENA_BYTES=(170u * 1024u)" -o "$OUT/fx_mem_rec_test" tests/fx_mem_rec_test.c -lm
+    run "FX MEMORY in a project (fx_rec.c FXZ_TLV): FULL keeps nothing, the sizes round trip, a project from before reads FULL, another build's smaller line its smallest, SAVE / LOAD" "$OUT/fx_mem_rec_test"
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $FXZ -DUI_FXZ=1 "-DFELUCCA_ARENA_BYTES=(170u * 1024u)" -o "$OUT/ui_optimist_fxmem_test" tests/ui_optimist_test.c -lm
+    run "PROJECT > FX MEM (op_fxmem.c): the cards and the panel, a turn frees its KB; the make-room question: FM6 refused asks SHRINK REV SMALL first, HOME changes nothing, YES takes it and FM6 plays; an FX type with no room: its memory mark in the list, picked: NEEDS .. KB and the question, HOME puts the slot back, YES places it" "$OUT/ui_optimist_fxmem_test" "$OUT/optimist"
     $CC -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $FXA -DFELUCCA_FXI_LINE_BLOCKS=0 -DFELUCCA_REV_FDN8=1 -DFELUCCA_REV_POOL=1 -DFELUCCA_SPRING=1 "-DFELUCCA_ARENA_BYTES=89344u" -o "$OUT/fx_arena_rev_test" tests/fx_arena_test.c -lm
     run "the same with ROOM, FDN8 and SPRING (the reverb's TYPE switched, its line 32 KB)" "$OUT/fx_arena_rev_test"
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $FXA -DUI_MEMLIST=1 "-DFELUCCA_ARENA_BYTES=65536u" -o "$OUT/ui_optimist_memlist_test" tests/ui_optimist_test.c -lm
@@ -1199,6 +1217,7 @@ job; ( jobin   # the effects' lines in the arena (fx/fx_arena.c, docs/SD-MODE-DE
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin   # the SRAM read-out and the stacks' guard band
     run "ramsize: an ELF's SRAM by section and owner (each byte once, padding, gaps, the stacks)" python3 tests/ramsize_test.py
+    run "ramtop: SYSTEM > TOP's build-time table, the SRAM by module from the link's symbols (12 largest and OTHER, 13 entries)" python3 tests/ramtop_test.py
     run "the arena to the stacks' guard band, no spare at run time: the guard armed at boot, nothing else in the free SRAM" python3 tests/arena_spare_test.py
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin   # the flash layouts (docs/SD-MODE-DESIGN.md): the numbers agree; the fake SD mode's 7-sector log
@@ -1458,6 +1477,14 @@ job; ( jobin
     run "missing on this build: full -> reduced project, song section, user kit; the message once per item, TOOLS > MISS" sh -c \
         "'$OUT/miss_full' write '$OUT/miss/A.bin' '$OUT/miss/B.bin' '$OUT/miss/K.bin' && '$OUT/miss_red' reduce '$OUT/miss/A.bin' '$OUT/miss/B.bin' '$OUT/miss/K.bin' '$OUT/miss'"
 ) >"$U.out" 2>&1 & jobbg
+# the default project's sounds (tests/defproj_test.c): T1 ANALOG ACID 303, T2 FM6 GLASS EP, T3 DIGITAL GLASS PAD, by name, and the
+# fallbacks (no KEYS pack, FM6 off, DIGITAL off, ANALOG off)
+job; ( jobin
+    for c in "" "$FM6_PACKS_ON" "$FM6_PACKS_ON -DFELUCCA_ENG_FM6=0" "$FM6_PACKS_ON -DFELUCCA_ENG_DIGITAL=0" "-DFELUCCA_FM6_PK_BASS=1 -DFELUCCA_FM6_PK_PADS=1" "-DFELUCCA_ENG_ANALOG=0"; do
+        $CC -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $c -o "$OUT/defproj_test" tests/defproj_test.c -lm
+        run "the default project's sounds by name ($c)" "$OUT/defproj_test"
+    done
+) >"$U.out" 2>&1 & jobbg
 # every engine built has a preset on the PRESETS list, every drum source built a kit (tests/preset_cover_test.c; the
 # builder's random configurations: tests/builder_test.py): sample headers without any set, without GRAIN's sets
 mkdir -p "$OUT/gen_noset" "$OUT/gen_nogr"
@@ -1529,6 +1556,8 @@ job; ( jobin   # the SD card (SDCARD): ChaN's driver + Petit FatFs, then full Fa
 job; ( jobin
     # (these drain the ring at once, no clock: the lag rule's tests, MIR_AIMD=0; the budget has its model below)
     $CC -O2 -w -DMIR_AIMD=0 -o "$OUT/mirror_test" tests/mirror_test.c
+    $CC -O2 -w -DMIR_AIMD=0 -DMT_AA=1 -o "$OUT/mirror_aa_test" tests/mirror_test.c
+    $CC -O2 -w -o "$OUT/mirror_pages_test" tests/mirror_pages_test.c
     $CC -O2 -w -DMIR_AIMD=0 -DMBR_PROJ=1 -o "$OUT/mirror_proj_test" tests/mirror_test.c
     $CC -O2 -w -DMIR_AIMD=0 -DMIR_BLE_LAG=4096 -o "$OUT/mirror_lag_test" tests/mirror_test.c
     run "the screen mirrored with the firmware's 4 KB lag: the lag rule follows the link's drain (2.5 KB at 4.6 KB/s, 4 KB from 8 KB/s), every mirror test" "$OUT/mirror_lag_test"
@@ -1537,11 +1566,26 @@ job; ( jobin
         $CC -O1 -g -w -DMIR_AIMD=0 -DMIR_LEND=1 -o "$OUT/mirror_lend_test" tests/mirror_test.c
     run "the mirror's Bluetooth ring lent by the arena (MIR_LEND, ASan): wanted only while a Bluetooth client uses it, nothing queued or sent without it, 50 lends and give-backs caught up each time, never touched once given back; every mirror test with it lent" "$OUT/mirror_lend_test"
     run "the projects' moves over Bluetooth (BT_PROJ): the backup's commands and PJ_OP queued, a BK_DATA chunk in its own slot" "$OUT/mirror_proj_test"
-    run "the screen mirrored, USB and Bluetooth: 3000 random writes decoded to the same panel, long runs, a stalled host falls behind and catches up, the Bluetooth request, a slow radio, the ring overflowing, the keep-alive, a muted write not sent, the meters over USB only; STATE, MASTER, let go, seq, the test session; what the client has not sent again" "$OUT/mirror_test"
+    run "the screen mirrored, USB and Bluetooth: 3000 random writes decoded to the same panel, long runs, a stalled host falls behind and catches up, the Bluetooth request, a slow radio, the ring overflowing, the keep-alive, a muted write not sent, the meters over USB only; STATE, MASTER, let go, seq, the test session; what the client has not sent again; two clients at once (USB and Bluetooth: USB's 106 0 leaves Bluetooth's mirror on, a page's clear missed sends the panel whole)" "$OUT/mirror_test"
+    run "the screen mirrored with the AA token (opti_miraa_1, 106's second byte): every mirror test, the 3000 random writes with shaded text decoded to the same panel" "$OUT/mirror_aa_test"
+    run "the AA token on 10 pages captured from the FM-1 (fm1-base's anti-aliased text): without it the encoder gives the FM-1's very bytes; with it the same pixels page by page, the bytes per page old -> new" "$OUT/mirror_pages_test"
+    run "the AA token in Python (tools/fm1_mirror.py, tools/mirror_enc.py): the 10 pages decoded, encoded with the token byte for byte the firmware's, decoded back to the same pixels" python3 tests/mirror_aa_test.py
     run "the screen as a PNG (tools/fm1_mirror.py): the fixture's frames decoded to its pixels, the PNG read back, STATE in words" python3 tests/fm1_mirror_test.py "$OUT/mirror_test"
+    run "the panel driven from the Mac (tools/fm1_drive.py): steps to 108 PANEL ids, large turns in parts, an FM-1 picked by --port" python3 tests/fm1_drive_test.py
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 -DMIRROR_CHECK -o "$OUT/ui_optimist_mirror_test" tests/ui_optimist_test.c -lm
     mkdir -p "$OUT/optimist_mirror"
     run "the screen mirrored: the Optimist UI's whole run (every test, 20000 random frames) encoded and decoded, the same pixels; every catch-up the panel" "$OUT/ui_optimist_mirror_test" "$OUT/optimist_mirror"
+    # the self-check (SUMS, ed_mirror_sum.h): the real UI over a lossy link (9 KB/s, ~2 frames lost and ~1 bad sum each 9 KB, the
+    # lag rule, repairs by seq) with a wrong put in the client's picture every 5 s; without SUMS printed (wrongs stay)
+    MIRROR_SUMS=off "$OUT/ui_optimist_mirror_test" "$OUT/optimist_mirror"
+    run "the screen mirrored over a lossy link with SUMS: every band hashed once a second, the client's differing bands sent again; no pixel wrong on the client over 3 s, none at the end" env MIRROR_SUMS=1 "$OUT/ui_optimist_mirror_test" "$OUT/optimist_mirror"
+    run "the same with the AA token (opti_miraa_1)" env MIRROR_AA=1 "$OUT/ui_optimist_mirror_test" "$OUT/optimist_mirror"
+    # every row drawn again by a repaint (the help band, the load lines' strip: a client that missed a page's clear gets them, SUMS
+    # checks every band); with the help line and SYSTEM > INFO's GUARD line, as the user's FM-1 (2026-11-01: "GUARD OFF" stayed on HOME)
+    run "the screen mirrored: every screen's repaint in place draws every row, every METERS mode; every band checkable by SUMS on HOME" env MIRROR_ROWS=1 "$OUT/ui_optimist_mirror_test" "$OUT/optimist_mirror"
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 -DFELUCCA_PARAM_HELP=1 -DFELUCCA_CPU_GUARD=1 -DFELUCCA_SYS_DEBUG=1 -DMIRROR_CHECK -o "$OUT/ui_optimist_mirror_help_test" tests/ui_optimist_test.c -lm
+    run "the same with the help line (PARAM_HELP): its band drawn again (black without its line)" env MIRROR_ROWS=1 "$OUT/ui_optimist_mirror_help_test" "$OUT/optimist_mirror"
+    run "the mirror, SYSTEM > INFO then HOME with the page's clear lost or drawn while behind: the client's picture the panel's within 3 s (INFO's GUARD line gone)" env MIRROR_SUMS=page "$OUT/ui_optimist_mirror_help_test" "$OUT/optimist_mirror"
     # the Bluetooth stream to a Mac, a transport model (tests/mirror_aimd_test.c): the real UI's workload through the real ed_mirror.c,
     # the link 5.6 KB/s, the Mac's input 5 KB/s losing whole frames over 1 KB waiting; the budget (MIR_AIMD) checked, the lag rule before printed
     MIRROR_BT=1 MIRROR_WORKLOAD=1 MIRROR_TRACE="$OUT/mirror_workload.bin" "$OUT/ui_optimist_mirror_test" "$OUT/optimist_mirror"

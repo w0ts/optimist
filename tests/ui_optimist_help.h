@@ -9,7 +9,7 @@
 static int hlt_strip_lit(void)                          /* the line's rows hold something besides black */
 {
     uint32_t i;
-    for (i = (uint32_t)HL_Y * 240u; i < 240u * 240u; i++)
+    for (i = (uint32_t)HL_Y * 240u; i < (uint32_t)(HL_Y + HL_H) * 240u; i++)   /* (the band's rows; the load lines' under them) */
         if (screen[i])
             return 1;
     return 0;

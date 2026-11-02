@@ -87,6 +87,8 @@ static uint8_t state[29];
 static FILE *fix;
 static uint32_t mt_lossy, mt_lost, mt_zeroed, mt_twice, mt_rs = 7;   /* the lossy transport (chk_tests) */
 static uint32_t mt_rnd(uint32_t n) { mt_rs = mt_rs * 1103515245u + 12345u; return (mt_rs >> 8) % n; }
+static void (*mt_sums)(const uint8_t *f, uint32_t n);   /* (two_tests: a client's SUMS handler; none: SUMS ignored) */
+static int mt_lose_whole;               /* (two_tests: the next whole-panel fill lost on the way) */
 static void host_byte(uint8_t b)
 {
     if (b == 0xF0u)
@@ -96,7 +98,13 @@ static void host_byte(uint8_t b)
     if (b == 0xF7u) {
         frames++, bytes += hn;
         max_frame = hn > max_frame ? hn : max_frame;
-        if (hn >= 6u && hf[4] != 106u)
+        static const uint8_t WHOLE[8] = {0, 0, 0, 0, 112, 1, 112, 1};
+        if (mt_lose_whole && hn >= 15u && hf[4] == 106u && (hf[5] == 0u || hf[5] == 8u) && !memcmp(hf + 6, WHOLE, 8)) {
+            mt_lose_whole = 0;          /* (a page's clear lost on the way: two_tests) */
+        } else if (hn == 6u + 1u + 5u + 3u * 30u + 2u + 1u && hf[4] == 106u && hf[5] == 7u) {   /* (op 7 SUMS: the client compares, two_tests) */
+            if (mt_sums)
+                mt_sums(hf, hn);
+        } else if (hn >= 6u && hf[4] != 106u)
             ed_replies++, ed_last[0] = hf[4], ed_last[1] = hn > 5u ? hf[5] : 0u, ed_last[2] = hn > 6u ? hf[6] : 0u;   /* (an editor reply: Bluetooth's PANEL, NAV, INFO) */
         else if (hn == 6u + 29u + 1u && hf[5] == 4u)     /* (op 4 STATE) */
             states++, memcpy(state, hf + 6, 29);
@@ -141,10 +149,15 @@ static void host_pkt(uint32_t p)
         host_byte(b);
     }
 }
+static void (*mt_usb_side)(int in);    /* (two_tests: the USB client's decoder in while USB's packets are read) */
 static void host_drain(void)
 {
+    if (mt_usb_side)
+        mt_usb_side(1);
     while (so_r != so_w)
         host_pkt(sx_out_q[so_r++ % SXQ]);
+    if (mt_usb_side)
+        mt_usb_side(0);
 }
 static void ota_idle(void)
 {
@@ -290,9 +303,14 @@ static void lcd_blit(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint1
             panel[(y + j) * 240u + x + i] = sw16(px[j * w + i]);
     mir_blit(x, y, w, h, px);
 }
+static int mt_defer, mt_due;            /* (two_tests: the repaint drawn by the next UI frame, as the UI does: ui_frame) */
 static void op_repaint(void)            /* the UI's: every band again, in place (here: the panel as it is, in two bands) */
 {
     uint32_t i;
+    if (mt_defer) {
+        mt_due = 1;
+        return;
+    }
     repaints++;
     for (i = 0; i < 240u * 240u; i++)
         cv[i] = sw16(panel[i]);
@@ -306,14 +324,18 @@ static int same(void)
     host_drain();
     return !memcmp(panel, md_fb, sizeof panel);
 }
+#ifndef MT_AA
+#define MT_AA 0                         /* 1: the client asks for the AA token (106's second byte, opti_miraa_1), the canvases shaded */
+#endif
 static void ask(uint32_t bits)
 {
-    uint8_t a[1] = {(uint8_t)bits};
+    uint8_t a[2] = {(uint8_t)bits, 1};
     nrep = 0;
-    ed_mirror(a, 1);
+    ed_mirror(a, MT_AA && bits ? 2u : 1u);
 }
 /* a canvas like the UI's: black, a few colours of text-like dots and bars */
 static int quiet;                       /* 1: UI-like writes only (no canvas of noise: a catch-up as big as the UI's) */
+static int shade;                       /* 1: half the dots a shade of their colour over black (anti-aliased text) */
 static void canvas(uint32_t w, uint32_t h, uint32_t ncol)
 {
     uint32_t i, cols[16];
@@ -323,9 +345,14 @@ static void canvas(uint32_t w, uint32_t h, uint32_t ncol)
         cv[i] = 0;
     for (i = 0; i < w * h / (quiet ? 60u : 6u); i++) {   /* (quiet: about as sparse as text on the UI's black) */
         uint32_t at = rnd(w * h), len = 1u + rnd(8);
-        uint16_t c = sw16(cols[rnd(ncol)]);
+        uint32_t f = cols[rnd(ncol)];
+        uint16_t c = sw16(f);
         for (; len-- && at < w * h; at++)
+#if MIR_AA
+            cv[at] = shade && (at & 1u) ? sw16(me_blend(f, 0, rnd(16))) : c;   /* (text's shades over black) */
+#else
             cv[at] = c;
+#endif
     }
 }
 static void random_write(void)
@@ -354,6 +381,50 @@ static void bt_send(const uint8_t *f, uint32_t n)
         i += k;
     }
 }
+/* 106's second byte (opti_miraa_1): bit 0 the AA token. Two bytes set it, one clears it (an older client), the 3-byte forms
+ * keep it while mirroring and clear it on a first on; over Bluetooth the 2-byte request is taken (it was refused before) */
+#if MIR_AA
+static void aa_ask_tests(void)
+{
+    static const uint8_t BT2[] = {0xF0, 0x7D, 0x46, 0x4C, 106, 1, 1, 0xF7},
+                         BT4[] = {0xF0, 0x7D, 0x46, 0x4C, 106, 1 | MIR_ACK_BIT, 0, 0, 1, 0xF7};
+    uint8_t a[4] = {1, 1, 0, 0};
+    uint32_t aa0 = me.aa, on0 = mir.on;
+    ed_mirror(a, 2);
+    check(me.aa == 1u, "106 with a second byte, bit 0: the AA token on");
+    a[0] = 1 | MIR_FIX_BIT, a[1] = 3, a[2] = 3;
+    ed_mirror(a, 3);
+    check(me.aa == 1u, "a 3-byte request (lost seqs) while on: the AA token kept");
+    a[0] = 1;
+    ed_mirror(a, 1);
+    check(me.aa == 0u, "106 with one byte: the AA token off (an older client's tokens)");
+    a[1] = 0;
+    ed_mirror(a, 2);
+    check(me.aa == 0u, "106 with a second byte 0: off");
+    a[1] = 1;
+    ed_mirror(a, 2);
+    a[0] = 0;
+    ed_mirror(a, 1);
+    a[0] = 1 | MIR_FIX_BIT, a[1] = 3, a[2] = 3;
+    ed_mirror(a, 3);
+    check(me.aa == 0u, "a 3-byte request on a first on: off");
+    a[0] = 1 | MIR_FIX_BIT, a[1] = 3, a[2] = 3, a[3] = 1;
+    ed_mirror(a, 4);
+    check(me.aa == 1u, "bit 4's two bytes and the last byte: on");
+    ble_out_on = 1;
+    mbr.req = 0;
+    bt_send(BT2, sizeof BT2);
+    check(mbr.req == 0x81u && mbr.req_aa == (2u << 1 | 1u), "Bluetooth: 106 with a second byte taken (%02X %02X)", mbr.req, mbr.req_aa);
+    mbr.req = 0;
+    bt_send(BT4, sizeof BT4);
+    check(mbr.req == 0x81u && mbr.req_aa == (4u << 1 | 1u), "Bluetooth: bit 5's two bytes and the last byte taken (%02X %02X)", mbr.req, mbr.req_aa);
+    mbr.req = 0;
+    ble_out_on = 0;
+    a[0] = (uint8_t)(on0 ? 1u : 0u), a[1] = (uint8_t)aa0;   /* (as it was) */
+    ed_mirror(a, MT_AA && on0 ? 2u : 1u);
+    host_drain();
+}
+#endif
 
 static void usb_tests(void)
 {
@@ -377,6 +448,7 @@ static void usb_tests(void)
     check(repaints == 2u && same(), "bit 1: the whole panel again");
     fm1_ms += MIR_METER_MS;
     check(mir_meters_due() && !mir_meters_due() && !mir_meters_off(), "the meters over USB: due, then not before MIR_METER_MS");
+    shade = 1;                          /* (MT_AA: the AA token taken, every shade still exact) */
     for (k = 0; k < 3000u; k++) {
         random_write();
         if (!same()) {
@@ -384,6 +456,7 @@ static void usb_tests(void)
             break;
         }
     }
+    shade = 0;
     check(bad == 0u, "%u frames not decoded", bad);
     check(max_frame <= MIR_CUT + 24u, "a frame of %u bytes", max_frame);
     /* one run longer than the long token (16 + 16383) */
@@ -595,14 +668,14 @@ static void state_tests(void)
 static void bt_tests(void)
 {
     static const uint8_t ON[] = {0xF0, 0x7D, 0x46, 0x4C, 106, 1, 0xF7}, BAD[] = {0xF0, 0x7D, 0x46, 0x4C, 105, 1, 0xF7},
-                         LONG[] = {0xF0, 0x7D, 0x46, 0x4C, 106, 1, 2, 0xF7}, OFF[] = {0xF0, 0x7D, 0x46, 0x4C, 106, 0, 0xF7};
+                         LONG[] = {0xF0, 0x7D, 0x46, 0x4C, 106, 1, 2, 3, 0xF7}, OFF[] = {0xF0, 0x7D, 0x46, 0x4C, 106, 0, 0xF7};
     uint32_t k, r0, lost = 0, sent = 0;
     host_drain();
     quiet = 1;
     lcd_fill(0, 0, 240, 240, 0);        /* (a UI-like panel: black, low-colour bands; a catch-up of a few KB) */
     host_drain();
     memcpy(md_fb, panel, sizeof panel);
-    /* the request: only 106 with one byte; nothing while no central listens */
+    /* the request: only 106 with one byte (two: opti_miraa_1; three: bits 4, 5); nothing while no central listens */
     bt_send(BAD, sizeof BAD);
     bt_send(LONG, sizeof LONG);
     check(!mbr.req, "another command or a longer frame taken for a request");
@@ -1108,6 +1181,7 @@ static void fix_tests(void)
     check(fixes && fbytes / fixes * 3u < wbytes, "lost frames asked by seq: an ask costs under a third of a whole panel");
     me.chk = 0;
 }
+#include "mirror_two.h"                 /* two clients at once, USB and Bluetooth */
 int main(void)
 {
     uint32_t k;
@@ -1126,6 +1200,10 @@ int main(void)
     fix_tests();
     lag_tests();
     nav_tests();
+    two_tests();
+#if MIR_AA
+    aa_ask_tests();
+#endif
 #if MIR_LEND
     lend_tests();
 #endif

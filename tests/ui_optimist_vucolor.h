@@ -40,7 +40,7 @@ static uint32_t vuc_lane(uint32_t sel, uint32_t lit)       /* lane 0 selected (s
     ui.force = 1;
     frame();
     ppm(sel ? (lit > 6u ? "vuc-lane-sel-loud" : "vuc-lane-sel-quiet") : (lit > 6u ? "vuc-lane-uns-loud" : "vuc-lane-uns-quiet"));
-    r = (uint32_t)px_in(0, 20, 240, 220, C_OK) + 2u * (uint32_t)px_in(0, 20, 240, 220, C_ERR);
+    r = (uint32_t)px_in(0, 20, 240, 200, C_OK) + 2u * (uint32_t)px_in(0, 20, 240, 200, C_ERR);
     return r;
 }
 static void vucolor_lane_tests(void)                    /* the drum lanes' meters: the same gradient as the tracks', selected or not (the user, 2026-11-01: "the peak meters in drum lanes are red") */

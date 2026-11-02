@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// Which way the editor screens reach the FM-1: the USB cable, or Bluetooth when INFO names opti_btproj_1 (builder item BT_PROJ:
-// firmware/src/io/editor/ed_mirror.c MBR_PROJ). Over Bluetooth the firmware takes the backup's 43..48 (the project library's
+// Which way the editor screens reach the FM-1: the USB cable, or Bluetooth when INFO names opti_btproj_1 (firmware/src/felucca.c MBR_PROJ,
+// built with the editor and Bluetooth MIDI). Over Bluetooth the firmware takes the backup's 43..48 (the project library's
 // reads and writes) and 110 PJ_OP only, one request at a time. Pure values: the tests run them without CoreMIDI.
 import Foundation
 

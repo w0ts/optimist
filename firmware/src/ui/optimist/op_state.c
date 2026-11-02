@@ -58,6 +58,7 @@ enum { OA_SCN_STORE, OA_SCN_CLR, OA_PAT_STORE, OA_PAT_CLR, OA_INIT, OA_EXTRAS, O
        OA_PAT_RELOAD,                 /* (RELOAD: HOME + SEQ, the tracks' edits dropped, op_combos.c; issue 142) */
        OA_PAT_CLONE, OA_PAT_EMPTY,    /* (a new pattern: "CLONE T1 5?", HOME asks "EMPTY T1 5?"; op_layers.c pat_new_ask, issue 142) */
        OA_FMEM, OA_FMOFF,             /* (a switchable feature's room: its question, the idle ones offered; core/feat_mem.c) */
+       OA_FXZ, OA_FXZI,               /* (FX MEMORY: smaller lines for a refused engine change, for an FX type with no room; op_fxmem.c) */
 #if FELUCCA_SD_STREAM
        OA_SDDROP,                     /* (the card samples' memory short: a part dropped, storage/sd/sd_mode.c) */
 #endif
@@ -266,9 +267,16 @@ static void step_cards_show(void);                      /* (op_step.c: which of 
  * user, 2026-10-10: "while scrolling algo knob, the screen flash in a not nice way"). The layout is the screen's,
  * the same for every track, so the gaps between the bands stay as they are */
 static void mx_redraw(void);
+/* the rows no band draws (the help band without its line, op_help.c hl_pre; the load lines' strip, op_meters.c mtr_draw) are
+ * drawn again by a repaint too (2026-11-01, the user over Bluetooth: SYSTEM > INFO's last line, "GUARD OFF", stayed in HOME's
+ * help band on the mirror for good: the page's clear never reached the client, a repaint never drew those rows and the mirror's
+ * self-check could not see them, io/editor/ed_mirror_sum.h: a band not drawn whole is not checked) */
+enum { OPA_HELP = 1, OPA_MTR = 2 };
+static uint8_t op_again;
 static void op_repaint(void)
 {
     memset(ui.sig, 0, sizeof ui.sig);
+    op_again = OPA_HELP | OPA_MTR;
     mx_redraw();
 }
 static uint8_t wipe_req;                               /* SHIFT2 + REC pressed: the wipe is wanted while both stay held (op_input.c wipe_frame) */

@@ -51,7 +51,7 @@ SIZE_FILES = ["ui/colors.c", "ui/splash.c", "storage/storage.c", "storage/uprese
               "ui/optimist/op_fm6.c", "ui/optimist/op_fm6draw.c", "ui/optimist/op_name.c", "ui/optimist/op_memlist.c", "ui/optimist/op_preset.c",
               "ui/optimist/op_global.c", "ui/optimist/op_walk.c", "ui/optimist/op_keys.c",
               "ui/optimist/op_effval.c", "ui/optimist/op_gldraw.c", "ui/optimist/op_credits.c", "ui/optimist/op_tools.c",
-              "ui/optimist/op_help.c", "ui/optimist/op_edits.c", "ui/optimist/op_names.c", "ui/optimist/op_songtbl.c"]
+              "ui/optimist/op_help.c", "ui/optimist/op_fxmem.c", "ui/optimist/op_meters.c", "ui/optimist/op_top.c", "ui/optimist/op_edits.c", "ui/optimist/op_names.c", "ui/optimist/op_songtbl.c"]
 # kept at -Os on purpose: boot and main loop, flash / OTA / USB, drawing primitives, libc, sound-side helpers,
 # optional engines and effects (a new main-loop-only file goes in SIZE_FILES: --check, docs SLIM-CODE.md)
 # (boot and the main loop stay at -Os: at minsize the main loop got slower and the emulator boot check saw a late
@@ -87,7 +87,7 @@ SIZE_FILES += ["system/ota.c", "system/recovery.c", "system/devname.c"]   # (cpu
 # what their interrupts reach (the *_irq roots: the LL, the LMP, the baseband drivers) stays at -Os by the guard below
 # (2026-10-23, -668 B on mots.config; ble_ll.c, ble_hw_wl82_central.c, ble_scan.c, ble_store.c and the rest stay listed above)
 SIZE_FILES += ["bt/bt_afh.c", "bt/bta_mem.c", "ble/ble_hw_wl82.c", "bt/bt_inq.c", "io/midi/midi_ble.c", "ble/ble_vm.c", "felucca.c",
-               "bt/bt_acl.c", "bt/bt_l2cap.c", "bt/bt_audio.c", "bt/bt_page.c",
+               "bt/bt_acl.c", "bt/bt_ltx.c", "bt/bt_l2cap.c", "bt/bt_audio.c", "bt/bt_page.c",
                "bt/bt_inq_core.c", "bt/bt_lmp.c", "bt/bt_sdps.c", "ble/ble_att.c", "ble/ble_host.c", "bt/bt_avdtp.c",
                "ble/ble_midi.c", "io/midi/ble_devices.c"]
 # the SD card (SDCARD: storage/sd/; pff.c and fatfs/ their own units, listed so every source is)

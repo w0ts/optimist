@@ -218,8 +218,8 @@ const mid = await run(`${U} $(".oi-go").click(); await until(() => $("dialog.oi-
   await until(() => document.querySelector(".oi-phases li:nth-child(3)").dataset.st === "on" && $(".oi-bar").value > 40, 60000);
   return { st: [...document.querySelectorAll(".oi-phases li")].map((l) => l.dataset.st), bar: $(".oi-bar").value, status: $(".oi-status").textContent,
     go: $(".oi-go").disabled, radios: [...document.querySelectorAll(".oi-radio")].every((r) => r.disabled), busy: window.optimistInstaller.busy };`);
-ok(JSON.stringify(mid.st) === JSON.stringify(["done", "done", "on", "wait"]) && mid.bar > 40 && mid.bar < 96 && mid.status === "Writing…" && mid.go && mid.radios && mid.busy,
-  `writing: checked and switched done, Writing on, the bar at ${mid.bar} %, nothing to click meanwhile`);
+ok(JSON.stringify(mid.st) === JSON.stringify(["done", "done", "on", "wait"]) && mid.bar > 40 && mid.bar < 96 && mid.status === "Writing… Do not power off the FM-1." && mid.go && mid.radios && mid.busy,
+  `writing: checked and switched done, "Writing… Do not power off the FM-1.", the bar at ${mid.bar} %, nothing to click meanwhile`);
 await full("installer-desktop-dark-writing", 1440);
 const done = await run(`${U} await until(() => vis(".oi-ok"), 90000);
   return { ok: $(".oi-ok").textContent, st: [...document.querySelectorAll(".oi-phases li")].map((l) => l.dataset.st), bar: $(".oi-bar").value, bad: D().bad,
@@ -228,19 +228,37 @@ ok(/^Done\. The FM-1 runs .+ \(FM-1_720\)\./.test(done.ok) && done.st.every((s) 
   `done: the four phases ticked, the bar full, the identity checked, every read answered right (${done.ok})`);
 await full("installer-desktop-dark-done", 1440);
 
-/* ---- errors: the cable pulled while writing, then Install again resumes; no FM-1 at all */
+/* ---- errors: the cable pulled while writing: "Connection dropped" with Resume and Cancel (the user, 2026-11-01); Cancel, then
+   Install again resumes; Resume before the FM-1 is back asks again, then finishes; no FM-1 at all */
 /* (running a Felucca: its loader takes this small test package; Optimist's own takes the MEMORY steps' 0x93000 / 0xB5000 / 0xD0000 flash.bin only) */
 const lost = await run(`${U} D().identity = "FM-1_904"; D().served = 0; D().unplugAfter = 24; $(".oi-go").click();
-  await until(() => vis(".oi-err"), 90000);
-  return { err: $(".oi-err").textContent, st: [...document.querySelectorAll(".oi-phases li")].map((l) => l.dataset.st), go: $(".oi-go").disabled };`);
-ok(/^The USB connection was lost\. Replug the cable and press Install again/.test(lost.err) && lost.st[2] === "fail" && !lost.go,
-  `cable pulled while writing: said plainly, the phase marked, Install on again (${lost.st.join(" ")})`);
+  await until(() => vis(".oi-drop"), 90000);
+  const out = { drop: $(".oi-dropmsg").textContent, buttons: [...document.querySelectorAll(".oi-drop button")].map((b) => b.textContent),
+    st: [...document.querySelectorAll(".oi-phases li")].map((l) => l.dataset.st), err: vis(".oi-err"), busy: window.optimistInstaller.busy };
+  $(".oi-dropcancel").click(); await until(() => vis(".oi-err"), 20000);
+  return { ...out, after: $(".oi-err").textContent, gone: !vis(".oi-drop"), go: $(".oi-go").disabled };`);
+ok(lost.drop === "Connection dropped. Check the cable: the install continues by itself when the FM-1 is back. Do not power off the FM-1."
+  && lost.buttons.join() === "Cancel" && lost.st[2] === "fail" && !lost.err && lost.busy,
+  `cable pulled while writing: "Connection dropped. Check the cable: the install continues by itself ... Do not power off the FM-1.", Cancel only, the phase marked (${lost.st.join(" ")})`);
+ok(/^Cancelled\. Nothing more was sent\. The FM-1 stays in update mode: keep it on and press Install again to finish\.$/.test(lost.after) && lost.gone && !lost.go,
+  "... Cancel while it waits: said plainly (keep it on), Install on again");
 await full("installer-desktop-dark-error", 1440);
 const res = await run(`${U} D().unplugAfter = Infinity; D().served = 0; D().plug("ota-FM-1_900", "Felucca Update"); await sleep(800); $(".oi-go").click();
   await until(() => vis(".oi-ok") || ($(".oi-err") && !$(".oi-err").hidden && D().served > 0), 90000);
   return { ok: vis(".oi-ok") && $(".oi-ok").textContent, err: vis(".oi-err"), found: $(".oi-found").textContent, bad: D().bad };`);
 ok(res.ok && /FM-1_720/.test(res.ok) && !res.err && res.bad === 0 && /update mode \(ota-FM-1_900\)/.test(res.found),
   "replugged in update mode: found as such, Install again finishes the write and checks the FM-1 comes back");
+const resumed = await run(`${U} D().identity = "FM-1_904"; D().plug("FM-1_904", "Felucca"); await sleep(800); D().served = 0; D().unplugAfter = 24; $(".oi-go").click();
+  await until(() => vis(".oi-drop"), 90000);
+  const writing = [];
+  await sleep(1500);                                 /* (the cable out a while: nothing to press) */
+  D().unplugAfter = Infinity; D().plug("ota-FM-1_900", "Felucca Update");
+  await until(() => { const t = $(".oi-status").textContent; if (t) writing.push(t); return vis(".oi-ok") || vis(".oi-err"); }, 90000);
+  return { writing: [...new Set(writing)], ok: vis(".oi-ok") && $(".oi-ok").textContent, err: vis(".oi-err") && $(".oi-err").textContent, bad: D().bad, drop: vis(".oi-drop") };`);
+ok(resumed.ok && /FM-1_720/.test(resumed.ok) && !resumed.err && !resumed.drop && resumed.bad === 0,
+  `the FM-1 back in update mode: the install goes on BY ITSELF (nothing pressed) and finishes (${resumed.err || ""})`);
+ok(resumed.writing.length && resumed.writing.every((t) => / Do not power off the FM-1\.$/.test(t)),
+  `... every status of step 2 says not to power off (${resumed.writing.join(" | ")})`);
 /* ---- a package the running firmware's updater refuses (M-VAVE's Open firmware): download mode, said, nothing written */
 const dl = await run(`${U} D().served = 0; D().plug("FM1_OFFICIAL_OPEN", "FM-1"); await sleep(800); $(".oi-go").click();
   await until(() => vis(".oi-err"), 20000);

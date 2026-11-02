@@ -121,6 +121,29 @@ static int md_frame(const uint8_t *f, uint32_t n)
             md.rr = md.rr < 6u ? md.rr + 1u : 1u;
             i += 3u;
         }
+        if (c == 14u && i + 2u <= n && (f[i] & 7u) == 7u) {   /* the AA token: k << 3 | 7, L, then L levels as a prefix code */
+            uint32_t fg = md.slot[s], L = f[i + 1u], acc = 0, nb = 0, a, q;
+            if ((f[i] >> 3) > 6u || !L)
+                return 0;
+            bg = md.slot[f[i] >> 3];
+            i += 2u;
+            for (k = 0; k < L; k++) {   /* (bits: '0' 15, '10' 0, '11' + 4 bits a) */
+                uint32_t v = 0, m;
+                for (m = 0; m < 6u && (m != 1u || v == 1u) && (m != 2u || v == 3u); m++) {
+                    if (!nb) {
+                        if (i >= n)
+                            return 0;
+                        acc = f[i++], nb = 7;
+                    }
+                    v = v << 1 | (acc >> --nb & 1u);
+                }
+                a = m == 1u ? 15u : m == 2u ? 0u : v & 15u;
+                q = ((fg >> 11) * a + (bg >> 11) * (15u - a)) / 15u << 11 | (((fg >> 5) & 63u) * a + ((bg >> 5) & 63u) * (15u - a)) / 15u
+                    << 5 | ((fg & 31u) * a + (bg & 31u) * (15u - a)) / 15u;
+                md_px((uint16_t)q, 1);
+            }
+            continue;                   /* (the last byte's spare bits: nothing) */
+        }
         if (c == 14u) {                 /* a bitmap: g << 3 | the 0s' slot, then g + 1 bytes of 7 pixels, bit 6 first */
             if (i + 1u > n || (f[i] & 7u) == 7u)
                 return 0;

@@ -105,7 +105,11 @@ static void memlist_tests(void)
     check(cho_buf && !fxm_refused(FXT_CHO), "memory list: part 2 off FM6: CHO back by itself");
     set_engine_of(&trk[1], ENG_IX_FM6);                 /* an edit's change: the one confirm, as before */
     ml_frames(4);
-    check(!ml_on() && part_mem_refused.on && op_armed() && ui.arm_row == OA_DROP, "memory list: an edit's change keeps its one confirm (DROP)");
+    if (op_armed() && ui.arm_row == OA_FXZ) {           /* (the make-room question first, when smaller FX sizes free the room: one question at a time) */
+        tap(B_HOME);                                    /* (HOME: the next way, as before) */
+        ml_frames(4);
+    }
+    check(!ml_on() && part_mem_refused.on && op_armed() && ui.arm_row == OA_DROP, "memory list: an edit's change keeps its one confirm (DROP; the make-room question before it, HOME on it)");
     reset_ui();
     part_mem_refused.on = 0;
     ml_load(7u);

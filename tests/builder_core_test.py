@@ -358,6 +358,10 @@ check("fronts: the defaults (PATTERNS off) read SD off, 3 sample slots, 16 proje
 check("fronts: an old LAYOUT=1 reads 0 slots, 2 projects; with SDCARD SD card mode (its projects greyed: dim_when)",
       _f(_red) == (0, 0, 2) and _f(_sd) == (1, 0, 2)
       and R.ITEMS["SMP_SLOTS"].dim_when == R.ITEMS["PROJECTS"].dim_when == "SD_MODE")
+check("SECTIONS with PATTERNS: 4 is greyed with a reason (dim_choice), only then; 8 and 16 stay; the 4 + PATTERNS error stays",
+      K.dimmed_choices(_pt, "SECTIONS").keys() == {4} and "PATTERNS" in K.dimmed_choices(_pt, "SECTIONS")[4]
+      and not K.dimmed_choices(_d, "SECTIONS") and not K.dimmed_choices(_pt, "SNAPSHOTS")
+      and K.validate(dict(_pt, SECTIONS=4))[0] and not K.validate(dict(_pt, SECTIONS=8))[0])
 _a = RM.after_toggle(_pt, dict(_pt, SMP_SLOTS=0), "SMP_SLOTS", RM.NONE)[0]
 check("fronts: SAMPLE SLOTS 0 from normal keeps 16 projects: S0 (LAYOUT 3)", (_a["LAYOUT"], _f(_a)) == (3, (0, 0, 16)))
 _b = RM.after_toggle(_a, dict(_a, PROJECTS=2), "PROJECTS", RM.NONE)[0]

@@ -49,6 +49,7 @@
       "on, code in RAM"
      ]
     ],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [
@@ -82,6 +83,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -110,6 +112,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -138,6 +141,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -166,6 +170,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -210,6 +215,7 @@
       "on, code in RAM"
      ]
     ],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [
@@ -240,6 +246,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -284,6 +291,7 @@
       "on, code in RAM"
      ]
     ],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [
@@ -314,6 +322,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": {
      "project": "Felucca-Engines (hugelton/Felucca-Engines)",
@@ -365,6 +374,7 @@
       "on, code in RAM"
      ]
     ],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -408,6 +418,7 @@
       "on, code in RAM"
      ]
     ],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -452,6 +463,7 @@
       "on, code in RAM"
      ]
     ],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -496,6 +508,7 @@
       "on, code in RAM"
      ]
     ],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -540,6 +553,7 @@
       "on, code in RAM"
      ]
     ],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -571,6 +585,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -617,6 +632,7 @@
       "on, code in RAM"
      ]
     ],
+    "dim_choice": {},
     "not_built": {},
     "provenance": {
      "project": "Melodee (keremimo/melodee)",
@@ -662,6 +678,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -690,6 +707,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -720,6 +738,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -750,6 +769,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -780,6 +800,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -810,6 +831,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -840,6 +862,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -871,6 +894,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": {
      "project": "Melodee (keremimo/melodee)",
@@ -907,6 +931,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": {
      "project": "Felucca (hugelton/Felucca)",
@@ -944,6 +969,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": {
      "project": "Caravel 0.3.3 (bonszaimusic/caravel, a Felucca fork)",
@@ -994,6 +1020,7 @@
       "on, code in RAM"
      ]
     ],
+    "dim_choice": {},
     "not_built": {},
     "provenance": {
      "project": "Mutable Instruments Plaits (pichenettes/eurorack)",
@@ -1044,6 +1071,7 @@
       "on, code in RAM"
      ]
     ],
+    "dim_choice": {},
     "not_built": {},
     "provenance": {
      "project": "Clipper (isod89/clipper-fm1, Clipper 1.1)",
@@ -1081,6 +1109,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": {
      "project": "Clipper (isod89/clipper-fm1, Clipper 1.1)",
@@ -1118,6 +1147,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": {
      "project": "Clipper (isod89/clipper-fm1, Clipper 1.1)",
@@ -1155,6 +1185,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": {
      "project": "Clipper (isod89/clipper-fm1, Clipper 1.1)",
@@ -1192,6 +1223,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": {
      "project": "Clipper (isod89/clipper-fm1, Clipper 1.1)",
@@ -1230,6 +1262,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": {
      "project": "Clipper (isod89/clipper-fm1, Clipper 1.1)",
@@ -1267,6 +1300,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": {
      "project": "Mini-Tone 1.0.1 (eldontyrellcorp/Mini-Tone), after reSID 0.16 by Dag Lem",
@@ -1317,6 +1351,7 @@
       "on, code in RAM"
      ]
     ],
+    "dim_choice": {},
     "not_built": {},
     "provenance": {
      "project": "Melodee (keremimo/melodee): its PROPHET engine's oscillators, Poly-Mod and Curtis filter",
@@ -1351,6 +1386,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": {
      "project": "CS-1 (twochannels/CS-1): its CS-80 voice's design",
@@ -1385,6 +1421,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -1415,6 +1452,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -1443,6 +1481,7 @@
     "fixed": false,
     "head": true,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [
@@ -1483,6 +1522,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -1513,6 +1553,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": {
      "project": "Kawa Tracker (Guizmoh/Kawa-Tracker-Fm1)",
@@ -1550,6 +1591,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": {
      "project": "Hortator (DeadActive/hortator), after Mutable Instruments Plaits (Emilie Gillet, MIT)",
@@ -1587,6 +1629,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": {
      "project": "X0X (charlesvestal/fm1-x0x)",
@@ -1641,6 +1684,7 @@
       "off"
      ]
     ],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -1680,6 +1724,7 @@
       "6-bit (16 KB, 30 dB)"
      ]
     ],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -1719,6 +1764,7 @@
       "256 points (1 KB)"
      ]
     ],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -1749,6 +1795,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": {
      "project": "X0X (charlesvestal/fm1-x0x)",
@@ -1783,6 +1830,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [
@@ -1817,6 +1865,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -1845,6 +1894,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -1873,6 +1923,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -1901,6 +1952,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -1929,6 +1981,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -1959,6 +2012,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [
@@ -1989,6 +2043,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": {
      "project": "SLOOP 2.8 (isod89/sloop-fm1)",
@@ -2023,6 +2078,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -2051,6 +2107,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -2079,6 +2136,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -2107,6 +2165,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -2135,6 +2194,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -2163,6 +2223,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -2191,6 +2252,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -2219,6 +2281,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -2247,6 +2310,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -2275,6 +2339,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -2305,6 +2370,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -2335,6 +2401,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [
@@ -2378,6 +2445,7 @@
       "0.37 s (32 KB)"
      ]
     ],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -2409,6 +2477,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [
@@ -2446,6 +2515,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -2476,6 +2546,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -2506,6 +2577,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -2523,7 +2595,7 @@
     "bit": 122,
     "default": 0,
     "parent": "FX_REVERB",
-    "desc": "FDN8's ring: big (32 KB) gives its eight lines twice the length, the long and lush FDN8; small (16 KB) the shorter one. The key's old name (the reverb's buffers in the pool) is kept so profiles keep their sound: since the RAM is one region (2026-10-25) where the buffer sits saves nothing, only the ring's size counts.",
+    "desc": "FDN8's ring: big (32 KB) gives its eight lines twice the length, the long and lush FDN8; small (16 KB) the shorter one. With an arena and big, PROJECT > FX MEM's REV MEM can still pick SMALL per project (16 KB of the arena back). The key's old name (the reverb's buffers in the pool) is kept so profiles keep their sound: since the RAM is one region (2026-10-25) where the buffer sits saves nothing, only the ring's size counts.",
     "experimental": false,
     "notice": "",
     "off_warning": "",
@@ -2543,6 +2615,7 @@
       "small ring (16 KB)"
      ]
     ],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -2573,6 +2646,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -2601,6 +2675,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -2629,6 +2704,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -2659,6 +2735,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [
@@ -2698,6 +2775,7 @@
       "93 ms (16 KB)"
      ]
     ],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -2728,6 +2806,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [
@@ -2768,6 +2847,7 @@
       "0.37 s (32 KB)"
      ]
     ],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -2796,6 +2876,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -2824,6 +2905,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -2852,6 +2934,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -2883,6 +2966,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -2911,6 +2995,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": {
      "project": "SLOOP 2.4 (isod89/sloop-fm1)",
@@ -2947,6 +3032,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": {
      "project": "SLOOP 2.8 (isod89/sloop-fm1)",
@@ -2983,6 +3069,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": {
      "project": "Felucca 1.5.6 (hugelton/Felucca)",
@@ -3019,6 +3106,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": {
      "project": "Felucca 1.5.6 (hugelton/Felucca)",
@@ -3055,6 +3143,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": {
      "project": "Felucca 1.5.6 (hugelton/Felucca)",
@@ -3091,6 +3180,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": {
      "project": "Melodee 1.3.1 (keremimo/melodee)",
@@ -3127,6 +3217,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": {
      "project": "Melodee 1.3.1 (keremimo/melodee)",
@@ -3165,6 +3256,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -3195,6 +3287,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -3225,6 +3318,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -3255,6 +3349,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -3285,6 +3380,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -3315,6 +3411,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -3345,6 +3442,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": {
      "project": "Melodee 1.4.4 (keremimo/melodee)",
@@ -3381,6 +3479,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": {
      "project": "Melodee 1.4.4 (keremimo/melodee)",
@@ -3417,6 +3516,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -3447,6 +3547,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -3477,6 +3578,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": {
      "project": "fm-106 (PatttF/fm-106)",
@@ -3513,6 +3615,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -3543,6 +3646,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": {
      "project": "Felucca 1.5.6 (hugelton/Felucca)",
@@ -3579,6 +3683,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [
@@ -3618,6 +3723,7 @@
       "0.19 s (32 KB)"
      ]
     ],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -3648,6 +3754,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -3676,6 +3783,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": {
      "project": "SLOOP 2.4 (isod89/sloop-fm1)",
@@ -3694,12 +3802,12 @@
    {
     "key": "SECTIONS",
     "flag": "FELUCCA_SECTIONS",
-    "label": "song sections",
+    "label": "song sections (with PATTERNS: the scenes of a project)",
     "group": "Sequencer",
     "bit": 85,
     "default": 16,
     "parent": null,
-    "desc": "8 / 16: banks of 4 (SAVE + OCT), stored compressed in one 32 KiB log with a MEM gauge; the old slots move in at the first start. 4: the slots as before (needed by motion recording)",
+    "desc": "How many sections (with PATTERNS on: scenes) the log keeps: 8 / 16: A..H / A..P in banks of 4 (SAVE + OCT), stored compressed in a log with a MEM gauge; the old slots move in at the first start. With PATTERNS on, each project owns that many scenes and 4 is not offered (the patterns live in the log); the choice only sets the scene count (8 = 52 B of flash less). 4 (PATTERNS off only): the slots as before",
     "experimental": false,
     "notice": "",
     "off_warning": "",
@@ -3723,6 +3831,12 @@
       "4: A..D, the old project slots"
      ]
     ],
+    "dim_choice": {
+     "4": [
+      "PATTERNS",
+      "PATTERNS: scenes live in the log, 8 or 16"
+     ]
+    },
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -3772,6 +3886,7 @@
       "off: USR3 64 KiB"
      ]
     ],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -3803,6 +3918,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -3831,6 +3947,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -3863,6 +3980,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": {
      "project": "Flowstate (zakariachowdhury/flowstate-fm1)",
@@ -3901,6 +4019,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": {
      "project": "Flowstate (zakariachowdhury/flowstate-fm1)",
@@ -3935,6 +4054,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -3963,6 +4083,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -3993,6 +4114,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": {
      "project": "Felucca (hugelton/Felucca)",
@@ -4032,6 +4154,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -4060,6 +4183,7 @@
     "fixed": true,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -4088,6 +4212,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -4116,6 +4241,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": {
      "project": "Melodee (keremimo/melodee)",
@@ -4150,6 +4276,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -4180,6 +4307,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -4208,6 +4336,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": {
      "project": "Melodee (keremimo/melodee)",
@@ -4242,6 +4371,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": {
      "project": "SLOOP 2.4 (isod89/sloop-fm1)",
@@ -4276,6 +4406,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -4304,6 +4435,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": {
      "project": "Felucca (hugelton/Felucca)",
@@ -4341,6 +4473,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -4358,7 +4491,7 @@
     "bit": 341,
     "default": 0,
     "parent": null,
-    "desc": "SYSTEM keeps its pages for finding faults: INTERNALS (the last reset, the flash's interrupts-off time, the second core's internals), USB STATS (the USB audio glitch counters) and on INFO the clock, the second core, the drops and the CPU guard apart. Off: INFO shows what a player wants, CPU LOAD, UNDERRUNS (the drop-outs counted in) and BATTERY, in the large face, and the code of the rest is left out (about 2.9 KB less flash, measured on a USB-audio build). The red / amber mark on the header's rule after a drop-out stays either way.",
+    "desc": "SYSTEM keeps its pages for finding faults: INTERNALS (the last reset, the flash's interrupts-off time, the second core's internals), USB STATS (the USB audio glitch counters) and on INFO the second core, the drops and the CPU guard apart. Off: INFO shows what a player wants, CPU LOAD, UNDERRUNS (the drop-outs counted in) and BATTERY, in the large face, and the code of the rest is left out (about 2.9 KB less flash, measured on a USB-audio build). The red / amber mark on the header's rule after a drop-out stays either way.",
     "experimental": false,
     "notice": "",
     "off_warning": "",
@@ -4369,6 +4502,39 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
+    "not_built": {},
+    "provenance": null,
+    "children": [],
+    "hidden": false,
+    "shown_under": null,
+    "dim_when": null,
+    "tested": "emulator-tested only",
+    "provenance_line": ""
+   },
+   {
+    "key": "SYS_TOP",
+    "flag": "FELUCCA_SYS_TOP",
+    "label": "SYSTEM > TOP: what takes the CPU and the RAM",
+    "group": "UI",
+    "bit": 448,
+    "default": 0,
+    "parent": null,
+    "desc": "SYSTEM gets a TOP page, after INFO (after CPU TIMES with SYS_DEBUG): the CPU0 and CPU1 load, then each job of the audio render (each track with its engine, the drums, the reverb, Bluetooth's SBC, CPU0's own steps before and after the render) in % of a mix block, its average, its peak of the last 2 s and its core, largest first; then the SRAM used of the total and what holds it, largest first: the arena's blocks as they are now (a track's engine, the delay, reverb and chorus lines, the inserts' lines, Bluetooth audio's buffers ...) and the build's own RAM by module, from its link (the 12 largest and OTHER). SELECT scrolls it; it updates every half second. The render's times are the ones CPU TIMES reads (a few timer reads a block), without SYS_DEBUG's other pages. The build links twice (the second time with the table of the first link's symbols). Measured 2026-11-01: about 2.3 KB of flash, 0.4 KB of RAM and 0.5 KB of RAM code (the release's defaults; on mots-config 3.1 KB, 0.4 KB and 0.5 KB).",
+    "experimental": false,
+    "notice": "",
+    "off_warning": "",
+    "env": "",
+    "target_only": false,
+    "symbols": [
+     "top_take",
+     "TOP_RAM"
+    ],
+    "no_image": false,
+    "fixed": false,
+    "head": false,
+    "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -4397,6 +4563,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": {
      "project": "X0X (charlesvestal/fm1-x0x)",
@@ -4444,6 +4611,7 @@
       "60 MHz"
      ]
     ],
+    "dim_choice": {},
     "not_built": {},
     "provenance": {
      "project": "X0X (charlesvestal/fm1-x0x)",
@@ -4491,6 +4659,7 @@
       "off"
      ]
     ],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -4508,7 +4677,7 @@
     "bit": 54,
     "default": 1,
     "parent": null,
-    "desc": "The web editor's communication layer: the frames and INFO, BUILD, PING. What it can do comes with its options: BACKUP, LIBRARIAN, live editing (ED_LIVE) and its features. Firmware updates (the installer, M-UPGRADE) and the USB rescue are not part of it: every build has them.",
+    "desc": "The web editor's communication layer: the frames and INFO, BUILD, PING. What it can do comes with its options: BACKUP, LIBRARIAN, live editing (ED_LIVE) and its features. With Bluetooth MIDI built (BLE, with the Mirror and the backup) the projects move to and from the phone over Bluetooth too. Firmware updates (the installer, M-UPGRADE) and the USB rescue are not part of it: every build has them.",
     "experimental": false,
     "notice": "",
     "off_warning": "without it there is no web editor (so no backup / restore from it); installing and the USB rescue still work",
@@ -4521,6 +4690,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [
@@ -4530,8 +4700,7 @@
      "ED_MIX",
      "ED_SEQ",
      "ED_SCREENS",
-     "ED_MIRROR",
-     "BT_PROJ"
+     "ED_MIRROR"
     ],
     "hidden": false,
     "shown_under": null,
@@ -4558,6 +4727,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -4586,6 +4756,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -4614,6 +4785,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -4642,6 +4814,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -4670,6 +4843,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -4698,6 +4872,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -4726,6 +4901,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -4767,6 +4943,7 @@
       "every table, FM6's five too (3 KB of pool more)"
      ]
     ],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -4795,6 +4972,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -4844,6 +5022,7 @@
       "another step: see SAMPLE SLOTS and PROJECTS"
      ]
     ],
+    "dim_choice": {},
     "not_built": {
      "4": {
       "release": "not for the release yet: fm1-base's own update loader and app_end do not take the MEMORY steps' table (its slot switch would leave the old step's log sectors in the new one's; docs/SD-MODE-DESIGN.md 9.4, the proposed fm1-base branch pr/app-end-table)"
@@ -4876,6 +5055,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [
@@ -4924,6 +5104,7 @@
       "3: USR1..USR3, no projects (PATTERNS off)"
      ]
     ],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -4965,6 +5146,7 @@
       "16"
      ]
     ],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -4993,6 +5175,7 @@
     "fixed": true,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -5021,6 +5204,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -5086,6 +5270,7 @@
       "0 sample slots, 2 projects: 831,420 B for code"
      ]
     ],
+    "dim_choice": {},
     "not_built": {
      "2": {
       "release": "not for the release yet: fm1-base's own update loader and app_end do not take the MEMORY steps' table (its slot switch would leave the old step's log sectors in the new one's; docs/SD-MODE-DESIGN.md 9.4, the proposed fm1-base branch pr/app-end-table)"
@@ -5136,6 +5321,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -5143,34 +5329,6 @@
     "shown_under": null,
     "dim_when": null,
     "tested": "host-tested (tests/fx_arena_test.c, arena_bufs_test.c, arena_test.c, arena_frag_test.c, placeholder_test.c); on the user's FM-1 since 2026-10-29 (the fm1-next test packages)",
-    "provenance_line": ""
-   },
-   {
-    "key": "BT_PROJ",
-    "flag": "FELUCCA_BT_PROJ",
-    "label": "projects to and from the phone over Bluetooth",
-    "group": "System",
-    "bit": 414,
-    "default": 0,
-    "parent": "EDITOR",
-    "desc": "The web editor's and the phone's project moves (a project read from the FM-1, or one written into it: the backup's project streams and the project command) over Bluetooth MIDI too, not only over the USB cable, so with one project on the FM-1 the phone keeps the others without a cable. Over Bluetooth a project moves at the link's few KB a second (a dense project in a few seconds). About 640 B of the pool (a request's room for the stream's chunks).",
-    "experimental": true,
-    "notice": "",
-    "off_warning": "projects move over the USB cable only",
-    "env": "",
-    "target_only": false,
-    "symbols": [],
-    "no_image": false,
-    "fixed": false,
-    "head": false,
-    "choices": [],
-    "not_built": {},
-    "provenance": null,
-    "children": [],
-    "hidden": false,
-    "shown_under": null,
-    "dim_when": null,
-    "tested": "host-tested only (tests/mirror_test.c); no client sends it yet",
     "provenance_line": ""
    },
    {
@@ -5213,6 +5371,7 @@
       "16 KB a voice (186 ms)"
      ]
     ],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -5258,6 +5417,7 @@
       "64 KB (372 ms)"
      ]
     ],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -5290,6 +5450,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": {
      "project": "Flowstate (zakariachowdhury/flowstate-fm1)",
@@ -5341,6 +5502,7 @@
       "28 KB (1 kept, as V15)"
      ]
     ],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -5369,6 +5531,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -5406,6 +5569,7 @@
       "JieLi clang 4"
      ]
     ],
+    "dim_choice": {},
     "not_built": {},
     "provenance": {
      "project": "pi32v2-llvm (jvitkauskas/pi32v2-llvm, pi32v2-isa)",
@@ -5453,6 +5617,7 @@
       "events + hot core (28.3 KB of RAM)"
      ]
     ],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -5490,6 +5655,7 @@
       "in the flash (XIP)"
      ]
     ],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -5531,6 +5697,7 @@
       "31 rows (43.6 KB less)"
      ]
     ],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -5568,6 +5735,7 @@
       "m-bootloader"
      ]
     ],
+    "dim_choice": {},
     "not_built": {},
     "provenance": {
      "project": "m-bootloader (jvitkauskas/m-bootloader)",
@@ -5604,6 +5772,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [
@@ -5637,6 +5806,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -5680,6 +5850,7 @@
       "minimal: never pairs (controllers, another FM-1)"
      ]
     ],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -5711,6 +5882,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -5741,6 +5913,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [
@@ -5771,6 +5944,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -5799,6 +5973,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": null,
     "children": [],
@@ -5827,6 +6002,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": {
      "project": "hugelton/Felucca",
@@ -5861,6 +6037,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": {
      "project": "hugelton/Felucca",
@@ -5895,6 +6072,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": {
      "project": "hugelton/Felucca",
@@ -5929,6 +6107,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": {
      "project": "hugelton/Felucca",
@@ -5976,6 +6155,7 @@
       "on, code in RAM"
      ]
     ],
+    "dim_choice": {},
     "not_built": {},
     "provenance": {
      "project": "hugelton/Felucca",
@@ -6023,6 +6203,7 @@
       "on, code in RAM"
      ]
     ],
+    "dim_choice": {},
     "not_built": {},
     "provenance": {
      "project": "charlesvestal/fm1-x0x",
@@ -6057,6 +6238,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": {
      "project": "hugelton/Felucca-Engines",
@@ -6104,6 +6286,7 @@
       "on, code in RAM"
      ]
     ],
+    "dim_choice": {},
     "not_built": {},
     "provenance": {
      "project": "keremimo/melodee",
@@ -6151,6 +6334,7 @@
       "on, code in RAM"
      ]
     ],
+    "dim_choice": {},
     "not_built": {},
     "provenance": {
      "project": "PatttF/fm-106",
@@ -6185,6 +6369,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": {
      "project": "isod89/sloop-fm1",
@@ -6219,6 +6404,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": {
      "project": "hugelton/Felucca",
@@ -6253,6 +6439,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": {
      "project": "hugelton/Felucca",
@@ -6287,6 +6474,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": {
      "project": "hugelton/Felucca",
@@ -6321,6 +6509,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": {
      "project": "isod89/sloop-fm1",
@@ -6355,6 +6544,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": {
      "project": "isod89/sloop-fm1",
@@ -6389,6 +6579,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": {
      "project": "isod89/sloop-fm1",
@@ -6423,6 +6614,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": {
      "project": "isod89/sloop-fm1",
@@ -6457,6 +6649,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": {
      "project": "isod89/sloop-fm1",
@@ -6491,6 +6684,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": {
      "project": "isod89/sloop-fm1",
@@ -6525,6 +6719,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": {
      "project": "isod89/sloop-fm1",
@@ -6559,6 +6754,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": {
      "project": "hugelton/Felucca",
@@ -6593,6 +6789,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": {
      "project": "hugelton/Felucca",
@@ -6627,6 +6824,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": {
      "project": "pichenettes/eurorack",
@@ -6665,6 +6863,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": {
      "project": "pichenettes/eurorack",
@@ -6699,6 +6898,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": {
      "project": "w0ts/optimist",
@@ -6733,6 +6933,7 @@
     "fixed": false,
     "head": false,
     "choices": [],
+    "dim_choice": {},
     "not_built": {},
     "provenance": {
      "project": "w0ts/optimist",
@@ -6962,6 +7163,7 @@
    "FAVORITES",
    "PARAM_HELP",
    "SYS_DEBUG",
+   "SYS_TOP",
    "KNOB_ACCEL",
    "LCD_BAUD",
    "FONT_CACHE",
