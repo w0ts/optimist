@@ -275,13 +275,6 @@ static int glo_cycle(void) { return gl_scr(ui.scr); }  /* GLOBAL or SYSTEM shown
 static void glo_step(int32_t s)
 {
     uint32_t sc = ui.scr == SCR_SYSTEM, r = ui.row[ui.scr], was = r;
-#if OP_TOP
-    if (sc && gl_n(1)) {                                /* SYSTEM > TOP: SELECT scrolls its lines first (op_top.c) */
-        uint32_t e = gl_ent(1, gl_first(1, r));
-        if (sys_item(e >> 2, e & 3u) == SI_TOP && !(s = top_step(s)))
-            return;
-    }
-#endif
     for (; s > 0 && gl_end(sc, r) < gl_n(sc); s--)
         r = gl_end(sc, r);
     for (; s < 0 && gl_first(sc, r); s++)
@@ -299,9 +292,21 @@ static void gl_pick(uint32_t r, uint32_t k)             /* KNOB k turned (op_inp
 }
 /* ALGORITHM: the cursor a line a detent, across the pages (the page follows), stopping at the ends (the user, 2026-10-14: "ALGORITHM
  * should scroll one item at a time" on GLOBAL and SYSTEM; the one exception to ALGORITHM being the track, op_input.c) */
+#if OP_TOP
+static uint32_t top_page(void)                          /* SYSTEM's page under the cursor is TOP (the input's view; the drawing's is gl_info) */
+{
+    uint32_t e;
+    if (ui.scr != SCR_SYSTEM || !gl_n(1))
+        return 0;
+    e = gl_ent(1, gl_first(1, ui.row[SCR_SYSTEM]));
+    return sys_item(e >> 2, e & 3u) == SI_TOP;
+}
+#endif
 static void glo_walk(int32_t s)
 {
     uint32_t sc = ui.scr == SCR_SYSTEM, n = gl_n(sc);
+#if OP_TOP
+#endif
     if (n)
         gl_at((uint32_t)step_in(ui.row[ui.scr], s, n));
 }

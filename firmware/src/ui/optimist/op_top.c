@@ -1,8 +1,10 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* SYSTEM > TOP (builder item SYS_TOP; the user, 2026-11-01: what takes the CPU and the RAM, largest first): a read-out page
- * (op_gldraw.c gl_info_draw), TOP_VIS lines of it at once, SELECT scrolls them (op_global.c glo_step: past the last or
- * the first line it goes on to the next or the previous page), the figures taken again every TOP_MS:
- *   % OF A BLOCK   AVG MAX C  the columns: the render's times in % of a 32-frame mix block (726 us), as CPU TIMES' (system/
+ * (op_gldraw.c gl_top_draw, FONT_L), two views: KNOB 1 switches CPU <-> RAM (CPU first), KNOB 2 scrolls
+ * the view's lines (TOP_VIS under the header, a bar at the right when there are more), SELECT and ALGORITHM go between SYSTEM's pages
+ * as everywhere; the header line is the view's name (outlined in KNOB 1's colour) and its columns; the figures taken again
+ * every TOP_MS. CPU view:
+ *   CPU header      AVG MAX    the columns: the render's times in % of a 32-frame mix block (726 us), as CPU TIMES' (system/
  *                             dual_load.h dual_tm): AVG over the ~8 blocks it last ran in, MAX the most of the last 2 s,
  *                             C the core that ran it in the last block (- not run then)
  *   CPU0, CPU1                each core's whole block (CPU0 its wait for CPU1 in), the headline
@@ -11,7 +13,7 @@
  *                             render on fm1-base, CPU0's after the block on Optimist's own firmware), PRE (CPU0 alone
  *                             before the fork: the events, the macros, the LFOs' draws), POST (after the join: the merge,
  *                             the buses, the master chain); a job that did not run in the last 2 s has no line
- *   SRAM KB   used/total      the SRAM to the stacks (INFO's RAM line's INFO_SRAM) and what of it is not free (the arena's
+ *   RAM header     used/total KB   the SRAM to the stacks (INFO's RAM line's INFO_SRAM) and what of it is not free (the arena's
  *                             room: arn_room; without an arena, what the link leaves: stk_sram_free)
  *   then each owner, KB       by size, largest first: the arena's blocks now (a part's engine state "T1 ACID", the send
  *                             lines CHO DLY REV, the inserts' room and their copies "INS XDLY", the other buffers, the
@@ -21,7 +23,7 @@
  * The CPU part needs the render's times (DUAL_TIMES: a dual-core build); without them the page is the RAM part. Read only:
  * no knob does anything. Included by op_project.c */
 #define TOP_MS 500u                                     /* the figures taken again this often (the peaks: dual_load.h's 2 s) */
-#define TOP_VIS 10u                                     /* the lines shown at once (CPU TIMES' 12 is its most) */
+#define TOP_VIS 7u                                      /* the lines shown at once under the header (FONT_L, 16 x 24: op_gldraw.c gl_top_draw) */
 #define TOP_RAM_N 13u                                   /* the build's table: 12 modules and OTHER (tools/ramtop.py N) */
 typedef struct {
     char nm[10];                                        /* the module, as shown ("BT AUDIO", "RAM CODE", "OTHER"); "" none */
@@ -57,6 +59,7 @@ static struct {
     uint32_t t, seen;                                   /* fm1_ms when taken; when the page was last on screen */
     uint32_t used;                                      /* the SRAM not free, bytes */
     uint8_t off;                                        /* the first line shown */
+    uint8_t view;                                       /* 0 CPU (first), 1 RAM: KNOB 1 */
     uint8_t nc, nr;                                     /* the CPU's lines (CPU0 CPU1 and the jobs), the RAM's */
 #if TOP_NC
     uint8_t cq[TOP_NC];                                 /* each CPU line's quantity (dual_load.h DTQ_*) */
@@ -250,11 +253,12 @@ static void top_take(void)
 #endif
     top_ram();
 }
-static uint32_t top_all(void)                           /* the page's lines */
+static uint32_t top_v(void) { return TOP_NC ? top.view : 1u; }   /* the view shown: 0 CPU, 1 RAM (a build without the render's times: RAM only) */
+static uint32_t top_all(void)                           /* the lines of the view shown (the header apart) */
 {
-    return (TOP_NC ? 1u + top.nc : 0u) + 1u + top.nr;
+    return top_v() ? top.nr : top.nc;
 }
-static uint32_t top_lines(void)                         /* the lines on screen (op_project.c info_lines: every draw) */
+static uint32_t top_lines(void)                         /* the lines on screen, the header first (op_project.c info_lines: every draw) */
 {
     uint32_t n;
     if (fm1_ms - top.seen > 1000u)                      /* (the page opened: from its first line, the figures now) */
@@ -265,54 +269,65 @@ static uint32_t top_lines(void)                         /* the lines on screen (
     n = top_all();
     if (top.off + TOP_VIS > n)
         top.off = (uint8_t)(n > TOP_VIS ? n - TOP_VIS : 0u);
-    return n < TOP_VIS ? n : TOP_VIS;
+    return 1u + (n < TOP_VIS ? n : TOP_VIS);
 }
-/* SELECT on TOP (op_global.c glo_step): its lines a detent each; -> the detents left (past the first or the last line) */
-static int32_t top_step(int32_t s)
+/* KNOB 2 on TOP (op_input.c op_knobs): the lines a detent each, clamped at the first and the last (the page stays) */
+static void top_step(int32_t s)
 {
     uint32_t n = top_all(), m = n > TOP_VIS ? n - TOP_VIS : 0u;
     for (; s > 0 && top.off < m; s--)
         top.off++;
     for (; s < 0 && top.off; s++)
         top.off--;
-    return s;
 }
-static void top_cell(uint32_t i, cell_t *c)             /* the line i on screen */
+/* KNOB 1 on TOP (op_input.c op_knobs): CPU <-> RAM, from the first line */
+static void top_view(void)
+{
+    if (!TOP_NC)
+        return;
+    top.view ^= 1u;
+    top.off = 0;
+}
+static void top_scroll(uint32_t *off, uint32_t *all)    /* the scroll bar's figures (op_gldraw.c gl_top_draw): the first line shown, the lines */
+{
+    *off = top.off;
+    *all = top_all();
+}
+static void top_cell(uint32_t i, cell_t *c)             /* the line i on screen: 0 the header (the view, its columns), then the lines */
 {
     static char lb[12];
-    uint32_t r = top.off + i;
+    uint32_t r;
     char *v = c->val;
     cell_clear(c);
     c->kind = CK_RO;
     c->unit = "";
     c->label = lb;
     v[0] = lb[0] = 0;
-#if TOP_NC
-    if (r == 0u) {
-        c->label = "% OF A BLOCK";
-        dual_cat(v, "AVG MAX C");
+    if (i == 0u) {                                      /* the view's name (KNOB 1 switches it), then what the columns are */
+        c->label = top_v() ? "RAM" : "CPU";
+        if (top_v()) {
+            top_num(v, top.used / 1024u, 1);
+            dual_cat(v, "/");
+            top_num(v, INFO_SRAM / 1024u, 1);
+            dual_cat(v, " KB");
+        } else
+            dual_cat(v, "AVG MAX");
         return;
     }
-    if (r <= top.nc) {
-        r--;
+    r = top.off + i - 1u;
+#if TOP_NC
+    if (!top_v()) {
+        if (r >= top.nc)
+            return;
         top_job_name(top.cq[r], lb);
-        top_num(v, top.ca[r], 3);
-        top_num(v, top.cm[r], 4);
-        i = str_len(v);
-        v[i] = ' ', v[i + 1u] = top.cc[r], v[i + 2u] = 0;
+        top_num(v, top.ca[r], 3);                       /* (no core column: 7 characters, the name 7: FONT_L's 14) */
+        dual_cat(v, " ");
+        top_num(v, top.cm[r], 3);
         c->col = r < 2u ? load_col(top.ca[r]) : top.cm[r] > 100u ? C_WARN : 0;
         return;
     }
-    r -= 1u + top.nc;
 #endif
-    if (r == 0u) {                                      /* SRAM KB: used / total */
-        c->label = "SRAM KB";
-        top_num(v, top.used / 1024u, 1);
-        dual_cat(v, "/");
-        top_num(v, INFO_SRAM / 1024u, 1);
-        return;
-    }
-    if (--r >= top.nr)
+    if (r >= top.nr)
         return;
     if (top.rk[r] >= TOP_TAB)
         str_cpy(lb, TOP_RAM[(top.rk[r] - TOP_TAB) % TOP_RAM_N].nm, 12);
