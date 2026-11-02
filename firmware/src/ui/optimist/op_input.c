@@ -377,8 +377,13 @@ static void op_play(void)
 static int op_rec(void)                                 /* one record arm, on the selected track; 1: a plain arm /
                                                          * disarm (REC held then clears: rec_held) */
 {
-    if (ft_owns_press() || song_rec(0))                 /* (SONG: a scene row stores the loop, PATTERNS duplicates) */
+    uint32_t sc;
+    if (ft_owns_press())
         return 0;
+    if (song_rec_scene(&sc)) {                          /* (SONG's scenes: a tap does nothing, no arm; held, the ring clears the scene) */
+        rh.scn = (uint8_t)(sc + 1u);
+        return 1;
+    }
     if (song.playing && arrangement_enabled) {
         ui_message("STOP THE SONG FIRST");
         return 0;
@@ -507,7 +512,7 @@ static void rec_held(uint32_t held)
         }
         if (rh.ring)
             ui.force = 1;                               /* (let go before the end: the ring goes, nothing done) */
-        rh.on = rh.ring = rh.knob = rh.kdone = rh.motion = 0;
+        rh.on = rh.ring = rh.knob = rh.kdone = rh.motion = rh.scn = 0;
         return;
     }
     if (rh.on && !rh.ring && fm1_ms - rh.t0 >= RH_ARM_MS) {
@@ -518,7 +523,11 @@ static void rec_held(uint32_t held)
     }
     if (rh.ring && fm1_ms - rh.t1 >= RH_CLEAR_MS) {
         ui.toast_next = 1;                              /* (what it says: a toast, as a confirmed clear) */
-        if (rh.motion)
+        if (rh.scn) {
+            if (ui.scr == SCR_SONG)
+                scene_clear_ask((uint32_t)rh.scn - 1u); /* (a SONG scene: asked, YES clears; said EMPTY when it is) */
+            rh.scn = 0;
+        } else if (rh.motion)
             op_clear_motion(rh.trk, rh.lane);           /* (SHIFT + REC: the motion and locks, the notes stay) */
         else if (rh.lane >= 0)
             op_clear_lane((uint32_t)rh.lane);           /* ("SNARE CLEARED": the lane's steps, locks and motion; the rest stays) */
@@ -536,6 +545,7 @@ static void rec_motion_ring(void)
     rh.on = 0;
     rh.knob = rh.kdone = 0;
     rh.motion = 1;
+    rh.scn = 0;
     rh_ring_go();
 }
 /* select track i (ALGORITHM, the editor): its sound and pattern from now on */
@@ -801,7 +811,7 @@ static __attribute__((noinline)) void op_press(uint32_t b, uint32_t held)
         rh.prev_rec = song.rec;                         /* (a hold undoes the press: rec_held) */
         rh.prev_wait = rec_wait;
         rh.t0 = op_t0[panel.btn[B_REC] % 14u];
-        rh.ring = rh.motion = 0;
+        rh.ring = rh.motion = rh.scn = 0;
         rh.on = (uint8_t)op_rec();
         break;
     case B_OCTDN:

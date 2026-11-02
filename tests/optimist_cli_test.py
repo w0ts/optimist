@@ -75,8 +75,8 @@ check("emu, config and cpu: their arguments go to them untouched",
 rc, _ = quiet(ap.parse_args, ["build", "--profile", "a", "--config", "b"])
 check("build: --profile and --config together is a usage error", rc == 2)
 cfg, name = optimist.load_config(ap.parse_args(["build"]))
-check(f"build without a configuration builds {optimist.DEFAULT_PROFILE} (synths-USB-BTA-BTM), also the reference profile",
-      name and cfg and optimist.DEFAULT_PROFILE == "synths_USBaudio_BTaudio_BTmidi" and name == "synths-USB-BTA-BTM" and optimist.REFERENCE_PROFILE == "synths_USBaudio_BTaudio_BTmidi")
+check(f"build without a configuration builds {optimist.DEFAULT_PROFILE} (mots-config), also the reference profile",
+      name and cfg and optimist.DEFAULT_PROFILE == "mots-config" and name == "mots-config" and optimist.REFERENCE_PROFILE == "mots-config")
 rc, out = quiet(optimist.main, ["build", "--config", str(ROOT / "no-such.config")])
 check("a missing .config: exit 2 and its name", rc == 2 and "no-such.config" in out)
 rc, out = quiet(optimist.main, ["config", "--profile", "drum-machines", "--budget"])
@@ -231,9 +231,9 @@ check("web: defaults (port 8766, the browser opens; no package: the local site b
       not hasattr(a, "package") and a.fn is optimist.cmd_web)
 a = ap.parse_args(["web", "--port", "9000", "--no-open", "--site", "s"])
 check("web: --port, --no-open, --site", a.port == 9000 and a.no_open and a.site == "s")
-fa, fb = optimist.sim_fingerprint(optimist.C.profile_path("synths_USBaudio_BTaudio_BTmidi")), optimist.sim_fingerprint(optimist.C.profile_path("drum-machines"))
+fa, fb = optimist.sim_fingerprint(optimist.C.profile_path("mots-config")), optimist.sim_fingerprint(optimist.C.profile_path("drum-machines"))
 check("web: the simulator's fingerprint: the same sources the same, another configuration another (outdated: asked again)",
-      fa == optimist.sim_fingerprint(optimist.C.profile_path("synths_USBaudio_BTaudio_BTmidi")) and fa != fb and len(fa) == 64)
+      fa == optimist.sim_fingerprint(optimist.C.profile_path("mots-config")) and fa != fb and len(fa) == 64)
 import socket
 _s4 = socket.socket(socket.AF_INET)
 _s4.bind(("127.0.0.1", 0))
@@ -441,35 +441,35 @@ with tempfile.TemporaryDirectory() as d:
         for tag, date in (("v0.1", "2026-10-01T00:00:00Z"), ("v0.2", "2026-10-15T00:00:00Z")):
             (rel / tag).mkdir(parents=True)
             (rel / tag / "release.json").write_text(json.dumps({"tag": tag, "date": date, "sha": REL_SHA if tag == "v0.2" else "HEAD"}))
-            for prof in ("synths_USBaudio_BTaudio_BTmidi", "no-such-profile", "user-default"):   # (published; none at all; left off)
+            for prof in ("mots-config", "no-such-profile", "user-default"):   # (published; none at all; left off)
                 shutil.copy(fwsc, rel / tag / f"optimist-{tag[1:]}-{prof}.fwsc")
         check("release sims: pages.yml builds each package of the latest release (its tag's commit), none of the older ones",
-              ms.release_sims(rel) == [("v0.2", REL_SHA, "synths_USBaudio_BTaudio_BTmidi"), ("v0.2", REL_SHA, "no-such-profile")])   # (web/flavours.json's default first)
-        (rel / "v0.2" / "optimist-sim-synths_USBaudio_BTaudio_BTmidi.wasm").write_bytes(b"\0asm")   # (what pages.yml builds from the tag)
+              ms.release_sims(rel) == [("v0.2", REL_SHA, "mots-config"), ("v0.2", REL_SHA, "no-such-profile")])   # (web/flavours.json's default first)
+        (rel / "v0.2" / "optimist-sim-mots-config.wasm").write_bytes(b"\0asm")   # (what pages.yml builds from the tag)
         rs = ms.releases_of(rel, man)
         ms.main("9.9-test", Path(d) / "site3", ms.flavours_of(man), rs)
         sj = json.loads((Path(d) / "site3/webapp/installer/site.json").read_text(encoding="utf-8"))
         rels = [x["release"] for x in sj["packages"]]
         titles = {f["id"]: f["title"] for f in rs[0]["flavours"]}
         check("releases: every package of each release on the site (firmware/r/TAG/), a profile id with _ and capitals too; one of a profile renamed since too, titled by its id",
-              (Path(d) / "site3/firmware/r/v0.2/optimist-0.2-synths_USBaudio_BTaudio_BTmidi.fwsc").is_file()
+              (Path(d) / "site3/firmware/r/v0.2/optimist-0.2-mots-config.fwsc").is_file()
               and (Path(d) / "site3/firmware/r/v0.2/optimist-0.2-no-such-profile.fwsc").is_file()
               and titles.get("no-such-profile") == "no-such-profile" and "user-default" not in titles
               and not (Path(d) / "site3/firmware/r/v0.2/optimist-0.2-user-default.fwsc").exists() and [r["tag"] for r in rs] == ["v0.2", "v0.1"])
         check("releases: listed first, newest first, then this commit's development packages (release \"\")",
               rels == ["v0.2", "v0.2", "v0.1", "v0.1", "", ""]   # (in a release: the manifest's flavours first, then by id)
               and [x["pkg"] for x in sj["packages"][:2]] == ["../../firmware/r/v0.2/optimist-0.2-no-such-profile.fwsc",
-                                                           "../../firmware/r/v0.2/optimist-0.2-synths_USBaudio_BTaudio_BTmidi.fwsc"]
+                                                           "../../firmware/r/v0.2/optimist-0.2-mots-config.fwsc"]
               and sj["packages"][0]["date"].startswith("2026-10-15"))
         rsim = {x["pkg"]: x.get("sim") for x in sj["packages"] if x["release"]}
         check("releases: site.json names the latest release (tag, its commit, date): the builder and the simulator start there",
               sj.get("latest") == {"tag": "v0.2", "sha": REL_SHA, "date": "2026-10-15T00:00:00Z"}
               and rs[1]["sha"] == "" and ms.latest_of(rs[1:]) is None and ms.latest_of([]) is None)
         check("releases: the latest release's simulator, built from its tag, next to its package (firmware/r/TAG/*.wasm); none without one",
-              rsim["../../firmware/r/v0.2/optimist-0.2-synths_USBaudio_BTaudio_BTmidi.fwsc"] == "../../firmware/r/v0.2/optimist-0.2-synths_USBaudio_BTaudio_BTmidi.wasm"
-              and (Path(d) / "site3/firmware/r/v0.2/optimist-0.2-synths_USBaudio_BTaudio_BTmidi.wasm").is_file()
+              rsim["../../firmware/r/v0.2/optimist-0.2-mots-config.fwsc"] == "../../firmware/r/v0.2/optimist-0.2-mots-config.wasm"
+              and (Path(d) / "site3/firmware/r/v0.2/optimist-0.2-mots-config.wasm").is_file()
               and rsim["../../firmware/r/v0.2/optimist-0.2-no-such-profile.fwsc"] is None
-              and rsim["../../firmware/r/v0.1/optimist-0.1-synths_USBaudio_BTaudio_BTmidi.fwsc"] is None)
+              and rsim["../../firmware/r/v0.1/optimist-0.1-mots-config.fwsc"] is None)
         check("the site carries every Simulator module next to the editor (bk.js missing broke the tab)",
               all((Path(d) / "site3/webapp/editor/sim" / f.name).is_file() for f in (ROOT / "web/sim").iterdir() if f.suffix in (".js", ".css")))
         (Path(d) / "x.wasm").write_bytes(b"\0asm")

@@ -83,7 +83,7 @@ static void lay_cell(uint32_t k, cell_t *c)
         c->kind = CK_RO;
         c->label = k == 3u ? "REC" : k == 2u ? "MODE" : "";
         if (k == 2u) {
-            cell_val(c, arrangement_enabled ? "SONG" : "LOOP");
+            cell_val(c, arrangement_enabled ? "SONG" : "SCENE");
             cell_gauge(c, 1, 0, 1, arrangement_enabled);
         } else if (k == 3u) {
             cell_val(c, srec == 2u ? "REC" : srec ? "ARMED" : "OFF");
@@ -347,6 +347,14 @@ static const pat_peek_t *pv_peek(uint32_t t, uint32_t s, int *has)
     *has = pvc.has;
     return pvc.ok ? &pvc.d : 0;
 }
+/* the slot a CLONE / EMPTY question is up about, on the selected track (the pattern does not exist yet: its number flashes red on the grid's
+ * number lines, every 250 ms); 0xFF: none */
+static uint32_t pg_new_slot(void)
+{
+    if (ui.arm_scr == ARM_OP && (ui.arm_row == OA_PAT_CLONE || ui.arm_row == OA_PAT_EMPTY) && (uint32_t)(ui.arm_k >> 4) == song.sel % NTRK)
+        return ui.arm_k & 15u;
+    return 0xFFu;
+}
 static uint32_t song_grid_sig(void)
 {
     uint32_t k, h = 0x51u + lay.pchg * 7u + song.sel + knob_colors * 977u + settings.palette * 31u, s = pv_slot();
@@ -354,6 +362,8 @@ static uint32_t song_grid_sig(void)
         h = h * 31u + pat_cur[k] * 3u + pat_req[k] * 5u + (uint32_t)(lay.pmod == 5u);
     for (k = 0; k < NTRK * PAT_N; k++)
         h = h * 3u + (uint32_t)pat_has(k / PAT_N, k % PAT_N);
+    if (pg_new_slot() != 0xFFu)
+        h = h * 31u + 0x4E00u + pg_new_slot() * 2u + ((fm1_ms / 250u) & 1u);
     return (h * 31u + s) * 31u + sec_gen;
 }
 static void pv_steps(uint32_t t, int32_t y, const pat_peek_t *d, uint16_t tc)
@@ -400,6 +410,8 @@ static void song_grid_draw(int32_t h)
                                                          * a fill); the selected track's playing one green, its queued amber, the one previewed white */
         char nb[4];
         uint16_t nc = pat_cur[sel] == i ? C_OK : pat_req[sel] == i ? C_WARN : pv_slot() == i ? C_WHITE : C_GRAY;
+        if (pg_new_slot() == i)
+            nc = (fm1_ms / 250u) & 1u ? C_ERR : C_DIM;       /* (the question's pattern does not exist yet: its number flashes red) */
         fmt_int(nb, (int32_t)i + 1);
         cv_texts(PG_NUMX(i, text_ws(nb)), (int32_t)(i & 1u) * PG_NUMH, nb, nc);
     }

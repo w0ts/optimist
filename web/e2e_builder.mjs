@@ -53,7 +53,7 @@ writeFileSync(join(SITE, "webapp", "builder", "build-info.json"), JSON.stringify
 /* STANDIN_DEFAULT=FILE.config: the test site (only it: build/) gets that file as profile DEF (the default profile) and a flavour "Synth"
    marked default, as web/flavours.json marks the default; the page must open with it */
 const STANDIN = process.env.STANDIN_DEFAULT || null;
-const DEF = "synths_USBaudio_BTaudio_BTmidi";
+const DEF = "mots-config";
 if (STANDIN) {
   const pf = join(SITE, "webapp", "builder", "data", "profiles.json");
   const pj = JSON.parse(readFileSync(pf, "utf8"));
@@ -154,7 +154,7 @@ ok(PYDIR || (pyUrls.length && pyUrls.every((u) => u.startsWith(`https://cdn.jsde
 /* ---- the page's Python against the CLI */
 const prof0 = JSON.parse(readFileSync(join(SITE, "webapp", "builder", "data", "profiles.json"), "utf8"));
 const DFLT = (prof0.flavours.find((f) => f.default === true) || prof0.flavours[0]).profile;   // (the page opens on the default flavour's profile: Synth since 2026-10-16)
-const DFLT_NAME = ((prof0.profiles.find((p) => p.name === DFLT) || { text: "" }).text.match(/^# name: (.+)$/m) || [null, DFLT])[1].trim();   // (the name the page shows is the profile's "# name:" line: synths-USB-BTA-BTM for the file synths_USBaudio_BTaudio_BTmidi)
+const DFLT_NAME = ((prof0.profiles.find((p) => p.name === DFLT) || { text: "" }).text.match(/^# name: (.+)$/m) || [null, DFLT])[1].trim();   // (the name the page shows is the profile's "# name:" line: mots-config for the file mots-config)
 const reg = JSON.parse(readFileSync(join(SITE, "webapp", "builder", "data", "registry.json"), "utf8"));
 const items = reg.registry.items;
 const pageReg = await run(`${U} return await B.call("registry_view");`);

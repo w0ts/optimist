@@ -198,7 +198,7 @@ What only one page has; everything above works there too.
 
 **PROJECT.** KNOB 1 BANK, KNOB 2 LOAD / SAVE / DELETE, KNOB 3 ITEM, KNOB 4 NEW (PROJECT) or INIT (USER). The 16 white keys pick slot n and run the operation on it (asked). SAVE runs it on ITEM; SAVE held: SONG. OCT- / OCT+ tapped: the previous / next bank. SHIFT2 + KNOB 3 on USER: that preset a favorite [FAVORITES].
 
-**SONG** (SAVE held on PROJECT, SEQ held, SHIFT2 + SEQ). A SCENE row: the knobs set each track's pattern (stopped), SAVE launches the scene, REC stores the loop into it, SHIFT + REC or SAVE held clears it (asked). The PATTERNS row has the LFO layer's keys: KNOB k is track k's next pattern, the white keys launch, SAVE + a key stores, HOME + a key clears, black 9 duplicates, black 10 the scenes. MODE: KNOB 1 LOOP / SONG, SONG REC, SAVE writes the chain. A PART row: SCENE, BARS, INSERT, DELETE (SAVE, asked).
+**SONG** (SAVE held on PROJECT, SEQ held, SHIFT2 + SEQ). A SCENE row: the knobs set each track's pattern (stopped), SAVE launches the scene, REC stores the loop into it, SHIFT + REC or SAVE held clears it (asked). The PATTERNS row has the LFO layer's keys: KNOB k is track k's next pattern, the white keys launch, SAVE + a key stores, HOME + a key clears, black 9 duplicates, black 10 the scenes. MODE: KNOB 1 SCENE: PLAY repeats the current scene; SONG: PLAY runs the parts; SONG REC, SAVE writes the chain. A PART row: SCENE, BARS, INSERT, DELETE (SAVE, asked).
 
 **NAME** (before a save). The white keys type like a phone (AB, CD ... the same key within 0.8 s cycles); black keys: F# left, G# space, A# right, C# delete, D# ABC / 123. KNOB 1 the cursor, KNOB 2 the character; SHIFT + a knob clears the name. SAVE done, HOME deletes a character (at the start: cancel), PLAY stops.
 
