@@ -17,7 +17,8 @@
  *   106 MIRROR  bits -> on, version, w (2 x 7 bit), h (2 x 7 bit)
  *       bits  bit 0 on (0: off), bit 1 the whole panel again
  *       (opti_miraa_1) a last byte: bit 0 the AA token, after the bits or bit 4's / 5's two bytes (ed_mirror_enc.h MIR_AA; mir_aa_ask)
- * Mirroring ends 3 s after the last request of any kind (ask again or PING about every 1 s), with 106 0, and when its link goes
+ * Mirroring ends 3 s after the last request of any kind (ask again or PING about every 1 s), with 106 0 from its own link (from
+ * the other: nothing, the other client's mirror goes on; the reply says on), and when its link goes
  * (a USB reset; no Bluetooth central listening). Over Bluetooth 106 is answered, and INFO (1), 108 PANEL, 109 NAV and 111 CLIP
  * (mir_ble_rx: 18 arguments at most, MBR_CB bytes of them waiting; the main loop runs them as USB's, the reply into the Bluetooth ring: ed_send, mir_bt_reply),
  * nothing else; with BT_PROJ (MBR_PROJ) also the projects' moves: the backup's 43 BK_LIST .. 48 BK_END and 110 PJ_OP, a
@@ -65,7 +66,11 @@ static struct {
 /* Why the mirror fell behind, for its catch-up (2026-11-01: the user saw "the whole screen again" often): LAG, frames the
  * device itself dropped (the lag rule, a full ring), only repaints in place (the client holds all it was sent: MIR_SKIP and the
  * write cache send what changed); the others do not know what the client holds and send the whole panel, black first */
-enum { MIR_WHY_NONE, MIR_WHY_LAG, MIR_WHY_ASK, MIR_WHY_FIX, MIR_WHY_N };
+enum { MIR_WHY_NONE, MIR_WHY_LAG, MIR_WHY_ASK, MIR_WHY_FIX,
+       MIR_WHY_PAGE,                    /* a page's clear (a fill of the whole panel) dropped, cut or lost: a repaint in place draws
+                                         * only what the page draws, the rows it leaves black would keep the page before's pixels
+                                         * (2026-11-01: SYSTEM > INFO's last line at the foot of HOME on the client, for good) */
+       MIR_WHY_N };
 static uint8_t mir_why;
 static void mir_behind(uint32_t why)
 {
@@ -592,6 +597,8 @@ static void mir_fill(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint16_t c)
         mst.page += w == 240u && h == 240u;  /* (the UI drew a page whole: ui.force) */
         mir_enc_fill_skip(x, y, w, h, c);
     }
+    if (w == 240u && h == 240u && mir.on && mir.behind && !mir_mute)
+        mir_behind(MIR_WHY_PAGE);       /* (a page's clear the client never got: the catch-up sends the panel whole, black first) */
 }
 static void mir_blit(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint16_t *px)
 {
@@ -635,6 +642,9 @@ static void mir_ask(uint32_t bits, uint32_t l)
 {
     MIR_SEEN();
     mir_live();                         /* (a mirror that ended: this is a first on again) */
+    if (!(bits & 1u) && mir.on && mir.link != l)
+        return;                         /* (off from a link the mirror is not on: another client's, left as it is. 2026-11-01: a USB
+                                         * script's 106 0 at its end switched off the app's mirror over Bluetooth, its keys let go) */
     if ((bits & 1u) && (!mir.on || mir.link != l || (bits & 2u)))
         mir_behind(MIR_WHY_ASK), mir.catch_ms = fm1_ms - MIR_CATCH_MS;   /* (asked: at once) */
     if ((bits & 1u) && !mir.on)
@@ -892,6 +902,8 @@ static void mir_fix(void)
             uint32_t sq = (lo + k) & 127u, e = sq & (MIR_RR - 1u);
             if (me_rr[e].seq != (sq | 0x80u))
                 whole = 1;                               /* (overwritten since: which rectangle is not known) */
+            else if (me_rr[e].w == 240u && me_rr[e].h == 240u)
+                whole = 1;                               /* (a page's clear lost: MIR_WHY_PAGE) */
             else
                 mir_enc_forget(me_rr[e].x, me_rr[e].y, me_rr[e].w, me_rr[e].h);
         }

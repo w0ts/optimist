@@ -10,6 +10,7 @@ static uint16_t mt_fb[240 * 240];                       /* the device's picture 
 enum { MS_RATE = 9000, MS_LAG = 3000, MS_QMAX = 1u << 18 };
 static struct {
     int on, nosum;                                      /* the lossy link on; MIRROR_SUMS=off: no SUMS (the control) */
+    int lose_clear, nolose;                             /* MIRROR_SUMS=page: the next whole-panel clear lost; nothing else lost */
     int behind;                                         /* the lag rule refused a frame: nothing encoded until the catch-up */
     uint8_t q[MS_QMAX];                                 /* the link: frames as (len lo, len hi, flag, bytes), drained at MS_RATE */
     uint32_t qw, qr, qbytes, credit;                    /* write, read; bytes waiting; bytes the link may still carry this tick */
@@ -36,10 +37,15 @@ static uint32_t ms_rand(uint32_t n) { ms.seed = ms.seed * 1664525u + 1013904223u
 static void ms_out(const uint8_t *f, uint32_t n)
 {
     uint32_t k, flag = 0;
+    static const uint8_t WHOLE[8] = {0, 0, 0, 0, 112, 1, 112, 1};   /* (x, y, w, h: 0, 0, 240, 240, 2 x 7 bit each) */
     if (ms.qw - ms.qr + n + 3u > MS_QMAX)
         return;
     ms.bytes += n;
-    if (ms_rand(MS_RATE) < 2u * n)
+    if (ms.lose_clear && n >= 14u && (f[5] == 0u || f[5] == 8u) && !memcmp(f + 6, WHOLE, 8))
+        flag = 1, ms.lose_clear = 0, ms.gaps++;         /* (MIRROR_SUMS=page: the page's clear lost on the way) */
+    else if (ms.nolose)
+        ;
+    else if (ms_rand(MS_RATE) < 2u * n)
         flag = 1, ms.gaps++;
     else if (ms_rand(MS_RATE) < n && n > 10u)
         flag = 2, ms.bads++;
