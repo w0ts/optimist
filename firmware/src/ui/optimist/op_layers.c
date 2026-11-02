@@ -583,10 +583,26 @@ static void pat_store_ask(uint32_t t, uint32_t s)       /* the working copy into
  * (YES = SAVE: the working copy stored there; the default), HOME asks "EMPTY T1 5?" (YES: an empty pattern, the track plays it; from a
  * scene's cell only the scene's reference is set), HOME again or 3 s: nothing created. pn_scene: the scene whose reference gets the slot, else 0xFF */
 static uint8_t pn_scene = 0xFF;
+/* the name of a clone, source and destination: "T2 1>2" (the working copy's slot, the new one); no source (the track plays none, or the
+ * tracks of ALL differ): the plain "T2 2" */
+static void pat_clone_name(char *b, uint32_t t, uint32_t s)
+{
+    uint32_t i, src = t < NTRK ? pat_cur[t] : pat_cur[0];
+    for (i = 0; i < NTRK && t >= NTRK; i++)
+        if (pat_cur[i] != src)
+            src = 0xFFu;
+    pat_name_t(b, t, s);
+    if (src < PAT_N && src != s) {
+        uint32_t n = str_len(b) - (s >= 9u ? 2u : 1u);   /* (the slot's digits off: "T2 ") */
+        fmt_int(b + n, (int32_t)src + 1);
+        str_app(b, ">", 14);
+        fmt_app(b, (int32_t)s + 1);
+    }
+}
 static void pat_new_ask(uint32_t t, uint32_t s, uint32_t scene)
 {
-    char nm[8];
-    pat_name_t(nm, t, s);
+    char nm[14];
+    pat_clone_name(nm, t, s);
     pn_scene = (uint8_t)scene;
     op_arm(ARM_OP, OA_PAT_CLONE, t << 4 | s, "CLONE", nm, 0);
 }
@@ -595,18 +611,21 @@ static int pat_new_no(void)                             /* HOME on "CLONE ...?":
     char nm[sizeof ui.arm_arg];
     if (ui.arm_scr != ARM_OP || ui.arm_row != OA_PAT_CLONE)
         return 0;
-    str_cpy(nm, ui.arm_arg, sizeof nm);
+    pat_name_t(nm, (uint32_t)(ui.arm_k >> 4), (uint32_t)(ui.arm_k & 15u));   /* (EMPTY: the destination alone) */
     op_arm(ARM_OP, OA_PAT_EMPTY, ui.arm_k, "EMPTY", nm, 0);
     return 1;
 }
 static void pat_new_do(uint32_t k, int empty)           /* the answer: k = track << 4 | slot */
 {
-    char nm[8];
+    char nm[14];
     uint32_t t = k >> 4, s = k & 15u, i, m = pat_mask(t);
     uint32_t sc = pn_scene;
     int scene = sc != 0xFFu && t < NTRK;
     pn_scene = 0xFFu;
-    pat_name_t(nm, t, s);
+    if (empty)
+        pat_name_t(nm, t, s);
+    else
+        pat_clone_name(nm, t, s);                       /* (before the copy: its source is the playing slot) */
     if (!empty) {
         for (i = 0; i < NTRK; i++) {
             uint8_t was = pat_cur[i];

@@ -39,7 +39,7 @@ static uint32_t sn_cell_hash(void)                      /* the marker's box on t
 {
     int32_t ph = (GL_END - 22 - 16) / 5;
     int32_t x = STB_X0 + (int32_t)stb.mk_i * STB_CW + (STB_CW - 2 - STB_MK) / 2;
-    int32_t y = GL_TOP + (stb.mk_lane < 4u ? 22 + (int32_t)stb.mk_lane * ph + (ph - STB_MK) / 2 : GL_END - 14);
+    int32_t y = GL_TOP + 22 + 5 * ph + (GL_END - 22 - 5 * ph - STB_MK) / 2;
     uint32_t h = 2166136261u;
     int32_t i, j;
     for (j = 0; j < STB_MK; j++)
@@ -47,11 +47,16 @@ static uint32_t sn_cell_hash(void)                      /* the marker's box on t
             h = (h ^ screen[(y + j) * 240 + x + i]) * 16777619u;
     return h;
 }
+static int32_t sn_cell_box_y(void)                      /* the marker box's top */
+{
+    int32_t ph = (GL_END - 22 - 16) / 5;
+    return GL_TOP + 22 + 5 * ph + (GL_END - 22 - 5 * ph - STB_MK) / 2;
+}
 static uint32_t sn_cell_green(void)                     /* ... and its green pixels */
 {
     int32_t ph = (GL_END - 22 - 16) / 5;
     int32_t x = STB_X0 + (int32_t)stb.mk_i * STB_CW + (STB_CW - 2 - STB_MK) / 2;
-    int32_t y = GL_TOP + (stb.mk_lane < 4u ? 22 + (int32_t)stb.mk_lane * ph + (ph - STB_MK) / 2 : GL_END - 14);
+    int32_t y = GL_TOP + 22 + 5 * ph + (GL_END - 22 - 5 * ph - STB_MK) / 2;
     uint32_t n = 0;
     int32_t i, j;
     for (j = 0; j < STB_MK; j++)
@@ -83,12 +88,22 @@ static void songnav_scenes_tests(void)
     check(!strncmp(ui.msg, "STORED E", 8) && project_used(4), "songnav: SAVE with the cursor on B: the loop stored into E, the current scene (\"STORED E\")");
     check(live_sec == 4 && ui.row[SCR_SONG] == 1u, "... E stays current, the cursor stays on B");
     check(!op_armed(), "... nothing asked");
+    ui.row[SCR_SONG] = 2;
+    frames(2);
+    {
+        uint32_t used = (uint32_t)project_used(2);
+        tap(B_REC);
+        check(!op_armed() && !song.rec && !rec_wait && (uint32_t)project_used(2) == used,
+              "songnav: REC tapped on a scene: nothing stored, nothing asked, not the transport's record");
+    }
     /* the marker */
     stb.mk_on = 0;
     ui.force = 1;
     frames(3);
     check(stb.mk_on && stb.mk_i == 4u, "songnav: the current scene's column has the marker (a play triangle)");
-    check(sn_cell_green() > 5u, "... drawn green in its box");
+    check(sn_cell_green() > 60u, "... drawn green in its box");
+    check(stb.t[4][stb.mk_i][0] != 0 && sn_cell_box_y() >= GL_TOP + 22 + 5 * ((GL_END - 22 - 16) / 5),
+          "... the BARS cell of the current scene shows its text; the marker sits on its own line under the table (below BARS)");
     h0 = sn_cell_hash();
     frames(40);
     h1 = sn_cell_hash();
@@ -110,9 +125,52 @@ static void songnav_scenes_tests(void)
         frames(60);
         check(blit_px - px0 < 60u * 4u * STB_MK * STB_MK / 6u + 2000u, "... a second of it sends the marker's box only (about six steps), not the table");
     }
+    {   /* a queued scene: its column's border blinks (250 ms), only the border is sent */
+        uint32_t on = 0, off = 0, px0;
+        int32_t bx = STB_X0 + 6 * STB_CW - 1, by = GL_TOP + 21 + 3;
+        song.playing = 0;
+        live_req = 6;
+        frames(3);
+        check(stb.bd_on && stb.bd_i == 6u, "songnav: a scene queued: its column carries the border");
+        px0 = blit_px;
+        for (i = 0; i < 60u; i++) {
+            frames(1);
+            if (screen[by * 240 + bx] == swap16(C_WARN))
+                on++;
+            else
+                off++;
+        }
+        check(on > 15u && off > 15u, "... the border blinks (amber / dark, about 250 ms each)");
+        check(blit_px - px0 < 60u * 2000u / 4u, "... only the border's strips are sent while it blinks, not the table");
+        live_req = -1;
+        frames(3);
+        check(!stb.bd_on, "... launched / unqueued: no border");
+    }
     g = sn_cell_green();
     check(g > 5u, "... green still");
     song.playing = 0;
+    {   /* a scene loaded stopped, and launched at the bar while playing: no black fill of the whole LCD (the screen flashed) */
+        uint32_t f0;
+        scene_store_now(1);                             /* (two scenes that exist: a scene key loads / launches only a stored one) */
+        scene_store_now(3);
+        live_sec = 0;
+        ui.row[SCR_SONG] = 0;
+        frames(3);
+        f0 = full_fills;
+        key(WK(1));
+        frames(6);
+        check(live_sec == 1 && full_fills == f0, "songnav: a scene key stopped (loads it): the screen is redrawn in place, no full black fill");
+        song.playing = 1;
+        live_req = 2;
+        sec_stage_id = -1;
+        frames(2);
+        f0 = full_fills;
+        key(WK(3));
+        frames(30);
+        check(full_fills == f0, "... playing: the launch at the bar redraws in place too, no full black fill");
+        song.playing = 0;
+        live_req = -1;
+    }
 }
 static void songnav_ui_tests(void)
 {
