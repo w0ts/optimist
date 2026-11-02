@@ -1596,7 +1596,11 @@ static void ui_leds(void)
     for (c = 0; c < NB; c++)
         led_btn(dl, c, c != B_PLAY && (avail >> c & 1u));   /* (the half light: under the full light below; PLAY's red never: stopped,
                                                          * its green is dim instead) */
-    led_btn(nl, op_screen_btn(), 1);
+    if (ui.scr == SCR_SONG)                             /* SONG (SEQ held long, SHIFT2 + SEQ): a page of SEQ's, SEQ flashes as a locked layer's
+                                                         * button does (the user, 2026-11-02: HOME was lit); the patterns peek (LFO) flashes LFO below */
+        led_btn(nl, B_SEQ, FIF(FELUCCA_PATTERNS)(!lpk.on &&) ((fm1_ms / 300u) & 1u));
+    else
+        led_btn(nl, op_screen_btn(), 1);
     if (lay.shown != LY_PLAY)                           /* the layer shown: its button (locked: blinking) */
         led_btn(nl, LAYER_BTN[lay.shown], lay.lock == LY_PLAY || ((fm1_ms / 300u) & 1u));
 #if FELUCCA_PATTERNS
