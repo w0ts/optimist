@@ -17,6 +17,8 @@ static struct {
     uint32_t kind, col, n;              /* what stb_paint draws: the table, the cursor's column, the columns there are */
     char t[5][STB_COLS][5];             /* the cells' texts, a lane a row */
     uint8_t live[STB_COLS];             /* the column's state: 1 playing, 2 queued, 3 empty scene */
+    uint8_t nx[4];                      /* per track lane: the columns (bit i) whose pattern does not exist yet (flashing red) */
+    uint8_t bd_i, bd_on;                /* the queued scene's border: its column in the window, a scene is queued in it */
     uint8_t mk_i, mk_on;                /* the current scene's marker: its column in the window, drawn at all (always on the foot line, never in a lane) */
 } stb;
 #define STB_MK 15                       /* the marker's box (the foot line under the lanes is 16 px or more): a 13 px play triangle in it */
@@ -105,6 +107,7 @@ static void stb_paint(void)
                 cv_rect(x, y + 1, 1, ph - 2, oc);
                 cv_rect(x + STB_CW - 3, y + 1, 1, ph - 2, oc);
             }
+            if (!(lane < 4u && stb.kind == SG_SCENE && ((stb.nx[lane] >> i) & 1u)))   /* (a pattern not there yet: stb_nx_draw's, flashing) */
             {
                 const felucca_font_t *vf = stb_font(v, STB_CW - 4);
                 cv_text(x + (STB_CW - 2 - text_w(vf, v)) / 2, y + (ph - (int32_t)vf->h) / 2, vf, v, col);
@@ -162,6 +165,66 @@ static void stb_marker_draw(void)
     y = 22 + 5 * ph + (GL_END - 22 - 5 * ph - STB_MK) / 2;   /* (the foot line under the five lanes, centred in its height) */
     cv_whole_w((uint32_t)x, (uint32_t)(GL_TOP + y), STB_MK, STB_MK, C_BLACK, stb_mk_paint);
 }
+/* a scene queued to launch (live_req): its column's border blinks, as the queued pattern's key does on the pattern page (op_keys.c:
+ * (fm1_ms / 250) & 1, amber). The border runs in the gaps round the column's cells (one pixel out, 21 .. the last lane's foot); only its four
+ * strips are sent (cv_whole_w), not the table */
+static uint32_t stb_bd_sig;
+static void stb_bd_nop(void) {}
+static void stb_border_draw(void)
+{
+    int32_t x, y0, y1, ph;
+    uint32_t on, sig;
+    uint16_t c;
+    if (!stb.bd_on)
+        return;
+    on = (fm1_ms / 250u) & 1u;
+    sig = hu(on + 1u, (uint32_t)stb.bd_i);
+    if (sig == stb_bd_sig)
+        return;
+    stb_bd_sig = sig;
+    ph = (GL_END - 22 - 16) / 5;
+    x = STB_X0 + (int32_t)stb.bd_i * STB_CW - 1;
+    y0 = 21;
+    y1 = 22 + 5 * ph - 1;                               /* (the last lane's blank bottom line) */
+    c = on ? C_WARN : C_BLACK;
+    cv_whole_w((uint32_t)x, (uint32_t)(GL_TOP + y0), STB_CW, 1, c, stb_bd_nop);
+    cv_whole_w((uint32_t)x, (uint32_t)(GL_TOP + y1), STB_CW, 1, c, stb_bd_nop);
+    cv_whole_w((uint32_t)x, (uint32_t)(GL_TOP + y0), 1, (uint32_t)(y1 - y0 + 1), c, stb_bd_nop);
+    cv_whole_w((uint32_t)(x + STB_CW - 1), (uint32_t)(GL_TOP + y0), 1, (uint32_t)(y1 - y0 + 1), c, stb_bd_nop);
+}
+/* a pattern number that does not exist yet (a reference resting on the first free slot, or its CLONE / EMPTY question up): the number flashes
+ * red (C_ERR, every 250 ms, the queued border's rate). Only the number's own box is sent (cv_whole_w) */
+static uint32_t stb_nx_sig[4][STB_COLS];
+static const char *stb_nx_text;
+static uint16_t stb_nx_col;
+static const felucca_font_t *stb_nx_font;
+static void stb_nx_paint(void)
+{
+    if (stb_nx_col)
+        cv_text(0, 0, stb_nx_font, stb_nx_text, stb_nx_col);
+}
+static void stb_nx_draw(void)
+{
+    uint32_t lane, i, on = (fm1_ms / 250u) & 1u;
+    int32_t ph = (GL_END - 22 - 16) / 5;
+    for (lane = 0; lane < 4u; lane++)
+        for (i = 0; i < STB_COLS; i++) {
+            const char *v = stb.t[lane][i];
+            uint32_t sig;
+            if (!((stb.nx[lane] >> i) & 1u))
+                continue;
+            sig = hu(on + 1u, hs(0, v));
+            if (sig == stb_nx_sig[lane][i])
+                continue;
+            stb_nx_sig[lane][i] = sig;
+            stb_nx_font = stb_font(v, STB_CW - 4);
+            stb_nx_text = v;
+            stb_nx_col = on ? C_ERR : 0;
+            cv_whole_w((uint32_t)(STB_X0 + (int32_t)i * STB_CW + (STB_CW - 2 - text_w(stb_nx_font, v)) / 2),
+                       (uint32_t)(GL_TOP + 22 + (int32_t)lane * ph + (ph - (int32_t)stb_nx_font->h) / 2),
+                       (uint32_t)text_w(stb_nx_font, v), (uint32_t)stb_nx_font->h, C_BLACK, stb_nx_paint);
+        }
+}
 static void song_tbl_draw(void)
 {
     uint32_t a, kind = song_kind(ui.row[SCR_SONG], &a), nl = kind == SG_SCENE ? 5u : 2u, c0, i, lane;
@@ -183,7 +246,26 @@ static void song_tbl_draw(void)
             stb_text(kind, col, lane, stb.t[lane][i]);
         sig = hu(hu(sig, stb.live[i]), hs(0, stb.t[0][i]) + hs(0, stb.t[1][i]) * 3u + hs(0, stb.t[2][i]) * 5u + hs(0, stb.t[3][i]) * 7u + hs(0, stb.t[4][i]) * 11u);
     }
+    memset(stb.nx, 0, sizeof stb.nx);
+#if FELUCCA_PATTERNS
+    if (kind == SG_SCENE) {
+        uint32_t k, v = 0xFFu, tk = 0xFFu, sc = 0xFFu;
+        if (sg.ed_s != 0xFF && sg.ed_v < PAT_N && !pat_has(sg.ed_k, sg.ed_v))
+            sc = sg.ed_s, tk = sg.ed_k, v = sg.ed_v;                    /* (the knob rests on it) */
+        else if (ui.arm_scr == ARM_OP && (ui.arm_row == OA_PAT_CLONE || ui.arm_row == OA_PAT_EMPTY) && pn_scene != 0xFF)
+            sc = pn_scene, tk = ui.arm_k >> 4, v = ui.arm_k & 15u;      /* (its question is up: the cell shows the number asked about) */
+        if (sc >= c0 && sc < c0 + STB_COLS && tk < 4u) {
+            k = sc - c0;
+            fmt_int(stb.t[tk][k], (int32_t)v + 1);
+            stb.nx[tk] = (uint8_t)(1u << k);
+            sig = hu(sig, 0x4E00u + tk * 16u + v);
+        }
+    }
+#endif
     sig = hu(hu(sig, a), stb.n);
+    stb.bd_on = 0;
+    if (kind == SG_SCENE && live_req >= 0 && (uint32_t)live_req >= c0 && (uint32_t)live_req < c0 + STB_COLS)
+        stb.bd_on = 1, stb.bd_i = (uint8_t)((uint32_t)live_req - c0);
     stb.mk_on = 0;
     if (kind == SG_SCENE && live_sec >= 0 && (uint32_t)live_sec >= c0 && (uint32_t)live_sec < c0 + STB_COLS) {
         stb.mk_on = 1, stb.mk_i = (uint8_t)((uint32_t)live_sec - c0);
@@ -193,7 +275,11 @@ static void song_tbl_draw(void)
         ui.sig[2] = sig;
         cv_tall(GL_TOP, GL_BAND, C_BLACK, stb_paint);
         stb_mk_sig = 0xFFFFFFFFu;                       /* (the band repainted without the marker: again) */
+        stb_bd_sig = 0xFFFFFFFFu;
+        memset(stb_nx_sig, 0, sizeof stb_nx_sig);
     }
+    stb_nx_draw();
+    stb_border_draw();
     stb_marker_draw();
 }
 /* the knobs on a table (STEP's language): 1 when one turned */

@@ -47,6 +47,11 @@ static uint32_t sn_cell_hash(void)                      /* the marker's box on t
             h = (h ^ screen[(y + j) * 240 + x + i]) * 16777619u;
     return h;
 }
+static int32_t sn_cell_box_y(void)                      /* the marker box's top */
+{
+    int32_t ph = (GL_END - 22 - 16) / 5;
+    return GL_TOP + 22 + 5 * ph + (GL_END - 22 - 5 * ph - STB_MK) / 2;
+}
 static uint32_t sn_cell_green(void)                     /* ... and its green pixels */
 {
     int32_t ph = (GL_END - 22 - 16) / 5;
@@ -97,6 +102,8 @@ static void songnav_scenes_tests(void)
     frames(3);
     check(stb.mk_on && stb.mk_i == 4u, "songnav: the current scene's column has the marker (a play triangle)");
     check(sn_cell_green() > 60u, "... drawn green in its box");
+    check(stb.t[4][stb.mk_i][0] != 0 && sn_cell_box_y() >= GL_TOP + 22 + 5 * ((GL_END - 22 - 16) / 5),
+          "... the BARS cell of the current scene shows its text; the marker sits on its own line under the table (below BARS)");
     h0 = sn_cell_hash();
     frames(40);
     h1 = sn_cell_hash();
@@ -117,6 +124,27 @@ static void songnav_scenes_tests(void)
         uint32_t px0 = blit_px;
         frames(60);
         check(blit_px - px0 < 60u * 4u * STB_MK * STB_MK / 6u + 2000u, "... a second of it sends the marker's box only (about six steps), not the table");
+    }
+    {   /* a queued scene: its column's border blinks (250 ms), only the border is sent */
+        uint32_t on = 0, off = 0, px0;
+        int32_t bx = STB_X0 + 6 * STB_CW - 1, by = GL_TOP + 21 + 3;
+        song.playing = 0;
+        live_req = 6;
+        frames(3);
+        check(stb.bd_on && stb.bd_i == 6u, "songnav: a scene queued: its column carries the border");
+        px0 = blit_px;
+        for (i = 0; i < 60u; i++) {
+            frames(1);
+            if (screen[by * 240 + bx] == swap16(C_WARN))
+                on++;
+            else
+                off++;
+        }
+        check(on > 15u && off > 15u, "... the border blinks (amber / dark, about 250 ms each)");
+        check(blit_px - px0 < 60u * 2000u / 4u, "... only the border's strips are sent while it blinks, not the table");
+        live_req = -1;
+        frames(3);
+        check(!stb.bd_on, "... launched / unqueued: no border");
     }
     g = sn_cell_green();
     check(g > 5u, "... green still");
