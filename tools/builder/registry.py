@@ -1622,20 +1622,9 @@ def add_item(item):
 # "not in this build" in that kind's costs file and probes them: a mark whose value links again is reported). Key: (item, value);
 # value: {"classic" (Optimist's own firmware) / "release" (the fm1-base app): why}. Not a failure of the measuring: a value
 # that SHOULD build and does not is (measure_costs.py reports it loudly)
-_S0_RELEASE = ("not for the release yet: fm1-base's own update loader and app_end do not take the MEMORY steps' table "
-               "(its slot switch would leave the old step's log sectors in the new one's; docs/SD-MODE-DESIGN.md 9.4, "
-               "the proposed fm1-base branch pr/app-end-table)")
-# (PHYS in RAM was a NOT_BUILT entry until its render stopped calling libgcc's __udivdi3: phys_dsp.c px_udiv, 2026-10-30)
-NOT_BUILT = {
-    ("MEMORY", 4): {"release": _S0_RELEASE},
-    ("LAYOUT", 2): {"release": _S0_RELEASE},
-    ("LAYOUT", 3): {"release": _S0_RELEASE},
-    ("LAYOUT", 4): {"release": _S0_RELEASE},
-    ("LAYOUT", 5): {"release": _S0_RELEASE},
-    ("LAYOUT", 6): {"release": _S0_RELEASE},
-    ("LAYOUT", 7): {"release": _S0_RELEASE},
-    ("LAYOUT", 8): {"release": _S0_RELEASE},
-}
+# (PHYS in RAM was a NOT_BUILT entry until its render stopped calling libgcc's __udivdi3: phys_dsp.c px_udiv, 2026-10-30;
+# the MEMORY steps LAYOUT 2..8 for the release until fm1-base's update loader took the steps' table, fm1.toml app_steps)
+NOT_BUILT = {}
 
 
 def not_built(key, value, kind):

@@ -242,24 +242,21 @@ def sd_app_end():
     return _app_value("SD_APP_END")
 
 
-# the release's app end of each MEMORY step but normal: gen_optimist.py's names (tools/flash_layout.py STEPS release_end;
-# tests/fm1base_test.py checks the two agree)
-RELEASE_END_NAMES = {1: "SD_APP_END", 3: "S0_APP_END"}
-
-
 def release_end(layout):
-    """fm1-base's app end for this step (gen_optimist.py), None for normal (the app's fm1.toml app_end)"""
+    """fm1-base's app end for this MEMORY step (Optimist's one table, tools/flash_layout.py STEPS release_end; gen_optimist.py
+    checks the build's FM1B_APP_END against the same table), None for normal (the app's fm1.toml app_end)"""
+    import flash_layout
     if not layout:
         return None
-    if layout not in RELEASE_END_NAMES:
-        raise FM1BaseError(f"LAYOUT {layout}: no release app end (gen_optimist.py has {', '.join(RELEASE_END_NAMES.values())})")
-    return _app_value(RELEASE_END_NAMES[layout])
+    if layout not in flash_layout.STEPS:
+        raise FM1BaseError(f"LAYOUT {layout}: no MEMORY step ({sorted(flash_layout.STEPS)})")
+    return flash_layout.STEPS[layout].release_end
 
 
 def app_end(cfgfile):
     """the app slot the configuration's flash layout needs: FM1B_APP_END=release_end(layout) for a step past normal
-    (LAYOUT 1, the SD card mode: fewer flash projects, by design; LAYOUT 3: gen_optimist.py refuses it until fm1-base's
-    loader takes the steps), else None (the app's fm1.toml app_end, the normal slot)"""
+    (LAYOUT 1, the SD card mode, 0xCE000; the other steps at their FM6 voices, as the classic build), else None (the
+    app's fm1.toml app_end, the normal slot)"""
     import configure
     cfg, _ = configure.parse(Path(cfgfile).read_text())
     end = release_end(configure.flags(cfg)[0].get("FELUCCA_LAYOUT", 0))
@@ -290,8 +287,9 @@ def normal_app_end():
 def limits(base_sizes=None):
     """-> the slots the release's budget counts against, as fm1-base's build computes them: {"flash": the normal
     layout's app slot (fm1pkg_make.py app_slot of fm1.toml's app_end), "flash_by_layout": {layout: app_slot of its
-    release_end()} (1 the SD card mode's, 3 no user samples', which the release does not build yet), "sram": the SRAM region (fm1base/device/app.ld)}. base_sizes: a real normal build's
+    release_end()} (every MEMORY step but normal), "sram": the SRAM region (fm1base/device/app.ld)}. base_sizes: a real normal build's
     sizes.json (its app_slot, what that build checked against): FM1BaseError when the two disagree"""
+    import flash_layout
     tool = _pkg_tool()
     flash = tool.app_slot(normal_app_end())
     if base_sizes is not None and int(base_sizes.get("app_slot", flash)) != flash:
@@ -305,7 +303,7 @@ def limits(base_sizes=None):
     conf = tomllib.loads((APP / "fm1.toml").read_text())
     if "main_stack" in conf or "irq_stack" in conf:   # (fm1-base's build moves the SRAM's end: build.py stack_script)
         sram = 0x7C000 - int(conf.get("main_stack", 24320)) - int(conf.get("irq_stack", 7936)) - 512
-    return {"flash": flash, "flash_by_layout": {str(k): tool.app_slot(release_end(k)) for k in sorted(RELEASE_END_NAMES)},
+    return {"flash": flash, "flash_by_layout": {str(k): tool.app_slot(release_end(k)) for k in sorted(flash_layout.STEPS) if k},
             "sram": sram}
 
 

@@ -1932,6 +1932,7 @@ job; ( jobin
 job; ( jobin
     run "optimist.py: the command line, toolchain backends, SDK lookup, emulator launcher" python3 tests/optimist_cli_test.py
     run "the release build: fm1-base submodule, the builder's configuration into its build, sizes, flash identity" python3 tests/fm1base_test.py
+    run "the release's update loader: a MEMORY step switch clears what flash_layout.py's rule says, every pair" python3 tests/fm1base_steps_test.py
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     run "emu-check --jobs: the driver built once by the parent, the checks' processes never run cargo (integration57's race)" python3 tests/emu_driver_once_test.py

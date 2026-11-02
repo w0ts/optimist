@@ -32,12 +32,19 @@ cfg, name = C.load_profile(C.REFERENCE_PROFILE)
 with tempfile.TemporaryDirectory(dir=ROOT / "build" if (ROOT / "build").is_dir() else None) as d:
     d = Path(d)
     normal, sd = d / "normal.config", d / "sd.config"
-    normal.write_text(C.dump(cfg, name))
+    normal.write_text(C.dump(dict(cfg, LAYOUT=0, SDCARD=0), name))   # (the reference profile may have any MEMORY step)
     sd_cfg = dict(cfg, SDCARD=1, LAYOUT=1)
     sd.write_text(C.dump(sd_cfg, "sd"))
     check("release is the default flavour, classic() false", not C.classic())
     check("a normal layout builds on fm1-base's normal slot (no FM1B_APP_END)", fm1base.app_end(normal) is None)
     check("the SD card mode (LAYOUT 1) builds with FM1B_APP_END=0xCE000", fm1base.app_end(sd) == "0xCE000")
+    import flash_layout as _FL
+    _steps_ok = True
+    for _k in (2, 3, 4, 5, 6, 7, 8):
+        _p = d / f"layout{_k}.config"
+        _p.write_text(C.dump(dict(cfg, LAYOUT=_k, SDCARD=0), f"l{_k}"))
+        _steps_ok &= fm1base.app_end(_p) == f"0x{_FL.STEPS[_k].release_end:X}"
+    check("every other MEMORY step (LAYOUT 2..8) builds with FM1B_APP_END = its end (flash_layout.py release_end)", _steps_ok)
     if fm1base.BUILD_PY.is_file():
         try:
             env = fm1base.env_for(sd)
@@ -119,17 +126,21 @@ if fm1base.BUILD_PY.is_file():
           got is not None and "LENGTH = 0x800000" in got and "LENGTH = 0x180000" in got and "ORIGIN = 0x01E00000" in got
           and "ASSERT(_sram_end" not in got)
     check("another linker script (the update loader's) is left as it is", fm1base_ld.measure_script("MEMORY { RAM : ORIGIN = 0, LENGTH = 1 }") is None)
+    import flash_layout as FLT
     lim = fm1base.limits({"app_slot": 581564})
     _stk = tomllib.loads((fm1base.APP / "fm1.toml").read_text())   # (main_stack / irq_stack move the SRAM's end)
     check("the release's limits: fm1pkg_make's app_slot of fm1.toml's app_end and of the SD card mode's, app.ld's SRAM "
           "up to the stacks fm1.toml sizes",
-          lim == {"flash": 581564, "flash_by_layout": {"1": 0xCE000 - 0x4000 - 0x120 - 0xF24, "3": 0xB5000 - 0x4000 - 0x120 - 0xF24},
+          lim == {"flash": 581564, "flash_by_layout": {str(k): FLT.STEPS[k].release_end - 0x4000 - 0x120 - 0xF24 for k in FLT.STEPS if k},
                   "sram": 0x7C000 - _stk.get("main_stack", 24320) - _stk.get("irq_stack", 7936) - 512})
-    import flash_layout as FLT
-    check("gen_optimist.py's release ends are the step table's (tools/flash_layout.py STEPS release_end)",
-          all(fm1base.release_end(k) == FLT.STEPS[k].release_end for k in fm1base.RELEASE_END_NAMES)
-          and set(fm1base.RELEASE_END_NAMES) <= {k for k in FLT.STEPS if k}
-          and all(__import__("registry").not_built("LAYOUT", k, "release") for k in FLT.STEPS if k and k not in fm1base.RELEASE_END_NAMES))
+    _toml = tomllib.loads((fm1base.APP / "fm1.toml").read_text())
+    check("the release's ends are the step table's (tools/flash_layout.py STEPS release_end: L1 gen_optimist.py's SD_APP_END), "
+          "fm1.toml app_steps every known end with its step and R (the update loader's switch rule), app_clear_top CLEAR_TOP",
+          all(fm1base.release_end(k) == FLT.STEPS[k].release_end for k in FLT.STEPS if k)
+          and fm1base.release_end(1) == fm1base.sd_app_end() and fm1base.release_end(0) is None
+          and {e: (s, r) for e, s, r in _toml["app_steps"]} == FLT.known_ends()
+          and _toml["app_clear_top"] == FLT.CLEAR_TOP
+          and not any(__import__("registry").not_built("LAYOUT", k, "release") for k in FLT.STEPS))
     try:
         fm1base.limits({"app_slot": 581564 + 4})
         _refused = False
