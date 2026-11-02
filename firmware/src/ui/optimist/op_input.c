@@ -1160,6 +1160,12 @@ static void op_knobs(uint32_t shift)
         }
         step_cards_show();                              /* (STEP: a value edited) */
         ck = song_on_pat_row() ? PAT_KNOB_CELL[k] : k;   /* (the patterns screen: the rows in order, the user 2026-11-01) */
+#if OP_TOP
+        if (k == 0u && top_page()) {                    /* SYSTEM > TOP: KNOB 1 switches CPU / RAM (op_top.c top_view) */
+            top_view();
+            continue;
+        }
+#endif
         SCR->cell(row, ck, &c);
         if (c.kind == CK_NONE)
             continue;

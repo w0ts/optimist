@@ -185,8 +185,52 @@ static int32_t gl_info_pitch(uint32_t pg, uint32_t n, int32_t y0)   /* a read-ou
     int32_t ph = ((pg == INFO_PG_INFO ? GL_END_W : GL_END) - y0) / (int32_t)n, cap = ph >= GL_INFO_BIG ? gl_pitch() : pg == INFO_PG_INFO ? GL_INFO_PH_MAIN : GL_INFO_PH;
     return ph > cap ? cap : ph;                         /* (a short page: a list's pitch, from the top) */
 }
+#if OP_TOP
+/* SYSTEM > TOP (op_top.c): FONT_S (the size of the cards' text; the read-out pages' tiny face was too small; name left, number right), the header line first: the view's
+ * name boxed in KNOB 1's colour (it edits it), its columns right; TOP_VIS lines under it, a bar at the right edge when the
+ * view has more (ALGORITHM scrolls) */
+static void gl_top_draw(int32_t y0)
+{
+    const felucca_font_t *f = &FONT_S;                  /* (8 x 12: the small tier's text, not cv_texts' tiny one; FONT_L's 16 x 24 leaves 7 lines) */
+    uint32_t i, n = info_lines(INFO_PG_TOP), off, all;
+    int32_t ph = (GL_END - y0) / (int32_t)(TOP_VIS + 1u), th = (int32_t)f->h, ty, w;
+    uint16_t kc = knob_col(0, C_HI);
+    char nm[12];
+    cell_t c;
+    for (i = 0; i < n; i++) {
+        int32_t y = y0 + (int32_t)i * ph;
+        info_cell(INFO_PG_TOP, i, &c);
+        ty = y + (ph - th) / 2;
+        cut(nm, c.label, 12);
+        w = text_w(f, nm);
+        if (i == 0u) {
+            cv_rect(2, y, w + 8, 1, kc);                /* (the box: 1 px, KNOB 1's colour) */
+            cv_rect(2, y + ph - 2, w + 8, 1, kc);
+            cv_rect(2, y, 1, ph - 1, kc);
+            cv_rect(2 + w + 7, y, 1, ph - 1, kc);
+            cv_text(6, ty, f, nm, kc);
+            cv_text(232 - text_w(f, c.val), ty, f, c.val, C_GRAY);
+            continue;
+        }
+        cv_text(6, ty, f, nm, C_WHITE);
+        cv_text(232 - text_w(f, c.val), ty, f, c.val, c.col ? c.col : C_GRAY);
+    }
+    top_scroll(&off, &all);
+    if (all > TOP_VIS) {                                /* (the bar: the track, the thumb the lines shown) */
+        int32_t h = (int32_t)TOP_VIS * ph, bh = h * (int32_t)TOP_VIS / (int32_t)all, by = (h - bh) * (int32_t)off / (int32_t)(all - TOP_VIS);
+        cv_rect(237, y0 + ph, 2, h, C_LINE);
+        cv_rect(237, y0 + ph + by, 2, bh, C_WHITE);
+    }
+}
+#endif
 static void gl_info_draw(int32_t y0)
 {
+#if OP_TOP
+    if (gl_info() == 1u + INFO_PG_TOP) {
+        gl_top_draw(y0);
+        return;
+    }
+#endif
     uint32_t i, pg = gl_info() - 1u, n = info_lines(pg);
     int32_t ph = gl_info_pitch(pg, n, y0), ty, fy, uw, x;
     char b[20], lv[14];
