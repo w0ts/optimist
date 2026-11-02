@@ -213,8 +213,8 @@ int main(void)
     source("X0X 808", FELUCCA_DRUM_X808, 1u, kits_built(DRUM_UID_X808, DRUM_UID_X808 + 1u), 0);
     for (k = DRUM_UID_X808 + 1u; k < DRUM_KITS; k++)          /* (a kit UID added later: its own source) */
         source(DRUM_KIT_NAMES[k], drum_kit_built(k), 1u, (uint32_t)drum_kit_built(k), 0);
-    source("KIT LIST", 1, DRUM_KITS, kits_built(0, DRUM_KITS), 0);
-    source("POWER-ON", 1, 1u, (uint32_t)drum_kit_built(DRUM_DEFAULT_KIT), 0);
+    source("KIT LIST", FELUCCA_DRUMS, DRUM_KITS, kits_built(0, DRUM_KITS), 0);   /* (DRUMS 0: no drum track, no kit to reach) */
+    source("POWER-ON", FELUCCA_DRUMS, 1u, (uint32_t)drum_kit_built(DRUM_DEFAULT_KIT), 0);
     for (e = 0; e < NENGINES; e++) {                  /* ENV 1 MOD and ENV2 on INIT and every preset (model.c apply_preset_to) */
         uint32_t pi, ok = 1;
         for (pi = 0; pi <= ENGINES[e]->npresets; pi++) {
