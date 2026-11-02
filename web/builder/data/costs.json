@@ -1438,6 +1438,12 @@
     "ram": 0,
     "pool": 14880,
     "ramtext": 0
+   },
+   "3": {
+    "flash": -12,
+    "ram": 0,
+    "pool": -7200,
+    "ramtext": 0
    }
   },
   "BOOTLOADER": {
