@@ -64,6 +64,8 @@ ul.small, p.small { color: var(--muted); font-size: .92rem; }
 ul.small { padding-left: 1.1rem; margin: 0; }
 ul.ports { list-style: none; padding: 0; margin: 0 0 .6rem; }
 ul.ports li { display: flex; gap: .6rem; align-items: center; margin: 0 0 .4rem; }
+.ask { border-top: 1px solid var(--rule); margin-top: .9rem; padding-top: .8rem; }
+.ask p { color: var(--ink); }
 kbd { font: 600 .9em "Barlow Semi Condensed", "Barlow", sans-serif; border: 1px solid var(--rule); border-bottom-width: 2px;
       border-radius: 4px; padding: 0 .3em; background: var(--ground); }
 </style>
@@ -102,6 +104,14 @@ cable. This page works in Chrome or Edge, and there is nothing to install.</p>
     <button id="restore" class="primary" type="button" disabled>Restore</button>
   </div>
   <p class="file" id="fileInfo" hidden></p>
+  <!-- asked in the page, not with confirm(): an iOS app showing pages (MIDIWeb) may not show confirm() and answers no -->
+  <div class="ask" id="ask" role="group" aria-labelledby="askText" hidden>
+    <p id="askText"></p>
+    <div class="row">
+      <button id="askYes" class="primary" type="button">Replace everything</button>
+      <button id="askNo" class="quiet" type="button">Cancel</button>
+    </div>
+  </div>
 </section>
 
 <ul class="small">
@@ -284,39 +294,43 @@ const PB = (() => {
     return null;
   }
 
+  // finding FM-1s on Web MIDI: web/fm1ports.js, inlined by tools/make_site.py
+  {{PORTS_JS}}
   // the first MIDI port pair that answers as an FM-1 (ports named after the firmware first); a Link from makeLink(input, output).
-  // Never probe other gear: only ports with an FM-1's usual names, and the ones in allowed (the user's picks, web/fm1ota.js's
-  // allow); with only, that one port
+  // Never probe other gear with the identity query: only ports with an FM-1's usual names (fm1ports.js PORT_NAMES, but
+  // the update loader's "ota": a backup is never made from it), the ones in allowed (the user's picks, web/fm1ota.js's
+  // allow), and the ones that answer the screen reader's HELLO (every fm1-base firmware does; asked when no other
+  // port answers); with only, that one port
   const NAME_RE = new RegExp(NAME.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
-  const USUAL_RE = /fm-?1|felucca|composite|sinco|usb-midi|optimist|sloop|melodee|loom-?8/i;   // as fm1ota.js PORT_NAMES
-  // never a Bluetooth MIDI port: an FM-1 paired over Bluetooth shows one beside its USB port and it never answers
-  const BLUETOOTH_RE = /bluetooth/i;
-  const askable = (name, allowed) => !BLUETOOTH_RE.test(name || "") &&
-    (NAME_RE.test(name || "") || USUAL_RE.test(name || "") || allowed.includes(name));
-  // the input port names the page does not ask by itself, that have an output of the same name (for Try)
+  const USUAL = PORT_NAMES.filter((n) => n !== "ota");
+  const askable = (name, allowed) => NAME_RE.test(name || "") || usualName(name, USUAL) || allowed.includes(name);
+  // the input port names the page does not ask by itself, that have an output (for Try)
   function others(access, allowed = []) {
-    const outs = new Set([...access.outputs.values()].filter((p) => p.state !== "disconnected").map((p) => p.name));
-    return [...new Set([...access.inputs.values()].filter((p) => p.state !== "disconnected" && outs.has(p.name) &&
-      !askable(p.name, allowed) && !BLUETOOTH_RE.test(p.name || "")).map((p) => p.name))];
+    return [...new Set(pairs(access).map((p) => p.name).filter((n) => !askable(n, allowed)))];
   }
   async function find(access, makeLink, allowed = [], only = null) {
-    const ins = [...access.inputs.values()].filter((p) => p.state !== "disconnected" &&
-      !BLUETOOTH_RE.test(p.name || "") && (only != null ? p.name === only : askable(p.name, allowed)));
-    ins.sort((a, b) => NAME_RE.test(b.name) - NAME_RE.test(a.name));
-    const outs = [...access.outputs.values()];
-    const base = (s) => (s || "").replace(/\s+\d+$/, "");
     let other = null;
-    for (const input of ins) {
-      const same = outs.filter((o) => base(o.name) === base(input.name));
-      const output = outs.find((o) => o.name === input.name) || (same.length === 1 ? same[0] : null) || (outs.length === 1 ? outs[0] : null);
-      if (!output) continue;
-      try { await input.open(); await output.open(); } catch (_) { continue; }
-      const link = makeLink(input, output);
-      const id = await handshake(link);
-      if (id && id.startsWith(ID)) return { link, id, name: input.name };
-      if (id) other = other || id;
-      link.close();
+    const ask = async (ins) => {
+      for (const input of ins) {
+        const output = outputFor(access, input);
+        if (!output) continue;
+        try { await input.open(); await output.open(); } catch (_) { continue; }
+        const link = makeLink(input, output);
+        const id = await handshake(link);
+        if (id && id.startsWith(ID)) return { link, id, name: input.name };
+        if (id) other = other || id;
+        link.close();
+      }
+      return null;
+    };
+    const ins = livePorts(access.inputs).filter((p) => (only != null ? p.name === only : askable(p.name, allowed)));
+    ins.sort((a, b) => NAME_RE.test(b.name) - NAME_RE.test(a.name));
+    let dev = await ask(ins);
+    if (!dev && only == null) {
+      const heard = await askAll(access, { skip: (n) => askable(n, allowed) });
+      dev = await ask(heard.map((h) => h.input));
     }
+    if (dev) return dev;
     if (other) throw fail("model", `The FM-1 runs other firmware (${other}), not ${NAME}. Install ${NAME} first.`);
     throw fail("notfound", `${NAME} not found. Plug the FM-1 in with a USB data cable, close other apps that use its MIDI, and try again.`);
   }
@@ -445,6 +459,7 @@ function setBusy(on) {
   $("backup").disabled = on;
   $("restore").disabled = on || !picked;
   $("file").disabled = on;
+  if (on) $("ask").hidden = true;
 }
 window.addEventListener("beforeunload", (e) => { if (busy) { e.preventDefault(); e.returnValue = ""; } });
 
@@ -536,8 +551,14 @@ $("backup").addEventListener("click", async () => {
   }
 });
 
+// iOS turns accept into file types and has none for our extension, so it greys the backup out in Files: no filter
+// there (a wrong file is said on choosing it). iPadOS calls itself MacIntel, with touch.
+if (/iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1))
+  $("file").removeAttribute("accept");
+
 $("file").addEventListener("change", async (e) => {
   picked = null;
+  $("ask").hidden = true;
   const f = e.target.files && e.target.files[0];
   const info = $("fileInfo");
   info.hidden = true;
@@ -562,9 +583,16 @@ $("file").addEventListener("change", async (e) => {
   setBusy(false);
 });
 
-$("restore").addEventListener("click", async () => {
+$("restore").addEventListener("click", () => {
   if (busy || !picked) return;
-  if (!confirm(`Replace everything on ${FW.name} with ${picked.name}?\n\n${FW.name} asks too, on its screen.`)) return;
+  $("askText").innerHTML = `Replace everything on ${esc(FW.name)} with <b>${esc(picked.name)}</b>? ${esc(FW.name)} asks too, on its screen.`;
+  $("ask").hidden = false;
+  $("askYes").focus();
+});
+$("askNo").addEventListener("click", () => { $("ask").hidden = true; $("restore").focus(); });
+$("askYes").addEventListener("click", async () => {
+  if (busy || !picked) return;
+  $("ask").hidden = true;
   setBusy(true);
   let dev = null;
   try {

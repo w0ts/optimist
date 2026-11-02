@@ -145,7 +145,8 @@ async function use(f) {
   dev = new Companion(f.input, f.output);
   const h = f.hello;
   say(`Connected to ${h.name} ${h.appVersion} on ${f.name}.`);
-  const rows = [["Firmware", `${h.name} ${h.appVersion}`], ["Identity", h.identity], ["Port", f.name]];
+  const rows = [["Firmware", `${h.name} ${h.appVersion}`], ["Identity", h.identity], ["Port", f.name],
+    ...(h.backup ? [["Backup", `${h.backup.magic} version ${h.backup.version}, files .${h.backup.ext}`]] : [])];
   $("info").replaceChildren(...rows.flatMap(([k, v]) => [el("dt", {}, k), el("dd", {}, v)]),
     el("dt", {}, "Has"), el("dd", {}, el("div", { className: "chips" }, ...h.services.map((s) => el("span", { className: "chip" }, s)))),
     ...Object.entries(h.extras).flatMap(([k, v]) => [el("dt", {}, k), el("dd", {}, v)]));

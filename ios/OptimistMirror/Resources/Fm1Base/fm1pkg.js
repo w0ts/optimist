@@ -36,8 +36,17 @@ for (let i = 0; i < 256; i++) {
 const crc16 = (d) => { let c = 0; for (let i = 0; i < d.length; i++) c = ((c << 8) & 0xFFFF) ^ T16[((c >> 8) ^ d[i]) & 0xFF]; return c; };
 const ufwDec = (b, n) => { for (let i = 0, k = 0xFFFF; i < n; i++) { b[i] ^= k & 0xFF; k = ((k << 1) ^ (k & 0x8000 ? 0x1021 : 0)) & 0xFFFF; } return b; };
 
+// the part types whose CRC is crc16 of the part's bytes as stored (bsp/tools/fm1pkg.py ufw() writes types 0 flash.bin
+// and 100 ota.bin so; M-VAVE's V15 stock file has 2 info.log, empty, and 255 tail.bin so too). M-VAVE's other parts
+// (50 USR, 52 isd_config.ini, 161 blimit.bin, 251 script.ver) carry a CRC that is not crc16 of the stored bytes, nor of
+// them deciphered, padded to the entry's size or 512, or seeded 0xFFFF (measured on V15); its scheme is unknown, and
+// the FM-1's loader (bsp chip/ota.c ota_ufw) reads only types 0 and 100 from the list, so those parts are only
+// required to lie inside the image
+const CHECKED_TYPES = new Set([0, 2, 100, 255]);
+
 // a damaged or wrong file, caught before anything is sent: the UFW header's CRC, its entry list's, and each part's
-// (bsp/tools/fm1pkg.py ufw() writes them). Throws an Error saying which; returns nothing when all match
+// (bsp/tools/fm1pkg.py ufw() writes them), for the part types in CHECKED_TYPES; every other part must lie inside
+// the image. Throws an Error saying which; returns nothing when all match
 export function checkUfw(image) {
   const rd16 = (b, o) => b[o] | (b[o + 1] << 8);
   const rd32 = (b, o) => (b[o] | (b[o + 1] << 8) | (b[o + 2] << 16) | (b[o + 3] << 24)) >>> 0;
@@ -49,8 +58,10 @@ export function checkUfw(image) {
   for (let i = 0; i < n; i++) {
     const e = ufwDec(image.slice(0x40 + i * 0x50, 0x90 + i * 0x50), 0x50);
     const off = rd32(e, 8), len = rd32(e, 12);
-    if (off + len > image.length || crc16(image.subarray(off, off + len)) !== rd16(e, 4))
-      throw new Error(`the package is damaged (part ${rd16(e, 0)} checksum)`);
+    const type = rd16(e, 0);
+    if (off + len > image.length) throw new Error(`the package is damaged (part ${type} outside the file)`);
+    if (CHECKED_TYPES.has(type) && crc16(image.subarray(off, off + len)) !== rd16(e, 4))
+      throw new Error(`the package is damaged (part ${type} checksum)`);
   }
 }
 
