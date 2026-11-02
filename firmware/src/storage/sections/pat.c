@@ -788,7 +788,7 @@ static uint32_t pat_switch_isr(track_t *t, uint32_t abs, uint32_t len)
         FAST_CALL(seqev, pat_take)(t, k, &sec_stage_p);  /* (RELOAD, or a track from no slot: nothing to keep) */
     else if (pat_req[k] != pat_cur[k]) {
         pat_left_s[k] = pat_cur[k];                    /* (the outgoing kept: the stage holds it now) */
-        pat_swap_isr(k, 1);
+        FAST_CALL(seqev, pat_swap_isr)(k, 1);          /* (XIP: the swap is cold, once a switch; the ISR's RAM code calls it FAR) */
         pat_left |= (uint8_t)(1u << k);
     }                                                  /* (the slot playing launched again: its edits play on, from step 1) */
     pat_noleave &= (uint8_t)~(1u << k);
