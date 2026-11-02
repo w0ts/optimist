@@ -125,7 +125,7 @@ static int16_t drums_set = -2;   /* SMP_SETS index of "PERC" (GM map), -1 = none
 
 static int32_t ds_buf[CTL];
 
-static FASTI(seq) int32_t drum_set(void)
+static FASTI(seqev) int32_t drum_set(void)        /* (kb_raw's too: SEQ_RAM 1's events_block) */
 {
     uint32_t i;
     if (drums_set == -2) {
@@ -346,7 +346,7 @@ AINL void dlc_let_go(voice_t *v)
 #endif
 /* a voice for a hit: free, else the oldest (stolen: its last value fades, the declick tail); a closed or
  * pedal hat chokes the open one */
-static voice_t *drum_voice(uint32_t note, uint32_t vel, uint32_t lane)
+static FAST(seq) voice_t *drum_voice(uint32_t note, uint32_t vel, uint32_t lane)
 {
     voice_t *v = &drums.v[0];
     uint32_t i;
@@ -427,7 +427,7 @@ static void drum_on(uint32_t note, uint32_t vel)
     kit = dl_kit_of(lane, kit);                     /* (the lane may play another kit's sound, a user sample) */
 #if FELUCCA_SD_LANES
     if (lane < DRUM_LANES && dl.src[lane] == DL_CARD) {
-        dlc_hit(lane, note, vel);
+        FAST_CALL(seqev, dlc_hit)(lane, note, vel);  /* (the card's stream: flash code, sst_start) */
         return;
     }
 #endif
