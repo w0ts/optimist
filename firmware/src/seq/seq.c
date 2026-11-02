@@ -1633,7 +1633,7 @@ static void arp_add(track_t *t, uint32_t note)
     t->arp_phys++;                                  /* every key-down: arp_remove counts every key-up */
     n = t->nheld;
     i = arp_hold(t, note, 0);
-    if (i == n) {                                   /* (a new note: where its key is) */
+    if (i == n && i < 16u) {                        /* (a new note: where its key is; 16 held: arp_hold took none) */
         uint32_t k = (in_key - 1u) % 27u, hk;
         hk = in_key && kb_scaled(t) ? (in_key | (uint32_t)(kb_oct[k] + 3) << 5) : 0u;   /* (the key's octave: a
                                                     * CHORD+ note added after OCT moved, too) */

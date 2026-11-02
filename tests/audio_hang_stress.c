@@ -19,6 +19,8 @@
  * is counted (the device's cli / sti do not nest).
  * HANG_NEST=1 (sig): TIMER5 (SIGVTALRM) nests into the render, as the FM-1 showed.
  * HOST_DUAL=1 (with FELUCCA_DUAL=2): the second core as a thread (tests/audio_hang_dual.h); with -fsanitize=thread.
+ * HANG_A2=1: T1 holds ANALOG 2's swarm preset (two-saw pairs, the FM-1's crash of 2026-11-02 in a2_saw2) and plays notes
+ *   from the editor's ring, while PRESETS (and now and then the engine) change on the other tracks, often.
  *   env: HANG_MODE=det|sig, HANG_SEED=n, HANG_FRAMES=n (det; default 6000), HANG_SECS=n (sig; default 10), HANG_MS=n */
 #define HOST_IRQ_HOOKS 1
 #define EDN_HOST 1                                      /* seq/ednote.c is built: the stress writes the editor's note ring from the main loop */
@@ -289,6 +291,18 @@ static void maybe_isr(void)
         }
     }
 }
+static int a2_mode;                                     /* HANG_A2 */
+static void a2_sound(void)                              /* PRESETS on a track other than T1 */
+{
+    track_t *t = &trk[1u + R(NPART - 1u)];
+    where_now = "a2_sound";
+    if (R(5) == 0)
+        set_engine_of(t, R(NENGINES));
+    apply_preset_to(t, R(64));
+#if EDN_ON
+    (void)ednote_push(R(2) ? EDN_OP_ON : EDN_OP_OFF, 0, 36u + R(48), 1u + R(127));   /* T1's swarm sounds */
+#endif
+}
 static void act_notes(void)
 {
     uint32_t r = R(16), k = R(27);
@@ -504,7 +518,9 @@ static void stress_frame(void)
     frame_t0 = cpu_ns();
     for (i = 0; i < n; i++) {
         uint32_t r = R(100);
-        if (r < 40)
+        if (a2_mode && r < 30)
+            a2_sound();
+        else if (r < 40)
             act_notes();
         else if (r < 55)
             act_buttons();
@@ -618,6 +634,19 @@ int main(int argc, char **argv)
     sec_boot();
 #endif
     tracks_default();
+    a2_mode = (e = getenv("HANG_A2")) && atoi(e);
+    if (a2_mode) {                                      /* T1: ANALOG 2, a swarm preset (eng_analog.c: 16, 17 SWRM 6) */
+        uint32_t ei;
+        for (ei = 0; ei < NENGINES && ENGINES[ei] != &ENG_ANALOG; ei++)
+            ;
+        if (ei == NENGINES) {
+            fprintf(stderr, "HANG_A2: ANALOG 2 not built\n");
+            return 2;
+        }
+        set_engine_of(&trk[0], ei);
+        apply_preset_to(&trk[0], 17);
+        printf("HANG_A2: T1 ANALOG 2 preset 17, SWRM %d\n", trk[0].p[P_A2SWRM]);
+    }
     band_y = (uint32_t)OP_FOOT_Y;
     panel = PANEL_DEFAULT;
     settings_init();
