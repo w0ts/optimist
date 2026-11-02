@@ -161,11 +161,12 @@ static void sv_save_tests(void)
 {
     track_t *t;
     uint32_t f, d, h, sl, used = 0, w;
-    char nm[12];
+    char nm[16], cl[16];
     sv_open();
     for (sl = 0; sl < 16u && (pat_has(0, sl) || sl == 2u || sl == 7u || sl == 8u || sl == 10u); sl++)
         ;                                               /* (a free slot whose step the test leaves alone) */
     snprintf(nm, sizeof nm, "STORED T1 %u", sl + 1u);
+    snprintf(cl, sizeof cl, "CLONED T1 %u", sl + 1u);
     t = TSEL;
     fm1_irq_off();
     se_set(t, 2, 60, 1);
@@ -175,8 +176,10 @@ static void sv_save_tests(void)
     kdown(WK(sl));
     kup(WK(sl));
     release(B_SAVE);
-    check(sl < 16u && pat_has(0, sl) && pat_cur[0] == sl && !step_on(&t->step[sl]) && !op_armed() && !strcmp(ui.msg, nm),
-          "save: SAVE + a white key (an empty slot): stored there unasked, no step toggled");
+    check(clone_asked() && !pat_has(0, sl) && !step_on(&t->step[sl]), "save: SAVE + a white key (an empty slot): \"CLONE\" asked, no step toggled");
+    clone_yes();
+    check(sl < 16u && pat_has(0, sl) && pat_cur[0] == sl && !step_on(&t->step[sl]) && !op_armed() && !strcmp(ui.msg, cl),
+          "save: ... YES: stored there, no step toggled");
     press(B_SAVE);
     frames(2);
     keys_lit(&f, &d, &h);

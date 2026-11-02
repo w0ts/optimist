@@ -170,9 +170,10 @@ static int song_tbl_knobs(void)
             if ((s = panel_enc(KN[k])) == 0)
                 continue;
             any = 1;
-            if (!((sg.scn >> a) & 1u))
-                ui_message("EMPTY SCENE");              /* (nothing stored: SAVE + its key stores the loop) */
-            else
+            if (!song_scene_make(a)) {
+                if ((sg.used >> a) & 1u)
+                    ui_message("EMPTY SCENE");          /* (a plain section; a failed store said why) */
+            } else
                 song_turn(a, k, s, 0);                              /* (a scene's row is its index, its lane the track) */
         }
         if ((s = panel_enc(EN_PRESET)) != 0) {         /* PRESETS: the current scene's BARS, from any lane */
