@@ -832,7 +832,7 @@ job; ( jobin
 mkdir -p "$OUT/optimist-dual"
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DDUAL_LOAD=1 $SEC4 -o "$OUT/ui_optimist_dual_test" tests/ui_optimist_test.c -lm
-    run "Optimist UI with the CPU1 load: SYSTEM's CPU row CLOCK, CPU0, CPU1 (OFF when down)" "$OUT/ui_optimist_dual_test" "$OUT/optimist-dual"
+    run "Optimist UI with the CPU1 load: SYSTEM's CPU row CPU0, CPU1 (OFF when down)" "$OUT/ui_optimist_dual_test" "$OUT/optimist-dual"
 ) >"$U.out" 2>&1 & jobbg
 mkdir -p "$OUT/optimist-x0x"
 job; ( jobin

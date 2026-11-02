@@ -102,7 +102,7 @@ static void glo_list_tests(void)
         sys_info_cell(1, &c2);
         check(!strcmp(nm, "INFO") && c.kind == CK_RO && !strcmp(c.label, "INFO") && strcmp(nm1, "INFO") && gl_end(1, 0) == 1u &&
                   c1.kind == CK_RO && c2.kind == CK_RO &&
-                  (FELUCCA_SYS_DEBUG ? !strcmp(c1.label, "CLOCK") && !strcmp(c2.label, DUAL_LOAD ? "CPU0" : "LOAD")
+                  (FELUCCA_SYS_DEBUG ? !strcmp(c1.label, DUAL_LOAD ? "CPU0" : "LOAD")
                                      : DUAL_LOAD ? !strcmp(c1.label, "CPU0") && !strcmp(c2.label, "CPU1") : !strcmp(c1.label, "CPU LOAD") && !strcmp(c2.label, "RAM")),
               "SYSTEM's first page is INFO, one line: the clock and the load (SYS_DEBUG off: the load, RAM; DUAL: CPU0, CPU1) are its own, the next section starts page 2");
     }
