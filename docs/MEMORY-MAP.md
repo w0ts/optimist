@@ -46,6 +46,10 @@ CZ collection), which trades USR3 sample space for snapshots.
 | no user samples (3) | [0x4000, 0xB5000) (720,828 B) | FM6 voices 0xB5000-0xB6FFF, autosave A 0xB7000, log 32 sectors 0xB8000-0xD7FFF; R 0xD8000; 0xD8000-0xD9FFF free | 16 |
 | more flash, SD card mode (1) | [0x4000, 0xD0000) (831,420 B) | log 7 sectors 0xD0000-0xD6FFF, autosave A 0xD7000, FM6 voices 0xD8000-0xD9FFF; R 0xDA000 | 1 |
 
+The release (fm1-base) has the same ends in every step but L1 (0xCE000, its `OBJ_PANEL` at 0xCE000-0xCFFFF; in the
+other steps at 0xD8000-0xD9FFF), and its update loader clears on a switch by the same rule (fm1-base `fm1.toml`
+`app_steps`, `tests/fm1base_steps_test.py`). The six other steps (2, 4-8) are in `tools/flash_layout.py` STEPS.
+
 In every step the kits (0xDA000), the presets (0xDC000), the drum records, the settings and autosave copy B stay where
 the table above has them; no user sample slot, snapshot or CZ collection exists past normal.
 
