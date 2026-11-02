@@ -414,7 +414,7 @@ static uint32_t pw_leds(uint32_t *d);
 #include "../../system/stackmark.h"                     /* INFO's RAM line: how deep the stacks went (painted at boot: stk_boot) */
 /* ---- SYSTEM: SLOOP's HOME-held menu as rows (ui/sloop/ui_menu.c) */
 enum { SI_NONE, SI_TUNE, SI_RECQ, SI_PUNCH, SI_OUT, SI_SYNC, SI_CH1, SI_CH2,
-       SI_CH3, SI_CHD, SI_USB, SI_CPU, SI_MHZ, SI_ABOUT, SI_BLE, SI_KCOL, SI_DBGST, SI_METERS, SI_CLKOUT, SI_CPU1, SI_INFO, SI_BUILD, SI_REPO,
+       SI_CH3, SI_CHD, SI_USB, SI_CPU, SI_ABOUT, SI_BLE, SI_KCOL, SI_DBGST, SI_METERS, SI_CLKOUT, SI_CPU1, SI_INFO, SI_BUILD, SI_REPO,
        SI_DROPS, SI_GUARD, SI_UAINFO, SI_XRUN, SI_DIAG, SI_CREDITS, SI_BLEST, SI_BLEPEER, SI_BLEMIDI, SI_BLELIST, SI_BLEAUTO,
        SI_BLEFGT, SI_FRESO, SI_HPBASS, SI_BTA, SI_BTAPEER, SI_BTAFMT, SI_BTAST, SI_CLKOFS, SI_BTOFS, SI_LINK, SI_LINKOFS,
 #if FELUCCA_SD_UI
@@ -1033,14 +1033,6 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
         c->kind = CK_RO;
         c->unit = "github.com/w0ts/optimist";
         break;
-#if FELUCCA_SYS_DEBUG
-    case SI_MHZ:
-        sys_ro(c, "CLOCK");
-        fmt_int(c->val, (int32_t)((cpu_khz + 500u) / 1000u));
-        c->unit = "MHz";
-        cell_gauge(c, 0, 0, 240, (int32_t)((cpu_khz + 500u) / 1000u));
-        break;
-#endif
     case SI_KCOL:                                       /* the knob caps' colours on dials, labels, cards (core/knobcol.h) */
         sys_onoff(c, "KNOB COLORS", knob_colors);       /* (the settings list has the room: op_gldraw.c) */
         break;
@@ -1508,7 +1500,8 @@ static void sys_rst_cell(cell_t *c)
  *   INTERNALS (page 1): LAST RESET, the longest flash interrupts-off time, the second core's internals (DUAL builds)
  *   USB STATS (page 2, USB audio builds): the USB audio counters */
 #if FELUCCA_SYS_DEBUG
-#define INFO_BASE (6u + (uint32_t)FELUCCA_CPU_GUARD + (uint32_t)PART_DROPS + (uint32_t)FMEM_ANY)
+#define INFO_BASE (5u + (uint32_t)FELUCCA_CPU_GUARD + (uint32_t)PART_DROPS + (uint32_t)FMEM_ANY)   /* (no CLOCK line since 2026-11-01:
+                                                         * the clock is fixed; cpu_khz stays in the console and the CPU guard) */
 #else
 #define INFO_BASE (3u + (uint32_t)DUAL_LOAD + (uint32_t)PART_DROPS + (uint32_t)FMEM_ANY)   /* (without the debug pages: CPU LOAD (CPU0, CPU1),
                                                          * RAM, ARENA MOVE with an arena, UNDERRUNS) */
@@ -1522,7 +1515,7 @@ static void sys_rst_cell(cell_t *c)
 static void sys_info_cell(uint32_t i, cell_t *c)        /* INFO's line i */
 {
 #if FELUCCA_SYS_DEBUG
-    static const uint8_t INFO[INFO_BASE] = {SI_MHZ, SI_CPU, SI_CPU1, SI_RAM,
+    static const uint8_t INFO[INFO_BASE] = {SI_CPU, SI_CPU1, SI_RAM,
 #if FMEM_ANY
                                             SI_RAMUSE,
 #endif
@@ -1885,7 +1878,7 @@ static int sys_yes(uint32_t r, uint32_t k, uint32_t ok)
         sys_dirty |= it != SI_TUNE && it != SI_RECQ && it != SI_PUNCH;
         return 1;
     }
-    if (it == SI_NONE || (it >= SI_INFO && !si_ua(it)) || it == SI_CPU || it == SI_MHZ || it == SI_CPU1)
+    if (it == SI_NONE || (it >= SI_INFO && !si_ua(it)) || it == SI_CPU || it == SI_CPU1)
         return 0;                                       /* (the read-outs; USB AUDIO's lines, last, are settings) */
     sys_set(it, 0);
     return 1;
