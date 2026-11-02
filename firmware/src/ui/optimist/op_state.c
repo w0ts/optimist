@@ -266,9 +266,16 @@ static void step_cards_show(void);                      /* (op_step.c: which of 
  * user, 2026-10-10: "while scrolling algo knob, the screen flash in a not nice way"). The layout is the screen's,
  * the same for every track, so the gaps between the bands stay as they are */
 static void mx_redraw(void);
+/* the rows no band draws (the help band without its line, op_help.c hl_pre; the load lines' strip, op_meters.c mtr_draw) are
+ * drawn again by a repaint too (2026-11-01, the user over Bluetooth: SYSTEM > INFO's last line, "GUARD OFF", stayed in HOME's
+ * help band on the mirror for good: the page's clear never reached the client, a repaint never drew those rows and the mirror's
+ * self-check could not see them, io/editor/ed_mirror_sum.h: a band not drawn whole is not checked) */
+enum { OPA_HELP = 1, OPA_MTR = 2 };
+static uint8_t op_again;
 static void op_repaint(void)
 {
     memset(ui.sig, 0, sizeof ui.sig);
+    op_again = OPA_HELP | OPA_MTR;
     mx_redraw();
 }
 static uint8_t wipe_req;                               /* SHIFT2 + REC pressed: the wipe is wanted while both stay held (op_input.c wipe_frame) */
