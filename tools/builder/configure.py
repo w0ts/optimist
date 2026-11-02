@@ -193,8 +193,8 @@ def share_profile(name):
     return dest
 
 
-DEFAULT_PROFILE = "synths_USBaudio_BTaudio_BTmidi"   # make's, tools/optimist.py's and the menu's default (synths-USB-BTA-BTM, 2026-10-24): never deleted
-REFERENCE_PROFILE = "synths_USBaudio_BTaudio_BTmidi" # the profile the tests, the gate and the emulator checks build (synth went 2026-10-24): never deleted
+DEFAULT_PROFILE = "mots-config"   # make's, tools/optimist.py's and the menu's default (mots-config since 6330b5f5, which deleted synths_USBaudio_BTaudio_BTmidi): never deleted
+REFERENCE_PROFILE = "mots-config" # the profile the tests, the gate and the emulator checks build: never deleted
 
 
 def delete_profile(name):
