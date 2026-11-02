@@ -3599,7 +3599,7 @@ async function installerModule() {
   const phases = ["start", "verify", "loader", "write", "reboot", "done"].map((k) => INST.progressOf(k, 1, 0, 0x10000, 0).phase);
   ok(seq.every((v, i) => i === 0 || v >= seq[i - 1]) && seq[2] === 10 && seq.at(-1) === 100 && seq[7] === 95 && JSON.stringify(phases) === "[0,0,1,2,3,4]",
     `installer: the bar only goes forward, the write fills 15-95 by address (${seq.join(" ")})`);
-  const codes = ["notfound", "model", "stopped", "noloader", "lost", "noreturn", "mismatch", "badreq", "foreign", "denied", "badpkg", "notours", "noloaderpkg", "open", "bootrefused", "cancelled", "unexpected"];
+  const codes = ["notfound", "model", "stopped", "noloader", "lost", "noreturn", "mismatch", "badreq", "foreign", "denied", "badpkg", "notours", "noloaderpkg", "open", "bootrefused", "resbad", "cancelled", "unexpected"];
   const ota = readFileSync(join(HERE, "fm1base", "fm1ota.js"), "utf8") + readFileSync(join(HERE, "fm1ota_optimist.js"), "utf8").replaceAll("optFail(", "fail(");
   const thrown = [...new Set([...ota.matchAll(/fail\("(\w+)"/g), ...ota.matchAll(/fail\(s\d?\.lost \? "(\w+)" : "(\w+)"/g)].flatMap((m) => m.slice(1)).filter(Boolean))];
   ok(thrown.length >= 8 && thrown.every((c) => codes.includes(c)) && codes.every((c) => typeof T[c] === "string" && !INST.errorText({ code: c }).startsWith(T.error)),

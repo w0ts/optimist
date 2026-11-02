@@ -91,8 +91,8 @@ BUILDER_FILES = ("index.html", "app.html", "logic.js", "ui.js", "builder.js", "c
 
 
 INSTALLER_IMPORTS = re.compile(r'^import \{[^}]*\} from "\.\./(?:fm1base/)?(?:fm1ota|fm1pkg|fm1ota_optimist|install_route)\.js";\n', re.M)
-# fm-1-base's two files (web/fm1base/, MPL-2.0, unchanged), then Optimist's extras: the order they are inlined in
-LIB_FILES = ("fm1base/fm1pkg.js", "fm1base/fm1ota.js", "fm1ota_optimist.js", "install_route.js")
+# fm-1-base's three files (web/fm1base/, MPL-2.0, unchanged), then Optimist's extras: the order they are inlined in
+LIB_FILES = ("fm1base/fm1pkg.js", "fm1base/fm1ports.js", "fm1base/fm1ota.js", "fm1ota_optimist.js", "install_route.js")
 MBOOT_VERSION = "1.2"                              # web/fm1base/m-bootloader/fm1-uboot-X.Y.fwsc (MIT): the installer's extra choice
 MBOOT_NAME = f"m-bootloader-{MBOOT_VERSION}.fwsc"
 CSS_MARK = "const BUNDLED_CSS = null;"

@@ -104,6 +104,7 @@ export const TEXT = {
   badreq: "The FM-1 asked for data outside the package. Replug the cable and press Install again.",
   open: "This FM-1 runs M-VAVE's Open firmware, which takes only M-VAVE's own firmware: put the official firmware back first (step 4, Back to the official firmware V15), then install this. ",
   bootrefused: "The firmware is installed, but m-bootloader could not be: nothing else was changed.",
+  resbad: "The resource file is not one, or is damaged (Optimist keeps no resource region): nothing was written.",
   /* other MIDI ports, when no FM-1 answered: the user picks one to try (a name that is none of the usual ones) */
   portsHead: "Other MIDI ports on this computer. If one is your FM-1, try it:",
   tryPort: "Try", portsWait: "Asking…", portsEmpty: "No other MIDI ports.",
@@ -602,7 +603,7 @@ export function mountInstaller(container, opts = {}) {
         el.ports.hidden = true; el.find.textContent = TEXT.findAgain;
         return;
       }
-      const dev = await newUpdater(viewOf(midi), log).find();
+      const dev = await newUpdater(viewOf(midi), log).findAny();
       if (dev) { dev.link.close(); st.running = { text: dev.id.text, port: dev.name || "" }; say(el.found, TEXT.found + describeIdentity(dev.id), "ok"); el.ports.hidden = true; }
       else { say(el.found, TEXT.notfoundShort, "err"); el.help.hidden = false; showPorts(viewOf(midi)); }
       el.find.textContent = TEXT.findAgain;
@@ -705,7 +706,7 @@ export function mountInstaller(container, opts = {}) {
     if (st.detecting) await st.detecting;            /* (one handshake at a time on the port) */
     try {
       const up = newUpdater(viewOf(midi), log);
-      const dev = await up.find();                  /* (none: the steps below say so, as before) */
+      const dev = await up.findAny();               /* (none: the steps below say so, as before) */
       const route = dev ? await routeOf(pkg, dev) : { method: "loader" };
       if (route.method === "download") { needsDownload(route, pkg); st.busy = false; syncChoice(); render(); return; }
       const onStep = (k, a) => step(k, a, k === "write" ? up.lastAddr : undefined);
