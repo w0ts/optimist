@@ -232,7 +232,7 @@ static void pop_engines(uint32_t *list, uint32_t *n, uint32_t *at)
 {
     uint32_t i, j, k, e;
     *n = 0, *at = 0;
-    for (i = 0; i < NLIST && *n < 32u; i++) {
+    for (i = 0; i < preset_fixed_n() && *n < 32u; i++) {
         e = preset_all_at(i, &k);
         if (e >= NENGINES)
             continue;
