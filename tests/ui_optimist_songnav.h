@@ -149,6 +149,28 @@ static void songnav_scenes_tests(void)
     g = sn_cell_green();
     check(g > 5u, "... green still");
     song.playing = 0;
+    {   /* a scene loaded stopped, and launched at the bar while playing: no black fill of the whole LCD (the screen flashed) */
+        uint32_t f0;
+        scene_store_now(1);                             /* (two scenes that exist: a scene key loads / launches only a stored one) */
+        scene_store_now(3);
+        live_sec = 0;
+        ui.row[SCR_SONG] = 0;
+        frames(3);
+        f0 = full_fills;
+        key(WK(1));
+        frames(6);
+        check(live_sec == 1 && full_fills == f0, "songnav: a scene key stopped (loads it): the screen is redrawn in place, no full black fill");
+        song.playing = 1;
+        live_req = 2;
+        sec_stage_id = -1;
+        frames(2);
+        f0 = full_fills;
+        key(WK(3));
+        frames(30);
+        check(full_fills == f0, "... playing: the launch at the bar redraws in place too, no full black fill");
+        song.playing = 0;
+        live_req = -1;
+    }
 }
 static void songnav_ui_tests(void)
 {

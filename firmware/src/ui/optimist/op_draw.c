@@ -1354,8 +1354,7 @@ static void op_frame_draw(void)
     }
     if (ui.redraw) {                                    /* the cards and the panel again, over what they drew (a DX7 voice shows, the note's corner goes) */
         ui.redraw = 0;
-        ui.sig[1] = ui.sig[2] = ui.sig[4] = 0;
-        mx_redraw();
+        op_repaint();                                   /* (every band again over itself, the header too: a scene launched changes the track's sound) */
     }
     if (ov != ui.overlay || ui.force) {                 /* the panel under the overlay: again when it goes */
         if (ui.overlay == 5u)                           /* (the popup list covers the cards too: every band again, drawn over it; no black

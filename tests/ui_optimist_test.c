@@ -288,7 +288,7 @@ static uint8_t song_dirty;
 static void settings_save(void) {}
 static void song_backup(void) {}
 static void song_restore(void) {}
-static void project_apply(const project_t *p, const dlrec_t *d) { proj_apply(p, d, 1); }
+static void project_apply(const project_t *p, const dlrec_t *d) { proj_apply(p, d, 1); ui.force = 1; }   /* (project.c's asks for the black fill too) */
 #if FELUCCA_MOTION
 static void motion_flash_read(uint32_t obj, const project_t *p) { (void)obj; (void)p; }   /* (sections.c's migration reads the motion store; the real one is project.c's, not linked here) */
 #endif
@@ -1995,7 +1995,7 @@ static void layer_tests(void)
     key(WK(1));
     check(lpk.on, "LFO held + SAVE: the patterns screen stays");
     release(B_SAVE);
-    check(clone_asked() && !strcmp(ui.arm_q, "CLONE T1 2?") && !pat_has(0, 1), "LFO held + SAVE + key 2 (an empty slot): \"CLONE T1 2?\" asked, nothing stored yet");
+    check(clone_asked() && !strcmp(ui.arm_q, "CLONE T1 1>2?") && !pat_has(0, 1), "LFO held + SAVE + key 2 (an empty slot): \"CLONE T1 1>2?\" (source > destination) asked, nothing stored yet");
     clone_yes();
     check(pat_has(0, 1), "LFO held + SAVE + key 2: YES, the working copy stored into T1 2");
     {   /* a brisk strum on the device: the key's press and SAVE's release land in one (slow) UI frame (the user, 2026-10-23:
