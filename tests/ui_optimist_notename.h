@@ -68,3 +68,49 @@ static void notename_blink_tests(void)
 #else
 static void notename_blink_tests(void) {}
 #endif
+
+/* all the notes held and their chord (the user, 2026-11-02: "list them all and say which chord it is"; op_chord.c) */
+static int ch_is(const uint8_t *n, uint32_t c, const char *want)
+{
+    char b[12];
+    memcpy(nn_set, n, c);
+    nn_cnt = (uint8_t)c;
+    ch_name(b, sizeof b);
+    return strcmp(b, want) == 0;
+}
+static void chordname_tests(void)
+{
+    static const uint8_t C[] = {60, 64, 67}, CE[] = {64, 67, 72}, AM[] = {57, 60, 64}, C7[] = {60, 64, 67, 70},
+                         DM7[] = {62, 65, 69, 72}, BD[] = {59, 62, 65}, CS4[] = {60, 65, 67}, NO[] = {60, 61}, ONE[] = {60};
+    uint32_t i, k[3] = {WK(0), WK(2), WK(4)}, ok = 1;
+    char b[64], w[6];
+    check(ch_is(C, 3, "C") && ch_is(CE, 3, "C/E") && ch_is(AM, 3, "Am") && ch_is(C7, 4, "C7") && ch_is(DM7, 4, "Dm7") &&
+          ch_is(BD, 3, "Bdim") && ch_is(CS4, 3, "Csus4") && ch_is(NO, 2, "") && ch_is(ONE, 1, ""),
+          "chord names: C, C/E (a slash on its bass), Am, C7, Dm7, Bdim, Csus4; none for C C# or one note");
+    reset_ui();
+    song.sel = 0;
+    op_enter(SCR_HOME);
+    ui.force = 1;
+    frames(3);
+    for (i = 0; i < 3u; i++)
+        kdown(k[i]);
+    frames(2);
+    for (i = 0; i < 3u; i++)
+        ok &= nn_cnt == 3u && nn_set[i] == kb_nt[k[i]][0];
+    check(ok, "three keys held: the three notes listed, lowest first");
+    nn_line(b, sizeof b, 232);
+    note_name(w, nn_set[0]);
+    check(strncmp(b, w, strlen(w)) == 0 && strchr(b, ' ') != 0, "... the line starts with the lowest note's name and lists the others");
+    ppm("opt-chordname");
+    kup(k[2]);
+    frames(2);
+    check(nn_cnt == 3u, "... one let go: the chord still shown whole");
+    kup(k[1]);
+    kup(k[0]);
+    frames(NN_FRAMES + 4u);
+    kdown(k[1]);
+    frames(2);
+    check(nn_cnt == 1u && nn_set[0] == kb_nt[k[1]][0], "... a new key alone after: just its note");
+    kup(k[1]);
+    frames(NN_FRAMES + 4u);
+}
