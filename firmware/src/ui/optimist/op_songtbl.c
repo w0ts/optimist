@@ -17,9 +17,10 @@ static struct {
     uint32_t kind, col, n;              /* what stb_paint draws: the table, the cursor's column, the columns there are */
     char t[5][STB_COLS][5];             /* the cells' texts, a lane a row */
     uint8_t live[STB_COLS];             /* the column's state: 1 playing, 2 queued, 3 empty scene */
-    uint8_t mk_i, mk_lane, mk_on;       /* the current scene's marker: its column in the window, its lane (4: under the table), drawn at all */
+    uint8_t mk_i, mk_on;                /* the current scene's marker: its column in the window, drawn at all (always on the foot line, never in a lane) */
 } stb;
-#define STB_MK 11                       /* the marker's box: a 7 px play triangle in it */
+#define STB_MK 15                       /* the marker's box (the foot line under the lanes is 16 px or more): a 13 px play triangle in it */
+#define STB_TRI 13                      /* the triangle's side: 13 px tall, 13 wide */
 
 static int song_tbl_on(void)
 {
@@ -104,7 +105,6 @@ static void stb_paint(void)
                 cv_rect(x, y + 1, 1, ph - 2, oc);
                 cv_rect(x + STB_CW - 3, y + 1, 1, ph - 2, oc);
             }
-            if (!(stb.mk_on && stb.mk_i == i && stb.mk_lane == lane))   /* (the marker's cell: the triangle instead of its "-") */
             {
                 const felucca_font_t *vf = stb_font(v, STB_CW - 4);
                 cv_text(x + (STB_CW - 2 - text_w(vf, v)) / 2, y + (ph - (int32_t)vf->h) / 2, vf, v, col);
@@ -125,7 +125,7 @@ static void stb_paint(void)
         cv_texts(3, GL_END - 14, b, C_GRAY);
     }
 }
-/* the current scene's marker (the user, 2026-11-02): a play triangle in the column's last empty cell, green; it turns a quarter every
+/* the current scene's marker (the user, 2026-11-02): a green play triangle on the foot line under the lanes (never in a lane's cell), in the column; it turns a quarter every
  * 160 ms while the transport runs and stands still when stopped. Only its own box is sent (cv_whole_w), not the table */
 static uint32_t stb_mk_sig;
 static uint32_t stb_mk_phase;
@@ -133,17 +133,17 @@ static void stb_mk_paint(void)
 {
     int32_t dx, dy;
     uint32_t o = stb_mk_phase;
-    for (dy = 0; dy < 7; dy++)
-        for (dx = 0; dx < 7; dx++) {
-            int32_t u = dx, v = dy, t;
+    for (dy = 0; dy < STB_TRI; dy++)
+        for (dx = 0; dx < STB_TRI; dx++) {
+            int32_t u = dx, v = dy, t, c = STB_TRI / 2;
             uint32_t r;
             for (r = 0; r < o; r++) {                   /* (a quarter turn about the centre, o times) */
                 t = u;
-                u = 6 - v;
+                u = STB_TRI - 1 - v;
                 v = t;
             }                                           /* (u, v: the point's place in the triangle pointing right) */
-            if ((v > 3 ? v - 3 : 3 - v) * 2 <= 6 - u)
-                cv_rect((STB_MK - 7) / 2 + dx, (STB_MK - 7) / 2 + dy, 1, 1, C_OK);
+            if ((v > c ? v - c : c - v) * 2 <= STB_TRI - 1 - u)
+                cv_rect((STB_MK - STB_TRI) / 2 + dx, (STB_MK - STB_TRI) / 2 + dy, 1, 1, C_OK);
         }
 }
 static void stb_marker_draw(void)
@@ -153,13 +153,13 @@ static void stb_marker_draw(void)
     if (!stb.mk_on)
         return;
     stb_mk_phase = song.playing ? (fm1_ms / 160u) & 3u : 0u;
-    sig = hu(stb_mk_phase + 1u, (uint32_t)stb.mk_i * 8u + stb.mk_lane);
+    sig = hu(stb_mk_phase + 1u, (uint32_t)stb.mk_i);
     if (sig == stb_mk_sig)
         return;
     stb_mk_sig = sig;
     ph = (GL_END - 22 - 16) / 5;
     x = STB_X0 + (int32_t)stb.mk_i * STB_CW + (STB_CW - 2 - STB_MK) / 2;
-    y = stb.mk_lane < 4u ? 22 + (int32_t)stb.mk_lane * ph + (ph - STB_MK) / 2 : GL_END - 14;
+    y = 22 + 5 * ph + (GL_END - 22 - 5 * ph - STB_MK) / 2;   /* (the foot line under the five lanes, centred in its height) */
     cv_whole_w((uint32_t)x, (uint32_t)(GL_TOP + y), STB_MK, STB_MK, C_BLACK, stb_mk_paint);
 }
 static void song_tbl_draw(void)
@@ -187,13 +187,7 @@ static void song_tbl_draw(void)
     stb.mk_on = 0;
     if (kind == SG_SCENE && live_sec >= 0 && (uint32_t)live_sec >= c0 && (uint32_t)live_sec < c0 + STB_COLS) {
         stb.mk_on = 1, stb.mk_i = (uint8_t)((uint32_t)live_sec - c0);
-        stb.mk_lane = 4;
-        for (lane = 4; lane-- > 0u;)                    /* (the last empty cell of the column's lanes T1..DR, else under the table) */
-            if (!stb.t[lane][stb.mk_i][0] || stb.t[lane][stb.mk_i][0] == '-') {
-                stb.mk_lane = (uint8_t)lane;
-                break;
-            }
-        sig = hu(sig, 0x4D00u + stb.mk_i * 8u + stb.mk_lane);
+        sig = hu(sig, 0x4D00u + stb.mk_i);
     }
     if (sig != ui.sig[2]) {
         ui.sig[2] = sig;
