@@ -148,8 +148,12 @@ export class Companion {
   async hello() {
     const b = await this.request(HELLO);
     const bits = le.u32(b, 1);
-    const [[identity, name, version, extras]] = strings(b, 13, 4);
-    return { version: b[0], bits, services: SERVICES.filter((_, i) => bits >> i & 1), readMax: le.u16(b, 5),
+    const [[identity, name, version, extras], at] = strings(b, 13, 4);
+    let backup = null;                          // protocol 2: the backup's format at the answer's end (an older answer has none)
+    if (b[0] >= 2 && b.length >= at + 7 && (b[at] | b[at + 1] | b[at + 2] | b[at + 3]))
+      backup = { magic: String.fromCharCode(b[at], b[at + 1], b[at + 2], b[at + 3]), version: le.u16(b, at + 4),
+        ext: strings(b, at + 6, 1)[0][0] };
+    return { backup, version: b[0], bits, services: SERVICES.filter((_, i) => bits >> i & 1), readMax: le.u16(b, 5),
       writeMax: le.u16(b, 7), files: le.u16(b, 9), params: le.u16(b, 11), identity, name, appVersion: version,
       extras: Object.fromEntries(extras.split(";").filter(Boolean).map((kv) => kv.includes("=") ? kv.split(/=(.*)/s).slice(0, 2) : [kv, ""])) };
   }

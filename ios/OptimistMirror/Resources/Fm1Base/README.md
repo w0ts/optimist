@@ -3,13 +3,13 @@
 These files are fm1-base's own web pages, copied unchanged (MPL-2.0, their headers kept; the licence text is
 `LICENSE-MPL-2.0`). The rest of this app is GPL-3.0-only: the two licences stay apart, file by file.
 
-Origin: the fm1-base integration checkout (`worktrees/fm1b-integ`), commit `99151caf160518a9f9cdbae255b5ff769203f9d5`
-(`trial/optimist-integ`, merge of `trial/optimist-app-dual`), the `web/` folder:
+Origin: the fork's branch `up-fm1base` (upstream fm-1-base main 02f422c7 merged into our line), commit `59d0559`, the `web/` folder
+(2026-11-02; `fm1ports.js` is ours with a Bluetooth-port exclusion, see `web/fm1base/README.md`):
 
 | Here | fm1-base | last commit touching it |
 | --- | --- | --- |
 | `installer.html` | `web/installer.html` | e8dc228 |
-| `fm1ota.js`, `fm1pkg.js` | `web/fm1ota.js`, `web/fm1pkg.js` | aa74775, 72a07d1 |
+| `fm1ota.js`, `fm1pkg.js`, `fm1ports.js` | `web/fm1ota.js`, `web/fm1pkg.js`, `web/fm1ports.js` | see `git log` there |
 | `backup/index.html` | `web/backup/index.html` | 887eddf |
 | `mirror/index.html` | `web/mirror/index.html` | 2bb8570 |
 | `companion/index.html`, `companion/companion.js` | `web/companion/` | 4a410dc |

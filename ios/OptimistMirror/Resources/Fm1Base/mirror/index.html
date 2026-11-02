@@ -262,9 +262,47 @@ function createMirror(on = {}) {
 }
 // --- decoder: end ---
 
+// --- ports: begin (tests/mirror_ports_test.mjs runs this part in Node) ---
+// finding FM-1s on Web MIDI: web/fm1ports.js, inlined by tools/make_site.py
+{{PORTS_JS}}
+// The ports the page takes by itself. The mirror's requests are fm1-base's own SysEx, so they never go to other gear:
+// only to a port named after the firmware or with an FM-1's usual name (fm1ports.js PORT_NAMES, but the update
+// loader's "ota": it mirrors nothing), the one the user picked (saved), or one that answered the screen reader's HELLO
+// (every fm1-base firmware does, whatever its port is called)
+function mirrorPorts(name) {
+  const nameRe = new RegExp(name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+  const usual = PORT_NAMES.filter((n) => n !== "ota");
+  const askable = (n, heard) => nameRe.test(n || "") || usualName(n, usual) || heard.has(n);
+  // the pair to mirror: the saved one ({ in, out }: port names), else one named after the firmware, else one with a
+  // usual name, else one that answered a HELLO (heard: their names) -> { input, output }, or null
+  function choose(access, saved = {}, heard = new Set()) {
+    const ins = livePorts(access.inputs), outs = livePorts(access.outputs);
+    const input = ins.find((p) => saved.in && p.name === saved.in) || ins.find((p) => nameRe.test(p.name || "")) ||
+      ins.find((p) => usualName(p.name, usual)) || ins.find((p) => heard.has(p.name));
+    if (!input) return null;
+    const output = (input.name === saved.in && outs.find((o) => saved.out && o.name === saved.out)) || outputFor(access, input);
+    return output ? { input, output } : null;
+  }
+  // the other ports asked for a HELLO, each output at most asking.tries times while it stays plugged in (asking: an
+  // Asking) -> the pair that answered (one named after the firmware first), its name added to heard; or null
+  async function seek(access, asking, heard, ms = 500) {
+    for (let t = 0; t < asking.tries; t++) {
+      const outs = new Set();
+      const want = new Set(pairs(access).filter((p) => !askable(p.name, heard) &&
+        (outs.has(p.output) || (outs.add(p.output), asking.due(p.output)))).map((p) => p.name));
+      if (!want.size) return null;
+      const got = await askAll(access, { ms, tries: 1, skip: (n) => !want.has(n) });
+      const g = got.find((x) => nameRe.test(x.firmware)) || got[0];
+      if (g) { heard.add(g.name); return { input: g.input, output: g.output, firmware: g.firmware }; }
+    }
+    return null;
+  }
+  return { askable, choose, seek };
+}
+// --- ports: end ---
+
 if (typeof document !== "undefined") {
 const NAME = "{{NAME}}", SLUG = NAME.toLowerCase().replace(/[^a-z0-9]+/g, "-");
-const NAME_RE = new RegExp(NAME.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
 // ---------------------------------------------------------------- the panel (web/emu's drawing)
 const NS = "http://www.w3.org/2000/svg";
 const BTN = { FX: 0, SEL: 1, ENV: 2, LFO: 3, EDIT: 4, GLO: 5, HOME: 6, SAVE: 7, ARP: 8, SEQ: 9, PLAY: 10, REC: 11, "OCT-": 12, "OCT+": 13 };
@@ -441,20 +479,30 @@ function askRefresh() {
   mirror.resync();
   send(2);
 }
-function fill(sel, ports, saved) {
-  const names = ports.map((p) => p.name);
-  sel.replaceChildren(...ports.map((p) => new Option(p.name, p.id)));
-  const pick = ports.find((p) => p.name === saved) || ports.find((p) => NAME_RE.test(p.name)) || ports.find((p) => /fm-?1/i.test(p.name));
-  if (pick) sel.value = pick.id;
-  sel.disabled = !names.length;
+function fill(sel, ports, pick) {
+  sel.replaceChildren(new Option(ports.length ? "Choose its port" : "No ports", ""), ...ports.map((p) => new Option(p.name, p.id)));
+  sel.value = pick ? pick.id : "";
+  sel.disabled = !ports.length;
 }
+const MP = mirrorPorts(NAME), asking = new Asking(), answered = new Set();
+let seeking = 0;
 function pickPorts() {
-  const ins = [...access.inputs.values()].filter((p) => p.state === "connected");
-  const outs = [...access.outputs.values()].filter((p) => p.state === "connected");
+  const ins = livePorts(access.inputs), outs = livePorts(access.outputs);
   let saved = {};
   try { saved = JSON.parse(localStorage.getItem(`${SLUG}-mirror-ports`) || "{}"); } catch {}
-  fill(inSel, ins, saved.in);
-  fill(outSel, outs, saved.out);
+  const c = MP.choose(access, saved, answered);
+  fill(inSel, ins, c && c.input);
+  fill(outSel, outs, c && c.output);
+  attach();
+  if (!c) seekPorts();
+}
+// no port to take by itself: the others asked for the screen reader's HELLO, and the one that answers taken
+async function seekPorts() {
+  const gen = ++seeking;
+  const got = await MP.seek(access, asking, answered);
+  if (gen !== seeking || !got || (inPort && outPort)) return;     // (picked meanwhile, or the ports changed again)
+  inSel.value = got.input.id;
+  outSel.value = got.output.id;
   attach();
 }
 function attach() {
@@ -470,7 +518,11 @@ function attach() {
   try { localStorage.setItem(`${SLUG}-mirror-ports`, JSON.stringify({ in: inPort.name, out: outPort.name })); } catch {}
   if (fresh) { heardHello = false; lastHeard = performance.now(); mirror.resync(); send(2); say(`Asking ${outPort.name}...`, "wait"); }
 }
-inSel.addEventListener("change", attach);
+inSel.addEventListener("change", () => {           // an input picked: its output with it (fm1ports.js outputFor)
+  const i = access.inputs.get(inSel.value), o = i && outputFor(access, i);
+  if (o) outSel.value = o.id;
+  attach();
+});
 outSel.addEventListener("change", () => { outPort = null; attach(); });
 document.getElementById("refresh").addEventListener("click", () => { lastAsk = 0; askRefresh(); });
 async function connect() {
@@ -488,6 +540,7 @@ async function connect() {
     const p = e.port;
     if (seen.get(p.id) === p.state) return;
     seen.set(p.id, p.state);
+    if (p.state === "disconnected") asking.forget(p.id);   // (plugged in again: asked again)
     if (inPort) inPort.onmidimessage = null;           // the FM-1 back (or gone): the ports picked afresh, a refresh
     inPort = outPort = null;
     pickPorts();
