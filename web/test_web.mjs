@@ -57,7 +57,7 @@ const E = vm.runInNewContext(`${proto}
    WATCH, watchCaps, PARAMS_GLOBAL,
    openMidi, findPorts, wantsReconnect, isFM1Name, syncState, ROLL, rollRest, rollNotes, noteSpan, rollAdd, rollRemove, rollToggle, rollSetLength, rollSetNote, rollSetStep, rollChanged, rollGrid, rollLen, DRUM_PAGE, drumPages, drumPageRange, COLORS, engineColor, kindColor, contrast, textOn, MASTER_FX, MASTER_BUS, fxInline, FX_INLINE_MAX, NAV, SCREENS, navOpen, navClose, navKey, navScreen, navDepth, KEYS, KEY_FIXED, LANE_KEYS, keyFor, keyLabel, keyPlan, stepxBuilt, PAT, patSlotView, patUsers,
    PATREC, patRecParse, patRecBuild, patRawEmpty, patStepFrom, patStepRaw, patDrumFrom, patDrumRaw, patReadAll, patWriteAll,
-   FXT, FXT_NAMES, fxsLoad, fxType, fxSlotAmt, readFx, keptIds, AUTO, autoLane, SetGate,
+   FXT, FXT_NAMES, fxsLoad, fxType, fxSlotAmt, readFx, keptIds, sectionsShown, AUTO, autoLane, SetGate,
    FXP, FXP_TABLE, SCRN_TABLE, SCRS_TABLE, EQ_FL_HZ, EQ_FH_HZ, fxpClass, fxpName, fxpTypeName, fxpAllows, fxpFmt, readFxpOwner, readFxpSlot, panelKey, panelKeyName, navParse, navTracksParse, navBar, navKnobs, navKnobAt, MNAV, PJF, pjfPack, pjfUnpack, pjLibMake, pjLibMem, pjSwap, WIFI, wifiCheck, wifiApCheck, wifiApDefaultKey, wifiIsAp, wifiBusy, wifiText, pack7, unpack7, btInfoOk })`,
 { setTimeout, clearTimeout, setInterval, clearInterval, console, TextEncoder, TextDecoder });
 
@@ -1117,6 +1117,7 @@ async function editorFxSlots() {
   {
     const { rq, teardown } = attachMock({});
     const info = await infoOf(rq);
+    ok(E.sectionsShown({ pat: null }) && !E.sectionsShown({ pat: { slots: 16, scenes: 16 } }), "sections: shown on a firmware without PATTERNS (INFO tag 0x55 absent), hidden where a project owns its scenes");
     ok(info.fxs === null && await E.readFx(rq, info) === null && !E.keptIds(info).has(75), "fx slots: a firmware without tag 0x56: no FX state (the strips as before)");
     teardown();
   }
@@ -3457,6 +3458,116 @@ async function updater() {   /* every outcome of install() and resume() */
   ok(cs.stock && cs.banks && cs.banks.length === STOCK_BANKS_SIZE, "installer: checkStock: the V15 with its voice banks (the restore after the install)");
 }
 
+/* the cable dropped mid-install (2026-11-01): resumable() says so, then looks for the FM-1 BY ITSELF (the user: "the flasher
+   should automatically resume") and goes on: step 2 on the loader (only the sectors left), step 1 again on the same running
+   firmware; Cancel stops it; anything else stops (tools/fm1_install.py install_resumable, the app's installResumable) */
+async function dropped() {
+  const IR = await import("./install_route.js");
+  const big = Uint8Array.from({ length: 0x6000 }, (_, i) => (i * 7) & 0xFF), n = big.length / 4096;
+  const failure = (p) => p.then(() => null, (err) => err);
+  const P = IR.resumePlan, L = { text: "ota-FM-1_900" };
+  ok(P("write", null, "FM-1_900", "FM-1_015") === "absent" && P("write", L, "FM-1_900", "FM-1_015") === "write" && P("check", L, "FM-1_900", "FM-1_015") === "write"
+     && P("check", { text: "FM-1_015" }, "FM-1_900", "FM-1_015") === "restart" && P("write", { text: "FM-1_015" }, "FM-1_900", "FM-1_015") === "unexpected"
+     && P("write", { text: "FM-1_900" }, "FM-1_900", "FM-1_015") === "done" && P("check", { text: "FM-1_905" }, "FM-1_900", "FM-1_015") === "unexpected"
+     && P("write", { text: "ota-FM-1_015" }, "FM-1_900", "FM-1_015") === "foreign" && P("write", { text: "XY-9_001" }, "FM-1_900", "FM-1_015") === "unexpected",
+     "drop: resumePlan (fm1_install.py resume_plan): loader -> write, same firmware after step 1 -> restart, the package after step 2 -> done, else stop");
+  ok(IR.DROPPED === "Connection dropped. Check the cable: the install continues by itself when the FM-1 is back. Do not power off the FM-1.", "drop: the sentence (no Resume to press; do not power off)");
+  ok(INST.errorText({ code: "unexpected", detail: "FM-1_015" }) === "The FM-1 came back as FM-1_015, not the one being updated: nothing more was sent. Check which FM-1 this is, then press Install again."
+     && INST.errorText({ code: "cancelled", detail: "write" }) === "Cancelled. Nothing more was sent. The FM-1 stays in update mode: keep it on and press Install again to finish."
+     && INST.errorText({ code: "cancelled", detail: "check" }) === "Cancelled. Nothing was written." && INST.TEXT.dropped === IR.DROPPED
+     && INST.TEXT.checking === "Checking what is already on the FM-1…" && INST.TEXT.noPowerOff === "Do not power off the FM-1.",
+     "drop: the page's words (the Mirror app's FlashResume / FlashError: the same sentences)");
+  const back = (identity = "ota-FM-1_900", name = "Felucca Update", ms = 300, more = 0) => [identity, name, ms, more];
+  const go = (dev, cancelled = () => false, running = "FM-1_015") => {
+    const up = new OptimistUpdater(dev.access), drops = [];
+    const p = up.resumable(() => up.install(big, "FM-1_900"), (e) => drops.push(e.code),
+      { image: big, product: "FM-1_900", running, plan: IR.resumePlan, pollMs: 50, cancelled });
+    return { up, drops, p };
+  };
+  let dev = new FakeFM1(big, { fast: true, unplugAfter: 4 + 1 + 2, comesBack: [back()] }), r = go(dev);
+  let got = await r.p;
+  ok(got === "FM-1_900" && r.drops.join() === "lost" && dev.sectorReads === n && !dev.bad && dev.upgradesSeen === 3,
+    `drop in step 2: said once, back by itself: the loader writes on, only the ${n - 2} sectors left (${dev.sectorReads} of ${n} in all), step 1 once`);
+  dev = new FakeFM1(big, { fast: true, unplugAfter: 6, comesBack: [back(undefined, undefined, 300, 2), back()] }); r = go(dev);
+  got = await r.p;
+  ok(got === "FM-1_900" && r.drops.length === 2 && dev.sectorReads === n && !dev.bad, "two drops: said each time, back by itself each time, done");
+  dev = new FakeFM1(big, { fast: true, unplugAfter: 6 });
+  let looks = 0;
+  const cancel = await failure(go(dev, () => ++looks > 3).p);
+  ok(cancel?.code === "cancelled" && cancel.detail === "write" && looks === 4 && dev.upgradesSeen === 2, "drop, Cancel while it waits: 'cancelled' (in step 2: the FM-1 stays in update mode), nothing more sent");
+  dev = new FakeFM1(big, { unplugAfter: 2, comesBack: [back("FM-1_015", "FM-1")] });
+  got = await go(dev).p;
+  ok(got === "FM-1_900" && dev.upgradesSeen === 3 && !dev.bad, "drop in step 1, back running: step 1 again by itself, then done");
+  dev = new FakeFM1(big, { fast: true, unplugAfter: 6, comesBack: [back("FM-1_015", "FM-1")] });
+  const odd = await failure(go(dev).p);
+  ok(odd?.code === "unexpected" && odd.detail === "FM-1_015" && dev.upgradesSeen === 2, "drop in step 2, back running the old firmware: stops ('unexpected'), nothing sent");
+  dev = new FakeFM1(big, { fast: true, unplugAfter: 6, comesBack: [back("ota-FM-1_015", "FM-1 Update")] });
+  const theirs = await failure(go(dev).p);
+  ok(theirs?.code === "foreign" && dev.upgradesSeen === 2, "drop, back as another firmware's loader: stops ('foreign'), nothing sent");
+  dev = new FakeFM1(big, { fast: true, unplugAfter: 6, comesBack: [back("FM-1_900", "Felucca")] });
+  got = await go(dev).p;
+  ok(got === "FM-1_900" && dev.upgradesSeen === 2, "drop as the loader finished (back running the package): done, nothing sent");
+  /* the FM-1 on 2026-11-01: the loader kept its fast session over the replug, never heard the new hello, asked its 4 KiB reads on */
+  dev = new FakeFM1(big, { fast: true, unplugAfter: 6, comesBack: [back()], keepsSession: true });
+  const steps = [];
+  r = (() => { const up = new OptimistUpdater(dev.access); return { up, p: up.resumable(() => up.install(big, "FM-1_900", (k) => steps.push(k)), () => {},
+    { image: big, product: "FM-1_900", running: "FM-1_015", plan: IR.resumePlan, pollMs: 50, onStep: (k) => steps.push(k) }) }; })();
+  got = await failure(r.p).then((e) => e || "FM-1_900");
+  ok(got === "FM-1_900" && dev.unheard === 2 && r.up.kept && steps.includes("kept") && dev.sectorReads === n && !dev.bad,
+    `drop, the loader still in its fast session (the new hello unheard): served on in 4 KiB reads, done (${got?.code || got})`);
+  /* two FM-1s: the page's view without the others (installer.js viewOf, notChosen) */
+  ok(IR.notChosen("FM1-9C0D", "FM1-1A2B", new Set(["FM1-9C0D"])) && IR.notChosen("FM1-9C0D Update", "FM1-1A2B", new Set())
+     && IR.notChosen("FM-1", "FM1-1A2B", new Set(["FM-1"])) && !IR.notChosen("Felucca Update", "FM1-1A2B", new Set(["FM-1"]))
+     && !IR.notChosen("FM1-1A2B Update", "FM1-1A2B", new Set(["FM-1"])), "two FM-1s: notChosen: the others' keys, another FM1-XXXX; a port without a token stays");
+  const a = new FakeFM1(big, { fast: true, unplugAfter: 6, name: "FM1-1A2B", comesBack: [back()] }), b = new FakeFM1(big, { identity: "ota-FM-1_900", name: "FM-1" });
+  const others = new Set(["FM-1"]), keep = (m) => new Map([...m].filter(([, p]) => !IR.notChosen(p.name, "FM1-1A2B", others)));
+  const both = (k) => new Map([...a.access[k], ...b.access[k]]);
+  const view = { get inputs() { return keep(both("inputs")); }, get outputs() { return keep(both("outputs")); } };
+  const upAB = new OptimistUpdater(view);
+  let bAsked = 0; const rxB = b.rx.bind(b); b.rx = (m) => { bAsked++; return rxB(m); };
+  got = await upAB.resumable(() => upAB.install(big, "FM-1_900"), () => {}, { image: big, product: "FM-1_900", running: "FM-1_015", plan: IR.resumePlan, pollMs: 50 });
+  ok(got === "FM-1_900" && a.sectorReads === n && bAsked === 0, "two FM-1s: resumed on the chosen one, the other (in update mode too) never asked");
+}
+
+/* after step 1 the loader is looked for at once, every OPT_LOADER.pollMs (no blind 3 s wait, 2026-11-01) */
+async function loaderPoll() {
+  const M = await import("./fm1ota_optimist.js");
+  const img = new Uint8Array(0x2000).map((_, k) => (7 * k) % 256), dev = new FakeFM1(img, { fast: true }), t = {};   /* (fast: the loader's first step comes at once) */
+  const got = await new OptimistUpdater(dev.access).install(img, "FM-1_900", (k) => { t[k] = t[k] || Date.now(); });
+  ok(got === "FM-1_900" && t.checking - t.loader < 1000 && M.OPT_LOADER.pollMs === 200 && M.OPT_LOADER.waitMs === 33000,
+    `after step 1 the loader is looked for at once, every 200 ms (its first step ${t.checking - t.loader} ms after; fm1base waited 3 s blind)`);
+}
+
+/* step 2 of a fast install: the bar moves while the loader checks what is on the FM-1 (its 0x32 frames, else an estimate by
+   time behind it), then the first read's address at once, then the write; never back (installer.js progressOf's scale) */
+async function checkBar() {
+  const M = await import("./fm1ota_optimist.js");
+  const img = Uint8Array.from({ length: 0x10000 }, (_, i) => (i * 5) & 0xFF), n = img.length / 4096;
+  const fr = (body) => [0xF0, ...otaPack7([0, 0x59, 0x32, 4, 0, 0, ...body, ~body.reduce((x, y) => x + y, 0) & 0xFF]), 0xF7];
+  ok(JSON.stringify(M.optParseCheck(fr([3, 0, 16, 0]))) === '{"checked":3,"total":16}' && M.optParseCheck(fr([17, 0, 16, 0])) === null
+     && M.optParseCheck(OPT_FAST_HELLO) === null, "check bar: the 0x32 frame [checked, total] read (fm1_install.py parse_check); others not");
+  const saved = { ...M.OPT_CHECK };
+  Object.assign(M.OPT_CHECK, { framesMs: 150, tickMs: 20, sectorMs: 60 });
+  const run = async (checkFrames) => {
+    const dev = new FakeFM1(img, { identity: "ota-FM-1_900", name: "Felucca Update", fast: true, checkFrames, checkTime: 30, finalIdentity: "FM-1_900" });
+    for (let k = 0; k < 10; k++) dev.written.add(k * 4096);           /* 10 sectors right already: the first read is sector 10 */
+    const up = new OptimistUpdater(dev.access), seen = [];
+    let pct = 0;
+    await up.resume(img, (k, a) => { const r = INST.progressOf(k, a, up.lastAddr, img.length, pct); pct = r.pct; seen.push([k, pct]); }, "FM-1_900");
+    return { dev, seen, checking: seen.filter(([k]) => k === "checking").map(([, p]) => p), bars: seen.filter(([k]) => k === "checking" || k === "write").map(([, p]) => p) };
+  };
+  const firstReal = 15 + (10 * 4096 / img.length) * 80;
+  let r = await run(true);
+  const firstWrite = r.seen.find(([k]) => k === "write");
+  ok(r.dev.checkSeen.length && r.checking.length > 3 && r.bars.every((v, i) => !i || v >= r.bars[i - 1]) && r.checking.at(-1) >= firstReal - 8,
+    `check bar, a loader with 0x32 frames: the bar moves while it checks (${r.checking.map(Math.round).join(" ")}), never back`);
+  ok(firstWrite && firstWrite[1] >= firstReal && r.bars.at(-1) >= 90 && !r.dev.bad, `... at the first read (sector 10 of ${n}) the bar is there at once (${Math.round(firstWrite?.[1])}), then the write`);
+  r = await run(false);
+  ok(!r.dev.checkSeen.length && r.checking.length > 3 && r.bars.every((v, i) => !i || v >= r.bars[i - 1]) && Math.max(...r.checking) < firstReal,
+    `check bar, an older loader (no frames): an estimate by time moves (${r.checking.map(Math.round).join(" ")}), behind the loader, never back`);
+  Object.assign(M.OPT_CHECK, saved);
+}
+
 /* ------------------------------------------- the installer module (web/installer/installer.js) --- */
 async function installerModule() {
   const T = INST.TEXT;
@@ -3488,7 +3599,7 @@ async function installerModule() {
   const phases = ["start", "verify", "loader", "write", "reboot", "done"].map((k) => INST.progressOf(k, 1, 0, 0x10000, 0).phase);
   ok(seq.every((v, i) => i === 0 || v >= seq[i - 1]) && seq[2] === 10 && seq.at(-1) === 100 && seq[7] === 95 && JSON.stringify(phases) === "[0,0,1,2,3,4]",
     `installer: the bar only goes forward, the write fills 15-95 by address (${seq.join(" ")})`);
-  const codes = ["notfound", "model", "stopped", "noloader", "lost", "noreturn", "mismatch", "badreq", "foreign", "denied", "badpkg", "notours", "noloaderpkg", "open", "bootrefused"];
+  const codes = ["notfound", "model", "stopped", "noloader", "lost", "noreturn", "mismatch", "badreq", "foreign", "denied", "badpkg", "notours", "noloaderpkg", "open", "bootrefused", "cancelled", "unexpected"];
   const ota = readFileSync(join(HERE, "fm1base", "fm1ota.js"), "utf8") + readFileSync(join(HERE, "fm1ota_optimist.js"), "utf8").replaceAll("optFail(", "fail(");
   const thrown = [...new Set([...ota.matchAll(/fail\("(\w+)"/g), ...ota.matchAll(/fail\(s\d?\.lost \? "(\w+)" : "(\w+)"/g)].flatMap((m) => m.slice(1)).filter(Boolean))];
   ok(thrown.length >= 8 && thrown.every((c) => codes.includes(c)) && codes.every((c) => typeof T[c] === "string" && !INST.errorText({ code: c }).startsWith(T.error)),
@@ -3572,6 +3683,28 @@ async function editorMirror() {
   }
   ok(frames > 50 && !bad && !diff, `mirror: ${frames} frames decoded to the fixture's screen (${bad} bad, ${diff} pixels off)`);
   ok(!mirrorFrame([3, 0, 0]) && !mirrorFrame([1, 0, 0]), "mirror: an unknown op or a short BLIT refused");
+  {   /* SUMS (opti_mirsum_1, ed_mirror_sum.h): the fixture's band hashes made here (the murmur3 finaliser written again), the
+       picture compared: none differ; a pixel of band 3 changed: band 3 asked; a damaged SUMS ignored */
+    const fm = (p, c) => { let h = ((p << 16) | c) >>> 0; h ^= h >>> 16; h = Math.imul(h, 0x85EBCA6B); h ^= h >>> 13; h = Math.imul(h, 0xC2B2AE35); return (h ^ (h >>> 16)) >>> 0; };
+    const g = [7, 9, 127, 127, 127, 127, 3];
+    for (let b = 0; b < 30; b++) {
+      let h = 0;
+      for (let k = b * 1920; k < (b + 1) * 1920; k++) h = (h + fm(k, px[2 * k] | (px[2 * k + 1] << 8))) >>> 0;
+      g.push(h & 127, (h >>> 7) & 127, (h >>> 14) & 127);
+    }
+    let x = 0, y = 0;
+    for (const b of [0x7D, 0x46, 0x4C, 106, ...g]) { x += b; y += x; }
+    const sums = [...g, x & 127, y & 127];
+    mir.haveSeq = true; mir.seq = 9; mir.broken = false; mir.fixLo = -1; mir.bands = 0;
+    const same = mirrorFrame(sums) && mir.bands === 0;
+    mir.fb[3 * 1920 + 77] ^= 1;
+    mirrorFrame(sums);
+    const one = mir.bands === 8;
+    mir.bands = 0;
+    const bad = sums.slice(); bad[20] ^= 1; mirrorFrame(bad);
+    mir.fb[3 * 1920 + 77] ^= 1;
+    ok(same && one && mir.bands === 0 && /opti\("mirsum"\) && \(mir\.bands/.test(html), "mirror: SUMS (opti_mirsum_1): the fixture's bands match, a changed pixel's band asked again, a damaged SUMS ignored");
+  }
   {   /* checked frames (106 bit 3; ed_mirror_enc.h ops 8..10, 2026-11-01): the fixture's pushes as the firmware sends them checked */
     const pushes = [];
     for (let i = 0, st = -1; i < sx.length; i++) {
@@ -3607,6 +3740,30 @@ async function editorMirror() {
     const sq = (a) => a[a.length - 3];
     ok(!mirrorFrame(chk[k + 1]) && mir.fixLo === sq(chk[k]) && mir.fixHi === sq(chk[k + 1]) && !mirrorFrame(chk[k + 1]),
       "mirror: a lost BLIT and its MORE dropped: their seqs kept to ask for (106 bit 4); the MORE again ignored");
+  }
+  {   /* the AA token (opti_miraa_1): 10 pages captured from the FM-1 (fm1-base's anti-aliased text) and the same writes with the
+         token (tests/mirror_pages_test.c, the firmware's encoder): the same pixels page by page; asked only when INFO lists it */
+    const pages = (name) => {
+      const b = readFileSync(new URL(name, fx)), shots = [];
+      mir.img.data.fill(0); mir.haveSeq = false; mir.broken = false;
+      let st = -1, nbad = 0;
+      for (let i = 0; i < b.length; i++) {
+        if (b[i] === 0xF0) st = i;
+        if (b[i] !== 0xF7 || st < 0) continue;
+        const a = Array.from(b.subarray(st + 5, i));
+        if (a[0] === 0 && a.slice(1, 9).join() === "0,0,0,0,112,1,112,1" && st > 0) shots.push(Uint8ClampedArray.from(mir.img.data));
+        if (!mirrorFrame(a)) nbad++;
+        st = -1;
+      }
+      shots.push(Uint8ClampedArray.from(mir.img.data));
+      return { shots, nbad, bytes: b.length };
+    };
+    const v2 = pages("mirror_pages.sysex"), aa = pages("mirror_pages_aa.sysex");
+    const off = aa.shots.map((s, p) => v2.shots[p] ? s.reduce((n, v, k) => n + (v !== v2.shots[p][k]), 0) : -1);
+    ok(v2.shots.length === 10 && aa.shots.length === 10 && !v2.nbad && !aa.nbad && off.every((d) => d === 0),
+      `mirror: the AA token: 10 pages decoded to the same pixels as the FM-1's own frames (${v2.bytes} -> ${aa.bytes} B; ${aa.nbad} bad, values off ${off})`);
+    ok(/if \(opti\("miraa"\)\) args\.push\(1\);/.test(html) && /miraa: 1, panelx/.test(html),
+      "mirror: 106's last byte (the AA token) asked only when INFO lists opti_miraa_1");
   }
   ok(/f\.cmd === CMD\.MIRROR && !\(f\.a\.length === 6 && f\.a\[0\] <= 1 && f\.a\[1\] >= 1\)\) \{ this\.onMirror\(f\.a\)/.test(html) && /onMirror: \(a\) => mirrorFrame\(a\),/.test(html)
     && /MIRROR: 106/.test(html) && /id === 0x65 && n >= 1 && a\[r\.i\] >= 1\) o\.mirror/.test(html) && /dev\.info\.mirror\.v === MIRROR_V/.test(html)
@@ -3645,7 +3802,9 @@ async function editorMirror() {
   const bi = JSON.parse(readFileSync(join(HERE, "../ios/OptimistMirror/Tests/Fixtures/bt_info_frames.json"), "utf8"));
   const biParse = (hex) => E.parse[E.CMD.INFO](Array.from(Buffer.from(hex, "hex")).slice(5, -1));
   const biWhole = biParse(bi.whole[0]), biBad = bi.damaged.map(biParse);
-  ok(E.btInfoOk(biWhole) && biWhole.opti.opti_btproj === 1 && biWhole.opti.opti_mirror === 2
+  ok(html.includes('nodevicebt: "No FM-1 found over Bluetooth. Is SYSTEM > BT MIDI on, and the FM-1 close by?"'),
+   "editor: the no-FM-1-over-Bluetooth line is the Mirror app's (BluetoothState.swift, BtAdvice.noFM1): same words");
+ok(E.btInfoOk(biWhole) && biWhole.opti.opti_btproj === 1 && biWhole.opti.opti_mirror === 2
     && biBad.every((i) => !E.btInfoOk(i) || JSON.stringify(i.opti) === JSON.stringify(biWhole.opti)) && biBad.filter((i) => !E.btInfoOk(i)).length > biBad.length / 2,
     "bluetooth: a whole INFO taken (opti_btproj_1), a damaged one (bytes zeroed or lost while the screen streams) refused, as the app");
   ok(/for \(let k = 0; k < BT_INFO_TRIES && !btInfoOk\(info\); k\+\+\)/.test(html), "bluetooth: loadBt asks INFO again until a whole one comes (BT_INFO_TRIES)");
@@ -3668,7 +3827,7 @@ const SUITE = [
   editorV13Optional, editorMacro, editorAuto, editorWifi, editorV14, editorStepx, editorDaw, editorBackup,
   editorSnapshots, editorPatterns, editorV9, editorNoteEnds,
   editorTabs, editorKeys, editorSetGate, masterStrip, reverbType, midiSettings, editorUiPass,
-  editorPianoRoll, editorIcons, editorParamHelp, samplesMatch, chopTests, packages, updater,
+  editorPianoRoll, editorIcons, editorParamHelp, samplesMatch, chopTests, packages, updater, dropped, checkBar, loaderPoll,
   installerModule,
 ];
 for (const check of SUITE) await check();

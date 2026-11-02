@@ -97,7 +97,7 @@ static int glp_walk(uint32_t s)                        /* SELECT page by page, A
         snprintf(want, sizeof want, " %u/%u", p + 1u, np);
         ok &= ui.row[scr] == gl_pfirst(s, p) && (np < 2u ? !pos[0] : !strcmp(pos, want));
         if (p + 1u < np)
-            turn(EN_SELECT, 1);
+            sel_page(scr, 1);                           /* (TOP: its lines first) */
     }
     turn(EN_SELECT, 5);
     ok &= ui.row[scr] == gl_pfirst(s, np - 1u);            /* (stops at the last page) */

@@ -7,7 +7,7 @@
 // tools/builder/web_api.py). The cloud build (where from, the request, its progress): cloud.js. opts.app: the Mirror
 // app's page (web/builder/app.html): the Build card first, without the files and the keys. docs/WEB.md.
 import {
-  MAIN_REF, PYODIDE_VERSION, TURNSTILE_SITEKEY, COSTS, costOf, BUDGETS, budgetsOf, SORTS, ARENA_TIP, arenaText, barModel, fmtK, built, cloudConfigUrl, commitOf, latestOf, pickRef, refUrl, repoOf, defaultPreset, defaults, deltaOf, fileName, fmt,
+  MAIN_REF, PYODIDE_VERSION, TURNSTILE_SITEKEY, COSTS, costOf, BUDGETS, budgetsOf, SORTS, ARENA_TIP, arenaText, barModel, fmtK, built, dimmedChoices, cloudConfigUrl, commitOf, latestOf, pickRef, refUrl, repoOf, defaultPreset, defaults, deltaOf, fileName, fmt,
   changeText, gaugeModel, hasInfo, indexRegistry, kDelta, messagesOf, offFits, oneLine, overflowLines, presets, pyodideBase, savedOf, treeOf,
 } from "./logic.js";
 import { mountCloud } from "./cloud.js";
@@ -354,9 +354,10 @@ function itemRow(key, hasKids) {
     && !(it.dim_when && built(S.reg, S.values, it.dim_when));   /* (SAMPLE SLOTS, PROJECTS: greyed in SD card mode) */
   const id = `it-${key}`;
   let ctl;
+  const grey = it.choices.length ? dimmedChoices(S.reg, S.values, key) : {};
   if (it.choices.length) {
     ctl = el("select", { id, "aria-labelledby": `lab-${key}`, "aria-describedby": `tags-${key}`, disabled: !S.ready, onchange: (e) => setItem(key, +e.target.value), onfocus: () => select(key) },
-      it.choices.map(([cv, lab]) => el("option", { value: cv, selected: cv === val, text: lab })));
+      it.choices.map(([cv, lab]) => { const why = grey[cv]; return el("option", { value: cv, selected: cv === val, disabled: !!why && cv !== val, text: why ? `${lab} (greyed, ${why})` : lab }); }));
     if (!it.choices.some(([cv]) => cv === val)) ctl.prepend(el("option", { value: val, selected: true, text: `${val} (not a choice)` }));
   } else {
     ctl = el("input", { id, type: "checkbox", "aria-labelledby": `lab-${key}`, "aria-describedby": `tags-${key}`, checked: !!val, disabled: !S.ready || !!it.fixed, onchange: (e) => setItem(key, e.target.checked ? 1 : 0), onfocus: () => select(key) });

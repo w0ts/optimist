@@ -157,17 +157,16 @@ static void master_tests(void)
     held_page_tests();
     cell_t c;
     uint32_t pre, eng;
-    int16_t atk;
     reset_ui();
     song.sel = 0;
     tap(B_ENV);
     check(ui.scr == SCR_SOUND && snd_fam == FAM_ENV, "MASTER: ENV tapped on T1");
-    atk = TSEL->p[P_ATK];
     pre = TSEL->preset;
     eng = TSEL->eng_req;
     turn(EN_PRESET, 1);
-    check((TSEL->preset != pre || TSEL->eng_req != eng) && TSEL->p[P_ATK] == atk,
-          "PRESETS on the ENV row: the sound changes, ATK stays (no hot cell)");
+    check((TSEL->preset != pre || TSEL->eng_req != eng) &&
+              TSEL->p[P_ATK] == ENGINES[TSEL->eng_req % NENGINES]->presets[TSEL->preset].env[0],
+          "PRESETS on the ENV row: the sound changes, ATK the new sound's own (no hot cell; the default T1, ACID 303, has its own ATK)");
     turn(EN_ALGO, -1);
     check(ui.scr == SCR_FX && song.sel == 0u && !ui.master, "ALGORITHM left from T1 on ENV: MASTER (the FX screen), T1 still selected");
     SCR->cell(ui.row[SCR_FX], 0, &c);

@@ -1456,7 +1456,7 @@ static void project_apply(const project_t *p, const dlrec_t *d)
     fm1_irq_on();
     for (k = 0; k < NPART; k++)                         /* a format 1 project: the default sounds of tracks 2, 3 */
         if (p->t[k].preset == 0xFFu) {
-            apply_preset_to(&trk[k], trk_def_preset(k));
+            trk_def_sound(&trk[k], k);
             steps_clear(&trk[k]);
         }
     sync_reload = 1;
@@ -1675,6 +1675,7 @@ static void autosave_resume(void)              /* power-on: the project as it wa
 
 /* settings + learned panel table: one flash object. The flash copy wins at
  * boot (the .noinit copies are garbage after a power-off). */
+#include "../core/meters.h"                  /* METERS (kept in the settings record: rsv_pj[2]) */
 #include "../core/dbgstats.h"                /* DEBUG STATS (kept in the settings record: rsv_pj[1]) */
 #include "settings_word.c"                 /* bp23_word / bp23_from_word: the settings word */
 #if BP23_SET
@@ -1874,6 +1875,7 @@ static void persist_boot(void)                    /* before settings_init / pane
 #endif
             persist_ofs_load(&p);
             persist_ext_load(&p);
+            meters_from_rec(p.rsv_pj[2]);            /* (METERS: mode + 1, rsv_pj[2]; a record from before reads 0: CPUS) */
             dbg_stats_set(p.rsv_pj[1] & 1u);         /* (DEBUG STATS, core/dbgstats.h: a record from before reads OFF) */
             persist_saved = p;
         } else if (n == (int)(8u + sizeof(panel_t)) && p3.magic == 0x50455231u) {   /* "PER1": palette, panel */
@@ -1960,6 +1962,7 @@ static void settings_save(void)
 #endif
     persist_ofs_save(&p);
     persist_ext_save(&p);
+    p.rsv_pj[2] = meters_to_rec();                 /* (METERS: mode + 1) */
     p.rsv_pj[0] = 0;                               /* (retired: was VU FLOOR, now fixed at -40; old records' byte is ignored) */
     p.rsv_pj[1] = (uint8_t)((p.rsv_pj[1] & ~1u) | dbg_stats);   /* (DEBUG STATS: bit 0, the rest kept) */
 #if FELUCCA_FAVORITES

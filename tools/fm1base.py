@@ -396,6 +396,26 @@ def compiler_line(cfgfile, env):
     return f"compiler {name} ({tc.resolve()})"
 
 
+def sys_top(cfgfile):
+    """the .config builds SYSTEM > TOP (builder item SYS_TOP)"""
+    import configure
+    cfg, _ = configure.parse(Path(cfgfile).read_text())
+    return str(cfg.get("SYS_TOP", 0)) not in ("0", "")
+
+
+def top_table(out_dir, env):
+    """SYSTEM > TOP's table from the app's ELF (tools/ramtop.py) into its generated headers; the symbols through llvm-nm,
+    else the toolchain's nm"""
+    import ramtop
+    nm = None
+    try:
+        ramtop.R.find_nm(None)
+    except SystemExit:
+        nm = str(Path(env["JIELI_TOOLCHAIN"]) / "pi32v2" / "bin" / "nm")
+    elf = Path(out_dir) / "optimist.elf"
+    ramtop.write(Path(out_dir) / "optgen" / ramtop.HEADER, ramtop.symbols_of(elf, nm), elf.name)
+
+
 def build(cfgfile, bdir, python, run, release=None, name_stem="optimist", parallel=False, measure=False):
     """one release build of the .config at cfgfile -> (returncode, output); run(cmd, env) -> (rc, output) streams it.
     A build that is over the slot still leaves its sizes.json (a measurement), and no package. measure: with the linker wrapper (measure_toolchain: the link succeeds whatever the size).
@@ -411,6 +431,13 @@ def build(cfgfile, bdir, python, run, release=None, name_stem="optimist", parall
         for stale in (out_dir / "sizes.json", out_dir / "optimist.fwsc"):
             stale.unlink(missing_ok=True)
         rc, out = run(cmd, env)
+        if rc == 0 and not measure and sys_top(cfgfile):
+            # SYSTEM > TOP's table (op_top.c TOP_RAM, the app's generated headers: build/optgen): the first link's SRAM by
+            # module, then the build again with it (the table's size fixed: the same RAM)
+            top_table(out_dir, env)
+            (out_dir / "optimist.fwsc").unlink(missing_ok=True)
+            rc, out2 = run(cmd, env)
+            out += out2
         if rc == 0:
             collect(bdir, release, name_stem, cfgfile, out_dir)
         elif (out_dir / "sizes.json").is_file():

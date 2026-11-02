@@ -210,7 +210,7 @@ static __attribute__((noinline)) void ifx_tdly_run(ifx_td_t *s, int32_t a, int32
         int32_t x[CTL], y[CTL];
         for (i = 0; i < n; i++)
             x[i] = r ? (l[i] >> 1) + (r[i] >> 1) : l[i];
-        FAR(dly_blk)(s->line, &s->wp, &s->ec, s->f, s->fill, x, y, n, dl, &f, fb, 32767, &wv);   /* (the send's code, RAM;
+        FAR(dly_blk)(s->line, DLY_LEN - 1u, &s->wp, &s->ec, s->f, s->fill, x, y, n, dl, &f, fb, 32767, &wv);   /* (the send's code, RAM;
                                                         * from rest: what the line held before is not read) */
         for (i = 0; i < n; i++) {
             w += clamp(to - w, -IFX_SLOPE, IFX_SLOPE);

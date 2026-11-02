@@ -326,6 +326,11 @@ def built(cfg, key):
     return cfg[key] != 0
 
 
+def dimmed_choices(cfg, key):
+    """-> {choice value: reason} of the item's choices greyed in this configuration (registry dim_choice: not offered)"""
+    return {v: why for v, (item, why) in R.ITEMS[key].dim_choice.items() if built(cfg, item)}
+
+
 # the drum synths, each a drum source on its own (no parent: the user, 2026-10-22, "3 drum synths, independent of each
 # other"): the 32 synthesised kits, KAWA, PLAITS (their shared voice built with any of them: registry.h DRUM_DS), the X0X kits
 DRUM_SYNTHS = ("DRUM_SYNTH", "DS_KAWA", "DS_PLAITS", "DRUM_X0X909", "DRUM_X0X808")
@@ -391,9 +396,6 @@ def validate(cfg):
             warn.append(Issue(f"MEMORY: SAMPLE SLOTS {slots} keeps flash for user samples that nothing in this build "
                               "uses (no SAMPLE, user drum samples, snapshots or CZ collection): SAMPLE SLOTS 0 gives it "
                               "to the code", ["LAYOUT"]))
-    if cfg.get("BT_PROJ") and not (cfg.get("BLE") and cfg.get("ED_MIRROR") and cfg.get("PATTERNS") and cfg.get("BACKUP")):
-        err.append(Issue("projects over Bluetooth need Bluetooth MIDI (BLE), the Mirror (ED_MIRROR, its Bluetooth link), the "
-                         "projects (PATTERNS) and the backup (BACKUP)", ["BT_PROJ", "BLE", "ED_MIRROR", "PATTERNS", "BACKUP"]))
     if cfg.get("SD_RING") and not (cfg.get("SDCARD") and cfg.get("LAYOUT") == 1 and
                                    cfg.get("ARENA") and built(cfg, "ENG_SAMPLE")):
         err.append(Issue("samples from the card (SD_RING) need the card under full FatFs (SDCARD, LAYOUT 1), "

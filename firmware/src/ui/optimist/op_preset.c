@@ -191,6 +191,25 @@ static int pen_avail(int32_t v)
     t = ins_list[v];
     return t == FXT_NONE || (t != ins_slot[k][s ^ 1u] && fxi_can(k, t));
 }
+/* (2026-11-01) entry v is out for lack of the arena's room alone (op_fxmem.c fxz_ins_mem): drawn dim, not struck, the
+ * memory mark beside it; the list stops on it and picking it asks to make room. Out for another reason (the other
+ * slot's type): struck, skipped, as before */
+static int pen_mem(int32_t v)
+{
+    if (pd_names(pen.d) != ins_names || v < 0 || v >= (int32_t)INS_NLIST)
+        return 0;
+    return fxz_ins_mem(song.sel % NTRK, pen.vp == &ins_v[1] ? 1u : 0u, ins_list[v]);
+}
+static void mem_mark(int32_t x, int32_t y, uint16_t c)  /* the memory mark: a chip, 9 x 7, three pins above and below */
+{
+    int32_t i;
+    cv_frame(x, y + 2, 9, 7, c);
+    cv_rect(x + 3, y + 4, 3, 3, c);
+    for (i = 0; i < 3; i++) {
+        cv_rect(x + 1 + 3 * i, y, 1, 2, c);
+        cv_rect(x + 1 + 3 * i, y + 9, 1, 2, c);
+    }
+}
 /* (a list past 64 entries: none but a modulation slot's DEST, 115 since issue 75, the user 2026-10-26) */
 static void pop_enum_open(uint32_t row, uint32_t k)
 {
@@ -372,7 +391,11 @@ static void pop_paint(void)                             /* the box in its own co
             } else {
                 cv_rect(16, ry + POP_RH / 2 - 4, 6, 8, ec);     /* the engine's chip */
             }
-            if (pop_kind == 3u && !pen_avail(enum_at(pen.d, pen.d->min + (int32_t)idx)))   /* (a type the slot cannot take now: struck, dim) */
+            if (pop_kind == 3u && pen_mem(enum_at(pen.d, pen.d->min + (int32_t)idx))) {   /* (no room: dim, the memory mark) */
+                uint16_t mc = off == 0 && !pop.out ? C_WARN : col_shade(C_WARN, 2u);
+                cv_text(28, ry + (POP_RH - (int32_t)f->h) / 2, f, nm, off == 0 && !pop.out ? C_GRAY : col_shade(C_GRAY, 3u));
+                mem_mark(28 + text_w(f, nm) + 8, ry + POP_RH / 2 - 6, mc);
+            } else if (pop_kind == 3u && !pen_avail(enum_at(pen.d, pen.d->min + (int32_t)idx)))   /* (a type the slot cannot take now: struck, dim) */
                 text_st(28, ry + (POP_RH - (int32_t)f->h) / 2, f, nm, col_shade(C_GRAY, 3u), 1);
             else
                 cv_text(28, ry + (POP_RH - (int32_t)f->h) / 2, f, nm, off == 0 && !pop.out ? C_WHITE : C_GRAY);
@@ -403,6 +426,10 @@ static void draw_pop(void)
         pop.cur = pop.half;                             /* (the first rows in place: the list's top in the box's top rows) */
     pop.h = (int32_t)(pop.half * 2u + 1u) * POP_RH + POP_HH + 10;
     cv_tall((uint32_t)POP_Y, (uint32_t)pop.h, C_BLACK, pop_paint);
+    if (POP_Y + pop.h < OP_FOOT_Y)                      /* the rows under the box, to the help band: black. Nothing draws them while the
+                                                         * list is open (the panel waits under it), so a mirror's repair then never sent
+                                                         * them again: the client kept a lost frame's rows there (2026-11-01) */
+        lcd_fill(0, (uint32_t)(POP_Y + pop.h), 240, (uint32_t)(OP_FOOT_Y - POP_Y - pop.h), C_BLACK);
 }
 /* the SOUND row's picture (GRAPH_H rows): the preset before, the one playing (white, its engine big in colour), the
  * one after; a favorite has a star after its name; LIST FAV with the sound playing not in the list: it stays in the middle,

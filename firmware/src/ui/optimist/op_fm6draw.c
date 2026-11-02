@@ -262,7 +262,7 @@ static void fm6_lay_title(char *t, uint32_t n)          /* "FM6 OP3", "FM6 PIT",
     }
 }
 /* the panel, top down: the voice and the page (a line), the algorithm, the black keys' map at the foot (to the help band) */
-#define F6_KEY_H 20                                     /* a key of the map */
+#define F6_KEY_H 17                                     /* a key of the map (20 until the load lines took the screen's last 3 rows, 2026-11-01) */
 #define F6_KEY_Y ((int32_t)OH_BODY - F6_KEY_H - 1)      /* the map's top */
 #define F6_ALG_Y 15                                     /* the algorithm's top, under the voice's line (4 rows of 14 over the help band) */
 static void fm6_lay_paint(void)                         /* (cv_tall: the panel to the help band, no footer) */

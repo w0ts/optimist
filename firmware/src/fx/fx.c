@@ -10,6 +10,11 @@
 _Static_assert(FELUCCA_DLY_LEN >= 4096 && (FELUCCA_DLY_LEN & (FELUCCA_DLY_LEN - 1)) == 0, "FELUCCA_DLY_LEN: a power of two");
 #define CHO_LEN 2048u
 #define DLY_BUF_N (FELUCCA_FX_DELAY ? DLY_LEN : 1u)    /* the lines' samples (an FX not built: no buffer) */
+#if FXZ_DLY_N > 1u
+#define DLY_CUR FXSZ_DLY_LEN()                          /* the send's line now (FX MEMORY, fx_memsz.h: the project's DLY MEM) */
+#else
+#define DLY_CUR DLY_LEN
+#endif
 #define CHO_BUF_N (FELUCCA_FX_CHORUS ? CHO_LEN : 1u)
 #if FXM_NEED                                            /* in the arena while a project uses them (fx/fx_arena.c) */
 static int16_t *dly_buf, *cho_buf;
@@ -73,6 +78,11 @@ static int16_t rev_ap[REV_AP_N] __attribute__((section(".pool")));
 #endif
 /* the shared line buffer without PLATE / FDN8 (with them: reverb_alt.c, at least RV_N): the ROOM's, SPRING's loop */
 #define REV_LINE_OWN (REV_ROOM_LEN > 4096u * FELUCCA_SPRING ? REV_ROOM_LEN : 4096u * FELUCCA_SPRING)
+#if FXZ_REV_N > 1u                                      /* the ring now (FX MEMORY, fx_memsz.h: SMALL, FDN8 16 KB) */
+#define REV_CUR (fxsz_rev ? (REV_LINE_OWN > 8192u ? REV_LINE_OWN : 8192u) : REV_LINE_N)
+#else
+#define REV_CUR REV_LINE_N
+#endif
 #if !REV_ALT
 #define REV_LINE_N ((FELUCCA_FX_REVERB ? REV_LINE_OWN : 0u) ? REV_LINE_OWN : 1u)   /* (its samples) */
 #if FXM_NEED
@@ -511,7 +521,7 @@ static __attribute__((noinline)) void dly_zero(void)   /* (DLY RET 0: the same, 
     if (fx.dly_q < DLY_LEN || DLY_FST() || fxz.dclr) {
         memset(fx.dly_f, 0, sizeof fx.dly_f);
         fx.dly_ec = 0;
-        if (!(fxz.dclr = fx_zclear(dly_buf, DLY_BUF_N, fxz.dclr)))
+        if (!(fxz.dclr = fx_zclear(dly_buf, FELUCCA_FX_DELAY ? DLY_CUR : 1u, fxz.dclr)))
             fx.dly_q = FX_Q_MAX;
     }
 }
@@ -614,10 +624,11 @@ FX_STEP int32_t dly_filt(const dlyf_t *f, int32_t s, int32_t *st)
  * once and each repeat once more. The state is the caller's (2026-10-29: the send's, fx.dly_*, and each TDLY insert's,
  * fxi_send.c): its line buf (DLY_LEN samples), the write count *wp, the carried rounding *ec, the filter's states st[8];
  * the send's dly_step is this on its own, inlined as before */
-FX_STEP int32_t dly_core(int16_t *buf, uint32_t *wp, int32_t *ec, int32_t *st, int rd, int32_t in, uint32_t dl,
-                         const dlyf_t *f, int32_t fb, int32_t dmix, int32_t *wr)
-{                                                       /* (rd 0: the line not read, as 0: an insert from rest) */
-    int32_t x = rd ? dly_dec(buf[(*wp - dl) & (DLY_LEN - 1u)]) : 0, v;     /* (DLY_Q: x << 1 of the bus, 8x finer) */
+FX_STEP int32_t dly_core(int16_t *buf, uint32_t m, uint32_t *wp, int32_t *ec, int32_t *st, int rd, int32_t in,
+                         uint32_t dl, const dlyf_t *f, int32_t fb, int32_t dmix, int32_t *wr)
+{                                                       /* (rd 0: the line not read, as 0: an insert from rest; m: its
+                                                         * length - 1, FX MEMORY's for the send) */
+    int32_t x = rd ? dly_dec(buf[(*wp - dl) & m]) : 0, v;     /* (DLY_Q: x << 1 of the bus, 8x finer) */
     int64_t p = (int64_t)x * fb;
     v = dly_filt(f, (in << (DLY_Q - 1)) + (int32_t)((p < 0 ? p + 0x7FFF : p) >> 15), st);   /* (mul_tz, 64-bit) */
     if (f->two)
@@ -628,7 +639,7 @@ FX_STEP int32_t dly_core(int16_t *buf, uint32_t *wp, int32_t *ec, int32_t *st, i
         int32_t w = v + *ec;
         int16_t c = dly_enc(w);
         *ec = w - dly_dec(c);
-        buf[*wp & (DLY_LEN - 1u)] = c;
+        buf[*wp & m] = c;
     }
     *wr |= v;
     (*wp)++;
@@ -636,7 +647,7 @@ FX_STEP int32_t dly_core(int16_t *buf, uint32_t *wp, int32_t *ec, int32_t *st, i
 }
 FX_STEP int32_t dly_step(int32_t in, uint32_t dl, const dlyf_t *f, int32_t fb, int32_t dmix, int32_t *wr)
 {
-    return dly_core(dly_buf, &fx.dly_w, &fx.dly_ec, fx.dly_f, 1, in, dl, f, fb, dmix, wr);
+    return dly_core(dly_buf, DLY_CUR - 1u, &fx.dly_w, &fx.dly_ec, fx.dly_f, 1, in, dl, f, fb, dmix, wr);
 }
 
 #if REV_ROOM_CODE || REV_ALT
@@ -925,7 +936,7 @@ static void rev_cells_clear(void)
 static void rev_tank_clear(void)
 {
     uint32_t i;
-    for (i = 0; i < REV_LINE_N; i++)
+    for (i = 0; i < REV_CUR; i++)
         rev_line[i] = 0;
     rev_cells_clear();
 }
@@ -1217,7 +1228,7 @@ static struct {
 static volatile uint8_t rev_live;
 static __attribute__((noinline)) void rev_gclear(void)  /* (XIP: a block while RG_CLEAR) */
 {
-    uint32_t i = rgd.clr, e = i + REV_GCHUNK, len = REV_LINE_N;
+    uint32_t i = rgd.clr, e = i + REV_GCHUNK, len = REV_CUR;
     e = e < len ? e : len;
     for (; i < e; i++)
         rev_line[i] = 0;
@@ -1696,21 +1707,31 @@ static HOT2 __attribute__((noinline)) int32_t cho_run(const int32_t *in, int32_t
 /* n samples of a delay line, its state the caller's (the send's, each DLY insert's, fxi_send.c: one copy of the code for
  * both, 2026-10-29): in -> y; fill: the samples written since it started (DLY_LEN: all, the send's), a read before
  * the time's first sample is 0 */
-static HOT2 __attribute__((noinline)) void dly_blk(int16_t *buf, uint32_t *wp, int32_t *ec, int32_t *st, uint32_t fill,
-                                                   const int32_t *in, int32_t *y, uint32_t n, uint32_t dl, const dlyf_t *f,
-                                                   int32_t fb, int32_t dmix, int32_t *wd)
-{
+static HOT2 __attribute__((noinline)) void dly_blk(int16_t *buf, uint32_t m, uint32_t *wp, int32_t *ec, int32_t *st,
+                                                   uint32_t fill, const int32_t *in, int32_t *y, uint32_t n, uint32_t dl,
+                                                   const dlyf_t *f, int32_t fb, int32_t dmix, int32_t *wd)
+{                                                       /* (m: the line's length - 1, a power of two) */
     uint32_t i;
     for (i = 0; i < n; i++)
-        y[i] = dly_core(buf, wp, ec, st, fill + i >= dl, in[i], dl, f, fb, dmix, wd);
+        y[i] = dly_core(buf, m, wp, ec, st, fill + i >= dl, in[i], dl, f, fb, dmix, wd);
 }
+#if FXZ_DLY_N > 1u
+static volatile uint8_t fxsz_dly_cut;                   /* the send's TIME halved to fit a short DLY MEM (op_fxmem.c says it) */
+#endif
 static HOT2 __attribute__((noinline)) int32_t dly_run(const int32_t *in, int32_t *wl, int32_t *wr, uint32_t n, int32_t *wd)
 {
     uint32_t i, dl;
     int32_t fb, dmix, x, pk = 0, y[CTL];
     dlyf_t f;
     dl = FAR(dly_block)(&fb, &f, &dmix);                /* (its divide: only for a running delay) */
-    dly_blk(dly_buf, &fx.dly_w, &fx.dly_ec, fx.dly_f, DLY_LEN, in, y, n, dl, &f, fb, dmix, wd);   /* (as dly_step) */
+#if FXZ_DLY_N > 1u
+    if (dl >= DLY_CUR) {                                /* (a short DLY MEM: half the time again, still on the beat) */
+        while (dl >= DLY_CUR)
+            dl >>= 1;
+        fxsz_dly_cut = 1;
+    }
+#endif
+    dly_blk(dly_buf, DLY_CUR - 1u, &fx.dly_w, &fx.dly_ec, fx.dly_f, DLY_LEN, in, y, n, dl, &f, fb, dmix, wd);   /* (as dly_step) */
     for (i = 0; i < n; i++) {
         x = y[i];
         wl[i] += x;

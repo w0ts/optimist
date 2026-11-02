@@ -168,12 +168,14 @@ struct Feature: Equatable {
     static let panel = Feature(name: "opti_panel", version: 1)
     static let nav = Feature(name: "opti_nav", version: 1)
     static let proj = Feature(name: "opti_proj", version: 1)
-    static let btproj = Feature(name: "opti_btproj", version: 1) // the projects' moves (43..48, 110) over Bluetooth too (BT_PROJ; INFO tag 67)
+    static let btproj = Feature(name: "opti_btproj", version: 1) // the projects' moves (43..48, 110) over Bluetooth too (MBR_PROJ; INFO tag 67)
     static let mirbt = Feature(name: "opti_mirbt", version: 1)   // INFO, PANEL and NAV over Bluetooth too (ed_mirror.c)
     static let mirfix = Feature(name: "opti_mirfix", version: 1)   // 106 bit 4: lost frames asked for by seq (ed_mirror.c mir_fix)
     static let miraimd = Feature(name: "opti_miraimd", version: 1)   // 106 bit 5: the losses and next seq in the keep-alive; the FM-1 paces its Bluetooth stream by them (ed_mirror.c MIR_AIMD)
+    static let mirsum = Feature(name: "opti_mirsum", version: 1)   // 106 op 7 SUMS, the bands request 106 bits 112: the picture checked once a second (ed_mirror_sum.h)
     static let clip = Feature(name: "opti_clip", version: 1)     // 111 CLIP, a synth track's steps (ed_clip.c; INFO tag 67)
     static let panelx = Feature(name: "opti_panelx", version: 1) // 108 PANEL's seq and let go (ed_mirror.c; INFO tag 67)
+    static let miraa = Feature(name: "opti_miraa", version: 1)   // 106's last byte: the AA token (fm1-base's anti-aliased text; ed_mirror_enc.h MIR_AA)
 }
 
 struct DeviceInfo: Equatable {
@@ -185,6 +187,8 @@ struct DeviceInfo: Equatable {
     var lib = false           // tag 64 bit 1: and the librarian
     var patSlots = 0, patScenes = 0   // tag 55: the per-track patterns (0: none)
     var hasPatterns: Bool { patSlots > 0 && has(.patterns) }
+    /// the section lists (Projects screen): only on firmware without PATTERNS; with them a project owns its scenes (the web editor's sectionsShown)
+    var showsSections: Bool { !hasPatterns }
     var features: [String: Int] = [:]   // tags 66 and 67: "opti_backup_4 opti_mirror_2 ...", name -> version (none: not optimist's way)
     /// The tagged blocks ended exactly at the reply's end and the feature names are printable. Over Bluetooth an INFO asked
     /// while the screen streams comes damaged, still F0 .. F7 (measured on the FM-1, 2026-10-31: 18 of 20, a run of bytes

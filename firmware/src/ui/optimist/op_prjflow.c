@@ -18,9 +18,9 @@ static int sec_scene_clear(uint32_t s);                 /* sections.c: a section
 #endif
 
 #if FELUCCA_SD_UI
-enum { PR_PROJECT, PR_SNAP, PR_USER, PR_TOOLS, PR_MEM, PR_CPRE, PR_CKIT, PR_CSMP };   /* (the card's lists: op_sdcard.c) */
+enum { PR_PROJECT, PR_SNAP, PR_USER, PR_TOOLS, PR_MEM, PR_CPRE, PR_CKIT, PR_CSMP, PR_FXM };   /* (the card's lists: op_sdcard.c) */
 #else
-enum { PR_PROJECT, PR_SNAP, PR_USER, PR_TOOLS, PR_MEM };
+enum { PR_PROJECT, PR_SNAP, PR_USER, PR_TOOLS, PR_MEM, PR_FXM = 8 };   /* (PR_FXM: FX MEM, op_fxmem.c) */
 #endif
 static const uint8_t PRJ[] = {PR_PROJECT,
 #if FELUCCA_SD_UI
@@ -37,12 +37,15 @@ static const uint8_t PRJ[] = {PR_PROJECT,
 #if SEC_LOGGED
                               PR_MEM,
 #endif
+#if FXZ_ANY
+                              PR_FXM,                   /* FX MEM: the big effects' lines' sizes (op_fxmem.c) */
+#endif
 };
 #define NPRJ (sizeof PRJ / sizeof PRJ[0])
 #if FELUCCA_SD_UI
-static const char *const PRJ_NAME[] = {"PROJECT", "SNAPSHOT", "USER", "TOOLS", "MEMORY", "PRESETS", "KITS", "SAMPLES"};
+static const char *const PRJ_NAME[] = {"PROJECT", "SNAPSHOT", "USER", "TOOLS", "MEMORY", "PRESETS", "KITS", "SAMPLES", "FX MEM"};
 #else
-static const char *const PRJ_NAME[] = {"PROJECT", "SNAPSHOT", "USER", "TOOLS", "MEMORY"};
+static const char *const PRJ_NAME[] = {"PROJECT", "SNAPSHOT", "USER", "TOOLS", "MEMORY", "", "", "", "FX MEM"};
 #endif
 enum { PO_LOAD, PO_SAVE, PO_DELETE,                      /* the operations, in the knob's order */
        PO_SAVE_LOAD,
@@ -201,6 +204,12 @@ static void prj_cell(uint32_t r, uint32_t k, cell_t *c)
         page_cell(tools_page(), k, c);
         return;
     }
+#if FXZ_ANY
+    if (kind == PR_FXM) {
+        fxz_cell(k, c);
+        return;
+    }
+#endif
     cell_clear(c);
 #if SEC_LOGGED
     if (kind == PR_MEM) {
@@ -263,6 +272,12 @@ static void prj_turn(uint32_t r, uint32_t k, int32_t s, int fine)
         page_turn(tools_page(), k, s, fine);
         return;
     }
+#if FXZ_ANY
+    if (kind == PR_FXM) {
+        fxz_turn(k, s, fine);
+        return;
+    }
+#endif
     if (kind > PR_USER)
         return;                                         /* (MEMORY: nothing to turn) */
 #if FELUCCA_FAVORITES
@@ -427,7 +442,7 @@ static int prj_yes(uint32_t r, uint32_t k, uint32_t ok)
 #endif
     if (kind == PR_TOOLS)
         return page_yes(SCR_PROJECT, r, tools_page(), k, ok);
-    if (kind == PR_MEM)
+    if (kind == PR_MEM || kind == PR_FXM)
         return 0;
     if (kind == PR_PROJECT && k == 3u) {                /* NEW: the work blank, no slot touched; asks first */
         if (!ok)
@@ -659,10 +674,11 @@ static void prj_paint(void)                             /* the panel's band in i
     if (pdp.d2[0])
         cv_texts(0, 94, op_case(b, pdp.d2, sizeof b), pdp.col2);
 }
+#define PRJ_PANEL(kind) (prj_slots_row(kind) || (FXZ_ANY && (kind) == PR_FXM))   /* (a row with a panel: FX MEM's too) */
 #if FELUCCA_SD_UI
-static int prj_listing(void) { return ui.scr == SCR_PROJECT && (prj_slots_row(prj_kind(ui.row[SCR_PROJECT])) || sdc_listing()); }
+static int prj_listing(void) { return ui.scr == SCR_PROJECT && (PRJ_PANEL(prj_kind(ui.row[SCR_PROJECT])) || sdc_listing()); }
 #else
-static int prj_listing(void) { return ui.scr == SCR_PROJECT && prj_slots_row(prj_kind(ui.row[SCR_PROJECT])); }
+static int prj_listing(void) { return ui.scr == SCR_PROJECT && PRJ_PANEL(prj_kind(ui.row[SCR_PROJECT])); }
 #endif
 static void prj_draw(uint32_t y, uint32_t h)            /* op_draw.c, when prj_listing: lazy, redrawn when what it shows changes */
 {
@@ -671,6 +687,12 @@ static void prj_draw(uint32_t y, uint32_t h)            /* op_draw.c, when prj_l
 #if FELUCCA_SD_UI
     if (sdc_listing()) {
         sdc_draw(y, h);                                 /* (the card's page: op_sdcard.c) */
+        return;
+    }
+#endif
+#if FXZ_ANY
+    if (kind == PR_FXM) {
+        fxz_draw(y, h);                                 /* (FX MEM's panel: op_fxmem.c) */
         return;
     }
 #endif

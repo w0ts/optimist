@@ -19,6 +19,8 @@ final class FlashModel: ObservableObject {
     @Published private(set) var package: FlashPackage?
     @Published private(set) var packageError: String?
     @Published private(set) var loadingPackage = false
+    /// the packages kept from what came to the app (Documents/Firmware), newest first
+    @Published private(set) var received: [URL] = FlashInbox.list()
 
     @Published private(set) var device: String?          // the FM-1's identity, as the handshake gave it
     @Published private(set) var finding = false
@@ -27,6 +29,9 @@ final class FlashModel: ObservableObject {
     @Published private(set) var status = ""
     @Published private(set) var result: String?
     @Published private(set) var error: String?
+    /// the cable dropped mid-install: the sentence shown with Cancel while the FM-1 is looked for by itself (nil: none)
+    @Published private(set) var dropped: String?
+    private let dropCancel = FlashCancel()
     /// m-bootloader asked for, for one install (download mode; docs/INSTALL-PATHS.md); off: USB-MIDI, the bootloader kept
     @Published var installMboot = false
     /// the bootloader the FM-1 says it has (INFO tag 0x68): "mboot" | "stock" | "unknown", nil: not said (an older firmware)
@@ -192,11 +197,12 @@ final class FlashModel: ObservableObject {
     /// true: two or more FM-1s and none chosen (the list is shown, nothing was sent)
     func mustChoose() -> Bool {
         let keys = updater.devices()
-        guard keys.count > 1 else { picked = nil; devices = []; updater.excluded = []; return false }
+        guard keys.count > 1 else { picked = nil; devices = []; updater.excluded = []; updater.chosen = nil; return false }
         devices = keys
-        if let p = picked, keys.contains(p) { updater.excluded = Set(keys.filter { $0 != p }); return false }
+        if let p = picked, keys.contains(p) { updater.excluded = Set(keys.filter { $0 != p }); updater.chosen = p; return false }
         picked = nil
         updater.excluded = []
+        updater.chosen = nil
         return true
     }
 
@@ -204,6 +210,40 @@ final class FlashModel: ObservableObject {
         guard !busy else { return }
         picked = key
         await find()
+    }
+
+    /// A package that came to the app (opened from Finder, Files, AirDrop or Mail): checked, kept in Documents/Firmware and
+    /// shown ready; nothing is installed. Returns false when it could not be taken (an install is running).
+    @discardableResult
+    func receive(_ url: URL, into dir: URL = FlashInbox.folder) -> Bool {
+        guard !busy else { return false }
+        installMboot = false
+        chosen = "file"
+        package = nil
+        packageError = nil
+        do {
+            let r = try FlashInbox.receive(url, into: dir)
+            package = r.package
+            chosen = "received:\(r.url.lastPathComponent)"
+        } catch {
+            packageError = message(error)
+        }
+        received = FlashInbox.list(in: dir)
+        return true
+    }
+
+    /// One of the kept packages, picked again.
+    func choose(received url: URL) {
+        guard !busy else { return }
+        installMboot = false
+        chosen = "received:\(url.lastPathComponent)"
+        package = nil
+        packageError = nil
+        do {
+            package = try FlashPackage.check([UInt8](try Data(contentsOf: url)), title: url.lastPathComponent, file: url.lastPathComponent)
+        } catch {
+            packageError = message(error)
+        }
     }
 
     func find() async {
@@ -234,9 +274,10 @@ final class FlashModel: ObservableObject {
         link.hold()
         Task {
             defer { busy = false; link.release() }
-            var runningText = ""
+            var runningText = "", runningID = ""
             if let f = await updater.find() {             // (the route first: download mode is said, never attempted)
                 runningText = InstallRoute.runningKind(f.id.text, port: f.channel.name)
+                runningID = f.id.isLoader ? "" : f.id.text
                 bootWord = await InstallRoute.askBoot(f.channel, identity: f.id.text)   // (a running Optimist says which bootloader it has)
                 let r = route(for: pkg, running: f.id.text, port: f.channel.name, boot: bootWord)
                 f.channel.close()
@@ -251,7 +292,9 @@ final class FlashModel: ObservableObject {
                 }
             }
             do {
-                let back = try await updater.install(pkg) { [weak self] s in Task { @MainActor in self?.show(s, pkg) } }
+                let back = try await updater.installResumable(pkg, running: runningID, step: { [weak self] s in Task { @MainActor in self?.show(s, pkg) } },
+                                                              onDrop: { [weak self] _ in Task { @MainActor in self?.showDrop() } },
+                                                              cancelled: { [dropCancel] in dropCancel.isSet })
                 progress = 1
                 status = ""
                 device = back
@@ -270,7 +313,26 @@ final class FlashModel: ObservableObject {
         }
     }
 
+    /// the cable dropped: the sentence with Cancel; the install goes on by itself when the FM-1 is back
+    func showDrop() {
+        status = ""
+        dropCancel.set(false)
+        dropped = FlashResume.dropped
+        append("dropped")
+    }
+
+    /// Cancel while the FM-1 is looked for after a drop
+    func cancelDrop() {
+        guard dropped != nil else { return }
+        dropCancel.set(true)
+        dropped = nil
+    }
+
+    /// from step 2 on, until done (the user, 2026-11-01): never power off
+    private func step2(_ text: String) -> String { "\(text) \(FlashResume.noPowerOff)" }
+
     private func show(_ s: FlashStep, _ pkg: FlashPackage) {
+        if dropped != nil { dropped = nil }                      // (the FM-1 is back: going on)
         switch s {
         case .start(let id):
             append("start \(id)")
@@ -279,18 +341,26 @@ final class FlashModel: ObservableObject {
             progress = min(1, Double(n) / Self.step1Reads) * 0.1
         case .loader:
             append("loader")
-            status = "Waiting for the update loader…"
+            status = step2("Waiting for the update loader…")
             progress = 0.1
         case .write(let n, let addr):
             if n == 1 { append("write") }
-            status = "Writing… Keep the cable in."
+            status = step2("Writing… Keep the cable in.")
             progress = max(progress ?? 0, 0.1 + 0.85 * Double(addr) / Double(max(1, pkg.image.count)))
         case .reboot:
             append("reboot")
-            status = "Restarting the FM-1…"
+            status = step2("Restarting the FM-1…")
             progress = 0.97
         case .done(let id):
             append("done \(id)")
+        case .found(let id):
+            append("found again \(id)")
+            status = step2("Found \(id) again: resuming…")
+        case .checking(let p):
+            status = step2("Checking what is already on the FM-1…")
+            progress = max(progress ?? 0, 0.1 + 0.85 * Double(p) / 100)
+        case .kept:
+            append("the loader kept its fast session over the replug")
         }
     }
 
@@ -301,6 +371,7 @@ final class FlashModel: ObservableObject {
         case let e as FlashError: return e.description
         case let e as FlashPackage.Problem: return e.description
         case let e as FlashCatalog.NetError: return e.description
+        case let e as FlashInbox.Problem: return e.description
         default: return e.localizedDescription
         }
     }

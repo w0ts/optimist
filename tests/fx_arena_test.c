@@ -171,12 +171,12 @@ int main(void)
     host_tracks_init();
     fxi_init();
     for (c = 0; c < FXM_NC; c++)
-        sum += arn_round(FXM_BYTES[c]);
+        sum += arn_round(fxm_bytes(c));
     CHECK(ARN_BYTES >= FM + SN + sum && ARN_BYTES < FM + SN + sum + ARN_ALIGN &&
-          ARN_BYTES < 3u * FM + SN + sum - FXM_BYTES[FXM_CHO],
+          ARN_BYTES < 3u * FM + SN + sum - fxm_bytes(FXM_CHO),
           "the premise: one FM6 (and its sine table) and every line fit, not 3 FM6 and the lines but CHO's (arena %u B: FM6 "
-          "%u + %u, lines %u %u %u %u)", (unsigned)ARN_BYTES, (unsigned)FM, (unsigned)SN, FXM_BYTES[0], FXM_BYTES[1],
-          FXM_BYTES[2], FXM_BYTES[3]);
+          "%u + %u, lines %u %u %u %u)", (unsigned)ARN_BYTES, (unsigned)FM, (unsigned)SN, fxm_bytes(0), fxm_bytes(1),
+          fxm_bytes(2), fxm_bytes(3));
     if (bad)
         return 1;                                       /* (the checks below are laid out for it) */
     CHECK(fxm_off == 7u && !cho_buf && !dly_buf && !rev_line && !fxa_ins, "at boot: no line placed, every send gated");
@@ -184,7 +184,7 @@ int main(void)
     /* 1. placed by need */
     CHECK(fxm_st[FXM_CHO] == FXM_ON && fxm_st[FXM_DLY] == FXM_ON && fxm_st[FXM_REV] == FXM_ON && !fxm_off && !fxa_ins &&
           arena_ok(), "the sends in the master slots: their lines placed, the gates open; no own room (no limited type held)");
-    CHECK(zeros(cho_buf, FXM_BYTES[FXM_CHO]) && zeros(dly_buf, FXM_BYTES[FXM_DLY]) && zeros(rev_line, FXM_BYTES[FXM_REV]),
+    CHECK(zeros(cho_buf, fxm_bytes(FXM_CHO)) && zeros(dly_buf, fxm_bytes(FXM_DLY)) && zeros(rev_line, fxm_bytes(FXM_REV)),
           "... zeroed");
     /* 2. heard */
     for (k = 0; k < NPART; k++)
@@ -211,7 +211,7 @@ int main(void)
     /* 4. back */
     fxs_load(3, FXT_REV);
     pass();
-    CHECK(fxm_st[FXM_REV] == FXM_ON && !(fxm_off & 4u) && rev_line && zeros(rev_line, FXM_BYTES[FXM_REV]) && arena_ok(),
+    CHECK(fxm_st[FXM_REV] == FXM_ON && !(fxm_off & 4u) && rev_line && zeros(rev_line, fxm_bytes(FXM_REV)) && arena_ok(),
           "REV back in a slot: placed again, zeroed, the gate open");
     trk_note_on(t0, 64, 110);
     blocks(200);
@@ -278,7 +278,7 @@ int main(void)
     blocks(64);
     settle(2);
     CHECK(t1->engine == ENG_IX_FM6 && t2->engine == ENG_IX_FM6 && !cho_buf && !arn_fits(FXM_K(FXM_INS), FXM_INS_BYTES, 0) &&
-          arn_fits(FXM_K(FXM_CHO), FXM_BYTES[FXM_CHO], 0), "three FM6, CHO in no slot: no room for the own room, room for CHO's line");
+          arn_fits(FXM_K(FXM_CHO), fxm_bytes(FXM_CHO), 0), "three FM6, CHO in no slot: no room for the own room, room for CHO's line");
     fxm_news = 0;
     put_chrs(2, 1);
     settle(8);
@@ -304,7 +304,7 @@ int main(void)
         CHECK(part_mem_refused.on && part_mem_refused.part == 1u, "drop: FM6 on part 2 refused");
         while (n < 5u && mem_offer(&o[n]))
             n++;
-        uint32_t big = FXM_BYTES[FXM_REV] > FXM_BYTES[FXM_DLY] ? FXM_REV : FXM_DLY;   /* (ROOM + FDN8: REV's block the
+        uint32_t big = fxm_bytes(FXM_REV) > fxm_bytes(FXM_DLY) ? FXM_REV : FXM_DLY;   /* (ROOM + FDN8: REV's block the
                                                                                      * larger, its diffusers in it) */
         CHECK(n == 4u && o[0] == 0u && o[1] == NPART + big && o[2] == NPART + (FXM_DLY + FXM_REV - big) &&
               o[3] == NPART + FXM_CHO,
@@ -352,7 +352,7 @@ int main(void)
         CHECK(st < 0 && m == 5u && it[0] == 1u && it[1] == 0u && it[2] == NPART + FXM_REV && it[3] == NPART + FXM_DLY &&
               it[4] == NPART + FXM_CHO, "list: still short once settled; the items: part 2 (refused), part 1, then REV DLY CHO (not the own room)");
         CHECK(!mem_load_fits(0) && mem_load_fits(1u << 0) && mem_load_fits(1u << (NPART + FXM_DLY)) &&
-              mem_item_bytes(NPART + FXM_DLY) == FXM_BYTES[FXM_DLY] && mem_item_bytes(0) >= part_mem_bytes(ENG_IX_FM6) &&
+              mem_item_bytes(NPART + FXM_DLY) == fxm_bytes(FXM_DLY) && mem_item_bytes(0) >= part_mem_bytes(ENG_IX_FM6) &&
               fxm_st[FXM_DLY] == FXM_ON && arena_ok(),
               "list: nothing dropped does not fit; part 1 or DLY dropped fits (the trial changes nothing)");
         mem_load_cancel();                              /* (HOME) */
@@ -381,7 +381,7 @@ int main(void)
         set_engine_of(t1, eng_silent_slot());
         blocks(64);
         settle(100);                                    /* (the arena packed once it is quiet: 32 passes) */
-        CHECK((dly_buf ? !fxm_refused(FXT_DLY) : fxm_refused(FXT_DLY) && arn_free_bytes() < FXM_BYTES[FXM_DLY]) && arena_ok(),
+        CHECK((dly_buf ? !fxm_refused(FXT_DLY) : fxm_refused(FXT_DLY) && arn_free_bytes() < fxm_bytes(FXM_DLY)) && arena_ok(),
               "list: part 2 off FM6: DLY back by itself, or (the arena cut up by what may not move: a sounding or a set-aside "
               "block) still bypassed, the room truly short: %s", dly_buf ? "back" : "short");
     }
