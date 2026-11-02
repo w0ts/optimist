@@ -207,6 +207,8 @@ class Item:
                                      # profiles keep loading and dumping it, the checks still name it)
     shown_under: Optional[str] = None   # listed under this item instead of its parent (display only: core.built goes by parent)
     dim_when: Optional[str] = None   # greyed (not live) while this item is on (SAMPLE SLOTS, PROJECTS under SD card mode)
+    dim_choice: dict = field(default_factory=dict)   # {choice value: (item key, reason)}: that choice is greyed (not offered, the
+                                     # reason shown beside it) while the item is on (SECTIONS 4 while PATTERNS is on)
     children: list = field(default_factory=list)
     menu_children: list = field(default_factory=list)   # what the menu lists under it: children + shown_under, less hidden
 
@@ -886,10 +888,13 @@ _add("CHORDPLUS", "FELUCCA_CHORDPLUS", "CHORD+ (black keys change the chord), ST
 
 # ---- sequencer
 Q = "Sequencer"
-_add("SECTIONS", "FELUCCA_SECTIONS", "song sections", Q, 85, default=16,
+_add("SECTIONS", "FELUCCA_SECTIONS", "song sections (with PATTERNS: the scenes of a project)", Q, 85, default=16,
      choices=((16, "16: A..P, compressed log"), (8, "8: A..H, compressed log"), (4, "4: A..D, the old project slots")),
-     desc="8 / 16: banks of 4 (SAVE + OCT), stored compressed in one 32 KiB log with a MEM gauge; the old slots move "
-          "in at the first start. 4: the slots as before (needed by motion recording)")
+     dim_choice={4: ("PATTERNS", "PATTERNS: scenes live in the log, 8 or 16")},
+     desc="How many sections (with PATTERNS on: scenes) the log keeps: 8 / 16: A..H / A..P in banks of 4 (SAVE + OCT), "
+          "stored compressed in a log with a MEM gauge; the old slots move in at the first start. With PATTERNS on, "
+          "each project owns that many scenes and 4 is not offered (the patterns live in the log); the choice only sets "
+          "the scene count (8 = 52 B of flash less). 4 (PATTERNS off only): the slots as before")
 _add("SNAPSHOTS", "FELUCCA_SNAPSHOTS", "snapshots (whole-state slots)", Q, 137, default=4,
      choices=((4, "4 slots: 32 KiB, USR3 keeps 32 KiB"), (2, "2 slots: 24 KiB, USR3 keeps 40 KiB"),
               (8, "8 slots: 48 KiB, USR3 keeps 16 KiB"), (0, "off: USR3 64 KiB")),
@@ -1645,6 +1650,7 @@ def to_json():
                                           "experimental", "notice", "off_warning", "env", "target_only", "symbols", "no_image",
                                           "fixed", "head")}
         d["choices"] = [list(c) for c in it.choices]
+        d["dim_choice"] = {str(v): list(w) for v, w in it.dim_choice.items()}
         d["not_built"] = {str(v): why for (k, v), why in NOT_BUILT.items() if k == it.key}
         d["provenance"] = it.provenance.__dict__ if it.provenance else None
         out.append(d)

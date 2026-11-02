@@ -295,7 +295,7 @@ One group (2026-10-29; two before: "any number" and "limited instances"). Each e
 | Item | Key | What it does |
 |---|---|---|
 | CHORD+ (black keys change the chord), STRUM, VLEAD | `CHORDPLUS` | With a chord mode on (SCL > CHORD), the black keys change the chord played: F# major <-> minor, G# adds the 7th, A# sus4, C# the 9th, D# inverts; hold several to combine, or press one while a chord is held. SCL 2 gains STRUM (1-60 ms a note, right low to high, left high to low; keys and chord steps) and VLEAD (each chord voiced nearest the last). Recorded as it sounds; MIDI out sends the chord unstrummed. |
-| song sections | `SECTIONS` | 8 / 16: banks of 4 (SAVE + OCT), stored compressed in one 32 KiB log with a MEM gauge; the old slots move in at the first start. 4: the slots as before (needed by motion recording) |
+| song sections (with PATTERNS: the scenes of a project) | `SECTIONS` | How many sections (with PATTERNS on: scenes) the log keeps: 8 / 16: A..H / A..P in banks of 4 (SAVE + OCT), stored compressed in a log with a MEM gauge; the old slots move in at the first start. With PATTERNS on, each project owns that many scenes and 4 is not offered (the patterns live in the log); the choice only sets the scene count (8 = 52 B of flash less). 4 (PATTERNS off only): the slots as before |
 | snapshots (whole-state slots) | `SNAPSHOTS` | PROJECT > SNAPSHOT: the working project, every section and the song in one slot, loaded back whole (the state before is kept in BEFORE LOAD); export / import in the web editor. The flash comes from the end of USR3 (slots + 4 sectors of 4 KiB): the user sample slot USR3 holds that much less (docs/SNAPSHOTS.md) |
 | per-project patterns and scenes | `PATTERNS` | Each of the 16 projects owns its state, 16 patterns a track, its scenes A..P and its song (docs/PROJECTS-DESIGN.md): nothing done in one project touches another. The log moves to 0xA0000 and grows to 128 KB (80 KB with SAMPLE or DRUM_USR built: user sample slot 1, which the samples lose). The old log at 0x97000 is not read. LFO held: the PATTERN layer (launch at the end, the next bar or now; store, copy, clear); the web editor shows the slots in the mixer. Off: a project is a plain section with its steps in it, in the old log. |
 | undo / redo history (many levels) | `UNDO_HISTORY` | Undo and redo of pattern edits (EDIT + OCT- / OCT+) over many levels; the history lives in the pool and RAM this build leaves free (at least 1 KiB). About 2.2 KB of flash; off: a single undo level. |
@@ -397,6 +397,9 @@ retired FM6 voice (an R or U number) plays the voice it holds inline, or starts 
 C.TIM over an inline voice is baked into it once on load, approximately.
 
 ### Song sections (SECTIONS)
+
+With PATTERNS on (every shipped profile) the sections are the scenes of each project and the item only sets how many
+(16 or 8; 4 is greyed, a PATTERNS build needs the log); the rest of this part is the section log itself.
 
 16 (default) or 8: sections A..P / A..H in banks of 4 (SAVE + OCT- / OCT+), stored compressed in one log
 (`firmware/src/storage/sections/sec_log.c`: 32 KiB; with PATTERNS the per-project log of docs/PROJECTS-DESIGN.md); the song layer's title shows the MEM gauge ("mem 34% +12": the share used and

@@ -54,6 +54,7 @@ final class WireTests: XCTestCase {
         XCTAssertEqual(lib.engines, ["ANALOG", "FM6"])
         XCTAssertEqual(lib.patSlots, 16)
         XCTAssertEqual(lib.patScenes, 16)
+        XCTAssertTrue(lite.showsSections)    // no tag 0x55: the section lists stay
         XCTAssertThrowsError(try DeviceInfo.parse([65, 0, 1]))
     }
 }
@@ -457,6 +458,7 @@ final class OpsTests: XCTestCase {
         XCTAssertEqual(i.pcount, 4)
         XCTAssertTrue(i.lite && i.lib)
         XCTAssertTrue(i.hasPatterns)
+        XCTAssertFalse(i.showsSections)      // PATTERNS: a project owns its scenes, no section list
     }
 }
 

@@ -136,6 +136,13 @@ export function built(reg, values, key) {
   return (values[key] ?? it.default) !== 0;
 }
 
+/** the item's choices greyed in this configuration -> {value: reason} (registry dim_choice; core.dimmed_choices) */
+export function dimmedChoices(reg, values, key) {
+  const out = {};
+  for (const [v, [item, why]] of Object.entries(reg.byKey[key].dim_choice || {})) if (built(reg, values, item)) out[v] = why;
+  return out;
+}
+
 /** the defaults of every item */
 export const defaults = (reg) => Object.fromEntries(reg.items.map((it) => [it.key, it.default]));
 
