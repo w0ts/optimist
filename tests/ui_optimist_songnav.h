@@ -39,7 +39,7 @@ static uint32_t sn_cell_hash(void)                      /* the marker's box on t
 {
     int32_t ph = (GL_END - 22 - 16) / 5;
     int32_t x = STB_X0 + (int32_t)stb.mk_i * STB_CW + (STB_CW - 2 - STB_MK) / 2;
-    int32_t y = GL_TOP + (stb.mk_lane < 4u ? 22 + (int32_t)stb.mk_lane * ph + (ph - STB_MK) / 2 : GL_END - 14);
+    int32_t y = GL_TOP + 22 + 5 * ph + (GL_END - 22 - 5 * ph - STB_MK) / 2;
     uint32_t h = 2166136261u;
     int32_t i, j;
     for (j = 0; j < STB_MK; j++)
@@ -51,7 +51,7 @@ static uint32_t sn_cell_green(void)                     /* ... and its green pix
 {
     int32_t ph = (GL_END - 22 - 16) / 5;
     int32_t x = STB_X0 + (int32_t)stb.mk_i * STB_CW + (STB_CW - 2 - STB_MK) / 2;
-    int32_t y = GL_TOP + (stb.mk_lane < 4u ? 22 + (int32_t)stb.mk_lane * ph + (ph - STB_MK) / 2 : GL_END - 14);
+    int32_t y = GL_TOP + 22 + 5 * ph + (GL_END - 22 - 5 * ph - STB_MK) / 2;
     uint32_t n = 0;
     int32_t i, j;
     for (j = 0; j < STB_MK; j++)
@@ -96,7 +96,7 @@ static void songnav_scenes_tests(void)
     ui.force = 1;
     frames(3);
     check(stb.mk_on && stb.mk_i == 4u, "songnav: the current scene's column has the marker (a play triangle)");
-    check(sn_cell_green() > 5u, "... drawn green in its box");
+    check(sn_cell_green() > 60u, "... drawn green in its box");
     h0 = sn_cell_hash();
     frames(40);
     h1 = sn_cell_hash();
