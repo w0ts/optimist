@@ -343,7 +343,7 @@ if costs:
     fitted, ch = C.fit(C.load_profile(C.REFERENCE_PROFILE)[0], costs)   # (not the raw defaults: nearly every item on, 97 KB over
                                                                   # 2026-10-19, never meant to fit)
     check("fit: the reference profile made to fit by the estimate", fitted is not None and
-          all(o <= 0 for _, _, o in C.fits(C.budget(fitted, costs)["total"]).values()))
+          all(o <= 0 for _, _, o in C.fits(C.budget(fitted, costs)["total"], fitted).values()))
 
 # every engine built has a preset on the PRESETS list and every drum source built a kit, on any configuration
 # validate() lets through (tools/builder/verify.py preset_cover: tests/preset_cover_test.c with the configuration's
@@ -956,7 +956,11 @@ if not _have:
 #    pool +40 B, as the estimate says. DRUMS off makes track 4 a
 #    4th synth part (bit 424), whose engine state is in the pool: measured 2026-10-27 on mots-config
 #    (gpufarm, d9a3d172), pool +5,120 B (the estimate +4,168: the part's +12,888 less the X0X machines' states)
-_MONO_MOVES = ("REV_POOL", "SECTIONS")
+#    ARENA moves memory too: on, the engines' and the effects' state sits in the SRAM the link leaves free (not in RAM or
+#    pool); off, it is static pool again (mots-config: the estimate says +291 KB, a build that would not fit: what the arena is for).
+#    NOT_A_FEATURE (core.py: COMPILER, CANVAS_STRIP, INS_RAM) are no features switched off but other ways to build the
+#    same firmware, measured both ways (CANVAS_STRIP 1 costs +14,880 B of pool against its default 2): not held to this
+_MONO_MOVES = ("REV_POOL", "SECTIONS", "ARENA")
 _MONO_ALLOW = {"DIV_ORDER": "flash", "FX_DJF": "flash", "FX_DELAY": "pool", "XDLY_LEN": "pool", "DRUMS": "pool"}
 _MONO_NOISE = {"flash": K.ALIGN_NOISE, "ram": 32, "pool": 0}
 _mono_bad = []
@@ -965,7 +969,7 @@ if costs:
         _mcfg = C.defaults() if _pn is None else C.load_profile(_pn)[0]
         _b0 = C.budget(_mcfg, costs, use_exact=False)["total"]
         for _k, _it in items.items():
-            if _it.no_image or (_it.parent and not C.built(_mcfg, _it.parent)) or _k in _MONO_MOVES:
+            if _it.no_image or (_it.parent and not C.built(_mcfg, _it.parent)) or _k in _MONO_MOVES or _k in K.NOT_A_FEATURE:
                 continue
             _v = K._off_value(_mcfg, _k)                # (core's: configure does not re-export it)
             _t = K._drop(_mcfg, _k, _v) if _v is not None and _mcfg[_k] else None
