@@ -91,6 +91,11 @@ PAIRS = [{"MOTION": 1, "SECTIONS": 4},
          # the same at the central's MINIMAL level (2026-10-24, synths_USBaudio_BTaudio_BTmidi: BLE_CENTRAL 3 -> 0 freed 10,648 B
          # of flash, the estimate said 12,460)
          {"BLE": 1, "BLE_CENTRAL": 3, "BT_AUDIO": 1},
+         # with the arena Bluetooth audio's packet queue and reception ring (17.7 KB) are lent by it while an AUDIO mode is on
+         # (engines.c FELUCCA_BTA_LEND, fm1.toml bt_audio_mem = "app"), no longer static RAM and pool: BT_AUDIO's own delta
+         # (measured with ARENA off) is that much too big (2026-11-02, mots-config against its probe: ram 13.2 KB and
+         # pool 4.4 KB under the sum model)
+         {"ARENA": 1, "BT_AUDIO": 1},
          # Bluetooth audio with the CDC console (the console leaves the stack's log lines silent)
          {"BT_AUDIO": 1, "USB_CONSOLE": 1},
          # PLOCK's lock base is motion.c's (pool 292 B with PLOCK alone, none beyond MOTION's 900 with both: measured
