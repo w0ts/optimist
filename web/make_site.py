@@ -259,7 +259,7 @@ HIDDEN_RELEASE_PROFILES = {"user-default"}
 
 
 SHA_RE = re.compile(r"[0-9a-f]{40}")
-RELEASE_PKG = re.compile(r"optimist-[0-9][0-9A-Za-z.]*-([A-Za-z0-9_-]+)")   # (a profile id: synths_USBaudio_BTaudio_BTmidi)
+RELEASE_PKG = re.compile(r"optimist-[0-9][0-9A-Za-z.]*-([A-Za-z0-9_-]+)")   # (a profile id: mots-config)
 
 
 def releases_of(folder, manifest=HERE / "flavours.json"):

@@ -3,7 +3,7 @@
 
 Keys: space / enter toggle (a choice: next value; shift+space or backspace: the previous) | / search | p profiles | s save (mine or stock)
       | u publish this profile or not (CI builds the published ones; one of mine is shared first)
-      | d delete a profile (asks first; never the default profile, synths_USBaudio_BTaudio_BTmidi)
+      | d delete a profile (asks first; never the default profile, mots-config)
       | w write a .config file | l load | b build | e build and run it in the emulator
       | f flash a build of the configuration shown to an FM-1 over USB-MIDI: builds it first when this menu has no
         current one (a progress bar for the build and for the flash); refused only when the builder's own code
@@ -1064,7 +1064,7 @@ def recall():
     except (OSError, ValueError, C.ConfigError):
         pass
     try:
-        cfg, name = C.load_profile(C.DEFAULT_PROFILE)       # never used before: the default profile (synths-USB-BTA-BTM)
+        cfg, name = C.load_profile(C.DEFAULT_PROFILE)       # never used before: the default profile (mots-config)
         return cfg, name, None, C.DEFAULT_PROFILE
     except (OSError, C.ConfigError):
         return None, "default", None, None
