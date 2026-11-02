@@ -288,7 +288,7 @@ static uint8_t song_dirty;
 static void settings_save(void) {}
 static void song_backup(void) {}
 static void song_restore(void) {}
-static void project_apply(const project_t *p, const dlrec_t *d) { proj_apply(p, d, 1); }
+static void project_apply(const project_t *p, const dlrec_t *d) { proj_apply(p, d, 1); ui.force = 1; }   /* (project.c's asks for the black fill too) */
 #if FELUCCA_MOTION
 static void motion_flash_read(uint32_t obj, const project_t *p) { (void)obj; (void)p; }   /* (sections.c's migration reads the motion store; the real one is project.c's, not linked here) */
 #endif
@@ -1995,7 +1995,7 @@ static void layer_tests(void)
     key(WK(1));
     check(lpk.on, "LFO held + SAVE: the patterns screen stays");
     release(B_SAVE);
-    check(clone_asked() && !strcmp(ui.arm_q, "CLONE T1 2?") && !pat_has(0, 1), "LFO held + SAVE + key 2 (an empty slot): \"CLONE T1 2?\" asked, nothing stored yet");
+    check(clone_asked() && !strcmp(ui.arm_q, "CLONE T1 1>2?") && !pat_has(0, 1), "LFO held + SAVE + key 2 (an empty slot): \"CLONE T1 1>2?\" (source > destination) asked, nothing stored yet");
     clone_yes();
     check(pat_has(0, 1), "LFO held + SAVE + key 2: YES, the working copy stored into T1 2");
     {   /* a brisk strum on the device: the key's press and SAVE's release land in one (slow) UI frame (the user, 2026-10-23:
@@ -3102,10 +3102,11 @@ static void song_tests(void)
         if (pat_cur[1] >= PAT_N && pat_has(1, 0))
             pat_launch(1, 0, PW_END);                   /* (T2 plays its slot 1: a scene loaded stopped no longer asks first, issue 142) */
         tap(B_REC);
-        check(project_used(2) && pat_scene_refs(2, refs) && refs[0] < PAT_N, "SONG scene C, REC: the loop stored into it");
+        check(!project_used(2) && !op_armed() && !song.rec && !rec_wait, "SONG scene C, REC tapped: nothing stored, nothing asked, no record armed");
+        scene_store_now(2);                             /* (the scene C the tests below edit; SAVE stores into the current scene: ui_optimist_songnav.h) */
+        check(project_used(2) && pat_scene_refs(2, refs) && refs[0] < PAT_N, "(scene C stored)");
         tap(B_REC);
-        check(op_armed() && !strcmp(ui.arm_q, "STORE SCENE C?"), "... REC again: over a used one, asked");
-        tap(B_HOME);
+        check(!op_armed() && !song.rec && !rec_wait, "... REC tapped on a used scene: still nothing");
         ui.hot = 0;
         for (r = 0; r < 20u; r++)
             turn(EN_K1, -1);                            /* (down to "--": none; KNOB 1 = T1) */
@@ -3337,7 +3338,19 @@ static void song_tests(void)
         press(B_REC);
         release(B_REC);
         release(B_OCTDN);
-        check(op_armed() && !strcmp(ui.arm_q, "CLEAR SCENE C?"), "SHIFT + REC on scene C: clear it, asked");
+        check(!op_armed() && project_used(2), "SHIFT + REC tapped on scene C: no longer clears it (nothing asked)");
+        press(B_REC);                                   /* REC held: the ring (0.7 s, then 1.3 s) as REC's clear elsewhere, then the scene's clear asked */
+        {
+            uint32_t t0 = fm1_ms;
+            while (fm1_ms - t0 < 700u + 650u)
+                frame();
+            check(rh.ring && !op_armed() && project_used(2) && !song.rec && !rec_wait, "SONG scene C, REC held 1.35 s: the ring half full, nothing asked yet, no record armed");
+            while (fm1_ms - t0 < 700u + 1300u + 100u)
+                frame();
+        }
+        release(B_REC);
+        frames(2);
+        check(op_armed() && !strcmp(ui.arm_q, "CLEAR SCENE C?") && !song.rec && !rec_wait, "... held to the end: CLEAR SCENE C? asked");
         tap(B_SAVE);
         check(!project_used(2) && ui.scr == SCR_SONG, "... YES: cleared");
     }

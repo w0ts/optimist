@@ -82,6 +82,35 @@ static void patnew_ui_tests(void)
     check(!pat_has(0, sl), "... asked, nothing created yet");
     tap(B_SAVE);
     check(pat_has(0, sl) && pat_scene_refs(c, refs) && refs[0] == sl && !op_armed(), "... YES: the pattern cloned and the scene's T1 names it");
+    {   /* the number of the pattern that does not exist yet flashes red in its cell while the knob rests on it */
+        char nb[4];
+        sl = pat_free(0);
+        sg.ed_s = (uint8_t)c, sg.ed_k = 0, sg.ed_ms = fm1_ms, sg.ed_v = (uint8_t)sl;   /* (the knob has just turned the reference to the first free slot: before the rest writes it) */
+        song_refresh(1);
+        frames(2);
+        uint32_t on = 0, off = 0, i, bx, by, w, h;
+        fmt_int(nb, (int32_t)sl + 1);
+        check(((stb.nx[0] >> (c % 8u)) & 1u) && !strcmp(stb.t[0][c % 8u], nb), "... its cell shows that number, flagged as not existing");
+        w = (uint32_t)text_w(stb_font(nb, STB_CW - 4), nb);
+        h = (uint32_t)stb_font(nb, STB_CW - 4)->h;
+        bx = (uint32_t)(STB_X0 + (int32_t)(c % 8u) * STB_CW) + (STB_CW - 2 - w) / 2;
+        by = (uint32_t)(GL_TOP + 22 + ((GL_END - 22 - 16) / 5 - (int32_t)h) / 2);   /* (signed: a tall face is centred over the lane) */
+        for (i = 0; i < 60u; i++) {
+            uint32_t x, y, red = 0;
+            sg.ed_ms = fm1_ms;                          /* (resting is not what is tested: the edit stays open) */
+            frames(1);
+            for (y = by; y < by + h; y++)
+                for (x = bx; x < bx + w; x++)
+                    red |= screen[y * 240 + x] == swap16(C_ERR);
+            if (red)
+                on++;
+            else
+                off++;
+        }
+        check(on > 15u && off > 15u, "... the number flashes red (about 250 ms each way)");
+        sg.ed_s = 0xFF;
+        song_refresh(1);
+    }
     /* EMPTY from the scene: the reference only */
     for (k = 0; k < 24u && !op_armed(); k++) {
         turn(EN_K1, 1);

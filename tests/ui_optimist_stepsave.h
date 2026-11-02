@@ -177,6 +177,8 @@ static void sv_save_tests(void)
     kup(WK(sl));
     release(B_SAVE);
     check(clone_asked() && !pat_has(0, sl) && !step_on(&t->step[sl]), "save: SAVE + a white key (an empty slot): \"CLONE\" asked, no step toggled");
+    if (pat_cur[0] < PAT_N && pat_cur[0] != sl)
+        snprintf(cl, sizeof cl, "CLONED T1 %u>%u", pat_cur[0] + 1u, sl + 1u);   /* (source > destination) */
     clone_yes();
     check(sl < 16u && pat_has(0, sl) && pat_cur[0] == sl && !step_on(&t->step[sl]) && !op_armed() && !strcmp(ui.msg, cl),
           "save: ... YES: stored there, no step toggled");
