@@ -294,12 +294,16 @@ static void op_preset_step(int32_t s)                   /* the next / previous s
  * PRESETS */
 static uint32_t list_eng(uint32_t n)
 {
-    uint32_t k;
-    return preset_all_at(n, &k);
+    uint32_t k, e = preset_all_at(n, &k);
+#if FELUCCA_NB_LIST
+    if (e == NB_LIST)
+        return nb_engine_slot(k >> 8);                  /* (FM6's collection, in FM6's group: model.c nb6_span) */
+#endif
+    return e;
 }
 static void op_engine_step(int32_t s)
 {
-    uint32_t total, i, j, e0 = TSEL->eng_req, et, n = NLIST, k, e;
+    uint32_t total, i, j, e0 = TSEL->eng_req, et, n = preset_fixed_n(), k, e;
     if (ed_ask(EK_ENGINE, s))
         return;
     if (is_drum(TSEL) || n == 0u) {
