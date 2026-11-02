@@ -70,6 +70,10 @@ typedef struct {
     uint8_t w_c1, w_ran;                           /* the worst block's: the jobs CPU1 ran, the jobs that ran */
     uint8_t win;                                   /* the window written now (ms >> 9, of DUAL_TM_WIN) */
     volatile uint8_t wreset;                       /* the main loop: a new worst block from now (the page opened) */
+    volatile uint8_t where;                        /* the main loop's span now: 0 none, 1 UI (ui_draw), 2 IDLE (fm1_idle) */
+    volatile uint32_t isr;                         /* the render's ticks that fell inside the span (the render is an interrupt on CPU0) */
+    uint8_t swin;                                  /* the spans' window written now (ms >> 9, of DUAL_TM_WIN) */
+    uint32_t sp[2][DUAL_TM_WIN];                   /* UI, IDLE: each window's ticks, the render's taken out */
 #if FELUCCA_BENCH
     uint32_t bsum[DTQ_N], bmax[DTQ_N], blocks;     /* (bench builds: each quantity's sum and largest since boot, the
                                                     * blocks counted: the emulator reads them, tools/cpubal_emu.py) */
@@ -127,6 +131,8 @@ static inline __attribute__((always_inline)) void dual_tm_block(uint32_t t0, uin
     dual_tm_q(DTQ_WAIT, tj1 - tj0, pk, v);
     dual_tm_q(DTQ_POST, te - tj1, pk, v);
     dual_tm_q(DTQ_BLK, te - t0, pk, v);
+    if (dual_tm.where)                             /* (this block ran inside the main loop's UI or idle span: not theirs) */
+        dual_tm.isr += te - t0;
     dual_tm_q(DTQ_C1, c1 ? dual_tm.c1_last : 0u, pk, v);
     dual_tm_q(DTQ_EVT, dual_tm.evt, pk, v);
     dual_tm_q(DTQ_NS, dual_tm.ns, pk, v);
@@ -171,6 +177,33 @@ static inline uint32_t dual_tm_peak(uint32_t q)
 /* a job CPU0 runs after the block, outside mix_block_dual (Optimist's own firmware: Bluetooth's SBC frames, audio.c
  * bt_audio_feed): its time, folded into the next block as a job of its own (p: its slot, the first after the render's) */
 #define DUAL_TM_XJOB(p, t) ((p) < DUAL_TM_NJ ? (void)(dual_tm.jt[p] = (t), dual_tm.xran |= (uint8_t)(1u << (p))) : (void)0)
+/* The main loop's own time on CPU0 (SYSTEM > TOP's UI and IDLE rows, 2026-11-02; a coarse figure: the order of magnitude).
+ * DUAL_TM_SPAN_IN(k) before, DUAL_TM_SPAN_OUT(k, t0) after a stretch of the main loop (k 1: ui_draw, the screen's strips
+ * with their waits; 2: the sleep). Its wall time, less the render blocks that ran inside it (dual_tm_block), summed in
+ * 512 ms windows; the timer, the USB and the UART interrupts stay in it. k 1 / 2 is the row, 0 / 1 in sp */
+#define DUAL_TM_WINT (512u * 1000u * 24u)           /* a window, ticks */
+#define DUAL_TM_SPAN_IN(k) (dual_tm.isr = 0, dual_tm.where = (k), fm1_ticks())
+#define DUAL_TM_SPAN_OUT(k, t0) dual_tm_span((k), fm1_ticks() - (t0), fm1_ms)
+static inline void dual_tm_span(uint32_t k, uint32_t t, uint32_t ms)
+{
+    uint32_t w = (ms >> 9) % DUAL_TM_WIN, i = dual_tm.isr;
+    dual_tm.where = 0;
+    if (w != dual_tm.swin) {                       /* (a new window: from 0) */
+        dual_tm.swin = (uint8_t)w;
+        dual_tm.sp[0][w] = dual_tm.sp[1][w] = 0;
+    }
+    dual_tm.sp[k - 1u][w] += t > i ? t - i : 0u;
+}
+/* span k's share of CPU0's time, %: the average over the windows (the last 2 s), or the largest window */
+static inline uint32_t dual_tm_span_pct(uint32_t k, uint32_t avg)
+{
+    uint32_t w, s = 0, m = 0;
+    for (w = 0; w < DUAL_TM_WIN; w++) {
+        uint32_t x = dual_tm.sp[k - 1u][w];
+        s += x, m = x > m ? x : m;
+    }
+    return avg ? (s / DUAL_TM_WIN * 100u + DUAL_TM_WINT / 2u) / DUAL_TM_WINT : (m * 100u + DUAL_TM_WINT / 2u) / DUAL_TM_WINT;
+}
 #else
 #define DUAL_TIMES 0
 #endif
