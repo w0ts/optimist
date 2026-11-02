@@ -39,7 +39,7 @@ class Step:
     end: int              # the classic build's app slot end: flash.bin is [0, end)
     reloc: int            # R, the top of what this step stores elsewhere than normal (normal: its own end)
     release_end: int      # fm1-base's (the release's) app end for this step
-    release_built: bool   # the release builds it (S0: not until fm1-base's loader takes the table)
+    release_built: bool   # the release builds it (every step since fm1-base's loader takes the table: fm1.toml app_steps)
     upf: int              # the presets' FM6 voices, A / B (two sectors)
     data_lo: int          # where Optimist's store starts (FL_DATA_LO)
     autosave_a: int       # the working project's autosave copy A (copy B 0xFE000 in every step)
@@ -60,7 +60,7 @@ def stacked(layout: int, key: str, name: str, slots: int, projects: int) -> Step
     top, n = SLOT_TOP[slots], LOG_SECTORS[projects]
     log_lo = top - n * SECTOR
     end = log_lo - 3 * SECTOR
-    return Step(layout, key, name, end, top, end, False, end, end, log_lo - SECTOR, log_lo, n, slots, projects)
+    return Step(layout, key, name, end, top, end, True, end, end, log_lo - SECTOR, log_lo, n, slots, projects)
 
 
 STEPS = {
