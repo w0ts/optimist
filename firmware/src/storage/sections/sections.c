@@ -477,6 +477,8 @@ static void section_load(uint32_t s)                   /* stopped: the section i
     if (!sec_read(s, &proj_tmp.cur, &sec_tmp_dl))
         return;
     project_apply(&proj_tmp.cur, &sec_tmp_dl);
+    ui.force = 0;                                      /* (project_apply asks for a black fill: a scene loaded redraws in place, no flash) */
+    ui.redraw = 1;
     live_sec = (int8_t)s;
 }
 /* the Optimist UI's SONG screen and SAVE layer (ui/optimist): section / scene s cleared, stopped: its record, its FX
@@ -716,7 +718,7 @@ static void arrangement_apply(uint32_t scene)
 #endif
     sec_stage_id = -1;                                 /* (used: the main loop stages the next) */
     sync_reload = 1;
-    ui.force = 1;
+    ui.redraw = 1;                                     /* (a scene launched: every band again in place, no black fill of the LCD: that flashed the whole screen) */
 }
 
 /* main loop: keep the stage holding the section the ISR will want next: stopped in song mode the song's first

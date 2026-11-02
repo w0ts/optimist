@@ -1290,6 +1290,11 @@ static void draw_ring(void)                             /* the REC hold */
     str_cpy(b + 6, rh.lane >= 0 ? lane_name((uint32_t)rh.lane) : trk_tag(rh.trk), sizeof b - 6u);   /* (a lane: "Clear SNARE") */
     if (rh.motion)
         str_app(b, " locks", sizeof b);   /* (SHIFT + REC: "Clear T1 locks", the notes stay) */
+    if (rh.scn) {
+        str_cpy(b, "Clear SCENE ", sizeof b);           /* (SONG's scenes) */
+        b[12] = (char)('A' + (rh.scn - 1u) % 26u);
+        b[13] = 0;
+    }
     draw_ring_of(fm1_ms - rh.t1, rh.lane >= 0 ? op_lane_col((uint32_t)rh.lane) : trk_col(rh.trk), b);
 }
 static void draw_arm_ring(void)                         /* a delete asked from a held key: its question as the label */
@@ -1349,8 +1354,7 @@ static void op_frame_draw(void)
     }
     if (ui.redraw) {                                    /* the cards and the panel again, over what they drew (a DX7 voice shows, the note's corner goes) */
         ui.redraw = 0;
-        ui.sig[1] = ui.sig[2] = ui.sig[4] = 0;
-        mx_redraw();
+        op_repaint();                                   /* (every band again over itself, the header too: a scene launched changes the track's sound) */
     }
     if (ov != ui.overlay || ui.force) {                 /* the panel under the overlay: again when it goes */
         if (ui.overlay == 5u)                           /* (the popup list covers the cards too: every band again, drawn over it; no black
