@@ -156,7 +156,7 @@ Patterns and scenes share one grammar in the LFO layer (and on SONG's PATTERNS r
 | SAVE + SEQ | a track | the working pattern into its slot (asked over a used one) [PATTERNS] |
 | HOME + SEQ | a track | RELOAD: the pattern's edits not saved dropped, its saved pattern plays again (asked; the patterns layer with ALL TRACKS: every track) [PATTERNS] |
 | LFO held + a white key | anywhere | launch the track's pattern n at the end of its pass; OCT- + the key: at the next bar; OCT+ + the key: now [PATTERNS] |
-| LFO held + SAVE + a white key | anywhere | store the working pattern into slot n (asked over a used one) [PATTERNS] |
+| LFO held + SAVE + a white key | anywhere | store the working pattern into slot n: asked over a used one; an empty slot asks *CLONE T1 n?* (SAVE: clone the working pattern; HOME: *EMPTY T1 n?*, SAVE: start empty, HOME again: nothing) [PATTERNS] |
 | LFO held + black key 1-4 / 5 / 6 / 9 | anywhere | pick the track / ALL TRACKS (the white keys, SAVE + n, HOME + n act on T1..DR; again: the selected track) / stop its pattern / duplicate it into a free slot [PATTERNS] |
 | LFO held + a black key 1-4 held + a white key | anywhere | store that track's working pattern into slot n (black 5 held: every track's), as SAVE + n [PATTERNS] |
 | a launch or stop over edits not stored | the LFO layer, SONG's PATTERNS row | the edits are kept with the outgoing pattern (its live copy, in flash): "T1 T3 KEPT"; it plays them when launched again [PATTERNS] |

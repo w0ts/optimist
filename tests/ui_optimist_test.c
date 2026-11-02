@@ -461,6 +461,12 @@ static uint32_t BT(uint32_t b) { return 1u << panel.btn[b]; }
 static void press(uint32_t b) { fm1_btn_t[0][panel.btn[b]] = fm1_ticks(); edges_btn |= BT(b); fm1_in.buttons |= BT(b); frame(); }
 static void release(uint32_t b) { fm1_btn_t[1][panel.btn[b]] = fm1_ticks(); fm1_in.buttons &= ~BT(b); frame(); }
 static void tap(uint32_t b) { press(b); release(b); }
+#if FELUCCA_PATTERNS
+static int clone_asked(void) { return op_armed() && ui.arm_scr == ARM_OP && ui.arm_row == OA_PAT_CLONE; }
+static void clone_yes(void) { if (clone_asked()) tap(B_SAVE); }   /* (a new pattern's question, issue 142: YES = CLONE) */
+#else
+static void clone_yes(void) {}
+#endif
 /* YES on a held step's lock cell: with FILLS built SHIFT2 (OCT+) + SAVE (SAVE alone is the fill condition) */
 static void tap_lock(void)
 {
@@ -1955,7 +1961,9 @@ static void layer_tests(void)
     key(WK(1));
     check(lpk.on, "LFO held + SAVE: the patterns screen stays");
     release(B_SAVE);
-    check(pat_has(0, 1), "LFO held + SAVE + key 2: the working copy stored into T1 2");
+    check(clone_asked() && !strcmp(ui.arm_q, "CLONE T1 2?") && !pat_has(0, 1), "LFO held + SAVE + key 2 (an empty slot): \"CLONE T1 2?\" asked, nothing stored yet");
+    clone_yes();
+    check(pat_has(0, 1), "LFO held + SAVE + key 2: YES, the working copy stored into T1 2");
     {   /* a brisk strum on the device: the key's press and SAVE's release land in one (slow) UI frame (the user, 2026-10-23:
          * SAVE + key opened PROJECT): still the chord, stored, no tap */
         uint32_t scr = ui.scr;
@@ -1966,7 +1974,9 @@ static void layer_tests(void)
         frame();
         fm1_in.notes &= ~(1u << WK(2));
         frame();
-        check(pat_has(0, 2) && ui.scr == scr && !op_armed(), "LFO held, SAVE + key 3 with SAVE let go in the key's frame: stored, the screen stays (no SAVE tap)");
+        check(clone_asked() && ui.scr == scr, "LFO held, SAVE + key 3 with SAVE let go in the key's frame: the chord, CLONE asked, the screen stays (no SAVE tap)");
+        clone_yes();
+        check(pat_has(0, 2) && ui.scr == scr && !op_armed(), "... YES: stored");
     }
     press(B_HOME);                                       /* LFO held, then HOME + n: clear slot n (asked) */
     key(WK(1));
@@ -1988,6 +1998,7 @@ static void layer_tests(void)
     press(B_SAVE);                                      /* the pattern page locked: SAVE + key stores, the lock and the page stay (the user, */
     key(WK(1));                                         /* 2026-10-23: SAVE there left the page for the one under it) */
     release(B_SAVE);
+    clone_yes();
     check(lay.lock == LY_PAT && pat_has(0, 1) && ui.scr == SCR_SONG, "... locked: SAVE + key 2 stores into T1 2, the page stays");
     press(B_HOME);
     key(WK(1));
@@ -1998,6 +2009,7 @@ static void layer_tests(void)
     press(B_LFO);                                       /* the page locked: LFO is the store's button too (the user, 2026-10-23) */
     key(WK(3));                                         /* (slot 4: free; slot 3 holds the brisk strum's store above) */
     release(B_LFO);
+    clone_yes();
     check(lay.lock == LY_PAT && pat_has(0, 3) && ui.scr == SCR_SONG && !op_armed(), "... locked: LFO + key 4 stores into T1 4, the page stays");
     tap(B_LFO);
     frames(2);
@@ -2562,6 +2574,7 @@ static void combo_tests(void)
         frame();
         t->step[2].time = ST_NOTE, t->step[2].n = 1, t->step[2].note[0] = 70;
         hold2(B_SAVE, B_SEQ);
+        clone_yes();                                    /* (no slot yet: a new pattern, CLONE asked) */
         check(pat_cur[1] < PAT_N && pat_has(1, pat_cur[1]), "SAVE + SEQ: the working pattern into its slot");
         hold2(B_SAVE, B_SEQ);
         check(op_armed() && !strncmp(ui.arm_q, "STORE T2", 8), "SAVE + SEQ again: over its used slot, asked");
@@ -3203,6 +3216,7 @@ static void song_tests(void)
         press(B_SAVE);
         key(WK(5));
         release(B_SAVE);
+        clone_yes();
         check(pat_has(0, 5), "SAVE held + key 6: the working copy into slot 6");
         ui.force = 1;
         frames(2);
@@ -4305,7 +4319,8 @@ static void led_tests(void)
 #include "ui_optimist_plines.h"                      /* PAGE_LINES: the rows with no picture as GLOBAL's lines */
 #include "ui_optimist_screens.h"                     /* batch E: per-screen oddities (titles, STEP, drums, names, pictures) */
 #include "ui_optimist_patwarn.h"                     /* pattern mode: the unsaved warning, black 5 = all tracks, black 6 = stop, a black key held + n stores, the numbers */
-#include "ui_optimist_patlive.h"                     /* live patterns (issue 142): RELOAD = HOME + SEQ, a project LOAD asks to save live edits */
+#include "ui_optimist_patlive.h"
+#include "ui_optimist_patnew.h"                      /* a new pattern (issue 142): CLONE or EMPTY on SAVE + n, SONG scenes created by the knob */                     /* live patterns (issue 142): RELOAD = HOME + SEQ, a project LOAD asks to save live edits */
 #include "ui_optimist_patview.h"                     /* the patterns screen: no cards, the taller grid, the numbers on two lines, the knob rows, the preview */
 #include "ui_optimist_mutegrey.h"                    /* muted = one grey in every view (roll, drum grid, mixer, preview) */
 #include "ui_optimist_prefilter.h"                   /* the preset list's filter (SHIFT2 + PRESETS), SHIFT + PRESETS the engines, the popup's header, no flash */
@@ -4650,6 +4665,7 @@ int main(int argc, char **argv)
     printf("  the drawing: %.0f ms of CPU over %u frames\n", (double)draw_ns / 1e6, (unsigned)fh_n_frames);
     check(!cv_cuts, "the canvas: nothing drawn taller than it (a band over CV_MAX rows drawn in passes, op_graph.c cv_tall / cv_whole)");
 #if FELUCCA_PATTERNS
+    patnew_ui_tests();
     patlive_ui_tests();                                 /* (last: it switches projects) */
 #endif
     printf(fails ? "optimist ui test FAILED (%d)\n" : "optimist ui test passed\n", fails);

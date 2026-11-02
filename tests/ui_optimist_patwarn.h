@@ -84,10 +84,14 @@ static void patwarn_tests(void)
     pw_edit(1, 90);
     key(WK(9));
     kup(BK(1));
+    check(clone_asked() && !strcmp(ui.arm_q, "CLONE T2 10?"), "black 2 held + white 10 (an empty slot): \"CLONE T2 10?\" asked");
+    clone_yes();
     check(song.sel == 1u && pat_has(1, 9) && !pat_has(0, 9) && !pat_has(2, 9) && pat_cur[1] == 9u, "black 2 held + white 10: T2's pattern stored in slot 10, no other track");
     kdown(BK(4));
     key(WK(10));
     kup(BK(4));
+    check(clone_asked() && !strcmp(ui.arm_q, "CLONE ALL 11?"), "black 5 held + white 11: \"CLONE ALL 11?\" asked");
+    clone_yes();
     check(pat_has(0, 10) && pat_has(1, 10) && pat_has(2, 10) && pat_has(3, 10), "black 5 held + white 11: every track's pattern stored in slot 11");
     kdown(BK(0));
     key(WK(10));

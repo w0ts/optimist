@@ -105,6 +105,23 @@ static uint32_t song_scenes_mask(void)                  /* the scenes with somet
             m |= 1u << i;
     return m;
 }
+/* an empty scene (nothing stored) given the knob's work: stored from the loop as SAVE + its key does (issue 142, the user
+ * 2026-11-02: "create the scene instead of the Empty scene toast"). 1: it is a scene now */
+static int song_scene_make(uint32_t a)
+{
+    char b[8];
+    if ((sg.scn >> a) & 1u)
+        return 1;
+    if ((sg.used >> a) & 1u)
+        return 0;                                       /* (a plain section: not overwritten) */
+    scene_store_now(a);
+    song_refresh(1);
+    if (!((sg.scn >> a) & 1u))
+        return 0;                                       /* (said: MEM FULL, STOP BEFORE SAVE ...) */
+    scene_tag(b, a);
+    ui_say(b, " CREATED");
+    return 1;
+}
 static uint32_t song_ref(uint32_t s, uint32_t k)        /* scene s's reference of track k, the edit shown */
 {
     if (sg.ed_s == s && sg.ed_k == k)
@@ -117,13 +134,15 @@ static uint32_t song_ref(uint32_t s, uint32_t k)        /* scene s's reference o
 static uint32_t song_ref_step(uint32_t k, uint32_t v, int32_t s)
 {
 #if FELUCCA_PATTERNS
-    uint8_t L[PAT_N + 2u];
+    uint8_t L[PAT_N + 3u];
     uint32_t n = 0, i, at = 0;
     L[n++] = PAT_NONE;
     L[n++] = PAT_KEEP;
     for (i = 0; i < PAT_N; i++)
         if (pat_has(k, i))
             L[n++] = (uint8_t)i;
+    if ((i = pat_free(k)) < PAT_N)
+        L[n++] = (uint8_t)i;                            /* (and the first slot not filled yet: picking it creates it, CLONE or EMPTY asked) */
     for (i = 0; i < n; i++)
         if (L[i] == v)
             at = i;
@@ -140,6 +159,12 @@ static void song_ref_flush(void)                        /* the edited reference 
 #if FELUCCA_PATTERNS
     {
         char b[8];
+        if (sg.ed_v < PAT_N && !pat_has(sg.ed_k, sg.ed_v)) {   /* a pattern not filled yet: asked first, the reference set on YES */
+            pat_new_ask(sg.ed_k, sg.ed_v, sg.ed_s);
+            sg.ed_s = 0xFF;
+            song_refresh(1);
+            return;
+        }
         if (!pat_scene_ref_set(sg.ed_s, sg.ed_k, sg.ed_v)) {
             scene_tag(b, sg.ed_s);
             ui_say(b, " CHANGED");
@@ -328,7 +353,7 @@ static void song_turn(uint32_t r, uint32_t k, int32_t s, int fine)
     switch (kind) {
 #if FELUCCA_PATTERNS
     case SG_SCENE:
-        if (!((sg.scn >> a) & 1u))
+        if (!song_scene_make(a))
             return;
         if (sg.ed_s != 0xFF && (sg.ed_s != a || sg.ed_k != k))
             song_ref_flush();                           /* (another cell: the edit before written first, not dropped) */
