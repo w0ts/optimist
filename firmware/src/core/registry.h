@@ -715,9 +715,7 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
                                             * (PATTERNS): the step's (MEMORY's PROJECTS 2, 4 or 16: tools/flash_layout.py);
                                             * the SD card mode one, the others on the card (the user, 2026-10-25) */
 #endif
-#ifndef FELUCCA_BT_PROJ
-#define FELUCCA_BT_PROJ 0                  /* the projects' moves over Bluetooth too (io/editor/ed_mirror.c MBR_PROJ) */
-#endif
+/* (no FELUCCA_BT_PROJ since 2026-11-01: the projects' moves over Bluetooth are felucca.c MBR_PROJ, with EDITOR + BLE) */
 /* (no FELUCCA_FAR_OK since 2026-10-29, no far probe since 2026-10-30: every layout has its whole slot, tools/flash_layout.py) */
 #ifndef FELUCCA_SD_FATFS
 #define FELUCCA_SD_FATFS (FELUCCA_SDCARD && FELUCCA_LAYOUT == 1)   /* the card under full FatFs (its

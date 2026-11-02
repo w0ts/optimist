@@ -21,7 +21,7 @@
  * the other: nothing, the other client's mirror goes on; the reply says on), and when its link goes
  * (a USB reset; no Bluetooth central listening). Over Bluetooth 106 is answered, and INFO (1), 108 PANEL, 109 NAV and 111 CLIP
  * (mir_ble_rx: 18 arguments at most, MBR_CB bytes of them waiting; the main loop runs them as USB's, the reply into the Bluetooth ring: ed_send, mir_bt_reply),
- * nothing else; with BT_PROJ (MBR_PROJ) also the projects' moves: the backup's 43 BK_LIST .. 48 BK_END and 110 PJ_OP, a
+ * nothing else; with MBR_PROJ (the editor, BLE, the backup and the projects) also the projects' moves: the backup's 43 BK_LIST .. 48 BK_END and 110 PJ_OP, a
  * BK_DATA's chunk (up to MBR_BIGN bytes) in a slot of its own (the client waits for each reply, so one is enough).
  * INFO tag 0x65: 1 byte, the version; 0x66's opti_mirbt_1: PANEL and NAV over Bluetooth too (0x63 was REC's: retired,
  * not reused). */
