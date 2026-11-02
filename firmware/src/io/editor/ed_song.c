@@ -1,15 +1,15 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* Editor protocol v13: the song chain (seq/arranger.h; the Optimist UI's SONG screen, ui/optimist/op_song.c, MODE and PART rows;
  * included by editor.c; web/EDITOR_PROTOCOL.md "The song chain"; builds with the arranger: FELUCCA_ARRANGER). The scenes and the
- * patterns are SCENE / PAT_* (81, 79..84); this is the order they play in: PART 1..64 (a scene, a number of bars), LOOP or SONG mode.
+ * patterns are SCENE / PAT_* (81, 79..84); this is the order they play in: PART 1..64 (a scene, a number of bars), SCENE or SONG mode.
  * The rules are the device's: edited stopped only ("STOP FIRST"), INSERT copies the part after it, DELETE leaves one, SAVE puts the chain
  * into flash (arrangement_save; the editor asks for it, the device does it when its YES says so).
  *   97 SONGC  op [args] -> 0, then the chain
- *       op 0  get        -> 0, rc, mode (1 SONG, 0 LOOP), playing, scenes (ARR_SCENES), steps (ARR_STEPS), count, count x (scene, bars)
+ *       op 0  get        -> 0, rc, mode (1 SONG, 0 SCENE), playing, scenes (ARR_SCENES), steps (ARR_STEPS), count, count x (scene, bars)
  *       op 1  part, scene, bars   the part set (scene 0.., bars 1..64)
  *       op 2  part       INSERT: a copy after it (the chain full: rc 2)
  *       op 3  part       DELETE (one part left: rc 3)
- *       op 4  mode       LOOP (0) or SONG (1)
+ *       op 4  mode       SCENE (0) or SONG (1)
  *       op 5  -          SAVE: the chain into flash
  *       every op answers op 0's reply; rc 0 done, 1 stop first (the transport plays), 2 full, 3 one part left, 4 bad argument
  * INFO tag 0x5A: version 1. A bad op: no reply. */

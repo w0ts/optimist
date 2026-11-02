@@ -8,7 +8,7 @@
  *                 (AUTO or 1..64); the value written once it rests (pat.c pat_scene_ref_set); SAVE stores the loop into the current
  *                 scene (the keys launch); REC tapped does nothing, REC held (the ring) asks to clear the cursor's one
  *   PATTERNS      the hidden row LFO's screen shows (op_layers.c lay_pat_peek): the 4 x 16 session grid, the keys launch patterns
- *   MODE          LOOP / SONG, SONG REC (an action card: YES arms it), the MEM gauge, SAVE (the chain into flash)
+ *   MODE          SCENE / SONG, SONG REC (an action card: YES arms it), the MEM gauge, SAVE (the chain into flash)
  *   PART 1 .. 64  the chain: SCENE, BARS (S its scene's, A its longest pattern, 1..64), INSERT (a copy after it); the part playing white
  * MODE comes before the parts so that it is not 64 rows down. Without PATTERNS a scene row says STORED / EMPTY. */
 #if FELUCCA_PATTERNS
@@ -296,7 +296,7 @@ static void song_cell(uint32_t r, uint32_t k, cell_t *c)
         if (k == 0u) {
             c->label = "MODE";
             c->kind = CK_VAL;
-            cell_val(c, arrangement_enabled ? "SONG" : "LOOP");
+            cell_val(c, arrangement_enabled ? "SONG" : "SCENE");
             cell_gauge(c, 1, 0, 1, arrangement_enabled);
         } else if (k == 1u) {
             cell_act(c, "SONG", "REC", 0, 0);           /* an action card: a turn only picks it, YES arms (asks over
@@ -387,7 +387,7 @@ static void song_turn(uint32_t r, uint32_t k, int32_t s, int fine)
         return;
     }
 }
-/* MODE: LOOP / SONG (k 0, a turn or YES), SONG REC (k 1: YES only, an action card); s: a turn's way, 0 YES (toggles) */
+/* MODE: SCENE / SONG (k 0, a turn or YES), SONG REC (k 1: YES only, an action card); s: a turn's way, 0 YES (toggles) */
 static void song_yes_mode(uint32_t k, int32_t s)
 {
     if (k == 1u) {
@@ -400,7 +400,7 @@ static void song_yes_mode(uint32_t k, int32_t s)
         return;
     }
     arrangement_enabled = (uint8_t)(s ? s > 0 : !arrangement_enabled);
-    ui_message(arrangement_enabled ? "SONG MODE" : "LOOP MODE");
+    ui_message(arrangement_enabled ? "SONG MODE" : "SCENE MODE");
 }
 static void song_part_insert(uint32_t a)                /* a copy of part a after it (playing too: the chain is RAM) */
 {
