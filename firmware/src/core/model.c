@@ -68,15 +68,31 @@ static uint8_t sync_reload;                  /* engine / preset / project / user
 /* LIVE: no factory sequence patterns. Loading a sound (factory or user preset) never
  * writes the sequencer: every pattern is the one the player records or enters. */
 
-/* the parts' sounds at power-on (engine, preset): bass, pad, lead. LOFI FLUTE plays SAMPLE's FLUTE set (5); a build
- * without it (SD card mode: no set in flash, SMP_SET_MASK 0) starts T3 on ANALOG G-FUNK LD instead, never a MISSING at
- * power-on (the user, 2026-10-26) */
+/* the parts' sounds at power-on (engine, preset): T1 ANALOG ACID 303 (preset 4), T2 FM6 GLASS EP, T3 DIGITAL GLASS PAD
+ * (preset 11) (the user, 2026-11-01); tests/defproj_test.c checks the names behind these numbers. Fallbacks, never a
+ * MISSING at power-on: T1 without ANALOG, T2 without FM6 or without its KEYS pack (DIGITAL RHODES, today's T2) and T3
+ * without DIGITAL (the lead below) play trk_def_engine's rule (the first engine built) at preset 0 or the lead's.
+ * FM6 has no presets: its sound is a VOICE (P_E0), 0 INIT VOICE then the packs built in their order, KEYS first
+ * (eng_fm6.c FM6_NVOICE): GLASS EP is KEYS voice 4, VOICE 5 (trk_def_sound). LOFI FLUTE plays SAMPLE's FLUTE set (5); a
+ * build without it (SD card mode: no set in flash, SMP_SET_MASK 0) starts the lead on ANALOG G-FUNK LD instead (the
+ * user, 2026-10-26) */
 #if FELUCCA_ENG_SAMPLE && defined(SMP_SET_MASK) && !((SMP_SET_MASK >> 5) & 1u)
 #define TRK_DEF_LEAD {0, 9}
 #else
 #define TRK_DEF_LEAD {4, 5}
 #endif
-static const uint8_t TRK_DEF[NPART][2] = {{0, 0}, {1, 0}, TRK_DEF_LEAD,   /* ANALOG 808 BOOM, DIGITAL RHODES, the lead */
+#if FELUCCA_ENG_FM6 && FELUCCA_FM6_PK_KEYS
+#define TRK_DEF_PAD2 {ENG_UID_FM6, 0}
+#define TRK_DEF_VOICE2 5u                            /* (T2's FM6 VOICE: GLASS EP) */
+#else
+#define TRK_DEF_PAD2 {1, 0}                          /* DIGITAL RHODES */
+#endif
+#if FELUCCA_ENG_DIGITAL
+#define TRK_DEF_PAD3 {1, 11}                         /* DIGITAL GLASS PAD */
+#else
+#define TRK_DEF_PAD3 TRK_DEF_LEAD
+#endif
+static const uint8_t TRK_DEF[NPART][2] = {{0, 4}, TRK_DEF_PAD2, TRK_DEF_PAD3,   /* ANALOG ACID 303, FM6 GLASS EP, DIGITAL GLASS PAD */
 #if NPART > 3
                                           {0, 13},  /* (no drums: track 4, ANALOG WARM PAD) */
 #endif
@@ -87,7 +103,6 @@ static uint32_t trk_def_engine(uint32_t i)
     return i >= NPART ? 0u : ENG_ALL ? TRK_DEF[i][0] : eng_slot(TRK_DEF[i][0]);
 }
 static uint32_t trk_def_preset(uint32_t i) { return ENG_ALL || eng_built(TRK_DEF[i][0]) ? TRK_DEF[i][1] : 0u; }   /* (i < NPART) */
-
 static int seq_is_empty(const track_t *t) { return track_empty(t); }
 
 static void track_defaults_steps(track_t *t) { steps_clear(t); }
@@ -509,6 +524,18 @@ static void set_engine_of(track_t *t, uint32_t ei)
         t->p[P_E0 + i] = e->edit[i].def;
     apply_preset_to(t, eng_first_playable(e));      /* (its first preset; none: INIT) */
     fm1_irq_on();
+}
+
+/* part i's default sound on t (its engine set: trk_def_engine): the preset, and T2's FM6 voice */
+static void trk_def_sound(track_t *t, uint32_t i)
+{
+    apply_preset_to(t, trk_def_preset(i));
+#ifdef TRK_DEF_VOICE2
+    if (i == 1u && ENG_IS(ENGINES[t->eng_req % NENGINES], FM6)) {
+        t->p[P_E0] = TRK_DEF_VOICE2;                 /* (as nb_load: the pack's voice afresh) */
+        fm6_cur[1] = 0;
+    }
+#endif
 }
 
 static void apply_preset(uint32_t pi) { apply_preset_to(TSEL, pi); }
