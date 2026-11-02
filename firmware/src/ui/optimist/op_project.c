@@ -534,7 +534,7 @@ static const struct { const char *name; uint8_t it[4]; } SYS[] = {
 #if FELUCCA_CDC
     {"USB", {SI_USB, SI_NONE, SI_NONE, SI_NONE}},       /* (USB SERIAL: on General's page when it fits, GL_JOIN) */
 #endif
-    {"METERS", {SI_METERS, SI_NONE, SI_NONE, SI_NONE}},   /* the load lines at the screen's foot: OFF CPUS MEMORY BOTH (core/meters.h, op_meters.c) */
+    {"METERS", {SI_METERS, SI_NONE, SI_NONE, SI_NONE}},   /* the load lines at the screen's foot: OFF CPUS MEMORY BOTH (core/meters.h, op_meters.c); on General's page when it fits (GL_JOIN) */
 #if FELUCCA_SD_UI
     {"SD CARD", {SI_SDCARD, SI_SDVERS, SI_SDSLACK, SI_SDINDEX}},   /* (the card's state, a project's versions kept, the room
                                                          * a file's run gets past its size, the sample index again) */
