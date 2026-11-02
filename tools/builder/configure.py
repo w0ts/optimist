@@ -650,6 +650,7 @@ def fmt_budget(cfg, costs):
     rows = []
     for r, (used, cap, over) in fits(b["total"], cfg).items():
         rows.append(f"  {r:8s} {used:9,d} / {cap:9,d}  {'OVER by ' + format(over, ',') if over > 0 else 'free ' + format(-over, ',')}")
+    rows.append(f"  {'':8s} = {K.sram_parts_text(b['total'])}")
     ar = arena_size(cfg, b["total"], b.get("exact"))
     if ar:                                          # (the arena first: what a project's engines and effects get)
         rows.append(f"  arena {'' if ar['exact'] else '~'}{ar['kb']} KB" + ("" if ar["exact"] else " (estimate)"))
