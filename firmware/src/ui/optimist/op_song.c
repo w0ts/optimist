@@ -6,7 +6,7 @@
  * cells and turns underneath, the keys (scenes white, parts black), the holds and the chain edits:
  *   SCENE A .. P  T1 T2 T3 DR: the pattern each track plays in it ("3", "KEEP", "-" none; a plain section "SEC"), and its BARS
  *                 (AUTO or 1..64); the value written once it rests (pat.c pat_scene_ref_set); SAVE stores the loop into the current
- *                 scene (the keys launch); REC stores the loop into the cursor's one; SHIFT + REC clears it
+ *                 scene (the keys launch); REC tapped does nothing, REC held (the ring) asks to clear the cursor's one
  *   PATTERNS      the hidden row LFO's screen shows (op_layers.c lay_pat_peek): the 4 x 16 session grid, the keys launch patterns
  *   MODE          LOOP / SONG, SONG REC (an action card: YES arms it), the MEM gauge, SAVE (the chain into flash)
  *   PART 1 .. 64  the chain: SCENE, BARS (S its scene's, A its longest pattern, 1..64), INSERT (a copy after it); the part playing white
@@ -768,22 +768,11 @@ static void song_keys_led(uint32_t *f, uint32_t *d, uint32_t blink)
     if (song_on_pat_row())
         *f |= 1u << SG_CYCLE_KEY;
 }
-/* REC on SONG (op_input.c): a scene row stores the loop into it, the PATTERNS row duplicates; 1 taken */
-static int song_rec(uint32_t home)
+/* REC on SONG's scenes (op_input.c op_rec): a tap does nothing (SAVE stores; no record arm either), held like REC's clear ring
+ * (op_input.c rec_held) it asks to clear the scene under the cursor. 1: a scene row, *a its scene */
+static int song_rec_scene(uint32_t *a)
 {
-    uint32_t a, kind;
-    if (ui.scr != SCR_SONG)
-        return 0;
-    kind = song_kind(ui.row[SCR_SONG], &a);
-    if (kind == SG_SCENE) {
-        if (home)
-            scene_clear_ask(a);
-        else
-            scene_store(a);
-        song_refresh(1);
-        return 1;
-    }
-    return 0;                                           /* (the PATTERNS row: the LFO layer's keys, black 9 duplicates) */
+    return ui.scr == SCR_SONG && song_kind(ui.row[SCR_SONG], a) == SG_SCENE;
 }
 /* SAVE held on PROJECT (op_input.c save_hold, the user 2026-10-16): the SONG screen, its cursor on the scene playing
  * (none: scene A); on SONG already, SELECT moves its cursor (s) */
