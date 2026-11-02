@@ -8,7 +8,7 @@ names the package's SHA-256, so a sidecar left beside another package is not tak
 the same value from a cloud build's .config (BOOTLOADER=1), which the shelf keeps beside each package.
 
   {"format": 1, "package": "optimist-0.3.fwsc", "sha256": "...", "bootloader": "keep" | "m-bootloader",
-   "config": "synths-USB-BTA-BTM", "config_hash": "1a2b3c4d"}"""
+   "config": "mots-config", "config_hash": "1a2b3c4d"}"""
 from __future__ import annotations
 
 import hashlib

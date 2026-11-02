@@ -9,7 +9,7 @@ SSH="ssh -o ServerAliveInterval=30 -o ServerAliveCountMax=20 gpufarm"
 OUT=build/emu-sweep/images
 mkdir -p $OUT
 
-# NAME: the --set items on top of the reference profile, synths_USBaudio_BTaudio_BTmidi (until 2026-10-24: synth; the sets were made for it; DUAL builds parked: OPTIMIST_DUAL_PARK=1, as the emu gate)
+# NAME: the --set items on top of the reference profile, mots-config (until 2026-10-24: synth; the sets were made for it; DUAL builds parked: OPTIMIST_DUAL_PARK=1, as the emu gate)
 sets() {
     case $1 in
     ref) echo "" ;;
@@ -32,7 +32,7 @@ done
 for n in $NAMES; do
     args=""
     for kv in $(sets $n); do args="$args --set $kv"; done
-    $SSH "cd ~/optimist/worktrees/$W/$n && OPTIMIST_DUAL_PARK=1 python3 tools/optimist.py build --profile synths_USBaudio_BTaudio_BTmidi --name ep-$n $args > ../$n.log 2>&1; echo $n rc=\$?; grep -E 'exact:|rror|OVER|over the' ../$n.log | head -8" &
+    $SSH "cd ~/optimist/worktrees/$W/$n && OPTIMIST_DUAL_PARK=1 python3 tools/optimist.py build --profile mots-config --name ep-$n $args > ../$n.log 2>&1; echo $n rc=\$?; grep -E 'exact:|rror|OVER|over the' ../$n.log | head -8" &
 done
 wait
 for n in $NAMES; do
