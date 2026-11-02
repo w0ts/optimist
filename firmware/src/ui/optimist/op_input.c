@@ -1529,10 +1529,10 @@ static uint32_t op_fam_mask(void)                       /* a bit per family the 
  * (page_owned), PROJECT (but its banks), SONG */
 #if FELUCCA_BT_UI
 static int dev_listing(void);                           /* op_project.c: the BLE devices list is open */
-#if FELUCCA_ED_MIRROR
+#endif
+#if FELUCCA_ED_MIRROR                                   /* (with or without Bluetooth: the USB mirror hashes frames too) */
 static void mir_draw_begin(void);                       /* io/editor/ed_mirror.c: the frame the mirror's self-check hashes */
 static void mir_draw_end(void);
-#endif
 #endif
 static uint32_t op_oct_avail(void)
 {

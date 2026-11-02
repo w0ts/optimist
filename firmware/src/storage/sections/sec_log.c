@@ -700,7 +700,7 @@ static int slg_make_room(uint32_t need, uint32_t drop)
  * (SEC_REC_MAX: raw, a full motion chunk, a drum record) for a new id would still go in. Fewer live bytes never
  * make room harder (a compaction copies less, the decisions are the same), so the playing section, whose old
  * record is copied like any other until the new one is in, can then always be saved. */
-typedef struct {                                       /* (on the stack, three in sm_more: kept narrow) */
+typedef struct {                                       /* (on the stack, two on sm_more's path: kept narrow) */
     uint8_t in[SLG_IX];                                /* the sector of id's newest record with bytes, 0xFF none */
     uint16_t sz[SLG_IX];                               /* its bytes in the log, with its head */
     uint32_t live[SEC_LOG_SECTORS];                    /* each sector's live records, with their heads (bytes) */
@@ -807,22 +807,22 @@ static int sm_reserve(slg_model_t *m, uint32_t id, uint32_t len) { return sm_put
 /* how full the area is, 0..100 % (the MEM gauge), and how many more sections of n bytes fit */
 static uint32_t slg_used_pct(void) { return slg_live_bytes() * 100u / SEC_ROOM; }
 /* how many more new records of n bytes the model m takes, the reserve kept after each, live bytes stored (and
- * waiting); counted on the model up to 64 (past that the byte count: room is not what runs out) */
-static uint32_t sm_more(const slg_model_t *m0, uint32_t n, uint32_t live)
+ * waiting); counted on the model up to 64 (past that the byte count: room is not what runs out). m is used up (the
+ * records put on it; its callers drop it after): one model of its own on the stack, the reserve's (the main stack's
+ * deepest path, prj_mem > sec_mem > sm_more: sm_more held three copies of its own before, 6,876 B of 6,656 on synths, 2026-11-02) */
+static uint32_t sm_more(slg_model_t *m, uint32_t n, uint32_t live)
 {
-    slg_model_t m = *m0, t, r;
+    slg_model_t r;
     uint32_t room = SEC_ROOM - SEC_ALIGN(SEC_HEAD + SEC_REC_MAX), bytes, k, cap;   /* (the reserve) */
     n = n ? n : 1u;
     bytes = live >= room ? 0u : (room - live) / SEC_ALIGN(SEC_HEAD + n);
     cap = bytes < 64u ? bytes : 64u;
     for (k = 0; k < cap; k++) {
-        t = m;
-        if (!sm_put(&t, SLG_IDS, n))
+        if (!sm_put(m, SLG_IDS, n))                    /* (a put that fails ends the count: m is not read again) */
             break;
-        r = t;
+        r = *m;
         if (!sm_keep(&r))
             break;
-        m = t;
     }
     return k == 64u ? bytes : k;
 }
