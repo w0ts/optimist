@@ -3175,8 +3175,8 @@ static void song_tests(void)
         ui.force = 1;
         frame();
         ppm("opt-song-scenes");
-        tap(B_SAVE);
-        check(live_sec == 2, "YES on scene C, stopped: loaded");
+        key(WK(2));
+        check(live_sec == 2, "scene key C, stopped: loaded (SAVE stores into the current scene now, ui_optimist_songnav.h)");
         /* the PATTERNS row: the session grid, the keys launch, SAVE + key stores, SHIFT + key clears */
         ui.row[SCR_SONG] = (uint8_t)song_row_of(SG_PAT, 0);
         frames(2);
