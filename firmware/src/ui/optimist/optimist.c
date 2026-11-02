@@ -72,6 +72,7 @@
 #include "op_walk.c"
 #include "op_song.c"
 #include "op_combos.c"
+#include "op_fxmem.c"              /* PROJECT > FX MEM: the big effects' lines' sizes (fx/fx_memsz.h), the make-room plan */
 #include "op_prjflow.c"            /* PROJECT: BANK / OPERATION / ITEM, the keys, the info panel */
 #if FELUCCA_SD_UI
 #include "op_sdcard.c"             /* SD card mode: PROJECT's lists of the card, banks of 16 (storage/sd/sd_mode.c) */
@@ -86,6 +87,7 @@
 #include "op_credits.c"            /* SYSTEM > CREDITS: the end titles, their crawl and KNOB 1 (drawn by op_gldraw.c) */
 #include "op_gldraw.c"
 #include "op_help.c"
+#include "op_meters.c"            /* the load lines on the screen's last rows (SYSTEM > METERS, core/meters.h) */
 #include "op_mixdraw.c"
 #include "op_scope.c"
 #include "op_stepdraw.c"

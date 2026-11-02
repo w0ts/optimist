@@ -13,7 +13,7 @@ The look and the first screens come from Felucca 1.0 (Leo Kuroshita, GPL-3.0-onl
 - 14 buttons: FX SCL ENV LFO EDIT GLO HOME SAVE ARP SEQ PLAY REC OCT- OCT+. 7 encoders: SELECT, ALGORITHM, PRESETS, KNOB 1..4. No encoder pushes.
 - 27 keys: 16 white (F3..G5), 11 black (F#3..D#5 and F#5). On the drum track the white keys are always steps and the black keys are the lanes.
 - 240 x 240 screen. A canvas holds at most 124 rows, so screens draw in bands of at most 240 x 124, each redrawn only when its signature changes (`op_draw.c`).
-- Layout (y): header 0..24; the cards 28..120 as a 2 x 2 block (the mixer: four small cards 28..72); the panel under them; the help band 222..239 when the build has the help line (section 12).
+- Layout (y): header 0..24; the cards 28..120 as a 2 x 2 block (the mixer: four small cards 28..72); the panel under them; the help band 219..236 when the build has the help line (section 12); the load lines' rows 237..239 (section 3.6).
 - Button LEDs, key LEDs and PLAY's second lamp: section 11.
 
 ### 1.2 The code
@@ -196,7 +196,8 @@ One table names every thing, looked up when drawn; what cells, rows and help lin
 
 - A knob with no parameter is its frame alone (no label, no dash). A parameter with no value says one "-". A slot with nothing says EMPTY, dim. What the build lacks never shows. No page has one card, except the kept SCL 2, TEMPO's REC 2, PROJECT's Memory and the groups of two or three (SENDS, ENV dest, CMP).
 - A long name on a 1x4 card with an empty card after it is drawn two cards wide (`card_wide`).
-- Nothing else draws in the help band (222..239) in a build with the help line: it is reserved whether the line shows or not, so nothing jumps.
+- Nothing else draws in the help band (219..236) in a build with the help line: it is reserved whether the line shows or not, so nothing jumps.
+- **The load lines** (SYSTEM > METERS: OFF, CPUS, MEMORY, BOTH; CPUS at first; `op_meters.c`, `core/meters.h`; the user, 2026-11-01: "one or two pixel lines at the bottom of the screen for cpu ... a preference: meters: cpus, memory, both"). The screen's last three rows (237..239, `OP_MTR`) are theirs and are kept black when the setting is OFF, so nothing moves when it changes: every band ends above them (the help band, the panel, the mixer's rows, STEP's grid, GLOBAL's and SYSTEM's lists, the patterns screen, NAME's hints and the memory list's foot, INFO's first page), and nothing else draws there. CPUS: two 1-px lines, CPU0 on row 238 and CPU1 on 239 (a single core: its line stays black). MEMORY: one 2-px line (238-239), the arena's fill, the quantity of INFO's RAM bar. BOTH: the memory line on 237 (1 px), then the two CPU lines. A line runs from the left, 240 px = 100 %, in the load's colours (green under 60 %, amber from 60 %, red over 85 %: `load_col`, as INFO's bars), the rest black; CPU0 is `song.cpu_q8` (the block's time against its budget, the figure of INFO's CPU0 line), CPU1 `dual_c1_q8`; each is held a little (a rise at once, a fall by a quarter of the gap) so a spike stays readable. Cost: a look every 12 frames (at most 5 redraws a second), a line drawn again only where its width or colour changed, and then only the pixels that changed, as fills (a few small fills, never a 240-px blit: the screen mirror carries almost nothing). The setting is one byte of the settings record (`rsv_pj[2]`, mode + 1; a record from before has 0 there and reads CPUS). It is not the header's memory line (rows 0-1 of every page, the same arena fill, always there since 2026-10-29): that stays as it was; MEMORY and BOTH show the same quantity a second time, at the foot, in the load's colours.
 - The note played on the keys (*A#4*, a chord's lowest) shows at the screen's bottom left while the key is down and about 1 s after: at the help line's left end in a build with it, else over the panel's corner (`op_draw.c` `nn_tick`, `op_help.c`).
 
 ## 4. The screens
@@ -205,7 +206,7 @@ One table names every thing, looked up when drawn; what cells, rows and help lin
 
 Horizontal: **the rows are the tracks, the four knobs are four values of the selected row** on its 1x4 cards. Rows: RET A, RET B, RET C and MASTER (the master screen at the top, section 4.1.1; the user, 2026-10-31: *"master screen should be ABOVE the other t1/t2 etc. can you please keep it AT THE TOP LIKE IT WAS BEFORE"*), T1 T2 T3, DR, the 10 drum lanes, ACCENT, and with USB audio built the USB input after the drums (`MXR_*`, `op_mixer.c`). ALGORITHM walks them; a lane row selects that lane (its sound previews once if the transport is stopped, `lane_pick_from`).
 
-The panel shows one group at a time and the view follows the cursor (`mx_view`): **the master screen** (a return or MASTER selected: RET A B C, then MASTER, the four always on it, section 4.1.1); **channels** T1 T2 T3 DR, four rows of 41 px (code and chip, the engine and preset in the track's colour, the page's 16 steps with a page bar when LEN > 16, a thin VU with the part's compressor reduction pushing from the right); **the drum lanes** and ACCENT in one column (13 px rows over the help band): code, hits on the page's steps, a hit meter that falls over 12 frames; **USB IN** alone. DR shows every lane's hits merged. The selected row is outlined in its colour. A sequencer-muted row's steps are grey with an X by its code.
+The panel shows one group at a time and the view follows the cursor (`mx_view`): **the master screen** (a return or MASTER selected: RET A B C, then MASTER, the four always on it, section 4.1.1); **channels** T1 T2 T3 DR, four rows of 40 px (35 over the help band; code and chip, the engine and preset in the track's colour, the page's 16 steps with a page bar when LEN > 16, a thin VU with the part's compressor reduction pushing from the right); **the drum lanes** and ACCENT in one column (13 px rows over the help band): code, hits on the page's steps, a hit meter that falls over 12 frames; **USB IN** alone. DR shows every lane's hits merged. The selected row is outlined in its colour. A sequencer-muted row's steps are grey with an X by its code.
 
 SELECT pages the row's knob sets, in one order on every row: the mix, the insert slots, the sends, the rest (each group starts a set; `mx_items`). The header names the set (*T1 mix*, *T1 insert*, *T1 sends*).
 
@@ -296,7 +297,7 @@ Entered by SAVE held on PROJECT, SEQ held off STEP or SHIFT2 + SEQ (section 1.3)
 
 ### 4.6 PROJECT
 
-Rows: PROJECT, SNAPSHOT, USER, TOOLS (CLEAR SEQ, INIT SOUND, MISSING, NEW), MEMORY (USED, FREE). In SD card mode the card's lists come first (PROJECT on the card, PRESETS, KITS, SAMPLES: section 4.14). A storage row is four cards (`op_prjflow.c`):
+Rows: PROJECT, SNAPSHOT, USER, TOOLS (CLEAR SEQ, INIT SOUND, MISSING, NEW), MEMORY (USED, FREE), FX MEM (section 4.6.1). In SD card mode the card's lists come first (PROJECT on the card, PRESETS, KITS, SAMPLES: section 4.14). A storage row is four cards (`op_prjflow.c`):
 
 | Card | |
 |---|---|
@@ -361,6 +362,41 @@ A user preset or a project is named before it is written: SAVE + a sound button,
 ### 4.12 The FM6 editor
 
 On an FM6 track ENV held is the operator layer (the black keys pick OP1..6, PIT, GLO, MONO / POLY; OCT-/OCT+ the page). ENV tapped is SOUND's FM6 family: OPERATOR (OP ALG FDBK VCE), the picked operator's six pages (TUNE, RATES, LEVELS, SENS, SCALE, CURVES, in M-VAVE's order), PIT's two, ALGO, LFO, LFO 2, PORTA; the algorithm is drawn over the rows (RATES, LEVELS and PIT draw the envelope instead). On those rows SHIFT2 + a black key picks the operator, SHIFT + it switches it off. Edits go into the part's voice (`fm6_ed`); a voice is kept by SAVE AS, a DX7 voice arrives by SysEx.
+
+### 4.6.1 FX MEM and the make-room question
+
+PROJECT's last row (`op_fxmem.c`, `fx/fx_memsz.h`; the user, 2026-11-01: "on-device settings for memory for the big fishes:
+delay, verb etc."; ruled per FX, per project). Only with the effects' lines in the arena (builder `ARENA`). The cards:
+
+| Card | |
+|---|---|
+| DLY MEM | the delay send's line: FULL (the build's `DLY_LEN`), 1/2, 1/4, 1/8 (never under 93 ms) |
+| REV MEM | the reverb's ring: FULL or SMALL (FDN8's 16 KB layout; PLATE and ROOM sound the same in both). Offered by a build with the 32 KB ring (`REV_POOL` with FDN8, no AIRWIN) |
+| XDLY MEM | each XDLY insert's two lines: FULL or HALF (every TIME half) |
+| FREE | the arena's room, KB (a read-out, its bar) |
+
+A size the build does not offer shows FULL alone. A turn applies at once: the line is given back (its effect silent a few
+blocks) and placed again at the new size; XDLY's owners let go and take theirs again. No room for it: MEM FULL as any refused
+line. The project keeps the sizes (the FX record's `FXZ_TLV`; a project from before, or a new one: FULL). A delay TIME longer
+than a short line plays at a half, a quarter.. of it (still on the beat); the message line says so once (*Dly line 0.19s:
+time /2*). The panel: the arena as a bar (the effects' lines bright, the rest of what is used grey, the room outlined), *Arena
+used/size K FX K*, then every big line with its length and KB: placed white, not used now dim, refused amber; the fixed ones
+grey (CHO 4K: its DEPTH reaches 1,163 samples back; ECHO 8K: its 75 ms repeat; JUNO 4K; FLNG 1K).
+
+**The make-room question** (the user, 2026-11-01: "when I switch synth engine I get a memory-related message, but I cannot do
+anything about it"). The standard question (SAVE yes, HOME no), *SHRINK REV SMALL DLY 1/2?*, with the need on the message line
+(*FM6 needs 8 kb, 4 kb free*). Its sizes are the least change that frees the need: REV SMALL, then XDLY HALF, then the delay a
+step at a time, counting only lines placed.
+- A part's engine change that does not fit: asked first, once a refusal, before the idle features (OFF) and the drops (DROP T2
+  FM6, DROP REV 32 KB). YES takes the sizes and the change goes through once the lines are back; HOME offers the next way, as
+  before: nothing is changed by the question itself.
+- An FX type with no room in an INSERTS slot's list: the entry is dim with the memory mark (a small amber chip; not struck: the
+  struck entries are the other slot's type, still skipped). The list stops on it; picked, the message line says *XDLY needs 64
+  kb, 30 kb free* and the question asks when smaller sizes free it. YES takes them and the type is placed as soon as its room
+  is there; HOME, or no answer, puts the slot back to what it held (*Not changed*). When no size frees it, the message alone
+  and the slot FULL (bypassed), as before.
+
+The web editor shows the row through SCRS (the device's PROJECT cards, `ed_scrs.c`), not the panel.
 
 ### 4.13 The load's memory list
 

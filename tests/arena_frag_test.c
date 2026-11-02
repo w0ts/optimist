@@ -227,7 +227,7 @@ int main(void)
         if (FXI_TN[j])
             lim[nl++] = (uint8_t)FXI_TY(j);
     for (j = 0; j < 3u; j++)
-        lines += FXM_BYTES[j];
+        lines += fxm_bytes(j);
     printf("arena %u B: %u engines keep a part's memory (the largest %u B), %u limited insert types, the send lines %u B "
            "(%s)\n", (unsigned)ARN_BYTES, (unsigned)(ne - 1u), (unsigned)ARN_SLOT, (unsigned)(nl - 1u), (unsigned)lines,
            FRAG_PACK ? "packed: core/arena.c" : "fm1-next: never moved");
@@ -312,11 +312,11 @@ int main(void)
         for (j = 0; j < 3u; j++)
             if (fxm_news >> j & 1u)
             {
-                refused(RF_SEND, FXM_BYTES[j], f0, 0, 0);
+                refused(RF_SEND, fxm_bytes(j), f0, 0, 0);
 #ifdef FRAG_DBG
-                if (FXM_BYTES[j] <= f0 && rf_rule[RF_SEND] < 6u) {
+                if (fxm_bytes(j) <= f0 && rf_rule[RF_SEND] < 6u) {
                     uint32_t c;
-                    printf("sdump: send %u wants %u free %u busy %d:", j, FXM_BYTES[j], f0, arn_busy());
+                    printf("sdump: send %u wants %u free %u busy %d:", j, fxm_bytes(j), f0, arn_busy());
                     for (c = 0; c < ARN_PARTS; c++)
                         if (arn_cur[c].len || arn_has_next[c])
                             printf(" [c%u %u+%u%s%s n%u+%u]", c, arn_cur[c].off, arn_cur[c].len,

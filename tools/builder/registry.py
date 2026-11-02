@@ -647,7 +647,8 @@ _add("REV_FDN8", "FELUCCA_REV_FDN8", "reverb: FDN8 (long, lush)", F, 153, defaul
 _add("REV_POOL", "FELUCCA_REV_POOL", "reverb: FDN8 size", F, 122, default=0, parent="FX_REVERB",
      choices=((1, "big ring (32 KB): the long, lush tail"), (0, "small ring (16 KB)")),
      desc="FDN8's ring: big (32 KB) gives its eight lines twice the length, the long and lush FDN8; small (16 KB) the "
-          "shorter one. The key's old name (the reverb's buffers in the pool) is kept so profiles keep their sound: since "
+          "shorter one. With an arena and big, PROJECT > FX MEM's REV MEM can still pick SMALL per project (16 KB of the "
+          "arena back). The key's old name (the reverb's buffers in the pool) is kept so profiles keep their sound: since "
           "the RAM is one region (2026-10-25) where the buffer sits saves nothing, only the ring's size counts.")
 _add("REV_AIRWIN", "FELUCCA_REV_AIRWIN", "reverb: VTINY (Airwindows VerbTiny)", F, 230, default=0, parent="FX_REVERB",
      desc="Airwindows' VerbTiny (Chris Johnson, MIT): sixteen lines in four 4 x 4 Householder stages, left and right "

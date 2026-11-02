@@ -509,7 +509,7 @@ static void name_draw_keys_paint(void)                 /* (once a pass: name_dra
 static void name_draw_keys(void) { cv_whole(OY_PANEL, OH_PANEL, C_BLACK, name_draw_keys_paint); }
 /* the hints on the help line's place (the audit's #49, style guide 9): the screen's last 18 rows, a rule, the line in the
  * help line's face and colour; the panel ends above them in every build (the keys end at row 76 + 118) */
-#define NM_FOOT_Y (240 - 18)
+#define NM_FOOT_Y (240 - OP_MTR - 18)
 static void name_draw_foot(void)
 {
     cv_begin(240, 18, C_BLACK);

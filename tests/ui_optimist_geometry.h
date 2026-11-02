@@ -23,7 +23,7 @@ static void geo_fail(const char *what, const char *a, const char *b)
 static int geo_band_black(void)                         /* the help band: black */
 {
     uint32_t i;
-    for (i = (uint32_t)OP_FOOT_Y * 240u; i < 240u * 240u; i++)
+    for (i = (uint32_t)OP_FOOT_Y * 240u; i < (uint32_t)(OP_FOOT_Y + OP_FOOT) * 240u; i++)   /* (the help band's rows: the load lines' under it) */
         if (screen[i])
             return 0;
     return 1;

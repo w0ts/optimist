@@ -168,6 +168,11 @@ struct RootView: View {
             if let p = BluetoothPicker.connected(old: old, now: now) { link.resume(p) }
         }
         .sheet(item: $session.export) { ExportView(url: $0.url) }
+        .onOpenURL { url in        // (a .fwsc opened with the app: Finder, Files, AirDrop, Mail: the Firmware screen with it ready)
+            guard url.isFileURL, flash.receive(url) else { return }
+            simSheet = false
+            flashSheet = true
+        }
         .onAppear {
             tilt.seed()
             tilt.start()
