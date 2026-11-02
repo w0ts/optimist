@@ -119,6 +119,7 @@ RETIRED = {
     "REV_HALF": "the half-rate reverb (the ROOM at 22.05 kHz, a half-size ring for PLATE / FDN8 / VTINY) was dropped (2026-10-29, bit 123; the user: \"drop those\"): an old .config with REV_HALF=1 builds the full-rate reverb",
     "REV_HB_LONG": "the steep 63-tap filter of the half-rate reverbs was dropped (2026-10-29, bit 430; the user: \"drop those\"): the reverbs keep the 15-tap half-band",
     "LCD_DIRTY": "the dirty-rectangle screen update (cv_blit_dirty, after X0X 201b95c) had no caller since the old graph strip went with f1ab07ed (2026-10-19), so the item changed nothing on the screen; the code is removed (retired 2026-10-31, bit 68, never reuse it; any old LCD_DIRTY value is ignored)",
+    "BT_PROJ": "the projects' moves (a project read from the FM-1 or written into it: the backup's project streams and the project command) over Bluetooth MIDI are part of the web editor (EDITOR) in every build that has Bluetooth MIDI (BLE) and the Mirror's link (ED_MIRROR), the backup (BACKUP) and the projects (PATTERNS); retired 2026-11-01, bit 414, never reuse it; the user: \"this is so small, include it in the base web editor feature\"; any old BT_PROJ value is ignored",
     "BT_AFH": "Bluetooth audio always hops adaptively, the channels the headset fails on skipped (bt/bt_afh.c; retired 2026-10-29, bit 395; the user: \"always on\"; any old BT_AFH value is ignored)",
     "BLE_DIAG": "the BLE diagnostics (the console's blell, the link layer's counters and rings) were removed (retired 2026-10-29, bit 253; the user: \"we can remove the diagnostics\"): BLE works the same without them; any old BLE_DIAG value is ignored",
     "BT_DIAG": "the Bluetooth audio diagnostics (the console's btinq / btscan / btpage / btclk / btrx / bttrace, the status histograms, receive logs and per-second counters) were removed (retired 2026-10-29, bit 363; the user: \"we can remove the diagnostics\"): the audio works the same without them; any old BT_DIAG value is ignored",
@@ -206,6 +207,8 @@ class Item:
                                      # profiles keep loading and dumping it, the checks still name it)
     shown_under: Optional[str] = None   # listed under this item instead of its parent (display only: core.built goes by parent)
     dim_when: Optional[str] = None   # greyed (not live) while this item is on (SAMPLE SLOTS, PROJECTS under SD card mode)
+    dim_choice: dict = field(default_factory=dict)   # {choice value: (item key, reason)}: that choice is greyed (not offered, the
+                                     # reason shown beside it) while the item is on (SECTIONS 4 while PATTERNS is on)
     children: list = field(default_factory=list)
     menu_children: list = field(default_factory=list)   # what the menu lists under it: children + shown_under, less hidden
 
@@ -647,7 +650,8 @@ _add("REV_FDN8", "FELUCCA_REV_FDN8", "reverb: FDN8 (long, lush)", F, 153, defaul
 _add("REV_POOL", "FELUCCA_REV_POOL", "reverb: FDN8 size", F, 122, default=0, parent="FX_REVERB",
      choices=((1, "big ring (32 KB): the long, lush tail"), (0, "small ring (16 KB)")),
      desc="FDN8's ring: big (32 KB) gives its eight lines twice the length, the long and lush FDN8; small (16 KB) the "
-          "shorter one. The key's old name (the reverb's buffers in the pool) is kept so profiles keep their sound: since "
+          "shorter one. With an arena and big, PROJECT > FX MEM's REV MEM can still pick SMALL per project (16 KB of the "
+          "arena back). The key's old name (the reverb's buffers in the pool) is kept so profiles keep their sound: since "
           "the RAM is one region (2026-10-25) where the buffer sits saves nothing, only the ring's size counts.")
 _add("REV_AIRWIN", "FELUCCA_REV_AIRWIN", "reverb: VTINY (Airwindows VerbTiny)", F, 230, default=0, parent="FX_REVERB",
      desc="Airwindows' VerbTiny (Chris Johnson, MIT): sixteen lines in four 4 x 4 Householder stages, left and right "
@@ -884,10 +888,13 @@ _add("CHORDPLUS", "FELUCCA_CHORDPLUS", "CHORD+ (black keys change the chord), ST
 
 # ---- sequencer
 Q = "Sequencer"
-_add("SECTIONS", "FELUCCA_SECTIONS", "song sections", Q, 85, default=16,
+_add("SECTIONS", "FELUCCA_SECTIONS", "song sections (with PATTERNS: the scenes of a project)", Q, 85, default=16,
      choices=((16, "16: A..P, compressed log"), (8, "8: A..H, compressed log"), (4, "4: A..D, the old project slots")),
-     desc="8 / 16: banks of 4 (SAVE + OCT), stored compressed in one 32 KiB log with a MEM gauge; the old slots move "
-          "in at the first start. 4: the slots as before (needed by motion recording)")
+     dim_choice={4: ("PATTERNS", "PATTERNS: scenes live in the log, 8 or 16")},
+     desc="How many sections (with PATTERNS on: scenes) the log keeps: 8 / 16: A..H / A..P in banks of 4 (SAVE + OCT), "
+          "stored compressed in a log with a MEM gauge; the old slots move in at the first start. With PATTERNS on, "
+          "each project owns that many scenes and 4 is not offered (the patterns live in the log); the choice only sets "
+          "the scene count (8 = 52 B of flash less). 4 (PATTERNS off only): the slots as before")
 _add("SNAPSHOTS", "FELUCCA_SNAPSHOTS", "snapshots (whole-state slots)", Q, 137, default=4,
      choices=((4, "4 slots: 32 KiB, USR3 keeps 32 KiB"), (2, "2 slots: 24 KiB, USR3 keeps 40 KiB"),
               (8, "8 slots: 48 KiB, USR3 keeps 16 KiB"), (0, "off: USR3 64 KiB")),
@@ -1030,10 +1037,22 @@ _add("PARAM_HELP", "FELUCCA_PARAM_HELP", "help line: what the knob changes, in w
 _add("SYS_DEBUG", "FELUCCA_SYS_DEBUG", "SYSTEM's debug pages (internals, USB stats)", U, 341, default=0,
      desc="SYSTEM keeps its pages for finding faults: INTERNALS (the last reset, the flash's "
           "interrupts-off time, the second core's internals), USB STATS (the USB audio glitch counters) and on INFO the "
-          "clock, the second core, the drops and the CPU guard apart. Off: INFO shows what a player wants, CPU LOAD, "
+          "second core, the drops and the CPU guard apart. Off: INFO shows what a player wants, CPU LOAD, "
           "UNDERRUNS (the drop-outs counted in) and BATTERY, in the large face, and the code of the rest is left out "
           "(about 2.9 KB less flash, measured on a USB-audio build). The red / amber mark on the header's rule after a "
           "drop-out stays either way.")
+_add("SYS_TOP", "FELUCCA_SYS_TOP", "SYSTEM > TOP: what takes the CPU and the RAM", U, 448, default=0,
+     desc="SYSTEM gets a TOP page, after INFO (after CPU TIMES with SYS_DEBUG): the CPU0 and CPU1 load, then each job of the "
+          "audio render (each track with its engine, the drums, the reverb, Bluetooth's SBC, CPU0's own steps before and "
+          "after the render) in % of a mix block, its average, its peak of the last 2 s and its core, largest first; then "
+          "the SRAM used of the total and what holds it, largest first: the arena's blocks as they are now (a track's "
+          "engine, the delay, reverb and chorus lines, the inserts' lines, Bluetooth audio's buffers ...) and the build's "
+          "own RAM by module, from its link (the 12 largest and OTHER). SELECT scrolls it; it updates every half second. "
+          "The render's times are the ones CPU TIMES reads (a few timer reads a block), without SYS_DEBUG's other pages. "
+          "The build links twice (the second time with the table of the first link's symbols). Measured 2026-11-01: about "
+          "2.3 KB of flash, 0.4 KB of RAM and 0.5 KB of RAM code (the release's defaults; on mots-config 3.1 KB, 0.4 KB and "
+          "0.5 KB).",
+     symbols=("top_take", "TOP_RAM"))
 _add("KNOB_ACCEL", "FELUCCA_KNOB_ACCEL", "knob acceleration by turn speed", U, 67,
      desc="1 / 2 / 3 / 5 / 8 steps a detent when turned fast; never on lists (engines, kits, presets)",
      provenance=x0x("61654ba"),
@@ -1069,7 +1088,8 @@ _add("FONT_CACHE", "FELUCCA_FONT_CACHE", "the screen's text: decoded-glyph cache
 Y = "System"
 _add("EDITOR", "FELUCCA_EDITOR", "web editor (USB SysEx)", Y, 54,
      desc="The web editor's communication layer: the frames and INFO, BUILD, PING. What it can do comes with its "
-          "options: BACKUP, LIBRARIAN, live editing (ED_LIVE) and its features. Firmware updates (the installer, "
+          "options: BACKUP, LIBRARIAN, live editing (ED_LIVE) and its features. With Bluetooth MIDI built (BLE, with the "
+          "Mirror and the backup) the projects move to and from the phone over Bluetooth too. Firmware updates (the installer, "
           "M-UPGRADE) and the USB rescue are not part of it: every build has them.",
      off_warning="without it there is no web editor (so no backup / restore from it); installing and the USB rescue "
                  "still work")
@@ -1248,18 +1268,11 @@ _add("ARENA", "FELUCCA_ARENA_KB", "memory per project (the free RAM: one arena f
           "(SYSTEM > INFO's RAM bar shows the arena in use and the undo history's share). A dropped or refused effect "
           "is bypassed and dimmed (FULL), kept in the project, and comes back by itself once there is room. Off: every "
           "memory reserved as before, nothing ever refused. An older configuration's size (ARENA=96) reads as on.")
-# bit 414 (2026-10-26): the next free one after the retired FAR_OK's 413; the fm-1 session's handover (projects off the device)
-_add("BT_PROJ", "FELUCCA_BT_PROJ", "projects to and from the phone over Bluetooth", Y, 414, default=0,
-     parent="EDITOR", experimental=True, tested="host-tested only (tests/mirror_test.c); no client sends it yet",
-     desc="The web editor's and the phone's project moves (a project read from the FM-1, or one written into it: the "
-          "backup's project streams and the project command) over Bluetooth MIDI too, not only over the USB cable, so "
-          "with one project on the FM-1 the phone keeps the others without a cable. Over Bluetooth a project moves at "
-          "the link's few KB a second (a dense project in a few seconds). About 640 B of the pool (a request's room for "
-          "the stream's chunks).",
-     off_warning="projects move over the USB cable only")
+# (bit 414, BT_PROJ, retired 2026-11-01: the projects' moves over Bluetooth MIDI are part of the web editor (EDITOR) in every build that
+#  has the Mirror's Bluetooth link, felucca.c MBR_PROJ; RETIRED above; never reuse the bit)
 # bit 413 (FAR_OK, retired 2026-10-29, never reused): the big slot waited for the far probe's answer on an FM-1; the user:
 # "drop the far probe, we don't need it", the fake SD mode layout always has the whole slot (RETIRED below)
-# bit 415 (2026-10-26): the next free one after BT_PROJ's 414; samples streamed from the SD card (storage/sd/sd_stream.c,
+# bit 415 (2026-10-26): the next free one after the retired BT_PROJ's 414; samples streamed from the SD card (storage/sd/sd_stream.c,
 # sd_stream_plan.c, docs/SD-CARD-DESIGN.md 7): the ring's KB a voice, 0 off (registry.h FELUCCA_SD_RING_KB -> SD_STREAM:
 # full FatFs, SAMPLE and the arena too, else it builds nothing)
 _add("SD_RING", "FELUCCA_SD_RING_KB", "samples streamed from the SD card (SAMPLE's CARD set): each voice's lookahead", MEM,
@@ -1637,6 +1650,7 @@ def to_json():
                                           "experimental", "notice", "off_warning", "env", "target_only", "symbols", "no_image",
                                           "fixed", "head")}
         d["choices"] = [list(c) for c in it.choices]
+        d["dim_choice"] = {str(v): list(w) for v, w in it.dim_choice.items()}
         d["not_built"] = {str(v): why for (k, v), why in NOT_BUILT.items() if k == it.key}
         d["provenance"] = it.provenance.__dict__ if it.provenance else None
         out.append(d)

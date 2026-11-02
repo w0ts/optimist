@@ -118,7 +118,7 @@ static const char *dev_name(void);
 #endif
 #define FELUCCA_BT_UI (FELUCCA_BLE || FELUCCA_BT_AUDIO)   /* SYSTEM > Bluetooth: with either; it shows what is built (op_bt.c) */
 #define MIR_BLE (FELUCCA_ED_MIRROR && FELUCCA_BLE && FELUCCA_OTA && FELUCCA_EDITOR)   /* the screen mirrored over Bluetooth too (io/editor/ed_mirror.c) */
-#define MBR_PROJ (MIR_BLE && FELUCCA_BT_PROJ && FELUCCA_FLASH && FELUCCA_BACKUP && FELUCCA_PATTERNS)   /* the projects' moves
+#define MBR_PROJ (MIR_BLE && FELUCCA_FLASH && FELUCCA_BACKUP && FELUCCA_PATTERNS)   /* the projects' moves
                                                   * over Bluetooth too (ed_mirror.c: the backup's 43..48 and 110) */
 #if FELUCCA_BLE
 #include "io/midi/midi_ble.c"        /* the stack (ble/ble_stack.c) and its MIDI in / out */
@@ -321,6 +321,8 @@ static void mir_blit(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint1
 static uint32_t mir_meters_due(void) { return 0; }
 static uint32_t mir_meters_off(void) { return 0; }
 static uint32_t mir_master(uint32_t pot) { return pot; }
+static void mir_draw_begin(void) {}
+static void mir_draw_end(void) {}
 #endif
 #if FELUCCA_CDC
 #include "io/console.c"

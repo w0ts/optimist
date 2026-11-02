@@ -4,6 +4,8 @@ What makes a synth track sound the way it does, and where each control is. The b
 
 ## Engines
 
+A new project (power-on, TOOLS > NEW) starts with T1 on ANALOG ACID 303, T2 on FM6 GLASS EP (the KEYS voice pack) and T3 on DIGITAL GLASS PAD. A build without the engine or the pack plays a fallback instead: T2 DIGITAL RHODES without FM6 or its KEYS pack, T1 the first engine built, T3 the lead of earlier versions (SAMPLE LOFI FLUTE, or ANALOG G-FUNK LD where the FLUTE set is left out).
+
 A synth track plays one engine at a time. PRESETS on a synth track loads another sound of the track's engine; SHIFT (OCT- held) + PRESETS (or the ENGINE card) steps the engine. Every engine is a builder item (`ENG_*`). A build without an engine plays a track that uses it on a stand-in engine and shows MISSING: DIGITAL stands in for FM6, PHASE for CZ and VPS, SAMPLE for GRAIN and SLICE, LOFI for SID, ANALOG for the others (BUILDER.md names each stand-in).
 
 **EDIT** (tapped) opens the track's sound. Its first row, SOUND, has the ENGINE, PRESET, INIT and SAVE AS cards. Then **MAIN**: the four values that matter most for the engine (CUT and RES first where it has a filter; FM6 has LPF, RES and HPF). Then the engine's own values on **EDIT 1** and **EDIT 2**, four cards each, with the page titles the engine gives them (ANALOG shows OSC and FLT, for example).

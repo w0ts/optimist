@@ -114,10 +114,30 @@ static void dlyf_untlv(const uint8_t *a, uint32_t n)   /* (n 0: none, the defaul
     for (k = 0; k < DLYF_N; k++)
         song.g[G_DFTYPE + k] = (int16_t)(k < n ? clamp(a[k], GP[G_DFTYPE + k].min, GP[G_DFTYPE + k].max) : 0);
 }
+/* TLV FXZ_TLV (0x4E, 2026-11-01): FX MEMORY (fx_memsz.h), the project's DLY MEM, REV MEM, XDLY MEM (core.h G_FXZ_DLY
+ * G_FXZ_REV G_FXZ_XDL, a byte each: 0 FULL), only when one is not FULL; none: every line at the build's size, as every
+ * project from before. A value past what the build offers (a project from a build with a longer line) is its smallest.
+ * A load's (`all`) */
+#define FXZ_TLV 0x4Eu
+#define FXZ_N 3u
+_Static_assert(G_FXZ_REV == G_FXZ_DLY + 1 && G_FXZ_XDL == G_FXZ_DLY + 2, "FX MEMORY's TLV: DLY REV XDLY in a row");
+static uint32_t fxz_tlv(uint8_t *o)                    /* -> o, its length; 0: every line FULL (nothing to keep) */
+{
+    uint32_t k, any = 0;
+    for (k = 0; k < FXZ_N; k++)
+        any |= (o[k] = (uint8_t)song.g[G_FXZ_DLY + k]);
+    return any ? FXZ_N : 0u;
+}
+static void fxz_untlv(const uint8_t *a, uint32_t n)    /* (n 0: none, every line FULL; a shorter one: the rest FULL) */
+{
+    uint32_t k;
+    for (k = 0; k < FXZ_N; k++)
+        song.g[G_FXZ_DLY + k] = (int16_t)(k < n ? clamp(a[k], GP[G_FXZ_DLY + k].min, GP[G_FXZ_DLY + k].max) : 0);
+}
 #define FXRET_TLV 0x41u
 #define FXRET_N 3u
 #define FXRET_TLV_N (FXRET_N + 1u)
-_Static_assert(FXR_HEAD + 2u * (FXT_N - 1u) + FXT_TLV_SUM + 2u + DLM_TLV_N + 2u + FXRET_TLV_N + 2u + INS_TLV_N + 2u + SMUTE_TLV_ACC + 2u + MST_TLV_N + 2u + LIN_TLV_N + 2u + NPART + 2u + UT_TLV_N + 2u + RT_TLV_N + 2u + RS_NMAX + 2u + DLYF_N + 2u + RP_TLV_N + FXR_GEN_N <= FXR_MAX, "the FX record: every TLV fits");
+_Static_assert(FXR_HEAD + 2u * (FXT_N - 1u) + FXT_TLV_SUM + 2u + DLM_TLV_N + 2u + FXRET_TLV_N + 2u + INS_TLV_N + 2u + SMUTE_TLV_ACC + 2u + MST_TLV_N + 2u + LIN_TLV_N + 2u + NPART + 2u + UT_TLV_N + 2u + RT_TLV_N + 2u + RS_NMAX + 2u + DLYF_N + 2u + RP_TLV_N + FXR_GEN_N + 2u + FXZ_N <= FXR_MAX, "the FX record: every TLV fits");
 _Static_assert(UT_TLV > VCNT_TLV && RET_TLV > UT_TLV + 1u && RPP_TLV == RET_TLV + 2u && RSND_TLV == RET_TLV + 3u, "the USB input's TLV, the returns': ids no other takes (0x49: EQ3's)");
 #if GEN_ON
 _Static_assert(GEN_TLV == RET_TLV + 1u && GEN_TLV_MAX <= 255u, "the note generators' TLV (seq/gen.c): 0x4B, past fx-pool's 0x49 0x4A");
@@ -446,6 +466,7 @@ static uint32_t fxr_encode(uint8_t *o)
 #endif
     n = fxr_tlv(o, n, FXRET_TLV, fxret_tlv(o + n + 2u));   /* the FX returns (above), as the drum lanes' */
     n = fxr_tlv(o, n, DLYF_TLV, dlyf_tlv(o + n + 2u));  /* the delay filter (above) */
+    n = fxr_tlv(o, n, FXZ_TLV, fxz_tlv(o + n + 2u));   /* FX MEMORY (above) */
     n = fxr_tlv(o, n, RET_TLV, rt_tlv(o + n + 2u));    /* the returns holding another type (fx_slots.c rt_tlv) */
     n = fxr_tlv(o, n, RSND_TLV, rs_tlv(o + n + 2u));   /* the sends between the returns (fx_slots.c rs_tlv) */
     n = fxr_tlv(o, n, RPP_TLV, rp_tlv(o + n + 2u));    /* the returns' PRE and POST inserts (fx_slots.c rp_tlv) */
@@ -509,6 +530,7 @@ static int fxr_decode(const uint8_t *a, uint32_t n, int all)
     if (all) {
         fxret_untlv(0, 0);                             /* (none: every return at unity) */
         dlyf_untlv(0, 0);                              /* (none: the delay filter LP, 12 dB, RES 0) */
+        fxz_untlv(0, 0);                               /* (none: FX MEMORY FULL, the build's sizes) */
         rs_untlv(0, 0);                                /* (none: no send between the returns) */
         vcnt_untlv(0, 0);                              /* (none: every part's VOICES at the engine's max) */
 #if FELUCCA_USB_AUDIO
@@ -540,6 +562,9 @@ static int fxr_decode(const uint8_t *a, uint32_t n, int all)
         } else if (a[at] == DLYF_TLV) {
             if (all)
                 dlyf_untlv(a + at + 2u, a[at + 1u]);
+        } else if (a[at] == FXZ_TLV) {
+            if (all)
+                fxz_untlv(a + at + 2u, a[at + 1u]);
         } else if (a[at] == RSND_TLV) {
             if (all)
                 rs_untlv(a + at + 2u, a[at + 1u]);

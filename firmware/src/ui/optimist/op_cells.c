@@ -727,6 +727,28 @@ static int32_t ins_skip(uint32_t k, uint32_t s, int32_t old, int32_t v)
     }
     return old;
 }
+static int fxz_ins_mem(uint32_t k, uint32_t s, uint32_t t);   /* op_fxmem.c: a type with no room (FX MEMORY may make it) */
+#if FXZ_ANY
+static void fxz_yes(uint32_t a, uint32_t k);            /* op_fxmem.c: the make-room question's YES */
+#endif
+static void fxz_ins_pick(uint32_t k, uint32_t s, uint32_t prev, uint32_t t);
+static int fxz_ins_q(uint32_t k, uint32_t s);            /* op_fxmem.c: this slot's type question is up */
+static uint32_t fxz_ins_no(uint32_t k, uint32_t s, uint32_t prev);
+/* ins_skip on the INSERTS card (2026-11-01, the user: "Some are greyed out, hard to know why"): a type with no room is
+ * a stop too (its memory mark in the list, op_preset.c): picked, the message says what it needs and the make-room
+ * question asks (op_fxmem.c fxz_ins_pick); the other slot's type is still skipped */
+static int32_t ins_skip_mem(uint32_t k, uint32_t s, int32_t old, int32_t v)
+{
+    int32_t dir = v > old ? 1 : -1, i;
+    if (v == old)
+        return v;
+    for (i = v; i >= 0 && i < (int32_t)INS_NLIST; i += dir) {
+        uint32_t t = ins_list[i];
+        if (t == FXT_NONE || (t != ins_slot[k % NTRK][(s & 1u) ^ 1u] && (fxi_can(k % NTRK, t) || fxz_ins_mem(k, s, t))))
+            return i;
+    }
+    return old;
+}
 
 /* page pg's value k set to v (steps: the turn that set it): what else a value set by a knob does, as SLOOP's
  * ui_input.c edit_param (motion recording, an FX slot's type, a drum lane's value) */
@@ -744,8 +766,19 @@ static void page_set(const page_t *pg, uint32_t k, int16_t *vp, int32_t v, int32
     was = *vp;
     *vp = (int16_t)v;
     if (id >= PID_INST && id < PID_INST + INS_N) {      /* INSERTS: S1 / S2 TYPE (skips the other slot's type and the unavailable) */
-        v = ins_skip(song.sel, id - PID_INST, was, v);
+        uint32_t prev = ins_slot[song.sel % NTRK][(id - PID_INST) & 1u];
+        v = ins_skip_mem(song.sel, id - PID_INST, was, v);
         *vp = (int16_t)v;
+        if (v == was && fxz_ins_q(song.sel, id - PID_INST)) {
+            op_disarm();                                /* (the end of the list under its question: NO, nothing further: the question gone, */
+            return;                                     /* fxz_tick gives the slot back to what it held before, as the engine list's end) */
+        }
+        prev = fxz_ins_no(song.sel, id - PID_INST, prev);   /* (the same encoder under that question: NO, on: the slot to go back to is the first's) */
+        if (fxz_ins_mem(song.sel, id - PID_INST, ins_list[v % INS_NLIST])) {
+            ins_load(song.sel, id - PID_INST, ins_list[v % INS_NLIST]);
+            fxz_ins_pick(song.sel, id - PID_INST, prev, ins_list[v % INS_NLIST]);   /* (no room: said, asked) */
+            return;
+        }
         ins_load(song.sel, id - PID_INST, ins_list[v % INS_NLIST]);
         return;
     }

@@ -217,9 +217,12 @@ static void op_undo(int redo)
  * confirm let go without YES (NO, another row, 3 s) passes to the next part; none left: MEM FULL, given up */
 static void mem_tick(void)
 {
+    fxz_tick();                                         /* (FX MEMORY: a TIME halved to fit a short DLY MEM, op_fxmem.c) */
 #if PART_DROPS
     uint32_t k;
     char a[24];
+    if (!part_mem_refused.on)
+        lno.on = 0;                                     /* (the list entry that was refused: settled, op_edits.c) */
 #if FXM_NEED
     if (fxm_news && !op_armed()) {                      /* an effect refused (fx/fx_arena.c): bypassed until there is room */
         ui_message(fxm_news & 1u ? "MEM FULL CHO" : fxm_news & 2u ? "MEM FULL DLY" : fxm_news & 4u ? "MEM FULL REV" :
@@ -250,6 +253,10 @@ static void mem_tick(void)
         return;
     if (mem_retry() >= 0 && (!part_mem_refused.on || part_mem_refused.waiting))
         return;                                         /* (done, or a dropped part still switching) */
+#if FXZ_ANY
+    if (fxz_offer_engine())
+        return;                                         /* (first: smaller FX lines, when they free it; op_fxmem.c) */
+#endif
 #if FMEM_ANY
     {                                                   /* before any part: the features on but idle, all at once */
         uint32_t m = fmem_offer();
@@ -272,7 +279,7 @@ static void mem_tick(void)
         str_cpy(a, FXN[(k - NPART) % 3u], sizeof a);
         str_app(a, " ", sizeof a);
         n = str_len(a);
-        fmt_int(a + n, (int32_t)(FXM_BYTES[(k - NPART) % 3u] / 1024u));
+        fmt_int(a + n, (int32_t)(fxm_bytes((k - NPART) % 3u) / 1024u));
         str_app(a, " KB", sizeof a);
         op_arm(ARM_OP, OA_DROP, k, "DROP", a, 1);
         return;
@@ -919,6 +926,8 @@ static void op_tap(uint32_t b, uint32_t id)
 
 /* PRESETS free to act: no question, no REC ring, not the NAME screen, not MASTER (the mixer's either) */
 static int pre_free(void) { return !op_armed() && !rh.ring && !page_owned() && ui.scr != SCR_FX && !ui.master && !mx_on_master(); }
+/* ... or under an engine list's make-room question, which PRESETS' own turn answers NO (op_edits.c lst_no) */
+static int pre_free_list(void) { return (!op_armed() || lst_q()) && !rh.ring && !page_owned() && ui.scr != SCR_FX && !ui.master && !mx_on_master(); }
 #if FELUCCA_FAVORITES
 /* FAVORITES (docs/UI-OPTIMIST-DESIGN.md 13 Favorites) are marked and browsed where presets are picked, not on a SOUND row (the user, 2026-10-14: "we have a
  * preset button, that is enough"): SAVE held + PRESETS marks the sound playing a favorite (right: saved into the favorites, 2026-10-16)
@@ -946,7 +955,7 @@ static int op_presets_turn(void)
     if (sys_scr(ui.scr)) {                              /* GLOBAL, SYSTEM: PRESETS does nothing (the user, 2026-10-13): a knob k is
                                                          * line k */
     } else if (btn_held(B_OCTDN)) {                     /* SHIFT + PRESETS: the instruments (STEP, a step held: nothing, the turn drained) */
-        if (ui.scr != SCR_STEP && pre_free() && !st_holding()) {
+        if (ui.scr != SCR_STEP && pre_free_list() && !st_holding()) {
             if (lane_presets())
                 lane_kind_step(s);                      /* (a lane off KIT: its sound's next / previous kind, op_walk.c) */
             else
@@ -975,7 +984,7 @@ static int op_presets_turn(void)
                                                          * the window's) */
         if (!op_armed() && !rh.ring && !st.held)
             step_scroll(s > 0 ? 1 : -1);
-    } else if (pre_free()) {   /* (MASTER, the mixer's too: nothing) */
+    } else if (pre_free_list()) {   /* (MASTER, the mixer's too: nothing) */
         if (lane_presets())
             lane_sound_step(s);                         /* a lane off KIT: its own sound, the kit and the other lanes stay */
         else {
@@ -1510,6 +1519,10 @@ static uint32_t op_fam_mask(void)                       /* a bit per family the 
  * (page_owned), PROJECT (but its banks), SONG */
 #if FELUCCA_BT_UI
 static int dev_listing(void);                           /* op_project.c: the BLE devices list is open */
+#if FELUCCA_ED_MIRROR
+static void mir_draw_begin(void);                       /* io/editor/ed_mirror.c: the frame the mirror's self-check hashes */
+static void mir_draw_end(void);
+#endif
 #endif
 static uint32_t op_oct_avail(void)
 {
@@ -1684,7 +1697,13 @@ static void ui_draw(void)
     miss_tick();                                        /* a load used what this build lacks: say so (miss.c) */
 #endif
     mem_tick();                                         /* memory short for an engine: propose what to drop (above) */
+#if FELUCCA_ED_MIRROR
+    mir_draw_begin();                                   /* (a frame the mirror's self-check hashes: io/editor/ed_mirror_sum.h) */
+#endif
     op_frame_draw();
+#if FELUCCA_ED_MIRROR
+    mir_draw_end();
+#endif
 }
 
 /* ---- panel setup: OCT- + OCT+ held at power-on only (no SYSTEM row; as SLOOP's ui_input.c panel_setup) */
