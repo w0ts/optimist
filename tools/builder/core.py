@@ -638,7 +638,7 @@ def item_delta(costs, key, value):
 # bigger (measured 2026-10-30 on every profile, release), and the clamp counted it 0 B: synths-2~ (JieLi) estimated
 # from synths-2 21 KB under its real build
 #
-# CANVAS_STRIP (default 2 = 31 rows: 0 = 124 rows +44,640 B of pool, 1 = 62 rows +14,880 B, costs measured 2026-11-02) and
+# CANVAS_STRIP (default 2 = 31 rows: 0 = 124 rows +44,640 B of pool, 1 = 62 rows +14,880 B, 3 = 16 rows -7,200 B, costs measured 2026-11-02) and
 # INS_RAM (0 = the insert code in the flash: +396 B of flash) are the same kind: a value under the default that costs
 # MORE. The clamp counted them 0 and the builder showed no pool change at all for the canvas
 NOT_A_FEATURE = ("COMPILER", "CANVAS_STRIP", "INS_RAM")

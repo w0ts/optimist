@@ -365,8 +365,7 @@ static void hl_pre(uint32_t ov)
         was_wide = (uint8_t)wide;
         hl.on = 0;
         ui.sig[5] = 0;
-        cv_begin(240, HL_H, C_BLACK);
-        cv_blit(0, HL_Y);
+        cv_whole(HL_Y, HL_H, C_BLACK, cv_none);
     }
     vis = !wide && (hl_menu() || lay_hint_t || (hl.t && hl.scr == ui.scr && lay.shown == LY_PLAY && !page_owned())) && ov != 1u && ov != 3u && ov != 4u;
     if (vis && !hl_menu() && !lay_hint_t && !hl_text()) {
@@ -378,8 +377,7 @@ static void hl_pre(uint32_t ov)
     if (op_again & OPA_HELP) {                          /* (a repaint: the band drawn again, the line by hl_post, else black) */
         op_again &= (uint8_t)~OPA_HELP;
         if (!wide && !vis && !hl.on) {
-            cv_begin(240, HL_H, C_BLACK);
-            cv_blit(0, HL_Y);
+            cv_whole(HL_Y, HL_H, C_BLACK, cv_none);
         }
     }
     if (vis == hl.on)
@@ -387,8 +385,7 @@ static void hl_pre(uint32_t ov)
     hl.on = (uint8_t)vis;
     ui.sig[5] = 0;
     if (!vis) {
-        cv_begin(240, HL_H, C_BLACK);
-        cv_blit(0, HL_Y);
+        cv_whole(HL_Y, HL_H, C_BLACK, cv_none);
     }
 }
 /* after the bands: the line, when what it says changed */
@@ -416,7 +413,7 @@ static void hl_post(void)
     if (sig == ui.sig[5])
         return;
     ui.sig[5] = sig;
-    cv_begin(240, HL_H, C_BLACK);
+    CV_BANDS(0, HL_Y, 240, HL_H, C_BLACK) {
     cv_hline(0, C_LINE);
     {
         int32_t x = 4;
@@ -432,6 +429,6 @@ static void hl_post(void)
         else if (off)
             cv_texts(x, 2, ph_text(off, b), C_AMB);
     }
-    cv_blit(0, HL_Y);
+    }
 }
 #endif

@@ -59,6 +59,29 @@ static void cv_tall(uint32_t y, uint32_t h, uint16_t bg, void (*fn)(void)) { cv_
 static void cv_whole(uint32_t y, uint32_t h, uint16_t bg, void (*fn)(void)) { cv_tall_w(0, y, 240, h, CV_ROWS, bg, fn); }
 /* ... at x, w wide: as many rows a pass as the canvas holds at that width */
 static void cv_whole_w(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint16_t bg, void (*fn)(void)) { cv_tall_w(x, y, w, h, CV_MAX / w, bg, fn); }
+/* the same as a block: CV_BANDS(x, y, w, h, bg) { paint } runs the block once a pass of at most CV_MAX / w rows (one pass when
+ * the band fits: as a cv_begin and a cv_blit were), cv_oy shifted so the block paints the whole band in its own coordinates,
+ * each pass blitted at its end. The block must only draw (it runs once a pass): no return, no break out of it */
+typedef struct {
+    uint32_t x, y, w, h, r0, n;
+    uint16_t bg;
+} cvb_t;
+static int cvb_next(cvb_t *b)
+{
+    uint32_t rows = CV_MAX / b->w;
+    if (b->n) {
+        cv_oy = 0;
+        cv_blit(b->x, b->y + b->r0);
+        b->r0 += b->n;
+    }
+    if (b->r0 >= b->h)
+        return 0;
+    b->n = b->h - b->r0 < rows ? b->h - b->r0 : rows;
+    cv_begin(b->w, b->n, b->bg);
+    cv_oy = -(int32_t)b->r0;
+    return 1;
+}
+#define CV_BANDS(x_, y_, w_, h_, bg_) for (cvb_t cvb_ = {(uint32_t)(x_), (uint32_t)(y_), (uint32_t)(w_), (uint32_t)(h_), 0u, 0u, (bg_)}; cvb_next(&cvb_);)
 static void cv_none(void) {}                            /* (an empty band: cv_whole's fn) */
 static uint32_t trk_on_step(uint32_t c, uint32_t i)    /* step i of track c has something to play normally (a fill-only one: not) */
 {

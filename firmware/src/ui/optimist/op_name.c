@@ -512,10 +512,10 @@ static void name_draw_keys(void) { cv_whole(OY_PANEL, OH_PANEL, C_BLACK, name_dr
 #define NM_FOOT_Y (240 - OP_MTR - 18)
 static void name_draw_foot(void)
 {
-    cv_begin(240, 18, C_BLACK);
-    cv_rect(0, 0, 240, 1, C_LINE);
-    cv_texts(4, 2, nm.cur ? "Save  Home del  hold cancel" : "Save done  Home cancel", C_AMB);
-    cv_blit(0, NM_FOOT_Y);
+    CV_BANDS(0, NM_FOOT_Y, 240, 18, C_BLACK) {
+        cv_rect(0, 0, 240, 1, C_LINE);
+        cv_texts(4, 2, nm.cur ? "Save  Home del  hold cancel" : "Save done  Home cancel", C_AMB);
+    }
 }
 static void name_draw(void)                             /* the cards' band, the panel, the hints (op_draw.c op_frame_draw) */
 {

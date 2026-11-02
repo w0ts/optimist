@@ -590,14 +590,13 @@ static __attribute__((noinline)) void draw_head(void)
     head_t h;
     char c[32];
     uint32_t sig, rec = song.rec || rec_wait || ft_on, drop, xr = info_xruns(), fl;
-    int32_t tw, bx;
+    int32_t tw;
     uint16_t mk;
     if (xr != ovl.xrun_seen)                            /* (another underrun: USB audio, MIDI in; system/overload.h) */
         ovl.xrun_seen = xr, ovl.xrun_ms = fm1_ms;
     drop = ovl_recent(fm1_ms, OVL_MARK_MS) ? 2u : xr && fm1_ms - ovl.xrun_ms < OVL_MARK_MS ? 1u : 0u;
     mk = drop == 2u ? C_ERR : C_WARN;                   /* (the mark: red a drop-out, amber another underrun) */
     head_make(&h);
-    bx = 236 - (h.batt ? HEAD_BATT_W : 0);
     sig = hs(hs(hu(hu(hu(1u, h.tc), h.mc), rec * 2u + song.playing), ui.msg_t ? ui.msg : h.t), h.eng);   /* (the loop
                                                          * position apart: head_pos_only) */
     sig = hs(sig, h.pr);
@@ -614,7 +613,8 @@ static __attribute__((noinline)) void draw_head(void)
         return;
     ui.sig[0] = sig;
     head_r.sig = hs(1u, h.r), head_r.w = (uint8_t)text_ws(h.r);
-    cv_begin(240, OH_HEAD, C_BLACK);
+    CV_BANDS(0, OY_HEAD, 240, OH_HEAD, C_BLACK) {
+    int32_t bx = 236 - (h.batt ? HEAD_BATT_W : 0);        /* (a pass's own: the block runs once a pass) */
     if (fl) {
         draw_head_flash(trk_col(song.sel));             /* (the track's colour, whatever the page's badge) */
     } else if (ui.msg_t) {
@@ -644,7 +644,7 @@ static __attribute__((noinline)) void draw_head(void)
     cv_rect(0, OH_HEAD - 1 - (drop != 0u), 240, 1 + (drop != 0u), drop ? mk : C_LINE);   /* (a drop-out (red) or an underrun
                                                          * (amber) in the last second: the header's rule, 2 px) */
     memline_paint();                                    /* (rows 0-1: the memory line, in this transfer) */
-    cv_blit(0, OY_HEAD);
+    }
 }
 
 /* ---- the cards: label, value and unit, the value's form under them */

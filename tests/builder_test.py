@@ -1182,9 +1182,9 @@ _ar_pb = K.budget(dict(_ar_cfg, **WA.WEB_FIXED), costs)   # (the page builds wit
 check("web builder: the view carries the arena (kb, free, keep, the panel's lines and the rows) the same as the menu's",
       _ar_v and _ar_v["kb"] == K.arena_size(_ar_cfg, _ar_pb["total"])["kb"] and _ar_v["lines"] == K.arena_text(_ar_cfg, _ar_pb["total"])
       and _ar_v["rows"] and WA.view(dict(_ar_cfg, ARENA=0))["arena"] is None)
-_cv = {v: K.item_delta(_ar_costs, "CANVAS_STRIP", v) for v in (0, 1, 2)} if (_ar_costs := C.load_costs()) else {}
+_cv = {v: K.item_delta(_ar_costs, "CANVAS_STRIP", v) for v in (0, 1, 3)} if (_ar_costs := C.load_costs()) else {}
 check("canvas: CANVAS_STRIP 0 / 1 (under its default 2, a bigger canvas) cost their measured pool, never clamped to 0; the menu's SRAM shows it",
-      _cv and _cv[0]["pool"] == 44640 and _cv[1]["pool"] == 14880
+      _cv and _cv[0]["pool"] == 44640 and _cv[1]["pool"] == 14880 and _cv[3]["pool"] == -7200
       and K.sram_parts_text({"ram": 1, "pool": 2, "ramtext": 3}) == "ram 1 + pool 2 + ram code 3 B")
 _ar_x = subprocess.run([sys.executable, str(ROOT / "tools" / "export_builder_web.py"), "--check"], capture_output=True, text=True)
 check("web builder data export: web/builder/data is what the builder has now (export_builder_web.py --check)",
