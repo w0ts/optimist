@@ -131,6 +131,21 @@ static void top_tests(void)
     for (k = 1, ok = 1; k + 1u < top.nr; k++)
         ok &= top.rb[k - 1u] >= top.rb[k];
     check(ok && top.nr >= 13u, "TOP: the owners sorted by size, largest first");
+    for (k = 0, ok = 1; k < top.nr; k++) {              /* (no two rows alike: the arena's lent blocks against the build's modules) */
+        uint32_t j;
+        char l1[16];
+        cell_t d;
+        topt_line(k, &c);
+        str_cpy(l1, c.label, sizeof l1);                /* (the label is top_cell's one buffer) */
+        for (j = k + 1u; j < top.nr; j++) {
+            topt_line(j, &d);
+            if (!strcmp(l1, d.label)) {
+                printf("  top: two rows named %s\n", l1);
+                ok = 0;
+            }
+        }
+    }
+    check(ok, "TOP: every row of the RAM view has its own name");
 #if PART_DROPS && FXM_NEED                              /* (the arena: run_tests.sh's UI_TOP build) */
     for (k = 0, ok = 1, n = 0; k < ARN_PARTS; k++) {    /* every arena block now: a line of its KB */
         uint32_t i, f = 0;
@@ -142,6 +157,17 @@ static void top_tests(void)
         ok &= f;
     }
     check(ok, "TOP: every block of the arena now has its line, its size");
+    for (k = 0, ok = 1; k < ARN_PARTS; k++) {           /* no arena client is named as a module of the build's table, nor as the undo's row */
+        uint32_t j;
+        char an[12];
+        top_arn_name(k, an);
+        ok &= strcmp(an, "UNDO") != 0;
+        for (j = 0; j < TOP_RAM_N; j++)
+            ok &= !TOP_RAM[j].nm[0] || strcmp(an, TOP_RAM[j].nm) != 0;
+        if (!ok)
+            printf("  top: arena client %u is named %s\n", k, an);
+    }
+    check(ok, "TOP: no arena block carries the name of a module of the build's table (BT AUDIO, WI-FI: their lent buffers are BUF)");
     k = NPART + FXM_CHO;
     ok = !arn_cur[k].len && !arn_reserve(k, 40u * 1024u) && arn_take(k);
     frames(40);
