@@ -235,11 +235,11 @@ static void ml_draw_rows(void) { cv_whole(OY_PANEL, OH_PANEL, C_BLACK, ml_draw_r
 #define ML_FOOT_Y (240 - OP_MTR - 18)
 static void ml_draw_foot(void)                         /* the modal's foot: HOME left, SAVE right (dim: no room yet) */
 {
-    cv_begin(240, 18, C_BLACK);
-    cv_rect(0, 0, 240, 1, C_LINE);
-    cv_texts(24, 2, "Home no", C_GRAY);
-    cv_texts(216 - text_ws("Save yes"), 2, "Save yes", ml.fits ? C_WHITE : C_DIM);
-    cv_blit(0, ML_FOOT_Y);
+    CV_BANDS(0, ML_FOOT_Y, 240, 18, C_BLACK) {
+        cv_rect(0, 0, 240, 1, C_LINE);
+        cv_texts(24, 2, "Home no", C_GRAY);
+        cv_texts(216 - text_ws("Save yes"), 2, "Save yes", ml.fits ? C_WHITE : C_DIM);
+    }
 }
 static void ml_draw(void)                              /* (op_draw.c op_frame_draw) */
 {

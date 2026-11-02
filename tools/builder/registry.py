@@ -1373,15 +1373,15 @@ _add("INS_RAM", "FELUCCA_INS_RAM", "the insert effects' code in RAM (8 KB of RAM
           "The same sound at both choices.",
      off_warning="the insert effects' code runs from the flash: more audio CPU with several inserts on, not measured on the FM-1 yet")
 # bit 452 (2026-11-01, the next free: FONT_CACHE 450 and INS_RAM 451 on branch rammoves): the screen's canvas 240 x 124
-# (0), 62 (1) or 31 rows (2), the tall bands drawn in passes (display/gfx.c CV_ROWS, op_graph.c cv_tall / cv_whole; fm1base
+# (0), 62 (1), 31 (2) or 16 rows (3), the tall bands drawn in passes (display/gfx.c CV_ROWS, op_graph.c cv_tall / cv_whole; fm1base
 # app.h APP_CANVAS_PX via gen_optimist.py opt_dim.h OPT_CANVAS_ROWS); worktrees/canvas-plan/PLAN.md
 _add("CANVAS_STRIP", "FELUCCA_CANVAS_STRIP", "the screen's drawing canvas: smaller for RAM", Y, 452, default=2,
      experimental=True,
-     choices=((0, "124 rows (59.5 KB)"), (1, "62 rows (29.1 KB less)"), (2, "31 rows (43.6 KB less)")),
+     choices=((0, "124 rows (59.5 KB)"), (1, "62 rows (29.1 KB less)"), (2, "31 rows (43.6 KB less)"), (3, "16 rows (51.8 KB less)")),
      tested="host tests: every frame of the UI's host run the same pixels at 124, 62 and 31 rows; on the FM-1 (2026-11-01, the "
             "user): 62 and 31 rows look the same as 124, so 31 is the default",
      desc="The screen is drawn piece by piece into a canvas and sent to the display. 31 rows (240 x 31 pixels, 14,880 B of "
-          "RAM) by default (the user, 2026-11-01: on the FM-1 it looks the same as the 124 rows before); 62 rows (29,760 B) and 124 rows (59,520 B, as before) are the other choices. The pieces taller than the canvas (the panels, the "
+          "RAM) by default (the user, 2026-11-01: on the FM-1 it looks the same as the 124 rows before); 62 rows (29,760 B), 124 rows (59,520 B, as before) and 16 rows (7,680 B: 7,200 B less than 31, about 1.7 times the drawing's CPU on the host and 16 strips for a full repaint) are the other choices. The pieces taller than the canvas (the panels, the "
           "questions, the cards, the boot logo) are drawn in more passes: more of the screen's drawing time (the audio is "
           "not affected: it runs in interrupts) and more seams where a panel changes on the display a piece at a time. "
           "The same pixels at every choice.")

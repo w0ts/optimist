@@ -42,10 +42,11 @@ static uint32_t band_y = 240u, band_h, band_hits;               /* the help band
                                                          * the blits that reached it besides the line's own (ui_optimist_geometry.h) */
 static uint32_t gl_info_wide(void);                     /* op_gldraw.c: SYSTEM > INFO's first page has no help band: its rows run to the foot */
 static uint32_t probe_hits;                             /* the blits that cover the probe pixel (120, 180): inside PRESETS' popup, a flash when more than one a frame */
+static uint32_t blit_n;                                 /* the blits (strips) sent (CANVAS_BENCH) */
 static uint32_t blit_px;                                /* the pixels sent (ui_optimist_slowframe.h: a step press sends its column) */
 /* the memory line's rows (0-1, ui_optimist_memline.h): while top_on, every pixel any write puts there is held against top_want
  * (the line as it must stay, swapped as the screen holds it); top_bad counts the writes that put another colour there, a
- * flash on the FM-1 even when a later write puts the line back the same frame. top_head: the header's transfers (y 0, 25 rows) */
+ * flash on the FM-1 even when a later write puts the line back the same frame. top_head: the header's transfers (y 0, 25 rows, or the canvas's) */
 static uint8_t top_on;
 static uint16_t top_want[240];
 static uint32_t top_bad, top_head;
@@ -54,7 +55,7 @@ static void top_see(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint16
     uint32_t i, j, bad = 0;
     if (!top_on || y >= 2u)
         return;
-    top_head += x == 0u && y == 0u && w == 240u && h == 25u;
+    top_head += x == 0u && y == 0u && w == 240u && h == (FELUCCA_CANVAS_STRIP == 3 ? 16u : 25u);   /* (its first pass when the canvas holds less than the 25 rows) */
     for (j = y; j < 2u && j < y + h; j++)
         for (i = 0; i < w; i++)
             bad |= (p ? p[(j - y) * w + i] : c) != top_want[x + i];
@@ -189,6 +190,7 @@ static void lcd_blit(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint1
         mc_trace('B', x, y, w, h, p, 0);
     }
 #endif
+    blit_n++;
     blit_px += w * h;
     hp_head_px += y < 25u ? w * (y + h > 25u ? 25u - y : h) : 0u;
     hp_head_full += y < 25u && w == 240u;
@@ -197,7 +199,7 @@ static void lcd_blit(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint1
     if (x <= 120u && 120u < x + w && y <= 180u && 180u < y + h)
         probe_hits++;
     assert(x + w <= 240 && y + h <= 240);
-    if (y + h > band_y && !gl_info_wide() && !(x == 0u && y == band_y && w == 240u && h == band_h))   /* (the help line's own; the load lines' rows below it are fills: op_meters.c) */
+    if (y + h > band_y && !gl_info_wide() && !(x == 0u && y >= band_y && w == 240u && y + h <= band_y + band_h))   /* (the help line's own, whole or a pass of it with a small canvas; the load lines' rows below it are fills: op_meters.c) */
         band_hits++;
     for (j = 0; j < h; j++)
         for (i = 0; i < w; i++)
@@ -4229,6 +4231,7 @@ static void preset_engine_tests(void)
 #include "ui_optimist_top.h"                        /* SYSTEM > TOP (builder item SYS_TOP); off: no page */
 #include "ui_optimist_sysdbg.h"                     /* builder item SYS_DEBUG off: INFO is CPU LOAD, UNDERRUNS, BATTERY */
 #include "ui_optimist_stack.h"                      /* SYSTEM > INFO: the CPU bars and their peaks, the RAM line, the stacks' marks */
+#include "ui_optimist_canvasbench.h"              /* CANVAS_BENCH: the drawing's CPU, strips and pixels a frame at the canvas's rows */
 #include "ui_optimist_mirload.h"                     /* the mirror's workload (MIRROR_WORKLOAD: tests/mirror_aimd_test.c) */
 #include "ui_optimist_mirsum_run.h"                  /* the mirror's self-check over a lossy link (MIRROR_SUMS) */
 #include "ui_optimist_mirrows.h"                   /* every row drawn again by a repaint (MIRROR_ROWS) */
@@ -4415,6 +4418,10 @@ int main(int argc, char **argv)
     layers_init();
     go_home();
     frames(3);
+    if (getenv("CANVAS_BENCH")) {                     /* (alone: ui_optimist_canvasbench.h) */
+        canvas_bench();
+        return 0;
+    }
 #ifdef MIRROR_CHECK
     if (getenv("MIRROR_WORKLOAD")) {                  /* (the mirror's workload alone: ui_optimist_mirload.h) */
         mirror_workload();
