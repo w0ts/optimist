@@ -5023,11 +5023,7 @@
      ]
     ],
     "dim_choice": {},
-    "not_built": {
-     "4": {
-      "release": "not for the release yet: fm1-base's own update loader and app_end do not take the MEMORY steps' table (its slot switch would leave the old step's log sectors in the new one's; docs/SD-MODE-DESIGN.md 9.4, the proposed fm1-base branch pr/app-end-table)"
-     }
-    },
+    "not_built": {},
     "provenance": null,
     "children": [],
     "hidden": true,
@@ -5271,29 +5267,7 @@
      ]
     ],
     "dim_choice": {},
-    "not_built": {
-     "2": {
-      "release": "not for the release yet: fm1-base's own update loader and app_end do not take the MEMORY steps' table (its slot switch would leave the old step's log sectors in the new one's; docs/SD-MODE-DESIGN.md 9.4, the proposed fm1-base branch pr/app-end-table)"
-     },
-     "3": {
-      "release": "not for the release yet: fm1-base's own update loader and app_end do not take the MEMORY steps' table (its slot switch would leave the old step's log sectors in the new one's; docs/SD-MODE-DESIGN.md 9.4, the proposed fm1-base branch pr/app-end-table)"
-     },
-     "4": {
-      "release": "not for the release yet: fm1-base's own update loader and app_end do not take the MEMORY steps' table (its slot switch would leave the old step's log sectors in the new one's; docs/SD-MODE-DESIGN.md 9.4, the proposed fm1-base branch pr/app-end-table)"
-     },
-     "5": {
-      "release": "not for the release yet: fm1-base's own update loader and app_end do not take the MEMORY steps' table (its slot switch would leave the old step's log sectors in the new one's; docs/SD-MODE-DESIGN.md 9.4, the proposed fm1-base branch pr/app-end-table)"
-     },
-     "6": {
-      "release": "not for the release yet: fm1-base's own update loader and app_end do not take the MEMORY steps' table (its slot switch would leave the old step's log sectors in the new one's; docs/SD-MODE-DESIGN.md 9.4, the proposed fm1-base branch pr/app-end-table)"
-     },
-     "7": {
-      "release": "not for the release yet: fm1-base's own update loader and app_end do not take the MEMORY steps' table (its slot switch would leave the old step's log sectors in the new one's; docs/SD-MODE-DESIGN.md 9.4, the proposed fm1-base branch pr/app-end-table)"
-     },
-     "8": {
-      "release": "not for the release yet: fm1-base's own update loader and app_end do not take the MEMORY steps' table (its slot switch would leave the old step's log sectors in the new one's; docs/SD-MODE-DESIGN.md 9.4, the proposed fm1-base branch pr/app-end-table)"
-     }
-    },
+    "not_built": {},
     "provenance": null,
     "children": [],
     "hidden": true,
@@ -6978,7 +6952,13 @@
   "sram": 494336,
   "flash_by_layout": {
    "1": 823228,
-   "3": 720828
+   "2": 655292,
+   "3": 720828,
+   "4": 741308,
+   "5": 757692,
+   "6": 659388,
+   "7": 675772,
+   "8": 806844
   }
  },
  "spare": {

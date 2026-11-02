@@ -49,7 +49,7 @@ check("the table: N 0x93000, S0 0xB5000 (R 0xD8000), L1 0xD0000 (R 0xDA000, the 
       == [(0x93000, 0x93000, 0x93000), (0xB5000, 0xD8000, 0xB5000), (0xD0000, 0xDA000, 0xCE000)])
 check("S0's store, as the design has it: FM6 voices 0xB5000, autosave A 0xB7000, a 32-sector log 0xB8000..0xD7FFF, 16 projects",
       (L.STEPS[S0].upf, L.STEPS[S0].autosave_a, L.STEPS[S0].log_lo, L.STEPS[S0].log_sectors, L.STEPS[S0].projects)
-      == (0xB5000, 0xB7000, 0xB8000, 32, 16) and L.STEPS[S0].slots == 0 and not L.STEPS[S0].release_built)
+      == (0xB5000, 0xB7000, 0xB8000, 32, 16) and L.STEPS[S0].slots == 0 and all(s.release_built for s in L.STEPS.values()))
 check("S0 is the grid's stack (no sample slot, 16 projects): FM6 voices, autosave A, the log under 0xD8000",
       L.stacked(3, "S0", "no user samples", 0, 16) == L.STEPS[S0])
 check("the projects by step: N 16, S0 16, L1 2 (the user, 2026-10-31: PROJECTS 2, 4 or 16; SD card mode keeps 1)",
