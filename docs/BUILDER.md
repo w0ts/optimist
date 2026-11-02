@@ -20,7 +20,7 @@ python tools/optimist.py builder --config my.config       # the menu on a saved 
 Keys: `space` / `enter` toggle (a sized item: its next value), `/` search, `p` profiles (shipped + yours), `s` save: a
 name, then where, yours (`config/my-profiles`, git-ignored) or stock (`config/profiles`, to commit; a stock profile saved
 over keeps its first comment lines and its publish flag), `u` publish the profile or not (CI builds the published ones; one
-of yours is moved to `config/profiles` first, to commit), `d` delete a profile (never the default, `synths_USBaudio_BTaudio_BTmidi`), `w`
+of yours is moved to `config/profiles` first, to commit), `d` delete a profile (never the default, `mots-config`), `w`
 write a `.config`, `l` load, `o` sort by size (cycles registry order, flash, RAM, arena; items without a
 measured cost last), `b` build, `e` build and run in the emulator (96 MHz, background), `f` flash to the FM-1, `x` / `c`
 expand / collapse all, `left` / `right` page the list, `q` quit.
@@ -64,7 +64,7 @@ A profile is a saved configuration. Shipped ones are in `config/profiles` (`make
 
 | Profile (`# name:`) | What it builds (its values) |
 |---|---|
-| `synths_USBaudio_BTaudio_BTmidi` (synths-USB-BTA-BTM) | **the default**: `build`, `package`, `flash`, `config` and `make` use it without a profile, the menu opens with it the first time, and it is the Pages site's flavour (`web/flavours.json`). ANALOG 2 (with its four filter models), DIGITAL, FM6 (five voice packs), PLAITS, PHYS, ACID, JUNO; the drum synth with the KAWA and PLAITS kits, the X0X 909 and 808, the user kits; USB audio, Bluetooth MIDI (BLE, BLE devices off), Bluetooth audio; the web editor's backup, librarian and screen mirror; no help line |
+| `mots-config` (mots-config) | **the default**: `build`, `package`, `flash`, `config` and `make` use it without a profile, the menu opens with it the first time, and it is the Pages site's flavour (`web/flavours.json`). ANALOG 2 (with its four filter models), DIGITAL, PHASE, LOFI, DRONE, VPS, PLAITS, STRINGS, PROPHET, CS80, PHYS, ACID, JUNO, CZ, NOISE; FM6 (five voice packs); the drum synth with the X0X 909 and 808; the sequencer with grids, Euclid and LFO generators, motion, conditions; USB audio, Bluetooth MIDI (BLE, bonding), Bluetooth audio, Wi-Fi link, the web editor's screen mirror, live save |
 | `synths` | ANALOG 2 (with its four filter models), DIGITAL, PHASE, FM6 (five voice packs), PLAITS, STRINGS, PROPHET, PHYS, ACID, JUNO; the drum synth with the KAWA and PLAITS kits, the X0X 909 and 808, the user kits; Bluetooth audio; the web editor's backup, restore and screen mirror |
 | `synths-2` | LOFI, VOICE, WHEEL, DRONE, VPS, TERRAIN, WSEQ, VECTOR, WAVE, SID, PROPHET; the drum synth alone (no user kits); Bluetooth audio; the web editor's backup, restore and screen mirror |
 | `drum-machines` (drum machine) | SAMPLE, GRAIN; the drum synth with the KAWA and PLAITS kits, the X0X 909 and 808, the sampled kits, your samples and kits; USB audio, Bluetooth MIDI (BLE devices at FULL), Bluetooth audio; the web editor's backup, restore and screen mirror |

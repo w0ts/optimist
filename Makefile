@@ -4,7 +4,7 @@
 .PHONY: help setup sdk builder build classic package flash profiles publish unpublish share delete web site emu emu-list emu-update test costs costs-all gate emu-check mirror
 
 PY ?= python3
-PROFILE ?= synths_USBaudio_BTaudio_BTmidi
+PROFILE ?= mots-config
 FW ?=
 CLASSIC ?=
 CL = $(if $(CLASSIC),--classic)

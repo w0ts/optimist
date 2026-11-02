@@ -414,15 +414,15 @@ import tempfile  # noqa: E402
 from contextlib import redirect_stderr, redirect_stdout  # noqa: E402
 
 pub = C.published_profiles()
-_REF = "synths_USBaudio_BTaudio_BTmidi"
+_REF = "mots-config"
 check(f"published profiles ({', '.join(pub)}): shipped ones, {_REF} (the default and reference) among them",
       _REF in pub and set(pub) <= set(C.profile_names()))
-# the default profile is also the reference profile (the user, 2026-10-24: synths_USBaudio_BTaudio_BTmidi for both)
+# the default profile is also the reference profile (mots-config for both, since 6330b5f5 deleted synths_USBaudio_BTaudio_BTmidi)
 _syn, _syn_name = C.load_profile(C.DEFAULT_PROFILE)
 _syn_errs, _, _ = C.validate(_syn)
 check(f"the default and the reference profile are {_REF} (configure, optimist.py: make, the tests, the gate)",
       C.DEFAULT_PROFILE == _REF and C.REFERENCE_PROFILE == _REF and O.DEFAULT_PROFILE == _REF and
-      O.REFERENCE_PROFILE == _REF and _syn_name == "synths-USB-BTA-BTM")
+      O.REFERENCE_PROFILE == _REF and _syn_name == "mots-config")
 _ed_default = {k: v for k, v in C.defaults().items() if k.startswith("ED_")}
 check("the default profile validates (its contents are the user's: config/profiles is theirs since 2026-10-24)",
       not _syn_errs and _ed_default)
@@ -768,7 +768,7 @@ if shared:
 # same figures as before. Nothing here is pinned: every figure comes from costs.json as it is (BLE's measured cost, with
 # and without its option BLE_BOND), and the expected item is computed per profile from the budget alone, not from room.py.
 dflt_real, _ = C.load_profile(C.REFERENCE_PROFILE)
-check("BLE, measured cost (costs.json): the reference profile (synths_USBaudio_BTaudio_BTmidi, BLE on) with BLE fits as it is",
+check("BLE, measured cost (costs.json): the reference profile (mots-config, BLE on) with BLE fits as it is",
       not C.over_any(dict(dflt_real, BLE=1), costs))
 
 
@@ -952,9 +952,9 @@ if not _have:
 #    project slots, in the pool), DIV_ORDER (its build is 284 B smaller in flash on than off) and FX_DJF (beside
 #    TRK_FILT the FILTER insert's code stays: off saves nothing, +124 B). RAM moves by 16-32 B of alignment as flash does.
 #    FX_DELAY off and the shorter XDLY_LEN change the limited inserts' instance tables (core.dly_arena): measured
-#    2026-10-24 on synths_USBaudio_BTaudio_BTmidi (then a fixed DLY_ARENA 64), FX_DELAY off pool +4 B, XDLY_LEN 8192
+#    2026-10-24 on mots-config (then a fixed DLY_ARENA 64), FX_DELAY off pool +4 B, XDLY_LEN 8192
 #    pool +40 B, as the estimate says. DRUMS off makes track 4 a
-#    4th synth part (bit 424), whose engine state is in the pool: measured 2026-10-27 on synths_USBaudio_BTaudio_BTmidi
+#    4th synth part (bit 424), whose engine state is in the pool: measured 2026-10-27 on mots-config
 #    (gpufarm, d9a3d172), pool +5,120 B (the estimate +4,168: the part's +12,888 less the X0X machines' states)
 _MONO_MOVES = ("REV_POOL", "SECTIONS")
 _MONO_ALLOW = {"DIV_ORDER": "flash", "FX_DJF": "flash", "FX_DELAY": "pool", "XDLY_LEN": "pool", "DRUMS": "pool"}

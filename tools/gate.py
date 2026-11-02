@@ -9,7 +9,7 @@ The steps, each logged to build/gate/<step>.log (the terminal gets one line a st
   costs       every builder item has a measured cost (measure_costs.py --missing --check, as CI)
   profile P   each published profile builds (as CI's profiles job; --no-profiles: the reference profile only)
   config F    each --config FILE builds
-  set         the reference profile (synths_USBaudio_BTaudio_BTmidi) with every --set KEY=V builds (one build)
+  set         the reference profile (mots-config) with every --set KEY=V builds (one build)
   test        the host tests (optimist.py test: its BLE, reference and measurement builds, tests/run_tests.sh)
   final       the reference profile built again last: build/ holds its package and ELF (make flash, make emu-check)
   emu         with --emu: the emulator smoke checks on that build (tests/emu/run.py; make emu-check)
