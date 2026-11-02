@@ -259,7 +259,11 @@ static uint32_t healthy_since, main_m;
 #define MAIN_VARS int32_t knob = 512 * 16; uint32_t healthy_since;
 #define MAIN_LOOP_BEGIN for (;;) { uint32_t m = fm1_ms;
 #define MAIN_WAIT_BEGIN while (fm1_ms - m < 15u) {
+#if DUAL_TIMES
+#define MAIN_WAIT_END { uint32_t id_t0 = DUAL_TM_SPAN_IN(2u); fm1_idle(); DUAL_TM_SPAN_OUT(2u, id_t0); } }   /* (SYSTEM > TOP's IDLE row) */
+#else
 #define MAIN_WAIT_END fm1_idle(); }
+#endif
 #define MAIN_LOOP_END }
 #endif
 
@@ -588,7 +592,15 @@ static BOOT_ORDER void fm1_main(void)
         fxi_poll();                                     /* the limited inserts' instances after a change (fx/insfx/fxi.c) */
         felucca_dbg.stage = 2;
         ui_leds();
+#if DUAL_TIMES
+        {   /* SYSTEM > TOP's UI row: the frame's drawing and its strips (dual_load.h DUAL_TM_SPAN_IN) */
+            uint32_t ui_t0 = DUAL_TM_SPAN_IN(1u);
+            ui_draw();
+            DUAL_TM_SPAN_OUT(1u, ui_t0);
+        }
+#else
         ui_draw();
+#endif
         felucca_dbg.stage = 8;
 #if FELUCCA_SD_STREAM
         sst_plan_poll();                                /* the card samples' heads and rings in the arena (sd_stream_plan.c) */
