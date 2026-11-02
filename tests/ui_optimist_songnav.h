@@ -35,8 +35,88 @@ static void sn_open_pat(void)                           /* the pattern page lock
     hold2(B_OCTUP, B_LFO);
     frames(3);
 }
+static uint32_t sn_cell_hash(void)                      /* the marker's box on the screen: a hash of its pixels */
+{
+    int32_t ph = (GL_END - 22 - 16) / 5;
+    int32_t x = STB_X0 + (int32_t)stb.mk_i * STB_CW + (STB_CW - 2 - STB_MK) / 2;
+    int32_t y = GL_TOP + (stb.mk_lane < 4u ? 22 + (int32_t)stb.mk_lane * ph + (ph - STB_MK) / 2 : GL_END - 14);
+    uint32_t h = 2166136261u;
+    int32_t i, j;
+    for (j = 0; j < STB_MK; j++)
+        for (i = 0; i < STB_MK; i++)
+            h = (h ^ screen[(y + j) * 240 + x + i]) * 16777619u;
+    return h;
+}
+static uint32_t sn_cell_green(void)                     /* ... and its green pixels */
+{
+    int32_t ph = (GL_END - 22 - 16) / 5;
+    int32_t x = STB_X0 + (int32_t)stb.mk_i * STB_CW + (STB_CW - 2 - STB_MK) / 2;
+    int32_t y = GL_TOP + (stb.mk_lane < 4u ? 22 + (int32_t)stb.mk_lane * ph + (ph - STB_MK) / 2 : GL_END - 14);
+    uint32_t n = 0;
+    int32_t i, j;
+    for (j = 0; j < STB_MK; j++)
+        for (i = 0; i < STB_MK; i++)
+            n += screen[(y + j) * 240 + x + i] == swap16(C_OK);
+    return n;
+}
+static void songnav_scenes_tests(void)
+{
+    uint32_t i, h0, h1, nph, g;
+    uint32_t seen[8];
+    /* the keys launch, the encoder only selects, SAVE stores into the current scene */
+    sn_reset();
+    op_enter(SCR_SONG);
+    ui.row[SCR_SONG] = 0;
+    frames(3);
+    song_refresh(1);
+    key(WK(4));
+    check(live_sec == 4, "songnav: scene key E, stopped: loaded");
+    ui.row[SCR_SONG] = 0;
+    frames(2);
+    turn(EN_SELECT, 1);
+    check(ui.row[SCR_SONG] == 1u && live_sec == 4 && !song.playing, "... SELECT: the cursor moves to B, nothing launched, E stays current");
+    turn(EN_SELECT, 1);
+    check(ui.row[SCR_SONG] == 2u && live_sec == 4, "... again: C");
+    ui.row[SCR_SONG] = 1;
+    frames(2);
+    tap(B_SAVE);
+    check(!strncmp(ui.msg, "STORED E", 8) && project_used(4), "songnav: SAVE with the cursor on B: the loop stored into E, the current scene (\"STORED E\")");
+    check(live_sec == 4 && ui.row[SCR_SONG] == 1u, "... E stays current, the cursor stays on B");
+    check(!op_armed(), "... nothing asked");
+    /* the marker */
+    stb.mk_on = 0;
+    ui.force = 1;
+    frames(3);
+    check(stb.mk_on && stb.mk_i == 4u, "songnav: the current scene's column has the marker (a play triangle)");
+    check(sn_cell_green() > 5u, "... drawn green in its box");
+    h0 = sn_cell_hash();
+    frames(40);
+    h1 = sn_cell_hash();
+    check(h0 == h1, "... stopped: it stands still");
+    song.playing = 1;
+    memset(seen, 0, sizeof seen);
+    for (i = 0, nph = 0; i < 60u; i++) {
+        uint32_t h, k, f = 0;
+        frames(1);
+        h = sn_cell_hash();
+        for (k = 0; k < nph; k++)
+            f |= seen[k] == h;
+        if (!f && nph < 8u)
+            seen[nph++] = h;
+    }
+    check(nph == 4u, "... transport running: it turns through four positions");
+    {
+        uint32_t px0 = blit_px;
+        frames(60);
+        check(blit_px - px0 < 60u * 4u * STB_MK * STB_MK / 6u + 2000u, "... a second of it sends the marker's box only (about six steps), not the table");
+    }
+    g = sn_cell_green();
+    check(g > 5u, "... green still");
+    song.playing = 0;
+}
 static void songnav_ui_tests(void)
 {
+    songnav_scenes_tests();
     static const uint32_t BT_[] = {B_GLO, B_EDIT, B_FX, B_SCL, B_ENV, B_ARP, B_LFO, B_SEQ};
     static const char *const NM[] = {"GLO", "EDIT", "FX", "SCL", "ENV", "ARP", "LFO", "SEQ"};
     uint32_t i, on, off, dim, pg;
