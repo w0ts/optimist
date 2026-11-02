@@ -60,7 +60,7 @@
   },
   "A2_LADR": {
    "1": {
-    "flash": 1700,
+    "flash": 1696,
     "ram": -8,
     "pool": 0,
     "ramtext": 456
@@ -136,7 +136,7 @@
   },
   "ENG_LOFI": {
    "0": {
-    "flash": -1864,
+    "flash": -1860,
     "ram": -16,
     "pool": 0,
     "ramtext": -952
@@ -690,7 +690,7 @@
   },
   "REV_AIRWIN": {
    "1": {
-    "flash": 3216,
+    "flash": 3212,
     "ram": 372,
     "pool": 0,
     "ramtext": 3276
@@ -810,7 +810,7 @@
   },
   "INS_PHASER": {
    "1": {
-    "flash": 612,
+    "flash": 616,
     "ram": 784,
     "pool": 0,
     "ramtext": 644
@@ -818,7 +818,7 @@
   },
   "INS_FORMANT": {
    "1": {
-    "flash": 1160,
+    "flash": 1164,
     "ram": 476,
     "pool": 0,
     "ramtext": 652
@@ -858,7 +858,7 @@
   },
   "INS_RING": {
    "1": {
-    "flash": 600,
+    "flash": 596,
     "ram": 376,
     "pool": 0,
     "ramtext": 664
@@ -1100,7 +1100,7 @@
   },
   "MIDI_EXPR": {
    "0": {
-    "flash": -444,
+    "flash": -440,
     "ram": -8,
     "pool": 0,
     "ramtext": -184
@@ -1178,7 +1178,7 @@
   },
   "FONT_CACHE": {
    "1": {
-    "flash": -28,
+    "flash": -32,
     "ram": -5760,
     "pool": 0,
     "ramtext": 0
@@ -1494,7 +1494,7 @@
   },
   "USB_HOST": {
    "1": {
-    "flash": 4516,
+    "flash": 4520,
     "ram": 764,
     "pool": 0,
     "ramtext": 0
@@ -1861,7 +1861,7 @@
    }
   }
  },
- "measured": "2026-11-02 20:32",
+ "measured": "2026-11-02 20:51",
  "cpu": {
   "scale_pct": 104,
   "calibrated": "2026-10-06, emulator at 96 MHz, bench.c scenarios 1 2 3 7 8 (docs/CPU-GUARD.md); X0X: 2026-10-07, scenario 8 on the X0X 909 and 808 kits (x0x-drums)",
@@ -3216,7 +3216,7 @@
    },
    "built_hash": "2f00cd45",
    "sizes": {
-    "flash": 628532,
+    "flash": 628536,
     "ram": 132156,
     "pool": 232716,
     "ramtext": 53608
@@ -3226,7 +3226,7 @@
      "from": 1,
      "to": 0,
      "delta": {
-      "flash": 22864,
+      "flash": 22860,
       "ram": 548,
       "pool": 12,
       "ramtext": 1664
@@ -3236,7 +3236,7 @@
      "from": 0,
      "to": 1,
      "delta": {
-      "flash": 3276,
+      "flash": 3272,
       "ram": 1116,
       "pool": 556,
       "ramtext": 0
@@ -4091,7 +4091,7 @@
    },
    "built_hash": "086b84f9",
    "sizes": {
-    "flash": 659556,
+    "flash": 659552,
     "ram": 112244,
     "pool": 269180,
     "ramtext": 50156
@@ -4101,7 +4101,7 @@
      "from": 1,
      "to": 0,
      "delta": {
-      "flash": 23380,
+      "flash": 23384,
       "ram": 552,
       "pool": 12,
       "ramtext": 1848
@@ -4111,7 +4111,7 @@
      "from": 0,
      "to": 1,
      "delta": {
-      "flash": 33044,
+      "flash": 33048,
       "ram": 1928,
       "pool": 7368,
       "ramtext": 0
@@ -4388,7 +4388,7 @@
    "ramtext": 0
   },
   "REV_PLATE=1,REV_FDN8=1,SPRING=0": {
-   "flash": -732,
+   "flash": -736,
    "ram": -344,
    "pool": 0,
    "ramtext": -300
@@ -4406,7 +4406,7 @@
    "ramtext": -180
   },
   "ENG_CZ=2,NATIVE_BANKS=1": {
-   "flash": 456,
+   "flash": 460,
    "ram": 4,
    "pool": 0,
    "ramtext": 0
@@ -4442,7 +4442,7 @@
    "ramtext": -260
   },
   "MICRO=1,FILLS=1": {
-   "flash": -92,
+   "flash": -96,
    "ram": -4,
    "pool": 0,
    "ramtext": 0
@@ -4460,7 +4460,7 @@
    "ramtext": 0
   },
   "MICRO=1,FILLS=1,PLOCK=1": {
-   "flash": -12,
+   "flash": -8,
    "ram": 4,
    "pool": 0,
    "ramtext": 0
@@ -4658,13 +4658,13 @@
    "ramtext": 0
   },
   "ENG_GRAIN=0,SD_RING=4": {
-   "flash": -3608,
+   "flash": -3612,
    "ram": -2044,
    "pool": 0,
    "ramtext": -32
   },
   "ENG_GRAIN=0,SD_RING=8": {
-   "flash": -3596,
+   "flash": -3600,
    "ram": -2052,
    "pool": 0,
    "ramtext": -24
