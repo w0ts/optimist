@@ -277,13 +277,13 @@ static void risk_tests(void)
     if ((arrangement_ready() >> 1) & 1u) {              /* a scene loaded stopped over a changed work */
         uint32_t h0;
         op_enter(SCR_SONG);
-        ui.row[SCR_SONG] = 1;                           /* (scene B's row: YES loads it, stopped) */
+        ui.row[SCR_SONG] = 1;                           /* (scene B's row: its key loads it, stopped) */
         frame();
         rk_edit();
         step_t sv5 = TSEL->step[5];
         TSEL->step[5].time = ST_NOTE, TSEL->step[5].n = 1, TSEL->step[5].note[0] = 61;   /* (a pattern changed: only that is asked) */
         h0 = rk_state();
-        tap(B_SAVE);
+        key(WK(1));                                     /* (the scene's key: SAVE stores into the current scene now) */
 #if FELUCCA_PATTERNS
         if (op_armed() || live_sec != 1) {             /* (issue 142: the edits kept as the pattern's live one, nothing asked) */
             printf("  risk: scene load over a changed pattern: %s\n", op_armed() ? "asked" : "not loaded");
@@ -306,7 +306,7 @@ static void risk_tests(void)
         }
 #endif
         work_mark();                                    /* (as stored: loaded at once, nothing asked) */
-        tap(B_SAVE);
+        key(WK(1));
         if (op_armed() || live_sec != 1) {
             printf("  risk: scene load over an unchanged work: %s\n", op_armed() ? "asked" : "not loaded");
             rk_ok = 0;

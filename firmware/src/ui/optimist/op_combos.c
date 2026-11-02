@@ -211,6 +211,20 @@ static int op_combo(uint32_t b, uint32_t held)
         return 1;
     }
 #endif
+    if (lay.lock != LY_PLAY && b != B_PLAY && b != B_REC && b != B_OCTDN && b != B_OCTUP && op_shift2(others) && b != B_HOME
+        FIF(FELUCCA_PATTERNS)(&& !(lay.lock == LY_PAT && (b == B_SAVE || b == B_LFO)))) {
+#if FELUCCA_PATTERNS
+        if (b == B_SEQ && lay.lock == LY_PAT) {
+            lay_pat_home();                             /* the pattern page, SHIFT2 + SEQ: SONG's scenes, the page left (not back to where it came from) */
+            op_row_pick(live_sec >= 0 && (uint32_t)live_sec < song_nscn() ? (uint32_t)live_sec : 0u);
+            op_eat(op_combo_bit(B_SEQ) | op_combo_bit(B_OCTUP));
+            return 1;
+        }
+#endif
+        lay_unlock();                                   /* SHIFT2 held, the shortcuts work from a locked page too (the pattern page, a layer; the user,
+                                                         * 2026-11-02: SHIFT2 + GLO / EDIT did nothing there): the page is let go and the button goes
+                                                         * on to its SHIFT2 job below (a layer locked, SONG) or its tap, as from any page */
+    }
     if (lay.lock != LY_PLAY && b != B_PLAY && b != B_REC && b != B_OCTDN && b != B_OCTUP
         FIF(FELUCCA_PATTERNS)(&& !(lay.lock == LY_PAT && (b == B_SAVE || b == B_HOME || b == B_LFO)))) {
         lay_unlock();                                   /* locked: any other button lets it go, and does only that (the pattern page
