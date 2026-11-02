@@ -186,12 +186,12 @@ static int32_t gl_info_pitch(uint32_t pg, uint32_t n, int32_t y0)   /* a read-ou
     return ph > cap ? cap : ph;                         /* (a short page: a list's pitch, from the top) */
 }
 #if OP_TOP
-/* SYSTEM > TOP (op_top.c): FONT_S (the size of the cards' text; the read-out pages' tiny face was too small; name left, number right), the header line first: the view's
+/* SYSTEM > TOP (op_top.c): FONT_L (name left, number right; the read-out pages' small faces were too small), the header line first: the view's
  * name boxed in KNOB 1's colour (it edits it), its columns right; TOP_VIS lines under it, a bar at the right edge when the
- * view has more (ALGORITHM scrolls) */
+ * view has more (KNOB 2 scrolls) */
 static void gl_top_draw(int32_t y0)
 {
-    const felucca_font_t *f = &FONT_S;                  /* (8 x 12: the small tier's text, not cv_texts' tiny one; FONT_L's 16 x 24 leaves 7 lines) */
+    const felucca_font_t *f = &FONT_L;                  /* (16 x 24, 14 characters across: the name cut at 7, 7 for the numbers; TOP_VIS lines, KNOB 2 scrolls the rest) */
     uint32_t i, n = info_lines(INFO_PG_TOP), off, all;
     int32_t ph = (GL_END - y0) / (int32_t)(TOP_VIS + 1u), th = (int32_t)f->h, ty, w;
     uint16_t kc = knob_col(0, C_HI);
@@ -201,7 +201,7 @@ static void gl_top_draw(int32_t y0)
         int32_t y = y0 + (int32_t)i * ph;
         info_cell(INFO_PG_TOP, i, &c);
         ty = y + (ph - th) / 2;
-        cut(nm, c.label, 12);
+        cut(nm, c.label, i ? 14 - str_len(c.val) : 12);   /* (a name gets what its number leaves of 14) */
         w = text_w(f, nm);
         if (i == 0u) {
             cv_rect(2, y, w + 8, 1, kc);                /* (the box: 1 px, KNOB 1's colour) */

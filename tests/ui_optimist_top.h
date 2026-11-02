@@ -4,7 +4,7 @@
  * drawn whole; the CPU's lines CPU0 CPU1 then the jobs by their average (the render's times fed as the render would,
  * dual_load.h dual_tm_block; a job timed after the block, Bluetooth's SBC, folded in: DUAL_TM_XJOB), a job not run in
  * 2 s left out; the RAM's lines SRAM KB then the owners by size: the arena's blocks as they are now (a block placed
- * shows, given back goes), the build's table, OTHER last; ALGORITHM scrolls, KNOB 1 switches CPU / RAM, SELECT goes between the pages.
+ * shows, given back goes), the build's table, OTHER last; KNOB 2 scrolls, KNOB 1 switches CPU / RAM, SELECT and ALGORITHM go between the pages.
  * Without the item: no TOP. Screen opt-top.ppm. Included after the helpers (frame, ppm) */
 #if OP_TOP && DUAL_TIMES
 #define TOPT_P(k) (DUAL_TM_BLK * (k) / 100u)            /* k % of a block, ticks */
@@ -81,23 +81,23 @@ static void top_tests(void)
     topt_blocks(64, A, (1u << 1) | (1u << NPART), (1u << (NPART + 2u)) - 1u);
     frames(40);                                         /* (the figures taken again: every 0.5 s) */
     top_cell(0, &c);
-    ok = top.view == 0u && !strcmp(c.label, "CPU") && !strcmp(c.val, "AVG MAX C");
-    check(ok, "TOP: CPU is the view at first, its header names the columns AVG MAX C");
+    ok = top.view == 0u && !strcmp(c.label, "CPU") && !strcmp(c.val, "AVG MAX");
+    check(ok, "TOP: CPU is the view at first, its header names the columns AVG MAX");
     topt_line(0, &c);
-    ok = !strcmp(c.label, "CPU0") && !strcmp(c.val, " 50  50 0");
+    ok = !strcmp(c.label, "CPU0") && !strcmp(c.val, " 50  50");
     topt_line(1, &c);
-    ok &= !strcmp(c.label, "CPU1") && !strcmp(c.val, " 37  37 1");
-    check(ok, "TOP: CPU0 (PRE + JOBS + WAIT + POST: 50 %) and CPU1 (its jobs: 37 %), AVG MAX C");
+    ok &= !strcmp(c.label, "CPU1") && !strcmp(c.val, " 37  37");
+    check(ok, "TOP: CPU0 (PRE + JOBS + WAIT + POST: 50 %) and CPU1 (its jobs: 37 %), AVG MAX");
     {
         static const char *const ORD[] = {"T2", "DRUMS", "T1", "POST", "PRE", "REV", "T3"};
-        static const char *const V[] = {" 21  21 1", " 16  16 1", " 12  12 0", " 10  10 0", "  8   8 0", "  8   8 0", "  1   1 0"};
+        static const char *const V[] = {" 21  21", " 16  16", " 12  12", " 10  10", "  8   8", "  8   8", "  1   1"};
         for (k = 0, ok = top.nc == 9u; k < 7u; k++) {
             topt_line(2u + k, &c);
             ok &= !strncmp(c.label, ORD[k], str_len(ORD[k])) && !strcmp(c.val, V[k]);
             if (!ok)
                 printf("  top: line %u %s %s\n", 2u + k, c.label, c.val);
         }
-        check(ok, "TOP: the jobs by their average, largest first, each with its core (T2 and the drums on CPU1)");
+        check(ok, "TOP: the jobs by their average, largest first, (T2 and the drums run on CPU1, shown by CPU1's share)");
     }
     topt_line(2, &c);
     str_cpy(b, "T2 ", sizeof b);
@@ -110,13 +110,8 @@ static void top_tests(void)
     }
     frames(40);
     r = topt_find("BT SBC", &c);
-    check(r < topt_all() && !strcmp(c.val, "  3   3 0") && r == 2u + 6u,
+    check(r < topt_all() && !strcmp(c.val, "  3   3") && r == 2u + 6u,
           "TOP: Bluetooth's SBC timed after the block: its line (3 %, CPU0), in its place by average (before T3)");
-    for (k = 0, ok = 1; k < top.nc; k++) {              /* (FONT_S: 8 px a character, 28 across) */
-        topt_line(k, &c);
-        ok &= str_len(c.label) + str_len(c.val) + 1u <= 28u;
-    }
-    check(ok, "TOP: every CPU line's name and its numbers fit FONT_S's 28 characters");
 #endif
     /* the RAM view: its header SRAM used / total, the owners by size, OTHER last */
     topt_v = 1;
@@ -160,7 +155,7 @@ static void top_tests(void)
     check(topt_find("CHO", &c) == topt_all(), "TOP: given back: its line gone");
 #endif
     topt_v = 0;
-    /* KNOB 1: CPU <-> RAM; ALGORITHM: the lines; SELECT: the pages */
+    /* KNOB 1: CPU <-> RAM; KNOB 2: the lines; SELECT, ALGORITHM: the pages */
     ui.row[SCR_SYSTEM] = (uint8_t)row;
     frames(70);                                         /* (the page shown again after a second away: from its first line) */
     ok = top.view == 0u && top.off == 0u;
@@ -177,29 +172,37 @@ static void top_tests(void)
     turn(EN_K1, 1);
     n = top_all();
     ok = top.off == 0u && n > TOP_VIS;
-    turn(EN_ALGO, 1);
+    turn(EN_K2, 1);
     ok &= top.off == 1u && ui.row[SCR_SYSTEM] == row;
     for (k = 1; k < n - TOP_VIS; k++)
-        turn(EN_ALGO, 1);
+        turn(EN_K2, 1);
     ok &= top.off == n - TOP_VIS && ui.row[SCR_SYSTEM] == row;
-    check(ok, "TOP: ALGORITHM scrolls the lines a detent each, to the last line, the page kept");
+    turn(EN_K2, 5);
+    ok &= top.off == n - TOP_VIS && ui.row[SCR_SYSTEM] == row;
+    check(ok, "TOP: KNOB 2 scrolls the lines a detent each, to the last line, clamped there: the page stays");
+    for (k = 0; k < n - TOP_VIS; k++)
+        turn(EN_K2, -1);
+    ok = top.off == 0u && ui.row[SCR_SYSTEM] == row;
+    turn(EN_K2, -3);
+    ok &= top.off == 0u && ui.row[SCR_SYSTEM] == row;
+    turn(EN_K2, 2);
+    ok &= top.off == 2u;
+    turn(EN_K1, 1);
+    ok &= top.off == 0u && top.view == 0u;
+    check(ok, "TOP: ... and back to the first line, clamped there; KNOB 1 starts the other view from its first line");
     turn(EN_ALGO, 1);
     SCREENS[SCR_SYSTEM].name(ui.row[SCR_SYSTEM], nm);
-    ok = ui.row[SCR_SYSTEM] != row && strcmp(nm, "TOP") && top.off == n - TOP_VIS;
+    ok = ui.row[SCR_SYSTEM] != row && strcmp(nm, "TOP");
     turn(EN_ALGO, -1);
-    ok &= ui.row[SCR_SYSTEM] == row && top.off == n - TOP_VIS;
-    for (k = 0; k < n - TOP_VIS; k++)
-        turn(EN_ALGO, -1);
-    ok &= top.off == 0u && ui.row[SCR_SYSTEM] == row;
-    check(ok, "TOP: past the last line ALGORITHM walks on to the next page (and back), the lines up again to the first");
+    ok &= ui.row[SCR_SYSTEM] == row;
     turn(EN_SELECT, 1);
     SCREENS[SCR_SYSTEM].name(ui.row[SCR_SYSTEM], nm);
-    ok = ui.row[SCR_SYSTEM] != row && strcmp(nm, "TOP") && top.off == 0u;
+    ok &= ui.row[SCR_SYSTEM] != row && strcmp(nm, "TOP") && top.off == 0u;
     turn(EN_SELECT, -1);
     ok &= ui.row[SCR_SYSTEM] == row && top.off == 0u;
     turn(EN_SELECT, -1);
     ok &= ui.row[SCR_SYSTEM] != row;
-    check(ok, "TOP: SELECT goes to the next page (back to TOP) and the previous one, it never scrolls the lines");
+    check(ok, "TOP: ALGORITHM and SELECT go to the next / previous page as on every SYSTEM page, they never scroll the lines");
     ui.row[SCR_SYSTEM] = (uint8_t)row;
     frames(70);
 #if DUAL_TIMES
@@ -218,7 +221,7 @@ static void top_tests(void)
         info_cell(INFO_PG_TOP, k, &c);
         ok &= c.label && c.label[0] && c.val[0] && !c.unit[0] && c.kind == CK_RO;
     }
-    check(ok && info_lines(INFO_PG_TOP) == 1u + TOP_VIS, "TOP: drawn, the header and 10 lines at once, each a name and a value");
+    check(ok && info_lines(INFO_PG_TOP) == 1u + TOP_VIS, "TOP: drawn, the header and 7 lines at once, each a name and a value");
     top.view = 1;
     ui.force = 1;
     frame();
