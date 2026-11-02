@@ -188,6 +188,9 @@ static void at_replacement_tests(void)
         {   /* ALGORITHM (the user, 2026-10-14): the cursor a line a detent, across the pages, stopping at the ends; no track, no setting */
             uint32_t i, sum = at_sum(), st;
             ui.row[scr] = 0;
+#if OP_TOP
+            top.view = 0;                               /* (the knob loop above turned KNOB 1 on SYSTEM > TOP: its view is RAM, whose lines ALGORITHM would scroll first) */
+#endif
             frame();
             st = at_inert_state() & ~(0xFFu << 16);
             for (i = 1; i < gl_n(s); i++) {
