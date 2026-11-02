@@ -112,6 +112,26 @@ static void top_tests(void)
     r = topt_find("BT SBC", &c);
     check(r < topt_all() && !strcmp(c.val, "  3   3") && r == 2u + 6u,
           "TOP: Bluetooth's SBC timed after the block: its line (3 %, CPU0), in its place by average (before T3)");
+    check(topt_find("UI", &c) == topt_all() && topt_find("IDLE", &c) == topt_all(),
+          "TOP: the main loop's UI and IDLE rows are absent while no span was timed");
+    for (k = 0; k < 10u; k++) {                         /* (the main loop's spans: UI 5 % of the time, IDLE 60 %, one window each ~0.5 s) */
+        dual_tm_span(1, DUAL_TM_WINT / 20u, fm1_ms);
+        dual_tm_span(2, DUAL_TM_WINT * 6u / 10u, fm1_ms);
+        frames(40);
+    }
+    frames(40);
+    r = topt_find("UI", &c);
+    ok = r < topt_all() && c.val[0] != 0 && atoi(c.val) >= 3 && atoi(c.val) <= 12;
+    r = topt_find("IDLE", &c);
+    ok &= r < topt_all() && atoi(c.val) >= 40 && atoi(c.val) <= 100;
+    check(ok, "TOP: the UI row (about 5 %) and the IDLE row (about 60 %) from the main loop's timed spans, AVG MAX");
+    for (r = 0, ok = 1; r < topt_all(); r++) {         /* (every CPU label upper case: the user's note) */
+        uint32_t i;
+        topt_line(r, &c);
+        for (i = 0; c.label[i]; i++)
+            ok &= !(c.label[i] >= 'a' && c.label[i] <= 'z');
+    }
+    check(ok, "TOP: every label of the CPU view is upper case (UI, IDLE with them)");
 #endif
     /* the RAM view: its header SRAM used / total, the owners by size, OTHER last */
     topt_v = 1;

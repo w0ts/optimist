@@ -13,6 +13,10 @@
  *                             render on fm1-base, CPU0's after the block on Optimist's own firmware), PRE (CPU0 alone
  *                             before the fork: the events, the macros, the LFOs' draws), POST (after the join: the merge,
  *                             the buses, the master chain); a job that did not run in the last 2 s has no line
+ *   UI, IDLE                  the main loop's own time on CPU0, in % of the time (not of a block): UI = ui_draw (the frame and
+ *                             the screen's strips with their waits), IDLE = the sleep between interrupts; the render's blocks
+ *                             that ran inside them taken out (dual_load.h DUAL_TM_SPAN_IN); the other interrupts stay in. A
+ *                             coarse figure, the order of magnitude: AVG the last 2 s, MAX the busiest 0.5 s
  *   RAM header     used/total KB   the SRAM to the stacks (INFO's RAM line's INFO_SRAM) and what of it is not free (the arena's
  *                             room: arn_room; without an arena, what the link leaves: stk_sram_free)
  *   then each owner, KB       by size, largest first: the arena's blocks now (a part's engine state "T1 ACID", the send
@@ -43,7 +47,8 @@ typedef struct {
 static const top_ram_t TOP_RAM[TOP_RAM_N] = {{"", 0u}};
 #endif
 #if DUAL_TIMES
-#define TOP_NC (2u + DUAL_TM_NJ + 2u)                   /* CPU0, CPU1, the jobs, PRE, POST */
+#define TOP_NC (2u + DUAL_TM_NJ + 2u + 2u)              /* CPU0, CPU1, the jobs, PRE, POST, UI, IDLE */
+#define TOP_QUI DTQ_N                                   /* (the lines' quantities past the render's: UI, IDLE: the main loop's spans) */
 #if defined(DUAL_JOB_REV)
 #define TOP_REVJ (DUAL_JOB_REV ? NPART + 1u : 0xFFu)    /* (the reverb's job: dual.c, fm1-base's opt_dual.c) */
 #else
@@ -100,12 +105,12 @@ static void top_rev(char *b)                            /* " FDN8": the reverb's
 #if TOP_NC
 static void top_job_name(uint32_t q, char *b)           /* a CPU line's name */
 {
-    uint32_t j = q - DTQ_J0;
-    str_cpy(b, q == DTQ_BLK ? "CPU0" : q == DTQ_C1 ? "CPU1" : q == DTQ_PRE ? "PRE" : q == DTQ_POST ? "POST" :
+    uint32_t j = q - DTQ_J0;                            /* (UI, IDLE: past DTQ_N, no job) */
+    str_cpy(b, q == DTQ_BLK ? "CPU0" : q == DTQ_C1 ? "CPU1" : q == DTQ_PRE ? "PRE" : q == DTQ_POST ? "POST" : q == TOP_QUI ? "UI" : q == TOP_QUI + 1u ? "IDLE" :
                j == NPART ? "DRUMS" : j == TOP_REVJ ? "REV" : "BT SBC", 12);
-    if (q >= DTQ_J0 && j < NPART)
+    if (q >= DTQ_J0 && q < DTQ_N && j < NPART)
         top_trk(j, b);
-    else if (q >= DTQ_J0 && j == TOP_REVJ)
+    else if (q >= DTQ_J0 && q < DTQ_N && j == TOP_REVJ)
         top_rev(b);
 }
 static void top_cpu(void)                               /* the CPU's lines: CPU0, CPU1, then the jobs by AVG */
@@ -114,17 +119,22 @@ static void top_cpu(void)                               /* the CPU's lines: CPU0
     top.nc = 0;
     for (k = 0; k < TOP_NC; k++) {
         uint32_t a, m;
-        q = k == 0u ? DTQ_BLK : k == 1u ? DTQ_C1 : k == 2u ? DTQ_PRE : k == 3u ? DTQ_POST : DTQ_J0 + k - 4u;
-        a = dual_tm_pct(dual_tm.avg[q]);
-        m = dual_tm_pct_t(dual_tm_peak(q));
+        q = k == 0u ? DTQ_BLK : k == 1u ? DTQ_C1 : k == 2u ? DTQ_PRE : k == 3u ? DTQ_POST : k >= TOP_NC - 2u ? TOP_QUI + k - (TOP_NC - 2u) : DTQ_J0 + k - 4u;
+        if (q >= TOP_QUI) {                             /* UI, IDLE: the main loop's share of the CPU0's time (dual_load.h dual_tm_span_pct) */
+            a = dual_tm_span_pct(q - TOP_QUI + 1u, 1u);
+            m = dual_tm_span_pct(q - TOP_QUI + 1u, 0u);
+        } else {
+            a = dual_tm_pct(dual_tm.avg[q]);
+            m = dual_tm_pct_t(dual_tm_peak(q));
+        }
         if (k >= 4u && !m)
             continue;                                   /* (a job not run in the last 2 s: no line) */
-        j = q - DTQ_J0;
+        j = q >= TOP_QUI ? 0u : q - DTQ_J0;
         i = top.nc++;
         top.cq[i] = (uint8_t)q;
         top.ca[i] = (uint8_t)(a < 255u ? a : 255u);
         top.cm[i] = (uint8_t)(m < 255u ? m : 255u);
-        top.cc[i] = q == DTQ_C1 ? '1' : q < DTQ_J0 ? '0' : !((ran >> j) & 1u) ? '-' : ((c1 >> j) & 1u) ? '1' : '0';
+        top.cc[i] = q == DTQ_C1 ? '1' : q < DTQ_J0 || q >= TOP_QUI ? '0' : !((ran >> j) & 1u) ? '-' : ((c1 >> j) & 1u) ? '1' : '0';
     }
     for (i = 3; i < top.nc; i++)                        /* (by AVG, then MAX, largest first: CPU0 CPU1 stay on top) */
         for (j = i; j > 2u && (top.ca[j] > top.ca[j - 1u] || (top.ca[j] == top.ca[j - 1u] && top.cm[j] > top.cm[j - 1u])); j--) {
