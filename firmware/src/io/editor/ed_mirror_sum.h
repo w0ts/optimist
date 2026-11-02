@@ -16,8 +16,11 @@
  * The FM-1 has no frame buffer: it knows its picture only as it draws it. So a check repaints the panel in place (op_repaint, the
  * pixels the same: nothing to see) and hashes that frame's writes as they go out to the client (a muted one, never sent, not).
  * Writes overlap (the mixer's cells over its rows, STEP's grid): a pixel counts for the last write over it only, which the
- * check knows from the rectangles of the last check's frame (msum_r[prev]: the same screen draws the same rectangles); a frame
- * whose rectangles differ from the last one's proves nothing and the next frame is checked again. A band not covered whole (a
+ * check knows from the rectangles of the last check's frame (msum_r: the same screen draws the same rectangles); a frame
+ * whose rectangles differ from the last one's proves nothing and the next frame is checked again. One list of rectangles is
+ * enough: a write that matches the last check's rectangle k leaves it as it is, and from the first one that differs the frame
+ * is no longer hashed, so its rectangles overwrite the last check's from there (the later ones only told what covers the
+ * writes already hashed). A band not covered whole (a
  * part drawn on a later frame) is left out of the valid bits. Cost: one frame drawn again a second, 101 bytes */
 #ifndef ED_MIRROR_SUM_H
 #define ED_MIRROR_SUM_H
@@ -28,9 +31,9 @@ enum { MSUM_OP = 7, MSUM_BANDS = 30, MSUM_ROWS = 8, MSUM_PX = 240 * MSUM_ROWS, M
 #ifndef IN_POOL
 #define IN_POOL
 #endif
-static struct { uint8_t x, y, w, h; } msum_r[2][MSUM_RECTS] IN_POOL;   /* the writes' rectangles: this frame's, the last check's */
+static struct { uint8_t x, y, w, h; } msum_r[MSUM_RECTS] IN_POOL;   /* the writes' rectangles: the last check's, then this frame's */
 static struct {
-    uint8_t cap, cur;                   /* a frame being checked; msum_r[cur] its rectangles (cur ^ 1 the last check's) */
+    uint8_t cap;                        /* a frame being checked */
     uint8_t over, same;                 /* more writes than MSUM_RECTS; every rectangle so far the last check's */
     uint16_t n, pn;                     /* the writes this frame; the last check's */
     uint32_t bad;                       /* bands whose visible spans did not fit MSUM_SPANS */
@@ -50,18 +53,18 @@ static uint32_t msum_mix(uint32_t p, uint32_t c)   /* a pixel's share of its ban
 static void msum_begin(void)
 {
     uint32_t b;
-    msum.cap = 1, msum.cur ^= 1u, msum.n = 0, msum.over = 0, msum.same = 1, msum.bad = 0;
+    msum.cap = 1, msum.n = 0, msum.over = 0, msum.same = 1, msum.bad = 0;
     for (b = 0; b < MSUM_BANDS; b++)
         msum.h[b] = 0, msum.c[b] = 0;
 }
 /* row y of write k at x, w: its spans no later write of the last check covers (lo[i], hi[i]); the count, or -1: too many */
 static int msum_spans(uint32_t k, uint32_t x, uint32_t w, uint32_t y, uint16_t *lo, uint16_t *hi)
 {
-    uint32_t j, i, n = 1, p = msum.cur ^ 1u;
+    uint32_t j, i, n = 1;
     lo[0] = (uint16_t)x, hi[0] = (uint16_t)(x + w);
     for (j = k + 1u; j < msum.pn && n; j++) {
-        uint32_t a = msum_r[p][j].x, e = a + msum_r[p][j].w;
-        if (y < msum_r[p][j].y || y >= (uint32_t)msum_r[p][j].y + msum_r[p][j].h)
+        uint32_t a = msum_r[j].x, e = a + msum_r[j].w;
+        if (y < msum_r[j].y || y >= (uint32_t)msum_r[j].y + msum_r[j].h)
             continue;
         for (i = 0; i < n; i++) {
             if (e <= lo[i] || a >= hi[i])
@@ -83,9 +86,9 @@ static int msum_spans(uint32_t k, uint32_t x, uint32_t w, uint32_t y, uint16_t *
     return (int)n;
 }
 /* one write that goes to the client: c a FILL's colour (px 0), else px its pixels as the panel takes them (byte-swapped) */
-static void msum_see(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint16_t *px, uint32_t c)
+static __attribute__((noinline)) void msum_see(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint16_t *px, uint32_t c)
 {
-    uint32_t k = msum.n, r;
+    uint32_t k = msum.n, r, cw, ch;
     if (!msum.cap || !w || !h)
         return;
     if (k >= MSUM_RECTS) {
@@ -93,11 +96,10 @@ static void msum_see(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint1
         return;
     }
     msum.n++;
-    msum_r[msum.cur][k].x = (uint8_t)x, msum_r[msum.cur][k].y = (uint8_t)y;
-    msum_r[msum.cur][k].w = (uint8_t)(w > 240u ? 240u : w), msum_r[msum.cur][k].h = (uint8_t)(h > 240u ? 240u : h);
-    if (!msum.same || k >= msum.pn || msum_r[msum.cur ^ 1u][k].x != x || msum_r[msum.cur ^ 1u][k].y != y ||
-        msum_r[msum.cur ^ 1u][k].w != msum_r[msum.cur][k].w || msum_r[msum.cur ^ 1u][k].h != msum_r[msum.cur][k].h) {
+    cw = w > 240u ? 240u : w, ch = h > 240u ? 240u : h;
+    if (!msum.same || k >= msum.pn || msum_r[k].x != x || msum_r[k].y != y || msum_r[k].w != cw || msum_r[k].h != ch) {
         msum.same = 0;                  /* (another frame than the last check's: nothing proved, the next one checked) */
+        msum_r[k].x = (uint8_t)x, msum_r[k].y = (uint8_t)y, msum_r[k].w = (uint8_t)cw, msum_r[k].h = (uint8_t)ch;
         return;
     }
     for (r = 0; r < h && y + r < 240u; r++) {
