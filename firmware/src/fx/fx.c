@@ -2373,7 +2373,7 @@ static __attribute__((noinline)) FAST(seq) void dins_rest(uint32_t k, uint32_t s
         eq3_engage(&st->e, EQ3_V(TRK_DRUM));         /* (a hit from silence: engaged at once, the drum track's bands) */
     (void)a;
 }
-static void dins_restart(uint32_t k)                    /* voice k triggered: its lane's slots from rest */
+static FAST(seq) void dins_restart(uint32_t k)          /* voice k triggered: its lane's slots from rest */
 {
     uint32_t l = drums.lane[k % NDRUM], s;
     for (s = 0; s < INS_N; s++)

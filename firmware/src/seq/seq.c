@@ -206,7 +206,7 @@ static uint32_t scale_map(const track_t *t, int32_t n, int32_t off)
 }
 
 /* a part that plays raw notes: the GM KIT sample set, SLICE (the engine it switches to) */
-static int kb_raw(const track_t *t)
+static FASTI(seqev) int kb_raw(const track_t *t)   /* (qseq_on's: RAM code with SEQ_RAM) */
 {
 #if FELUCCA_SLICE
     if (ENG_IS(ENGINES[t->eng_req % NENGINES], SLICE))
