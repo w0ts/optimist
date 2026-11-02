@@ -69,7 +69,8 @@
  * FM-1's crash of 2026-11-02 (a2_saw2, vector 1, no EMU / DBG cause) had exactly that bundle's two registers wrong:
  * the load's base 0 (r0 4 after the last store) and its destination a value b never held (b zeroed, g 0). Inferred,
  * not measured: such a pair misexecutes now and then, as docs/CPU.md (fm1-base's felucca-bsp) found for loads beside
- * 64-bit multiplies. 1 only for an A/B against the old kernels (OPTIMIST_ASM_MULPAIR=1, tools/build.py) */
+ * 64-bit multiplies. 1 only for an A/B against the old kernels (the classic build: OPTIMIST_ASM_MULPAIR=1, tools/build.py;
+ * the fm1-base app: this default) */
 #ifndef FELUCCA_ASM_MULPAIR
 #define FELUCCA_ASM_MULPAIR 0
 #endif
