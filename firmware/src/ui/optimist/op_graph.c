@@ -25,7 +25,8 @@
 #else
 #define OP_FOOT 0
 #endif
-#define OP_FOOT_Y (240 - OP_FOOT)       /* the band's first row: no band draws from here down but the help line's */
+#define OP_MTR MTR_ROWS                 /* the screen's last rows: the load lines' (core/meters.h, op_meters.c), under the help band; kept black when METERS is OFF */
+#define OP_FOOT_Y (240 - OP_MTR - OP_FOOT)   /* the band's first row: no band draws from here down but the help line's (and the load lines' rows after it) */
 #define OP_CH (cards_2x2() ? OH_CARD_2X2 : OH_CARD)   /* the cards' band and the panel: 2x2, the mixer 1x4 */
 #define OP_PY (pat_view() ? OY_CARD : cards_2x2() ? OY_PANEL_2X2 : OY_PANEL)   /* (the patterns screen: no cards, the panel from the header down) */
 #define OP_PH (OP_FOOT_Y - OP_PY)

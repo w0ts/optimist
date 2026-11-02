@@ -386,7 +386,7 @@ static uint32_t mem_load_items(uint8_t *it)
             it[n++] = (uint8_t)k;
 #if FXM_NEED
     for (k = 0; k < 3u; k++)                          /* (fxm_offer's: a send line placed, its bus' own) */
-        if (FXM_BYTES[SEND_ORD[k]] && fxm_st[SEND_ORD[k]] == FXM_ON && fxm_heard(SEND_ORD[k]))
+        if (fxm_bytes(SEND_ORD[k]) && fxm_st[SEND_ORD[k]] == FXM_ON && fxm_heard(SEND_ORD[k]))
             it[n++] = (uint8_t)(NPART + SEND_ORD[k]);
 #endif
     return n;

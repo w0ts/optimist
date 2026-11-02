@@ -31,6 +31,56 @@ final class MirrorDecoderTests: XCTestCase {
         XCTAssertEqual(zip(dec.pixels, want).filter { $0 != $1 }.count, 0)
     }
 
+    /// Each page's screen, the frames of `name` (Fixtures/mirror_pages*.sysex: 10 pages, each from a whole-panel FILL)
+    private func pages(_ name: String) throws -> (shots: [[UInt16]], bad: Int) {
+        let url = try XCTUnwrap(Bundle(for: Self.self).url(forResource: name, withExtension: "sysex"))
+        var dec = MirrorDecoder(), shots: [[UInt16]] = [], bad = 0, first = true
+        for f in frames([UInt8](try Data(contentsOf: url))) {
+            if f.count > 14, f[5] == 0, Array(f[6..<14]) == [0, 0, 0, 0, 112, 1, 112, 1] {
+                if !first { shots.append(dec.pixels) }
+                first = false
+            }
+            if !dec.apply(f) { bad += 1 }
+        }
+        shots.append(dec.pixels)
+        return (shots, bad)
+    }
+
+    // The AA token (opti_miraa_1): 10 pages captured from the FM-1 (fm1-base's anti-aliased text) as it sent them, and the same
+    // writes through the firmware's encoder with the token (tests/mirror_pages_test.c): the same pixels page by page
+    func testAATokenPagesDecodeToTheSamePixels() throws {
+        let v2 = try pages("mirror_pages"), aa = try pages("mirror_pages_aa")
+        XCTAssertEqual(v2.shots.count, 10)
+        XCTAssertEqual(aa.shots.count, 10)
+        XCTAssertEqual(v2.bad, 0)
+        XCTAssertEqual(aa.bad, 0)
+        for (p, (a, b)) in zip(aa.shots, v2.shots).enumerated() {
+            XCTAssertEqual(zip(a, b).filter { $0 != $1 }.count, 0, "page \(p)")
+        }
+    }
+
+    func testAATokenByHand() {
+        // BLIT 3 x 1: a new colour 0xF800 over slot 0 (black), levels 15, 0, 6: '0' '10' '110110' in two 7-bit bytes
+        var dec = MirrorDecoder()
+        XCTAssertTrue(dec.apply([0xF0, 0x7D, 0x46, 0x4C, 106, 1, 0, 0, 0, 0, 3, 0, 1, 0, 14 << 3 | 7, 0, 112, 3, 0 << 3 | 7, 3,
+                                 0b0101101, 0b1000000, 0xF7]))
+        XCTAssertEqual(Array(dec.pixels[0..<3]), [0xF800, 0, MirrorDecoder.blend(0xF800, 0, 6)])
+        XCTAssertEqual(MirrorDecoder.blend(0xF800, 0, 6), 0x6000)
+        XCTAssertEqual(MirrorDecoder.blend(0x07E0, 0x001F, 15), 0x07E0)
+        XCTAssertEqual(MirrorDecoder.blend(0x07E0, 0x001F, 0), 0x001F)
+        // a ground slot of 7, a length of 0, levels cut short: refused
+        XCTAssertFalse(dec.apply([0xF0, 0x7D, 0x46, 0x4C, 106, 1, 0, 0, 0, 0, 3, 0, 1, 0, 14 << 3, 7 << 3 | 7, 3, 0, 0xF7]))
+        XCTAssertFalse(dec.apply([0xF0, 0x7D, 0x46, 0x4C, 106, 1, 0, 0, 0, 0, 3, 0, 1, 0, 14 << 3, 0 << 3 | 7, 0, 0, 0xF7]))
+        XCTAssertFalse(dec.apply([0xF0, 0x7D, 0x46, 0x4C, 106, 1, 0, 0, 0, 0, 3, 0, 1, 0, 14 << 3, 0 << 3 | 7, 3, 0xF7]))
+    }
+
+    func testAATokenAskedOnlyWhenListed() {
+        XCTAssertEqual(MirrorLink.aaTail(["opti_miraa": 1]), [1])
+        XCTAssertEqual(MirrorLink.aaTail(["opti_miraa": 2]), [])
+        XCTAssertEqual(MirrorLink.aaTail(["opti_mirror": 2]), [])
+        XCTAssertEqual(MirrorLink.aaTail(nil), [])
+    }
+
     func testFixtureThroughUMP() throws {
         // every frame cut into Data 64 packets and put back, as CoreMIDI hands them over
         var asm = SysExAssembler()

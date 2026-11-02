@@ -1168,6 +1168,13 @@ job; ( jobin   # the effects' lines in the arena (fx/fx_arena.c, docs/SD-MODE-DE
     run "the limited inserts' lines as arena blocks of their own (FELUCCA_FXI_LINE_BLOCKS): a FLNG takes 1 KB, an ECHO 8, an XDLY its two lines, not the whole own room; moved in a pack with their contents; given back" "$OUT/fx_lineblk_test"
     $CC -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 -DFELUCCA_ENG_FM6=1 -DFELUCCA_FX_ARENA=1 -DFELUCCA_INS_DELAY=1 -DFELUCCA_INS_FLANGER=1 -DFELUCCA_INS_XDLY=1 -DFELUCCA_INS_JCHORUS=1 -DFELUCCA_DLY_LEN=16384u -DFELUCCA_FXM_IDLE_FREE=1 -DFXM_IDLE_S=2u "-DFELUCCA_ARENA_BYTES=(160u * 1024u)" -o "$OUT/fx_lineblk_idle_test" tests/fx_lineblk_test.c -lm
     run "... and the send lines only while their bus is heard (FELUCCA_FXM_IDLE_FREE, the device's): none placed while nothing is sent, placed at a send's first input, given back after the tail and FXM_IDLE_S of nothing" "$OUT/fx_lineblk_idle_test"
+    FXZ="-DFELUCCA_ENG_FM6=1 -DFELUCCA_FX_ARENA=1 -DFELUCCA_INS_DELAY=1 -DFELUCCA_INS_FLANGER=1 -DFELUCCA_INS_XDLY=1 -DFELUCCA_INS_JCHORUS=1 -DFELUCCA_REV_PLATE=1 -DFELUCCA_REV_FDN8=1 -DFELUCCA_REV_POOL=1 -DFELUCCA_DLY_LEN=32768u"   # (FX MEMORY: the user's build's lines)
+    $CC -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $FXZ "-DFELUCCA_ARENA_BYTES=(170u * 1024u)" -o "$OUT/fx_mem_test" tests/fx_mem_test.c -lm
+    run "FX MEMORY (fx/fx_memsz.h): DLY MEM halves the delay's block each step, REV MEM SMALL 16 KB less (FDN8 in the 8192 ring, sounding), XDLY MEM HALF an insert's 32 KB; a too-long TIME halved and said; a heavy project MEM FULL at FULL placed at smaller sizes" "$OUT/fx_mem_test"
+    $CC -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $FXZ "-DFELUCCA_ARENA_BYTES=(170u * 1024u)" -o "$OUT/fx_mem_rec_test" tests/fx_mem_rec_test.c -lm
+    run "FX MEMORY in a project (fx_rec.c FXZ_TLV): FULL keeps nothing, the sizes round trip, a project from before reads FULL, another build's smaller line its smallest, SAVE / LOAD" "$OUT/fx_mem_rec_test"
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $FXZ -DUI_FXZ=1 "-DFELUCCA_ARENA_BYTES=(170u * 1024u)" -o "$OUT/ui_optimist_fxmem_test" tests/ui_optimist_test.c -lm
+    run "PROJECT > FX MEM (op_fxmem.c): the cards and the panel, a turn frees its KB; the make-room question: FM6 refused asks SHRINK REV SMALL first, HOME changes nothing, YES takes it and FM6 plays; an FX type with no room: its memory mark in the list, picked: NEEDS .. KB and the question, HOME puts the slot back, YES places it" "$OUT/ui_optimist_fxmem_test" "$OUT/optimist"
     $CC -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $FXA -DFELUCCA_FXI_LINE_BLOCKS=0 -DFELUCCA_REV_FDN8=1 -DFELUCCA_REV_POOL=1 -DFELUCCA_SPRING=1 "-DFELUCCA_ARENA_BYTES=89344u" -o "$OUT/fx_arena_rev_test" tests/fx_arena_test.c -lm
     run "the same with ROOM, FDN8 and SPRING (the reverb's TYPE switched, its line 32 KB)" "$OUT/fx_arena_rev_test"
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $FXA -DUI_MEMLIST=1 "-DFELUCCA_ARENA_BYTES=65536u" -o "$OUT/ui_optimist_memlist_test" tests/ui_optimist_test.c -lm
@@ -1529,6 +1536,8 @@ job; ( jobin   # the SD card (SDCARD): ChaN's driver + Petit FatFs, then full Fa
 job; ( jobin
     # (these drain the ring at once, no clock: the lag rule's tests, MIR_AIMD=0; the budget has its model below)
     $CC -O2 -w -DMIR_AIMD=0 -o "$OUT/mirror_test" tests/mirror_test.c
+    $CC -O2 -w -DMIR_AIMD=0 -DMT_AA=1 -o "$OUT/mirror_aa_test" tests/mirror_test.c
+    $CC -O2 -w -o "$OUT/mirror_pages_test" tests/mirror_pages_test.c
     $CC -O2 -w -DMIR_AIMD=0 -DMBR_PROJ=1 -o "$OUT/mirror_proj_test" tests/mirror_test.c
     $CC -O2 -w -DMIR_AIMD=0 -DMIR_BLE_LAG=4096 -o "$OUT/mirror_lag_test" tests/mirror_test.c
     run "the screen mirrored with the firmware's 4 KB lag: the lag rule follows the link's drain (2.5 KB at 4.6 KB/s, 4 KB from 8 KB/s), every mirror test" "$OUT/mirror_lag_test"
@@ -1538,10 +1547,19 @@ job; ( jobin
     run "the mirror's Bluetooth ring lent by the arena (MIR_LEND, ASan): wanted only while a Bluetooth client uses it, nothing queued or sent without it, 50 lends and give-backs caught up each time, never touched once given back; every mirror test with it lent" "$OUT/mirror_lend_test"
     run "the projects' moves over Bluetooth (BT_PROJ): the backup's commands and PJ_OP queued, a BK_DATA chunk in its own slot" "$OUT/mirror_proj_test"
     run "the screen mirrored, USB and Bluetooth: 3000 random writes decoded to the same panel, long runs, a stalled host falls behind and catches up, the Bluetooth request, a slow radio, the ring overflowing, the keep-alive, a muted write not sent, the meters over USB only; STATE, MASTER, let go, seq, the test session; what the client has not sent again" "$OUT/mirror_test"
+    run "the screen mirrored with the AA token (opti_miraa_1, 106's second byte): every mirror test, the 3000 random writes with shaded text decoded to the same panel" "$OUT/mirror_aa_test"
+    run "the AA token on 10 pages captured from the FM-1 (fm1-base's anti-aliased text): without it the encoder gives the FM-1's very bytes; with it the same pixels page by page, the bytes per page old -> new" "$OUT/mirror_pages_test"
+    run "the AA token in Python (tools/fm1_mirror.py, tools/mirror_enc.py): the 10 pages decoded, encoded with the token byte for byte the firmware's, decoded back to the same pixels" python3 tests/mirror_aa_test.py
     run "the screen as a PNG (tools/fm1_mirror.py): the fixture's frames decoded to its pixels, the PNG read back, STATE in words" python3 tests/fm1_mirror_test.py "$OUT/mirror_test"
+    run "the panel driven from the Mac (tools/fm1_drive.py): steps to 108 PANEL ids, large turns in parts, an FM-1 picked by --port" python3 tests/fm1_drive_test.py
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 -DMIRROR_CHECK -o "$OUT/ui_optimist_mirror_test" tests/ui_optimist_test.c -lm
     mkdir -p "$OUT/optimist_mirror"
     run "the screen mirrored: the Optimist UI's whole run (every test, 20000 random frames) encoded and decoded, the same pixels; every catch-up the panel" "$OUT/ui_optimist_mirror_test" "$OUT/optimist_mirror"
+    # the self-check (SUMS, ed_mirror_sum.h): the real UI over a lossy link (9 KB/s, ~2 frames lost and ~1 bad sum each 9 KB, the
+    # lag rule, repairs by seq) with a wrong put in the client's picture every 5 s; without SUMS printed (wrongs stay)
+    MIRROR_SUMS=off "$OUT/ui_optimist_mirror_test" "$OUT/optimist_mirror"
+    run "the screen mirrored over a lossy link with SUMS: every band hashed once a second, the client's differing bands sent again; no pixel wrong on the client over 3 s, none at the end" env MIRROR_SUMS=1 "$OUT/ui_optimist_mirror_test" "$OUT/optimist_mirror"
+    run "the same with the AA token (opti_miraa_1)" env MIRROR_AA=1 "$OUT/ui_optimist_mirror_test" "$OUT/optimist_mirror"
     # the Bluetooth stream to a Mac, a transport model (tests/mirror_aimd_test.c): the real UI's workload through the real ed_mirror.c,
     # the link 5.6 KB/s, the Mac's input 5 KB/s losing whole frames over 1 KB waiting; the budget (MIR_AIMD) checked, the lag rule before printed
     MIRROR_BT=1 MIRROR_WORKLOAD=1 MIRROR_TRACE="$OUT/mirror_workload.bin" "$OUT/ui_optimist_mirror_test" "$OUT/optimist_mirror"

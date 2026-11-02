@@ -414,7 +414,7 @@ static uint32_t pw_leds(uint32_t *d);
 #include "../../system/stackmark.h"                     /* INFO's RAM line: how deep the stacks went (painted at boot: stk_boot) */
 /* ---- SYSTEM: SLOOP's HOME-held menu as rows (ui/sloop/ui_menu.c) */
 enum { SI_NONE, SI_TUNE, SI_RECQ, SI_PUNCH, SI_OUT, SI_SYNC, SI_CH1, SI_CH2,
-       SI_CH3, SI_CHD, SI_USB, SI_CPU, SI_MHZ, SI_ABOUT, SI_BLE, SI_KCOL, SI_DBGST, SI_CLKOUT, SI_CPU1, SI_INFO, SI_BUILD, SI_REPO,
+       SI_CH3, SI_CHD, SI_USB, SI_CPU, SI_MHZ, SI_ABOUT, SI_BLE, SI_KCOL, SI_DBGST, SI_METERS, SI_CLKOUT, SI_CPU1, SI_INFO, SI_BUILD, SI_REPO,
        SI_DROPS, SI_GUARD, SI_UAINFO, SI_XRUN, SI_DIAG, SI_CREDITS, SI_BLEST, SI_BLEPEER, SI_BLEMIDI, SI_BLELIST, SI_BLEAUTO,
        SI_BLEFGT, SI_FRESO, SI_HPBASS, SI_BTA, SI_BTAPEER, SI_BTAFMT, SI_BTAST, SI_CLKOFS, SI_BTOFS, SI_LINK, SI_LINKOFS,
 #if FELUCCA_SD_UI
@@ -517,6 +517,7 @@ static const struct { const char *name; uint8_t it[4]; } SYS[] = {
 #if FELUCCA_CDC
     {"USB", {SI_USB, SI_NONE, SI_NONE, SI_NONE}},       /* (USB SERIAL: on General's page when it fits, GL_JOIN) */
 #endif
+    {"METERS", {SI_METERS, SI_NONE, SI_NONE, SI_NONE}},   /* the load lines at the screen's foot: OFF CPUS MEMORY BOTH (core/meters.h, op_meters.c) */
 #if FELUCCA_SD_UI
     {"SD CARD", {SI_SDCARD, SI_SDVERS, SI_SDSLACK, SI_SDINDEX}},   /* (the card's state, a project's versions kept, the room
                                                          * a file's run gets past its size, the sample index again) */
@@ -1024,6 +1025,11 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
     case SI_DBGST:                                      /* the platform's stats in flash every 5 minutes (core/dbgstats.h) */
         sys_onoff(c, "DEBUG STATS", dbg_stats);
         break;
+    case SI_METERS: {                                   /* thin load lines on the screen's last rows (op_meters.c; kept in the settings record, rsv_pj[2]) */
+        static const char *const MN[MTR_N] = {"OFF", "CPUS", "MEMORY", "BOTH"};
+        cell_list(c, "METERS", MN[meters_mode % MTR_N], MTR_N - 1, meters_mode);
+        break;
+    }
 #if FELUCCA_MIDI_CLKOUT
     case SI_CLKOUT:                                     /* MIDI clock out (io/midi/clock_out.c) */
         {
@@ -1551,6 +1557,9 @@ static void sys_set(uint32_t it, int32_t s)
     case SI_DBGST:                                      /* (kept in the settings record: persist_rec.c rsv_pj[1]) */
         dbg_stats_set((uint32_t)sys_step(dbg_stats, s, 1));
         break;
+    case SI_METERS:                                     /* (kept in the settings record: persist_rec.c rsv_pj[2]) */
+        meters_mode = (uint8_t)sys_step(meters_mode, s, MTR_N - 1);
+        break;
 #if FELUCCA_MIDI_CLKOUT
     case SI_CLKOUT:                                     /* (kept in the settings word: settings_word.c) */
         clko_on = CKO_ORD[sys_step(cko_pos(), s, CKO_N - 1)];
@@ -1631,6 +1640,9 @@ static int sys_factory(uint32_t it)
         break;
     case SI_DBGST:
         dbg_stats_set(0);
+        break;
+    case SI_METERS:
+        meters_mode = MTR_DEFAULT;
         break;
 #if FELUCCA_MIDI_CLKOUT
     case SI_CLKOUT:
