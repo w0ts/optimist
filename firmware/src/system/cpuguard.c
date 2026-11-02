@@ -161,7 +161,7 @@ static uint32_t cg_ins_part(uint32_t p)
     {   /* the further inserts (insfx.c): set in a slot, or fading out */
         uint32_t t;
         for (t = 0; t < FXT_N; t++)
-            if (IFX_FUR(t) && FXT_AMT[t] != 0xFFu && ((on && INS_ON(p, t) && trk[p].p[FXT_AMT[t]] && ifx_has(t, p)) || ifx_w(t, p)))
+            if (IFX_FUR(t) && FXT_AMT[t] != 0xFFu && ((on && INS_ON(p, t) && trk[p].p[FXT_AMT[t]] && ifx_has(t, p)) || ifx_wn(t, p)))
                 n += CG_COST_PINS[IFX_FIX(t)];
     }
 #endif
@@ -206,7 +206,7 @@ static uint32_t cg_ins_bus(void)
     {   /* the further inserts (insfx.c ifx_bus: L and R at every level) */
         uint32_t t;
         for (t = 0; t < FXT_N; t++)
-            if (IFX_FUR(t) && FXT_AMT[t] != 0xFFu && ((fx_on(TDRUM) && INS_ON(TRK_DRUM, t) && TDRUM->p[FXT_AMT[t]] && ifx_has(t, TRK_DRUM)) || ifx_w(t, IFX_BUS)))
+            if (IFX_FUR(t) && FXT_AMT[t] != 0xFFu && ((fx_on(TDRUM) && INS_ON(TRK_DRUM, t) && TDRUM->p[FXT_AMT[t]] && ifx_has(t, TRK_DRUM)) || ifx_wn(t, IFX_BUS)))
                 n += CG_COST_DBINS[IFX_FIX(t)];
     }
 #endif
@@ -313,7 +313,7 @@ static uint32_t cg_ins_rt(void)
         if (t == FXT_DUST && FELUCCA_FX_DUST && a)
             n += CG_COST_DBDUST;
 #if INS_FX
-        if (IFX_FUR(t) && (a || ifx_w(t, IFX_RT(j))))
+        if (IFX_FUR(t) && (a || ifx_wn(t, IFX_RT(j))))
             n += CG_COST_DBINS[IFX_FIX(t)];
 #endif
 #if FELUCCA_INS_JCHORUS
@@ -350,7 +350,7 @@ static uint32_t cg_ins_ut(void)
         if (t == FXT_DUST && FELUCCA_FX_DUST && a)
             n += CG_COST_DBDUST;
 #if INS_FX
-        if (IFX_FUR(t) && (a || ifx_w(t, IFX_UT)))   /* (ECHO FLNG: only with an instance, ifx_w 0
+        if (IFX_FUR(t) && (a || ifx_wn(t, IFX_UT)))   /* (ECHO FLNG: only with an instance, ifx_w 0
                                                         * without; GATER: one gain, the bus's cost) */
             n += CG_COST_DBINS[IFX_FIX(t)];
 #endif
