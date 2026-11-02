@@ -61,7 +61,7 @@ inside.
 
 ## The web installer's update code (MPL-2.0, MIT)
 
-`web/fm1base/fm1ota.js` and `web/fm1base/fm1pkg.js` are fm-1-base's own files, MPL-2.0 (full text in `LICENSES/MPL-2.0.txt`),
+`web/fm1base/fm1ota.js`, `fm1pkg.js` and `fm1ports.js` are fm-1-base's own files, MPL-2.0 (full text in `LICENSES/MPL-2.0.txt`),
 kept byte for byte with their headers (Charles Vestal, Leo Kuroshita, Chris Farrell; `web/fm1base/README.md` names the commit).
 A file under the MPL stays under the MPL beside our GPL-3.0-only code; Optimist's own additions are in `web/fm1ota_optimist.js`
 (GPL-3.0-only). `web/fm1base/m-bootloader/` is m-bootloader 1.2 by Julius Vitkauskas (MIT, its `LICENSE` beside it), which the
