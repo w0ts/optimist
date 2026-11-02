@@ -894,7 +894,8 @@ static void sdm_load_name(const char *name)          /* project name's whole cop
     else
         sdm_proj_load_file(sdm.path, sdm.shown);
 }
-static FRESULT sdm_rmdir(char *path, uint32_t n, uint32_t depth)   /* a folder and what it holds, two levels at most */
+static FRESULT sdm_rmdir(char *path, uint32_t n, uint32_t depth)   /* a folder and what it holds, two levels at most
+                                                                     * (fm1-base fm1.toml stack_bounds sdm_rmdir=2) */
 {
     DIR d;
     FILINFO fi;
