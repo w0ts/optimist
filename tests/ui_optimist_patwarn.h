@@ -82,15 +82,19 @@ static void patwarn_tests(void)
     /* a black key held + white n: store */
     kdown(BK(1));
     pw_edit(1, 90);
-    key(WK(9));
-    kup(BK(1));
-    check(clone_asked() && !strcmp(ui.arm_q, "CLONE T2 10?"), "black 2 held + white 10 (an empty slot): \"CLONE T2 10?\" asked");
+    {
+        char q[24];
+        snprintf(q, sizeof q, "CLONE T2 %u>10?", pat_cur[1] + 1u);   /* (T2's playing pattern is the source, the new slot the destination) */
+        key(WK(9));
+        kup(BK(1));
+        check(clone_asked() && !strcmp(ui.arm_q, q), "black 2 held + white 10 (an empty slot): \"CLONE T2 s>10?\" asked (source > destination)");
+    }
     clone_yes();
     check(song.sel == 1u && pat_has(1, 9) && !pat_has(0, 9) && !pat_has(2, 9) && pat_cur[1] == 9u, "black 2 held + white 10: T2's pattern stored in slot 10, no other track");
     kdown(BK(4));
     key(WK(10));
     kup(BK(4));
-    check(clone_asked() && !strcmp(ui.arm_q, "CLONE ALL 11?"), "black 5 held + white 11: \"CLONE ALL 11?\" asked");
+    check(clone_asked() && !strncmp(ui.arm_q, "CLONE ALL ", 10) && ui.arm_q[str_len(ui.arm_q) - 3u] == '1' && !strcmp(ui.arm_q + str_len(ui.arm_q) - 3u, "11?"), "black 5 held + white 11: \"CLONE ALL ...11?\" asked");
     clone_yes();
     check(pat_has(0, 10) && pat_has(1, 10) && pat_has(2, 10) && pat_has(3, 10), "black 5 held + white 11: every track's pattern stored in slot 11");
     kdown(BK(0));
