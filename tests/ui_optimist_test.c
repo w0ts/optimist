@@ -3362,7 +3362,7 @@ static void song_tests(void)
         uint32_t m = arrangement_enabled;
         ui.hot = 0;
         tap(B_SAVE);
-        check(arrangement_enabled != m, "MODE: YES toggles LOOP / SONG");
+        check(arrangement_enabled != m, "MODE: YES toggles SCENE / SONG");
         arrangement_enabled = 0;
     }
     ui.row[SCR_SONG] = (uint8_t)song_row_of(SG_SCENE, 2);

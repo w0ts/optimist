@@ -83,7 +83,7 @@ static void lay_cell(uint32_t k, cell_t *c)
         c->kind = CK_RO;
         c->label = k == 3u ? "REC" : k == 2u ? "MODE" : "";
         if (k == 2u) {
-            cell_val(c, arrangement_enabled ? "SONG" : "LOOP");
+            cell_val(c, arrangement_enabled ? "SONG" : "SCENE");
             cell_gauge(c, 1, 0, 1, arrangement_enabled);
         } else if (k == 3u) {
             cell_val(c, srec == 2u ? "REC" : srec ? "ARMED" : "OFF");

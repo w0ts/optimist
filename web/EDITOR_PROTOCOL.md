@@ -488,8 +488,8 @@ by-descriptor 0/1 (then fmt, min, max, def, value, v14 each), flags (bit 0 dim, 
 ## The song chain (97 SONGC; INFO tag 5A)
 
 `ed_song.c` (`ED_SEQ`, the arranger). The order scenes and patterns play in: PART 1..64 (a scene and bars) and the mode, with the SONG screen's rules (edited while stopped, INSERT copies the part after it, DELETE leaves one). Every op answers op 0's reply:
-`0, rc (0 done, 1 stop first or SONG REC is on, 2 chain full, 3 one part left, 4 a bad argument), mode (1 SONG, 0 LOOP), playing, scenes built, steps (the chain's longest), count, count x (scene, bars)`.
-Ops: 0 get; 1 part, scene, bars (1..64); 2 part (INSERT); 3 part (DELETE); 4 mode (0 LOOP, 1 SONG); 5 SAVE (the chain into flash).
+`0, rc (0 done, 1 stop first or SONG REC is on, 2 chain full, 3 one part left, 4 a bad argument), mode (1 SONG, 0 SCENE), playing, scenes built, steps (the chain's longest), count, count x (scene, bars)`.
+Ops: 0 get; 1 part, scene, bars (1..64); 2 part (INSERT); 3 part (DELETE); 4 mode (0 SCENE, 1 SONG); 5 SAVE (the chain into flash).
 
 ## Sequence tools (98 TOOLS; INFO tag 5B)
 
