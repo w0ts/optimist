@@ -48,6 +48,11 @@ static uint32_t blit_px;                                /* the pixels sent (ui_o
  * (the line as it must stay, swapped as the screen holds it); top_bad counts the writes that put another colour there, a
  * flash on the FM-1 even when a later write puts the line back the same frame. top_head: the header's transfers (y 0, 25 rows, or the canvas's) */
 static uint8_t top_on;
+#if FELUCCA_CANVAS_STRIP == 3                           /* (an undefined one is 0 here, as in the firmware's #if) */
+#define TOP_HEAD_H 16u
+#else
+#define TOP_HEAD_H 25u
+#endif
 static uint16_t top_want[240];
 static uint32_t top_bad, top_head;
 static void top_see(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint16_t *p, uint16_t c)
@@ -55,7 +60,7 @@ static void top_see(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint16
     uint32_t i, j, bad = 0;
     if (!top_on || y >= 2u)
         return;
-    top_head += x == 0u && y == 0u && w == 240u && h == (FELUCCA_CANVAS_STRIP == 3 ? 16u : 25u);   /* (its first pass when the canvas holds less than the 25 rows) */
+    top_head += x == 0u && y == 0u && w == 240u && h == TOP_HEAD_H;   /* (its first pass when the canvas holds less than the 25 rows) */
     for (j = y; j < 2u && j < y + h; j++)
         for (i = 0; i < w; i++)
             bad |= (p ? p[(j - y) * w + i] : c) != top_want[x + i];
@@ -349,6 +354,7 @@ static uint32_t nb_list_of(uint32_t kind, uint32_t *rank, uint32_t n, uint32_t *
     return c;
 }
 static uint32_t nb_kind_at(uint32_t i) { return i + 1u; }
+static uint32_t nb_nth(uint32_t kind, uint32_t n) { (void)kind; return n; }
 static uint32_t nb_engine_slot(uint32_t kind) { return kind == 1u ? 0u : 1u; }
 static int nb_factory(uint32_t kind, uint32_t k) { return kind == 1u && k < 2u; }   /* (kind 1: two built-in slots, the third filled, for the filters) */
 #endif
@@ -2141,6 +2147,20 @@ static void layer_tests(void)
                 f2 += e == NB_LIST && (k >> 8) == 2u;
             }
             check(all0 == all1 && f1 == 3u && f2 == 2u, "the whole list holds both collections (3 + 2 entries) whichever engine the track is on");
+#if FELUCCA_FM6_LIST
+            {   /* FM6's collection (here kind 1, engine 0's) right after its engine's factory sounds, not after the user presets (the user, 2026-11-02) */
+                uint32_t last = 0, first = all1;
+                for (i = 0; i < all1; i++) {
+                    e = preset_all_at(i, &k);
+                    if (e == 0u && k != PRESET_INIT)
+                        last = i;
+                    if (e == NB_LIST && (k >> 8) == 1u && first == all1)
+                        first = i;
+                }
+                check(first == last + 1u && preset_all_at(first + 3u, &k) != NB_LIST && list_eng(first) == 0u,
+                      "... the first collection right after its engine's factory sounds, in its engine's group");
+            }
+#endif
             pl_whole = 0;
             (void)preset_pos(&own);
             for (i = 0, f1 = 0, f2 = 0; i < own; i++) {
@@ -4156,16 +4176,16 @@ static void preset_engine_tests(void)
     turn(EN_PRESET, -1);
     reset_ui();
     {   /* the list by instrument; SHIFT held + PRESETS: the next / previous instrument (the user, 2026-10-12; SHIFT2 2026-10-16, SHIFT since 2026-10-31) */
-        uint32_t i, e0, e1, sorted = 1, ok = 1, k, ne = 0, back;
-        for (i = 1; i < NBANK; i++)
-            if (eng_rank(preset_at(i, &k)) < eng_rank(preset_at(i - 1u, &k)))
+        uint32_t i, e0, e1, sorted = 1, ok = 1, k, ne = 0, back, nf = preset_fixed_n() - bank_ni;   /* (the factory part, FM6's voices in it) */
+        for (i = 1; i < nf; i++)
+            if (eng_rank(list_eng(i)) < eng_rank(list_eng(i - 1u)))
                 sorted = 0;
         check(sorted, "the preset list: grouped by instrument (the engines by name)");
         song.sel = 0;
         frame();
         e0 = TSEL->eng_req;
-        for (i = 0; i < NBANK; i++)                     /* (the instruments in the list: eng_built takes a UID, not the slot i) */
-            if (!i || preset_at(i, &k) != preset_at(i - 1u, &k))
+        for (i = 0; i < nf; i++)                        /* (the instruments in the list: eng_built takes a UID, not the slot i) */
+            if (!i || list_eng(i) != list_eng(i - 1u))
                 ne++;
         press(B_OCTDN);
         turn(EN_PRESET, 1);
@@ -4717,6 +4737,7 @@ int main(int argc, char **argv)
     missline_tests();
     notename_tests();                                   /* (late: the note it plays moves the master's meters, SCRS's golden) */
     notename_blink_tests();
+    chordname_tests();
     knobcolors_blink_tests();
     fuzz(20000, 12345);
     check(1, "20000 frames of random use: every draw on the screen");

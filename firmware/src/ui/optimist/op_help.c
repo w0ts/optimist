@@ -398,7 +398,7 @@ static void hl_post(void)
     off = hl_nn_only ? 0u : lay_hint_t ? 0xFFFFu : hl_text();   /* (a layer just opened: its hint, op_laydraw.c lay_hint) */
     dst = hl_nn_only || lay_hint_t ? 0u : hl_dest(b);   /* (a DEST on an engine value: its engine and name) */
     src = hl_nn_only || lay_hint_t ? 0u : hl_src(w);    /* (an automated value: where its change comes from) */
-    sig = hu(hu(hu(hu(hu(0x4E1Fu, settings.palette), off), dst), src), nn_vis);   /* (nn_vis: the note played, op_draw.c) */
+    sig = hu(hu(hu(hu(hu(hu(0x4E1Fu, settings.palette), off), dst), src), nn_vis), nn_hash());   /* (nn_vis: the note played, op_draw.c) */
     if (src) {                                          /* the sources first ("LOCK LFO-A: Filter cutoff"), cut to the band */
         uint32_t n = str_len(w);
         if (dst || (off && off != 0xFFFFu)) {
@@ -418,9 +418,10 @@ static void hl_post(void)
     {
         int32_t x = 4;
         if (nn_vis) {                                   /* the note played on the keys at the line's left end */
-            note_name(w, nn_vis - 1u);
+            nn_line(w, sizeof w, 232);
             cv_texts(4, 2, w, C_WHITE);
-            x = (int32_t)NN_W;
+            x = 4 + text_ws(w) + 8;
+            x = x < (int32_t)NN_W ? (int32_t)NN_W : x;
         }
         if (off == 0xFFFFu)
             cv_texts(x, 2, "Oct- locks it", C_AMB);

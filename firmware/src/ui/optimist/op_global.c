@@ -92,7 +92,8 @@ static uint32_t gl_sid(uint32_t s, uint32_t e)          /* entry e's section: on
  * neighbouring sections of SYSTEM that fit one page together (4 lines at most) share it, the page titled by GL_JOIN's
  * name (written as drawn); when they do not fit (a build with more lines) each keeps its own pages. One table: a pair is one entry */
 static const struct { const char *a, *b, *title; } GL_JOIN[] = {
-    {"GENERAL", "USB", "General"}};                    /* (USB SERIAL alone on a page: the user, 2026-10-25) */
+    {"GENERAL", "USB", "General"},                     /* (USB SERIAL alone on a page: the user, 2026-10-25) */
+    {"GENERAL", "METERS", "General"}};                 /* (METERS alone on a page while General had a free line: the user, 2026-11-03) */
 #define GL_NJOIN (sizeof GL_JOIN / sizeof GL_JOIN[0])
 static const char *gl_rowname(uint32_t s, uint32_t e) { return SYS[(s ? e >> 2 : glo_sys(e >> 2)) % NSYS].name; }
 static uint32_t gl_grp(uint32_t s, uint32_t e)          /* entry e's page group: its section, or its joined pair's */
@@ -100,8 +101,12 @@ static uint32_t gl_grp(uint32_t s, uint32_t e)          /* entry e's page group:
     uint32_t j;
     if (s)
         for (j = 0; j < GL_NJOIN; j++)
-            if (str_eq(gl_rowname(s, e), GL_JOIN[j].a) || str_eq(gl_rowname(s, e), GL_JOIN[j].b))
-                return 64u + j;
+            if (str_eq(gl_rowname(s, e), GL_JOIN[j].a) || str_eq(gl_rowname(s, e), GL_JOIN[j].b)) {
+                uint32_t f;                             /* (the entries of one title are one group: General, USB, METERS) */
+                for (f = 0; f < j && !str_eq(GL_JOIN[f].title, GL_JOIN[j].title); f++)
+                    ;
+                return 64u + f;
+            }
     return gl_sid(s, e);
 }
 static void gl_build(void)

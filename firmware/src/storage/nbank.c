@@ -108,6 +108,20 @@ static uint32_t nb_list_of(uint32_t kind, uint32_t *rank, uint32_t n, uint32_t *
         *rank = c;
     return c;
 }
+/* the n-th used slot of a collection, as nb_list_of's *at, without counting the rest (the whole list asks it for each entry
+ * it walks: preset_all_at) */
+static uint32_t nb_nth(uint32_t kind, uint32_t n)
+{
+    uint32_t k;
+#if FELUCCA_FM6_LIST
+    if (kind == NB_FM6 && n < FM6_NPKV)
+        return n;                                       /* (the packs' voices: every slot used, in order) */
+#endif
+    for (k = 0; k < nb_slots(kind); k++)
+        if (nb_used(kind, k) && !n--)
+            return k;
+    return 0;
+}
 static uint32_t nb_list(uint32_t *rank, uint32_t n, uint32_t *at)   /* the selected track's engine's own collection */
 {
     return nb_list_of(nb_kind(TSEL), rank, n, at);

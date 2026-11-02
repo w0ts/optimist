@@ -1199,8 +1199,8 @@ static uint32_t meter_h(int32_t pk)
         return 0u;
     return (uint32_t)ui_clamp(METER_H - ((960 - l) * 66 + d / 2) / d, 0, METER_H);
 }
-/* ---- the note played on the keys, at the screen's bottom left (the user, 2026-10-24, after Melodee): its name (A#4; a
- * chord's lowest) while a note key is down and NN_FRAMES after the last one is let go. A build with the help band: the
+/* ---- the notes played on the keys, at the screen's bottom left (the user, 2026-10-24, after Melodee; all of them and
+ * their chord's name since 2026-11-02, op_chord.c: C4 E4 G4  C) while a note key is down and NN_FRAMES after the last one is let go. A build with the help band: the
  * help line shows it at its left end (op_help.c hl_pre / hl_post: the band is the line's alone); without the band, it is
  * drawn last each frame over the panel's corner, and when it goes the cards and the panel are drawn again over it */
 #define NN_FRAMES 60u                   /* ~1 s at 60 frames a second */
@@ -1214,6 +1214,8 @@ static void nn_tick(void)               /* each frame, first (the help line read
     for (k = 0; k < 27u; k++)
         held |= ((kb_prev >> k) & 1u) && kb_kind[k] == KS_NOTE;   /* (down now, playing a note) */
     nn_gone = 0;
+    if (kb_shown_n != seen)
+        nn_take();                                      /* (a key went down: the notes down now, op_chord.c) */
     if (held || kb_shown_n != seen)
         t = (uint8_t)NN_FRAMES, seen = kb_shown_n;
     else if (t && !--t)
@@ -1222,7 +1224,8 @@ static void nn_tick(void)               /* each frame, first (the help line read
 }
 static void nn_post(void)               /* last, after the frame's force is spent (its own asks the next frame) */
 {
-    char b[6];
+    char b[64];
+    static uint32_t w;                                  /* (the widest drawn while shown: a shorter line covers it) */
     if (OP_FOOT)
         return;                                         /* (the help band: the help line draws it) */
     if (nn_gone) {
@@ -1230,10 +1233,15 @@ static void nn_post(void)               /* last, after the frame's force is spen
                                                          * what is there, next frame: no black fill of the screen, that blinked ~1 s after a key, #121) */
         return;
     }
-    if (!nn_vis)
+    if (!nn_vis) {
+        w = 0;
         return;
-    note_name(b, nn_vis - 1u);
-    cv_begin(NN_W, 16u, C_BLACK);
+    }
+    nn_line(b, sizeof b, 232);
+    if ((uint32_t)text_ws(b) + 8u > w)
+        w = (uint32_t)text_ws(b) + 8u;
+    w = w < NN_W ? NN_W : w > 240u ? 240u : w;
+    cv_begin(w, 16u, C_BLACK);
     cv_texts(4, 0, b, C_WHITE);
     cv_blit(0, NN_Y);
 }

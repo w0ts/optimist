@@ -42,6 +42,7 @@ static void up_ui(uint32_t op, uint32_t k);
 static uint32_t nb_list(uint32_t *rank, uint32_t n, uint32_t *at);
 static uint32_t nb_list_of(uint32_t kind, uint32_t *rank, uint32_t n, uint32_t *at);
 static uint32_t nb_kind_at(uint32_t i);
+static uint32_t nb_nth(uint32_t kind, uint32_t n);
 static uint32_t nb_engine_slot(uint32_t kind);
 static int nb_factory(uint32_t kind, uint32_t slot);
 #define NB_NK 2u
@@ -601,6 +602,8 @@ static uint8_t bank_pi[NBANK_ALL];                   /* the preset index of each
 static bank_i_t bank_ix[NBANK_ALL], bank_n;
 static uint8_t bank_init[NENGINES], bank_ni;          /* after them: INIT of each engine with no entry (slots) */
 static uint8_t bank_ready;
+static uint16_t pl_nfix, pl_fix_c6 = 0xFFFFu;       /* preset_all_at's table (pl_fix): its entries; FM6's collection's size it was made with (0xFFFF: not made) */
+static uint16_t bank_s6;                             /* after FM6's last factory entry (0: none): nb6_span */
 static void bank_resolve(void)
 {
     uint32_t i, k, a, n = 0;
@@ -642,7 +645,14 @@ static void bank_resolve(void)
             bank_init[bank_ni++] = (uint8_t)i;
     }
 #endif
+    bank_s6 = 0;
+#if FELUCCA_NB_LIST && FELUCCA_FM6_LIST
+    for (i = 0, a = nb_engine_slot(nb_kind_at(0)); a < NENGINES && i < bank_n; i++)
+        if (bank_eng(bank_ix[i]) == a)
+            bank_s6 = (uint16_t)(i + 1u);
+#endif
     bank_ready = 1;
+    pl_fix_c6 = 0xFFFFu;                              /* (preset_all_at's table: made again) */
 }
 static uint32_t eng_rank(uint32_t slot)              /* the engine slot's place in the list by name */
 {
@@ -652,11 +662,38 @@ static uint32_t eng_rank(uint32_t slot)              /* the engine slot's place 
 }
 #define NBANK ((uint32_t)bank_n)                     /* the factory entries */
 #define NLIST (NBANK + bank_ni)                      /* and the INIT ones: then the user presets */
-static uint32_t preset_all_pos(uint32_t *total)      /* list index of the selected track's preset, in the whole list */
+/* FM6's own collection (its voice packs, the bank received) right after FM6's factory sounds, not after the user presets
+ * (the user, 2026-11-02: the packs "are here, after VPS... confusing"); the other collections (CZ) stay at the end.
+ * The whole list's index n is then the raw one (bank, INIT, user presets, collections) with FM6's c6 entries put in at
+ * s6. ~0u: FM6 has no factory sound in this build or no collection, nothing moves */
+static uint32_t nb6_span(uint32_t *c6)
 {
-    uint32_t i, cur = 0;
+#if FELUCCA_NB_LIST && FELUCCA_FM6_LIST
+    static uint32_t n6, ms6 = ~0u;                     /* (counted once a millisecond: the list asks it for every entry it walks,
+                                                         * 80-112 slots each time made PRESETS dead slow on the FM-1, 2026-11-02) */
+    uint32_t r, at = 0, now = fm1_ms;
+    if (now != ms6)
+        n6 = bank_s6 ? nb_list_of(nb_kind_at(0), &r, ~0u, &at) : 0u, ms6 = now;
+    *c6 = n6;
+    return n6 ? bank_s6 : ~0u;
+#else
+    *c6 = 0;
+    return ~0u;
+#endif
+}
+static uint32_t preset_fixed_n(void)                 /* the whole list's part before the user presets: NLIST, FM6's collection in it */
+{
+    uint32_t c6;
     if (!bank_ready)
         bank_resolve();
+    return nb6_span(&c6) == ~0u ? NLIST : NLIST + c6;
+}
+static uint32_t preset_all_pos(uint32_t *total)      /* list index of the selected track's preset, in the whole list */
+{
+    uint32_t i, cur = 0, c6, s6;
+    if (!bank_ready)
+        bank_resolve();
+    s6 = nb6_span(&c6);
     for (i = 0; i < NBANK; i++)
         if (bank_eng(bank_ix[i]) == TSEL->eng_req && bank_pi[bank_ix[i]] == TSEL->preset)
             cur = i;
@@ -666,13 +703,15 @@ static uint32_t preset_all_pos(uint32_t *total)      /* list index of the select
     if (user_of(TSEL) < UP_SLOTS)
         cur = NLIST + up_rank(user_of(TSEL));
     *total = NLIST + up_count();
+    if (s6 != ~0u && cur >= s6)
+        cur += c6;                                      /* (after FM6's collection, put in before it) */
 #if FELUCCA_NB_LIST
     {
         uint32_t j;
         for (j = 0; j < NB_NK; j++) {                    /* (every engine's own collection: nbank.c) */
             uint32_t at, n = nb_list_of(nb_kind_at(j), &i, ~0u, &at);
             if (i < n)
-                cur = *total + i;
+                cur = (j == 0u && s6 != ~0u ? s6 : *total) + i;
             *total += n;
         }
     }
@@ -680,20 +719,55 @@ static uint32_t preset_all_pos(uint32_t *total)      /* list index of the select
     return cur;
 }
 
-/* list index n (< total) -> engine slot, *k its preset (PRESET_INIT: INIT); NENGINES = user preset, *k its slot */
+/* list index n (< total) -> engine slot, *k its preset (PRESET_INIT: INIT); NENGINES = user preset, *k its slot. The part before
+ * the user presets (the factory sounds, FM6's collection, the INITs) is one table, made once (pl_fix): each lookup used to work
+ * its entry out again and count the user presets in flash (up_count, UP_SLOTS reads) for every entry a list walk passed, ten
+ * walks a frame: PRESETS dead slow on the FM-1 (the user, 2026-11-03) */
+static uint32_t preset_raw_at(uint32_t n, uint32_t *k);
+#define PL_FIX_MAX (NBANK_ALL + NENGINES + 112u)    /* (factory entries, INITs, FM6's collection: 5 packs of 16 and 32 received) */
+static uint16_t pl_fix[PL_FIX_MAX];                 /* entry n: its engine slot << 10 | its k (10 bits: a collection's kind << 8 | slot) */
 static uint32_t preset_all_at(uint32_t n, uint32_t *k)
 {
+    uint32_t c6, i, e, kk;
     if (!bank_ready)
         bank_resolve();
+    (void)nb6_span(&c6);
+    if (c6 != pl_fix_c6) {                          /* (made again when FM6's received bank changes its size) */
+        pl_nfix = (uint16_t)(preset_fixed_n() < PL_FIX_MAX ? preset_fixed_n() : PL_FIX_MAX);
+        for (i = 0; i < pl_nfix; i++) {
+            e = preset_raw_at(i, &kk);
+            pl_fix[i] = (uint16_t)(e << 10 | (kk & 0x3FFu));
+        }
+        pl_fix_c6 = (uint16_t)c6;
+    }
+    if (n < pl_nfix) {
+        *k = pl_fix[n] & 0x3FFu;
+        return pl_fix[n] >> 10;
+    }
+    return preset_raw_at(n, k);
+}
+static uint32_t preset_raw_at(uint32_t n, uint32_t *k)
+{
+    uint32_t c6, s6;
+    if (!bank_ready)
+        bank_resolve();
+    s6 = nb6_span(&c6);
 #if FELUCCA_NB_LIST
+    if (s6 != ~0u) {
+        if (n >= s6 && n < s6 + c6) {                   /* (FM6's collection, after FM6's factory sounds) */
+            *k = (nb_kind_at(0) << 8) | nb_nth(nb_kind_at(0), n - s6);
+            return NB_LIST;
+        }
+        if (n >= s6)
+            n -= c6;
+    }
     if (n >= NLIST + up_count()) {
         uint32_t r, j, c, at = 0;
         n -= NLIST + up_count();
-        for (j = 0; j < NB_NK; j++) {
+        for (j = s6 != ~0u ? 1u : 0u; j < NB_NK; j++) {   /* (FM6's moved: the others) */
             c = nb_list_of(nb_kind_at(j), &r, ~0u, &at);
             if (n < c) {
-                nb_list_of(nb_kind_at(j), &r, n, &at);
-                *k = (nb_kind_at(j) << 8) | at;           /* (the collection, the slot) */
+                *k = (nb_kind_at(j) << 8) | nb_nth(nb_kind_at(j), n);           /* (the collection, the slot) */
                 return NB_LIST;
             }
             n -= c;
@@ -791,7 +865,7 @@ static uint32_t pl_init_list(uint8_t *l)
     if (!bank_ready)
         bank_resolve();
     memset(seen, 0, sizeof seen);
-    for (i = 0; i < NLIST; i++) {
+    for (i = 0; i < preset_fixed_n(); i++) {
         e = preset_all_at(i, &k);
         if (e < NENGINES && !seen[e]) {
             seen[e] = 1;
