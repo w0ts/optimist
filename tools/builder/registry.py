@@ -1035,6 +1035,18 @@ _add("SYS_DEBUG", "FELUCCA_SYS_DEBUG", "SYSTEM's debug pages (internals, USB sta
           "UNDERRUNS (the drop-outs counted in) and BATTERY, in the large face, and the code of the rest is left out "
           "(about 2.9 KB less flash, measured on a USB-audio build). The red / amber mark on the header's rule after a "
           "drop-out stays either way.")
+_add("SYS_TOP", "FELUCCA_SYS_TOP", "SYSTEM > TOP: what takes the CPU and the RAM", U, 448, default=0,
+     desc="SYSTEM gets a TOP page, after INFO (after CPU TIMES with SYS_DEBUG): the CPU0 and CPU1 load, then each job of the "
+          "audio render (each track with its engine, the drums, the reverb, Bluetooth's SBC, CPU0's own steps before and "
+          "after the render) in % of a mix block, its average, its peak of the last 2 s and its core, largest first; then "
+          "the SRAM used of the total and what holds it, largest first: the arena's blocks as they are now (a track's "
+          "engine, the delay, reverb and chorus lines, the inserts' lines, Bluetooth audio's buffers ...) and the build's "
+          "own RAM by module, from its link (the 12 largest and OTHER). SELECT scrolls it; it updates every half second. "
+          "The render's times are the ones CPU TIMES reads (a few timer reads a block), without SYS_DEBUG's other pages. "
+          "The build links twice (the second time with the table of the first link's symbols). Measured 2026-11-01: about "
+          "2.3 KB of flash, 0.4 KB of RAM and 0.5 KB of RAM code (the release's defaults; on mots-config 3.1 KB, 0.4 KB and "
+          "0.5 KB).",
+     symbols=("top_take", "TOP_RAM"))
 _add("KNOB_ACCEL", "FELUCCA_KNOB_ACCEL", "knob acceleration by turn speed", U, 67,
      desc="1 / 2 / 3 / 5 / 8 steps a detent when turned fast; never on lists (engines, kits, presets)",
      provenance=x0x("61654ba"),

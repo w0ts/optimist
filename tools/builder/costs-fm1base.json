@@ -1797,6 +1797,14 @@
     "pool": 0,
     "ramtext": 0
    }
+  },
+  "SYS_TOP": {
+   "1": {
+    "flash": 2288,
+    "ram": 384,
+    "pool": 0,
+    "ramtext": 488
+   }
   }
  },
  "measured": "2026-10-31 10:47",

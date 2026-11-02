@@ -51,7 +51,8 @@ static int32_t dual_c1_pct(void)
  * The render writes them (dual.c mix_block_dual, fm1-base's opt_dual.c mix_block and dual_run) with a few tick reads,
  * compares and stores; the core that runs a job stores its time (jt), CPU1 its own total (c1_last), CPU0 folds them in
  * after the join; the main loop only reads (and sets wreset) */
-#if defined(FELUCCA_SYS_DEBUG) && FELUCCA_SYS_DEBUG
+#if (defined(FELUCCA_SYS_DEBUG) && FELUCCA_SYS_DEBUG) || (defined(FELUCCA_SYS_TOP) && FELUCCA_SYS_TOP)   /* (SYS_TOP: SYSTEM > TOP
+                                                    * reads the same times, op_top.c; none of the debug pages with it) */
 #define DUAL_TIMES 1
 #define DUAL_TM_NJ 7u                              /* jobs: the parts (NPART <= 4), the drums, the reverb's kept block,
                                                     * the Bluetooth stream's SBC frame (bt/bt_sbc_job.h) */
@@ -65,6 +66,7 @@ typedef struct {
     volatile uint32_t c1_last;                     /* CPU1: its jobs' ticks in the last block it had some */
     uint8_t c1_mask;                               /* the last block's jobs CPU1 ran (bit p: job p) */
     uint8_t ran;                                   /* the jobs that ran in the last block, either core */
+    uint8_t xran;                                  /* jobs timed outside the block since the last (DUAL_TM_XJOB): its ran */
     uint8_t w_c1, w_ran;                           /* the worst block's: the jobs CPU1 ran, the jobs that ran */
     uint8_t win;                                   /* the window written now (ms >> 9, of DUAL_TM_WIN) */
     volatile uint8_t wreset;                       /* the main loop: a new worst block from now (the page opened) */
@@ -114,6 +116,7 @@ static inline __attribute__((always_inline)) void dual_tm_block(uint32_t t0, uin
 {
     uint32_t w = (ms >> 9) % DUAL_TM_WIN, p;
     uint16_t v[DTQ_N], *pk = dual_tm.pk[w];
+    ran |= dual_tm.xran, dual_tm.xran = 0;         /* (a job timed since, outside the block: DUAL_TM_XJOB) */
     if (w != dual_tm.win) {                        /* (a new window: its peaks from 0) */
         dual_tm.win = (uint8_t)w;
         for (p = 0; p < DTQ_N; p++)
@@ -165,6 +168,9 @@ static inline uint32_t dual_tm_peak(uint32_t q)
         m = dual_tm.pk[w][q] > m ? dual_tm.pk[w][q] : m;
     return m;
 }
+/* a job CPU0 runs after the block, outside mix_block_dual (Optimist's own firmware: Bluetooth's SBC frames, audio.c
+ * bt_audio_feed): its time, folded into the next block as a job of its own (p: its slot, the first after the render's) */
+#define DUAL_TM_XJOB(p, t) ((p) < DUAL_TM_NJ ? (void)(dual_tm.jt[p] = (t), dual_tm.xran |= (uint8_t)(1u << (p))) : (void)0)
 #else
 #define DUAL_TIMES 0
 #endif
