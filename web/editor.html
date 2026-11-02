@@ -7158,6 +7158,9 @@ function pjLibMake(be) {
   };
 }
 const pjLibMem = () => { const m = new Map(); return { all: async () => [...m.values()], get: async (id) => m.get(id), put: async (r) => { m.set(r.id, r); }, del: async (id) => { m.delete(id); } }; };
+/* PATTERNS firmware (INFO tag 0x55): a project owns its scenes, so no section list (the Projects tab's slots, the librarian's
+   sections) is shown; a firmware without the tag keeps them. The Mirror app's DeviceInfo.showsSections is the same rule */
+const sectionsShown = (info) => !info.pat;
 /* "Swap with slot N": the slot goes into the Library first; only when that worked is the chosen project written over it */
 async function pjSwap(saveSlot, load) { await saveSlot(); await load(); }
 /*wire-section:end*/
@@ -7571,6 +7574,7 @@ const TEXT = {                                      /* the page's words, by key 
   snImported: "Snapshot imported: ", snFail: "Snapshot: ", snNotes: "Loaded, but: ", snSlot: "slot",
   snSections: "sections", snSong: "song", snBadFile: "Cannot read the file: ",
   lbrTitle: "Librarian", lbrHelp: "Everything you made, one piece at a time: the sections (A..P), the per-track patterns and the user drum kits here, the user presets on the Library tab. Stop playback before saving, erasing or importing.",
+  lbrHelpPat: "Everything you made, one piece at a time: the per-track patterns and the user drum kits here, the user presets on the Library tab. Stop playback before saving, erasing or importing.",
   lbrSections: "Sections", lbrPatterns: "Patterns", lbrKits: "User drum kits", lbrPatHelp: "Click a pattern to pick it, drag it onto another slot to copy it. LEN is shown in the slot.",
   lbrExport: "Export", lbrImport: "Import", lbrClear: "Clear", lbrNoPat: "This build has no per-track patterns.", lbrNoKits: "This build has no user drum kits.",
   lbrBadFile: "Not a file of this kind: ", lbrExported: "Exported: ", lbrImported: "Imported: ", lbrConfirmImport: "Replace {x} with the file's?",
@@ -8183,7 +8187,7 @@ async function pullDevice(d) {
       [d.names[eng], d.titles[eng]] = [names, titles];
     }
     /* PROJECT op 2 per slot: used or empty (no answer: unknown, null) */
-    for (const slot of [0, 1, 2, 3]) {
+    for (const slot of sectionsShown(d.info) ? [0, 1, 2, 3] : []) {
       try { d.slotUsed[slot] = parse[CMD.PROJECT](await d.link.request(req.project(2, slot))).used; }
       catch (err) { if (err.message === "closed") throw err; }
     }
@@ -8957,6 +8961,9 @@ function renderProjFiles() {
   if (!pjlLoaded) { pjlLoaded = true; pjlRefresh(); }
 }
 function drawSlots() {
+  const hide = !sectionsShown(dev.info);   /* (PATTERNS: the project's scenes, no section slots) */
+  $("slotshead").hidden = $("slots").hidden = hide;
+  if (hide) { $("slots").replaceChildren(); renderProjFiles(); return; }
   const cells = [0, 1, 2, 3].flatMap((slot) => {
     const used = dev.slotUsed[slot];
     const state = used == null ? t("unknown") : t(SLOT_STATE[used] || "used");
@@ -9003,7 +9010,7 @@ async function libLiteRead(d) {
   const quiet = { timeout: 400, retries: 0, quiet: true };
   const nsec = d.info.pat ? d.info.pat.scenes : (d.bk && d.bk.objs.filter((o) => o.kind === "sec").length) || 4;
   d.slotUsed = [];
-  for (let k = 0; k < nsec; k++) {
+  for (let k = 0; k < (sectionsShown(d.info) ? nsec : 0); k++) {
     try { d.slotUsed[k] = parse[CMD.PROJECT](await d.link.request(req.project(2, k), quiet)).used; }
     catch (e) { if (e.message === "closed") throw e; d.slotUsed[k] = null; }
   }
@@ -9122,6 +9129,7 @@ const lbrFile = (accept, fn) => {
   return f;
 };
 function lbrSections() {
+  if (!sectionsShown(dev.info)) return [];
   const tb = el("table", { class: "ukits" });
   (dev.slotUsed || []).forEach((u, k) => {
     const imp = lbrFile(".optimist-backup,application/octet-stream", (f) => lbrSecImport(k, f));
@@ -9178,7 +9186,7 @@ function renderLibr() {
   const box = $("libr");
   if (!box) return;
   if (!dev || !dev.info || !dev.info.lite || !dev.info.lib) { box.replaceChildren(); return; }
-  box.replaceChildren(el("h2", { text: t("lbrTitle") }), el("p", { class: "dim", text: t("lbrHelp") }),
+  box.replaceChildren(el("h2", { text: t("lbrTitle") }), el("p", { class: "dim", text: t(sectionsShown(dev.info) ? "lbrHelp" : "lbrHelpPat") }),
     ...lbrSections(), ...lbrPatterns(), ...lbrKits(),
     el("p", { class: "bar" }, el("button", { ic: "control_arrow_loop", disabled: lbr.busy, onclick: () => lbrOp(async () => {
       dev.bk = await bkList(dev);

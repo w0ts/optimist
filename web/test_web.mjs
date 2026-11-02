@@ -57,7 +57,7 @@ const E = vm.runInNewContext(`${proto}
    WATCH, watchCaps, PARAMS_GLOBAL,
    openMidi, findPorts, wantsReconnect, isFM1Name, syncState, ROLL, rollRest, rollNotes, noteSpan, rollAdd, rollRemove, rollToggle, rollSetLength, rollSetNote, rollSetStep, rollChanged, rollGrid, rollLen, DRUM_PAGE, drumPages, drumPageRange, COLORS, engineColor, kindColor, contrast, textOn, MASTER_FX, MASTER_BUS, fxInline, FX_INLINE_MAX, NAV, SCREENS, navOpen, navClose, navKey, navScreen, navDepth, KEYS, KEY_FIXED, LANE_KEYS, keyFor, keyLabel, keyPlan, stepxBuilt, PAT, patSlotView, patUsers,
    PATREC, patRecParse, patRecBuild, patRawEmpty, patStepFrom, patStepRaw, patDrumFrom, patDrumRaw, patReadAll, patWriteAll,
-   FXT, FXT_NAMES, fxsLoad, fxType, fxSlotAmt, readFx, keptIds, AUTO, autoLane, SetGate,
+   FXT, FXT_NAMES, fxsLoad, fxType, fxSlotAmt, readFx, keptIds, sectionsShown, AUTO, autoLane, SetGate,
    FXP, FXP_TABLE, SCRN_TABLE, SCRS_TABLE, EQ_FL_HZ, EQ_FH_HZ, fxpClass, fxpName, fxpTypeName, fxpAllows, fxpFmt, readFxpOwner, readFxpSlot, panelKey, panelKeyName, navParse, navTracksParse, navBar, navKnobs, navKnobAt, MNAV, PJF, pjfPack, pjfUnpack, pjLibMake, pjLibMem, pjSwap, WIFI, wifiCheck, wifiApCheck, wifiApDefaultKey, wifiIsAp, wifiBusy, wifiText, pack7, unpack7, btInfoOk })`,
 { setTimeout, clearTimeout, setInterval, clearInterval, console, TextEncoder, TextDecoder });
 
@@ -1117,6 +1117,7 @@ async function editorFxSlots() {
   {
     const { rq, teardown } = attachMock({});
     const info = await infoOf(rq);
+    ok(E.sectionsShown({ pat: null }) && !E.sectionsShown({ pat: { slots: 16, scenes: 16 } }), "sections: shown on a firmware without PATTERNS (INFO tag 0x55 absent), hidden where a project owns its scenes");
     ok(info.fxs === null && await E.readFx(rq, info) === null && !E.keptIds(info).has(75), "fx slots: a firmware without tag 0x56: no FX state (the strips as before)");
     teardown();
   }

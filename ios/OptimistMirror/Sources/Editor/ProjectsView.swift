@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// Projects: the FM-1's projects (as many as the installed MEMORY layout keeps: 2, 4, 16; PJ_OP 110: open, save the work there, rename, clear, a project as a .fm1proj file), the open project's sections A..
+// Projects: the FM-1's projects (as many as the installed MEMORY layout keeps: 2, 4, 16; PJ_OP 110: open, save the work there, rename, clear, a project as a .fm1proj file), the open project's sections A.. (only on firmware without PATTERNS)
 // (PROJECT load / save, a section as a .optimist-backup file) and the per-track patterns
 // (PAT_*: a pattern as an optimist-pattern .json), as the web editor's Projects tab and librarian.
 import SwiftUI
@@ -46,8 +46,10 @@ struct ProjectsView: View {
                     Section { Text(line).font(.footnote).foregroundStyle(.secondary) }.listRowBackground(Color.clear)
                 }
                 if s.ready(.projects) {
-                    Section(s.projects.map { sectionsTitle($0) } ?? "Sections") {
-                        ForEach(0..<s.sectionUsed.count, id: \.self) { k in sectionRow(k) }
+                    if s.info?.showsSections ?? true {
+                        Section(s.projects.map { sectionsTitle($0) } ?? "Sections") {
+                            ForEach(0..<s.sectionUsed.count, id: \.self) { k in sectionRow(k) }
+                        }
                     }
                     if let l = s.patList, let len = l.len {
                         Section("Patterns") { patterns(l, len) }
