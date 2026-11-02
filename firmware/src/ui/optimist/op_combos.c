@@ -117,8 +117,7 @@ static int shift_combo(uint32_t b)
         tp.pend = 0;
         return 1;
     case B_REC:
-        if (!song_rec(1))                               /* (a SONG scene row: that scene cleared, asked) */
-            rec_motion_ring();                          /* else held, the ring closed: the motion and locks (op_input.c) */
+        rec_motion_ring();                              /* held, the ring closed: the motion and locks (op_input.c; a SONG scene row: as anywhere) */
         return 1;
     default:
         return 0;

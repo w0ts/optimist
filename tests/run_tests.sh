@@ -160,10 +160,10 @@ t_sim() {
     "$py" tools/sim.py build --wasm --config build/sim/test/fm6.config --out build/sim/test/sim-fm6.wasm >build/sim/test-build-fm6.log 2>&1 || { tail -20 build/sim/test-build-fm6.log; return 1; }
     node tests/sim_fm6lib_test.mjs build/sim/test/sim-fm6.wasm || return 1
     # (one project moved between two instances: a build with PATTERNS, live editing not needed)
-    "$py" tools/sim.py build --wasm --config config/profiles/synths_USBaudio_BTaudio_BTmidi.config --out build/sim/test/sim-pj.wasm >build/sim/test-build-pj.log 2>&1 || { tail -20 build/sim/test-build-pj.log; return 1; }
+    "$py" tools/sim.py build --wasm --config config/profiles/mots-config.config --out build/sim/test/sim-pj.wasm >build/sim/test-build-pj.log 2>&1 || { tail -20 build/sim/test-build-pj.log; return 1; }
     node tests/sim_projects_test.mjs build/sim/test/sim-pj.wasm || return 1
     # (DRUMS off: the same profile, track 4 a part; its projects against the build with drums')
-    { cat config/profiles/synths_USBaudio_BTaudio_BTmidi.config; echo DRUMS=0; } >build/sim/test/nodrums.config
+    { cat config/profiles/mots-config.config; echo DRUMS=0; } >build/sim/test/nodrums.config
     "$py" tools/sim.py build --wasm --config build/sim/test/nodrums.config --out build/sim/test/sim-nd.wasm >build/sim/test-build-nd.log 2>&1 || { tail -20 build/sim/test-build-nd.log; return 1; }
     node tests/sim_nodrums_test.mjs build/sim/test/sim-nd.wasm build/sim/test/sim-pj.wasm
 }

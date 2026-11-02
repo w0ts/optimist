@@ -53,7 +53,7 @@ python3 tools/optimist.py web --sim --no-open   # the site on 127.0.0.1:8766 wit
 make builder                                    # the builder menu
 ```
 
-The default profile, `synths_USBaudio_BTaudio_BTmidi`, fills the flash almost to the byte: a build with any example
+The default profile, `mots-config`, fills the flash almost to the byte: a build with any example
 added to it does not fit the app slot (hence `--measure` above). To hear one, build a profile that leaves something out
 (`make builder`, untick an engine), or try it in the emulator or the web simulator. Most work needs no FM-1.
 
