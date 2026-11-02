@@ -119,6 +119,8 @@ The battery is the page's header, not a line: no tempo and no bar number there, 
 
 SHIFT + SAVE on this page clears the counters. Builds made with the builder item `SYS_DEBUG` add INTERNALS (the last reset, flash interrupt time, the second core's internals), USB STATS (USB audio counters), DROPS, GUARD and CLOCK lines. They are for finding a fault, not for playing, and no ready-made build has them.
 
+Builds made with the builder item `SYS_TOP` add a **TOP** page after INFO (after CPU TIMES in a `SYS_DEBUG` build): what takes the CPU and the RAM, largest first. Its first part is in percent of an audio block (32 frames, 0.73 ms): CPU0 and CPU1, then each job of the audio render, each track with its engine (`T1 ACID`), the drums, the reverb, Bluetooth's SBC encoding, PRE (CPU0's own work before the render: the sequencer's events) and POST (after it: the buses and the master chain). Its columns: AVG (the average), MAX (the peak of the last 2 seconds) and C (the core that ran it last; - not run). Its second part is the RAM in KB: SRAM KB (used / total), then what holds it: the memory arena's blocks as they are now (a track's engine, the delay, reverb and chorus lines, the inserts' lines, Bluetooth audio's buffers) and the firmware's own RAM by module (RAM CODE, BT AUDIO, UI ...: the 12 largest and OTHER, measured when the build was linked). SELECT scrolls the lines, then goes on to the next page; the figures update twice a second.
+
 ## Connections
 
 MIDI in and out, the clock, Bluetooth MIDI and audio, USB audio and the web editor: [midi-usb.md](midi-usb.md).
