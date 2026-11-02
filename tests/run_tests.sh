@@ -969,7 +969,7 @@ job; ( jobin
 job; ( jobin
     mkdir -p "$OUT/optimist-top"
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -Itests -DFELUCCA_PARAM_HELP=1 -DFELUCCA_USB_AUDIO=1 -DFELUCCA_SYS_DEBUG=0 -DDUAL_LOAD=1 -DFELUCCA_SYS_TOP=1 '-DTOP_RAM_H="top_ram_test.h"' $SEC4 -o "$OUT/ui_optimist_top_test" tests/ui_optimist_test.c -lm
-    run "Optimist UI with SYSTEM > TOP (SYS_TOP=1, SYS_DEBUG=0, DUAL_LOAD): after INFO, CPU0 CPU1 and the jobs by average, the RAM's owners by size, KNOB 1 CPU / RAM, ALGORITHM scrolls, SELECT pages" "$OUT/ui_optimist_top_test" "$OUT/optimist-top"
+    run "Optimist UI with SYSTEM > TOP (SYS_TOP=1, SYS_DEBUG=0, DUAL_LOAD): after INFO, CPU0 CPU1 and the jobs by average, the RAM's owners by size, KNOB 1 CPU / RAM, KNOB 2 scrolls, SELECT pages" "$OUT/ui_optimist_top_test" "$OUT/optimist-top"
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -Itests $SEC4 -DFELUCCA_ENG_FM6=1 -DFELUCCA_FX_ARENA=1 -DFELUCCA_INS_DELAY=1 -DFELUCCA_INS_FLANGER=1 -DFELUCCA_DLY_LEN=16384u -DUI_TOP=1 -DFELUCCA_SYS_TOP=1 -DDUAL_LOAD=1 '-DTOP_RAM_H="top_ram_test.h"' "-DFELUCCA_ARENA_BYTES=131072u" -o "$OUT/ui_optimist_toparena_test" tests/ui_optimist_test.c -lm
     run "SYSTEM > TOP with an arena: every block of the arena a line, a block placed shows within 0.5 s in its place by size, given back goes" "$OUT/ui_optimist_toparena_test" "$OUT/optimist-top"
 ) >"$U.out" 2>&1 & jobbg

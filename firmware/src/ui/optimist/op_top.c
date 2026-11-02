@@ -1,10 +1,10 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* SYSTEM > TOP (builder item SYS_TOP; the user, 2026-11-01: what takes the CPU and the RAM, largest first): a read-out page
- * (op_gldraw.c gl_top_draw, FONT_S), two views: KNOB 1 switches CPU <-> RAM (CPU first), ALGORITHM scrolls
- * the view's lines (TOP_VIS under the header, a bar at the right when there are more), SELECT goes between SYSTEM's pages
+ * (op_gldraw.c gl_top_draw, FONT_L), two views: KNOB 1 switches CPU <-> RAM (CPU first), KNOB 2 scrolls
+ * the view's lines (TOP_VIS under the header, a bar at the right when there are more), SELECT and ALGORITHM go between SYSTEM's pages
  * as everywhere; the header line is the view's name (outlined in KNOB 1's colour) and its columns; the figures taken again
  * every TOP_MS. CPU view:
- *   CPU header      AVG MAX C  the columns: the render's times in % of a 32-frame mix block (726 us), as CPU TIMES' (system/
+ *   CPU header      AVG MAX    the columns: the render's times in % of a 32-frame mix block (726 us), as CPU TIMES' (system/
  *                             dual_load.h dual_tm): AVG over the ~8 blocks it last ran in, MAX the most of the last 2 s,
  *                             C the core that ran it in the last block (- not run then)
  *   CPU0, CPU1                each core's whole block (CPU0 its wait for CPU1 in), the headline
@@ -23,7 +23,7 @@
  * The CPU part needs the render's times (DUAL_TIMES: a dual-core build); without them the page is the RAM part. Read only:
  * no knob does anything. Included by op_project.c */
 #define TOP_MS 500u                                     /* the figures taken again this often (the peaks: dual_load.h's 2 s) */
-#define TOP_VIS 10u                                     /* the lines shown at once under the header (FONT_S: op_gldraw.c gl_top_draw) */
+#define TOP_VIS 7u                                      /* the lines shown at once under the header (FONT_L, 16 x 24: op_gldraw.c gl_top_draw) */
 #define TOP_RAM_N 13u                                   /* the build's table: 12 modules and OTHER (tools/ramtop.py N) */
 typedef struct {
     char nm[10];                                        /* the module, as shown ("BT AUDIO", "RAM CODE", "OTHER"); "" none */
@@ -271,18 +271,16 @@ static uint32_t top_lines(void)                         /* the lines on screen, 
         top.off = (uint8_t)(n > TOP_VIS ? n - TOP_VIS : 0u);
     return 1u + (n < TOP_VIS ? n : TOP_VIS);
 }
-/* ALGORITHM on TOP (op_global.c glo_walk): the lines a detent each; -> the detents left past the first or the last line
- * (the walk goes on across SYSTEM's lines from there, as it does on every page) */
-static int32_t top_step(int32_t s)
+/* KNOB 2 on TOP (op_input.c op_knobs): the lines a detent each, clamped at the first and the last (the page stays) */
+static void top_step(int32_t s)
 {
     uint32_t n = top_all(), m = n > TOP_VIS ? n - TOP_VIS : 0u;
     for (; s > 0 && top.off < m; s--)
         top.off++;
     for (; s < 0 && top.off; s++)
         top.off--;
-    return s;
 }
-/* KNOB 1 on TOP (op_input.c op_knobs): CPU <-> RAM, from the first line (SELECT keeps its pages, ALGORITHM scrolls) */
+/* KNOB 1 on TOP (op_input.c op_knobs): CPU <-> RAM, from the first line */
 static void top_view(void)
 {
     if (!TOP_NC)
@@ -313,7 +311,7 @@ static void top_cell(uint32_t i, cell_t *c)             /* the line i on screen:
             top_num(v, INFO_SRAM / 1024u, 1);
             dual_cat(v, " KB");
         } else
-            dual_cat(v, "AVG MAX C");
+            dual_cat(v, "AVG MAX");
         return;
     }
     r = top.off + i - 1u;
@@ -322,10 +320,9 @@ static void top_cell(uint32_t i, cell_t *c)             /* the line i on screen:
         if (r >= top.nc)
             return;
         top_job_name(top.cq[r], lb);
-        top_num(v, top.ca[r], 3);
-        top_num(v, top.cm[r], 4);
-        i = str_len(v);
-        v[i] = ' ', v[i + 1u] = top.cc[r], v[i + 2u] = 0;
+        top_num(v, top.ca[r], 3);                       /* (no core column: 7 characters, the name 7: FONT_L's 14) */
+        dual_cat(v, " ");
+        top_num(v, top.cm[r], 3);
         c->col = r < 2u ? load_col(top.ca[r]) : top.cm[r] > 100u ? C_WARN : 0;
         return;
     }

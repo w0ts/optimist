@@ -306,8 +306,6 @@ static void glo_walk(int32_t s)
 {
     uint32_t sc = ui.scr == SCR_SYSTEM, n = gl_n(sc);
 #if OP_TOP
-    if (top_page() && !(s = top_step(s)))               /* SYSTEM > TOP: ALGORITHM scrolls its lines first (SELECT: the pages) */
-        return;
 #endif
     if (n)
         gl_at((uint32_t)step_in(ui.row[ui.scr], s, n));

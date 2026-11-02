@@ -1165,6 +1165,10 @@ static void op_knobs(uint32_t shift)
             top_view();
             continue;
         }
+        if (k == 1u && top_page()) {                    /* ... KNOB 2 scrolls its lines (op_top.c top_step) */
+            top_step(s);
+            continue;
+        }
 #endif
         SCR->cell(row, ck, &c);
         if (c.kind == CK_NONE)
