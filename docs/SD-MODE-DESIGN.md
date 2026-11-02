@@ -711,7 +711,7 @@ Risks:
   (`fm1_flash_map.h:71-73`).
 - **An older updater refuses a new size (-15),** as with LAYOUT 1 (section 8, step 2): the first install of a new step
   goes over a normal build of the same version.
-- **fm1-base's loader as it is** leaves stale log sectors between two new steps (9.4): the release steps wait for that
+- **fm1-base's loader before `app_steps`** left stale log sectors between two new steps (9.4): fixed by `app_steps` (9.7.6); the release steps waited for that
   change.
 - **"Nonzero means big"** in the build and the builder (9.4): a new step built as if it were LAYOUT 1 (the far probe
   linked, LAYOUT 1's rule) until every use is checked.
@@ -948,10 +948,12 @@ build with fewer PROJECTS takes only PJ01..PJnn (the rest stays in the file) and
 
 - **Now:** N (SLOTS 2 + 16, and normal with PATTERNS off), L1 (SLOTS 0 + PROJECTS 2 at 0xCE000), SD on (L1 + card).
   PROJECTS 2 in L1 changes no flash, only `PROJ_SLOTS`: buildable once the flag exists (*not built*).
-- **Waits for fm1-base's loader** (`ldr_slot_switch`, `bsp/loader/ldr_core.c:151-170`: going down it clears only the
-  old code's tail, so a new step over another leaves the old log inside the new one's): S0 (already `NOT_BUILT`,
-  `registry.py:1551-1558`) and the 6 new steps. `gen_optimist.py` `APP_ENDS` and `NOT_BUILT` list them; fm1-base's
-  proposed `pr/app-end-table` takes the generated (end, R) list.
+- **Built since 2026-11-02 (branch `layouts`):** every step, LAYOUT 0..8, builds for the release. fm1-base's `fm1.toml`
+  `app_steps` lists every end an FM-1 may have of ours with its step and R (`flash_layout.known_ends`; `gen_optimist.py`
+  `slot_check` refuses a build when the two differ, and takes `FM1B_APP_END` from `STEPS[layout].release_end`), and
+  felucca-bsp's loader (`ldr_core.c` `LDR_STEPS`, `ldr_steps_range`) applies the 9.3 rule from it; `OBJ_PANEL` stays at
+  0xD8000 in every step but L1 (`app.h`). `tests/fm1base_steps_test.py` builds that loader for each step's end and
+  compares what it erases after each of 14 installed ends with `switch_clear_ends`. Not yet run on an FM-1.
 
 #### 9.7.7 Risks and tests
 
@@ -984,8 +986,8 @@ built-in sets with SLOTS 0? the firmware's own notice only, or a refusal without
   unchanged. Fronts: `SD_MODE` 445, `SMP_SLOTS` 446, `PROJECTS` 447 (`core.set_front`, `derive_fronts`); `MEMORY` 436
   hidden, old lines still load.
 - **Steps (`tools/flash_layout.py` STEPS):** 0 N (2/16), 1 L1 (0/2), 3 S0 (0/16), 8 (0/4, 0xCA000), 2 (1/16, 0xA5000),
-  4 (1/4, 0xBA000), 5 (1/2, 0xBE000), 6 (2/4, 0xA6000), 7 (2/2, 0xAA000); the numbers of the 9.7.1 table. None but N and
-  L1 for the release (NOT_BUILT).
+  4 (1/4, 0xBA000), 5 (1/2, 0xBE000), 6 (2/4, 0xA6000), 7 (2/2, 0xAA000); the numbers of the 9.7.1 table. All nine
+  for the release too since 2026-11-02 (fm1-base `fm1.toml` `app_steps`, 9.7.6).
 - **Warnings:** the builder (`core.change_notice`), the web installer (`install_route.js` `switchWarning`: the installed
   end from the editor's `bk_caps`, which now ends with the app end / 4 KiB and `PROJ_SLOTS`; an older firmware: known
   only when its LAYOUT bit is off, else "if the FM-1 has another layout"), `make flash` / the builder's f (`flash.py`:

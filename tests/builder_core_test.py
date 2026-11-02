@@ -341,9 +341,9 @@ check("SAMPLE SLOTS 0 (S0): refused with user drum samples or SNAPSHOTS, or PATT
       and all(_rule(dict(_s0ok, **{k: v})) for k, v in (("DRUM_USR", 1), ("SNAPSHOTS", 1), ("PATTERNS", 0))))
 check("MEMORY normal keeps them (the rule is the step's, not any nonzero LAYOUT)",
       not _rule(dict(_s0ok, LAYOUT=0, ENG_SAMPLE=R.eng_place("ENG_SAMPLE"), SNAPSHOTS=1)))
-check("MEMORY no user samples is not built for the release yet (NOT_BUILT, with the reason); the classic builds it",
-      "fm1-base" in R.not_built("MEMORY", 4, "release") and "fm1-base" in R.not_built("LAYOUT", 3, "release")
-      and not R.not_built("MEMORY", 4, "classic") and not R.not_built("LAYOUT", 3, "classic"))
+check("every MEMORY step builds for the release and the classic alike (fm1-base's loader takes the steps: fm1.toml app_steps)",
+      all(not R.not_built(k, v, kind) for k, vs in (("MEMORY", range(5)), ("LAYOUT", range(9)))
+          for v in vs for kind in ("release", "classic")))
 try:
     K.set_memory(_d, 3)
     _bad3 = False
