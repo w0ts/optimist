@@ -70,7 +70,8 @@ struct Fm1BaseSite {
     private var common: [String: String] {
         let repo = Self.safe(info.extras["repo"] ?? "")
         return ["NAME": Self.safe(info.name), "REPO": repo, "REPO_SHORT": repo.replacingOccurrences(of: "https://", with: "").replacingOccurrences(of: "http://", with: ""),
-                "LICENSE": Self.safe(info.extras["licence"] ?? "MPL-2.0"), "CREDITS": ""]
+                "LICENSE": Self.safe(info.extras["licence"] ?? "MPL-2.0"), "CREDITS": "",
+                "PORTS_JS": read("fm1ports.js").map(Self.stripModule) ?? ""]   // (finding FM-1s on Web MIDI, inlined as make_site.py does)
     }
 
     /// The page at `path` ("/installer/", "/companion/companion.js" ...) as (bytes, MIME type), nil when there is none
@@ -111,10 +112,10 @@ struct Fm1BaseSite {
     }
 
     private func installer() -> String? {
-        guard let page = read("installer.html"), let pkg = read("fm1pkg.js"), let ota = read("fm1ota.js") else { return nil }
+        guard let page = read("installer.html"), let pkg = read("fm1pkg.js"), let ota = read("fm1ota.js"), let ports = read("fm1ports.js") else { return nil }
         let product = package.flatMap(Self.product) ?? info.identity
         let meta = "{\"version\":\"\(Self.safe(info.appVersion))\",\"product\":\"\(Self.safe(product))\",\"pkg\":\"../package.fwsc\",\"backup\":false,\"boot\":null}"
-        let lib = Self.stripModule(pkg) + "\n" + Self.stripModule(ota)
+        let lib = Self.stripModule(ports) + "\n" + Self.stripModule(pkg) + "\n" + Self.stripModule(ota)
         // (the library and metadata are put in last: nothing in them is a {{key}})
         return fill(page, common).replacingOccurrences(of: "/*LIB*/", with: lib).replacingOccurrences(of: "/*META*/", with: meta)
             .replacingOccurrences(of: "/*APP*/", with: "null")

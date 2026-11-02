@@ -191,6 +191,14 @@ const TEXT = {
     tryport: "試す", pickwait: "問い合わせ中…", pickempty: "ほかの MIDI ポートはありません。",
     picknone: "{port} からは FM-1 の応答がありません。",
     pickok: "{port} で {id} が見つかりました。このブラウザが覚えておきます。もう一度押してください。",
+    res: "{{RES_JA}}を書き込み中", resdone: "完了しました（{{RES_JA}}も書き込みました）",
+    resfail: "{{NAME}} はインストールされ、動きます。ただし{{RES_JA}}は、もう一度インストールするまでありません。書き込めなかった理由: ",
+    res2: "転送が途中で止まりました。", res7: "FM-1 がメモリを消去できませんでした。", res8: "FM-1 がメモリに書き込めませんでした。",
+    res10: "FM-1 が再生中です。止めてから、もう一度インストールしてください。", res20: "この{{RES_JA}}は {{NAME}} の別のビルドのものです。",
+    res21: "FM-1 が保存したものを移動中です。電源を入れ直してから、もう一度インストールしてください。",
+    res22: "書き込んだ内容の確認に失敗しました。", resload: "{{RES_JA}}のファイルを読み込めませんでした。ページを再読み込みしてください。",
+    resnoreturn: "インストール後、FM-1 が応答しませんでした。", reslost: "USB の接続が切れました。",
+    resother: "エラーコード ",
   },
   en: {
     intro: "Connect the FM-1 by USB, then press Install. It works in Chrome or Edge; the browser asks once to allow MIDI: allow it.",
@@ -250,13 +258,21 @@ const TEXT = {
     tryport: "Try", pickwait: "Asking…", pickempty: "No other MIDI ports.",
     picknone: "No FM-1 answered on {port}.",
     pickok: "Found {id} on {port}. This browser remembers it. Press the button again.",
+    res: "Writing {{RES}}", resdone: "Done, with {{RES}} written too.",
+    resfail: "{{NAME}} is installed and works, but without {{RES}} until you install it again. Not written: ",
+    res2: "the transfer stopped.", res7: "the FM-1 could not erase its memory.", res8: "the FM-1 could not write its memory.",
+    res10: "the FM-1 is playing. Stop it, then install again.", res20: "the file of {{RES}} is for another build of {{NAME}}.",
+    res21: "the FM-1 is still moving what it has saved. Switch it off and on, then install again.",
+    res22: "what was written did not check.", resload: "the file of {{RES}} did not load. Reload the page.",
+    resnoreturn: "the FM-1 did not answer after the update.", reslost: "the USB connection was lost.",
+    resother: "error code ",
   },
 };
 let lang = "en";                                 /* English first; 日本語 is a click away */
 const t = (k) => TEXT[lang][k];
 /* what happens goes to two regions: #status (polite) the steps and the progress, #alert a failure */
 const FAILS = new Set(["nomidi", "loadfail", "stopped", "error", "denied", "notfound", "model", "lost", "noloader",
-                       "noreturn", "mismatch", "badpkg", "stockbad", "stockmodified", "bootrefused", "foreign"]);
+                       "noreturn", "mismatch", "badpkg", "stockbad", "stockmodified", "bootrefused", "foreign", "resfail"]);
 let lastKey = null, lastArg = "", lastPct = null;
 const textOf = (k, arg, pct) => t(k) + arg + (pct == null ? "" : t("pct").replace("{n}", pct));
 function show() {
@@ -291,7 +307,7 @@ const log = (t) => {
   el.append(t + "\n");
   if (atEnd) el.scrollTop = el.scrollHeight;
 };
-let image = null, boot = null;
+let image = null, boot = null, res = null;
 const meta = /*META*/;
 /* the firmware's own steps around an install (its site's install_app script, or none): before(midi, ui) runs before
    anything is written, may ask (ui.ask) and returns its state, or false to stop there; after(midi, ui, state) once
@@ -349,6 +365,18 @@ window.addEventListener("beforeunload", (e) => { if (writing) { e.preventDefault
     $("mbootopt").hidden = false;
   } catch (_) { /* no option, then */ }
 })();
+/* the firmware's resource region (make_site: NAME-res.bin beside the package), written after the install; a file
+   that does not load or check is said then (resload), the install itself goes ahead */
+(async () => {
+  try {
+    if (!meta.res) return;
+    const r = await fetch(meta.res);
+    if (!r.ok) return;
+    const raw = new Uint8Array(await r.arrayBuffer());
+    resPayload(raw);
+    res = raw;
+  } catch (_) { /* resload after the install */ }
+})();
 
 /* stock firmware: M-VAVE's FM-1 firmware, any version, chosen by the user (M-VAVE's server allows no cross-site
    download) and named as M-VAVE's (IS_STOCK, fm1ota.js, inlined above); the FM-1 checks the package itself before writing */
@@ -380,6 +408,14 @@ const PICKED = "fm1-ports";
 let picked = [];
 try { picked = JSON.parse(localStorage.getItem(PICKED) || "[]").filter((x) => typeof x === "string"); } catch (_) { /* none */ }
 const updater = (midi, lg) => { const up = new Updater(midi, lg); picked.forEach((n) => up.allow(n)); return up; };
+/* and the ports an FM-1 answered the screen reader's HELLO on (Updater.answering: an fm1-base firmware under any name),
+   kept as picks */
+function remember(names) {
+  const add = [...names].filter((n) => !picked.includes(n));
+  if (!add.length) return;
+  picked.push(...add);
+  try { localStorage.setItem(PICKED, JSON.stringify(picked)); } catch (_) { /* until the page is closed */ }
+}
 /* after "not found": the ports the page did not ask, each with Try */
 function showPorts(midi) {
   const up = updater(midi);
@@ -437,9 +473,9 @@ async function run(img, product, isStock, sha256) {
   writing = true;
   $("portpick").hidden = true;
   $("go").disabled = $("stockgo").disabled = true;
-  let installed = false;
+  let installed = false, up = null;
   try {
-    const up = updater(midi, log);
+    up = updater(midi, log);
     /* progress: the bytes the device reads, against what it reads for this package (the size of the package,
        not a fixed request count). Step 1 (the running firmware): the UFW header, the loader's head twice, its
        body. Step 2 (fm1-base's loader): the header, the chip-key check, the whole flash.bin (checked before
@@ -481,6 +517,8 @@ async function run(img, product, isStock, sha256) {
     if (e && e.code === "notfound") showPorts(midi);
     log(String(e && e.stack || e));
   }
+  remember(up ? up.answered : []);   /* (before the resources: their updater finds it by these picks) */
+  if (installed && meta.res && !isStock) await writeRes(midi, product);
   if (installed && APP && APP.after && !isStock) {
     try { await APP.after(midi, appUi, appState); }
     catch (e) { say(String(e && e.message || e)); log(String(e && e.stack || e)); }
@@ -488,6 +526,25 @@ async function run(img, product, isStock, sha256) {
   writing = false;
   $("go").disabled = !image;
   $("stockgo").disabled = !stock;
+}
+
+/* the resource region (device/res.c) once the new firmware runs: Updater.installRes (fm1ota.js; after Melodee's
+   web/fm1res.js and installer step, Kerem Kilic, Ellic Studio, used under MPL-2.0 with permission). Never a failed
+   install: without it the firmware does without them until the next install */
+const RES_WHY = { 2: "res2", 7: "res7", 8: "res8", 10: "res10", 20: "res20", 21: "res21", 22: "res22",
+                  noreturn: "resnoreturn", lost: "reslost", stopped: "res2", resbad: "resload" };
+async function writeRes(midi, product) {
+  let why = null;                                 /* null: written; else the FM-1's code or the error's */
+  try {
+    if (!res) throw fail("resbad", `${meta.res} did not load or check`);
+    log("resources");
+    $("bar").value = 0;
+    sayPct("res", 0);
+    why = await updater(midi, log).installRes(res, product, (pct) => { $("bar").value = pct; sayPct("res", pct); }) || null;
+  } catch (e) { why = e && e.code || "?"; log(String(e && e.stack || e)); }
+  log(`resources ${why == null ? "done" : why}`);
+  if (why == null) { $("bar").value = 100; sayK("resdone"); }
+  else sayK("resfail", RES_WHY[why] ? t(RES_WHY[why]) : t("resother") + why);
 }
 
 $("go").addEventListener("click", () => run(image, meta.product, false));
@@ -506,7 +563,9 @@ $("reportgo").addEventListener("click", async () => {
   st("reportwait");
   const lines = [];
   try {
-    const dev = await updater(midi).find((id) => !IS_OTA(id));
+    const rup = updater(midi);
+    const dev = await rup.findAny((id) => !IS_OTA(id));
+    remember(rup.answered);
     if (dev) {
       lines.push(`${dev.id.text} (${dev.name}), ${new Date().toISOString()}`);
       dev.link.drain();
