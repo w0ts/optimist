@@ -535,7 +535,7 @@ BLE_TEST_ROOM = ("CHANCE=0", "MOTION=0", "SL24_XSTEP=0", "MICRO=0", "FILLS=0", "
 # Optimist's own firmware runs Wi-Fi + Link's manager on the serial console (tools/builder/core.py), which the reference
 # profile's USB audio excludes (the USB port's endpoints): the classic test builds of the reference profile go without
 # Wi-Fi. The release (fm1-base's own Wi-Fi stack) builds the profile as it is: fm1base_tests, fm1base/optimist/run.sh wifi
-CLASSIC_TEST_OFF = ("WIFI_LINK=0",)
+CLASSIC_TEST_OFF = ("WIFI_LINK=0", "USB_HOST=0")   # (USB_HOST: the release's fm1-base host only, 2026-11-03: the reference profile has it)
 
 
 def reference_test_config(sets=(), ble_drop=None):
