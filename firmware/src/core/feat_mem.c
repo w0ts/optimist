@@ -77,7 +77,7 @@ static uint32_t fmem_pause_ms(uint32_t moved)           /* the pause a PACK cost
 }
 static uint32_t fmem_kb(uint32_t n) { return (n + 1023u) / 1024u; }
 /* the arena's bytes the features hold now (their blocks placed: the memory line and INFO count them as used, as the
- * parts' and the effects'; given back, free): INFO's RAM USE line */
+ * parts' and the effects'; given back, free): INFO's ARENA line */
 static uint32_t fmem_held(void)
 {
     uint32_t f, n = 0;
