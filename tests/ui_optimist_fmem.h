@@ -53,8 +53,8 @@ static void fmem_ui_tests(void)
           (unsigned)w1);
 #if FELUCCA_SYS_DEBUG || 1
     sys_it_cell(SI_RAMUSE, &c);
-    FMCHK(c.label && !strcmp(c.label, "RAM USE") && strstr(c.val, " R18 ") != 0,
-          "features: INFO's RAM USE splits it: \"%s\" KB (parts, radios, free)", c.val);
+    FMCHK(c.label && !strcmp(c.label, "ARENA") && strstr(c.val, "/18/") != 0,
+          "features: INFO's ARENA line splits it: \"%s\" KB (parts / radios / free)", c.val);
 #endif
     bta_set(0);
     for (i = 0; i < 12u && arn_ptr(ARB_K(ARB_BTA)); i++)

@@ -543,14 +543,14 @@ static const struct { const char *name; uint8_t it[4]; } SYS[] = {
      * (DBG_STATS: the release; it had a page alone, SYSTEM > DEBUG, until 2026-10-29): General is then 4 lines, full, and USB SERIAL
      * keeps its own page (the join holds 4 lines at most) */
     {"GENERAL", {SI_KCOL, SI_HPBASS, DBG_STATS ? SI_DBGST : SI_NONE, SI_NONE}},
-#if USBH_UI
-    {"USB", {SI_UHMODE, SI_UHDEV, SI_NONE, SI_NONE}},   /* the port as a MIDI host or the computer's device (USB_HOST: the trial's
-                                                         * ui/opt_usbh.h on fm1-base's; USB SERIAL below it, one section) */
-#endif
 #if FELUCCA_CDC
     {"USB", {SI_USB, SI_NONE, SI_NONE, SI_NONE}},       /* (USB SERIAL: on General's page when it fits, GL_JOIN) */
 #endif
-    {"METERS", {SI_METERS, SI_NONE, SI_NONE, SI_NONE}},   /* the load lines at the screen's foot: OFF CPUS MEMORY BOTH (core/meters.h, op_meters.c); on General's page when it fits (GL_JOIN) */
+    {"METERS", {SI_METERS, SI_NONE, SI_NONE, SI_NONE}},   /* the load lines at the screen's foot: OFF CPUS MEMORY BOTH (core/meters.h, op_meters.c); on General's page when it fits (GL_JOIN): before the USB host's page (between them it kept METERS alone, the user, 2026-11-03); USB SERIAL keeps its place on General first */
+#if USBH_UI
+    {"USB", {SI_UHMODE, SI_UHDEV, SI_NONE, SI_NONE}},   /* the port as a MIDI host or the computer's device (USB_HOST: the trial's
+                                                         * ui/opt_usbh.h on fm1-base's; after METERS since 2026-11-03) */
+#endif
 #if OP_TOP
     {"TOP", {SI_TOP, SI_NONE, SI_NONE, SI_NONE}},       /* after METERS, before USB AUDIO (the user, 2026-11-03: General then Top after Bluetooth and Wi-Fi; op_top.c) */
 #endif
@@ -889,7 +889,7 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
     case SI_ARN: {                                      /* the arena's moves (core/arena.c arn_probe): the longest, start to
                                                          * swap, and the longest interrupts-off window of one (us; 0/0: none) */
         uint32_t n;
-        sys_ro(c, "ARENA MOVE");
+        sys_ro(c, "MOVE");                              /* (the big font: "MOVE 1234/56 us", the longest move / its interrupts-off window) */
         fmt_int(c->val, (int32_t)(arn_probe.max_us > 99999u ? 99999u : arn_probe.max_us));
         n = str_len(c->val);
         c->val[n] = '/';
@@ -902,17 +902,16 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
         info_ram(c);
         break;
 #if FMEM_ANY
-    case SI_RAMUSE: {                                   /* where the arena's RAM is: "P61 R18 F22" KB (parts and effects, the
+    case SI_RAMUSE: {                                   /* where the arena's RAM is: "61/18/22" KB (parts and effects, the
                                                          * features' blocks: the radios', free), the memory line's split */
         uint32_t fr = arn_room(), fe = fmem_held(), pa = ARN_BYTES - fr > fe ? ARN_BYTES - fr - fe : 0u, n;
-        sys_ro(c, "RAM USE");
-        c->val[0] = 'P';
-        fmt_int(c->val + 1, (int32_t)(pa / 1024u));
+        sys_ro(c, "ARENA");                             /* (the user, 2026-11-03: the big font: "ARENA 61/18/22 KB", parts / features / free) */
+        fmt_int(c->val, (int32_t)(pa / 1024u));
         n = str_len(c->val);
-        c->val[n++] = ' ', c->val[n++] = 'R';
+        c->val[n++] = '/';
         fmt_int(c->val + n, (int32_t)fmem_kb(fe));
         n = str_len(c->val);
-        c->val[n++] = ' ', c->val[n++] = 'F';
+        c->val[n++] = '/';
         fmt_int(c->val + n, (int32_t)(fr / 1024u));
         c->unit = "KB";
         break;
