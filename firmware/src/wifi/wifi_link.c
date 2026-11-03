@@ -146,6 +146,10 @@ static void wl_clock(int64_t now)                      /* Link's session as MIDI
             if (!wl_q_push(0xFAu, t_ticks))
                 break;                                 /* (ring full: this tick and its START next pass) */
             wl.started = 1;
+        } else if (link_hop && wl.k % 96u == 0u) {     /* a hop asked (clock_sync.c: AUTO found Link while playing, or
+                                                        * PLAY while following it): a START on the session's bar line */
+            if (!wl_q_push(0xFAu, t_ticks))
+                break;
         } else if (!play && wl.started) {
             if (!wl_q_push(0xFCu, t_ticks))
                 break;

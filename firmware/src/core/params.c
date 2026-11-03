@@ -662,8 +662,11 @@ static void param_format(const param_desc_t *d, int32_t v, char *val, const char
         return;
     }
     if (d == &GP[G_SYNC] && v == SYNC_AUTO) {         /* AUTO and the clock it follows now (G_MIDI): "A:TRS" */
-        static const char *const A[4] = {"A:INT", "A:USB", "A:TRS", "A:BLE"};   /* (a column fits 5 characters, */
-        str_cpy(val, A[(uint32_t)song.g[G_MIDI] % 4u], 6);              /* "AUTO:TRS" is the editor's) */
+        static const char *const A[5] = {"A:INT", "A:USB", "A:TRS", "A:BLE", "A:LNK"};   /* (a column fits 5 characters,
+                                                      * "AUTO:TRS" is the editor's; LINK, MSRC 4, was missing until
+                                                      * 2026-11-03: a Link clock read "A:INT") */
+        uint32_t m = (uint32_t)song.g[G_MIDI];
+        str_cpy(val, A[m < 5u ? m : 0u], 6);
         return;
     }
     switch (d->fmt) {
