@@ -418,8 +418,19 @@ static void wf_ap_tests(void)
     check(!strcmp(wf_val("NAME"), "FM1-55B0") && !strcmp(wf_val("CHANNEL"), "6") && !strcmp(wf_state0(), "ACTIVE"),
           "... with no typed key: NAME the automatic one, CHANNEL 6, STATE ACTIVE (the default password)");
     fm1_ms = 3u << WF_PH_SH;                            /* (the fourth phase, 1 s each since 2026-11-03: the password) */
-    check(!strcmp(wf_val("STATE"), "KEY abcd2345"), "... one phase in four STATE shows the default password: KEY abcd2345");
+    check(!strcmp(wf_val("PASSWORD"), "abcd2345"), "... one phase in four the line shows the default password alone, under PASSWORD (its big digits)");
     fm1_ms = 0;
+    {   /* K4 (STATE) steps the line's items and holds them 30 s (the user, 2026-11-03: "k4 should scroll thru the status item and pause
+         * auto scrolling for 30sec") */
+        uint32_t st = wf_knob("STATE");
+        turn(st, 1), turn(st, 1), turn(st, 1);          /* (the fourth item: the password) */
+        check(!strcmp(wf_val("PASSWORD"), "abcd2345"), "STATE's knob: three steps on, the password shown at once");
+        fm1_ms += 20000u;
+        check(!strcmp(wf_val("PASSWORD"), "abcd2345"), "... 20 s later: still held (the clock's phase would have moved on)");
+        fm1_ms += 11000u;
+        check(!strcmp(wf_val("PASSWORD"), "?") || fm1_ms >> WF_PH_SH & 3u, "... 31 s after the turn: the line cycles by itself again");
+        fm1_ms = 0;
+    }
     frames(2);
     check(!wc.scan_want && !wf_pg_shown(), "... no scan wanted, no list of networks");
     /* the channel: the knob, 1..13 */
