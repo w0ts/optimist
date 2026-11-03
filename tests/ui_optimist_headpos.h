@@ -28,10 +28,12 @@ static void hs_state_tests(void)
         uint8_t m = wn_st.mode;
         wn_st.mode = WN_MODE_OFF;
         check(head_link() == HS_OFF, "clock icon: Link, Wi-Fi off: no Link icon");
+#if WF_JAM                                              /* (JAM: the release's own Wi-Fi stack only) */
         wn_st.mode = WN_MODE_JAM_AUTO;
         wc.st = WC_SCAN;
         check(wf_jam_host_now() || (head_clock(&st) == HC_LINK && st == HS_BAD),
               "clock icon: JAM and not joined: the Link icon, red, before the MIDI clock followed");
+#endif
         wn_st.mode = m;
     }
 #else

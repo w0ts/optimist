@@ -158,15 +158,17 @@ static int wf_grp_turn(int32_t s) { (void)s; return 0; }
  * heard, another clock followed; HS_NONE no peer yet */
 static uint32_t wf_link_state(void)
 {
-    if (wn_st.mode == WN_MODE_OFF || link_eff() == LINK_OFF)
+    if (wn_st.mode == WN_MODE_OFF)
         return HS_OFF;
-#if FELUCCA_WIFI_AP
+#if FELUCCA_WIFI_AP                                     /* (JAM first: a JAM mode is Link on, whatever LINK says) */
     if (wf_jam_mode() && !(wf_jam_host_now() ? wa_clients() > 0u : (uint32_t)wf_joined()))
         return HS_BAD;
 #else
     if (wf_jam_mode() && !wf_joined())
         return HS_BAD;
 #endif
+    if (link_eff() == LINK_OFF && !wf_jam_mode())
+        return HS_OFF;
     if (sy.src == MSRC_LINK)
         return HS_FOLLOW;
     return wl_peers() ? HS_THERE : HS_NONE;
