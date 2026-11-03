@@ -51,6 +51,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          submodules: recursive                  # (the firmware is the release: fm1base/ and its nested bsp, as cloud-build.yml fetches them)
+          token: ${{ secrets.FM1BASE_TOKEN || github.token }}
+          persist-credentials: false
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.12"
