@@ -77,7 +77,7 @@ static void pk_unlatch(void);
 static void pk_take(uint32_t idx, uint32_t slot);       /* the note entered / edited: the picked one */
 static int pk_ok(void);
 static int se_on(void);                                 /* op_stepentry.c: STEP ENTRY (a synth track, stopped, REC armed) */
-static int se_on_h(int held_ok);                        /* ... (held_ok: a step held does not end it, the cue's)
+static int se_on_h(int held_ok);                        /* ... (held_ok: a step held does not end it, the cue's) */
 static int se_mute_mode(void);                          /* ... MUTE MODE: a synth track's STEP, the keys are steps (they mute) */
 static void se_key(uint32_t k, uint32_t down);
 static void se_knob(uint32_t k, int32_t s, int shift);
@@ -866,9 +866,15 @@ static void step_fill_key(track_t *t, uint32_t idx)
     op_repaint();
 }
 #endif
+#ifdef OP_TAP_CREATES_HOOK
+static uint8_t op_tap_creates = 1;                      /* (host tests only) */
+#define TAP_CREATES op_tap_creates
+#else
+#define TAP_CREATES 0                                   /* (the firmware: an empty step tapped in MUTE MODE sets nothing) */
+#endif
 #if FELUCCA_AUTO
-/* a synth step tapped on STEP (MUTE MODE, the step sequencer's keys; ENTRY MODE's keys are op_stepentry.c's): the notes that start there
- * muted / on (the store's AUTO_SMUTE, as SAVE held's pk_mute); IRQ off. -> the toast, 0 none */
+/* a synth step with a note tapped on STEP (MUTE MODE, the step sequencer's keys; ENTRY MODE's keys are op_stepentry.c's): every note that starts there
+ * muted / on, whatever its nudge (the store's AUTO_SMUTE: the step's, as SAVE held's pk_mute); IRQ off. -> the toast, 0 none */
 static const char *step_tap_mute(track_t *t, uint32_t idx)
 {
     uint32_t on = !step_muted(t, idx, 0);
@@ -916,8 +922,8 @@ static void step_key(uint32_t k, uint32_t down, uint32_t held)
             undo_mark(t, st.sess);
             fm1_irq_off();
 #if FELUCCA_AUTO
-            if (!is_drum(t) && pk_note(t, idx))
-                say = step_tap_mute(t, idx);            /* (a synth step with a note tapped: its notes muted / on, not taken out: the step sequencer's keys are the mute tool; the user, 2026-11-03) */
+            if (!is_drum(t) && (pk_note(t, idx) || !TAP_CREATES))
+                say = pk_note(t, idx) ? step_tap_mute(t, idx) : "NO NOTE HERE";   /* (a synth step tapped: ALL the notes that start there muted / on, nudged or not, none taken out and none made on an empty step: the step sequencer's keys are the mute tool; the user, 2026-11-03) */
             else
 #endif
             if (step_has(t, idx))                       /* (a drum hit tapped: off; its level is the combos' at the press, SHIFT
