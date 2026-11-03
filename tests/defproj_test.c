@@ -8,7 +8,7 @@
 #define main hostsim_main
 #include "hostsim.c"
 #undef main
-static struct { int force; } ui;                    /* (what the UI keeps that the model and the stores touch) */
+static struct { int force, redraw; } ui;   /* (redraw: sections.c since LCD_DIRTY went, 26c6b7ac) */                    /* (what the UI keeps that the model and the stores touch) */
 static uint8_t settings_later;
 static void ui_message(const char *m) { (void)m; }
 static void ui_say(const char *a, const char *b) { (void)a, (void)b; }

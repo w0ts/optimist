@@ -111,9 +111,9 @@ static void step_pages_tests(void)
     n = SCR->rows();
     cards_up();                                         /* (the cards down: SEQ only brings them back) */
     for (r = 1; r < n; r++)
-        tap(B_SEQ);
+        seq_tap();
     check(ui.row[SCR_STEP] == n - 1u, "SEQ tapped again: STEP's next page (the tools), the last with none");
-    tap(B_SEQ);
+    seq_tap();
     check(ui.row[SCR_STEP] == 0u, "... past the last page: PATTERN again (a button again wraps)");
     ui.row[SCR_STEP] = 0;
     turn(EN_ALGO, 1);

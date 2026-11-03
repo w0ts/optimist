@@ -44,7 +44,7 @@ SIZE_FILES = ["ui/colors.c", "ui/splash.c", "storage/storage.c", "storage/uprese
               "fx/fx_slots.c", "fx/insfx/fxi.c", "fx/fx_arena.c", "core/arena_bufs.c", "core/feat_mem.c", "fx/rev_diag.c",
               "fx/fx_rec.c", "fx/fx_rec_log.c", "storage/dlfo_rec.c", "storage/sections/dlfo_rec_log.c", "seq/auto_lane.c", "core/model.c", "core/favorites.c", "storage/persist_rec.c", "storage/persist_ext.c", "drums/dsnd_desc.c",
               "ui/optimist/optimist.c", "ui/optimist/op_state.c", "ui/optimist/op_cells.c", "ui/optimist/op_screens.c",
-              "ui/optimist/op_step.c", "ui/optimist/op_stepentry.c", "ui/optimist/op_project.c", "ui/optimist/op_bt.c", "ui/optimist/op_prjflow.c", "ui/optimist/op_sdcard.c", "ui/optimist/op_graph.c", "ui/optimist/op_draw.c",
+              "ui/optimist/op_step.c", "ui/optimist/op_stepentry.c", "ui/optimist/op_project.c", "ui/optimist/op_bt.c", "ui/optimist/op_prjflow.c", "ui/optimist/op_sdcard.c", "ui/optimist/op_graph.c", "ui/optimist/op_chord.c", "ui/optimist/op_draw.c",
               "ui/optimist/op_stepdraw.c", "ui/optimist/op_input.c", "ui/optimist/op_keep.c", "ui/optimist/op_layers.c", "ui/optimist/op_nav.c",
               "ui/optimist/op_tempo.c", "ui/optimist/op_lanefx.c", "ui/optimist/op_song.c", "ui/optimist/op_combos.c", "ui/optimist/op_laydraw.c",
               "ui/optimist/op_mixer.c", "ui/optimist/op_mixdraw.c", "ui/optimist/op_scope.c",
@@ -57,7 +57,7 @@ SIZE_FILES = ["ui/colors.c", "ui/splash.c", "storage/storage.c", "storage/uprese
 # (boot and the main loop stay at -Os: at minsize the main loop got slower and the emulator boot check saw a late
 # half, the BLE start-up a link stop over its bound, perf/flash-survey 2026-10-15)
 OS_FILES = ["system/main.c", "system/supply.c", "io/usb/usb.c", "io/midi/midi_rings.c", "io/usb/usb_audio_route.c",
-            "io/usb/usb_audio.c", "storage/motion_flash.c", "display/lcd.c", "display/lcd_dirty.c",
+            "io/usb/usb_audio.c", "storage/motion_flash.c", "display/lcd.c",
             "display/gfx.c", "system/libc.c", "system/bench.c", "system/bench_plaits.c", "system/simd_probe.c",
             "system/cpuguard.c",
             "ui/meters.c", "seq/motion.c", "core/macro.c", "fx/master_comp/master_comp.c",

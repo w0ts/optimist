@@ -191,6 +191,8 @@ static void dp_fill_synth_tests(void)
     frame();
     dp_grab(2);
     check(step_fillview() && dp_diff(0, 2, 0, 240, 0) > 0u && step_shown(t, 2), "... with SEQ held: the fill view draws it, its key lit");
+    frames(op_hold_ms() / 16u + 2u);                    /* (held on past the hold time, as a look at the fills is: let go sooner it is a
+                                                         * tap, whose page change comes after the double-tap window, op_step.c SEQ_DBL_MS) */
     release(B_SEQ);
     frames(3);
     pk_cards_down();

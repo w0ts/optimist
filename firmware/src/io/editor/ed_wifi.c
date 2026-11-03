@@ -68,6 +68,8 @@ static uint32_t edwf_ap_key1(const uint8_t *a, uint32_t na)
             return 1;
     if (slen && ed_unpack7(a + 3, pb, ssid, sizeof ssid) != slen)
         return 1;
+    if (wn_st.mode == WN_MODE_JAM_HOST)
+        return 1;                                      /* (JAM HOST: its password is the default one, never typed: refused) */
     if (wn_st.mode != WN_MODE_AP && wn_st.mode != WN_MODE_AP_MAN)
         return 2;
     for (i = 0; i < plen; i++)
@@ -172,12 +174,13 @@ static int ed_wifi(uint32_t cmd, const uint8_t *a, uint32_t na)
         return 0;
     switch (op) {
     case 1:
-        if (a[1] > (FELUCCA_WIFI_AP ? WN_MODE_AP_MAN : WN_MODE_MAN) && !(a[1] == WN_MODE_JAM && EDWF_JAM)) {
+        if (a[1] > (FELUCCA_WIFI_AP ? WN_MODE_AP_MAN : WN_MODE_MAN) && !(a[1] == WN_MODE_JAM && EDWF_JAM) &&
+            !(a[1] == WN_MODE_JAM_HOST && EDWF_JAM && FELUCCA_WIFI_AP)) {   /* (JAM HOST: the trial's stack with MODE AP) */
             ed_b3(1, 1, wn_st.mode);
             break;
         }
         wn_st.mode = a[1];
-        if (a[1] == WN_MODE_OFF || a[1] == WN_MODE_AP || a[1] == WN_MODE_AP_MAN)
+        if (a[1] == WN_MODE_OFF || a[1] == WN_MODE_AP || a[1] == WN_MODE_AP_MAN || a[1] == WN_MODE_JAM_HOST)
             wc_enable(0);
         settings_later = 1;
         ed_b3(1, 0, wn_st.mode);

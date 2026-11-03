@@ -481,16 +481,27 @@ BLE_TEST_ROOM = ("CHANCE=0", "MOTION=0", "SL24_XSTEP=0", "MICRO=0", "FILLS=0", "
                  "BT_AUDIO=0")   # (2026-10-22: the profiles build Bluetooth audio now, 6 KB of RAM: the BLE tests do not use it)
 
 
+# Optimist's own firmware runs Wi-Fi + Link's manager on the serial console (tools/builder/core.py), which the reference
+# profile's USB audio excludes (the USB port's endpoints): the classic test builds of the reference profile go without
+# Wi-Fi. The release (fm1-base's own Wi-Fi stack) builds the profile as it is: fm1base_tests, fm1base/optimist/run.sh wifi
+CLASSIC_TEST_OFF = ("WIFI_LINK=0",)
+
+
+def reference_test_config(sets=(), ble_drop=None):
+    """-> the reference profile with sets, as the host tests build it (CLASSIC_TEST_OFF on Optimist's own firmware)"""
+    with contextlib.redirect_stdout(io.StringIO()):
+        return load_config(argparse.Namespace(profile=REFERENCE_PROFILE, config=None, defaults=False,
+                                              set=[*(CLASSIC_TEST_OFF if C.classic() else ()), *sets],
+                                              name=None, ble_drop=ble_drop))[0]
+
+
 def ble_test_configs():
     """-> [(name, cfg)] the two BLE builds prepare_tests makes (the emulator tests' packages): the reference profile with BLE,
     BLE_CENTRAL (FLUTE dropped where it must) and with the whole option set. Also check configurations of
     the size estimate (tools/builder/measure_costs.py check_configs), so they are anchors with a measured build"""
-    def load(sets, ble_drop=None):
-        with contextlib.redirect_stdout(io.StringIO()):
-            return load_config(argparse.Namespace(profile=REFERENCE_PROFILE, config=None, defaults=False, set=list(sets),
-                                                  name=None, ble_drop=ble_drop))[0]
+    load = reference_test_config
     return [(f"{REFERENCE_PROFILE}+ble-test", load(["BLE=1", "BLE_CENTRAL=1", *BLE_TEST_ROOM], ble_drop="FLUTE")),
-            (f"{REFERENCE_PROFILE}+ble-full", load([*BLE_FULL_SET, *BLE_TEST_ROOM, "PATTERNS=0", "ED_MIX=0", "ED_SEQ=0", "ED_SCREENS=0"]))]
+            (f"{REFERENCE_PROFILE}+ble-full", load([*BLE_FULL_SET, *BLE_TEST_ROOM, "ED_MIX=0", "ED_SEQ=0", "ED_SCREENS=0"]))]   # (PATTERNS kept: the reference profile's LAYOUT 8 needs them, 2026-11-03)
 
 
 def prepare_tests():
@@ -505,7 +516,7 @@ def prepare_tests():
     turn left it before: the package's files, the measurement build's over them, the package's app back"""
     import measure_costs as MC
     (_, ble_cfg), (_, full_cfg) = ble_test_configs()
-    cfg, name = C.load_profile(REFERENCE_PROFILE)
+    cfg, name = reference_test_config(), C.load_profile(REFERENCE_PROFILE)[1]
     slots = ROOT / "build" / "slots"
     builds = [("ble", ble_cfg, name + " ble", False), ("ble-full", full_cfg, name + " ble-full", False),
               ("ref", cfg, name, False), ("default", C.defaults(), "default", True)]

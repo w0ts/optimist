@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* The LFO's RATE below 0: one cycle per note value of the tempo (voice.c lfo_inc, params.c N_LSYNC), SLOOP 2.6's LFO 2
  * SYNC (its P_LSYNC n = our RATE -(SLOOP_LSYNC_DUR[n - 1] + 1): the 10 of its 22 note values). Run by tests/run_tests.sh (with and without the macros).
- *   range     RATE -22..127, default 60; 0..127 the free rates of LFO_INC as before (old projects: the same sound)
+ *   range     RATE -25..127 (-23..-25: 6BAR 8BAR 16BAR, issue 129), default 60; 0..127 the free rates of LFO_INC as before (old projects: the same sound)
  *   format    -1..-22 "4BAR" .. "1/64" (params.c N_DUR), 0..127 Hz as before
  *   sloop     SLOOP 2.6's increment (its voice.c lfo_sync_inc at 120 BPM) and ours agree; the mapping both ways
  *   clock     playing: the phase follows the transport clock's units (tempo change, nudge) to a few LSB a block;
@@ -48,7 +48,7 @@ static void t_range_format(void)
     int ok = 1;
     int32_t i;
     track_t *t = &trk[0];
-    check(d->min == -22 && d->max == 127 && d->def == 60, "range: RATE -22..127, default 60");
+    check(d->min == -25 && d->max == 127 && d->def == 60, "range: RATE -25..127, default 60 (6BAR 8BAR 16BAR past the 22: issue 129)");
     for (i = 0; i < 128; i++) {
         t->p[P_LRATE] = (int16_t)i;
         ok &= lfo_inc(t) == LFO_INC[i];
@@ -59,10 +59,21 @@ static void t_range_format(void)
         ok &= !strcmp(v, W[i - 1]) && !strcmp(u, "");
     }
     check(ok, "format: -1..-22 = the 22 note values 4BAR .. 1/64 (params.c N_DUR)");
-    ok = param_step(d, 60, -8) == 52 && param_step(d, 5, -8) == 0 && param_step(d, 0, -8) == -1 && param_step(d, -1, -8) == -2
-         && param_step(d, -22, -3) == -22 && param_step(d, -1, 5) == 0 && param_step(d, -4, 2) == -3 && param_step(d, 0, 5) == 5
-         && param_step(d, -3, 0) == -3 && param_step(d, 120, 30) == 127;
-    check(ok, "knob: a fast turn down stops at 0 first; below 0 one note value a detent; above 0 as before");
+    {
+        static const char *const X[3] = {"6BAR", "8BAR", "16BAR"};
+        for (i = 23, ok = 1; i <= 25; i++) {
+            param_format(d, -i, v, &u);
+            ok &= !strcmp(v, X[i - 23]) && !strcmp(u, "");
+        }
+        check(ok, "format: -23..-25 = 6BAR 8BAR 16BAR (params.c N_LSX, issue 129)");
+    }
+    /* (the knob in length order since issue 129, params.c lrate_pos: 0, then 16BAR -25, 8BAR -24, 6BAR -23, 4BAR -1 ..
+     * 1/64 -22, the shortest last) */
+    ok = param_step(d, 60, -8) == 52 && param_step(d, 5, -8) == 0 && param_step(d, 0, -8) == -25 && param_step(d, -25, -3) == -24
+         && param_step(d, -23, -1) == -1 && param_step(d, -1, -8) == -2 && param_step(d, -22, -3) == -22 && param_step(d, -1, 5) == -23
+         && param_step(d, -25, 5) == 0 && param_step(d, -4, 2) == -3 && param_step(d, 0, 5) == 5 && param_step(d, -3, 0) == -3
+         && param_step(d, 120, 30) == 127;
+    check(ok, "knob: a fast turn down stops at 0 first; below 0 one note value a detent, longest first (16BAR next to 0); above 0 as before");
     param_format(d, 60, v, &u);
     check(!strcmp(u, "Hz"), "format: 60 in Hz as before");
     param_format(&GP[G_CRATE], 40, v, &u);

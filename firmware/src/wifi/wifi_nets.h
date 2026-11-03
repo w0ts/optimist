@@ -15,7 +15,7 @@
 #define WN_MARK 0xA7u                    /* a valid store */
 #define WN_VER 2u                        /* 1: the saved networks only (a record of 268 octets, read as the first part of this) */
 #define WN_STORE_SIZE 336u               /* header 4 + 4 entries x 66 + the access point's 68 */
-enum { WN_MODE_OFF = 0, WN_MODE_AUTO = 1, WN_MODE_MAN = 2, WN_MODE_AP = 3, WN_MODE_AP_MAN = 4, WN_MODE_JAM = 5 };   /* JAM: AUTO, and an Optimist access point (FM1-xxxx) is joined with its default password when no saved network is heard (the trial's stack only) */   /* as the Bluetooth pages: OFF the radio stays off;
+enum { WN_MODE_OFF = 0, WN_MODE_AUTO = 1, WN_MODE_MAN = 2, WN_MODE_AP = 3, WN_MODE_AP_MAN = 4, WN_MODE_JAM = 5, WN_MODE_JAM_HOST = 6 };   /* JAM_HOST: AP AUTO under the automatic name FM1-xxxx and its default password only (never a typed one: so JAM finds and joins it), Link kept on (the user, 2026-11-03) */   /* JAM: AUTO, and an Optimist access point (FM1-xxxx) is joined with its default password when no saved network is heard (the trial's stack only) */   /* as the Bluetooth pages: OFF the radio stays off;
                                                                   * MAN it joins when told (the page's SAVE); AUTO the best saved network
                                                                   * heard, at start-up and when none is joined; AP the FM-1 is the
                                                                   * access point (wifi/wifi_apd.c), at power-on and

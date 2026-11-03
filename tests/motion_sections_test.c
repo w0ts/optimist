@@ -151,7 +151,7 @@ static void va_layout(project_t *p)
 }
 #endif
 #if SEC_LOGGED
-static struct { int force; uint8_t arm, arm_t; } ui;
+static struct { int force, redraw; uint8_t arm, arm_t; } ui;   /* (redraw: sections.c since LCD_DIRTY went, 26c6b7ac) */
 static uint8_t sync_reload;
 static void song_backup(void) {}
 static void song_restore(void) {}

@@ -109,6 +109,9 @@ static void wf_q_text(char *b, uint32_t which, uint16_t *col)   /* which 0 the s
 static const uint8_t WF_W[] = {WN_MODE_OFF, WN_MODE_MAN, WN_MODE_AUTO,   /* the modes in the knob's order, and their words */
 #if WF_JAM
                                WN_MODE_JAM,
+#if FELUCCA_WIFI_AP
+                               WN_MODE_JAM_HOST,
+#endif
 #endif
 #if FELUCCA_WIFI_AP
                                WN_MODE_AP_MAN, WN_MODE_AP,
@@ -116,16 +119,19 @@ static const uint8_t WF_W[] = {WN_MODE_OFF, WN_MODE_MAN, WN_MODE_AUTO,   /* the 
 };
 static const char *const WF_M[] = {"OFF", "MAN", "AUTO",
 #if WF_JAM
-                                   "JAM",
+                                   "JAM JOIN",          /* (joins another FM-1's JAM HOST, Link on) */
+#if FELUCCA_WIFI_AP
+                                   "JAM HOST",          /* (the access point for them: FM1-xxxx, its default password only, Link on; the user, 2026-11-03) */
+#endif
 #endif
 #if FELUCCA_WIFI_AP
                                    "AP MAN", "AP AUTO",
 #endif
 };
 #define WF_MODE_LAST ((int32_t)(sizeof WF_W / sizeof WF_W[0]) - 1)
-static int wf_is_ap_mode(uint8_t m) { return m == WN_MODE_AP || m == WN_MODE_AP_MAN; }
+static int wf_is_ap_mode(uint8_t m) { return m == WN_MODE_AP || m == WN_MODE_AP_MAN || m == WN_MODE_JAM_HOST; }
 #if FELUCCA_WIFI_AP
-#define WF_AP_ON (wn_st.mode == WN_MODE_AP || wn_st.mode == WN_MODE_AP_MAN)
+#define WF_AP_ON (wn_st.mode == WN_MODE_AP || wn_st.mode == WN_MODE_AP_MAN || wn_st.mode == WN_MODE_JAM_HOST)
 #define WF_AP_NOCAL (WF_AP_ON && wa_status() == WAS_NOCAL)
 #else
 #define WF_AP_ON 0
@@ -630,6 +636,15 @@ static void wf_join(const uint8_t *ssid, uint32_t len, const char *pass)   /* th
     }
 }
 static void pw_open(const uint8_t *ssid, uint32_t len);
+#if FELUCCA_WIFI_AP
+static void wf_jam_key_say(void)                        /* JAM HOST: "KEY xxxxxxxx", the password the others join with */
+{
+    char k[16];
+    k[0] = 'K', k[1] = 'E', k[2] = 'Y', k[3] = ' ';
+    (void)wa_default_key(k + 4);
+    ui_message(k);
+}
+#endif
 static void wf_save(void)                               /* SAVE tapped on the page, any line */
 {
     uint32_t len;
@@ -640,6 +655,10 @@ static void wf_save(void)                               /* SAVE tapped on the pa
         uint8_t raw[WN_SSID_MAX];
         if (wa_status() == WAS_NOCAL) {
             ui_message("NO RADIO CAL");
+            return;
+        }
+        if (wn_st.mode == WN_MODE_JAM_HOST) {           /* JAM HOST: its password is the default one, never typed: SAVE shows it */
+            wf_jam_key_say();
             return;
         }
         if (wn_st.mode == WN_MODE_AP_MAN) {                 /* AP MAN: SAVE starts it, or stops it */
@@ -704,6 +723,10 @@ static void wf_forget(void)
 #if FELUCCA_WIFI_AP
     if (WF_AP_ON) {                                     /* MODE AP: the key goes (ask first, as a network's forget) */
         uint8_t raw[WN_SSID_MAX];
+        if (wn_st.mode == WN_MODE_JAM_HOST) {           /* JAM HOST: no key of its own to clear: its password shown */
+            wf_jam_key_say();
+            return;
+        }
         if (!wn_st.ap.set) {                            /* none typed (the default one is in use): SAVE held opens the entry (in AP AUTO SAVE does) */
             pw_open(raw, wa_name(raw));
             pws.ap = 1;

@@ -172,7 +172,14 @@ static void lane_held_tests(void)
         ui.cards_t = 0;
         ui.force = 1;
         frames(2);
-        check(px_in(xm, ym, 3, 3, lane_col(9)) && lane_col(9) != lane_col(0), "STEP: lane 10's lock marked in its colour, lane 1 selected");
+        {   /* (since 5c942001, 2026-11-01: the lock is a dot inside the lane's cell, the cell in the automation colour) */
+            uint32_t cx = (uint32_t)SG_X + s * SG_CW, cy = (uint32_t)(SP_Y + SG_LY0(9)), cy0 = (uint32_t)(SP_Y + SG_LY0(0));
+            (void)xm, (void)ym;
+            check(px_in(cx, cy, SG_CW - 2u, (uint32_t)SG_LH - 1u, C_WHITE) &&
+                  px_in(cx, cy, SG_CW - 2u, (uint32_t)SG_LH - 1u, lvl_acol(dstep_lvl(&t->dstep[s], 9))) &&
+                  !px_in(cx, cy0, SG_CW - 2u, (uint32_t)SG_LH - 1u, C_WHITE),
+                  "STEP: lane 10's lock: the dot in its cell, the automation colour; lane 1 selected, nothing in its row there");
+        }
         ppm("opt-lane-marks");
     }
     track_defaults_steps(t);

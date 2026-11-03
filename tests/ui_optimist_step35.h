@@ -246,7 +246,7 @@ static void s35_pages_tests(void)
     }
     n = SCR->rows();
     cards_up();                                         /* (the cards down: SEQ only brings them back) */
-    tap(B_SEQ);                                         /* SEQ again: STEP's next page, its cards up */
+    seq_tap();                                          /* SEQ again: STEP's next page, its cards up */
     head_title(SCR_STEP, ui.row[SCR_STEP], t, sizeof t);
     SCR->name(ui.row[SCR_STEP], nm);
     {
