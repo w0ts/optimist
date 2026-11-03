@@ -107,6 +107,14 @@ with tempfile.TemporaryDirectory() as td:
             check("release build: no drop-in refused", False)
         except fm1base.FM1BaseError as err:
             check("release build: no drop-in refused, says setup", "setup" in str(err))
+        foreign = fake_dropin(td / "foreign", runs=False)
+        TC.llvm_dir = lambda env=None, root=None: foreign
+        try:
+            fm1base.toolchain_env()
+            check("release build: a drop-in for another host refused (not an Exec format error deep in the build)", False)
+        except fm1base.FM1BaseError as err:
+            check("release build: a drop-in for another host refused (not an Exec format error deep in the build)",
+                  "does not run on this host" in str(err))
     finally:
         TC.llvm_dir = old
     shim = td / "shim"

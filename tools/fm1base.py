@@ -56,9 +56,11 @@ def toolchain_env():
     pi32v2-llvm's drop-in (tools/toolchain.py llvm_dir), run natively (JIELI_DOCKER=0: fm1-base runs tools in a container
     on every host but Linux x86-64 unless told not to), and AC79_SDK (Optimist's SDK files)"""
     import toolchain as TC
+    try:
+        TC.resolve()                    # (there, and runs on this host: not a Linux copy on a Mac)
+    except TC.ToolchainError as e:
+        raise FM1BaseError(str(e))
     tc = str(TC.llvm_dir())
-    if not TC.has_clang(tc):
-        raise FM1BaseError(f"no pi32v2-llvm in {tc}: python tools/optimist.py setup")
     return {"JIELI_TOOLCHAIN": tc, "JIELI_DOCKER": "0", "AC79_SDK": str(TC.sdk_dir())}
 
 
