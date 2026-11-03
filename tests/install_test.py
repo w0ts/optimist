@@ -322,16 +322,17 @@ def installs():
     two.input_names = two.output_names = lambda: ["FM1-1A2B", "FM1-9C0D"]
     rc, out, err = cli([p, "--yes"], two)
     ok(rc == 9 and two.sent == [] and two.upgrades == 0 and "--port" in err, "two FM-1s, no --port: refused (exit 9, not 3: none found), nothing sent")
-    # a stock FM-1 beside it (2026-11-03: its ports "USB MIDI Device Port 1 / 2", the install went to the other's loader)
-    stk = FakeFM1(image, name="Optimist")
-    stk.input_names = stk.output_names = lambda: ["USB MIDI Device Port 1", "USB MIDI Device Port 2", "Optimist"]
-    rc, out, err = cli([p, "--yes"], stk)
-    ok(rc == 9 and stk.sent == [] and stk.upgrades == 0 and "USB MIDI Device" in err, "Optimist and a stock FM-1's ports, no --port: refused, nothing sent")
-    rc, out, err = cli(["--list"], stk)
-    ok(rc == 0 and out.split() == ["Optimist", "USB", "MIDI", "Device"] and stk.sent == [], "--list: the FM-1s, the maybe one too, nothing sent")
-    alone = FakeFM1(image, name="USB MIDI Device")
-    alone.input_names = alone.output_names = lambda: ["USB MIDI Device Port 1", "IAC Bus 1"]
-    ok(I.several(I.Updater(alone, None)) is None, "a stock FM-1's port alone: not 'several' (as before)")
+    # an FM-1 and a sound card called "USB MIDI Device" (the user's, 2026-11-03): one FM-1, no question; two FM-1s (one
+    # still "Optimist", an older build's name): --list gives both, never the sound card
+    snd = FakeFM1(image, name="Optimist")
+    snd.input_names = snd.output_names = lambda: ["USB MIDI Device Port 1", "USB MIDI Device Port 2", "Optimist"]
+    ok(I.several(I.Updater(snd, None)) is None, "an FM-1 beside a sound card: not 'several'")
+    two2 = FakeFM1(image, name="Optimist")
+    two2.input_names = two2.output_names = lambda: ["USB MIDI Device Port 1", "Optimist", "FM1-620C"]
+    rc, out, err = cli(["--list"], two2)
+    ok(rc == 0 and out.split() == ["Optimist", "FM1-620C"] and two2.sent == [], "--list: both FM-1s, not the sound card, nothing sent")
+    rc, out, err = cli([p, "--yes"], two2)
+    ok(rc == 9 and two2.sent == [] and "FM1-620C" in err and "USB MIDI" not in err, "two FM-1s beside a sound card: refused (9), the sound card not named")
     two = FakeFM1(image, name="FM1-1A2B")
     names = two.input_names
     two.input_names = two.output_names = lambda: names() + ["FM1-9C0D"]
