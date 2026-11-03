@@ -64,7 +64,12 @@ struct Fm1BaseSite {
     }
 
     private func fill(_ html: String, _ values: [String: String]) -> String {
-        values.reduce(html) { $0.replacingOccurrences(of: "{{\($1.key)}}", with: $1.value) }
+        // what the resource region holds, in the page's words (tools/make_site.py: fm1.toml resources_what / _ja, filled
+        // before NAME, which they may name): the FM-1's own words when it says them (made safe), else the site's defaults
+        let res = ["RES": info.extras["resources_what"].map(Self.safe) ?? "{{NAME}}'s data",
+                   "RES_JA": info.extras["resources_what_ja"].map(Self.safe) ?? "{{NAME}} のデータ"]
+        let first = res.reduce(html) { $0.replacingOccurrences(of: "{{\($1.key)}}", with: $1.value) }
+        return values.reduce(first) { $0.replacingOccurrences(of: "{{\($1.key)}}", with: $1.value) }
     }
 
     private var common: [String: String] {
