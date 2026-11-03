@@ -569,11 +569,11 @@ static void wf_ap_state_cell(cell_t *c)
 #endif
     if (st != WAS_NOCAL && (wf_ph() & 3u) == 3u) {   /* the password, one phase in four (the user reads it to join a phone) */
         char k[16];
-        if (wa_default_key(k)) {                        /* (alone under PASSWORD: the card's big digits, the user, 2026-11-03) */
+        if (wa_default_key(k)) {                        /* (alone under KEY: the line's big font, the user, 2026-11-03) */
             b[0] = 0;
             str_app(b, k, sizeof b);
             v = b;
-            lab = "PASSWORD";
+            lab = "KEY";
         } else {
             v = "KEY TYPED";
         }
