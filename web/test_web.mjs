@@ -55,7 +55,7 @@ const E = vm.runInNewContext(`${proto}
    DRUM_KIT_NAMES, SRC_KIND, KIND_TAG, srcFallback, readDrumSources, srcGroups, laneKind, laneShowGuess, readDrumShow, laneEdited,
    auditionChannel, auditionMsgs, kitStartFactory, knobValue, readDevicePages, soundLayout, FAM, X0X_VOICES, REV_ALGOS, revTypes, revName, readReverbType, readMidiSettings,
    WATCH, watchCaps, PARAMS_GLOBAL,
-   openMidi, findPorts, wantsReconnect, isFM1Name, syncState, ROLL, rollRest, rollNotes, noteSpan, rollAdd, rollRemove, rollToggle, rollSetLength, rollSetNote, rollSetStep, rollChanged, rollGrid, rollLen, DRUM_PAGE, drumPages, drumPageRange, COLORS, engineColor, kindColor, contrast, textOn, MASTER_FX, MASTER_BUS, fxInline, FX_INLINE_MAX, NAV, SCREENS, navOpen, navClose, navKey, navScreen, navDepth, KEYS, KEY_FIXED, LANE_KEYS, keyFor, keyLabel, keyPlan, stepxBuilt, PAT, patSlotView, patUsers,
+   openMidi, findPorts, fm1Units, unitKey, wantsReconnect, isFM1Name, syncState, ROLL, rollRest, rollNotes, noteSpan, rollAdd, rollRemove, rollToggle, rollSetLength, rollSetNote, rollSetStep, rollChanged, rollGrid, rollLen, DRUM_PAGE, drumPages, drumPageRange, COLORS, engineColor, kindColor, contrast, textOn, MASTER_FX, MASTER_BUS, fxInline, FX_INLINE_MAX, NAV, SCREENS, navOpen, navClose, navKey, navScreen, navDepth, KEYS, KEY_FIXED, LANE_KEYS, keyFor, keyLabel, keyPlan, stepxBuilt, PAT, patSlotView, patUsers,
    PATREC, patRecParse, patRecBuild, patRawEmpty, patStepFrom, patStepRaw, patDrumFrom, patDrumRaw, patReadAll, patWriteAll,
    FXT, FXT_NAMES, fxsLoad, fxType, fxSlotAmt, readFx, keptIds, sectionsShown, AUTO, autoLane, SetGate,
    FXP, FXP_TABLE, SCRN_TABLE, SCRS_TABLE, EQ_FL_HZ, EQ_FH_HZ, fxpClass, fxpName, fxpTypeName, fxpAllows, fxpFmt, readFxpOwner, readFxpSlot, panelKey, panelKeyName, navParse, navTracksParse, navBar, navKnobs, navKnobAt, MNAV, PJF, pjfPack, pjfUnpack, pjLibMake, pjLibMem, pjSwap, WIFI, wifiCheck, wifiApCheck, wifiApDefaultKey, wifiIsAp, wifiBusy, wifiText, pack7, unpack7, btInfoOk })`,
@@ -2645,6 +2645,18 @@ async function editorUiPass() {
       && E.findPorts(btOnly).input.name === "Optimist 112D Bluetooth" && E.findPorts({ inputs: P("Optimist"), outputs: P("Optimist") }, true) === null
       && /bt: devSrc !== "sim" && isBtPort\(input\)/.test(html) && /if \(d\.bt\) return loadBt\(d\);/.test(html) && /<option value="bt"/.test(html),
       "ui: Bluetooth: the USB port first, the Bluetooth one when asked or alone; a Bluetooth port opens the Mirror page alone (loadBt)");
+  }
+  {   /* several FM-1s (2026-11-03, the user: "how am I supposed to select if I have multiple FM-1?"): each by its name, the pair of one
+         unit always, the picked one; Windows' names ("MIDIIN2 (FM1-1A2B)") pair by the FM1-XXXX inside */
+    const P = (...names) => new Map(names.map((n, i) => [String(i), { name: n, state: "connected" }]));
+    const two = { inputs: P("FM1-E040", "FM1-620C"), outputs: P("FM1-620C", "FM1-E040") };
+    const win = { inputs: P("MIDIIN2 (FM1-1A2B)", "FM1-9F00"), outputs: P("MIDIOUT2 (FM1-1A2B)", "FM1-9F00") };
+    const a = E.findPorts(two), b = E.findPorts(two, false, "FM1-E040"), w = E.findPorts(win, false, "FM1-1A2B");
+    ok(JSON.stringify(E.fm1Units(two)) === '["FM1-620C","FM1-E040"]' && a.unit === "FM1-620C" && a.input.name === "FM1-620C" && a.output.name === "FM1-620C"
+      && b.unit === "FM1-E040" && b.input.name === "FM1-E040" && b.output.name === "FM1-E040" && E.findPorts(two, false, "FM1-0000").unit === "FM1-620C"
+      && w.input.name === "MIDIIN2 (FM1-1A2B)" && w.output.name === "MIDIOUT2 (FM1-1A2B)" && E.unitKey("MIDIIN2 (Optimist)") === "Optimist"
+      && /id="devunit"/.test(html) && /lab\.hidden = units\.length < 2/.test(html),
+      "ui: several FM-1s: listed by name, the picked one (else the first), its input and output together (Windows' names too); the list shown from two");
   }
   {   /* the FM-1 by its port name (ruling 2026-10-29): "FM1-XXXX" (four hex digits); "Optimist" / "Felucca" (a device on older firmware);
          other gear and a name that only starts like it are not an FM-1 */

@@ -1538,7 +1538,7 @@
   <section id="connectcard" class="connectcard" aria-live="polite">
     <h1 class="clogo"><img src="../../icon.svg" alt="" width="32" height="32" style="vertical-align:-6px;margin-right:12px">Optimist</h1>
     <p><button id="connect" class="big" data-t="connect" data-ic="port_usb_c"></button></p>
-    <p><label class="dim"><span data-t="devSource"></span> <select id="devsrc"><option value="usb" data-t="devUsb"></option><option value="bt" data-t="devBt"></option><option value="sim" data-t="devSim"></option><option value="emu" data-t="devEmu"></option></select></label></p>
+    <p><label class="dim"><span data-t="devSource"></span> <select id="devsrc"><option value="usb" data-t="devUsb"></option><option value="bt" data-t="devBt"></option><option value="sim" data-t="devSim"></option><option value="emu" data-t="devEmu"></option></select></label> <label class="dim" id="devunitl" hidden><span data-t="devUnit"></span> <select id="devunit"></select></label></p>
     <p id="cstatus"></p>
     <p class="dim" data-t="connectHint"></p>
     <p><a class="dim" href="#install" data-t="installerLink"></a></p>
@@ -5176,11 +5176,29 @@ const isFM1Port = (p) => !!p && isFM1Name(p.name) && p.state !== "disconnected";
    USB one, else the Bluetooth one (the USB port answered INFO in 1 ms, the Bluetooth one not at all, 2026-10-18) */
 const isBtPort = (p) => /bluetooth/i.test((p && p.name) || "");
 const pickFM1 = (ports, bt = false) => { const c = [...ports].filter(isFM1Port); return bt ? c.find(isBtPort) : c.find((p) => !isBtPort(p)) || c[0]; };
-/* the FM-1's input and output, or null (not plugged in: the statechange event says when it comes) */
-function findPorts(access, bt = false) {
+/* which FM-1 a port is (several connected, 2026-11-03: "how am I supposed to select if I have multiple FM-1?"): its FM1-XXXX, else its
+   name without the system's wrapping ("MIDIIN2 (Optimist)", " Bluetooth"), so an input and an output pair by unit */
+const unitKey = (name) => { const m = /fm1-[0-9a-f]{4}/i.exec(name || ""); return m ? m[0].toUpperCase() : String(name || "").replace(/^\s*midi(in|out)\d*\s*\((.*)\)\s*$/i, "$2").replace(/\s*bluetooth\s*/i, " ").trim(); };
+/* the FM-1s connected (USB, or bt: their Bluetooth ports), each with an input and an output: their names, sorted */
+function fm1Units(access, bt = false) {
+  if (!access) return [];
+  const of = (ports) => new Set([...ports].filter((p) => isFM1Port(p) && isBtPort(p) === bt).map((p) => unitKey(p.name)));
+  const ins = of(access.inputs.values());
+  return [...of(access.outputs.values())].filter((k) => ins.has(k)).sort();
+}
+/* the FM-1's input and output, or null (not plugged in: the statechange event says when it comes); want: the unit picked
+   (fm1Units' name), else the first one; both ports always of one unit */
+function findPorts(access, bt = false, want = "") {
   if (!access) return null;
-  const input = pickFM1(access.inputs.values(), bt), output = pickFM1(access.outputs.values(), bt);
-  return input && output ? { input, output } : null;
+  const units = fm1Units(access, bt);
+  const unit = units.includes(want) ? want : units[0];
+  if (unit === undefined) {                          /* (no unit with both ports: the older way, one of each) */
+    const input = pickFM1(access.inputs.values(), bt), output = pickFM1(access.outputs.values(), bt);
+    return input && output ? { input, output } : null;
+  }
+  const mine = (ports) => [...ports].filter((p) => isFM1Port(p) && isBtPort(p) === bt && unitKey(p.name) === unit);
+  const input = mine(access.inputs.values())[0], output = mine(access.outputs.values())[0];
+  return input && output ? { input, output, unit } : null;
 }
 /* a port event worth a reconnect: an FM-1 output appeared while we want to be connected and are not */
 const wantsReconnect = (e, connected, want) => !connected && !!want && !!e && !!e.port && isFM1Name(e.port.name)
@@ -7353,7 +7371,7 @@ const TEXT = {                                      /* the page's words, by key 
   mirNoBt: "Over Bluetooth this firmware sends its screen only: the buttons and keys need the USB cable, or a build made after 2026-10-24 (opti_mirbt_1).",
   mirNoNav: "This firmware has no touch buttons (opti_nav_1): a build with ED_MIRROR made after 2026-10-24.",
   mirrorNone: "This firmware does not send its screen: build it with ED_MIRROR (under the web editor in Build).", appSimMissing: "The simulator module is not available here.",
-  devSource: "Device", devUsb: "FM-1 (USB)", devBt: "FM-1 (Bluetooth: Mirror)", devSim: "Simulator", simoff: "The simulator is not running: start it in the Simulator tab (it connects by itself).", appLoading: "Loading…", appNoSite: "This copy has no packages next to it (installer/site.json): choose a .fwsc file of your own.", appInstallMissing: "The installer module is not available here.", appBuildMissing: "The builder module is not available here yet.", appBusy: "Installing: stay on this page until it is done.",
+  devSource: "Device", devUnit: "FM-1", devUsb: "FM-1 (USB)", devBt: "FM-1 (Bluetooth: Mirror)", devSim: "Simulator", simoff: "The simulator is not running: start it in the Simulator tab (it connects by itself).", appLoading: "Loading…", appNoSite: "This copy has no packages next to it (installer/site.json): choose a .fwsc file of your own.", appInstallMissing: "The installer module is not available here.", appBuildMissing: "The builder module is not available here yet.", appBusy: "Installing: stay on this page until it is done.",
   tabMixer: "Editor", help: "Help", bpm: "BPM", close: "Close", section: "Section", meter: "Meter", syncTip: "MIDI clock (Settings)", syncLocked: "an external clock is followed", syncWaiting: "waiting for that clock", choose: "Choose", number: "Number", value: "Value",
   keysTitle: "Keyboard shortcuts", keyTrack: "Select the previous / next track", keyClose: "Close the open editor (or press its key again)",
   keyLanes: "Select drum sound 1\u201310 (its sends on the strip); again: open it", keyLaneOpen: "Open the selected drum sound",
@@ -7954,6 +7972,18 @@ let keepConnected = false;
 /* the device the editor talks to: the FM-1 over USB, or the simulator (web/sim/sim.js simAccess: its "FM1-0000 (sim)" port
    pair, there while the Simulator tab runs one); a choice of the user's, remembered here */
 const DEVSRC_KEY = "optimist-editor-device";
+const DEVUNIT_KEY = "optimist-editor-unit";                /* (the FM-1 picked when several are connected) */
+let devUnit = (() => { try { return localStorage.getItem(DEVUNIT_KEY) || ""; } catch (e) { return ""; } })();
+/* the "which FM-1" list beside Device: shown only with two or more FM-1s on this source; the one connected (else picked) selected */
+function unitsRender() {
+  const sel = $("devunit"), lab = $("devunitl");
+  if (!sel || !lab) return;
+  const units = access && (devSrc === "usb" || devSrc === "bt") ? fm1Units(access, devSrc === "bt") : [];
+  lab.hidden = units.length < 2;
+  if (lab.hidden) return;
+  const now = (dev && dev.unit) || (units.includes(devUnit) ? devUnit : units[0]);
+  sel.replaceChildren(...units.map((u) => el("option", { value: u, selected: u === now }, u)));
+}
 let devSrc = (() => { try { const v = localStorage.getItem(DEVSRC_KEY); return ["sim", "bt", "emu"].includes(v) ? v : "usb"; } catch (e) { return "usb"; } })();
 const ctlMap = new Map(); /* "scope:id" -> {input, out, desc, scope, id, row}, one per control on screen */
 const sets = new SetGate(); /* key -> {last: time of the user's last change, sent: the value last requested} */
@@ -8065,9 +8095,12 @@ async function openPort() {
       }
       access.onstatechange = onPortState;                /* plug / unplug */
     }
-    const ports = devSrc === "emu" ? emuPorts(access) : findPorts(access, devSrc === "bt") || (devSrc === "usb" && !MOCK ? await cpFind(access) : null);
+    const ports = devSrc === "emu" ? emuPorts(access) : findPorts(access, devSrc === "bt", devUnit) || (devSrc === "usb" && !MOCK ? await cpFind(access) : null);
+    unitsRender();
     if (!ports) { setStatusKey(devSrc === "sim" && !MOCK ? "simoff" : devSrc === "emu" ? "emuoff" : devSrc === "bt" ? "nodevicebt" : "nodevice"); return; }
     const { input, output } = ports;
+    devUnit = ports.unit || devUnit;                 /* (the FM-1 this is: the list beside Device shows it) */
+    unitsRender();
     const handlers = {
       onPush,
       onMirror: (a) => mirrorFrame(a),
@@ -8079,7 +8112,7 @@ async function openPort() {
     const link = new FrameLink((bytes) => output.send(bytes), { ...handlers, timeout: 300 });
     input.onmidimessage = (msg) => link.receive(msg.data);
     if (typeof input.open === "function") await input.open().catch(() => {});   /* (an already open port: nothing to do) */
-    dev = { link, input, output, info: null, dump: null, keys: null, bank: null, fm6: null, watch: false,
+    dev = { link, input, output, unit: ports.unit || "", info: null, dump: null, keys: null, bank: null, fm6: null, watch: false,
       pdesc: [], gdesc: [], names: [], steps: [], slotUsed: Array(4).fill(null),
       bt: devSrc !== "sim" && isBtPort(input) };      /* (bt: the Mirror page, and the projects with opti_btproj_1; loadBt) */
     if (dev.bt) btWrap(link);
@@ -8136,6 +8169,7 @@ function hangUp(reasonKey = "disconnected") {
 function onPortState(e) {
   const port = e.port;
   if (!port || !isFM1Name(port.name)) return;
+  unitsRender();                                        /* (an FM-1 came or went: the list beside Device) */
   const ours = !!dev && [dev.input.id, dev.output.id].includes(port.id);
   if (ours && port.state === "disconnected") { hangUp("lost"); return; }
   if (!wantsReconnect(e, !!dev, keepConnected)) return;
@@ -15884,6 +15918,13 @@ $("devsrc").addEventListener("change", (e) => {   /* another device: let the cur
   if (access) access.onstatechange = null;
   access = null;
   if (keepConnected || devSrc === "sim") openPort();
+});
+$("devunit").addEventListener("change", (e) => {   /* another FM-1 of the same source: this one let go, that one connected */
+  devUnit = e.target.value;
+  try { localStorage.setItem(DEVUNIT_KEY, devUnit); } catch (err) { /* no storage */ }
+  if (dev) hangUp();
+  keepConnected = true;
+  openPort();
 });
 $("disconnect").addEventListener("click", () => { keepConnected = false; hangUp(); });
 applyText();
