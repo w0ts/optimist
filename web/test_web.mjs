@@ -1662,6 +1662,9 @@ async function editorWifi() {
   s = E.parse[C.WIFI](await rq0(E.req.wifiState()));
   ok(s.ap.cap === 0 && E.parse[C.WIFI](await rq0(E.req.wifiMode(3))).rc === 1 && E.parse[C.WIFI](await rq0(E.req.wifiApKey(enc(""), "12345678"))).rc === 1 && E.parse[C.WIFI](await rq0(E.req.wifiApClear())).rc === 1,
     "wifi AP: without wifiap: cap 0, MODE 3 and ops 5, 7 refused (rc 1)");
+  s = E.parse[C.WIFI](await rq0(E.req.wifiState()));
+  ok(s.group === 0 && !s.jamHost && E.parse[C.WIFI](await rq0(E.req.wifiMode(7))).rc === 1,
+    "wifi JAM: a build without it: group 0 (no GROUP offered), MODE 7 refused");
   h.teardown();
   h = attachMock({ wifi: true, wifiap: true });
   const q = h.rq;
@@ -1721,11 +1724,26 @@ async function editorWifi() {
   r = await W3(E.req.wifiApRun(true));
   s = await W3(E.req.wifiState());
   ok(r.rc === 0 && s.ap.status !== 5, "wifi AP: op 8 start: running again");
+  /* MODE JAM (2026-11-03: one JAM, stored 7, with its GROUP 1..9): the state's group and hosting, op 1 and op 9 */
+  s = await W3(E.req.wifiState());
+  ok(s.group === 1 && s.jamHost === false, "wifi JAM: the state ends with the group (1) and hosting (no)");
+  r = await W3(E.req.wifiMode(7));
+  s = await W3(E.req.wifiState());
+  ok(r.rc === 0 && r.v === 7 && s.mode === 7 && !E.wifiIsAp(s.mode, s), "wifi JAM: MODE 7 accepted, a station while it does not host");
+  ok(E.wifiIsAp(7, { jamHost: true }) && !E.wifiIsAp(7, { jamHost: false }), "wifi JAM: hosting, JAM shows the access point's panel");
+  r = await W3(E.req.wifiMode(5));
+  ok(r.rc === 0 && r.v === 7, "wifi JAM: an older editor's JAM JOIN (5) is JAM (7)");
+  r = await W3(E.req.wifiGroup(4));
+  s = await W3(E.req.wifiState());
+  ok(r.rc === 0 && r.v === 4 && s.group === 4, "wifi JAM: GROUP 4 set (op 9)");
+  r = await W3(E.req.wifiGroup(10));
+  s = await W3(E.req.wifiState());
+  ok(r.rc === 1 && s.group === 4, "wifi JAM: GROUP 10 refused, the group kept");
   await W3(E.req.wifiMode(3));
   h.teardown();
   /* the page: the panel only with cap 1, in MODE AP, in place of the station's list and form; the password cleared as it is sent */
-  ok(/s\.ap\.cap === 1/.test(wifiJs) && /root\.hidden = !on/.test(wifiJs) && /wf\.add\.hidden = inAp/.test(wifiJs) && /ap \? \[\.\.\.WIFI\.MODES, WIFI\.MODE_JAMHOST, WIFI\.MODE_APMAN, WIFI\.MODE_AP\]/.test(wifiJs),
-    "wifi AP: the panel and the AP modes (JAM HOST, AP MAN, AP AUTO) show only with cap 1 (hidden with cap 0)");
+  ok(/s\.ap\.cap === 1/.test(wifiJs) && /root\.hidden = !on/.test(wifiJs) && /wf\.add\.hidden = inAp/.test(wifiJs) && /\.\.\.\(s\.group \? \[WIFI\.MODE_JAM\] : \[\]\), \.\.\.\(ap \? \[WIFI\.MODE_APMAN, WIFI\.MODE_AP\] : \[\]\)/.test(wifiJs) && !/MODE_JAMHOST/.test(wifiJs),
+    "wifi AP: the panel and the AP modes (AP MAN, AP AUTO) show only with cap 1 (hidden with cap 0); JAM only where the build has it (group); no JAM HOST");
   ok(/pw\.value = ""/.test(wifiJs.slice(wifiJs.indexOf("function wifiApForm"), wifiJs.indexOf("function wifiForm"))) && /type: "password"/.test(wifiJs.slice(wifiJs.indexOf("function wifiApForm"), wifiJs.indexOf("function wifiForm"))),
     "wifi AP: its password field is type=password and cleared as it is sent");
 }
@@ -3029,8 +3047,8 @@ async function midiSettings() {
 /* the protocol document: the device names (FM1-XXXX) and the Wi-Fi ops of this week agree with the firmware (ed_wifi.c, usb.c, ble_cfg.h) */
 {
   const doc = readFileSync(join(HERE, "EDITOR_PROTOCOL.md"), "utf8"), wf = readFileSync(join(HERE, "../firmware/src/io/editor/ed_wifi.c"), "utf8");
-  ok(/FM1-XXXX/.test(doc) && !/MIDI port is still named "Felucca"/.test(doc) && /"Felucca"/.test(doc) && /5 JAM/.test(doc) && /EDWF_JAM 1/.test(wf) && /\| 5 AP KEY \|/.test(doc),
-    "protocol doc: the device is FM1-XXXX (older names still found), Wi-Fi MODE takes 5 JAM, AP KEY is op 5");
+  ok(/FM1-XXXX/.test(doc) && !/MIDI port is still named "Felucca"/.test(doc) && /"Felucca"/.test(doc) && /7 JAM where/.test(doc) && /\| 9 GROUP \|/.test(doc) && /EDWF_JAM 1/.test(wf) && /\| 5 AP KEY \|/.test(doc),
+    "protocol doc: the device is FM1-XXXX (older names still found), Wi-Fi MODE takes 7 JAM, GROUP is op 9, AP KEY is op 5");
 }
 
 /* ------------------------------------------------- the mixer's keyboard (KEYS, keyPlan) --- */

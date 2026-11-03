@@ -2996,6 +2996,8 @@ const parse = {   /* the replies' readers, by command */
     o.ap = { cap: 0 };
     if (r.i < a.length && r.b() === 1) { o.ap = { cap: 1, key: r.b(), status: r.b(), clients: r.b(), ch: r.b() }; o.ap.auto = !!(o.ap.ch & 0x40); o.ap.ch &= 0x3F; o.ap.name = ssid(); }   /* (0x40: CHANNEL AUTO) */
     o.peers = r.i < a.length ? r.b() : 0;   /* the Link peers heard (after the AP block; an older firmware sends none) */
+    o.group = r.i < a.length ? r.b() : 0;   /* MODE JAM's GROUP 1..9 (0: no JAM in this build, or an older firmware) */
+    o.jamHost = r.i < a.length ? !!r.b() : false;   /* in JAM: this FM-1 is its group's access point now */
     return o;
   },
   /* v14 NOTE (ed_note.c): op, rc, track, note, held */
@@ -3307,7 +3309,8 @@ const req = {                                       /* each: (arguments) -> [cmd
   recGet: () => [CMD.REC, [0]],
   recToggle: () => [CMD.REC, [1]],
   wifiState: () => [CMD.WIFI, [0]],
-  wifiMode: (m) => [CMD.WIFI, [1, m & 0x7F]],                                  /* 0 OFF, 1 AUTO, 2 MAN (the store's numbers) */
+  wifiMode: (m) => [CMD.WIFI, [1, m & 0x7F]],                                  /* 0 OFF, 1 AUTO, 2 MAN, 3 AP AUTO, 4 AP MAN, 7 JAM (the store's numbers) */
+  wifiGroup: (g) => [CMD.WIFI, [9, g & 0x7F]],                                 /* MODE JAM's GROUP 1..9 */
   wifiForget: (slot) => [CMD.WIFI, [2, slot & 0x7F]],
   /* JOIN: the SSID's bytes and the password (ASCII 32..126, or "" for a saved network); the password is only in this array */
   wifiJoin: (ssid, pass) => [CMD.WIFI, [3, ssid.length, pass.length, ...pack7(ssid), ...Array.from(pass, (c) => c.charCodeAt(0))]],
@@ -3649,9 +3652,9 @@ function wifiText(b) {
 }
 /* the manager's states and failures (firmware wifi/wifi_conn.c; web/EDITOR_PROTOCOL.md "Wi-Fi") */
 const WIFI = { OFF: 0, RADIO: 1, IDLE: 2, SCAN: 3, PMK: 4, AUTH: 5, ASSOC: 6, HS: 7, UP: 8, FAIL: 9, LINK: 10, PRE: 11,
-  MODES: [[0, "OFF"], [2, "MAN"], [1, "AUTO"], [5, "JAM JOIN"]], MODE_JAMHOST: [6, "JAM HOST"], MODE_APMAN: [4, "AP MAN"], MODE_AP: [3, "AP AUTO"], AP: { OFF: 0, NOPASS: 1, STARTING: 2, ON: 3, NOCAL: 4, STOPPED: 5 }, CH_MIN: 1, CH_MAX: 13, SLOTS: 4, SSID_MAX: 32, PASS_MIN: 8, PASS_MAX: 63 };
-const wifiIsAp = (m) => m === 3 || m === 4 || m === 6;   /* AP AUTO, AP MAN, JAM HOST (5 is JAM JOIN: a station mode) */
-const wifiBusy = (w) => w.st === WIFI.RADIO || w.st === WIFI.SCAN || (w.st >= WIFI.PMK && w.st <= WIFI.HS) || w.st === WIFI.LINK || w.st === WIFI.PRE || (w.st === WIFI.UP && !w.ip) || (wifiIsAp(w.mode) && !!w.ap && w.ap.cap === 1 && w.ap.status === WIFI.AP.STARTING);
+  MODES: [[0, "OFF"], [2, "MAN"], [1, "AUTO"]], MODE_JAM: [7, "JAM"], MODE_APMAN: [4, "AP MAN"], MODE_AP: [3, "AP AUTO"], GROUPS: 9, AP: { OFF: 0, NOPASS: 1, STARTING: 2, ON: 3, NOCAL: 4, STOPPED: 5 }, CH_MIN: 1, CH_MAX: 13, SLOTS: 4, SSID_MAX: 32, PASS_MIN: 8, PASS_MAX: 63 };
+const wifiIsAp = (m, s) => m === 3 || m === 4 || m === 6 || (m === 7 && !!s && !!s.jamHost);   /* AP AUTO, AP MAN, JAM while it hosts its group (s: the state; 6: an older JAM HOST) */
+const wifiBusy = (w) => w.st === WIFI.RADIO || w.st === WIFI.SCAN || (w.st >= WIFI.PMK && w.st <= WIFI.HS) || w.st === WIFI.LINK || w.st === WIFI.PRE || (w.st === WIFI.UP && !w.ip) || (wifiIsAp(w.mode, w) && !!w.ap && w.ap.cap === 1 && w.ap.status === WIFI.AP.STARTING);
 /* the join request's check, before anything is sent (name: the typed text, or a saved network's bytes): {ssid bytes, pass} or {err: a TEXT key} */
 function wifiCheck(name, pass, saved) {
   const ssid = typeof name === "string" ? new TextEncoder().encode(name) : name;
@@ -6243,7 +6246,7 @@ function makeMockDevice(opt = {}) {                /* (opt: see above) */
       }
       /* the Wi-Fi networks (ed_wifi.c; opt.wifi): the manager is simulated, a join takes two state reads; the password "wrongpass" fails (WCF_KEY) */
       case CMD.WIFI: {
-        if (!opt.wifi || a.length < 1 || a[0] > 8) return null;
+        if (!opt.wifi || a.length < 1 || a[0] > (opt.wifiap ? 9 : 8)) return null;   /* (op 9 GROUP: JAM, the trial's stack, with MODE AP here) */
         const w = st.wifi || (st.wifi = { mode: 2, st: WIFI.IDLE, fail: 0, joined: 0, nets: [new TextEncoder().encode("HOME")], req: null, polls: 0,
           ap: { key: 0, ch: 6, name: null, apPolls: 0 } });   /* (ap: MODE AP, only with opt.wifiap; name null: the automatic FM1-0042) */
         const rc = (x) => { b(a[0]); b(x); };
@@ -6260,15 +6263,19 @@ function makeMockDevice(opt = {}) {                /* (opt: see above) */
           const cur = w.req ? w.req.ssid : w.st === WIFI.UP ? w.nets[0] : new Uint8Array(0);
           b(cur.length); pack7(cur).forEach(b);
           const mockPeers = () => (wifiIsAp(w.mode) && opt.wifiap && w.ap.run !== 0 && w.ap.apPolls >= 2) || w.st === WIFI.UP ? 1 : 0;   /* a Link peer once the network is up */
-          if (!opt.wifiap) { b(0); b(mockPeers()); }   /* MODE AP's block: cap 0, nothing follows; then the Link peers */
+          if (!opt.wifiap) { b(0); b(mockPeers()); b(0); b(0); }   /* MODE AP's block: cap 0, nothing follows; then the Link peers; no JAM */
           else {
             const ap = w.ap, nm = ap.name || new TextEncoder().encode("FM1-0042");
             const stopped = w.mode === 4 && !ap.run;                      /* AP MAN: off until Start */
             if (wifiIsAp(w.mode) && !stopped) ap.apPolls++;
             const stt = !wifiIsAp(w.mode) ? 0 : stopped ? 5 : ap.apPolls < 2 ? 2 : 3;   /* a password set: STARTING on the first read, ACTIVE on the second */
             b(1); b(ap.key); b(stt); b(stt === 3 ? 1 : 0); b(ap.ch | (ap.auto ? 0x40 : 0)); b(nm.length); pack7(nm).forEach(b);
-            b(mockPeers());
+            b(mockPeers()); b(w.group || 1); b(0);   /* (the trial's stack: JAM there, group 1 at first; the mock never hosts) */
           }
+        } else if (a[0] === 9) {
+          if (a.length < 2) return null;
+          if (!opt.wifiap || a[1] < 1 || a[1] > WIFI.GROUPS) rc(1); else { w.group = a[1]; rc(0); }
+          b(w.group || 1);
         } else if (a[0] >= 5) {
           const ap = w.ap;
           if (!opt.wifiap) { rc(1); if (a[0] === 6) b(0); break; }
@@ -6287,7 +6294,8 @@ function makeMockDevice(opt = {}) {                /* (opt: see above) */
           } else { ap.key = 0; ap.apPolls = 0; rc(0); }
         } else if (a[0] === 1) {
           if (a.length < 2) return null;
-          if (a[1] > 2 && a[1] !== 5 && !((a[1] <= 4 || a[1] === 6) && opt.wifiap)) rc(1); else { w.mode = a[1]; if (w.ap) w.ap.run = 0; if (wifiIsAp(a[1])) { w.st = WIFI.IDLE; w.req = null; w.joined = 0; } else if (!a[1]) { w.st = WIFI.OFF; w.req = null; w.joined = 0; } else if (w.st === WIFI.OFF) w.st = WIFI.IDLE; rc(0); }
+          const mm = opt.wifiap && (a[1] === 5 || a[1] === 6) ? 7 : a[1];   /* (one JAM: an older editor's JAM JOIN / HOST) */
+          if (mm > 2 && !((mm <= 4 || mm === 7) && opt.wifiap)) rc(1); else { w.mode = mm; if (w.ap) w.ap.run = 0; if (wifiIsAp(mm)) { w.st = WIFI.IDLE; w.req = null; w.joined = 0; } else if (!a[1]) { w.st = WIFI.OFF; w.req = null; w.joined = 0; } else if (w.st === WIFI.OFF) w.st = WIFI.IDLE; rc(0); }
           b(w.mode);
         } else if (a[0] === 2) {
           if (a.length < 2) return null;
@@ -7581,7 +7589,7 @@ const TEXT = {                                      /* the page's words, by key 
   wifiTab: "Wi-Fi", wifiNone: "This FM-1 has no Wi-Fi (a build with Wi-Fi and Bluetooth lists opti_wifi_1).",
   wifiHelp: "The Wi-Fi networks of the FM-1: choose the mode, join a network by its name and password, forget one. The FM-1 keeps up to 4 networks, most recent first, and only the key made from the password: the password itself is never stored, and neither the FM-1 nor this page shows a key. A network is kept once the FM-1 has really joined it. The FM-1 joins WPA2 personal (PSK, AES) networks.",
   wifiAsking: "Asking the FM-1…", wifiNoAnswer: "The FM-1 did not answer the Wi-Fi request.", wifiRefresh: "Refresh",
-  wifiMode: "Mode", wifiModeOff: "Off: the radio stays off", wifiModeMan: "Manual: joins a network only when told", wifiModeAuto: "Auto: joins the best saved network heard, at start-up and whenever none is joined", wifiModeJamHost: "Jam host: the FM-1 is the access point other FM-1s in JAM JOIN find and join (its automatic name FM1-xxxx and its default password, shown, never changed), Link kept on", wifiModeJam: "Jam join: as Auto, and when no saved network is heard joins an FM-1 access point (FM1-xxxx) with its default password; Link stays on",
+  wifiMode: "Mode", wifiModeOff: "Off: the radio stays off", wifiModeMan: "Manual: joins a network only when told", wifiModeAuto: "Auto: joins the best saved network heard, at start-up and whenever none is joined", wifiModeJam: "Jam: finds the FM-1s of its group and joins them, or becomes their access point when none is there (its automatic name and default password); Link stays on", wifiGroup: "Group", wifiGroupTip: "The FM-1s of one group (1 to 9) play together: pick the same on each",
   wifiOff: "Wi-Fi is off.", wifiRadio: "Starting the radio…", wifiIdle: "Not connected.", wifiScan: "Looking for “{n}”…", wifiJoining: "Joining “{n}”…",
   wifiUp: "Connected to “{n}”, address {ip}, channel {ch}.", wifiAddr: "Joined; waiting for an address from the router…",
   wifiFail0: "The connection failed.", wifiFail1: "The Wi-Fi radio cannot start: this FM-1 has no stored radio calibration.",
@@ -11356,7 +11364,7 @@ function wifiApStatus(ap) {   /* MODE AP's status as [words, status colour] */
 const wifiPeers = (s) => (s.peers ? " " + (s.peers === 1 ? t("wifiPeers1") : t("wifiPeersN").replace("{n}", s.peers)) : "");   /* (" · 2 Link peers") */
 function wifiStatus(s) {   /* the state as [words, status colour] */
   const nm = s.cur.text;
-  if (wifiIsAp(s.mode) && s.ap.cap === 1) { const [x, c] = wifiApStatus(s.ap); return [x + (s.ap.status === WIFI.AP.ON ? wifiPeers(s) : ""), c]; }
+  if (wifiIsAp(s.mode, s) && s.ap.cap === 1) { const [x, c] = wifiApStatus(s.ap); return [x + (s.ap.status === WIFI.AP.ON ? wifiPeers(s) : ""), c]; }
   if (!s.mode || s.st === WIFI.OFF) return [t("wifiOff"), ""];
   if (s.st === WIFI.RADIO) return [t("wifiRadio"), "warn"];
   if (s.st === WIFI.SCAN) return [t("wifiScan").replace("{n}", nm), "warn"];
@@ -11453,7 +11461,7 @@ function wifiApForm() {   /* the Access point panel (MODE AP): built once, so wh
     el("p", { class: "bar" }, el("label", {}, t("wifiApChan"), " ", chan), clear),
     el("p", { class: "dim", text: t("wifiApHelp") }));
   const update = (s) => {   /* shown only in MODE AP with a build that has it */
-    const on = !!s && wifiIsAp(s.mode) && s.ap.cap === 1;
+    const on = !!s && wifiIsAp(s.mode, s) && s.ap.cap === 1;
     root.hidden = !on;
     if (!on) return;
     const [txt, st] = wifiStatus(s);
@@ -11465,7 +11473,7 @@ function wifiApForm() {   /* the Access point panel (MODE AP): built once, so wh
     chan.options[0].text = s.ap.auto ? `Auto (${s.ap.ch})` : "Auto";
     clear.lastChild.textContent = wf.apClear && performance.now() - wf.apClear < 4000 ? t("wifiApClearSure") : t("wifiApClear");
     clear.disabled = !s.ap.key;
-    for (const x of [name, pw, show.parentNode, setBtn, clear]) x.hidden = s.mode === 6;   /* JAM HOST: the default password only, shown, never set */
+    for (const x of [name, pw, show.parentNode, setBtn, clear]) x.hidden = s.mode === 6 || s.mode === 7;   /* JAM hosting: the default password only, shown, never set */
     run.hidden = s.mode !== 4;                              /* AP MAN only: start / stop */
     run.disabled = false;
     run.textContent = s.ap.status === WIFI.AP.STOPPED ? t("wifiApStart") : t("wifiApStop");
@@ -11496,16 +11504,23 @@ function wifiRender() {
   const s = wf.s;
   if (!s) { wf.top.replaceChildren(el("p", { class: "dim", text: wf.msg || t("wifiAsking") })); wf.list.replaceChildren(); return; }
   const [txt, st] = wifiStatus(s);
-  const tip = { 0: t("wifiModeOff"), 2: t("wifiModeMan"), 1: t("wifiModeAuto"), 5: t("wifiModeJam") };
-  const ap = s.ap.cap === 1, inAp = ap && wifiIsAp(s.mode);
-  if (ap) { tip[3] = t("wifiModeAp"); tip[4] = t("wifiModeApMan"); tip[6] = t("wifiModeJamHost"); }
-  const modes = el("span", { class: "seg", role: "group", "aria-label": t("wifiMode") }, ...(ap ? [...WIFI.MODES, WIFI.MODE_JAMHOST, WIFI.MODE_APMAN, WIFI.MODE_AP] : WIFI.MODES).map(([m, label]) =>
+  const tip = { 0: t("wifiModeOff"), 2: t("wifiModeMan"), 1: t("wifiModeAuto"), 7: t("wifiModeJam") };
+  const ap = s.ap.cap === 1, inAp = ap && wifiIsAp(s.mode, s);
+  if (ap) { tip[3] = t("wifiModeAp"); tip[4] = t("wifiModeApMan"); }
+  const list = [...WIFI.MODES, ...(s.group ? [WIFI.MODE_JAM] : []), ...(ap ? [WIFI.MODE_APMAN, WIFI.MODE_AP] : [])];   /* (the FM-1's MODE list; JAM where the build has it: group 1..9) */
+  const modes = el("span", { class: "seg", role: "group", "aria-label": t("wifiMode") }, ...list.map(([m, label]) =>
     el("button", { type: "button", "aria-pressed": s.mode === m ? "true" : "false", title: tip[m], "aria-label": tip[m], onclick: async () => {
       const r = await wifiSend(req.wifiMode(m), { timeout: 800, retries: 1 });
       if (r && r.rc) wf.msg = t("wifiRc" + r.rc); else if (r) wf.msg = "";
       wifiWatch(8000);
     } }, label)));
-  wf.top.replaceChildren(el("p", { class: "bar" }, el("b", { text: t("wifiMode") }), modes,
+  const group = s.mode === 7 && s.group ? el("label", { title: t("wifiGroupTip") }, t("wifiGroup"), " ",
+    el("select", { "aria-label": t("wifiGroup"), onchange: async (e) => {   /* MODE JAM's GROUP: the FM-1s of one group find each other */
+      const r = await wifiSend(req.wifiGroup(+e.target.value), { timeout: 800, retries: 1 });
+      if (r && r.rc) wf.msg = t("wifiRc1"); else if (r) wf.msg = "";
+      wifiWatch(8000);
+    } }, ...Array.from({ length: WIFI.GROUPS }, (_, i) => el("option", { value: String(i + 1), selected: s.group === i + 1 }, String(i + 1))))) : "";
+  wf.top.replaceChildren(el("p", { class: "bar" }, el("b", { text: t("wifiMode") }), modes, group,
       el("button", { type: "button", onclick: () => wifiWatch(8000) }, t("wifiRefresh"))),
     el("p", { class: "bar" }, el("span", { class: "pill", "data-st": st, role: "status", text: txt })),
     ...(wf.msg ? [el("p", { class: "dim", role: "alert", text: wf.msg })] : []));

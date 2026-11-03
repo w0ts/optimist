@@ -654,6 +654,7 @@ or the Mirror app does not know the name and sends nothing; the command, its tag
 | 5 AP KEY | slen, plen, name as pack7, password (plen bytes, 32..126, 8..63; slen 0 = the automatic name) | `5, rc` |
 | 6 AP CHANNEL | channel | `6, rc, channel` |
 | 7 AP CLEAR | | `7, rc` |
+| 9 GROUP | group | `9, rc, group` |
 
 - `mode` is the store's number: 0 OFF (the manager stops), 1 AUTO (joins the best saved network heard, at start-up and whenever none is joined),
   2 MAN (joins when told), 3 AP (MODE AP, only when the state's `cap` is 1; the FM-1 is the network, see below). It is saved with the settings (written once the transport stops).
@@ -661,7 +662,9 @@ or the Mirror app does not know the name and sends nothing; the command, its tag
   firmware has no block at all: read it as cap 0); with `cap` 1: `key` (1: a password typed by the user is kept; 0: the default password, a function of the name, is in use: `wifi_ap_default_key`, two FNV-1a runs over the salts `OPTIMIST-AP-KEY/1:` and `/2:` and the name, five bits a character from `abcdefghjkmnpqrstuvwxyz23456789w`, 8 characters; the page works it out from the name, the FM-1 never sends it), `status` (0 OFF, 1 unused since 2026-10-29 (was NO PASSWORD), 2 STARTING, 3 ACTIVE,
   4 NO CAL, 5 STOPPED: AP MAN, not started), `clients`, `channel` (the one shown: the store's, else 6), `len` and the `name` as pack7 (the stored one, else FM1- and four digits).
   Then, in every build, one more byte: `peers`, the Link peers heard (0 when Link is not running; a reply from an older firmware ends before it: read it as 0).
-- MODE (op 1) takes 0 OFF, 1 AUTO, 2 MAN, 5 JAM JOIN (the trial's Wi-Fi stack: AUTO that also joins an FM-1 access point FM1-xxxx with its default password when no saved network is heard, and keeps Link on; a station mode: not an access point) and, with `cap` 1, 3 AP AUTO (the access point starts at power-on and stays up), 6 JAM HOST (the trial's stack: AP AUTO under the automatic name FM1-xxxx and its default password only, never a typed one, so the FM-1s in JAM JOIN (5) find and join it; Link kept on; AP KEY (op 5) answers rc 1) and 4 AP MAN (off at power-on; started by AP RUN or SAVE on the FM-1's page; the switch is never kept). AP RUN (op 8, `on`): start (1) or stop (0) in AP MAN; rc 2 MODE is not AP MAN (3 is no longer returned: the default password is always there). A password typed in AP MAN starts it.
+  Then two more: `group`, MODE JAM's GROUP 1..9 (0: this build has no JAM), and `host` (1: in JAM, this FM-1 is its group's access point now); a reply from an older firmware ends before them: read them as 0.
+- MODE (op 1) takes 0 OFF, 1 AUTO, 2 MAN, 7 JAM where the state's `group` is not 0 (the release's Wi-Fi stack, 2026-11-03: the FM-1 joins an FM-1 access point of its GROUP, FM1-xxxx-N, with its default password, or becomes that access point when none of its group is heard after a settle time; Link stays on; an older editor's 5 JAM JOIN and 6 JAM HOST are taken as 7) and, with `cap` 1, 3 AP AUTO (the access point starts at power-on and stays up) and 4 AP MAN (op 8 starts and stops it). Another value: rc 1, the mode kept.
+- GROUP (op 9): MODE JAM's group 1..9 (the FM-1s of one group find each other); rc 1 out of range or no JAM in this build. Saved with the settings.
 - AP KEY (op 5): MODE AP's password (and name): the access point stops, the key is derived (a slice a pass), kept and the access point starts again; the
   state says how it goes. The password is 8..63 printable ASCII characters (32..126, one byte each, after the pack7 name); `slen` 0 is the automatic name,
   else 1..32 bytes. The password goes to the FM-1 once, becomes a key there and is not kept; the firmware wipes it and the received frame's bytes, and never
