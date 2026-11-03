@@ -155,6 +155,8 @@ static int ed_cp_begin(uint32_t i, uint32_t size)
 #if SEC_LOGGED && FELUCCA_PATTERNS
     if (BK_OBJS[i].kind == BK_PJS) {                 /* the stream's records go into that project as they come */
         bk_ps.hn = 0;
+        bk_ps.live = (uint8_t)(BK_OBJS[i].id >= 16u);   /* (PL01..: live patterns, as BK_BEGIN marks them: without it they were
+                                                     * written as saved patterns, 2026-11-03, edproof's restore) */
         bk_pj.ok = 0;
         if (bk_scope(BK_OBJS[i].id)) {
             bk.obj = -1;
