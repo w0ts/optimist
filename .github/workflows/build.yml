@@ -41,6 +41,10 @@ jobs:
         profile: ${{ fromJSON(needs.published.outputs.profiles) }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive                  # (the firmware is the release: fm1base/ and its nested bsp, as cloud-build.yml fetches them)
+          token: ${{ secrets.FM1BASE_TOKEN || github.token }}
+          persist-credentials: false
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -66,6 +70,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive                  # (the firmware is the release: fm1base/ and its nested bsp, as cloud-build.yml fetches them)
+          token: ${{ secrets.FM1BASE_TOKEN || github.token }}
+          persist-credentials: false
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"

@@ -56,6 +56,9 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ env.TAG }}
+          submodules: recursive                  # (the firmware is the release: fm1base/ and its nested bsp, as cloud-build.yml fetches them)
+          token: ${{ secrets.FM1BASE_TOKEN || github.token }}
+          persist-credentials: false
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
