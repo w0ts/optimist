@@ -10,6 +10,7 @@ import argparse
 import json
 import queue
 import shutil
+import os
 import subprocess
 import sys
 import tempfile
@@ -83,7 +84,7 @@ class PipeLink:
 
 def build(tmp, bsp, fast, app_end):
     exe = tmp / f"replay_{'bsp' if bsp else 'own'}_{'fast' if fast else 'old'}"
-    flags = ["-w", "-O1"]
+    flags = ["-w", "-O1", f"-DFELUCCA_LAYOUT={int(os.environ.get('PKG_LAYOUT') or 0)}"]   # (the package's MEMORY step: tests/run_tests.sh)
     if bsp:
         flags += ["-DREPLAY_BSP", f"-DFL_APP_END={app_end:#x}u"] + (["-DLDR_FAST_CHUNK=4096u"] if fast else [])
     elif fast:

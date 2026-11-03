@@ -230,8 +230,9 @@ int main(int argc, char **argv)
     reset_dev();
     rc = ota_session();
     printf("  %u requests\n", requests);
-    bad += check("session commits (flash.bin exactly an app slot: either flash layout)", rc == 0 && committed &&
-                 (fl_entry(12) == FL_APP_HI_NORMAL || fl_entry(12) == FL_APP_HI_BIG));
+    bad += check("session commits (flash.bin exactly an app slot: this build's MEMORY step, the normal one or the largest)", rc == 0 && committed &&
+                 (fl_entry(12) == FL_APP_HI || fl_entry(12) == FL_APP_HI_NORMAL || fl_entry(12) == FL_APP_HI_BIG));   /* (FL_APP_HI:
+                 * FELUCCA_LAYOUT's, the package's step: tests/run_tests.sh PKG_LAYOUT) */
     bad += check("headers + loader twice + confirm, no head reads", requests >= 10 && requests <= 45);
     {
         uint8_t *h = nor + 0xE0000, *p = committed_parm;
