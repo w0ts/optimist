@@ -12,7 +12,7 @@ static const int8_t PRESET_TRIM[PT_ENGINES][PT_MAX] = {
     {/* 5.0 CHOIR AAH */ -31, /* 5.1 SOUL OOH */ -28, /* 5.2 TALKBOX */ -15, /* 5.3 WOW BASS */ -3},
     {/* 6.0 FAT BASS */ 3, /* 6.1 MIN STAB */ 17, /* 6.2 MIN7 STAB */ 14, /* 6.3 RAVE STAB */ 13, /* 6.4 DUB CHORD */ 13, /* 6.5 SAW PAD */ -16, /* 6.6 SYNC LEAD */ -8, /* 6.7 HOOVER */ -2},
     {/* 7.0 SOUL ORGAN */ -19, /* 7.1 GOSPEL */ -16, /* 7.2 JAZZ ORGAN */ -13, /* 7.3 DIRTY B3 */ -19, /* 7.4 HOUSE ORGN */ -12},
-    {/* 8.0 LOFI CLOUD */ -4, /* 8.1 VIBE HAZE */ -5, /* 8.2 FLUTE DUST */ -7},
+    {/* 8.0 LOFI CLOUD */ -4, /* 8.1 VIBE HAZE */ -5, /* 8.2 FLUTE DUST */ -7, /* 8.3 PNO SWELL */ 14, /* 8.4 DRONE BASS */ 10, /* 8.5 SUB GRIT */ 7, /* 8.6 GLASS DUST */ -5, /* 8.7 BRASS FOG */ -9, /* 8.8 HORN SWARM */ -12, /* 8.9 FROZEN STR */ 19, /* 8.10 SHIMMER */ 4, /* 8.11 BREATH FOG */ 8, /* 8.12 SCR SPRAY */ 19, /* 8.13 STUTTER */ 12, /* 8.14 KIT RAIN */ 19, /* 8.15 USR CLOUD */ 23, /* 8.16 USR FREEZE */ 0},
     {/* 9.0 INIT VOICE */ -13, /* 9.1 INIT WIDE */ -14, /* 9.2 INIT MONO */ -13},
     {/* 10.0 BREAK 16 */ 23, /* 10.1 CHOP 8 */ 0, /* 10.2 REVERSE */ 0, /* 10.3 USR SLICE */ 0},
     {},
