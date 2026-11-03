@@ -30,8 +30,8 @@ firmware instead (what the main branch still ships).
   python tools/optimist.py emu-check [FIRMWARE] [--only C]   the emulator smoke checks (tests/emu/run.py --help)
   python tools/optimist.py toolchain                     which toolchain and SDK a build would use
 
-build, package and test take --in-docker: the whole command runs inside the toolchain image (a Linux x86-64
-container), the same as a Linux host or CI. Exit status 0 = done, 1 = failed, 2 = usage or configuration error.
+The compiler is pi32v2-llvm, run natively (Linux x86-64, macOS arm64): setup downloads it. Exit status 0 = done,
+1 = failed, 2 = usage or configuration error.
 
 Non-interactive use (scripts, CI): write a .config (KEY=value lines, tools/builder/registry.py
 keys), then `package --config my.config --out DIR --summary result.json`.
@@ -615,11 +615,11 @@ def test_classic(a):
         if not (ROOT / "build" / "felucca.fwsc").exists():
             print("test: no build/felucca.fwsc (python tools/optimist.py build)", file=sys.stderr)
             return 1
-        sh = shutil.which("sh") if os.name != "nt" else None     # (Git for Windows' sh: untested; use --in-docker)
+        sh = shutil.which("sh") if os.name != "nt" else None     # (Git for Windows' sh: untested)
         if sh:
             sys.stdout.flush()
             return subprocess.call([sh, "tests/run_tests.sh"], cwd=ROOT, env=env)
-        print("test: no sh here: the C host tests need sh and a C compiler (WSL, or test --in-docker); running "
+        print("test: no sh here: the C host tests need sh and a C compiler; running "
               "the Python tests only")
     fails = 0
     for t in PY_TESTS:
@@ -627,25 +627,6 @@ def test_classic(a):
         fails += subprocess.call([*py, t], cwd=ROOT, env=env) != 0
     print("PYTHON TESTS PASSED" if not fails else f"PYTHON TESTS FAILED ({fails})")
     return 1 if fails else 0
-
-
-# ---- --in-docker: the same command in the toolchain image
-
-def in_docker(argv):
-    image = TC.image_name()
-    if not TC.docker_running():
-        print("optimist: --in-docker needs Docker running", file=sys.stderr)
-        return 1
-    if not TC.image_present(image):
-        print(f"optimist: no image {image}: python tools/optimist.py setup builds it", file=sys.stderr)
-        return 1
-    rest = [x for x in argv if x != "--in-docker"] + (["--classic"] if C.classic() else [])
-    tty = ["-t"] if sys.stdout.isatty() else []
-    # (git in the container: the mounted tree belongs to another user; the -ui.zip's SOURCE.txt names the commit)
-    git_ok = ["-e", "GIT_CONFIG_COUNT=1", "-e", "GIT_CONFIG_KEY_0=safe.directory", "-e", "GIT_CONFIG_VALUE_0=*"]
-    cmd = ["docker", "run", "--rm", *tty, "--platform", "linux/amd64", *TC.linux_user(), *git_ok,
-           "-e", "HOME=/tmp", "-v", f"{ROOT}:/work", "-w", "/work", image, "python3", "tools/optimist.py", *rest]
-    return subprocess.call(cmd)
 
 
 def parser():
@@ -668,14 +649,12 @@ def parser():
     p.add_argument("--release", metavar="X.Y", help="release build: identity FM-1_7(X+2)Y, version X.Y")
     p.add_argument("--measure", action="store_true", help="measurement build (links past the slot, no package)")
     p.add_argument("--summary", metavar="FILE", help="write the result as JSON")
-    p.add_argument("--in-docker", action="store_true", help="run inside the toolchain image")
     p.set_defaults(fn=cmd_build)
     p = sub.add_parser("package", help="build, then copy optimist-<name>-<date>.fwsc + -ui.zip to --out")
     add_config_args(p)
     p.add_argument("--out", default=str(ROOT / "firmwares"), help="where the package goes (default firmwares/)")
     p.add_argument("--release", metavar="X.Y", help="release build: identity FM-1_7(X+2)Y, version X.Y, named optimist-X.Y-<name>")
     p.add_argument("--summary", metavar="FILE", help="write the result as JSON")
-    p.add_argument("--in-docker", action="store_true", help="run inside the toolchain image")
     p.set_defaults(fn=cmd_package)
     p = sub.add_parser("flash", help="install a build on an FM-1 over USB-MIDI (builds first unless a PACKAGE is "
                        "given; fm1_install.py; asks first)")
@@ -730,7 +709,6 @@ def parser():
     p = sub.add_parser("test", help="the host tests: Optimist's (builds the default configuration first) and the release's")
     p.add_argument("--python", action="store_true", help="the Python tests only (any host, no C compiler)")
     p.add_argument("--no-build", action="store_true", help="test the build/ there is (any profile that links)")
-    p.add_argument("--in-docker", action="store_true", help="run inside the toolchain image")
     p.set_defaults(fn=cmd_test)
     return ap
 
@@ -747,8 +725,6 @@ def main(argv=None):
     if argv and argv[0] in PASSTHROUGH:     # (their own parsers: argparse would take their options for ours)
         return PASSTHROUGH[argv[0]](argparse.Namespace(rest=argv[1:]))
     a = parser().parse_args(argv)
-    if getattr(a, "in_docker", False) and not os.environ.get("OPTIMIST_IN_CONTAINER"):
-        return in_docker(argv)
     try:
         return a.fn(a)
     except C.ConfigError as e:

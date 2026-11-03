@@ -51,33 +51,15 @@ def install_tool():
     return DIR / "tools" / "fm1_install.py"
 
 
-def toolchain_env(compiler="jieli"):
-    """JIELI_TOOLCHAIN (fm1-base's build wants the Linux toolchain's directory) and AC79_SDK (Optimist's SDK files).
-    compiler "llvm": pi32v2-llvm's drop-in (tools/toolchain.py llvm_dir, JieLi's layout) instead; where fm1-base runs the
-    tools in a container, the toolchain image (JIELI_DOCKER_IMAGE: the drop-in's wrapper needs its python3)"""
+def toolchain_env():
+    """fm1-base's build environment for the toolchain: its JIELI_TOOLCHAIN (the name fm1-base's build.py reads) is
+    pi32v2-llvm's drop-in (tools/toolchain.py llvm_dir), run natively (JIELI_DOCKER=0: fm1-base runs tools in a container
+    on every host but Linux x86-64 unless told not to), and AC79_SDK (Optimist's SDK files)"""
     import toolchain as TC
-    env = {}
-    if compiler == "llvm":
-        tc = str(TC.llvm_dir())
-        if not TC.has_clang(tc):
-            raise FM1BaseError(f"no pi32v2-llvm in {tc}: python tools/optimist.py setup (or the builder's COMPILER item: JieLi)")
-        if not TC.is_native_host() or os.environ.get("JIELI_DOCKER") == "1":
-            env["JIELI_DOCKER_IMAGE"] = TC.image_name()
-    else:
-        tc = os.environ.get("JIELI_TOOLCHAIN") or str(Path.home() / ".jieli" / "toolchain")
-        if not (Path(tc) / "pi32v2" / "bin" / "clang").exists():
-            raise FM1BaseError(f"JIELI_TOOLCHAIN {tc}: no pi32v2/bin/clang (the JieLi Linux toolchain: fm1base/tools/get_toolchain.sh)")
-    env["JIELI_TOOLCHAIN"] = tc
-    env["AC79_SDK"] = str(TC.sdk_dir())
-    return env
-
-
-def compiler_of(cfgfile):
-    """the .config's compiler (its COMPILER item): "jieli" or "llvm" (tools/toolchain.py compiler_of)"""
-    import configure
-    import toolchain as TC
-    cfg, _ = configure.parse(Path(cfgfile).read_text())
-    return TC.compiler_of(configure.flags(cfg)[0])
+    tc = str(TC.llvm_dir())
+    if not TC.has_clang(tc):
+        raise FM1BaseError(f"no pi32v2-llvm in {tc}: python tools/optimist.py setup")
+    return {"JIELI_TOOLCHAIN": tc, "JIELI_DOCKER": "0", "AC79_SDK": str(TC.sdk_dir())}
 
 
 def command(python, release=None, app=None):
@@ -97,25 +79,20 @@ def slot_app(bdir):
     return app, app / "build"
 
 
-def measure_toolchain(compiler="jieli"):
+def measure_toolchain():
     """-> the directory to give fm1-base's build as JIELI_TOOLCHAIN for a measurement build: the real toolchain's entries
     linked, its pi32v2/bin/ld the wrapper tools/fm1base_ld.py (room for any build: fm1-base has no measurement mode).
-    Made once per compiler (ROOT/build/measure-toolchain, -llvm), shared by parallel builds: under SHIM_LOCK (measure_costs
-    runs them as threads), built in a directory of its own and renamed into place (2026-10-29: costs-all's 288 jobs at
-    once removed each other's half-made shim, FileNotFoundError on its links).
-    Where fm1-base runs the tools in a container (in_container: macOS, JIELI_DOCKER=1) only this directory is mounted
-    (at /opt/jieli), so a link to the host's toolchain dangles there (2026-10-31, the Mac: "stat /opt/jieli/pi32v2/bin/clang:
-    no such file"): the shim is then whole in itself (_make_container_shim, -docker)"""
-    real = Path(toolchain_env(compiler)["JIELI_TOOLCHAIN"]).resolve()
-    boxed = in_container()
-    shim = ROOT / "build" / ("measure-toolchain" + ("-llvm" if compiler == "llvm" else "") + ("-docker" if boxed else ""))
+    Made once (ROOT/build/measure-toolchain), shared by parallel builds: under SHIM_LOCK (measure_costs runs them as
+    threads), built in a directory of its own and renamed into place (2026-10-29: costs-all's 288 jobs at once removed
+    each other's half-made shim, FileNotFoundError on its links)"""
+    real = Path(toolchain_env()["JIELI_TOOLCHAIN"]).resolve()
+    shim = ROOT / "build" / "measure-toolchain"
     with SHIM_LOCK:
-        if (shim / "pi32v2" / "bin" / "ld").is_file() and (shim / "real").resolve() == real and (
-                not boxed or _shim_ld_current(shim)):
+        if (shim / "pi32v2" / "bin" / "ld").is_file() and (shim / "real").resolve() == real:
             return shim
         tmp = shim.with_name(f"{shim.name}.{os.getpid()}")
         shutil.rmtree(tmp, ignore_errors=True)
-        (_make_container_shim if boxed else _make_shim)(tmp, real)
+        _make_shim(tmp, real)
         shutil.rmtree(shim, ignore_errors=True)
         os.rename(tmp, shim)
     return shim
@@ -123,67 +100,6 @@ def measure_toolchain(compiler="jieli"):
 
 SHIM_LOCK = threading.Lock()
 LD_PY = HERE / "fm1base_ld.py"
-
-
-def in_container():
-    """fm1-base's build runs the toolchain in a container (its tools/build.py use_docker: anywhere but Linux x86-64, or
-    JIELI_DOCKER=1), with only JIELI_TOOLCHAIN's directory mounted, at /opt/jieli"""
-    import toolchain as TC
-    return os.environ.get("JIELI_DOCKER", "0" if TC.is_native_host() else "1") == "1"
-
-
-def _shim_ld_current(shim):
-    """the container shim's copy of fm1base_ld.py is this checkout's"""
-    copy = shim / "measure" / LD_PY.name
-    return copy.is_file() and copy.read_bytes() == LD_PY.read_bytes()
-
-
-def _make_container_shim(shim, real):
-    """measure_toolchain's directory at shim for a container: real's tree as hard links (copies across file systems),
-    its relative links kept as they are; the real ld at measure/bin/ld (as deep as pi32v2/bin/ld: the drop-in's jlwrap.py
-    finds its toolchain three levels up from the name it is run by), a copy of fm1base_ld.py in measure/, and
-    pi32v2/bin/ld the wrapper, which finds both from its own path and runs the container's python3 (the toolchain image)"""
-    shim.mkdir(parents=True)
-    for src in real.iterdir():
-        if src.name != "pi32v2":
-            _mirror(src, shim / src.name, real)
-    (shim / "pi32v2").mkdir()
-    for sub in (real / "pi32v2").iterdir():
-        if sub.name != "bin":
-            _mirror(sub, shim / "pi32v2" / sub.name, real)
-    (shim / "pi32v2" / "bin").mkdir()
-    for tool in (real / "pi32v2" / "bin").iterdir():
-        if tool.name != "ld":
-            _mirror(tool, shim / "pi32v2" / "bin" / tool.name, real)
-    (shim / "measure" / "bin").mkdir(parents=True)
-    _mirror(real / "pi32v2" / "bin" / "ld", shim / "measure" / "bin" / "ld", real)
-    shutil.copy2(LD_PY, shim / "measure" / LD_PY.name)
-    ld = shim / "pi32v2" / "bin" / "ld"
-    ld.write_text('#!/bin/sh\nd=$(dirname "$0")/../..\n'
-                  f'FM1B_REAL_LD="$d/measure/bin/ld" exec python3 "$d/measure/{LD_PY.name}" "$@"\n')
-    ld.chmod(0o755)
-    (shim / "real").symlink_to(real)
-
-
-def _mirror(src, dst, top):
-    """src (inside top) at dst: a relative link that stays inside top as the same link, any other link as what it
-    points at, a directory entry by entry, a file hard-linked (copied when dst is on another file system)"""
-    if src.is_symlink():
-        target = os.readlink(src)
-        inside = os.path.normpath(src.parent / target)
-        if not os.path.isabs(target) and (inside == str(top) or inside.startswith(str(top) + os.sep)):
-            dst.symlink_to(target)
-            return
-        src = src.resolve(strict=True)
-    if src.is_dir():
-        dst.mkdir()
-        for child in src.iterdir():
-            _mirror(child, dst / child.name, top)
-        return
-    try:
-        os.link(src, dst)
-    except OSError:
-        shutil.copy2(src, dst)
 
 
 def _make_shim(shim, real):
@@ -207,13 +123,10 @@ def _make_shim(shim, real):
 
 def env_for(cfgfile, slot=None, measure=False):
     env = {k: v for k, v in os.environ.items() if not k.startswith("FELUCCA_")}
-    env.update(toolchain_env(compiler_of(cfgfile)))
+    env.update(toolchain_env())
     env.update(OPTIMIST=str(ROOT), OPT_CONFIG=str(Path(cfgfile).resolve()), OPT_TREE_COPY="1")
     if measure:
-        env["JIELI_TOOLCHAIN"] = str(measure_toolchain(compiler_of(cfgfile)))
-        if in_container():           # (the wrapper's python3: the toolchain image's, JieLi's too, never plain debian)
-            import toolchain as TC
-            env["JIELI_DOCKER_IMAGE"] = TC.image_name()
+        env["JIELI_TOOLCHAIN"] = str(measure_toolchain())
     if slot:
         env["FM1B_JOBS"] = "2"       # (builds side by side: each one's compile pool small)
     env.pop("OPT_PROFILE", None)
@@ -385,13 +298,11 @@ ANNOUNCE = ("import os, subprocess, sys; print(sys.argv[1], flush=True)\n"
             "os.execv(sys.argv[2], sys.argv[2:])")
 
 
-def compiler_line(cfgfile, env):
-    """'compiler pi32v2-llvm (<its directory>)' / 'compiler JieLi (<directory>)': the .config's COMPILER and the toolchain
-    the build gets (a measurement shim's real one)"""
+def compiler_line(env):
+    """'compiler pi32v2-llvm (<its directory>)': the toolchain the build gets (a measurement shim's real one)"""
     tc = Path(env["JIELI_TOOLCHAIN"])
     tc = (tc / "real") if (tc / "real").exists() else tc
-    name = "pi32v2-llvm" if compiler_of(cfgfile) == "llvm" else "JieLi"
-    return f"compiler {name} ({tc.resolve()})"
+    return f"compiler pi32v2-llvm ({tc.resolve()})"
 
 
 def sys_top(cfgfile):
@@ -425,7 +336,7 @@ def build(cfgfile, bdir, python, run, release=None, name_stem="optimist", parall
     with lock:
         app, out_dir = slot_app(bdir) if parallel else (APP, OUT)
         cmd, env = command(python, release, app), env_for(cfgfile, parallel, measure)
-        cmd = [python, "-c", ANNOUNCE, compiler_line(cfgfile, env), *cmd]    # (its first output line: the compiler)
+        cmd = [python, "-c", ANNOUNCE, compiler_line(env), *cmd]    # (its first output line: the compiler)
         for stale in (out_dir / "sizes.json", out_dir / "optimist.fwsc"):
             stale.unlink(missing_ok=True)
         rc, out = run(cmd, env)

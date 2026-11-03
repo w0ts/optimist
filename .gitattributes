@@ -6,4 +6,3 @@
 *.png binary
 *.ttf binary
 tools/menuconfig text eol=lf
-Dockerfile text eol=lf

@@ -3,12 +3,12 @@
 """Where fetched tools live (tools/repo_root.py): build/<sub> of the MAIN checkout, never the user's home.
 From the main checkout: its build/. From a linked worktree: the main checkout's build/, not the worktree's. From a plain
 copy (no .git): the environment variable, else the nearest build/<sub> above, else its own. The pi32v2-llvm download
-(tools/deps.py fetch_llvm) writes only inside the repository; llvm_dir finds the drop-in there, ~/.jieli only as a
-read fallback.
+(tools/deps.py fetch_llvm) writes only inside the repository; llvm_dir finds the drop-in there.
   python3 tests/repo_root_test.py"""
 import hashlib
 import io
 import os
+import shutil
 import subprocess
 import sys
 import tarfile
@@ -70,56 +70,63 @@ with tempfile.TemporaryDirectory() as td:
     check("nothing anywhere: the tree's own build/toolchains", R.toolchains_dir(lone, {}) == lone / "build" / "toolchains")
     check("M-Flasher: M_FLASHER_HOME still wins", R.build_dir("m-flasher", "M_FLASHER_HOME", wt, {"M_FLASHER_HOME": "/x/y"}) == Path("/x/y"))
 
-    # llvm_dir: new place; ~/.jieli read only as a fallback
+    # llvm_dir: <toolchains>/pi32v2-llvm-dropin-<version>, or PI32V2_LLVM_TOOLCHAIN
     version = f"pi32v2-llvm-dropin-{TC.LLVM_VERSION}"
     env = {R.TOOLCHAINS_ENV: str(farm_tc)}
-    old_home = TC.JIELI_HOME
-    TC.JIELI_HOME = td / "home" / ".jieli"
-    try:
-        check("llvm_dir: <toolchains>/pi32v2-llvm-dropin-<version> by default", TC.llvm_dir(env, copy) == farm_tc / version)
-        legacy = TC.JIELI_HOME / "pi32v2-llvm" / "pi32v2" / "bin"
-        legacy.mkdir(parents=True)
-        (legacy / "clang").write_text("x")
-        check("llvm_dir: an old ~/.jieli copy is the read fallback", TC.llvm_dir(env, copy) == TC.JIELI_HOME / "pi32v2-llvm")
-        (farm_tc / version / "pi32v2" / "bin").mkdir(parents=True)
-        (farm_tc / version / "pi32v2" / "bin" / "clang").write_text("x")
-        check("llvm_dir: the new place wins over the old copy", TC.llvm_dir(env, copy) == farm_tc / version)
+    check("llvm_dir: <toolchains>/pi32v2-llvm-dropin-<version> by default", TC.llvm_dir(env, copy) == farm_tc / version)
+    check("llvm_dir: PI32V2_LLVM_TOOLCHAIN wins", TC.llvm_dir(dict(env, PI32V2_LLVM_TOOLCHAIN="/x/dropin"), copy) == Path("/x/dropin"))
 
-        # the download: default target inside the repo, nothing written outside it
-        repo = td / "repo"
-        (repo / "tools").mkdir(parents=True)
-        buf = io.BytesIO()
-        with tarfile.open(fileobj=buf, mode="w:xz") as t:
-            data = b"#!/bin/sh\n"
-            ti = tarfile.TarInfo(f"{version}/pi32v2/bin/clang")
-            ti.size = len(data)
-            t.addfile(ti, io.BytesIO(data))
-        blob = buf.getvalue()
-        keep = (deps.download, TC.LLVM_SHA256, R.shared.ROOT, os.environ.get("HOME"), os.environ.get(R.TOOLCHAINS_ENV))
-        os.environ.pop(R.TOOLCHAINS_ENV, None)
-        os.environ["HOME"] = str(td / "home")
-        before = set(td.rglob("*"))
-        deps.download = lambda url, dest: Path(dest).write_bytes(blob)
-        TC.LLVM_SHA256 = hashlib.sha256(blob).hexdigest()
-        R.shared.ROOT = repo
+    # the download: default target inside the repo, nothing written outside it
+    repo = td / "repo"
+    (repo / "tools").mkdir(parents=True)
+    buf = io.BytesIO()
+    with tarfile.open(fileobj=buf, mode="w:xz") as t:
+        data = b"#!/bin/sh\n"
+        ti = tarfile.TarInfo(f"{version}/pi32v2/bin/clang")
+        ti.size = len(data)
+        t.addfile(ti, io.BytesIO(data))
+    blob = buf.getvalue()
+    key = ("linux", "x86_64")
+    keep = (deps.download, TC.LLVM_ASSETS[key], R.shared.ROOT, os.environ.get("HOME"), os.environ.get(R.TOOLCHAINS_ENV),
+            TC.host_key)
+    os.environ.pop(R.TOOLCHAINS_ENV, None)
+    os.environ["HOME"] = str(td / "home")
+    before = set(td.rglob("*"))
+    urls = []
+    deps.download = lambda url, dest: (urls.append(url), Path(dest).write_bytes(blob))
+    TC.LLVM_ASSETS[key] = (TC.LLVM_ASSETS[key][0], hashlib.sha256(blob).hexdigest(), 1)
+    TC.host_key = lambda: key
+    R.shared.ROOT = repo
+    try:
+        target = R.toolchains_dir(repo)
+        check("download target (default): inside the repository's build/toolchains", under(target, repo) and target == repo / "build" / "toolchains")
+        got = deps.fetch_llvm()
+        check("fetch_llvm: the drop-in is in the repository, no symlink", got == repo / "build" / "toolchains" / version
+              and TC.has_clang(got) and not got.is_symlink())
+        check("fetch_llvm: the host's archive, from the repository's release",
+              urls == [f"{TC.LLVM_RELEASE_URL}/{TC.LLVM_ASSETS[key][0]}"])
+        new = set(td.rglob("*")) - before
+        check("fetch_llvm: every path it created is inside the repository (nothing in ~ or elsewhere)",
+              new and all(under(p, repo) for p in new))
+        TC.LLVM_ASSETS[key] = (TC.LLVM_ASSETS[key][0], "0" * 64, 1)
+        shutil.rmtree(got)
         try:
-            target = R.toolchains_dir(repo)
-            check("download target (default): inside the repository's build/toolchains", under(target, repo) and target == repo / "build" / "toolchains")
-            got = deps.fetch_llvm()
-            check("fetch_llvm: the drop-in is in the repository, no symlink", got == repo / "build" / "toolchains" / version
-                  and TC.has_clang(got) and not got.is_symlink())
-            new = set(td.rglob("*")) - before
-            check("fetch_llvm: every path it created is inside the repository (nothing in ~ or elsewhere)",
-                  new and all(under(p, repo) for p in new))
-            check("fetch_llvm: ~/.jieli untouched", not (td / "home" / ".jieli" / version).exists()
-                  and not (TC.JIELI_HOME / "pi32v2-llvm").is_symlink())
-        finally:
-            deps.download, TC.LLVM_SHA256, R.shared.ROOT = keep[:3]
-            os.environ["HOME"] = keep[3]
-            if keep[4]:
-                os.environ[R.TOOLCHAINS_ENV] = keep[4]
+            deps.fetch_llvm()
+            check("fetch_llvm: an archive that does not match its SHA-256 is refused", False)
+        except deps.FetchError as e:
+            check("fetch_llvm: an archive that does not match its SHA-256 is refused", "SHA-256" in str(e) and not got.exists())
+        TC.host_key = lambda: ("windows", "x86_64")
+        try:
+            deps.fetch_llvm()
+            check("fetch_llvm: a host with no drop-in is refused", False)
+        except deps.FetchError as e:
+            check("fetch_llvm: a host with no drop-in is refused, says so", "windows" in str(e))
     finally:
-        TC.JIELI_HOME = old_home
+        deps.download, TC.LLVM_ASSETS[key], R.shared.ROOT = keep[:3]
+        TC.host_key = keep[5]
+        os.environ["HOME"] = keep[3]
+        if keep[4]:
+            os.environ[R.TOOLCHAINS_ENV] = keep[4]
 
 check("M-Flasher home() ends in build/m-flasher/m-flasher-<version> unless M_FLASHER_HOME is set",
       os.environ.get("M_FLASHER_HOME") or mflasher.home().parent.name == "m-flasher")
