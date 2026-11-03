@@ -392,6 +392,7 @@ static void wf_cell(uint32_t it, cell_t *c);            /* a WI-FI line: MODE, N
 static void wf_mode_set(int32_t s);
 static int wf_turn(int32_t s);                          /* NETWORK's knob: the list's cursor -> 1 when the list is shown */
 static int wf_ch_turn(int32_t s);                       /* CHANNEL's knob in MODE AP -> 1 taken */
+static int wf_grp_turn(int32_t s);                      /* GROUP's knob in the JAM modes -> 1 taken */
 static void wf_save(void);                              /* SAVE tapped on the page */
 static void wf_forget_do(void);                         /* the FORGET question answered YES */
 static int wf_key(uint32_t b, int held);                /* op_input.c: SAVE tapped / held on the WI-FI page -> 1 taken */
@@ -1793,8 +1794,8 @@ static void sys_turn(uint32_t r, uint32_t k, int32_t s, int fine)
 #if WIFI_UI
     if (it == SI_WFNET && wf_turn(s))
         return;                                         /* (the WI-FI page's NETWORK knob: the cursor through the networks heard) */
-    if (it == SI_WFSIG && wf_ch_turn(s))
-        return;                                         /* (MODE AP: the channel) */
+    if (it == SI_WFSIG && (wf_grp_turn(s) || wf_ch_turn(s)))
+        return;                                         /* (the JAM modes: the group; MODE AP: the channel) */
 #endif
     if (s == OP_RESET && !d) {                          /* SHIFT held: no descriptor, the factory value */
         sys_factory(it);

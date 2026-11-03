@@ -110,10 +110,7 @@ static void wf_q_text(char *b, uint32_t which, uint16_t *col)   /* which 0 the s
 #endif
 static const uint8_t WF_W[] = {WN_MODE_OFF, WN_MODE_MAN, WN_MODE_AUTO,   /* the modes in the knob's order, and their words */
 #if WF_JAM
-                               WN_MODE_JAM,
-#if FELUCCA_WIFI_AP
-                               WN_MODE_JAM_HOST,
-#endif
+                               WN_MODE_JAM_AUTO,
 #endif
 #if FELUCCA_WIFI_AP
                                WN_MODE_AP_MAN, WN_MODE_AP,
@@ -121,10 +118,7 @@ static const uint8_t WF_W[] = {WN_MODE_OFF, WN_MODE_MAN, WN_MODE_AUTO,   /* the 
 };
 static const char *const WF_M[] = {"OFF", "MAN", "AUTO",
 #if WF_JAM
-                                   "JAM JOIN",          /* (joins another FM-1's JAM HOST, Link on) */
-#if FELUCCA_WIFI_AP
-                                   "JAM HOST",          /* (the access point for them: FM1-xxxx, its default password only, Link on; the user, 2026-11-03) */
-#endif
+                                   "JAM",               /* (joins an FM-1 access point of its GROUP, or becomes it when none is heard; Link on: the user, 2026-11-03: "just jam") */
 #endif
 #if FELUCCA_WIFI_AP
                                    "AP MAN", "AP AUTO",
@@ -132,8 +126,26 @@ static const char *const WF_M[] = {"OFF", "MAN", "AUTO",
 };
 #define WF_MODE_LAST ((int32_t)(sizeof WF_W / sizeof WF_W[0]) - 1)
 static int wf_is_ap_mode(uint8_t m) { return m == WN_MODE_AP || m == WN_MODE_AP_MAN || m == WN_MODE_JAM_HOST; }
+#if WF_JAM
+static int wf_jam_host_now(void) { return wn_st.mode == WN_MODE_JAM_HOST || (wn_st.mode == WN_MODE_JAM_AUTO && plat_wifi_jam_host()); }
+static int wf_jam_mode(void) { return wn_st.mode == WN_MODE_JAM || wn_st.mode == WN_MODE_JAM_HOST || wn_st.mode == WN_MODE_JAM_AUTO; }
+static int wf_grp_turn(int32_t s)                       /* the GROUP's knob (the JAM modes: the SIGNAL line is the group): 1..9, stopping at the ends; SHIFT: 1 */
+{
+    int32_t v;
+    if (!wf_jam_mode())
+        return 0;
+    v = s == OP_RESET ? 1 : plat_wifi_group() + s;
+    plat_wifi_set_group(v < 1 ? 1 : v > 9 ? 9 : v);
+    settings_later = 1;
+    return 1;
+}
+#else
+#define wf_jam_host_now() (wn_st.mode == WN_MODE_JAM_HOST)
+#define wf_jam_mode() 0
+static int wf_grp_turn(int32_t s) { (void)s; return 0; }
+#endif
 #if FELUCCA_WIFI_AP
-#define WF_AP_ON (wn_st.mode == WN_MODE_AP || wn_st.mode == WN_MODE_AP_MAN || wn_st.mode == WN_MODE_JAM_HOST)
+#define WF_AP_ON (wn_st.mode == WN_MODE_AP || wn_st.mode == WN_MODE_AP_MAN || wf_jam_host_now())
 #define WF_AP_NOCAL (WF_AP_ON && wa_status() == WAS_NOCAL)
 #else
 #define WF_AP_ON 0
@@ -149,7 +161,7 @@ static uint32_t wf_mode_idx(void)
 }
 static int wf_pg_on(void)                               /* the list is what the page shows: a mode on, nothing joined, nothing joining */
 {
-    return wn_st.mode != WN_MODE_OFF && !WF_AP_ON && !wf_joined() && !wf_joining() && !wf_nocal();
+    return wn_st.mode != WN_MODE_OFF && !wf_jam_mode() && !WF_AP_ON && !wf_joined() && !wf_joining() && !wf_nocal();   /* (JAM connects by itself: no list to pick from) */
 }
 static int wf_page(void)                                /* SYSTEM shows the WI-FI page (op_global.c bt_page's way) */
 {
@@ -420,6 +432,18 @@ static void wf_ip_text(char *b, uint32_t ip)            /* a.b.c.d (host order),
 static void wf_sig_cell(cell_t *c)
 {
     char b[WN_SSID_MAX + 1u];
+    if (wf_jam_mode()) {                                /* the JAM modes: the group, 1..9 (the knob turns it; the name's -N and its password follow it) */
+        c->kind = CK_VAL;
+        c->label = "GROUP";
+        c->big = 1;
+        c->col = 0;
+        b[0] = 0;
+#if WF_JAM
+        fmt_app(b, (int32_t)plat_wifi_group());
+#endif
+        cell_val(c, b);
+        return;
+    }
 #if FELUCCA_WIFI_AP
     if (WF_AP_ON) {                                     /* MODE AP: the channel (its knob turns it) */
         c->kind = CK_VAL;
@@ -563,7 +587,7 @@ static void wf_state_cell(cell_t *c)
             break;
         }
 #if WF_JAM
-    if (wn_st.mode == WN_MODE_JAM) {                    /* MODE JAM: joined to an FM-1 access point (the line alternates with the Link peers), or one refused */
+    if (wn_st.mode == WN_MODE_JAM || (wn_st.mode == WN_MODE_JAM_AUTO && !plat_wifi_jam_host())) {   /* MODE JAM (and JAM AUTO while not hosting): joined to an FM-1 access point (the line alternates with the Link peers), or one refused */
         int j = plat_wifi_jam();
         if (j == 1 && wc.st == WC_UP && ((fm1_ms >> (WF_Q ? WF_PH_SH + 2 : WF_PH_SH)) & 1u)) {   /* (with the numbers: in the state's turn, every other one) */
             uint32_t i;
@@ -681,7 +705,7 @@ static void wf_save(void)                               /* SAVE tapped on the pa
             ui_message("NO RADIO CAL");
             return;
         }
-        if (wn_st.mode == WN_MODE_JAM_HOST) {           /* JAM HOST: its password is the default one, never typed: SAVE shows it */
+        if (wf_jam_host_now()) {                        /* JAM HOST: its password is the default one, never typed: SAVE shows it */
             wf_jam_key_say();
             return;
         }
@@ -757,7 +781,7 @@ static void wf_forget(void)
 #if FELUCCA_WIFI_AP
     if (WF_AP_ON) {                                     /* MODE AP: the key goes (ask first, as a network's forget) */
         uint8_t raw[WN_SSID_MAX];
-        if (wn_st.mode == WN_MODE_JAM_HOST) {           /* JAM HOST: no key of its own to clear: its password shown */
+        if (wf_jam_host_now()) {                        /* JAM HOST: no key of its own to clear: its password shown */
             wf_jam_key_say();
             return;
         }
