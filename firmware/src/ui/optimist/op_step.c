@@ -58,7 +58,7 @@ static struct {
     uint8_t se_was;                     /* ... on last frame */
     uint32_t se_down;                   /* ... its keys down (a bit per key: a chord's keys one undo level) */
     uint32_t se_ksess;                  /* ... the undo session of the keys down together */
-    uint8_t se_pref;                    /* ... 0 as REC and the transport say (stopped + REC armed), 1 on (a double SEQ tap: playing too), 2 off */
+    uint8_t se_pref[NTRK];              /* ... per track, kept across STEP visits (the user, 2026-11-03): 0 as REC and the transport say (stopped + REC armed), 1 ENTRY (a double SEQ tap: playing too), 2 MUTE (the step sequencer's keys mute) */
     uint8_t sq_on;                      /* the last SEQ tap (a double tap's first) is live: */
     uint8_t sq_pend;                    /* ... its cards change still to come, after the window */
     uint32_t sq_ms;                     /* ... and when it was let go (fm1_ms) */
@@ -77,6 +77,8 @@ static void pk_unlatch(void);
 static void pk_take(uint32_t idx, uint32_t slot);       /* the note entered / edited: the picked one */
 static int pk_ok(void);
 static int se_on(void);                                 /* op_stepentry.c: STEP ENTRY (a synth track, stopped, REC armed) */
+static int se_on_h(int held_ok);                        /* ... (held_ok: a step held does not end it, the cue's)
+static int se_mute_mode(void);                          /* ... MUTE MODE: a synth track's STEP, the keys are steps (they mute) */
 static void se_key(uint32_t k, uint32_t down);
 static void se_knob(uint32_t k, int32_t s, int shift);
 static void se_tick(void);
@@ -189,7 +191,7 @@ static void step_reset(void)                            /* STEP entered or left:
         hp_save();                                      /* (left with a step held: its page is the one to reopen) */
     st.held = st.pend = st.fdown = 0;
     st.play = 0;
-    st.se_pref = 0, st.sq_on = st.sq_pend = 0;                       /* (STEP entered or left: STEP ENTRY as REC and the transport say) */
+    st.sq_on = st.sq_pend = 0;                          /* (STEP entered or left: each track keeps its mode, st.se_pref) */
     st.lock_pg = LOCK_NONE, st.hp = 0;
     st.pk = PK_NONE, st.latch = 0;                      /* (the picker starts with nothing picked) */
 }
@@ -864,6 +866,15 @@ static void step_fill_key(track_t *t, uint32_t idx)
     op_repaint();
 }
 #endif
+#if FELUCCA_AUTO
+/* a synth step tapped on STEP (MUTE MODE, the step sequencer's keys; ENTRY MODE's keys are op_stepentry.c's): the notes that start there
+ * muted / on (the store's AUTO_SMUTE, as SAVE held's pk_mute); IRQ off. -> the toast, 0 none */
+static const char *step_tap_mute(track_t *t, uint32_t idx)
+{
+    uint32_t on = !step_muted(t, idx, 0);
+    return step_mute_set(t, idx, 0, on) ? (on ? "STEP MUTED" : "STEP ON") : "PATTERN FULL";
+}
+#endif
 static void step_key(uint32_t k, uint32_t down, uint32_t held)
 {
     track_t *t = tsel();
@@ -901,8 +912,14 @@ static void step_key(uint32_t k, uint32_t down, uint32_t held)
             return;
         st.held &= (uint16_t)~bit;
         if ((st.pend & bit) && lk_ev_ms - st.t_key[w] < op_hold_ms() && idx < trk_len(t)) {   /* tapped: toggled */
+            const char *say = 0;
             undo_mark(t, st.sess);
             fm1_irq_off();
+#if FELUCCA_AUTO
+            if (!is_drum(t) && pk_note(t, idx))
+                say = step_tap_mute(t, idx);            /* (a synth step with a note tapped: its notes muted / on, not taken out: the step sequencer's keys are the mute tool; the user, 2026-11-03) */
+            else
+#endif
             if (step_has(t, idx))                       /* (a drum hit tapped: off; its level is the combos' at the press, SHIFT
                                                          * ghost / SHIFT2 hard, step_set; the user, 2026-10-22: no level cycle) */
                 is_drum(t) ? step_wipe(t, idx, 0) : step_off_keep(t, idx);
@@ -912,9 +929,12 @@ static void step_key(uint32_t k, uint32_t down, uint32_t held)
                 step_set(t, idx);
             fm1_irq_on();
             sync_reload = 1;
+            if (say)
+                ui_message(say);
             if (!pk_note(t, idx) && st.pk == idx && st.pk_trk == song.sel)
                 st.pk = PK_NONE;                        /* (the picked note tapped off: nothing picked) */
-            pk_take(idx, NSEL_ALL);                     /* (a note set: the picked one) */
+            if (is_drum(t) || pk_note(t, idx))
+                pk_take(idx, NSEL_ALL);                 /* (a note set: the picked one) */
         }
         else if (pk_note(t, idx) && st.pk_trk == song.sel && st.pk != PK_NONE && !st.latch)
             st.pk = (uint8_t)idx;                       /* (held, moved by PRESETS: the selection where it went) */
