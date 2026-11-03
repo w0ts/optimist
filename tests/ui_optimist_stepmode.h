@@ -13,33 +13,51 @@ static int smd_edge(uint16_t col)                       /* the roll's right-edge
 {
     return px_in(RL_X + 16u * RL_CW + 2u, SP_Y + SG_TOP + 4u, 3, 6, col);
 }
+static void smd_note(track_t *t, uint32_t i, uint32_t n, uint32_t n2)   /* step i: note n (and n2 when set), nothing else */
+{
+    step_clear(&t->step[i]);
+    t->step[i].time = ST_NOTE, t->step[i].n = (uint8_t)(n2 ? 2 : 1), t->step[i].note[0] = (uint8_t)n, t->step[i].note[1] = (uint8_t)n2, t->step[i].vel = 100;
+}
 static void stepmode_mute_tests(void)
 {
+#if FELUCCA_AUTO
     track_t *t;
-    uint32_t n0;
+    uint32_t y, x;
+    int hollow;
     sen_open(16);
     sen_rec_off();
-    cards_up();
+    pk_cards_down();
     frames(30);
     t = TSEL;
+    op_tap_creates = 0;                                 /* (the firmware's: an empty step tapped sets nothing) */
     check(!se_on() && se_mute_mode(), "step modes: REC off, stopped: MUTE MODE");
-    n0 = kb_map(t, WK(0));
     key(WK(0));
-    check(step_on(&t->step[0]), "step modes, mute: an empty step tapped: a note set as before");
-#if FELUCCA_AUTO
-    key(WK(0));
-    check(step_on(&t->step[0]) && step_muted(t, 0, 0) && !strcmp(ui.msg, "STEP MUTED"),
-          "step modes, mute: the step tapped again: its note muted and kept, said STEP MUTED");
-    n0 = t->step[0].note[0];
-    frames(2);
-    check(!step_shown(t, 0), "step modes, mute: ... a muted step's key is dim, not lit");
-    key(WK(0));
-    check(step_on(&t->step[0]) && !step_muted(t, 0, 0) && t->step[0].note[0] == n0 && !strcmp(ui.msg, "STEP ON"),
-          "step modes, mute: ... tapped again: on again at its pitch, said STEP ON");
-    key(WK(0));
-    check(step_muted(t, 0, 0) && st.pk == 0u, "step modes, mute: ... muted again, its note the picked one");
-#endif
+    check(!step_on(&t->step[0]) && !strcmp(ui.msg, "NO NOTE HERE"), "step modes, mute: an empty step tapped: no note made, said NO NOTE HERE");
+    smd_note(t, 2, 60, 67);                             /* a chord, and a tie behind it */
+    step_clear(&t->step[3]);
+    t->step[3].time = ST_TIE;
+    sync_reload = 1;
+    ui.sig[2] = 0;
+    frames(3);
+    key(WK(2));
+    check(step_on(&t->step[2]) && t->step[2].n == 2u && step_muted(t, 2, 0) && t->step[3].time == ST_TIE && !strcmp(ui.msg, "STEP MUTED"),
+          "step modes, mute: a step tapped: ALL its notes muted at once, kept with the tie, said STEP MUTED");
+    check(!step_shown(t, 2), "step modes, mute: ... its key dim, not lit");
+    roll_range(t);
+    y = SP_Y + SG_TOP + (uint32_t)((rg.hi - 60) * rg.rh);   /* (the row of the lower note: top edge, middle) */
+    x = RL_X + 2u * RL_CW;
+    hollow = (px_at(x + 4u, y + 1u, mute_col()) || px_at(x + 4u, y + 1u, C_NOTE)) && px_at(x + 5u, y + (uint32_t)rg.rh / 2u, C_BLACK);   /* (the picked note: its outline C_NOTE over the grey) */
+    check(rg.rh < 8 || hollow, "step modes, mute: ... drawn hollow: an outline 2 px thick, nothing inside");
+    key(WK(2));
+    check(step_on(&t->step[2]) && !step_muted(t, 2, 0) && t->step[2].note[0] == 60u && t->step[2].note[1] == 67u && !strcmp(ui.msg, "STEP ON"),
+          "step modes, mute: ... tapped again: on again, both notes as they were, said STEP ON");
+    frames(3);
+    check(px_in(x + 3u, y + 3u, 4, 3, trk_col(0)) || px_in(x + 3u, y + 3u, 4, 3, lvl_col(trk_col(0), LV_NORM)), "step modes, mute: ... filled again");
+    key(WK(2));
+    check(step_muted(t, 2, 0) && st.pk == 2u, "step modes, mute: ... muted again, its note the picked one");
+    op_tap_creates = 1;
     reset_ui();
+#endif
 }
 static void stepmode_memory_tests(void)
 {

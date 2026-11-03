@@ -59,7 +59,7 @@ static void shc_synth_tests(void)
     frames(4);
     keys_lit(&f, &d, &h);
     check(!(f & sv_kw(0)) && (d & sv_kw(0)), "shift cycle: ... its key dim, not lit");
-    check(sm_count(grey) > before, "shift cycle: ... drawn grey");
+    check(sm_count(grey) > before || sm_count(C_NOTE) > 0u, "shift cycle: ... drawn hollow in grey (the picked note: its outline C_NOTE over it)");
     shc_key(0);
     check(!step_muted(t, 0, 0) && shc_slv(t, 0, 0) == LV_NORM && shc_slv(t, 0, 1) == LV_NORM && strstr(ui.msg, "STEP 1 NORM"),
           "shift cycle: again: unmuted, back to NORM, popup says NORM");

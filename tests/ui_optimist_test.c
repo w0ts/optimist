@@ -16,6 +16,7 @@
 #define FELUCCA_PAGE_LINES 0            /* (the firmware always builds the lines, registry.h; these tests keep the 2x2 cards they were written for, the lines builds pass 1) */
 #endif
 #define FELUCCA_ARRANGER 1
+#define OP_TAP_CREATES_HOOK 1           /* (op_step.c: the host's switch for MUTE MODE's empty-step tap, 1 = it sets a note as before: the older tests make their steps with it; stepmode_tests set 0, the firmware's) */
 #ifdef MIRROR_CHECK
 #define FELUCCA_ED_MIRROR 1             /* (the mixer's meters to the client at most every 100 ms: op_mixdraw.c mx_vu_at) */
 #define MIR_SKIP 1                      /* (the segment skip: off in the firmware by default, checked here on the whole run) */
