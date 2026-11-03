@@ -517,24 +517,6 @@ static const struct { const char *name; uint8_t it[4]; } SYS[] = {
     {"BT STATS", {SI_BTSTAT, SI_NONE, SI_NONE, SI_NONE}},   /* the Bluetooth audio stream's counters (2026-11-01: sys_bts_cell) */
 #endif
 #endif
-#if OP_TOP
-    {"TOP", {SI_TOP, SI_NONE, SI_NONE, SI_NONE}},       /* after CPU TIMES, or INFO without the debug pages (2026-11-01: op_top.c) */
-#endif
-    /* the screen and the sound in one section (the user, 2026-10-25: KNOB COLORS was on a page read as "audio", "group and
-     * make it logical"): KNOB COLORS (the knob caps' colours; COLOR gone 2026-10-18: the palette is MONO, panel.c),
-     * SPK LOWCUT and HPHN BASS (the output's correction by the headphone jack: fx/outcorr.c); FILT RESO went to GLOBAL's TUNE page
-     * (the user, 2026-10-29: it is a project's, not the device's), so USB SERIAL joins this page (GL_JOIN) when it fits. DEBUG STATS is the last row, after HPHN BASS, where the platform keeps them
-     * (DBG_STATS: the release; it had a page alone, SYSTEM > DEBUG, until 2026-10-29): General is then 4 lines, full, and USB SERIAL
-     * keeps its own page (the join holds 4 lines at most) */
-    {"GENERAL", {SI_KCOL, SI_HPBASS, DBG_STATS ? SI_DBGST : SI_NONE, SI_NONE}},
-#if USBH_UI
-    {"USB", {SI_UHMODE, SI_UHDEV, SI_NONE, SI_NONE}},   /* the port as a MIDI host or the computer's device (USB_HOST: the trial's
-                                                         * ui/opt_usbh.h on fm1-base's; USB SERIAL below it, one section) */
-#endif
-#if FELUCCA_CDC
-    {"USB", {SI_USB, SI_NONE, SI_NONE, SI_NONE}},       /* (USB SERIAL: on General's page when it fits, GL_JOIN) */
-#endif
-    {"METERS", {SI_METERS, SI_NONE, SI_NONE, SI_NONE}},   /* the load lines at the screen's foot: OFF CPUS MEMORY BOTH (core/meters.h, op_meters.c); on General's page when it fits (GL_JOIN) */
 #if FELUCCA_SD_UI
     {"SD CARD", {SI_SDCARD, SI_SDVERS, SI_SDSLACK, SI_SDINDEX}},   /* (the card's state, a project's versions kept, the room
                                                          * a file's run gets past its size, the sample index again) */
@@ -551,6 +533,24 @@ static const struct { const char *name; uint8_t it[4]; } SYS[] = {
 #endif
 #if WIFI_UI
     {"WI-FI", {SI_WFMODE, SI_WFNET, SI_WFSIG, SI_WFST}},   /* the same pattern as the Bluetooth pages (the user, 2026-10-27: "it should be very similar") */
+#endif
+    /* the screen and the sound in one section (the user, 2026-10-25: KNOB COLORS was on a page read as "audio", "group and
+     * make it logical"): KNOB COLORS (the knob caps' colours; COLOR gone 2026-10-18: the palette is MONO, panel.c),
+     * SPK LOWCUT and HPHN BASS (the output's correction by the headphone jack: fx/outcorr.c); FILT RESO went to GLOBAL's TUNE page
+     * (the user, 2026-10-29: it is a project's, not the device's), so USB SERIAL joins this page (GL_JOIN) when it fits. DEBUG STATS is the last row, after HPHN BASS, where the platform keeps them
+     * (DBG_STATS: the release; it had a page alone, SYSTEM > DEBUG, until 2026-10-29): General is then 4 lines, full, and USB SERIAL
+     * keeps its own page (the join holds 4 lines at most) */
+    {"GENERAL", {SI_KCOL, SI_HPBASS, DBG_STATS ? SI_DBGST : SI_NONE, SI_NONE}},
+#if USBH_UI
+    {"USB", {SI_UHMODE, SI_UHDEV, SI_NONE, SI_NONE}},   /* the port as a MIDI host or the computer's device (USB_HOST: the trial's
+                                                         * ui/opt_usbh.h on fm1-base's; USB SERIAL below it, one section) */
+#endif
+#if FELUCCA_CDC
+    {"USB", {SI_USB, SI_NONE, SI_NONE, SI_NONE}},       /* (USB SERIAL: on General's page when it fits, GL_JOIN) */
+#endif
+    {"METERS", {SI_METERS, SI_NONE, SI_NONE, SI_NONE}},   /* the load lines at the screen's foot: OFF CPUS MEMORY BOTH (core/meters.h, op_meters.c); on General's page when it fits (GL_JOIN) */
+#if OP_TOP
+    {"TOP", {SI_TOP, SI_NONE, SI_NONE, SI_NONE}},       /* after METERS, before USB AUDIO (the user, 2026-11-03: General then Top after Bluetooth and Wi-Fi; op_top.c) */
 #endif
 #if FELUCCA_USB_AUDIO
     /* where each source goes (the user, 2026-10-17: "each track, including master, can be assigned to none, 1, 2, 1+2, 3, 4,

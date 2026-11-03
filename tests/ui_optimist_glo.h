@@ -64,8 +64,10 @@ static void glo_list_tests(void)
 #if OP_DTIMES
                                      "CPU TIMES",        /* (the dual render's times: DUAL_LOAD builds) */
 #endif
+                                     "BT MIDI", "BT AUDIO", "WI-FI", "DEVICES",   /* (the user, 2026-11-03: General, then Top, after Bluetooth and Wi-Fi) */
+                                     "GENERAL", "USB", "METERS",
                                      "TOP",              /* (the CPU's jobs and the RAM's owners: SYS_TOP builds) */
-                                     "GENERAL", "USB", "METERS", "BT MIDI", "BT AUDIO", "WI-FI", "DEVICES", "USB AUDIO", "ABOUT", "CREDITS"};
+                                     "USB AUDIO", "ABOUT", "CREDITS"};
     cell_t want[GL_MAXL], c;
     char sec[GL_MAXL][12], nm[12];
     uint32_t s, i, n, ok = 1;
@@ -91,7 +93,7 @@ static void glo_list_tests(void)
     SCREENS[SCR_GLOBAL].cell(i, gl_kn(SCR_GLOBAL, i), &c);
     check(ok && !strcmp(c.label, "DRUMS"), "GLOBAL's lines: TUNE QUANT first (Tune), DRUMS last (Channels)");
     check(glo_sections(SCR_GLOBAL, GS, 3) && glo_sections(SCR_SYSTEM, SS, sizeof SS / sizeof SS[0]) && glo_find(SCR_GLOBAL, "REC 2") == SCREENS[SCR_GLOBAL].rows(),
-          "the sections in order: Tune (TUNE QUANT FILT RESO) MIDI (CLK OUT on it) Channels; Info General USB Keys Bluetooth Devices USB-audio About Credits");
+          "the sections in order: Tune (TUNE QUANT FILT RESO) MIDI (CLK OUT on it) Channels; Info Bluetooth Devices General USB Top USB-audio About Credits");
     {   /* SYSTEM's first page is INFO: one line (the page is drawn whole), its read-outs the page's own (sys_info_cell) */
         cell_t c1, c2;
         char nm1[12];
