@@ -445,14 +445,15 @@ static void roll_ground(const track_t *t, uint32_t len)  /* the rows, the octave
 static void roll_outline(const track_t *t, uint32_t at, int32_t nt, uint32_t idx, int32_t x, int32_t y, int32_t w, int32_t h)
 {
     int head = idx == at || !roll_selx(t, at, nt, idx - 1u), last = !roll_selx(t, at, nt, idx + 1u);
+    int32_t b = h >= 6 ? 2 : 1;                         /* (2 px, the user 2026-11-03; a bar under 6 px high keeps 1 px so its fill shows) */
     if (h >= 3) {
-        RR(x, y, w, 1, C_NOTE);
-        RR(x, y + h - 1, w, 1, C_NOTE);
+        RR(x, y, w, b, C_NOTE);
+        RR(x, y + h - b, w, b, C_NOTE);
     }
     if (head)
-        RR(x, y, 1, h, C_NOTE);
+        RR(x, y, b, h, C_NOTE);
     if (last)
-        RR(x + w - 1, y, 1, h, C_NOTE);
+        RR(x + w - b, y, b, h, C_NOTE);
 }
 /* notes the rows cannot show (the user, 2026-11-03: "a sign at the top and bottom indicating there are notes above or below each step"): a small
  * amber triangle at the roll's top (a note of the step above the top row) and at its foot (below the lowest), in the step's column */
@@ -491,6 +492,33 @@ static void roll_mode(int32_t ye)
     if (!en && !se_mute_mode())
         return;
     RR(RL_X + 16 * RL_CW + 2, SG_TOP + sg_dy, 3, ye - SG_TOP - sg_dy, en ? C_NOTE : mute_col());
+}
+/* a muted note drawn hollow (the user, 2026-11-03: "for muted notes we could keep only a 2px outline"): grey top and bottom edges 2 px thick
+ * (1 px on a bar under 6 px high), a cap at the head (head) and at the last column (last), nothing inside: the row's ground shows through */
+static void roll_hollow(int32_t x, int32_t y, int32_t w, int32_t h, int head, int last)
+{
+    int32_t b = h >= 6 ? 2 : 1;
+    uint16_t c = mute_col();
+    RR(x, y, w, b, c);
+    RR(x, y + h - b, w, b, c);
+    if (head)
+        RR(x, y, b, h, c);
+    if (last)
+        RR(x + w - b, y, b, h, c);
+}
+static int roll_goes_on(const track_t *t, uint32_t idx, int32_t nt)   /* note nt sounds on into the next step (a tie, a carry step) */
+{
+    uint32_t n = idx + 1u, k;
+    const step_t *q;
+    if (n >= trk_len(t))
+        return 0;
+    q = &SGS(t)[n % NSTEP];
+    if (q->time == ST_TIE)
+        return 1;
+    for (k = 0; k < q->n && k < 4u; k++)
+        if (q->note[k] == nt && roll_carried(t, q, n, k))
+            return 1;
+    return 0;
 }
 static void sg_roll(const track_t *t)
 {
@@ -553,7 +581,10 @@ static void sg_roll(const track_t *t)
             }
             used |= (uint64_t)1u << rg.row[nt];
             if (tie || roll_carried(t, s, idx, i)) {    /* (a tie, a note carried on: the bar on, over the gap) */
-                RR(x - 1, y + m, cw + 1, h, nc);
+                if (mut)
+                    roll_hollow(x - 1, y + m, cw + 1, h, 0, g || !roll_goes_on(t, idx, nt));
+                else
+                    RR(x - 1, y + m, cw + 1, h, nc);
                 if (sx)
                     roll_outline(t, sat, nt, idx, x - 1, y + m, cw + 1, h);
                 continue;
@@ -568,6 +599,12 @@ static void sg_roll(const track_t *t)
                 continue;
             }
 #endif
+            if (mut) {                                  /* (a muted note: hollow, its grey outline only; no accent, no notches) */
+                roll_hollow(x, y + m, cw, h, 1, g || !roll_goes_on(t, idx, nt));
+                if (sx)
+                    roll_outline(t, sat, nt, idx, x, y + m, cw, h);
+                continue;
+            }
             RR(x, y + m, cw, h, nc);                    /* (a note: its head, a gap from the note before) */
             if (sx)
                 roll_outline(t, sat, nt, idx, x, y + m, cw, h);
