@@ -417,7 +417,7 @@ static void wf_ap_tests(void)
     check(wn_st.mode == WN_MODE_AP && !strcmp(wf_val("MODE"), "AP AUTO") && wcfk.enable_off == 2, "MODE AP AUTO: the station manager told to stop (once more than OFF)");
     check(!strcmp(wf_val("NAME"), "FM1-55B0") && !strcmp(wf_val("CHANNEL"), "6") && !strcmp(wf_state0(), "ACTIVE"),
           "... with no typed key: NAME the automatic one, CHANNEL 6, STATE ACTIVE (the default password)");
-    fm1_ms = 3u << 11;                                  /* (the fourth two-second phase: the password) */
+    fm1_ms = 3u << WF_PH_SH;                            /* (the fourth phase, 1 s each since 2026-11-03: the password) */
     check(!strcmp(wf_val("STATE"), "KEY abcd2345"), "... one phase in four STATE shows the default password: KEY abcd2345");
     fm1_ms = 0;
     frames(2);
@@ -455,12 +455,12 @@ static void wf_ap_tests(void)
     test_peers = 1;
     fm1_ms = 0;
     check(!strcmp(wf_state0(), "3 CLIENTS"), "... clients and a Link peer heard: the line alternates, the clients first");
-    fm1_ms = 2048;
-    check(!strcmp(wf_val("STATE"), "1 LINK PEER"), "... then the Link peer (2 s later)");
-    fm1_ms = 4096;
+    fm1_ms = 1u << WF_PH_SH;
+    check(!strcmp(wf_val("STATE"), "1 LINK PEER"), "... then the Link peer (a phase later)");
+    fm1_ms = 2u << WF_PH_SH;
     check(!strcmp(wf_val("STATE"), "3 CLIENTS"), "... and the clients again");
     test_peers = 3;
-    fm1_ms = 2048;
+    fm1_ms = 1u << WF_PH_SH;
     check(!strcmp(wf_val("STATE"), "3 LINK PEERS"), "... three peers: 3 LINK PEERS");
     wafk.clients = 0;
     check(!strcmp(wf_state0(), "3 LINK PEERS"), "... no client keyed but peers heard: 3 LINK PEERS");
