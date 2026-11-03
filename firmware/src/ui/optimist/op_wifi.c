@@ -151,6 +151,27 @@ static int wf_grp_turn(int32_t s) { (void)s; return 0; }
 #define WF_AP_ON 0
 #define WF_AP_NOCAL 0
 #endif
+#if FELUCCA_LINK
+/* the header's Link icon (op_draw.c head_sync; the user, 2026-11-03: an icon for Link in the top bar, its colour the state):
+ * HS_OFF Wi-Fi off or no Link session; HS_BAD a JAM mode not connected (the user: "in jam mode, not connected is not good.
+ * => red"): joining and not joined, or hosting with no FM-1 joined; HS_FOLLOW the clock follows Link; HS_THERE Link peers
+ * heard, another clock followed; HS_NONE no peer yet */
+static uint32_t wf_link_state(void)
+{
+    if (wn_st.mode == WN_MODE_OFF || link_eff() == LINK_OFF)
+        return HS_OFF;
+#if FELUCCA_WIFI_AP
+    if (wf_jam_mode() && !(wf_jam_host_now() ? wa_clients() > 0u : (uint32_t)wf_joined()))
+        return HS_BAD;
+#else
+    if (wf_jam_mode() && !wf_joined())
+        return HS_BAD;
+#endif
+    if (sy.src == MSRC_LINK)
+        return HS_FOLLOW;
+    return wl_peers() ? HS_THERE : HS_NONE;
+}
+#endif
 static uint32_t wf_mode_idx(void)
 {
     uint32_t i;
