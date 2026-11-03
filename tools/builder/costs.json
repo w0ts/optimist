@@ -1332,14 +1332,6 @@
     "ramtext": -780
    }
   },
-  "COMPILER": {
-   "0": {
-    "flash": 6684,
-    "ram": 1088,
-    "pool": 0,
-    "ramtext": 692
-   }
-  },
   "BOOTLOADER": {
    "1": {
     "flash": 0,
@@ -1918,16 +1910,6 @@
     "ramtext": 28972
    },
    "contexts": {
-    "COMPILER": {
-     "from": 1,
-     "to": 0,
-     "delta": {
-      "flash": 15284,
-      "ram": 1496,
-      "pool": 0,
-      "ramtext": 204
-     }
-    },
     "SDCARD": {
      "from": 0,
      "to": 1,
@@ -2042,16 +2024,6 @@
     "ramtext": 27764
    },
    "contexts": {
-    "COMPILER": {
-     "from": 1,
-     "to": 0,
-     "delta": {
-      "flash": 15316,
-      "ram": 1616,
-      "pool": 8,
-      "ramtext": 4
-     }
-    },
     "SDCARD": {
      "from": 0,
      "to": 1,
@@ -2146,16 +2118,6 @@
     "ramtext": 22424
    },
    "contexts": {
-    "COMPILER": {
-     "from": 1,
-     "to": 0,
-     "delta": {
-      "flash": 12560,
-      "ram": 1172,
-      "pool": 4100,
-      "ramtext": 512
-     }
-    },
     "SDCARD": {
      "from": 0,
      "to": 1,
@@ -2271,18 +2233,7 @@
     "pool": 196920,
     "ramtext": 40004
    },
-   "contexts": {
-    "COMPILER": {
-     "from": 1,
-     "to": 0,
-     "delta": {
-      "flash": 19080,
-      "ram": 1624,
-      "pool": 16,
-      "ramtext": 500
-     }
-    }
-   }
+   "contexts": {}
   },
   "sd-card": {
    "hash": "241712a0",
@@ -2391,16 +2342,6 @@
     "ramtext": 26748
    },
    "contexts": {
-    "COMPILER": {
-     "from": 1,
-     "to": 0,
-     "delta": {
-      "flash": 15644,
-      "ram": 1456,
-      "pool": 8,
-      "ramtext": 180
-     }
-    },
     "SDCARD": {
      "from": 1,
      "to": 0,
@@ -2517,16 +2458,6 @@
     "ramtext": 27764
    },
    "contexts": {
-    "COMPILER": {
-     "from": 1,
-     "to": 0,
-     "delta": {
-      "flash": 15260,
-      "ram": 1608,
-      "pool": 0,
-      "ramtext": 4
-     }
-    },
     "SDCARD": {
      "from": 0,
      "to": 1,
@@ -2645,16 +2576,6 @@
     "ramtext": 26748
    },
    "contexts": {
-    "COMPILER": {
-     "from": 1,
-     "to": 0,
-     "delta": {
-      "flash": 15512,
-      "ram": 1432,
-      "pool": 0,
-      "ramtext": 180
-     }
-    },
     "SDCARD": {
      "from": 0,
      "to": 1,
@@ -2762,16 +2683,6 @@
     "ramtext": 21156
    },
    "contexts": {
-    "COMPILER": {
-     "from": 1,
-     "to": 0,
-     "delta": {
-      "flash": 12692,
-      "ram": 1264,
-      "pool": 4108,
-      "ramtext": 900
-     }
-    },
     "SDCARD": {
      "from": 0,
      "to": 1,
@@ -2889,16 +2800,6 @@
     "ramtext": 28840
    },
    "contexts": {
-    "COMPILER": {
-     "from": 1,
-     "to": 0,
-     "delta": {
-      "flash": 15136,
-      "ram": 1256,
-      "pool": 4,
-      "ramtext": 104
-     }
-    },
     "SDCARD": {
      "from": 0,
      "to": 1,
@@ -3013,16 +2914,6 @@
     "ramtext": 29908
    },
    "contexts": {
-    "COMPILER": {
-     "from": 1,
-     "to": 0,
-     "delta": {
-      "flash": 15308,
-      "ram": 1552,
-      "pool": 4,
-      "ramtext": 56
-     }
-    },
     "SDCARD": {
      "from": 0,
      "to": 1,
@@ -3129,16 +3020,6 @@
     "ramtext": 26452
    },
    "contexts": {
-    "COMPILER": {
-     "from": 1,
-     "to": 0,
-     "delta": {
-      "flash": 12600,
-      "ram": 1492,
-      "pool": 0,
-      "ramtext": -16
-     }
-    },
     "SDCARD": {
      "from": 0,
      "to": 1,
@@ -3245,16 +3126,6 @@
     "ramtext": 25440
    },
    "contexts": {
-    "COMPILER": {
-     "from": 1,
-     "to": 0,
-     "delta": {
-      "flash": 12656,
-      "ram": 1324,
-      "pool": 0,
-      "ramtext": 152
-     }
-    },
     "SDCARD": {
      "from": 0,
      "to": 1,
@@ -3365,16 +3236,6 @@
     "ramtext": 28976
    },
    "contexts": {
-    "COMPILER": {
-     "from": 1,
-     "to": 0,
-     "delta": {
-      "flash": 15440,
-      "ram": 1500,
-      "pool": -4,
-      "ramtext": 200
-     }
-    },
     "SDCARD": {
      "from": 0,
      "to": 1,
@@ -3489,16 +3350,6 @@
     "ramtext": 35836
    },
    "contexts": {
-    "COMPILER": {
-     "from": 1,
-     "to": 0,
-     "delta": {
-      "flash": 15688,
-      "ram": 1640,
-      "pool": 8,
-      "ramtext": -84
-     }
-    },
     "SDCARD": {
      "from": 0,
      "to": 1,
@@ -3590,16 +3441,6 @@
     "ramtext": 22424
    },
    "contexts": {
-    "COMPILER": {
-     "from": 1,
-     "to": 0,
-     "delta": {
-      "flash": 11540,
-      "ram": 1160,
-      "pool": 4104,
-      "ramtext": 512
-     }
-    },
     "SDCARD": {
      "from": 0,
      "to": 1,
@@ -3713,18 +3554,7 @@
     "pool": 196360,
     "ramtext": 40080
    },
-   "contexts": {
-    "COMPILER": {
-     "from": 1,
-     "to": 0,
-     "delta": {
-      "flash": 15976,
-      "ram": 2984,
-      "pool": 28,
-      "ramtext": 420
-     }
-    }
-   }
+   "contexts": {}
   },
   "sd-card~": {
    "hash": "0b671388",
@@ -3831,16 +3661,6 @@
     "ramtext": 26748
    },
    "contexts": {
-    "COMPILER": {
-     "from": 1,
-     "to": 0,
-     "delta": {
-      "flash": 15684,
-      "ram": 1524,
-      "pool": 4,
-      "ramtext": 180
-     }
-    },
     "SDCARD": {
      "from": 1,
      "to": 0,
@@ -3956,16 +3776,6 @@
     "ramtext": 29060
    },
    "contexts": {
-    "COMPILER": {
-     "from": 1,
-     "to": 0,
-     "delta": {
-      "flash": 15004,
-      "ram": 1464,
-      "pool": 0,
-      "ramtext": -204
-     }
-    },
     "SDCARD": {
      "from": 0,
      "to": 1,
@@ -4085,16 +3895,6 @@
     "ramtext": 24520
    },
    "contexts": {
-    "COMPILER": {
-     "from": 1,
-     "to": 0,
-     "delta": {
-      "flash": 15744,
-      "ram": 1400,
-      "pool": 8,
-      "ramtext": 596
-     }
-    },
     "SDCARD": {
      "from": 0,
      "to": 1,
@@ -4102,121 +3902,6 @@
       "flash": 35216,
       "ram": 2480,
       "pool": 11528,
-      "ramtext": 0
-     }
-    }
-   }
-  },
-  "synths-2~": {
-   "hash": "60e371dd",
-   "cfg": {
-    "ENG_ANALOG": 0,
-    "ENG_DIGITAL": 0,
-    "ENG_PHASE": 0,
-    "ENG_SAMPLE": 0,
-    "ENG_TRIO": 0,
-    "ENG_GRAIN": 0,
-    "ENG_FM6": 0,
-    "NATIVE_BANKS": 1,
-    "ENG_DRONE": 1,
-    "ENG_VPS": 1,
-    "ENG_TERRAIN": 1,
-    "ENG_WSEQ": 1,
-    "ENG_VECTOR": 1,
-    "ENG_WAVE": 1,
-    "ENG_SID": 1,
-    "ENG_PROPHET": 2,
-    "DS_KAWA": 0,
-    "DS_PLAITS": 0,
-    "DRUM_SAMPLED": 0,
-    "DRUM_EDIT": 0,
-    "DRUM_USR": 0,
-    "DRUM_KITS": 0,
-    "SET_PIANO": 0,
-    "SET_BASS": 0,
-    "SET_VIBES": 0,
-    "SET_HORNS": 0,
-    "SET_STRGS": 0,
-    "SET_FLUTE": 0,
-    "SET_SCRCH": 0,
-    "DLY_LEN": 16384,
-    "REV_FDN8": 1,
-    "REV_POOL": 1,
-    "FX_SLICER": 0,
-    "FX_PUNCH": 0,
-    "FX_DJF": 0,
-    "FX_DUST": 0,
-    "FX_DUCK": 0,
-    "TRK_FILT": 1,
-    "INS_FOLD": 1,
-    "INS_FUZZ": 1,
-    "INS_WIDTH": 1,
-    "INS_RECT": 1,
-    "INS_SUBOCT": 1,
-    "INS_DELAY": 1,
-    "INS_JCHORUS": 1,
-    "INS_FLANGER": 1,
-    "INS_XDLY": 1,
-    "XDLY_LEN": 8192,
-    "INS_GATER": 1,
-    "CHORDPLUS": 1,
-    "SNAPSHOTS": 0,
-    "PATTERNS": 1,
-    "REC_PLAIN": 1,
-    "NOTEGEN": 1,
-    "MIDI_EXPR": 0,
-    "MIDI_NOTEOUT": 0,
-    "FAVORITES": 0,
-    "PARAM_HELP": 1,
-    "LCD_BAUD": 0,
-    "ED_LIVE": 0,
-    "ED_MIX": 0,
-    "ED_SEQ": 0,
-    "ED_SCREENS": 0,
-    "ED_MIRROR": 1,
-    "LIVE_SAVE": 1,
-    "CPU_GUARD": 1,
-    "CACHE_RAM": 2,
-    "COMPILER": 0,
-    "BT_AUDIO": 1,
-    "CHANCE": 1,
-    "QNT_SEQ": 1,
-    "MOTION": 1,
-    "REC_MODES": 1,
-    "DIV_ORDER": 1,
-    "SL24_SAFE": 0,
-    "SL24_XSTEP": 1,
-    "MICRO": 1,
-    "FILLS": 1,
-    "QCHAIN": 0,
-    "COND": 1,
-    "SEQTOOLS": 1
-   },
-   "built_hash": "7e803559",
-   "sizes": {
-    "flash": 587740,
-    "ram": 78588,
-    "pool": 347852,
-    "ramtext": 22208
-   },
-   "contexts": {
-    "COMPILER": {
-     "from": 0,
-     "to": 1,
-     "delta": {
-      "flash": -12144,
-      "ram": -1132,
-      "pool": -4104,
-      "ramtext": -860
-     }
-    },
-    "SDCARD": {
-     "from": 0,
-     "to": 1,
-     "delta": {
-      "flash": 3376,
-      "ram": 76,
-      "pool": 552,
       "ramtext": 0
      }
     }
@@ -4329,16 +4014,6 @@
     "ramtext": 29792
    },
    "contexts": {
-    "COMPILER": {
-     "from": 1,
-     "to": 0,
-     "delta": {
-      "flash": 14572,
-      "ram": 1636,
-      "pool": 0,
-      "ramtext": -104
-     }
-    },
     "SDCARD": {
      "from": 0,
      "to": 1,
@@ -4451,16 +4126,6 @@
     "ramtext": 29908
    },
    "contexts": {
-    "COMPILER": {
-     "from": 1,
-     "to": 0,
-     "delta": {
-      "flash": 16752,
-      "ram": 1532,
-      "pool": 8,
-      "ramtext": 56
-     }
-    },
     "SDCARD": {
      "from": 0,
      "to": 1,
@@ -4567,16 +4232,6 @@
     "ramtext": 27120
    },
    "contexts": {
-    "COMPILER": {
-     "from": 1,
-     "to": 0,
-     "delta": {
-      "flash": 12304,
-      "ram": 1548,
-      "pool": 0,
-      "ramtext": -232
-     }
-    },
     "SDCARD": {
      "from": 0,
      "to": 1,
@@ -4687,16 +4342,6 @@
     "ramtext": 24776
    },
    "contexts": {
-    "COMPILER": {
-     "from": 1,
-     "to": 0,
-     "delta": {
-      "flash": 12524,
-      "ram": 1312,
-      "pool": 4,
-      "ramtext": 168
-     }
-    },
     "SDCARD": {
      "from": 0,
      "to": 1,

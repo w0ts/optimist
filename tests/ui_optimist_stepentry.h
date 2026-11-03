@@ -352,7 +352,7 @@ static void sen_dbl_tests(void)                         /* the double SEQ tap: S
     frames(30);
     tap(B_SEQ);
     tap(B_SEQ);
-    check(!se_on() && st.follow && song.playing && !strcmp(ui.msg, "STEP SEQ"), "step entry dbl: two SEQ taps again: the step sequencer, said");
+    check(!se_on() && st.follow && song.playing && !strcmp(ui.msg, "MUTE MODE"), "step entry dbl: two SEQ taps again: MUTE MODE, said");
     frames(30);
     tap(B_SEQ);
     tap(B_SEQ);
@@ -414,7 +414,7 @@ static void sen_dbl_toast_tests(void)                   /* the toggle's words ar
             tap(B_SEQ);
             tap(B_SEQ);
             frames(2);
-            check(!se_on() && !strcmp(ui.msg, "STEP SEQ") && sen_toast_drawn(), "step entry dbl toast: STEP SEQ drawn as a toast");
+            check(!se_on() && !strcmp(ui.msg, "MUTE MODE") && sen_toast_drawn(), "step entry dbl toast: MUTE MODE drawn as a toast");
             snprintf(nm, sizeof nm, "stepplay-off-%s-cards%s", pl ? "playing" : "stopped", c ? "up" : "down");
             ppm(nm);
             sen_rec_off();

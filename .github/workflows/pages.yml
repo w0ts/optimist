@@ -58,10 +58,9 @@ jobs:
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: |
-            ~/.jieli
             build/toolchains
             sdk
-          key: jieli-${{ hashFiles('tools/toolchain.py') }}
+          key: llvm-${{ hashFiles('tools/toolchain.py') }}
       - name: Setup (toolchain, SDK files, Python packages)
         run: python tools/optimist.py setup --yes --no-emu
       - name: Package the profile of each flavour in web/flavours.json

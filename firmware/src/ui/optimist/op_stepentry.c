@@ -16,17 +16,27 @@
  *                 off or the take started ends the arm. With REC's START COUNT, PLAY counts in as before
  * The cursor's notes are the picked ones (st.pk, NSEL_ALL): SAVE tapped opens their cards, SAVE held mutes them, HOME held
  * deletes them, as the picker's. Main loop only; the sound is seq.c's (audition_notes, the audio context). */
-static int se_on(void)
+#define SE_PREF st.se_pref[song.sel % NTRK]             /* the selected track's mode */
+static int se_on_h(int held_ok)                         /* held_ok: a step held does not end it (the mode's cue stays while a finger holds) */
 {
-    if (ui.scr != SCR_STEP || is_drum(TSEL) || ft_on || st.se_park || st.play || (st.held && !st.latch) || st.se_pref == 2)
+    if (ui.scr != SCR_STEP || is_drum(TSEL) || ft_on || st.se_park || st.play || (!held_ok && st.held && !st.latch) || SE_PREF == 2)
         return 0;
 #if FELUCCA_REC_MODES
     if (ci_on)
         return 0;
 #endif
-    if (st.se_pref == 1)
+    if (SE_PREF == 1)
         return !song.rec;                               /* (a double SEQ tap: on, playing too) */
     return rec_wait && !song.playing && !song.rec && !transport_req;
+}
+static int se_on(void) { return se_on_h(0); }
+/* MUTE MODE (the user, 2026-11-03: "the old step sequencer mode would be actually more useful as mute tool"): a synth track's STEP where the keys
+ * are steps and not the keyboard: a white key (tapped) mutes / unmutes the notes on its step (op_step.c step_tap_mute), a held one opens the
+ * cards as ever; the black keys are free. ENTRY MODE (se_on) is the other; each track keeps its own (st.se_pref). A step held does not change
+ * the mode (the cue on the roll's edge stays) */
+static int se_mute_mode(void)
+{
+    return ui.scr == SCR_STEP && !is_drum(TSEL) && !se_on_h(1) && !st.play && !step_rec_keys() && !step_save_keys();
 }
 static void se_say(const char *m)                       /* a toast in the middle (the header's message hides behind STEP's cards) */
 {
@@ -38,14 +48,16 @@ static void se_say(const char *m)                       /* a toast in the middle
  * the mode's name (se_enter's for "on") */
 static void se_toggle(void)
 {
+    uint8_t was;
     if (se_on()) {
-        st.se_pref = 2, st.follow = 1;                  /* (the window follows the playhead again) */
-        se_say("STEP SEQ");
+        SE_PREF = 2, st.follow = 1;                     /* (the window follows the playhead again) */
+        se_say("MUTE MODE");
         return;
     }
-    st.se_pref = 1;
+    was = SE_PREF;
+    SE_PREF = 1;
     if (!se_on()) {
-        st.se_pref = 0;
+        SE_PREF = was;
         se_say("NOT NOW");                          /* (a take is recording, or a step is held) */
     }
 }

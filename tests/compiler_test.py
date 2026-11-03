@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-only
-"""The builder's COMPILER item (tools/toolchain.py compiler_of, resolve_llvm; tools/fm1base.py toolchain_env,
-compiler_of): the configuration picks pi32v2-llvm (default) or JieLi's clang; pi32v2-llvm's drop-in runs natively on
-Linux x86-64 and, elsewhere, mounted in the toolchain image (its python3, not plain debian); missing, it says how to get
-it; the release build gets its directory as JIELI_TOOLCHAIN. No toolchain, no Docker: fake directories and probes.
+"""The compiler: pi32v2-llvm's drop-in, run natively (tools/toolchain.py host_key, llvm_asset, resolve; tools/fm1base.py
+toolchain_env, compiler_line, measure_toolchain). The drop-in for this host is found or the error says how to get it; a
+drop-in that does not run here is refused; the release build gets its directory, run natively; the builder's COMPILER
+item is retired and an old .config that names it still loads. No toolchain: fake directories and probes.
   python3 tests/compiler_test.py"""
+import stat
+import subprocess
 import sys
 import tempfile
+import threading
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -14,6 +17,7 @@ sys.path.insert(0, str(ROOT / "tools"))
 sys.path.insert(0, str(ROOT / "tools" / "builder"))
 import configure as C  # noqa: E402
 import fm1base  # noqa: E402
+import registry as R  # noqa: E402
 import toolchain as TC  # noqa: E402
 
 fails = 0
@@ -25,227 +29,136 @@ def check(what, ok):
     fails += not ok
 
 
-def fake_dropin(d):
-    (d / "pi32v2" / "bin").mkdir(parents=True)
-    (d / "pi32v2" / "bin" / "clang").write_text("#!/usr/bin/env python3\n")
+def fake_dropin(d, runs=True):
+    """a drop-in whose clang wrapper starts (exit 0) or does not (exit 1, as a Linux archive's on a Mac)"""
+    clang = d / "pi32v2" / "bin" / "clang"
+    clang.parent.mkdir(parents=True)
+    clang.write_text(f"#!/bin/sh\nexit {0 if runs else 1}\n")
+    clang.chmod(clang.stat().st_mode | stat.S_IXUSR)
     return d
 
 
-def probes(native, docker=True, image=True):
-    TC.is_native_host = lambda: native
-    TC.docker_running = lambda: docker
-    TC.image_present = lambda _name: image
+def refused(fn, *args):
+    try:
+        fn(*args)
+    except TC.ToolchainError as e:
+        return str(e)
+    return None
 
 
-def tree_links(top):
-    """-> [(link, its target resolved)] of every link under top (not followed)"""
-    import os
-    out = []
-    for d, dirs, files in os.walk(top):
-        for n in dirs + files:
-            p = Path(d) / n
-            if p.is_symlink():
-                out.append((p, Path(os.path.realpath(p))))
-    return out
-
-
-def container_shim_checks():
-    """the measurement shim where fm1-base's build runs the toolchain in a container (macOS): only the shim is mounted
-    there (/opt/jieli), so nothing in it may point at the host's toolchain (2026-10-31: "stat /opt/jieli/pi32v2/bin/clang:
-    no such file or directory"), and its ld wrapper runs the container's python3 on its own copy of fm1base_ld.py"""
-    import os
-    import subprocess
-    import threading
-    with tempfile.TemporaryDirectory() as td:
-        td = Path(td)
-        real = fake_dropin(td / "real")
-        (real / "common" / "lib").mkdir(parents=True)
-        (real / "common" / "bin").mkdir()
-        jl = real / "common" / "lib" / "jl.py"     # (as the drop-in's jlwrap.py: its root three levels above argv[0])
-        jl.write_text("#!/usr/bin/env python3\nimport os, sys\n"
-                      "print(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(sys.argv[0])))), "
-                      "os.path.basename(sys.argv[0]), *sys.argv[1:])\n")
-        jl.chmod(0o755)
-        (real / "common" / "bin" / "clang").symlink_to("../lib/jl.py")
-        (real / "pi32v2" / "bin" / "ld").symlink_to("../../common/lib/jl.py")
-        (real / "pi32v2" / "lib").mkdir()
-        (real / "pi32v2" / "lib" / "libc.a").write_text("a\n")
-        outside = td / "outside.txt"
-        outside.write_text("o\n")
-        (real / "pi32v2" / "lib" / "abs.txt").symlink_to(outside)     # (an absolute link: its file taken in)
-        keep_env, keep_root, keep_ld = fm1base.toolchain_env, fm1base.ROOT, fm1base.LD_PY
-        fm1base.toolchain_env = lambda compiler="jieli": {"JIELI_TOOLCHAIN": str(real)}
-        fm1base.ROOT = td / "opt"
-        probes(native=False)
-        errs, shims = [], []
-
-        def make():
-            try:
-                shims.append(fm1base.measure_toolchain("llvm"))
-            except Exception as e:      # (any error is the failure this checks)
-                errs.append(e)
-        try:
-            ts = [threading.Thread(target=make) for _ in range(16)]
-            [t.start() for t in ts]
-            [t.join() for t in ts]
-            shim = td / "opt" / "build" / "measure-toolchain-llvm-docker"
-            check("container shim: its own name (-docker), 16 builds at once, no error",
-                  not errs and set(shims) == {shim} and not list((td / "opt" / "build").glob("*.[0-9]*")))
-            links = [(p, t) for p, t in tree_links(shim) if p != shim / "real"]
-            rshim = Path(os.path.realpath(shim))
-            check("container shim: every link but real/ stays inside the shim and resolves (no host path in a mount)",
-                  links and all(t.exists() and (t == rshim or rshim in t.parents) for _, t in links))
-            check("container shim: files hard-linked, the absolute link's file taken in",
-                  os.path.samefile(shim / "pi32v2" / "bin" / "clang", real / "pi32v2" / "bin" / "clang")
-                  and not (shim / "pi32v2" / "lib" / "abs.txt").is_symlink()
-                  and (shim / "pi32v2" / "lib" / "abs.txt").read_text() == "o\n"
-                  and os.readlink(shim / "common" / "bin" / "clang") == "../lib/jl.py")
-            wrapper = (shim / "pi32v2" / "bin" / "ld").read_text()
-            check("container shim: ld the wrapper, no host path in it (the container's python3, the shim's own files)",
-                  str(td) not in wrapper and sys.executable not in wrapper and "exec python3" in wrapper
-                  and (shim / "measure" / "fm1base_ld.py").read_bytes() == fm1base.LD_PY.read_bytes()
-                  and os.readlink(shim / "measure" / "bin" / "ld") == "../../common/lib/jl.py")
-            env = {k: v for k, v in os.environ.items() if k != "FM1B_REAL_LD"}
-            r = subprocess.run([str(shim / "pi32v2" / "bin" / "ld"), "-o", "a.elf"], capture_output=True, text=True,
-                               env=env, cwd=td)
-            check("container shim: the wrapper runs the real ld as ld, with the shim as its toolchain (jlwrap.py's root)",
-                  r.returncode == 0 and r.stdout.split() == [str(shim), "ld", "-o", "a.elf"])
-            again = fm1base.measure_toolchain("llvm")
-            mark = shim / "pi32v2" / "lib" / "mark"
-            mark.write_text("kept\n")
-            check("container shim: made once (the next build keeps it)",
-                  again == shim and fm1base.measure_toolchain("llvm") == shim and mark.is_file())
-            other = td / "fm1base_ld.py"
-            other.write_text("# another fm1base_ld.py\n")
-            fm1base.LD_PY = other
-            fm1base.measure_toolchain("llvm")
-            check("container shim: made again when fm1base_ld.py changed (its copy is the checkout's)",
-                  not mark.exists() and (shim / "measure" / "fm1base_ld.py").read_text() == other.read_text())
-            fm1base.LD_PY = keep_ld
-            cfg = td / "j.config"
-            c = C.defaults()
-            c["COMPILER"] = 0
-            cfg.write_text(C.dump(c, "j"))
-            e = fm1base.env_for(cfg, measure=True)
-            check("container measurement build, JieLi too: the toolchain image (python3 for the wrapper), the shim",
-                  e["JIELI_DOCKER_IMAGE"] == TC.image_name() and e["JIELI_TOOLCHAIN"].endswith("measure-toolchain-docker"))
-        finally:
-            fm1base.toolchain_env, fm1base.ROOT, fm1base.LD_PY = keep_env, keep_root, keep_ld
-    import importlib.util
-    spec = importlib.util.spec_from_file_location("fm1b_build", fm1base.BUILD_PY)
-    fb = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(fb)
-    n = fb.builder_name("/w", "/tc/a", "img:1")
-    check("fm1-base's toolchain container: its own for each toolchain and image (a measurement build never runs in the "
-          "real build's container, nor the other way round)",
-          n == fb.builder_name("/w", "/tc/a", "img:1") and len({n, fb.builder_name("/w", "/tc/b", "img:1"),
-                                                                fb.builder_name("/w", "/tc/a", "img:2"),
-                                                                fb.builder_name("/v", "/tc/a", "img:1")}) == 4)
-
-
-keep = (TC.is_native_host, TC.docker_running, TC.image_present)
+# ---- the drop-ins there are, per host
+check("drop-ins: Linux x86-64 and macOS arm64, an archive and a SHA-256 each",
+      set(TC.LLVM_ASSETS) == {("linux", "x86_64"), ("darwin", "arm64")}
+      and all(name.endswith(".tar.xz") and len(sha) == 64 for name, sha, _mb in TC.LLVM_ASSETS.values()))
+check("drop-ins: one archive per host, named for it (the macOS one says so)",
+      len({name for name, _, _ in TC.LLVM_ASSETS.values()}) == 2
+      and "macos-arm64" in TC.LLVM_ASSETS[("darwin", "arm64")][0] and "macos" not in TC.LLVM_ASSETS[("linux", "x86_64")][0])
+check("llvm_asset: none for a host with no drop-in (Windows, Linux arm64)",
+      TC.llvm_asset(("windows", "x86_64")) is None and TC.llvm_asset(("linux", "arm64")) is None
+      and TC.llvm_asset(("darwin", "arm64")) == TC.LLVM_ASSETS[("darwin", "arm64")])
+real_machine = TC.platform.machine
 try:
-    check("compiler_of: FELUCCA_COMPILER 1 is pi32v2-llvm, else JieLi",
-          TC.compiler_of({"FELUCCA_COMPILER": 1}) == "llvm" and TC.compiler_of({"FELUCCA_COMPILER": 0}) == "jieli"
-          and TC.compiler_of({}) == "jieli")
-    check("the builder's default is pi32v2-llvm", TC.compiler_of(C.flags(C.defaults())[0]) == "llvm")
-    with tempfile.TemporaryDirectory() as td:
-        td = Path(td)
-        env = {"PI32V2_LLVM_TOOLCHAIN": str(td / "none")}
-        try:
-            TC.resolve(env, "llvm")
-            check("no drop-in: refused", False)
-        except TC.ToolchainError as e:
-            check("no drop-in: refused, says setup (or COMPILER JieLi)", "setup" in str(e) and "JieLi" in str(e))
-        d = fake_dropin(td / "dropin")
-        env = {"PI32V2_LLVM_TOOLCHAIN": str(d)}
-        probes(native=True)
-        b = TC.resolve(env, "llvm")
-        check("Linux x86-64: natively, from its directory", b.kind == "native" and Path(b.path) == d.resolve())
-        probes(native=False)
-        b = TC.resolve(env, "llvm")
-        check("elsewhere: mounted in the toolchain image (its python3), not plain debian",
-              b.kind == "docker" and b.image == TC.image_name(env) and "/opt/jieli" in " ".join(b.command("x", [])))
-        probes(native=False, image=False)
-        try:
-            TC.resolve(env, "llvm")
-            check("no toolchain image: refused", False)
-        except TC.ToolchainError as e:
-            check("no toolchain image: refused, says setup", "setup" in str(e))
-        try:
-            TC.resolve(dict(env, JIELI_BACKEND="wsl"), "llvm")
-            check("WSL: refused for now", False)
-        except TC.ToolchainError as e:
-            check("WSL: refused for now (JieLi there)", "WSL" in str(e))
-
-        old = TC.llvm_dir
-        TC.llvm_dir = lambda env=None: d
-        try:
-            probes(native=True)
-            e1 = fm1base.toolchain_env("llvm")
-            check("release build, Linux: JIELI_TOOLCHAIN is the drop-in, no image needed",
-                  e1["JIELI_TOOLCHAIN"] == str(d) and "JIELI_DOCKER_IMAGE" not in e1)
-            probes(native=False)
-            e2 = fm1base.toolchain_env("llvm")
-            check("release build, macOS: the toolchain image for fm1-base's container",
-                  e2["JIELI_DOCKER_IMAGE"] == TC.image_name())
-        finally:
-            TC.llvm_dir = old
-        cfg = C.defaults()
-        (td / "a.config").write_text(C.dump(cfg, "a"))
-        cfg["COMPILER"] = 0
-        (td / "b.config").write_text(C.dump(cfg, "b"))
-        check("fm1base.compiler_of: the .config's item (default pi32v2-llvm, COMPILER=0 JieLi)",
-              fm1base.compiler_of(td / "a.config") == "llvm" and fm1base.compiler_of(td / "b.config") == "jieli")
-        shim = td / "shim"
-        shim.mkdir()
-        (shim / "real").symlink_to(d)
-        check("the release log's compiler line: the .config's compiler and the real toolchain (a shim's too)",
-              fm1base.compiler_line(td / "a.config", {"JIELI_TOOLCHAIN": str(d)}) == f"compiler pi32v2-llvm ({d.resolve()})"
-              and fm1base.compiler_line(td / "b.config", {"JIELI_TOOLCHAIN": str(shim)}) == f"compiler JieLi ({d.resolve()})")
-        import subprocess  # noqa: E402
-        r = subprocess.run([sys.executable, "-c", fm1base.ANNOUNCE, "compiler X (y)", sys.executable, "-c",
-                            "import sys; print('build'); sys.exit(3)"], capture_output=True, text=True)
-        check("... printed first, then the build runs in its place, its exit status kept",
-              r.stdout.splitlines() == ["compiler X (y)", "build"] and r.returncode == 3)
-    # the measurement shim, made by many builds at once (costs-all: 288 jobs as threads, 2026-10-29 FileNotFoundError)
-    import threading  # noqa: E402
-    with tempfile.TemporaryDirectory() as td:
-        td = Path(td)
-        real = fake_dropin(td / "real")
-        (real / "pi32v2" / "bin" / "ld").write_text("ld\n")
-        (real / "common").mkdir()
-        keep_env, keep_root = fm1base.toolchain_env, fm1base.ROOT
-        fm1base.toolchain_env = lambda compiler="jieli": {"JIELI_TOOLCHAIN": str(real)}
-        fm1base.ROOT = td
-        probes(native=True)
-        errs, shims = [], []
-
-        def make():
-            try:
-                shims.append(fm1base.measure_toolchain("llvm"))
-            except Exception as e:      # (any error is the failure this checks)
-                errs.append(e)
-        try:
-            ts = [threading.Thread(target=make) for _ in range(32)]
-            [t.start() for t in ts]
-            [t.join() for t in ts]
-        finally:
-            fm1base.toolchain_env, fm1base.ROOT = keep_env, keep_root
-        shim = td / "build" / "measure-toolchain-llvm"
-        check("measurement shim: 32 builds at once, no error, one shim with its wrapper and links",
-              not errs and len(shims) == 32 and (shim / "pi32v2" / "bin" / "ld").is_file()
-              and (shim / "common").resolve() == (real / "common").resolve()
-              and (shim / "real").resolve() == real.resolve() and not list((td / "build").glob("*.[0-9]*")))
-    container_shim_checks()
-
-    import web_api  # noqa: E402
-    web_api.init(C.load_costs(), C.NEEDS_AUTO)
-    item = [i for i in web_api.registry_view()["registry"]["items"] if i["key"] == "COMPILER"][0]
-    dumped = web_api.view({"COMPILER": 1}, "w")["dump"]
-    check("web builder: COMPILER not listed, held at JieLi (its .config says COMPILER=0 for the cloud build)",
-          item["hidden"] and "COMPILER=0" in dumped)
+    for raw, want in (("AMD64", "x86_64"), ("x86_64", "x86_64"), ("aarch64", "arm64"), ("arm64", "arm64")):
+        TC.platform.machine = lambda raw=raw: raw
+        check(f"host_key: machine {raw} is {want}", TC.host_key()[1] == want)
 finally:
-    TC.is_native_host, TC.docker_running, TC.image_present = keep
+    TC.platform.machine = real_machine
+
+# ---- resolve: native, or why not
+with tempfile.TemporaryDirectory() as td:
+    td = Path(td)
+    e = refused(TC.resolve, {"PI32V2_LLVM_TOOLCHAIN": str(td / "none")})
+    check("no drop-in: refused, says setup", e is not None and "setup" in e and str(td / "none") in e)
+    d = fake_dropin(td / "dropin")
+    b = TC.resolve({"PI32V2_LLVM_TOOLCHAIN": str(d)})
+    check("a drop-in that runs: the native backend, from its directory", Path(b.path) == d.resolve())
+    check("... it runs a tool through sh with core files off, the tool's own path, the arguments after",
+          b.command("pi32v2/bin/clang", ["-c", "a.c"]) == ["sh", "-c", TC.NO_CORE, str(d.resolve() / "pi32v2/bin/clang"),
+                                                          "-c", "a.c"])
+    check("... and describes itself (compiler, version, native)", "pi32v2-llvm" in b.describe() and "native" in b.describe())
+    bad = fake_dropin(td / "other-host", runs=False)
+    e = refused(TC.resolve, {"PI32V2_LLVM_TOOLCHAIN": str(bad)})
+    check("a drop-in that does not run here (another system, or python3 older than 3.11): refused, says why",
+          e is not None and "does not run on this host" in e and "3.11" in e)
+    real_key = TC.host_key
+    try:
+        TC.host_key = lambda: ("windows", "x86_64")
+        e = refused(TC.resolve, {"PI32V2_LLVM_TOOLCHAIN": str(td / "none")})
+        check("a host with no drop-in: says so, and how to build one (PI32V2_LLVM_TOOLCHAIN)",
+              e is not None and "windows" in e and "PI32V2_LLVM_TOOLCHAIN" in e)
+    finally:
+        TC.host_key = real_key
+    check("the old ways are gone: no Docker, image or WSL backend, no JieLi",
+          not any(hasattr(TC, n) for n in ("docker_running", "image_present", "wsl_toolchain", "COMPILERS", "compiler_of",
+                                           "IMAGE_DEFAULT", "TOOLCHAIN_URL", "JIELI_HOME", "BACKENDS", "retry_tool",
+                                           "sync_view")))
+
+    # ---- the release build (fm1-base): its toolchain is the drop-in, run natively
+    old = TC.llvm_dir
+    TC.llvm_dir = lambda env=None, root=None: d
+    try:
+        env = fm1base.toolchain_env()
+        check("release build: JIELI_TOOLCHAIN (fm1-base's name for it) is the drop-in, Docker off, the SDK's files",
+              env["JIELI_TOOLCHAIN"] == str(d) and env["JIELI_DOCKER"] == "0" and env["AC79_SDK"] == str(TC.sdk_dir())
+              and "JIELI_DOCKER_IMAGE" not in env)
+        TC.llvm_dir = lambda env=None, root=None: td / "none"
+        try:
+            fm1base.toolchain_env()
+            check("release build: no drop-in refused", False)
+        except fm1base.FM1BaseError as err:
+            check("release build: no drop-in refused, says setup", "setup" in str(err))
+    finally:
+        TC.llvm_dir = old
+    shim = td / "shim"
+    shim.mkdir()
+    (shim / "real").symlink_to(d)
+    check("the release log's compiler line: the compiler and the real toolchain (a measurement shim's too)",
+          fm1base.compiler_line({"JIELI_TOOLCHAIN": str(d)}) == f"compiler pi32v2-llvm ({d.resolve()})"
+          and fm1base.compiler_line({"JIELI_TOOLCHAIN": str(shim)}) == f"compiler pi32v2-llvm ({d.resolve()})")
+    r = subprocess.run([sys.executable, "-c", fm1base.ANNOUNCE, "compiler X (y)", sys.executable, "-c",
+                        "import sys; print('build'); sys.exit(3)"], capture_output=True, text=True)
+    check("... printed first, then the build runs in its place, its exit status kept",
+          r.stdout.splitlines() == ["compiler X (y)", "build"] and r.returncode == 3)
+
+# ---- the measurement shim, made by many builds at once (costs-all: 288 jobs as threads, 2026-10-29 FileNotFoundError)
+with tempfile.TemporaryDirectory() as td:
+    td = Path(td)
+    real = fake_dropin(td / "real")
+    (real / "pi32v2" / "bin" / "ld").write_text("ld\n")
+    (real / "common").mkdir()
+    keep_env, keep_root = fm1base.toolchain_env, fm1base.ROOT
+    fm1base.toolchain_env = lambda: {"JIELI_TOOLCHAIN": str(real)}
+    fm1base.ROOT = td
+    errs, shims = [], []
+
+    def make():
+        try:
+            shims.append(fm1base.measure_toolchain())
+        except Exception as ex:      # (any error is the failure this checks)
+            errs.append(ex)
+    try:
+        ts = [threading.Thread(target=make) for _ in range(32)]
+        [t.start() for t in ts]
+        [t.join() for t in ts]
+    finally:
+        fm1base.toolchain_env, fm1base.ROOT = keep_env, keep_root
+    shim = td / "build" / "measure-toolchain"
+    check("measurement shim: 32 builds at once, no error, one shim with its wrapper and links",
+          not errs and len(shims) == 32 and (shim / "pi32v2" / "bin" / "ld").is_file()
+          and (shim / "common").resolve() == (real / "common").resolve()
+          and (shim / "real").resolve() == real.resolve() and not list((td / "build").glob("*.[0-9]*")))
+
+# ---- the builder's COMPILER item is retired
+check("COMPILER: retired (bit 442 stays unused), no longer an item", "COMPILER" in R.RETIRED and "COMPILER" not in R.ITEMS
+      and all(it.bit != 442 for it in R.ITEMS.values() if getattr(it, "bit", None) is not None))
+text = C.dump(C.defaults(), "a") + "COMPILER=0\n"
+warned = []
+cfg, _ = C.parse(text, warn=warned.append)
+check("an old .config that names COMPILER loads, the setting ignored and said so",
+      "COMPILER" not in cfg and any("COMPILER" in w and "ignored" in w for w in warned))
+import web_api  # noqa: E402
+web_api.init(C.load_costs(), C.NEEDS_AUTO)
+check("web builder: no COMPILER item, nothing held fixed",
+      not web_api.WEB_FIXED and all(i["key"] != "COMPILER" for i in web_api.registry_view()["registry"]["items"]))
 print("compiler: FAILED" if fails else "compiler: all passed")
 sys.exit(1 if fails else 0)

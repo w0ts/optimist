@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """python tools/optimist.py setup: check what building and the emulator need on this host, fetch what this tree
-can fetch (the builder's venv, the SDK files, the toolchain or its Docker image), say how to get the rest.
+can fetch (the builder's venv, the SDK files, the pi32v2-llvm toolchain), say how to get the rest.
 
   setup            check, then fetch what is missing (asks first; --yes does not ask)
   setup --check    check only
@@ -79,47 +79,25 @@ def check_sdk(rep, fetch, yes):
             "python tools/optimist.py setup (fetches the SDK files; into ./sdk; AC79_SDK=<dir> to put them elsewhere)")
 
 
-def fetch_toolchain(fetch, yes):
-    """what setup can do when no backend resolves: native download, or build the Docker image"""
-    if not fetch:
-        return
-    try:
-        if TC.is_native_host():
-            if confirm("download the JieLi toolchain (26 MB) into ~/.jieli?", yes):
-                deps.fetch_toolchain()
-        elif TC.docker_running():
-            if confirm(f"build the Docker image {TC.image_name()} (downloads the toolchain inside; a few "
-                       "minutes)?", yes):
-                deps.build_image()
-    except deps.FetchError as e:
-        print(f"setup: {e}")
-
-
 def check_toolchain(rep, fetch, yes):
-    try:
-        b = TC.resolve()
-    except TC.ToolchainError:
-        fetch_toolchain(fetch, yes)
-        try:
-            b = TC.resolve()
-        except TC.ToolchainError as e:
-            rep.add("toolchain", False, str(e), toolchain_fix())
-            return
-    rep.add("toolchain", True, b.describe())
-
-
-def check_llvm(rep, fetch, yes):
-    """pi32v2-llvm (the builder's COMPILER item, its default): its drop-in in the repository's build/toolchains (the main checkout's, in a worktree) on every host (macOS too: mounted
-    into the toolchain image)"""
+    """pi32v2-llvm, the compiler: its drop-in for this host in the repository's build/toolchains (the main checkout's, in a
+    worktree), run natively"""
     d = TC.llvm_dir()
-    if not TC.has_clang(d) and fetch and confirm(f"download pi32v2-llvm (72 MB) into {repo_root.toolchains_dir()}?", yes):
+    asset = TC.llvm_asset()
+    wrong = TC.has_clang(d) and not TC.runs_here(d)        # (a copy for another host: a Mac's checkout that ran Docker)
+    if (not TC.has_clang(d) or wrong) and fetch and asset and confirm(
+            f"{'replace the pi32v2-llvm that is for another host with the one for this host' if wrong else 'download pi32v2-llvm'}"
+            f" ({asset[2]} MB) into {repo_root.toolchains_dir()}?", yes):
         try:
             deps.fetch_llvm()
         except deps.FetchError as e:
             print(f"setup: {e}")
-    ok = TC.has_clang(d)
-    rep.add("pi32v2-llvm", ok, f"{d.resolve() if ok else d}",
-            "python tools/optimist.py setup --yes (downloads it into build/toolchains), or the builder's COMPILER item: JieLi")
+    try:
+        b = TC.resolve()
+    except TC.ToolchainError as e:
+        rep.add("toolchain", False, str(e), toolchain_fix())
+        return
+    rep.add("toolchain", True, b.describe())
 
 
 def check_mflasher(rep, fetch, yes):
@@ -140,12 +118,9 @@ def check_mflasher(rep, fetch, yes):
 
 
 def toolchain_fix():
-    if TC.is_native_host():
-        return "python tools/optimist.py setup --yes (downloads the toolchain into ~/.jieli)"
-    docker = {"Darwin": "Docker Desktop or Rancher Desktop (dockerd), started",
-              "Windows": "Docker Desktop (WSL 2 backend), started; or a WSL distribution (BUILDING.md, Windows)",
-              }.get(SYSTEM, "Docker Engine (docs.docker.com/engine/install), your user in the docker group")
-    return f"{docker}; then python tools/optimist.py setup --yes (builds the toolchain image)"
+    if TC.llvm_asset() is None:
+        return "build pi32v2-llvm from the pinned commits (BUILDING.md, 'The compiler'), then PI32V2_LLVM_TOOLCHAIN=<dir>"
+    return "python tools/optimist.py setup --yes (downloads pi32v2-llvm into build/toolchains); Python 3.11 or newer as python3"
 
 
 def check_emulator(rep):
@@ -173,7 +148,7 @@ def check_host_tests(rep):
     sh = shutil.which("sh")
     rep.add("host tests", None if SYSTEM == "Windows" else bool(cc and sh),
             f"C compiler {cc or 'not found'}, sh {sh or 'not found'}" +
-            (" (on Windows: python tools/optimist.py test --in-docker, or WSL)" if SYSTEM == "Windows" else ""),
+            (" (not checked on Windows: the host tests need sh and a C compiler)" if SYSTEM == "Windows" else ""),
             "a C compiler (Xcode command line tools: xcode-select --install; Debian: apt install build-essential)")
 
 
@@ -184,7 +159,6 @@ def run(fetch=True, yes=False, emulator=True):
     check_venv(rep, fetch, yes)
     check_sdk(rep, fetch, yes)
     check_toolchain(rep, fetch, yes)
-    check_llvm(rep, fetch, yes)
     check_mflasher(rep, fetch, yes)
     if emulator:
         check_emulator(rep)

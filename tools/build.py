@@ -8,8 +8,7 @@
 Outputs in build/: felucca.bin (app), loader/ota.bin (update loader),
 felucca.fwsc (package). See BUILDING.md for the toolchain and the SDK.
 
-The JieLi toolchain is Linux x86-64 only: natively on Linux x86-64, elsewhere each
-tool runs in a linux/amd64 container (or WSL); tools/toolchain.py finds it.
+The compiler is pi32v2-llvm, run natively (Linux x86-64, macOS arm64); tools/toolchain.py finds it.
 """
 import argparse
 import hashlib
@@ -96,41 +95,25 @@ def backend():
     global BACKEND
     if BACKEND is None:
         try:
-            BACKEND = TC.resolve(compiler=TC.compiler_of(CFG_VALUES))
+            BACKEND = TC.resolve()
         except TC.ToolchainError as e:
             raise SystemExit(f"build: {e}")
     return BACKEND
 
 
 def tc(tool, *args):
-    """run a toolchain binary (pi32v2/bin/..., common/bin/...) with cwd SRC; paths relative to SRC, written with
-    / on every host (the tool runs on Linux)"""
+    """run a toolchain binary (pi32v2/bin/..., common/bin/...) with cwd SRC; paths relative to SRC, written with /"""
     rel = [Path(a).resolve().relative_to(SRC).as_posix() if isinstance(a, Path) else a for a in args]
     if tool == "cc":                # the toolchain's cc wrapper needs python3; call clang directly
         tool, rel = "pi32v2/bin/clang", ["-target", "pi32v2", *rel]
-    # (core=0 in every backend: a toolchain crash under emulation, which tools/builder/configure.py retries,
-    # must not leave a core file in the source tree)
     cmd = backend().command(tool, rel, SRC)
-    for attempt in range(TC.TOOL_TRIES):
-        r = subprocess.run(cmd, cwd=SRC, capture_output=True, text=True, encoding="utf-8", errors="replace")
-        if not TC.retry_tool(backend(), r.returncode, r.stdout + r.stderr, attempt):
-            break
+    r = subprocess.run(cmd, cwd=SRC, capture_output=True, text=True, encoding="utf-8", errors="replace")
     if r.returncode:
         sys.stderr.write(r.stdout + r.stderr)
         raise SystemExit(f"build: {tool} failed")
     if r.stderr.strip():
         sys.stderr.write(r.stderr)
     return r.stdout
-
-
-def sync_view(*paths, recent=False):
-    """a container build: the container must see these host-written files (recent: also every source and header the
-    host changed lately) as the host has them; fails loudly when it does not (tools/toolchain.py sync_view)"""
-    files = [*paths, *(TC.recent_files(SRC) if recent else [])]
-    try:
-        TC.sync_view(backend(), files, SRC)
-    except TC.StaleViewError as e:
-        raise SystemExit(f"build: {e}")
 
 
 def tc_all(*cmds):
@@ -152,7 +135,7 @@ def generator_python():
     py = deps.venv_python()
     try:
         return str(py) if py.exists() else sys.executable
-    except OSError:                                     # (a Docker mount that refuses the venv's symlink)
+    except OSError:
         return sys.executable
 
 
@@ -455,7 +438,6 @@ def build_app():
     tc_all(*units)
     subprocess.run([sys.executable, SRC / "tools" / "size_fns.py",
                     OUT / "felucca.ll", OUT / "felucca_size.ll"], check=True)
-    sync_view(OUT / "felucca_size.ll")      # (written here, read by the next tool)
     ir = [f for f in flags if not f.startswith(("-I", "-D", "-W"))]
     if "-include" in ir:                # (the IR is preprocessed already: no header to include)
         del ir[ir.index("-include"):ir.index("-include") + 2]
@@ -474,7 +456,6 @@ def build_app():
         ld_text = ld_text.replace(normal, f"LENGTH = 0x{slot:X}")
         ld = OUT / "app_layout.ld"
         ld.write_text(ld_text)
-        sync_view(ld)
     if MEASURE:                     # a measurement link: XIP and SRAM larger than the chip has (not flashable)
         ld = OUT / "app_measure.ld"
         meas = (ld_text.replace(f"LENGTH = 0x{slot:X}", f"LENGTH = 0x{slot + 0x60000:X}")
@@ -484,7 +465,6 @@ def build_app():
         if meas.count(f"LENGTH = {MEASURE_SRAM:#x}") != 1 or "ORIGIN = 0x01E00000" not in meas:
             raise SystemExit("build: app.ld changed: the measurement link's SRAM / NOINIT lines no longer match")
         ld.write_text(meas)
-        sync_view(ld)
     # --gc-sections: the units' functions nothing calls go (CFLAGS has -ffunction-sections; the X0X / ACID float
     # units export getters and renders this firmware never calls); crt0, the RAM code and the pool are KEEP in app.ld
     tc("pi32v2/bin/ld", "--gc-sections", "-T", ld, *objs, "-o", elf)
@@ -951,10 +931,9 @@ def main():
 
     mark(1)
     env = dict(os.environ, AC79_SDK=str(a.sdk)) if a.sdk else os.environ
-    setup_config(a.config)               # (first: its COMPILER item picks the toolchain)
-    compiler = TC.compiler_of(CFG_VALUES)
-    BACKEND, sdk = TC.preflight(env, compiler)     # Pillow, the toolchain, the SDK files: what is missing, how to get it
-    print(f"toolchain {BACKEND.describe()}" + (" (pi32v2-llvm)" if compiler == "llvm" else ""))
+    setup_config(a.config)
+    BACKEND, sdk = TC.preflight(env)     # Pillow, the toolchain, the SDK files: what is missing, how to get it
+    print(f"toolchain {BACKEND.describe()}")
     VERSION = f"OPTIMIST {OPTIMIST_VERSION}"     # (the screen's version: ui.c's default says the same)
     name = "felucca.fwsc"                       # (the internal name tests and tools read; see release_name)
     if a.release:
@@ -968,13 +947,11 @@ def main():
             print(f"warning: SDK {rel} differs from AC79NN_SDK_V1.2.1; the package will not match the reference")
     mark(2)
     OUT.mkdir(parents=True, exist_ok=True)
-    sync_view(recent=True)          # sources (and headers) changed lately: the loader reads them now
     with ThreadPoolExecutor(2) as ex:
         gen, ldr = ex.submit(generate), ex.submit(build_loader)
         gen.result()
         ota = ldr.result()
     ble_rf_tables()
-    sync_view(*(p for p in GEN.iterdir() if p.is_file()))     # every generated header, rewritten or not
     mark(3)
     img, syms, dis, rt, hdr = build_app()
     if CFG_VALUES.get("FELUCCA_SYS_TOP") and not MEASURE:
@@ -982,7 +959,6 @@ def main():
         # size fixed: the same RAM; a measurement build keeps the empty one, the same size)
         import ramtop
         ramtop.write(GEN / ramtop.HEADER, ramtop.parse(syms), "felucca.elf")
-        sync_view(GEN / ramtop.HEADER)
         img, syms, dis, rt, hdr = build_app()
     (OUT / "sizes.json").write_text(json.dumps(sizes(img, syms, hdr), indent=1) + "\n")
     mark(4)
