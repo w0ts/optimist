@@ -519,6 +519,9 @@ static void turn(uint32_t role, int32_t s)
     frame();
 }
 static void key(uint32_t k) { fm1_in.notes |= 1u << k; frame(); fm1_in.notes &= ~(1u << k); frame(); }
+/* SEQ tapped once on a synth track's STEP: its change waits for the double-tap window (op_step.c SEQ_DBL_MS, 4110e50a,
+ * 2026-11-01: two taps within it toggle STEP ENTRY), so the next tap is another single one */
+static void seq_tap(void) { tap(B_SEQ); frames(SEQ_DBL_MS / 16u + 2u); }
 static void cards_up(void) { if (ui.scr == SCR_STEP && !ui.cards_t && !st.held) tap(B_SEQ), frames(SEQ_DBL_MS / 16u + 2u); }   /* STEP: SEQ brings the
                                                          * cards back (the page kept), the knobs edit only under them */
 static int fails;
@@ -529,6 +532,8 @@ static void check(int ok, const char *what) { fh_check(what); printf("optimist u
 static void reset_ui(void)
 {
     pl_filt = PLF_ALL;                                  /* (the list unfiltered: a filter's test leaves it filtered otherwise) */
+    knob_colors = 0;                                    /* (the tests' look: the knobs' caps plain; ON is the device's default since 2026-11-03, a test of
+                                                         * the colours turns it on) */
     memset(rt_mem, 0, sizeof rt_mem);                  /* (the returns' pages open on their first, op_mixer.c) */
     fm1_in.buttons = 0;
     fm1_in.notes = 0;
@@ -3832,9 +3837,12 @@ static void auto_step_tests(void)
         {
             uint32_t y = (uint32_t)SP_Y + (uint32_t)SG_MK_Y + 1u, x3 = RL_X + 3u * RL_CW + (RL_CW - 2u) / 2u,
                      xt = RL_X + 6u * RL_CW + 2u, x9 = RL_X + 9u * RL_CW + (RL_CW - 2u) / 2u;   /* (a synth track: the roll's columns) */
-            check(screen[y * 240u + x3] == swap16(trk_col(0)) && screen[y * 240u + xt] == swap16(col_shade(trk_col(0), 5u)) &&
-                  screen[y * 240u + x9] != swap16(trk_col(0)),
-                  "the marks under the steps: a dot under step 4, its hold's tail on to LEN; step 10 (no event) none");
+            /* (since 5c942001, 2026-11-01: a step's automation is a dot inside its note bar, the row under the steps keeps the
+             * hold's tail only) */
+            check(screen[y * 240u + x3] == swap16(col_shade(trk_col(0), 5u)) && screen[y * 240u + xt] == swap16(col_shade(trk_col(0), 5u)) &&
+                  screen[y * 240u + x9] != swap16(trk_col(0)) &&
+                  px_in(RL_X + 3u * RL_CW, (uint32_t)SP_Y + SG_TOP, RL_CW - 1u, (uint32_t)SG_MK_Y - SG_TOP, C_WHITE),
+                  "the marks under the steps: step 4's hold's tail on to LEN from it, its dot in its note bar; step 10 (no event) no dot");
             ppm("opt-step-marks");
         }
         key(WK(3));                                     /* (tapped: the note goes, its step-only events with it) */

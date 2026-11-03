@@ -41,7 +41,11 @@ SYSTEM > WI-FI page: OFF, MAN, AUTO, **AP MAN** (`wn_st.mode` 4), **AP AUTO** (3
   `wifi_ap_default_key(name)` (8 characters of 23 letters without i l o and 8 digits without 0 1, from two FNV-1a runs over a fixed salt and the
   name), shown on STATE one phase in four as KEY xxxxxxxx, so another Optimist that hears the name knows it. **MODE JAM** (OFF, MAN, AUTO, JAM, AP MAN, AP AUTO):
   AUTO that also joins an FM-1 access point (FM1-xxxx, WPA2-PSK, not its own, the strongest) with that key when no saved network is heard, and
-  keeps Link on while it is the mode (SYNC > LINK reads ON (JAM); the stored value is untouched).
+  keeps Link on while it is the mode (SYNC > LINK reads ON (JAM); the stored value is untouched). Shown as **JAM JOIN** since
+  2026-11-03, beside **JAM HOST** (stored mode 6, the user, 2026-11-03: "a jam AP and jam (client) mode"): AP AUTO under the
+  automatic name FM1-xxxx and its default password only, so a JAM JOIN finds and joins it; the password is shown (STATE one
+  phase in four, SAVE or SAVE held: KEY xxxxxxxx), never typed or cleared there; Link kept on as in JAM JOIN. MODE reads OFF,
+  MAN, AUTO, JAM JOIN, JAM HOST, AP MAN, AP AUTO (JAM HOST with MODE AP built). Optimist's own Wi-Fi stack reads a stored JAM HOST as AP AUTO.
 - Stored (`wn_store` version 2, 336 octets: the 268 of version 1 and `wn_apcfg`, 68): the name (length 0 = automatic), the
   channel, the WPA2 key of that name (PBKDF2 of password and name; never the password). A version 1 record reads as before
   (the settings record grows; a shorter old one is zero-extended); a build without MODE AP reads a stored AP mode as OFF.

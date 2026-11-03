@@ -29,7 +29,7 @@ static int st_prog(uint32_t off, const void *src, uint32_t n)
 }
 #include "../firmware/src/storage/storage.c"
 static uint8_t flash_ok = 1;
-static struct { int force; } ui;
+static struct { int force, redraw; } ui;   /* (redraw: sections.c since LCD_DIRTY went, 26c6b7ac) */
 static char last_msg[32];
 static void ui_message(const char *m) { str_cpy(last_msg, m, sizeof last_msg); }
 static void ui_say(const char *a, const char *b) { str_cpy(last_msg, a, sizeof last_msg); (void)b; }

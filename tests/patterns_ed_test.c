@@ -34,7 +34,7 @@ static union {
 } proj_tmp;
 #include "../firmware/src/storage/drum_store.c"
 
-static struct { int force; } ui;
+static struct { int force, redraw; } ui;   /* (redraw: sections.c since LCD_DIRTY went, 26c6b7ac) */
 static uint8_t sync_reload;
 static void song_backup(void) {}
 static void song_restore(void) {}

@@ -21,11 +21,20 @@ static uint64_t blk;
 typedef struct { uint64_t blk; uint8_t note, vel; } hit_t;
 static hit_t hits[200000];
 static uint32_t nhits;
+/* the click: its own voice since 2026-10-31 (fx.c click_note, not the kit's wood blocks): a new one sets clk_v.a up (it
+ * only decays otherwise), 77 the bar's first beat at 2 kHz, 76 the others */
+#define CLICK_INC77 ((uint32_t)(4294967296.0 * 2000.0 / FS))
 static void run_block(void)
 {
-    int32_t out[CTL * 2];
+    int32_t out[CTL * 2], ca = clk_v.a;
     uint32_t a = drums.age, k;
     mix_block(out, CTL);
+    if (clk_v.a > ca && nhits < 200000u) {
+        hits[nhits].blk = blk;
+        hits[nhits].note = clk_v.inc == CLICK_INC77 ? 77u : 76u;
+        hits[nhits].vel = (uint8_t)(clk_v.a / 22);
+        nhits++;
+    }
     if (drums.age != a)
         for (k = 0; k < NDRUM; k++)
             if (drums.v[k].age > a && nhits < 200000u) {

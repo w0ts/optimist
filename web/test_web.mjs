@@ -1287,16 +1287,17 @@ async function editorFxp() {
   ok(C.SCRN === 96 && /ED_SCRN = 96/.test(es) && /ed_b\(0x59\)/.test(es) && info.scrn && info.scrn.screens === 2, "scrn: command 96, tag 0x59 == ed_scrn.c; INFO says two screens");
   ok(js(sortDeep(JSON.parse(JSON.stringify(E.SCRN_TABLE)))) === js(sortDeep(scrnGold)), "scrn: the mock's table (SCRN_TABLE) == tests/scrn_table.json, the UI host test's golden");
   const n0s = SC(await rq(E.req.scrnInfo(0))), n1s = SC(await rq(E.req.scrnInfo(1)));
-  ok(n0s.n === scrnGold.lines.filter((l) => l.s === 0).length && n1s.n === scrnGold.lines.filter((l) => l.s === 1).length && n0s.np >= 4, "scrn: op 0: the line and page counts");
+  ok(n0s.n === scrnGold.lines.filter((l) => l.s === 0).length && n1s.n === scrnGold.lines.filter((l) => l.s === 1).length && n0s.np === new Set(scrnGold.lines.filter((l) => l.s === 0).map((l) => l.page)).size, "scrn: op 0: the line and page counts (GLOBAL's pages as the table's)");
   const l0 = SC(await rq(E.req.scrnLine(0, 0)));
-  ok(l0.label === "BPM" && l0.sect === "TEMPO" && l0.title === "Tempo" && l0.kind === 1 && l0.byd === 1 && l0.page === 0 && l0.val === "120" && l0.unit === "BPM", "scrn: op 1: GLOBAL's first line is TEMPO > BPM as the device draws it (page title, section, value text, unit)");
+  ok(l0.label === "TUNE" && l0.sect === "TUNE" && l0.title === "Tune" && l0.kind === 1 && l0.byd === 1 && l0.page === 0 && l0.val === "0" && l0.unit === "", "scrn: op 1: GLOBAL's first line is TUNE > TUNE as the device draws it (page title, section, value text, unit; BPM is on the PLAY-held page since 2026-11-01)");
   const t0 = SC(await rq(E.req.scrnTurn(0, 0, 1, 5)));
   ok(t0.op === 2 && t0.gv === l0.gv + 5 && t0.val === String(l0.gv + 5), "scrn: op 2: a fine turn moves the value; the reply is the line");
   const t1 = SC(await rq(E.req.scrnTurn(0, 0, 2, 0)));
   ok(t1.gv === l0.ddef, "scrn: op 2 mode 2: the default");
-  const cal = scrnGold.lines.findIndex((l) => l.s === 1 && l.kind === 3);
-  const y0 = SC(await rq(E.req.scrnYes(1, scrnGold.lines.filter((l) => l.s === 1).findIndex((l) => l.kind === 3), false)));
-  ok(cal >= 0 && y0.op === 3 && y0.rc === 1 && y0.ask === 1, "scrn: op 3: YES on CALIBRATE > PANEL (ok 0) asks");
+  /* (no action line on GLOBAL or SYSTEM since SYSTEM's Calibrate page went, e8bbce7f 2026-11-01: YES on a value line does nothing, rc 1) */
+  const cal = scrnGold.lines.findIndex((l) => l.kind === 3);
+  const y0 = SC(await rq(E.req.scrnYes(1, scrnGold.lines.filter((l) => l.s === 1).findIndex((l) => l.kind === 1), false)));
+  ok(cal < 0 && y0.op === 3 && y0.rc === 1 && y0.ask === 0, "scrn: op 3: no action line left (CALIBRATE gone); YES on a value line does nothing (rc 1, no question)");
   ok(SC(await rq(E.req.scrnSave())).op === 4 && await rq(E.req.scrnLine(2, 0), { timeout: 100, retries: 0, quiet: true }).then(() => false, () => true), "scrn: op 4 saves; a screen past the table: no reply");
   ok(/function renderDevScreens\(/.test(html) && /phText\("op", ln\.sect, ln\.label\)/.test(html) && /scrnSaveSoon\(\)/.test(html), "scrn: Settings shows the lines (sliders, steppers, switches, actions that ask), help from the device's own texts, saves a moment after the last edit");
   /* v13 SCOPE (cmd 101, ed_scope.c): the oscilloscope's trace */
@@ -1718,8 +1719,8 @@ async function editorWifi() {
   await W3(E.req.wifiMode(3));
   h.teardown();
   /* the page: the panel only with cap 1, in MODE AP, in place of the station's list and form; the password cleared as it is sent */
-  ok(/s\.ap\.cap === 1/.test(wifiJs) && /root\.hidden = !on/.test(wifiJs) && /wf\.add\.hidden = inAp/.test(wifiJs) && /ap \? \[\.\.\.WIFI\.MODES, WIFI\.MODE_APMAN, WIFI\.MODE_AP\]/.test(wifiJs),
-    "wifi AP: the panel and the fourth mode show only with cap 1 (hidden with cap 0)");
+  ok(/s\.ap\.cap === 1/.test(wifiJs) && /root\.hidden = !on/.test(wifiJs) && /wf\.add\.hidden = inAp/.test(wifiJs) && /ap \? \[\.\.\.WIFI\.MODES, WIFI\.MODE_JAMHOST, WIFI\.MODE_APMAN, WIFI\.MODE_AP\]/.test(wifiJs),
+    "wifi AP: the panel and the AP modes (JAM HOST, AP MAN, AP AUTO) show only with cap 1 (hidden with cap 0)");
   ok(/pw\.value = ""/.test(wifiJs.slice(wifiJs.indexOf("function wifiApForm"), wifiJs.indexOf("function wifiForm"))) && /type: "password"/.test(wifiJs.slice(wifiJs.indexOf("function wifiApForm"), wifiJs.indexOf("function wifiForm"))),
     "wifi AP: its password field is type=password and cleared as it is sent");
 }
@@ -2917,7 +2918,7 @@ async function masterStrip() {
      returns (2026-10-12: CRET DRET RRET, G_CRET.., the device's mixer MASTER row) are not on the strip yet: DLY RET scales
      dmix, CHO / REV RET their wet (fx.c) */
   const fxc = readFileSync(join(HERE, "../firmware/src/fx/fx.c"), "utf8");
-  ok(js(fxs.map((f) => f.ret)) === js(["MIX", "SIZE", "CDP", "THRS"]) && /dmix = .*song\.g\[G_DMIX\] \* 258.*RET_LV\(1\)/.test(fxc) && /dly_blk\(dly_buf, .*in, y, n, dl, &f, fb, dmix/.test(fxc)
+  ok(js(fxs.map((f) => f.ret)) === js(["MIX", "SIZE", "CDP", "THRS"]) && /dmix = .*song\.g\[G_DMIX\] \* 258.*RET_LVB?\(1\)/.test(fxc) && /dly_blk\(dly_buf, .*in, y, n, dl, &f, fb, dmix/.test(fxc)
     && /song\.g\[G_RRET\]/.test(fxc) && /song\.g\[G_CRET\]/.test(fxc) && /MASTER_BUS = \["DUST", "DUCK", "FILT"\]/.test(html),
     "master strip: Delay MIX, Reverb SIZE, Chorus CDP beside the icons; the firmware's FX returns (DLY RET in dmix, CHO / REV RET) not on the strip yet");
   /* Settings: only true settings; every parameter that left it is in the mixer */

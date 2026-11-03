@@ -9,7 +9,7 @@
 #define FELUCCA_KNOBCOL_H
 #include <stdint.h>
 #define KNOBCOL_N 4u
-static uint8_t knob_colors;                                   /* 0 OFF, 1 ON */
+static uint8_t knob_colors = 1;                               /* 0 OFF, 1 ON: ON by default (the user, 2026-11-03), a settings record keeps its own */
 /* RGB565, every one >= 3:1 against white text (the cursor row's background; 2026-10-14): blue #1E88E5, yellow #B28F23 (a mustard), pink #E0218A, orange #FF5A1F */
 static const uint16_t KNOB_COL[KNOBCOL_N] = {0x1C5Cu, 0xB464u, 0xE111u, 0xFAC3u};
 static uint16_t knob_col(uint32_t k, uint16_t def)

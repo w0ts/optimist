@@ -125,7 +125,6 @@ src/ui/optimist/op_draw.c:draw_list:(int32_t)n | inside "else if (n && n <= show
 src/ui/optimist/op_draw.c:meter_h:(1u<<sh) | inside "if (lg >= 4u)": sh = lg - 3 >= 1, so 1u << sh >= 2
 src/ui/optimist/op_draw.c:meter_h:d | d = -vuf_db(vu_floor_i) + 6: vuf_db is -80 .. -20 for any index (core/vufloor.h, out of range: the default), so d is 26 .. 86
 src/ui/optimist/op_mixdraw.c:mx_db_x:(uint32_t)w | w = -vuf_db(vu_floor_i) + 6: 26 .. 86, as op_draw.c meter_h's d
-src/ui/optimist/op_mixdraw.c:mx_vu_colat:(uint32_t)(e-k-1>0?e-k-1:1) | the divisor is e - k - 1 when that is > 0, else 1: >= 1
 src/ui/optimist/op_gldraw.c:gl_info_bar:span | guarded "if (v <= 0 || span <= 0) continue"
 src/ui/optimist/op_graph.c:graph_arp:(int32_t)steps | only inside "for (i = 0; i < steps; i++)": never run with steps 0 (steps = 192 / DUR_48[rate] is 0 for the values longer than a bar: 768, 576, 384, 288 48ths)
 src/ui/optimist/op_graph.c:graph_arp:DUR_48[(uint32_t)t->p[P_ARATE] | TABLE DUR_48 (core.h DUR_LIST, 768 .. 3), index % DUR_N: >= 3
@@ -351,3 +350,13 @@ src/fx/fx_arena.c:fxm_cp_room:b | b = FXM_CP_BYTES(j) = FXA_SZ(j) x FXA_U x 2: F
 src/display/gfx.c:draw_text_box:w | w is the box's width: every caller passes a constant or the text's width (> 0); CV_MAX / w is the rows a pass holds
 src/ui/optimist/op_graph.c:cv_whole_w:w | w is the toast's width (its text's width + 24, at most 236), never 0; CV_MAX / w is the rows a pass holds
 src/ui/optimist/op_fxmem.c:fxz_paint:s | s = the arena size when it is not 0, else 1: >= 1
+# Audited 2026-11-03 (the suite on main 880b08db):
+src/io/editor/ed_mirror_enc.h:me_close:me.w | inside "if (me.blit && me.w && me.pi > me.p0)"
+src/io/editor/ed_mirror_enc.h:mir_enc_blit_skip:(b-a) | after me_span returned true, which it does only for a < b ("return lo < hi"): b - a >= 1
+src/ui/optimist/op_gldraw.c:gl_top_draw:(int32_t)(all-TOP_VIS) | inside "if (all > TOP_VIS)": >= 1
+src/ui/optimist/op_gldraw.c:gl_top_draw:(int32_t)all | inside "if (all > TOP_VIS)" (TOP_VIS 7, op_top.c): all >= 8
+src/ui/optimist/op_graph.c:cvb_next:b->w | CV_BANDS' width: every caller passes 240 (op_draw, op_help, op_memlist, op_name, op_scope, op_wifi)
+src/ui/optimist/op_mixdraw.c:mx_vu_grad:(s+1) | mx_vu_grad returns before for s < 1: s + 1 >= 2
+src/ui/optimist/op_project.c:sys_dt_cell:tot | guarded "tot ? ... : -1"
+src/ui/optimist/op_stepdraw.c:roll_head:len | TLEN (len = trk_len(t)), and only inside "for (n = 0; n < len; n++)"
+src/io/editor/ed_mirror.c:mbr_lag:dt | inside "if (dt >= MIR_LAG_WIN_MS)" (250): >= 250

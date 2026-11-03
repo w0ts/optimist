@@ -144,7 +144,10 @@ static void arn_boot(uint8_t *lo, uint8_t *hi)
 }
 #else                                                   /* (the host: a stand-in of ARN_BYTES, the undo's least after it) */
 _Static_assert(ARN_BYTES % ARN_ALIGN == 0u, "the arena: whole units");
-static uint8_t arn_mem[ARN_BYTES + ARN_UNDO_ROOM] __attribute__((aligned(8))) IN_POOL;
+/* (8-byte aligned by its type, not an attribute: fm1-base's host build drops every __attribute__ (fm1base/optimist/core/
+ * opt_core.c), which left the stand-in at an odd address, so the card streams' block refused itself, sd_stream.c) */
+static union { uint64_t a; uint8_t b[ARN_BYTES + ARN_UNDO_ROOM]; } arn_mem_u IN_POOL;
+#define arn_mem (arn_mem_u.b)
 #define arn_boot(lo, hi) ((void)(lo), (void)(hi))
 #endif
 

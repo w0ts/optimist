@@ -38,43 +38,41 @@ int main(int argc,char **argv)
         for(k=0;k<i;k++)assert(!drum_kit_built(k) || energy[k]!=energy[i]);
     }
     /* LIVE metronome (seq.c click_tick): 120 BPM, 2 s = 4 beats; REC mode clicks only while a
-     * track records, ON always while playing, OFF never; the first beat of the bar is louder */
+     * track records, ON always while playing, OFF never; the first beat of the bar is louder (77: 2 kHz). The click is
+     * its own voice since 2026-10-31 (fx.c click_note, the user: the same with any kit): a new one sets clk_v.a up,
+     * and the drums play nothing for it */
     for(v=0;v<4;v++) {
         uint32_t hits=0,loud=0,age0;
         host_tracks_init();memset(&drums,0,sizeof drums);drums_set=-2;
         song.g[G_BPM]=120;song.g[G_CLOCK]=v==3?0:v==2?2:1;song.rec=v==0?1u:0u;rec_wait=0;   /* OFF / ON / REC */
         transport_req=1;age0=drums.age;
         for(j=0;j<(FS*2u-FS/4u)/CTL;j++) {               /* up to just before beat 4 */
-            uint32_t a=drums.age;
+            int32_t ca=clk_v.a;
             mix_block(out,CTL);
-            if(drums.age!=a){hits++;for(k=0;k<NDRUM;k++)if(drums.v[k].age==drums.age && drums.v[k].vel>100)loud++;}
+            if(clk_v.a>ca){hits++;loud+=clk_v.inc==(uint32_t)(4294967296.0*2000.0/FS);}
         }
         transport_req=2;events_block(CTL);
-        if(v==0||v==2)assert(hits==4 && loud==1);
+        if(v==0||v==2)assert(hits==4 && loud==1 && drums.age==age0);
         else assert(hits==0 && drums.age==age0);
     }
-    /* CLICK AUTO (2026-10-17): it clicks while nothing else plays, decided as playing starts and each time the selected
-     * track's loop comes round. a: every track empty: every beat; b: a step set: none; c: empty at the start, a note
-     * recorded in the first loop (8 steps, 2 beats): the click stops when the loop comes round */
-    for(v=0;v<3;v++) {
-        uint32_t hits=0,c,wrote=0;
+    /* CLICK AUTO: only in record mode (seq.c click_tick; the user, 2026-10-31: "auto click should only trigger when
+     * record mode is on"). a: playing, not recording: none (an empty project too); b: recording: every beat */
+    for(v=0;v<2;v++) {
+        uint32_t hits=0,c;
+        int32_t ca;
         host_tracks_init();memset(&drums,0,sizeof drums);drums_set=-2;
         for(c=0;c<NTRK;c++)steps_clear(&trk[c]);
-        song.g[G_BPM]=120;song.g[G_CLOCK]=3;song.rec=0;rec_wait=0;song.sel=0;trk[0].p[P_SLEN]=8;
-        if(v==1)dstep_set(&TDRUM->dstep[9],0,LV_NORM,0);
+        song.g[G_BPM]=120;song.g[G_CLOCK]=3;song.rec=v==1?1u:0u;rec_wait=0;song.sel=0;trk[0].p[P_SLEN]=8;
         transport_req=1;
         for(j=0;j<(FS*2u-FS/4u)/CTL;j++) {               /* up to just before beat 4 */
-            uint32_t a=drums.age;
-            if(v==2 && !wrote && song.playing && trk[0].seq_idx==3u) {   /* (the take's note, in the first loop) */
-                trk[0].step[5].n=1;trk[0].step[5].note[0]=60;trk[0].step[5].time=ST_NOTE;trk[0].step[5].vel=100;wrote=1;
-            }
+            ca=clk_v.a;
             mix_block(out,CTL);
-            for(k=0;k<NDRUM;k++)if(drums.v[k].age>a && (drums.v[k].note==76u||drums.v[k].note==77u)){hits++;break;}   /* (the wood block) */
+            hits+=clk_v.a>ca;
         }
         transport_req=2;events_block(CTL);
-        if(v==0)assert(hits==4);
-        else if(v==1)assert(hits==0);
-        else assert(wrote && hits>=2 && hits<=3);           /* (the first loop's beats, then none: its note plays now) */
+        if(v==0)assert(hits==0);
+        else assert(hits==4);
+        song.rec=0;
     }
     /* LIVE record start. Stopped and armed, a project with notes: the first note starts the
      * loop and is step 1 */

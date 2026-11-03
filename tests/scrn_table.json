@@ -1,7 +1,7 @@
 {"lines": [
-   {"s":0,"i":0,"page":0,"title":"Tune","sect":"TUNE","kind":1,"label":"TUNE","val":"-2","unit":"","state":0,"danger":0,"gk":2,"gmin":-50,"gmax":50,"gv":-2,"byd":1,"fmt":0,"dmin":-50,"dmax":50,"ddef":0,"obj":""},
+   {"s":0,"i":0,"page":0,"title":"Tune","sect":"TUNE","kind":1,"label":"TUNE","val":"0","unit":"","state":0,"danger":0,"gk":2,"gmin":-50,"gmax":50,"gv":0,"byd":1,"fmt":0,"dmin":-50,"dmax":50,"ddef":0,"obj":""},
    {"s":0,"i":1,"page":0,"title":"Tune","sect":"TUNE","kind":1,"label":"QUANT","val":"ON","unit":"","state":0,"danger":0,"gk":5,"gmin":0,"gmax":1,"gv":1,"byd":1,"fmt":8,"dmin":0,"dmax":1,"ddef":1,"obj":"","vals":[["OFF",""],["ON",""]]},
-   {"s":0,"i":2,"page":1,"title":"MIDI","sect":"MIDI","kind":1,"label":"CLK IN","val":"A:INT","unit":"","state":0,"danger":0,"gk":3,"gmin":0,"gmax":3,"gv":0,"byd":1,"fmt":8,"dmin":0,"dmax":3,"ddef":3,"obj":"","vals":[["A:INT",""],["TRS",""],["USB",""],["INT",""]]},
+   {"s":0,"i":2,"page":1,"title":"MIDI","sect":"MIDI","kind":1,"label":"CLK IN","val":"USB","unit":"","state":0,"danger":0,"gk":3,"gmin":0,"gmax":3,"gv":2,"byd":1,"fmt":8,"dmin":0,"dmax":3,"ddef":3,"obj":"","vals":[["A:INT",""],["TRS",""],["USB",""],["INT",""]]},
    {"s":0,"i":3,"page":1,"title":"MIDI","sect":"MIDI","kind":1,"label":"CLK OUT","val":"OFF","unit":"","state":0,"danger":0,"gk":5,"gmin":0,"gmax":1,"gv":0,"byd":0,"fmt":0,"dmin":0,"dmax":0,"ddef":0,"obj":"","vals":[["OFF",""],["USB",""]]},
    {"s":0,"i":4,"page":1,"title":"MIDI","sect":"MIDI","kind":1,"label":"MIDI OUT","val":"KEYS","unit":"","state":0,"danger":0,"gk":3,"gmin":0,"gmax":3,"gv":1,"byd":1,"fmt":8,"dmin":0,"dmax":3,"ddef":0,"obj":"","vals":[["OFF",""],["KEYS",""],["SEQ",""],["BOTH",""]]},
    {"s":0,"i":5,"page":1,"title":"MIDI","sect":"MIDI","kind":1,"label":"CLK OFS","val":"0","unit":"ms","state":0,"danger":0,"gk":2,"gmin":-100,"gmax":250,"gv":0,"byd":1,"fmt":0,"dmin":-100,"dmax":250,"ddef":0,"obj":""},
@@ -14,8 +14,9 @@
    {"s":1,"i":2,"page":2,"title":"General","sect":"GENERAL","kind":1,"label":"KNOB COLORS","val":"OFF","unit":"","state":0,"danger":0,"gk":5,"gmin":0,"gmax":1,"gv":0,"byd":0,"fmt":0,"dmin":0,"dmax":0,"ddef":0,"obj":"","vals":[["OFF",""],["ON",""]]},
    {"s":1,"i":3,"page":2,"title":"General","sect":"GENERAL","kind":1,"label":"HPHN BASS","val":"OFF","unit":"","state":0,"danger":0,"gk":3,"gmin":0,"gmax":2,"gv":0,"byd":0,"fmt":0,"dmin":0,"dmax":0,"ddef":0,"obj":"","vals":[["OFF",""],["+3 dB",""],["+6 dB",""]]},
    {"s":1,"i":4,"page":2,"title":"General","sect":"USB","kind":1,"label":"SERIAL","val":"OFF","unit":"","state":0,"danger":0,"gk":5,"gmin":0,"gmax":1,"gv":0,"byd":0,"fmt":0,"dmin":0,"dmax":0,"ddef":0,"obj":"","vals":[["OFF",""],["ON",""]]},
-   {"s":1,"i":5,"page":3,"title":"About","sect":"ABOUT","kind":2,"label":"VERSION","val":"0.2","unit":"","state":0,"danger":0,"gk":0,"gmin":0,"gmax":0,"gv":0,"byd":0,"fmt":0,"dmin":0,"dmax":0,"ddef":0,"obj":""},
-   {"s":1,"i":6,"page":3,"title":"About","sect":"ABOUT","kind":2,"label":"BUILD","val":"<date>","unit":"<time>","state":0,"danger":0,"gk":0,"gmin":0,"gmax":0,"gv":0,"byd":0,"fmt":0,"dmin":0,"dmax":0,"ddef":0,"obj":""},
-   {"s":1,"i":7,"page":3,"title":"About","sect":"ABOUT","kind":2,"label":" ","val":"","unit":"github.c","state":0,"danger":0,"gk":0,"gmin":0,"gmax":0,"gv":0,"byd":0,"fmt":0,"dmin":0,"dmax":0,"ddef":0,"obj":""},
-   {"s":1,"i":8,"page":4,"title":"Credits","sect":"CREDITS","kind":2,"label":"CREDITS","val":"","unit":"","state":0,"danger":0,"gk":0,"gmin":0,"gmax":0,"gv":0,"byd":0,"fmt":0,"dmin":0,"dmax":0,"ddef":0,"obj":""}
+   {"s":1,"i":5,"page":2,"title":"General","sect":"METERS","kind":1,"label":"METERS","val":"CPUS","unit":"","state":0,"danger":0,"gk":3,"gmin":0,"gmax":3,"gv":1,"byd":0,"fmt":0,"dmin":0,"dmax":0,"ddef":0,"obj":"","vals":[["OFF",""],["CPUS",""],["MEMORY",""],["BOTH",""]]},
+   {"s":1,"i":6,"page":3,"title":"About","sect":"ABOUT","kind":2,"label":"VERSION","val":"0.2","unit":"","state":0,"danger":0,"gk":0,"gmin":0,"gmax":0,"gv":0,"byd":0,"fmt":0,"dmin":0,"dmax":0,"ddef":0,"obj":""},
+   {"s":1,"i":7,"page":3,"title":"About","sect":"ABOUT","kind":2,"label":"BUILD","val":"<date>","unit":"<time>","state":0,"danger":0,"gk":0,"gmin":0,"gmax":0,"gv":0,"byd":0,"fmt":0,"dmin":0,"dmax":0,"ddef":0,"obj":""},
+   {"s":1,"i":8,"page":3,"title":"About","sect":"ABOUT","kind":2,"label":" ","val":"","unit":"github.c","state":0,"danger":0,"gk":0,"gmin":0,"gmax":0,"gv":0,"byd":0,"fmt":0,"dmin":0,"dmax":0,"ddef":0,"obj":""},
+   {"s":1,"i":9,"page":4,"title":"Credits","sect":"CREDITS","kind":2,"label":"CREDITS","val":"","unit":"","state":0,"danger":0,"gk":0,"gmin":0,"gmax":0,"gv":0,"byd":0,"fmt":0,"dmin":0,"dmax":0,"ddef":0,"obj":""}
 ]}

@@ -1746,7 +1746,7 @@ static int sys_factory(uint32_t it)
         break;
 #endif
     case SI_KCOL:
-        knob_colors = 0;
+        knob_colors = 1;                                /* (its default: ON, 2026-11-03) */
         ui.redraw = 1;
         break;
     case SI_DBGST:

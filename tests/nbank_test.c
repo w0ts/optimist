@@ -50,7 +50,7 @@ static int st_read(uint32_t off, void *dst, uint32_t n)
 static int st_erase(uint32_t off) { uint32_t t; return fl_erase4k_quiet(off, &t); }
 static int st_prog(uint32_t off, const void *src, uint32_t n) { return fl_write(off, src, n); }
 #include "../firmware/src/storage/storage.c"
-static struct { int force; } ui;
+static struct { int force, redraw; } ui;   /* (redraw: sections.c since LCD_DIRTY went, 26c6b7ac) */
 static uint8_t sync_reload;
 static char last_msg[64];
 static void ui_message(const char *m) { str_cpy(last_msg, m, sizeof last_msg); }
