@@ -8,7 +8,7 @@ static struct wn_store wn_st IN_POOL;                     /* the saved networks 
 static void wifi_nets_in(const uint8_t r[WN_STORE_SIZE])
 {
     wn_load(&wn_st, r);
-    if (wn_st.mode == WN_MODE_JAM)
+    if (wn_st.mode == WN_MODE_JAM || wn_st.mode == WN_MODE_JAM_AUTO)
         wn_st.mode = WN_MODE_AUTO;                      /* (MODE JAM is the trial's Wi-Fi stack's; this one joins saved networks only) */
     if (wn_st.mode == WN_MODE_JAM_HOST)
         wn_st.mode = WN_MODE_AP;                        /* (JAM HOST too: here the access point, AP AUTO) */

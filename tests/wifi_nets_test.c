@@ -253,7 +253,16 @@ static void t_ap(void)
     raw[2] = 6;
     ok(wn_load(&r, raw) && r.mode == WN_MODE_JAM_HOST, "MODE JAM HOST (6) is kept");
     raw[2] = 7;
-    ok(wn_load(&r, raw) && r.mode == WN_MODE_OFF, "a mode above JAM HOST reads as OFF");
+    ok(wn_load(&r, raw) && r.mode == WN_MODE_JAM_AUTO, "MODE JAM AUTO (7) is kept");
+    raw[2] = 8;
+    ok(wn_load(&r, raw) && r.mode == WN_MODE_OFF, "a mode above JAM AUTO reads as OFF");
+    wn_reset(&s);
+    s.ap.grp = 5u;
+    wn_save(&s, raw);
+    ok(wn_load(&r, raw) && r.ap.grp == 5u, "the JAM group round trip");
+    s.ap.grp = 10u;
+    wn_save(&s, raw);
+    ok(wn_load(&r, raw) && r.ap.grp == 0u, "a group above 9 reads as none");
     old[1] = 3;
     ok(!wn_load(&r, old), "a version from the future is refused");
 }
