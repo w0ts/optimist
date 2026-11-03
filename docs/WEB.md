@@ -70,7 +70,7 @@ every listed profile. `python3 web/make_site.py --profiles` prints the profiles;
 
 `.github/workflows/pages.yml` runs on a push to `main` and by hand (Actions > pages > Run workflow). A published release
 asks for a run on `main` (its `redeploy` job), because the `github-pages` environment deploys from `main` only. It
-downloads the JieLi toolchain and SDK files on the runner (`tools/optimist.py setup`; nothing of them is stored or
+downloads the pi32v2-llvm toolchain and the SDK files on the runner (`tools/optimist.py setup`; nothing of them is stored or
 published), builds each listed profile and its simulator (Emscripten, `tools/sim.py build --wasm`), checks out the latest
 release's tag beside the checkout and builds the simulator of each of its packages from there (about 30 s each), makes the site and
 deploys it with `actions/deploy-pages` (actions pinned to commit SHAs; permissions: contents read, pages write, id-token

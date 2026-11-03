@@ -5,12 +5,12 @@
   the SDK files           three files of JieLi's AC79 SDK (Apache-2.0), checked against their SHA-256
 (in a git worktree the venv and the SDK files are the main checkout's, installed there once under a lock:
 tools/shared.py)
-  the toolchain           Linux x86-64: JieLi's archive (pinned version, SHA-256) into ~/.jieli
-  the toolchain image     elsewhere: docker build tools/docker (the toolchain is downloaded inside, never pushed)
+  the toolchain           pi32v2-llvm's drop-in for this host (pinned archive, SHA-256) into build/toolchains
 """
 import hashlib
 import http.client
 import os
+import shutil
 import subprocess
 import sys
 import tarfile
@@ -55,7 +55,7 @@ def venv_python(venv=None):
 
 def venv_ready(venv=None):
     py = venv_python(venv)
-    try:                            # (some Docker mounts refuse to stat a venv's symlinked python: not ready)
+    try:                            # (a mount that refuses to stat a venv's symlinked python: not ready)
         return py.exists() and subprocess.run([str(py), "-c", "import textual, PIL"],
                                               capture_output=True).returncode == 0
     except OSError:
@@ -155,47 +155,31 @@ def fetch_sdk(root):
     return Path(root)
 
 
-def fetch_toolchain(home=None):
-    """JieLi's archive (the pinned version) into home (~/.jieli), linked as home/toolchain -> the directory"""
-    home = Path(home or TC.JIELI_HOME)
-    name = f"jieli-linux-toolchains-{TC.TOOLCHAIN_VERSION}"
-    if not TC.has_clang(home / name):
-        home.mkdir(parents=True, exist_ok=True)
-        with tempfile.TemporaryDirectory(dir=home) as tmp:
-            archive = Path(tmp) / f"{name}.tar.xz"
-            print(f"setup: downloading the JieLi toolchain {TC.TOOLCHAIN_VERSION} (26 MB)")
-            download(TC.TOOLCHAIN_URL, archive)
-            if sha256(archive) != TC.TOOLCHAIN_SHA256:
-                raise FetchError("the toolchain archive does not match its SHA-256")
-            try:
-                extract(archive, home)
-            except tarfile.TarError as e:
-                raise FetchError(f"the toolchain archive: {e}")
-    link = home / "toolchain"
-    if link.is_symlink() or not link.exists():
-        link.unlink(missing_ok=True)
-        link.symlink_to(name)
-    return link
-
-
 def fetch_llvm(home=None):
-    """pi32v2-llvm's drop-in (the pinned archive, tools/toolchain.py LLVM_URL) into home (default: the repository's
-    build/toolchains, tools/repo_root.py; never ~/.jieli) as home/pi32v2-llvm-dropin-<version> -> that directory"""
+    """pi32v2-llvm's drop-in for this host (the pinned archive, tools/toolchain.py LLVM_ASSETS) into home (default: the
+    repository's build/toolchains, tools/repo_root.py) as home/pi32v2-llvm-dropin-<version>"""
+    asset = TC.llvm_asset()
+    if asset is None:
+        raise FetchError(TC._missing_hint(None))
+    name, want, mb = asset
     home = Path(home or repo_root.toolchains_dir())
-    name = f"pi32v2-llvm-dropin-{TC.LLVM_VERSION}"
-    if not TC.has_clang(home / name):
+    top = f"pi32v2-llvm-dropin-{TC.LLVM_VERSION}"
+    if TC.has_clang(home / top) and not TC.runs_here(home / top):
+        print(f"setup: the pi32v2-llvm in {home / top} is for another host: replacing it")
+        shutil.rmtree(home / top)
+    if not TC.has_clang(home / top):
         home.mkdir(parents=True, exist_ok=True)
         with tempfile.TemporaryDirectory(dir=home) as tmp:
-            archive = Path(tmp) / f"{name}.tar.xz"
-            print(f"setup: downloading pi32v2-llvm {TC.LLVM_VERSION} (72 MB) into {home}")
-            download(TC.LLVM_URL, archive)
-            if sha256(archive) != TC.LLVM_SHA256:
+            archive = Path(tmp) / name
+            print(f"setup: downloading pi32v2-llvm {TC.LLVM_VERSION} ({mb} MB) into {home}")
+            download(f"{TC.LLVM_RELEASE_URL}/{name}", archive)
+            if sha256(archive) != want:
                 raise FetchError("the pi32v2-llvm archive does not match its SHA-256")
             try:
                 extract(archive, home)
             except tarfile.TarError as e:
                 raise FetchError(f"the pi32v2-llvm archive: {e}")
-    return home / name
+    return home / top
 
 
 def extract(archive, dest, data_filter=None):
@@ -215,13 +199,3 @@ def extract(archive, dest, data_filter=None):
             if m.issym() and Path(m.linkname).is_absolute():
                 raise tarfile.TarError(f"{m.name}: an absolute link")
         t.extractall(dest)
-
-
-def build_image(image=None):
-    """docker build tools/docker -> the toolchain image (downloads the toolchain inside; a few minutes)"""
-    image = image or TC.image_name()
-    print(f"setup: docker build -t {image} tools/docker (the toolchain is downloaded from JieLi's server)")
-    cmd = ["docker", "build", "--platform", "linux/amd64", "-t", image, str(TC.DOCKERFILE_DIR)]
-    if subprocess.run(cmd).returncode:
-        raise FetchError("docker build failed")
-    return image

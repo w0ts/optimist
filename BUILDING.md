@@ -27,7 +27,7 @@ python tools/optimist.py emu        # pick a firmware (build/ or firmwares/) and
 
 | Command | What |
 | --- | --- |
-| `setup [--check] [--yes] [--no-emu]` | check the prerequisites; fetch the builder's venv (Textual, Pillow), the three SDK files and the toolchain (Linux x86-64) or its Docker image (elsewhere). `--check` fetches nothing, `--yes` does not ask |
+| `setup [--check] [--yes] [--no-emu]` | check the prerequisites; fetch the builder's venv (Textual, Pillow), the three SDK files and the pi32v2-llvm toolchain for this host. `--check` fetches nothing, `--yes` does not ask |
 | `builder [--profile P \| --config F]` | the interactive builder menu (docs/BUILDER.md) |
 | `build [--profile P \| --config F \| --defaults] [--set KEY=V] [--release X.Y] [--measure] [--summary F] [--classic]` | build without the menu (the release on fm1-base; `--classic`: Optimist's own firmware, any command). Default profile: `mots-config` |
 | `package [... the same ...] [--out DIR]` | build, then copy `optimist-<version>-<profile>.fwsc` and its `-ui.zip` to `DIR` (default `firmwares/`) |
@@ -38,14 +38,13 @@ python tools/optimist.py emu        # pick a firmware (build/ or firmwares/) and
 | `emu [FIRMWARE] [--cpu MHZ\|own] [--bg] [--fresh] [--list] [--update] [--rebuild]` | run a firmware in the emulator (below) |
 | `web [--port N] [--sim] [--profile P \| --config F] [--no-open]` | the site on `127.0.0.1:8766`: installer, editor, builder and simulator, with no firmware in it (install a `.fwsc` of yours or a cloud build). Offers to build the local simulator when there is none or it is outdated (`--sim`: always; needs Emscripten). Chrome or Edge for Web MIDI |
 | `cpu [SECONDS] [--port P] [--csv F] [--label T]` | the audio load of a real FM-1 from the CDC console (pyserial): `cpu_pct` min / mean / max, the worst half against the 85 % shed level, the voices shed (`tools/fm1_cpu.py`) |
-| `test [--python] [--no-build] [--in-docker]` | the host tests (below) |
+| `test [--python] [--no-build]` | the host tests (below) |
 | `gate`, `emu-check` | the integrator's gate and the emulator checks (below) |
 | `toolchain` | which toolchain, SDK files and Python a build would use |
 
-`build`, `package` and `test` also take `--in-docker`: the whole command runs inside the toolchain image, as on a Linux
-host. Exit status: 0 done, 1 failed, 2 usage or configuration error. `--summary FILE` writes the result as JSON (ok,
-files, sizes, the configuration's hash). The same profile and configuration give the same `.fwsc` bytes whichever way the
-toolchain runs (see "Reproducibility").
+Exit status: 0 done, 1 failed, 2 usage or configuration error. `--summary FILE` writes the result as JSON (ok,
+files, sizes, the configuration's hash). Whether two builds of one configuration give the same `.fwsc` bytes is under
+"Reproducibility" (they do not always).
 
 On macOS and Linux `make` has the same shortcuts (`make help` lists them): `make builder`, `build`, `package`, `flash`,
 `test`, `classic`, `setup`, `profiles`, `publish` / `share` / `delete PROFILE=name`, `web` (`PORT=`, `SIM=1`), `emu` (`FW=`,
@@ -77,7 +76,7 @@ profiles) is written as `build/builder.config`, and `tools/fm1base.py` runs `fm1
 `OPTIMIST` = this checkout and `OPT_CONFIG` = that file (the app's `gen_optimist.py` makes the configuration header and the
 generated tables from it through the builder's own `configure.py`; Bluetooth, Bluetooth audio and CACHE_RAM are the
 configuration's own, on fm1-base's: `fm1.toml`'s `ble`, `bt_audio` and `cache_ram_ways` follow it). An SD card mode profile (`LAYOUT=1`) builds with `FM1B_APP_END=0xCE000`, fm1-base's bigger app slot,
-by design with fewer flash projects. The toolchain is `JIELI_TOOLCHAIN` (default `~/.jieli/toolchain`), the SDK files
+by design with fewer flash projects. The toolchain is pi32v2-llvm's drop-in (`PI32V2_LLVM_TOOLCHAIN`, default the one `setup` fetches), the SDK files
 `AC79_SDK` (`make sdk`). The package lands where Optimist's does (`build/felucca.fwsc`, `build/optimist-<version>.fwsc`,
 `firmwares/` for `package`); `build/sizes.json` comes from fm1-base's `build/sizes.json` (flash against the same 581,564 B
 slot, the packed SRAM). One fm1-base build runs at a time (its build directory is the app's own, `fm1base/optimist/build`).
@@ -108,13 +107,12 @@ gitlinks.
 
 | Host | Toolchain | You install | `setup` fetches |
 | --- | --- | --- | --- |
-| Linux x86-64 | natively | Python 3 with `venv` (Debian/Ubuntu: `apt install python3-venv`) | the toolchain into `~/.jieli`, the SDK files, the venv |
-| Linux arm64 | Docker image | Docker Engine (your user in the `docker` group) and amd64 emulation (`binfmt`/QEMU) | the image, the SDK files, the venv |
-| macOS | Docker image | Docker Desktop or Rancher Desktop, started (Rosetta on Apple silicon) | the image, the SDK files, the venv |
-| Windows | Docker image or WSL | Docker Desktop (WSL 2 backend), or a WSL distribution | the image (Docker), the SDK files, the venv |
+| Linux x86-64 | native | Python 3.11 or newer with `venv` (Debian/Ubuntu: `apt install python3-venv`) | pi32v2-llvm, the SDK files, the venv |
+| macOS arm64 | native | Python 3.11 or newer (Homebrew: `brew install python`) | pi32v2-llvm, the SDK files, the venv |
+| Linux arm64, macOS x86-64, Windows | none yet | build pi32v2-llvm for the host ("The compiler"), then `PI32V2_LLVM_TOOLCHAIN=<dir>` | the SDK files, the venv |
 
-Run so far: macOS arm64 with Rancher Desktop, and Linux x86-64 (CI, and a `python:3.12-bookworm` amd64 container). Linux
-arm64 and Windows have not been run.
+Run so far: macOS arm64 (2026-11-03) and Linux x86-64 (CI). Nothing has been run on the other hosts. The compiler's
+wrapper needs `python3` to be 3.11 or newer on the `PATH`; the builder itself needs 3.9.
 
 For the emulator: git and Rust (`cargo`, from rustup.rs); on Linux also the GUI and audio libraries (below). For the C
 host tests: `sh` and a C compiler (macOS: `xcode-select --install`; Debian: `apt install build-essential`). Node.js is
@@ -122,9 +120,8 @@ optional (the web page tests).
 
 The pieces, should you want to set them up by hand:
 
-- **The JieLi Linux toolchain** (clang 4.0.1 and GNU binutils 2.26.51 for pi32v2), Linux x86-64 binaries from JieLi's
-  server. `setup` takes the pinned version `20250324.1` and checks its SHA-256 (`tools/toolchain.py`);
-  `tools/get_toolchain.sh` takes whatever JieLi's link serves now.
+- **pi32v2-llvm**, the compiler ("The compiler"): `setup` takes the archive for this host from the release assets of this
+  repository (the pinned version, checks its SHA-256: `tools/toolchain.py`, `LLVM_ASSETS`) into `build/toolchains/`.
 - **Three files of the JieLi AC79 SDK** (Apache-2.0; `AC79NN_SDK_V1.2.1_2023-12-13`: `cpu/wl82/tools/uboot.boot`,
   `cfg_tool.bin`, `cfg/eq_cfg_hw.bin`). They are not part of this tree. `setup` (or `make sdk`) fetches only them into
   `sdk/` (git-ignored; `AC79_SDK` names another place; `~/fw-AC79_AIoT_SDK` is still found) and checks their SHA-256.
@@ -138,74 +135,39 @@ The pieces, should you want to set them up by hand:
 
 ## How the toolchain runs
 
-`tools/toolchain.py` picks the first that works (`python tools/optimist.py toolchain` says which):
+`tools/toolchain.py` runs the compiler's drop-in natively on the build host (`python tools/optimist.py toolchain` says
+which one). There is no container, no WSL and no second compiler. The drop-in is, in order:
 
-1. `JIELI_BACKEND=native|image|docker|wsl` forces one.
-2. `JIELI_TOOLCHAIN=<dir>`: that copy, natively on Linux x86-64, else mounted into a `linux/amd64` `debian:bookworm-slim`
-   container (`JIELI_DOCKER_IMAGE`; `JIELI_DOCKER=1` uses the container on Linux too).
-3. Linux x86-64: `~/.jieli/toolchain`, natively.
-4. The toolchain image `optimist-toolchain:20250324.1` (`JIELI_TOOLCHAIN_IMAGE`), when Docker runs and the image is there.
-5. `~/.jieli/toolchain-docker` or `~/.jieli/toolchain` mounted into a container.
-6. Windows: a WSL distribution that has the toolchain (`JIELI_WSL_DISTRO`, `JIELI_WSL_TOOLCHAIN`).
+1. `PI32V2_LLVM_TOOLCHAIN=<dir>`: that directory.
+2. `build/toolchains/pi32v2-llvm-dropin-<version>` of the repository: what `setup` downloads. In a git worktree it is
+   the main checkout's `build/toolchains` (one copy for all), in a plain copy of a tree (the farm's tar copies)
+   `OPTIMIST_TOOLCHAINS=<dir>`, else the nearest `build/toolchains` above the tree (`tools/repo_root.py`; M-Flasher's
+   `build/m-flasher` follows the same rule). Nothing goes into your home.
 
-Each tool runs in its own short-lived container. A tool that fails because the mount lags or crashes under emulation
-runs again, up to four times; the builder also retries a whole build that failed that way.
-
-**Stale files in the container (macOS).** The container reaches the tree through the VM's file share, and the share
-caches file attributes (Rancher Desktop's reverse-sshfs: 20 s, plus about 1 s in the VM's kernel). A file the host
-rewrites within that time can be seen with its old size: the compiler then reads the new text cut short ("expected
-'}'") or padded with NULs ("null character ignored"), and a same-size change could compile silently wrong. Measured
-2026-10-09 on Rancher Desktop 1.24: up to 15 of 100 fresh compiles failed after a rename; fsync and waiting did not help.
-The fix is `tools/toolchain.py sync_view`: before the tools read files the host has just written (`build/gen`,
-`build/felucca_size.ll`, and anything under `firmware/` changed in the last 120 s), `tools/build.py` runs a container
-that `touch`es each one (which drops the cached attributes) and prints its size and SHA-256 as the container sees it.
-If any differs from the host's the build stops with "the container sees stale files" and names them. It costs about
-0.7 s of an 11 s build, and is skipped natively, on WSL and with `--in-docker`. To measure it on your machine:
-`python3 tools/mount_stress.py "$PWD" --probe cc` (add `--fix` for `sync_view`).
-
-### The Docker image
-
-`tools/docker/Dockerfile` (Debian bookworm, `linux/amd64`): the toolchain, the three SDK files, Python with Pillow and gcc
-for the host tests. `setup` builds it when the host cannot run the toolchain itself; by hand:
-
-```
-docker build --platform linux/amd64 -t optimist-toolchain:20250324.1 tools/docker
-```
-
-The toolchain is downloaded from JieLi's server while the image builds, on your machine, and its SHA-256 is checked.
-**Never push this image to a registry** (next section). A toolchain you downloaded yourself works without the image:
-`JIELI_TOOLCHAIN=<dir>`. Some Docker setups (Rancher Desktop) cannot read symbolic links inside a mounted folder, and
-`pi32v2/bin/clang` is a link; for a mounted copy, resolve them with `cp -RL`
-(`~/.jieli/toolchain/{common,pi32v2}` to `~/.jieli/toolchain-docker/`).
-
-### The toolchain's licence
-
-Checked 2026-10-06. The archive holds no licence, copyright notice or terms of use. JieLi's documentation gives only the
-download link and a copyright line. The binaries are modified free software (`ld` and `ar`: GNU Binutils 2.26.51, GPL
-version 3; `clang`: LLVM 4.0.1) and JieLi publishes no source for its pi32v2 changes. So nothing grants us the right to
-pass the toolchain on: this repository never contains it, the Docker image is built locally and never pushed, and CI
-downloads it from JieLi's public server on each runner (kept only in the runner's cache), as any user does. If JieLi
-publishes terms, they decide. The AC79 SDK is Apache-2.0; its three files are fetched, not stored here.
+A drop-in that does not run on the host (the Linux x86-64 archive on a Mac, or `python3` older than 3.11) is refused with
+that reason. fm1-base's own build (the release) runs the same directory: `tools/fm1base.py` gives it as `JIELI_TOOLCHAIN`
+(the name fm1-base's `tools/build.py` reads) with `JIELI_DOCKER=0`.
 
 ### The compiler
 
-The builder's item **COMPILER** (bit 442; the console builder lists it, the web builder holds JieLi for now) picks the C
-compiler for both builds, Optimist's own (`tools/build.py`) and the release (`tools/fm1base.py`):
+**pi32v2-llvm**: Julius Vitkauskas's LLVM with a pi32v2 target
+([pi32v2-llvm](https://github.com/jvitkauskas/pi32v2-llvm), [pi32v2-isa](https://github.com/jvitkauskas/pi32v2-isa)),
+used as his *drop-in*: a directory with the layout and tool names of the vendor's old toolchain (`pi32v2/bin/clang`,
+`ld`, `common/bin/objdump`, ...) whose wrapper needs Python 3.11. It is the only compiler (the builder's item COMPILER,
+bit 442, was retired 2026-11-03 with JieLi's own clang 4 and the Docker, image and WSL ways of running it; an old
+`.config` that names it still loads, the line ignored). Measured 2026-10-29 against JieLi's clang: the same firmware 14 KB
+(Optimist's own, default profile) to 30 KB (a full release configuration) smaller, the audio's CPU the same; played on
+an FM-1.
 
-- **pi32v2-llvm** (default): Julius Vitkauskas's LLVM with a pi32v2 target
-  ([pi32v2-llvm](https://github.com/jvitkauskas/pi32v2-llvm), [pi32v2-isa](https://github.com/jvitkauskas/pi32v2-isa)),
-  used as his *drop-in* for JieLi's toolchain: a directory with the same layout and tool names (`pi32v2/bin/clang`, `ld`,
-  `common/bin/objdump`, ...) whose wrapper needs Python 3.11. Measured 2026-10-29: the same firmware 14 KB (Optimist's
-  own, default profile) to 30 KB (a full release configuration) smaller, the audio's CPU the same; played on an FM-1.
-- **JieLi's clang 4** (`COMPILER=0`): the toolchain above.
+Hosts with a drop-in, as release assets of this repository (`tools/toolchain.py` `LLVM_ASSETS`, the SHA-256 pinned):
 
-`setup` downloads the drop-in into `build/toolchains/pi32v2-llvm-dropin-<version>` of the repository (git-ignored; nothing goes into your home; `PI32V2_LLVM_TOOLCHAIN=<dir>` for another). In a git worktree it is the main checkout's `build/toolchains` (one copy for all), in a plain copy of a tree (the farm's tar copies) `OPTIMIST_TOOLCHAINS=<dir>`, else the nearest `build/toolchains` above the tree (`tools/repo_root.py`; M-Flasher's `build/m-flasher` follows the same rule). An older copy in `~/.jieli/pi32v2-llvm` is still found, with a note to move it: the archive
-`pi32v2-llvm-dropin-<llvm>-<isa>.tar.xz`, a release asset of this repository, its SHA-256 pinned in `tools/toolchain.py`
-(`LLVM_URL`, `LLVM_SHA256`). On Linux x86-64 it runs natively; elsewhere each tool runs in the toolchain image with the
-drop-in mounted at `/opt/jieli` (the image's Python; plain `debian:bookworm-slim` has none), the release build's container
-too (`JIELI_DOCKER_IMAGE`). WSL: not yet (use JieLi there).
+| Host | Asset |
+| --- | --- |
+| Linux x86-64 | `pi32v2-llvm-dropin-<llvm>-<isa>.tar.xz` (72 MB) |
+| macOS arm64 | `pi32v2-llvm-dropin-<llvm>-<isa>-macos-arm64.tar.xz` (38 MB) |
 
-The archive is made from pinned commits on Linux x86-64 (about an hour on 8 cores):
+The archive is made from pinned commits on the host it is for (about an hour on 8 cores for Linux; 16 cores of a Mac:
+about the same):
 
 ```
 git clone --branch pi32v2 https://github.com/jvitkauskas/pi32v2-llvm LLVM && git -C LLVM checkout 4f631b31b
@@ -214,34 +176,27 @@ sh ISA/tools/llvm/package.sh LLVM build prefix/pi32v2-llvm            # clang, l
 sh ISA/tools/dropin/make_dropin.sh --copy prefix/pi32v2-llvm/bin build/runtime pi32v2-llvm-dropin-4f631b31b-e575321
 ```
 
-then its licences (`LLVM/LICENSE.TXT`, `ISA/LICENSE`, `ISA/LICENSES/*`) into `licenses/`, a `VERSION` file with the two
-commits, and `tar -cJf` of the directory. Licences: Apache-2.0 WITH LLVM-exception (LLVM), MIT-0 (pi32v2-isa's tools), so
-unlike JieLi's it may be passed on. The build's checks read the disassembly with `-mcpu=r3` (`tools/build.py`
-`OBJDUMP_CPU`: without it the FPU's instructions are not decoded, with either compiler), and the ROM check flags a
-constant only where it is used as an address (`tools/romref.py`).
+On macOS two things differ from that recipe (2026-11-03): `package.sh` links statically (`-DLLVM_BUILD_STATIC=ON`), which
+macOS cannot do, so run its `cmake` with `-DLLVM_BUILD_STATIC=OFF` (a copy of the script with that one flag changed), and
+the LLVM fork needs one cast that Apple clang insists on and GCC does not (`PI32V2AsmBackend.cpp`, `unsigned(L.InsnBytes) *
+8` as `uint8_t(...)`: line 164 of `4f631b31b`; it is in the macOS archive as `licenses/pi32v2-llvm-macos-arm64.patch`
+and belongs upstream). Then the licences (`LLVM/LICENSE.TXT`, `ISA/LICENSE`, `ISA/LICENSES/*`) into `licenses/`, a `VERSION`
+file with the two commits, and `tar -cJf` of the directory (`COPYFILE_DISABLE=1` on macOS). Licences: Apache-2.0 WITH
+LLVM-exception (LLVM), MIT-0 (pi32v2-isa's tools), so unlike the vendor's toolchain it may be passed on. The build's checks
+read the disassembly with `-mcpu=r3` (`tools/build.py` `OBJDUMP_CPU`: without it the FPU's instructions are not decoded),
+and the ROM check flags a constant only where it is used as an address (`tools/romref.py`).
 
-## Windows
+### The SDK's licence
+
+The AC79 SDK (the vendor's) is Apache-2.0; its three files are fetched, not stored here, and the licence travels with every
+package (LICENSING.md).
+
+## Windows and the other hosts
 
 `tools/optimist.py` is written to run on Windows (pathlib paths, no shell, `.gitattributes` keeps scripts LF), but
-**nothing has been run on Windows yet**. Two ways to build:
-
-**Docker Desktop** (WSL 2 backend), started. In PowerShell or cmd, in the source folder:
-
-```
-py tools\optimist.py setup              # the venv, the SDK files, builds the toolchain image
-py tools\optimist.py builder
-py tools\optimist.py test --in-docker   # the C host tests need sh and a C compiler: in the image
-```
-
-**WSL** (Ubuntu with `python3-venv`): put the toolchain inside the distribution once, then set up the Windows side:
-
-```
-wsl -- BUILDER_VENV=~/optimist-venv python3 tools/optimist.py setup --yes --no-emu   # in WSL: downloads the toolchain
-py tools\optimist.py setup              # on Windows: the venv, the SDK files; finds WSL's toolchain
-py tools\optimist.py builder            # each tool runs through wsl.exe
-```
-
-(`BUILDER_VENV` keeps WSL's Linux venv out of the Windows one.) Or work inside WSL entirely: there it is Linux.
+**nothing has been run on Windows yet, and there is no pi32v2-llvm drop-in for it** (nor for Linux arm64 or macOS x86-64):
+`setup` says so. Build one for the host ("The compiler"; Windows needs a MinGW or MSVC build of LLVM and the wrapper's
+Python 3.11) and point `PI32V2_LLVM_TOOLCHAIN` at it, or build on Linux x86-64 or macOS arm64.
 
 ## Emulator
 
@@ -275,7 +230,7 @@ fetched and installed, and put what is missing there once (`tools/shared.py`):
 |---|---|
 | `sdk/`, `tools/builder/venv`, `emulator/fm1-emulator` (clone and cargo build), `build/hiphop-src` (sample downloads) | `build/`, `emulator/state` and `emulator/logs`, `firmwares/` |
 
-The toolchain (`~/.jieli`) and the Docker image are per user. A tool that uses a shared resource says so on one line.
+The toolchain (`build/toolchains`) is the main checkout's, one copy for all worktrees. A tool that uses a shared resource says so on one line.
 Explicit settings come first and are never replaced: `AC79_SDK`, `BUILDER_VENV`, `EMU_DIR`, `EMU_REPO`, `EMU_BRANCH`.
 Several worktrees may run at once (an install into a shared folder holds `optimist-install.lock`). The builds are the
 same as in the main checkout.
@@ -288,11 +243,14 @@ to use the worktree's own `config/`. `build/builder.config` (the last build's co
 
 ## Reproducibility
 
-The build is reproducible across hosts: nothing in the `.fwsc` depends on the host, the date or the path. Checked
-2026-10-06 (commit c14c7ba, clean `build/` each time): two profiles of that time built with `--release 0.1` gave the same
-SHA-256 of `build/felucca.fwsc` on macOS arm64 (the `image`, `docker` and `--in-docker` backends) and on Linux x86-64
-natively, with Pillow 10.4.0, 12.2.0 and 12.3.0. The package names differ only by `-modified` and the commit; the bytes
-do not. (Not repeated since; the firmware has changed a great deal.)
+Builds of one configuration are **the same size, not always the same bytes** (measured 2026-11-03, the `synths` profile
+of the release): the macOS arm64 build and the Linux x86-64 drop-in's Docker build gave the same app image (600,540 B),
+the same build id, and the same symbols but one; yet two builds of the *same tree with the same compiler* differed from
+each other by a few thousand bytes, on Linux x86-64 in Docker as on macOS native (forcing `ld.lld` to one thread,
+`PI32V2_DROPIN_LDFLAGS=--threads=1`, made it fewer, not none). In the cases looked at the differing bytes were address
+immediates: string constants placed in another order, the addresses after them shifted. Where it comes from is not found
+yet. Until it is, compare builds by size, build id and symbol table, not by a hash of the `.fwsc`. (Before pi32v2-llvm
+was the compiler, 2026-10-06, commit c14c7ba, JieLi's clang built the same bytes on macOS arm64 and Linux x86-64.)
 
 ## CI and releases
 
@@ -309,7 +267,7 @@ do not. (Not repeated since; the firmware has changed a great deal.)
 ## Build scripts, flags and identity
 
 `./build.sh` (macOS, Linux) and `python tools/build.py` build every registry default (the measurement configuration) or
-`--config FILE`; `tools/optimist.py build` is the usual way. `JIELI_TOOLCHAIN` and `AC79_SDK` override the locations.
+`--config FILE`; `tools/optimist.py build` is the usual way. `PI32V2_LLVM_TOOLCHAIN` and `AC79_SDK` override the locations.
 `--release X.Y` makes a release build (it must match `VERSION`): the package identity becomes `FM-1_7(X+2)Y` and the
 version string `X.Y BETA`; the package is `build/optimist-X.Y.fwsc`.
 
@@ -368,7 +326,6 @@ only the generated drum kit.
 
 ```
 python tools/optimist.py test             # the builds below, then tests/run_tests.sh, then the release's (fm1base/)
-python tools/optimist.py test --in-docker # the same in the toolchain image (Linux; also from Windows)
 python tools/optimist.py test --python    # the Python tests only (any host, no build, no C compiler)
 ```
 
@@ -399,7 +356,7 @@ hashes; `BUDGET_UPDATE=1` the cost files. Both run one at a time. FM6 against De
 build per item value: ~440 builds for a full run, so it is measured on a fast Linux x86-64 host, not on a laptop
 (`tools/farm_size.sh [PROFILE] [KEY=V ...]` sizes one build on such a host over ssh; `FARM_HOST`, default `gpufarm`).
 `make costs` measures only what is missing (after adding an item); `make costs-all [JOBS=n]` measures everything again
-(JOBS: builds at once; default the CPUs, in Docker the VM's less two, at most 8). Commit `costs.json` and
+(JOBS: builds at once; default the CPUs and the free RAM). Commit `costs.json` and
 `web/builder/data/` (`tools/export_builder_web.py`) together. docs/BUILDER.md, "Budget", explains the model and the
 checks CI runs against it.
 

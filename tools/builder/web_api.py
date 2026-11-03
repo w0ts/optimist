@@ -23,9 +23,8 @@ import core as K
 import registry as R
 
 COSTS = None
-# items the web builder holds at a value of its own and does not list (2026-10-29, the user: the console builder offers the
-# compiler, the web builder switches to the one kept): its .config then says COMPILER=0, so a cloud build uses JieLi's
-WEB_FIXED = {"COMPILER": 0}
+# items the web builder holds at a value of its own and does not list (none now: COMPILER, held at JieLi's, was retired)
+WEB_FIXED = {}
 
 
 def _configure_shim():

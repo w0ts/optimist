@@ -1902,7 +1902,7 @@ job; ( jobin
     run "the build's ROM check (tools/romref.py): a constant used as an address fails, a number kept passes" python3 tests/romref_test.py
     run "the build's RAM/XIP direct-call check (tools/farcalls.py): a real call fails, a jump table's data word that reads as a call passes" python3 tests/farcalls_test.py
     run "package version: an export inside another checkout is not named after that checkout's commit (tools/srcgit.py)" python3 tests/srcgit_test.py
-    run "the COMPILER item: pi32v2-llvm or JieLi, natively or in the toolchain image, for both builds" python3 tests/compiler_test.py
+    run "the compiler: pi32v2-llvm's drop-in, run natively, for both builds; the retired COMPILER item" python3 tests/compiler_test.py
     run "fetched tools (pi32v2-llvm, M-Flasher) live in the main checkout's build/, inside the repo only" python3 tests/repo_root_test.py
     run "tools that find the FM-1 by its USB-MIDI port name: FM1-XXXX, the old Optimist, not other gear" python3 tests/port_names_test.py
 ) >"$U.out" 2>&1 & jobbg
