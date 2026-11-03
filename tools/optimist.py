@@ -236,20 +236,59 @@ def cmd_flash(a):
         pkg = build_for_flash(a)
         if pkg is None:
             return 1
-    port = a.port
     try:
-        try:
-            plan = flash.preflight(pkg, port, install_mboot=a.install_mboot)
-        except flash.SeveralFM1 as e:                   # (several FM-1s and no --port: asked which one, on a terminal)
-            if a.yes or not sys.stdin.isatty():
-                raise
-            for i, n in enumerate(e.ports, 1):
-                print(f"  {i}  {n}")
-            ans = input(f"Several FM-1s are connected: which one? [1-{len(e.ports)}, Enter cancels] ").strip()
-            if not ans.isdigit() or not 1 <= int(ans) <= len(e.ports):
-                print("flash cancelled; nothing was written")
-                return 1
-            plan = flash.preflight(pkg, e.ports[int(ans) - 1], install_mboot=a.install_mboot)
+        ports = which_fm1s(a, pkg)
+        if ports is None:
+            return 1
+        if len(ports) == 1:
+            return flash_one(a, pkg, ports[0])
+        results = []                                    # (several, one after the other: each its own read and answer)
+        for i, port in enumerate(ports, 1):
+            print(f"\n== {port} ({i} of {len(ports)})")
+            rc = flash_one(a, pkg, port)
+            results.append((port, rc))
+            if rc:
+                break                                   # (a failed or cancelled unit stops the series: look first)
+        print("\nseries: " + ", ".join(f"{p} {'ok' if rc == 0 else f'exit {rc}'}" for p, rc in results)
+              + (f"; not flashed: {', '.join(ports[len(results):])}" if len(results) < len(ports) else ""))
+        return next((rc for _, rc in results if rc), 0)
+    except flash.FlashError as e:
+        print(f"flash: {e}", file=sys.stderr)
+        return e.code
+
+
+def which_fm1s(a, pkg):
+    """-> the ports to flash, in order: --port NAME (one), --port all (every FM-1 connected), the only FM-1 ([None]),
+    or, with several and a terminal, the answer (a number, or a: all of them, one after the other); None: cancelled"""
+    import flash
+    if a.port and a.port.lower() != "all":
+        return [a.port]
+    ports = flash.fm1_ports()
+    if a.port:                                          # (--port all / make flash FM1=all)
+        if not ports:
+            raise flash.FlashError("--port all: no FM-1 found over USB-MIDI (data cable? another app using it?)", 3)
+        return ports
+    if len(ports) < 2:
+        return [None]                                   # (the only one: preflight finds it, or says none is there)
+    if a.yes or not sys.stdin.isatty():
+        raise flash.SeveralFM1(ports)
+    for i, n in enumerate(ports, 1):
+        print(f"  {i}  {n}")
+    print(f"  a  all {len(ports)}, one after the other")
+    ans = input(f"Several FM-1s are connected: which one? [1-{len(ports)}, a, Enter cancels] ").strip().lower()
+    if ans == "a":
+        return ports
+    if not ans.isdigit() or not 1 <= int(ans) <= len(ports):
+        print("flash cancelled; nothing was written")
+        return None
+    return [ports[int(ans) - 1]]
+
+
+def flash_one(a, pkg, port):
+    """one FM-1 (port None: the only one): its identity read, the settings question, the confirmation, the install"""
+    import flash
+    try:
+        plan = flash.preflight(pkg, port, install_mboot=a.install_mboot)
         flag = "wipe" if a.wipe_settings else "keep" if a.keep_settings else None
         if plan.download and plan.settings and plan.settings.ask and flag is None and not a.yes:
             print(f"{plan.settings.reason}.")
@@ -685,7 +724,7 @@ def parser():
     p.add_argument("--no-build", action="store_true",
                    help="no PACKAGE and no build: flash the newest build/optimist-*.fwsc as it is")
     add_config_args(p)                                   # (what to build when there is no PACKAGE)
-    p.add_argument("--port", metavar="NAME", help="MIDI port to use (part of its name)")
+    p.add_argument("--port", metavar="NAME", help="MIDI port to use (part of its name; all: every FM-1 connected, one after the other)")
     p.add_argument("--yes", action="store_true", help="do not ask for confirmation")
     p.add_argument("--install-mboot", action="store_true",
                    help="install m-bootloader (download mode, a full backup first); never done otherwise")

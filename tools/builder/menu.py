@@ -187,6 +187,9 @@ class Builder(App):
         self.build_stage = None                          # (n, total, label) of the last stage line, if the build prints them
         self.build_shown = 0.0                           # when the bar was last moved by an output line (throttle)
         self.flashing = False                            # the FM-1 is being written: q and ctrl+c are refused (action_quit)
+        self.flash_queue = ()                            # "All": the FM-1s still to flash after this one (one at a time)
+        self.flash_series = ()                           # (port, first line of its result) of the units done in the series
+        self.series_port = None                          # the port the last preflight read (None: the only FM-1)
         self.code0 = ST.code_fingerprint()               # the builder's code as it started (changed: f refuses)
         self.source = ST.source_line(C.ROOT)             # the checkout and commit a build compiles
         self.over, self.savings, self.arena_item = {}, {}, {}
@@ -946,10 +949,12 @@ class Builder(App):
         self.build_out = f"flash: reading the FM-1's identity... ({pkg.name})"
         self.refresh_msgs()
         self.progress_show("flash: reading the FM-1's identity", None)
+        self.flash_queue, self.flash_series = (), ()
         self.run_flash_preflight(pkg)
 
     @work(thread=True, exclusive=True, group="flash")
     def run_flash_preflight(self, pkg, port=None):
+        self.series_port = port
         try:
             plan = F.preflight(pkg, port)
         except F.SeveralFM1 as e:                       # (several FM-1s: which one, then the preflight again on its port)
@@ -965,19 +970,24 @@ class Builder(App):
         self.build_out = "flash: several FM-1s connected, waiting for your answer"
         self.refresh_msgs()
 
+        every = f"All {len(ports)}, one after the other ({', '.join(ports)})"
+
         def answer(choice):
             if choice == "Cancel":
                 self.flash_done("flash cancelled; nothing was written", False)
                 return
-            self.progress_show(f"flash: reading {choice}'s identity", None)
-            self.run_flash_preflight(pkg, choice)
-        self.push_screen(Pick("Several FM-1s are connected: which one?", ["Cancel", *ports], answer))
+            first = choice
+            if choice == every:                          # (each unit: its own identity read and its own confirmation)
+                first, self.flash_queue = ports[0], tuple(ports[1:])
+            self.progress_show(f"flash: reading {first}'s identity", None)
+            self.run_flash_preflight(pkg, first)
+        self.push_screen(Pick("Several FM-1s are connected: which one?", ["Cancel", every, *ports], answer))
 
     def flash_confirm(self, plan):
         self.progress_hide()
         self.build_out = "flash: waiting for your answer"
         self.refresh_msgs()
-        title = "Flash to FM-1\n\n" + "\n".join(plan.lines())
+        title = f"Flash to FM-1{self.series_label(plan.port)}\n\n" + "\n".join(plan.lines())
         mboot = "Install m-bootloader instead: download mode (M-Flasher, a full backup first)"
         go = ("Flash anyway (the FM-1 may refuse it)" if plan.warn else
               "Flash anyway (a new memory layout: backed up first?)" if plan.layout_known else
@@ -1053,9 +1063,34 @@ class Builder(App):
             text = "FLASH OK\n" + "\n".join(f"  {ln}" for ln in tail)
         self.call_from_thread(self.flash_done, text, rc != 0)
 
+    def series_label(self, port):
+        """' FM1-620C (1 of 2)' while flashing several one after the other, else the port's name or nothing"""
+        if not self.flash_queue and not self.flash_series:
+            return f" {port}" if port else ""
+        n = len(self.flash_series) + 1
+        return f" {port} ({n} of {n + len(self.flash_queue)})"
+
     def flash_done(self, text, failed):
+        """one flash ended (written, failed, refused or cancelled); in a series ("All") the next FM-1 is read next,
+        unless this one failed or was cancelled: then the rest is not flashed and the panel says which"""
         self.flashing = False
         self.progress_hide()
+        if self.flash_queue or self.flash_series:
+            port = self.series_port
+            self.flash_series = (*self.flash_series, (port, text.splitlines()[0]))
+            rest, self.flash_queue = self.flash_queue, ()
+            stop = failed or text.startswith("flash cancelled")
+            if rest and not stop:
+                self.flash_queue = rest[1:]
+                self.build_out = text + f"\n\nnext: {rest[0]}"
+                self.refresh_msgs()
+                self.progress_show(f"flash: reading {rest[0]}'s identity", None)
+                self.run_flash_preflight(self.built.package, rest[0])
+                return
+            done = "\n".join(f"  {p}: {line}" for p, line in self.flash_series)
+            left = f"\n  not flashed: {', '.join(rest)}" if rest else ""
+            text = text + f"\n\nseries:\n{done}{left}"
+            self.flash_series = ()
         self.build_out = text
         self.refresh_msgs()
         self.notify(text.splitlines()[0], title="flash", severity="error" if failed else "information",
