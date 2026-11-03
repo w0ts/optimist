@@ -145,6 +145,48 @@ with tempfile.TemporaryDirectory() as td:
           "--force" in got[0] and "--force" not in got[1])
 
 
+# ---- make flash / optimist.py flash: which FM-1s (one named, all, the only one, or asked on a terminal)
+def which_checks():
+    import builtins
+    import io
+    from types import SimpleNamespace
+    sys.path.insert(0, str(ROOT / "tools"))
+    O = importlib.import_module("optimist")
+    keep = (FL.fm1_ports, sys.stdin, builtins.input)
+
+    class Tty(io.StringIO):
+        def isatty(self):
+            return True
+    try:
+        def pick(port=None, yes=False, units=("FM1-620C", "FM1-E040"), answer=None):
+            FL.fm1_ports = lambda: list(units)
+            sys.stdin = Tty()
+            builtins.input = lambda q="": answer if answer is not None else ""
+            try:
+                return O.which_fm1s(SimpleNamespace(port=port, yes=yes), None)
+            except FL.SeveralFM1 as e:
+                return ("several", e.code)
+        check("which: --port NAME: only that one, the list not needed", pick("FM1-E040", units=()) == ["FM1-E040"])
+        check("which: --port all: every FM-1 connected, in order", pick("all") == ["FM1-620C", "FM1-E040"])
+        check("which: the only FM-1 (or none): preflight finds it", pick(units=("FM1-620C",)) == [None]
+              and pick(units=()) == [None])
+        check("which: several with --yes: not guessed (SeveralFM1, exit 9)", pick(yes=True) == ("several", 9))
+        check("which: several, answer a: all of them, one after the other", pick(answer="a") == ["FM1-620C", "FM1-E040"])
+        check("which: several, answer 2: the second", pick(answer="2") == ["FM1-E040"])
+        check("which: several, Enter: cancelled (None)", pick(answer="") is None)
+        FL.fm1_ports = lambda: []
+        try:
+            O.which_fm1s(SimpleNamespace(port="all", yes=True), None)
+            check("which: --port all with no FM-1: refused, exit 3", False)
+        except FL.FlashError as e:
+            check("which: --port all with no FM-1: refused, exit 3", e.code == 3)
+    finally:
+        FL.fm1_ports, sys.stdin, builtins.input = keep
+
+
+which_checks()
+
+
 # ---- the menu itself (Textual, headless): f goes through stamp.refusal; nothing reaches the device
 def menu_checks():
     import asyncio
@@ -280,6 +322,48 @@ def menu_checks():
                       and 0 < seen[3] < 50 and seen[5] > 50)
                 check("menu: after the flash the bar is gone and FLASH OK is in the panel",
                       not bar_on(app) and app.build_out.startswith("FLASH OK"))
+
+                # -- several FM-1s: "All" flashes them one after the other, each read and confirmed on its own port
+                read = []
+
+                def several(pkg, port=None, notes=None):
+                    if port is None:
+                        raise FL.SeveralFM1(["FM1-620C", "FM1-E040"])
+                    read.append(port)
+                    return FL.Plan(pkg, "FM-1_700", "FM-1_700  [running]", port, [])
+                M.F.preflight = several
+                calls.clear()
+                await pilot.press("f")
+                await settle(pilot, lambda: app.screen.query("#pick"))
+                opts = list(app.screen.options)
+                check("menu: several FM-1s: the list offers Cancel, All 2 (one after the other), then each unit",
+                      opts[0] == "Cancel" and opts[1].startswith("All 2, one after the other") and opts[2:] ==
+                      ["FM1-620C", "FM1-E040"])
+                await pilot.press("down", "enter")                  # (All)
+                for unit in (1, 2):
+                    await settle(pilot, lambda: app.screen.query("#pick") and "Flash to FM-1" in app.screen.title_)
+                    check(f"menu: All: unit {unit}'s confirmation names it and counts ({unit} of 2)",
+                          f"({unit} of 2)" in app.screen.title_ and ("FM1-620C", "FM1-E040")[unit - 1] in app.screen.title_)
+                    await pilot.press("down", "enter")
+                    await settle(pilot, lambda: len([c for c in calls if c[0] == "install"]) == unit and not app.flashing)
+                await settle(pilot, lambda: "series:" in app.build_out)
+                check("menu: All: both read on their own port, in order, both installed, the panel lists both",
+                      read == ["FM1-620C", "FM1-E040"] and len([c for c in calls if c[0] == "install"]) == 2
+                      and "FM1-620C: FLASH OK" in app.build_out and "FM1-E040: FLASH OK" in app.build_out
+                      and not app.flash_queue and not app.flash_series)
+
+                # -- All, then Cancel at the first confirmation: nothing written, the second not even read
+                read.clear()
+                calls.clear()
+                await pilot.press("f")
+                await settle(pilot, lambda: app.screen.query("#pick"))
+                await pilot.press("down", "enter")
+                await settle(pilot, lambda: app.screen.query("#pick") and "Flash to FM-1" in app.screen.title_)
+                await pilot.press("enter")                          # (Cancel)
+                await settle(pilot, lambda: "series:" in app.build_out)
+                check("menu: All, the first cancelled: nothing installed, the second not read, 'not flashed: FM1-E040'",
+                      read == ["FM1-620C"] and not [c for c in calls if c[0] == "install"]
+                      and "not flashed: FM1-E040" in app.build_out and not app.flash_queue)
     try:
         asyncio.run(run())
     finally:

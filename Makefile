@@ -20,7 +20,7 @@ help:
 	@echo "make build   [PROFILE=name]    build a profile without the menu ($(PROFILE))"
 	@echo "make classic [PROFILE=name]    the same, Optimist's own firmware (main's): what make build did before the release"
 	@echo "make package [PROFILE=name]    build a profile and copy .fwsc (+ -ui.zip, classic) into $(IMAGES)/"
-	@echo "make flash   [PKG=file.fwsc] [KEEP_BOOTLOADER=1]   build $(PROFILE) and install it (or PKG as it is); shows the identities, the route and the bootloader, and asks"
+	@echo "make flash   [PKG=file.fwsc] [KEEP_BOOTLOADER=1] [FM1=NAME|all]   build $(PROFILE) and install it (or PKG as it is); shows the identities, the route and the bootloader, and asks (several FM-1s: which one, or all, one after the other)"
 	@echo "make profiles                  the profiles: published (CI builds them), shipped, mine"
 	@echo "make publish   PROFILE=name    CI builds this shipped profile (# publish: yes; commit it)"
 	@echo "make unpublish PROFILE=name    CI no longer builds it"
