@@ -59,6 +59,8 @@ static struct {
 } pws;
 
 /* ---- what the manager is doing */
+#define WF_PH_SH 10                                     /* the STATE line's phase: 2^10 ms, about 1 s (2 s before; the user, 2026-11-03:
+                                                         * "twice as fast") */
 static int wf_joined(void) { return wc.st == WC_UP || wc.st == WC_LINK; }
 static int wf_joining(void) { return wc_req.on || (wc.st >= WC_PMK && wc.st <= WC_HS) || wc.st == WC_PRE; }
 static int wf_nocal(void) { return wc.st == WC_FAIL && wc.fail == WCF_NOCAL; }
@@ -475,7 +477,7 @@ static void wf_ap_state_cell(cell_t *c)
     } else if (st == WAS_STOPPED) {
         v = "SAVE: START";                              /* (AP MAN: off until SAVE) */
     } else if (st == WAS_UP) {
-        if (n && (!wl_peers() || ((fm1_ms >> (WF_Q ? 13 : 11)) & 1u) == 0u)) {   /* both numbers, the user's way (2026-10-28): the line alternates every 2 s between the clients
+        if (n && (!wl_peers() || ((fm1_ms >> (WF_Q ? WF_PH_SH + 2 : WF_PH_SH)) & 1u) == 0u)) {   /* both numbers, the user's way (2026-10-28): the line alternates every phase (1 s since 2026-11-03) between the clients
                                                          * and the Link peers, in full words */
             fmt_int(b, (int32_t)n);
             str_app(b, n == 1u ? " CLIENT" : " CLIENTS", sizeof b);
@@ -490,15 +492,15 @@ static void wf_ap_state_cell(cell_t *c)
         col = C_OK;
     }
 #if WF_Q
-    if (st == WAS_UP && n && wfq_ok && (((fm1_ms >> 11) & 3u) == 1u || ((fm1_ms >> 11) & 3u) == 2u)) {
+    if (st == WAS_UP && n && wfq_ok && (((fm1_ms >> WF_PH_SH) & 3u) == 1u || ((fm1_ms >> WF_PH_SH) & 3u) == 2u)) {
         /* with clients, the numbers in turns 2 and 3 (the strongest client's signal; then RETRY and LOST every other time):
          * the clients / peers in turn 1, the password in turn 4 */
-        uint32_t p = (fm1_ms >> 11) & 3u;
-        wf_q_text(b, p == 1u ? 0u : 1u + ((fm1_ms >> 13) & 1u), &col);
+        uint32_t p = (fm1_ms >> WF_PH_SH) & 3u;
+        wf_q_text(b, p == 1u ? 0u : 1u + ((fm1_ms >> (WF_PH_SH + 2)) & 1u), &col);
         v = b;
     }
 #endif
-    if (st != WAS_NOCAL && ((fm1_ms >> 11) & 3u) == 3u) {   /* the password, one phase in four (the user reads it to join a phone) */
+    if (st != WAS_NOCAL && ((fm1_ms >> WF_PH_SH) & 3u) == 3u) {   /* the password, one phase in four (the user reads it to join a phone) */
         char k[16];
         if (wa_default_key(k + 4)) {
             k[0] = 'K', k[1] = 'E', k[2] = 'Y', k[3] = ' ';
@@ -563,7 +565,7 @@ static void wf_state_cell(cell_t *c)
 #if WF_JAM
     if (wn_st.mode == WN_MODE_JAM) {                    /* MODE JAM: joined to an FM-1 access point (the line alternates with the Link peers), or one refused */
         int j = plat_wifi_jam();
-        if (j == 1 && wc.st == WC_UP && ((fm1_ms >> (WF_Q ? 13 : 11)) & 1u)) {   /* (with the numbers: in the state's turn, every other one) */
+        if (j == 1 && wc.st == WC_UP && ((fm1_ms >> (WF_Q ? WF_PH_SH + 2 : WF_PH_SH)) & 1u)) {   /* (with the numbers: in the state's turn, every other one) */
             uint32_t i;
             b[0] = 'J', b[1] = 'A', b[2] = 'M', b[3] = ' ';
             for (i = 0; i < wc.ap.ssid_len && i < 8u; i++)
@@ -578,8 +580,8 @@ static void wf_state_cell(cell_t *c)
     }
 #endif
 #if WF_Q
-    if (wc.st == WC_UP && wfq_ok && ((fm1_ms >> 11) & 3u) != 0u) {   /* the numbers' turns: signal, RETRY, LOST */
-        wf_q_text(b, ((fm1_ms >> 11) & 3u) - 1u, &col);
+    if (wc.st == WC_UP && wfq_ok && ((fm1_ms >> WF_PH_SH) & 3u) != 0u) {   /* the numbers' turns: signal, RETRY, LOST */
+        wf_q_text(b, ((fm1_ms >> WF_PH_SH) & 3u) - 1u, &col);
         v = b;
     }
 #endif
