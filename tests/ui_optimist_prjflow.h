@@ -252,6 +252,15 @@ static void prjflow_tests(void)
             str_app(q, "?", sizeof q);
             edt.work_ok = 1;
             edt.work = work_sig();
+#if FELUCCA_PATTERNS
+            {   /* (nothing unsaved: the live patterns are unsaved work too, issue 142; the steps above leave pattern 1's
+                 * edits live, every track being on pattern 1 from the start) */
+                uint32_t kk, ss;
+                for (kk = 0; kk < NTRK; kk++)
+                    for (ss = 0; ss < PAT_N; ss++)
+                        pat_live_drop(kk, ss);
+            }
+#endif
             ui.toast_t = 0;
             h0 = loads + saves;
             pf_key(f1);
