@@ -433,7 +433,13 @@ int main(int argc, char **argv)
            (unsigned)SST_RC_BYTES(SST_STRETCH_KB));
     presets(se, 0, 1, &played);
     rc_kb = SST_RAND_KB;
-    CHECK(played == 3u + ENGINES[se]->npresets, "every GRAIN and STRETCH preset on its set (%u)", played);
+    {
+        uint32_t want = ENGINES[se]->npresets, q, j;    /* (GRAIN's presets on PIANO / VIBES / FLUTE: several each since issue 147) */
+        for (q = 0; q < ENGINES[ge]->npresets; q++)
+            for (j = 0; j < 3u; j++)
+                want += (uint32_t)ENGINES[ge]->presets[q].e[0] == set_no[j];
+        CHECK(played == want, "every GRAIN and STRETCH preset on its set (%u of %u)", played, want);
+    }
 
     /* SAMPLE streaming VIBES on part 2 beside GRAIN on PIANO: SAMPLE never dry, the bus shared */
     for (pi = 0; pi < ENGINES[ge]->npresets && (uint32_t)ENGINES[ge]->presets[pi].e[0] != set_no[0]; pi++)
