@@ -9,8 +9,13 @@
  *                                      then MODE AP's block: cap (0: this build has no MODE AP, nothing follows), key (1: a password is
  *                                      kept), status (0 OFF, 1 NO PASSWORD, 2 STARTING, 3 ACTIVE, 4 NO CAL, 5 STOPPED: AP MAN, not started), clients, channel (the one
  *                                      shown: the store's, else 6), len, pack7 name (the stored one, else FM1- and four digits);
- *                                      then peers (the Link peers heard; an older firmware sends no such byte: 0)
- *             1, mode               -> 1, rc, mode: MODE (0 OFF, 1 AUTO, 2 MAN, 3 AP AUTO, 4 AP MAN, the last two only with cap 1: the store's numbers); saved with the settings
+ *                                      then peers (the Link peers heard; an older firmware sends no such byte: 0);
+ *                                      then group (MODE JAM's GROUP 1..9; 0: this build has no JAM) and host (1: in JAM, this FM-1 is
+ *                                      its group's access point now; an older firmware sends neither: 0, 0)
+ *             1, mode               -> 1, rc, mode: MODE (0 OFF, 1 AUTO, 2 MAN, 3 AP AUTO, 4 AP MAN, the two only with cap 1; 7 JAM where
+ *                                      group is not 0 (an older editor's 5 JAM JOIN and 6 JAM HOST are JAM too); the store's numbers);
+ *                                      saved with the settings
+ *             9, group              -> 9, rc, group: MODE JAM's GROUP 1..9 (rc 1: out of range, or no JAM in this build); saved
  *             2, slot               -> 2, rc, slot: that saved network forgotten (its key too)
  *             3, slen, plen, pack7 SSID, password (plen bytes, 32..126; 0 = a saved network of that SSID by its stored key)
  *                                   -> 3, rc: the manager scans, joins the strongest AP of the SSID and saves the network once
@@ -30,7 +35,7 @@
 static int wa_channel_auto(void) { return 0; }
 #endif
 #ifdef WIFI_ON_FM1B
-#define EDWF_JAM 1                                         /* (the trial's Wi-Fi stack: MODE JAM, op 1 value 5) */
+#define EDWF_JAM 1                                         /* (the trial's Wi-Fi stack: MODE JAM, op 1 value 7, op 9 its GROUP) */
 #else
 #define EDWF_JAM 0
 #endif
@@ -117,6 +122,11 @@ static void edwf_state(void)
         ed_b(0);
     edwf_ap_block();
     ed_b(wl_peers() > 127u ? 127u : wl_peers());          /* the Link peers heard, after the AP block */
+#if EDWF_JAM
+    ed_b2((uint32_t)plat_wifi_group(), wn_st.mode == WN_MODE_JAM_AUTO && plat_wifi_jam_host());   /* MODE JAM's GROUP, hosting now */
+#else
+    ed_b2(0, 0);                                          /* (no JAM in this build) */
+#endif
 }
 
 static void edwf_forget(uint32_t slot)                        /* wc.joined_slot is 1 + the slot: the rest close up */
@@ -168,27 +178,41 @@ static uint32_t edwf_join(const uint8_t *a, uint32_t na)
 static int ed_wifi(uint32_t cmd, const uint8_t *a, uint32_t na)
 {
     uint32_t op = na ? a[0] : 127u;
-    if (cmd != ED_WIFI || op > (FELUCCA_WIFI_AP ? 8u : 4u))
+    if (cmd != ED_WIFI || op > 9u || (op >= 5u && op <= 8u && !FELUCCA_WIFI_AP) || (op == 9u && !EDWF_JAM))
         return 0;
     if (op == 0u) {
         edwf_state();
         return 1;
     }
-    if ((op == 1u && na < 2u) || (op == 2u && na < 2u) || (op == 3u && na < 3u) || (op == 5u && na < 3u) || (op == 6u && na < 2u) || (op == 8u && na < 2u))
+    if ((op == 1u && na < 2u) || (op == 2u && na < 2u) || (op == 3u && na < 3u) || (op == 5u && na < 3u) || (op == 6u && na < 2u) ||
+        (op == 8u && na < 2u) || (op == 9u && na < 2u))
         return 0;
     switch (op) {
-    case 1:
-        if (a[1] > (FELUCCA_WIFI_AP ? WN_MODE_AP_MAN : WN_MODE_MAN) && !(a[1] == WN_MODE_JAM && EDWF_JAM) &&
-            !(a[1] == WN_MODE_JAM_HOST && EDWF_JAM && FELUCCA_WIFI_AP)) {   /* (JAM HOST: the trial's stack with MODE AP) */
+    case 1: {
+        uint32_t m = EDWF_JAM && (a[1] == WN_MODE_JAM || a[1] == WN_MODE_JAM_HOST) ? (uint32_t)WN_MODE_JAM_AUTO : a[1];   /* (one JAM since
+                                                         * 2026-11-03: an older editor's JAM JOIN / JAM HOST is it) */
+        if (m > (FELUCCA_WIFI_AP ? WN_MODE_AP_MAN : WN_MODE_MAN) && !(m == WN_MODE_JAM_AUTO && EDWF_JAM)) {
             ed_b3(1, 1, wn_st.mode);
             break;
         }
-        wn_st.mode = a[1];
-        if (a[1] == WN_MODE_OFF || a[1] == WN_MODE_AP || a[1] == WN_MODE_AP_MAN || a[1] == WN_MODE_JAM_HOST)
+        wn_st.mode = (uint8_t)m;
+        if (m == WN_MODE_OFF || m == WN_MODE_AP || m == WN_MODE_AP_MAN)   /* (as the page's MODE, op_wifi.c wf_mode_set) */
             wc_enable(0);
         settings_later = 1;
         ed_b3(1, 0, wn_st.mode);
         break;
+    }
+#if EDWF_JAM
+    case 9:
+        if (a[1] >= 1u && a[1] <= 9u) {
+            plat_wifi_set_group((int)a[1]);
+            settings_later = 1;
+            ed_b3(9, 0, a[1]);
+        } else {
+            ed_b3(9, 1, (uint32_t)plat_wifi_group());
+        }
+        break;
+#endif
     case 2:
         if (a[1] < WN_SLOTS && wn_st.n[a[1]].used)
             edwf_forget(a[1]);

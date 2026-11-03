@@ -645,6 +645,8 @@ job; ( jobin
     run "editor cmd 112 (Wi-Fi networks): state, mode, forget, join (password wiped, never echoed), refusals" "$OUT/ed_wifi_test"
     $CC -O2 -w -Ifirmware/src -DFELUCCA_WIFI_AP=1 -o "$OUT/ed_wifiap_test" tests/ed_wifi_test.c
     run "editor cmd 112 with MODE AP: the AP block of the state, MODE 3, the AP's password (wiped, refusals), the channel, the key cleared" "$OUT/ed_wifiap_test"
+    $CC -O2 -w -Ifirmware/src -DWIFI_ON_FM1B -DFELUCCA_WIFI_AP=1 -o "$OUT/ed_wifijam_test" tests/ed_wifi_test.c
+    run "editor cmd 112 with MODE JAM (the release's Wi-Fi stack): MODE 7, an older editor's 5 and 6 are JAM, GROUP (op 9) 1..9, the state's group and hosting" "$OUT/ed_wifijam_test"
 ) >"$U.out" 2>&1 & jobbg
 job; ( jobin
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/clock_out_test" tests/clock_out_test.c -lm
