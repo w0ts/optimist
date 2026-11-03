@@ -532,6 +532,8 @@ static void check(int ok, const char *what) { fh_check(what); printf("optimist u
 static void reset_ui(void)
 {
     pl_filt = PLF_ALL;                                  /* (the list unfiltered: a filter's test leaves it filtered otherwise) */
+    mx.across = 0, mx.an = 0;                           /* (the mixer by row: a test's SHIFT2 + HOME (ACROSS) left on walked T1 to the lanes
+                                                         * 4 rows a detent in the tests after it) */
     knob_colors = 0;                                    /* (the tests' look: the knobs' caps plain; ON is the device's default since 2026-11-03, a test of
                                                          * the colours turns it on) */
     memset(rt_mem, 0, sizeof rt_mem);                  /* (the returns' pages open on their first, op_mixer.c) */
@@ -2291,7 +2293,7 @@ static void layer_tests(void)
 #endif
             check(hit, "a card with a list value (not a sound): KNOB turned: the popup list of its values (pop_kind 3)");
             if (hit) {   /* at the list's end: nothing drawn below it (the first items were shown there) */
-                for (r = 0; r < 70u; r++)
+                for (r = 0; r < (uint32_t)(pen.d->max - pen.d->min) + 2u; r++)   /* (the whole list: a DEST's is 118 long since issue 75) */
                     turn(EN_K1 + (k - 1u), 1);
                 frames(3);
                 check(*pen.vp == pen.d->max && op_overlay() == 5u, "... turned to the end of the list: the last value, the popup up");

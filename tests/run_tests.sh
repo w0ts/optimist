@@ -142,6 +142,15 @@ for f in build/felucca.fwsc build/felucca.bin build/felucca.dis build/loader/ota
 done
 HGEN=build/gen-host
 export HGEN
+# the package's MEMORY step (build/felucca.fwsc, which the update and install tests take): the reference build's, kept in
+# its slot (prepare_tests puts the measurement build's build/gen over build/), else the build there is (--no-build)
+PKG_CFG=build/gen/felucca_config.h
+if [ -f build/slots/t-ref/felucca.fwsc ] && cmp -s build/slots/t-ref/felucca.fwsc build/felucca.fwsc; then
+    PKG_CFG=build/slots/t-ref/gen/felucca_config.h
+fi
+PKG_LAYOUT=$(sed -n 's/^#define FELUCCA_LAYOUT \([0-9][0-9]*\).*/\1/p' "$PKG_CFG" 2>/dev/null)
+PKG_LAYOUT=${PKG_LAYOUT:-0}
+export PKG_LAYOUT
 python3 tools/build.py --host-headers || { echo "host headers ($HGEN) failed"; exit 1; }
 t_ble_rf() { python3 tests/ble_rf_capture_test.py; }
 t_ble_emu() { python3 tests/ble_emu_test.py; }
@@ -1126,7 +1135,7 @@ job; ( jobin
 ) >"$U.out" 2>&1 & jobbg
 
 job; ( jobin
-    $CC -o "$OUT/ota_test" tests/ota_test.c
+    $CC -DFELUCCA_LAYOUT=$PKG_LAYOUT -o "$OUT/ota_test" tests/ota_test.c   # (the package's step: its app's size)
     run "M-UPGRADE entry" "$OUT/ota_test" build/felucca.fwsc
 ) >"$U.out" 2>&1 & jobbg
 
@@ -1138,9 +1147,9 @@ job; ( jobin
 job; ( jobin
     head -c 200000 build/felucca.bin > "$OUT/old_app.bin"
     python3 tools/fm1pkg_make.py "$OUT/old_app.bin" build/loader/ota.bin "$OUT/old.fwsc" >/dev/null
-    $CC -o "$OUT/ldr_test" tests/ldr_test.c
+    $CC -DFELUCCA_LAYOUT=$PKG_LAYOUT -o "$OUT/ldr_test" tests/ldr_test.c
     run "update loader: other app -> this build" "$OUT/ldr_test" "$OUT/old.fwsc" build/felucca.fwsc
-    $CC -DOTA_FAST_CHUNK=4096u -DOTA_FRAME_MAX=4200u -o "$OUT/ldr_test_fast" tests/ldr_test.c
+    $CC -DFELUCCA_LAYOUT=$PKG_LAYOUT -DOTA_FAST_CHUNK=4096u -DOTA_FRAME_MAX=4200u -o "$OUT/ldr_test_fast" tests/ldr_test.c
     run "update loader, fast install (docs/INSTALL-SPEED.md): the table, changed sectors only, erase while receiving, resume" "$OUT/ldr_test_fast" "$OUT/old.fwsc" build/felucca.fwsc
     run "install replay: fm1_install.py against the real loader code, today's protocol and the fast one, a cut-off install resumed" python3 tests/install_replay_test.py "$OUT/old.fwsc" build/felucca.fwsc
     for L in 1 2 3 4 5 6 7 8; do   # (the MEMORY steps, tools/flash_layout.py: L1 more flash, S0 no user samples; normal above)
