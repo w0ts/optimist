@@ -589,11 +589,24 @@ static void pat_migrate(void)
 
 /* the sources of the working copies with the autosave (id SEC_ID_PSTATE: 4 bytes; none: every track's none) */
 static int pat_state_get(uint8_t *b) { return slg.alen[SEC_ID_PSTATE] == NTRK && slg_get(SEC_ID_PSTATE, b) == (int)NTRK; }
+static int pat_has(uint32_t k, uint32_t s);
+static uint32_t pat_users(uint32_t k, uint32_t s, uint32_t but);
 static void pat_state_save(void)
 {
     uint8_t b[NTRK];
     if (!pat_state_get(b) || memcmp(b, pat_cur, NTRK))
         (void)slg_put(SEC_ID_PSTATE, pat_cur, NTRK, 1);
+}
+/* issue 142 (jsmonzani, 2026-10-31: "one could consider from the very beginning that we are on pattern 1 ... no 'working in
+ * memory without being in a pattern' anymore"): a track with no source is on pattern 1 when that slot holds nothing and no
+ * scene names it, so its edits are pattern 1's from the start (a scene stored, a launch away: kept there). A project whose
+ * track has no source and pattern 1 in use keeps it as it was: never another pattern's edits */
+static void pat_home(void)
+{
+    uint32_t k;
+    for (k = 0; k < NTRK; k++)
+        if (pat_cur[k] == PAT_NONE && !pat_has(k, 0) && !pat_users(k, 0, PAT_ALL))
+            pat_cur[k] = 0;
 }
 static void pat_state_load(void)
 {
@@ -602,6 +615,7 @@ static void pat_state_load(void)
     if (pat_state_get(b))
         for (k = 0; k < NTRK; k++)
             pat_cur[k] = b[k] < PAT_N ? b[k] : PAT_NONE;
+    pat_home();
 }
 
 /* ---- launching a pattern on a track (docs/PATTERNS-DESIGN.md section 3). The main loop decodes it into the stage
@@ -1055,7 +1069,7 @@ static uint32_t pat_free(uint32_t k)
 {
     uint32_t s;
     for (s = 0; s < PAT_N; s++)
-        if (!pat_has(k, s) && !pat_users(k, s, PAT_ALL))
+        if (!pat_has(k, s) && !pat_users(k, s, PAT_ALL) && pat_cur[k] != s)   /* (the slot the track is on: its, stored or not) */
             return s;
     return PAT_NONE;
 }

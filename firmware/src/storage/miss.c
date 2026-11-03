@@ -22,6 +22,7 @@
 static uint32_t proj_orph_uid(uint32_t k);            /* project.c: the engine UID an orphan part keeps, 0xFF */
 #if FELUCCA_PATTERNS
 static int pat_has(uint32_t k, uint32_t s);           /* storage/sections/pat.c */
+static uint32_t pat_users(uint32_t k, uint32_t s, uint32_t but);
 #endif
 
 enum { MS_ENG = 1, MS_KIT, MS_SET, MS_USR, MS_FX, MS_FM6_RETIRED, MS_REV, MS_PAT };   /* an item: type << 12 | track << 8 | id
@@ -172,7 +173,8 @@ static uint32_t miss_scan(void)
 #endif
 #if FELUCCA_PATTERNS
     for (k = 0; k < NTRK; k++)                          /* (a scene named a pattern the log does not have: the track plays empty) */
-        if (pat_cur[k] < PAT_N && !pat_has(k, pat_cur[k]))
+        if (pat_cur[k] < PAT_N && !pat_has(k, pat_cur[k]) && pat_users(k, pat_cur[k], PAT_ALL))   /* (a slot no scene names:
+                                                         * the track's own new pattern, issue 142: pattern 1 from the start) */
             miss_add(MS_ITEM(MS_PAT, k, k * 16u + pat_cur[k]));
 #endif
     if (!FELUCCA_MASTER_COMP && (song.g[G_CTHR] || song.g[G_CGAIN] || song.g[G_CCEIL]))

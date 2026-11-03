@@ -455,7 +455,7 @@ static uint32_t trk_len(const track_t *t) { return t->p[P_SLEN] > 0 ? (uint32_t)
 /* the step of grid step abs in t's pattern (len its LEN): from the step the pattern started on (pat.c launches) */
 #define TRK_IDX(t, abs, len) (((abs) - (t)->org) % (len))
 enum { PW_END, PW_BAR, PW_NOW };                   /* a launch: at the pattern's end, on the next bar, on the next step */
-static uint8_t pat_cur[NTRK] = {PAT_NONE, PAT_NONE, PAT_NONE, PAT_NONE};   /* each track's source: the slot it plays */
+static uint8_t pat_cur[NTRK] = {0, 0, 0, 0};   /* each track's source: the slot it plays (pattern 1 from the start: issue 142, pat.c pat_home) */
 static uint8_t pat_req[NTRK] = {PAT_NONE, PAT_NONE, PAT_NONE, PAT_NONE};   /* a launch waiting (PAT_STOP: stop) */
 static uint8_t pat_when[NTRK];
 static uint32_t pat_bar[NTRK];                     /* the bar a PW_BAR launch was asked in */
