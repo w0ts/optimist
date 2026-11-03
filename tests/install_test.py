@@ -321,7 +321,17 @@ def installs():
     two = FakeFM1(image, name="FM1-1A2B")
     two.input_names = two.output_names = lambda: ["FM1-1A2B", "FM1-9C0D"]
     rc, out, err = cli([p, "--yes"], two)
-    ok(rc == 3 and two.sent == [] and two.upgrades == 0 and "--port" in err, "two FM-1s, no --port: refused, nothing sent")
+    ok(rc == 9 and two.sent == [] and two.upgrades == 0 and "--port" in err, "two FM-1s, no --port: refused (exit 9, not 3: none found), nothing sent")
+    # a stock FM-1 beside it (2026-11-03: its ports "USB MIDI Device Port 1 / 2", the install went to the other's loader)
+    stk = FakeFM1(image, name="Optimist")
+    stk.input_names = stk.output_names = lambda: ["USB MIDI Device Port 1", "USB MIDI Device Port 2", "Optimist"]
+    rc, out, err = cli([p, "--yes"], stk)
+    ok(rc == 9 and stk.sent == [] and stk.upgrades == 0 and "USB MIDI Device" in err, "Optimist and a stock FM-1's ports, no --port: refused, nothing sent")
+    rc, out, err = cli(["--list"], stk)
+    ok(rc == 0 and out.split() == ["Optimist", "USB", "MIDI", "Device"] and stk.sent == [], "--list: the FM-1s, the maybe one too, nothing sent")
+    alone = FakeFM1(image, name="USB MIDI Device")
+    alone.input_names = alone.output_names = lambda: ["USB MIDI Device Port 1", "IAC Bus 1"]
+    ok(I.several(I.Updater(alone, None)) is None, "a stock FM-1's port alone: not 'several' (as before)")
     two = FakeFM1(image, name="FM1-1A2B")
     names = two.input_names
     two.input_names = two.output_names = lambda: names() + ["FM1-9C0D"]

@@ -2994,7 +2994,7 @@ const parse = {   /* the replies' readers, by command */
     o.cur = ssid();
     /* MODE AP's block (ed_wifi.c): cap 0 = none in this build, nothing follows; an older firmware sends no block at all (cap 0) */
     o.ap = { cap: 0 };
-    if (r.i < a.length && r.b() === 1) { o.ap = { cap: 1, key: r.b(), status: r.b(), clients: r.b(), ch: r.b() }; o.ap.name = ssid(); }
+    if (r.i < a.length && r.b() === 1) { o.ap = { cap: 1, key: r.b(), status: r.b(), clients: r.b(), ch: r.b() }; o.ap.auto = !!(o.ap.ch & 0x40); o.ap.ch &= 0x3F; o.ap.name = ssid(); }   /* (0x40: CHANNEL AUTO) */
     o.peers = r.i < a.length ? r.b() : 0;   /* the Link peers heard (after the AP block; an older firmware sends none) */
     return o;
   },
@@ -6266,7 +6266,7 @@ function makeMockDevice(opt = {}) {                /* (opt: see above) */
             const stopped = w.mode === 4 && !ap.run;                      /* AP MAN: off until Start */
             if (wifiIsAp(w.mode) && !stopped) ap.apPolls++;
             const stt = !wifiIsAp(w.mode) ? 0 : stopped ? 5 : ap.apPolls < 2 ? 2 : 3;   /* a password set: STARTING on the first read, ACTIVE on the second */
-            b(1); b(ap.key); b(stt); b(stt === 3 ? 1 : 0); b(ap.ch); b(nm.length); pack7(nm).forEach(b);
+            b(1); b(ap.key); b(stt); b(stt === 3 ? 1 : 0); b(ap.ch | (ap.auto ? 0x40 : 0)); b(nm.length); pack7(nm).forEach(b);
             b(mockPeers());
           }
         } else if (a[0] >= 5) {
@@ -6279,7 +6279,7 @@ function makeMockDevice(opt = {}) {                /* (opt: see above) */
             else { if (w.mode === 4) ap.run = 1; ap.name = sl ? unpack7(a.slice(3, 3 + pb)) : null; ap.key = 1; ap.apPolls = 0; rc(0); }
           } else if (a[0] === 6) {
             if (a.length < 2) return null;
-            if (a[1] < WIFI.CH_MIN || a[1] > WIFI.CH_MAX) rc(1); else { ap.ch = a[1]; ap.apPolls = 0; rc(0); }
+            if (a[1] > WIFI.CH_MAX) rc(1); else { ap.ch = a[1] || 6; ap.auto = !a[1]; ap.apPolls = 0; rc(0); }
             b(ap.ch);
           } else if (a[0] === 8) {
             if (a.length < 2) return null;
@@ -11422,6 +11422,7 @@ function wifiApForm() {   /* the Access point panel (MODE AP): built once, so wh
   const show = el("input", { type: "checkbox" });
   show.addEventListener("change", () => { pw.type = show.checked ? "text" : "password"; });
   const chan = el("select", { title: t("wifiApChan"), "aria-label": t("wifiApChan") });
+  chan.append(el("option", { value: 0, text: "Auto" }));   /* (the quietest channel, chosen at each start: the default) */
   for (let c = WIFI.CH_MIN; c <= WIFI.CH_MAX; c++) chan.append(el("option", { value: c, text: String(c) }));
   chan.addEventListener("change", () => wifiApSend(req.wifiApChannel(+chan.value), { timeout: 800, retries: 1 }));
   const set = async () => {
@@ -11460,7 +11461,8 @@ function wifiApForm() {   /* the Access point panel (MODE AP): built once, so wh
     status.dataset.st = st;
     nameNow.textContent = s.ap.name.text;
     keyNow.textContent = s.ap.key ? t("wifiApKeyOn") : t("wifiApKeyDefault").replace("{k}", wifiApDefaultKey(new TextEncoder().encode(s.ap.name.text)));
-    if (document.activeElement !== chan) chan.value = String(s.ap.ch);
+    if (document.activeElement !== chan) chan.value = String(s.ap.auto ? 0 : s.ap.ch);
+    chan.options[0].text = s.ap.auto ? `Auto (${s.ap.ch})` : "Auto";
     clear.lastChild.textContent = wf.apClear && performance.now() - wf.apClear < 4000 ? t("wifiApClearSure") : t("wifiApClear");
     clear.disabled = !s.ap.key;
     for (const x of [name, pw, show.parentNode, setBtn, clear]) x.hidden = s.mode === 6;   /* JAM HOST: the default password only, shown, never set */

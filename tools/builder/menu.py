@@ -949,13 +949,29 @@ class Builder(App):
         self.run_flash_preflight(pkg)
 
     @work(thread=True, exclusive=True, group="flash")
-    def run_flash_preflight(self, pkg):
+    def run_flash_preflight(self, pkg, port=None):
         try:
-            plan = F.preflight(pkg)
+            plan = F.preflight(pkg, port)
+        except F.SeveralFM1 as e:                       # (several FM-1s: which one, then the preflight again on its port)
+            self.call_from_thread(self.flash_pick_port, pkg, e.ports)
+            return
         except F.FlashError as e:
             self.call_from_thread(self.flash_done, f"FLASH REFUSED\n  {e}", True)
             return
         self.call_from_thread(self.flash_confirm, plan)
+
+    def flash_pick_port(self, pkg, ports):
+        self.progress_hide()
+        self.build_out = "flash: several FM-1s connected, waiting for your answer"
+        self.refresh_msgs()
+
+        def answer(choice):
+            if choice == "Cancel":
+                self.flash_done("flash cancelled; nothing was written", False)
+                return
+            self.progress_show(f"flash: reading {choice}'s identity", None)
+            self.run_flash_preflight(pkg, choice)
+        self.push_screen(Pick("Several FM-1s are connected: which one?", ["Cancel", *ports], answer))
 
     def flash_confirm(self, plan):
         self.progress_hide()

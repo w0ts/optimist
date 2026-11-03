@@ -25,6 +25,10 @@
  * rc: 0 done, 1 arguments (or no MODE AP in this build), 2 MODE OFF (5: MODE is not AP), 3 no password and not a saved network, 4 the radio
  * is not up yet (the mode was just set: ask again in a few seconds). The key bytes (PMK) never leave the device. The password is copied once, handed to wc_request and
  * wiped, here and in the receive buffer; it is not echoed, logged or kept (the manager wipes its own copy once the key is derived). */
+#if FELUCCA_WIFI_AP && !defined(WA_CH_AUTO)
+#define WA_CH_AUTO 0                                       /* (Optimist's own stack: no CHANNEL AUTO; op_wifi.c the same) */
+static int wa_channel_auto(void) { return 0; }
+#endif
 #ifdef WIFI_ON_FM1B
 #define EDWF_JAM 1                                         /* (the trial's Wi-Fi stack: MODE JAM, op 1 value 5) */
 #else
@@ -52,7 +56,7 @@ static void edwf_ap_block(void)
 {
     uint8_t nm[WN_SSID_MAX];
     ed_b4(1, wn_st.ap.set, wa_status(), wa_clients());
-    ed_b(wa_channel());
+    ed_b(wa_channel() | (wa_channel_auto() ? 0x40u : 0u));   /* (the channel in use; 0x40: CHANNEL AUTO, 2026-11-03) */
     edwf_ssid(nm, wa_name(nm));
 }
 /* 5: MODE AP's password; the received frame's password bytes wiped by the caller (edwf_ap_key) */
@@ -198,7 +202,7 @@ static int ed_wifi(uint32_t cmd, const uint8_t *a, uint32_t na)
         ed_b2(5, edwf_ap_key(a, na));
         break;
     case 6:
-        if (a[1] >= 1u && a[1] <= 13u) {
+        if (a[1] <= 13u && (a[1] || WA_CH_AUTO)) {      /* (0: AUTO, where the stack has it) */
             wa_set_channel(a[1]);
             ed_b3(6, 0, a[1]);
         } else {

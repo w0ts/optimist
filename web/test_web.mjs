@@ -1684,7 +1684,12 @@ async function editorWifi() {
   r = await W3(E.req.wifiApChannel(11));
   s = await W3(E.req.wifiState());
   ok(r.op === 6 && r.rc === 0 && r.v === 11 && s.ap.ch === 11, "wifi AP: op 6 stores the channel");
-  ok((await W3(E.req.wifiApChannel(14))).rc === 1 && (await W3(E.req.wifiApChannel(0))).rc === 1, "wifi AP: a channel of 0 or 14: rc 1");
+  ok((await W3(E.req.wifiApChannel(14))).rc === 1, "wifi AP: a channel of 14: rc 1");
+  {   /* CHANNEL AUTO (0, the default since 2026-11-03): the state says it (0x40 on its channel byte) beside the channel in use */
+    const ra = await W3(E.req.wifiApChannel(0)), sa = await W3(E.req.wifiState());
+    ok(ra.rc === 0 && sa.ap.auto === true && sa.ap.ch >= 1 && sa.ap.ch <= 13, "wifi AP: op 6 with 0: CHANNEL AUTO, the state's auto flag and the channel in use");
+    await W3(E.req.wifiApChannel(11));
+  }
   ok((await W3(E.req.wifiApKey(enc(""), "short"))).rc === 1, "wifi AP: a 5-character password: rc 1");
   ok((await W3(E.req.wifiApKey(Uint8Array.from(Array(33).fill(65)), "12345678"))).rc === 1, "wifi AP: a 33-byte name: rc 1");
   ok((await W3([112, [5, 0, 8, 49, 50]])).rc === 1, "wifi AP: a cut op 5 frame: rc 1");

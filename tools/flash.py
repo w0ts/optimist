@@ -47,6 +47,19 @@ class FlashError(Exception):
         self.code = code
 
 
+class SeveralFM1(FlashError):
+    """several FM-1s connected and no port named: .ports, the --port values to choose from (fm1_install.py --list)"""
+    def __init__(self, ports):
+        super().__init__(f"{len(ports)} FM-1s are connected ({', '.join(ports)}): which one? (--port NAME)", 9)
+        self.ports = ports
+
+
+def fm1_ports():
+    """the FM-1s connected, a --port value each (fm1_install.py --list)"""
+    rc, text = run_tool(["--list"])
+    return [ln.strip() for ln in text.splitlines() if ln.strip()] if rc == 0 else []
+
+
 class Plan:
     def __init__(self, package, product, running, port, notes=(), tool=None, warn=None, route=None, boot_line="",
                  install_mboot=False, settings=None, settings_flag=None):
@@ -135,7 +148,7 @@ def run_tool(args, capture=True, on_line=None, tool=None):
     if not py:
         raise FlashError(NEED)
     tool = tool or TOOL
-    writing = "--info" not in args                      # (a write: Ctrl+C is refused until it is done, FI.no_interrupt in the tool too)
+    writing = "--info" not in args and "--list" not in args   # (a write: Ctrl+C is refused until it is done, FI.no_interrupt in the tool too)
     with (FI.no_interrupt() if writing else contextlib.nullcontext()):
         if on_line:
             rc, out = progress.stream([py, str(tool), *args], on_line=on_line, env=dict(os.environ, PYTHONUNBUFFERED="1"))
@@ -214,6 +227,8 @@ def preflight(package, port=None, notes=None, install_mboot=False):
     product = check_package(package)
     notes = source_notes(package) if notes is None else notes
     rc, text = run_tool(["--info", *(["--port", port] if port else [])])
+    if rc == 9 and not port:                            # (several FM-1s: the caller asks which one, then again with its port)
+        raise SeveralFM1(fm1_ports())
     tool = None
     if rc == 3 and RELEASE[0] and not port:             # (no Optimist FM-1: an fm1-base one, its tool, its port name)
         fm1b = fm1base_tool()

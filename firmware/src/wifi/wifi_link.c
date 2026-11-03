@@ -161,9 +161,17 @@ static void wl_clock(int64_t now)                      /* Link's session as MIDI
 static void wl_push_own(int64_t now)                   /* the FM-1's own PLAY/STOP and tempo, to the Link session */
 {
     int32_t mpb;
-    if (!wl.ip.ip || !wl.lk_on || lk_peers(&wl_lk) == 0 || sy.src == MSRC_LINK)
-        return;                                        /* (no session to tell yet, or Link itself drives us: no echo) */
+    if (!wl.ip.ip || !wl.lk_on || lk_peers(&wl_lk) == 0)
+        return;                                        /* (no session to tell yet) */
     mpb = 60000000 / (song.g[G_BPM] > 20 ? song.g[G_BPM] : 20);
+    if (sy.src == MSRC_LINK) {                         /* Link drives us: no echo, but a tempo the user turned goes to the session */
+        if (link_tempo_req) {
+            link_tempo_req = 0;
+            lk_set_tempo(&wl_lk, mpb, now);
+            wl.own_mpb = mpb;
+        }
+        return;
+    }
     if (mpb != wl.own_mpb) {
         lk_set_tempo(&wl_lk, mpb, now);
         wl.own_mpb = mpb;
