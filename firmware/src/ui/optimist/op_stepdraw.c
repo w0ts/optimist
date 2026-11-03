@@ -454,6 +454,44 @@ static void roll_outline(const track_t *t, uint32_t at, int32_t nt, uint32_t idx
     if (last)
         RR(x + w - 1, y, 1, h, C_NOTE);
 }
+/* notes the rows cannot show (the user, 2026-11-03: "a sign at the top and bottom indicating there are notes above or below each step"): a small
+ * amber triangle at the roll's top (a note of the step above the top row) and at its foot (below the lowest), in the step's column */
+static void roll_more(const track_t *t, uint32_t len, int32_t ye)
+{
+    uint32_t w, i;
+    int32_t top = SG_TOP + sg_dy;
+    for (w = 0; w < 16u; w++) {
+        uint32_t idx = st.page * 16u + w, oi = roll_org(t, idx) % NSTEP;
+        const step_t *s = &SGS(t)[oi];
+        int32_t cx = RL_X + (int32_t)w * RL_CW + (RL_CW - 2) / 2;
+        int up = 0, dn = 0;
+        if (idx >= len)
+            break;
+        if (!step_on(s) || FILL_HID(t, oi, 0))
+            continue;
+        for (i = 0; i < s->n && i < 4u; i++)
+            up |= (int32_t)s->note[i] > rg.hi, dn |= (int32_t)s->note[i] < rg.lo;
+        if (up) {
+            RR(cx, top, 1, 1, C_AMB);
+            RR(cx - 1, top + 1, 3, 1, C_AMB);
+            RR(cx - 2, top + 2, 5, 1, C_AMB);
+        }
+        if (dn) {
+            RR(cx, ye - 1, 1, 1, C_AMB);
+            RR(cx - 1, ye - 2, 3, 1, C_AMB);
+            RR(cx - 2, ye - 3, 5, 1, C_AMB);
+        }
+    }
+}
+/* the mode's edge (the user, 2026-11-03: "some visual cue of the current mode"): a bar down the roll's right edge, C_NOTE in ENTRY MODE (as its
+ * cursor), grey in MUTE MODE (as a muted note); none while the keys play. A step held leaves it (a press sends its column only) */
+static void roll_mode(int32_t ye)
+{
+    int en = se_on_h(1);
+    if (!en && !se_mute_mode())
+        return;
+    RR(RL_X + 16 * RL_CW + 2, SG_TOP + sg_dy, 3, ye - SG_TOP - sg_dy, en ? C_NOTE : mute_col());
+}
 static void sg_roll(const track_t *t)
 {
     uint32_t w, i, len = trk_len(t), gn, sat = 0, sext = 0, sel;
@@ -539,6 +577,8 @@ static void sg_roll(const track_t *t)
                 sg_notches(x - sg_ox, y + m, RL_CW - 1, h, (s->rat >> (2u * i)) & 3u);
         }
     }
+    roll_more(t, len, ye);
+    roll_mode(ye);
     roll_names(used);
     if (sel && rg.rh >= 11)
         roll_label(snt, C_NOTE);                        /* (its name in the gutter, over the one drawn) */
@@ -657,6 +697,7 @@ static uint32_t step_sig(void)
                (uint32_t)(song.octave + 16) + song.sel * 64u + roll_fold * 4096u);   /* (the roll's view: OCT, FOLD; the pick's marks) */
     h = hu(h, (uint32_t)st.pk + (pk_ok() ? 256u : 0u));   /* (the note picker's frame) */
     h = hu(h, se_on() ? st.cur + 1u : 0u);              /* (STEP ENTRY's cursor) */
+    h = hu(h, (uint32_t)se_mute_mode() * 2u + (uint32_t)se_on_h(1));   /* (the mode's edge) */
     return hu(hu(h, settings.palette), (uint32_t)(sg_dy + 512));
 }
 /* a held step's two lines, over the grid's foot while the overlay is up, "Step 6  Fill only" and "Nudge +4  Chance 85%" (op_step.c step_foot's,

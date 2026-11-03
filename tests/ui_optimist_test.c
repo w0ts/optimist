@@ -528,6 +528,7 @@ static void check(int ok, const char *what) { fh_check(what); printf("optimist u
 #define RING_FRAMES ((RH_CLEAR_MS + 40u) / 16u + 2u)    /* (a delete's ring held to its end: frames of 16 ms) */
 static void reset_ui(void)
 {
+    memset(st.se_pref, 0, sizeof st.se_pref);          /* (each track keeps its STEP mode, 2026-11-03: a test starts in the default) */
     pl_filt = PLF_ALL;                                  /* (the list unfiltered: a filter's test leaves it filtered otherwise) */
     memset(rt_mem, 0, sizeof rt_mem);                  /* (the returns' pages open on their first, op_mixer.c) */
     fm1_in.buttons = 0;
@@ -1720,7 +1721,11 @@ static void step_synth_tests(void)
     kup(WK(8));
     check((t->step[8].rat & 3u) == 2u && (t->step[9].rat & 3u) == 2u, "synth: two steps held: edited together");
     key(WK(3));
+#if FELUCCA_AUTO
+    check(step_on(&t->step[3]) && step_muted(t, 3, 0) && t->step[4].time == ST_TIE, "synth: a set step tapped: its notes muted, kept with its ties (MUTE MODE, 2026-11-03)");
+#else
     check(!step_on(&t->step[3]) && t->step[4].time != ST_TIE, "synth: a set step tapped: cleared with its ties");
+#endif
     tap(B_SAVE);                                        /* undo: SAVE then HOME */
     press(B_SAVE);
     press(B_HOME);
@@ -4271,6 +4276,7 @@ static void preset_engine_tests(void)
 #include "ui_optimist_stepedit.h"                  /* 2026-10-31: a note moved past another, the move not stopped, LENGTH only lengthens */
 #include "ui_optimist_stepsave.h"
 #include "ui_optimist_stepentry.h"                 /* 2026-11-01: STEP ENTRY, a synth track stopped with REC armed: the cursor, the keys toggle notes, PLAY arms */
+#include "ui_optimist_stepmode.h"                  /* 2026-11-03: the two modes of a synth track's STEP: ENTRY and MUTE, each track's own, the roll's edge and the off-screen triangles */
 #include "ui_optimist_shiftcycle.h"                  /* 2026-10-31: REC on = the keys play, the last note entered picked, SAVE with no note picked */
 #include "ui_optimist_drumph.h"                    /* the drum playhead column, fills only with SEQ held, the automation dot */
 #include "ui_optimist_seqfill.h"                    /* SEQ held on STEP: the fill view, FILL ONLY / NO FILL per synth track and drum lane */
@@ -4597,6 +4603,7 @@ int main(int argc, char **argv)
     stepedit_tests();
     stepsave_tests();
     stepentry_tests();
+    stepmode_tests();
 #if FELUCCA_AUTO
     shiftcycle_tests();
 #endif
