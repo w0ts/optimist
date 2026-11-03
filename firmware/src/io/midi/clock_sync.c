@@ -97,6 +97,10 @@ static int16_t sync_ofs[3];                                /* [0] CLK OFS, [1] B
  * what Link did before the setting; stored as 0 in the record's ext bytes: persist_rec.c link_sel). The list reads OFF, ON, ON+S/S */
 enum { LINK_OFF, LINK_ON, LINK_ONSS };
 static uint8_t link_mode = LINK_ONSS;
+static volatile uint8_t link_hop;                          /* AUTO found Link while playing: the Link side sends a START on the
+                                                            * session's next bar (wl_clock), sync_msg takes it although playing:
+                                                            * the steps hop there (the user, 2026-11-03: "it should just join the
+                                                            * link session and hop", "on the next bar") */
 static volatile uint8_t link_tempo_req;                    /* the user turned the tempo while Link drives it (op_tempo.c, tap tempo): sent
                                                             * to the session once by the Link side (wl_push_own), which then
                                                             * brings it back to every peer (the user, 2026-11-03: "in link mode we
@@ -258,6 +262,11 @@ static void sync_select(uint32_t now)
     }
     if (song.g[G_MIDI] != (int16_t)SY_SHOWN(sy.src))
         song.g[G_MIDI] = (int16_t)SY_SHOWN(sy.src);        /* (read-only: the source shown, the editor) */
+#if FELUCCA_LINK
+    if (song.playing && !sy.arm && sy.src != MSRC_LINK && FAST_CALL(seqev, sy_allowed)(MSRC_LINK) &&
+        FAST_CALL(seqev, sy_present)(MSRC_LINK, now) && FAST_CALL(seqev, sy_rank)(MSRC_LINK) > FAST_CALL(seqev, sy_rank)(sy.src))
+        link_hop = 1;                                      /* (playing, Link there and preferred: its next bar's START, sync_msg) */
+#endif
     if (song.playing || sy.arm)
         return;
     for (s = MSRC_USB; s <= SY_SRC_LAST; s++)
@@ -367,6 +376,13 @@ static void sync_msg(uint32_t st, uint32_t d1, uint32_t d2, uint32_t t, uint32_t
         sy_pr[s].dt = dt;
         sy_pr[s].last = t;
     }
+#if FELUCCA_LINK
+    if (s != sy.src && st == 0xFAu && s == MSRC_LINK && link_hop && song.playing && FAST_CALL(seqev, sy_allowed)(s)) {
+        link_hop = 0;                                      /* (the hop: Link followed from its bar's START, while playing) */
+        sy_follow_src(s);
+        sy.last = t;                                       /* (its clock is here: not "gone" before its first F8) */
+    } else
+#endif
     if (s != sy.src) {                                     /* START / CONTINUE stopped: from a source to prefer */
         if ((st != 0xFAu && st != 0xFBu) || song.playing || sy.arm || !FAST_CALL(seqev, sy_allowed)(s) ||
             (sy.src && FAST_CALL(seqev, sy_rank)(sy.src) > FAST_CALL(seqev, sy_rank)(s) && FAST_CALL(seqev, sy_present)(sy.src, t)))
@@ -376,6 +392,10 @@ static void sync_msg(uint32_t st, uint32_t d1, uint32_t d2, uint32_t t, uint32_t
     if (st == 0xF8u) {
         sy_tick(t);
     } else if (st == 0xFAu || st == 0xFBu) {
+#if FELUCCA_LINK
+        if (s == MSRC_LINK)
+            link_hop = 0;                                  /* (a hop's START: done) */
+#endif
         if (st == 0xFAu)
             sy.pos = 0;
         sy.n0 = sy.n + 1u - sy.pos;                        /* the next F8 is at sy.pos */
@@ -485,12 +505,21 @@ static uint32_t sync_follow(uint32_t n)
 static void sync_local(uint32_t req)
 {
     if (req == 1u) {
+#if FELUCCA_LINK
+        if (sy.src == MSRC_LINK && !song.playing && !sy.arm) {
+            link_hop = 1;                                  /* (PLAY following Link: on the session's next bar, its START) */
+            return;
+        }
+#endif
         if (!song.playing && !sy.arm) {
             sy.pos = 0;
             sy.n0 = sy.n + 1u;
             sy.arm = 1;
         }
     } else {
+#if FELUCCA_LINK
+        link_hop = 0;                                      /* (STOP: no hop pending) */
+#endif
         sy.arm = 0;
         sy.stop = 1;
     }
