@@ -1698,13 +1698,19 @@ static HOT uint32_t track_render(track_t *t, int32_t *out, uint32_t n)
         }
         if (v->vel > 110)                               /* accent opens the filter with the env */
             m.cutoff += (m.envq15 * 24) >> 7;
-        if (v->ofs) {                                   /* starts inside the block: the rest of it, the */
-            uint32_t o = v->ofs < n ? v->ofs : n - 1u;  /* amplitude ramp reaching amp1 at its end */
-            v->ofs = 0;
-            m.amp1 = m.amp0 + (m.amp1 - m.amp0) * (int32_t)CTL / (int32_t)(n - o);
-            e->render(t, v, out + o, n - o, &m);
-        } else {
-            e->render(t, v, out, n, &m);
+        {
+            /* (through far_ptr, as FAR: a build with one synth engine (drum-machines: DIGITAL alone) let the compiler
+             * turn the table's pointer into a direct call, RAM code to XIP, out of the pi32v2's reach: costs-all,
+             * 2026-11-03, ld.lld R_PI32V2_LONG_JUMP_23M2 "references digital_render" from dual_run) */
+            __typeof__(e->render) render = (__typeof__(e->render))far_ptr((void *)e->render);
+            if (v->ofs) {                               /* starts inside the block: the rest of it, the */
+                uint32_t o = v->ofs < n ? v->ofs : n - 1u;   /* amplitude ramp reaching amp1 at its end */
+                v->ofs = 0;
+                m.amp1 = m.amp0 + (m.amp1 - m.amp0) * (int32_t)CTL / (int32_t)(n - o);
+                render(t, v, out + o, n - o, &m);
+            } else {
+                render(t, v, out, n, &m);
+            }
         }
         if (vo.nsw)
             FAR(env_back)(t, &vo);                      /* (its values back: env_pre) */
