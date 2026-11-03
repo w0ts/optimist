@@ -55,11 +55,12 @@ ap = optimist.parser()
 a = ap.parse_args(["build", "--profile", "drum-machines", "--set", "FX_PUNCH=0", "--release", "1.2"])
 check("build: profile, --set and --release parse", a.profile == "drum-machines" and a.set == ["FX_PUNCH=0"] and
       a.release == "1.2" and a.fn is optimist.cmd_build)
-a = ap.parse_args(["package", "--config", "x.config", "--out", "out", "--summary", "s.json", "--in-docker"])
-check("package: --config, --out, --summary, --in-docker", a.config == "x.config" and a.out == "out" and
-      a.summary == "s.json" and a.in_docker)
-a = ap.parse_args(["test", "--python", "--in-docker"])
-check("test: --python, --in-docker", a.python and a.in_docker and a.fn is optimist.cmd_test)
+a = ap.parse_args(["package", "--config", "x.config", "--out", "out", "--summary", "s.json"])
+check("package: --config, --out, --summary", a.config == "x.config" and a.out == "out" and a.summary == "s.json")
+a = ap.parse_args(["test", "--python"])
+check("test: --python", a.python and a.fn is optimist.cmd_test)
+rc, _ = quiet(ap.parse_args, ["build", "--in-docker"])
+check("--in-docker is gone: the toolchain runs natively", rc == 2)
 a = ap.parse_args(["setup", "--check", "--no-emu"])
 check("setup: --check (fetch nothing), --no-emu", a.check and a.no_emu and not a.yes and a.fn is optimist.cmd_setup)
 seen = []
@@ -85,17 +86,13 @@ check("config passes through to configure.py (--budget)",   # (exact: a real bui
 p = subprocess.run([sys.executable, str(ROOT / "tools" / "optimist.py"), "--help"], capture_output=True, text=True)
 check("optimist.py --help runs as a script", p.returncode == 0 and "setup" in p.stdout and "emu" in p.stdout)
 
-# the toolchain backends
-check("JIELI_BACKEND must name a backend", "use one of" in (raises(TC.resolve, {"JIELI_BACKEND": "qemu"}) or ""))
+# the toolchain (tests/compiler_test.py has the drop-in's own checks)
 with tempfile.TemporaryDirectory() as d:
-    check("JIELI_TOOLCHAIN without pi32v2/bin/clang is refused",
-          "no pi32v2/bin/clang" in (raises(TC.resolve, {"JIELI_TOOLCHAIN": d}) or ""))
+    check("PI32V2_LLVM_TOOLCHAIN without pi32v2/bin/clang is refused, says setup",
+          "setup" in (raises(TC.resolve, {"PI32V2_LLVM_TOOLCHAIN": d}) or ""))
     (Path(d) / "pi32v2" / "bin").mkdir(parents=True)
     (Path(d) / "pi32v2" / "bin" / "clang").write_text("")
     check("has_clang finds a toolchain directory", TC.has_clang(d) and not TC.has_clang(None))
-    if TC.is_native_host():
-        b = TC.resolve({"JIELI_TOOLCHAIN": d})
-        check("Linux x86-64 + JIELI_TOOLCHAIN: native", b.kind == "native")
     sdk = Path(d) / "sdk"
     check("SDK: AC79_SDK wins, files missing are named", TC.sdk_dir({"AC79_SDK": str(sdk)}) == sdk and
           TC.sdk_missing(sdk) == list(TC.SDK_SHA256))
@@ -121,109 +118,9 @@ finally:
     if _home0 is None: os.environ.pop("HOME", None)
     else: os.environ["HOME"] = _home0
 src = Path("/src/sloop")
-nat = TC.Backend("native", "/tc").command("pi32v2/bin/clang", ["-c", "a.c"], src)
+nat = TC.Backend("/tc").command("pi32v2/bin/clang", ["-c", "a.c"], src)
 check("native: the tool under sh with core files off", nat[:3] == ["sh", "-c", TC.NO_CORE] and
       Path(nat[3]) == Path("/tc/pi32v2/bin/clang") and nat[4:] == ["-c", "a.c"])
-dk = TC.Backend("docker", "/tc", "debian:bookworm-slim").command("common/bin/objdump", ["-d", "x.elf"], src)
-check("docker: linux/amd64, tree at /work, toolchain mounted read-only",
-      dk[:6] == ["docker", "run", "--rm", "--platform", "linux/amd64", "--ulimit"] and f"{src}:/work" in dk and
-      "/tc:/opt/jieli:ro" in dk and dk[-3:] == ["/opt/jieli/common/bin/objdump", "-d", "x.elf"])
-im = TC.Backend("image", image="optimist-toolchain:x").command("pi32v2/bin/ld", ["-T", "a.ld"], src)
-check("image: no toolchain mount, the image's /opt/jieli",
-      not any(x.endswith(":/opt/jieli:ro") for x in im) and "optimist-toolchain:x" in im and
-      im[-3:] == ["/opt/jieli/pi32v2/bin/ld", "-T", "a.ld"])
-TC._WSL_PATHS[(str(src), "Ubuntu")] = "/mnt/c/src/sloop"
-ws = TC.Backend("wsl", "$HOME/.jieli/toolchain", distro="Ubuntu").command("pi32v2/bin/clang", ["-c", "a.c"], src)
-check("wsl: the distribution, the tree's WSL path, the tool under sh",
-      ws[:6] == ["wsl", "-d", "Ubuntu", "--cd", "/mnt/c/src/sloop", "--exec"] and ws[-3:] == ["pi32v2/bin/clang",
-                                                                                            "-c", "a.c"])
-if os.name != "nt" and emu.shutil.which("sh"):
-    # the wsl backend's shell part, run by this host's sh in place of WSL's: the toolchain path is an argument,
-    # a leading ~/ or $HOME/ becomes the home, anything else ($, quotes) stays as it is
-    with tempfile.TemporaryDirectory() as d:
-        home = Path(d) / "home"
-        tool = home / ".jieli" / "toolchain" / "pi32v2" / "bin"
-        tool.mkdir(parents=True)
-        (tool / "clang").write_text('#!/bin/sh\necho "clang $*"\n')
-        (tool / "clang").chmod(0o755)
-        odd = Path(d) / 'a "$(x)" b'
-        (odd / "pi32v2" / "bin").mkdir(parents=True)
-        (odd / "pi32v2" / "bin" / "clang").write_text('#!/bin/sh\necho "odd $*"\n')
-        (odd / "pi32v2" / "bin" / "clang").chmod(0o755)
-        outs = []
-        TC._WSL_PATHS[(str(src), "")] = "/mnt/c/src/sloop"
-        for tc_path in ("$HOME/.jieli/toolchain", "~/.jieli/toolchain", str(odd)):
-            ws_cmd = TC.Backend("wsl", tc_path).command("pi32v2/bin/clang", ["-c", "a b.c"], src)
-            sh_part = ws_cmd[ws_cmd.index("sh"):]          # what WSL would run
-            r = subprocess.run(sh_part, capture_output=True, text=True, env=dict(os.environ, HOME=str(home)))
-            outs.append(r.stdout.strip())
-    check("wsl: the toolchain path is an argument ($HOME/ and ~/ expanded, a quoted $(x) left alone)",
-          outs == ["clang -c a b.c", "clang -c a b.c", "odd -c a b.c"])
-TC.time.sleep, slept = (lambda s: None), TC.time.sleep
-nf = "clang: error: unable to open output file 'build/x.o': 'No such file or directory'"
-check("a tool in a container is run again after a mount lag or a crash, up to TOOL_TRIES",
-      TC.retry_tool(dk_b := TC.Backend("docker", "/tc", "debian"), 1, nf, 0) and
-      TC.retry_tool(dk_b, 139, "Segmentation fault (core dumped)", TC.TOOL_TRIES - 2) and
-      not TC.retry_tool(dk_b, 1, nf, TC.TOOL_TRIES - 1))
-check("never for a success, a real compile error, or a native tool",
-      not TC.retry_tool(dk_b, 0, nf, 0) and not TC.retry_tool(dk_b, 1, "a.c:3: error: expected ';'", 0) and
-      (os.environ.get("OPTIMIST_IN_CONTAINER") == "1" or not TC.retry_tool(TC.Backend("native", "/tc"), 1, nf, 0)))
-TC.time.sleep = slept
-# the container's view of the tree (tools/toolchain.py sync_view): files the host changed lately are touched
-# through the mount, then the container's size and SHA-256 of each must be the host's
-with tempfile.TemporaryDirectory() as d:
-    d = Path(d).resolve()
-    (d / "firmware" / "src").mkdir(parents=True)
-    (d / "build" / "gen").mkdir(parents=True)
-    (d / "docs").mkdir()
-    (d / "firmware" / "src" / "a.c").write_text("int a;\n")
-    (d / "build" / "gen" / "h.h").write_text("#define H 1\n")
-    (d / "docs" / "x.md").write_text("x\n")
-    now = time.time()
-    rec = {p.relative_to(d).as_posix() for p in TC.recent_files(d, now=now)}
-    check("recent_files: the sources and headers changed lately, nothing else",
-          rec == {"firmware/src/a.c", "build/gen/h.h"} and not TC.recent_files(d, now=now + TC.VIEW_WINDOW + 5))
-    im_b = TC.Backend("image", image="optimist-toolchain:x")
-    check("sync_view: containers only (not native, not WSL, not a build already inside the container)",
-          not TC.view_needs_sync(TC.Backend("native", "/tc")) and not TC.view_needs_sync(TC.Backend("wsl", "/tc")) and
-          TC.view_needs_sync(im_b) == (os.environ.get("OPTIMIST_IN_CONTAINER") != "1"))
-    h = d / "build" / "gen" / "h.h"
-    sha = TC.hashlib.sha256(h.read_bytes()).hexdigest()
-    ran = []
-
-    def fake(size, digest):
-        def run(cmd, **kw):
-            ran.append(cmd)
-            return subprocess.CompletedProcess(cmd, 0, f"{size} build/gen/h.h\n{digest}  build/gen/h.h\n", "")
-        return run
-
-    real_run, real_need = TC.subprocess.run, TC.view_needs_sync
-    TC.view_needs_sync = lambda b: b.kind in ("docker", "image")
-    try:
-        TC.subprocess.run = fake(h.stat().st_size, sha)
-        ok = TC.sync_view(im_b, [h], d) == ["build/gen/h.h"]
-        script = ran[-1][-1]
-        check("sync_view: one container touches the file (its own time) and reads its size and SHA-256",
-              ok and len(ran) == 1 and ran[-1][:2] == ["docker", "run"] and f"{d}:/work" in ran[-1] and
-              f"touch -c -d @{int(h.stat().st_mtime)} -- build/gen/h.h" in script and "sha256sum" in script)
-        TC.subprocess.run = fake(h.stat().st_size + 1, sha)
-        e1 = raises(TC.sync_view, im_b, [h], d) or ""
-        TC.subprocess.run = fake(h.stat().st_size, "0" * 64)
-        e2 = raises(TC.sync_view, im_b, [h], d) or ""
-        check("sync_view: a stale size or stale content in the container fails loudly, naming the file",
-              "stale" in e1 and "build/gen/h.h (host 12 B, container 13 B)" in e1 and "other content" in e2)
-        ran.clear()
-        check("sync_view: nothing to do natively or for no files",
-              TC.sync_view(TC.Backend("native", "/tc"), [h], d) == [] and TC.sync_view(im_b, [], d) == [] and not ran)
-    finally:
-        TC.subprocess.run, TC.view_needs_sync = real_run, real_need
-check("the image name follows the pinned toolchain version, JIELI_TOOLCHAIN_IMAGE overrides",
-      TC.image_name({}) == f"optimist-toolchain:{TC.TOOLCHAIN_VERSION}" and
-      TC.image_name({"JIELI_TOOLCHAIN_IMAGE": "x:1"}) == "x:1")
-dockerfile = (ROOT / "tools" / "docker" / "Dockerfile").read_text()
-check("the Dockerfile pins the same toolchain and SDK files as tools/toolchain.py",
-      f"TOOLCHAIN_VERSION={TC.TOOLCHAIN_VERSION}" in dockerfile and TC.TOOLCHAIN_SHA256 in dockerfile and
-      f"SDK_TAG={TC.SDK_TAG}" in dockerfile and all(h in dockerfile for h in TC.SDK_SHA256.values()))
 
 # web: the local site and its server (make_site and the server loop stubbed: nothing is built or served)
 a = ap.parse_args(["web"])

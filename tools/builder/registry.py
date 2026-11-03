@@ -45,6 +45,7 @@ MERGED = {
 
 # Dropped items: a .config naming one still loads; the setting is ignored with a warning (configure.py parse)
 RETIRED = {
+    "COMPILER": "pi32v2-llvm (Julius Vitkauskas's LLVM with a pi32v2 target) is the only compiler, run natively on the build host: JieLi's clang 4 and the Docker, image and WSL ways to run it are gone (retired 2026-11-03, bit 442; the user: \"remove all the docker and JieLi\"); any old COMPILER value is ignored",
     "MIX_FINE": "a part goes into the mix as a 64-bit product, no bit dropped (fx.c MIX_PAN; retired 2026-10-31, bit 426; the user, after weeks on the FM-1: \"tested? then make it default and remove option\"); any old MIX_FINE value is ignored",
     "MIX_EXACT": "the parts reach the mix and the mix reaches the master volume as 64-bit products, the master's 7 bits under the output kept for the DAC (fx.c MIX_PAN MASTER_VOL; retired 2026-10-31, bit 439, with MIX_FINE; the user: \"tested? then make it default and remove option\"); any old MIX_EXACT value is ignored",
     "MIX_ROUND": "a voice into its part and a part into the mix are always one product rounded to the nearest, no floor: clean fades at MASTER max (issue 132; retired 2026-10-31, bit 444, the day it came; the user: \"no need for an option. Bug fix is permanent\"); any old MIX_ROUND value is ignored",
@@ -141,7 +142,7 @@ WAS_COUNT = frozenset({"INS_DELAY", "INS_JCHORUS", "INS_FLANGER", "INS_XDLY",
                        "ARENA"})   # (ARENA: its KB until 2026-10-29, the free RAM since: on)
 
 ALWAYS_ON_TARGET = {"FELUCCA_DUAL": 2, "FELUCCA_STOCK_SUPPLY": 1}   # (target builds only, no item: system/dual.c, system/supply.c; 2026-10-29)
-HASH_AS = {"MIX_FINE": 1, "MIX_EXACT": 1, "BASSPLUS": 1, "KEYLIT": 1, "LIGHTS": 1, "BRIGHT": 0, "SIMD": 0, "KNOB_ONEREST": 1, "MONO_RELEASE": 1, "ST_STRICT": 1, "USB_FLOW": 1, "SHED_FADE": 1, "KEYS_FAST": 1, "TRS_NOISE": 1, "BK_CHECK": 1, "LAYER_QUIET": 1, "DLY_HALVE": 1, "LFO2": 1, "GLIDE": 1, "UI": 1, "ICONS": 0, "OVERVIEW": 0, "OV_ARP": 1, "DRUM_STEP": 1, "CHORD_NAMES": 1, "BPM_LOCK": 0, "MOTION_MARK": 1, "SEL_PAGES": 0, "BIGVALS": 0, "DRUM_ACCENT": 1, "PAGE_LINES": 1, "TAB_IN_POOL": 1, "VOICE_OWN": 1, "DLY_DOT": 1, "CHO_EXACT": 1, "JUNO_FINE": 1, "DUAL": 2, "STOCK_SUPPLY": 1, "REV_HALF": 0, "REV_HB_LONG": 0, "BT_AFH": 1, "LCD_DIRTY": 1, "BLE_DIAG": 0, "BT_DIAG": 0, "OVERLAY": 0}   # (each was its default in every profile)
+HASH_AS = {"MIX_FINE": 1, "MIX_EXACT": 1, "BASSPLUS": 1, "KEYLIT": 1, "LIGHTS": 1, "BRIGHT": 0, "SIMD": 0, "KNOB_ONEREST": 1, "MONO_RELEASE": 1, "ST_STRICT": 1, "USB_FLOW": 1, "SHED_FADE": 1, "KEYS_FAST": 1, "TRS_NOISE": 1, "BK_CHECK": 1, "LAYER_QUIET": 1, "DLY_HALVE": 1, "LFO2": 1, "GLIDE": 1, "UI": 1, "ICONS": 0, "OVERVIEW": 0, "OV_ARP": 1, "DRUM_STEP": 1, "CHORD_NAMES": 1, "BPM_LOCK": 0, "MOTION_MARK": 1, "SEL_PAGES": 0, "BIGVALS": 0, "DRUM_ACCENT": 1, "PAGE_LINES": 1, "TAB_IN_POOL": 1, "VOICE_OWN": 1, "DLY_DOT": 1, "CHO_EXACT": 1, "JUNO_FINE": 1, "DUAL": 2, "STOCK_SUPPLY": 1, "REV_HALF": 0, "REV_HB_LONG": 0, "BT_AFH": 1, "LCD_DIRTY": 1, "BLE_DIAG": 0, "BT_DIAG": 0, "OVERLAY": 0, "COMPILER": 1}   # (each was its default in every profile)
 
 # Never offered: used by X0X only by permission of its author, no licence
 FORBIDDEN = {
@@ -1332,19 +1333,7 @@ _add("ASM", "FELUCCA_ASM", "hand-written assembly speed-ups (FM6, ANALOG 2)", Y,
      desc="The hottest loops of FM6 and ANALOG 2 written in the processor's assembly: the same sound, about 8 to 19 % "
           "less audio CPU (emulator), for about 0.6 KB of flash and 0.7 KB of fast RAM code. Keep on; off only to "
           "compare with the plain C.")
-# bit 442 (2026-10-29): the compiler (tools/toolchain.py: COMPILERS, LLVM_URL; the release build through tools/fm1base.py)
-PI32V2_LLVM = Provenance("pi32v2-llvm (jvitkauskas/pi32v2-llvm, pi32v2-isa)", "Julius Vitkauskas",
-                         "Apache-2.0 WITH LLVM-exception, MIT-0", "4f631b31b",
-                         "https://github.com/jvitkauskas/pi32v2-llvm")
-_add("COMPILER", "FELUCCA_COMPILER", "compiler: pi32v2-llvm or JieLi's clang", Y, 442, default=1, target_only=True,
-     choices=((1, "pi32v2-llvm (smaller)"), (0, "JieLi clang 4")), provenance=PI32V2_LLVM,
-     tested="on the FM-1 (2026-10-29): Optimist's own and the release build with pi32v2-llvm 4f631b31b, the user's "
-            "project played and saved, no drop, no crash; the same sound as JieLi's in an A/B",
-     desc="The C compiler the firmware is built with. pi32v2-llvm (Julius Vitkauskas's LLVM with a pi32v2 target) makes "
-          "the same firmware 14 to 30 KB smaller than JieLi's own clang 4 (measured on the default profile and a full "
-          "release configuration), the audio's CPU the same. JieLi's is the compiler the stock firmware and every "
-          "earlier Optimist were built with. costs-all measures with the default (pi32v2-llvm); this item's cost at JieLi is "
-          "how much bigger JieLi's makes the same firmware.")
+# (bit 442, COMPILER: retired 2026-11-03, pi32v2-llvm is the only compiler; RETIRED above, never reuse the bit)
 # bit 449 (2026-11-01, the next free: SYS_TOP took 448 on branch systop): the sequencer's code as RAM code, 0 / 1 / 2
 # (core.h FAST_RAM_seqev / seq / seqx: FAST, FASTI, FAST_CALL, FAST_COPY, FAST_SET); worktrees/seqram-plan/PLAN.md, sets a0 and a
 _add("SEQ_RAM", "FELUCCA_SEQ_RAM", "the sequencer's code in RAM (CPU peaks at a step)", Y, 449, default=0,
@@ -1385,7 +1374,7 @@ _add("CANVAS_STRIP", "FELUCCA_CANVAS_STRIP", "the screen's drawing canvas: small
           "questions, the cards, the boot logo) are drawn in more passes: more of the screen's drawing time (the audio is "
           "not affected: it runs in interrupts) and more seams where a panel changes on the display a piece at a time. "
           "The same pixels at every choice.")
-# bit 443 (2026-10-30, the next free after COMPILER's 442): a flash-step setting, not firmware (no_image: nothing in
+# bit 443 (2026-10-30, the next free after 442): a flash-step setting, not firmware (no_image: nothing in
 # the image, its hash or its costs). tools/build.py writes it beside the package (PACKAGE.install.json,
 # tools/install_meta.py); the installers read it from there and show it (docs/INSTALL-PATHS.md)
 M_BOOTLOADER = Provenance("m-bootloader (jvitkauskas/m-bootloader)", "Julius Vitkauskas", "MIT", "v1.2 22e2559",

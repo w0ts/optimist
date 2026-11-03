@@ -40,10 +40,10 @@ recipes below walk through them. `tests/examples_test.c` is their test.
 
 ## Set up, build, test, try
 
-BUILDING.md has the details (Docker on macOS and Windows, natively on Linux x86-64). In short:
+BUILDING.md has the details (the compiler runs natively on macOS arm64 and Linux x86-64). In short:
 
 ```
-python3 tools/optimist.py setup                 # what the build needs: the toolchain or its Docker image, the SDK files
+python3 tools/optimist.py setup                 # what the build needs: the pi32v2-llvm toolchain, the SDK files
 python3 tools/optimist.py build                 # the default profile -> build/felucca.fwsc (make build)
 python3 tools/optimist.py build --set EX_SQUARE=1 --measure   # one item changed; --measure links past the app slot
 python3 tools/optimist.py test                  # the builds the tests read, then tests/run_tests.sh (make test)
@@ -171,8 +171,8 @@ measurement build per item value, read by the builder's budget, the menu and the
 
 A new item fails both until it is measured. Adding any item also changes the configuration hash of every build (the
 hash covers every item's value), so the measured check configurations, keyed by that hash, are measured again too.
-`make costs` (`measure_costs.py --missing`) does exactly what is missing; it needs a working build (Docker on a Mac:
-about 20 s a build) and then `costs.json` and `web/builder/data/` are committed together. If you cannot run it, say
+`make costs` (`measure_costs.py --missing`) does exactly what is missing; it needs a working build (about 10 s a
+build on an arm64 Mac) and then `costs.json` and `web/builder/data/` are committed together. If you cannot run it, say
 so in the pull request: a maintainer measures on the build farm (`make costs-all` re-measures everything, ~440 builds)
 and the two checks above stay red until then. Write the cost you measured yourself in the item's `desc` only from a
 real build (`build --measure` with and without it). The examples, measured on the default profile at 35cd9415

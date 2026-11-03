@@ -634,14 +634,12 @@ def item_delta(costs, key, value):
 
 
 # items whose lower value is no feature switched off but another way to build the same firmware: their delta counts as
-# measured, both ways. COMPILER 0 (JieLi's clang) under its default 1 (pi32v2-llvm) made the same firmware 12-30 KB
-# bigger (measured 2026-10-30 on every profile, release), and the clamp counted it 0 B: synths-2~ (JieLi) estimated
-# from synths-2 21 KB under its real build
+# measured, both ways (the clamp would count a delta that is bigger as 0 B)
 #
 # CANVAS_STRIP (default 2 = 31 rows: 0 = 124 rows +44,640 B of pool, 1 = 62 rows +14,880 B, 3 = 16 rows -7,200 B, costs measured 2026-11-02) and
 # INS_RAM (0 = the insert code in the flash: +396 B of flash) are the same kind: a value under the default that costs
 # MORE. The clamp counted them 0 and the builder showed no pool change at all for the canvas
-NOT_A_FEATURE = ("COMPILER", "CANVAS_STRIP", "INS_RAM")
+NOT_A_FEATURE = ("CANVAS_STRIP", "INS_RAM")
 
 
 def item_delta_alone(costs, key, value):
@@ -1360,18 +1358,16 @@ def _grown(cfg, acfg, costs):
 # costs.json "checks" NAME "contexts" KEY: {"from", "to", "delta"}, the real difference), and an estimate that
 # crosses one from its anchor counts the difference measured on the check configuration nearest to it (among those
 # agreeing on the other context items) in place of the sum model's. Measured 2026-10-30 (release, gpufarm, 3e0c9439):
-#   COMPILER 0 (JieLi's clang): +12.0 KB of flash on the defaults, +19.6 to +30.4 KB on the profiles (synths-2 +20.9,
-#     sd-card-mots +29.8, the user's fm1-next profile +30.4), +4.1 KB of pool on synths-2 and drum-machines only
 #   SDCARD 1: +1.1 KB of flash on the defaults, +3.3 KB with the console (sd-card), +33.2 KB in the big layout
 #     (sd-mode-probe: the full FatFs, the SD card mode)
 #   LAYOUT 1: -0.9 KB on the defaults, +29.1 KB with the card (sd-card: the SD card mode itself)
-CONTEXT_ITEMS = ("COMPILER", "LAYOUT", "SDCARD")
+CONTEXT_ITEMS = ("LAYOUT", "SDCARD")
 
 
 def _ctx_class(key, v):
     """a context item's value as the measures agree on it: LAYOUT is the big step (1) or not: the other steps (normal, the
-    sample-slot x project grid) build the same code, a few hundred bytes apart, so a COMPILER or SDCARD measure made on
-    normal stands for them (a step no check configuration has made 4 projects drop the measured COMPILER +7.9 KB and
+    sample-slot x project grid) build the same code, a few hundred bytes apart, so an SDCARD measure made on
+    normal stands for them (a step no check configuration has made 4 projects drop the measured delta and
     show less flash than 16 projects)"""
     return (v == 1) if key == "LAYOUT" else v
 

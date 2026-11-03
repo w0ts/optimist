@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-only
 # Build the published profiles (config/profiles, "# publish: yes": make profiles lists them, make publish /
-# unpublish PROFILE=name or the builder's u key changes them) and run the host tests on Linux x86-64, where the JieLi toolchain runs natively.
+# unpublish PROFILE=name or the builder's u key changes them) and run the host tests on Linux x86-64, where the pi32v2-llvm toolchain runs natively.
 # The toolchain and the SDK files are downloaded from their sources on each runner (python tools/optimist.py
 # setup) and kept only in the runner's cache: nothing of them is stored in this repository or published. The
 # artifacts hold our packages (.fwsc, -ui.zip, a JSON summary), never the toolchain.
@@ -48,10 +48,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: |
-            ~/.jieli
             build/toolchains
             sdk
-          key: jieli-${{ hashFiles('tools/toolchain.py') }}
+          key: llvm-${{ hashFiles('tools/toolchain.py') }}
       - name: Setup (toolchain, SDK files, Python packages)
         run: python tools/optimist.py setup --yes --no-emu
       - name: Package ${{ matrix.profile }}
@@ -77,10 +76,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: |
-            ~/.jieli
             build/toolchains
             sdk
-          key: jieli-${{ hashFiles('tools/toolchain.py') }}
+          key: llvm-${{ hashFiles('tools/toolchain.py') }}
       - name: Setup
         run: python tools/optimist.py setup --yes --no-emu
       - name: Host tests (a package of the reference profile and a measurement build of the defaults first)

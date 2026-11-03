@@ -19,7 +19,6 @@ import argparse
 import importlib.util
 import json
 import os
-import platform
 import re
 import subprocess
 import sys
@@ -433,8 +432,8 @@ def write_header(cfg, name, path=ROOT / "build" / "gen" / "felucca_config.h"):
     path.parent.mkdir(parents=True, exist_ok=True)
     text = header(cfg, name)
     if not path.exists() or path.read_text() != text:
-        tmp = path.with_suffix(".tmp")                  # (whole or not at all: the Docker mount has shown a
-        with open(tmp, "w") as f:                       # half-written header to the compiler)
+        tmp = path.with_suffix(".tmp")                  # (whole or not at all: never a half-written header)
+        with open(tmp, "w") as f:
             f.write(text)
             f.flush()
             os.fsync(f.fileno())
@@ -456,16 +455,9 @@ def build_python():
         try:
             if py.exists():
                 return str(py)
-        except OSError:                                 # (a Docker mount that refuses the venv's symlink)
+        except OSError:
             pass
     return sys.executable                               # (build.py then says how to get Pillow)
-
-
-def in_container():
-    """the toolchain runs in a container: any host but Linux x86-64, JIELI_DOCKER=1, or inside the image"""
-    native = sys.platform.startswith("linux") and platform.machine() in ("x86_64", "AMD64")
-    return (not native or os.environ.get("JIELI_DOCKER") == "1" or os.environ.get("OPTIMIST_IN_CONTAINER") == "1"
-            or os.environ.get("JIELI_BACKEND") in ("docker", "image"))
 
 
 def _run(cmd, env, echo, on_line=None, cancel=None):
@@ -519,16 +511,7 @@ def build(cfg, name, measure=False, log=None, extra=(), echo=False, on_line=None
         if log:
             Path(log).write_text(out)
         return _sized(cfg, bdir, rc, measure, out)
-    for attempt in range(3):                          # (Docker: clang crashes now and then, and the mount has
-                                                        # shown stale files to the tools; a retry works)
-        rc, out = _run(cmd, env, echo, on_line, cancel)
-        flaky = ("core dumped" in out or "Segmentation" in out or "No such file" in out or "Bus error" in out or
-                 ("felucca_config.h" in out and "error:" in out))
-        if rc == 0 or rc == 130 or not flaky or attempt == 2 or not in_container():
-            break
-        if echo:
-            print(f"build: the toolchain failed in a way a retry fixes; again ({attempt + 2} of 3)")
-        __import__("time").sleep(2 + 3 * attempt)        # (let the mount settle before the next try)
+    rc, out = _run(cmd, env, echo, on_line, cancel)
     if log:
         Path(log).write_text(out)
     return _sized(cfg, bdir, rc, measure, out)

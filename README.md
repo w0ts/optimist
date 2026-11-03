@@ -116,8 +116,8 @@ Its own projects live in the sections beside them.
 
 ## Build it on your computer
 
-For developers, or to build without the cloud: macOS, Linux or Windows, Python 3.9+, and Docker on macOS (the JieLi
-toolchain runs natively on Linux x86-64).
+For developers, or to build without the cloud: macOS arm64 or Linux x86-64, Python 3.11+ (the compiler, pi32v2-llvm,
+runs natively on both; other hosts build it first: BUILDING.md).
 
 ```
 git clone https://github.com/w0ts/optimist.git && cd optimist

@@ -20,7 +20,7 @@ import time
 BUILD_STAGES = ("toolchain and config", "generators and loader", "app", "checks", "pack")
 
 # how much of the bar each stage takes: the share of a build's time (measured 2026-10-15, user-default through the
-# Docker toolchain: 0.1 s, 2.5 s, 10 s, 0.9 s, 0.3 s of 13.8 s; the app's compile and link is most of it)
+# JieLi toolchain in Docker: 0.1 s, 2.5 s, 10 s, 0.9 s, 0.3 s of 13.8 s; the app's compile and link is most of it)
 BUILD_WEIGHTS = (1, 18, 72, 7, 2)
 
 STAGE_RE = re.compile(r"^==> \[(\d+)/(\d+)\] (.+)$")

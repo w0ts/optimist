@@ -15,6 +15,25 @@ static void sh_open(uint32_t drum)
     frames(2);
 }
 static int sh_on(uint32_t idx) { return step_has(TSEL, idx); }
+static int sh_muted_only(uint32_t idx)                  /* the step is muted (AUTO builds only) */
+{
+#if FELUCCA_AUTO
+    return step_muted(TSEL, idx, 0);
+#else
+    (void)idx;
+    return 0;
+#endif
+}
+/* a synth step tapped (MUTE MODE, 2026-11-03): with the automation store its notes are muted and kept, else it is cleared as before; 1 as that says */
+static int sh_muted_only(uint32_t idx);
+static int sh_muted(uint32_t idx)
+{
+#if FELUCCA_AUTO
+    return step_on(&TSEL->step[idx]) && step_muted(TSEL, idx, 0);
+#else
+    return !sh_on(idx);
+#endif
+}
 static void step_hold_tests(void)
 {
     uint32_t d;
@@ -26,7 +45,7 @@ static void step_hold_tests(void)
         kup(WK(0));
         check(sh_on(0), d ? "step hold, drums: ... let go (a tap): set" : "step hold, synth: ... let go (a tap): set");
         key(WK(0));
-        check(!sh_on(0), d ? "step hold, drums: a set step tapped: cleared" : "step hold, synth: a set step tapped: cleared");
+        check(d ? !sh_on(0) : sh_muted(0), d ? "step hold, drums: a set step tapped: cleared" : "step hold, synth: a set step tapped: cleared (AUTO: muted, kept)");
         /* a long press: the cards, no toggle */
         kdown(WK(1));
         frames(HOLD_FRAMES);
@@ -59,7 +78,7 @@ static void step_hold_tests(void)
         if (d)
             key(WK(5)), key(WK(5));
         key(WK(5));
-        check(!sh_on(5), d ? "step hold, drums: ... tapped again: cleared" : "step hold, synth: ... tapped again: cleared");
+        check(d ? !sh_on(5) : sh_muted(5), d ? "step hold, drums: ... tapped again: cleared" : "step hold, synth: ... tapped again: cleared (AUTO: muted, kept)");
         kup(WK(2));
         check(sh_on(2) && !st.held, d ? "step hold, drums: ... the one held let go: still set" : "step hold, synth: ... the one held let go: still set");
         /* the held key's LED is lit from the press (the feedback before the toggle) */
@@ -106,10 +125,14 @@ static void step_pitch_tests(void)
     n0 = TSEL->step[3].note[0];
     TSEL->step[3].note[0] = (uint8_t)(n0 + 5u);         /* (the note moved, as a turn of its NOTE card would) */
     key(WK(3));
+#if FELUCCA_AUTO
+    check(sh_muted(3) && TSEL->step[3].note[0] == n0 + 5u, "step pitch: a set step tapped: muted, its pitch kept (MUTE MODE)");
+#else
     check(!sh_on(3) && TSEL->step[3].time == ST_REST, "step pitch: a set step tapped: off (a rest, silent)");
+#endif
     song.octave = 1;                                    /* (the pick elsewhere meanwhile) */
     key(WK(3));
-    check(sh_on(3) && TSEL->step[3].note[0] == n0 + 5u, "step pitch: ... tapped again: back at the pitch it had, not the pick's");
+    check(sh_on(3) && !sh_muted_only(3) && TSEL->step[3].note[0] == n0 + 5u, "step pitch: ... tapped again: back at the pitch it had, not the pick's");
     song.octave = 0;
     key(WK(4));
     check(sh_on(4) && TSEL->step[4].note[0] == n0, "step pitch: a step never set: the pick, as before");

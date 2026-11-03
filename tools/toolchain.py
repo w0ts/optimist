@@ -1,29 +1,25 @@
 # SPDX-License-Identifier: GPL-3.0-only
-"""Where the JieLi toolchain and the AC79 SDK files are, and how build.py runs a tool (BUILDING.md).
+"""Where the pi32v2-llvm toolchain and the AC79 SDK files are, and how build.py runs a tool (BUILDING.md).
 
-The toolchain is a Linux x86-64 binary set. Four ways to run it, picked in this order:
+The compiler is Julius Vitkauskas's pi32v2-llvm (LLVM with a pi32v2 target) as his drop-in: a directory with the
+layout of the old vendor toolchain (pi32v2/bin/clang, ld, common/bin/objdump, ...) whose tools are native binaries
+of the build host plus a Python 3.11 wrapper. It runs natively, never in a container or WSL:
 
-  JIELI_BACKEND=native|docker|image|wsl   forces one
-  JIELI_TOOLCHAIN=<dir>                   that copy: natively on Linux x86-64 (JIELI_DOCKER=1: in Docker), else
-                                          mounted into a linux/amd64 container (JIELI_DOCKER_IMAGE, debian)
-  Linux x86-64                            ~/.jieli/toolchain, natively
-  elsewhere                               the image tools/docker/Dockerfile builds (optimist-toolchain:<version>,
-                                          JIELI_TOOLCHAIN_IMAGE), else ~/.jieli/toolchain-docker or
-                                          ~/.jieli/toolchain mounted, else (Windows) WSL: JIELI_WSL_DISTRO,
-                                          JIELI_WSL_TOOLCHAIN (default $HOME/.jieli/toolchain inside WSL)
+  PI32V2_LLVM_TOOLCHAIN=<dir>   that drop-in
+  otherwise                     <toolchains>/pi32v2-llvm-dropin-<version> (tools/repo_root.py: OPTIMIST_TOOLCHAINS, the
+                                main checkout's build/toolchains, ...; `optimist.py setup` downloads it there)
+
+Hosts with a drop-in: Linux x86-64 and macOS arm64 (LLVM_ASSETS). Others build one from the pinned commits
+(BUILDING.md, "The compiler").
 
 The SDK files: AC79_SDK, else <repo>/sdk (git-ignored; where setup fetches them; in a git worktree: the main
 checkout's sdk/, tools/shared.py), else ~/fw-AC79_AIoT_SDK (legacy, read-only fallback), else build/deps/ac79
 (SLOOP's Windows layout).
 """
-import hashlib
 import importlib.util
 import os
 import platform
-import shlex
-import shutil
 import subprocess
-import time
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -31,20 +27,17 @@ import repo_root
 import shared
 
 ROOT = Path(__file__).resolve().parents[1]
-TOOLCHAIN_VERSION = "20250324.1"
-TOOLCHAIN_URL = f"https://jl-update.oss-cn-shenzhen.aliyuncs.com/jieli-linux-toolchains-{TOOLCHAIN_VERSION}.tar.xz"
-TOOLCHAIN_SHA256 = "f686586bcfb45e0f0bb27fd2b39c7a7f313cb4f0e88a66a14da621ffa8225958"
-IMAGE_DEFAULT = f"optimist-toolchain:{TOOLCHAIN_VERSION}"
-# the other compiler (builder item COMPILER): Julius Vitkauskas's pi32v2-llvm (LLVM with a pi32v2 target) as his drop-in
-# for JieLi's toolchain (pi32v2-isa tools/dropin/make_dropin.sh --copy: the same layout, pi32v2/bin/clang, ld,
-# common/bin/objdump, ..., a Python 3.11 wrapper), built from pinned commits (BUILDING.md "The compiler") and kept as
-# a release asset of this repository (Apache-2.0 with LLVM exceptions, MIT-0: its licences inside)
-LLVM_VERSION = "4f631b31b-e575321"             # pi32v2-llvm 4f631b31b, pi32v2-isa e575321
-LLVM_URL = ("https://github.com/w0ts/optimist/releases/download/toolchain-pi32v2-llvm-"
-            f"{LLVM_VERSION}/pi32v2-llvm-dropin-{LLVM_VERSION}.tar.xz")
-LLVM_SHA256 = "72519811be85041a3b1ba4ec4b71068897903955d73a2d1beb77559e3a6d8f12"
-COMPILERS = ("jieli", "llvm")                  # FELUCCA_COMPILER 0, 1 (tools/builder/registry.py COMPILER)
-DOCKERFILE_DIR = ROOT / "tools" / "docker"
+# pi32v2-llvm 4f631b31b, pi32v2-isa e575321, built from pinned commits (BUILDING.md "The compiler") and kept as release
+# assets of this repository (Apache-2.0 with LLVM exceptions, MIT-0: the licences inside each archive)
+LLVM_VERSION = "4f631b31b-e575321"
+LLVM_RELEASE_URL = f"https://github.com/w0ts/optimist/releases/download/toolchain-pi32v2-llvm-{LLVM_VERSION}"
+# (system, machine) -> (asset, SHA-256, size in MB); the archive's one top directory is pi32v2-llvm-dropin-<version>
+LLVM_ASSETS = {
+    ("linux", "x86_64"): (f"pi32v2-llvm-dropin-{LLVM_VERSION}.tar.xz",
+                          "72519811be85041a3b1ba4ec4b71068897903955d73a2d1beb77559e3a6d8f12", 72),
+    ("darwin", "arm64"): (f"pi32v2-llvm-dropin-{LLVM_VERSION}-macos-arm64.tar.xz",
+                          "8ea37c365a8443c3ce7bd3bd2e232e3ee9f42ed03e326e50d97ff41310e95cd5", 38),
+}
 SDK_TAG = "AC79NN_SDK_V1.2.1_2023-12-13"
 SDK_URL = f"https://gitee.com/Jieli-Tech/fw-AC79_AIoT_SDK/raw/{SDK_TAG}/cpu/wl82/tools"
 # the SDK files the package uses, as AC79NN_SDK_V1.2.1 has them (the tested version)
@@ -53,30 +46,29 @@ SDK_SHA256 = {
     "cfg_tool.bin": "276579954f076886a6a7694f65dc71c034a63a2c204b76749065c0ac7b010d1b",
     "cfg/eq_cfg_hw.bin": "41167491bffed4651750719c973d2758adeb9021a5670d02d6a53c85ed80ea7d",
 }
-JIELI_HOME = Path.home() / ".jieli"
-BACKENDS = ("native", "docker", "image", "wsl")
 # a shell sets the core limit: build.py runs tools in threads, where preexec_fn is unsafe; a crashed tool
 # must not leave a core file in the source tree
 NO_CORE = 'ulimit -c 0 && exec "$0" "$@"'
-# WSL: $0 is the toolchain directory; a leading ~/ or $HOME/ becomes the WSL user's home, nothing else is
-# expanded -> $t
-WSL_HOME = r't=$0; case $t in "~/"*) t="$HOME/${t#\~/}";; "\$HOME/"*) t="$HOME/${t#\$HOME/}";; esac; '
 
 
 class ToolchainError(Exception):
     pass
 
 
-def is_native_host():
-    return platform.system() == "Linux" and platform.machine() in ("x86_64", "AMD64")
+def host_key():
+    """(system, machine) of this host as LLVM_ASSETS spells it: ("linux", "x86_64"), ("darwin", "arm64"), ..."""
+    machine = platform.machine().lower()
+    machine = {"amd64": "x86_64", "aarch64": "arm64"}.get(machine, machine)
+    return platform.system().lower(), machine
+
+
+def llvm_asset(key=None):
+    """-> (asset name, SHA-256, MB) of the drop-in for this host, or None when there is none"""
+    return LLVM_ASSETS.get(key or host_key())
 
 
 def has_clang(path):
     return path is not None and (Path(path) / "pi32v2" / "bin" / "clang").is_file()
-
-
-def image_name(env=None):
-    return (env or os.environ).get("JIELI_TOOLCHAIN_IMAGE") or IMAGE_DEFAULT
 
 
 def _quiet(cmd, timeout=60):
@@ -86,284 +78,51 @@ def _quiet(cmd, timeout=60):
         return None
 
 
-_DOCKER = {}
+def llvm_dir(env=None, root=None):
+    """the drop-in's directory: PI32V2_LLVM_TOOLCHAIN, else <toolchains>/pi32v2-llvm-dropin-<version>"""
+    env = os.environ if env is None else env
+    if env.get("PI32V2_LLVM_TOOLCHAIN"):
+        return Path(env["PI32V2_LLVM_TOOLCHAIN"])
+    return repo_root.toolchains_dir(root, env) / f"pi32v2-llvm-dropin-{LLVM_VERSION}"
 
 
-def docker_running():
-    """the Docker daemon answers (asked once per process: a hung daemon costs the timeout once)"""
-    if "up" not in _DOCKER:
-        p = _quiet(["docker", "info", "--format", "{{.ServerVersion}}"]) if shutil.which("docker") else None
-        _DOCKER["up"] = p is not None and p.returncode == 0
-    return _DOCKER["up"]
-
-
-def image_present(image):
-    p = _quiet(["docker", "image", "inspect", "--format", "{{.Id}}", image]) if shutil.which("docker") else None
+def runs_here(d):
+    """the drop-in's own tools run on this host: its wrapper (python3, 3.11 or newer) starts the real clang"""
+    p = _quiet([str(Path(d) / "pi32v2" / "bin" / "clang"), "--version"])
     return p is not None and p.returncode == 0
-
-
-def wsl_toolchain(env):
-    """Windows: (distro, toolchain dir inside WSL) when a WSL distribution has the toolchain, else None"""
-    if platform.system() != "Windows" or not shutil.which("wsl"):
-        return None
-    distro = env.get("JIELI_WSL_DISTRO", "")
-    tc = env.get("JIELI_WSL_TOOLCHAIN", "$HOME/.jieli/toolchain")
-    probe = ["wsl", *(["-d", distro] if distro else []), "--exec", "sh", "-c",
-             WSL_HOME + 'test -x "$t/pi32v2/bin/clang"', tc]
-    p = _quiet(probe)
-    return (distro, tc) if p is not None and p.returncode == 0 else None
-
-
-def linux_user():
-    """--user for docker run on a Linux host (root-owned build files otherwise); Docker Desktop maps it itself"""
-    if platform.system() == "Linux" and hasattr(os, "getuid"):
-        return ["--user", f"{os.getuid()}:{os.getgid()}"]
-    return []
 
 
 @dataclass(frozen=True)
 class Backend:
-    kind: str                       # native | docker | image | wsl
-    path: str = ""                  # the toolchain: a host directory (native, docker), a WSL path (wsl)
-    image: str = ""                 # docker: the base image; image: the toolchain image
-    distro: str = ""                # wsl: the distribution ("" = the default one)
+    path: str                       # the drop-in's directory
 
     def describe(self):
-        return {"native": f"native, {self.path}",
-                "docker": f"Docker ({self.image}), {self.path} mounted",
-                "image": f"Docker image {self.image}",
-                "wsl": f"WSL {self.distro or '(default distribution)'}, {self.path}"}[self.kind]
+        return f"pi32v2-llvm {LLVM_VERSION}, native, {self.path}"
 
     def command(self, tool, args, src=ROOT):
-        """the command line that runs toolchain binary `tool` (pi32v2/bin/clang...) with cwd src; args are
+        """the command line that runs the drop-in's binary `tool` (pi32v2/bin/clang...) with cwd src; args are
         relative POSIX paths and flags"""
-        if self.kind == "native":
-            return ["sh", "-c", NO_CORE, str(Path(self.path) / tool), *args]
-        if self.kind in ("docker", "image"):
-            mount = ["-v", f"{self.path}:/opt/jieli:ro"] if self.kind == "docker" else []
-            return ["docker", "run", "--rm", "--platform", "linux/amd64", "--ulimit", "core=0", *linux_user(),
-                    "-v", f"{src}:/work", *mount, "-w", "/work", self.image, f"/opt/jieli/{tool}", *args]
-        return ["wsl", *(["-d", self.distro] if self.distro else []), "--cd", wsl_path(src, self.distro), "--exec",
-                "sh", "-c", WSL_HOME + 'ulimit -c 0 && tool=$1 && shift && exec "$t/$tool" "$@"', self.path, tool,
-                *args]
-
-    def shell(self, script, src=ROOT):
-        """docker, image: the command line that runs a POSIX shell script in the tools' container, cwd src"""
-        image = self.image or "debian:bookworm-slim"
-        return ["docker", "run", "--rm", "--platform", "linux/amd64", *linux_user(), "-v", f"{src}:/work",
-                "-w", "/work", image, "sh", "-c", script]
+        return ["sh", "-c", NO_CORE, str(Path(self.path) / tool), *args]
 
 
-TOOL_TRIES = 4
-# what a tool says when the container's view of the mounted tree lags the host's (seen with Rancher Desktop on
-# macOS, 2026-10-06: an output folder made a moment before is "not there") or the emulated x86-64 binary crashes
-FLAKY = ("No such file or directory", "core dumped", "Segmentation fault", "Bus error")
+def _missing_hint(d):
+    if llvm_asset() is None:
+        system, machine = host_key()
+        return (f"there is no pi32v2-llvm drop-in for {system} {machine}: build one from the pinned commits "
+                "(BUILDING.md, 'The compiler') and point PI32V2_LLVM_TOOLCHAIN at it")
+    return f"no pi32v2-llvm in {d}: python tools/optimist.py setup downloads it"
 
 
-def retry_tool(backend, returncode, output, attempt):
-    """-> True to run a failed tool again: only in a container (--in-docker too; a native failure is real), for the
-    failures above, and not after the last try. Waits a little first (the mount settles)"""
-    in_container = backend.kind in ("docker", "image") or os.environ.get("OPTIMIST_IN_CONTAINER") == "1"
-    if returncode == 0 or not in_container or attempt + 1 >= TOOL_TRIES:
-        return False
-    if not any(f in output for f in FLAKY):
-        return False
-    time.sleep(0.5 + attempt)
-    return True
-
-
-# ---- the container's view of the tree (BUILDING.md, "How the toolchain runs": stale files in the container)
-#
-# On macOS the container reaches the tree through the VM's file share, which caches what it has seen: Rancher
-# Desktop's reverse-sshfs keeps a file's attributes 20 s (sshfs cache_timeout) and the VM's kernel 1 s more. A file
-# the host rewrites within that time keeps its old size in the container: the compiler reads the new text cut to
-# the old length (a header cut short) or padded with NUL bytes ("null character ignored"). Fsync, an in-place
-# write and waiting a second do not help; a change made through the mount does: sync_view() sets each file's
-# modification time again (to its own, whole seconds) from inside a container, which drops both caches, and then
-# compares the size and SHA-256 the container sees with the host's.
-VIEW_WINDOW = 120       # s: a file the host changed longer ago is past any cache (sshfs: 20 s)
-VIEW_DIRS = ("firmware", "build/gen")      # the trees the tools read that the host writes (sources, headers)
-
-
-class StaleViewError(ToolchainError):
-    pass
-
-
-def view_needs_sync(backend):
-    """the tools run in a container that reaches the tree through a mount (not natively, not WSL, and not when
-    the whole build already runs inside the container: its writes go through the mount)"""
-    return backend.kind in ("docker", "image") and os.environ.get("OPTIMIST_IN_CONTAINER") != "1"
-
-
-def recent_files(src, dirs=VIEW_DIRS, window=VIEW_WINDOW, now=None):
-    """-> the files under src/dirs the host changed (modified, or replaced: ctime) in the last `window` seconds"""
-    now = time.time() if now is None else now
-    out = []
-    for d in dirs:
-        for dirpath, _, names in os.walk(Path(src) / d):
-            for n in names:
-                p = Path(dirpath) / n
-                try:
-                    st = p.stat()
-                except OSError:
-                    continue
-                if max(st.st_mtime, st.st_ctime) > now - window:
-                    out.append(p)
-    return out
-
-
-def _host_view(p):
-    data = p.read_bytes()
-    return len(data), hashlib.sha256(data).hexdigest()
-
-
-def sync_view(backend, paths, src=ROOT):
-    """make the container see `paths` (host files under src) as the host has them now, then check it: the size and
-    SHA-256 of each as the container reads it must be the host's (StaleViewError names the ones that differ).
-    One container; nothing to do natively or for no paths"""
-    if not view_needs_sync(backend):
-        return []
-    src = Path(src)
-    files = sorted({Path(p).resolve() for p in paths if Path(p).is_file()})
-    if not files:
-        return []
-    rel = [f.relative_to(src.resolve()).as_posix() for f in files]
-    host = {r: _host_view(f) for r, f in zip(rel, files)}
-    by_time = {}
-    for r, f in zip(rel, files):
-        by_time.setdefault(int(f.stat().st_mtime), []).append(shlex.quote(r))
-    quoted = " ".join(shlex.quote(r) for r in rel)
-    script = "".join(f"touch -c -d @{t} -- {' '.join(rs)} 2>/dev/null; " for t, rs in by_time.items())
-    script += f"stat -c '%s %n' -- {quoted} && sha256sum -- {quoted}"
-    p = subprocess.run(backend.shell(script, src), capture_output=True, text=True, encoding="utf-8",
-                       errors="replace")
-    if p.returncode:
-        raise StaleViewError(f"checking the container's view of the tree failed: {p.stderr.strip()[-400:]}")
-    lines = p.stdout.splitlines()
-    sizes = dict(ln.split(" ", 1)[::-1] for ln in lines[:len(rel)])
-    shas = {ln[66:]: ln[:64] for ln in lines[len(rel):]}
-    stale = [f"{r} (host {host[r][0]} B, container {sizes.get(r, '?')} B"
-             f"{', other content' if shas.get(r) != host[r][1] else ''})"
-             for r in rel if sizes.get(r) != str(host[r][0]) or shas.get(r) != host[r][1]]
-    if stale:
-        raise StaleViewError("the container sees stale files (the Docker file share serves an old copy; "
-                             "BUILDING.md, 'How the toolchain runs'): " + "; ".join(stale))
-    return rel
-
-
-_WSL_PATHS = {}
-
-
-def wsl_path(p, distro):
-    key = (str(p), distro)
-    if key not in _WSL_PATHS:
-        cmd = ["wsl", *(["-d", distro] if distro else []), "--exec", "wslpath", "-a", Path(p).resolve().as_posix()]
-        _WSL_PATHS[key] = subprocess.check_output(cmd, text=True).strip()
-    return _WSL_PATHS[key]
-
-
-def _from_dir(path, env):
-    if env.get("JIELI_BACKEND") == "native" or (is_native_host() and env.get("JIELI_DOCKER", "0") != "1"):
-        return Backend("native", str(Path(path).resolve()))
-    return Backend("docker", str(Path(path).resolve()), env.get("JIELI_DOCKER_IMAGE", "debian:bookworm-slim"))
-
-
-def compiler_of(values):
-    """the configuration's compiler ("jieli" / "llvm") from its C switches (FELUCCA_COMPILER, default jieli)"""
-    return COMPILERS[1] if str(values.get("FELUCCA_COMPILER", "0")) == "1" else COMPILERS[0]
-
-
-def llvm_dir(env=None, root=None):
-    """pi32v2-llvm's drop-in directory: PI32V2_LLVM_TOOLCHAIN, else <toolchains>/pi32v2-llvm-dropin-<version>
-    (tools/repo_root.py: OPTIMIST_TOOLCHAINS, the main checkout's build/toolchains, ...; setup downloads it there).
-    An old copy in ~/.jieli/pi32v2-llvm is used (read only) when the new place has none."""
+def resolve(env=None):
+    """-> the Backend to build with; ToolchainError says what is missing and how to get it"""
     env = os.environ if env is None else env
-    if env.get("PI32V2_LLVM_TOOLCHAIN"):
-        return Path(env["PI32V2_LLVM_TOOLCHAIN"])
-    new = repo_root.toolchains_dir(root, env) / f"pi32v2-llvm-dropin-{LLVM_VERSION}"
-    old = JIELI_HOME / "pi32v2-llvm"
-    if not has_clang(new) and has_clang(old):
-        print(f"note: pi32v2-llvm is read from {old}; move it: mv ~/.jieli/pi32v2-llvm-dropin-* {new.parent}/", flush=True)
-        return old
-    return new
-
-
-def resolve_llvm(env):
-    """the Backend for pi32v2-llvm: natively on Linux x86-64 (Python 3.11 for its wrapper), else its directory mounted in
-    the toolchain image (its python3; plain debian has none). WSL: not yet"""
     d = llvm_dir(env)
     if not has_clang(d):
-        raise ToolchainError(f"no pi32v2-llvm in {d}: python tools/optimist.py setup downloads it "
-                             "(or the builder's COMPILER item: JieLi)")
-    forced = env.get("JIELI_BACKEND", "")
-    if forced == "wsl":
-        raise ToolchainError("pi32v2-llvm in WSL is not set up yet: the builder's COMPILER item JieLi, or Docker")
-    if forced in ("", "native") and is_native_host() and env.get("JIELI_DOCKER", "0") != "1":
-        return Backend("native", str(d.resolve()))
-    if forced == "native":
-        raise ToolchainError("the native toolchain runs on Linux x86-64 only (use docker)")
-    if not docker_running() or not image_present(image_name(env)):
-        raise ToolchainError(f"pi32v2-llvm runs in the toolchain image {image_name(env)} here (its python3): "
-                             "start Docker, then python tools/optimist.py setup")
-    return Backend("docker", str(d.resolve()), image_name(env))
-
-
-def resolve(env=None, compiler=COMPILERS[0]):
-    """-> the Backend to build with (compiler: COMPILERS); ToolchainError says what is missing and how to get it"""
-    env = os.environ if env is None else env
-    if compiler == "llvm":
-        return resolve_llvm(env)
-    forced = env.get("JIELI_BACKEND", "")
-    if forced and forced not in BACKENDS:
-        raise ToolchainError(f"JIELI_BACKEND={forced}: use one of {', '.join(BACKENDS)}")
-    if forced == "native" and not is_native_host():
-        raise ToolchainError("the native toolchain runs on Linux x86-64 only (use docker, image or wsl)")
-    explicit = env.get("JIELI_TOOLCHAIN")
-    if explicit and forced not in ("image", "wsl"):
-        if not has_clang(explicit):
-            raise ToolchainError(f"JIELI_TOOLCHAIN={explicit} has no pi32v2/bin/clang (the directory with pi32v2/ "
-                                 "and common/; python tools/optimist.py setup downloads it)")
-        b = _from_dir(explicit, env)
-        if forced == "docker" and b.kind == "native":
-            b = Backend("docker", b.path, env.get("JIELI_DOCKER_IMAGE", "debian:bookworm-slim"))
-        return _checked(b)
-    if forced in ("", "native") and is_native_host() and env.get("JIELI_DOCKER", "0") != "1":
-        if has_clang(JIELI_HOME / "toolchain"):
-            return Backend("native", str((JIELI_HOME / "toolchain").resolve()))
-        if forced == "native":
-            raise ToolchainError("no toolchain in ~/.jieli/toolchain: python tools/optimist.py setup")
-    if forced in ("", "image") and docker_running() and image_present(image_name(env)):
-        return Backend("image", image=image_name(env))
-    if forced in ("", "docker"):
-        for d in (JIELI_HOME / "toolchain-docker", JIELI_HOME / "toolchain"):
-            if has_clang(d) and docker_running():
-                return Backend("docker", str(d.resolve()), env.get("JIELI_DOCKER_IMAGE", "debian:bookworm-slim"))
-    if forced in ("", "wsl"):
-        w = wsl_toolchain(env)
-        if w:
-            return Backend("wsl", w[1], distro=w[0])
-    raise ToolchainError(_missing_hint(forced, env))
-
-
-def _checked(b):
-    if b.kind == "docker" and not docker_running():
-        raise ToolchainError("Docker is not running (the toolchain runs in a linux/amd64 container on this host)")
-    return b
-
-
-def _missing_hint(forced, env):
-    if forced == "image":
-        return (f"no Docker image {image_name(env)} (or Docker is not running): "
-                "python tools/optimist.py setup builds it")
-    if forced == "wsl":
-        return "no WSL distribution with the toolchain (JIELI_WSL_DISTRO, JIELI_WSL_TOOLCHAIN; BUILDING.md)"
-    if is_native_host():
-        return "no JieLi toolchain: python tools/optimist.py setup (downloads it to ~/.jieli/toolchain)"
-    if not docker_running():
-        return ("the JieLi toolchain is Linux x86-64 only and Docker is not running here: start Docker Desktop "
-                "(or Rancher Desktop), then python tools/optimist.py setup" +
-                (" (or set up WSL: BUILDING.md, Windows)" if platform.system() == "Windows" else ""))
-    return f"no toolchain image {image_name(env)}: python tools/optimist.py setup builds it"
+        raise ToolchainError(_missing_hint(d))
+    if not runs_here(d):
+        raise ToolchainError(f"the pi32v2-llvm in {d} does not run on this host ({'-'.join(host_key())}): it is for "
+                             "another system, or python3 is older than 3.11 (its wrapper needs 3.11)")
+    return Backend(str(d.resolve()))
 
 
 # ---- the SDK files
@@ -407,14 +166,14 @@ def have_module(name):
         return False
 
 
-def preflight(env=None, compiler=COMPILERS[0]):
+def preflight(env=None):
     """the checks build.py runs before it starts -> (Backend, SDK dir); SystemExit with what to do"""
     env = os.environ if env is None else env
     if not have_module("PIL.Image"):
         raise SystemExit("build: this Python has no Pillow: python tools/optimist.py setup "
                          "(or pip install -r tools/requirements.txt)")
     try:
-        backend = resolve(env, compiler)
+        backend = resolve(env)
     except ToolchainError as e:
         raise SystemExit(f"build: {e}")
     sdk = sdk_dir(env)
