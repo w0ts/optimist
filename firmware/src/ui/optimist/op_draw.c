@@ -88,15 +88,89 @@ static const char *cut(char *b, const char *s, uint32_t n)
     return b;
 }
 
-/* the loop position of track t: "bar.beat" in its pattern */
-static void loop_pos(const track_t *t, char *b)
+/* ---- the clock icon at the header's right (the user, 2026-11-03: "an icon in top bar, instead of the time counter, for midi
+ * clock in, link ... and color indicating the state"; then "option 1, and make the icon bigger": ONE icon, the clock's source;
+ * bar.beat gone from the header): a DIN socket for a MIDI clock (USB, TRS, Bluetooth), a chain link for Link, coloured by
+ * the state (HS_*): green the clock follows it, amber heard but another clock followed, grey a Link session with no peer
+ * yet, red a JAM mode not connected (the user: "in jam mode, not connected is not good. => red", op_wifi.c wf_link_state).
+ * Which one (head_clock): JAM not connected first, then the source followed, then one heard, then Link waiting; none on the
+ * internal clock with nothing heard */
+enum { HS_OFF, HS_NONE, HS_THERE, HS_FOLLOW, HS_BAD };
+enum { HC_NONE, HC_MIDI, HC_LINK };
+#define HS_W 19                         /* the icon's room (the DIN 17, the chain 19), right-aligned like bar.beat was */
+#if WIFI_UI && FELUCCA_LINK
+static uint32_t wf_link_state(void);    /* (op_wifi.c, included later) */
+#endif
+static uint32_t head_midi(void)         /* MIDI clock in: USB, TRS, Bluetooth MIDI (a USB host's device: USB) */
 {
-    uint32_t len = (uint32_t)ui_clamp(t->p[P_SLEN], 1, NSTEP), s = t->seq_idx % len, k;
-    fmt_int(b, (int32_t)(s / 16u + 1u));
-    k = str_len(b);
-    b[k] = '.';
-    b[k + 1] = (char)('1' + (s % 16u) / 4u);
-    b[k + 2] = 0;
+    uint32_t s, now = SYNC_NOW(), there = 0;
+    if (sy.src && sy.src != MSRC_LINK)
+        return HS_FOLLOW;
+    for (s = MSRC_USB; s <= SY_SRC_LAST; s++)
+        if (s != MSRC_LINK && sy_present(s, now))
+            there = 1;
+    return there ? HS_THERE : HS_NONE;
+}
+static uint32_t head_link(void)
+{
+#if WIFI_UI && FELUCCA_LINK
+    return wf_link_state();
+#else
+    return HS_OFF;
+#endif
+}
+static uint32_t head_clock(uint32_t *st)   /* -> HC_*: the icon shown; *st its state */
+{
+    uint32_t m = head_midi(), l = head_link();
+    uint32_t k = l == HS_BAD || l == HS_FOLLOW ? HC_LINK : m == HS_FOLLOW ? HC_MIDI : l == HS_THERE ? HC_LINK :
+                 m == HS_THERE ? HC_MIDI : l == HS_NONE ? HC_LINK : HC_NONE;
+    *st = k == HC_LINK ? l : k == HC_MIDI ? m : HS_OFF;
+    return k;
+}
+static uint16_t hs_col(uint32_t st)
+{
+    return st == HS_FOLLOW ? C_OK : st == HS_THERE ? C_WARN : st == HS_BAD ? C_ERR : C_DIM;
+}
+static void hs_din(int32_t x, int32_t y, uint16_t c)   /* a 5-pin DIN socket, 17 x 17 at (x, y): its ring, five pins, the key */
+{
+    static const int8_t P[5][2] = {{-5, 0}, {-4, -4}, {0, -6}, {3, -4}, {4, 0}};   /* (the pins' 2 x 2 squares, from the centre) */
+    int32_t cx = x + 8, cy = y + 8, dx = 8, dy = 0, e = 1 - 8;
+    uint32_t i;
+    while (dx >= dy) {                  /* (a midpoint circle, radius 8: its eight octants) */
+        cv_rect(cx - dx, cy - dy, 1, 1, c), cv_rect(cx + dx, cy - dy, 1, 1, c);
+        cv_rect(cx - dx, cy + dy, 1, 1, c), cv_rect(cx + dx, cy + dy, 1, 1, c);
+        cv_rect(cx - dy, cy - dx, 1, 1, c), cv_rect(cx + dy, cy - dx, 1, 1, c);
+        cv_rect(cx - dy, cy + dx, 1, 1, c), cv_rect(cx + dy, cy + dx, 1, 1, c);
+        dy++;
+        if (e < 0) {
+            e += 2 * dy + 1;
+        } else {
+            dx--;
+            e += 2 * (dy - dx) + 1;
+        }
+    }
+    for (i = 0; i < 5u; i++)
+        cv_rect(cx + P[i][0], cy + P[i][1], 2, 2, c);
+    cv_rect(cx - 1, cy + 5, 3, 2, c);   /* (the key at the bottom) */
+}
+static void hs_chain(int32_t x, int32_t y, uint16_t c)  /* a chain, 19 x 14 at (x, y + 1): two rounded links, the second
+                                                         * down and right of the first (never side by side: "00") */
+{
+    uint32_t k;
+    for (k = 0; k < 2u; k++) {
+        int32_t lx = x + (int32_t)k * 7, ly = y + 1 + (int32_t)k * 6;
+        cv_rect(lx + 2, ly, 8, 2, c), cv_rect(lx + 2, ly + 6, 8, 2, c);       /* (2 px strokes, the corners cut) */
+        cv_rect(lx, ly + 2, 2, 4, c), cv_rect(lx + 10, ly + 2, 2, 4, c);
+        cv_rect(lx + 1, ly + 1, 1, 1, c), cv_rect(lx + 10, ly + 1, 1, 1, c);
+        cv_rect(lx + 1, ly + 6, 1, 1, c), cv_rect(lx + 10, ly + 6, 1, 1, c);
+    }
+}
+static void head_clock_draw(int32_t x, uint32_t k, uint32_t st)   /* x: the left of HS_W */
+{
+    if (k == HC_MIDI)
+        hs_din(x + 1, 4, hs_col(st));
+    else if (k == HC_LINK)
+        hs_chain(x, 4, hs_col(st));
 }
 
 /* ---- the header */
@@ -290,9 +364,9 @@ static void draw_head_flash(uint16_t tc)                /* the header while tf.t
 #define HEAD_PAD 2                      /* the badge: its text's inset */
 #define HEAD_GAP 5                      /* the badge to the title */
 #define HEAD_END 1                      /* the title's end to the REC mark (the title's room: op_names.c's titles fit it) */
-static int32_t head_room(int32_t lead, const char *r)
+static int32_t head_room(int32_t lead, int32_t icons)
 {
-    return 236 - 16 - HEAD_END - (r[0] ? text_ws(r) : 0) - lead;
+    return 236 - 16 - HEAD_END - icons - lead;
 }
 /* ... and per layer (HEAD_TRK_SCR above) */
 static const uint8_t HEAD_TRK_LY[LY_COUNT] = {
@@ -325,11 +399,12 @@ static int head_finish(char *t, const char *pos, int32_t room)
 /* the header as drawn (draw_head; the tests read it): the badge, the title and its n/N fitted, the preset, the loop
  * position, their places (no tempo: PLAY held) */
 typedef struct {
-    char t[32], r[16], pos[12], bt[24], pr[16];
+    char t[32], pos[12], bt[24], pr[16];
     const char *eng;                    /* the badge's text, "" none */
     uint16_t tc, mc;                    /* the badge's colour, the title's */
     uint8_t badge, cut, muted;               /* a badge drawn; the title cut to its room (never, on a track page) */
     uint8_t batt;                       /* the battery icon at the right (head_batt), 0 none */
+    uint8_t clk, clk_st;                /* the clock icon (HC_*, HC_NONE none; INFO none) and its state (HS_*) */
     uint8_t ib, ipct, ichg;             /* INFO's header (head_info): 0 not INFO, 1 no reading, 2 the battery; its percentage; the supply (sys_batt_chg) */
     int32_t bw, tx, room;               /* the badge's width, the title's x and room (px) */
 } head_t;
@@ -464,20 +539,24 @@ static void head_make(head_t *h)
         head_pos(ui.scr, ui.row[ui.scr], h->pos);
         head_title(ui.scr, ui.row[ui.scr], h->t, sizeof h->t);
     }
-    loop_pos(TSEL, h->r);                               /* (STEP too: bar.beat on every screen, style guide 1) */
+    {
+        uint32_t st;                                    /* (every screen: the clock icon in bar.beat's old place, 2026-11-03) */
+        h->clk = (uint8_t)head_clock(&st);
+        h->clk_st = (uint8_t)st;
+    }
     h->batt = (uint8_t)head_batt();
     h->ib = (uint8_t)head_info();
     h->ipct = h->ichg = 0;                              /* (in draw_head's signature on every page: never the stack's last bytes,
                                                          * which drew the header whole now and then, the mirror's 850 B each) */
     if (h->ib) {                                        /* INFO: the battery in place of the loop position */
-        h->r[0] = 0;
+        h->clk = HC_NONE, h->clk_st = HS_OFF;
         h->ipct = (uint8_t)(h->ib == 2u ? sys_batt_pct() : 0u);
         h->ichg = (uint8_t)sys_batt_chg();
     }
     h->tx = 2 + h->bw + HEAD_GAP;                       /* the title's room, left of the position and the tempo */
-    h->room = head_room(h->tx, h->r) - (h->batt ? HEAD_BATT_W : 0) - (h->ib ? HEAD_IB_W : 0);
+    h->room = head_room(h->tx, h->clk ? HS_W : 0) - (h->batt ? HEAD_BATT_W : 0) - (h->ib ? HEAD_IB_W : 0);
     if ((int32_t)(str_len(h->t) + str_len(h->pos)) * 8 > h->room)
-        head_short(h->t, sizeof h->t, h->room > 8 * (int32_t)str_len(h->pos) ? (uint32_t)(h->room / 8 - (int32_t)str_len(h->pos)) : 0u);                  /* (short of room: the title's short form; bar.beat always stays, the
+        head_short(h->t, sizeof h->t, h->room > 8 * (int32_t)str_len(h->pos) ? (uint32_t)(h->room / 8 - (int32_t)str_len(h->pos)) : 0u);                  /* (short of room: the title's short form; the clock icon always stays, as bar.beat did, the
                                                          * user, 2026-10-14) */
     h->cut = (uint8_t)head_finish(h->t, h->pos, h->room);
 }
@@ -562,28 +641,6 @@ static void memline_paint(void)                         /* into the header's can
         cv_rect((int32_t)px, 0, (int32_t)(240u - px), MEM_H, C_LINE);
     memline_sig = memline_key(pct);
 }
-/* The loop position (bar.beat) alone changed: only its text drawn again, not the header's 240 x 25 (the user, 2026-10-31:
- * the mirror over Bluetooth "DEAD SLOW": measured on the FM-1 playing, the header drawn whole at every beat was 2.4 KB/s of
- * the 4.6 KB/s its Bluetooth link carried (850 B each, 2.8 a second): the mirror's ring always behind, so a catch-up after
- * another and the replies dropped). The same width only (the recording mark left of it stays put); a message, INFO's mark
- * or the track's flash shows no position: nothing to draw. 1: the header is as it should be */
-#define HEAD_R_Y 2                                      /* the text's rows only: the memory line (0-1) and the rule stay */
-static struct { uint32_t sig; uint8_t w; } head_r;      /* the position as drawn: its text's signature, its width */
-static int head_pos_only(const head_t *h, uint32_t fl)
-{
-    uint32_t rs = hs(1u, h->r);
-    int32_t bx;
-    if (rs == head_r.sig || fl || ui.msg_t || h->ib)
-        return 1;                                       /* (unchanged, or not shown: the rest's signature decides) */
-    if (text_ws(h->r) != (int32_t)head_r.w || !h->r[0])
-        return 0;                                       /* (another width: drawn whole) */
-    head_r.sig = rs;
-    bx = 236 - (h->batt ? HEAD_BATT_W : 0) - 8 - head_r.w;
-    cv_begin(head_r.w, OH_HEAD - 2 - HEAD_R_Y, C_BLACK);
-    cv_texts(0, 4 - HEAD_R_Y, h->r, song.playing ? C_OK : C_DIM);
-    cv_blit((uint32_t)bx, OY_HEAD + HEAD_R_Y);
-    return 1;
-}
 /* (noinline: a call from op_frame_draw, which is smaller without it inlined) */
 static __attribute__((noinline)) void draw_head(void)
 {
@@ -597,10 +654,9 @@ static __attribute__((noinline)) void draw_head(void)
     drop = ovl_recent(fm1_ms, OVL_MARK_MS) ? 2u : xr && fm1_ms - ovl.xrun_ms < OVL_MARK_MS ? 1u : 0u;
     mk = drop == 2u ? C_ERR : C_WARN;                   /* (the mark: red a drop-out, amber another underrun) */
     head_make(&h);
-    sig = hs(hs(hu(hu(hu(1u, h.tc), h.mc), rec * 2u + song.playing), ui.msg_t ? ui.msg : h.t), h.eng);   /* (the loop
-                                                         * position apart: head_pos_only) */
+    sig = hs(hs(hu(hu(hu(1u, h.tc), h.mc), rec * 2u + song.playing), ui.msg_t ? ui.msg : h.t), h.eng);
     sig = hs(sig, h.pr);
-    sig = hu(hu(sig, h.muted), h.batt);
+    sig = hu(hu(hu(sig, h.muted), h.batt), (uint32_t)h.clk * 8u + h.clk_st);   /* (the clock icon or its state: the header again) */
     sig = hu(sig, (uint32_t)h.ib | (uint32_t)h.ipct << 8 | (uint32_t)h.ichg << 16);
     sig = hu(sig, (uint32_t)(ui.msg_t != 0) + settings.palette * 8u + drop * 2u);
     tflash_tick();
@@ -609,10 +665,9 @@ static __attribute__((noinline)) void draw_head(void)
         snd_name(song.sel, c);
         sig = hs(hu(hu(sig, 0x7F1u), TSEL->eng_req), c);
     }
-    if (sig == ui.sig[0] && head_pos_only(&h, fl))
+    if (sig == ui.sig[0])
         return;
     ui.sig[0] = sig;
-    head_r.sig = hs(1u, h.r), head_r.w = (uint8_t)text_ws(h.r);
     CV_BANDS(0, OY_HEAD, 240, OH_HEAD, C_BLACK) {
     int32_t bx = 236 - (h.batt ? HEAD_BATT_W : 0);        /* (a pass's own: the block runs once a pass) */
     if (fl) {
@@ -635,8 +690,10 @@ static __attribute__((noinline)) void draw_head(void)
         } else {
             if (h.batt)
                 head_batt_draw(238 - 13, h.batt);
-            bx -= 8 + text_ws(h.r);             /* (the loop position's x, "" none) */
-            cv_texts(bx, 4, h.r, song.playing ? C_OK : C_DIM);
+            if (h.clk) {
+                bx -= 8 + HS_W;                 /* (the clock icon's x) */
+                head_clock_draw(bx, h.clk, h.clk_st);
+            }
         }
         if (rec)
             cv_rect(bx - 8, 9, 6, 6, rec_col(song.rec || ft_on, rec_wait));   /* recording: green; armed: amber */

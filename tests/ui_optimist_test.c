@@ -4653,7 +4653,7 @@ int main(int argc, char **argv)
     stackmark_tests();                                  /* (the stacks' paint and read-back, INFO's RAM line) */
     memline_tests();                                    /* (the memory line over every page) */
     meters_tests();                                     /* (the load lines at the foot: CPUS, MEMORY, BOTH) */
-    headpos_tests();                                    /* (bar.beat alone while playing) */
+    headpos_tests();                                    /* (the header while playing; the clock icons) */
     hold_tests();
     lane_preview_tests();
     step_pages_tests();

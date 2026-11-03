@@ -92,8 +92,8 @@ static void se_header_tests(void)
     frames(2);
     head_make(&h);
     se_title(t);
-    check(!strncmp(t, "Pattern", 7) && (SCR->rows() < 2u || strchr(t, '/')) && h.r[0] && strncmp(t, "Steps", 5),
-          "#17: STEP: \"Pattern 1/N\" and bar.beat (was \"Steps 1-16 C4\", no bar.beat)");
+    check(!strncmp(t, "Pattern", 7) && (SCR->rows() < 2u || strchr(t, '/')) && strncmp(t, "Steps", 5),
+          "#17: STEP: \"Pattern 1/N\" (was \"Steps 1-16 C4\"; bar.beat left the header for the clock icon, 2026-11-03)");
     tap(B_HOME);
     {   /* the user's ruling: bar.beat always stays; a long title takes its short form, never a cut */
         char a[32] = "Voice 2", b[32] = "Edit 1", c[32] = "Pattern", d[32] = "Kit sends";
