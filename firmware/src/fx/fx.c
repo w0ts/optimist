@@ -3287,7 +3287,8 @@ static HOT void click_mix(uint32_t n)
         s = ((t < 0 ? -t : t) * 2 - 32768) * clk_v.a >> 15;
         mix_l[i] += s, mix_r[i] += s;
         clk_v.ph += clk_v.inc;
-        clk_v.a -= clk_v.a >> 7;
+        clk_v.a -= (clk_v.a >> 7) | 1;                   /* (at least 1: under 128 a >> 7 is 0 and the blip rang on for good, a
+                                                         * 1.5 / 2 kHz tone at -47 dB after the first click: the soak's tail, 2026-11-03) */
     }
 }
 static inline __attribute__((always_inline)) void mix_finish(int32_t *out, uint32_t n)
