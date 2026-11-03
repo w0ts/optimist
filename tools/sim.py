@@ -24,7 +24,7 @@ sys.path.insert(0, str(ROOT / "tools"))
 sys.path.insert(0, str(ROOT / "tools" / "builder"))
 import configure  # noqa: E402  (.config -> felucca_config.h, as tools/build.py)
 
-SIM_FORCE = {"BLE": 0, "CACHE_RAM": 0, "USB_CONSOLE": 0, "USB_AUDIO": 0}
+SIM_FORCE = {"BLE": 0, "WIFI_LINK": 0, "WIFI_AP": 0, "CACHE_RAM": 0, "USB_CONSOLE": 0, "USB_AUDIO": 0}   # (Wi-Fi: no radio here either, and it needs BLE)
 SIM_FLAGS = ["-DFELUCCA_SIM=1", "-DFELUCCA_SIMD=0", "-DFELUCCA_SIMD_PROBE=0", "-DFELUCCA_ASM=0", "-DFELUCCA_BENCH=0",
              "-DFELUCCA_STOCK_SUPPLY=0",
              # the firmware's own memset / memcpy (system/libc.c, byte loops) renamed, as tests/hostsim.c: the
