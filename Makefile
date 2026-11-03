@@ -71,7 +71,7 @@ package: sdk
 # (builds PROFILE first unless PKG is given, so it never flashes an old file; asks first. Needs mido + python-rtmidi:
 # make setup)
 flash:
-	$(PY) tools/optimist.py flash $(if $(PKG),$(PKG),--profile $(PROFILE)) $(if $(INSTALL_MBOOT),--install-mboot) $(CL)
+	$(PY) tools/optimist.py flash $(if $(PKG),$(PKG),--profile $(PROFILE)) $(if $(FM1),--port "$(FM1)") $(if $(INSTALL_MBOOT),--install-mboot) $(CL)
 
 profiles:
 	$(PY) tools/optimist.py config --profiles

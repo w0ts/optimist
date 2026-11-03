@@ -159,6 +159,10 @@ static void tp_turn(uint32_t r, uint32_t k, int32_t s, int fine)
     int32_t g = tp_g(r, k);
     if (g >= 0) {
         val_turn(&GP[g], &song.g[g], k, s, fine);
+#if FELUCCA_LINK
+        if (g == G_BPM && sy.src == MSRC_LINK)
+            link_tempo_req = 1;                         /* (Link drives the clock: the session takes the new tempo, clock_sync.c) */
+#endif
         return;
     }
 #if FELUCCA_PUNCH_SW

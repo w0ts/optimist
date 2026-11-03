@@ -333,13 +333,18 @@ static int wf_turn(int32_t s)                           /* NETWORK's knob: the c
 
 /* ---- the page's lines */
 #if FELUCCA_WIFI_AP
-static int wf_ch_turn(int32_t s)                        /* CHANNEL's knob (MODE AP): 1..13, stopping at the ends; SHIFT: the default -> 1 */
+#ifndef WA_CH_AUTO
+#define WA_CH_AUTO 0                                    /* (Optimist's own stack: no CHANNEL AUTO) */
+static int wa_channel_auto(void) { return 0; }
+#endif
+static int wf_ch_turn(int32_t s)                        /* CHANNEL's knob (MODE AP): AUTO, 1..13, stopping at the ends; SHIFT: the
+                                                         * default (AUTO: the quietest at each start; the user, 2026-11-03) */
 {
-    int32_t v;
+    int32_t v, lo = WA_CH_AUTO ? 0 : 1;
     if (!WF_AP_ON)
         return 0;
-    v = s == OP_RESET ? (int32_t)WA_CH_DEFAULT : (int32_t)wa_channel() + s;
-    wa_set_channel((uint32_t)(v < 1 ? 1 : v > 13 ? 13 : v));
+    v = s == OP_RESET ? (WA_CH_AUTO ? 0 : (int32_t)WA_CH_DEFAULT) : (wa_channel_auto() ? 0 : (int32_t)wa_channel()) + s;
+    wa_set_channel((uint32_t)(v < lo ? lo : v > 13 ? 13 : v));
     return 1;
 }
 #else
@@ -420,7 +425,9 @@ static void wf_sig_cell(cell_t *c)
         c->big = 1;
         c->col = 0;
         b[0] = 0;
-        fmt_int(b, (int32_t)wa_channel());
+        if (wa_channel_auto())
+            str_cpy(b, "AUTO ", sizeof b);              /* (AUTO and the channel it chose at this start) */
+        fmt_app(b, (int32_t)wa_channel());
         cell_val(c, b);
         return;
     }
@@ -589,7 +596,8 @@ static void wf_state_cell(cell_t *c)
 static void wf_tune_pin(void)
 {
     if ((wn_st.rsv & 0x80u) && (wn_st.rsv & 15u) != 15u)   /* (a stored choice, once the record is loaded: not before) */
-        plat_wifi_tune_set(15u);                        /* (WT_ALL: a, b, c, f) */
+        plat_wifi_tune_set(15u | (wn_st.rsv & 16u));    /* (WT_ALL: a, b, c, f; MODE AP's group frames once, WT_GRP (g), kept
+                                                         * as chosen: the radio's A/B of 2026-11-03) */
 }
 #else
 static void wf_tune_pin(void) {}
@@ -636,6 +644,20 @@ static void wf_join(const uint8_t *ssid, uint32_t len, const char *pass)   /* th
     }
 }
 static void pw_open(const uint8_t *ssid, uint32_t len);
+#if WF_JAM
+#define WF_AP_KEY_LEN 8u                                /* (fm1-base wifi/wifi_ap.h WIFI_AP_KEY_LEN) */
+void wifi_ap_default_key(const uint8_t *ssid, uint32_t len, char out[WF_AP_KEY_LEN + 1u]);   /* (fm1-base wifi/wifi_ap_key.c) */
+static int wf_fm1_name(const uint8_t *s, uint32_t n)    /* an Optimist access point's automatic name: FM1- and 4 hex digits */
+{
+    uint32_t i;
+    if (n != 8u || s[0] != 'F' || s[1] != 'M' || s[2] != '1' || s[3] != '-')
+        return 0;
+    for (i = 4; i < 8u; i++)
+        if (!((s[i] >= '0' && s[i] <= '9') || (s[i] >= 'A' && s[i] <= 'F')))
+            return 0;
+    return 1;
+}
+#endif
 #if FELUCCA_WIFI_AP
 static void wf_jam_key_say(void)                        /* JAM HOST: "KEY xxxxxxxx", the password the others join with */
 {
@@ -702,6 +724,16 @@ static void wf_save(void)                               /* SAVE tapped on the pa
         wf_join(ssid, len, 0);                          /* (its saved key: no password) */
         break;
     case WFC_NEW:
+#if WF_JAM
+        if (wf_fm1_name(ssid, len)) {                   /* another FM-1's network (FM1-xxxx): its default password is known
+                                                         * from the name: joined at once, no entry (the user, 2026-11-03) */
+            char k[WF_AP_KEY_LEN + 1u];
+            wifi_ap_default_key(ssid, len, k);
+            wf_join(ssid, len, k);
+            memset(k, 0, sizeof k);
+            break;
+        }
+#endif
         pw_open(ssid, len);
         break;
     case WFC_AWAY:

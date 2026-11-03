@@ -236,8 +236,20 @@ def cmd_flash(a):
         pkg = build_for_flash(a)
         if pkg is None:
             return 1
+    port = a.port
     try:
-        plan = flash.preflight(pkg, a.port, install_mboot=a.install_mboot)
+        try:
+            plan = flash.preflight(pkg, port, install_mboot=a.install_mboot)
+        except flash.SeveralFM1 as e:                   # (several FM-1s and no --port: asked which one, on a terminal)
+            if a.yes or not sys.stdin.isatty():
+                raise
+            for i, n in enumerate(e.ports, 1):
+                print(f"  {i}  {n}")
+            ans = input(f"Several FM-1s are connected: which one? [1-{len(e.ports)}, Enter cancels] ").strip()
+            if not ans.isdigit() or not 1 <= int(ans) <= len(e.ports):
+                print("flash cancelled; nothing was written")
+                return 1
+            plan = flash.preflight(pkg, e.ports[int(ans) - 1], install_mboot=a.install_mboot)
         flag = "wipe" if a.wipe_settings else "keep" if a.keep_settings else None
         if plan.download and plan.settings and plan.settings.ask and flag is None and not a.yes:
             print(f"{plan.settings.reason}.")

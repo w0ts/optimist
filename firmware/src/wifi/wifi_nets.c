@@ -133,9 +133,9 @@ void wn_ap_forget(struct wn_store *s)
     s->ap.set = 0;
 }
 
-int wn_ap_set_channel(struct wn_store *s, uint32_t ch)
+int wn_ap_set_channel(struct wn_store *s, uint32_t ch)   /* 0: AUTO (the quietest at each start), else 1..13 */
 {
-    if (ch < 1u || ch > 13u)
+    if (ch > 13u)
         return -1;
     s->ap.ch = (uint8_t)ch;
     return 0;

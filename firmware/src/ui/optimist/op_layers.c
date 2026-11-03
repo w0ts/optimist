@@ -252,6 +252,10 @@ static void tap_tempo_at(uint32_t now)                   /* a tap at its own tim
         sum += lay.tap_ms[(lay.tap_n - 1u - i) & 3u] - lay.tap_ms[(lay.tap_n - 2u - i) & 3u];
     if (sum)
         song.g[G_BPM] = (int16_t)ui_clamp((int32_t)((60000u * n + sum / 2u) / sum), GP[G_BPM].min, GP[G_BPM].max);
+#if FELUCCA_LINK
+        if (sy.src == MSRC_LINK)
+            link_tempo_req = 1;                         /* (a tapped tempo while Link drives the clock: the session's, clock_sync.c) */
+#endif
 }
 static void tap_tempo(void) { tap_tempo_at(lk_ev_ms); }   /* a white key on the TEMPO page or GLO's layer */
 static void fx_bypass_toggle(uint32_t i)

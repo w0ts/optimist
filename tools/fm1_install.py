@@ -74,7 +74,7 @@ DELAY = {"info": 1.0, "open": 0.3, "stop": 0.1, "start": 2.0, "start_fast": 0.05
 # resumed install took ~1 s for ~147 sectors (2026-11-01, not measured per sector); 12 ms is slower on purpose, so the
 # estimate stays behind the loader and the first read's address is ahead of it)
 
-EXIT = {"nomf": 8, "refused": 7, "cancel": 1, "usage": 2, "badpkg": 2, "notfound": 3, "several": 3, "model": 6, "lost": 4, "stopped": 4, "badreq": 4,
+EXIT = {"nomf": 8, "refused": 7, "cancel": 1, "usage": 2, "badpkg": 2, "notfound": 3, "several": 9, "model": 6, "lost": 4, "stopped": 4, "badreq": 4,
         "noloader": 5, "noreturn": 5, "mismatch": 6, "foreign": 6}
 
 
@@ -750,6 +750,9 @@ def platform_warning(running, product, image):
 
 FM1_TOKEN = re.compile(r"FM1-[0-9A-F]{4}", re.I)
 FM1_NAME = re.compile(r"FM1-[0-9A-F]{4}|fm-1|optimist|felucca", re.I)   # (an FM-1 for sure: not "usb-midi" / "composite")
+# a port that may be an FM-1 on its stock firmware (the second unit, 2026-11-03: "USB MIDI Device Port 1 / 2"): never
+# probed (other gear could be called so), but beside an FM-1 it makes an install without --port ask which one
+MAYBE_FM1 = re.compile(r"^USB MIDI Device\b", re.I)
 
 
 def fm1_devices(names):
@@ -766,13 +769,32 @@ def fm1_devices(names):
     return keys
 
 
+def maybe_devices(names):
+    """the ports that may be a stock FM-1 (MAYBE_FM1), one key each (its name without " Port N")"""
+    keys = []
+    for n in names:
+        if MAYBE_FM1.search(n):
+            k = re.sub(r"\s+Port\s+\d+$", "", n.strip(), flags=re.I)
+            if k not in keys:
+                keys.append(k)
+    return keys
+
+
+def candidates_of(names):
+    """every FM-1 an install could mean: the sure ones, then the maybe ones (the menu's list, --list)"""
+    return fm1_devices(names) + [k for k in maybe_devices(names) if k not in fm1_devices(names)]
+
+
 def several(up):
-    """more than one FM-1 on the cable and no --port: an install must not pick one by itself (2 FM-1s, 2026-11-01)"""
+    """more than one FM-1 on the cable and no --port: an install must not pick one by itself (2 FM-1s, 2026-11-01; a stock
+    one beside it, 2026-11-03: its port is not called an FM-1's, the install went to the wrong one's loader)"""
     if up.port or up.backend is None:                      # (no MIDI at all: a dry run, the download route)
         return None
-    devs = fm1_devices(up.backend.input_names())
-    if len(devs) < 2:
+    names = up.backend.input_names()
+    devs = fm1_devices(names)
+    if len(devs) < 2 and not (devs and maybe_devices(names)):
         return None
+    devs = candidates_of(names)
     return InstallError("several", f"{len(devs)} FM-1s are connected ({', '.join(devs)}): name the one to use with "
                                    f"--port (a part of its port's name)")
 
@@ -843,6 +865,10 @@ def no_interrupt(out=None):
 
 def run(a, backend, out, ask, ask_text=None, cancel_check=None):
     _route_modules()
+    if getattr(a, "list", False):                           # (--list: the FM-1s an install could mean, one a line; flash.py's menu)
+        for k in candidates_of(backend.input_names() if backend else []):
+            print(k, file=out)
+        return 0
     up = Updater(backend, a.port)
     err = several(up)
     if err:
@@ -1049,6 +1075,7 @@ def main(argv=None, backend=None, out=sys.stdout, ask=ask_tty, ask_text=None, ca
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("package", nargs="?", help="Felucca package (.fwsc)")
     ap.add_argument("--info", action="store_true", help="print the identity of the connected FM-1")
+    ap.add_argument("--list", action="store_true", help="print the FM-1s connected (a --port value each), one a line")
     ap.add_argument("--port", metavar="NAME", help="MIDI port to use (part of its name)")
     ap.add_argument("--yes", action="store_true", help="do not ask for confirmation")
     ap.add_argument("--force", action="store_true", help="install a package without the Felucca loader marker")
@@ -1071,8 +1098,8 @@ def main(argv=None, backend=None, out=sys.stdout, ask=ask_tty, ask_text=None, ca
     a = ap.parse_args(argv)
     _route_modules()
     a.backup_dir = a.backup_dir or AF.default_backup_dir()
-    if bool(a.info) == bool(a.package):
-        ap.error("give a PACKAGE.fwsc or --info")
+    if sum(map(bool, (a.info, a.package, a.list))) != 1:
+        ap.error("give a PACKAGE.fwsc, --info or --list")
     try:
         if backend is None and not (a.dry_run and a.running):
             try:

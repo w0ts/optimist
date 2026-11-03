@@ -214,7 +214,7 @@ static void t_ap(void)
     ok(wn_ap_put(&s, s.ap.ssid, s.ap.ssid_len, s.ap.ch, pmk) == 0 && s.ap.ssid_len == 8u && !memcmp(s.ap.ssid, "FM1-TEST", 8), "putting the store's own name back keeps it");
     ok(wn_ap_put(&s, 0, 0, 0, pmk) == 0 && s.ap.ssid_len == 0u && s.ap.ch == 0u, "the automatic name and default channel are length 0 / channel 0");
     ok(wn_ap_put(&s, (const uint8_t *)"x", 1, 14, pmk) == -1 && wn_ap_put(&s, (const uint8_t *)"x", 33, 6, pmk) == -1, "channel 14 and a 33-octet name refused");
-    ok(wn_ap_set_channel(&s, 9) == 0 && s.ap.ch == 9u && wn_ap_set_channel(&s, 0) == -1 && wn_ap_set_channel(&s, 14) == -1 && s.ap.ch == 9u, "channel 1..13 only");
+    ok(wn_ap_set_channel(&s, 14) == -1 && wn_ap_set_channel(&s, 0) == 0 && s.ap.ch == 0u && wn_ap_set_channel(&s, 9) == 0 && s.ap.ch == 9u, "channel 0 (AUTO) or 1..13, 14 refused");
     wn_ap_forget(&s);
     ok(s.ap.set == 0u && s.ap.pmk[0] == 0u && s.ap.ch == 9u, "forgetting the AP key clears it and keeps the channel");
     wn_save(&s, raw);

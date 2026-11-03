@@ -97,6 +97,10 @@ static int16_t sync_ofs[3];                                /* [0] CLK OFS, [1] B
  * what Link did before the setting; stored as 0 in the record's ext bytes: persist_rec.c link_sel). The list reads OFF, ON, ON+S/S */
 enum { LINK_OFF, LINK_ON, LINK_ONSS };
 static uint8_t link_mode = LINK_ONSS;
+static volatile uint8_t link_tempo_req;                    /* the user turned the tempo while Link drives it (op_tempo.c, tap tempo): sent
+                                                            * to the session once by the Link side (wl_push_own), which then
+                                                            * brings it back to every peer (the user, 2026-11-03: "in link mode we
+                                                            * should be able to change the tempo") */
 static uint8_t link_jam;                                   /* MODE JAM (the Wi-Fi page) is on: Link runs whatever LINK says (set by ui/opt_wifi.h every pass; never stored) */
 #define link_eff() ((uint8_t)(link_jam && link_mode == LINK_OFF ? LINK_ON : link_mode))   /* the LINK in force: OFF is ON while JAM; the stored link_mode is untouched */
 #endif
