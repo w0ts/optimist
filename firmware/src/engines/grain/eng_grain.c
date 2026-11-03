@@ -591,10 +591,10 @@ static const preset_t GRAIN_PRESETS[] = {
     /* (issue #147, 2026-11-03: "as many presets as possible ... especially granular"; a build that left out PIANO, VIBES and
      * FLUTE listed GRAIN's INIT alone: two on every other set, one on the kit, two on USR1 that every build lists (USR1 is
      * what a build with no set plays). After the first ones and GRAIN PAD: their numbers, stored in projects, unchanged) */
-    {"PNO SWELL", {0, 60, 115, 80, 0, 15, 6, 90}, {100, 100, 127, 110}, 0, 0, FX(0, 30, 25, 80)},
+    {"PNO SWELL", {0, 60, 95, 75, 0, 15, 6, 90}, {100, 100, 127, 110}, 0, 0, FX(0, 30, 25, 80)},
     {"DRONE BASS", {1, 25, 110, 70, 0, 8, 0, 60}, {30, 100, 127, 50}, 0, 1, FX(0, 0, 0, 15)},
     {"SUB GRIT", {1, 15, 20, 115, 0, 20, 25, 55}, {0, 90, 110, 30}, 0, 1, FX(20, 0, 0, 0)},
-    {"GLASS DUST", {2, 40, 30, 100, 12, 90, 35, 110}, {20, 90, 100, 100}, 0, 0, FX(0, 30, 45, 90)},
+    {"GLASS DUST", {2, 40, 30, 88, 12, 60, 35, 110}, {20, 90, 100, 100}, 0, 0, FX(0, 30, 45, 90)},
     {"BRASS FOG", {3, 35, 90, 80, 0, 30, 15, 85}, {60, 100, 120, 90}, 0, 0, FX(0, 25, 20, 60)},
     {"HORN SWARM", {3, 30, 50, 115, 0, 55, 50, 75}, {40, 100, 120, 80}, 0, 0, FX(0, 40, 25, 60)},
     {"FROZEN STR", {4, 55, 120, 95, 0, 0, 5, 90}, {90, 100, 127, 110}, 0, 0, FX(0, 30, 20, 85)},
