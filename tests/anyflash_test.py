@@ -94,7 +94,7 @@ def detection():
     v15 = (ROOT / "web" / "stock" / "FM-1_015.fwsc").read_bytes()
     info = R.package_kind(v15, FI.flash_size(FI.logical_image(v15)))
     ok(info.kind == R.P_V15 and info.flash_len == 0x93000, "package: M-VAVE's V15 by its SHA-256 (web/stock)")
-    mb = (ROOT / "web" / "fm1base" / "m-bootloader" / "fm1-uboot-1.2.fwsc").read_bytes()
+    mb = (ROOT / "web" / "fm1base" / "m-bootloader" / "fm1-uboot-1.4.fwsc").read_bytes()
     info = R.package_kind(mb, FI.flash_size(FI.logical_image(mb)))
     ok(info.kind == R.P_MBOOT and info.flash_len is None, "package: m-bootloader's installer FM-1_099 (no flash.bin)")
     kinds = {}
@@ -472,13 +472,13 @@ def dry_runs():
     with redirect_stderr(io.StringIO()):
         FI.main([str(pkg2), "--dry-run", "--running", "FM-1_700"], out=out)
     o = out.getvalue()
-    ok("kept as it is" in o and "route:    loader" in o and "bootloader --backup-dir" not in o,
+    ok("kept as it is" in o and "route:    loader" in o and "bootloader --file" not in o,
        "--dry-run with BOOTLOADER m-bootloader: kept, the loader (MIDI first, no token and boot unknown)")
     out = io.StringIO()
     with redirect_stderr(io.StringIO()):
         FI.main([str(pkg2), "--dry-run", "--running", "FM-1_700", "--install-mboot"], out=out)
     o = out.getvalue()
-    ok("bootloader: m-bootloader (--install-mboot" in o and "route:    download" in o and "bootloader --backup-dir" in o,
+    ok("bootloader: m-bootloader (--install-mboot" in o and "route:    download" in o and "bootloader --file" in o,
        "--install-mboot: shown, download mode, the bootloader step")
     out = io.StringIO()
     AF.main(["backup", "--dry-run", "--backup-dir", str(TMP / "b")], AF.Env(out=out))
@@ -650,7 +650,7 @@ def mflasher():
     ok(MF.asset("Darwin", "arm64")[0].endswith("macos.dmg") and MF.asset("Linux", "amd64")[0].endswith("x86_64.tar.gz")
        and MF.asset("Windows", "AMD64")[2] == "M-Flasher.exe" and MF.asset("FreeBSD", "x86_64") is None,
        "the pinned release per system")
-    ok(not MF.check_mboot_copies(), "web/fm1base/m-bootloader and M-Flasher's bundled build are m-bootloader 1.2's release files")
+    ok(not MF.check_mboot_copies(), "web/fm1base/m-bootloader and M-Flasher's bundled build are the pinned m-bootloader files")
     home = TMP / "mfhome"
     shutil.rmtree(home, ignore_errors=True)
     os.environ["M_FLASHER_HOME"] = str(home)
@@ -682,7 +682,7 @@ def boot_word():
     const = {n: bytes(int(x, 16) for x in _re.findall(r"0x([0-9a-f]{2})", body))
              for n, body in _re.findall(r"(BOOTID_\w+)\[16\] = \{([^}]*)\}", text)}
     _, _, v15 = AF.load(ROOT / "web" / "stock" / "FM-1_015.fwsc")
-    boot = (ROOT / "web" / "fm1base" / "m-bootloader" / "fm1-uboot-1.2.boot").read_bytes()
+    boot = (ROOT / "web" / "fm1base" / "m-bootloader" / "fm1-uboot-1.4.boot").read_bytes()
     ok(const["BOOTID_STOCK_HEAD"] == v15[0xA0:0xB0], "bootid.h: the stock head is V15's flash.bin at 0xA0, as stored")
     ok(const["BOOTID_MBOOT_TAG"] == enc_ffff(boot[16:16 + 0x50])[0x40:0x50] and boot[0x50:0x58] == b"AC79BLID",
        "bootid.h: m-bootloader's tag is its container's payload +0x40 ciphered from the payload's start")
