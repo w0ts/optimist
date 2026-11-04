@@ -935,15 +935,24 @@ static uint32_t sdm_small_get(const char *path, const char *magic, uint8_t *p, u
  *                       preset file is loaded on the main loop's next pass (sdm_factory_poll), as a user preset loads
  *                       (upreset.c up_card_give: the record, an FM6 voice), the preset's place kept. A project's load
  *                       or a user preset over it drops the ask (sdm_factory_drop). No card: the defaults, said once */
-#define SDM_FAC_N 320u                               /* (model.c NBANK_ALL: every engine's presets) */
+#define SDM_FAC_N 448u                               /* (model.c NBANK_ALL: every engine's presets on the card) */
 #define SDM_FAC_NM 13u
 static char sdm_fac_nm[SDM_FAC_N][SDM_FAC_NM] IN_POOL;
 static uint8_t sdm_fac_pend[NTRK], sdm_fac_eng[NTRK], sdm_fac_said;
+static uint8_t sdm_fac_n[NENGINES];                  /* each engine's presets on the card (the last numbered one's place
+                                                      * + 1), 0 not read: its table's count (sdm_factory_count) */
+/* engine slot e's factory presets (core.h ENG_NPRE): the card's when it was read, never fewer than its table's (the
+ * files beyond: FM6's pack voices, numbered on after its own presets; the user, 2026-11-04) */
+static uint32_t sdm_factory_count(uint32_t e)
+{
+    e %= NENGINES;
+    return sdm_fac_n[e] > ENGINES[e]->npresets ? sdm_fac_n[e] : ENGINES[e]->npresets;
+}
 static uint32_t sdm_fac_ix(uint32_t e, uint32_t k)   /* engine slot e's preset k in the table of names */
 {
     uint32_t i, n = 0;
     for (i = 0; i < e && i < NENGINES; i++)
-        n += ENGINES[i]->npresets;
+        n += sdm_factory_count(i);
     return n + k;
 }
 static const char *sdm_factory_name(uint32_t e, uint32_t k)
@@ -961,27 +970,41 @@ static uint32_t sdm_fac_dir(uint32_t e, uint32_t bk)
     n = n < sizeof sdm.path ? sdl_cat(sdm.path, n, sizeof sdm.path, l) : n;
     return n < sizeof sdm.path ? n : 0u;
 }
-static void sdm_factory_scan(void)                   /* every built engine's banks: preset bk x 16 + nn - 1 its file's */
+/* engine slot e's banks read (A, B ... up to the first not there): names 0, else each file's name into its place of
+ * the table of names; -> the last numbered file's place + 1 */
+static uint32_t sdm_fac_pass(uint32_t e, int names)
 {
     DIR d;
     FILINFO fi;
-    uint32_t e, k, i, nn, bk;
+    uint32_t k, i, nn, bk, n = 0;
+    for (bk = 0; bk < SDM_BANKS && sdm_fac_dir(e, bk) && f_opendir(&d, sdm.path) == FR_OK; bk++) {
+        while (f_readdir(&d, &fi) == FR_OK && fi.fname[0]) {
+            if (!(nn = sdb_bank_no(fi.fname)) || !sdm_len_is(fi.fname, ".ops"))
+                continue;
+            k = bk * SDB_KEYS + nn - 1u;
+            if (k >= 255u)
+                continue;                            /* (a part's preset is a byte, 0xFF INIT) */
+            n = k + 1u > n ? k + 1u : n;
+            if (names && (i = sdm_fac_ix(e, k)) < SDM_FAC_N) {
+                sdm_strip(sdm_fac_nm[i], SDM_FAC_NM, fi.fname, ".ops");   /* ("01 - tb acid.ops": TB ACID, */
+                sdl_upper(sdm_fac_nm[i]);                                 /* the tables' name) */
+            }
+        }
+        (void)f_closedir(&d);
+    }
+    return n;
+}
+/* at a mount: every built engine's count, then the names (their places depend on every count before them); the lists
+ * made again (model.c bank_ready) */
+static void sdm_factory_scan(void)
+{
+    uint32_t e;
     memset(sdm_fac_nm, 0, sizeof sdm_fac_nm);
     for (e = 0; e < NENGINES; e++)
-        for (bk = 0; bk * SDB_KEYS < ENGINES[e]->npresets && bk < SDM_BANKS; bk++) {
-            if (!sdm_fac_dir(e, bk) || f_opendir(&d, sdm.path) != FR_OK)
-                continue;
-            while (f_readdir(&d, &fi) == FR_OK && fi.fname[0]) {
-                if (!(nn = sdb_bank_no(fi.fname)) || !sdm_len_is(fi.fname, ".ops"))
-                    continue;
-                k = bk * SDB_KEYS + nn - 1u;
-                if (k >= ENGINES[e]->npresets || (i = sdm_fac_ix(e, k)) >= SDM_FAC_N)
-                    continue;
-                sdm_strip(sdm_fac_nm[i], SDM_FAC_NM, fi.fname, ".ops");   /* ("01 - tb acid.ops": TB ACID, the */
-                sdl_upper(sdm_fac_nm[i]);                                 /* tables' name) */
-            }
-            (void)f_closedir(&d);
-        }
+        sdm_fac_n[e] = (uint8_t)sdm_fac_pass(e, 0);
+    for (e = 0; e < NENGINES; e++)
+        (void)sdm_fac_pass(e, 1);
+    bank_ready = 0;
 }
 /* engine slot e's preset pi: its file's path into sdm.path (the bank's file numbered pi % 16 + 1, whatever its name):
  * its length, 0 none */
@@ -1253,7 +1276,7 @@ static void sdm_named(uint32_t part, const char *file)
     sdm_pname[part][0] = 0;
     if (nn && sdl_has(sdm.path, "/Presets/" SDL_FACTORY "/") && f[-1] == '/' && f[-3] == '/' && bk >= 'A' && bk <= 'Z') {
         n = (uint32_t)(bk - 'A') * SDB_KEYS + nn - 1u;   /* (bank B's 03: the table's preset 18) */
-        if (n < ENGINES[t->eng_req % NENGINES]->npresets) {
+        if (n < ENG_NPRE(t->eng_req % NENGINES)) {
             t->preset = (uint8_t)n;
             return;
         }

@@ -96,6 +96,38 @@ static char *lower(char *s)                      /* the card's file names are lo
     return s;
 }
 
+/* the sounds flash mode lists as an engine's presets beyond its table (the user, 2026-11-04: "they should just be
+ * presets in sd card", ALL of them): FM6's voice packs (storage/nbank.c, eng_fm6.c FM6_PACK: KEYS, BASS, BELLS, PADS,
+ * 80S, 16 each, every one built in here), numbered on after the engine's own presets in the order flash mode lists them.
+ * Each is the engine's defaults with the voice (nbank.c nb_load: EDIT to the defaults, VOICE the pack voice), the rest
+ * of the sound a fresh track's: the file carries the voice's own bytes, so an SD card mode build plays it whatever
+ * packs it has. The CZ collection (U01..) is the user's flash store and the FM6 R bank a received one: no factory sound */
+static uint32_t extras(const engine_t *E)
+{
+#if FELUCCA_ENG_FM6
+    if (ENG_IS(E, FM6))
+        return FM6_NPKV;
+#endif
+    (void)E;
+    return 0;
+}
+static void extra_apply(const engine_t *E, uint32_t j, char *nm, uint32_t cap)
+{
+    uint32_t i;
+    apply_preset_to(&trk[0], PRESET_INIT);       /* (a fresh track's sound: INIT) */
+    for (i = 0; i < 8u; i++)
+        trk[0].p[P_E0 + i] = E->edit[i].def;
+#if FELUCCA_ENG_FM6
+    trk[0].p[P_E0] = (int16_t)(1u + j);          /* VOICE: pack voice j (0 is INIT VOICE) */
+    fm6_cur[0] = 0;                              /* (the buffer loaded afresh from it: fm6_sync) */
+    str_cpy(nm, fm6_pack_name(j), cap);
+    for (i = (uint32_t)strlen(nm); i && nm[i - 1u] == ' '; i--)
+        nm[i - 1u] = 0;                          /* (a DX7 name is blank-padded to 10) */
+#else
+    (void)j, (void)nm, (void)cap;
+#endif
+}
+
 int main(int argc, char **argv)
 {
     static uint8_t rec[sizeof(up_rec_t) + UP_CARD_FM6];
@@ -115,14 +147,19 @@ int main(int argc, char **argv)
         clean(en);
         snprintf(dir, sizeof dir, "%s/Optimist/Presets/Factory/%s", argv[1], en);
         mkdirs(dir);
-        for (pi = 0; pi < E->npresets; pi++) {
+        for (pi = 0; pi < E->npresets + extras(E); pi++) {
             trk[0].eng_req = trk[0].engine = (uint8_t)e;
-            apply_preset_to(&trk[0], pi);
+            if (pi < E->npresets) {
+                apply_preset_to(&trk[0], pi);
+                str_cpy(nm, E->presets[pi].name, sizeof nm);
+            } else {
+                extra_apply(E, pi - E->npresets, nm, sizeof nm);
+            }
 #if FELUCCA_ENG_FM6
             if (ENG_IS(E, FM6))
-                fm6_sync(&trk[0], 0);            /* (its VOICE into the voice buffer, as the first block does) */
+                fm6_sync(&trk[0], 0);            /* (its VOICE into the voice buffer, as the first block does: the
+                                                  * file carries the voice itself, up_card_take) */
 #endif
-            str_cpy(nm, E->presets[pi].name, sizeof nm);
             n = up_card_take(rec, nm);
             if (!n) {
                 fprintf(stderr, "sd_factory: %s %u: not taken\n", E->name, pi);
@@ -137,8 +174,8 @@ int main(int argc, char **argv)
                 return 1;
             }
         }
-        printf("%s %u\n", E->name, (unsigned)E->npresets);
-        total += E->npresets;
+        printf("%s %u %u\n", en, (unsigned)E->npresets, (unsigned)extras(E));   /* (folder, own, the collections') */
+        total += E->npresets + extras(E);
     }
     printf("total %u\n", total);
     return 0;
