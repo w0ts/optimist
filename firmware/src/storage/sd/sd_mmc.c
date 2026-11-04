@@ -44,6 +44,7 @@
 #define SD_NSTEP FM1_SD_NSTEP                     /* the clocks, fastest first, the floor last (hal/fm1_sd_clock.h) */
 #define SD_NSTEP_HS FM1_SD_NSTEP_HS
 #define SD_SET_STEP(k) fm1_sd_baud(FM1_SD_STEP_BAUD[k])
+#define SD_CRC16(p, n) fm1_crc16(p, n)            /* (hal/fm1_crc.h: the chip's CRC block) */
 #define SD_STEP_KHZ(k) FM1_SD_STEP_KHZ(k)
 #define SD_CLOCK_FIXED() (fm1_sd_mode == FM1_SD_BITBANG)   /* (bit-bang: the GPIO's own pace, no clock to pick) */
 #define SD_BAUD() ((uint32_t)FM1_SD_STEP_BAUD[sd_step])   /* every session's clock (sdcard.c) */
@@ -118,6 +119,9 @@ static WORD sd_crc16(const BYTE *p, UINT n)
 	while (n--) c = sd_crc16_up(c, *p++);
 	return c;
 }
+#ifndef SD_CRC16
+#define SD_CRC16(p, n) sd_crc16(p, n)	/* a whole block's (sdcard.c: the chip's CRC block on an FM-1) */
+#endif
 
 /* CRC7 (x^7 + x^3 + 1) of n bytes, as the byte after them: CRC << 1 | the stop bit (a command's sixth byte; the CSD's
  * and the CID's last) */
@@ -169,6 +173,7 @@ static BYTE wait_token(UINT ms)
 }
 
 /* Send a command packet to MMC */
+static BYTE sd_r1;			/* the last R1 (0xFF: nobody answered): sd_time_retry */
 static BYTE send_cmd(BYTE cmd, DWORD arg)
 {
 	BYTE n, res;
@@ -199,6 +204,7 @@ static BYTE send_cmd(BYTE cmd, DWORD arg)
 		res = SD_RX();
 	} while ((res & 0x80) && --n);
 
+	sd_r1 = res;
 	return res;			/* Return with the response value */
 }
 
@@ -293,7 +299,7 @@ static DRESULT sd_readp1(
 			if (buff && count == 512 && SD_DMA_OK() && !((UINT)(uintptr_t)buff & 3)) {
 				SD_RXDMA(buff, 512);		/* a whole sector into an aligned buffer: by DMA (offset is 0) */
 				if (!SD_DMA_END()) { release_spi(); return RES_ERROR; }
-				c = sd_crc16(buff, 512);
+				c = SD_CRC16(buff, 512);
 			} else if (buff && !SD_RD_CRC) {
 				SD_RXBLK(buff, count);
 			} else {
@@ -330,13 +336,47 @@ static BYTE sd_crc_retry(BYTE *fails)
 	return ++*fails < 2;
 }
 
-/* Read partial sector (a CRC failure read again: sd_crc_retry) */
+/* a timeout or a wrong answer at run time, above the floor (t0: when the read began): a clock gone too fast reads so, not as a
+ * CRC failure (the data a bit late: FE reads FF, measured on an FM-1, 2026-11-04): one step down at once, the card stopped, 1 =
+ * read again. A card taken out fails each command in microseconds, so the walk to the floor costs nothing; SD_DOWN_MS bounds it
+ * all for the main loop. At the floor, or past that: 0, the failure stands */
+#define SD_DOWN_MS 150u
+#define SD_SLIP_SETTLE_MS 3u
+#define SD_SLIP_HOLD_MS 5u			/* a failure this soon after a step retries at that clock, the card settled: one step, not five
+							 * (fm1-base's device/sd.c, measured there). Not when nobody answered (a card taken out goes on down) */
+static DWORD sd_slip_t;
+static BYTE sd_time_retry(DWORD t0)
+{
+	DWORD t1;
+	if (sd_ms_since(t0) >= SD_DOWN_MS) return 0;
+	if (sd_slip_t && sd_r1 != 0xFF && sd_ms_since(sd_slip_t) < SD_SLIP_HOLD_MS) {
+		while (sd_ms_since(sd_slip_t) < SD_SLIP_SETTLE_MS)
+			(void)SD_RX();
+	} else {
+		if (sd_step >= SD_FLOOR) return 0;
+		sd_step++;
+		sd_demotions++;
+		SD_SET_STEP(sd_step);
+		sd_slip_t = SD_NOW() | 1u;
+	}
+	SD_SEL();
+	(void)SD_RX();
+	(void)send_cmd(CMD12, 0);
+	t1 = SD_NOW();
+	while (SD_RX() != 0xFF && sd_ms_since(t1) < 20)
+		;
+	release_spi();
+	return 1;
+}
+
+/* Read partial sector (a CRC failure read again: sd_crc_retry; a timeout: sd_time_retry) */
 static DRESULT sd_readp(BYTE *buff, DWORD sector, UINT offset, UINT count)
 {
 	DRESULT r;
 	BYTE fails = 0;
+	DWORD t0 = SD_NOW();
 	sd_crc_bad = 0;
-	while ((r = sd_readp1(buff, sector, offset, count)) != RES_OK && sd_crc_bad && sd_crc_retry(&fails))
+	while ((r = sd_readp1(buff, sector, offset, count)) != RES_OK && (sd_crc_bad ? sd_crc_retry(&fails) : sd_time_retry(t0)))
 		sd_crc_bad = 0;
 	return r;
 }
@@ -369,11 +409,13 @@ static struct {
 
 static DRESULT sd_rd_open(DWORD sector, UINT n)
 {
+	DWORD t0 = SD_NOW();
 	if (!(CardType & CT_BLOCK)) sector *= 512;
 	sd_rd.multi = n > 1;
 	sd_rd.state = SDR_IDLE;
-	if (send_cmd(n > 1 ? CMD18 : CMD17, sector) != 0) {
+	while (send_cmd(n > 1 ? CMD18 : CMD17, sector) != 0) {
 		release_spi();
+		if (sd_time_retry(t0)) continue;
 		sd_rd.multi = 0;
 		return RES_ERROR;
 	}
@@ -391,7 +433,7 @@ static void sd_rd_crc(void)
 {
 	sd_rd.crc = (WORD)(SD_RX() << 8);
 	sd_rd.crc |= SD_RX();
-	sd_rd.crc_ok = !SD_RD_CRC || sd_crc16(sd_rd.buf, 512) == sd_rd.crc;
+	sd_rd.crc_ok = !SD_RD_CRC || SD_CRC16(sd_rd.buf, 512) == sd_rd.crc;
 	sd_rd.state = SDR_READY;
 }
 
@@ -448,6 +490,7 @@ static DRESULT disk_readblocks(BYTE *buf, DWORD sector, UINT n)
 {
 	BYTE st = SDR_ERR, fails = 0;
 	UINT done = 0;
+	DWORD t0 = SD_NOW();
 	if (!n) return RES_ERROR;
 	for (;;) {									/* a run from the first block not read yet */
 		if (sd_rd_open(sector + done, n - done) != RES_OK) return RES_ERROR;
@@ -460,7 +503,7 @@ static DRESULT disk_readblocks(BYTE *buf, DWORD sector, UINT n)
 		}
 		if (done == n) return sd_rd_close();
 		(void)sd_rd_close();
-		if (st != SDR_READY || !sd_crc_retry(&fails)) return RES_ERROR;	/* (a timeout, an error token: not retried) */
+		if (st != SDR_READY ? !sd_time_retry(t0) : !sd_crc_retry(&fails)) return RES_ERROR;
 	}
 }
 

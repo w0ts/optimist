@@ -179,7 +179,7 @@ static void sst_run(uint32_t i)
     const sst_src_t *s = &sst_src[st->src];
     uint8_t gen = st->pgen;
     uint32_t left, lba = sst_lba(s, st->next, &left), n = 0, sec = st->next, k, t0, slot;
-    BYTE res = SDR_ERR, ok = 1;
+    BYTE res = SDR_ERR, ok = 1, slip = 0;
     for (k = st->wr - st->rd; n < SST_RUN && n < left && k + n < SST_K; ) {   /* contiguous in play order and on the card */
         n++;
         sec = sst_after(s, st, sec);
@@ -220,11 +220,13 @@ static void sst_run(uint32_t i)
             } else if (st->gen != gen) {
                 sst_st.aborted++;
             } else {
-                ok = 0;                              /* an error token, a DMA that never ended */
+                slip = 1;                            /* an error token, a timeout (sd_time_retry, after the close), a DMA that never ended */
             }
         }
         if (sd_rd_close() != RES_OK)
             ok = 0;
+        if (slip)
+            ok = sd_time_retry(SD_NOW());
     }
     SD_SESSION_END();
     t0 = sst_us(SD_NOW() - t0);
