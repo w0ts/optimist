@@ -669,8 +669,7 @@ presets for all devices".
   211 KB/s; SPRD 127 at DENS 127 half missed (173 of 420), 600 KB/s, over the bus; 22.05 kHz SPRD 35 16 missed, 274 KB/s;
   stereo SPRD 35 94 of 213 missed, 583 KB/s. A missed grain is skipped or fades (counted, the part's CARD SLOW said; a
   corner under -36 dBFS, no click). The length changes none of it: a grain costs its own bytes. STRETCH: 89 KB/s at 1x
-  (176 stereo), a few KB/s slow, 0 missed but a first window. On SRC CARD STRCH scans as this file's top says; on a set the
-  scan is 65536 times slower than that (`pst_adv_q16`: that sound left as it is, an open question).
+  (176 stereo), a few KB/s slow, 0 missed but a first window.
 - **A kit's file name** (`drum_kits.c ukit_card_instr`): `<nn> - <name> (<instruments>).opk`, the instruments its
   lanes name, in the order 909, 808, synth (the 32 synthesised kits), kawa, plaits, sampled (the sampled kits, a USR or
   CARD sample): the family of each lane's source by its UID, whatever the build has of it (a stand-in is not named);

@@ -560,13 +560,8 @@ static uint32_t pst_adv_q16(int32_t v)
 {
     if (v >= 127)
         return 0;
-#if ST_CARD
-    if (pstx.src == SMP_CARD)                        /* (a card file: STRCH as the header says, 2048 / STRCH samples a frame.
-                                                      * The sets' line below is 65536 times slower: they barely scan; their
-                                                      * sound is left as it is) */
-        return ((ST_HOP << 16) / (pow2_q16(clamp(v, 0, 126) * 13 * 192 / 126) >> 8)) << 8;   /* (Q8 ratio: no 64-bit divide) */
-#endif
-    return (ST_HOP << 16) / pow2_q16(clamp(v, 0, 126) * 13 * 192 / 126);   /* (once a frame: tools/div_audit.txt) */
+    return ((ST_HOP << 16) / (pow2_q16(clamp(v, 0, 126) * 13 * 192 / 126) >> 8)) << 8;   /* (a Q8 ratio: no 64-bit divide; once
+                                                                                      * a frame: tools/div_audit.txt) */
 }
 
 /* a frame's work for this block: the phases in order, up to the share of the frame this block is due (capped: a long
