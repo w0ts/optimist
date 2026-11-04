@@ -117,7 +117,7 @@ static struct {
     uint16_t kmiss;                                  /* the kits' sounds wanted and not on the card (x9miss: the 909's) */
     uint16_t missing;
     uint16_t fit_ms;
-    uint32_t need, t0;
+    uint32_t need, t0, kb;                           /* kb: the heads and runs of need, KB (sst_pre_kb when not placed) */
     int32_t rec[SST_NSRC];                           /* each source's index record (sdx_read), -1 none */
     uint64_t hash[SST_NSRC];
     uint8_t use[SST_NSRC];                           /* SSTU_STREAM: a slot streams it, SSTU_SLICE: a SLICE part's */
@@ -328,9 +328,19 @@ static uint32_t sst_slice_need(void)                 /* the SLICE parts' samples
 #endif
 }
 
+/* no card here, SYSTEM > SD CARD's page asks every frame (the user, 2026-11-05: "SD CARD page 2: very bad": sst_need opened every
+ * source's file in the draw, 13 blocks a frame for one sample, 45 % of the bus): the sources placed say it, a plan refused its
+ * last sum (at its own setting) */
 static uint32_t sst_pre_kb(uint32_t ms)
 {
-    return (sst_need(ms) - sstp.nring * SST_K * 512u - sst_cache_bytes(sstp.rc) - sst_slice_need() + 1023u) / 1024u;
+    uint32_t i, n = 0;
+    if (sstp.state != SSTP_PLACED)
+        return sstp.kb;
+    for (i = 0; i < sstp.nsrc; i++)
+        if (sstp.rec[i] >= 0 && (sstp.use[i] & SSTU_HEAD))
+            n += (sst_src[i].nrun * (uint32_t)sizeof(sst_run_t) +
+                  sst_head_bytes(&sst_src[i], sstp.whole >> i & 1u ? SST_PRE_WHOLE : sst_use_pre(sstp.use[i], ms)) + 3u) & ~3u;
+    return (n + 1023u) / 1024u;
 }
 
 static void sst_gate(void)                           /* the CARD voices let go: they fade out (eng_sample.c) */
@@ -677,6 +687,7 @@ static void sst_plan_poll(void)
         sstp.rc = (uint8_t)sst_rcs_of();
         sst_free_pick();
         sstp.need = sst_need(sst_pre_ms);
+        sstp.kb = sstp.nsrc ? (sstp.need - sstp.nring * SST_K * 512u - sst_cache_bytes(sstp.rc) - sst_slice_need() + 1023u) / 1024u : 0u;
         (void)sst_place();
         return;
     }
