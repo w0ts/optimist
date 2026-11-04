@@ -421,8 +421,10 @@ the probed J12 pins; SD reads, a FAT32 reader and a flash-slot loader in m-bootl
     the voice's active flag at the next note, by the audio itself, so the main loop's speed does not touch it, and no ring
     stays held (`tests/sd_kit_card_test.c`). The kit's files last 0.25 to 1.6 s, so a sampled kit on its 3 rings silenced
     212 of 328 hits of a busy pattern, 16ths at 120 BPM, 8 bars: 4 rings 148, 5 rings 118, 6 rings 0 (a ring a drum voice,
-    `NDRUM`). Now: 6 rings for the kit, down to 3 when the arena has no room (`sst_place_rings`), and a hit with no ring
-    takes the oldest card hit's (`lane_card.c dlc_ring_free`, counted as "tails cut for a ring": 198 tails on 3 rings, none
+    `NDRUM`). Now: 6 rings for the kit; when the arena has no room (`sst_place_rings`, the user: "i would say 5 is min", "or
+    we can use shorter ring") 5, then every ring shorter, 2 KB a step down to 4 KB (`sst_k`, one length for all the rings:
+    the streams share them, so a sample part's shorten too), then refused: MEM FULL CARD, as ever (the drop offered, the
+    pre-buffer that fits said, no card sample plays until it fits). A hit with no ring takes the oldest card hit's (`lane_card.c dlc_ring_free`, counted as "tails cut for a ring": 198 tails on 3 rings, none
     on 6). Still silent: a part's 5th note (`SST_PART_RINGS`) and the 909's third.
   - **Dry**: a voice whose next slot is not there fades out at once over 64 samples (1.5 ms) from the sample it was
     at, then ends; `sd stream` counts it (`dry`). A note with no ring free is silent and counted (`no ring`).
@@ -685,7 +687,7 @@ presets for all devices".
   and root, the flash kit's map; the kit's treatment and the lane's TUNE / DECAY / CUT / LEVEL as before) through the
   lanes' card streams (`lane_card.c dlc_go`); the 909's hats, crash and ride play `Samples/X0X/909/` through a stream
   each voice (`drums/x0x/x0x_card.c`, read from drum909.c by integers only). The plan (`sd_stream_plan.c`) places only
-  the files the lanes play (`kc_want`, `x9c_want`), by path, their heads at most 25 ms (`SST_KIT_PRE_MS`), 6 rings (3 at the least) for
+  the files the lanes play (`kc_want`, `x9c_want`), by path, their heads at most 25 ms (`SST_KIT_PRE_MS`), 6 rings (5 at the least) for
   the kit's hits and 2 for the 909's (of the 8). A file not on the card: that hit silent, "KIT SAMPLES MISSING" /
   "909 SAMPLES MISSING" once (`sd_mode.c sdm_kit_tick`). Synthesised kits stay synthesised. sd-card-mots: 803,812 B of
   flash (817,688 before: 13,876 B less, the 909's 6-bit hats out of the flash), SRAM +2,192 B (the 32 sources).

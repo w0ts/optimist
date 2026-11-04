@@ -554,7 +554,7 @@ static void con_sd_streams(void)
 {
     uint32_t i, on = 0;
     con_kv("rings", SST_N);
-    con_kv("ring KB", SST_K / 2u);
+    con_kv("ring KB", sst_k / 2u);
     con_kv("run blocks", SST_RUN);
     con_kv("pre ms", sst_pre_ms);
     con_kv("plan", sstp.state);                      /* 0 none, 1 letting go, 2 placed, 3 refused */
@@ -585,7 +585,7 @@ static void con_sd_streams(void)
             con_sd_field("src", sst[i].src);
             con_sd_field("fill", (int32_t)(sst[i].wr - sst[i].rd));
             con_putc('/');
-            con_dec((int32_t)SST_K);
+            con_dec((int32_t)sst_k);
             con_sd_field("B/ms", (int32_t)sst[i].bpms);
             con_puts("\r\n");
         }

@@ -288,6 +288,44 @@ static void screen_row(const page_t *P, long *dried)
     *dried = r.dried;
 }
 
+/* rings shortened by the plan (sst_place_rings, a build's rings of more than 4 KB): 5 hits at once on a kit's 25 ms heads */
+static void short_ring_tests(void)
+{
+    static const page_t CHG = {"a page change a 300 ms", 16, 7170, 300, 0, PG_FIRST, 1, 115200, 0};
+    static const page_t CHG_B = {"the same, busy audio", 16, 7170, 300, 0, PG_FIRST, 1, 115200, 2500};
+    static const page_t FULL_B = {"the whole screen every frame, busy audio", 16, 7170, 0, 0, PG_FIRST, 1, 0, 2500};
+    const page_t *P[3] = {&CHG, &CHG_B, &FULL_B};
+    static const uint32_t KB[3] = {4u, 6u, FELUCCA_SD_RING_KB};
+    uint32_t i, k, at = 0, used;
+    char path[16];
+    res_t r;
+    tick_ms = 1147u;
+    for (i = 0; i < NV; i++) {
+        snprintf(path, sizeof path, "b%u.wav", i);
+        CHECK(sst_src_load(i, path, 25, src_mem + at, sizeof src_mem - at, &used) == FR_OK, "%s: a 25 ms head", path);
+        at += (used + 3u) & ~3u;
+    }
+    for (k = 0; k < 3u; k++) {
+        if (KB[k] > FELUCCA_SD_RING_KB)
+            continue;                                /* (a ring is at most the build's) */
+        quiet();
+        sst_k = KB[k] * 2u;
+        sst_rings(ring_mem, SST_N);
+        for (i = 0; i < 3u; i++) {
+            paints = paint_max = 0;
+            page = P[i];
+            r = play(5u, 1.0, 2500);
+            page = 0;
+            printf("  rings of %u KB (urgent under %u ms), 5 hits on 25 ms heads, %-40s dry %ld, %u paints, least lead %u ms\n", KB[k],
+                   SST_URGENT_MS, P[i]->name, r.dried, paints, r.lead == SST_NONE ? 0u : r.lead);
+            CHECK(r.dried == 0, "rings of %u KB, %s: none dry (%ld)", KB[k], P[i]->name, r.dried);
+        }
+    }
+    quiet();
+    sst_k = SST_K;
+    sst_rings(ring_mem, SST_N);
+}
+
 static void screen_first_tests(void)
 {
     static const page_t RING_OLD = {"the REC ring as it was", 8, 7380, 0, 0, PG_ONE_RUN, 1, 0, 0};
@@ -454,6 +492,8 @@ int main(int argc, char **argv)
     CHECK(fit_i >= fit_q, "840 KB/s: INFO costs no voice against a quiet page (%u, %u)", fit_i, fit_q);
     CHECK(fit_i > fit_i0, "840 KB/s: INFO carries more than before (%u, %u)", fit_i, fit_i0);
     screen_first_tests();
+    if (SST_K >= 8u)
+        short_ring_tests();
     clk_hook = 0;
     free(img);
     printf("sd_stream_bus_test: %d checks, %d failed\n", checks, fails);

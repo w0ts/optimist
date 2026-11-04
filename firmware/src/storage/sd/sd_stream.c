@@ -12,7 +12,7 @@
  *   sst_src_need(path, pre_ms, &bytes)   the same, the bytes only (sst_probe: its data's bytes, its frame's log2)
  *                         pre_ms SST_PRE_WHOLE: the head is the whole data (whole 4-byte words: its last 1..3 bytes
  *                         dropped), so no read of it ever goes to the card (GRAIN, STRETCH on a file that fits)
- *   sst_rings(mem, n)     the first n streams' rings: n x SST_K x 512 B from mem (4-byte aligned); the others have
+ *   sst_rings(mem, n)     the first n streams' rings: n x sst_k x 512 B from mem (4-byte aligned); the others have
  *                         none (mem 0: every stream off)
  *   sst_service()         one run for the stream with the least time left that has a free slot: what the main loop's
  *                         idle wait calls (main.c); 1 a run was made (the bus was the card's meanwhile)
@@ -44,7 +44,7 @@
 #endif
 #ifndef SST_URGENT_MS
 #define SST_URGENT_MS_OF(k) ((k) * 39u / 10u < 40u ? 40u : (k) * 39u / 10u > 64u ? 64u : (k) * 39u / 10u)
-#define SST_URGENT_MS SST_URGENT_MS_OF(SST_K)        /* the card before the screen: a stream with less left, 2/3 of a ring at
+#define SST_URGENT_MS SST_URGENT_MS_OF(sst_k)        /* the card before the screen: a stream with less left, 2/3 of a ring at
                                                       * 44.1 kHz mono, 40 .. 64 ms. Rings filled together drain together: all 8
                                                       * voices' runs (3.5 ms each at 12 MHz) must fit in it with the strips between */
 #endif
@@ -94,7 +94,7 @@ static void sst_rings(uint8_t *mem, uint32_t n)
     uint32_t i;
     for (i = 0; i < SST_N; i++) {
         sst[i].on = 0;
-        sst[i].ring = mem && i < n ? mem + i * SST_K * 512u : 0;
+        sst[i].ring = mem && i < n ? mem + i * sst_k * 512u : 0;
     }
 }
 
@@ -163,7 +163,7 @@ static uint32_t sst_lead(uint32_t i, uint32_t now)
         return SST_NONE;
     }
     used = st->wr - st->rd;
-    if (st->done || st->dry || used >= SST_K)
+    if (st->done || st->dry || used >= sst_k)
         return SST_NONE;
     ahead = used * 512u + (!st->in_ring && st->pos < s->hlen ? s->hlen - st->pos : 0u);
     return ahead / (st->bpms ? st->bpms : 1u);
@@ -192,7 +192,7 @@ static void sst_run(uint32_t i)
     uint8_t gen = st->pgen;
     uint32_t left, lba = sst_lba(s, st->next, &left), n = 0, sec = st->next, k, t0, slot;
     BYTE res = SDR_ERR, ok = 1, slip = 0;
-    for (k = st->wr - st->rd; n < SST_RUN && n < left && k + n < SST_K; ) {   /* contiguous in play order and on the card */
+    for (k = st->wr - st->rd; n < SST_RUN && n < left && k + n < sst_k; ) {   /* contiguous in play order and on the card */
         n++;
         sec = sst_after(s, st, sec);
         if (sec != st->next + n)
@@ -209,7 +209,7 @@ static void sst_run(uint32_t i)
         ok = 0;
     } else {
         for (k = 0; k < n; k++) {
-            slot = st->wr % SST_K;
+            slot = st->wr % sst_k;
             st->tag[slot] = 0;                       /* (given back by the audio: it reads it again only once tagged) */
             if (!sst_block(st, st->ring + slot * 512u, gen, &res))
                 break;

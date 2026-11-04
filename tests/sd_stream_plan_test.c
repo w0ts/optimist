@@ -300,12 +300,47 @@ static void run_card(const char *img_path)
                 arn_give(1);
             }
         }
-        CHECK(sstp.state == SSTP_PLACED && tight >= 1u + SST_KIT_RINGS_MIN && tight < 1u + SST_KIT_RINGS,
-              "%s: no room for all the kit's rings: placed with fewer (%u, state %u, part 1 %u B)", what, tight, sstp.state, room);
+        CHECK(sstp.state == SSTP_PLACED && tight == 1u + SST_KIT_RINGS_MIN && sst_k == SST_K,
+              "%s: no room for all the kit's rings: one less, placed (%u rings of %u slots, state %u, part 1 %u B)", what, tight, sst_k,
+              sstp.state, room);
         sst_plan_poll();
         sst_plan_poll();
         settle();
         CHECK(sstp.state == SSTP_PLACED && sstp.nring == tight, "%s: and it stays so, not placed again and again (%u)", what, sstp.nring);
+        kit_want = 0u;
+        sst_plan_poll();
+        settle();
+        arn_give(1);
+        if (SST_RING_MIN_K < SST_K) {                /* (run_tests.sh: built with a lower floor, 4 KB being this test's rings) */
+            /* less room: 5 rings kept, every ring shorter; the kit gone, full length again */
+            uint32_t seen = 0;
+            for (; room < ARN_BYTES && !seen; room += 1024u) {
+                CHECK(arn_reserve(1, room) == 0 && arn_take(1), "%s: part 1's block (%u B)", what, room);
+                kit_want = 1u;
+                sst_plan_poll();
+                settle();
+                if (sstp.state == SSTP_PLACED && sst_k < SST_K)
+                    seen = sst_k;
+                else if (sstp.state != SSTP_PLACED)
+                    break;
+                kit_want = 0u;
+                sst_plan_poll();
+                settle();
+                arn_give(1);
+                if (seen)
+                    break;
+            }
+            CHECK(seen == SST_RING_MIN_K && sstp.state == SSTP_PLACED && sst_k == SST_K, "%s: no room for 5 full rings: placed shorter (%u slots), "
+                  "full length again after (%u, state %u)", what, seen, sst_k, sstp.state);
+        }
+        /* no room for 5 of the shortest: refused, MEM FULL CARD, never fewer */
+        room = ARN_BYTES - 20u * 1024u - 8u * 1024u;
+        CHECK(arn_reserve(1, room) == 0 && arn_take(1), "%s: part 1 takes nearly all (%u B)", what, room);
+        kit_want = 1u;
+        sst_plan_poll();
+        settle();
+        CHECK(sstp.state == SSTP_REFUSED && sstp.nring == 1u + SST_KIT_RINGS_MIN, "%s: no room for 5 rings: refused, not fewer (state %u, %u)",
+              what, sstp.state, sstp.nring);
         kit_want = 0u;
         sst_plan_poll();
         settle();

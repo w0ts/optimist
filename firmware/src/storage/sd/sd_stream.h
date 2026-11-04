@@ -40,6 +40,9 @@
 #define SST_NSRC 16u                                 /* the card samples a project plays at most */
 #endif
 _Static_assert(SST_K >= 2u && SST_K <= 64u, "sd_stream.h: a ring of 1 to 32 KB");
+static uint32_t sst_k = SST_K;                       /* a ring's slots now, all rings alike: SST_K, fewer when the plan has no room for
+                                                      * a sampled kit's rings (sd_stream_plan.c sst_place_rings; no voice reads a ring
+                                                      * while it changes) */
 
 enum { SST_F8 = 0, SST_F16 = 1 };                    /* sst_src_t.bits: 8-bit unsigned, 16-bit signed (little-endian) */
 
@@ -66,7 +69,7 @@ typedef struct {                                     /* a card sample (the main 
 } sst_src_t;
 
 typedef struct {
-    uint8_t *ring;                                   /* SST_K x 512 B, 4-byte aligned (the DMA) */
+    uint8_t *ring;                                   /* sst_k x 512 B, 4-byte aligned (the DMA) */
     const volatile uint8_t *owner;                   /* the voice's active flag: 0, the stream is free */
     volatile uint32_t tag[SST_K];                    /* gen << 24 | file sector + 1; 0 empty */
     /* the audio's */
@@ -82,7 +85,7 @@ typedef struct {
     volatile uint8_t on;                             /* 1 from sst_start to sst_stop */
     volatile uint8_t dry;                            /* it ran dry (the voice fades out) */
     uint8_t src;                                     /* sst_src[] */
-    uint8_t in_ring;                                 /* the window is slot rd % SST_K */
+    uint8_t in_ring;                                 /* the window is slot rd % sst_k */
     /* the main loop's (sd_stream.c) */
     uint8_t pgen;                                    /* the generation it fills for */
     uint8_t fails;                                   /* a block's CRC failures (sd_crc_retry) */
@@ -163,7 +166,7 @@ static HOT const uint8_t *sst_at_slow(sst_t *st, const sst_src_t *s, uint32_t of
     if (off >= s->dlen)
         return 0;
     sec = (s->dofs + off) >> 9;
-    slot = st->rd % SST_K;
+    slot = st->rd % sst_k;
     if (st->tag[slot] != sst_tag(st->gen, sec)) {
         st->wn = 0;
         return 0;                                    /* dry */
