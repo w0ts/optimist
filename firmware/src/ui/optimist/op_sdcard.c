@@ -42,7 +42,7 @@ static int sdm_part_samples(uint32_t part);
 static void sdm_use_with(uint32_t e);
 static int32_t sdm_pre_tree(void);                      /* (the PRESETS list by engine) */
 static int sdm_pre_show(uint32_t w, uint32_t e, uint32_t bk);
-static uint32_t sdm_pre_mask(void);
+static uint32_t sdm_pre_mask(uint32_t w);
 static void sdm_all_open(uint32_t w, const uint32_t *list, uint32_t n);
 static int sdm_all_go(uint32_t v);
 static void sdm_all_sync(void);
@@ -93,6 +93,7 @@ static struct {
     uint32_t fmask;                                     /* the engines on the card (sdm_pre_mask), 0 not read */
     uint8_t loading;                                    /* the LOADING toast up (sdc_loading) */
     uint8_t pv, pv_ask, pv_k;                           /* SAMPLES: PREVIEW on (RAM only); K2 moved, the item to hear; the key heard */
+    uint32_t ftree[2];                                  /* fmask by tree: Factory's, User's */
 } sdc = {SDC_N, 1, 0, 0, 0, 0, {SDV_FOLDER, SDV_FOLDER, SDV_FOLDER, SDV_FOLDER}, "", "", 0, 0xFFu, 0};
 static const char *const SDV_NAME_S[2][4] = {{"FOLDER", "NAME", "RECENT", "SAVES"}, {"NAME", "NAME", "NAME", "SAVES"}};
 static const char *const SDO_NAME_S[SDO_N] = {[SDO_LOAD] = "LOAD", [SDO_SAVE] = "SAVE", [SDO_DELETE] = "DELETE", [SDO_USE] = "USE", [SDO_NEW] = "NEW"};
@@ -393,14 +394,24 @@ static void pop_engines(uint32_t *list, uint32_t *n, uint32_t *at);
 static int sdc_presets_turn(int32_t s)
 {
     uint32_t l[34], n, at, w;
-    if (sdc_here() != SDC_PRE || !sdm_ready() || sdc.view[SDC_PRE] != SDV_FOLDER || op_armed())
+    if (sdc_here() != SDC_PRE || !sdm_ready() || op_armed())
         return 0;
+    if (sdc.view[SDC_PRE] != SDV_FOLDER) {              /* (NAME: the filter is FOLDER's; the knob never the track's own presets here) */
+        sdc.view[SDC_PRE] = SDV_FOLDER;
+        sdc.stale = 1;
+    }
     sdc_sync(SDC_PRE);
-    if (!sdc.fmask)
-        sdc.fmask = sdm_pre_mask();
+    if (!sdc.fmask) {
+        sdc.ftree[0] = sdm_pre_mask(0);
+        sdc.ftree[1] = sdm_pre_mask(1);
+        sdc.fmask = sdc.ftree[0] | sdc.ftree[1];
+    }
     pop_engines(l, &n, &at);
     at = (uint32_t)ui_clamp((int32_t)at + (s > 0 ? 1 : -1), 0, (int32_t)n - 1);
     w = sdm_pre_tree() == 0 ? 0u : 1u;                  /* (neither tree shown: User, as the list opens) */
+    if (l[at] >= NENGINES ? !sdc.ftree[w] : !(sdc.ftree[w] >> l[at] & 1u))
+        w = !w;                                         /* (what was picked is only in the other tree: a card whose User is
+                                                         * empty showed Empty for every engine) */
     sdc.flt = (uint8_t)(l[at] >= NENGINES ? 1u : 2u + l[at]);
     if (sdc.flt == 1u)
         sdm_all_open(w, l + 1, n - 1u);
