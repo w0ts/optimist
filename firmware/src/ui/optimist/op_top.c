@@ -220,12 +220,6 @@ static void top_arn_name(uint32_t k, char *b)           /* arena client k's name
         return;
     }
     k -= (uint32_t)ARB_NC;
-#if FELUCCA_SD_STREAM
-    if (!k--) {
-        str_cpy(b, "SD STREAM", 12);
-        return;
-    }
-#endif
 #if defined(FXI_CPN) && FXI_CPN
     if (k < FXI_CPN) {                                  /* an insert's copy: the type of the instance whose line it is */
         static const char *const J[FXI_NL] = {"INS CHO", "INS ECHO", "INS JUNO", "INS FLNG", "INS XDLY", "INS REV", "INS DLY"};

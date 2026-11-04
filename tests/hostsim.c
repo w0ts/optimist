@@ -38,9 +38,6 @@ static uint32_t host_irq_ie(void);               /* (core.h IRQ_SAVE: the global
 static void fm1_irq_off(void) {}                 /* (the host: one thread) */
 static void fm1_irq_on(void) {}
 #endif
-#ifndef PRESETS_CARD
-#define PRESETS_CARD 0                                 /* (the harness reads the factory tables: host_preset_req) */
-#endif
 #include "../firmware/src/core/core.h"
 #ifndef SMP_USER_XIP                    /* the user sample slots (USR1..3, flash at 0xA0000): a RAM image, empty */
 static uint32_t host_slots[3u * 0x14000u / 4u];
@@ -166,13 +163,6 @@ static void host_tracks_init(void)                /* as felucca_init: defaults, 
  * the engine as the UI asks for it (eng_req: the audio side switches; host_preset: at once) */
 static void host_preset_req(track_t *t, uint32_t e, uint32_t pi)
 {
-#if PRESETS_CARD                                     /* (a test of SD card mode's card presets: no tables, the engine's defaults) */
-    uint32_t k;
-    t->eng_req = (uint8_t)e;
-    t->preset = (uint8_t)(ENGINES[e]->npresets ? pi % ENGINES[e]->npresets : 0u);
-    for (k = 0; k < 8u; k++)
-        t->p[P_E0 + k] = ENGINES[e]->edit[k].def;
-#else
     static const uint8_t FX_DEF[4] = {0, 24, 28, 36};
     const preset_t *p = &ENGINES[e]->presets[pi % ENGINES[e]->npresets];
     uint32_t i;
@@ -197,7 +187,6 @@ static void host_preset_req(track_t *t, uint32_t e, uint32_t pi)
         t->p[i] = 0;                             /* DEST A the engine's default: as apply_preset_to) */
     (void)env_load(t->p);
     env2_dest_def(t->p, e);
-#endif
 }
 /* the main loop's work a sound waits for, done at once (the harness has no main loop): WAVE's table (eng_wave.c) */
 static void host_main_services(void)

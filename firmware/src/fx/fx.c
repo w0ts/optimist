@@ -370,42 +370,6 @@ static HOT2 __attribute__((noinline)) void ua_mst_out(const int32_t *ml, const i
     mout_block(&ua_mo, ml, mr, ua_mst, n, 4096, 4096, 0u);
 }
 #endif
-#if OC_REC
-#if FELUCCA_MASTER_COMP
-static mlim_t sd_mlim __attribute__((section(".pool")));   /* (LIMIT's brickwall for the recorder's stage) */
-#endif
-/* the card's recorder while the codec's output is corrected (outcorr.c oc_rec): the output stage of its own on the plain
- * bus, as the output's without the correction (the knob's volume, the DC blocker, the limiter and the knee, or LIMIT's
- * brickwall), its state taken over from the output's when it starts; before the output's
- * block (MIX_EXACT: the bits under it are the output's, written after). XIP (FAR): it runs only while the card records */
-static __attribute__((noinline)) void sd_mst_out(const int32_t *ml, const int32_t *mr, uint32_t n, int32_t m0, int32_t m1)
-{
-    if (!sd_mo_on) {                                    /* (the output's state: no step in the recording. Its lookahead */
-        sd_mo = mo;                                     /* only when it holds no corrected sample: else from empty) */
-#if FELUCCA_MASTER_COMP
-        if (oc_clean)
-            sd_mlim = mlim;
-        else
-            sd_mlim.on = 0;
-#endif
-        sd_mo_on = 1;
-    }
-#if FELUCCA_MASTER_COMP
-    if (mlim.on && (!sd_mlim.on || sd_mlim.c8 != mlim.c8)) {   /* LIMIT's CEIL, as the output's (from OFF: empty) */
-        if (!sd_mlim.on)
-            mlim_reset(&sd_mlim);
-        sd_mlim.c8 = mlim.c8;
-        sd_mlim.clin = mlim.clin;
-    }
-    sd_mlim.on = mlim.on;
-    if (sd_mlim.on) {
-        FAR(mlim_block)(&sd_mlim, &sd_mo, ml, mr, sd_mst, n, m0, m1, 0u);   /* (RAM code: from the XIP, far) */
-        return;
-    }
-#endif
-    FAR(mout_block)(&sd_mo, ml, mr, sd_mst, n, m0, m1, 0u);   /* (as above) */
-}
-#endif
 
 
 
@@ -3314,12 +3278,6 @@ static inline __attribute__((always_inline)) void mix_finish(int32_t *out, uint3
     m0 = master_cur < 0 ? (int32_t)song.master_q12 : master_cur;   /* MASTER glides (~10 ms; X0X 0.10.1) */
     m1 = glide_next(m0, (int32_t)song.master_q12);
     master_cur = m1;
-#if OC_REC
-    if (oc_rec)                                         /* the card records while the codec's output is corrected: its */
-        FAR(sd_mst_out)(mix_l, mix_r, n, m0, m1);       /* own plain stage (above, outcorr.c) */
-    else
-        sd_mo_on = 0;
-#endif
 #if FELUCCA_MASTER_COMP
     if (mlim.on) {                                      /* LIMIT > CEIL: the volume, master_pre, the lookahead brickwall */
         mlim_block(&mlim, &mo, mix_l, mix_r, out, n, m0, m1, 1u);   /* instead of the limiter and the knee (master_comp.c) */

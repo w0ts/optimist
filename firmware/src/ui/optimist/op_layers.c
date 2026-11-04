@@ -93,12 +93,7 @@ static struct {
 /* the cards 2x2 (op_state.c): everywhere but the mixer's channel and lane rows, which want the height ("but not in mixer !",
  * the user, 2026-10-12); the mixer's MASTER row is one meter and the returns, so it takes the big cards too (the user,
  * 2026-10-17: "Master mixer. 2*2 cards"); a layer's map over the mixer is the layer's screen, so it is 2x2 too */
-#if FELUCCA_SD_UI
-static int sdc_listing(void);                           /* op_sdcard.c: a card's list, four small cards over its page */
-static int cards_2x2(void) { return (ui.scr != SCR_HOME || lay.shown != LY_PLAY || mx_row() <= MXR_MASTER) && !sdc_listing(); }   /* (the master screen: MASTER and the returns above it, 2026-10-30) */
-#else
 static int cards_2x2(void) { return ui.scr != SCR_HOME || lay.shown != LY_PLAY || mx_row() <= MXR_MASTER; }   /* (the master screen: MASTER and the returns) */
-#endif
 /* the patterns screen (SONG's PATTERNS row; LFO held or locked): no 2x2 cards, its panel from the header down (the user,
  * 2026-11-01: "the top 2*2 cards are not very useful"); op_laydraw.c song_grid_draw */
 static int pat_view(void)
@@ -846,12 +841,6 @@ static void op_act(uint32_t a, uint32_t k)
 #if PART_DROPS
     case OA_DROP:                                       /* memory short: this part a silent placeholder (op_input.c mem_tick) */
         mem_drop(k);
-        return;
-#endif
-#if FELUCCA_SD_STREAM
-    case OA_SDDROP:                                     /* the card samples' memory short: this part a silent placeholder (its
-                                                         * memory back once its switch is done; the plan places by itself) */
-        part_drop(&trk[k % NPART]);
         return;
 #endif
     case OA_SCN_STORE:

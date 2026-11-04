@@ -141,10 +141,6 @@ static int param_kept(uint32_t i)
  * built) has this one entry on the PRESETS list, and in the web editor's list: the engine's defaults, as a fresh
  * track on it. No data: made from the engine's and the track's defaults */
 #define PRESET_INIT 0xFFu
-#if PRESETS_CARD
-static void sdm_factory_ask(track_t *t, uint32_t pi);   /* storage/sd/sd_mode.c: the card's preset file, next pass */
-static void sdm_factory_drop(uint32_t k);               /* .. none asked for track k any more (a sound loaded over) */
-#endif
 static uint32_t eng_first_playable(const engine_t *e)    /* its first playable preset, else PRESET_INIT */
 {
     uint32_t k;
@@ -181,17 +177,6 @@ static void apply_preset_to(track_t *t, uint32_t pi)
     }
     pi %= e->npresets;
     t->preset = (uint8_t)pi;
-#if PRESETS_CARD
-    {   /* SD card mode: the engine's defaults now (the interrupts may be off here), the card's preset file on the main
-         * loop's next pass (sd_mode.c sdm_factory_poll: the record as a user preset loads it, the preset index kept) */
-        for (i = 0; i < 8u; i++)
-            t->p[P_E0 + i] = e->edit[i].def;
-        for (i = P_E1PIT; i <= P_SLAST; i++)
-            t->p[i] = TP[i].def;
-        env2_dest_def(t->p, t->eng_req);
-        sdm_factory_ask(t, pi);
-    }
-#else
     if (ENG_IS(e, FM6))
         fm6_cur[trk_index(t) % NPART] = 0;           /* its VOICE afresh: edits of the buffer go */
     for (i = 0; i < 8u; i++)
@@ -219,7 +204,6 @@ static void apply_preset_to(track_t *t, uint32_t pi)
         (void)env_load(t->p);                        /* ENV2's depths of the tables -> its slots */
         env2_dest_def(t->p, t->eng_req);
     }
-#endif
 }
 
 /* the engine's defaults and its first preset. With the audio IRQ off: the ISR sees the old engine with
@@ -568,7 +552,6 @@ static uint8_t eng_rank_of[NENGINES];               /* slot -> its place in that
  * the list the user sees changes order, no stored id does: a preset is its engine UID and its index in that engine). Their kinds (basses, keys, organs, pads, leads, plucks and bells, stabs,
  * the rest), then the used user presets: the PRESETS knob and the PRESETS page browse it. By name: an
  * engine's preset table may change order; tests/ui_pages_test.c checks every preset is here once */
-#if !PRESETS_CARD
 enum { BK_BASS, BK_KEYS, BK_ORGAN, BK_PAD, BK_LEAD, BK_PLUCK, BK_STAB, BK_FX };
 static const char *const BANK_KIND[] = {"BASS", "KEYS", "ORGN", "PAD", "LEAD", "PLCK", "STAB", "FX"};
 /* B(N, kind, uid, name): an entry of engine N (its UID): nothing when the engine is not built, so a reduced build keeps
@@ -588,14 +571,6 @@ _Static_assert(ENG_UID_N <= 32u && BK_FX < 8, "BANK: an entry's kind and engine 
 #define NBANK_ALL (sizeof BANK / sizeof BANK[0])
 static uint32_t bank_eng(uint32_t i) { return eng_slot_built(BANK[i].e); }   /* entry i's engine slot */
 typedef uint8_t bank_i_t;
-#else
-/* SD card mode (PRESETS_CARD): no BANK (its names are the card's): the list is every engine's presets in their table's
- * order, the names from the card (sd_mode.c sdm_factory_name) */
-#define NBANK_ALL 320u                               /* (every engine's presets: 256 with all of them, 2026-10-26) */
-static uint8_t bank_e[NBANK_ALL];
-static uint32_t bank_eng(uint32_t i) { return bank_e[i]; }
-typedef uint16_t bank_i_t;
-#endif
 /* the list as this build has it: the entries whose engine is built and whose preset exists (a reduced build:
  * registry.h; a sample set left out takes its presets along). bank_ix: list position -> BANK entry */
 static uint8_t bank_pi[NBANK_ALL];                   /* the preset index of each entry in its engine */
@@ -611,18 +586,6 @@ static void bank_resolve(void)
     for (a = 0; a < sizeof ENG_ALPHA_ALL; a++)        /* the engines by name, the ones this build has */
         if (eng_built(ENG_ALPHA_ALL[a]) && n < NENGINES)
             eng_rank_of[eng_slot_built(ENG_ALPHA_ALL[a])] = (uint8_t)n, ENG_ALPHA_SLOT[n++] = (uint8_t)eng_slot_built(ENG_ALPHA_ALL[a]);
-#if PRESETS_CARD
-    for (a = 0; a < NENGINES; a++) {                  /* (the engines by name; each one's presets as its table has them) */
-        i = ENG_ALPHA_SLOT[a];
-        for (k = 0; k < ENGINES[i]->npresets && bank_n < NBANK_ALL; k++) {
-            bank_e[bank_n] = (uint8_t)i, bank_pi[bank_n] = (uint8_t)k;
-            bank_ix[bank_n] = bank_n;
-            bank_n++;
-        }
-        if (!ENGINES[i]->npresets)
-            bank_init[bank_ni++] = (uint8_t)i;
-    }
-#else
     for (i = 0; i < NBANK_ALL; i++) {
         const engine_t *e;
         bank_pi[i] = 0xFF;
@@ -644,7 +607,6 @@ static void bank_resolve(void)
         if (k == bank_n)
             bank_init[bank_ni++] = (uint8_t)i;
     }
-#endif
     bank_s6 = 0;
 #if FELUCCA_NB_LIST && FELUCCA_FM6_LIST
     for (i = 0, a = nb_engine_slot(nb_kind_at(0)); a < NENGINES && i < bank_n; i++)
@@ -790,20 +752,11 @@ static uint32_t preset_raw_at(uint32_t n, uint32_t *k)
 /* the whole list's name of a sound as the lists show it, below; the favorites' view of the list (core/favorites.c):
  * with LIST FAV the list is the marked sounds only. preset_pos / preset_at / preset_go's index are the list as shown;
  * preset_src maps it to the whole list's (preset_kind labels the whole list's) */
-#if PRESETS_CARD
-static const char *preset_kind(uint32_t n) { return n < NBANK ? ENGINES[bank_eng(n)]->name : n < NLIST ? "INIT" : "USER"; }
-static const char *sdm_factory_name(uint32_t e, uint32_t k);   /* storage/sd/sd_mode.c */
-#else
 static const char *preset_kind(uint32_t n) { return n < NBANK ? BANK_KIND[BANK[bank_ix[n]].kind] : n < NLIST ? "INIT" : "USER"; }
-#endif
 /* the name of preset k of engine slot e as the lists show it */
 static const char *preset_name(uint32_t e, uint32_t k)
 {
-#if PRESETS_CARD
-    return k == PRESET_INIT || !ENGINES[e]->npresets ? "INIT" : sdm_factory_name(e, k % ENGINES[e]->npresets);
-#else
     return k == PRESET_INIT || !ENGINES[e]->npresets ? "INIT" : ENGINES[e]->presets[k % ENGINES[e]->npresets].name;
-#endif
 }
 #if FELUCCA_FAVORITES
 /* list entry (e, k) of preset_all_at: marked? The engines' own collections (NB_LIST) have no mark */
