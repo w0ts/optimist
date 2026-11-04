@@ -2997,7 +2997,7 @@ const parse = {   /* the replies' readers, by command */
     if (r.i < a.length && r.b() === 1) { o.ap = { cap: 1, key: r.b(), status: r.b(), clients: r.b(), ch: r.b() }; o.ap.auto = !!(o.ap.ch & 0x40); o.ap.ch &= 0x3F; o.ap.name = ssid(); }   /* (0x40: CHANNEL AUTO) */
     o.peers = r.i < a.length ? r.b() : 0;   /* the Link peers heard (after the AP block; an older firmware sends none) */
     o.group = r.i < a.length ? r.b() : 0;   /* MODE JAM's GROUP 1..9 (0: no JAM in this build, or an older firmware) */
-    o.jamHost = r.i < a.length ? !!r.b() : false;   /* in JAM: this FM-1 is its group's access point now */
+    o.heard = r.i < a.length ? r.b() : 0;   /* in JAM: the FM-1s of the group heard (the Wi-Fi's count; peers: Link's) */
     return o;
   },
   /* v14 NOTE (ed_note.c): op, rc, track, note, held */
@@ -3653,7 +3653,7 @@ function wifiText(b) {
 /* the manager's states and failures (firmware wifi/wifi_conn.c; web/EDITOR_PROTOCOL.md "Wi-Fi") */
 const WIFI = { OFF: 0, RADIO: 1, IDLE: 2, SCAN: 3, PMK: 4, AUTH: 5, ASSOC: 6, HS: 7, UP: 8, FAIL: 9, LINK: 10, PRE: 11,
   MODES: [[0, "OFF"], [2, "MAN"], [1, "AUTO"]], MODE_JAM: [7, "JAM"], MODE_APMAN: [4, "AP MAN"], MODE_AP: [3, "AP AUTO"], GROUPS: 9, AP: { OFF: 0, NOPASS: 1, STARTING: 2, ON: 3, NOCAL: 4, STOPPED: 5 }, CH_MIN: 1, CH_MAX: 13, SLOTS: 4, SSID_MAX: 32, PASS_MIN: 8, PASS_MAX: 63 };
-const wifiIsAp = (m, s) => m === 3 || m === 4 || m === 6 || (m === 7 && !!s && !!s.jamHost);   /* AP AUTO, AP MAN, JAM while it hosts its group (s: the state; 6: an older JAM HOST) */
+const wifiIsAp = (m) => m === 3 || m === 4;   /* AP AUTO, AP MAN */
 const wifiBusy = (w) => w.st === WIFI.RADIO || w.st === WIFI.SCAN || (w.st >= WIFI.PMK && w.st <= WIFI.HS) || w.st === WIFI.LINK || w.st === WIFI.PRE || (w.st === WIFI.UP && !w.ip) || (wifiIsAp(w.mode, w) && !!w.ap && w.ap.cap === 1 && w.ap.status === WIFI.AP.STARTING);
 /* the join request's check, before anything is sent (name: the typed text, or a saved network's bytes): {ssid bytes, pass} or {err: a TEXT key} */
 function wifiCheck(name, pass, saved) {
@@ -6288,7 +6288,7 @@ function makeMockDevice(opt = {}) {                /* (opt: see above) */
             if (wifiIsAp(w.mode) && !stopped) ap.apPolls++;
             const stt = !wifiIsAp(w.mode) ? 0 : stopped ? 5 : ap.apPolls < 2 ? 2 : 3;   /* a password set: STARTING on the first read, ACTIVE on the second */
             b(1); b(ap.key); b(stt); b(stt === 3 ? 1 : 0); b(ap.ch | (ap.auto ? 0x40 : 0)); b(nm.length); pack7(nm).forEach(b);
-            b(mockPeers()); b(w.group || 1); b(0);   /* (the trial's stack: JAM there, group 1 at first; the mock never hosts) */
+            b(mockPeers()); b(w.group || 1); b(0);   /* (the trial's stack: JAM there, group 1 at first) */
           }
         } else if (a[0] === 9) {
           if (a.length < 2) return null;
@@ -7607,7 +7607,7 @@ const TEXT = {                                      /* the page's words, by key 
   wifiTab: "Wi-Fi", wifiNone: "This FM-1 has no Wi-Fi (a build with Wi-Fi and Bluetooth lists opti_wifi_1).",
   wifiHelp: "The Wi-Fi networks of the FM-1: choose the mode, join a network by its name and password, forget one. The FM-1 keeps up to 4 networks, most recent first, and only the key made from the password: the password itself is never stored, and neither the FM-1 nor this page shows a key. A network is kept once the FM-1 has really joined it. The FM-1 joins WPA2 personal (PSK, AES) networks.",
   wifiAsking: "Asking the FM-1…", wifiNoAnswer: "The FM-1 did not answer the Wi-Fi request.", wifiRefresh: "Refresh",
-  wifiMode: "Mode", wifiModeOff: "Off: the radio stays off", wifiModeMan: "Manual: joins a network only when told", wifiModeAuto: "Auto: joins the best saved network heard, at start-up and whenever none is joined", wifiModeJam: "Jam: finds the FM-1s of its group and joins them, or becomes their access point when none is there (its automatic name and default password); Link stays on", wifiGroup: "Group", wifiGroupTip: "The FM-1s of one group (1 to 9) play together: pick the same on each",
+  wifiMode: "Mode", wifiModeOff: "Off: the radio stays off", wifiModeMan: "Manual: joins a network only when told", wifiModeAuto: "Auto: joins the best saved network heard, at start-up and whenever none is joined", wifiModeJam: "Jam: plays with the FM-1s of its group, directly, with no router or access point; Link stays on. A phone or a computer cannot join; use another group if its channel is busy", wifiGroup: "Group", wifiGroupTip: "The FM-1s of one group (1 to 9) play together: pick the same on each",
   wifiOff: "Wi-Fi is off.", wifiRadio: "Starting the radio…", wifiIdle: "Not connected.", wifiScan: "Looking for “{n}”…", wifiJoining: "Joining “{n}”…",
   wifiUp: "Connected to “{n}”, address {ip}, channel {ch}.", wifiAddr: "Joined; waiting for an address from the router…",
   wifiFail0: "The connection failed.", wifiFail1: "The Wi-Fi radio cannot start: this FM-1 has no stored radio calibration.",
@@ -7622,7 +7622,7 @@ const TEXT = {                                      /* the page's words, by key 
   wifiBadSsid: "The network name must be 1 to 32 bytes.",
   wifiModeAp: "Access point, automatic: the FM-1 is the network from power-on (a laptop or phone joins it)", wifiModeApMan: "Access point, manual: the FM-1 is the network only after Start (or SAVE on its page)", wifiApStopped: "Access point stopped: press Start.", wifiApStart: "Start", wifiApStop: "Stop", wifiAp: "Access point", wifiApName: "Network name", wifiApCustom: "Custom name (empty: automatic, FM1-xxxx)",
   wifiApPass: "Password", wifiApSet: "Set password", wifiApChan: "Channel", wifiApClear: "Clear key", wifiApClearSure: "Sure? Clear key",
-  wifiPeers1: "· 1 Link peer", wifiPeersN: "· {n} Link peers",
+  wifiPeers1: "· 1 Link peer", wifiPeersN: "· {n} Link peers", wifiAlone: "Alone: no FM-1 of the group heard", wifiHeard: "Heard {n}",
   wifiApOff: "The access point is off.", wifiApNoPass: "No password yet.", wifiApStarting: "Starting the access point…", wifiApOn: "Active, {n} clients.", wifiApOn1: "Active, 1 client.",
   wifiApNoCal: "No radio calibration: the access point cannot start.",
   wifiApKeyOn: "Your own password is kept.", wifiApKeyDefault: "Password: {k}",
@@ -11398,6 +11398,7 @@ function wifiApStatus(ap) {   /* MODE AP's status as [words, status colour] */
 const wifiPeers = (s) => (s.peers ? " " + (s.peers === 1 ? t("wifiPeers1") : t("wifiPeersN").replace("{n}", s.peers)) : "");   /* (" · 2 Link peers") */
 function wifiStatus(s) {   /* the state as [words, status colour] */
   const nm = s.cur.text;
+  if (s.mode === 7) return s.heard ? [t("wifiHeard").replace("{n}", s.heard) + wifiPeers(s), "ok"] : [t("wifiAlone"), "warn"];   /* MODE JAM: no network to name */
   if (wifiIsAp(s.mode, s) && s.ap.cap === 1) { const [x, c] = wifiApStatus(s.ap); return [x + (s.ap.status === WIFI.AP.ON ? wifiPeers(s) : ""), c]; }
   if (!s.mode || s.st === WIFI.OFF) return [t("wifiOff"), ""];
   if (s.st === WIFI.RADIO) return [t("wifiRadio"), "warn"];
@@ -11507,7 +11508,6 @@ function wifiApForm() {   /* the Access point panel (MODE AP): built once, so wh
     chan.options[0].text = s.ap.auto ? `Auto (${s.ap.ch})` : "Auto";
     clear.lastChild.textContent = wf.apClear && performance.now() - wf.apClear < 4000 ? t("wifiApClearSure") : t("wifiApClear");
     clear.disabled = !s.ap.key;
-    for (const x of [name, pw, show.parentNode, setBtn, clear]) x.hidden = s.mode === 6 || s.mode === 7;   /* JAM hosting: the default password only, shown, never set */
     run.hidden = s.mode !== 4;                              /* AP MAN only: start / stop */
     run.disabled = false;
     run.textContent = s.ap.status === WIFI.AP.STOPPED ? t("wifiApStart") : t("wifiApStop");

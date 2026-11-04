@@ -7,8 +7,8 @@ Any device in the session can change the tempo. An FM-1 that joins while playing
 An access-point mode for use without a router is available as a builder option (less tested).
 - **JAM mode**: FM-1s play together over Wi-Fi with no router.
 Set SYSTEM > WI-FI > MODE to JAM and pick the same GROUP (1–9) on each: the rest is automatic. 
-Each FM-1 joins its group's FM-1, or becomes the group's access point when none is there, and Link keeps them in time. 
-The access point passes Link between its FM-1s and picks the least busy Wi-Fi channel at every start.
+The FM-1s of a group talk directly on the group's channel (1, 6 or 11: if it is busy, pick another GROUP), with no host and no waiting: 
+any of them can come and go, and Link keeps them in time. STATE shows how many FM-1s are heard, LINK PEERS how many are in time with this one. A phone or Live cannot join a JAM group: for those, use a router or MODE AP.
 - The web editor's Wi-Fi tab has the same modes as the FM-1, including JAM and its GROUP.
 - **Live patterns**: 16 slots per track, switchable while playing. A free slot can start as a copy of the current pattern or empty.
 - **Scenes** A–P on the white keys, launched at the next bar. SAVE stores into the current scene, holding REC clears it.

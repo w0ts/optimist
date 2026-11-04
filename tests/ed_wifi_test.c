@@ -68,12 +68,12 @@ static void wa_set_channel(uint32_t ch) { wa_chsets++; wn_ap_set_channel(&wn_st,
 #define APB 2u                                             /* a build without MODE AP: cap 0 */
 #endif
 static uint32_t test_peers = 2;
-#define JAMB 2u                                            /* the state's end: MODE JAM's group and hosting (0, 0 without JAM) */
+#define JAMB 2u                                            /* the state's end: MODE JAM's group and the FM-1s heard (0, 0 without JAM) */
 #ifdef WIFI_ON_FM1B                                        /* (the trial's stack: MODE JAM and its GROUP, op 9) */
-static int test_group = 3, test_host;
+static int test_group = 3, test_heard;
+static int plat_wifi_jam(void) { return test_heard; }
 static int plat_wifi_group(void) { return test_group; }
 static void plat_wifi_set_group(int g) { test_group = g; }
-static int plat_wifi_jam_host(void) { return test_host; }
 #endif
 static uint32_t wl_peers(void) { return test_peers; }
 static uint8_t ed_out[640];
@@ -220,10 +220,13 @@ int main(void)
     q[1] = WN_MODE_JAM_HOST;
     ok(cmd(q, 2) == 1 && ed_out[1] == 0 && wn_st.mode == WN_MODE_JAM_AUTO, "an older editor's JAM HOST (6) is JAM (7)");
     q[0] = 0;
-    test_host = 1;
+    test_heard = -1;
     cmd(q, 1);
-    ok(ed_out[1] == WN_MODE_JAM_AUTO && ed_out[ed_n - 2] == 3 && ed_out[ed_n - 1] == 1, "STATE ends with the group (3) and hosting (1)");
-    test_host = 0;
+    ok(ed_out[ed_n - 1] == 0, "STATE: not on the air yet: 0 heard");
+    test_heard = 2;
+    cmd(q, 1);
+    ok(ed_out[1] == WN_MODE_JAM_AUTO && ed_out[ed_n - 2] == 3 && ed_out[ed_n - 1] == 2, "STATE ends with the group (3) and the FM-1s heard (2)");
+    test_heard = 0;
     q[0] = 9; q[1] = 7;
     ok(cmd(q, 2) == 1 && ed_out[0] == 9 && ed_out[1] == 0 && ed_out[2] == 7 && test_group == 7 && settings_later, "GROUP 7: set, saved");
     q[1] = 10;

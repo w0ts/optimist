@@ -86,7 +86,7 @@ static int wf_joining(void) { return wc_req.on || (wc.st >= WC_PMK && wc.st <= W
 static int wf_nocal(void) { return wc.st == WC_FAIL && wc.fail == WCF_NOCAL; }
 static int wf_radio_ok(void) { return wc.st != WC_OFF && wc.st != WC_RADIO && !wf_nocal(); }
 #ifdef WIFI_ON_FM1B
-#define WF_JAM 1                                        /* MODE JAM (the trial's Wi-Fi stack): AUTO that also joins an FM-1 access point */
+#define WF_JAM 1                                        /* MODE JAM (the trial's Wi-Fi stack): the FM-1s of a GROUP on the air, no access point */
 #define WF_Q 1                                          /* how well the link works (fm1-base's plat_wifi_quality) on the STATE line */
 #else
 #define WF_JAM 0
@@ -138,34 +138,31 @@ static const uint8_t WF_W[] = {WN_MODE_OFF, WN_MODE_MAN, WN_MODE_AUTO,   /* the 
 };
 static const char *const WF_M[] = {"OFF", "MAN", "AUTO",
 #if WF_JAM
-                                   "JAM",               /* (joins an FM-1 access point of its GROUP, or becomes it when none is heard; Link on: the user, 2026-11-03: "just jam") */
+                                   "JAM",               /* (the FM-1s of its GROUP, on their channel, no access point; Link on: the user, 2026-11-03: "just jam") */
 #endif
 #if FELUCCA_WIFI_AP
                                    "AP MAN", "AP AUTO",
 #endif
 };
 #define WF_MODE_LAST ((int32_t)(sizeof WF_W / sizeof WF_W[0]) - 1)
-static int wf_is_ap_mode(uint8_t m) { return m == WN_MODE_AP || m == WN_MODE_AP_MAN || m == WN_MODE_JAM_HOST; }
+static int wf_is_ap_mode(uint8_t m) { return m == WN_MODE_AP || m == WN_MODE_AP_MAN; }
 #if WF_JAM
-static int wf_jam_host_now(void) { return wn_st.mode == WN_MODE_JAM_HOST || (wn_st.mode == WN_MODE_JAM_AUTO && plat_wifi_jam_host()); }
-static int wf_jam_mode(void) { return wn_st.mode == WN_MODE_JAM || wn_st.mode == WN_MODE_JAM_HOST || wn_st.mode == WN_MODE_JAM_AUTO; }
-static int wf_grp_turn(int32_t s)                       /* the GROUP's knob (the JAM modes: the SIGNAL line is the group): 1..9, stopping at the ends; SHIFT: 1 */
+static int wf_jam_mode(void) { return wn_st.mode == WN_MODE_JAM_AUTO; }
+static int wf_grp_step(int32_t s)                       /* the GROUP's knob (K2 in MODE JAM): 1..9, stopping at the ends; SHIFT: 1 */
 {
-    int32_t v;
-    if (!wf_jam_mode())
-        return 0;
-    v = s == OP_RESET ? 1 : plat_wifi_group() + s;
+    int32_t v = s == OP_RESET ? 1 : plat_wifi_group() + s;
     plat_wifi_set_group(v < 1 ? 1 : v > 9 ? 9 : v);
     settings_later = 1;
     return 1;
 }
+static int wf_grp_turn(int32_t s) { return wf_jam_mode() && wf_st_turn(s); }   /* K3 in MODE JAM: STATE is its line */
 #else
-#define wf_jam_host_now() (wn_st.mode == WN_MODE_JAM_HOST)
 #define wf_jam_mode() 0
+#define wf_grp_step(s) 0
 static int wf_grp_turn(int32_t s) { (void)s; return 0; }
 #endif
 #if FELUCCA_WIFI_AP
-#define WF_AP_ON (wn_st.mode == WN_MODE_AP || wn_st.mode == WN_MODE_AP_MAN || wf_jam_host_now())
+#define WF_AP_ON (wn_st.mode == WN_MODE_AP || wn_st.mode == WN_MODE_AP_MAN)
 #define WF_AP_NOCAL (WF_AP_ON && wa_status() == WAS_NOCAL)
 #else
 #define WF_AP_ON 0
@@ -173,18 +170,15 @@ static int wf_grp_turn(int32_t s) { (void)s; return 0; }
 #endif
 #if FELUCCA_LINK
 /* the header's Link icon (op_draw.c head_sync; the user, 2026-11-03: an icon for Link in the top bar, its colour the state):
- * HS_OFF Wi-Fi off or no Link session; HS_BAD a JAM mode not connected (the user: "in jam mode, not connected is not good.
- * => red"): joining and not joined, or hosting with no FM-1 joined; HS_FOLLOW the clock follows Link; HS_THERE Link peers
+ * HS_OFF Wi-Fi off or no Link session; HS_BAD MODE JAM not connected (the user: "in jam mode, not connected is not good.
+ * => red"): no other FM-1 heard lately; HS_FOLLOW the clock follows Link; HS_THERE Link peers
  * heard, another clock followed; HS_NONE no peer yet */
 static uint32_t wf_link_state(void)
 {
     if (wn_st.mode == WN_MODE_OFF)
         return HS_OFF;
-#if FELUCCA_WIFI_AP                                     /* (JAM first: a JAM mode is Link on, whatever LINK says) */
-    if (wf_jam_mode() && !(wf_jam_host_now() ? wa_clients() > 0u : (uint32_t)wf_joined()))
-        return HS_BAD;
-#else
-    if (wf_jam_mode() && !wf_joined())
+#if WF_JAM
+    if (wf_jam_mode() && plat_wifi_jam() <= 0)          /* (JAM first: JAM is Link on, whatever LINK says) */
         return HS_BAD;
 #endif
     if (link_eff() == LINK_OFF && !wf_jam_mode())
@@ -376,6 +370,8 @@ static uint32_t wf_pg_sig(void)                         /* what the list shows, 
 static int wf_turn(int32_t s)                           /* NETWORK's knob: the cursor through the list, stopping at the ends -> 1 */
 {
     uint32_t c;
+    if (wf_jam_mode())
+        return wf_grp_step(s);                          /* (MODE JAM: this line is GROUP) */
     if (!wf_pg_on())
         return 0;
     if (s != OP_RESET) {
@@ -475,7 +471,7 @@ static void wf_ip_text(char *b, uint32_t ip)            /* a.b.c.d (host order),
 static void wf_sig_cell(cell_t *c)
 {
     char b[WN_SSID_MAX + 1u];
-    if (wf_jam_mode()) {                                /* the JAM modes: the group, 1..9 (the knob turns it; the name's -N and its password follow it) */
+    if (wf_jam_mode()) {                                /* MODE JAM: the group, 1..9 (the knob turns it; the network's name and channel follow it) */
         c->kind = CK_VAL;
         c->label = "GROUP";
         c->big = 1;
@@ -630,24 +626,24 @@ static void wf_state_cell(cell_t *c)
             break;
         }
 #if WF_JAM
-    if (wn_st.mode == WN_MODE_JAM || (wn_st.mode == WN_MODE_JAM_AUTO && !plat_wifi_jam_host())) {   /* MODE JAM (and JAM AUTO while not hosting): joined to an FM-1 access point (the line alternates with the Link peers), or one refused */
-        int j = plat_wifi_jam();
-        if (j == 1 && wc.st == WC_UP && (((WF_Q ? wf_ph() >> 2 : wf_ph())) & 1u)) {   /* (with the numbers: in the state's turn, every other one) */
-            uint32_t i;
-            b[0] = 'J', b[1] = 'A', b[2] = 'M', b[3] = ' ';
-            for (i = 0; i < wc.ap.ssid_len && i < 8u; i++)
-                b[4u + i] = (char)wc.ap.ssid[i];
-            b[4u + i] = 0;
+    if (wf_jam_mode()) {                                /* MODE JAM: how many FM-1s of the group are heard */
+        int n = plat_wifi_jam();
+        if (n == -2) {
+            v = "NO CAL";
+            col = C_WARN;
+        } else if (n == 0) {
+            v = "ALONE";
+            col = C_WARN;
+        } else if (n > 0) {
+            str_cpy(b, "HEARD ", sizeof b);
+            fmt_app(b, n);
             v = b;
             col = C_OK;
-        } else if (j == 2 && wc.st != WC_UP && wc.st != WC_SCAN && !wf_joining()) {
-            v = "JAM: LOCKED";                          /* (its owner typed a password: not tried again for two minutes) */
-            col = C_WARN;
         }
     }
 #endif
 #if WF_Q
-    if (wc.st == WC_UP && wfq_ok && (wf_ph() & 3u) != 0u) {   /* the numbers' turns: signal, RETRY, LOST */
+    if ((wc.st == WC_UP || (wf_jam_mode() && plat_wifi_jam() > 0)) && wfq_ok && (wf_ph() & 3u) != 0u) {   /* the numbers' turns: signal, RETRY, LOST */
         wf_q_text(b, (wf_ph() & 3u) - 1u, &col);
         v = b;
     }
@@ -671,8 +667,32 @@ static void wf_tune_pin(void)
 #else
 static void wf_tune_pin(void) {}
 #endif
+#if WF_JAM
+static void wf_peers_cell(cell_t *c)                    /* MODE JAM's last line: Link's own count (STATE's is the Wi-Fi's) */
+{
+    char b[8];
+    b[0] = 0;
+    fmt_app(b, (int32_t)wl_peers());
+    c->kind = CK_VAL;                                   /* (K4 steps STATE too) */
+    c->label = "LINK PEERS";
+    c->big = 1;
+    c->col = 0;
+    cell_val(c, b);
+}
+#endif
 static void wf_cell(uint32_t it, cell_t *c)
 {
+#if WF_JAM
+    if (wf_jam_mode() && it != SI_WFMODE) {             /* MODE, GROUP, STATE, LINK PEERS (the user, 2026-11-04) */
+        if (it == SI_WFNET)
+            wf_sig_cell(c);
+        else if (it == SI_WFSIG)
+            wf_state_cell(c);
+        else
+            wf_peers_cell(c);
+        return;
+    }
+#endif
     switch (it) {
     case SI_WFMODE:
         wf_mode_cell(c);
@@ -716,7 +736,7 @@ static void pw_open(const uint8_t *ssid, uint32_t len);
 #if WF_JAM
 #define WF_AP_KEY_LEN 8u                                /* (fm1-base wifi/wifi_ap.h WIFI_AP_KEY_LEN) */
 void wifi_ap_default_key(const uint8_t *ssid, uint32_t len, char out[WF_AP_KEY_LEN + 1u]);   /* (fm1-base wifi/wifi_ap_key.c) */
-static int wf_fm1_name(const uint8_t *s, uint32_t n)    /* an Optimist access point's automatic name: FM1- and 4 hex digits */
+static int wf_fm1_name(const uint8_t *s, uint32_t n)    /* an FM-1 access point's automatic name (MODE AP): FM1- and 4 hex digits */
 {
     uint32_t i;
     if (n != 8u || s[0] != 'F' || s[1] != 'M' || s[2] != '1' || s[3] != '-')
@@ -725,15 +745,6 @@ static int wf_fm1_name(const uint8_t *s, uint32_t n)    /* an Optimist access po
         if (!((s[i] >= '0' && s[i] <= '9') || (s[i] >= 'A' && s[i] <= 'F')))
             return 0;
     return 1;
-}
-#endif
-#if FELUCCA_WIFI_AP
-static void wf_jam_key_say(void)                        /* JAM HOST: "KEY xxxxxxxx", the password the others join with */
-{
-    char k[16];
-    k[0] = 'K', k[1] = 'E', k[2] = 'Y', k[3] = ' ';
-    (void)wa_default_key(k + 4);
-    ui_message(k);
 }
 #endif
 static void wf_save(void)                               /* SAVE tapped on the page, any line */
@@ -746,10 +757,6 @@ static void wf_save(void)                               /* SAVE tapped on the pa
         uint8_t raw[WN_SSID_MAX];
         if (wa_status() == WAS_NOCAL) {
             ui_message("NO RADIO CAL");
-            return;
-        }
-        if (wf_jam_host_now()) {                        /* JAM HOST: its password is the default one, never typed: SAVE shows it */
-            wf_jam_key_say();
             return;
         }
         if (wn_st.mode == WN_MODE_AP_MAN) {                 /* AP MAN: SAVE starts it, or stops it */
@@ -824,10 +831,6 @@ static void wf_forget(void)
 #if FELUCCA_WIFI_AP
     if (WF_AP_ON) {                                     /* MODE AP: the key goes (ask first, as a network's forget) */
         uint8_t raw[WN_SSID_MAX];
-        if (wf_jam_host_now()) {                        /* JAM HOST: no key of its own to clear: its password shown */
-            wf_jam_key_say();
-            return;
-        }
         if (!wn_st.ap.set) {                            /* none typed (the default one is in use): SAVE held opens the entry (in AP AUTO SAVE does) */
             pw_open(raw, wa_name(raw));
             pws.ap = 1;
@@ -921,7 +924,7 @@ static void wf_poll(void)
 #else
         int ap_up = 0;
 #endif
-        wfq_ok = (uint8_t)(shown && (up || ap_up) && plat_wifi_quality(&wfq));   /* (measured only while asked: the page on screen) */
+        wfq_ok = (uint8_t)(shown && (up || ap_up || wf_jam_mode()) && plat_wifi_quality(&wfq));   /* (measured only while asked: the page on screen) */
     }
 #endif
     if (wc.fail_new) {
