@@ -174,7 +174,7 @@ def engines():
 
 def host_headers():
     """the host headers sd_factory.c compiles against (tools/build.py --host-headers), made when missing"""
-    hgen = ROOT / "build" / "gen-host"
+    hgen = BUILD / "gen-host"                        # (tools/build.py --host-headers writes to OPTIMIST_BUILD_DIR's, not always build/)
     if not (hgen / "felucca_tables.h").exists():
         subprocess.run([sys.executable, str(ROOT / "tools" / "build.py"), "--host-headers"], check=True, cwd=ROOT)
     return hgen
