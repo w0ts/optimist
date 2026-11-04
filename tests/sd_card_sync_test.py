@@ -124,8 +124,8 @@ def check_tests(out):
     vols = [vol(out / "CARD", "OPTIMIST", "UUID-1"), vol(out / "home", "Macintosh HD", "U-H", "apfs")]
     check("refused: /", not V.check_dest("/", vols, True, home)[0])
     check("refused: the home", not V.check_dest(home, vols, True, home)[0])
-    check("refused: the repo and a folder inside it", not V.check_dest(ROOT, vols, True, home)[0] and
-          not V.check_dest(ROOT / "build", vols, True, home)[0])
+    check("refused: the repo and a folder inside it", not V.check_dest(ROOT, vols, True, home, ROOT)[0] and
+          not V.check_dest(ROOT / "build", vols, True, home, ROOT)[0])
     check("refused: a folder that is no volume (--card)", not V.check_dest(plain, vols, False, home)[0])
     ok, msg = V.check_dest(plain, vols, True, home)
     check("a typed plain folder: allowed with a warning", ok and msg.startswith("warning"))
@@ -203,6 +203,8 @@ def main(out, real=None):
     out = pathlib.Path(out).resolve()
     shutil.rmtree(out, ignore_errors=True)
     out.mkdir(parents=True)
+    V.REPO = out / "a-repo"                           # (OUTDIR may be in the checkout, build/host: the real repo checked
+    V.REPO.mkdir()                                    # alone, check_tests' repo=ROOT)
     sync_tests(out)
     check_tests(out)
     picker_tests(out)

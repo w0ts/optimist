@@ -144,12 +144,15 @@ def volume_at(path, volumes=None):
     return next((v for v in vols if os.path.realpath(v.path) == p), None)
 
 
-def check_dest(path, volumes=None, folder_ok=False, home=None, repo=ROOT):
+REPO = ROOT                                  # (the checkout a destination is never in; a test stands one in)
+
+
+def check_dest(path, volumes=None, folder_ok=False, home=None, repo=None):
     """a destination's safety -> (ok, message). Refused: not a folder, /, the home, the repo or inside it; else a
     mounted FAT volume's root (folder_ok: a plain folder too, with a warning)"""
     p = Path(os.path.realpath(str(path)))
     home = Path(os.path.realpath(str(home or Path.home())))
-    repo = Path(os.path.realpath(str(repo)))
+    repo = Path(os.path.realpath(str(repo or REPO)))
     if not p.is_dir():
         return False, f"{path}: not a folder"
     if p == Path(p.anchor):
