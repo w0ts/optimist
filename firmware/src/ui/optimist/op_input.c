@@ -142,7 +142,7 @@ static void go_home(void)                               /* power-on, a new proje
     ui.lane = 0;                                        /* (the drum track: DR itself, its kit) */
     ui.row[SCR_HOME] = (uint8_t)(MXR_T1 + song.sel);   /* (the mixer opens on the track: MASTER is above it) */
 }
-/* the PAGES entry the cursor is on (main.c's breadcrumb; miss.c counts on TOOLS) */
+/* the PAGES entry the cursor is on (main.c's breadcrumb) */
 static uint32_t op_cursor_page(void)
 {
     uint32_t r = ui.row[ui.scr];
@@ -150,8 +150,6 @@ static uint32_t op_cursor_page(void)
         return lane_lfo_pg(snd_page(r)) ? page_first(snd_page(r)->fam) : lane_fx_pg(snd_page(r)) ? page_first(FAM_FX) : smp_pg(snd_page(r)) ? src_page_ix() : (uint32_t)(snd_page(r) - PAGES);
     if (ui.scr == SCR_FX)
         return fx_ix[r % OP_MAXROWS] == FX_RET_IX ? page_first(FAM_FX) : fx_ix[r % OP_MAXROWS];
-    if (ui.scr == SCR_PROJECT && prj_kind(r) == PR_TOOLS)
-        return (uint32_t)(tools_page() - PAGES);
     return page_first(FAM_TRK);
 }
 /* a page button tapped: SOUND with only its family's rows; again: the family's next row, from its last the first */

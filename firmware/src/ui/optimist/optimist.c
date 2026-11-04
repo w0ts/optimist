@@ -55,7 +55,7 @@
 #include "op_state.c"
 #include "op_names.c"             /* the names table: card labels, list cells, titles (one spelling each) */
 #if FELUCCA_MISSING_WARN
-#include "../../storage/miss.c"         /* "MISSING: PHYS T2" after a load (cur_page, ui.msg: op_state.c) */
+#include "../../storage/miss.c"         /* "MISSING: PHYS T2" after a load (ui.msg: op_state.c) */
 #endif
 #include "op_edits.c"
 #include "op_cells.c"

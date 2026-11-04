@@ -183,7 +183,7 @@ static void vcnt_untlv(const uint8_t *a, uint32_t n)   /* (n 0: none, every part
  *   1. the inserts the layout heard, in the track's old order (a part DIST FILTER COMP, the drum bus FILTER DIST COMP)
  *   2. kept when the track uses it: its amount set, or an automation event (a lock, motion) on it
  *   3. DIST kept too while it was heard (even at 0: a macro or a later turn of DST is heard as before)
- *   4. into S1, then S2; a third (DIST FILTER COMP all heard and used): dropped, TOOLS > MISS says "3RD INS" (ins_drop)
+ *   4. into S1, then S2; a third (DIST FILTER COMP all heard and used): dropped, the MISSING popup says "3RD INS" (ins_drop)
  *   5. an empty slot then takes the FILTER, when that is silent (built, its amount 0, no event on it): at 0 it is
  *      bypassed, so FX + KNOB 4 works on every old project
  * -> o (the slots), the tracks whose third insert went (a bit each) */

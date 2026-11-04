@@ -1340,11 +1340,11 @@ async function editorFxp() {
   ok(tn.op === 2 && tn.cells[0].value === row0.cells[0].value + 3 && tn.cells[0].gv === row0.cells[0].gv + 3, "scrs: op 2: a fine turn moves the value; the reply is the row");
   const tn2 = SR(await rq(E.req.scrsTurn(1, 0, 127, 127, vr, 0, 2, 0)));
   ok(tn2.cells[0].value === row0.cells[0].ddef, "scrs: op 2 mode 2: the default");
-  const projIx = scrsGold.ctx.find((c) => c.s === 3).rows.findIndex((r) => r.name === "TOOLS");
-  const y1 = SR(await rq(E.req.scrsYes(3, 0, 127, 127, projIx, 0, false)));
-  ok(y1.op === 3 && y1.rc === 1 && y1.cells[0].ask && /CLRSQ|\?/.test(y1.ask), "scrs: op 3: YES on PROJECT > TOOLS > CLRSQ (ok 0) asks: the card says so and the row carries the question");
-  const y2 = SR(await rq(E.req.scrsYes(3, 0, 127, 127, projIx, 0, true)));
-  ok(!y2.cells[0].ask && y2.ask === "", "scrs: op 3 ok 1: done, the question gone");
+  const projIx = scrsGold.ctx.find((c) => c.s === 3).rows.findIndex((r) => r.name === "PROJECT");
+  const y1 = SR(await rq(E.req.scrsYes(3, 0, 127, 127, projIx, 3, false)));
+  ok(y1.op === 3 && y1.rc === 1 && y1.cells[3].ask && /NEW|\?/.test(y1.ask), "scrs: op 3: YES on PROJECT > NEW (ok 0) asks: the card says so and the row carries the question");
+  const y2 = SR(await rq(E.req.scrsYes(3, 0, 127, 127, projIx, 3, true)));
+  ok(!y2.cells[3].ask && y2.ask === "", "scrs: op 3 ok 1: done, the question gone");
   ok(/if \(scrnOn\(\)\) groups\.setgroups = \[\];/.test(html), "scrs: with the device's GLOBAL / SYSTEM lines (SCRN) the older Settings groups (GLOBAL, NOTE REPEAT, DRUMS, MIDI CLOCK, MIDI channels) are not shown twice");
   const hs = SR(await rq(E.req.scrsInfo(5, 0, 127, 2))), hr = SR(await rq(E.req.scrsRow(5, 0, 127, 2, 0)));
   ok(hs.n >= 1 && hr.name === "STEP" && hr.cells.map((c) => c.label).join() === "NOTE,LEVEL,RATCHET,GLIDE" && hr.cells[0].val === "C4", "scrs: STEPS with a step held (family = the step): the held step's cards, STEP: NOTE LEVEL RATCHET GLIDE");

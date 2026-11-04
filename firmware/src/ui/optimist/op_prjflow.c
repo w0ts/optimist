@@ -5,7 +5,7 @@
  * slots of the current bank: key n selects item n AND runs the operation on it, through the confirm; YES runs it on the
  * ITEM the knob is on. A free slot has nothing to load or clear: a toast, no question. The operation goes back to LOAD
  * after each action, when the row or the screen changes: a stray key never saves. Under the cards: the bank's 16 slots as
- * a strip, and the item's info (read from what is stored, nothing scanned). Then TOOLS and MEMORY. */
+ * a strip, and the item's info (read from what is stored, nothing scanned). */
 
 static void name_user(uint32_t k);                      /* op_name.c: NAME, then the save */
 static void name_project(uint32_t k);
@@ -18,9 +18,9 @@ static int sec_scene_clear(uint32_t s);                 /* sections.c: a section
 #endif
 
 #if FELUCCA_SD_UI
-enum { PR_PROJECT, PR_SNAP, PR_USER, PR_TOOLS, PR_MEM, PR_CPRE, PR_CKIT, PR_CSMP, PR_FXM };   /* (the card's lists: op_sdcard.c) */
+enum { PR_PROJECT, PR_SNAP, PR_USER, PR_CPRE, PR_CKIT, PR_CSMP, PR_FXM };   /* (the card's lists: op_sdcard.c) */
 #else
-enum { PR_PROJECT, PR_SNAP, PR_USER, PR_TOOLS, PR_MEM, PR_FXM = 8 };   /* (PR_FXM: FX MEM, op_fxmem.c) */
+enum { PR_PROJECT, PR_SNAP, PR_USER, PR_FXM = 6 };   /* (PR_FXM: FX MEM, op_fxmem.c) */
 #endif
 static const uint8_t PRJ[] = {PR_PROJECT,
 #if FELUCCA_SD_UI
@@ -33,9 +33,8 @@ static const uint8_t PRJ[] = {PR_PROJECT,
 #if FELUCCA_SNAPSHOTS
                               PR_SNAP,
 #endif
-                              PR_USER, PR_TOOLS,
-#if SEC_LOGGED
-                              PR_MEM,
+#if !FELUCCA_SD_UI
+                              PR_USER,                  /* (SD card mode: the user's sounds are on the card, PRESETS and KITS) */
 #endif
 #if FXZ_ANY
                               PR_FXM,                   /* FX MEM: the big effects' lines' sizes (op_fxmem.c) */
@@ -43,9 +42,9 @@ static const uint8_t PRJ[] = {PR_PROJECT,
 };
 #define NPRJ (sizeof PRJ / sizeof PRJ[0])
 #if FELUCCA_SD_UI
-static const char *const PRJ_NAME[] = {"PROJECT", "SNAPSHOT", "USER", "TOOLS", "MEMORY", "PRESETS", "KITS", "SAMPLES", "FX MEM"};
+static const char *const PRJ_NAME[] = {"PROJECT", "SNAPSHOT", "USER", "PRESETS", "KITS", "SAMPLES", "FX MEM"};
 #else
-static const char *const PRJ_NAME[] = {"PROJECT", "SNAPSHOT", "USER", "TOOLS", "MEMORY", "", "", "", "FX MEM"};
+static const char *const PRJ_NAME[] = {"PROJECT", "SNAPSHOT", "USER", "", "", "", "FX MEM"};
 #endif
 enum { PO_LOAD, PO_SAVE, PO_DELETE,                      /* the operations, in the knob's order */
        PO_SAVE_LOAD,
@@ -74,14 +73,6 @@ static void prj_mem(cell_t *c, uint32_t k)             /* MEMORY: USED (a bar) a
 }
 #endif
 
-static const page_t *tools_page(void)                  /* TOOLS: CLRSQ INIT MISS NEW (params.c) */
-{
-    uint32_t i;
-    for (i = 0; i < NPAGES; i++)
-        if (PAGES[i].fam == FAM_SAVE && PAGES[i].id[0] == G_CLRSEQ)
-            return &PAGES[i];
-    return &PAGES[0];
-}
 static uint32_t prj_kind(uint32_t r) { return PRJ[r % NPRJ]; }
 static uint32_t prj_rows(void) { return NPRJ; }
 #if FELUCCA_SD_UI
@@ -201,10 +192,6 @@ static void prj_cell(uint32_t r, uint32_t k, cell_t *c)
         return;
     }
 #endif
-    if (kind == PR_TOOLS) {
-        page_cell(tools_page(), k, c);
-        return;
-    }
 #if FXZ_ANY
     if (kind == PR_FXM) {
         fxz_cell(k, c);
@@ -212,13 +199,6 @@ static void prj_cell(uint32_t r, uint32_t k, cell_t *c)
     }
 #endif
     cell_clear(c);
-#if SEC_LOGGED
-    if (kind == PR_MEM) {
-        if (k < 2u)
-            prj_mem(c, k);
-        return;
-    }
-#endif
     op = prj_op();
     s = prj_slot_cur(kind);
     if (k == 0u && prj_banks(kind) > 1u) {              /* BANK: only a store of more than 16 slots */
@@ -269,10 +249,6 @@ static void prj_turn(uint32_t r, uint32_t k, int32_t s, int fine)
         return;
     }
 #endif
-    if (kind == PR_TOOLS) {
-        page_turn(tools_page(), k, s, fine);
-        return;
-    }
 #if FXZ_ANY
     if (kind == PR_FXM) {
         fxz_turn(k, s, fine);
@@ -441,9 +417,7 @@ static int prj_yes(uint32_t r, uint32_t k, uint32_t ok)
     if (SDC_ROW_OF(kind))
         return sdc_yes(r, kind, ok);
 #endif
-    if (kind == PR_TOOLS)
-        return page_yes(SCR_PROJECT, r, tools_page(), k, ok);
-    if (kind == PR_MEM || kind == PR_FXM)
+    if (kind == PR_FXM)
         return 0;
     if (kind == PR_PROJECT && k == 3u) {                /* NEW: the work blank, no slot touched; asks first */
         if (!ok)

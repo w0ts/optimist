@@ -225,7 +225,6 @@ static __attribute__((noinline)) uint32_t op_btn_span(uint32_t id, uint32_t t0) 
     return (int32_t)d > 0 ? d : 0u;
 }
 
-static const page_t *cur_page(void) { return &PAGES[ui.page % NPAGES]; }   /* (miss.c: TOOLS > MISS) */
 
 static uint32_t page_first(uint32_t fam)
 {

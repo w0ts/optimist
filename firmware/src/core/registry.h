@@ -658,7 +658,7 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #endif
 #ifndef FELUCCA_MISSING_WARN
 #define FELUCCA_MISSING_WARN 1             /* "MISSING: PHYS T2, KIT 909" when a load uses what this build leaves
-                                            * out; SAVE > TOOLS > MISS lists it again (miss.c) */
+                                            * out; the MISSING popup says it at a load (miss.c) */
 #endif
 #ifndef FELUCCA_FAVORITES
 #define FELUCCA_FAVORITES 1                /* mark sounds as favorites and browse only them: SAVE > PRESETS KNOB 3 FAV, KNOB 4

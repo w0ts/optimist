@@ -140,27 +140,27 @@ static void edscrs_tests(void)
         *c.vp = (int16_t)v0;
         check(ok, "SCRS op 2: a fine turn moves a value by units through the screen's own turn, the reply is the row with the value; mode 2 the default");
     }
-    {   /* YES on an action that destroys (PROJECT > TOOLS > CLRSQ) asks first: the card says so, the question is the device's, nothing is done */
+    {   /* YES on an action that destroys (PROJECT > NEW) asks first: the card says so, the question is the device's, nothing is done */
         uint32_t r, row = 0xFFu;
         ui.scr = SCR_PROJECT, ui.hot = 0;
         for (r = 0; r < SCREENS[SCR_PROJECT].rows(); r++) {
             cell_t c;
             memset(&c, 0, sizeof c);
-            SCREENS[SCR_PROJECT].cell(r, 0, &c);
-            if (c.kind == CK_ACT && c.label && !strcmp(c.label, "CLRSQ"))
+            SCREENS[SCR_PROJECT].cell(r, 3, &c);
+            if (c.kind == CK_ACT && c.label && !strcmp(c.label, "NEW"))
                 row = r;
         }
-        ok = row != 0xFFu && scs_call(3, SCR_PROJECT, 0, 127, 127, row, 0, 0, 0) && ed_out[5] == 3u && ed_out[8] == 1u;
+        ok = row != 0xFFu && scs_call(3, SCR_PROJECT, 0, 127, 127, row, 3, 0, 0) && ed_out[5] == 3u && ed_out[8] == 1u;
         scs_parse(ed_out, 9, &w);
-        ok &= (w.flags[0] & 32u) && w.ask[0] && op_armed();
+        ok &= (w.flags[3] & 32u) && w.ask[0] && op_armed();
         op_disarm();
-        check(ok, "SCRS op 3: YES on PROJECT > TOOLS > CLRSQ (ok 0) asks the device's question (its text in the row) and does nothing");
+        check(ok, "SCRS op 3: YES on PROJECT > NEW (ok 0) asks the device's question (its text in the row) and does nothing");
     }
     {   /* the call puts the device's own screen, track, lane, page family and cursor back */
         ui.scr = SCR_SONG, song.sel = 2, ui.lane = 1, lane_sel = 5, snd_fam = FAM_ENV, ui.row[SCR_SOUND] = 3, ui.row[SCR_FX] = 1, ui.hot = 2, ui.master = 0;
         scs_call(1, SCR_SOUND, 3, 7, 127, 2, 0, 0, 0);
         scs_call(1, SCR_FX, 0, 127, 127, 1, 0, 0, 0);
-        scs_call(3, SCR_PROJECT, 1, 127, 127, 3, 0, 0, 0);          /* (TOOLS > CLRSQ asks: nothing done) */
+        scs_call(3, SCR_PROJECT, 1, 127, 127, 0, 3, 0, 0);          /* (PROJECT > NEW asks: nothing done) */
         ok = ui.scr == SCR_SONG && song.sel == 2u && ui.lane == 1u && lane_sel == 5u && snd_fam == FAM_ENV && ui.row[SCR_SOUND] == 3u && ui.row[SCR_FX] == 1u && ui.hot == 2u && !ui.master;
         op_disarm();
         song.sel = 0, lane_sel = 0;

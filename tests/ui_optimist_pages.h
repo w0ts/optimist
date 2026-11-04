@@ -338,7 +338,7 @@ static int key_plays(uint32_t k)
 }
 static void keys_global_tests(void)
 {
-    uint32_t pass, r, tools = 0, sel0;
+    uint32_t pass, r, sel0;
     for (pass = 0; pass < 2u; pass++) {
         song.sel = pass ? TRK_DRUM : 0;
         trk[0].p[P_CHORD] = 0;                          /* (T1 plays notes: the random use before may leave a CHORD mode, its black keys modifiers) */
@@ -368,15 +368,6 @@ static void keys_global_tests(void)
         kup(WK(2));
         reset_ui();
         op_enter(SCR_PROJECT);
-        for (r = 0; r < NPRJ; r++)
-            if (prj_kind(r) == PR_TOOLS)
-                tools = r;
-        ui.row[SCR_PROJECT] = (uint8_t)tools;
-        frames(2);
-        kdown(WK(2));
-        check(kb_kind[WK(2)] != KS_NOTE && kb_kind[WK(2)] != KS_DRUM, "PROJECT, TOOLS row: a key plays nothing");
-        keys_are(0, 0, "PROJECT, TOOLS row: dark");
-        kup(WK(2));
         ui.row[SCR_PROJECT] = 0;
         ui.force = 1;
         frames(2);

@@ -160,17 +160,6 @@ static void ac_key_tests(void)
     kup(k);
     op_disarm();                                        /* (a key now asks or toasts: the question goes) */
 #endif
-    for (r = 0; r < NPRJ && prj_kind(r) != PR_TOOLS; r++)
-        ;
-    ui.row[SCR_PROJECT] = (uint8_t)r;
-    frames(2);
-    k = WK(2);
-    kdown(k);
-    check(ly_lock == LY_STEP && kb_kind[k] == KS_UI, "PROJECT's TOOLS row: the keys play nothing either");
-    kup(k);
-    op_disarm();                                        /* (a key now asks or toasts: the question goes) */
-    keys_lit(&f, &d, &h);
-    check(!(f | d), "... and light nothing");
     op_enter(SCR_HOME);
     frames(2);
     kdown(k);

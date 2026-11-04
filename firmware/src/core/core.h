@@ -592,7 +592,7 @@ enum {                          /* global parameters */
     G_DRCH, G_DRLVL, G_DRREV,
     G_DUST, G_DUCK, G_FILT,     /* the master bus: lo-fi / vinyl, the kick ducking the parts, the DJ filter (fx.c) */
     G_ROLL,                     /* note repeat rate (ARP + key, seq.c) */
-    G_NEWPRJ,                   /* TOOLS > NEW: a new project (GO) */
+    G_NEWPRJ,                   /* PROJECT > NEW: a new project (GO; op_global_go) */
     /* the master COMP and LIMIT (master_comp.c), GLO > COMP / LIMIT. They come after the globals a project's g[] holds
      * (PJ_NG: the project format does not grow); a project keeps them packed in its reserved bytes (project.c
      * mc_pack). Projects from before read 0 there: THRS OFF, CEIL OFF, the master as before */
@@ -628,7 +628,6 @@ enum { DLYF_LP, DLYF_HP, DLYF_BP, DLYF_PEAK };
 static int16_t mc_gr_view;      /* (its value: meters.c, the main loop) */
 #endif
 #if FELUCCA_MISSING_WARN
-#define G_MISS G_COUNT          /* TOOLS > MISS: what the loads use and this build lacks (miss.c); no stored value */
 static volatile uint8_t miss_gen;   /* + 1 per load (proj_apply, also in the audio ISR; a user preset / kit) */
 #define MISS_BUMP() (miss_gen++)
 #else

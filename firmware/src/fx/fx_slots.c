@@ -852,7 +852,7 @@ static uint8_t ins_slot[NTRK][INS_N] = {{INS_DEF0, INS_DEF1}, {INS_DEF0, INS_DEF
 static uint32_t ins_live[NTRK] = {INS_LIVE_DEF, INS_LIVE_DEF, INS_LIVE_DEF, INS_LIVE_DEF};
 #define INS_ON(k, x) (ins_live[(k) % NTRK] >> (x) & 1u)
 static uint8_t ins_drop;                               /* the tracks (a bit each) whose third insert the last load's
-                                                        * mapping dropped (fx_rec.c ins_map; TOOLS > MISS: miss.c) */
+                                                        * mapping dropped (fx_rec.c ins_map; the MISSING popup: miss.c) */
 
 /* a slot's stored type t as an insert slot reads it (an old CHRS ROOM TDLY: CHO REV DLY), FXT_NONE: no insert type */
 AINL uint32_t ins_id(uint32_t t)
