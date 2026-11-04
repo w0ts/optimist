@@ -610,11 +610,15 @@ the SD card zip unzipped at its root (section 9); there is no layout of before t
   black key), and now black key b is bank A + b, A .. K, in key order (`op_prjflow.c prj_key`, `op_sdcard.c
   sdc_bank_key`; the bank's black key lit). A bank is one page, so OCT- / OCT+ and the BANK knob (the first card) step
   one bank either way, to Z. The bank said ("BANK C").
-- **A save** (`sd_mode.c sdm_save_place`): the bank shown (or the list's last), the number of the file of that name in
-  it (a project: a new version; a preset: NAME TAKEN unless it is the one asked over), else the slot SAVE was asked on
-  when free, else the bank's lowest free number; none: BANK FULL (NAME stays). A project saved again by its name goes
-  back to its own place (`sdm_work`, "B/03 - p18"). A preset goes into its engine's User folder, the bank's letter the
-  one shown.
+- **A save** (`sd_mode.c sdm_save_place`; the user, 2026-11-05, on the FM-1: "it always saves on slot 1, whatever the
+  white note button I click or the card item says"): a SAVE asked on slot N of a bank shown, by a white key or the ITEM,
+  is `NN - name`, whatever the bank holds under that name (a copy under another number: a project's NAME is prefilled
+  with the work's own). A slot in use comes past its question (*SAVE <it>?*, red): the same name a new version (a
+  project) or the file again; another name replaces it, the old file or project with its versions gone once the new
+  one is whole. A preset goes into its engine's User folder, the bank's letter the one shown, a kit into Kits/User: a
+  Factory bank's slot is that number in User when free. No slot asked (a project's *SAVE <work>?* before a LOAD): back
+  to its own place (`sdm_work`, "B/03 - p18"), else the bank's file of that name (a preset or kit: NAME TAKEN unless it
+  is the one asked over), else the bank's lowest free number; none: BANK FULL (NAME stays).
 
 ### Every sample on the card, the drums from it, ids (2026-11-04)
 

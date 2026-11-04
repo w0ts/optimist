@@ -319,6 +319,7 @@ static int sdc_yes(uint32_t r, uint32_t kind, uint32_t ok)
         char want[SDC_NAME];
         str_cpy(want, sdm_rel_of(k), sizeof want);      /* (its place: "A/03 - song") */
         sec_name(0, cur);
+        sdm_save_at(0xFFu);                             /* (no slot asked: the work's own place) */
         if (!sdm_save(SDC_PROJ, cur, cur))
             sdm_load_name(want);                        /* (the card's copy whole first: never the flash copy's only) */
     } else if (op == SDO_SAVE) {
