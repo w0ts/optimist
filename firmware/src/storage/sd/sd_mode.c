@@ -1755,6 +1755,8 @@ static const char *sdm_part_name(uint32_t k)            /* the card preset part 
     return k < NPART && sdm_pname[k][0] && sdm_pkey[k] == (uint16_t)sdm_pkey_of(&trk[k]) ? sdm_pname[k] : 0;
 }
 
+#include "storage/sd/sd_pvw.c"                       /* a card preset tried on the track */
+
 /* ---- the engines that play a card WAV (a part's CARD sample: eng_sample.c SMP_CARD, eng_slice.c SLC_SRC_CARD, GRAIN's and
  * STRETCH's SRC CARD): into e (SDM_NSAMPLERS at most), their count */
 static uint8_t sdm_use_eng = 0xFFu;                  /* the sampler a USE was picked for (op_sdcard.c), else the part's */

@@ -327,6 +327,9 @@ static int sx_pend(uint32_t s, uint32_t n)
 /* what is playing now -> sec_rbuf, its length (the audio ISR off while the tracks are read) */
 static uint32_t sec_capture(void)
 {
+#if FELUCCA_SD_UI
+    sdm_pvw_end();                                     /* (before the interrupts go: proj_capture's would be under them) */
+#endif
     fm1_irq_off();
     proj_capture(&proj_tmp.cur, &sec_tmp_dl);
     fm1_irq_on();

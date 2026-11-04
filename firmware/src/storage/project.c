@@ -1063,8 +1063,15 @@ static int px_unpack(const project_t *p, int16_t (*x)[3]) { (void)p; memset(x, 0
 #if FELUCCA_PATTERNS
 static void pat_mark(const project_t *p, int apply);   /* pat.c */
 #endif
+#if FELUCCA_SD_UI
+static void sdm_pvw_end(void);                         /* storage/sd/sd_pvw.c: a preset on trial never reaches a store */
+static void sdm_pvw_drop(void);
+#endif
 static void proj_capture(project_t *p, dlrec_t *d)   /* what is playing now, as a project */
 {
+#if FELUCCA_SD_UI
+    sdm_pvw_end();
+#endif
     int16_t v[P_COUNT];
     uint32_t i, j;
 #if SL24_TP
@@ -1450,6 +1457,9 @@ static void project_save(uint32_t slot)
 static void project_apply(const project_t *p, const dlrec_t *d)
 {
     uint32_t k;
+#if FELUCCA_SD_UI
+    sdm_pvw_drop();                                     /* (a preset on trial: this project over it, nothing to give back) */
+#endif
     transport_req = 2;
     panic_req = (1u << NTRK) - 1u;
     fm1_irq_off();                                      /* the audio ISR must not see half a project */

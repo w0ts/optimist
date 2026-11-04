@@ -54,6 +54,11 @@ static uint32_t sdm_shown_page(void);
 static int sdm_reading(void);                           /* (a page asked and still coming: sd_mode.c sdm_read_pump) */
 static uint32_t sdm_read_ms(void);
 static void sdm_wait(void);
+static int sdm_pvw_on(void);                            /* (a preset on trial: storage/sd/sd_pvw.c) */
+static uint32_t sdm_pvw_part(void);
+static int sdm_pvw_show(uint32_t k);
+static void sdm_pvw_end(void);
+static void sdm_pvw_keep(void);
 static void sdm_pv_play(uint32_t k);                    /* (the SAMPLES list's preview) */
 static void sdm_pv_stop(void);
 static int sdm_pv_busy(void);
@@ -93,6 +98,8 @@ static struct {
     uint32_t fmask;                                     /* the engines on the card (sdm_pre_mask), 0 not read */
     uint8_t loading;                                    /* the LOADING toast up (sdc_loading) */
     uint8_t pv, pv_ask, pv_k;                           /* SAMPLES: PREVIEW on (RAM only); K2 moved, the item to hear; the key heard */
+    uint8_t pvp;                                        /* PRESETS: PREVIEW on (RAM only; pv_ask, pv_k: as SAMPLES') */
+    uint32_t pv_at;                                     /* when K2 moved (fm1_ms): PRESETS, after SDC_PVP_SETTLE_MS */
     uint32_t ftree[2];                                  /* fmask by tree: Factory's, User's */
 } sdc = {SDC_N, 1, 0, 0, 0, 0, {SDV_FOLDER, SDV_FOLDER, SDV_FOLDER, SDV_FOLDER}, "", "", 0, 0xFFu, 0};
 static const char *const SDV_NAME_S[2][4] = {{"FOLDER", "NAME", "RECENT", "SAVES"}, {"NAME", "NAME", "NAME", "SAVES"}};
@@ -139,7 +146,7 @@ static void sdc_sync(uint32_t l)
         if (sdc.item >= SDC_KEYS)
             sdc.item = 0;
     }
-    if (l == SDC_PRE && ready && !sdc.flt && sdc.view[l] == SDV_FOLDER && !is_drum(TSEL) && sdc.eng != TSEL->eng_req) {
+    if (l == SDC_PRE && ready && !sdc.flt && sdc.view[l] == SDV_FOLDER && !is_drum(TSEL) && sdc.eng != TSEL->eng_req && !sdm_pvw_on()) {
         sdc.eng = TSEL->eng_req;                        /* the list follows the track's engine (a tree shown: Factory, User) */
         if (sdm_pre_tree() >= 0 && sdm_pre_show((uint32_t)sdm_pre_tree(), sdc.eng, 0))
             sdc.item = 0;
@@ -289,7 +296,8 @@ static void sdc_turn(uint32_t kind, uint32_t k, int32_t s)
         } else {
             sdc.item = (uint8_t)step_in(sdc.item, d, (int32_t)(sdm_count() ? sdm_count() : 1u));
         }
-        sdc.pv_ask = l == SDC_SMP && sdc.pv;            /* (heard when the page is here: sdc_frame) */
+        sdc.pv_ask = (l == SDC_SMP && sdc.pv) || (l == SDC_PRE && sdc.pvp);   /* (heard when the page is here: sdc_frame) */
+        sdc.pv_at = fm1_ms;
     } else {
         sdc_view_set(l, sdc_view_at(l, (uint32_t)step_in((int32_t)sdc_view_ix(l), d, (int32_t)sdc_views(l))));
     }
@@ -447,9 +455,19 @@ static void sdc_loading(void)
             ui.toast_t = 0;
     }
 }
+#define SDC_PVP_SETTLE_MS 60u                           /* PRESETS: K2 on an item this long: on the track (an engine's switch a detent is not) */
 static void sdc_pv_item(void)                           /* PREVIEW on, K2 moved: the item heard; a folder or an empty slot: silence */
 {
     sdc.pv_ask = 0;
+    if (sdc_here() == SDC_PRE) {
+        if (sdc_used(sdc.item) && !sdc_is_dir(sdc.item)) {
+            if (sdm_pvw_show(sdc.item))
+                sdc.pv_k = sdc.item;
+        } else {
+            sdm_pvw_end();
+        }
+        return;
+    }
     if (sdc_used(sdc.item) && !sdc_is_dir(sdc.item)) {
         sdm_pv_play(sdc.item);
         sdc.pv_k = sdc.item;
@@ -462,7 +480,9 @@ static void sdc_frame(void)                             /* every UI frame: the f
     sdc_loading();
     if (sdc_here() != SDC_SMP && sdm_pv_busy())
         sdm_pv_stop();                                  /* (the page left: silence; PREVIEW stays on for the session) */
-    if (sdc.pv_ask && !sdm_reading() && sdc_here() == SDC_SMP)
+    if (sdm_pvw_on() && (sdc_here() != SDC_PRE || song.sel != sdm_pvw_part()))
+        sdm_pvw_end();                                  /* (the page left, another track: the sound back, on its own track) */
+    if (sdc.pv_ask && !sdm_reading() && (sdc_here() == SDC_SMP || (sdc_here() == SDC_PRE && (uint32_t)(fm1_ms - sdc.pv_at) >= SDC_PVP_SETTLE_MS)))
         sdc_pv_item();
     if (!sdm_reading() && sdc.item >= sdm_count() && sdm_count())
         sdc.item = (uint8_t)(sdm_count() - 1u);         /* (a shorter last page, come) */
@@ -564,6 +584,14 @@ static int sdc_yes(uint32_t r, uint32_t kind, uint32_t ok)
         return 1;
     sdc_sync(l);
     sdm_wait();
+    if (sdm_pvw_on()) {                                 /* a preset on trial: YES keeps it, as LOAD; any other action on the real sound */
+        if (l == SDC_PRE && sdc_op_at(l, sdc.op) == SDO_LOAD && sdc.pv_k == sdc.item && !sdc.pv_ask) {
+            sdm_pvw_keep();
+            ui.redraw = 1;
+            return 1;
+        }
+        sdm_pvw_end();
+    }
     if (!ok) {
         sdc_ask(r, l, sdc_op_at(l, sdc.op), sdc.item);
         return 1;
@@ -616,6 +644,17 @@ static void sdc_key(uint32_t kind, int32_t w)
         return;                                         /* (the page it would pick is not here yet) */
     sdc_sync(l);
     sdm_wait();
+    if (l == SDC_PRE && sdc.pvp && sdc_op_at(l, sdc.op) == SDO_LOAD && (uint32_t)w < sdm_count() && sdc_used((uint32_t)w) && !sdc_is_dir((uint32_t)w)) {
+        sdc.item = (uint8_t)w;                          /* PREVIEW on: a key puts it on the track, again takes it off */
+        sdc.pv_ask = 0;
+        ui.hot = 1;
+        ui.hot_lit = 1;
+        if (sdc.pv_k == (uint8_t)w && sdm_pvw_on())
+            sdm_pvw_end();
+        else if (sdm_pvw_show((uint32_t)w))
+            sdc.pv_k = (uint8_t)w;
+        return;
+    }
     if (l == SDC_SMP && sdc.pv && w >= 0 && (uint32_t)w < sdm_count() && sdc_used((uint32_t)w) && !sdc_is_dir((uint32_t)w)) {
         sdc.item = (uint8_t)w;                          /* PREVIEW on: a key selects and plays, again stops; USE is YES's */
         ui.hot = 1;
@@ -664,16 +703,21 @@ static void sdc_page_say(void)                          /* "BANK C/6": a list wi
 /* SAMPLES' black keys (the user, 2026-11-05): the first ten its pages A .. J in every view (K1 and OCT reach the rest),
  * the top F# PREVIEW on or off, lit while on (sd_preview.h: the voice) */
 #define SDC_PV_KEY 10u
+static void sdc_pv_say(uint32_t on)
+{
+    sdc.pv_ask = 0;
+    sdc.pv_k = 0xFFu;
+    ui.toast_next = 1;
+    ui_message(on ? "PREVIEW ON" : "PREVIEW OFF");
+    ui.toast_next = 0;
+}
 static void sdc_smp_key(uint32_t b)
 {
     if (b == SDC_PV_KEY) {
         sdc.pv = !sdc.pv;
-        sdc.pv_ask = 0;
         if (!sdc.pv)
             sdm_pv_stop();
-        ui.toast_next = 1;
-        ui_message(sdc.pv ? "PREVIEW ON" : "PREVIEW OFF");
-        ui.toast_next = 0;
+        sdc_pv_say(sdc.pv);
     } else if (b < sdm_pages() && b != sdm_page()) {
         sdm_turn((int32_t)b - (int32_t)sdm_page());
         sdc.item = 0;
@@ -694,6 +738,13 @@ static void sdc_bank_key(uint32_t kind, uint32_t b)
         sdc_smp_key(b);
         return;
     }
+    if (l == SDC_PRE && b == SDC_PV_KEY) {              /* PRESETS: the top F# PREVIEW (ten banks on the keys, K1 and OCT reach the rest) */
+        sdc.pvp = !sdc.pvp;
+        if (!sdc.pvp)
+            sdm_pvw_end();
+        sdc_pv_say(sdc.pvp);
+        return;
+    }
     if (sdm_bank_go(b)) {
         if (sdc.flt == 1u)
             sdm_all_sync();                             /* (ALL: this engine's bank, its place among them all) */
@@ -705,8 +756,8 @@ static uint32_t sdc_bank_lit(void)                      /* the black key of the 
 {
     static const uint8_t B[5] = {1, 3, 5, 8, 10};       /* F# G# A# C# D# from F (punch_key's white keys between) */
     int32_t bk = sdc.open == SDC_SMP ? (sdm_page() < SDC_PV_KEY ? (int32_t)sdm_page() : -1) : sdm_bank_shown();
-    uint32_t m = bk >= 0 && bk < 11 ? 1u << ((uint32_t)bk / 5u * 12u + B[bk % 5]) : 0u;
-    return sdc.open == SDC_SMP && sdc.pv ? m | 1u << (SDC_PV_KEY / 5u * 12u + B[0]) : m;
+    uint32_t m = bk >= 0 && bk < (sdc.open == SDC_PRE ? (int32_t)SDC_PV_KEY : 11) ? 1u << ((uint32_t)bk / 5u * 12u + B[bk % 5]) : 0u;
+    return (sdc.open == SDC_SMP && sdc.pv) || (sdc.open == SDC_PRE && sdc.pvp) ? m | 1u << (SDC_PV_KEY / 5u * 12u + B[0]) : m;
 }
 static void sdc_bank_tap(uint32_t up)
 {
@@ -724,6 +775,10 @@ static int sdc_home(void)                               /* HOME: up a folder, SA
     if (l >= SDC_N || !sdm_ready())
         return 0;
     sdm_wait();
+    if (sdm_pvw_on()) {                                 /* (a preset on trial: HOME takes it off, the list stays) */
+        sdm_pvw_end();
+        return 1;
+    }
     if (sdc.view[l] == SDV_VERSIONS) {
         sdc_view_set(l, SDV_FOLDER);
         return 1;

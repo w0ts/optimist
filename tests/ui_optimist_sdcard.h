@@ -216,14 +216,14 @@ static int sdu_in_bank(const char *dir, const char *prefix)
 }
 /* SAVE on a slot saves on that slot (the user, 2026-11-05, on the FM-1: "it always saves on slot 1, whatever the white
  * note button I click or the card item says": the work's own name, the name page's prefill, took the work's number),
- * in bank K of each list: the key, the ITEM, the name the bank already has, a used slot past its question */
+ * in bank J of each list: the key, the ITEM, the name the bank already has, a used slot past its question */
 static void sdu_slots_of(uint32_t kind, const char *dir, const char *what)
 {
     char m[120];
     uint32_t i;
     sdu_row(kind);
-    sdu_black(10);
-    check(!strcmp(sdu_val(0), "K") && !sdu_used(), "slots: bank K, empty");
+    sdu_black(9);
+    check(!strcmp(sdu_val(0), "J") && !sdu_used(), "slots: bank J, empty");
     sdu_op(SDO_SAVE);
     sdu_key(4);
     check(name_on(), "slots: key 5 on a free slot: NAME");
@@ -260,14 +260,14 @@ static void sdu_slots_tests(void)
 {
     char dir[96];
     song.sel = 0;
-    sdu_slots_of(PR_PROJECT, "Optimist/Projects/K", "PROJECT");
-    check(sdu_proj_ok("K/05 - new five", 0, 0), "PROJECT: over slot 5: whole");
+    sdu_slots_of(PR_PROJECT, "Optimist/Projects/J", "PROJECT");
+    check(sdu_proj_ok("J/05 - new five", 0, 0), "PROJECT: over slot 5: whole");
     sdu_black(1);                                       /* (bank B again, as the tests after it found it) */
-    snprintf(dir, sizeof dir, "Optimist/Presets/User/%s/K", sdn_engine(eng_uid(trk[0].eng_req)));
+    snprintf(dir, sizeof dir, "Optimist/Presets/User/%s/J", sdn_engine(eng_uid(trk[0].eng_req)));
     sdu_slots_of(PR_CPRE, dir, "PRESETS");
     sdu_black(0);
 #if FELUCCA_DRUM_KITS
-    sdu_slots_of(PR_CKIT, "Optimist/Kits/User/K", "KITS");
+    sdu_slots_of(PR_CKIT, "Optimist/Kits/User/J", "KITS");
     sdu_black(0);
 #endif
     sdu_row(PR_PROJECT);
@@ -643,6 +643,155 @@ static void sdu_filter_tree(void)
     check(sdc.view[SDC_PRE] == SDV_FOLDER && sdc.flt && pop_kind == 4u && trk[0].preset == up, "the knob in NAME: the filter, no preset stepped");
     sdu_row(PR_CKIT);
     sdu_frames(1);
+}
+/* a preset on trial on the selected track (the user, 2026-11-05) */
+typedef struct {
+    int16_t p[P_COUNT];
+    uint8_t eng_req, preset, user;
+    sdm_ref_t ref;
+    uint32_t work;
+#if FELUCCA_ENG_FM6
+    int16_t fm6[FM6_NP];
+#endif
+} sdu_snd_t;
+static void sdu_snd(sdu_snd_t *s, uint32_t part)
+{
+    memset(s, 0, sizeof *s);
+    memcpy(s->p, trk[part].p, sizeof s->p);
+    s->eng_req = trk[part].eng_req, s->preset = trk[part].preset, s->user = trk[part].user;
+    s->ref = sdm_ref[part];
+    s->work = work_sig();
+#if FELUCCA_ENG_FM6
+    memcpy(s->fm6, fm6_ed[part], sizeof s->fm6);
+#endif
+}
+static int sdu_snd_same(const sdu_snd_t *a, uint32_t part)
+{
+    sdu_snd_t b;
+    sdu_snd(&b, part);
+    return !memcmp(a, &b, sizeof b);
+}
+static void sdu_pvw_tests(void)
+{
+    uint32_t e0 = trk[0].eng_req, e1 = (e0 + 1u) % NENGINES, n, f = 0, d = 0, i;
+    char dir[80], path[120];
+    sdu_snd_t was;
+    sdu_row(PR_CKIT);
+    frame();
+    song.sel = 0;
+    for (i = 0; i < NENGINES && (i == e0 || !eng_built(eng_uid(i))); i++)
+        ;
+    if (i >= NENGINES)
+        return;
+    e1 = i;
+    set_engine_of(&trk[0], e1);
+    sdu_frames(2);
+    upc_eng = (int32_t)e1;
+    n = up_card_take(sd_blk, "TRIAL");
+    check(n != 0u, "preview: a preset of another engine made");
+    snprintf(dir, sizeof dir, "Optimist/Presets/User/%s", sdn_engine(eng_uid(e1)));
+    f_mkdir("Optimist/Presets/User");
+    f_mkdir(dir);
+    str_app(dir, "/A", sizeof dir);
+    f_mkdir(dir);
+    snprintf(path, sizeof path, "%s/01 - trial.ops", dir);
+    check(sdm_small_put_id(path, "OPPR", sd_blk, n, 77u) == FR_OK, "preview: its file");
+    snprintf(path, sizeof path, "%s/02 - trial two.ops", dir);
+    check(sdm_small_put_id(path, "OPPR", sd_blk, n, 78u) == FR_OK, "preview: another");
+    set_engine_of(&trk[0], e0);
+    sdu_frames(3);
+#if FELUCCA_ENG_FM6
+    fm6_ed[0][1] ^= 1;                                  /* (a voice of its own, to come back) */
+#endif
+    frame();
+    work_mark();
+    sdu_row(PR_CPRE);
+    sdu_frames(2);
+    (void)sdm_pre_show(1, e1, 0);
+    sdu_frames(2);
+    sdc.flt = (uint8_t)(2u + e1);
+    check(sdu_used() == 2u, "preview: the list on the two presets");
+    sdu_snd(&was, 0);
+    /* ---- the key, the toast, the LED; ten banks */
+    sdu_black(10);
+    check(sdc.pvp && !strcmp(ui.msg, "PREVIEW ON"), "PRESETS' top F#: PREVIEW ON, no bank");
+    sdc_keys_lit(&f, &d, 0);
+    check((f & sdu_pv_key()) != 0u, "... its key lit");
+    /* ---- no room */
+    upc_refuse = 1;
+    sdu_key(0);
+    sdu_frames(4);
+    check(!sdm_pvw_on() && sdu_msg("MEM FULL") && !op_armed() && sdu_snd_same(&was, 0), "no room for its engine: MEM FULL, no question, the track as it was");
+    upc_refuse = 0;
+    /* ---- on trial */
+    sdu_key(0);
+    sdu_frames(8);
+    check(sdm_pvw_on() && trk[0].eng_req == e1 && trk[0].engine == e1 && !op_armed(), "a white key, PREVIEW on: the engine on the track at once, no question");
+    check(!memcmp(&sdm_ref[0], &was.ref, sizeof was.ref), "... no card reference");
+    check(ui.menu, "... autosave waits");
+    sdu_black(10);
+    sdu_frames(8);
+    check(!sdc.pvp && !sdm_pvw_on() && trk[0].engine == e0, "PREVIEW off: the track's engine back");
+    check(sdu_snd_same(&was, 0) && !work_changed() && !ui.menu, "... its sound bit for bit, nothing marked");
+    /* ---- K2 after the settle, a swap, YES */
+    sdu_black(10);
+    sdu_key(0);
+    frame();
+    sdc.item = 0;
+    turn(EN_K2, 1);
+    check(sdc.pv_k == 0u, "K2 moved: nothing before the settle");
+    fm1_ms += 100u;
+    sdu_frames(2);
+    check(sdm_pvw_on() && sdc.pv_k == 1u && sdc.item == 1u, "... after it: the next one on the track");
+    sdu_key(1);
+    sdu_frames(4);
+    check(!sdm_pvw_on() && sdu_snd_same(&was, 0), "the same key again: off, the sound back");
+    sdu_key(0);
+    frame();
+    tap(B_HOME);
+    sdu_frames(4);
+    check(!sdm_pvw_on() && sdu_snd_same(&was, 0), "HOME: the sound back");
+    /* ---- ALGO */
+    sdu_key(0);
+    frame();
+    turn(EN_ALGO, 1);
+    frames(2);
+    check(song.sel == 1u && !sdm_pvw_on() && sdu_snd_same(&was, 0), "ALGO: that track's sound back first");
+    turn(EN_ALGO, -1);
+    sdu_frames(2);
+    /* ---- leaving, a capture, a project over it */
+    sdu_key(0);
+    frame();
+    sdu_row(PR_CKIT);
+    frames(2);
+    check(!sdm_pvw_on() && sdu_snd_same(&was, 0), "the page left: the sound back");
+    sdu_row(PR_CPRE);
+    sdu_frames(2);
+    (void)sdm_pre_show(1, e1, 0);
+    sdc.flt = (uint8_t)(2u + e1);
+    sdu_frames(2);
+    sdu_key(0);
+    frame();
+    check(sdm_pvw_on(), "on trial again");
+    {
+        static project_t pj;
+        static dlrec_t dl1;
+        proj_capture(&pj, &dl1);
+        check(!sdm_pvw_on() && sdu_snd_same(&was, 0) && pj.t[0].engine == was.eng_req, "a save's capture: the real sound, the trial over");
+    }
+    /* ---- YES keeps it */
+    sdu_key(0);
+    frame();
+    tap(B_SAVE);
+    sdu_frames(4);
+    check(!sdm_pvw_on() && trk[0].eng_req == e1 && trk[0].engine == e1 && sdm_ref[0].id == 77u && sdu_msg("LOADED") && !ui.menu,
+          "YES: it stays, the card's reference set, LOADED");
+    check(!snd_edited(0) && work_changed(), "... the project changed, as a LOAD");
+    upc_eng = -1;
+    sdu_black(10);
+    sdu_row(PR_CKIT);
+    frame();
+    sdu_card();
 }
 /* a boot with its index pass in slices (the user, 2026-11-05: "on boot the screen was flashing"): the LCD's clears counted,
  * on HOME and on SYSTEM's page that shows the pass */
@@ -1227,6 +1376,7 @@ static void sdcard_tests(void)
     sdu_smp_keys();
     sdu_new_tests();
     sdu_filter_tree();
+    sdu_pvw_tests();
     sdu_boot_clears();
     /* ---- SYSTEM > SD CARD: VERSIONS, SLACK, kept in the log's device record */
     op_enter(SCR_SYSTEM);
