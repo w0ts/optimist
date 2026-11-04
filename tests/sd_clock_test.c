@@ -205,6 +205,46 @@ static void run_time(int dma)
     dma_on = 0;
 }
 
+/* at run time: a timeout above the floor (a late line reads a bad token, 2026-11-04 on an FM-1, not a bad CRC): a step down and read
+ * on, as for a CRC failure; at the floor a real failure; a card taken out reads as gone at once */
+static void run_slip(void)
+{
+    long d0;
+    uint32_t t0;
+    uint8_t part[8], scratch[512];
+    fresh(1, 1, 0);
+    C.ok_from = 3;
+    (void)probe("slip");
+    CHECK(sd_step == 3, "slip: 12 MHz kept");
+    C.ok_from = 0;
+    C.dead_from = 4;
+    d0 = sd_demotions;
+    CHECK(disk_readblocks(buf, 200, 16) == RES_OK && same(200, 16) && sd_step == 4 && sd_demotions == d0 + 1,
+          "slip: disk_readblocks: one step down, read right (step %u)", (unsigned)sd_step);
+    C.dead_from = 5;
+    CHECK(sd_rd_open(300, 4) == RES_OK && sd_step == 5, "slip: sd_rd_open: one step down");
+    (void)sd_rd_close();
+    C.dead_from = 6;
+    CHECK(sd_readp(part, 301, 100, 8) == RES_OK && !memcmp(part, sector_ptr(301, scratch) + 100, 8) && sd_step == 6,
+          "slip: sd_readp: one step down, read right");
+    C.dead_from = (int)SD_NSTEP;
+    d0 = sd_demotions;
+    CHECK(disk_readblocks(buf, 400, 8) == RES_OK || sd_step == SD_FLOOR, "slip: down to the floor");
+    C.dead_from = (int)SD_NSTEP + 1;
+    t0 = clk;
+    CHECK(disk_readblocks(buf, 400, 8) == RES_ERROR && sd_step == SD_FLOOR, "slip: at the floor: an error");
+    C.dead_from = 0;
+    fresh(1, 1, 0);
+    C.ok_from = 3;
+    (void)probe("slip, a card taken out");
+    C.present = 0;
+    t0 = clk;
+    CHECK(disk_readblocks(buf, 400, 8) == RES_ERROR, "slip: a card taken out: an error");
+    printf("sd_clock_test: a card taken out: %u ms\n", (unsigned)((clk - t0) / 1000u));
+    CHECK((clk - t0) / 1000u < 5u, "slip: within 5 ms");
+    C.present = 1;
+}
+
 int main(void)
 {
     uint32_t i;
@@ -213,6 +253,7 @@ int main(void)
     walks();
     run_time(0);
     run_time(1);
+    run_slip();
     printf("sd_clock_test: %d checks, %d failed\n", checks, fails);
     return fails ? 1 : 0;
 }

@@ -36,6 +36,7 @@
 #include "fm1_gpio.h"
 #include "fm1_lcd_hw.h"
 #include "fm1_sd_clock.h"
+#include "fm1_crc.h"
 
 enum { FM1_SD_DUPLEX = 0, FM1_SD_DIRRX = 1, FM1_SD_BITBANG = 2 };
 #define FM1_SD_BAUD_SLOW 149u          /* 60 MHz / 150 = 400 kHz: the card's start-up (at most 400 kHz) */
@@ -181,6 +182,10 @@ FM1_INLINE uint32_t fm1_sd_do_level(void) { return (FM1_PR(FM1_PC, FM1_IN) >> 8)
 static void fm1_sd_bus_begin(uint32_t baud)
 {
     FM1_PR(FM1_PC, FM1_DIE) |= FM1_LCD_DC;           /* PC8 readable */
+    FM1_PR(FM1_PC, FM1_HD) |= FM1_LCD_CLK;           /* SCK driven hard for the card alone (2026-11-04: reads
+                                                      * stop at 8.57 MHz on 2 FM-1s, the card's data a bit late; fm1-base 10 with it,
+                                                      * on one; this driver not yet on an FM-1);
+                                                      * the LCD keeps its drive */
     FM1_PR(FM1_PC, FM1_PU) |= FM1_LCD_DC | FM1_LCD_DO;   /* (no card: reads 0xFF, as an absent card answers; DO high
                                                           * if SPI1 lets it float while it receives) */
     if (fm1_sd_mode == FM1_SD_BITBANG) {
@@ -195,6 +200,7 @@ static void fm1_sd_bus_end(void)
 {
     fm1_sd_desel();                                  /* the card off the bus, the LCD selected and idle, D/C driven high */
     FM1_PR(FM1_PC, FM1_PU) &= ~(FM1_LCD_DC | FM1_LCD_DO);
+    FM1_PR(FM1_PC, FM1_HD) &= ~FM1_LCD_CLK;
     if (fm1_sd_mode == FM1_SD_BITBANG)
         FM1_LCD_IOMAP_CON1 |= 0x10u;
     FM1_LCD_SPI_CON = FM1_SD_CON_LCD;
