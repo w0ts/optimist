@@ -66,6 +66,7 @@ static FRESULT sd_was(FRESULT r)
 #define UPC_N 216u                                      /* (upreset.c: sizeof(up_rec_t)) */
 static uint8_t upc_rec[UPC_N];                          /* the last record given (a LOAD from the card) */
 static uint32_t upc_takes, upc_gives;
+static int32_t upc_eng = -1, upc_refuse;               /* (sdu_pvw_tests) */
 static uint32_t up_card_take(uint8_t *out, const char *name)   /* the sound as a record: a pattern and the name */
 {
     uint32_t i;
@@ -81,6 +82,17 @@ static int up_card_give(const uint8_t *in, uint32_t n)
         return -1;
     memcpy(upc_rec, in, n);
     upc_gives++;
+    if (upc_refuse)
+        return ui_say("MEM FULL", ""), 1;              /* (up_load refused: the track untouched) */
+    if (upc_eng >= 0) {                                 /* (as up_load's on the track: another engine, other values) */
+        TSEL->eng_req = (uint8_t)upc_eng;
+        TSEL->p[P_DEC] = (int16_t)(TSEL->p[P_DEC] ^ 5);
+        TSEL->preset = 0;
+        TSEL->user = 0;
+#if FELUCCA_ENG_FM6
+        fm6_ed[song.sel % NPART][2] ^= 1;
+#endif
+    }
     return 0;
 }
 /* the settings record as sd_mode.c's BACKUP / RESTORE use it (project.c persist_t, not linked here: its fields they
