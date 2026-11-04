@@ -1,12 +1,17 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* SD card mode's sample sets on the card (the user, 2026-10-29: a ticked set never grows the flash; tools/gen_samples.py
- * --card writes them, eng_sample.c smp_bank_on plays them through the streams) in the host's render (tests/hostsim.c):
- * every set's factory presets played from the card's Optimist/Samples/<Set>/z<k>.wav (read from DIR as gen_samples.py
- * wrote them, each zone a source, the rings filled between two audio blocks as the main loop's runs would) against the
- * very same presets on the flash's set (this host build has every set in flash: SMP_CARD_SET is the test's switch):
- *   - each zone's keys ("inst"), root and loop ("smpl") as the flash zone's;
- *   - a phrase on each set's presets (every zone, a semitone round each zone's root, an octave and a half up, two down, a held
- *     note through the loop, LOOP off, BITS, CUT, DRV, TUNE), bit-identical to the flash render, never dry;
+/* SD card mode's sample sets on the card (the user, 2026-10-29: a ticked set never grows the flash; 2026-11-04: at the
+ * sources' own rate, "highest for all now"; tools/gen_samples.py --card writes them, eng_sample.c smp_bank_on plays
+ * them through the streams) in the host's render (tests/hostsim.c): every set's factory presets played from the card's
+ * Optimist/Samples/<Set>/z<k>.wav (read from DIR as gen_samples.py wrote them, each zone a source, the rings filled
+ * between two audio blocks as the main loop's runs would; this host build has every set in flash too: SMP_CARD_SET is
+ * the test's switch):
+ *   - each zone's keys ("inst") and root ("smpl") as the flash zone's; its rate the source's (PIANO and FLUTE 44.1 kHz:
+ *     twice the flash zone's 22.05 kHz), a 22.05 kHz zone's frames and loop the flash zone's, a 44.1 kHz one's about
+ *     twice, looped where the flash zone loops;
+ *   - a phrase on each set's presets (every zone, a semitone round each zone's root, an octave and a half up, two down,
+ *     a held note through the loop, LOOP off, BITS, CUT, DRV, TUNE) streamed through the rings bit-identical to the
+ *     same phrase with each whole file in RAM (its head: the resampler's known path on the file's own samples, no
+ *     card read), never dry, and sounding;
  *   - a set not on the card (no zones placed): silent.
  *   sd_sets_test DIR */
 #define FELUCCA_SD_STREAM 1
@@ -34,7 +39,7 @@ static uint32_t le32(const uint8_t *p) { return le16(p) | le16(p + 2) << 16; }
 
 /* the WAV as sd_stream.c sst_wav and sst_src_load take it: fmt, data, smpl (unity, first loop), inst (lo, hi); a
  * 50 ms head; one run */
-static int load_src(uint32_t si, const char *path)
+static int load_src(uint32_t si, const char *path, int whole)
 {
     FILE *f = fopen(path, "rb");
     sst_src_t *s = &sst_src[si];
@@ -82,7 +87,7 @@ static int load_src(uint32_t si, const char *path)
     s->rate = (uint32_t)(((uint64_t)rate << 16) / 44100u);
     s->root = (int8_t)((int32_t)unity - 60);
     hb = (uint64_t)50u * s->rate * 441u / (10u * 65536u);
-    s->hlen = (uint32_t)((hb << 1) + 3u) & ~3u;
+    s->hlen = whole ? s->dlen : (uint32_t)((hb << 1) + 3u) & ~3u;   /* (whole: the file in RAM, every read from it) */
     if (s->hlen > s->dlen)
         s->hlen = s->dlen & ~3u;
     s->head = file[si] + s->dofs;
@@ -212,11 +217,16 @@ static void play(int32_t *L, uint32_t set, uint32_t pi, int card, int variant)
 
 /* each render forked from the same state (the voices, the LFOs, every engine's and generator's state as they are
  * here): the two paths compared from one start, the parent untouched */
-static void play_fork(int32_t *L, uint32_t set, uint32_t pi, int card, int variant)
+static char zpath[SST_BANK_Z][512];
+static uint32_t nzone;
+static void play_fork(int32_t *L, uint32_t set, uint32_t pi, int card, int variant, int whole)
 {
     pid_t pid = fork();
     int st;
+    uint32_t z;
     if (pid == 0) {
+        for (z = 0; z < nzone; z++)
+            load_src(z, zpath[z], whole);
         play(L, set, pi, card, variant);
         stats[0] = sst_dry;
         stats[1] = sst_nostream;
@@ -257,18 +267,27 @@ int main(int argc, char **argv)
         CHECK(set < SMP_NSETS && SMP_SETS[set].nz, "%s in this host build's flash", SETS[si]);
         if (set >= SMP_NSETS || !SMP_SETS[set].nz)
             continue;
-        /* the card's zones, one source each, in key order: as the flash zones */
+        /* the card's zones, one source each, in key order: the flash zones' keys and roots at the sources' rate */
         for (z = 0; z < SMP_SETS[set].nz; z++) {
             const smp_zone_t *fz = &SMP_ZONES[SMP_SETS[set].z0 + z];
-            snprintf(path, sizeof path, "%s/Optimist/Samples/%s/z%u.wav", argv[1], set_dir(SETS[si]), z);
-            CHECK(load_src(z, path), "%s read", path);
-            CHECK(sst_src[z].lo == fz->lo && sst_src[z].hi == fz->hi && (sst_src[z].root + 60) * 16 == fz->root16 &&
-                      sst_src[z].frames == fz->n && sst_src[z].rate == fz->rate &&
-                      (fz->looped ? sst_src[z].lpe == fz->le - 1u && sst_src[z].lps == fz->ls - 1u : !sst_src[z].lpe),
-                  "%s Z%u: keys %u..%u root %d loop %u..%u, the flash's %u..%u %d %u..%u", SETS[si], z, sst_src[z].lo,
-                  sst_src[z].hi, sst_src[z].root + 60, sst_src[z].lps, sst_src[z].lpe, fz->lo, fz->hi, fz->root16 / 16,
-                  fz->looped ? fz->ls : 0u, fz->looped ? fz->le : 0u);
+            const sst_src_t *s = &sst_src[z];
+            uint32_t x2, same;
+            snprintf(zpath[z], sizeof zpath[z], "%s/Optimist/Samples/%s/z%u.wav", argv[1], set_dir(SETS[si]), z);
+            CHECK(load_src(z, zpath[z], 0), "%s read", zpath[z]);
+            x2 = s->rate == 2u * fz->rate;
+            same = s->rate == fz->rate;
+            CHECK(s->lo == fz->lo && s->hi == fz->hi && (s->root + 60) * 16 == fz->root16 && (same || x2) &&
+                      (same ? s->frames == fz->n : s->frames + 2u >= 2u * fz->n) && (fz->looped ? s->lpe != 0 : !s->lpe) &&
+                      (!same || !fz->looped || (s->lpe == fz->le - 1u && s->lps == fz->ls - 1u)),
+                  "%s Z%u: keys %u..%u root %d rate %u frames %u loop %u..%u, the flash's %u..%u %d %u %u %u..%u", SETS[si],
+                  z, s->lo, s->hi, s->root + 60, s->rate, s->frames, s->lps, s->lpe, fz->lo, fz->hi, fz->root16 / 16,
+                  fz->rate, fz->n, fz->looped ? fz->ls : 0u, fz->looped ? fz->le : 0u);
+            if (si == 0 && z == 0)
+                printf("  %s Z0: %u Hz, %u frames (the flash's %u at %u Hz)\n", SETS[si],
+                       (uint32_t)(((uint64_t)s->rate * 44100u + 32768u) >> 16), s->frames, fz->n,
+                       (uint32_t)(((uint64_t)fz->rate * 44100u + 32768u) >> 16));
         }
+        nzone = SMP_SETS[set].nz;
         snprintf(path, sizeof path, "%s/Optimist/Samples/%s/z%u.wav", argv[1], set_dir(SETS[si]), z);
         CHECK(!fopen(path, "rb"), "%s: no zone past the set's", path);
         sst_bank_src[0] = 0;
@@ -278,15 +297,15 @@ int main(int argc, char **argv)
             if ((uint32_t)ENGINES[e]->presets[pi].e[0] != set)
                 continue;
             for (var = 0; var < 3u; var++) {
-                play_fork(A, set, pi, 0, (int)var);
-                play_fork(B, set, pi, 1, (int)var);
+                play_fork(A, set, pi, 1, (int)var, 1);
+                play_fork(B, set, pi, 1, (int)var, 0);
                 for (k = 0, diff = 0, first = PHRASE, sounding = 0; k < PHRASE; k++) {
                     if (A[k] != B[k] && !diff++)
                         first = k;
                     sounding += A[k] != 0;
                 }
                 CHECK(diff == 0 && sounding > 44100u && stats[0] == 0 && stats[1] == 0,
-                      "%s %s (variant %u): the card's render the flash's: %u samples differ (first at %u: %d / %d), "
+                      "%s %s (variant %u): streamed, the whole file's render: %u samples differ (first at %u: %d / %d), "
                       "%u sounding, dry %u, no ring %u", SETS[si], ENGINES[e]->presets[pi].name, var, diff, first,
                       first < PHRASE ? A[first] : 0, first < PHRASE ? B[first] : 0, sounding, stats[0], stats[1]);
             }
@@ -296,12 +315,13 @@ int main(int argc, char **argv)
         sst_bank_n[0] = 0;
         for (pi = 0; pi < ENGINES[e]->npresets && (uint32_t)ENGINES[e]->presets[pi].e[0] != set; pi++)
             ;
-        play_fork(B, set, pi, 1, 0);
+        play_fork(B, set, pi, 1, 0, 0);
         for (k = 0, z = 0; k < PHRASE; k++)
             z += B[k] != 0;
         CHECK(z == 0, "%s not on the card: silent (%u samples sounding)", SETS[si], z);
     }
     CHECK(played >= 10u, "every set's presets played (%u)", played);
-    printf("%s: %u presets on 7 card sets, bit-identical to the flash's\n", fails ? "FAIL" : "ok", played);
+    printf("%s: %u presets on 7 card sets at their sources' rate, streamed bit-identical to the files' own samples\n",
+           fails ? "FAIL" : "ok", played);
     return fails ? 1 : 0;
 }

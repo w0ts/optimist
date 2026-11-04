@@ -25,9 +25,10 @@ slices) is written with it: SLC_BREAK_INIT.
 SD card mode (FELUCCA_SAMPLES_CARD=1, the builder's core.card_sets; the user, 2026-10-29: a set ticked there never
 grows the flash): every melodic set (CARD_SETS) is an empty set in the image, its number and its presets kept, its
 bit in SMP_CARD_SETS: SAMPLE plays it from the card's Optimist/Samples/<Set>/z<k>.wav through the streams
-(eng_sample.c smp_bank_on). Those files: `gen_samples.py --card DIR [SET,...]` (tools/sd_zip.py), each zone the very
-ADPCM the flash would hold, decoded to 16-bit PCM at 22.05 kHz, its root and loop in "smpl", its keys in "inst": a
-card set plays what the built-in one would, sample for sample.
+(eng_sample.c smp_bank_on). Those files: `gen_samples.py --card DIR [SET,...]` (tools/sd_zip.py), each zone from its
+source at the source's own rate (PIANO and FLUTE 44.1 kHz, the others 22.05 kHz; the user, 2026-11-04: "in highest
+resolution we have"), 16-bit mono PCM, trimmed, looped, faded and levelled as the flash zone but never ADPCM-coded,
+resampled or cut short, its root and loop in "smpl", its keys in "inst" (card_zones).
 
 The header is cached in build/gen_samples.cache under a hash of every input.
 """
@@ -138,8 +139,9 @@ def name_note(name):
     return (int(m.group(2)), NOTE[m.group(1)]) if m else None
 
 
-def cc0_entries(setname, kind):
-    """-> [(file name, int16 samples at TR, loop or None, root)]"""
+def cc0_entries(setname, kind, card=False):
+    """-> [(file name, int16 samples at TR, loop or None, root, rate)]; card: each at its source's own rate and to its
+    end (SD card mode's files, card_files: the same trim, loop, fades and level, never resampled nor cut short)"""
     files = sorted((CC0 / setname).glob("*.wav"))
     out, conv = [], 1
     if kind != "kit" and not all(re.search(r"_m\d+\.wav$", p.name) for p in files):
@@ -172,34 +174,36 @@ def cc0_entries(setname, kind):
                     root = det
         else:
             root = hz_to_midi(detect_hz(x, sr))
-        x = resample(x, sr, TR)
+        rate = sr if card else TR
+        x = resample(x, sr, rate)
         keep = {"oneshot": 1.0, "sus": 0.95, "kit": 0.6, "piano": 1.0}[kind]
-        x = x[:int(keep * TR)]
+        if not card:
+            x = x[:int(keep * rate)]
         n = len(x)
         if kind == "piano":                          # the attack, then a steady tone the envelope (DEC) fades:
-            ls, le, xf, a0 = int(0.55 * TR), n - 1, int(0.08 * TR), int(0.30 * TR)   # long notes in 1 s
-            w = int(0.02 * TR)
+            ls, le, xf, a0 = int(0.55 * rate), n - 1, int(0.08 * rate), int(0.30 * rate)   # long notes in 1 s
+            w = int(0.02 * rate)
             env = [max(1e-6, (sum(v * v for v in x[max(0, i - w):i + w]) / (2 * w)) ** 0.5) for i in range(0, n, w)]
             ref = env[a0 // w]
             x = [v * (ref / env[min(len(env) - 1, i // w)] if i >= a0 else 1.0) for i, v in enumerate(x)]
-            ls = best_loop_start(x, le, xf, int(0.45 * TR), int(0.65 * TR))   # (the tone in phase: no dip)
+            ls = best_loop_start(x, le, xf, int(0.45 * rate), int(0.65 * rate))   # (the tone in phase: no dip)
             for i in range(xf):
                 a = i / xf
                 x[le - xf + i] = x[le - xf + i] * (1 - a) + x[ls - xf + i] * a
             loop = (ls, le)
         elif kind == "sus":                          # crossfaded sustain loop in the steady part
-            ls, le, xf = int(0.40 * TR), n - 1, int(0.06 * TR)
+            ls, le, xf = int(0.40 * rate), n - 1, int(0.06 * rate)
             for i in range(xf):
                 a = i / xf
                 x[le - xf + i] = x[le - xf + i] * (1 - a) + x[ls - xf + i] * a
             loop = (ls, le)
         else:
-            fade = int(0.08 * TR)
+            fade = int(0.08 * rate)
             for i in range(fade):
                 x[n - fade + i] *= 1 - i / fade
             loop = None
         pk = peak(x)
-        out.append((p.name, [int(v * 30000 / pk) for v in x], loop, root))
+        out.append((p.name, [int(v * 30000 / pk) for v in x], loop, root, rate))
     return out
 
 
@@ -356,7 +360,7 @@ class Builder:
 
     def cc0_set(self, name, kind):
         entries = []
-        for k, (_, s, loop, root) in enumerate(cc0_entries(name, kind)):
+        for k, (_, s, loop, root, _rate) in enumerate(cc0_entries(name, kind)):
             ls, le = loop if loop else (len(s), len(s))
             off, st = self.add(s, ls)
             entries.append(dict(off=off, n=len(s), ls=ls, le=le, looped=bool(loop), sr=TR,
@@ -533,25 +537,6 @@ def main(out):
     print(b.summary())
 
 
-def ima_decode(data, n):
-    """n samples of IMA ADPCM from predictor 0 / index 0, as the firmware decodes them (dsp.c ima_nibble)"""
-    pred, idx, out = 0, 0, []
-    for k in range(n):
-        code = (data[k >> 1] >> (4 * (k & 1))) & 15
-        step = sio.IMA_STEP[idx]
-        vd = step >> 3
-        if code & 4:
-            vd += step
-        if code & 2:
-            vd += step >> 1
-        if code & 1:
-            vd += step >> 2
-        pred = max(-32768, min(32767, pred - vd if code & 8 else pred + vd))
-        idx = max(0, min(88, idx + sio.IMA_IDX[code & 7]))
-        out.append(pred)
-    return out
-
-
 def card_wav(z, pcm):
     """a card set's zone as a WAV (16-bit mono PCM at its rate): "smpl" its root (the unity note) and its loop,
     "inst" its keys (lo, hi). The flash zone's loop restarts from the state at ls, so after le it plays sample ls - 1
@@ -579,28 +564,40 @@ def card_set_dir(name):
     return name[:1].upper() + name[1:].lower()
 
 
+def card_zones(name):
+    """set name's zones as SD card mode plays them (card_files): from the sources at their own rate, 16-bit mono,
+    each trimmed, looped, faded and levelled as the flash zone (cc0_entries card=True), never ADPCM nor resampled; the
+    keys split as the flash set's (Builder.add_set) -> [(zone dict as Builder's, int16 samples)] in key order"""
+    kind = dict(CC0_SETS)[name]
+    zs = []
+    for _, s, loop, root, rate in cc0_entries(name, kind, card=True):
+        ls, le = loop if loop else (len(s), len(s))
+        zs.append((dict(n=len(s), ls=ls, le=le, looped=bool(loop), sr=rate, root16=int(round(root * 16))), s))
+    zs.sort(key=lambda e: e[0]["root16"])
+    for (z, _), (lo, hi) in zip(zs, key_split([z["root16"] // 16 for z, _ in zs])):
+        z["lo"], z["hi"] = lo, hi
+    return zs
+
+
 def card_files(out, names=None):
     """SD card mode's sets as card files (tools/sd_zip.py): out/Optimist/Samples/<Set>/z<k>.wav, the zones in key
-    order, each the zone's ADPCM as the flash build holds it, decoded. names: the sets (CARD_SETS when None)
-    -> {set: [file names]}"""
+    order, each from its source at the source's rate (card_zones; the user, 2026-11-04: "in highest resolution we
+    have"). names: the sets (CARD_SETS when None) -> {set: [file names]}"""
     names = [n.strip().upper() for n in (names if names is not None else CARD_SETS) if n.strip()]
     bad = set(names) - set(CARD_SETS)
     if bad:
         raise SystemExit(f"gen_samples --card: unknown set(s) {sorted(bad)}; sets: {list(CARD_SETS)}")
     if not (CC0.exists() and any(CC0.glob("*/*.wav"))):
         raise SystemExit("gen_samples --card: no CC0 samples in assets/samples-cc0")
-    kinds, made = dict(CC0_SETS), {}
+    made = {}
     for name in names:
-        b = Builder()
-        b.cc0_set(name, kinds[name])
-        _, z0, nz = b.sets[0]
-        if nz > CARD_ZONES:
-            raise SystemExit(f"gen_samples --card: {name} has {nz} zones, a card set {CARD_ZONES} at most")
+        zs = card_zones(name)
+        if len(zs) > CARD_ZONES:
+            raise SystemExit(f"gen_samples --card: {name} has {len(zs)} zones, a card set {CARD_ZONES} at most")
         d = Path(out) / "Optimist" / "Samples" / card_set_dir(name)
         d.mkdir(parents=True, exist_ok=True)
         made[name] = []
-        for k, z in enumerate(b.zones[z0:z0 + nz]):
-            pcm = ima_decode(b.blob[z["off"]:z["off"] + (z["n"] + 1) // 2], z["n"])
+        for k, (z, pcm) in enumerate(zs):
             (d / f"z{k}.wav").write_bytes(card_wav(z, pcm))
             made[name].append(f"z{k}.wav")
     return made
