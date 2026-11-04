@@ -9,7 +9,7 @@
 #undef main
 #include <assert.h>
 /* what a UI keeps that miss.c's main-loop side reads and writes (the Optimist UI's op_state.c ui): the message, its
- * frames left, the layer held; the page shown (cur_page: TOOLS when its count is asked) */
+ * frames left, the layer held */
 static struct { char msg[40]; uint32_t msg_t; uint8_t layer, hold_kind; int force; } ui;
 static uint8_t settings_later;
 static void ui_message(const char *m) { str_cpy(ui.msg, m, sizeof ui.msg); ui.msg_t = 40; }
@@ -33,8 +33,6 @@ static uint32_t up_rank(uint32_t s) { return s; }
 static void up_name(uint32_t k, char *b) { (void)k; b[0] = 0; }
 #include "../firmware/src/core/model.c"          /* the model operations (apply_preset_to, BANK) */
 #include "../firmware/src/drums/dsnd_desc.c"      /* the drum lanes' SOUND values and the kit list */
-static const page_t *page_now = &PAGES[0];
-static const page_t *cur_page(void) { return page_now; }
 #define PROJ_HOST 1
 #include "../firmware/src/storage/project.c"
 #include "../firmware/src/storage/miss.c"

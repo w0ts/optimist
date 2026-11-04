@@ -166,7 +166,7 @@ static void prjflow_tests(void)
     ui.row[SCR_PROJECT] = (uint8_t)r;
     check(prj_op() == PO_LOAD, "leaving PROJECT: LOAD again");
     turn(EN_K2, 1);
-    turn(EN_SELECT, 1);
+    turn(EN_SELECT, -1);
     check(prj_op() == PO_LOAD, "another row: LOAD again");
     /* PROJECT: NEW is its own card and touches no slot; SAVE asks; the item keys */
     r = pf_row(PR_PROJECT);

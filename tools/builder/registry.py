@@ -1024,7 +1024,7 @@ U = "UI"
 _add("MISSING_WARN", "FELUCCA_MISSING_WARN", "say what a project uses and this build lacks", U, 90,
      desc="'MISSING: PHYS T2, KIT 909' in the top bar when a project, song section, user preset or kit uses an "
           "engine, kit, sample set or FX this build leaves out (once per item until power-off; never stalls the "
-          "audio); PROJECT > TOOLS > MISSING lists them again. Off: they play their stand-ins silently (saves 1.5 KB of flash)")
+          "audio). Off: they play their stand-ins silently (saves 1.5 KB of flash)")
 _add("FAVORITES", "FELUCCA_FAVORITES", "favorites: mark sounds, browse only them", U, 141, provenance=FELUCCA,
      desc="With the presets: SAVE held + PRESETS marks the sound playing, the FAVORITES filter of the preset list (SHIFT2 + "
           "PRESETS) browses only the favorites, a star after a favorite's name in the toast and in PROJECT > USER (SHIFT2 + ITEM marks a slot). Up to 64 factory sounds (kept by engine and name: they stay marked over builds that leave engines "

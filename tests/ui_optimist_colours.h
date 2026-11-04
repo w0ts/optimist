@@ -87,7 +87,7 @@ static void cc_red_walk(uint32_t scr, uint32_t tr)
             if (!c.danger)
                 continue;
             for (j = 0; j < sizeof RED_OK / sizeof RED_OK[0]; j++)
-                allowed |= !strcmp(act_verb(&c), RED_OK[j]) || !strcmp(c.label, RED_OK[j]) || !strcmp(c.label, "CLRSQ");
+                allowed |= !strcmp(act_verb(&c), RED_OK[j]) || !strcmp(c.label, RED_OK[j]);
             if (!allowed || (!strcmp(act_verb(&c), "SAVE") && scr != SCR_PROJECT)) {
                 printf("  colours: screen %u row %s: \"%s\" is red but neither destroys nor replaces\n", scr, nm, act_verb(&c));
                 cc_bad++;

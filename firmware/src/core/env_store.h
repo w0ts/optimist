@@ -19,7 +19,7 @@
 #define ENV_AMP_FULL 127                               /* AMP at 127: the envelope itself (ENV2's gain, env_gain) */
 #ifndef UP_HOST
 static uint8_t env1_drop;                              /* the parts (a bit each) whose ENV DEST slots of before the last load
-                                                        * could not keep (env1_fold: TOOLS > MISS "ENV DEST T2") */
+                                                        * could not keep (env1_fold: the MISSING popup "ENV DEST T2") */
 #endif
 
 /* ENV2's depths a[5] (FLT PIT SHP OSC2 SDTN) -> slots s[4]; -> the depths left out */

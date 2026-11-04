@@ -210,15 +210,11 @@ static void se_picture_tests(void)
 }
 static void se_project_tests(void)
 {
-    cell_t c;
-    char b[16];
 #if SEC_LOGGED
+    cell_t c;
     prj_mem(&c, 1);
     check(!strcmp(c.label, "FREE"), "#43: PROJECT > MEMORY: FREE (was MORE)");
 #endif
-    cell_clear(&c);
-    c.label = "MISS";
-    check(!strcmp(card_label(&c, b, sizeof b), "MISSING"), "#43: PROJECT > TOOLS: MISSING (was MISS)");
 }
 static void se_name_tests(void)
 {

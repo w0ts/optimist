@@ -250,9 +250,6 @@ static void risk_tests(void)
     rk_prj("SNAPSHOT", PO_DELETE);
 #endif
     rk_edit();
-    rk_cell(SCR_PROJECT, "TOOLS", "CLRSQ");
-    rk_cell(SCR_PROJECT, "TOOLS", "INIT");
-    rk_cell(SCR_PROJECT, "TOOLS", "NEW");
     rk_cell(SCR_SOUND, "SOUND", "INIT");                /* INIT sound */
     rk_edit();
     rk_combo(B_ENV, "SHIFT + ENV: INIT");

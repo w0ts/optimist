@@ -300,7 +300,7 @@ Entered by SAVE held on PROJECT, SEQ held off STEP or SHIFT2 + SEQ (section 1.3)
 
 ### 4.6 PROJECT
 
-Rows: PROJECT, SNAPSHOT, USER, TOOLS (CLEAR SEQ, INIT SOUND, MISSING, NEW), MEMORY (USED, FREE), FX MEM (section 4.6.1). In SD card mode the card's lists come first (PROJECT on the card, PRESETS, KITS, SAMPLES: section 4.14). A storage row is four cards (`op_prjflow.c`):
+Rows: PROJECT, SNAPSHOT, USER (not in SD card mode: the user's sounds are on the card), FX MEM (section 4.6.1). There is no TOOLS row (the user, 2026-11-05: "tools is useless"): clearing a pattern is HOME + the pattern key, INIT sound is SHIFT + ENV and the SOUND row's INIT, NEW is PROJECT's fourth card; the MISSING list is gone, the popup at a project's load says what is missing. No MEMORY row either. In SD card mode the card's lists come first (PROJECT on the card, PRESETS, KITS, SAMPLES: section 4.14). A storage row is four cards (`op_prjflow.c`):
 
 | Card | |
 |---|---|
@@ -412,7 +412,7 @@ Only with an arena placed by need (builder `ARENA`; the default's fixed slots ne
 Only in SD card mode with the card (`FELUCCA_SD_UI`; docs/SD-CARD-DESIGN.md 9; the user, 2026-10-26: "projects saved and
 loaded by name, every list as banks of 16 on the white keys"). PROJECT's rows: PROJECT (the card's projects while a card
 is ready; without one the flash slot as before, its panel saying *No SD card: in flash*), PRESETS, KITS, SAMPLES, then
-USER, TOOLS, MEMORY as before. A list row has four cards, of which two show at a time, big, side by side in the 1x4 band (`op_layers.c cards_2x1`): the page needs the panel's eight rows, which the 2 x 2 block would cut to five. The pair of the knob last turned shows, KNOB 1 and 2 on entering a list; every knob works whichever pair shows (`op_sdcard.c`):
+FX MEM (USER is out in this mode). A list row has four cards, of which two show at a time, big, side by side in the 1x4 band (`op_layers.c cards_2x1`): the page needs the panel's eight rows, which the 2 x 2 block would cut to five. The pair of the knob last turned shows, KNOB 1 and 2 on entering a list; every knob works whichever pair shows (`op_sdcard.c`):
 
 | Card | |
 |---|---|

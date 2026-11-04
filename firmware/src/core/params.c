@@ -971,11 +971,6 @@ static const page_t PAGES[] = {
 #if FELUCCA_SNAPSHOTS
     {"SNAPSHOT", FAM_SAVE, SC_GLOBAL, GR_SNAP, {0xFF, 0xFF, 0xFF, 0xFF}},   /* whole-state slots: SLOT LOAD CLEAR SAVE */
 #endif
-#if FELUCCA_MISSING_WARN
-    {"TOOLS", FAM_SAVE, SC_GLOBAL, GR_NONE, {G_CLRSEQ, G_INITSND, G_MISS, G_NEWPRJ}},   /* MISS: miss.c */
-#else
-    {"TOOLS", FAM_SAVE, SC_GLOBAL, GR_NONE, {G_CLRSEQ, G_INITSND, 0xFF, G_NEWPRJ}},
-#endif
     {"ARP", FAM_ARP, SC_TRACK, GR_ARP, {P_AMODE, P_ARATE, P_AOCT, P_AGATE}},
     {"ARP 2", FAM_ARP, SC_TRACK, GR_NONE, {P_ASWING, P_APROB, P_AHOLD, P_AORDER}},
     {"STEP", FAM_SEQ, SC_STEP, GR_ROLL, {0, 1, 2, 3}},
@@ -1043,7 +1038,7 @@ static int32_t fx_needle(uint32_t graph, uint32_t k)
 }
 
 /* the drum track has no sound of its own: it uses the global pages (not the preset
- * pages, nor TOOLS > INIT: page_desc), PATTERN, FX (the drum bus's amounts), SLICER and TRACKS; every other page (STEP too)
+ * pages: page_desc), PATTERN, FX (the drum bus's amounts), SLICER and TRACKS; every other page (STEP too)
  * shows "DRUM TRACK" */
 static int page_for_drum(const page_t *pg)
 {
@@ -1185,9 +1180,6 @@ static int cell_built(const page_t *pg, uint32_t id)
                id == G_CRATE || id == G_CDEPTH ? FXS_HAS(FXT_CHO) || ins_any(FXT_CHO) : id == G_SYNC ? FELUCCA_MIDI_CLOCK : id == G_VIEW ? 0 : 1;
     return 1;
 }
-#if FELUCCA_MISSING_WARN
-static int16_t miss_n;                                /* TOOLS > MISS: what the project uses and this build lacks */
-#endif
 #if FELUCCA_ANALOG2
 /* FLT 2's and FLT B's two cards on one stored value each (P_A2FTYP, P_A2BTYP: model * A2M_MODES + mode): FTYP / TYPE
  * (id P_A2FTYP, P_A2BTYP) its mode, MODEL (PID_A2MDL, PID_A2BMDL) its model, each a copy of its part (a2f_v); a card set
@@ -1233,7 +1225,7 @@ static const param_desc_t *page_desc(const page_t *pg, uint32_t slot, int16_t **
 {
     uint32_t id = page_id(pg, slot);
     if (id == 0xFFu || !page_shown(pg) || !cell_built(pg, id) ||
-        (is_drum(TSEL) && (!page_for_drum(pg) || (pg->scope == SC_GLOBAL && id == G_INITSND)))) {
+        (is_drum(TSEL) && !page_for_drum(pg))) {
         *valp = 0;
         return 0;
     }
@@ -1276,13 +1268,6 @@ static const param_desc_t *page_desc(const page_t *pg, uint32_t slot, int16_t **
     if (pg->scope == SC_FXSLOT)
         return fxs_desc(id, valp);
     if (pg->scope == SC_GLOBAL) {
-#if FELUCCA_MISSING_WARN
-        if (id == G_MISS) {                           /* TOOLS > MISS: a count, no stored value (miss.c) */
-            static const param_desc_t MISS_DESC = PD("MISS", F_INT, 0, 99, 0);
-            *valp = &miss_n;
-            return &MISS_DESC;
-        }
-#endif
 #if FELUCCA_MASTER_COMP
         if (id == G_CGR) {                            /* LIMIT > GR: the gain reduction now, read only (master_comp.c) */
             static const param_desc_t GR_DESC = PU("GR", F_INT, 0, 0, 0, "dB");

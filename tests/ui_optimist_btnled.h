@@ -118,7 +118,8 @@ static void btnled_tests(void)
         bk_set(BK_DR, SCR_SOUND);
         check(led_lvl(B_OCTDN) == 1 && led_lvl(B_OCTUP) == 1, "OCT LEDs, SOUND on DR: both dim (the track <-> MASTER pair)");
         bk_set(BK_SYN, SCR_PROJECT);
-        check(led_lvl(B_OCTDN) == 0 && led_lvl(B_OCTUP) == 0, "OCT LEDs, PROJECT: both dark");
+        ui.row[SCR_PROJECT] = (uint8_t)pf_row(PR_PROJECT);
+        check(led_lvl(B_OCTDN) == (prj_banks(PR_PROJECT) > 1u) && led_lvl(B_OCTUP) == (prj_banks(PR_PROJECT) > 1u), "OCT LEDs, PROJECT: dark on a store of 16 slots or fewer");
         {   /* OCT- / OCT+ on a store of more than 16 slots: the bank back / on (the user, 2026-10-15), lit only that way */
             uint32_t r = pf_row(PR_USER);
             ui.user_slot = 3;

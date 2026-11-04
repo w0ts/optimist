@@ -11,16 +11,16 @@
  *            with FELUCCA_SAMPLES_SKIP=PIANO; USR2 empty)
  *            the scan names each item once, in order, by the build's own names; the top bar line; once per
  *            item and power-on; the real UI: the message after a load, nothing again on a reload, only PHYS
- *            when the song changes to B while playing (proj_apply from the audio side), SAVE > TOOLS > MISS
- *            (the count, the items one by one), a user kit's load. The UI side is miss.c's own (miss_tick, miss_knob,
- *            as the Optimist UI's main loop calls them), with the message fields a UI keeps */
+ *            when the song changes to B while playing (proj_apply from the audio side), the MISSING popup
+ *            (the count), a user kit's load. The UI side is miss.c's own (miss_tick, as the Optimist UI's main loop
+ *            calls it), with the message fields a UI keeps */
 #define FELUCCA_ARRANGER 1
 #define main hostsim_main
 #include "hostsim.c"
 #undef main
 #include <assert.h>
 /* what a UI keeps that miss.c's main-loop side reads and writes (the Optimist UI's op_state.c ui): the message, its
- * frames left, the layer held; the page shown (cur_page: TOOLS when its count is asked) */
+ * frames left, the layer held */
 static struct { char msg[40]; uint32_t msg_t; uint8_t layer, hold_kind; int force; } ui;
 static uint8_t settings_later;
 static void ui_message(const char *m) { str_cpy(ui.msg, m, sizeof ui.msg); ui.msg_t = 40; }
@@ -47,8 +47,6 @@ static uint32_t up_rank(uint32_t s) { return s; }
 static void up_name(uint32_t k, char *b) { (void)k; b[0] = 0; }
 #include "../firmware/src/core/model.c"          /* the model operations (apply_preset_to, BANK) */
 #include "../firmware/src/drums/dsnd_desc.c"      /* the drum lanes' SOUND values and the kit list */
-static const page_t *page_now = &PAGES[0];
-static const page_t *cur_page(void) { return page_now; }
 #define PROJ_HOST 1
 #include "../firmware/src/storage/project.c"
 #include "../firmware/src/storage/miss.c"
@@ -226,40 +224,15 @@ static int reduce(char **argv)
     check("A, B, A, B: nothing more", ui.msg_t == 0u);
     song.playing = 0;
 
-    /* TOOLS > MISS: the count, the items one by one */
-    for (i = 0; i < NPAGES && !(PAGES[i].scope == SC_GLOBAL && PAGES[i].id[2] == G_MISS); i++)
-        ;
-    check("TOOLS has MISS on KNOB 3", i < NPAGES && str_eq(PAGES[i].title, "TOOLS"));
-    page_now = &PAGES[i];
-    frames(2);
-    check("TOOLS: MISS shows the count (B: 10)", miss_n == 10);
-    ui.force = 1;
-    frame();
-    miss_knob(1);
-    frame();
-    e = strstr(ui.msg, "MISSING 2/10: ");
-    check("MISS turned: the next item, 2/10 DELAY", e == ui.msg && !strcmp(ui.msg + 14, "DELAY"));
-    ui.force = 1;
-    frame();
-    miss_knob(-1);
-    frame();
-    miss_knob(-3);                                          /* (a fast turn: still one item) */
-    frame();
-    check("... back past the first: 10/10 DUST", !strcmp(ui.msg, "MISSING 10/10: DUST"));
-    for (i = 0; i < 3u; i++) {
-        miss_knob(1);
-        frame();
-    }
-    frame();
-    check("... 3/10 PHYS T2", !strcmp(ui.msg, "MISSING 3/10: PHYS T2"));
-    ui.force = 1;
+    /* the count the popup is built from (B: 10) */
+    check("B: the scan counts 10", miss_scan() == 10);
     frame();
 
     /* the user replaces what is missing: it leaves the list */
     trk[1].eng_req = (uint8_t)ENG_SLOT_ANALOG;             /* (the orphan: another sound now) */
     trk[1].p[P_E0] = 3;
     frames(2);
-    check("part 2 given another sound: PHYS leaves the count (9)", miss_n == 9);
+    check("part 2 given another sound: PHYS leaves the count (9)", miss_scan() == 9);
 
     /* a user kit made on the full build */
     memcpy(kit_nor, kits, sizeof kit_nor);
@@ -269,7 +242,6 @@ static int reduce(char **argv)
     TDRUM->p[P_E0] = (int16_t)DRUM_DEFAULT_KIT;
     memset(miss_said, 0, sizeof miss_said);                 /* (power-on again: A said them all already) */
     miss_fresh(miss_scan());                                /* (the parts' items: said) */
-    page_now = &PAGES[0];
     frames(2);
     ui.msg_t = 0;
     check("the full build's kit 1 loads", ukit_load(0) == 1);

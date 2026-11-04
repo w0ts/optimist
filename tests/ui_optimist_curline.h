@@ -122,7 +122,9 @@ static void curline_tests(void)
     song.sel = 0;
     check(cl_gl(SCR_GLOBAL, 0u) && cl_gl(SCR_GLOBAL, 1u), "GLOBAL: the cursor line has no fill, its text is the line's colour (the others' names grey)");
     check(cl_gl(SCR_SYSTEM, 0u) && cl_gl(SCR_SYSTEM, 1u), "SYSTEM: the cursor line has no fill, its text is the line's colour (the others' names grey)");
-    check(cl_list("PROJECT", SCR_PROJECT, 0u, 4u), "PROJECT: the cursor row is the track's colour at full strength, its text the colour's ink");
+#if FXZ_ANY                                             /* (PROJECT's slot rows have their own panel: FX MEM is the one list row left) */
+    check(cl_list("PROJECT", SCR_PROJECT, 0u, 3u), "PROJECT: the cursor row is the track's colour at full strength, its text the colour's ink");
+#endif
     for (r = 0; r < 4u; r++) {                          /* a SOUND list: the first rows of SOUND with no picture */
         uint32_t i;
         op_enter(SCR_SOUND);

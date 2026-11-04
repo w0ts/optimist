@@ -13,7 +13,7 @@ enum { CK_NONE, CK_VAL, CK_RO, CK_ACT, CK_ENTER };
 enum { GK_NONE, GK_BAR, GK_BIP, GK_DOTS, GK_POS, GK_PILL };
 #define OP_RESET 0x7FFF                 /* a turn's steps: the value back to its default (SHIFT held + the knob) */
 #define OP_MAXROWS 40u
-static int op_global_go(uint32_t id);                  /* op_screens.c: TOOLS' GO buttons */
+static int op_global_go(uint32_t id);                  /* op_screens.c: the GO buttons of the PROJECT and SOUND screens */
 
 typedef struct {
     const char *label;                  /* the card's label (0: an empty cell) */
@@ -145,9 +145,7 @@ static void cell_param(cell_t *c, const param_desc_t *d, int16_t *vp)
     c->vp = vp;
     if (is_go(d)) {
         const char *l = d->label;                       /* (the object and the verb a card shows; the label stays the list's) */
-        cell_act(c, str_eq(l, "NEW") ? "PROJECT" : str_eq(l, "CLRSQ") ? "PATTERN" : str_eq(l, "INIT") ? "SOUND" :
-                    str_eq(l, "GEN") ? "ACID LINE" : "KIT", l, str_eq(l, "CLRSQ") ? "CLEAR" : 0,
-                 go_danger(d));
+        cell_act(c, str_eq(l, "GEN") ? "ACID LINE" : "KIT", l, 0, go_danger(d));
         return;
     }
     c->kind = d->max == d->min ? CK_RO : CK_VAL;
@@ -865,13 +863,6 @@ static void page_turn(const page_t *pg, uint32_t k, int32_t s, int fine)
     uint32_t id = page_id(pg, k);
     if (!d || !vp || PARAM_HIDDEN(d) || is_go(d) || d->max == d->min)
         return;
-#if FELUCCA_MISSING_WARN
-    if (pg->scope == SC_GLOBAL && id == G_MISS) {       /* TOOLS > MISS: the items one by one (miss.c) */
-        if (s != OP_RESET)
-            miss_knob(s);
-        return;
-    }
-#endif
     if (s == OP_RESET) {
         if (pg->scope == SC_FXSLOT || (id >= PID_INST && id < PID_INST + INS_N) || (pg->scope == SC_DSND && id >= 8u && id < 16u) ||
             (pg->scope == SC_DSND && (id == 21u || id == 22u)))
@@ -927,14 +918,11 @@ static int page_yes(uint32_t scr, uint32_t row, const page_t *pg, uint32_t k, ui
 #if DL_ANY
         char kit_arg[8] = "KIT ";
 #endif
-        const char *arg = trk_tag(song.sel);            /* "CLRSQ T2?", "INIT T2?" */
+        const char *arg = trk_tag(song.sel);
 #if DL_ANY
         if (pg->scope == SC_DSND)                       /* "RESET SNARE?"; SAVE / ERASE name the user kit: "SAVE KIT 3?" */
             arg = id == 15u ? LANE_NAME_OF(lane_selected()) : (fmt_int(kit_arg + 4, (int32_t)dsnd_slot + 1), kit_arg);
-        else
 #endif
-        if (pg->scope == SC_GLOBAL && id == G_NEWPRJ)
-            arg = "";                                   /* "NEW?" */
         op_arm(scr, row, k, d->label, arg, go_danger(d));
         return 1;
     }
@@ -964,5 +952,5 @@ static int page_yes(uint32_t scr, uint32_t row, const page_t *pg, uint32_t k, ui
         return 1;
     }
 #endif
-    return op_global_go(id);                            /* TOOLS: op_screens.c */
+    return op_global_go(id);                            /* op_screens.c */
 }

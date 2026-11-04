@@ -4395,7 +4395,7 @@
     "bit": 90,
     "default": 1,
     "parent": null,
-    "desc": "'MISSING: PHYS T2, KIT 909' in the top bar when a project, song section, user preset or kit uses an engine, kit, sample set or FX this build leaves out (once per item until power-off; never stalls the audio); PROJECT > TOOLS > MISSING lists them again. Off: they play their stand-ins silently (saves 1.5 KB of flash)",
+    "desc": "'MISSING: PHYS T2, KIT 909' in the top bar when a project, song section, user preset or kit uses an engine, kit, sample set or FX this build leaves out (once per item until power-off; never stalls the audio). Off: they play their stand-ins silently (saves 1.5 KB of flash)",
     "experimental": false,
     "notice": "",
     "off_warning": "",

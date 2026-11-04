@@ -757,7 +757,7 @@ static void t_map(void)
     trk[0].p[P_TFLT] = -10, trk[0].p[P_TCOMP] = 40, trk[0].p[P_DIST] = 50;
     trk[2].p[P_TCOMP] = 40;
     drop = ins_map(ALL3, 0, m);
-    check("DIST COMP FILT all in master slots, T1 using all three: S1 DIST S2 FILTER, COMP dropped (rule 4, TOOLS > MISS)",
+    check("DIST COMP FILT all in master slots, T1 using all three: S1 DIST S2 FILTER, COMP dropped (rule 4, the MISSING popup)",
           (drop & 1u) && m[0][0] == FXT_DIST && m[0][1] == FXT_FILT);
     check("... T3 using COMP only: S1 DIST (rule 3: room), S2 COMP; not dropped", m[2][0] == FXT_DIST && m[2][1] == FXT_COMP &&
           !(drop & 4u));

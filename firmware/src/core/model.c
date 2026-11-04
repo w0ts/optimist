@@ -108,7 +108,7 @@ static int seq_is_empty(const track_t *t) { return track_empty(t); }
 
 static void track_defaults_steps(track_t *t) { steps_clear(t); }
 
-/* the drum track of a default project (power-on with nothing stored, TOOLS > NEW): no hit, its ACCENT lane four on
+/* the drum track of a default project (power-on with nothing stored, PROJECT > NEW): no hit, its ACCENT lane four on
  * the floor, a NORM accent on every beat (every 4th step at the default DIV 1/16, through the whole pattern; the user,
  * 2026-10-22). Nothing sounds: the project is still empty for the first take and the click (seq.c track_empty) */
 static void drum_defaults_steps(track_t *t)

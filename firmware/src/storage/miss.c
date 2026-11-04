@@ -6,7 +6,6 @@
  *     byte, nothing else there); the main loop (ui_draw: miss_tick) then looks at the working project and says
  *     what is new in the top bar, "MISSING: PHYS T2, KIT 909 +1", once per item until power-off; it waits
  *     for the bar to be free and costs a scan of the four tracks, never the audio;
- *   - SAVE > TOOLS > MISS: the count; turning it shows the items one by one ("MISSING 2/3: KIT 909").
  * The scan looks at what plays now (the parts, the drum lanes, the master), so an item the user replaced is
  * no longer listed. What counts: engines (by UID, the orphans), the drum kit and other kits on lanes (an X0X
  * voice on a lane: its machine, KIT X0X 909 / 808; a lane
@@ -284,20 +283,18 @@ static uint32_t miss_fresh(uint32_t n)
 }
 
 #ifndef MISS_SCAN_ONLY
-static uint8_t miss_done, miss_ix;                    /* the miss_gen looked at; TOOLS > MISS: the item shown */
+static uint8_t miss_done;                             /* the miss_gen looked at */
 #define MISS_SHOW 150u                                /* frames a message stays (~2.5 s; ui_say's 40 are short) */
 /* after a load, what is new: a popup that stays until HOME or SAVE (the UI: op_layers.c miss_show; the user, 2026-10-26:
  * "this should have been a modal popup when loading the project"); the host test's stand-in puts it in the bar */
 static void miss_show(const char *items);             /* the items' line, "PHYS T2, KIT 909 +1" */
 static int miss_busy(void);                           /* a message or a question up (the UI: op_state.c) */
 
-/* a frame of the main loop (ui_draw): after a load, say what is new; on TOOLS, the count for MISS */
+/* a frame of the main loop (ui_draw): after a load, say what is new */
 static void miss_tick(void)
 {
     uint32_t n;
     char b[40];
-    if (cur_page()->id[2] == G_MISS && cur_page()->scope == SC_GLOBAL)
-        miss_n = (int16_t)miss_scan();
     if (miss_done == miss_gen || miss_busy())         /* (a message or a question up: this one waits for it) */
         return;
     miss_done = miss_gen;
@@ -306,23 +303,5 @@ static void miss_tick(void)
         miss_line(b, n, 9u + 13u);                    /* ("MISSING: " and 13 characters of items, then " +n": the popup's 16) */
         miss_show(b + 9);
     }
-}
-
-/* TOOLS > MISS turned: the next / previous item, "MISSING 2/3: KIT 909" */
-static void miss_knob(int32_t steps)
-{
-    uint32_t n = miss_scan();
-    char *p;
-    miss_n = (int16_t)n;
-    if (!n)
-        return;                                       /* (MISS 0 says it) */
-    miss_ix = (uint8_t)(steps < 0 ? (miss_ix && miss_ix <= n ? miss_ix : n) - 1u : miss_ix + 1u < n ? miss_ix + 1u : 0u);
-                                                      /* (one item a turn, either way, round; no divide by n) */
-    p = miss_cat(ui.msg, "MISSING ");
-    fmt_int(p, (int32_t)miss_ix + 1);
-    p = miss_cat(p + str_len(p), "/");
-    fmt_int(p, (int32_t)n);
-    miss_name(miss_cat(p + str_len(p), ": "), miss_m[miss_ix]);
-    ui.msg_t = MISS_SHOW;
 }
 #endif

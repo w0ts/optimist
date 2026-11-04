@@ -5,7 +5,7 @@
  *   HOME (MIX)  the mixer: op_mixer.c (the rows are the tracks, the knobs the selected row's values)
  *   SOUND       the selected track's sound: the SOUND row (preset, engine, INIT, SAVE AS), then its pages
  *   FX          the global effects and the master: the FX and GLO pages
- *   PROJECT     the project slots, snapshots, user presets, TOOLS, MEMORY
+ *   PROJECT     the project slots, snapshots, user presets
  *   SYSTEM      the settings of the FM-1 (SLOOP's HOME-held menu), the calibration, ABOUT */
 typedef struct {
     uint32_t (*rows)(void);
@@ -26,7 +26,7 @@ static void auto_init(void);                            /* storage/auto_proj.c *
 #endif
 
 /* ---- shared actions */
-/* a new project: every track empty, the default sounds (as SLOOP's ui_input.c project_new, TOOLS > NEW) */
+/* a new project: every track empty, the default sounds (as SLOOP's ui_input.c project_new, PROJECT > NEW) */
 static void op_project_new(void)
 {
     uint32_t i, sess = (undo_sess += 4u) | 3u;          /* (one session: the history undoes NEW at once) */
@@ -83,7 +83,7 @@ static void op_project_new(void)
     sync_reload = 1;
     ui.force = 1;
 }
-static void op_clear_track(uint32_t i)                  /* the REC ring and TOOLS' CLRSQ: the track's pattern (undo brings it back) */
+static void op_clear_track(uint32_t i)                  /* the REC ring and HOME + a pattern key: the track's pattern (undo brings it back) */
 {
     track_t *t = &trk[i % NTRK];
     undo_level(t);
@@ -129,13 +129,10 @@ static void op_clear_lane(uint32_t l)
     ui_say(lane_name(l), " CLEARED");
     ui.force = 1;
 }
-/* TOOLS' GO buttons (op_cells.c page_yes, confirmed) */
+/* the GO buttons that remain: INIT (op_combos.c) and PROJECT > NEW (op_cells.c page_yes, confirmed) */
 static int op_global_go(uint32_t id)
 {
     switch (id) {
-    case G_CLRSEQ:
-        op_clear_track(song.sel);
-        return 1;
     case G_INITSND:
         set_engine(TSEL->eng_req);                      /* the engine's defaults and its first preset */
         ed_done();

@@ -272,9 +272,6 @@
     {"kind": "page", "ctx": "PROJECT", "params": {
       "SLOT": "Project slot",
       "LOAD": "Load project (twice)", "SAVE": "Save project (twice)"}},
-    {"kind": "page", "ctx": "TOOLS", "params": {
-      "CLRSQ": "Clear the pattern (twice)", "INIT": "Reset the sound (twice)",
-      "MISS": {"text": "What this build is missing", "if": "FELUCCA_MISSING_WARN"}, "NEW": "New project (twice)"}},
     {"kind": "page", "ctx": "USER", "slots": [["SLOT", "User preset slot"]]},
     {"kind": "page", "ctx": "SNAPSHOT", "if": "FELUCCA_SNAPSHOTS", "slots": [["SLOT", "Snapshot slot"]]},
     {"kind": "page", "ctx": "ARP", "params": {
@@ -512,10 +509,6 @@
     {"kind": "op", "ctx": "USER", "params": {
       "BANK": "16 slots a bank (the keys)", "ACTION": "Load, save, clear, then a key",
       "ITEM": "Slot: turn or key (dim: free)", "INIT": "Reset the sound -> SAVE"}},
-    {"kind": "op", "ctx": "TOOLS", "params": {
-      "CLRSQ": "Clear the pattern -> SAVE", "INIT": "Reset the sound -> SAVE",
-      "MISS": {"text": "What this build is missing", "if": "FELUCCA_MISSING_WARN"},
-      "NEW": "New project: clears -> SAVE"}},
     {"kind": "op", "ctx": "MEMORY", "if": "SEC_LOGGED", "params": {
       "USED": "Project memory used", "FREE": "Sections that still fit"}},
     {"kind": "op", "ctx": "KIT", "if": "DL_ANY", "params": {
