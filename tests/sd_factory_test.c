@@ -92,7 +92,7 @@ static uint32_t files_mode(int argc, char **argv)
         size_t got = fp ? fread(f, 1, sizeof f, fp) : 0;
         if (fp)
             fclose(fp);
-        if (got < 16u + sizeof(up_rec_t) + UP_CARD_FM6) {
+        if (got < 24u + sizeof(up_rec_t) + UP_CARD_FM6) {
             printf("FAIL %s: no FM6 voice in it (%zu B)\n", argv[a], got);
             bad++;
             continue;
@@ -100,8 +100,8 @@ static uint32_t files_mode(int argc, char **argv)
         trk[0].eng_req = trk[0].engine = (uint8_t)ENG_SLOT_FM6;
         apply_preset_to(&trk[0], 0);
         memset(fm6_ed[0], 0, sizeof fm6_ed[0]);
-        fm6_unpack(ed, f + 16u + sizeof(up_rec_t));      /* (the file's own voice) */
-        if (up_card_give(f + 16u, (uint32_t)got - 16u) || memcmp(ed, fm6_ed[0], sizeof ed) ||
+        fm6_unpack(ed, f + 24u + sizeof(up_rec_t));      /* (the file's own voice) */
+        if (up_card_give(f + 24u, (uint32_t)got - 24u) || memcmp(ed, fm6_ed[0], sizeof ed) ||
             fm6_cur[0] != (int16_t)(trk[0].p[P_E0] + 1)) {
             printf("FAIL %s: not loaded with its own voice (a build without the packs)\n", argv[a]);
             bad++;
@@ -233,18 +233,18 @@ static int kits_mode(int argc, char **argv)
         for (i = 0; nm[i]; i++)
             nm[i] = (char)tolower((unsigned char)nm[i]);
         snprintf(want, sizeof want, "%02u - %s%s.opk", (unsigned)(k % 16u + 1u), nm,
-                 got == 16u + UK_CARD_N ? kit_instr_of(f + 16u) : "");
+                 got == 24u + UK_CARD_N ? kit_instr_of(f + 24u) : "");
         if (k >= DRUM_KITS || strcmp(b, want) || p[strlen(p) - strlen(b) - 2] != (char)('A' + k / 16u)) {
             printf("FAIL %s: kit %u is %c/%s\n", p, k, 'A' + k / 16u, want);
             bad++;
             continue;
         }
-        if (got != 16u + UK_CARD_N || memcmp(f, "OPKT", 4)) {
+        if (got != 24u + UK_CARD_N || memcmp(f, "OPKT", 4)) {
             printf("FAIL %s: not a kit file (%zu B)\n", p, got);
             bad++;
             continue;
         }
-        if (kit_way(kt_a, k, 0) || kit_way(kt_b, k, f + 16u)) {   /* flash mode, then SD card mode */
+        if (kit_way(kt_a, k, 0) || kit_way(kt_b, k, f + 24u)) {   /* flash mode, then SD card mode */
             printf("FAIL %s: not loaded\n", p);
             bad++;
             continue;

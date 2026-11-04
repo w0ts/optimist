@@ -19,6 +19,7 @@
  *   the samples  the project's SEC_ID_SDSMP: each synth part's sample by its XXH64 (the index's), size and a name hint
  *                (its path under SAMPLES/, cut); the player reads them (sdm_sample_of, sdm_sample_path) */
 #include "storage/sd/sd_names.h"                     /* the engines' preset folders (Presets/Factory|User/<Engine>) */
+#include "storage/sd/sd_ids.h"                       /* the presets' and kits' ids */
 _Static_assert(SDC_KEYS == SDB_KEYS && SDC_NAME == SDL_NAME_MAX + 1u && SDC_PNAME == SEC_NAME_LEN + 1u,
                "sd_mode.c: the UI's sizes (op_sdcard.c) are the card's");
 #define SDM_ID SEC_ID_SDCARD
@@ -30,7 +31,7 @@ typedef struct {
     uint8_t keep, scale;                             /* VERSIONS 0..SDM_KEEP_MAX; SLACK in steps of 25 % (0..16) */
     uint8_t pend;                                    /* a card save pending: p */
     uint8_t pre;                                     /* the pre-buffer (SD_STREAM): SST_PRE_MS[pre - 1], 0 its default */
-    uint8_t rsv[2];
+    uint8_t ids[2];                                  /* the user ids made so far (sdm_new_id), little-endian */
     sdp_pending p;
 } sdm_rec_t;
 
@@ -79,6 +80,21 @@ static void sdm_lanes_sync(void)
     sdm_lane_on = (uint16_t)on;
 }
 #endif
+/* the presets and the kit the project's parts were loaded from (the user, 2026-11-04: found again by their id when
+ * moved): each part's preset, then the drum kit; with the samples in the project's SEC_ID_SDSMP record (after them).
+ * At a project's load: the path first; a file missing there or of another id: the id looked up in the index
+ * (sd_index.c sdx_find_id), the path updated from there (the project's record: on the card at its next save); not
+ * found: "P1 PRESET MISSING" / "KIT MISSING" once; two files of the id: the first found, "SAME ID TWICE" said */
+typedef struct {
+    uint64_t id;                                     /* the file's (sd_ids.h), 0 none */
+    char hint[56];                                   /* its path from Optimist/ when loaded (cut), 0 ended */
+} sdm_ref_t;
+#define SDM_NREF (NPART + 1u)
+_Static_assert(sizeof(sdm_ref_t) == 64u && sizeof(sdm_smp_t) * SDM_NSMP + sizeof(sdm_ref_t) * SDM_NREF <= SEC_REC_MAX,
+               "sd_mode.c: the samples' and refs' record");
+static sdm_ref_t sdm_ref[SDM_NREF];
+static uint8_t sdm_ref_check;                        /* the refs to look up (a project's record read) */
+static uint64_t sdm_small_id(const char *path);      /* (below: a .ops / .opk file's id) */
 static uint32_t sdm_smp_gen;                         /* bumped at every change (the player reloads) */
 static struct {
     sdb_t b;                                         /* the list shown */
@@ -232,8 +248,14 @@ static void sdm_smp_sync(void)                       /* the record read again wh
     {
         int n = slg_get(SEC_ID_SDSMP, sec_rbuf);
         memset(sdm_smp, 0, sizeof sdm_smp);
-        if (n == (int)sizeof sdm_smp || n == (int)(sizeof sdm_smp[0] * NPART))
+        memset(sdm_ref, 0, sizeof sdm_ref);
+        if (n == (int)(sizeof sdm_smp + sizeof sdm_ref)) {
+            memcpy(sdm_smp, sec_rbuf, sizeof sdm_smp);
+            memcpy(sdm_ref, sec_rbuf + sizeof sdm_smp, sizeof sdm_ref);
+            sdm_ref_check = 1;
+        } else if (n == (int)sizeof sdm_smp || n == (int)(sizeof sdm_smp[0] * NPART)) {
             memcpy(sdm_smp, sec_rbuf, (uint32_t)n);
+        }
     }
 #if FELUCCA_SD_STREAM
     for (key = 0; key < NPART; key++)
@@ -265,6 +287,56 @@ static uint32_t sdm_sample_path(uint32_t k, char *out, uint32_t cap)
     return sdl_cat(out, sdl_cat(out, 0, cap, SDL_ROOT "/"), cap, sdx.rec.path) < cap ? sdl_len(out) : 0;
 }
 
+/* ref k (a part's preset, NPART the kit) from the file at path (from the card's root) of id */
+static void sdm_ref_set(uint32_t k, const char *path, uint64_t id)
+{
+    if (k >= SDM_NREF)
+        return;
+    memset(&sdm_ref[k], 0, sizeof sdm_ref[k]);
+    sdm_ref[k].id = id;
+    if (id)
+        sdl_cat(sdm_ref[k].hint, 0, sizeof sdm_ref[k].hint, path + SDX_SKIP);
+    sdm_smp_dirty = 1;
+}
+/* the project's refs found again (sdm_poll, the index ready): each at its path, else by its id -> the refs moved */
+static uint32_t sdm_ref_resolve(void)
+{
+    static char p[SDX_PATH + 16];
+    char a[30];
+    uint32_t k, dups = 0, moved = 0, n;
+    int32_t no;
+    const char *miss = 0, *twice = 0;
+    a[0] = 0;
+    sdm_ref_check = 0;
+    for (k = 0; k < SDM_NREF; k++) {
+        if (!sdm_ref[k].id)
+            continue;
+        n = sdl_cat(p, 0, sizeof p, SDL_ROOT "/");
+        if (sdl_cat(p, n, sizeof p, sdm_ref[k].hint) < sizeof p && sdm_small_id(p) == sdm_ref[k].id)
+            continue;                                /* (where it was) */
+        no = sdx_open() == FR_OK ? sdx_find_id(sdm_ref[k].id, &sdx.rec, &dups) : -1;
+        if (no < 0) {
+            miss = k < NPART ? "PRESET MISSING" : "KIT MISSING";
+            str_cpy(a, k < NPART ? (char[3]){'P', (char)('1' + k), 0} : "", sizeof a);
+            continue;
+        }
+        if (dups)
+            twice = sdb_base(sdx.rec.path);
+        memset(sdm_ref[k].hint, 0, sizeof sdm_ref[k].hint);
+        sdl_cat(sdm_ref[k].hint, 0, sizeof sdm_ref[k].hint, sdx.rec.path);
+        sdm_smp_dirty = 1;                           /* (its new path: in the project's record, the card's next save) */
+        moved++;
+    }
+    if (miss) {
+        if (a[0])
+            str_app(a, " ", sizeof a);
+        str_app(a, miss, sizeof a);
+        ui_message(a);
+    } else if (twice) {
+        ui_say("SAME ID TWICE: ", twice);
+    }
+    return moved;
+}
 /* ---- the boot and the card's presence */
 static int sdm_ready(void) { return sd_state == SD_READY && sdm_st >= SDM_INDEX; }
 static void sdm_mount_try(void)                      /* (PROJECT entered, SYSTEM > SD CARD: no card yet: quick when none) */
@@ -291,8 +363,12 @@ static void sdm_poll(void)
     if ((sdm_dirty == 1u || sdm_smp_dirty) && !SAVE_WAITS_PLAY()) {   /* (a flash write stops the audio: seq.c LIVE_SAVE) */
         if (sdm_dirty == 1u && !sdm_rec_put())
             sdm_dirty = 0;
-        if (sdm_smp_dirty && !slg_put(SEC_ID_SDSMP, (const uint8_t *)sdm_smp, sizeof sdm_smp, 1))
-            sdm_smp_dirty = 0;
+        if (sdm_smp_dirty) {                         /* (the samples, then the refs: one record) */
+            memcpy(sec_rbuf, sdm_smp, sizeof sdm_smp);
+            memcpy(sec_rbuf + sizeof sdm_smp, sdm_ref, sizeof sdm_ref);
+            if (!slg_put(SEC_ID_SDSMP, sec_rbuf, sizeof sdm_smp + sizeof sdm_ref, 1))
+                sdm_smp_dirty = 0;
+        }
     }
     if (!sdm_smp_dirty)
         sdm_smp_sync();
@@ -340,6 +416,8 @@ static void sdm_poll(void)
 #if PRESETS_CARD
     sdm_factory_poll();
 #endif
+    if (sdm_ref_check && sdm_st == SDM_READY && !op_armed())
+        (void)sdm_ref_resolve();                     /* (a project's presets and kit: found again by their ids) */
 }
 
 /* ---- DX7 banks (the user, 2026-10-26: the FM6 collections on the card): a .SYX of 32 voices (4104 B: F0 43 0n 09 20 00,
@@ -569,6 +647,26 @@ static void sdm_kit_drop_old(const char *dir, uint32_t nn, const char *keep)
             (void)f_unlink(p);
     }
     (void)f_closedir(&d);
+}
+/* the id of bank folder dir's file numbered nn (ext's), 0 none: a preset or kit saved over keeps it */
+static uint64_t sdm_same_id(const char *dir, uint32_t nn, const char *ext)
+{
+    DIR d;
+    FILINFO fi;
+    static char p[FF_LFN_BUF + 1];
+    uint64_t id = 0;
+    uint32_t n;
+    if (f_opendir(&d, dir) != FR_OK)
+        return 0;
+    while (!id && f_readdir(&d, &fi) == FR_OK && fi.fname[0]) {
+        if (sdl_hidden(&fi) || sdb_bank_no(fi.fname) != nn || !sdl_ends(fi.fname, ext))
+            continue;
+        n = sdl_cat(p, sdl_cat(p, 0, sizeof p, dir), sizeof p, "/");
+        if (sdl_cat(p, n, sizeof p, fi.fname) < sizeof p)
+            id = sdm_small_id(p);
+    }
+    (void)f_closedir(&d);
+    return id;
 }
 /* bank folder dir: the numbers in use (bit nn - 1) and the number of the file named name (without its number and
  * ext, any case), 0 none */
@@ -901,22 +999,28 @@ static int sdm_save_place(uint32_t list, const char *name, char *dir, uint32_t c
     return 0;
 }
 
-/* ---- presets and kits: one small file (header + payload, a sector at most: written whole) */
+/* ---- presets and kits: one small file (header + payload, a sector at most: written whole); version 2 carries the
+ * file's id (sd_ids.h: a preset's or kit's, found again by it when moved; 0 the device's other files) */
 typedef struct {
     char magic[4];                                   /* "OPPR" a preset (upreset.c up_rec_t), "OPKT" a kit (ukit_t + sends) */
-    uint16_t ver, len;                               /* 1, the payload's bytes */
+    uint16_t ver, len;                               /* 2, the payload's bytes */
     uint64_t hash;                                   /* XXH64 of the payload */
+    uint64_t id;                                     /* the preset's or kit's id (sd_ids.h), 0 none */
 } sdm_fh;
+#define SDM_FH_N 24u
+_Static_assert(sizeof(sdm_fh) == SDM_FH_N, "sd_mode.c: the small files' header");
 static uint64_t sdm_hash(const uint8_t *p, uint32_t n) { sdh_t s; sdh_init(&s); sdh_add(&s, p, n); return sdh_end(&s); }
-static FRESULT sdm_small_put(const char *path, const char *magic, const uint8_t *p, uint32_t n)
+static FRESULT sdm_small_put_id(const char *path, const char *magic, const uint8_t *p, uint32_t n, uint64_t id)
 {
     sdm_fh h;
     UINT k;
     FRESULT r = f_open(&sdm.f, path, FA_READ | FA_WRITE);
+    memset(&h, 0, sizeof h);
     memcpy(h.magic, magic, 4);
-    h.ver = 1;
+    h.ver = 2;
     h.len = (uint16_t)n;
     h.hash = sdm_hash(p, n);
+    h.id = id;
     if (r == FR_NO_FILE)
         r = sda_create(&sdm.f, path, SDA_EXACT, sizeof h + n, 0);
     if (r != FR_OK)
@@ -924,22 +1028,63 @@ static FRESULT sdm_small_put(const char *path, const char *magic, const uint8_t 
     r = f_write(&sdm.f, &h, sizeof h, &k);
     if (r == FR_OK)
         r = f_write(&sdm.f, p, n, &k);
+    if (r == FR_OK)
+        r = f_truncate(&sdm.f);                      /* (saved over a longer one: its old tail gone) */
     if (f_close(&sdm.f) != FR_OK && r == FR_OK)
         r = FR_DISK_ERR;
     return r;
 }
-static uint32_t sdm_small_get(const char *path, const char *magic, uint8_t *p, uint32_t cap)   /* its payload's bytes, 0 none */
+static FRESULT sdm_small_put(const char *path, const char *magic, const uint8_t *p, uint32_t n)
+{
+    return sdm_small_put_id(path, magic, p, n, 0);
+}
+/* path's payload (magic's) into p: its bytes, 0 none; its id into *id (id 0: not wanted) */
+static uint32_t sdm_small_get_id(const char *path, const char *magic, uint8_t *p, uint32_t cap, uint64_t *id)
 {
     sdm_fh h;
     UINT k = 0;
     uint32_t n = 0;
     if (f_open(&sdm.f, path, FA_READ) != FR_OK)
         return 0;
-    if (f_read(&sdm.f, &h, sizeof h, &k) == FR_OK && k == sizeof h && !memcmp(h.magic, magic, 4) && h.ver == 1u &&
+    if (f_read(&sdm.f, &h, sizeof h, &k) == FR_OK && k == sizeof h && !memcmp(h.magic, magic, 4) && h.ver == 2u &&
         h.len <= cap && f_read(&sdm.f, p, h.len, &k) == FR_OK && k == h.len && sdm_hash(p, h.len) == h.hash)
         n = h.len;
     (void)f_close(&sdm.f);
+    if (id)
+        *id = n ? h.id : 0u;
     return n;
+}
+static uint32_t sdm_small_get(const char *path, const char *magic, uint8_t *p, uint32_t cap)   /* its payload's bytes, 0 none */
+{
+    return sdm_small_get_id(path, magic, p, cap, 0);
+}
+/* a new user id (sd_ids.h): the FM-1's flash ID's hash, the device record's count, the milliseconds */
+static uint64_t sdm_new_id(void)
+{
+    uint64_t dev = 0;
+    uint32_t c = (uint32_t)sdm_rec.ids[0] | (uint32_t)sdm_rec.ids[1] << 8;
+#ifdef DEVNAME_UID
+    if (dev_uid_ok)
+        dev = sdm_hash(dev_uid, sizeof dev_uid);
+#endif
+    c = (c + 1u) & 0xFFFFu;
+    sdm_rec.ids[0] = (uint8_t)c;
+    sdm_rec.ids[1] = (uint8_t)(c >> 8);
+    sdm_dirty = sdm_dirty ? sdm_dirty : 1u;          /* (the count kept: the device record written, quiet) */
+    return SDI_USER | (dev & 0x7FFFFFFF00000000ull) | (uint64_t)c << 16 | (fm1_ms & 0xFFFFu);
+}
+/* the id in path's header (a .ops / .opk), 0 none: the header alone read */
+static uint64_t sdm_small_id(const char *path)
+{
+    sdm_fh h;
+    UINT k = 0;
+    uint64_t id = 0;
+    if (f_open(&sdm.f, path, FA_READ) != FR_OK)
+        return 0;
+    if (f_read(&sdm.f, &h, sizeof h, &k) == FR_OK && k == sizeof h && h.ver == 2u)
+        id = h.id;
+    (void)f_close(&sdm.f);
+    return id;
 }
 
 
@@ -1092,7 +1237,7 @@ static void sdm_factory_poll(void)
 /* a kit file's lanes' card samples (the user, 2026-10-26: kits on the card carry them): after the kit's UK_CARD_N bytes,
  * "LCRD" and DRUM_LANES x (hash 8, size 4); a kit of before (none): its lanes as they are */
 #define SDM_KL_N (4u + DRUM_LANES * 12u)
-_Static_assert(UK_CARD_N + SDM_KL_N <= 496u, "sd_mode.c: a kit with its lanes' samples in one sector");
+_Static_assert(UK_CARD_N + SDM_KL_N <= 512u - SDM_FH_N, "sd_mode.c: a kit with its lanes' samples in one sector");
 static uint32_t sdm_kit_lanes_out(uint8_t *b, uint32_t n)
 {
     uint32_t l;
@@ -1348,25 +1493,29 @@ static void sdm_do(uint32_t op, uint32_t k)
             sdm_load_name(sdm_proj_rel(sdm.path));
         return;
     } else if (sdm.list == SDC_PRE) {
-        n = sdm_small_get(sdm.path, "OPPR", sd_blk, sizeof sd_blk);
+        uint64_t id = 0;
+        n = sdm_small_get_id(sdm.path, "OPPR", sd_blk, sizeof sd_blk, &id);
         if (is_drum(TSEL))
             ui_message("DRUM TRACK: NO SOUND");
         else if (!n || up_card_give(sd_blk, n) < 0)
             ui_message("NOT A PRESET");
         else {                                       /* (refused: up_load said why) */
             sdm_named(song.sel, nm);
+            sdm_ref_set(song.sel, sdm.path, id);     /* (the part's preset: found again by its id) */
             snd_mark(song.sel);
             ui_say("LOADED ", sdm_disp(nm));
         }
         return;
     } else if (sdm.list == SDC_KIT) {
-        n = sdm_small_get(sdm.path, "OPKT", sd_blk, sizeof sd_blk);
+        uint64_t id = 0;
+        n = sdm_small_get_id(sdm.path, "OPKT", sd_blk, sizeof sd_blk, &id);
 #if FELUCCA_SD_LANES
         n = sdm_kit_lanes_in(sd_blk, n);             /* (its lanes' card samples into the project's: the kit's own n) */
 #endif
         if (!n || ukit_card_give(sd_blk, n))
             ui_message("NOT A KIT");
         else {
+            sdm_ref_set(NPART, sdm.path, id);        /* (the project's kit: found again by its id) */
             snd_mark(TRK_DRUM);
             ui_say("LOADED ", sdm_disp(nm));
         }
@@ -1442,6 +1591,7 @@ static void sdm_do(uint32_t op, uint32_t k)
 static int sdm_save(uint32_t list, const char *name, const char *was)
 {
     uint32_t n, dn = 0, same_kit = 0;
+    uint64_t id = 0;
     FRESULT r;
     if (!sdm_ready()) {
         ui_message("NO SD CARD");
@@ -1482,17 +1632,28 @@ static int sdm_save(uint32_t list, const char *name, const char *was)
             m = m < sizeof sdm.path ? sdl_cat(sdm.path, m, sizeof sdm.path, list == SDC_PRE ? ".ops" : ".opk") : m;
             r = m < sizeof sdm.path ? FR_OK : FR_INVALID_NAME;
             same_kit = list == SDC_KIT && same ? nn : 0u;
+            if (same && dn < sizeof sdm.path) {      /* saved over its own name: its id kept (the old file's) */
+                sdm.path[dn] = 0;
+                id = sdm_same_id(sdm.path, nn, list == SDC_PRE ? ".ops" : ".opk");
+                sdm.path[dn] = '/';
+            }
+            if (!id)
+                id = sdm_new_id();                   /* (a new one: "save as" another name) */
         }
 #if FELUCCA_SD_LANES
         if (list == SDC_KIT && n)                    /* (the lanes' card samples after the kit: hash and size each) */
             n = sdm_kit_lanes_out(sd_blk, n);
 #endif
         if (r == FR_OK)
-            r = n ? sdm_was(sdm_small_put(sdm.path, list == SDC_PRE ? "OPPR" : "OPKT", sd_blk, n)) : FR_INT_ERR;
+            r = n ? sdm_was(sdm_small_put_id(sdm.path, list == SDC_PRE ? "OPPR" : "OPKT", sd_blk, n, id)) : FR_INT_ERR;
         if (r == FR_OK && same_kit && dn < sizeof sdm.path) {                /* (saved over its name: an old file of other instruments goes) */
             sdm.path[dn] = 0;
             sdm_kit_drop_old(sdm.path, same_kit, sdm.path + dn + 1u);
             sdm.path[dn] = '/';
+        }
+        if (r == FR_OK) {
+            (void)sdx_note_written(sdm.path, sd_blk, sizeof sd_blk);   /* (indexed now: found by its id at once) */
+            sdm_ref_set(list == SDC_PRE ? song.sel : NPART, sdm.path, id);
         }
         ui.toast_next = 1;
         ui_message(r == FR_OK ? "SAVED TO CARD" : r == FR_DENIED ? "CARD FULL" : "CARD SAVE FAILED");

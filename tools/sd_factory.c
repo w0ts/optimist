@@ -3,8 +3,8 @@
  * card zip: tools/sd_zip.py; docs/SD-CARD-DESIGN.md 9). Built on the host from the firmware's own sources (one source
  * of truth): each built engine's each preset is applied to a part as the device applies it (model.c apply_preset_to;
  * FM6 its voice loaded, fm6_sync), then taken as the card's preset record (upreset.c up_card_take: the record, an FM6
- * sound's voice after it) and written as the card's preset file (sd_mode.c sdm_small_put's format: "OPPR", version 1,
- * the payload's length, its XXH64, the payload) to
+ * sound's voice after it) and written as the card's preset file (sd_mode.c sdm_small_put's format: "OPPR", version 2,
+ * the payload's length, its XXH64, the sound's factory id: storage/sd/sd_ids.h, the payload) to
  *   <out>/Optimist/Presets/Factory/<Engine>/<L>/<nn> - <name>.ops   the engine's presets in its table's order, 16 a bank:
  *                                                                preset p in bank A + p / 16, numbered p % 16 + 1,
  *                                                                <Engine> sd_names.h's, <name> the preset's, lowercase
@@ -43,23 +43,27 @@ static uint8_t uk_tmp[4096] __attribute__((aligned(4)));   /* (drum_kits.c's ban
 #include "../firmware/src/storage/sd/fatfs/ff.h"         /* (sd_hash.c's WAV reader names FatFs; unused here) */
 #include "../firmware/src/storage/sd/sd_hash.c"
 #include "../firmware/src/storage/sd/sd_names.h"        /* the engines' folders: the firmware's own names */
+#include "../firmware/src/storage/sd/sd_ids.h"          /* the factory ids: a pure function of the sound */
 #include <ctype.h>
 
 typedef struct {                                 /* sd_mode.c sdm_fh */
     char magic[4];
     uint16_t ver, len;
     uint64_t hash;
+    uint64_t id;
 } card_fh;
 
-static int put(const char *path, const char *magic, const uint8_t *p, uint32_t n)
+static int put(const char *path, const char *magic, const uint8_t *p, uint32_t n, uint64_t id)
 {
     card_fh h;
     sdh_t s;
     FILE *f = fopen(path, "wb");
     if (!f)
         return -1;
+    memset(&h, 0, sizeof h);
     memcpy(h.magic, magic, 4);
-    h.ver = 1;
+    h.ver = 2;
+    h.id = id;
     h.len = (uint16_t)n;
     sdh_init(&s);
     sdh_add(&s, p, n);
@@ -138,8 +142,10 @@ static int kits(const char *out);
 int main(int argc, char **argv)
 {
     static uint8_t rec[sizeof(up_rec_t) + UP_CARD_FM6];
-    uint32_t e, pi, n, total = 0;
-    char dir[400], bank[440], path[512], nm[16], en[16];
+    static char seen[256][16];                   /* (the engine's names so far: a repeated name's occurrence) */
+    uint32_t e, pi, n, total = 0, nth, j;
+    uint64_t id;
+    char dir[400], bank[440], path[512], nm[16], en[16], rn[13];
     if (argc != 2) {
         fprintf(stderr, "usage: sd_factory OUT_DIR\n");
         return 2;
@@ -168,6 +174,13 @@ int main(int argc, char **argv)
                                                   * file carries the voice itself, up_card_take) */
 #endif
             n = up_card_take(rec, nm);
+            memcpy(rn, rec + 5, 12);                 /* (the name the file carries: upreset.c up_rec_t, 12 at most) */
+            rn[12] = 0;
+            for (j = 0, nth = 1; j < pi && j < 256u; j++)
+                nth += !strcmp(seen[j], rn);
+            if (pi < 256u)
+                str_cpy(seen[pi], rn, sizeof seen[pi]);
+            id = sdi_factory_preset(eng_uid(e), rn, nth);   /* (as the table has it, before the card's case) */
             if (!n) {
                 fprintf(stderr, "sd_factory: %s %u: not taken\n", E->name, pi);
                 return 1;
@@ -176,7 +189,7 @@ int main(int argc, char **argv)
             snprintf(bank, sizeof bank, "%s/%c", dir, (char)('A' + pi / 16u));   /* (banks of 16: B/03 is 18) */
             mkdirs(bank);
             snprintf(path, sizeof path, "%s/%02u - %s.ops", bank, pi % 16u + 1u, lower(nm));
-            if (put(path, "OPPR", rec, n)) {
+            if (put(path, "OPPR", rec, n, id)) {
                 fprintf(stderr, "sd_factory: %s: not written\n", path);
                 return 1;
             }
@@ -213,7 +226,7 @@ static int kits(const char *out)
         mkdirs(bank);
         ukit_card_instr(rec, ins, sizeof ins);       /* (its drum instruments: " (909, sampled)", drum_kits.c) */
         snprintf(path, sizeof path, "%s/%02u - %s%s.opk", bank, k % 16u + 1u, lower(nm), ins);
-        if (n != UK_CARD_N || put(path, "OPKT", rec, n)) {
+        if (n != UK_CARD_N || put(path, "OPKT", rec, n, sdi_factory_kit(k))) {
             fprintf(stderr, "sd_factory: %s: not written\n", path);
             return 1;
         }
