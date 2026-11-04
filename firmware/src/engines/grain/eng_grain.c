@@ -589,8 +589,8 @@ static const preset_t GRAIN_PRESETS[] = {
     {"GRAIN PAD", {SMP_FIRST_SET, 45, 95, 85, 0, 35, 12, 80}, {70, 90, 120, 90}, 0, 0, FX(0, 45, 20, 70)},
 #endif
     /* (issue #147, 2026-11-03: "as many presets as possible ... especially granular"; a build that left out PIANO, VIBES and
-     * FLUTE listed GRAIN's INIT alone: two on every other set, one on the kit, two on USR1 that every build lists (USR1 is
-     * what a build with no set plays). After the first ones and GRAIN PAD: their numbers, stored in projects, unchanged) */
+     * FLUTE listed GRAIN's INIT alone: two on every other set, one on the kit (a build with no set at all
+     * lists GRAIN's INIT: a USR slot's presets played silence on an FM-1 with no sample there, the regression's health check). After the first ones and GRAIN PAD: their numbers, stored in projects, unchanged) */
     {"PNO SWELL", {0, 60, 95, 75, 0, 15, 6, 90}, {100, 100, 127, 110}, 0, 0, FX(0, 30, 25, 80)},
     {"DRONE BASS", {1, 25, 110, 70, 0, 8, 0, 60}, {30, 100, 127, 50}, 0, 1, FX(0, 0, 0, 15)},
     {"SUB GRIT", {1, 15, 20, 115, 0, 20, 25, 55}, {0, 90, 110, 30}, 0, 1, FX(20, 0, 0, 0)},
@@ -603,8 +603,6 @@ static const preset_t GRAIN_PRESETS[] = {
     {"SCR SPRAY", {6, 50, 15, 60, 0, 127, 60, 100}, {0, 90, 100, 60}, 0, 0, FX(0, 0, 35, 40)},
     {"STUTTER", {6, 30, 45, 62, 0, 10, 0, 110}, {0, 100, 127, 40}, 0, 0, FX(0, 0, 40, 20)},
     {"KIT RAIN", {7, 8, 25, 100, 0, 30, 50, 100}, {0, 80, 90, 70}, 0, 0, FX(0, 0, 40, 60)},
-    {"USR CLOUD", {SMP_NSETS, 45, 95, 85, 0, 35, 12, 90}, {70, 90, 120, 90}, 0, 0, FX(0, 40, 20, 70)},
-    {"USR FREEZE", {SMP_NSETS, 50, 120, 95, 0, 0, 5, 100}, {90, 100, 127, 110}, 0, 0, FX(0, 30, 20, 80)},
 };
 
 static const engine_t ENG_GRAIN = {
