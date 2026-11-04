@@ -145,6 +145,6 @@ def after_toggle(before, after, key, room, costs=None):
     that unticked an item behind the user's back made BLE ON show more free flash than OFF). make_room stays for
     the headless --ble-drop, which names the item explicitly. MEMORY (the front) sets the items it fronts; any other
     change reads MEMORY back from them"""
-    if key in C.FRONTS:                                 # (MEMORY, SMP_SLOTS, PROJECTS: core.set_front)
+    if key in C.FRONTS:                                 # (MEMORY, SD_MODE, SMP_SLOTS, PROJECTS: core.set_front)
         return C.set_front(before, key, after[key]), NONE
     return C.sync_memory(after), NONE

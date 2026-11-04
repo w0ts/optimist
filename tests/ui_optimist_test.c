@@ -382,6 +382,9 @@ static uint32_t kit_tmp[4096 / 4];
 #include "../firmware/src/drums/drum_kits.c"
 #endif
 
+#if UI_SDCARD
+#include "ui_optimist_sdcard_env.h"                     /* SD card mode: the card model under the card's modules and sd_mode.c */
+#endif
 
 static const char *outdir;
 static void ppm(const char *name)
@@ -4307,6 +4310,9 @@ static void preset_engine_tests(void)
 #include "ui_optimist_risk.h"                       /* 2026-10-13: every risky action asks, HOME changes nothing */
 #include "ui_optimist_actcards.h"                    /* 2026-10-13: action cards: the verb, always asked; PROJECT's keys pick the slot */
 #include "ui_optimist_prjflow.h"                      /* 2026-10-14: PROJECT: BANK, OPERATION, ITEM, the keys run it */
+#if UI_SDCARD
+#include "ui_optimist_sdcard.h"                       /* SD card mode: the card's lists, banks of 16, saves by name */
+#endif
 #include "ui_optimist_algo.h"                       /* 2026-10-12: ALGORITHM's walk, a lane's PRESETS, the ARP picture */
 #include "ui_optimist_mute.h"                       /* 2026-10-12: the mixer's MUTE card */
 #include "ui_optimist_solo.h"                       /* 2026-10-16: no solo (the mixer, GLO, a project's lane solo) */
@@ -4493,6 +4499,35 @@ int main(int argc, char **argv)
         memcpy(&TDRUM->p[P_GRX], keep, sizeof keep);
         gr_out = GRO_DRUMS;
     }
+#endif
+#if UI_SDCARD                                           /* (SD card mode's build, run_tests.sh: its tests alone, on the FAT32 image) */
+    if (argc < 3) {
+        printf("usage: ui_optimist_sdcard_test OUTDIR FAT32.img\n");
+        return 2;
+    }
+    sdu_img = load(argv[2], &sdu_sectors);
+#if PRESETS_CARD                                        /* (the card presets' build: its tests alone; the others read the tables) */
+    sdu_factory_tests();
+    printf(fails ? "optimist ui test FAILED (%d)\n" : "optimist ui test passed\n", fails);
+    return fails != 0;
+#endif
+    sdcard_tests();
+#if FELUCCA_SD_REC
+    sdu_rec_tests();
+#endif
+#if FELUCCA_ENG_FM6
+    sdu_dx7_tests();
+#endif
+    sdu_settings_tests();
+#if FELUCCA_ENG_CZ
+    sdu_cz_tests();
+#endif
+#if FELUCCA_PATTERNS
+    sdu_unknown_tests();
+#endif
+    sdcard_cut_tests();
+    printf(fails ? "optimist ui test FAILED (%d)\n" : "optimist ui test passed\n", fails);
+    return fails != 0;
 #endif
 #if UI_FMEM                                              /* (the switchable features' build: their tests alone) */
     fmem_ui_tests();

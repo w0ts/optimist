@@ -288,40 +288,42 @@ web_api.init(costs, C.NEEDS_AUTO)
 check("arena: web_api.view carries it as arena_item (JSON: null for unknown)",
       json.loads(json.dumps(web_api.view({})["arena_item"])) == _ar)
 
-# ---- the memory management group (the user, 2026-10-28): first, MEMORY a front for LAYOUT (FAR_OK went 2026-10-29)
+# ---- the memory management group (the user, 2026-10-28): first, MEMORY a front for LAYOUT / SDCARD (FAR_OK went 2026-10-29)
 import room as RM  # noqa: E402
 
 check("groups: Memory management first, Connectivity (not USB & BT & MIDI) holds Wi-Fi and Link",
       R.GROUPS[0] == "Memory management" and "USB & BT & MIDI" not in R.GROUPS
       and R.ITEMS["WIFI_LINK"].group == R.ITEMS["WIFI_AP"].group == "Connectivity")
-check("groups: LAYOUT ARENA are in Memory management; SAMPLE SLOTS, PROJECTS first; the SD card items are retired",
-      all(R.ITEMS[k].group == "Memory management" for k in ("LAYOUT", "ARENA"))
-      and [i.key for i in R.top_level("Memory management")][:2] == ["SMP_SLOTS", "PROJECTS"]
-      and all(k in R.RETIRED and k not in R.ITEMS for k in ("SD_MODE", "SDCARD", "SD_RING", "SD_REC"))
+check("groups: LAYOUT SDCARD ARENA SD_RING SD_REC are in Memory management; SD CARD MODE, SAMPLE SLOTS, PROJECTS first",
+      all(R.ITEMS[k].group == "Memory management" for k in ("LAYOUT", "SDCARD", "ARENA", "SD_RING", "SD_REC"))
+      and [i.key for i in R.top_level("Memory management")][:3] == ["SD_MODE", "SMP_SLOTS", "PROJECTS"]
       and R.ITEMS["MEMORY"].hidden)
 check("RAM_PACKED: hidden, fixed on, nothing in the image",
       R.ITEMS["RAM_PACKED"].fixed and R.ITEMS["RAM_PACKED"].no_image and R.ITEMS["RAM_PACKED"].group == "Memory management")
 _d = K.defaults()
 check("MEMORY: the defaults read normal", _d["MEMORY"] == 0 == K.derive_memory(_d))
-_red = K.parse("LAYOUT=1\n")[0]
-check("MEMORY: an old config with LAYOUT=1 reads reduced user flash; the retired SD card lines (SDCARD, SD_MODE, SD_RING, SD_REC) "
-      "load, are ignored and change nothing",
-      _red["MEMORY"] == 1 and K.parse("LAYOUT=1\nSDCARD=1\nSD_RING=4\nSD_REC=16\n", warn=lambda m: None)[0] == _red
-      and K.parse("SD_MODE=1\n", warn=lambda m: None)[0] == K.defaults() | {"MEMORY": 0, "SMP_SLOTS": 3, "PROJECTS": 16})
-check("MEMORY: an old FAR_OK=0 or 1 is ignored (warned, not stored)",
-      "FAR_OK" not in K.parse("LAYOUT=1\nFAR_OK=1\n", warn=lambda m: None)[0])
-_p = RM.after_toggle(_d, dict(_d, MEMORY=1), "MEMORY", RM.NONE)[0]
-check("MEMORY: picking more flash sets LAYOUT 1; the old SD card pick (MEMORY=2) reads as it",
-      (_p["LAYOUT"], _p["MEMORY"]) == (1, 1) and K.parse("MEMORY=2\n")[0]["LAYOUT"] == 1)
+_red, _sd = K.parse("LAYOUT=1\n")[0], K.parse("LAYOUT=1\nSDCARD=1\n")[0]
+check("MEMORY: an old config with LAYOUT=1 and no card reads reduced user flash; with SDCARD, SD card mode",
+      _red["MEMORY"] == 1 and _sd["MEMORY"] == 2)
+check("MEMORY: an old FAR_OK=0 or 1 is ignored (warned, not stored); the card on the normal layout reads normal",
+      K.parse("LAYOUT=1\nSDCARD=1\nFAR_OK=0\n")[0]["MEMORY"] == 2 and "FAR_OK" not in K.parse("LAYOUT=1\nFAR_OK=1\n")[0] and K.parse("SDCARD=1\n")[0]["MEMORY"] == 0)
+_p = RM.after_toggle(_d, dict(_d, MEMORY=2), "MEMORY", RM.NONE)[0]
+check("MEMORY: picking SD card mode sets LAYOUT 1, SDCARD 1",
+      (_p["LAYOUT"], _p["SDCARD"], _p["MEMORY"]) == (1, 1, 2))
+_q = RM.after_toggle(_p, dict(_p, MEMORY=1), "MEMORY", RM.NONE)[0]
+check("MEMORY: reduced user flash from SD card mode: the card and its streams off, LAYOUT 1 kept",
+      (_q["LAYOUT"], _q["SDCARD"], _q["SD_RING"], _q["SD_REC"], _q["MEMORY"]) == (1, 0, 0, 0, 1))
 _n = RM.after_toggle(_p, dict(_p, MEMORY=0), "MEMORY", RM.NONE)[0]
-check("MEMORY: normal from more flash is the default memory layout again",
-      _n["LAYOUT"] == _d["LAYOUT"] and _n["MEMORY"] == 0)
+check("MEMORY: normal from SD card mode is the default memory layout again",
+      all(_n[k] == _d[k] for k in ("LAYOUT", "SDCARD", "SD_RING", "SD_REC")) and _n["MEMORY"] == 0)
 check("MEMORY: setting LAYOUT by hand reads back through the toggle",
       RM.after_toggle(_d, dict(_d, LAYOUT=1), "LAYOUT", RM.NONE)[0]["MEMORY"] == 1)
+check("MEMORY: --set MEMORY=2 and a .config line MEMORY=2 do what the pick does",
+      K.parse("MEMORY=2\n")[0]["SDCARD"] == 1)
 # ---- the MEMORY steps (docs/SD-MODE-DESIGN.md 9): no user samples, S0 (LAYOUT 3)
 _s0 = RM.after_toggle(_p, dict(_p, MEMORY=4), "MEMORY", RM.NONE)[0]
-check("MEMORY: no user samples from more flash: LAYOUT 3",
-      (_s0["LAYOUT"], _s0["MEMORY"]) == (3, 4))
+check("MEMORY: no user samples from SD card mode: LAYOUT 3, the card and its streams off",
+      (_s0["LAYOUT"], _s0["SDCARD"], _s0["SD_RING"], _s0["SD_REC"], _s0["MEMORY"]) == (3, 0, 0, 0, 4))
 check("MEMORY: LAYOUT=3 by hand (an old-style .config) reads no user samples; MEMORY=4 sets it; written it reads back",
       K.parse("LAYOUT=3\n")[0]["MEMORY"] == 4 and K.parse("MEMORY=4\n")[0]["LAYOUT"] == 3
       and K.parse(K.dump(_s0))[0] == _s0 and "LAYOUT=3" in K.dump(_s0))
@@ -350,32 +352,38 @@ except K.ConfigError:
 check("MEMORY 3 (the design's S1, one sample slot) is not offered: refused", _bad3)
 # ---- the three choices (the user, 2026-10-31; docs/SD-MODE-DESIGN.md 9.7)
 _pt = dict(_d, PATTERNS=1)
-_f = lambda c: tuple(c[k] for k in ("SMP_SLOTS", "PROJECTS"))   # noqa: E731
-check("fronts: the defaults (PATTERNS off) read 3 sample slots, 16 projects; with PATTERNS 2 slots",
-      _f(K.sync_memory(_d)) == (3, 16) and _f(K.sync_memory(_pt)) == (2, 16))
-check("fronts: an old LAYOUT=1 reads 0 slots, 2 projects", _f(_red) == (0, 2))
+_f = lambda c: tuple(c[k] for k in ("SD_MODE", "SMP_SLOTS", "PROJECTS"))   # noqa: E731
+check("fronts: the defaults (PATTERNS off) read SD off, 3 sample slots, 16 projects; with PATTERNS 2 slots",
+      _f(K.sync_memory(_d)) == (0, 3, 16) and _f(K.sync_memory(_pt)) == (0, 2, 16))
+check("fronts: an old LAYOUT=1 reads 0 slots, 2 projects; with SDCARD SD card mode (its projects greyed: dim_when)",
+      _f(_red) == (0, 0, 2) and _f(_sd) == (1, 0, 2)
+      and R.ITEMS["SMP_SLOTS"].dim_when == R.ITEMS["PROJECTS"].dim_when == "SD_MODE")
 check("SECTIONS with PATTERNS: 4 is greyed with a reason (dim_choice), only then; 8 and 16 stay; the 4 + PATTERNS error stays",
       K.dimmed_choices(_pt, "SECTIONS").keys() == {4} and "PATTERNS" in K.dimmed_choices(_pt, "SECTIONS")[4]
       and not K.dimmed_choices(_d, "SECTIONS") and not K.dimmed_choices(_pt, "SNAPSHOTS")
       and K.validate(dict(_pt, SECTIONS=4))[0] and not K.validate(dict(_pt, SECTIONS=8))[0])
 _a = RM.after_toggle(_pt, dict(_pt, SMP_SLOTS=0), "SMP_SLOTS", RM.NONE)[0]
-check("fronts: SAMPLE SLOTS 0 from normal keeps 16 projects: S0 (LAYOUT 3)", (_a["LAYOUT"], _f(_a)) == (3, (0, 16)))
+check("fronts: SAMPLE SLOTS 0 from normal keeps 16 projects: S0 (LAYOUT 3)", (_a["LAYOUT"], _f(_a)) == (3, (0, 0, 16)))
 _b = RM.after_toggle(_a, dict(_a, PROJECTS=2), "PROJECTS", RM.NONE)[0]
-check("fronts: then PROJECTS 2: L1 (LAYOUT 1)", (_b["LAYOUT"], _f(_b)) == (1, (0, 2)))
-_g = RM.after_toggle(_b, dict(_b, SMP_SLOTS=2), "SMP_SLOTS", RM.NONE)[0]
-check("fronts: SAMPLE SLOTS 2 from L1 keeps its 2 projects: LAYOUT 7",
-      (_g["LAYOUT"], _f(_g)) == (7, (2, 2)))
+check("fronts: then PROJECTS 2: L1 (LAYOUT 1), no card", (_b["LAYOUT"], _b["SDCARD"], _f(_b)) == (1, 0, (0, 0, 2)))
+_c = RM.after_toggle(_b, dict(_b, SD_MODE=1), "SD_MODE", RM.NONE)[0]
+_e = RM.after_toggle(_c, dict(_c, SD_MODE=0), "SD_MODE", RM.NONE)[0]
+check("fronts: SD CARD MODE on: LAYOUT 1 + SDCARD; off again: the card and its streams off, L1 kept",
+      (_c["LAYOUT"], _c["SDCARD"]) == (1, 1) and (_e["LAYOUT"], _e["SDCARD"], _e["SD_RING"], _e["SD_REC"]) == (1, 0, 0, 0))
+_g = RM.after_toggle(_c, dict(_c, SMP_SLOTS=2), "SMP_SLOTS", RM.NONE)[0]
+check("fronts: SAMPLE SLOTS 2 from SD card mode keeps its 2 projects: LAYOUT 7, the card off",
+      (_g["LAYOUT"], _g["SDCARD"], _f(_g)) == (7, 0, (0, 2, 2)))
 _h = RM.after_toggle(_pt, dict(_pt, SMP_SLOTS=3), "SMP_SLOTS", RM.NONE)[0]
 check("fronts: SAMPLE SLOTS 3 is normal with PATTERNS off; 2 again turns PATTERNS on",
       (_h["LAYOUT"], _h["PATTERNS"]) == (0, 0)
       and RM.after_toggle(_h, dict(_h, SMP_SLOTS=2), "SMP_SLOTS", RM.NONE)[0]["PATTERNS"] == 1)
-check("fronts: .config lines and --set SMP_SLOTS= / PROJECTS= do what the pick does; never dumped",
-      K.parse("PATTERNS=1\nSMP_SLOTS=0\nPROJECTS=2\n")[0]["LAYOUT"] == 1
-      and not any(k in K.dump(_b, full=True) for k in ("SMP_SLOTS=", "PROJECTS=")))
+check("fronts: .config lines and --set SMP_SLOTS= / PROJECTS= / SD_MODE= do what the pick does; never dumped",
+      K.parse("PATTERNS=1\nSMP_SLOTS=0\nPROJECTS=2\n")[0]["LAYOUT"] == 1 and K.parse("SD_MODE=1\n")[0]["SDCARD"] == 1
+      and not any(k in K.dump(_b, full=True) for k in ("SD_MODE=", "SMP_SLOTS=", "PROJECTS=")))
 _n16 = K.change_notice("PROJECTS", _a, _b)
-check("the backup warning on a change of layout: the projects, the code room; none for the same layout",
+check("the backup warning on a change of layout: the projects, the code room; none for the same layout (SD on / off)",
       "erases the projects in flash" in _n16 and "831,420 B for code" in _n16 and "Back up first: web editor > Backup" in _n16
-      and K.change_notice("PROJECTS", _b, _b) == "" and "USR2, USR3" in K.change_notice("SMP_SLOTS", _pt, _a))
+      and K.change_notice("SD_MODE", _b, _c) == "" and "USR2, USR3" in K.change_notice("SMP_SLOTS", _pt, _a))
 _w = [str(i) for i in K.validate(dict(_s0ok, LAYOUT=0))[1] if "SAMPLE SLOTS" in str(i)]
 check("normal (2 slots) without any user of them: no warning (normal is normal)", not _w)
 check("MEMORY: never written to a .config (the items it fronts are), and a written config reads back the same",
@@ -385,13 +393,23 @@ check("MEMORY: no image: the header and the hash are the same for a configuratio
 check("MEMORY: a .config written under the old group names still loads (legacy header kept)",
       K.parse("# USB & BT & MIDI\nUSB_CONSOLE=1\n")[0]["USB_CONSOLE"] == 1 and "USB & BT & MIDI" in R.LEGACY_GROUPS)
 
-# the sample sets: a set's tick is its flash (SKIP names an unticked one)
+# SD card mode's sample sets (the user, 2026-10-29: a ticked set never grows the flash; they go on the card)
 _sets = K.set_keys()
+_sd = K.set_memory(dict(K.defaults(), SD_RING=4, ENG_SAMPLE=1, ARENA=96), 2)
+_on, _off = dict(_sd, **{k: 1 for k in _sets}), dict(_sd, **{k: 0 for k in _sets})
+check("card sets: SD card mode builds no set, ticked or not (the generator's env: SAMPLES_CARD, no set skipped by "
+      "its tick), the same image either way",
+      K.card_sets(_on) and K.flags(_on)[1]["FELUCCA_SAMPLES_CARD"] == "1" and K.flags(_on) == K.flags(_off) and
+      not any(R.ITEMS[k].env in K.flags(_off)[1]["FELUCCA_SAMPLES_SKIP"].split(",") for k in _sets) and
+      K.distance(_on, _off) == 0)
+check("card sets: the estimate the same with every set ticked or none (0 B of flash each), the ticks the zip's sets",
+      K.additive(_on, costs)[0] == K.additive(_off, costs)[0] and
+      K.card_set_names(_on) == [R.ITEMS[k].env for k in _sets] and K.card_set_names(_off) == [])
 _cl = dict(K.defaults(), **{k: 0 for k in _sets})
-check("sets: a set's tick is its flash (SKIP names it), and no SD card set flag is passed to the generator",
-      "FELUCCA_SAMPLES_CARD" not in K.flags(K.defaults())[1] and
+check("card sets: outside SD card mode a set's tick is its flash, as before (SKIP names it, SAMPLES_CARD 0)",
+      not K.card_sets(K.defaults()) and K.flags(K.defaults())[1]["FELUCCA_SAMPLES_CARD"] == "0" and
       K.additive(_cl, costs)[0]["flash"] < K.additive(K.defaults(), costs)[0]["flash"] and
-      "PIANO" in K.flags(_cl)[1]["FELUCCA_SAMPLES_SKIP"].split(","))
+      "PIANO" in K.flags(_cl)[1]["FELUCCA_SAMPLES_SKIP"].split(",") and K.card_set_names(K.defaults()) == [])
 
 
 # PROJECTS: fewer projects leave more code room, in every SAMPLE SLOTS row, in the core and in the web data (the user,

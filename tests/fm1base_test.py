@@ -34,17 +34,17 @@ with tempfile.TemporaryDirectory(dir=ROOT / "build" if (ROOT / "build").is_dir()
     normal, sd = d / "normal.config", d / "sd.config"
     # (the reference profile may have any MEMORY step; SYS_TOP off: with it the build reads the app's ELF for TOP's table
     # (fm1base.py top_table), which the fake builds below do not make: a checkout with no earlier real build has none)
-    normal.write_text(C.dump(dict(cfg, LAYOUT=0, SYS_TOP=0), name))
-    sd_cfg = dict(cfg, LAYOUT=1)
+    normal.write_text(C.dump(dict(cfg, LAYOUT=0, SDCARD=0, SYS_TOP=0), name))
+    sd_cfg = dict(cfg, SDCARD=1, LAYOUT=1)
     sd.write_text(C.dump(sd_cfg, "sd"))
     check("release is the default flavour, classic() false", not C.classic())
     check("a normal layout builds on fm1-base's normal slot (no FM1B_APP_END)", fm1base.app_end(normal) is None)
-    check("more flash (LAYOUT 1) builds with FM1B_APP_END=0xCE000", fm1base.app_end(sd) == "0xCE000")
+    check("the SD card mode (LAYOUT 1) builds with FM1B_APP_END=0xCE000", fm1base.app_end(sd) == "0xCE000")
     import flash_layout as _FL
     _steps_ok = True
     for _k in (2, 3, 4, 5, 6, 7, 8):
         _p = d / f"layout{_k}.config"
-        _p.write_text(C.dump(dict(cfg, LAYOUT=_k), f"l{_k}"))
+        _p.write_text(C.dump(dict(cfg, LAYOUT=_k, SDCARD=0), f"l{_k}"))
         _steps_ok &= fm1base.app_end(_p) == f"0x{_FL.STEPS[_k].release_end:X}"
     check("every other MEMORY step (LAYOUT 2..8) builds with FM1B_APP_END = its end (flash_layout.py release_end)", _steps_ok)
     if fm1base.BUILD_PY.is_file():

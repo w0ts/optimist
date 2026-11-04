@@ -102,6 +102,9 @@ static int8_t prj_cur = -1;                             /* the project slot load
                                                          * opens on it, so that a SAVE asks for that slot (the user, 2026-10-21) */
 static uint8_t pj_op, pj_slot;                          /* 1 load, 2 save (the slot), 3 the card's project load
                                                          * (sd_mode.c sdm_load_later), 4 a new project in a free slot; 0 none */
+#if FELUCCA_SD_UI
+static void sdm_load_now(void);                        /* storage/sd/sd_mode.c */
+#endif
 static void pj_defer(uint32_t op, uint32_t slot)
 {
     pj_op = (uint8_t)op;
@@ -186,6 +189,10 @@ static void pj_tick(void)                               /* once a frame (lay_fra
         prj_load_go(pj_slot);
     else if (op == 4u)
         prj_new_here(pj_slot);
+#if FELUCCA_SD_UI
+    else if (op == 3u)
+        sdm_load_now();
+#endif
     else
         (void)prj_save_go(pj_slot);
     transport_req = 1;

@@ -42,18 +42,18 @@ items = R.ITEMS
 check("registry: unique stable bits, one level of options (two under a group's head: DRUMS)",
       len({it.bit for it in items.values()}) == len(items) and
       all(not it.parent or not items[it.parent].parent or items[items[it.parent].parent].head for it in items.values()))
-_om, _ = C.parse("# name: old\nLAYOUT=1\nSDCARD=1\nFAR_OK=0\nRAM_PACKED=1\nMISSING_WARN=0\n", warn=lambda m: None)
+_om, _ = C.parse("# name: old\nLAYOUT=1\nSDCARD=1\nFAR_OK=0\nRAM_PACKED=1\nMISSING_WARN=0\n")
 _od = C.dump(_om)
-check("memory menu: an old .config with LAYOUT RAM_PACKED, a retired SDCARD and FAR_OK=0 loads, MEMORY reads more flash, the dump names LAYOUT, not MEMORY, SDCARD or FAR_OK",
-      _om["MEMORY"] == 1 and (_om["LAYOUT"], _om["RAM_PACKED"]) == (1, 1) and "FAR_OK" not in _om and "SDCARD" not in _om
-      and "LAYOUT=1" in _od.splitlines() and "MEMORY" not in _od and "FAR_OK" not in _od and "SDCARD" not in _od)
-check("... the menu lists SAMPLE SLOTS, PROJECTS in the group's top level; MEMORY and the others are hidden but real items; the SD card items are retired (their bits never reused)",
-      [it.key for it in R.top_level("Memory management") if it.key in ("MEMORY", "SMP_SLOTS", "PROJECTS", "RAM_PACKED",
-                                                                        "LAYOUT")] == ["SMP_SLOTS", "PROJECTS"]
-      and R.ITEMS["MEMORY"].hidden
-      and all(R.ITEMS[k].hidden for k in ("RAM_PACKED", "LAYOUT")) and "FAR_OK" not in R.ITEMS and "FAR_OK" in R.RETIRED and R.ITEMS["RAM_PACKED"].bit == 437
-      and all(k in R.RETIRED and k not in R.ITEMS for k in ("SD_MODE", "SDCARD", "SD_RING", "SD_REC"))
-      and not {409, 415, 416, 445} & {it.bit for it in R.ITEMS.values()})
+check("memory menu: an old .config with LAYOUT SDCARD RAM_PACKED and a retired FAR_OK=0 loads, MEMORY reads SD card mode, the dump names the two, not MEMORY or FAR_OK",
+      _om["MEMORY"] == 2 and (_om["LAYOUT"], _om["SDCARD"], _om["RAM_PACKED"]) == (1, 1, 1) and "FAR_OK" not in _om
+      and all(f"{k}=1" in _od.splitlines() for k in ("LAYOUT", "SDCARD")) and "MEMORY" not in _od and "FAR_OK" not in _od)
+check("... the menu lists SD CARD MODE, SAMPLE SLOTS, PROJECTS in the group's top level, SD_RING / SD_REC under SD CARD MODE; "
+      "MEMORY and the others are hidden but real items",
+      [it.key for it in R.top_level("Memory management") if it.key in ("MEMORY", "SD_MODE", "SMP_SLOTS", "PROJECTS", "RAM_PACKED",
+                                                                        "SDCARD", "LAYOUT")] == ["SD_MODE", "SMP_SLOTS", "PROJECTS"]
+      and R.ITEMS["SD_MODE"].menu_children == ["SD_RING", "SD_REC"] and R.ITEMS["SDCARD"].menu_children == [] and R.ITEMS["MEMORY"].hidden
+      and all(R.ITEMS[k].hidden for k in ("RAM_PACKED", "SDCARD", "LAYOUT")) and "FAR_OK" not in R.ITEMS and "FAR_OK" in R.RETIRED and R.ITEMS["RAM_PACKED"].bit == 437
+      and R.ITEMS["SD_RING"].parent == "SDCARD" and R.ITEMS["SD_RING"].shown_under == "SD_MODE")
 check("backported items (SPRING, PUNCH_LATCH, UP_FM6, GRIDS_*) are in their parent's menu_children, like any option, in the children's order",
       all(k in R.ITEMS[R.ITEMS[k].parent].menu_children for k in ("SPRING", "PUNCH_LATCH", "UP_FM6", "GRIDS_EUCLID", "GRIDS_LFO", "GRIDS_VEL"))
       and [c for c in R.ITEMS["FX_REVERB"].children if c in R.ITEMS["FX_REVERB"].menu_children] == R.ITEMS["FX_REVERB"].menu_children)
@@ -1173,7 +1173,12 @@ _ar_wf = {n: b for n, b, c, _ in K.arena_fits(_ar_w)["rows"]}
 check("arena fits: WAVE's table, the X0X 808 state, a track's SLICER recording are rows",
       _ar_wf.get("WAVE's table") == K.WAVE_MEM and _ar_wf.get("the X0X 808's state") == K.X808_STATE
       and _ar_wf.get("a track's SLICER recording") == 2 * K.flags(_ar_w)[0]["FELUCCA_SL_LEN"])
-check("arena fits: no card row (the SD card's streams moved to the sdcard branch)", not any("card" in n for n in _ar_f))
+_ar_sd = dict(_ar_cfg, LAYOUT=1, SDCARD=1, SD_RING=4, ENG_SAMPLE=1, ENG_GRAIN=1, ENG_STRETCH=1)
+_ar_sf = {n: (b, c) for n, b, c, _ in K.arena_fits(_ar_sd)["rows"]}
+check("arena fits, SD card mode: GRAIN 33,280 B and STRETCH 16,640 B a part, the sample heads and the rings; none outside it",
+      _ar_sf["GRAIN's card cache"] == (33280, 3) and _ar_sf["STRETCH's card cache"] == (16640, 3)
+      and "a card sample's head" in _ar_sf and "a card stream's ring" in _ar_sf
+      and not any("card" in n for n in _ar_f))
 _ar_t = K.arena_text(_ar_cfg, _ar_b["total"])
 check("arena text: the size marked as an estimate, a row a line, a verdict, within 78 columns; nothing with ARENA off",
       _ar_t[0].startswith("arena ~") and "estimate" in _ar_t[0] and all(len(x) <= 78 for x in _ar_t)

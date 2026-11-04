@@ -42,6 +42,12 @@
 #define ST_IN_SH 8                       /* the source's headroom bits in the FFT */
 #define ST_OUT_SH 8                      /* the inverse FFT's output back to Q15 (tests/stretch_test.c: unity round trip) */
 _Static_assert(ST_HOP % CTL == 0 && ST_BLK > 8u, "a frame is whole blocks");
+#if FELUCCA_SD_STREAM
+#define ST_CARD 1
+#define ST_WAIT_BLK (ST_BLK / 4u)                /* a window's reading waits for its sectors this long (11.6 ms) */
+#else
+#define ST_CARD 0
+#endif
 
 static int32_t pst_a[2u * ST_M] IN_POOL;          /* the analysis: re, im (16 KB) */
 static int32_t pst_b[2u * ST_M + 2u] IN_POOL;     /* the voices' spectrum, bins 0..M (16 KB) */
@@ -73,6 +79,17 @@ typedef struct {
     uint8_t owner;                       /* part + 1, 0 = none */
     uint8_t phase, ready, zl, src;
     pst_voice_t sv[NVOICE];
+#if ST_CARD
+    uint8_t card, si;                    /* the zone is the card's (smp_cz of the owner), its source */
+    uint8_t dmode;                       /* this frame's window: 0 not yet, 1 its own, 2 the last one (frozen), 3 none */
+    uint8_t stall;                       /* the reading waits: this block's work stops */
+    uint8_t haslast;                     /* the last window read (pins 2, 3) */
+    uint8_t looked, waited;              /* this frame: its window pinned and looked at; its reading waited */
+    uint32_t wstart, lastpos;            /* the window's first frame; the last window's */
+    uint32_t cc[2], ce[2];               /* the window's two ranges: the next sector to look at, the last */
+    uint32_t rcg;                        /* the cache's placement its pins belong to */
+    sst_rw_t rw;                         /* the reader's window */
+#endif
 } pst_state_t;
 static pst_state_t pstx;
 
@@ -97,11 +114,19 @@ AINL uint32_t pst_part(const track_t *t) { return (uint32_t)(t - trk) % NPART; }
 /* (part: a card set's zones are the part's, eng_sample.c smp_cz) */
 AINL uint32_t pst_nz(uint32_t part, uint32_t src)
 {
+#if ST_CARD
+    if (smp_cz_on(src))
+        return smp_cz_sync(part);
+#endif
     (void)part;
     return src < SMP_NSETS ? SMP_SETS[src].nz : usr_nz[(src - SMP_NSETS) % SMP_USER_SLOTS];
 }
 AINL const smp_zone_t *pst_zone(uint32_t part, uint32_t src, uint32_t zl)
 {
+#if ST_CARD
+    if (smp_cz_on(src))
+        return &smp_cz[part % SST_NPART][zl % SST_BANK_Z];
+#endif
     (void)part;
     return src < SMP_NSETS ? &SMP_ZONES[SMP_SETS[src].z0 + zl] : smp_usr_zone((src - SMP_NSETS) % SMP_USER_SLOTS, zl & 15u);
 }
@@ -167,6 +192,164 @@ static uint32_t sp_dec(uint32_t budget, uint32_t adv)
     return done;
 }
 
+#if ST_CARD
+/* ---- SD card mode's sets: the window read from the owner part's cache (sd_stream_rc.h) ---- */
+static uint32_t pst_adv_q16(int32_t v);
+AINL sst_rc_t *pst_rc(void) { return &sst_rc[(pstx.owner - 1u) % SST_NPART]; }
+AINL const sst_src_t *pst_src(void) { return &sst_src[pstx.si % SST_NSRC]; }
+/* the window from frame pos: [a0, a1], then (wrapped into the loop, or the start) [b0, b1]; b1 < b0: none */
+static void pst_card_win(const smp_zone_t *z, uint32_t pos, uint32_t *r)
+{
+    uint32_t n = z->n, a1 = pos + ST_N - 1u < n ? pos + ST_N - 1u : n - 1u, rem = ST_N - (a1 - pos + 1u), l;
+    l = z->looped && z->ls < n ? z->ls : 0u;
+    r[0] = pos, r[1] = a1;
+    r[2] = l, r[3] = rem ? (l + rem - 1u < n ? l + rem - 1u : n - 1u) : 0u;
+    if (!rem)
+        r[2] = 1u;                                   /* (none) */
+}
+static void pst_card_pins(uint32_t k, const uint32_t *r)   /* pins k, k + 1: a window's ranges */
+{
+    sst_rc_t *c = pst_rc();
+    sst_rc_pin(c, k, pst_src(), pstx.si, r[0], r[1]);
+    if (r[3] >= r[2])
+        sst_rc_pin(c, k + 1u, pst_src(), pstx.si, r[2], r[3]);
+    else
+        sst_rc_unpin(c, k + 1u);
+}
+static void pst_card_want(uint32_t k, uint32_t pos, uint32_t due)   /* wants k, k + 1: the window from pos */
+{
+    sst_rc_t *c = pst_rc();
+    uint32_t r[4];
+    pst_card_win(pstx.z, pos, r);
+    sst_rc_want(c, k, pst_src(), pstx.si, r[0], r[1], due);
+    if (r[3] >= r[2])
+        sst_rc_want(c, k + 1u, pst_src(), pstx.si, r[2], r[3], due);
+    else
+        sst_rc_unwant(c, k + 1u);
+}
+static uint32_t pst_card_step(uint32_t pos, uint32_t k)   /* k frames on from pos, wrapped as the scan wraps */
+{
+    const smp_zone_t *z = pstx.z;
+    uint32_t i;
+    for (i = 0; i < 8u && k; i++) {
+        uint32_t d = z->n - pos < k ? z->n - pos : k;
+        pos += d, k -= d;
+        if (pos >= z->n)
+            pos = z->looped && z->ls < z->n ? z->ls : 0u;
+    }
+    return pos;
+}
+/* the next windows wanted: the next frame's (from the scan) by its start, the one after it a frame later */
+static void pst_card_ahead(const track_t *t)
+{
+    uint32_t now = pst_rc()->now, due = now + (ST_BLK - (pstx.blk < ST_BLK ? pstx.blk : ST_BLK)) * CTL;
+    pst_card_want(0, pstx.scan, due);
+    pst_card_want(2, pst_card_step(pstx.scan, pst_adv_q16(t->p[P_E2]) >> 16), due + ST_HOP);
+}
+
+/* the frame's window, at its reading's start: its own (there, pinned), else wait, else the last one or none */
+static int pst_card_decide(void)
+{
+    sst_rc_t *c = pst_rc();
+    const sst_src_t *s = pst_src();
+    uint32_t r[4], ok;
+    if (!pstx.looked) {                              /* (the first look: the ranges pinned, the cursors set) */
+        pstx.looked = 1;
+        pst_card_win(pstx.z, pstx.scan, r);
+        pst_card_pins(0, r);
+        pstx.cc[0] = sst_rc_sec(s, r[0]), pstx.ce[0] = sst_rc_esec(s, r[1]);
+        if (r[3] >= r[2])
+            pstx.cc[1] = sst_rc_sec(s, r[2]), pstx.ce[1] = sst_rc_esec(s, r[3]);
+        else
+            pstx.cc[1] = 1u, pstx.ce[1] = 0u;
+    }
+    ok = s->ready && sst_rc_scan(c, s, pstx.si, &pstx.cc[0], pstx.ce[0]) &&
+         (pstx.cc[1] > pstx.ce[1] || sst_rc_scan(c, s, pstx.si, &pstx.cc[1], pstx.ce[1]));
+    if (ok) {
+        if (pstx.waited)
+            c->late = c->late + 1u;                  /* (it waited) */
+        else
+            c->hit = c->hit + 1u;
+        pstx.dmode = 1;
+        pstx.wstart = pstx.scan;
+        return 1;
+    }
+    if (pstx.blk < ST_WAIT_BLK && sst_rc_live(c) && s->ready) {
+        pst_card_want(0, pstx.scan, c->now);         /* (now) */
+        pstx.stall = 1;
+        pstx.waited = 1;
+        return 0;
+    }
+    sst_rc_unpin(c, 0);
+    sst_rc_unpin(c, 1);
+    if (sst_rc_live(c) && s->ready)
+        c->miss = c->miss + 1u;
+    pstx.dmode = pstx.haslast && sst_rc_live(c) && s->ready ? 2u : 3u;   /* (the last window: pinned, there) */
+    return 1;
+}
+
+/* SP_DEC from the card: the skip as counted decodes (none made), the window from the cache */
+static uint32_t sp_dec_card(const track_t *t, uint32_t budget, uint32_t adv)
+{
+    const smp_zone_t *z = pstx.z;
+    sst_rc_t *c = pst_rc();
+    const sst_src_t *s = pst_src();
+    uint32_t done = 0, k;
+    int32_t x;
+    while (pstx.skip && done < budget) {             /* the scan to POS: as the flash's, a unit a sample */
+        k = budget - done < pstx.skip ? budget - done : pstx.skip;
+        k = k < z->n - pstx.scan ? k : z->n - pstx.scan;
+        pstx.scan += k, pstx.skip -= k, done += k;
+        pst_wrap(z, &pstx.scan, &pstx.pred, &pstx.idx);
+    }
+    if (pstx.skip)
+        return done;
+    if (!pstx.dmode && !pst_card_decide())
+        return done;
+    if (pstx.dp == 0)
+        pstx.dpos = pstx.dmode == 2u ? pstx.lastpos : pstx.scan;
+    while (pstx.dp < ST_N && done < budget) {
+        uint32_t i = pstx.dp;
+        if (i == adv && pstx.dmode == 1u)            /* the next frame's scan starts here (held when frozen) */
+            pstx.scan = pstx.dpos;
+        if (pstx.dmode == 3u || !sst_rc_frame(c, s, pstx.si, &pstx.rw, pstx.dpos, &x))
+            x = 0;
+        pstx.dpos++;
+        pst_wrap(z, &pstx.dpos, &pstx.dpred, &pstx.didx);
+        pst_a[i] = (int32_t)(((int64_t)(x << ST_IN_SH) * pst_win(i)) >> 15);
+        pstx.dp++, done++;
+    }
+    if (pstx.dp >= ST_N) {                           /* read: it is the last window now; the next ones wanted */
+        if (pstx.dmode == 1u) {
+            uint32_t r[4];
+            pst_card_win(z, pstx.wstart, r);
+            pst_card_pins(2, r);
+            sst_rc_unpin(c, 0);
+            sst_rc_unpin(c, 1);
+            pstx.lastpos = pstx.wstart;
+            pstx.haslast = 1;
+        }
+        pst_card_ahead(t);
+    }
+    return done;
+}
+
+/* the block (the owner's): the cache's clock, its placement followed (a new one or none: no last window) */
+static void pst_card_block(void)
+{
+    sst_rc_t *c = pst_rc();
+    c->now = c->now + CTL;
+    if (!sst_rc_live(c) || pstx.rcg != c->gen) {
+        pstx.haslast = 0;
+        if (sst_rc_live(c)) {
+            sst_rc_reset(c);
+            pstx.rcg = c->gen;
+            if (pstx.dmode == 1u)
+                pstx.dmode = 0, pstx.looked = 0;   /* (its pins gone: looked at again) */
+        }
+    }
+}
+#endif
 
 static uint32_t sp_brev(int32_t *x, uint32_t budget)
 {
@@ -390,6 +573,16 @@ static void pst_work(const track_t *t)
         uint32_t d = 0;
         switch (pstx.phase) {
         case SP_DEC:
+#if ST_CARD
+            if (pstx.card) {
+                d = sp_dec_card(t, budget, adv);
+                if (pstx.stall) {                     /* (its sectors not there yet: this block's work ends) */
+                    pstx.stall = 0;
+                    pstx.work += d;
+                    return;
+                }
+            } else
+#endif
             d = sp_dec(budget, adv);
             if (pstx.dp >= ST_N)
                 pstx.phase = SP_BREV_A, pstx.cur = 0, pstx.advq &= 0xFFFFu;
@@ -449,6 +642,9 @@ static void pst_frame(const track_t *t)
 {
     pstx.advq = (pstx.advq & 0xFFFFu) + pst_adv_q16(t->p[P_E2]);
     pstx.phase = SP_DEC, pstx.dp = 0, pstx.cur = 0, pstx.stage = 0, pstx.pass = 0, pstx.work = 0, pstx.blk = 0;
+#if ST_CARD
+    pstx.dmode = 0, pstx.looked = 0, pstx.waited = 0;
+#endif
     pstx.total = pst_units(t->p) + pstx.skip * U_DEC;
 }
 
@@ -466,6 +662,17 @@ static void pst_start(const track_t *t, uint32_t src, uint32_t zl)
     pstx.play = pst_buf[0], pstx.next = pst_buf[1], pstx.tail = pst_buf[2];
     pstx.ready = 0, pstx.pp = 0;
     pst_frame(t);
+#if ST_CARD
+    pstx.card = (uint8_t)smp_cz_on(src);
+    if (pstx.card) {                                  /* the first window wanted now; no last one */
+        pstx.si = (uint8_t)smp_cz_src(pst_part(t), zl);
+        pstx.haslast = 0;
+        pstx.rw.wn = 0;
+        sst_rc_reset(pst_rc());
+        pstx.rcg = pst_rc()->gen;
+        pst_card_want(0, pst_card_step(0, pstx.skip), pst_rc()->now);
+    }
+#endif
 }
 
 static void stretch_note_on(track_t *t, voice_t *v)
@@ -502,6 +709,10 @@ static void stretch_block(track_t *t)
         return;
     }
     pstx.beat++;
+#if ST_CARD
+    if (pstx.card && pstx.phase != SP_IDLE)
+        pst_card_block();
+#endif
     if (pstx.phase == SP_IDLE) {                        /* voices from before the ownership: their newest note's zone */
         uint32_t src = (uint32_t)t->p[P_E0] % SMP_NALL, best = 0, age = 0;
         int32_t zl;

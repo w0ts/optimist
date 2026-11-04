@@ -59,6 +59,9 @@ enum { OA_SCN_STORE, OA_SCN_CLR, OA_PAT_STORE, OA_PAT_CLR, OA_INIT, OA_EXTRAS, O
        OA_PAT_CLONE, OA_PAT_EMPTY,    /* (a new pattern: "CLONE T1 5?", HOME asks "EMPTY T1 5?"; op_layers.c pat_new_ask, issue 142) */
        OA_FMEM, OA_FMOFF,             /* (a switchable feature's room: its question, the idle ones offered; core/feat_mem.c) */
        OA_FXZ, OA_FXZI,               /* (FX MEMORY: smaller lines for a refused engine change, for an FX type with no room; op_fxmem.c) */
+#if FELUCCA_SD_STREAM
+       OA_SDDROP,                     /* (the card samples' memory short: a part dropped, storage/sd/sd_mode.c) */
+#endif
 };
 
 static struct {
