@@ -739,8 +739,9 @@ def auto_store(cfg):
     if not any(f.get(R.ITEMS[k].flag, 0) for k in AUTO_ITEMS):
         return {"ram": 0, "pool": 0}
     slots = 0 if f.get("FELUCCA_SECTIONS", 16) > 4 else 4           # (SEC_LOGGED: the sections live in the log)
-    if not slots and f.get("FELUCCA_UNDO_HISTORY", 1):
-        # STG_LEND (engines.c: the section log and the undo history, on the device): proj_tmp's and the autosave's stores
+    if not slots and f.get("FELUCCA_UNDO_HISTORY", 1) and cfg.get("ARENA", 0) > 0:
+        # STG_LEND (engines.c: the arena, the section log and the undo history, on the device; no arena: 0, the staging
+        # buffers stay in the pool, as the defaults measure CHANCE: pool +8,128 B): proj_tmp's and the autosave's stores
         # and the extras record's read buffer are in the STORAGE reserve (auto_proj.c AUTO_AUX_N, stepx_log.c), not the
         # pool (2026-11-04: the classic BLE probe at 76bfe3a1, CHANCE on, measured pool +3,132 B with ED_LIVE's and
         # CHANCE's deltas taken off; this model said +7,740)
