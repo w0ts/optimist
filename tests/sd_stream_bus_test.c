@@ -12,6 +12,12 @@
  *   - over the bus (8 voices at 733 KB/s): every underrun counted (sst_dry: the voices that ran dry, each faded out by
  *     its engine, eng_sample.c), never garbage, the streams given back; then RECOVERED: as many voices as that bus
  *     carries play to their end, none dry, and the next 8 again drop and count, never a hang.
+ *   - the pages on fm-1base's main loop at 840 KB/s (8.57 MHz; fm1b_loop, ui/opt_sd.h and device/main_fm1.c as they are: a frame
+ *     every 16 ms, passes between only when it took less): the strips and bytes as the host simulator counted them on
+ *     profile sd-card-mots (FM1B_SD_TIME=1, "sdstat"): SYSTEM > INFO before (its percent moves each frame: 8 strips, 113,760 B,
+ *     every frame, one run a frame), SD CARD's page 2 before (13 blocks and commands a frame in the draw, one sample in the
+ *     plan), then each now (INFO: at most 4 times a second, the changed lines' rows, 195,906 B in 27 strips in 2 s; reads
+ *     between the strips, the rings filled after a frame).
  *   sd_stream_bus_test FAT32.img */
 #define FELUCCA_SD_FATFS 1
 #define FELUCCA_SD_RING_KB 4
@@ -126,9 +132,52 @@ static void wait_ticks(uint32_t n)
     }
 }
 
+/* a page on fm-1base's loop */
+typedef struct {
+    const char *name;
+    uint32_t strips, strip_b, every_ms;              /* a paint's strips and bytes each, its period (0: every frame) */
+    uint32_t draw_blocks;                            /* the card's blocks read in the draw, a frame (each a command too) */
+    uint8_t hook, fill;                              /* sst_strip between strips; the rings filled after a frame */
+} page_t;
+#define STRIP_CPU_US 1000u                           /* (assumed, not measured) a strip's canvas and text, XIP code */
+#define STRIP_US(b) ((b) * 18u / 100u)               /* (an LCD byte: 0.18 us, 44 MHz effective) */
+#define DRAW_BLOCK_US 1010u                          /* 610 + a command's 400 (the host's model) */
+static const page_t *page;
+
+static void fm1b_loop(const page_t *P, uint32_t ms)
+{
+    uint32_t end = clk + ms * tick_ms, next = clk, t0, t1, s, k;
+    while (clk < end) {
+        t0 = clk;
+        wait_ticks(P->draw_blocks * DRAW_BLOCK_US * tick_ms / 1000u);
+        if (P->strips && (int32_t)(clk - next) >= 0) {
+            next = t0 + P->every_ms * tick_ms;
+            for (s = 0; s < P->strips; s++) {
+                if (P->hook)
+                    (void)sst_strip();
+                wait_ticks((STRIP_CPU_US + STRIP_US(P->strip_b)) * tick_ms / 1000u);
+            }
+        }
+        t1 = clk;
+        if (P->fill) {
+            for (k = 0; k < 16u && sst_service() && clk - t1 < 12u * tick_ms; k++)
+                ;
+        } else {
+            (void)sst_service();
+        }
+        while (clk - t0 < 16u * tick_ms && clk < end)
+            if (!sst_service())
+                wait_ticks(tick_ms / 10u);
+    }
+}
+
 static void main_loop(uint32_t ms)
 {
     uint32_t end = clk + ms * tick_ms, t0, s;
+    if (page) {
+        fm1b_loop(page, ms);
+        return;
+    }
     while (clk < end) {
         t0 = clk;
         for (s = 0; s < 4u; s++) {
@@ -174,9 +223,34 @@ static res_t play(uint32_t n, double pitch, uint32_t ms)
     return r;
 }
 
+static uint32_t page_fit(const page_t *P)            /* the most voices at 44.1 kHz mono with none dry, printing the table */
+{
+    uint32_t n, fit = 0;
+    res_t r;
+    page = P;
+    printf("  %-24s", P->name);
+    for (n = 1; n <= NV; n++) {
+        r = play(n, 1.0, 2500);
+        CHECK(r.bad == 0 && (long)sst_dry == r.dried, "%s, %u voices: garbage %ld, dry %ld counted %u", P->name, n, r.bad,
+              r.dried, sst_dry);
+        if (!r.dried && fit == n - 1u)
+            fit = n;
+        printf(" %ld", r.dried);
+    }
+    printf("   %u none dry\n", fit);
+    page = 0;
+    return fit;
+}
+
 int main(int argc, char **argv)
 {
     static const uint32_t BUS[3] = {1900u, 937u, 733u};
+    static const page_t QUIET = {"a quiet page", 0, 0, 0, 0, 1, 1};
+    static const page_t INFO_OLD = {"INFO before", 8, 14220, 0, 0, 0, 0};
+    static const page_t P2_OLD = {"SD CARD page 2 before", 0, 0, 0, 13, 0, 0};
+    static const page_t INFO_LOOP = {"INFO, its paint as before", 8, 14220, 0, 0, 1, 1};
+    static const page_t INFO_NEW = {"INFO now", 6, 7256, 250, 0, 1, 1};
+    uint32_t fit_q, fit_i0, fit_il, fit_i, fit_p0;
     uint32_t sectors, i, n, b, used, at = 0, fit[3] = {0, 0, 0};
     char path[16];
     uint8_t *img;
@@ -245,6 +319,19 @@ int main(int argc, char **argv)
           "(%ld / %u), never garbage", r.dried, sst_dry);
     r = play(1, 1.0, 3200);
     CHECK(r.dried == 0 && r.ended == 1, "733 KB/s: then one voice to its end again (%ld dry)", r.dried);
+
+    /* the pages at 840 KB/s */
+    tick_ms = 840u;
+    printf("  840 KB/s, the voices that ran dry of 1 .. 8 at their pitch for 2.5 s, fm-1base's loop:\n");
+    fit_q = page_fit(&QUIET);
+    fit_i0 = page_fit(&INFO_OLD);
+    fit_p0 = page_fit(&P2_OLD);
+    fit_il = page_fit(&INFO_LOOP);
+    fit_i = page_fit(&INFO_NEW);
+    printf("  voices none dry at 840 KB/s: a quiet page %u; INFO %u before, %u now (%u with only the reads between strips); "
+           "SD CARD page 2 %u before, %u now (no card in its draw: a quiet page)\n", fit_q, fit_i0, fit_i, fit_il, fit_p0, fit_q);
+    CHECK(fit_i >= fit_q, "840 KB/s: INFO costs no voice against a quiet page (%u, %u)", fit_i, fit_q);
+    CHECK(fit_i > fit_i0, "840 KB/s: INFO carries more than before (%u, %u)", fit_i, fit_i0);
     clk_hook = 0;
     free(img);
     printf("sd_stream_bus_test: %d checks, %d failed\n", checks, fails);
