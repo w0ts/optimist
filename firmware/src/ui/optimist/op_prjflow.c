@@ -239,6 +239,20 @@ static void prj_cell(uint32_t r, uint32_t k, cell_t *c)
     }
 }
 
+/* ITEM on the flash lists (the user, 2026-11-04: "it should stop at the last item on the page if no next page, should skip empty ones, and go
+ * to the next page on the last item"): the next filled slot in that direction, the bank following it; none ahead: it stays (no wrap). SAVE
+ * needs the free slots: under it every slot is one */
+static void prj_item_step(uint32_t kind, int32_t d)
+{
+    const int32_t n = (int32_t)prj_slot_n(kind);
+    const int all = prj_op() == PO_SAVE;
+    int32_t t;
+    for (t = (int32_t)prj_slot_cur(kind) + d; t >= 0 && t < n; t += d)
+        if (all || prj_slot_used(kind, (uint32_t)t)) {
+            prj_slot_set(kind, (uint32_t)t);
+            return;
+        }
+}
 static void prj_turn(uint32_t r, uint32_t k, int32_t s, int fine)
 {
     uint32_t kind = prj_kind(r), cur;
@@ -283,7 +297,7 @@ static void prj_turn(uint32_t r, uint32_t k, int32_t s, int fine)
         return;
     }
     if (k == 2u)                                        /* ITEM: across the banks, the bank follows */
-        prj_slot_set(kind, (uint32_t)step_in(cur, d, prj_slot_n(kind)));
+        prj_item_step(kind, d);
 }
 
 /* ask to run operation op on slot s of the cursor row's store: the confirm (SAVE yes, HOME no), or, with nothing to load

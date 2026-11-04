@@ -58,9 +58,14 @@ static struct {                                      /* ... and that pass's page
 
 static int sdb_ci(uint8_t c) { return c >= 'A' && c <= 'Z' ? c + 32 : c; }
 
+static uint32_t sdb_bank_no(const char *s);
 static int sdb_cmp(uint32_t view, const sdb_item *a, const sdb_item *b)
 {
     const uint8_t *p = (const uint8_t *)a->name, *q = (const uint8_t *)b->name;
+    if (view == SDB_BYNAME) {                        /* (by name: a bank's "NN - " is the slot, not the name) */
+        p += sdb_bank_no(a->name) ? 5 : 0;
+        q += sdb_bank_no(b->name) ? 5 : 0;
+    }
     if (view == SDB_RECENT) {
         if (a->used != b->used)
             return a->used > b->used ? -1 : 1;
@@ -96,6 +101,8 @@ static const char *sdb_base(const char *path)       /* a path's last part */
             s = path + 1;
     return s;
 }
+
+static char sdb_flt[32];                            /* BYNAME: "/<folder>/" a file's path must hold ("" none; sd_mode.c sdm_name_filter) */
 
 static FRESULT sdb_src_open(const sdb_t *b)
 {
@@ -144,9 +151,13 @@ static int sdb_src_next(const sdb_t *b, sdb_item *it, FRESULT *r)
             return 1;
         }
         if (b->view == SDB_BYNAME) {
-            if ((st = sdw_next(&sdb_src.walk)) <= 0) {
-                *r = sdb_src.walk.err;
-                return st;
+            for (;;) {                                  /* (a filter: only the files under a folder of that name, "/Digital/") */
+                if ((st = sdw_next(&sdb_src.walk)) <= 0) {
+                    *r = sdb_src.walk.err;
+                    return st;
+                }
+                if (!sdb_flt[0] || sdl_has(sdb_src.walk.path, sdb_flt))
+                    break;
             }
             sdb_name(it, sdb_src.walk.fi.fname);
             return 1;

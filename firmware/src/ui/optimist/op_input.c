@@ -1286,6 +1286,20 @@ static void save_clear_tick(uint32_t held)
     scene_clear_ask(a);
     op_arm_hold();                                      /* (SAVE is held: the ring) */
 }
+/* HOME held alone on PROJECT (any page, any depth of a card's list) past the hold time: the mixer at once, on the hold, not on the release
+ * (the user, 2026-11-04: "in project pages, long home should go to home"). A question is cancelled first, a preset on trial and a sample's
+ * preview end with the page (op_sdcard.c sdc_frame). Another button pressed meanwhile took HOME's bit from op_clean (that is a combo, not a
+ * long press), so the release is no tap and no second HOME follows */
+static void home_hold_tick(uint32_t held)
+{
+    uint32_t hb = 1u << panel.btn[B_HOME];
+    if (ui.scr != SCR_PROJECT || held != hb || !(op_clean & hb) || fm1_ms - op_t0[panel.btn[B_HOME] % 14u] < op_hold_ms())
+        return;
+    op_clean &= ~hb;                                    /* (the release is no tap: no second HOME) */
+    if (op_armed())
+        op_disarm();                                    /* (the question cancelled first, as HOME) */
+    home_in();
+}
 #include "../../system/hpjack.h"                      /* the headphone jack (PB5), debounced: hp_poll */
 static void ui_input(void)
 {
@@ -1358,6 +1372,7 @@ static void ui_input(void)
                    !(held & (1u << panel.btn[B_OCTUP])));   /* (the drum keys only pick the lane while it plays) */
     seq_step_rec_black(step_drum_rec());                /* (STEP, the drum track, REC on: the black keys play and record) */
     save_clear_tick(held);                              /* SAVE held on a scene row: its clear, the ring */
+    home_hold_tick(held);                               /* HOME held on PROJECT: the mixer at once */
     arm_ring_tick();                                    /* a delete asked from a held key: the ring */
     wipe_frame(held);                                   /* SHIFT2 + REC: the wipe */
     rec_held(held);                                     /* REC held: the ring, the track cleared */

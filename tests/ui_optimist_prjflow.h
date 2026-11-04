@@ -88,6 +88,7 @@ static void prjflow_tests(void)
     r = pf_row(PR_USER);
     ui.user_slot = 0;
     check(!strcmp(pf_label(r, 0), "BANK") && !strcmp(pf_val(r, 0), "1"), "USER: BANK 1 of 2");
+    turn(EN_K2, 1);                                     /* (SAVE: every slot, the free ones too) */
     turn(EN_K3, 1);
     check(ui.user_slot == 1u && !strcmp(pf_val(r, 2), "U02"), "ITEM knob: the next slot");
     ui.user_slot = 15;
@@ -96,6 +97,7 @@ static void prjflow_tests(void)
     for (r2 = 0; r2 < 20u; r2++)
         turn(EN_K3, 1);
     check(ui.user_slot == 31u, "... stops at the last slot");
+    turn(EN_K2, -1);
     ui.user_slot = 3;
     turn(EN_K1, 1);
     check(ui.user_slot == 19u && !strcmp(pf_val(r, 0), "2"), "BANK knob: the same place in bank 2");
@@ -322,11 +324,129 @@ static void prjflow_tests(void)
     ui.force = 1;
     frame();
     check(px_in(0, OY_PANEL_2X2, 240, 14, C_GRAY), "the panel: the bank's strip, used slots filled");
+    ppm("opt-prj-flash");
     /* the keys light the slots (the strip's twin) and the item stays in sync with them */
     r = pf_row(PR_USER);
     ui.user_slot = 20;
     pf_key(2);
     op_disarm();
     check(ui.user_slot == 18u, "bank 2: key 3 is U19, the item and the key LEDs follow the same bank");
+    reset_ui();
+}
+
+/* HOME held on PROJECT (the user, 2026-11-04: "in project pages, long home should go to home"): the mixer on the hold, not on the
+ * release; the tap, the question's NO and the chords as ever */
+static void hh_wait(uint32_t ms)                        /* frames until ms have passed since now */
+{
+    uint32_t t0 = fm1_ms;
+    while (fm1_ms - t0 < ms)
+        frame();
+}
+static void hh_hold(uint32_t ms)                        /* HOME down for ms, no release */
+{
+    press(B_HOME);
+    hh_wait(ms);
+}
+/* ITEM (K3 on the flash lists) skips the free slots, crosses the banks and stops at the ends, no wrap (the user, 2026-11-04); under SAVE the
+ * free slots stay reachable */
+static void prjitem_tests(void)
+{
+    uint32_t r = pf_row(PR_USER), u1, u2, i, n = prj_slot_n(PR_USER);
+    for (u1 = 0; u1 < n && !prj_slot_used(PR_USER, u1); u1++)
+        ;
+    for (u2 = u1 + 1u; u2 < n && !prj_slot_used(PR_USER, u2); u2++)
+        ;
+    if (u2 >= n)
+        return;                                         /* (this store has fewer than two filled slots) */
+    ui.user_slot = (uint8_t)u1;
+    turn(EN_K3, 1);
+    check(ui.user_slot == u2, "ITEM, LOAD: the next filled slot, the free ones between skipped");
+    for (i = 0; i < n; i++)
+        turn(EN_K3, 1);
+    check(prj_slot_used(PR_USER, ui.user_slot), "ITEM forward to the end: on a filled slot");
+    {
+        uint32_t last = ui.user_slot;
+        turn(EN_K3, 1);
+        check(ui.user_slot == last, "... at the last filled slot it stops, no wrap");
+    }
+    for (i = 0; i < n; i++)
+        turn(EN_K3, -1);
+    check(ui.user_slot == u1, "ITEM back to the start: the first filled slot");
+    turn(EN_K3, -1);
+    check(ui.user_slot == u1, "... it stops, no wrap");
+    turn(EN_K2, 1);
+    ui.user_slot = (uint8_t)u1;
+    turn(EN_K3, 1);
+    check(ui.user_slot == u1 + 1u, "ITEM, SAVE: the next slot, free or not");
+    ui.user_slot = (uint8_t)(n - 1u);
+    turn(EN_K3, 1);
+    check(ui.user_slot == n - 1u, "ITEM, SAVE: stops at the last slot");
+    (void)r;
+    reset_ui();
+}
+static void prjhold_tests(void)
+{
+    uint32_t i, r, kinds[] = {PR_PROJECT, PR_SNAP, PR_USER, PR_FXM};
+    for (i = 0; i < sizeof kinds / sizeof kinds[0]; i++) {
+        r = pf_row(kinds[i]);
+        if (r >= NPRJ)
+            continue;                                   /* (this build has no such row) */
+        hh_hold(250);
+        check(ui.scr == SCR_PROJECT && fm1_in.buttons & BT(B_HOME), "HOME held on PROJECT: not before the hold time");
+        hh_wait(200);
+        check(ui.scr == SCR_HOME, "HOME held on a PROJECT page: the mixer on the hold, the button still down");
+        release(B_HOME);
+        frames(2);
+        check(ui.scr == SCR_HOME, "... the release is no second HOME (no SCOPE)");
+        r = pf_row(kinds[i]);
+        tap(B_HOME);
+        check(ui.scr == SCR_HOME, "a short HOME on the page: the mixer, as ever");
+    }
+    r = pf_row(PR_PROJECT);
+    ui.hot = 2;
+    pf_key(1);
+    check(op_armed() || ui.toast_t, "PROJECT: a key asks (or says)");
+    if (op_armed()) {
+        tap(B_HOME);
+        check(!op_armed() && ui.scr == SCR_PROJECT, "a short HOME on a question: it is cancelled, the page stays");
+        pf_key(1);
+        hh_hold(500);
+        check(!op_armed() && ui.scr == SCR_HOME, "HOME held on a question: cancelled, and the mixer");
+        release(B_HOME);
+    }
+    reset_ui();
+    r = pf_row(PR_PROJECT);
+    press(B_HOME);
+    press(B_SAVE);                                      /* (HOME then SAVE: redo, a chord) */
+    hh_wait(500);
+    check(ui.scr == SCR_PROJECT, "HOME then SAVE held past the hold time: a chord, not HOME");
+    release(B_SAVE);
+    release(B_HOME);
+    frames(2);
+    reset_ui();
+    r = pf_row(PR_PROJECT);
+    press(B_SAVE);
+    press(B_HOME);                                      /* (SAVE then HOME: undo; HOME is not alone) */
+    hh_wait(500);
+    check(ui.scr == SCR_PROJECT, "SAVE then HOME held: a chord, not HOME");
+    release(B_HOME);
+    release(B_SAVE);
+    frames(2);
+    reset_ui();
+    r = pf_row(PR_PROJECT);
+    press(B_HOME);
+    pf_key(2);                                          /* (HOME + a key) */
+    hh_wait(500);
+    op_disarm();
+    check(ui.scr == SCR_PROJECT, "HOME + a key held past the hold time: not HOME");
+    release(B_HOME);
+    frames(2);
+    check(ui.scr == SCR_PROJECT, "... nor on the release");
+    reset_ui();
+    op_enter(SCR_SOUND);
+    hh_hold(500);
+    check(ui.scr == SCR_SOUND, "HOME held off PROJECT: nothing new (the release is the tap, as ever)");
+    release(B_HOME);
+    (void)r;
     reset_ui();
 }

@@ -4509,6 +4509,7 @@ int main(int argc, char **argv)
         return 2;
     }
     sdu_img = load(argv[2], &sdu_sectors);
+    sdu_default_views();                                /* (the defaults checked, PRESETS and KITS then on FOLDER for the banks' tests) */
 #if PRESETS_CARD                                        /* (the card presets' build: its tests alone; the others read the tables) */
     sdu_factory_tests();
     printf(fails ? "optimist ui test FAILED (%d)\n" : "optimist ui test passed\n", fails);
@@ -4532,6 +4533,7 @@ int main(int argc, char **argv)
     sdu_unknown_tests();
 #endif
     sdcard_cut_tests();
+    sdu_name_tests();                                   /* (last: it leaves PRESETS on the flat NAME list) */
     printf(fails ? "optimist ui test FAILED (%d)\n" : "optimist ui test passed\n", fails);
     return fails != 0;
 #endif
@@ -4684,6 +4686,8 @@ int main(int argc, char **argv)
     risk_edits_tests();
     actcards_tests();
     prjflow_tests();
+    prjhold_tests();
+    prjitem_tests();
     colours_tests();
 #if FELUCCA_AUTO
     step_auto_tests();
