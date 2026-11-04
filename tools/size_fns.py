@@ -95,7 +95,7 @@ SIZE_FILES += ["storage/sd/sdcard.c", "storage/sd/sd_mmc.c", "storage/sd/pff.c",
                "storage/sd/sd_diskio.c", "storage/sd/fatfs/ff.c", "storage/sd/fatfs/ffunicode.c",
                "storage/sd/sd_layout.c", "storage/sd/sd_hash.c", "storage/sd/sd_alloc.c", "storage/sd/sd_index.c",
                "storage/sd/sd_stream.c", "storage/sd/sd_stream_rc.c", "storage/sd/sd_slice.c", "storage/sd/sd_stream_plan.c",
-               "storage/sd/sd_browse.c", "storage/sd/sd_save.c", "storage/sd/sd_rec.c", "storage/sd/sd_mode.c"]
+               "storage/sd/sd_browse.c", "storage/sd/sd_save.c", "storage/sd/sd_rec.c", "storage/sd/sd_mode.c", "storage/sd/sd_mon.c", "storage/sd/sd_pvw.c", "ui/optimist/op_sdmon.c"]
 # Wi-Fi + Link (WIFI_LINK, WIFI_AP)
 SIZE_FILES += ["wifi/wifi_crypto.c", "wifi/wifi_sta.c", "wifi/wifi_ip.c", "wifi/wifi_link.c", "link/link.c",
                "wifi/wifi_conn.c", "wifi/wifi_nets.c", "wifi/wifi_saved.c", "wifi/wifi_ap.c", "wifi/wifi_ap_dhcp.c", "wifi/wifi_apd.c",

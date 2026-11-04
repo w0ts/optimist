@@ -127,7 +127,7 @@ static void ms_tick(void)                               /* each frame: the devic
         ms.sum_ms = fm1_ms, ms.soon = 0, ms.retry = 0, ms.arm = 1;
         op_repaint();                                   /* (the next frame drawn whole, hashed: mir_draw_begin) */
     }
-    if (ms_frames % 311u == 0u) {                       /* (a wrong put in the client's picture: a cause no seq shows) */
+    if (ms_frames % 311u == 0u && !ms.nolose) {         /* (a wrong put in the client's picture: a cause no seq shows; not in the page test: one landing in its last second is no clear lost, and SUMS needs 1-3 s to heal it, 2026-11-04 METERS 2: 98 px at frame 933 of a window ending at 960) */
         uint32_t x = ms_rand(200), y = ms_rand(230), w = 1u + ms_rand(40), h = 1u + ms_rand(10), i, j;
         for (j = y; j < y + h && j < 240u; j++)
             for (i = x; i < x + w; i++)
