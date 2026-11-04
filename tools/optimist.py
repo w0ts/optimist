@@ -237,9 +237,17 @@ def cmd_flash(a):
         if pkg is None:
             return 1
     try:
-        ports = which_fm1s(a, pkg)
-        if ports is None:
-            return 1
+        if a.port and a.port.lower() == "all":          # (--port all / make flash FM1=all: every FM-1 connected)
+            ports = flash.fm1_ports()
+            if not ports:
+                raise flash.FlashError("--port all: no FM-1 found over USB-MIDI (data cable? another app using it?)", 3)
+        else:
+            try:
+                return flash_one(a, pkg, a.port, several=True)
+            except flash.SeveralFM1 as e:               # (several FM-1s and no --port: asked which, on a terminal)
+                ports = which_fm1s(a, e.ports)
+                if ports is None:
+                    return 1
         if len(ports) == 1:
             return flash_one(a, pkg, ports[0])
         results = []                                    # (several, one after the other: each its own read and answer)
@@ -257,19 +265,10 @@ def cmd_flash(a):
         return e.code
 
 
-def which_fm1s(a, pkg):
-    """-> the ports to flash, in order: --port NAME (one), --port all (every FM-1 connected), the only FM-1 ([None]),
-    or, with several and a terminal, the answer (a number, or a: all of them, one after the other); None: cancelled"""
+def which_fm1s(a, ports):
+    """several FM-1s answered (flash.SeveralFM1's ports) -> the ports to flash, in order: a number one of them, a all of them one
+    after the other; None cancelled. With --yes or no terminal: not guessed (SeveralFM1 raised again, exit 9)"""
     import flash
-    if a.port and a.port.lower() != "all":
-        return [a.port]
-    ports = flash.fm1_ports()
-    if a.port:                                          # (--port all / make flash FM1=all)
-        if not ports:
-            raise flash.FlashError("--port all: no FM-1 found over USB-MIDI (data cable? another app using it?)", 3)
-        return ports
-    if len(ports) < 2:
-        return [None]                                   # (the only one: preflight finds it, or says none is there)
     if a.yes or not sys.stdin.isatty():
         raise flash.SeveralFM1(ports)
     for i, n in enumerate(ports, 1):
@@ -277,15 +276,16 @@ def which_fm1s(a, pkg):
     print(f"  a  all {len(ports)}, one after the other")
     ans = input(f"Several FM-1s are connected: which one? [1-{len(ports)}, a, Enter cancels] ").strip().lower()
     if ans == "a":
-        return ports
+        return list(ports)
     if not ans.isdigit() or not 1 <= int(ans) <= len(ports):
         print("flash cancelled; nothing was written")
         return None
     return [ports[int(ans) - 1]]
 
 
-def flash_one(a, pkg, port):
-    """one FM-1 (port None: the only one): its identity read, the settings question, the confirmation, the install"""
+def flash_one(a, pkg, port, several=False):
+    """one FM-1 (port None: the only one): its identity read, the settings question, the confirmation, the install.
+    several: an answer of several FM-1s is raised (flash.SeveralFM1) for the caller to ask which"""
     import flash
     try:
         plan = flash.preflight(pkg, port, install_mboot=a.install_mboot)
@@ -313,6 +313,11 @@ def flash_one(a, pkg, port):
                 return 1
         flash.ensure_mflasher(plan, lambda q: not a.yes and ask_yes(q))     # (--yes downloads nothing: setup does)
         return flash.install(plan, capture=False)[0]
+    except flash.SeveralFM1:
+        if several:
+            raise
+        print("flash: several FM-1s answered for one port", file=sys.stderr)
+        return 9
     except flash.FlashError as e:
         print(f"flash: {e}", file=sys.stderr)
         return e.code
