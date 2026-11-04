@@ -81,7 +81,7 @@ static union {
 #endif
 
 /* ---- project.c's firmware side, as the device has it */
-static struct { int force; uint8_t arm, arm_t; } ui;
+static struct { int force, redraw; uint8_t arm, arm_t; } ui;   /* (redraw: sections.c since LCD_DIRTY went, 26c6b7ac) */
 static uint8_t sync_reload, flash_ok = 1, song_dirty, quiet = 1;
 static uint16_t sec_dirty;
 static char last_msg[64];
