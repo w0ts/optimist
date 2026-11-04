@@ -5,6 +5,7 @@
  * is not in this test: its slots are the doubles above), then storage/sd/sd_mode.c itself. Included after the stores. */
 #define fails card_fails                                /* (the model's counters: this test counts its own) */
 #define checks card_checks
+#define SDM_READ_ONE 1                                  /* (the model's clock stands still in a pass: sdu_loading sees the slices) */
 #include "sd_card_model.h"
 #undef fails
 #undef checks

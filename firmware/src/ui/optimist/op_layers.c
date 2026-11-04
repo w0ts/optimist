@@ -94,10 +94,18 @@ static struct {
  * the user, 2026-10-12); the mixer's MASTER row is one meter and the returns, so it takes the big cards too (the user,
  * 2026-10-17: "Master mixer. 2*2 cards"); a layer's map over the mixer is the layer's screen, so it is 2x2 too */
 #if FELUCCA_SD_UI
-static int sdc_listing(void);                           /* op_sdcard.c: a card's list, four small cards over its page */
+static int sdc_listing(void);                           /* op_sdcard.c: a card's list, two big cards over its page */
 static int cards_2x2(void) { return (ui.scr != SCR_HOME || lay.shown != LY_PLAY || mx_row() <= MXR_MASTER) && !sdc_listing(); }   /* (the master screen: MASTER and the returns above it, 2026-10-30) */
 #else
 static int cards_2x2(void) { return ui.scr != SCR_HOME || lay.shown != LY_PLAY || mx_row() <= MXR_MASTER; }   /* (the master screen: MASTER and the returns) */
+#endif
+/* the cards 2x1: a card's list keeps the 1x4 band's height, its 16 names need the panel, and shows two big cards of the four
+ * (the user, 2026-11-05: "impossible to read at this level"): the pair of the knob last turned; every knob works whichever
+ * pair shows (op_draw.c card_paint) */
+#if FELUCCA_SD_UI
+#define cards_2x1() sdc_listing()
+#else
+#define cards_2x1() 0
 #endif
 /* the patterns screen (SONG's PATTERNS row; LFO held or locked): no 2x2 cards, its panel from the header down (the user,
  * 2026-11-01: "the top 2*2 cards are not very useful"); op_laydraw.c song_grid_draw */
