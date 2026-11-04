@@ -491,7 +491,7 @@ def check_configs(probes=False):
     out = {}
     for d in CHECK_DIRS:
         for p in sorted(d.glob("*.config")):
-            out[p.stem] = C.parse(p.read_text())[0]
+            out[p.stem] = C.classic_view(C.parse(p.read_text())[0])   # (the classic measurements: CLASSIC_TEST_OFF)
     if C.classic():                                     # (tools/: the BLE builds optimist.py test makes for Optimist's own emulator tests: the release has none)
         import optimist
         out.update(optimist.ble_test_configs())
