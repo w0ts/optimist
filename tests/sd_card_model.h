@@ -55,6 +55,11 @@ typedef struct {
     int bad_only;                              /* >0: step bad_only - 1 alone reads wrong (a resonance), the rest right */
     int die_from;                              /* steps faster than this: the card stops answering for good (as C.present 0) */
     int no_hs;                                 /* CMD6 answers, but the card stays at default speed */
+    int cmd6_crc_bad;                          /* CMD6's status with a wrong CRC16 */
+    int garbage_from;                          /* steps faster than this: every byte read back is noise (the black
+                                                * FM-1, 47524040); the card still hears the commands */
+    uint32_t noise;
+    long cmd6s, cmd6_switches;
     long flaky_n;
     int hs;                                    /* CMD6 switched it to high speed */
     int nac_long;                              /* 1: some gaps before a token longer than a poll's tries */
@@ -204,9 +209,14 @@ static void command(void)
         uint16_t c;
         if (!C.v2 || C.mmc || C.idle) { q(0x05); return; }
         memset(st, 0, 64);
-        C.hs = !C.no_hs && (arg >> 31) && (arg & 15u) == 1u;
+        C.cmd6s++;
+        if (arg >> 31) {
+            C.cmd6_switches++;
+            C.hs = !C.no_hs && !C.cmd6_crc_bad && (arg & 15u) == 1u;
+        }
+        st[13] = C.no_hs ? 0u : 2u;            /* bits 407:400: group 1's functions supported */
         st[16] = (uint8_t)(C.no_hs ? 0u : arg & 15u);   /* bits 379:376: group 1's function now */
-        c = crc16(st, 64);
+        c = (uint16_t)(crc16(st, 64) ^ (C.cmd6_crc_bad ? 1u : 0u));
         q(0); q(0xFF); q(0xFE);
         for (i = 0; i < 64; i++) q(st[i]);
         q((uint8_t)(c >> 8)); q((uint8_t)c);
@@ -277,7 +287,7 @@ static void command(void)
 
 static void (*clk_hook)(void);                 /* called at every tick (a test's interrupt: tests/sd_stream_test.c's audio) */
 
-static uint8_t xchg(uint8_t in)
+static uint8_t xchg_card(uint8_t in)
 {
     int rs0;
     clk++;
@@ -368,6 +378,16 @@ static uint8_t xchg(uint8_t in)
     C.cmd[C.cmdlen++] = in;
     if (C.cmdlen == 6) { C.cmdlen = 0; command(); }
     return 0xFF;
+}
+
+static uint8_t xchg(uint8_t in)
+{
+    uint8_t o = xchg_card(in);
+    if (t_step < C.garbage_from) {             /* noise past the start-up: the card still heard */
+        C.noise = C.noise * 1103515245u + 12345u;
+        return (uint8_t)(C.noise >> 16);
+    }
+    return o;
 }
 
 static struct {
