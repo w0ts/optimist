@@ -394,6 +394,13 @@ static void fxm_ord(uint8_t *o)                         /* the clients, the larg
  * again every pass) */
 static uint32_t fxm_seen = 0xFFFFFFFFu;                 /* fxs_live at the last pass (a change of the master slots) */
 #if FXZ_ANY
+/* (the main loop) bus c counts as heard now: PROJECT > FX MEM on screen (op_fxmem.c), so the sizes it changes have a line
+ * to change; 60 s after the page it goes back as any idle line */
+static void fxm_show(uint32_t c)
+{
+    fxm_heard_at[c] = fxm_blk;
+    fxm_heard_ever |= (uint8_t)(1u << c);
+}
 static uint32_t fxm_heard(uint32_t c);
 /* FX MEMORY (fx_memsz.h): send line c's size *cur toward the project's w. Placed: given back (gated, two blocks: the
  * effect silent meanwhile; not while lent to the inserts or moving), then w taken while it is not placed, and the poll

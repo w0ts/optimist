@@ -331,10 +331,74 @@ static void fz_list_no_tests(void)
     (void)room;
     reset_ui();
 }
+#if FELUCCA_FXM_IDLE_FREE
+/* the device's build (FELUCCA_FXM_IDLE_FREE, __PI32V2__: engines.c; run_tests.sh ui_optimist_fxmem_idle_test): a send line is
+ * placed only while its bus is heard, so a project with a track sending and nothing sounding holds none, and a size changed
+ * on FX MEM had nothing to give back (the user, on the FM-1: DLY MEM, REV MEM, FREE stays). On the page the lines a track
+ * sends to are placed, so FREE shows what each size costs; 60 s after it (here FXM_IDLE_S 2) they go back as any idle line */
+static void fz_free_check(uint32_t room, const char *what)
+{
+    cell_t c;
+    prj_cell(ui.row[SCR_PROJECT], 3, &c);
+    check((uint32_t)atoi(c.val) == arn_room() >> 10 && arn_room() == room, what);
+}
+static void fz_idle_tests(void)
+{
+    uint32_t room0, room1, k;
+    reset_ui();
+    for (k = 0; k < NPART; k++)
+        set_engine_of(&trk[k], eng_silent_slot());
+    fxs_set(FXS_DEF);
+    trk[0].p[P_DLY] = trk[0].p[P_REV] = 90;
+    fz_frames(20);
+    room0 = arn_room();
+    check(!dly_buf && !rev_line && !cho_buf, "FX MEM idle: a track sending, nothing heard: no line placed (the device's arena)");
+    op_enter(SCR_PROJECT);
+    ui.row[SCR_PROJECT] = fz_row();
+    fz_frames(6);
+    check(arn_cur[FXM_K(FXM_DLY)].len == 65536u && dly_buf && rev_line && !cho_buf && arn_room() < room0,
+          "FX MEM idle: the page: the lines a track sends to placed, the chorus (no track sends to it) not");
+    room1 = arn_room();
+    fz_free_check(room1, "FX MEM idle: FREE the arena's room with them");
+    turn(EN_K1, 1);
+    fz_frames(10);
+    check(song.g[G_FXZ_DLY] == 1 && arn_cur[FXM_K(FXM_DLY)].len == 32768u, "FX MEM idle: DLY 1/2: the line placed at half");
+    fz_free_check(room1 + 32768u, "FX MEM idle: DLY 1/2: FREE 32 KB more");
+    room1 = arn_room();
+    k = arn_cur[FXM_K(FXM_REV)].len;
+    turn(EN_K2, 1);
+    fz_frames(10);
+    check(song.g[G_FXZ_REV] == 1 && k - arn_cur[FXM_K(FXM_REV)].len > 15000u, "FX MEM idle: REV SMALL: the line placed smaller");
+    fz_free_check(room1 + (k - arn_cur[FXM_K(FXM_REV)].len), "FX MEM idle: REV SMALL: FREE that much more");
+    room1 = arn_room();
+    ins_load(1, 0, FXT_XDLY);
+    fz_frames(10);
+    k = room1 - arn_room();
+    check(k == 65536u, "FX MEM idle: an XDLY on a track: its two lines, 64 KB");
+    room1 = arn_room();
+    turn(EN_K3, 1);
+    fz_frames(60);
+    check(song.g[G_FXZ_XDL] == 1 && fxsz_xdl == 1u, "FX MEM idle: XDLY HALF taken");
+    fz_free_check(room1 + 32768u, "FX MEM idle: XDLY HALF: FREE 32 KB more");
+    ins_load(1, 0, FXT_NONE);
+    op_enter(SCR_HOME);
+    for (k = 0; k < 400u && (dly_buf || rev_line); k++)
+        fz_frames(1);
+    fz_frames(10);
+    check(!dly_buf && !rev_line && arn_room() == room0, "FX MEM idle: the page left, FXM_IDLE_S later: the lines given back, the room as before");
+    song.g[G_FXZ_DLY] = song.g[G_FXZ_REV] = song.g[G_FXZ_XDL] = 0;
+    fz_frames(10);
+    reset_ui();
+}
+#endif
 static void fxmem_ui_tests(void)
 {
     cell_t c;
     uint32_t room0, b0, k;
+#if FELUCCA_FXM_IDLE_FREE
+    fz_idle_tests();
+    return;
+#endif
     reset_ui();
     for (k = 0; k < NPART; k++)
         set_engine_of(&trk[k], eng_silent_slot());

@@ -189,9 +189,23 @@ static void fxz_paint(void)                             /* (cv_tall: the panel's
     for (i = 0; i < FXZ_NL; i++)                        /* two columns: the sizes chosen left, the fixed right */
         cv_texts(i < 3u ? 0 : 144, (int32_t)(34u + (i < 3u ? i : i - 3u) * 16u), op_case(b, fzp.t[i], sizeof b), fzp.col[i]);
 }
+/* the device gives a send line back after 60 s with nothing heard (fx_arena.c FELUCCA_FXM_IDLE_FREE), so a size changed
+ * then had no line to shrink and FREE stood still (the user, on the FM-1, a track sending to the delay and the reverb): on
+ * this page the lines a track sends to stay placed */
+static void fxz_show_sent(void)
+{
+    uint32_t k;
+    for (k = 0; k < NTRK; k++) {
+        if (trk[k].p[P_DLY] > 0)
+            fxm_show(FXM_DLY);
+        if (trk[k].p[P_REV] > 0)
+            fxm_show(FXM_REV);
+    }
+}
 static void fxz_draw(uint32_t y, uint32_t h)            /* op_prjflow.c prj_draw: lazy, redrawn when what it shows changes */
 {
     uint32_t i, k, sig = 0xF2u;
+    fxz_show_sent();
     fzp.size = ARN_BYTES;
     fzp.used = ARN_BYTES > arn_room() ? ARN_BYTES - arn_room() : 0u;
     fzp.fx = 0;
