@@ -55,10 +55,12 @@ MF_CMD_RE = re.compile(r"^\$ \S*[Mm]-?[Ff]lasher\S*\s+([a-z][\w-]*)")
 MF_PCT_RE = re.compile(r"^(\d{1,3})%$")
 DL_ENTER = ("sent the soft key", "put the FM-1 in download mode", "the FM-1 is in download mode already")
 DONE_RE = re.compile(r"^done: the FM-1 runs ")
-# where each M-Flasher command sits on the download route's bar (from, to): its "NN%" lines move inside it. The firmware
-# step runs twice (its plan with "no", then the write): the second call takes the second range
-MF_RANGES = {"find": (2, 3), "info": (4, 5), "backup": (6, 25), "bootloader": (26, 35), "firmware": (36, 50),
-             "restore": (36, 50), "firmware2": (50, 96), "restore2": (50, 96), "restart": (97, 98)}
+MF_WRITING_RE = re.compile(r"^Writing 0x[0-9A-F]+-0x[0-9A-F]+")
+# where each M-Flasher command sits on the download route's bar (from, to): its "NN%" lines move inside it. One firmware
+# or restore run reads the flash (its "NN%", its plan, the question), then writes ("Writing 0x...", no percent): the
+# write's first line takes the second range, "Done: ..." its end. m-bootloader's run comes after the firmware
+MF_RANGES = {"find": (2, 3), "backup": (4, 25), "firmware": (26, 45), "restore": (26, 45), "firmware2": (45, 88),
+             "bootloader": (88, 96), "restart": (97, 98)}
 
 
 def parse_flash(line):
@@ -84,6 +86,10 @@ def parse_flash(line):
     m = MF_PCT_RE.match(s)
     if m and int(m[1]) <= 100:
         return ("pct", int(m[1]))
+    if MF_WRITING_RE.match(s):
+        return ("mf", "firmware2")
+    if s.startswith("Done: "):
+        return ("pct", 100)
     if s.startswith(DL_ENTER):
         return ("enter", 0)
     return None
@@ -91,10 +97,10 @@ def parse_flash(line):
 
 FLASH_LABELS = {"check": "checking the package", "switch": "switching to update mode", "write": "writing, do not unplug or power off",
                 "restart": "restarting", "done": "done", "enter": "entering download mode"}
-MF_LABELS = {"find": "looking for download mode", "info": "reading the FM-1", "backup": "full backup",
+MF_LABELS = {"find": "looking for download mode", "backup": "full backup",
              "bootloader": "installing m-bootloader, do not unplug", "firmware": "M-Flasher plans the write",
              "restore": "M-Flasher plans the write", "firmware2": "writing, do not unplug or power off",
-             "restore2": "writing, do not unplug or power off", "restart": "restarting"}
+             "restart": "restarting"}
 
 
 class FlashTracker:
@@ -108,7 +114,6 @@ class FlashTracker:
         self.last = -1
         self.passno = 0
         self.mf = None                                   # (the M-Flasher command running: its range)
-        self.seen = set()
         self.label = "starting"
 
     def _mf(self, kind, v):
@@ -116,10 +121,8 @@ class FlashTracker:
             self.label = FLASH_LABELS["enter"]
             return 1
         if kind == "mf":
-            key = v + "2" if v in ("firmware", "restore") and v in self.seen else v
-            self.seen.add(v)
-            self.mf = MF_RANGES.get(key)
-            self.label = MF_LABELS.get(key, f"M-Flasher {v}")
+            self.mf = MF_RANGES.get(v)
+            self.label = MF_LABELS.get(v, f"M-Flasher {v}")
             return self.mf[0] if self.mf else self.top
         lo, hi = self.mf or (self.top, self.top)
         return lo + v * (hi - lo) // 100

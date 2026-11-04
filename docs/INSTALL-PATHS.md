@@ -41,7 +41,24 @@ bundled build (`third_party/m-flasher/data/bootloader-fm1.boot`) against it. The
 submodule's source; the pin is the check.
 
 On macOS M-Flasher asks for an administrator's password (only root may take a USB disk from macOS's driver); on Linux
-its udev rule and `sg` module (its README); on Windows an administrator prompt.
+its udev rule and `sg` module (its README); on Windows an administrator prompt. The dialog comes once per M-Flasher
+run that opens the unit (`mflasher.OPENS_UNIT`: its root helper is started per process, `src/macos.rs`, and nothing is
+kept between runs; `find` and `download-mode` do not start it), so the installer keeps those runs few:
+
+| path | runs that open the unit | dialogs (macOS) | before |
+| --- | --- | --- | --- |
+| an install, same layout | `backup`, `firmware` | 2 | 4 |
+| an install, a layout switch or a settings wipe | `backup`, `restore` of the planned flash | 2 | 4 |
+| an install with `--install-mboot` | `backup`, `firmware` or `restore`, `bootloader` | 3 | 6 |
+| m-bootloader's installer | `backup`, `bootloader` | 2 | 5 |
+| `fm1_anyflash.py restore`, `bootloader` | that command | 1 | 3 |
+| `fm1_anyflash.py backup` | `backup` | 1 | 2 |
+| `fm1_anyflash.py restart` | `restart` | 1 | 1 |
+
+An install cannot be one run: the plan (the layout switch's clears, the sectors compared, the planned flash a switch
+restores) needs the whole flash before the write's question, and M-Flasher's `firmware` and `restore` print no flash
+before it and save their backup only after the `yes`. Nor can m-bootloader share the firmware's run: `--with-bootloader`
+writes the package's stock bootloader, not m-bootloader.
 
 ## The install paths
 
@@ -102,14 +119,19 @@ screen stays as it was; switching the FM-1 off and on leaves it.
 ## The download-mode steps
 
 1. Download mode (the soft key or the keys above).
-2. `m-flasher info`: the model must read **FM-1** exactly (not an SMK-37, not "probably"), else nothing is written.
-3. `m-flasher backup DIR`: the whole flash, its path printed (default `~/Documents/M-Flasher/backups`, `--backup-dir`).
-4. With the build's m-bootloader, and none on the FM-1: `m-flasher bootloader` (the boot area 0x00000-0x03FFF only,
-   the unit's configuration in it kept), after a yes; then a new backup.
-5. The firmware: this installer plans the sectors (below), asks M-Flasher for its own plan of the same command (its
-   question answered "no": nothing written) and stops if the two differ; then a typed `yes`, then M-Flasher writes with
-   `--yes --restart`. M-Flasher verifies every run of sectors by the chip's CRC32 and stops on a mismatch
-   (its `docs/safety.md`); the backup's path is in its message.
+2. `m-flasher backup DIR`: the whole flash, its path printed (default `~/Documents/M-Flasher/backups`, `--backup-dir`).
+   The same run prints `info`'s lines: the model must read **FM-1** exactly (not an SMK-37, not "probably"), else
+   nothing is written.
+3. With m-bootloader asked for, and none on the FM-1: the question, before anything is written.
+4. The firmware: this installer plans the sectors (below) and starts `m-flasher firmware PACKAGE --backup-dir DIR
+   --restart` without `--yes`. That one run reads the flash again and stops at its own `Type "yes" to write:` with the
+   unit open; there the installer checks the model, the unit id against the backup's and M-Flasher's plan against its
+   own, asks for the typed `yes`, and answers: `yes`, or `no` for anything else (nothing written). M-Flasher then saves a
+   full backup of what it read, writes, verifies every run of sectors by the chip's CRC32 and stops on a mismatch (its
+   `docs/safety.md`), and restarts the unit. A layout switch does the same with `restore` of the planned flash.
+5. With m-bootloader: `m-flasher bootloader --backup-dir DIR --restart` the same way (the boot area 0x00000-0x03FFF
+   only, the unit's configuration in it kept; a plan outside it is refused). It comes after the firmware because the
+   plan was made on the backup, and a planned flash holds the boot area as it was; nothing boots between the two.
 6. The installer waits for the FM-1 on USB-MIDI and prints what it runs.
 
 Never: `--wipe-settings` (it erases what a package declares as VM: in Optimist's and fm1-base's packages that is
@@ -118,8 +140,9 @@ stays as it is unless the build says m-bootloader), `--board` (the model is M-Fl
 nothing (no soft key, no M-Flasher) and prints the commands; with `--flash-image BACKUP.bin` the exact sectors.
 
 The other commands of `tools/fm1_anyflash.py` (`backup`, `restore BACKUP.bin`, `bootloader [--stock PACKAGE.fwsc]`,
-`restart`) enter download mode through M-Flasher's own `download-mode`, back up first, and let M-Flasher show its plan
-and ask for `yes` itself.
+`restart`) enter download mode through M-Flasher's own `download-mode` and make one run each: M-Flasher shows its plan
+and stops at its question, the installer checks the model there and asks for the `yes`, M-Flasher saves its full backup
+before its first write.
 
 **The SD card (to come).** m-bootloader is to flash a `.fwsc` from the SD card at power-on. That is not released;
 `fm1_anyflash.sd_card_route()` is the hook (it refuses for now), so the route chooser can grow a third way without
@@ -284,8 +307,8 @@ Drafts for Julius Vitkauskas, for when the user decides to send them:
    `--clear START-END` (repeatable) would be enough: the caller knows its layouts."
 2. **`--keep START-END`** for `firmware` and `restore`: refuse a plan that touches the range (0xE7000-0xE9FFF, the
    SDK's VM and BTIF, for Optimist and fm1-base), as an extra guard beside the factory ranges.
-3. **A plan-only switch** (`--plan`, or `--dry-run`): print the plan and exit 0 without asking, so a caller need not
-   answer the question "no" to read it, and the exit code says whether there was anything to write.
+3. **A backup before the question** (`--backup-first`): save the backup before `Type "yes"`, not after, and print its
+   path, so a caller can plan on the flash of that same run: an install would be one password dialog, not two.
 4. **A package manifest**: if a `.fwsc` carries a region list (a `layout.json` file in its UFW list, ignored by the
    loaders), `firmware` could read the data regions and the clears from it instead of the caller.
 

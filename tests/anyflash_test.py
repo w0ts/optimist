@@ -11,6 +11,7 @@ the real kind (tests/fake_mflasher.py stands in for it and records every command
 - the layouts: every switch between two of them planned on a fake flash, the kept regions untouched;
 - download mode through the fake M-Flasher: backup first, M-Flasher's plan compared, a typed yes, the model check,
   a mismatch or a failed write stopping it, m-bootloader once when the build says so;
+- the runs that open the unit, counted per install path (each one is a password dialog on macOS);
 - --dry-run: nothing run, the commands and the sectors printed; M-Flasher's command lines and its pinned release."""
 import io
 import json
@@ -272,7 +273,7 @@ class Dev:
         q = list(answers)
         e = AF.Env(exe=self.exe, out=out, ask=lambda _p: q.pop(0) if q else "", soft_key=self.soft_key,
                    wait_back=lambda prod: prod, sleep=lambda _s: None,
-                   run=lambda args, answer=None, capture=True: MF.run(args, answer, True, on_line=lambda _l: None))
+                   run=lambda args, answer=None, capture=True, decide=None: MF.run(args, answer, True, lambda _l: None, decide))
         return e, out
 
 
@@ -290,6 +291,11 @@ def cmds(dev):
     return [c["args"][0] for c in dev.calls()]
 
 
+def unit_runs(dev):
+    """the runs that opened the unit: one password dialog each on macOS"""
+    return [c for c in cmds(dev) if c in MF.OPENS_UNIT]
+
+
 def download_mode():
     pk = R.sample_package
     route = R.choose(R.OPTIMIST, pk(R.P_FM1BASE))
@@ -301,16 +307,18 @@ def download_mode():
     err, out = flow(dev, route, pkg, new)
     c = cmds(dev)
     want = L.target_image(cur, new, L.plan(cur, new))
-    ok(err is None and dev.soft == 1 and c[:3] == ["find", "find", "info"] and "backup" in c
-       and c.index("backup") < c.index("firmware"), "download: soft key, find, info, backup before any write")
+    ok(err is None and dev.soft == 1 and c[:3] == ["find", "find", "backup"] and "info" not in c
+       and c.index("backup") < c.index("firmware"), "download: soft key, find, backup (with info's lines) before any write")
     fw = [x for x in dev.calls() if x["args"][0] == "firmware"]
-    ok(len(fw) == 2 and fw[0]["stdin"] == "no\n" and "--yes" not in fw[0]["args"] and "--yes" in fw[1]["args"]
-       and "--restart" in fw[1]["args"], "firmware: M-Flasher's plan first (answered no), then the write with --yes --restart")
+    ok(len(fw) == 1 and fw[0]["stdin"] == "yes\n" and "--yes" not in fw[0]["args"] and "--restart" in fw[0]["args"],
+       "firmware: one run, its plan compared at its question, answered yes there, --restart")
+    ok(unit_runs(dev) == ["backup", "firmware"], f"same layout: 2 runs open the unit, 2 password dialogs ({unit_runs(dev)})")
     bad_opts = {"--wipe-settings", "--with-bootloader", "--board"}
     ok(not any(bad_opts & set(x["args"]) for x in dev.calls()), "never --wipe-settings, --with-bootloader or --board")
     ok(dev.flash == want and dev.flash[:0x4000] == cur[:0x4000], "the unit's flash is the plan's; the boot area untouched")
     bk = sorted((dev.d / "backups").glob("fm1-*.bin"))
     ok(bk and bk[0].read_bytes() == cur and str(bk[0]) in out, "the backup is the flash before, its path printed")
+    ok(len(bk) == 2 and bk[1].read_bytes() == cur and str(bk[1]) in out, "M-Flasher's own backup in the write's run, printed too")
     # a layout switch: restore of the planned flash
     cur, new = unit_flash(0x93000), synth_flash(0xCE000, 22)
     pkg = write_pkg(TMP / "switch.fwsc", new, "FM-1_79000200")
@@ -321,6 +329,7 @@ def download_mode():
     ok(err is None and "restore" in c and "firmware" not in c and dev.flash == L.target_image(cur, new, p)
        and dev.flash[0xCE000:0xDA000] == b"\xFF" * 0xC000, "normal -> 0xCE000: restore of the planned flash, the squeezed store cleared")
     ok(all(dev.flash[a:b] == cur[a:b] for a, b, _ in L.KEEP), "... kept regions untouched on the unit")
+    ok(unit_runs(dev) == ["backup", "restore"], f"a layout switch: 2 runs open the unit ({unit_runs(dev)})")
     t = [x for x in dev.calls() if x["args"][0] == "restore"][0]["args"][1]
     ok(json.loads(Path(t).with_suffix(".json").read_text()).get("unit id") == "0123456789abcdef",
        "the planned image carries the backup's unit id (M-Flasher restores it whole)")
@@ -329,11 +338,32 @@ def download_mode():
     err, out = flow(dev, route, write_pkg(TMP / "n.fwsc", synth_flash(0x93000, 5), "FM-1_7900"), synth_flash(0x93000, 5),
                     answers=("no",))
     ok(err is not None and err.code == "cancel" and dev.flash == unit_flash(0x93000)
-       and not any("--yes" in x["args"] for x in dev.calls()), "typed no: nothing written, no --yes ever sent")
+       and [x["stdin"] for x in dev.calls() if x["args"][0] == "firmware"] == ["no\n"]
+       and not any("--yes" in x["args"] for x in dev.calls()), "typed no: nothing written, answered no in its one run, no --yes ever sent")
+    # --yes (a caller that asked already): the same run, answered by the installer, the plans still compared
+    dev = Dev("yes", unit_flash(0x93000))
+    err, out = flow(dev, route, write_pkg(TMP / "y.fwsc", synth_flash(0x93000, 5), "FM-1_7900"), synth_flash(0x93000, 5),
+                    yes=True, answers=())
+    ok(err is None and unit_runs(dev) == ["backup", "firmware"] and not any("--yes" in x["args"] for x in dev.calls()),
+       "--yes: no question to the user, M-Flasher's plan still compared in its one run")
+    # nothing to write: the same run, no question, the unit restarted
+    same = synth_flash(0x93000, 7)
+    dev = Dev("nothing", unit_flash(0x93000))
+    err, out = flow(dev, route, write_pkg(TMP / "s.fwsc", same, "FM-1_7900"), same, answers=())
+    st = json.loads((dev.d / "state.json").read_text())
+    ok(err is None and "nothing to write" in out and unit_runs(dev) == ["backup", "firmware"] and not st["download"],
+       "nothing to write: no question, the unit restarted by the same run")
+    # another unit plugged in between the two runs
+    dev = Dev("unit", unit_flash(0x93000), next_unit="fedcba9876543210")
+    err, out = flow(dev, route, write_pkg(TMP / "u.fwsc", synth_flash(0x93000, 9), "FM-1_7900"), synth_flash(0x93000, 9))
+    ok(err is not None and err.code == "model" and dev.flash == unit_flash(0x93000)
+       and [x["stdin"] for x in dev.calls() if x["args"][0] == "firmware"] == ["no\n"],
+       "another unit id at the write's question: answered no, nothing written")
     # model check
     dev = Dev("smk", unit_flash(0x93000), model="SMK-37 Pro / Elite")
     err, out = flow(dev, route, pkg, new)
-    ok(err is not None and err.code == "model" and "backup" not in cmds(dev), "an SMK-37 (or an uncertain model): stops before the backup")
+    ok(err is not None and err.code == "model" and "firmware" not in cmds(dev) and "restore" not in cmds(dev)
+       and dev.flash == unit_flash(0x93000), "an SMK-37 (or an uncertain model): stops at the backup's lines, no write run")
     # M-Flasher plans another sector than we do
     dev = Dev("mismatch", unit_flash(0x93000), extra=0xC0000)
     nf = synth_flash(0x93000, 6)
@@ -343,15 +373,26 @@ def download_mode():
     dev = Dev("fail", unit_flash(0x93000), fail="restore")
     err, out = flow(dev, route, pkg, new)
     ok(err is not None and dev.flash == unit_flash(0x93000), "M-Flasher refuses: stops, the flash as it was")
-    # m-bootloader from the build: once, after the backup, then a new backup, then the firmware
+    # m-bootloader asked for: the firmware, then the boot area, both yes before the first write, no second backup run
     mb = R.choose(R.OPTIMIST, pk(R.P_OPTIMIST), R.MBOOT, None)
     nf = synth_flash(0x93000, 8)
     dev = Dev("mboot", unit_flash(0x93000))
     err, out = flow(dev, mb, write_pkg(TMP / "mb.fwsc", nf, "FM-1_700"), nf)
     c = cmds(dev)
-    ok(err is None and c.count("bootloader") == 1 and c.index("backup") < c.index("bootloader")
-       and c.count("backup") == 2 and c.index("bootloader") < c.index("firmware") and dev.flash[0] == 0xB0,
-       "m-bootloader: backup, bootloader (boot area), a new backup, then the firmware")
+    runs = {x["args"][0]: x for x in dev.calls()}
+    ok(err is None and unit_runs(dev) == ["backup", "firmware", "bootloader"] and dev.flash[0] == 0xB0,
+       f"m-bootloader: 3 runs open the unit, 3 password dialogs ({unit_runs(dev)})")
+    ok("--restart" not in runs["firmware"]["args"] and "--restart" in runs["bootloader"]["args"]
+       and "--yes" not in runs["bootloader"]["args"] and runs["bootloader"]["stdin"] == "yes\n",
+       "... the last write restarts the unit; the bootloader's plan checked at its question")
+    dev = Dev("mboot-no", unit_flash(0x93000))
+    err, out = flow(dev, mb, write_pkg(TMP / "mb.fwsc", nf, "FM-1_700"), nf, answers=("no",))
+    ok(err is not None and err.code == "cancel" and dev.flash == unit_flash(0x93000) and unit_runs(dev) == ["backup"],
+       "m-bootloader refused: asked before the first write, nothing written")
+    dev = Dev("mboot-pkg", unit_flash(0x93000))
+    err, out = flow(dev, R.choose(R.OPTIMIST, pk(R.P_MBOOT)), None, None)
+    ok(err is None and unit_runs(dev) == ["backup", "bootloader"] and dev.flash[0] == 0xB0
+       and dev.flash[0x1000:] == unit_flash(0x93000)[0x1000:], f"m-bootloader's installer: 2 runs ({unit_runs(dev)})")
     dev = Dev("mboot2", unit_flash(0x93000), bootloader="m-bootloader 1.2-22e2559 (fm1)")
     err, out = flow(dev, mb, write_pkg(TMP / "mb.fwsc", nf, "FM-1_700"), nf)
     ok(err is None and "bootloader" not in cmds(dev) and "found: kept" in out, "m-bootloader already there: not written again")
@@ -359,6 +400,51 @@ def download_mode():
     err, out = flow(dev, route, write_pkg(TMP / "k.fwsc", nf, "FM-1_7900"), nf)
     ok(err is None and "bootloader" not in cmds(dev) and dev.flash[:0x4000] == unit_flash(0x93000)[:0x4000],
        "BOOTLOADER keep: the boot area is never written")
+
+
+def service_runs():
+    """fm1_anyflash.py's own commands: one run each that opens the unit, the checks at M-Flasher's question"""
+    def call(name, argv, answers=("yes",), **state):
+        dev = Dev(name, unit_flash(0x93000), download=True, **state)
+        e, out = dev.env(answers)
+        return dev, AF.run(AF.argparse.Namespace(**argv), e), out.getvalue()
+    base = dict(dry_run=False, yes=False, port=None, backup_dir=TMP / "svc")
+    shutil.rmtree(TMP / "svc", ignore_errors=True)
+    dev, rc, out = call("svc-backup", dict(base, cmd="backup"))
+    ok(rc == 0 and unit_runs(dev) == ["backup"], f"backup: 1 run ({unit_runs(dev)})")
+    dev, rc, out = call("svc-restart", dict(base, cmd="restart"))
+    ok(rc == 0 and unit_runs(dev) == ["restart"], f"restart: 1 run ({unit_runs(dev)})")
+    img = TMP / "svc-restore.bin"
+    img.write_bytes(unit_flash(0x93000, 3))
+    dev, rc, out = call("svc-restore", dict(base, cmd="restore", backup=str(img)))
+    ok(rc == 0 and unit_runs(dev) == ["restore"] and dev.flash == unit_flash(0x93000, 3) and "backup before this write" in out,
+       f"restore: 1 run, M-Flasher's backup before its write ({unit_runs(dev)})")
+    ok(dev.calls()[-1]["stdin"] == "yes\n" and "--yes" not in dev.calls()[-1]["args"] and "--restart" in dev.calls()[-1]["args"],
+       "... the user's yes asked here, typed into the run")
+    dev, rc, out = call("svc-boot", dict(base, cmd="bootloader", stock=None))
+    ok(rc == 0 and unit_runs(dev) == ["bootloader"] and dev.flash[0] == 0xB0, f"bootloader: 1 run ({unit_runs(dev)})")
+    dev = Dev("svc-smk", unit_flash(0x93000), download=True, model="SMK-37 Pro / Elite")
+    e, _ = dev.env(("yes",))
+    try:
+        AF.run(AF.argparse.Namespace(**dict(base, cmd="restore", backup=str(img))), e)
+        ok(False, "restore on an SMK-37: refused at the question")
+    except AF.AnyError as x:
+        ok(x.code == "model" and dev.flash == unit_flash(0x93000) and dev.calls()[-1]["stdin"] == "no\n",
+           "restore on an SMK-37: the model checked at the question, answered no")
+
+
+def route_runs():
+    """the runs the steps announce: as many as the install makes, the same words in the route's steps"""
+    pk = R.sample_package
+    table = [(R.choose(R.OPTIMIST, pk(R.P_FM1BASE)), ("backup", "firmware")),
+             (R.choose(R.OPTIMIST, pk(R.P_OPTIMIST), R.MBOOT, None), ("backup", "firmware", "bootloader")),
+             (R.choose(R.OPTIMIST, pk(R.P_MBOOT)), ("backup", "bootloader")),
+             (R.Route("download", "x", "y"), ("backup", "firmware"))]
+    bad = [(r.why, R.unit_runs(r)) for r, want in table if R.unit_runs(r) != want]
+    ok(not bad, f"fm1_route.unit_runs per path: {len(table)} paths" + (f" {bad}" if bad else ""))
+    ok(all(c in MF.OPENS_UNIT for r, _ in table for c in R.unit_runs(r)) and "find" not in MF.OPENS_UNIT
+       and "download-mode" not in MF.OPENS_UNIT, "... all of them open the unit; find and download-mode do not")
+    ok("2 at most (backup, firmware)" in table[0][0].steps[-1], f"the steps say how many: {table[0][0].steps[-1]}")
 
 
 def dry_runs():
@@ -522,6 +608,8 @@ def flash_py():
 def mflasher():
     a = MF.argv("/x/m-flasher", "firmware", arg="p.fwsc", backup_dir="/b", yes=True, restart=True)
     ok(a == ["/x/m-flasher", "firmware", "p.fwsc", "--backup-dir", "/b", "--yes", "--restart"], "argv: firmware")
+    ok(MF.argv("m", "bootloader", stock="/s.fwsc", restart=True) == ["m", "bootloader", "--stock", "/s.fwsc", "--restart"],
+       "argv: bootloader --stock")
     ok(MF.argv("m", "bootloader", backup_dir="/b") == ["m", "bootloader", "--backup-dir", "/b"]
        and MF.argv("m", "backup", arg="/d") == ["m", "backup", "/d"], "argv: bootloader, backup")
     for bad in (lambda: MF.argv("m", "run-ram"), lambda: MF.argv("m", "info", restart=True), lambda: MF.argv("m", "restore")):
@@ -538,6 +626,27 @@ def mflasher():
     ok(AF.mf_plan_sectors("Writes 3 sectors (12 KiB): 0x04000-0x05FFF, 0x80000-0x80FFF") == (0x4000, 0x5000, 0x80000)
        and AF.mf_plan_sectors("Nothing to write: the flash already holds this.") == () and AF.mf_plan_sectors("?") is None,
        "M-Flasher's plan line read back")
+    # the question as its cli.rs prints it: no newline, flushed, the program waiting on stdin with the unit open
+    script = TMP / "ask.sh"
+    script.write_text("#!/bin/sh\nprintf '\\r  50%%\\r 100%%\\n  model       FM-1\\n'\nprintf 'Type \"yes\" to write: '\n"
+                      "read a\necho \"answered $a\"\nexit 3\n")
+    script.chmod(script.stat().st_mode | stat.S_IEXEC)
+    lines, seen = [], []
+    rc, text = MF.run(["/bin/sh", str(script)], on_line=lines.append, decide=lambda t: seen.append(t) or True)
+    ok(rc == 3 and len(seen) == 1 and "  model       FM-1\n" in seen[0] and "answered yes\n" in text,
+       "run: decide called at the question, with the lines so far, its answer read by the program")
+    ok("  50%\n" in lines and " 100%\n" in lines and not any(MF.PROMPT in ln for ln in lines),
+       "run: \"\\r  NN%\" stay lines of their own (tools/progress.py), the question is not shown")
+    rc, text = MF.run(["/bin/sh", str(script)], on_line=lines.append, decide=lambda t: False)
+    ok("answered no\n" in text, "run: decide False answers no")
+
+    def boom(_t):
+        raise KeyboardInterrupt
+    try:
+        MF.run(["/bin/sh", str(script)], on_line=lines.append, decide=boom)
+        ok(False, "run: decide raises: no is answered, the error goes on")
+    except KeyboardInterrupt:
+        ok(True, "run: decide raises: no is answered, the error goes on")
     ok(MF.asset("Darwin", "arm64")[0].endswith("macos.dmg") and MF.asset("Linux", "amd64")[0].endswith("x86_64.tar.gz")
        and MF.asset("Windows", "AMD64")[2] == "M-Flasher.exe" and MF.asset("FreeBSD", "x86_64") is None,
        "the pinned release per system")
@@ -643,7 +752,8 @@ def boot_word():
 if __name__ == "__main__":
     shutil.rmtree(TMP, ignore_errors=True)
     TMP.mkdir(parents=True)
-    for t in (detection, chooser, docs, sidecar, layouts, download_mode, dry_runs, settings, js_route, flash_py, mflasher,
+    for t in (detection, chooser, docs, sidecar, layouts, download_mode, service_runs, route_runs, dry_runs, settings,
+              js_route, flash_py, mflasher,
               boot_word):
         t()
     shutil.rmtree(TMP, ignore_errors=True)
