@@ -62,11 +62,7 @@ Four ready-made builds, in every release; the builder makes any other.
 3. The FM-1 restarts into Optimist. If an install is cut off, the FM-1 stays in update mode: press Install again.
 
 Your projects, presets, kits and samples live above the firmware: an install writes only the firmware area. Data that
-Optimist cannot read may not be kept, except SLOOP's: SLOOP 2.7 data is kept (below).
-
-**Coming from SLOOP 2.7:** Optimist erases nothing of SLOOP's. Its sections stay in flash and show as *SLOOP* on the
-PROJECT page and in the editor; Optimist does not read them (LOAD says *SLOOP PROJECT*) and does not export to SLOOP.
-Its own projects live in the sections beside them.
+Optimist cannot read may not be kept, except SLOOP's: SLOOP 2.7 data is kept.
 
 ## Getting back
 
