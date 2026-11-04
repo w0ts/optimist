@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 # Shortcuts for tools/optimist.py (which works without make: BUILDING.md). `make help` lists them.
 .DEFAULT_GOAL := help
-.PHONY: help setup sdk builder build classic package flash profiles publish unpublish share delete web site emu emu-list emu-update test costs costs-all gate emu-check mirror
+.PHONY: help setup sdk builder build classic package sd-zip flash profiles publish unpublish share delete web site emu emu-list emu-update test costs costs-all gate emu-check mirror
 
 PY ?= python3
 PROFILE ?= mots-config
@@ -19,7 +19,9 @@ help:
 	@echo "make builder                   the firmware builder menu (pick features, build: build/optimist-<version>-*.fwsc)"
 	@echo "make build   [PROFILE=name]    build a profile without the menu ($(PROFILE))"
 	@echo "make classic [PROFILE=name]    the same, Optimist's own firmware (main's): what make build did before the release"
-	@echo "make package [PROFILE=name]    build a profile and copy .fwsc (+ -ui.zip, classic) into $(IMAGES)/"
+	@echo "make package [PROFILE=name]    build a profile and copy .fwsc (+ -ui.zip, classic; + optimist-sd-card.zip, SDCARD) into $(IMAGES)/"
+	@echo "make sd-zip                    the SD card zip alone (every factory preset and sample set): build/optimist-sd-card.zip"
+	@echo "                              (every build with SDCARD makes it beside its .fwsc; cached by its inputs)"
 	@echo "make flash   [PKG=file.fwsc] [KEEP_BOOTLOADER=1] [FM1=NAME|all]   build $(PROFILE) and install it (or PKG as it is); shows the identities, the route and the bootloader, and asks (several FM-1s: which one, or all, one after the other)"
 	@echo "make profiles                  the profiles: published (CI builds them), shipped, mine"
 	@echo "make publish   PROFILE=name    CI builds this shipped profile (# publish: yes; commit it)"
@@ -67,6 +69,9 @@ classic: sdk
 
 package: sdk
 	$(PY) tools/optimist.py package --profile $(PROFILE) --out $(IMAGES) $(CL)
+
+sd-zip:
+	$(PY) tools/sd_zip.py build/optimist-sd-card.zip
 
 # (builds PROFILE first unless PKG is given, so it never flashes an old file; asks first. Needs mido + python-rtmidi:
 # make setup)

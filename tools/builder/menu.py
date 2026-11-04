@@ -862,6 +862,9 @@ class Builder(App):
         built = None
         if ok and fit and pkg.exists():
             text += f"\n  package: {pkg}"
+            sdz = C.sd_zip_of(cfg)
+            if sdz:                                      # (a build with SDCARD: configure.py sd_card_zip)
+                text += f"\n  SD card zip: {sdz} (unzip it at the SD card's root: every preset and sample set)"
             named = F.last_package(C.build_dir())
             if named and named.stat().st_mtime >= started - 1:
                 built = ST.Stamp(named, C.cfg_hash(cfg), name)

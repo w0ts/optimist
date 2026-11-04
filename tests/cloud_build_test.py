@@ -115,6 +115,19 @@ check("reply done: the SHA-256 when given, sizes that are not numbers skipped",
 with tempfile.TemporaryDirectory() as t:
     (Path(t) / "s.json").write_text(json.dumps({"sizes": {"flash": None, "ram": 1234}}))
     check("reply done: a summary with a null size still answers", "ram 1,234" in CB.reply("done", dict(env, SUMMARY_FILE=str(Path(t) / "s.json"))))
+with tempfile.TemporaryDirectory() as t:   # (a build with SDCARD: its SD card zip, the user 2026-11-04)
+    (Path(t) / "z.json").write_text(json.dumps({"sizes": {}, "sdzip": "dist/optimist-sd-card.zip"}))
+    (Path(t) / "n.json").write_text(json.dumps({"sizes": {}, "sdzip": None}))
+    ez, en = dict(env, SUMMARY_FILE=str(Path(t) / "z.json")), dict(env, SUMMARY_FILE=str(Path(t) / "n.json"))
+    check("reply done: an SD card build links its SD card zip, another none",
+          f"{env['STEM']}-sd-card.zip" in CB.reply("done", ez) and "sd-card" not in CB.reply("done", en))
+    from datetime import datetime, timezone       # (as the shelf tests below)
+    now = datetime(2026, 11, 4, tzinfo=timezone.utc)
+    sz = CB.shelf_entry(dict(ez, ISSUE="1"), now)
+    check("shelf: an SD card build's entry names its zip (a release asset), another's none",
+          sz["sdzip"] == f"{env['STEM']}-sd-card.zip" and "sdzip" not in CB.shelf_entry(dict(en, ISSUE="1"), now))
+    check("release orphans: a kept build's SD card zip is kept",
+          CB.release_orphans([{"name": sz["sdzip"], "createdAt": "2026-01-01T00:00:00Z"}], [sz], now) == [])
 check("reply error: the run link, the issue stays open", env["RUN_URL"] in CB.reply("error", env))
 check("reply building / failed: the run link", env["RUN_URL"] in CB.reply("building", env) and env["RUN_URL"] in CB.reply("failed", env))
 

@@ -604,9 +604,9 @@ for i, (k, n) in enumerate((("PIANO", "PIANO (Steinway, 44 KB)"), ("BASS", "BASS
                             ("SCRCH", "SCRATCH (23 KB)"))):
     _add(f"SET_{k}", "", n, S, 28 + i, env=k,
          desc=_SET_DESC[k] + " Played by the SAMPLE and GRAIN engines (and their presets); leaving it out frees its "
-              "flash, and it can still be uploaded to a USR slot. In SD card mode no set is in the flash (0 B, ticked or not): a ticked "
-              "set goes on the card in the SD card zip (OPTIMIST/SAMPLES/<SET>/) and SAMPLE streams it from there; GRAIN "
-              "cannot (its grains jump through the set): GRAIN on a set is silent there, said MISSING.")
+              "flash, and it can still be uploaded to a USR slot. In SD card mode no set is in the flash (0 B, ticked or not): every "
+              "set, ticked or not, is on the card in the SD card zip (Optimist/Samples/<Set>/), and SAMPLE, GRAIN and STRETCH "
+              "stream it from there.")
 
 # ---- FX
 F = "FX"
@@ -1026,6 +1026,7 @@ _add("FAVORITES", "FELUCCA_FAVORITES", "favorites: mark sounds, browse only them
           "out) and any of the 32 user presets (an erased preset loses its mark); the FM6 / CZ banks and the drum track have "
           "none. Kept with the settings (136 B at the end of the settings record: an older record reads whole with none; "
           "a build without this item keeps the rest and forgets them on its next save). About 1 KB of flash, 136 B of pool. "
+          "None in SD card mode (the card's banks of 16 are the organisation there: no FAVORITES filter, no marks). "
           "Off: no marks.",
      notice="After Felucca 1.6's favorites by Leo Kuroshita (GPL-3.0). Tested in the host UI and storage tests only, not on "
             "a device.")

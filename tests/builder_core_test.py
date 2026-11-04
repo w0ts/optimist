@@ -402,14 +402,15 @@ check("card sets: SD card mode builds no set, ticked or not (the generator's env
       K.card_sets(_on) and K.flags(_on)[1]["FELUCCA_SAMPLES_CARD"] == "1" and K.flags(_on) == K.flags(_off) and
       not any(R.ITEMS[k].env in K.flags(_off)[1]["FELUCCA_SAMPLES_SKIP"].split(",") for k in _sets) and
       K.distance(_on, _off) == 0)
-check("card sets: the estimate the same with every set ticked or none (0 B of flash each), the ticks the zip's sets",
-      K.additive(_on, costs)[0] == K.additive(_off, costs)[0] and
-      K.card_set_names(_on) == [R.ITEMS[k].env for k in _sets] and K.card_set_names(_off) == [])
+check("card sets: the estimate the same with every set ticked or none (0 B of flash each; the zip carries them all)",
+      K.additive(_on, costs)[0] == K.additive(_off, costs)[0])
+check("no favorites in SD card mode (registry.h: FAVORITES off there), as it is in flash mode",
+      K.built(dict(_on, FAVORITES=1), "FAVORITES") is False and K.built(dict(K.defaults(), FAVORITES=1), "FAVORITES"))
 _cl = dict(K.defaults(), **{k: 0 for k in _sets})
 check("card sets: outside SD card mode a set's tick is its flash, as before (SKIP names it, SAMPLES_CARD 0)",
       not K.card_sets(K.defaults()) and K.flags(K.defaults())[1]["FELUCCA_SAMPLES_CARD"] == "0" and
       K.additive(_cl, costs)[0]["flash"] < K.additive(K.defaults(), costs)[0]["flash"] and
-      "PIANO" in K.flags(_cl)[1]["FELUCCA_SAMPLES_SKIP"].split(",") and K.card_set_names(K.defaults()) == [])
+      "PIANO" in K.flags(_cl)[1]["FELUCCA_SAMPLES_SKIP"].split(","))
 
 
 # PROJECTS: fewer projects leave more code room, in every SAMPLE SLOTS row, in the core and in the web data (the user,
