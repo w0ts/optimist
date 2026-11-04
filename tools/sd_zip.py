@@ -16,18 +16,18 @@ mode, unzipped at its root. Folders capitalised, files lowercase (the user, 2026
                                 synthesised, X0X's and their styles, KAWA, PLAITS), 16 a bank in the kit list's order,
                                 each as a user kit is saved (drum_kits.c ukit_card_take: the lanes, their sources by
                                 reference to the built-in drum sounds, the sends); Kits/User/<L>/ the user's (empty here)
-  Optimist/Samples/<Set>/z<k>.wav   every sample set (PIANO's folder Piano ...; the user, 2026-10-29: in SD card mode a
-                                set lives on the card, never in the flash): each zone of the set, in key order, 16-bit
-                                mono PCM at 22.05 kHz, its root and loop in "smpl", its keys in "inst"
-                                (tools/gen_samples.py card_files: the flash set's very samples, decoded); SAMPLE and its
-                                presets play them from here through the streams (eng_sample.c smp_bank_on)
+  Optimist/Samples/...          every sample the firmware has, at the highest resolution the repo holds (the user,
+                                2026-11-04; tools/sd_samples.py: each from its source at the source's own rate, 16-bit
+                                mono, root and loop in "smpl", keys in "inst"): <Set>/z<k>.wav the melodic sets (PIANO's
+                                folder Piano ...; in SD card mode a set lives on the card, never in the flash),
+                                Kits/Acoustic/<nn> - <name>.wav the sampled kits' sounds, X0X/909/hh.wav crash.wav
+                                ride.wav the 909's, Hiphop/<Sound>/ the hip-hop pack (for the USR slots)
   Optimist/readme.txt           what this is
 
   python3 tools/sd_zip.py OUT.zip      (the host headers: tools/build.py --host-headers, made when missing)
 Every engine, every FM6 pack and every set is in, whatever the profile: one zip serves every SD card mode build. It is
 cached by its inputs' hash (build/sd-zip-cache/: the firmware's sources, the generator, the samples), so a build whose
-inputs did not change copies the zip it made before (a fresh one takes about 3 s: measured 2026-11-04 on an M-series
-Mac)."""
+inputs did not change copies the zip it made before (a fresh one: see tests/sd_zip_test.py's line)."""
 import hashlib
 import os
 import pathlib
@@ -51,9 +51,15 @@ Unzip at the card's root (FAT32): this Optimist folder is the FM-1's.
   Presets/User/<Engine>/A, B ...      the presets you save on the FM-1, in banks of 16 the same way
   Projects/A, B ...                   your projects, 16 a bank ("01 - name/01 - name.opp", earlier saves in Versions/)
   Samples/<Set>/z0.wav, z1.wav ...    the sample sets ({sets}): SAMPLE and its presets play them from the card (in SD card
-                                      mode no set is in the flash). 16-bit mono, 22.05 kHz, the keys in the inst chunk,
-                                      root and loop in smpl. Keep the names: the FM-1 finds a set by its folder. Your own
-                                      samples go anywhere else under Samples/.
+                                      mode no set is in the flash). 16-bit mono at the recordings' own rate (Piano and
+                                      Flute 44.1 kHz, the others 22.05 kHz), the keys in the inst chunk, root and loop in
+                                      smpl. Keep the names: the FM-1 finds a set by its folder.
+  Samples/Kits/Acoustic/              the sampled kits' sounds ("01 - kick.wav" ..), 44.1 kHz: ACOUSTIC, DEEP, TIGHT,
+                                      BRIGHT and DUST play them from the card
+  Samples/X0X/909/                    the X0X 909's hi-hat, crash and ride, 44.1 kHz: the 909 plays them from the card
+  Samples/Hiphop/<Sound>/             the hip-hop pack's sounds (22.05 kHz), for the USR slots or a part's CARD sample
+                                      The folders above are the factory's (make sdcard replaces them); your own samples
+                                      go anywhere else under Samples/.
   Kits/Factory/A, B ...               every factory kit (the sampled, the synthesised, X0X, KAWA, PLAITS), 16 a bank
                                       ("01 - acoustic.opk" ..), the kit list's order; a kit this firmware leaves out
                                       plays its stand-in, as a project naming it does
@@ -93,9 +99,11 @@ def build_gen(work):
 def inputs():
     """-> the files the zip is made from (its cache key): the firmware's sources, the host headers, the generators, the
     sample sets' sources"""
-    files = [ROOT / "tools" / "sd_zip.py", ROOT / "tools" / "sd_factory.c", ROOT / "tools" / "gen_samples.py",
-             ROOT / "tests" / "hostsim.c"]
-    for top, pats in ((FW, ("*.c", "*.h")), (host_headers(), ("*.h",)), (ROOT / "assets" / "samples-cc0", ("*",))):
+    files = [ROOT / "tools" / n for n in ("sd_zip.py", "sd_factory.c", "gen_samples.py", "sd_samples.py",
+                                           "gen_x0x_drums.py", "sampleio.py")] + [ROOT / "tests" / "hostsim.c"]
+    assets = ROOT / "assets"
+    for top, pats in ((FW, ("*.c", "*.h")), (host_headers(), ("*.h",)), (assets / "samples-cc0", ("*",)),
+                      (assets / "x0x909", ("*",)), (assets / "hiphop-pack", ("*",))):
         files += [p for pat in pats for p in top.rglob(pat) if p.is_file()]
     return sorted(set(files))
 
@@ -110,7 +118,7 @@ def key():
 
 
 def generate(out_zip):
-    """the zip made afresh at out_zip -> (presets, kits, {set: zone files})"""
+    """the zip made afresh at out_zip -> (presets, kits, {set: zone files}, other sample files)"""
     work = ROOT / "build" / "sdzip"
     shutil.rmtree(work, ignore_errors=True)
     tree = work / "card"
@@ -121,7 +129,9 @@ def generate(out_zip):
         (tree / "Optimist" / d).mkdir(parents=True, exist_ok=True)
     sys.path.insert(0, str(ROOT / "tools"))
     import gen_samples
-    made = gen_samples.card_files(tree, list(gen_samples.CARD_SETS))
+    import sd_samples
+    smp = sd_samples.write_all(tree)
+    made = smp["sets"]
     sets = ", ".join(gen_samples.card_set_dir(s) for s in made)
     (tree / "Optimist" / "readme.txt").write_text(README.format(sets=sets))
     with zipfile.ZipFile(out_zip, "w", zipfile.ZIP_DEFLATED) as z:
@@ -133,7 +143,7 @@ def generate(out_zip):
                 z.write(p, rel)
     shutil.rmtree(work, ignore_errors=True)
     tally = dict(ln.split()[:2] for ln in res.stdout.splitlines() if ln.split()[:1] in (["total"], ["kits"]))
-    return int(tally["total"]), int(tally["kits"]), made
+    return int(tally["total"]), int(tally["kits"]), made, len(smp["files"])
 
 
 def make(out_zip, echo=True):
@@ -147,9 +157,10 @@ def make(out_zip, echo=True):
         for old in CACHE.glob("*.zip"):              # (one kept: the inputs of before are gone)
             old.unlink()
         tmp = CACHE / f"{k}.part"
-        presets, nkits, made = generate(tmp)
+        presets, nkits, made, nother = generate(tmp)
         tmp.replace(cached)
-        how = f"{presets} presets, {nkits} kits, {len(made)} sample sets ({sum(len(v) for v in made.values())} zones)"
+        how = (f"{presets} presets, {nkits} kits, {len(made)} sample sets ({sum(len(v) for v in made.values())} zones), "
+               f"{nother} kit, X0X and pack samples")
     else:
         how = "cached: its inputs unchanged"
     if cached.resolve() != out_zip.resolve():

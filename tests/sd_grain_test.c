@@ -8,10 +8,12 @@
  * 5.8 ms) in the middle of the runs. Each render forked from one state, the flash's (every set in this host build's
  * flash; SMP_CARD_SET the test's switch) beside the card's:
  *   - an ideal card (the main loop runs dry between two blocks: every want served before the block renders): every
- *     GRAIN factory preset on PIANO / VIBES / FLUTE and every STRETCH preset bit-identical to the flash render, no grain
- *     or window late or missed;
+ *     GRAIN factory preset on PIANO / VIBES / FLUTE and every STRETCH preset bit-identical to the same render with each
+ *     zone's whole file in RAM (its head: the engines' own reads of the files' samples, no cache; the card's files are
+ *     the sources at their own rate since 2026-11-04, no longer the flash zones' samples), no grain or window late or
+ *     missed;
  *   - the card in time (the audio interrupting the runs): the reads counted (at once, late, missed), the render's
- *     largest sample-to-sample step no more than the flash's by a margin (a grain never starts or stops on a step);
+ *     largest sample-to-sample step no more than the whole files' by a margin (a grain never starts or stops on a step);
  *   - the card stalling 100 ms every 600 ms (a card busy writing): misses counted, still no step;
  *   - SAMPLE streaming a set beside a GRAIN part: SAMPLE never dry, the bus shared;
  *   - the cache taken away mid-phrase (a plan's gate): the grains fade, no step;
@@ -43,6 +45,7 @@ static uint32_t tick_ms = 1900u;                     /* the model's bytes a mill
 
 static FATFS fs __attribute__((aligned(4)));
 static uint8_t src_mem[64u * 1024u] __attribute__((aligned(4)));
+static uint8_t whole_mem[2u * 1024u * 1024u] __attribute__((aligned(4)));   /* (the reference: each zone whole) */
 static uint8_t rc_mem[SST_NPART][SST_RC_BYTES(SST_RAND_KB)] __attribute__((aligned(4)));
 static uint32_t rc_kb = SST_RAND_KB;                 /* (the part's cache: GRAIN's, STRETCH's) */
 static uint8_t ring_mem[SST_N * SST_K * 512u] __attribute__((aligned(4)));
@@ -102,8 +105,26 @@ static void load_set(uint32_t k, const char *dir, uint32_t si0, uint32_t pre_ms)
         CHECK(sst_src_load(si0 + z, to, pre_ms, src_mem + src_used, sizeof src_mem - src_used, &used) == FR_OK,
               "%s loaded", to);
         src_used += used;
-        CHECK(sst_src[si0 + z].frames == SMP_ZONES[SMP_SETS[set_no[k]].z0 + z].n, "%s Z%u: the flash zone's frames",
-              SETS[k], z);
+        {
+            const smp_zone_t *fz = &SMP_ZONES[SMP_SETS[set_no[k]].z0 + z];
+            const sst_src_t *s = &sst_src[si0 + z];
+            CHECK(s->rate == fz->rate ? s->frames == fz->n : s->rate == 2u * fz->rate && s->frames + 2u >= 2u * fz->n,
+                  "%s Z%u: the flash zone's frames at the source's rate (%u at %u, the flash's %u at %u)", SETS[k], z,
+                  s->frames, s->rate, fz->n, fz->rate);
+        }
+    }
+}
+
+/* the reference (a forked child's): set k's zones again, each whole in its head (every read from RAM) */
+static void load_whole(uint32_t k)
+{
+    char to[32];
+    uint32_t z, used, at = 0;
+    for (z = 0; z < set_nz[k]; z++) {
+        snprintf(to, sizeof to, "%.1s%uZ%u.WAV", SETS[k], 0u, z);
+        CHECK(sst_src_load(set_src[k] + z, to, 60000u, whole_mem + at, sizeof whole_mem - at, &used) == FR_OK &&
+                  sst_src[set_src[k] + z].hlen + 4u > sst_src[set_src[k] + z].dlen, "%s whole", to);
+        at += (used + 3u) & ~3u;
     }
 }
 
@@ -212,7 +233,7 @@ static void run_ideal(void)                          /* every want served before
 }
 
 /* ---- one render, forked: the flash's (card 0) or the card's ---- */
-enum { M_IDEAL, M_REAL, M_STALL, M_GATE };
+enum { M_IDEAL, M_REAL, M_STALL, M_GATE, M_WHOLE };
 typedef struct {
     uint32_t hit, late, miss, dry, nostream, blocks, rcblocks, ms;
     double ns;
@@ -256,6 +277,8 @@ static void render(int32_t *L, uint32_t eng, uint32_t pi, uint32_t k, int card, 
         sst_rings(ring_mem, SST_N);
         host_preset(t, eng, pi);
         t->p[P_DIST] = t->p[P_CHOR] = t->p[P_DLY] = t->p[P_REV] = 0;
+        if (mode == M_WHOLE)
+            load_whole(k);
         part_on(0, k, card);
         if (with_sample) {                           /* part 2 on SAMPLE, VIBES from the card (streamed) */
             uint32_t se = eng_no("SAMPLE"), p2;
@@ -275,7 +298,7 @@ static void render(int32_t *L, uint32_t eng, uint32_t pi, uint32_t k, int card, 
         next_stall = stall_every;
         gate_at = mode == M_GATE ? total / 2u : 0u;
         t0 = clk;
-        if (mode == M_IDEAL)
+        if (mode == M_IDEAL || mode == M_WHOLE)
             run_ideal();
         else
             run_real();
@@ -355,45 +378,52 @@ static int32_t *A, *B;
 /* engine eng's presets on set k: ideal bit-identical, in time, stalling, gated */
 static void presets(uint32_t eng, uint32_t k, int stretch, uint32_t *played)
 {
-    uint32_t pi, d, first, sa, sb;
+    uint32_t pi, d, first, sa, sb, x2;
     st_t fl, c;
     for (pi = 0; pi < ENGINES[eng]->npresets; pi++) {
         const char *nm = ENGINES[eng]->presets[pi].name;
         if ((uint32_t)ENGINES[eng]->presets[pi].e[0] != set_no[k])
             continue;
         phrase(k, stretch);
-        render(A, eng, pi, k, 0, M_IDEAL, 0);
+        render(A, eng, pi, k, 1, M_WHOLE, 0);
         fl = *ST;
         render(B, eng, pi, k, 1, M_IDEAL, 0);
         c = *ST;
         d = differ(A, B, &first);
         sa = max_step(A);
-        CHECK(d == 0 && c.late == 0 && c.miss == 0 && c.hit > 0 && sounding(A) > 44100u,
-              "%s %s on %s, an ideal card: %u samples differ (first at %u), %u hit %u late %u missed, %u sounding",
-              ENGINES[eng]->name, nm, SETS[k], d, first, c.hit, c.late, c.miss, sounding(A));
-        printf("  %-7s %-11s %s  ideal: identical %s, %u reads at once; CPU %.1f ns a sample (flash %.1f, %+.0f %%)\n",
-               ENGINES[eng]->name, nm, SETS[k], d ? "NO" : "yes", c.hit, c.ns, fl.ns,
+        /* a 22.05 kHz set (VIBES) and STRETCH: every read in time, the whole files' render. GRAIN on a 44.1 kHz set
+         * (PIANO, FLUTE: since 2026-11-04 at their sources' rate) spreads its grains over twice the bytes, more than its
+         * cache holds even on an ideal card: a grain whose block is not in yet is skipped (counted late / missed, eng_grain.c,
+         * no click), the rest the whole files' */
+        x2 = sst_src[set_src[k]].rate > 40000u && !stretch;
+        CHECK((x2 || (d == 0 && c.late == 0 && c.miss == 0)) && c.hit > 0 && sounding(A) > 44100u &&
+                  max_step(B) <= sa + sa / 4u + 64u,
+              "%s %s on %s, an ideal card against the whole files: %u samples differ (first at %u), %u hit %u late %u "
+              "missed, %u sounding, step %u (whole %u)",
+              ENGINES[eng]->name, nm, SETS[k], d, first, c.hit, c.late, c.miss, sounding(A), max_step(B), sa);
+        printf("  %-7s %-11s %s  ideal: identical %s, %u reads at once %u late %u missed; CPU %.1f ns a sample (whole "
+               "%.1f, %+.0f %%)\n", ENGINES[eng]->name, nm, SETS[k], d ? "NO" : "yes", c.hit, c.late, c.miss, c.ns, fl.ns,
                fl.ns > 0 ? 100.0 * (c.ns - fl.ns) / fl.ns : 0.0);
         render(B, eng, pi, k, 1, M_REAL, 0);
         c = *ST;
         sb = max_step(B);
         d = differ(A, B, &first);
-        CHECK(sb <= sa + sa / 4u + 64u, "%s %s, the card in time: its largest step %u, the flash's %u", ENGINES[eng]->name,
+        CHECK(sb <= sa + sa / 4u + 64u, "%s %s, the card in time: its largest step %u, the whole files' %u", ENGINES[eng]->name,
               nm, sb, sa);
-        printf("  %22s in time: %u at once %u late %u missed; %u samples differ; step %u (flash %u); %u blocks, "
+        printf("  %22s in time: %u at once %u late %u missed; %u samples differ; step %u (whole %u); %u blocks, "
                "%u KB/s (%.1f %% of the bus)\n", "", c.hit, c.late, c.miss, d, sb, sa, c.rcblocks,
                c.ms ? c.rcblocks * 512u / c.ms : 0u, c.ms ? 100.0 * c.rcblocks * 512.0 / (c.ms * (double)tick_ms) : 0.0);
         render(B, eng, pi, k, 1, M_STALL, 0);
         c = *ST;
         sb = max_step(B);
-        CHECK(sb <= sa + sa / 4u + 64u, "%s %s, the card stalling: its largest step %u, the flash's %u",
+        CHECK(sb <= sa + sa / 4u + 64u, "%s %s, the card stalling: its largest step %u, the whole files' %u",
               ENGINES[eng]->name, nm, sb, sa);
         CHECK(sounding(B) > sounding(A) / 3u, "%s %s, the card stalling: it still sounds (%u of %u)", ENGINES[eng]->name,
               nm, sounding(B), sounding(A));
         printf("  %22s stalls 100 ms / 600 ms: %u at once %u late %u missed; step %u\n", "", c.hit, c.late, c.miss, sb);
         render(B, eng, pi, k, 1, M_GATE, 0);
         sb = max_step(B);
-        CHECK(sb <= sa + sa / 4u + 64u, "%s %s, the cache let go mid-phrase: its largest step %u, the flash's %u",
+        CHECK(sb <= sa + sa / 4u + 64u, "%s %s, the cache let go mid-phrase: its largest step %u, the whole files' %u",
               ENGINES[eng]->name, nm, sb, sa);
         for (d = 0, first = total / 2u + 13230u; first < total; first++)   /* (0.3 s on: silent) */
             if (abs(B[first]) > 64)          /* (-54 dBFS: the master's DC blocker settling) */
@@ -481,11 +511,11 @@ int main(int argc, char **argv)
     tick_ms = 1000u;
     half_ticks = 256u * tick_ms * 10u / 441u;
     phrase(0, 0);
-    render(A, ge, pi, 0, 0, M_IDEAL, 0);
+    render(A, ge, pi, 0, 1, M_WHOLE, 0);
     render(B, ge, pi, 0, 1, M_REAL, 0);
     c = *ST;
     d = differ(A, B, &first);
-    CHECK(max_step(B) <= max_step(A) + max_step(A) / 4u + 64u, "LOFI CLOUD at 1 MB/s: its largest step %u, the flash's %u",
+    CHECK(max_step(B) <= max_step(A) + max_step(A) / 4u + 64u, "LOFI CLOUD at 1 MB/s: its largest step %u, the whole files' %u",
           max_step(B), max_step(A));
     printf("  GRAIN LOFI CLOUD at 1 MB/s: %u at once %u late %u missed; %u samples differ\n", c.hit, c.late, c.miss, d);
     printf("%s: %d checks, %d failed\n", fails ? "FAIL" : "ok", checks, fails);
