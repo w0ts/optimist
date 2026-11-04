@@ -63,6 +63,7 @@ static void top_tests(void)
     cell_t c;
     char nm[12], b[16];
     reset_ui();
+    top.view = 0, top.off = 0;                          /* (as at power-on: an earlier test's KNOB 1 on this page switched the view) */
     memset(&dual_tm, 0, sizeof dual_tm);
     op_enter(SCR_SYSTEM);
     for (row = 0; row < SCREENS[SCR_SYSTEM].rows(); row++) {
@@ -74,8 +75,8 @@ static void top_tests(void)
     ui.msg_t = 0;
     frame();
     SCREENS[SCR_SYSTEM].name(row ? row - 1u : 0u, nm);
-    check(row < SCREENS[SCR_SYSTEM].rows() && gl_info() == 1u + INFO_PG_TOP && !strcmp(nm, FELUCCA_SYS_DEBUG ? "CPU TIMES" : "INFO"),
-          "TOP: a SYSTEM page of its own after INFO (CPU TIMES with the debug pages), drawn whole");
+    check(row < SCREENS[SCR_SYSTEM].rows() && gl_info() == 1u + INFO_PG_TOP && !strcmp(nm, "METERS"),
+          "TOP: a SYSTEM page of its own after METERS (General, USB, METERS, then TOP: the user, 2026-11-03), drawn whole");
 #if DUAL_TIMES
     topt_v = 0;
     topt_blocks(64, A, (1u << 1) | (1u << NPART), (1u << (NPART + 2u)) - 1u);
