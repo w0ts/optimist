@@ -600,6 +600,12 @@ static void sg_roll(const track_t *t)
             }
 #endif
             if (mut) {                                  /* (a muted note: hollow, its grey outline only; no accent, no notches) */
+                if (sx && cw > 4 && h > 4) {            /* (picked: the pick's outline, the grey hollow inside it: still seen muted; the 2 px
+                                                         * outline drawn over the hollow hid its grey, 2026-11-03) */
+                    roll_outline(t, sat, nt, idx, x, y + m, cw, h);
+                    roll_hollow(x + 2, y + m + 2, cw - 4, h - 4, 1, g || !roll_goes_on(t, idx, nt));
+                    continue;
+                }
                 roll_hollow(x, y + m, cw, h, 1, g || !roll_goes_on(t, idx, nt));
                 if (sx)
                     roll_outline(t, sat, nt, idx, x, y + m, cw, h);

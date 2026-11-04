@@ -128,9 +128,11 @@ static void glo_list_tests(void)
         }
         check(ok, "FILT RESO: a line of GLOBAL's first page (TUNE, QUANT, FILT RESO), none in SYSTEM");
 #if FELUCCA_CDC && !DBG_STATS
-        ok = g + 2u < SCREENS[SCR_SYSTEM].rows() && gl_end(1, g) - gl_first(1, g) == 3u;
+        ok = g + 3u < SCREENS[SCR_SYSTEM].rows() && gl_end(1, g) - gl_first(1, g) == 4u;
         SCREENS[SCR_SYSTEM].cell(g + 2u, gl_kn(SCR_SYSTEM, g + 2u), &c);
-        check(ok && c.label && !strcmp(c.label, "SERIAL"), "SYSTEM > General: KNOB COLORS, HPHN BASS and USB SERIAL on one page (GL_JOIN: FILT RESO gone)");
+        ok &= c.label && !strcmp(c.label, "SERIAL");
+        SCREENS[SCR_SYSTEM].cell(g + 3u, gl_kn(SCR_SYSTEM, g + 3u), &c);
+        check(ok && c.label && !strcmp(c.label, "METERS"), "SYSTEM > General: KNOB COLORS, HPHN BASS, USB SERIAL and METERS on one page (GL_JOIN: FILT RESO gone; METERS since 2026-11-03)");
 #endif
     }
 #endif
