@@ -4312,6 +4312,9 @@ static void preset_engine_tests(void)
 #include "ui_optimist_prjflow.h"                      /* 2026-10-14: PROJECT: BANK, OPERATION, ITEM, the keys run it */
 #if UI_SDCARD
 #include "ui_optimist_sdcard.h"                       /* SD card mode: the card's lists, banks of 16, saves by name */
+#if FELUCCA_SD_STREAM
+#include "ui_optimist_sdmon.h"                        /* SYSTEM > SD STREAM: the read rate, the streams, the rings' fill, the dropouts */
+#endif
 #endif
 #include "ui_optimist_algo.h"                       /* 2026-10-12: ALGORITHM's walk, a lane's PRESETS, the ARP picture */
 #include "ui_optimist_mute.h"                       /* 2026-10-12: the mixer's MUTE card */
@@ -4512,6 +4515,9 @@ int main(int argc, char **argv)
     return fails != 0;
 #endif
     sdcard_tests();
+#if FELUCCA_SD_STREAM
+    sdmon_tests();
+#endif
 #if FELUCCA_SD_REC
     sdu_rec_tests();
 #endif

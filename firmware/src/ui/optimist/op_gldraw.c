@@ -13,6 +13,7 @@
 #define GL_BX 6                         /* the value bar: the screen's width less a margin each side */
 #define GL_BW 228
 #define GL_BH 4                         /* its thickness */
+#define GL_PK_TK 2                      /* a peak tick: this wide, standing this far over and under the bar */
 #define GL_CK 10                        /* the on / off mark's side */
 static struct {
     uint32_t s, first, end, n, cur;
@@ -127,6 +128,8 @@ static void gl_line_draw(uint32_t k, int32_t y, const cell_t *c, uint32_t on)
         if (g.gk == GK_PILL)
             g.gk = GK_DOTS;                             /* (a two-way choice: two segments, the chosen one lit) */
         draw_gauge(GL_BX, by, GL_BW, GL_BH, &g, ink, C_LINE);
+        if (c->pkbar && c->hold[0] > 0)                 /* (SD STREAM: the peak of the last 10 s on a bar of 0 .. 100, as INFO's CPU lines' tick) */
+            cv_rect(GL_BX + c->hold[0] * (GL_BW - GL_PK_TK) / 100, by - GL_PK_TK, GL_PK_TK, GL_BH + 2 * GL_PK_TK, C_WHITE);
     }
 }
 /* SYSTEM's first page, INFO: not 4 lines but every read-out at once, compact: the name left, the value right, text
@@ -310,9 +313,39 @@ static void gl_paint(void)
         y += gl_pitch();
     }
 }
+/* A read-out moves by itself: CPU0's percent every frame on an FM-1, and each change drew the whole page (8 strips, 115 KB: 21 ms of
+ * LCD on a bus the SD card shares, longer than a frame; the user, 2026-11-05: "on the SYSTEM 1 screen, many samples are cut"). So a
+ * change of read-outs alone waits GL_RO_MS, and sends only its own line's rows; anything else (a turn, the cursor, a setting) as ever */
+#define GL_RO_MS 250u
+#define GL_RO_N 16u
+static struct {
+    uint32_t key, sig, t, ln[GL_RO_N];
+} glr;                                                  /* the page as it was last sent */
+#if OP_TOP
+static uint32_t gl_info_top(void) { return gl_info() == 1u + INFO_PG_TOP; }   /* (its numbers and its scroll: no lines of a fixed height) */
+#else
+static uint32_t gl_info_top(void) { return 0u; }
+#endif
+static uint32_t gl_ro_sig(const cell_t *c)
+{
+    return hu(hc(0x1Du, c), (uint32_t)(uint16_t)c->hold[0] << 16 ^ (uint16_t)c->hold[1] ^ (uint32_t)c->pkbar << 15);
+}
+static void gl_rows(int32_t y, int32_t h)               /* the band's rows y .. y + h - 1 painted again, the others left */
+{
+    int32_t n;
+    for (; h > 0; y += n, h -= n) {
+        n = h < (int32_t)CV_PASS ? h : (int32_t)CV_PASS;
+        cv_begin(240, (uint32_t)n, C_BLACK);
+        cv_oy = -y;
+        gl_paint();
+        cv_oy = 0;
+        cv_blit(0, (uint32_t)(GL_TOP + y));
+    }
+}
 static void gl_draw(void)
 {
-    uint32_t i, sig;
+    uint32_t i, sig, key, n = 0, ln[GL_RO_N];
+    int32_t pitch = gl_pitch();
     char nm[12];
     cell_t c;
     gld.s = ui.scr == SCR_SYSTEM;
@@ -325,7 +358,16 @@ static void gl_draw(void)
     for (i = gld.first; i < gld.end; i++) {
         gl_sect(gld.s, i, nm);
         gl_cell(gld.s, i, &c);
-        sig = hc(hs(sig, nm), &c);
+        sig = hs(sig, nm);
+        if (c.kind == CK_RO && !gl_info() && i - gld.first < GL_RO_N) {
+            sig = hu(sig, i - gld.first);               /* (a read-out's line: below, its own rows) */
+            ln[i - gld.first] = gl_ro_sig(&c);
+            n = i - gld.first + 1u;
+            continue;
+        }
+        if (i - gld.first < GL_RO_N)
+            ln[i - gld.first] = 0;
+        sig = hu(hc(sig, &c), (uint32_t)(uint16_t)c.hold[0]);   /* (a peak tick moves with the same text) */
     }
 #if FELUCCA_BT_UI
     if (gld.s && bt_pg_shown())
@@ -335,23 +377,44 @@ static void gl_draw(void)
     if (gld.s && wf_pg_shown())
         sig = hu(sig, wf_pg_sig());                     /* (the WI-FI page's networks) */
 #endif
-    if (gl_info())
+    if (gl_info()) {
+        uint32_t lines = !gl_info_top() && info_lines(gl_info() - 1u) <= GL_RO_N;
+        pitch = lines ? gl_info_pitch(gl_info() - 1u, info_lines(gl_info() - 1u), gl_y0()) : 0;
         for (i = 0; i < info_lines(gl_info() - 1u); i++) {   /* (the info pages: their read-outs) */
             info_cell(gl_info() - 1u, i, &c);
-            sig = hu(hc(sig, &c), (uint32_t)(uint16_t)c.hold[0] << 16 ^ (uint16_t)c.hold[1] ^ (uint32_t)c.pkbar << 15);
+            if (lines)
+                ln[i] = gl_ro_sig(&c), n = i + 1u;
+            else
+                sig = hu(sig, gl_ro_sig(&c));
         }
+    }
     if (gl_cred()) {                                    /* (the credits: the crawl's offset; any other page: it starts at the top next time) */
         cred_tick();
         cr.px = (int16_t)cred_px();
         sig = hu(sig, (uint32_t)(uint16_t)cr.px);
-        if (sig != ui.sig[2])
-            cr.draws++;                                 /* (a paint: the tests count them) */
     } else
         cred_off();
+    key = sig;
+    for (i = 0; i < n; i++)
+        sig = hu(sig, ln[i]);
     if (sig == ui.sig[2])
         return;
-    ui.sig[2] = sig;
-    cv_tall(GL_TOP, gl_info_wide() ? GL_BAND_W : GL_BAND, C_BLACK, gl_paint);
+    if (gl_cred())
+        cr.draws++;                                     /* (a paint: the tests count them) */
+    if (ui.sig[2] && ui.sig[2] == glr.sig && key == glr.key) {   /* (the read-outs alone) */
+        if (fm1_ms - glr.t < GL_RO_MS)
+            return;
+        for (i = 0; i < n; i++)
+            if (ln[i] != glr.ln[i])
+                gl_rows(gl_y0() + (int32_t)i * pitch, pitch);
+    } else {
+        cv_tall(GL_TOP, gl_info_wide() ? GL_BAND_W : GL_BAND, C_BLACK, gl_paint);
+    }
+    ui.sig[2] = glr.sig = sig;
+    glr.key = key;
+    glr.t = fm1_ms;
+    for (i = 0; i < n; i++)
+        glr.ln[i] = ln[i];
 }
 
 /* PAGE_LINES (op_draw.c pl_on): a screen's cursor row as GLOBAL's lines, value k on line k (its knob), the hot one in the

@@ -425,6 +425,7 @@ enum { SI_NONE, SI_TUNE, SI_RECQ, SI_PUNCH, SI_OUT, SI_SYNC, SI_CH1, SI_CH2,
        SI_SDBACK, SI_SDREST,                            /* SETTINGS: BACKUP to the card, RESTORE from it (sd_mode.c) */
        SI_SDCLOCK,                                      /* SD CARD: the card's SPI clock, read-only (sd_mmc.c sd_clock_probe) */
 #endif
+       SI_SMRATE, SI_SMSTRM, SI_SMBUF, SI_SMDRY,        /* SYSTEM > SD STREAM (op_sdmon.c): READ, STREAMS, BUFFER, DRY */
        SI_WFMODE, SI_WFNET, SI_WFSIG, SI_WFST,           /* SYSTEM > WI-FI (op_wifi.c): MODE, NETWORK, SIGNAL, STATE */
        SI_RAM,                                          /* INFO: the SRAM free at link, the stacks' least room left (stackmark.h) */
        SI_UHMODE, SI_UHDEV,                             /* SYSTEM > USB (USB_HOST, the release): MODE DEVICE / HOST, DEVICE */
@@ -524,6 +525,8 @@ static const struct { const char *name; uint8_t it[4]; } SYS[] = {
 #if FELUCCA_SD_STREAM
     {"SD CARD", {SI_SDPRE, SI_SDCLOCK, SI_NONE, SI_NONE}},   /* (the card samples' pre-buffer, its KB beside it; the clock the
                                                          * mount's detection kept, read-only: the user, 2026-11-04) */
+    {"SD STREAM", {SI_SMRATE, SI_SMSTRM, SI_SMBUF, SI_SMDRY}},   /* how the card copes: the read rate, the voices streaming, the rings'
+                                                         * least fill, the dropouts (the user, 2026-11-05; op_sdmon.c) */
 #else
     {"SD CARD", {SI_SDCLOCK, SI_NONE, SI_NONE, SI_NONE}},
 #endif
@@ -753,6 +756,9 @@ static void info_ram(cell_t *c)
         c->unit = "KB STACK LOW";
     }
 }
+#if FELUCCA_SD_UI && FELUCCA_SD_STREAM
+#include "op_sdmon.c"                                   /* SYSTEM > SD STREAM: its four lines (storage/sd/sd_mon.c's numbers) */
+#endif
 static void sys_onoff(cell_t *c, const char *label, uint32_t on)   /* an ON / OFF line */
 {
     cell_list(c, label, on ? "ON" : "OFF", 1, on != 0u);
@@ -1106,6 +1112,14 @@ static void sys_it_cell(uint32_t it, cell_t *c)     /* the cell of setting it */
         c->unit = "MHZ";
         break;
     }
+#if FELUCCA_SD_STREAM
+    case SI_SMRATE:                                     /* SD STREAM's four lines (op_sdmon.c) */
+    case SI_SMSTRM:
+    case SI_SMBUF:
+    case SI_SMDRY:
+        smn_cell(it, c);
+        break;
+#endif
 #endif
     case SI_ABOUT: {                                    /* a read-out: the version itself (YES still says it whole) */
         const char *v = FELUCCA_VERSION;
@@ -1778,6 +1792,12 @@ static void sys_turn(uint32_t r, uint32_t k, int32_t s, int fine)
     if ((it == SI_BTAPEER || it == SI_BLEPEER) && bt_pg_turn(it == SI_BTAPEER ? BT_AUD : BT_MIDI, s))
         return;                                         /* (a Bluetooth page's DEVICE knob: the cursor through its devices) */
 #endif
+#if FELUCCA_SD_UI && FELUCCA_SD_STREAM
+    if (smn_item(it)) {
+        smn_turn(it, s);                                /* (SD STREAM: DRY's items, or the counts cleared) */
+        return;
+    }
+#endif
 #if WIFI_UI
     if (it == SI_WFNET && wf_turn(s))
         return;                                         /* (the WI-FI page's NETWORK knob: the cursor through the networks heard) */
@@ -1861,6 +1881,12 @@ static int sys_yes(uint32_t r, uint32_t k, uint32_t ok)
     }
     if (it == SI_SDVERS || it == SI_SDSLACK || it == SI_SDPRE)
         return 0;                                       /* (numbers: the knob) */
+#if FELUCCA_SD_STREAM
+    if (smn_item(it)) {                                 /* SD STREAM: YES, SAVE clear the counts */
+        smn_clear();
+        return 1;
+    }
+#endif
 #endif
     if (d) {
         if (!val_toggle(d, vp))
