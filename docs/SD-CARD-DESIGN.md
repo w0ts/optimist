@@ -529,7 +529,8 @@ the SD card zip unzipped at its root (section 9); there is no layout of before t
   Samples/                    samples, in any sub-folders the user makes; WAV (16-bit mono by default, the M8's
                               speed advice); loop points and slice markers inside the WAV (as the M8 does)
     <Set>/z0.wav ..           the sample sets (Piano, Bass, Vibes, Horns, Strgs, Flute, Scrch: the zip's)
-  Kits/<name>.opk             the user's kits, by name
+  Kits/Factory/<L>/<nn> - <name>.opk   every factory kit (the zip's): 16 a bank in the kit list's order
+  Kits/User/<L>/<nn> - <name>.opk      the kits saved on the FM-1, in banks of 16 as the presets
   Record/rec-0001.wav         recordings (a new file each, the first free number)
   Renders/                    song / stem renders
   Backup/settings.opd         the settings backup (SYSTEM > SETTINGS); whole-device backups later
@@ -680,7 +681,7 @@ checked: only the build time and the commit differ).
   by itself once its memory is back); none left: *MEM FULL CARD: 25 MS FITS* (`sstp.fit_ms`, the longest pre-buffer that
   fits), or *MEM FULL CARD*. Said once a refusal.
 - **Presets and kits**: one small file each, `Presets/User/<Engine>/<L>/<nn> - <name>.ops` ("OPPR": a user preset's record, `upreset.c up_card_*`
-  through slot `UP_CARD` = `UP_SLOTS`, RAM only) and `Kits/<name>.opk` ("OPKT": a user kit and its lanes' sends,
+  through slot `UP_CARD` = `UP_SLOTS`, RAM only) and `Kits/User/<L>/<nn> - <name>.opk` ("OPKT": a user kit and its lanes' sends,
   `drum_kits.c ukit_card_*`), a 16-byte header (magic, version, length, the payload's XXH64), a sector at most
   (written whole), allocated exact (`SDA_EXACT`). A preset of an FM6 sound keeps its own voice too, the operator edits
   and all (`fm6_pack`'s 128 B after the record, as the flash slots' `UP_FM6`; a file of before loads its VOICE). Saved into the folder's top; loaded from any
@@ -734,8 +735,20 @@ on a Mac). Unzipped at the card's root; its `readme.txt` says what is where.
   without the packs plays it the same (`tests/sd_factory_test.c` with the zip's files, no pack built). On the card
   there is no pack: SD card mode lists no pack voices in FM6's collection (`nbank.c`: the R bank received over MIDI
   only). Not on the card: the CZ collection (U01..: the user's own flash store), the R bank (received, RAM), the
-  drum kits (the factory kits are the drum engines' own, compiled in every build: a kit file is a set of references
-  into them, `drum_kits.c ukit_card_take`, nothing a file would carry). 368 presets in all (2026-11-04).
+  drum kits are files of their own (below). 368 presets in all (2026-11-04).
+- **Factory kits on the card** (the user, 2026-11-04: "the factory kits go on the card like presets"):
+  `Optimist/Kits/Factory/<L>/<nn> - <name>.opk`, every kit UID of drums.c in the kit list's order (the 5 sampled, the
+  32 synthesised, X0X's 909 and 808 and their 8 styles, KAWA, PLAITS: 49, A/01 acoustic .. D/01 plaits), each the kit
+  picked on fresh lanes taken as a user kit is (`drum_kits.c ukit_card_take`: the lanes, each lane's source by
+  reference to the built-in drum sounds, the sends). The KITS list is in banks as the presets' (Kits/User/<L> for
+  the saves, Kits/Factory beside it; the black keys and OCT the same). A kit file names its sounds, it does not hold
+  them: the drum sources are the build's (the builder's DRUM_SYNTH, DS_KAWA, DS_PLAITS, DRUM_X0X909 / 808, X909_CYM,
+  the sampled KIT_* items). **Not in every SD build**: sd-card-mots has no sampled kits (KIT_* 0: ACOUSTIC .. DUST)
+  and no 909 cymbals (X909_CYM 0); a default profile has no X0X kits. A kit the build lacks plays its stand-in
+  (`drums.c drum_kit_of`), as a project naming it does, and MISSING is said (`miss.c`). Tested:
+  `tests/sd_factory_test.c --kits` with every drum source built and with sd-card-mots' drums: one file a kit UID,
+  named as the kit list does, each loaded from its file plays as the flash's kit, every lane's hit sample for sample
+  (each way rendered in a child of one process: X0X's and KAWA's filters keep state between hits).
 - At a mount the names are read once (`sd_mode.c sdm_factory_scan`): every built engine's banks, A, B .. up to the
   first not there, its count the last numbered file's place + 1 (core.h `ENG_NPRE`, the table's count until a card is
   read), then the names; the PRESETS lists (made again), the console and the web editor show them; a missing file "?".
