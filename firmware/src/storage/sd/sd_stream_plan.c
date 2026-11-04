@@ -37,6 +37,13 @@
  * (a hit starts at once from it, the ring follows), SST_KIT_RINGS rings for the kit's hits and SST_X9_RINGS for the
  * 909's; sst_kit_src / sst_x9_src (sd_stream.h) point the drums at them. One not on the card: kmiss / x9miss (sd_mode.c
  * says MISSING once), that sound silent.
+ * A part on GRAIN or STRETCH with SRC CARD (SST_PART_FREE(p); the user, 2026-11-05): its own WAV, by its hash as a CARD
+ * sample, read in any order as a card set of one zone (sst_bank_src / sst_bank_n[p], sst_bank_free), no ring. WHOLE in the
+ * block when it fits (sstp.whole, SST_PRE_WHOLE, at most SST_WHOLE_MAX; no bus at all, a cache of SST_RC_WHOLE_KB for the
+ * engines' pins), else through the part's cache: any length (the cache needs only a grain's or a window's sectors), a
+ * stereo file's STRETCH cache twice the KB (its window's bytes: SST_RK at most). sstp.bad[p]: part p's file cannot be
+ * played, SSTB_RUNS in more runs than the fast-seek map holds, SSTB_FORMAT not a PCM WAV of 8 or 16 bits, SSTB_LONG 2^30
+ * frames or more (sd_mode.c says it, once).
  * A refusal keeps the project's samples silent (their parts' CARD voices play nothing), the project unchanged, and is
  * tried again every SST_RETRY_MS (a part's change, an effect let go: room): placed by itself once it fits, as the
  * arena's other buffers are (core/arena_bufs.c). */
@@ -77,6 +84,7 @@
 #define SST_RETRY_MS 200u
 #define SST_GATE_MS 20u                              /* the audio's two halves (11.6 ms) and some: no voice reads it */
 enum { SSTP_IDLE = 0, SSTP_GATED, SSTP_PLACED, SSTP_REFUSED };
+enum { SSTB_RUNS = 1, SSTB_FORMAT, SSTB_LONG, SSTB_GONE };
 static const uint16_t SST_PRE_MS[4] = {25, 50, 100, 200};
 static uint16_t sst_pre_ms = 50;                     /* (the setting) */
 static uint64_t sst_part_hash[SST_NSLOT] IN_POOL;    /* each part's CARD sample, then each card lane's; 0 none */
@@ -87,7 +95,16 @@ static uint8_t sst_part_bank[SST_NPART];             /* each part's card set + 1
 #ifndef SST_PART_RAND
 #define SST_PART_RAND(p) 0u
 #endif
-static uint8_t sst_part_rnd;                         /* the parts on a card set through a cache, a mask (SST_PART_RAND) */
+#ifndef SST_PART_FREE
+#define SST_PART_FREE(p) 0u                          /* (sdcard.c: the part on GRAIN or STRETCH with SRC CARD) */
+#endif
+#ifndef SST_WHOLE_MAX
+#define SST_WHOLE_MAX (128u * 1024u)                 /* a file read whole into the block at most: the arena's other users */
+#endif
+#define SST_RC_WHOLE_KB 1u                           /* (a whole file's part: no sector ever cached, the pins' home) */
+static uint8_t sst_part_rnd;                         /* the parts read through a cache, a mask (SST_PART_RAND) */
+static uint8_t sst_part_free;                        /* those on their own WAV, a mask (SST_PART_FREE) */
+static uint8_t sst_rc_kb[SST_NPART];                 /* the KB placed (a whole file's, a stereo STRETCH's: not sst_part_kb) */
 static uint8_t sst_part_kb[SST_NPART];               /* their caches' KB (SST_PART_RAND: GRAIN's, STRETCH's) */
 static uint16_t sst_kit_want;                        /* the drums' card sounds wanted (SST_KIT_WANT, SST_X9_WANT) */
 static uint8_t sst_x9_want;
@@ -95,6 +112,8 @@ static uint8_t sst_x9_want;
 static struct {
     uint8_t dirty, state, said;
     uint8_t drop, drop_all, bmiss, x9miss;
+    uint8_t bad[SST_NPART];                          /* a part's own file not playable (SSTB_*), 0 fine */
+    uint32_t whole;                                  /* the sources read whole into the block, a mask */
     uint16_t kmiss;                                  /* the kits' sounds wanted and not on the card (x9miss: the 909's) */
     uint16_t missing;
     uint16_t fit_ms;
@@ -113,7 +132,7 @@ static uint32_t sst_rcs_of(void)                     /* the parts that take a ca
 {
     uint32_t p, m = 0;
     for (p = 0; p < SST_NPART; p++)
-        if (sst_part_bank[p] && (sst_part_rnd >> p & 1u))
+        if ((sst_part_bank[p] || (sst_part_free >> p & 1u && sst_part_hash[p])) && (sst_part_rnd >> p & 1u))
             m |= 1u << p;
     return m;
 }
@@ -123,7 +142,7 @@ static uint32_t sst_cache_bytes(uint32_t m)         /* the caches of mask m in t
     uint32_t p, n = 0;
     for (p = 0; p < SST_NPART; p++)
         if (m >> p & 1u)
-            n += SST_RC_BYTES(sst_part_kb[p]);
+            n += SST_RC_BYTES(sst_rc_kb[p]);
     return n;
 }
 
@@ -152,7 +171,9 @@ static uint32_t sst_nring(void)                      /* the rings the CARD parts
     uint32_t p, n = 0;
     uint32_t sl = sst_slicers();
     for (p = 0; p < SST_NSLOT; p++)
-        if ((sst_part_hash[p] || (p < SST_NPART && sst_part_bank[p] && !(sst_part_rnd >> p & 1u))) && !((sl >> p) & 1u))
+        if (p < SST_NPART && (sst_part_free >> p & 1u))
+            continue;                                /* (read through its cache, no ring) */
+        else if ((sst_part_hash[p] || (p < SST_NPART && sst_part_bank[p] && !(sst_part_rnd >> p & 1u))) && !((sl >> p) & 1u))
             n += p < SST_NPART ? (SST_PART_VOICES(p) < SST_PART_RINGS ? SST_PART_VOICES(p) : SST_PART_RINGS) : 1u;
     n += sst_kit_want ? SST_KIT_RINGS : 0u;
     n += sst_x9_want ? SST_X9_RINGS : 0u;
@@ -169,7 +190,7 @@ static void sst_part_set(uint32_t part, uint64_t hash)   /* (part: a slot, SST_N
 
 static uint32_t sst_bank_sync(void)                  /* the parts' card sets (SST_PART_BANK) again: 1 changed */
 {
-    uint32_t p, b, ch = 0, r = 0;
+    uint32_t p, b, ch = 0, r = 0, fr = 0;
     if (SST_KIT_WANT() != sst_kit_want || SST_X9_WANT() != sst_x9_want) {   /* (the drums' card sounds) */
         sst_kit_want = (uint16_t)SST_KIT_WANT();
         sst_x9_want = (uint8_t)SST_X9_WANT();
@@ -182,7 +203,9 @@ static uint32_t sst_bank_sync(void)                  /* the parts' card sets (SS
             sst_part_bank[p] = (uint8_t)b;
             ch = 1;
         }
-        if (b && SST_PART_RAND(p)) {
+        if (SST_PART_FREE(p))
+            fr |= 1u << p;
+        if ((b || SST_PART_FREE(p)) && SST_PART_RAND(p)) {
             r |= 1u << p;
             if (sst_part_kb[p] != SST_PART_RAND(p)) {
                 sst_part_kb[p] = (uint8_t)SST_PART_RAND(p);
@@ -190,14 +213,16 @@ static uint32_t sst_bank_sync(void)                  /* the parts' card sets (SS
             }
         }
     }
-    if (r != sst_part_rnd) {                         /* (a part went from SAMPLE to GRAIN or STRETCH on its set, or back) */
+    if (r != sst_part_rnd || fr != sst_part_free) {  /* (a part went from SAMPLE to GRAIN or STRETCH on its set, or back) */
         sst_part_rnd = (uint8_t)r;
+        sst_part_free = (uint8_t)fr;
         ch = 1;
     }
 #else
     (void)p;
     (void)b;
     (void)r;
+    (void)fr;
 #endif
     return ch;
 }
@@ -277,7 +302,8 @@ static uint32_t sst_need(uint32_t pre_ms)           /* the block at that setting
     for (i = 0; i < sstp.nsrc; i++) {
         if (sstp.rec[i] < 0 || sst_src_path(i, path, sizeof path) != FR_OK)
             continue;
-        if ((sstp.use[i] & SSTU_HEAD) && sst_src_need(path, sst_use_pre(sstp.use[i], pre_ms), &b) == FR_OK)
+        if ((sstp.use[i] & SSTU_HEAD) && sst_src_need(path, sstp.whole >> i & 1u ? SST_PRE_WHOLE :
+                                                      sst_use_pre(sstp.use[i], pre_ms), &b) == FR_OK)
             n += (b + 3u) & ~3u;
 #ifdef SST_PART_SLICE
         if ((sstp.use[i] & SSTU_SLICE) && ssl_need(path, &b) == FR_OK)
@@ -310,6 +336,7 @@ static uint32_t sst_pre_kb(uint32_t ms)
 static void sst_gate(void)                           /* the CARD voices let go: they fade out (eng_sample.c) */
 {
     uint32_t i;
+    sst_bank_free = 0;
     for (i = 0; i < SST_NSLOT; i++)
         sst_part_src[i] = 0xFF;
 #ifdef SST_PART_SLICE
@@ -415,7 +442,8 @@ static void sst_lookup(void)                         /* the slots' hashes -> sou
             sstp.nsrc++;
         }
         if (i < sstp.nsrc)
-            sstp.use[i] |= (uint8_t)(((sstp.slc >> p) & 1u) ? SSTU_SLICE : SSTU_STREAM);
+            sstp.use[i] |= (uint8_t)(((sstp.slc >> p) & 1u) ? SSTU_SLICE :
+                                     p < SST_NPART && (sst_part_free >> p & 1u) ? SSTU_RAND : SSTU_STREAM);
         if (i >= sstp.nsrc || sstp.rec[i] < 0)
             sstp.missing |= (uint16_t)(1u << p);
     }
@@ -439,8 +467,8 @@ static void sst_load_all(uint8_t *mem)               /* the rings, then each sou
     sst_rings(mem, sstp.nring);
     for (p = 0; p < SST_NPART; p++)                  /* the caches after the rings */
         if (sstp.rc >> p & 1u) {
-            sst_rc_place(p, mem + at, sst_part_kb[p]);
-            at += SST_RC_BYTES(sst_part_kb[p]);
+            sst_rc_place(p, mem + at, sst_rc_kb[p]);
+            at += SST_RC_BYTES(sst_rc_kb[p]);
         }
     for (i = 0; i < sstp.nsrc; i++) {
         tab[i] = 0;
@@ -449,7 +477,8 @@ static void sst_load_all(uint8_t *mem)               /* the rings, then each sou
             continue;
         }
         if (sstp.use[i] & SSTU_HEAD) {
-            if (sst_src_load(i, path, sst_src_pre(sstp.use[i]), mem + at, sstp.need - at, &used) != FR_OK) {
+            if (sst_src_load(i, path, sstp.whole >> i & 1u ? SST_PRE_WHOLE : sst_src_pre(sstp.use[i]), mem + at,
+                             sstp.need - at, &used) != FR_OK) {
                 sstp.rec[i] = -1;                    /* (gone since the lookup, or no longer a WAV it plays) */
                 continue;
             }
@@ -506,9 +535,70 @@ static void sst_load_all(uint8_t *mem)               /* the rings, then each sou
                 else if ((sstp.slc >> p) & 1u)
                     ssl_set(p, tab[i]);
 #endif
-                else
+                else if (p < SST_NPART && (sst_part_free >> p & 1u)) {
+                    sst_bank_src[p] = (uint8_t)i;    /* (its own WAV: a card set of one zone) */
+                    sst_bank_n[p] = 1;
+                    sst_bank_free |= (uint8_t)(1u << p);
+                } else {
                     sst_part_src[p] = (uint8_t)i;
+                }
             }
+    sst_bank_gen++;                                  /* (the zones again, the parts' own WAVs in) */
+}
+
+/* the parts on their own WAV: each file looked at (not playable: bad, MISSING; a stereo file's STRETCH cache twice the
+ * KB, its window's bytes), then the files only caches read, each whole when the block still fits, in source order: a
+ * part whose reads are all its whole file keeps a cache of SST_RC_WHOLE_KB */
+static void sst_free_kb(uint64_t hash, uint32_t kb2, uint32_t whole)   /* the parts on that file: their caches' KB */
+{
+    uint32_t p;
+    for (p = 0; p < SST_NPART; p++)
+        if ((sst_part_free >> p & 1u) && sst_part_hash[p] == hash)
+            sst_rc_kb[p] = (uint8_t)(whole ? SST_RC_WHOLE_KB : sst_part_kb[p] * (kb2 && sst_part_kb[p] <= SST_STRETCH_KB ? 2u : 1u));
+}
+static void sst_free_pick(void)
+{
+    static char path[SDX_PATH + 16];
+    uint32_t p, i, b, cand = 0, wide = 0, bad;
+    FRESULT r;
+    sstp.whole = 0;
+    for (p = 0; p < SST_NPART; p++) {
+        sstp.bad[p] = 0;
+        sst_rc_kb[p] = sst_part_kb[p];
+    }
+    for (i = 0; i < sstp.nsrc; i++) {
+        if (sstp.zb[i] || sstp.rec[i] < 0 || !(sstp.use[i] & SSTU_RAND) || sst_src_path(i, path, sizeof path) != FR_OK)
+            continue;
+        r = sst_src_need(path, SST_PRE_WHOLE, &b);
+        bad = r == FR_DENIED ? SSTB_RUNS : r == FR_INVALID_OBJECT ? SSTB_FORMAT : r != FR_OK ? SSTB_GONE :
+              sst_probe.dlen >> sst_probe.fsh >= 1u << 30 ? SSTB_LONG : 0u;
+        if (bad) {
+            sstp.rec[i] = -1;
+            for (p = 0; p < SST_NPART; p++)
+                if ((sst_part_free >> p & 1u) && sst_part_hash[p] == sstp.hash[i]) {
+                    sstp.bad[p] = (uint8_t)(bad == SSTB_GONE ? 0u : bad);
+                    sstp.missing |= (uint16_t)(1u << p);
+                }
+            continue;
+        }
+        if (sst_probe.fsh > 1u) {
+            wide |= 1u << i;
+            sst_free_kb(sstp.hash[i], 1u, 0u);
+        }
+        if (sstp.use[i] == SSTU_RAND && sst_probe.dlen <= SST_WHOLE_MAX)
+            cand |= 1u << i;
+    }
+    sstp.rc = (uint8_t)sst_rcs_of();
+    for (i = 0; i < sstp.nsrc; i++) {
+        if (!(cand >> i & 1u))
+            continue;
+        sstp.whole |= 1u << i;
+        sst_free_kb(sstp.hash[i], 0u, 1u);
+        if (!arn_fits(SST_ARN_K, sst_need(sst_pre_ms), 0)) {
+            sstp.whole &= ~(1u << i);                /* (it does not fit: through the cache) */
+            sst_free_kb(sstp.hash[i], wide >> i & 1u, 0u);
+        }
+    }
 }
 
 static int sst_place(void)                           /* 0 placed (or nothing to place), -1 refused */
@@ -585,6 +675,7 @@ static void sst_plan_poll(void)
         sst_lookup();
         sstp.nring = (uint8_t)sst_nring();
         sstp.rc = (uint8_t)sst_rcs_of();
+        sst_free_pick();
         sstp.need = sst_need(sst_pre_ms);
         (void)sst_place();
         return;

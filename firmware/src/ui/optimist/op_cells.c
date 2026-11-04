@@ -47,6 +47,9 @@ static void cell_clear(cell_t *c)
     memset(c, 0, sizeof *c);
     c->unit = "";
 }
+#if FELUCCA_SD_UI && FELUCCA_SD_STREAM
+static const char *sdm_card_label(uint32_t k);          /* (storage/sd/sd_mode.c: the file SET / SRC plays on CARD) */
+#endif
 static __attribute__((noinline)) void cell_val(cell_t *c, const char *s) { str_cpy(c->val, s, 14); }   /* (42 sites; 13 characters, the field of a WIFI_UI build too: WI-FI's SIGNAL fills it whole) */
 /* an action's card: the verb is its val when set, else its label (the list's narrow columns draw the label); the small
  * label above is obj, else the label over a val, else none (op_draw.c act_text) */
@@ -160,6 +163,10 @@ static void cell_param(cell_t *c, const param_desc_t *d, int16_t *vp)
         char b[16];                                     /* (DST -> DIST, FILT -> FILTER, CMP -> COMP: op_names.c) */
         cell_val(c, nm_card(c->val, 0, b, sizeof b));
     }
+#if FELUCCA_SD_UI && FELUCCA_SD_STREAM
+    if (pd_names(d) == SMP_ALL_NAMES && *vp == (int16_t)SMP_CARD && sdm_card_label(song.sel)[0])
+        cell_val(c, sdm_card_label(song.sel));          /* (SET, SRC on CARD: the file's name, or MISSING) */
+#endif
     if (d->fmt == F_ENUM)
         cell_empty_slot(c);
     if (d->fmt == F_STEPS)

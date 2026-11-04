@@ -30,7 +30,9 @@
  * its frame's reading starts: the reading waits (the frame's work paced into the rest, as a long POS start's) up to
  * ST_WAIT_BLK blocks, then the frame reads the LAST window again with the scan held (a freeze, counted a miss) or, with
  * none, silence (the overlap-add fades the sound out, no click); the scan to POS (skip) is counted as the flash's
- * decodes are, none made. */
+ * decodes are, none made. SRC's last value CARD (the user, 2026-11-05): the part's own WAV, a card set of one zone over
+ * every key (sd_stream_plan.c: whole in the arena when it fits, else through the cache, twice the size for a stereo
+ * file's window), any length: the scan goes to POS at once. */
 #if !FELUCCA_ENG_SAMPLE
 #error "the STRETCH engine reads SAMPLE's material: it needs FELUCCA_ENG_SAMPLE"
 #endif
@@ -341,6 +343,8 @@ static void pst_card_block(void)
     c->now = c->now + CTL;
     if (!sst_rc_live(c) || pstx.rcg != c->gen) {
         pstx.haslast = 0;
+        if (pstx.z && pstx.scan >= pstx.z->n)
+            pstx.scan = 0;                           /* (another, shorter file now: from its start) */
         if (sst_rc_live(c)) {
             sst_rc_reset(c);
             pstx.rcg = c->gen;
@@ -556,6 +560,12 @@ static uint32_t pst_adv_q16(int32_t v)
 {
     if (v >= 127)
         return 0;
+#if ST_CARD
+    if (pstx.src == SMP_CARD)                        /* (a card file: STRCH as the header says, 2048 / STRCH samples a frame.
+                                                      * The sets' line below is 65536 times slower: they barely scan; their
+                                                      * sound is left as it is) */
+        return ((ST_HOP << 16) / (pow2_q16(clamp(v, 0, 126) * 13 * 192 / 126) >> 8)) << 8;   /* (Q8 ratio: no 64-bit divide) */
+#endif
     return (ST_HOP << 16) / pow2_q16(clamp(v, 0, 126) * 13 * 192 / 126);   /* (once a frame: tools/div_audit.txt) */
 }
 
@@ -657,6 +667,12 @@ static void pst_start(const track_t *t, uint32_t src, uint32_t zl)
     pstx.scan = 0, pstx.pred = 0, pstx.idx = 0;
     pstx.skip = z->n > ST_N ? (uint32_t)(((uint64_t)(z->n - ST_N) * (uint32_t)clamp(t->p[P_E1], 0, 127)) >> 7) : 0u;
     pstx.advq = 0;
+#if ST_CARD
+    if (src == SMP_CARD) {                            /* a card file: at POS at once (any length: no counted decodes) */
+        pstx.scan = pstx.skip;
+        pstx.skip = 0;
+    }
+#endif
     for (i = 0; i < ST_HOP; i++)
         pst_buf[0][i] = pst_buf[1][i] = pst_buf[2][i] = 0;
     pstx.play = pst_buf[0], pstx.next = pst_buf[1], pstx.tail = pst_buf[2];
@@ -670,14 +686,14 @@ static void pst_start(const track_t *t, uint32_t src, uint32_t zl)
         pstx.rw.wn = 0;
         sst_rc_reset(pst_rc());
         pstx.rcg = pst_rc()->gen;
-        pst_card_want(0, pst_card_step(0, pstx.skip), pst_rc()->now);
+        pst_card_want(0, pst_card_step(pstx.scan, pstx.skip), pst_rc()->now);
     }
 #endif
 }
 
 static void stretch_note_on(track_t *t, voice_t *v)
 {
-    uint32_t src = (uint32_t)t->p[P_E0] % SMP_NALL, part = pst_part(t);
+    uint32_t src = (uint32_t)t->p[P_E0] % SMP_NSAMPLE, part = pst_part(t);
     int32_t zl = pst_find(part, src, v->note);
     v->s[0] = zl;
     if (zl < 0 || pstx.owner != part + 1u)
@@ -714,7 +730,7 @@ static void stretch_block(track_t *t)
         pst_card_block();
 #endif
     if (pstx.phase == SP_IDLE) {                        /* voices from before the ownership: their newest note's zone */
-        uint32_t src = (uint32_t)t->p[P_E0] % SMP_NALL, best = 0, age = 0;
+        uint32_t src = (uint32_t)t->p[P_E0] % SMP_NSAMPLE, best = 0, age = 0;
         int32_t zl;
         for (i = 0; i < NVOICE; i++)
             if (t->v[i].active && t->v[i].age >= age)
@@ -788,7 +804,7 @@ static const engine_t ENG_STRETCH = {
     .name = "STRETCH",
     .page_title = {"SRC", "SPEC"},
     .edit = {
-        PN("SRC", F_ENUM, 0, SMP_NALL - 1, 0, SMP_ALL_NAMES),
+        PN("SRC", F_ENUM, 0, SMP_NSAMPLE - 1, 0, SMP_ALL_NAMES),
         PU("POS", F_PCT, 0, 127, 0, 0),
         PU("STRCH", F_INT, 0, 127, 52, 0),
         PU("SMEAR", F_PCT, 0, 127, 127, 0),
