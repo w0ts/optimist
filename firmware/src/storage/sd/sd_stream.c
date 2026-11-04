@@ -9,7 +9,9 @@
  *                         FR_OK; FR_INVALID_OBJECT a file the streams cannot play (not a PCM WAV of 8 or 16 bits, mono
  *                         or stereo, up to 4 x 44.1 kHz); FR_DENIED more runs than SST_MAP_N / 2 - 1 (a computer's
  *                         file on a card formatted with small clusters); FR_NOT_ENOUGH_CORE n too small
- *   sst_src_need(path, pre_ms, &bytes)   the same, the bytes only
+ *   sst_src_need(path, pre_ms, &bytes)   the same, the bytes only (sst_probe: its data's bytes, its frame's log2)
+ *                         pre_ms SST_PRE_WHOLE: the head is the whole data (whole 4-byte words: its last 1..3 bytes
+ *                         dropped), so no read of it ever goes to the card (GRAIN, STRETCH on a file that fits)
  *   sst_rings(mem, n)     the first n streams' rings: n x SST_K x 512 B from mem (4-byte aligned); the others have
  *                         none (mem 0: every stream off)
  *   sst_service()         one run for the stream with the least time left that has a free slot: what the main loop's
@@ -385,8 +387,15 @@ static FRESULT sst_wav(FIL *fp, sst_src_t *s, uint8_t *buf)
     return FR_OK;
 }
 
+#define SST_PRE_WHOLE 0xFFFFFFFFu                    /* (sst_src_load's pre_ms: the whole data) */
+static struct {
+    uint32_t dlen;
+    uint8_t fsh;
+} sst_probe;                                         /* (the last sst_src_load's file: the plan's choice) */
 static uint32_t sst_head_bytes(const sst_src_t *s, uint32_t pre_ms)   /* pre_ms of the data at its own rate */
 {
+    if (pre_ms == SST_PRE_WHOLE)
+        return s->dlen & ~3u;
     uint64_t b = (uint64_t)pre_ms * s->rate * 441u / (10u * 65536u);   /* (frames) */
     uint32_t h = (uint32_t)((b << s->fsh) + 3u) & ~3u;
     return h <= s->dlen ? h : s->dlen & ~3u;
@@ -419,7 +428,14 @@ static FRESULT sst_src_load(uint32_t si, const char *path, uint32_t pre_ms, uint
         goto out;
     }
     nrun = (sst_map[0] - 2u) / 2u;
+    sst_probe.dlen = s.dlen;
+    sst_probe.fsh = s.fsh;
     s.hlen = sst_head_bytes(&s, pre_ms);
+    if (pre_ms == SST_PRE_WHOLE && s.hlen >> s.fsh) {
+        s.dlen = s.hlen;                             /* (its whole frames in the head: nothing past it to read) */
+        s.frames = s.dlen >> s.fsh;
+        s.lpe = s.lpe < s.frames ? s.lpe : s.frames - 1u;
+    }
     need = nrun * (uint32_t)sizeof(sst_run_t) + s.hlen;
     *used = need;
     if (!mem)

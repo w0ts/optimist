@@ -49,7 +49,11 @@
  * cache (hit: started at once, late, miss). A sounding grain PINS its sectors (the main loop never takes them); one
  * that loses them anyway (the plan placed again) holds its sample and fades out over a block. A grain is at most
  * its cache's slots less 4 sectors long on the card (a longer one could never be whole in the cache: shortened, as a short zone's).
- * Voice s[3..5]: the last render's SHP, pitch and fine (the plan's). */
+ * Voice s[3..5]: the last render's SHP, pitch and fine (the plan's).
+ *
+ * SRC's last value CARD (FELUCCA_SD_STREAM; the user, 2026-11-05: "GRAIN and STRETCH take a sample from the card"): the
+ * part's own WAV, picked in SAMPLES, a card set of one zone over every key, read the same way, whatever its length
+ * (sd_stream_plan.c: whole in the arena when it fits, else through the cache). */
 #define GR_POLY 3                /* voices per part */
 #define GR_NG 12                 /* grains per part */
 #define GR_SEG_LOG2 8
@@ -331,6 +335,9 @@ static int gr_geom(const gr_part_t *P, const int16_t *p, const smp_zone_t *z, ui
         pos = clamp(pos, (int32_t)span, (int32_t)n - 2);
     else
         pos = clamp(pos, 0, (int32_t)(n - 3u - span));
+#if GR_CARD
+    if (!P->card)                                   /* (a card file: read, no index, any length) */
+#endif
     if ((uint32_t)pos >> GR_SEG_LOG2 >= P->zdone[zl])
         return 0;                                   /* not indexed yet */
     o->len = len;
@@ -464,7 +471,7 @@ static void grain_note_on(track_t *t, voice_t *v)
 {
     gr_part_t *P = gr_mem(gr_part(t));
     uint32_t vi = (uint32_t)(v - t->v) % NVOICE, i;
-    v->s[0] = gr_find(gr_part(t), (uint32_t)t->p[P_E0] % SMP_NALL, v->note);
+    v->s[0] = gr_find(gr_part(t), (uint32_t)t->p[P_E0] % SMP_NSAMPLE, v->note);
     v->s[1] = 0;                                    /* the first grain at once */
     if (!v->env) {                                  /* a fresh voice: no grains left from before */
         for (i = 0; i < GR_NG; i++)
@@ -496,7 +503,7 @@ static void grain_note_on(track_t *t, voice_t *v)
 static void grain_block(track_t *t)
 {
     gr_part_t *P = gr_mem(gr_part(t));
-    uint32_t src = (uint32_t)t->p[P_E0] % SMP_NALL, st = gr_stamp(gr_part(t), src), i;
+    uint32_t src = (uint32_t)t->p[P_E0] % SMP_NSAMPLE, st = gr_stamp(gr_part(t), src), i;
     if (!P->rng)
         P->rng = 0x2545F491;
     if (P->src != src + 1u || P->stamp != st) {
@@ -530,7 +537,7 @@ static void grain_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const
     int32_t zl = v->s[0], acc[CTL], lp, y = v->s[2];
     if (n > CTL)
         n = CTL;
-    if (zl < 0 || zl >= P->nz || P->src != (uint32_t)p[P_E0] % SMP_NALL + 1u) {
+    if (zl < 0 || zl >= P->nz || P->src != (uint32_t)p[P_E0] % SMP_NSAMPLE + 1u) {
         if (zl < 0)
             v->active = 0;                          /* a user slot key with no zone: silent */
         return;
@@ -608,7 +615,7 @@ static const preset_t GRAIN_PRESETS[] = {
 static const engine_t ENG_GRAIN = {
     "GRAIN", {"GRAN", "SPRY"},
     {
-        PN("SRC", F_ENUM, 0, SMP_NALL - 1, 0, SMP_ALL_NAMES),
+        PN("SRC", F_ENUM, 0, SMP_NSAMPLE - 1, 0, SMP_ALL_NAMES),
         PU("POS", F_PCT, 0, 127, 32, 0),
         PU("SIZE", F_PCT, 0, 127, 80, 0),
         PU("DENS", F_PCT, 0, 127, 80, 0),

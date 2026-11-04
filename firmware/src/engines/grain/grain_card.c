@@ -5,6 +5,8 @@
 /* ---- SD card mode's sets: the grains read the card's zones through the part's cache (sd_stream_rc.h) ---- */
 AINL uint32_t gr_card_cap(const sst_rc_t *c, const sst_src_t *s)   /* a grain's most source samples: the cache less 4 */
 {
+    if (s->hlen >= s->dlen)
+        return 0xFFFFFFFFu;                          /* (a file whole in RAM: no cache in the way) */
     return ((c->nk > 8u ? c->nk : 8u) - 4u) * (512u >> s->fsh) - 8u;
 }
 /* the frames a grain at pos reads (forward up, reverse down; the margin: the fraction's carry, the interpolator) */

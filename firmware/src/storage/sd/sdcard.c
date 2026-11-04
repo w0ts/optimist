@@ -104,6 +104,7 @@ static void sd_end(void)
  * else 0; its folder. GRAIN and STRETCH read it through a cache (SST_PART_RAND: sd_stream_rc.h) */
 #define SST_PART_RAND(p) (trk[p].engine == (uint8_t)ENG_SLOT_GRAIN ? SST_RAND_KB : \
                           trk[p].engine == (uint8_t)ENG_SLOT_STRETCH ? SST_STRETCH_KB : 0u)   /* (its cache's KB) */
+#define SST_PART_FREE(p) (SST_PART_RAND(p) && trk[p].p[P_E0] == (int16_t)SMP_CARD)   /* (their SRC on CARD: the part's own WAV) */
 #define SST_PART_BANK(p) ((trk[p].engine == (uint8_t)ENG_SLOT_SAMPLE || SST_PART_RAND(p)) && \
                           (uint32_t)trk[p].p[P_E0] < SMP_NSETS && SMP_CARD_SET((uint32_t)trk[p].p[P_E0]) ? \
                           (uint32_t)trk[p].p[P_E0] + 1u : 0u)

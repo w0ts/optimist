@@ -342,6 +342,7 @@ src/storage/sd/sd_stream.c:sst_kbs:ms | only when ms is not 0 (the test before i
 src/storage/sd/sd_stream.c:sst_lead:(st->bpms?st->bpms:1u) | 1 when bpms is 0
 # 2026-10-26: STRETCH (PaulStretch-style), once a frame
 src/engines/stretch/eng_stretch.c:pst_adv_q16:pow2_q16 | pow2_q16 of 0..1586 (1/16 semitone) is 2^0 .. 2^8.3 in Q16: 65536 or more, never 0
+src/engines/stretch/eng_stretch.c:pst_adv_q16:(pow2_q16(clamp(v,0,126)*13*192/126)>>8) | the same in Q8: 256 or more, never 0
 # 2026-10-26: Wi-Fi + Link test service
 src/wifi/wifi_link.c:wl_start:(song.g[G_BPM]>20?song.g[G_BPM]:20) | clamped to 20 or more
 src/wifi/wifi_link.c:wl_start_ap:(song.g[G_BPM]>20?song.g[G_BPM]:20) | clamped to 20 or more

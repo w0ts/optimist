@@ -17,7 +17,11 @@
  *   - the card stalling 100 ms every 600 ms (a card busy writing): misses counted, still no step;
  *   - SAMPLE streaming a set beside a GRAIN part: SAMPLE never dry, the bus shared;
  *   - the cache taken away mid-phrase (a plan's gate): the grains fade, no step;
- *   - the numbers: hit / late / miss, CPU ns a sample (the render, card against flash), the cache's KB, the bus's KB/s.
+ *   - the numbers: hit / late / miss, CPU ns a sample (the render, card against flash), the cache's KB, the bus's KB/s;
+ *   - a part's own WAV (SRC CARD, the user, 2026-11-05: a 60 s file, 44.1 kHz mono, a 20 s stereo one, a 0.5 s one) at the
+ *     black FM-1's 840 KB/s (8.57 MHz) with the real scheduler: GRAIN frozen, moving, spread over the whole file, at
+ *     its densest, STRETCH at 1x and slow, each against the same render on the whole file in RAM: the reads counted, no
+ *     step over the whole file's, never garbage (an ideal card's render the whole file's where nothing was late).
  *   sd_grain_test FAT32.img DIR (gen_samples.py --card DIR) */
 #define FELUCCA_SD_STREAM 1
 #define FELUCCA_SD_FATFS 1
@@ -45,7 +49,7 @@ static uint32_t tick_ms = 1900u;                     /* the model's bytes a mill
 
 static FATFS fs __attribute__((aligned(4)));
 static uint8_t src_mem[64u * 1024u] __attribute__((aligned(4)));
-static uint8_t whole_mem[2u * 1024u * 1024u] __attribute__((aligned(4)));   /* (the reference: each zone whole) */
+static uint8_t whole_mem[8u * 1024u * 1024u] __attribute__((aligned(4)));   /* (the reference: each zone whole) */
 static uint8_t rc_mem[SST_NPART][SST_RC_BYTES(SST_RAND_KB)] __attribute__((aligned(4)));
 static uint32_t rc_kb = SST_RAND_KB;                 /* (the part's cache: GRAIN's, STRETCH's) */
 static uint8_t ring_mem[SST_N * SST_K * 512u] __attribute__((aligned(4)));
@@ -116,6 +120,10 @@ static void load_set(uint32_t k, const char *dir, uint32_t si0, uint32_t pre_ms)
 }
 
 /* the reference (a forked child's): set k's zones again, each whole in its head (every read from RAM) */
+static int32_t free_si = -1;                         /* the part's own WAV: this source, this file, these EDIT values */
+static const char *free_name;
+static const int16_t *free_e;
+static uint32_t free_kb;
 static void load_whole(uint32_t k)
 {
     char to[32];
@@ -277,9 +285,24 @@ static void render(int32_t *L, uint32_t eng, uint32_t pi, uint32_t k, int card, 
         sst_rings(ring_mem, SST_N);
         host_preset(t, eng, pi);
         t->p[P_DIST] = t->p[P_CHOR] = t->p[P_DLY] = t->p[P_REV] = 0;
-        if (mode == M_WHOLE)
-            load_whole(k);
-        part_on(0, k, card);
+        if (free_si >= 0) {
+            uint32_t used = 0;
+            if (mode == M_WHOLE)
+                CHECK(sst_src_load((uint32_t)free_si, free_name, SST_PRE_WHOLE, whole_mem, sizeof whole_mem, &used) == FR_OK,
+                      "%s whole", free_name);
+            for (i = 0; i < 8u; i++)
+                t->p[P_E0 + i] = free_e[i];
+            t->p[P_E0] = (int16_t)SMP_CARD;
+            sst_bank_src[0] = (uint8_t)free_si;
+            sst_bank_n[0] = 1;
+            sst_bank_free = 1;
+            sst_rc_place(0, rc_mem[0], free_kb);
+            sst_bank_gen++;
+        } else {
+            if (mode == M_WHOLE)
+                load_whole(k);
+            part_on(0, k, card);
+        }
         if (with_sample) {                           /* part 2 on SAMPLE, VIBES from the card (streamed) */
             uint32_t se = eng_no("SAMPLE"), p2;
             for (p2 = 0; p2 < ENGINES[se]->npresets && (uint32_t)ENGINES[se]->presets[p2].e[0] != set_no[1]; p2++)
@@ -433,6 +456,111 @@ static void presets(uint32_t eng, uint32_t k, int stretch, uint32_t *played)
     }
 }
 
+/* ---- a part's own WAV ---- */
+static int put_free(const char *name, uint32_t frames, uint32_t rate, uint32_t ch, uint32_t seed)
+{
+    static int16_t b[2048];
+    uint8_t h[44];
+    uint32_t dl = frames * 2u * ch, at = 0, i, n, c;
+    FIL o;
+    UINT k;
+    memset(h, 0, sizeof h);
+    memcpy(h, "RIFF", 4); h[4] = (uint8_t)(36u + dl); h[5] = (uint8_t)((36u + dl) >> 8); h[6] = (uint8_t)((36u + dl) >> 16);
+    h[7] = (uint8_t)((36u + dl) >> 24); memcpy(h + 8, "WAVEfmt ", 8); h[16] = 16; h[20] = 1; h[22] = (uint8_t)ch;
+    h[24] = (uint8_t)rate; h[25] = (uint8_t)(rate >> 8); h[26] = (uint8_t)(rate >> 16);
+    n = rate * 2u * ch; h[28] = (uint8_t)n; h[29] = (uint8_t)(n >> 8); h[30] = (uint8_t)(n >> 16);
+    h[32] = (uint8_t)(2u * ch); h[34] = 16; memcpy(h + 36, "data", 4);
+    h[40] = (uint8_t)dl; h[41] = (uint8_t)(dl >> 8); h[42] = (uint8_t)(dl >> 16); h[43] = (uint8_t)(dl >> 24);
+    if (f_open(&o, name, FA_CREATE_ALWAYS | FA_WRITE) != FR_OK || f_write(&o, h, 44, &k) != FR_OK)
+        return 0;
+    while (at < frames) {
+        n = frames - at < 1024u / ch ? frames - at : 1024u / ch;
+        for (i = 0; i < n; i++)
+            for (c = 0; c < ch; c++)
+                b[i * ch + c] = (int16_t)(9000.0 * sin((at + i) * (0.03 + 0.002 * seed + 0.001 * c)) +
+                                          7000.0 * sin((at + i) * 0.0011 + c) * sin((at + i) * 0.11));
+        if (f_write(&o, b, n * 2u * ch, &k) != FR_OK || k != n * 2u * ch)
+            return 0;
+        at += n;
+    }
+    return f_close(&o) == FR_OK;
+}
+
+static void free_phrase(void)                        /* a note held 3 s, then a chord 1 s */
+{
+    nev = 0;
+    ev_add(2205u, 0, 60, 1), ev_add(134505u, 0, 60, 0);
+    ev_add(136710u, 0, 64, 1), ev_add(136710u, 0, 67, 1), ev_add(180810u, 0, 64, 0), ev_add(180810u, 0, 67, 0);
+    total = 198450u;
+}
+
+/* a grain that loses its sector over the bus holds its sample and fades: a corner, under -36 dBFS (a click is a step) */
+#define FREE_STEP 512u
+/* one scenario: the whole file in RAM, an ideal card, the card in time, the card stalling; the numbers */
+static void free_case(const char *what, uint32_t eng, const char *file, uint32_t si, uint32_t kb, const int16_t *e)
+{
+    uint32_t d, first, sa, sb, ms;
+    st_t c;
+    free_si = (int32_t)si, free_name = file, free_e = e, free_kb = kb;
+    free_phrase();
+    render(A, eng, 0, 0, 1, M_WHOLE, 0);
+    sa = max_step(A);
+    CHECK(sounding(A) > 44100u, "%s: the whole file sounds (%u)", what, sounding(A));
+    render(B, eng, 0, 0, 1, M_IDEAL, 0);
+    c = *ST;
+    d = differ(A, B, &first);
+    CHECK(max_step(B) <= sa + FREE_STEP, "%s, an ideal card: its largest step %u, the whole file's %u", what, max_step(B), sa);
+    CHECK(c.late + c.miss || !d, "%s, an ideal card, none late: %u samples differ from the whole file's (garbage)", what, d);
+    printf("  %-34s %2u KB ideal: %u at once %u late %u missed, %u samples differ\n", what, kb, c.hit, c.late, c.miss, d);
+    render(B, eng, 0, 0, 1, M_REAL, 0);
+    c = *ST;
+    sb = max_step(B);
+    ms = c.ms ? c.ms : 1u;
+    CHECK(sb <= sa + FREE_STEP, "%s, in time: its largest step %u, the whole file's %u", what, sb, sa);
+    CHECK(sounding(B) > sounding(A) / 4u, "%s, in time: it sounds (%u of %u)", what, sounding(B), sounding(A));
+    printf("  %36s in time: %u at once %u late %u missed; %u KB/s of the bus (%u %%), step %u (whole %u)\n", "", c.hit, c.late,
+           c.miss, c.rcblocks * 512u / ms, c.rcblocks * 512u / ms * 100u / tick_ms, sb, sa);
+    render(B, eng, 0, 0, 1, M_STALL, 0);
+    c = *ST;
+    CHECK(max_step(B) <= sa + FREE_STEP, "%s, stalling: its largest step %u, the whole file's %u", what, max_step(B), sa);
+    printf("  %36s stalls: %u at once %u late %u missed\n", "", c.hit, c.late, c.miss);
+    free_si = -1;
+}
+
+/* the numbers at 840 KB/s: the file lengths and settings a part's own WAV takes */
+static void free_tests(uint32_t ge, uint32_t se)
+{
+    /* SRC, POS, SIZE, DENS, PTCH, SPRD, RAND, TONE */
+    static const int16_t FROZEN[8] = {0, 45, 95, 85, 0, 0, 0, 127}, CLOUD[8] = {0, 45, 95, 85, 0, 35, 12, 80},
+                         WIDE[8] = {0, 64, 60, 85, 0, 127, 10, 127}, DENSE[8] = {0, 45, 95, 127, 0, 127, 10, 127},
+                         SMALL[8] = {0, 60, 40, 100, 0, 8, 0, 127};
+    /* SRC, POS, STRCH, SMEAR, TONE ... */
+    static const int16_t ST1[8] = {0, 30, 0, 100, 127, 0, 0, 0}, ST8[8] = {0, 90, 60, 100, 127, 0, 0, 0};
+    uint32_t used, at = 0;
+    tick_ms = 840u;
+    half_ticks = 256u * tick_ms * 10u / 441u;
+    CHECK(put_free("L60.WAV", 60u * 44100u, 44100u, 1u, 1u), "a 60 s file");
+    CHECK(put_free("S20.WAV", 20u * 44100u, 44100u, 2u, 2u), "a 20 s stereo file");
+    CHECK(put_free("H30.WAV", 30u * 22050u, 22050u, 1u, 3u), "a 30 s 22.05 kHz file");
+    CHECK(sst_src_load(10u, "L60.WAV", 0, src_mem + 60000u, 4000u, &used) == FR_OK, "the 60 s file loaded");
+    at = 60000u + ((used + 3u) & ~3u);
+    CHECK(sst_src_load(11u, "S20.WAV", 0, src_mem + at, 2000u, &used) == FR_OK, "the stereo file loaded");
+    at += (used + 3u) & ~3u;
+    CHECK(sst_src_load(12u, "H30.WAV", 0, src_mem + at, 1000u, &used) == FR_OK, "the 22.05 kHz file loaded");
+    printf("sd_grain_test: a part's own WAV at %u KB/s (the black FM-1's 8.57 MHz), the screen's strips drawing\n", tick_ms);
+    free_case("GRAIN 60 s, frozen (SPRD 0)", ge, "L60.WAV", 10u, SST_RAND_KB, FROZEN);
+    free_case("GRAIN 60 s, SPRD 35", ge, "L60.WAV", 10u, SST_RAND_KB, CLOUD);
+    free_case("GRAIN 60 s, SPRD 8, short grains", ge, "L60.WAV", 10u, SST_RAND_KB, SMALL);
+    free_case("GRAIN 60 s, SPRD 127", ge, "L60.WAV", 10u, SST_RAND_KB, WIDE);
+    free_case("GRAIN 60 s, SPRD 127, DENS 127", ge, "L60.WAV", 10u, SST_RAND_KB, DENSE);
+    free_case("GRAIN 20 s stereo, SPRD 35", ge, "S20.WAV", 11u, SST_RAND_KB, CLOUD);
+    free_case("GRAIN 30 s 22.05 kHz, SPRD 35", ge, "H30.WAV", 12u, SST_RAND_KB, CLOUD);
+    free_case("STRETCH 60 s, 1x", se, "L60.WAV", 10u, SST_STRETCH_KB, ST1);
+    free_case("STRETCH 60 s, slow", se, "L60.WAV", 10u, SST_STRETCH_KB, ST8);
+    free_case("STRETCH 20 s stereo, 1x", se, "S20.WAV", 11u, 2u * SST_STRETCH_KB, ST1);
+    free_case("STRETCH 20 s stereo, slow", se, "S20.WAV", 11u, 2u * SST_STRETCH_KB, ST8);
+}
+
 int main(int argc, char **argv)
 {
     uint32_t sectors, k, played = 0, ge = eng_no("GRAIN"), se = eng_no("STRETCH"), pi, d, first, i;
@@ -518,6 +646,7 @@ int main(int argc, char **argv)
     CHECK(max_step(B) <= max_step(A) + max_step(A) / 4u + 64u, "LOFI CLOUD at 1 MB/s: its largest step %u, the whole files' %u",
           max_step(B), max_step(A));
     printf("  GRAIN LOFI CLOUD at 1 MB/s: %u at once %u late %u missed; %u samples differ\n", c.hit, c.late, c.miss, d);
+    free_tests(ge, se);
     printf("%s: %d checks, %d failed\n", fails ? "FAIL" : "ok", checks, fails);
     return fails ? 1 : 0;
 }

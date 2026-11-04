@@ -270,8 +270,8 @@ static uint32_t smp_cz_sync(uint32_t part)          /* the part's card zones now
         z->n = s->frames;
         z->rate = s->rate;
         z->root16 = (int16_t)((s->root + 60) * 16);
-        z->lo = s->lo;
-        z->hi = s->hi;
+        z->lo = (sst_bank_free >> part) & 1u ? 0u : s->lo;   /* (a part's own WAV: every key, as SAMPLE's CARD) */
+        z->hi = (sst_bank_free >> part) & 1u ? 127u : s->hi;
         z->looped = s->lpe != 0;
         z->ls = s->lpe ? s->lps + 1u : 0u;
         z->le = s->lpe ? s->lpe + 1u : 0u;
@@ -285,7 +285,7 @@ static uint32_t smp_cz_sync(uint32_t part)          /* the part's card zones now
     return k;
 }
 /* SRC s of part `part` a card set (SD card mode): its zones are the card's */
-AINL int smp_cz_on(uint32_t s) { return s < SMP_NSETS && SMP_CARD_SET(s); }
+AINL int smp_cz_on(uint32_t s) { return s == SMP_CARD || (s < SMP_NSETS && SMP_CARD_SET(s)); }   /* (CARD: GRAIN's, STRETCH's) */
 AINL uint32_t smp_cz_src(uint32_t part, uint32_t zl) { return (sst_bank_src[part % SST_NPART] + zl) % SST_NSRC; }
 
 static FAST(sample) void smp_card_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)

@@ -13,6 +13,10 @@
  *   - a part on SLICE CARD: its sample whole in the block (sd_slice.c), no ring and no head for it; off it, streamed;
  *   - a part on a card set (SST_PART_BANK): Samples/<Set>/z0.wav .. its zones by path, one source each with its keys
  *     ("inst"), beside a part's CARD sample; a set not on the card: that part MISSING (bmiss), the others play.
+ *   - a part on GRAIN or STRETCH with SRC CARD (SST_PART_FREE, its own WAV by its hash): a short file whole in the block
+ *     (no ring, no bus, a cache of 1 KB), a long one through its cache (no head), one not fitting whole through its cache
+ *     too, a stereo file's STRETCH cache twice the KB; a part's WAV of 24 bits or in too many runs: said (sstp.bad), MISSING,
+ *     the others play; the zone over every key (sst_bank_free); off it: nothing held.
  *   sd_stream_plan_test FAT16.img FAT32.img */
 #define FELUCCA_SD_FATFS 1
 #define FELUCCA_SD_RING_KB 4
@@ -66,6 +70,8 @@ static uint32_t part_bank[3];
 #define SST_PART_BANK(p) part_bank[p]
 static uint32_t part_rand[3];                        /* their caches' KB (GRAIN, STRETCH on a set: SST_PART_RAND), 0 none */
 #define SST_PART_RAND(p) part_rand[p]
+static uint32_t part_free;                           /* the parts with SRC CARD on GRAIN / STRETCH (SST_PART_FREE) */
+#define SST_PART_FREE(p) ((part_free >> (p)) & 1u)
 static const char *const BANK_NAMES[2] = {"PIANO", "BASS"};
 #define SST_BANK_NAME(b) BANK_NAMES[(b) % 2u]
 #include "storage/sd/sd_stream_plan.c"
@@ -100,6 +106,40 @@ static int put_wav(const char *path, uint32_t frames, uint32_t seed)   /* 44.1 k
         at += n;
     }
     return f_close(&f) == FR_OK;
+}
+
+static int put_fmt(const char *path, uint32_t ch, uint32_t bits)   /* the file's header says so (ch x bits a frame) */
+{
+    uint8_t h[16];
+    FIL f;
+    UINT k;
+    le16(h, ch); le32(h + 2, 44100); le32(h + 6, 44100u * ch * bits / 8u); le16(h + 10, ch * bits / 8u); le16(h + 12, bits);
+    if (f_open(&f, path, FA_READ | FA_WRITE) != FR_OK || f_lseek(&f, 22) != FR_OK || f_write(&f, h, 14, &k) != FR_OK)
+        return 0;
+    return f_close(&f) == FR_OK;
+}
+
+static int put_frag(const char *a, const char *b, uint32_t runs)   /* two WAVs written a cluster of each in turn: in runs */
+{
+    static uint8_t d[8192];
+    uint8_t h[44];
+    uint32_t i, cl = (uint32_t)fs.csize * 512u, n = runs * cl;
+    FIL f, g;
+    UINT k;
+    if (cl > sizeof d)
+        return 0;
+    memcpy(h, "RIFF", 4); le32(h + 4, 36u + n); memcpy(h + 8, "WAVEfmt ", 8); le32(h + 16, 16);
+    le16(h + 20, 1); le16(h + 22, 1); le32(h + 24, 44100); le32(h + 28, 88200); le16(h + 32, 2); le16(h + 34, 16);
+    memcpy(h + 36, "data", 4); le32(h + 40, n);
+    if (f_open(&f, a, FA_CREATE_ALWAYS | FA_WRITE) != FR_OK || f_open(&g, b, FA_CREATE_ALWAYS | FA_WRITE) != FR_OK ||
+        f_write(&f, h, 44, &k) != FR_OK || f_write(&g, h, 44, &k) != FR_OK)
+        return 0;
+    for (i = 0; i < runs; i++) {
+        memset(d, (int)(i * 3u + 1u), cl);
+        if (f_write(&f, d, cl, &k) != FR_OK || f_sync(&f) != FR_OK || f_write(&g, d, cl, &k) != FR_OK || f_sync(&g) != FR_OK)
+            return 0;
+    }
+    return f_close(&f) == FR_OK && f_close(&g) == FR_OK;
 }
 
 static int put_inst(const char *path, uint32_t lo, uint32_t hi)   /* a zone's keys, a chunk after the data */
@@ -348,6 +388,77 @@ static void run_card(const char *img_path)
     sst_plan_poll();
     settle();
     CHECK(sstp.state == SSTP_IDLE && !sst_bank_n[1] && !sstp.bmiss, "%s: off the card set: nothing held", what);
+
+    /* a part's own WAV on GRAIN / STRETCH (SRC CARD): whole when it fits, else through its cache, any length */
+    {
+        uint64_t hs, hl, hm, hw, h24, hf;
+        uint32_t whole_need;
+        CHECK(put_wav("Optimist/Samples/short.wav", 15000, 11) && put_wav("Optimist/Samples/long.wav", 300000, 12) &&
+              put_wav("Optimist/Samples/mid.wav", 50000, 13) && put_wav("Optimist/Samples/wide.wav", 200000, 14) &&
+              put_wav("Optimist/Samples/deep.wav", 3000, 15) && put_fmt("Optimist/Samples/wide.wav", 2, 16) &&
+              put_fmt("Optimist/Samples/deep.wav", 1, 24) &&
+              put_frag("Optimist/Samples/fa.wav", "Optimist/Samples/fb.wav", 40u), "%s: free WAVs", what);
+        CHECK(sdx_update(buf, sizeof buf) == FR_OK && sdx_open() == FR_OK, "%s: indexed", what);
+        hs = sdx_find_path("Samples/short.wav", &rec) >= 0 ? rec.hash : 0;
+        hl = sdx_find_path("Samples/long.wav", &rec) >= 0 ? rec.hash : 0;
+        hm = sdx_find_path("Samples/mid.wav", &rec) >= 0 ? rec.hash : 0;
+        hw = sdx_find_path("Samples/wide.wav", &rec) >= 0 ? rec.hash : 0;
+        h24 = sdx_find_path("Samples/deep.wav", &rec) >= 0 ? rec.hash : 0;
+        hf = sdx_find_path("Samples/fa.wav", &rec) >= 0 ? rec.hash : 0;
+        CHECK(hs && hl && hm && hw && h24 && hf, "%s: their hashes", what);
+        part_rand[1] = SST_RAND_KB;
+        part_free = 2u;
+        sst_part_set(1, hs);
+        sst_plan_poll();
+        settle();
+        k = sst_bank_src[1];
+        CHECK(sstp.state == SSTP_PLACED && sst_bank_n[1] == 1u && (sst_bank_free & 2u) && sstp.nring == 0u &&
+                  sst_src[k].hlen == 30000u && sst_src[k].dlen == 30000u && head_ok(k, 11) && sst_rc[1].nk == 2u && sst_rc[1].on,
+              "%s: a short file on GRAIN: whole in the block, no ring, a cache of 1 KB (%u %u %u)", what, sstp.nring,
+              sst_src[k].hlen, sst_rc[1].nk);
+        whole_need = sstp.need;
+        CHECK(whole_need < 32000u, "%s: its need, the file and the small cache (%u)", what, whole_need);
+        sst_part_set(1, hl);
+        sst_plan_poll();
+        settle();
+        k = sst_bank_src[1];
+        CHECK(sstp.state == SSTP_PLACED && sst_bank_n[1] == 1u && sst_src[k].hlen == 0u && sst_src[k].dlen == 600000u &&
+                  sst_rc[1].nk == SST_RAND_KB * 2u && sstp.nring == 0u, "%s: a long file: through its cache (%u slots, head %u)",
+              what, sst_rc[1].nk, sst_src[k].hlen);
+        sst_part_set(1, hm);
+        sst_plan_poll();
+        settle();
+        k = sst_bank_src[1];
+        CHECK(sstp.state == SSTP_PLACED && sst_src[k].hlen == 0u && sst_src[k].dlen == 100000u && sst_rc[1].nk == SST_RAND_KB * 2u,
+              "%s: 100 KB, under the most but not fitting whole: through its cache", what);
+        part_rand[1] = SST_STRETCH_KB;
+        sst_part_set(1, hw);
+        sst_plan_poll();
+        settle();
+        k = sst_bank_src[1];
+        CHECK(sstp.state == SSTP_PLACED && sst_src[k].chans == 2u && sst_rc[1].nk == SST_STRETCH_KB * 4u,
+              "%s: a stereo file on STRETCH: its cache twice the KB (%u slots)", what, sst_rc[1].nk);
+        sst_part_set(1, h24);
+        sst_plan_poll();
+        settle();
+        CHECK(sstp.bad[1] == SSTB_FORMAT && (sstp.missing & 2u) && !sst_bank_n[1], "%s: a 24-bit WAV: said, MISSING (%u %x)", what,
+              sstp.bad[1], sstp.missing);
+        sst_part_set(1, hf);
+        sst_plan_poll();
+        settle();
+        CHECK(sstp.bad[1] == SSTB_RUNS && (sstp.missing & 2u) && !sst_bank_n[1], "%s: a WAV in 40 runs: said, MISSING (%u %x)", what,
+              sstp.bad[1], sstp.missing);
+        sst_part_set(1, 0x1234u);
+        sst_plan_poll();
+        settle();
+        CHECK(!sstp.bad[1] && (sstp.missing & 2u) && !sst_bank_n[1], "%s: a hash not on the card: MISSING (%x)", what, sstp.missing);
+        part_rand[1] = 0;
+        part_free = 0;
+        sst_part_set(1, 0);
+        sst_plan_poll();
+        settle();
+        CHECK(sstp.state == SSTP_IDLE && !sst_bank_n[1] && !sst_bank_free, "%s: off it: nothing held", what);
+    }
     free(img);
 }
 
