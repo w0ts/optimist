@@ -543,8 +543,32 @@ static int sdm_is_bank_dir(const char *root, const char *name)
 static void sdm_strip(char *out, uint32_t cap, const char *name, const char *ext)
 {
     const char *p = name + (sdb_bank_no(name) ? 5u : 0u);
-    uint32_t n = ext[0] && sdl_ends(p, ext) ? sdl_ends(p, ext) : sdl_len(p);
+    uint32_t n = ext[0] && sdl_ends(p, ext) ? sdl_ends(p, ext) : sdl_len(p), k;
+    if (ext[0] == '.' && ext[2] == 'p' && ext[3] == 'k' && n > 3u && p[n - 1u] == ')')   /* a kit's " (909, sampled)": */
+        for (k = n - 1u; k-- > 0u;)                  /* its name is the part before (drum_kits.c ukit_card_instr) */
+            if (p[k] == '(' && k > 0u && p[k - 1u] == ' ') {
+                n = k - 1u;
+                break;
+            }
     str_cpy(out, p, n + 1u < cap ? n + 1u : cap);    /* (the extension off first, then cut to cap) */
+}
+/* a kit saved over one of its name (the same number) whose instruments changed: the old file (another " (...)") goes */
+static void sdm_kit_drop_old(const char *dir, uint32_t nn, const char *keep)
+{
+    DIR d;
+    FILINFO fi;
+    static char p[FF_LFN_BUF + 1];
+    uint32_t n;
+    if (f_opendir(&d, dir) != FR_OK)
+        return;
+    while (f_readdir(&d, &fi) == FR_OK && fi.fname[0]) {
+        if (sdl_hidden(&fi) || sdb_bank_no(fi.fname) != nn || !sdl_ends(fi.fname, ".opk") || !sdl_cmp(fi.fname, keep))
+            continue;
+        n = sdl_cat(p, sdl_cat(p, 0, sizeof p, dir), sizeof p, "/");
+        if (sdl_cat(p, n, sizeof p, fi.fname) < sizeof p)
+            (void)f_unlink(p);
+    }
+    (void)f_closedir(&d);
 }
 /* bank folder dir: the numbers in use (bit nn - 1) and the number of the file named name (without its number and
  * ext, any case), 0 none */
@@ -1417,7 +1441,7 @@ static void sdm_do(uint32_t op, uint32_t k)
 /* NAME's done (op_name.c) for list `list`: 1 = stay on NAME (a name the card cannot take, another file's) */
 static int sdm_save(uint32_t list, const char *name, const char *was)
 {
-    uint32_t n;
+    uint32_t n, dn = 0, same_kit = 0;
     FRESULT r;
     if (!sdm_ready()) {
         ui_message("NO SD CARD");
@@ -1446,18 +1470,30 @@ static int sdm_save(uint32_t list, const char *name, const char *was)
             }
             str_cpy(lc, name, sizeof lc);
             m = rc ? sizeof sdm.path : sdl_len(sdm.path);
+            dn = m;                                  /* (the bank's folder ends there: its '/') */
             m = m < sizeof sdm.path ? sdm_num(sdm.path, sdl_cat(sdm.path, m, sizeof sdm.path, "/"), sizeof sdm.path, nn) : m;
-            m = m < sizeof sdm.path ? sdl_cat(sdm.path, sdl_cat(sdm.path, m, sizeof sdm.path, sdl_lower(lc)), sizeof sdm.path,
-                                              list == SDC_PRE ? ".ops" : ".opk") : m;
+            m = m < sizeof sdm.path ? sdl_cat(sdm.path, m, sizeof sdm.path, sdl_lower(lc)) : m;
+            n = list == SDC_PRE ? up_card_take(sd_blk, name) : ukit_card_take(sd_blk);
+            if (list == SDC_KIT && n) {              /* "<nn> - <name> (909, sampled).opk": its instruments */
+                char ins[64];
+                ukit_card_instr(sd_blk, ins, sizeof ins);
+                m = m < sizeof sdm.path ? sdl_cat(sdm.path, m, sizeof sdm.path, ins) : m;
+            }
+            m = m < sizeof sdm.path ? sdl_cat(sdm.path, m, sizeof sdm.path, list == SDC_PRE ? ".ops" : ".opk") : m;
             r = m < sizeof sdm.path ? FR_OK : FR_INVALID_NAME;
+            same_kit = list == SDC_KIT && same ? nn : 0u;
         }
-        n = r != FR_OK ? 0u : list == SDC_PRE ? up_card_take(sd_blk, name) : ukit_card_take(sd_blk);
 #if FELUCCA_SD_LANES
         if (list == SDC_KIT && n)                    /* (the lanes' card samples after the kit: hash and size each) */
             n = sdm_kit_lanes_out(sd_blk, n);
 #endif
         if (r == FR_OK)
             r = n ? sdm_was(sdm_small_put(sdm.path, list == SDC_PRE ? "OPPR" : "OPKT", sd_blk, n)) : FR_INT_ERR;
+        if (r == FR_OK && same_kit && dn < sizeof sdm.path) {                /* (saved over its name: an old file of other instruments goes) */
+            sdm.path[dn] = 0;
+            sdm_kit_drop_old(sdm.path, same_kit, sdm.path + dn + 1u);
+            sdm.path[dn] = '/';
+        }
         ui.toast_next = 1;
         ui_message(r == FR_OK ? "SAVED TO CARD" : r == FR_DENIED ? "CARD FULL" : "CARD SAVE FAILED");
         ui.toast_next = 0;

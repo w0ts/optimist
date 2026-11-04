@@ -228,7 +228,7 @@ int main(int argc, char **argv)
         sst_x9_src[k] = (uint8_t)(SST_NKIT + k);
     }
     nsrc = SST_NKIT + SST_NX9;
-    snprintf(kp, sizeof kp, "%s/Optimist/Kits/Factory/A/01 - acoustic.opk", argv[1]);
+    snprintf(kp, sizeof kp, "%s/Optimist/Kits/Factory/A/01 - acoustic (sampled).opk", argv[1]);
     f = fopen(kp, "rb");
     got = f ? fread(kit_rec, 1, sizeof kit_rec, f) : 0;
     if (f)

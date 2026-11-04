@@ -191,14 +191,15 @@ int main(int argc, char **argv)
 /* the factory kits as kit files (the user, 2026-11-04: "the factory kits go on the card like presets"): every kit UID in
  * the firmware's order (drums.c: the sampled kits, the 32 synthesised, X0X's 909 and 808 and their styles, KAWA,
  * PLAITS: every one built in here), 16 a bank, as SD card mode's kit files ("OPKT", sd_mode.c sdm_small_put):
- *   <out>/Optimist/Kits/Factory/<L>/<nn> - <name>.opk
+ *   <out>/Optimist/Kits/Factory/<L>/<nn> - <name> (<instruments>).opk   (drum_kits.c ukit_card_instr: 909, 808,
+ *                                  synth, kawa, plaits, sampled, the ones its lanes name, in that order)
  * Each is the kit picked on fresh lanes (dsnd_desc.c dl_reset_lanes, then the kit: what the kit list plays) taken as a
  * user kit is (drum_kits.c ukit_card_take: the lanes, their sources by reference to the built-in drum sounds, the
  * sends). A build without a kit's drum source plays its stand-in (drums.c drum_kit_of), as for a project */
 static int kits(const char *out)
 {
     static uint8_t rec[UK_CARD_N];
-    char bank[440], path[512], nm[16];
+    char bank[440], path[512], nm[16], ins[64];
     uint32_t k, n;
     for (k = 0; k < DRUM_KITS; k++) {
         memset(&dl, 0, sizeof dl);
@@ -210,7 +211,8 @@ static int kits(const char *out)
         clean(nm);
         snprintf(bank, sizeof bank, "%s/Optimist/Kits/Factory/%c", out, (char)('A' + k / 16u));
         mkdirs(bank);
-        snprintf(path, sizeof path, "%s/%02u - %s.opk", bank, k % 16u + 1u, lower(nm));
+        ukit_card_instr(rec, ins, sizeof ins);       /* (its drum instruments: " (909, sampled)", drum_kits.c) */
+        snprintf(path, sizeof path, "%s/%02u - %s%s.opk", bank, k % 16u + 1u, lower(nm), ins);
         if (n != UK_CARD_N || put(path, "OPKT", rec, n)) {
             fprintf(stderr, "sd_factory: %s: not written\n", path);
             return 1;

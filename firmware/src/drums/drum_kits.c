@@ -227,6 +227,64 @@ static uint32_t ukit_card_take(uint8_t *out)
     memcpy(out + sizeof k, dsend, sizeof dsend);
     return UK_CARD_N;
 }
+/* a kit's drum instruments for its file's name (the user, 2026-11-04: "<nn> - <name> (909, sampled).opk"): from its
+ * lanes' sources as the kit stores them (the KIT lanes as the kit they play, ukit_card_take), each lane's source's
+ * family by its UID, whatever this build has of it (a stand-in is not named): 909 (the X0X 909, its styles, its voices),
+ * 808 (the same), synth (the 32 synthesised kits), kawa, plaits, sampled (the five sampled kits, a USR or CARD sample);
+ * in that order, each once: " (909, sampled)" into out (cap bytes), "" when no lane names one. The factory kits'
+ * (tools/sd_factory.c) and a kit saved on the FM-1 (sd_mode.c) the same way; the FM-1 never reads it back (sd_mode.c
+ * sdm_strip: a kit's name is the part before it) */
+#define UK_FAM_N 6u
+static const char *const UK_FAM[UK_FAM_N] = {"909", "808", "synth", "kawa", "plaits", "sampled"};
+static uint32_t uk_fam_uid(uint32_t u)                   /* a kit UID -> its family's bit */
+{
+    if (u < DRUM_SAMPLED)
+        return 1u << 5;
+    if (DRUM_IS_X0X(u))
+        return DRUM_UID_XMACH(u) == DRUM_UID_X909 ? 1u : 2u;
+    if (u == DRUM_UID_XKIT)
+        return 1u << 3;
+    if (u == DRUM_UID_XKIT + 1u)
+        return 1u << 4;
+    return u < DRUM_KITS ? 1u << 2 : 0u;
+}
+static uint32_t uk_fam_src(uint32_t src)                 /* a lane's stored source (dlanes_t src) -> its family's bit */
+{
+    if (src >= DL_USR && src <= DL_CARD)
+        return 1u << 5;                                  /* (a user sample, a card sample) */
+    if (src >= DL_X909 && src < DL_X909 + DL_X909_N)
+        return 1u;
+    if (src >= DL_X808 && src < DL_X808 + DL_X808_N)
+        return 2u;
+    if (src >= DL_XKIT0)
+        return uk_fam_uid(DRUM_UID_XKIT + (src - DL_XKIT0));
+    if (src >= DL_KIT0)
+        return uk_fam_uid(src - DL_KIT0);
+    return 0;
+}
+static uint32_t uk_app(char *out, uint32_t at, uint32_t cap, const char *s)   /* s at out + at (cut at cap): the length */
+{
+    while (*s && at + 1u < cap)
+        out[at++] = *s++;
+    out[at < cap ? at : cap - 1u] = 0;
+    return at;
+}
+static void ukit_card_instr(const uint8_t *in, char *out, uint32_t cap)
+{
+    ukit_t k;
+    uint32_t l, m = 0, i, n = 0;
+    memcpy(&k, in, sizeof k);
+    for (l = 0; l < DRUM_LANES; l++)
+        m |= uk_fam_src(k.src[l] == DL_KIT ? (uint32_t)dl_kit_src(k.base) : k.src[l]);
+    out[0] = 0;
+    for (i = 0; i < UK_FAM_N; i++)
+        if (m >> i & 1u) {
+            n = uk_app(out, n, cap, n ? ", " : " (");
+            n = uk_app(out, n, cap, UK_FAM[i]);
+        }
+    if (n)
+        (void)uk_app(out, n, cap, ")");
+}
 static int ukit_card_give(const uint8_t *in, uint32_t n)
 {
     ukit_t k;

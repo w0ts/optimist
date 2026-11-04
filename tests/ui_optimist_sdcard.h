@@ -404,7 +404,8 @@ static void sdcard_tests(void)
     sdu_op(SDO_SAVE);
     sdu_key(0);
     sdu_name("ROOM KIT");
-    check(sdu_has("Optimist/Kits/User/A/01 - room kit.opk"), "KITS: Kits/User/A/01 - room kit.opk written (the name lowercase)");
+    check(TDRUM->p[P_E0] == 0 && sdu_has("Optimist/Kits/User/A/01 - room kit (sampled).opk"), "KITS: Kits/User/A/01 - "
+          "room kit (sampled).opk written (the name lowercase, its lanes' instruments: ACOUSTIC's, sampled)");
     dl.ofs[0][0] = 0;
     sdu_frames(1);
     check(sdu_used() == 1u && !strcmp(sdc_name(0), "ROOM KIT"), "KITS: ROOM KIT on slot 1");
@@ -412,6 +413,18 @@ static void sdcard_tests(void)
     sdu_key(0);
     tap(B_SAVE);
     check(dl.ofs[0][0] == 7 && sdu_msg("LOADED"), "LOAD ROOM KIT: the lanes back");
+    TDRUM->p[P_E0] = 5;                              /* (the lanes on the kit, the synthesised 808: other instruments) */
+    memset(dl.src, 0, sizeof dl.src);
+    sdu_op(SDO_SAVE);
+    sdu_key(0);
+    tap(B_SAVE);                                     /* (over a used slot: asked first) */
+    sdu_name("ROOM KIT");
+    check(sdu_has("Optimist/Kits/User/A/01 - room kit (synth).opk") &&
+              !sdu_has("Optimist/Kits/User/A/01 - room kit (sampled).opk"),
+          "KITS: saved over ROOM KIT on other instruments: 01 - room kit (synth).opk, the (sampled) one gone");
+    sdu_frames(1);
+    check(sdu_used() == 1u && !strcmp(sdc_name(0), "ROOM KIT"), "KITS: still ROOM KIT on slot 1, one file");
+    TDRUM->p[P_E0] = 0;
     {   /* a factory kit: Kits/Factory/<L>/<nn> - <name>.opk (the zip's), browsed and loaded as a user kit is */
         uint8_t kit[UK_CARD_N];
         uint32_t i;
@@ -420,8 +433,8 @@ static void sdcard_tests(void)
         (void)ukit_card_take(kit);
         dl.ofs[1][0] = 0;
         f_mkdir("Optimist/Kits/Factory/A");
-        check(sdm_small_put("Optimist/Kits/Factory/A/07 - 909.opk", "OPKT", kit, sizeof kit) == FR_OK,
-              "KITS: a factory kit file (the zip's)");
+        check(sdm_small_put("Optimist/Kits/Factory/A/07 - 909 (renamed, 808).opk", "OPKT", kit, sizeof kit) == FR_OK,
+              "KITS: a factory kit file, renamed on a computer (its instruments' part not what its lanes are)");
         for (i = 0; i < 3u && !sdm_at_top(); i++) {
             tap(B_HOME);                                /* (up from Kits/User/A to Kits/) */
             sdu_frames(40);
@@ -433,7 +446,7 @@ static void sdcard_tests(void)
         sdu_key(0);
         sdu_frames(1);
         check(!strcmp(sdu_val(0), "A") && sdu_used() == 1u && !strcmp(sdc_name(6), "909"),
-              "KITS: Factory, bank A: 909 on slot 7");
+              "KITS: Factory, bank A: 909 on slot 7 (the name before \" (\")");
         sdu_black(1);
         check(!strcmp(sdu_val(0), "B") && !sdu_used(), "KITS: black key 2: Factory's bank B");
         sdu_black(0);
