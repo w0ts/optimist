@@ -355,8 +355,8 @@ with tempfile.TemporaryDirectory() as d:
               and not (Path(d) / "site3/firmware/r/v0.2/optimist-0.2-user-default.fwsc").exists() and [r["tag"] for r in rs] == ["v0.2", "v0.1"])
         check("releases: listed first, newest first, then this commit's development packages (release \"\")",
               rels == ["v0.2", "v0.2", "v0.1", "v0.1", "", ""]   # (in a release: the manifest's flavours first, then by id)
-              and [x["pkg"] for x in sj["packages"][:2]] == ["../../firmware/r/v0.2/optimist-0.2-no-such-profile.fwsc",
-                                                           "../../firmware/r/v0.2/optimist-0.2-mots-config.fwsc"]
+              and [x["pkg"] for x in sj["packages"][:2]] == ["../../firmware/r/v0.2/optimist-0.2-mots-config.fwsc",
+                                                           "../../firmware/r/v0.2/optimist-0.2-no-such-profile.fwsc"]   # (mots-config: the manifest's default flavour)
               and sj["packages"][0]["date"].startswith("2026-10-15"))
         rsim = {x["pkg"]: x.get("sim") for x in sj["packages"] if x["release"]}
         check("releases: site.json names the latest release (tag, its commit, date): the builder and the simulator start there",
@@ -681,9 +681,9 @@ with tempfile.TemporaryDirectory() as td:
           rc == 3 and "no FM-1 found" in out and not t.wrote() and not pr)
     t = FakeTool()
     rc, out, pr = flash_run(["--no-build"], t, answer="n", packages=new)
-    check("flash: shows the running identity, the package and the recovery, then asks",
-          "Optimist_730  [running]" in out and "optimist-1.0-b.fwsc" in out and "FM-1_730" in out and
-          "Getting back" in out and len(pr) == 1 and "Flash" in pr[0])
+    check("flash: shows the package, the running identity, the route and the warning, then asks",
+          "running:  Optimist_730" in out and "optimist-1.0-b.fwsc" in out and "FM-1_730" in out and "route:" in out and
+          "Do not unplug" in out and len(pr) == 1 and "Flash" in pr[0])
     check("flash: answer n: cancelled, exit 1, nothing written", rc == 1 and "cancelled" in out and not t.wrote())
     t = FakeTool()
     rc, out, pr = flash_run(["--no-build"], t, answer="", packages=new)
