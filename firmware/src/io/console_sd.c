@@ -20,6 +20,8 @@
  *   sd stream pre MS      the pre-buffer: 25, 50, 100 or 200 ms (placed again)
  *   sd stream part P FILE part P's CARD sample (1..3): FILE from OPTIMIST/ ("SAMPLES/kick.wav"), by its hash in the
  *                         index (until the sample picker sets it); no FILE: none
+ *   sd diag               CMD0 and CMD8 by hand in every read mode, the bytes that came back and PC8's level (the line
+ *                         when nothing mounts)
  *   sd pins [7|8|9|10]    the pin finder (bring-up, before the SD board: a breakout on J12, a multimeter): each of the
  *                         LCD's bus lines PC7 CS, PC8 D/C, PC9 CLK, PC10 MOSI (or the one named) held HIGH alone for
  *                         CON_SD_PIN_S seconds, the other three LOW, SPI1 off its pins; a dot a second meanwhile. The
@@ -55,6 +57,174 @@ static void con_sd_pins(uint32_t only)               /* only: 7..10 one line, el
     con_puts("sd pins: done, the screen back\r\n");
 }
 
+/* sd diag: the card's first commands by hand, in every read mode at the start-up clock, to see what the line does when
+ * nothing mounts (bring-up, 2026-11-04): per mode the level of PC8 (the card's DO) with the card off the bus and
+ * selected, the idle bytes read, then CMD0 (40 00 00 00 00 95) and CMD8 (48 00 00 01 AA 87) with 16 bytes read after
+ * each: a card in SPI mode answers 01 to CMD0 and 01 00 00 01 AA after CMD8; FF all along is a line stuck high (no
+ * card, no power, CS or clock not reaching it), 00 all along stuck low */
+static void con_sd_dbytes(const char *tag, const uint8_t *b, uint32_t n)
+{
+    uint32_t i;
+    con_puts(tag);
+    for (i = 0; i < n; i++) {
+        con_putc(' ');
+        con_hex(b[i], 2);
+    }
+    con_puts("\r\n");
+}
+
+static void con_sd_cmd_row(const char *tag, const uint8_t *pk)
+{
+    uint8_t r[16];
+    uint32_t i;
+    fm1_sd_desel();
+    (void)fm1_sd_rx();
+    fm1_sd_sel();
+    (void)fm1_sd_rx();
+    for (i = 0; i < 6u; i++)
+        fm1_sd_tx(pk[i]);
+    for (i = 0; i < 16u; i++)
+        r[i] = fm1_sd_rx();
+    con_sd_dbytes(tag, r, 16u);
+}
+
+static uint8_t con_sd_r1(const uint8_t *pk)         /* a command, its R1 (the first byte without the top bit; 0xFF none) */
+{
+    uint32_t i;
+    uint8_t r = 0xFFu;
+    fm1_sd_desel();
+    (void)fm1_sd_rx();
+    fm1_sd_sel();
+    (void)fm1_sd_rx();
+    for (i = 0; i < 6u; i++)
+        fm1_sd_tx(pk[i]);
+    for (i = 0; i < 10u; i++) {
+        r = fm1_sd_rx();
+        if (!(r & 0x80u))
+            break;
+    }
+    return r;
+}
+
+/* the start-up as sd_card_init runs it after CMD8: CMD55 + ACMD41 (HCS) until the card leaves idle (1 s), then CMD58 */
+static void con_sd_init_row(void)
+{
+    static const uint8_t C55[6] = {0x77, 0, 0, 0, 0, 0x65}, A41[6] = {0x69, 0x40, 0, 0, 0, 0x77},
+                         C58[6] = {0x7A, 0, 0, 0, 0, 0xFD};
+    uint32_t t0 = fm1_ms, n = 0, i;
+    uint8_t r55, r41, ocr[4];
+    do {
+        r55 = con_sd_r1(C55);
+        r41 = con_sd_r1(A41);
+        n++;
+        fm1_wdt_feed();
+    } while (r41 != 0 && fm1_ms - t0 < 1000u);
+    con_puts("  ACMD41 loop: tries ");
+    con_hex(n, 4);
+    con_puts(" CMD55 R1 ");
+    con_hex(r55, 2);
+    con_puts(" ACMD41 R1 ");
+    con_hex(r41, 2);
+    con_kv(" ms", (int32_t)(fm1_ms - t0));
+    if (r41 == 0) {
+        (void)con_sd_r1(C58);
+        for (i = 0; i < 4u; i++)
+            ocr[i] = fm1_sd_rx();
+        con_sd_dbytes("  OCR ", ocr, 4u);
+    }
+}
+
+/* sd speed: the card's CSD read at each SPI clock in the current read mode, to find the clock this wiring reads at
+ * (the card's start-up already works at 400 kHz): per clock the R1, the data token (FE: right) and the CSD's first bytes
+ * (a v2 card starts 40 0E 00 32 ..) */
+static void con_sd_speed(void)
+{
+    static const uint8_t NB[] = {149, 59, 29, 19, 14, 9, 7, 5, 4, 3, 2, 1};
+    uint32_t k, i;
+    lcd_sync();
+    fm1_sd_bus_begin(FM1_SD_BAUD_SLOW);
+    con_puts("sd speed: mode ");
+    con_hex(fm1_sd_mode, 1);
+    con_puts(" init status ");
+    con_hex(sd_card_init(), 2);
+    con_puts("\r\n");
+    for (k = 0; k < sizeof NB; k++) {
+        uint8_t csd[16], r1, tok;
+        fm1_sd_baud(NB[k]);
+        r1 = send_cmd(CMD9, 0);
+        tok = wait_token(100);
+        for (i = 0; i < 16u; i++)
+            csd[i] = fm1_sd_rx();
+        release_spi();
+        con_puts("  kHz ");
+        con_hex((uint32_t)(60000u / (NB[k] + 1u)), 5);
+        con_puts("  R1 ");
+        con_hex(r1, 2);
+        con_puts(" token ");
+        con_hex(tok, 2);
+        con_sd_dbytes(" csd", csd, 6u);
+        fm1_wdt_feed();
+    }
+    fm1_sd_bus_end();
+    lcd_init();
+    ui.force = 1;
+    con_puts("sd speed: done, the screen back\r\n");
+}
+
+static void con_sd_diag(void)
+{
+    static const char *const MN[3] = {"duplex", "dirrx", "bitbang"};
+    static const uint8_t DG_CMD0[6] = {0x40, 0, 0, 0, 0, 0x95}, DG_CMD8[6] = {0x48, 0, 0, 0x01, 0xAA, 0x87};
+    const uint8_t keep = fm1_sd_mode;
+    uint32_t m, i;
+    lcd_sync();
+    for (m = 0; m < 3u; m++) {
+        uint8_t idle[8];
+        uint32_t off, on;
+        fm1_sd_mode = (uint8_t)m;
+        fm1_sd_bus_begin(FM1_SD_BAUD_SLOW);
+        fm1_sd_desel();
+        for (i = 0; i < 10u; i++)
+            (void)fm1_sd_rx();
+        off = fm1_sd_do_level();
+        fm1_sd_sel();
+        on = fm1_sd_do_level();
+        for (i = 0; i < 8u; i++)
+            idle[i] = fm1_sd_rx();
+        con_puts("sd diag ");
+        con_puts(MN[m]);
+        con_kv("  PC8 off bus", (int32_t)off);
+        con_kv("  PC8 selected", (int32_t)on);
+        con_puts("\r\n");
+        con_sd_dbytes("  idle ", idle, 8u);
+        con_sd_cmd_row("  CMD0 ", DG_CMD0);
+        con_sd_cmd_row("  CMD8 ", DG_CMD8);
+        con_sd_init_row();
+        fm1_sd_bus_end();
+        fm1_sd_bus_begin(FM1_SD_BAUD_SLOW);              /* (the driver's own commands, with its own CRC7) */
+        fm1_sd_desel();
+        for (i = 0; i < 10u; i++)
+            (void)fm1_sd_rx();
+        con_puts("  driver CMD0 R1 ");
+        con_hex(send_cmd(CMD0, 0), 2);
+        con_puts(" CMD8 R1 ");
+        con_hex(send_cmd(CMD8, 0x1AA), 2);
+        con_puts("\r\n");
+        fm1_sd_bus_end();
+        fm1_sd_bus_begin(FM1_SD_BAUD_SLOW);
+        con_puts("  sd_card_init status ");
+        con_hex(sd_card_init(), 2);
+        con_kv(" card type", (int32_t)CardType);
+        con_kv("  sectors", (int32_t)sd_sectors);
+        fm1_sd_bus_end();
+        fm1_wdt_feed();
+    }
+    fm1_sd_mode = keep;
+    lcd_init();
+    ui.force = 1;
+    con_puts("sd diag: done, the screen back\r\n");
+}
+
 static void con_sd_field(const char *k, int32_t v)   /* " key value" */
 {
     con_putc(' ');
@@ -80,7 +250,7 @@ static void con_sd_mount(void)
         con_sd_field("dma crc", (int32_t)(sd_probe_seen >> 1 & 1u));
         con_sd_field("same", (int32_t)(sd_probe_seen >> 2 & 1u));
         con_puts(")\r\n");
-        con_puts(sd_over ? "clock 30 MHz" : "clock 20 MHz");
+        con_puts(sd_over ? "clock 7.5 MHz" : "clock 6 MHz");
         if (!sd_over && sd_clock_pick != 20u) {
             con_sd_field("(30 failed: blocks", (int32_t)sd_clock_bad);
             con_sd_field("of", (int32_t)SD_CLOCK_BLOCKS);
@@ -174,7 +344,7 @@ static void con_sd_row(const char *name, uint32_t mode, uint32_t dma, uint32_t b
     fm1_sd_mode = (uint8_t)m0;
     fm1_sd_dma = (uint8_t)d0;
     con_puts(name);
-    con_puts(baud == FM1_SD_BAUD_FAST ? " 20MHz" : baud == FM1_SD_BAUD_OVER ? " 30MHz" : " bb");
+    con_puts(baud == FM1_SD_BAUD_FAST ? " 6MHz" : baud == FM1_SD_BAUD_OVER ? " 7.5MHz" : " bb");
     con_puts(multi ? " cmd18:" : " cmd17:");
     if (!i) {
         con_puts(" failed (no block read)\r\n");
@@ -457,6 +627,10 @@ static void con_sd(const char *p)
         int ok;
         uint32_t n = con_num(&p, &ok);
         con_sd_pins(ok ? n : 0u);
+    } else if (con_word(&p, "diag")) {
+        con_sd_diag();
+    } else if (con_word(&p, "speed")) {
+        con_sd_speed();
     } else if (con_word(&p, "mode")) {
         if (con_word(&p, "duplex"))
             fm1_sd_mode = FM1_SD_DUPLEX;
