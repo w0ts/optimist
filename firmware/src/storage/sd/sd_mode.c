@@ -380,6 +380,7 @@ static void sdm_read_pump(void)
  * the test's card) */
 static void sdm_pv_tick(void);
 static void sdm_pv_stop(void);
+static int sdm_pvw_on(void);
 static void sdm_poll(void)
 {
     FRESULT r;
@@ -396,7 +397,7 @@ static void sdm_poll(void)
         if (sdm_st == SDM_NONE)
             ui_message("NO SD CARD");
     }
-    if ((sdm_dirty == 1u || sdm_smp_dirty) && !SAVE_WAITS_PLAY()) {   /* (a flash write stops the audio: seq.c LIVE_SAVE) */
+    if ((sdm_dirty == 1u || sdm_smp_dirty) && !SAVE_WAITS_PLAY() && !sdm_pvw_on()) {   /* (a kit on trial: its samples never stored) */   /* (a flash write stops the audio: seq.c LIVE_SAVE) */
         if (sdm_dirty == 1u && !sdm_rec_put())
             sdm_dirty = 0;
         if (sdm_smp_dirty) {                         /* (the samples, then the refs: one record) */
@@ -964,6 +965,25 @@ static int sdm_bank_go(uint32_t bk)
         return 0;
     sdm_bk[sdm.list % SDC_N] = (uint8_t)bk;
     return sdm_was(sdm_go(SDB_BANK, sdm.path)) == FR_OK;
+}
+/* the kits' list from the PRESETS row (the drum track, op_sdcard.c): Kits/User when it holds a bank, else Factory's */
+static void sdm_kit_tree(void)
+{
+    DIR d;
+    FILINFO fi;
+    uint32_t n = sdl_path(sdm.path, sizeof sdm.path, SDL_KITS, SDL_USER), any = 0;
+    if (n && f_opendir(&d, sdm.path) == FR_OK) {
+        while (!any && f_readdir(&d, &fi) == FR_OK && fi.fname[0])
+            any = (fi.fattrib & AM_DIR) != 0 && !sdl_hidden(&fi);
+        (void)f_closedir(&d);
+    }
+    if (any)
+        return;
+    n = sdl_path(sdm.path, sizeof sdm.path, SDL_KITS, SDL_FACTORY "/A");
+    if (n) {
+        sdm_bk[SDC_KIT] = 0;
+        (void)sdm_was(sdm_go(SDB_BANK, sdm.path));
+    }
 }
 /* ---- the PRESETS list by engine (op_sdcard.c: the track's, or what the PRESETS knob chose; the user, 2026-11-05) */
 static int32_t sdm_pre_tree(void)                    /* the tree shown: 0 Presets/Factory, 1 Presets/User, -1 neither */

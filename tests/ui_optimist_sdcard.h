@@ -793,6 +793,95 @@ static void sdu_pvw_tests(void)
     frame();
     sdu_card();
 }
+/* the PRESETS row on the drum track: the kits (the user, 2026-11-05: "while on the drum track (main) the preset should be kits") */
+static void sdu_kit_row(void)
+{
+    uint32_t n, up = 0;
+    uint64_t kit_ref = 55u;
+    uint32_t w0, f = 0, d = 0;
+    int16_t was;
+    static uint8_t snd[256 + sizeof sdm_smp];
+    static uint8_t b[UK_CARD_N];
+    sdu_row(PR_CKIT);
+    frame();
+    song.sel = 2;
+    f_mkdir("Optimist/Kits/User");
+    f_mkdir("Optimist/Kits/User/A");
+    was = dl.ofs[0][0];
+    dl.ofs[0][0] = 9;
+    n = ukit_card_take(b);
+    dl.ofs[0][0] = was;
+    check(n && sdm_small_put_id("Optimist/Kits/User/A/01 - trial kit.opk", "OPKT", b, n, kit_ref) == FR_OK, "kits row: a kit on the card");
+    sdu_row(PR_CPRE);
+    sdu_frames(2);
+    check(sdc_here() == SDC_PRE, "PRESETS, T3: the presets");
+    turn(EN_ALGO, 1);
+    sdu_frames(2);
+    check(is_drum(TSEL) && sdc_pre_row() && sdc_here() == SDC_KIT && sdc.open == SDC_KIT, "ALGO onto DR: the row is the kits' list");
+    check(sdu_used() >= 1u && !strcmp(sdu_label(0), "BANK"), "... in banks, Kits/User");
+    up = (uint32_t)trk[TRK_DRUM].p[P_E0];
+    turn(EN_PRESET, 1);
+    frame();
+    check(pop_kind != 4u, "... the PRESETS knob: no filter");
+    check((uint32_t)trk[TRK_DRUM].p[P_E0] == up, "... no kit stepped");
+    /* ---- on trial */
+    w0 = work_sig();
+    memcpy(snd, &sdm_ref[NPART], sizeof sdm_ref[0]);
+    sdu_black(10);
+    sdc_keys_lit(&f, &d, 0);
+    check(sdc.pvp && !strcmp(ui.msg, "PREVIEW ON") && (f & sdu_pv_key()) != 0u, "on DR the top F#: PREVIEW too");
+    sdu_key(0);
+    frame();
+    check(sdm_pvw_on() && dl.ofs[0][0] == 9 && !op_armed() && !sdm_smp_dirty, "a key: the kit on the drum track, no question, nothing to store");
+    {
+        uint32_t st = sdm_dirty;
+        sdm_poll();
+        check(sdm_dirty == st && ui.menu, "... nothing stored, autosave waits");
+    }
+    sdu_black(10);
+    frame();
+    check(!sdm_pvw_on() && dl.ofs[0][0] == was && work_sig() == w0 && !memcmp(snd, &sdm_ref[NPART], sizeof sdm_ref[0]), "PREVIEW off: the lanes back, bit for bit");
+    sdu_black(10);
+    sdu_key(0);
+    frame();
+    turn(EN_ALGO, -1);
+    frames(2);
+    check(song.sel == 2u && !sdm_pvw_on() && work_sig() == w0 && sdc_here() == SDC_PRE, "ALGO off DR: the lanes back, the presets' list");
+    turn(EN_ALGO, 1);
+    sdu_frames(2);
+    sdu_key(0);
+    frame();
+    check(sdm_pvw_on(), "on trial again");
+    tap(B_SAVE);
+    sdu_frames(1);
+    check(!sdm_pvw_on() && dl.ofs[0][0] == 9 && sdm_ref[NPART].id == kit_ref && sdu_msg("LOADED"), "YES: the kit stays, its reference set");
+    dl.ofs[0][0] = was;
+    /* ---- a lane: as ever */
+    sdu_black(10);
+    sdc.pvp = 0;
+    turn(EN_ALGO, 1);
+    sdu_frames(2);
+    check(lane_picked() && sdc_here() == SDC_PRE, "a lane picked: the presets' list, as before");
+    while (is_drum(TSEL))
+        turn(EN_ALGO, -1);
+    sdu_frames(2);
+    /* ---- no user kit: Factory's */
+    sdu_row(PR_CKIT);
+    frame();
+    check(f_rename("Optimist/Kits/User", "Optimist/Kits/Userx") == FR_OK, "kits row: User away");
+    song.sel = 0;
+    sdu_row(PR_CPRE);
+    sdu_frames(2);
+    while (!is_drum(TSEL))
+        turn(EN_ALGO, 1);
+    sdu_frames(2);
+    check(sdc_here() == SDC_KIT && sdl_has(sdm.b.root, "/Factory"), "no kit of the user's: DR opens on Factory's");
+    sdu_row(PR_CKIT);
+    frame();
+    (void)f_rename("Optimist/Kits/Userx", "Optimist/Kits/User");
+    song.sel = 0;
+    sdu_card();
+}
 /* a boot with its index pass in slices (the user, 2026-11-05: "on boot the screen was flashing"): the LCD's clears counted,
  * on HOME and on SYSTEM's page that shows the pass */
 static void sdu_boot_clears(void)
@@ -1377,6 +1466,9 @@ static void sdcard_tests(void)
     sdu_new_tests();
     sdu_filter_tree();
     sdu_pvw_tests();
+#if FELUCCA_DRUM_KITS
+    sdu_kit_row();
+#endif
     sdu_boot_clears();
     /* ---- SYSTEM > SD CARD: VERSIONS, SLACK, kept in the log's device record */
     op_enter(SCR_SYSTEM);

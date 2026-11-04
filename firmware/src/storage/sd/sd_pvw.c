@@ -7,6 +7,7 @@
  *   sdm_pvw_end()     the copy back, whatever track is selected now
  *   sdm_pvw_keep()    the preview is the track's sound from now on, as a LOAD's bookkeeping leaves it
  *   sdm_pvw_drop()    forgotten: a project came in over it (storage/project.c project_apply)
+ * On the drum track the same with a kit (the lanes, their sends, their card samples, the base kit, the card reference).
  * The preview never reaches a store: autosave waits on ui.menu while it is on, and whatever else captures the project ends it
  * first (project.c proj_capture, sections.c sec_capture). */
 #ifdef PART_MEM_SHORT
@@ -30,10 +31,56 @@ static struct {
     uint8_t cz_tone[128];
     cz_ed_t cz_ed;
 #endif
+#if FELUCCA_DRUM_KITS
+    __typeof__(dl) kit_dl;                           /* a kit on trial (kit): the lanes as they were */
+    __typeof__(dsend) kit_send;
+    int16_t kit_e0, kit_dl_e0;
+    uint8_t kit, smp_dirty;
+#if FELUCCA_SD_LANES
+    sdm_smp_t kit_smp[DRUM_LANES];
+    uint16_t lane_on;
+#endif
+#endif
 } sdm_pvw IN_POOL;
 
 static int sdm_pvw_on(void) { return sdm_pvw.on; }
 static uint32_t sdm_pvw_part(void) { return sdm_pvw.part; }
+#if FELUCCA_DRUM_KITS
+static void sdm_pvw_kit_take(void)
+{
+    sdm_pvw.kit = 1;
+    sdm_pvw.part = TRK_DRUM;
+    sdm_pvw.kit_dl = dl;
+    memcpy(sdm_pvw.kit_send, dsend, sizeof sdm_pvw.kit_send);
+    sdm_pvw.kit_e0 = TDRUM->p[P_E0];
+    sdm_pvw.kit_dl_e0 = (int16_t)dl_e0;
+    sdm_pvw.ref = sdm_ref[NPART];
+    sdm_pvw.smp_dirty = sdm_smp_dirty;
+#if FELUCCA_SD_LANES
+    memcpy(sdm_pvw.kit_smp, &sdm_smp[NPART], sizeof sdm_pvw.kit_smp);
+    sdm_pvw.lane_on = (uint16_t)sdm_lane_on;
+#endif
+}
+static void sdm_pvw_kit_end(void)
+{
+    sdm_pvw.kit = 0;
+    fm1_irq_off();
+    dl = sdm_pvw.kit_dl;
+    memcpy(dsend, sdm_pvw.kit_send, sizeof sdm_pvw.kit_send);
+    TDRUM->p[P_E0] = sdm_pvw.kit_e0;
+    dl_e0 = sdm_pvw.kit_dl_e0;
+    fm1_irq_on();
+    sdm_ref[NPART] = sdm_pvw.ref;
+#if FELUCCA_SD_LANES
+    memcpy(&sdm_smp[NPART], sdm_pvw.kit_smp, sizeof sdm_pvw.kit_smp);
+    sdm_lane_on = 0xFFFFu;                           /* (the lanes' samples looked at again) */
+#endif
+    sdm_smp_dirty = sdm_pvw.smp_dirty;
+    sync_reload = 1;
+    ui.redraw = 1;
+    MISS_BUMP();
+}
+#endif
 static void sdm_pvw_take(uint32_t part)
 {
     const track_t *t = &trk[part];
@@ -72,6 +119,12 @@ static void sdm_pvw_end(void)
         return;
     sdm_pvw.on = 0;
     ui.menu = 0;
+#if FELUCCA_DRUM_KITS
+    if (sdm_pvw.kit) {
+        sdm_pvw_kit_end();
+        return;
+    }
+#endif
     if (part_mem_reserve(part, sdm_pvw.eng_req)) {
         SDM_PVW_NO_OFFER();                          /* (nothing took the room but the preview itself: never expected) */
         ui_say("MEM FULL", "");
@@ -119,14 +172,56 @@ static void sdm_pvw_end(void)
 static void sdm_pvw_drop(void)
 {
     sdm_pvw.on = 0;
+#if FELUCCA_DRUM_KITS
+    sdm_pvw.kit = 0;
+#endif
     ui.menu = 0;
 }
+#if FELUCCA_DRUM_KITS
+/* slot k's kit on the drum track: 1 it plays */
+static int sdm_pvw_kit_show(uint32_t k)
+{
+    uint64_t id = 0;
+    uint32_t n;
+    if (!sdm_ready() || !sdb_path(&sdm.b, k, sdm.path, sizeof sdm.path)) {
+        ui_message("NOT ON THE CARD");
+        return 0;
+    }
+    n = sdm_small_get_id(sdm.path, "OPKT", sd_blk, sizeof sd_blk, &id);
+    if (!n) {
+        ui_message("NOT A KIT");
+        return 0;
+    }
+    if (!sdm_pvw.on)
+        sdm_pvw_kit_take();
+#if FELUCCA_SD_LANES
+    n = sdm_kit_lanes_in(sd_blk, n);                 /* (its lanes' card samples: sdm_poll stores no record while this is on) */
+#endif
+    if (ukit_card_give(sd_blk, n)) {
+        if (!sdm_pvw.on)
+            sdm_pvw_kit_end();
+        ui_message("NOT A KIT");
+        return 0;
+    }
+    sdm_pvw.on = 1;
+    sdm_pvw.k = (uint8_t)k;
+    sdm_pvw.id = id;
+    sdl_cat(sdm_pvw.path, 0, sizeof sdm_pvw.path, sdm.path);
+    ui.menu = 1;
+    ui.redraw = 1;
+    return 1;
+}
+#endif
 /* slot k's preset on the selected track: 1 it plays (a file that is no preset: 0, said) */
 static int sdm_pvw_show(uint32_t k)
 {
     uint32_t part = song.sel, n, fresh = !sdm_pvw.on;
     uint64_t id = 0;
     int rc;
+#if FELUCCA_DRUM_KITS
+    if (sdm.list == SDC_KIT)
+        return sdm_pvw_kit_show(k);
+#endif
     if (is_drum(TSEL)) {
         ui_message("DRUM TRACK: NO SOUND");
         return 0;
@@ -172,6 +267,15 @@ static void sdm_pvw_keep(void)
         return;
     sdm_pvw.on = 0;
     ui.menu = 0;
+#if FELUCCA_DRUM_KITS
+    if (sdm_pvw.kit) {
+        sdm_pvw.kit = 0;
+        sdm_ref_set(NPART, sdm_pvw.path, sdm_pvw.id);   /* (the project's kit: found again by its id; its samples' record too) */
+        snd_mark(TRK_DRUM);
+        ui_say("LOADED ", sdm_disp(sdb_base(sdm_pvw.path)));
+        return;
+    }
+#endif
     sdm_ref_set(part, sdm_pvw.path, sdm_pvw.id);     /* (the part's preset: found again by its id) */
     snd_mark(part);
     ui_say("LOADED ", sdm_disp(sdb_base(sdm_pvw.path)));
