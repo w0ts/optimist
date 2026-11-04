@@ -141,6 +141,7 @@ static struct {
 } sst_pv;
 static volatile uint32_t sst_dry;                    /* streams that ran dry (the console's sd stream) */
 static volatile uint32_t sst_nostream;               /* notes on a card sample with no ring free (silent) */
+static volatile uint32_t sst_cut;                    /* drum hits' tails cut for a newer hit's ring (drums/lane_card.c) */
 
 AINL uint32_t sst_tag(uint32_t gen, uint32_t sec) { return gen << 24 | (sec + 1u); }
 

@@ -16,13 +16,15 @@
  *                         none (mem 0: every stream off)
  *   sst_service()         one run for the stream with the least time left that has a free slot: what the main loop's
  *                         idle wait calls (main.c); 1 a run was made (the bus was the card's meanwhile)
- *   sst_strip()           the same between two of the screen's strips (lcd.c lcd_blit), only for a stream with less
- *                         than SST_URGENT_MS left: the screen draws on otherwise
+ *   sst_strip()           before each of the screen's strips (lcd.c lcd_blit, a clear's every 16 rows): runs for every stream
+ *                         with less than SST_URGENT_MS left, up to SST_STRIP_MS: the screen waits for the card
+ *   sst_frame_late()      before a frame: 1 a stream is short, the frame is not drawn (up to SST_HOLD_MS)
  *   sst_stats / sst_stats_reset()   the console's sd stream
  *
  * A RUN is one CMD18 of at most SST_RUN blocks into the stream's free slots, in play order and inside one of the file's
  * contiguous runs (a loop's jump or a run's end ends it): the screen cannot draw while it lasts (deselecting the card
- * would abort it), so it is short (8 blocks, 4 KB, about 2.2 ms at 20 MHz) and the screen's strips go between runs. A
+ * would abort it), so it is short (8 blocks, 4 KB, about 2.2 ms at 20 MHz) and the screen's strips go between runs (the
+ * streams short of data first, sst_strip). A
  * card that does not send a block's token within SST_WAIT_US (busy: 100 ms and more now and then) is let go (CMD12, the
  * bus back to the screen) and asked again SST_BACKOFF_MS later: a stall never freezes the screen, the rings and the
  * heads carry the voices through it, or a voice runs dry and fades out (counted). A block whose CRC16 fails is read
@@ -41,7 +43,16 @@
 #define SST_BACKOFF_MS 2u                            /* then the card left alone this long (the screen draws) */
 #endif
 #ifndef SST_URGENT_MS
-#define SST_URGENT_MS 40u                            /* between strips: a run only for a stream with less left */
+#define SST_URGENT_MS_OF(k) ((k) * 39u / 10u < 40u ? 40u : (k) * 39u / 10u > 64u ? 64u : (k) * 39u / 10u)
+#define SST_URGENT_MS SST_URGENT_MS_OF(SST_K)        /* the card before the screen: a stream with less left, 2/3 of a ring at
+                                                      * 44.1 kHz mono, 40 .. 64 ms. Rings filled together drain together: all 8
+                                                      * voices' runs (3.5 ms each at 12 MHz) must fit in it with the strips between */
+#endif
+#ifndef SST_STRIP_MS
+#define SST_STRIP_MS 8u                              /* the card's turn before a strip at most: the screen's floor */
+#endif
+#ifndef SST_HOLD_MS
+#define SST_HOLD_MS 100u                             /* a frame held back for the card this long at most */
 #endif
 #define SST_DEAD_MS 50u                              /* a voice not rendered this long: its stream taken back */
 #define SST_DEAD_ERRS 3u                             /* runs failing in a row: the card is gone */
@@ -60,6 +71,7 @@ static struct {
     uint32_t lead_min_ms;                            /* the least time a stream had left when a run began */
     uint32_t t0;                                     /* (SD_NOW at the reset: KB/s) */
     uint32_t backoff_t0;
+    uint32_t drawn, held;                            /* (SD_NOW) the last frame drawn, the frames held back (sst_frame_late) */
     uint8_t backoff, errs, in;
 } sst_st IN_POOL;
 static DWORD sst_map[SST_MAP_N] IN_POOL;
@@ -69,8 +81,8 @@ static uint32_t sst_us(uint32_t ticks) { return (uint32_t)((uint64_t)ticks * 100
 static void sst_rc_stats_reset(void);             /* (sd_stream_rc.c) */
 static void sst_stats_reset(void)
 {
-    sst_dry = sst_nostream = 0;
-    sst_st.runs = sst_st.blocks = sst_st.stalls = sst_st.crc = sst_st.errors = sst_st.reaped = sst_st.aborted = 0;
+    sst_dry = sst_nostream = sst_cut = 0;
+    sst_st.runs = sst_st.blocks = sst_st.stalls = sst_st.crc = sst_st.errors = sst_st.reaped = sst_st.aborted = sst_st.held = 0;
     sst_st.run_max_us = 0;
     sst_st.lead_min_ms = SST_NONE;
     sst_st.t0 = SD_NOW();
@@ -299,7 +311,38 @@ static uint32_t sst_go(uint32_t limit_ms)
 }
 
 static uint32_t sst_service(void) { return sst_go(SST_NONE); }
-static uint32_t sst_strip(void) { return sst_go(SST_URGENT_MS); }
+
+/* the card goes first (the user, 2026-11-05: "sd card should have prio over screen"): before every strip the streams short
+ * of data get their runs, as many as they need, the screen waits. SST_STRIP_MS is a turn's most: then that strip goes
+ * whatever the rings, so the screen never stops. A card gone, busy (the backoff) or writing gives no run: no wait */
+static uint32_t sst_strip(void)
+{
+    uint32_t t0 = SD_NOW(), n = 0;
+    while (sst_go(SST_URGENT_MS)) {
+        n++;
+        if (sst_us(SD_NOW() - t0) >= SST_STRIP_MS * 1000u)
+            break;
+    }
+    return n;
+}
+
+/* before a frame's drawing: 1 this frame is not drawn, a stream is short (the main loop gives the card its turn and looks at
+ * the panel), SST_HOLD_MS at most since the last frame drawn; 0 draw */
+static uint32_t sst_frame_late(void)
+{
+    uint32_t now = SD_NOW(), late = 0;
+    if (!sst_st.in && !sd_gone && sd_wr.state == SDW_IDLE && SST_CARD_OK() && !sst_st.backoff &&
+        sst_us(now - sst_st.drawn) < SST_HOLD_MS * 1000u) {
+        sst_st.in = 1;
+        late = sst_pick(SST_URGENT_MS) != SST_NONE;
+        sst_st.in = 0;
+    }
+    if (late)
+        sst_st.held++;
+    else
+        sst_st.drawn = now;
+    return late;
+}
 
 static uint32_t sst_kbs(void)                        /* KB/s read since the stats' reset */
 {

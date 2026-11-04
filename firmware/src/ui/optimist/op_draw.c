@@ -1328,33 +1328,70 @@ static uint32_t op_overlay(void) { return op_code_on() ? 4u : rh.ring ? 3u : op_
  * top), in the track's instrument colour, its name, "Keep holding"; no question: the ring is the confirmation */
 #define RING_R (MODAL_H >= 117 ? 36 : 28)               /* the ring's outer radius: smaller over the help band's shorter panel */
 #define RING_CY ((MODAL_H - (2 * RING_R + 36)) / 2 + RING_R)   /* its centre: the ring and its two lines in the panel's middle */
-/* the ring: el ms into its RH_CLEAR_MS, in colour tc, the label under it (the REC hold's, and every delete asked from a held key) */
+/* the ring: el ms into its RH_CLEAR_MS, in colour tc, the label under it (the REC hold's, and every delete asked from a held key).
+ * Whole once; then only the box round the arc that moved, in the same pixels (the whole panel at every step held the LCD's bus
+ * 10 ms a frame and painted the ring on each of its 8 strips: the card's samples ran dry, the user 2026-11-04) */
+#define RING_NEAR 96                                    /* the angles (of 1024) round the arc that can show in its box */
 static struct {
-    int32_t end;
+    int32_t end, was;                                   /* the angle now; drawn up to (-1: all of it) */
+    int32_t bx, by;                                     /* the canvas's corner in the panel's coordinates */
+    uint32_t key;                                       /* what it is drawn in (another: whole) */
     uint16_t tc;
     const char *label;
 } rgo;                                                  /* what ring_paint draws (draw_ring_of) */
 static void ring_paint(void)
 {
-    int32_t a, rr, end = rgo.end, cy = RING_CY;
+    int32_t a, rr, end = rgo.end, cy = RING_CY - rgo.by, cx = 120 - rgo.bx;
+    uint32_t lo = (uint32_t)(rgo.was - RING_NEAR) & 1023u, span = (uint32_t)(end - rgo.was + 2 * RING_NEAR);
     uint16_t tc = rgo.tc;
     const char *label = rgo.label;
     for (a = 0; a < 1024; a += 2) {
-        int32_t co = SINE[((uint32_t)a + 768u) & 1023u], si = SINE[(uint32_t)a & 1023u];   /* from 12 o'clock */
-        uint16_t c = a <= end ? tc : C_LINE;
+        int32_t co, si;
+        uint16_t c;
+        if (rgo.was >= 0 && (((uint32_t)a - lo) & 1023u) > span)
+            continue;
+        co = SINE[((uint32_t)a + 768u) & 1023u];
+        si = SINE[(uint32_t)a & 1023u];                 /* from 12 o'clock */
+        c = a <= end ? tc : C_LINE;
         for (rr = RING_R - 6; rr <= RING_R; rr++)
             if (a <= end || rr == RING_R - 3)           /* (the part to come: a thin line on black) */
-                cv_pset(120 + ((si * rr) >> 15), cy + ((co * rr) >> 15), c);
+                cv_pset(cx + ((si * rr) >> 15), cy + ((co * rr) >> 15), c);
     }
-    cv_text_mid(cy + RING_R + 4, &FONT_S, label, tc);
-    cv_text_mid(cy + RING_R + 20, &FONT_S, "Keep holding", C_GRAY);
+    if (rgo.was < 0) {
+        cv_text_mid(cy + RING_R + 4, &FONT_S, label, tc);
+        cv_text_mid(cy + RING_R + 20, &FONT_S, "Keep holding", C_GRAY);
+    }
 }
+static void ring_step(void)                             /* the arc rgo.was .. rgo.end, its box */
+{
+    int32_t a, x0 = 240, x1 = 0, y0 = 240, y1 = 0, cy = RING_CY, rr;
+    for (a = rgo.was & ~1; a <= rgo.end && a < 1024; a += 2)
+        for (rr = RING_R - 6; rr <= RING_R; rr += 6) {
+            int32_t x = 120 + ((SINE[(uint32_t)a & 1023u] * rr) >> 15), y = cy + ((SINE[((uint32_t)a + 768u) & 1023u] * rr) >> 15);
+            x0 = x < x0 ? x : x0, x1 = x > x1 ? x : x1;
+            y0 = y < y0 ? y : y0, y1 = y > y1 ? y : y1;
+        }
+    if (x1 < x0)
+        return;                                         /* (the last step: nothing left of the arc) */
+    rgo.bx = x0 - 2, rgo.by = y0 - 2;
+    cv_whole_w((uint32_t)rgo.bx, (uint32_t)(OP_PY + rgo.by), (uint32_t)(x1 - x0 + 5), (uint32_t)(y1 - y0 + 5), C_BLACK, ring_paint);
+    rgo.bx = rgo.by = 0;
+}
+static uint32_t ring_again;                             /* draw_overlay: the panel is not the ring's, whole */
 static void draw_ring_of(uint32_t el, uint16_t tc, const char *label)
 {
+    uint32_t key = hs(tc, label);
     rgo.end = el >= RH_CLEAR_MS ? 1024 : (int32_t)(el * 1024u / RH_CLEAR_MS);
     rgo.tc = tc;
     rgo.label = label;                                  /* (the caller's buffer: drawn before it returns) */
-    cv_whole(OP_PY, MODAL_H, C_BLACK, ring_paint);
+    if (ring_again || key != rgo.key || rgo.end < rgo.was) {
+        rgo.was = -1;
+        rgo.key = key;
+        cv_whole(OP_PY, MODAL_H, C_BLACK, ring_paint);
+    } else {
+        ring_step();
+    }
+    rgo.was = rgo.end;
 }
 static void draw_ring(void)                             /* the REC hold */
 {
@@ -1386,6 +1423,7 @@ static void draw_overlay(uint32_t ov)
                            : hs(hu(4u, ui.msg_st), ui.msg);
     if (sig == ui.sig[4])
         return;
+    ring_again = !ui.sig[4];
     ui.sig[4] = sig;
     if (ov == 4u)
         draw_code();

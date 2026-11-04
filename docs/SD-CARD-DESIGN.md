@@ -389,13 +389,41 @@ the probed J12 pins; SD reads, a FAT32 reader and a flash-slot loader in m-bootl
     the head's end: a loop starting in the head reads the head again, from RAM).
   - **The runs** (`sst_service` in the main loop's idle wait and once a pass, `sst_strip` between two of the screen's
     strips, `lcd_blit`): the stream with the least time left that has a free slot gets one CMD18 of at most `SST_RUN`
-    (8) blocks, contiguous on the card and in play order; between strips only a stream with less than 40 ms left (the
-    screen draws on otherwise). A block's token not come in 3 ms (a busy card): CMD12, the bus back to the screen, the
-    card asked again 2 ms later, so a 150 ms stall never freezes the screen (tested: the longest wait between two
-    strips stays under 3.6 ms through it). A block's CRC16 failing: read again (`sd_crc_retry`). Three runs failing
+    (8) blocks, contiguous on the card and in play order; between strips only a stream with less than `SST_URGENT_MS`
+    left (2/3 of a ring, 40 to 64 ms; the screen draws on otherwise). A block's token not come in 3 ms (a busy card): CMD12,
+    the bus back to the screen, the card asked again 2 ms later, so a 150 ms stall never freezes the screen (tested: the
+    longest wait before a strip stays under `SST_STRIP_MS` + 3.6 ms through it). A block's CRC16 failing: read again (`sd_crc_retry`). Three runs failing
     in a row: the card is gone (`sd_gone`), the voices run dry and fade. A voice ended without its engine knowing
     (a release's end, a steal) frees its stream with its active flag; one no longer rendered at all (its beat still
     for 50 ms) is taken back.
+  - **The card before the screen** (the user, 2026-11-05: "sd card should have prio over screen", after "when hold record and
+    the ring to clear track fills in, audio is dropping" and "switching to arp also drop sample voices"). Every page change
+    costs the same whatever the page: a clear of 115,200 B (21 ms of the bus, no turn for the card in it) and 16 strips of
+    about 7,170 B (`tests/ui_optimist_buscost.h`, `BUS_COST=1`). The rule: before each strip and each 16 rows of a clear the
+    streams with less than `SST_URGENT_MS` left get their runs, up to `SST_STRIP_MS` (8 ms), then that strip goes whatever
+    the rings: the screen slows, it never stops. A frame that would start with a stream short is not drawn at all, up to
+    `SST_HOLD_MS` (100 ms) since the last one (`sst_frame_late`, counted: the console's `sd stream`, "frames held for the
+    card"): the main loop gets the panel and the card. A card gone, busy or writing gives no run, so no wait. On fm-1base a
+    long turn reads the panel (`opt_in_scan`), its edges kept for the next frame. `tests/sd_stream_bus_test.c`, 8 voices of
+    44.1 kHz mono at 1,147 KB/s (12 MHz), a strip's drawing assumed 1 ms and 2.5 ms (not measured), rings of 8 KB:
+
+    | | before: dry of 8 | now: dry | paints a second now | longest paint now | least lead now |
+    |---|---|---|---|---|---|
+    | the REC ring's whole panel every frame | 1, 2 | 0, 0 | 26.5, 16 | 40, 72 ms | 24 ms |
+    | a page change every 300 ms | 3, 4 | 0, 0 | 5 (each one), 4.5 | 132, 221 ms | 24 ms |
+    | the whole screen every frame | | 0, 0 | 13.5, 8.5 | 90, 152 ms | 24 ms |
+
+    Over the bus (300 KB/s) voices run dry, counted, and the screen goes on (13.5 paints a second). The REC ring and the
+    held key's ring draw the panel once, then only the box round the arc that moved (`op_draw.c ring_step`): 59,040 B a
+    frame became 338 B at most, the same pixels as a whole repaint (`tests/ui_optimist_buscost.h`).
+  - **No ring free.** A note that finds no ring is silent (never its head alone) and counted (`sst_nostream`, NO RING). The
+    rings are the plan's count (`sst_nring`, at most `SST_N`, 8), not `SD_RING`, which is the KB of each. A ring is freed by
+    the voice's active flag at the next note, by the audio itself, so the main loop's speed does not touch it, and no ring
+    stays held (`tests/sd_kit_card_test.c`). The kit's files last 0.25 to 1.6 s, so a sampled kit on its 3 rings silenced
+    212 of 328 hits of a busy pattern, 16ths at 120 BPM, 8 bars: 4 rings 148, 5 rings 118, 6 rings 0 (a ring a drum voice,
+    `NDRUM`). Now: 6 rings for the kit, down to 3 when the arena has no room (`sst_place_rings`), and a hit with no ring
+    takes the oldest card hit's (`lane_card.c dlc_ring_free`, counted as "tails cut for a ring": 198 tails on 3 rings, none
+    on 6). Still silent: a part's 5th note (`SST_PART_RINGS`) and the 909's third.
   - **Dry**: a voice whose next slot is not there fades out at once over 64 samples (1.5 ms) from the sample it was
     at, then ends; `sd stream` counts it (`dry`). A note with no ring free is silent and counted (`no ring`).
   - **The memory** (`sd_stream_plan.c`): each part's CARD sample by its hash (`sst_part_set(part, hash)`: the sample
@@ -657,7 +685,7 @@ presets for all devices".
   and root, the flash kit's map; the kit's treatment and the lane's TUNE / DECAY / CUT / LEVEL as before) through the
   lanes' card streams (`lane_card.c dlc_go`); the 909's hats, crash and ride play `Samples/X0X/909/` through a stream
   each voice (`drums/x0x/x0x_card.c`, read from drum909.c by integers only). The plan (`sd_stream_plan.c`) places only
-  the files the lanes play (`kc_want`, `x9c_want`), by path, their heads at most 25 ms (`SST_KIT_PRE_MS`), 3 rings for
+  the files the lanes play (`kc_want`, `x9c_want`), by path, their heads at most 25 ms (`SST_KIT_PRE_MS`), 6 rings (3 at the least) for
   the kit's hits and 2 for the 909's (of the 8). A file not on the card: that hit silent, "KIT SAMPLES MISSING" /
   "909 SAMPLES MISSING" once (`sd_mode.c sdm_kit_tick`). Synthesised kits stay synthesised. sd-card-mots: 803,812 B of
   flash (817,688 before: 13,876 B less, the 909's 6-bit hats out of the flash), SRAM +2,192 B (the 32 sources).

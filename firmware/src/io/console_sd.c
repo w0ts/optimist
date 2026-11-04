@@ -592,6 +592,7 @@ static void con_sd_streams(void)
     con_kv("playing", (int32_t)on);
     con_kv("dry", (int32_t)sst_dry);
     con_kv("no ring", (int32_t)sst_nostream);
+    con_kv("tails cut for a ring", (int32_t)sst_cut);
     con_kv("runs", (int32_t)sst_st.runs);
     con_kv("blocks", (int32_t)sst_st.blocks);
     con_kv("KB/s", (int32_t)sst_kbs());
@@ -608,6 +609,7 @@ static void con_sd_streams(void)
     con_kv("errors", (int32_t)sst_st.errors);
     con_kv("taken back", (int32_t)sst_st.reaped);
     con_kv("given up (new note)", (int32_t)sst_st.aborted);
+    con_kv("frames held for the card", (int32_t)sst_st.held);
     con_kv("longest run us", (int32_t)sst_st.run_max_us);
     con_kv("least lead ms", sst_st.lead_min_ms == 0xFFFFFFFFu ? -1 : (int32_t)sst_st.lead_min_ms);
     con_kv("ui gap max ms", (int32_t)fm1_in.ui_gap_max);

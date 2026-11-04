@@ -38,6 +38,8 @@ static void fm1_irq_on(void);
 #define SST_ARN_K 3u
 static uint32_t part_voices[3] = {8, 8, 8};
 #define SST_PART_VOICES(p) part_voices[p]
+static uint32_t kit_want;                            /* (the drums' card sounds: no file of them here, their rings counted) */
+#define SST_KIT_WANT() kit_want
 static int irq_depth;
 static void fm1_irq_off(void) { irq_depth++; }
 static void fm1_irq_on(void) { irq_depth--; }
@@ -270,6 +272,49 @@ static void run_card(const char *img_path)
     sst_plan_poll();
     settle();
     CHECK(sstp.state == SSTP_PLACED && sstp.nring == 4u, "%s: one 8-voice part: 4 rings (%u)", what, sstp.nring);
+    /* a sampled kit's hits: a ring a drum voice; no room for them: fewer, down to 3, placed all the same, and it stays so */
+    part_voices[0] = 1u;
+    kit_want = 1u;
+    sst_plan_poll();
+    settle();
+    CHECK(sstp.state == SSTP_PLACED && sstp.nring == 1u + SST_KIT_RINGS, "%s: a one-voice part and the kit: 1 + %u rings (%u)", what,
+          SST_KIT_RINGS, sstp.nring);
+    {
+        uint32_t room, tight = 0;
+        kit_want = 0u;
+        sst_plan_poll();
+        settle();
+        for (room = 1024u; room < ARN_BYTES && tight == 0u; room += 1024u) {   /* (the arena's own rounding: part 1 grown until it bites) */
+            CHECK(arn_reserve(1, room) == 0 && arn_take(1), "%s: part 1's block (%u B)", what, room);
+            kit_want = 1u;
+            sst_plan_poll();
+            settle();
+            if (sstp.state == SSTP_PLACED && sstp.nring < 1u + SST_KIT_RINGS)
+                tight = sstp.nring;
+            else if (sstp.state != SSTP_PLACED)
+                break;
+            else {
+                kit_want = 0u;
+                sst_plan_poll();
+                settle();
+                arn_give(1);
+            }
+        }
+        CHECK(sstp.state == SSTP_PLACED && tight >= 1u + SST_KIT_RINGS_MIN && tight < 1u + SST_KIT_RINGS,
+              "%s: no room for all the kit's rings: placed with fewer (%u, state %u, part 1 %u B)", what, tight, sstp.state, room);
+        sst_plan_poll();
+        sst_plan_poll();
+        settle();
+        CHECK(sstp.state == SSTP_PLACED && sstp.nring == tight, "%s: and it stays so, not placed again and again (%u)", what, sstp.nring);
+        kit_want = 0u;
+        sst_plan_poll();
+        settle();
+        arn_give(1);
+    }
+    part_voices[0] = 8u;
+    sst_plan_poll();
+    settle();
+    CHECK(sstp.state == SSTP_PLACED && sstp.nring == 4u, "%s: the kit gone: 4 rings again (%u)", what, sstp.nring);
     sst_part_set(1, h1);
     sst_part_set(2, h0);
     sst_plan_poll();

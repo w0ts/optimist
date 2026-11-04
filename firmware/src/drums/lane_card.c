@@ -7,7 +7,7 @@
  *   the hit    cuts the lane's own hit before (its ring back for this one: the plan counts a ring a card lane), takes a
  *              drum voice and a stream; TUNE (an octave up at most, as SAMPLE's CARD: each octave doubles the reads),
  *              DECAY, CUT, LEVEL as a flash sample's (dl_smp_fx). No source (MISSING, the plan refused or not placed yet):
- *              silent; no ring free: silent and counted (sst_nostream)
+ *              silent; no ring free: the oldest card hit's tail gives its ring; held by the parts: silent, counted (sst_nostream)
  *   the voice  drums_mix's sampled loop, dlc_next its next frame: ph[0] the frame, ph[1] the fraction, s[0] the source,
  *              s[2] / s[3] the interpolator's two samples, s[4] SMP_STREAM | the stream, s[5] the step (Q16), s[7] its last
  *              output. Its end, a dry stream (counted, sst_dry) or its source let go (a project change, the plan placed
@@ -36,6 +36,27 @@ static HOT int dlc_next(voice_t *v)
     return 0;
 }
 
+/* no ring free for voice v's hit: the oldest card hit's tail gives its ring (cut, its last value faded by the tail, counted
+ * sst_cut). A hit is never silent for a tail: rings are fewer than the lanes, the kit's files last 0.25 to 1.6 s and a dense
+ * pattern on 3 rings silenced 2 hits of 3 (tests/sd_kit_card_test.c; the user's NO RING 400, 2026-11-05) */
+static void dlc_ring_free(const voice_t *v)
+{
+    voice_t *o = 0;
+    uint32_t i;
+    for (i = 0; i < SST_N; i++)
+        if (sst[i].ring && (!sst[i].on || (sst[i].owner && !*sst[i].owner)))
+            return;
+    for (i = 0; i < NDRUM; i++)
+        if (&drums.v[i] != v && drums.v[i].active && dlc_is(&drums.v[i]) && (!o || drums.v[i].age < o->age))
+            o = &drums.v[i];
+    if (!o)
+        return;                                      /* (the parts hold them all: silent, counted) */
+    o->active = 0;
+    drums.tail += o->s[7];
+    dlc_let_go(o);
+    sst_cut++;
+}
+
 /* lane l's hit on card source si, d16 sixteenths of a semitone off its rate (an octave up at most), kit its treatment
  * (drums_mix: a sampled kit's, 0 none): the lane's hit before cut, a drum voice and a stream (drum_on: dlc_hit, a lane on
  * CARD; kit_card.c kc_hit, a sampled kit's sound on the card) */
@@ -55,6 +76,7 @@ static void dlc_go(uint32_t l, uint32_t si, uint32_t note, uint32_t vel, int32_t
         }
     stepq = (pow2_q16(clamp(d16, -1536, SST_UP16)) >> 8) * (s->rate >> 8);
     v = FAST_CALL(seq, drum_voice)(note, vel, l);   /* (flash code: the RAM code's with SEQ_RAM 2) */
+    dlc_ring_free(v);
     k = sst_start(si, 0, 0, 0, sst_rate(s, stepq), &v->active);
     if (k < 0) {
         v->active = 0;                               /* (no ring free: counted) */

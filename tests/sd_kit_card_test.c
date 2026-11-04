@@ -199,6 +199,80 @@ static uint64_t energy(const int32_t *x)
     return e;
 }
 
+/* a dense pattern on ACOUSTIC, 16ths at 120 BPM for 8 bars, the streams' rings as the plan sets them (nring of SST_N): the hits
+ * that found no ring (the user's SYSTEM > SD STREAM, 2026-11-05: DRY 19, NO RING 400 on the FM-1), the most rings in use, the
+ * tails cut for a newer hit's ring, the rings held once the drums are off (a leak) */
+typedef struct {
+    uint32_t hits, noring, peak, cut, left;
+} dense_t;
+static dense_t dense(const uint16_t *pat, uint32_t nring)
+{
+    dense_t r = {0, 0, 0, 0, 0};
+    int32_t o[CTL], rv[CTL], x[CTL];
+    uint32_t i, l, step, j, u;
+    for (i = 0; i < nsrc; i++)
+        load_src(i, path[i], 0);
+    for (i = 0; i < SST_N; i++)
+        sst[i].on = 0, sst[i].ring = i < nring ? ring_mem + i * SST_K * 512u : 0;
+    memset(&dl, 0, sizeof dl);
+    memset(dsend, 0, sizeof dsend);
+    (void)ukit_card_give(kit_rec + 24u, UK_CARD_N);
+    drums_off();
+    drums.tail = 0;
+    sst_dry = sst_nostream = sst_cut = 0;
+    for (step = 0; step < 8u * 16u; step++) {
+        for (l = 0; l < DRUM_LANES; l++)
+            if (pat[l] >> (step % 16u) & 1u) {
+                drum_on(DLANE_NOTE(l), 110);
+                r.hits++;
+            }
+        for (j = 0; j + CTL <= 5512u; j += CTL) {
+            produce();
+            memset(o, 0, sizeof o), memset(rv, 0, sizeof rv), memset(x, 0, sizeof x);
+            drums_render(o, rv, x, CTL);
+            for (i = 0, u = 0; i < SST_N; i++)
+                u += sst[i].on && !(sst[i].owner && !*sst[i].owner);
+            r.peak = u > r.peak ? u : r.peak;
+        }
+    }
+    r.noring = sst_nostream;
+    r.cut = sst_cut;
+    drums_off();
+    for (j = 0; j < 8u; j++) {
+        memset(o, 0, sizeof o), memset(rv, 0, sizeof rv), memset(x, 0, sizeof x);
+        drums_render(o, rv, x, CTL);
+    }
+    for (i = 0; i < SST_N; i++)
+        r.left += sst[i].on && !(sst[i].owner && !*sst[i].owner);
+    CHECK(sst_dry == 0u, "the dense pattern: the rings fed at once, none dry (%u)", sst_dry);
+    return r;
+}
+
+static void dense_tests(void)
+{
+    static const uint16_t BUSY[DRUM_LANES] = {0x1111, 0x0404, 0x1010, 0x1010, 0xFFFF, 0x4444, 0x0080, 0x0040, 0x0001, 0x5555};
+    static uint16_t ALL[DRUM_LANES];
+    static const uint32_t RINGS[] = {3u, 4u, 5u, 6u, 8u};
+    uint32_t i, l;
+    dense_t a, b;
+    for (l = 0; l < DRUM_LANES; l++)
+        ALL[l] = 0xFFFF;
+    printf("  the lanes:");
+    for (l = 0; l < DRUM_LANES; l++)
+        printf(" %s", LANE_NAME_OF(l));
+    printf("; %u drum voices\n", (unsigned)NDRUM);
+    for (i = 0; i < sizeof RINGS / sizeof RINGS[0]; i++) {
+        a = dense(BUSY, RINGS[i]);
+        b = dense(ALL, RINGS[i]);
+        printf("  %u rings: a busy pattern %u hits, %u silent, %u rings at most, %u tails cut; every lane "
+               "every 16th %u hits, %u silent, %u at most, %u cut; held after %u + %u\n", RINGS[i], a.hits, a.noring, a.peak, a.cut,
+               b.hits, b.noring, b.peak, b.cut, a.left, b.left);
+        CHECK(a.left == 0u && b.left == 0u, "%u rings: none held once the drums are off (%u, %u)", RINGS[i], a.left, b.left);
+        CHECK(a.noring == 0u && b.noring == 0u, "%u rings: a hit is never silent, the oldest tail gives its ring (%u, %u)", RINGS[i],
+              a.noring, b.noring);
+    }
+}
+
 int main(int argc, char **argv)
 {
     static const char *const X9[SST_NX9] = {"hh.wav", "crash.wav", "ride.wav"};
@@ -323,6 +397,7 @@ int main(int argc, char **argv)
         CHECK(i == 0 && si >= 4u, "909 not on the card: its sample voices silent (%u sound), its circuit voices not (%u)",
               i, si);
     }
+    dense_tests();
     printf("sd_kit_card_test: %d checks, %d failed\n", checks, fails);
     return fails != 0;
 }

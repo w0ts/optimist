@@ -445,7 +445,7 @@ static void run_card(const char *img_path)
     C.stall_until = clk + 250000u;
     main_loop(600);
     all_ok("a 250 ms stall", 1);
-    CHECK(gap_max < SST_WAIT_US + 600u, "%s: the screen drew through it (%u us)", what, gap_max);
+    CHECK(gap_max < SST_STRIP_MS * 1000u + SST_WAIT_US + 600u, "%s: the screen drew through it, a card's turn at most (%u us)", what, gap_max);
     quiet();
 
     /* loops: into the head (from 0), past it, inside one sector; 3 s each */
@@ -535,7 +535,7 @@ static void run_card(const char *img_path)
     main_loop(400);
     all_ok("the card pulled", 2);
     CHECK(sd_gone == 1, "%s: the card taken as gone", what);
-    CHECK(gap_max < SST_WAIT_US + 600u, "%s: no long wait on it (%u us)", what, gap_max);
+    CHECK(gap_max < SST_STRIP_MS * 1000u + SST_WAIT_US + 600u, "%s: no long wait on it, a card's turn at most (%u us)", what, gap_max);
     C.present = 1;
     clk_hook = 0;
     free(img);

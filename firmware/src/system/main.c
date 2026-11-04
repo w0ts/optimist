@@ -592,6 +592,9 @@ static BOOT_ORDER void fm1_main(void)
         fxi_poll();                                     /* the limited inserts' instances after a change (fx/insfx/fxi.c) */
         felucca_dbg.stage = 2;
         ui_leds();
+#if FELUCCA_SD_STREAM
+        if (!sst_frame_late())                          /* (a stream short of data: the card first, this frame not drawn, sd_stream.c) */
+#endif
 #if DUAL_TIMES
         {   /* SYSTEM > TOP's UI row: the frame's drawing and its strips (dual_load.h DUAL_TM_SPAN_IN) */
             uint32_t ui_t0 = DUAL_TM_SPAN_IN(1u);

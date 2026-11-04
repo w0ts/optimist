@@ -83,15 +83,13 @@ static void mir_fill(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint16_t c)
 static void mir_blit(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint16_t *px);
 #endif
 
-static void lcd_fill(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint16_t c)
+#if FELUCCA_SD_STREAM
+static uint32_t sst_strip(void);   /* storage/sd/sd_stream.c: the card's turn before a strip; a stream short of data goes first */
+#define LCD_FILL_ROWS 16u          /* a fill between the card's turns (a page change's clear: 21 ms of the bus otherwise, no turn in it) */
+#endif
+static void lcd_fill_rows(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint32_t sw)
 {
-    uint32_t i, n, k, sw = (uint16_t)((c >> 8) | (c << 8));
-    if (!w || !h || x >= 240u || y >= 240u)
-        return;
-    if (x + w > 240u)
-        w = 240u - x;
-    if (y + h > 240u)
-        h = 240u - y;
+    uint32_t i, n, k;
     lcd_sync();
     k = 240u / w * w;                       /* whole rows per transfer (narrow fills: one DMA) */
     for (i = 0; i < k; i++)
@@ -102,14 +100,34 @@ static void lcd_fill(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint16_t c)
             k = n;
         lcd_data(lcd_fillbuf, k * 2u);
     }
+}
+
+static void lcd_fill(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint16_t c)
+{
+    uint32_t sw = (uint16_t)((c >> 8) | (c << 8));
+    if (!w || !h || x >= 240u || y >= 240u)
+        return;
+    if (x + w > 240u)
+        w = 240u - x;
+    if (y + h > 240u)
+        h = 240u - y;
+#if FELUCCA_SD_STREAM
+    {
+        uint32_t r, n;
+        for (r = 0; r < h; r += n) {
+            n = h - r < LCD_FILL_ROWS ? h - r : LCD_FILL_ROWS;
+            (void)sst_strip();
+            lcd_fill_rows(x, y + r, w, n, sw);
+        }
+    }
+#else
+    lcd_fill_rows(x, y, w, h, sw);
+#endif
 #if FELUCCA_ED_MIRROR
     mir_fill(x, y, w, h, c);
 #endif
 }
 
-#if FELUCCA_SD_STREAM
-static uint32_t sst_strip(void);   /* storage/sd/sd_stream.c: a run for a stream close to dry, between two strips */
-#endif
 static void lcd_blit(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint16_t *px)
 {
     if (!w || !h)
