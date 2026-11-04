@@ -528,7 +528,7 @@ def build(cfg, name, measure=False, log=None, extra=(), echo=False, on_line=None
     else:
         rc, out = _run(cmd, env, echo, on_line, cancel)
     if rc == 0 and not measure and K.built(cfg, "SDCARD"):
-        rc, out = sd_card_zip(bdir, out, echo, on_line)
+        rc, out = sd_card_zip(bdir, out, echo, on_line, cfg)
     if log:
         Path(log).write_text(out)
     return _sized(cfg, bdir, rc, measure, out)
@@ -537,16 +537,17 @@ def build(cfg, name, measure=False, log=None, extra=(), echo=False, on_line=None
 SD_ZIP = "optimist-sd-card.zip"                      # (tools/sd_zip.py NAME)
 
 
-def sd_card_zip(bdir, out, echo, on_line):
+def sd_card_zip(bdir, out, echo, on_line, cfg):
     """a build with SDCARD (the user, 2026-11-04: every one makes it): the SD card zip beside its package
-    (bdir/optimist-sd-card.zip: tools/sd_zip.py, every factory preset and sample set, cached by its inputs) ->
-    (returncode, output with its line); a zip that cannot be made fails the build (SD card mode reads its presets from it)"""
+    (bdir/optimist-sd-card.zip: tools/sd_zip.py, every factory preset and kit, the samples and FM6 packs this
+    configuration ticked: core.card_content; cached by its inputs and those ticks) -> (returncode, output with its
+    line); a zip that cannot be made fails the build (SD card mode reads its presets from it)"""
     sys.path.insert(0, str(ROOT / "tools"))
     import sd_zip
     try:
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf):
-            sd_zip.make(bdir / SD_ZIP)
+            sd_zip.make(bdir / SD_ZIP, sd_zip.content_of(cfg))
         line = buf.getvalue().strip()
         rc = 0
     except (OSError, subprocess.CalledProcessError, SystemExit) as e:

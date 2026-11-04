@@ -528,9 +528,11 @@ def flags(cfg):
     if not built(cfg, "DRUM_SAMPLED") or not any(cfg[k] for k in R.ITEMS if k.startswith("KIT_")):
         out["FELUCCA_DRUM_SAMPLED"] = 0
     card = card_sets(cfg)                           # (SD card mode: every set on the card, none in the image)
+    if card:                                        # (and FM6's voice packs: a ticked one is FM6 presets on the card,
+        out.update({R.ITEMS[k].flag: 0 for k in pack_keys()})   # never in the image: card_packs)
     if card_drums(cfg):                             # (and the drums' samples: the sampled kits, the 909's hats and
-        out["FELUCCA_KITS_CARD"] = 1                # cymbals, whatever their ticks: registry.h KITS_CARD, X909_CARD)
-        if out.get("FELUCCA_DRUM_X909"):
+        out["FELUCCA_KITS_CARD"] = 1                # cymbals: registry.h KITS_CARD, X909_CARD; the card carries the
+        if out.get("FELUCCA_DRUM_X909"):            # ticked ones, card_content)
             out.update(FELUCCA_X909_CARD=1, FELUCCA_X909_CYM=0, FELUCCA_X909_HAT=0)
     skip = [R.ITEMS[k].env for k in set_keys() if not cfg[k] and not card]
     if not out.get("FELUCCA_DRUM_SAMPLED", 1):
@@ -949,7 +951,8 @@ def card_sets(cfg):
     """SD card mode (the fake SD mode's layout with the card, MEMORY 2): the sample sets go on the card, never in the
     flash (the user, 2026-10-29: ticking a set there must not grow the flash). The image holds no set whatever is
     ticked (gen_samples.py FELUCCA_SAMPLES_CARD: each set empty, its number and presets kept); the SD card zip
-    carries every set whatever the ticks (tools/sd_zip.py, Optimist/Samples/<Set>/), which SAMPLE streams (eng_sample.c
+    carries the ticked sets (the user, 2026-11-04: "the samples we select in the builder just go on the SD card and
+    not in flash": card_content, tools/sd_zip.py, Optimist/Samples/<Set>/), which SAMPLE streams (eng_sample.c
     smp_bank_on)"""
     return sd_mode(cfg) and built(cfg, "SDCARD")
 
@@ -975,13 +978,57 @@ def card_drums(cfg):
             and built(cfg, "DRUMS"))
 
 
+def pack_keys():
+    """FM6's voice packs (registry.py FM6_PK_*)"""
+    return [k for k in R.ITEMS if k.startswith("FM6_PK_")]
+
+
+def card_packs(cfg):
+    """FM6's voice packs are presets on the card (the user, 2026-11-04: "same for preset (fm6)"): SD card mode with FM6.
+    A ticked pack's 16 voices are FM6 factory presets on the card (Presets/Factory/FM6, each .ops carrying its voice:
+    tools/sd_factory.c), never in the image (flags(): every FELUCCA_FM6_PK_* 0 in SD card mode)"""
+    return card_sets(cfg) and built(cfg, "ENG_FM6")
+
+
+def card_keys(cfg):
+    """-> the items whose tick says what the SD card gets in this configuration (0 B of flash each: image_cfg): the
+    sets in SD card mode, FM6's packs with FM6, the drum samples with the card's streams (card_drums)"""
+    keys = set_keys() if card_sets(cfg) else []
+    keys += pack_keys() if card_packs(cfg) else []
+    keys += card_drum_keys() if card_drums(cfg) else []
+    return [k for k in keys if k in R.ITEMS]
+
+
+def on_card(cfg, key):
+    """the item's content goes on the SD card in this configuration: one of card_keys, ticked and built (a sampled kit
+    needs DRUM_SAMPLED, an option its parent). None when the item is not one the card's content follows"""
+    return built(cfg, key) if key in card_keys(cfg) else None
+
+
+X909_CARD_FILES = {"X909_HAT": ("hh.wav",), "X909_CYM": ("crash.wav", "ride.wav")}   # (tools/sd_samples.py X909_FILES)
+
+
+def card_content(cfg):
+    """-> what the SD card zip carries of the builder's ticks (the user, 2026-11-04: "the samples we select in the
+    builder just go on the SD card and not in flash, and that's it"; tools/sd_zip.py): {"sets": the ticked sets'
+    generator names (PIANO ..), "kits": the sampled kits' sounds (DRUM_SAMPLED with a KIT_* ticked: the five share
+    them), "x909": the 909's files (hh.wav with the 909; crash.wav, ride.wav with X909_CYM on), "fm6_packs": the ticked
+    packs' names (KEYS ..)}. Every factory preset and kit is in the zip whatever the ticks; a configuration that is not
+    SD card mode gets none of these (they are in its flash)"""
+    sets = [R.ITEMS[k].env for k in set_keys() if card_sets(cfg) and cfg[k]]
+    packs = [R.ITEMS[k].flag.removeprefix("FELUCCA_FM6_PK_") for k in pack_keys() if card_packs(cfg) and cfg[k]]
+    drums = card_drums(cfg)
+    kits = drums and built(cfg, "DRUM_SAMPLED") and any(built(cfg, k) for k in kit_keys())
+    x909 = [f for k, fs in X909_CARD_FILES.items() if drums and built(cfg, k) for f in fs]
+    return {"sets": sets, "kits": bool(kits), "x909": x909, "fm6_packs": packs}
+
+
 def image_cfg(cfg):
-    """-> cfg as the image is built: in SD card mode every set off and, with the card's streams, every drum sample off
-    (card_sets, card_drums, card_drum_keys: they are on the card, 0 B of flash), else cfg itself"""
+    """-> cfg as the image is built: in SD card mode every set and FM6 pack off and, with the card's streams, every
+    drum sample off (card_keys: they are on the card, 0 B of flash), else cfg itself"""
     if not card_sets(cfg):
         return cfg
-    off = set_keys() + (card_drum_keys() if card_drums(cfg) else [])
-    return dict(cfg, **{k: 0 for k in off if k in R.ITEMS})
+    return dict(cfg, **{k: 0 for k in card_keys(cfg)})
 
 
 def sd_mode(cfg):

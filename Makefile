@@ -20,11 +20,13 @@ help:
 	@echo "make build   [PROFILE=name]    build a profile without the menu ($(PROFILE))"
 	@echo "make classic [PROFILE=name]    the same, Optimist's own firmware (main's): what make build did before the release"
 	@echo "make package [PROFILE=name]    build a profile and copy .fwsc (+ -ui.zip, classic; + optimist-sd-card.zip, SDCARD) into $(IMAGES)/"
-	@echo "make sd-zip                    the SD card zip alone (every factory preset and sample set): build/optimist-sd-card.zip"
-	@echo "                              (every build with SDCARD makes it beside its .fwsc; cached by its inputs)"
-	@echo "make sdcard  [CARD=/Volumes/<name>] [YES=1] [DRY=1]  prepare an SD card for SD card mode: the FM-1's folders and the"
-	@echo "                              factory presets, kits and samples (replaced where they changed); your own files never"
-	@echo "                              touched. No CARD: it asks which card (the last used first) and asks before it writes"
+	@echo "make sd-zip  [PROFILE=name | CONFIG=file]  the SD card zip alone: build/optimist-sd-card.zip, every factory preset"
+	@echo "                              and kit, the samples and FM6 packs the configuration ticks (no PROFILE or CONFIG: the"
+	@echo "                              builder menu's build/builder.config); every build with SDCARD makes it beside its .fwsc"
+	@echo "make sdcard  [CARD=/Volumes/<name>] [YES=1] [DRY=1] [PROFILE=name | CONFIG=file]  prepare an SD card for SD card"
+	@echo "                              mode: the FM-1's folders and that zip's factory presets, kits and samples (replaced"
+	@echo "                              where they changed); your own files never touched. No CARD: it asks which card (the"
+	@echo "                              last used first) and asks before it writes. The builder menu's c does the same"
 	@echo "make flash   [PKG=file.fwsc] [KEEP_BOOTLOADER=1] [FM1=NAME|all]   build $(PROFILE) and install it (or PKG as it is); shows the identities, the route and the bootloader, and asks (several FM-1s: which one, or all, one after the other)"
 	@echo "make profiles                  the profiles: published (CI builds them), shipped, mine"
 	@echo "make publish   PROFILE=name    CI builds this shipped profile (# publish: yes; commit it)"
@@ -73,12 +75,15 @@ classic: sdk
 package: sdk
 	$(PY) tools/optimist.py package --profile $(PROFILE) --out $(IMAGES) $(CL)
 
+# (the configuration: PROFILE= or CONFIG= given to make, else the builder menu's build/builder.config)
+SD_CFG = $(if $(CONFIG),--config "$(CONFIG)",$(if $(filter command line environment,$(origin PROFILE)),--profile $(PROFILE)))
+
 sd-zip:
-	$(PY) tools/sd_zip.py build/optimist-sd-card.zip
+	$(PY) tools/sd_zip.py build/optimist-sd-card.zip $(SD_CFG)
 
 # (the user runs it: it writes to the card it is given or picks; never run by an agent on a real card)
 sdcard:
-	$(PY) tools/optimist.py sdcard $(if $(CARD),--card "$(CARD)") $(if $(YES),--yes) $(if $(DRY),--dry-run)
+	$(PY) tools/optimist.py sdcard $(if $(CARD),--card "$(CARD)") $(if $(YES),--yes) $(if $(DRY),--dry-run) $(SD_CFG)
 
 # (builds PROFILE first unless PKG is given, so it never flashes an old file; asks first. Needs mido + python-rtmidi:
 # make setup)
