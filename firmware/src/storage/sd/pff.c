@@ -613,6 +613,9 @@ static FRESULT dir_find (
 /* Read an object from the directory                                     */
 /*-----------------------------------------------------------------------*/
 #if PF_USE_DIR
+#ifdef PF_DIR_HOOK
+void PF_DIR_HOOK (const BYTE *entry);
+#endif
 static FRESULT dir_read (
 	DIR *dj,		/* Pointer to the directory object to store read object name */
 	BYTE *dir		/* 32-byte working buffer */
@@ -629,6 +632,9 @@ static FRESULT dir_read (
 		if (res != FR_OK) break;
 		c = dir[DIR_Name];
 		if (c == 0) { res = FR_NO_FILE; break; }	/* Reached to end of table */
+#ifdef PF_DIR_HOOK
+		PF_DIR_HOOK(dir);				/* Optimist: every entry seen, for stage 2's long names */
+#endif
 		a = dir[DIR_Attr] & AM_MASK;
 		if (c != 0xE5 && c != '.' && !(a & AM_VOL))	break;	/* Is it a valid entry? */
 		res = dir_next(dj);			/* Next entry */

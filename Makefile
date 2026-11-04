@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 # Shortcuts for tools/optimist.py (which works without make: BUILDING.md). `make help` lists them.
 .DEFAULT_GOAL := help
-.PHONY: help setup sdk builder build classic package sd-zip sdcard flash profiles publish unpublish share delete web site emu emu-list emu-update test costs costs-all gate emu-check mirror
+.PHONY: help setup sdk builder build classic package sd-zip sdcard stage2 flash profiles publish unpublish share delete web site emu emu-list emu-update test costs costs-all gate emu-check mirror
 
 PY ?= python3
 PROFILE ?= mots-config
@@ -84,6 +84,10 @@ sd-zip:
 # (the user runs it: it writes to the card it is given or picks; never run by an agent on a real card)
 sdcard:
 	$(PY) tools/optimist.py sdcard $(if $(CARD),--card "$(CARD)") $(if $(YES),--yes) $(if $(DRY),--dry-run) $(SD_CFG)
+
+# MENU.BIN, the SD flasher (docs/SD-CARD-DESIGN.md "Flashing from the card"), in build/stage2/
+stage2:
+	$(MAKE) -C firmware/stage2
 
 # (builds PROFILE first unless PKG is given, so it never flashes an old file; asks first. Needs mido + python-rtmidi:
 # make setup)

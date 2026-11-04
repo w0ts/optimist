@@ -976,3 +976,25 @@ boot's mount in SD builds.
 Open: a card LOAD while playing says STOP FIRST (the flash slots stop, load and play again); projects with names the
 NAME page cannot type (lower case from a computer, past 12 characters) load, and save again as their first 12
 characters; the FM6 voice of a card preset; a save into a sub-folder.
+
+## 10. Flashing from the card (2026-11-04, host-tested only, never run on an FM-1)
+
+m-bootloader's SD item (jvitkauskas/m-bootloader PR #7, not merged: its docs/SPEC.md 11.5) loads `/MBOOT/MENU.BIN` from a
+FAT32 card and calls it. Ours is `firmware/stage2/` (`make stage2`, in `build/stage2/`): it lists the packages in
+`/FIRMWARES` and writes the one picked.
+
+- The card: `/MBOOT/MENU.BIN`, and `.fwsc` packages in `/FIRMWARES` (found by its short name, `FIRMWA~1`: nine letters
+  are past Petit FatFs' 8.3). The list shows the long names without `.fwsc`, cut at
+  20 characters: a hook in Petit FatFs' directory scan (`PF_DIR_HOOK`, stage 2's build only) passes the long-name entries
+  to `s2_lfn_feed`; files open by their 8.3 name. FAT32 only: m-bootloader reads no other.
+- m-bootloader stays in RAM and BACK returns to it, but its code has no fixed addresses, so `MENU.BIN` compiles in the
+  same `core.c`, `platform.c`, `display.c`, `board.c` from `third_party/m-bootloader`, with Optimist's SD driver and
+  Petit FatFs at the driver's floor, 6 MHz.
+- Before anything is erased: the package's format, model (`FM-1_`), whole `flash.bin` CRC, chip key, and the slot.
+- Written: `[0x4000, flash.bin's end)`, the sectors that differ, each read back, the first app sector last. Never the boot
+  area, never the store above the slot. HOLD SELECT 2 s confirms.
+- A package for another layout is refused (`LAYOUT CHANGE: USE USB`): a switch needs the clears `tools/fm1_layouts.py`
+  plans. With no firmware that mounts there is nothing to compare, so it writes, and that is the way back from a write
+  that broke off: the boot area is intact, so m-bootloader's menu and the card still work.
+- Open on hardware: everything. TIMER4 is started here as the firmware does, but has never run under m-bootloader: if it
+  does not count there, the card's timeouts do not end.
