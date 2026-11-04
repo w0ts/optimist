@@ -25,6 +25,11 @@
 enum { DUALM_AUTO, DUALM_OFF, DUALM_N };
 #define DUAL_MODE_BITS 27u     /* in the settings word (settings_word.c), 2 bits; 2 and 3 read as AUTO */
 
+/* the main loop's starvation (DUAL_STARVE_MS without a pass) takes CPU1 down only with the audio this busy, percent: then the render is
+ * what starves it. A main loop held at 23 % (a card step, a flash erase: the user's FM-1, 2026-11-05, "CPU1 is on OVERLOAD") is not
+ * helped by one core less, and CPU1 never comes back in that session (fm-1base starts it at boot or never) */
+#define DUAL_STARVE_LOAD 85u
+
 /* why CPU1 is not taking jobs (dual.up 0); DUAL_UP while it runs */
 enum { DUAL_UP, DUAL_NO_HELLO, DUAL_TIMEOUT, DUAL_FAULT, DUAL_FLASH, DUAL_MISREAD, DUAL_CANARY, DUAL_EARLY, DUAL_SETOFF,
        DUAL_PARKED, DUAL_BLE, DUAL_OVERLOAD, DUAL_SUPPLY, DUAL_WHY_N };   /* SUPPLY: the supply start-up's read-back

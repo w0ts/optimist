@@ -81,7 +81,7 @@ void fm1_timer5_irq(void)
             if (g > felucca_dbg.loop_gap_max)
                 felucca_dbg.loop_gap_max = g;
 #if FELUCCA_DUAL >= 2
-            if (g >= DUAL_STARVE_MS && !felucca_dbg.starve_ms) {
+            if (g >= DUAL_STARVE_MS && !felucca_dbg.starve_ms && song.cpu_q8 >= DUAL_STARVE_LOAD * 256u / 100u) {
                 felucca_dbg.starve_ms = fm1_ms;
                 dual_starve_req = 1;            /* (the audio render takes CPU1 down at its next block: dual.c) */
             }
