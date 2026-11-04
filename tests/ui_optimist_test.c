@@ -532,7 +532,9 @@ static void check(int ok, const char *what) { fh_check(what); printf("optimist u
 #define RING_FRAMES ((RH_CLEAR_MS + 40u) / 16u + 2u)    /* (a delete's ring held to its end: frames of 16 ms) */
 static void reset_ui(void)
 {
-    memset(st.se_pref, 0, sizeof st.se_pref);          /* (each track keeps its STEP mode, 2026-11-03: a test starts in the default) */
+    memset(st.se_pref, 0, sizeof st.se_pref);          /* (the synth tracks' tests of the keys as steps: MUTE MODE; ENTRY is the default since
+                                                         * 2026-11-04, its tests set it, se_pref 0; the drum track has no such mode) */
+    memset(st.se_pref, 2, TRK_DRUM);
     pl_filt = PLF_ALL;                                  /* (the list unfiltered: a filter's test leaves it filtered otherwise) */
     mx.across = 0, mx.an = 0;                           /* (the mixer by row: a test's SHIFT2 + HOME (ACROSS) left on walked T1 to the lanes
                                                          * 4 rows a detent in the tests after it) */

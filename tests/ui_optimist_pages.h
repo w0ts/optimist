@@ -522,6 +522,7 @@ static void pages_keys_tests(void)
     lanes_lit("D10: the drum track's SOUND: the lanes' black keys (and the last upper key, ACCENT) lit, the selected one full");
     reset_ui();
     song.sel = 0;                                       /* the keys light the notes the track sounds (always built since 2026-10-29) */
+    st.se_pref[0] = 0;                                  /* (ENTRY, the default since 2026-11-04: PLAY below arms the take, never plays) */
     op_enter(SCR_STEP);
     frames(2);
     tap(B_REC);                                         /* (REC on: STEP's keys are the keyboard, 2026-10-31; stopped it is STEP ENTRY */
