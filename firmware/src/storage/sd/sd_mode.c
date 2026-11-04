@@ -375,6 +375,11 @@ static void sdm_read_pump(void)
             break;
     }
 }
+/* what the card's own steps change (a mount, the index's pass, the names) is drawn again over itself, never ui.force: that clears
+ * the LCD to black, a flash each step of a boot's pass (the user, 2026-11-05: "on boot the screen was flashing": 93 clears on
+ * the test's card) */
+static void sdm_pv_tick(void);
+static void sdm_pv_stop(void);
 static void sdm_poll(void)
 {
     FRESULT r;
@@ -417,13 +422,15 @@ static void sdm_poll(void)
         sdx_pass_cancel();                           /* (a card pulled mid-pass: index.bin as it was) */
         sdm_st = SDM_NONE;
         sdb_abort();
+        sdm_pv_stop();
         sdm.b.n = 0;
         sdm.b.pages = 1;
         ui_message("SD CARD GONE");
-        ui.force = 1;
+        ui.redraw = 1;
         return;
     }
     sdm_read_pump();
+    sdm_pv_tick();
     if (sdm_st == SDM_MOUNTED) {
         r = sdl_prepare();
         if (r == FR_OK && sdm_rec.pend) {            /* a save the last power-off cut: finished from the flash copy */
@@ -438,7 +445,7 @@ static void sdm_poll(void)
         sdm_ix_force = 0;
         sdm_ix_pct = 0;
         sdm_st = SDM_INDEX;
-        ui.force = 1;
+        ui.redraw = 1;
         return;
     }
     if (sdm_st == SDM_INDEX && (uint32_t)(fm1_ms - sdm_ix_at) >= SDM_IX_EVERY_MS) {
@@ -447,11 +454,11 @@ static void sdm_poll(void)
         if (sdx_pass_on()) {
             if (sdx_pass_pct() != sdm_ix_pct) {      /* (SYSTEM > SD CARD's SAMPLES line) */
                 sdm_ix_pct = sdx_pass_pct();
-                ui.force = 1;
+                ui.redraw |= ui.scr == SCR_SYSTEM;   /* (only where it shows) */
             }
         } else {
             sdm_st = SDM_NAMES;
-            ui.force = 1;
+            ui.redraw = 1;
 #if FELUCCA_SD_STREAM
             if (sstp.missing)
                 sstp.dirty = 1;                      /* (what the plan looked up in the old index, or none: again) */
@@ -465,7 +472,7 @@ static void sdm_poll(void)
                 return;
 #endif
         sdm_st = SDM_READY;
-        ui.force = 1;
+        ui.redraw = 1;
     }
 #if PRESETS_CARD
     sdm_factory_poll();
@@ -611,6 +618,61 @@ static uint32_t sdm_read_ms(void) { return sdb_reading() ? (uint32_t)(fm1_ms - s
 static int sdm_reading(void) { return sdb_reading(); }
 static uint32_t sdm_shown_page(void) { return sdm.b.page; }
 static void sdm_wait(void) { sdb_finish(); }
+/* ---- the SAMPLES list's preview (op_sdcard.c, the last black key; the voice: sd_preview.h): the file streams, a head of
+ * SDM_PV_PRE ms and a ring of its own in RAM, so no project memory is touched and no track's sound changes. A sample asked
+ * plays after SDM_PV_SETTLE_MS without another (K2 turned fast reads no file on the way) */
+#if FELUCCA_SD_STREAM
+#define SDM_PV_SETTLE_MS 60u
+#define SDM_PV_PRE 25u
+static uint8_t sdm_pv_mem[8192] __attribute__((aligned(4))) IN_POOL_AUDIO;   /* (its runs, its head) */
+static uint8_t sdm_pv_ring[SST_K * 512u] __attribute__((aligned(4))) IN_POOL_AUDIO;
+static struct {
+    char path[SDB_NAME * 2];
+    uint32_t at;
+    uint8_t ask;
+} sdm_pv;
+static void sdm_pv_play(uint32_t k)
+{
+    if (!sdb_path(&sdm.b, k, sdm_pv.path, sizeof sdm_pv.path)) {
+        ui_message("CANNOT PREVIEW");
+        return;
+    }
+    sdm_pv.ask = 1;
+    sdm_pv.at = fm1_ms;
+}
+static void sdm_pv_stop(void)
+{
+    sdm_pv.ask = 0;
+    if (sst_pv.act)
+        sst_pv.cmd = SPV_STOP;
+}
+static int sdm_pv_busy(void) { return sdm_pv.ask || sst_pv.act || sst_pv.cmd == SPV_START; }
+static void sdm_pv_tick(void)
+{
+    uint32_t used;
+    FRESULT r;
+    if (!sdm_pv.ask || (uint32_t)(fm1_ms - sdm_pv.at) < SDM_PV_SETTLE_MS)
+        return;
+    if (sst_pv.act || sst_pv.cmd) {                  /* (the one playing faded out first: its source is the same one) */
+        sst_pv.cmd = sst_pv.act ? SPV_STOP : sst_pv.cmd;
+        return;
+    }
+    sdm_pv.ask = 0;
+    sst[SST_PV].ring = sdm_pv_ring;
+    r = sst_src_load(SST_PVS, sdm_pv.path, SDM_PV_PRE, sdm_pv_mem, sizeof sdm_pv_mem, &used);
+    if (r == FR_NOT_ENOUGH_CORE)                     /* (a high rate's head) */
+        r = sst_src_load(SST_PVS, sdm_pv.path, SDM_PV_PRE / 5u, sdm_pv_mem, sizeof sdm_pv_mem, &used);
+    if (sdm_was(r) != FR_OK)
+        ui_message("CANNOT PREVIEW");                /* (not a PCM WAV, or in too many pieces) */
+    else
+        sst_pv.cmd = SPV_START;
+}
+#else
+static void sdm_pv_play(uint32_t k) { (void)k; ui_message("NO PREVIEW"); }
+static void sdm_pv_stop(void) {}
+static int sdm_pv_busy(void) { return 0; }
+static void sdm_pv_tick(void) {}
+#endif
 static FRESULT sdm_go(uint32_t view, const char *root)
 {
     sdm_read_start();
@@ -635,6 +697,7 @@ static uint32_t sdm_count(void) { return sdm.b.n; }
 #define SDM_BANKS 26u
 static uint8_t sdm_bk[SDC_N];                        /* the bank each list shows (0 = A) */
 static char sdm_work[SDL_NAME_MAX + 1u];             /* the open project's place under Projects/ ("A/03 - song"), "" none */
+static void sdm_new(void) { sdm_work[0] = 0; }       /* (NEW on the list: the work is no card project any more) */
 static uint8_t sdm_save_k = 0xFFu;                   /* the slot a SAVE was asked on (op_sdcard.c sdm_save_at) */
 
 /* the holder (Optimist/Projects, Optimist/Presets/User/<Engine of the selected part>) into out: its length, 0 */

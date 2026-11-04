@@ -244,12 +244,12 @@ static void sst_run(uint32_t i)
 
 #include "sd_stream_rc.c"                            /* the caches read in any order (GRAIN, STRETCH) */
 
-/* the stream with the least time left, or a part's cache (SST_N + part) whose want has (a stream first on a tie) */
+/* the stream with the least time left, or a part's cache (SST_NALL + part) whose want has (a stream first on a tie) */
 static uint32_t sst_pick(uint32_t limit_ms)
 {
     static sst_rcw_t w;
     uint32_t i, best = SST_NONE, lead, best_lead = SST_NONE, now = SD_NOW();
-    for (i = 0; i < SST_N; i++) {
+    for (i = 0; i < SST_NALL; i++) {
         lead = sst_lead(i, now);
         if (lead < best_lead) {
             best_lead = lead;
@@ -260,7 +260,7 @@ static uint32_t sst_pick(uint32_t limit_ms)
         lead = sst_rc_lead(i, &w);
         if (lead < best_lead) {
             best_lead = lead;
-            best = SST_N + i;
+            best = SST_NALL + i;
             sst_rcw = w;
         }
     }
@@ -286,10 +286,10 @@ static uint32_t sst_go(uint32_t limit_ms)
     }
     sst_st.in = 1;
     i = sst_pick(limit_ms);
-    if (i < SST_N)
+    if (i < SST_NALL)
         sst_run(i);
     else if (i != SST_NONE)
-        sst_rc_run(i - SST_N, &sst_rcw);
+        sst_rc_run(i - SST_NALL, &sst_rcw);
     sst_st.in = 0;
     return i != SST_NONE;
 }
@@ -412,7 +412,7 @@ static FRESULT sst_src_load(uint32_t si, const char *path, uint32_t pre_ms, uint
     UINT got;
     FRESULT r;
     *used = 0;
-    if (si >= SST_NSRC)
+    if (si > SST_PVS)
         return FR_INVALID_PARAMETER;
     if (mem)
         d->ready = 0;                                /* (the audio no longer starts it; the caller waited for its voices) */

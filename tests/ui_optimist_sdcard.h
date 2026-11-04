@@ -133,11 +133,11 @@ static void sdu_card(void)                              /* a fresh card in, the 
     sdm_st = SDM_OFF;                                   /* (the boot: the device record read again) */
     sdu_frames(3);
 }
+static void sdu_le16(uint8_t *p, uint32_t v) { p[0] = (uint8_t)v; p[1] = (uint8_t)(v >> 8); }
+static void sdu_le32(uint8_t *p, uint32_t v) { sdu_le16(p, v); sdu_le16(p + 2, v >> 16); }
 #if FELUCCA_SD_STREAM && FELUCCA_SLICE
 /* USE on a part on SLICE (sd_mode.c): it stays on SLICE, SRC CARD; the plan reads the file whole into its block
  * (sd_slice.c) and SLICE's table is the file's: four 100 ms slices, a 25 ms tone at the start of each */
-static void sdu_le16(uint8_t *p, uint32_t v) { p[0] = (uint8_t)v; p[1] = (uint8_t)(v >> 8); }
-static void sdu_le32(uint8_t *p, uint32_t v) { sdu_le16(p, v); sdu_le16(p + 2, v >> 16); }
 static void sdu_slice_use(void)
 {
     static const uint32_t hz[4] = {220, 441, 882, 1764};
@@ -280,7 +280,7 @@ static void sdu_lists_cards(uint32_t kind, const char *what)
     uint32_t was;
     sdu_row(kind);
     snprintf(m, sizeof m, "%s: K1 BANK, K2 ITEM, K3 ACTION, K4 VIEW", what);
-    check(!strcmp(sdu_label(0), "BANK") && !strcmp(sdu_label(1), "ITEM") && !strcmp(sdu_label(2), "ACTION") &&
+    check(!strcmp(sdu_label(0), "BANK") && !strcmp(sdu_label(1), "ITEM") && !strcmp(sdu_label(2), kind == PR_CSMP ? "" : "ACTION") &&
           !strcmp(sdu_label(3), "VIEW"), m);
     was = sdc.item;
     turn(EN_K2, was ? -1 : 1);
@@ -456,6 +456,231 @@ static void sdu_loading(void)
     sd_state = SD_NOCARD;
     sdm_poll();
     check(!sdm_reading() && !sdm_count(), "the card pulled in a read: the read dropped");
+    sdu_card();
+}
+/* SAMPLES' black keys and PREVIEW (the user, 2026-11-05) */
+static uint32_t sdu_pv_key(void) { return 1u << (2u * 12u + 1u); }
+#if FELUCCA_SD_STREAM
+static void sdu_pv_wav(void)                            /* Samples/aa pv.wav: 0.5 s, 44.1 kHz mono: the NAME view's first */
+{
+    static uint8_t b[512];
+    uint32_t i, left = 44100u;
+    UINT k;
+    FIL f;
+    memset(b, 0, sizeof b);
+    memcpy(b, "RIFF", 4), sdu_le32(b + 4, 36u + left), memcpy(b + 8, "WAVEfmt ", 8), sdu_le32(b + 16, 16u);
+    sdu_le16(b + 20, 1u), sdu_le16(b + 22, 1u), sdu_le32(b + 24, 44100u), sdu_le32(b + 28, 88200u), sdu_le16(b + 32, 2u);
+    sdu_le16(b + 34, 16u), memcpy(b + 36, "data", 4), sdu_le32(b + 40, left);
+    check(f_open(&f, "Optimist/Samples/aa pv.wav", FA_CREATE_ALWAYS | FA_WRITE) == FR_OK, "preview: its file");
+    for (i = 44u; i < 512u; i += 2u)
+        sdu_le16(b + i, 12000u);
+    f_write(&f, b, 512, &k);
+    left -= 468u;
+    for (i = 0; i < 512u; i += 2u)
+        sdu_le16(b + i, 12000u);
+    while (left) {
+        f_write(&f, b, left < 512u ? left : 512u, &k);
+        left -= k;
+    }
+    f_close(&f);
+}
+static uint32_t sdu_pv_run(uint32_t n)                  /* n main loop passes with the audio: the largest output sample */
+{
+    static int32_t o[CTL * 2];
+    uint32_t i, top = 0;
+    while (n--) {
+        sdm_poll();
+        for (i = 0; i < 8u; i++)
+            (void)sst_service();
+        fm1_ms += 6;
+        mix_block(o, CTL);
+        for (i = 0; i < CTL * 2u; i++)
+            top = (uint32_t)(o[i] < 0 ? -o[i] : o[i]) > top ? (uint32_t)(o[i] < 0 ? -o[i] : o[i]) : top;
+    }
+    return top;
+}
+static uint32_t sdu_pv_out(void)                        /* the voice alone, a block: its largest sample (half the file's 12000) */
+{
+    uint32_t i, top = 0;
+    for (i = 0; i < CTL; i++)
+        mix_l[i] = mix_r[i] = 0;
+    sst_pv_mix(CTL);
+    for (i = 0; i < CTL; i++)
+        top = (uint32_t)(mix_l[i] < 0 ? -mix_l[i] : mix_l[i]) > top ? (uint32_t)(mix_l[i] < 0 ? -mix_l[i] : mix_l[i]) : top;
+    return top;
+}
+#endif
+static void sdu_smp_keys(void)
+{
+    uint32_t f = 0, d = 0, was;
+#if FELUCCA_SD_STREAM
+    uint32_t eng = trk[0].eng_req;
+    int32_t p0 = trk[0].p[P_E0];
+    sdu_pv_wav();
+#endif
+    sdu_row(PR_CSMP);
+    while (sdc.view[SDC_SMP] != SDV_NAME)
+        turn(EN_K4, sdc.view[SDC_SMP] < SDV_NAME ? 1 : -1);
+    sdu_frames(2);
+    check(sdm_pages() >= 3u, "samples' keys: the NAME view, its pages");
+    was = ui.hot;
+    turn(EN_K3, 1);
+    check(ui.hot == was && !sdu_label(2)[0], "K3 on SAMPLES: nothing, its card blank");
+    sdu_black(2);
+    check(sdm_page() == 2u && !sdc.item && !strcmp(sdu_val(0), "C"), "a black key on SAMPLES: its page, K1's letter");
+    sdc_keys_lit(&f, &d, 0);
+    check(f >> (0u * 12u + 5u) & 1u, "... lit as a bank's, A# for page C");
+    sdu_black(9);
+    check(sdm_page() == 2u, "a page past the last: nothing");
+    sdu_black(0);
+    check(sdm_page() == 0u, "... F#: page A");
+    turn(EN_K4, 1);
+    sdu_frames(2);
+    sdu_black(0);
+    check(sdc.view[SDC_SMP] == SDV_RECENT && sdm_page() == 0u, "the keys in RECENT too (one page: A)");
+    turn(EN_K4, -1);
+    sdu_frames(2);
+    /* ---- PREVIEW */
+    sdu_black(10);
+    check(sdc.pv && ui.toast_t && !strcmp(ui.msg, "PREVIEW ON") && sdm_page() == 0u, "the top F#: PREVIEW ON, no page");
+    f = d = 0;
+    sdc_keys_lit(&f, &d, 0);
+    check((f & sdu_pv_key()) != 0u, "... its key lit");
+#if FELUCCA_SD_STREAM
+    check(!strcmp(sdc_name(0), "AA PV.WAV") || !strcmp(sdc_name(0), "aa pv.wav"), "preview: the sample on slot 1");
+    sdu_key(0);
+    check(!op_armed() && !sdc_pick_on() && sdc.item == 0u && (sdu_pv_run(40), sst_pv.act) && sdu_pv_out() > 5000u,
+          "a white key, PREVIEW on: it plays at once, no question");
+    check(trk[0].eng_req == eng && trk[0].p[P_E0] == p0, "... the track's engine and sound as they were");
+    check(sst[SST_PV].on && sst[SST_PV].src == SST_PVS, "... streamed: its own stream");
+    sdu_key(0);
+    (void)sdu_pv_run(4);
+    check(!sst_pv.act && !sst[SST_PV].on && !sdu_pv_out(), "the same key again: it stops");
+    sdu_key(0);
+    (void)sdu_pv_run(20);
+    check(sst_pv.act, "... again: it plays");
+    sdu_row(PR_CKIT);
+    frame();
+    (void)sdu_pv_run(4);
+    check(!sst_pv.act, "the page left: silence");
+    sdu_row(PR_CSMP);
+    sdu_frames(2);
+    check(sdc.pv, "... PREVIEW still on");
+    sdc.item = 1;
+    turn(EN_K2, -1);
+    frame();
+    (void)sdu_pv_run(20);
+    check(sst_pv.act && sdc.item == 0u, "K2 onto a sample: it plays");
+    sdc.pv_k = 0xFFu;
+    sdu_black(10);
+    (void)sdu_pv_run(4);
+    check(!sdc.pv && !strcmp(ui.msg, "PREVIEW OFF") && !sst_pv.act, "PREVIEW OFF: silence");
+    turn(EN_K2, 1);
+    turn(EN_K2, -1);
+    frame();
+    (void)sdu_pv_run(20);
+    check(!sst_pv.act, "PREVIEW off: nothing plays on select");
+    {
+        int ok;
+        char q[8];
+        (void)q;
+        tap(B_SAVE);
+        ok = sdc_pick_on() || !op_armed();
+        check(ok, "YES on the item: USE, as ever");
+        if (sdc_pick_on())
+            tap(B_HOME);
+    }
+#else
+    sdu_black(10);
+    check(!sdc.pv, "PREVIEW off again");
+#endif
+    sdu_card();
+}
+/* a boot with its index pass in slices (the user, 2026-11-05: "on boot the screen was flashing"): the LCD's clears counted,
+ * on HOME and on SYSTEM's page that shows the pass */
+static void sdu_boot_clears(void)
+{
+    uint32_t i, s, c0, steps = 0, was;
+    for (s = 0; s < 2u; s++) {
+        if (s)
+            op_enter(SCR_SYSTEM);
+        else
+            op_enter(SCR_HOME);
+        frame();
+        c0 = full_fills;
+        sdu_ix_ms = 1;                                  /* (a few units a pass, as a slice of the real clock) */
+        sdm_ix_force = 1;
+        card(sdu_img, sdu_sectors, 2048, 1, 1, 0);
+        (void)sd_mount();
+        sdm_st = SDM_OFF;
+        was = 0;
+        steps = 0;
+        for (i = 0; i < 20000u && (i < 4u || sdm_st == SDM_INDEX || sdm_st == SDM_MOUNTED); i++) {
+            frame();
+            sdm_poll();
+            steps += sdm_ix_pct != was;
+            was = sdm_ix_pct;
+        }
+        sdu_ix_ms = 0xFFFFFFFFu;
+        printf("SD boot on %s: %u passes, %u steps of the %%, %u LCD clears\n", s ? "SYSTEM" : "HOME", i, steps, full_fills - c0);
+        check(steps >= 10u && full_fills - c0 <= 2u, "a boot's index pass: at most two LCD clears");
+    }
+    op_enter(SCR_HOME);
+    frame();
+}
+/* NEW on the card's PROJECT list (the user, 2026-11-05: "we miss a function to init a project") */
+static void sdu_new_tests(void)
+{
+    uint32_t used, r;
+    char cur[SDC_PNAME];
+    r = sdu_row(PR_PROJECT);
+    (void)r;
+    used = sdu_used();
+    sdu_op(3);
+    check(!strcmp(sdu_val(2), "NEW"), "PROJECTS: ACTION's fourth, NEW");
+    sdu_key(0);
+    sec_name(0, cur);
+    if (op_armed() && ui.arm_q[0] == 'S') {             /* (the work changed and named: its save first) */
+        tap(B_HOME);
+    }
+    check(op_armed() && ui.arm_danger && !strcmp(ui.arm_q, "NEW PROJECT?"), "NEW: asked first, red");
+    tap(B_HOME);
+    check(!op_armed() && sdu_used() == used, "... HOME: nothing happens");
+    sdu_op(3);
+    trk[1].p[P_E0]++;
+    frame();
+    sdu_key(0);
+    if (cur[0]) {
+        snprintf(ui.msg, sizeof ui.msg, "SAVE %s?", cur);
+        check(op_armed() && !strcmp(ui.arm_q, ui.msg), "NEW, the work changed: SAVE <its name>? first, as LOAD's");
+        tap(B_HOME);
+    }
+    check(op_armed() && !strcmp(ui.arm_q, "NEW PROJECT?"), "... HOME: NEW asked next");
+    tap(B_SAVE);
+    sdu_frames(1);
+    check(!op_armed() && sdu_msg("NEW PROJECT") && !work_changed() && sdu_used() == used && sdc.op == 0u,
+          "... YES: the work blank, no card file touched, ACTION back on LOAD");
+    sdu_op(SDO_SAVE);
+    sdu_key(15);
+    if (op_armed())
+        tap(B_SAVE);
+    sdu_name("BEFORE NEW");
+    sdu_frames(1);
+    sdu_row(PR_PROJECT);
+    used = sdu_used();
+    sec_name(0, cur);
+    sdu_op(3);
+    trk[1].p[P_E0]++;
+    frame();
+    sdu_key(0);
+    if (cur[0]) {
+        check(op_armed() && ui.arm_q[0] == 'S', "NEW, the work changed, named: SAVE first");
+        tap(B_SAVE);
+        sdu_frames(1);
+        check(!op_armed() && sdu_msg("NEW PROJECT") && !work_changed() && sdu_used() == used, "... YES: saved over its slot, then blank");
+    } else {
+        tap(B_HOME);
+    }
     sdu_card();
 }
 static void sdcard_tests(void)
@@ -829,7 +1054,7 @@ static void sdcard_tests(void)
     sdu_row(PR_CSMP);
     check(sdm_count() == 2u && sdc_is_dir(0) && !strcmp(sdc_name(0), "DRUMS") && !strcmp(sdc_name(1), "SNARE.WAV"),
           "SAMPLES: the folder first, then the files (upper case)");
-    check(!strcmp(sdu_val(2), "USE"), "SAMPLES: ACTION USE");
+    check(!sdu_label(2)[0], "SAMPLES: K3 empty (USE is the keys' and YES's)");
     ppm("opt-sd-samples");
     sdu_key(0);
     {
@@ -951,6 +1176,9 @@ static void sdcard_tests(void)
     song.sel = 0;
     sdu_browse_tests();
     sdu_loading();
+    sdu_smp_keys();
+    sdu_new_tests();
+    sdu_boot_clears();
     /* ---- SYSTEM > SD CARD: VERSIONS, SLACK, kept in the log's device record */
     op_enter(SCR_SYSTEM);
     for (r = 0; r < sys_rows(); r++) {
