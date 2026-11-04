@@ -1,10 +1,29 @@
 # The FM-1 SD board (v6)
 
-> [!WARNING]
-> ## 🚧 PROTOTYPE: UNTESTED 🚧
+> [!NOTE]
+> ## This version (v6) is the one that has been built, tested and works
 >
-> This board has **never been built or tested**: the first order (2026-10-28) is the prototype. Expect to rework it
-> (the bench tests below).
+> v6 (the first order, 2026-10-28) ran an SD card in an FM-1 (the user, 2026-11-04). It is the **only tested version**.
+> The two v7 variants next to it, [`../sd-board-v7-j2-bottom/`](../sd-board-v7-j2-bottom/) and
+> [`../sd-board-v7-j2-top/`](../sd-board-v7-j2-top/), are **not built and not tested**: they only move the flat-cable
+> socket J2 (and drop the swap jumpers and the J12 test pads). See "The versions" below. The bench tests under "Still
+> open" are still the list to run on any new board.
+
+## The versions
+
+| Folder | Status | J2 (the cable from J12) | Price, 15 boards assembled |
+|---|---|---|---|
+| `sd-board/` (v6, this one) | **built, tested, works** | top side, its own part (C2856798, bottom contact), 91.3 mm across, 58.5 up | 82.46 USD |
+| `sd-board-v7-j2-top/` | untested | top side, the same part as J3 (C3446068), in line with J3 (88.0 mm across), 58.5 up | 81.43 USD |
+| `sd-board-v7-j2-bottom/` | untested | bottom side, the same part as J3, in line with J3, 58.5 up, contacts facing away from the board | 115.45 USD |
+
+The v7 variants are v6 with the connectors moved: J2 is the same part as J3 and in line with it, and J3 is 0.6 mm
+lower. Also gone, on the user's request: the five swap jumpers (each line is now plain copper, so a wrong J12 guess can
+no longer be fixed by cutting a bridge) and the four J12 test pads (pins 6, 8 and 9 only run through). The nets are the
+same (68 pins on the board, 68 in the schematic, DRC 0); the outline, the card socket, the ESD, the resistors and the
+tray are v6's. Prices are JLCPCB's live quotes of 2026-11-04 (Standard assembly, before shipping
+and VAT; 10 boards: 69.81, 68.52 and 102.54 USD). The bottom variant is dearer because both sides are assembled
+(setup and stencil doubled, about 34 USD more whatever the quantity). This README and `MEASUREMENTS.md` describe v6.
 
 A board with everything the SD card mod needs (docs/SD-CARD-DESIGN.md), and the splitter too: a push-push microSD
 socket, the chip-select inverter, the 220 Ohm on the card's data out, the pull-ups, the decoupling, and two 10-pin
