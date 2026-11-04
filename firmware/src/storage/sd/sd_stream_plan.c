@@ -31,6 +31,12 @@
  * key order, each zone's keys in its "inst"): found by path (no index needed), the parts on one set sharing its
  * sources, their rings counted as a CARD part's; sst_bank_src / sst_bank_n (sd_stream.h) point the part at them. Z0
  * not there: the part MISSING (bmiss), silent, never another set.
+ * The DRUMS' card sounds (SD card mode: registry.h KITS_CARD, X909_CARD): the sampled kits' sounds the lanes play
+ * (SST_KIT_WANT(): a mask of drums/kit_card.c KC_FILE, Optimist/Samples/Kits/Acoustic/<nn> - <name>.wav) and the 909's
+ * hh, crash, ride (SST_X9_WANT(), Samples/X0X/909/), found by path as a set's zones, their heads at most SST_KIT_PRE_MS
+ * (a hit starts at once from it, the ring follows), SST_KIT_RINGS rings for the kit's hits and SST_X9_RINGS for the
+ * 909's; sst_kit_src / sst_x9_src (sd_stream.h) point the drums at them. One not on the card: kmiss / x9miss (sd_mode.c
+ * says MISSING once), that sound silent.
  * A refusal keeps the project's samples silent (their parts' CARD voices play nothing), the project unchanged, and is
  * tried again every SST_RETRY_MS (a part's change, an effect let go: room): placed by itself once it fits, as the
  * arena's other buffers are (core/arena_bufs.c). */
@@ -50,7 +56,24 @@
 #ifndef SST_BANK_Z
 #define SST_BANK_Z 8u                                /* a card set's zones at most (gen_samples.py CARD_ZONES) */
 #endif
-#define SST_REC_BANK 0x7FFFFFFF                      /* (sstp.rec of a card set's zone: found by its path) */
+#define SST_REC_BANK 0x7FFFFFFF                      /* (also a drum sound's: found by its path) */
+#define SST_ZB_KIT 0xF0u                             /* (sstp.zb of a sampled kit's sound, zz its file; of the 909's:) */
+#define SST_ZB_X9 0xF1u
+#ifndef SST_KIT_WANT
+#define SST_KIT_WANT() 0u                            /* (drums/kit_card.c: the kits' sounds the lanes play, a mask) */
+#endif
+#ifndef SST_X9_WANT
+#define SST_X9_WANT() 0u                             /* (drums/x0x/x0x_card.c: the 909's files its sounds play, a mask) */
+#endif
+#ifndef SST_KIT_PRE_MS
+#define SST_KIT_PRE_MS 25u                           /* a drum sound's head at most: a hit starts from it */
+#endif
+#ifndef SST_KIT_RINGS
+#define SST_KIT_RINGS 3u                             /* the kit's hits at once (a 4th takes the oldest's voice or is silent) */
+#endif
+#ifndef SST_X9_RINGS
+#define SST_X9_RINGS 2u                              /* the 909's hat and a cymbal at once */
+#endif                      /* (sstp.rec of a card set's zone: found by its path) */
 #define SST_RETRY_MS 200u
 #define SST_GATE_MS 20u                              /* the audio's two halves (11.6 ms) and some: no voice reads it */
 enum { SSTP_IDLE = 0, SSTP_GATED, SSTP_PLACED, SSTP_REFUSED };
@@ -66,10 +89,13 @@ static uint8_t sst_part_bank[SST_NPART];             /* each part's card set + 1
 #endif
 static uint8_t sst_part_rnd;                         /* the parts on a card set through a cache, a mask (SST_PART_RAND) */
 static uint8_t sst_part_kb[SST_NPART];               /* their caches' KB (SST_PART_RAND: GRAIN's, STRETCH's) */
+static uint16_t sst_kit_want;                        /* the drums' card sounds wanted (SST_KIT_WANT, SST_X9_WANT) */
+static uint8_t sst_x9_want;
 
 static struct {
     uint8_t dirty, state, said;
-    uint8_t drop, drop_all, bmiss;
+    uint8_t drop, drop_all, bmiss, x9miss;
+    uint16_t kmiss;                                  /* the kits' sounds wanted and not on the card (x9miss: the 909's) */
     uint16_t missing;
     uint16_t fit_ms;
     uint32_t need, t0;
@@ -80,7 +106,8 @@ static struct {
     uint8_t nsrc, nring, slc;                        /* slc: the slots on SLICE CARD when placed (sst_slicers) */
     uint8_t rc;                                      /* the parts given a cache when placed (sst_rcs_of), a mask */
 } sstp IN_POOL;
-enum { SSTU_STREAM = 1, SSTU_SLICE = 2, SSTU_RAND = 4 };   /* (RAND: a cache's part reads it, no head for it) */
+enum { SSTU_STREAM = 1, SSTU_SLICE = 2, SSTU_RAND = 4, SSTU_KIT = 8 };   /* (RAND: a cache's part reads it, no head for
+                                                                         * it; KIT: a drum sound's, a short head) */
 
 static uint32_t sst_rcs_of(void)                     /* the parts that take a cache: on a card set, read in any order */
 {
@@ -100,7 +127,12 @@ static uint32_t sst_cache_bytes(uint32_t m)         /* the caches of mask m in t
     return n;
 }
 
-AINL uint32_t sst_src_pre(uint32_t use) { return use & SSTU_STREAM ? sst_pre_ms : 0u; }   /* a source's head, ms */
+AINL uint32_t sst_use_pre(uint32_t use, uint32_t pre)   /* a source's head at pre-buffer pre, ms */
+{
+    return use & SSTU_STREAM ? pre : use & SSTU_KIT ? (pre < SST_KIT_PRE_MS ? pre : SST_KIT_PRE_MS) : 0u;
+}
+AINL uint32_t sst_src_pre(uint32_t use) { return sst_use_pre(use, sst_pre_ms); }
+#define SSTU_HEAD (SSTU_STREAM | SSTU_RAND | SSTU_KIT)   /* (a source loaded with its runs: streamed or cached) */
 
 static uint32_t sst_slicers(void)                    /* the parts on SLICE with SRC CARD and a card sample, a mask */
 {
@@ -122,6 +154,8 @@ static uint32_t sst_nring(void)                      /* the rings the CARD parts
     for (p = 0; p < SST_NSLOT; p++)
         if ((sst_part_hash[p] || (p < SST_NPART && sst_part_bank[p] && !(sst_part_rnd >> p & 1u))) && !((sl >> p) & 1u))
             n += p < SST_NPART ? (SST_PART_VOICES(p) < SST_PART_RINGS ? SST_PART_VOICES(p) : SST_PART_RINGS) : 1u;
+    n += sst_kit_want ? SST_KIT_RINGS : 0u;
+    n += sst_x9_want ? SST_X9_RINGS : 0u;
     return n < SST_N ? n : SST_N;
 }
 
@@ -136,6 +170,11 @@ static void sst_part_set(uint32_t part, uint64_t hash)   /* (part: a slot, SST_N
 static uint32_t sst_bank_sync(void)                  /* the parts' card sets (SST_PART_BANK) again: 1 changed */
 {
     uint32_t p, b, ch = 0, r = 0;
+    if (SST_KIT_WANT() != sst_kit_want || SST_X9_WANT() != sst_x9_want) {   /* (the drums' card sounds) */
+        sst_kit_want = (uint16_t)SST_KIT_WANT();
+        sst_x9_want = (uint8_t)SST_X9_WANT();
+        ch = 1;
+    }
 #ifdef SST_PART_BANK
     for (p = 0; p < SST_NPART; p++) {
         b = SST_PART_BANK(p);
@@ -188,6 +227,31 @@ static FRESULT sst_rec_path(int32_t no, char *path, uint32_t cap)   /* the sourc
 /* source i's file from the card's root: a card set's zone by its path, else its index record's */
 static FRESULT sst_src_path(uint32_t i, char *path, uint32_t cap)
 {
+    if (sstp.zb[i] == SST_ZB_KIT || sstp.zb[i] == SST_ZB_X9) {   /* a drum sound: its file by name */
+#if defined SST_KIT_FILE || defined SST_X9_FILE
+        static const char K[] = SDL_ROOT "/Samples/Kits/Acoustic/", X[] = SDL_ROOT "/Samples/X0X/909/";
+        const char *d = sstp.zb[i] == SST_ZB_KIT ? K : X, *nm = 0;
+        uint32_t n = 0, k;
+#ifdef SST_KIT_FILE
+        if (sstp.zb[i] == SST_ZB_KIT)
+            nm = SST_KIT_FILE(sstp.zz[i]);
+#endif
+#ifdef SST_X9_FILE
+        if (sstp.zb[i] == SST_ZB_X9)
+            nm = SST_X9_FILE(sstp.zz[i]);
+#endif
+        if (!nm)
+            return FR_INVALID_NAME;
+        for (k = 0; d[k] && n + 1u < cap; k++)
+            path[n++] = d[k];
+        for (k = 0; nm[k] && n + 1u < cap; k++)
+            path[n++] = nm[k];
+        path[n] = 0;
+        return nm[k] ? FR_INVALID_NAME : FR_OK;
+#else
+        return FR_INVALID_NAME;
+#endif
+    }
 #ifdef SST_PART_BANK
     if (sstp.zb[i]) {
         static const char D[] = SDL_ROOT "/Samples/", F[] = "/z0.wav";   /* (Optimist/Samples/Piano/z0.wav) */
@@ -213,8 +277,7 @@ static uint32_t sst_need(uint32_t pre_ms)           /* the block at that setting
     for (i = 0; i < sstp.nsrc; i++) {
         if (sstp.rec[i] < 0 || sst_src_path(i, path, sizeof path) != FR_OK)
             continue;
-        if ((sstp.use[i] & (SSTU_STREAM | SSTU_RAND)) &&
-            sst_src_need(path, sstp.use[i] & SSTU_STREAM ? pre_ms : 0u, &b) == FR_OK)
+        if ((sstp.use[i] & SSTU_HEAD) && sst_src_need(path, sst_use_pre(sstp.use[i], pre_ms), &b) == FR_OK)
             n += (b + 3u) & ~3u;
 #ifdef SST_PART_SLICE
         if ((sstp.use[i] & SSTU_SLICE) && ssl_need(path, &b) == FR_OK)
@@ -257,6 +320,14 @@ static void sst_gate(void)                           /* the CARD voices let go: 
         sst_bank_n[i] = 0;
         sst_rc[i].on = 0;                            /* (a cache's grains fade out: eng_grain.c, eng_stretch.c) */
     }
+#if SST_NKIT
+    for (i = 0; i < SST_NKIT; i++)
+        sst_kit_src[i] = 0xFF;                       /* (the drums' card hits silent until placed again) */
+#endif
+#if SST_NX9
+    for (i = 0; i < SST_NX9; i++)
+        sst_x9_src[i] = 0xFF;
+#endif
     sst_bank_gen++;
     for (i = 0; i < SST_NSRC; i++)
         sst_src[i].ready = 0;
@@ -294,6 +365,37 @@ static uint32_t sst_bank_lookup(uint32_t b, uint32_t use)
 }
 #endif
 
+/* the drums' card sounds of mask m as sources (zb SST_ZB_KIT / SST_ZB_X9, zz the file): -> the mask of those not on the
+ * card */
+static uint32_t sst_drum_lookup(uint32_t zb, uint32_t m)
+{
+    static char path[SDX_PATH + 16];
+    static FILINFO fi;
+    uint32_t k, i, miss = 0;
+    for (k = 0; k < 16u; k++) {
+        if (!(m >> k & 1u))
+            continue;
+        i = sstp.nsrc;
+        if (i >= SST_NSRC) {
+            miss |= 1u << k;                         /* (no source left: silent, as one not on the card) */
+            continue;
+        }
+        sstp.zb[i] = (uint8_t)zb;
+        sstp.zz[i] = (uint8_t)k;
+        if (sst_src_path(i, path, sizeof path) != FR_OK || f_stat(path, &fi) != FR_OK) {
+            miss |= 1u << k;
+            continue;
+        }
+        sstp.hash[i] = 0;
+        sstp.rec[i] = SST_REC_BANK;
+        sstp.use[i] = SSTU_KIT;
+        sstp.nsrc++;
+    }
+    if (sstp.nsrc < SST_NSRC)
+        sstp.zb[sstp.nsrc] = 0;
+    return miss;
+}
+
 static void sst_lookup(void)                         /* the slots' hashes -> sources (one a sample), their records */
 {
     uint32_t p, i;
@@ -325,6 +427,8 @@ static void sst_lookup(void)                         /* the slots' hashes -> sou
             sstp.missing |= (uint16_t)(1u << p);
         }
 #endif
+    sstp.kmiss = (uint16_t)sst_drum_lookup(SST_ZB_KIT, sst_kit_want);
+    sstp.x9miss = (uint8_t)sst_drum_lookup(SST_ZB_X9, sst_x9_want);
 }
 
 static void sst_load_all(uint8_t *mem)               /* the rings, then each source; each part to its source */
@@ -344,7 +448,7 @@ static void sst_load_all(uint8_t *mem)               /* the rings, then each sou
             sstp.rec[i] = -1;
             continue;
         }
-        if (sstp.use[i] & (SSTU_STREAM | SSTU_RAND)) {
+        if (sstp.use[i] & SSTU_HEAD) {
             if (sst_src_load(i, path, sst_src_pre(sstp.use[i]), mem + at, sstp.need - at, &used) != FR_OK) {
                 sstp.rec[i] = -1;                    /* (gone since the lookup, or no longer a WAV it plays) */
                 continue;
@@ -374,6 +478,24 @@ static void sst_load_all(uint8_t *mem)               /* the rings, then each sou
                     sstp.missing |= (uint16_t)(1u << p);
                 break;
             }
+    for (i = 0; i < sstp.nsrc; i++) {                /* the drums' card sounds (last: the audio reads them) */
+#if SST_NKIT
+        if (sstp.zb[i] == SST_ZB_KIT && sstp.zz[i] < SST_NKIT) {
+            if (sstp.rec[i] >= 0)
+                sst_kit_src[sstp.zz[i]] = (uint8_t)i;
+            else
+                sstp.kmiss |= (uint16_t)(1u << sstp.zz[i]);
+        }
+#endif
+#if SST_NX9
+        if (sstp.zb[i] == SST_ZB_X9 && sstp.zz[i] < SST_NX9) {
+            if (sstp.rec[i] >= 0)
+                sst_x9_src[sstp.zz[i]] = (uint8_t)i;
+            else
+                sstp.x9miss |= (uint8_t)(1u << sstp.zz[i]);
+        }
+#endif
+    }
     sst_bank_gen++;                                  /* (the engines' card zones again: eng_sample.c smp_cz_sync) */
     for (p = 0; p < SST_NSLOT; p++)
         for (i = 0; sst_part_hash[p] && i < sstp.nsrc; i++)

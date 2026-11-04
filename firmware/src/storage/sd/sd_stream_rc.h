@@ -41,7 +41,7 @@
 #define SST_RC_STALE (20u * 441u / 10u)              /* (samples: 20 ms) */
 #define SST_RC_COLD (300u * 441u / 10u)              /* (samples: 300 ms) */
 _Static_assert(SST_RAND_KB >= 16u && SST_RAND_KB * 2u <= SST_RK, "sd_stream_rc.h: a cache of 16 to 32 KB");
-_Static_assert(SST_NSRC <= 16u, "sd_stream_rc.h: a tag's source is 4 bits");
+_Static_assert(SST_NSRC <= 256u, "sd_stream_rc.h: a tag's source is its top 8 bits (sst_rc_tag: si << 24)");
 #define SST_FENCE() __asm__ volatile("" ::: "memory")
 
 typedef struct {                                     /* a reader's window: the data bytes wlo .. wlo + wn at win */

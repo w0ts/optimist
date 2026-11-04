@@ -90,6 +90,9 @@ typedef struct {
     uint32_t b6;                  /* Optimist (X909_CYM 2, X909_HAT 2): buf holds 6-bit mantissas, four in three bytes */
 #endif
     uint32_t len;
+#if defined(X0X_909_CARD) && X0X_909_CARD
+    uint32_t card;                /* Optimist (SD card mode): the voice's card stream (x0x_card.c: 0 CH 1 OH 2 CR 3 RD) */
+#endif
     uint32_t pos, frac;           /* 32.32 read position */
     uint32_t inc, incf;           /* 32.32 playback rate */
     int32_t playing;              /* pos is valid (9W9: pos >= 0) */

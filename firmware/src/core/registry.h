@@ -747,6 +747,24 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #endif
 #define FELUCCA_SD_LANES (FELUCCA_SD_STREAM && FELUCCA_DRUMS)   /* the drum lanes play card samples too (drums/lane_card.c:
                                                                  * the same streams, a lane a slot of the plan) */
+/* SD card mode's drum samples (the user, 2026-11-04: "the drum kits samples as well"; the builder sets it with the card
+ * sets, core.py card_sets): the five sampled kits (ACOUSTIC, DEEP, TIGHT, BRIGHT, DUST: kit UIDs 0..4) play the card's
+ * Optimist/Samples/Kits/Acoustic/<nn> - <name>.wav through the lanes' streams (drums/kit_card.c), none of their samples
+ * in the flash, every one of them a kit of this build whatever KIT_* say; and the X0X 909's hats, crash and ride the
+ * card's Samples/X0X/909/ (FELUCCA_X909_CARD: the builder sets X909_CYM and X909_HAT 0, drums/x0x/x0x_card.c) */
+#ifndef FELUCCA_KITS_CARD
+#define FELUCCA_KITS_CARD 0
+#endif
+#ifndef FELUCCA_X909_CARD
+#define FELUCCA_X909_CARD 0
+#endif
+#define KITS_CARD (FELUCCA_KITS_CARD && FELUCCA_SD_LANES)
+#define X909_CARD (FELUCCA_X909_CARD && FELUCCA_SD_LANES && FELUCCA_DRUM_X909)
+#if KITS_CARD
+#undef DRUM_SMASK
+#define DRUM_SMASK 31                      /* (every sampled kit: on the card) */
+#endif
+#define X909_HAS_CYM (FELUCCA_X909_CYM || X909_CARD)   /* the 909's crash and ride: in the flash or on the card */
 #ifndef FELUCCA_SD_REC_KB
 #define FELUCCA_SD_REC_KB 0                /* the builder's SD_REC (bit 416): the master recorded to the card, the ring's KB
                                             * (storage/sd/sd_rec.c: the card's stalls it covers); 0 off */

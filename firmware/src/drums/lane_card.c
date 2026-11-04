@@ -36,10 +36,12 @@ static HOT int dlc_next(voice_t *v)
     return 0;
 }
 
-/* lane l's hit on its card sample (drum_on) */
-static void dlc_hit(uint32_t l, uint32_t note, uint32_t vel)
+/* lane l's hit on card source si, d16 sixteenths of a semitone off its rate (an octave up at most), kit its treatment
+ * (drums_mix: a sampled kit's, 0 none): the lane's hit before cut, a drum voice and a stream (drum_on: dlc_hit, a lane on
+ * CARD; kit_card.c kc_hit, a sampled kit's sound on the card) */
+static void dlc_go(uint32_t l, uint32_t si, uint32_t note, uint32_t vel, int32_t d16, uint32_t kit)
 {
-    uint32_t si = sst_part_src[SST_NPART + l], i, vi, stepq;
+    uint32_t i, vi, stepq;
     const sst_src_t *s = &sst_src[si < SST_NSRC ? si : 0u];
     voice_t *v;
     int32_t k;
@@ -51,7 +53,7 @@ static void dlc_hit(uint32_t l, uint32_t note, uint32_t vel)
             drums.tail += drums.v[i].s[7];
             dlc_let_go(&drums.v[i]);
         }
-    stepq = (pow2_q16(clamp(dl_tune_play(l) * 16, -1536, SST_UP16)) >> 8) * (s->rate >> 8);
+    stepq = (pow2_q16(clamp(d16, -1536, SST_UP16)) >> 8) * (s->rate >> 8);
     v = FAST_CALL(seq, drum_voice)(note, vel, l);   /* (flash code: the RAM code's with SEQ_RAM 2) */
     k = sst_start(si, 0, 0, 0, sst_rate(s, stepq), &v->active);
     if (k < 0) {
@@ -69,9 +71,18 @@ static void dlc_hit(uint32_t l, uint32_t note, uint32_t vel)
     v->ph[1] = 0;
     v->s[2] = v->s[3] = 0;
     v->s[5] = (int32_t)stepq;
-    drums.kit[vi] = 0;
+    drums.kit[vi] = (uint8_t)kit;
     drums.synth[vi] = 0;
     drums.filter[vi] = 0;
     drums.env[vi] = 32767;
     FAST_CALL(seq, dl_smp_fx)(vi, l);
 }
+
+/* lane l's hit on its card sample (drum_on: SRC CARD) */
+static void dlc_hit(uint32_t l, uint32_t note, uint32_t vel)
+{
+    dlc_go(l, sst_part_src[SST_NPART + l], note, vel, dl_tune_play(l) * 16, 0);
+}
+#if KITS_CARD
+#include "kit_card.c"          /* the sampled kits' sounds on the card (SD card mode) */
+#endif

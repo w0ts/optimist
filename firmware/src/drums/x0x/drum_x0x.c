@@ -93,7 +93,7 @@ static uint32_t x0x_note(uint32_t k, uint32_t note)
         return XN_NONE;
     if (FELUCCA_DRUM_X909 && k == DRUM_UID_X909) {
         c = X9_NOTE[note - 35u];
-        if (!FELUCCA_X909_CYM && c != XN_NONE && ((c & 31u) == 9u || (c & 31u) == 10u))
+        if (!X909_HAS_CYM && c != XN_NONE && ((c & 31u) == 9u || (c & 31u) == 10u))
             return XN_NONE;                         /* (no ride / crash samples in this build) */
         return c;
     }
@@ -109,7 +109,7 @@ static FAST(seq) uint32_t x0x_code(uint32_t k, uint32_t l, uint32_t note)
 #if FELUCCA_DRUM_KITS
     uint32_t s = l < DRUM_LANES ? dl.src[l] : 0u;
     if (FELUCCA_DRUM_X909 && k == DRUM_UID_X909 && s >= DL_X909 && s < DL_X909 + DL_X909_N)
-        return !FELUCCA_X909_CYM && s - DL_X909 >= 9u ? XN_NONE : XN(s - DL_X909, 0);   /* (CR RD: no samples) */
+        return !X909_HAS_CYM && s - DL_X909 >= 9u ? XN_NONE : XN(s - DL_X909, 0);   /* (CR RD: no samples) */
     if (FELUCCA_DRUM_X808 && k == DRUM_UID_X808 && s >= DL_X808 && s < DL_X808 + DL_X808_N)
         return XN(s - DL_X808, 0);
 #endif
@@ -417,3 +417,6 @@ static __attribute__((noinline)) int32_t drums_x0x(int32_t *ml, int32_t *mr, int
         xc.last[X0X_NCH] = 0;
     return pk;
 }
+#if X909_CARD
+#include "x0x_card.c"                              /* the 909's hats, crash and ride on the SD card (SD card mode) */
+#endif
