@@ -17,6 +17,7 @@ import json
 import os
 import pathlib
 import struct
+import tempfile
 import subprocess
 import re
 import shutil
@@ -204,6 +205,19 @@ def check_ids(z, out):
     ids2 = file_ids(z2)
     check("a second zip built in another folder with another build dir: every file's id byte-identical",
           {n: i for n, (_, i, _) in ids.items()} == {n: i for n, (_, i, _) in ids2.items()})
+    # the host headers of a build directory of its own (OPTIMIST_BUILD_DIR, inside the tree, as tools/build.py wants it):
+    # made there and found there, not looked for in build/gen-host
+    bd = pathlib.Path(tempfile.mkdtemp(prefix="sd-zip-hg-", dir=ROOT / "build"))
+    try:
+        env = dict(os.environ, OPTIMIST_BUILD_DIR=bd.relative_to(ROOT).as_posix())
+        code = (f"import sys; sys.path.insert(0, {str(ROOT / 'tools')!r}); import sd_zip; "
+                "print(sd_zip.host_headers())")
+        r = subprocess.run([sys.executable, "-c", code], cwd=ROOT, env=env, capture_output=True, text=True)
+        got = pathlib.Path(r.stdout.strip().splitlines()[-1]) if r.returncode == 0 and r.stdout.strip() else None
+        check("the host headers of OPTIMIST_BUILD_DIR's own gen-host: made there and found there, not build/gen-host",
+              got == bd / "gen-host" and (bd / "gen-host" / "felucca_tables.h").exists())
+    finally:
+        shutil.rmtree(bd, ignore_errors=True)
 
 
 def sd_cfg(**ticks):
