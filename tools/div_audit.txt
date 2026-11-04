@@ -103,8 +103,9 @@ src/seq/seq.c:seq_step:trk_len(t) | TLEN
 src/fx/slicer/slicer.c:sl_enter:(uint32_t)song.g[G_BPM] | BPM
 src/fx/slicer/slicer.c:slicer_track:bpm | bpm = song.g[G_BPM]: BPM
 src/core/arena.c:arn_plan:m | m >= 1: the loop over 3 m passes runs only while i < 3 m (m 0: no pass)
-src/core/model.c:apply_preset_to:e->npresets | npresets 0: eng_first_playable gives PRESET_INIT, INIT returns first
+src/core/model.c:apply_preset_to:ENG_NPRE(t->eng_req%NENGINES) | the table's npresets 0: eng_first_playable gives PRESET_INIT, INIT returns first; else ENG_NPRE >= npresets >= 1 (SD card mode: sdm_factory_count is the card's count or the table's, the larger: an engine folder with no files counts 0, the table's stays)
 src/core/model.c:preset_name:ENGINES[e]->npresets | guarded: "k == PRESET_INIT || !ENGINES[e]->npresets ? "INIT" : ..."
+src/core/model.c:preset_name:ENG_NPRE(e) | guarded: "k == PRESET_INIT || !ENG_NPRE(e) ? "INIT" : ..."
 src/ui/optimist/op_state.c:scroll_bar:n | its callers (list_paint, dev_paint) draw it only when n > shown >= 0, so n >= 1
 src/ui/optimist/op_graph.c:draw_gauge:span | span = gmax - gmin > 0: cell_gauge sets GK_NONE (drawn as nothing, the switch default) when max <= min
 src/ui/optimist/op_graph.c:draw_gauge:n | GK_DOTS: n = span + 1 >= 2 (span > 0, as above)

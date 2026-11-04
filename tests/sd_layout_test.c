@@ -256,9 +256,9 @@ static void layout(void)
           "names: refused (separators, wildcards, trailing dot / space, control)");
     CHECK(sdl_name_ok("0123456789012345678901234567890123456789012345678901234567890AB") &&
           !sdl_name_ok("0123456789012345678901234567890123456789012345678901234567890ABC"), "names: 63 bytes at most");
-    CHECK(f_unlink("Optimist/Kits") == FR_OK && put_file("Optimist/Kits", "x", 1) == FR_OK &&
+    CHECK(f_unlink("Optimist/Renders") == FR_OK && put_file("Optimist/Renders", "x", 1) == FR_OK &&
           sdl_prepare() == FR_DENIED, "layout: a file where a folder must be: FR_DENIED");
-    CHECK(f_unlink("Optimist/Kits") == FR_OK && sdl_prepare() == FR_OK, "layout: the folder made again");
+    CHECK(f_unlink("Optimist/Renders") == FR_OK && sdl_prepare() == FR_OK, "layout: the folder made again");
 }
 
 /* ---- the index ------------------------------------------------------------------------------------------------------ */

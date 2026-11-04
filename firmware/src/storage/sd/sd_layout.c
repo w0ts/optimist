@@ -5,7 +5,7 @@
  *   /Optimist/                     the FM-1's; anything else on the card is left alone
  *     Projects/<name>/<name>.opp   a project (sd_save.c), Versions/ the earlier saves
  *     Samples/                     samples, in any sub-folders the user makes
- *     Kits/                        kits by name
+ *     Kits/Factory/<L>/, Kits/User/<L>/   kits, banks of 16 (the zip's factory kits; the ones saved here)
  *     Presets/Factory/<Engine>/, Presets/User/<Engine>/   presets, a folder an engine (sd_names.h)
  *     Record/, Renders/            recordings, renders
  *     Backup/                      whole-device backups
@@ -177,8 +177,9 @@ static FRESULT sdl_prepare(void)
     char p[32];
     uint32_t i;
     FRESULT r = sdl_mkdir(SDL_ROOT);
-    for (i = 0; i < SDL_N + 2u && r == FR_OK; i++) {   /* the folders, then Presets/Factory and Presets/User */
-        if (!sdl_path(p, sizeof p, i < SDL_N ? i : SDL_PRESETS, i < SDL_N ? 0 : i == SDL_N ? SDL_FACTORY : SDL_USER))
+    for (i = 0; i < SDL_N + 4u && r == FR_OK; i++) {   /* the folders, then Presets/ and Kits/ Factory and User */
+        if (!sdl_path(p, sizeof p, i < SDL_N ? i : i < SDL_N + 2u ? SDL_PRESETS : SDL_KITS,
+                      i < SDL_N ? 0 : (i - SDL_N) % 2u ? SDL_USER : SDL_FACTORY))
             return FR_INVALID_NAME;
         r = sdl_mkdir(p);
     }

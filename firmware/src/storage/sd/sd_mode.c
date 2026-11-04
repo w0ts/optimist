@@ -489,18 +489,22 @@ static uint32_t sdm_holder(uint32_t list, char *out, uint32_t cap)
     uint32_t n;
     if (list == SDC_PROJ)
         return sdl_path(out, cap, SDL_PROJECTS, 0);
+    if (list == SDC_KIT)
+        return sdl_path(out, cap, SDL_KITS, SDL_USER);   /* (Kits/User: the kits saved on the FM-1) */
     n = sdl_path(out, cap, SDL_PRESETS, SDL_USER "/");
     n = n ? sdl_cat(out, n, cap, sdn_engine(eng_uid(trk[song.sel % NTRK].eng_req % NENGINES))) : cap;
     return n < cap ? n : 0u;
 }
-/* path a holder: Optimist/Projects, or Optimist/Presets/Factory|User/<one folder> */
+/* path a holder: Optimist/Projects, Optimist/Kits/Factory|User, or Optimist/Presets/Factory|User/<one folder> */
 static int sdm_is_holder(const char *p, uint32_t len)
 {
     char h[40];
     uint32_t n, i, w;
-    n = sdl_path(h, sizeof h, SDL_PROJECTS, 0);
-    if (n && n == len && !sdl_ncmp(p, h, len))
-        return 1;
+    for (w = 0; w < 3u; w++) {
+        n = w ? sdl_path(h, sizeof h, SDL_KITS, w == 1u ? SDL_FACTORY : SDL_USER) : sdl_path(h, sizeof h, SDL_PROJECTS, 0);
+        if (n && n == len && !sdl_ncmp(p, h, len))
+            return 1;
+    }
     for (w = 0; w < 2u; w++) {
         n = sdl_path(h, sizeof h, SDL_PRESETS, w ? SDL_USER : SDL_FACTORY);
         if (!n || len <= n + 1u || sdl_ncmp(p, h, n) || p[n] != '/')
@@ -605,7 +609,7 @@ static int sdm_open(uint32_t list, uint32_t view, const char *vname)
     sdm.b.pages = 1;
     if (!sdm_ready())
         return -1;
-    if (view == SDV_FOLDER && (list == SDC_PROJ || list == SDC_PRE)) {   /* a bank of 16: the list's last one shown */
+    if (view == SDV_FOLDER && list != SDC_SMP) {   /* a bank of 16: the list's last one shown */
         r = sdm_was(sdm_bank_open(list, sdm_bk[list]));
         if (r != FR_OK)
             sdm.b.n = 0;
@@ -668,7 +672,7 @@ static int sdm_bank_go(uint32_t bk)
 {
     uint32_t n;
     char l[2] = {(char)('A' + bk % SDM_BANKS), 0};
-    if (!sdm_ready() || bk >= SDM_BANKS || sdm.view == SDV_VERSIONS || (sdm.list != SDC_PROJ && sdm.list != SDC_PRE))
+    if (!sdm_ready() || bk >= SDM_BANKS || sdm.view == SDV_VERSIONS || sdm.list == SDC_SMP)
         return 0;
 #if SDM_DX7
     sdm.bank = 0;
@@ -831,26 +835,15 @@ static void sdm_work_of(char *out, uint32_t cap)    /* the open project's place,
     else
         sec_name(0, out);
 }
-/* a kit's file (Optimist/Kits/<name>.opk, the name typed made lowercase) into sdm.path: its length, 0 too long */
-static uint32_t sdm_kit_path(const char *name)
-{
-    char lc[SDL_NAME_MAX + 1u];
-    uint32_t n;
-    if (sdl_len(name) > SDL_NAME_MAX)
-        return 0;
-    str_cpy(lc, name, sizeof lc);
-    n = sdl_path(sdm.path, sizeof sdm.path, SDL_KITS, sdl_lower(lc));
-    n = n ? sdl_cat(sdm.path, n, sizeof sdm.path, ".opk") : sizeof sdm.path;
-    return n < sizeof sdm.path ? n : 0u;
-}
-/* where a SAVE named name of the projects' or the presets' list goes (the user, 2026-11-04: a free number in the bank
- * browsed): the bank's folder (made when missing) into dir, the number into *nn: the bank's file of that name (*same
- * 1), else the slot SAVE was asked on when it is free, else the bank's lowest free number. The bank: a project's own
- * (the work's, saved again by its name), else the bank shown, else the list's last; a preset's in its engine's User
- * folder (Presets/User/<Engine>/<the letter shown>). 0 ok, 1 the bank full, -1 an error */
+/* where a SAVE named name of the projects', the presets' or the kits' list goes (the user, 2026-11-04: a free number in
+ * the bank browsed): the bank's folder (made when missing) into dir, the number into *nn: the bank's file of that name
+ * (*same 1), else the slot SAVE was asked on when it is free, else the bank's lowest free number. The bank: a project's
+ * own (the work's, saved again by its name), else the bank shown, else the list's last; a preset's in its engine's
+ * User folder (Presets/User/<Engine>/<the letter shown>), a kit's in Kits/User/<the letter shown>. 0 ok, 1 the bank
+ * full, -1 an error */
 static int sdm_save_place(uint32_t list, const char *name, char *dir, uint32_t cap, uint32_t *nn, int *same)
 {
-    const char *ext = list == SDC_PRE ? ".ops" : "";
+    const char *ext = list == SDC_PRE ? ".ops" : list == SDC_KIT ? ".opk" : "";
     char wn[SDL_NAME_MAX + 1u];
     uint32_t n, used, shown;
     int32_t bk = sdm_bank_shown();
@@ -1422,7 +1415,6 @@ static void sdm_do(uint32_t op, uint32_t k)
 /* NAME's done (op_name.c) for list `list`: 1 = stay on NAME (a name the card cannot take, another file's) */
 static int sdm_save(uint32_t list, const char *name, const char *was)
 {
-    FILINFO fi;
     uint32_t n;
     FRESULT r;
     if (!sdm_ready()) {
@@ -1433,10 +1425,6 @@ static int sdm_save(uint32_t list, const char *name, const char *was)
         ui_message("NAME NOT USABLE");
         return 1;
     }
-    if (list == SDC_KIT && sdl_cmp(name, was) && sdm_kit_path(name) && f_stat(sdm.path, &fi) == FR_OK) {
-        ui_message("NAME TAKEN");                    /* (a kit has no versions: only the one asked over) */
-        return 1;
-    }
     if (list == SDC_PROJ) {
         r = sdm_proj_save(name);
         return r == FR_OK ? 0 : r == FR_EXIST || r == FR_INVALID_NAME ? 1 : -1;   /* (BANK FULL: NAME stays) */
@@ -1445,24 +1433,21 @@ static int sdm_save(uint32_t list, const char *name, const char *was)
             ui_message("DRUM TRACK: NO SOUND");
             return 0;
         }
-        r = FR_OK;
-        if (list == SDC_PRE) {                       /* Presets/User/<Engine>/<bank>/<nn> - <name>.ops */
+        {   /* Presets/User/<Engine>/<bank>/<nn> - <name>.ops, Kits/User/<bank>/<nn> - <name>.opk */
             char lc[SDL_NAME_MAX + 1u];
             uint32_t nn, m;
-            int same, rc = sdm_save_place(SDC_PRE, name, sdm.path, sizeof sdm.path, &nn, &same);
+            int same, rc = sdm_save_place(list, name, sdm.path, sizeof sdm.path, &nn, &same);
             if (rc > 0 || (same && sdl_cmp(name, was))) {
-                ui_message(rc > 0 ? "BANK FULL" : "NAME TAKEN");   /* (a preset has no versions: only the one asked
-                                                                    * over, its own name) */
+                ui_message(rc > 0 ? "BANK FULL" : "NAME TAKEN");   /* (a preset or a kit has no versions: only the one
+                                                                    * asked over, its own name) */
                 return 1;
             }
             str_cpy(lc, name, sizeof lc);
             m = rc ? sizeof sdm.path : sdl_len(sdm.path);
             m = m < sizeof sdm.path ? sdm_num(sdm.path, sdl_cat(sdm.path, m, sizeof sdm.path, "/"), sizeof sdm.path, nn) : m;
-            m = m < sizeof sdm.path ? sdl_cat(sdm.path, sdl_cat(sdm.path, m, sizeof sdm.path, sdl_lower(lc)), sizeof sdm.path, ".ops")
-                                    : m;
+            m = m < sizeof sdm.path ? sdl_cat(sdm.path, sdl_cat(sdm.path, m, sizeof sdm.path, sdl_lower(lc)), sizeof sdm.path,
+                                              list == SDC_PRE ? ".ops" : ".opk") : m;
             r = m < sizeof sdm.path ? FR_OK : FR_INVALID_NAME;
-        } else if (!sdm_kit_path(name)) {
-            r = FR_INVALID_NAME;
         }
         n = r != FR_OK ? 0u : list == SDC_PRE ? up_card_take(sd_blk, name) : ukit_card_take(sd_blk);
 #if FELUCCA_SD_LANES

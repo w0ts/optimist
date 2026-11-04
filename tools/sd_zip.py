@@ -12,6 +12,10 @@ mode, unzipped at its root. Folders capitalised, files lowercase (the user, 2026
                                 sources, each applied and taken as the device does; the engines' folders sd_names.h's;
                                 SD card mode reads them here, it carries no preset tables (sd_mode.c sdm_factory_*)
   Optimist/Presets/User/        the presets saved on the FM-1 go to User/<Engine>/<L>/ (empty here)
+  Optimist/Kits/Factory/<L>/<nn> - <name>.opk   every factory kit (drums.c: every kit UID, the sampled, the 32
+                                synthesised, X0X's and their styles, KAWA, PLAITS), 16 a bank in the kit list's order,
+                                each as a user kit is saved (drum_kits.c ukit_card_take: the lanes, their sources by
+                                reference to the built-in drum sounds, the sends); Kits/User/<L>/ the user's (empty here)
   Optimist/Samples/<Set>/z<k>.wav   every sample set (PIANO's folder Piano ...; the user, 2026-10-29: in SD card mode a
                                 set lives on the card, never in the flash): each zone of the set, in key order, 16-bit
                                 mono PCM at 22.05 kHz, its root and loop in "smpl", its keys in "inst"
@@ -37,7 +41,7 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 FW = ROOT / "firmware" / "src"
 NAME = "optimist-sd-card.zip"
 DIRS = ("Projects", "Samples", "Kits", "Presets", "Record", "Renders", "Backup", "System")   # (sd_layout.c SDL_DIR)
-SUBDIRS = ("Presets/Factory", "Presets/User")                                               # (sd_layout.c sdl_prepare)
+SUBDIRS = ("Presets/Factory", "Presets/User", "Kits/Factory", "Kits/User")   # (sd_layout.c sdl_prepare)
 CACHE = ROOT / "build" / "sd-zip-cache"
 README = """Optimist: the SD card of an FM-1 in SD card mode (docs/SD-CARD-DESIGN.md).
 Unzip at the card's root (FAT32): this Optimist folder is the FM-1's.
@@ -50,7 +54,11 @@ Unzip at the card's root (FAT32): this Optimist folder is the FM-1's.
                                       mode no set is in the flash). 16-bit mono, 22.05 kHz, the keys in the inst chunk,
                                       root and loop in smpl. Keep the names: the FM-1 finds a set by its folder. Your own
                                       samples go anywhere else under Samples/.
-  Kits, Record, Renders, Backup, System   the FM-1's own; it makes whatever is missing.
+  Kits/Factory/A, B ...               every factory kit (the sampled, the synthesised, X0X, KAWA, PLAITS), 16 a bank
+                                      ("01 - acoustic.opk" ..), the kit list's order; a kit this firmware leaves out
+                                      plays its stand-in, as a project naming it does
+  Kits/User/A, B ...                  the kits you save on the FM-1, in banks of 16 the same way
+  Record, Renders, Backup, System     the FM-1's own; it makes whatever is missing.
 On the FM-1 names show upper case; on the card the files are lowercase.
 """
 
@@ -75,8 +83,9 @@ def build_gen(work):
     exe = work / "sd_factory"
     flags = [f"-DFELUCCA_ENG_{e}=1" for e in engines()]
     flags += [f"-DFELUCCA_FM6_PK_{p}=1" for p in ("KEYS", "BASS", "BELLS", "PADS", "80S")]
+    flags += ["-DFELUCCA_DRUM_X909=1", "-DFELUCCA_DRUM_X808=1"]   # (every kit built: X0X's off by default)
     cc = os.environ.get("CC", "cc")
-    subprocess.run([cc, "-O1", "-w", f"-I{hgen}", f"-I{FW}", "-DFELUCCA_FLASH=1", "-DUP_CARD_ON=1", *flags,
+    subprocess.run([cc, "-O1", "-w", f"-I{hgen}", f"-I{FW}", "-DFELUCCA_FLASH=1", "-DUP_CARD_ON=1", "-DUK_CARD_ON=1", *flags,
                     "-o", str(exe), str(ROOT / "tools" / "sd_factory.c"), "-lm"], check=True)
     return exe
 
@@ -101,7 +110,7 @@ def key():
 
 
 def generate(out_zip):
-    """the zip made afresh at out_zip -> (presets, {set: zone files})"""
+    """the zip made afresh at out_zip -> (presets, kits, {set: zone files})"""
     work = ROOT / "build" / "sdzip"
     shutil.rmtree(work, ignore_errors=True)
     tree = work / "card"
@@ -123,7 +132,8 @@ def generate(out_zip):
             else:
                 z.write(p, rel)
     shutil.rmtree(work, ignore_errors=True)
-    return int(res.stdout.strip().splitlines()[-1].split()[-1]), made
+    tally = dict(ln.split()[:2] for ln in res.stdout.splitlines() if ln.split()[:1] in (["total"], ["kits"]))
+    return int(tally["total"]), int(tally["kits"]), made
 
 
 def make(out_zip, echo=True):
@@ -137,9 +147,9 @@ def make(out_zip, echo=True):
         for old in CACHE.glob("*.zip"):              # (one kept: the inputs of before are gone)
             old.unlink()
         tmp = CACHE / f"{k}.part"
-        presets, made = generate(tmp)
+        presets, nkits, made = generate(tmp)
         tmp.replace(cached)
-        how = f"{presets} presets, {len(made)} sample sets ({sum(len(v) for v in made.values())} zones)"
+        how = f"{presets} presets, {nkits} kits, {len(made)} sample sets ({sum(len(v) for v in made.values())} zones)"
     else:
         how = "cached: its inputs unchanged"
     if cached.resolve() != out_zip.resolve():
