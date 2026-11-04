@@ -196,7 +196,7 @@ static void clocks(const char *what)
     }
     C.ok_from = 2;                             /* 30 and 20 MHz read wrong */
     (void)sd_clock_probe(buf, n, 0);
-    CHECK(sd_clk_top == 2 && sd_step == 3 && t_step == 3, "%s: a card wrong at 30 and 20: 15 passed, 12 kept", what);
+    CHECK(sd_clk_top == 2 && sd_step == 2 && t_step == 2, "%s: a card wrong at 30 and 20: 20 failed, 15 kept", what);
     CHECK(sd_clock_probe(buf, n, (BYTE)(SD_FLOOR + 1u)) == 0 && sd_step == SD_FLOOR && t_step == (int)SD_FLOOR,
           "%s: sd clock 6: the floor, nothing tried", what);
     CHECK(sd_clock_probe(buf, n, 2) == 0 && sd_step == 1 && t_step == 1, "%s: sd clock 20: forced", what);

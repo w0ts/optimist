@@ -15,8 +15,8 @@
  *                               the one left set; then the DMA probe (sd_dma_probe) sets fm1_sd_dma
  *   sd_mount_boot()             the same with the set mode only (boot, before the screen's first command)
  *   the clock: after the mount, sd_clock_probe (sd_mmc.c) walks the clock steps (hal/fm1_sd_clock.h: 30 .. 6 MHz)
- *               from the fastest down, CRC-checked reads compared with the floor's, and keeps the step below the
- *               fastest that passed (the margin); sd_clock_pick (the console's sd clock: 0 auto, else a step + 1)
+ *               from the floor up, CRC-checked reads compared with the floor's, and keeps the step below the first
+ *               that fails (no step failing: the step below the top); sd_clock_pick (the console's sd clock: 0 auto, else a step + 1)
  *               overrides; a CRC failure above the floor later drops one step and reads again (sd_crc_retry);
  *               SD_BAUD() the clock of every session; sd_clock_bad: the steps the probe saw fail;
  *               sd_clock_khz() the clock now (SYSTEM > SD CARD's CLOCK, the console)
