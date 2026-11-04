@@ -14,15 +14,17 @@ Free software (GPL-3.0-only), built on <a href="https://github.com/isod89/sloop-
 FM-1 projects (see <a href="#credits">Credits</a>).</p>
 
 > [!WARNING]
-> ## 🚧 `sdcard` branch: WORK IN PROGRESS 🚧
+> ## 🚧 SD card mod: experimental, off in the releases 🚧
 >
-> **This branch is an experiment, not a release.** The SD card mod (a microSD card on the FM-1's LCD bus, a bigger
-> flash layout, projects and samples on the card) is **not finished and has never run on a modded FM-1**.
+> The SD card mod (a microSD card on the FM-1's LCD bus, a bigger flash layout, projects and samples on the card) is in
+> the source, behind builder items that are **off by default**, and is **not in the releases**. It has run on **one**
+> modded FM-1 (2026-11-04: an SDHC card mounts and reads); writes, sample streaming, recording and a long run of the
+> screen with the card in are **not tested on hardware yet**.
 >
-> - **The SD board is an untested prototype**: `hardware/sd-board/` is being ordered for its first bench tests (see
->   its README); build one only if you are ready to rework it.
-> - **Do not install these builds on an FM-1 you depend on.** Use the releases from the `main` branch.
-> - Anything here may change or be dropped without notice.
+> - **The SD board is a first prototype**: `hardware/sd-board/` (see its README); build one only if you are ready to
+>   rework it.
+> - **Do not install a build with the card on an FM-1 you depend on.**
+> - Anything here may change without notice.
 
 > [!CAUTION]
 > **Early access: work in progress, no warranty, use at your own risk.** Optimist runs on real FM-1s, but most features
