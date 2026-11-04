@@ -159,18 +159,18 @@ static void fz_ins_goto(uint32_t idx)                   /* INSERTS S1 TYPE (KNOB
     turn(EN_K1, (int32_t)idx - (int32_t)i);
     frame();
 }
-static void fz_squeeze(void)                            /* T2 on WHEEL (1 KB), the arena's room 1 KB: GRAIN (7 KB) and FM6 (4 KB) do not fit */
+static void fz_squeeze_on(uint32_t eng, uint32_t leave)  /* T2 on engine eng, the arena's room then about leave bytes less what eng holds */
 {
     set_engine_of(&trk[1], eng_silent_slot());
     fz_unfill();
     fz_frames(40);
-    fz_fill(2048u);
-    set_engine_of(&trk[1], 7u);
+    fz_fill(leave);
+    set_engine_of(&trk[1], eng);
     fz_frames(20);
 }
 static void fz_list_no_tests(void)
 {
-    uint32_t k, t = FXT_XDLY, r, prev, prev0, n, e, g0 = 0, room;
+    uint32_t k, t = FXT_XDLY, r, prev, prev0, n, e, g0 = 0, room, up;
     reset_ui();
     (void)preset_all_pos(&n);                            /* (the list built) */
     for (k = 0; k < NPART; k++)
@@ -180,70 +180,79 @@ static void fz_list_no_tests(void)
     song.g[G_FXZ_DLY] = song.g[G_FXZ_REV] = song.g[G_FXZ_XDL] = 0;
     trk[1].p[P_CHOR] = trk[1].p[P_DLY] = trk[1].p[P_REV] = 90;
     fz_frames(20);
-    /* A. the engine list (SHIFT + PRESETS): WHEEL fits, GRAIN and FM6 do not */
+    /* A. the engine list (SHIFT + PRESETS), A-Z since 2026-11-01: GRAIN and FM6 side by side (FM6 before GRAIN), neither fits;
+     * the part starts on the engine after GRAIN (up), which does; the walk goes down. Found by their places, not their numbers */
+    for (e = 0; e < NENGINES && ENG_ALPHA_SLOT[e] != 8u; e++)
+        ;
+    check(e > 0u && e + 1u < NENGINES && ENG_ALPHA_SLOT[e - 1u] == 9u, "list NO engines: A-Z: FM6 just before GRAIN, an engine after it");
+    up = ENG_ALPHA_SLOT[e + 1u];
     song.sel = 1;
     op_enter(SCR_SOUND);
-    fz_squeeze();
+    fz_squeeze_on(up, 2048u);
     room = arn_room();
-    fz_shift_turn(1);
+    fz_shift_turn(-1);
     fz_frames(6);
-    check(fz_qeng() == 8u && !strcmp(ui.arm_q, "SHRINK REV SMALL?") && trk[1].eng_req == 7u,
-          "list NO engines: WHEEL > GRAIN refused: SHRINK REV SMALL?, the part still on WHEEL");
-    fz_shift_turn(1);
+    check(fz_qeng() == 8u && !strncmp(ui.arm_q, "SHRINK ", 7) && trk[1].eng_req == up,
+          "list NO engines: down onto GRAIN: refused, SHRINK asked, the part still on the engine after it");
+    fz_shift_turn(-1);
     fz_frames(6);
-    check(fz_qeng() == 9u && trk[1].eng_req == 7u && !song.g[G_FXZ_REV] && arn_room() == room,
+    check(fz_qeng() == 9u && trk[1].eng_req == up && !song.g[G_FXZ_REV] && !song.g[G_FXZ_DLY] && arn_room() == room,
           "list NO engines: the same encoder again: NO, on to FM6, which asks (SHRINK again), nothing taken");
-    fz_shift_turn(-1);
-    fz_frames(6);
-    check(fz_qeng() == 8u && trk[1].eng_req == 7u, "list NO engines: turned back: GRAIN asks again");
-    fz_shift_turn(-1);
-    fz_frames(6);
-    check(!op_armed() && !part_mem_refused.on && trk[1].eng_req == 7u && trk[1].engine == 7u && !song.g[G_FXZ_REV],
-          "list NO engines: back on WHEEL: no question, the part never left it, no size taken");
     fz_shift_turn(1);
     fz_frames(6);
+    check(fz_qeng() == 8u && trk[1].eng_req == up, "list NO engines: turned back: GRAIN asks again");
     fz_shift_turn(1);
+    fz_frames(6);
+    check(!op_armed() && !part_mem_refused.on && trk[1].eng_req == up && trk[1].engine == up && !song.g[G_FXZ_REV],
+          "list NO engines: back on the engine after GRAIN: no question, the part never left it, no size taken");
+    fz_shift_turn(-1);
+    fz_frames(6);
+    fz_shift_turn(-1);
     fz_frames(6);
     check(fz_qeng() == 9u, "list NO engines: GRAIN, FM6 again");
     turn(EN_K4, 1);
     fz_frames(2);
-    check(fz_qeng() == 9u && trk[1].eng_req == 7u, "list NO engines: another encoder (KNOB 4): the question stays");
+    check(fz_qeng() == 9u && trk[1].eng_req == up, "list NO engines: another encoder (KNOB 4): the question stays");
     tap(B_SAVE);
     fz_frames(60);
-    check(song.g[G_FXZ_REV] == 1 && trk[1].engine == 9u && !part_mem_refused.on, "list NO engines: YES: REV SMALL taken, FM6 plays");
-    song.g[G_FXZ_REV] = 0;
-    /* the end of the list: FM6 is the last engine: NO, nothing further, the part as it was */
-    fz_squeeze();
+    check((song.g[G_FXZ_REV] || song.g[G_FXZ_DLY]) && trk[1].engine == 9u && !part_mem_refused.on, "list NO engines: YES: the sizes taken, FM6 plays");
+    song.g[G_FXZ_REV] = song.g[G_FXZ_DLY] = 0;
+    /* the end of the list: WHEEL is the last engine (A-Z); from the one before it with too little room: WHEEL refused, then NO
+     * at the end: nothing further, the part as it was */
+    check(ENG_ALPHA_SLOT[NENGINES - 1u] == 7u, "list NO engines: A-Z: WHEEL the last engine");
+    up = ENG_ALPHA_SLOT[NENGINES - 2u];
+    fz_squeeze_on(up, 256u);
     fz_shift_turn(1);
     fz_frames(6);
+    check(fz_qeng() == 7u, "list NO engines: the last engine asks");
     fz_shift_turn(1);
     fz_frames(6);
-    check(fz_qeng() == 9u, "list NO engines: FM6 asks");
-    fz_shift_turn(1);
-    fz_frames(6);
-    check(!op_armed() && !part_mem_refused.on && trk[1].eng_req == 7u && trk[1].engine == 7u && !song.g[G_FXZ_REV],
+    check(!op_armed() && !part_mem_refused.on && trk[1].eng_req == up && trk[1].engine == up && !song.g[G_FXZ_REV],
           "list NO engines: past the last engine: NO, no question left, the part as it was");
-    /* B. PRESETS' own list (the sounds): the next sound is the next item, GRAIN's first and second ask each */
-    fz_squeeze();
+    /* B. PRESETS' own list (the sounds, by engine A-Z): GRAIN's last sound just before the next engine's first; from that one down,
+     * GRAIN's last and the one before it ask each */
     pl_whole = 1;
-    for (n = 0; n < NLIST && preset_at(n, &k) != 8u; n++)
-        ;
-    g0 = n;
-    op_preset_go(g0 - 1u);                               /* (WHEEL's last sound) */
+    for (n = 0, g0 = NLIST; n < NLIST; n++)
+        if (preset_at(n, &k) == 8u)
+            g0 = n;                                      /* (GRAIN's last sound) */
+    check(g0 + 1u < NLIST && preset_at(g0 + 1u, &k) != 8u && preset_at(g0 - 1u, &k) == 8u, "list NO sounds: GRAIN's last two sounds, then another engine's");
+    up = preset_at(g0 + 1u, &k);
+    fz_squeeze_on(up, 2048u);
+    op_preset_go(g0 + 1u);                               /* (the sound after GRAIN's last) */
     fz_frames(4);
-    turn(EN_PRESET, 1);
-    fz_frames(6);
-    check(fz_qeng() == 8u && trk[1].eng_req == 7u, "list NO sounds: WHEEL's last > GRAIN's first: refused, asks");
-    turn(EN_PRESET, 1);
-    fz_frames(6);
-    check(fz_qeng() == 8u && trk[1].eng_req == 7u && !song.g[G_FXZ_REV],
-          "list NO sounds: PRESETS again: NO, on to GRAIN's second sound, which asks again");
     turn(EN_PRESET, -1);
     fz_frames(6);
+    check(fz_qeng() == 8u && trk[1].eng_req == up, "list NO sounds: the next engine's first > GRAIN's last: refused, asks");
     turn(EN_PRESET, -1);
     fz_frames(6);
-    check(!op_armed() && !part_mem_refused.on && trk[1].eng_req == 7u && preset_pos(&n) == g0 - 1u,
-          "list NO sounds: back to WHEEL's last: no question, that sound");
+    check(fz_qeng() == 8u && trk[1].eng_req == up && !song.g[G_FXZ_REV],
+          "list NO sounds: PRESETS again: NO, on to GRAIN's sound before it, which asks again");
+    turn(EN_PRESET, 1);
+    fz_frames(6);
+    turn(EN_PRESET, 1);
+    fz_frames(6);
+    check(!op_armed() && !part_mem_refused.on && trk[1].eng_req == up && preset_pos(&n) == g0 + 1u,
+          "list NO sounds: back to the sound after GRAIN's: no question, that sound");
     fz_unfill();
     set_engine_of(&trk[1], eng_silent_slot());
     fz_frames(40);
