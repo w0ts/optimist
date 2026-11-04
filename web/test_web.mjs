@@ -1663,7 +1663,7 @@ async function editorWifi() {
   ok(s.ap.cap === 0 && E.parse[C.WIFI](await rq0(E.req.wifiMode(3))).rc === 1 && E.parse[C.WIFI](await rq0(E.req.wifiApKey(enc(""), "12345678"))).rc === 1 && E.parse[C.WIFI](await rq0(E.req.wifiApClear())).rc === 1,
     "wifi AP: without wifiap: cap 0, MODE 3 and ops 5, 7 refused (rc 1)");
   s = E.parse[C.WIFI](await rq0(E.req.wifiState()));
-  ok(s.group === 0 && !s.jamHost && E.parse[C.WIFI](await rq0(E.req.wifiMode(7))).rc === 1,
+  ok(s.group === 0 && E.parse[C.WIFI](await rq0(E.req.wifiMode(7))).rc === 1,
     "wifi JAM: a build without it: group 0 (no GROUP offered), MODE 7 refused");
   h.teardown();
   h = attachMock({ wifi: true, wifiap: true });
@@ -1724,13 +1724,12 @@ async function editorWifi() {
   r = await W3(E.req.wifiApRun(true));
   s = await W3(E.req.wifiState());
   ok(r.rc === 0 && s.ap.status !== 5, "wifi AP: op 8 start: running again");
-  /* MODE JAM (2026-11-03: one JAM, stored 7, with its GROUP 1..9): the state's group and hosting, op 1 and op 9 */
+  /* MODE JAM (one JAM, stored 7, with its GROUP 1..9): the state's group, op 1 and op 9 */
   s = await W3(E.req.wifiState());
-  ok(s.group === 1 && s.jamHost === false, "wifi JAM: the state ends with the group (1) and hosting (no)");
+  ok(s.group === 1 && s.heard === 0, "wifi JAM: the state ends with the group (1) and the FM-1s heard (0)");
   r = await W3(E.req.wifiMode(7));
   s = await W3(E.req.wifiState());
-  ok(r.rc === 0 && r.v === 7 && s.mode === 7 && !E.wifiIsAp(s.mode, s), "wifi JAM: MODE 7 accepted, a station while it does not host");
-  ok(E.wifiIsAp(7, { jamHost: true }) && !E.wifiIsAp(7, { jamHost: false }), "wifi JAM: hosting, JAM shows the access point's panel");
+  ok(r.rc === 0 && r.v === 7 && s.mode === 7 && !E.wifiIsAp(s.mode), "wifi JAM: MODE 7 accepted, no access point");
   r = await W3(E.req.wifiMode(5));
   ok(r.rc === 0 && r.v === 7, "wifi JAM: an older editor's JAM JOIN (5) is JAM (7)");
   r = await W3(E.req.wifiGroup(4));
@@ -1742,6 +1741,7 @@ async function editorWifi() {
   await W3(E.req.wifiMode(3));
   h.teardown();
   /* the page: the panel only with cap 1, in MODE AP, in place of the station's list and form; the password cleared as it is sent */
+  ok(/s\.mode === 7\) return s\.heard \?/.test(wifiJs), "wifi JAM: the status says the FM-1s heard, or alone");
   ok(/s\.ap\.cap === 1/.test(wifiJs) && /root\.hidden = !on/.test(wifiJs) && /wf\.add\.hidden = inAp/.test(wifiJs) && /\.\.\.\(s\.group \? \[WIFI\.MODE_JAM\] : \[\]\), \.\.\.\(ap \? \[WIFI\.MODE_APMAN, WIFI\.MODE_AP\] : \[\]\)/.test(wifiJs) && !/MODE_JAMHOST/.test(wifiJs),
     "wifi AP: the panel and the AP modes (AP MAN, AP AUTO) show only with cap 1 (hidden with cap 0); JAM only where the build has it (group); no JAM HOST");
   ok(/pw\.value = ""/.test(wifiJs.slice(wifiJs.indexOf("function wifiApForm"), wifiJs.indexOf("function wifiForm"))) && /type: "password"/.test(wifiJs.slice(wifiJs.indexOf("function wifiApForm"), wifiJs.indexOf("function wifiForm"))),

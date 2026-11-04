@@ -10,8 +10,8 @@
  *                                      kept), status (0 OFF, 1 NO PASSWORD, 2 STARTING, 3 ACTIVE, 4 NO CAL, 5 STOPPED: AP MAN, not started), clients, channel (the one
  *                                      shown: the store's, else 6), len, pack7 name (the stored one, else FM1- and four digits);
  *                                      then peers (the Link peers heard; an older firmware sends no such byte: 0);
- *                                      then group (MODE JAM's GROUP 1..9; 0: this build has no JAM) and host (1: in JAM, this FM-1 is
- *                                      its group's access point now; an older firmware sends neither: 0, 0)
+ *                                      then group (MODE JAM's GROUP 1..9; 0: this build has no JAM) and heard (the FM-1s of the group
+ *                                      heard; an older firmware sends neither: 0, 0; before 2026-11-04 this byte was host)
  *             1, mode               -> 1, rc, mode: MODE (0 OFF, 1 AUTO, 2 MAN, 3 AP AUTO, 4 AP MAN, the two only with cap 1; 7 JAM where
  *                                      group is not 0 (an older editor's 5 JAM JOIN and 6 JAM HOST are JAM too); the store's numbers);
  *                                      saved with the settings
@@ -77,8 +77,6 @@ static uint32_t edwf_ap_key1(const uint8_t *a, uint32_t na)
             return 1;
     if (slen && ed_unpack7(a + 3, pb, ssid, sizeof ssid) != slen)
         return 1;
-    if (wn_st.mode == WN_MODE_JAM_HOST)
-        return 1;                                      /* (JAM HOST: its password is the default one, never typed: refused) */
     if (wn_st.mode != WN_MODE_AP && wn_st.mode != WN_MODE_AP_MAN)
         return 2;
     for (i = 0; i < plen; i++)
@@ -123,7 +121,7 @@ static void edwf_state(void)
     edwf_ap_block();
     ed_b(wl_peers() > 127u ? 127u : wl_peers());          /* the Link peers heard, after the AP block */
 #if EDWF_JAM
-    ed_b2((uint32_t)plat_wifi_group(), wn_st.mode == WN_MODE_JAM_AUTO && plat_wifi_jam_host());   /* MODE JAM's GROUP, hosting now */
+    ed_b2((uint32_t)plat_wifi_group(), plat_wifi_jam() > 0 ? (uint32_t)plat_wifi_jam() : 0u);   /* MODE JAM's GROUP, the FM-1s heard */
 #else
     ed_b2(0, 0);                                          /* (no JAM in this build) */
 #endif

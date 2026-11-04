@@ -5,6 +5,37 @@ Wi-Fi driver of our own: a reverse-engineered implementation with captured vendo
 Apache-2.0 AC79 SDK, read as LLVM IR and run in the emulator; LICENSING.md). Details: `docs/LINK-DESIGN.md` (Link) and
 `docs/WIFI-HW-FACTS.md` (the hardware, every measurement).
 
+## MODE JAM on the air (2026-11-04)
+
+JAM has no access point, no association, no DHCP and no keys (`fm1base/wifi/wifi_jam.h`, `device/wifi_own.c` `ja_*`). What it replaced (an
+election over access points, `ja_poll`, the peek) never settled two units on the hardware: both stayed hosts. The user: "all we want
+to do is multicast"; "we need to have multicast, and random 169. IPs"; "the group id becomes part of the ssid name".
+
+- **Frames:** open data frames with ToDS = FromDS = 0 (addr1 DA, addr2 us, addr3 BSSID): IBSS's format, without the MAC's IBSS engine
+  (timed beacons, TSF sync), which nothing needs. Normal IPv4 / UDP inside; `link.c` unchanged, its multicast
+  (`01:00:5e:4c:4e:4b`) and its unicast PING / PONG to a peer's IP and port.
+- **The group:** the name `fm1-jam` (GROUP 1), `fm1-jam-2` .. `fm1-jam-9`; BSSID `02:66:6d:31:6a:GROUP` ("fm1j" + the group, no hash needed); channel 1, 6, 11 repeated. Groups on one
+  channel share its air and stay apart (BSSID in the MAC's filter, again in `ja_heard`).
+- **The name on the air:** only the BSSID says it. A beacon a second (0.7 ms) was tried in `jam-air-2e0fe7b` and worked (33-41 heard a unit), and went: 300 B of flash for a name only a scan would see.
+- **Address:** 169.254.x.y from the radio address; a data frame from someone else with our address: a random draw.
+- **ARP:** learned from every frame (IP source, addr2), so no request is sent; a who-has is answered (`wifi_ip.c`, a laptop on the
+  network). The IP layer's table has 4 entries: a fifth unit overwrites the first until it is heard again.
+- **Radio:** WCID 8 (never keyed, MODE AP's plain one), group frames with no ACK, unicast with ACK; 1 Mb/s (`wt_prepare`: the fast
+  rate needs a join or MODE AP). MODE AP does exactly this for its beacons and its EAPOL data frames, so ACK needs no client entry
+  on that evidence; the receiver's auto-ACK is by the address in 0x1008. RX: `WT_FILT_JAM` = the station's filter + DROP_NOT_MYBSS with the group's BSSID in 0x1010
+  (`wifi tune` without b: everything in, `ja_heard` still drops others).
+- **Measured on two FM-1s, 2026-11-04 (`jam-air-2e0fe7b`, 2 m apart or less, 40 s after boot):** data frames both ways with no association (507 and 589 kept,
+  -44 dBm, `err 0`); DROP_NOT_MYBSS with the group's BSSID lets ours through; unicast acknowledged with no client entry (`retried 22 lost 0` of 216,
+  `retried 4 lost 0` of 91).
+- **With BT audio or BLE MIDI:** the same coexistence tables and the same frames at 1 Mb/s as a station or MODE AP, on a fixed channel; nothing of JAM touches
+  Bluetooth, and a BLE link no longer blocks anything in it. Not measured together on an FM-1 yet.
+- **The page:** MODE, GROUP (K2), STATE (ALONE, HEARD n; K3 or K4 steps it through signal + rate, RETRY, LOST, held 30 s), LINK PEERS (Link's count). The web
+  editor's status says the same (`heard` in the state, where `host` was).
+- **Lost:** a phone or Live cannot join (a Linux computer can, `iw ibss join` with that name, channel and BSSID: untested).
+- **Read back:** `fm1_remote.py wifi status`: `jam ch .. tx .. err .. kept ..`, a `peer ..` line per unit (frames, -dBm, ms since), then
+  `q ..` (the MAC's counts, `lost`: unicast never acknowledged).
+- **Model:** `fm1base/tests/wifi/jam_air_test.c`, several units in one process with assumed pass times (1-9 ms), backoff and crystals.
+
 ## Where it stands
 
 | Part | State | Where |
