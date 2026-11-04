@@ -596,6 +596,54 @@ static void sdu_smp_keys(void)
 #endif
     sdu_card();
 }
+/* the PRESETS knob, the panel's own turn (the user, on the FM-1, 2026-11-05): an engine only in Factory, the list on User;
+ * the NAME view; ALL first */
+static void sdu_filter_tree(void)
+{
+    uint32_t e2 = NENGINES, i, l[34], n, at, up = trk[0].preset;
+    char d[96], f[120];
+    FIL fp;
+    sdu_row(PR_CPRE);
+    sdu_frames(2);
+    (void)sdm_pre_show(1, TSEL->eng_req % NENGINES, 0);
+    sdu_frames(2);
+    turn(EN_PRESET, 1);
+    for (i = 0; i < NENGINES; i++)
+        if (i != TSEL->eng_req && i != e2 && !(sdc.fmask >> i & 1u))
+            e2 = i;
+    if (e2 >= NENGINES) {
+        check(1, "(no engine free for the tree test)");
+        return;
+    }
+    snprintf(d, sizeof d, "Optimist/Presets/Factory/%s", sdn_engine(eng_uid(e2)));
+    f_mkdir("Optimist/Presets/Factory");
+    f_mkdir(d);
+    strncat(d, "/A", sizeof d - strlen(d) - 1u);
+    f_mkdir(d);
+    snprintf(f, sizeof f, "%s/01 - factory one.ops", d);
+    check(f_open(&fp, f, FA_CREATE_ALWAYS | FA_WRITE) == FR_OK && f_close(&fp) == FR_OK, "the tree test's file");
+    sdu_row(PR_CKIT);
+    sdu_frames(2);
+    sdu_row(PR_CPRE);
+    sdu_frames(2);
+    (void)sdm_pre_show(1, TSEL->eng_req % NENGINES, 0);
+    sdu_frames(2);
+    check(sdm_pre_tree() == 1, "the list on User");
+    for (i = 0; i < 40u && sdc.flt != 2u + e2; i++)
+        turn(EN_PRESET, sdc.flt >= 2u && sdc.flt - 2u > e2 ? -1 : 1);
+    sdu_frames(2);
+    pop_engines(l, &n, &at);
+    check(sdc.flt == 2u + e2 && sdm_pre_tree() == 0 && sdu_used() == 1u, "PRESETS knob: an engine only in Factory: Factory's bank shown, not Empty");
+    check(l[0] >= NENGINES, "... ALL first");
+    while (sdc.view[SDC_PRE] == SDV_FOLDER)
+        turn(EN_K4, 1);
+    sdu_frames(2);
+    turn(EN_PRESET, -1);
+    sdu_frames(2);
+    check(sdc.view[SDC_PRE] == SDV_FOLDER && sdc.flt && pop_kind == 4u && trk[0].preset == up, "the knob in NAME: the filter, no preset stepped");
+    sdu_row(PR_CKIT);
+    sdu_frames(1);
+}
 /* a boot with its index pass in slices (the user, 2026-11-05: "on boot the screen was flashing"): the LCD's clears counted,
  * on HOME and on SYSTEM's page that shows the pass */
 static void sdu_boot_clears(void)
@@ -1178,6 +1226,7 @@ static void sdcard_tests(void)
     sdu_loading();
     sdu_smp_keys();
     sdu_new_tests();
+    sdu_filter_tree();
     sdu_boot_clears();
     /* ---- SYSTEM > SD CARD: VERSIONS, SLACK, kept in the log's device record */
     op_enter(SCR_SYSTEM);

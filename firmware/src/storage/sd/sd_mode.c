@@ -995,22 +995,20 @@ static int sdm_pre_show(uint32_t w, uint32_t e, uint32_t bk)   /* that folder's 
     sdm_bk[SDC_PRE] = (uint8_t)(bk % SDM_BANKS);
     return sdm_was(sdm_go(SDB_BANK, sdm.path)) == FR_OK;
 }
-/* the engines the filter offers: a bit per slot, a folder in Factory or User (read once a visit: op_sdcard.c; each tree
- * read once: an f_stat an engine and a tree was some 280 sector reads on the zip's card) */
-static uint32_t sdm_pre_mask(void)
+/* the engines the filter offers in tree w (0 Factory, 1 User): a bit per slot, a folder there (read once a visit:
+ * op_sdcard.c; the tree read once: an f_stat an engine and a tree was some 280 sector reads on the zip's card) */
+static uint32_t sdm_pre_mask(uint32_t w)
 {
     DIR d;
     FILINFO fi;
-    uint32_t e, w, m = 0;
-    for (w = 0; w < 2u; w++) {
-        if (!sdl_path(sdm.path, sizeof sdm.path, SDL_PRESETS, w ? SDL_USER : SDL_FACTORY) || f_opendir(&d, sdm.path) != FR_OK)
-            continue;
-        while (f_readdir(&d, &fi) == FR_OK && fi.fname[0])
-            for (e = 0; (fi.fattrib & AM_DIR) && e < NENGINES; e++)
-                if (!sdl_cmp(fi.fname, sdn_engine(eng_uid(e))))
-                    m |= 1u << e;
-        (void)f_closedir(&d);
-    }
+    uint32_t e, m = 0;
+    if (!sdl_path(sdm.path, sizeof sdm.path, SDL_PRESETS, w ? SDL_USER : SDL_FACTORY) || f_opendir(&d, sdm.path) != FR_OK)
+        return 0;
+    while (f_readdir(&d, &fi) == FR_OK && fi.fname[0])
+        for (e = 0; (fi.fattrib & AM_DIR) && e < NENGINES; e++)
+            if (!sdl_cmp(fi.fname, sdn_engine(eng_uid(e))))
+                m |= 1u << e;
+    (void)f_closedir(&d);
     return m;
 }
 /* ALL: every listed engine's banks one after the other: bank v of sdm_all_n, the engines in the list's order (their
