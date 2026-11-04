@@ -16,6 +16,12 @@
 uint32_t x9c_start(uint32_t v, uint32_t pitchq);   /* x0x_card.c: voice v's file from its start, its frames (0 none) */
 int32_t x9c_at(uint32_t v, uint32_t p);            /* its frame p, int16 scale (after an underrun: a fade to 0) */
 void x9c_stop(uint32_t v);                         /* the voice is over: its stream back */
+/* (x9c_at runs from RAM, this unit from XIP: more than a direct call's 2 MB apart, so called through its address) */
+static inline int32_t x9c_at_far(uint32_t v, uint32_t p)
+{
+    int32_t (*volatile f)(uint32_t, uint32_t) = x9c_at;
+    return f(v, p);
+}
 #else
 #include "x0x_drum_samples.h"
 #endif
@@ -751,7 +757,7 @@ static inline int32_t d9_smp_at(const d9_smp_t *s, const int8_t *buf, const uint
 #if X0X_909_CARD
     (void)buf;
     (void)sh;
-    return x9c_at(s->card, p);
+    return x9c_at_far(s->card, p);
 #else
 #if X0X_909_CYM == 2 || X0X_909_HAT == 2
     if (s->b6) {
