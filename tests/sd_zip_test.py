@@ -309,6 +309,7 @@ def main(out):
     table = names_table()
     with zipfile.ZipFile(z) as f:
         names = set(f.namelist())
+        menu = f.read(sd_zip.STAGE2_REL)
         files = [n for n in names if not n.endswith("/")]
         sets = {m.group(1) for n in names if (m := re.match(r"Optimist/Samples/([^/]+)/z\d\.wav$", n))}
         check("every tick (--all): every sample set: " + ", ".join(sorted(sets)),
@@ -323,7 +324,8 @@ def main(out):
         check_sources(f, names)
         check("the folders: Optimist/ and its eight, Presets/Factory and Presets/User",
               all(f"Optimist/{d}/" in names for d in sd_zip.DIRS + sd_zip.SUBDIRS))
-        check("every file's name lowercase", all(n.rsplit("/", 1)[-1] == n.rsplit("/", 1)[-1].lower() for n in files))
+        check("every file's name lowercase (but MENU.BIN: m-bootloader's name)", all(
+            n.rsplit("/", 1)[-1] == n.rsplit("/", 1)[-1].lower() for n in files if n != sd_zip.STAGE2_REL))
         check("every folder's name capitalised (a bank's a letter, a model number its digits: X0X/909)",
               all(p[:1].isupper() or p.isdigit() for n in names for p in n.split("/")[:-1]))
         pre = [m.groups() for n in files if (m := re.match(r"Optimist/Presets/Factory/([^/]+)/([A-Z])/(\d\d) - (.+)\.ops$", n))]
@@ -377,6 +379,12 @@ def main(out):
     bad = {k: v for k, v in table.items() if v != rule(k)}
     check("sd_names.h follows the rule: capitalised, a digit or a known acronym upper case" + (f": {bad}" if bad else ""),
           not bad and table.get("FM6") == "FM6" and table.get("CS80") == "CS80" and table.get("ACID") == "Acid")
+    stage2 = importlib.import_module("stage2_pack")
+    check("MBOOT/MENU.BIN: within m-bootloader's limit, STG2, its CRC16 right",
+          16 <= len(menu) <= stage2.MAX_SIZE and menu[-8:-4] == stage2.MAGIC and
+          int.from_bytes(menu[-4:-2], "little") == stage2.crc16(menu[:-8]) and menu[-2:] == b"\0\0")
+    check("FIRMWARES/: the empty folder the flasher lists", "FIRMWARES/" in names)
+    check("the readme says where the flasher is", "MBOOT/MENU.BIN" in zipfile.ZipFile(z).read("Optimist/readme.txt").decode())
     print("sd_zip_test:", "FAILED" if fails else "ok")
     return 1 if fails else 0
 

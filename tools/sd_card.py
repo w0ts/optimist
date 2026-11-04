@@ -10,8 +10,8 @@ The content is the SD card zip's of the configuration (tools/sd_zip.py, from its
 the samples and FM6 packs it ticks; --config, --profile, else build/builder.config, the builder menu's). The FACTORY trees are mirrored: a file there is added
 or replaced when its bytes differ, a factory file the zip no longer has is removed, only inside those trees (FACTORY:
 Optimist/Presets/Factory, Optimist/Kits/Factory, the factory sample folders under Optimist/Samples:
-tools/sd_samples.py factory_dirs) and Optimist/readme.txt. Everything else is the user's and is never written or
-removed (Presets/User, Kits/User, Projects, Record, Renders, Backup, System, anything else under Samples or elsewhere);
+tools/sd_samples.py factory_dirs), Optimist/readme.txt and MBOOT/MENU.BIN. Everything else is the user's and is never written or
+removed (Presets/User, Kits/User, Projects, Record, Renders, Backup, System, FIRMWARES, anything else under Samples or elsewhere);
 the FM-1's folders are only made when missing. Files are written plainly (no ._ AppleDouble twins: one the OS makes for a
 file written here is removed), the card flushed at the end (os.sync).
 
@@ -35,8 +35,8 @@ import sd_zip  # noqa: E402
 ROOT = Path(__file__).resolve().parent.parent
 TOP = "Optimist"
 FACTORY = [f"{TOP}/Presets/Factory", f"{TOP}/Kits/Factory"] + [f"{TOP}/Samples/{d}" for d in sd_samples.factory_dirs()]
-FACTORY_FILES = [f"{TOP}/readme.txt"]
-USER_DIRS = [f"{TOP}/{d}" for d in sd_zip.DIRS + sd_zip.SUBDIRS]
+FACTORY_FILES = [f"{TOP}/readme.txt", sd_zip.STAGE2_REL]
+USER_DIRS = [f"{TOP}/{d}" for d in sd_zip.DIRS + sd_zip.SUBDIRS] + [sd_zip.FIRMWARES]
 
 
 @dataclass

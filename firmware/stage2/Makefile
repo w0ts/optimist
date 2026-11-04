@@ -8,7 +8,7 @@ OBJCOPY := $(TOOLCHAIN)/bin/llvm-objcopy
 MBOOT := $(ROOT)/third_party/m-bootloader
 SD := $(ROOT)/firmware/src/storage/sd
 HAL := $(ROOT)/firmware/hal
-OUT := $(ROOT)/build/stage2
+OUT ?= $(ROOT)/build/stage2
 
 CFLAGS := -target pi32v2 -mcpu=r3 -std=c99 -Oz -ffreestanding -fno-builtin -fno-common -ffunction-sections -fdata-sections -Wall -Wextra -I$(MBOOT)/include -I. -I$(HAL) -I$(SD) -DPF_DIR_HOOK=s2_dir_hook
 OBJS := s2_main s2_card s2_flash pff core platform display board runtime

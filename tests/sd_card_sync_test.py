@@ -240,8 +240,30 @@ def ticks_test(out):
         S.sd_zip.cached = saved
 
 
+def stage2_test(out):
+    """MENU.BIN is the factory's, FIRMWARES the user's"""
+    root = pathlib.Path(out) / "stage2-card"
+    shutil.rmtree(root, ignore_errors=True)
+    (root / "FIRMWARES").mkdir(parents=True)
+    (root / "FIRMWARES" / "mine.fwsc").write_bytes(b"users")
+    first = {S.sd_zip.STAGE2_REL: b"one"}
+    plan = S.make_plan(root, first)
+    S.apply(root, plan, first)
+    check("MENU.BIN added to the card", (root / "MBOOT" / "MENU.BIN").read_bytes() == b"one")
+    second = {S.sd_zip.STAGE2_REL: b"two"}
+    plan = S.make_plan(root, second)
+    check("a new MENU.BIN replaces the old", plan.replace == [S.sd_zip.STAGE2_REL] and not plan.remove)
+    S.apply(root, plan, second)
+    check("the user's package in FIRMWARES untouched", (root / "FIRMWARES" / "mine.fwsc").read_bytes() == b"users")
+    bare = pathlib.Path(out) / "stage2-bare"
+    shutil.rmtree(bare, ignore_errors=True)
+    bare.mkdir()
+    check("FIRMWARES made on an empty card", "FIRMWARES" in S.make_plan(bare, first).mkdirs)
+
+
 def real_zip_test(z):
     entries = S.zip_entries(z)
+    check("the real zip holds MENU.BIN", S.sd_zip.STAGE2_REL in entries)
     check(f"the real zip ({len(entries)} files): every file inside a factory tree (FACTORY, readme.txt)",
           entries and all(S.is_factory(n) for n in entries))
     check("the factory sample folders: every folder under Optimist/Samples in the zip, and nothing else",
@@ -259,6 +281,7 @@ def main(out, real=None):
     check_tests(out)
     picker_tests(out)
     ticks_test(out)
+    stage2_test(out)
     if real:
         real_zip_test(real)
     shutil.rmtree(out, ignore_errors=True)

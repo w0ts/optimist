@@ -27,6 +27,8 @@ lowercase (the user, 2026-11-04):
                                 on): the drum samples only with the card's streams (core.py card_drums), else they are
                                 in the flash; Hiphop/<Sound>/ the hip-hop pack (for the USR slots: always, no tick)
   Optimist/readme.txt           what this is
+  MBOOT/MENU.BIN                the SD flasher (firmware/stage2): m-bootloader's SD CARD item runs it (docs/SD-CARD-DESIGN.md 10)
+  FIRMWARES/                    empty: the .fwsc packages it lists go here
 
   python3 tools/sd_zip.py OUT.zip [--config F | --profile P | --all]
                                 (the configuration's ticks: --config, --profile, else build/builder.config, the builder
@@ -48,6 +50,8 @@ from dataclasses import dataclass
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 FW = ROOT / "firmware" / "src"
 NAME = "optimist-sd-card.zip"
+STAGE2_REL = "MBOOT/MENU.BIN"                # (the card's root: m-bootloader's path, its docs/SPEC.md 11.5)
+FIRMWARES = "FIRMWARES"                      # (firmware/stage2/s2_card.c: found by its short name)
 DIRS = ("Projects", "Samples", "Kits", "Presets", "Record", "Renders", "Backup", "System")   # (sd_layout.c SDL_DIR)
 SUBDIRS = ("Presets/Factory", "Presets/User", "Kits/Factory", "Kits/User")   # (sd_layout.c sdl_prepare)
 BUILD = ROOT / (os.environ.get("OPTIMIST_BUILD_DIR") or "build")   # (tools/build.py's: a parallel build's own)
@@ -141,6 +145,14 @@ def load_cfg(config=None, profile=None):
     return cfg, name or path.stem, str(path)
 
 
+README_STAGE2 = """
+Beside this folder, at the card's root:
+  MBOOT/MENU.BIN                      the SD flasher: with m-bootloader's SD CARD item it lists FIRMWARES and writes the
+                                      .fwsc you pick (make sdcard replaces it)
+  FIRMWARES/                          your .fwsc packages (make sdcard leaves them alone)
+"""
+
+
 def readme(c):
     text = README_HEAD.format(packs=", ".join(c.fm6_packs) or "none ticked")
     if c.sets:
@@ -149,7 +161,7 @@ def readme(c):
         text += README_KITS
     if c.x909:
         text += README_X909.format(x909=", ".join(c.x909))
-    return text + README_TAIL
+    return text + README_TAIL + README_STAGE2
 
 
 
@@ -181,11 +193,30 @@ def build_gen(work, packs=PACKS):
     return exe
 
 
+def build_stage2(work):
+    """-> MENU.BIN's bytes, built with the repository's pi32v2 toolchain from firmware/stage2 into work"""
+    sys.path.insert(0, str(ROOT / "tools"))
+    import toolchain
+    llvm = pathlib.Path(toolchain.llvm_dir()) / "llvm"
+    if not (llvm / "bin" / "clang").is_file():
+        raise SystemExit(f"sd zip: MENU.BIN needs the pi32v2 toolchain, not found in {llvm}: make setup")
+    if not (ROOT / "third_party" / "m-bootloader" / "src" / "core.c").is_file():
+        raise SystemExit("sd zip: MENU.BIN needs third_party/m-bootloader: git submodule update --init --recursive")
+    out = work / "stage2"
+    subprocess.run(["make", "-s", "-C", str(ROOT / "firmware" / "stage2"), f"TOOLCHAIN={llvm}", f"OUT={out}"],
+                   check=True, capture_output=True)
+    return (out / "MENU.BIN").read_bytes()
+
+
 def inputs():
     """-> the files the zip is made from (its cache key): the firmware's sources, the host headers, the generators, the
-    sample sets' sources"""
+    sample sets' sources, MENU.BIN's"""
     files = [ROOT / "tools" / n for n in ("sd_zip.py", "sd_factory.c", "gen_samples.py", "sd_samples.py",
-                                           "gen_x0x_drums.py", "sampleio.py")] + [ROOT / "tests" / "hostsim.c"]
+                                           "gen_x0x_drums.py", "sampleio.py", "stage2_pack.py", "toolchain.py")]
+    files += [ROOT / "tests" / "hostsim.c", ROOT / "firmware" / "stage2" / "Makefile"]
+    mboot = ROOT / "third_party" / "m-bootloader"
+    for top, pats in ((ROOT / "firmware" / "stage2", ("*.c", "*.h")), (mboot / "src", ("*.c",)), (mboot / "include", ("*.h",))):
+        files += [p for pat in pats for p in top.glob(pat) if p.is_file()]
     assets = ROOT / "assets"
     for top, pats in ((FW, ("*.c", "*.h")), (host_headers(), ("*.h",)), (assets / "samples-cc0", ("*",)),
                       (assets / "x0x909", ("*",)), (assets / "hiphop-pack", ("*",))):
@@ -219,6 +250,10 @@ def generate(out_zip, c=None):
         import sd_samples
         smp = sd_samples.write_all(tree, sets=c.sets, kits=c.kits, x909=c.x909)
         (tree / "Optimist" / "readme.txt").write_text(readme(c))
+        menu = tree / STAGE2_REL
+        menu.parent.mkdir()
+        menu.write_bytes(build_stage2(work))
+        (tree / FIRMWARES).mkdir()
         with zipfile.ZipFile(out_zip, "w", zipfile.ZIP_DEFLATED) as z:
             for p in sorted(tree.rglob("*")):
                 rel = p.relative_to(tree).as_posix()
