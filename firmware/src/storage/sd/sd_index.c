@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* The sample index, OPTIMIST/SYSTEM/INDEX.BIN (docs/SD-CARD-DESIGN.md 8): every sample under SAMPLES/ with its hash
+/* The sample index, Optimist/System/index.bin (docs/SD-CARD-DESIGN.md 8): every sample under Samples/ with its hash
  * (sd_hash.c sdh_file: the audio data's XXH64), the file's size and FAT date when hashed, and its last use (the recent
  * view). A project names its samples by hash, so a sample renamed or moved on the card is still found; the index is
  * what makes that a lookup and not a hash of every file at each load. Full FatFs builds (FELUCCA_SD_FATFS); pure over
@@ -11,18 +11,18 @@
  *     (sdx_update); one whose record matches keeps its hash.
  * The file: a header record, then records of SDX_REC bytes (sdx_rec), count in use, cap in the file's run (one run,
  * sized exactly: sd_alloc.c SDA_EXACT, the cluster's rounding the room for sdx_note_written's new records). A pass
- * writes a new index to INDEX.TMP (its header zeroed first, written last), then deletes INDEX.BIN and renames the new
- * one: a cut leaves the old index, or the new one under INDEX.TMP that sdx_open takes. A record's path is from
- * OPTIMIST/ ("SAMPLES/drums/kick.wav").
+ * writes a new index to index.tmp (its header zeroed first, written last), then deletes index.bin and renames the new
+ * one: a cut leaves the old index, or the new one under index.tmp that sdx_open takes. A record's path is from
+ * Optimist/ ("Samples/drums/kick.wav").
  *   sdx_open()                    the index's header read (sdx.count, sdx.cap, sdx.seq): FR_OK, FR_NO_FILE (none
  *                                 yet), FR_NO_FILESYSTEM (not an index: sdx_update replaces it)
- *   sdx_update(buf, bufn, work, work_n)   the pass: SAMPLES/ walked, each file matched to its old record (the walk's
+ *   sdx_update(buf, bufn, work, work_n)   the pass: Samples/ walked, each file matched to its old record (the walk's
  *                                 order is the last pass's, so mostly the next record; else by the path's key in work,
  *                                 work_n words for that many old records; else by reading the old index through),
  *                                 hashed when new or changed; buf: bufn bytes (512 or more) for the hashing.
  *                                 sdx.files / sdx.hashed / sdx.kept: what it did
  *   sdx_find_hash(h, &rec)        the record of the sample with that hash: its number, or -1
- *   sdx_find_path(path, &rec)     the record of that path (from OPTIMIST/): its number, or -1
+ *   sdx_find_path(path, &rec)     the record of that path (from Optimist/, any case): its number, or -1
  *   sdx_read(no, &rec)            record no
  *   sdx_touch(no)                 record no used now (sdx.seq + 1): the recent view's order
  *   sdx_note_written(path, buf, bufn)   the FM-1 wrote that sample: hashed again now, its record updated or added
@@ -37,7 +37,7 @@ typedef struct {
     uint32_t used;                                   /* its last use (sdx.seq then), 0 never */
     uint32_t pkey;                                   /* sdx_key(path): a quick compare */
     uint32_t flags;                                  /* (none yet) */
-    char path[SDX_PATH];                             /* from OPTIMIST/, 0 ended */
+    char path[SDX_PATH];                             /* from Optimist/, 0 ended */
 } sdx_rec;
 _Static_assert(sizeof(sdx_rec) == SDX_REC, "sd_index.c: a record is SDX_REC bytes");
 
@@ -48,10 +48,10 @@ typedef struct {
     uint64_t check;                                  /* XXH64 of the bytes before it */
 } sdx_head;
 
-#define SDX_FILE "OPTIMIST/SYSTEM/INDEX.BIN"
-#define SDX_TMP "OPTIMIST/SYSTEM/INDEX.TMP"
-#define SDX_ROOT "OPTIMIST/SAMPLES"
-#define SDX_SKIP 9u                                  /* "OPTIMIST/": a walked path's record path */
+#define SDX_FILE SDL_ROOT "/System/index.bin"
+#define SDX_TMP SDL_ROOT "/System/index.tmp"
+#define SDX_ROOT SDL_ROOT "/Samples"
+#define SDX_SKIP (sizeof SDL_ROOT)                   /* "Optimist/": a walked path's record path */
 
 static struct {
     uint32_t count, cap, seq;                        /* the index on the card */
@@ -147,15 +147,15 @@ static FRESULT sdx_read(uint32_t no, sdx_rec *rec)
     return r;
 }
 
-/* the first record from no on (wrapping round) whose path is path (key its sdx_key): its number, or -1 */
-static int32_t sdx_scan_path(FIL *f, uint32_t count, uint32_t from, const char *path, uint32_t key, sdx_rec *rec)
+/* the first record from no on (wrapping round) whose path is path (without case): its number, or -1 */
+static int32_t sdx_scan_path(FIL *f, uint32_t count, uint32_t from, const char *path, sdx_rec *rec)
 {
     uint32_t i, no;
     for (i = 0; i < count; i++) {
         no = (from + i) % count;
         if (sdx_read_in(f, no, rec) != FR_OK)
             return -1;
-        if (rec->pkey == key && !sdl_cmp(rec->path, path))
+        if (!sdl_cmp(rec->path, path))
             return (int32_t)no;
     }
     return -1;
@@ -163,14 +163,14 @@ static int32_t sdx_scan_path(FIL *f, uint32_t count, uint32_t from, const char *
 
 static int32_t sdx_find(const char *path, uint64_t hash, int by_path, sdx_rec *rec)
 {
-    uint32_t i, key = by_path ? sdx_key(path) : 0;
+    uint32_t i;
     int32_t at = -1;
     if (sdx_open_file(&sdx.f, FA_READ) != FR_OK)
         return -1;
     for (i = 0; i < sdx.count && at < 0; i++) {
         if (sdx_read_in(&sdx.f, i, rec) != FR_OK)
             break;
-        if (by_path ? rec->pkey == key && !sdl_cmp(rec->path, path) : rec->path[0] && rec->hash == hash)
+        if (by_path ? !sdl_cmp(rec->path, path) : rec->path[0] && rec->hash == hash)
             at = (int32_t)i;
     }
     (void)f_close(&sdx.f);
@@ -230,7 +230,7 @@ static FRESULT sdx_note_written(const char *path, uint8_t *buf, uint32_t bufn)  
     uint32_t used = 0;
     FRESULT r;
     if (sdl_ncmp(path, SDX_ROOT "/", sizeof SDX_ROOT) || sdl_len(path + SDX_SKIP) >= SDX_PATH)
-        return FR_INVALID_NAME;                      /* (a sample is under SAMPLES/, its path short enough) */
+        return FR_INVALID_NAME;                      /* (a sample is under Samples/, its path short enough) */
     if ((r = f_stat(path, &fi)) != FR_OK || ((r = sdx_open()) != FR_OK))
         return r;
     no = sdx_find_path(path + SDX_SKIP, &sdx.rec);
@@ -293,15 +293,14 @@ static FRESULT sdx_update(uint8_t *buf, uint32_t bufn, uint32_t *work, uint32_t 
             continue;
         key = sdx_key(rel);
         at = -1;
-        if (cursor < oldn && sdx_read_in(&sdx.old, cursor, &sdx.rec) == FR_OK && sdx.rec.pkey == key &&
-            !sdl_cmp(sdx.rec.path, rel))
+        if (cursor < oldn && sdx_read_in(&sdx.old, cursor, &sdx.rec) == FR_OK && !sdl_cmp(sdx.rec.path, rel))
             at = (int32_t)cursor;                    /* (the last pass's order: the next record) */
         else if (oldn && oldn <= work_n) {
             for (i = 0; i < oldn && at < 0; i++)
                 if (work[i] == key && sdx_read_in(&sdx.old, i, &sdx.rec) == FR_OK && !sdl_cmp(sdx.rec.path, rel))
                     at = (int32_t)i;
         } else if (oldn) {
-            at = sdx_scan_path(&sdx.old, oldn, cursor, rel, key, &sdx.rec);
+            at = sdx_scan_path(&sdx.old, oldn, cursor, rel, &sdx.rec);
         }
         if (at >= 0)
             cursor = (uint32_t)at + 1u;

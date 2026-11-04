@@ -27,7 +27,7 @@
  *                              missing (a mask of slots whose sample is not on the card: MISSING, never another sound);
  *                              bmiss (a mask of the parts whose card set is not on the card: sd_mode.c says it once)
  * A part on a CARD SET (SST_PART_BANK(p): the set's number + 1, SD card mode's built-in sets, gen_samples.py
- * SMP_CARD_SETS) plays OPTIMIST/SAMPLES/<SET>/Z0.WAV .. Z<k>.WAV (SST_BANK_NAME: the set's name; one source a zone, in
+ * SMP_CARD_SETS) plays Optimist/Samples/<Set>/z0.wav .. z<k>.wav (SST_BANK_NAME: the set's name, capitalised; one source a zone, in
  * key order, each zone's keys in its "inst"): found by path (no index needed), the parts on one set sharing its
  * sources, their rings counted as a CARD part's; sst_bank_src / sst_bank_n (sd_stream.h) point the part at them. Z0
  * not there: the part MISSING (bmiss), silent, never another set.
@@ -180,7 +180,7 @@ static FRESULT sst_rec_path(int32_t no, char *path, uint32_t cap)   /* the sourc
     FRESULT r = sdx_read((uint32_t)no, &sdx.rec);
     if (r != FR_OK)
         return r;
-    if (!sdl_path(path, cap, SDL_N, sdx.rec.path))  /* ("OPTIMIST/" + the record's path) */
+    if (!sdl_path(path, cap, SDL_N, sdx.rec.path))  /* ("Optimist/" + the record's path) */
         return FR_INVALID_NAME;
     return FR_OK;
 }
@@ -190,13 +190,13 @@ static FRESULT sst_src_path(uint32_t i, char *path, uint32_t cap)
 {
 #ifdef SST_PART_BANK
     if (sstp.zb[i]) {
-        static const char D[] = "OPTIMIST/SAMPLES/", F[] = "/Z0.WAV";
+        static const char D[] = SDL_ROOT "/Samples/", F[] = "/z0.wav";   /* (Optimist/Samples/Piano/z0.wav) */
         const char *nm = SST_BANK_NAME(sstp.zb[i] - 1u);
         uint32_t n = 0, k;
         for (k = 0; D[k] && n + 1u < cap; k++)
             path[n++] = D[k];
-        for (k = 0; nm[k] && n + 1u < cap; k++)
-            path[n++] = nm[k];
+        for (k = 0; nm[k] && n + 1u < cap; k++)      /* the set's name capitalised: PIANO's folder Piano */
+            path[n++] = k ? (char)sdl_lc((uint8_t)nm[k]) : nm[k];
         for (k = 0; F[k] && n + 1u < cap; k++)
             path[n++] = k == 2u ? (char)('0' + sstp.zz[i]) : F[k];
         path[n] = 0;

@@ -2,16 +2,21 @@
 /* The card's own folder (docs/SD-CARD-DESIGN.md 8, the user's rulings 2026-10-25: "fully for a fixed folder
  * structure", names free inside it). Full FatFs builds (FELUCCA_SD_FATFS); pure over FatFs, host-tested
  * (tests/sd_layout_test.c):
- *   /OPTIMIST/                     the FM-1's; anything else on the card is left alone
- *     PROJECTS/<name>/<name>.OPP   a project (sd_save.c), VERSIONS/ the earlier saves
- *     SAMPLES/                     samples, in any sub-folders the user makes
- *     KITS/, PRESETS/              by name
- *     RECORD/, RENDERS/            recordings, renders
- *     BACKUP/                      whole-device backups
- *     SYSTEM/INDEX.BIN             the sample index (sd_index.c)
+ *   /Optimist/                     the FM-1's; anything else on the card is left alone
+ *     Projects/<name>/<name>.opp   a project (sd_save.c), Versions/ the earlier saves
+ *     Samples/                     samples, in any sub-folders the user makes
+ *     Kits/                        kits by name
+ *     Presets/Factory/<Engine>/, Presets/User/<Engine>/   presets, a folder an engine (sd_names.h)
+ *     Record/, Renders/            recordings, renders
+ *     Backup/                      whole-device backups
+ *     System/index.bin             the sample index (sd_index.c)
+ * Names (the user, 2026-11-04): the folders the FM-1 makes capitalised, the files it names lowercase (a name typed on
+ * the FM-1, upper case, is written lowercase: sdl_lower; a name read from the card is shown upper case: sdl_upper).
+ * The names compare without case (sdl_cmp, sdl_ncmp, sdl_ends: ASCII), as FatFs looks them up: a name typed on the
+ * FM-1 (BASS 1) finds its file (01 - bass 1.ops)
  *   sdl_prepare()            the folders made where missing (a fresh card, or one a computer emptied): FR_OK, or the
  *                            first error (FR_DENIED: a file where a folder must be)
- *   sdl_path(out, cap, folder, name)   "OPTIMIST/<FOLDER>/<name>" (name 0: the folder): its length, 0 when it does not
+ *   sdl_path(out, cap, folder, name)   "Optimist/<Folder>/<name>" (name 0: the folder): its length, 0 when it does not
  *                            fit cap
  *   sdl_name_ok(name)        a name the FM-1 may give a file or folder: 1..SDL_NAME_MAX bytes of UTF-8, none of
  *                            / \ : * ? " < > | or control characters, not "." or "..", no trailing dot or space
@@ -24,18 +29,20 @@
  *                            first cluster (0: none, or empty), what tells the two halves apart
  * A folder tree's files one by one (the sample index's pass, the browser's views across folders), depth first in
  * the folders' own order (stable while the card is unchanged), hidden entries skipped, SDW_DEPTH folders deep:
- *   sdw_open(w, root)        from the folder root ("OPTIMIST/SAMPLES"): FR_OK or FatFs' error
+ *   sdw_open(w, root)        from the folder root ("Optimist/Samples"): FR_OK or FatFs' error
  *   sdw_next(w)              1: the next file, w->path its path, w->fi its entry; 0: no more; -1: an error (w->err);
  *                            a path that would not fit w->path is skipped (w->skipped counts them) */
 #ifndef IN_POOL
 #define IN_POOL                                      /* (a host test: no pool section) */
 #endif
-#define SDL_ROOT "OPTIMIST"
-#define SDL_NAME_MAX 63u                             /* a name's bytes: PROJECTS/<name>/VERSIONS/<name>-NNNN.OPP stays
+#define SDL_ROOT "Optimist"
+#define SDL_NAME_MAX 63u                             /* a name's bytes: Projects/<name>/Versions/<name>-NNNN.opp stays
                                                       * far inside FatFs' 255 */
 enum { SDL_PROJECTS = 0, SDL_SAMPLES, SDL_KITS, SDL_PRESETS, SDL_RECORD, SDL_RENDERS, SDL_BACKUP, SDL_SYSTEM, SDL_N };
-static const char *const SDL_DIR[SDL_N] = {"PROJECTS", "SAMPLES", "KITS", "PRESETS", "RECORD", "RENDERS", "BACKUP",
-                                           "SYSTEM"};
+static const char *const SDL_DIR[SDL_N] = {"Projects", "Samples", "Kits", "Presets", "Record", "Renders", "Backup",
+                                           "System"};
+#define SDL_FACTORY "Factory"                        /* Presets/Factory/<Engine>/: the SD card zip's (tools/sd_factory.c) */
+#define SDL_USER "User"                              /* Presets/User/<Engine>/: the presets saved on the FM-1 */
 
 static uint32_t sdl_len(const char *s)               /* (the firmware has no libc: strlen, strcmp, strncmp) */
 {
@@ -45,14 +52,49 @@ static uint32_t sdl_len(const char *s)               /* (the firmware has no lib
     return n;
 }
 
-static int sdl_ncmp(const char *a, const char *b, uint32_t n)
+static uint8_t sdl_lc(uint8_t c) { return c >= 'A' && c <= 'Z' ? (uint8_t)(c + 32u) : c; }
+static uint8_t sdl_uc(uint8_t c) { return c >= 'a' && c <= 'z' ? (uint8_t)(c - 32u) : c; }
+
+static int sdl_ncmp(const char *a, const char *b, uint32_t n)   /* without case (ASCII), as FatFs looks names up */
 {
-    for (; n && *a && *a == *b; n--, a++, b++)
+    for (; n && *a && sdl_lc((uint8_t)*a) == sdl_lc((uint8_t)*b); n--, a++, b++)
         ;
-    return n ? (uint8_t)*a - (uint8_t)*b : 0;
+    return n ? sdl_lc((uint8_t)*a) - sdl_lc((uint8_t)*b) : 0;
 }
 
 static int sdl_cmp(const char *a, const char *b) { return sdl_ncmp(a, b, 0xFFFFFFFFu); }
+
+static uint32_t sdl_ends(const char *s, const char *ext)   /* s ends in ext (".ops"), any case: s's length without
+                                                          * it, else 0 */
+{
+    uint32_t n = sdl_len(s), e = sdl_len(ext);
+    return n > e && !sdl_cmp(s + n - e, ext) ? n - e : 0u;
+}
+
+static int sdl_has(const char *s, const char *w)     /* w somewhere in s, any case */
+{
+    uint32_t n = sdl_len(w);
+    for (; *s; s++)
+        if (!sdl_ncmp(s, w, n))
+            return 1;
+    return 0;
+}
+
+static char *sdl_lower(char *s)                      /* in place: a name typed on the FM-1 (upper case) as its file */
+{
+    char *p = s;
+    for (; *p; p++)
+        *p = (char)sdl_lc((uint8_t)*p);
+    return s;
+}
+
+static char *sdl_upper(char *s)                      /* in place: a name from the card as the FM-1 shows it */
+{
+    char *p = s;
+    for (; *p; p++)
+        *p = (char)sdl_uc((uint8_t)*p);
+    return s;
+}
 
 static uint32_t sdl_cat(char *out, uint32_t at, uint32_t cap, const char *s)   /* s at out + at: the new length, or
                                                                                 * cap when it does not fit */
@@ -132,11 +174,12 @@ static FRESULT sdl_move(const char *src, const char *dst)
 
 static FRESULT sdl_prepare(void)
 {
-    char p[24];
+    char p[32];
     uint32_t i;
     FRESULT r = sdl_mkdir(SDL_ROOT);
-    for (i = 0; i < SDL_N && r == FR_OK; i++) {
-        sdl_path(p, sizeof p, i, 0);
+    for (i = 0; i < SDL_N + 2u && r == FR_OK; i++) {   /* the folders, then Presets/Factory and Presets/User */
+        if (!sdl_path(p, sizeof p, i < SDL_N ? i : SDL_PRESETS, i < SDL_N ? 0 : i == SDL_N ? SDL_FACTORY : SDL_USER))
+            return FR_INVALID_NAME;
         r = sdl_mkdir(p);
     }
     return r;

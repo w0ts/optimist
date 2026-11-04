@@ -5,20 +5,20 @@
  * The project is whole in the FM-1's own flash first (the autosave's copy: the caller's), so the card never holds the
  * only copy of the work:
  *   1. a pending record ("card save: <name>, save number, length, hash") written in flash (sdp_hooks.pend_set);
- *   2. the card file written from the flash copy, streamed a sector at a time, to <name>.TMP: its header sector zeroed,
- *      the payload, then the header; read back and its hash checked; the previous <name>.OPP moved into
- *      VERSIONS/<name>-NNNN.OPP (NNNN its save number); <name>.TMP renamed <name>.OPP; the versions past the newest
+ *   2. the card file written from the flash copy, streamed a sector at a time, to <name>.tmp: its header sector zeroed,
+ *      the payload, then the header; read back and its hash checked; the previous <name>.opp moved into
+ *      Versions/<name>-NNNN.opp (NNNN its save number); <name>.tmp renamed <name>.opp; the versions past the newest
  *      sdp_keep dropped;
  *   3. the pending record cleared.
  * A cut anywhere: the card holds the old project whole or the new one (sdp_pick takes the newest whole copy among the
  * project's files), and the next boot finishes the save from the flash copy (sdp_boot). Every step checks what is on
  * the card first, so finishing is the same code as saving.
- * No fragmentation (sd_alloc.c): <name>.TMP is one run of the project's size x 1.5; the run a save drops (the oldest
- * version past sdp_keep, or with sdp_keep 0 the replaced project itself) is kept as <name>.SPR, the next save's run
+ * No fragmentation (sd_alloc.c): <name>.tmp is one run of the project's size x 1.5; the run a save drops (the oldest
+ * version past sdp_keep, or with sdp_keep 0 the replaced project itself) is kept as <name>.spr, the next save's run
  * when it is big enough (the user's "the next saves reuse the run").
- *   PROJECTS/<name>/<name>.OPP      the project: a header sector (sdp_head: "OPPJ", the save number, the length, the
+ *   Projects/<name>/<name>.opp      the project: a header sector (sdp_head: "OPPJ", the save number, the length, the
  *                                   payload's XXH64, the header's own), the payload from byte 512, slack to the run's end
- *   PROJECTS/<name>/VERSIONS/<name>-NNNN.OPP   earlier saves (a number already there: -NNNN-2 .. -9)
+ *   Projects/<name>/Versions/<name>-NNNN.opp   earlier saves (a number already there: -NNNN-2 .. -9)
  *   sdp_keep                        the versions kept (the setting; 0 none)
  *   sdp_save(name, number, len, buf)   the save: the staged copy (len bytes, read by hooks.read) to the card; buf 512
  *                                   B. FR_OK; else the error, the pending record left for sdp_boot
@@ -27,7 +27,7 @@
  *                                   .OPP, else (a cut between the moves) the newest of the .TMP, the spare and the
  *                                   versions by save number: its path; FR_NO_FILE when none */
 #define SDP_SECTOR 512u
-#define SDP_VERSIONS "VERSIONS"
+#define SDP_VERSIONS "Versions"
 
 typedef struct {
     char magic[4];                                   /* "OPPJ" */
@@ -77,10 +77,29 @@ static uint32_t sdp_num(char *out, uint32_t at, uint32_t cap, uint32_t v, uint32
     return at;
 }
 
+/* a project's name under Projects/: "<bank>/<name>" (the user, 2026-11-04: banks of 16, "A/03 - song"; a name alone
+ * the host tests' Projects/<name>/): each part a name the FM-1 may give (sd_layout.c sdl_name_ok) */
+static int sdp_name_ok(const char *name)
+{
+    char part[SDL_NAME_MAX + 2u];
+    uint32_t i = 0, slash = 0;
+    while (name[i] && name[i] != '/')
+        i++;
+    if (name[i] == '/')
+        slash = i;
+    if (!slash)
+        return sdl_name_ok(name);
+    if (slash > SDL_NAME_MAX)
+        return 0;
+    memcpy(part, name, slash);
+    part[slash] = 0;
+    return sdl_name_ok(part) && sdl_name_ok(name + slash + 1u);   /* (a second '/' fails the second part's check) */
+}
+
 /* a project's paths: its folder, VERSIONS, the .OPP, .TMP, .SPR, a version (number, dup 0 or 2..9); 0: too long */
 static uint32_t sdp_path(char *out, const char *name, uint32_t what, uint32_t number, uint32_t dup)
 {
-    static const char *const EXT[3] = {".OPP", ".TMP", ".SPR"};
+    static const char *const EXT[3] = {".opp", ".tmp", ".spr"};
     uint32_t cap = FF_LFN_BUF + 1u, n = sdl_path(out, cap, SDL_PROJECTS, name);
     if (!n)
         return 0;
@@ -89,7 +108,7 @@ static uint32_t sdp_path(char *out, const char *name, uint32_t what, uint32_t nu
     }
     if (what != SDP_DIR && what != SDP_VDIR) {
         n = sdl_cat(out, n, cap, "/");
-        n = sdl_cat(out, n, cap, name);
+        n = sdl_cat(out, n, cap, sdb_base(name));    /* (a bank's project "A/03 - song": its files "03 - song.opp") */
         if (what == SDP_VER) {
             n = sdl_cat(out, n, cap, "-");
             n = sdp_num(out, n, cap, number, 4);
@@ -97,7 +116,7 @@ static uint32_t sdp_path(char *out, const char *name, uint32_t what, uint32_t nu
                 n = sdl_cat(out, n, cap, "-");
                 n = sdp_num(out, n, cap, dup, 1);
             }
-            n = sdl_cat(out, n, cap, ".OPP");
+            n = sdl_cat(out, n, cap, ".opp");
         } else {
             n = sdl_cat(out, n, cap, EXT[what - SDP_OPP]);
         }
@@ -249,7 +268,8 @@ static FRESULT sdp_retire(const sdp_pending *p, char *opp, uint8_t *buf)
 
 static FRESULT sdp_prune(const sdp_pending *p)       /* the versions past the newest sdp_keep dropped, oldest first */
 {
-    uint32_t n, oldest, num, at = (uint32_t)sdl_len(p->name), i, len;
+    const char *stem = sdb_base(p->name);            /* (the versions' names start with the file's: "03 - song-0007") */
+    uint32_t n, oldest, num, at = (uint32_t)sdl_len(stem), i, len;
     FRESULT r;
     char *v = sdp.path, *old = sdp.to;               /* the folder; the oldest's name */
     for (;;) {
@@ -261,7 +281,7 @@ static FRESULT sdp_prune(const sdp_pending *p)       /* the versions past the ne
         oldest = 0xFFFFFFFFu;
         old[0] = 0;
         while ((r = f_readdir(&sdp.d, &sdp.fi)) == FR_OK && sdp.fi.fname[0]) {
-            if (sdl_hidden(&sdp.fi) || sdl_ncmp(sdp.fi.fname, p->name, at) || sdp.fi.fname[at] != '-')
+            if (sdl_hidden(&sdp.fi) || sdl_ncmp(sdp.fi.fname, stem, at) || sdp.fi.fname[at] != '-')
                 continue;
             for (num = 0, i = at + 1u; sdp.fi.fname[i] >= '0' && sdp.fi.fname[i] <= '9'; i++)
                 num = num * 10u + (uint32_t)(sdp.fi.fname[i] - '0');
@@ -324,8 +344,14 @@ static FRESULT sdp_finish(const sdp_pending *p, uint8_t *buf)
     char opp[FF_LFN_BUF + 1];
     int done;
     FRESULT r;
-    if (!sdl_name_ok(p->name) || !sdp_path(opp, p->name, SDP_DIR, 0, 0))
+    if (!sdp_name_ok(p->name) || !sdp_path(opp, p->name, SDP_DIR, 0, 0))
         return FR_INVALID_NAME;
+    if (sdb_base(p->name) != p->name) {              /* a bank's project: the bank's folder first (Projects/A) */
+        opp[sdl_len(opp) - sdl_len(sdb_base(p->name)) - 1u] = 0;
+        if ((r = sdl_mkdir(opp)) != FR_OK)
+            return r;
+        (void)sdp_path(opp, p->name, SDP_DIR, 0, 0);
+    }
     if ((r = sdl_mkdir(opp)) != FR_OK)
         return r;
     if (sdp_keep && (!sdp_path(opp, p->name, SDP_VDIR, 0, 0) || (r = sdl_mkdir(opp)) != FR_OK))
@@ -373,7 +399,7 @@ static int sdp_stage_hash(uint32_t len, uint8_t *buf, uint64_t *hash)
 static FRESULT sdp_save(const char *name, uint32_t number, uint32_t len, uint8_t *buf)
 {
     sdp_pending p;
-    if (!sdl_name_ok(name))
+    if (!sdp_name_ok(name))
         return FR_INVALID_NAME;
     memset(&p, 0, sizeof p);
     sdl_cat(p.name, 0, sizeof p.name, name);

@@ -38,7 +38,7 @@
  * s[2] the low-pass, voice_t's phases are unused.
  *
  * SD card mode's sets (FELUCCA_SD_STREAM, SMP_CARD_SET: the set on the card, the user's ruling of 2026-10-29): the
- * zones are the card's (eng_sample.c smp_cz: the files Z<k>.WAV of OPTIMIST/SAMPLES/<SET>/, each the flash's ADPCM
+ * zones are the card's (eng_sample.c smp_cz: the files z<k>.wav of Optimist/Samples/<Set>/, each the flash's ADPCM
  * decoded), read as 16-bit samples through the part's CACHE (storage/sd/sd_stream_rc.h, filled by the main loop's runs)
  * instead of decoded: no seek index, the same samples, so a grain sounds bit for bit as the flash's while its sectors are
  * there. The card's latency is met three ways: (1) the PLAN (gr_plan, the block hook): the part's next grains within

@@ -11,7 +11,7 @@
  *   - a hash not on the card: that part MISSING, the others play;
  *   - a placed sample streams: its frames through the rings as the file holds them;
  *   - a part on SLICE CARD: its sample whole in the block (sd_slice.c), no ring and no head for it; off it, streamed;
- *   - a part on a card set (SST_PART_BANK): SAMPLES/<SET>/Z0.WAV .. its zones by path, one source each with its keys
+ *   - a part on a card set (SST_PART_BANK): Samples/<Set>/z0.wav .. its zones by path, one source each with its keys
  *     ("inst"), beside a part's CARD sample; a set not on the card: that part MISSING (bmiss), the others play.
  *   sd_stream_plan_test FAT16.img FAT32.img */
 #define FELUCCA_SD_FATFS 1
@@ -152,13 +152,13 @@ static void run_card(const char *img_path)
     sd_gone = 0;
     sd_dstat = STA_NOINIT;
     CHECK(f_mount(&fs, "", 1) == FR_OK && sdl_prepare() == FR_OK, "%s: mount, the folders", what);
-    CHECK(put_wav("OPTIMIST/SAMPLES/kick.wav", 44100, 1) && f_mkdir("OPTIMIST/SAMPLES/loops") == FR_OK &&
-          put_wav("OPTIMIST/SAMPLES/loops/pad.wav", 66150, 2),
+    CHECK(put_wav("Optimist/Samples/kick.wav", 44100, 1) && f_mkdir("Optimist/Samples/loops") == FR_OK &&
+          put_wav("Optimist/Samples/loops/pad.wav", 66150, 2),
           "%s: two samples", what);
     CHECK(sdx_update(buf, sizeof buf, work, 64) == FR_OK && sdx_open() == FR_OK, "%s: the index", what);
-    CHECK(sdx_find_path("SAMPLES/kick.wav", &rec) >= 0, "%s: kick indexed", what);
+    CHECK(sdx_find_path("Samples/kick.wav", &rec) >= 0, "%s: kick indexed", what);
     h0 = rec.hash;
-    CHECK(sdx_find_path("SAMPLES/loops/pad.wav", &rec) >= 0, "%s: pad indexed", what);
+    CHECK(sdx_find_path("Samples/loops/pad.wav", &rec) >= 0, "%s: pad indexed", what);
     h1 = rec.hash;
     CHECK(h0 && h1 && h0 != h1, "%s: two hashes", what);
 
@@ -283,9 +283,9 @@ static void run_card(const char *img_path)
     CHECK(sstp.state == SSTP_IDLE && !arn_ptr(SST_ARN_K), "%s: no card samples: nothing held", what);
 
     /* a card set: its zones by path, their keys; beside part 0's CARD sample */
-    CHECK(f_mkdir("OPTIMIST/SAMPLES/PIANO") == FR_OK && put_wav("OPTIMIST/SAMPLES/PIANO/Z0.WAV", 22050, 3) &&
-          put_inst("OPTIMIST/SAMPLES/PIANO/Z0.WAV", 0, 59) && put_wav("OPTIMIST/SAMPLES/PIANO/Z1.WAV", 22050, 4) &&
-          put_inst("OPTIMIST/SAMPLES/PIANO/Z1.WAV", 60, 127), "%s: a card set's two zones", what);
+    CHECK(f_mkdir("Optimist/Samples/PIANO") == FR_OK && put_wav("Optimist/Samples/PIANO/Z0.WAV", 22050, 3) &&
+          put_inst("Optimist/Samples/PIANO/Z0.WAV", 0, 59) && put_wav("Optimist/Samples/PIANO/Z1.WAV", 22050, 4) &&
+          put_inst("Optimist/Samples/PIANO/Z1.WAV", 60, 127), "%s: a card set's two zones", what);
     sst_pre_set(50);
     sst_part_set(0, h0);
     part_bank[1] = 1u;

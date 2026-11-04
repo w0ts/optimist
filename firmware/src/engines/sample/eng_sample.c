@@ -18,7 +18,7 @@ typedef struct {
 } smp_set_t;
 #include "felucca_samples.h"
 /* SD card mode's sets (gen_samples.py FELUCCA_SAMPLES_CARD): empty in the flash, their numbers and presets kept, played
- * from the card's OPTIMIST/SAMPLES/<SET>/ (smp_bank_on); a host test sets its own */
+ * from the card's Optimist/Samples/<Set>/ (smp_bank_on); a host test sets its own */
 #ifndef SMP_CARD_SET
 #define SMP_CARD_SET(s) ((SMP_CARD_SETS >> (s)) & 1u)
 #endif

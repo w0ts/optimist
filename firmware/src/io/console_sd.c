@@ -18,7 +18,7 @@
  *                         errors, the longest run (the screen's longest wait for the card), the least lead a run began at
  *   sd stream reset       those counts from 0 (and the keys' ui gap: console keys)
  *   sd stream pre MS      the pre-buffer: 25, 50, 100 or 200 ms (placed again)
- *   sd stream part P FILE part P's CARD sample (1..3): FILE from OPTIMIST/ ("SAMPLES/kick.wav"), by its hash in the
+ *   sd stream part P FILE part P's CARD sample (1..3): FILE from Optimist/ ("Samples/kick.wav", any case), by its hash in the
  *                         index (until the sample picker sets it); no FILE: none
  *   sd diag               CMD0 and CMD8 by hand in every read mode, the bytes that came back and PC8's level (the line
  *                         when nothing mounts)
@@ -492,7 +492,7 @@ static void con_sd_stream_part(const char *p)
         return;
     }
     if (sdx_open() != FR_OK || sdx_find_path(p, &sdx.rec) < 0) {
-        con_puts("sd stream part: not in the index (SYSTEM/INDEX.BIN; the sample index pass first)\r\n");
+        con_puts("sd stream part: not in the index (System/index.bin; the sample index pass first)\r\n");
         return;
     }
     sst_part_set(part - 1u, sdx.rec.hash);
@@ -595,7 +595,7 @@ static void con_sd_stream_cmd(const char *p)
 #endif
 
 #if FELUCCA_SD_REC
-/* sd rec [ms]: a take of the master into OPTIMIST/RECORD/REC-nnnn.WAV (the first free name; ms: its run, else a
+/* sd rec [ms]: a take of the master into Optimist/Record/rec-nnnn.wav (the first free name; ms: its run, else a
  * minute); sd rec stop; sd rec: the state, the blocks written, the frames lost, the ring's most blocks waiting */
 static void con_sd_rec(const char *p)
 {

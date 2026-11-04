@@ -106,6 +106,10 @@ static uint32_t pgk_row_key(uint32_t r)
         return pgk_gl_key(r);
     if (ui.scr == SCR_HOME)
         return r;                                       /* (the mixer's rows are fixed: its sets are pgk_sets) */
+    if (ui.scr == SCR_PROJECT)
+        return r;                                       /* (PROJECT's rows are fixed; a card list's name is the folder
+                                                         * shown, op_sdcard.c sdc_title: up from Presets/User, titled
+                                                         * USER, the cursor went to the USER row) */
     return pgk_name_key(r);
 }
 /* the row whose page is titled t (its key), PGK_NONE none */

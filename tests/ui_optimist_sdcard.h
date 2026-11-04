@@ -64,12 +64,29 @@ static uint64_t sdu_stage_hash(void)
     (void)sdp_stage_hash(sdm_stage_len(), sd_blk, &h);
     return h;
 }
-static int sdu_proj_ok(const char *name, uint32_t number, uint64_t hash)   /* the card's project: whole, that save */
+static int sdu_proj_ok(const char *rel, uint32_t number, uint64_t hash)   /* the card's project ("A/01 - my song"):
+                                                                            * whole, that save */
 {
     sdp_head h;
     char p[FF_LFN_BUF + 1];
-    snprintf(p, sizeof p, "OPTIMIST/PROJECTS/%s/%s.OPP", name, name);
+    const char *base = strrchr(rel, '/') ? strrchr(rel, '/') + 1 : rel;
+    snprintf(p, sizeof p, "Optimist/Projects/%s/%s.opp", rel, base);
     return sdp_verify_path(p, &h, sd_blk) == FR_OK && (!number || h.number == number) && (!hash || h.hash == hash);
+}
+static uint32_t sdu_used(void)                          /* the slots the page shows something on (a bank's free ones not) */
+{
+    uint32_t k, n = 0;
+    for (k = 0; k < SDC_KEYS; k++)
+        n += sdc_used(k) != 0;
+    return n;
+}
+static void sdu_black(uint32_t b)                       /* black key b (0 .. 10: F# G# A# C# D# twice, the top F#) */
+{
+    static const uint8_t K[5] = {1, 3, 5, 8, 10};
+    uint32_t k = b / 5u * 12u + K[b % 5u];
+    kdown(k);
+    kup(k);
+    sdm_poll();
 }
 static void sdu_card(void)                              /* a fresh card in, the boot's mount and pass */
 {
@@ -93,7 +110,7 @@ static void sdu_slice_use(void)
     memcpy(h, "RIFF", 4); sdu_le32(h + 4, 36u + 4u * 4410u * 2u); memcpy(h + 8, "WAVEfmt ", 8); sdu_le32(h + 16, 16);
     sdu_le16(h + 20, 1); sdu_le16(h + 22, 1); sdu_le32(h + 24, 44100); sdu_le32(h + 28, 88200); sdu_le16(h + 32, 2); sdu_le16(h + 34, 16);
     memcpy(h + 36, "data", 4); sdu_le32(h + 40, 4u * 4410u * 2u);
-    check(f_open(&f, "OPTIMIST/SAMPLES/loop.wav", FA_CREATE_ALWAYS | FA_WRITE) == FR_OK && f_write(&f, h, 44, &k) == FR_OK,
+    check(f_open(&f, "Optimist/Samples/loop.wav", FA_CREATE_ALWAYS | FA_WRITE) == FR_OK && f_write(&f, h, 44, &k) == FR_OK,
           "SLICE USE: a WAV of four tones on the card");
     for (i = 0; i < 4u * 4410u; i++) {
         double x = i % 4410u < 1100u ? 12000.0 * sin(2.0 * M_PI * hz[i / 4410u] * (i % 4410u) / 44100.0) : 0.0;
@@ -106,7 +123,7 @@ static void sdu_slice_use(void)
     sdu_row(PR_CSMP);
     turn(EN_K4, -1);                                    /* (VIEW: from RECENT back to the folders) */
     turn(EN_K4, -1);
-    for (idx = 0, n = sdm_count(); idx < n && strcmp(sdc_name(idx), "loop.wav"); idx++)
+    for (idx = 0, n = sdm_count(); idx < n && strcmp(sdc_name(idx), "LOOP.WAV"); idx++)
         ;
     check(idx < n, "SLICE USE: loop.wav listed");
     set_engine_of(&trk[2], ENG_SLOT_SLICE);
@@ -155,30 +172,37 @@ static void sdcard_tests(void)
     UINT k;
     uint64_t h1;
     reset_ui();
+    {   /* no favorites in SD card mode (the user, 2026-11-04: the banks are the organisation) */
+        uint32_t i, fav = 0;
+        for (i = 0; i < PLF_NORDER; i++)
+            fav |= PLF_ORDER[i] == PLF_FAV;
+        check(!FELUCCA_FAVORITES && !fav && PLF_NORDER == 4u, "SD card mode: no favorites (the preset list's filters ALL "
+              "FACTORY USER INIT, no FAVORITES, no marks)");
+    }
     /* ---- the boot: the folders, the index */
     card(sdu_img, sdu_sectors, 2048, 1, 1, 0);
     check(sd_mount() == SD_READY, "SD: the card mounts (the model, FAT32)");
     {   /* samples a computer put there before: indexed at the boot's pass */
-        f_mkdir("OPTIMIST");
-        f_mkdir("OPTIMIST/SAMPLES");
-        f_mkdir("OPTIMIST/SAMPLES/drums");
-        if (f_open(&f, "OPTIMIST/SAMPLES/drums/kick.wav", FA_CREATE_ALWAYS | FA_WRITE) == FR_OK)
+        f_mkdir("Optimist");
+        f_mkdir("Optimist/Samples");
+        f_mkdir("Optimist/Samples/drums");
+        if (f_open(&f, "Optimist/Samples/drums/kick.wav", FA_CREATE_ALWAYS | FA_WRITE) == FR_OK)
             f_write(&f, "RIFFkick-data-one", 17, &k), f_close(&f);
-        if (f_open(&f, "OPTIMIST/SAMPLES/snare.wav", FA_CREATE_ALWAYS | FA_WRITE) == FR_OK)
+        if (f_open(&f, "Optimist/Samples/snare.wav", FA_CREATE_ALWAYS | FA_WRITE) == FR_OK)
             f_write(&f, "RIFFsnare-data-two", 18, &k), f_close(&f);
     }
     sdm_st = SDM_OFF;
     sdu_frames(4);
-    check(sdm_ready() && sdu_has("OPTIMIST/PROJECTS") && sdu_has("OPTIMIST/PRESETS") && sdu_has("OPTIMIST/KITS") &&
-          sdu_has("OPTIMIST/SYSTEM/INDEX.BIN"), "SD boot: the card ready, its folders made, the sample index written");
+    check(sdm_ready() && sdu_has("Optimist/Projects") && sdu_has("Optimist/Presets") && sdu_has("Optimist/Kits") &&
+          sdu_has("Optimist/System/index.bin"), "SD boot: the card ready, its folders made, the sample index written");
     check(sdx_open() == FR_OK && sdx.count == 2u, "SD boot: the two samples indexed");
     /* ---- PROJECT: the card's list */
     r = sdu_row(PR_PROJECT);
     check(sdc_listing() && !cards_2x2(), "PROJECT, a card: the card's list, four small cards");
-    check(!strcmp(sdu_label(0), "PAGE") && !strcmp(sdu_val(0), "1") && !strcmp(sdu_label(1), "ACTION") &&
+    check(!strcmp(sdu_label(0), "BANK") && !strcmp(sdu_val(0), "A") && !strcmp(sdu_label(1), "ACTION") &&
           !strcmp(sdu_val(1), "LOAD") && !strcmp(sdu_label(2), "ITEM") && !strcmp(sdu_label(3), "VIEW") &&
-          !strcmp(sdu_val(3), "NAME"), "PROJECT, a card: PAGE 1, ACTION LOAD, ITEM, VIEW NAME");
-    check(sdm_count() == 0u, "PROJECT, a fresh card: no project");
+          !strcmp(sdu_val(3), "NAME"), "PROJECT, a card: BANK A, ACTION LOAD, ITEM, VIEW NAME");
+    check(sdm_count() == 16u && !sdu_used(), "PROJECT, a fresh card: bank A, 16 free slots");
     sdu_key(0);
     check(!op_armed() && !name_on() && sdu_msg("EMPTY"), "LOAD on an empty slot: EMPTY, no question");
     /* SAVE by name */
@@ -190,19 +214,20 @@ static void sdcard_tests(void)
     sdu_name("MY SONG");
     h1 = sdu_stage_hash();
     check(!name_on() && sdu_msg("SAVED TO CARD"), "NAME done: SAVED TO CARD");
-    check(sdu_proj_ok("MY SONG", 1, h1), "the card's MY SONG/MY SONG.OPP: whole, save 1, the flash copy's bytes");
+    check(sdu_proj_ok("A/01 - my song", 1, h1),
+          "the card's Projects/A/01 - my song/01 - my song.opp (slot 1, the name lowercase): whole, save 1, the flash copy's bytes");
     {
         char b[16];
         sec_name(0, b);
         check(!strcmp(b, "MY SONG"), "the flash project is named as the card's");
     }
     sdu_frames(2);
-    check(sdm_count() == 1u && !strcmp(sdc_name(0), "MY SONG"), "the list: MY SONG on slot 1");
+    check(sdu_used() == 1u && !strcmp(sdc_name(0), "MY SONG"), "the list: MY SONG on slot 1 (shown upper case)");
     ppm("opt-sd-projects");
     {
         uint32_t fl = 0, dm = 0;
         sdc_keys_lit(&fl, &dm, 1);
-        check(fl == 1u << white_key(0) && !dm, "the keys: slot 1 lit");
+        check(fl == (1u << white_key(0) | 1u << 1) && !dm, "the keys: slot 1 lit, bank A's black key (F#)");
     }
     check(!strcmp(sdu_val(1), "LOAD"), "after the save: LOAD again");
     /* SAVE over it: asked (red), NAME prefilled, a version kept */
@@ -213,7 +238,8 @@ static void sdcard_tests(void)
     tap(B_SAVE);
     check(name_on() && !strcmp(nm.s, "MY SONG"), "YES: NAME, prefilled MY SONG");
     sdu_name("MY SONG");
-    check(sdu_proj_ok("MY SONG", 2, sdu_stage_hash()) && sdu_has("OPTIMIST/PROJECTS/MY SONG/VERSIONS/MY SONG-0001.OPP"),
+    check(sdu_proj_ok("A/01 - my song", 2, sdu_stage_hash()) &&
+          sdu_has("Optimist/Projects/A/01 - my song/Versions/01 - my song-0001.opp"),
           "saved again: save 2, save 1 in VERSIONS");
     /* SAVES: the versions, loaded */
     sdu_frames(1);
@@ -241,54 +267,80 @@ static void sdcard_tests(void)
     check(op_armed() && !strcmp(ui.arm_verb, "SAVE?"), "LOAD MY SONG, the work changed: SAVE MY SONG? first");
     tap(B_SAVE);
     sdm_poll();
-    check(trk[0].p[P_DEC] == 44 && sdu_proj_ok("MY SONG", 3, 0) &&
-          sdu_has("OPTIMIST/PROJECTS/MY SONG/VERSIONS/MY SONG-0002.OPP"), "YES: saved (save 3), then loaded (the same work)");
+    check(trk[0].p[P_DEC] == 44 && sdu_proj_ok("A/01 - my song", 3, 0) &&
+          sdu_has("Optimist/Projects/A/01 - my song/Versions/01 - my song-0002.opp"),
+          "YES: saved (save 3, its own slot), then loaded (the same work)");
     /* DELETE */
     sdu_op(SDO_DELETE);
     sdu_key(0);
     check(op_armed() && ui.arm_danger && !strcmp(ui.arm_q, "DELETE MY SONG?"), "DELETE: asked, red");
     tap(B_SAVE);
     sdu_frames(1);
-    check(!sdu_has("OPTIMIST/PROJECTS/MY SONG") && sdm_count() == 0u, "YES: the project's folder gone, the list empty");
-    /* 20 projects: two pages */
-    for (i = 0; i < 20u; i++) {
+    check(!sdu_has("Optimist/Projects/A/01 - my song") && !sdu_used(), "YES: the project's folder gone, the bank empty");
+    /* banks of 16 (the user, 2026-11-04): 16 projects fill A, a 17th is BANK FULL; the black keys and OCT pick banks */
+    sdm_save_at(0xFFu);
+    for (i = 0; i < 16u; i++) {
         snprintf(nm2, sizeof nm2, "P%02u", (unsigned)i);
         (void)sdm_save(SDC_PROJ, nm2, "");
     }
+    check(sdu_proj_ok("A/01 - p00", 1, 0) && sdu_proj_ok("A/16 - p15", 1, 0), "16 projects: A/01 - p00 .. A/16 - p15");
+    check(sdm_save(SDC_PROJ, "P16", "") == 1 && sdu_msg("BANK FULL") && !sdu_has("Optimist/Projects/B"),
+          "a 17th in bank A: BANK FULL, NAME stays, nothing written");
     sdu_row(PR_PROJECT);
-    check(sdm_count() == 16u && !strcmp(sdu_val(0), "1") && !strcmp(sdc.unit, "/2") && !strcmp(sdc_name(0), "P00"),
-          "20 projects: page 1 of 2, P00 first");
+    check(sdu_used() == 16u && !strcmp(sdu_val(0), "A") && !strcmp(sdc_name(0), "P00") && !strcmp(sdc_name(15), "P15"),
+          "bank A: P00 on slot 1 .. P15 on slot 16");
+    sdu_black(1);
+    check(!strcmp(sdu_val(0), "B") && !sdu_used() && sdu_msg("BANK B"), "black key 2 (G#): bank B, empty, said");
+    for (i = 16; i < 20u; i++) {
+        snprintf(nm2, sizeof nm2, "P%02u", (unsigned)i);
+        (void)sdm_save(SDC_PROJ, nm2, "");
+    }
+    sdu_row(PR_PROJECT);                                /* (the list read again: the bank shown, B) */
+    check(sdu_proj_ok("B/01 - p16", 1, 0) && sdu_used() == 4u && !strcmp(sdc_name(0), "P16"),
+          "saved while bank B is shown: B/01 - p16 .. B/04 - p19");
+    {
+        uint32_t fl = 0, dm = 0;
+        sdc_keys_lit(&fl, &dm, 1);
+        check(fl & 1u << 3, "the keys: bank B's black key (G#) lit");
+    }
+    tap(B_OCTDN);
+    check(!strcmp(sdu_val(0), "A") && !strcmp(sdc_name(0), "P00"), "OCT- tapped: bank A");
     turn(EN_K1, 1);
-    check(sdm_page() == 1u && sdm_count() == 4u && !strcmp(sdc_name(0), "P16"), "PAGE knob: page 2, P16..P19");
-    tap(B_OCTDN);
-    check(sdm_page() == 0u, "OCT- tapped: page 1");
-    sdc.item = 15;
-    turn(EN_K3, 1);
-    check(sdm_page() == 1u && sdc.item == 0u, "ITEM knob past slot 16: the next page's first");
-    tap(B_OCTDN);
-    ppm("opt-sd-page1");
+    check(!strcmp(sdu_val(0), "B"), "BANK knob: bank B");
     tap(B_OCTUP);
+    check(!strcmp(sdu_val(0), "C") && !sdu_used(), "OCT+ tapped: bank C (OCT goes on past K, to Z)");
+    sdu_black(10);
+    check(!strcmp(sdu_val(0), "K"), "the top black key (F#): bank K");
+    sdu_black(1);
+    tap(B_HOME);
+    check(sdm_count() >= 2u && sdc_is_dir(0) && !strcmp(sdc_name(0), "A") && !strcmp(sdc_name(1), "B"),
+          "HOME in a bank: the projects' banks as folders");
+    sdu_key(1);
+    check(!strcmp(sdu_val(0), "B") && !strcmp(sdc_name(0), "P16"), "a bank's folder: into it, as a bank");
     sdu_key(2);
-    check(op_armed() && !strcmp(ui.arm_q, "LOAD P18?"), "key 3 on page 2: LOAD P18?");
+    check(op_armed() && !strcmp(ui.arm_q, "LOAD P18?"), "key 3 in bank B: LOAD P18?");
     tap(B_SAVE);
     sdm_poll();
     {
         char b[16];
         sec_name(0, b);
-        check(!strcmp(b, "P18") && sdu_msg("LOADED"), "YES: P18 loaded, the flash project named P18");
+        check(!strcmp(b, "P18") && sdu_msg("LOADED") && !strcmp(sdm_work, "B/03 - p18"),
+              "YES: P18 loaded, the flash project named P18, its place B/03");
     }
     /* ---- PRESETS: SAVE / LOAD by name */
     sdu_row(PR_CPRE);
-    check(sdc_listing() && sdm_count() == 0u && !strcmp(sdu_val(3), "FOLDER"), "PRESETS: the card's, VIEW FOLDER, empty");
+    check(sdc_listing() && !sdu_used() && !strcmp(sdu_val(3), "FOLDER") && !strcmp(sdu_val(0), "A"),
+          "PRESETS: the card's, VIEW FOLDER, the part's engine's User bank A, empty");
     song.sel = 0;
     trk[0].p[P_DEC] = 5;
     sdu_op(SDO_SAVE);
     sdu_key(0);
     check(name_on(), "PRESETS SAVE: NAME");
     sdu_name("LEAD");
-    check(upc_takes == 1u && sdu_has("OPTIMIST/PRESETS/LEAD.OPS") && sdu_msg("SAVED TO CARD"), "PRESETS: LEAD.OPS written");
+    snprintf(nm2, sizeof nm2, "Optimist/Presets/User/%s/A/01 - lead.ops", sdn_engine(eng_uid(trk[0].eng_req)));
+    check(upc_takes == 1u && sdu_has(nm2) && sdu_msg("SAVED TO CARD"), "PRESETS: User/<Engine>/A/01 - lead.ops written");
     sdu_frames(1);
-    check(sdm_count() == 1u && !strcmp(sdc_name(0), "LEAD"), "the list: LEAD (no extension)");
+    check(sdu_used() == 1u && !strcmp(sdc_name(0), "LEAD"), "the list: LEAD on slot 1 (no number, no extension)");
     sdu_op(SDO_LOAD);
     sdu_key(0);
     tap(B_SAVE);
@@ -302,11 +354,15 @@ static void sdcard_tests(void)
         snd_name(song.sel, b);
         check(strcmp(b, "LEAD") != 0, "... until its preset changes");
         trk[song.sel].preset = (uint8_t)was;
-        str_cpy(sdm.path, "OPTIMIST/PRESETS/FACTORY/ANALOG/002 SUB BASS.OPS", sizeof sdm.path);
+        str_cpy(sdm.path, "Optimist/Presets/Factory/Analog/A/03 - sub bass.ops", sizeof sdm.path);
         trk[song.sel].preset = 0;
-        sdm_named(song.sel, "002 SUB BASS.OPS");
+        sdm_named(song.sel, "03 - sub bass.ops");
         check(trk[song.sel].preset == 2u && !sdm_part_name(song.sel),
-              "a factory file (FACTORY/<engine>/002 ...): the part's preset number 2, its name the engine's list's");
+              "a factory file (Factory/<Engine>/A/03 - ...): the part's preset number 2, its name the engine's list's");
+        str_cpy(sdm.path, "Optimist/Presets/Factory/Analog/B/02 - x.ops", sizeof sdm.path);
+        sdm_named(song.sel, "02 - x.ops");
+        check(trk[song.sel].preset == 17u || ENGINES[trk[song.sel].eng_req % NENGINES]->npresets <= 17u,
+              "... bank B's 02: the table's preset 17");
         trk[song.sel].preset = (uint8_t)was;
     }
     sdu_key(0);
@@ -319,7 +375,23 @@ static void sdcard_tests(void)
     sdu_op(SDO_SAVE);
     sdu_key(1);
     sdu_name("LEAD");
-    check(name_on() && sdu_msg("NAME TAKEN"), "SAVE a new preset as LEAD: NAME TAKEN, NAME stays");
+    check(name_on() && sdu_msg("NAME TAKEN"), "SAVE a new preset as LEAD: NAME TAKEN (its bank has one), NAME stays");
+    sdu_name("BASS");
+    snprintf(nm2, sizeof nm2, "Optimist/Presets/User/%s/A/02 - bass.ops", sdn_engine(eng_uid(trk[0].eng_req)));
+    check(!name_on() && sdu_has(nm2), "SAVE on slot 2 (free): 02 - bass.ops");
+    sdu_op(SDO_SAVE);
+    sdu_key(5);
+    sdu_name("PAD");
+    snprintf(nm2, sizeof nm2, "Optimist/Presets/User/%s/A/06 - pad.ops", sdn_engine(eng_uid(trk[0].eng_req)));
+    check(!name_on() && sdu_has(nm2), "SAVE on slot 6 (free): the slot's number, 06 - pad.ops");
+    sdu_op(SDO_SAVE);
+    sdu_key(1);
+    tap(B_SAVE);
+    sdu_name("BASS");
+    snprintf(nm2, sizeof nm2, "Optimist/Presets/User/%s/A/02 - bass.ops", sdn_engine(eng_uid(trk[0].eng_req)));
+    check(!name_on() && sdu_has(nm2) && sdu_used() == 3u, "SAVE over BASS by its name: its own file again, no new one");
+    sdu_op(SDO_SAVE);
+    sdu_key(3);
     sdu_name("BAD/NAME");
     check(name_on() && sdu_msg("NAME NOT USABLE"), "a / in a name: NAME NOT USABLE");
     name_close();
@@ -330,7 +402,7 @@ static void sdcard_tests(void)
     sdu_op(SDO_SAVE);
     sdu_key(0);
     sdu_name("ROOM KIT");
-    check(sdu_has("OPTIMIST/KITS/ROOM KIT.OPK"), "KITS: ROOM KIT.OPK written");
+    check(sdu_has("Optimist/Kits/room kit.opk"), "KITS: room kit.opk written (the name lowercase)");
     dl.ofs[0][0] = 0;
     sdu_frames(1);
     sdu_op(SDO_LOAD);
@@ -340,33 +412,33 @@ static void sdcard_tests(void)
 #endif
     /* ---- SAMPLES: folders, USE by hash, RECENT */
     sdu_row(PR_CSMP);
-    check(sdm_count() == 2u && sdc_is_dir(0) && !strcmp(sdc_name(0), "drums") && !strcmp(sdc_name(1), "snare.wav"),
-          "SAMPLES: the folder first, then the files");
+    check(sdm_count() == 2u && sdc_is_dir(0) && !strcmp(sdc_name(0), "DRUMS") && !strcmp(sdc_name(1), "SNARE.WAV"),
+          "SAMPLES: the folder first, then the files (upper case)");
     check(!strcmp(sdu_val(1), "USE"), "SAMPLES: ACTION USE");
     ppm("opt-sd-samples");
     sdu_key(0);
     {
         char t[16];
         prj_name(ui.row[SCR_PROJECT], t);
-        check(!op_armed() && sdm_count() == 1u && !strcmp(sdc_name(0), "kick.wav") && !strcmp(t, "drums"),
+        check(!op_armed() && sdm_count() == 1u && !strcmp(sdc_name(0), "KICK.WAV") && !strcmp(t, "DRUMS"),
               "a folder's key: into it, no question, the title its name");
     }
     tap(B_HOME);
     check(ui.scr == SCR_PROJECT && sdm_count() == 2u, "HOME: up a folder");
     song.sel = 1;
     sdu_key(1);
-    check(op_armed() && !ui.arm_danger && !strcmp(ui.arm_q, "USE snare.wav?") && !sdm_smp[1].hash,
-          "a sample's key: USE snare.wav? asked, nothing used yet (one press shows it)");
+    check(op_armed() && !ui.arm_danger && !strcmp(ui.arm_q, "USE SNARE.WAV?") && !sdm_smp[1].hash,
+          "a sample's key: USE SNARE.WAV? asked, nothing used yet (one press shows it)");
     sdu_key(1);
-    check(!op_armed(), "the same key again: YES"); printf("DBG msg=[%s] hash=%llx op=%u\n", ui.msg, (unsigned long long)sdm_smp[1].hash, prj_arm_op);
+    check(!op_armed(), "the same key again: YES");
     {
         sdx_rec rec;
-        int32_t no = (sdx_open(), sdx_find_path("SAMPLES/snare.wav", &rec));
+        int32_t no = (sdx_open(), sdx_find_path("Samples/snare.wav", &rec));
         uint64_t hh;
         const char *hint;
         check(no >= 0 && sdm_sample_of(1, &hh, &hint) && hh == rec.hash && !strcmp(hint, "snare.wav") && slg_has(SEC_ID_SDSMP),
               "USE snare.wav on T2: its hash and hint in the project");
-        check(sdm_sample_path(1, nm2, sizeof nm2) && !strcmp(nm2, "OPTIMIST/SAMPLES/snare.wav"), "... found again by its hash");
+        check(sdm_sample_path(1, nm2, sizeof nm2) && !strcmp(nm2, "Optimist/Samples/snare.wav"), "... found again by its hash");
     }
 #if FELUCCA_SD_STREAM
     check(sst_part_hash[1] == sdm_smp[1].hash && sdm_smp[1].hash, "USE (streaming built): the part's CARD sample given to the plan");
@@ -377,11 +449,11 @@ static void sdcard_tests(void)
 #endif
     turn(EN_K4, 1);
     turn(EN_K4, 1);
-    check(!strcmp(sdu_val(3), "RECENT") && sdm_count() == 1u && !strcmp(sdc_name(0), "snare.wav"), "VIEW RECENT: the one used");
-    f_rename("OPTIMIST/SAMPLES/snare.wav", "OPTIMIST/SAMPLES/drums/snare 2.wav");
+    check(!strcmp(sdu_val(3), "RECENT") && sdm_count() == 1u && !strcmp(sdc_name(0), "SNARE.WAV"), "VIEW RECENT: the one used");
+    f_rename("Optimist/Samples/snare.wav", "Optimist/Samples/drums/snare 2.wav");
     sdm_again();
     sdu_frames(3);
-    check(sdm_sample_path(1, nm2, sizeof nm2) && !strcmp(nm2, "OPTIMIST/SAMPLES/drums/snare 2.wav"),
+    check(sdm_sample_path(1, nm2, sizeof nm2) && !strcmp(nm2, "Optimist/Samples/drums/snare 2.wav"),
           "renamed and moved on the card: found by its hash");
 #if FELUCCA_SD_STREAM && FELUCCA_SLICE
     sdu_slice_use();
@@ -490,7 +562,8 @@ static void sdcard_tests(void)
         f_unlink("FILLER.BIN");
         sdm_again();
         sdu_frames(3);
-        check(!sdm_rec.pend && sdu_proj_ok("FULL ONE", 1, sdu_stage_hash()) && sdu_msg("CARD SAVE FINISHED"),
+        check(!sdm_rec.pend && sdu_proj_ok(sdm_rec.p.name, 1, sdu_stage_hash()) && !strncmp(sdm_rec.p.name, "B/", 2) &&
+              strstr(sdm_rec.p.name, " - full one") && sdu_msg("CARD SAVE FINISHED"),
               "room again, the next mount: the pending save finished");
     }
     /* a pending save of another project than the flash one now (NEW, a LOAD since): dropped, never finished with it */
@@ -498,7 +571,7 @@ static void sdcard_tests(void)
     str_cpy(sdm_rec.p.name, "SOMEONE ELSE", sizeof sdm_rec.p.name);
     sdm_again();
     sdu_frames(3);
-    check(!sdm_rec.pend && sdu_msg("CARD SAVE DROPPED") && !sdu_has("OPTIMIST/PROJECTS/SOMEONE ELSE"),
+    check(!sdm_rec.pend && sdu_msg("CARD SAVE DROPPED") && !sdu_has("Optimist/Projects/SOMEONE ELSE"),
           "a pending save of another project: dropped, nothing written");
     /* ---- the card pulled: said, the flash row back, the card's rows say so */
     C.present = 0;
@@ -569,7 +642,7 @@ static void sdu_unknown_tests(void)
     sdp_hooks.read = rd;
     ok &= r == FR_OK && sdu_proj_ok("FUTURE", 9, 0);
     trk[0].p[P_DEC] = 72;
-    sdm_proj_load_file("OPTIMIST/PROJECTS/FUTURE/FUTURE.OPP", "FUTURE");
+    sdm_proj_load_file("Optimist/Projects/FUTURE/FUTURE.OPP", "FUTURE");
     check(ok && sdu_msg("LOADED") && trk[0].p[P_DEC] == 71,
           "... its file with four records of unknown ids (first, between, last) and two MIDI ones: LOADED, the project as saved");
     for (i = SLG_IDS, ok = 1; i < 256u; i++)
@@ -590,7 +663,7 @@ static void sdu_unknown_tests(void)
     r = sdp_save("BROKEN", 1, sdu_strm_n, sd_blk);
     sdp_hooks.read = rd;
     trk[0].p[P_DEC] = 73;
-    sdm_proj_load_file("OPTIMIST/PROJECTS/BROKEN/BROKEN.OPP", "BROKEN");
+    sdm_proj_load_file("Optimist/Projects/BROKEN/BROKEN.OPP", "BROKEN");
     check(r == FR_OK && !sdu_msg("LOADED") && sdu_msg("LOAD ERROR") && trk[0].p[P_DEC] == 73,
           "... an unknown record running past the payload: LOAD ERROR, the work as it was");
 }
@@ -600,10 +673,12 @@ static void sdcard_cut_tests(void)
     long total, w0, kk;
     int unfinished = 0, wrong = 0, said = 0;
     uint64_t want;
+    char cut_rel[SDL_NAME_MAX + 1u];
     sdu_card();
     sdu_row(PR_PROJECT);
     trk[0].p[P_DEC] = 61;
     (void)sdm_save(SDC_PROJ, "CUT ME", "");
+    str_cpy(cut_rel, sdm_work, sizeof cut_rel);         /* (its place: the bank shown, the first free number) */
     trk[0].p[P_DEC] = 62;
     memcpy(snap, sdu_img, (size_t)sdu_sectors * 512u);
     w0 = C.writes;
@@ -613,7 +688,7 @@ static void sdcard_cut_tests(void)
     sdu_name("CUT ME");
     total = C.writes - w0;
     want = sdu_stage_hash();
-    check(total > 10 && sdu_proj_ok("CUT ME", 2, want), "a save from the UI (uncut): save 2 on the card");
+    check(total > 10 && sdu_proj_ok(cut_rel, 2, want), "a save from the UI (uncut): save 2 on the card");
     for (kk = 0; kk < total; kk++) {
         memcpy(sdu_img, snap, (size_t)sdu_sectors * 512u);
         card_power_on();
@@ -632,7 +707,7 @@ static void sdcard_cut_tests(void)
         (void)sd_mount();
         sdm_st = SDM_OFF;
         sdu_frames(3);
-        if (sdm_rec.pend || !sdu_proj_ok("CUT ME", 2, want))
+        if (sdm_rec.pend || !sdu_proj_ok(cut_rel, 2, want))
             wrong++;
     }
     check(unfinished == 0 && said == (int)total, "a cut at each of the save's block writes: said, the save left pending");
@@ -674,7 +749,7 @@ static void sdu_rec_tests(void)
     sdu_rec_take();
     sdu_rec_service();
     check(sdr_state == RC_DONE && sdu_msg("CARD STOP") && song.rec == rec0, "the same again: the take stopped, closed");
-    check(sdu_has("OPTIMIST/RECORD/REC-0001.WAV"), "... its file: OPTIMIST/RECORD/REC-0001.WAV");
+    check(sdu_has("Optimist/Record/rec-0001.wav"), "... its file: Optimist/Record/rec-0001.wav");
     frames(30);                                          /* (past the gap: a fresh gesture) */
     tap(B_REC);
     tap(B_REC);
@@ -684,7 +759,7 @@ static void sdu_rec_tests(void)
     check(sdr_busy() && sdu_msg("REC-0002"), "a second take: REC-0002");
     sdu_rec_take();
     sdu_rec_service();
-    check(sdr_state == RC_DONE && sdu_has("OPTIMIST/RECORD/REC-0002.WAV"), "... stopped, its file");
+    check(sdr_state == RC_DONE && sdu_has("Optimist/Record/rec-0002.wav"), "... stopped, its file");
 }
 #endif
 
@@ -711,10 +786,14 @@ static void sdu_dx7_tests(void)
         memcpy(v + 118, "VOICE     ", 10);
         v[124] = (uint8_t)('0' + i / 10u), v[125] = (uint8_t)('0' + i % 10u);
     }
-    f_mkdir("OPTIMIST/PRESETS/DX7");
-    check(f_open(&fp, "OPTIMIST/PRESETS/DX7/BANK1.syx", FA_CREATE_ALWAYS | FA_WRITE) == FR_OK &&
+    f_mkdir("Optimist/Presets/DX7");
+    check(f_open(&fp, "Optimist/Presets/DX7/BANK1.syx", FA_CREATE_ALWAYS | FA_WRITE) == FR_OK &&
           f_write(&fp, f, sizeof f, &w) == FR_OK && w == sizeof f && f_close(&fp) == FR_OK, "DX7: a bank written by a computer");
     sdu_row(PR_CPRE);
+    for (i = 0; i < 4u && !sdm_at_top(); i++) {
+        tap(B_HOME);                                /* (from the part's User bank up to Presets/) */
+        sdu_frames(40);                                 /* (apart: not a double HOME) */
+    }
     sdu_op(SDO_LOAD);
     for (i = 0; i < sdm_count() && strcmp(sdc_name(i), "DX7"); i++)
         ;
@@ -757,7 +836,7 @@ static void sdu_settings_tests(void)
     memset(persist_saved.ble_rf, 0x22, sizeof persist_saved.ble_rf);
     memset(persist_saved.ble_bond, 0x33, sizeof persist_saved.ble_bond);
     sdm_backup();
-    check(sdu_has("OPTIMIST/BACKUP/SETTINGS.OPD") && sdu_msg("SETTINGS SAVED TO CARD"), "SETTINGS: BACKUP written to the card");
+    check(sdu_has("Optimist/Backup/settings.opd") && sdu_msg("SETTINGS SAVED TO CARD"), "SETTINGS: BACKUP written to the card");
     persist_saved.lowcut = 7;                            /* (changed since) */
     sdm_restore();
     check(persist_saved.lowcut == 3u && sdu_msg("RESTARTING"), "SETTINGS: RESTORE: the record back (LOWCUT 3 again)");
@@ -795,17 +874,19 @@ static void sdu_factory_tests(void)
     for (e = 0; e < NENGINES && ENGINES[e]->npresets < 3u; e++)
         ;
     check(e < NENGINES, "factory: an engine with 3 presets or more");
-    f_mkdir("OPTIMIST");
-    f_mkdir("OPTIMIST/PRESETS");
-    f_mkdir("OPTIMIST/PRESETS/FACTORY");
-    snprintf(dir, sizeof dir, "OPTIMIST/PRESETS/FACTORY/%s", ENGINES[e]->name);
+    f_mkdir("Optimist");
+    f_mkdir("Optimist/Presets");
+    f_mkdir("Optimist/Presets/Factory");
+    snprintf(dir, sizeof dir, "Optimist/Presets/Factory/%s", sdn_engine(eng_uid(e)));   /* (sd_names.h: "Analog") */
     f_mkdir(dir);
-    sdu_factory_put(dir, "000 TEST ONE.OPS", 0x11);
-    sdu_factory_put(dir, "001 TWO.OPS", 0x22);
+    str_app(dir, "/A", sizeof dir);                     /* (bank A: the presets 0 .. 15, numbered 01 ..) */
+    f_mkdir(dir);
+    sdu_factory_put(dir, "01 - test one.ops", 0x11);
+    sdu_factory_put(dir, "02 - two.ops", 0x22);
     sdm_st = SDM_OFF;                                   /* (a boot: the mount, the index, the names) */
     sdu_frames(3);
     check(!strcmp(preset_name(e, 0), "TEST ONE") && !strcmp(preset_name(e, 1), "TWO") && !strcmp(preset_name(e, 2), "?"),
-          "factory: the names from the card, a missing one ?");
+          "factory: the names from the card (A/01 - test one.ops: TEST ONE), a missing one ?");
     g0 = upc_gives;
     song.sel = 0;
     trk[0].eng_req = trk[0].engine = (uint8_t)e;
@@ -846,10 +927,14 @@ static void sdu_cz_tests(void)
         uint8_t b = (uint8_t)(i * 37u + 5u);
         f[7u + 2u * i] = b & 15u, f[8u + 2u * i] = b >> 4;
     }
-    f_mkdir("OPTIMIST/PRESETS/CZ");
-    check(f_open(&fp, "OPTIMIST/PRESETS/CZ/BRASS1.SYX", FA_CREATE_ALWAYS | FA_WRITE) == FR_OK &&
+    f_mkdir("Optimist/Presets/CZ");
+    check(f_open(&fp, "Optimist/Presets/CZ/BRASS1.SYX", FA_CREATE_ALWAYS | FA_WRITE) == FR_OK &&
           f_write(&fp, f, sizeof f, &w) == FR_OK && w == sizeof f && f_close(&fp) == FR_OK, "CZ: a tone written by a computer");
     sdu_row(PR_CPRE);
+    for (i = 0; i < 4u && !sdm_at_top(); i++) {
+        tap(B_HOME);                                    /* (from the part's User bank up to Presets/) */
+        sdu_frames(40);                                 /* (apart: not a double HOME) */
+    }
     sdu_op(SDO_LOAD);
     for (i = 0; i < sdm_count() && strcmp(sdc_name(i), "CZ"); i++)
         ;
