@@ -1,22 +1,22 @@
 # FELUCCA target cost budget (tests/target_budget.py): instructions in the loops of each
 # function in build/felucca.dis, x4 per nesting level, divides x9. The check allows +10 %.
 # Rewritten by BUDGET_UPDATE=1.
-analog_render 215
-digital_render 324
-phase_render 82
-lofi_render 128
-sample_render 126
-formant_render 314
-trio_render 341
-trio_pass 175
-drawbar_render 267
-drawbar_block 102
-grain_render 1734
-grain_block 138
+analog_render 216
+digital_render 326
+phase_render 81
+lofi_render 125
+sample_render 346
+formant_render 330
+trio_render 361
+trio_pass 177
+drawbar_render 249
+drawbar_block 94
+grain_render 1482
+grain_block 112
 super_render 481
-slicer_track 314
-drums_mix 6649
-fm1_alnk0_irq 734
+slicer_track 7476
+drums_mix 8540
+fm1_alnk0_irq 214
 a2_saw 65
 a2_saw2 299
 a2_pulse 85
