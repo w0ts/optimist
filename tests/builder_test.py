@@ -570,11 +570,19 @@ check("reverb: every algorithm's cost measured (costs.json: ROOM off, PLATE, FDN
 # every registry item (the backports' too) has a measured cost for each value it can be set to besides its default: an
 # entry in costs.json "deltas", all zeros when it was measured and costs nothing (a missing entry is "not measured",
 # which the builder shows as free). Fix: python3 tools/builder/measure_costs.py --missing (make costs).
+# A value this flavour refuses on the defaults (the classic build: USB_HOST, the release's USB host) cannot be measured
+# here: not counted, and named (the release's own costs measure it).
 def unmeasured_items(costs):
-    out = []
+    out, refused = [], []
+    d = C.defaults()
     for k, it in items.items():
         vals = [c[0] for c in it.choices] if it.is_choice else [0, 1]
-        out += [f"{k}={v}" for v in vals if v != it.default and str(v) not in costs.get("deltas", {}).get(k, {})]
+        for v in vals:
+            if v == it.default or str(v) in costs.get("deltas", {}).get(k, {}):
+                continue
+            (refused if C.classic() and C.validate(dict(d, **{k: v}))[0] else out).append(f"{k}={v}")
+    if refused:
+        print(f"  not built by this flavour (classic), so not measured here: {', '.join(refused)}")
     return out
 
 
@@ -963,9 +971,14 @@ if not _have:
 #    pool); off, it is static pool again (mots-config: the estimate says +291 KB, a build that would not fit: what the arena is for).
 #    NOT_A_FEATURE (core.py: COMPILER, CANVAS_STRIP, INS_RAM) are no features switched off but other ways to build the
 #    same firmware, measured both ways (CANVAS_STRIP 1 costs +14,880 B of pool against its default 2): not held to this
-_MONO_MOVES = ("REV_POOL", "SECTIONS", "ARENA")
+#    UNDO_HISTORY moves memory as well: on (with the section log, STG_LEND) the STORAGE reserve holds the project buffers'
+#    automation stores and the extras' read buffer; off they are pool again (mots-config, real builds on gpufarm at 76bfe3a1:
+#    pool +16,604 B in the release, +16,600 B classic)
+_MONO_MOVES = ("REV_POOL", "SECTIONS", "ARENA", "UNDO_HISTORY")
 _MONO_ALLOW = {"DIV_ORDER": "flash", "FX_DJF": "flash", "FX_DELAY": "pool", "XDLY_LEN": "pool", "DRUMS": "pool"}
-_MONO_NOISE = {"flash": K.ALIGN_NOISE, "ram": 32, "pool": 0}
+# (the pool moves by its 4-byte alignment too: the classic costs measured at 76bfe3a1, BACKUP 0 pool +4 B, CPU_GUARD 1
+# pool +4 B, ED_LIVE 0 + BACKUP 0 pool +4 B: real builds, so an item off can show pool +4 there)
+_MONO_NOISE = {"flash": K.ALIGN_NOISE, "ram": 32, "pool": 4}
 _mono_bad = []
 if costs:
     for _pn in (C.REFERENCE_PROFILE, None):

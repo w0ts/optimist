@@ -72,7 +72,7 @@ def command(python, release=None, app=None):
 
 def slot_app(bdir):
     """-> (app directory, its build directory) for a build that is to run beside others (measure_costs.py --jobs): a copy
-    of the app directory next to it (fm1base/optimist-<bdir's name>, removed by the caller), made again at every build; the
+    of the app directory next to it (fm1base/optimist-<bdir's name>, removed by build once its outputs are collected); the
     default build directory (ROOT/build) and a missing bdir build in the app itself"""
     if bdir is None or Path(bdir).resolve() == (ROOT / "build").resolve():
         return APP, OUT
@@ -354,6 +354,8 @@ def build(cfgfile, bdir, python, run, release=None, name_stem="optimist", parall
         elif (out_dir / "sizes.json").is_file():
             Path(bdir).mkdir(parents=True, exist_ok=True)
             shutil.copy(out_dir / "sizes.json", Path(bdir) / "sizes.json")
+        if app != APP:                                   # (slot_app's copy, its outputs collected into bdir: removed, so no
+            shutil.rmtree(app, ignore_errors=True)       # fm1base/optimist-<name> trees stay behind after make costs-all)
     return rc, out
 
 
