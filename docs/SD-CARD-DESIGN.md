@@ -723,11 +723,22 @@ every build with SDCARD (`make build`, the builder menu's Build, `optimist.py bu
 writes `optimist-sd-card.zip` beside its package (`tools/builder/configure.py sd_card_zip`: build/, and `package`'s
 `--out`; the build-OK panel and the CLI say where; the cloud build attaches `<stem>-sd-card.zip` and links it); `make
 sd-zip` makes it alone (build/optimist-sd-card.zip). It holds everything whatever the ticks: every factory preset of
-every engine, every sample set (904,161 B, 2026-11-04). Cached by its inputs' SHA-256 (build/sd-zip-cache/: the
+every engine, every sample set (930,855 B, 2026-11-04). Cached by its inputs' SHA-256 (build/sd-zip-cache/: the
 firmware's sources, the host headers, the generators, the samples): about 3 s made, 0.05 s from the cache (measured
 on a Mac). Unzipped at the card's root; its `readme.txt` says what is where.
-- At a mount the names are read once (`sd_mode.c sdm_factory_scan`): the PRESETS lists, the console and
-  the web editor show them; a missing file "?".
+- **Every sound flash mode offers as a preset is a factory preset file** (the user, 2026-11-04: "ALL", "they should just
+  be presets in sd card"): after an engine's own presets, numbered on in the order flash mode lists them, the sounds of
+  its collections: FM6's five packs (KEYS, BASS, BELLS, PADS, 80S: 80 voices, `eng_fm6.c FM6_PACK`), each a fresh
+  track's sound with the voice (as `nbank.c nb_load` sets one), so FM6 has 83 (`FM6/A/04 - stage ep.ops` .. `F/03`). A
+  file carries the voice's own bytes (`upreset.c up_card_take`: the record, then `fm6_pack`'s 128 B), so a build
+  without the packs plays it the same (`tests/sd_factory_test.c` with the zip's files, no pack built). On the card
+  there is no pack: SD card mode lists no pack voices in FM6's collection (`nbank.c`: the R bank received over MIDI
+  only). Not on the card: the CZ collection (U01..: the user's own flash store), the R bank (received, RAM), the
+  drum kits (the factory kits are the drum engines' own, compiled in every build: a kit file is a set of references
+  into them, `drum_kits.c ukit_card_take`, nothing a file would carry). 368 presets in all (2026-11-04).
+- At a mount the names are read once (`sd_mode.c sdm_factory_scan`): every built engine's banks, A, B .. up to the
+  first not there, its count the last numbered file's place + 1 (core.h `ENG_NPRE`, the table's count until a card is
+  read), then the names; the PRESETS lists (made again), the console and the web editor show them; a missing file "?".
 - An engine picked, a preset chosen, a fresh track: the engine's defaults at once (the interrupts may be off there), the
   preset's file on the main loop's next pass (`sdm_factory_ask` / `sdm_factory_poll`: loaded as a user preset loads, the
   preset's place kept). A project's load or a user preset over it drops the ask. No card: the defaults (*NO SD CARD:
