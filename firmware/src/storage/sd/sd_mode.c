@@ -662,7 +662,7 @@ static void sdm_strip(char *out, uint32_t cap, const char *name, const char *ext
     str_cpy(out, p, n + 1u < cap ? n + 1u : cap);    /* (the extension off first, then cut to cap) */
 }
 /* a kit saved over one of its name (the same number) whose instruments changed: the old file (another " (...)") goes */
-static void sdm_kit_drop_old(const char *dir, uint32_t nn, const char *keep)
+static void sdm_drop_old(const char *dir, uint32_t nn, const char *ext, const char *keep)
 {
     DIR d;
     FILINFO fi;
@@ -671,7 +671,7 @@ static void sdm_kit_drop_old(const char *dir, uint32_t nn, const char *keep)
     if (f_opendir(&d, dir) != FR_OK)
         return;
     while (f_readdir(&d, &fi) == FR_OK && fi.fname[0]) {
-        if (sdl_hidden(&fi) || sdb_bank_no(fi.fname) != nn || !sdl_ends(fi.fname, ".opk") || !sdl_cmp(fi.fname, keep))
+        if (sdl_hidden(&fi) || sdb_bank_no(fi.fname) != nn || !sdl_ends(fi.fname, ext) || !sdl_cmp(fi.fname, keep))
             continue;
         n = sdl_cat(p, sdl_cat(p, 0, sizeof p, dir), sizeof p, "/");
         if (sdl_cat(p, n, sizeof p, fi.fname) < sizeof p)
@@ -699,15 +699,16 @@ static uint64_t sdm_same_id(const char *dir, uint32_t nn, const char *ext)
     (void)f_closedir(&d);
     return id;
 }
-/* bank folder dir: the numbers in use (bit nn - 1) and the number of the file named name (without its number and
- * ext, any case), 0 none */
-static uint32_t sdm_bank_scan(const char *dir, const char *name, const char *ext, uint32_t *used)
+/* bank folder dir: the numbers in use (bit nn - 1) and the number of the first file named name (without its number and
+ * ext, any case), 0 none; *hit: number nk holds that name */
+static uint32_t sdm_bank_scan(const char *dir, const char *name, const char *ext, uint32_t *used, uint32_t nk, int *hit)
 {
     DIR d;
     FILINFO fi;
     char b[SDL_NAME_MAX + 1u];
     uint32_t nn, same = 0;
     *used = 0;
+    *hit = 0;
     if (f_opendir(&d, dir) != FR_OK)
         return 0;
     while (f_readdir(&d, &fi) == FR_OK && fi.fname[0]) {
@@ -715,8 +716,10 @@ static uint32_t sdm_bank_scan(const char *dir, const char *name, const char *ext
             continue;
         *used |= 1u << (nn - 1u);
         sdm_strip(b, sizeof b, fi.fname, ext);
-        if (!same && name && !sdl_cmp(b, name))
-            same = nn;
+        if (name && !sdl_cmp(b, name)) {
+            same = same ? same : nn;
+            *hit |= nn == nk;
+        }
     }
     (void)f_closedir(&d);
     return same;
@@ -990,20 +993,24 @@ static void sdm_work_of(char *out, uint32_t cap)    /* the open project's place,
     else
         sec_name(0, out);
 }
-/* where a SAVE named name of the projects', the presets' or the kits' list goes (the user, 2026-11-04: a free number in
- * the bank browsed): the bank's folder (made when missing) into dir, the number into *nn: the bank's file of that name
- * (*same 1), else the slot SAVE was asked on when it is free, else the bank's lowest free number. The bank: a project's
- * own (the work's, saved again by its name), else the bank shown, else the list's last; a preset's in its engine's
- * User folder (Presets/User/<Engine>/<the letter shown>), a kit's in Kits/User/<the letter shown>. 0 ok, 1 the bank
- * full, -1 an error */
-static int sdm_save_place(uint32_t list, const char *name, char *dir, uint32_t cap, uint32_t *nn, int *same)
+/* where a SAVE named name of the projects', the presets' or the kits' list goes: the bank's folder (made when missing)
+ * into dir, the number into *nn. A SAVE asked on slot k of a bank shown (a white key, the ITEM; the user, 2026-11-05:
+ * "it always saves on slot 1"): that slot, whatever the bank holds under that name: free, its number; used, reached
+ * only past its question (op_sdcard.c sdc_ask, "SAVE <it>?"): over it (*same 1: its own name; *over 1: another's, gone
+ * once this one is written). No slot asked (a project's SAVE before a LOAD), or one used in a bank not the save's (a
+ * Factory bank shown): the work's own place saved again by its name, else the bank's file of that name (*same 1), else
+ * the bank's lowest free number. The bank: the work's, else the bank shown, else the list's last; a preset's in its
+ * engine's User folder (Presets/User/<Engine>/<the letter shown>), a kit's in Kits/User/<the letter shown>. 0 ok, 1 the
+ * bank full, -1 an error */
+static int sdm_save_place(uint32_t list, const char *name, char *dir, uint32_t cap, uint32_t *nn, int *same, int *over)
 {
     const char *ext = list == SDC_PRE ? ".ops" : list == SDC_KIT ? ".opk" : "";
     char wn[SDL_NAME_MAX + 1u];
-    uint32_t n, used, shown;
+    uint32_t n, used, shown, named;
     int32_t bk = sdm_bank_shown();
-    *same = 0;
-    if (list == SDC_PROJ && sdm_work[0] && sdb_base(sdm_work) != sdm_work) {
+    int asked = sdm.list == list && bk >= 0 && sdm_save_k < SDB_KEYS, hit;
+    *same = *over = 0;
+    if (!asked && list == SDC_PROJ && sdm_work[0] && sdb_base(sdm_work) != sdm_work) {
         sdm_rel_name(wn, sizeof wn, sdm_work);       /* (the open project saved again by its name: its own place) */
         if (!sdl_cmp(wn, name) && (bk = sdm_bank_letter_rel(sdm_work)) >= 0 && sdb_bank_no(sdb_base(sdm_work))) {
             *nn = sdb_bank_no(sdb_base(sdm_work));
@@ -1021,12 +1028,17 @@ static int sdm_save_place(uint32_t list, const char *name, char *dir, uint32_t c
     if (n >= cap || sdl_mkdir(dir) != FR_OK)
         return -1;
     shown = !sdl_cmp(sdm.b.root, dir) && sdm.b.view == SDB_BANK;
-    if ((*nn = sdm_bank_scan(dir, name, ext, &used)) != 0)
-        *same = 1;
-    else if (shown && sdm_save_k < SDB_KEYS && !(used >> sdm_save_k & 1u))
+    named = sdm_bank_scan(dir, name, ext, &used, sdm_save_k + 1u, &hit);
+    if (asked && (shown || !(used >> sdm_save_k & 1u))) {
         *nn = sdm_save_k + 1u;
-    else if (!(*nn = sdm_first_free(used)))
+        *same = hit;
+        *over = !hit && (used >> sdm_save_k & 1u);
+    } else if (named) {
+        *nn = named;
+        *same = 1;
+    } else if (!(*nn = sdm_first_free(used))) {
         return 1;
+    }
     return 0;
 }
 
@@ -1372,16 +1384,31 @@ static void sdm_proj_load_file(const char *path, const char *name)
 }
 /* a project saved to the card by name (as typed): into its place (sdm_save_place: Projects/<bank>/<nn> - <name>,
  * lowercase); FR_DENIED the card full, FR_EXIST the bank full (nothing written, said), else FatFs' */
+static FRESULT sdm_rmdir(char *path, uint32_t n, uint32_t depth);
+/* the bank folder in sdm.path (n bytes): its folder numbered nn but keep, appended (the path's new length), 0 none */
+static uint32_t sdm_bank_other(uint32_t n, uint32_t nn, const char *keep)
+{
+    DIR d;
+    FILINFO fi;
+    uint32_t m = 0;
+    if (f_opendir(&d, sdm.path) != FR_OK)
+        return 0;
+    while (!m && f_readdir(&d, &fi) == FR_OK && fi.fname[0])
+        if (!sdl_hidden(&fi) && (fi.fattrib & AM_DIR) && sdb_bank_no(fi.fname) == nn && sdl_cmp(fi.fname, keep))
+            m = sdl_cat(sdm.path, sdl_cat(sdm.path, n, sizeof sdm.path, "/"), sizeof sdm.path, fi.fname);
+    (void)f_closedir(&d);
+    return m < sizeof sdm.path ? m : 0u;
+}
 static FRESULT sdm_proj_save(const char *name)
 {
     sdp_head h;
     uint32_t number = 1, nn, n;
-    int same, rc;
+    int same, over, rc;
     FRESULT r;
     char lc[SDL_NAME_MAX + 1u], rel[SDL_NAME_MAX + 8u];
     str_cpy(lc, name, sizeof lc);
     sdl_lower(lc);
-    rc = sdm_save_place(SDC_PROJ, name, sdm.path, sizeof sdm.path, &nn, &same);
+    rc = sdm_save_place(SDC_PROJ, name, sdm.path, sizeof sdm.path, &nn, &same, &over);
     if (rc) {
         ui_message(rc > 0 ? "BANK FULL" : "CARD SAVE FAILED");
         return rc > 0 ? FR_EXIST : FR_INT_ERR;
@@ -1400,6 +1427,14 @@ static FRESULT sdm_proj_save(const char *name)
         number = h.number + 1u;                     /* (the save counter: the card's copy's + 1) */
     r = sdm_was(sdp_save(rel, number, sdm_stage_len(), sd_blk));
     str_cpy(sdm_work, rel, sizeof sdm_work);        /* (a pending one too: sdp_boot finishes it there) */
+    if (r == FR_OK && over) {                       /* (the project its slot held, asked over: gone, this one whole) */
+        n = sdl_path(sdm.path, sizeof sdm.path, SDL_PROJECTS, 0);
+        rel[1] = 0;
+        n = n ? sdl_cat(sdm.path, sdl_cat(sdm.path, n, sizeof sdm.path, "/"), sizeof sdm.path, rel) : sizeof sdm.path;
+        rel[1] = '/';
+        if (n < sizeof sdm.path && (n = sdm_bank_other(n, nn, rel + 2)) != 0)
+            (void)sdm_was(sdm_rmdir(sdm.path, n, 1u));
+    }
     ui.toast_next = 1;
     ui_message(r == FR_OK ? "SAVED TO CARD" : r == FR_DENIED ? "CARD FULL: IN FLASH" : "CARD SAVE FAILED: IN FLASH");
     ui.toast_next = 0;
@@ -1624,9 +1659,9 @@ static void sdm_do(uint32_t op, uint32_t k)
 }
 
 /* NAME's done (op_name.c) for list `list`: 1 = stay on NAME (a name the card cannot take, another file's) */
-static int sdm_save(uint32_t list, const char *name, const char *was)
+static int sdm_save_named(uint32_t list, const char *name, const char *was)
 {
-    uint32_t n, dn = 0, same_kit = 0;
+    uint32_t n, dn = 0, drop = 0;
     uint64_t id = 0;
     FRESULT r;
     if (!sdm_ready()) {
@@ -1648,7 +1683,7 @@ static int sdm_save(uint32_t list, const char *name, const char *was)
         {   /* Presets/User/<Engine>/<bank>/<nn> - <name>.ops, Kits/User/<bank>/<nn> - <name>.opk */
             char lc[SDL_NAME_MAX + 1u];
             uint32_t nn, m;
-            int same, rc = sdm_save_place(list, name, sdm.path, sizeof sdm.path, &nn, &same);
+            int same, over, rc = sdm_save_place(list, name, sdm.path, sizeof sdm.path, &nn, &same, &over);
             if (rc > 0 || (same && sdl_cmp(name, was))) {
                 ui_message(rc > 0 ? "BANK FULL" : "NAME TAKEN");   /* (a preset or a kit has no versions: only the one
                                                                     * asked over, its own name) */
@@ -1667,7 +1702,7 @@ static int sdm_save(uint32_t list, const char *name, const char *was)
             }
             m = m < sizeof sdm.path ? sdl_cat(sdm.path, m, sizeof sdm.path, list == SDC_PRE ? ".ops" : ".opk") : m;
             r = m < sizeof sdm.path ? FR_OK : FR_INVALID_NAME;
-            same_kit = list == SDC_KIT && same ? nn : 0u;
+            drop = over || (list == SDC_KIT && same) ? nn : 0u;   /* (a kit's name carries its instruments) */
             if (same && dn < sizeof sdm.path) {      /* saved over its own name: its id kept (the old file's) */
                 sdm.path[dn] = 0;
                 id = sdm_same_id(sdm.path, nn, list == SDC_PRE ? ".ops" : ".opk");
@@ -1682,9 +1717,9 @@ static int sdm_save(uint32_t list, const char *name, const char *was)
 #endif
         if (r == FR_OK)
             r = n ? sdm_was(sdm_small_put_id(sdm.path, list == SDC_PRE ? "OPPR" : "OPKT", sd_blk, n, id)) : FR_INT_ERR;
-        if (r == FR_OK && same_kit && dn < sizeof sdm.path) {                /* (saved over its name: an old file of other instruments goes) */
+        if (r == FR_OK && drop && dn < sizeof sdm.path) {   /* (the number's old file: another name, other instruments) */
             sdm.path[dn] = 0;
-            sdm_kit_drop_old(sdm.path, same_kit, sdm.path + dn + 1u);
+            sdm_drop_old(sdm.path, drop, list == SDC_PRE ? ".ops" : ".opk", sdm.path + dn + 1u);
             sdm.path[dn] = '/';
         }
         if (r == FR_OK) {
@@ -1699,6 +1734,13 @@ static int sdm_save(uint32_t list, const char *name, const char *was)
         return r == FR_OK ? 0 : -1;
     }
     return 0;
+}
+static int sdm_save(uint32_t list, const char *name, const char *was)
+{
+    int r = sdm_save_named(list, name, was);
+    if (r != 1)
+        sdm_save_k = 0xFFu;                          /* (the slot asked: this save's; NAME still open keeps it) */
+    return r;
 }
 
 /* ---- SYSTEM > SD CARD (op_project.c) */

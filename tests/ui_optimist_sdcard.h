@@ -164,6 +164,78 @@ static void sdu_slice_use(void)
 }
 #endif
 
+/* a file or folder of dir named "<prefix>..." (a kit's name goes on with its instruments) */
+static int sdu_in_bank(const char *dir, const char *prefix)
+{
+    DIR d;
+    FILINFO fi;
+    int got = 0;
+    if (f_opendir(&d, dir) != FR_OK)
+        return 0;
+    while (!got && f_readdir(&d, &fi) == FR_OK && fi.fname[0])
+        got = !strncmp(fi.fname, prefix, strlen(prefix));
+    f_closedir(&d);
+    return got;
+}
+/* SAVE on a slot saves on that slot (the user, 2026-11-05, on the FM-1: "it always saves on slot 1, whatever the white
+ * note button I click or the card item says": the work's own name, the name page's prefill, took the work's number),
+ * in bank K of each list: the key, the ITEM, the name the bank already has, a used slot past its question */
+static void sdu_slots_of(uint32_t kind, const char *dir, const char *what)
+{
+    char m[120];
+    uint32_t i;
+    sdu_row(kind);
+    sdu_black(10);
+    check(!strcmp(sdu_val(0), "K") && !sdu_used(), "slots: bank K, empty");
+    sdu_op(SDO_SAVE);
+    sdu_key(4);
+    check(name_on(), "slots: key 5 on a free slot: NAME");
+    sdu_name("SLOT FIVE");
+    sdu_frames(1);
+    snprintf(m, sizeof m, "%s: key 5 in an empty bank: 05 - slot five, no other", what);
+    check(sdu_in_bank(dir, "05 - slot five") && sdu_used() == 1u && !strcmp(sdc_name(4), "SLOT FIVE"), m);
+    sdu_op(SDO_SAVE);
+    sdu_key(5);
+    sdu_name("SLOT FIVE");
+    sdu_frames(1);
+    snprintf(m, sizeof m, "%s: key 6, the same name: 06 - slot five, 05 kept", what);
+    check(sdu_in_bank(dir, "06 - slot five") && sdu_in_bank(dir, "05 - slot five") && sdu_used() == 2u, m);
+    sdu_op(SDO_SAVE);
+    for (i = 0; i < 16u && sdc.item != 7u; i++)
+        turn(EN_K3, sdc.item < 7u ? 1 : -1);            /* (the ITEM card, no key) */
+    tap(B_SAVE);
+    check(name_on() && sdc.item == 7u, "slots: the ITEM on free slot 8, SAVE: NAME");
+    sdu_name("BY ITEM");
+    sdu_frames(1);
+    snprintf(m, sizeof m, "%s: the ITEM on slot 8: 08 - by item", what);
+    check(sdu_in_bank(dir, "08 - by item"), m);
+    sdu_op(SDO_SAVE);
+    sdu_key(4);
+    check(op_armed() && ui.arm_danger && !strcmp(ui.arm_q, "SAVE SLOT FIVE?"), "slots: key 5, used: its question, red");
+    tap(B_SAVE);
+    check(name_on() && !strcmp(nm.s, "SLOT FIVE"), "slots: YES: NAME, prefilled");
+    sdu_name("NEW FIVE");
+    sdu_frames(1);
+    snprintf(m, sizeof m, "%s: over slot 5 under another name: 05 - new five, the old one gone", what);
+    check(sdu_in_bank(dir, "05 - new five") && !sdu_in_bank(dir, "05 - slot five") && sdu_used() == 3u, m);
+}
+static void sdu_slots_tests(void)
+{
+    char dir[96];
+    song.sel = 0;
+    sdu_slots_of(PR_PROJECT, "Optimist/Projects/K", "PROJECT");
+    check(sdu_proj_ok("K/05 - new five", 0, 0), "PROJECT: over slot 5: whole");
+    sdu_black(1);                                       /* (bank B again, as the tests after it found it) */
+    snprintf(dir, sizeof dir, "Optimist/Presets/User/%s/K", sdn_engine(eng_uid(trk[0].eng_req)));
+    sdu_slots_of(PR_CPRE, dir, "PRESETS");
+    sdu_black(0);
+#if FELUCCA_DRUM_KITS
+    sdu_slots_of(PR_CKIT, "Optimist/Kits/User/K", "KITS");
+    sdu_black(0);
+#endif
+    sdu_row(PR_PROJECT);
+}
+
 static void sdcard_tests(void)
 {
     uint32_t i, r;
@@ -375,7 +447,14 @@ static void sdcard_tests(void)
     sdu_op(SDO_SAVE);
     sdu_key(1);
     sdu_name("LEAD");
-    check(name_on() && sdu_msg("NAME TAKEN"), "SAVE a new preset as LEAD: NAME TAKEN (its bank has one), NAME stays");
+    snprintf(nm2, sizeof nm2, "Optimist/Presets/User/%s/A/02 - lead.ops", sdn_engine(eng_uid(trk[0].eng_req)));
+    check(!name_on() && sdu_has(nm2), "SAVE on slot 2 (free) as LEAD, its bank has one: the slot's number, a copy");
+    f_unlink(nm2);
+    sdu_frames(1);
+    sdc.stale = 1;
+    sdu_frames(1);
+    sdu_op(SDO_SAVE);
+    sdu_key(1);
     sdu_name("BASS");
     snprintf(nm2, sizeof nm2, "Optimist/Presets/User/%s/A/02 - bass.ops", sdn_engine(eng_uid(trk[0].eng_req)));
     check(!name_on() && sdu_has(nm2), "SAVE on slot 2 (free): 02 - bass.ops");
@@ -522,6 +601,7 @@ static void sdcard_tests(void)
         memset(&sdm_ref[song.sel], 0, sizeof sdm_ref[song.sel]);
     }
 #endif
+    sdu_slots_tests();
     /* ---- SAMPLES: folders, USE by hash, RECENT */
     sdu_row(PR_CSMP);
     check(sdm_count() == 2u && sdc_is_dir(0) && !strcmp(sdc_name(0), "DRUMS") && !strcmp(sdc_name(1), "SNARE.WAV"),
@@ -804,11 +884,13 @@ static void sdcard_cut_tests(void)
     trk[0].p[P_DEC] = 61;
     (void)sdm_save(SDC_PROJ, "CUT ME", "");
     str_cpy(cut_rel, sdm_work, sizeof cut_rel);         /* (its place: the bank shown, the first free number) */
+    sdc.stale = 1;                                      /* (the list read again: it shows the save) */
+    sdu_frames(2);
     trk[0].p[P_DEC] = 62;
     memcpy(snap, sdu_img, (size_t)sdu_sectors * 512u);
     w0 = C.writes;
     sdu_op(SDO_SAVE);
-    sdu_key(0);
+    sdu_key(sdb_bank_no(sdb_base(cut_rel)) - 1u);       /* (its own slot) */
     tap(B_SAVE);
     sdu_name("CUT ME");
     total = C.writes - w0;
@@ -821,7 +903,7 @@ static void sdcard_cut_tests(void)
         sdu_row(PR_PROJECT);
         C.cut_at = C.writes + kk;
         sdu_op(SDO_SAVE);
-        sdu_key(0);
+        sdu_key(sdb_bank_no(sdb_base(cut_rel)) - 1u);
         tap(B_SAVE);
         sdu_name("CUT ME");
         said += sdu_msg("CARD SAVE FAILED") || sdu_msg("SD CARD GONE");   /* (the cut card: gone, its next pass says) */
