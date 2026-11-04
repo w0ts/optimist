@@ -7,7 +7,7 @@
 // tools/builder/web_api.py). The cloud build (where from, the request, its progress): cloud.js. opts.app: the Mirror
 // app's page (web/builder/app.html): the Build card first, without the files and the keys. docs/WEB.md.
 import {
-  MAIN_REF, PYODIDE_VERSION, TURNSTILE_SITEKEY, COSTS, costOf, sramParts, sramSplit, BUDGETS, budgetsOf, SORTS, ARENA_TIP, arenaText, barModel, fmtK, built, dimmedChoices, cloudConfigUrl, commitOf, latestOf, pickRef, refUrl, repoOf, defaultPreset, defaults, deltaOf, fileName, fmt,
+  MAIN_REF, PYODIDE_VERSION, TURNSTILE_SITEKEY, COSTS, costOf, sramParts, BUDGETS, budgetsOf, SORTS, ARENA_TIP, arenaText, barModel, fmtK, built, dimmedChoices, cloudConfigUrl, commitOf, latestOf, pickRef, refUrl, repoOf, defaultPreset, defaults, deltaOf, fileName, fmt,
   changeText, gaugeModel, hasInfo, indexRegistry, kDelta, messagesOf, offFits, oneLine, overflowLines, presets, pyodideBase, savedOf, treeOf,
 } from "./logic.js";
 import { mountCloud } from "./cloud.js";
@@ -371,9 +371,8 @@ function itemRow(key, hasKids) {
   const deltas = v ? deltaOf(key, v.savings, over) : [];
   for (const [r, n] of deltas) {
     const hot = (over[r] || 0) > 0 && n > 0;
-    const split = r === "ram" ? sramSplit((v.savings || {})[key]) : [];   /* (the ram figure is the SRAM: its pool and ram code shown, never hidden) */
-    tags.append(el("span", { class: "cost" + (hot ? " hot" : "") + (split.length ? " split" : "") + (r === S.sortBy ? " sortby" : ""), title: split.length ? "SRAM = ram + pool + ram code" : "",
-      text: `${r} ${kDelta(n)}` + (split.length ? ` (${split.map(([nm, b]) => `${nm} ${kDelta(b)}`).join(", ")})` : "") }));
+    /* (one ram figure per item, the SRAM it costs: its parts only under the SRAM gauge, the user 2026-10-29 and 2026-11-04) */
+    tags.append(el("span", { class: "cost" + (hot ? " hot" : "") + (r === S.sortBy ? " sortby" : ""), text: `${r} ${kDelta(n)}` }));
   }
   const an = v && v.arena_item ? v.arena_item[key] : undefined;
   if (an !== undefined && arenaText(an)) tags.append(el("span", { class: "arena" + (S.sortBy === "arena" ? " sortby" : ""), title: ARENA_TIP, text: `arena ${arenaText(an)}` }));
