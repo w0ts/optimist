@@ -29,10 +29,10 @@ static void mixer_walk_tests(void)
     ui.force = 1;
     frame();
     check(mx_row() == MXR_T1 && mxd.first == MXR_T1 && px_in(6, mx_row_y(MXR_T1) + 3u, 16, 14, C_WHITE) && MXL_H == (OP_FOOT ? 35 : 40) &&
-              px_in(0, mx_row_y(MXR_T1) + 2u, 4, 30, trk_col(0)) && px_in(0, mx_row_y(MXR_DR) + 2u, 4, 30, C_GRAY) &&
-              !px_in(0, mx_row_y(MXR_DR) + 2u, 4, 30, trk_col(TRK_DRUM)) && !px_in(0, mx_row_y(MXR_DR) + (uint32_t)MXL_H + 2u, 4, 1, lane_col(0)),
+              px_in(0, mx_row_y(MXR_T1) + 2u, MXL_BW, 30, trk_col(0)) && !px_in(0, mx_row_y(MXR_DR) + 2u, MXL_BW, 30, C_GRAY) &&
+              !px_in(0, mx_row_y(MXR_DR) + 2u, MXL_BW, 30, trk_col(TRK_DRUM)) && !px_in(0, mx_row_y(MXR_DR) + (uint32_t)MXL_H + 2u, 4, 1, lane_col(0)),
           "the mixer opens on T1 T2 T3 DR, four rows of 40 px (35 over the help band; MASTER above, out of view); the selected "
-          "row's chip in its colour, the others grey");
+          "row's bar in its colour, the others none");
     for (i = 1; i < MXR_LN - MXR_T1; i++) {             /* ALGORITHM down: T2 T3 DR, then the 16 lanes */
         turn(EN_ALGO, 1);
         ok &= mx_row() == MXR_T1 + i;
@@ -65,9 +65,9 @@ static void mixer_walk_tests(void)
     ui.force = 1;
     frame();
     check(mxd.first == MXR_LANE0 && mxd.last == MXR_LN && mx_row_x(MXR_LN - 1u) == 0u && mx_row_y(MXR_LN - 1u) > mx_row_y(MXR_LN - 2u) &&
-              px_in(0, mx_row_y(MXR_LN - 1u), 240, 1, ACC_UI ? C_HI : lane_col(DRUM_LANES - 1u)) &&
-              !px_in(0, mx_row_y(MXR_LN - 1u) + 2u, 240, 3, col_shade(ACC_UI ? C_HI : lane_col(DRUM_LANES - 1u), 3u)),
-          "past DR the view is every drum lane, one column (2026-10-18); the selected lane framed in its colour, no tinted ground");
+              px_in(0, mx_row_y(MXR_LN - 1u) + 2u, MXL_BW, 8, ACC_UI ? C_HI : lane_col(DRUM_LANES - 1u)) &&
+              !px_in(MXL_BW, mx_row_y(MXR_LN - 1u), 236, 1, ACC_UI ? C_HI : lane_col(DRUM_LANES - 1u)),
+          "past DR the view is every drum lane, one column (2026-10-18); the selected lane: its bar, no outline");
     ppm("opt-mixer-h-lane16");
     for (ok = 1, i = MXR_LANE0 + 1u; i < MXR_LN; i++)
         ok &= mx_row_x(i) == 0u && mx_row_y(i) > mx_row_y(i - 1u);
@@ -482,10 +482,10 @@ static void mixer_rows_tests(void)
     ui.force = 1;
     frame();
     y = mx_row_y(MXR_DR);
-    check(px_in(MXL_VX, y + MXL_SY, 11, MXL_SH, lvl_col(trk_col(TRK_DRUM), 2u)), "DR's sequence: every lane merged (the snare's step 1, SOFT)");
-    check(px_in(MXL_VX + MX_STEP_X(2, MXL_SP), y + MXL_SY, 11, MXL_SH, lvl_col(trk_col(TRK_DRUM), LV_GHOST)) &&
-          px_in(MXL_VX + MX_STEP_X(3, MXL_SP), y + MXL_SY, 11, MXL_SH, lvl_col(trk_col(TRK_DRUM), LV_HARD)), "DR's sequence: shaded by its strongest hit");
-    check(!px_in(MXL_VX + MX_STEP_X(1, MXL_SP), y + MXL_SY, 11, MXL_SH, trk_col(TRK_DRUM)), "DR's sequence: an accent alone is no hit");
+    check(px_in(MXL_SX, y + MXL_SY, 12, MXL_SH, lvl_col(trk_col(TRK_DRUM), 2u)), "DR's sequence: every lane merged (the snare's step 1, SOFT)");
+    check(px_in(MXL_SX + MX_STEP_X(2, MXC_SP), y + MXL_SY, 12, MXL_SH, lvl_col(trk_col(TRK_DRUM), LV_GHOST)) &&
+          px_in(MXL_SX + MX_STEP_X(3, MXC_SP), y + MXL_SY, 12, MXL_SH, lvl_col(trk_col(TRK_DRUM), LV_HARD)), "DR's sequence: shaded by its strongest hit");
+    check(!px_in(MXL_SX + MX_STEP_X(1, MXC_SP), y + MXL_SY, 12, MXL_SH, trk_col(TRK_DRUM)), "DR's sequence: an accent alone is no hit");
     turn(EN_ALGO, 3);
     frame();
     y = mx_row_y(MXR_LANE0 + 2u);
@@ -509,7 +509,7 @@ static void mixer_rows_tests(void)
         for (i = 0; i < 8u; i++) {
             mt.ui[0] = 12000;                           /* (the meters' main-loop side is not in the host: a peak) */
             frame();
-            seen |= (uint32_t)px_in(MXL_VX, mx_row_y(MXR_T1) + MXL_VY, 40, MXL_VH, C_OK);
+            seen |= (uint32_t)px_in(MXL_SX, mx_row_y(MXR_T1) + MXL_VY, 40, MXL_VH, C_OK);
         }
         frames(30);
         check(seen, "T1's row: its VU meter fills from the left while it plays");
@@ -520,16 +520,16 @@ static void mixer_rows_tests(void)
             mt.ui[0] = 8192;                            /* -12 dBFS: lights up to the -12 dB tick */
             frame();
         }
-        amb = (uint32_t)px_in(MXL_VX, y, MXL_VW, MXL_VH, C_WARN);
-        check(amb && !px_in(MXL_VX, y, MXL_VW, MXL_VH, C_ERR), "T1's VU at the -12 dB tick: amber at the top, no red");
+        amb = (uint32_t)px_in(MXL_SX, y, MXL_VW, MXL_VH, C_WARN);
+        check(amb && !px_in(MXL_SX, y, MXL_VW, MXL_VH, C_ERR), "T1's VU at the -12 dB tick: amber at the top, no red");
         for (i = 0; i < 3u; i++) {
             mt.ui[0] = 32767;                           /* 0 dBFS */
             frame();
         }
         ppm("opt-mixer-vu-full");
-        red = (uint32_t)px_in(MXL_VX + MXL_VW - 4, y, 4, MXL_VH, C_ERR);
-        check(red && px_in(MXL_VX, y, MXL_VW * 28 / 46, MXL_VH, C_OK) && px_in(MXL_VX + MXL_VW * 29 / 46, y, MXL_VW * 10 / 46, MXL_VH, C_WARN), "T1's VU at 0 dBFS: green below -18 dB, amber to -6, red at the top");
-        check(!px_in(MXL_VX + MXL_VW * 28 / 46 + 1, y, MXL_VW * 12 / 46 - 2, MXL_VH, C_OK) && !px_in(MXL_VX + MXL_VW * 40 / 46 + 1, y, MXL_VW * 6 / 46 - 8, MXL_VH, C_WARN) && px_at(MXL_VX + MXL_VW - 1, y, C_ERR),
+        red = (uint32_t)px_in(MXL_SX + MXL_VW - 4, y, 4, MXL_VH, C_ERR);
+        check(red && px_in(MXL_SX, y, MXL_VW * 28 / 46, MXL_VH, C_OK) && px_in(MXL_SX + MXL_VW * 29 / 46, y, MXL_VW * 10 / 46, MXL_VH, C_WARN), "T1's VU at 0 dBFS: green below -18 dB, amber to -6, red at the top");
+        check(!px_in(MXL_SX + MXL_VW * 28 / 46 + 1, y, MXL_VW * 12 / 46 - 2, MXL_VH, C_OK) && !px_in(MXL_SX + MXL_VW * 40 / 46 + 1, y, MXL_VW * 6 / 46 - 8, MXL_VH, C_WARN) && px_at(MXL_SX + MXL_VW - 1, y, C_ERR),
               "... the bands cut at -18 and -6 dB, no blend");
         mt.ui[0] = 0;
         frames(300);   /* (the peak-hold marker, held 1.5 s and then falling, is gone too) */
@@ -555,7 +555,7 @@ static void mixer_rows_tests(void)
                     frame();
                 }
                 for (j = 0; j < (uint32_t)lim; j++)
-                    if (screen[y * 240u + MXL_VX + j] != swap16(C_BLACK))
+                    if (screen[y * 240u + MXL_SX + j] != swap16(C_BLACK))
                         end = (int32_t)j + 1;
                 d = end - want;
                 snprintf(nm, sizeof nm, "T1's VU at %s (ends within 1 px)", pt[q].name);
@@ -591,12 +591,12 @@ static void mixer_rows_tests(void)
         tcomp[0].gr16 = (int32_t)(8 * 65536 / 6.02);
         ui_draw();                                      /* (no audio block between: the reduction as set) */
         y = mx_row_y(MXR_T1);
-        x = MXL_VX + MXL_VW;
-        check(px_in(x - 23u, y + MXL_VY, 4, MXL_VH, C_WARN) && !px_in(MXL_VX, mx_row_y(MXR_T1 + 1u) + MXL_VY, MXL_VW, MXL_VH, C_WARN),
+        x = MXL_SX + MXL_VW;
+        check(px_in(x - 23u, y + MXL_VY, 4, MXL_VH, C_WARN) && !px_in(MXL_SX, mx_row_y(MXR_T1 + 1u) + MXL_VY, MXL_VW, MXL_VH, C_WARN),
               "T1's COMP insert: its reduction on T1's row (8 dB: 24 px), none on T2's");
         trk[0].p[P_TCOMP] = 0;
         frame();
-        check(!px_in(MXL_VX, y + MXL_VY, MXL_VW, MXL_VH, C_WARN), "its amount 0: no bar");
+        check(!px_in(MXL_SX, y + MXL_VY, MXL_VW, MXL_VH, C_WARN), "its amount 0: no bar");
         tcomp[0].gr16 = 0;
         ins_defaults();
     }

@@ -208,6 +208,8 @@ Horizontal: **the rows are the tracks, the four knobs are four values of the sel
 
 The panel shows one group at a time and the view follows the cursor (`mx_view`): **the master screen** (a return or MASTER selected: RET A B C, then MASTER, the four always on it, section 4.1.1); **channels** T1 T2 T3 DR, four rows of 40 px (35 over the help band; code and chip, the engine and preset in the track's colour, the page's 16 steps with a page bar when LEN > 16, a thin VU with the part's compressor reduction pushing from the right); **the drum lanes** and ACCENT in one column (13 px rows over the help band): code, hits on the page's steps, a hit meter that falls over 12 frames; **USB IN** alone. DR shows every lane's hits merged. The selected row is outlined in its colour. A sequencer-muted row's steps are grey with an X by its code.
 
+A channel's row (the user, 2026-11-05: "very poor use of the space"; `op_mixdraw.c`): no outline, no rule, the same margin over the text and under the meter; the code, the engine and the preset, 3 rows of air, then the 16 steps and the meter across the row, x 6 to 233 (14 px a step, the M badge at the text line's end). A lane's row keeps its one line, the steps right of its code. The selected row: a 4 px bar in its colour down the left edge, its text at full brightness, its steps in its colour; the other rows: no bar, the code and the engine at 6/8, the steps grey. Nothing on a row has a ground, so no text is on a fill. The master screen's lines keep their frame.
+
 SELECT pages the row's knob sets, in one order on every row: the mix, the insert slots, the sends, the rest (each group starts a set; `mx_items`). The header names the set (*T1 mix*, *T1 insert*, *T1 sends*).
 
 | Row | Sets |

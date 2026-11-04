@@ -32,7 +32,7 @@ static void mute_tests(void)
     mute_card(MXR_T1 + 1u, &c);
     y = mx_row_y(MXR_T1 + 1u);
     ok = smute_trk_on(1) && !trk[1].p[P_MUTE] && trk[1].p[P_LEVEL] == lv && c.label && !strcmp(c.label, "VOLUME") &&
-         px_in(6, y + 18u, 8, 14, C_WARN);
+         px_in(226, y + (uint32_t)MXL_TY, 8, 14, C_WARN);
     check(ok, "the mixer, T2's VOLUME card with SHIFT: muted once (two detents, the sequencer mute), the volume kept, the row's M badge");
     check(song.octave == 0, "... and SHIFT used: the octave unchanged");
     press(B_OCTDN);
