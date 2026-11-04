@@ -519,6 +519,15 @@ static const struct { const char *name; uint8_t it[4]; } SYS[] = {
     {"BT STATS", {SI_BTSTAT, SI_NONE, SI_NONE, SI_NONE}},   /* the Bluetooth audio stream's counters (2026-11-01: sys_bts_cell) */
 #endif
 #endif
+#if FELUCCA_BLE                                         /* (Bluetooth, a page a side, each with its item: op_bt.c) */
+    {"BT MIDI", {SI_BLE, SI_BLEPEER, SI_BLEMIDI, SI_BLEST}},   /* MODE, DEVICE, ACTIVITY, STATE */
+#endif
+#if FELUCCA_BT_AUDIO
+    {"BT AUDIO", {SI_BTA, SI_BTAPEER, SI_BTAFMT, SI_BTAST}},   /* MODE, DEVICE, FORMAT, STATE */
+#endif
+#if WIFI_UI
+    {"WI-FI", {SI_WFMODE, SI_WFNET, SI_WFSIG, SI_WFST}},   /* the same pattern as the Bluetooth pages (the user, 2026-10-27: "it should be very similar") */
+#endif
 #if FELUCCA_SD_UI
     {"SD CARD", {SI_SDCARD, SI_SDVERS, SI_SDSLACK, SI_SDINDEX}},   /* (the card's state, a project's versions kept, the room
                                                          * a file's run gets past its size, the sample index again) */
@@ -531,15 +540,6 @@ static const struct { const char *name; uint8_t it[4]; } SYS[] = {
     {"SD CARD", {SI_SDCLOCK, SI_NONE, SI_NONE, SI_NONE}},
 #endif
     {"SETTINGS", {SI_SDBACK, SI_SDREST, SI_NONE, SI_NONE}},   /* (the device's settings to the card and back) */
-#endif
-#if FELUCCA_BLE                                         /* (Bluetooth, a page a side, each with its item: op_bt.c) */
-    {"BT MIDI", {SI_BLE, SI_BLEPEER, SI_BLEMIDI, SI_BLEST}},   /* MODE, DEVICE, ACTIVITY, STATE */
-#endif
-#if FELUCCA_BT_AUDIO
-    {"BT AUDIO", {SI_BTA, SI_BTAPEER, SI_BTAFMT, SI_BTAST}},   /* MODE, DEVICE, FORMAT, STATE */
-#endif
-#if WIFI_UI
-    {"WI-FI", {SI_WFMODE, SI_WFNET, SI_WFSIG, SI_WFST}},   /* the same pattern as the Bluetooth pages (the user, 2026-10-27: "it should be very similar") */
 #endif
     /* the screen and the sound in one section (the user, 2026-10-25: KNOB COLORS was on a page read as "audio", "group and
      * make it logical"): KNOB COLORS (the knob caps' colours; COLOR gone 2026-10-18: the palette is MONO, panel.c),
