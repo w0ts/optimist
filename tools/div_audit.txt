@@ -361,3 +361,6 @@ src/ui/optimist/op_mixdraw.c:mx_vu_grad:(s+1) | mx_vu_grad returns before for s 
 src/ui/optimist/op_project.c:sys_dt_cell:tot | guarded "tot ? ... : -1"
 src/ui/optimist/op_stepdraw.c:roll_head:len | TLEN (len = trk_len(t)), and only inside "for (n = 0; n < len; n++)"
 src/io/editor/ed_mirror.c:mbr_lag:dt | inside "if (dt >= MIR_LAG_WIN_MS)" (250): >= 250
+hal/fm1_sd_clock.h:-:(FM1_SD_STEP_BAUD[k]+1u) | 1 + a const uint8_t table entry (FM1_SD_STEP_BAUD, the SPI1 BAUD of each clock step: 1 .. 9): 2 .. 10, never 0
+src/io/console_sd.c:con_sd_row:(baud+1u) | 1 + a BAUD value its callers take from uint8_t tables (FM1_SD_BAUD_FAST, SD_BAUD(): a step's FM1_SD_STEP_BAUD; NB): 1 .. 256, never 0
+src/storage/sd/sd_mmc.c:sd_clk_pass:sd_sectors | the card's capacity in sectors: sd_clock_probe returns before its first sd_clk_pass when !sd_sectors (an SDv1 / MMC card, bit-bang, no capacity read), and the later passes run inside that walk only: never 0
