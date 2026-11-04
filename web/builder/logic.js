@@ -24,8 +24,6 @@ export const overOf = (over, r) => (r === "ram" ? ["sram", "ram", "pool", "ramte
 export const SRAM_PART_NAMES = [["ram", "ram"], ["pool", "pool"], ["ramtext", "ram code"]];
 /** a total's SRAM split in its parts: [[name, bytes]] (all three, even 0: the gauge's line), [] when it has none (an older release's data) */
 export const sramParts = (total) => (total && SRAM_PART_NAMES.some(([k]) => total[k] !== undefined) ? SRAM_PART_NAMES.map(([k, n]) => [n, total[k] || 0]) : []);
-/** what an item moves of the SRAM besides its plain ram, by 64 B or more: [[name, bytes]] (the pool, the ram code), so the ram figure never hides them */
-export const sramSplit = (s) => (s ? SRAM_PART_NAMES.filter(([k]) => k !== "ram" && Math.abs(s[k] || 0) >= 64).map(([k, n]) => [n, s[k]]) : []);
 export const OVER_W = 20;                             // menu.py: cells for the overflow, past the capacity mark
 export const SHOW_MIN = 64;                           // menu.py delta_of: the regions an item moves by 64 B or more
 

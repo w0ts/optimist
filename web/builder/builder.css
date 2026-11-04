@@ -108,7 +108,6 @@
   .ob-root .cost { font-family: var(--font-mono); color: var(--text-dim); white-space: nowrap; font-variant-numeric: tabular-nums; }
   .ob-root .arena { font-family: var(--font-mono); color: var(--text-dim); white-space: nowrap; font-variant-numeric: tabular-nums; }
   .ob-root .arena.sortby { color: var(--text); text-decoration: underline; text-underline-offset: 2px; }
-  .ob-root .cost.split { white-space: normal; min-width: 0; }
   .ob-root .cost.hot { color: var(--err); font-weight: 700; }
   .ob-root .cost.sortby { color: var(--text); text-decoration: underline; text-underline-offset: 2px; }
   .ob-root .fits { color: var(--accent); font-weight: 700; white-space: nowrap; }

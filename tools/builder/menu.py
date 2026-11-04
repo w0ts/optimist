@@ -244,10 +244,7 @@ class Builder(App):
         for r, n in deltas:
             hot = self.over.get(r, 0) > 0 and n > 0     # it holds part of an overflowing region
             name = "ram" if r == "sram" else r            # (one RAM, as the bars count it)
-            sv = (self.savings or {}).get(key) or {}
-            split = ", ".join(f"{lab} {sv[k] / 1024:+.1f}K" for k, lab in (("pool", "pool"), ("ramtext", "ram code"))
-                              if abs(sv.get(k, 0)) >= 64) if r == "sram" else ""   # (the SRAM's pool and ram code, never hidden in it)
-            t.append(f"  {name} {n / 1024:+.1f}K" + (f" ({split})" if split else ""),
+            t.append(f"  {name} {n / 1024:+.1f}K",   # (one ram: the SRAM's parts only under its bar, the user 2026-10-29 and 2026-11-04)
                      style="bold red" if hot else ("bold reverse cyan" if name == self.sort_by else "cyan"))
         ar = self.arena_item.get(key, 0)                 # (the arena one instance takes, whatever the item's state: "?" unknown)
         if ar is None or ar:
