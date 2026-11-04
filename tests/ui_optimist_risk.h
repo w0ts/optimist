@@ -196,11 +196,12 @@ static void risk_edits_tests(void)                      /* the user, 2026-10-13:
     dl.ofs[0][0] = (int8_t)(dl.ofs[0][0] ^ 1);
     {
         uint32_t k0 = (uint16_t)TDRUM->p[P_E0];
+        int8_t ed = dl.ofs[0][0];                       /* (the lane's edit: whatever an earlier test left, one step off) */
         turn(EN_PRESET, 1);
         check(op_armed() && !strcmp(ui.arm_q, "DISCARD DR EDITS?") && (uint16_t)TDRUM->p[P_E0] == k0,
               "DR: PRESETS (the kit) over an edited lane: \"Discard DR edits?\"");
         tap(B_HOME);
-        check(!op_armed() && (uint16_t)TDRUM->p[P_E0] == k0 && dl.ofs[0][0], "... HOME: the kit and the lane's edit kept");
+        check(!op_armed() && (uint16_t)TDRUM->p[P_E0] == k0 && dl.ofs[0][0] == ed, "... HOME: the kit and the lane's edit kept");
         turn(EN_PRESET, 1);
         tap(B_SAVE);
         check((uint16_t)TDRUM->p[P_E0] != k0, "... YES: the next kit");
