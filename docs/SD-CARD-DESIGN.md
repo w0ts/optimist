@@ -433,7 +433,7 @@ the probed J12 pins; SD reads, a FAT32 reader and a flash-slot loader in m-bootl
     sample cannot start it at once, and a head per slice costs more than the sample (32 x 50 ms of 16-bit: 141 KB).
     So the part's card sample goes into the streams' arena block whole, as mono IMA ADPCM at its own rate (a one-bar
     break of 2 s at 44.1 kHz: 44 KB), and is scanned as a user slot (grid, AUTO onsets): REV, AUTO, LOOP play as
-    from the flash. USE with a part on SLICE keeps SLICE and sets SRC CARD; the plan places again when a part goes on
+    from the flash. USE with a part on SLICE keeps SLICE and sets SRC CARD (another part: the sampler popup, UI-OPTIMIST-DESIGN.md 4.14); the plan places again when a part goes on
     or off SLICE CARD (no ring, no head for it). Too big for the arena: refused as any card sample (MEM FULL CARD);
     nothing placed: silent, never BREAK. Tested: `tests/sd_stream_engine_test.c` (the slices by key, REV, ADPCM
     25 dB or better), `tests/sd_stream_plan_test.c` (the block, the rings).
@@ -923,8 +923,9 @@ Unzipped at the card's root; its `readme.txt` says what is there.
   is as it was in flash mode (`core.py built`: not counted in SD card mode).
 
 **The UI** (`ui/optimist/op_sdcard.c`; docs/UI-OPTIMIST-DESIGN.md 4.14): PROJECT's rows PROJECT (the card's projects
-while a card is ready, else the flash slot with *No SD card: in flash*), PRESETS, KITS, SAMPLES; four small cards (PAGE,
-ACTION, ITEM, VIEW) over the page: two columns of eight names, as the white keys sit. SYSTEM > SD card: CARD (READY and
+while a card is ready, else the flash slot with *No SD card: in flash*), PRESETS, KITS, SAMPLES; four small cards (BANK,
+ITEM, ACTION, VIEW) over the page: two columns of eight names, as the white keys sit. ALGORITHM on PRESETS and SAMPLES, the PRESETS
+knob's engine filter (ALL: every engine's banks in a row), a sample's sampler popup: UI-OPTIMIST-DESIGN.md 4.14. SYSTEM > SD card: CARD (READY and
 its size; YES mounts again), VERSIONS, SLACK, SAMPLES INDEX. SYSTEM > SETTINGS: BACKUP writes the device's settings record (`persist_t`, as
 `settings_save` makes it) to `Optimist/Backup/settings.opd` ("OPST"); RESTORE (asked, red) writes it back into flash and
 restarts the FM-1 a second later (the settings are read at power-on). This unit's Bluetooth address and its copy of the

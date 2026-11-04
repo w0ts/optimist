@@ -3,10 +3,12 @@
  * 2026-10-26: projects saved and loaded by name, every list as banks of 16 on the white keys). Rows PROJECT (with a card
  * ready: the card's projects; without: the flash slot as before), PRESETS, KITS, SAMPLES. A list row is four small cards
  * and the page under them, two columns of eight names as the keys sit (the left octave, then the right):
- *   KNOB 1 PAGE   the page (OCT- / OCT+ tapped too)            KNOB 2 ACTION   LOAD (the default), SAVE, DELETE; USE
- *   KNOB 3 ITEM   the slot, across the pages                   KNOB 4 VIEW     PROJECTS: NAME, SAVES (the item's versions);
- *                                                                              PRESETS, KITS: FOLDER, NAME; SAMPLES: FOLDER,
- *                                                                              NAME, RECENT
+ *   KNOB 1 BANK   the bank (a list with no banks: its pages of 16, A, B ..; OCT- / OCT+ tapped too)
+ *   KNOB 2 ITEM   the slot, across the pages                   KNOB 3 ACTION   LOAD (the default), SAVE, DELETE; USE
+ *   KNOB 4 VIEW   PROJECTS: NAME, SAVES (the item's versions); PRESETS, KITS: FOLDER, NAME; SAMPLES: FOLDER, NAME, RECENT
+ * The two first never change meaning (the user, 2026-11-05). On PRESETS and SAMPLES ALGORITHM selects the track as on
+ * the normal pages (T1 .. DR, the lanes; the header shows it, a load goes to it), the PRESETS list following its engine;
+ * on PROJECTS and KITS it does nothing, as before. On PRESETS the PRESETS knob filters by engine (sdc_presets_turn).
  * A white key picks its slot and asks the action on it, the slot's name on screen (a folder: into it, no question); the
  * same key again, or YES, runs it; another key asks about that one instead (the user, 2026-10-26: "one press shows what
  * it is and a second press actually loads"). HOME goes up a folder (SAVES: back to the projects), at the list's own folder back to the mixer. SAVE names first
@@ -32,6 +34,17 @@ static const char *sdm_base_of(uint32_t k);
 static const char *sdm_rel_of(uint32_t k);              /* (a project's place under Projects/: "A/03 - song") */
 static void sdm_work_of(char *out, uint32_t cap);
 static void sdm_save_at(uint32_t k);
+static uint32_t sdm_samplers(uint8_t *e);               /* (a card WAV's engines) */
+static int sdm_part_samples(uint32_t part);
+static void sdm_use_with(uint32_t e);
+static int32_t sdm_pre_tree(void);                      /* (the PRESETS list by engine) */
+static int sdm_pre_show(uint32_t w, uint32_t e, uint32_t bk);
+static uint32_t sdm_pre_mask(void);
+static void sdm_all_open(uint32_t w, const uint32_t *list, uint32_t n);
+static int sdm_all_go(uint32_t v);
+static void sdm_all_sync(void);
+static uint32_t sdm_all_at(void);
+static uint32_t sdm_all_total(void);
 static int32_t sdm_bank_shown(void);                    /* (banks of 16: the letter shown, 0 = A; -1 none) */
 static int sdm_bank_go(uint32_t bk);
 static int sdm_into(uint32_t k);
@@ -63,8 +76,11 @@ static struct {
                                                          * ready when it was read; the cursor's slot; the action; a mount tried */
     uint8_t view[SDC_N];
     char vname[SDC_NAME];                      /* SAVES: whose versions */
-    char unit[8];                                       /* PAGE's "/5" */
-} sdc = {SDC_N, 1, 0, 0, 0, 0, {SDV_FOLDER, SDV_FOLDER, SDV_FOLDER, SDV_FOLDER}, "", ""};
+    char unit[8];                                       /* BANK's "/5" (a list's pages) */
+    uint8_t flt, eng;                                   /* PRESETS' filter: 0 the track's engine (eng: the one shown), 1 ALL,
+                                                         * 2 + a slot that engine; until the row is left */
+    uint32_t fmask;                                     /* the engines on the card (sdm_pre_mask), 0 not read */
+} sdc = {SDC_N, 1, 0, 0, 0, 0, {SDV_FOLDER, SDV_FOLDER, SDV_FOLDER, SDV_FOLDER}, "", "", 0, 0xFFu, 0};
 static const char *const SDV_NAME_S[2][4] = {{"FOLDER", "NAME", "RECENT", "SAVES"}, {"NAME", "NAME", "NAME", "SAVES"}};
 static const char *const SDO_NAME_S[4] = {"LOAD", "SAVE", "DELETE", "USE"};
 static const char *const SDC_WHAT[SDC_N] = {"PROJECT", "PRESET", "KIT", "SAMPLE"};
@@ -101,14 +117,21 @@ static void sdc_sync(uint32_t l)
         sdm_mount_try();                                /* (no card: a few CMD0s; poll prepares one found) */
     }
     ready = (uint32_t)sdm_ready();
-    if (!sdc.stale && sdc.open == l && sdc.ready == ready)
-        return;
-    (void)sdm_open(l, sdc.view[l], sdc.vname);
-    sdc.open = (uint8_t)l;
-    sdc.stale = 0;
-    sdc.ready = (uint8_t)ready;
-    if (sdc.item >= SDC_KEYS)
-        sdc.item = 0;
+    if (sdc.stale || sdc.open != l || sdc.ready != ready) {
+        (void)sdm_open(l, sdc.view[l], sdc.vname);
+        sdc.open = (uint8_t)l;
+        sdc.stale = 0;
+        sdc.ready = (uint8_t)ready;
+        if (sdc.item >= SDC_KEYS)
+            sdc.item = 0;
+    }
+    if (l == SDC_PRE && ready && !sdc.flt && sdc.view[l] == SDV_FOLDER && !is_drum(TSEL) && sdc.eng != TSEL->eng_req) {
+        sdc.eng = TSEL->eng_req;                        /* the list follows the track's engine (a tree shown: Factory, User) */
+        if (sdm_pre_tree() >= 0 && sdm_pre_show((uint32_t)sdm_pre_tree(), sdc.eng, 0)) {
+            sdc.item = 0;
+            ui.force = 1;
+        }
+    }
 }
 static void sdc_title(uint32_t kind, char *b)           /* PROJECT's row name (12): a sub-folder's, or whose SAVES are shown */
 {
@@ -152,27 +175,35 @@ static void sdc_cell(uint32_t kind, uint32_t k, cell_t *c)
         return;
     }
     op = sdc_op_at(l, sdc.op);
-    if (k == 0u && sdm_bank_shown() >= 0) {             /* a bank of 16 (presets, projects): its letter, A .. Z */
+    if (k == 0u && l == SDC_PRE && sdc.flt == 1u) {     /* ALL: the engines' banks one after the other: "ACID B" */
+        c->label = "BANK";
+        c->kind = CK_VAL;
+        sdm_folder(c->val, sizeof c->val);
+        cell_gauge(c, 0, 0, (int32_t)(sdm_all_total() ? sdm_all_total() - 1u : 0u), (int32_t)sdm_all_at());
+    } else if (k == 0u && sdm_bank_shown() >= 0) {      /* a bank of 16 (presets, projects, kits): its letter, A .. Z */
         c->label = "BANK";
         c->kind = CK_VAL;
         c->val[0] = (char)('A' + sdm_bank_shown());
         c->val[1] = 0;
         cell_gauge(c, 0, 0, 25, sdm_bank_shown());
-    } else if (k == 0u) {
-        c->label = "PAGE";
+    } else if (k == 0u) {                               /* no banks (a folder, a view): its pages of 16 read as banks */
+        c->label = "BANK";
         c->kind = CK_VAL;
-        fmt_int(c->val, (int32_t)sdm_page() + 1);
+        if (sdm_page() < 26u)
+            c->val[0] = (char)('A' + sdm_page()), c->val[1] = 0;
+        else
+            fmt_int(c->val, (int32_t)sdm_page() + 1);
         sdc.unit[0] = '/';
         fmt_int(sdc.unit + 1, (int32_t)sdm_pages());
         c->unit = sdc.unit;
         cell_gauge(c, 0, 0, (int32_t)sdm_pages() - 1, (int32_t)sdm_page());
-    } else if (k == 1u) {
+    } else if (k == 2u) {
         c->label = "ACTION";
         c->kind = CK_VAL;
         cell_val(c, SDO_NAME_S[op]);
         c->col = op == SDO_DELETE || (op == SDO_SAVE && sdc_used(sdc.item)) ? C_ERR : 0;
         cell_gauge(c, 1, 0, (int32_t)sdc_nops(l) - 1, (int32_t)sdc.op);
-    } else if (k == 2u) {
+    } else if (k == 1u) {
         c->label = "ITEM";
         c->kind = CK_VAL;
         if (sdc_used(sdc.item))
@@ -190,6 +221,12 @@ static void sdc_cell(uint32_t kind, uint32_t k, cell_t *c)
 static void sdc_page_turn(int32_t d)                    /* (a bank shown: the next or the one before, A .. Z) */
 {
     int32_t bk = sdm_bank_shown();
+    if (sdc.open == SDC_PRE && sdc.flt == 1u) {         /* ALL: the next bank of all the engines' */
+        if ((int32_t)sdm_all_at() + d >= 0 && sdm_all_at() + (uint32_t)(d > 0) < sdm_all_total())
+            (void)sdm_all_go((uint32_t)((int32_t)sdm_all_at() + d));
+        ui.force = 1;
+        return;
+    }
     if (bk >= 0) {
         if (bk + d >= 0 && bk + d < 26)
             (void)sdm_bank_go((uint32_t)(bk + d));
@@ -224,7 +261,7 @@ static void sdc_turn(uint32_t kind, uint32_t k, int32_t s)
     if (!sdm_ready() || l >= SDC_N)
         return;
     sdc_sync(l);
-    if (k == 1u) {
+    if (k == 2u) {
         sdc.op = (uint8_t)(s == OP_RESET ? 0 : step_in(sdc.op, d, (int32_t)sdc_nops(l)));
         return;
     }
@@ -232,7 +269,7 @@ static void sdc_turn(uint32_t kind, uint32_t k, int32_t s)
         return;
     if (k == 0u) {
         sdc_page_turn(d);
-    } else if (k == 2u) {                               /* ITEM: across the pages, the page following */
+    } else if (k == 1u) {                               /* ITEM: across the pages, the page following */
         if (d > 0 && sdc.item + 1u >= SDC_KEYS && sdm_page() + 1u < sdm_pages()) {
             sdc_page_turn(1);
             sdc.item = 0;
@@ -245,6 +282,139 @@ static void sdc_turn(uint32_t kind, uint32_t k, int32_t s)
     } else {
         sdc_view_set(l, sdc_view_at(l, (uint32_t)step_in((int32_t)sdc_view_ix(l), d, (int32_t)sdc_views(l))));
     }
+}
+
+/* ---- a sample's USE (the user, 2026-11-05): the part on a sampler: into it, no question; on another engine with more
+ * than one sampler built: the engine popup (op_preset.c), the samplers alone, knobs SELECT, PRESETS or ITEM, YES or the same
+ * key picks, HOME cancels (nothing changed); one sampler: that one. A sampler is what plays a card WAV (sd_mode.c
+ * sdm_samplers: SAMPLE, SLICE); a drum track: its lane, as before */
+static struct {
+    uint8_t on, at, k, n;
+    uint8_t e[2];
+} sdc_pk;
+static void sdc_use_now(uint32_t k, uint32_t e)
+{
+    if (e < NENGINES)
+        sdm_use_with(e);
+    ui.toast_next = 1;
+    sdm_do(SDO_USE, k);
+    ui.toast_next = 0;
+    ui.force = 1;
+}
+static void sdc_use(uint32_t k)
+{
+    sdc_pk.n = (uint8_t)sdm_samplers(sdc_pk.e);
+    if (song.sel >= NPART || sdc_pk.n < 2u || sdm_part_samples(song.sel)) {
+        sdc_use_now(k, NENGINES);
+        return;
+    }
+    sdc_pk.on = 1;
+    sdc_pk.at = 0;
+    sdc_pk.k = (uint8_t)k;
+}
+static int sdc_pick_on(void) { return sdc_pk.on; }
+static void sdc_pick_show(void)                         /* the popup held open */
+{
+    ui.toast_t = OP_TOAST_FRAMES;
+    ui.toast_col = ENG_COL[sdc_pk.e[sdc_pk.at % 2u]];
+    pop_kind = 4;
+}
+static void sdc_pick_end(void)
+{
+    sdc_pk.on = 0;
+    ui.toast_t = 0;
+    pop_kind = 0;
+    ui.force = 1;
+}
+static void sdc_pick_frame(uint32_t pressed)            /* one UI frame of the pick (op_input.c ui_input) */
+{
+    uint32_t k;
+    int32_t s = panel_enc(EN_PRESET) + panel_enc(EN_SELECT) + panel_enc(EN_K2), go = 0;
+    for (k = 0; k < 4u; k++)
+        (void)panel_enc(EN_K1 + k);                     /* (no stray detents left) */
+    (void)panel_enc(EN_ALGO);
+    if (s)
+        sdc_pk.at = (uint8_t)ui_clamp((int32_t)sdc_pk.at + (s > 0 ? 1 : -1), 0, (int32_t)sdc_pk.n - 1);
+    while (lk_r != lk_w) {
+        uint32_t e = lk_q[lk_r % LKQ];
+        lk_r++;
+        if (((e >> 7) & 1u) && (e >> 8) == LY_STEP && punch_key(e & 0x7Fu) == (int32_t)sdc_pk.k)
+            go = 1;                                     /* (the sample's key again: as YES) */
+    }
+    if (pressed & (1u << panel.btn[B_HOME])) {
+        sdc_pick_end();
+        return;
+    }
+    if (go || (pressed & (1u << panel.btn[B_SAVE]))) {
+        k = sdc_pk.e[sdc_pk.at % 2u];
+        sdc_pick_end();
+        sdc_use_now(sdc_pk.k, k);
+        return;
+    }
+    sdc_pick_show();
+}
+/* the engine popup's list here (op_preset.c pop_engines; an entry >= NENGINES: ALL) */
+static void sdc_pop_list(uint32_t *list, uint32_t *n, uint32_t *at)
+{
+    uint32_t i, m = 0, a = 0, cur = sdc.flt >= 2u ? sdc.flt - 2u : TSEL->eng_req % NENGINES;
+    if (sdc_pk.on) {
+        for (*n = 0; *n < sdc_pk.n; (*n)++)
+            list[*n] = sdc_pk.e[*n];
+        *at = sdc_pk.at;
+    } else if (sdc_here() == SDC_PRE) {                 /* the PRESETS filter: ALL, the engines on the card */
+        for (i = 0; i < *n; i++)
+            if (sdc.fmask >> list[i] & 1u) {
+                list[m++] = list[i];
+                if (list[m - 1u] == cur)
+                    a = m;
+            }
+        for (i = m; i; i--)
+            list[i] = list[i - 1u];
+        list[0] = NENGINES;
+        *n = m + 1u;
+        *at = sdc.flt == 1u ? 0u : a;
+    }
+}
+static uint32_t sdc_pop_sig(void) { return sdc_pk.at * 32u + sdc.flt * 256u; }
+/* a card's PRESETS, the PRESETS knob: which engine's presets (the user, 2026-11-05): ALL or an engine that has a folder on
+ * the card; the track's engine by default, a choice stays until the row is left (ALGO then moves the target only). ALL:
+ * every engine's banks one after the other in the tree shown (sd_mode.c sdm_all_*). 1: taken */
+static void pop_engines(uint32_t *list, uint32_t *n, uint32_t *at);
+static int sdc_presets_turn(int32_t s)
+{
+    uint32_t l[34], n, at, w;
+    if (sdc_here() != SDC_PRE || !sdm_ready() || sdc.view[SDC_PRE] != SDV_FOLDER || op_armed())
+        return 0;
+    sdc_sync(SDC_PRE);
+    if (!sdc.fmask)
+        sdc.fmask = sdm_pre_mask();
+    pop_engines(l, &n, &at);
+    at = (uint32_t)ui_clamp((int32_t)at + (s > 0 ? 1 : -1), 0, (int32_t)n - 1);
+    w = sdm_pre_tree() == 0 ? 0u : 1u;                  /* (neither tree shown: User, as the list opens) */
+    sdc.flt = (uint8_t)(l[at] >= NENGINES ? 1u : 2u + l[at]);
+    if (sdc.flt == 1u)
+        sdm_all_open(w, l + 1, n - 1u);
+    else
+        (void)sdm_pre_show(w, l[at], 0);
+    sdc.item = 0;
+    ui.toast_next = 1;
+    ui_message(l[at] >= NENGINES ? "ALL" : ENGINES[l[at]]->name);
+    ui.toast_next = 0;
+    ui.toast_col = l[at] >= NENGINES ? C_HI : ENG_COL[l[at]];
+    pop_kind = 4;
+    ui.force = 1;
+    return 1;
+}
+/* a card's PRESETS or SAMPLES: a page with the track (ALGORITHM, the header) */
+static int sdc_track_page(void) { return (sdc_here() == SDC_PRE || sdc_here() == SDC_SMP) && sdm_ready(); }
+static void sdc_frame(void)                             /* every UI frame: the filter ends with the row */
+{
+    if (sdc.flt && sdc_here() != SDC_PRE) {
+        sdc.flt = 0;
+        sdc.eng = 0xFFu;
+    }
+    if (sdc.fmask && sdc_here() != SDC_PRE)
+        sdc.fmask = 0;
 }
 
 /* ---- the confirm: op on slot k of the list (SAVE and a slot past the list's end: NAME at once) */
@@ -279,6 +449,10 @@ static void sdc_ask(uint32_t r, uint32_t l, uint32_t op, uint32_t k)
     if (sdc_is_dir(k)) {
         if (sdm_into(k))                                /* a folder: into it, no question */
             sdc.item = 0, ui.force = 1;
+        return;
+    }
+    if (op == SDO_USE) {
+        sdc_use(k);                                     /* (a sample: no question) */
         return;
     }
     str_cpy(a, sdc_name(k), sizeof a);
@@ -353,7 +527,7 @@ static void sdc_key(uint32_t kind, int32_t w)
     }
     sdc_sync(l);
     sdc.item = (uint8_t)w;
-    ui.hot = 2;
+    ui.hot = 1;                                         /* (K2: ITEM) */
     ui.hot_lit = 1;
     ui.force = 1;
     sdc_ask(ui.row[SCR_PROJECT], l, sdc_op_at(l, sdc.op), (uint32_t)w);
@@ -384,6 +558,8 @@ static void sdc_bank_key(uint32_t kind, uint32_t b)
         return;
     sdc_sync(l);
     if (sdm_bank_go(b)) {
+        if (sdc.flt == 1u)
+            sdm_all_sync();                             /* (ALL: this engine's bank, its place among them all) */
         sdc.item = 0;
         sdc_bank_say();
     }
@@ -405,11 +581,12 @@ static void sdc_bank_tap(uint32_t up)
         sdc_bank_say();
         return;
     }
-    fmt_int(b, (int32_t)sdm_page() + 1);
+    b[0] = (char)('A' + sdm_page() % 26u);
+    b[1] = 0;
     str_app(b, "/", sizeof b);
     fmt_app(b, (int32_t)sdm_pages());
     ui.toast_next = 1;
-    ui_say("PAGE ", b);
+    ui_say("BANK ", b);
     ui.toast_next = 0;
 }
 static int sdc_home(void)                               /* HOME: up a folder, SAVES back to the projects; 1 done */

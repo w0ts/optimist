@@ -147,7 +147,11 @@ static struct {
 static uint32_t pre_sig(void)
 {
     if (pop_kind == 4u)
+#if FELUCCA_SD_UI
+        return hu(0x4E6u, tsel()->eng_req + settings.palette * 64u + sdc_pop_sig() * 4096u);
+#else
         return hu(0x4E6u, tsel()->eng_req + settings.palette * 64u);
+#endif
     if (pop_kind == 3u)
         return hu(hu(0x3E1u, (uint32_t)(int32_t)*pen.vp), settings.palette + (uint32_t)(uintptr_t)pen.d);
     uint32_t total, cur = preset_pos(&total);
@@ -244,6 +248,9 @@ static void pop_engines(uint32_t *list, uint32_t *n, uint32_t *at)
             list[(*n)++] = e;
         }
     }
+#if FELUCCA_SD_UI
+    sdc_pop_list(list, n, at);                          /* (a card's page: the samplers' pick, the PRESETS filter) */
+#endif
 }
 static void pre_toast_engine(void)
 {
@@ -338,9 +345,9 @@ static void pop_paint(void)                             /* the box in its own co
         if ((int32_t)pop.cur + off < 0 || (int32_t)pop.cur + off >= (int32_t)pop.total)
             continue;                                   /* (a list stops at its ends: nothing past them, not the other end's items; the user, 2026-10-21) */
         if (pop_kind == 4u) {
-            str_cpy(nm, ENGINES[pop.kits[idx]]->name, sizeof nm);
+            str_cpy(nm, pop.kits[idx] < NENGINES ? ENGINES[pop.kits[idx]]->name : "ALL", sizeof nm);
             en[0] = 0;
-            ec = ENG_COL[pop.kits[idx]];
+            ec = pop.kits[idx] < NENGINES ? ENG_COL[pop.kits[idx]] : C_HI;
         } else if (pop_kind == 3u) {
             pen_name(enum_at(pen.d, pen.d->min + (int32_t)idx), nm);
             en[0] = 0;

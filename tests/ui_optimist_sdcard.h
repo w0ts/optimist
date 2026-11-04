@@ -52,9 +52,9 @@ static void sdu_op(uint32_t op)                         /* ACTION: LOAD first, t
 {
     uint32_t i;
     for (i = 0; i < 3u; i++)
-        turn(EN_K2, -1);
+        turn(EN_K3, -1);
     for (i = 0; i < op; i++)
-        turn(EN_K2, 1);
+        turn(EN_K3, 1);
 }
 static int sdu_has(const char *path) { FILINFO fi; return f_stat(path, &fi) == FR_OK; }
 static int sdu_msg(const char *m) { return strstr(ui.msg, m) != 0; }
@@ -130,8 +130,7 @@ static void sdu_slice_use(void)
     sdu_frames(1);
     check(trk[2].engine == (uint8_t)ENG_SLOT_SLICE, "SLICE USE: T3 on SLICE");
     song.sel = 2;
-    sdu_key(idx);
-    sdu_key(idx);                                       /* (the second press uses it) */
+    sdu_key(idx);                                       /* (a sampler: no question) */
     check(trk[2].eng_req == (uint8_t)ENG_SLOT_SLICE && trk[2].p[P_E0] == (int16_t)SLC_SRC_CARD && sst_part_hash[2] &&
           sst_part_hash[2] == sdm_smp[2].hash, "USE on a SLICE part: it stays on SLICE, SRC CARD, the sample to the plan");
     for (i = 0; i < 6u && !slc_crd[2]; i++) {           /* (the gate's two halves, then placed) */
@@ -202,7 +201,7 @@ static void sdu_slots_of(uint32_t kind, const char *dir, const char *what)
     check(sdu_in_bank(dir, "06 - slot five") && sdu_in_bank(dir, "05 - slot five") && sdu_used() == 2u, m);
     sdu_op(SDO_SAVE);
     for (i = 0; i < 16u && sdc.item != 7u; i++)
-        turn(EN_K3, sdc.item < 7u ? 1 : -1);            /* (the ITEM card, no key) */
+        turn(EN_K2, sdc.item < 7u ? 1 : -1);            /* (the ITEM card, no key) */
     tap(B_SAVE);
     check(name_on() && sdc.item == 7u, "slots: the ITEM on free slot 8, SAVE: NAME");
     sdu_name("BY ITEM");
@@ -234,6 +233,120 @@ static void sdu_slots_tests(void)
     sdu_black(0);
 #endif
     sdu_row(PR_PROJECT);
+}
+
+/* the card's lists' knobs, ALGORITHM and the PRESETS filter (the user, 2026-11-05) */
+static void sdu_lists_cards(uint32_t kind, const char *what)
+{
+    char m[100];
+    uint32_t was;
+    sdu_row(kind);
+    snprintf(m, sizeof m, "%s: K1 BANK, K2 ITEM, K3 ACTION, K4 VIEW", what);
+    check(!strcmp(sdu_label(0), "BANK") && !strcmp(sdu_label(1), "ITEM") && !strcmp(sdu_label(2), "ACTION") &&
+          !strcmp(sdu_label(3), "VIEW"), m);
+    was = sdc.item;
+    turn(EN_K2, was ? -1 : 1);
+    snprintf(m, sizeof m, "%s: K2 moves the ITEM", what);
+    check(sdc.item != was || sdm_count() < 2u, m);
+}
+static void sdu_browse_tests(void)
+{
+    char d[96], b[20];
+    uint32_t e0, e1, i, was, t2 = trk[1].eng_req;
+    sdu_lists_cards(PR_PROJECT, "PROJECTS");
+    sdu_lists_cards(PR_CPRE, "PRESETS");
+#if FELUCCA_DRUM_KITS
+    sdu_lists_cards(PR_CKIT, "KITS");
+#endif
+    sdu_lists_cards(PR_CSMP, "SAMPLES");
+    check(!strcmp(sdu_val(0), "A") && !strcmp(sdc.unit, "/1"), "SAMPLES, a folder: K1 its pages of 16 as banks, A /1");
+    tap(B_OCTUP);                                       /* (one page: nothing) */
+    /* ALGORITHM */
+    song.sel = 0;
+    e0 = trk[0].eng_req;
+    e1 = (e0 + 1u) % NENGINES;
+    was = trk[1].eng_req;
+    trk[1].eng_req = trk[1].engine = (uint8_t)e1;
+    sdu_row(PR_CPRE);
+    sdu_frames(2);
+    snprintf(d, sizeof d, "Optimist/Presets/User/%s/", sdn_engine(eng_uid(e0)));
+    check(head_has_track() && !strncmp(sdm.b.root, d, strlen(d)), "PRESETS: the header has the track, the list its engine");
+    turn(EN_ALGO, 1);
+    sdu_frames(2);
+    snprintf(d, sizeof d, "Optimist/Presets/User/%s/", sdn_engine(eng_uid(e1)));
+    check(song.sel == 1u && ui.scr == SCR_PROJECT && !strncmp(sdm.b.root, d, strlen(d)), "PRESETS: ALGO: T2, the list its engine's");
+    turn(EN_ALGO, -1);
+    turn(EN_ALGO, -1);
+    sdu_frames(2);
+    check(song.sel == 0u && ui.scr == SCR_PROJECT, "PRESETS: ALGO stops at T1 (no MASTER, no returns here)");
+    sdu_row(PR_CSMP);
+    turn(EN_ALGO, 1);
+    check(song.sel == 1u && head_has_track(), "SAMPLES: ALGO selects the track");
+    turn(EN_ALGO, -1);
+    sdu_row(PR_PROJECT);
+    turn(EN_ALGO, 1);
+    check(song.sel == 0u && !head_has_track(), "PROJECTS: ALGO does nothing, as before");
+#if FELUCCA_DRUM_KITS
+    sdu_row(PR_CKIT);
+    turn(EN_ALGO, 1);
+    check(song.sel == 0u, "KITS: ALGO does nothing, as before");
+#endif
+    /* the PRESETS filter: ALL or an engine with a folder on the card; the track's by default; until the row is left */
+    snprintf(d, sizeof d, "Optimist/Presets/Factory/%s", sdn_engine(eng_uid(e1)));
+    f_mkdir(d);
+    str_app(d, "/B", sizeof d);
+    f_mkdir(d);
+    sdu_row(PR_CPRE);
+    sdu_frames(2);
+    check(!sdc.flt, "PRESETS: the filter: the track's engine");
+    for (i = 0; i < 40u && sdc.flt != 1u; i++)
+        turn(EN_PRESET, -1);
+    {
+        uint32_t l[34], n, at, none = NENGINES;
+        for (i = 0; i < NENGINES; i++)
+            if (i != e0 && i != e1 && !(sdc.fmask >> i & 1u))
+                none = i;
+        pop_engines(l, &n, &at);
+        check(sdc.flt == 1u && pop_kind == 4u && l[0] >= NENGINES && at == 0u && n >= 2u, "PRESETS knob: ALL first, the standard popup");
+        check(sdc.fmask >> e0 & 1u && (none < NENGINES || NENGINES < 4u), "... the engines with a folder alone");
+    }
+    sdu_frames(1);
+    sdm_folder(b, sizeof b);
+    check(sdm_all_total() >= 1u && !strcmp(sdu_label(0), "BANK") && !strcmp(sdu_val(0), b) && strchr(sdu_val(0), ' '),
+          "ALL: K1 names the engine and its bank");
+    was = sdm_all_at();
+    if (sdm_all_total() > 1u) {
+        turn(EN_K1, 1);
+        check(sdm_all_at() == was + 1u, "ALL: K1 the next bank of all the engines'");
+    }
+    turn(EN_PRESET, 1);
+    sdu_frames(1);
+    check(sdc.flt >= 2u, "PRESETS knob: an engine");
+    turn(EN_ALGO, 1);
+    sdu_frames(2);
+    check(song.sel == 1u && sdc.flt >= 2u && !strstr(sdm.b.root, sdn_engine(eng_uid(e1))) == (sdc.flt - 2u != e1),
+          "a choice stays over ALGO: the target moves, the list does not");
+    for (i = 0; i < 40u && sdc.flt != 2u + e0; i++)
+        turn(EN_PRESET, sdc.flt - 2u < e0 ? 1 : -1);
+    sdu_frames(1);
+    {   /* T2 on e1, the list e0's: a preset of another engine loads as any (the record names its engine: upreset.c up_load) */
+        uint32_t g0 = upc_gives;
+        check(sdc.flt == 2u + e0 && sdu_used() >= 1u, "PRESETS knob: T1's engine, with T2 selected");
+        for (i = 0; i < SDC_KEYS && !sdc_used(i); i++)
+            ;
+        sdu_op(SDO_LOAD);
+        sdu_key(i);
+        tap(B_SAVE);
+        sdu_frames(1);
+        check(upc_gives == g0 + 1u, "a preset of another engine: loaded on the track selected");
+    }
+    turn(EN_ALGO, -1);
+    sdu_row(PR_CSMP);
+    sdu_row(PR_CPRE);
+    sdu_frames(2);
+    snprintf(d, sizeof d, "Optimist/Presets/User/%s/", sdn_engine(eng_uid(trk[song.sel].eng_req)));
+    check(!sdc.flt && !strncmp(sdm.b.root, d, strlen(d)), "the row left: the track's engine again");
+    trk[1].eng_req = trk[1].engine = (uint8_t)t2;
 }
 
 static void sdcard_tests(void)
@@ -271,8 +384,8 @@ static void sdcard_tests(void)
     /* ---- PROJECT: the card's list */
     r = sdu_row(PR_PROJECT);
     check(sdc_listing() && !cards_2x2(), "PROJECT, a card: the card's list, four small cards");
-    check(!strcmp(sdu_label(0), "BANK") && !strcmp(sdu_val(0), "A") && !strcmp(sdu_label(1), "ACTION") &&
-          !strcmp(sdu_val(1), "LOAD") && !strcmp(sdu_label(2), "ITEM") && !strcmp(sdu_label(3), "VIEW") &&
+    check(!strcmp(sdu_label(0), "BANK") && !strcmp(sdu_val(0), "A") && !strcmp(sdu_label(2), "ACTION") &&
+          !strcmp(sdu_val(2), "LOAD") && !strcmp(sdu_label(1), "ITEM") && !strcmp(sdu_label(3), "VIEW") &&
           !strcmp(sdu_val(3), "NAME"), "PROJECT, a card: BANK A, ACTION LOAD, ITEM, VIEW NAME");
     check(sdm_count() == 16u && !sdu_used(), "PROJECT, a fresh card: bank A, 16 free slots");
     sdu_key(0);
@@ -280,7 +393,7 @@ static void sdcard_tests(void)
     /* SAVE by name */
     trk[0].p[P_DEC] = 11;
     sdu_op(SDO_SAVE);
-    check(!strcmp(sdu_val(1), "SAVE"), "ACTION knob: SAVE");
+    check(!strcmp(sdu_val(2), "SAVE"), "ACTION knob: SAVE");
     sdu_key(0);
     check(name_on() && nm.kind == NK_CARD, "SAVE on an empty slot: NAME at once");
     sdu_name("MY SONG");
@@ -301,7 +414,7 @@ static void sdcard_tests(void)
         sdc_keys_lit(&fl, &dm, 1);
         check(fl == (1u << white_key(0) | 1u << 1) && !dm, "the keys: slot 1 lit, bank A's black key (F#)");
     }
-    check(!strcmp(sdu_val(1), "LOAD"), "after the save: LOAD again");
+    check(!strcmp(sdu_val(2), "LOAD"), "after the save: LOAD again");
     /* SAVE over it: asked (red), NAME prefilled, a version kept */
     trk[0].p[P_DEC] = 22;
     sdu_op(SDO_SAVE);
@@ -606,7 +719,7 @@ static void sdcard_tests(void)
     sdu_row(PR_CSMP);
     check(sdm_count() == 2u && sdc_is_dir(0) && !strcmp(sdc_name(0), "DRUMS") && !strcmp(sdc_name(1), "SNARE.WAV"),
           "SAMPLES: the folder first, then the files (upper case)");
-    check(!strcmp(sdu_val(1), "USE"), "SAMPLES: ACTION USE");
+    check(!strcmp(sdu_val(2), "USE"), "SAMPLES: ACTION USE");
     ppm("opt-sd-samples");
     sdu_key(0);
     {
@@ -618,11 +731,49 @@ static void sdcard_tests(void)
     tap(B_HOME);
     check(ui.scr == SCR_PROJECT && sdm_count() == 2u, "HOME: up a folder");
     song.sel = 1;
-    sdu_key(1);
-    check(op_armed() && !ui.arm_danger && !strcmp(ui.arm_q, "USE SNARE.WAV?") && !sdm_smp[1].hash,
-          "a sample's key: USE SNARE.WAV? asked, nothing used yet (one press shows it)");
-    sdu_key(1);
-    check(!op_armed(), "the same key again: YES");
+#if FELUCCA_SD_STREAM && FELUCCA_SLICE
+    {   /* a part on no sampler, two built: the engine popup, the samplers alone; HOME cancels; a pick (the user, 2026-11-05) */
+        uint32_t was = trk[1].eng_req, l[34], n, at;
+        check(was != (uint8_t)ENG_SLOT_SAMPLE && was != (uint8_t)ENG_SLOT_SLICE, "USE: T2 on no sampler");
+        sdu_key(1);
+        pop_engines(l, &n, &at);
+        check(sdc_pick_on() && pop_kind == 4u && ui.toast_t && !op_armed() && n == 2u && l[0] == (uint32_t)ENG_SLOT_SAMPLE &&
+              l[1] == (uint32_t)ENG_SLOT_SLICE, "USE on a non-sampler, two built: the engine popup: SAMPLE, SLICE");
+        frames(200);
+        check(sdc_pick_on() && ui.toast_t && pop_kind == 4u, "... it waits (no toast's time-out)");
+        turn(EN_PRESET, 1);
+        pop_engines(l, &n, &at);
+        check(at == 1u, "... a knob moves it");
+        tap(B_HOME);
+        check(!sdc_pick_on() && !pop_kind && trk[1].eng_req == was && !sdm_smp[1].hash && sdm_count() == 2u && !strcmp(sdc_name(1), "SNARE.WAV"),
+              "HOME: cancelled, nothing changed, the list as it was");
+        sdu_key(1);
+        turn(EN_PRESET, 1);
+        tap(B_SAVE);
+        sdu_frames(1);
+        check(!sdc_pick_on() && trk[1].eng_req == (uint8_t)ENG_SLOT_SLICE && trk[1].p[P_E0] == (int16_t)SLC_SRC_CARD && sdm_smp[1].hash,
+              "a pick, SLICE: the track on it, its SRC on CARD, the sample in");
+        set_engine_of(&trk[1], was);
+        sdu_frames(1);
+        memset(&sdm_smp[1], 0, sizeof sdm_smp[1]);
+        sdm_smp_dirty = 1;
+        sdu_frames(1);
+        sst_part_set(1, 0);
+        sdu_key(1);
+        sdu_key(1);                                     /* (the sample's key again: as YES, the first: SAMPLE) */
+        sdu_frames(1);
+        check(!sdc_pick_on() && trk[1].eng_req == (uint8_t)ENG_SLOT_SAMPLE && trk[1].p[P_E0] == (int16_t)SMP_CARD,
+              "a pick, the same key: SAMPLE, its SET on CARD");
+        sdu_key(1);
+        check(!sdc_pick_on() && !op_armed(), "on a sampler: into it, no question, no popup");
+    }
+#else
+    sdu_key(1);                                         /* (one sampler at most: no popup) */
+    check(!op_armed() && !sdc_pick_on(), "USE with one sampler built, or none: no question, no popup");
+#if FELUCCA_SD_STREAM
+    check(trk[1].eng_req == (uint8_t)ENG_SLOT_SAMPLE && trk[1].p[P_E0] == (int16_t)SMP_CARD, "... the track on the one sampler");
+#endif
+#endif
     {
         sdx_rec rec;
         int32_t no = (sdx_open(), sdx_find_path("Samples/snare.wav", &rec));
@@ -651,6 +802,7 @@ static void sdcard_tests(void)
     sdu_slice_use();
 #endif
     song.sel = 0;
+    sdu_browse_tests();
     /* ---- SYSTEM > SD CARD: VERSIONS, SLACK, kept in the log's device record */
     op_enter(SCR_SYSTEM);
     for (r = 0; r < sys_rows(); r++) {

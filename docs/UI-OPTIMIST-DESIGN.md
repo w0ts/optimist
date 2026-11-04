@@ -414,9 +414,9 @@ USER, TOOLS, MEMORY as before. A list row is four small cards (as the mixer's) o
 
 | Card | |
 |---|---|
-| 1 PAGE | the page of 16, *n* over */N*; OCT- / OCT+ tapped too |
-| 2 ACTION | LOAD (the default), SAVE, DELETE; SAVES: LOAD, DELETE; SAMPLES: USE. Red when it destroys or replaces |
-| 3 ITEM | the slot (1..16), across the pages |
+| 1 BANK | the bank's letter; a view with no banks: its pages of 16 as letters over */N*; ALL (PRESETS): the engine and its bank; OCT- / OCT+ tapped too |
+| 2 ITEM | the slot (1..16), across the pages |
+| 3 ACTION | LOAD (the default), SAVE, DELETE; SAVES: LOAD, DELETE; SAMPLES: USE. Red when it destroys or replaces |
 | 4 VIEW | PROJECTS: NAME, SAVES (the item's versions, the title its name); PRESETS, KITS: FOLDER, NAME (every file under it, by name); SAMPLES: FOLDER, NAME, RECENT (the ones used, last first) |
 
 The page: two columns of eight names, the slots as the white keys sit (left octave, then right), the ITEM framed in white;
@@ -424,9 +424,31 @@ a folder grey with a "/", a name cut with "~" (14 characters a column); our own 
 as *Version 7*; an empty folder its name and *Empty*; no card *No SD card*. The keys: a file lit, a folder dim, the ITEM
 blinking. A white key picks its slot and asks the ACTION on it, the slot's name in the question (section 2.5; a
 folder: into it, no question); the same key again, or YES, runs it; another key asks about that slot instead (the user,
-2026-10-26: "one press shows what it is and a second press actually loads"; USE too); HOME goes up a folder (SAVES: back to the
+2026-10-26: "one press shows what it is and a second press actually loads"; USE has no question, below); HOME goes up a folder (SAVES: back to the
 projects), at the list's own folder to the mixer. The title is the row's name, a sub-folder's or the project whose SAVES
 are shown. The ACTION goes back to LOAD after each action.
+
+**The list's controls** (the user, 2026-11-05). K1 and K2 mean the same on every list: K1 BANK, K2 ITEM. Where a view has no
+banks (a Samples folder, NAME, RECENT, SAVES) K1 turns its pages of 16, shown as letters over the page count (*A /3*): a
+page there is what a bank is elsewhere. On PRESETS and SAMPLES ALGORITHM selects the track as on the normal pages (T1 .. DR,
+the lanes; no MASTER, no returns: it stops at T1), the header shows it and a load goes to it, and the PRESETS list follows
+its engine (bank A of `Presets/Factory|User/<Engine>`). On PROJECTS and KITS it does nothing, as before: a project is not a
+track's and a kit is the drum track's.
+
+**The PRESETS knob on PRESETS** filters by engine in the standard popup: ALL, then the engines built that have a folder in
+Factory or User (read when it is first turned on the row). The default is the track's engine. A choice stays until the row
+is left, whatever ALGORITHM selects meanwhile (the target moves, the list does not); back on the row it is the track's
+engine again. It works in the FOLDER view, in the tree shown (neither tree shown: User). ALL shows every listed engine's banks
+one after the other: K1 steps through them and names the engine and the bank (*ACID B*), as the title does; the black keys and
+K2 keep their meaning inside the engine shown. Loading a preset of another engine puts the track on it, as that engine's
+preset does anywhere.
+
+**A sample** (SAMPLES, USE; the user, 2026-11-05) has no question. A part on a sampler: into it. On another engine, more than
+one sampler built: the engine popup with the samplers alone, held open until a choice: SELECT, PRESETS or K2 move it, YES or
+the sample's key again picks (the track goes on it, the sample in), HOME cancels and changes nothing. One sampler built: that
+one. A sampler is an engine that plays a card WAV: SAMPLE and SLICE (`sd_mode.c sdm_samplers`). **GRAIN and STRETCH are not
+among them**: they play the card's sample sets, not a user's WAV (no CARD value in their SRC), so a part on one gets the
+popup, and picking moves it to SAMPLE or SLICE. The drum track: the picked lane's sample, as before.
 
 - **SAVE** names first (NAME, 4.11: the slot's name, else the work's; a new name is a new project). The card's rules
   (no / \\ : * ? " < > |, no trailing dot or space): *Name not usable*, NAME stays. A project keeps its earlier saves
