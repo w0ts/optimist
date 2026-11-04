@@ -439,7 +439,7 @@ PAIRS.append({"GEN_GRIDS": 1, "ED_SEQ": 0})
 _GENS = ({"SEQTOOLS": 1}, {"NOTEGEN": 1}, {"GEN_GRIDS": 1}, {"ED_SEQ": 0})
 for _n in (3, 4):
     PAIRS.extend({k: v for d in _c for k, v in d.items()} for _c in itertools.combinations(_GENS, _n))
-# (the tables are always in the pool since 2026-10-29: core.tab_pool, a computed term; no pair)
+# (the tables are always in the pool since 2026-10-29: in every measurement, no term and no pair)
 # the mirror over BLE (ed_mirror.c mbr_q, mbr_cb, mbr_rx, mbr_big: in the pool) is built only with both: 2026-10-27,
 # synths_USBaudio_BTaudio_BTmidi's BLE off freed 8,280 B of pool, the estimate said +4 (BLE's own delta, from the
 # defaults: no mirror there)
