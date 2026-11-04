@@ -158,28 +158,23 @@ def which_checks():
         def isatty(self):
             return True
     try:
-        def pick(port=None, yes=False, units=("FM1-620C", "FM1-E040"), answer=None):
-            FL.fm1_ports = lambda: list(units)
+        # (which_fm1s is asked only when the installer answered several FM-1s (flash.SeveralFM1's ports, exit 9: e4f8b831);
+        # --port NAME goes to that one without it, --port all is cmd_flash's: flash.fm1_ports, in order)
+        def pick(yes=False, ports=("FM1-620C", "FM1-E040"), answer=None):
             sys.stdin = Tty()
             builtins.input = lambda q="": answer if answer is not None else ""
             try:
-                return O.which_fm1s(SimpleNamespace(port=port, yes=yes), None)
+                return O.which_fm1s(SimpleNamespace(port=None, yes=yes), list(ports))
             except FL.SeveralFM1 as e:
                 return ("several", e.code)
-        check("which: --port NAME: only that one, the list not needed", pick("FM1-E040", units=()) == ["FM1-E040"])
-        check("which: --port all: every FM-1 connected, in order", pick("all") == ["FM1-620C", "FM1-E040"])
-        check("which: the only FM-1 (or none): preflight finds it", pick(units=("FM1-620C",)) == [None]
-              and pick(units=()) == [None])
         check("which: several with --yes: not guessed (SeveralFM1, exit 9)", pick(yes=True) == ("several", 9))
         check("which: several, answer a: all of them, one after the other", pick(answer="a") == ["FM1-620C", "FM1-E040"])
         check("which: several, answer 2: the second", pick(answer="2") == ["FM1-E040"])
+        check("which: several, answer 3 (no such one): cancelled (None)", pick(answer="3") is None)
         check("which: several, Enter: cancelled (None)", pick(answer="") is None)
         FL.fm1_ports = lambda: []
-        try:
-            O.which_fm1s(SimpleNamespace(port="all", yes=True), None)
-            check("which: --port all with no FM-1: refused, exit 3", False)
-        except FL.FlashError as e:
-            check("which: --port all with no FM-1: refused, exit 3", e.code == 3)
+        rc = O.cmd_flash(SimpleNamespace(port="all", yes=True, package="x.fwsc", no_build=False))
+        check("flash --port all with no FM-1: refused, exit 3", rc == 3)
     finally:
         FL.fm1_ports, sys.stdin, builtins.input = keep
 

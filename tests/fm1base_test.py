@@ -32,7 +32,9 @@ cfg, name = C.load_profile(C.REFERENCE_PROFILE)
 with tempfile.TemporaryDirectory(dir=ROOT / "build" if (ROOT / "build").is_dir() else None) as d:
     d = Path(d)
     normal, sd = d / "normal.config", d / "sd.config"
-    normal.write_text(C.dump(dict(cfg, LAYOUT=0), name))   # (the reference profile may have any MEMORY step)
+    # (the reference profile may have any MEMORY step; SYS_TOP off: with it the build reads the app's ELF for TOP's table
+    # (fm1base.py top_table), which the fake builds below do not make: a checkout with no earlier real build has none)
+    normal.write_text(C.dump(dict(cfg, LAYOUT=0, SYS_TOP=0), name))
     sd_cfg = dict(cfg, LAYOUT=1)
     sd.write_text(C.dump(sd_cfg, "sd"))
     check("release is the default flavour, classic() false", not C.classic())
