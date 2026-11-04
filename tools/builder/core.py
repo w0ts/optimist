@@ -532,7 +532,8 @@ def flags(cfg):
         out.update({R.ITEMS[k].flag: 0 for k in pack_keys()})   # never in the image: card_packs)
     if card_drums(cfg):                             # (and the drums' samples: the sampled kits, the 909's hats and
         out["FELUCCA_KITS_CARD"] = 1                # cymbals: registry.h KITS_CARD, X909_CARD; the card carries the
-        if out.get("FELUCCA_DRUM_X909"):            # ticked ones, card_content)
+        out["FELUCCA_DRUM_SAMPLED"] = 0             # ticked ones, card_content; no PERC set in the image: a ticked
+        if out.get("FELUCCA_DRUM_X909"):            # DRUM_SAMPLED left its 99 KB in the flash, the estimate at 0 B)
             out.update(FELUCCA_X909_CARD=1, FELUCCA_X909_CYM=0, FELUCCA_X909_HAT=0)
     skip = [R.ITEMS[k].env for k in set_keys() if not cfg[k] and not card]
     if not out.get("FELUCCA_DRUM_SAMPLED", 1):
