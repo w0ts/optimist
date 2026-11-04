@@ -110,6 +110,7 @@ static const char *sdm_disp(const char *s)          /* (a bank's "03 - bass 1.op
 #if FELUCCA_SD_STREAM
 static void sdm_mem_tick(void);
 static void sdm_bank_tick(void);
+static void sdm_kit_tick(void);
 static void sdm_slow_tick(void);
 #endif
 
@@ -301,6 +302,7 @@ static void sdm_poll(void)
 #if FELUCCA_SD_STREAM
     sdm_mem_tick();
     sdm_bank_tick();
+    sdm_kit_tick();
     sdm_slow_tick();
 #endif
     if (sdm_st >= SDM_MOUNTED && sd_state != SD_READY) {
@@ -1602,6 +1604,19 @@ static void sdm_bank_tick(void)
             ui_message(a);
             return;
         }
+}
+/* the drums' card sounds the card does not hold (sd_stream_plan.c kmiss, x9miss: SD card mode's sampled kits and 909):
+ * "KIT SAMPLES MISSING" / "909 SAMPLES MISSING" once, said again only after they were there or no lane wanted them; those
+ * hits silent */
+static uint32_t sdm_kit_said;
+static void sdm_kit_tick(void)
+{
+    uint32_t m = sd_state == SD_READY && sstp.state != SSTP_GATED ? (uint32_t)sstp.kmiss | (uint32_t)sstp.x9miss << 16 : 0u;
+    sdm_kit_said &= m;
+    if (!m || (m & ~sdm_kit_said) == 0u || op_armed())
+        return;
+    ui_message((m & ~sdm_kit_said & 0xFFFFu) ? "KIT SAMPLES MISSING" : "909 SAMPLES MISSING");
+    sdm_kit_said |= (m & ~sdm_kit_said & 0xFFFFu) ? m & 0xFFFFu : m & 0xFFFF0000u;
 }
 /* a GRAIN or STRETCH part whose cache's reads go missing (sd_stream_rc.h: grains given up or cut, windows frozen):
  * "P1 CARD SLOW" once, when a window of SDM_SLOW_MS has SDM_SLOW_N misses or more and they are an eighth of its reads

@@ -528,6 +528,10 @@ def flags(cfg):
     if not built(cfg, "DRUM_SAMPLED") or not any(cfg[k] for k in R.ITEMS if k.startswith("KIT_")):
         out["FELUCCA_DRUM_SAMPLED"] = 0
     card = card_sets(cfg)                           # (SD card mode: every set on the card, none in the image)
+    if card:                                        # (and the drums' samples: the sampled kits, the 909's hats and
+        out["FELUCCA_KITS_CARD"] = 1                # cymbals, whatever their ticks: registry.h KITS_CARD, X909_CARD)
+        if out.get("FELUCCA_DRUM_X909"):
+            out.update(FELUCCA_X909_CARD=1, FELUCCA_X909_CYM=0, FELUCCA_X909_HAT=0)
     skip = [R.ITEMS[k].env for k in set_keys() if not cfg[k] and not card]
     if not out.get("FELUCCA_DRUM_SAMPLED", 1):
         skip.append("PERC")

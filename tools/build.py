@@ -407,7 +407,7 @@ def build_app():
     (OUT / "x0x.o").unlink(missing_ok=True)
     x0x = {f: CFG_VALUES.get(f, int(os.environ.get(f, d))) for f, d in
            (("FELUCCA_DRUM_X909", "0"), ("FELUCCA_DRUM_X808", "0"), ("FELUCCA_X909_CYM", "1"), ("FELUCCA_X909_HAT", "1"),
-            ("FELUCCA_X0X_TANH", "1"))}
+            ("FELUCCA_X0X_TANH", "1"), ("FELUCCA_X909_CARD", "0"))}
     if x0x["FELUCCA_DRUM_X909"] == 1 or x0x["FELUCCA_DRUM_X808"] == 1:
         # the X0X drum kits' float models (firmware/src/drums/x0x/, from X0X): their own unit with X0X's FPU flags, as
         # ACID's; the data headers from tools/gen_x0x_drums.py

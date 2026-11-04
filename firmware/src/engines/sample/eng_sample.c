@@ -74,6 +74,15 @@ AINL uint32_t pow2_q16(int32_t d16)
 #if FELUCCA_SD_LANES
 #define SST_NLANE ((uint32_t)DRUM_LANES)            /* (the drum lanes' card samples: drums/lane_card.c) */
 #endif
+#if KITS_CARD
+#define SST_NKIT 16u                                /* (the sampled kits' sounds on the card: drums/kit_card.c) */
+#endif
+#if X909_CARD
+#define SST_NX9 3u                                  /* (the 909's hh, crash, ride on the card: drums/x0x/x0x_card.c) */
+#endif
+#if KITS_CARD || X909_CARD
+#define SST_NSRC 32u                                /* (16 a project's samples and sets, the kits' and the 909's) */
+#endif
 #include "../../storage/sd/sd_stream.h"
 #define SMP_CARD SMP_NALL
 #define SMP_NSAMPLE (SMP_NALL + 1)

@@ -43,7 +43,7 @@ static const char *const DRUM_SRC_NAMES[] = {
 #if FELUCCA_DRUM_KITS && DRUM_SRC_HEAD                /* Optimist: then the X0X voices a lane can play (drum_edit.c */
 #if FELUCCA_DRUM_X909                                 /* DL_X909 / DL_X808), those of the machines built */
     "X9 BD", "X9 SD", "X9 LT", "X9 MT", "X9 HT", "X9 RS", "X9 CP", "X9 CH", "X9 OH",
-#if FELUCCA_X909_CYM
+#if X909_HAS_CYM
     "X9 CR", "X9 RD",
 #endif
 #endif
@@ -55,7 +55,7 @@ static const char *const DRUM_SRC_NAMES[] = {
 };
 #define DRUM_KIT_NAMES (DRUM_SRC_NAMES + DRUM_SRC_HEAD)
 /* the X0X voices in DRUM_SRC_NAMES after the kits: the 909's (CR RD with its cymbal samples), then the 808's */
-#define DRUM_SRC_X909N (FELUCCA_DRUM_KITS && DRUM_SRC_HEAD && FELUCCA_DRUM_X909 ? (FELUCCA_X909_CYM ? 11u : 9u) : 0u)
+#define DRUM_SRC_X909N (FELUCCA_DRUM_KITS && DRUM_SRC_HEAD && FELUCCA_DRUM_X909 ? (X909_HAS_CYM ? 11u : 9u) : 0u)
 #define DRUM_SRC_X808N (FELUCCA_DRUM_KITS && DRUM_SRC_HEAD && FELUCCA_DRUM_X808 ? 16u : 0u)
 static const char *const DRUM_KIT_STYLES[] = {"STUDIO", "SOFT", "PUNCHY", "BRIGHT", "DUSTY", DS_KIT_STYLE_LIST
 #if DRUM_X0X                                      /* (read through drum_kit(): only a built kit's) */
@@ -458,6 +458,12 @@ static void drum_on(uint32_t note, uint32_t vel)
         dl_ds_on(&drums.ds[vi], vi, ds_kit(kit), note, vel, lane);
         return;
     }
+#if KITS_CARD
+    if (kit < DRUM_SAMPLED) {                       /* a sampled kit: its sound on the card (SD card mode: kit_card.c) */
+        FAST_CALL(seqev, kc_hit)(lane, note, vel, kit);
+        return;
+    }
+#endif
     if (si < 0)
         return;
     set = &SMP_SETS[si];

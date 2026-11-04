@@ -107,6 +107,22 @@ static uint8_t sst_part_src[SST_NSLOT] = {[0 ... SST_NSLOT - 1u] = 0xFF};   /* t
  * its zones, sources sst_bank_src[part] .. + sst_bank_n[part] - 1 (one a Z<k>.WAV, in key order), 0 none */
 static uint8_t sst_bank_src[SST_NPART], sst_bank_n[SST_NPART];
 static volatile uint32_t sst_bank_gen;               /* + 1 when the card sets' sources change (GRAIN's, STRETCH's zones) */
+/* the drums' sounds on the card (SD card mode, registry.h KITS_CARD / X909_CARD; sd_stream_plan.c places them by path):
+ * the source of each sampled kit's sound k (drums/kit_card.c KC_FILE: Samples/Kits/Acoustic/<nn> - <name>.wav) and of
+ * each of the 909's hh, crash, ride (drums/x0x/x0x_card.c: Samples/X0X/909/), 0xFF none (not wanted, not on the card,
+ * not placed yet) */
+#ifndef SST_NKIT
+#define SST_NKIT 0u
+#endif
+#ifndef SST_NX9
+#define SST_NX9 0u
+#endif
+#if SST_NKIT
+static uint8_t sst_kit_src[SST_NKIT] = {[0 ... SST_NKIT - 1u] = 0xFF};
+#endif
+#if SST_NX9
+static uint8_t sst_x9_src[SST_NX9] = {[0 ... SST_NX9 - 1u] = 0xFF};
+#endif
 #ifndef SST_BANK_Z
 #define SST_BANK_Z 8u                                /* a card set's zones at most (gen_samples.py CARD_ZONES) */
 #endif

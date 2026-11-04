@@ -3,14 +3,22 @@
  * Optimist (FELUCCA_DRUM_X909): the cymbal samples are read as 8-bit block floating point (d9_render_smp,
  * tools/gen_x0x_drums.py); without X0X_909_CYM the ride and crash have no sample. perf/x0x-drums: d9_render_smp does
  * nothing past the sample's end and reads whole-number rates without interpolating (the same samples). X909_CYM 2:
- * the ride and crash as 6-bit block floating point (d9_smp_at). */
+ * the ride and crash as 6-bit block floating point (d9_smp_at). X0X_909_CARD (SD card mode): no sample in the flash, the
+ * hats, crash and ride read from the SD card's Optimist/Samples/X0X/909/ through a stream each voice (x0x_card.c, the
+ * integer side: x9c_start at a hit, x9c_at a sample, x9c_stop at its end; a stream that runs dry fades, counted). */
 /* The 9W9 TR-909 voices on the FM-1. A port of 9W9's er99_engine.c,
  * er99_circuit.h, er99_tom909.h and er99_perc909.h (GPL-3.0): the circuit models,
  * the fitted constants, the defaults and the per-trigger pinning are 9W9's, line
  * for line; only the arithmetic substrate changed (see drum909_dsp.h). Comments
  * that explain WHY a constant is what it is live in 9W9 and are not repeated. */
 #include "drum909.h"
+#if X0X_909_CARD
+uint32_t x9c_start(uint32_t v, uint32_t pitchq);   /* x0x_card.c: voice v's file from its start, its frames (0 none) */
+int32_t x9c_at(uint32_t v, uint32_t p);            /* its frame p, int16 scale (after an underrun: a fade to 0) */
+void x9c_stop(uint32_t v);                         /* the voice is over: its stream back */
+#else
 #include "x0x_drum_samples.h"
+#endif
 
 #define D9_VCA_VT 0.0002f
 #define D9_VCA_NORM (1.0f / (1.0f - D9_VCA_VT))
@@ -335,6 +343,12 @@ FM_SETUP void drum909_init(drum909_t *d)
         d9_smp_rate(s);
         d9_env_set(&s->out, 0.0f);
         d9_shape_prep(&s->shape, s->drive, s->dist_type);
+#if X0X_909_CARD                          /* (Optimist, SD card mode: every sample on the card) */
+        s->buf = 0;
+        s->sh = 0;
+        s->len = 0u;
+        s->card = (uint32_t)i;
+#else
 #if X0X_909_HAT == 2                      /* (Optimist: the 6-bit hats) */
         if (i < 2) {
             s->buf = (const int8_t *)x0x_smp_hh_p;
@@ -359,6 +373,7 @@ FM_SETUP void drum909_init(drum909_t *d)
         { s->buf = (const int8_t *)x0x_smp_hh_p; s->sh = x0x_smp_hh_e6; s->len = 0u; }   /* (no ride or crash: no sample, a table that stays) */
 #else
         { s->buf = x0x_smp_hh_m; s->sh = x0x_smp_hh_e; s->len = i < 2 ? X0X_SMP_HH_LEN : 0u; }
+#endif
 #endif
     }
 
@@ -506,6 +521,9 @@ FM_SETUP void drum909_trigger(drum909_t *d, int voice, float vel)
         d9_env_exp(&s->out, 0.00001f, s->decay * 0.001f * D9_SR);
         s->pos = 0;
         s->frac = 0;
+#if X0X_909_CARD
+        s->len = x9c_start(s->card, (uint32_t)(s->pitch * 65536.0f));   /* (0: not on the card, silent) */
+#endif
         s->playing = 1;
         s->mute = d9_ceil(s->decay * 0.001f * D9_SR);
         break;
@@ -730,6 +748,11 @@ static void d9_render_clap(d9_clap_t *__restrict v, const float *nz, const d9_bu
  * ride and crash as 6-bit mantissas, four in three bytes (tools/gen_x0x_drums.py pack6) */
 static inline int32_t d9_smp_at(const d9_smp_t *s, const int8_t *buf, const uint8_t *sh, uint32_t p)
 {
+#if X0X_909_CARD
+    (void)buf;
+    (void)sh;
+    return x9c_at(s->card, p);
+#else
 #if X0X_909_CYM == 2 || X0X_909_HAT == 2
     if (s->b6) {
         const uint8_t *q = (const uint8_t *)buf + 3u * (p >> 2);
@@ -740,6 +763,7 @@ static inline int32_t d9_smp_at(const d9_smp_t *s, const int8_t *buf, const uint
 #endif
     (void)s;
     return (int32_t)buf[p] << sh[p / X0X_SMP_BLOCK];
+#endif
 }
 
 /* Hats, ride, crash (render_sampler) */
@@ -754,8 +778,12 @@ static void d9_render_smp(d9_smp_t *__restrict s, const d9_bus_t *bus, int n)
     /* Optimist: past the sample's end every sample is 0 x the envelope, and the drive stage's 0 (but Crush, whose
      * hold count runs on): nothing to add. The envelope is not needed again (a hit sets it anew; a choke's ramp only
      * scales these 0s) */
-    if (s->pos >= len && !(drive && s->shape.type == 6))
+    if (s->pos >= len && !(drive && s->shape.type == 6)) {
+#if X0X_909_CARD
+        x9c_stop(s->card);                    /* (past its end: its stream back) */
+#endif
         return;
+    }
     d9_env_anchor(&s->out);
     const float pre = 1.0f + s->drive * 0.5f;
     const int8_t *buf = s->buf;
@@ -775,6 +803,10 @@ static void d9_render_smp(d9_smp_t *__restrict s, const d9_bus_t *bus, int n)
             d9_emit(bus, i, v);
         }
         s->pos = p;
+#if X0X_909_CARD
+        if (s->mute <= 0 || p >= len)
+            x9c_stop(s->card);                /* (its decay over, or past its end: its stream back) */
+#endif
         return;
     }
     for (int i = 0; i < m; ++i) {
@@ -795,6 +827,10 @@ static void d9_render_smp(d9_smp_t *__restrict s, const d9_bus_t *bus, int n)
             v = d9_shape(&s->shape, v * pre, s->crush_st);
         d9_emit(bus, i, v);
     }
+#if X0X_909_CARD
+    if (s->mute <= 0 || s->pos >= len)
+        x9c_stop(s->card);
+#endif
 }
 
 static inline void d9_bus(d9_bus_t *b, const drum909_t *d, int voice, float *dry, float *rev, float *dly)

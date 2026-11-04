@@ -32,6 +32,10 @@
 #define FELUCCA_X909_HAT 1             /* the 909's hi-hat samples: 1 8-bit block floating point, 2 6-bit (Optimist) */
 #endif
 #define X0X_909_HAT FELUCCA_X909_HAT
+#ifndef FELUCCA_X909_CARD
+#define FELUCCA_X909_CARD 0            /* SD card mode: the hats, crash and ride from the card (x0x_card.c; registry.h) */
+#endif
+#define X0X_909_CARD FELUCCA_X909_CARD
 #ifndef FELUCCA_X0X_TANH
 #define FELUCCA_X0X_TANH 1             /* the saturators' tanh: 1 a 1024-point table, 2 a 256-point one (Optimist) */
 #endif
