@@ -159,7 +159,7 @@ ALGORITHM follows the same rule (`algo_has_track`, using the header's classifica
 
 ### 3.1 Cards and lists
 
-- **Cards are 2 x 2** on every screen with cards except the mixer's channel and lane rows (which want the height and keep four small cards; its MASTER row takes the big cards). KNOB 1 top left, 2 top right, 3 bottom left, 4 bottom right; label small at the left of the label row, unit right-aligned in it, the value large, its form under it, the hot card white. There is no CARDS setting (settings word bit 23 is reserved).
+- **Cards are 2 x 2** on every screen with cards except the mixer's channel and lane rows (which want the height and keep four small cards; its MASTER row takes the big cards). A card's list shows two of them (section 4.14). KNOB 1 top left, 2 top right, 3 bottom left, 4 bottom right; label small at the left of the label row, unit right-aligned in it, the value large, its form under it, the hot card white. There is no CARDS setting (settings word bit 23 is reserved).
 - **Under the cards**, a screen shows its picture alone on the rest of the panel when the picture is worth it: the envelope (ENV, ENV2), the LFO wave, the arpeggio (ARP, every row), the scale, the gater, the pattern's steps, FM6's algorithm, TEMPO, SCOPE. A row's picture is its family's nearest one (LFO DEST shows the LFO).
 - **No picture: four lines** (`FELUCCA_PAGE_LINES`, 1; the builder item was retired 2026-10-21). EDIT, VOICE, a lane's pages, PROJECT, SONG, the master FX, and SOUND pages whose picture only repeats the cards (the FX needles, a lane's name and kit) show the cursor row as four lines in GLOBAL's look, value k on line k, SELECT the next row; the header names the row and its n/N. With the flag at 0: the 2 x 2 cards with the row list (five rows of 19 px) under them. `pl_on`, `pl_draw`, `pic_useful`.
 - Lists put a row's name in a column (9 characters from x 4) and its four cells at x 84 + 38 k; a longer text pushes its neighbours right, and only a row that cannot hold every text whole gives up characters, the longest first (`row_layout`).
@@ -410,7 +410,7 @@ Only with an arena placed by need (builder `ARENA`; the default's fixed slots ne
 Only in SD card mode with the card (`FELUCCA_SD_UI`; docs/SD-CARD-DESIGN.md 9; the user, 2026-10-26: "projects saved and
 loaded by name, every list as banks of 16 on the white keys"). PROJECT's rows: PROJECT (the card's projects while a card
 is ready; without one the flash slot as before, its panel saying *No SD card: in flash*), PRESETS, KITS, SAMPLES, then
-USER, TOOLS, MEMORY as before. A list row is four small cards (as the mixer's) over its page (`op_sdcard.c`):
+USER, TOOLS, MEMORY as before. A list row has four cards, of which two show at a time, big, side by side in the 1x4 band (`op_layers.c cards_2x1`): the page needs the panel's eight rows, which the 2 x 2 block would cut to five. The pair of the knob last turned shows, KNOB 1 and 2 on entering a list; every knob works whichever pair shows (`op_sdcard.c`):
 
 | Card | |
 |---|---|
@@ -418,6 +418,8 @@ USER, TOOLS, MEMORY as before. A list row is four small cards (as the mixer's) o
 | 2 ITEM | the slot (1..16), across the pages |
 | 3 ACTION | LOAD (the default), SAVE, DELETE; SAVES: LOAD, DELETE; SAMPLES: USE. Red when it destroys or replaces |
 | 4 VIEW | PROJECTS: NAME, SAVES (the item's versions, the title its name); PRESETS, KITS: FOLDER, NAME (every file under it, by name); SAMPLES: FOLDER, NAME, RECENT (the ones used, last first) |
+
+A page comes in slices of the main loop's (`sd_browse.c` `sdb_go`, `sd_mode.c` `sdm_read_pump`), never in one blocking pass: the cards and the title show where the list is going at once, the names stay until the new page is whole, turns during a read add up, and a page not there 200 ms after it was asked brings the toast *LOADING* until it is (`op_sdcard.c` `sdc_loading`; nothing shows on a read that makes it). A white key under LOADING does nothing: the page it would pick is not there yet.
 
 The page: two columns of eight names, the slots as the white keys sit (left octave, then right), the ITEM framed in white;
 a folder grey with a "/", a name cut with "~" (14 characters a column); our own files without their extension, a version

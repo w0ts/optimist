@@ -10,6 +10,13 @@
  *   from the UI: the next boot finishes it, the card's project the staged one; the card pulled: said, the flash row */
 static uint8_t *sdu_img;
 static uint32_t sdu_sectors;
+/* a page comes in the main loop's slices (sd_mode.c sdm_read_pump): the checks read what the page will be, the read
+ * ended here; sdu_loading's raw (turn) and (frame) are the slices */
+#define turn(r, s) (turn(r, s), sdm_wait())
+#define tap(b) (tap(b), sdm_wait())
+#define frame() (frame(), sdm_wait())
+#define kdown(k) (kdown(k), sdm_wait())
+#define kup(k) (kup(k), sdm_wait())
 static void sdu_frames(uint32_t n)                      /* frames, the main loop's card pass after each (main.c sdm_poll) */
 {
     while (n--) {
@@ -31,6 +38,8 @@ static const char *sdu_val(uint32_t k)
 {
     static cell_t c;
     SCREENS[SCR_PROJECT].cell(ui.row[SCR_PROJECT], k, &c);
+    sdm_wait();
+    SCREENS[SCR_PROJECT].cell(ui.row[SCR_PROJECT], k, &c);
     return c.val;
 }
 static const char *sdu_label(uint32_t k)
@@ -38,6 +47,35 @@ static const char *sdu_label(uint32_t k)
     static cell_t c;
     SCREENS[SCR_PROJECT].cell(ui.row[SCR_PROJECT], k, &c);
     return c.label ? c.label : "";
+}
+static uint32_t sdu_band(uint32_t hot)                  /* the cards' band drawn with that knob last turned, no card lit */
+{
+    uint32_t i, h = 5381u;
+    ui.hot = (uint8_t)hot;
+    ui.hot_lit = 0;
+    ui.force = 1;
+    frame();
+    for (i = OY_CARD * 240u; i < OY_PANEL * 240u; i++)
+        h = h * 33u + screen[i];
+    return h;
+}
+static void sdu_pairs(void)                             /* a list's 2x1 cards: what shows follows the knob, every knob works */
+{
+    uint32_t a = sdu_band(0), b = sdu_band(2);
+    check(a != b && sdu_band(1) == a && sdu_band(3) == b, "a list's cards: K1/K2 a pair, K3/K4 the other");
+    check(card_edge(3u + BIG_W - 1u, OY_CARD) && card_edge(121u + BIG_W - 1u, OY_CARD), "a list's cards: two big cards side by side");
+    sdu_band(0);
+    uint32_t it = sdc.item;
+    turn(EN_K3, 1);
+    frame();
+    check(ui.hot == 2u && !strcmp(sdu_val(2), "SAVE"), "K1/K2 showing, K3 turned: ACTION moved, its pair shows");
+    turn(EN_K2, 1);
+    frame();
+    check(ui.hot == 1u && sdc.item != it, "K3/K4 showing, K2 turned: ITEM moved, its pair shows");
+    turn(EN_K2, -1);
+    turn(EN_K3, -1);
+    frame();
+    check(!strcmp(sdu_val(2), "LOAD") && sdc.item == it, "... and back");
 }
 static void sdu_key(uint32_t w) { kdown(WK(w)); kup(WK(w)); sdm_poll(); }
 static void sdu_name(const char *s)                     /* NAME open: the name typed (NAME's typing: its own tests), SAVE */
@@ -349,6 +387,77 @@ static void sdu_browse_tests(void)
     trk[1].eng_req = trk[1].engine = (uint8_t)t2;
 }
 
+/* a page read in slices (the user, 2026-11-05): SAMPLES' NAME view over a folder of 80, a pass of 80 entries a page; (turn)
+ * and (frame) as the main loop's UI pass, sdm_poll its card pass */
+static int sdu_toast(const char *w) { return ui.toast_t && !strcmp(ui.msg, w); }
+static void sdu_loading(void)
+{
+    char was[SDC_NAME], t[48];
+    uint32_t i, polls = 0, most = 0, c0, n;
+    int quiet = 1;
+    FIL f;
+    f_mkdir("Optimist/Samples/many");
+    for (i = 0; i < 80u; i++) {
+        snprintf(t, sizeof t, "Optimist/Samples/many/take %02u.wav", i);
+        check(f_open(&f, t, FA_CREATE_ALWAYS | FA_WRITE) == FR_OK && f_close(&f) == FR_OK, "slices: a file of the 80");
+    }
+    sdu_row(PR_CSMP);
+    for (i = 0; i < 4u && sdc.view[SDC_SMP] != SDV_NAME; i++)   /* (left on RECENT) */
+        turn(EN_K4, -1);
+    sdu_frames(2);
+    check(sdm_pages() >= 6u && sdm_page() == 0u && sdm_count() == 16u, "slices: the NAME view, 16 a page");
+    str_cpy(was, sdc_name(0), sizeof was);
+    /* ---- slow: what shows until it is read */
+    (turn)(EN_K1, 1);
+    check(sdm_reading() && sdm_page() == 1u && !strcmp(sdc_name(0), was), "a page asked: being read, K1 on its way, the names as they were");
+    for (i = 0; i < 200u && sdm_read_ms() + 16u < 200u && sdm_reading(); i++) {
+        (frame)();
+        quiet &= !sdu_toast("LOADING");
+    }
+    check(quiet, "... no popup under 200 ms");
+    (frame)();
+    (frame)();
+    check(sdu_toast("LOADING") && pop_kind == 0u && !strcmp(sdc_name(0), was), "... past 200 ms: the toast LOADING, the old page under it");
+    ppm("opt-sd-loading");
+    (turn)(EN_K1, 1);
+    check(sdm_page() == 2u, "a turn on a read going: it adds up");
+    do {
+        c0 = clk;
+        sdm_poll();
+        n = clk - c0;
+        most = n > most ? n : most;
+        polls++;
+    } while (sdm_reading() && polls < 1000u);
+    check(polls >= 4u && most < 16000u, "the read in slices of the main loop's, each under 16 ms of the bus");
+    check(sdm_page() == 2u && sdm.b.page == 2u && strcmp(sdc_name(0), was) != 0, "... the page there, whole");
+    (frame)();
+    check(!ui.toast_t && !sdc.loading, "... the popup gone with the read");
+    /* ---- fast: read within the first frames */
+    (turn)(EN_K1, -1);
+    quiet = 1;
+    for (i = 0; i < 40u; i++) {
+        sdm_poll();
+        (frame)();
+        quiet &= !sdu_toast("LOADING");
+    }
+    check(quiet && !sdm_reading() && sdm_page() == 1u, "a read that makes it: no popup");
+    /* ---- a key on a read going, the card pulled in one */
+    (turn)(EN_K1, 1);
+    for (i = 0; i < 16u; i++)
+        (frame)();
+    check(sdu_toast("LOADING"), "LOADING again");
+    i = sdc.item;
+    kdown(WK(3u)), kup(WK(3u));
+    check(sdc.item == i && !op_armed(), "a key under LOADING: nothing asked of a page not here");
+    sdm_wait();
+    (frame)();
+    check(!ui.toast_t, "... the read ended, the popup gone");
+    (turn)(EN_K1, 1);
+    sd_state = SD_NOCARD;
+    sdm_poll();
+    check(!sdm_reading() && !sdm_count(), "the card pulled in a read: the read dropped");
+    sdu_card();
+}
 static void sdcard_tests(void)
 {
     uint32_t i, r;
@@ -383,7 +492,8 @@ static void sdcard_tests(void)
     check(sdx_open() == FR_OK && sdx.count == 2u, "SD boot: the two samples indexed");
     /* ---- PROJECT: the card's list */
     r = sdu_row(PR_PROJECT);
-    check(sdc_listing() && !cards_2x2(), "PROJECT, a card: the card's list, four small cards");
+    check(sdc_listing() && !cards_2x2() && cards_2x1() && OP_PY == OY_PANEL, "PROJECT, a card: the card's list, two big cards, the panel at 76");
+    sdu_pairs();
     check(!strcmp(sdu_label(0), "BANK") && !strcmp(sdu_val(0), "A") && !strcmp(sdu_label(2), "ACTION") &&
           !strcmp(sdu_val(2), "LOAD") && !strcmp(sdu_label(1), "ITEM") && !strcmp(sdu_label(3), "VIEW") &&
           !strcmp(sdu_val(3), "NAME"), "PROJECT, a card: BANK A, ACTION LOAD, ITEM, VIEW NAME");
@@ -734,11 +844,15 @@ static void sdcard_tests(void)
 #if FELUCCA_SD_STREAM && FELUCCA_SLICE
     {   /* a part on no sampler, two built: the engine popup, the samplers alone; HOME cancels; a pick (the user, 2026-11-05) */
         uint32_t was = trk[1].eng_req, l[34], n, at;
-        check(was != (uint8_t)ENG_SLOT_SAMPLE && was != (uint8_t)ENG_SLOT_SLICE, "USE: T2 on no sampler");
+        check(was != (uint8_t)ENG_SLOT_SAMPLE && was != (uint8_t)ENG_SLOT_SLICE && was != (uint8_t)ENG_SLOT_GRAIN &&
+              was != (uint8_t)ENG_SLOT_STRETCH, "USE: T2 on no sampler");
         sdu_key(1);
         pop_engines(l, &n, &at);
-        check(sdc_pick_on() && pop_kind == 4u && ui.toast_t && !op_armed() && n == 2u && l[0] == (uint32_t)ENG_SLOT_SAMPLE &&
-              l[1] == (uint32_t)ENG_SLOT_SLICE, "USE on a non-sampler, two built: the engine popup: SAMPLE, SLICE");
+        check(sdc_pick_on() && pop_kind == 4u && ui.toast_t && !op_armed() && n == 2u + FELUCCA_ENG_GRAIN + FELUCCA_ENG_STRETCH &&
+              l[0] == (uint32_t)ENG_SLOT_SAMPLE && l[1] == (uint32_t)ENG_SLOT_SLICE &&
+              (!FELUCCA_ENG_GRAIN || l[2] == (uint32_t)ENG_SLOT_GRAIN) &&
+              (!FELUCCA_ENG_STRETCH || l[n - 1u] == (uint32_t)ENG_SLOT_STRETCH),
+              "USE on a non-sampler: the engine popup: every sampler built, SAMPLE SLICE GRAIN STRETCH");
         frames(200);
         check(sdc_pick_on() && ui.toast_t && pop_kind == 4u, "... it waits (no toast's time-out)");
         turn(EN_PRESET, 1);
@@ -766,10 +880,43 @@ static void sdcard_tests(void)
               "a pick, the same key: SAMPLE, its SET on CARD");
         sdu_key(1);
         check(!sdc_pick_on() && !op_armed(), "on a sampler: into it, no question, no popup");
+#if FELUCCA_ENG_GRAIN
+        {   /* GRAIN takes it (the user, 2026-11-05): a pick, its SRC on CARD, the file's name on SRC; on GRAIN: no question */
+            cell_t c;
+            int16_t *vp = &trk[1].p[P_E0];
+            set_engine_of(&trk[1], was);
+            sdu_frames(1);
+            sdu_key(1);
+            turn(EN_PRESET, 1);
+            turn(EN_PRESET, 1);
+            tap(B_SAVE);
+            sdu_frames(1);
+            check(!sdc_pick_on() && trk[1].eng_req == (uint8_t)ENG_SLOT_GRAIN && *vp == (int16_t)SMP_CARD && sdm_smp[1].hash,
+                  "a pick, GRAIN: the track on it, its SRC on CARD, the sample in");
+            sdu_key(1);
+            check(!sdc_pick_on() && !op_armed() && *vp == (int16_t)SMP_CARD, "on GRAIN: into it, no question");
+            memset(&c, 0, sizeof c);
+            song.sel = 1;
+            cell_param(&c, &ENGINES[trk[1].eng_req]->edit[0], vp);
+            check(!strcmp(c.val, "SNARE"), "GRAIN's SRC on CARD shows the file's name");
+            sdu_frames(30);
+            cell_param(&c, &ENGINES[trk[1].eng_req]->edit[0], vp);
+            sdu_frames(1);
+            sstp.missing |= 2u;
+            cell_param(&c, &ENGINES[trk[1].eng_req]->edit[0], vp);
+            check(!strcmp(c.val, "MISSING"), "... MISSING when the card has it not");
+            sstp.missing &= (uint16_t)~2u;
+            set_engine_of(&trk[1], (uint32_t)ENG_SLOT_SAMPLE);
+            *vp = (int16_t)SMP_CARD;
+            sdu_frames(1);
+        }
+#endif
     }
 #else
     sdu_key(1);                                         /* (one sampler at most: no popup) */
-    check(!op_armed() && !sdc_pick_on(), "USE with one sampler built, or none: no question, no popup");
+    if (sdc_pick_on())                                  /* (GRAIN or STRETCH built beside SAMPLE: the first) */
+        tap(B_SAVE), sdu_frames(1);
+    check(!op_armed() && !sdc_pick_on(), "USE with one sampler built, or the first picked: no question left");
 #if FELUCCA_SD_STREAM
     check(trk[1].eng_req == (uint8_t)ENG_SLOT_SAMPLE && trk[1].p[P_E0] == (int16_t)SMP_CARD, "... the track on the one sampler");
 #endif
@@ -803,6 +950,7 @@ static void sdcard_tests(void)
 #endif
     song.sel = 0;
     sdu_browse_tests();
+    sdu_loading();
     /* ---- SYSTEM > SD CARD: VERSIONS, SLACK, kept in the log's device record */
     op_enter(SCR_SYSTEM);
     for (r = 0; r < sys_rows(); r++) {
@@ -1331,3 +1479,8 @@ static void sdu_cz_tests(void)
     check(sdu_msg("LOADED"), "... LOADED said");
 }
 #endif
+#undef turn
+#undef tap
+#undef frame
+#undef kdown
+#undef kup

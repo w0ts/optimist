@@ -17,6 +17,7 @@
  *                             FatFs' error (b->n 0)
  *   sdb_turn(b, step)         the page step pages on (+1, -1, more: one pass a page), clamped to the first and last
  *   b->page, b->pages, b->total, b->n, b->slot[k]   what the page shows: slot k on key k (name, dir, cut)
+ *   sdb_go(b, view, root), sdb_go_turn(b, step), sdb_pump(units)   the same in slices of the main loop's (below)
  *   sdb_path(b, k, out, cap)  slot k's whole path from the card's root: its length, 0 when it is gone or does not fit
  *   sdb_into(b, k), sdb_up(b)   SDB_FOLDER: into the folder on slot k / up to the folder above (never above Optimist),
  *                             page 0: FR_OK, FR_NO_PATH (slot k no folder, or already at the top) */
@@ -48,6 +49,12 @@ static struct {                                      /* the source being read (o
     sdw_t walk;
     sdx_rec rec;
 } sdb_src IN_POOL;
+static struct {                                      /* ... and that pass's page so far (sdb_ps_begin .. sdb_ps_step) */
+    sdb_item after, before;                          /* the edges (has_*: asked) */
+    uint32_t n, total;
+    FRESULT r;
+    uint8_t has_after, has_before, none;
+} sdb_ps IN_POOL;
 
 static int sdb_ci(uint8_t c) { return c >= 'A' && c <= 'Z' ? c + 32 : c; }
 
@@ -167,71 +174,208 @@ static uint32_t sdb_bank_no(const char *s)
     return nn >= 1u && nn <= SDB_KEYS ? nn : 0u;
 }
 
-/* SDB_BANK: one folder of 16 numbered slots, slot NN - 1 the entry "NN - name" (the first of a number, in the folder's
+/* one pass over the source, a few entries at a time (sdb_fill: all of them; sdb_pump: a slice of the main loop's):
+ * SDB_BANK: one folder of 16 numbered slots, slot NN - 1 the entry "NN - name" (the first of a number, in the folder's
  * order); a free number an empty slot (name ""); anything without a number not shown (b->total counts what is). A bank
- * not made yet: 16 free slots */
-static FRESULT sdb_bank_fill(sdb_t *b)
+ * not made yet: 16 free slots. The other views: the page after the edge, or before it (the 16 last), or the first */
+static void sdb_ps_begin(sdb_t *b, const sdb_item *after, const sdb_item *before)
 {
-    sdb_item it;
-    FRESULT r = sdb_src_open(b);
-    uint32_t nn, total = 0;
-    int st;
-    memset(b->slot, 0, sizeof b->slot);
-    if (r == FR_NO_PATH || r == FR_NO_FILE) {
-        b->n = SDB_KEYS, b->total = 0, b->pages = 1;
-        return FR_OK;
+    FRESULT r;
+    sdb_ps.has_after = after != 0;
+    sdb_ps.has_before = before != 0;
+    if (after)
+        sdb_ps.after = *after;
+    if (before)
+        sdb_ps.before = *before;
+    sdb_ps.n = sdb_ps.total = 0;
+    sdb_ps.none = 0;
+    if (b->view == SDB_BANK)
+        memset(b->slot, 0, sizeof b->slot);
+    r = sdb_src_open(b);
+    if (b->view == SDB_BANK && (r == FR_NO_PATH || r == FR_NO_FILE)) {
+        r = FR_OK;
+        sdb_ps.none = 1;                             /* (no folder: nothing to read, nothing to close) */
+    } else if (r == FR_NO_FILE && b->view == SDB_RECENT) {
+        r = FR_OK;
     }
-    while (r == FR_OK && (st = sdb_src_next(b, &it, &r)) > 0)
-        if ((nn = sdb_bank_no(it.name)) != 0 && !b->slot[nn - 1u].name[0]) {
-            b->slot[nn - 1u] = it;
-            total++;
-        }
-    sdb_src_close(b);
-    b->n = SDB_KEYS;
-    b->total = total;
-    b->pages = 1;
-    return r;
+    sdb_ps.r = r;
 }
 
-/* one pass: the page after `after` (the 16 first past it), or before `before` (the 16 last before it), or the first */
-static FRESULT sdb_fill(sdb_t *b, const sdb_item *after, const sdb_item *before)
+static void sdb_ps_keep(sdb_t *b, const sdb_item *it)  /* entry it among the 16 the page keeps */
+{
+    const sdb_item *after = sdb_ps.has_after ? &sdb_ps.after : 0, *before = sdb_ps.has_before ? &sdb_ps.before : 0;
+    uint32_t n = sdb_ps.n, i;
+    if ((after && sdb_cmp(b->view, it, after) <= 0) || (before && sdb_cmp(b->view, it, before) >= 0))
+        return;
+    if (n == SDB_KEYS && (before ? sdb_cmp(b->view, it, &b->slot[0]) <= 0
+                                 : sdb_cmp(b->view, it, &b->slot[SDB_KEYS - 1u]) >= 0))
+        return;                                      /* (outside the 16 kept) */
+    if (n == SDB_KEYS && before) {                   /* the smallest drops out */
+        memmove(&b->slot[0], &b->slot[1], (SDB_KEYS - 1u) * sizeof *it);
+        n--;
+    } else if (n == SDB_KEYS) {
+        n--;                                         /* the largest drops out */
+    }
+    for (i = n; i && sdb_cmp(b->view, it, &b->slot[i - 1u]) < 0; i--)
+        b->slot[i] = b->slot[i - 1u];
+    b->slot[i] = *it;
+    sdb_ps.n = n + 1u;
+}
+
+/* up to units of the source's entries: 1 more to read, 0 the pass done (b filled, sdb_ps.r its result) */
+static int sdb_ps_step(sdb_t *b, uint32_t units)
 {
     sdb_item it;
-    FRESULT r;
-    uint32_t n = 0, i, total = 0;
-    int st;
-    if (b->view == SDB_BANK)
-        return sdb_bank_fill(b);
-    r = sdb_src_open(b);
-    if (r == FR_NO_FILE && b->view == SDB_RECENT)
-        r = FR_OK;
-    while (r == FR_OK && (st = sdb_src_next(b, &it, &r)) > 0) {
-        total++;
-        if ((after && sdb_cmp(b->view, &it, after) <= 0) || (before && sdb_cmp(b->view, &it, before) >= 0))
-            continue;
-        if (n == SDB_KEYS && (before ? sdb_cmp(b->view, &it, &b->slot[0]) <= 0
-                                     : sdb_cmp(b->view, &it, &b->slot[SDB_KEYS - 1u]) >= 0))
-            continue;                                /* (outside the 16 kept) */
-        if (n == SDB_KEYS && before) {               /* the smallest drops out */
-            memmove(&b->slot[0], &b->slot[1], (SDB_KEYS - 1u) * sizeof it);
-            n--;
-        } else if (n == SDB_KEYS) {
-            n--;                                     /* the largest drops out */
-        }
-        for (i = n; i && sdb_cmp(b->view, &it, &b->slot[i - 1u]) < 0; i--)
-            b->slot[i] = b->slot[i - 1u];
-        b->slot[i] = it;
-        n++;
+    uint32_t nn;
+    int st = 0;
+    if (sdb_ps.none) {
+        b->n = SDB_KEYS, b->total = 0, b->pages = 1;
+        return 0;
     }
+    while (sdb_ps.r == FR_OK && units-- && (st = sdb_src_next(b, &it, &sdb_ps.r)) > 0) {
+        if (b->view != SDB_BANK) {
+            sdb_ps.total++;
+            sdb_ps_keep(b, &it);
+        } else if ((nn = sdb_bank_no(it.name)) != 0 && !b->slot[nn - 1u].name[0]) {
+            b->slot[nn - 1u] = it;
+            sdb_ps.total++;
+        }
+    }
+    if (sdb_ps.r == FR_OK && st > 0)
+        return 1;
     sdb_src_close(b);
-    b->n = (uint8_t)n;
-    b->total = total;
-    b->pages = total ? (total + SDB_KEYS - 1u) / SDB_KEYS : 1u;
+    b->total = sdb_ps.total;
+    if (b->view == SDB_BANK) {
+        b->n = SDB_KEYS;
+        b->pages = 1;
+    } else {
+        b->n = (uint8_t)sdb_ps.n;
+        b->pages = b->total ? (b->total + SDB_KEYS - 1u) / SDB_KEYS : 1u;
+    }
+    return 0;
+}
+
+static FRESULT sdb_fill(sdb_t *b, const sdb_item *after, const sdb_item *before)
+{
+    sdb_ps_begin(b, after, before);
+    while (sdb_ps_step(b, 0xFFFFFFFFu))
+        ;
+    return sdb_ps.r;
+}
+
+/* ---- the read in slices (the UI's: a page asked with sdb_go or sdb_go_turn comes in sdb_pump's slices, the main loop
+ * going on; what the screen shows stays in b until the page is whole). One read at a time: a new sdb_go drops the one
+ * running, turns add up; whatever else needs the source or the page first ends the read (sdb_finish) */
+static struct {
+    sdb_t n;                                         /* the page being read; root and view: where the list is going */
+    sdb_t *to;
+    int32_t steps;                                   /* the pages to turn after this one */
+    int32_t dir;                                     /* the page being read, from n.page: +1 the next, < 0 back */
+    uint8_t on;
+} sdb_rd IN_POOL;
+
+static int sdb_reading(void) { return sdb_rd.on; }
+static const sdb_t *sdb_going(const sdb_t *b) { return sdb_rd.on ? &sdb_rd.n : b; }
+static uint32_t sdb_going_page(void)                 /* (reading) the page it ends on */
+{
+    return (uint32_t)((int32_t)sdb_rd.n.page + sdb_rd.dir + sdb_rd.steps);
+}
+static int sdb_rd_turn(void)                         /* the next page of the turns asked: 1 its read begun */
+{
+    sdb_t *b = &sdb_rd.n;
+    sdb_item edge;
+    sdb_rd.dir = 0;
+    if (sdb_rd.steps > 0 && b->page + 1u < b->pages && b->n == SDB_KEYS) {
+        edge = b->slot[b->n - 1u];
+        sdb_rd.dir = 1;
+        sdb_rd.steps--;
+        sdb_ps_begin(b, &edge, 0);
+    } else if (sdb_rd.steps < 0 && b->page) {
+        edge = b->slot[0];
+        sdb_rd.steps++;
+        if (b->page == 1u || !b->n) {                /* (the first page: from the start, whole) */
+            sdb_rd.dir = -(int32_t)b->page;
+            sdb_ps_begin(b, 0, 0);
+        } else {
+            sdb_rd.dir = -1;
+            sdb_ps_begin(b, 0, &edge);
+        }
+    } else {
+        sdb_rd.steps = 0;
+    }
+    return sdb_rd.dir != 0;
+}
+static void sdb_abort(void)                          /* the read dropped (what it was showing stays) */
+{
+    if (sdb_rd.on && !sdb_ps.none)
+        sdb_src_close(&sdb_rd.n);
+    sdb_rd.on = 0;
+}
+static FRESULT sdb_go(sdb_t *b, uint32_t view, const char *root)
+{
+    sdb_abort();
+    sdb_rd.n.view = (uint8_t)view;
+    sdb_rd.n.page = 0;
+    sdb_rd.n.n = 0;
+    sdb_rd.n.pages = 0;                              /* (not known yet) */
+    if (sdl_cat(sdb_rd.n.root, 0, sizeof sdb_rd.n.root, root ? root : "") >= sizeof sdb_rd.n.root)
+        return FR_INVALID_NAME;
+    sdb_rd.to = b;
+    sdb_rd.steps = 0;
+    sdb_rd.dir = 0;
+    sdb_rd.on = 1;
+    sdb_ps_begin(&sdb_rd.n, 0, 0);
+    return FR_OK;
+}
+static void sdb_go_turn(sdb_t *b, int32_t step)
+{
+    if (!sdb_rd.on) {
+        sdb_rd.n = *b;
+        sdb_rd.to = b;
+        sdb_rd.steps = step;
+        sdb_rd.on = (uint8_t)sdb_rd_turn();
+    } else {
+        int32_t at = (int32_t)sdb_going_page() + step;
+        if (at >= 0 && (!sdb_rd.n.pages || at < (int32_t)sdb_rd.n.pages))
+            sdb_rd.steps += step;
+    }
+}
+/* a slice of the read: up to units entries; its result when a page ended */
+static FRESULT sdb_pump(uint32_t units)
+{
+    sdb_t *b = &sdb_rd.n;
+    FRESULT r;
+    if (!sdb_rd.on || sdb_ps_step(b, units))
+        return FR_OK;
+    r = sdb_ps.r;
+    if (r == FR_OK && sdb_rd.dir > 0 && !b->n) {     /* (the card changed under the page: back to the first) */
+        b->page = 0;
+        sdb_rd.dir = 0;
+        sdb_rd.steps = 0;
+        sdb_ps_begin(b, 0, 0);
+        return FR_OK;
+    }
+    b->page = (uint32_t)((int32_t)b->page + sdb_rd.dir);
+    sdb_rd.dir = 0;
+    if (r != FR_OK) {
+        b->n = 0;
+        b->pages = 1;
+        sdb_rd.steps = 0;
+    }
+    *sdb_rd.to = *b;
+    if (!sdb_rd_turn())
+        sdb_rd.on = 0;
     return r;
+}
+static void sdb_finish(void)                         /* the read ended at once */
+{
+    while (sdb_rd.on)
+        (void)sdb_pump(0xFFFFFFFFu);
 }
 
 static FRESULT sdb_open(sdb_t *b, uint32_t view, const char *root)
 {
+    sdb_finish();
     b->view = (uint8_t)view;
     b->page = 0;
     b->n = 0;
@@ -244,6 +388,7 @@ static FRESULT sdb_turn(sdb_t *b, int32_t step)
 {
     sdb_item edge;
     FRESULT r = FR_OK;
+    sdb_finish();
     for (; step > 0 && r == FR_OK && b->page + 1u < b->pages && b->n == SDB_KEYS; step--) {
         edge = b->slot[b->n - 1u];
         if ((r = sdb_fill(b, &edge, 0)) == FR_OK && !b->n)
@@ -270,6 +415,7 @@ static uint32_t sdb_path(sdb_t *b, uint32_t k, char *out, uint32_t cap)
     FRESULT r = FR_OK;
     uint32_t n = 0;
     int st;
+    sdb_finish();
     if (k >= b->n)
         return 0;
     if (b->view == SDB_BANK && !b->slot[k].name[0])
@@ -303,6 +449,7 @@ static uint32_t sdb_path(sdb_t *b, uint32_t k, char *out, uint32_t cap)
 static FRESULT sdb_into(sdb_t *b, uint32_t k)
 {
     char p[sizeof b->root];
+    sdb_finish();
     if (b->view != SDB_FOLDER || k >= b->n || !b->slot[k].dir)
         return FR_NO_PATH;
     if (!sdb_path(b, k, p, sizeof p))
@@ -313,6 +460,7 @@ static FRESULT sdb_into(sdb_t *b, uint32_t k)
 static FRESULT sdb_up(sdb_t *b)
 {
     uint32_t n = 0, cut = 0;
+    sdb_finish();
     for (; b->root[n]; n++)
         if (b->root[n] == '/')
             cut = n;

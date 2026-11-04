@@ -23,6 +23,8 @@
 _Static_assert(SDC_KEYS == SDB_KEYS && SDC_NAME == SDL_NAME_MAX + 1u && SDC_PNAME == SEC_NAME_LEN + 1u,
                "sd_mode.c: the UI's sizes (op_sdcard.c) are the card's");
 #define SDM_ID SEC_ID_SDCARD
+#define SDM_HASH_NOW_MAX (256u * 1024u)              /* a USE hashes a file not yet indexed at once up to this (0.3 s at
+                                                      * 840 KB/s); a longer one: the index's slices */
 #define SDM_HINT 52u
 enum { SDM_OFF = 0, SDM_NONE, SDM_MOUNTED, SDM_INDEX, SDM_NAMES, SDM_READY };   /* the card's state for the UI */
 
@@ -138,6 +140,7 @@ static const char *sdm_disp(const char *s)          /* (a bank's "03 - bass 1.op
 static void sdm_mem_tick(void);
 static void sdm_bank_tick(void);
 static void sdm_kit_tick(void);
+static void sdm_part_tick(void);
 static void sdm_slow_tick(void);
 #endif
 
@@ -355,6 +358,23 @@ static void sdm_mount_try(void)                      /* (PROJECT entered, SYSTEM
     if (sd_state != SD_READY && sd_mount() == SD_READY)
         sdm_st = SDM_MOUNTED;
 }
+/* a list's page, a slice a pass (sd_browse.c sdb_go): entries until the ms are spent; a slice stays small on a pass that
+ * has none left to give, and a page of 16 ends in the first. A unit is at most a sector or two (a folder's walk: its
+ * f_opendir) */
+#define SDM_READ_UNITS 32u
+#define SDM_READ_SLICE_MS 8u
+#ifndef SDM_READ_ONE
+#define SDM_READ_ONE 0                               /* (a test's fake clock stands still in a pass: one unit-run a pass) */
+#endif
+static void sdm_read_pump(void)
+{
+    uint32_t t = fm1_ms;
+    while (sdb_reading() && sdm_ready()) {
+        (void)sdm_was(sdb_pump(SDM_READ_UNITS));
+        if ((uint32_t)(fm1_ms - t) >= SDM_READ_SLICE_MS || SDM_READ_ONE)
+            break;
+    }
+}
 static void sdm_poll(void)
 {
     FRESULT r;
@@ -390,17 +410,20 @@ static void sdm_poll(void)
     sdm_mem_tick();
     sdm_bank_tick();
     sdm_kit_tick();
+    sdm_part_tick();
     sdm_slow_tick();
 #endif
     if (sdm_st >= SDM_MOUNTED && sd_state != SD_READY) {
         sdx_pass_cancel();                           /* (a card pulled mid-pass: index.bin as it was) */
         sdm_st = SDM_NONE;
+        sdb_abort();
         sdm.b.n = 0;
         sdm.b.pages = 1;
         ui_message("SD CARD GONE");
         ui.force = 1;
         return;
     }
+    sdm_read_pump();
     if (sdm_st == SDM_MOUNTED) {
         r = sdl_prepare();
         if (r == FR_OK && sdm_rec.pend) {            /* a save the last power-off cut: finished from the flash copy */
@@ -573,13 +596,33 @@ static void sdm_dx7_load(uint32_t k)                 /* voice k of the page into
 
 /* ---- the lists (op_sdcard.c): one folder view at a time, SDV_* its view */
 static const uint8_t SDM_FOLDER[SDC_N] = {SDL_PROJECTS, SDL_PRESETS, SDL_KITS, SDL_SAMPLES};
+/* a page comes in slices of the main loop's (sd_browse.c sdb_go, sdm_poll): the list's cards and title show where it is
+ * going at once (SDM_LIST), its names stay until the page is whole (the user, 2026-11-05: a page slow to come said so,
+ * and the main loop never blocked: one pass in a frame is a frozen FM-1, and at 1.5 s the second core down) */
+#define SDM_LIST (*sdb_going(&sdm.b))
+#define SDM_PAGES() (SDM_LIST.pages ? SDM_LIST.pages : sdm.b.pages ? sdm.b.pages : 1u)
+static uint32_t sdm_read_at;                         /* when the page asked was asked (fm1_ms) */
+static void sdm_read_start(void)
+{
+    if (!sdb_reading())
+        sdm_read_at = fm1_ms;
+}
+static uint32_t sdm_read_ms(void) { return sdb_reading() ? (uint32_t)(fm1_ms - sdm_read_at) : 0u; }
+static int sdm_reading(void) { return sdb_reading(); }
+static uint32_t sdm_shown_page(void) { return sdm.b.page; }
+static void sdm_wait(void) { sdb_finish(); }
+static FRESULT sdm_go(uint32_t view, const char *root)
+{
+    sdm_read_start();
+    return sdb_go(&sdm.b, view, root);
+}
 #if SDM_DX7
-static uint32_t sdm_page(void) { return sdm.bank ? sdm.bank_page : sdm.b.page; }
-static uint32_t sdm_pages(void) { return sdm.bank ? 2u : sdm.b.pages ? sdm.b.pages : 1u; }
+static uint32_t sdm_page(void) { return sdm.bank ? sdm.bank_page : sdb_reading() ? sdb_going_page() : sdm.b.page; }
+static uint32_t sdm_pages(void) { return sdm.bank ? 2u : SDM_PAGES(); }
 static uint32_t sdm_count(void) { return sdm.bank ? SDB_KEYS : sdm.b.n; }
 #else
-static uint32_t sdm_page(void) { return sdm.b.page; }
-static uint32_t sdm_pages(void) { return sdm.b.pages ? sdm.b.pages : 1u; }
+static uint32_t sdm_page(void) { return sdb_reading() ? sdb_going_page() : sdm.b.page; }
+static uint32_t sdm_pages(void) { return SDM_PAGES(); }
 static uint32_t sdm_count(void) { return sdm.b.n; }
 #endif
 /* ---- banks (the user, 2026-11-04): presets and projects in banks of 16, a bank a folder named by a letter (A .. Z)
@@ -746,16 +789,16 @@ static FRESULT sdm_bank_open(uint32_t list, uint32_t bk)
     if (!n || sdl_cat(sdm.path, sdl_cat(sdm.path, n, sizeof sdm.path, "/"), sizeof sdm.path, l) >= sizeof sdm.path)
         return FR_INVALID_NAME;
     sdm_bk[list % SDC_N] = (uint8_t)(bk % SDM_BANKS);
-    return sdb_open(&sdm.b, SDB_BANK, sdm.path);
+    return sdm_go(SDB_BANK, sdm.path);
 }
 /* the bank shown: its number (0 = A), -1 none */
-static int32_t sdm_bank_shown(void) { return sdm.b.view == SDB_BANK ? sdm_bank_letter(sdm.b.root) : -1; }
+static int32_t sdm_bank_shown(void) { return SDM_LIST.view == SDB_BANK ? sdm_bank_letter(SDM_LIST.root) : -1; }
 
 static int sdm_open(uint32_t list, uint32_t view, const char *vname)
 {
     uint32_t n;
     FRESULT r;
-    int same = list == sdm.list && view == sdm.view && sdm.b.view == SDB_BANK && sdm_bank_letter(sdm.b.root) >= 0;
+    int same = list == sdm.list && view == sdm.view && SDM_LIST.view == SDB_BANK && sdm_bank_letter(SDM_LIST.root) >= 0;
 #if SDM_DX7
     if (sdm.bank && list == sdm.list && view == sdm.view && sdm_ready())
         return sdm_dx7_page();                       /* (a bank shown: read again, still shown) */
@@ -763,14 +806,16 @@ static int sdm_open(uint32_t list, uint32_t view, const char *vname)
 #endif
     sdm.list = (uint8_t)list;
     sdm.view = (uint8_t)view;
-    sdm.b.n = 0;
-    sdm.b.page = 0;
-    sdm.b.pages = 1;
+    if (!same) {                                     /* (another list: not the old one's names under its title) */
+        sdm.b.n = 0;
+        sdm.b.page = 0;
+        sdm.b.pages = 1;
+    }
     if (!sdm_ready())
         return -1;
     if (same) {                                      /* (read again after an action: a Factory bank stays shown) */
-        sdl_cat(sdm.path, 0, sizeof sdm.path, sdm.b.root);
-        r = sdm_was(sdb_open(&sdm.b, SDB_BANK, sdm.path));
+        sdl_cat(sdm.path, 0, sizeof sdm.path, SDM_LIST.root);
+        r = sdm_was(sdm_go(SDB_BANK, sdm.path));
         if (r != FR_OK)
             sdm.b.n = 0;
         return r == FR_OK ? 0 : -1;
@@ -789,9 +834,8 @@ static int sdm_open(uint32_t list, uint32_t view, const char *vname)
     }
     if (!n)
         return -1;
-    r = sdm_was(sdb_open(&sdm.b, view == SDV_NAME ? SDB_BYNAME : view == SDV_RECENT ? SDB_RECENT : SDB_FOLDER, sdm.path));
-    if (r == FR_NO_PATH)
-        r = FR_OK;                                   /* (no VERSIONS yet: an empty list) */
+    r = sdm_was(sdm_go(view == SDV_NAME ? SDB_BYNAME : view == SDV_RECENT ? SDB_RECENT : SDB_FOLDER, sdm.path));   /* (no
+                                                      * VERSIONS yet: an empty list, sdb_pump) */
     if (r != FR_OK)
         sdm.b.n = 0;
     return r == FR_OK ? 0 : -1;
@@ -805,8 +849,10 @@ static void sdm_turn(int32_t step)
         return;
     }
 #endif
-    if (sdm_ready())
-        (void)sdm_was(sdb_turn(&sdm.b, step));
+    if (sdm_ready()) {
+        sdm_read_start();
+        sdb_go_turn(&sdm.b, step);
+    }
 }
 static int sdm_into(uint32_t k)
 {
@@ -843,10 +889,10 @@ static int sdm_bank_go(uint32_t bk)
 #if SDM_DX7
     sdm.bank = 0;
 #endif
-    n = sdl_cat(sdm.path, 0, sizeof sdm.path, sdm.b.root);
+    n = sdl_cat(sdm.path, 0, sizeof sdm.path, SDM_LIST.root);
     if (sdm_bank_letter(sdm.path) >= 0)
         n = (uint32_t)(sdb_base(sdm.path) - sdm.path) - 1u;   /* (a bank shown: its holder) */
-    else if (!SDB_DIRLIKE(sdm.b.view) || !sdm_is_holder(sdm.path, n))
+    else if (!SDB_DIRLIKE(SDM_LIST.view) || !sdm_is_holder(sdm.path, n))
         n = sdm_holder(sdm.list, sdm.path, sizeof sdm.path);
     if (!n || n >= sizeof sdm.path)
         return 0;
@@ -854,7 +900,7 @@ static int sdm_bank_go(uint32_t bk)
     if (sdl_cat(sdm.path, sdl_cat(sdm.path, n, sizeof sdm.path, "/"), sizeof sdm.path, l) >= sizeof sdm.path)
         return 0;
     sdm_bk[sdm.list % SDC_N] = (uint8_t)bk;
-    return sdm_was(sdb_open(&sdm.b, SDB_BANK, sdm.path)) == FR_OK;
+    return sdm_was(sdm_go(SDB_BANK, sdm.path)) == FR_OK;
 }
 /* ---- the PRESETS list by engine (op_sdcard.c: the track's, or what the PRESETS knob chose; the user, 2026-11-05) */
 static int32_t sdm_pre_tree(void)                    /* the tree shown: 0 Presets/Factory, 1 Presets/User, -1 neither */
@@ -863,7 +909,7 @@ static int32_t sdm_pre_tree(void)                    /* the tree shown: 0 Preset
     uint32_t w, n;
     for (w = 0; w < 2u; w++) {
         n = sdl_path(h, sizeof h, SDL_PRESETS, w ? SDL_USER : SDL_FACTORY);
-        if (n && !sdl_ncmp(sdm.b.root, h, n) && (!sdm.b.root[n] || sdm.b.root[n] == '/'))
+        if (n && !sdl_ncmp(SDM_LIST.root, h, n) && (!SDM_LIST.root[n] || SDM_LIST.root[n] == '/'))
             return (int32_t)w;
     }
     return -1;
@@ -884,17 +930,24 @@ static int sdm_pre_show(uint32_t w, uint32_t e, uint32_t bk)   /* that folder's 
     sdm.bank = 0;
 #endif
     sdm_bk[SDC_PRE] = (uint8_t)(bk % SDM_BANKS);
-    return sdm_was(sdb_open(&sdm.b, SDB_BANK, sdm.path)) == FR_OK;
+    return sdm_was(sdm_go(SDB_BANK, sdm.path)) == FR_OK;
 }
-/* the engines the filter offers: a bit per slot, a folder in Factory or User (read once a visit: op_sdcard.c) */
+/* the engines the filter offers: a bit per slot, a folder in Factory or User (read once a visit: op_sdcard.c; each tree
+ * read once: an f_stat an engine and a tree was some 280 sector reads on the zip's card) */
 static uint32_t sdm_pre_mask(void)
 {
+    DIR d;
     FILINFO fi;
     uint32_t e, w, m = 0;
-    for (e = 0; e < NENGINES; e++)
-        for (w = 0; w < 2u; w++)
-            if (sdm_pre_dir(w, e) && f_stat(sdm.path, &fi) == FR_OK)
-                m |= 1u << e;
+    for (w = 0; w < 2u; w++) {
+        if (!sdl_path(sdm.path, sizeof sdm.path, SDL_PRESETS, w ? SDL_USER : SDL_FACTORY) || f_opendir(&d, sdm.path) != FR_OK)
+            continue;
+        while (f_readdir(&d, &fi) == FR_OK && fi.fname[0])
+            for (e = 0; (fi.fattrib & AM_DIR) && e < NENGINES; e++)
+                if (!sdl_cmp(fi.fname, sdn_engine(eng_uid(e))))
+                    m |= 1u << e;
+        (void)f_closedir(&d);
+    }
     return m;
 }
 /* ALL: every listed engine's banks one after the other: bank v of sdm_all_n, the engines in the list's order (their
@@ -954,7 +1007,7 @@ static void sdm_all_sync(void)                       /* the bank shown (a black 
         str_app(t, "/", sizeof t);
         for (b = 0; b < SDM_BANKS; b++)
             if (sdm_all.m[i] >> b & 1u) {
-                if ((int32_t)b == bk && sdl_has(sdm.b.root, t))
+                if ((int32_t)b == bk && sdl_has(SDM_LIST.root, t))
                     sdm_all.v = (uint16_t)k;
                 k++;
             }
@@ -964,7 +1017,9 @@ static uint32_t sdm_all_at(void) { return sdm_all.v; }
 static uint32_t sdm_all_total(void) { return sdm_all.n; }
 static int sdm_up(void)                              /* up a folder; 0 at the list's own folder */
 {
-    uint32_t n = sdl_path(sdm.path, sizeof sdm.path, SDM_FOLDER[sdm.list % SDC_N], 0);
+    uint32_t n;
+    sdm_wait();
+    n = sdl_path(sdm.path, sizeof sdm.path, SDM_FOLDER[sdm.list % SDC_N], 0);
 #if SDM_DX7
     if (sdm.bank) {                                  /* out of a bank: its folder as it was */
         sdm.bank = 0;
@@ -986,7 +1041,7 @@ static int sdm_at_top(void)
     if (sdm.bank)
         return 0;
 #endif
-    return !SDB_DIRLIKE(sdm.b.view) || sdm.view == SDV_VERSIONS || !n || !sdl_cmp(sdm.b.root, sdm.path);
+    return !SDB_DIRLIKE(SDM_LIST.view) || sdm.view == SDV_VERSIONS || !n || !sdl_cmp(SDM_LIST.root, sdm.path);
 }
 static void sdm_folder(char *b, uint32_t cap)        /* the folder shown: its last part ("SAMPLES", "DRUMS"); VERSIONS:
                                                       * whose; a bank its holder's and its letter ("ACID B"); upper case
@@ -1003,13 +1058,13 @@ static void sdm_folder(char *b, uint32_t cap)        /* the folder shown: its la
     if (sdm.view == SDV_VERSIONS) {
         sdm_strip(b, cap, sdb_base(sdm.vname), "");
     } else if (sdm_bank_shown() >= 0) {
-        uint32_t n = (uint32_t)(sdb_base(sdm.b.root) - sdm.b.root) - 1u;
-        str_cpy(t, sdm.b.root, n + 1u < sizeof t ? n + 1u : sizeof t);   /* (the holder: "Optimist/Projects") */
+        uint32_t n = (uint32_t)(sdb_base(SDM_LIST.root) - SDM_LIST.root) - 1u;
+        str_cpy(t, SDM_LIST.root, n + 1u < sizeof t ? n + 1u : sizeof t);   /* (the holder: "Optimist/Projects") */
         str_cpy(b, sdb_base(t), cap > 2u ? cap - 2u : 1u);
         str_app(b, " ", cap);
-        str_app(b, sdb_base(sdm.b.root), cap);
+        str_app(b, sdb_base(SDM_LIST.root), cap);
     } else {
-        str_cpy(b, sdb_base(sdm.b.root), cap);
+        str_cpy(b, sdb_base(SDM_LIST.root), cap);
     }
     sdl_upper(b);
 }
@@ -1639,8 +1694,8 @@ static const char *sdm_part_name(uint32_t k)            /* the card preset part 
     return k < NPART && sdm_pname[k][0] && sdm_pkey[k] == (uint16_t)sdm_pkey_of(&trk[k]) ? sdm_pname[k] : 0;
 }
 
-/* ---- the engines that play a card WAV (a part's CARD sample: eng_sample.c SMP_CARD, eng_slice.c SLC_SRC_CARD; GRAIN's and
- * STRETCH's SRC has no CARD value: they play the card's sets only, section 7): into e, their count */
+/* ---- the engines that play a card WAV (a part's CARD sample: eng_sample.c SMP_CARD, eng_slice.c SLC_SRC_CARD, GRAIN's and
+ * STRETCH's SRC CARD): into e (SDM_NSAMPLERS at most), their count */
 static uint8_t sdm_use_eng = 0xFFu;                  /* the sampler a USE was picked for (op_sdcard.c), else the part's */
 static uint32_t sdm_samplers(uint8_t *e)
 {
@@ -1650,13 +1705,19 @@ static uint32_t sdm_samplers(uint8_t *e)
 #if FELUCCA_SLICE
     e[n++] = (uint8_t)ENG_SLOT_SLICE;
 #endif
+#if FELUCCA_ENG_GRAIN
+    e[n++] = (uint8_t)ENG_SLOT_GRAIN;
+#endif
+#if FELUCCA_ENG_STRETCH
+    e[n++] = (uint8_t)ENG_SLOT_STRETCH;
+#endif
 #endif
     (void)e;
     return n;
 }
 static int sdm_part_samples(uint32_t part)           /* part k's engine plays a card WAV */
 {
-    uint8_t e[2];
+    uint8_t e[SDM_NSAMPLERS];
     uint32_t i, n = sdm_samplers(e);
     for (i = 0; i < n; i++)
         if (trk[part % NPART].eng_req == e[i])
@@ -1746,6 +1807,15 @@ static void sdm_do(uint32_t op, uint32_t k)
             (no = sdx_find_path(sdm.path + SDX_SKIP, &sdx.rec)) >= 0 &&
             (sdx.rec.size != (uint32_t)fi.fsize || sdx.rec.stamp != ((uint32_t)fi.fdate << 16 | fi.ftime)))
             no = -1;                                 /* (changed since the last pass: hashed again now) */
+        if (no < 0 && fi.fsize > SDM_HASH_NOW_MAX) { /* (a long file is hashed in the index's slices, never here: seconds
+                                                      * of a frozen main loop) */
+            sdx_pass_redo();
+            if (!sdx_pass_on())
+                (void)sdx_pass_begin(1);
+            sdm_st = SDM_INDEX;
+            ui_message("CARD INDEXING: USE AGAIN");
+            return;
+        }
         if (no < 0) {                                /* (not indexed yet: hashed now) */
             r = sdm_was(sdx_note_written(sdm.path, sd_blk, sizeof sd_blk));
             no = r == FR_OK ? sdx_find_path(sdm.path + SDX_SKIP, &sdx.rec) : -1;
@@ -1786,7 +1856,7 @@ static void sdm_do(uint32_t op, uint32_t k)
                 trk[part].p[P_E0] = (int16_t)SLC_SRC_CARD;   /* (SLICE: its SRC on CARD, the sample whole: sd_slice.c) */
             else
 #endif
-                trk[part].p[P_E0] = (int16_t)SMP_CARD;       /* (SAMPLE: its SET on CARD, eng_sample.c) */
+                trk[part].p[P_E0] = (int16_t)SMP_CARD;       /* (SAMPLE: its SET on CARD; GRAIN, STRETCH: their SRC) */
         }
         snd_mark(part);
 #endif
@@ -2034,6 +2104,41 @@ static void sdm_kit_tick(void)
         return;
     ui_message((m & ~sdm_kit_said & 0xFFFFu) ? "KIT SAMPLES MISSING" : "909 SAMPLES MISSING");
     sdm_kit_said |= (m & ~sdm_kit_said & 0xFFFFu) ? m & 0xFFFFu : m & 0xFFFF0000u;
+}
+/* a part's own card file not there or not playable (sd_stream_plan.c sstp.missing, sstp.bad): said once, again only after
+ * it was fine (or the part left it). Only with the card mounted and the index whole */
+static uint8_t sdm_part_said;
+static void sdm_part_tick(void)
+{
+    uint32_t k, m = 0;
+    char a[30];
+    if (sd_state == SD_READY && sdm_st == SDM_READY && sstp.state == SSTP_PLACED)   /* (MEM FULL CARD says its own) */
+        for (k = 0; k < SST_NPART && k < NPART; k++)
+            m |= (uint32_t)((sstp.missing >> k & 1u) && !(sstp.bmiss >> k & 1u) && sdm_part_samples(k) && sdm_smp[k].hash) << k;
+    sdm_part_said &= (uint8_t)m;
+    for (k = 0; k < SST_NPART && k < NPART; k++)
+        if ((m >> k & 1u) && !(sdm_part_said >> k & 1u) && !op_armed()) {
+            sdm_part_said |= (uint8_t)(1u << k);
+            str_cpy(a, trk_tag(k), sizeof a);
+            str_app(a, sstp.bad[k] == SSTB_RUNS ? " FILE IN PIECES" : sstp.bad[k] == SSTB_FORMAT ? " NOT 8/16-BIT PCM" :
+                       sstp.bad[k] == SSTB_LONG ? " FILE TOO LONG" : " SAMPLE MISSING", sizeof a);
+            ui_message(a);
+            return;
+        }
+}
+/* the name SRC / SET shows on CARD (op_cells.c): the part's file, upper case, no number or extension; MISSING not on the
+ * card or not playable; "" none picked */
+static const char *sdm_card_label(uint32_t k)
+{
+    static char b[SDM_HINT];
+    if (k >= NPART || !sdm_smp[k].hash)
+        return "";
+#if FELUCCA_SD_STREAM
+    if (sstp.missing >> k & 1u)
+        return "MISSING";
+#endif
+    sdm_strip(b, sizeof b, sdb_base(sdm_smp[k].hint), ".wav");
+    return sdl_upper(b);
 }
 /* a GRAIN or STRETCH part whose cache's reads go missing (sd_stream_rc.h: grains given up or cut, windows frozen):
  * "P1 CARD SLOW" once, when a window of SDM_SLOW_MS has SDM_SLOW_N misses or more and they are an eighth of its reads

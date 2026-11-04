@@ -2,7 +2,8 @@
 /* The renderer (docs/UI-OPTIMIST-DESIGN.md 3 The look), Felucca 1.0's structure in Terminus:
  *   y   0..24   the header: the selected track's engine (in its colour), the screen and row, the loop position, the
  *               tempo; a passive message (2.5 s: MISSING, RECORDING) takes it over
- *   y  28..72   four cards: the cursor row's cells, KNOB 1..4 (label, value, unit, its form; the hot cell white)
+ *   y  28..72   four cards: the cursor row's cells, KNOB 1..4 (label, value, unit, its form; the hot cell white); a card's
+ *               list: two big cards of the four (op_layers.c cards_2x1)
  *   y 76..218   the panel (no footer, the user, 2026-10-08; to the screen's foot without the help line): the list of rows (each value a number over its form; the cursor row a bar in the track's
  *               colour; on SOUND the cursor row's graph above it), or STEP's grid / roll (op_stepdraw.c), or the
  *               scope (op_scope.c); a question covers it with the modal, the result of a confirmed action shows as a
@@ -841,7 +842,7 @@ static void draw_big(uint32_t k, const cell_t *c, uint32_t hot)
 {
     char b[16], v[16];
     const char *u = card_unit(c, v, sizeof v);          /* ("10ms": 10, its unit in the label row) */
-    int32_t x = k & 1u ? 121 : 3, y = k & 2u ? BIG_H + 1 : 0, uw = u[0] ? text_ws(u) + 4 : 0;
+    int32_t x = k & 1u ? 121 : 3, y = k & 2u && !cards_2x1() ? BIG_H + 1 : 0, uw = u[0] ? text_ws(u) + 4 : 0;
     int32_t dw = c->dr ? DR_W + 4 : 0;                  /* (the DR tag's room, top right) */
     uint16_t vc = card_vc(k, c, hot);
     card_ground(x, y, BIG_W, BIG_H, c, hot, 1);
@@ -882,7 +883,7 @@ static int card_wide(const cell_t *c, uint32_t k)
 {
     return k < 3u && c[k].label && c[k].kind != CK_ACT && str_len(c[k].val) > 6u && !c[k + 1u].label;
 }
-/* the cards' band: the four cells c, hot the one white (4: none), 2x2 but on the mixer (op_layers.c cards_2x2) */
+/* the cards' band: the four cells c, hot the one white (4: none), 2x2 but on the mixer (op_layers.c cards_2x2), 2x1 on a card's list (cards_2x1) */
 static struct {
     const cell_t *c;
     uint32_t hot;
@@ -892,7 +893,10 @@ static void card_paint(void)                            /* (once a pass: 2x2, 95
     const cell_t *c = cbd.c;
     uint32_t k, hot = cbd.hot;
     for (k = 0; k < 4u; k++) {
-        if (cards_2x2()) {
+        if (cards_2x1()) {
+            if (!((k ^ ui.hot) & 2u))                   /* (a card's list: the pair of the knob last turned) */
+                draw_big(k, &c[k], k == hot);
+        } else if (cards_2x2()) {
             draw_big(k, &c[k], k == hot);
         } else if (card_wide(c, k)) {                   /* (a name, the card after it empty: both cards' room) */
             draw_card(k, CARD_X(k), CARD_X(k + 1u) + CARD_W - CARD_X(k), &c[k], k == hot);

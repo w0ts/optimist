@@ -654,6 +654,23 @@ presets for all devices".
   the kit's hits and 2 for the 909's (of the 8). A file not on the card: that hit silent, "KIT SAMPLES MISSING" /
   "909 SAMPLES MISSING" once (`sd_mode.c sdm_kit_tick`). Synthesised kits stay synthesised. sd-card-mots: 803,812 B of
   flash (817,688 before: 13,876 B less, the 909's 6-bit hats out of the flash), SRAM +2,192 B (the 32 sources).
+- **GRAIN and STRETCH on a card WAV** (the user, 2026-11-05; SRC's last value CARD, as SAMPLE's SET; the browser's USE popup
+  lists all four samplers built, `sd_mode.c sdm_samplers`): the part's own WAV, saved with the project as SAMPLE's is (hash
+  and hint, SEC_ID_SDSMP), SRC showing the file's name or MISSING (`op_cells.c`, `sdm_card_label`), read as a card set of
+  one zone over every key (`sst_bank_free`). The plan (`sd_stream_plan.c sst_free_pick`): a file of 128 KB at most
+  (`SST_WHOLE_MAX`) goes whole into the block when it fits (no bus at all, no skipped grain, a cache of 1 KB for the
+  pins); any other through the part's cache (GRAIN 32 KB, STRETCH 16 KB, 32 KB for a stereo file: its window's bytes),
+  whatever its length: up to 2^30 frames, and only as many of its sectors as the grains or the window read. Not
+  playable, said once: "T1 FILE IN PIECES" (more than 31 runs), "T1 NOT 8/16-BIT PCM", "T1 FILE TOO LONG"; gone: "T1 SAMPLE
+  MISSING"; no room for even the cache: MEM FULL CARD. A USE of a file over 256 KB the index has not hashed yet does not
+  hash it there (seconds of a frozen main loop): the index's pass runs, "CARD INDEXING: USE AGAIN". Measured at 840 KB/s
+  (8.57 MHz; `tests/sd_grain_test.c`, the screen's strips drawing, 44.1 kHz mono unless said; of about 130 grains in 4.5 s):
+  GRAIN frozen 0 missed, 4 KB/s of the bus; SPRD 8 with short grains 0, 198 KB/s; SPRD 35 9 missed, 417 KB/s; SPRD 127 0,
+  211 KB/s; SPRD 127 at DENS 127 half missed (173 of 420), 600 KB/s, over the bus; 22.05 kHz SPRD 35 16 missed, 274 KB/s;
+  stereo SPRD 35 94 of 213 missed, 583 KB/s. A missed grain is skipped or fades (counted, the part's CARD SLOW said; a
+  corner under -36 dBFS, no click). The length changes none of it: a grain costs its own bytes. STRETCH: 89 KB/s at 1x
+  (176 stereo), a few KB/s slow, 0 missed but a first window. On SRC CARD STRCH scans as this file's top says; on a set the
+  scan is 65536 times slower than that (`pst_adv_q16`: that sound left as it is, an open question).
 - **A kit's file name** (`drum_kits.c ukit_card_instr`): `<nn> - <name> (<instruments>).opk`, the instruments its
   lanes name, in the order 909, 808, synth (the 32 synthesised kits), kawa, plaits, sampled (the sampled kits, a USR or
   CARD sample): the family of each lane's source by its UID, whatever the build has of it (a stand-in is not named);
@@ -923,8 +940,8 @@ Unzipped at the card's root; its `readme.txt` says what is there.
   is as it was in flash mode (`core.py built`: not counted in SD card mode).
 
 **The UI** (`ui/optimist/op_sdcard.c`; docs/UI-OPTIMIST-DESIGN.md 4.14): PROJECT's rows PROJECT (the card's projects
-while a card is ready, else the flash slot with *No SD card: in flash*), PRESETS, KITS, SAMPLES; four small cards (BANK,
-ITEM, ACTION, VIEW) over the page: two columns of eight names, as the white keys sit. ALGORITHM on PRESETS and SAMPLES, the PRESETS
+while a card is ready, else the flash slot with *No SD card: in flash*), PRESETS, KITS, SAMPLES; four cards (BANK,
+ITEM, ACTION, VIEW), two big ones at a time, the pair of the knob last turned, over the page: two columns of eight names, as the white keys sit. A page is read in slices of the main loop's, *LOADING* past 200 ms (the 1.5 s `DUAL_STARVE_MS` rule: one pass in a frame is the second core down on a big card). ALGORITHM on PRESETS and SAMPLES, the PRESETS
 knob's engine filter (ALL: every engine's banks in a row), a sample's sampler popup: UI-OPTIMIST-DESIGN.md 4.14. SYSTEM > SD card: CARD (READY and
 its size; YES mounts again), VERSIONS, SLACK, SAMPLES INDEX. SYSTEM > SETTINGS: BACKUP writes the device's settings record (`persist_t`, as
 `settings_save` makes it) to `Optimist/Backup/settings.opd` ("OPST"); RESTORE (asked, red) writes it back into flash and
