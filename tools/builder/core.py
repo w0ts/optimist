@@ -880,16 +880,11 @@ def arena_bufs(cfg):
     return {k: v for k, v in out.items() if v}
 
 
-# the tables in the pool (core.h IN_POOL_AUDIO, always since TAB_IN_POOL was retired, 2026-10-29): a layout, not an item.
-# With the arena's extras (FELUCCA_FX_ARENA) FM6's sine table is an arena block, not moved (FM6_SIN[1025] int32 4,100 B)
-FM6_SIN_RAM = 4100
-
-
-def tab_pool(cfg):
-    """-> {region: bytes} what the always-pooled tables move from RAM to the pool beyond the defaults' set (model_terms)"""
-    fx_arena = cfg.get("ARENA", 0) > 0              # (every ARENA build: the extras)
-    moved = -(FM6_SIN_RAM if fx_arena and built(cfg, "ENG_FM6") else 0)
-    return {"ram": -moved, "pool": moved}
+# the tables in the pool (core.h IN_POOL_AUDIO, always since TAB_IN_POOL was retired, 2026-10-29) are in every build's
+# measurements: no term. With the arena's extras FM6's sine table (FM6_SIN[1025] int32, 4,100 B) is an arena block,
+# arena_bufs counts it ("FM6's sine table"). The term that moved it from the pool to RAM as well (tab_pool) counted it
+# twice and gave the RAM 4,100 B no build has: removed 2026-11-04 (mots-config with FM6 off, real release builds on
+# gpufarm at 8f79b5f9: ram -2,476 B, pool -768 B; the estimate with it ram -6,508, pool +3,328; without it -2,408, -772)
 
 
 def set_keys():
@@ -1137,11 +1132,11 @@ def ram_engine_code(cfg):
 def model_terms(cfg):
     """-> {region: bytes} the computed part of the estimate, against the default build: what is not a sum of
     per-item deltas (the reverb's line buffer, rev_lines; the automation store, auto_store; the engines' part
-    states, part_mem; the delay arena, dly_arena; the arena for both, arena_mem; the pooled tables' set, tab_pool)"""
+    states, part_mem; the delay arena, dly_arena; the arena for both, arena_mem)"""
     d = defaults()
     arena = ({"pool": dly_arena(cfg)["pool"]}, {"pool": dly_arena(d)["pool"]})
     terms = [(rev_lines(cfg), rev_lines(d)), (auto_store(cfg), auto_store(d)), (part_mem(cfg), part_mem(d)), arena,
-             (arena_mem(cfg), arena_mem(d)), (tab_pool(cfg), tab_pool(d))]
+             (arena_mem(cfg), arena_mem(d))]
     return {r: sum(a.get(r, 0) - b.get(r, 0) for a, b in terms) for r in REGIONS}
 
 
