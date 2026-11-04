@@ -263,7 +263,8 @@ def boot_area_only(theirs):
 
 def install_mboot(env, backup_dir, yes, unit, restart):
     return checked_write(env, "bootloader", boot_area_only, yes, restart, "install m-bootloader now (M-Flasher's plan "
-                         "above: the boot area only)?", unit, backup_dir=str(backup_dir))
+                         "above: the boot area only)?", unit, backup_dir=str(backup_dir),
+                         boot_file=str(MF.MBOOT_BOOT))
 
 
 def write_target(backup_bin, target, pkg_name):
@@ -354,7 +355,8 @@ def dry_run(env, route, info, flash, backup_dir, flash_image, wipe=""):
         cmds.append(MF.argv(exe, "firmware", arg="PACKAGE", backup_dir=str(backup_dir), restart=not route.install_mboot)
                     + ["(its plan compared, then yes typed into it; restore of the planned flash on a layout switch)"])
     if route.install_mboot:
-        cmds.append(MF.argv(exe, "bootloader", backup_dir=str(backup_dir), restart=True) + ["(if not there)"])
+        cmds.append(MF.argv(exe, "bootloader", backup_dir=str(backup_dir), restart=True, boot_file=str(MF.MBOOT_BOOT))
+                    + ["(if not there)"])
     elif flash is None:
         cmds.append(MF.argv(exe, "restart"))
     env.say("M-Flasher would run (nothing is run now):")
@@ -443,6 +445,8 @@ def service(a, env):
         kw = {"arg": str(a.backup_dir)}
     else:
         kw = {"arg": getattr(a, "backup", None), "backup_dir": str(a.backup_dir), "stock": stock}
+        if a.cmd == "bootloader" and not stock:
+            kw["boot_file"] = str(MF.MBOOT_BOOT)
     if a.dry_run:
         exe = env.exe or MF.binary() or "m-flasher"
         restart = {"restart": True} if a.cmd in ("restore", "bootloader") else {}

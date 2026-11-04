@@ -65,14 +65,15 @@ OS_LABEL = {"Darwin": "macOS", "Windows": "Windows", "Linux": "Linux"}
 INSIDE = {"dmg": "M-Flasher.app/Contents/MacOS/M-Flasher", "zip": "M-Flasher.exe", "tar.gz": "m-flasher/m-flasher"}
 ASSETS = {(SYSTEMS[f["os"]], f["arch"]): (f["name"], f["sha256"], INSIDE[f["kind"]])
           for f in RELEASE_FILES if f["kind"] in INSIDE}
-# m-bootloader's v1.2 release (22e2559; third_party/m-bootloader is pinned at 64b74d0, two documentation commits
-# later): its SHA256SUMS, for the copies in web/fm1base/m-bootloader/ and M-Flasher's bundled build
-MBOOT_RELEASE = {"version": "1.2", "commit": "22e2559906f9fc4e077f2d6aee20bf332300439e",
-                 "fm1-uboot.boot": "9e5ec0e39dc55c167f8e289cfdac612d7d340b5f46100e1be2540ef4d6ec2f13",
-                 "fm1-uboot.fwsc": "0e89141f52d1f2d62198d4f69147a2c15c8360806e64d48002990a6fdab6d6dd"}
-MBOOT_COPIES = {ROOT / "web" / "fm1base" / "m-bootloader" / "fm1-uboot-1.2.boot": "fm1-uboot.boot",
-                ROOT / "web" / "fm1base" / "m-bootloader" / "fm1-uboot-1.2.fwsc": "fm1-uboot.fwsc",
-                SUBMODULE / "data" / "bootloader-fm1.boot": "fm1-uboot.boot"}
+# Our m-bootloader: w0ts/m-bootloader, branch optimist, 1.4 at 8b171dd (Julius's SD card item, the build that ran on the
+# pink FM-1), built with his pi32v2-llvm 23.1.5-2. M-Flasher's own bundled build is older, so installers pass --file.
+MBOOT_RELEASE = {"version": "1.4", "commit": "8b171dd737f0a37a03cb934a4990ff7d9bc2d15e",
+                 "fm1-uboot.boot": "defa082f3ec7148054b7748e3e494f098d7428483fee1e41a1117d854e405767",
+                 "fm1-uboot.fwsc": "facfd9396a2b5be23f0b16b699bc73308fe0b5cc0e184d8ab8ccd06f2e785d33"}
+MBOOT_DIR = ROOT / "web" / "fm1base" / "m-bootloader"
+MBOOT_BOOT = MBOOT_DIR / f"fm1-uboot-{MBOOT_RELEASE['version']}.boot"
+MBOOT_COPIES = {MBOOT_BOOT: "fm1-uboot.boot",
+                MBOOT_DIR / f"fm1-uboot-{MBOOT_RELEASE['version']}.fwsc": "fm1-uboot.fwsc"}
 COMMANDS = ("find", "download-mode", "info", "backup", "restore", "firmware", "bootloader", "restart")
 # the commands that open the unit in download mode: on macOS each run starts M-Flasher's root helper after the system's
 # password dialog (its src/macos.rs: one helper per process, AuthorizationExecuteWithPrivileges, nothing kept between
@@ -375,7 +376,7 @@ def _read_answering(p, show, decide) -> str:
 
 
 def check_mboot_copies() -> list:
-    """the m-bootloader files this tree carries that differ from the pinned v1.2 release: [] when all agree"""
+    """the m-bootloader files this tree carries that differ from the pinned build: [] when all agree"""
     bad = []
     for path, name in MBOOT_COPIES.items():
         if path.is_file() and _sha256(path) != MBOOT_RELEASE[name]:

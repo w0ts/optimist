@@ -5672,18 +5672,18 @@
     "dim_choice": {},
     "not_built": {},
     "provenance": {
-     "project": "m-bootloader (jvitkauskas/m-bootloader)",
+     "project": "m-bootloader (w0ts/m-bootloader, branch optimist, a fork)",
      "author": "Julius Vitkauskas",
      "licence": "MIT",
-     "commit": "v1.2 22e2559",
-     "url": "https://github.com/jvitkauskas/m-bootloader"
+     "commit": "v1.4 8b171dd",
+     "url": "https://github.com/w0ts/m-bootloader"
     },
     "children": [],
     "hidden": false,
     "shown_under": null,
     "dim_when": null,
     "tested": "host-tested only (the installers' choice and display); m-bootloader itself on FM-1s (its author's tests)",
-    "provenance_line": "m-bootloader (jvitkauskas/m-bootloader) @ v1.2 22e2559 by Julius Vitkauskas (MIT)"
+    "provenance_line": "m-bootloader (w0ts/m-bootloader, branch optimist, a fork) @ v1.4 8b171dd by Julius Vitkauskas (MIT)"
    },
    {
     "key": "BLE",
