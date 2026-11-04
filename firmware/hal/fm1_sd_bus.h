@@ -36,6 +36,7 @@
 #include "fm1_gpio.h"
 #include "fm1_lcd_hw.h"
 #include "fm1_sd_clock.h"
+#include "fm1_crc.h"
 
 enum { FM1_SD_DUPLEX = 0, FM1_SD_DIRRX = 1, FM1_SD_BITBANG = 2 };
 #define FM1_SD_BAUD_SLOW 149u          /* 60 MHz / 150 = 400 kHz: the card's start-up (at most 400 kHz) */
