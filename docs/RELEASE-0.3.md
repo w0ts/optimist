@@ -25,7 +25,7 @@ each track keeps its mode until power-off.
 - **An open-source compiler**: the firmware is built with Julius Vitkauskas's ([@jvitkauskas](https://github.com/jvitkauskas)) pi32v2-llvm instead of JieLi's proprietary compiler, natively on Linux and macOS, with no Docker. Builds are 14 to 30 KB smaller. Thank you, Julius!
 - USB audio: RET A / B / C as separate sources for recording stems.
 - GRAIN has 12 more presets, at least two on each sample set, so every build with a sample set lists some ([#147](https://github.com/w0ts/optimist/issues/147)).
-- **SD card mod (experimental, off by default, not in the release packages)**: the source has the code for a microSD card on the FM-1's LCD bus (projects and samples on the card, a bigger flash layout), behind builder items that are off. It has run on one modded FM-1: an SDHC card mounts and reads. Writes, sample streaming and recording are not tested on hardware yet. The SD board in `hardware/sd-board/` is a first prototype. Do not install a build with the card on an FM-1 you depend on.
+- **SD card mode**: a microSD card on the FM-1's LCD bus holds projects, presets, kits and samples, and samples stream from the card. It is in the release. The card is built with the SD board in `hardware/` or a board like it. Measured on hardware: the card runs at 12 MHz on two FM-1s (10 MHz with the stock resistors on one), reading 1,147 KB/s, and 8 voices play from the card's path. In SD card mode PROJECT has no MEMORY, TOOLS or USER pages. SYSTEM > SD CARD and SD STREAM show the card's state and read rate.
 
 ## Changed
 
