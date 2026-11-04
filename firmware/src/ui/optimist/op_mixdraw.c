@@ -11,41 +11,50 @@
  *              fx.c fx_ret_tap, after its POST and level; a muted one struck, its code amber). MASTER under them: M MASTER,
  *              its VU meter (the level from the left, its peak falling) over a dB scale, the compressor's gain reduction as an
  *              amber bar from the right with its dB (THRS or CEIL set: mc_gr_view)
- *   CHANNELS   T1 T2 T3 DR, the four rows of 40 px (the mixer keeps the 1x4 cards, op_layers.c
- *              cards_2x2):
- *                x 0..21    a colour chip and the row's code (T1 T2 T3 DR), its M / S badge under it; the selected
- *                           row's full name is the header's ("T2 mix", op_draw.c head_title)
- *                x 28..237  three lines. The text line (y +1): the engine's name in the row's colour (ANALOG, TRIO,
- *                           DRUMS), then the preset (the kit for DR, a user preset's name), cut to the room left; under
- *                           it (y +20, 6 px) the row's sequence, as SLOOP's TRACKS screen: the 16 steps of the page
- *                           playing (13 px a step: the steps set shaded by level as on STEP, in the row's colour on the selected row and grey on
- *                           the others (its colour chip too), flat dark grey when muted, past LEN empty, the playhead
+ *   CHANNELS   T1 T2 T3 DR, the four rows of 40 px (35 over the help band; the mixer keeps the 1x4 cards, op_layers.c
+ *              cards_2x2), no outlines and no rules (the user, 2026-11-05: "very poor use of the space"), the same margin
+ *              over the text and under the meter, three lines across the row, x 6 .. 233:
+ *                the text   the row's code (T1 T2 T3 DR), the engine's name in the row's colour (ANALOG, TRIO, DRUMS), then
+ *                           the preset (the kit for DR, a user preset's name), cut to the room left, the M badge at the
+ *                           line's end; the selected row's full name is the header's ("T2 mix", op_draw.c head_title)
+ *                the steps  3 rows under the text, the row's sequence, as SLOOP's TRACKS screen: the 16 steps of the page
+ *                           playing (14 px a step: the steps set shaded by level as on STEP, in the row's colour on the
+ *                           selected row and grey on the others, flat dark grey when muted, past LEN empty, the playhead
  *                           white), and under the steps a thin bar a page when LEN > 16 (the one playing lit); DR all
- *                           the lanes merged; at the foot (y +34) the VU meter, a 3 px bar: the level filling from the
- *                           left, its peak falling; the compressor's gain reduction pushing in from the right in amber,
- *                           3 px a dB, only on a row whose compressor works (a part's COMP insert: fx.c tcomp_gr_q4)
+ *                           the lanes merged
+ *                the VU     a 3 px bar: the level filling from the left, its peak falling; the compressor's gain reduction
+ *                           pushing in from the right in amber, 3 px a dB, only on a row whose compressor works (a part's
+ *                           COMP insert: fx.c tcomp_gr_q4)
  *   SOUNDS     past DR: the 16 drum lanes at once, two columns of eight (lanes 1-8 left, 9-16 right), the ACCENT lane a
  *              ninth row across both (its steps as a channel's, no meter: it has no sound), 120 x 18 px a
  *              lane: its colour chip and code (BD SD CH ...; muted: the code in the M badge's colour), its own hits
  *              on the 16 steps of the page playing (6 px a step) and its meter (its hits: drums.hits, full at the hit and falling over 12 frames; the drum voices
  *              have no level of their own to read). The header names the lane ("Snare mix")
- * The selected row framed in its colour, its ground tinted. No pan, send or insert forms on the rows: the cards show the
+ * The selected row (MXL_BW, mx_in_grp): a bar in its colour down its left edge, its text at full brightness; the others have
+ * no bar, their code and engine a shade down (MXL_DIM); nothing on a row has a ground, so no text sits on a fill. The master
+ * screen's lines keep their frame. No pan, send or insert forms on the rows: the cards show the
  * selected row's values. Each row's meter and steps are canvases of their own, drawn again only when they change. */
 #define MXL_N 4u                        /* the channels a screen */
 #define MXL_H ((int32_t)OP_PH / (int32_t)MXL_N)   /* a channel's row: 40 px (the panel 161, the load lines' 3 rows under it, the mixer's cards 1x4; over the
                                          * help band 35: the panel 143) */
-#define MXL_VX 27                       /* a channel's meter and steps: the width left of the code (27: the 4 groups of steps end at 239) */
-#define MXL_VW 210
-#define MXL_TY 1                        /* the text line: the engine, then the preset (the user: "each track shows the synth
-                                         * name and the preset", so the meter and the steps went thin) */
-#define MXL_SY (MXL_H - 21)             /* the steps in their row: small cells, 6 px, the page bars under them (20; 15) */
-#define MXL_SH 6
-#define MXL_SP 13                       /* a step's pitch, its cell 11 */
+#define MXL_VX 27                       /* a channel's engine name; a lane's meter and steps (the 4 groups of steps end at 239) */
+#define MXS_VW 210
+#define MXL_SX 6                        /* a channel's steps and meter: across the row, 6 px from either side */
+#define MXL_CW 228
+#define MXL_VW MXL_CW
+#define MXL_BW 4                        /* the selected row's bar (x 0 .. 3) */
+#define MXL_DIM 6u                      /* the other rows' code and engine: this shade (8ths) of their colour */
+#define MXL_TY (MXL_H >= 40 ? 2 : 1)    /* the text line, its cell: the caps' ink from 2 rows into it */
+#define MXL_MG (MXL_TY + 2)             /* the row's margin, over the ink and under the meter (3; 4) */
+#define MXL_VH 3
+#define MXL_VY (MXL_H - MXL_MG - MXL_VH)   /* the meter (29; 33) */
+#define MXL_SY (MXL_TY + 16)            /* the steps: 3 rows under the ink (17; 18) */
+#define MXL_SH (MXL_VY - 4 - MXL_SY)    /* ... down to the page bars' two rows, a row either side (8; 11) */
+#define MXL_SP 13                       /* a lane's step: its pitch, its cell 12 */
+#define MXC_SP 14                       /* a channel's step: its pitch, its cell 12 */
 #define MXL_GG 2                        /* the extra gap after every 4th step: 4 groups of 4 (the user, 2026-10-31) */
 #define MXL_SW (16 * MXL_SP + 3 * MXL_GG - 1)   /* the 16 steps' width (a lane's last cell ends it), the groups' gaps in */
 #define MX_STEP_X(i, sp) ((int32_t)(i) * (sp) + (int32_t)(((i) / 4u) * MXL_GG))   /* step i's x from the first's */
-#define MXL_VY (MXL_H - 7)              /* the meter in its row: a thin bar, over the row's rule (34; 29) */
-#define MXL_VH 3
 #define MX_GR_PX 3                      /* the reduction: px a dB */
 #define MXS_NROW DRUM_UILANES          /* SOUNDS: the drum lanes in one column, a row each, the ACCENT lane last (the user,
                                          * 2026-10-18: all 11 on one screen; 13 px rows over the help band, 14 without) */
@@ -116,17 +125,17 @@ static void mx_rect(uint32_t r, mrect_t *q)             /* row r's place in its 
     } else if (r < MXR_LANE0 || mx_is_usb(r)) {
         q->y = mx_is_usb(r) ? 0 : (int32_t)(r - MXR_T1) * MXL_H, q->w = 240, q->h = MXL_H;   /* (the USB input: a channel's row,
                                                          * alone, no steps) */
-        q->sx = MXL_VX, q->sy = MXL_SY, q->sp = MXL_SP, q->sh = MXL_SH;
-        q->vx = MXL_VX, q->vy = MXL_VY, q->vw = MXL_VW, q->vh = MXL_VH;
+        q->sx = MXL_SX, q->sy = MXL_SY, q->sp = MXC_SP, q->sh = MXL_SH;
+        q->vx = MXL_SX, q->vy = MXL_VY, q->vw = MXL_VW, q->vh = MXL_VH;
     } else {
         uint32_t row = r - MXR_LANE0;                   /* (the ACCENT lane: DRUM_ACC, the last row) */
         q->y = (int32_t)row * OP_PH / (int32_t)MXS_NROW;
         q->h = (int32_t)(row + 1u) * OP_PH / (int32_t)MXS_NROW - q->y;
         q->w = 240;
-        q->sx = MXL_VX, q->sy = MXS_SY, q->sp = MXL_SP, q->sh = q->h - 7;
-        q->vx = MXL_VX, q->vy = q->h - 4, q->vw = MXL_VW, q->vh = MXS_VH;   /* (the meter over the row's rule) */
+        q->sx = MXL_VX, q->sy = MXS_SY, q->sp = MXL_SP, q->sh = q->h - 8;
+        q->vx = MXL_VX, q->vy = q->h - 4, q->vw = MXS_VW, q->vh = MXS_VH;   /* (the row's margins: 2 rows over, 2 under) */
         if (mx_is_acc(r)) {                             /* (no sound, no meter: its steps taller) */
-            q->sh = q->h - 5;
+            q->sh = q->h - 4;
             q->vw = 0;
         }
     }
@@ -237,24 +246,25 @@ static void mx_paint_row(uint32_t i)                    /* a channel's or a lane
     char en[10], pr[16], b[16];
     int32_t x;
     mrect_t q;
-    uint16_t c = mx_col(i);
-    uint16_t cc = mx_is_lane(i) && mx_muted(i) ? C_WARN : i == mx_row() ? C_WHITE : c;   /* (a muted lane: its code in the M badge's colour) */
+    uint16_t c = mx_col(i), ec = mx_in_grp(i) ? c : col_shade(c, MXL_DIM);   /* (the engine's: the row's colour, a shade down off the knobs' rows) */
+    uint16_t cc = mx_is_lane(i) && mx_muted(i) ? C_WARN : i == mx_row() ? C_WHITE : ec;   /* (a muted lane: its code in the M badge's colour) */
     int32_t cy = mx_is_lane(i) ? MXS_TY : MXL_TY;
     uint32_t mu = mx_muted(i);
     mx_rect(i, &q);
     cy += q.y;
-    mx_paint_ground(i, &q, c);
-    cv_rect(q.x + 2, q.y + 3, 3, q.h - 7, mx_in_grp(i) ? c : C_GRAY);   /* the colour chip: grey off the knobs' rows */
+    if (mx_in_grp(i))
+        cv_rect(q.x, q.y + 1, MXL_BW, q.h - 2, c);      /* the selected row's bar */
     text_st(q.x + 6, cy, &FONT_S, mx_code(i), cc, mu);  /* (a muted row: its name struck through, the user, 2026-10-15) */
     if (!mx_is_lane(i)) {                               /* the USB input: its name and whether it streams; a channel: its engine
                                                          * and preset; a return: its effect and inserts; their M badge */
         uint16_t pc = i == mx_row() ? C_WHITE : C_GRAY;
         mx_names(i, en, pr);
-        x = text_st(MXL_VX, q.y + MXL_TY, &FONT_S, cut(b, en, 8), c, mu);   /* ANALOG, in the row's colour ... (USB IN) */
+        int32_t end = mu ? 224 : 234;                   /* (muted: the M badge, at the line's end) */
+        x = text_st(MXL_VX, q.y + MXL_TY, &FONT_S, cut(b, en, 8), ec, mu);   /* ANALOG, in the row's colour ... (USB IN) */
         if (pr[0])                                      /* (USB: "streaming" whole, never struck) */
-            text_st(x + 8, q.y + MXL_TY, &FONT_S, cut(b, pr, (uint32_t)(238 - x - 8) / 8u), pc, mu && !mx_is_usb(i) && !mx_is_ret(i));
-        if (mu)                                         /* (muted: the M badge, the steps grey) */
-            cv_texts(6, q.y + 18, "M", C_WARN);
+            text_st(x + 8, q.y + MXL_TY, &FONT_S, cut(b, pr, (uint32_t)(end - x - 8) / 8u), pc, mu && !mx_is_usb(i) && !mx_is_ret(i));
+        if (mu)                                         /* (the steps grey) */
+            cv_texts(226, q.y + MXL_TY, "M", C_WARN);
     }
     mx_steps_paint(i, q.x + q.sx, q.y + q.sy);          /* the live parts too, as they stand: never a row without them */
     if (q.vw)
@@ -454,7 +464,8 @@ static void mx_vu_paint(uint32_t r, int32_t x, int32_t y, int32_t w, int32_t h, 
 {
     int32_t px = (int32_t)(pk * (uint32_t)w / MX_LV);
     cv_rect(x, y, w, h, C_BLACK);
-    cv_rect(x, y + h - 1, w, 1, C_LINE);                /* the track: a line on black */
+    if (mx_is_ret(r) || r == MXR_MASTER)
+        cv_rect(x, y + h - 1, w, 1, C_LINE);            /* the track: a line on black (a row's would read as a rule under it) */
     mx_vu_fill(x, y, w, h, px, 0u);                     /* (every meter, a lane's lit hit too, selected or not: the bands' gradient, never the lane's kind colour, which can be red) */
     mx_vu_mark(x, y, w, h, ph, 0u);
     if (!mx_is_lane(r))                                 /* the CLIP light, over the meter's last px, a black gap before it */
@@ -633,7 +644,7 @@ static void mx_steps_paint(uint32_t r, int32_t x, int32_t y)
     np = (len + 15u) / 16u;
     if (np > 1u && r < MXR_LANE0)                       /* the pattern's pages: a thin bar each, the one playing lit */
         for (i = 0; i < np; i++)
-            cv_rect(x + (int32_t)(i * (uint32_t)MXL_SW / np), y + MXL_SH + 2, (int32_t)((uint32_t)MXL_SW / np) - 2, 2,
+            cv_rect(x + (int32_t)(i * (uint32_t)MXL_CW / np), y + MXL_SH + 1, (int32_t)((uint32_t)MXL_CW / np) - 2, 2,
                     i == page / 16u ? C_WHITE : C_DIM);
 }
 static void mx_steps(uint32_t r)
@@ -668,7 +679,7 @@ static void mx_steps(uint32_t r)
     }
     mxd.stp[r] = sig;
     mxd.sta[r] = (uint8_t)at;
-    cv_begin((uint32_t)MXL_SW, (uint32_t)(q.sh + (r < MXR_LANE0 ? 4 : 0)), bg);
+    cv_begin((uint32_t)(r < MXR_LANE0 ? MXL_CW : MXL_SW), (uint32_t)(q.sh + (r < MXR_LANE0 ? 3 : 0)), bg);
     mx_steps_paint(r, 0, 0);
     cv_blit((uint32_t)(q.x + q.sx), (uint32_t)(OP_PY + q.y + q.sy));
 }

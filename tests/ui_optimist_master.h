@@ -322,12 +322,15 @@ static void layout_tests(void)
     song.sel = 0;
     frames(3);
     y = mx_row_y((MXR_T1 + 1u));
-    check(px_in(MXL_VX, y + MXL_TY, 56, 14, mx_col((MXR_T1 + 1u))) && MXL_VY + MXL_VH <= MXL_H && MXL_SY + MXL_SH + 4 <= MXL_VY,
-          "mixer row: the engine's name in the track's colour on its text line, the steps and a thin VU under it");
+    check(px_in(MXL_VX, y + MXL_TY, 56, 14, col_shade(mx_col((MXR_T1 + 1u)), MXL_DIM)) && MXL_VY + MXL_VH <= MXL_H && MXL_SY + MXL_SH + 4 <= MXL_VY,
+          "mixer row: the engine's name a shade of the track's colour on its text line, the steps and a thin VU under it");
+    check(MXL_VY + MXL_VH + MXL_MG == MXL_H && MXL_SY >= MXL_TY + 15 && MXL_SX * 2 + 16 * MXC_SP + 3 * MXL_GG - 2 == 240 &&
+              MXL_SX + MXL_VW == 240 - MXL_SX && !px_in(0, y + (uint32_t)MXL_H - 1u, 240, 1, C_LINE) && !px_in(0, y + (uint32_t)MXL_VY + 2u, 240, 1, C_LINE),
+          "mixer row: the same margin top and bottom, the text clear of the steps, the steps and the VU across the row, no rule");
     y = mx_row_y(MXR_T1);
-    check(px_in(MXL_VX, y + MXL_TY, 56, 14, mx_col(MXR_T1)) && px_in(0, y, 240, 1, mx_col(MXR_T1)) &&
-              !px_in(4, y + 2u, 232, MXL_H - 4u, col_shade(mx_col(MXR_T1), 3u)),
-          "... the selected row: framed in its colour on black, no tinted ground (the user, 2026-10-18)");
+    check(px_in(MXL_VX, y + MXL_TY, 56, 14, mx_col(MXR_T1)) && px_in(0, y + 2u, MXL_BW, MXL_H - 4u, mx_col(MXR_T1)) &&
+              !px_in(MXL_BW, y, 236, 1, mx_col(MXR_T1)) && !px_in(4, y + 2u, 232, MXL_H - 4u, col_shade(mx_col(MXR_T1), 3u)),
+          "... the selected row: its bar on the left, no outline, no ground under its text (the user, 2026-11-05)");
     tap(B_LFO);
     frames(3);
     check(lst.pic == 1u && lst.shown == 0u && GRAPH_H == OH_BODY, "SOUND LFO: the picture fills the panel, no rows (2026-10-12)");
