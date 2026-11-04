@@ -3652,8 +3652,8 @@ static void fuzz(uint32_t nf, uint32_t seed)            /* random use: every dra
 #ifdef MIRROR_CHECK
         if (ms.on)
             ;                                           /* (MIRROR_SUMS: the lossy link loses and repairs on its own) */
-        else if (f % 50u == 49u && ui.overlay != 5u)
-            mc_resync();
+        else if (f % 50u == 49u && ui.overlay != 5u && ui.overlay != 1u && ui.overlay != 3u && ui.overlay != 4u)
+            mc_resync();                                /* (as ed_mirror.c: never under the popup list, a question, the REC ring, a code) */
         if (!ms.on && f % 50u == 20u && ui.overlay != 5u)
             mc_drop = 1u + R(3);                        /* (frames lost on the way from here) */
         if (!ms.on && f % 50u == 23u && ui.overlay != 5u) {
