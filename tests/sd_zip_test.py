@@ -174,6 +174,12 @@ def main(out):
               len(kit) > 40 and kit == list(range(len(kit))) and
               all(f.read(n)[:4] == b"OPKT" for n in files if n.startswith("Optimist/Kits/Factory/")) and
               len(kit) == len([n for n in files if n.startswith("Optimist/Kits/")]))
+        fam = ["909", "808", "synth", "kawa", "plaits", "sampled"]
+        ins = [m.group(1).split(", ") for n in files if n.startswith("Optimist/Kits/Factory/")
+               if (m := re.search(r" \(([a-z0-9, ]+)\)\.opk$", n))]
+        check("each kit's name says its instruments: <nn> - <name> (909, sampled).opk, of 909 808 synth kawa plaits "
+              "sampled in that order", len(ins) == len(kit) and all(i and all(x in fam for x in i) and
+                                                                    i == sorted(i, key=fam.index) for i in ins))
         heads = [f.read(n)[:4] for n in files if n.startswith("Optimist/Presets/Factory/")]
         check("each a card preset file (\"OPPR\")", heads and all(h == b"OPPR" for h in heads))
         readme = f.read("Optimist/readme.txt").decode()

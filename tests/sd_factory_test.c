@@ -172,11 +172,55 @@ static int kit_way(int32_t (*o)[KT_N], uint32_t k, const uint8_t *rec)
         waitpid(pid, &st, 0);
     return pid > 0 && got == sizeof kt_a && WIFEXITED(st) && !WEXITSTATUS(st) ? 0 : -1;
 }
+/* a kit file's instruments as its name must say them (the user, 2026-11-04: "<nn> - <name> (909, sampled).opk"), from
+ * its lanes' sources by the names the kit list gives them (not drum_kits.c's UID ranges): a sampled kit (the first five)
+ * "sampled", an X0X 909 kit or voice (X0X 909, X9 ...) "909", the 808's "808", KAWA, PLAITS, any other kit "synth"; in
+ * the order 909, 808, synth, kawa, plaits, sampled */
+static const char *kit_instr_of(const uint8_t *rec)
+{
+    static char out[64];
+    static const char *const F[6] = {"909", "808", "synth", "kawa", "plaits", "sampled"};
+    ukit_t kt;
+    uint32_t l, m = 0, i, src;
+    memcpy(&kt, rec, sizeof kt);
+    for (l = 0; l < DRUM_LANES; l++) {
+        const char *nm;
+        src = kt.src[l];
+        if (src >= DL_USR && src <= DL_CARD) {
+            m |= 32u;
+            continue;
+        }
+        nm = src >= DL_X909 && src < DL_X909 + DL_X909_N ? "X9 voice" : src >= DL_X808 && src < DL_X808 + DL_X808_N
+             ? "X8 voice" : src >= DL_XKIT0 ? DRUM_KIT_NAMES[DRUM_UID_XKIT + src - DL_XKIT0]
+             : src >= DL_KIT0 ? DRUM_KIT_NAMES[src - DL_KIT0] : 0;
+        if (!nm)
+            continue;
+        if (src >= DL_KIT0 && src < DL_KIT0 + DRUM_SAMPLED)
+            m |= 32u;
+        else if (!strncmp(nm, "X0X 909", 7) || !strncmp(nm, "X9 ", 3))
+            m |= 1u;
+        else if (!strncmp(nm, "X0X 808", 7) || !strncmp(nm, "X8 ", 3))
+            m |= 2u;
+        else if (!strcmp(nm, "KAWA"))
+            m |= 8u;
+        else if (!strcmp(nm, "PLAITS"))
+            m |= 16u;
+        else
+            m |= 4u;
+    }
+    out[0] = 0;
+    for (i = 0; i < 6u; i++)
+        if (m >> i & 1u)
+            snprintf(out + strlen(out), sizeof out - strlen(out), "%s%s", out[0] ? ", " : " (", F[i]);
+    if (out[0])
+        snprintf(out + strlen(out), sizeof out - strlen(out), ")");
+    return out;
+}
 static int kits_mode(int argc, char **argv)
 {
     static uint8_t f[512];
     uint32_t k, n = 0, silent = 0;
-    char want[64], nm[16];
+    char want[128], nm[16];
     for (k = 0; (int)k + 2 < argc && k < 255u; k++) {
         const char *p = argv[k + 2], *b = strrchr(p, '/') ? strrchr(p, '/') + 1 : p;
         FILE *fp = fopen(p, "rb");
@@ -188,7 +232,8 @@ static int kits_mode(int argc, char **argv)
         str_cpy(nm, k < DRUM_KITS ? DRUM_KIT_NAMES[k] : "?", sizeof nm);
         for (i = 0; nm[i]; i++)
             nm[i] = (char)tolower((unsigned char)nm[i]);
-        snprintf(want, sizeof want, "%02u - %s.opk", (unsigned)(k % 16u + 1u), nm);
+        snprintf(want, sizeof want, "%02u - %s%s.opk", (unsigned)(k % 16u + 1u), nm,
+                 got == 16u + UK_CARD_N ? kit_instr_of(f + 16u) : "");
         if (k >= DRUM_KITS || strcmp(b, want) || p[strlen(p) - strlen(b) - 2] != (char)('A' + k / 16u)) {
             printf("FAIL %s: kit %u is %c/%s\n", p, k, 'A' + k / 16u, want);
             bad++;
