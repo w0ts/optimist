@@ -6,8 +6,10 @@ mode, unzipped at its root. Folders capitalised, files lowercase (the user, 2026
 
   Optimist/                     the card's folders (sd_layout.c SDL_DIR: what the FM-1 makes at a mount)
   Optimist/Presets/Factory/<Engine>/<L>/<nn> - <name>.ops   every factory preset of every engine, 16 a bank (A, B ..)
-                                in the engine's table order (tools/sd_factory.c: built from the firmware's own sources,
-                                each preset applied and taken as the device does; the engines' folders sd_names.h's);
+                                in the engine's table order, then every other sound flash mode lists as its preset (FM6:
+                                the 80 voices of its five packs, each file carrying the voice itself; the user,
+                                2026-11-04: "ALL", "just presets"); tools/sd_factory.c: built from the firmware's own
+                                sources, each applied and taken as the device does; the engines' folders sd_names.h's;
                                 SD card mode reads them here, it carries no preset tables (sd_mode.c sdm_factory_*)
   Optimist/Presets/User/        the presets saved on the FM-1 go to User/<Engine>/<L>/ (empty here)
   Optimist/Samples/<Set>/z<k>.wav   every sample set (PIANO's folder Piano ...; the user, 2026-10-29: in SD card mode a
@@ -39,7 +41,8 @@ SUBDIRS = ("Presets/Factory", "Presets/User")                                   
 CACHE = ROOT / "build" / "sd-zip-cache"
 README = """Optimist: the SD card of an FM-1 in SD card mode (docs/SD-CARD-DESIGN.md).
 Unzip at the card's root (FAT32): this Optimist folder is the FM-1's.
-  Presets/Factory/<Engine>/A, B ...   every factory preset, 16 a bank ("01 - name.ops" .. "16 - name.ops"):
+  Presets/Factory/<Engine>/A, B ...   every factory preset, 16 a bank ("01 - name.ops" .. "16 - name.ops"; FM6's
+                                      packs' voices after its own presets):
                                       SD card mode reads them here. Keep the names: the number is the key it is on.
   Presets/User/<Engine>/A, B ...      the presets you save on the FM-1, in banks of 16 the same way
   Projects/A, B ...                   your projects, 16 a bank ("01 - name/01 - name.opp", earlier saves in Versions/)

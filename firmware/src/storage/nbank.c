@@ -33,6 +33,10 @@ static uint32_t nb_kind(const track_t *t)
 #undef FM6_NPKV                                          /* (eng_fm6.c's, of the packs: no list of them here) */
 #define FM6_NPKV 0u
 #endif
+#if FELUCCA_FM6_LIST && PRESETS_CARD                     /* SD card mode: the packs' voices are FM6's factory presets */
+#undef FM6_NPKV                                          /* on the card (Presets/Factory/FM6, after its own: the user, */
+#define FM6_NPKV 0u                                      /* 2026-11-04), not a collection here: none listed twice */
+#endif
 static uint32_t nb_slots(uint32_t kind) { return kind == NB_FM6 ? FM6_NPKV + NB_FM6_RX : kind == NB_CZ ? CZ_NUSER : 0u; }
 #if CZ_NUSER
 #define NB_CZ_BASE CZT_N                                  /* TONE of U01: after the built-in tones */

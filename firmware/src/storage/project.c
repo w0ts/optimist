@@ -1272,7 +1272,9 @@ static void proj_apply(const project_t *p, const dlrec_t *d, int all)
                                     i >= P_E0 && i <= P_E7 ? &ENGINES[e]->edit[i - P_E0] : &TP[i];
             t->p[i] = (int16_t)clamp(v[i], d->min, d->max);
         }
-        t->preset = (uint8_t)(ENGINES[e]->npresets ? (s->preset == 0xFFu ? 0u : s->preset) % ENGINES[e]->npresets : 0u);
+        /* (SD card mode: kept as it is, the card's count may not be read yet: core.h ENG_NPRE) */
+        t->preset = (uint8_t)(PRESETS_CARD ? (s->preset == 0xFFu ? 0u : s->preset)
+                              : ENGINES[e]->npresets ? (s->preset == 0xFFu ? 0u : s->preset) % ENGINES[e]->npresets : 0u);
         if (k < NPART && proj_orph_is(s->engine)) {     /* an engine left out: the fallback's own sound */
             for (i = 0; i < 8u; i++)
                 t->p[P_E0 + i] = ENGINES[e]->edit[i].def;

@@ -883,10 +883,32 @@ static void sdu_factory_tests(void)
     f_mkdir(dir);
     sdu_factory_put(dir, "01 - test one.ops", 0x11);
     sdu_factory_put(dir, "02 - two.ops", 0x22);
+    dir[strlen(dir) - 1u] = 'B';                        /* (bank B empty, bank C: beyond the table, as FM6's pack */
+    f_mkdir(dir);                                       /* voices are; the banks read up to the first not there) */
+    dir[strlen(dir) - 1u] = 'C';
+    f_mkdir(dir);
+    sdu_factory_put(dir, "02 - beyond.ops", 0x33);
     sdm_st = SDM_OFF;                                   /* (a boot: the mount, the index, the names) */
     sdu_frames(3);
     check(!strcmp(preset_name(e, 0), "TEST ONE") && !strcmp(preset_name(e, 1), "TWO") && !strcmp(preset_name(e, 2), "?"),
           "factory: the names from the card (A/01 - test one.ops: TEST ONE), a missing one ?");
+    check(ENG_NPRE(e) == 34u && !strcmp(preset_name(e, 33), "BEYOND"),
+          "factory: the card's count, past the table's (C/02 is preset 33: 34 presets), its name on the list");
+    {
+        uint32_t i, at = 0xFFFFu;
+        if (!bank_ready)
+            bank_resolve();
+        for (i = 0; i < bank_n; i++)
+            if (bank_e[i] == e && bank_pi[i] == 33u)
+                at = i;
+        check(at != 0xFFFFu, "factory: ... the PRESETS list has it (made again after the card's scan)");
+    }
+    g0 = upc_gives;
+    trk[0].eng_req = trk[0].engine = (uint8_t)e;
+    apply_preset_to(&trk[0], 33);
+    sdu_frames(1);
+    check(upc_gives == g0 + 1u && upc_rec[0] == 0x33 && trk[0].preset == 33u,
+          "factory: preset 33 applied: C/02's file read on the next pass, as any preset");
     g0 = upc_gives;
     song.sel = 0;
     trk[0].eng_req = trk[0].engine = (uint8_t)e;

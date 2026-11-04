@@ -9,6 +9,7 @@ acronym upper case), the cache (a second make copies the first's bytes).
 import importlib
 import pathlib
 import re
+import shutil
 import sys
 import time
 import zipfile
@@ -17,6 +18,8 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "tools"))
 gen_samples = importlib.import_module("gen_samples")   # (tools/: on the path above)
 sd_zip = importlib.import_module("sd_zip")
+sys.path.insert(0, str(ROOT / "tools" / "builder"))
+R = importlib.import_module("registry")                # (the builder's items: FM6_PK_*)
 ACRONYMS = {"CZ", "SID", "VPS", "WSEQ"}                # (the user, 2026-11-04: kept upper case, as names with a digit)
 
 fails = 0
@@ -42,7 +45,8 @@ def rule(name):
 def main(out):
     out = pathlib.Path(out)
     out.mkdir(parents=True, exist_ok=True)
-    sd_zip.CACHE = out / "cache"                        # (the test's own cache: a fresh zip first)
+    sd_zip.CACHE = out / "cache"                        # (the test's own cache, emptied: a fresh zip first)
+    shutil.rmtree(sd_zip.CACHE, ignore_errors=True)
     t0 = time.time()
     z = sd_zip.make(out / sd_zip.NAME)
     t_new = time.time() - t0
@@ -83,6 +87,23 @@ def main(out):
               all(v == set(range(len(v))) for v in by.values()) and all(1 <= int(nn) <= 16 for _, _, nn, _ in pre))
         check("the engines' folders are sd_names.h's (the firmware's table): " + " ".join(sorted(by)),
               set(by) <= set(table.values()))
+        # every collection flash mode lists as presets (the user, 2026-11-04: ALL, "just presets"): FM6's packs, each
+        # pack's 16 voices in eng_fm6.c FM6_PACK's order, after FM6's own presets; their names the packs' own
+        fw = ROOT / "firmware" / "src" / "engines" / "fm6"
+        order = re.findall(r"\(FM6_PK\((\w+)\)\)", (fw / "eng_fm6.c").read_text())   # (FIF(..)(FM6_PK(KEYS)) ..)
+        packs = [re.findall(r'"([^"]*)"', re.search(rf"FM6_PK_{p}_N\[16\]\[11\] = \{{(.*?)\}};",
+                                                     (fw / f"eng_fm6_pk_{p.lower()}.h").read_text()).group(1))
+                 for p in order]
+        pk_items = [k for k in R.ITEMS if k.startswith("FM6_PK_")]
+        check(f"FM6's packs: {len(packs)} ({', '.join(order)}), each 16 voices, one a builder item",
+              len(packs) == len(pk_items) == 5 and all(len(v) == 16 for v in packs))
+        fm6 = sorted((b, int(nn), nm) for e, b, nn, nm in pre if e == "FM6")
+        own = len(fm6) - 16 * len(packs)
+        want_pk = [re.sub(r'[/\\:*?"<>|]', "_", v.rstrip()).lower() for p in packs for v in p]
+        check(f"FM6: its {own} own presets, then the {16 * len(packs)} pack voices in order, named as the packs name them",
+              own == 3 and [nm for _, _, nm in fm6[own:]] == want_pk)
+        print("presets per engine: " + ", ".join(f"{e} {len(v)}" for e, v in sorted(by.items())) +
+              f"; {len(pre)} in all")
         heads = [f.read(n)[:4] for n in files if n.startswith("Optimist/Presets/Factory/")]
         check("each a card preset file (\"OPPR\")", heads and all(h == b"OPPR" for h in heads))
         readme = f.read("Optimist/readme.txt").decode()

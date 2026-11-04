@@ -179,7 +179,7 @@ static void apply_preset_to(track_t *t, uint32_t pi)
         env2_dest_def(t->p, t->eng_req);
         return;
     }
-    pi %= e->npresets;
+    pi %= ENG_NPRE(t->eng_req % NENGINES);           /* (SD card mode: the card's presets, core.h ENG_NPRE) */
     t->preset = (uint8_t)pi;
 #if PRESETS_CARD
     {   /* SD card mode: the engine's defaults now (the interrupts may be off here), the card's preset file on the main
@@ -591,7 +591,8 @@ typedef uint8_t bank_i_t;
 #else
 /* SD card mode (PRESETS_CARD): no BANK (its names are the card's): the list is every engine's presets in their table's
  * order, the names from the card (sd_mode.c sdm_factory_name) */
-#define NBANK_ALL 320u                               /* (every engine's presets: 256 with all of them, 2026-10-26) */
+#define NBANK_ALL 448u                               /* (every engine's presets on the card: 368 with all of them and FM6's
+                                                      * packs, 2026-11-04) */
 static uint8_t bank_e[NBANK_ALL];
 static uint32_t bank_eng(uint32_t i) { return bank_e[i]; }
 typedef uint16_t bank_i_t;
@@ -614,12 +615,12 @@ static void bank_resolve(void)
 #if PRESETS_CARD
     for (a = 0; a < NENGINES; a++) {                  /* (the engines by name; each one's presets as its table has them) */
         i = ENG_ALPHA_SLOT[a];
-        for (k = 0; k < ENGINES[i]->npresets && bank_n < NBANK_ALL; k++) {
+        for (k = 0; k < ENG_NPRE(i) && bank_n < NBANK_ALL; k++) {
             bank_e[bank_n] = (uint8_t)i, bank_pi[bank_n] = (uint8_t)k;
             bank_ix[bank_n] = bank_n;
             bank_n++;
         }
-        if (!ENGINES[i]->npresets)
+        if (!ENG_NPRE(i))
             bank_init[bank_ni++] = (uint8_t)i;
     }
 #else
@@ -800,7 +801,7 @@ static const char *preset_kind(uint32_t n) { return n < NBANK ? BANK_KIND[BANK[b
 static const char *preset_name(uint32_t e, uint32_t k)
 {
 #if PRESETS_CARD
-    return k == PRESET_INIT || !ENGINES[e]->npresets ? "INIT" : sdm_factory_name(e, k % ENGINES[e]->npresets);
+    return k == PRESET_INIT || !ENG_NPRE(e) ? "INIT" : sdm_factory_name(e, k % ENG_NPRE(e));
 #else
     return k == PRESET_INIT || !ENGINES[e]->npresets ? "INIT" : ENGINES[e]->presets[k % ENGINES[e]->npresets].name;
 #endif

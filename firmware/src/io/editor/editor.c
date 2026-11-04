@@ -469,8 +469,8 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
             ed_b(1);
             ed_str("INIT", 12);
         } else {
-            ed_b(ENGINES[a[0]]->npresets);
-            for (i = 0; i < ENGINES[a[0]]->npresets; i++)
+            ed_b(ENG_NPRE(a[0]));
+            for (i = 0; i < ENG_NPRE(a[0]); i++)
                 ed_str(preset_name(a[0], i), 12);
         }
         for (i = 0; i < 2u; i++)                           /* then the two edit-page titles */

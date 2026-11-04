@@ -1164,7 +1164,7 @@ static void con_status(void)
     con_puts(e->name);
     con_puts("\r\n");
     con_puts("preset ");
-    con_puts(TSEL->preset < e->npresets ? preset_name(TSEL->eng_req % NENGINES, TSEL->preset) : "-");
+    con_puts(TSEL->preset < ENG_NPRE(TSEL->eng_req % NENGINES) ? preset_name(TSEL->eng_req % NENGINES, TSEL->preset) : "-");
     con_puts("\r\n");
     con_kv("bpm", song.g[G_BPM]);
     con_kv("playing", song.playing);

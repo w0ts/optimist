@@ -705,6 +705,15 @@ typedef struct {
 #define PRESETS_PTR(a) (a)
 #endif
 #define PRESETS_OF(a) PRESETS_PTR(a), (uint8_t)(sizeof(a) / sizeof((a)[0]))
+/* engine slot e's factory presets as the lists have them: its table's; SD card mode the card's (the user, 2026-11-04:
+ * every sound flash mode offers as a preset is a factory preset file there, FM6's pack voices numbered on after its
+ * own: sd_mode.c sdm_factory_count, the table's count until a card is read) */
+#if PRESETS_CARD
+static uint32_t sdm_factory_count(uint32_t e);
+#define ENG_NPRE(e) sdm_factory_count(e)
+#else
+#define ENG_NPRE(e) ((uint32_t)ENGINES[(e) % NENGINES]->npresets)
+#endif
 #define XP(...) .x = (const int8_t[8]){__VA_ARGS__}  /* XP(P_GLIDE + 1, 30, P_ED_PIT + 1, 8): parameter id + 1, value
                                                       * (a ninth value does not compile: the four pairs are the room) */
 #define ARP(m, rt, o, g) XP(P_AMODE + 1, m, P_ARATE + 1, rt, P_AOCT + 1, o, P_AGATE + 1, g)   /* MODE, RATE, OCT, GATE */
