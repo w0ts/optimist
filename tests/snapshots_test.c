@@ -487,11 +487,12 @@ static void fresh_flash(void)
  * at its save (2026-10-08: the log's id 17 went in, so none, or the last autosave's) */
 static void pstate_test(void)
 {
-    static const uint8_t C[NTRK] = {2, 2, 2, 2}, OLD[NTRK] = {0, PAT_NONE, 0, 0};
+    static const uint8_t C[NTRK] = {0, 0, 0, 0}, OLD[NTRK] = {2, PAT_NONE, 2, 2};   /* (C: every track on pattern 1 from the start since
+                                                         * 2026-11-04, so scene C stored into each track's own pattern 1: its source) */
     fresh_flash();
     make(1);
     project_save(2);                                   /* (scene C: the tracks' sources are C's slots) */
-    check("pstate: scene C stored, the tracks' sources C's, no autosave yet (no id 17)",
+    check("pstate: scene C stored, the tracks' sources their pattern 1 (scene C names it), no autosave yet (no id 17)",
           !memcmp(pat_cur, C, NTRK) && !slg_has(SEC_ID_PSTATE));
     check("... snapshot 1 saved", sn_save(1, 0) == SNE_OK);
     make(3);
