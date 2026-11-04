@@ -3,15 +3,17 @@
  * 10 8.57 7.5 6.67 6 MHz; docs/SD-CARD-DESIGN.md "The clock") on the byte-level card model (tests/sd_card_model.h: a
  * card whose reads go wrong above a given clock, time out there, read zeros with a right CRC, fail now and then, fail at
  * one step alone, or stop answering for good):
- *   - every step reads: 30 MHz passes (CMD6 took high speed), 20 kept (the margin step below the fastest);
+ *   - every step reads, from the floor up: 30 MHz passes (CMD6 took high speed), 20 kept (no failure: the step below
+ *     the top);
  *   - no high speed: 30 skipped, 20 passes, 15 kept; SDv1 and MMC: the floor, nothing tried;
- *   - reads wrong above each step in turn: that step the fastest, the next kept (the floor when that is the floor);
- *   - timeouts above 10 MHz: the first ends the walk at the floor, the card reads there;
- *   - the black FM-1's failure: noise past the start-up above 15 MHz: mounts at the floor; CMD6 switched only when its
- *     status (CRC right) says high speed is supported;
+ *   - reads wrong above each step in turn: the first wrong step ends the walk, the one below it kept and checked once
+ *     more (the floor when that is the floor), every faster step untried;
+ *   - timeouts from 10 MHz up: 8.57 kept;
+ *   - the black FM-1's failure: noise past the start-up from 15 MHz up keeps 12, from 10 up keeps 8.57, no CMD6 sent; CMD6
+ *     switched only when its status (CRC right) says high speed is supported;
  *   - zeros with a right CRC16 above 12 MHz: caught by the floor's fingerprint (SDK_DIFF);
- *   - a block in 30 wrong above 8.57 MHz: the second pass catches what the first missed; 6.67 kept;
- *   - the margin step failing alone: the walk goes on after it;
+ *   - a block in 30 wrong from 8.57 MHz up: the second pass catches what the first missed; 7.5 kept;
+ *   - one step alone wrong: the walk ends there, nothing faster tried;
  *   - the card gone at a step: the probe ends at the floor, the card type cleared (the mount says no card);
  *   - every probe: nothing written, nothing but 0xFF to the LCD, no command refused for its CRC;
  *   - at run time, by bytes and by DMA: a CRC failure above the floor drops one step and the read is redone (the data
@@ -83,7 +85,7 @@ static void walks(void)
     CHECK(probe("all good") == 0, "all good: no step failed");
     expect("all good", 0, 1);
     CHECK(C.hs && sd_clk_res[0] == SDK_PASS && sd_clk_res[1] == SDK_PASS && sd_clk_res[SD_FLOOR] == SDK_PASS &&
-          sd_clk_res[2] == SDK_UNTRIED, "all good: 30 and 20 passed (CMD6 high speed), the floor's reference, 15 untried");
+          sd_clk_res[2] == SDK_PASS, "all good: every step passed (30 after CMD6 high speed), the floor's reference");
     CHECK(SD_CLOCK_KHZ() == 20000u, "all good: 20000 kHz shown, %u", (unsigned)SD_CLOCK_KHZ());
 
     fresh(1, 1, 0);                                    /* CMD6 refused high speed: 30 not tried */
@@ -101,15 +103,12 @@ static void walks(void)
     fresh(0, 0, 1);
     CHECK(probe("MMC") == 0 && sd_step == SD_FLOOR && sd_clk_res[0] == SDK_UNTRIED, "MMC: the floor, untried");
 
-    for (k = 1; k <= (int)SD_FLOOR; k++) {             /* wrong above step k: k the fastest, k + 1 kept */
+    for (k = 1; k <= (int)SD_FLOOR; k++) {             /* wrong above step k: the walk ends there, k kept */
         fresh(1, 1, 0);
         C.ok_from = k;
         snprintf(w, sizeof w, "wrong above %u kHz", (unsigned)FM1_SD_STEP_KHZ(k));
-        CHECK(probe(w) == (UINT)k, "%s: %d steps failed", w, k);
-        if (k < (int)SD_FLOOR)
-            expect(w, (BYTE)k, (BYTE)(k + 1));
-        else
-            expect(w, SD_FLOOR, SD_FLOOR);
+        CHECK(probe(w) == 1u, "%s: one step failed", w);
+        expect(w, (BYTE)k, (BYTE)k);
         CHECK(sd_clk_res[k - 1] == SDK_CRC, "%s: the step above failed on a CRC (%s)", w,
               RES_NAME[sd_clk_res[k - 1] % 6u]);
     }
@@ -119,8 +118,8 @@ static void walks(void)
     {
         uint32_t t0 = clk;
         (void)probe("timeouts");
-        expect("timeouts", SD_FLOOR, SD_FLOOR);
-        CHECK(sd_clk_res[0] == SDK_ERR && sd_clk_res[1] == SDK_UNTRIED, "timeouts: the first ends the walk at the floor");
+        expect("timeouts", 5, 5);
+        CHECK(sd_clk_res[4] == SDK_ERR && sd_clk_res[3] == SDK_UNTRIED, "timeouts: the walk ends there, 12 not tried");
         CHECK(clk - t0 < 1000u * 1500u, "timeouts: the probe took %u ms (under 1.5 s)", (unsigned)((clk - t0) / 1000u));
         printf("sd_clock_test: the model's probe times (a byte a us): timeouts above 10 MHz %u ms\n",
                (unsigned)sd_clk_ms);
@@ -128,9 +127,13 @@ static void walks(void)
 
     fresh(1, 1, 0);                                    /* noise past the start-up above 15 MHz */
     C.garbage_from = 3;
-    (void)probe("noise");
-    expect("noise", SD_FLOOR, SD_FLOOR);
-    CHECK(CardType && sd_clk_ms < 5500u, "noise: mounted, the probe under 5.5 s (%u ms)", (unsigned)sd_clk_ms);
+    (void)probe("noise from 15");
+    expect("noise from 15", 3, 3);
+    CHECK(CardType && sd_clk_ms < 7500u && !C.cmd6s, "noise: mounted, the probe under 7.5 s (%u ms), no CMD6", (unsigned)sd_clk_ms);
+    fresh(1, 1, 0);
+    C.garbage_from = 5;
+    (void)probe("noise from 10");
+    expect("noise from 10", 5, 5);
 
     fresh(1, 1, 0);                                    /* CMD6's status wrong: no switch */
     C.cmd6_crc_bad = 1;
@@ -144,7 +147,7 @@ static void walks(void)
     fresh(1, 1, 0);                                    /* zeros with a right CRC16 above 12 MHz */
     C.zero_from = 3;
     (void)probe("zeros");
-    expect("zeros", 3, 4);
+    expect("zeros", 3, 3);
     CHECK(sd_clk_res[2] == SDK_DIFF, "zeros: 15 MHz differs from the floor's fingerprint (%s)",
           RES_NAME[sd_clk_res[2] % 6u]);
 
@@ -152,14 +155,13 @@ static void walks(void)
     C.flaky_from = 6;
     C.flaky_every = 30;
     (void)probe("now and then");
-    expect("now and then", 6, 7);
+    expect("now and then", 6, 6);
 
-    fresh(1, 1, 0);                                    /* 30 wrong, 15 alone wrong: 20 passes, its margin fails */
-    C.ok_from = 1;
+    fresh(1, 1, 0);                                    /* 15 alone wrong: the walk ends there, 20 not tried */
     C.bad_only = 3;
-    (void)probe("margin fails");
-    expect("margin fails", 3, 4);
-    CHECK(sd_clk_res[1] == SDK_PASS && sd_clk_res[2] == SDK_CRC, "margin fails: 20 passed, 15 failed");
+    (void)probe("one step wrong");
+    expect("one step wrong", 3, 3);
+    CHECK(sd_clk_res[1] == SDK_UNTRIED && sd_clk_res[2] == SDK_CRC, "one step wrong: 15 failed, 20 untried");
 
     fresh(1, 1, 0);                                    /* the card gone at 30 MHz */
     C.die_from = 1;
@@ -177,7 +179,7 @@ static void run_time(int dma)
     memset(&D, 0, sizeof D);
 
     fresh(1, 1, 0);
-    C.ok_from = 2;
+    C.ok_from = 3;
     (void)probe("run time");
     CHECK(sd_step == 3, "run time dma %d: 12 MHz kept", dma);
     C.ok_from = 4;                                     /* 12 MHz goes wrong (and 10 reads) */

@@ -200,17 +200,24 @@ The walk (`sd_clock_probe`, sd_mmc.c), in a bus session after the mount and the 
    register's own CRC7 noted; 8 blocks by CMD17 spread over the card; 16 blocks from sector 0 by one CMD18, every
    block's CRC16 checked. Its fingerprint is a CRC16 over the registers' bytes and every block's CRC16. The floor failing
    its own pass: the floor, nothing else tried.
-3. CMD6 asks for high speed; then from the fastest step down, each step gets **two** such passes, each with no CRC
-   failure, no timeout and the floor's fingerprint (a line stuck low reads zeros whose CRC16 is right: the fingerprint
-   catches that). A step that fails: the clock back to the floor before the CMD12 of a CMD18 left running, the card
-   checked by a pass at the floor, started again (400 kHz, the start-up, CMD6) when that fails too, then the next step.
-   A card that no longer reads at the floor ends the walk; the mount says no card.
-4. The first step that passes is the fastest; **the step below it is kept, for margin**, and must pass its own two
-   passes (when it fails, the walk goes on after it). The fastest passing step one above the floor keeps the floor.
+3. From the floor up, one step at a time, each step gets **two** such passes, each with no CRC failure, no timeout and
+   the floor's fingerprint (a line stuck low reads zeros whose CRC16 is right: the fingerprint catches that). CMD6 is
+   asked before 30 MHz only, and switched only when its status, CRC right, says high speed is supported; else the walk
+   ends there.
+4. **The first step that fails ends the walk.** The clock goes back to the floor before the CMD12 of a CMD18 left
+   running, the card is checked by a pass at the floor and started again (400 kHz, the start-up) when that fails too; a
+   card that no longer reads at the floor ends it, the mount says no card. The step below the failure, the fastest that
+   passed, is kept and checked once more at its clock (that check failing: the floor).
+5. No step failed (the top reached, or the time spent): **the step below the fastest that passed**, the margin no
+   failure showed. So a card that reads everything runs at 20 MHz, one that refuses high speed at 15.
 
-So a card and board that read at 8.57 MHz and not at 10 run at 7.5 (as before); one that reads at 7.5 and not 8.57
-runs at 6.67. The probe's time on the FM-1 is not measured yet (`sd diag` prints it): two passes a step, more for each failing step (a failed step's
-timeouts, 100 ms at most a read, and a start-up again when the card stopped answering).
+So a card and board that read at 8.57 MHz and not at 10 run at 8.57; garbage from 15 MHz up keeps 12. (Until 2026-11-04
+the walk went down from the fastest and a timeout ended it at the floor: garbage at 20 MHz looks like a timeout, so the
+black FM-1 would have landed at 6 MHz, below the 7.5 measured.) The time is bounded well under the 8 s watchdog, which is
+fed at every pass and before a start-up again: every wait in the probe is 20 ms, so a pass is 0.56 s at most; no step
+starts after 1 s; ~7.2 s at the very worst, every wait at its limit, ~1.7 s between feeds. On time, a card reaches the top
+in 17 passes. The real time on the FM-1 is not measured yet (`sd diag` prints it). Every disk read and write feeds the
+watchdog too: a card's first index pass (`sdx_update`) holds one main loop pass for as long as the card takes.
 
 At run time a block whose CRC16 fails above the floor drops the clock one step at once (this session and every later
 one, counted) and the block is read again there, so nothing is lost; at the floor it is read once more and a second
@@ -222,10 +229,10 @@ down N` and one line per step: `pass`, `CRC failed`, `data differs from the floo
 `skipped (no high speed)` or `not tried`, the step kept marked. `sd clock MHZ|auto` sets the fastest step at or under
 MHZ, unchecked, and mounts again; `sd speed` reads the CSD at every clock with its CRC16 checked. Host-tested on the
 card model (`tests/sd_clock_test.c`: wrong above each step in turn, timeouts, zeros with a right CRC, a block in 30
-wrong, the margin step failing, the card gone, the run-time step down by bytes and by DMA; `tests/sd_test.c` clocks
+wrong, one step alone wrong, noise past the start-up, the card gone, the run-time step down by bytes and by DMA; `tests/sd_test.c` clocks
 per card type). The emulator cannot run an SD build past the boot mount (it models SPI1 as the LCD only). This is the
-classic firmware's driver (sd_mmc.c on hal/fm1_sd_bus.h); the release on fm1-base reads the card through fm1-base's
-own driver (device/sd.c, a fixed 20 MHz) and has none of this: its CLOCK line shows `-`.
+classic firmware's driver (sd_mmc.c on hal/fm1_sd_bus.h); the release on fm1-base has the same walk on the same steps
+in fm1-base's own driver (device/sd.c, device/sd_clock.h, `tests/sd_clock_test.c` there), its CLOCK line the clock kept.
 
 **The screen at 60 MHz over the longer path is a bench result, not a design assumption.** The ST7789V's serial write
 cycle is 16 ns at least (SCL high and low 7 ns each): 60 MHz (16.7 ns) has no datasheet margin today and works because
