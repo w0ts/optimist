@@ -659,6 +659,13 @@ def fm1base_tests(py, env, python_only):
     return fails
 
 
+def cmd_sdcard(a):
+    """prepare an SD card for SD card mode (tools/sd_card.py)"""
+    sys.path.insert(0, str(ROOT / "tools"))
+    import sd_card
+    return sd_card.run(a.rest)
+
+
 def cmd_test(a):
     """Optimist's own tests (they build the classic firmware and test it: as ever), then the release's (fm1base_tests)"""
     rc = test_classic(a)
@@ -774,6 +781,11 @@ def parser():
         p = sub.add_parser(n, help=h, add_help=False)
         p.add_argument("rest", nargs=argparse.REMAINDER)
         p.set_defaults(fn=fn)
+    p = sub.add_parser("sdcard", help="prepare a mounted SD card for SD card mode: its folders and the factory content, "
+                                      "user content never touched (sdcard --help: --card PATH, --dry-run, --yes)",
+                       add_help=False)
+    p.add_argument("rest", nargs=argparse.REMAINDER)
+    p.set_defaults(fn=cmd_sdcard)
     p = sub.add_parser("test", help="the host tests: Optimist's (builds the default configuration first) and the release's")
     p.add_argument("--python", action="store_true", help="the Python tests only (any host, no C compiler)")
     p.add_argument("--no-build", action="store_true", help="test the build/ there is (any profile that links)")
@@ -781,7 +793,7 @@ def parser():
     return ap
 
 
-PASSTHROUGH = {"config": cmd_config, "emu": cmd_emu, "cpu": cmd_cpu, "gate": cmd_gate, "emu-check": cmd_emu_check, "costs": cmd_costs}
+PASSTHROUGH = {"sdcard": cmd_sdcard, "config": cmd_config, "emu": cmd_emu, "cpu": cmd_cpu, "gate": cmd_gate, "emu-check": cmd_emu_check, "costs": cmd_costs}
 
 
 def main(argv=None):
