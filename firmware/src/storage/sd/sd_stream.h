@@ -168,31 +168,36 @@ static HOT const uint8_t *sst_at_slow(sst_t *st, const sst_src_t *s, uint32_t of
     return st->win + (off - lo);
 }
 
-AINL const uint8_t *sst_at(sst_t *st, const sst_src_t *s, uint32_t off)
+/* far: the caller runs from the flash (SAMPLE's render with FAST_RAM_sample 0), more than a direct call's 2 MB from
+ * sst_at_slow in RAM in the release: called through its address, as drum909.c x9c_at_far, only when the window moves
+ * (every 512 bytes at most). RAM callers call it directly: fm1-base's check refuses RAM code calling through a pointer
+ * it cannot follow (2026-11-04: x9c_at, which inlines sst_at) */
+AINL const uint8_t *sst_at_go(sst_t *st, const sst_src_t *s, uint32_t off, int far)
 {
     uint32_t d = off - st->wlo;
     st->pos = off;
     if (d < st->wn)
         return st->win + d;
-    {   /* (sst_at_slow runs from RAM; sst_at is inlined into renders in RAM and in the flash (SAMPLE's with ENG_SAMPLE 2):
-         * the flash's are more than a direct call's 2 MB from RAM in the release, so called through its address, as
-         * drum909.c x9c_at_far; only when the window moves, every 512 bytes at most) */
+    if (far) {
         const uint8_t *(*volatile f)(sst_t *, const sst_src_t *, uint32_t) = sst_at_slow;
         return f(st, s, off);
     }
+    return sst_at_slow(st, s, off);
 }
 
-/* frame f's sample, mono (a stereo frame's two channels averaged), Q15; 0 = dry */
-AINL int sst_frame(sst_t *st, const sst_src_t *s, uint32_t f, int32_t *out)
+AINL const uint8_t *sst_at(sst_t *st, const sst_src_t *s, uint32_t off) { return sst_at_go(st, s, off, 0); }
+
+/* frame f's sample, mono (a stereo frame's two channels averaged), Q15; 0 = dry; far as sst_at_go's */
+AINL int sst_frame_go(sst_t *st, const sst_src_t *s, uint32_t f, int32_t *out, int far)
 {
     uint32_t off = f << s->fsh;
-    const uint8_t *p = sst_at(st, s, off), *q;
+    const uint8_t *p = sst_at_go(st, s, off, far), *q;
     int32_t a, b;
     if (!p)
         return 0;
     a = s->bits == SST_F16 ? (int32_t)(int16_t)(p[0] | p[1] << 8) : ((int32_t)p[0] - 128) << 8;
     if (s->chans == 2) {
-        q = sst_at(st, s, off + (1u << (s->fsh - 1u)));
+        q = sst_at_go(st, s, off + (1u << (s->fsh - 1u)), far);
         if (!q)
             return 0;
         b = s->bits == SST_F16 ? (int32_t)(int16_t)(q[0] | q[1] << 8) : ((int32_t)q[0] - 128) << 8;
@@ -201,6 +206,8 @@ AINL int sst_frame(sst_t *st, const sst_src_t *s, uint32_t f, int32_t *out)
     *out = a;
     return 1;
 }
+
+AINL int sst_frame(sst_t *st, const sst_src_t *s, uint32_t f, int32_t *out) { return sst_frame_go(st, s, f, out, 0); }
 
 /* the audio, at a note: a free stream for source si (looped: frames ls .. le, else one-shot); its index, or -1 none
  * (sst_nostream counted). bpms: the data bytes the voice reads a millisecond (sst_rate); owner: the voice's active

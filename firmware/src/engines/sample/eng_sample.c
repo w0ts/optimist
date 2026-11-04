@@ -311,7 +311,7 @@ static FAST(sample) void smp_card_render(track_t *t, voice_t *v, int32_t *out, u
         v->s[1] = v->s[3];
     }
     if (v->ph[0] == 0 && frac == 0 && v->s[3] == 0 && !v->s[5]) {   /* prime the interpolator: the head's first frame */
-        if (sst_frame(st, s, 0, &x))
+        if (sst_frame_go(st, s, 0, &x, !FAST_RAM_sample))
             v->s[3] = x;
     }
     for (i = 0; i < n; i++) {
@@ -335,7 +335,7 @@ static FAST(sample) void smp_card_render(track_t *t, voice_t *v, int32_t *out, u
                         break;
                     }
                 }
-                if (!sst_frame(st, s, v->ph[0], &x)) {   /* dry: fade out from here */
+                if (!sst_frame_go(st, s, v->ph[0], &x, !FAST_RAM_sample)) {   /* dry: fade out from here */
                     sst_ran_dry(k);
                     v->s[5] = SST_FADE;
                     v->s[1] = lerp16(v->s[2], v->s[3], frac);
