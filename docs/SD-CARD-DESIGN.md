@@ -432,8 +432,8 @@ the probed J12 pins; SD reads, a FAT32 reader and a flash-slot loader in m-bootl
   - Not built: GRAIN / STRETCH on a part's CARD sample (a user's WAV: their SRC has no CARD value); the cache's memory
     model on a dual-core FM-1 relies on in-order stores (compiler barriers only), as the streams' does.
 - **Streaming on the bench** (when an FM-1 has the card; a console build: USB_CONSOLE, which needs room in the
-  profile): 1. `sd`, then `sd bench` and `sd bench SAMPLES/x.wav`: the clock, the DMA, KB/s by CMD18 (the budget the
-  streams share). 2. The index pass, then `sd stream part 1 SAMPLES/x.wav` (and parts 2, 3), SAMPLE on those parts,
+  profile): 1. `sd`, then `sd bench` and `sd bench Optimist/Samples/x.wav`: the clock, the DMA, KB/s by CMD18 (the budget the
+  streams share). 2. The index pass, then `sd stream part 1 Samples/x.wav` (and parts 2, 3), SAMPLE on those parts,
   SET CARD; `sd stream`: plan 2 (placed), each source's runs (1 = contiguous), the need. 3. `sd stream reset`, play
   for a minute: chords of 8 notes, then a held loop an octave up, with the screen busy (turning a knob on a page that
   redraws); `sd stream`: dry 0, KB/s, `longest run us` (the screen's longest wait: about 2,200 at 20 MHz, 1,500 at 30
@@ -446,7 +446,7 @@ the probed J12 pins; SD reads, a FAT32 reader and a flash-slot loader in m-bootl
   every 256 samples). What decides: the ring size (SD_RING) from `least lead ms` and the dry count under load; the
   run length (`SST_RUN`) from the screen's smoothness against `longest run us`.
 - **Recording (built 2026-10-26, host-tested only: builder item SD_REC, bit 416)**: the master output, 16-bit stereo
-  at 44.1 kHz (176 KB/s), into `RECORD/REC-nnnn.WAV`. The writer is the mirror of `sd_rd_*`: `sd_mmc.c sd_wr_*`, a
+  at 44.1 kHz (176 KB/s), into `Record/rec-nnnn.wav`. The writer is the mirror of `sd_rd_*`: `sd_mmc.c sd_wr_*`, a
   polled CMD25 that sends one block a call and never waits on the card's busy; each call selects the card and lets it
   go, so the screen keeps the bus between blocks and while the card programs. Deselecting during a multi-block write
   keeps it open by the SD spec; **an FM-1 has not shown it yet** (the bench's first check once the board exists).
@@ -461,7 +461,7 @@ the probed J12 pins; SD reads, a FAT32 reader and a flash-slot loader in m-bootl
   - **The card is held.** While a take writes, the card takes no other command: FatFs' reads and writes are refused
     (`sd_diskio.c`: RES_NOTRDY), and the sample streams wait.
   - **Starting a take.** REC tapped, then pressed again at once and held (the user, 2026-10-26: "short plus long
-    click on rec"; op_input.c `crec_*`; docs/UI-OPTIMIST-DESIGN.md section 6): `OPTIMIST/RECORD/REC-nnnn.WAV`, the
+    click on rec"; op_input.c `crec_*`; docs/UI-OPTIMIST-DESIGN.md section 6): `Optimist/Record/rec-nnnn.wav` (shown REC-0001.WAV), the
     first free name; REC flashes while it records. The console: `sd rec [ms]`, `sd rec stop`, `sd rec` (the state,
     blocks, frames lost, the ring's most blocks waiting).
   Tests: `tests/sd_wr_test.c` (the writer: 64 blocks by bytes and by DMA, SDHC and SDSC, the screen's bytes between
@@ -513,21 +513,54 @@ the probed J12 pins; SD reads, a FAT32 reader and a flash-slot loader in m-bootl
 
 ### The layout
 
+The user's rulings (2026-11-04): folders capitalised, files lowercase; presets and projects in banks of 16. The card is
+the SD card zip unzipped at its root (section 9); there is no layout of before to read ("there are no old cards").
+
 ```
-/OPTIMIST/                    the FM-1's folder (anything else on the card is left alone)
-  PROJECTS/<name>/            a project's folder, named as the project
-    <name>.OPP                the project (written to a new file, then renamed over the old: a power cut leaves the
+/Optimist/                    the FM-1's folder (anything else on the card is left alone)
+  Projects/<L>/               a bank of 16 projects: A, B, ... Z
+    <nn> - <name>/            a project's folder: its slot nn (01 .. 16) and its name, lowercase
+      <nn> - <name>.opp       the project (written to a new file, then renamed over the old: a power cut leaves the
                               old one whole; a CRC and a save counter inside)
-    VERSIONS/<name>-0007.OPP  the earlier saves, newest N kept (N: the setting), numbered by the save counter
-  SAMPLES/                    samples, in any sub-folders the user makes; WAV (16-bit mono by default, the M8's
+      Versions/<nn> - <name>-0007.opp   the earlier saves, newest N kept (N: the setting), numbered by the save counter
+  Presets/Factory/<Engine>/<L>/<nn> - <name>.ops   every factory preset (the zip's): 16 a bank in the engine's table
+                              order (preset 18 is B/03)
+  Presets/User/<Engine>/<L>/<nn> - <name>.ops      the presets saved on the FM-1, in their engine's banks
+  Samples/                    samples, in any sub-folders the user makes; WAV (16-bit mono by default, the M8's
                               speed advice); loop points and slice markers inside the WAV (as the M8 does)
-  KITS/, PRESETS/             the user's kits and presets, by name
-  RECORD/                     recordings (a new file each, named by date / project)
-  RENDERS/                    song / stem renders
-  BACKUP/                     whole-device backups (the web editor's .optimist-backup), newest N kept
-  SYSTEM/INDEX.BIN            the sample index: path, size, date -> hash (rebuilt for files whose size or date
+    <Set>/z0.wav ..           the sample sets (Piano, Bass, Vibes, Horns, Strgs, Flute, Scrch: the zip's)
+  Kits/<name>.opk             the user's kits, by name
+  Record/rec-0001.wav         recordings (a new file each, the first free number)
+  Renders/                    song / stem renders
+  Backup/settings.opd         the settings backup (SYSTEM > SETTINGS); whole-device backups later
+  System/index.bin            the sample index: path, size, date -> hash (rebuilt for files whose size or date
                               changed: hashing every sample at each mount would be slow)
 ```
+
+- **Names.** A name typed on the FM-1 (upper case, the NAME page) is written lowercase (`sd_layout.c sdl_lower`); a
+  name read from the card is shown upper case (`sdl_upper`; the screen's small font has lower case glyphs, so this is
+  done, not left to the font). The firmware's own compares are without case (ASCII: `sdl_cmp`, `sdl_ncmp`,
+  `sdl_ends`), as FatFs looks names up (FF_USE_LFN): a typed BASS 1 finds `01 - bass 1.ops`. The console's `sd`
+  commands take the names as typed.
+- **The engines' folders** (`storage/sd/sd_names.h`, one table: `tools/sd_factory.c` builds the zip from it): the
+  registry's names capitalised (Acid, Analog, Digital, Drawbar, Drone, Formant, Grain, Juno, Lofi, Noise, Phase, Phys,
+  Plaits, Prophet, Sample, Slice, Stretch, Strings, Super, Terrain, Trio, Vector, Wave), a digit or a known acronym kept
+  upper case (FM6, CS80, CZ, SID, VPS, WSEQ). An engine without its `SDN_<NAME>` does not compile;
+  `tests/sd_zip_test.py` checks the rule and the zip's folders against the table.
+- **Banks** (`sd_browse.c SDB_BANK`, `sd_mode.c`): a bank's folder is shown as its 16 numbered slots, slot nn - 1 the
+  file numbered nn (`"nn - "`), a free number an empty slot; a file without a number is not in a bank. The PROJECTS
+  list opens on the bank last shown (A at first), the PRESETS list on the selected part's engine's User bank; HOME goes
+  up to the banks' folders (and on to Presets/ with Factory, User and any DX7 / CZ files there). **The black keys pick
+  the banks**: the FM-1's 27 keys run chromatically from F (`fx/punch/punch.c punch_key`: the white keys are the 16
+  slots), so 11 are black (F# G# A# C# D# twice, the top F#); the SD lists used none of them (`sdc_key` dropped a
+  black key), and now black key b is bank A + b, A .. K, in key order (`op_prjflow.c prj_key`, `op_sdcard.c
+  sdc_bank_key`; the bank's black key lit). A bank is one page, so OCT- / OCT+ and the BANK knob (the first card) step
+  one bank either way, to Z. The bank said ("BANK C").
+- **A save** (`sd_mode.c sdm_save_place`): the bank shown (or the list's last), the number of the file of that name in
+  it (a project: a new version; a preset: NAME TAKEN unless it is the one asked over), else the slot SAVE was asked on
+  when free, else the bank's lowest free number; none: BANK FULL (NAME stays). A project saved again by its name goes
+  back to its own place (`sdm_work`, "B/03 - p18"). A preset goes into its engine's User folder, the bank's letter the
+  one shown.
 
 ### How it works
 
@@ -588,9 +621,10 @@ the probed J12 pins; SD reads, a FAT32 reader and a flash-slot loader in m-bootl
 
 - **The hash: XXH64** (`sd_hash.c`): 64 bits, a published specification and vectors (the test checks five), 88 B of
   state; its speed does not matter (the card is the bottleneck). A WAV's hash is its `data` chunk's.
-- **The folders**: the FM-1 makes `OPTIMIST/` and its eight folders where missing (`sdl_prepare`, at a mount).
+- **The folders**: the FM-1 makes `Optimist/`, its eight folders, `Presets/Factory` and `Presets/User` where missing
+  (`sdl_prepare`, at a mount).
 - **The index** (`sd_index.c`): 256-byte records, a pass that hashes only new and changed files, `sdx_note_written`
-  for the FM-1's own writes, the recent view's use numbers; rewritten to `INDEX.TMP` and renamed.
+  for the FM-1's own writes, the recent view's use numbers; rewritten to `index.tmp` and renamed.
 - **The 16-key pages** (`sd_browse.c`): views folder / by name / recent; the UI needs a page that draws `slot[0..n-1]`
   (name, folder mark, cut mark), the page number of `pages`, the view; the knob `sdb_turn(+-1)`, a key `sdb_path` (or
   `sdb_into` for a folder), a way up (`sdb_up`) and a view switch; every list (projects, samples, kits, presets) is a
@@ -633,7 +667,7 @@ checked: only the build time and the commit differ).
   with other work; one still the project's is finished with the copy as it is (saved again without the card: that
   newer copy). The settings are written when SYSTEM is left and the audio is quiet.
 - **Samples**: the project's id 23 (`SEC_ID_SDSMP`): each synth part's sample, its XXH64 (the index's), size and a name
-  hint (its path under `SAMPLES/`, cut at 51 bytes); a project file on the card carries it. For the player (streaming:
+  hint (its path under `Samples/`, cut at 51 bytes); a project file on the card carries it. For the player (streaming:
   another helper): `sdm_sample_of(part, &hash, &hint)` (1: a sample), `sdm_sample_path(part, out, cap)` (its path now,
   found by the hash: a renamed or moved file too; 0 MISSING), `sdm_smp_gen` bumped at each change. A file not indexed
   yet (or changed since the pass) is hashed when picked (`sdx_note_written`); the pick marks it used (RECENT). With
@@ -645,18 +679,18 @@ checked: only the build time and the commit differ).
   memory alone makes room, never one asked, as model.c `mem_offer`; YES: the part a silent placeholder, the plan places
   by itself once its memory is back); none left: *MEM FULL CARD: 25 MS FITS* (`sstp.fit_ms`, the longest pre-buffer that
   fits), or *MEM FULL CARD*. Said once a refusal.
-- **Presets and kits**: one small file each, `PRESETS/<name>.OPS` ("OPPR": a user preset's record, `upreset.c up_card_*`
-  through slot `UP_CARD` = `UP_SLOTS`, RAM only) and `KITS/<name>.OPK` ("OPKT": a user kit and its lanes' sends,
+- **Presets and kits**: one small file each, `Presets/User/<Engine>/<L>/<nn> - <name>.ops` ("OPPR": a user preset's record, `upreset.c up_card_*`
+  through slot `UP_CARD` = `UP_SLOTS`, RAM only) and `Kits/<name>.opk` ("OPKT": a user kit and its lanes' sends,
   `drum_kits.c ukit_card_*`), a 16-byte header (magic, version, length, the payload's XXH64), a sector at most
   (written whole), allocated exact (`SDA_EXACT`). A preset of an FM6 sound keeps its own voice too, the operator edits
   and all (`fm6_pack`'s 128 B after the record, as the flash slots' `UP_FM6`; a file of before loads its VOICE). Saved into the folder's top; loaded from any
   sub-folder.
 - **DX7 banks** (the FM6 collections; the user, 2026-10-26): a `.SYX` of 32 voices (4104 B, any case of the extension)
-  anywhere under `PRESETS/` is a folder of its voices in the PRESETS list, 16 a page (OCT for the second); a voice's
+  anywhere under `Presets/` is a folder of its voices in the PRESETS list, 16 a page (OCT for the second); a voice's
   LOAD reads its 128 B from the file and puts it into the selected part's FM6 voice (`sd_mode.c sdm_dx7_*`,
   `fm6_unpack`; the part on FM6 first when it plays another engine; refused like any engine change when memory is
   short); HOME leaves the bank. Only the page's 16 names are in RAM; no received bank (FM6_SYSEX) is needed. A
-  voice kept with its edits goes into a preset (`.OPS`, above). CZ tones (built 2026-10-26): a Casio CZ single-tone
+  voice kept with its edits goes into a preset (`.ops`, above). CZ tones (built 2026-10-26): a Casio CZ single-tone
   `.SYX` (264 B: F0 44 00 00 7n 20 pp, 256 nibbles low first, F7) under PRESETS, its key pressed: its 128 synthesis
   bytes into the selected part's tone (`sdm_cz_load`; the part on CZ first), as a single-tone dump: kept until the part's
   TONE or engine changes (a project keeps the TONE number).
@@ -666,7 +700,7 @@ built 2026-10-29, host-tested only). SD card mode (the builder's `core.card_sets
 into the image, ticked or not (`gen_samples.py`, FELUCCA_SAMPLES_CARD=1: each of PIANO BASS VIBES HORNS STRGS FLUTE
 SCRCH an empty set, its number and its presets kept, its bit in `SMP_CARD_SETS`; PERC stays with the sampled kits); the
 estimate counts the sets 0 B there (`core.py image_cfg`) and the menu says "on the card". The ticks choose what the SD
-card zip carries: `OPTIMIST/SAMPLES/<SET>/Z0.WAV ..` (`gen_samples.py --card`), one file a zone in key order, the very
+card zip carries every set whatever the ticks (2026-11-04): `Optimist/Samples/<Set>/z0.wav ..` (`gen_samples.py --card`, the folder the set's name capitalised), one file a zone in key order, the very
 ADPCM the flash would hold decoded to 16-bit mono PCM at 22.05 kHz, its root and loop in "smpl" (the flash loop restarts
 from the state stored at ls, so the card's loop is ls - 1 .. le - 1), its keys in "inst" (`sst_wav` reads them). SAMPLE
 on a card set (`eng_sample.c smp_bank_on`): the zone whose keys hold the note, streamed as a CARD sample is (its head
@@ -682,11 +716,17 @@ any order (section 7, "Random access"); a load no longer says MISSING for them.
 "card only in SD mode"): SD card mode carries no factory preset tables (core.h `PRESETS_CARD`, `PRESETS_PTR`: each
 engine's table named only inside sizeof, its count kept; BANK, the level trims and ANALOG 2's extras left out with them:
 8,740 B of flash on sd-card-mots, 4,160 B of pool for the names). The presets are files,
-`OPTIMIST/PRESETS/FACTORY/<ENGINE>/<nnn> <NAME>.OPS`, made by `tools/sd_factory.c` from the firmware's own sources
+`Optimist/Presets/Factory/<Engine>/<L>/<nn> - <name>.ops` (16 a bank, the table's order), made by `tools/sd_factory.c` from the firmware's own sources
 (each preset applied as the device applies it and taken as the card's preset record; `tests/sd_factory_test.c` loads
 every one back and compares every value) and zipped with the card's folders by `tools/sd_zip.py`;
-`optimist.py package` writes `optimist-sd-card.zip` next to an SD card mode package. Unzipped at the card's root.
-- At a mount the names are read once (`sd_mode.c sdm_factory_scan`): the PRESETS lists, the favorites, the console and
+every build with SDCARD (`make build`, the builder menu's Build, `optimist.py build` and `package`, the cloud build)
+writes `optimist-sd-card.zip` beside its package (`tools/builder/configure.py sd_card_zip`: build/, and `package`'s
+`--out`; the build-OK panel and the CLI say where; the cloud build attaches `<stem>-sd-card.zip` and links it); `make
+sd-zip` makes it alone (build/optimist-sd-card.zip). It holds everything whatever the ticks: every factory preset of
+every engine, every sample set (904,161 B, 2026-11-04). Cached by its inputs' SHA-256 (build/sd-zip-cache/: the
+firmware's sources, the host headers, the generators, the samples): about 3 s made, 0.05 s from the cache (measured
+on a Mac). Unzipped at the card's root; its `readme.txt` says what is where.
+- At a mount the names are read once (`sd_mode.c sdm_factory_scan`): the PRESETS lists, the console and
   the web editor show them; a missing file "?".
 - An engine picked, a preset chosen, a fresh track: the engine's defaults at once (the interrupts may be off there), the
   preset's file on the main loop's next pass (`sdm_factory_ask` / `sdm_factory_poll`: loaded as a user preset loads, the
@@ -696,12 +736,15 @@ every one back and compares every value) and zipped with the card's folders by `
   builds is not kept); its label is the engine's name.
 - Tested: `tests/ui_optimist_test.c` built with `PRESETS_CARD=1` (`sdu_factory_tests`): the names from the card, a
   preset read on the next pass, an ask dropped, a missing file and no card said.
+- **No favorites in SD card mode** (the user, 2026-11-04: the card's banks are the organisation): registry.h turns
+  FAVORITES off with `FELUCCA_SD_UI` (no FAVORITES filter in the preset list, no marks); the builder's FAVORITES item
+  is as it was in flash mode (`core.py built`: not counted in SD card mode).
 
 **The UI** (`ui/optimist/op_sdcard.c`; docs/UI-OPTIMIST-DESIGN.md 4.14): PROJECT's rows PROJECT (the card's projects
 while a card is ready, else the flash slot with *No SD card: in flash*), PRESETS, KITS, SAMPLES; four small cards (PAGE,
 ACTION, ITEM, VIEW) over the page: two columns of eight names, as the white keys sit. SYSTEM > SD card: CARD (READY and
 its size; YES mounts again), VERSIONS, SLACK, SAMPLES INDEX. SYSTEM > SETTINGS: BACKUP writes the device's settings record (`persist_t`, as
-`settings_save` makes it) to `OPTIMIST/BACKUP/SETTINGS.OPD` ("OPST"); RESTORE (asked, red) writes it back into flash and
+`settings_save` makes it) to `Optimist/Backup/settings.opd` ("OPST"); RESTORE (asked, red) writes it back into flash and
 restarts the FM-1 a second later (the settings are read at power-on). This unit's Bluetooth address and its copy of the
 radio's calibration always stay; its pairings too when the file comes from another FM-1 (another address).
 
