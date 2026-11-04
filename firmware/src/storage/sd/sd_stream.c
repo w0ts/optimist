@@ -243,6 +243,7 @@ static void sst_run(uint32_t i)
 }
 
 #include "sd_stream_rc.c"                            /* the caches read in any order (GRAIN, STRETCH) */
+#include "sd_mon.c"                                  /* SYSTEM > SD STREAM's numbers: the rate, the streams, the rings' fill, the losses */
 
 /* the stream with the least time left, or a part's cache (SST_NALL + part) whose want has (a stream first on a tie) */
 static uint32_t sst_pick(uint32_t limit_ms)
@@ -277,6 +278,7 @@ static uint32_t sst_pick(uint32_t limit_ms)
 static uint32_t sst_go(uint32_t limit_ms)
 {
     uint32_t i;
+    ssm_poll();                                      /* (the monitor's period: a compare, a sample every SSM_MS) */
     if (sst_st.in || sd_gone || sd_wr.state != SDW_IDLE || !SST_CARD_OK())   /* (a recording writing: it waits) */
         return 0;
     if (sst_st.backoff) {

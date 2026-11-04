@@ -526,6 +526,13 @@ the probed J12 pins; SD reads, a FAT32 reader and a flash-slot loader in m-bootl
   the audio ISR, the key scan from TIMER5; a card stall in the main loop freezes only the UI, the screen and the
   autosave, never audio, notes, MIDI or USB. The codec's port C lines are written at audio init only (no ISR does a
   read-modify-write on the port the SD code toggles).
+- **The monitor (2026-11-05, host-tested only)**: SYSTEM > SD STREAM, after SD CARD's two pages, four lines: READ (KB/s of
+  the last half second, the bar against the kept clock's carry: kHz x 0.098, 840 KB/s at 8.57 MHz; the tick the 10 s
+  peak), STREAMS (sounding now / the most in 10 s), BUFFER (the least ring fill of the streams the card feeds, 10 s;
+  amber under 25 %, red at 0), DRY (streams that ran dry, red for 10 s after one; GRAIN's / STRETCH's late and missed beside
+  it; NO RING, CRC FAILS and STEPS DOWN take turns on the line once not 0, the knob steps them and holds 30 s). A knob of
+  another line, YES and SAVE clear the counts. `storage/sd/sd_mon.c` samples in the main loop (`sst_go`), the audio only
+  counts as before; the console's `sd stream` prints the rate, its peak, the most streams and the least fill.
 
 ## 8. The card's layout (a proposal, 2026-10-25; the user: "fully for a fixed folder structure")
 

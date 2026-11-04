@@ -595,6 +595,14 @@ static void con_sd_streams(void)
     con_kv("runs", (int32_t)sst_st.runs);
     con_kv("blocks", (int32_t)sst_st.blocks);
     con_kv("KB/s", (int32_t)sst_kbs());
+    {                                                /* (SYSTEM > SD STREAM's numbers, sd_mon.c: the last half second, the last 10 s) */
+        ssm_view_t m;
+        ssm_view(&m);
+        con_kv("KB/s last 0.5 s", (int32_t)m.kbs);
+        con_kv("KB/s peak 10 s", (int32_t)m.kbs_pk);
+        con_kv("streams most 10 s", (int32_t)m.n_pk);
+        con_kv("ring fill least 10 s %", m.fill_lo == SSM_NO ? -1 : (int32_t)m.fill_lo);
+    }
     con_kv("stalls", (int32_t)sst_st.stalls);
     con_kv("crc retries", (int32_t)sst_st.crc);
     con_kv("errors", (int32_t)sst_st.errors);
