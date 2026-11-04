@@ -1,7 +1,7 @@
 /* The switchable features on the screen (core/feat_mem.c; tests/fmem_fake.h's stand-in radio; built with UI_FMEM): the
  * memory line (op_draw.c memline_draw) follows BT AUDIO's block on the frame right after the main loop's pass that
  * placed or gave it back, and in every frame of a switch-on that asks first (PAUSE n MS?), the question drawn, the
- * pack, the placement: the line drawn is always the arena's fill of that moment. INFO's RAM USE line splits it */
+ * pack, the placement: the line drawn is always the arena's fill of that moment. */
 #define FMCHK(c, ...) do { char fm_m[200]; snprintf(fm_m, sizeof fm_m, __VA_ARGS__); check((c), fm_m); } while (0)
 static uint32_t fm_ml_drawn(void)                       /* the memory line's lit width on the screen, px */
 {
@@ -32,7 +32,6 @@ static void fm_no_idle(void)
 static void fmem_ui_tests(void)
 {
     uint32_t w0, w1, i, FM = arn_round(part_mem_bytes(ENG_IX_FM6)), B = arn_round(RB_BYTES), K = FXM_CP_K0 + FXM_CPN - 1u;
-    cell_t c;
     reset_ui();
     for (i = 0; i < NPART; i++)
         set_engine_of(&trk[i], eng_silent_slot());
@@ -51,11 +50,6 @@ static void fmem_ui_tests(void)
     FMCHK(arn_ptr(ARB_K(ARB_BTA)) && w1 > w0 && fm_ml_now(),
           "features: BT AUDIO on: its block placed, the line longer on the frame right after (%u -> %u px)", (unsigned)w0,
           (unsigned)w1);
-#if FELUCCA_SYS_DEBUG || 1
-    sys_it_cell(SI_RAMUSE, &c);
-    FMCHK(c.label && !strcmp(c.label, "ARENA") && strstr(c.val, "/18/") != 0,
-          "features: INFO's ARENA line splits it: \"%s\" KB (parts / radios / free)", c.val);
-#endif
     bta_set(0);
     for (i = 0; i < 12u && arn_ptr(ARB_K(ARB_BTA)); i++)
         fm_step();

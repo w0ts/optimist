@@ -76,16 +76,6 @@ static uint32_t fmem_pause_ms(uint32_t moved)           /* the pause a PACK cost
     return FMEM_HUSH_MS + (moved / 1024u * FMEM_US_PER_KB + 999u) / 1000u;
 }
 static uint32_t fmem_kb(uint32_t n) { return (n + 1023u) / 1024u; }
-/* the arena's bytes the features hold now (their blocks placed: the memory line and INFO count them as used, as the
- * parts' and the effects'; given back, free): INFO's ARENA line */
-static uint32_t fmem_held(void)
-{
-    uint32_t f, n = 0;
-    for (f = 0; f < FMEM_N; f++)
-        if (FMEM[f].k != FMEM_NO_K && arn_cur[FMEM[f].k].len)
-            n += arn_cur[FMEM[f].k].len;
-    return n;
-}
 
 /* the features on and idle that could make room (a bit each), and their bytes */
 static uint32_t fmem_idle_mask(uint32_t *bytes)
