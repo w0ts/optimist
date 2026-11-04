@@ -110,6 +110,7 @@ static void prjflow_tests(void)
     r = pf_row(PR_USER);
     ui.user_slot = 4;
     work_mark();                                        /* (the work as stored: a LOAD is neutral) */
+    up_ops[0] = 0;                                      /* (the counts from here: the random run before may have loaded one) */
     pf_key(1);
     check(ui.user_slot == 1u && op_armed() && !strcmp(ui.arm_q, "LOAD USER U02?") && !ui.arm_danger, "USER, LOAD: key 2 asks \"Load user U02?\" and the item follows");
     h0 = rk_state();
