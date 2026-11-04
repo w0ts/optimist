@@ -106,6 +106,20 @@ def profile_path(name):
     return None
 
 
+# what Optimist's own (classic) firmware cannot build of a profile, which is the release's: off in the classic test builds,
+# its measurements and checks (never written back: a profile is the user's). WIFI_LINK runs its manager on the serial
+# console there, USB_HOST is fm1-base's (2026-11-03: the reference profile has both)
+CLASSIC_TEST_OFF = ("WIFI_LINK=0", "USB_HOST=0")
+
+
+def classic_view(cfg):
+    """-> cfg as a classic test build takes it (CLASSIC_TEST_OFF when classic(), else cfg itself): a copy, for builds,
+    measurements and checks only"""
+    if not classic():
+        return cfg
+    return dict(cfg, **{k: int(v) for k, v in (kv.split("=") for kv in CLASSIC_TEST_OFF)})
+
+
 def load_profile(name):
     p = profile_path(name)
     if p is None:

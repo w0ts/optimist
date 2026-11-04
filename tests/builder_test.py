@@ -246,7 +246,7 @@ check("docs/BUILDER.md lists every item with the menu's description" + (f": {und
 ok = True
 for p in C.profile_names():
     cfg, name = C.load_profile(p)
-    err, _, _ = C.validate(cfg)
+    err, _, _ = C.validate(C.classic_view(cfg))      # (as this flavour builds it: configure.classic_view)
     ok &= not err and bool(name)
 check(f"every profile ({', '.join(C.profile_names())}) is valid", ok and len(C.profile_names()) >= 4)
 cfg = C.defaults()
@@ -340,7 +340,7 @@ check("a .config round trip (only what differs is written)", back["MISSING_WARN"
       name == "x" and "ENG_ANALOG" not in text)
 costs = C.load_costs()
 if costs:
-    fitted, ch = C.fit(C.load_profile(C.REFERENCE_PROFILE)[0], costs)   # (not the raw defaults: nearly every item on, 97 KB over
+    fitted, ch = C.fit(C.classic_view(C.load_profile(C.REFERENCE_PROFILE)[0]), costs)   # (not the raw defaults: nearly every item on, 97 KB over
                                                                   # 2026-10-19, never meant to fit)
     check("fit: the reference profile made to fit by the estimate", fitted is not None and
           all(o <= 0 for _, _, o in C.fits(C.budget(fitted, costs)["total"], fitted).values()))
@@ -354,7 +354,7 @@ import shutil  # noqa: E402
 import verify as V  # noqa: E402
 
 sets = [k for k in items if k.startswith("SET_")]
-cover_cases = [(p, C.load_profile(p)[0]) for p in C.profile_names()] + [
+cover_cases = [(p, C.classic_view(C.load_profile(p)[0])) for p in C.profile_names()] + [
     ("no sample set at all", dict(C.defaults(), DRUM_SAMPLED=0, **{k: 0 for k in sets})),
     ("no set of GRAIN's presets", dict(C.defaults(), SET_PIANO=0, SET_VIBES=0, SET_FLUTE=0)),
     ("only PERC (the sampled kits)", dict(C.defaults(), **{k: 0 for k in sets})),
@@ -419,6 +419,7 @@ check(f"published profiles ({', '.join(pub)}): shipped ones, {_REF} (the default
       _REF in pub and set(pub) <= set(C.profile_names()))
 # the default profile is also the reference profile (mots-config for both, since 6330b5f5 deleted synths_USBaudio_BTaudio_BTmidi)
 _syn, _syn_name = C.load_profile(C.DEFAULT_PROFILE)
+_syn = C.classic_view(_syn)                                         # (as this flavour builds it)
 _syn_errs, _, _ = C.validate(_syn)
 check(f"the default and the reference profile are {_REF} (configure, optimist.py: make, the tests, the gate)",
       C.DEFAULT_PROFILE == _REF and C.REFERENCE_PROFILE == _REF and O.DEFAULT_PROFILE == _REF and
@@ -768,6 +769,7 @@ if shared:
 # same figures as before. Nothing here is pinned: every figure comes from costs.json as it is (BLE's measured cost, with
 # and without its option BLE_BOND), and the expected item is computed per profile from the budget alone, not from room.py.
 dflt_real, _ = C.load_profile(C.REFERENCE_PROFILE)
+dflt_real = C.classic_view(dflt_real)
 check("BLE, measured cost (costs.json): the reference profile (mots-config, BLE on) with BLE fits as it is",
       not C.over_any(dict(dflt_real, BLE=1), costs))
 
@@ -789,6 +791,7 @@ def refused(profile, sets, drop):
 def room_scenarios(prof, opt):
     tag = f"BLE room, {prof}{' + BLE_BOND' if opt else ''}"
     base, _ = C.load_profile(prof)
+    base = C.classic_view(base)
     if base["BLE"]:                                     # (the rule is BLE ticked on a profile without it)
         print(f"{tag}: the profile has BLE on already, not a case")
         return
@@ -848,7 +851,7 @@ for _prof in PROFILES_BLE:
     for _opt in (0, 1):
         room_scenarios(_prof, _opt)
 _removing = [(p, d) for p in PROFILES_BLE for d in (0, 1)
-             if expected_room(with_ble(C.load_profile(p)[0], d), costs)[2]]
+             if expected_room(with_ble(C.classic_view(C.load_profile(p)[0]), d), costs)[2]]
 check("BLE room: at least one profile has BLE overflow and a single item that frees enough (the rule is exercised): "
       + ", ".join(f"{p}{'+bond' if d else ''}" for p, d in _removing), bool(_removing))
 try:
@@ -966,7 +969,7 @@ _MONO_NOISE = {"flash": K.ALIGN_NOISE, "ram": 32, "pool": 0}
 _mono_bad = []
 if costs:
     for _pn in (C.REFERENCE_PROFILE, None):
-        _mcfg = C.defaults() if _pn is None else C.load_profile(_pn)[0]
+        _mcfg = C.defaults() if _pn is None else C.classic_view(C.load_profile(_pn)[0])
         _b0 = C.budget(_mcfg, costs, use_exact=False)["total"]
         for _k, _it in items.items():
             if _it.no_image or (_it.parent and not C.built(_mcfg, _it.parent)) or _k in _MONO_MOVES or _k in K.NOT_A_FEATURE:
