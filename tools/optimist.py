@@ -183,8 +183,13 @@ def cmd_cloud_key(a):
             raise C.ConfigError(f"{a.what}: neither a .config file nor a profile ({', '.join(C.profile_names())})")
     commit = a.commit or subprocess.run(["git", "-C", str(ROOT), "rev-parse", "HEAD"], capture_output=True,
                                         text=True).stdout.strip()
-    ev = C.evaluate({"text": path.read_text(), "commit": commit, "strict": a.strict,
-                     "costs": C.load_costs() if a.json else None})
+    hook = C.K.CLASSIC_HOOK                             # (a cloud build is the release: its rules, whatever this session
+    C.K.CLASSIC_HOOK = lambda: False                    # builds, OPTIMIST_CLASSIC=1 in the tests too)
+    try:
+        ev = C.evaluate({"text": path.read_text(), "commit": commit, "strict": a.strict,
+                         "costs": C.load_costs() if a.json else None})
+    finally:
+        C.K.CLASSIC_HOOK = hook
     for w in ev.get("parse_warnings", []):
         print(f"warning: {w}", file=sys.stderr)
     if ev["error"]:
