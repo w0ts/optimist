@@ -1,6 +1,9 @@
 # SPDX-License-Identifier: GPL-3.0-only
-"""The SD card zip (tools/sd_zip.py; the user, 2026-11-04: it holds everything whatever the builder's ticks; folders
-capitalised, files lowercase; presets and projects in banks of 16): every sample set's zones under
+"""The SD card zip (tools/sd_zip.py; the user, 2026-11-04: folders capitalised, files lowercase; presets and projects in
+banks of 16; "the samples we select in the builder just go on the SD card and not in flash, and that's it"): the ticks
+(core.card_content: a set only when ticked, the sampled kits' sounds and the 909's only when ticked and with the card's
+streams, FM6's packs only when ticked; every factory preset and kit whatever they say; the cache keyed by the ticks
+too); the zip of every tick: every sample set's zones under
 Optimist/Samples/<Set>/z<k>.wav (the generator's bytes), every sample source of the repo on the card at its own rate
 and length (tools/sd_samples.py: the sets, the sampled kits' sounds, the X0X 909's, the hip-hop pack; 16-bit mono;
 the 909's and the pack's samples the sources' own, sample for sample), the factory ids (a pure function of each sound:
@@ -203,6 +206,91 @@ def check_ids(z, out):
           {n: i for n, (_, i, _) in ids.items()} == {n: i for n, (_, i, _) in ids2.items()})
 
 
+def sd_cfg(**ticks):
+    """a builder configuration in SD card mode (core.set_front SD_MODE 1) with every set, sampled kit and FM6 pack off,
+    the card's streams on (SD_RING, ARENA: card_drums) unless ticks say otherwise, then ticks"""
+    C = importlib.import_module("configure")
+    cfg = C.K.set_front(C.defaults(), "SD_MODE", 1)
+    off = {k: 0 for k in R.ITEMS if k.startswith(("SET_", "KIT_", "FM6_PK_"))}
+    return dict(cfg, SD_RING=8, ARENA=1, DRUM_SAMPLED=0, DRUM_X0X909=0, X909_CYM=0, **off) | ticks
+
+
+def zip_parts(zpath):
+    """-> (the sample folders: Samples/<a>/<b> of each sample file, but the pack's; the preset files by engine; the kit
+    files) of a zip"""
+    with zipfile.ZipFile(zpath) as f:
+        files = [n for n in f.namelist() if not n.endswith("/")]
+    smp = sorted({n for n in files if n.startswith("Optimist/Samples/") and "/Hiphop/" not in n})
+    pre = {}
+    for n in files:
+        if n.startswith("Optimist/Presets/Factory/"):
+            pre[n.split("/")[3]] = pre.get(n.split("/")[3], 0) + 1
+    kits = [n for n in files if n.startswith("Optimist/Kits/Factory/")]
+    hip = [n for n in files if "/Samples/Hiphop/" in n]
+    return smp, pre, kits, hip
+
+
+def check_ticks(out, full):
+    """the ticks choose the samples and FM6's packs; every preset and kit is in whatever they say"""
+    K = importlib.import_module("core")
+    content = sd_zip.content_of
+    every = {"sets": list(gen_samples.CARD_SETS), "kits": True, "x909": list(sd_samples.X909_FILES),
+             "fm6_packs": list(sd_zip.PACKS)}
+    ticked = sd_cfg(**{k: 1 for k in R.ITEMS if k.startswith(("SET_", "KIT_", "FM6_PK_"))}, DRUM_SAMPLED=1,
+                    DRUM_X0X909=1, X909_CYM=1)
+    check("ticks: everything ticked, the card's streams on: every set, the kits' sounds, the 909's three, every pack",
+          K.card_content(ticked) == every)
+    check("ticks: the same without the card's streams (SD_RING 0): the drum samples in the flash, not on the card",
+          K.card_content(dict(ticked, SD_RING=0)) == dict(every, kits=False, x909=[]))
+    check("ticks: not SD card mode (the defaults): nothing on the card (it is all in the flash)",
+          K.card_content(importlib.import_module("configure").defaults()) == {"sets": [], "kits": False, "x909": [],
+                                                                               "fm6_packs": []})
+    check("ticks: a sampled kit ticked but DRUM_SAMPLED off: no kit sounds; DRUM_SAMPLED on but no kit: none either",
+          not K.card_content(sd_cfg(KIT_DEEP=1))["kits"] and not K.card_content(sd_cfg(DRUM_SAMPLED=1))["kits"]
+          and K.card_content(sd_cfg(DRUM_SAMPLED=1, KIT_DEEP=1))["kits"])
+    check("ticks: the 909 with X909_CYM off: its hats only; on: hats, crash and ride; no 909: none",
+          K.card_content(sd_cfg(DRUM_X0X909=1))["x909"] == ["hh.wav"] and
+          K.card_content(sd_cfg(DRUM_X0X909=1, X909_CYM=2))["x909"] == ["hh.wav", "crash.wav", "ride.wav"] and
+          K.card_content(sd_cfg(X909_CYM=1))["x909"] == [])
+    check("ticks: FM6 off: its packs are not on the card, ticked or not",
+          K.card_content(sd_cfg(ENG_FM6=0, FM6_PK_KEYS=1))["fm6_packs"] == [])
+    a, b = content(sd_cfg(SET_PIANO=1)), content(sd_cfg(SET_BASS=1))
+    check("the cache: keyed by the ticks too (two contents, two keys; the same content, one)",
+          sd_zip.key(a) != sd_zip.key(b) and sd_zip.key(a) == sd_zip.key(content(sd_cfg(SET_PIANO=1))))
+    smp_all, pre_all, kits_all, hip_all = zip_parts(full)
+    zp = sd_zip.make(out / "piano.zip", content(sd_cfg(SET_PIANO=1, DRUM_X0X909=1, FM6_PK_KEYS=1)), echo=False)
+    smp, pre, kits, hip = zip_parts(zp)
+    check("PIANO only ticked (and the 909, CYM off, and FM6's KEYS): only Samples/Piano of the sets, the 909's hh.wav, "
+          "no kit sounds", {n.split("/")[2] for n in smp} == {"Piano", "X0X"} and
+          [n for n in smp if "/X0X/" in n] == ["Optimist/Samples/X0X/909/hh.wav"])
+    check("... Piano's files the full zip's, byte for byte", all(
+        zipfile.ZipFile(zp).read(n) == zipfile.ZipFile(full).read(n) for n in smp))
+    check("... every factory kit (as the full zip), every engine's presets (FM6: its own 3 and KEYS' 16, not the other "
+          "packs)", kits == kits_all and pre.get("FM6") == 3 + 16 and
+          {e: n for e, n in pre.items() if e != "FM6"} == {e: n for e, n in pre_all.items() if e != "FM6"})
+    with zipfile.ZipFile(zp) as f:
+        names = f.namelist()
+        fm6 = sorted(n for n in names if "/Presets/Factory/FM6/" in n and n.endswith(".ops"))
+        check("... FM6's KEYS voices numbered on after its own (A/04 ..), no gap", len(fm6) == 19 and
+              fm6[3].startswith("Optimist/Presets/Factory/FM6/A/04 - ") and fm6[-1].startswith(
+                  "Optimist/Presets/Factory/FM6/B/03 - "))
+        readme = f.read("Optimist/readme.txt").decode()
+        check("... the readme names what is there: Piano, the 909's hh.wav, the KEYS pack; no kit sounds line",
+              "(Piano)" in readme and "hh.wav" in readme and "KEYS" in readme and "Kits/Acoustic" not in readme)
+    check("... the hip-hop pack in every zip (no builder item: the USR slots')", hip == hip_all and len(hip) > 20)
+    zn = sd_zip.make(out / "nostream.zip", content(sd_cfg(SD_RING=0, DRUM_SAMPLED=1, KIT_ACOUSTIC=1, DRUM_X0X909=1,
+                                                          X909_CYM=1)), echo=False)
+    smp, pre, kits, _ = zip_parts(zn)
+    check("no set ticked, the kits and the 909 ticked without the card's streams: no sample but the pack's, every "
+          "preset (FM6 its own 3) and kit", smp == [] and kits == kits_all and pre.get("FM6") == 3)
+    zk = sd_zip.make(out / "kits.zip", content(sd_cfg(DRUM_SAMPLED=1, KIT_TIGHT=1, DRUM_X0X909=1, X909_CYM=1)),
+                     echo=False)
+    smp, _, _, _ = zip_parts(zk)
+    check("a sampled kit and the 909 with its cymbals ticked, with the streams: the 16 kit sounds and hh, crash, ride",
+          smp == sorted([f"Optimist/Samples/Kits/Acoustic/{sd_samples.kit_file(k)}" for k in range(16)] +
+                        [f"Optimist/Samples/X0X/909/{n}" for n in sd_samples.X909_FILES]))
+
+
 def main(out):
     out = pathlib.Path(out).resolve()
     out.mkdir(parents=True, exist_ok=True)
@@ -223,7 +311,7 @@ def main(out):
         names = set(f.namelist())
         files = [n for n in names if not n.endswith("/")]
         sets = {m.group(1) for n in names if (m := re.match(r"Optimist/Samples/([^/]+)/z\d\.wav$", n))}
-        check("every sample set, whatever the ticks: " + ", ".join(sorted(sets)),
+        check("every tick (--all): every sample set: " + ", ".join(sorted(sets)),
               sets == {gen_samples.card_set_dir(s) for s in gen_samples.CARD_SETS})
         want = {f"Optimist/Samples/{gen_samples.card_set_dir(s)}/{n}" for s, v in made.items() for n in v}
         check(f"every zone of each ({len(want)}), as z0.wav .. in key order", want <= names)
@@ -283,6 +371,7 @@ def main(out):
         readme = f.read("Optimist/readme.txt").decode()
         check("the readme names the sets and the banks", "Piano" in readme and "16 a bank" in readme)
     check_ids(z, out)
+    check_ticks(out, z)
     reg = set(re.findall(r"X\(\d+, ([A-Z0-9_]+),", (ROOT / "firmware" / "src" / "core" / "registry.h").read_text()))
     check("sd_names.h names every engine of registry.h ENGINE_LIST", reg <= set(table))
     bad = {k: v for k, v in table.items() if v != rule(k)}

@@ -324,20 +324,25 @@ _add("FM6_SYSEX", "FELUCCA_FM6_SYSEX", "FM6 DX7 SysEx in (a voice, a 32-voice ba
           "flash and 4.3 KB of pool RAM for the frame buffers.")
 _add("FM6_PK_KEYS", "FELUCCA_FM6_PK_KEYS", "FM6 voice pack: keys and e-pianos (16)", E, 93, default=0, parent="ENG_FM6",
      desc="16 voices of my own for the FM6 track, listed in its PRESETS after the user presets (K01..K16): electric "
-          "pianos, clavs, organs, a harpsichord. About 2.0-2.3 KB of flash.")
+          "pianos, clavs, organs, a harpsichord. About 2.0-2.3 KB of flash; in SD card mode none (0 B): a ticked pack's voices are FM6 "
+          "factory presets on the card (the SD card zip, Presets/Factory/FM6), an unticked one is not on the card.")
 _add("FM6_PK_BASS", "FELUCCA_FM6_PK_BASS", "FM6 voice pack: basses (16)", E, 94, default=0, parent="ENG_FM6",
      desc="16 bass voices for the FM6 track, listed in its PRESETS after the user presets (B01..B16): slap, fretless, "
-          "synth, pluck and sub basses. About 2.0-2.3 KB of flash.")
+          "synth, pluck and sub basses. About 2.0-2.3 KB of flash; in SD card mode none (0 B): a ticked pack's voices are FM6 "
+          "factory presets on the card (the SD card zip, Presets/Factory/FM6), an unticked one is not on the card.")
 _add("FM6_PK_BELLS", "FELUCCA_FM6_PK_BELLS", "FM6 voice pack: bells and mallets (16)", E, 95, default=0, parent="ENG_FM6",
      desc="16 voices for the FM6 track, listed in its PRESETS after the user presets (M01..M16): bells, marimba, vibes, "
-          "kalimba, steel drum, glass and chimes. About 2.0-2.3 KB of flash.")
+          "kalimba, steel drum, glass and chimes. About 2.0-2.3 KB of flash; in SD card mode none (0 B): a ticked pack's voices are FM6 "
+          "factory presets on the card (the SD card zip, Presets/Factory/FM6), an unticked one is not on the card.")
 _add("FM6_PK_PADS", "FELUCCA_FM6_PK_PADS", "FM6 voice pack: pads, leads, brass and FX (16)", E, 96, default=0, parent="ENG_FM6",
      desc="16 voices for the FM6 track, listed in its PRESETS after the user presets (P01..P16): pads, leads, brass, "
-          "strings and effect sounds. About 2.0-2.3 KB of flash.")
+          "strings and effect sounds. About 2.0-2.3 KB of flash; in SD card mode none (0 B): a ticked pack's voices are FM6 "
+          "factory presets on the card (the SD card zip, Presets/Factory/FM6), an unticked one is not on the card.")
 _add("FM6_PK_80S", "FELUCCA_FM6_PK_80S", "FM6 voice pack: 80s mega classics (16)", E, 97, default=0, parent="ENG_FM6",
      desc="16 recreations of the famous 80s DX sounds (the e-piano, the bass, the bells, the brass, the marimba, the "
           "harmonica ...) for the FM6 track, listed in its PRESETS after the user presets (801..816). All programmed "
-          "from scratch, none copied from a ROM or a cartridge. About 2.0-2.3 KB of flash.")
+          "from scratch, none copied from a ROM or a cartridge. About 2.0-2.3 KB of flash; in SD card mode none (0 B): a ticked pack's voices are FM6 "
+          "factory presets on the card (the SD card zip, Presets/Factory/FM6), an unticked one is not on the card.")
 MELODEE_012 = Provenance("Melodee (keremimo/melodee)", "Kerem Kilic", "GPL-3.0-only", "v0.12 18bfd53", MELODEE_URL)
 _add("NATIVE_BANKS", "FELUCCA_NATIVE_BANKS", "CZ native tone collection in PRESETS", E, 235, default=0,
      provenance=MELODEE_012,
@@ -604,9 +609,9 @@ for i, (k, n) in enumerate((("PIANO", "PIANO (Steinway, 44 KB)"), ("BASS", "BASS
                             ("SCRCH", "SCRATCH (23 KB)"))):
     _add(f"SET_{k}", "", n, S, 28 + i, env=k,
          desc=_SET_DESC[k] + " Played by the SAMPLE and GRAIN engines (and their presets); leaving it out frees its "
-              "flash, and it can still be uploaded to a USR slot. In SD card mode no set is in the flash (0 B, ticked or not): every "
-              "set, ticked or not, is on the card in the SD card zip (Optimist/Samples/<Set>/), and SAMPLE, GRAIN and STRETCH "
-              "stream it from there.")
+              "flash, and it can still be uploaded to a USR slot. In SD card mode no set is in the flash (0 B, ticked or not): a "
+              "ticked set is on the card in the SD card zip (Optimist/Samples/<Set>/), and SAMPLE, GRAIN and STRETCH "
+              "stream it from there; an unticked one is not on the card either.")
 
 # ---- FX
 F = "FX"

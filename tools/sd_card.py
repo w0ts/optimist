@@ -2,9 +2,12 @@
 """`make sdcard`: prepare a mounted SD card for SD card mode (the user, 2026-11-04): every folder the FM-1 needs and the
 factory content on it, user content never touched.
 
-  python3 tools/sd_card.py [--card PATH] [--dry-run] [--yes]      (tools/optimist.py sdcard, make sdcard [CARD=..])
+  python3 tools/sd_card.py [--card PATH] [--dry-run] [--yes] [--config F | --profile P]
+                                (tools/optimist.py sdcard, make sdcard [CARD=..] [CONFIG=.. | PROFILE=..]; the builder
+                                menu's c: the same steps on its screen, tools/builder/menu.py SdCard)
 
-The content is the SD card zip's (tools/sd_zip.py, from its cache). The FACTORY trees are mirrored: a file there is added
+The content is the SD card zip's of the configuration (tools/sd_zip.py, from its cache: every factory preset and kit,
+the samples and FM6 packs it ticks; --config, --profile, else build/builder.config, the builder menu's). The FACTORY trees are mirrored: a file there is added
 or replaced when its bytes differ, a factory file the zip no longer has is removed, only inside those trees (FACTORY:
 Optimist/Presets/Factory, Optimist/Kits/Factory, the factory sample folders under Optimist/Samples:
 tools/sd_samples.py factory_dirs) and Optimist/readme.txt. Everything else is the user's and is never written or
@@ -76,7 +79,8 @@ def make_plan(root, entries):
             rel = p.relative_to(root).as_posix()
             if p.is_file() and not p.name.startswith(".") and rel not in entries:
                 plan.remove.append(rel)
-    dirs = set(USER_DIRS) | set(FACTORY) | {str(Path(n).parent.as_posix()) for n in entries}
+    dirs = set(USER_DIRS) | {str(Path(n).parent.as_posix()) for n in entries}   # (a factory folder the zip has no
+                                                                                # file in is not made: a set not ticked)
     plan.mkdirs = sorted(d for d in dirs if not (root / d).is_dir())
     return plan
 
@@ -105,10 +109,11 @@ def apply(root, plan, entries):
         p = root / rel
         p.unlink()
         _drop_twin(p)
-    for t in FACTORY:                                # (folders a removal left empty, inside the trees only)
-        base = root / t
-        for d in sorted((x for x in base.rglob("*") if x.is_dir()), key=lambda x: len(x.parts), reverse=True) \
-                if base.is_dir() else []:
+    for t in FACTORY:                                # (folders a removal left empty, inside the trees only, and a
+        base = root / t                              # factory sample folder itself: a set no longer ticked)
+        inner = sorted((x for x in base.rglob("*") if x.is_dir()), key=lambda x: len(x.parts), reverse=True) \
+            if base.is_dir() else []
+        for d in inner + ([base] if base.is_dir() and t not in USER_DIRS else []):
             if not any(d.iterdir()):
                 d.rmdir()
     if hasattr(os, "sync"):
@@ -121,12 +126,10 @@ def summary_line(name, plan):
             f"files to remove; user content kept")
 
 
-def content(zpath=None):
-    """-> the zip's entries (made from its cache when its inputs did not change)"""
-    z = Path(zpath) if zpath else ROOT / "build" / sd_zip.NAME
-    if not zpath:
-        sd_zip.make(z, echo=False)
-    return zip_entries(z)
+def content(zpath=None, c=None):
+    """-> the entries of the zip at zpath, else of the cache's zip of content c (sd_zip.Content; made when its inputs or
+    c changed)"""
+    return zip_entries(Path(zpath) if zpath else sd_zip.cached(c)[0])
 
 
 def choose(args, ask, say, tty, volumes, last_file):
@@ -153,13 +156,21 @@ def run(argv=None, ask=input, say=print, tty=None, volumes=None, last_file=V.LAS
     ap.add_argument("--card", help="the card's root (a mounted FAT volume, e.g. /Volumes/OPTIMIST): no questions")
     ap.add_argument("--dry-run", action="store_true", help="list what it would write and remove, write nothing")
     ap.add_argument("--yes", action="store_true", help="no confirmation")
+    g = ap.add_mutually_exclusive_group()
+    g.add_argument("--config", help="the configuration whose ticks the card gets (default build/builder.config)")
+    g.add_argument("--profile", help="a profile instead")
     args = ap.parse_args(argv)
+    c = None
+    if not zpath:
+        cfg, name, where = sd_zip.load_cfg(args.config, args.profile)
+        c = sd_zip.content_of(cfg)
+        say(f"the SD card of {name} ({where}): every factory preset and kit; {c.line()}")
     tty = sys.stdin.isatty() and sys.stdout.isatty() if tty is None else tty
     got = choose(args, ask, say, tty, volumes, last_file)
     if not got:
         return 1
     dest, vol = got
-    entries = content(zpath)
+    entries = content(zpath, c)
     plan = make_plan(dest, entries)
     line = summary_line(vol.name if vol else dest, plan)
     if args.dry_run:

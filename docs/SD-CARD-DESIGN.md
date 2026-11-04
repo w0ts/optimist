@@ -569,7 +569,7 @@ the SD card zip unzipped at its root (section 9); there is no layout of before t
   Presets/User/<Engine>/<L>/<nn> - <name>.ops      the presets saved on the FM-1, in their engine's banks
   Samples/                    samples, in any sub-folders the user makes; WAV (16-bit mono by default, the M8's
                               speed advice); loop points and slice markers inside the WAV (as the M8 does)
-    <Set>/z0.wav ..           the sample sets (Piano, Bass, Vibes, Horns, Strgs, Flute, Scrch: the zip's), each zone
+    <Set>/z0.wav ..           the ticked sample sets (Piano, Bass, Vibes, Horns, Strgs, Flute, Scrch), each zone
                               from its source at the source's rate (Piano, Flute 44.1 kHz; the others 22.05 kHz)
     Kits/Acoustic/<nn> - <name>.wav   the sampled kits' 16 sounds (01 - kick .. 16 - wood block), 44.1 kHz
     X0X/909/hh.wav crash.wav ride.wav  the X0X 909's hats and cymbals, 44.1 kHz
@@ -616,8 +616,8 @@ samples as well", "Highest for all now"; a kit's file names its instruments; "li
 have a unique id so that if they are moved a project finds them back", "the ids should be the same for the factory
 presets for all devices".
 
-- **The samples** (`tools/sd_samples.py`, in the zip whatever the builder's ticks, no space limit): every sample source
-  of the repo at its own rate, **16-bit mono**. The streams read 16-bit and mix a stereo frame to mono anyway
+- **The samples** (`tools/sd_samples.py`, no space limit; since 2026-11-04 the builder's ticks choose them: below,
+  "The builder's ticks choose the card's samples"): each sample source of the repo at its own rate, **16-bit mono**. The streams read 16-bit and mix a stereo frame to mono anyway
   (`sd_stream.h sst_frame`), so a stereo or 24-bit source (FLUTE: 44.1 kHz 24-bit stereo; the CC0 kit's tambourine,
   shaker, conga, claves, wood block: stereo; the 909's hat: 24-bit) becomes 16-bit mono: half the bus and the card's RAM
   for the same sound, nothing the FM-1 could play lost. A set's zone is the flash zone's processing (`gen_samples.py
@@ -662,7 +662,8 @@ presets for all devices".
   samples): at its load the path first, then the id (`sdx_find_id`): found elsewhere, the path updated (on the card at
   the project's next save); a copied file: the first found, "SAME ID TWICE" said; gone: "P1 PRESET MISSING" /
   "KIT MISSING".
-- **make sdcard** (`tools/sd_card.py`, `tools/sd_card_volumes.py`): prepares a mounted card from the zip's content.
+- **make sdcard** (`tools/sd_card.py`, `tools/sd_card_volumes.py`; the builder menu's `c` the same steps on its screen):
+  prepares a mounted card from the zip of the configuration (`CONFIG=` / `PROFILE=`, else build/builder.config).
   No CARD: it lists the mounted removable FAT volumes (macOS diskutil, Linux lsblk or /proc/mounts, Windows drive
   letters) with size, free space and whether they have Optimist/, the last five used first (build/sdcard-last.json,
   a card known by its volume UUID under any mount name; Enter takes the last, q or 0 cancels; another folder can be
@@ -670,7 +671,8 @@ presets for all devices".
   "Go? [y/N]" (`--yes` skips it; no terminal and no CARD: refused). CARD= / `--card` must be a mounted FAT volume's
   root, never /, the home or the repo. The factory trees (Presets/Factory, Kits/Factory, the factory sample folders,
   readme.txt) are mirrored; everything else is the user's and is never written or removed; the FM-1's folders made when
-  missing; plain writes (a ._ twin of a written file removed), os.sync, "eject in Finder". The user runs it.
+  missing (a factory folder only when the zip has a file in it); plain writes (a ._ twin of a written file removed),
+  os.sync, "eject in Finder". The user runs it.
 
 ### How it works
 
@@ -809,8 +811,9 @@ checked: only the build time and the commit differ).
 built 2026-10-29, host-tested only). SD card mode (the builder's `core.card_sets`: LAYOUT 1 with SDCARD) builds no set
 into the image, ticked or not (`gen_samples.py`, FELUCCA_SAMPLES_CARD=1: each of PIANO BASS VIBES HORNS STRGS FLUTE
 SCRCH an empty set, its number and its presets kept, its bit in `SMP_CARD_SETS`; PERC stays with the sampled kits); the
-estimate counts the sets 0 B there (`core.py image_cfg`) and the menu says "on the card". The ticks choose what the SD
-card zip carries every set whatever the ticks (2026-11-04): `Optimist/Samples/<Set>/z0.wav ..` (`gen_samples.py --card`, the folder the set's name capitalised), one file a zone in key order, the very
+estimate counts the sets 0 B there (`core.py image_cfg`) and the menu says "on the card" for a ticked set, "not on the
+card" for the others. The SD card zip carries the ticked sets (2026-11-04: `core.py card_content`):
+`Optimist/Samples/<Set>/z0.wav ..` (`gen_samples.py --card`, the folder the set's name capitalised), one file a zone in key order, the very
 ADPCM the flash would hold decoded to 16-bit mono PCM at 22.05 kHz, its root and loop in "smpl" (the flash loop restarts
 from the state stored at ls, so the card's loop is ls - 1 .. le - 1), its keys in "inst" (`sst_wav` reads them). SAMPLE
 on a card set (`eng_sample.c smp_bank_on`): the zone whose keys hold the note, streamed as a CARD sample is (its head
@@ -832,10 +835,28 @@ every one back and compares every value) and zipped with the card's folders by `
 every build with SDCARD (`make build`, the builder menu's Build, `optimist.py build` and `package`, the cloud build)
 writes `optimist-sd-card.zip` beside its package (`tools/builder/configure.py sd_card_zip`: build/, and `package`'s
 `--out`; the build-OK panel and the CLI say where; the cloud build attaches `<stem>-sd-card.zip` and links it); `make
-sd-zip` makes it alone (build/optimist-sd-card.zip). It holds everything whatever the ticks: every factory preset of
-every engine, every sample set (930,855 B, 2026-11-04). Cached by its inputs' SHA-256 (build/sd-zip-cache/: the
-firmware's sources, the host headers, the generators, the samples): about 3 s made, 0.05 s from the cache (measured
-on a Mac). Unzipped at the card's root; its `readme.txt` says what is where.
+sd-zip` makes it alone (build/optimist-sd-card.zip; `PROFILE=` or `CONFIG=`, else the builder menu's
+build/builder.config), and the builder menu's `c` makes it for the configuration shown. It holds every factory preset
+of every engine and every factory kit, and the samples and FM6 packs the configuration ticks (below). Cached by its
+inputs' SHA-256 and the ticks (the build directory's sd-zip-cache/: the firmware's sources, the host headers, the
+generators, the samples; the last six kept): about 4 s made, 0.05 s from the cache (measured on a Mac, 2026-11-04).
+Unzipped at the card's root; its `readme.txt` says what is there.
+- **The builder's ticks choose the card's samples and FM6's packs** (the user, 2026-11-04: "In SD card mode, the samples
+  we select in the builder just go on the SD card and not in flash, and that's it"; "same for preset (fm6)"). In SD card
+  mode (`core.py card_content`, the zip's `sd_zip.Content`): a ticked sample set (`SET_*`) is on the card, an unticked
+  one is not; the sampled kits' 16 sounds when `DRUM_SAMPLED` and a `KIT_*` are ticked (the five share them); the 909's
+  `hh.wav` with the 909 and `crash.wav`, `ride.wav` with `X909_CYM` on; the drum samples only with the card's streams
+  (`card_drums`: else they are in the flash, not on the card); a ticked FM6 pack (`FM6_PK_*`) is FM6 factory presets on
+  the card (its 16 voices numbered on after FM6's own, each .ops carrying its voice) and is never compiled into the
+  flash in SD card mode (`flags()`: every `FELUCCA_FM6_PK_*` 0; `image_cfg`: 0 B), an unticked pack is on neither. None
+  of them is in the flash (0 B; the menu: "on the card" / "not on the card"). Every factory preset (FM6: its own and the
+  ticked packs') and every factory kit is in whatever the ticks say: a kit whose samples are not on the card says KIT
+  SAMPLES MISSING / 909 SAMPLES MISSING when loaded (`sd_mode.c sdm_kit_tick`), a set's preset NOT ON CARD. The hip-hop
+  pack (no builder item: the USR slots') is in every zip. `make sdcard` mirrors the factory folders, so a set unticked
+  since the card was last prepared goes from it (its folder too), the user's own files stay. The release build
+  (fm1-base, `fm1base/optimist/core/opt_core.c`) keeps the engines' preset tables in the flash in SD card mode
+  (`PRESETS_CARD 0`, its choice: presets without a card); mots-sd-config with them out (PRESETS_CARD 1, a measurement):
+  5,444 B less flash, 2,256 B more RAM and 5,824 B more pool (2026-11-04).
 - **Every sound flash mode offers as a preset is a factory preset file** (the user, 2026-11-04: "ALL", "they should just
   be presets in sd card"): after an engine's own presets, numbered on in the order flash mode lists them, the sounds of
   its collections: FM6's five packs (KEYS, BASS, BELLS, PADS, 80S: 80 voices, `eng_fm6.c FM6_PACK`), each a fresh

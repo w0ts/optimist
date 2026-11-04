@@ -102,12 +102,18 @@ def wav_rate(path):
     raise SystemExit(f"{path}: no fmt chunk")
 
 
-def write_x909(base):
-    """the 909's hats and cymbals, unchanged but the 24-bit hat rounded to 16 bits -> [(card path, source, rate, frames)]"""
+def write_x909(base, names=X909_FILES):
+    """the 909's hats and cymbals (names: those of X909_FILES to write), unchanged but the 24-bit hat rounded to 16
+    bits -> [(card path, source, rate, frames)]"""
+    bad = set(names) - set(X909_FILES)
+    if bad:
+        raise SystemExit(f"sd_samples: no 909 sample {sorted(bad)}; they are {list(X909_FILES)}")
+    out = []
+    if not names:
+        return out
     d = base / X909_DIR
     d.mkdir(parents=True, exist_ok=True)
-    out = []
-    for name in X909_FILES:
+    for name in names:
         p = gx.ASSETS / name
         pcm, _ = gx.read_wav(p)
         sr = wav_rate(p)
@@ -143,13 +149,15 @@ def write_hiphop(base):
     return out
 
 
-def write_all(out):
-    """every sample folder under out/Optimist/Samples -> {"sets": {set: [files]}, "files": [(path under Samples/,
-    source, rate, frames)] of the kits, the 909 and the pack}"""
+def write_all(out, sets=None, kits=True, x909=X909_FILES, hiphop=True):
+    """the sample folders under out/Optimist/Samples (the SD card zip's: tools/sd_zip.py; the user, 2026-11-04: in SD
+    card mode the builder's ticks choose them): sets the melodic sets (CARD_SETS when None), kits the sampled kits'
+    sounds, x909 the 909's files, hiphop the pack -> {"sets": {set: [files]}, "files": [(path under Samples/, source,
+    rate, frames)] of the kits, the 909 and the pack}"""
     base = Path(out) / "Optimist" / "Samples"
-    sets = gs.card_files(out, list(gs.CARD_SETS))
-    files = write_kits(base) + write_x909(base) + write_hiphop(base)
-    return {"sets": sets, "files": files}
+    made = gs.card_files(out, list(gs.CARD_SETS) if sets is None else list(sets)) if sets is None or sets else {}
+    files = (write_kits(base) if kits else []) + write_x909(base, tuple(x909)) + (write_hiphop(base) if hiphop else [])
+    return {"sets": made, "files": files}
 
 
 def factory_dirs():

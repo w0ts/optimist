@@ -782,7 +782,8 @@ def parser():
         p.add_argument("rest", nargs=argparse.REMAINDER)
         p.set_defaults(fn=fn)
     p = sub.add_parser("sdcard", help="prepare a mounted SD card for SD card mode: its folders and the factory content, "
-                                      "user content never touched (sdcard --help: --card PATH, --dry-run, --yes)",
+                                      "user content never touched (sdcard --help: --card PATH, --dry-run, --yes, "
+                                      "--config F | --profile P: whose ticks, else build/builder.config)",
                        add_help=False)
     p.add_argument("rest", nargs=argparse.REMAINDER)
     p.set_defaults(fn=cmd_sdcard)

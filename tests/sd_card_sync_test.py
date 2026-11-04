@@ -4,8 +4,9 @@ volumes faked: a first run fills it (the FM-1's folders, the factory trees), a s
 file is replaced, a stale one removed (and an AppleDouble twin of a written file), the user's presets, projects and own
 samples kept byte for byte; the destination's checks (/, the home, the repo, a folder that is no volume); the picker (a
 fixed volume list, scripted answers, cancel, no terminal, Go? no); the last destinations (most recent first, Enter takes
-the last, a card known by its UUID under a new mount name, five at most, nothing stored on a cancel); every file of the
-real zip inside a factory tree.
+the last, a card known by its UUID under a new mount name, five at most, nothing stored on a cancel); the configuration's
+ticks (--config: the zip of its card_content, a set unticked since the last time removed from the card's factory
+folders, the user's own kept; a missing .config refused); every file of the real zip inside a factory tree.
   python3 tests/sd_card_sync_test.py OUTDIR [the real zip]"""
 import importlib
 import json
@@ -190,6 +191,55 @@ def picker_tests(out):
     check("one used again moves to the front, once", got == ["f3", "f6", "f5", "f4", "f2"])
 
 
+def ticks_test(out):
+    """--config: the card gets that configuration's zip (sd_zip.cached of its content: faked here, a zip of the ticks'
+    folders); a set ticked before and not now goes from the card's factory folders, the user's files stay"""
+    sys.path.insert(0, str(ROOT / "tools" / "builder"))
+    C = importlib.import_module("configure")
+    card, last = out / "TCARD", out / "ticks-last.json"
+    card.mkdir()
+    vols = [vol(card, "OPTIMIST", "UUID-T")]
+    for rel, b in USER.items():
+        (card / rel).parent.mkdir(parents=True, exist_ok=True)
+        (card / rel).write_bytes(b)
+    base = C.K.set_front(C.defaults(), "SD_MODE", 1)
+    sets = {k: 0 for k in C.R.ITEMS if k.startswith("SET_")}
+    asked = []
+
+    def fake_cached(c=None):
+        asked.append(c)
+        z = out / f"ticks-{len(asked)}.zip"
+        write_zip(z, {**{n: b for n, b in FAKE.items() if "/Samples/" not in n},
+                      **{f"Optimist/Samples/{S.sd_zip.gen_set_dir(st)}/z0.wav": b"RIFF " + st.encode() for st in c.sets}})
+        return z, "faked"
+    saved = S.sd_zip.cached
+    S.sd_zip.cached = fake_cached
+    try:
+        for n, ticked in enumerate((("SET_PIANO", "SET_BASS"), ("SET_PIANO",)), 1):
+            cf = out / f"ticks-{n}.config"
+            cfg = dict(base, **dict(sets, **{k: 1 for k in ticked}))
+            cf.write_text(C.dump(cfg, f"ticks{n}"))
+            sc = Script([])
+            r = S.run(["--card", str(card), "--config", str(cf)], sc.ask, sc.say, False, vols, last)
+            check(f"--config ({', '.join(ticked)} ticked): the zip of its ticks, said", r == 0 and asked[-1] ==
+                  S.sd_zip.content_of(cfg) and sorted(asked[-1].sets) == sorted(C.R.ITEMS[k].env for k in ticked)
+                  and "sets: " in sc.text())
+        check("a set unticked since: its factory folder removed from the card; Piano kept",
+              not (card / "Optimist/Samples/Bass").exists() and (card / "Optimist/Samples/Piano/z0.wav").read_bytes()
+              == b"RIFF PIANO" and "1 removed" in sc.text())
+        check("... the user's presets, kits, project, own samples and other files kept byte for byte",
+              all((card / n).read_bytes() == b for n, b in USER.items()))
+        sc = Script([])
+        try:
+            S.run(["--card", str(card), "--config", str(out / "none.config")], sc.ask, sc.say, False, vols, last)
+            refused = False
+        except SystemExit as e:
+            refused = "no such .config" in str(e)
+        check("a missing .config: refused before anything is asked or written", refused and len(asked) == 2)
+    finally:
+        S.sd_zip.cached = saved
+
+
 def real_zip_test(z):
     entries = S.zip_entries(z)
     check(f"the real zip ({len(entries)} files): every file inside a factory tree (FACTORY, readme.txt)",
@@ -208,6 +258,7 @@ def main(out, real=None):
     sync_tests(out)
     check_tests(out)
     picker_tests(out)
+    ticks_test(out)
     if real:
         real_zip_test(real)
     shutil.rmtree(out, ignore_errors=True)
