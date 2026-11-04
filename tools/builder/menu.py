@@ -8,9 +8,16 @@ Keys: space / enter toggle (a choice: next value; shift+space or backspace: the 
       | f flash a build of the configuration shown to an FM-1 over USB-MIDI: builds it first when this menu has no
         current one (a progress bar for the build and for the flash); refused only when the builder's own code
         changed since it started; shows both identities and the commit, asks first
+      | c the SD card: builds the SD card zip of the configuration shown (every factory preset and kit, the samples
+        and FM6 packs it ticks: tools/sd_zip.py) and offers to put it on a card as make sdcard does (tools/sd_card.py:
+        the mounted removable FAT volumes, the last ones used first and the last preselected, or another folder; the
+        plan in one line, then a confirmation; only the factory trees are written, user content never touched)
       | q or ctrl+c quit (refused while a flash is writing)
-      x expand all | c collapse all | left / right the previous / next section, page up / down page the list
+      x expand all / collapse all (a toggle) | left / right the previous / next section, page up / down page the list
 Everything it does goes through configure.py (the plain module the tests use)."""
+import functools
+import importlib
+import os
 import subprocess
 import sys
 import threading
@@ -24,6 +31,7 @@ from textual.binding import Binding
 from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.screen import ModalScreen
 from textual.widgets import Footer, Header, Input, Label, OptionList, ProgressBar, Static, Tree
+from textual.widgets.option_list import Option
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
@@ -71,17 +79,29 @@ def bar(region, used, cap, over):
 
 
 class Pick(ModalScreen):
-    """a list to pick from (profiles)"""
-    BINDINGS = [Binding("escape", "app.pop_screen", "cancel")]
+    """a list to pick from (profiles); start: the row highlighted first; disabled: rows shown but not pickable;
+    on_cancel: called after escape closed it"""
+    BINDINGS = [Binding("escape", "cancel", "cancel")]
 
-    def __init__(self, title, options, cb):
+    def __init__(self, title, options, cb, start=0, disabled=(), on_cancel=None):
         super().__init__()
         self.title_, self.options, self.cb = title, options, cb
+        self.start, self.disabled, self.on_cancel = start, frozenset(disabled), on_cancel
+
+    def action_cancel(self):
+        self.app.pop_screen()
+        if self.on_cancel:
+            self.on_cancel()
 
     def compose(self) -> ComposeResult:
         with Vertical(id="modal"):
             yield Label(self.title_)
-            yield OptionList(*self.options, id="pick")
+            yield OptionList(*(Option(Text(o), disabled=i in self.disabled) for i, o in enumerate(self.options)),
+                             id="pick")
+
+    def on_mount(self):
+        if 0 <= self.start < len(self.options) and self.start not in self.disabled:
+            self.query_one("#pick", OptionList).highlighted = self.start
 
     def on_option_list_option_selected(self, ev):
         self.app.pop_screen()
@@ -89,12 +109,17 @@ class Pick(ModalScreen):
 
 
 class Ask(ModalScreen):
-    """one line of text (a file name)"""
-    BINDINGS = [Binding("escape", "app.pop_screen", "cancel")]
+    """one line of text (a file name); on_cancel: called after escape closed it"""
+    BINDINGS = [Binding("escape", "cancel", "cancel")]
 
-    def __init__(self, title, value, cb):
+    def __init__(self, title, value, cb, on_cancel=None):
         super().__init__()
-        self.title_, self.value, self.cb = title, value, cb
+        self.title_, self.value, self.cb, self.on_cancel = title, value, cb, on_cancel
+
+    def action_cancel(self):
+        self.app.pop_screen()
+        if self.on_cancel:
+            self.on_cancel()
 
     def compose(self) -> ComposeResult:
         with Vertical(id="modal"):
@@ -163,7 +188,8 @@ class Builder(App):
         Binding("b", "build", "build"), Binding("e", "build_emu", "build + emu"),
         Binding("f", "flash", "flash to FM-1"),
         Binding("left", "prev_group", "previous section", key_display="←", show=False), Binding("right", "next_group", "next section", key_display="→", show=False),
-        Binding("o", "sort", "sort by size"), Binding("x", "expand", "expand all"), Binding("c", "collapse", "collapse"),
+        Binding("c", "sdcard", "SD card"),
+        Binding("o", "sort", "sort by size"), Binding("x", "expand_toggle", "expand/collapse all"),
         Binding("escape", "clear_search", "clear search", show=False), Binding("q", "quit", "quit"),
         Binding("ctrl+c", "quit", "quit", show=False, priority=True),
     ]
@@ -197,6 +223,8 @@ class Builder(App):
         self.conflicts = {}
         self.room = RM.NONE                              # what BLE removed to make room (room.py)
         self.sort_by = None                              # o cycles: None (registry order), flash, ram (the SRAM total) (per session)
+        self.sd_busy = False                             # c: the SD card zip is being made or the card written
+        self.sd_zip = None                               # (content, path, bytes) of the last zip c made
         self.update_budget()
 
     # ---- layout
@@ -249,9 +277,11 @@ class Builder(App):
         ar = self.arena_item.get(key, 0)                 # (the arena one instance takes, whatever the item's state: "?" unknown)
         if ar is None or ar:
             t.append(f"  arena {self.arena_text(ar)}", style="bold reverse cyan" if self.sort_by == "arena" else "cyan")
-        if (key.startswith("SET_") and C.card_sets(self.cfg)) or (key in C.K.card_drum_keys() and C.K.card_drums(self.cfg)):
-            # (SD card mode: 0 B of flash, the SD card zip holds it: the sets, the sampled kits' and the 909's samples)
-            t.append("  on the card" if v else "  not on the card", style="cyan" if v else "dim")
+        card = C.K.on_card(self.cfg, key)
+        if card is not None:
+            # (SD card mode: 0 B of flash, the SD card zip holds it when ticked: the sets, FM6's packs, the sampled
+            # kits' and the 909's samples; core.card_keys)
+            t.append("  on the card" if card else "  not on the card", style="cyan" if card else "dim")
         took = dict(deltas)
         if self.over and all(took.get(r, 0) >= o for r, o in self.over.items()):  # alone, it fits all
             t.append("  ◀ off = fits", style="bold red")
@@ -471,7 +501,8 @@ class Builder(App):
             t = Text(f"THIS BUILDER IS OUT OF DATE ({', '.join(stale)} changed since it started): {ST.RESTART}\n",
                      style="bold red") + t
         if self.build_out:                               # the last build's result first: it stays until the next b
-            bad = self.build_out.startswith(("BUILD FAILED", "CANNOT BUILD", "FLASH REFUSED", "FLASH FAILED"))
+            bad = self.build_out.startswith(("BUILD FAILED", "CANNOT BUILD", "FLASH REFUSED", "FLASH FAILED",
+                                             "SD CARD FAILED", "SD CARD REFUSED", "SD CARD:"))
             t = Text(self.build_out + "\n\n", style="bold red" if bad else "green") + t
         self.query_one("#msgs_t").update(t if t.plain else Text("no warnings", style="green"))
 
@@ -521,7 +552,25 @@ class Builder(App):
             t.append(it.notice + "\n", style="bold yellow")
         if it.off_warning:
             t.append("off: " + it.off_warning + "\n", style="yellow")
+        if C.card_sets(self.cfg):                        # (SD card mode: what the card gets, c makes it)
+            t.append("\n" + "\n".join(self.card_lines()) + "\n", style="cyan")
         self.query_one("#info_t").update(t)
+
+    def card_lines(self):
+        """the info panel's lines: what the SD card gets of this configuration (sd_zip.estimate: the samples' sizes
+        from their sources; the zip's own size once c made it)"""
+        c = SDZ.content_of(self.cfg)
+        out = ["SD card (c makes it): every factory preset and kit"]
+        rows = card_estimate(c)
+        out += [f"  {what:46s} {human(n)}" for what, n in rows]
+        out += [f"  FM6 pack {p:37s} 16 presets" for p in c.fm6_packs]
+        if not rows and not c.fm6_packs:
+            out.append("  no sample or FM6 pack ticked: presets and kits only")
+        if rows:
+            out.append(f"  {'samples in all (at most)':46s} {human(sum(n for _, n in rows))}")
+        if self.sd_zip and self.sd_zip[0] == c:
+            out.append(f"  the zip: {self.sd_zip[1]} ({self.sd_zip[2]:,} B)")
+        return out
 
     def on_tree_node_highlighted(self, ev):
         self.refresh_info()
@@ -574,14 +623,15 @@ class Builder(App):
         self.rebuild()
         self.refresh_all()
 
-    def action_expand(self):
+    def action_expand_toggle(self):
+        """x: every item with options expanded; when they all are already, every one collapsed (the groups stay open)"""
+        items = [n for n in self.walk(self.query_one("#tree").root) if isinstance(n.data, str) and n.children]
+        if items and all(n.is_expanded for n in items):
+            for n in items:
+                n.collapse()
+            return
         for n in self.walk(self.query_one("#tree").root):
             n.expand()
-
-    def action_collapse(self):
-        for n in self.walk(self.query_one("#tree").root):
-            if isinstance(n.data, str):
-                n.collapse()
 
     def action_search(self):
         s = self.query_one("#search")
@@ -916,6 +966,125 @@ class Builder(App):
         if go and self.built:
             self.action_flash()                          # the build is current now: the usual preflight and question
 
+    # ---- c: the SD card (tools/sd_zip.py, tools/sd_card.py; the user, 2026-11-04)
+    def action_sdcard(self):
+        """c: the SD card zip of the configuration shown, then where to put it (make sdcard's steps on this screen)"""
+        if self.sd_busy:
+            self.notify("the SD card is being prepared", title="SD card", timeout=4)
+            return
+        if not C.card_sets(self.cfg):
+            self.sd_say("SD CARD: this configuration is not SD card mode (Memory management > SD CARD MODE): its "
+                        "samples and presets are in its flash, the card gets nothing of them", True)
+            return
+        c = SDZ.content_of(self.cfg)
+        self.sd_busy = True
+        self.build_out = f"SD card: making the zip ({c.line()})"
+        self.refresh_msgs()
+        self.progress_show("SD card zip: making it (a few seconds; cached when nothing changed)", None)
+        self.run_sd_zip(c)
+
+    @work(thread=True, exclusive=True, group="sdcard")
+    def run_sd_zip(self, c):
+        """the zip in the build directory (cached by its inputs and the ticks), its entries read, then the picker"""
+        try:
+            path = SDZ.make(C.build_dir() / C.SD_ZIP, c, echo=False)
+            entries = SDC.zip_entries(path)
+            vols = SDV.platform_volumes()
+        except (OSError, subprocess.CalledProcessError, SystemExit) as e:
+            self.call_from_thread(self.sd_say, f"SD CARD FAILED: the zip was not made ({e})", True)
+            return
+        self.call_from_thread(self.sd_pick, c, path, entries, vols)
+
+    def sd_pick(self, c, path, entries, vols):
+        """the picker: the remembered destinations first (the last one highlighted), the other removable FAT volumes,
+        another folder, Cancel"""
+        self.progress_hide()
+        self.sd_zip = (c, path, path.stat().st_size)
+        self.refresh_info()
+        rows = SDV.choices(SDV.candidates(vols), SDV.load_last(SD_LAST()))
+        other = "another folder (type its path)"
+        labels = [r.label + ("  (last)" if r.last else "") for r in rows] + [other, "Cancel"]
+        start = next((i for i, r in enumerate(rows) if r.last and r.path), len(rows) if not rows else 0)
+        self.build_out = f"SD card: the zip is made ({path}, {self.sd_zip[2]:,} B): where should it go?"
+        self.refresh_msgs()
+
+        def cancel():
+            self.sd_say("SD card: cancelled, nothing written", False)
+
+        def answer(choice):
+            if choice == "Cancel":
+                cancel()
+            elif choice == other:
+                self.push_screen(Ask("the folder's path (a card's root: /Volumes/<name>)", "",
+                                     lambda p: self.sd_dest(os.path.expanduser(p.strip()), entries, vols, c)
+                                     if p.strip() else cancel(), on_cancel=cancel))
+            else:
+                self.sd_dest(rows[labels.index(choice)].path, entries, vols, c)
+        title = (f"SD card: where should the content go?\n{c.line()}\n"
+                 f"{len(entries)} files in the zip; only Optimist's factory folders are written, your own files never")
+        self.push_screen(Pick(title, labels, answer, start=start,
+                              disabled=[i for i, r in enumerate(rows) if not r.path], on_cancel=cancel))
+
+    def sd_dest(self, dest, entries, vols, c):
+        ok, msg = SDV.check_dest(dest, vols, folder_ok=True)
+        if not ok:
+            self.sd_say(f"SD CARD REFUSED\n  {msg}", True)
+            return
+        self.progress_show("SD card: comparing the card with the zip", None)
+        self.run_sd_plan(dest, entries, vols, msg, c)
+
+    @work(thread=True, exclusive=True, group="sdcard")
+    def run_sd_plan(self, dest, entries, vols, msg, c):
+        try:
+            plan = SDC.make_plan(dest, entries)
+        except (OSError, SystemExit) as e:
+            self.call_from_thread(self.sd_say, f"SD CARD FAILED: the card could not be read ({e})", True)
+            return
+        self.call_from_thread(self.sd_confirm, dest, entries, vols, msg, plan, c)
+
+    def sd_confirm(self, dest, entries, vols, msg, plan, c):
+        """the plan line, then Cancel / Write (Cancel first)"""
+        self.progress_hide()
+        vol = SDV.volume_at(dest, vols)
+        line = SDC.summary_line(vol.name if vol else dest, plan)
+        go = f"Write {len(plan.add) + len(plan.replace)} files, remove {len(plan.remove)} factory files"
+        if not (plan.add or plan.replace or plan.remove or plan.mkdirs):
+            self.sd_say(f"SD card: {line}; {plan.unchanged} unchanged: nothing to write", False)
+            return
+        self.build_out = "SD card: waiting for your answer"
+        self.refresh_msgs()
+
+        def answer(choice):
+            if choice != go:
+                self.sd_say("SD card: cancelled, nothing written", False)
+                return
+            self.progress_show(f"SD card: writing {dest}", None)
+            self.run_sd_write(dest, entries, vol, plan)
+        self.push_screen(Pick(f"SD card: {dest}\n  {msg}\n  {line} ({plan.unchanged} unchanged)\n  {c.line()}",
+                              ["Cancel", go], answer,
+                              on_cancel=lambda: self.sd_say("SD card: cancelled, nothing written", False)))
+
+    @work(thread=True, exclusive=True, group="sdcard")
+    def run_sd_write(self, dest, entries, vol, plan):
+        try:
+            written = SDC.apply(dest, plan, entries)
+            SDV.remember(dest, vol, SD_LAST())
+        except OSError as e:
+            self.call_from_thread(self.sd_say, f"SD CARD FAILED while writing {dest}: {e}", True)
+            return
+        self.call_from_thread(self.sd_say, f"SD CARD OK: {dest}\n  {len(plan.add)} added, {len(plan.replace)} "
+                              f"replaced, {len(plan.remove)} removed, {plan.unchanged} unchanged; {written:,} B written"
+                              "\n  eject the card (Finder: the eject button beside it) before pulling it out", False)
+
+    def sd_say(self, text, failed):
+        """c's result in the message panel (it stays until the next b or c) and a notice"""
+        self.sd_busy = False
+        self.progress_hide()
+        self.build_out = text
+        self.refresh_msgs()
+        self.notify(text.splitlines()[0], title="SD card", severity="error" if failed else "information",
+                    timeout=10 if failed else 5)
+
     async def action_quit(self):
         """q, ctrl+c: quit; refused while the FM-1 is being written (a cut-off write leaves it in update mode)"""
         if self.flashing:
@@ -1096,6 +1265,33 @@ class Builder(App):
         self.refresh_msgs()
         self.notify(text.splitlines()[0], title="flash", severity="error" if failed else "information",
                     timeout=10 if failed else 5)
+
+
+class _Lazy:
+    """a tools/ module imported when first used (tools/ is on the path once the imports above ran)"""
+    def __init__(self, name):
+        self.name = name
+
+    def __getattr__(self, attr):
+        return getattr(importlib.import_module(self.name), attr)
+
+
+SDC, SDV, SDZ = _Lazy("sd_card"), _Lazy("sd_card_volumes"), _Lazy("sd_zip")   # (make sdcard's, the volumes', the zip's)
+
+
+def SD_LAST():
+    """the last SD card destinations' file (sd_card_volumes.py LAST_FILE, read when used: a test stands one in)"""
+    return SDV.LAST_FILE
+
+
+@functools.lru_cache(maxsize=32)
+def card_estimate(c):
+    """sd_zip.estimate, once a content (the sources' headers read)"""
+    return tuple(SDZ.estimate(c))
+
+
+def human(n):
+    return f"{n / 1024 / 1024:.1f} MB" if n >= 1024 * 1024 else f"{n / 1024:.0f} KB"
 
 
 PUBLISHED = "  (published)"                  # the profile list's mark

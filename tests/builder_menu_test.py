@@ -247,7 +247,144 @@ async def dialog_wrap_test():
         check("dialog: a long line wraps inside the box", lab.size.width <= box.size.width and lab.size.height >= 4)
 
 
+async def wait_for(pilot, cond, n=80):
+    for _ in range(n):
+        await pilot.pause(0.05)
+        if cond():
+            return True
+    return False
+
+
+def sd_cfg(**ticks):
+    """SD card mode (SD_MODE 1) with the card's streams, every set, sampled kit and FM6 pack off, then ticks"""
+    cfg = C.K.set_front(C.defaults(), "SD_MODE", 1)
+    off = {k: 0 for k in R.ITEMS if k.startswith(("SET_", "KIT_", "FM6_PK_"))}
+    return dict(cfg, **dict(dict(off, SD_RING=8, ARENA=1, DRUM_SAMPLED=0, DRUM_X0X909=1, X909_CYM=0), **ticks))
+
+
+async def sdcard_test():
+    """c: the SD card zip of the configuration shown (a fake sd_zip.make: no generator run), then the volume picker
+    (the volumes faked, the last destination preselected), the plan line and a confirmation, the card written (a
+    temporary folder standing in for it), the user's files kept; escape cancels, nothing written; not SD card mode:
+    refused, no zip. x expands all and collapses all. The labels: on the card / not on the card, 0 B of flash"""
+    import sd_card_volumes as V
+    import sd_zip as Z
+    made = []
+    with tempfile.TemporaryDirectory() as td:
+        td = Path(td)
+        card, plain, last = td / "CARD", td / "plain", td / "last.json"
+        card.mkdir()
+        plain.mkdir()
+        (card / "Optimist" / "Projects" / "A").mkdir(parents=True)
+        (card / "Optimist" / "Projects" / "A" / "mine.opp").write_bytes(b"my project")
+
+        def fake_make(out, c=None, echo=True):
+            made.append(c)
+            import zipfile
+            with zipfile.ZipFile(out, "w") as z:
+                z.writestr("Optimist/readme.txt", "readme")
+                z.writestr("Optimist/Presets/Factory/Analog/A/01 - init.ops", "OPPR")
+                for st in c.sets:
+                    z.writestr(f"Optimist/Samples/{Z.gen_set_dir(st)}/z0.wav", "RIFF " + st)
+            return Path(out)
+        vols = [V.Volume(str(card), "OPTIMIST", "UUID-M", "msdos", 8 << 30, 4 << 30, True)]
+        saved = (Z.make, V.platform_volumes, M.SD_LAST, V.REPO, C.build_dir)
+        Z.make, V.platform_volumes, M.SD_LAST = fake_make, (lambda: vols), (lambda: last)
+        V.REPO = td / "a-repo"                           # (the temporary folder is no repo here)
+        C.build_dir = lambda outdir=None: td / "build"
+        (td / "build").mkdir()
+        V.remember(card, vols[0], last)                  # (used before: the last, preselected)
+        try:
+            cfg = sd_cfg(SET_PIANO=1, FM6_PK_KEYS=1)
+            app = M.Builder(dict(cfg), "sd")
+            async with app.run_test(size=(200, 60)) as pilot:
+                await pilot.pause()
+
+                def lab(k):
+                    return label(app, k)
+                check("SD card mode: a ticked set / pack says on the card, an unticked one not on the card",
+                      "on the card" in lab("SET_PIANO") and "not on the card" not in lab("SET_PIANO") and
+                      "not on the card" in lab("SET_BASS") and "on the card" in lab("FM6_PK_KEYS") and
+                      "not on the card" in lab("FM6_PK_BASS"))
+                check("... and 0 B of flash: no flash cost on them", not re.search(r"flash [+-]", lab("SET_PIANO") +
+                                                                              lab("FM6_PK_KEYS")))
+                check("... the 909's hats on the card (with the streams), its cymbals (off) not",
+                      "on the card" in lab("X909_HAT") and "not on the card" in lab("X909_CYM"))
+                app.query_one("#tree").move_cursor(app.nodes["SET_PIANO"])
+                await pilot.pause()
+                info = str(app.query_one("#info_t").content)
+                check("the info panel: what the card gets, the samples' sizes (set Piano, 909 hh.wav, FM6 pack KEYS)",
+                      "SD card (c makes it)" in info and re.search(r"set Piano\s+\d+ KB", info) and
+                      "909 hh.wav" in info and "FM6 pack KEYS" in info and "Bass" not in info)
+                check("c is bound: SD card in the footer; x expand/collapse; no collapse binding of its own",
+                      any(b.key == "c" and "SD card" in b.description for b in app.BINDINGS) and
+                      any(b.key == "x" and "expand/collapse" in b.description for b in app.BINDINGS) and
+                      not any(b.action == "collapse" for b in app.BINDINGS))
+                await pilot.press("c")
+                ok = await wait_for(pilot, lambda: type(app.screen).__name__ == "Pick")
+                check("c: the zip made for the configuration shown (its ticks), then the picker",
+                      ok and made == [Z.content_of(cfg)] and made[0].sets == ("PIANO",) and made[0].fm6_packs == ("KEYS",))
+                pick = app.screen
+                check("... the picker: the remembered card first, (last), highlighted; another folder; Cancel",
+                      "OPTIMIST" in pick.options[0] and "(last)" in pick.options[0] and
+                      pick.query_one("#pick").highlighted == 0 and pick.options[-2].startswith("another folder")
+                      and pick.options[-1] == "Cancel")
+                await pilot.press("enter")
+                ok = await wait_for(pilot, lambda: type(app.screen).__name__ == "Pick" and app.screen is not pick)
+                title = str(app.screen.title_) if ok else ""
+                check("... the plan in one line and a confirmation, Cancel first; nothing written yet",
+                      "card OPTIMIST: 3 files to add, 0 to replace, 0 factory files to remove; user content kept" in title
+                      and app.screen.options[0] == "Cancel" and not (card / "Optimist" / "readme.txt").exists())
+                await pilot.press("down", "enter")
+                ok = await wait_for(pilot, lambda: app.build_out.startswith("SD CARD OK"))
+                check("... confirmed: the card written, the user's project kept, remembered",
+                      ok and (card / "Optimist/Samples/Piano/z0.wav").read_bytes() == b"RIFF PIANO" and
+                      (card / "Optimist/Projects/A/mine.opp").read_bytes() == b"my project" and
+                      not (card / "Optimist/Samples/Bass").exists() and "eject" in app.build_out and
+                      V.load_last(last)[0]["uuid"] == "UUID-M" and not app.sd_busy)
+                await pilot.press("c")
+                await wait_for(pilot, lambda: type(app.screen).__name__ == "Pick")
+                await pilot.press("escape")
+                ok = await wait_for(pilot, lambda: "cancelled" in app.build_out)
+                check("escape at the picker: cancelled, nothing written, c usable again", ok and not app.sd_busy)
+                await pilot.press("c")
+                await wait_for(pilot, lambda: type(app.screen).__name__ == "Pick")
+                pick = app.screen
+                pilot.app.screen.query_one("#pick").highlighted = len(pick.options) - 2
+                await pilot.press("enter")
+                await wait_for(pilot, lambda: type(app.screen).__name__ == "Ask")
+                app.screen.query_one("#ask").value = str(plain)
+                await pilot.press("enter")
+                await wait_for(pilot, lambda: type(app.screen).__name__ == "Pick")
+                title = str(app.screen.title_)
+                check("another folder typed: a plain folder warned about, then the same plan and confirmation",
+                      "warning" in title and "plain folder" in title and "3 files to add" in title)
+                await pilot.press("escape")
+                ok = await wait_for(pilot, lambda: "cancelled" in app.build_out)
+                check("... escape at the confirmation: nothing written there", ok and not (plain / "Optimist").exists())
+                items = [n for n in app.walk(app.query_one("#tree").root) if isinstance(n.data, str) and n.children]
+                await pilot.press("x")
+                await pilot.pause()
+                folded = all(not n.is_expanded for n in items)
+                await pilot.press("x")
+                await pilot.pause()
+                check("x: every item collapsed when all were open, then x again: every one expanded",
+                      items and folded and all(n.is_expanded for n in items))
+            made.clear()
+            app = M.Builder(C.defaults(), "default")
+            async with app.run_test(size=(200, 60)) as pilot:
+                await pilot.pause()
+                await pilot.press("c")
+                await pilot.pause()
+                check("c out of SD card mode: refused in the panel, no zip made", not made and
+                      "not SD card mode" in app.build_out and not app.sd_busy)
+                check("... and no item says on the card there", not any("on the card" in label(app, k) for k in app.nodes))
+        finally:
+            Z.make, V.platform_volumes, M.SD_LAST, V.REPO, C.build_dir = saved
+
+
 async def main():
+    await sdcard_test()
     await sort_test()
     await dialog_wrap_test()
     await memory_menu_test()
