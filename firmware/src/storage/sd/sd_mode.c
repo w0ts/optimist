@@ -755,6 +755,7 @@ static int sdm_open(uint32_t list, uint32_t view, const char *vname)
 {
     uint32_t n;
     FRESULT r;
+    int same = list == sdm.list && view == sdm.view && sdm.b.view == SDB_BANK && sdm_bank_letter(sdm.b.root) >= 0;
 #if SDM_DX7
     if (sdm.bank && list == sdm.list && view == sdm.view && sdm_ready())
         return sdm_dx7_page();                       /* (a bank shown: read again, still shown) */
@@ -767,6 +768,13 @@ static int sdm_open(uint32_t list, uint32_t view, const char *vname)
     sdm.b.pages = 1;
     if (!sdm_ready())
         return -1;
+    if (same) {                                      /* (read again after an action: a Factory bank stays shown) */
+        sdl_cat(sdm.path, 0, sizeof sdm.path, sdm.b.root);
+        r = sdm_was(sdb_open(&sdm.b, SDB_BANK, sdm.path));
+        if (r != FR_OK)
+            sdm.b.n = 0;
+        return r == FR_OK ? 0 : -1;
+    }
     if (view == SDV_FOLDER && list != SDC_SMP) {   /* a bank of 16: the list's last one shown */
         r = sdm_was(sdm_bank_open(list, sdm_bk[list]));
         if (r != FR_OK)
@@ -848,6 +856,112 @@ static int sdm_bank_go(uint32_t bk)
     sdm_bk[sdm.list % SDC_N] = (uint8_t)bk;
     return sdm_was(sdb_open(&sdm.b, SDB_BANK, sdm.path)) == FR_OK;
 }
+/* ---- the PRESETS list by engine (op_sdcard.c: the track's, or what the PRESETS knob chose; the user, 2026-11-05) */
+static int32_t sdm_pre_tree(void)                    /* the tree shown: 0 Presets/Factory, 1 Presets/User, -1 neither */
+{
+    char h[40];
+    uint32_t w, n;
+    for (w = 0; w < 2u; w++) {
+        n = sdl_path(h, sizeof h, SDL_PRESETS, w ? SDL_USER : SDL_FACTORY);
+        if (n && !sdl_ncmp(sdm.b.root, h, n) && (!sdm.b.root[n] || sdm.b.root[n] == '/'))
+            return (int32_t)w;
+    }
+    return -1;
+}
+static uint32_t sdm_pre_dir(uint32_t w, uint32_t e)  /* tree w's engine slot e's folder into sdm.path: its length, 0 */
+{
+    uint32_t n = sdl_path(sdm.path, sizeof sdm.path, SDL_PRESETS, w ? SDL_USER "/" : SDL_FACTORY "/");
+    n = n ? sdl_cat(sdm.path, n, sizeof sdm.path, sdn_engine(eng_uid(e % NENGINES))) : sizeof sdm.path;
+    return n < sizeof sdm.path ? n : 0u;
+}
+static int sdm_pre_show(uint32_t w, uint32_t e, uint32_t bk)   /* that folder's bank bk shown (not made yet: empty) */
+{
+    char l[3] = {'/', (char)('A' + bk % SDM_BANKS), 0};
+    uint32_t n = sdm_pre_dir(w, e);
+    if (!n || sdl_cat(sdm.path, n, sizeof sdm.path, l) >= sizeof sdm.path)
+        return 0;
+#if SDM_DX7
+    sdm.bank = 0;
+#endif
+    sdm_bk[SDC_PRE] = (uint8_t)(bk % SDM_BANKS);
+    return sdm_was(sdb_open(&sdm.b, SDB_BANK, sdm.path)) == FR_OK;
+}
+/* the engines the filter offers: a bit per slot, a folder in Factory or User (read once a visit: op_sdcard.c) */
+static uint32_t sdm_pre_mask(void)
+{
+    FILINFO fi;
+    uint32_t e, w, m = 0;
+    for (e = 0; e < NENGINES; e++)
+        for (w = 0; w < 2u; w++)
+            if (sdm_pre_dir(w, e) && f_stat(sdm.path, &fi) == FR_OK)
+                m |= 1u << e;
+    return m;
+}
+/* ALL: every listed engine's banks one after the other: bank v of sdm_all_n, the engines in the list's order (their
+ * letters read once, when ALL is picked); the engine named by the title and K1 (sdm_folder: "ACID B") */
+static struct {
+    uint32_t m[NENGINES];                            /* each entry's letters */
+    uint8_t e[NENGINES], ne, w;
+    uint16_t v, n;
+} sdm_all;
+static int sdm_all_go(uint32_t v)
+{
+    uint32_t i, b, k = 0;
+    for (i = 0; i < sdm_all.ne; i++)
+        for (b = 0; b < SDM_BANKS; b++)
+            if ((sdm_all.m[i] >> b & 1u) && k++ == v) {
+                sdm_all.v = (uint16_t)v;
+                return sdm_pre_show(sdm_all.w, sdm_all.e[i], b);
+            }
+    return 0;
+}
+static void sdm_all_open(uint32_t w, const uint32_t *list, uint32_t n)
+{
+    DIR d;
+    FILINFO fi;
+    uint32_t i, k;
+    sdm_all.w = (uint8_t)w;
+    sdm_all.ne = sdm_all.n = 0;
+    for (i = 0; i < n && i < NENGINES; i++) {
+        uint32_t m = 0;
+        if (!sdm_pre_dir(w, list[i]) || f_opendir(&d, sdm.path) != FR_OK)
+            continue;
+        while (f_readdir(&d, &fi) == FR_OK && fi.fname[0]) {
+            k = sdl_uc((uint8_t)fi.fname[0]);
+            if ((fi.fattrib & AM_DIR) && k >= 'A' && k <= 'Z' && !fi.fname[1])
+                m |= 1u << (k - 'A');
+        }
+        (void)f_closedir(&d);
+        if (!m)
+            continue;
+        sdm_all.e[sdm_all.ne] = (uint8_t)list[i];
+        sdm_all.m[sdm_all.ne++] = m;
+        for (; m; m &= m - 1u)
+            sdm_all.n++;
+    }
+    sdm_all.v = 0;
+    if (!sdm_all_go(0))
+        (void)sdm_pre_show(w, TSEL->eng_req, 0);     /* (no bank in this tree: an empty one) */
+}
+static void sdm_all_sync(void)                       /* the bank shown (a black key): its place in ALL */
+{
+    uint32_t i, b, k = 0;
+    char t[24];
+    int32_t bk = sdm_bank_shown();
+    for (i = 0; i < sdm_all.ne; i++) {
+        str_cpy(t, "/", sizeof t);
+        str_app(t, sdn_engine(eng_uid(sdm_all.e[i])), sizeof t);
+        str_app(t, "/", sizeof t);
+        for (b = 0; b < SDM_BANKS; b++)
+            if (sdm_all.m[i] >> b & 1u) {
+                if ((int32_t)b == bk && sdl_has(sdm.b.root, t))
+                    sdm_all.v = (uint16_t)k;
+                k++;
+            }
+    }
+}
+static uint32_t sdm_all_at(void) { return sdm_all.v; }
+static uint32_t sdm_all_total(void) { return sdm_all.n; }
 static int sdm_up(void)                              /* up a folder; 0 at the list's own folder */
 {
     uint32_t n = sdl_path(sdm.path, sizeof sdm.path, SDM_FOLDER[sdm.list % SDC_N], 0);
@@ -1525,6 +1639,31 @@ static const char *sdm_part_name(uint32_t k)            /* the card preset part 
     return k < NPART && sdm_pname[k][0] && sdm_pkey[k] == (uint16_t)sdm_pkey_of(&trk[k]) ? sdm_pname[k] : 0;
 }
 
+/* ---- the engines that play a card WAV (a part's CARD sample: eng_sample.c SMP_CARD, eng_slice.c SLC_SRC_CARD; GRAIN's and
+ * STRETCH's SRC has no CARD value: they play the card's sets only, section 7): into e, their count */
+static uint8_t sdm_use_eng = 0xFFu;                  /* the sampler a USE was picked for (op_sdcard.c), else the part's */
+static uint32_t sdm_samplers(uint8_t *e)
+{
+    uint32_t n = 0;
+#if FELUCCA_SD_STREAM
+    e[n++] = (uint8_t)ENG_SLOT_SAMPLE;
+#if FELUCCA_SLICE
+    e[n++] = (uint8_t)ENG_SLOT_SLICE;
+#endif
+#endif
+    (void)e;
+    return n;
+}
+static int sdm_part_samples(uint32_t part)           /* part k's engine plays a card WAV */
+{
+    uint8_t e[2];
+    uint32_t i, n = sdm_samplers(e);
+    for (i = 0; i < n; i++)
+        if (trk[part % NPART].eng_req == e[i])
+            return 1;
+    return 0;
+}
+static void sdm_use_with(uint32_t e) { sdm_use_eng = (uint8_t)e; }
 /* ---- the actions on slot k of the list shown */
 static void sdm_do(uint32_t op, uint32_t k)
 {
@@ -1634,19 +1773,20 @@ static void sdm_do(uint32_t op, uint32_t k)
 #endif
 #if FELUCCA_SD_STREAM
         sst_part_set(part, sdm_smp[part].hash);      /* (the part's CARD sample: placed by sd_stream_plan.c) */
-#if FELUCCA_SLICE
-        if (trk[part].eng_req == (uint8_t)ENG_SLOT_SLICE) {   /* a part on SLICE stays on it: its SRC on CARD (the
-                                                               * sample whole, sd_slice.c) */
-            trk[part].p[P_E0] = (int16_t)SLC_SRC_CARD;
-        } else
-#endif
-        {
-            if (trk[part].eng_req != (uint8_t)ENG_SLOT_SAMPLE) {   /* USE puts the part on SAMPLE (the user, 2026-10-26) */
-                set_engine_of(&trk[part], ENG_SLOT_SAMPLE);
-                if (trk[part].eng_req != (uint8_t)ENG_SLOT_SAMPLE)
+        {   /* the part's sampler, the one picked (op_sdcard.c sdc_use), else the first built: SAMPLE */
+            uint32_t e = sdm_use_eng < NENGINES ? sdm_use_eng : sdm_part_samples(part) ? trk[part].eng_req : (uint32_t)ENG_SLOT_SAMPLE;
+            sdm_use_eng = 0xFFu;
+            if (trk[part].eng_req != (uint8_t)e) {
+                set_engine_of(&trk[part], e);
+                if (trk[part].eng_req != (uint8_t)e)
                     return;                          /* (refused: memory short, the drop is proposed: model.c) */
             }
-            trk[part].p[P_E0] = (int16_t)SMP_CARD;   /* .. its SET on CARD (eng_sample.c) */
+#if FELUCCA_SLICE
+            if (e == (uint32_t)ENG_SLOT_SLICE)
+                trk[part].p[P_E0] = (int16_t)SLC_SRC_CARD;   /* (SLICE: its SRC on CARD, the sample whole: sd_slice.c) */
+            else
+#endif
+                trk[part].p[P_E0] = (int16_t)SMP_CARD;       /* (SAMPLE: its SET on CARD, eng_sample.c) */
         }
         snd_mark(part);
 #endif

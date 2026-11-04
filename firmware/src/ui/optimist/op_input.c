@@ -80,6 +80,10 @@ static int algo_has_track(void)
         return HEAD_TRK_LY[l % LY_COUNT];
     if (ui.scr == SCR_FX)
         return fx_by_walk;                              /* (MASTER reached by the walk: ALGORITHM right leaves it; opened by FX: no track) */
+#if FELUCCA_SD_UI
+    if (sdc_track_page())
+        return 1;                                       /* (a card's PRESETS, SAMPLES: op_sdcard.c) */
+#endif
     return ui.scr == SCR_HOME || ui.scr == SCR_SCOPE || HEAD_TRK_SCR[ui.scr % SCR_N];
 }
 /* both OCT together (tapped, let go): the track <-> MASTER toggle (op_walk.c oct_master_toggle). Where a track or MASTER is: not on
@@ -960,6 +964,10 @@ static int op_presets_turn(void)
     int32_t s = panel_enc(EN_PRESET);
     if (s == 0)
         return 0;
+#if FELUCCA_SD_UI
+    if (sdc_presets_turn(s))
+        return 1;                                       /* (a card's PRESETS: the engine filter) */
+#endif
     if (btn_held(B_OCTDN) || btn_held(B_OCTUP))
         op_clean &= ~(BIT(B_OCTDN) | BIT(B_OCTUP));     /* (a shift with PRESETS: no octave, no NO when let go) */
     if (sys_scr(ui.scr)) {                              /* GLOBAL, SYSTEM: PRESETS does nothing (the user, 2026-10-13): a knob k is
@@ -1135,6 +1143,13 @@ static void op_knobs(uint32_t shift)
                                                          * are read in op_songtbl.c) */
         else if (glo_cycle() && lay_now() == LY_PLAY && !page_owned())
             glo_walk(s);                                /* (GLOBAL, SYSTEM: the cursor a line a detent, no track here; a layer over them keeps the walk's rules) */
+#if FELUCCA_SD_UI
+        else if (ui.scr == SCR_PROJECT && lay_now() == LY_PLAY && algo_has_track()) {   /* (a card's PRESETS, SAMPLES: */
+            uint32_t p = walk_pos(0), q = walk_step(p, s, 0);                           /* T1 .. the lanes, no MASTER) */
+            if (q >= MXR_T1 && q != p)
+                walk_to(q, 0);
+        }
+#endif
         else
             algo_walk(s, 0);
         turned = 1;
@@ -1299,6 +1314,17 @@ static void ui_input(void)
             ly_lock = LY_STEP;                          /* (the keys reach the UI and play nothing: seq.c) */
         return;
     }
+#if FELUCCA_SD_UI
+    sdc_frame();
+    if (sdc_pick_on()) {                                /* a sample's sampler: the popup's knobs, YES, HOME (op_sdcard.c) */
+        sdc_pick_frame(pressed);
+        op_clean = 0;
+        op_held = held;
+        if (ly_lock != LY_STEP)
+            ly_lock = LY_STEP;
+        return;
+    }
+#endif
     if (ml_on()) {                                      /* the load's memory list: the keys pick, SAVE drops, HOME keeps */
         ml_frame(pressed);                              /* (op_memlist.c) */
         op_clean = 0;
