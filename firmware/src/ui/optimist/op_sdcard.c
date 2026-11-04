@@ -59,6 +59,7 @@ static uint32_t sdm_pvw_part(void);
 static int sdm_pvw_show(uint32_t k);
 static void sdm_pvw_end(void);
 static void sdm_pvw_keep(void);
+static void sdm_kit_tree(void);
 static void sdm_pv_play(uint32_t k);                    /* (the SAMPLES list's preview) */
 static void sdm_pv_stop(void);
 static int sdm_pv_busy(void);
@@ -98,6 +99,7 @@ static struct {
     uint32_t fmask;                                     /* the engines on the card (sdm_pre_mask), 0 not read */
     uint8_t loading;                                    /* the LOADING toast up (sdc_loading) */
     uint8_t pv, pv_ask, pv_k;                           /* SAMPLES: PREVIEW on (RAM only); K2 moved, the item to hear; the key heard */
+    uint8_t ptree;                                      /* PRESETS' tree + 1 when the drum track took the row (sdc_sync) */
     uint8_t pvp;                                        /* PRESETS: PREVIEW on (RAM only; pv_ask, pv_k: as SAMPLES') */
     uint32_t pv_at;                                     /* when K2 moved (fm1_ms): PRESETS, after SDC_PVP_SETTLE_MS */
     uint32_t ftree[2];                                  /* fmask by tree: Factory's, User's */
@@ -106,12 +108,17 @@ static const char *const SDV_NAME_S[2][4] = {{"FOLDER", "NAME", "RECENT", "SAVES
 static const char *const SDO_NAME_S[SDO_N] = {[SDO_LOAD] = "LOAD", [SDO_SAVE] = "SAVE", [SDO_DELETE] = "DELETE", [SDO_USE] = "USE", [SDO_NEW] = "NEW"};
 static const char *const SDC_WHAT[SDC_N] = {"PROJECT", "PRESET", "KIT", "SAMPLE"};
 
-/* the row's list: PROJECT only with a card ready, the card's rows always (they say NO SD CARD); SDC_N none */
+/* the row's list: PROJECT only with a card ready, the card's rows always (they say NO SD CARD); SDC_N none. The PRESETS row
+ * on the drum track's main is the kits' list (the user, 2026-11-05: "while on the drum track (main) the preset should be
+ * kits"), ALGO going there and back; a lane picked keeps the presets' list (its LOAD says DRUM TRACK: NO SOUND) */
+static int lane_picked(void);
 static uint32_t sdc_list_of(uint32_t kind)
 {
-    return kind == PR_PROJECT ? (sdm_ready() ? SDC_PROJ : SDC_N) : kind == PR_CPRE ? SDC_PRE : kind == PR_CKIT ? SDC_KIT
+    return kind == PR_PROJECT ? (sdm_ready() ? SDC_PROJ : SDC_N)
+           : kind == PR_CPRE ? (is_drum(TSEL) && !lane_picked() ? SDC_KIT : SDC_PRE) : kind == PR_CKIT ? SDC_KIT
            : kind == PR_CSMP ? SDC_SMP : SDC_N;
 }
+static int sdc_pre_row(void) { return ui.scr == SCR_PROJECT && prj_kind(ui.row[SCR_PROJECT]) == PR_CPRE; }   /* (PREVIEW, ALGO: that row's) */
 static uint32_t sdc_here(void) { return ui.scr == SCR_PROJECT ? sdc_list_of(prj_kind(ui.row[SCR_PROJECT])) : SDC_N; }
 static int sdc_listing(void) { return sdc_here() < SDC_N; }
 static uint32_t sdc_views(uint32_t l) { return l == SDC_SMP ? 3u : 2u; }   /* (PROJECTS: FOLDER = by name, then SAVES) */
@@ -139,7 +146,18 @@ static void sdc_sync(uint32_t l)
     }
     ready = (uint32_t)sdm_ready();
     if (sdc.stale || sdc.open != l || sdc.ready != ready) {
+        uint32_t was = sdc.open;
+        int32_t tree = was == SDC_PRE && l == SDC_KIT ? sdm_pre_tree() : -1;
+        if (tree >= 0)
+            sdc.ptree = (uint8_t)(tree + 1);            /* (T1-T3 again: the tree it was on) */
         (void)sdm_open(l, sdc.view[l], sdc.vname);
+        if (ready && was != l && l == SDC_KIT && sdc_pre_row() && sdc.view[l] == SDV_FOLDER)
+            sdm_kit_tree();
+        if (ready && was != l && l == SDC_PRE && sdc.ptree && sdc.view[l] == SDV_FOLDER && !is_drum(TSEL)) {
+            (void)sdm_pre_show(sdc.ptree - 1u, TSEL->eng_req % NENGINES, 0);
+            sdc.eng = TSEL->eng_req;
+            sdc.ptree = 0;
+        }
         sdc.open = (uint8_t)l;
         sdc.stale = 0;
         sdc.ready = (uint8_t)ready;
@@ -296,7 +314,7 @@ static void sdc_turn(uint32_t kind, uint32_t k, int32_t s)
         } else {
             sdc.item = (uint8_t)step_in(sdc.item, d, (int32_t)(sdm_count() ? sdm_count() : 1u));
         }
-        sdc.pv_ask = (l == SDC_SMP && sdc.pv) || (l == SDC_PRE && sdc.pvp);   /* (heard when the page is here: sdc_frame) */
+        sdc.pv_ask = (l == SDC_SMP && sdc.pv) || (sdc_pre_row() && sdc.pvp);   /* (heard when the page is here: sdc_frame) */
         sdc.pv_at = fm1_ms;
     } else {
         sdc_view_set(l, sdc_view_at(l, (uint32_t)step_in((int32_t)sdc_view_ix(l), d, (int32_t)sdc_views(l))));
@@ -402,6 +420,8 @@ static void pop_engines(uint32_t *list, uint32_t *n, uint32_t *at);
 static int sdc_presets_turn(int32_t s)
 {
     uint32_t l[34], n, at, w;
+    if (sdc_pre_row() && sdc_here() == SDC_KIT)
+        return 1;                                       /* (the drum track's kits: no filter, and never a kit stepped by a knob) */
     if (sdc_here() != SDC_PRE || !sdm_ready() || op_armed())
         return 0;
     if (sdc.view[SDC_PRE] != SDV_FOLDER) {              /* (NAME: the filter is FOLDER's; the knob never the track's own presets here) */
@@ -435,7 +455,7 @@ static int sdc_presets_turn(int32_t s)
     return 1;
 }
 /* a card's PRESETS or SAMPLES: a page with the track (ALGORITHM, the header) */
-static int sdc_track_page(void) { return (sdc_here() == SDC_PRE || sdc_here() == SDC_SMP) && sdm_ready(); }
+static int sdc_track_page(void) { return (sdc_pre_row() || sdc_here() == SDC_SMP) && sdm_ready(); }
 /* a page not here SDC_LOADING_MS after it was asked: the toast says so until it is (the user, 2026-11-05); until then the
  * old page stays, nothing shows on a read that makes it */
 #define SDC_LOADING_MS 200u
@@ -459,7 +479,7 @@ static void sdc_loading(void)
 static void sdc_pv_item(void)                           /* PREVIEW on, K2 moved: the item heard; a folder or an empty slot: silence */
 {
     sdc.pv_ask = 0;
-    if (sdc_here() == SDC_PRE) {
+    if (sdc_pre_row()) {
         if (sdc_used(sdc.item) && !sdc_is_dir(sdc.item)) {
             if (sdm_pvw_show(sdc.item))
                 sdc.pv_k = sdc.item;
@@ -480,9 +500,9 @@ static void sdc_frame(void)                             /* every UI frame: the f
     sdc_loading();
     if (sdc_here() != SDC_SMP && sdm_pv_busy())
         sdm_pv_stop();                                  /* (the page left: silence; PREVIEW stays on for the session) */
-    if (sdm_pvw_on() && (sdc_here() != SDC_PRE || song.sel != sdm_pvw_part()))
+    if (sdm_pvw_on() && (!sdc_pre_row() || song.sel != sdm_pvw_part() || lane_picked()))
         sdm_pvw_end();                                  /* (the page left, another track: the sound back, on its own track) */
-    if (sdc.pv_ask && !sdm_reading() && (sdc_here() == SDC_SMP || (sdc_here() == SDC_PRE && (uint32_t)(fm1_ms - sdc.pv_at) >= SDC_PVP_SETTLE_MS)))
+    if (sdc.pv_ask && !sdm_reading() && (sdc_here() == SDC_SMP || (sdc_pre_row() && (uint32_t)(fm1_ms - sdc.pv_at) >= SDC_PVP_SETTLE_MS)))
         sdc_pv_item();
     if (!sdm_reading() && sdc.item >= sdm_count() && sdm_count())
         sdc.item = (uint8_t)(sdm_count() - 1u);         /* (a shorter last page, come) */
@@ -499,7 +519,7 @@ static void sdc_name_for(uint32_t l, uint32_t k)        /* NAME, prefilled: the 
 {
     char nm[SDC_NAME];
     nm[0] = 0;
-    if (l == SDC_PRE && is_drum(TSEL)) {
+    if (l == SDC_PRE && is_drum(TSEL)) {                /* (a lane picked: the main's list is the kits') */
         ui_message("DRUM TRACK: NO SOUND");             /* (a preset is a synth part's sound: said before NAME) */
         return;
     }
@@ -585,7 +605,7 @@ static int sdc_yes(uint32_t r, uint32_t kind, uint32_t ok)
     sdc_sync(l);
     sdm_wait();
     if (sdm_pvw_on()) {                                 /* a preset on trial: YES keeps it, as LOAD; any other action on the real sound */
-        if (l == SDC_PRE && sdc_op_at(l, sdc.op) == SDO_LOAD && sdc.pv_k == sdc.item && !sdc.pv_ask) {
+        if (sdc_pre_row() && sdc_op_at(l, sdc.op) == SDO_LOAD && sdc.pv_k == sdc.item && !sdc.pv_ask) {
             sdm_pvw_keep();
             ui.redraw = 1;
             return 1;
@@ -644,7 +664,7 @@ static void sdc_key(uint32_t kind, int32_t w)
         return;                                         /* (the page it would pick is not here yet) */
     sdc_sync(l);
     sdm_wait();
-    if (l == SDC_PRE && sdc.pvp && sdc_op_at(l, sdc.op) == SDO_LOAD && (uint32_t)w < sdm_count() && sdc_used((uint32_t)w) && !sdc_is_dir((uint32_t)w)) {
+    if (sdc_pre_row() && sdc.pvp && sdc_op_at(l, sdc.op) == SDO_LOAD && (uint32_t)w < sdm_count() && sdc_used((uint32_t)w) && !sdc_is_dir((uint32_t)w)) {
         sdc.item = (uint8_t)w;                          /* PREVIEW on: a key puts it on the track, again takes it off */
         sdc.pv_ask = 0;
         ui.hot = 1;
@@ -738,7 +758,7 @@ static void sdc_bank_key(uint32_t kind, uint32_t b)
         sdc_smp_key(b);
         return;
     }
-    if (l == SDC_PRE && b == SDC_PV_KEY) {              /* PRESETS: the top F# PREVIEW (ten banks on the keys, K1 and OCT reach the rest) */
+    if (sdc_pre_row() && b == SDC_PV_KEY) {              /* PRESETS: the top F# PREVIEW (ten banks on the keys, K1 and OCT reach the rest) */
         sdc.pvp = !sdc.pvp;
         if (!sdc.pvp)
             sdm_pvw_end();
@@ -756,8 +776,8 @@ static uint32_t sdc_bank_lit(void)                      /* the black key of the 
 {
     static const uint8_t B[5] = {1, 3, 5, 8, 10};       /* F# G# A# C# D# from F (punch_key's white keys between) */
     int32_t bk = sdc.open == SDC_SMP ? (sdm_page() < SDC_PV_KEY ? (int32_t)sdm_page() : -1) : sdm_bank_shown();
-    uint32_t m = bk >= 0 && bk < (sdc.open == SDC_PRE ? (int32_t)SDC_PV_KEY : 11) ? 1u << ((uint32_t)bk / 5u * 12u + B[bk % 5]) : 0u;
-    return (sdc.open == SDC_SMP && sdc.pv) || (sdc.open == SDC_PRE && sdc.pvp) ? m | 1u << (SDC_PV_KEY / 5u * 12u + B[0]) : m;
+    uint32_t m = bk >= 0 && bk < (sdc_pre_row() ? (int32_t)SDC_PV_KEY : 11) ? 1u << ((uint32_t)bk / 5u * 12u + B[bk % 5]) : 0u;
+    return (sdc.open == SDC_SMP && sdc.pv) || (sdc_pre_row() && sdc.pvp) ? m | 1u << (SDC_PV_KEY / 5u * 12u + B[0]) : m;
 }
 static void sdc_bank_tap(uint32_t up)
 {
