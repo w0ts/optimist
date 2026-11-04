@@ -89,11 +89,12 @@ static struct {
     sdw_t walk;
 } sdx IN_POOL;
 
-enum { SDXP_OFF = 0, SDXP_START, SDXP_COUNT, SDXP_OLD, SDXP_TMP, SDXP_NEW, SDXP_WALK, SDXP_SCAN, SDXP_HASH, SDXP_PUT, SDXP_END,
+enum { SDXP_OFF = 0, SDXP_START, SDXP_COUNT, SDXP_OLD, SDXP_TMP, SDXP_ROOM, SDXP_NEW, SDXP_WALK, SDXP_SCAN, SDXP_HASH, SDXP_PUT, SDXP_END,
        SDXP_UNLINK, SDXP_MOVE, SDXP_SIG };
 static struct {
     uint8_t st, root, old_open, new_open, smp_open, redo;
     uint32_t n, k, cap, oldn, cursor, scan, used, left;
+    uint32_t room_at, room_left, room_cl, room_n;    /* SDXP_ROOM: the FAT's sector, those left, the free run's start, its clusters */
     sdh_t hs;
     sdx_rec rec;                                     /* (the pass's: sdx.rec and sdx.f are the lookups', between slices) */
     FIL nf;                                          /* index.tmp */
@@ -462,7 +463,54 @@ static void sdx_u_tmp(void)                          /* the last pass's leftover
         (void)f_unlink_entry(SDX_TMP);               /* (a cut rename's other half: the index's own clusters) */
     else
         (void)f_unlink(SDX_TMP);                     /* (a cut pass's) */
-    sdxp.st = SDXP_NEW;
+    sdxp.st = SDXP_ROOM;
+    sdxp.room_left = 0;
+}
+
+/* The room for index.tmp, a sector of the FAT a unit. FatFs looks for a file's run from the volume's next-free hint, in one call,
+ * and a computer may leave that hint at the card's start (macOS's newfs_msdos and its writes: 3 on the test's 8 GB card, 3 GB
+ * used in 4 KB clusters: f_expand read 6,026 FAT sectors, 6.1 s in one main loop pass, the audio's starvation check fired; the
+ * user, 2026-11-05: "CPU1 is on OVERLOAD" at 23 %). So the first run long enough is found here, and the hint set to it: index.tmp
+ * and everything allocated after it start there. FAT32 only: FAT16's table is small */
+static FRESULT sdx_u_room(uint8_t *buf)
+{
+    static FATFS *fs;
+    uint32_t i, cl, c0;
+    if (!sdxp.room_left) {
+        DIR d;
+        FRESULT r = f_opendir(&d, "");
+        if (r != FR_OK)
+            return r;
+        fs = d.obj.fs;
+        (void)f_closedir(&d);
+        if (fs->fs_type != FS_FAT32) {
+            sdxp.st = SDXP_NEW;
+            return FR_OK;
+        }
+        c0 = (uint32_t)fs->last_clst >= 2u && (uint32_t)fs->last_clst < (uint32_t)fs->n_fatent ? (uint32_t)fs->last_clst : 2u;
+        sdxp.room_at = c0 / 128u;
+        sdxp.room_left = (uint32_t)fs->fsize;
+        sdxp.room_n = 0;
+    }
+    if (disk_read(fs->pdrv, buf, fs->fatbase + sdxp.room_at, 1) != RES_OK)
+        return FR_DISK_ERR;
+    for (i = 0; i < 128u; i++) {
+        cl = sdxp.room_at * 128u + i;
+        if (cl < 2u || cl >= (uint32_t)fs->n_fatent || (sdh_le32(buf + i * 4u) & 0x0FFFFFFFu)) {
+            sdxp.room_n = 0;
+            continue;
+        }
+        if (!sdxp.room_n++)
+            sdxp.room_cl = cl;
+        if (sdxp.room_n * fs->csize * 512u >= (sdxp.n + 1u) * SDX_REC) {
+            fs->last_clst = sdxp.room_cl;
+            sdxp.st = SDXP_NEW;
+            return FR_OK;
+        }
+    }
+    sdxp.room_at = sdxp.room_at + 1u < (uint32_t)fs->fsize ? sdxp.room_at + 1u : 0u;
+    sdxp.room_n = sdxp.room_at ? sdxp.room_n : 0u;   /* (the table's end: a run does not wrap) */
+    return --sdxp.room_left ? FR_OK : FR_DENIED;     /* (no run that long: as f_expand says it) */
 }
 
 static FRESULT sdx_u_new(void)                       /* the new index's run, the walk again */
@@ -621,6 +669,8 @@ static FRESULT sdx_unit(uint8_t *buf, uint32_t bufn)
     case SDXP_TMP:
         sdx_u_tmp();
         return FR_OK;
+    case SDXP_ROOM:
+        return sdx_u_room(buf);
     case SDXP_NEW:
         return sdx_u_new();
     case SDXP_WALK:

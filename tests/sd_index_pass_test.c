@@ -11,6 +11,8 @@
  *   - a card pulled mid-pass: cancelled, index.bin as it was, the next pass whole;
  *   - a file the FM-1 writes mid-pass: the pass again, the record right;
  *   - a mount of an unchanged card walks nothing; a file added walks; forced walks; FAT16 (no FSINFO) always walks.
+ *   - a card a computer filled, its next-free hint left at the volume's start (macOS): the FAT read a sector a unit, index.tmp's
+ *     creation a single call of its own again, and the hint past what is used.
  *   sd_index_pass_test FAT16.img FAT32.img */
 #define FELUCCA_SD_FATFS 1
 #include "sd_card_model.h"
@@ -381,6 +383,31 @@ static void remount(const char *what, int fsinfo)
           (unsigned)sdx.hashed);
 }
 
+/* a card used from its start, the hint at its start: FatFs's f_expand alone would read the whole used FAT in one call */
+static void low_hint(const char *what, uint8_t *img, uint8_t *snap, uint32_t bytes)
+{
+    static uint8_t mb[4096];
+    slices_t s;
+    FIL f;
+    UINT k;
+    uint32_t i;
+    double scale = 1000.0 / 840.0;
+    memcpy(snap, img, bytes);
+    CHECK(f_open(&f, "fill.bin", FA_CREATE_ALWAYS | FA_WRITE) == FR_OK, "%s: a big file", what);
+    for (i = 0; i < 20u * 256u; i++)
+        CHECK(f_write(&f, mb, sizeof mb, &k) == FR_OK && k == sizeof mb, "%s: its bytes", what);
+    CHECK(f_close(&f) == FR_OK, "%s: closed", what);
+    fs.last_clst = 2u;                               /* (what the computer's FSINFO says) */
+    CHECK(sdx_pass_begin(1) == 1 && by_slices(&s) == FR_OK, "%s: a pass, the hint low", what);
+    printf("sd_index_pass_test: %s: a low hint, 20 MB used: the longest slice %.1f ms, the file operations' %.1f ms at 840 KB/s\n",
+           what, s.max_us * scale / 1000.0, s.file_us * scale / 1000.0);
+    CHECK(s.max_us * scale <= 22000.0, "%s: no slice over ~20 ms with the hint low (%.1f ms)", what, s.max_us * scale / 1000.0);
+    CHECK(s.file_us * scale <= 20000.0, "%s: index.tmp's creation under 20 ms with the hint low (%.1f ms; the FAT in one call: 30)", what,
+          s.file_us * scale / 1000.0);
+    memcpy(img, snap, bytes);
+    CHECK(mount() == FR_OK, "%s: mounted again", what);
+}
+
 static void measure(const char *what, uint8_t *img, uint8_t *snap, uint32_t bytes)
 {
     slices_t s;
@@ -420,6 +447,8 @@ static void card_run(const char *what, uint8_t *img, uint32_t sectors, uint32_t 
     meanwhile(what);
     pulled(what);
     remount(what, fsinfo);
+    if (fs.fs_type == FS_FAT32)
+        low_hint(what, img, snap, bytes);
     measure(what, img, snap, bytes);
     free(snap);
 }
