@@ -6,6 +6,7 @@
 
 static uint8_t dev_uid[16];                    /* the flash part's factory unique ID, once read */
 static uint8_t dev_uid_ok;
+#define DEVNAME_UID 1                          /* (sd_mode.c: a user preset's id carries the ID's hash) */
 
 #if FELUCCA_FLASH
 /* the ID, with the interrupts off like fl_jedec_ram's read beside it (the far code of hal/fm1_flash.h; FL_UID) */

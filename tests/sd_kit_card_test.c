@@ -169,7 +169,7 @@ static void play(int32_t (*o)[HIT], uint32_t k, int whole, int32_t drop_kit, int
         sst_dry = sst_nostream = 0;
         memset(&dl, 0, sizeof dl);
         memset(dsend, 0, sizeof dsend);
-        if (ukit_card_give(kit_rec + 16u, UK_CARD_N))
+        if (ukit_card_give(kit_rec + 24u, UK_CARD_N))
             _exit(3);
         if (k != 0xFFu) {
             TDRUM->p[P_E0] = (int16_t)k;
@@ -233,9 +233,9 @@ int main(int argc, char **argv)
     got = f ? fread(kit_rec, 1, sizeof kit_rec, f) : 0;
     if (f)
         fclose(f);
-    CHECK(got == 16u + UK_CARD_N && !memcmp(kit_rec, "OPKT", 4), "%s: a kit file (%zu B)", kp, got);
+    CHECK(got == 24u + UK_CARD_N && !memcmp(kit_rec, "OPKT", 4), "%s: a kit file (%zu B)", kp, got);
     memset(&dl, 0, sizeof dl);
-    CHECK(!ukit_card_give(kit_rec + 16u, UK_CARD_N) && drum_kit() == 0u, "ACOUSTIC loaded from its file (kit %u)",
+    CHECK(!ukit_card_give(kit_rec + 24u, UK_CARD_N) && drum_kit() == 0u, "ACOUSTIC loaded from its file (kit %u)",
           drum_kit());
     for (l = 0; l < DRUM_LANES; l++)
         nlane_snd |= 1u << KC_MAP[kc_of(LANE_NOTE_OF(l))][3];

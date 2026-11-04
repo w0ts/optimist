@@ -384,12 +384,20 @@ static void sdcard_tests(void)
     sdu_name("PAD");
     snprintf(nm2, sizeof nm2, "Optimist/Presets/User/%s/A/06 - pad.ops", sdn_engine(eng_uid(trk[0].eng_req)));
     check(!name_on() && sdu_has(nm2), "SAVE on slot 6 (free): the slot's number, 06 - pad.ops");
-    sdu_op(SDO_SAVE);
-    sdu_key(1);
-    tap(B_SAVE);
-    sdu_name("BASS");
     snprintf(nm2, sizeof nm2, "Optimist/Presets/User/%s/A/02 - bass.ops", sdn_engine(eng_uid(trk[0].eng_req)));
-    check(!name_on() && sdu_has(nm2) && sdu_used() == 3u, "SAVE over BASS by its name: its own file again, no new one");
+    {
+        uint64_t bass_id = sdm_small_id(nm2);
+        char pad[160];
+        snprintf(pad, sizeof pad, "Optimist/Presets/User/%s/A/06 - pad.ops", sdn_engine(eng_uid(trk[0].eng_req)));
+        check((bass_id & SDI_USER) && sdm_small_id(pad) && sdm_small_id(pad) != bass_id,
+              "ids: each preset saved its own user id (BASS's, PAD's: a save as another name, a new one)");
+        sdu_op(SDO_SAVE);
+        sdu_key(1);
+        tap(B_SAVE);
+        sdu_name("BASS");
+        check(!name_on() && sdu_has(nm2) && sdu_used() == 3u, "SAVE over BASS by its name: its own file again, no new one");
+        check(sdm_small_id(nm2) == bass_id, "ids: saved over by its name, BASS keeps its id");
+    }
     sdu_op(SDO_SAVE);
     sdu_key(3);
     sdu_name("BAD/NAME");
@@ -433,7 +441,8 @@ static void sdcard_tests(void)
         (void)ukit_card_take(kit);
         dl.ofs[1][0] = 0;
         f_mkdir("Optimist/Kits/Factory/A");
-        check(sdm_small_put("Optimist/Kits/Factory/A/07 - 909 (renamed, 808).opk", "OPKT", kit, sizeof kit) == FR_OK,
+        check(sdm_small_put_id("Optimist/Kits/Factory/A/07 - 909 (renamed, 808).opk", "OPKT", kit, sizeof kit,
+                               sdi_factory_kit(6)) == FR_OK,
               "KITS: a factory kit file, renamed on a computer (its instruments' part not what its lanes are)");
         for (i = 0; i < 3u && !sdm_at_top(); i++) {
             tap(B_HOME);                                /* (up from Kits/User/A to Kits/) */
@@ -457,6 +466,60 @@ static void sdcard_tests(void)
         sdu_frames(1);
         check(TDRUM->p[P_E0] == 6 && dl.ofs[1][0] == 5 && sdu_msg("LOADED 909"), "LOAD 909: the kit and its lanes");
         dl.ofs[1][0] = 0;
+    }
+    {   /* ids (the user, 2026-11-04): the project's preset (BASS, a user id) and kit (909, its factory id) found again when
+         * moved to another bank, renamed, moved between Factory and User; a copied file: the first found, said; gone:
+         * MISSING */
+        char from[160], to[160], dir[120];
+        const char *eng = sdn_engine(eng_uid(trk[song.sel].eng_req));
+        uint64_t lid = sdm_ref[song.sel].id, kid = sdm_ref[NPART].id;
+        static uint8_t cp[600];
+        FIL a, b;
+        UINT k1, k2;
+#ifdef DEVNAME_UID
+        check(dev_uid_ok == 0u || (lid >> 32 & 0x7FFFFFFFu) != 0u, "ids: a user id carries the FM-1's flash ID's hash");
+#endif
+        check((lid & SDI_USER) && strstr(sdm_ref[song.sel].hint, "/A/02 - bass.ops") &&
+                  kid == sdi_factory_kit(6) && strstr(sdm_ref[NPART].hint, "Kits/Factory/A/07 - 909"),
+              "ids: the part's preset BASS (saved last: a user id) and the kit 909 (its factory id) kept with their "
+              "paths");
+        snprintf(from, sizeof from, "Optimist/%s", sdm_ref[song.sel].hint);
+        snprintf(dir, sizeof dir, "Optimist/Presets/User/%s/C", eng);
+        f_mkdir(dir);
+        snprintf(to, sizeof to, "%s/09 - renamed bass.ops", dir);
+        f_mkdir("Optimist/Kits/User/C");
+        check(f_rename(from, to) == FR_OK && f_rename("Optimist/Kits/Factory/A/07 - 909 (renamed, 808).opk",
+                                                      "Optimist/Kits/User/C/05 - my 909 (909).opk") == FR_OK,
+              "ids: BASS moved to bank C and renamed, 909 moved from Factory to User and renamed (a computer's moves)");
+        check(sdx_update(sd_blk, sizeof sd_blk, 0, 0) == FR_OK, "ids: the index's pass (a mount's)");
+        ui.msg[0] = 0;
+        sdm_ref_check = 1;
+        sdm_poll();
+        check(strstr(sdm_ref[song.sel].hint, "/C/09 - renamed bass.ops") && sdm_ref[song.sel].id == lid &&
+                  !strcmp(sdm_ref[NPART].hint, "Kits/User/C/05 - my 909 (909).opk") && !sdu_msg("MISSING"),
+              "ids: both found by their ids, the project's paths updated");
+        snprintf(from, sizeof from, "Optimist/Presets/User/%s/D", eng);
+        f_mkdir(from);
+        str_app(from, "/01 - copy of bass.ops", sizeof from);
+        check(f_open(&a, to, FA_READ) == FR_OK && f_read(&a, cp, sizeof cp, &k1) == FR_OK && f_close(&a) == FR_OK &&
+                  f_open(&b, from, FA_CREATE_ALWAYS | FA_WRITE) == FR_OK && f_write(&b, cp, k1, &k2) == FR_OK &&
+                  k2 == k1 && f_close(&b) == FR_OK, "ids: BASS copied on a computer (the same id twice)");
+        str_cpy(sdm_ref[song.sel].hint, "Presets/gone.ops", sizeof sdm_ref[song.sel].hint);
+        sdx_update(sd_blk, sizeof sd_blk, 0, 0);
+        ui.msg[0] = 0;
+        sdm_ref_check = 1;
+        sdm_poll();
+        check(sdm_ref[song.sel].hint[0] && (strstr(sdm_ref[song.sel].hint, "renamed bass") ||
+                                            strstr(sdm_ref[song.sel].hint, "copy of bass")) && sdu_msg("SAME ID TWICE"),
+              "ids: a copied file: the first found, SAME ID TWICE said");
+        f_unlink(to);
+        f_unlink(from);
+        sdx_update(sd_blk, sizeof sd_blk, 0, 0);
+        ui.msg[0] = 0;
+        sdm_ref_check = 1;
+        sdm_poll();
+        check(sdu_msg("PRESET MISSING"), "ids: BASS gone from the card: PRESET MISSING (the part's, P1..P3)");
+        memset(&sdm_ref[song.sel], 0, sizeof sdm_ref[song.sel]);
     }
 #endif
     /* ---- SAMPLES: folders, USE by hash, RECENT */

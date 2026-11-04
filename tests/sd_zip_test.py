@@ -3,15 +3,18 @@
 capitalised, files lowercase; presets and projects in banks of 16): every sample set's zones under
 Optimist/Samples/<Set>/z<k>.wav (the generator's bytes), every sample source of the repo on the card at its own rate
 and length (tools/sd_samples.py: the sets, the sampled kits' sounds, the X0X 909's, the hip-hop pack; 16-bit mono;
-the 909's and the pack's samples the sources' own, sample for sample), every factory preset of every engine under
+the 909's and the pack's samples the sources' own, sample for sample), the factory ids (a pure function of each sound:
+sd_ids.h, recomputed here by a second XXH64; a second build elsewhere gives the same), every factory preset of every engine under
 Optimist/Presets/Factory/<Engine>/<L>/<nn> - <name>.ops (16 a bank, in the table's order), the engines' folder names
 the firmware's own table (firmware/src/storage/sd/sd_names.h) and that table the rule (capitalised; a digit or a known
 acronym upper case), the cache (a second make copies the first's bytes).
   python3 tests/sd_zip_test.py OUTDIR"""
 import importlib
 import json
+import os
 import pathlib
 import struct
+import subprocess
 import re
 import shutil
 import sys
@@ -105,8 +108,103 @@ def check_sources(f, names):
     check(f"the hip-hop pack: every zone ({n}) at 22.05 kHz, the source's samples", ok and n > 20)
 
 
+M64 = (1 << 64) - 1
+P1, P2, P3, P4, P5 = (0x9E3779B185EBCA87, 0xC2B2AE3D27D4EB4F, 0x165667B19E3779F9, 0x85EBCA77C2B2AE63,
+                      0x27D4EB2F165667C5)
+
+
+def xxh64(data, seed=0):
+    """XXH64 (xxhash.com doc/xxhash_spec.md), written here again from the specification: the firmware's sd_hash.c is
+    not used, so the ids are checked by a second hand"""
+    def rotl(x, r):
+        return ((x << r) | (x >> (64 - r))) & M64
+
+    def rnd(acc, lane):
+        return (rotl((acc + lane * P2) & M64, 31) * P1) & M64
+
+    def merge(h, v):
+        return ((h ^ rnd(0, v)) * P1 + P4) & M64
+    n, i = len(data), 0
+    if n >= 32:
+        v = [(seed + P1 + P2) & M64, (seed + P2) & M64, seed, (seed - P1) & M64]
+        while i + 32 <= n:
+            for k in range(4):
+                v[k] = rnd(v[k], int.from_bytes(data[i + 8 * k:i + 8 * k + 8], "little"))
+            i += 32
+        h = (rotl(v[0], 1) + rotl(v[1], 7) + rotl(v[2], 12) + rotl(v[3], 18)) & M64
+        for k in range(4):
+            h = merge(h, v[k])
+    else:
+        h = (seed + P5) & M64
+    h = (h + n) & M64
+    while i + 8 <= n:
+        h = (rotl(h ^ rnd(0, int.from_bytes(data[i:i + 8], "little")), 27) * P1 + P4) & M64
+        i += 8
+    if i + 4 <= n:
+        h = (rotl(h ^ (int.from_bytes(data[i:i + 4], "little") * P1 & M64), 23) * P2 + P3) & M64
+        i += 4
+    while i < n:
+        h = (rotl(h ^ (data[i] * P5 & M64), 11) * P1) & M64
+        i += 1
+    h ^= h >> 33
+    h = (h * P2) & M64
+    h ^= h >> 29
+    h = (h * P3) & M64
+    return h ^ (h >> 32)
+
+
+def factory_id(kind, uid, name=b"", nth=1):
+    """sd_ids.h sdi_mix: XXH64("OPID", kind, uid LE32, name[, "#" nth LE32]) with bit 63 clear"""
+    d = b"OPID" + kind + uid.to_bytes(4, "little") + name + (b"#" + nth.to_bytes(4, "little") if nth > 1 else b"")
+    return xxh64(d) & ~(1 << 63)
+
+
+def file_ids(zpath):
+    """-> {path: (header version, id, payload)} of a zip's .ops / .opk files"""
+    out = {}
+    with zipfile.ZipFile(zpath) as f:
+        for n in f.namelist():
+            if n.endswith((".ops", ".opk")):
+                b = f.read(n)
+                out[n] = (struct.unpack("<H", b[4:6])[0], struct.unpack("<Q", b[16:24])[0], b[24:])
+    return out
+
+
+def check_ids(z, out):
+    """the factory ids: a pure function of each sound (sd_ids.h), the same in every build"""
+    ids = file_ids(z)
+    vals = [i for _, i, _ in ids.values()]
+    check(f"every factory preset and kit file carries an id (header version 2), none twice ({len(ids)} files)",
+          ids and all(v == 2 for v, _, _ in ids.values()) and all(vals) and len(set(vals)) == len(vals) and
+          not any(i >> 63 for i in vals))
+    ok, seen = True, {}
+    for n in sorted(ids):
+        _, i, pay = ids[n]
+        m = re.match(r"Optimist/Kits/Factory/([A-Z])/(\d\d) - ", n)
+        if m:
+            ok = ok and i == factory_id(b"K", (ord(m.group(1)) - 65) * 16 + int(m.group(2)) - 1)
+            continue
+        eng = n.split("/")[3]
+        name = pay[5:17].split(b"\0")[0]
+        nth = seen.setdefault(eng, []).count(name) + 1
+        seen[eng].append(name)
+        ok = ok and i == factory_id(b"P", pay[2], name, nth)
+    check("each id what identifies the sound and nothing else: a preset's engine UID and name (its nth of that name), "
+          "a kit's UID; never its bank slot, a device, a time, a path (recomputed here by a second XXH64)", ok)
+    # a second build elsewhere: another working folder, another OPTIMIST_BUILD_DIR, no cache
+    other = out / "other-build"
+    other.mkdir(exist_ok=True)
+    env = dict(os.environ, OPTIMIST_BUILD_DIR=str(other / "b"))
+    z2 = other / "again.zip"
+    code = f"import sys; sys.path.insert(0, {str(ROOT / 'tools')!r}); import sd_zip; sd_zip.generate(sys.argv[1])"
+    subprocess.run([sys.executable, "-c", code, str(z2)], cwd=other, env=env, check=True, capture_output=True)
+    ids2 = file_ids(z2)
+    check("a second zip built in another folder with another build dir: every file's id byte-identical",
+          {n: i for n, (_, i, _) in ids.items()} == {n: i for n, (_, i, _) in ids2.items()})
+
+
 def main(out):
-    out = pathlib.Path(out)
+    out = pathlib.Path(out).resolve()
     out.mkdir(parents=True, exist_ok=True)
     sd_zip.CACHE = out / "cache"                        # (the test's own cache, emptied: a fresh zip first)
     shutil.rmtree(sd_zip.CACHE, ignore_errors=True)
@@ -184,6 +282,7 @@ def main(out):
         check("each a card preset file (\"OPPR\")", heads and all(h == b"OPPR" for h in heads))
         readme = f.read("Optimist/readme.txt").decode()
         check("the readme names the sets and the banks", "Piano" in readme and "16 a bank" in readme)
+    check_ids(z, out)
     reg = set(re.findall(r"X\(\d+, ([A-Z0-9_]+),", (ROOT / "firmware" / "src" / "core" / "registry.h").read_text()))
     check("sd_names.h names every engine of registry.h ENGINE_LIST", reg <= set(table))
     bad = {k: v for k, v in table.items() if v != rule(k)}

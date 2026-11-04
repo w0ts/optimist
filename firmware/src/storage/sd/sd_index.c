@@ -26,7 +26,15 @@
  *   sdx_read(no, &rec)            record no
  *   sdx_touch(no)                 record no used now (sdx.seq + 1): the recent view's order
  *   sdx_note_written(path, buf, bufn)   the FM-1 wrote that sample: hashed again now, its record updated or added
- *                                 (FR_DENIED: no room left in the index's run: the next sdx_update makes some) */
+ *                                 (FR_DENIED: no room left in the index's run: the next sdx_update makes some)
+ * The presets and kits too (the user, 2026-11-04: "like samples, kits and presets should have a unique id so that if
+ * they are moved a project finds them back"): every .ops under Presets/ and .opk under Kits/ is a record of the same
+ * index, its hash the id in the file's header (sd_ids.h; sd_mode.c sdm_fh), flagged SDX_F_ID: the same pass, the same
+ * kept-when-unchanged rule.
+ *   sdx_find_id(id, &rec, &dups)  the first record (the walk's order) with that id, -1 none; dups: the others with it (a
+ *                                 copied file: the first found wins, sd_mode.c says so)
+ * sdx_find_hash finds samples only, sdx_find_id presets and kits only; the recent view lists used records (a preset's
+ * never is). */
 #define SDX_REC 256u
 #define SDX_PATH 224u
 typedef struct {
@@ -51,6 +59,9 @@ typedef struct {
 #define SDX_FILE SDL_ROOT "/System/index.bin"
 #define SDX_TMP SDL_ROOT "/System/index.tmp"
 #define SDX_ROOT SDL_ROOT "/Samples"
+#define SDX_F_ID 1u                                  /* (flags: a preset's or kit's record, its hash the file's id) */
+static const char *const SDX_ROOTS[3] = {SDX_ROOT, SDL_ROOT "/Presets", SDL_ROOT "/Kits"};
+#define SDX_NROOT 3u
 #define SDX_SKIP (sizeof SDL_ROOT)                   /* "Optimist/": a walked path's record path */
 
 static struct {
@@ -170,7 +181,7 @@ static int32_t sdx_find(const char *path, uint64_t hash, int by_path, sdx_rec *r
     for (i = 0; i < sdx.count && at < 0; i++) {
         if (sdx_read_in(&sdx.f, i, rec) != FR_OK)
             break;
-        if (by_path ? !sdl_cmp(rec->path, path) : rec->path[0] && rec->hash == hash)
+        if (by_path ? !sdl_cmp(rec->path, path) : rec->path[0] && rec->hash == hash && !(rec->flags & SDX_F_ID))
             at = (int32_t)i;
     }
     (void)f_close(&sdx.f);
@@ -178,6 +189,39 @@ static int32_t sdx_find(const char *path, uint64_t hash, int by_path, sdx_rec *r
 }
 static int32_t sdx_find_hash(uint64_t hash, sdx_rec *rec) { return sdx_find(0, hash, 0, rec); }
 static int32_t sdx_find_path(const char *path, sdx_rec *rec) { return sdx_find(path, 0, 1, rec); }
+static int32_t sdx_find_id(uint64_t id, sdx_rec *rec, uint32_t *dups)
+{
+    static sdx_rec other;
+    uint32_t i;
+    int32_t at = -1;
+    *dups = 0;
+    if (!id || sdx_open_file(&sdx.f, FA_READ) != FR_OK)
+        return -1;
+    for (i = 0; i < sdx.count; i++) {
+        sdx_rec *r = at < 0 ? rec : &other;
+        if (sdx_read_in(&sdx.f, i, r) != FR_OK)
+            break;
+        if (!r->path[0] || !(r->flags & SDX_F_ID) || r->hash != id)
+            continue;
+        if (at < 0)
+            at = (int32_t)i;
+        else
+            (*dups)++;
+    }
+    (void)f_close(&sdx.f);
+    return at;
+}
+
+/* a walked file the index holds: a sample under Samples/, a .ops under Presets/, a .opk under Kits/ (path from
+ * Optimist/) */
+static int sdx_wanted(const char *rel)
+{
+    if (!sdl_ncmp(rel, "Samples/", 8))
+        return 1;
+    if (!sdl_ncmp(rel, "Presets/", 8))
+        return sdl_ends(rel, ".ops") != 0;
+    return !sdl_ncmp(rel, "Kits/", 5) && sdl_ends(rel, ".opk") != 0;
+}
 
 static FRESULT sdx_put(uint32_t no, sdx_rec *rec, uint32_t count, uint32_t seq)   /* a record and the header */
 {
@@ -210,8 +254,15 @@ static FRESULT sdx_hash_into(sdx_rec *rec, const char *path, const FILINFO *fi, 
                              uint32_t bufn)
 {
     FRESULT r = f_open(&sdx.smp, path, FA_READ);
+    UINT k = 0;
     memset(rec, 0, sizeof *rec);
-    if (r == FR_OK) {
+    if (r == FR_OK && sdl_ncmp(path + SDX_SKIP, "Samples/", 8)) {   /* a preset or kit: the id in its header */
+        rec->flags = SDX_F_ID;
+        r = f_read(&sdx.smp, buf, 24, &k);           /* (sd_mode.c sdm_fh: magic, ver 2, len, hash, id) */
+        if (r == FR_OK && k == 24u && buf[4] == 2u && buf[5] == 0u)
+            memcpy(&rec->hash, buf + 16, 8);
+        (void)f_close(&sdx.smp);
+    } else if (r == FR_OK) {
         r = sdh_file(&sdx.smp, buf, bufn, &rec->hash, &rec->hlen);
         (void)f_close(&sdx.smp);
     }
@@ -229,8 +280,8 @@ static FRESULT sdx_note_written(const char *path, uint8_t *buf, uint32_t bufn)  
     int32_t no;
     uint32_t used = 0;
     FRESULT r;
-    if (sdl_ncmp(path, SDX_ROOT "/", sizeof SDX_ROOT) || sdl_len(path + SDX_SKIP) >= SDX_PATH)
-        return FR_INVALID_NAME;                      /* (a sample is under Samples/, its path short enough) */
+    if (sdl_ncmp(path, SDL_ROOT "/", SDX_SKIP) || !sdx_wanted(path + SDX_SKIP) || sdl_len(path + SDX_SKIP) >= SDX_PATH)
+        return FR_INVALID_NAME;                      /* (a sample, a preset or a kit, its path short enough) */
     if ((r = f_stat(path, &fi)) != FR_OK || ((r = sdx_open()) != FR_OK))
         return r;
     no = sdx_find_path(path + SDX_SKIP, &sdx.rec);
@@ -251,13 +302,19 @@ static FRESULT sdx_update(uint8_t *buf, uint32_t bufn, uint32_t *work, uint32_t 
     int32_t at;
     int st, have_old = 0;
     FRESULT r;
+    uint32_t root;
     sdx.files = sdx.hashed = sdx.kept = 0;
-    if ((r = sdw_open(&sdx.walk, SDX_ROOT)) != FR_OK)
-        return r;
-    while ((st = sdw_next(&sdx.walk)) > 0)
-        n += sdl_len(sdx.walk.path + SDX_SKIP) < SDX_PATH;
-    if (st < 0)
-        return sdx.walk.err;
+    for (root = 0; root < SDX_NROOT; root++) {      /* (Samples/ first; Presets/, Kits/: none yet is no error) */
+        if ((r = sdw_open(&sdx.walk, SDX_ROOTS[root])) != FR_OK) {
+            if (root && (r == FR_NO_PATH || r == FR_NO_FILE))
+                continue;
+            return r;
+        }
+        while ((st = sdw_next(&sdx.walk)) > 0)
+            n += sdl_len(sdx.walk.path + SDX_SKIP) < SDX_PATH && sdx_wanted(sdx.walk.path + SDX_SKIP);
+        if (st < 0)
+            return sdx.walk.err;
+    }
 
     r = sdx_open_file(&sdx.old, FA_READ);            /* the old index, if any, and its keys into work */
     if (r == FR_OK && sdx_head_read(&sdx.old, &h) == FR_OK) {
@@ -285,11 +342,24 @@ static FRESULT sdx_update(uint8_t *buf, uint32_t bufn, uint32_t *work, uint32_t 
     memset(&sdx.rec, 0, sizeof sdx.rec);             /* the header slot zeroed: the run's old bytes never read as one */
     sdx.cap = (uint32_t)(f_size(&sdx.f) / SDX_REC) - 1u;
     r = sdx_rw(&sdx.f, 0, &sdx.rec, SDX_REC, 1);
+    root = 0;
     if (r == FR_OK)
-        r = sdw_open(&sdx.walk, SDX_ROOT);
-    while (r == FR_OK && k < sdx.cap && (st = sdw_next(&sdx.walk)) > 0) {
-        const char *rel = sdx.walk.path + SDX_SKIP;
-        if (sdl_len(rel) >= SDX_PATH)
+        r = sdw_open(&sdx.walk, SDX_ROOTS[0]);
+    st = 1;
+    while (r == FR_OK && k < sdx.cap) {
+        const char *rel;
+        if ((st = sdw_next(&sdx.walk)) <= 0) {      /* (this root done: the next one) */
+            if (st < 0 || ++root >= SDX_NROOT)
+                break;
+            r = sdw_open(&sdx.walk, SDX_ROOTS[root]);
+            if (r == FR_NO_PATH || r == FR_NO_FILE) {
+                r = FR_OK;
+                sdx.walk.depth = 0;                  /* (none: its walk ends at once) */
+            }
+            continue;
+        }
+        rel = sdx.walk.path + SDX_SKIP;
+        if (sdl_len(rel) >= SDX_PATH || !sdx_wanted(rel))
             continue;
         key = sdx_key(rel);
         at = -1;
