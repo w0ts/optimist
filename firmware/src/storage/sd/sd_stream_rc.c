@@ -234,7 +234,7 @@ static void sst_rc_run(uint32_t p, sst_rcw_t *w)
     uint32_t t0, first = sst_rc_gap(c, w->lo, w->hi), si = sst_rc_si(first), sec, left, lba, n = 0, k, old, hard[2];
     int32_t vs[SST_RUN], v;
     const sst_src_t *s = &sst_src[si % SST_NSRC];
-    BYTE res = SDR_ERR, ok = 1, kept = 0;
+    BYTE res = SDR_ERR, ok = 1, kept = 0, slip = 0;
     if (!first)
         return;
     sec = sst_rc_s(first);
@@ -297,11 +297,13 @@ static void sst_rc_run(uint32_t p, sst_rcw_t *w)
             } else if (!c->on) {
                 sst_st.aborted++;
             } else {
-                ok = 0;                              /* an error token, a DMA that never ended */
+                slip = 1;                            /* an error token, a timeout (sd_time_retry, after the close), a DMA that never ended */
             }
         }
         if (sd_rd_close() != RES_OK)
             ok = 0;
+        if (slip)
+            ok = sd_time_retry(SD_NOW());
     }
     SD_SESSION_END();
     t0 = sst_us(SD_NOW() - t0);
