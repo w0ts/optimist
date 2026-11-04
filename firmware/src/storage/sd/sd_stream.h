@@ -174,7 +174,12 @@ AINL const uint8_t *sst_at(sst_t *st, const sst_src_t *s, uint32_t off)
     st->pos = off;
     if (d < st->wn)
         return st->win + d;
-    return sst_at_slow(st, s, off);
+    {   /* (sst_at_slow runs from RAM; sst_at is inlined into renders in RAM and in the flash (SAMPLE's with ENG_SAMPLE 2):
+         * the flash's are more than a direct call's 2 MB from RAM in the release, so called through its address, as
+         * drum909.c x9c_at_far; only when the window moves, every 512 bytes at most) */
+        const uint8_t *(*volatile f)(sst_t *, const sst_src_t *, uint32_t) = sst_at_slow;
+        return f(st, s, off);
+    }
 }
 
 /* frame f's sample, mono (a stereo frame's two channels averaged), Q15; 0 = dry */
