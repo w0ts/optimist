@@ -94,6 +94,7 @@ static void sdc_turn(uint32_t kind, uint32_t k, int32_t s);
 static int sdc_yes(uint32_t r, uint32_t kind, uint32_t ok);
 static int sdc_no(void);
 static void sdc_key(uint32_t kind, int32_t w);
+static void sdc_bank_key(uint32_t kind, uint32_t b);    /* (op_sdcard.c: a black key, a bank) */
 static uint32_t sdc_bank_avail(void);
 static void sdc_bank_tap(uint32_t up);
 static void sdc_keys_lit(uint32_t *f, uint32_t *d, uint32_t blink);
@@ -549,7 +550,10 @@ static void prj_key(uint32_t k, uint32_t down)           /* op_input.c op_drain:
     int32_t s;
 #if FELUCCA_SD_UI
     if (SDC_ROW_OF(kind)) {
-        if (down)
+        static const int8_t BK[12] = {-1, 0, -1, 1, -1, 2, -1, -1, 3, -1, 4, -1};   /* F# G# A# C# D# from F */
+        if (down && punch_key(k) < 0 && BK[k % 12u] >= 0)
+            sdc_bank_key(kind, (k / 12u) * 5u + (uint32_t)BK[k % 12u]);   /* (a black key: a bank, A .. K) */
+        else if (down)
             sdc_key(kind, punch_key(k));                /* (the card's slot: its action, a folder opened) */
         return;
     }

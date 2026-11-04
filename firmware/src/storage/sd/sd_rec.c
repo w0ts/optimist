@@ -210,7 +210,7 @@ static int sdr_service(void)
 }
 
 #ifdef SDL_ROOT                                         /* (the card's layout: sd_layout.c; the device's build) */
-/* a take into OPTIMIST/RECORD/REC-nnnn.WAV, the first free name (a minute's run, or ms); its name in sdr_file */
+/* a take into Optimist/Record/rec-nnnn.wav, the first free name (a minute's run, or ms); its name in sdr_file */
 static char sdr_file[16];
 static FRESULT sdr_start_next(uint32_t ms)
 {
@@ -223,7 +223,7 @@ static FRESULT sdr_start_next(uint32_t ms)
         return FR_INVALID_NAME;
     (void)f_mkdir(path);
     for (k = 1; k < 10000u && r == FR_EXIST; k++) {
-        str_cpy(sdr_file, "REC-0000.WAV", sizeof sdr_file);
+        str_cpy(sdr_file, "rec-0000.wav", sizeof sdr_file);
         sdr_file[4] = (char)('0' + k / 1000u), sdr_file[5] = (char)('0' + k / 100u % 10u);
         sdr_file[6] = (char)('0' + k / 10u % 10u), sdr_file[7] = (char)('0' + k % 10u);
         if (!sdl_path(path, sizeof path, SDL_RECORD, sdr_file))
@@ -241,7 +241,13 @@ static int sdr_toggle(void)
     }
     return sdr_start_next(0) == FR_OK ? 1 : -1;      /* (no card, none mounted: FatFs says so) */
 }
-static const char *sdr_name(void) { return sdr_file; }
+static const char *sdr_name(void) { return sdr_file; }   /* the file's name (the console) */
+static const char *sdr_shown(void)                      /* as the screen shows it: upper case (REC-0001.WAV) */
+{
+    static char s[sizeof sdr_file];
+    str_cpy(s, sdr_file, sizeof s);
+    return sdl_upper(s);
+}
 static int sdr_news(void)                               /* once: 1 a take ended by its run, 2 the card failed; 0 none */
 {
     int n = sdr.news;

@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* SD card mode's sample sets on the card (the user, 2026-10-29: a ticked set never grows the flash; tools/gen_samples.py
  * --card writes them, eng_sample.c smp_bank_on plays them through the streams) in the host's render (tests/hostsim.c):
- * every set's factory presets played from the card's OPTIMIST/SAMPLES/<SET>/Z<k>.WAV (read from DIR as gen_samples.py
+ * every set's factory presets played from the card's Optimist/Samples/<Set>/z<k>.wav (read from DIR as gen_samples.py
  * wrote them, each zone a source, the rings filled between two audio blocks as the main loop's runs would) against the
  * very same presets on the flash's set (this host build has every set in flash: SMP_CARD_SET is the test's switch):
  *   - each zone's keys ("inst"), root and loop ("smpl") as the flash zone's;
@@ -16,6 +16,7 @@ static unsigned card_mask;                           /* the sets the test plays 
 #define main hostsim_main
 #include "hostsim.c"
 #undef main
+#include <ctype.h>
 #include <sys/mman.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -225,6 +226,16 @@ static void play_fork(int32_t *L, uint32_t set, uint32_t pi, int card, int varia
     CHECK(pid > 0 && WIFEXITED(st) && WEXITSTATUS(st) == 0, "the render ran (set %u preset %u)", set, pi);
 }
 
+static const char *set_dir(const char *s)        /* a set's folder on the card: PIANO's Piano (gen_samples.py card_set_dir) */
+{
+    static char d[16];
+    uint32_t i;
+    for (i = 0; s[i] && i + 1u < sizeof d; i++)
+        d[i] = (char)(i ? tolower((unsigned char)s[i]) : s[i]);
+    d[i] = 0;
+    return d;
+}
+
 int main(int argc, char **argv)
 {
     static const char *const SETS[] = {"PIANO", "BASS", "VIBES", "HORNS", "STRGS", "FLUTE", "SCRCH"};
@@ -249,7 +260,7 @@ int main(int argc, char **argv)
         /* the card's zones, one source each, in key order: as the flash zones */
         for (z = 0; z < SMP_SETS[set].nz; z++) {
             const smp_zone_t *fz = &SMP_ZONES[SMP_SETS[set].z0 + z];
-            snprintf(path, sizeof path, "%s/OPTIMIST/SAMPLES/%s/Z%u.WAV", argv[1], SETS[si], z);
+            snprintf(path, sizeof path, "%s/Optimist/Samples/%s/z%u.wav", argv[1], set_dir(SETS[si]), z);
             CHECK(load_src(z, path), "%s read", path);
             CHECK(sst_src[z].lo == fz->lo && sst_src[z].hi == fz->hi && (sst_src[z].root + 60) * 16 == fz->root16 &&
                       sst_src[z].frames == fz->n && sst_src[z].rate == fz->rate &&
@@ -258,7 +269,7 @@ int main(int argc, char **argv)
                   sst_src[z].hi, sst_src[z].root + 60, sst_src[z].lps, sst_src[z].lpe, fz->lo, fz->hi, fz->root16 / 16,
                   fz->looped ? fz->ls : 0u, fz->looped ? fz->le : 0u);
         }
-        snprintf(path, sizeof path, "%s/OPTIMIST/SAMPLES/%s/Z%u.WAV", argv[1], SETS[si], z);
+        snprintf(path, sizeof path, "%s/Optimist/Samples/%s/z%u.wav", argv[1], set_dir(SETS[si]), z);
         CHECK(!fopen(path, "rb"), "%s: no zone past the set's", path);
         sst_bank_src[0] = 0;
         sst_bank_n[0] = (uint8_t)SMP_SETS[set].nz;

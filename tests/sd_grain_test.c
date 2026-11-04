@@ -27,6 +27,7 @@ static unsigned card_mask;                           /* the sets the test plays 
 #define main hostsim_main
 #include "hostsim.c"
 #undef main
+#include <ctype.h>
 #include <sys/mman.h>
 #include <sys/wait.h>
 #include <time.h>
@@ -75,6 +76,16 @@ static int put_file(const char *from, const char *to)   /* a host file onto the 
     return f_close(&o) == FR_OK;
 }
 
+static const char *set_dir(const char *s)        /* a set's folder on the card: PIANO's Piano (gen_samples.py card_set_dir) */
+{
+    static char d[16];
+    uint32_t i;
+    for (i = 0; s[i] && i + 1u < sizeof d; i++)
+        d[i] = (char)(i ? tolower((unsigned char)s[i]) : s[i]);
+    d[i] = 0;
+    return d;
+}
+
 /* set k's zones: written, loaded as sources (pre_ms: their heads; GRAIN's and STRETCH's need none) */
 static void load_set(uint32_t k, const char *dir, uint32_t si0, uint32_t pre_ms)
 {
@@ -84,7 +95,7 @@ static void load_set(uint32_t k, const char *dir, uint32_t si0, uint32_t pre_ms)
     set_src[k] = si0;
     set_nz[k] = SMP_SETS[set_no[k]].nz;
     for (z = 0; z < set_nz[k]; z++) {
-        snprintf(from, sizeof from, "%s/OPTIMIST/SAMPLES/%s/Z%u.WAV", dir, SETS[k], z);
+        snprintf(from, sizeof from, "%s/Optimist/Samples/%s/z%u.wav", dir, set_dir(SETS[k]), z);
         snprintf(to, sizeof to, "%.1s%uZ%u.WAV", SETS[k], pre_ms, z);
         CHECK(put_file(from, to), "%s written", to);
         src_used = (src_used + 3u) & ~3u;

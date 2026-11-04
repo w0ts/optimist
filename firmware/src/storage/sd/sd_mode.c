@@ -18,6 +18,7 @@
  *                project's name now: NEW, a LOAD) is dropped, not finished with other work
  *   the samples  the project's SEC_ID_SDSMP: each synth part's sample by its XXH64 (the index's), size and a name hint
  *                (its path under SAMPLES/, cut); the player reads them (sdm_sample_of, sdm_sample_path) */
+#include "storage/sd/sd_names.h"                     /* the engines' preset folders (Presets/Factory|User/<Engine>) */
 _Static_assert(SDC_KEYS == SDB_KEYS && SDC_NAME == SDL_NAME_MAX + 1u && SDC_PNAME == SEC_NAME_LEN + 1u,
                "sd_mode.c: the UI's sizes (op_sdcard.c) are the card's");
 #define SDM_ID SEC_ID_SDCARD
@@ -94,6 +95,18 @@ static struct {
 } sdm IN_POOL;
 
 static FRESULT sdm_was(FRESULT r) { return sd_was(r); }
+static void sdm_rel_name(char *out, uint32_t cap, const char *rel);
+/* a name from the card as the screen shows it (the user, 2026-11-04: the files are lowercase, the UI upper case): an
+ * upper-case copy, cut at SDB_NAME - 1 bytes (the next call overwrites it) */
+static const char *sdm_disp(const char *s)          /* (a bank's "03 - bass 1.ops": BASS 1) */
+{
+    static char d[SDB_NAME];
+    uint32_t n;
+    str_cpy(d, s + (sdb_bank_no(s) ? 5u : 0u), sizeof d);
+    if ((n = sdl_ends(d, ".ops")) != 0 || (n = sdl_ends(d, ".opk")) != 0 || (n = sdl_ends(d, ".opp")) != 0)
+        d[n] = 0;
+    return sdl_upper(d);
+}
 #if FELUCCA_SD_STREAM
 static void sdm_mem_tick(void);
 static void sdm_bank_tick(void);
@@ -191,11 +204,12 @@ static int sdm_pend_clear(void)
  * without the card meanwhile: that newer copy); another project's name now: dropped (the card keeps the old one whole) */
 static int sdm_pend_get(sdp_pending *p)
 {
-    char nm[SEC_NAME_LEN + 1u];
+    char nm[SEC_NAME_LEN + 1u], pn[SEC_NAME_LEN + 1u];
     if (!sdm_rec.pend)
         return 0;
     sec_name(0, nm);
-    if (sdl_cmp(nm, sdm_rec.p.name)) {
+    sdm_rel_name(pn, sizeof pn, sdm_rec.p.name);     /* (its place "A/03 - song": the name SONG, the flash's 12) */
+    if (sdl_cmp(nm, pn)) {
         sdm_dropped = 1;
         (void)sdm_pend_clear();
         return 0;
@@ -409,7 +423,7 @@ static int sdm_cz_load(uint32_t k)                   /* 0 loaded (said), -1 not 
     cz_key[p] = 0xFFFFFFFFu;                         /* (the points built again from these bytes, cz_block) */
     fm1_irq_on();
     snd_mark(p);
-    ui_say("LOADED ", sdb_base(sdm.bpath));
+    ui_say("LOADED ", sdm_disp(sdb_base(sdm.bpath)));
     return 0;
 }
 #endif
@@ -457,6 +471,124 @@ static uint32_t sdm_page(void) { return sdm.b.page; }
 static uint32_t sdm_pages(void) { return sdm.b.pages ? sdm.b.pages : 1u; }
 static uint32_t sdm_count(void) { return sdm.b.n; }
 #endif
+/* ---- banks (the user, 2026-11-04): presets and projects in banks of 16, a bank a folder named by a letter (A .. Z)
+ * inside its holder, the files in it numbered "01 - name" .. "16 - name" (the number the slot, the key it is on):
+ *   Optimist/Presets/Factory/<Engine>/<L>/<nn> - <name>.ops   the zip's (tools/sd_factory.c: 16 a bank, the table's order)
+ *   Optimist/Presets/User/<Engine>/<L>/<nn> - <name>.ops      the presets saved on the FM-1
+ *   Optimist/Projects/<L>/<nn> - <name>/<nn> - <name>.opp     a project (sd_save.c: "L/nn - name"), Versions/ in it
+ * A bank folder is shown as a bank (sd_browse.c SDB_BANK: slot nn - 1 the file numbered nn, free numbers empty
+ * slots); the black keys pick banks A .. K (op_sdcard.c), OCT steps one bank either way (to Z) */
+#define SDM_BANKS 26u
+static uint8_t sdm_bk[SDC_N];                        /* the bank each list shows (0 = A) */
+static char sdm_work[SDL_NAME_MAX + 1u];             /* the open project's place under Projects/ ("A/03 - song"), "" none */
+static uint8_t sdm_save_k = 0xFFu;                   /* the slot a SAVE was asked on (op_sdcard.c sdm_save_at) */
+
+/* the holder (Optimist/Projects, Optimist/Presets/User/<Engine of the selected part>) into out: its length, 0 */
+static uint32_t sdm_holder(uint32_t list, char *out, uint32_t cap)
+{
+    uint32_t n;
+    if (list == SDC_PROJ)
+        return sdl_path(out, cap, SDL_PROJECTS, 0);
+    n = sdl_path(out, cap, SDL_PRESETS, SDL_USER "/");
+    n = n ? sdl_cat(out, n, cap, sdn_engine(eng_uid(trk[song.sel % NTRK].eng_req % NENGINES))) : cap;
+    return n < cap ? n : 0u;
+}
+/* path a holder: Optimist/Projects, or Optimist/Presets/Factory|User/<one folder> */
+static int sdm_is_holder(const char *p, uint32_t len)
+{
+    char h[40];
+    uint32_t n, i, w;
+    n = sdl_path(h, sizeof h, SDL_PROJECTS, 0);
+    if (n && n == len && !sdl_ncmp(p, h, len))
+        return 1;
+    for (w = 0; w < 2u; w++) {
+        n = sdl_path(h, sizeof h, SDL_PRESETS, w ? SDL_USER : SDL_FACTORY);
+        if (!n || len <= n + 1u || sdl_ncmp(p, h, n) || p[n] != '/')
+            continue;
+        for (i = n + 1u; i < len && p[i] != '/'; i++)
+            ;
+        if (i == len)
+            return 1;
+    }
+    return 0;
+}
+/* a folder path a bank (<holder>/<L>): L's number (0 = A), else -1 */
+static int32_t sdm_bank_letter(const char *p)
+{
+    const char *b = sdb_base(p);
+    uint8_t c = sdl_uc((uint8_t)b[0]);
+    if (b == p || b[1] || c < 'A' || c > 'Z' || !sdm_is_holder(p, (uint32_t)(b - p) - 1u))
+        return -1;
+    return (int32_t)(c - 'A');
+}
+/* a project's place "A/03 - song": its bank's number (0 = A), -1 none */
+static int32_t sdm_bank_letter_rel(const char *rel)
+{
+    uint8_t c = sdl_uc((uint8_t)rel[0]);
+    return c >= 'A' && c <= 'Z' && rel[1] == '/' ? (int32_t)(c - 'A') : -1;
+}
+/* folder entry name in the folder root: a bank's folder (a single letter inside a holder) */
+static int sdm_is_bank_dir(const char *root, const char *name)
+{
+    uint8_t c = sdl_uc((uint8_t)name[0]);
+    return c >= 'A' && c <= 'Z' && !name[1] && sdm_is_holder(root, sdl_len(root));
+}
+/* a slot's name without its number and extension ("03 - bass 1.ops": "bass 1"), into out */
+static void sdm_strip(char *out, uint32_t cap, const char *name, const char *ext)
+{
+    const char *p = name + (sdb_bank_no(name) ? 5u : 0u);
+    uint32_t n = ext[0] && sdl_ends(p, ext) ? sdl_ends(p, ext) : sdl_len(p);
+    str_cpy(out, p, n + 1u < cap ? n + 1u : cap);    /* (the extension off first, then cut to cap) */
+}
+/* bank folder dir: the numbers in use (bit nn - 1) and the number of the file named name (without its number and
+ * ext, any case), 0 none */
+static uint32_t sdm_bank_scan(const char *dir, const char *name, const char *ext, uint32_t *used)
+{
+    DIR d;
+    FILINFO fi;
+    char b[SDL_NAME_MAX + 1u];
+    uint32_t nn, same = 0;
+    *used = 0;
+    if (f_opendir(&d, dir) != FR_OK)
+        return 0;
+    while (f_readdir(&d, &fi) == FR_OK && fi.fname[0]) {
+        if (sdl_hidden(&fi) || !(nn = sdb_bank_no(fi.fname)))
+            continue;
+        *used |= 1u << (nn - 1u);
+        sdm_strip(b, sizeof b, fi.fname, ext);
+        if (!same && name && !sdl_cmp(b, name))
+            same = nn;
+    }
+    (void)f_closedir(&d);
+    return same;
+}
+static uint32_t sdm_first_free(uint32_t used)        /* the lowest free number of a bank, 0 none */
+{
+    uint32_t nn;
+    for (nn = 1; nn <= SDB_KEYS; nn++)
+        if (!(used >> (nn - 1u) & 1u))
+            return nn;
+    return 0;
+}
+/* "<nn> - " into out at at: the new length */
+static uint32_t sdm_num(char *out, uint32_t at, uint32_t cap, uint32_t nn)
+{
+    char t[6] = {(char)('0' + nn / 10u), (char)('0' + nn % 10u), ' ', '-', ' ', 0};
+    return sdl_cat(out, at, cap, t);
+}
+/* list's bank bk shown (its holder's folder bk): FR_OK (a bank not made yet: empty) */
+static FRESULT sdm_bank_open(uint32_t list, uint32_t bk)
+{
+    char l[2] = {(char)('A' + bk % SDM_BANKS), 0};
+    uint32_t n = sdm_holder(list, sdm.path, sizeof sdm.path);
+    if (!n || sdl_cat(sdm.path, sdl_cat(sdm.path, n, sizeof sdm.path, "/"), sizeof sdm.path, l) >= sizeof sdm.path)
+        return FR_INVALID_NAME;
+    sdm_bk[list % SDC_N] = (uint8_t)(bk % SDM_BANKS);
+    return sdb_open(&sdm.b, SDB_BANK, sdm.path);
+}
+/* the bank shown: its number (0 = A), -1 none */
+static int32_t sdm_bank_shown(void) { return sdm.b.view == SDB_BANK ? sdm_bank_letter(sdm.b.root) : -1; }
+
 static int sdm_open(uint32_t list, uint32_t view, const char *vname)
 {
     uint32_t n;
@@ -473,6 +605,12 @@ static int sdm_open(uint32_t list, uint32_t view, const char *vname)
     sdm.b.pages = 1;
     if (!sdm_ready())
         return -1;
+    if (view == SDV_FOLDER && (list == SDC_PROJ || list == SDC_PRE)) {   /* a bank of 16: the list's last one shown */
+        r = sdm_was(sdm_bank_open(list, sdm_bk[list]));
+        if (r != FR_OK)
+            sdm.b.n = 0;
+        return r == FR_OK ? 0 : -1;
+    }
     if (view == SDV_VERSIONS) {
         sdl_cat(sdm.vname, 0, sizeof sdm.vname, vname);
         n = sdp_path(sdm.path, sdm.vname, SDP_VDIR, 0, 0);
@@ -515,7 +653,38 @@ static int sdm_into(uint32_t k)
         return 0;
     }
 #endif
-    return sdm_ready() && sdm_was(sdb_into(&sdm.b, k)) == FR_OK;
+    if (!sdm_ready() || sdm_was(sdb_into(&sdm.b, k)) != FR_OK)
+        return 0;
+    if (sdm_bank_letter(sdm.b.root) >= 0) {          /* a bank's folder: as a bank (its 16 numbered slots) */
+        sdm_bk[sdm.list % SDC_N] = (uint8_t)sdm_bank_letter(sdm.b.root);
+        sdl_cat(sdm.path, 0, sizeof sdm.path, sdm.b.root);
+        return sdm_was(sdb_open(&sdm.b, SDB_BANK, sdm.path)) == FR_OK;
+    }
+    return 1;
+}
+/* bank bk (0 = A) of the holder shown (the bank's, or the folder's when it is a holder; else the list's own: Projects,
+ * Presets/User/<Engine>): 1 shown */
+static int sdm_bank_go(uint32_t bk)
+{
+    uint32_t n;
+    char l[2] = {(char)('A' + bk % SDM_BANKS), 0};
+    if (!sdm_ready() || bk >= SDM_BANKS || sdm.view == SDV_VERSIONS || (sdm.list != SDC_PROJ && sdm.list != SDC_PRE))
+        return 0;
+#if SDM_DX7
+    sdm.bank = 0;
+#endif
+    n = sdl_cat(sdm.path, 0, sizeof sdm.path, sdm.b.root);
+    if (sdm_bank_letter(sdm.path) >= 0)
+        n = (uint32_t)(sdb_base(sdm.path) - sdm.path) - 1u;   /* (a bank shown: its holder) */
+    else if (!SDB_DIRLIKE(sdm.b.view) || !sdm_is_holder(sdm.path, n))
+        n = sdm_holder(sdm.list, sdm.path, sizeof sdm.path);
+    if (!n || n >= sizeof sdm.path)
+        return 0;
+    sdm.path[n] = 0;
+    if (sdl_cat(sdm.path, sdl_cat(sdm.path, n, sizeof sdm.path, "/"), sizeof sdm.path, l) >= sizeof sdm.path)
+        return 0;
+    sdm_bk[sdm.list % SDC_N] = (uint8_t)bk;
+    return sdm_was(sdb_open(&sdm.b, SDB_BANK, sdm.path)) == FR_OK;
 }
 static int sdm_up(void)                              /* up a folder; 0 at the list's own folder */
 {
@@ -526,9 +695,13 @@ static int sdm_up(void)                              /* up a folder; 0 at the li
         return 1;
     }
 #endif
-    if (!sdm_ready() || sdm.b.view != SDB_FOLDER || !n || !sdl_cmp(sdm.b.root, sdm.path))
+    FRESULT r = FR_NO_PATH;
+    if (!sdm_ready() || !SDB_DIRLIKE(sdm.b.view) || !n || !sdl_cmp(sdm.b.root, sdm.path))
         return 0;
-    return sdm_was(sdb_up(&sdm.b)) == FR_OK;
+    while (r == FR_NO_PATH && sdl_cmp(sdm.b.root, sdm.path))   /* (a bank shown before its folders were made, an
+                                                                 * engine's User/<Engine>/A: up past what is not there) */
+        r = sdb_up(&sdm.b);
+    return sdm_was(r) == FR_OK;
 }
 static int sdm_at_top(void)
 {
@@ -537,23 +710,35 @@ static int sdm_at_top(void)
     if (sdm.bank)
         return 0;
 #endif
-    return sdm.b.view != SDB_FOLDER || sdm.view == SDV_VERSIONS || !n || !sdl_cmp(sdm.b.root, sdm.path);
+    return !SDB_DIRLIKE(sdm.b.view) || sdm.view == SDV_VERSIONS || !n || !sdl_cmp(sdm.b.root, sdm.path);
 }
-static void sdm_folder(char *b, uint32_t cap)        /* the folder shown: its last part ("SAMPLES", "DRUMS"); VERSIONS: whose */
+static void sdm_folder(char *b, uint32_t cap)        /* the folder shown: its last part ("SAMPLES", "DRUMS"); VERSIONS:
+                                                      * whose; a bank its holder's and its letter ("ACID B"); upper case
+                                                      * (the card's "Samples": SAMPLES) */
 {
+    char t[SDL_NAME_MAX + 1u];
 #if SDM_DX7
     if (sdm.bank) {
-        sdl_cat(b, 0, cap, sdb_base(sdm.bpath));
+        str_cpy(b, sdb_base(sdm.bpath), cap);       /* (cut to cap, always ended: sdl_cat leaves a long one open) */
+        sdl_upper(b);
         return;
     }
 #endif
-    sdl_cat(b, 0, cap, sdm.view == SDV_VERSIONS ? sdm.vname : sdb_base(sdm.b.root));
+    if (sdm.view == SDV_VERSIONS) {
+        sdm_strip(b, cap, sdb_base(sdm.vname), "");
+    } else if (sdm_bank_shown() >= 0) {
+        uint32_t n = (uint32_t)(sdb_base(sdm.b.root) - sdm.b.root) - 1u;
+        str_cpy(t, sdm.b.root, n + 1u < sizeof t ? n + 1u : sizeof t);   /* (the holder: "Optimist/Projects") */
+        str_cpy(b, sdb_base(t), cap > 2u ? cap - 2u : 1u);
+        str_app(b, " ", cap);
+        str_app(b, sdb_base(sdm.b.root), cap);
+    } else {
+        str_cpy(b, sdb_base(sdm.b.root), cap);
+    }
+    sdl_upper(b);
 }
-static uint32_t sdm_len_is(const char *s, const char *ext)   /* s ends in ext (".OPS"): s's length without it, else 0 */
-{
-    uint32_t n = sdl_len(s), e = sdl_len(ext);
-    return n > e && !sdl_cmp(s + n - e, ext) ? n - e : 0u;
-}
+/* s ends in ext (".ops"), any case: s's length without it, else 0 */
+static uint32_t sdm_len_is(const char *s, const char *ext) { return sdl_ends(s, ext); }
 #if SDM_DX7
 static uint32_t sdm_syx(const char *s)               /* s ends in .SYX, any case: its length without it, else 0 */
 {
@@ -569,7 +754,7 @@ static uint32_t sdm_syx(const char *s)               /* s ends in .SYX, any case
 /* slot k as shown: our own files without their extension, a version as "VERSION 7"; 0: no slot k */
 static const char *sdm_slot(uint32_t k, uint32_t *dir, uint32_t *cut)
 {
-    static const char *const EXT[SDC_N] = {".OPP", ".OPS", ".OPK", ""};
+    static const char *const EXT[SDC_N] = {".opp", ".ops", ".opk", ""};
     const sdb_item *it = &sdm.b.slot[k % SDB_KEYS];
     uint32_t n, a;
 #if SDM_DX7
@@ -578,22 +763,28 @@ static const char *sdm_slot(uint32_t k, uint32_t *dir, uint32_t *cut)
         return k < SDB_KEYS ? sdm.bvn[k] : 0;
     }
 #endif
-    if (k >= sdm.b.n)
-        return 0;
+    if (k >= sdm.b.n || (sdm.b.view == SDB_BANK && !it->name[0]))
+        return 0;                                    /* (no slot k, or a bank's free number) */
     *dir = it->dir;
     *cut = it->cut;
+    if (it->dir && sdm.b.view == SDB_FOLDER && sdm_is_bank_dir(sdm.b.root, it->name))
+        *dir = 2;                                    /* (a bank's folder: gone into, in the projects' list too) */
+    if (sdm.b.view == SDB_BANK) {                    /* "03 - bass 1.ops": BASS 1 on slot 3 */
+        sdm_strip(sdm.shown, sizeof sdm.shown, it->name, it->dir ? "" : EXT[sdm.list % SDC_N]);
+        return sdl_upper(sdm.shown);
+    }
 #if SDM_DX7
     if (sdm.list == SDC_PRE && !it->dir && !it->cut && (n = sdm_syx(it->name)) != 0) {
         *dir = 1;                                    /* (a DX7 bank: a folder of its voices) */
         sdl_cat(sdm.shown, 0, sizeof sdm.shown, it->name);
         sdm.shown[n] = 0;
-        return sdm.shown;
+        return sdl_upper(sdm.shown);
     }
 #endif
     sdl_cat(sdm.shown, 0, sizeof sdm.shown, it->name);
-    if (sdm.view == SDV_VERSIONS) {                  /* "<name>-0007.OPP": "VERSION 7" */
-        a = sdl_len(sdm.vname) + 1u;
-        if (!it->cut && (n = sdm_len_is(it->name, ".OPP")) > a) {
+    if (sdm.view == SDV_VERSIONS) {                  /* "<name>-0007.opp": "VERSION 7" */
+        a = sdl_len(sdb_base(sdm.vname)) + 1u;       /* (vname "A/03 - song": its files "03 - song-0007.opp") */
+        if (!it->cut && (n = sdm_len_is(it->name, ".opp")) > a) {
             while (a + 1u < n && it->name[a] == '0')
                 a++;
             sdl_cat(sdm.shown, sdl_cat(sdm.shown, 0, sizeof sdm.shown, "VERSION "), sizeof sdm.shown, it->name + a);
@@ -602,19 +793,93 @@ static const char *sdm_slot(uint32_t k, uint32_t *dir, uint32_t *cut)
     } else if (!it->dir && !it->cut && (n = sdm_len_is(it->name, EXT[sdm.list % SDC_N])) != 0) {
         sdm.shown[n] = 0;
     }
-    return sdm.shown;
+    return sdl_upper(sdm.shown);                     /* (the card's lowercase names: the screen's upper case) */
 }
-static const char *sdm_base_of(uint32_t k)          /* slot k's whole name (from the card: never cut), "" none */
+/* slot k's name (from the card: never cut; a bank's without its number), upper case as the FM-1 shows and types names
+ * (the NAME page's prefill), "" none */
+static const char *sdm_base_of(uint32_t k)
 {
-    return sdb_path(&sdm.b, k, sdm.path, sizeof sdm.path) ? sdb_base(sdm.path) : "";
+    if (!sdb_path(&sdm.b, k, sdm.path, sizeof sdm.path))
+        return "";
+    sdm_strip(sdm.shown, sizeof sdm.shown, sdb_base(sdm.path), sdm.list == SDC_PROJ ? "" : sdm.list == SDC_PRE ? ".ops" : ".opk");
+    return sdl_upper(sdm.shown);
 }
-static int sdm_exists(uint32_t list, const char *name)   /* a project, a preset or a kit of that name on the card */
+/* a project's place under Projects/ from its folder's path ("Optimist/Projects/A/03 - song": "A/03 - song"): a
+ * pointer into path */
+static const char *sdm_proj_rel(const char *path)
 {
-    static const char *const EXT[SDC_N] = {"", ".OPS", ".OPK", ""};
-    FILINFO fi;
-    uint32_t n = sdl_path(sdm.path, sizeof sdm.path, SDM_FOLDER[list % SDC_N], name);
-    return n && sdl_cat(sdm.path, n, sizeof sdm.path, EXT[list % SDC_N]) < sizeof sdm.path &&
-           f_stat(sdm.path, &fi) == FR_OK;
+    uint32_t n = sizeof SDL_ROOT "/Projects/" - 1u;
+    return sdl_len(path) > n && !sdl_ncmp(path, SDL_ROOT "/Projects/", n) ? path + n : sdb_base(path);
+}
+/* slot k's project place under Projects/ (as on the card), "" none (VERSIONS, SAVE before LOAD, a later LOAD) */
+static const char *sdm_rel_of(uint32_t k)
+{
+    return sdb_path(&sdm.b, k, sdm.path, sizeof sdm.path) ? sdm_proj_rel(sdm.path) : "";
+}
+/* a project place's name as the FM-1 shows it ("A/03 - song": SONG) into out (cap bytes) */
+static void sdm_rel_name(char *out, uint32_t cap, const char *rel)
+{
+    sdm_strip(out, cap, sdb_base(rel), "");
+    sdl_upper(out);
+}
+/* the slot NAME was opened from (a SAVE on slot k: its number when free or the same name's) */
+static void sdm_save_at(uint32_t k) { sdm_save_k = (uint8_t)(k < SDB_KEYS ? k : 0xFFu); }
+static void sdm_work_of(char *out, uint32_t cap)    /* the open project's place, else its flash name (VERSIONS of the work) */
+{
+    if (sdm_work[0])
+        str_cpy(out, sdm_work, cap);
+    else
+        sec_name(0, out);
+}
+/* a kit's file (Optimist/Kits/<name>.opk, the name typed made lowercase) into sdm.path: its length, 0 too long */
+static uint32_t sdm_kit_path(const char *name)
+{
+    char lc[SDL_NAME_MAX + 1u];
+    uint32_t n;
+    if (sdl_len(name) > SDL_NAME_MAX)
+        return 0;
+    str_cpy(lc, name, sizeof lc);
+    n = sdl_path(sdm.path, sizeof sdm.path, SDL_KITS, sdl_lower(lc));
+    n = n ? sdl_cat(sdm.path, n, sizeof sdm.path, ".opk") : sizeof sdm.path;
+    return n < sizeof sdm.path ? n : 0u;
+}
+/* where a SAVE named name of the projects' or the presets' list goes (the user, 2026-11-04: a free number in the bank
+ * browsed): the bank's folder (made when missing) into dir, the number into *nn: the bank's file of that name (*same
+ * 1), else the slot SAVE was asked on when it is free, else the bank's lowest free number. The bank: a project's own
+ * (the work's, saved again by its name), else the bank shown, else the list's last; a preset's in its engine's User
+ * folder (Presets/User/<Engine>/<the letter shown>). 0 ok, 1 the bank full, -1 an error */
+static int sdm_save_place(uint32_t list, const char *name, char *dir, uint32_t cap, uint32_t *nn, int *same)
+{
+    const char *ext = list == SDC_PRE ? ".ops" : "";
+    char wn[SDL_NAME_MAX + 1u];
+    uint32_t n, used, shown;
+    int32_t bk = sdm_bank_shown();
+    *same = 0;
+    if (list == SDC_PROJ && sdm_work[0] && sdb_base(sdm_work) != sdm_work) {
+        sdm_rel_name(wn, sizeof wn, sdm_work);       /* (the open project saved again by its name: its own place) */
+        if (!sdl_cmp(wn, name) && (bk = sdm_bank_letter_rel(sdm_work)) >= 0 && sdb_bank_no(sdb_base(sdm_work))) {
+            *nn = sdb_bank_no(sdb_base(sdm_work));
+            *same = 1;
+            n = sdm_holder(list, dir, cap);
+            return n && sdl_cat(dir, sdl_cat(dir, n, cap, "/"), cap, (char[2]){(char)('A' + bk), 0}) < cap ? 0 : -1;
+        }
+        bk = sdm_bank_shown();
+    }
+    if (bk < 0 || sdm.list != list)
+        bk = (int32_t)sdm_bk[list % SDC_N];
+    if (!(n = sdm_holder(list, dir, cap)) || sdl_mkdir(dir) != FR_OK)   /* (Presets/User/<Engine>: made) */
+        return -1;
+    n = sdl_cat(dir, sdl_cat(dir, n, cap, "/"), cap, (char[2]){(char)('A' + bk % (int32_t)SDM_BANKS), 0});
+    if (n >= cap || sdl_mkdir(dir) != FR_OK)
+        return -1;
+    shown = !sdl_cmp(sdm.b.root, dir) && sdm.b.view == SDB_BANK;
+    if ((*nn = sdm_bank_scan(dir, name, ext, &used)) != 0)
+        *same = 1;
+    else if (shown && sdm_save_k < SDB_KEYS && !(used >> sdm_save_k & 1u))
+        *nn = sdm_save_k + 1u;
+    else if (!(*nn = sdm_first_free(used)))
+        return 1;
+    return 0;
 }
 
 /* ---- presets and kits: one small file (header + payload, a sector at most: written whole) */
@@ -658,9 +923,11 @@ static uint32_t sdm_small_get(const char *path, const char *magic, uint8_t *p, u
     return n;
 }
 
+
 #if PRESETS_CARD
 /* ---- the factory presets on the card (PRESETS_CARD; the user, 2026-10-26: "all presets (user or factory) go on the
- * card", "card only in SD mode"): OPTIMIST/PRESETS/FACTORY/<ENGINE>/<nnn> <NAME>.OPS, as tools/sd_factory.c writes them
+ * card", "card only in SD mode"): Optimist/Presets/Factory/<Engine>/<L>/<nn> - <name>.ops (banks of 16 in the
+ * table's order: preset 18 is B/03), as tools/sd_factory.c writes them
  * (the SD card zip, tools/sd_zip.py). The firmware carries no preset tables (core.h PRESETS_PTR), only their counts.
  *   sdm_factory_scan    at a mount: each built engine's folder read once, the names into sdm_fac_nm (the lists, the
  *                       favorites, the web editor: model.c preset_name -> sdm_factory_name; "?" a file missing)
@@ -684,35 +951,52 @@ static const char *sdm_factory_name(uint32_t e, uint32_t k)
     uint32_t i = sdm_fac_ix(e, k);
     return i < SDM_FAC_N && sdm_fac_nm[i][0] ? sdm_fac_nm[i] : "?";
 }
-static uint32_t sdm_fac_dir(uint32_t e)              /* the engine's folder into sdm.path: its length */
+/* engine slot e's bank bk folder into sdm.path (Presets/Factory/<Engine>/<L>: sd_names.h, the zip's 16 a bank): its
+ * length, 0 too long */
+static uint32_t sdm_fac_dir(uint32_t e, uint32_t bk)
 {
-    uint32_t n = sdl_path(sdm.path, sizeof sdm.path, SDL_PRESETS, "FACTORY/");
-    return n ? sdl_cat(sdm.path, n, sizeof sdm.path, ENGINES[e]->name) : 0u;
+    char l[3] = {'/', (char)('A' + bk % SDM_BANKS), 0};
+    uint32_t n = sdl_path(sdm.path, sizeof sdm.path, SDL_PRESETS, SDL_FACTORY "/");
+    n = n ? sdl_cat(sdm.path, n, sizeof sdm.path, sdn_engine(eng_uid(e))) : sizeof sdm.path;
+    n = n < sizeof sdm.path ? sdl_cat(sdm.path, n, sizeof sdm.path, l) : n;
+    return n < sizeof sdm.path ? n : 0u;
 }
-static void sdm_factory_scan(void)
+static void sdm_factory_scan(void)                   /* every built engine's banks: preset bk x 16 + nn - 1 its file's */
 {
     DIR d;
     FILINFO fi;
-    uint32_t e, k, i, n;
+    uint32_t e, k, i, nn, bk;
     memset(sdm_fac_nm, 0, sizeof sdm_fac_nm);
-    for (e = 0; e < NENGINES; e++) {
-        if (!ENGINES[e]->npresets || !sdm_fac_dir(e) || f_opendir(&d, sdm.path) != FR_OK)
-            continue;
-        while (f_readdir(&d, &fi) == FR_OK && fi.fname[0]) {
-            const char *s = fi.fname;
-            if (s[0] < '0' || s[0] > '9' || s[1] < '0' || s[1] > '9' || s[2] < '0' || s[2] > '9' || s[3] != ' ' ||
-                !(n = sdm_len_is(s, ".OPS")) || n < 5u)
+    for (e = 0; e < NENGINES; e++)
+        for (bk = 0; bk * SDB_KEYS < ENGINES[e]->npresets && bk < SDM_BANKS; bk++) {
+            if (!sdm_fac_dir(e, bk) || f_opendir(&d, sdm.path) != FR_OK)
                 continue;
-            k = (uint32_t)(s[0] - '0') * 100u + (uint32_t)(s[1] - '0') * 10u + (uint32_t)(s[2] - '0');
-            if (k >= ENGINES[e]->npresets || (i = sdm_fac_ix(e, k)) >= SDM_FAC_N)
-                continue;
-            n -= 4u;
-            sdl_cat(sdm_fac_nm[i], 0, SDM_FAC_NM, s + 4);
-            if (n < SDM_FAC_NM)
-                sdm_fac_nm[i][n] = 0;               /* (".OPS" cut) */
+            while (f_readdir(&d, &fi) == FR_OK && fi.fname[0]) {
+                if (!(nn = sdb_bank_no(fi.fname)) || !sdm_len_is(fi.fname, ".ops"))
+                    continue;
+                k = bk * SDB_KEYS + nn - 1u;
+                if (k >= ENGINES[e]->npresets || (i = sdm_fac_ix(e, k)) >= SDM_FAC_N)
+                    continue;
+                sdm_strip(sdm_fac_nm[i], SDM_FAC_NM, fi.fname, ".ops");   /* ("01 - tb acid.ops": TB ACID, the */
+                sdl_upper(sdm_fac_nm[i]);                                 /* tables' name) */
+            }
+            (void)f_closedir(&d);
         }
-        (void)f_closedir(&d);
-    }
+}
+/* engine slot e's preset pi: its file's path into sdm.path (the bank's file numbered pi % 16 + 1, whatever its name):
+ * its length, 0 none */
+static uint32_t sdm_fac_file(uint32_t e, uint32_t pi)
+{
+    DIR d;
+    FILINFO fi;
+    uint32_t n = sdm_fac_dir(e, pi / SDB_KEYS), m = 0;
+    if (!n || f_opendir(&d, sdm.path) != FR_OK)
+        return 0;
+    while (!m && f_readdir(&d, &fi) == FR_OK && fi.fname[0])
+        if (sdb_bank_no(fi.fname) == pi % SDB_KEYS + 1u && sdm_len_is(fi.fname, ".ops"))
+            m = sdl_cat(sdm.path, sdl_cat(sdm.path, n, sizeof sdm.path, "/"), sizeof sdm.path, fi.fname);
+    (void)f_closedir(&d);
+    return m < sizeof sdm.path ? m : 0u;
 }
 static void sdm_factory_ask(track_t *t, uint32_t pi)
 {
@@ -747,14 +1031,7 @@ static void sdm_factory_poll(void)
             return;
         }
         sdm_fac_pend[k] = 0;
-        n = sdm_fac_dir(trk[k].eng_req % NENGINES);
-        if (n) {                                     /* "<folder>/<nnn> <name>.OPS" */
-            char num[5] = {(char)('0' + pi / 100u), (char)('0' + pi / 10u % 10u), (char)('0' + pi % 10u), ' ', 0};
-            n = sdl_cat(sdm.path, n, sizeof sdm.path, "/");
-            n = sdl_cat(sdm.path, n, sizeof sdm.path, num);
-            n = sdl_cat(sdm.path, n, sizeof sdm.path, sdm_factory_name(trk[k].eng_req % NENGINES, pi));
-            n = sdl_cat(sdm.path, n, sizeof sdm.path, ".OPS");
-        }
+        n = sdm_fac_file(trk[k].eng_req % NENGINES, pi);   /* "<Engine>/<L>/<nn> - <name>.ops" */
         n = n ? sdm_small_get(sdm.path, "OPPR", sd_blk, sizeof sd_blk) : 0u;
         if (!n) {
             ui_message("PRESET NOT ON THE CARD");
@@ -863,29 +1140,49 @@ static void sdm_proj_load_file(const char *path, const char *name)
         ui_message(rc > 0 ? "MEM FULL: NOT LOADED" : "LOAD ERROR");
         return;
     }
-    sdl_cat(nm, 0, sizeof nm, name);                /* (its first 12 characters: the flash project's name) */
+    sdm_rel_name(nm, sizeof nm, name);              /* (its first 12 characters: the flash project's name, upper case
+                                                     * as the NAME page types it; on the card "A/03 - song") */
     (void)sec_name_set(0, nm);
+    str_cpy(sdm_work, name, sizeof sdm_work);       /* (its place: a SAVE by that name goes back there) */
     prj_load_go(0);
-    ui_say("LOADED ", nm);
+    ui_say("LOADED ", sdm_disp(nm));
 }
+/* a project saved to the card by name (as typed): into its place (sdm_save_place: Projects/<bank>/<nn> - <name>,
+ * lowercase); FR_DENIED the card full, FR_EXIST the bank full (nothing written, said), else FatFs' */
 static FRESULT sdm_proj_save(const char *name)
 {
     sdp_head h;
-    uint32_t number = 1;
+    uint32_t number = 1, nn, n;
+    int same, rc;
     FRESULT r;
+    char lc[SDL_NAME_MAX + 1u], rel[SDL_NAME_MAX + 8u];
+    str_cpy(lc, name, sizeof lc);
+    sdl_lower(lc);
+    rc = sdm_save_place(SDC_PROJ, name, sdm.path, sizeof sdm.path, &nn, &same);
+    if (rc) {
+        ui_message(rc > 0 ? "BANK FULL" : "CARD SAVE FAILED");
+        return rc > 0 ? FR_EXIST : FR_INT_ERR;
+    }
+    n = sdl_cat(rel, 0, sizeof rel, sdb_base(sdm.path));   /* "A/03 - song" */
+    n = sdm_num(rel, sdl_cat(rel, n, sizeof rel, "/"), sizeof rel, nn);
+    if (sdl_cat(rel, n, sizeof rel, lc) >= sizeof rel || sdl_len(rel) > SDL_NAME_MAX) {
+        ui_message("NAME NOT USABLE");
+        return FR_INVALID_NAME;
+    }
     if (prj_save_go(0))                              /* the flash copy first (the staged one): MEM FULL, an error said */
         return FR_INT_ERR;
-    (void)sec_name_set(0, name);
+    (void)sec_name_set(0, name);                     /* (the flash project's name as typed: upper case) */
     persist_flush_now();                            /* (whatever waits in RAM for the log: the copy whole) */
-    if (sdp_pick(name, sdm.path, sizeof sdm.path, &h, sd_blk) == FR_OK)
+    if (same && sdp_pick(rel, sdm.path, sizeof sdm.path, &h, sd_blk) == FR_OK)
         number = h.number + 1u;                     /* (the save counter: the card's copy's + 1) */
-    r = sdm_was(sdp_save(name, number, sdm_stage_len(), sd_blk));
+    r = sdm_was(sdp_save(rel, number, sdm_stage_len(), sd_blk));
+    str_cpy(sdm_work, rel, sizeof sdm_work);        /* (a pending one too: sdp_boot finishes it there) */
     ui.toast_next = 1;
     ui_message(r == FR_OK ? "SAVED TO CARD" : r == FR_DENIED ? "CARD FULL: IN FLASH" : "CARD SAVE FAILED: IN FLASH");
     ui.toast_next = 0;
     return r;
 }
-static void sdm_load_name(const char *name)          /* project name's whole copy (the .OPP, else the newest whole one) */
+static void sdm_load_name(const char *name)          /* project rel's whole copy (the .opp, else the newest whole one) */
 {
     sdp_head h;
     sdl_cat(sdm.shown, 0, sizeof sdm.shown, name);   /* (sdp_pick's path goes to sdm.path; name may be in it) */
@@ -927,7 +1224,7 @@ static void sdm_load_later(uint32_t k)
         return;
     }
     sdm_dl.ver = (uint8_t)(sdm.view == SDV_VERSIONS);
-    str_cpy(sdm_dl.name, sdm_dl.ver ? sdm.vname : sdb_base(sdm_dl.path), sizeof sdm_dl.name);
+    str_cpy(sdm_dl.name, sdm_dl.ver ? sdm.vname : sdm_proj_rel(sdm_dl.path), sizeof sdm_dl.name);
     pj_defer(3, 0);
 }
 static void sdm_load_now(void)
@@ -939,43 +1236,30 @@ static void sdm_load_now(void)
 }
 
 /* ---- a card preset's name on the part (op_cells.c snd_name; the user, 2026-10-26: the mixer said 808 BOOM after SUB
- * BASS was loaded). A factory file (PRESETS/FACTORY/<ENGINE>/<nnn> <NAME>) sets the part's preset number nnn: the name
- * is then the list's everywhere and PRESETS turns on from it. Any other file: its own name, shown while the part's engine
- * and preset number stay as they were at the load */
+ * BASS was loaded). A factory file (Presets/Factory/<Engine>/<nnn> <name>) sets the part's preset number nnn: the name
+ * is then the list's everywhere and PRESETS turns on from it. Any other file: its own name (upper case), shown while the
+ * part's engine and preset number stay as they were at the load */
 static char sdm_pname[NPART][14];
 static uint16_t sdm_pkey[NPART];
 static uint32_t sdm_pkey_of(const track_t *t) { return (uint32_t)t->eng_req | (uint32_t)t->preset << 8; }
-static int sdm_has(const char *s, const char *w)        /* w somewhere in s */
-{
-    uint32_t i, n = str_len(w);
-    for (; *s; s++) {
-        for (i = 0; i < n && s[i] == w[i]; i++)
-            ;
-        if (i == n)
-            return 1;
-    }
-    return 0;
-}
 static void sdm_named(uint32_t part, const char *file)
 {
     track_t *t = &trk[part % NPART];
-    uint32_t i, dot = 0, n;
-    char b[sizeof sdm_pname[0]];
+    const char *f = sdb_base(sdm.path);              /* (file is sdm.path's last part: ".../Factory/Acid/B/03 - x.ops") */
+    uint32_t nn = sdb_bank_no(file), n;
+    uint8_t bk = f - sdm.path >= 3 ? sdl_uc((uint8_t)f[-2]) : 0u;
     if (part >= NPART)
         return;
-    for (i = 0; file[i]; i++)
-        dot = file[i] == '.' ? i : dot;                 /* (the extension's dot: the last) */
-    str_cpy(b, file, dot && dot + 1u < sizeof b ? dot + 1u : sizeof b);
     sdm_pname[part][0] = 0;
-    if (sdm_has(sdm.path, "/PRESETS/FACTORY/") && b[0] >= '0' && b[0] <= '9' && b[1] >= '0' && b[1] <= '9' &&
-        b[2] >= '0' && b[2] <= '9' && b[3] == ' ') {
-        n = (uint32_t)(b[0] - '0') * 100u + (uint32_t)(b[1] - '0') * 10u + (uint32_t)(b[2] - '0');
+    if (nn && sdl_has(sdm.path, "/Presets/" SDL_FACTORY "/") && f[-1] == '/' && f[-3] == '/' && bk >= 'A' && bk <= 'Z') {
+        n = (uint32_t)(bk - 'A') * SDB_KEYS + nn - 1u;   /* (bank B's 03: the table's preset 18) */
         if (n < ENGINES[t->eng_req % NENGINES]->npresets) {
             t->preset = (uint8_t)n;
             return;
         }
     }
-    str_cpy(sdm_pname[part], b, sizeof sdm_pname[part]);
+    sdm_strip(sdm_pname[part], sizeof sdm_pname[part], file, ".ops");
+    sdl_upper(sdm_pname[part]);
     sdm_pkey[part] = (uint16_t)sdm_pkey_of(t);
 }
 static const char *sdm_part_name(uint32_t k)            /* the card preset part k plays, 0: its engine's or user's name */
@@ -1005,7 +1289,7 @@ static void sdm_do(uint32_t op, uint32_t k)
     nm = sdb_base(sdm.path);
     if (op == SDO_DELETE) {
         if (sdm.list == SDC_PROJ && sdm.view != SDV_VERSIONS) {
-            (void)sdp_dedupe(nm);                    /* (a cut rename's halves first: one chain, one name) */
+            (void)sdp_dedupe(sdm_proj_rel(sdm.path));   /* (a cut rename's halves first: one chain, one name) */
             (void)sdb_path(&sdm.b, k, sdm.path, sizeof sdm.path);
             r = sdm_rmdir(sdm.path, sdl_len(sdm.path), 1u);
         } else {
@@ -1019,7 +1303,7 @@ static void sdm_do(uint32_t op, uint32_t k)
         if (sdm.view == SDV_VERSIONS)
             sdm_proj_load_file(sdm.path, sdm.vname);
         else
-            sdm_load_name(nm);
+            sdm_load_name(sdm_proj_rel(sdm.path));
         return;
     } else if (sdm.list == SDC_PRE) {
         n = sdm_small_get(sdm.path, "OPPR", sd_blk, sizeof sd_blk);
@@ -1030,7 +1314,7 @@ static void sdm_do(uint32_t op, uint32_t k)
         else {                                       /* (refused: up_load said why) */
             sdm_named(song.sel, nm);
             snd_mark(song.sel);
-            ui_say("LOADED ", nm);
+            ui_say("LOADED ", sdm_disp(nm));
         }
         return;
     } else if (sdm.list == SDC_KIT) {
@@ -1042,7 +1326,7 @@ static void sdm_do(uint32_t op, uint32_t k)
             ui_message("NOT A KIT");
         else {
             snd_mark(TRK_DRUM);
-            ui_say("LOADED ", nm);
+            ui_say("LOADED ", sdm_disp(nm));
         }
         return;
     } else {                                         /* SAMPLES: USE, the selected part's sample by its hash */
@@ -1082,7 +1366,7 @@ static void sdm_do(uint32_t op, uint32_t k)
             fm1_irq_on();
             snd_mark(TRK_DRUM);
             sdm_smp_gen++;
-            ui_say("LANE: ", nm);
+            ui_say("LANE: ", sdm_disp(nm));
             return;
         }
 #endif
@@ -1107,7 +1391,7 @@ static void sdm_do(uint32_t op, uint32_t k)
         sdm_smp_gen++;
         str_cpy(t, trk_tag(part), sizeof t);
         str_app(t, ": ", sizeof t);
-        ui_say(t, nm);
+        ui_say(t, sdm_disp(nm));
         return;
     }
 }
@@ -1115,6 +1399,7 @@ static void sdm_do(uint32_t op, uint32_t k)
 /* NAME's done (op_name.c) for list `list`: 1 = stay on NAME (a name the card cannot take, another file's) */
 static int sdm_save(uint32_t list, const char *name, const char *was)
 {
+    FILINFO fi;
     uint32_t n;
     FRESULT r;
     if (!sdm_ready()) {
@@ -1125,25 +1410,44 @@ static int sdm_save(uint32_t list, const char *name, const char *was)
         ui_message("NAME NOT USABLE");
         return 1;
     }
-    if (list != SDC_PROJ && sdl_cmp(name, was) && sdm_exists(list, name)) {
-        ui_message("NAME TAKEN");                    /* (a preset or a kit has no versions: only the one asked over) */
+    if (list == SDC_KIT && sdl_cmp(name, was) && sdm_kit_path(name) && f_stat(sdm.path, &fi) == FR_OK) {
+        ui_message("NAME TAKEN");                    /* (a kit has no versions: only the one asked over) */
         return 1;
     }
     if (list == SDC_PROJ) {
-        return sdm_proj_save(name) == FR_OK ? 0 : -1;
+        r = sdm_proj_save(name);
+        return r == FR_OK ? 0 : r == FR_EXIST || r == FR_INVALID_NAME ? 1 : -1;   /* (BANK FULL: NAME stays) */
     } else if (list == SDC_PRE || list == SDC_KIT) {
         if (list == SDC_PRE ? is_drum(TSEL) : 0) {
             ui_message("DRUM TRACK: NO SOUND");
             return 0;
         }
-        n = list == SDC_PRE ? up_card_take(sd_blk, name) : ukit_card_take(sd_blk);
+        r = FR_OK;
+        if (list == SDC_PRE) {                       /* Presets/User/<Engine>/<bank>/<nn> - <name>.ops */
+            char lc[SDL_NAME_MAX + 1u];
+            uint32_t nn, m;
+            int same, rc = sdm_save_place(SDC_PRE, name, sdm.path, sizeof sdm.path, &nn, &same);
+            if (rc > 0 || (same && sdl_cmp(name, was))) {
+                ui_message(rc > 0 ? "BANK FULL" : "NAME TAKEN");   /* (a preset has no versions: only the one asked
+                                                                    * over, its own name) */
+                return 1;
+            }
+            str_cpy(lc, name, sizeof lc);
+            m = rc ? sizeof sdm.path : sdl_len(sdm.path);
+            m = m < sizeof sdm.path ? sdm_num(sdm.path, sdl_cat(sdm.path, m, sizeof sdm.path, "/"), sizeof sdm.path, nn) : m;
+            m = m < sizeof sdm.path ? sdl_cat(sdm.path, sdl_cat(sdm.path, m, sizeof sdm.path, sdl_lower(lc)), sizeof sdm.path, ".ops")
+                                    : m;
+            r = m < sizeof sdm.path ? FR_OK : FR_INVALID_NAME;
+        } else if (!sdm_kit_path(name)) {
+            r = FR_INVALID_NAME;
+        }
+        n = r != FR_OK ? 0u : list == SDC_PRE ? up_card_take(sd_blk, name) : ukit_card_take(sd_blk);
 #if FELUCCA_SD_LANES
         if (list == SDC_KIT && n)                    /* (the lanes' card samples after the kit: hash and size each) */
             n = sdm_kit_lanes_out(sd_blk, n);
 #endif
-        sdl_path(sdm.path, sizeof sdm.path, SDM_FOLDER[list], name);
-        r = n && sdl_cat(sdm.path, sdl_len(sdm.path), sizeof sdm.path, list == SDC_PRE ? ".OPS" : ".OPK") < sizeof sdm.path
-                ? sdm_was(sdm_small_put(sdm.path, list == SDC_PRE ? "OPPR" : "OPKT", sd_blk, n)) : FR_INT_ERR;
+        if (r == FR_OK)
+            r = n ? sdm_was(sdm_small_put(sdm.path, list == SDC_PRE ? "OPPR" : "OPKT", sd_blk, n)) : FR_INT_ERR;
         ui.toast_next = 1;
         ui_message(r == FR_OK ? "SAVED TO CARD" : r == FR_DENIED ? "CARD FULL" : "CARD SAVE FAILED");
         ui.toast_next = 0;
@@ -1177,11 +1481,11 @@ static void sdm_leave(void)                          /* SYSTEM left: the setting
         sdm_dirty = 1;
 }
 /* SETTINGS (the user, 2026-10-26: a settings backup on the card): BACKUP writes the device's settings record (project.c
- * persist_t, as settings_save makes it now) to OPTIMIST/BACKUP/SETTINGS.OPD ("OPST", sdm_small_put); RESTORE reads it
+ * persist_t, as settings_save makes it now) to Optimist/Backup/settings.opd ("OPST", sdm_small_put); RESTORE reads it
  * back into flash and starts the FM-1 again (the settings are read at power-on). This FM-1's own stay: its Bluetooth
  * address and its copy of the radio's calibration always; its pairings too when the file is another FM-1's (another
  * address: the bonds and remembered devices are that unit's) */
-static int sdm_settings_path(void) { return sdl_path(sdm.path, sizeof sdm.path, SDL_BACKUP, "SETTINGS.OPD") != 0; }
+static int sdm_settings_path(void) { return sdl_path(sdm.path, sizeof sdm.path, SDL_BACKUP, "settings.opd") != 0; }
 static void sdm_backup(void)
 {
     if (!sdm_ready() || !sdm_settings_path()) {

@@ -442,7 +442,7 @@ static void rh_ring_go(void)                            /* the ring starts: on t
 #define CR_GAP_MS 400u
 #define CR_HOLD_MS 500u
 static int sdr_toggle(void);                            /* storage/sd/sd_rec.c */
-static const char *sdr_name(void);
+static const char *sdr_shown(void);
 static int sdr_busy(void);
 static int sdr_news(void);
 static struct {
@@ -470,7 +470,7 @@ static int crec_frame(uint32_t held)                    /* once a frame, before 
 {
     int down = (held >> panel.btn[B_REC]) & 1u, n = sdr_news();
     if (n)
-        ui_say(n == 1 ? "CARD REC FULL " : "CARD REC FAILED ", sdr_name());
+        ui_say(n == 1 ? "CARD REC FULL " : "CARD REC FAILED ", sdr_shown());
     if (crec.second) {
         if (down && fm1_ms - crec.t0 >= CR_HOLD_MS) {   /* held: the take on or off, the tap's arm put back */
             int r;
@@ -478,7 +478,7 @@ static int crec_frame(uint32_t held)                    /* once a frame, before 
             song.rec = crec.prev_rec;
             rec_wait = crec.prev_wait;
             r = sdr_toggle();
-            ui_say(r > 0 ? "CARD REC " : r == 0 ? "CARD STOP " : "NO SD CARD", r >= 0 ? sdr_name() : "");
+            ui_say(r > 0 ? "CARD REC " : r == 0 ? "CARD STOP " : "NO SD CARD", r >= 0 ? sdr_shown() : "");
             crec.down = 2;                              /* (until REC is let go: nothing more) */
         } else if (!down) {
             crec.second = 0;                            /* let go sooner: a plain REC press after all */

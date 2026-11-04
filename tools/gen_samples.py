@@ -24,7 +24,7 @@ slices) is written with it: SLC_BREAK_INIT.
 
 SD card mode (FELUCCA_SAMPLES_CARD=1, the builder's core.card_sets; the user, 2026-10-29: a set ticked there never
 grows the flash): every melodic set (CARD_SETS) is an empty set in the image, its number and its presets kept, its
-bit in SMP_CARD_SETS: SAMPLE plays it from the card's OPTIMIST/SAMPLES/<SET>/Z<k>.WAV through the streams
+bit in SMP_CARD_SETS: SAMPLE plays it from the card's Optimist/Samples/<Set>/z<k>.wav through the streams
 (eng_sample.c smp_bank_on). Those files: `gen_samples.py --card DIR [SET,...]` (tools/sd_zip.py), each zone the very
 ADPCM the flash would hold, decoded to 16-bit PCM at 22.05 kHz, its root and loop in "smpl", its keys in "inst": a
 card set plays what the built-in one would, sample for sample.
@@ -573,8 +573,14 @@ def card_wav(z, pcm):
     return b"RIFF" + struct.pack("<I", len(body)) + body
 
 
+def card_set_dir(name):
+    """a set's folder on the card: its name capitalised (PIANO: Piano; sd_stream_plan.c sst_src_path, the user's
+    2026-11-04 layout: folders capitalised, files lowercase)"""
+    return name[:1].upper() + name[1:].lower()
+
+
 def card_files(out, names=None):
-    """SD card mode's sets as card files (tools/sd_zip.py): out/OPTIMIST/SAMPLES/<SET>/Z<k>.WAV, the zones in key
+    """SD card mode's sets as card files (tools/sd_zip.py): out/Optimist/Samples/<Set>/z<k>.wav, the zones in key
     order, each the zone's ADPCM as the flash build holds it, decoded. names: the sets (CARD_SETS when None)
     -> {set: [file names]}"""
     names = [n.strip().upper() for n in (names if names is not None else CARD_SETS) if n.strip()]
@@ -590,13 +596,13 @@ def card_files(out, names=None):
         _, z0, nz = b.sets[0]
         if nz > CARD_ZONES:
             raise SystemExit(f"gen_samples --card: {name} has {nz} zones, a card set {CARD_ZONES} at most")
-        d = Path(out) / "OPTIMIST" / "SAMPLES" / name
+        d = Path(out) / "Optimist" / "Samples" / card_set_dir(name)
         d.mkdir(parents=True, exist_ok=True)
         made[name] = []
         for k, z in enumerate(b.zones[z0:z0 + nz]):
             pcm = ima_decode(b.blob[z["off"]:z["off"] + (z["n"] + 1) // 2], z["n"])
-            (d / f"Z{k}.WAV").write_bytes(card_wav(z, pcm))
-            made[name].append(f"Z{k}.WAV")
+            (d / f"z{k}.wav").write_bytes(card_wav(z, pcm))
+            made[name].append(f"z{k}.wav")
     return made
 
 

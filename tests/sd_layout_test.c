@@ -101,7 +101,7 @@ static void walk_check(char *path, uint32_t len, int want_one, const char *what)
 }
 
 /* the folders only the FM-1 writes in (SAMPLES: the test's own files stand for a computer's) */
-static const char *const FM1_DIRS[] = {"OPTIMIST/PROJECTS", "OPTIMIST/SYSTEM", "OPTIMIST/RECORD", "OPTIMIST/PRESETS"};
+static const char *const FM1_DIRS[] = {"Optimist/Projects", "Optimist/System", "Optimist/Record", "Optimist/Presets"};
 
 static void fat_check(int want_one, const char *what)
 {
@@ -247,7 +247,7 @@ static void layout(void)
         CHECK(f_stat(p, &fi) == FR_OK && (fi.fattrib & AM_DIR), "layout: %s", p);
     }
     CHECK(sdl_prepare() == FR_OK, "layout: made again: found");
-    CHECK(sdl_path(p, sizeof p, SDL_KITS, "909 house") == 23 && !strcmp(p, "OPTIMIST/KITS/909 house"), "a path: %s", p);
+    CHECK(sdl_path(p, sizeof p, SDL_KITS, "909 house") == 23 && !strcmp(p, "Optimist/Kits/909 house"), "a path: %s", p);
     CHECK(sdl_path(p, 12, SDL_KITS, "x") == 0 && !p[0], "a path that does not fit: 0, empty");
     CHECK(sdl_name_ok("Night Drive") && sdl_name_ok("\xc3\xa9t\xc3\xa9 2") && sdl_name_ok(".hidden"),
           "names: spaces, UTF-8, a leading dot");
@@ -256,9 +256,9 @@ static void layout(void)
           "names: refused (separators, wildcards, trailing dot / space, control)");
     CHECK(sdl_name_ok("0123456789012345678901234567890123456789012345678901234567890AB") &&
           !sdl_name_ok("0123456789012345678901234567890123456789012345678901234567890ABC"), "names: 63 bytes at most");
-    CHECK(f_unlink("OPTIMIST/KITS") == FR_OK && put_file("OPTIMIST/KITS", "x", 1) == FR_OK &&
+    CHECK(f_unlink("Optimist/Kits") == FR_OK && put_file("Optimist/Kits", "x", 1) == FR_OK &&
           sdl_prepare() == FR_DENIED, "layout: a file where a folder must be: FR_DENIED");
-    CHECK(f_unlink("OPTIMIST/KITS") == FR_OK && sdl_prepare() == FR_OK, "layout: the folder made again");
+    CHECK(f_unlink("Optimist/Kits") == FR_OK && sdl_prepare() == FR_OK, "layout: the folder made again");
 }
 
 /* ---- the index ------------------------------------------------------------------------------------------------------ */
@@ -287,14 +287,14 @@ static uint32_t work[64];
 
 static void samples(void)
 {
-    CHECK(f_mkdir("OPTIMIST/SAMPLES/drums") == FR_OK && f_mkdir("OPTIMIST/SAMPLES/drums/909") == FR_OK &&
-          f_mkdir("OPTIMIST/SAMPLES/keys") == FR_OK, "samples: folders");
-    sample("OPTIMIST/SAMPLES/drums/909/kick.wav", 1, 2000);
-    sample("OPTIMIST/SAMPLES/drums/909/snare.wav", 2, 1500);
-    sample("OPTIMIST/SAMPLES/drums/clap long name.wav", 3, 900);
-    sample("OPTIMIST/SAMPLES/keys/rhodes C3.wav", 4, 2999);
-    sample("OPTIMIST/SAMPLES/top.wav", 5, 100);
-    CHECK(put_file("OPTIMIST/SAMPLES/drums/._kick.wav", "junk", 4) == FR_OK, "a computer's ._ file");
+    CHECK(f_mkdir("Optimist/Samples/drums") == FR_OK && f_mkdir("Optimist/Samples/drums/909") == FR_OK &&
+          f_mkdir("Optimist/Samples/keys") == FR_OK, "samples: folders");
+    sample("Optimist/Samples/drums/909/kick.wav", 1, 2000);
+    sample("Optimist/Samples/drums/909/snare.wav", 2, 1500);
+    sample("Optimist/Samples/drums/clap long name.wav", 3, 900);
+    sample("Optimist/Samples/keys/rhodes C3.wav", 4, 2999);
+    sample("Optimist/Samples/top.wav", 5, 100);
+    CHECK(put_file("Optimist/Samples/drums/._kick.wav", "junk", 4) == FR_OK, "a computer's ._ file");
 }
 
 static void index_tests(const char *what)
@@ -312,48 +312,48 @@ static void index_tests(const char *what)
     CHECK(sdx_open() == FR_OK && sdx.count == 5 && sdx.cap >= 5, "%s: the index read back", what);
     CHECK(runs_of(SDX_FILE) == 1, "%s: the index one run", what);
     CHECK(f_stat(SDX_TMP, &fi) == FR_NO_FILE, "%s: no INDEX.TMP left", what);
-    no = sdx_find_path("SAMPLES/keys/rhodes C3.wav", &rec);
+    no = sdx_find_path("Samples/keys/rhodes C3.wav", &rec);
     CHECK(no >= 0 && rec.hash == sample_hash(4, 2999) && rec.hlen == 2999, "%s: a record by its path, its hash", what);
-    CHECK(sdx_find_hash(sample_hash(1, 2000), &rec) >= 0 && !strcmp(rec.path, "SAMPLES/drums/909/kick.wav"),
+    CHECK(sdx_find_hash(sample_hash(1, 2000), &rec) >= 0 && !strcmp(rec.path, "Samples/drums/909/kick.wav"),
           "%s: a sample by its hash: %s", what, rec.path);
-    CHECK(sdx_find_path("SAMPLES/drums/._kick.wav", &rec) < 0, "%s: the ._ file not indexed", what);
+    CHECK(sdx_find_path("Samples/drums/._kick.wav", &rec) < 0, "%s: the ._ file not indexed", what);
 
     CHECK(sdx_update(buf, sizeof buf, work, 64) == FR_OK && sdx.hashed == 0 && sdx.kept == 5,
           "%s: a pass again: nothing hashed (%u)", what, (unsigned)sdx.hashed);
-    sample("OPTIMIST/SAMPLES/drums/909/snare.wav", 6, 1400);   /* changed "elsewhere": another size */
-    CHECK(f_rename("OPTIMIST/SAMPLES/top.wav", "OPTIMIST/SAMPLES/keys/moved top.wav") == FR_OK, "%s: moved", what);
-    sample("OPTIMIST/SAMPLES/new.wav", 7, 640);
+    sample("Optimist/Samples/drums/909/snare.wav", 6, 1400);   /* changed "elsewhere": another size */
+    CHECK(f_rename("Optimist/Samples/top.wav", "Optimist/Samples/keys/moved top.wav") == FR_OK, "%s: moved", what);
+    sample("Optimist/Samples/new.wav", 7, 640);
     CHECK(sdx_update(buf, sizeof buf, 0, 0) == FR_OK && sdx.files == 6 && sdx.hashed == 3 && sdx.kept == 3,
           "%s: a pass without the work table: the changed, the moved and the new hashed (%u %u %u)", what,
           (unsigned)sdx.files, (unsigned)sdx.hashed, (unsigned)sdx.kept);
-    CHECK(sdx_find_hash(sample_hash(5, 100), &rec) >= 0 && !strcmp(rec.path, "SAMPLES/keys/moved top.wav"),
+    CHECK(sdx_find_hash(sample_hash(5, 100), &rec) >= 0 && !strcmp(rec.path, "Samples/keys/moved top.wav"),
           "%s: the moved sample found by its hash where it is now", what);
     CHECK(sdx_find_hash(sample_hash(2, 1500), &rec) < 0 && sdx_find_hash(sample_hash(6, 1400), &rec) >= 0,
           "%s: the changed one by its new hash only", what);
 
-    no = sdx_find_path("SAMPLES/drums/909/kick.wav", &rec);
+    no = sdx_find_path("Samples/drums/909/kick.wav", &rec);
     CHECK(no >= 0 && sdx_touch((uint32_t)no) == FR_OK && sdx_read((uint32_t)no, &rec) == FR_OK && rec.used == sdx.seq,
           "%s: used: its number %u", what, (unsigned)rec.used);
-    sample("OPTIMIST/SAMPLES/drums/909/kick.wav", 8, 2000);    /* the FM-1 rewrote it (the same size, the same date) */
-    CHECK(sdx_note_written("OPTIMIST/SAMPLES/drums/909/kick.wav", buf, sizeof buf) == FR_OK, "%s: noted", what);
+    sample("Optimist/Samples/drums/909/kick.wav", 8, 2000);    /* the FM-1 rewrote it (the same size, the same date) */
+    CHECK(sdx_note_written("Optimist/Samples/drums/909/kick.wav", buf, sizeof buf) == FR_OK, "%s: noted", what);
     CHECK(sdx_find_hash(sample_hash(8, 2000), &rec) == no && rec.used == sdx.seq,
           "%s: the FM-1's write hashed at once, its use kept", what);
     CHECK(sdx_update(buf, sizeof buf, work, 64) == FR_OK && sdx.hashed == 0,
           "%s: ... and a pass keeps it (its date and size as recorded): %u hashed", what, (unsigned)sdx.hashed);
     cnt = sdx.count;
-    sample("OPTIMIST/SAMPLES/rec 1.wav", 9, 300);
-    CHECK(sdx_note_written("OPTIMIST/SAMPLES/rec 1.wav", buf, sizeof buf) == FR_OK && sdx.count == cnt + 1u &&
+    sample("Optimist/Samples/rec 1.wav", 9, 300);
+    CHECK(sdx_note_written("Optimist/Samples/rec 1.wav", buf, sizeof buf) == FR_OK && sdx.count == cnt + 1u &&
           sdx_find_hash(sample_hash(9, 300), &rec) >= 0, "%s: a new file the FM-1 wrote: a record added", what);
-    CHECK(sdx_note_written("OPTIMIST/KITS/x", buf, sizeof buf) == FR_INVALID_NAME, "%s: no sample: refused", what);
+    CHECK(sdx_note_written("Optimist/Kits/x", buf, sizeof buf) == FR_INVALID_NAME, "%s: no sample: refused", what);
     CHECK(runs_of(SDX_FILE) == 1, "%s: the index still one run", what);
     while (sdx.count < sdx.cap) {                    /* the run full: a note is refused until a pass makes room */
         char name[48];
-        snprintf(name, sizeof name, "OPTIMIST/SAMPLES/fill %u.wav", (unsigned)sdx.count);
+        snprintf(name, sizeof name, "Optimist/Samples/fill %u.wav", (unsigned)sdx.count);
         sample(name, 10 + sdx.count, 50);
         CHECK(sdx_note_written(name, buf, sizeof buf) == FR_OK, "%s: %s noted", what, name);
     }
-    sample("OPTIMIST/SAMPLES/one more.wav", 99, 50);
-    CHECK(sdx_note_written("OPTIMIST/SAMPLES/one more.wav", buf, sizeof buf) == FR_DENIED, "%s: no room: FR_DENIED",
+    sample("Optimist/Samples/one more.wav", 99, 50);
+    CHECK(sdx_note_written("Optimist/Samples/one more.wav", buf, sizeof buf) == FR_DENIED, "%s: no room: FR_DENIED",
           what);
     cnt = sdx.count + 1u;
     CHECK(sdx_update(buf, sizeof buf, work, 64) == FR_OK && sdx.count == cnt && sdx.hashed == 1,
@@ -367,7 +367,7 @@ static void index_cuts(const char *what, uint8_t *img, uint32_t sectors, uint32_
     long k, w0, total;
     uint32_t want;
     int bad = 0;
-    sample("OPTIMIST/SAMPLES/cut test.wav", 77, 2500);
+    sample("Optimist/Samples/cut test.wav", 77, 2500);
     memcpy(snap, img, (size_t)sectors * 512u);
     w0 = C.writes;
     CHECK(sdx_update(buf, sizeof buf, work, 64) == FR_OK, "%s: the pass (uncut)", what);
@@ -444,29 +444,29 @@ static void browse_tests(const char *what)
     uint32_t i, k, n;
     FILINFO fi;
     static const char LONG[] = "an extremely long sample name that goes on and on past the slot ";   /* 64 B */
-    CHECK(f_mkdir("OPTIMIST/SAMPLES/many") == FR_OK, "%s: a folder of many", what);
+    CHECK(f_mkdir("Optimist/Samples/many") == FR_OK, "%s: a folder of many", what);
     for (i = 0; i < 37; i++) {                       /* names out of order, mixed case */
-        snprintf(name, sizeof name, "OPTIMIST/SAMPLES/many/%c%02u.wav", (i * 7u % 37u) & 1 ? 'S' : 's',
+        snprintf(name, sizeof name, "Optimist/Samples/many/%c%02u.wav", (i * 7u % 37u) & 1 ? 'S' : 's',
                  (unsigned)(i * 7u % 37u));
         sample(name, i, 10);
     }
     for (i = 0; i < 3; i++) {                        /* names equal in their first 47 bytes, then the UTF-8 cut */
-        snprintf(name, sizeof name, "OPTIMIST/SAMPLES/many/%s%u.wav", LONG, (unsigned)(2 - i));
+        snprintf(name, sizeof name, "Optimist/Samples/many/%s%u.wav", LONG, (unsigned)(2 - i));
         sample(name, 50 + i, 10);
     }
-    snprintf(name, sizeof name, "OPTIMIST/SAMPLES/many/%.45s\xc3\xa9\xc3\xa9.wav", LONG);   /* é across the cut */
+    snprintf(name, sizeof name, "Optimist/Samples/many/%.45s\xc3\xa9\xc3\xa9.wav", LONG);   /* é across the cut */
     sample(name, 60, 10);
-    f_mkdir("OPTIMIST/SAMPLES/many/zz sub");
-    f_mkdir("OPTIMIST/SAMPLES/many/AA sub");
-    put_file("OPTIMIST/SAMPLES/many/._s01.wav", "x", 1);
+    f_mkdir("Optimist/Samples/many/zz sub");
+    f_mkdir("Optimist/Samples/many/AA sub");
+    put_file("Optimist/Samples/many/._s01.wav", "x", 1);
 
-    CHECK(sdb_open(&b, SDB_FOLDER, "OPTIMIST/SAMPLES/many") == FR_OK && b.total == 43 && b.pages == 3,
+    CHECK(sdb_open(&b, SDB_FOLDER, "Optimist/Samples/many") == FR_OK && b.total == 43 && b.pages == 3,
           "%s: a folder of 43 entries: 3 pages (%u, %u)", what, (unsigned)b.total, (unsigned)b.pages);
     CHECK(b.slot[0].dir && b.slot[1].dir && !strcmp(b.slot[0].name, "AA sub") && !strcmp(b.slot[1].name, "zz sub") &&
           !b.slot[2].dir, "%s: its folders first, by name", what);
     n = pages_check(&b, "folder view");
     CHECK(n == 43, "%s: every entry once (%u)", what, (unsigned)n);
-    CHECK(sdb_open(&b, SDB_FOLDER, "OPTIMIST/SAMPLES/many") == FR_OK, "%s: open again", what);
+    CHECK(sdb_open(&b, SDB_FOLDER, "Optimist/Samples/many") == FR_OK, "%s: open again", what);
     for (k = 0, i = 0; i < b.n; i++) {
         if (!b.slot[i].cut)
             continue;
@@ -478,23 +478,23 @@ static void browse_tests(const char *what)
     }
     CHECK(k == 4, "%s: 4 names cut (%u)", what, (unsigned)k);
     CHECK(sdb_path(&b, 5, path, sizeof path) && f_stat(path, &fi) == FR_OK, "%s: a slot's path: %s", what, path);
-    CHECK(sdb_into(&b, 0) == FR_OK && !strcmp(b.root, "OPTIMIST/SAMPLES/many/AA sub") && b.total == 0 && b.n == 0 &&
+    CHECK(sdb_into(&b, 0) == FR_OK && !strcmp(b.root, "Optimist/Samples/many/AA sub") && b.total == 0 && b.n == 0 &&
           b.pages == 1, "%s: into an empty folder", what);
     CHECK(sdb_up(&b) == FR_OK && b.total == 43 && sdb_into(&b, 5) == FR_NO_PATH, "%s: up; a file is no folder", what);
-    CHECK(sdb_open(&b, SDB_FOLDER, "OPTIMIST") == FR_OK && sdb_up(&b) == FR_NO_PATH, "%s: never above OPTIMIST", what);
+    CHECK(sdb_open(&b, SDB_FOLDER, "Optimist") == FR_OK && sdb_up(&b) == FR_NO_PATH, "%s: never above OPTIMIST", what);
     CHECK(sdb_turn(&b, 5) == FR_OK && b.page == 0, "%s: one page: turning stays", what);
 
-    CHECK(sdb_open(&b, SDB_BYNAME, "OPTIMIST/SAMPLES") == FR_OK && !b.slot[0].dir, "%s: by name, every folder", what);
+    CHECK(sdb_open(&b, SDB_BYNAME, "Optimist/Samples") == FR_OK && !b.slot[0].dir, "%s: by name, every folder", what);
     n = pages_check(&b, "name view");
     CHECK(n == b.total && n >= 41 + 6, "%s: every sample once (%u)", what, (unsigned)n);
-    CHECK(sdb_open(&b, SDB_BYNAME, "OPTIMIST/SAMPLES") == FR_OK && sdb_turn(&b, 2) == FR_OK && b.page == 2 &&
+    CHECK(sdb_open(&b, SDB_BYNAME, "Optimist/Samples") == FR_OK && sdb_turn(&b, 2) == FR_OK && b.page == 2 &&
           sdb_path(&b, 3, path, sizeof path) && f_stat(path, &fi) == FR_OK, "%s: page 2, a slot's path %s", what, path);
     CHECK(sdb_turn(&b, 99) == FR_OK && b.page == b.pages - 1u && sdb_turn(&b, -99) == FR_OK && b.page == 0,
           "%s: turned past the ends: clamped", what);
 
     CHECK(sdx_update(buf, sizeof buf, work, 64) == FR_OK, "%s: the index for the recent view", what);
     for (i = 0; i < 20; i++) {                       /* 20 uses, the last one first */
-        snprintf(name, sizeof name, "SAMPLES/many/%c%02u.wav", i & 1 ? 'S' : 's', (unsigned)i);
+        snprintf(name, sizeof name, "Samples/many/%c%02u.wav", i & 1 ? 'S' : 's', (unsigned)i);
         int32_t no = sdx_find_path(name, &sdx.rec);
         CHECK(no >= 0 && sdx_touch((uint32_t)no) == FR_OK, "%s: used %s", what, name);
     }
@@ -504,7 +504,7 @@ static void browse_tests(const char *what)
     n = pages_check(&b, "recent view");
     CHECK(n == 21, "%s: recent: 21 (the 20, the kick used before)", what);
     CHECK(sdb_open(&b, SDB_RECENT, 0) == FR_OK && sdb_path(&b, 0, path, sizeof path) &&
-          !strcmp(path, "OPTIMIST/SAMPLES/many/S19.wav"), "%s: a recent slot's path %s", what, path);
+          !strcmp(path, "Optimist/Samples/many/S19.wav"), "%s: a recent slot's path %s", what, path);
 }
 
 /* ---- the staged save ------------------------------------------------------------------------------------------------ */
@@ -552,7 +552,7 @@ static int versions(const char *name)
     FILINFO fi;
     char p[128];
     int n = 0;
-    snprintf(p, sizeof p, "OPTIMIST/PROJECTS/%s/VERSIONS", name);
+    snprintf(p, sizeof p, "Optimist/Projects/%s/Versions", name);
     if (f_opendir(&d, p) != FR_OK)
         return -1;
     while (f_readdir(&d, &fi) == FR_OK && fi.fname[0])
@@ -575,8 +575,8 @@ static void save_tests(const char *what)
     project(1, 20000);
     CHECK(sdp_save(P, 1, 20000, buf) == FR_OK && !pend_on, "%s: the first save, the pending record cleared", what);
     CHECK(picked(P, 1, 1, 20000), "%s: save 1 on the card, whole", what);
-    CHECK(runs_of("OPTIMIST/PROJECTS/Night Drive/Night Drive.OPP") == 1, "%s: one run", what);
-    CHECK(f_stat("OPTIMIST/PROJECTS/Night Drive/Night Drive.OPP", &fi) == FR_OK &&
+    CHECK(runs_of("Optimist/Projects/Night Drive/Night Drive.OPP") == 1, "%s: one run", what);
+    CHECK(f_stat("Optimist/Projects/Night Drive/Night Drive.OPP", &fi) == FR_OK &&
           fi.fsize == (512u + 20000u) * 3u / 2u / ((uint32_t)fs.csize * 512u) * ((uint32_t)fs.csize * 512u) +
                       ((((512u + 20000u) * 3u / 2u) % ((uint32_t)fs.csize * 512u)) ? (uint32_t)fs.csize * 512u : 0u),
           "%s: its run the project x 1.5, whole clusters (%u)", what, (unsigned)fi.fsize);
@@ -586,11 +586,11 @@ static void save_tests(const char *what)
         CHECK(picked(P, len, len, 20000 + len * 3000u), "%s: save %u picked", what, (unsigned)len);
     }
     CHECK(versions(P) == 2, "%s: 2 versions kept (%d)", what, versions(P));
-    CHECK(f_stat("OPTIMIST/PROJECTS/Night Drive/VERSIONS/Night Drive-0004.OPP", &fi) == FR_OK &&
-          f_stat("OPTIMIST/PROJECTS/Night Drive/VERSIONS/Night Drive-0003.OPP", &fi) == FR_OK,
+    CHECK(f_stat("Optimist/Projects/Night Drive/Versions/Night Drive-0004.OPP", &fi) == FR_OK &&
+          f_stat("Optimist/Projects/Night Drive/Versions/Night Drive-0003.OPP", &fi) == FR_OK,
           "%s: ... the newest two", what);
-    CHECK(f_stat("OPTIMIST/PROJECTS/Night Drive/Night Drive.SPR", &fi) == FR_OK, "%s: a spare run kept", what);
-    CHECK(f_stat("OPTIMIST/PROJECTS/Night Drive/Night Drive.TMP", &fi) == FR_NO_FILE, "%s: no .TMP", what);
+    CHECK(f_stat("Optimist/Projects/Night Drive/Night Drive.SPR", &fi) == FR_OK, "%s: a spare run kept", what);
+    CHECK(f_stat("Optimist/Projects/Night Drive/Night Drive.TMP", &fi) == FR_NO_FILE, "%s: no .TMP", what);
     sdp_keep = 0;
     project(6, 21000);
     CHECK(sdp_save(P, 6, 21000, buf) == FR_OK && picked(P, 6, 6, 21000), "%s: N 0: saved", what);
@@ -602,7 +602,25 @@ static void save_tests(const char *what)
     project(8, 22000);
     CHECK(sdp_save(P, 6, 22000, buf) == FR_OK && picked(P, 6, 8, 22000) && versions(P) == 1,
           "%s: a save numbered as an older one: the .OPP is the project whatever its number", what);
-    CHECK(sdp_save("bad/name", 9, 10, buf) == FR_INVALID_NAME && !pend_on, "%s: a bad name refused first", what);
+    CHECK(sdp_save("bad/na*me", 9, 10, buf) == FR_INVALID_NAME && sdp_save("a/b/c", 9, 10, buf) == FR_INVALID_NAME && !pend_on,
+          "%s: a bad name refused first (a bank and a name: one / at most)", what);
+    {   /* a bank's project (the user, 2026-11-04: Projects/<bank>/<nn> - <name>/<nn> - <name>.opp, Versions/ in it) */
+        static const char *const B = "B/03 - night drive";
+        FILINFO fi;
+        sdp_keep = 4;
+        project(10, 3000);
+        CHECK(sdp_save(B, 1, 3000, buf) == FR_OK && picked(B, 1, 10, 3000) &&
+              f_stat("Optimist/Projects/B/03 - night drive/03 - night drive.opp", &fi) == FR_OK,
+              "%s: a bank's project: Projects/B/03 - night drive/03 - night drive.opp, the bank's folder made", what);
+        project(11, 3100);
+        CHECK(sdp_save(B, 2, 3100, buf) == FR_OK && picked(B, 2, 11, 3100) &&
+              f_stat("Optimist/Projects/B/03 - night drive/Versions/03 - night drive-0001.opp", &fi) == FR_OK,
+              "%s: ... saved again: its version 03 - night drive-0001.opp beside it", what);
+        sdp_keep = 1;
+        project(12, 3100);
+        CHECK(sdp_save(B, 3, 3100, buf) == FR_OK && versions(B) == 1, "%s: ... the versions past the setting dropped "
+              "(the version's names start with the file's, not the bank's)", what);
+    }
 }
 
 /* a power cut at every block write of a save, from a card holding save A: the pick is A or B whole at the cut, and
@@ -621,7 +639,7 @@ static void save_cuts(const char *what, uint8_t *img, uint32_t sectors)
     CHECK(sdp_save(P, 10, 30000, buf) == FR_OK, "%s: save A", what);
     for (i = 0; i < 9; i++) {                        /* the folder over several sectors: a rename's new entry lands in
                                                       * another sector than the old one (two writes: a cut between) */
-        snprintf(name, sizeof name, "OPTIMIST/PROJECTS/Cut Me/a note the user left here %d.txt", i);
+        snprintf(name, sizeof name, "Optimist/Projects/Cut Me/a note the user left here %d.txt", i);
         put_file(name, "x", 1);
     }
     project(12, 30000);
@@ -649,7 +667,7 @@ static void save_cuts(const char *what, uint8_t *img, uint32_t sectors)
             unfinished++;                            /* (cut, yet no pending record: the boot would not finish it) */
         if (sdp_boot(buf) != FR_OK || pend_on || !picked(P, 13, 14, 47000) || versions(P) != 2)
             wrong++;
-        if (f_stat("OPTIMIST/PROJECTS/Cut Me/Cut Me.TMP", &fi) == FR_OK)
+        if (f_stat("Optimist/Projects/Cut Me/Cut Me.TMP", &fi) == FR_OK)
             leftover++;
         fat_check(1, what);
     }
@@ -679,7 +697,7 @@ static void half_rename(const char *what)
     project(21, 9000);
     CHECK(sdp_save(P, 1, 9000, buf) == FR_OK, "%s: half: save 1", what);
     for (i = 0; i < 40; i++) {                       /* the folder's first sectors full: new entries go past them */
-        snprintf(name, sizeof name, "OPTIMIST/PROJECTS/Half/pad %02d.txt", i);
+        snprintf(name, sizeof name, "Optimist/Projects/Half/pad %02d.txt", i);
         put_file(name, "x", 1);
     }
     project(22, 9500);
@@ -698,14 +716,14 @@ static void half_rename(const char *what)
     }
     w = C.writes;
     C.cut_at = w + 1;                                /* one directory write lands, then the power goes */
-    (void)f_rename("OPTIMIST/PROJECTS/Half/Half.TMP", "OPTIMIST/PROJECTS/Half/Half.OPP");
+    (void)f_rename("Optimist/Projects/Half/Half.TMP", "Optimist/Projects/Half/Half.OPP");
     card_power_on();
     CHECK(mount() == FR_OK, "%s: half: mount", what);
-    half = sdl_chain("OPTIMIST/PROJECTS/Half/Half.TMP") &&
-           sdl_chain("OPTIMIST/PROJECTS/Half/Half.TMP") == sdl_chain("OPTIMIST/PROJECTS/Half/Half.OPP");
+    half = sdl_chain("Optimist/Projects/Half/Half.TMP") &&
+           sdl_chain("Optimist/Projects/Half/Half.TMP") == sdl_chain("Optimist/Projects/Half/Half.OPP");
     CHECK(half, "%s: half: the cut left .TMP and .OPP one chain (the case under test)", what);
     CHECK(sdp_boot(buf) == FR_OK && !pend_on && picked(P, 2, 22, 9500), "%s: half: the boot finished save 2", what);
-    CHECK(f_stat("OPTIMIST/PROJECTS/Half/Half.TMP", &fi) == FR_NO_FILE, "%s: half: the .TMP's name gone", what);
+    CHECK(f_stat("Optimist/Projects/Half/Half.TMP", &fi) == FR_NO_FILE, "%s: half: the .TMP's name gone", what);
     fat_check(1, what);
     project(23, 9500);
     CHECK(sdp_save(P, 3, 9500, buf) == FR_OK && picked(P, 3, 23, 9500), "%s: half: save 3 after it", what);
@@ -730,23 +748,23 @@ static void alloc_tests(const char *what)
     sda_scale = 100;
     CHECK(sda_rec_bytes(2000, 0, 48000, 2) == 192000 && sda_rec_bytes(0, 1000, 48000, 2) == 192000 &&
           sda_rec_bytes(0, 0, 44100, 2) == 5292000, "a recording's guess: asked, the loop x 2, a minute");
-    CHECK(sda_create(&f, "OPTIMIST/RECORD/take 1.wav", SDA_RECORD, 0, 70000) == FR_OK && f_close(&f) == FR_OK &&
-          f_stat("OPTIMIST/RECORD/take 1.wav", &fi) == FR_OK && fi.fsize == (70000u + cl - 1u) / cl * cl &&
-          runs_of("OPTIMIST/RECORD/take 1.wav") == 1, "%s: a recording's run: the guess, whole clusters, one", what);
-    CHECK(sda_create(&f, "OPTIMIST/RECORD/take 1.wav", SDA_RECORD, 0, 100) == FR_EXIST, "%s: never over a file", what);
-    CHECK(sda_create(&f, "OPTIMIST/RECORD/huge.wav", SDA_RENDER, 1000, 0x7FFFFFFFu) == FR_OK && f_close(&f) == FR_OK &&
-          f_stat("OPTIMIST/RECORD/huge.wav", &fi) == FR_OK && fi.fsize == (1000u + cl - 1u) / cl * cl,
+    CHECK(sda_create(&f, "Optimist/Record/take 1.wav", SDA_RECORD, 0, 70000) == FR_OK && f_close(&f) == FR_OK &&
+          f_stat("Optimist/Record/take 1.wav", &fi) == FR_OK && fi.fsize == (70000u + cl - 1u) / cl * cl &&
+          runs_of("Optimist/Record/take 1.wav") == 1, "%s: a recording's run: the guess, whole clusters, one", what);
+    CHECK(sda_create(&f, "Optimist/Record/take 1.wav", SDA_RECORD, 0, 100) == FR_EXIST, "%s: never over a file", what);
+    CHECK(sda_create(&f, "Optimist/Record/huge.wav", SDA_RENDER, 1000, 0x7FFFFFFFu) == FR_OK && f_close(&f) == FR_OK &&
+          f_stat("Optimist/Record/huge.wav", &fi) == FR_OK && fi.fsize == (1000u + cl - 1u) / cl * cl,
           "%s: no run that long free: the bytes it needs (%u)", what, (unsigned)fi.fsize);
-    CHECK(sda_create(&f, "OPTIMIST/RECORD/too big.wav", SDA_EXACT, 0x7FFFFFFFu, 0) == FR_DENIED &&
-          f_stat("OPTIMIST/RECORD/too big.wav", &fi) == FR_NO_FILE, "%s: no room at all: FR_DENIED, no file", what);
+    CHECK(sda_create(&f, "Optimist/Record/too big.wav", SDA_EXACT, 0x7FFFFFFFu, 0) == FR_DENIED &&
+          f_stat("Optimist/Record/too big.wav", &fi) == FR_NO_FILE, "%s: no room at all: FR_DENIED, no file", what);
     sda_scale = 100;
-    CHECK(put_file("OPTIMIST/PRESETS/pad.opr", stage, 1800) == FR_OK, "%s: a preset", what);
-    f_unlink("OPTIMIST/PRESETS/pad.opr");
-    CHECK(sda_create(&f, "OPTIMIST/PRESETS/pad.opr", SDA_EXACT, 1800, 0) == FR_OK, "%s: a preset by its run", what);
+    CHECK(put_file("Optimist/Presets/pad.opr", stage, 1800) == FR_OK, "%s: a preset", what);
+    f_unlink("Optimist/Presets/pad.opr");
+    CHECK(sda_create(&f, "Optimist/Presets/pad.opr", SDA_EXACT, 1800, 0) == FR_OK, "%s: a preset by its run", what);
     {
         UINT k;
         CHECK(f_write(&f, stage, 1800, &k) == FR_OK && k == 1800 && f_close(&f) == FR_OK &&
-              runs_of("OPTIMIST/PRESETS/pad.opr") == 1, "%s: ... one run on a card in holes", what);
+              runs_of("Optimist/Presets/pad.opr") == 1, "%s: ... one run on a card in holes", what);
     }
 }
 

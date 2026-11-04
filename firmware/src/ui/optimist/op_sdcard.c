@@ -29,6 +29,11 @@ static uint32_t sdm_pages(void);
 static uint32_t sdm_count(void);
 static const char *sdm_slot(uint32_t k, uint32_t *dir, uint32_t *cut);
 static const char *sdm_base_of(uint32_t k);
+static const char *sdm_rel_of(uint32_t k);              /* (a project's place under Projects/: "A/03 - song") */
+static void sdm_work_of(char *out, uint32_t cap);
+static void sdm_save_at(uint32_t k);
+static int32_t sdm_bank_shown(void);                    /* (banks of 16: the letter shown, 0 = A; -1 none) */
+static int sdm_bank_go(uint32_t bk);
 static int sdm_into(uint32_t k);
 static void sdm_load_later(uint32_t k);
 static int sdm_up(void);
@@ -115,10 +120,16 @@ static const char *sdc_name(uint32_t k)                 /* slot k as shown, "" n
     const char *s = sdm_slot(k, &dir, &cut);
     return s ? s : "";
 }
-static uint32_t sdc_is_dir(uint32_t k)                  /* slot k a folder to go into (a project's folder is the project) */
+/* slot k a folder to go into (a project's folder is the project; a bank's folder, 2, is gone into in every list) */
+static uint32_t sdc_is_dir(uint32_t k)
 {
     uint32_t dir = 0, cut;
-    return sdm_slot(k, &dir, &cut) && dir && (sdc.open != SDC_PROJ || sdc.view[SDC_PROJ] == SDV_VERSIONS);
+    return sdm_slot(k, &dir, &cut) && dir && (dir == 2u || sdc.open != SDC_PROJ || sdc.view[SDC_PROJ] == SDV_VERSIONS);
+}
+static uint32_t sdc_used(uint32_t k)                    /* slot k holds something (a bank's free number does not) */
+{
+    uint32_t dir, cut;
+    return k < sdm_count() && sdm_slot(k, &dir, &cut) != 0;
 }
 
 /* ---- the cards */
@@ -139,7 +150,13 @@ static void sdc_cell(uint32_t kind, uint32_t k, cell_t *c)
         return;
     }
     op = sdc_op_at(l, sdc.op);
-    if (k == 0u) {
+    if (k == 0u && sdm_bank_shown() >= 0) {             /* a bank of 16 (presets, projects): its letter, A .. Z */
+        c->label = "BANK";
+        c->kind = CK_VAL;
+        c->val[0] = (char)('A' + sdm_bank_shown());
+        c->val[1] = 0;
+        cell_gauge(c, 0, 0, 25, sdm_bank_shown());
+    } else if (k == 0u) {
         c->label = "PAGE";
         c->kind = CK_VAL;
         fmt_int(c->val, (int32_t)sdm_page() + 1);
@@ -151,12 +168,12 @@ static void sdc_cell(uint32_t kind, uint32_t k, cell_t *c)
         c->label = "ACTION";
         c->kind = CK_VAL;
         cell_val(c, SDO_NAME_S[op]);
-        c->col = op == SDO_DELETE || (op == SDO_SAVE && sdc.item < sdm_count()) ? C_ERR : 0;
+        c->col = op == SDO_DELETE || (op == SDO_SAVE && sdc_used(sdc.item)) ? C_ERR : 0;
         cell_gauge(c, 1, 0, (int32_t)sdc_nops(l) - 1, (int32_t)sdc.op);
     } else if (k == 2u) {
         c->label = "ITEM";
         c->kind = CK_VAL;
-        if (sdc.item < sdm_count())
+        if (sdc_used(sdc.item))
             fmt_int(c->val, (int32_t)sdc.item + 1);
         else
             cell_val(c, "-");
@@ -168,8 +185,15 @@ static void sdc_cell(uint32_t kind, uint32_t k, cell_t *c)
         cell_gauge(c, 1, 0, (int32_t)sdc_views(l) - 1, (int32_t)sdc_view_ix(l));
     }
 }
-static void sdc_page_turn(int32_t d)
+static void sdc_page_turn(int32_t d)                    /* (a bank shown: the next or the one before, A .. Z) */
 {
+    int32_t bk = sdm_bank_shown();
+    if (bk >= 0) {
+        if (bk + d >= 0 && bk + d < 26)
+            (void)sdm_bank_go((uint32_t)(bk + d));
+        ui.force = 1;
+        return;
+    }
     sdm_turn(d);
     if (sdc.item >= sdm_count() && sdm_count())
         sdc.item = (uint8_t)(sdm_count() - 1u);
@@ -178,10 +202,10 @@ static void sdc_page_turn(int32_t d)
 static void sdc_view_set(uint32_t l, uint32_t v)        /* VIEW: the list again (SAVES: the item's project, else the work's) */
 {
     if (v == SDV_VERSIONS) {
-        if (sdc.item < sdm_count())                     /* (the projects' list: the item is a project) */
-            str_cpy(sdc.vname, sdm_base_of(sdc.item), sizeof sdc.vname);
+        if (sdc_used(sdc.item))                         /* (the projects' list: the item is a project) */
+            str_cpy(sdc.vname, sdm_rel_of(sdc.item), sizeof sdc.vname);
         else
-            sec_name(0, sdc.vname);
+            sdm_work_of(sdc.vname, sizeof sdc.vname);
     }
     sdc.view[l] = (uint8_t)v;
     sdc.op = 0;
@@ -230,20 +254,21 @@ static void sdc_name_for(uint32_t l, uint32_t k)        /* NAME, prefilled: the 
         ui_message("DRUM TRACK: NO SOUND");             /* (a preset is a synth part's sound: said before NAME) */
         return;
     }
-    if (k < sdm_count() && !sdc_is_dir(k))
+    if (sdc_used(k) && !sdc_is_dir(k))
         str_cpy(nm, l == SDC_PROJ ? sdm_base_of(k) : sdc_name(k), sizeof nm);
     else if (l == SDC_PROJ)
         sec_name(0, nm);
-    name_card(l, nm, k < sdm_count() ? nm : "");
+    sdm_save_at(k);                                     /* (a bank's free slot: its number for the save) */
+    name_card(l, nm, sdc_used(k) ? nm : "");
 }
 static void sdc_ask(uint32_t r, uint32_t l, uint32_t op, uint32_t k)
 {
     char a[16], cur[SDC_PNAME];
-    if (op == SDO_SAVE && k >= sdm_count()) {
+    if (op == SDO_SAVE && !sdc_used(k)) {
         sdc_name_for(l, k);
         return;
     }
-    if (k >= sdm_count()) {
+    if (!sdc_used(k)) {
         ui.toast_next = 1;
         ui_message("EMPTY");
         ui.toast_next = 0;
@@ -290,7 +315,7 @@ static int sdc_yes(uint32_t r, uint32_t kind, uint32_t ok)
     op = prj_arm_op, k = prj_arm_slot;
     if (op == SDO_SAVE_LOAD) {                          /* YES to "SAVE <the work>?": saved by its name, then loaded */
         char want[SDC_NAME];
-        str_cpy(want, sdm_base_of(k), sizeof want);
+        str_cpy(want, sdm_rel_of(k), sizeof want);      /* (its place: "A/03 - song") */
         sec_name(0, cur);
         if (!sdm_save(SDC_PROJ, cur, cur))
             sdm_load_name(want);                        /* (the card's copy whole first: never the flash copy's only) */
@@ -332,9 +357,40 @@ static void sdc_key(uint32_t kind, int32_t w)
 }
 static uint32_t sdc_bank_avail(void)
 {
+    int32_t bk = sdm_bank_shown();
     if (!sdc_listing() || !sdm_ready())
         return 0u;
+    if (bk >= 0)                                        /* a bank: OCT the next one or the one before (A .. Z) */
+        return (bk ? 1u << B_OCTDN : 0u) | (bk < 25 ? 1u << B_OCTUP : 0u);
     return (sdm_page() ? 1u << B_OCTDN : 0u) | (sdm_page() + 1u < sdm_pages() ? 1u << B_OCTUP : 0u);
+}
+static void sdc_bank_say(void)                          /* "BANK C" */
+{
+    char b[2] = {(char)('A' + sdm_bank_shown()), 0};
+    ui.toast_next = 1;
+    ui_say("BANK ", b);
+    ui.toast_next = 0;
+}
+/* a black key on a list of banks (the user, 2026-11-04: one black key a bank): the 11 black keys of the 27 (F# G# A#
+ * C# D# twice, the top F#) are banks A .. K, in key order; OCT goes on to L .. Z (sdc_bank_tap). Black key b of the
+ * keyboard (0 .. 10) */
+static void sdc_bank_key(uint32_t kind, uint32_t b)
+{
+    uint32_t l = sdc_list_of(kind);
+    if (!sdm_ready() || (l != SDC_PROJ && l != SDC_PRE) || b > 10u || op_armed())
+        return;
+    sdc_sync(l);
+    if (sdm_bank_go(b)) {
+        sdc.item = 0;
+        sdc_bank_say();
+    }
+    ui.force = 1;
+}
+static uint32_t sdc_bank_lit(void)                      /* the black key of the bank shown (A .. K), 0 none */
+{
+    static const uint8_t B[5] = {1, 3, 5, 8, 10};       /* F# G# A# C# D# from F (punch_key's white keys between) */
+    int32_t bk = sdm_bank_shown();
+    return bk >= 0 && bk < 11 ? 1u << ((uint32_t)bk / 5u * 12u + B[bk % 5]) : 0u;
 }
 static void sdc_bank_tap(uint32_t up)
 {
@@ -342,6 +398,10 @@ static void sdc_bank_tap(uint32_t up)
     if (!((sdc_bank_avail() >> (up ? B_OCTUP : B_OCTDN)) & 1u))
         return;
     sdc_page_turn(up ? 1 : -1);
+    if (sdm_bank_shown() >= 0) {
+        sdc_bank_say();
+        return;
+    }
     fmt_int(b, (int32_t)sdm_page() + 1);
     str_app(b, "/", sizeof b);
     fmt_app(b, (int32_t)sdm_pages());
@@ -370,14 +430,14 @@ static void sdc_keys_lit(uint32_t *f, uint32_t *d, uint32_t blink)   /* a file f
     if (!sdm_ready())
         return;
     for (w = 0; w < sdm_count() && w < SDC_KEYS; w++) {
-        if (w == sdc.item && !blink)
-            continue;
+        if ((w == sdc.item && !blink) || !sdc_used(w))
+            continue;                                   /* (a bank's free number: dark) */
         if (sdc_is_dir(w))
             fr |= 1u << w;
         else
             u |= 1u << w;
     }
-    *f |= keys_of(u);
+    *f |= keys_of(u) | sdc_bank_lit();                  /* (the bank shown: its black key) */
     *d |= keys_of(fr);
 }
 
@@ -392,7 +452,9 @@ static void sdc_paint(void)
         cv_texts(80, 40, "No SD card", C_WARN);
         return;
     }
-    if (!sdm_count()) {
+    for (k = 0; k < sdm_count() && k < SDC_KEYS && !sdc_used(k); k++)
+        ;
+    if (k == sdm_count() || k == SDC_KEYS) {            /* (nothing, or a bank with every number free) */
         sdm_folder(fold, sizeof fold);
         cv_texts(4, 40, op_case(b, fold, sizeof b), C_GRAY);
         cv_texts(4, 60, "Empty", C_DIM);

@@ -729,6 +729,10 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
                                             * project flash store's; the card under full FatFs (SDCARD + LAYOUT 1). Once the
                                             * mode's one flag builds the card in: FELUCCA_SD_MODE alone */
 #endif
+#if FELUCCA_SD_UI && FELUCCA_FAVORITES             /* no favorites in SD card mode (the user, 2026-11-04: the card's */
+#undef FELUCCA_FAVORITES                           /* banks are the organisation): no FAVORITES filter, no marks; the */
+#define FELUCCA_FAVORITES 0                        /* builder's FAVORITES as it is in flash mode (core.py built) */
+#endif
 #if FELUCCA_SD_UI && !(FELUCCA_PATTERNS && SEC_LOGGED && FELUCCA_LAYOUT == 1)
 #error "SD card mode needs the projects of the section log (PATTERNS, SECTIONS 8 or 16) in the fake SD mode's layout"
 #endif

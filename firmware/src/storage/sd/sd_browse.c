@@ -13,16 +13,17 @@
  * total and the same in every pass: (folders first,) the name's first SDB_NAME - 1 bytes without case (ASCII), then
  * the entry's place in its source, so names equal that far keep their order on the card and no entry is shown twice
  * or skipped. A slot keeps its name cut there (on a UTF-8 boundary: cut set); sdb_path finds the whole path again.
- *   sdb_open(b, view, root)   the view of root ("OPTIMIST/SAMPLES"; ignored by SDB_RECENT): page 0. FR_OK, or
+ *   sdb_open(b, view, root)   the view of root ("Optimist/Samples"; ignored by SDB_RECENT): page 0. FR_OK, or
  *                             FatFs' error (b->n 0)
  *   sdb_turn(b, step)         the page step pages on (+1, -1, more: one pass a page), clamped to the first and last
  *   b->page, b->pages, b->total, b->n, b->slot[k]   what the page shows: slot k on key k (name, dir, cut)
  *   sdb_path(b, k, out, cap)  slot k's whole path from the card's root: its length, 0 when it is gone or does not fit
- *   sdb_into(b, k), sdb_up(b)   SDB_FOLDER: into the folder on slot k / up to the folder above (never above OPTIMIST),
+ *   sdb_into(b, k), sdb_up(b)   SDB_FOLDER: into the folder on slot k / up to the folder above (never above Optimist),
  *                             page 0: FR_OK, FR_NO_PATH (slot k no folder, or already at the top) */
 #define SDB_KEYS 16u
 #define SDB_NAME 48u
-enum { SDB_FOLDER = 0, SDB_BYNAME, SDB_RECENT };
+enum { SDB_FOLDER = 0, SDB_BYNAME, SDB_RECENT, SDB_BANK };
+#define SDB_DIRLIKE(v) ((v) == SDB_FOLDER || (v) == SDB_BANK)   /* (read as one folder: a bank is one) */
 
 typedef struct {
     char name[SDB_NAME];                             /* shown; the sort key (cut at SDB_NAME - 1 bytes) */
@@ -94,7 +95,7 @@ static FRESULT sdb_src_open(const sdb_t *b)
     sdx_head h;
     FRESULT r;
     sdb_src.ord = 0;
-    if (b->view == SDB_FOLDER)
+    if (SDB_DIRLIKE(b->view))
         return f_opendir(&sdb_src.d, b->root);
     if (b->view == SDB_BYNAME)
         return sdw_open(&sdb_src.walk, b->root);
@@ -108,7 +109,7 @@ static FRESULT sdb_src_open(const sdb_t *b)
 
 static void sdb_src_close(const sdb_t *b)
 {
-    if (b->view == SDB_FOLDER)
+    if (SDB_DIRLIKE(b->view))
         (void)f_closedir(&sdb_src.d);
     else if (b->view == SDB_RECENT && sdb_src.f.obj.fs)
         (void)f_close(&sdb_src.f);
@@ -122,7 +123,7 @@ static int sdb_src_next(const sdb_t *b, sdb_item *it, FRESULT *r)
         it->ord = sdb_src.ord++;
         it->used = 0;
         it->dir = 0;
-        if (b->view == SDB_FOLDER) {
+        if (SDB_DIRLIKE(b->view)) {
             if ((*r = f_readdir(&sdb_src.d, &sdb_src.fi)) != FR_OK)
                 return -1;
             if (!sdb_src.fi.fname[0])
@@ -155,13 +156,53 @@ static int sdb_src_next(const sdb_t *b, sdb_item *it, FRESULT *r)
     }
 }
 
+/* a bank's slot number of a name: "NN - name" with NN 01 .. 16 -> NN, else 0 (the user, 2026-11-04: presets and
+ * projects in banks of 16, the number in the file's name the slot the FM-1 shows it on) */
+static uint32_t sdb_bank_no(const char *s)
+{
+    uint32_t nn;
+    if (s[0] < '0' || s[0] > '9' || s[1] < '0' || s[1] > '9' || s[2] != ' ' || s[3] != '-' || s[4] != ' ' || !s[5])
+        return 0;
+    nn = (uint32_t)(s[0] - '0') * 10u + (uint32_t)(s[1] - '0');
+    return nn >= 1u && nn <= SDB_KEYS ? nn : 0u;
+}
+
+/* SDB_BANK: one folder of 16 numbered slots, slot NN - 1 the entry "NN - name" (the first of a number, in the folder's
+ * order); a free number an empty slot (name ""); anything without a number not shown (b->total counts what is). A bank
+ * not made yet: 16 free slots */
+static FRESULT sdb_bank_fill(sdb_t *b)
+{
+    sdb_item it;
+    FRESULT r = sdb_src_open(b);
+    uint32_t nn, total = 0;
+    int st;
+    memset(b->slot, 0, sizeof b->slot);
+    if (r == FR_NO_PATH || r == FR_NO_FILE) {
+        b->n = SDB_KEYS, b->total = 0, b->pages = 1;
+        return FR_OK;
+    }
+    while (r == FR_OK && (st = sdb_src_next(b, &it, &r)) > 0)
+        if ((nn = sdb_bank_no(it.name)) != 0 && !b->slot[nn - 1u].name[0]) {
+            b->slot[nn - 1u] = it;
+            total++;
+        }
+    sdb_src_close(b);
+    b->n = SDB_KEYS;
+    b->total = total;
+    b->pages = 1;
+    return r;
+}
+
 /* one pass: the page after `after` (the 16 first past it), or before `before` (the 16 last before it), or the first */
 static FRESULT sdb_fill(sdb_t *b, const sdb_item *after, const sdb_item *before)
 {
     sdb_item it;
-    FRESULT r = sdb_src_open(b);
+    FRESULT r;
     uint32_t n = 0, i, total = 0;
     int st;
+    if (b->view == SDB_BANK)
+        return sdb_bank_fill(b);
+    r = sdb_src_open(b);
     if (r == FR_NO_FILE && b->view == SDB_RECENT)
         r = FR_OK;
     while (r == FR_OK && (st = sdb_src_next(b, &it, &r)) > 0) {
@@ -231,7 +272,9 @@ static uint32_t sdb_path(sdb_t *b, uint32_t k, char *out, uint32_t cap)
     int st;
     if (k >= b->n)
         return 0;
-    if (b->view == SDB_FOLDER && !b->slot[k].cut) {
+    if (b->view == SDB_BANK && !b->slot[k].name[0])
+        return 0;                                    /* (a bank's free slot) */
+    if (SDB_DIRLIKE(b->view) && !b->slot[k].cut) {
         n = sdl_cat(out, 0, cap, b->root);
         n = sdl_cat(out, n, cap, "/");
         n = sdl_cat(out, n, cap, b->slot[k].name);
@@ -242,7 +285,7 @@ static uint32_t sdb_path(sdb_t *b, uint32_t k, char *out, uint32_t cap)
     while ((st = sdb_src_next(b, &it, &r)) > 0 && it.ord < b->slot[k].ord)
         ;
     if (st > 0 && it.ord == b->slot[k].ord && !sdl_cmp(it.name, b->slot[k].name)) {
-        if (b->view == SDB_FOLDER) {
+        if (SDB_DIRLIKE(b->view)) {
             n = sdl_cat(out, 0, cap, b->root);
             n = sdl_cat(out, n, cap, "/");
             n = sdl_cat(out, n, cap, sdb_src.fi.fname);
@@ -273,8 +316,8 @@ static FRESULT sdb_up(sdb_t *b)
     for (; b->root[n]; n++)
         if (b->root[n] == '/')
             cut = n;
-    if (b->view != SDB_FOLDER || !cut)
-        return FR_NO_PATH;                           /* ("OPTIMIST": the top) */
+    if (!SDB_DIRLIKE(b->view) || !cut)
+        return FR_NO_PATH;                           /* ("Optimist": the top) */
     b->root[cut] = 0;
     return sdb_open(b, SDB_FOLDER, b->root);
 }
