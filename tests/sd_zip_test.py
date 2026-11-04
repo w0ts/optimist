@@ -104,6 +104,13 @@ def main(out):
               own == 3 and [nm for _, _, nm in fm6[own:]] == want_pk)
         print("presets per engine: " + ", ".join(f"{e} {len(v)}" for e, v in sorted(by.items())) +
               f"; {len(pre)} in all")
+        kit = sorted((ord(m.group(1)) - 65) * 16 + int(m.group(2)) - 1 for n in files
+                     if (m := re.match(r"Optimist/Kits/Factory/([A-Z])/(\d\d) - .+\.opk$", n)))
+        check(f"the factory kits: {len(kit)} files, Kits/Factory/<L>/<nn> - <name>.opk numbered 0 .. n - 1 with no gap, "
+              "each a card kit file (\"OPKT\"; their count and names against drums.c's: sd_factory_test --kits)",
+              len(kit) > 40 and kit == list(range(len(kit))) and
+              all(f.read(n)[:4] == b"OPKT" for n in files if n.startswith("Optimist/Kits/Factory/")) and
+              len(kit) == len([n for n in files if n.startswith("Optimist/Kits/")]))
         heads = [f.read(n)[:4] for n in files if n.startswith("Optimist/Presets/Factory/")]
         check("each a card preset file (\"OPPR\")", heads and all(h == b"OPPR" for h in heads))
         readme = f.read("Optimist/readme.txt").decode()

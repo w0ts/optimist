@@ -377,7 +377,7 @@ static void sdc_bank_say(void)                          /* "BANK C" */
 static void sdc_bank_key(uint32_t kind, uint32_t b)
 {
     uint32_t l = sdc_list_of(kind);
-    if (!sdm_ready() || (l != SDC_PROJ && l != SDC_PRE) || b > 10u || op_armed())
+    if (!sdm_ready() || l >= SDC_SMP || b > 10u || op_armed())
         return;
     sdc_sync(l);
     if (sdm_bank_go(b)) {

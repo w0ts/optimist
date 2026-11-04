@@ -35,6 +35,11 @@ static uint8_t settings_later;
 static uint8_t sync_reload;
 #include "../firmware/src/core/model.c"           /* apply_preset_to: a preset as the device applies it */
 #include "../firmware/src/storage/upreset.c"
+static uint8_t uk_tmp[4096] __attribute__((aligned(4)));   /* (drum_kits.c's bank scratch: the host's own) */
+#define UK_TMP ((ukit_bank_t *)(void *)uk_tmp)
+#define UK_HOST 1                                /* (no project store here: the host's bank, as tests/defproj_test.c) */
+#define MISS_BUMP() ((void)0)                    /* (the MISSING warning: the device's, not the generator's) */
+#include "../firmware/src/drums/drum_kits.c"      /* ukit_card_take: a kit as the card's kit file (UK_CARD_ON) */
 #include "../firmware/src/storage/sd/fatfs/ff.h"         /* (sd_hash.c's WAV reader names FatFs; unused here) */
 #include "../firmware/src/storage/sd/sd_hash.c"
 #include "../firmware/src/storage/sd/sd_names.h"        /* the engines' folders: the firmware's own names */
@@ -46,14 +51,14 @@ typedef struct {                                 /* sd_mode.c sdm_fh */
     uint64_t hash;
 } card_fh;
 
-static int put(const char *path, const uint8_t *p, uint32_t n)
+static int put(const char *path, const char *magic, const uint8_t *p, uint32_t n)
 {
     card_fh h;
     sdh_t s;
     FILE *f = fopen(path, "wb");
     if (!f)
         return -1;
-    memcpy(h.magic, "OPPR", 4);
+    memcpy(h.magic, magic, 4);
     h.ver = 1;
     h.len = (uint16_t)n;
     sdh_init(&s);
@@ -128,6 +133,8 @@ static void extra_apply(const engine_t *E, uint32_t j, char *nm, uint32_t cap)
 #endif
 }
 
+static int kits(const char *out);
+
 int main(int argc, char **argv)
 {
     static uint8_t rec[sizeof(up_rec_t) + UP_CARD_FM6];
@@ -169,7 +176,7 @@ int main(int argc, char **argv)
             snprintf(bank, sizeof bank, "%s/%c", dir, (char)('A' + pi / 16u));   /* (banks of 16: B/03 is 18) */
             mkdirs(bank);
             snprintf(path, sizeof path, "%s/%02u - %s.ops", bank, pi % 16u + 1u, lower(nm));
-            if (put(path, rec, n)) {
+            if (put(path, "OPPR", rec, n)) {
                 fprintf(stderr, "sd_factory: %s: not written\n", path);
                 return 1;
             }
@@ -178,5 +185,37 @@ int main(int argc, char **argv)
         total += E->npresets + extras(E);
     }
     printf("total %u\n", total);
+    return kits(argv[1]);
+}
+
+/* the factory kits as kit files (the user, 2026-11-04: "the factory kits go on the card like presets"): every kit UID in
+ * the firmware's order (drums.c: the sampled kits, the 32 synthesised, X0X's 909 and 808 and their styles, KAWA,
+ * PLAITS: every one built in here), 16 a bank, as SD card mode's kit files ("OPKT", sd_mode.c sdm_small_put):
+ *   <out>/Optimist/Kits/Factory/<L>/<nn> - <name>.opk
+ * Each is the kit picked on fresh lanes (dsnd_desc.c dl_reset_lanes, then the kit: what the kit list plays) taken as a
+ * user kit is (drum_kits.c ukit_card_take: the lanes, their sources by reference to the built-in drum sounds, the
+ * sends). A build without a kit's drum source plays its stand-in (drums.c drum_kit_of), as for a project */
+static int kits(const char *out)
+{
+    static uint8_t rec[UK_CARD_N];
+    char bank[440], path[512], nm[16];
+    uint32_t k, n;
+    for (k = 0; k < DRUM_KITS; k++) {
+        memset(&dl, 0, sizeof dl);
+        memset(dsend, 0, sizeof dsend);
+        TDRUM->p[P_E0] = (int16_t)k;
+        dl_e0 = (int16_t)k;
+        n = ukit_card_take(rec);
+        str_cpy(nm, DRUM_KIT_NAMES[k], sizeof nm);
+        clean(nm);
+        snprintf(bank, sizeof bank, "%s/Optimist/Kits/Factory/%c", out, (char)('A' + k / 16u));
+        mkdirs(bank);
+        snprintf(path, sizeof path, "%s/%02u - %s.opk", bank, k % 16u + 1u, lower(nm));
+        if (n != UK_CARD_N || put(path, "OPKT", rec, n)) {
+            fprintf(stderr, "sd_factory: %s: not written\n", path);
+            return 1;
+        }
+    }
+    printf("kits %u\n", (unsigned)DRUM_KITS);
     return 0;
 }

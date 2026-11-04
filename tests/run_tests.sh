@@ -1537,7 +1537,7 @@ job; ( jobin   # the SD card (SDCARD): ChaN's driver + Petit FatFs, then full Fa
     $CC -O2 -Ifirmware/src -o "$OUT/sd_stream_test" tests/sd_stream_test.c $FF
     run "SD card streaming (SD_RING): voices read their samples from rings filled by short CMD18 runs between the screen's strips, the audio an interrupt in the middle of the runs: 8 / 16 bits, mono / stereo, 22.05 / 44.1 / 48 kHz, contiguous and fragmented files, every sample the file's; a card busy 150 ms at a note's start (a 50 ms pre-buffer dry and faded, 200 ms covers it), a stall while playing (the ring covers 60 ms, not 250), the screen drawing through both; loops, a sample whole in its head, notes started again from the interrupt, a CRC failing once, the card pulled, a voice gone, more voices than rings, too much for the bus" "$OUT/sd_stream_test" "$OUT/sd_fat16.img" "$OUT/sd_fat32.img"
     SDF_ENG=$(grep -oE "X\([0-9]+, [A-Z0-9_]+," firmware/src/core/registry.h | awk '{print $2}' | tr -d ',' | sort -u | grep -v SQUARE | sed 's/^/-DFELUCCA_ENG_/; s/$/=1/' | tr '\n' ' ')
-    $CC -O1 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_FLASH=1 -DUP_CARD_ON=1 $SDF_ENG $FM6_PACKS_ON -o "$OUT/sd_factory_test" tests/sd_factory_test.c -lm
+    $CC -O1 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_FLASH=1 -DUP_CARD_ON=1 -DUK_CARD_ON=1 $SDF_ENG $FM6_PACKS_ON -o "$OUT/sd_factory_test" tests/sd_factory_test.c -lm
     run "the SD card zip's factory presets (tools/sd_factory.c): every engine's every preset and FM6's 80 pack voices (after its own) applied, taken as the card's record and loaded back into another sound: every value the same, FM6's voice too" "$OUT/sd_factory_test"
     $CC -O2 -Ifirmware/src -o "$OUT/sd_wr_test" tests/sd_wr_test.c
     run "SD card's polled multi-block writer (CMD25, the recorder's): 64 blocks by bytes and by DMA on SDHC and SDSC with the screen's bytes between them (the card deselected: the write stays open), nothing sent while busy, a 150 ms stall polled through, 600 ms: an error and the abort, a power cut" "$OUT/sd_wr_test"
@@ -1564,8 +1564,12 @@ job; ( jobin   # the SD card (SDCARD): ChaN's driver + Petit FatFs, then full Fa
     rm -f "$OUT/sd_grain.img"
     run "the SD card zip: everything whatever the ticks (every set's zones under Optimist/Samples/<Set>/, the generator's files; every factory preset under Presets/Factory/<Engine>/<L>/<nn> - <name>.ops, 16 a bank, FM6's 80 pack voices after its own, counted against its packs), folders capitalised and files lowercase, the engines' folders sd_names.h's and the rule, the cache" python3 tests/sd_zip_test.py "$OUT/sd_zip"
     rm -rf "$OUT/sd_zip/card" && python3 -m zipfile -e "$OUT/sd_zip/optimist-sd-card.zip" "$OUT/sd_zip/card"
-    $CC -O1 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_FLASH=1 -DUP_CARD_ON=1 $SDF_ENG -o "$OUT/sd_factory_nopk_test" tests/sd_factory_test.c -lm
+    $CC -O1 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_FLASH=1 -DUP_CARD_ON=1 -DUK_CARD_ON=1 $SDF_ENG -o "$OUT/sd_factory_nopk_test" tests/sd_factory_test.c -lm
     run "the zip's FM6 files in a build without FM6's packs: each loads with its own voice bytes, never a pack the build lacks" "$OUT/sd_factory_nopk_test" "$OUT"/sd_zip/card/Optimist/Presets/Factory/FM6/*/*.ops
+    $CC -O1 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_FLASH=1 -DUP_CARD_ON=1 -DUK_CARD_ON=1 $SDF_ENG $X0X_ON -o "$OUT/sd_kits_test" tests/sd_factory_test.c -lm
+    run "the zip's factory kits (every drum source built): one a kit UID, named as the kit list does, each loaded from its file plays as the flash's kit, every lane's hit sample for sample" "$OUT/sd_kits_test" --kits "$OUT"/sd_zip/card/Optimist/Kits/Factory/*/*.opk
+    $CC -O1 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_FLASH=1 -DUP_CARD_ON=1 -DUK_CARD_ON=1 $SDF_ENG $X0X_ON -DFELUCCA_X909_CYM=0 -DFELUCCA_DRUM_SAMPLED=0 -DFELUCCA_KIT_ACOUSTIC=0 -DFELUCCA_KIT_DEEP=0 -DFELUCCA_KIT_TIGHT=0 -DFELUCCA_KIT_BRIGHT=0 -DFELUCCA_KIT_DUST=0 -o "$OUT/sd_kits_sdcm_test" tests/sd_factory_test.c -lm
+    run "the zip's factory kits in sd-card-mots' drums (no sampled kits, no 909 cymbals): a kit the build lacks plays the same stand-in from its file as flash mode's" "$OUT/sd_kits_sdcm_test" --kits "$OUT"/sd_zip/card/Optimist/Kits/Factory/*/*.opk
 ) >"$U.out" 2>&1 & jobbg
 # the screen mirrored (ED_MIRROR, io/editor/ed_mirror.c): the stream through a stand-in USB ring decoded back to the panel after
 # every write, a stalled host, the keep-alive; then the Optimist UI's whole run through the encoder, the decoded screen its own

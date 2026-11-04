@@ -4,8 +4,10 @@
  * taken as the card's record (up_card_take), then loaded back into a part on another sound (up_card_give, as
  * sdm_factory_poll does): every value of the sound the same, an FM6 voice too; the FM6 packs' voices too (numbered on
  * after FM6's own presets, sd_factory.c extras). With FILEs (a build without the packs: the zip's FM6 files): each
- * loads with its own voice bytes, never a pack the build does not have.
- *   sd_factory_test [FILE.ops ...] */
+ * loads with its own voice bytes, never a pack the build does not have. With --kits and the zip's factory kits (every
+ * drum source built): one a kit UID, named as the kit list does, each loaded as SD card mode does playing as the
+ * flash's kit, every lane's hit sample for sample.
+ *   sd_factory_test [FILE.ops ...]   sd_factory_test --kits FILE.opk ...   (FELUCCA_DRUM_X909 / X808 on) */
 #define main hostsim_main
 #include "../tests/hostsim.c"
 #undef main
@@ -31,6 +33,12 @@ static uint8_t settings_later;
 static uint8_t sync_reload;
 #include "../firmware/src/core/model.c"           /* apply_preset_to: a preset as the device applies it */
 #include "../firmware/src/storage/upreset.c"
+static uint8_t uk_tmp[4096] __attribute__((aligned(4)));   /* (drum_kits.c's bank scratch: the host's own) */
+#define UK_TMP ((ukit_bank_t *)(void *)uk_tmp)
+#define UK_HOST 1
+#define MISS_BUMP() ((void)0)
+#include "../firmware/src/drums/drum_kits.c"      /* ukit_card_take / ukit_card_give (UK_CARD_ON) */
+#include <ctype.h>
 #include "../firmware/src/storage/sd/fatfs/ff.h"         /* (sd_hash.c's WAV reader names FatFs; unused here) */
 #include "../firmware/src/storage/sd/sd_hash.c"
 
@@ -109,6 +117,114 @@ static uint32_t files_mode(int argc, char **argv)
 #endif
 }
 
+/* KITS mode (the zip's factory kits, Optimist/Kits/Factory/<L>/*.opk, in order; every drum source built): one file a
+ * kit UID, named as the kit list names it, and each kit loaded from its file (sd_mode.c: ukit_card_give, as SD card mode
+ * loads a kit) plays as the kit picked in flash mode (fresh lanes, the kit: dsnd_desc.c dl_reset_lanes, dl_kit_set):
+ * every lane's hit rendered, sample for sample */
+#define KT_N (FS / 4u)                                 /* a hit: 250 ms */
+static int32_t kt_a[DRUM_LANES][KT_N], kt_b[DRUM_LANES][KT_N];
+static void kit_render(int32_t (*o)[KT_N])
+{
+    uint32_t l, j;
+    int32_t r[CTL], rv[CTL];
+    for (l = 0; l < DRUM_LANES; l++) {
+        memset(&drums, 0, sizeof drums);
+        drums_set = -2;
+        song.g[G_DRLVL] = 100;
+        drum_on(DLANE_NOTE(l), 110);
+        for (j = 0; j + CTL <= KT_N; j += CTL) {
+            memset(&o[l][j], 0, CTL * sizeof o[l][0]), memset(r, 0, sizeof r), memset(rv, 0, sizeof rv);
+            drums_render(&o[l][j], r, rv, CTL);
+        }
+    }
+}
+/* kit k's hits into o, rendered in a child process of this one (so both ways start from the same state of the drum
+ * machines, X0X's and KAWA's filters among it): way 0 the kit picked on fresh lanes as flash mode does (dsnd_desc.c
+ * dl_reset_lanes, dl_kit_set); else the payload rec loaded over another kit as SD card mode does (ukit_card_give).
+ * 0 rendered */
+static int kit_way(int32_t (*o)[KT_N], uint32_t k, const uint8_t *rec)
+{
+    int fd[2], st = 0;
+    size_t got = 0;
+    ssize_t r;
+    pid_t pid;
+    if (pipe(fd))
+        return -1;
+    if ((pid = fork()) == 0) {
+        close(fd[0]);
+        memset(&dl, 0, sizeof dl);
+        memset(dsend, 0, sizeof dsend);
+        TDRUM->p[P_E0] = (int16_t)(rec ? (k ? 0u : 1u) : k);
+        dl_e0 = TDRUM->p[P_E0];
+        if (rec && ukit_card_give(rec, UK_CARD_N))
+            _exit(1);
+        kit_render(o);
+        for (got = 0; got < sizeof kt_a; got += (size_t)r)
+            if ((r = write(fd[1], (const char *)o + got, sizeof kt_a - got)) <= 0)
+                _exit(1);
+        _exit(0);
+    }
+    close(fd[1]);
+    while (pid > 0 && got < sizeof kt_a && (r = read(fd[0], (char *)o + got, sizeof kt_a - got)) > 0)
+        got += (size_t)r;
+    close(fd[0]);
+    if (pid > 0)
+        waitpid(pid, &st, 0);
+    return pid > 0 && got == sizeof kt_a && WIFEXITED(st) && !WEXITSTATUS(st) ? 0 : -1;
+}
+static int kits_mode(int argc, char **argv)
+{
+    static uint8_t f[512];
+    uint32_t k, n = 0, silent = 0;
+    char want[64], nm[16];
+    for (k = 0; (int)k + 2 < argc && k < 255u; k++) {
+        const char *p = argv[k + 2], *b = strrchr(p, '/') ? strrchr(p, '/') + 1 : p;
+        FILE *fp = fopen(p, "rb");
+        size_t got = fp ? fread(f, 1, sizeof f, fp) : 0;
+        uint32_t i;
+        int64_t e = 0;
+        if (fp)
+            fclose(fp);
+        str_cpy(nm, k < DRUM_KITS ? DRUM_KIT_NAMES[k] : "?", sizeof nm);
+        for (i = 0; nm[i]; i++)
+            nm[i] = (char)tolower((unsigned char)nm[i]);
+        snprintf(want, sizeof want, "%02u - %s.opk", (unsigned)(k % 16u + 1u), nm);
+        if (k >= DRUM_KITS || strcmp(b, want) || p[strlen(p) - strlen(b) - 2] != (char)('A' + k / 16u)) {
+            printf("FAIL %s: kit %u is %c/%s\n", p, k, 'A' + k / 16u, want);
+            bad++;
+            continue;
+        }
+        if (got != 16u + UK_CARD_N || memcmp(f, "OPKT", 4)) {
+            printf("FAIL %s: not a kit file (%zu B)\n", p, got);
+            bad++;
+            continue;
+        }
+        if (kit_way(kt_a, k, 0) || kit_way(kt_b, k, f + 16u)) {   /* flash mode, then SD card mode */
+            printf("FAIL %s: not loaded\n", p);
+            bad++;
+            continue;
+        }
+        for (i = 0; i < DRUM_LANES; i++) {
+            uint32_t j;
+            for (j = 0; j < KT_N; j++)
+                e += kt_a[i][j] < 0 ? -kt_a[i][j] : kt_a[i][j];
+        }
+        silent += !e;
+        if (memcmp(kt_a, kt_b, sizeof kt_a)) {
+            printf("FAIL %s: kit %u (%s) from the card does not play as the flash's\n", p, k, DRUM_KIT_NAMES[k]);
+            bad++;
+        }
+        n++;
+    }
+    if (n != DRUM_KITS || silent) {
+        printf("FAIL kits: %u files of %u kits, %u silent\n", n, (unsigned)DRUM_KITS, silent);
+        bad++;
+    }
+    printf("sd factory test: %u factory kits (of %u) from the card, every lane's hit as the flash's, %u failed\n", n,
+           (unsigned)DRUM_KITS, bad);
+    return bad != 0;
+}
+
 int main(int argc, char **argv)
 {
     static uint8_t rec[sizeof(up_rec_t) + UP_CARD_FM6];
@@ -117,6 +233,8 @@ int main(int argc, char **argv)
     char nm[16];
     host_tracks_init();
     song.sel = 0;
+    if (argc > 1 && !strcmp(argv[1], "--kits"))
+        return kits_mode(argc, argv);
     if (argc > 1)
         return files_mode(argc, argv) < 80u || bad != 0;   /* (the 3 own and the 80 packs' at least) */
     for (e = 0; e < NENGINES; e++)

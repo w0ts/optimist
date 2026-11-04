@@ -398,17 +398,53 @@ static void sdcard_tests(void)
     /* ---- KITS */
 #if FELUCCA_DRUM_KITS
     sdu_row(PR_CKIT);
+    check(sdc_listing() && !sdu_used() && !strcmp(sdu_label(0), "BANK") && !strcmp(sdu_val(0), "A"),
+          "KITS: in banks of 16, Kits/User bank A, empty");
     dl.ofs[0][0] = 7;
     sdu_op(SDO_SAVE);
     sdu_key(0);
     sdu_name("ROOM KIT");
-    check(sdu_has("Optimist/Kits/room kit.opk"), "KITS: room kit.opk written (the name lowercase)");
+    check(sdu_has("Optimist/Kits/User/A/01 - room kit.opk"), "KITS: Kits/User/A/01 - room kit.opk written (the name lowercase)");
     dl.ofs[0][0] = 0;
     sdu_frames(1);
+    check(sdu_used() == 1u && !strcmp(sdc_name(0), "ROOM KIT"), "KITS: ROOM KIT on slot 1");
     sdu_op(SDO_LOAD);
     sdu_key(0);
     tap(B_SAVE);
     check(dl.ofs[0][0] == 7 && sdu_msg("LOADED"), "LOAD ROOM KIT: the lanes back");
+    {   /* a factory kit: Kits/Factory/<L>/<nn> - <name>.opk (the zip's), browsed and loaded as a user kit is */
+        uint8_t kit[UK_CARD_N];
+        uint32_t i;
+        dl.ofs[1][0] = 5;
+        TDRUM->p[P_E0] = 6;
+        (void)ukit_card_take(kit);
+        dl.ofs[1][0] = 0;
+        f_mkdir("Optimist/Kits/Factory/A");
+        check(sdm_small_put("Optimist/Kits/Factory/A/07 - 909.opk", "OPKT", kit, sizeof kit) == FR_OK,
+              "KITS: a factory kit file (the zip's)");
+        for (i = 0; i < 3u && !sdm_at_top(); i++) {
+            tap(B_HOME);                                /* (up from Kits/User/A to Kits/) */
+            sdu_frames(40);
+        }
+        for (i = 0; i < sdm_count() && strcmp(sdc_name(i), "FACTORY"); i++)
+            ;
+        sdu_key(i);
+        sdu_frames(1);
+        sdu_key(0);
+        sdu_frames(1);
+        check(!strcmp(sdu_val(0), "A") && sdu_used() == 1u && !strcmp(sdc_name(6), "909"),
+              "KITS: Factory, bank A: 909 on slot 7");
+        sdu_black(1);
+        check(!strcmp(sdu_val(0), "B") && !sdu_used(), "KITS: black key 2: Factory's bank B");
+        sdu_black(0);
+        TDRUM->p[P_E0] = 0;
+        sdu_op(SDO_LOAD);
+        sdu_key(6);
+        tap(B_SAVE);
+        sdu_frames(1);
+        check(TDRUM->p[P_E0] == 6 && dl.ofs[1][0] == 5 && sdu_msg("LOADED 909"), "LOAD 909: the kit and its lanes");
+        dl.ofs[1][0] = 0;
+    }
 #endif
     /* ---- SAMPLES: folders, USE by hash, RECENT */
     sdu_row(PR_CSMP);

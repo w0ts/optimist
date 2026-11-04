@@ -203,7 +203,10 @@ static int ukit_store(uint32_t u)
     }
 }
 
-#if FELUCCA_SD_UI
+#ifndef UK_CARD_ON
+#define UK_CARD_ON FELUCCA_SD_UI                         /* the card's kits (SD card mode; tools/sd_factory.c sets it alone) */
+#endif
+#if UK_CARD_ON
 /* SD card mode (storage/sd/sd_mode.c): a kit file's payload, a kit (ukit_t, as a slot of the bank) and its lanes' sends
  * (DRUM_LANES words). ukit_card_take: the project's lanes -> out (UK_CARD_N bytes), as ukit_store makes a slot;
  * ukit_card_give: a payload (n bytes) into the project's lanes and kit, as ukit_load: 0 done, -1 not a kit */
