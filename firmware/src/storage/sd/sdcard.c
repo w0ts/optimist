@@ -160,6 +160,9 @@ static uint32_t sd_mount_modes(uint32_t tries)
 {
     FRESULT r = FR_NOT_READY;
     uint32_t i, m0 = fm1_sd_mode;
+#if FELUCCA_SD_FATFS
+    sdx_pass_cancel();                               /* (its open files are the old mount's) */
+#endif
     SD_CLOCK_RESET();
     for (i = 0; i < tries && r == FR_NOT_READY; i++) {   /* the set mode first, then the others */
         fm1_sd_mode = (uint8_t)((m0 + i) % 3u);

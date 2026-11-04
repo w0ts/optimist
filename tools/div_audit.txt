@@ -364,3 +364,5 @@ src/io/editor/ed_mirror.c:mbr_lag:dt | inside "if (dt >= MIR_LAG_WIN_MS)" (250):
 hal/fm1_sd_clock.h:-:(FM1_SD_STEP_BAUD[k]+1u) | 1 + a const uint8_t table entry (FM1_SD_STEP_BAUD, the SPI1 BAUD of each clock step: 1 .. 9): 2 .. 10, never 0
 src/io/console_sd.c:con_sd_row:(baud+1u) | 1 + a BAUD value its callers take from uint8_t tables (FM1_SD_BAUD_FAST, SD_BAUD(): a step's FM1_SD_STEP_BAUD; NB): 1 .. 256, never 0
 src/storage/sd/sd_mmc.c:sd_clk_pass:sd_sectors | the card's capacity in sectors: sd_clock_probe returns before its first sd_clk_pass when !sd_sectors (an SDv1 / MMC card, bit-bang, no capacity read), and the later passes run inside that walk only: never 0
+src/storage/sd/sd_index.c:sdx_pass_pct:sdxp.cap | the new index's records: read only when sdxp.cap is non-zero (the condition just before it)
+src/storage/sd/sd_index.c:sdx_u_scan:sdxp.oldn | the old index's records: SDXP_SCAN is entered only with sdxp.oldn non-zero (sdx_u_walk)

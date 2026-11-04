@@ -744,6 +744,23 @@ presets for all devices".
   (`sdl_prepare`, at a mount).
 - **The index** (`sd_index.c`): 256-byte records, a pass that hashes only new and changed files, `sdx_note_written`
   for the FM-1's own writes, the recent view's use numbers; rewritten to `index.tmp` and renamed.
+  **The pass runs in slices across main-loop passes** (2026-11-04: one pass in one frame froze the FM-1 for 10 s and the
+  second core's starve check, 1.5 s, took it down to OVERLOAD): `sdx_pass_step` runs units (a directory entry, an old
+  record, an `f_open`, a 512-byte chunk of a sample's hash, a record written) for 8 ms, at most every 16 ms
+  (`SDM_IX_SLICE_MS`); the unit that ends a slice runs over, ~20 ms a pass in all. The card stays usable meanwhile: the
+  lists and lookups read the old index. Whoever needs the whole index waits: a project's presets and kit are looked up
+  once the pass ends (never a false MISSING), the streams' plan looks up again then, and `NOT ON CARD` is not said
+  meanwhile. A file the FM-1 writes mid-pass drops the pass and starts it again; a use mid-pass is not kept in the
+  recent view; a recording holds the pass (no other command while its CMD25 is open); a card pulled cancels it, and
+  `index.bin` is only ever replaced by a whole pass. SYSTEM > SD CARD's SAMPLES line says how far (`INDEX 12 %`).
+  The factory preset names follow, an engine a pass. A mount of an unchanged card walks nothing: the pass leaves FSINFO's
+  free count and next-free hint in the index's header record (`sdx_sig_t`, outside its check, so older indexes and
+  builds are unaffected), and a mount that finds them equal skips the pass. Any new chain written elsewhere moves them; so
+  do the FM-1's own later writes (a walk at the next mount, in slices, the hashes kept). A file overwritten in place
+  by a computer does not: SAMPLES INDEX forces the walk. FAT16 has no FSINFO and always walks. On the model
+  (`tests/sd_index_pass_test.c`, the 0.3 zip's 449 files, 1.66 MB, 512-byte clusters) a first pass costs 8.0 s of
+  card time at 840 KB/s, ~17 s in slices with the screen and audio sharing the bus; a walk with the hashes kept ~3 s
+  of card time; the real card's 32 KB clusters read fewer FAT sectors. Not measured on an FM-1.
 - **The 16-key pages** (`sd_browse.c`): views folder / by name / recent; the UI needs a page that draws `slot[0..n-1]`
   (name, folder mark, cut mark), the page number of `pages`, the view; the knob `sdb_turn(+-1)`, a key `sdb_path` (or
   `sdb_into` for a folder), a way up (`sdb_up`) and a view switch; every list (projects, samples, kits, presets) is a

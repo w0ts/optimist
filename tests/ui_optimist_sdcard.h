@@ -491,7 +491,7 @@ static void sdcard_tests(void)
         check(f_rename(from, to) == FR_OK && f_rename("Optimist/Kits/Factory/A/07 - 909 (renamed, 808).opk",
                                                       "Optimist/Kits/User/C/05 - my 909 (909).opk") == FR_OK,
               "ids: BASS moved to bank C and renamed, 909 moved from Factory to User and renamed (a computer's moves)");
-        check(sdx_update(sd_blk, sizeof sd_blk, 0, 0) == FR_OK, "ids: the index's pass (a mount's)");
+        check(sdx_update(sd_blk, sizeof sd_blk) == FR_OK, "ids: the index's pass (a mount's)");
         ui.msg[0] = 0;
         sdm_ref_check = 1;
         sdm_poll();
@@ -505,7 +505,7 @@ static void sdcard_tests(void)
                   f_open(&b, from, FA_CREATE_ALWAYS | FA_WRITE) == FR_OK && f_write(&b, cp, k1, &k2) == FR_OK &&
                   k2 == k1 && f_close(&b) == FR_OK, "ids: BASS copied on a computer (the same id twice)");
         str_cpy(sdm_ref[song.sel].hint, "Presets/gone.ops", sizeof sdm_ref[song.sel].hint);
-        sdx_update(sd_blk, sizeof sd_blk, 0, 0);
+        sdx_update(sd_blk, sizeof sd_blk);
         ui.msg[0] = 0;
         sdm_ref_check = 1;
         sdm_poll();
@@ -514,7 +514,7 @@ static void sdcard_tests(void)
               "ids: a copied file: the first found, SAME ID TWICE said");
         f_unlink(to);
         f_unlink(from);
-        sdx_update(sd_blk, sizeof sd_blk, 0, 0);
+        sdx_update(sd_blk, sizeof sd_blk);
         ui.msg[0] = 0;
         sdm_ref_check = 1;
         sdm_poll();
