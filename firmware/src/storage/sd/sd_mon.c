@@ -66,7 +66,7 @@ static void ssm_streams(uint32_t *n, uint32_t *fill)   /* streams sounding; the 
         if (st->pgen != st->gen || st->done)         /* (not seen by the main loop yet, or all of it in the head / read) */
             continue;
         slots = st->wr > st->rd ? st->wr - st->rd : 0u;
-        slots = slots * 100u / SST_K;
+        slots = slots * 100u / sst_k;
         if (slots < lo)
             lo = slots > 100u ? 100u : slots;
     }

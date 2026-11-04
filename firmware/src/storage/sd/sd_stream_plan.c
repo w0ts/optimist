@@ -34,7 +34,7 @@
  * The DRUMS' card sounds (SD card mode: registry.h KITS_CARD, X909_CARD): the sampled kits' sounds the lanes play
  * (SST_KIT_WANT(): a mask of drums/kit_card.c KC_FILE, Optimist/Samples/Kits/Acoustic/<nn> - <name>.wav) and the 909's
  * hh, crash, ride (SST_X9_WANT(), Samples/X0X/909/), found by path as a set's zones, their heads at most SST_KIT_PRE_MS
- * (a hit starts at once from it, the ring follows), SST_KIT_RINGS rings (no room: fewer, down to SST_KIT_RINGS_MIN) for the kit's hits and SST_X9_RINGS for the
+ * (a hit starts at once from it, the ring follows), SST_KIT_RINGS rings (no room: fewer, down to SST_KIT_RINGS_MIN, then shorter) for the kit's hits and SST_X9_RINGS for the
  * 909's; sst_kit_src / sst_x9_src (sd_stream.h) point the drums at them. One not on the card: kmiss / x9miss (sd_mode.c
  * says MISSING once), that sound silent.
  * A part on GRAIN or STRETCH with SRC CARD (SST_PART_FREE(p); the user, 2026-11-05): its own WAV, by its hash as a CARD
@@ -77,11 +77,15 @@
 #endif
 #ifndef SST_KIT_RINGS
 #define SST_KIT_RINGS 6u                             /* the kit's hits at once: a ring a drum voice (drums.c NDRUM); no room for them,
-                                                      * down to SST_KIT_RINGS_MIN (sst_place_rings). More hits: the oldest tail's
+                                                      * down to SST_KIT_RINGS_MIN, then shorter (sst_place_rings). More hits: the oldest tail's
                                                       * ring (drums/lane_card.c dlc_ring_free) */
 #endif
 #ifndef SST_KIT_RINGS_MIN
-#define SST_KIT_RINGS_MIN 3u
+#define SST_KIT_RINGS_MIN 5u                         /* (the user, 2026-11-05: "i would say 5 is min") */
+#endif
+#ifndef SST_RING_MIN_K
+#define SST_RING_MIN_K 8u                            /* the rings shortened to 4 KB at most ("or we can use shorter ring"): 46 ms of
+                                                      * 44.1 kHz mono */
 #endif
 #ifndef SST_X9_RINGS
 #define SST_X9_RINGS 2u                              /* the 909's hat and a cymbal at once */
@@ -304,7 +308,7 @@ static FRESULT sst_src_path(uint32_t i, char *path, uint32_t cap)
 static uint32_t sst_need(uint32_t pre_ms)           /* the block at that setting: the rings, then each source */
 {
     static char path[SDX_PATH + 16];
-    uint32_t i, b, n = sstp.nring * SST_K * 512u + sst_cache_bytes(sstp.rc);
+    uint32_t i, b, n = sstp.nring * sst_k * 512u + sst_cache_bytes(sstp.rc);
     for (i = 0; i < sstp.nsrc; i++) {
         if (sstp.rec[i] < 0 || sst_src_path(i, path, sizeof path) != FR_OK)
             continue;
@@ -479,7 +483,7 @@ static void sst_load_all(uint8_t *mem)               /* the rings, then each sou
 {
     static char path[SDX_PATH + 16];
     static const void *tab[SST_NSRC];
-    uint32_t i, p, at = sstp.nring * SST_K * 512u, used;
+    uint32_t i, p, at = sstp.nring * sst_k * 512u, used;
     sst_rings(mem, sstp.nring);
     for (p = 0; p < SST_NPART; p++)                  /* the caches after the rings */
         if (sstp.rc >> p & 1u) {
@@ -617,11 +621,19 @@ static void sst_free_pick(void)
     }
 }
 
-static void sst_place_rings(void)                    /* no room for the kit's rings: fewer, down to SST_KIT_RINGS_MIN's count */
+/* a sampled kit with no room for its rings: 6 down to SST_KIT_RINGS_MIN, then every ring shorter, 2 KB a step down to
+ * SST_RING_MIN_K (a ring is a slot count for all: the streams share them). No room even then: refused, MEM FULL CARD */
+static void sst_place_rings(void)
 {
     uint32_t low = sst_nring_kit(SST_KIT_RINGS_MIN);
+    if (!sst_kit_want)
+        return;
     while (sstp.nring > low && !arn_fits(SST_ARN_K, sstp.need, 0)) {
         sstp.nring--;
+        sstp.need = sst_need(sst_pre_ms);
+    }
+    while (sst_k > SST_RING_MIN_K && !arn_fits(SST_ARN_K, sstp.need, 0)) {
+        sst_k = sst_k - 4u < SST_RING_MIN_K ? SST_RING_MIN_K : sst_k - 4u;
         sstp.need = sst_need(sst_pre_ms);
     }
 }
@@ -699,11 +711,12 @@ static void sst_plan_poll(void)
         fm1_irq_on();
         sst_lookup();
         sstp.nring = sstp.nring_want = (uint8_t)sst_nring();
+        sst_k = SST_K;
         sstp.rc = (uint8_t)sst_rcs_of();
         sst_free_pick();
         sstp.need = sst_need(sst_pre_ms);
         sst_place_rings();
-        sstp.kb = sstp.nsrc ? (sstp.need - sstp.nring * SST_K * 512u - sst_cache_bytes(sstp.rc) - sst_slice_need() + 1023u) / 1024u : 0u;
+        sstp.kb = sstp.nsrc ? (sstp.need - sstp.nring * sst_k * 512u - sst_cache_bytes(sstp.rc) - sst_slice_need() + 1023u) / 1024u : 0u;
         (void)sst_place();
         return;
     }
